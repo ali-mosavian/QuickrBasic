@@ -1777,8 +1777,9 @@ def cartwheel(f: int) -> Pic:
 
 
 def intro(k: int) -> list[tuple[int, Pic, bool, int]]:
-    """The intro's pictures from index k: the Downs' own, as its road is theirs."""
-    OWN[0].update(range(k, k + 28))
+    """The intro's pictures from index k: the Downs' own, as its road is theirs, but the van's: it bumps again on
+    every zone's road."""
+    OWN[0].update(range(k + 12, k + 28))
     return [
         (k, van(), True, -1),
         (k + 2, tyre(0), True, -1),

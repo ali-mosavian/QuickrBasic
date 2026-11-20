@@ -769,6 +769,46 @@ Sng = -1
 Muted = -1
 GoStage 0, g, p, lo(), pt()
 if was then print "tally ok"
+' between zones the van's bump again, on the next zone's road: after the Downs' evening's fade the works' road in
+' their dusk's colours, the van, the toolbox and a cat drawn, to four bars of their own that come in at once; then
+' the works' first act, the score and lives kept. A key skips it. The works began at once
+GoStage 1, g, p, lo(), pt()
+g.score = 1234
+g.mode = CLEARED
+g.bonus = 0
+MetT = 7
+for i = 1 to 200
+    Advance g, p, k, lo(), pt(), cu()
+    if g.mode = INTRO then exit for
+next
+was = g.mode = INTRO and Stage = SINTRO and Zone = 1 and SceneNext = 2 and ZHeld = BETWEEN + 1 and Dusk = 16
+was = was and Sudden%(g) and abs(g.modeT * BEATS - BUMP0) < 1 and ZPN(2) > 0 and Pal(ZPK(2, 0)) = ZPC(2, 0)
+for i = 1 to 12 * 30
+    Advance g, p, k, lo(), pt(), cu()
+    if (i mod 60) = 0 then IntroDraw g, p, cu()
+next
+was = was and g.mode = INTRO and abs(g.camx - 2140) < 1
+for i = 1 to 200
+    Advance g, p, k, lo(), pt(), cu()
+    if g.mode <> INTRO then exit for
+next
+was = was and i < 200 and g.mode = PLAYING and Stage = 2 and ZHeld = 5 and Dusk = 16 and g.score = 1234
+GoStage 3, g, p, lo(), pt()
+g.mode = CLEARED
+g.bonus = 0
+MetT = 7
+for i = 1 to 200
+    Advance g, p, k, lo(), pt(), cu()
+    if g.mode = INTRO then exit for
+next
+was = was and g.mode = INTRO and Zone = 2 and SceneNext = 4
+IntroDraw g, p, cu()
+k.hit = -1
+Advance g, p, k, lo(), pt(), cu()
+k.hit = 0
+was = was and g.mode = PLAYING and Stage = 4 and ZHeld = 7
+GoStage 0, g, p, lo(), pt()
+if was then print "bump ok"
 ' Saltwick Sands' sea rises and falls by the clock, from low water to high and back, and from low water at the
 ' level's start whatever the clock then: it began where the game's clock had it, a sunset's high water by chance
 GoStage 4, g, p, lo(), pt()
@@ -1272,9 +1312,9 @@ GoStage 1, g, p, lo(), pt()
 j = g.lives
 was = 0
 for m = 1 to NSTAGE - 1
-    for i = 1 to 2400
+    for i = 1 to 3000
         if Stage = m and g.mode = PLAYING then exit for
-        Tick g, p, k, lo(), pt()
+        Advance g, p, k, lo(), pt(), cu()
     next
     for i = 1 to 16000
         Pilot p, k
@@ -1528,6 +1568,7 @@ def main() -> None:
         ("packing ok", "after a chase the level's end is the longer one, twelve bars; the eight elsewhere"),
         ("over ok", "game over played by its own tune and held while it plays; then the title"),
         ("tally ok", "the level's end's bonus counted on its tune's beats, a step each, and all at once at a key"),
+        ("bump ok", "between zones the van's bump on the next zone's road, to its own bars; then that zone"),
         ("cart ok", "a chase's cart hurts Charlie run into it, is bumped by him curled, and not again while dazed"),
         ("chase ok", "the Downs' evening ended in its chase: the cart fled, broken by three bumps, its keepsake taken"),
         ("tilt ok", "on a slope the chase's cart follows it, each wheel on the ground under it"),

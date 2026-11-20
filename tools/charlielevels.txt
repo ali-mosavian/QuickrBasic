@@ -115,6 +115,7 @@ boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, pipe,5, flat,10
 goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 
 ' The intro's road: the Downs, flat, the way the van goes; a rock where it bumps.
+' Between zones it is the next zone's, the van bumping again.
 Level Road
 tune,Intro
 flat,6, dog,0, flat,24, tree,0, flat,30, tree,0, flat,28, tree,0, flat,30, tree,0, flat,25, rock,0

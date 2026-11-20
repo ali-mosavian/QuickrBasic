@@ -227,7 +227,9 @@ const ZNAMES = "AMBER DOWNS     CHROME WORKS    SALTWICK SANDS", SAVEMARK = 1128
 ' each zone's tune, its number in CHARLIE.DAT: a digit a zone
 ' The intro: BEATS a second, ILEN of them, the ground HORIZON down the screen between two bars BARH high. Its
 ' cues' kinds, in QNAMES' order, six letters a name.
-const BEATS = 2!, ILEN = 112, HORIZON = 150, BARH = 14, NCUE = 96
+const BEATS = 2!, ILEN = 112, HORIZON = 150, BARH = 14, NCUE = 112
+' Between zones the bump again: its cues' first beat and how many, its song's number in CHARLIE.DAT.
+const BUMP0 = 120, BUMPLEN = 16, BETWEEN = 12
 const QCAM = 1, QHOUSE = 2, QBOXES = 3, QCRATE = 4, QHEDGE = 5, QFAM = 6, QVAN = 7, QFLOAT = 8
 const QBARON = 9, QCAT = 10, QBASKET = 11, QEYES = 12, QHERO = 13, QWOOF = 14, QSND = 15
 const QNAMES = "cam   house boxes crate hedge fam   van   float baron cat   basketeyes  hero  woof  snd   "
@@ -296,6 +298,9 @@ declare sub Spent (k as Pad)
 declare sub ZoneTune (id as integer)
 declare sub SceneTune (id as integer)
 declare sub EndTune
+declare sub StartBump (g as Game, nxt as integer)
+declare sub DrawKeep (x as integer, y as integer)
+declare function Sudden% (g as Game)
 declare function EndBeat! (g as Game)
 declare sub Tally (g as Game, k as Pad)
 declare sub HushSong ()
@@ -328,6 +333,7 @@ declare sub Movers (p as Hero)
 declare function Swing! (m as integer, quarter as integer)
 declare sub GoStage (n as integer, g as Game, p as Hero, lo() as Loose, pt() as Part)
 declare function ZoneOf% (st as integer)
+declare function Plated% (k as integer)
 declare sub ReadPics ()
 declare sub LoadZoneArt (z as integer)
 declare sub SeekLevel (st as integer)
@@ -515,6 +521,8 @@ dim shared Coming as integer, ComingBar as integer, FadeOut as integer, FadeIn a
 dim shared Cart as Runner, Box as Runner, ChaseX as integer, ChaseEnd as integer
 ' the song in the zone's slot, one more than its number in CHARLIE.DAT: 0 before any
 dim shared ZHeld as integer, CHeld as integer, SongAt as long
+' The scene playing: the beat it ends at, the stage it leads to (0 the title), the zone its road is in.
+dim shared SceneEnd as integer, SceneNext as integer, RoadZone as integer
 ' the furthest zone a game has reached, kept in CHARLIE.SAV, and the zone picked on the title to start at
 dim shared Reached as integer, Pick as integer
 ' the sea's surface, NONE where a stage has none; where it is at the level's start, at step TideAt, and half a
@@ -630,6 +638,20 @@ data "hero", 100, 102, 4060, 0, 4260, 0, 1, 0, 2
 data "hero", 102, 112, 4260, 0, 6160, 0, 0, 0, 2
 data "cam", 100, 102, 3900, 0, 4020, 0, 1, 0, 0
 data "cam", 102, 112, 4020, 0, 5940, 0, 0, 0, 0
+' between zones, the bump again on the next zone's road: its keepsake out, and the cat that was following away
+' with it
+data "cam", 120, 136, 2140, 0, 2140, 0, 0, 0, 0
+data "van", 120, 122, 1998, 0, 2258, 0, 0, 0, 2
+data "van", 122, 123, 2258, 0, 2388, 0, 0, 9, 3
+data "van", 123, 127, 2388, 0, 2908, 0, 0, 0, 3
+data "snd", 122, 122.5, 0, 0, 0, 0, 0, 0, 3
+data "basket", 122.2, 123.5, 2216, -30, 2196, 0, 0, 22, 0
+data "basket", 123.5, 124.3, 2196, 0, 2186, 0, 0, 8, 0
+data "basket", 124.3, 130.25, 2186, 0, 2186, 0, 0, 0, 0
+data "cat", 126.5, 129.75, 2120, 0, 2172, 0, 0, 0, 0
+data "cat", 129.75, 130.25, 2172, 0, 2172, 0, 0, 0, 2
+data "snd", 129.75, 130, 0, 0, 0, 0, 0, 0, 12
+data "cat", 130.25, 134.5, 2186, 0, 2500, 0, 0, 0, 1
 data "end"
 
 ' The tunes are in CHARLIE.DAT with the pictures, from tools/charliesong.txt.
@@ -667,7 +689,7 @@ sub Main
                 Advance g, p, k, lo(), pt(), cu()
                 n = n - 1
             loop
-            PickSong SongFor%(g), g.mode = CLEARED or g.mode = OVER
+            PickSong SongFor%(g), Sudden%(g)
             FeedSong
             if g.mode = INTRO then
                 IntroDraw g, p, cu()
@@ -687,7 +709,12 @@ sub Advance (g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part, cu() a
     if g.mode <> INTRO then
         Tick g, p, k, lo(), pt()
     elseif IntroOver%(g, k, cu()) then
-        ResetWorld g, p, lo(), pt()
+        if SceneNext then
+            GoStage SceneNext, g, p, lo(), pt()
+            SceneNext = 0
+        else
+            ResetWorld g, p, lo(), pt()
+        end if
     end if
 end sub
 
@@ -730,7 +757,7 @@ end sub
 ' A stage's zone: two acts a zone; the intro's road is the Downs.
 function ZoneOf% (st as integer)
     ZoneOf% = st \ 2
-    if st = SINTRO then ZoneOf% = 0
+    if st = SINTRO then ZoneOf% = RoadZone
 end function
 
 ' CHARLIE.DAT open at a stage's level: a zone's two acts, zone by zone, then the intro's road. They are written
@@ -744,6 +771,21 @@ sub SeekLevel (st as integer)
     seek #1, levels + Word&
 end sub
 
+' A prop as the works have it, where the van's road is theirs: a tank for a tree, a vent for a bush; nothing grows
+' there, and no rock lies.
+function Plated% (k as integer)
+    select case k
+    case KTREE
+        Plated% = KTANK
+    case KBUSH
+        Plated% = KVENT
+    case KFLOWER, KROCK
+        Plated% = 0
+    case else
+        Plated% = k
+    end select
+end function
+
 ' The ground's columns, then what stands on them, from the stage's level: a command and its count, to its end.
 sub LoadLevel (st as integer)
     dim cmd as string, n as integer, c as integer, g as integer, bx as integer
@@ -752,9 +794,10 @@ sub LoadLevel (st as integer)
     z = ZoneOf%(st)
     Zone = z
     LoadZoneArt z
-    ' the intro's road is the Downs at dawn, lit as at evening
+    ' the intro's road is the Downs at dawn, lit as at evening; a later zone's is lit as its first act
     light = st
-    if st = SINTRO then light = 1
+    if st = SINTRO then light = RoadZone * 2
+    if light = 0 and st = SINTRO then light = 1
     for i = 0 to 255
         Pal(i) = Pal0(i)
     next
@@ -984,6 +1027,7 @@ sub LoadLevel (st as integer)
             StartX = c * TS + 8
             StartY = s
         end select
+        if Decked then k = Plated%(k)
         if k then AddObj k, c * TS + 8, s
     loop until cmd = "end"
     close #1
@@ -2167,6 +2211,11 @@ function SongFor% (g as Game)
     end select
 end function
 
+' Whether the state's song comes in at once and in full: the level's end, game over, the scene between zones.
+function Sudden% (g as Game)
+    Sudden% = g.mode = CLEARED or g.mode = OVER or (g.mode = INTRO and SceneNext > 0)
+end function
+
 ' Slot n's song, when it is not the one playing, from its start or, late, from the bar it comes in at. The one
 ' playing fades over a bar (half of one, late) and the next fades in over one; late, it comes in full.
 sub PickSong (n as integer, late as integer)
@@ -2460,7 +2509,11 @@ sub Tick (g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
         elseif Met%(g, p, k, pt()) then
             if Stage < NSTAGE - 1 then
                 Reach ZoneOf%(Stage + 1)
-                GoStage Stage + 1, g, p, lo(), pt()
+                if ZoneOf%(Stage + 1) = Zone then
+                    GoStage Stage + 1, g, p, lo(), pt()
+                else
+                    StartBump g, Stage + 1
+                end if
             else
                 ResetWorld g, p, lo(), pt()
             end if
@@ -3780,7 +3833,7 @@ sub DrawPedalo (cx as integer, cy as integer)
     x = cint(Cart.x) - cx
     y = cint(Cart.y) - cy
     if Cart.st = 2 then
-        Blit x - 7, y - 12 - ((Ticks \ 16) and 1), ITEDDY, 14, 16
+        DrawKeep x, y + 3 - ((Ticks \ 16) and 1)
         if Cart.t > 0 then Blit x + cint((2 - Cart.t) * 120), y - 9, ICAT + ((Ticks \ 4) and 1) * 2, 20, 14
         exit sub
     end if
@@ -3797,7 +3850,7 @@ sub DrawCart (cx as integer, cy as integer)
     x = cint(Cart.x) - cx
     y = cint(Cart.y) - cy
     if Cart.st = 2 then
-        Blit x - 9, y - 14 - ((Ticks \ 16) and 1), IBASKET, 18, 15
+        DrawKeep x, y - ((Ticks \ 16) and 1)
         if Cart.t > 0 then Blit x + cint((2 - Cart.t) * 260), y - 13, ICAT + ((Ticks \ 4) and 1) * 2, 20, 14
         exit sub
     end if
@@ -4041,7 +4094,7 @@ sub DrawCrane (cx as integer, cy as integer)
     if Cart.st = 2 then
         i = cint((Cart.t - 2 + TOOLFALL) * CRANEH / TOOLFALL)
         if i < 0 then i = 0
-        Blit x - 10, fy - 13 - i - ((Ticks \ 16) and 1), ITOOLS, 20, 14
+        DrawKeep x, fy - i - ((Ticks \ 16) and 1)
         exit sub
     end if
     for i = Cart.hits to NBUMP - 1
@@ -4055,11 +4108,29 @@ end sub
 
 ' The intro from its first beat: its road, its script, the view on the road's start.
 sub StartIntro (g as Game, cu() as Cue)
+    RoadZone = 0
+    SceneNext = 0
+    SceneEnd = ILEN
     LoadLevel SINTRO
     LoadCues cu()
     g.mode = INTRO
     g.modeT = 0
     g.camx = 0
+    g.camy = StartY - HORIZON
+end sub
+
+' Between zones the van's bump again, on the road of stage nxt's zone: its look, its keepsake and a cat, to four
+' bars of their own; then that stage.
+sub StartBump (g as Game, nxt as integer)
+    RoadZone = ZoneOf%(nxt)
+    SceneNext = nxt
+    SceneEnd = BUMP0 + BUMPLEN
+    LoadLevel SINTRO
+    ZoneTune BETWEEN
+    Dusk = 16
+    Shade
+    g.mode = INTRO
+    g.modeT = BUMP0 / BEATS
     g.camy = StartY - HORIZON
 end sub
 
@@ -4098,11 +4169,11 @@ function IntroOver% (g as Game, k as Pad, cu() as Cue)
         i = i + 1
     loop
     Shimmer
-    if now > ILEN - 1 and Dusk > 0 and (Ticks and 1) = 0 then
+    if now > SceneEnd - 1 and Dusk > 0 and (Ticks and 1) = 0 then
         Dusk = Dusk - 1
         Shade
     end if
-    IntroOver% = now >= ILEN or k.hit or k.start or k.quit
+    IntroOver% = now >= SceneEnd or k.hit or k.start or k.quit
     Spent k
 end function
 
@@ -4162,7 +4233,7 @@ sub DrawCue (cu() as Cue, i as integer, now as single, p as Hero, cx as integer,
     case QCAT
         DrawCat x, y, a, cu(i).x1 < cu(i).x0
     case QBASKET
-        Blit x - 9, y - 14, IBASKET, 18, 15
+        DrawKeep x, y
     case QEYES
         DrawEyes x, y, a
     case QHERO
@@ -4174,6 +4245,18 @@ sub DrawCue (cu() as Cue, i as integer, now as single, p as Hero, cx as integer,
         p.face = a
         p.barkT = BARKT - (now - cu(i).t0) / BEATS
         DrawBark p, cx, cy
+    end select
+end sub
+
+' The zone's keepsake, its foot's middle at x, y on the screen: the picnic basket, the toolbox, the teddy.
+sub DrawKeep (x as integer, y as integer)
+    select case Zone
+    case 0
+        Blit x - 9, y - 14, IBASKET, 18, 15
+    case 1
+        Blit x - 10, y - 13, ITOOLS, 20, 14
+    case 2
+        Blit x - 7, y - 15, ITEDDY, 14, 16
     end select
 end sub
 
@@ -4209,7 +4292,7 @@ sub DrawCat (x as integer, y as integer, a as integer, west as integer)
     if (a and 2) = 0 then k = k + ((Ticks \ 6) and 1) * 2
     if west then k = k + 4
     Blit x - 10, y - 13, k, 20, 14
-    if a and 1 then Blit x - 11, y - 26, IBASKET, 18, 15
+    if a and 1 then DrawKeep x - 2, y - 12
 end sub
 
 ' Pairs of eyes in a hedge, n of them from x, y, each in a gap of its leaves and blinking in its turn.

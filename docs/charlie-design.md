@@ -34,7 +34,7 @@ Scenes cut on the tune's bar count, so picture and music cannot drift. Its last 
 | 25–28 | He winds up, as the player will, and launches after the cat. | Charlie's theme in full, rising. |
 | 29–30 | The title over the Downs. | The title tune begins. |
 
-Between zones the bump plays again, four bars: the next zone's backdrop, keepsake and cat.
+Between zones the bump plays again (built), four bars: the next zone's backdrop, keepsake and cat.
 
 It is a script of cues in the game's DATA, a row each: what, from which beat to which, from where to where. Its
 pictures: the van, the old house, the boxes, a hedge, the milk float, the Baron, the basket, Charlie at the
@@ -218,7 +218,7 @@ tune.
 | Level's end, Lantern Quarter act 1 | Whistled: the guitar is gone. It comes back after the chase. |
 | Chase | One tune, the Mob's motif at 160 over a driving bass, led by the zone's own lead instrument. Each bump sounds the first notes of Charlie's theme. |
 | The Baron | His own chase tune at 168, organ and bells. The third part is Charlie's theme outright. |
-| Between zones | Four bars: the stop-time hit, then the Mob's motif. |
+| Between zones | *The Bump*, four bars: the stop-time hit, then the Mob's motif. |
 | Game over | *Left Behind*, four bars: the family tune slow, in the minor, one organ. |
 | Ending | The family tune in full, 16 bars, a voice joining each row. Then Charlie's theme under the credits. The longer ending adds the Mob's motif turned major. |
 
