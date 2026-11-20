@@ -29,7 +29,7 @@ const View *view_at(uint32_t v);
 /* View v's name, 0-ended; "" the module's. Good until the views are scanned again. */
 const char *view_name(uint32_t v);
 /* View v's procedure: its name; 0 the module's. Uses comp_cbuf. */
-uint16_t view_proc(Session *S, uint32_t v);
+uint32_t view_proc(Session *S, uint32_t v);
 /* vw_next, vw_prev: Shift+F2, Ctrl+F2: the next view, the one before, in the active window. */
 void view_next(Session *S);
 void view_prev(Session *S);

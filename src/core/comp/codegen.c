@@ -591,7 +591,7 @@ static void gen(Code *const c, const Node *const i)
         if (n->op)
             cg_op(c, n);
 
-        code_word(c, n->id);
+        code_word(c, (uint16_t)n->id); /* the line number */
         code_dword(c, n->num);
         break;
 
@@ -644,7 +644,7 @@ void cg_tree(Code *const c, const Node *const n) { gen(c, n); }
 /* A scalar's value, n's variable's: X.LD.V. */
 static void loadvar(Code *const c, const Node *const n)
 {
-    const uint16_t id = n->id;
+    const uint32_t id = n->id;
     const uint8_t info = n->vinfo;
 
     if (info & SK_DBL) {
@@ -757,7 +757,7 @@ static void cg_elem(Code *const c, const Node *const n)
     for (const Node *a = n->b; a != nullptr; a = a->next)
         cg_as(c, a, T_INT, false);
 
-    const uint16_t id = n->id;
+    const uint32_t id = n->id;
     const uint8_t k = n->vinfo & (SK_DBL | VK_MASK);
     c->type = expr_ktype[k];
     c->iload = c->iloadend = nullptr;

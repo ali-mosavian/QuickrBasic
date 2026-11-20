@@ -82,7 +82,7 @@ static void mismatch(Comp *const C)
 static void skipvar(Comp *const C) { C->p = comp_skipname(C->p); }
 
 /* cm_name with g_vfs: the M_VAR at comp.p as comp_var(shape, 0). */
-static uint16_t shaped(Comp *const C, const uint8_t shape)
+static uint32_t shaped(Comp *const C, const uint8_t shape)
 {
     if (comp_cur(C) != M_VAR)
         synerr(C);
@@ -215,15 +215,15 @@ bool ctrl_else(Comp *const C, uint32_t *const t)
 
 /* FOR loop key's hidden cell, which 'L' its limit, 'S' its step: a variable of counter's type, local
    to the procedure. key: the FOR's position; in the direct line, DFOR_KEY and its depth. */
-static uint16_t loopcell(
+static uint32_t loopcell(
     Comp *const C,
     const uint32_t key,
     const uint8_t which,
-    const uint16_t counter
+    const uint32_t counter
 )
 {
     const Var v = *symb_var(C->symb, counter); /* the tables move as names are made */
-    const uint16_t name = comp_hidden(C, LOOP_NAME, which, key);
+    const uint32_t name = comp_hidden(C, LOOP_NAME, which, key);
     const bool stat = C->proc && blok_proc(C->blok, C->proc)->flags & PF_STAT;
     return symb_find_var(C->symb, name, v.type, v.info & (SK_DBL | VK_MASK), C->proc, stat);
 }
@@ -269,7 +269,7 @@ static StepSign stepsign(Comp *const C, const uint8_t *const at, const uint8_t k
 /* A FOR loop: its counter, its hidden limit and step, the counter's VK_* (SK_DBL a DOUBLE's) and
    the step's sign. */
 typedef struct {
-    uint16_t counter, limit, step;
+    uint32_t counter, limit, step;
     uint8_t kind;
     StepSign sign;
 } Loop;
@@ -279,7 +279,7 @@ static Loop loopof(
     Comp *const C,
     const uint8_t *const at,
     const uint32_t key,
-    const uint16_t counter
+    const uint32_t counter
 )
 {
     const uint8_t kind = symb_var(C->symb, counter)->info & (SK_DBL | VK_MASK);
@@ -298,7 +298,7 @@ static uint8_t loadop(const Loop *const l)
     return l->kind == VK_INT ? O_I_LD_V : l->kind & SK_DBL ? O_D_LD_V : O_F_LD_V;
 }
 
-static Node *varleaf(Comp *const C, const uint16_t id)
+static Node *varleaf(Comp *const C, const uint32_t id)
 {
     Node *const n = ast_new(C->ast, N_VAR);
     n->id = id;
@@ -331,7 +331,7 @@ static void past(Comp *const C, const Loop *const l)
 }
 
 /* Step n the value stored to variable id. */
-static void storeat(Comp *const C, Node *const n, const uint16_t id)
+static void storeat(Comp *const C, Node *const n, const uint32_t id)
 {
     ast_wrapat(C->ast, n, N_STORE)->id = id;
 }
@@ -391,11 +391,11 @@ void ctrl_for(Comp *const C, const bool stepped)
 }
 
 /* The counter of the FOR at for (its token): its variable, comp.p kept. */
-static uint16_t counterof(Comp *const C, const uint8_t *const at)
+static uint32_t counterof(Comp *const C, const uint8_t *const at)
 {
     const uint8_t *const p = C->p;
     C->p = at + 1;
-    const uint16_t id = comp_var(C, 0, 0);
+    const uint32_t id = comp_var(C, 0, 0);
     C->p = p;
     return id;
 }
@@ -435,7 +435,7 @@ void ctrl_next(Comp *const C)
         forat = at(C->prog->base + key);
     }
 
-    const uint16_t counter = comp_cur(C) == M_VAR ? comp_var(C, 0, 0) : counterof(C, forat);
+    const uint32_t counter = comp_cur(C) == M_VAR ? comp_var(C, 0, 0) : counterof(C, forat);
     const Loop l = loopof(C, forat, key, counter);
     comp_opid(C, loadop(&l), counter);
 
@@ -543,11 +543,11 @@ static void leave(Comp *const C, const uint8_t *const stmt)
 /* ---- SELECT CASE, SWAP */
 
 /* ct_var: the variable #n of a SELECT at depth n ('S' SWAP's), of type T_*. */
-static uint16_t selvar(Comp *const C, const uint8_t depth, const uint8_t type)
+static uint32_t selvar(Comp *const C, const uint8_t depth, const uint8_t type)
 {
     const uint8_t nm[2] = {'#', (uint8_t)('0' + depth)};
 
-    const uint16_t name = symb_find_name(C->symb, nm, 2);
+    const uint32_t name = symb_find_name(C->symb, nm, 2);
     C->ctrl->seltype = type;
     C->scope = 0;
     C->isstatic = false;
@@ -727,7 +727,7 @@ void ctrl_swap(Comp *const C)
     C->p = a; /* a = b */
     expr_target(C);
     C->p = b;
-    const uint16_t tgt = C->tgt;
+    const uint32_t tgt = C->tgt;
     expr_load(C);
 
     if (comp_type(C) != C->ctrl->seltype)
@@ -753,14 +753,14 @@ void ctrl_recstore(Comp *const C)
     if (et == ET_SD) {
         comp_tostring(C);
         Node *const n = comp_op(C, O_SF_ST);
-        comp_word(n, C->tgt);
+        comp_word(n, (uint16_t)C->tgt); /* the field's offset */
         comp_word(n, C->ctrl->fieldfix);
         return;
     }
 
     comp_toinfo(C, comp_etkind[et]);
     Node *const n = comp_op(C, O_FL_ST);
-    comp_word(n, C->tgt);
+    comp_word(n, (uint16_t)C->tgt);
     comp_byte(n, (uint8_t)et); /* a number's */
 }
 
@@ -804,7 +804,7 @@ static bool arrcopy(Comp *const C)
     const uint8_t *const start = C->p;
     uint32_t ta, tb;
     Node *dst = ref_fieldarray(C, &ta);
-    uint16_t a = 0;
+    uint32_t a = 0;
 
     if (dst == nullptr) {
         const uint8_t *const after = comp_skipname(C->p);
@@ -826,7 +826,7 @@ static bool arrcopy(Comp *const C)
     Node *src = ref_fieldarray(C, &tb);
 
     if (src == nullptr) {
-        const uint16_t b = ref_arrayvalue(C, &call);
+        const uint32_t b = ref_arrayvalue(C, &call);
 
         if (symb_is_record(C->symb, b)) { /* a record result */
             C->p = at;
@@ -905,7 +905,7 @@ static void result_as(Comp *const C, const uint8_t *const name)
    code. */
 static void result_empty(Comp *const C, const Proc *const pr)
 {
-    const uint16_t id = blok_resvar(pr);
+    const uint32_t id = blok_resvar(pr);
 
     if (!symb_is_record(C->symb, id)) {
         comp_int(C, id);
@@ -1341,7 +1341,7 @@ static void common(Comp *const C)
     }
 
     do {
-        const uint16_t id = comp_name(C);
+        const uint32_t id = comp_name(C);
 
         if (comp_cur(C) == '(') {
             C->p++;
@@ -1450,7 +1450,7 @@ static void mids(Comp *const C)
     if ((C->tgtinfo & VK_MASK) != VK_STR)
         mismatch(C);
 
-    const uint16_t tgt = C->tgt;
+    const uint32_t tgt = C->tgt;
     C->p = v;
     expr_load(C);
     comp_comma(C);

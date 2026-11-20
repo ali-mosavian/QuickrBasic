@@ -121,7 +121,7 @@ struct Node {
     uint16_t fix;  /* N_STORE: a STRING * n target's n, 0 none */
     uint32_t num;  /* N_INT: its value; N_JUMP: its target's line, the line number in id; N_CALL
                       CALL_PROC: its procedure */
-    uint16_t
+    uint32_t
         id; /* N_VAR, N_ELEM, N_REF, N_TARGET, N_STORE, N_OPID, N_CASECMP: the variable; N_ARG: PA_VALUE's parameter, an array's
                           or a record's; N_CALL CALL_UNDEF: its result */
     RecRef rec; /* N_REF of a record: the place in it */

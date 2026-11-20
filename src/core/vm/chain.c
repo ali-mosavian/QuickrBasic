@@ -42,7 +42,7 @@ static bool is_array(const uint8_t kind) { return kind & VI_ARR; }
 static bool is_string(const uint8_t kind) { return (kind & (SK_DBL | VK_MASK)) == VK_STR; }
 
 /* Variable id's kind. Type mismatch: a record. */
-static uint8_t kind_of(Symb *const sy, Fault *const f, const uint16_t id)
+static uint8_t kind_of(Symb *const sy, Fault *const f, const uint32_t id)
 {
     const Var *const v = symb_var(sy, id);
 
@@ -86,7 +86,7 @@ static void put_string(Chai *const ch, Fault *const f, const Addr desc)
     put(ch, f, at(s.ptr), s.len);
 }
 
-static void put_array(Session *const S, const uint16_t id)
+static void put_array(Session *const S, const uint32_t id)
 {
     const Addr hdr = arry_slot(&S->arry, id)->hdr;
     const uint8_t dims = hdr ? ((const ArrayHdr *)at(hdr))->dims : 0;
@@ -115,7 +115,7 @@ static void save(Session *const S)
     S->chai.len = 0;
 
     for (uint32_t i = 0; i < S->chai.n; i++) {
-        const uint16_t id = S->chai.id[i];
+        const uint32_t id = S->chai.id[i];
         const uint8_t kind = kind_of(&S->symb, &S->fault, id);
         put(&S->chai, &S->fault, &kind, 1);
 
@@ -158,7 +158,7 @@ static void get_string(Strg *const sg, const uint8_t **const p, const Addr desc)
     memcpy(at(desc), &s, DSZ);
 }
 
-static void get_array(Session *const S, const uint8_t **const p, const uint16_t id)
+static void get_array(Session *const S, const uint8_t **const p, const uint32_t id)
 {
     uint8_t dims;
     get(p, &dims, 1);
@@ -185,7 +185,7 @@ static void get_array(Session *const S, const uint8_t **const p, const uint16_t 
    Type mismatch: not the value's kind. Out of memory: past NCMN variables. */
 void chai_cmn(Session *const S)
 {
-    const uint16_t id = (uint16_t)exec_pop(&S->vm).u;
+    const uint32_t id = exec_pop(&S->vm).u;
 
     if (S->chai.n >= NCMN)
         repl_error(S, E_OM);

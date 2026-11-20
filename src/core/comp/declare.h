@@ -17,7 +17,7 @@ typedef struct {
 
 /* A field of a TYPE. */
 typedef struct {
-    uint16_t name;
+    uint32_t name;
     uint32_t et, sub; /* its ET_*, or its TYPE's; an array's, its element's */
     uint16_t fix, off;
     uint8_t ndim; /* ours: a fixed array's dimensions, 0 none */
@@ -28,7 +28,8 @@ typedef struct {
 /* A TYPE: its name, its fields, its bytes as QBasic lays them; ours, its STRINGs' Desc offsets and
    its dynamic arrays' cells', its records' and fixed arrays' too. */
 typedef struct {
-    uint16_t name, nfld, size;
+    uint32_t name;
+    uint16_t nfld, size;
     uint32_t cap;
     Field *fields;
     uint32_t nstr, strcap;
@@ -47,10 +48,10 @@ typedef struct {
 typedef struct {
     Arena arena;
     Fault *fault;
-    uint16_t proc;           /* lx.dproc: the procedure being entered, its name; 0 the module */
+    uint32_t proc;           /* lx.dproc: the procedure being entered, its name; 0 the module */
     uint32_t ntypes;         /* lx.ntyps: the last TYPE's index */
     uint32_t type;           /* lx.dtype: the TYPE being entered, 0 none */
-    uint16_t scope;          /* g_dscope: where declarations go */
+    uint32_t scope;          /* g_dscope: where declarations go */
     bool redim;              /* g_dredim: the DIM is a REDIM */
     uint8_t base;            /* g_obase: OPTION BASE */
     bool baseset;            /* g_obset */
@@ -116,7 +117,7 @@ static inline const FieldDim *decl_fielddim(
    END (PK_END), else 0. */
 uint8_t decl_proc(const uint8_t *body, const uint8_t **name);
 /* The lines declared from here are procedure proc's (its name), 0 the module's. */
-void decl_enter(Decl *d, uint16_t proc);
+void decl_enter(Decl *d, uint32_t proc);
 bool decl_tail(const uint8_t **at); /* *at the body to its last statement; true ends in a string,
                                        REM's or DATA's text */
 const uint8_t *decl_step(const uint8_t *p); /* decl_item, a number kept as text whole */

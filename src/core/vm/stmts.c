@@ -464,7 +464,7 @@ void stmt_dim(Session *const S)
     const uint8_t dims = flags & DIM_COUNT;
     const uint32_t target = exec_pop(&S->vm).u; /* its id; a field's elements' ET_* */
     const Addr field = flags & DIM_FIELD ? exec_popa(&S->vm) : 0;
-    const uint16_t id = (uint16_t)target;
+    const uint32_t id = target;
     const uint32_t mask_hi = exec_pop(&S->vm).u;
     const uint64_t swapped = (uint64_t)mask_hi << 32 | exec_pop(&S->vm).u;
 
@@ -520,7 +520,7 @@ void stmt_dim(Session *const S)
 void stmt_aempty(Session *const S)
 {
     const uint32_t flags = exec_pop(&S->vm).u;
-    arry_empty(&S->arry, (uint16_t)exec_pop(&S->vm).u, flags & DIM_STATIC);
+    arry_empty(&S->arry, exec_pop(&S->vm).u, flags & DIM_STATIC);
 }
 
 /* a() = b() ( src dst -- ), ours, their cells: as arry_copy. */
@@ -572,7 +572,7 @@ void stmt_fidx(Session *const S)
 /* An array result's start ( id -- ), ours: as arry_reset. */
 void stmt_areset(Session *const S)
 {
-    arry_reset(&S->arry, &S->vm, arry_slot(&S->arry, (uint16_t)exec_pop(&S->vm).u));
+    arry_reset(&S->arry, &S->vm, arry_slot(&S->arry, exec_pop(&S->vm).u));
 }
 
 /* ERASE ( cell -- ): REDIM's array freed, another's elements zeroed. */

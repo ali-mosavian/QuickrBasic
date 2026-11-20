@@ -43,7 +43,7 @@ bool tabl_room(Table *const t, const uint32_t entries)
 {
     if (entries <= t->cap)
         return true;
-    if (t->max < entries)
+    if (t->max < entries || entries > UINT32_MAX / tabl_row(t))
         return false;
 
     return allo_grow(t->allo, t->block, entries * tabl_row(t));

@@ -688,7 +688,7 @@ static uint16_t line_number(Session *const S, const uint8_t *const p)
     return (uint16_t)num;
 }
 
-uint16_t repl_intern(LexrNames *const names, const uint8_t *const text, const uint8_t len)
+uint32_t repl_intern(LexrNames *const names, const uint8_t *const text, const uint8_t len)
 {
     Session *const S = container_of(names, Session, names);
     return symb_find_name(&S->symb, text, len);

@@ -15,7 +15,7 @@ enum { LINK_MISSES = 32 }; /* kept; more are counted */
 /* DIM a(), ours: its array, its line. */
 typedef struct {
     uint32_t line;
-    uint16_t var;
+    uint32_t var;
 } LinkEmpty;
 enum { LINK_EMPTIES = 32 }; /* kept; more are not */
 
@@ -52,9 +52,9 @@ void link_resolve(Comp *C, uint32_t line, uint32_t code);
 /* The ledger's first error raised, if any: Label not defined, or a block's Syntax error. */
 void link_check(Comp *C);
 /* DIM a(), ours, on a program line: array var on the ledger of empties. */
-void link_empty(Comp *C, uint16_t var);
+void link_empty(Comp *C, uint32_t var);
 /* Array var given elements: a DIM's bounds, REDIM, a() = .., passed whole, COMMON. */
-void link_given(Comp *C, uint16_t var);
+void link_given(Comp *C, uint32_t var);
 typedef void LinkEmptyEach(void *ctx, const LinkEmpty *e);
 /* After a link: each DIM a() whose array no code gives elements, to each; how many. */
 uint32_t link_empties(const Comp *C, LinkEmptyEach *each, void *ctx);

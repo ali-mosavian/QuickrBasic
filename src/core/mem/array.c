@@ -64,7 +64,7 @@ void arry_init(
 
 static ArrayHdr *arry_hdr_at(const Addr h) { return (ArrayHdr *)at(h); }
 
-ArrSlot *arry_slot(const Arry *const ay, const uint16_t id)
+ArrSlot *arry_slot(const Arry *const ay, const uint32_t id)
 {
     return (ArrSlot *)at(symb_at(ay->symb, *ay->fp, id));
 }
@@ -85,7 +85,7 @@ static Addr arry_owner(const Arry *const ay, const ArrSlot *const s)
 
 static ArrSlot *arry_owner_slot(const Arry *const ay, const Addr owner)
 {
-    return (ArrSlot *)at(owner & OWN_VAR ? symb_cell(ay->symb, (uint16_t)owner) : owner);
+    return (ArrSlot *)at(owner & OWN_VAR ? symb_cell(ay->symb, owner & ~OWN_VAR) : owner);
 }
 
 /* A header's bytes: the fixed part, then a count and a lower bound a dimension. */
@@ -142,7 +142,7 @@ bool arry_heap(const Arry *const ay, const Addr h)
 
 /* Array id's header made in its frame (comp/frame.c), arry.counts and arry.lbounds [0..n) its
    shape; false: none there, or too small for it. */
-static bool arry_in_frame(Arry *const ay, const uint16_t id, const uint8_t n)
+static bool arry_in_frame(Arry *const ay, const uint32_t id, const uint8_t n)
 {
     const FrameArr *const fa = symb_farr(ay->symb, id);
     uint64_t elems = 1;
@@ -169,7 +169,7 @@ static bool arry_in_frame(Arry *const ay, const uint16_t id, const uint8_t n)
     return true;
 }
 
-Addr arry_ref(Arry *const ay, ArrSlot *const s, const uint16_t id, const uint8_t n)
+Addr arry_ref(Arry *const ay, ArrSlot *const s, const uint32_t id, const uint8_t n)
 {
     Addr h = s->hdr;
 
@@ -212,7 +212,7 @@ void arry_counts(Arry *const ay, const uint8_t n)
     }
 }
 
-void arry_dim(Arry *const ay, const uint16_t id, const uint8_t n, const bool dyn)
+void arry_dim(Arry *const ay, const uint32_t id, const uint8_t n, const bool dyn)
 {
     arry_counts(ay, n);
 
@@ -224,7 +224,7 @@ void arry_dim(Arry *const ay, const uint16_t id, const uint8_t n, const bool dyn
     arry_new(ay, id, n, dyn);
 }
 
-void arry_empty(Arry *const ay, const uint16_t id, const bool keep)
+void arry_empty(Arry *const ay, const uint32_t id, const bool keep)
 {
     ArrSlot *const s = arry_slot(ay, id);
 
@@ -281,7 +281,7 @@ void arry_empty_cells(const Addr data, const uint32_t n, const TypeDef *const td
             *(ArrSlot *)at(data + k * td->size + td->slots[i]) = (ArrSlot){0, 1};
 }
 
-Addr arry_new(Arry *const ay, const uint16_t id, const uint8_t n, const bool dyn)
+Addr arry_new(Arry *const ay, const uint32_t id, const uint8_t n, const bool dyn)
 {
     return arry_make(ay, arry_slot(ay, id), arry_var_et(ay->symb, id), n, dyn);
 }

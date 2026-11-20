@@ -54,8 +54,8 @@ enum {
 typedef struct {
     uint8_t len;
     uint8_t text[SUGG_LEN + 2];
-    uint16_t name;  /* its entry in the name table */
-    uint16_t scope; /* its procedure's name, 0 the module */
+    uint32_t name;  /* its entry in the name table */
+    uint32_t scope; /* its procedure's name, 0 the module */
     uint16_t count; /* its uses */
     uint32_t dist;  /* the nearest use's lines from the word */
     int16_t next;   /* its hash chain's next, -1 none */
@@ -99,7 +99,7 @@ static struct {
     int16_t head[NHASH];
     uint8_t recent[NRECENT][SUGG_LEN + 2];
     uint8_t nrecent;
-    uint16_t procs[NPROCS]; /* the procedures' names */
+    uint32_t procs[NPROCS]; /* the procedures' names */
     uint16_t nprocs;
     SuggName open[NFOR]; /* the open FORs' variables, innermost last */
     uint8_t nopen;
@@ -339,7 +339,7 @@ static Sugg sugg_make(
 /* sugg_make's for name id: its letters as first written. */
 static Sugg sugg_named(
     const SuggSrc *const src,
-    const uint16_t id,
+    const uint32_t id,
     const uint8_t *const text,
     const uint16_t len,
     const SuggKind kind,
@@ -657,7 +657,7 @@ static bool sugg_name(const uint8_t *const p, SuggName *const n, const uint8_t *
 }
 
 /* Name n's use in scope, dist lines from the word: a new entry, or its count up. */
-static void sugg_use(const SuggName *const n, const uint16_t scope, const uint32_t dist)
+static void sugg_use(const SuggName *const n, const uint32_t scope, const uint32_t dist)
 {
     const uint32_t h = sugg_hash(n->text, n->len) % NHASH;
 
@@ -690,7 +690,7 @@ static void sugg_use(const SuggName *const n, const uint16_t scope, const uint32
 static void sugg_names(
     const uint8_t *const body,
     const uint32_t len,
-    const uint16_t scope,
+    const uint32_t scope,
     const uint32_t dist
 )
 {
@@ -785,7 +785,7 @@ static void sugg_types(
 )
 {
     for (uint16_t t = 1; t <= src->decl->ntypes; t++) {
-        const uint16_t id = decl_type(src->decl, t)->name;
+        const uint32_t id = decl_type(src->decl, t)->name;
         const uint8_t *const text = symb_text(src->symb, id);
         const uint8_t m = sugg_match(word, wn, text + 1, text[0]);
 
@@ -845,14 +845,14 @@ static void sugg_files(
 typedef struct {
     uint32_t rec;   /* the word's line */
     uint32_t ord;   /* its ordinal, past the last when none */
-    uint16_t scope; /* its procedure's name, 0 the module */
+    uint32_t scope; /* its procedure's name, 0 the module */
     uint8_t prior;  /* the line before's last statement's keyword */
 } SuggAt;
 
 /* Pass one: the word's line and procedure, the open FORs before it. */
 static void sugg_where(const Prog *const pg, SuggAt *const w)
 {
-    uint16_t scope = 0;
+    uint32_t scope = 0;
     uint8_t prior = 0;
     sg.nopen = sg.ndo = sg.nwhile = sg.nsel = 0;
     uint32_t ord = 0;
@@ -890,7 +890,7 @@ static void sugg_where(const Prog *const pg, SuggAt *const w)
 }
 
 /* A name of scope seen from the word's procedure: its own, or the module's SHARED or CONST. */
-static bool sugg_seen(const Scop *const sc, const SuggName *const n, const uint16_t from)
+static bool sugg_seen(const Scop *const sc, const SuggName *const n, const uint32_t from)
 {
     if (n->scope == from)
         return true;
@@ -1110,7 +1110,7 @@ static uint32_t sugg_record(const SuggSrc *const src)
     if (i == s || !is_letter(b[s]))
         return 0;
 
-    const uint16_t name = symb_find_name(src->symb, b + s, (uint8_t)(i - s));
+    const uint32_t name = symb_find_name(src->symb, b + s, (uint8_t)(i - s));
     const bool arr = b[i] == '(';
 
     if (arr)
@@ -1124,7 +1124,7 @@ static uint32_t sugg_record(const SuggSrc *const src)
         while (i < e && is_word_char(b[i]))
             i++;
 
-        const uint16_t fn = symb_find_name(src->symb, b + f0, (uint8_t)(i - f0));
+        const uint32_t fn = symb_find_name(src->symb, b + f0, (uint8_t)(i - f0));
         const TypeDef *const td = decl_type(src->decl, t);
         const Field *f = nullptr;
 
@@ -1158,7 +1158,7 @@ static bool sugg_fields(
     sg.broken = false; /* the line before, ending in its '.', fails alone: each field checked */
 
     for (uint32_t k = 0; k < td->nfld; k++) {
-        const uint16_t id = td->fields[k].name;
+        const uint32_t id = td->fields[k].name;
         const uint8_t *const text = symb_text(src->symb, id);
         const uint8_t m = sugg_match(word, wn, text + 1, text[0]);
 
@@ -1191,7 +1191,7 @@ static void sugg_program(
 )
 {
     const Prog *const pg = src->prog;
-    uint16_t scope = 0;
+    uint32_t scope = 0;
     uint32_t ord = 0;
     uint8_t prior = 0;
     bool intype = false;

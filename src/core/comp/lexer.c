@@ -2,7 +2,7 @@
  *
  * # How it works
  * In the body:
- *   M_VAR len name nam:2  a name as typed, its suffix too; nam its entry in the name table
+ *   M_VAR len name nam:4  a name as typed, its suffix too; nam its entry in the name table
  *   M_INT n:4             a whole number under 2^31, &H, &O
  *   a token               80h..FEh, or TK_X and a byte (comp/dfa.h)
  * Spaces go, but in strings, REM and DATA. A number with a point, an exponent or 2^31 and over
@@ -352,7 +352,7 @@ uint16_t lexr_keyword(const uint8_t **const at)
     return kw_scan(at);
 }
 
-/* The word from wstart to src is a name: M_VAR len name nam:2, a suffix in the text but not the
+/* The word from wstart to src is a name: M_VAR len name nam:4, a suffix in the text but not the
    name's key. */
 static void lexr_name(Lexr *const lx)
 {
@@ -368,9 +368,8 @@ static void lexr_name(Lexr *const lx)
         *lx->out++ = *lx->in++;
 
     *len = (uint8_t)(lx->out - text);
-    const uint16_t id = lx->names->intern(lx->names, text, n);
-    store16(lx->out, id);
-    lx->out += 2;
+    store32(lx->out, lx->names->intern(lx->names, text, n));
+    lx->out += NAME_ID;
 }
 
 enum { LOOP_WORD = 5 }; /* WHILE: the longest of FOR, DO, WHILE */

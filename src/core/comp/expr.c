@@ -221,7 +221,7 @@ void expr_target(Comp *const C)
     }
 
     comp_notconst(C);
-    const uint16_t id = comp_name(C);
+    const uint32_t id = comp_name(C);
 
     if (!(symb_var(C->symb, id)->info & VI_ARR)) {
         comp_target(C, id);
@@ -328,7 +328,7 @@ static Node *args_node(Comp *const C, const NodeKind kind)
 }
 
 /* Array id's element: ( e {, e} ). */
-static Node *elem_node(Comp *const C, const uint16_t id)
+static Node *elem_node(Comp *const C, const uint32_t id)
 {
     Node *const n = args_node(C, N_ELEM);
     n->id = id;
@@ -424,7 +424,7 @@ static Node *xfn_node(Comp *const C)
             a = ref_fieldarray(C, &type);
 
             if (a == nullptr) {
-                const uint16_t id = ref_arrayof(C, comp_var(C, 2, 0));
+                const uint32_t id = ref_arrayof(C, comp_var(C, 2, 0));
 
                 if (*C->p == '(') {
                     if (C->p[1] != ')')
@@ -527,7 +527,7 @@ static Node *var_leaf(Comp *const C)
     if (r != nullptr)
         return ref_field(C, r);
 
-    const uint16_t id = comp_name(C);
+    const uint32_t id = comp_name(C);
 
     if (symb_var(C->symb, id)->info & VI_ARR)
         return elem_node(C, id);

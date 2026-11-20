@@ -123,7 +123,7 @@ typedef struct {
 /* The stopped run's frames to out, newest first, at most max; how many. */
 uint32_t session_frames(const Session *S, DebugFrame out[], uint32_t max);
 /* Variable id's cell as frame f sees it (par unused: the frame knows its parameters). */
-Addr session_cell(const Session *S, const DebugFrame *f, uint16_t id, int32_t par);
+Addr session_cell(const Session *S, const DebugFrame *f, uint32_t id, int32_t par);
 /* A direct line called into the stopped run: evaluating would drop its code. */
 bool session_in_direct(const Session *S);
 /* PRINT expr in procedure proc's scope to out (dbug_eval): its error, else ST_OK. */

@@ -145,10 +145,10 @@ static inline bool ld_a1(Regs *const r, const Addr fp, const bool frame)
 {
     Addr e;
 
-    if (!elem1_fast(hdr1(r->ip + 3, fp, frame), r->sp->i, VS, frame, &e))
+    if (!elem1_fast(hdr1(r->ip + 1 + VID, fp, frame), r->sp->i, VS, frame, &e))
         return false;
 
-    r->ip += 3 + VCELL;
+    r->ip += 1 + VID + VCELL;
     r->sp->a = rd32(e);
     return true;
 }
@@ -158,10 +158,10 @@ static inline bool st_a1(Regs *const r, const Addr fp, const bool frame)
 {
     Addr e;
 
-    if (!elem1_fast(hdr1(r->ip + 3, fp, frame), r->sp[1].i, VS, frame, &e))
+    if (!elem1_fast(hdr1(r->ip + 1 + VID, fp, frame), r->sp[1].i, VS, frame, &e))
         return false;
 
-    r->ip += 3 + VCELL;
+    r->ip += 1 + VID + VCELL;
     wr32(e, r->sp->u);
     r->sp += 2;
     return true;
@@ -170,9 +170,9 @@ static inline bool st_a1(Regs *const r, const Addr fp, const bool frame)
 /* RA.ADDR ( sub -- a ) of a 1-D record array from 0, in range; false: the handler's. */
 static inline bool ra_addr1(Regs *const r, const Arry *const ar)
 {
-    const ArrSlot *const s = (const ArrSlot *)at(loc_at((Loc){(int32_t)load32(r->ip + 3)}, r->fp));
+    const ArrSlot *const s = (const ArrSlot *)at(loc_at((Loc){(int32_t)load32(r->ip + 1 + VID)}, r->fp));
 
-    if (!s->hdr || r->ip[3 + VCELL] != 1)
+    if (!s->hdr || r->ip[1 + VID + VCELL] != 1)
         return false;
 
     const ArrayHdr *const a = (const ArrayHdr *)at(s->hdr);
@@ -180,8 +180,8 @@ static inline bool ra_addr1(Regs *const r, const Arry *const ar)
     if ((uint32_t)r->sp->i >= a->fast)
         return false;
 
-    r->sp->a = a->data + (uint32_t)r->sp->i * arry_esize(ar, load16(r->ip + 1));
-    r->ip += 4 + VCELL;
+    r->sp->a = a->data + (uint32_t)r->sp->i * arry_esize(ar, load32(r->ip + 1));
+    r->ip += 2 + VID + VCELL;
     return true;
 }
 
@@ -228,32 +228,32 @@ typedef enum : uint8_t { CELL_NUMBER, CELL_DOUBLE, CELL_STRING } CellKind;
    handler's, a narrow element's tagged ref too. */
 static inline bool v_ld(Regs *const r)
 {
-    const uint32_t ref = rd32(r->fp + load16(r->ip + 1));
+    const uint32_t ref = rd32(r->fp + load32(r->ip + 1));
 
-    if (r->ip[3] != CELL_NUMBER || ref > REF_ADDR)
+    if (r->ip[1 + VID] != CELL_NUMBER || ref > REF_ADDR)
         return false;
 
     (--r->sp)->u = rd32(ref);
-    r->ip += 4;
+    r->ip += 2 + VID;
     return true;
 }
 
 static inline bool v_st(Regs *const r)
 {
-    const uint32_t ref = rd32(r->fp + load16(r->ip + 1));
+    const uint32_t ref = rd32(r->fp + load32(r->ip + 1));
 
-    if (r->ip[3] != CELL_NUMBER || ref > REF_ADDR)
+    if (r->ip[1 + VID] != CELL_NUMBER || ref > REF_ADDR)
         return false;
 
     wr32(ref, r->sp++->u);
-    r->ip += 4;
+    r->ip += 2 + VID;
     return true;
 }
 
 /* R.ADDR ( -- a ) of a parameter's record or one made; false: the handler's (one to make). */
 static inline bool r_addr(Regs *const r)
 {
-    const Loc loc = {(int32_t)load32(r->ip + 3)};
+    const Loc loc = {(int32_t)load32(r->ip + 1 + VID)};
 
     const Addr a = loc_at(loc, r->fp);
 
@@ -264,7 +264,7 @@ static inline bool r_addr(Regs *const r)
     else
         return false;
 
-    r->ip += 3 + VCELL;
+    r->ip += 1 + VID + VCELL;
     return true;
 }
 
@@ -915,24 +915,24 @@ int32_t exec_idiv(Fault *const f, const int32_t a, const int32_t b, int32_t *con
 /* ---- arrays and records --------------------------------------------------------------------- */
 
 /* An FA op's operands at vm->ip: its id to *id, its cell. */
-static ArrSlot *op_slot(Vm *const vm, uint16_t *const id)
+static ArrSlot *op_slot(Vm *const vm, uint32_t *const id)
 {
-    *id = exec_u16(vm);
+    *id = exec_u32(vm);
     return (ArrSlot *)at(loc_at((Loc){(int32_t)exec_u32(vm)}, vm->fp));
 }
 
 Addr exec_elem1(Session *const S, const int32_t sub, const uint32_t size, const bool frame)
 {
     Vm *const vm = &S->vm;
-    const Addr h = hdr1(vm->ip + 2, vm->fp, frame);
+    const Addr h = hdr1(vm->ip + VID, vm->fp, frame);
     Addr e;
 
     if (elem1_fast(h, sub, size, frame, &e)) {
-        vm->ip += 2 + VCELL;
+        vm->ip += VID + VCELL;
         return e;
     }
 
-    const uint16_t id = exec_u16(vm);
+    const uint32_t id = exec_u32(vm);
     const Loc c = {(int32_t)exec_u32(vm)};
 
     ArrSlot *const s = frame ? arry_slot(&S->arry, id) : (ArrSlot *)at(loc_at(c, vm->fp));
@@ -942,7 +942,7 @@ Addr exec_elem1(Session *const S, const int32_t sub, const uint32_t size, const 
 
 Addr exec_elem(Arry *const ar, Vm *const vm)
 {
-    uint16_t id;
+    uint32_t id;
     ArrSlot *const s = op_slot(vm, &id);
     const uint8_t n = exec_u8(vm);
 
@@ -981,7 +981,7 @@ Addr exec_elem(Arry *const ar, Vm *const vm)
     return arry_ref(ar, s, id, n);
 }
 
-Addr exec_record(Arry *const ar, ArrSlot *const s, const uint16_t id)
+Addr exec_record(Arry *const ar, ArrSlot *const s, const uint32_t id)
 {
     if (s->hdr)
         return s->hdr;
@@ -1056,7 +1056,7 @@ void exec_s_st_a(Session *const S)
    argument's address: a record's, an element's, a field's. */
 void exec_r_addr(Session *const S)
 {
-    const uint16_t id = exec_u16(&S->vm);
+    const uint32_t id = exec_u32(&S->vm);
     const Loc loc = {(int32_t)exec_u32(&S->vm)};
 
     const Addr a = loc_at(loc, S->vm.fp);
@@ -1247,7 +1247,7 @@ void exec_p_refn(Session *const S)
 
 /* A scalar parameter's ref cell's word, at its offset from the frame: its argument's address,
    tagged (mem/loc.h). */
-static uint32_t param_ref(Vm *const vm) { return rd32(vm->fp + exec_u16(vm)); }
+static uint32_t param_ref(Vm *const vm) { return rd32(vm->fp + exec_u32(vm)); }
 
 static Addr param_cell(Vm *const vm) { return param_ref(vm) & REF_ADDR; }
 

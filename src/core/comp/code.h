@@ -32,7 +32,7 @@ void code_opb(Code *c, uint8_t op, uint8_t b);  /* op, a byte */
 void code_opw(Code *c, uint8_t op, uint16_t w); /* op, a word */
 /* op, variable id (an FV op's VCELL, an FA op's id and cell); a parameter's (par) X.LD.V, X.ST.V
    as V.LD, V.ST id kind */
-void code_opid(Code *c, uint8_t op, uint16_t id, bool par);
+void code_opid(Code *c, uint8_t op, uint32_t id, bool par);
 void code_word(Code *c, uint16_t w);
 void code_dword(Code *c, uint32_t d);
 void code_insert(Code *c, uint8_t b, uint8_t *at); /* b at at, the code after it moved up */

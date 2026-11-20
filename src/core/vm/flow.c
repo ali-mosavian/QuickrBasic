@@ -493,7 +493,7 @@ static void end_call(
     const Call c = f->call;
 
     if (p->flags & PF_ARRAYS) {
-        for (uint16_t id = symb_first_local(sy, c.proc); id; id = symb_varx(sy, id)->nloc)
+        for (uint32_t id = symb_first_local(sy, c.proc); id; id = symb_varx(sy, id)->nloc)
             if (is_array(symb_var(sy, id)) && symb_is_local(sy, id)) {
                 ArrSlot *const s = (ArrSlot *)at(loc_frame_at(*symb_loc(sy, id), c.fp));
                 arry_kill(ar, s->hdr); /* a frame's goes with the frame */

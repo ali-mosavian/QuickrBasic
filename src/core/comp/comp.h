@@ -29,6 +29,12 @@ enum { COMP_TAIL = 12 }; /* room past the code's limit: a line's ERR and EOL */
 
 enum { DFOR_MAX = 16 }; /* FORs open in the direct line at most */
 
+/* comp_var's memo key: what it found a variable by. */
+typedef struct {
+    uint32_t name, proc;
+    uint8_t sfx, arr, deft, set; /* set 0: no entry */
+} MemoKey;
+
 typedef struct Comp {
     /* what it works with, set before comp_init */
     Fault *fault;
@@ -61,7 +67,7 @@ typedef struct Comp {
     /* the expression */
 
     /* the target of a store */
-    uint16_t tgt;    /* ctv: its variable, or a record field's offset */
+    uint32_t tgt;    /* ctv: its variable, or a record field's offset */
     uint8_t tgtinfo; /* ctk: its TVAR.info */
     uint8_t tgtsubs; /* ctn: its subscripts, TGT_FIELD a record's field */
 
@@ -73,7 +79,7 @@ typedef struct Comp {
     uint8_t *dbg;             /* cdbg: past its DBG op, null none */
     uint8_t nargs;            /* ccnt: a CALL's counted arguments */
     uint8_t forkind;          /* cfk: FOR's variable's kind, 0 a FLOAT, SK_DBL a DOUBLE */
-    uint16_t forvar;          /* cfid: FOR's variable */
+    uint32_t forvar;          /* cfid: FOR's variable */
     const uint8_t *nextkw;    /* the NEXT statement compiled last, its variables' entries from */
     struct BlockEnt *nextent; /* the entry of the variable it closed last */
     uint32_t dfor[DFOR_MAX];  /* the direct line's open FORs: their body offsets */
@@ -113,8 +119,8 @@ typedef struct Comp {
     bool memo_on;
     bool errs; /* an ERR compiled since link.c's build began: its error walk needed */
     struct {
-        uint64_t key; /* 0 none */
-        uint16_t id;
+        MemoKey key; /* set 0: none */
+        uint32_t id;
         uint32_t scope;
         uint8_t how; /* VM_PARAM a parameter (no scope set), VM_STATIC */
     } memo[1024];
@@ -126,10 +132,10 @@ extern const uint8_t comp_etkind[8];
    parenthesis); to be calibrated against the asm build. */
 enum { COMP_MAXDEPTH = CPROOM / 24 };
 
-/* A body's tokens: M_INT n:4; M_VAR len text id:2 (the text with its suffix, if any). */
+/* A body's tokens: M_INT n:4; M_VAR len text id:4 (the text with its suffix, if any). */
 enum { INT_TOKEN_SIZE = 5 };
 /* Past the name token at p. */
-static inline const uint8_t *comp_skipname(const uint8_t *const p) { return p + p[1] + 4; }
+static inline const uint8_t *comp_skipname(const uint8_t *const p) { return p + 2 + p[1] + NAME_ID; }
 /* The name token at p's suffix (% & ! # $, all under '.'), 0 none. */
 static inline uint8_t comp_suffixof(const uint8_t *const p)
 {
@@ -148,7 +154,7 @@ Status comp_text(Comp *C, const uint8_t *body);
 /* The statement's steps resolved, folded and generated, in order. */
 void comp_flush(Comp *C);
 /* A hidden name: kind (LOOP_NAME, RES_NAME), which, key; no name typed starts with those bytes. */
-uint16_t comp_hidden(Comp *C, uint8_t kind, uint8_t which, uint32_t key);
+uint32_t comp_hidden(Comp *C, uint8_t kind, uint8_t which, uint32_t key);
 /* A part of the statement starts at comp.p, a statement of its own to a jump: its code's place in
    the statement map. NEXT a, b's b. */
 void comp_part(Comp *C);
@@ -170,7 +176,7 @@ void comp_byte(Node *n, uint8_t b);
 void comp_word(Node *n, uint16_t w);
 void comp_dword(Node *n, uint32_t d);
 /* op, a variable; a parameter's X.LD.V/X.ST.V as V.LD/V.ST */
-void comp_opid(Comp *C, uint8_t op, uint16_t id);
+void comp_opid(Comp *C, uint8_t op, uint32_t id);
 /* op (0 none), its operands by comp_byte, then comp.lnum's line: num addr */
 Node *comp_jump(Comp *C, uint8_t op);
 Node *comp_go(Comp *C, uint8_t op, Jump j);  /* op to a block's target; operands by comp_byte */
@@ -184,7 +190,7 @@ void comp_tostring(Comp *C);
 void comp_toinfo(Comp *C, uint8_t info);
 void comp_tobyte(Comp *C);
 void comp_toaddr(Comp *C);
-void comp_target(Comp *C, uint16_t id); /* variable id is the target: comp.tgt, tgtinfo */
+void comp_target(Comp *C, uint32_t id); /* variable id is the target: comp.tgt, tgtinfo */
 void comp_store(Comp *C);               /* the value converted and stored to the target */
 
 /* The token reader: p at a byte or the spaces before it */
@@ -210,26 +216,26 @@ void comp_astype(Comp *C);   /* cm_dvas: past AS type [* n], if there; not a typ
 uint8_t comp_lnum(Comp *C);  /* a line number or label to lnum, jline; the byte after */
 
 /* Names and variables */
-uint16_t comp_name(Comp *C); /* cm_name: the M_VAR at comp.p as comp_var(0, 0) */
+uint32_t comp_name(Comp *C); /* cm_name: the M_VAR at comp.p as comp_var(0, 0) */
 void comp_notconst(Comp *C); /* the M_VAR at comp.p declared or stored to: a CONST's, E_RD */
-uint16_t comp_var(
+uint32_t comp_var(
     Comp *C,
     uint8_t shape,
     uint32_t et
 ); /* var_id: shape 1 a scalar, 2 an array, 0 by '(';
                                             et its type, 0 by suffix, AS, DEFtype */
 /* A scalar parameter of the procedure compiled (only its own are in scope). */
-static inline bool comp_ispar(const Comp *const C, const uint16_t id)
+static inline bool comp_ispar(const Comp *const C, const uint32_t id)
 {
     return !(symb_var(C->symb, id)->info & VI_ARR) && symb_is_ref(C->symb, id);
 }
-bool comp_param(Comp *C, uint16_t name, uint8_t array, uint16_t *id); /* var_par: array 80h */
-void comp_scope(Comp *C, uint16_t name); /* var_scope: comp.scope, comp.isstatic for it */
+bool comp_param(Comp *C, uint32_t name, uint8_t array, uint32_t *id); /* var_par: array 80h */
+void comp_scope(Comp *C, uint32_t name); /* var_scope: comp.scope, comp.isstatic for it */
 uint8_t comp_suffix(uint8_t c);          /* et_sfx: % & ! # $ to ET_*, 0 none */
 const uint8_t *comp_label(
     const uint8_t *body
 );                                       /* lbl_at: a label starts body: its ':', else null */
-uint16_t comp_nameof(const uint8_t *at); /* lbl_nam: the name of the M_VAR at at */
+uint32_t comp_nameof(const uint8_t *at); /* lbl_nam: the name of the M_VAR at at */
 /* DATA's text from p (past the DATA token): to its ':' out of quotes, or its 0. */
 const uint8_t *comp_skipdata(const uint8_t *p);
 #endif

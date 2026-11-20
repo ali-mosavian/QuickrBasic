@@ -1259,6 +1259,13 @@ BIG |= {
     # 512 fields, all TYPEs': the 513th was Out of memory.
     "limit_fields": (bas(*[x for i in range(6) for x in (f"type t{i}", *[f" f{j} as integer" for j in range(100)], "end type")],
                          "dim v as t5", "v.f99 = 599", "print v.f99"), " 599 \r\n", "ERROR"),
+    # 65,535 variables and names, numbered in 16 bits: the 65,536th was Out of memory.
+    "limit_vars": (bas(*[":".join(f"v{i} = {i}" for i in range(k, k + 20)) for k in range(0, 70000, 20)],
+                       "print v0; v69999; v35000"), " 0  69999  35000 \r\n", "ERROR"),
+    # A procedure's name past 16,383 names carried the array scope's bit: LBOUND of its scalar was 0.
+    "limit_scope_bits": (bas(*[":".join(f"w{i} = 1" for i in range(k, k + 20)) for k in range(0, 17000, 20)],
+                             "s", "sub s", " dim y as integer", " print lbound(y)", "end sub"),
+                         "Array not defined", " 0"),
 }
 
 

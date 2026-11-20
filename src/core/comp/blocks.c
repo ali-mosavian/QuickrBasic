@@ -715,7 +715,7 @@ static void blok_scanline(BlokScan *const sc, const uint8_t *const b)
     sc->body = b;
     const uint8_t *s = b;
 
-    const bool label = *s == M_VAR && s[s[1] + 4] == ':';
+    const bool label = *s == M_VAR && *comp_skipname(s) == ':';
 
     if (sc->selcase && (label || prog_line(sc->pg, sc->line)->num != NONUM)) {
         sc->off = 0;
@@ -723,7 +723,7 @@ static void blok_scanline(BlokScan *const sc, const uint8_t *const b)
     }
 
     if (label) /* its statement after the ':' */
-        s += s[1] + 5;
+        s = comp_skipname(s) + 1;
     for (;;) {
         while (*s == ':')
             s++;

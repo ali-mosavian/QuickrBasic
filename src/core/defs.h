@@ -54,7 +54,7 @@ enum : uint8_t {
     BF_USE = 32,
     BF_RES = 64
 };
-enum : uint16_t { SC_NUM = 0x8000, SC_ARR = 0x4000 };
+enum : uint32_t { SC_NUM = 0x80000000, SC_ARR = 0x40000000 };
 
 /* A jump target's mode: the statement, past the JMP it starts with, or the statement after it. */
 typedef enum : uint8_t { TO_STMT, PAST_JMP, TO_NEXT_STMT } JumpMode;
@@ -77,6 +77,8 @@ enum : uint32_t {
 
 /* Tokens in a stored line. */
 enum : uint8_t { M_VAR = 1, M_INT = 2, REM_Q = 3 };
+/* An M_VAR's name id: its bytes, after its length and text. */
+enum { NAME_ID = 4 };
 
 /* A line's record in the program store, its body after it. */
 typedef struct PACKED {
@@ -95,7 +97,7 @@ enum { HDR = sizeof(Line) };
 enum : uint8_t { LF_ASIS = 1, LF_BP = 2, LF_INC = 4, LF_NODEF = 8 };
 enum : uint32_t {
     NONUM = 0xFFFF,
-    LMAX = 0xFEE0,     /* a line's body at most */
+    LMAX = 0x17000,    /* a line's body at most: 0xFEE0 with 2-byte name ids, times 7/5 */
     BOFF = 0xFFFFFFFF, /* a statement map's body offset of the line's end */
     PDIR = 0x80000000, /* a target's flag: the direct line's */
     XSLK = 48,         /* the most one op writes past its size */

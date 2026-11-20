@@ -321,7 +321,7 @@ const View *view_at(const uint32_t v) { return &vw.tab[v]; }
 
 const char *view_name(const uint32_t v) { return vw.names + vw.tab[v].name; }
 
-uint16_t view_proc(Session *const S, const uint32_t v)
+uint32_t view_proc(Session *const S, const uint32_t v)
 {
     const uint8_t *nm = nullptr;
     return vw.tab[v].kind && is_proc(kind(S, vw.tab[v].first, &nm)) ? comp_nameof(nm) : 0;

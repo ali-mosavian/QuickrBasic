@@ -22,21 +22,21 @@ struct BlockEnt {
 /* A parameter: its name's position, the variable link_start declares for it. */
 typedef struct {
     uint32_t at;
-    uint16_t var;
+    uint32_t var;
     bool byval;
 } Param;
 
 /* A SUB, FUNCTION or DEF FN. */
 typedef struct {
     uint32_t at; /* its name's position */
-    uint16_t name;
+    uint32_t name;
     uint8_t kind;   /* PK_SUB, PK_FUNC */
     uint8_t flags;  /* PF_* */
     uint32_t entry; /* its body: a target */
     uint32_t first; /* its first line, its last (program store offsets) */
     uint32_t last;
     uint16_t npar;
-    uint16_t result; /* a FUNCTION's result variable */
+    uint32_t result; /* a FUNCTION's result variable */
     uint16_t nframe; /* its frame's cells (comp/frame.c) */
     Param *params;
     uint32_t skip; /* past its END: a target */
@@ -66,7 +66,7 @@ static inline uint16_t blok_nargs(const Proc *const p)
     return p->npar - !!(p->flags & PF_RESARG);
 }
 /* A FUNCTION's record or array result's parameter, its variable (PF_RESARG). */
-static inline uint16_t blok_resvar(const Proc *const p) { return p->params[p->npar - 1].var; }
+static inline uint32_t blok_resvar(const Proc *const p) { return p->params[p->npar - 1].var; }
 /* bk_proc: the procedure line is in, 0 none. */
 uint32_t blok_procof(const Blok *b, uint32_t line);
 /* A line at or before position pos: the first of the last procedure that starts there, else the

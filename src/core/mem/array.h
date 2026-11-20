@@ -29,16 +29,16 @@ typedef struct Arry {
 void arry_init(Arry *ay, Allo *al, Fault *f, Symb *sy, const Decl *d, Strg *sg, const Addr *fp);
 /* Array id's cell in the running call: its own, a local's in the frame, a parameter's its
    argument's. */
-ArrSlot *arry_slot(const Arry *ay, uint16_t id);
+ArrSlot *arry_slot(const Arry *ay, uint32_t id);
 /* Array id's element at arry.subs[0..n), s its cell; a new array has every subscript OPTION BASE to 10.
    Subscript out of range: n not the array's, a subscript out of its bounds, or ERASE freed it.
    Out of memory. */
-Addr arry_ref(Arry *ay, ArrSlot *s, uint16_t id, uint8_t n);
+Addr arry_ref(Arry *ay, ArrSlot *s, uint32_t id, uint8_t n);
 /* Subscript out of range (E_BS). */
 [[noreturn]]
 void arry_bad_sub(const Arry *ay);
 /* Array id's elements' ET_*: ET_REC + t a TYPE's, ET_I4 an INT's (VS bytes), ours. */
-static inline uint32_t arry_var_et(const Symb *const sy, const uint16_t id)
+static inline uint32_t arry_var_et(const Symb *const sy, const uint32_t id)
 {
     const Var *const v = symb_var(sy, id);
 
@@ -74,12 +74,12 @@ static inline uint32_t arry_et_size(const Decl *const d, const uint32_t et)
 }
 
 /* Array id's element size: inline, an element's address takes it every time. */
-static inline uint32_t arry_elem_size(const Symb *const sy, const Decl *const d, const uint16_t id)
+static inline uint32_t arry_elem_size(const Symb *const sy, const Decl *const d, const uint32_t id)
 {
     return arry_et_size(d, arry_var_et(sy, id));
 }
 
-static inline uint32_t arry_esize(const Arry *const ay, const uint16_t id)
+static inline uint32_t arry_esize(const Arry *const ay, const uint32_t id)
 {
     return arry_elem_size(ay->symb, ay->decl, id);
 }
@@ -93,12 +93,12 @@ bool arry_heap(const Arry *ay, Addr h);
 void arry_counts(Arry *ay, uint8_t n);
 /* DIM: array id made, its counts arry.subs[0..n) + 1; dyn a REDIM's. Illegal function call: a
    subscript under 0. Duplicate definition: it exists. Out of memory. */
-void arry_dim(Arry *ay, uint16_t id, uint8_t n, bool dyn);
+void arry_dim(Arry *ay, uint32_t id, uint8_t n, bool dyn);
 /* The array fields of the n records of TYPE td at data dynamic and empty, ours. */
 void arry_empty_cells(Addr data, uint32_t n, const TypeDef *td);
 /* DIM a(), ours: array id dynamic and empty until a REDIM, as ERASE leaves one; keep: a STATIC's
    with elements kept. Duplicate definition: it has elements. */
-void arry_empty(Arry *ay, uint16_t id, bool keep);
+void arry_empty(Arry *ay, uint32_t id, bool keep);
 /* a() = b(), ours: cell d gets s's bounds and a copy of its elements, a dynamic array after, its
    old one freed. Duplicate definition: d a DIM's with elements. Out of memory. */
 void arry_copy(Arry *ay, Vm *vm, ArrSlot *d, const ArrSlot *s);
@@ -120,7 +120,7 @@ void arry_reset(Arry *ay, Vm *vm, ArrSlot *s);
    of memory. */
 Addr arry_make(Arry *ay, ArrSlot *s, uint32_t et, uint8_t n, bool dyn);
 /* arry_make for array id in its cell. */
-Addr arry_new(Arry *ay, uint16_t id, uint8_t n, bool dyn);
+Addr arry_new(Arry *ay, uint32_t id, uint8_t n, bool dyn);
 /* The data's bytes of the array with header hdr. */
 uint32_t arry_size(const Arry *ay, Addr hdr);
 /* Header h's array dead, ours, and the arrays its records hold: arry_sweep removes them. A frame's

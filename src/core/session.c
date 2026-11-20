@@ -114,7 +114,7 @@ uint32_t session_frames(const Session *const S, DebugFrame out[], const uint32_t
 Addr session_cell(
     const Session *const S,
     const DebugFrame *const f,
-    const uint16_t id,
+    const uint32_t id,
     const int32_t par
 )
 {

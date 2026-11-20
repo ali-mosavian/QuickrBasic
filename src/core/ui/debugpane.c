@@ -70,7 +70,7 @@ static constexpr uint32_t VIEW_NONE = UINT32_MAX; /* a frame in no view */
 
 /* A variable's row at the stop it last changed at: its text's hash, that stop. */
 typedef struct {
-    uint16_t id, name; /* a relinked program's id may be another's: its name too */
+    uint32_t id, name; /* a relinked program's id may be another's: its name too */
     uint32_t hash;
     uint32_t stop;
 } Seen;
@@ -92,7 +92,7 @@ static struct {
     char wx[NWATCH][WXLEN];
     char wv[NWATCH][DP_TWMAX];
     uint8_t tip_row, tip_col; /* tt_pos */
-    uint16_t vid[NDVAR];      /* Locals' variables' ids */
+    uint32_t vid[NDVAR];      /* Locals' variables' ids */
     uint8_t nvars;
     char vt[NDVAR][DP_TWMAX];
     PaneFrame fr[NDFRM];
@@ -327,7 +327,7 @@ static void child_draw(Widget *const x, Session *const S)
 }
 
 /* dp_ispar: id is a parameter of procedure dp.proc. */
-static bool is_param(Session *const S, const uint16_t id)
+static bool is_param(Session *const S, const uint32_t id)
 {
     if (!dp.proc)
         return false;
@@ -343,7 +343,7 @@ static bool is_param(Session *const S, const uint16_t id)
 
 /* dp_val: the value of variable id's kind in cell, as text at d: a number as PRINT's without
    its sign's space, a string in quotes. Past it. */
-static char *value(Session *const S, char *d, const uint16_t id, const Addr cell)
+static char *value(Session *const S, char *d, const uint32_t id, const Addr cell)
 {
     const Var *const v = symb_var(&S->symb, id);
     uint8_t buf[DUBL_TXT];
@@ -379,7 +379,7 @@ static char *value(Session *const S, char *d, const uint16_t id, const Addr cell
 
 /* dp_vtext: variable id's row in dp.row_text: its name, " = ", its value as the frame sees it;
    par its parameter's place or -1. */
-static void var_text(Session *const S, const uint16_t id, const int32_t par)
+static void var_text(Session *const S, const uint32_t id, const int32_t par)
 {
     const Var *const v = symb_var(&S->symb, id);
     const uint8_t *const name = symb_text(&S->symb, v->name);
@@ -414,10 +414,10 @@ static uint32_t hash(const char *s)
 
 /* The stop variable id's row last changed at, its text in dp.row_text; now (its procedure's newest
    frame) a change is this stop's. 0: not changed since first seen. */
-static uint32_t changed_at(Session *const S, const uint16_t id, const bool now)
+static uint32_t changed_at(Session *const S, const uint32_t id, const bool now)
 {
     const uint32_t h = hash(dp.row_text);
-    const uint16_t name = symb_var(&S->symb, id)->name;
+    const uint32_t name = symb_var(&S->symb, id)->name;
     Seen *e = nullptr;
 
     for (uint16_t i = 0; i < dp.nseen && !e; i++)
@@ -448,7 +448,7 @@ static uint32_t changed_at(Session *const S, const uint16_t id, const bool now)
 
 /* dp_var1: Locals' next row, after the rows changed as late or later: variable id, parameter par
    of its procedure or -1; now as changed_at's. */
-static void var1(Session *const S, const uint16_t id, const int32_t par, const bool now)
+static void var1(Session *const S, const uint32_t id, const int32_t par, const bool now)
 {
     if (dp.nvars >= NDVAR)
         return;
@@ -469,7 +469,7 @@ static void var1(Session *const S, const uint16_t id, const int32_t par, const b
 }
 
 /* A variable Locals and the tooltip leave out: a DEF FN's, a FOR loop's hidden limit or step. */
-static bool skipped(Session *const S, const uint16_t id)
+static bool skipped(Session *const S, const uint32_t id)
 {
     const Var *const v = symb_var(&S->symb, id);
     return (v->info & (VI_ARR | VK_MASK)) == VK_FN || symb_text(&S->symb, v->name)[1] == LOOP_NAME;
@@ -494,7 +494,7 @@ static void vars(Session *const S)
             var1(S, p->params[k].var, k, now);
     }
 
-    for (uint16_t id = 1; id < S->symb.nvars; id++)
+    for (uint32_t id = 1; id < S->symb.nvars; id++)
         if (symb_varx(&S->symb, id)->scope == dp.proc && !skipped(S, id) && !is_param(S, id))
             var1(S, id, -1, now);
 }
@@ -832,7 +832,7 @@ static bool word(
    if any, its type's. */
 static bool match(
     Session *const S,
-    const uint16_t id,
+    const uint32_t id,
     const uint8_t *const s,
     const uint32_t n,
     const uint8_t sfx
@@ -855,9 +855,9 @@ static bool match(
 }
 
 /* dp_seen: module variable id is seen in procedure dp.proc: DIM SHARED, or SHARED there. */
-static bool seen(Session *const S, const uint16_t id)
+static bool seen(Session *const S, const uint32_t id)
 {
-    const uint16_t name = symb_var(&S->symb, id)->name;
+    const uint32_t name = symb_var(&S->symb, id)->name;
     const Binding *b = scop_get(&S->scop, 0, name);
 
     if (b && b->flags & BF_SHR)
@@ -881,7 +881,7 @@ static const char *find(
             return dp.vt[i];
     if (!dp.proc) /* the module's: all in Locals */
         return nullptr;
-    for (uint16_t id = 1; id < S->symb.nvars; id++) {
+    for (uint32_t id = 1; id < S->symb.nvars; id++) {
         if (symb_varx(&S->symb, id)->scope || skipped(S, id) || !match(S, id, s, n, sfx) ||
             !seen(S, id))
             continue;

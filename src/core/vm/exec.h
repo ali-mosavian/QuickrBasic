@@ -64,6 +64,8 @@ typedef struct PACKED {
 enum { JSIZE = 1 + sizeof(Jump) };
 /* An FV op's operand: the variable's id as compiled, its cell's Addr once linked. */
 enum { VCELL = 4 };
+/* An FA or FP op's operand: the variable's id; an FP op's its ref cell's frame offset once linked. */
+enum { VID = 4 };
 /* I.NEXT.UP, I.NEXT.DN: counter, step, limit cells, the Jump back */
 enum { NEXT_SIZE = 1 + 3 * VCELL + sizeof(Jump) };
 /* EOL.TO: the next line, its code's offset in the cache */
@@ -232,10 +234,10 @@ bool exec_brk(Session *S);
 /* arr_r1: element sub, size bytes each, of the 1-D array the X.A1 op at vm.ip names; frame: an
    X.A1F's, the array in the frame. Subscript out of range past a word. */
 Addr exec_elem1(Session *S, int32_t sub, uint32_t size, bool frame);
-/* arr_pn: the element an FA op's `id:2 cell:4 n:1` at vm.ip names, its n subscripts popped. */
+/* arr_pn: the element an FA op's `id:4 cell:4 n:1` at vm.ip names, its n subscripts popped. */
 Addr exec_elem(Arry *ar, Vm *vm);
 /* rec_get: record id's header (s its cell), the record made, zeroed, at its first use. */
-Addr exec_record(Arry *ar, ArrSlot *s, uint16_t id);
+Addr exec_record(Arry *ar, ArrSlot *s, uint32_t id);
 /* int_div: a / b truncated, *rem its remainder. Division by zero; Overflow -2^31 / -1. */
 int32_t exec_idiv(Fault *f, int32_t a, int32_t b, int32_t *rem);
 #endif

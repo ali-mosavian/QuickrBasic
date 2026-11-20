@@ -164,7 +164,7 @@ static Span vgfx_array(Session *const S)
 {
     (void)exec_popi(&S->vm); /* the element's kind */
     const Addr el = exec_popa(&S->vm);
-    const uint16_t id = (uint16_t)exec_popi(&S->vm);
+    const uint32_t id = exec_pop(&S->vm).u;
     const Addr hdr = arry_slot(&S->arry, id)->hdr;
 
     if (!hdr)
