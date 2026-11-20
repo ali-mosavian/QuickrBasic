@@ -4,17 +4,21 @@
 #define CORE_COMP_IMPORT_H
 #include "comp/comp.h"
 
-/* A module's name as written: its dotted text, len bytes (0: FROM's dots alone), and the folders
-   up its leading dots go (0 none: the search path's; 1 the importing file's folder). */
+/* A name as written: its dotted text, len bytes (0: FROM's dots alone); the folders up a module's
+   leading dots go (0 none: the search path's; 1 the importing file's folder); the name its AS gives
+   (aslen 0 none); FROM's name with (): an array. */
 typedef struct {
     const uint8_t *text;
     uint8_t len;
     uint8_t up;
+    uint8_t aslen;
+    bool arr;
+    const uint8_t *as;
 } ImptName;
 
 /* What a name in the statement is: IMPORT's module; FROM's module; a name FROM gives, which is a
-   module of its package when FROM's module is a folder. */
-typedef enum : uint8_t { IMPT_MODULE, IMPT_FROM, IMPT_NAME } ImptKind;
+   module of its package when FROM's module is a folder; FROM's *. */
+typedef enum : uint8_t { IMPT_MODULE, IMPT_FROM, IMPT_NAME, IMPT_STAR } ImptKind;
 
 typedef void ImptEach(void *ctx, ImptKind kind, const ImptName *n);
 

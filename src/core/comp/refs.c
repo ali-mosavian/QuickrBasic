@@ -70,8 +70,8 @@ static uint32_t nrec(Comp *const C, const uint32_t name, const bool array)
 
 static uint32_t recvar(Comp *const C, const uint32_t name, const uint32_t t, const uint8_t kind)
 {
-    comp_scope(C, name);
-    return symb_find_var(C->symb, name, ET_REC + t, kind, C->scope, C->isstatic);
+    const uint32_t own = comp_scope(C, name);
+    return symb_find_var(C->symb, own, ET_REC + t, kind, C->scope, C->isstatic);
 }
 
 uint32_t ref_recarray(Comp *const C, const uint32_t name, const uint32_t t)
@@ -121,7 +121,7 @@ static const Field *field(
     const uint32_t n
 )
 {
-    const uint32_t name = symb_find_name(C->symb, text, (uint8_t)n);
+    const uint32_t name = symb_find_name(C->symb, 0, text, (uint8_t)n); /* fields' are the main's */
     const TypeDef *const td = decl_type(C->decl, t);
 
     for (uint32_t i = 0; i < td->nfld; i++)
@@ -427,7 +427,7 @@ static Node *record(Comp *const C)
         if (text[i] != '.')
             continue;
 
-        const uint32_t pre = symb_find_name(C->symb, text, (uint8_t)i);
+        const uint32_t pre = symb_find_name(C->symb, sc_number(C->module), text, (uint8_t)i);
         t = nrec(C, pre, false);
 
         if (!t)
@@ -949,7 +949,7 @@ static bool is_variable(const Comp *const C, const uint32_t name)
     uint32_t id, scope;
     const Binding *const b = scop_look(C->scop, name, &scope);
     return comp_param((Comp *)C, name, 0, &id) || comp_param((Comp *)C, name, VI_ARR, &id) ||
-           (b && (b->flags || b->et[0] || b->et[1]));
+           (b && (b->flags & ~BF_PROC || b->et[0] || b->et[1])); /* not a SUB's own */
 }
 
 Node *ref_call(

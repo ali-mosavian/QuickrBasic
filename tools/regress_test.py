@@ -1370,8 +1370,13 @@ CASES |= {
 }
 
 # IMPORT and FROM, ours: keywords only where they start such a statement, so a variable or SUB of
-# either name still works; the statement is its line's first, at module level.
+# either name still works; the statement is its line's first, at module level. PRIVATE only before SUB, FUNCTION,
+# CONST or TYPE, PUBLIC only after DIM and before a name.
 CASES |= {
+    "import_words": (bas("private = 1: public = 2", "dim public(3), x as public", "print private; public",
+                         "type public", " a as integer", "end type", "private const k = 4: print k",
+                         "sub s", " private const j = 1", "end sub"),
+                     "IMPORT_W.BAS:9: Syntax error", None),
     "import_names": (bas("import = 5: from = 2: print import; from", "import(1) = 3: print import(1)"),
                      " 5  2 \r\n 3 \r\n", "ERROR"),
     "import_sub": (bas("declare sub import (x)", "call import(3)", "end", "sub import (x)", " print x * 2", "end sub"),
@@ -1399,18 +1404,20 @@ CASES |= {
                            {"gfx.bas": bas("sub plot (x)", ' print "plot"; x', "end sub",
                                            "function area (r)", " area = r * r", "end function")}),
                     "plot 3 \r\n 4 \r\n", "ERROR"),
-    "import_package": (beside(bas("import lib.pkg.sprite", "from lib.pkg import util", "spr 1: utl 2"), SPR),
+    "import_package": (beside(bas("import lib.pkg.sprite", "from lib.pkg import util",
+                                  "lib.pkg.sprite.spr 1: util.utl 2"), SPR),
                        "spr 1 \r\nutl 2 \r\n", "ERROR"),
-    "import_relative": (beside(bas("import lib.pkg.rel", "nr 1: tp 2"),
-                               {"lib/pkg/rel.bas": bas("from . import near", "from ..top import tp"),
+    "import_relative": (beside(bas("import lib.pkg.rel", "lib.pkg.rel.go"),
+                               {"lib/pkg/rel.bas": bas("from . import near", "from ..top import tp", "sub go",
+                                                       " near.nr 1: tp 2", "end sub"),
                                 "lib/pkg/near.bas": bas("sub nr (x)", ' print "nr"; x', "end sub"),
                                 "lib/top.bas": bas("sub tp (x)", ' print "tp"; x', "end sub")}),
                         "nr 1 \r\ntp 2 \r\n", "ERROR"),
     # Imported twice, and in a cycle: loaded twice, its SUB was a Duplicate definition.
-    "import_twice": (beside(bas("import ca", "from ca import *", "a 1: b 2"),
-                            {"ca.bas": bas("import cb", "sub a (x)", ' print "a"; x', "end sub"),
+    "import_twice": (beside(bas("import ca", "from ca import *", "a 1: ca.a 3"),
+                            {"ca.bas": bas("import cb", "sub a (x)", ' print "a"; x', " cb.b x + 1", "end sub"),
                              "cb.bas": bas("import ca", "sub b (x)", ' print "b"; x', "end sub")}),
-                     "a 1 \r\nb 2 \r\n", "ERROR"),
+                     "a 1 \r\nb 2 \r\na 3 \r\nb 4 \r\n", "ERROR"),
     # The main program's end, a false one-line IF's too, ran on into a module's top-level code.
     "import_main_ends": (beside(bas("import noisy", 'print "main"', 'if 0 then print "x"'),
                                 {"noisy.bas": bas('print "noisy"', "sub nz", "end sub")}),
@@ -1430,10 +1437,10 @@ CASES |= {
     "import_own_vars": (beside(bas("from cnt import *", "n = 10", "bump", "bump", "print n"),
                                {"cnt.bas": bas("dim shared n", "sub bump", " n = n + 1: print n", "end sub")}),
                         " 1 \r\n 2 \r\n 10 \r\n", "ERROR"),
-    "import_own_const": (beside(bas("from kc import *", "k = 5: print k: showk"),
+    "import_own_const": (beside(bas("import kc", "k = 5: print k: kc.showk"),
                                 {"kc.bas": bas("const k = 2", "sub showk", " print k", "end sub")}),
                          " 5 \r\n 2 \r\n", "ERROR"),
-    "import_own_labels": (beside(bas("import lb", "gosub h", "10 lbsub", "end", "h: print \"main h\"", "return"),
+    "import_own_labels": (beside(bas("import lb", "gosub h", "10 lb.lbsub", "end", "h: print \"main h\"", "return"),
                                  {"lb.bas": bas("10 rem", "h: rem", "sub lbsub", ' print "lb"', "end sub")}),
                           "main h\r\nlb\r\n", "ERROR"),
     "import_other_line": (beside(bas("import ln", "goto 20"), {"ln.bas": bas("20 rem")}),
@@ -1454,6 +1461,61 @@ CASES |= {
                                {"bs.bas": bas("sub lb", " dim a(3): print lbound(a)", " z(2) = 1: print lbound(z)",
                                               "end sub")}),
                         " 1 \r\n 0 \r\n 0 \r\n", "ERROR"),
+}
+
+GFX = {"gfx.bas": bas("const maxw = 320", "type pt", " x as integer", " y as integer", "end type",
+                      "sub plot (p as pt)", ' print "plot"; p.x; p.y', "end sub",
+                      "function area (r)", " area = r * r", "end function")}
+VM = {"vm.bas": bas("defint a-z", "dim public total", "dim public grid(5) as long", "dim public big as long",
+                    "dim shared pages", "private const hid = 7",
+                    "sub bump", " total = total + 1: grid(2) = grid(2) + 10", ' print "bump"; total; grid(2)',
+                    "end sub", "private sub clip", "end sub")}
+RC = {"rc.bas": bas("type pt", " x as integer", " y as integer", "end type", "dim public origin as pt",
+                    "sub show", ' print "show"; origin.x; origin.y', "end sub")}
+# What an import binds. Names were the whole program's: a module's SUB, FUNCTION and TYPE plain everywhere, its
+# CONSTs and variables nowhere, a name two modules defined Duplicate; AS, mod.name, PRIVATE and DIM PUBLIC were
+# Syntax errors or another name.
+CASES |= {
+    "import_from_names": (beside(bas("from gfx import plot as show, pt, maxw", "dim q as pt: q.x = maxw: show q"), GFX),
+                          "plot 320  0 \r\n", "ERROR"),
+    # A module's CONST, used before its CONST line compiled, read its variable, which its code never set: 0.
+    "import_module_names": (beside(bas("import gfx", "dim p as gfx.pt", "p.x = 3", "gfx.plot p",
+                                       "print gfx.area(3); gfx.maxw"), GFX),
+                            "plot 3  0 \r\n 9  320 \r\n", "ERROR"),
+    "import_star_own": (beside(bas("from gfx import *", "plot 1", "sub plot (x)", ' print "own"; x', "end sub"), GFX),
+                        "own 1 \r\n", "ERROR"),
+    "import_star_two": (beside(bas("from k1 import *", "from k2 import *", "print k"),
+                               {"k1.bas": bas("const k = 1"), "k2.bas": bas("const k = 2")}),
+                        "IMPORT_S.BAS:3: Duplicate definition", None),
+    "import_listed_clash": (beside(bas("from gfx import maxw", "const maxw = 1"), GFX),
+                            "IMPORT_L.BAS:2: Duplicate definition", None),
+    "import_not_exported": (beside(bas("from vm import pages"), VM), "IMPORT_N.BAS:1: Name not exported", None),
+    "import_private": (beside(bas("from vm import clip"), VM), "IMPORT_P.BAS:1: Name not exported", None),
+    # A PRIVATE SUB's body started at the SUB, past the statement's start: a call to it was a Syntax error.
+    "import_private_call": (beside(bas("from pv import go", "go"),
+                                   {"pv.bas": bas("sub go", " hid 3", "end sub", "private sub hid (x)",
+                                                  ' print "hid"; x', "end sub", "hid 4")}),
+                            "hid 3 \r\n", "ERROR"),
+    "import_no_reexport": (beside(bas("from ca import b"), {"ca.bas": bas("from cb import b"),
+                                                             "cb.bas": bas("sub b", "end sub")}),
+                           "IMPORT_N.BAS:1: Name not exported", None),
+    "import_public": (beside(bas("from vm import total, grid(), bump", "total = 5", "bump", "print total; grid(2)"),
+                             VM),
+                      "bump 6  10 \r\n 6  10 \r\n", "ERROR"),
+    # Its type the exporter's: big a LONG, total an INTEGER, whatever the importer's DEFtype.
+    "import_public_type": (beside(bas("defsng a-z", "from vm import big, total", "big& = 70000: total% = 2",
+                                      "print big; total"), VM),
+                           " 70000  2 \r\n", "ERROR"),
+    "import_public_suffix": (beside(bas("from vm import total", "total! = 1"), VM),
+                             "IMPORT_P.BAS:2: Duplicate definition", None),
+    "import_record_sub": (beside(bas("from rc import origin, show", "origin.x = 7", "s", "show", "sub s",
+                                     " origin.y = 9", "end sub"), RC),
+                          "show 7  9 \r\n", "ERROR"),
+    "import_module_record": (beside(bas("import rc", "rc.origin.x = 5", "rc.show", "print rc.origin.x"), RC),
+                             "show 5  0 \r\n 5 \r\n", "ERROR"),
+    "import_module_taken": (beside(bas("import gfx", "gfx = 1"), GFX), "IMPORT_M.BAS:2: Duplicate definition", None),
+    "import_module_missing": (beside(bas("import gfx", "print gfx.nothere"), GFX),
+                              "IMPORT_M.BAS:2: Name not exported", None),
 }
 
 

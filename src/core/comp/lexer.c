@@ -408,9 +408,30 @@ static bool lexr_imports(Lexr *const lx, const uint32_t n, const bool from)
     return is_letter(c) || (from && c == '.');
 }
 
-/* Token t of the word of n characters at lexr.in, start where a statement starts: 0 when the
-   word is a keyword only in some places, and here a name. */
-static uint16_t lexr_placed(Lexr *const lx, const uint16_t t, const uint32_t n, const bool start)
+/* The word of n characters at lexr.in is PRIVATE: SUB, FUNCTION, CONST or TYPE follows it. */
+static bool lexr_private(Lexr *const lx, const uint32_t n)
+{
+    const uint8_t *q = lexr_after(lx, n);
+    const uint16_t t = kw_scan(&q);
+    return t == TK_SUB || t == TK_FUNCTION || t == TK_CONST || t == TK_TYPE;
+}
+
+/* The word of n characters at lexr.in is DIM's PUBLIC: a name not AS follows it. */
+static bool lexr_public(Lexr *const lx, const uint32_t n)
+{
+    const uint8_t *q = lexr_after(lx, n);
+    return is_letter(*q) && kw_scan(&q) != TK_AS;
+}
+
+/* Token t of the word of n characters at lexr.in, start where a statement starts, after DIM: 0
+   when the word is a keyword only in some places, and here a name. */
+static uint16_t lexr_placed(
+    Lexr *const lx,
+    const uint16_t t,
+    const uint32_t n,
+    const bool start,
+    const bool dim
+)
 {
     switch (t) {
     case 0x100 + TK1_CONTINUE:
@@ -423,20 +444,26 @@ static uint16_t lexr_placed(Lexr *const lx, const uint16_t t, const uint32_t n, 
     case 0x100 + TK1_IMPORT:
         return lx->from || (start && lexr_imports(lx, n, false)) ? t : 0;
 
+    case 0x100 + TK1_PRIVATE:
+        return start && lexr_private(lx, n) ? t : 0;
+
+    case 0x100 + TK1_PUBLIC:
+        return dim && lexr_public(lx, n) ? t : 0;
+
     default:
         return t;
     }
 }
 
-/* A word, start where a statement starts: its keyword's token written, else a name; the token
-   (100h + n for TK_X n), 0 a name. */
-static uint16_t lexr_word(Lexr *const lx, const bool start)
+/* A word, start where a statement starts, dim after DIM: its keyword's token written, else a name;
+   the token (100h + n for TK_X n), 0 a name. */
+static uint16_t lexr_word(Lexr *const lx, const bool start, const bool dim)
 {
     lx->word = lx->in;
     const uint8_t *p = lx->in;
     const uint16_t scanned = kw_scan(&p);
     const uint32_t n = (uint32_t)(p - lx->in);
-    const uint16_t t = lexr_placed(lx, scanned, n, start);
+    const uint16_t t = lexr_placed(lx, scanned, n, start, dim);
     lx->in += n;
 
     if (!t) {
@@ -569,7 +596,7 @@ uint8_t *lexr_line(Lexr *const lx, uint8_t *const text, uint8_t *const body)
     lx->drained = false;
     lx->escaped = false;
     lx->start = true;
-    lx->from = false;
+    lx->from = lx->dim = false;
     lexr_near(lx);
 
     for (;;) {
@@ -598,8 +625,8 @@ uint8_t *lexr_line(Lexr *const lx, uint8_t *const text, uint8_t *const body)
         if (lx->cols)
             lexr_markcol_kept(lx);
 
-        const bool start = lx->start, first = lx->out == lx->dst;
-        lx->start = false;
+        const bool start = lx->start, first = lx->out == lx->dst, dim = lx->dim;
+        lx->start = lx->dim = false;
 
         if (c == '"') {
             *lx->out++ = c;
@@ -621,8 +648,9 @@ uint8_t *lexr_line(Lexr *const lx, uint8_t *const text, uint8_t *const body)
         } else if (is_letter(c)) {
             lx->in--;
             lexr_joinfn(lx);
-            const uint16_t t = lexr_word(lx, start);
+            const uint16_t t = lexr_word(lx, start, dim);
             lx->start = t == TK_THEN || t == TK_ELSE;
+            lx->dim = t == TK_DIM;
 
             if (t == TK_REM)
                 return lexr_copy_rest(lx);

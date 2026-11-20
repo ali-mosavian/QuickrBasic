@@ -38,6 +38,7 @@
  */
 #include "comp/declare.h"
 #include <string.h>
+#include "comp/bind.h"
 #include "comp/comp.h"
 #include "comp/dfa.h"
 #include "mem/program.h"
@@ -57,6 +58,7 @@ typedef struct {
     bool deft_only;      /* decl_defevents': the names' uses not noted */
     const uint8_t *body; /* the line entered's, its errors' places in it; null none */
     const uint8_t *at;
+    bool priv; /* the statement's PRIVATE */
 } DeclScan;
 
 /* The scope of the procedure being entered, else its module's. */
@@ -294,6 +296,8 @@ uint8_t decl_proc(const uint8_t *const body, const uint8_t **const name)
 
     if (*p == M_INT)
         p += INT_TOKEN_SIZE;
+    if (p[0] == TK_X && p[1] == TK1_PRIVATE)
+        p += 2;
 
     const uint8_t c = *p++;
 
@@ -405,6 +409,16 @@ static void decl_fail(const DeclScan *const ds, const uint8_t code)
     decl_fail_at(ds, ds->at, code);
 }
 
+/* The name n at p declared by the module, NM_PRIV by PRIVATE: an imported one's * binding dropped.
+   Duplicate definition: another the module binds. */
+static void decl_mine(const DeclScan *const ds, const uint8_t *const p, const uint32_t n)
+{
+    if (!bind_own(ds->sc, ds->sy, n))
+        decl_fail_at(ds, p, E_RD);
+    if (ds->priv)
+        symb_name(ds->sy, n)->flags |= NM_PRIV;
+}
+
 /* Room in the array *t of n used, *cap, each size bytes, for one more. */
 static void decl_room(
     DeclScan *const ds,
@@ -448,6 +462,7 @@ void decl_reset(Decl *const d, Scop *const sc, Symb *const sy)
         n->flags &= NM_FN;
         n->rec = 0;
         n->proc = 0;
+        *symb_alias(sy, i) = 0;
     }
 }
 
@@ -610,23 +625,32 @@ static void decl_params(DeclScan *const ds)
 }
 
 /* DIM's names, flags their bindings'. */
-static void decl_dimlist(DeclScan *const ds, const uint8_t flags)
+static void decl_dimlist(DeclScan *const ds, const uint16_t flags)
 {
     for (;;) {
         if (*ds->at != M_VAR)
             return;
 
-        const uint32_t n = decl_name(ds, nullptr);
+        const uint8_t *const at = ds->at;
+        uint8_t sfx;
+        const uint32_t n = decl_name(ds, &sfx);
+        const bool arr = *ds->at == '(';
 
-        if (*ds->at == '(')
+        if (arr)
             ds->d->dimmed = true;
+        if (!ds->d->redim && !sc_is_proc(ds->d->scope))
+            decl_mine(ds, at, n);
 
         const uint32_t scope = ds->d->scope;
         decl_redimscope(ds, n);
         decl_shareddim(ds, n);
-        scop_bind(ds->sc, ds->d->scope, n)->flags |= flags;
+        Binding *const b = scop_bind(ds->sc, ds->d->scope, n);
+        b->flags |= flags;
         decl_dim1(ds, n);
         ds->d->scope = scope;
+
+        if (flags & BF_PUB && !b->et[arr] && !b->rec[arr]) /* its type, whoever imports it */
+            b->et[arr] = sfx ? comp_suffix(sfx) : ds->sy->deft[symb_text(ds->sy, n)[1] - 'A'];
 
         if (*ds->at != ',')
             return;
@@ -642,6 +666,7 @@ static void decl_typedef(DeclScan *const ds)
         return;
 
     ds->at++;
+    decl_mine(ds, ds->at, comp_nameof(ds->at));
     const uint32_t n = decl_name(ds, nullptr);
 
     Decl *const d = ds->d;
@@ -744,7 +769,8 @@ static void decl_field(DeclScan *const ds)
         return;
 
     const uint8_t *const name = ds->at;
-    const uint32_t n = decl_name(ds, nullptr);
+    const uint32_t n =
+        symb_name_in(ds->sy, 0, decl_name(ds, nullptr)); /* the main's: any module's */
     FieldDim dims[MAXDIMS];
     uint8_t nd = 0;
     const bool paren = *ds->at == '(';
@@ -935,8 +961,10 @@ static void decl_subfn(DeclScan *const ds, const uint8_t flag)
     if (*ds->at != M_VAR)
         return;
 
+    decl_mine(ds, ds->at, comp_nameof(ds->at));
     const uint32_t n = decl_name(ds, nullptr);
     symb_name(ds->sy, n)->flags |= flag;
+    scop_bind(ds->sc, ds->d->module, n)->flags |= BF_PROC;
     ds->d->proc = n;
     ds->d->scope = n;
     decl_params(ds);
@@ -1045,12 +1073,12 @@ static void decl_dim(DeclScan *const ds, const bool redim)
     ds->d->redim = redim;
     ds->at++;
     const bool shared = *ds->at == TK_SHARED;
+    const bool public =
+        ds->at[0] == TK_X && ds->at[1] == TK1_PUBLIC; /* ours: DIM SHARED, exported */
 
-    if (shared)
-        ds->at++;
-
-    ds->d->scope = shared ? ds->d->module : decl_own(ds->d);
-    decl_dimlist(ds, shared ? BF_SHR : 0);
+    ds->at += shared ? 1 : public ? 2 : 0;
+    ds->d->scope = shared || public ? ds->d->module : decl_own(ds->d);
+    decl_dimlist(ds, shared ? BF_SHR : public ? BF_SHR | BF_PUB : 0);
 }
 
 /* CONST n = e {, n = e} */
@@ -1063,10 +1091,13 @@ static void decl_const(DeclScan *const ds)
             return;
 
         uint8_t sfx;
+        const uint8_t *const at = ds->at;
         const uint32_t n = decl_name(ds, &sfx);
 
         if (*ds->at != TK_EQ)
             return;
+        if (!ds->d->proc)
+            decl_mine(ds, at, n);
 
         ds->at++;
         const uint8_t *const value = ds->at;
@@ -1118,7 +1149,7 @@ static void decl_const(DeclScan *const ds)
         int64_t v;
         const bool known =
             et != ET_SD && decl_int(ds->sc, ds->d->module, ds->d->proc, &q, &v) && q == ds->at;
-        b->flags = (uint8_t)((b->flags & ~BF_VAL) | (known ? BF_VAL : 0));
+        b->flags = (uint16_t)((b->flags & ~BF_VAL) | (known ? BF_VAL : 0));
         b->val = known ? (int32_t)v : 0;
 
         if (*ds->at != ',')
@@ -1150,7 +1181,9 @@ static void decl_arrayuse(DeclScan *const ds, const uint8_t *const p)
 static bool decl_recpath(DeclScan *const ds, const uint8_t *const p)
 {
     for (uint8_t i = 1; i < p[1]; i++)
-        if (p[2 + i] == '.' && symb_name(ds->sy, symb_find_name(ds->sy, p + 2, i))->flags & NM_REC)
+        if (p[2 + i] == '.' &&
+            symb_name(ds->sy, symb_find_name(ds->sy, sc_number(ds->d->module), p + 2, i))->flags &
+                NM_REC)
             return true;
 
     return false;
@@ -1239,6 +1272,8 @@ void decl_line(
     if (*ds->at == M_INT) /* a line number */
         ds->at += INT_TOKEN_SIZE;
     do {
+        ds->priv = ds->at[0] == TK_X && ds->at[1] == TK1_PRIVATE;
+        ds->at += ds->priv ? 2 : 0;
         const uint8_t c = *ds->at;
 
         switch (c) {

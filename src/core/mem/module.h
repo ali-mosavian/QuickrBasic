@@ -38,7 +38,8 @@ typedef struct Modu {
 void modu_init(Modu *mu, Fault *f);
 /* No files, and no modules but the main program, at path main. */
 void modu_clear(Modu *mu, const char *main);
-/* The module at path, added last when new (paths compared without case): its number. */
+/* The module at path, added last when new (paths compared without case): its number. Out of memory:
+   past 65536 modules. */
 uint32_t modu_module(Modu *mu, const char *path);
 uint32_t modu_count(const Modu *mu);
 const char *modu_module_path(const Modu *mu, uint32_t m);
@@ -51,6 +52,8 @@ uint32_t modu_top_of(const Modu *mu, uint32_t m);
 /* The modules in the order their declarations go: each after those it imports, the main's last;
    in a cycle, the first met first. modu_count of them. */
 const uint32_t *modu_order(Modu *mu);
+/* modu_order's last answer. */
+static inline const uint32_t *modu_ordered(const Modu *const mu) { return mu->order; }
 /* File number file is path's, a part of module m. */
 void modu_file(Modu *mu, uint32_t file, const char *path, uint32_t m);
 /* File number file's path, "" unknown; its module, 0 unknown. */

@@ -469,6 +469,8 @@ static const char diag_forms[] =
     "IMPORT module [AS name] [, module [AS name]]...\0"
     "FROM\0"
     "FROM [.]module IMPORT * | name[()] [AS name] [, name[()] [AS name]]...\0"
+    "DIM\0"
+    "DIM [SHARED | PUBLIC] name[(bounds)] [AS type] [, name ...]\0"
     "FUNCTION\0"
     "FUNCTION name [(parameters)] [AS type] [STATIC]\0"
     "DECLARE\0"

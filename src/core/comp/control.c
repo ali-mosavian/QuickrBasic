@@ -548,7 +548,7 @@ static uint32_t selvar(Comp *const C, const uint8_t depth, const uint8_t type)
 {
     const uint8_t nm[2] = {'#', (uint8_t)('0' + depth)};
 
-    const uint32_t name = symb_find_name(C->symb, nm, 2);
+    const uint32_t name = symb_find_name(C->symb, 0, nm, 2);
     C->ctrl->seltype = type;
     C->scope = 0;
     C->isstatic = false;
@@ -1202,6 +1202,18 @@ static bool defseg(Comp *const C)
 /* ---- other statements */
 
 /* REDIM [PRESERVE]: DIM's grammar, each CALL DIM marked REDIM's. */
+/* DIM PUBLIC, ours: DIM SHARED's, the module's exports (comp/bind.c). */
+static void dimpublic(Comp *const C)
+{
+    if (C->proc) {
+        C->dg = DG_ILLEGAL_INSIDE_SUB_OR_FUNCTION;
+        synerr(C);
+    }
+
+    C->p += 3;
+    comp_dfa(C, lexr_ps_entry[TK_DIM - 0x80]);
+}
+
 static void redim(Comp *const C)
 {
     C->p++;
@@ -1605,6 +1617,13 @@ bool ctrl_stmt(Comp *const C)
     const uint8_t n = C->p[1];
 
     switch (c) {
+    case TK_DIM:
+        if (n != TK_X || C->p[2] != TK1_PUBLIC)
+            break;
+
+        dimpublic(C);
+        return true;
+
     case TK_ELSEIF:
         elseif(C);
         return true;

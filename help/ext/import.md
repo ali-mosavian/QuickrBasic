@@ -1,11 +1,13 @@
 # IMPORT and FROM Statements
-keys: IMPORT, FROM, packages, BASICLIB, module search
+keys: IMPORT, FROM, PRIVATE, PUBLIC, DIM PUBLIC, packages, BASICLIB, module search
 
 Syntax
     IMPORT module [AS name] [, module [AS name]]...
     FROM module IMPORT name[()] [AS name] [, ...]
     FROM module IMPORT *
     FROM .[.]...[module] IMPORT ...
+    PRIVATE SUB | FUNCTION | CONST | TYPE ...
+    DIM PUBLIC variable[()] [AS type] [, ...]
 
 IMPORT and FROM load other files of BASIC as modules of the program.
 QuickrBasic adds them to QBasic.
@@ -30,25 +32,56 @@ those of the file importing it, so its TYPEs can be used there. One that is not 
 [File not found](File not found) error at the importing line. An error
 in a module is reported at its own file and line.
 
-Each file's variables, its DIM SHARED ones too, its CONSTs, labels
-and line numbers are its own. DEFtype, OPTION BASE and OPTION EXPLICIT
-start again at its first line.
+Each file's names are its own: its variables, CONSTs, SUBs,
+FUNCTIONs, TYPEs, labels and line numbers. DEFtype, OPTION BASE and
+OPTION EXPLICIT start again at its first line. A module's top-level
+code does not run yet.
 
-For now, as in QuickBASIC's programs of several modules, SUBs,
-FUNCTIONs, DEF FNs and TYPEs are the whole program's, under their plain
-names, and a module's top-level code does not run.
+## Names
+A module exports its SUBs, FUNCTIONs, CONSTs and TYPEs, but those
+declared PRIVATE, and its DIM PUBLIC variables. DIM PUBLIC is DIM
+SHARED, exported. A name a module imports is not exported again.
+
+`IMPORT gfx` binds the name `gfx`, and the module's names are used
+through it: `gfx.plot`, `gfx.pt`, `gfx.origin.x`. `IMPORT lib.gfx`
+binds `lib.gfx`; AS binds another name instead. A name the module does
+not export is [Name not exported](Name not exported) where used.
+
+`FROM gfx IMPORT plot, pt AS point` binds the names listed; `grid()`
+names an array. A name gfx does not export is Name not exported at the
+FROM line. `FROM gfx IMPORT *` binds each SUB, FUNCTION, CONST and TYPE
+gfx exports, never a variable.
+
+An imported variable is the exporter's own, seen in the whole file,
+SUBs too, with the exporter's type: if `total` is an INTEGER there,
+`total%` is the same variable and `total!` is Duplicate definition.
+
+A listed name or a module's name that the file also declares (DIM,
+CONST, SUB, FUNCTION, TYPE), or binds twice, is [Duplicate definition](Duplicate definition);
+AS renames one. A name * binds yields to the file's own. One two *
+imports bind is Duplicate definition where used: write `gfx.plot`.
 
 IMPORT and FROM are keywords only at the start of a line's first
-statement, outside SUBs and FUNCTIONs. A variable called import still
-works; a SUB called import is called as `CALL import(x)`.
+statement, outside SUBs and FUNCTIONs. PRIVATE is one only before
+SUB, FUNCTION, CONST or TYPE, PUBLIC only after DIM. A variable called
+import still works; a SUB called import is called as `CALL import(x)`.
 
 ## Example
     ' gfx.bas
+    CONST maxw = 319
+    DIM PUBLIC plotted
     SUB plot (x, y)
-      PSET (x, y)
+      PSET (clip(x), y)
+      plotted = plotted + 1
     END SUB
+    PRIVATE FUNCTION clip (x)
+      clip = x: IF x > maxw THEN clip = maxw
+    END FUNCTION
 
     ' main.bas
+    IMPORT gfx
     FROM gfx IMPORT plot
     SCREEN 13
     plot 10, 10
+    plot 400, 20
+    PRINT gfx.plotted; gfx.maxw

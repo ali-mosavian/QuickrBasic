@@ -9,7 +9,7 @@ trap 'rm -rf "${D:?}"' EXIT
 mkdir -p "$D/ext/deep" "$D/bin/lib/deep" "$D/prog"
 printf 'sub ext1\n print "ext1"\nend sub\n' > "$D/ext/deep/libx.bas"
 printf 'sub own1\n print "own1"\nend sub\n' > "$D/bin/lib/deep/liby.bas"
-printf 'import deep.libx\nimport deep.liby\next1\nown1\n' > "$D/prog/t.bas"
+printf 'from deep.libx import ext1\nimport deep.liby\next1\ndeep.liby.own1\n' > "$D/prog/t.bas"
 cp "$B" "$D/bin/basic"
 ln -s ../bin/basic "$D/prog/basic"
 long=$D/$(printf 'n%.0s' $(seq 300))

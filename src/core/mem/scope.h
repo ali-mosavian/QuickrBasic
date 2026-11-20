@@ -12,7 +12,7 @@ struct Binding {
     uint32_t scope;  /* a module's (sc_module), a procedure's name; | SC_NUM a line number's */
     uint32_t name;   /* the name, or the line number */
     Binding *next;   /* its hash chain's next */
-    uint8_t flags;   /* BF_* */
+    uint16_t flags;  /* BF_* */
     uint32_t et[2];  /* the declared type: the scalar's, the array's */
     uint32_t rec[2]; /* the record's TYPE: the scalar's, the array's */
     uint16_t fix[2]; /* STRING * n: the scalar's, the array's */

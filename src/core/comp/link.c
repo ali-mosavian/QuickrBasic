@@ -31,6 +31,8 @@
  * - D3. The asm compiles a line when first run, into a fixed cache it flushes when full. Here
  *   link_start compiles all of them and the cache grows: a run resolves nothing.
  */
+#include "comp/bind.h"
+#include "mem/module.h"
 #include "comp/link.h"
 #include "comp/blocks.h"
 #include "comp/comp.h"
@@ -132,6 +134,8 @@ static void link_procvars(Comp *const C)
 
         comp_proc(C, 0);
     }
+
+    bind_procs(C->symb);
 
     for (uint32_t id = 1; id < C->symb->nvars; id++) { /* no longer a parameter: a local again */
         VarX *const x = symb_varx(C->symb, id);
@@ -663,6 +667,28 @@ void link_walk(const uint8_t *code, void (*each)(uint8_t op, const uint8_t *at))
         each(*code, code);
 }
 
+/* Every line compiled: each module's after those it imports, the main's last, so a use of another
+   module's CONST loads its literal (comp/fold.c). */
+static void link_lines(Comp *const C)
+{
+    const uint32_t n = modu_count(C->modu);
+
+    if (n <= 1) {
+        for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
+            link_line(C, l);
+
+        return;
+    }
+
+    for (uint32_t i = 0; i < n; i++) {
+        const uint32_t m = sc_module(modu_ordered(C->modu)[i]);
+
+        for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
+            if (comp_module(C, l) == m)
+                link_line(C, l);
+    }
+}
+
 /* Blocks paired, every line compiled and resolved; the ledger holds what was not found. */
 static void build(Comp *const C)
 {
@@ -697,8 +723,7 @@ static void build(Comp *const C)
         uncache(C);
         C->link->end = C->allo->cache + CACHE0;
 
-        for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
-            link_line(C, l);
+        link_lines(C);
     } while (C->prog->base != base);
 
     C->memo_on = false;

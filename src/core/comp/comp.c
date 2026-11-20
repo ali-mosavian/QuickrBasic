@@ -61,6 +61,7 @@
  *   to calibrate). wv is lnum, and comp_opw's word.
  */
 #include "comp/comp.h"
+#include "comp/bind.h"
 #include "comp/blocks.h"
 #include "comp/control.h"
 #include "comp/declare.h"
@@ -467,27 +468,42 @@ bool comp_param(Comp *const C, const uint32_t name, const uint8_t array, uint32_
     return false;
 }
 
-void comp_scope(Comp *const C, const uint32_t name)
+/* Name, the module's, as b binds it: another module's variable, BF_IMP, in its scope. */
+static uint32_t comp_module_var(Comp *const C, const uint32_t name, const Binding *const b)
+{
+    C->scope = C->module;
+
+    if (!b || !(b->flags & BF_IMP))
+        return name;
+
+    const uint32_t to = *symb_alias(C->symb, name) & ~BIND_STAR;
+    C->scope = sc_module(symb_name(C->symb, to)->module);
+    return to;
+}
+
+uint32_t comp_scope(Comp *const C, const uint32_t name)
 {
     C->isstatic = false;
-    C->scope = C->proc ? C->proc : C->module;
+    bind_use(C->symb, C->fault, name);
 
     if (!C->proc)
-        return;
+        return comp_module_var(C, name, scop_get(C->scop, C->module, name));
 
     uint32_t scope;
     const Binding *b = nullptr;
 
     if (!(symb_name(C->symb, name)->flags & NM_LBL))
         b = scop_look(C->scop, name, &scope);
-    if (!b || !sc_is_proc(scope)) {
-        C->scope = C->module;
-        return;
-    }
+    if (!b || !sc_is_proc(scope))
+        return comp_module_var(C, name, b);
+
+    C->scope = C->proc;
 
     /* STATIC; or new in the direct line, where the running call's frame has no cell for it */
     if (b->flags & BF_STAT || blok_proc(C->blok, C->proc)->flags & PF_STAT || C->line == DLINE)
         C->isstatic = true;
+
+    return name;
 }
 
 /* var_decl: under OPTION EXPLICIT, name declared, or a procedure's; else Variable not declared. */
@@ -556,9 +572,9 @@ uint32_t comp_var(Comp *const C, const uint8_t shape, const uint32_t et)
     } else
         kind |= comp_etkind[type];
 
-    comp_scope(C, name);
-    const uint32_t id = symb_find_var(C->symb, name, type, kind, C->scope, C->isstatic);
-    symb_varx(C->symb, id)->base = decl_base(C->decl, C->module);
+    const uint32_t own = comp_scope(C, name);
+    const uint32_t id = symb_find_var(C->symb, own, type, kind, C->scope, C->isstatic);
+    symb_varx(C->symb, id)->base = decl_base(C->decl, sc_is_proc(C->scope) ? C->module : C->scope);
 
     if (m)
         *m = (typeof(*m)){
@@ -618,7 +634,7 @@ uint32_t comp_hidden(Comp *const C, const uint8_t kind, const uint8_t which, con
     for (uint32_t i = 0; i < 8; i++)
         text[2 + i] = "0123456789ABCDEF"[(key >> (28 - 4 * i)) & 15];
 
-    return symb_find_name(C->symb, text, sizeof text);
+    return symb_find_name(C->symb, 0, text, sizeof text);
 }
 
 void comp_part(Comp *const C)
@@ -776,6 +792,16 @@ static void token(Comp *const C)
 {
     C->tok = 0; /* an implied LET's: none */
     mark(C);
+
+    if (C->p[0] == TK_X && C->p[1] == TK1_PRIVATE) { /* a module's, not exported (comp/bind.c) */
+        C->p += 2;
+
+        if (C->proc && *C->p == TK_CONST) {
+            C->dg = DG_ILLEGAL_INSIDE_SUB_OR_FUNCTION;
+            fault_error(C->fault, E_SN);
+        }
+    }
+
     dbg(C);
 
     if (ctrl_stmt(C))

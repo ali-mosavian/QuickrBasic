@@ -234,7 +234,9 @@ static inline bool comp_ispar(const Comp *const C, const uint32_t id)
     return !(symb_var(C->symb, id)->info & VI_ARR) && symb_is_ref(C->symb, id);
 }
 bool comp_param(Comp *C, uint32_t name, uint8_t array, uint32_t *id); /* var_par: array 80h */
-void comp_scope(Comp *C, uint32_t name); /* var_scope: comp.scope, comp.isstatic for it */
+/* var_scope: comp.scope, comp.isstatic for name; the name its variable has, another module's for
+   one it imports. bind_use's errors. */
+uint32_t comp_scope(Comp *C, uint32_t name);
 uint8_t comp_suffix(uint8_t c);          /* et_sfx: % & ! # $ to ET_*, 0 none */
 const uint8_t *comp_label(
     const uint8_t *body

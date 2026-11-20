@@ -41,6 +41,7 @@
 #include "io/repl.h"
 #include <stddef.h>
 #include "session.h"
+#include "comp/bind.h"
 #include "comp/comp.h"
 #include "comp/declare.h"
 #include "comp/dfa.h"
@@ -679,7 +680,7 @@ static uint16_t line_number(Session *const S, const uint8_t *const p)
 uint32_t repl_intern(LexrNames *const names, const uint8_t *const text, const uint8_t len)
 {
     Session *const S = container_of(names, Session, names);
-    return symb_find_name(&S->symb, text, len);
+    return symb_find_name(&S->symb, S->repl.module, text, len);
 }
 
 /* The body just lexed: each statement with no effect in 32-bit mode warned of. */
@@ -813,13 +814,15 @@ static const char *include_path(const char *const from, const char *const name, 
     return out;
 }
 
-/* An IMPORT or FROM line's modules being found: where to look, FROM's package folder. */
+/* An IMPORT or FROM line's modules being found, or its names bound: where to look, FROM's package
+   folder or module. */
 typedef struct {
     Session *S;
     Locate where;
     char from[PFIL_PATH]; /* the line's file's path: the table it is in may move as it grows */
     char package[PFIL_PATH];
     bool in_package; /* FROM's module is a folder: its names are its modules */
+    uint32_t module; /* FROM's module's number */
 } Imports;
 
 [[noreturn]]
@@ -865,6 +868,52 @@ static void imported(void *const ctx, const ImptKind kind, const ImptName *const
             not_found(im->S);
 
         import(im->S, path);
+        return;
+
+    case IMPT_STAR:
+        return;
+    }
+}
+
+/* One name the line gives bound in the module being declared, its modules found when loaded. */
+static void bound(void *const ctx, const ImptKind kind, const ImptName *const n)
+{
+    Imports *const im = ctx;
+    Session *const S = im->S;
+    const uint32_t m = sc_number(S->decl.module);
+    char path[PFIL_PATH];
+
+    switch (kind) {
+    case IMPT_MODULE:
+        locate(&im->where, n, path, nullptr);
+        bind_module(&S->scop, &S->symb, &S->fault, m, n, modu_module(&S->modu, path));
+        return;
+
+    case IMPT_FROM:
+        locate(&im->where, n, path, &im->in_package);
+
+        if (im->in_package)
+            strcpy(im->package, path);
+        else
+            im->module = modu_module(&S->modu, path);
+
+        return;
+
+    case IMPT_NAME:
+        if (!im->in_package) {
+            bind_name(&S->scop, &S->symb, &S->fault, m, im->module, n);
+            return;
+        }
+
+        locate_in(im->package, n, path);
+        bind_module(&S->scop, &S->symb, &S->fault, m, n, modu_module(&S->modu, path));
+        return;
+
+    case IMPT_STAR:
+        if (im->in_package) /* a package's every module: not ours */
+            fault_error(&S->fault, E_AF);
+
+        bind_star(&S->scop, &S->symb, m, im->module);
     }
 }
 
@@ -983,11 +1032,25 @@ static void read_modules(Session *const S)
     S->prog.add_flags = flags;
 }
 
-/* Stored line line's declarations, labels and LF_NODEF. */
+/* Stored line line's IMPORT or FROM, body in comp.cbuf: its names bound in its module. One in a SUB
+   is the compiler's to refuse. */
+static void bind_imports(Session *const S, const uint32_t line, const uint8_t *const body)
+{
+    if (S->decl.proc)
+        return;
+
+    Imports im = {.S = S, .where = {S->repl.file, syst_env(&S->syst, "BASICLIB"), im.from}};
+
+    strcpy(im.from, source_name(S, prog_line(&S->prog, line)->file));
+    impt_line(body, bound, &im);
+}
+
+/* Stored line line's declarations, labels, LF_NODEF and imports' bindings. */
 static void redeclare(Session *const S, const uint32_t line)
 {
-    restore(S, line);
+    const uint8_t *const body = restore(S, line);
     enter_decls(S, line);
+    bind_imports(S, line, body);
     Line *const l = prog_line(&S->prog, line);
     l->flags = (uint8_t)((l->flags & ~LF_NODEF) | (S->decl.deft ? 0 : LF_NODEF));
 }

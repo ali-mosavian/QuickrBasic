@@ -49,7 +49,7 @@ uint32_t modu_module(Modu *const mu, const char *const path)
         if (same(mu->text + mu->mods[m].path, path))
             return m;
 
-    if (!GROW(mu->mods, mu->modcap, mu->nmods + 1))
+    if (mu->nmods > UINT16_MAX || !GROW(mu->mods, mu->modcap, mu->nmods + 1)) /* Name.module's */
         fault_error(mu->fault, E_OM);
 
     mu->mods[mu->nmods] = (ModuMod){keep(mu, path), 0};

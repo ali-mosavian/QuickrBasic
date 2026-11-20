@@ -35,8 +35,9 @@ typedef struct PACKED {
     uint32_t proc; /* its procedure, 0 none */
     uint32_t rec;  /* its TYPE, 0 none */
     uint8_t flags; /* NM_* */
-    uint8_t pad[3];
-} Name; /* TNAM */
+    uint8_t pad;
+    uint16_t module; /* its module's number: each module its own names */
+} Name;              /* TNAM */
 static_assert(sizeof(Var) == 16 && sizeof(VarX) == 16 && sizeof(Name) == 16);
 
 /* A local array's place in its frame (vm/flow.c): what its DIMs asked (dims << 24 | elements;
@@ -127,6 +128,11 @@ static inline Name *symb_name(const Symb *const sy, uint32_t id)
 {
     return (Name *)at(sy->names.at[0]) + id;
 }
+/* The name id stands for in its module, another module's (comp/bind.h); 0 its own. */
+static inline uint32_t *symb_alias(const Symb *const sy, uint32_t id)
+{
+    return (uint32_t *)at(sy->names.at[2]) + id;
+}
 /* Name id's text: its length, then its letters in capitals, then as first written. */
 static inline const uint8_t *symb_text(const Symb *const sy, uint32_t id)
 {
@@ -152,9 +158,13 @@ void symb_clear(Symb *sy);
 void symb_reset(Symb *sy);
 /* No variables; the names kept. */
 void symb_vars_init(Symb *sy);
-/* The name of text[0..len) (no suffix), made when new (NM_FN when it starts FN). Out of memory:
-   past SC_LBL names, or the heap not empty. */
-uint32_t symb_find_name(Symb *sy, const uint8_t *text, uint8_t len);
+/* The name of text[0..len) (no suffix) in module (its number), made when new (NM_FN when it starts
+   FN). Out of memory: past SC_LBL names, or the heap not empty. */
+uint32_t symb_find_name(Symb *sy, uint32_t module, const uint8_t *text, uint8_t len);
+/* The same, 0 when none. */
+uint32_t symb_look_name(const Symb *sy, uint32_t module, const uint8_t *text, uint8_t len);
+/* Name id's text in module, made when new: symb_find_name's. */
+uint32_t symb_name_in(Symb *sy, uint32_t module, uint32_t id);
 /* The variable of name, type (ET_*) and kind (VI_ARR, the low bits as info's) in scope (a module's
    or a procedure's), made when new, a scalar zeroed; a new one of a procedure joins its locals
    unless stat. Out of memory: the heap not empty. */

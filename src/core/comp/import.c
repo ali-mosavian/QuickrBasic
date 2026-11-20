@@ -38,8 +38,8 @@ static void give(ImptEach *const each, void *const ctx, const ImptKind kind, con
         each(ctx, kind, &n);
 }
 
-/* [AS name] at *p: *p past it. false: AS without a name. */
-static bool alias(const uint8_t **const p)
+/* [AS name] at *p, n's: *p past it. false: AS without a name. */
+static bool alias(const uint8_t **const p, ImptName *const n)
 {
     if (comp_peek(p) != TK_AS)
         return true;
@@ -49,6 +49,8 @@ static bool alias(const uint8_t **const p)
     if (comp_peek(p) != M_VAR || !alias_text(*p))
         return false;
 
+    n->as = *p + 2;
+    n->aslen = (*p)[1];
     *p = comp_skipname(*p);
     return true;
 }
@@ -60,11 +62,14 @@ static const uint8_t *modules(const uint8_t *p, ImptEach *const each, void *cons
         if (comp_peek(&p) != M_VAR || !module_text(p))
             return p;
 
-        give(each, ctx, IMPT_MODULE, (ImptName){p + 2, p[1], 0});
+        ImptName n = {.text = p + 2, .len = p[1]};
         p = comp_skipname(p);
 
-        if (!alias(&p))
+        if (!alias(&p, &n))
             return p;
+
+        give(each, ctx, IMPT_MODULE, n);
+
         if (comp_peek(&p) != ',') {
             *ok = at_end(comp_peek(&p));
             return p;
@@ -80,6 +85,7 @@ static const uint8_t *names(const uint8_t *p, ImptEach *const each, void *const 
     if (comp_peek(&p) == TK_MUL) {
         p++;
         *ok = at_end(comp_peek(&p));
+        give(each, ctx, IMPT_STAR, (ImptName){});
         return p;
     }
 
@@ -87,7 +93,7 @@ static const uint8_t *names(const uint8_t *p, ImptEach *const each, void *const 
         if (comp_peek(&p) != M_VAR || memchr(p + 2, '.', p[1]))
             return p;
 
-        give(each, ctx, IMPT_NAME, (ImptName){p + 2, p[1], 0});
+        ImptName n = {.text = p + 2, .len = p[1]};
         p = comp_skipname(p);
 
         if (comp_peek(&p) == '(') {
@@ -97,10 +103,14 @@ static const uint8_t *names(const uint8_t *p, ImptEach *const each, void *const 
                 return p;
 
             p++;
+            n.arr = true;
         }
 
-        if (!alias(&p))
+        if (!alias(&p, &n))
             return p;
+
+        give(each, ctx, IMPT_NAME, n);
+
         if (comp_peek(&p) != ',') {
             *ok = at_end(comp_peek(&p));
             return p;
@@ -124,7 +134,7 @@ static const uint8_t *from(const uint8_t *p, ImptEach *const each, void *const c
         if (!module_text(p))
             return p;
 
-        m = (ImptName){p + 2, p[1], m.up};
+        m = (ImptName){.text = p + 2, .len = p[1], .up = m.up};
         p = comp_skipname(p);
     }
 
