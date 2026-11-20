@@ -374,9 +374,9 @@ static void lexr_name(Lexr *const lx)
 
 enum { LOOP_WORD = 5 }; /* WHILE: the longest of FOR, DO, WHILE */
 
-/* The word of n characters at lexr.in is CONTINUE: FOR, DO or WHILE follows it. Any other
-   CONTINUE is the name it was before the statement. */
-static bool lexr_continues(Lexr *const lx, const uint32_t n)
+/* What follows the word of n characters at lexr.in and its blanks: LOOP_WORD bytes of it in the
+   window when the line has them. */
+static const uint8_t *lexr_after(Lexr *const lx, const uint32_t n)
 {
     for (;;) {
         const uint8_t *q = lx->in + n;
@@ -386,10 +386,45 @@ static bool lexr_continues(Lexr *const lx, const uint32_t n)
 
         const bool whole = !lx->source || lx->drained || lx->source->end - q > LOOP_WORD;
 
-        if (whole || !lexr_more(lx)) { /* more: the window slid, lexr.in with it */
-            const uint16_t t = kw_scan(&q);
-            return t == TK_FOR || t == TK_DO || t == TK_WHILE;
-        }
+        if (whole || !lexr_more(lx)) /* more: the window slid, lexr.in with it */
+            return q;
+    }
+}
+
+/* The word of n characters at lexr.in is CONTINUE: FOR, DO or WHILE follows it. Any other
+   CONTINUE is the name it was before the statement. */
+static bool lexr_continues(Lexr *const lx, const uint32_t n)
+{
+    const uint8_t *q = lexr_after(lx, n);
+    const uint16_t t = kw_scan(&q);
+    return t == TK_FOR || t == TK_DO || t == TK_WHILE;
+}
+
+/* The word of n characters at lexr.in starts an IMPORT or FROM statement: a name follows it, or
+   for FROM a '.'. Else it is the name it was before them. */
+static bool lexr_imports(Lexr *const lx, const uint32_t n, const bool from)
+{
+    const uint8_t c = *lexr_after(lx, n);
+    return is_letter(c) || (from && c == '.');
+}
+
+/* Token t of the word of n characters at lexr.in, start where a statement starts: 0 when the
+   word is a keyword only in some places, and here a name. */
+static uint16_t lexr_placed(Lexr *const lx, const uint16_t t, const uint32_t n, const bool start)
+{
+    switch (t) {
+    case 0x100 + TK1_CONTINUE:
+        return start && lexr_continues(lx, n) ? t : 0;
+
+    case 0x100 + TK1_FROM:
+        lx->from = start && lexr_imports(lx, n, true);
+        return lx->from ? t : 0;
+
+    case 0x100 + TK1_IMPORT:
+        return lx->from || (start && lexr_imports(lx, n, false)) ? t : 0;
+
+    default:
+        return t;
     }
 }
 
@@ -399,12 +434,9 @@ static uint16_t lexr_word(Lexr *const lx, const bool start)
 {
     lx->word = lx->in;
     const uint8_t *p = lx->in;
-    uint16_t t = kw_scan(&p);
+    const uint16_t scanned = kw_scan(&p);
     const uint32_t n = (uint32_t)(p - lx->in);
-
-    if (t == 0x100 + TK1_CONTINUE && !(start && lexr_continues(lx, n)))
-        t = 0;
-
+    const uint16_t t = lexr_placed(lx, scanned, n, start);
     lx->in += n;
 
     if (!t) {
@@ -537,6 +569,7 @@ uint8_t *lexr_line(Lexr *const lx, uint8_t *const text, uint8_t *const body)
     lx->drained = false;
     lx->escaped = false;
     lx->start = true;
+    lx->from = false;
     lexr_near(lx);
 
     for (;;) {
@@ -603,6 +636,7 @@ uint8_t *lexr_line(Lexr *const lx, uint8_t *const text, uint8_t *const body)
             const uint8_t t = lexr_char_token[c];
             *lx->out++ = t ? t : c;
             lx->start = c == ':';
+            lx->from &= !lx->start;
         }
     }
 }

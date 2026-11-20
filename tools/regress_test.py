@@ -1370,6 +1370,21 @@ CASES |= {
 }
 
 # Typed at the prompt, not run as a file.
+# IMPORT and FROM, ours: keywords only where they start such a statement, so a variable or SUB of
+# either name still works; the statement is its line's first, at module level.
+CASES |= {
+    "import_names": (bas("import = 5: from = 2: print import; from", "import(1) = 3: print import(1)"),
+                     " 5  2 \r\n 3 \r\n", "ERROR"),
+    "import_sub": (bas("declare sub import (x)", "call import(3)", "end", "sub import (x)", " print x * 2", "end sub"),
+                   " 6 \r\n", "ERROR"),
+    "import_first": (bas("print 1: import gfx"), "IMPORT must be the first statement on its line", None),
+    "import_in_sub": (bas("sub s", " from gfx import a", "end sub"), "`FROM` cannot be used inside a SUB or FUNCTION",
+                      None),
+    "import_form": (bas("import gfx."), "`gfx.` does not fit the IMPORT statement here", None),
+    "import_from_star": (bas("from gfx import *, a"), "`,` does not fit the FROM statement here", None),
+}
+
+
 REPL = {
     # A direct line ran from DCODE, its statement map's place: nothing printed.
     "repl_direct": ("PRINT 5\r\n", " 5 \r\n", "ERROR"),

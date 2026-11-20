@@ -23,6 +23,7 @@ CONTINUE not within matching block /counter|no FOR loop counting with `{text}` i
 Blocks crossed|this line ends a block while the {other} block started inside it is still open|blocks end in the reverse order they start: end the {other} block first
 Duplicate definition /function|`{name}` is also the name of a FUNCTION that takes arguments, so here it calls that FUNCTION instead of reading the variable|rename the variable: a variable can't share a FUNCTION's name
 Duplicate definition /fixed|`{name}` is a fixed array field: its TYPE sets its size|to REDIM it, declare the field in the TYPE with empty parentheses, as `g() AS LONG`
+Syntax error /import|{statement} must be the first statement on its line|put it on a line of its own
 Name of subprogram illegal /reserved|`{text}` is a reserved word, so it cannot name a SUB or FUNCTION|rename it
 Subprogram not defined|`{name}` is DECLAREd, but no SUB of that name is defined|write `SUB {name} ... END SUB`, or remove the DECLARE and its calls
 Function not defined /declared|`{name}` is DECLAREd, but no FUNCTION of that name is defined|write `FUNCTION {name} ... END FUNCTION`, or remove the DECLARE and its calls

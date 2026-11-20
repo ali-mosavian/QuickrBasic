@@ -58,6 +58,7 @@
 #include "comp/gfxstmt.h"
 #include "comp/link.h"
 #include "comp/sndstmt.h"
+#include "comp/import.h"
 #include "comp/refs.h"
 #include "io/msg.h"
 #include "io/repl.h"
@@ -1520,6 +1521,11 @@ static bool xstmt(Comp *const C)
     case TK1_CONTINUE:
         C->p += 2;
         leave(C, C->p - 2);
+        return true;
+
+    case TK1_IMPORT:
+    case TK1_FROM:
+        impt_compile(C);
         return true;
     }
 
