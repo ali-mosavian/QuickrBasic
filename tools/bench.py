@@ -646,11 +646,12 @@ CHARLIE_EACH = ("Pilot p, k: Tick g, p, k, lo(), pt()", "DrawBack cx, cy", "Draw
              "Render g, p, lo(), pt()")
 CHARLIE_SETUP = """OpenScreen
 LoadTables
-LoadLevel
 BuildArt
+LoadLevel 0
 DIM g AS Game, p AS Hero, k AS Pad, lo(NLOOSE - 1) AS Loose, pt(NPART - 1) AS Part
 DIM q AS INTEGER, n AS LONG, t0 AS SINGLE, cx AS INTEGER, cy AS INTEGER
-Muted = -1
+LoadSongs
+Mu.muted = -1
 g.page = 1
 StartGame g, p, lo(), pt()
 OPEN "EACH.TXT" FOR OUTPUT AS #1
@@ -659,7 +660,7 @@ OPEN "EACH.TXT" FOR OUTPUT AS #1
 
 def charlie_program() -> str:
     """CHARLIE.BAS's Main swapped for a loop of each CHARLIE_EACH call (after an empty one), its ms a call to EACH.TXT."""
-    head, rest = CHARLIE.read_text().split("\nMain\nEND\n", 1)
+    head, rest = CHARLIE.read_text().split("\nMain\nend\n", 1)
     move = "FOR q = 1 TO 60: Pilot p, k: Tick g, p, k, lo(), pt(): NEXT\ncx = INT(g.camx): cy = INT(g.camy)\n"
     loops = "".join(f"{move}n = 0: t0 = TIMER\nDO\n    FOR q = 1 TO {EACH_REPS}\n    {call}\n    NEXT\n"
                     f"    n = n + {EACH_REPS}\nLOOP UNTIL TIMER - t0 >= 2\n"
