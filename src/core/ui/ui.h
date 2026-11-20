@@ -123,6 +123,7 @@ enum : uint8_t {
     SCAN_ESC = 0x01,
     SCAN_ENTER = 0x1C,
     SCAN_L = 0x26,
+    SCAN_B = 0x30,
     SCAN_GREY_MINUS = 0x4A,
     SCAN_GREY_PLUS = 0x4E,
     SCAN_ALT_MINUS = 0x82,

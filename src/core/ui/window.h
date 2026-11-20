@@ -33,6 +33,8 @@ bool wind_at(uint8_t row, uint8_t col, uint8_t *w);
 void wind_split(Session *S);
 /* wn_vsplit: View, Split Vertically: side by side; again, one. */
 void wind_vsplit(Session *S);
+/* The split's other edit window active; none, the window split first, side by side when vert. */
+void wind_other(Session *S, bool vert);
 /* wn_grow, wn_shrink: Alt+Plus, Alt+Minus: the focused window a row taller, from the one under
    it, else over it; a row shorter, to the same. */
 void wind_grow(void);

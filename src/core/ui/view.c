@@ -713,10 +713,7 @@ void view_subs(Session *const S)
     if (b == SUBS_ACTIVE) {
         show(S, v);
     } else if (b == SUBS_SPLIT) { /* the split's other window shows it */
-        if (!uimn.win.win[W_ED2].height)
-            wind_split(S);
-
-        wind_act(S, wind_active() == W_ED2 ? W_ED1 : W_ED2);
+        wind_other(S, false);
         show(S, v);
     } else if (b == SUBS_DELETE) {
         del(S, v);

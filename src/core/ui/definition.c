@@ -6,6 +6,7 @@
  * first line. Else it is the first line that declares the name, in the cursor's procedure, then in
  * its file's module lines: DIM, REDIM, STATIC, CONST, COMMON, TYPE, a parameter, DEF FN, a label.
  * Else the first line there that names it. `p.x` with none is `p`'s. A line number's is its line.
+ * Ctrl+Alt shows it in the split's other window, split side by side first when there is none.
  */
 #include "ui/definition.h"
 #include "session.h"
@@ -19,6 +20,7 @@
 #include "ui/linemap.h"
 #include "ui/uimain.h"
 #include "ui/view.h"
+#include "ui/window.h"
 
 enum : uint32_t { NONE = 0xFFFFFFFF };
 
@@ -220,6 +222,13 @@ static Target resolve(const Symb *const sy, const uint32_t m, const uint32_t n)
     return (Target){symb_name(sy, t)->module, t};
 }
 
+/* A definition found: its text line (NONE none), the name the cursor goes on (len bytes; 0 none). */
+typedef struct {
+    uint32_t line;
+    const uint8_t *name;
+    uint8_t len;
+} Found;
+
 /* t's defining text line: its procedure's first, else the first that declares it; NONE none. */
 static uint32_t defining(Session *const S, const Target t)
 {
@@ -227,17 +236,13 @@ static uint32_t defining(Session *const S, const Target t)
     return v ? view_at(v)->first : look(S, t.module, line_declares, t.name);
 }
 
-/* Text line line shown, the cursor on its first word spelled as name (len bytes, its suffix
-   aside), else at its start. */
-static void jump(
-    Session *const S,
-    const uint32_t line,
-    const uint8_t *const name,
-    const uint8_t len
-)
+/* f's line shown, the cursor on its first word spelled as f's name (its suffix aside), else at its
+   start. */
+static void jump(Session *const S, const Found f)
 {
-    edit_load(S, view_goline(S, line));
+    edit_load(S, view_goline(S, f.line));
     const LineBuf *const b = &uimn.edline;
+    const uint8_t *const name = f.name, len = f.len;
     uint16_t col = 0;
 
     for (uint16_t i = 0; len && i + len <= b->len; i++) {
@@ -274,21 +279,20 @@ static uint32_t line_number(const char *const w, const uint16_t n)
     return num < NONUM ? num : NONE;
 }
 
-void defn_goto(Session *const S)
+/* The definition of the name at the cursor. */
+static Found find(Session *const S)
 {
     char w[UINT8_MAX + 1];
     uint16_t n = hdoc_word(uimn.edline.text, uimn.edline.len, uimn.edline.col, w, sizeof w);
 
     if (!n || !edit_commit(S))
-        return pscr_beep();
+        return (Found){.line = NONE};
 
     const Symb *const sy = &S->symb;
     const uint32_t m = view_module(uimn.ed.view), num = line_number(w, n);
 
-    if (num != NONE) {
-        const uint32_t line = look(S, m, line_numbered, num);
-        return line == NONE ? pscr_beep() : jump(S, line, nullptr, 0);
-    }
+    if (num != NONE)
+        return (Found){.line = look(S, m, line_numbered, num)};
 
     n -= memchr("$%&!#", w[n - 1], 5) != nullptr; /* a suffix: the name's type */
     const char *const dot = memchr(w, '.', n);
@@ -296,7 +300,7 @@ void defn_goto(Session *const S)
     const uint32_t head = dot ? symb_look_name(sy, m, (const uint8_t *)w, (uint8_t)(dot - w)) : 0;
 
     if (whole && symb_name(sy, whole)->flags & NM_MOD)
-        return jump(S, view_at(view_of_module(*symb_alias(sy, whole)))->first, nullptr, 0);
+        return (Found){.line = view_at(view_of_module(*symb_alias(sy, whole)))->first};
 
     const uint32_t ids[] = {whole, head};
 
@@ -314,10 +318,22 @@ void defn_goto(Session *const S)
 
             if (line != NONE) {
                 const uint8_t *const text = symb_text(sy, ts[i].name);
-                return jump(S, line, text + 1, text[0]);
+                return (Found){line, text + 1, text[0]};
             }
         }
     }
 
-    pscr_beep();
+    return (Found){.line = NONE};
+}
+
+void defn_goto(Session *const S, const bool beside)
+{
+    const Found f = find(S);
+
+    if (f.line == NONE)
+        return pscr_beep();
+    if (beside)
+        wind_other(S, true);
+
+    jump(S, f);
 }

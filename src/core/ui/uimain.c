@@ -336,6 +336,8 @@ static bool edit_scan(Session *const S, const uint8_t scan)
             uimn.ed.insert = !uimn.ed.insert;
     } else if (scan == SCAN_CTRL_INS) {
         edit_copy(S);
+    } else if (scan == SCAN_B && uimn.keyflags & PKEY_CTRL) { /* Ctrl+Alt+B, ours */
+        defn_goto(S, true);
     } else
         return false;
 
@@ -396,7 +398,7 @@ static bool edit_control(Session *const S, const uint8_t ch)
         return true;
 
     case CTRL('B'): /* Go to Definition, ours */
-        defn_goto(S);
+        defn_goto(S, false);
         return true;
 
     case CH_ESC:

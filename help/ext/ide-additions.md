@@ -32,7 +32,9 @@ Menu commands are in [menus](menus).
    the code and the debug pane. Lines can be dragged between windows.
  - Go to Definition: Ctrl+B, or Ctrl+click, on a name shows the line
    that defines it: its SUB or FUNCTION, DIM, CONST, TYPE, parameter
-   or label, in another file for a name an IMPORT gives.
+   or label, in another file for a name an IMPORT gives. Ctrl+Alt+B,
+   or Ctrl+Alt+click, shows it in the other window of a split, split
+   side by side first when there is none.
  - F2 lists procedures sorted by name, in columns. The Open box lists
    files sorted, in three columns, and shows a long path shortened.
  - A program's graphics screen is kept while the editor is shown.

@@ -15,6 +15,7 @@
 #include "ui/text.h"
 #include "ui/uimain.h"
 #include "ui/view.h"
+#include "ui/window.h"
 #include "unit.h"
 
 /* The program's screen kept while the editor shows: none here (plat/view's on the Mac). */
@@ -399,6 +400,7 @@ TEST(editor_goes_to_a_definition)
     cursor_on(S, "import gfx", "gfx");
     uimn_key(S, 0x3002);
     CHECK(!strcmp(view_file(S, uimn.ed.view), path_of("gfx.bas")) && !view_at(uimn.ed.view)->kind);
+    CHECK(!uimn.win.win[W_ED2].height); /* all in the one window */
     done(S, (const char *[]){"main.bas", "gfx.bas", nullptr});
 }
 
@@ -416,5 +418,69 @@ TEST(editor_goes_to_a_definition_on_ctrl_click)
     uimn_key(S, KEY_MOUSE);
     uimn.keyflags = 0;
     CHECK(cursor_at(S, "sub bump (n)", "bump"));
+    done(S, (const char *[]){"main.bas", "gfx.bas", nullptr});
+}
+
+/* Ctrl+Alt+B: the definition in the split's other window, split side by side first; the cursor's
+   window keeps its line; none found, no split. */
+TEST(editor_goes_to_a_definition_beside)
+{
+    open_definitions(S);
+    uimn_rows(25);
+    uimn.keyflags = PKEY_CTRL | PKEY_ALT;
+    cursor_on(S, "print total; top; p.x", "print");
+    uimn_key(S, 0x3000);
+    CHECK(!uimn.win.win[W_ED2].height);
+    cursor_on(S, "bump 1", "bump");
+    uimn_key(S, 0x3000);
+    CHECK(uimn.win.vert && wind_active() == W_ED2 && cursor_at(S, "sub bump (n)", "bump"));
+    cursor_on(S, "k = n + top", "top");
+    uimn_key(S, 0x3000);
+    CHECK(uimn.win.vert && wind_active() == W_ED1 && cursor_at(S, "const top = 3", "top"));
+    wind_act(S, W_ED2);
+    CHECK(cursor_at(S, "k = n + top", "top"));
+    uimn.keyflags = 0;
+    done(S, (const char *[]){"main.bas", "gfx.bas", nullptr});
+}
+
+TEST(editor_goes_to_a_definition_beside_on_ctrl_alt_click)
+{
+    open_definitions(S);
+    uimn_rows(25);
+    cursor_on(S, "import gfx", "import");
+    const uint32_t line = line_of(S, "bump 1") - uimn.text.first;
+    uimn.mouse = (UiMouse){.event = MS_PRESS,
+                           .row = (uint8_t)(uimn.ed.row0 + line - uimn.ed.top),
+                           .col = (uint8_t)(uimn.ed.x + 1 + 1 - uimn.ed.left)};
+
+    uimn.keyflags = PKEY_CTRL | PKEY_ALT;
+    uimn_key(S, KEY_MOUSE);
+    uimn.keyflags = 0;
+    CHECK(uimn.win.vert && wind_active() == W_ED2 && cursor_at(S, "sub bump (n)", "bump"));
+    done(S, (const char *[]){"main.bas", "gfx.bas", nullptr});
+}
+
+/* SUBs' Edit in Split: the window split, one over the other, the other one active. */
+TEST(editor_edits_a_sub_in_a_split)
+{
+    open_definitions(S);
+    host_key_push(0x0F09); /* Tab: to Edit in Active */
+    host_key_push(0x0F09); /* Tab: to Edit in Split */
+    host_key_push(0x1C0D);
+    view_subs(S);
+    pkey_flush();
+    CHECK(uimn.win.win[W_ED2].height && !uimn.win.vert && wind_active() == W_ED2);
+    done(S, (const char *[]){"main.bas", "gfx.bas", nullptr});
+}
+
+/* uimn_init: one edit window; a split left from before stayed, on the last program's lines: the
+   next test to go to it crashed. */
+TEST(editor_starts_with_one_window)
+{
+    open_program(S, "sub hi\r\nend sub\r\n");
+    wind_other(S, true); /* split, whatever a test before left */
+    CHECK(uimn.win.win[W_ED2].height);
+    uimn_init(S);
+    CHECK(!uimn.win.win[W_ED2].height && !uimn.win.vert);
     done(S, (const char *[]){"main.bas", "gfx.bas", nullptr});
 }
