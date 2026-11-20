@@ -1131,6 +1131,9 @@ CASES |= {
     "type_too_big": (bas("type T", " a as string * 32767", " b as string * 32767", " c as short", "end type"),
                      ".BAS:4: TYPE more than 65535 bytes", None),
     "type_too_big_array": (bas("type T", " w(1 to 70000) as byte", "end type"), ".BAS:2: TYPE more than 65535 bytes", None),
+    # An error a declaration met was marked at the line's start, with no words of what is wrong.
+    "decl_error_words": (bas("type T", " a as string * 32767", " b as string * 32767", " c as short", "end type"),
+                         "  c as short\r\n  ^\r\nThe record type is larger than 64 KB.", None),
 }
 
 # Typed at the prompt, not run as a file.

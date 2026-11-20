@@ -168,7 +168,7 @@ static const char diag_msgs[] =
     "no FOR loop counting with `{text}` is open here\0"
     "name the counter of a loop this line is inside, or leave it out for the innermost\0"
     "Too many dimensions\0"
-    "an array has at most 60 dimensions, BC's limit, and this is the 61st\0"
+    "an array has at most 60 dimensions, BC's limit\0"
     "use fewer dimensions\0"
     "CONTINUE not within matching block\0"
     "this CONTINUE {other} is not inside a {other} loop\0"

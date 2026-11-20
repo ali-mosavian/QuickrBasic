@@ -85,8 +85,9 @@ void repl_error(Session *const S, uint8_t code)
     longjmp(*S->repl.top, REPL_ERROR);
 }
 
-/* An error found off the code (the block pass) set as if an ERR op at body offset at of line (a
-   program store offset) raised it. vm.opip is set to an ErrOp (vm/exec.h) of its own. */
+/* An error found off the code (the block pass, a declaration) set as if an ERR op at body offset
+   at of line (a program store offset; FAULT_KEEP the current one) raised it. vm.opip is set to an
+   ErrOp (vm/exec.h) of its own. */
 static void place(Session *const S, const Failure *const e)
 {
     static ErrOp op;
@@ -98,7 +99,9 @@ static void place(Session *const S, const Failure *const e)
         .state = DX_NOSTATE,
     };
 
-    S->vm.line = e->line;
+    if (e->line != FAULT_KEEP)
+        S->vm.line = e->line;
+
     S->vm.opip = e->op ? (uint8_t *)e->op : (uint8_t *)&op;
     S->vm.err.active = true;
     diag_other(&S->diag, e->other, e->len);
@@ -157,6 +160,7 @@ static const char *source_name(Session *const S, const uint16_t file)
     uint16_t n = 0;
 
     for (uint32_t line = PROGBASE; file && prog_line(&S->prog, line)->len;
+
          line += prog_line(&S->prog, line)->len) {
         const uint8_t *body = at(prog_addr(&S->prog, line) + HDR);
 
@@ -349,10 +353,10 @@ static void report(Session *const S, const uint8_t code)
 
     const ErrOp *const e = err_op(S);
 
-    if (load_error(S))
-        put_marked(S, S->cons.inbuf, 0);
-    else if (e)
+    if (e)
         diagnose(S, e);
+    else if (load_error(S))
+        put_marked(S, S->cons.inbuf, 0);
     else if (S->repl.batch && line != DLINE) {
         cons_nl(&S->cons);
 
@@ -482,7 +486,12 @@ static void say(void *const ctx, const Failure *const e)
 }
 
 /* To the front end's warn: "Warning: [line src: ]", the n texts, CR LF. */
-static void repl_warn(Session *const S, const uint16_t src, const char *const text[], const uint32_t n)
+static void repl_warn(
+    Session *const S,
+    const uint16_t src,
+    const char *const text[],
+    const uint32_t n
+)
 {
     char buf[24], *w = buf;
     memcpy(w, "Warning: ", 9);
@@ -520,6 +529,7 @@ static void warn_empty(void *const ctx, const LinkEmpty *const e)
     memcpy(name, t + 1 + t[0], t[0]); /* as first written */
     memcpy(name + t[0], "()", 3);
     const char *const text[] = {"nothing REDIMs, assigns or passes ", name};
+
     repl_warn(S, prog_line(&S->prog, e->line)->src, text, 2);
 }
 
@@ -694,6 +704,7 @@ void repl_declare(Session *const S, const uint8_t *const body)
                 break;
 
             const char *const text[] = {what, " has no effect in 32-bit mode"};
+
             repl_warn(S, S->repl.fline, text, 2);
         }
 
@@ -783,6 +794,7 @@ static void read_file(Session *const S, const char *const name, const int32_t nu
 
     if (num == SOURCE_FILENO && chnl_lof(c, &len) == ST_OK)
         reserve(S, len);
+
     fault_check(&S->fault, chnl_in(cl, c));
     const uint16_t fline = S->repl.fline, file = S->prog.add_file;
     S->repl.fline = 0;

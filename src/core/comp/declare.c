@@ -52,9 +52,10 @@ typedef struct {
     Decl *d;
     Scop *sc;
     Symb *sy;
-    uint32_t line;  /* the line entered */
-    bool loading;   /* from a file: a DEFtype is an event */
-    bool deft_only; /* decl_defevents': the names' uses not noted */
+    uint32_t line;       /* the line entered */
+    bool loading;        /* from a file: a DEFtype is an event */
+    bool deft_only;      /* decl_defevents': the names' uses not noted */
+    const uint8_t *body; /* the line entered's, its errors' places in it; null none */
     const uint8_t *at;
 } DeclScan;
 
@@ -293,10 +294,19 @@ const uint8_t *decl_step(const uint8_t *p)
     }
 }
 
+/* Error code at p in the line entered. */
+[[noreturn]]
+static void decl_fail_at(const DeclScan *const ds, const uint8_t *const p, const uint8_t code)
+{
+    const uint32_t at = ds->body ? (uint32_t)(p - ds->body) : FAULT_KEEP;
+    fault_raise(ds->d->fault, (Failure){.code = code, .at = at, .line = FAULT_KEEP});
+}
+
+/* Error code at the scan's cursor. */
 [[noreturn]]
 static void decl_fail(const DeclScan *const ds, const uint8_t code)
 {
-    fault_error(ds->d->fault, code);
+    decl_fail_at(ds, ds->at, code);
 }
 
 /* Room in the array *t of n used, *cap, each size bytes, for one more. */
@@ -556,12 +566,13 @@ static void decl_typedef(DeclScan *const ds)
 }
 
 /* Field f's fixed array, ours: its dimensions, nd of them, on Decl.dims; its elements. Subscript out
-   of range: a bound past the other. */
+   of range: a bound past the other; errors at name, the field's. */
 static uint32_t decl_fielddims(
     DeclScan *const ds,
     Field *const f,
     const FieldDim *const dims,
-    const uint8_t nd
+    const uint8_t nd,
+    const uint8_t *const name
 )
 {
     Decl *const d = ds->d;
@@ -571,7 +582,7 @@ static uint32_t decl_fielddims(
 
     for (uint32_t k = 0; k < nd; k++) {
         if (!dims[k].count)
-            decl_fail(ds, E_BS);
+            decl_fail_at(ds, name, E_BS);
         if (d->ndims > UINT16_MAX)
             decl_fail(ds, E_OM);
 
@@ -580,7 +591,7 @@ static uint32_t decl_fielddims(
         elems *= dims[k].count;
 
         if (elems > UINT16_MAX)
-            decl_fail(ds, E_TTB);
+            decl_fail_at(ds, name, E_TTB);
     }
 
     d->dimmed = true;
@@ -637,6 +648,7 @@ static void decl_field(DeclScan *const ds)
     if (!t)
         return;
 
+    const uint8_t *const name = ds->at;
     const uint16_t n = decl_name(ds, nullptr);
     FieldDim dims[MAXDIMS];
     uint8_t nd = 0;
@@ -646,7 +658,7 @@ static void decl_field(DeclScan *const ds)
         const uint8_t *const past = decl_dims(ds->at, ds->d->base, dims, &nd);
 
         if (nd > MAXDIMS)
-            decl_fail(ds, E_TMD);
+            decl_fail_at(ds, name, E_TMD);
         if (!past)
             return;
 
@@ -663,7 +675,7 @@ static void decl_field(DeclScan *const ds)
     ds->d->nfields++;
     Field *const f = &td->fields[td->nfld++];
     *f = (Field){.name = n, .off = td->size, .dyn = paren && !nd}; /* at its end */
-    const uint32_t elems = decl_fielddims(ds, f, dims, nd);
+    const uint32_t elems = decl_fielddims(ds, f, dims, nd, name);
     uint16_t size;
     const uint8_t c = ds->at[1];
 
@@ -701,11 +713,11 @@ static void decl_field(DeclScan *const ds)
     }
 
     if (f->dyn && f->fix) /* STRING * n elements: not a dynamic field's */
-        decl_fail(ds, E_TM);
+        decl_fail_at(ds, name, E_TM);
     if (f->dyn)
         size = sizeof(ArrSlot);
     if (td->size + (uint64_t)size * elems > UINT16_MAX)
-        decl_fail(ds, E_TTB);
+        decl_fail_at(ds, name, E_TTB);
 
     decl_fielddeep(ds, td, f, elems, size);
     td->size += (uint16_t)(size * elems);
@@ -1088,6 +1100,7 @@ void decl_line(
         .sy = sy,
         .line = line,
         .loading = loading,
+        .body = body,
         .at = body,
     };
 
