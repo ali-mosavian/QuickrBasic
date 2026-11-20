@@ -651,6 +651,15 @@ GoStage 0, g, p, lo(), pt()
 line (0, 0)-(63, 79), 0, BF
 Blit 0, 0, ITREE, 64, 80
 print "zonetree"; Pix&(0, 64, 0, 79); NextAt - hid; ZoneAt > 0
+' the sands have their own tune in the zone's slot, at 120: its kit, its voicings and its first half bar played.
+' They had the Downs'
+GoStage 4, g, p, lo(), pt()
+PickSong SongFor%(g), 0
+NextHalf
+for i = 0 to NVOICE - 1
+    play , , VoOne(ZTUNE, i) + "V1", , , VoTwo(ZTUNE, i) + "V1"
+next
+if Sng = ZTUNE and ZHeld = 7 and Tempo(ZTUNE) = 120 and len(Order(ZTUNE)) = 36 then print "sands tune ok"
 ' Saltwick Sands' sea rises and falls by the clock, from low water to high and back, and from low water at the
 ' level's start whatever the clock then: it began where the game's clock had it, a sunset's high water by chance
 GoStage 4, g, p, lo(), pt()
@@ -1405,6 +1414,7 @@ def main() -> None:
         ("cable ok", "taken down a cable by its basket"),
         ("bridge ok", "a bridge raised by its button, to stand on"),
         ("works tune ok", "the Chrome Works played to their own tune"),
+        ("sands tune ok", "Saltwick Sands played to their own tune"),
         ("cart ok", "a chase's cart hurts Charlie run into it, is bumped by him curled, and not again while dazed"),
         ("chase ok", "the Downs' evening ended in its chase: the cart fled, broken by three bumps, its keepsake taken"),
         ("tilt ok", "on a slope the chase's cart follows it, each wheel on the ground under it"),

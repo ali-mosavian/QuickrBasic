@@ -223,6 +223,8 @@ const HUDW = 108, HUDH = 40
 const ZONES = 3, NSTAGE = ZONES * 2, SINTRO = NSTAGE
 ' the zones' names, 16 letters each; what marks CHARLIE.SAV as the game's: its zone is added to it
 const ZNAMES = "AMBER DOWNS     CHROME WORKS    SALTWICK SANDS", SAVEMARK = 1128398848
+' each zone's tune, its number in CHARLIE.DAT: a digit a zone
+const ZTUNES = "046"
 ' The intro: BEATS a second, ILEN of them, the ground HORIZON down the screen between two bars BARH high. Its
 ' cues' kinds, in QNAMES' order, six letters a name.
 const BEATS = 2!, ILEN = 112, HORIZON = 150, BARH = 14, NCUE = 96
@@ -1836,8 +1838,7 @@ end sub
 
 ' Stage st's own tune, its number in CHARLIE.DAT: its zone's, the intro's for its road.
 function TuneOf% (st as integer)
-    ' the sands have the Downs' until their own is written
-    TuneOf% = (ZoneOf%(st) and 1) * 4
+    TuneOf% = val(mid$(ZTUNES, ZoneOf%(st) + 1, 1))
     if st = SINTRO then TuneOf% = 3
 end function
 

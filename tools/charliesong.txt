@@ -233,3 +233,37 @@ DATA 5, 1, 0, "....h.g.....k.j.", "5.58.75a.9.8.7.5", "k-..k.m.l-k-j-k-", ""
 DATA 3, 1, 0, "......f.....e...", "3.36.535.2.36.5.", "f-..f.i.h-f-e-f-", ""
 DATA 5, 2, 1, "....h.g.....k.j.", "5.58.7.5.8.9.a.c", "o-m-k-j-h-g-f-e-", ""
 DATA 5, 2, 1, "....h.g.....k.j.", "5.58.7.5.8.a.c.e", "h.j.k.m.o.q.t---", ""
+
+' The sands' tune, Low Water: 36 bars of 20 in C at 120, a calypso, round and round. A triangle bass that walks, a
+' marimba's two notes off the beat, hats shaken in sixteenths and a tom for a conga; a steel pan leads, a bell
+' that falls to a hollow tone. Four bars in, then A twice, B, and A.
+Song Sands:
+DATA "abcdefghijklefghijklmnopqrstefghijkl", "pppppppppppppppppppp", 20, 120, 0, 8, 12, 8, 0, 12, 0, 0, 0
+DATA "W4Z2,8,5,3,1H0,9,5,6R5I4"
+DATA "W1H0,6,10,2", "W1H0,6,10,2", "W4Z4,6,2,0H0,6,0,3R3"
+DATA 1
+DATA "p", "S5W4Z4,7,2,0H0,6,0,3R4", "S11W4Z4,7,2,0H0,6,0,3R4", 0
+USE Drums
+DATA 4, "0-..4-..7-..9-7-", "0-..7-..c-..7-5-", "0-..3-..7-..a-7-", "0-..4-..7-..a-7-"
+DATA 0
+DATA 3, "h.H.h.H.h.H.h.Hh", "KhHhhhHTKhHhThHh", "KhHhhhHTKhTTSTTS"
+DATA -2, 1, 0, "", "", "", ""
+DATA -2, 2, 0, "", "", "", ""
+DATA 3, 1, 1, "..j...jj..j...j.", "..f...ff..f...f.", "", ""
+DATA 5, 4, 2, "..l...ll..l...l.", "..f...ff..f...f.", "", ""
+DATA -2, 1, 1, "..h...hh..h...h.", "..e...ee..e...e.", "q-.qt-.tq-m-..m.", ""
+DATA -2, 2, 1, "..h...hh..h...h.", "..e...ee..e...e.", "q-.qt-.ty-..t-q-", ""
+DATA 3, 1, 1, "..j...jj..j...j.", "..f...ff..f...f.", "r-.rv-.vr-m-..m.", ""
+DATA 5, 2, 1, "..l...ll..l...l.", "..h...hh..h...h.", "t-.tx-.xv-t-..o.", ""
+DATA -2, 1, 1, "..h...hh..h...h.", "..e...ee..e...e.", "q-.qt-.tq-m-..m.", ""
+DATA 7, 3, 1, "..j...jj..j...j.", "..e...ee..e...e.", "q-.qv-.vt-q-..m.", ""
+DATA 0, 3, 1, "..j...jj..j...j.", "..f...ff..f...f.", "r-.ro-.or-o-..l.", ""
+DATA 5, 4, 2, "..l...ll..l...l.", "..f...ff..f...f.", "t-x-o-x-t-..v-x-", ""
+DATA 3, 1, 1, "..j...jj..j...j.", "..f...ff..f...f.", "y---..v.r---..v.", ""
+DATA 3, 2, 1, "..j...jj..j...j.", "..f...ff..f...f.", "y-v-r-v-y---....", ""
+DATA -2, 1, 1, "..h...hh..h...h.", "..e...ee..e...e.", "y---..t.q---..t.", ""
+DATA -2, 2, 1, "..h...hh..h...h.", "..e...ee..e...e.", "y-t-q-t-m---....", ""
+DATA 5, 1, 1, "..l...ll..l...l.", "..h...hh..h...h.", "x---..t.o---..t.", ""
+DATA 5, 2, 1, "..l...ll..l...l.", "..f...ff..f...f.", "x-t-o-t-r---....", ""
+DATA -2, 1, 1, "..h...hh..h...h.", "..e...ee..e...e.", "q-.qt-.ty---..t.", ""
+DATA 5, 4, 2, "..l...ll..l...l.", "..f...ff..f...f.", "v-t-r-o-l---..t.", ""
