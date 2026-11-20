@@ -207,6 +207,9 @@ const SNOWV = 100!
 ' things' steps, ducked till THROWUP are left, then up and open; with THROWAT left it throws, if Charlie is
 ' within THROWR, a snowball LOBT in the air, and ducks. NLOB of them fly at once.
 const KTHROW = 46, THROWC = 75, THROWUP = 30, THROWAT = 10, THROWR = 180, LOBT = .9, NLOB = 4
+' An icicle: its state 0 hung, the things' steps since it was loosed, or -1 broken. It trembles TREMBLE of
+' them, then falls.
+const KICICLE = 35, TREMBLE = 10
 const PRESSH = 112, PRESSUP = 68, PRESSP = 180, PRESSFALL = 90, PRESSRISE = 130, PRESSLAG = 4
 ' From KFRONT on: drawn over the ground. The sands' flume: a column of its fall, its level end, the tank at its
 ' head; the speed its water carries Charlie at.
@@ -263,7 +266,7 @@ const ICAMERA = IPRESS + 6, ISLED = ICAMERA + 2, IDRIFT = ISLED + 10
 ' The snowball he is in, at two turns.
 const IGEYSER = IDRIFT + 2, ISNOWBALL = IGEYSER + 6
 ' A snow-thrower ducked and up, facing left, then their mirrors; its snowball.
-const IFORT = ISNOWBALL + 4, ILOB = IFORT + 8, NIMG = ILOB + 2
+const IFORT = ISNOWBALL + 4, ILOB = IFORT + 8, IICICLE = ILOB + 2, NIMG = IICICLE + 2
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
@@ -499,6 +502,9 @@ declare sub Lose (p as Hero)
 declare sub Dying (g as Game, p as Hero)
 declare sub Things (g as Game, p as Hero, lo() as Loose, pt() as Part)
 declare function Risen% (i as integer)
+declare function Fallen% (i as integer)
+declare sub Plunge (g as Game, pt() as Part, i as integer)
+declare sub Shatter (pt() as Part, i as integer)
 declare sub Hurl (i as integer, p as Hero)
 declare sub Volley (g as Game, p as Hero, lo() as Loose, pt() as Part)
 declare sub Splat (n as integer, pt() as Part)
@@ -1080,6 +1086,13 @@ sub LoadLevel (st as integer)
             k = KSLED
         case "thrower"
             k = KTHROW
+        case "icicle"
+            ' a shelf of three, n tiles over the ground here, and an icicle under its middle
+            for i = 0 to 2
+                Map(c + i, MH - g - n - 1) = 1
+                AddObj KPLAT, (c + i) * TS, s - (n + 1) * TS
+            next
+            AddObj KICICLE, c * TS + 24, s - n * TS - 6
         case "drift"
             k = KDRIFT
         case "spark"
@@ -3412,6 +3425,14 @@ sub Touch (g as Game, p as Hero, lo() as Loose, pt() as Part)
             MeetSweep g, p, i, lo(), pt()
         case KTHROW
             MeetThrow g, p, i, lo(), pt()
+        case KICICLE
+            ' walked under, it is loosed; falling, it hurts whom it lands on, and breaks
+            if ObS(i) = 0 and dx < 20 and py > ObY(i) and py < ObY(i) + 140 then ObS(i) = 1
+            dy = ObY(i) + Fallen%(i)
+            if ObS(i) > TREMBLE and dx < 9 and py > dy and py - 26 < dy + 16 then
+                Hurt g, p, x, lo(), SHURT
+                Shatter pt(), i
+            end if
         case KSLED
             d = p.ground or p.vy > 0
             if ObS(i) = 0 and not p.sled and not p.stun and d and dx < 14 and abs(py - ObY(i) + 5) < 10 then Board p, i
@@ -3867,6 +3888,38 @@ sub Flinch (i as integer, fromX as integer)
     if ObX(i) < fromX then ObS(i) = -FLINCH
 end sub
 
+' How far icicle i has fallen: nothing till it has trembled.
+function Fallen% (i as integer)
+    dim t as single
+    Fallen% = 0
+    if ObS(i) <= TREMBLE then exit function
+    t = (ObS(i) - TREMBLE) * STEPT * 2
+    Fallen% = cint(GRAV * t * t / 2)
+end function
+
+' Icicle i breaks.
+sub Shatter (pt() as Part, i as integer)
+    Burst pt(), csng(ObX(i)), csng(ObY(i) + Fallen%(i) + 12), 8, 110, CWHITE
+    ObS(i) = -1
+    Sfx SCRACK
+end sub
+
+' Icicle i falling: it breaks on the cat or the snow-thrower under it, which is beaten, or on the ground.
+sub Plunge (g as Game, pt() as Part, i as integer)
+    dim j as integer, y as integer, d as integer
+    y = ObY(i) + Fallen%(i) + 16
+    for j = i - 4 to i + 4
+        if j >= 0 and j < NObj and ObS(i) > 0 then
+            d = (ObK(j) = KCAT or ObK(j) = KTHROW) and ObS(j) <> 0
+            if d and abs(ObX(j) - ObX(i)) < 14 and y > ObY(j) - 16 then
+                Beaten g, pt(), j, 8
+                Shatter pt(), i
+            end if
+        end if
+    next
+    if ObS(i) > 0 and Solid%(ObX(i), y) then Shatter pt(), i
+end sub
+
 ' Whether snow-thrower i is up from behind its wall: open to a roll, and about to throw.
 function Risen% (i as integer)
     Risen% = abs(ObS(i)) <= THROWUP and abs(ObS(i)) > THROWAT
@@ -3956,6 +4009,8 @@ sub Bark (p as Hero)
     i = First(c)
     do while i < NObj
         if ObA(i) > p.x + BARKR + 40 then exit do
+        ' an icicle is loosed from further under it than he can jump
+        if ObK(i) = KICICLE and ObS(i) = 0 and abs(ObX(i) - p.x) <= BARKR and abs(ObY(i) - p.y) < 140 then ObS(i) = 1
         if ObS(i) <> 0 and abs(ObX(i) - p.x) <= BARKR and abs(ObY(i) - p.y) < 40 then
             select case ObK(i)
             case KCAT
@@ -3986,6 +4041,11 @@ sub Things (g as Game, p as Hero, lo() as Loose, pt() as Part)
             if ObS(i) <> 0 then Prowl i
         case KSPARK
             ObX(i) = ObA(i) + cint(SPARKR * sin((Ticks + ObA(i)) * .03))
+        case KICICLE
+            if ObS(i) > 0 then
+                ObS(i) = ObS(i) + 1
+                if ObS(i) > TREMBLE then Plunge g, pt(), i
+            end if
         case KTHROW
             ' a step of its turn, facing Charlie; its throw
             if ObS(i) <> 0 then
@@ -4988,6 +5048,10 @@ sub DrawThings (cx as integer, cy as integer, back as integer)
                 if ObS(i) then Blit x - 14, y - 25, IFORT - 2 * Risen%(i) - 4 * (ObS(i) < 0), 28, 26
             case KDRIFT
                 Blit x - 28, y - 11, IDRIFT, 56, 12
+            case KICICLE
+                ' loosed, it trembles
+                k = ObS(i) > 0 and ObS(i) <= TREMBLE and (Ticks and 2) <> 0
+                if ObS(i) >= 0 then Blit x - 3 - k, y + Fallen%(i), IICICLE, 7, 16
             case KSWEEP
                 if ObS(i) then Blit x - 15, y - 19, ISWEEP + ((Ticks \ 6) and 1) * 2 - 4 * (ObS(i) > 0), 30, 20
             case KSPARK

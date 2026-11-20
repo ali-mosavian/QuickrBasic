@@ -1441,6 +1441,60 @@ k.bark = -1
 Tick g, p, k, lo(), pt()
 k.bark = 0
 if was and abs(ObS(c)) > THROWUP then print "thrower ok"
+' the pass's icicle hangs while he is off to its side; a bark from there looses it, and it breaks on the ground;
+' stood under, he looses it: it trembles TREMBLE of the things' steps, falls, hurts him and breaks; over a
+' snow-thrower, a bark brings it down on it
+GoStage 6, g, p, lo(), pt()
+for c = 0 to NObj - 1
+    if ObK(c) = KICICLE then exit for
+next
+was = c < NObj
+Stand p, ObX(c) - 60, 0
+for i = 1 to 30
+    Tick g, p, k, lo(), pt()
+next
+was = was and ObS(c) = 0
+p.barkT = 0
+k.bark = -1
+Tick g, p, k, lo(), pt()
+k.bark = 0
+was = was and ObS(c) > 0
+v = 0
+for i = 1 to 120
+    Tick g, p, k, lo(), pt()
+    if Fallen%(c) > v then v = Fallen%(c)
+    if ObS(c) < 0 then exit for
+next
+was = was and i < 120 and p.inv <= 0 and v > 60
+ObS(c) = 0
+g.bones = 5
+p.x = ObX(c)
+Tick g, p, k, lo(), pt()
+was = was and ObS(c) > 0 and Fallen%(c) = 0
+for i = 1 to 120
+    Tick g, p, k, lo(), pt()
+    if ObS(c) > 0 and ObS(c) <= TREMBLE and Fallen%(c) <> 0 then was = 0
+    if p.inv > 0 then exit for
+next
+was = was and i > TREMBLE * 2 and i < TREMBLE * 2 + 40 and ObS(c) = -1 and g.bones = 0
+GoStage 7, g, p, lo(), pt()
+for c = 0 to NObj - 1
+    if ObK(c) = KICICLE then exit for
+next
+for m = 0 to NObj - 1
+    if ObK(m) = KTHROW and abs(ObX(m) - ObX(c)) < 14 then exit for
+next
+was = was and c < NObj and m < NObj
+Stand p, ObX(c) - 60, 0
+p.barkT = 0
+k.bark = -1
+Tick g, p, k, lo(), pt()
+k.bark = 0
+for i = 1 to 120
+    Tick g, p, k, lo(), pt()
+    if ObS(c) < 0 then exit for
+next
+if was and i < 120 and ObS(m) = 0 and p.inv <= 0 then print "icicle ok"
 ' a crab pinches at its side, a rolling Charlie too; down on its back he goes up off it unhurt and it ducks into
 ' its shell, and comes out again
 GoStage 4, g, p, lo(), pt()
@@ -2110,6 +2164,7 @@ def main() -> None:
         ("geyser ok", "in the pass a jet is a geyser, the pass's water: it throws him up as it blows"),
         ("snowball ok", "deep snow rolled through fast makes him a snowball: it takes one hit, and ends with the roll"),
         ("thrower ok", "a snow-thrower's wall throws a roll back; its snowball hurts where he stood; up, it is beaten"),
+        ("icicle ok", "an icicle is loosed from under it or by a bark, trembles, falls on him or a snow-thrower"),
         ("crab ok", "a crab pinches at its side and is a step from above; barked into its shell, a higher one"),
         ("jelly ok", "a jellyfish afloat or aground: a high bounce off its bell, a sting for feet in it only"),
         ("dazed ok", "a Charlie hurt into the sea paddles again"),

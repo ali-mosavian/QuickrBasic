@@ -3400,6 +3400,16 @@ def lobbed() -> Pic:
     return p.outline(FROSTINK)
 
 
+def icicle() -> Pic:
+    """An icicle, hung by its head."""
+    p = Pic(7, 16)
+    for d in range(15):
+        half = 2 if d < 5 else 1 if d < 11 else 0
+        for dx in range(-half, half + 1):
+            p.put(3 + dx, d, ICE[0] if dx == -half and half else ICE[3] if dx == half and half else ICE[1])
+    return p.outline(FROSTINK)
+
+
 def whitecap() -> list[tuple[int, Pic, bool, int]]:
     """Whitecap Pass's own pictures, at the indices the Downs' own have; its keepsake after the works' last."""
     k, z = 126, 625
@@ -3431,6 +3441,7 @@ def whitecap() -> list[tuple[int, Pic, bool, int]]:
         (z + 1036, fort(False), True, z + 1040),
         (z + 1038, fort(True), True, z + 1042),
         (z + 1044, lobbed(), True, -1),
+        (z + 1046, icicle(), True, -1),
     ]
     # a sled as the ground lies: falling steeply to the right, gently, level, rising gently, steeply
     out += [(z + 1014 + (lean + 2) * 2, sledge(-lean), True, -1) for lean in range(-2, 3)]

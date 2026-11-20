@@ -123,6 +123,7 @@ goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 ' bare ice, which keeps his speed; with 0, under snow again. No stop is asked of him on it. sled: one waits
 ' here, at the head of a run down; drift: deep snow, which ends a ride, and rolled through makes him a snowball
 ' that takes one hit. jet: here a geyser. thrower: a snow-thrower here, come to on foot like the works' own.
+' icicle: a shelf of three that many tiles up, an icicle under its middle, a column and a half on.
 Level Pass1
 tune,Whitecap
 flat,4, dog,0, flat,4, flower,0, flat,4, bones,6, flat,8, tree,0, flat,4
@@ -131,7 +132,7 @@ sled,0, flat,6, dng,5, bones,10, flat,12, pit,5, flat,8, dng,4, bones,8, flat,14
 flat,6, up45,3, arc,9, pit,10, flat,14
 mark,0, flat,10, thrower,0, flat,10, bush,0, flat,6, dn45,3, dng,4, boost,0, bones,10, flat,10, loop,0
 flat,6, boost,0, flat,6, loop,0
-flat,8, rock,0, flat,6, upg,3, flat,4, tree,0, flat,6, mover,8, flat,8, lift,6, flat,10
+flat,8, rock,0, flat,6, upg,3, flat,4, icicle,6, flat,4, tree,0, flat,6, mover,8, flat,8, lift,6, flat,10
 ice,1, dng,5, bones,10, flat,20, ice,0, boost,0, flat,4, wave,1, flat,8
 ice,1, dng,4, bones,8, flat,10, thorn,0, flat,12, ice,0, flower,0, flat,6, up45,3, arc,10, pit,11, flat,8
 mark,0, flat,6, dng,5, boost,0, bones,10, flat,10, loop,0, flat,8, boost,0, flat,6, pipe,6, flat,8
@@ -143,7 +144,7 @@ Level Pass2
 tune,Whitecap
 flat,4, dog,0, flat,6, bones,6, flat,6, dng,3, flat,6, tree,0, flat,6, boost,0, flat,6, loop,0, flat,8
 up45,3, arc,9, pit,10, flat,14, rock,0, flat,6, jet,0, flat,4, upg,2, flat,6, bones,6, flat,6, hover,5, flat,10
-mark,0, flat,6, mover,7, flat,22, thrower,0, flat,8, upg,3, flat,4, bush,0, flat,4, drift,0, flat,6
+mark,0, flat,6, mover,7, flat,21, icicle,7, flat,1, thrower,0, flat,8, upg,3, flat,4, bush,0, flat,4, drift,0, flat,6
 ice,1, flat,16, thorn,0, flat,10, ice,0, flat,6
 dng,4, boost,0, bones,10, flat,10, loop,0, flat,8, boost,0, flat,6, pipe,6, flat,8, flower,0, flat,4
 mark,0, flat,6, thrower,0, flat,24, button,0, flat,8, bridge,10, flat,8
