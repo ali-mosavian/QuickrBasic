@@ -149,8 +149,12 @@ Progress is saved at each zone.
   down on bolt along the road with him, through the ice walls that stop him on foot; the dusk's
   blizzard, whose gusts, in rhythm, bear him back on his feet and in the air and pass over him crouched or
   curled, its snow streaming a beat before each; the avalanche run from the summit, the snow coming on
-  behind him at 300 a second from his passing its head, and taking him where it reaches him. To add: the
-  bark-set slide, the blizzard's arrangement of the tune, and the chase.
+  behind him at 300 a second from his passing its head, and taking him where it reaches him. The wind drops while it
+  comes. Before it, the chase: Frost flees on her toboggan down a long gentle race, drawn as the ground
+  lies; a sled waits at its head, and on it a bump checks him rather than throws him; deep snow ends his
+  ride short of the race's end, where what bumps she has left he gives her curled, and she sits in the
+  snow, the camera by her. To add: the bark-set slide, the blizzard's arrangement of the tune, and more of
+  the chase's bumps sled against sled.
 - Rule: grip. Ice keeps speed and will not give it back. Stopping and turning are the challenge, not going.
 - Gadgets: sleds, steered by jumps; ski-lift cables; geysers; a snowball gathered by rolling through deep
   snow, which takes one hit.

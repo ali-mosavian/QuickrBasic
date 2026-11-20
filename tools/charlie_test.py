@@ -1954,7 +1954,8 @@ was = was and AvalX <> NONE
 Ticks = 1920
 Stand p, AvalX - 40, 0
 k.d = -1
-for i = 1 to 100
+' till the act's card is off the view, which the spot read below may lie under
+for i = 1 to 260
     Tick g, p, k, lo(), pt()
 next
 was = was and Aval.st = 0 and not p.dead
@@ -1982,6 +1983,64 @@ for i = 1 to 400
 next
 k.d = 0
 if was and i < 400 and g.lives = j - 1 and Aval.st = 0 and p.x < AvalX then print "avalanche ok"
+' the pass's chase: Frost's toboggan is drawn as the ground lies, its slats level on the flat and, from 10 behind
+' her middle to 8 before it, 9 lower on a fall of one in two, as Charlie's sled is. On his sled he bumps her and
+' is checked to a sled's pace, not thrown; her last bump leaves the camera, and reaching it he has it
+GoStage 7, g, p, lo(), pt()
+Ticks = 1920
+Stand p, ChaseX + 120, 0
+k.d = -1
+for i = 1 to 150
+    Tick g, p, k, lo(), pt()
+next
+was = Cart.st = 1
+for j = 0 to 1
+    Cart.x = ChaseX + 150 + j * 74
+    Cart.y = Surf%(cint(Cart.x), cint(p.y) + 8)
+    g.shake = 0
+    Render g, p, lo(), pt()
+    v = NONE
+    c = NONE
+    for i = cint(Cart.y) - 40 - int(g.camy) to cint(Cart.y) + 20 - int(g.camy)
+        if i >= 0 and i < SH then
+            if point(cint(Cart.x) - 10 - int(g.camx), i) = 59 then v = i
+            if point(cint(Cart.x) + 8 - int(g.camx), i) = 59 then c = i
+        end if
+    next
+    was = was and v <> NONE and c - v = j * 9
+next
+k.d = 0
+Cart.x = p.x + 60
+Cart.y = p.y
+Cart.v = 0
+p.sled = -1
+p.roll = -1
+p.gsp = 400
+hid = g.score
+for i = 1 to 60
+    Tick g, p, k, lo(), pt()
+    if Cart.hits then exit for
+next
+was = was and Cart.hits = 1 and Cart.t > BOLTS and p.sled and p.ground and abs(p.gsp - SLEDV) < 10
+Cart.hits = NBUMP - 1
+Cart.t = 0
+Cart.v = 0
+Cart.x = p.x + 60
+p.gsp = 300
+for i = 1 to 60
+    Tick g, p, k, lo(), pt()
+    if Cart.st = 2 then exit for
+next
+was = was and Cart.st = 2 and Cart.hits = NBUMP
+p.sled = 0
+p.roll = 0
+Stand p, cint(Cart.x), 0
+for i = 1 to 150
+    Tick g, p, k, lo(), pt()
+    if Cart.st = 3 then exit for
+next
+if was and Cart.st = 3 and g.score >= hid + 2000 then print "toboggan ok"
+Cart.st = 0
 ' the pass's ski lift: its chair takes him up its cable steadily, to the ground CABLED higher past the pit in
 ' 1 / SEATV seconds, and goes back down once he is off it. He rides and waits crouched: the dusk's gusts would
 ' have him off it
@@ -2071,6 +2130,8 @@ for m = 1 to NSTAGE - 1
     if m = 1 and was and Cart.st = 3 and Cart.hits = NBUMP and ZHeld = 8 then print "chase ok"
     ' and the sands' sunset: the pilot hops out of the sea onto Kipper's boat till it sinks, and takes the teddy
     if m = 5 and Cart.st = 3 and Cart.hits = NBUMP then print "kipper ok"
+    ' and the pass's dusk: Frost bumped off her toboggan, on his sled and at the race's end, and the camera taken
+    if m = 7 and Cart.st = 3 and Cart.hits = NBUMP then print "frost ok"
     print "act"; m; g.mode; g.lives - j; Stage; Zone; cint(p.x)
     k.l = 0
     k.r = 0
@@ -2389,6 +2450,8 @@ def main() -> None:
         ("geyser ok", "in the pass a jet is a geyser, the pass's water: it throws him up as it blows"),
         ("snowball ok", "deep snow rolled through fast makes him a snowball: it takes one hit, and ends with the roll"),
         ("avalanche ok", "the dusk's avalanche waits till he is past, comes on behind him, takes him where he stops"),
+        ("toboggan ok", "Frost's toboggan lies as the ground does; on his sled a bump checks him; the camera is taken"),
+        ("frost ok", "the pass's dusk ended in its chase: Frost bumped off her toboggan, the camera taken"),
         ("gale ok", "the dusk's gusts bear him back on his feet and in the air, not crouched or curled; snow streams"),
         ("goat ok", "an ice wall stops him; a goat's charge hurts; jumped, it is ridden through, as the ground lies"),
         ("thrower ok", "a snow-thrower's wall throws a roll back; its snowball hurts where he stood; up, it is beaten"),

@@ -289,7 +289,9 @@ const IGEYSER = IDRIFT + 2, ISNOWBALL = IGEYSER + 6
 ' A snow-thrower ducked and up, facing left, then their mirrors; its snowball.
 const IFORT = ISNOWBALL + 4, ILOB = IFORT + 8, IICICLE = ILOB + 2, ISEAT = IICICLE + 2
 ' A goat's: at graze, then at a charge as the ground lies, five ways, two strides each; each with its mirror.
-const IGOAT = ISEAT + 2, IGOATR = IGOAT + 4, IWALL = IGOATR + 40, NIMG = IWALL + 4
+const IGOAT = ISEAT + 2, IGOATR = IGOAT + 4, IWALL = IGOATR + 40
+' Frost on her toboggan as the ground lies, five ways; and knocked into deep snow.
+const IFROST = IWALL + 4, IDUNKED = IFROST + 10, NIMG = IDUNKED + 2
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
@@ -544,6 +546,8 @@ declare function GoatNear% (x as integer)
 declare function Slant% (p as Hero)
 declare sub DrawGoat (i as integer, x as integer, y as integer)
 declare sub DrawStray (cx as integer, cy as integer)
+declare function Lie% (x as integer, y as integer)
+declare sub DrawFrost (cx as integer, cy as integer)
 declare sub Plunge (g as Game, pt() as Part, i as integer)
 declare sub Shatter (pt() as Part, i as integer)
 declare sub Hurl (i as integer, p as Hero)
@@ -2965,7 +2969,7 @@ sub Pilot (p as Hero, k as Pad)
             end if
         end if
         ' who flees is rolled into, once there is the speed to roll
-        k.d = Zone = 0 and Cart.st = 1 and Cart.x > x and Cart.x - x < 120 and p.gsp > 150
+        k.d = (Zone = 0 or Zone = 3) and Cart.st = 1 and Cart.x > x and Cart.x - x < 120 and p.gsp > 150
         ' a platform's gap ahead: slowly to its edge, there till the platform is at it and staying, then on
         for m = 0 to NMv - 1
             d = MvE(m) - x
@@ -4089,11 +4093,13 @@ function SnowTop% (x as integer)
     SnowTop% = y
 end function
 
-' The ticks of calm left before the blizzard's next gust: 0 while it blows.
+' The ticks of calm left before the blizzard's next gust: 0 while it blows. The wind drops while the avalanche
+' comes: nothing may stop him then, and a gust would.
 function Lull% ()
     dim t as integer
     t = GUSTP - GUSTON - Ticks mod GUSTP
     if t < 0 then t = 0
+    if AvalX <> NONE and Aval.st = 1 then t = GUSTP
     Lull% = t
 end function
 
@@ -4281,17 +4287,24 @@ sub DrawGoat (i as integer, x as integer, y as integer)
     end if
 end sub
 
-' The goat on its way home, as the ground lies under it.
-sub DrawStray (cx as integer, cy as integer)
-    dim x as integer, y as integer, a as integer, b as integer, t as integer
-    x = cint(Stray.x)
-    y = cint(Stray.y)
+' How the ground lies at x near y, of the five ways what rides it is drawn: -2 to 2, level 0.
+function Lie% (x as integer, y as integer)
+    dim a as integer, b as integer, t as integer
     a = Surf%(x - 8, y)
     b = Surf%(x + 8, y)
     if a <> NONE and b <> NONE then t = (a - b) \ 8
     if t > 2 then t = 2
     if t < -2 then t = -2
-    Blit x - cx - 17, y - cy - 40, IGOATR + ((t + 2) * 2 + ((Ticks \ 6) and 1)) * 4 - 2 * (ObA(Stray.i) < x), 34, 58
+    Lie% = t
+end function
+
+' The goat on its way home, as the ground lies under it.
+sub DrawStray (cx as integer, cy as integer)
+    dim x as integer, y as integer, f as integer
+    x = cint(Stray.x)
+    y = cint(Stray.y)
+    f = ((Lie%(x, y) + 2) * 2 + ((Ticks \ 6) and 1)) * 4 - 2 * (ObA(Stray.i) < x)
+    Blit x - cx - 17, y - cy - 40, IGOATR + f, 34, 58
 end sub
 
 ' Icicle i breaks.
@@ -4588,7 +4601,8 @@ sub Flee (g as Game, p as Hero, lo() as Loose, pt() as Part)
         if p.x >= ChaseX then StartChase
     case 1
         select case Zone
-        case 0
+        case 0, 3
+            ' a cart and a toboggan go alike
             MoveCart p
             MeetCart g, p, lo(), pt()
         case 1
@@ -4636,8 +4650,8 @@ sub MoveCart (p as Hero)
     if s <> NONE then Cart.y = s
 end sub
 
-' Charlie at the cart, once it is over its last bump: curled, he bumps it and is thrown back off it; else it
-' hurts him. Its last bump breaks it.
+' Charlie at the cart, once it is over its last bump: curled, he bumps it and is thrown back off it, or on a sled
+' checked; else it hurts him. Its last bump breaks it.
 sub MeetCart (g as Game, p as Hero, lo() as Loose, pt() as Part)
     if Cart.t > BOLTS or p.dead then exit sub
     if abs(p.x - Cart.x) > CARTR or p.y < Cart.y - 46 or p.y > Cart.y + 6 then exit sub
@@ -4646,6 +4660,15 @@ sub MeetCart (g as Game, p as Hero, lo() as Loose, pt() as Part)
         exit sub
     end if
     Bumped g, pt(), Cart.y - 20
+    ' sled against sled he is checked, not thrown: a sled thrown back has no brake to stop it
+    if p.sled then
+        if p.ground then
+            p.gsp = SLEDV
+        else
+            p.vx = SLEDV
+        end if
+        exit sub
+    end if
     p.ground = 0
     p.jumped = 0
     p.vx = -120
@@ -4688,7 +4711,27 @@ sub DrawChase (cx as integer, cy as integer)
         DrawCrane cx, cy
     case 2
         DrawPedalo cx, cy
+    case 3
+        DrawFrost cx, cy
     end select
+end sub
+
+' Frost on her toboggan as the ground lies, shaken while a bump has her dazed, the bumps she can yet take over
+' her; knocked off it, she sits in deep snow, the camera lying by her.
+sub DrawFrost (cx as integer, cy as integer)
+    dim x as integer, y as integer, i as integer
+    x = cint(Cart.x) - cx
+    y = cint(Cart.y) - cy
+    if Cart.st = 2 then
+        Blit x - 62, y - 21, IDUNKED, 56, 22
+        DrawKeep x, y - ((Ticks \ 16) and 1)
+        exit sub
+    end if
+    if Cart.t > BOLTS then x = x + ((Ticks \ 2) and 1) * 2 - 1
+    Blit x - 17, y - 46, IFROST + (Lie%(cint(Cart.x), cint(Cart.y)) + 2) * 2, 34, 65
+    for i = Cart.hits to NBUMP - 1
+        line (x - 10 + i * 8, y - 40)-(x - 6 + i * 8, y - 36), CYELLOW, BF
+    next
 end sub
 
 ' Kipper's pedal boat on the sea, from one end of its channel to the other and back: faster for each bump it has

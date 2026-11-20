@@ -3310,9 +3310,8 @@ def leant(o: Pic, lean: int) -> Pic:
     return p
 
 
-def sledge(lean: int) -> Pic:
-    """A toboggan, its nose to the right: slats curled up at it, a runner under. It follows the ground: lean halves
-    of a pixel's fall for each along, about its middle, which is at the picture's row 24."""
+def toboggan() -> Pic:
+    """A toboggan on the level, its nose to the right: slats curled up at it, a runner under."""
     o = Pic(30, 12)
     o.box(2, 5, 24, 6, WOOD[3])
     o.box(2, 7, 24, 7, WOOD[1])
@@ -3324,8 +3323,53 @@ def sledge(lean: int) -> Pic:
     o.put(24, 8, METAL[2])
     for x in (5, 20):
         o.put(x, 8, METAL[1])
-    o.outline(FROSTINK)
-    return leant(o, lean)
+    return o.outline(FROSTINK)
+
+
+def sledge(lean: int) -> Pic:
+    """A toboggan as the ground lies, its runner's middle at the picture's row 24."""
+    return leant(toboggan(), lean)
+
+
+def frostcat() -> Pic:
+    """Frost: a white cat, sat, goggles on, a pink scarf out behind her."""
+    fur = [ICE[3], SNOW[3], SNOW[1], SNOW[0]]
+    q = Pic(26, 20)
+    q.line(7, 16, 3, 13, fur[2], 2)
+    q.line(3, 13, 4, 9, fur[3], 2)
+    q.ball(12, 13, 5.5, 5.5, fur, 0.25, 1.1)
+    q.ball(16, 6.5, 4.2, 3.8, fur, 0.3, 1.1)
+    for x, y in ((13, 1), (13, 2), (14, 2), (19, 1), (18, 2), (19, 2)):
+        q.put(x, y, fur[3])
+    q.box(13, 5, 20, 6, FROSTINK)
+    q.box(14, 5, 15, 6, ICE[1])
+    q.box(18, 5, 19, 6, ICE[1])
+    q.put(20, 8, PETAL[0])
+    q.box(12, 10, 17, 11, ALPGLOW[1])
+    for i in range(7):
+        q.box(11 - i, 10 - (i // 3), 11 - i, 11 - (i // 3), ALPGLOW[0] if i % 3 == 0 else ALPGLOW[1])
+    q.box(15, 14, 18, 15, fur[3])
+    return q.outline(FROSTINK)
+
+
+def frost(lean: int) -> Pic:
+    """Frost on her toboggan, as the ground lies."""
+    p = Pic(34, 31)
+    paste(p, frostcat(), 4, 5)
+    paste(p, toboggan(), 2, 19)
+    return leant(p, lean)
+
+
+def dunked() -> Pic:
+    """Frost knocked into deep snow: her head and her scarf out of the heap."""
+    p = Pic(56, 22)
+    q = frostcat()
+    for y in range(13):
+        for x in range(q.w):
+            if q.p[y][x]:
+                p.put(15 + x, y, q.p[y][x])
+    paste(p, deepsnow(), 0, 10)
+    return p
 
 
 def deepsnow() -> Pic:
@@ -3535,7 +3579,9 @@ def whitecap() -> list[tuple[int, Pic, bool, int]]:
         (z + 1050, goat(0, False), True, z + 1052),
         (z + 1094, icewall(False), True, -1),
         (z + 1096, icewall(True), True, -1),
+        (z + 1108, dunked(), True, -1),
     ]
+    out += [(z + 1098 + (lean + 2) * 2, frost(-lean), True, -1) for lean in range(-2, 3)]
     # a goat at a charge as the ground lies, like the sled: each stride, and each mirrored for the fall the other way
     for lean in range(-2, 3):
         for f in range(2):
