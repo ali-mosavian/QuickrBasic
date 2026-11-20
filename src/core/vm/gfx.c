@@ -153,7 +153,7 @@ static QbrtStr vgfx_str(Session *const S)
     return (QbrtStr){.len = d.len, .ptr = (char *)at(d.ptr)};
 }
 
-/* An array's part ( cell element kind -- ): its chars from the element named (0 the first) to its
+/* An array's part ( array element kind -- ), the array an operand (exec_arrayop): its chars from the element named (0 the first) to its
    end, their count, an element's bytes. Illegal function call: not made. */
 typedef struct {
     uint8_t *data;
@@ -164,20 +164,19 @@ static Span vgfx_array(Session *const S)
 {
     (void)exec_popi(&S->vm); /* the element's kind */
     const Addr el = exec_popa(&S->vm);
-    const Addr hdr = ((const ArrSlot *)at(exec_popa(&S->vm)))->hdr;
+    ArrView v;
+    const ArrSlot *const s = exec_arrayop(&S->arry, &S->vm, &v);
 
-    if (!hdr)
+    if (s && !s->hdr)
         repl_error(S, E_IQ);
 
-    const ArrayHdr *const a = (const ArrayHdr *)at(hdr);
-    const Addr data = a->data;
-    const Addr end = data + arry_size(&S->arry, hdr);
-    const Addr from = el ? el : data;
+    const Addr end = v.data + arry_view_size(&S->arry, &v);
+    const Addr from = el ? el : v.data;
 
-    if (from < data || from >= end)
+    if (from < v.data || from >= end)
         arry_bad_sub(&S->arry);
 
-    return (Span){at(from), end - from, arry_et_size(&S->decl, a->et)};
+    return (Span){at(from), end - from, arry_et_size(&S->decl, v.et)};
 }
 
 /* The BASIC heap's free part, the strings packed, lent to the PAINT that follows: before a string

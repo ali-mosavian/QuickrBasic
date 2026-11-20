@@ -1035,6 +1035,23 @@ void exec_fe_addr(Session *const S)
     S->vm.sp->a = arry_ref(&S->arry, s, 0, n);
 }
 
+ArrSlot *exec_arrayop(Arry *const ar, Vm *const vm, ArrView *const v)
+{
+    const Addr top = exec_popa(vm);
+
+    if (top & ARR_FIELD) {
+        *v = arry_view_field(ar, exec_popa(vm), top & ~ARR_FIELD);
+        return nullptr;
+    }
+
+    ArrSlot *const s = (ArrSlot *)at(top);
+
+    if (s->hdr)
+        *v = arry_view(s->hdr);
+
+    return s;
+}
+
 Addr exec_record(Arry *const ar, ArrSlot *const s, const uint32_t id)
 {
     if (s->hdr)

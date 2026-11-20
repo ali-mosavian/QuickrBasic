@@ -345,30 +345,28 @@ void func_sadd(Session *const S) { S->vm.sp->a = strg_peek(S->vm.sp->a).ptr; }
 /* FIX ( f -- f ): toward 0. */
 void func_fix(Session *const S) { S->vm.sp->u = fmth_fix(S->vm.sp->u); }
 
-/* LBOUND, UBOUND ( cell [d] count -- i ): of dimension d, 1 the first. Subscript out of range: no
-   dimension d, or ERASEd. */
+/* LBOUND, UBOUND ( array [d] count -- i ): of dimension d, 1 the first; the array an operand
+   (exec_arrayop). Subscript out of range: no dimension d, or ERASEd. */
 static void bound(Session *const S, const bool upper)
 {
     const uint32_t count = exec_pop(&S->vm).u;
     const uint32_t d = count == 2 ? exec_pop(&S->vm).u : 1;
-    const ArrSlot s = *(const ArrSlot *)at(exec_popa(&S->vm));
-    const Addr hdr = s.hdr;
+    ArrView v;
+    const ArrSlot *const s = exec_arrayop(&S->arry, &S->vm, &v);
 
-    if (!hdr) {
-        if (s.dyn) /* ERASEd: none */
+    if (s && !s->hdr) {
+        if (s->dyn) /* ERASEd: none */
             arry_bad_sub(&S->arry);
 
         exec_pushi(&S->vm, upper ? 10 : S->decl.base); /* none yet: OPTION BASE to 10 */
         return;
     }
 
-    const ArrayHdr *const a = (const ArrayHdr *)at(hdr);
-
-    if (d < 1 || d > a->dims)
+    if (d < 1 || d > v.dims)
         arry_bad_sub(&S->arry);
 
-    const int32_t lower = (int32_t)a->count[d - 1 + a->dims];
-    exec_pushi(&S->vm, upper ? lower + a->count[d - 1] - 1 : lower);
+    const int32_t lower = arry_view_lbound(&v, d - 1);
+    exec_pushi(&S->vm, upper ? lower + (int32_t)arry_view_count(&v, d - 1) - 1 : lower);
 }
 void func_lbnd(Session *const S) { bound(S, false); }
 void func_ubnd(Session *const S) { bound(S, true); }

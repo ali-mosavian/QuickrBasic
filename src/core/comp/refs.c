@@ -171,11 +171,21 @@ static Node *step_op(Comp *const C, Node ***const end, const uint8_t op)
     return n;
 }
 
+/* An element's ( s {, s} ) at comp.p, n's arguments: comp.whole not theirs, a field in them its
+   element. */
+static void subs_args(Comp *const C, Node *const n)
+{
+    const uint8_t whole = C->whole;
+    C->whole = 0;
+    expr_args(C, n);
+    C->whole = whole;
+}
+
 /* The ( s {, s} ) at comp.p, ours: each checked as a number; the first, linked, their count *n. */
 static Node *subscripts(Comp *const C, uint32_t *const n)
 {
     Node *const subs = ast_new(C->ast, N_ELEM);
-    expr_args(C, subs);
+    subs_args(C, subs);
     const uint8_t *const past = C->p; /* sema_tree moves it to an operator's end */
     uint32_t k = 0;
 
@@ -260,9 +270,9 @@ static void dyn_element(Comp *const C, Node *const at, const Field *const f, con
     comp_word(e, (uint16_t)arry_et_size(C->decl, decl_fieldtype(f)));
 }
 
-/* A dynamic array field whole at comp.p, ours: f() or f(:) (stepped past) or f alone, not f(i);
-   ref_fieldcell's f(..), no .g after them. *wr how it is written. */
-static bool dyn_whole(Comp *const C, Written *const wr)
+/* An array field whole at comp.p, ours: f() or f(:) (stepped past) or f alone, not f(i); with
+   WH_PAREN f(..), no .g after them. *wr how it is written. */
+static bool field_whole(Comp *const C, Written *const wr)
 {
     *wr = C->p[0] == TK_X && C->p[1] == TK1_WHOLE ? WR_ELEMS
           : C->p[0] == '(' && C->p[1] == ')'      ? WR_ARRAY
@@ -273,11 +283,25 @@ static bool dyn_whole(Comp *const C, Written *const wr)
         return true;
     }
 
-    return C->p[0] != '(' || (C->dimtarget && *decl_paren(C->p) != '.');
+    return C->p[0] != '(' || (C->whole & WH_PAREN && *decl_paren(C->p) != '.');
+}
+
+/* Field f of TYPE t whole at off, ours, written wr: a dynamic one's cell, a fixed one's place. */
+static RecRef field_array(Comp *const C, const uint32_t t, const Field *const f, const uint32_t off,
+                          const Written wr)
+{
+    const uint32_t i = (uint32_t)(f - decl_type(C->decl, t)->fields);
+
+    if (!f->dyn && t > FIELD_KEY_TYPES)
+        fault_error(C->fault, E_OM);
+
+    return (RecRef){.et = decl_fieldtype(f), .off = (uint16_t)off, .arr = true, .wr = wr,
+                    .key = f->dyn ? 0 : decl_fieldkey(t, i)};
 }
 
 /* rc_path: the place of fields f.g.. of TYPE t, at's: the text len long, then at comp.p an array
-   field's subscripts and .h.. after them, ours. A dynamic array field whole: its cell's place, arr. */
+   field's subscripts and .h.. after them, ours. An array field whole (a fixed one's with WH_FIXED):
+   field_array's. */
 static RecRef path(Comp *const C, Node *const at, uint32_t t, const uint8_t *text, uint32_t len)
 {
     uint32_t off = 0;
@@ -308,12 +332,12 @@ static RecRef path(Comp *const C, Node *const at, uint32_t t, const uint8_t *tex
             len--;
         }
 
+        Written wr;
+
+        if ((f->dyn || (f->ndim && C->whole & WH_FIXED)) && field_whole(C, &wr))
+            return field_array(C, t, f, off, wr);
+
         if (f->dyn) {
-            Written wr;
-
-            if (dyn_whole(C, &wr))
-                return (RecRef){.et = decl_fieldtype(f), .off = (uint16_t)off, .arr = true, .wr = wr};
-
             dyn_element(C, at, f, off);
             off = 0; /* from the element */
         } else if (f->ndim) {
@@ -346,7 +370,7 @@ static Node *place(Comp *const C, const uint8_t op, const uint32_t id)
     n->type = T_INT;
 
     if (op == O_RA_ADDR)
-        expr_args(C, n);
+        subs_args(C, n);
 
     return n;
 }
@@ -477,12 +501,13 @@ Node *ref_fieldarray(Comp *const C, uint32_t *const type, Written *const wr)
     return nullptr;
 }
 
-Node *ref_fieldcell(Comp *const C, uint32_t *const type)
+Node *ref_arrayfield(Comp *const C, uint32_t *const type, const uint8_t whole)
 {
-    C->dimtarget = true;
-    Node *const cell = ref_fieldarray(C, type, nullptr);
-    C->dimtarget = false;
-    return cell;
+    const uint8_t outer = C->whole; /* a subscript's: 0 */
+    C->whole = whole;
+    Node *const a = ref_fieldarray(C, type, nullptr);
+    C->whole = outer;
+    return a;
 }
 
 Node *ref_field(Comp *const C, Node *const ref)

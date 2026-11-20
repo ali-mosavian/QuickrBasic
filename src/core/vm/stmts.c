@@ -509,30 +509,20 @@ void stmt_areset(Session *const S)
     arry_reset(&S->arry, &S->vm, arry_slot(&S->arry, exec_pop(&S->vm).u));
 }
 
-/* ERASE ( cell -- ): REDIM's array freed, another's elements zeroed. */
+/* ERASE ( array -- ), an operand (exec_arrayop): REDIM's array freed, another's elements zeroed. */
 void stmt_erase(Session *const S)
 {
-    ArrSlot *const s = (ArrSlot *)at(exec_popa(&S->vm));
-    const Addr hdr = s->hdr;
+    ArrView v;
+    ArrSlot *const s = exec_arrayop(&S->arry, &S->vm, &v);
 
-    if (!hdr)
+    if (s && !s->hdr)
         return;
-    if (s->dyn) {
+    if (s && s->dyn) {
         arry_free(&S->arry, &S->vm, s);
         return;
     }
 
-    const ArrayHdr *const a = (const ArrayHdr *)at(hdr);
-    const uint32_t size = arry_size(&S->arry, hdr);
-    arry_kill_elems(&S->arry, hdr); /* a record's arrays, ours */
-    copy_zero(a->data, size);
-
-    if (a->et >= ET_REC) {
-        const TypeDef *const td = decl_type(&S->decl, a->et - ET_REC);
-        arry_empty_cells(a->data, size / td->size, td);
-    }
-
-    arry_sweep(&S->arry, &S->vm);
+    arry_clear(&S->arry, &S->vm, &v);
 }
 
 /* ---- RUN, LIST, CONT, END, STOP ------------------------------------------------------------- */
