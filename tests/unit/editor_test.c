@@ -93,21 +93,28 @@ static uint32_t line_of(Session *const S, const char *const text)
     return ~0u;
 }
 
-/* Text line line typed over with text and entered, as the editor's Enter does. */
-static void retype(Session *const S, const uint32_t line, const char *const text)
+/* Text line line typed over with text and entered, as the editor's Enter does: edit_commit's
+   answer, false a syntax error (its box closed). */
+static bool typed_over(Session *const S, const uint32_t line, const char *const text)
 {
     CHECK(line < uimn.text.all);
 
     if (line >= uimn.text.all)
-        return;
+        return false;
 
     edit_load(S, view_goline(S, line));
     uimn.edline.len = (uint16_t)strlen(text);
     memcpy(edit_lb_need(S, &uimn.edline, uimn.edline.len), text, uimn.edline.len);
     uimn.edline.dirty = true;
     host_key_push(0x011B); /* Esc: an error's box closed, not waited on */
-    CHECK(edit_commit(S));
+    const bool ok = edit_commit(S);
     pkey_flush();
+    return ok;
+}
+
+static void retype(Session *const S, const uint32_t line, const char *const text)
+{
+    CHECK(typed_over(S, line, text));
 }
 
 /* The SUBs box's item i. */
@@ -194,7 +201,7 @@ TEST(editor_loads_a_typed_import)
     CHECK(items(S) == 3);
     CHECK(!strcmp(item(S, 1), path_of("util.bas")));
     CHECK(!strcmp(item(S, 2), "  there"));
-    CHECK(!text_unsaved(1));
+    CHECK(!text_unsaved(S, 1));
     done(S, (const char *[]){"main.bas", "gfx.bas", "util.bas", nullptr});
 }
 
@@ -268,4 +275,45 @@ TEST(editor_keeps_a_module_view_s_place)
     view_goline(S, line_of(S, "const t = 7"));
     CHECK(uimn.ed.line == 1);
     done(S, (const char *[]){"main.bas", "gfx.bas", nullptr});
+}
+
+/* At Open a call into a module failed the editor's check, the module not bound yet: the line was
+   kept as typed. One typed before its IMPORT is checked again once the module is. */
+TEST(editor_checks_module_calls_once_bound)
+{
+    open_program(S, "sub hi (n)\r\nend sub\r\n");
+    write_file("main.bas", "import gfx\r\ngfx.hi  1\r\n");
+    uimn_open(S, path_of("main.bas"));
+    CHECK(line_of(S, "gfx.hi 1") == 1);
+    CHECK(!uimn.text.unsaved);
+    write_file("main.bas", "print 1\r\nprint 2\r\n");
+    uimn_open(S, path_of("main.bas"));
+    CHECK(!typed_over(S, 1, "gfx.hi  2"));
+    retype(S, 0, "import gfx");
+    CHECK(line_of(S, "gfx.hi 2") == 1);
+    done(S, (const char *[]){"main.bas", "gfx.bas", nullptr});
+}
+
+/* A module no import reached stayed loaded till the next Open. One edited stays till saved. The
+   window on one dropped goes to the main's module, not to the view now in its place. */
+TEST(editor_drops_a_module_not_imported)
+{
+    open_program(S, "sub hi\r\nend sub\r\n");
+    write_file("main.bas", "import util\r\nimport gfx\r\n");
+    write_file("util.bas", "const u = 1\r\n");
+    uimn_open(S, path_of("main.bas"));
+    CHECK(items(S) == 4);
+    retype(S, line_of(S, "const u = 1"), "const u = 2");
+    retype(S, line_of(S, "import util"), "print 1");
+    uimn_sync(S);
+    CHECK(items(S) == 4);
+    CHECK(uimn_save(S));
+    retype(S, line_of(S, "print 1"), "print 2");
+    view_goline(S, line_of(S, "const u = 2"));
+    uimn_sync(S);
+    CHECK(items(S) == 3);
+    CHECK(!strcmp(item(S, 1), path_of("gfx.bas")));
+    CHECK(!strcmp(view_file(S, uimn.ed.view), path_of("main.bas")));
+    CHECK(!strcmp(file_text("util.bas"), "const u = 2\r\n"));
+    done(S, (const char *[]){"main.bas", "gfx.bas", "util.bas", nullptr});
 }

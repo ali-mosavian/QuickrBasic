@@ -57,6 +57,8 @@ uint32_t prog_lineof_from(const Prog *pg, uint32_t from, uint32_t pos, uint32_t 
 uint8_t *prog_body(const Prog *pg, uint32_t line, uint8_t *dst);
 /* The modules with lines in the store: one before each LF_TOP but the last, the main's. */
 uint32_t prog_modules(const Prog *pg);
+/* The records from line to end removed. */
+void prog_cut_to(Prog *pg, uint32_t line, uint32_t end);
 /* The record at line removed; returns its size. */
 uint32_t prog_cut(Prog *pg, uint32_t line);
 /* A line (num, body, pre, add_flags) stored before the record at line, after the user's edited:

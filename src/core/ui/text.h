@@ -27,9 +27,9 @@ void text_delete(Session *S, uint32_t line);
 /* Text line line's module (not the view's line). */
 uint32_t text_module(Session *S, uint32_t line);
 /* Module module changed since saved; then saved; none changed (a program opened). */
-bool text_unsaved(uint32_t module);
-void text_saved(uint32_t module);
-void text_clean(void);
+bool text_unsaved(Session *S, uint32_t module);
+void text_saved(Session *S, uint32_t module);
+void text_clean(Session *S);
 /* tx_mark: line's mark (a breakpoint). */
 bool text_mark(Session *S, uint32_t line);
 /* tx_mtog: line's mark on, off. */

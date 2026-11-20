@@ -7,8 +7,9 @@
  * A run enters the text again when it changed (repl_relink); an error, BREAK or STOP comes back to
  * the editor at its line. The editor runs only when standard input and output are both the console.
  *
- * Open reads the program and the modules it imports (repl_open), Save writes it and each module
- * changed (text_unsaved); Save As names the program.
+ * Open reads the program and the modules it imports (repl_open), then checks again the lines kept
+ * as typed, which may call them. Save writes the program and each module changed (text_unsaved);
+ * Save As names the program.
  *
  * Each key's command runs under repl_call, and a run under its own: an error or a run's end comes
  * back to its caller as a Status, the C stack below it unwound.
@@ -659,7 +660,7 @@ static bool write_module(Session *const S, const char *const name, const uint32_
         return false;
     }
 
-    text_saved(module);
+    text_saved(S, module);
     return true;
 }
 
@@ -670,7 +671,7 @@ static bool write_file(Session *const S)
         return false;
 
     for (uint32_t m = 1; m < modu_count(&S->modu); m++)
-        if (text_unsaved(m) && !write_module(S, modu_module_path(&S->modu, m), m))
+        if (text_unsaved(S, m) && !write_module(S, modu_module_path(&S->modu, m), m))
             return false;
 
     return true;
@@ -760,7 +761,7 @@ static void reset(Session *const S)
     uimn.text.changed = true;
     dpan_close();
     view_reset(S);
-    text_clean();
+    text_clean(S);
     edit_load(S, 0);
 }
 
@@ -803,7 +804,8 @@ static void load(Session *const S)
     reset(S);
     bool read;
     const Status st = loaded(S, repl_open, &read);
-    text_clean(); /* as read: a blank line before a SUB aside */
+    edit_recheck(S);
+    text_clean(S);
     fault_check(&S->fault, st);
 }
 

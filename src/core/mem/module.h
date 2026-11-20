@@ -23,11 +23,12 @@ typedef struct {
 } ModuRead;
 
 /* Each module's: its path, its LF_TOP line (the END before its lines; 0 the main's), as read and
-   again at each link; its run's state: its code run by an IMPORT, its ON ERROR handler's line (0
-   none), its READ place. */
+   again at each link; the editor's: its lines changed since saved; its run's state: its code run by
+   an IMPORT, its ON ERROR handler's line (0 none), its READ place. */
 typedef struct {
     uint32_t path; /* an offset in Modu.text */
     uint32_t top;
+    bool edited;
     bool ran;
     uint32_t handler;
     ModuRead read;
@@ -45,7 +46,8 @@ typedef struct Modu {
     uint32_t ordercap, seencap;
     char *text; /* the paths, each 0-ended */
     uint32_t ntext, textcap;
-    Fault *fault; /* Out of memory */
+    uint32_t epoch, drops; /* bumped by a module added or dropped; by one dropped */
+    Fault *fault;          /* Out of memory */
 } Modu;
 
 /* Only the main program's module, its path unknown. */
@@ -55,6 +57,10 @@ void modu_clear(Modu *mu, const char *main);
 /* The first n modules kept (n at most their count), the main's path main; their run's state kept;
    no imports; no files but each module's own, file m module m's. */
 void modu_relink(Modu *mu, const char *main, uint32_t n);
+/* Module m dropped, those after it a number down; no imports. */
+void modu_drop(Modu *mu, uint32_t m);
+/* The first module before n that no import reaches from the main's or an edited one's; 0 none. */
+uint32_t modu_unreached(Modu *mu, uint32_t n);
 /* The module at path, added last when new (paths compared without case): its number. Out of memory:
    past 65536 modules. */
 uint32_t modu_module(Modu *mu, const char *path);

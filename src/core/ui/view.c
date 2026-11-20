@@ -59,7 +59,7 @@ static struct {
     uint32_t list_cap;
     uint32_t *order; /* the SUBs list's views: each file's module, then its procedures by name */
     uint32_t order_cap;
-    uint32_t modules; /* the modules with lines in the store when the views were made */
+    uint32_t epoch, drops; /* the modules' (Modu's) when the views were made */
 } vw = {.new_line = {.grows = true}};
 
 static LineBuf name_field = {.text = vw.name_text, .cap = DLBUF}; /* vw_fld: New SUB's name */
@@ -242,13 +242,22 @@ static void scan(Session *const S)
     text_whole();
     uimn.text.hook = nullptr; /* not told of the files' first lines */
 
-    for (uint32_t line = 0; line < uimn.text.all; line++)
-        if (starts_file(S, line) && is_proc(kind(S, line, nullptr)))
-            text_insert(S, line++, (const uint8_t *)"", 0); /* a blank line before, the file's */
+    for (uint32_t line = 0; line < uimn.text.all; line++) {
+        if (!starts_file(S, line) || !is_proc(kind(S, line, nullptr)))
+            continue;
+
+        const uint32_t m = text_module(S, line);
+        const bool edited = text_unsaved(S, m);
+        text_insert(S, line++, (const uint8_t *)"", 0); /* a blank line before, the file's */
+
+        if (!edited) /* a view's, not an edit */
+            text_saved(S, m);
+    }
 
     uimn.text.hook = shift;
     vw.n = 0;
-    vw.modules = prog_modules(&S->prog);
+    vw.epoch = S->modu.epoch;
+    vw.drops = S->modu.drops;
 
     /* no memory: no views, the whole text shown; for a procedure, its lines the last view's */
     if (!GROW(vw.names, vw.ncap, 1))
@@ -428,11 +437,16 @@ bool view_modules(Session *const S)
 {
     lmap_build(S);
 
-    if (prog_modules(&S->prog) == vw.modules)
+    if (S->modu.epoch == vw.epoch)
         return false;
 
+    const bool dropped = S->modu.drops != vw.drops;
     order(S);
     scan(S);
+
+    if (dropped) /* the views past it others now */
+        windows_on_module();
+
     view_apply();
     return true;
 }
@@ -501,13 +515,9 @@ static void imports(Session *const S, const uint32_t line)
     if (!impt_line(S->comp.cbuf, nullptr, nullptr))
         return;
 
-    const uint32_t had = prog_modules(&S->prog);
     const Status st = repl_call(S, repl_open);
-
-    if (view_modules(S))
-        for (uint32_t m = had; m < prog_modules(&S->prog); m++)
-            text_saved(m); /* as read: a blank line before a SUB aside */
-
+    view_modules(S);
+    edit_recheck(S);
     fault_check(&S->fault, st);
 }
 

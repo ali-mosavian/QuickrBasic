@@ -14,7 +14,7 @@
  * The text is each of the program's files, the main's first (mem/module.h): a line is its
  * record's file's, its names its module's. A line stored in place of another is that one's file's;
  * one added is its view's neighbour's, the line it goes before, past the view's end its last. A
- * module changed since saved is unsaved (text_unsaved); uimn.text.unsaved: any is.
+ * module changed since saved is edited (ModuMod.edited); uimn.text.unsaved: any is.
  *
  * The clipboard is uimn.text.clip_len bytes of uimn.text.clip: whole lines (uimn.text.clip_lines,
  * each ended by NL) or a piece of one.
@@ -66,11 +66,6 @@ static struct {
     uint32_t lines; /* text_read's */
     uint8_t buf[RDSZ];
 } io;
-
-static struct {
-    bool *unsaved; /* by module */
-    uint32_t cap;
-} mods;
 
 /* A record's made by make(): its number, body (in comp_cbuf), its flags. */
 typedef struct {
@@ -183,15 +178,10 @@ static Made make(Session *const S, const uint8_t *const src, const uint32_t len)
     return m;
 }
 
-/* File file's module changed since saved. Out of memory. */
+/* File file's module changed since saved. */
 static void touch(Session *const S, const uint16_t file)
 {
-    const uint32_t m = modu_of(&S->modu, file);
-
-    if (!GROW(mods.unsaved, mods.cap, m + 1))
-        repl_error(S, E_OM);
-
-    mods.unsaved[m] = true;
+    modu_mod(&S->modu, modu_of(&S->modu, file))->edited = true;
     uimn.text.unsaved = true;
 }
 
@@ -303,23 +293,26 @@ uint32_t text_module(Session *const S, const uint32_t line)
     return modu_of(&S->modu, prog_line(&S->prog, lmap_off(S, line))->file);
 }
 
-bool text_unsaved(const uint32_t module) { return module < mods.cap && mods.unsaved[module]; }
-
-void text_saved(const uint32_t module)
+bool text_unsaved(Session *const S, const uint32_t module)
 {
-    if (module < mods.cap)
-        mods.unsaved[module] = false;
+    return module < modu_count(&S->modu) && modu_mod(&S->modu, module)->edited;
+}
+
+void text_saved(Session *const S, const uint32_t module)
+{
+    if (module < modu_count(&S->modu))
+        modu_mod(&S->modu, module)->edited = false;
 
     uimn.text.unsaved = false;
 
-    for (uint32_t m = 0; m < mods.cap; m++)
-        uimn.text.unsaved |= mods.unsaved[m];
+    for (uint32_t m = 0; m < modu_count(&S->modu); m++)
+        uimn.text.unsaved |= modu_mod(&S->modu, m)->edited;
 }
 
-void text_clean(void)
+void text_clean(Session *const S)
 {
-    if (mods.cap)
-        memset(mods.unsaved, 0, mods.cap * sizeof *mods.unsaved);
+    for (uint32_t m = 0; m < modu_count(&S->modu); m++)
+        modu_mod(&S->modu, m)->edited = false;
 
     uimn.text.unsaved = false;
 }

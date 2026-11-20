@@ -33,8 +33,9 @@ const char *view_name(uint32_t v);
 /* View v's file's module, 0 the main's; its file's name, the main's as uimn.file (Untitled). */
 uint32_t view_module(uint32_t v);
 const char *view_file(Session *S, uint32_t v);
-/* The views of the modules read since they were made (repl_open, repl_relink): their lines
-   ordered, the views again, the active view kept; true: there were. The line map made. */
+/* The views again when modules were read or dropped since they were made (repl_open,
+   repl_relink): their lines ordered; a module dropped, both windows on the main's. true: so made.
+   The line map made. */
 bool view_modules(Session *S);
 /* The SUBs box's list (view_subs's), filled; null: no memory. */
 const DlogList *view_list(Session *S);

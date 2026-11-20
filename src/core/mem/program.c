@@ -134,12 +134,17 @@ uint32_t prog_modules(const Prog *const pg)
     return tops ? tops : 1;
 }
 
+void prog_cut_to(Prog *const pg, const uint32_t line, const uint32_t end)
+{
+    prog_copy(pg, line, end, pg->end - end);
+    pg->end -= end - line;
+    prog_terminate(pg);
+}
+
 uint32_t prog_cut(Prog *const pg, const uint32_t line)
 {
     const uint32_t size = prog_line(pg, line)->len;
-    prog_copy(pg, line, line + size, pg->end - (line + size));
-    pg->end -= size;
-    prog_terminate(pg);
+    prog_cut_to(pg, line, line + size);
     return size;
 }
 

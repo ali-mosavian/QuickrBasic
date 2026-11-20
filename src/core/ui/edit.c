@@ -52,6 +52,7 @@
 #include "io/diag.h"
 #include "io/errmsg.h"
 #include "ui/dialog.h"
+#include "ui/linemap.h"
 #include "ui/text.h"
 #include "ui/uimain.h"
 #include "ui/view.h"
@@ -423,6 +424,44 @@ void edit_load(Session *const S, const uint32_t line)
     uimn.edline.dirty = false;
 }
 
+/* The lines entered next view v's: its file's names, its declarations its file's, its procedure's.
+   The module entered before (repl.module). */
+static uint32_t enter_view(Session *const S, const uint32_t v)
+{
+    const uint32_t module = view_module(v), was = S->repl.module;
+    S->repl.module = module;
+    S->decl.module = sc_module(module);
+    decl_enter(&S->decl, view_proc(S, v));
+    return was;
+}
+
+void edit_recheck(Session *const S)
+{
+    const uint32_t first = uimn.text.first, n = uimn.text.n;
+    text_whole();
+
+    for (uint32_t line = 0; line < uimn.text.all; line++) {
+        if (!(prog_line(&S->prog, lmap_off(S, line))->flags & LF_ASIS))
+            continue;
+
+        LineBuf *const b = &uimn.build;
+        const uint32_t was = enter_view(S, view_of(line));
+        uint32_t lexed;
+        const bool canon = edit_canon(S, b->text, (uint16_t)text_get(S, line, b), &lexed);
+        S->repl.module = was;
+
+        if (!canon || !lexed)
+            continue;
+
+        const uint16_t len = (uint16_t)S->cons.sblen;
+        memcpy(edit_lb_need(S, b, len), S->cons.sbuf, len);
+        uimn.text.asis = false;
+        text_repl(S, line, b->text, len);
+    }
+
+    text_view(first, n);
+}
+
 bool edit_commit(Session *const S)
 {
     LineBuf *const b = &uimn.edline;
@@ -436,10 +475,7 @@ bool edit_commit(Session *const S)
         b->len--;
 
     changed();
-    const uint32_t module = view_module(uimn.ed.view), was = S->repl.module;
-    S->repl.module = module; /* its names, its declarations its file's */
-    S->decl.module = sc_module(module);
-    decl_enter(&S->decl, view_proc(S, uimn.ed.view)); /* its procedure's */
+    const uint32_t was = enter_view(S, uimn.ed.view);
     uint32_t lexed;
     const bool canon = edit_canon(S, b->text, b->len, &lexed);
     S->repl.module = was;

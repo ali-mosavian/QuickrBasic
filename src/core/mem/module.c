@@ -10,7 +10,8 @@
  * keeps its run's state too: its code run, its ON ERROR handler, its READ place (vm/).
  *
  * The editor enters its lines again with the modules kept (modu_relink): each module's own file
- * is numbered as the module, its includes' after them.
+ * is numbered as the module, its includes' after them. A module no import reaches is dropped then,
+ * unless edited (modu_unreached).
  */
 #include "mem/module.h"
 #include "util/grow.h"
@@ -38,6 +39,7 @@ void modu_clear(Modu *const mu, const char *const main)
 {
     const ModuMod run = mu->nmods ? mu->mods[0] : (ModuMod){}; /* a CHAIN's that fails: its run's */
     mu->nfiles = mu->nmods = mu->ntext = mu->nedges = 0;
+    mu->drops++;
     modu_module(mu, main);
     mu->mods[0].handler = run.handler;
     mu->mods[0].read = run.read;
@@ -64,8 +66,48 @@ void modu_relink(Modu *const mu, const char *const main, const uint32_t n)
     for (uint32_t m = 0; m < n; m++)
         mu->files[m] = (ModuFile){mu->mods[m].path, m};
 
+    if (n < mu->nmods) /* read but not stored: a load an error ended */
+        mu->epoch++;
+
     mu->nmods = mu->nfiles = n;
     mu->nedges = 0;
+}
+
+void modu_drop(Modu *const mu, const uint32_t m)
+{
+    memmove(mu->mods + m, mu->mods + m + 1, (mu->nmods - m - 1) * sizeof *mu->mods);
+    mu->nmods--;
+    mu->nedges = 0;
+    mu->epoch++;
+    mu->drops++;
+}
+
+/* Module m and those it imports, not yet seen: seen. */
+static void reach(Modu *const mu, const uint32_t m)
+{
+    mu->seen[m] = 1;
+
+    for (uint32_t i = 0; i < mu->nedges; i++)
+        if (mu->edges[i].from == m && !mu->seen[mu->edges[i].to])
+            reach(mu, mu->edges[i].to);
+}
+
+uint32_t modu_unreached(Modu *const mu, const uint32_t n)
+{
+    if (!GROW(mu->seen, mu->seencap, mu->nmods))
+        fault_error(mu->fault, E_OM);
+
+    memset(mu->seen, 0, mu->nmods);
+
+    for (uint32_t m = 0; m < mu->nmods; m++)
+        if (!m || mu->mods[m].edited)
+            reach(mu, m);
+
+    for (uint32_t m = 1; m < n; m++)
+        if (!mu->seen[m])
+            return m;
+
+    return 0;
 }
 
 uint32_t modu_find(const Modu *const mu, const char *const path)
@@ -87,6 +129,8 @@ uint32_t modu_module(Modu *const mu, const char *const path)
         fault_error(mu->fault, E_OM);
 
     mu->mods[mu->nmods] = (ModuMod){.path = keep(mu, path)};
+
+    mu->epoch++;
 
     return mu->nmods++;
 }

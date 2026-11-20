@@ -1199,10 +1199,27 @@ void repl_load(Session *const S)
     S->repl.loading = false;
 }
 
-/* The program's lines in the store, read again as loaded: the includes' read again, each module's
-   own lines its number's file (modu_relink), the modules imported and not stored read after the
-   rest; lenient: one not found skipped. Not declared. */
-static void reread(Session *const S, const bool lenient)
+/* Stored module m's records out, its LF_TOP first; the one past the lines too when m was the only
+   module of n. */
+static void drop_module(Session *const S, const uint32_t m, const uint32_t n)
+{
+    Prog *const pg = &S->prog;
+    const uint32_t top = modu_top_of(&S->modu, m);
+    uint32_t end = top + prog_line(pg, top)->len;
+
+    while (!(prog_line(pg, end)->flags & LF_TOP)) /* one is past the last module's lines */
+        end += prog_line(pg, end)->len;
+    if (n == 2)
+        end += prog_line(pg, end)->len;
+
+    prog_cut_to(pg, top, end);
+    modu_drop(&S->modu, m);
+}
+
+/* The program's lines in the store, entered as loaded: the includes' read again, each module's own
+   lines its number's file (modu_relink). Lenient: an import not found skipped. A module no import
+   reaches is dropped (modu_unreached), then the lines entered again. */
+static void walk(Session *const S, const bool lenient)
 {
     for (uint32_t line = PROGBASE; prog_line(&S->prog, line)->len;) /* the includes' out */
         if (prog_line(&S->prog, line)->flags & LF_INC)
@@ -1210,10 +1227,6 @@ static void reread(Session *const S, const bool lenient)
         else
             line += prog_line(&S->prog, line)->len;
 
-    symb_vars_init(&S->symb);
-    decl_reset(&S->decl, &S->scop, &S->symb);
-    session_drop(S);
-    S->repl.loading = true;
     S->repl.lenient = lenient;
     const uint32_t n = prog_modules(&S->prog);
     modu_relink(&S->modu, S->repl.file, n);
@@ -1260,9 +1273,27 @@ static void reread(Session *const S, const bool lenient)
         S->prog.add_flags = 0;
     }
 
+    const uint32_t gone = modu_unreached(&S->modu, n);
+
+    if (gone) {
+        drop_module(S, gone, n);
+        walk(S, lenient);
+        return;
+    }
+
     read_modules(S, n, last);
     S->repl.module = 0;
     S->repl.lenient = false;
+}
+
+/* The program's lines in the store, read again as loaded (walk), not declared. */
+static void reread(Session *const S, const bool lenient)
+{
+    symb_vars_init(&S->symb);
+    decl_reset(&S->decl, &S->scop, &S->symb);
+    session_drop(S);
+    S->repl.loading = true;
+    walk(S, lenient);
 }
 
 /* repl_relink's, repl_open's (lenient). */

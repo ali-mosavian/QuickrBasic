@@ -91,7 +91,8 @@ procedures under it, and the window's title names the file. A run
 uses the lines as edited. Typing an IMPORT loads its module.
 
 Save writes the program and each module changed. Save As names the
-program only. A module stays open until the next Open or New.
+program only. A module no IMPORT names any more closes at the next
+run, once its changes are saved.
 
 ## Keywords
 IMPORT and FROM are keywords only at the start of a line's first
