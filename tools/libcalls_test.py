@@ -1,6 +1,8 @@
-"""libcalls_test.py: no C object at -Os calls a compiler helper the DOS link lacks.
+"""libcalls_test.py: no C object at -Os calls a compiler helper the DOS link lacks: src/lib/crt.c's
+division helpers it has, and they call none.
 
-At -Os clang called __aulldiv for dubl_digits's 64-bit /10 and the link failed.
+At -Os clang called __aulldiv for dubl_digits's 64-bit /10 and the link failed; the CONSTs' folding
+called __alldiv and __allrem before crt.c had them.
 """
 
 import os
@@ -31,6 +33,7 @@ FLAGS = [
     "-Isrc",
     "-Isrc/core",
 ]
+HAVE = {f"__{n}" for n in re.findall(r"^HELPER\(\w+, (\w+)\);", (ROOT / "src/lib/crt.c").read_text(), re.M)}
 HELPER = re.compile(r"__(a(ll|ull)(div|rem|shl|shr|mul)|u?(div|mod|udivmod)di3|udivmoddi4)\b")
 
 
@@ -41,9 +44,12 @@ def helpers(src: Path, out: Path) -> list[str]:
 
 
 def main() -> None:
-    srcs = sorted((ROOT / "src/core").rglob("*.c"))
+    assert HAVE == {"__alldiv", "__allrem", "__aulldiv", "__aullrem"}, HAVE
+    lib = sorted((ROOT / "src/lib").rglob("*.c"))
+    srcs = sorted((ROOT / "src/core").rglob("*.c")) + lib
     with tempfile.TemporaryDirectory() as d, ThreadPoolExecutor() as pool:
-        found = [h for hs in pool.map(lambda s: helpers(s, Path(d)), srcs) for h in hs]
+        calls = dict(zip(srcs, pool.map(lambda s: helpers(s, Path(d)), srcs)))
+    found = [h for s, hs in calls.items() for h in hs if s in lib or h.rsplit(" ", 1)[1] not in HAVE]
     if found:
         sys.exit("\n".join(found))
     print(f"ok: {len(srcs)} files")

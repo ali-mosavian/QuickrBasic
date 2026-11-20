@@ -1034,6 +1034,21 @@ CASES |= {
     "field_array_whole": (bas(*POLY, "p.pts.x = 2"), ".BAS:12: Syntax error", None),
 }
 
+# A TYPE's fixed array bound naming a CONST was a Syntax error. Each TYPE's LEN is its CONST's value,
+# as the run computes the same expression.
+CONST_BOUNDS = {"4": 4, "2 + 3 * 4": 14, "4 \\ 2 * 2": 1, "17 mod 5 * 2": 7, "-(2 - 9)": 7,
+                "(1 + 2) * (3 + 4) \\ 2": 10, "&H10": 16, "k% * 2": 6, "20 - 3 - 4": 13, "7 \\ 2 \\ 2": 1}
+CASES |= {
+    "field_array_const": (bas("const k% = 3", *(line for i, e in enumerate(CONST_BOUNDS) for line in (
+                              f"const c{i} = {e}", f"type t{i}", f" a(1 to c{i}) as byte", "end type",
+                              f"dim x{i} as t{i}", f"print len(x{i}); {e}"))),
+                          "".join(f" {v}  {v} \r\n" for v in CONST_BOUNDS.values()), "ERROR"),
+    "field_array_const_dims": (bas("const n = 4, lo = -1", "const m = n * 2 + (n \\ 2) - 1 mod 3", "type U",
+                                   " a(1 to n) as integer", " b(lo to m, 2) as byte", "end type", "dim x as U",
+                                   "x.a(n) = 5: x.b(m, 2) = 7: print x.a(4); x.b(9, 2); len(x)"),
+                               " 5  7  49 \r\n", "ERROR"),
+}
+
 # A STRING in a TYPE, ours, was 0 bytes: the field read "" and its writes were lost. Each copy of a
 # record, an array of them or a nested one owns its strings; GET and PUT refuse such a TYPE.
 ITEM = ("type Item", " nm as string", " tags(1 to 2) as string", " qty as long", "end type",
@@ -1131,6 +1146,17 @@ CASES |= {
                                 "for k = 1 to 100: redim rs(22).xs(500): redim preserve rs(1 to 21): redim preserve rs(1 to 22): next",
                                 "print fre(-1) = f&"),
                             " 20 \r\n-1 \r\n", "ERROR"),
+    # FE.ADDR's element from the header: n dimensions, lower bounds, its size by the field's type;
+    # past a bound or with too few subscripts arry_ref's error.
+    "field_dynamic_index": (bas("type R", " w as integer", " m() as integer", " s() as string", "end type",
+                                "dim r as R, a(1 to 3, -2 to 2) as integer", "redim r.m(1 to 3, -2 to 2): redim r.s(4)",
+                                "for i = 1 to 3: for j = -2 to 2: r.m(i, j) = i * 10 + j: a(i, j) = i * 10 + j: next: next",
+                                "for i = 1 to 3: for j = -2 to 2: if r.m(i, j) = a(i, j) then ok = ok + 1", "next: next",
+                                'r.s(4) = "four": r.m(3, 2) = r.m(3, 2) + 1',
+                                "print ok; r.m(3, 2); r.s(4); varptr(r.m(2, -1)) - varptr(r.m(1, -2)); "
+                                "varptr(r.m(2, 1)) - varptr(r.m(1, -2)); varptr(r.s(3)) - varptr(r.s(1))",
+                                "on error goto h", "print r.m(4, 0)", "print r.m(1)", "end", OV),
+                            " 15  33 four 16  40  12 \r\nov 9 \r\nov 9 \r\n", "ERROR"),
     "field_dynamic_empty": (bas(*MESH, "m.pts(1).x = 1"), "Subscript out of range in line", None),
     "field_dynamic_dims": (bas(*MESH, "m.pts(" + ",".join("0" * 61) + ").x = 1"), ".BAS:12: Too many dimensions", None),
     "field_dynamic_type": (bas(*MESH, "dim s() as Mesh", "s() = m.pts()"), ".BAS:13: Type mismatch", None),
@@ -1145,6 +1171,69 @@ CASES |= {
                                  "sub t", " dim q(1) as Mesh", " print varptr(q(1)) - varptr(q(0)) = len(q(0))",
                                  "end sub"),
                              "-1 -1 \r\n-1 \r\n", "ERROR"),
+}
+
+# SWAP of two records was a Type mismatch.
+CASES |= {
+    "swap_records": (bas("type P", " n as integer", " s as string * 3", "end type", "dim a as P, b as P, r(1 to 2) as P",
+                         'a.n = 1: a.s = "abc": b.n = 2: b.s = "xyz"', "swap a, b: print a.n; a.s; b.n; b.s",
+                         "r(1) = a: swap r(1), b: print r(1).n; r(1).s; b.n; b.s"),
+                     " 2 xyz 1 abc\r\n 1 abc 2 xyz\r\n", "ERROR"),
+    "swap_records_type": (bas("type P", " n as integer", "end type", "type Q", " n as integer", "end type",
+                              "dim a as P, c as Q", "swap a, c"), ".BAS:8: Type mismatch", None),
+    # Their STRINGs' and arrays' owners follow, else the heap's compaction writes each into the
+    # other's cell; a local's arena array copied to the heap, else it dies with its call.
+    "swap_records_dynamic": (bas(*MESH, "declare sub swapin (x as Mesh, n as integer)", "declare sub scrub ()",
+                                 "declare sub inarr (x as Mesh, n as integer)",
+                                 "dim c as Mesh, early() as long, rs() as Mesh", "redim early(1000)",
+                                 'g$ = string$(100, "g"): m.title = string$(2, "m"): redim m.pts(1 to 2): m.pts(2).x = 2',
+                                 'redim m.tags(1): m.tags(1) = string$(2, "t")',
+                                 'c.title = string$(2, "c"): redim c.pts(1 to 3): c.pts(3).x = 3',
+                                 'redim c.kids(1 to 1): c.kids(1).title = "ck"',
+                                 "redim rs(1 to 2): redim rs(1).pts(5): rs(1).pts(5).x = 15: redim rs(2).pts(7): rs(2).pts(7).x = 27",
+                                 "swap m, c: swap rs(1), rs(2)",
+                                 'g$ = "": erase early: x& = fre(-1): h$ = string$(300, "h")',
+                                 "print m.title; ubound(m.pts); m.pts(3).x; m.kids(1).title; c.title; ubound(c.pts); c.pts(2).x; c.tags(1)",
+                                 "print ubound(rs(1).pts); rs(1).pts(7).x; ubound(rs(2).pts); rs(2).pts(5).x",
+                                 "swapin m, 1: f& = fre(-1)", "for k% = 2 to 50: swapin m, k%: next", "call scrub: x& = fre(-1)",
+                                 "print m.title; ubound(m.pts); m.pts(4).x; m.tags(2); fre(-1) - f&",
+                                 "inarr m, 1: f& = fre(-1)", "for k% = 2 to 50: inarr m, k%: next", "call scrub: x& = fre(-1)",
+                                 "print m.title; ubound(m.pts); m.pts(5).x; fre(-1) - f&", "end",
+                                 "sub swapin (x as Mesh, n as integer)", " dim t as Mesh",
+                                 ' t.title = "t" + chr$(64 + n): redim t.pts(1 to 4): t.pts(4).x = n',
+                                 ' redim t.tags(2): t.tags(2) = string$(3, "q")', " swap t, x", "end sub",
+                                 "sub scrub", " dim z(2000) as long", " for i = 0 to 2000: z(i) = -1: next", "end sub",
+                                 "sub inarr (x as Mesh, n as integer)", " redim q(1 to 2) as Mesh",
+                                 ' q(2).title = "q" + chr$(64 + n): redim q(2).pts(1 to 5): q(2).pts(5).x = n',
+                                 " swap q(2), x", "end sub"),
+                             "cc 3  3 ckmm 2  2 tt\r\n 7  27  5  15 \r\ntr 4  50 qqq 0 \r\nqr 5  50  0 \r\n", "ERROR"),
+    # A heap array swapped into a local array's record was never freed: 12 bytes a call.
+    "swap_records_arena_free": (bas("type T", " pts() as single", "end type", "declare sub give (x as T, n as integer)",
+                                    "dim m as T", "give m, 1: f& = fre(-1)", "for k% = 2 to 50: give m, k%: next",
+                                    "print fre(-1) - f&; ubound(m.pts); m.pts(3)", "end",
+                                    "sub give (x as T, n as integer)", " redim q(1 to 2) as T", " swap q(2), x",
+                                    " redim x.pts(1 to 3): x.pts(3) = n", "end sub"),
+                                " 0  3  50 \r\n", "ERROR"),
+}
+
+# Graphics GET and PUT of a record's array field took it for an array named s.img: Illegal function
+# call. They take the array's cell, a variable's, a parameter's or a field's.
+CASES |= {
+    "gfx_get_put_field": (bas("type Sprite", " w as integer", " img() as integer", "end type",
+                              "declare sub show (b() as integer)", "declare sub own ()",
+                              "dim s as Sprite, rs(1 to 2) as Sprite", "redim s.img(100): redim rs(2).img(200)",
+                              "screen 13", "pset (1, 1), 9: pset (2, 3), 12",
+                              "get (0, 0)-(3, 3), s.img", "put (20, 20), s.img",
+                              "get (0, 0)-(3, 3), rs(2).img(50)", "put (40, 40), rs(2).img(50), pset",
+                              "p = point(21, 21): q = point(22, 23): r = point(41, 41): t = point(42, 43)",
+                              "screen 0", "print p; q; r; t; s.img(0) = rs(2).img(50)", "show s.img(): own", "end",
+                              "sub show (b() as integer)",
+                              " screen 13: pset (1, 1), 9: get (0, 0)-(3, 3), b: put (60, 60), b",
+                              " p = point(61, 61): screen 0: print p; b(0) = 262176", "end sub",
+                              "sub own", " dim l(50) as integer",
+                              " screen 13: pset (2, 3), 12: get (0, 0)-(3, 3), l: put (60, 60), l",
+                              " p = point(62, 63): screen 0: print p; l(0) = 262176", "end sub"),
+                          " 9  12  9  12 -1 \r\n 9 -1 \r\n 12 -1 \r\n", "ERROR"),
 }
 
 # BC's 60 dimensions at most. Past 63 a DIM's count ran into its flags (REDIM b(64 bounds) made an

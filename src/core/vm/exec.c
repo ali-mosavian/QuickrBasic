@@ -137,6 +137,55 @@ static inline bool elem1_fast(
     return true;
 }
 
+/* The element of a at the n subscripts on the stack at sp (the last on top), each in range: its
+   index; false: not so, for arry_ref. */
+static inline bool elem_index(
+    const ArrayHdr *const a,
+    const Cell *const sp,
+    const uint8_t n,
+    uint32_t *const idx
+)
+{
+    if (n == 1 && (uint32_t)sp->i < a->fast) { /* a 1-D from 0 */
+        *idx = sp->u;
+        return true;
+    }
+
+    if (a->dims != n)
+        return false;
+
+    uint32_t k = 0;
+
+    for (uint8_t i = n; i-- > 0;) {
+        const uint32_t r = (uint32_t)sp[n - 1 - i].i - a->count[n + i];
+
+        if (r >= a->count[i])
+            return false;
+
+        k = k * a->count[i] + r;
+    }
+
+    *idx = k;
+    return true;
+}
+
+/* FE.ADDR ( a s.. -- e ) of a record's array field, made, each subscript in range; false: the
+   handler's. */
+static inline bool fe_addr(Regs *const r)
+{
+    const uint8_t n = r->ip[3];
+    const ArrSlot *const s = (const ArrSlot *)at(r->sp[n].a + load16(r->ip + 1));
+    uint32_t idx;
+
+    if (!s->hdr || !elem_index((const ArrayHdr *)at(s->hdr), r->sp, n, &idx))
+        return false;
+
+    r->sp += n;
+    r->sp->a = ((const ArrayHdr *)at(s->hdr))->data + idx * load16(r->ip + 4);
+    r->ip += 6;
+    return true;
+}
+
 /* X.LD.A1 ( sub -- x ) in range; false: the handler's. */
 static inline bool ld_a1(Regs *const r, const Addr fp, const bool frame)
 {
@@ -475,6 +524,7 @@ static void exec_loop(Session *const S)
                 {exec_v_ld, &&v_ld},
                 {exec_v_st, &&v_st},
                 {exec_r_addr, &&r_addr},
+                {exec_fe_addr, &&fe_addr},
                 {exec_call, &&call},
                 {nullptr, &&cold},
             },
@@ -868,6 +918,13 @@ r_addr:
 
     goto next;
 
+fe_addr:
+
+    if (!fe_addr(&r))
+        goto slow;
+
+    goto next;
+
 fail:
     v->ip = r.ip;
     v->sp = r.sp;
@@ -946,39 +1003,36 @@ Addr exec_elem(Arry *const ar, Vm *const vm)
     ArrSlot *const s = op_slot(vm, &id);
     const uint8_t n = exec_u8(vm);
 
-    if (n == 1 && s->hdr) { /* a 1-D from 0, in range: straight from its header */
-        const ArrayHdr *const a = (const ArrayHdr *)at(s->hdr);
-        const int32_t sub = vm->sp->i;
+    uint32_t idx;
 
-        if ((uint32_t)sub < a->fast) {
-            vm->sp++;
-            return a->data + (uint32_t)sub * arry_esize(ar, id);
-        }
-    } else if (s->hdr) { /* its dimensions, each in range: from the header too; the last subscript on top */
-        const ArrayHdr *const a = (const ArrayHdr *)at(s->hdr);
-        uint32_t idx = 0;
-        uint8_t i = n;
-
-        if (a->dims == n)
-            while (i-- > 0) {
-                const uint32_t r = (uint32_t)vm->sp[n - 1 - i].i - a->count[n + i];
-
-                if (r >= a->count[i])
-                    break;
-
-                idx = idx * a->count[i] + r;
-            }
-
-        if (i == UINT8_MAX) {
-            vm->sp += n;
-            return a->data + idx * arry_esize(ar, id);
-        }
+    if (s->hdr && elem_index((const ArrayHdr *)at(s->hdr), vm->sp, n, &idx)) { /* from its header */
+        vm->sp += n;
+        return ((const ArrayHdr *)at(s->hdr))->data + idx * arry_esize(ar, id);
     }
 
     for (uint8_t i = n; i-- > 0;)
         ar->subs[i] = exec_popi(vm);
 
     return arry_ref(ar, s, id, n);
+}
+
+/* A record's array field's element ( a s1..sn -- e ), ours: its cell off bytes into the record.
+   Subscript out of range: empty, n not its dimensions, past its bounds. */
+void exec_fe_addr(Session *const S)
+{
+    const uint32_t off = exec_u16(&S->vm);
+    const uint8_t n = exec_u8(&S->vm);
+    (void)exec_u16(&S->vm); /* the element's size: the header's */
+
+    for (uint8_t i = n; i-- > 0;)
+        S->arry.subs[i] = exec_popi(&S->vm);
+
+    ArrSlot *const s = (ArrSlot *)at(S->vm.sp->a + off);
+
+    if (!s->hdr)
+        arry_bad_sub(&S->arry);
+
+    S->vm.sp->a = arry_ref(&S->arry, s, 0, n);
 }
 
 Addr exec_record(Arry *const ar, ArrSlot *const s, const uint32_t id)
@@ -1098,6 +1152,17 @@ void exec_r_copys(Session *const S)
     copy_mem(a, b, td->size);
     arry_copy_rec(&S->arry, a, b, td);
     arry_sweep(&S->arry, &S->vm);
+}
+
+/* SWAP a, b of records of a TYPE ( a b t -- ). */
+void exec_r_swap(Session *const S)
+{
+    const TypeDef *const td = decl_type(&S->decl, exec_pop(&S->vm).u);
+    const Addr b = exec_popa(&S->vm);
+    const Addr a = exec_popa(&S->vm);
+
+    if (a != b)
+        arry_swap_rec(&S->arry, a, b, td);
 }
 
 void exec_r_clear(Session *const S)

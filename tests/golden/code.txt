@@ -27846,7 +27846,7 @@ qb/palette_using_pds71.bas 8 33e93268b166
 qb/palette_using_pds71.bas 9 b49e65f0d589
 qb/palette_using_pds71.bas 10 9304fd69a364
 qb/palette_using_pds71.bas 11 5c363519a9fc
-qb/palette_using_pds71.bas 12 f5ad4dcf6306
+qb/palette_using_pds71.bas 12 245ee90e5ba7
 qb/palette_using_pds71.bas 13 bce50f75bf9a
 qb/palette_using_pds71.bas 14 52acfc7822cb
 qb/palette_using_pds71.bas 15 772d537ae6e9
@@ -27856,10 +27856,10 @@ qb/palette_using_pds71.bas 18 24d563f61f87
 qb/palette_using_pds71.bas 19 96fb0f273735
 qb/palette_using_pds71.bas 20 c36f4cb1ae15
 qb/palette_using_pds71.bas 21 7f5ab1eadf19
-qb/palette_using_pds71.bas 22 aa52d8abf7d1
-qb/palette_using_pds71.bas 23 9fa0312e1cc3
+qb/palette_using_pds71.bas 22 034515cd5415
+qb/palette_using_pds71.bas 23 4405965d4cd3
 qb/palette_using_pds71.bas 24 d595c374bfab
-qb/palette_using_pds71.bas 25 f5ad4dcf6306
+qb/palette_using_pds71.bas 25 245ee90e5ba7
 qb/palette_using_pds71.bas 26 f5f9b5bfc972
 qb/palette_using_pds71.bas 27 8ee8b403a502
 qb/palette_using_pds71.bas 28 fb96549631c8
@@ -27877,24 +27877,24 @@ qb/palette_using_pds71.bas L 8 6bc6ff944580
 qb/palette_using_pds71.bas L 9 ca3ae30264ed
 qb/palette_using_pds71.bas L 10 72c7ea2fa8a4
 qb/palette_using_pds71.bas L 11 c84e9d1863fc
-qb/palette_using_pds71.bas L 12 f93164a70d92
-qb/palette_using_pds71.bas L 13 2826d726a9f1
-qb/palette_using_pds71.bas L 14 a0abde297cf9
-qb/palette_using_pds71.bas L 15 c10097e04566
-qb/palette_using_pds71.bas L 16 c4d2da8ae927
-qb/palette_using_pds71.bas L 17 5c45db9b5c0b
-qb/palette_using_pds71.bas L 18 66b3ccf8304b
-qb/palette_using_pds71.bas L 19 419f48c15885
-qb/palette_using_pds71.bas L 20 ee8bb453dd1e
-qb/palette_using_pds71.bas L 21 fbf6a4ae64f8
-qb/palette_using_pds71.bas L 22 03845e6c732e
-qb/palette_using_pds71.bas L 23 f5000a624ad4
-qb/palette_using_pds71.bas L 24 eae3f5216a05
-qb/palette_using_pds71.bas L 25 2e2422f6acd5
-qb/palette_using_pds71.bas L 26 81b66893e5bb
-qb/palette_using_pds71.bas L 27 0f8dd9ba9399
-qb/palette_using_pds71.bas L 28 edd4fe9f426e
-qb/palette_using_pds71.bas L 29 d93e00e44ff3
+qb/palette_using_pds71.bas L 12 db52613aa808
+qb/palette_using_pds71.bas L 13 10e8df09e96f
+qb/palette_using_pds71.bas L 14 04bccb19db3b
+qb/palette_using_pds71.bas L 15 4e91328b76fa
+qb/palette_using_pds71.bas L 16 e474bd3c63b8
+qb/palette_using_pds71.bas L 17 e85bc62869db
+qb/palette_using_pds71.bas L 18 bc38351d668b
+qb/palette_using_pds71.bas L 19 e3d3c03d4139
+qb/palette_using_pds71.bas L 20 c337bbaf3e8a
+qb/palette_using_pds71.bas L 21 73343c92c2c0
+qb/palette_using_pds71.bas L 22 6976da366f1d
+qb/palette_using_pds71.bas L 23 5fcb27d285b0
+qb/palette_using_pds71.bas L 24 76b6458deada
+qb/palette_using_pds71.bas L 25 24aaba96f008
+qb/palette_using_pds71.bas L 26 e3b462a6c632
+qb/palette_using_pds71.bas L 27 17af3b6816c8
+qb/palette_using_pds71.bas L 28 608f97dbc4da
+qb/palette_using_pds71.bas L 29 33a1d67aa2a6
 qb/palette_using_pds71.bas L 30 2b304bce497a
 qb/pattern_fill.bas 0 fb96549631c8
 qb/pattern_fill.bas 1 fb96549631c8

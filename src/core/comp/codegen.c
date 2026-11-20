@@ -879,7 +879,7 @@ static void cg_ref(Code *const c, const Node *const n)
         code_opid(c, n->op, n->id, n->par);
 
     for (const Node *x = n->a; x != nullptr; x = x->next) /* a fixed array field's, ours */
-        if (x->kind == N_INT || x->kind == N_KCALL)
+        if (x->kind == N_INT || x->kind == N_KCALL || x->kind == N_OP)
             gen(c, x);
         else
             cg_as(c, x, T_INT, false);
@@ -1066,7 +1066,7 @@ void cg_store_op(Code *const c, const Node *const n)
     if (!(n->vinfo & SK_DBL)) {
         const uint8_t k = (n->vinfo & VK_MASK) == VK_INT   ? 0
                           : (n->vinfo & VK_MASK) == VK_FLT ? 1
-                                                               : 2;
+                                                           : 2;
         scalar = (const uint8_t[]){O_I_ST_V, O_F_ST_V, O_S_ST_V}[k];
 
         one = (const uint8_t[]){O_I_ST_A1, O_F_ST_A1, O_S_ST_A1}[k];

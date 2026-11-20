@@ -37,6 +37,8 @@ s() = Squares(10)
 
 - Assignment copies. `b = a` copies a record and everything in it; `b() = a()` gives `b` the
   bounds and elements of `a`.
+- `swap a, b` of two records of one type swaps everything in them.
+- A fixed array's bounds in a type are integer constants: numbers, CONSTs and `+ - * \ mod`.
 - A whole array is written `a()`: the scalar `a` and the array `a()` are separate variables.
 - Procedures receive references, as before.
 - A FUNCTION's name is its result: `Add.x = ...`, `redim Squares(...)`, `Squares(i) = ...`. With

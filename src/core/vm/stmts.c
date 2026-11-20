@@ -489,24 +489,6 @@ void stmt_amove(Session *const S)
     arry_move(&S->arry, &S->vm, d, (ArrSlot *)at(exec_popa(&S->vm)));
 }
 
-/* A record's array field's element ( addr s1..sn off n -- addr ), ours: its cell off bytes into the
-   record. Subscript out of range: empty, n not its dimensions, past its bounds. */
-void stmt_felem(Session *const S)
-{
-    const uint8_t n = (uint8_t)exec_pop(&S->vm).u;
-    const uint32_t off = exec_pop(&S->vm).u;
-
-    for (uint8_t i = n; i-- > 0;)
-        S->arry.subs[i] = exec_popi(&S->vm);
-
-    ArrSlot *const s = (ArrSlot *)at(S->vm.sp->a + off);
-
-    if (!s->hdr)
-        arry_bad_sub(&S->arry);
-
-    S->vm.sp->a = arry_ref(&S->arry, s, 0, n);
-}
-
 /* A fixed array field's element ( addr s lb count stride -- addr ), ours: s's place in its
    dimension, stride bytes each. Subscript out of range: past it. */
 void stmt_fidx(Session *const S)

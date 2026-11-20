@@ -32,6 +32,7 @@
 #include "comp/sema.h"
 #include "io/msg.h"
 #include "io/repl.h"
+#include "mem/array.h"
 #include "mem/scope.h"
 #include "mem/symbols.h"
 
@@ -162,6 +163,14 @@ static void step_call(Comp *const C, Node ***const end, const uint8_t k)
     step(end, n);
 }
 
+static Node *step_op(Comp *const C, Node ***const end, const uint8_t op)
+{
+    Node *const n = ast_new(C->ast, N_OP);
+    n->op = op;
+    step(end, n);
+    return n;
+}
+
 /* The ( s {, s} ) at comp.p, ours: each checked as a number; the first, linked, their count *n. */
 static Node *subscripts(Comp *const C, uint32_t *const n)
 {
@@ -229,9 +238,9 @@ static uint32_t element(Comp *const C, Node *const at, const Field *const f)
     return (uint32_t)off;
 }
 
-/* An element of a dynamic array field, ours, its cell off bytes into at's place: its ( s {, s} ) at
-   comp.p, then at's index step ( addr s.. off n -- addr ) by FELEM. */
-static void dyn_element(Comp *const C, Node *const at, const uint32_t off)
+/* An element of dynamic array field f, ours, its cell off bytes into at's place: its ( s {, s} ) at
+   comp.p, then at's index step FE.ADDR off n esize ( addr s.. -- addr ). */
+static void dyn_element(Comp *const C, Node *const at, const Field *const f, const uint32_t off)
 {
     uint32_t n;
     Node *s = subscripts(C, &n);
@@ -245,9 +254,10 @@ static void dyn_element(Comp *const C, Node *const at, const uint32_t off)
         s = next;
     }
 
-    step_int(C, &end, off);
-    step_int(C, &end, n);
-    step_call(C, &end, K_FELEM);
+    Node *const e = step_op(C, &end, O_FE_ADDR);
+    comp_word(e, (uint16_t)off);
+    comp_byte(e, (uint8_t)n);
+    comp_word(e, (uint16_t)arry_et_size(C->decl, decl_fieldtype(f)));
 }
 
 /* A dynamic array field whole at comp.p, ours: f() (stepped past) or f alone, not f(i); a REDIM's
@@ -298,7 +308,7 @@ static RecRef path(Comp *const C, Node *const at, uint32_t t, const uint8_t *tex
             if (dyn_whole(C))
                 return (RecRef){.et = decl_fieldtype(f), .off = (uint16_t)off, .arr = true};
 
-            dyn_element(C, at, off);
+            dyn_element(C, at, f, off);
             off = 0; /* from the element */
         } else if (f->ndim) {
             if (*C->p != '(') /* a fixed array field whole */
@@ -454,6 +464,14 @@ Node *ref_fieldarray(Comp *const C, uint32_t *const type)
 
     C->p = p;
     return nullptr;
+}
+
+Node *ref_fieldcell(Comp *const C, uint32_t *const type)
+{
+    C->dimtarget = true;
+    Node *const cell = ref_fieldarray(C, type);
+    C->dimtarget = false;
+    return cell;
 }
 
 Node *ref_field(Comp *const C, Node *const ref)

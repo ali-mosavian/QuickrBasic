@@ -23,6 +23,18 @@ void copy_mem(const Addr dst, const Addr src, const uint32_t len)
     memmove(at(dst), at(src), len);
 }
 
+void copy_swap(const Addr a, const Addr b, const uint32_t len)
+{
+    uint8_t *const x = at(a);
+    uint8_t *const y = at(b);
+
+    for (uint32_t i = 0; i < len; i++) {
+        const uint8_t t = x[i];
+        x[i] = y[i];
+        y[i] = t;
+    }
+}
+
 Addr copy_zero(const Addr a, const uint32_t len)
 {
     memset(at(a), 0, len);
