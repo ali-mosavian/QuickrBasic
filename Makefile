@@ -85,6 +85,8 @@ IDE_OBJ := $(CORE_OBJ) $(UI_C:src/%.c=$(B)/obj/%.obj) $(B)/obj/app/ide32.obj
 DOS_EXE := $(B)/basic32.exe $(B)/ide32.exe $(B)/DOS32A.EXE $(B)/BASIC.HLP
 # the release: the programs by their DOS names, with the games (src/plat/wasm/web/demos)
 DOS_GAMES := $(addprefix src/plat/wasm/web/demos/,GORILLA.BAS NIBBLES.BAS MOTHLITE.BAS RUSTLINE.BAS CHARLIE.BAS CHARLIE.DAT)
+# CHARLIE.BAS imports its package, the barkley folder beside it
+DOS_MODULES := $(shell find src/plat/wasm/web/demos/barkley -name '*.bas')
 
 all: $(DOS_EXE)
 
@@ -121,12 +123,14 @@ $(B)/DOS32A.EXE: $(DOS32A)/dos32a.exe tools/dos32a_quiet.py
 	$(PY) tools/dos32a_quiet.py $< $@
 $(B)/BASIC.HLP: $(HELP)
 	cp $< $@
-dos-zip: $(DOS_EXE) $(DOS_GAMES)
+dos-zip: $(DOS_EXE) $(DOS_GAMES) $(DOS_MODULES)
 	mkdir -p $(B)/release
 	cp $(B)/ide32.exe $(B)/release/IDE32.EXE
 	cp $(B)/basic32.exe $(B)/release/BASIC32.EXE
 	cp $(B)/DOS32A.EXE $(B)/BASIC.HLP $(DOS_GAMES) $(B)/release/
-	cd $(B)/release && zip -q -X ../QuickrBasic-dos.zip IDE32.EXE BASIC32.EXE DOS32A.EXE BASIC.HLP GORILLA.BAS NIBBLES.BAS MOTHLITE.BAS RUSTLINE.BAS CHARLIE.BAS CHARLIE.DAT
+	rm -rf $(B)/release/barkley
+	cp -R src/plat/wasm/web/demos/barkley $(B)/release/barkley
+	cd $(B)/release && zip -q -X -r ../QuickrBasic-dos.zip IDE32.EXE BASIC32.EXE DOS32A.EXE BASIC.HLP GORILLA.BAS NIBBLES.BAS MOTHLITE.BAS RUSTLINE.BAS CHARLIE.BAS CHARLIE.DAT barkley
 
 -include $(shell find $(B) -name '*.d' 2>/dev/null)
 
@@ -226,17 +230,18 @@ MAC_OBJ := $($(MAC)_OBJ) $(patsubst src/%.c,$(MAC)/obj/%.o,$(filter-out src/core
 	$(wildcard src/core/ui/*.c)) $(wildcard src/plat/view/*.c) $(wildcard src/plat/sdl/*.c)) $(MAC)/obj/app/ide32.o
 
 APP := $(MAC)/QuickrBasic.app
-DEMOS := $(wildcard src/plat/wasm/web/demos/*)
+DEMOS := $(shell find src/plat/wasm/web/demos -type f)
 
 mac: $(APP)/Contents/Info.plist
 $(MAC)/QuickrBasic: $(MAC_OBJ) $(MAC)/obj/plat/sdl/app/main.o $(SDL_LIB)
 	$(HOST_CC) $(MAC_ARCH) $(filter %.o,$^) $(SDL_LIBS) -lm -o $@
 # the bundle, signed ad hoc (Apple silicon runs nothing unsigned)
 $(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(MAC)/QuickrBasic $(HELP) $(DEMOS)
+	rm -rf $(APP)/Contents/Resources/demos
 	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources/demos
 	cp $(MAC)/QuickrBasic $(APP)/Contents/MacOS/
 	cp $(HELP) $(APP)/Contents/Resources/BASIC.HLP
-	cp $(DEMOS) $(APP)/Contents/Resources/demos/
+	cp -R src/plat/wasm/web/demos/. $(APP)/Contents/Resources/demos/
 	cp $< $@
 	codesign --force -s - $(APP)
 mac-zip: mac
@@ -318,8 +323,13 @@ build/wasm/basic: build/wasm/basic.wasm
 	printf '#!/bin/sh\nexec node "$(CURDIR)/tools/wasm/run.mjs" "$(CURDIR)/$<" "$$@"\n' > $@
 	chmod +x $@
 # The IDE's page, for GitHub Pages or tools/wasm/serve.py: its scripts, the module, the help, the demos
-WEB_SRC := $(wildcard src/plat/wasm/web/*.mjs src/plat/wasm/web/*.js src/plat/wasm/web/*.html src/plat/wasm/web/demos/*)
-web: build/web/ide.wasm build/web/synth.wasm build/web/BASIC.HLP $(WEB_SRC:src/plat/wasm/web/%=build/web/%)
+WEB_SRC := $(wildcard src/plat/wasm/web/*.mjs src/plat/wasm/web/*.js src/plat/wasm/web/*.html) \
+	$(shell find src/plat/wasm/web/demos -type f)
+web: build/web/ide.wasm build/web/synth.wasm build/web/BASIC.HLP build/web/demos/MODULES $(WEB_SRC:src/plat/wasm/web/%=build/web/%)
+# the demos' modules, one path a line: the page fetches them from here, as the folders cannot be listed
+build/web/demos/MODULES: $(shell find src/plat/wasm/web/demos -mindepth 2 -name '*.bas')
+	@mkdir -p $(@D)
+	cd src/plat/wasm/web/demos && find . -mindepth 2 -name '*.bas' | sed 's|^\./||' | sort > $(CURDIR)/$@
 # the synthesizer alone, for the page's AudioWorklet (web/synth.mjs)
 build/web/synth.wasm: src/plat/wasm/worklet/worklet.c src/plat/synth/synth.c src/plat/synth/synth.h
 	@mkdir -p $(@D)

@@ -25,13 +25,20 @@ const unb64 = (text) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
 // The files: the demos, then what the visitor saved or uploaded (theirs win).
 async function files() {
   const out = new Map();
-  await Promise.all([...DEMOS.map((n) => `demos/${n}`), ...SUPPORT].map(async (src) => {
-    const name = src.split('/').pop();
+  // [where from, the path in the file system]: a demo's modules sit in a folder beside it, listed in demos/MODULES
+  const wanted = [...DEMOS.map((n) => [`demos/${n}`, `/${n}`]), ...SUPPORT.map((s) => [s, '/' + s.split('/').pop()])];
+  try {
+    const r = await fetch('demos/MODULES');
+    if (r.ok) for (const m of (await r.text()).split('\n').filter(Boolean)) wanted.push([`demos/${m}`, `/${m}`]);
+  } catch (e) {
+    console.error('no list of modules:', e);
+  }
+  await Promise.all(wanted.map(async ([src, path]) => {
     try { // a file that will not load is not worth the page
       const r = await fetch(src);
-      if (r.ok) out.set('/' + name, new Uint8Array(await r.arrayBuffer()));
+      if (r.ok) out.set(path, new Uint8Array(await r.arrayBuffer()));
     } catch (e) {
-      console.error(`no ${name}:`, e);
+      console.error(`no ${path}:`, e);
     }
   }));
   for (let i = 0; i < localStorage.length; i++) {

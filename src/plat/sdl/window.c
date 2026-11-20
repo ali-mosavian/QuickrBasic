@@ -13,6 +13,7 @@
  * - QB_SHOT: file[@T], comma apart: the frame drawn at T to file as a PPM, then, the last taken,
  *   exit. No T: SHOT_FRAMES, or SHOT_AFTER past the last key.
  */
+#include <dirent.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
@@ -156,6 +157,53 @@ static void mouse(const char *m, const uint32_t now, const ViewFrame *const f)
     }
 }
 
+/* The files of folder from, and of its folders, copied to folder to where missing: the demos and the modules
+   they import, which sit in a folder beside them. */
+static void copy_demos(const char *const from, const char *const to)
+{
+    DIR *const dir = opendir(from);
+    struct dirent *e;
+
+    while (dir && (e = readdir(dir))) {
+        char at[4096], on[4096], buf[8192];
+        struct stat st;
+        size_t n;
+
+        if (e->d_name[0] == '.')
+            continue;
+
+        snprintf(at, sizeof at, "%s/%s", from, e->d_name);
+        snprintf(on, sizeof on, "%s/%s", to, e->d_name);
+
+        if (stat(at, &st))
+            continue;
+
+        if (S_ISDIR(st.st_mode)) {
+            mkdir(on, 0755);
+            copy_demos(at, on);
+            continue;
+        }
+
+        if (!stat(on, &st))
+            continue;
+
+        FILE *const in = fopen(at, "rb");
+        FILE *const out = in ? fopen(on, "wb") : nullptr;
+
+        while (out && (n = fread(buf, 1, sizeof buf, in)) > 0)
+            fwrite(buf, 1, n, out);
+
+        if (out)
+            fclose(out);
+
+        if (in)
+            fclose(in);
+    }
+
+    if (dir)
+        closedir(dir);
+}
+
 /* Finder's start, in /: ~/Documents/QuickrBasic, the app's demos copied in where missing. */
 static void home(void)
 {
@@ -172,30 +220,12 @@ static void home(void)
         return;
 
     const char *const base = SDL_GetBasePath(); /* the bundle's Resources */
-    static const char *const demos[] = {"WELCOME.BAS", "GORILLA.BAS", "NIBBLES.BAS", "MOTHLITE.BAS",
-                                        "RUSTLINE.BAS", "CHARLIE.BAS", "CHARLIE.DAT"};
 
-    for (uint32_t i = 0; base && i < sizeof demos / sizeof demos[0]; i++) {
-        struct stat st;
+    if (!base)
+        return;
 
-        if (!stat(demos[i], &st))
-            continue;
-
-        snprintf(at, sizeof at, "%sdemos/%s", base, demos[i]);
-        FILE *const in = fopen(at, "rb");
-        FILE *const out = in ? fopen(demos[i], "wb") : nullptr;
-        char buf[8192];
-        size_t n;
-
-        while (out && (n = fread(buf, 1, sizeof buf, in)) > 0)
-            fwrite(buf, 1, n, out);
-
-        if (out)
-            fclose(out);
-
-        if (in)
-            fclose(in);
-    }
+    snprintf(at, sizeof at, "%sdemos", base);
+    copy_demos(at, to);
 }
 
 /* The frame to path as a PPM. */
