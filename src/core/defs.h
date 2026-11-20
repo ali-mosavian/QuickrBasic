@@ -232,7 +232,8 @@ enum : uint8_t {
     E_ACM = 62, /* Argument-count mismatch */
     E_CNW = 63, /* CONTINUE not within matching block */
     E_TMD = 64, /* Too many dimensions */
-    E_LAST = E_TMD,
+    E_TTB = 65, /* TYPE more than 65535 bytes */
+    E_LAST = E_TTB,
 };
 
 /* QBasic's ERR numbers the runtime raises (fault_qberr), as ERROR n raises them. */

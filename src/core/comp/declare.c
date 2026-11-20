@@ -580,7 +580,7 @@ static uint32_t decl_fielddims(
         elems *= dims[k].count;
 
         if (elems > UINT16_MAX)
-            decl_fail(ds, E_OM);
+            decl_fail(ds, E_TTB);
     }
 
     d->dimmed = true;
@@ -705,7 +705,7 @@ static void decl_field(DeclScan *const ds)
     if (f->dyn)
         size = sizeof(ArrSlot);
     if (td->size + (uint64_t)size * elems > UINT16_MAX)
-        decl_fail(ds, E_OM);
+        decl_fail(ds, E_TTB);
 
     decl_fielddeep(ds, td, f, elems, size);
     td->size += (uint16_t)(size * elems);

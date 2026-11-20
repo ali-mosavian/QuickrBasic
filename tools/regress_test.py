@@ -1124,6 +1124,15 @@ CASES |= {
                       ".BAS:2: Too many dimensions", None),
 }
 
+# A TYPE over 65535 bytes was Out of memory; BC's: TYPE more than 65535 bytes.
+CASES |= {
+    "type_65535": (bas("type T", " a as string * 32767", " b as string * 32767", " c as byte", "end type",
+                       "dim r as T", "print len(r)"), " 65535 \r\n", "ERROR"),
+    "type_too_big": (bas("type T", " a as string * 32767", " b as string * 32767", " c as short", "end type"),
+                     ".BAS:4: TYPE more than 65535 bytes", None),
+    "type_too_big_array": (bas("type T", " w(1 to 70000) as byte", "end type"), ".BAS:2: TYPE more than 65535 bytes", None),
+}
+
 # Typed at the prompt, not run as a file.
 REPL = {
     # A direct line ran from DCODE, its statement map's place: nothing printed.
