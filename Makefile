@@ -132,7 +132,7 @@ dos-zip: $(DOS_EXE) $(DOS_GAMES)
 
 # ---- The tests ----
 
-TOOLS_TEST := tools/cfmt_test.py tools/gas2coff_test.py tools/conformance_test.py tools/mkhelp_test.py tools/golden_test.py
+TOOLS_TEST := tools/cfmt_test.py tools/libcalls_test.py tools/gas2coff_test.py tools/conformance_test.py tools/mkhelp_test.py tools/golden_test.py
 test: $(DOS_EXE) | $(DOSBOX_BIN)
 	sh tests/gen/dfa.sh
 	sh tests/gen/messages.sh
@@ -257,7 +257,7 @@ build/host/unit/%.o: tests/unit/%.c
 	$(HOST_CC) $(HOST_CFLAGS) $(DEPFLAGS) -c $< -o $@
 build/host/test.hlp: tools/mkhelp.py $(wildcard tests/help/*)
 	$(PY) tools/mkhelp.py tests/help -o $@
-build/host/unit_tests: $(build/host_OBJ) $(UNIT_OBJ) build/host/test.hlp
+build/host/unit_tests: $(build/host_OBJ) $(UNIT_OBJ) build/host/obj/lib/div64.o build/host/test.hlp
 	$(HOST_CC) $(filter-out %.hlp,$^) -lm -o $@
 build/host/golden/dump.o: tests/golden/dump.c
 	@mkdir -p $(@D)
