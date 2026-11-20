@@ -779,6 +779,27 @@ static Node *recarg(Comp *const C, const uint32_t par)
     return argnode(C, PA_PREF, r, par);
 }
 
+/* A field alone, the argument to parameter par: by P.REF, of par's type; a fixed-length string's, a
+   copy, as an element's. Else Parameter type mismatch at arg: SHORT and BYTE fields too, P.REF
+   being a cell's whole width. */
+static Node *fieldarg(Comp *const C, Node *const r, const uint32_t par, const uint8_t *const arg)
+{
+    const RecRef *const rec = &r->rec;
+    const uint32_t ptype = symb_var(C->symb, par)->type;
+    const bool fixed = rec->et == ET_SD && rec->fix;
+
+    if (fixed && ptype == ET_SD) {
+        C->p = arg;
+        return argnode(C, PA_VALUE, expr_arg(C), par);
+    }
+    if (fixed || rec->et != ptype || rec->et == ET_SH || rec->et == ET_BY) {
+        C->p = arg;
+        fault_error(C->fault, E_PTM);
+    }
+
+    return argnode(C, PA_PREF, r, par);
+}
+
 /* ct_arg: an argument to parameter par: a variable alone by reference, an element or a record's
    number field by P.REF, else the value. A CONST, BYVAL's, a DEF FN's: the value. */
 static Node *arg(Comp *const C, const uint32_t par, const bool byval)
@@ -800,11 +821,8 @@ static Node *arg(Comp *const C, const uint32_t par, const bool byval)
             Node *const r = ref_record(C);
 
             if (r != nullptr) { /* a field */
-                const RecRef *const rec = &r->rec;
-
-                if (!(rec->et == ET_SD && rec->fix) && rec->et != ET_SH && rec->et != ET_BY &&
-                    rec->et < ET_REC && rec->et == ptype && aend(comp_cur(C)))
-                    return argnode(C, PA_PREF, r, par);
+                if (aend(comp_cur(C)))
+                    return fieldarg(C, r, par, p);
             } else if (*after == '(') { /* an element */
                 const uint32_t id = comp_var(C, 0, 0);
                 const Var *const v = symb_var(C->symb, id);
