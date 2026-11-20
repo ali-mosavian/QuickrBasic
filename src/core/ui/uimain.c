@@ -71,6 +71,7 @@
 #include "ui/text.h"
 #include "ui/theme.h"
 #include "ui/debugui.h"
+#include "ui/definition.h"
 #include "ui/view.h"
 #include "ui/window.h"
 #include "vm/exec.h"
@@ -335,6 +336,8 @@ static bool edit_scan(Session *const S, const uint8_t scan)
             uimn.ed.insert = !uimn.ed.insert;
     } else if (scan == SCAN_CTRL_INS) {
         edit_copy(S);
+    } else if (scan == SCAN_B && uimn.keyflags & PKEY_CTRL) { /* Ctrl+Alt+B, ours */
+        defn_goto(S, true);
     } else
         return false;
 
@@ -392,6 +395,10 @@ static bool edit_control(Session *const S, const uint8_t ch)
     case CTRL('Y'):
         uimn.ed.sel_on = false;
         edit_ctrly(S);
+        return true;
+
+    case CTRL('B'): /* Go to Definition, ours */
+        defn_goto(S, false);
         return true;
 
     case CH_ESC:

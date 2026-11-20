@@ -27,6 +27,7 @@
 #include "session.h"
 #include "plat/pkey.h"
 #include "ui/debugpane.h"
+#include "ui/definition.h"
 #include "ui/draw.h"
 #include "ui/edit.h"
 #include "ui/menu.h"
@@ -189,6 +190,9 @@ static void edit_click(Session *const S, const uint8_t w, const uint8_t row, con
         return;
 
     uimn.edline.col = (uint16_t)(col - e->x - 1 + e->left);
+
+    if (m->event == MS_PRESS && uimn.keyflags & PKEY_CTRL) /* Go to Definition, ours */
+        defn_goto(S, uimn.keyflags & PKEY_ALT);
 }
 
 bool mous_screen(Widget *const w, Session *const S, const uint8_t row, const uint8_t col)

@@ -457,6 +457,24 @@ uint32_t view_proc(Session *const S, const uint32_t v)
     return vw.tab[v].kind && is_proc(kind(S, vw.tab[v].first, &nm)) ? comp_nameof(nm) : 0;
 }
 
+uint32_t view_procedure(Session *const S, const uint32_t module, const uint32_t name)
+{
+    for (uint32_t v = 1; v < vw.n; v++)
+        if (proc_view(v) && vw.tab[v].module == module && view_proc(S, v) == name)
+            return v;
+
+    return 0;
+}
+
+uint32_t view_of_module(const uint32_t module)
+{
+    for (uint32_t v = 0; v < vw.n; v++)
+        if (!vw.tab[v].kind && vw.tab[v].module == module)
+            return v;
+
+    return 0;
+}
+
 uint32_t view_goline(Session *const S, const uint32_t line)
 {
     const uint32_t v = view_of(line);
@@ -695,10 +713,7 @@ void view_subs(Session *const S)
     if (b == SUBS_ACTIVE) {
         show(S, v);
     } else if (b == SUBS_SPLIT) { /* the split's other window shows it */
-        if (!uimn.win.win[W_ED2].height)
-            wind_split(S);
-
-        wind_act(S, wind_active() == W_ED2 ? W_ED1 : W_ED2);
+        wind_other(S, false);
         show(S, v);
     } else if (b == SUBS_DELETE) {
         del(S, v);

@@ -1,5 +1,5 @@
 # IDE Additions
-keys: ide additions, IDE extras, Step Out
+keys: ide additions, IDE extras, Step Out, Go to Definition
 
 What the editor does that QBasic's did not: highlighting, line
 checking, completion, a debug pane, nine themes, split windows.
@@ -30,6 +30,11 @@ Menu commands are in [menus](menus).
    program; Split Vertically places them side by side. A line between
    windows can be dragged with the mouse, and so can the line between
    the code and the debug pane. Lines can be dragged between windows.
+ - Go to Definition: Ctrl+B, or Ctrl+click, on a name shows the line
+   that defines it: its SUB or FUNCTION, DIM, CONST, TYPE, parameter
+   or label, in another file for a name an IMPORT gives. Ctrl+Alt+B,
+   or Ctrl+Alt+click, shows it in the other window of a split, split
+   side by side first when there is none.
  - F2 lists procedures sorted by name, in columns. The Open box lists
    files sorted, in three columns, and shows a long path shortened.
  - A program's graphics screen is kept while the editor is shown.

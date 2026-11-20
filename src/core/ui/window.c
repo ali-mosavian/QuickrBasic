@@ -131,6 +131,8 @@ void wind_layout(void)
 void wind_init(void)
 {
     win(W_ED1)->height = ED1_INIT; /* 25 rows'; wind_fit fits them to the screen's */
+    win(W_ED2)->height = 0;
+    uimn.win.vert = false;
     win(W_IMM)->height = IMM_INIT;
     uimn.dp_col = DP_COL;
     uimn.tree.editors.focus = 0;
@@ -333,6 +335,14 @@ void wind_vsplit(Session *const S)
     uimn.win.vert = true;
     win(W_ED2)->height = win(W_ED1)->height;
     copy_ed1();
+}
+
+void wind_other(Session *const S, const bool vert)
+{
+    if (!win(W_ED2)->height)
+        (vert ? wind_vsplit : wind_split)(S);
+
+    wind_act(S, wind_active() == W_ED2 ? W_ED1 : W_ED2);
 }
 
 /* The window with the focus, ED1 for ED2 beside it or the pane: whose rows change. */
