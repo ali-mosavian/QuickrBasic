@@ -1564,6 +1564,67 @@ for i = 1 to 120
     if wd.lv.ob(c).s < 0 then exit for
 next
 if was and i < 120 and wd.lv.ob(m).s = 0 and p.inv <= 0 then print "icicle ok"
+' the dusk's loaded ledge holds while he stands by it; a bark from there sets it off: it trembles, slides off its
+' ledge and comes down on the snow-thrower past it, which is beaten; its heap stops him on foot at either flank,
+' and a jump takes him over it; the level begun again, the load is back on its ledge. The heap was the load
+' moved: met from its left alone, and left on the road when the level began again
+GoStage wd, 7, g, p, lo(), pt()
+wd.lv.gale = 0
+for c = 0 to wd.lv.nObj - 1
+    if wd.lv.ob(c).k = KLOAD then exit for
+next
+for m = c to wd.lv.nObj - 1
+    if wd.lv.ob(m).k = KTHROW then exit for
+next
+j = HeapOf%(wd.lv, c)
+was = c < wd.lv.nObj and m < wd.lv.nObj and j <> NONE
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 60, 0
+g.bones = 5
+for i = 1 to 30
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and wd.lv.ob(c).s = 0 and wd.lv.ob(j).s = 0 and wd.lv.ob(m).s <> 0
+p.barkT = 0
+k.bark = -1
+Tick wd, g, p, k, lo(), pt()
+k.bark = 0
+was = was and wd.lv.ob(c).s > 0
+v = 0
+for i = 1 to 200
+    Tick wd, g, p, k, lo(), pt()
+    if wd.lv.ob(c).s = TREMBLE + LOADSLIDE then v = Slid%(wd.lv, c)
+    if wd.lv.ob(c).s < 0 then exit for
+next
+was = was and i < 200 and v = LOADRUN and wd.lv.ob(j).s = 1 and wd.lv.ob(m).s = 0
+was = was and abs(wd.lv.ob(j).x - wd.lv.ob(m).x) < HEAPR
+for i = 1 to 150
+    Tick wd, g, p, k, lo(), pt()
+next
+Stand wd.lv, wd.gr, p, wd.lv.ob(j).x - 70, 0
+p.inv = 0
+p.stun = 0
+k.r = -1
+for i = 1 to 90
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and p.ground and abs(p.x - (wd.lv.ob(j).x - HEAPR)) < 2 and abs(p.gsp) < 20
+k.hit = -1
+k.jump = -1
+for i = 1 to 60
+    Tick wd, g, p, k, lo(), pt()
+    if p.ground then k.jump = 0
+next
+k.r = 0
+was = was and p.x > wd.lv.ob(j).x + HEAPR
+Stand wd.lv, wd.gr, p, wd.lv.ob(j).x + 70, 0
+k.l = -1
+for i = 1 to 90
+    Tick wd, g, p, k, lo(), pt()
+next
+k.l = 0
+was = was and p.ground and abs(p.x - (wd.lv.ob(j).x + HEAPR)) < 2
+GoStage wd, 7, g, p, lo(), pt()
+if was and wd.lv.ob(c).s = 0 and wd.lv.ob(j).s = 0 and wd.lv.ob(c).y < wd.lv.ob(j).y - 80 then print "slide ok"
 ' a crab pinches at its side, a rolling Charlie too; down on its back he goes up off it unhurt and it ducks into
 ' its shell, and comes out again
 GoStage wd, 4, g, p, lo(), pt()
@@ -2538,6 +2599,7 @@ def main() -> None:
         ("goat ok", "an ice wall stops him; a goat's charge hurts; jumped, it is ridden through, as the ground lies"),
         ("thrower ok", "a snow-thrower's wall throws a roll back; its snowball hurts where he stood; up, it is beaten"),
         ("icicle ok", "an icicle is loosed from under it or by a bark, trembles, falls on him or a snow-thrower"),
+        ("slide ok", "a bark brings a ledge's snow down on a snow-thrower; its heap stops him, a jump clears it"),
         ("crab ok", "a crab pinches at its side and is a step from above; barked into its shell, a higher one"),
         ("jelly ok", "a jellyfish afloat or aground: a high bounce off its bell, a sting for feet in it only"),
         ("dazed ok", "a Charlie hurt into the sea paddles again"),

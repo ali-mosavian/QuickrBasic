@@ -231,6 +231,11 @@ const GUSTP = 192, GUSTON = 72, GUSTTELL = 24, WINDG = 600!, WINDA = 900!, WINDV
 const AVALV = 300!, AVALLEAD = 220, AVALH = 70, CSNOW = 117, CICE = 123
 ' An ice wall, WALLH tall, stops him WALLR from its middle: only a goat ridden breaks it.
 const KWALL = 37, WALLH = 80, WALLR = 15
+' A ledge's load of snow: its state 0 heaped, the things' steps since a bark set it off, or -1 gone. It trembles
+' TREMBLE of them, slides LOADRUN along its ledge in LOADSLIDE more, gathering way, then falls at the speed it left
+' with, to its heap's place LOADFAR on: there cats and snow-throwers are beaten. Its heap: its state 1 once it lies
+' there, HEAPH tall and HEAPR either way at its foot; it stops him.
+const KLOAD = 48, KHEAP = 49, LOADRUN = 40, LOADSLIDE = 20, LOADFAR = 104, HEAPH = 30, HEAPR = 24
 const PRESSH = 112, PRESSUP = 68, PRESSP = 180, PRESSFALL = 90, PRESSRISE = 130, PRESSLAG = 4
 ' From KFRONT on: drawn over the ground. The sands' flume: a column of its fall, its level end, the tank at its
 ' head; the speed its water carries Charlie at.
@@ -294,7 +299,9 @@ const IGOAT = ISEAT + 2, IGOATR = IGOAT + 4, IWALL = IGOATR + 40
 const IFROST = IWALL + 4, IDUNKED = IFROST + 10
 ' Who meets Charlie, NFAM of them FAMSTEP apart, each in FAMF pictures: three of a wait, six of a cheer. The Baron's:
 ' four sat, his tail swaying and a blink, then two pointing.
-const IFAM = IDUNKED + 2, NFAM = 5, FAMF = 9, FAMSTEP = 36, IBARON = IFAM + NFAM * FAMF * 2, NIMG = IBARON + 12
+const IFAM = IDUNKED + 2, NFAM = 5, FAMF = 9, FAMSTEP = 36, IBARON = IFAM + NFAM * FAMF * 2
+' The pass's load of snow on its ledge, and down in a heap.
+const ILOAD = IBARON + 12, IHEAP = ILOAD + 2, NIMG = IHEAP + 2
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
@@ -426,6 +433,7 @@ declare sub LoadZoneArt (art as Store, z as integer)
 declare sub SeekLevel (st as integer)
 declare sub Column (lv as Level, c as integer, g as integer, kind as integer)
 declare sub AddObj (lv as Level, k as integer, x as integer, y as integer)
+declare sub Shelf (lv as Level, c as integer, g as integer, s as integer, n as integer, w as integer)
 declare sub SortObjs (lv as Level)
 declare sub BuildArt (art as Store, tn as Tones)
 declare sub LoadArt (art as Store, tn as Tones)
@@ -597,10 +605,15 @@ declare sub Dying (lv as Level, gr as Ground, zn as Realm, mu as Deck, g as Game
 declare sub Things (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
 declare sub Totter (lv as Level, mu as Deck, se as Session, g as Game, pt() as Part, i as integer)
 declare sub TakeAim (lv as Level, i as integer, p as Hero)
+declare sub Unload (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part, i as integer)
+declare sub Bury (lv as Level, mu as Deck, se as Session, g as Game, pt() as Part, h as integer)
 declare sub LooseBones (lv as Level, se as Session, lo() as Loose, dt as single)
 declare sub Particles (se as Session, pt() as Part, dt as single)
 declare function Risen% (lv as Level, i as integer)
 declare function Fallen% (lv as Level, i as integer)
+declare function Plunged% (n as integer)
+declare function Slid% (lv as Level, i as integer)
+declare function HeapOf% (lv as Level, i as integer)
 declare function Lull% (lv as Level, se as Session)
 declare sub Avalanche (lv as Level, mu as Deck, se as Session, g as Game, p as Hero)
 declare sub DrawAvalanche (lv as Level, art as Store, se as Session, cx as integer, cy as integer)
@@ -613,9 +626,12 @@ declare sub Mount (lv as Level, mu as Deck, se as Session, p as Hero, i as integ
 declare sub Ride (lv as Level, p as Hero, l as integer, r as integer, d as integer)
 declare sub Homeward (lv as Level, g as Game)
 declare sub MeetWall (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, pt() as Part)
+declare sub Balk (p as Hero, x as integer, r as integer)
+declare sub MeetHeap (lv as Level, p as Hero, i as integer)
 declare function GoatNear% (lv as Level, x as integer)
 declare function Slant% (p as Hero)
 declare sub DrawGoat (lv as Level, art as Store, se as Session, i as integer, x as integer, y as integer)
+declare sub DrawLoad (lv as Level, art as Store, se as Session, i as integer, x as integer, y as integer)
 declare sub DrawStray (lv as Level, art as Store, se as Session, cx as integer, cy as integer)
 declare function Lie% (lv as Level, x as integer, y as integer)
 declare sub DrawFrost (lv as Level, zn as Realm, art as Store, se as Session, cx as integer, cy as integer)
@@ -1431,11 +1447,13 @@ sub LoadLevel (wd as World, st as integer)
             k = KWALL
         case "icicle"
             ' a shelf of three, n tiles over the ground here, and an icicle under its middle
-            for i = 0 to 2
-                wd.lv.map(c + i, MH - g - n - 1) = 1
-                AddObj wd.lv, KPLAT, (c + i) * TS, s - (n + 1) * TS
-            next
+            Shelf wd.lv, c, g, s, n, 3
             AddObj wd.lv, KICICLE, c * TS + 24, s - n * TS - 6
+        case "load"
+            ' a shelf of four, n tiles over the ground here, a load of snow on it, and where its heap will lie
+            Shelf wd.lv, c, g, s, n, 4
+            AddObj wd.lv, KLOAD, c * TS + 32, s - (n + 1) * TS
+            AddObj wd.lv, KHEAP, c * TS + 32 + LOADFAR, s
         case "drift": k = KDRIFT
         case "spark": k = KSPARK
         case "press"
@@ -1994,6 +2012,15 @@ function Sunk% (lv as Level, y as integer)
     if lv.tideHi > ebb then ebb = lv.tideHi
     Sunk% = y > ebb + WADE
 end function
+
+' A shelf w wide, n tiles over the ground, s, at column c; g the ground's height in tiles.
+sub Shelf (lv as Level, c as integer, g as integer, s as integer, n as integer, w as integer)
+    dim i as integer
+    for i = 0 to w - 1
+        lv.map(c + i, MH - g - n - 1) = 1
+        AddObj lv, KPLAT, (c + i) * TS, s - (n + 1) * TS
+    next
+end sub
 
 sub AddObj (lv as Level, k as integer, x as integer, y as integer)
     lv.ob(lv.nObj).k = k
@@ -3883,6 +3910,7 @@ sub Touch (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as
         case KTHROW: MeetThrow lv, mu, se, g, p, i, lo(), pt()
         case KGOAT: MeetGoat lv, mu, se, g, p, i, lo()
         case KWALL: MeetWall lv, mu, se, g, p, i, pt()
+        case KHEAP: MeetHeap lv, p, i
         case KICICLE: MeetIcicle lv, mu, se, g, p, i, lo(), pt()
         case KSLED: MeetSled lv, mu, se, p, i
         case KDRIFT: MeetDrift lv, mu, se, p, i, pt()
@@ -4434,11 +4462,40 @@ end sub
 
 ' How far icicle i has fallen: nothing till it has trembled.
 function Fallen% (lv as Level, i as integer)
+    Fallen% = Plunged%(lv.ob(i).s - TREMBLE)
+end function
+
+' How far a thing has fallen, n of the things' steps into its fall.
+function Plunged% (n as integer)
     dim t as single
-    Fallen% = 0
-    if lv.ob(i).s <= TREMBLE then exit function
-    t = (lv.ob(i).s - TREMBLE) * STEPT * 2
-    Fallen% = cint(GRAV * t * t / 2)
+    Plunged% = 0
+    if n <= 0 then exit function
+    t = n * STEPT * 2
+    Plunged% = cint(GRAV * t * t / 2)
+end function
+
+' How far along load i has come: nothing till it has trembled, LOADRUN at its ledge's end, LOADFAR at the most.
+function Slid% (lv as Level, i as integer)
+    dim n as integer, x as integer
+    Slid% = 0
+    n = lv.ob(i).s - TREMBLE
+    if n <= 0 then exit function
+    x = LOADRUN * n * n \ (LOADSLIDE * LOADSLIDE)
+    if n > LOADSLIDE then x = LOADRUN + 2 * LOADRUN * (n - LOADSLIDE) \ LOADSLIDE
+    if x > LOADFAR then x = LOADFAR
+    Slid% = x
+end function
+
+' Load i's heap, the next along; NONE without one.
+function HeapOf% (lv as Level, i as integer)
+    dim j as integer
+    HeapOf% = NONE
+    for j = i + 1 to lv.nObj - 1
+        if lv.ob(j).a > lv.ob(i).a + LOADFAR then exit for
+        if lv.ob(j).k <> KHEAP then continue for
+        HeapOf% = j
+        exit for
+    next
 end function
 
 ' The avalanche's step: let go as he passes its head, its front comes on, the ground shaking while it is in
@@ -4637,7 +4694,6 @@ end sub
 
 ' An ice wall across the road: he is stopped at it; a goat ridden goes through, and leaves its stump.
 sub MeetWall (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, pt() as Part)
-    dim s as integer
     if lv.ob(i).s = 0 or abs(lv.ob(i).x - p.x) >= WALLR then exit sub
     if p.y <= lv.ob(i).y - WALLH or p.y > lv.ob(i).y + 20 then exit sub
     if p.goat then
@@ -4648,13 +4704,31 @@ sub MeetWall (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as
         Sfx mu, se, SCRACK
         exit sub
     end if
-    s = 1 + 2 * (p.x < lv.ob(i).x)
-    p.x = lv.ob(i).x + s * WALLR
+    Balk p, lv.ob(i).x, WALLR
+end sub
+
+' Charlie stopped r from x, on the side of it he is.
+sub Balk (p as Hero, x as integer, r as integer)
+    dim s as integer
+    s = 1 + 2 * (p.x < x)
+    p.x = x + s * r
     if p.ground then
         if p.gsp * s < 0 then p.gsp = 0
     elseif p.vx * s < 0 then
         p.vx = 0
     end if
+end sub
+
+' A slid load's heap across the road: he is stopped at its flank, nearer its middle the higher his feet, and
+' over it goes free.
+sub MeetHeap (lv as Level, p as Hero, i as integer)
+    dim h as single, r as integer
+    if lv.ob(i).s = 0 then exit sub
+    h = lv.ob(i).y - p.y
+    if h >= HEAPH or h < -20 then exit sub
+    if h < 0 then h = 0
+    r = cint(HEAPR * (1 - h / HEAPH))
+    if abs(p.x - lv.ob(i).x) < r then Balk p, lv.ob(i).x, r
 end sub
 
 ' The goat not ridden within 150 of x, NONE when there is none.
@@ -4679,6 +4753,15 @@ function Slant% (p as Hero)
     if t < -2 then t = -2
     Slant% = t
 end function
+
+' A ledge's load at x, y on the screen: shaking once set off, sliding off, falling; nothing once it is down.
+sub DrawLoad (lv as Level, art as Store, se as Session, i as integer, x as integer, y as integer)
+    dim s as integer, jig as integer
+    s = lv.ob(i).s
+    if s < 0 then exit sub
+    jig = s > 0 and s <= TREMBLE and (se.ticks and 2) <> 0
+    Blit art, x - 34 + jig + Slid%(lv, i), y - 16 + Plunged%(s - TREMBLE - LOADSLIDE), ILOAD, 76, 22
+end sub
 
 ' Goat i at x, y on the screen: its head up at graze and dazed, down while it gathers itself and charges.
 sub DrawGoat (lv as Level, art as Store, se as Session, i as integer, x as integer, y as integer)
@@ -4809,7 +4892,7 @@ end sub
 ' Charlie barks: every cat the bark reaches flinches, every crab goes into its shell, every gull is scared, every
 ' snow-thrower ducks.
 sub Bark (lv as Level, mu as Deck, se as Session, p as Hero)
-    dim i as integer, c as integer, dx as single, dy as single
+    dim i as integer, c as integer, dx as single, dy as single, hung as integer
     p.barkT = BARKT
     Sfx mu, se, SBARK
     c = (cint(p.x) - BARKR - 40) \ TS
@@ -4818,8 +4901,9 @@ sub Bark (lv as Level, mu as Deck, se as Session, p as Hero)
         if lv.ob(i).a > p.x + BARKR + 40 then exit for
         dx = abs(lv.ob(i).x - p.x)
         dy = abs(lv.ob(i).y - p.y)
-        ' an icicle is loosed from further under it than he can jump
-        if lv.ob(i).k = KICICLE and lv.ob(i).s = 0 and dx <= BARKR and dy < 140 then lv.ob(i).s = 1
+        ' an icicle or a ledge's load is loosed from further under it than he can jump
+        hung = lv.ob(i).k = KICICLE or lv.ob(i).k = KLOAD
+        if hung and lv.ob(i).s = 0 and dx <= BARKR and dy < 140 then lv.ob(i).s = 1
         if lv.ob(i).s = 0 or dx > BARKR or dy >= 40 then continue for
         select case lv.ob(i).k
         case KCAT: Flinch lv, i, cint(p.x)
@@ -4846,6 +4930,7 @@ sub Things (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() a
         case KCAT, KCRAB, KSWEEP: if lv.ob(i).s <> 0 then Prowl lv, i
         case KSPARK: lv.ob(i).x = lv.ob(i).a + cint(SPARKR * sin((se.ticks + lv.ob(i).a) * .03))
         case KICICLE: Totter lv, mu, se, g, pt(), i
+        case KLOAD: Unload lv, mu, se, g, p, lo(), pt(), i
         case KGOAT: if lv.ob(i).s <> 0 then Graze lv, se, i, p
         case KTHROW: TakeAim lv, i, p
         case KSPRING, KBUMP, KHOOP: if lv.ob(i).s > 0 then lv.ob(i).s = lv.ob(i).s - 1
@@ -4866,6 +4951,36 @@ sub Totter (lv as Level, mu as Deck, se as Session, g as Game, pt() as Part, i a
     if lv.ob(i).s <= 0 then exit sub
     lv.ob(i).s = lv.ob(i).s + 1
     if lv.ob(i).s > TREMBLE then Plunge lv, mu, se, g, pt(), i
+end sub
+
+' Load i of snow, set off: a step of its trembling, its slide off the ledge and its fall. Down on the road it is
+' gone and its heap lies there; Charlie under it is hurt.
+sub Unload (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part, i as integer)
+    dim h as integer
+    if lv.ob(i).s <= 0 then exit sub
+    lv.ob(i).s = lv.ob(i).s + 1
+    h = HeapOf%(lv, i)
+    if h = NONE then exit sub
+    if lv.ob(i).y + Plunged%(lv.ob(i).s - TREMBLE - LOADSLIDE) < lv.ob(h).y then exit sub
+    lv.ob(i).s = -1
+    lv.ob(h).s = 1
+    Bury lv, mu, se, g, pt(), h
+    if abs(p.x - lv.ob(h).x) >= HEAPR or abs(p.y - lv.ob(h).y) >= HEAPH then exit sub
+    Hurt mu, se, g, p, lv.ob(h).x, lo(), SHURT
+end sub
+
+' Heap h, come down: the cats and snow-throwers under it are beaten.
+sub Bury (lv as Level, mu as Deck, se as Session, g as Game, pt() as Part, h as integer)
+    dim j as integer, foe as integer
+    for j = h - 6 to h + 6
+        if j < 0 or j >= lv.nObj then continue for
+        foe = (lv.ob(j).k = KCAT or lv.ob(j).k = KTHROW) and lv.ob(j).s <> 0
+        if foe = 0 or abs(lv.ob(j).x - lv.ob(h).x) >= HEAPR + 10 then continue for
+        if abs(lv.ob(j).y - lv.ob(h).y) < 24 then Beaten lv, mu, se, g, pt(), j, 8
+    next
+    g.shake = .3
+    Burst se, pt(), csng(lv.ob(h).x), csng(lv.ob(h).y - 12), 16, 160, CWHITE
+    Sfx mu, se, SCRACK
 end sub
 
 ' Snow-thrower i: a step of its turn, facing Charlie; and its throw.
@@ -5914,6 +6029,8 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
                 Blit art, x - 9, y - 21, IWALL + 2, 18, 22
             end if
         case KGOAT: DrawGoat lv, art, se, i, x, y
+        case KLOAD: DrawLoad lv, art, se, i, x, y
+        case KHEAP: if lv.ob(i).s then Blit art, x - 30, y - 33, IHEAP, 60, 34
         case KSPAN
             ' three planks; tottering, it shakes
             if lv.ob(i).s then y = y + ((se.ticks \ 2) and 1)

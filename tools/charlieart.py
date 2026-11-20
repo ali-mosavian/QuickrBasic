@@ -3954,6 +3954,32 @@ def icewall(broken: bool) -> Pic:
     return p.outline(FROSTINK)
 
 
+def snowload() -> Pic:
+    """A ledge's load of snow, the ledge's top under its row 16: three mounds along it, a lip hung over its right
+    end."""
+    p = Pic(76, 22)
+    tones = [SNOW[2], SNOW[1], SNOW[0]]
+    over = rect(0, 0, 75, 15)
+    part(p, oval(52, 14, 17, 11) & over, tones, 3, 2)
+    part(p, curved([(62, 16), (62, 7), (69, 7), (74, 13), (73, 20), (68, 21), (64, 19)]), tones, 2.5, 1.5, SNOW[2])
+    part(p, oval(15, 15, 15, 9) & over, tones, 3, 2, SNOW[2])
+    part(p, oval(33, 14, 15, 13) & over, tones, 3, 2, SNOW[2])
+    fill(p, rect(64, 19, 72, 21), SNOW[3], {q for q in rect(64, 19, 72, 21) if p.get(*q)})
+    return p.outline(FROSTINK)
+
+
+def snowheap() -> Pic:
+    """A slid load across the road: a heap of snow, a mound at either foot."""
+    p = Pic(60, 34)
+    tones = [SNOW[2], SNOW[1], SNOW[0]]
+    here = rect(0, 0, 59, 33)
+    part(p, curved([(8, 34), (12, 22), (20, 9), (30, 1), (40, 6), (47, 18), (52, 34)]) & here, tones, 4, 2.5)
+    part(p, oval(12, 33, 12, 10) & here, tones, 2.5, 2, SNOW[2])
+    part(p, oval(46, 33, 13, 12) & here, tones, 3, 2, SNOW[2])
+    fill(p, stroke([(24, 12), (27, 17), (26, 22)], 1), SNOW[2])
+    return p.outline(FROSTINK)
+
+
 def whitecap() -> list[tuple[int, Pic, bool, int]]:
     """Whitecap Pass's own pictures, at the indices the Downs' own have; its keepsake after the works' last."""
     k, z = 126, 625
@@ -3991,6 +4017,8 @@ def whitecap() -> list[tuple[int, Pic, bool, int]]:
         (z + 1094, icewall(False), True, -1),
         (z + 1096, icewall(True), True, -1),
         (z + 1108, dunked(), True, -1),
+        (z + 1212, snowload(), True, -1),
+        (z + 1214, snowheap(), True, -1),
     ]
     out += [(z + 1098 + (lean + 2) * 2, frost(-lean), True, -1) for lean in range(-2, 3)]
     # a goat at a charge as the ground lies, like the sled: each stride, and each mirrored for the fall the other way
