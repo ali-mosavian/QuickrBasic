@@ -12,7 +12,8 @@ Syntax
 IMPORT and FROM load other files of BASIC as modules of the program.
 QuickrBasic adds them to QBasic.
 
-See also [Procedures and Modules](procedures), [$INCLUDE](metacommands)
+See also [Procedures and Modules](procedures), [$INCLUDE](metacommands),
+[examples](import examples)
 
 ## Details
 A module is a file: `gfx` is `gfx.bas`. A dotted name is a package
@@ -59,10 +60,11 @@ through it: `gfx.plot`, `gfx.pt`, `gfx.origin.x`. `IMPORT lib.gfx`
 binds `lib.gfx`; AS binds another name instead. A name the module does
 not export is [Name not exported](Name not exported) where used.
 
-`FROM gfx IMPORT plot, pt AS point` binds the names listed; `grid()`
-names an array. A name gfx does not export is Name not exported at the
-FROM line. `FROM gfx IMPORT *` binds each SUB, FUNCTION, CONST and TYPE
-gfx exports, never a variable.
+`FROM gfx IMPORT plot, pt AS spot` binds the names listed; `grid()`
+names an array, and a name may have its type's suffix: `total%`. A
+name gfx does not export is Name not exported at the FROM line.
+`FROM gfx IMPORT *` binds each SUB, FUNCTION, CONST and TYPE gfx
+exports, never a variable.
 
 An imported variable is the exporter's own, seen in the whole file,
 SUBs too, with the exporter's type: if `total` is an INTEGER there,

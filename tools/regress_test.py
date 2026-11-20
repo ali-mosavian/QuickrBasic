@@ -1588,6 +1588,26 @@ CASES |= {
 }
 
 
+def recipes(page: Path) -> dict[str, tuple[tuple, str]]:
+    """A help page's recipes: each main.bas, beside the files the page gave before it, and the lines
+    after its `' prints:`, which must be all it prints."""
+    files: dict[str, str] = {}
+    out: dict[str, tuple[tuple, str]] = {}
+    blocks = re.findall(r"^    ' (\S+\.bas)\n((?:(?!    ' \S+\.bas\n)    .*\n|\n)*)", page.read_text(), re.M)
+    for name, body in blocks:
+        lines = [line[4:] for line in body.rstrip("\n").split("\n")]
+        if name != "main.bas":
+            files[name] = bas(*lines)
+            continue
+        said = lines[lines.index("' prints:") + 1:]
+        out[f"import_example_{len(out) + 1}"] = (beside(bas(*lines), dict(files)), bas(*(s[2:] for s in said)))
+    return out
+
+
+# The IMPORT examples page's: a recipe no longer printing what the page says.
+EXAMPLES = recipes(ROOT / "help/ext/import-examples.md")
+
+
 # Typed at the prompt, not run as a file.
 REPL = {
     # A direct line ran from DCODE, its statement map's place: nothing printed.
@@ -1764,7 +1784,8 @@ def main() -> None:
         check_host_errors(tmp)
         for k in HOST_SKIP:
             CASES.pop(k)
-    batches = [dict(jobs=b, limit_ms=10000, file=True, files=FILES) for b in dosrun.split({k: v[0] for k, v in CASES.items()})]
+    jobs = {k: v[0] for k, v in (CASES | EXAMPLES).items()}
+    batches = [dict(jobs=b, limit_ms=10000, file=True, files=FILES) for b in dosrun.split(jobs)]
     batches += [dict(jobs={k: v[0] for k, v in REPL.items()}, limit_ms=10000),
                 dict(jobs={k: v[0] for k, v in WARN.items()}, limit_ms=10000, file=True),
                 dict(jobs={k: v[0] for k, v in BIG.items()}, limit_ms=10000, file=True, mem=8)]
@@ -1772,6 +1793,7 @@ def main() -> None:
     every = CASES | REPL | BIG
     bad = [k for k, (_, want, forbid) in every.items() if want not in res[k].out or (forbid and forbidden(forbid, res[k].out))]
     bad += [k for k, (_, want) in WARN.items() if want not in res[k].screen]
+    bad += [k for k, (_, want) in EXAMPLES.items() if re.sub(r" +\r\n", "\r\n", res[k].out) != want]
     for k in bad:
         print(f"FAIL {k}: {res[k].reason} {res[k].out!r}")
     sys.exit(1 if bad else print("ok") or 0)
