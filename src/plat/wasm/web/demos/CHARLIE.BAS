@@ -210,6 +210,9 @@ const KTHROW = 46, THROWC = 75, THROWUP = 30, THROWAT = 10, THROWR = 180, LOBT =
 ' An icicle: its state 0 hung, the things' steps since it was loosed, or -1 broken. It trembles TREMBLE of
 ' them, then falls.
 const KICICLE = 35, TREMBLE = 10
+' A ski lift's chair, a platform that goes up its cable SEATV of the way a second while he stands on it; its
+' frame stands SEATH over its seat.
+const KSEAT = 36, SEATV = .35, SEATH = 30
 const PRESSH = 112, PRESSUP = 68, PRESSP = 180, PRESSFALL = 90, PRESSRISE = 130, PRESSLAG = 4
 ' From KFRONT on: drawn over the ground. The sands' flume: a column of its fall, its level end, the tank at its
 ' head; the speed its water carries Charlie at.
@@ -266,7 +269,7 @@ const ICAMERA = IPRESS + 6, ISLED = ICAMERA + 2, IDRIFT = ISLED + 10
 ' The snowball he is in, at two turns.
 const IGEYSER = IDRIFT + 2, ISNOWBALL = IGEYSER + 6
 ' A snow-thrower ducked and up, facing left, then their mirrors; its snowball.
-const IFORT = ISNOWBALL + 4, ILOB = IFORT + 8, IICICLE = ILOB + 2, NIMG = IICICLE + 2
+const IFORT = ISNOWBALL + 4, ILOB = IFORT + 8, IICICLE = ILOB + 2, ISEAT = IICICLE + 2, NIMG = ISEAT + 2
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
@@ -439,6 +442,7 @@ declare sub Gull (b as Bird, n as integer, g as Game, p as Hero, lo() as Loose, 
 declare sub Flock (g as Game, p as Hero, lo() as Loose, pt() as Part)
 declare sub DrawGulls (cx as integer, cy as integer)
 declare function Adrift% (m as integer)
+declare function Dip% (m as integer)
 declare sub Flinch (i as integer, fromX as integer)
 declare sub Prowl (i as integer)
 declare sub DrawBark (p as Hero, cx as integer, cy as integer)
@@ -1059,6 +1063,12 @@ sub LoadLevel (st as integer)
             Pit c, g - CABLED \ TS, n
             c = c + n
             g = g - CABLED \ TS
+        case "chair"
+            ' a ski lift's chair up a cable over a pit n wide, the ground past it CABLED higher
+            AddMover c * TS - 8, s, n * TS - MOVEW + 16, 7, c * TS
+            Pit c, g, n
+            c = c + n
+            g = g + CABLED \ TS
         case "plat"
             for i = 1 to n mod 100
                 Map(c + i, MH - g - n \ 100 - 1) = 1
@@ -1302,7 +1312,7 @@ sub Track
     ' the moving platforms: a stretch each, a curve of one, in the order they were made
     k = 0
     for i = 0 to NObj - 1
-        if ObK(i) = KMOVE or ObK(i) = KSPAN then
+        if ObK(i) = KMOVE or ObK(i) = KSPAN or ObK(i) = KSEAT then
             Knot csng(ObX(i)), csng(ObY(i)), 0
             Knot csng(ObX(i) + MOVEW), csng(ObY(i)), 3
             MvO(k) = i
@@ -1361,11 +1371,14 @@ end sub
 
 ' A moving platform, its middle's left end at x, y; reach a, kind k; e the edge before it.
 sub AddMover (x as integer, y as integer, a as integer, k as integer, e as integer)
-    if k = 6 then
+    select case k
+    case 6
         AddObj KSPAN, x, y
-    else
+    case 7
+        AddObj KSEAT, x, y
+    case else
         AddObj KMOVE, x, y
-    end if
+    end select
     MvX(NMv) = x
     MvY(NMv) = y
     MvA(NMv) = a
@@ -1392,6 +1405,12 @@ sub Mend
         if ObK(m) = KSLED then ObS(m) = 0
     next
 end sub
+
+' How far cable m's far end hangs under its near one: a basket's cable falls, a ski lift's climbs.
+function Dip% (m as integer)
+    Dip% = CABLED
+    if MvK(m) = 7 then Dip% = -CABLED
+end function
 
 ' Boat m is off the floor of its pool.
 function Adrift% (m as integer)
@@ -1461,17 +1480,21 @@ sub Movers (p as Hero)
             if ObS(MvB(m)) then MvT(m) = MvT(m) + 200 * STEPT
             if MvT(m) > MvA(m) then MvT(m) = MvA(m)
             y = y - MvT(m)
-        case 3
-            ' down its cable while stood on, faster as it goes; back up when left
+        case 3, 7
+            ' while stood on: a basket down its cable, faster as it goes, a chair up its own steadily; back when left
             if p.ground and p.sg = s then
-                MvT(m) = MvT(m) + (.25 + MvT(m)) * .6 * STEPT
+                if MvK(m) = 3 then
+                    MvT(m) = MvT(m) + (.25 + MvT(m)) * .6 * STEPT
+                else
+                    MvT(m) = MvT(m) + SEATV * STEPT
+                end if
             else
                 MvT(m) = MvT(m) - .4 * STEPT
             end if
             if MvT(m) < 0 then MvT(m) = 0
             if MvT(m) > 1 then MvT(m) = 1
             x = x + MvA(m) * MvT(m)
-            y = y + CABLED * MvT(m)
+            y = y + Dip%(m) * MvT(m)
         end select
         dx = x - GX(s)
         dy = y - GY(s)
@@ -2875,7 +2898,7 @@ sub Pilot (p as Hero, k as Pad)
                         ready = not Adrift%(m) or (Swing!(m, 0) < -.85 and Swing!(m, 1) < 0)
                     case 1
                         ready = Swing!(m, 0) >= 1 and Swing!(m, 1) > .2
-                    case 2, 3
+                    case 2, 3, 7
                         ready = MvT(m) = 0
                     end select
                     if ready then
@@ -5066,6 +5089,8 @@ sub DrawThings (cx as integer, cy as integer, back as integer)
                 DrawSpout x, y, ObX(i) \ TS, cy
             case KCISTERN
                 Blit x - 30, y - 25, ICISTERN, 30, 30
+            case KSEAT
+                Blit x, y - SEATH, ISEAT, MOVEW, SEATH + 8
             case KSPAN
                 ' three planks; tottering, it shakes
                 if ObS(i) then y = y + ((Ticks \ 2) and 1)
@@ -5184,24 +5209,33 @@ sub DrawSpout (x as integer, y as integer, c as integer, cy as integer)
     Blit x, y - 8, ISPOUT + k, TS, 13
 end sub
 
-' The cables and what their baskets hang by.
+' The cables, their posts, and what hangs from them: a basket by its two lines, a chair by its hanger and grip.
 sub DrawCables (cx as integer, cy as integer)
     dim m as integer, x as integer, y as integer, x1 as integer, bx as integer, by as integer, i as integer
+    dim d as integer
     for m = 0 to NMv - 1
-        if MvK(m) = 3 then
+        if MvK(m) = 3 or MvK(m) = 7 then
             x = MvE(m) - 8 - cx
             y = MvY(m) - CABLEH - cy
             x1 = x + MvA(m) + MOVEW
+            d = Dip%(m)
             if x < SW and x1 >= 0 then
-                line (x, y)-(x1, y + CABLED), CINK
-                line (x, y + 1)-(x1, y + CABLED + 1), CYELLOW
+                line (x, y)-(x1, y + d), CINK
+                line (x, y + 1)-(x1, y + d + 1), CYELLOW
                 line (x - 1, y - 2)-(x, y + CABLEH), CINK, BF
-                line (x1, y + CABLED - 2)-(x1 + 1, y + CABLED + CABLEH), CINK, BF
+                line (x1, y + d - 2)-(x1 + 1, y + d + CABLEH), CINK, BF
                 bx = ObX(MvO(m)) - cx
                 by = ObY(MvO(m)) - cy
-                for i = 4 to MOVEW - 4 step MOVEW - 8
-                    line (bx + i, by)-(bx + i, y + 1 + clng(bx + i - x) * CABLED \ (x1 - x)), CINK
-                next
+                if MvK(m) = 3 then
+                    for i = 4 to MOVEW - 4 step MOVEW - 8
+                        line (bx + i, by)-(bx + i, y + 1 + clng(bx + i - x) * d \ (x1 - x)), CINK
+                    next
+                else
+                    bx = bx + MOVEW \ 2
+                    i = y + clng(bx - x) * d \ (x1 - x)
+                    line (bx - 1, i)-(bx, by - SEATH), CINK, BF
+                    line (bx - 3, i - 1)-(bx + 2, i + 2), CINK, BF
+                end if
             end if
         end if
     next

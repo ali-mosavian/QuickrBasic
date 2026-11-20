@@ -1810,6 +1810,36 @@ for i = 1 to 300
 next
 was = p.ground and p.sg = c and abs(p.x - (MvX(m) + MvA(m) + 24)) < 2
 if was and abs(p.y - (MvY(m) + CABLED)) < 2 then print "cable ok"
+' the pass's ski lift: its chair takes him up its cable steadily, to the ground CABLED higher past the pit in
+' 1 / SEATV seconds, and goes back down once he is off it
+GoStage 7, g, p, lo(), pt()
+for m = 0 to NMv - 1
+    if MvK(m) = 7 then exit for
+next
+was = m < NMv
+c = MvS(m)
+p.x = GX(c) + 24
+p.y = GY(c)
+p.sg = c
+p.ground = -1
+p.gsp = 0
+for i = 1 to 400
+    Tick g, p, k, lo(), pt()
+    if i = 86 then was = was and abs(p.y - (MvY(m) - CABLED \\ 2)) < 3
+    if MvT(m) = 1 then exit for
+next
+was = was and i >= 171 and i <= 174 and p.ground and p.sg = c and abs(p.x - (MvX(m) + MvA(m) + 24)) < 2
+was = was and abs(p.y - (MvY(m) - CABLED)) < 2 and ObK(MvO(m)) = KSEAT
+k.r = -1
+for i = 1 to 40
+    Tick g, p, k, lo(), pt()
+next
+k.r = 0
+was = was and p.ground and GK(p.sg) = 1 and abs(p.y - (MvY(m) - CABLED)) < 2 and p.x > MvX(m) + MvA(m) + MOVEW
+for i = 1 to 200
+    Tick g, p, k, lo(), pt()
+next
+if was and MvT(m) = 0 then print "chair ok"
 ' a button trodden raises its bridge out of the pit, and the bridge carries
 GoStage 2, g, p, lo(), pt()
 for m = 0 to NMv - 1
@@ -2130,6 +2160,7 @@ def main() -> None:
         ("carried ok", "carried by the platform stood on"),
         ("lift ok", "taken up by a lift, which goes back down when left"),
         ("cable ok", "taken down a cable by its basket"),
+        ("chair ok", "taken up a ski lift's cable by its chair, which goes back down when left"),
         ("bridge ok", "a bridge raised by its button, to stand on"),
         ("works tune ok", "the Chrome Works played to their own tune"),
         ("sands tune ok", "Saltwick Sands played to their own tune"),

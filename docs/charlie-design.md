@@ -143,7 +143,8 @@ Progress is saved at each zone.
   as the pass has them; the snowball deep snow makes of a fast roll, which takes one hit and ends with the
   roll; snow-throwers, ducked behind a wall that throws him back, up and open before each throw, ducked
   again at a bark; icicles under a shelf, loosed from under them or by a bark, that tremble, fall, hurt
-  him and beat a snow-thrower or cat under them. To add: ski lifts, goats, levels, the blizzard and the chase.
+  him and beat a snow-thrower or cat under them; a ski lift's chair, up its cable over a pit while he
+  stands on it. To add: goats, levels, the blizzard and the chase.
 - Rule: grip. Ice keeps speed and will not give it back. Stopping and turning are the challenge, not going.
 - Gadgets: sleds, steered by jumps; ski-lift cables; geysers; a snowball gathered by rolling through deep
   snow, which takes one hit.

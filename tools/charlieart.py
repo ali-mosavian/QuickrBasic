@@ -3410,6 +3410,20 @@ def icicle() -> Pic:
     return p.outline(FROSTINK)
 
 
+def liftchair() -> Pic:
+    """A ski lift's chair, a platform wide: a seat for him to stand on, a frame over it for its hanger."""
+    p = Pic(48, 38)
+    p.box(3, 1, 44, 2, METAL[1])
+    p.box(3, 1, 4, 31, METAL[1])
+    p.box(43, 1, 44, 31, METAL[1])
+    p.box(3, 1, 44, 1, METAL[3])
+    p.box(1, 31, 46, 36, ALPGLOW[1])
+    p.box(1, 31, 46, 31, ALPGLOW[0])
+    for x in range(8, 44, 8):
+        p.box(x, 32, x, 36, LOG[1])
+    return p.outline(FROSTINK)
+
+
 def whitecap() -> list[tuple[int, Pic, bool, int]]:
     """Whitecap Pass's own pictures, at the indices the Downs' own have; its keepsake after the works' last."""
     k, z = 126, 625
@@ -3442,6 +3456,7 @@ def whitecap() -> list[tuple[int, Pic, bool, int]]:
         (z + 1038, fort(True), True, z + 1042),
         (z + 1044, lobbed(), True, -1),
         (z + 1046, icicle(), True, -1),
+        (z + 1048, liftchair(), True, -1),
     ]
     # a sled as the ground lies: falling steeply to the right, gently, level, rising gently, steeply
     out += [(z + 1014 + (lean + 2) * 2, sledge(-lean), True, -1) for lean in range(-2, 3)]
