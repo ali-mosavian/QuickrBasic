@@ -12,6 +12,8 @@ See also: [data types](data types), [VAL](VAL), [STR$](STR$)
 Cause: A value has the wrong type for its place: a string where a
 number is needed or the reverse, or a record used as a value. READ or
 INPUT meeting text for a numeric variable gives it at run time.
+QuickrBasic's too: b() = a() of arrays of two types, and PUT or GET
+of a record with a STRING of any length or a dynamic array.
 
 Remedy: Convert with [VAL](VAL), [STR$](STR$), [CINT](CINT) and
 friends, or use a variable of the right type. Use a field of a record,

@@ -4,6 +4,7 @@ keys: array assignment, a() = b()
 Syntax
     array() = array()
     array() = function(arguments)
+    record.array() = array()
 
 An array assignment gives the array on the left the bounds and
 elements of the one on the right. QuickrBasic adds it to QBasic.
@@ -21,7 +22,8 @@ not copied.
 
 The left array must be dynamic: one made by DIM name(), REDIM or an
 earlier assignment. One DIM gave bounds keeps them: assigning to it
-is Duplicate definition.
+is Duplicate definition. A record's dynamic array element, such as
+v.pts(), is an array on either side; see [TYPE](TYPE).
 
 ## Example
     DIM a() AS LONG, b() AS LONG

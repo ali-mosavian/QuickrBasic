@@ -35,6 +35,12 @@ A variable-length string grows as needed. A fixed-length string is
 declared `STRING * n`, n from 1 to 32767, and is padded with spaces
 or cut to fit.
 
+Names
+A name starts with a letter and goes on with letters, digits, . and
+_, up to 40 characters, then its suffix if any: max_count%. The _ is
+QuickrBasic's. Keywords cannot be names; see
+[identifier errors](Identifier expected).
+
 Default type
 A name with no suffix and no declaration is SINGLE. A DEFINT, DEFLNG,
 DEFSNG, DEFDBL or DEFSTR statement changes the default by first
@@ -43,6 +49,8 @@ letter. See [DEFtype](DEFINT).
 User-defined types
 TYPE ... END TYPE groups fields of any type into a record. A BYTE
 field takes 1 byte and a SHORT field 2 bytes, in memory and in a file.
+QuickrBasic adds strings of any length and arrays, fixed or dynamic,
+as fields; see [records as values](records as values).
 
 Conversion
 Numbers convert to each other when assigned. A float becomes an
