@@ -746,6 +746,23 @@ def bas(*lines: str) -> str:
     return "".join(line + "\r\n" for line in lines)
 
 
+CASES |= {
+    # A field of another type, an element's too: Parameter type mismatch, as a variable's. Both ran: the
+    # field read as a new variable of its dotted name, 0; the element's converted.
+    "qb_reffld_ptm": (bas("TYPE t", " f AS INTEGER", "END TYPE", "DECLARE SUB s (a!)", "DIM r AS t",
+                          'PRINT "ran"', "r.f = 3", "s r.f", "SUB s (a!)", "PRINT a!", "END SUB"),
+                      "Parameter type mismatch", "ran"),
+    "qb_reffld_ptm_elem": (bas("TYPE t", " f AS INTEGER", "END TYPE", "DECLARE SUB s (a!)", "DIM q(2) AS t",
+                               'PRINT "ran"', "s q(1).f", "SUB s (a!)", "END SUB"),
+                           "Parameter type mismatch", "ran"),
+    # A fixed-length string field to a STRING parameter: a copy, as an element's. It was Parameter type
+    # mismatch.
+    "qb_reffld_fixed": (bas("TYPE t", " s AS STRING * 5", "END TYPE", "DIM r AS t", 'r.s = "abc"', "show r.s",
+                            'PRINT "["; r.s; "]"', "SUB show (a$)", 'PRINT "["; a$; "]"', 'a$ = "zz"', "END SUB"),
+                        "[abc  ]\r\n[abc  ]\r\n", "ERROR"),
+}
+
+
 OV = 'h: PRINT "ov"; ERR: RESUME NEXT'
 # BYTE, ours, was a name: an unsigned 8-bit INTEGER, 0 to 255, else Overflow; 1 byte in a record
 # and a file, an INTEGER's cell elsewhere; its arithmetic an INTEGER's.
