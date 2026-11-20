@@ -149,20 +149,6 @@ static void step(Node ***const end, Node *const n)
     *end = &n->next;
 }
 
-static void step_int(Comp *const C, Node ***const end, const uint32_t v)
-{
-    Node *const n = ast_new(C->ast, N_INT);
-    n->num = v;
-    step(end, n);
-}
-
-static void step_call(Comp *const C, Node ***const end, const uint8_t k)
-{
-    Node *const n = ast_new(C->ast, N_KCALL);
-    n->op = k;
-    step(end, n);
-}
-
 static Node *step_op(Comp *const C, Node ***const end, const uint8_t op)
 {
     Node *const n = ast_new(C->ast, N_OP);
@@ -203,7 +189,8 @@ static Node *subscripts(Comp *const C, uint32_t *const n)
 
 /* An element of fixed array field f, ours, its ( s {, s} ) at comp.p, the first subscript the
    fastest: its offset in f by the constant subscripts; for the others, at's index steps ( addr s --
-   addr ) by FIDX. Subscript out of range: a constant past its bounds, a count not f's. */
+   addr ) FX.IDX lb count stride. Subscript out of range: a constant past its bounds, a count not
+   f's. */
 static uint32_t element(Comp *const C, Node *const at, const Field *const f)
 {
     const uint8_t *const open = C->p;
@@ -235,10 +222,10 @@ static uint32_t element(Comp *const C, Node *const at, const Field *const f)
             off += (uint64_t)i * stride;
         } else {
             step(&end, s);
-            step_int(C, &end, (uint32_t)d->lb);
-            step_int(C, &end, d->count);
-            step_int(C, &end, (uint32_t)stride);
-            step_call(C, &end, K_FIDX);
+            Node *const x = step_op(C, &end, O_FX_IDX);
+            comp_dword(x, (uint32_t)d->lb);
+            comp_dword(x, d->count);
+            comp_dword(x, (uint32_t)stride);
         }
 
         stride *= d->count;
