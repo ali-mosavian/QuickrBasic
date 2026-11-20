@@ -436,7 +436,7 @@ if p.win and abs(p.x - (FamX - 106)) < 3 and Cheer and abs(g.camx - (FamX - 166)
 ' it stays a while, fades, and the Downs' evening begins in full colour, the score and lives kept
 was = 0
 j = g.lives
-for i = 1 to 900
+for i = 1 to 1200
     Tick g, p, k, lo(), pt()
     if Dusk < 8 then was = i
     if Stage = 1 then exit for
@@ -721,6 +721,54 @@ for i = 1 to 400
 next
 if was and g.mode = TITLE and i < 400 and CHeld = CAUGHTUP + 1 then print "over ok"
 GoStage 0, g, p, lo(), pt()
+' the level's end counts the bonus into the score in time with its tune: none before the bars its lead plays, a
+' step on each of their beats, the last of it on their last; a key takes it all at once. The beat is the tune's
+' own, counted from where it began, and the scene's with no music. It ran out in a second, off the beat
+g.mode = CLEARED
+g.modeT = 0
+g.tallied = 0
+g.bonus = 1600
+hid = g.score
+for i = 1 to 230
+    Tick g, p, k, lo(), pt()
+next
+was = g.bonus = 1600
+for i = 1 to 20
+    Tick g, p, k, lo(), pt()
+next
+was = was and g.bonus = 1500 and g.score = hid + 100
+for i = 1 to 150
+    Tick g, p, k, lo(), pt()
+next
+was = was and g.bonus = 1000
+for i = 1 to 150
+    Tick g, p, k, lo(), pt()
+next
+was = was and g.bonus = 500
+for i = 1 to 180
+    Tick g, p, k, lo(), pt()
+next
+was = was and g.bonus = 0 and g.score = hid + 1600 and g.tallied = TALLYN
+GoStage 0, g, p, lo(), pt()
+g.mode = CLEARED
+g.modeT = 0
+g.tallied = 0
+g.bonus = 1230
+hid = g.score
+k.hit = -1
+Tick g, p, k, lo(), pt()
+k.hit = 0
+was = was and g.bonus = 0 and g.score = hid + 1230
+Muted = 0
+Sng = CAUGHT
+SongAt = Ticks - 150
+was = was and abs(EndBeat!(g) - 5) < .01
+Sng = ZTUNE
+was = was and EndBeat!(g) < 0
+Sng = -1
+Muted = -1
+GoStage 0, g, p, lo(), pt()
+if was then print "tally ok"
 ' Saltwick Sands' sea rises and falls by the clock, from low water to high and back, and from low water at the
 ' level's start whatever the clock then: it began where the game's clock had it, a sunset's high water by chance
 GoStage 4, g, p, lo(), pt()
@@ -1224,7 +1272,7 @@ GoStage 1, g, p, lo(), pt()
 j = g.lives
 was = 0
 for m = 1 to NSTAGE - 1
-    for i = 1 to 1600
+    for i = 1 to 2400
         if Stage = m and g.mode = PLAYING then exit for
         Tick g, p, k, lo(), pt()
     next
@@ -1479,6 +1527,7 @@ def main() -> None:
         ("arranged ok", "a zone's second act played to its tune arranged again: evening, night and sunset"),
         ("packing ok", "after a chase the level's end is the longer one, twelve bars; the eight elsewhere"),
         ("over ok", "game over played by its own tune and held while it plays; then the title"),
+        ("tally ok", "the level's end's bonus counted on its tune's beats, a step each, and all at once at a key"),
         ("cart ok", "a chase's cart hurts Charlie run into it, is bumped by him curled, and not again while dazed"),
         ("chase ok", "the Downs' evening ended in its chase: the cart fled, broken by three bumps, its keepsake taken"),
         ("tilt ok", "on a slope the chase's cart follows it, each wheel on the ground under it"),

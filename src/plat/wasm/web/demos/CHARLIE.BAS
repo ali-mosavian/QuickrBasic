@@ -74,6 +74,7 @@ type Game
     lives as integer
     score as long
     bonus as long
+    tallied as integer
     sig as long
     clock as single
     camx as single
@@ -256,6 +257,8 @@ const CRUISE = 330!, DAWDLE = 200!, BOLT = 560!, CARTLEAD = 260, CARTR = 26
 const DAZED = 1.4, BOLTS = 1!, NBUMP = 3, CHASETUNE = 5
 ' The level's end's songs, and game over's, by their numbers in CHARLIE.DAT; how long game over stays, its tune's length.
 const CAUGHTUP = 2, PACKING = 10, LEFTBEHIND = 11, OVERT = 13
+' The bonus is counted over the level's end's bars its lead plays, the last six but two: a step a beat.
+const TALLYN = 16, TALLYBARS = 6
 ' The works' crane: its speed after Charlie, what each bump adds, and away from one; how near touches it; its
 ' gondola's foot over the floor, out of a jump's reach, and its rail's top; the seconds to its next crate, what
 ' each bump takes off them, and the seconds one is held over Charlie; the view's height over him, by habit and
@@ -293,6 +296,8 @@ declare sub Spent (k as Pad)
 declare sub ZoneTune (id as integer)
 declare sub SceneTune (id as integer)
 declare sub EndTune
+declare function EndBeat! (g as Game)
+declare sub Tally (g as Game, k as Pad)
 declare sub HushSong ()
 declare sub ResetChase ()
 declare sub Flee (g as Game, p as Hero, lo() as Loose, pt() as Part)
@@ -509,7 +514,7 @@ dim shared Coming as integer, ComingBar as integer, FadeOut as integer, FadeIn a
 ' who flees in this level's chase, and the race: from ChaseX, NONE where there is none, to ChaseEnd
 dim shared Cart as Runner, Box as Runner, ChaseX as integer, ChaseEnd as integer
 ' the song in the zone's slot, one more than its number in CHARLIE.DAT: 0 before any
-dim shared ZHeld as integer, CHeld as integer
+dim shared ZHeld as integer, CHeld as integer, SongAt as long
 ' the furthest zone a game has reached, kept in CHARLIE.SAV, and the zone picked on the title to start at
 dim shared Reached as integer, Pick as integer
 ' the sea's surface, NONE where a stage has none; where it is at the level's start, at step TideAt, and half a
@@ -2109,6 +2114,9 @@ end sub
 ' left, the second and the low double to the right; the room answers little.
 sub StartSong
     dim t as string
+    ' its first note sounds once what is queued has: the sixteenths left of the song before
+    SongAt = Ticks
+    if Sng >= 0 then SongAt = Ticks + play(0) * 900& \ Tempo(Sng)
     Sng = Coming
     Bar = ComingBar
     HalfBar = 0
@@ -2117,6 +2125,33 @@ sub StartSong
     FadeOut = 0
     t = "T" + ltrim$(str$(Tempo(Sng)))
     play "MB" + t + "Z1,0L16", t + BassP(Sng), t + "R2S4", , t + "R2" + LeadP(Sng), t + "R2S12", t + UnderP(Sng), t + MidP(Sng)
+end sub
+
+' Beats of the level's end sounded: by the tune's own clock, by the scene's where no music plays; under none before
+' it has begun.
+function EndBeat! (g as Game)
+    EndBeat! = g.modeT * Tempo(CAUGHT) / 60
+    if Muted or not Tune then exit function
+    EndBeat! = -1
+    if Sng = CAUGHT then EndBeat! = (Ticks - SongAt) * STEPT * Tempo(CAUGHT) / 60
+end function
+
+' The bonus counted into the score in time with the level's end: a step and a woof on each beat of the bars its
+' lead plays, the bonus shared between the steps left, in tens; all of it at a key.
+sub Tally (g as Game, k as Pad)
+    dim due as integer, take as long
+    if g.bonus = 0 then exit sub
+    due = int(EndBeat!(g)) - (len(Order(CAUGHT)) - TALLYBARS) * 4 + 1
+    if due > TALLYN or k.hit or k.start then due = TALLYN
+    if due <= g.tallied then exit sub
+    do while g.tallied < due and g.bonus > 0
+        take = ((g.bonus \ (TALLYN - g.tallied) + 9) \ 10) * 10
+        g.tallied = g.tallied + 1
+        if take > g.bonus then take = g.bonus
+        g.bonus = g.bonus - take
+        g.score = g.score + take
+    loop
+    Sfx SBONE
 end sub
 
 ' The slot to play for the game's state: the theme for the title, the level's end or game over, else the zone's
@@ -2410,6 +2445,7 @@ sub Tick (g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
             if p.x >= GoalX then
                 g.mode = CLEARED
                 g.modeT = 0
+                g.tallied = 0
                 g.bonus = g.bones * 50& + 10& * (240 - int(g.clock))
                 if g.bonus < g.bones * 50& then g.bonus = g.bones * 50&
                 Sfx SCLEAR
@@ -2417,15 +2453,7 @@ sub Tick (g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
             Camera g, p, 0
         end if
     case CLEARED
-        if g.modeT > 1.5 and g.bonus > 0 then
-            g.bonus = g.bonus - 50
-            g.score = g.score + 50
-            if g.bonus < 0 then
-                g.score = g.score + g.bonus
-                g.bonus = 0
-            end if
-            if (Ticks and 3) = 0 then Sfx SBONE
-        end if
+        Tally g, k
         ' met, a while and the fade over: on to the next stage, or after the last, the title
         if k.quit then
             ResetWorld g, p, lo(), pt()
