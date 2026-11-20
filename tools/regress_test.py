@@ -1229,6 +1229,16 @@ def check_host_errors(tmp: Path) -> None:
         assert re.search(out, p.stdout) and re.search(err, p.stderr) and p.returncode == rc, got
 
 
+# The compiler's fixed tables, each Out of memory or a Syntax error one past its size; a program
+# grows until memory runs out.
+BIG |= {
+    # 2,048 block entries: 1,100 block IFs were Out of memory, with no line.
+    "limit_blocks": (bas("n = 0", *["if n = 0 then", " n = 0", "end if"] * 1100, "print n"), " 0 \r\n", "ERROR"),
+    # 64 blocks open: the 65th IF in was a Syntax error.
+    "limit_nesting": (bas("n = 0", *["if n = 0 then"] * 100, "n = 7", *["end if"] * 100, "print n"), " 7 \r\n", "ERROR"),
+}
+
+
 # What the host build (plat/host) cannot show as DOS does, each for its reason.
 HOST_SKIP = {"qb_shell": "SHELL runs /bin/sh, whose SET lists its own variables"}
 

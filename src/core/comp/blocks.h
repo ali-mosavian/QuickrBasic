@@ -46,7 +46,7 @@ typedef struct {
 typedef struct {
     Arena arena;
     BlockEnt **blocks; /* by position */
-    uint16_t nblocks;
+    uint32_t nblocks;
     Proc **procs;    /* by number, from 1 */
     uint16_t nprocs; /* procedures + 1 */
     uint32_t nnames; /* the program's M_VAR tokens */

@@ -30,7 +30,7 @@
  * | bk_proc | blok_procof | D3 |
  * | bk_line, bk_stmt, bk_next, bk_new, bk_push, bk_top, bk_fail, bk_clause, bk_close, bk_exits, bk_target | blok_scanline, blok_stmt, blok_next, blok_add, blok_push, blok_top, blok_fail, blok_clause, blok_close, blok_exits, blok_target | MIRROR |
  * | g_blk, g_prc, g_ppar, g_pbyv | Blok.blocks, Blok.procs, Proc.params | D4 |
- * | g_bst, NBST | BlokScan.open | MIRROR |
+ * | g_bst, NBST | BlokScan.open | MIRROR; grows |
  *
  * - D1. The procedures' variables (result, parameters) are declared by link_start after the
  *   scan, in the same order.
@@ -46,7 +46,7 @@
 #include "comp/dfa.h"
 #include "io/msg.h"
 
-enum { NBST = 64, BLOK_CHUNK = 0x4000 }; /* blocks open at most */
+enum { BLOK_CHUNK = 0x4000 };
 
 /* An open block: its kind, its opener, its last clause (elsed: an ELSE, no false test after it),
    its chain's head. */
@@ -65,9 +65,9 @@ typedef struct {
     uint32_t line;       /* scanln: the line scanned */
     const uint8_t *body; /* (EBP) the body scanned */
     uint32_t off;        /* (ECX) the statement's offset in it */
-    uint16_t depth;      /* bsp */
-    BlokOpen open[NBST]; /* the open blocks */
-    uint16_t blockcap, proccap;
+    uint32_t depth;      /* bsp */
+    BlokOpen *open;      /* the open blocks */
+    uint32_t opencap, blockcap, proccap;
     Proc *proc;   /* the procedure the scan is in, null none */
     bool isdef;   /* g_bkdef: the procedure is a DEF FN's */
     bool selcase; /* a SELECT scanned, its first CASE not yet */
@@ -154,20 +154,31 @@ static void *blok_alloc(BlokScan *const sc, const size_t size)
     return p;
 }
 
-/* Room in the pointer table *t, of n used and *cap, for one more. */
-static void blok_room(BlokScan *const sc, void ***const t, const uint16_t n, uint16_t *const cap)
+/* Room in table *t of size-byte entries, of n used and *cap, for one more. */
+static void blok_room(
+    BlokScan *const sc,
+    void *const t,
+    const size_t size,
+    const uint32_t n,
+    uint32_t *const cap
+)
 {
     if (n < *cap)
         return;
 
-    const uint16_t cap2 = *cap ? *cap * 2 : 64;
-    void **const g = arena_grow(&sc->b->arena, *t, *cap * sizeof **t, cap2 * sizeof **t);
+    void **const tp = t;
+    const uint64_t cap2 = *cap ? (uint64_t)*cap * 2 : 64;
+
+    if (cap2 * size > UINT32_MAX)
+        blok_nomem(sc);
+
+    void *const g = arena_grow(&sc->b->arena, *tp, *cap * size, (size_t)(cap2 * size));
 
     if (!g)
         blok_nomem(sc);
 
-    *t = g;
-    *cap = cap2;
+    *tp = g;
+    *cap = (uint32_t)cap2;
 }
 
 /* The target of the statement at offset at of the line scanned. */
@@ -234,10 +245,7 @@ static BlockEnt *blok_add(BlokScan *const sc, const uint8_t kind)
 {
     Blok *const b = sc->b;
 
-    if (b->nblocks >= NBLK)
-        blok_nomem(sc);
-
-    blok_room(sc, (void ***)&b->blocks, b->nblocks, &sc->blockcap);
+    blok_room(sc, &b->blocks, sizeof *b->blocks, b->nblocks, &sc->blockcap);
     BlockEnt *const e = blok_alloc(sc, sizeof *e);
     *e = (BlockEnt){.pos = sc->line + sc->off + HDR, .kind = kind};
 
@@ -248,9 +256,7 @@ static BlockEnt *blok_add(BlokScan *const sc, const uint8_t kind)
 /* Open a block of kind, its opener e. */
 static void blok_push(BlokScan *const sc, const uint8_t kind, BlockEnt *const e)
 {
-    if (sc->depth >= NBST)
-        blok_synerr(sc);
-
+    blok_room(sc, &sc->open, sizeof *sc->open, sc->depth, &sc->opencap);
     sc->open[sc->depth++] = (BlokOpen){.kind = kind, .open = e, .last = e};
 }
 
@@ -453,7 +459,7 @@ static void blok_procstmt(BlokScan *const sc, const uint8_t *const s, const uint
     if (b->nprocs >= NPROC)
         blok_nomem(sc);
 
-    blok_room(sc, (void ***)&b->procs, b->nprocs, &sc->proccap);
+    blok_room(sc, &b->procs, sizeof *b->procs, b->nprocs, &sc->proccap);
     Proc *const p = blok_alloc(sc, sizeof *p);
     b->procs[b->nprocs++] = p;
     sc->proc = p;
@@ -788,7 +794,7 @@ void blok_pair(Blok *const b, const Prog *const pg, const Symb *const sy, Fault 
         .f = f,
     };
 
-    blok_room(&sc, (void ***)&b->procs, 0, &sc.proccap);
+    blok_room(&sc, &b->procs, sizeof *b->procs, 0, &sc.proccap);
     b->procs[0] = blok_alloc(&sc, sizeof(Proc)); /* the module */
     b->nprocs = 1;
 
