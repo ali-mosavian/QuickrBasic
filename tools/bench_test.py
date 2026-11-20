@@ -100,6 +100,9 @@ ALLOC_BUDGET = 228
 # A SUB with a fixed local array over an empty SUB: its return looped over its locals and swept
 # the arrays, 457 (402 by the inline PRET).
 FRAME_ARRAY_BUDGET = 430
+# A SUB DIMming a dynamic local array over one that does not: on the heap, made and swept at its
+# return, 900 (850 on main); 536 on its call's arena.
+DYN_ARRAY_BUDGET = 590
 # A DOUBLE function's pass, its op a cold one, a million passes for a tenth of an instruction: back
 # through next's join every op copied ip through another register, 101 (100 on main); 92 without.
 COLD_OP_BUDGET = 94
@@ -118,6 +121,8 @@ def costs(b: bench.Build) -> None:
     assert alloc <= ALLOC_BUDGET, f"a string's allocation {alloc:.0f} instructions, budget {ALLOC_BUDGET}"
     frame = per_pass(b, "s", tail="SUB s\nDIM b(10)\nEND SUB") - per_pass(b, "z", tail="SUB z\nEND SUB")
     assert frame <= FRAME_ARRAY_BUDGET, f"a frame array's call {frame:.0f} instructions, budget {FRAME_ARRAY_BUDGET}"
+    dyn = per_pass(b, "s 10", tail="SUB s (n)\nDIM b(n)\nEND SUB") - per_pass(b, "z 10", tail="SUB z (n)\nEND SUB")
+    assert dyn <= DYN_ARRAY_BUDGET, f"a dynamic local array's call {dyn:.0f} instructions, budget {DYN_ARRAY_BUDGET}"
     cold = per_pass(b, "y# = ABS(i&)", n=1000000)
     assert cold <= COLD_OP_BUDGET, f"a cold op's pass {cold:.0f} instructions, budget {COLD_OP_BUDGET}"
 

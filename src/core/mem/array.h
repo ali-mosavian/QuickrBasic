@@ -87,13 +87,17 @@ static inline uint32_t arry_esize(const Arry *const ay, const uint32_t id)
 enum { ARRY_FRAME_HDR1 = (sizeof(ArrayHdr) + 2 * sizeof(uint32_t) + 7) & ~7 };
 /* A header of dims dimensions in a frame: its bytes to the data, 8-aligned. */
 uint32_t arry_frame_hdr(uint8_t dims);
-/* Header h is the heap's (arry_new's), not a frame's. */
-bool arry_heap(const Arry *ay, Addr h);
+/* Header h is a frame's, its local's DIMmed with constant bounds (comp/frame.c): REDIM never. */
+bool arry_fixed(const Arry *ay, Addr h);
 /* arry.counts[0..n): arry.subs' + 1. Illegal function call: a subscript under 0. */
 void arry_counts(Arry *ay, uint8_t n);
-/* DIM: array id made, its counts arry.subs[0..n) + 1; dyn a REDIM's. Illegal function call: a
-   subscript under 0. Duplicate definition: it exists. Out of memory. */
-void arry_dim(Arry *ay, uint32_t id, uint8_t n, bool dyn);
+/* DIM: array id made, its counts arry.subs[0..n) + 1. Illegal function call: a subscript under 0.
+   Duplicate definition: it exists. Out of memory. */
+void arry_dim(Arry *ay, uint32_t id, uint8_t n);
+/* REDIM [PRESERVE, keep]: cell s's array of et elements, its counts arry.subs[0..n) + 1 and its
+   lower bounds arry.lbounds; keep: the old one's elements moved in. Duplicate definition: a fixed
+   one. Subscript out of range: keep, n not its dimensions. Illegal function call, Out of memory. */
+void arry_redim(Arry *ay, ArrSlot *s, uint32_t et, uint8_t n, bool keep);
 /* The array fields of the n records of TYPE td at data dynamic and empty, ours. */
 void arry_empty_cells(Addr data, uint32_t n, const TypeDef *td);
 /* DIM a(), ours: array id dynamic and empty until a REDIM, as ERASE leaves one; keep: a STATIC's
@@ -115,16 +119,16 @@ void arry_move_rec(const Arry *ay, Addr dst, Addr src, const TypeDef *td);
 void arry_move(Arry *ay, Vm *vm, ArrSlot *d, ArrSlot *s);
 /* An array result emptied as its FUNCTION starts, ours: cell s's array freed, s dynamic and empty. */
 void arry_reset(Arry *ay, Vm *vm, ArrSlot *s);
-/* An array of et elements made in cell s, ours: its header at arry.hdr, its owner s, arry.counts
-   and arry.lbounds [0..n), its data zeroed at allo.arrays; dyn a REDIM's. Returns the header. Out
-   of memory. */
+/* An array of et elements made in cell s, ours: arry.counts and arry.lbounds [0..n), its data
+   zeroed; on the running call's arena (vm/stack.c), else its header at arry.hdr, its owner s, its
+   data at allo.arrays; dyn a REDIM's. Returns the header. Out of memory. */
 Addr arry_make(Arry *ay, ArrSlot *s, uint32_t et, uint8_t n, bool dyn);
 /* arry_make for array id in its cell. */
 Addr arry_new(Arry *ay, uint32_t id, uint8_t n, bool dyn);
 /* The data's bytes of the array with header hdr. */
 uint32_t arry_size(const Arry *ay, Addr hdr);
 /* Header h's array dead, ours, and the arrays its records hold: arry_sweep removes them. A frame's
-   is not the heap's: it goes with the frame, its records' arrays here. */
+   or an arena's is not the heap's: it goes with the frame, its records' arrays here. */
 void arry_kill(const Arry *ay, Addr h);
 /* The arrays the records of header h's array hold dead, ours; the array itself kept. */
 void arry_kill_elems(const Arry *ay, Addr h);
@@ -132,7 +136,8 @@ void arry_kill_elems(const Arry *ay, Addr h);
    owners in the moved data, the moved headers' cells, the moved string blocks' owners and the
    parameters' cells in the moved data follow. A cell held in the heap moves: not to be used after. */
 void arry_sweep(Arry *ay, Vm *vm);
-/* Cell s's array dropped, s emptied: arry_kill, then arry_sweep. */
+/* Cell s's array dropped, s emptied: arry_kill, the arena's newest's room given back, then
+   arry_sweep. */
 void arry_free(Arry *ay, Vm *vm, ArrSlot *s);
 /* REDIM PRESERVE: each element of the header old that fresh has too, by its subscripts, copied;
    a string's block moved (vm's ls_mov), a record's STRINGs' and arrays' owners too. */

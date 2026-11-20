@@ -1308,6 +1308,30 @@ BIG |= {
                               "sub s (n)", " dim b(n): b(n) = 1", "end sub",
                               "sub c", " r a()", "end sub", "sub r (x())", " redim x(20000): x(5) = 1", "end sub"),
                           "ok\r\n", "ERROR"),
+    # A SUB's dynamic arrays on its call's arena, not the heap: the newest one ERASEd or REDIMmed
+    # gives its room back, REDIM PRESERVE slides into the old one's, its strings' owners following
+    # (else z$ moves over them). On the heap FRE dropped 60; an error's recovery keeps the arena.
+    "local_arena_arrays": (bas("type t", " s as string", " n as integer", "end type",
+                               "s 10", "print \"back\"",
+                               "sub s (n)", " f = fre(0)",
+                               " for i = 1 to 3000: redim c(n): c(1) = i: erase c: next",
+                               " dim a(n)", " for i = 1 to 3000: redim preserve a(n + i mod 7): a(n) = i: next",
+                               " print a(n); ubound(a); f - fre(0)",
+                               " dim b$(n)", " for j = 0 to n: b$(j) = str$(j): next", " z$ = string$(40, \"z\")",
+                               " for i = 1 to 3000: redim preserve b$(n + i mod 5): if i mod 50 = 0 then x = fre(0)",
+                               " next", " print b$(0); b$(n); ubound(b$)",
+                               " r n", " e n", " k n", "end sub",
+                               "sub r (n)", " dim p(n) as t",
+                               " for j = 0 to n: p(j).s = \"r\" + str$(j): p(j).n = j: next", " z$ = string$(40, \"z\")",
+                               " for i = 1 to 2000: redim preserve p(n + i mod 4) as t: if i mod 50 = 0 then x = fre(0)",
+                               " next", " print p(0).s; p(n).s; p(n).n; ubound(p)", "end sub",
+                               "sub e (n)", " on local error goto h", " dim a(n): a(1) = 5", " x = 1 / 0",
+                               " print a(1); a(n)", " exit sub", "h: resume next", "end sub",
+                               "sub k (n)", " redim a(n): a(1) = 7", " g a()", " print a(1); ubound(a)",
+                               " redim a(3): a(3) = 2", " print a(3); ubound(a)", "end sub",
+                               "sub g (x())", " redim x(20): x(1) = 3", "end sub"),
+                           " 3000  14  0 \r\n 0 10 10 \r\nr 0r 10 10  10 \r\n 5  0 \r\n 3  20 \r\n 2  3 \r\n"
+                           "back\r\n", "ERROR"),
 }
 
 

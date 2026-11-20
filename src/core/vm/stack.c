@@ -15,6 +15,11 @@
  * popped exactly when it lies under sp: from the strings' start up to sp nothing is live
  * (strg_is_popped_frame). The segment past sp's stays for the next call, so calls at a segment's
  * edge do not slide the strings each time.
+ *
+ * A call's arena is the stack under its locals: its dynamic arrays (mem/array.c), taken at a
+ * statement's start, when nothing is on the stack, while its frame is the top one (no GOSUB's
+ * above). Its frame's stack is the arena's top, the stack at a statement's start. Its return drops
+ * the arena with the frame; only the newest array is given back sooner.
  */
 #include "vm/stack.h"
 #include "mem/string.h"
@@ -178,4 +183,31 @@ void stack_back(Session *const S, const uint32_t cur, const uint32_t spare)
     k->cur = cur;
     vm->stklim = (Cell *)at(k->seg[cur].base + STKEVAL);
     give_from(S, cur + 1 + spare);
+}
+
+/* The running call's, its frame the top one, at a statement's start: null none. */
+static Call *arena_call(const Vm *const vm)
+{
+    Call *const c = &vm->ftop[-1].call; /* the floor's FRAME_NONE: none */
+    return frame_is_call(&vm->ftop[-1]) && c->fp == vm->fp && c->stack == vm->sp ? c : nullptr;
+}
+
+Addr stack_arena_take(Vm *const vm, const Addr s, const uint32_t size)
+{
+    Call *const c = arena_call(vm);
+
+    if (!c || s < addr_of(vm->sp) || s >= vm->fp || vm->sp < vm->stklim ||
+        (uint32_t)((uint8_t *)vm->sp - (uint8_t *)vm->stklim) < size)
+        return 0;
+
+    vm->sp = c->stack = (Cell *)((uint8_t *)vm->sp - size);
+    return addr_of(vm->sp);
+}
+
+void stack_arena_give(Vm *const vm, const Addr a, const uint32_t size)
+{
+    Call *const c = arena_call(vm);
+
+    if (c && addr_of(vm->sp) == a)
+        vm->sp = c->stack = (Cell *)at(a + size);
 }
