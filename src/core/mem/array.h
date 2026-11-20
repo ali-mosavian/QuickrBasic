@@ -103,7 +103,7 @@ void arry_empty_cells(Addr data, uint32_t n, const TypeDef *td);
 /* DIM a(), ours: array id dynamic and empty until a REDIM, as ERASE leaves one; keep: a STATIC's
    with elements kept. Duplicate definition: it has elements. */
 void arry_empty(Arry *ay, uint32_t id, bool keep);
-/* a() = b(), ours: cell d gets s's bounds and a copy of its elements, a dynamic array after, its
+/* a(:) = b(:), ours: cell d gets s's bounds and a copy of its elements, a dynamic array after, its
    old one freed. Duplicate definition: d a DIM's with elements. Out of memory. */
 void arry_copy(Arry *ay, Vm *vm, ArrSlot *d, const ArrSlot *s);
 /* arry_copy's copy into the empty cell d, ours: made at the heap's end, nothing moves. */
@@ -115,10 +115,11 @@ void arry_copy_rec(Arry *ay, Addr dst, Addr src, const TypeDef *td);
    cells let go. */
 void arry_move_rec(const Arry *ay, Addr dst, Addr src, const TypeDef *td);
 /* SWAP a, b of records of TYPE td: their bytes swapped, their STRINGs' and arrays' owners
-   following; their arrays on the arena first copied to the heap. Out of memory. */
+   following; their arrays in a frame or on the arena first copied to the heap. Out of memory. */
 void arry_swap_rec(Arry *ay, Addr a, Addr b, const TypeDef *td);
-/* a() = f(..), ours: cell d takes the array of cell s, an array result's, its old one freed; s is
-   left empty. Duplicate definition: d a DIM's with elements. */
+/* a() = b() or f(..), ours: cell d takes the array of cell s, its old one freed; s is left empty.
+   s's array in a frame or on the arena, d a cell its call may outlive: copied to the heap first.
+   Duplicate definition: d a DIM's with elements. Out of memory. */
 void arry_move(Arry *ay, Vm *vm, ArrSlot *d, ArrSlot *s);
 /* An array result emptied as its FUNCTION starts, ours: cell s's array freed, s dynamic and empty. */
 void arry_reset(Arry *ay, Vm *vm, ArrSlot *s);

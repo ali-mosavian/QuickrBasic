@@ -87,13 +87,18 @@ enum : uint8_t { PA_VALUE, PA_VAR, PA_PREF, PA_ARRAY, PA_NREF /* a SHORT or BYTE
 /* N_CALL's mode: a procedure's, or one DECLAREd only: ERROR when run, then its result's load. */
 enum : uint8_t { CALL_PROC, CALL_UNDEF };
 
+/* How a whole array is written, ours: f alone (a record's field), a(), a(:) its elements. */
+typedef enum : uint8_t { WR_ALONE, WR_ARRAY, WR_ELEMS } Written;
+
 /* A record's place: its field's ET_* (ET_REC + t all of a record of TYPE t), offset, its STRING * n
-   or a record's size. Ours, arr: a dynamic array field whole, off its cell's, et its elements'. */
+   or a record's size. Ours, arr: a dynamic array field whole, off its cell's, et its elements', wr
+   how it was written. */
 typedef struct {
     uint32_t et;
     uint16_t off;
     uint16_t fix;
     bool arr;
+    Written wr;
 } RecRef;
 
 typedef struct Node Node;

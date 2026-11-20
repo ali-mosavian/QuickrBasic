@@ -215,6 +215,13 @@ void list_body(Comp *const C, const uint8_t *p)
             continue;
         }
 
+        if (c == TK_X && *p == TK1_WHOLE) { /* (:), ours: as a ( .. ) */
+            p++;
+            cons_kw1(C->cons, TK1_WHOLE);
+            C->list->last = LS_WORD;
+            continue;
+        }
+
         if (c == TK_X) { /* FFh n: a function's when one and '(' follows */
             const uint8_t n = *p++;
             const uint8_t cls = *p == '(' && fns_isx(0x100 + n) ? LS_FN : LS_KW;
