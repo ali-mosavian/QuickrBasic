@@ -16,6 +16,7 @@ size_t strlen(const char *s);
 int strcmp(const char *a, const char *b);
 int strncmp(const char *a, const char *b, size_t n);
 char *strchr(const char *s, int c);
+char *strcpy(char *dst, const char *src);
 
 /* -ffreestanding turns the builtins off: the fixed-size copies stay inline. */
 #define memcpy(d, s, n) __builtin_memcpy(d, s, n)
