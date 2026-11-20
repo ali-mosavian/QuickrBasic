@@ -167,8 +167,8 @@ const Binding *scop_look(const Scop *const sc, const uint32_t name, uint32_t *co
         return look(sc, name, scope);
 
     /* kept in a const Scop: an answer, not a binding */
-    ScopLook *const m = (ScopLook *)&sc->look[(name * 2654435761u ^ top * 40503u) >> 23 &
-                                               (countof(sc->look) - 1)];
+    ScopLook *const m =
+        (ScopLook *)&sc->look[(name * 2654435761u ^ top * 40503u) >> 23 & (countof(sc->look) - 1)];
 
     if (m->name != name || m->top != top || m->depth != sc->depth || m->gen != sc->gen || !m->b) {
         m->b = look(sc, name, &m->scope);
@@ -226,6 +226,19 @@ bool scop_conname(const Scop *const sc, const uint32_t name)
     const Binding *const module = scop_get(sc, 0, name);
     const Binding *const own = scop_get(sc, scop_own(sc), name);
     return (module && module->flags & BF_CON) || (own && own->flags & BF_CON);
+}
+
+bool scop_conval(const Scop *const sc, const uint32_t scope, const uint32_t name, int32_t *const v)
+{
+    const Binding *b = scop_get(sc, scope, name);
+
+    if (!b || !(b->flags & BF_CON))
+        b = scop_get(sc, 0, name);
+    if (!b || !(b->flags & BF_CON) || !(b->flags & BF_VAL))
+        return false;
+
+    *v = b->val;
+    return true;
 }
 
 bool scop_known(const Scop *const sc, const uint32_t name) { return scop_seen(sc, name) != &none; }

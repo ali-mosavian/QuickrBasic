@@ -1034,6 +1034,21 @@ CASES |= {
     "field_array_whole": (bas(*POLY, "p.pts.x = 2"), ".BAS:12: Syntax error", None),
 }
 
+# A TYPE's fixed array bound naming a CONST was a Syntax error. Each TYPE's LEN is its CONST's value,
+# as the run computes the same expression.
+CONST_BOUNDS = {"4": 4, "2 + 3 * 4": 14, "4 \\ 2 * 2": 1, "17 mod 5 * 2": 7, "-(2 - 9)": 7,
+                "(1 + 2) * (3 + 4) \\ 2": 10, "&H10": 16, "k% * 2": 6, "20 - 3 - 4": 13, "7 \\ 2 \\ 2": 1}
+CASES |= {
+    "field_array_const": (bas("const k% = 3", *(line for i, e in enumerate(CONST_BOUNDS) for line in (
+                              f"const c{i} = {e}", f"type t{i}", f" a(1 to c{i}) as byte", "end type",
+                              f"dim x{i} as t{i}", f"print len(x{i}); {e}"))),
+                          "".join(f" {v}  {v} \r\n" for v in CONST_BOUNDS.values()), "ERROR"),
+    "field_array_const_dims": (bas("const n = 4, lo = -1", "const m = n * 2 + (n \\ 2) - 1 mod 3", "type U",
+                                   " a(1 to n) as integer", " b(lo to m, 2) as byte", "end type", "dim x as U",
+                                   "x.a(n) = 5: x.b(m, 2) = 7: print x.a(4); x.b(9, 2); len(x)"),
+                               " 5  7  49 \r\n", "ERROR"),
+}
+
 # A STRING in a TYPE, ours, was 0 bytes: the field read "" and its writes were lost. Each copy of a
 # record, an array of them or a nested one owns its strings; GET and PUT refuse such a TYPE.
 ITEM = ("type Item", " nm as string", " tags(1 to 2) as string", " qty as long", "end type",

@@ -1510,7 +1510,7 @@ static bool namestmt(Comp *const C)
     uint8_t nd;
 
     if (*q == '(')
-        q = decl_dims(q, 0, dims, &nd);
+        q = decl_dims(C->scop, C->proc, q, 0, dims, &nd);
     if (q && *q == TK_AS) {
         skip(C);
         return true;
