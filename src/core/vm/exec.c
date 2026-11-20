@@ -492,14 +492,16 @@ next: /* r.ip at the op: each label steps past it */
 
 /* An op's handler, from the ops table: vm.ip, vm.sp and vm.opip stored around it. cold is the
    dispatch's, slow a hot op's way out: one label for both had every dispatch copy ip and sp into
-   the registers the fallbacks left them in, three instructions an op. */
+   the registers the fallbacks left them in, three instructions an op. Each dispatches the next op
+   itself: through next, every hot op copied ip through another register, two instructions. */
 #define COLD_RUN()                                                                                 \
     v->ip = r.ip + 1;                                                                              \
     v->sp = r.sp;                                                                                  \
     v->opip = r.ip;                                                                                \
     ops[*r.ip](S);                                                                                 \
     r = (Regs){v->ip, v->sp, v->fp};                                                               \
-    goto next;
+    exec_counted(v);                                                                               \
+    goto *at_op[*r.ip];
 
 cold:
     COLD_RUN()
