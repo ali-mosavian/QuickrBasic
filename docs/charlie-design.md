@@ -145,8 +145,8 @@ Progress is saved at each zone.
 - Chase: Frost's toboggan, sled against sled. Knock her into the drifts. The fair one's camera.
 - Look: a snow cap over faceted blue ice. White, ice blue, alpenglow pink. Jagged peaks, ranks of pine, a lit
   cabin.
-- Music: brisk in A at 150. A glockenspiel lead, sleigh bells on the eighths, pulse arpeggios, soft horns
-  under. Blizzard: F sharp minor, wind between the phrases, a heavier kick.
+- Music (written): brisk in A at 150. A glockenspiel lead, sleigh bells on the eighths, pulse arpeggios, soft
+  horns under. Blizzard, to add: F sharp minor, wind between the phrases, a heavier kick.
 
 ### 5. Russet Wood
 

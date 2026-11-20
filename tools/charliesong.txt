@@ -14,14 +14,18 @@
 ' A riff is 16 sixteenths: a note (0-9, a-z, semitones from D), a capital slid into, "-" holds it, "." rests; ""
 ' is a bar's rest. A second voice of two characters is a chord pattern by number and its note.
 
-Part Drums:
-DATA 6
+Part DrumSet:
 DATA "K", "W4H0,4,3,3Y0K1,8", 12, 0, "O1C"
 DATA "S", "W3H0,5,0,1K0Y0", 13, 0, "O6C"
 DATA "T", "W4H0,5,0,3Y0K5,6", 11, 0, "O2G"
 DATA "H", "W3H0,3,0,1K0Y3,2500,0", 12, 7, "O6B"
 DATA "h", "W3H0,2,0,1K0Y3,2500,0", 5, 0, "O6B"
 DATA "O", "W3H0,7,0,4K0Y3,2500,0", 11, 0, "O6B"
+
+' The six of them, a kit as most songs have it.
+Part Drums:
+DATA 6
+USE DrumSet
 
 ' The brasses: h two horns that waver, their harmonics a saw's by a modulator that bends itself; o two organs that
 ' waver as they are held; k the organ and a clavinet. Under the organ its double an octave down.
@@ -385,3 +389,39 @@ DATA 0
 DATA 8, "................", "K.h.S.h.K.h.S.hh", "K.h.S.h.KSSTSTTS", "K..h..K.S..h.K.h", "........K...S..."
 DATA "KhHhShHKhHKhShOh", "KhHhShHKhHKhSSTS", "K.S.K.SSTTSSTSSS"
 USE IntroBars
+
+' The pass's tune, First Tracks: 36 bars of 20 in A at 150, brisk, round and round. A glockenspiel leads, a bell an
+' octave over the rest; a pulse runs each chord's notes up and down, two soft horns hold them, the bass steps root
+' and fifth, and sleigh bells shake on the eighths between a kick and a snare. Four bars in, then A twice, B, and A.
+Song Whitecap:
+DATA "abcdefghijklefghijklmnopqrstefghijkl", "wwwwwwwwwwwwwwwwwwww", 20, 150, 1, 7, 12, 7, 0, 12, 7, 0, 0, 0, 1
+DATA "W4Z7,6,3,0H0,8,0,6R6"
+DATA "W4Z1,6,3,3,2H0,5,5,1", "W1H0,6,10,2", "S10R3W4Z1,4,3,13,5H3,4,11,3U5"
+DATA 1
+DATA "w", "S5R3W0Q30H0,3,7,1", "S11R3W4Z1,4,3,13,5H3,4,11,3U5", 0
+DATA 7
+USE DrumSet
+DATA "J", "W3H0,3,0,2K0Y3,7000,5", 8, 0, "O6B"
+DATA 4, "0...7...0...7.c.", "0...7...0.c.7.5.", "0...4...7...4.7.", "0...3...7...3.7."
+DATA 0
+DATA 4, "J.J.J.J.J.J.J.J.", "K.J.S.J.K.J.S.J.", "K.J.S.J.K.JJSJSS", "K.J.J.J.S.J.J.J."
+DATA 7, 1, 0, "", "j.nqv.qnj.nqv.qn", "", ""
+DATA 7, 1, 0, "q---------------", "j.nqv.qnj.nqv.qn", "", ""
+DATA 12, 1, 1, "s---------------", "j.osv.soj.osv.so", "", "o---------------"
+DATA 14, 2, 2, "q---------------", "i.lqu.qli.lqu.ql", "........q-s-u-x-", "l---------------"
+DATA 7, 1, 1, "q---------------", "j.nqv.qnj.nqv.qn", "q-..n-q-v-----u-", "n---------------"
+DATA 12, 3, 1, "s---------------", "j.osv.soj.osv.so", "s-..o-s-v-------", "o---------------"
+DATA 7, 1, 1, "q---------------", "j.nqv.qnj.nqv.qn", "q-..n-q-v---x-z-", "n---------------"
+DATA 14, 2, 1, "q---------------", "i.lqu.qli.lqu.ql", "x-----u-q-------", "l---------------"
+DATA 16, 4, 1, "n---------------", "g.jns.njg.jns.nj", "z-..v-z-x---v---", "j---------------"
+DATA 12, 3, 1, "s---------------", "j.osv.soj.osv.so", "v-..s-v-s---o---", "o---------------"
+DATA 14, 1, 1, "q---------------", "i.lqu.qli.lqu.ql", "q-s-u-x-v-u-s-u-", "l---------------"
+DATA 7, 2, 2, "q---------------", "j.nqv.qnj.nqv.qn", "v-------........", "n---------------"
+DATA 12, 3, 3, "s---------------", "j.osv.soj.osv.so", "s-------v-------", "o---------------"
+DATA 12, 1, 3, "s---------------", "j.osv.soj.osv.so", "o---s---v---s---", "o---------------"
+DATA 7, 3, 3, "q---------------", "j.nqv.qnj.nqv.qn", "q-------n---q---", "n---------------"
+DATA 7, 1, 3, "q---------------", "j.nqv.qnj.nqv.qn", "v-----------q---", "n---------------"
+DATA 9, 4, 3, "s---------------", "l.osx.sol.osx.so", "o-------s-------", "o---------------"
+DATA 9, 4, 1, "s---------------", "l.osx.sol.osx.so", "x---v---s---o---", "o---------------"
+DATA 14, 3, 1, "q---------------", "i.lqu.qli.lqu.ql", "q---u---x---u---", "l---------------"
+DATA 14, 2, 2, "q---------------", "i.lqu.qli.lqu.ql", "q-s-u-v-x-z-x-u-", "l---------------"
