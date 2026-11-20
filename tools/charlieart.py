@@ -4273,6 +4273,22 @@ def toadstool(f: int) -> Pic:
     return p.outline(WOODINK)
 
 
+def sapling(sprung: bool) -> Pic:
+    """A sapling, its foot at the picture's left: bowed over to the right, its crown down on the ground, a
+    catapult; sprung: upright, as it stands when it has thrown."""
+    p = Pic(60, 50)
+    tip = (9.0, 8.0) if sprung else (44.0, 41.0)
+    pts = bent(p, (6, 49), (6, 22) if sprung else (10, -14), tip, OAKBARK[2], 2)
+    for x, y in pts[::2]:
+        p.put(round(x), round(y), OAKBARK[0])
+    for i in (12, 20, 28):
+        x, y = pts[i]
+        p.box(round(x) + 2, round(y) - 1, round(x) + 3, round(y), MOSS[i % 3])
+    cx, cy = round(tip[0]), round(tip[1])
+    clumps(p, [(cx + 5, cy - 2, 7, 0), (cx - 3, cy - 5, 5, 0)], [*MOSS, WOODINK], flat=48)
+    return p.outline(WOODINK)
+
+
 def pomball() -> Pic:
     """The Pomchi's ball: red, a white band round it."""
     p = Pic(14, 14)
@@ -4302,6 +4318,8 @@ def russet() -> list[tuple[int, Pic, bool, int]]:
         (k + 48, lantern((OAKBARK[0], OAKBARK[2]), FIREFLY, (MOSS[0], MOSS[2]), WOODINK), True, -1),
         (k + 376, words("RUSSET WOOD", 178, 18, 1.8, 3.2), True, -1),
         (z + 1216, pomball(), True, -1),
+        (z + 1218, sapling(False), True, -1),
+        (z + 1220, sapling(True), True, -1),
     ]
     return out
 

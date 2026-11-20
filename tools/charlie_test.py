@@ -1346,6 +1346,50 @@ was = was and wd.tn.now(96) = &H0A0403
 GoStage wd, 8, g, p, lo(), pt()
 Tick wd, g, p, k, lo(), pt()
 if was and wd.lv.murk = 0 and wd.tn.now(96) = wd.tn.own(8, 0) then print "firefly ok"
+' a sapling bowed to the ground throws him who crosses its crown, the higher the faster he came: from a walk over a
+' jump's height, from a run 60 higher yet; sprung it stands upright and throws no one, then bows again
+for c = 0 to wd.lv.nObj - 1
+    if wd.lv.ob(c).k = KSAPLING then exit for
+next
+was = c < wd.lv.nObj
+k.r = -1
+for m = 0 to 1
+    wd.lv.ob(c).s = 0
+    Stand wd.lv, wd.gr, p, wd.lv.ob(c).x, 0
+    p.gsp = 100 + m * 250
+    for i = 1 to 60
+        Tick wd, g, p, k, lo(), pt()
+        if not p.ground then exit for
+    next
+    was = was and p.sprung and wd.lv.ob(c).s > 0 and abs(p.x - wd.lv.ob(c).x - SAPREACH) < 20
+    for i = 1 to 200
+        Tick wd, g, p, k, lo(), pt()
+        if p.vy >= 0 then exit for
+    next
+    colA(m) = wd.lv.ob(c).y - cint(p.y)
+next
+k.r = 0
+was = was and colA(0) > JUMPV * JUMPV / (2 * GRAV) and colA(1) > colA(0) + 60
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 60, 0
+for i = 1 to 2 * SAPT + 4
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and wd.lv.ob(c).s = 0
+wd.lv.ob(c).s = SAPT
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).x + SAPREACH, 0
+for i = 1 to 4
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and p.ground and wd.lv.ob(c).s > 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 60, 0
+' its leaves are at its crown's place bowed, and not sprung
+for m = 0 to 1
+    g.shake = 0
+    Render wd, g, p, lo(), pt()
+    colB(m) = point(wd.lv.ob(c).x + SAPREACH + 5 - int(g.camx), wd.lv.ob(c).y - 6 - int(g.camy))
+    wd.lv.ob(c).s = 0
+next
+if was and (colB(0) < 134 or colB(0) > 137) and colB(1) >= 134 and colB(1) <= 137 then print "sapling ok"
 ' the pass's bare ice keeps his speed and will not give it back: let go at a run he slides on where snow stops
 ' him, held back he is long in stopping, and from a stand he is slow away; it is drawn bare, the snow's white gone
 GoStage wd, 6, g, p, lo(), pt()
@@ -2662,6 +2706,7 @@ def main() -> None:
         ("pass ok", "Whitecap Pass, the fourth zone: its snow white on a clear morning, not at dusk"),
         ("wood ok", "Russet Wood, the fifth zone: its litter russet gold at a misty noon, not on the firefly night"),
         ("firefly ok", "the wood's night dark but for a few fireflies; a bark wakes them and lights it for a while"),
+        ("sapling ok", "a bowed sapling throws him who crosses its crown, higher the faster; sprung it throws no one"),
         ("ice ok", "bare ice keeps his speed: a long slide, a long stop, a slow start; drawn bare of snow"),
         ("sled ok", "a sled is boarded, follows the slope, has no brake, keeps him through a hop, ends in deep snow"),
         ("geyser ok", "in the pass a jet is a geyser, the pass's water: it throws him up as it blows"),

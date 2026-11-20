@@ -302,11 +302,14 @@ const IFROST = IWALL + 4, IDUNKED = IFROST + 10
 const IFAM = IDUNKED + 2, NFAM = 5, FAMF = 9, FAMSTEP = 36, IBARON = IFAM + NFAM * FAMF * 2
 ' The pass's load of snow on its ledge, and down in a heap.
 const ILOAD = IBARON + 12, IHEAP = ILOAD + 2
-' The wood's keepsake, the Pomchi's ball.
-const IBALL = IHEAP + 2, NIMG = IBALL + 2
+' The wood's keepsake, the Pomchi's ball; a sapling bowed, and sprung.
+const IBALL = IHEAP + 2, ISAPLING = IBALL + 2, NIMG = ISAPLING + 4
 ' The wood's night: its fireflies' two colours, never dimmed; the steps a bark's light lasts, the last of them
 ' fading; the parts its light is counted in; the fireflies awake, and at rest.
 const CFLY = 163, GLOWT = 300, GLOWFADE = 60, GLOWN = 8, NFLY = 18, FLYREST = 5
+' A sapling: its crown that far from its foot; its throw, what each of his speed adds to it, and at the most;
+' the things' steps it stands sprung.
+const KSAPLING = 38, SAPREACH = 38, SAPV = 280!, SAPGAIN = .8, SAPMAX = 700!, SAPT = 30
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
@@ -599,6 +602,7 @@ declare sub MeetSled (lv as Level, mu as Deck, se as Session, p as Hero, i as in
 declare sub MeetDrift (lv as Level, mu as Deck, se as Session, p as Hero, i as integer, pt() as Part)
 declare sub MeetSpark (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose)
 declare sub MeetSpring (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
+declare sub MeetSapling (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
 declare sub MeetBoost (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, pt() as Part)
 declare sub MeetFlume (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
 declare sub MeetMark (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, pt() as Part)
@@ -1490,6 +1494,7 @@ sub LoadLevel (wd as World, st as integer)
             wd.lv.gulls(wd.lv.nGulls).hy = s - n * TS
             wd.lv.nGulls = wd.lv.nGulls + 1
         case "spring": k = KSPRING
+        case "sapling": k = KSAPLING
         case "mark": k = KMARK
         case "boost": k = KBOOST
         case "loop": k = KLOOP
@@ -3959,6 +3964,7 @@ sub Touch (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as
         case KPRESS: MeetPress lv, mu, se, g, p, i, lo()
         case KJELLY: MeetJelly lv, mu, se, g, p, i, lo(), pt()
         case KSPRING: MeetSpring lv, mu, se, p, i
+        case KSAPLING: MeetSapling lv, mu, se, p, i
         case KBOOST: MeetBoost lv, mu, se, g, p, i, pt()
         case KFLUME, KSPOUT: MeetFlume lv, mu, se, p, i
         case KMARK: MeetMark lv, mu, se, g, p, i, pt()
@@ -4073,6 +4079,25 @@ sub MeetSpring (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
     p.jumped = 0
     p.sprung = -1
     lv.ob(i).s = 8
+    Sfx mu, se, SSPRING
+end sub
+
+' A sapling bowed to the ground: crossing its crown he is thrown up, the higher the faster he came, his way kept;
+' it stands sprung a moment before it bows again.
+sub MeetSapling (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
+    dim py as integer, v as single
+    py = cint(p.y)
+    if lv.ob(i).s > 0 or abs(lv.ob(i).x + SAPREACH - cint(p.x)) >= 10 then exit sub
+    if py < lv.ob(i).y - 12 or py > lv.ob(i).y + 2 or (not p.ground and p.vy < 0) then exit sub
+    if p.ground then p.vx = p.gsp
+    v = SAPV + SAPGAIN * abs(p.vx)
+    if v > SAPMAX then v = SAPMAX
+    p.ground = 0
+    p.vy = -v
+    p.roll = 0
+    p.jumped = 0
+    p.sprung = -1
+    lv.ob(i).s = SAPT
     Sfx mu, se, SSPRING
 end sub
 
@@ -4995,7 +5020,7 @@ sub Things (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() a
         case KLOAD: Unload lv, mu, se, g, p, lo(), pt(), i
         case KGOAT: if lv.ob(i).s <> 0 then Graze lv, se, i, p
         case KTHROW: TakeAim lv, i, p
-        case KSPRING, KBUMP, KHOOP: if lv.ob(i).s > 0 then lv.ob(i).s = lv.ob(i).s - 1
+        case KSPRING, KBUMP, KHOOP, KSAPLING: if lv.ob(i).s > 0 then lv.ob(i).s = lv.ob(i).s - 1
         case KBUOY
             lv.ob(i).y = Bob%(lv, lv.ob(i).x, -4, 9)
             if lv.ob(i).s > 0 then lv.ob(i).s = lv.ob(i).s - 1
@@ -6059,6 +6084,7 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
             else
                 Blit art, x - 8, y - 15, ISPRING - 2 * (lv.ob(i).s > 0), 16, 16
             end if
+        case KSAPLING: Blit art, x - 6, y - 49, ISAPLING - 2 * (lv.ob(i).s > 0), 60, 50
         case KBOOST: Blit art, x - 12, y - 9, IBOOST + ((se.ticks \ 4) and 1) * 2, 24, 10
         case KMARK: Blit art, x - 6, y - 31, IMARK + 2 * lv.ob(i).s, 12, 32
         case KGOAL

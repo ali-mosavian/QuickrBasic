@@ -176,7 +176,9 @@ Progress is saved at each zone.
 - Built: its backdrop, ground, props, card and keepsake at a misty noon and on the firefly night, on the
   Downs' layout; two stand-in levels, to its tune and the night's arrangement of it; the night's dark, its
   own colours sunk and a few fireflies about, and the bark that wakes the rest and lights it for five
-  seconds, the last of them fading. To add: height, its gadgets, enemies, levels and chase.
+  seconds, the last of them fading; saplings bowed to the ground, which throw him who crosses their crown,
+  the higher the faster he came, and stand sprung a second. To add: height, vines, logs, burrows, its
+  enemies, levels and chase.
 - Rule: height. The way is up, and a fall costs the climb, not a life.
 - Gadgets: sapling catapults, which bend under him and throw by his speed; vine swings; hollow logs; burrows,
   dug into at one mound and left by another.
