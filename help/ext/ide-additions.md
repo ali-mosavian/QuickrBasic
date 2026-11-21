@@ -18,6 +18,8 @@ Menu commands are in [menus](menus).
  - Each line is checked as it is entered
    ([syntax checking](syntax checking)). An error is lit, not boxed;
    the cursor moves on and Ctrl+F8 goes back to it.
+ - Find opens a bar on the status row, not a box: the match moves as
+   you type, through every SUB and module ([Find Bar](Find Bar)).
  - [Completion](completion): Tab lists what fits at the cursor.
  - [Debug pane](debug pane): at a stop, Watch, Locals and Call stack
    beside the code. Records and arrays open in Locals, values can be

@@ -14,7 +14,6 @@ enum : uint8_t {
 enum : uint8_t {
     DO_OK = 4, /* Open's OK */
     DS_OK = 3, /* Save As's */
-    DF_OK = 3, /* Find's */
     DC_FV = 4, /* Change's Find and Verify; DC_FV + 1 Change All */
     DLOG_ESC = 0xFF,
 };
@@ -100,8 +99,6 @@ bool dlog_saveas(Session *S);
 bool dlog_fileok(uint8_t why);
 /* dl_bhelp: a Help button's hook: no help to show; a beep, the box stays (true). */
 bool dlog_nohelp(uint8_t why);
-/* dl_find: Search, Find's box (uimn.find_what, match_case, whole_word); true: OK. */
-bool dlog_find(Session *S);
 /* dl_conf: Find and Verify's question: its buttons only, at row 19, or row 2 when the cursor
    is that low: 0 Change, 1 Skip, else cancelled. */
 uint8_t dlog_conf(Session *S);

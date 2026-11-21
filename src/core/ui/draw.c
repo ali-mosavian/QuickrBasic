@@ -26,6 +26,7 @@
 #include "ui/debugpane.h"
 #include "ui/edit.h"
 #include "ui/errors.h"
+#include "ui/findbar.h"
 #include "ui/menu.h"
 #include "ui/screen.h"
 #include "ui/help.h"
@@ -199,6 +200,7 @@ static void draw_row(Session *const S, const uint16_t r)
 
     udbg_row(S, row, col, line);
     errs_paint(S, row, col, line + uimn.text.first, v.text, len);
+    fbar_paint(row, col, v.text, len);
     sel_row(row, col, line);
 }
 

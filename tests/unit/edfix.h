@@ -19,6 +19,10 @@ enum : uint16_t {
     FX_CTRL_Y = 0x1519,
     FX_CTRL_Z = 0x2C1A,
     FX_CTRL_F8 = 0x6500,
+    FX_F3 = 0x3D00,
+    FX_SHIFT_F3 = 0x5600,
+    FX_ALT_W = 0x1100,
+    FX_ALT_C = 0x2E00,
 };
 
 /* The test folder's file name: its path. */

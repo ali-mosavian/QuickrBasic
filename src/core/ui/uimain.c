@@ -25,7 +25,9 @@
  * | ui_runp, ui_contp | uimn_run, uimn_cont | MIRROR; returning |
  * | ui_selw, ui_dec | uimn_selword, uimn_dec | MIRROR |
  * | ui_lin | psys_self (plat/psys.h) | MOVED |
- * | hl_load, ui_win, ui_nohelp, im_key, ed_key, ui_syntax, ui_about, ui_asksave, ui_reset, ui_new, ui_open, ui_load, ui_save, ui_saveas, ui_exit, ui_view, ui_in, ui_out, ui_outclr, ui_sync, ui_atline, ui_exec, ui_dxrun, ui_find, ui_find3, ui_search, ui_match, ui_wordc, ui_fdef, ui_change | statics | MIRROR |
+ * | hl_load, ui_win, ui_nohelp, im_key, ed_key, ui_syntax, ui_about, ui_asksave, ui_reset, ui_new, ui_open, ui_load, ui_save, ui_saveas, ui_exit, ui_view, ui_in, ui_out, ui_outclr, ui_sync, ui_atline, ui_exec, ui_dxrun, ui_find3, ui_search, ui_change | statics | MIRROR |
+ * | ui_find | findbar.c's fbar_open | MOVED; a bar, not a box |
+ * | ui_match, ui_wordc, ui_fdef | search.c's srch_match, srch_wordc, srch_default | MOVED |
  * | ed_ws, ed_wsq, ed_moves, ui_acts | static tables | MIRROR |
  * | u_kedit, u_krun, u_kimm | uimn_keys_edit, uimn_keys_run, uimn_keys_imm (StatusKeys) | MIRROR |
  * | u_ok, u_cancel, u_bhelp, u_untl, u_mbar, u_dlg | uimn_ok, uimn_cancel, uimn_helpbtn, uimn_untitled, uimn_menu_help, uimn_dlog_help | MIRROR |
@@ -35,7 +37,7 @@
  * | u_notfound, u_overw, u_nomatch, u_chdone, u_notsaved, u_access, u_wordp, u_nohelp, u_about, u_welcome, u_anykey, u_esc, bt_wel | statics | MIRROR |
  * | g_hlpb | uimn.help_text | MOVED (ui.h) |
  * | g_ui.lp.ideon, ui_foc, ui_help, ui_kf | uimn.on, focus, help, keyflags | MOVED (ui.h) |
- * | g_ui.lp.alt_t, ui_rf, ui_cpos, ui_rpos, ui_ecode, ui_eln, ui_wrap, ul_new | statics (ui_wrap starts true) | MIRROR |
+ * | g_ui.lp.alt_t, ui_rf, ui_cpos, ui_rpos, ui_ecode, ui_eln, ul_new | statics | MIRROR; ui_wrap dropped, F3 always wraps and Change never |
  * | g_ui.fd.uc_all, uc_f, uc_sl, uc_sc, us_l, us_c | statics | MIRROR |
  * | g_ui.bf.uc_line, sy_buf, ui_fn, ui_ebuf | uimn.line, build, file, errmsg | MOVED (ui.h) |
  * | VIDEO | the dos32 screen platform's | MOVED |
@@ -62,12 +64,14 @@
 #include "ui/draw.h"
 #include "ui/edit.h"
 #include "ui/errors.h"
+#include "ui/findbar.h"
 #include "ui/linemap.h"
 #include "ui/help.h"
 #include "ui/menu.h"
 #include "ui/mouse.h"
 #include "ui/pages.h"
 #include "ui/screen.h"
+#include "ui/search.h"
 #include "ui/highlight.h"
 #include "ui/text.h"
 #include "ui/theme.h"
@@ -93,7 +97,6 @@ static struct {
     uint8_t crow, ccol;  /* ui_cpos: the output's cursor before an immediate line */
     uint8_t ecode;       /* ui_ecode */
     bool at_error;       /* ui_eln: the cursor is at the error's line */
-    bool wrap;           /* ui_wrap: a search wraps at the end */
     bool load_new;       /* ul_new: a file not found is a new one (the command line's) */
     bool change_all;     /* uc_all */
     bool changed_one;    /* uc_f: Change found one */
@@ -101,7 +104,7 @@ static struct {
     uint16_t start_col;
     uint32_t at_line; /* us_l, us_c: the search's place */
     uint16_t at_col;
-} ui = {.wrap = true};
+} ui;
 
 const char uimn_ok[] = "OK";
 const char uimn_cancel[] = "Cancel";
@@ -460,40 +463,7 @@ static bool edit_key(Widget *const w, Session *const S, const uint16_t key)
 
 /* ---- Search */
 
-/* ui_wordc: c in a word: a name's, or one of "!#$%&" (QBasic's wordCharBitMask, uiword.asm,
-   and '_'). */
-static bool wordc(const uint8_t c)
-{
-    return is_name_char(c) || memchr("!#$%&", c, 5) != nullptr;
-}
-
-/* ui_match: Find What at column col of uimn.line. */
-static bool match(const uint16_t col)
-{
-    const uint8_t *const s = uimn.line.text + col, *const w = uimn.find_what.text;
-    const uint16_t n = uimn.find_what.len;
-
-    for (uint16_t i = 0; i < n; i++) {
-        uint8_t a = s[i], b = w[i];
-
-        if (!uimn.match_case) {
-            a = upcase(a);
-            b = upcase(b);
-        }
-
-        if (a != b)
-            return false;
-    }
-
-    if (!uimn.whole_word)
-        return true;
-    if (wordc(s[n])) /* a whole word: no letter or digit on either side */
-        return false;
-
-    return !col || !wordc(s[-1]);
-}
-
-/* ui_search: Find What from past the cursor, wrapping (ui.wrap): found, it is selected. */
+/* ui_search: Change's: Find What from past the cursor to the view's end: found, it is selected. */
 static bool search(Session *const S)
 {
     const uint16_t len = uimn.find_what.len;
@@ -512,7 +482,7 @@ static bool search(Session *const S)
             const uint16_t last = got - len;
 
             for (uint16_t col = ui.at_col; col <= last; col++) {
-                if (!match(col))
+                if (!srch_match(uimn.line.text, got, col))
                     continue;
 
                 edit_load(S, ui.at_line);
@@ -527,12 +497,8 @@ static bool search(Session *const S)
         ui.at_col = 0;
         uint32_t next = ui.at_line + 1;
 
-        if (next >= uimn.text.n) {
-            if (!ui.wrap)
-                return false;
-
-            next = 0;
-        }
+        if (next >= uimn.text.n)
+            return false;
 
         ui.at_line = next;
     }
@@ -540,75 +506,24 @@ static bool search(Session *const S)
     return false;
 }
 
-/* ui_find3: F3: the text found again, from past the cursor; it wraps. */
-static void find_again(Session *const S)
+/* ui_find3: F3: the text found again, from past the cursor, or with back before it; through
+   every view, round. */
+static void find_again(Session *const S, const bool back)
 {
-    if (!search(S))
+    edit_commit(S);
+    SrchAt at = srch_from(back);
+
+    if (srch_find(S, &at, back))
+        srch_show(S, at);
+    else
         dlog_ok(S, s_nomatch);
-}
-
-/* ui_fdef: Find's text to start from: the selection on one line, else the word at the cursor or
-   just before it, else the last. */
-static void find_default(void)
-{
-    if (uimn.tree.workspace.focus)
-        return;
-
-    const uint8_t *const t = uimn.edline.text;
-    uint16_t to = uimn.edline.col, len = uimn.edline.len, from;
-
-    if (uimn.ed.sel_on) {
-        if (uimn.ed.sel_line != uimn.ed.line)
-            return;
-
-        from = uimn.ed.sel_col;
-
-        if (from > to) {
-            uint16_t x = from;
-            from = to;
-            to = x;
-        }
-    } else {
-        if (!(to < len && wordc(t[to]))) {
-            if (!to)
-                return;
-
-            to--;
-
-            if (to >= len || !wordc(t[to]))
-                return;
-        }
-
-        from = to;
-
-        while (from && wordc(t[from - 1]))
-            from--;
-        while (to < len && wordc(t[to]))
-            to++;
-    }
-
-    const uint16_t n = to - from;
-
-    if (!n || n > FLDMAX)
-        return;
-
-    uimn.find_what.len = uimn.find_what.col = n;
-    memcpy(uimn.find_what.text, t + from, n);
-}
-
-/* ui_find: Search, Find. */
-static void find(Session *const S)
-{
-    find_default();
-
-    if (dlog_find(S))
-        find_again(S);
 }
 
 /* ui_change: Search, Change: Change All, or each one asked. */
 static void change(Session *const S)
 {
-    find_default();
+    uint16_t from;
+    srch_default(&from);
     const uint8_t r = dlog_change(S);
 
     if (r > CHANGE_ALL)
@@ -616,7 +531,6 @@ static void change(Session *const S)
 
     ui.change_all = r == CHANGE_ALL;
     ui.changed_one = false;
-    ui.wrap = false;
     edit_commit(S);
     uimn.ed.sel_on = false;
     LineBuf *const b = &uimn.edline;
@@ -636,10 +550,8 @@ static void change(Session *const S)
 
             if (c == CONF_SKIP)
                 continue;
-            if (c > CONF_SKIP) { /* Cancel: no word more (uisearch.c) */
-                ui.wrap = true;
+            if (c > CONF_SKIP) /* Cancel: no word more (uisearch.c) */
                 return;
-            }
         }
 
         edit_lb_cut(b, uimn.ed.sel_col, b->col);
@@ -649,7 +561,6 @@ static void change(Session *const S)
         edit_commit(S);
     }
 
-    ui.wrap = true;
     uimn.ed.sel_on = false;
 
     if (ui.change_all) {
@@ -985,7 +896,7 @@ void uimn_selword(const uint16_t col)
     b->col = col;
     uint16_t end = col;
 
-    while (end < b->len && wordc(b->text[end]))
+    while (end < b->len && srch_wordc(b->text[end]))
         end++;
     if (end == col)
         return;
@@ -1128,11 +1039,11 @@ void uimn_act(Session *const S, const uint8_t action)
         break;
 
     case ACT_FIND:
-        find(S);
+        fbar_open(S);
         break;
 
     case ACT_FIND3:
-        find_again(S);
+        find_again(S, false);
         break;
 
     case ACT_CHANGE:
@@ -1256,6 +1167,7 @@ void uimn_key(Session *const S, const uint16_t key)
 #endif
 
     if (key == KEY_ALT) {
+        fbar_close();
         menu_run(S, 0, false);
         return;
     }
@@ -1275,7 +1187,7 @@ void uimn_key(Session *const S, const uint16_t key)
 static bool screen_key(Widget *const w, Session *const S, const uint16_t key)
 {
     if (key == (SCAN_L << 8 | CTRL('L'))) { /* Repeat Last Find */
-        find_again(S);
+        find_again(S, false);
         return true;
     }
 
@@ -1338,7 +1250,11 @@ static bool screen_key(Widget *const w, Session *const S, const uint16_t key)
         return true;
 
     case FKEY(SCAN_F1, 3):
-        find_again(S);
+        find_again(S, false);
+        return true;
+
+    case FKEY(SCAN_SHIFT_F1, 3): /* ours */
+        find_again(S, true);
         return true;
 
     case SCAN_F1:
@@ -1471,6 +1387,7 @@ static void build_tree(void)
     }
 
     dpan_build(&uimn.tree.pane, uimn.tree.dp);
+    fbar_build(&uimn.tree.screen); /* under the menus and dialogs */
     menu_build(&uimn.tree.screen); /* the modal ones, hidden till run */
     dlog_build(&uimn.tree.screen);
     help_build(&uimn.tree.workspace, &uimn.tree.screen);
@@ -1519,7 +1436,6 @@ void uimn_init(Session *const S)
     uimn.imm.n = 1;
     uimn.text.check = true;
     uimn.ed.insert = true;
-    ui.wrap = true;
     udbg_init(S);
     wind_init();
     mous_init();

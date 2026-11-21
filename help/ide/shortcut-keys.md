@@ -8,7 +8,7 @@ See also [editing keys](editing keys), [survival](survival).
 ## Details
     F1            help          Shift+F1   Using Help
     F2            SUBs list     Shift+F2, Ctrl+F2  next, prior view
-    F3, Ctrl+L    repeat find
+    F3, Ctrl+L    repeat find   Shift+F3   find back
     F4            output screen
     F5            continue      Shift+F5   start
     F6            next window   Shift+F6   previous

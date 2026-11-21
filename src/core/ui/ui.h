@@ -84,6 +84,7 @@ enum : uint8_t {
     SL_CHG,             /* a debug pane's value changed at the stop */
     SL_CBPL,            /* a breakpoint's line with a condition (Break When's) */
     SL_ERR,             /* a syntax error's word */
+    SL_FIND,            /* the find bar's matches */
     NSLOT_TH,           /* the slots a theme lists */
     SL_HTXT = NSLOT_TH, /* the help window: text, drawn from the theme's others (them_set) */
     SL_HHEAD,           /*   a heading */
@@ -223,6 +224,7 @@ typedef struct {
         uint8_t e
     );                 /* text line line's change: TE_* (text.h) */
     bool changed;      /* tx_mod: since the program was entered (a run enters it again) */
+    uint32_t gen;      /* the text's changes so far: a cache's key */
     bool unsaved;      /* tx_chg: a file since it was saved (text_unsaved) */
     bool check;        /* syn_on: Options, Syntax Checking */
     bool asis;         /* tx_asis: the next line stored as typed */

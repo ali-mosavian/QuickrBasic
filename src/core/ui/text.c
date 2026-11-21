@@ -197,6 +197,8 @@ static uint16_t neighbour(Session *const S, const uint32_t line)
 /* Text line line's change e: uimn.text.edits told. */
 static void edited(Session *const S, const uint32_t line, const TextEdit e)
 {
+    uimn.text.gen++;
+
     if (uimn.text.edits)
         uimn.text.edits(S, line, e);
 }
