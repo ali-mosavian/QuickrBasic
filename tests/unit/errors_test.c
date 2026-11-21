@@ -64,6 +64,8 @@ TEST(errors_ctrl_f8_goes_to_each)
     CHECK(uimn.text.first + uimn.ed.line == fx_line_of(S, "gfx.hi )"));
     fx_key(S, FX_CTRL_F8, PKEY_CTRL);
     CHECK(uimn.text.first + uimn.ed.line == fx_line_of(S, "print 1 +"));
+    fx_key(S, FX_ALT_LEFT, PKEY_ALT); /* each a jump */
+    CHECK(uimn.text.first + uimn.ed.line == fx_line_of(S, "gfx.hi )"));
     fx_done(S, files);
 }
 

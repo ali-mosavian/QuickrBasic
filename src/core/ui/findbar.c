@@ -14,6 +14,7 @@
 #include "plat/pscr.h"
 #include "ui/dialog.h"
 #include "ui/edit.h"
+#include "ui/jumps.h"
 #include "ui/mouse.h"
 #include "ui/screen.h"
 #include "ui/search.h"
@@ -235,6 +236,7 @@ void fbar_build(Widget *const screen)
 void fbar_open(Session *const S)
 {
     edit_commit(S);
+    jumps_push();
     uint16_t from;
     const bool given = srch_default(&from);
     fb.from = (SrchAt){uimn.text.first + uimn.ed.line, given ? from : uimn.edline.col};

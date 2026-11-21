@@ -66,9 +66,11 @@
 #include "ui/edit.h"
 #include "ui/errors.h"
 #include "ui/findbar.h"
+#include "ui/goto.h"
 #include "ui/linemap.h"
 #include "ui/lines.h"
 #include "ui/help.h"
+#include "ui/jumps.h"
 #include "ui/menu.h"
 #include "ui/mouse.h"
 #include "ui/pages.h"
@@ -353,6 +355,10 @@ static bool edit_scan(Session *const S, const uint8_t scan)
         undo_undo(S);
     } else if (scan == SCAN_B && uimn.keyflags & PKEY_CTRL) { /* Ctrl+Alt+B, ours */
         defn_goto(S, true);
+    } else if (scan == SCAN_ALT_LEFT) { /* ours: back, forward, past jumps */
+        jumps_back(S);
+    } else if (scan == SCAN_ALT_RIGHT) {
+        jumps_forward(S);
     } else if (scan == SCAN_ALT_UP || scan == SCAN_ALT_DOWN) { /* ours; with Shift, a copy */
         uimn.ed.sel_on = uimn.ed.sel_on && edit_sel() == SEL_LINES;
 
@@ -429,6 +435,10 @@ static bool edit_control(Session *const S, const uint8_t ch)
         else
             edit_bs_word(S);
 
+        return true;
+
+    case CTRL('P'): /* ours: Go To */
+        goto_run(S);
         return true;
 
     case CTRL(']'): /* ours: the matching bracket, the block's next keyword */
@@ -546,9 +556,10 @@ static void find_again(Session *const S, const bool back)
     edit_commit(S);
     SrchAt at = srch_from(back);
 
-    if (srch_find(S, &at, back))
+    if (srch_find(S, &at, back)) {
+        jumps_push();
         srch_show(S, at);
-    else
+    } else
         dlog_ok(S, s_nomatch);
 }
 
@@ -729,6 +740,7 @@ static void file_new(Session *const S)
     named(S);
     reset(S);
     undo_clear();
+    jumps_clear();
 }
 
 /* fn, a load (repl_open, repl_relink), under its own boundary: the modules it read shown
@@ -761,6 +773,7 @@ static void load(Session *const S)
     edit_recheck(S);
     text_clean(S);
     undo_clear();
+    jumps_clear();
     fault_check(&S->fault, st);
 }
 
@@ -1421,6 +1434,7 @@ static void build_tree(void)
 
     dpan_build(&uimn.tree.pane, uimn.tree.dp);
     fbar_build(&uimn.tree.screen); /* under the menus and dialogs */
+    goto_build(&uimn.tree.screen);
     menu_build(&uimn.tree.screen); /* the modal ones, hidden till run */
     dlog_build(&uimn.tree.screen);
     help_build(&uimn.tree.workspace, &uimn.tree.screen);
@@ -1449,6 +1463,7 @@ void uimn_init(Session *const S)
     uimn.rows = 25; /* till uimn_rows */
     build_tree();
     undo_init();
+    jumps_init(); /* after undo's hook */
     uimn.on = true;
     LineBuf *const lines[] = {&uimn.edline, &uimn.line, &uimn.build};
 

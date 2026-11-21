@@ -1,5 +1,5 @@
 # IDE Additions
-keys: ide additions, IDE extras, Step Out, Go to Definition
+keys: ide additions, IDE extras, Step Out, Go to Definition, Go To
 
 What the editor does that QBasic's did not: highlighting, line
 checking, completion, a debug pane, nine themes, split windows.
@@ -49,6 +49,11 @@ Menu commands are in [menus](menus).
    or label, in another file for a name an IMPORT gives. Ctrl+Alt+B,
    or Ctrl+Alt+click, shows it in the other window of a split, split
    side by side first when there is none.
+ - Go To: Ctrl+P lists every procedure and file. Typing letters of a
+   name, in order, narrows the list ("drw" finds DrawWorld); Enter
+   shows the one chosen.
+ - Alt+Left goes back to where a jump left: Go To, Go to Definition,
+   F2, Find, F3 or Ctrl+F8. Alt+Right goes forward again.
  - F2 lists procedures sorted by name, in columns. The Open box lists
    files sorted, in three columns, and shows a long path shortened.
  - A program's graphics screen is kept while the editor is shown.

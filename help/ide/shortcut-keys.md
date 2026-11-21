@@ -15,6 +15,8 @@ See also [editing keys](editing keys), [survival](survival).
     F7, F10       step over     Ctrl+F7    run to the cursor line
     F8            step          Shift+F8   step out
     Ctrl+F8       next syntax error
+    Ctrl+P        go to a procedure or file by name
+    Alt+Left      back where the last jump left   Alt+Right  forward
     F9            breakpoint
     Ctrl+F10      maximise window
     Alt+Plus/Minus  grow, shrink window

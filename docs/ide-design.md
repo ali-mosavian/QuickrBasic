@@ -145,7 +145,7 @@ contain the typed ones in order:
  └───────────────────────────────┘
 ```
 
-Enter shows the one chosen. Go To, Go to Definition, F2's list and a find bar's jump remember where the
+Enter shows the one chosen. Go To, Go to Definition, F2's list, Find, F3 and Ctrl+F8 remember where the
 cursor was: Alt+Left goes back, Alt+Right forward again. 32 places are kept.
 
 Built on a new `ui/jumps.c` for the places and `ui/goto.c` for the box.

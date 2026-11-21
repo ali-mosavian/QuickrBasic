@@ -11,6 +11,7 @@
 #include "ui/errors.h"
 #include "plat/pscr.h"
 #include "ui/edit.h"
+#include "ui/jumps.h"
 #include "ui/linemap.h"
 #include "ui/screen.h"
 #include "ui/text.h"
@@ -147,6 +148,7 @@ void errs_next(Session *const S)
         if (!errs_at(S, line, &col))
             continue;
 
+        jumps_push();
         edit_load(S, view_goline(S, line));
         uimn.edline.col = col;
         uimn.ed.sel_on = false;

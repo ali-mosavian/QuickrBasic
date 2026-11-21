@@ -48,6 +48,10 @@ uint32_t view_proc(Session *S, uint32_t v);
 uint32_t view_procedure(Session *S, uint32_t module, uint32_t name);
 /* The view of module's own lines, its file's first; the main's, 0, when it has none. */
 uint32_t view_of_module(uint32_t module);
+/* The views. */
+uint32_t view_count(void);
+/* View v in the active window, the cursor where it left it. */
+void view_show(Session *S, uint32_t v);
 /* vw_next, vw_prev: Shift+F2, Ctrl+F2: the next view, the one before, in the active window. */
 void view_next(Session *S);
 void view_prev(Session *S);

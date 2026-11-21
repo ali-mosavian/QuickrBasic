@@ -29,6 +29,10 @@ enum : uint16_t {
     FX_CTRL_BACKSPACE = 0x0E7F,
     FX_CTRL_DEL = 0x9300,
     FX_CTRL_RBRACKET = 0x1B1D,
+    FX_CTRL_P = 0x1910,
+    FX_CTRL_B = 0x3002,
+    FX_ALT_LEFT = 0x9B00,
+    FX_ALT_RIGHT = 0x9D00,
 };
 
 /* The test folder's file name: its path. */
