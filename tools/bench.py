@@ -8,6 +8,7 @@
     bench.py qbasic [--json F]                   qbasic/BENCH.BAS in QBasic 1.1 and our IDE under DOSBox
     bench.py profile FILE.bas | -e CODE [-n N] [--link | --ide]  DOS: the functions a program spends its
                                                  instructions in; --link: RUN's link alone
+    bench.py engine                              docs/engine-design.md's Today table, measured on CHARLIE's source
     bench.py fps [--real] [--profile | --parts]  MOTHLITE.BAS played by an autopilot on a 486 at 10k cycles/ms
                                                  with the Sound Blaster: its frame rate in each mode;
                                                  --parts: each step of its loop's ms a frame
@@ -38,6 +39,7 @@ from dataclasses import dataclass
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # run with -I too
 import doslink
 import dosrun
+import basic_src
 
 ROOT = Path(__file__).resolve().parent.parent
 SUITE = ROOT / "tools/bench"
@@ -716,6 +718,123 @@ def cmd_charlie(a: argparse.Namespace) -> int:
     return 0
 
 
+# The switches on a thing's kind: drawing, touch and each step's rule, by the routine each is in.
+SWITCHES = {"draw": "drawthings", "touch": "touch", "think": "things"}
+
+
+def case_arms(prog: basic_src.Program, routine: str) -> list[tuple[list[str], list[list[str]]]]:
+    """Each case of the routine's switches on a thing's kind: its labels and its body's statements."""
+    arms: list[tuple[list[str], list[list[str]]]] = []
+    for mod in prog.modules:
+        if routine not in mod.routines:
+            continue
+        depth, ours = 0, -1
+        for st in mod.stmts:
+            if st.routine != routine:
+                continue
+            low = [t.low for t in st.toks]
+            if low[:2] == ["select", "case"]:
+                depth += 1
+                if low[-1] in ("kind", "k") and ours < 0:
+                    ours = depth
+                continue
+            if low[:2] == ["end", "select"]:
+                if depth == ours:
+                    ours = -1
+                depth -= 1
+                continue
+            if depth == ours and low[0] == "case":
+                arms.append((low[1:], []))
+            elif depth >= ours > 0 and arms:
+                arms[-1][1].append(low)
+    return arms
+
+
+def engine_measures() -> dict[str, str]:
+    """docs/engine-design.md's Today table, measured on CHARLIE's source."""
+    demos = CHARLIE.parent
+    mods = sorted(p for d in ("barkley", "engine") for p in (demos / d).rglob("*.bas"))
+    files = {p: p.read_text() for p in [*mods, CHARLIE]}
+    prog = basic_src.Program(files)
+
+    def where(mod: basic_src.Module) -> str:
+        return mod.path.relative_to(demos).with_suffix("").as_posix().removeprefix("barkley/")
+
+    kinds = {
+        int(v)
+        for k, v in re.findall(r"\b(K[A-Z0-9]+) = (\d+)", "\n".join(t for p, t in files.items() if "model" in p.parts))
+        if k != "KFRONT"
+    }
+    arms = {k: case_arms(prog, r) for k, r in SWITCHES.items()}
+    named = {k: [a for a in v if any(w.startswith("k") for w in a[0])] for k, v in arms.items()}
+    blits = sum(1 for a in named["draw"] if len(a[1]) == 1 and a[1][0][0] == "blit")
+    compares, compare_files, thing_sets, thing_files, sfx = 0, set(), 0, set(), 0
+    takes_deck = takes_world = routines = 0
+    for mod in prog.modules:
+        for r in mod.routines.values():
+            routines += 1
+            takes_deck += any(v.type == "deck" for v in r.params.values())
+            takes_world += any(v.type == "world" for v in r.params.values())
+        for st in mod.stmts:
+            switch = [t.low for t in st.toks[:2]] == ["select", "case"]
+            for part in basic_src.clauses(st.toks):
+                if part[0].low == "sfx" and not where(mod).startswith("assets/"):
+                    sfx += 1
+            for ref in prog.refs(mod, st):
+                if switch or not ref.fields or ref.fields[-1][1:] not in (("kind", "thing"), ("k", "thing")):
+                    continue
+                near = [st.toks[i].text for i in (ref.start - 1, ref.end) if 0 <= i < len(st.toks)]
+                if any(t in ("=", "<>", "<", ">", "<=", ">=") for t in near) and not (
+                    ref.start in (0, 1)
+                    and ref.end < len(st.toks)
+                    and st.toks[ref.end].text == "="
+                    and st.toks[0].low != "if"
+                ):
+                    compares += 1
+                    compare_files.add(where(mod))
+            for ref in basic_src.assigned(prog, mod, st):
+                if any(f[2] == "thing" for f in ref.fields):
+                    thing_sets += 1
+                    thing_files.add(where(mod))
+    lines = [ln for p, t in files.items() if p != CHARLIE for ln in t.removesuffix("\n").split("\n")]
+    notes = [ln for ln in lines if ln.lstrip().startswith("'")]
+    heads = [ln for ln in lines if re.match(r"(private )?(sub|function) ", ln) and len(ln) > 70]
+    up = [
+        where(m)
+        for m in prog.modules
+        if where(m).startswith("engine/") and re.search(r"(?m)^from barkley\.(?!engine\.)", m.text)
+    ]
+    return {
+        "Kinds of thing": str(len(kinds)),
+        "`case` branches that name a kind: draw, touch, think": ", ".join(str(len(named[k])) for k in SWITCHES),
+        "Draw branches that are one `Blit`": f"{blits} of {len(named['draw'])}",
+        "`Meet` routines, in six zone modules": str(
+            sum(
+                1
+                for m in prog.modules
+                if where(m).startswith("stage/zones/")
+                for r in m.routines
+                if r.startswith("meet") and not re.search(rf"(?im)^private sub {r}\b", m.text)
+            )
+        ),
+        "Comparisons of a thing's kind outside those switches": f"{compares}, in {len(compare_files)} files",
+        "Files that assign a thing's field": f"{len(thing_files)}, in {thing_sets} assignments",
+        "Routines that take the `Deck`": f"{takes_deck} of {routines}",
+        "`Sfx` calls outside `assets`": str(sfx),
+        "Routines that take the whole `World`": str(takes_world),
+        "Game code that `engine` imports": ", ".join(up) or "none",
+        "Lines over 70 columns": f"{sum(len(ln) > 70 for ln in lines):,} of {len(lines):,}",
+        "Comment lines over 60 columns": f"{sum(len(ln) > 60 for ln in notes):,} of {len(notes):,}",
+        "Routine headers over 70 columns": str(len(heads)),
+    }
+
+
+def cmd_engine(a: argparse.Namespace) -> int:
+    for k, v in engine_measures().items():
+        print(f"| {k} | {v} |")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -756,6 +875,7 @@ def main() -> int:
     p.add_argument("--nosb", action="store_true", help="no Sound Blaster: the PC speaker's music")
     p.add_argument("-n", type=int, default=30)
     sub.add_parser("charlie")
+    sub.add_parser("engine")
     a = ap.parse_args()
     return {
         "run": cmd_run,
@@ -767,6 +887,7 @@ def main() -> int:
         "profile": cmd_profile,
         "fps": cmd_fps,
         "charlie": cmd_charlie,
+        "engine": cmd_engine,
     }[a.cmd](a)
 
 
