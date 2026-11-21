@@ -24,8 +24,8 @@ Calling
 
 Parameters
 Arguments are passed by reference: the procedure changes the caller's
-variable. An expression, a constant, or a variable in parentheses is
-passed as a copy. An array is passed as `a()`.
+variable. An expression, a constant, a variable in parentheses, or a
+fixed-length string is passed as a copy. An array is passed as `a()`.
 
 Scope
 - A variable made in a procedure is local to it, and is cleared on each

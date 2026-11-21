@@ -842,10 +842,14 @@ static Node *arg(Comp *const C, const uint32_t par, const bool byval)
 
             C->p = p;
 
-            if (aend(*after)) { /* a variable alone: its cell */
+            if (aend(*after)) { /* a variable alone: its cell; a fixed-length string's, a copy */
                 const uint32_t id = comp_var(C, 0, 0);
                 ptm(C, id, par, p);
-                return argnode(C, PA_VAR, ref_cell(C, id), par);
+
+                if (!scop_fix(C->scop, symb_var(C->symb, id)->name, false))
+                    return argnode(C, PA_VAR, ref_cell(C, id), par);
+
+                C->p = p;
             }
         }
     }

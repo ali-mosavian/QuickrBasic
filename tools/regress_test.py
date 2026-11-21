@@ -762,6 +762,11 @@ CASES |= {
     "qb_reffld_fixed": (bas("TYPE t", " s AS STRING * 5", "END TYPE", "DIM r AS t", 'r.s = "abc"', "show r.s",
                             'PRINT "["; r.s; "]"', "SUB show (a$)", 'PRINT "["; a$; "]"', 'a$ = "zz"', "END SUB"),
                         "[abc  ]\r\n[abc  ]\r\n", "ERROR"),
+    # A fixed-length string variable too, as QB converts it: by reference, the callee's store made the
+    # STRING * 5 six characters long, a shorter one shorter.
+    "qb_reffix_var": (bas("DIM s AS STRING * 5", 's = "abc"', "t s", 'PRINT "["; s; "]"; LEN(s); f(s)', "SUB t (a$)",
+                          'a$ = "xyzzyq"', "END SUB", "FUNCTION f (b$)", 'b$ = "z": f = LEN(b$)', "END FUNCTION"),
+                      "[abc  ] 5  1 \r\n", "ERROR"),
 }
 
 
