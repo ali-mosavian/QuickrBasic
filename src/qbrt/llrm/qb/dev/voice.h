@@ -18,7 +18,7 @@ typedef struct DevVoice {
     unsigned char resonance; /* 0 to 15 */
     unsigned char gate;      /* 1 while the note sounds; 0 starts its release */
     unsigned char trigger;   /* changes at each note: its attack starts again */
-    unsigned char ratio;     /* FM: the modulator's pitch, 1 to 15 times the note's */
+    unsigned char ratio;     /* FM: the modulator's pitch, 0 to 15 times the note's (0 with a fine part) */
     unsigned char depth;     /* FM: how far it bends the carrier, 0 to 15, at the modulator's full level */
     unsigned char fall;      /* FM: the modulator's level falls from full at each note: its decay (SID's 0 to 15) in the
                                 high nibble, the level it holds (0 to 15) in the low */
@@ -30,6 +30,7 @@ typedef struct DevVoice {
     unsigned char reverb;    /* how much of the voice the room answers, 0 to 15 */
     unsigned char under;     /* it slides from n semitones under its own pitch instead, 1 to 24 */
     unsigned char pan;       /* where it is in stereo: 1 the left to 15 the right, 8 (and 0) the middle */
+    unsigned char fine;      /* FM: hundredths added to the ratio, 0 to 99: the modulator off the note's harmonics */
 } DevVoice;
 
 #endif

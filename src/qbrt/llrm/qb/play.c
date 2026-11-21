@@ -203,11 +203,34 @@ static void wave(Player *p)
     p->sound.wave = (unsigned char)within(p, DEV_PULSE, DEV_FM);
 }
 
-/* Z ratio[, depth[, decay[, level[, feedback]]]]: FM's modulator, its pitch in the note's, how far it bends the
-   carrier, how fast that falls at each note and to what, and how far it bends itself. */
+/* The hundredths after a number's point: ".5" 50, ".05" 5; 0 with no point. */
+static unsigned hundredths(Player *p)
+{
+    unsigned value = 0, digits = 0;
+
+    if (p->m.at >= p->m.end || *p->m.at != '.')
+        return 0;
+    p->m.at++;
+    while (p->m.at < p->m.end && *p->m.at >= '0' && *p->m.at <= '9') {
+        if (++digits > 2)
+            illegal();
+        value = value * 10 + (unsigned)(*p->m.at++ - '0');
+    }
+    if (!digits)
+        illegal();
+    return digits == 1 ? value * 10 : value;
+}
+
+/* Z ratio[.hundredths][, depth[, decay[, level[, feedback]]]]: FM's modulator, its pitch in the note's, how far it
+   bends the carrier, how fast that falls at each note and to what, and how far it bends itself. */
 static void modulator(Player *p)
 {
-    p->sound.ratio = (unsigned char)within(p, 1, HIGHEST_NIBBLE);
+    const unsigned whole = within(p, 0, HIGHEST_NIBBLE), part = hundredths(p);
+
+    if (!whole && !part)
+        illegal();
+    p->sound.ratio = (unsigned char)whole;
+    p->sound.fine = (unsigned char)part;
     if (!comma(p))
         return;
     p->sound.depth = (unsigned char)within(p, 0, HIGHEST_NIBBLE);

@@ -34,6 +34,8 @@ typedef struct SynthOsc {
     int32_t fed2[2];
     int32_t slide;
     int32_t f, damping, low, band; /* the filter's: f and damping 2^16 is 1, its state in 256ths of a sample */
+    /* FM with a fine ratio: the ratio (2^16 is 1), the modulator's own phase and step, and the unison's */
+    uint32_t mul, mphase, mstep, mphase2, mstep2;
 } SynthOsc;
 
 enum { SYNTH_COMBS = 4, SYNTH_PASSES = 2, SYNTH_COMB_MOST = 2100, SYNTH_PASS_MOST = 256 };

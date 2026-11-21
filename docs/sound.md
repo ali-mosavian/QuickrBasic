@@ -31,7 +31,7 @@ may be `=var;` as in QBasic's commands. A number out of range is Illegal functio
 | `Q`n | pulse width, percent high (wave 0 only) | 1–99 | 50 |
 | `H`a`,`d`,`s`,`r | envelope: attack, decay, sustain level, release; all four are needed | 0–15 each | `H0,0,15,0` |
 | `Y`m[`,`f[`,`r]] | filter: 0 off, 1 low-pass, 2 band-pass, 3 high-pass; cutoff in Hz; resonance | m 0–3, f 30–12000, r 0–15 | off, 1000, 0 |
-| `Z`r[`,`d[`,`f[`,`l[`,`b]]]] | FM's modulator: ratio, depth, fall, level, feedback (below) | r 1–15, d f l 0–15, b 0–7 | `Z1,8,0,15,0` |
+| `Z`r[`,`d[`,`f[`,`l[`,`b]]]] | FM's modulator: ratio, depth, fall, level, feedback (below) | r 0.01–15.99, d f l 0–15, b 0–7 | `Z1,8,0,15,0` |
 | `U`n | vibrato depth | 0–15 | 0 |
 | `K`t[`,`q[`,`u]] | glide: time, from over, from under (below) | t q 0–15, u 0–24 | `K0,0,0` |
 | `S`n | stereo place: 1 the left, 8 the middle, 15 the right | 1–15 | 8 |
@@ -77,11 +77,13 @@ apart from the volume's envelope, so a note can start bright and end round, as a
 
 | `Z`'s number | Is | Effect |
 |---|---|---|
-| ratio, 1–15 | the modulator's pitch, so many times the note's | 1 a full, saw-like tone; 2 hollow, as a square; 3 and up thinner; 7 and other high odd ones bells |
+| ratio, 0.01–15.99 | the modulator's pitch, so many times the note's | 1 a full, saw-like tone; 2 hollow, as a square; 3 and up thinner; 7 and other high odd ones bells; one with hundredths, as 1.41, rings off the note's harmonics: drums, metal |
 | depth, 0–15 | how far the modulator bends the carrier, at its full level | 0 a plain sine; 4 warm; 8 bright; 12 and over harsh |
 | fall, 0–15 | how fast the bend falls at each note: the envelope's decay scale | 0 at once to its level; 3 a 72 ms pluck; 7 a 240 ms ring |
 | level, 0–15 | the part of the depth the bend falls to and holds | 15 no fall; 11 a held brass; 0 down to a sine |
 | feedback, 0–7 | how far the modulator bends itself | towards a sawtooth, then noise: grit for brass and organs |
+
+The ratio takes up to two decimals: `Z1.41`, `Z0.5`.
 
 `Z1,12,4,4` plucks a bass that starts bright and ends round. `Z1,9,3,11,5` holds a brass bright.
 `Z7,6,7,0` rings a bell. `Z1,0` is a plain sine: with `K1,8` it is a kick drum.
@@ -144,7 +146,7 @@ bass 10 to 12, drums 10 to 14.
 | Where | Plays |
 |---|---|
 | Mac, Linux, the browser | every voice, in stereo |
-| DOS with a Sound Blaster (DSP 2.00 or later, named by `BLASTER`) | every voice, mono, 15873 samples a second; no unison |
+| DOS with a Sound Blaster (DSP 2.00 or later, named by `BLASTER`) | every voice, mono, 15873 samples a second; no unison; FM with a ratio of hundredths costs more |
 | DOS without one | voice 1 only, on the PC speaker, as a square wave: put the melody first |
 
 `SOUND`, `BEEP` and a `PLAY` with one string and none of these commands always use the speaker.

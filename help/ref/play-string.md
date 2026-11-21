@@ -65,7 +65,7 @@ Q n          pulse width, percent high, 1 to 99 (default 50)
 H a,d,s,r    envelope: attack, decay, sustain level, release, 0 to 15
 Y m,f,r      filter: m 0 off, 1 low-pass, 2 band-pass, 3 high-pass
              f cutoff in Hz, 30 to 12000; r resonance, 0 to 15
-Z r,d,f,l,b  FM's modulator: ratio 1 to 15; depth, fall and level
+Z r,d,f,l,b  FM's modulator: ratio 0.01 to 15.99; depth, fall, level
              0 to 15; feedback 0 to 7
 U n          vibrato, 0 to 15
 K t,q,u      glide: time 0 to 15; from over, 0 to 15; from under,

@@ -171,6 +171,22 @@ static double off_the_note(const DevVoice v)
     return 10 * log10((all - on) / all + 1e-12);
 }
 
+/* Z's ratio with hundredths: the modulator off the note's harmonics, as a drum's or a bell's modes are. The ratio was
+   whole, so every FM tone was a harmonic series: the snare's lines at 199, 234 and 319 Hz were no patch's. */
+TEST(synth_fm_fine_ratio_leaves_the_harmonics)
+{
+    DevVoice v = note(200, DEV_FM, 0x00F0);
+    v.ratio = 1;
+    v.depth = 6;
+    v.fall = 0x0F;
+    CHECK(off_the_note(v) < -40);
+    v.fine = 41;
+    CHECK(off_the_note(v) > -3);
+    v.ratio = 0;
+    v.fine = 50; /* half the note: its odd lines between the harmonics, -3.7 dB of a depth of 3 radians */
+    CHECK(off_the_note(v) > -6);
+}
+
 /* What a voice sounds that is not its note. A pulse and a saw jumped between two samples, and a sixth of a 1 kHz
    note's power (-16 dB) was tones folded back from over half the rate; the sine's table of 1024 left -55 dB; and
    feedback 5 bent the modulator twice as far as meant, into noise, -7 dB: a brass that hissed. */
@@ -718,6 +734,33 @@ TEST(play_sets_fm)
     CHECK(unit_run(S, waver) == E_USR);
     CHECK(unit_run(S, ratio) == E_USR);
     CHECK(unit_run(S, depth) == E_USR);
+}
+
+/* Z's ratio takes hundredths after a point: Z1.41, Z0.5. */
+TEST(play_sets_fm_fine)
+{
+    static const char *const lines[] = {"10 PLAY \"MF W4 Z1.41,6 C Z0.5 C Z2.05 C P64\"", nullptr};
+    static const char *const wrong[][2] = {{"10 PLAY \"W4 Z1.415 C\"", nullptr}, {"10 PLAY \"W4 Z1. C\"", nullptr},
+                                           {"10 PLAY \"W4 Z0.0 C\"", nullptr}, {"10 PLAY \"W4 Z16.5 C\"", nullptr}};
+
+    qbrt_realtime(false);
+    music_clear();
+    const size_t first = headless_voice_count();
+    CHECK(unit_run(S, lines) == ST_OK);
+    qbrt_realtime(true);
+    unsigned got[3][3], n = 0;
+    for (size_t i = first; i < headless_voice_count() && n < 3; i++) {
+        const DevVoice v = headless_voice(i).v;
+        if (v.gate && v.hertz) {
+            got[n][0] = v.ratio;
+            got[n][1] = v.fine;
+            got[n++][2] = v.depth;
+        }
+    }
+    CHECK(n == 3 && got[0][0] == 1 && got[0][1] == 41 && got[0][2] == 6);
+    CHECK(got[1][0] == 0 && got[1][1] == 50 && got[2][0] == 2 && got[2][1] == 5);
+    for (int i = 0; i < 4; i++)
+        CHECK(unit_run(S, wrong[i]) == E_USR);
 }
 
 TEST(play_voice_out_of_range)

@@ -31,6 +31,7 @@ enum {
 };
 
 enum Stage { STAGE_ATTACK, STAGE_DECAY, STAGE_RELEASE, STAGE_CUT };
+enum { SYNTH_FM_FINE = DEV_FM + 1 }; /* FM whose modulator has a phase of its own: voice_run's kind, not a DevWave */
 
 /* SID's times from silence to full (attack) and from full to silence (decay, release), ms */
 static const uint16_t attack_ms[16] = {2, 8, 16, 24, 38, 56, 68, 80, 100, 250, 500, 800, 1000, 3000, 5000, 8000};
@@ -131,6 +132,8 @@ static void begin(const Synth *const s, SynthOsc *const o, const DevVoice *const
         v->under ? (uint32_t)((uint64_t)o->step * under[v->under < 24 ? v->under : 24] >> 16) : over;
 
     o->bend = FULL;
+    o->mphase = (uint32_t)((uint64_t)o->phase * o->mul >> 16); /* where a whole ratio's would be */
+    o->mphase2 = (uint32_t)((uint64_t)o->phase2 * o->mul >> 16);
     o->fed[0] = o->fed[1] = o->fed2[0] = o->fed2[1] = 0;
     o->age = 0;
     o->lfo = 0;
@@ -149,6 +152,7 @@ void synth_voice(Synth *const s, const unsigned voice, const DevVoice *const v)
 
     o->set = *v;
     o->step = v->hertz * s->per_hertz + v->hertz * s->rest / s->rate; /* hertz * 2^32 / rate */
+    o->mul = v->fine ? (v->ratio * 100u + v->fine) * 65536u / 100 : 0;
     if (attack && v->hertz)
         begin(s, o, v);
     if (!v->hertz)
@@ -281,9 +285,10 @@ static int envelope_run(const Synth *const s, const SynthOsc *const o, const int
     return k < left ? (int)k : left;
 }
 
-#if defined(__i386__) && defined(_WIN32) /* DOS: voice_run's samples by plat/dos32/synthrun.asm */
+#if defined(__i386__) && defined(_WIN32) /* DOS: voice_run's samples by plat/dos32/synthrun.asm, but a fine FM's */
 #define SYNTH_ASM 1
-#else
+#endif
+
 /* What rounds a jump up of the whole height, `past` the phase since it (PolyBLEP): a jump between two samples is
    spread over them, and its harmonics over half the rate, which came back down as tones off the note, mostly go.
    Nothing but in the sample each side of the jump. */
@@ -299,6 +304,19 @@ static int envelope_run(const Synth *const s, const SynthOsc *const o, const int
     const int32_t left = t < 32768 ? 32768 - t : 0;
 
     return past < step ? -(left * left >> 15) : left * left >> 15;
+}
+
+/* FM's next sample, the modulator at `modulator`: a sine bent by a sine, which bends itself; the bend falls from full,
+   as a plucked string's brightness. */
+[[gnu::always_inline]] static inline int32_t fm(SynthOsc *const o, const int16_t *const sine, const uint32_t modulator)
+{
+    const uint32_t self = (uint32_t)(o->fed[0] + o->fed[1]) * o->feedback;
+    const int32_t bend = sine[(modulator + self) >> SINE_SHIFT] * (o->bend >> 9) >> 15;
+
+    o->fed[1] = o->fed[0];
+    o->fed[0] = bend;
+    o->bend -= o->slope;
+    return sine[(o->phase + (uint32_t)bend * o->depth) >> SINE_SHIFT];
 }
 
 /* The wave's next sample, -32767 to 32767. */
@@ -321,43 +339,46 @@ static int envelope_run(const Synth *const s, const SynthOsc *const o, const int
             o->noise = (o->noise << 1 | bit) & 0x7FFFFF;
         }
         return (int32_t)(o->noise >> 15 & 0xFF) * 257 - 32767;
-    case DEV_FM: {
-        /* a sine bent by a sine, which bends itself: the bend falls from full, as a plucked string's brightness */
-        const uint32_t self = (uint32_t)(o->fed[0] + o->fed[1]) * o->feedback;
-        const int32_t bend = sine[(o->phase * o->ratio + self) >> SINE_SHIFT] * (o->bend >> 9) >> 15;
-
-        o->fed[1] = o->fed[0];
-        o->fed[0] = bend;
-        o->bend -= o->slope;
-        return sine[(o->phase + (uint32_t)bend * o->depth) >> SINE_SHIFT];
-    }
+    case DEV_FM:
+        return fm(o, sine, o->phase * o->ratio);
+    case SYNTH_FM_FINE:
+        o->mphase += o->mstep;
+        return fm(o, sine, o->mphase);
     default:
         return (o->phase >> 20 < o->set.width ? 32767 : -32767) + edge(o->phase, o->step) -
                edge(o->phase - ((uint32_t)o->set.width << 20), o->step);
     }
 }
 
-/* The wave's next sample, the mean of two a little apart in pitch if the voice is a unison: noise is not. */
+/* The wave's next sample, the mean of two a little apart in pitch if the voice is a unison: noise is not, nor DOS's. */
 [[gnu::always_inline]] static inline int32_t voiced(SynthOsc *const o, const int16_t *const sine)
 {
     const int32_t one = wave(o, sine);
 
+#ifdef SYNTH_ASM
+    return one;
+#endif
     if (!o->set.spread || o->set.wave == DEV_NOISE)
         return one;
     const SynthOsc first = *o;
 
     o->phase = o->phase2;
     o->step = o->step2;
+    o->mphase = o->mphase2;
+    o->mstep = o->mstep2;
     o->fed[0] = o->fed2[0];
     o->fed[1] = o->fed2[1];
     o->bend = first.bend + first.slope; /* the modulator's level this sample, not the next */
     const int32_t two = wave(o, sine);
 
     o->phase2 = o->phase;
+    o->mphase2 = o->mphase;
     o->fed2[0] = o->fed[0];
     o->fed2[1] = o->fed[1];
     o->phase = first.phase;
     o->step = first.step;
+    o->mphase = first.mphase;
+    o->mstep = first.mstep;
     o->fed[0] = first.fed[0];
     o->fed[1] = first.fed[1];
     o->bend = first.bend;
@@ -383,7 +404,6 @@ static int envelope_run(const Synth *const s, const SynthOsc *const o, const int
         return high >> STATE_SHIFT;
     }
 }
-#endif
 
 /* The pitch for the next `run` samples, in o->step: the slide moved on towards `target`, the vibrato added. Both
    step once a run, not a sample: a run is 64 samples at most. */
@@ -437,6 +457,23 @@ typedef struct SynthRun {
 void synth_run(SynthRun *r);
 #endif
 
+/* The run of samples from sum[i], the envelope moving by delta after each but the last: C's loop. */
+[[gnu::always_inline]] static inline void samples_run(const Synth *const s, SynthOsc *const o, int32_t *const sum,
+                                                      int i, const int run, const int32_t delta, const unsigned filter)
+{
+    for (const int end = i + run;;) {
+        /* under 2^15 times 2^15, and unfiltered under 2^15 times the gain: int32 holds them */
+        const int32_t out = voiced(o, s->sine) * (o->level >> 9) >> 15;
+        if (filter != DEV_UNFILTERED)
+            sum[i] += (int32_t)((int64_t)filtered(o, out) * o->gain >> 15);
+        else
+            sum[i] += out * o->gain >> 15;
+        if (++i == end)
+            break;
+        o->level += delta;
+    }
+}
+
 /* Voice o's next n samples added to sum, its wave and filter fixed: the voice's state in locals the loop keeps in
    registers. Returns early once the voice is silent until its next note. */
 [[gnu::always_inline]] static inline void voice_run(const Synth *const s, SynthOsc *const into, int32_t *const sum,
@@ -459,9 +496,18 @@ void synth_run(SynthRun *r);
         } else
             o.level += delta;
         run = pitch_run(&o, s->rate, into->step, run);
-        if (wave_kind == DEV_FM)
+        if (wave_kind == DEV_FM || wave_kind == SYNTH_FM_FINE)
             run = bend_run(&o, run);
+        if (wave_kind == SYNTH_FM_FINE) {
+            o.mstep = (uint32_t)((uint64_t)o.step * o.mul >> 16);
+            o.mstep2 = (uint32_t)((uint64_t)o.step2 * o.mul >> 16);
+        }
 #ifdef SYNTH_ASM
+        if (wave_kind == SYNTH_FM_FINE) {
+            samples_run(s, &o, sum, i, run, delta, filter);
+            i += run;
+            continue;
+        }
         SynthRun r = {o.phase, o.step, o.level, delta, o.low, o.band, o.f, o.damping, o.gain, sum + i, run, o.noise,
                       o.set.width, wave_kind * 4 + filter, 0, s->sine, o.ratio, o.depth,
                       o.bend, o.slope, {o.fed[0], o.fed[1]}, o.feedback};
@@ -476,20 +522,13 @@ void synth_run(SynthRun *r);
         o.fed[1] = r.fed[1];
         i += run;
 #else
-        for (const int end = i + run;;) {
-            /* under 2^15 times 2^15, and unfiltered under 2^15 times the gain: int32 holds them */
-            const int32_t out = voiced(&o, s->sine) * (o.level >> 9) >> 15;
-            if (filter != DEV_UNFILTERED)
-                sum[i] += (int32_t)((int64_t)filtered(&o, out) * o.gain >> 15);
-            else
-                sum[i] += out * o.gain >> 15;
-            if (++i == end)
-                break;
-            o.level += delta;
-        }
+        samples_run(s, &o, sum, i, run, delta, filter);
+        i += run;
 #endif
     }
     into->phase = o.phase;
+    into->mphase = o.mphase;
+    into->mphase2 = o.mphase2;
     into->noise = o.noise;
     into->level = o.level;
     into->stage = o.stage;
@@ -528,7 +567,10 @@ static void voice(const Synth *const s, SynthOsc *const o, int32_t *const sum, c
         switch (o->set.filter) { VOICE_FILTERS(DEV_NOISE) }
         break;
     case DEV_FM:
-        switch (o->set.filter) { VOICE_FILTERS(DEV_FM) }
+        if (o->mul)
+            switch (o->set.filter) { VOICE_FILTERS(SYNTH_FM_FINE) }
+        else
+            switch (o->set.filter) { VOICE_FILTERS(DEV_FM) }
         break;
     default:
         switch (o->set.filter) { VOICE_FILTERS(DEV_PULSE) }
