@@ -10,12 +10,12 @@ from barkley.model.hero import Hero, Pad
 from barkley.model.level import MH, NONE, NSTAGE, TS
 from barkley.model.game import CLEARED, Game, Loose, NLOOSE, NPART
 from barkley.model.game import OVER, Part, PLAYING, Session, TITLE
-from barkley.model.world import NLOB, NMOVE, World
+from barkley.model.world import World
 from barkley.model.events import EVSOUND, Tell
 from barkley.assets.palette import Cycle, Shade, Shimmer
 from barkley.assets.tunes import CAUGHT, EndBeat, EndTune, KeepBeat
 from barkley.assets.tunes import SBONE, SCLEAR
-from barkley.world.level import LoadLevel, ZoneOf
+from barkley.world.level import LoadLevel, NLOB, NMOVE, ZoneOf
 from barkley.world.movers import Movers
 from barkley.stage.fx.lobs import Volley
 from barkley.stage.hero.moves import MoveHero

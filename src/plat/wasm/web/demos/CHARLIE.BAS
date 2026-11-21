@@ -11,8 +11,8 @@
 ' package beside this file; barkley/main.bas runs it.
 defint A-Z
 
-from barkley.main import Main
-from barkley.model.world import Allot, World
+from barkley.main import Allot, Main
+from barkley.model.world import World
 
 dim wd as World
 Allot wd

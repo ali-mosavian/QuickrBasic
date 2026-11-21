@@ -8,10 +8,10 @@ from engine.events import Events
 from barkley.model.hero import Hero
 from barkley.model.level import GRAV, Level, MH, TS
 from barkley.model.game import Game, Loose, Session
-from barkley.model.world import NLOB
 from barkley.model.events import EVBURST, EVSOUND, Tell, TellAt
 from barkley.assets.tunes import SHURT, SPOP
 from barkley.world.terrain.ground import Solid
+from barkley.world.level import NLOB
 from barkley.stage.hero.hurt import Hurt
 
 ' Something let go at x, y with the speed vx, vy, to fly

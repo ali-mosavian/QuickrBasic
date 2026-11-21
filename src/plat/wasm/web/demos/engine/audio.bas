@@ -592,3 +592,21 @@ private sub Patch (sg as Song)
         t + "R2" + sg.lead_p, t + "R2S12", t + sg.under_p, _
         t + sg.mid_p, t + "L16"
 end sub
+
+' Deck mu's slots sized, and each slot's song.
+sub AllotDeck (mu as Deck)
+    dim i as integer
+
+    redim mu.song(NSLOT - 1)
+
+    for i = 0 to NSLOT - 1
+        redim mu.song(i).half(NBAR * 2 - 1)
+        redim mu.song(i).vo_one(NVOICE - 1)
+        redim mu.song(i).vo_two(NVOICE - 1)
+        redim mu.song(i).vo_under(NVOICE - 1)
+        redim mu.song(i).dr_patch(NDRUM - 1)
+        redim mu.song(i).dr_note(NDRUM - 1)
+        redim mu.song(i).dr_vol(NDRUM - 1)
+        redim mu.song(i).dr_up(NDRUM - 1)
+    next
+end sub

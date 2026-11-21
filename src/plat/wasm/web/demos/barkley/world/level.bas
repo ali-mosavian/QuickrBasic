@@ -6,15 +6,15 @@ option explicit
 from engine.datafile import Chars, DataFile, OpenData, Word
 from barkley.model.images import IBG, ICARD, ICARD2, ILOOP, ITILE
 from barkley.model.images import ITILE2, IWAVE, IZ2
-from barkley.model.level import KAWNING, KBIN, KBONE, KBOOST, KBRAMBLE
-from barkley.model.level import KBUMP, KBUOY, KBUSH, KBUTTON, KCAT
-from barkley.model.level import KCHIMNEY, KCISTERN, KCRAB, KDRIFT
-from barkley.model.level import KFAM, KFLOWER, KFLUME, KGOAL, KGOAT
-from barkley.model.level import KGOLD, KHEAP, KHOOP, KICICLE, KJELLY
-from barkley.model.level import KJET, KLEG, KLOAD, KLOG, KLOOP, KMARK
-from barkley.model.level import KMORTAR, KMOUND, KPIPE, KPLAT, KPOUNCE
-from barkley.model.level import KPRESS, KROCK, KSAPLING, KSLED
-from barkley.model.level import KSNATCH, KSPARK, KSPIN, KSPOUT
+from barkley.model.level import Ground, KAWNING, KBIN, KBONE, KBOOST
+from barkley.model.level import KBRAMBLE, KBUMP, KBUOY, KBUSH, KBUTTON
+from barkley.model.level import KCAT, KCHIMNEY, KCISTERN, KCRAB
+from barkley.model.level import KDRIFT, KFAM, KFLOWER, KFLUME, KGOAL
+from barkley.model.level import KGOAT, KGOLD, KHEAP, KHOOP, KICICLE
+from barkley.model.level import KJELLY, KJET, KLEG, KLOAD, KLOG, KLOOP
+from barkley.model.level import KMARK, KMORTAR, KMOUND, KPIPE, KPLAT
+from barkley.model.level import KPOUNCE, KPRESS, KROCK, KSAPLING
+from barkley.model.level import KSLED, KSNATCH, KSPARK, KSPIN, KSPOUT
 from barkley.model.level import KSPRING, KSQUIRREL, KSWEEP, KTANK
 from barkley.model.level import KTHORN, KTHROW, KTIPPER, KTREE, KVENT
 from barkley.model.level import KVINE, KWALKER, KWALL, KWAVE, Level
@@ -33,6 +33,26 @@ from barkley.world.layout import Scatter, Shelf, SortObjs, Weed
 
 ' A clothesline's ends over the roofs it joins, and how far
 ' in from their edges its posts stand.
+' The ground's points and curves there can be.
+private const NPTS = 1600
+private const NZONE = 47
+
+' The moving platforms there can be.
+const NMOVE = 23
+
+' The things there can be, and the lobs in the air.
+private const MAXOBJ = 600
+const NLOB = 4
+
+' The swarms a level may hold.
+private const NSWARM = 4
+
+' The gulls a level may hold.
+private const NGULL = 6
+
+' The clotheslines a level may hold.
+private const NROPE = 12
+
 const LINEH = 24
 private const POSTIN = 6
 
@@ -693,3 +713,29 @@ function GoldNo% (lv as Level, i as integer)
 
     GoldNo% = n
 end function
+
+' Level lv's arrays sized: a TYPE's own bounds must be
+' numbers, and these are constants.
+sub AllotLevel (lv as Level)
+    redim lv.map(MW - 1, MH - 1)
+    redim lv.prof(7, TS - 1)
+    redim lv.top(MW)
+    redim lv.vis(MW)
+    redim lv.face_l(MW)
+    redim lv.face_r(MW)
+    redim lv.glaze(MW)
+    redim lv.first(MW)
+    redim lv.things(MAXOBJ - 1)
+    redim lv.movers(NMOVE)
+    redim lv.gulls(NGULL - 1)
+    redim lv.swarms(NSWARM - 1)
+    redim lv.ropes(NROPE - 1)
+    redim lv.lobs(NLOB - 1)
+end sub
+
+' The ground's arrays sized.
+sub AllotGround (gr as Ground)
+    redim gr.pt(NPTS)
+    redim gr.cv(NZONE)
+    redim gr.col(MW)
+end sub

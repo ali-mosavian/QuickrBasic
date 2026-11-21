@@ -2,18 +2,23 @@
 defint A-Z
 option explicit
 
-from engine.video import Flip, OpenScreen
+from engine.video import AllotStore, Flip, OpenScreen
 from engine.input import Poll
 from engine.clock import Clock, Elapsed, Pace, Steps, STEPT
-from engine.audio import FeedSong
+from engine.audio import AllotDeck, FeedSong
+from engine.datafile import NameData
 from barkley.model.hero import Hero, Pad
 from barkley.model.game import Cue, Game, INTRO, Loose, NCUE, NLOOSE
 from barkley.model.game import NPART, Part
 from barkley.model.world import World
 from barkley.model.kinds import LoadKinds
+from barkley.model.images import IMGSZ, NIMG
+from barkley.model.level import ZONES
 from barkley.assets.store import BuildArt
 from barkley.assets.tunes import LoadSongs, PickSong, SongFor, Sudden
+from barkley.assets.palette import AllotTones
 from barkley.world.terrain.ground import LoadTables
+from barkley.world.level import AllotGround, AllotLevel
 from barkley.stage.scene import Render
 from barkley.control.keys import ReadPad
 from barkley.flow.save import LoadSave
@@ -22,6 +27,21 @@ from barkley.flow.states import GoStage, ResetWorld, Tick
 
 ' Set up, then read input, step in fixed ticks and draw,
 ' till Esc on the title.
+' The World's parts named and sized by their owners.
+sub Allot (wd as World)
+    ' where its tunes, its levels and its kinds start, then
+    ' its pictures
+    NameData wd.dat, "CHARLIE.DAT", "CHARLIE.DAT, the game's " + _
+        "pictures and tunes, must be beside CHARLIE.BAS."
+    NameData wd.mu.dat, wd.dat.path, wd.dat.lack
+    NameData wd.art.dat, wd.dat.path, wd.dat.lack
+    AllotLevel wd.lv
+    AllotGround wd.gr
+    AllotStore wd.art, IMGSZ, NIMG, ZONES
+    AllotTones wd.tn
+    AllotDeck wd.mu
+end sub
+
 sub Main (wd as World)
     dim g as Game, p as Hero, k as Pad
     dim lo(NLOOSE - 1) as Loose, pt(NPART - 1) as Part

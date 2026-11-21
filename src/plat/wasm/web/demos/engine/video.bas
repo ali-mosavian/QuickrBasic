@@ -130,3 +130,16 @@ sub Blit ( _
     put (x, y), art.img(art.at(k + 1)), and
     put (x, y), art.img(art.at(k)), or
 end sub
+
+' Store art sized: size bytes of n pictures, from a data
+' file of zones zones.
+sub AllotStore ( _
+    art as Store, _
+    size as long, _
+    n as integer, _
+    zones as integer _
+)
+    redim art.img(size)
+    redim art.at(n)
+    redim art.dat_at(zones - 1)
+end sub

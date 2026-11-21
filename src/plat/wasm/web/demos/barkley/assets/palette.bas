@@ -3,7 +3,7 @@
 defint A-Z
 option explicit
 
-from barkley.model.level import Realm
+from barkley.model.level import NSTAGE, Realm
 from barkley.model.game import Session, Tones
 
 const CFLAKE = 118
@@ -99,4 +99,11 @@ sub Shimmer (zn as Realm, tn as Tones, se as Session)
     Tint tn, CWATER + 1, tn.glint(i mod 3)
     Tint tn, CWATER + 2, tn.glint((i + 1) mod 3)
     Tint tn, CWATER + 3, tn.glint((i + 2) mod 3)
+end sub
+
+' A stage's own colours sized, stage by stage.
+sub AllotTones (tn as Tones)
+    redim tn.n(NSTAGE - 1)
+    redim tn.which(NSTAGE - 1, 159)
+    redim tn.own(NSTAGE - 1, 159)
 end sub
