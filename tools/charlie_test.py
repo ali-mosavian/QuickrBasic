@@ -858,15 +858,24 @@ for i = 0 to 4
     kitOk = kitOk and instr(kit, "W4") = 0 and instr(kit, "Y") > 0 and instr(kit, "R") > 0 and instr(kit, "R0") = 0
     kitOk = kitOk and not (instr(kit, "W0") > 0 and instr(kit, "Y1") > 0)
 next
+' The quarter's drums are FM, each fitted to a recorded
+' drum and chosen by ear. They were drawn by hand: a sine
+' for a kick, a triangle for a hat, a square for a stick.
+dim drums_ok as integer
+drums_ok = -1
 for zt = 17 to 18
     ZoneTune wd.mu, zt
     for i = 0 to len(wd.mu.song(ZTUNE).drLet) - 1
-        kitOk = kitOk and instr(wd.mu.song(ZTUNE).drPatch(i), "W3") = 0
+        kit = wd.mu.song(ZTUNE).drPatch(i)
+        kitOk = kitOk and instr(kit, "W3") = 0
+        drums_ok = drums_ok and instr(kit, "W4") > 0
+        drums_ok = drums_ok and instr(kit, "Z1,0H") = 0
     next
 next
 ZoneTune wd.mu, 0
 if sungOk and near > 3 * far then print "sung ok"
 if kitOk then print "kit ok"
+if drums_ok then print "drums ok"
 ' the Downs' first act has three golden bones, none found. The first is over the first tree, five tiles up, drawn
 ' in gold, and a full jump from the ground under it finds it: a thousand points, and it is in the save a step on,
 ' twelve bytes of it. Found, it is not drawn, and not found twice; its pip on the HUD is lit and the next dark.
@@ -4592,7 +4601,8 @@ def main() -> None:
         ("arranged ok", "a zone's second act played to its tune arranged again: evening, night, sunset, blizzard"),
         ("swing ok", "a swung song's off-beat eighths on the triplet's last, each half bar still half a bar long"),
         ("sung ok", "the quarter's tune sung: its notes held, by step, the trumpet and the clavinet out of its way"),
-        ("kit ok", "the quarter's kit no FM, its drums no noise: saws and pulses, filtered, in the room, no DC"),
+        ("kit ok", "the quarter's voices no FM, its drums no noise: saws and pulses, filtered, in the room, no DC"),
+        ("drums ok", "the quarter's drums FM, each fitted to a recorded drum and chosen by ear, none a plain wave"),
         ("gold ok", "an act's three golden bones: found by a touch, kept in the save at once, a pip each on the HUD"),
         ("packing ok", "after a chase the level's end is the longer one, twelve bars; the eight elsewhere"),
         ("whistled ok", "the quarter's blue hour ends whistled, the guitar gone; its festival night with the guitar"),

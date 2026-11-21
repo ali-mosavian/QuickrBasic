@@ -257,8 +257,8 @@ Progress is saved at each zone.
   moon; fireworks in act 2.
 - Music (written): a sly swing in A minor at 132. An accordion sings it by step, a muted trumpet answers
   where it rests; plucked bass in two, the chord on two and four, a stick across the rim, the Mob's motif in
-  the four bars before it. No FM voice, no noise drum. Festival (written): 144, full brass, toms for the
-  fireworks, rim shots.
+  the four bars before it. No FM voice. The drums are FM, each fitted to a recorded drum and chosen by ear.
+  Festival (written): 144, full brass, toms for the fireworks, claps.
 
 ### 7. Clock Tower
 
