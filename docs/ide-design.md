@@ -88,7 +88,7 @@ Built on a new `ui/findbar.c`; the matching is uimain.c's `match`, moved to `ui/
 - Ctrl+/ puts `' ` at each line's indent, or takes it away when every line has one.
 - Each is one undo step. None moves a line into or out of a SUB.
 
-Built on `edit.c`.
+Built on a new `ui/lines.c`, over `edit.c`.
 
 ## 5. Words
 
@@ -103,7 +103,7 @@ In insert mode, typing `"` or `(` puts in the closing one too, the cursor betwee
 is a space, the line's end or a closing bracket. Typing the closing one over itself steps over it.
 Backspace between an empty pair deletes both. Inside a string or a comment nothing is added.
 
-Built on `edit.c`; the string and comment test is the highlighter's.
+Built on a new `ui/closers.c`; the string and comment test is the highlighter's.
 
 ## 7. Matches lit
 
@@ -122,14 +122,14 @@ The blocks are IF/ELSEIF/ELSE/END IF (not a one-line IF), FOR/NEXT, DO/LOOP, WHI
 SELECT/CASE/END SELECT, SUB/END SUB, FUNCTION/END FUNCTION and TYPE/END TYPE. Ctrl+] goes to the next
 keyword of the block, or the partner bracket.
 
-Built on a new `ui/pairs.c`, over the lexer's tokens.
+Built on a new `ui/pairs.c`: brackets over the highlighter's slots, blocks over `ui/indent.c`'s keywords.
 
 ## 8. The name at the cursor
 
 With the cursor on a name, every other use of it on screen is drawn in SL_OCC. A use is the same name, case
 aside, its suffix the same or none, where the highlighter colours a name: not in a string or comment.
 
-Built on `ui/pairs.c`.
+Built on a new `ui/uses.c`, over the highlighter's slots.
 
 ## 9. Go to, back and forward
 
@@ -163,8 +163,8 @@ names, dim after its end:
 Numbers and strings only; a record or array shows nothing. Values cut at the window's edge. They go when
 the run goes on.
 
-Built on `ui/debuginline.c`, over `vm/inspect.h`: the names come from the line's tokens, the values from
-`insp_vars` and `insp_text`.
+Built on `ui/debuginline.c`: the names are where the highlighter colours one, the values Locals' rows
+(`ui/debuglocals.c`, over `vm/inspect.h`), so they follow the selected frame and its spelling.
 
 ## Theme slots
 

@@ -6,7 +6,7 @@
    differs from each colour the text has, and from the other marks, in every theme. */
 TEST(theme_marks_differ_from_the_text)
 {
-    static const uint8_t marks[] = {SL_ERR, SL_FIND, SL_MATCH, SL_OCC};
+    static const uint8_t marks[] = {SL_ERR, SL_FIND, SL_MATCH, SL_OCC, SL_HINT};
 
     static const uint8_t text[] = {
         SL_ED,

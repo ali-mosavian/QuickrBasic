@@ -32,6 +32,8 @@ Menu commands are in [menus](menus).
    beside the code. Records and arrays open in Locals, values can be
    set, and Break When (Ctrl+F9) stops the run when an expression
    turns true or changes.
+ - At a stop, each line of the stopped procedure shows the values of
+   the variables it names after its end.
  - Debug, Step Out (Shift+F8) runs on until the current procedure
    returns, then stops at the next statement in its caller. Step (F8)
    and Step Over (F7) run one statement, into calls or over them

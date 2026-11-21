@@ -25,6 +25,7 @@
 #include "ui/complete.h"
 #include "ui/debugpane.h"
 #include "ui/edit.h"
+#include "ui/debuginline.h"
 #include "ui/errors.h"
 #include "ui/findbar.h"
 #include "ui/pairs.h"
@@ -207,6 +208,7 @@ static void draw_row(Session *const S, const uint16_t r)
 
     errs_paint(S, row, col, line + uimn.text.first, v.text, len);
     fbar_paint(row, col, v.text, len);
+    dinl_paint(S, row, col, v.text, len, v.cols);
 
     if (has_focus())
         pairs_paint(row, col, line + uimn.text.first);

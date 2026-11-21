@@ -23,36 +23,6 @@ static struct {
     uint8_t cols[SYNT_KEEP];
 } us;
 
-static bool suffix(const uint8_t c) { return c && memchr("%&!#$", c, 5) != nullptr; }
-
-static bool name_slot(const uint8_t s) { return s == SL_NAM || s == SL_PAR || s == SL_FNM; }
-
-/* The name in text, len characters, at i: its base's length to *n, its suffix (0 none) to *sfx;
-   false: no name starts at i. */
-static bool name_at(
-    const uint8_t *const text,
-    const uint32_t len,
-    const uint8_t *const cols,
-    const uint32_t i,
-    uint32_t *const n,
-    uint8_t *const sfx
-)
-{
-    if (i >= len || i >= SYNT_KEEP || !name_slot(cols[i]) || !is_letter(text[i]))
-        return false;
-    if (i && is_name_char(text[i - 1]))
-        return false;
-
-    uint32_t j = i;
-
-    while (j < len && is_name_char(text[j]))
-        j++;
-
-    *n = j - i;
-    *sfx = j < len && suffix(text[j]) ? text[j] : 0;
-    return true;
-}
-
 void uses_find(Session *const S)
 {
     const LineBuf *const b = &uimn.edline;
@@ -70,7 +40,7 @@ void uses_find(Session *const S)
         uint32_t n;
         uint8_t sfx;
 
-        if (!name_at(b->text, len, us.cols, i, &n, &sfx))
+        if (!synt_name(b->text, len, us.cols, i, &n, &sfx))
             continue;
         if (b->col > i + n + (sfx != 0)) /* the cursor past it */
             return;
@@ -98,20 +68,14 @@ void uses_paint(
     if (!us.len)
         return;
 
-    static uint8_t kept[SYNT_KEEP];
-
-    if (!cols) {
-        synt_cols(S, text, len < SYNT_KEEP ? len : SYNT_KEEP, kept);
-        cols = kept;
-    }
-
+    cols = synt_need(S, text, len < SYNT_KEEP ? len : SYNT_KEEP, cols);
     const uint32_t left = uimn.ed.left, right = left + uimn.ed.width;
 
     for (uint32_t i = 0; i < len && i < right; i++) {
         uint32_t n;
         uint8_t sfx;
 
-        if (!name_at(text, len, cols, i, &n, &sfx) || n != us.len)
+        if (!synt_name(text, len, cols, i, &n, &sfx) || n != us.len)
             continue;
         if (sfx && us.suffix && sfx != us.suffix)
             continue;

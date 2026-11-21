@@ -390,11 +390,11 @@ uint8_t dloc_close(Session *const S, uint8_t i)
     return i;
 }
 
-const char *dloc_find(Session *const S, const uint8_t *const s, const uint32_t n, const uint8_t sfx)
+uint8_t dloc_find(Session *const S, const uint8_t *const s, const uint32_t n, const uint8_t sfx)
 {
     for (uint8_t i = 0; i < loc.n; i++)
         if (loc.rows[i].top && insp_is(S, &loc.rows[i].var, s, n, sfx))
-            return loc.rows[i].text;
+            return i;
 
-    return nullptr;
+    return DLOC_NONE;
 }
