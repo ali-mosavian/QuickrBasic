@@ -326,7 +326,8 @@ A still mockup of each zone is agreed before it is wired in.
   zone a game starts at.
 - The autopilot test clears every act, as it does now.
 - Golden bones (built): three an act, a level's `gold`; found by a touch, kept in `CHARLIE.SAV` at once, a pip
-  each on the HUD. Placed so far: the Downs' first act.
+  each on the HUD. Placed in all twelve acts built, 36: the first by a jump, the others by what the zone throws
+  him with, a spring, a geyser, a quarter pipe, a sapling, a mortar, and from its high road. The test gets each.
 
 ## Build order
 

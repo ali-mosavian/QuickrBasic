@@ -2261,6 +2261,57 @@ wd.se.unkept = -1
 Tick wd, g, p, k, lo(), pt()
 wd.mu.muted = colA(0)
 if was then print "quarter gold ok"
+' the first ten acts' golden bones can each be got: by a run at it, with a jump on the way or none, or steered to
+' its column once in the air. ways: for each, three digits how far back he starts, two the tick he jumps at, 99 for
+' never, one whether he steers, one his speed in hundreds. Each from the same tick of the game's clock: a geyser
+' and a gust keep time by it. Russet Wood's third at noon stood two tiles over the sapling's throw: no way of
+' playing at it got it
+dim ways as string, tickWas as long
+ways = "050030009099100501200" + "050030009099100501200" + "050030013003020909900" + "050030009009000909900"
+ways = ways + "050030009099100501200" + "050030009099100501200" + "050030005099100501200"
+ways = ways + "050030041099000909900" + "050030029099003300300" + "050030029099000500300"
+hid = wd.se.goldLo
+shown = wd.se.goldHi
+tickWas = wd.se.ticks
+was = -1
+for c = 0 to 29
+    wd.se.ticks = 1000
+    GoStage wd, c \\ 3, g, p, lo(), pt()
+    g.modeT = 20
+    wd.se.goldLo = 0
+    wd.se.goldHi = 0
+    j = 0
+    for i = 0 to wd.lv.nObj - 1
+        if wd.lv.ob(i).k <> KGOLD then continue for
+        colB(j) = i
+        j = j + 1
+    next
+    was = was and j = NGOLD
+    bx = wd.lv.ob(colB(c mod 3)).x
+    Stand wd.lv, wd.gr, p, cint(bx - val(mid$(ways, c * 7 + 1, 3))), 100 * val(mid$(ways, c * 7 + 7, 1))
+    p.inv = 9
+    v = val(mid$(ways, c * 7 + 4, 2))
+    m = val(mid$(ways, c * 7 + 6, 1))
+    for i = 1 to 300
+        k.r = m = 0 or p.x < bx - 3
+        k.l = m <> 0 and p.x > bx + 3
+        k.jump = i >= v and i < v + 25
+        k.hit = i = v
+        Tick wd, g, p, k, lo(), pt()
+        if Found%(wd.se, c \\ 3, c mod 3) then exit for
+    next
+    was = was and Found%(wd.se, c \\ 3, c mod 3)
+next
+k.r = 0
+k.l = 0
+k.jump = 0
+k.hit = 0
+wd.se.goldLo = hid
+wd.se.goldHi = shown
+wd.se.unkept = -1
+Tick wd, g, p, k, lo(), pt()
+wd.se.ticks = tickWas
+if was then print "golds ok"
 ' Russet Wood is the fifth zone, by name and in its own colours: its litter's top the same picture at both hours,
 ' russet gold at a misty noon and not on the firefly night
 was = ZoneName$(4) = "RUSSET WOOD"
@@ -4285,6 +4336,7 @@ def main() -> None:
         ("mortar ok", "a mortar fires on its beat of the tune: it burns who is beside it and throws up who is over it"),
         ("mortar pilot ok", "the pilot jumps a mortar's flash: through the festival night it is never hurt"),
         ("quarter gold ok", "each of the Lantern Quarter's six golden bones can be got"),
+        ("golds ok", "each of the first ten acts has three golden bones, and each can be got"),
         ("firefly ok", "the wood's night dark but for a few fireflies; a bark wakes them and lights it for a while"),
         ("sapling ok", "a bowed sapling throws him who crosses its crown, higher the faster; sprung it throws no one"),
         ("vine ok", "a vine caught in the air swings him as a weight, lets go at a jump, and hangs straight again"),
