@@ -75,6 +75,21 @@ sub Pose ( _
     end select
 end sub
 
+' Charlie as a cue has him barking, at x, y facing face, t
+' of his bark left.
+sub Woof ( _
+    p as Hero, _
+    x as integer, _
+    y as integer, _
+    face as integer, _
+    t as single _
+)
+    p.at.x = x
+    p.at.y = y
+    p.face = face
+    p.bark_t = t
+end sub
+
 ' Charlie, and streaks of wind behind it at speed; running
 ' on a slope, the frame turned to it. What is nearer than
 ' Charlie: the near half of each ribbon's twist, which hides

@@ -3,10 +3,9 @@
 defint A-Z
 option explicit
 
-from engine.clock import STEPT
 from engine.events import Events
 from barkley.model.hero import Hero
-from barkley.model.level import GRAV, Ground, KAWNING, KBONE, KBOOST
+from barkley.model.level import Ground, KAWNING, KBONE, KBOOST
 from barkley.model.level import KBRAMBLE, KBUMP, KBUOY, KBUTTON, KCAT
 from barkley.model.level import KCHIMNEY, KCRAB, KDRIFT, KFLUME, KGOAL
 from barkley.model.level import KGOAT, KGOLD, KHEAP, KHOOP, KICICLE
@@ -39,9 +38,10 @@ from barkley.stage.zones.quarter import MeetMortar, MeetPounce
 from barkley.stage.zones.quarter import MeetTipper
 from barkley.stage.camera import Camera
 from barkley.stage.hero.push import Launch, Perch
-from barkley.stage.things.react import Rest
+from barkley.stage.things.react import Rest, Turn
 from barkley.stage.things.chase import ResetChase
-from barkley.stage.hero.hurt import Hurt
+from barkley.stage.hero.hurt import Fall, Hurt, Stand
+from barkley.stage.fx.parts import Pick
 
 sub Spawn ( _
     lv as Level, _
@@ -51,13 +51,8 @@ sub Spawn ( _
     g as Game, _
     p as Hero _
 )
-    dim fresh as Hero
-
-    p = fresh
-    p.at.x = g.home.x
-    p.at.y = g.home.y
-    p.ground = -1
-    p.sg = SegAt%(lv, gr, g.home.x, csng(g.home.y))
+    Stand p, g.home.x, g.home.y, _
+        SegAt%(lv, gr, g.home.x, csng(g.home.y))
     g.bones = 0
     ResetChase lv, ev
     Mend lv
@@ -157,7 +152,7 @@ sub Touch ( _
             case KMARK
                 MeetMark lv, ev, g, p, i
             case KGOAL
-                if px >= x then lv.things(i).state = 1
+                if px >= x then Turn lv, i, 1
             case KTHORN
                 if dx < 12 and abs(py - lv.things(i).at.y) < 8 then
                     Hurt ev, se, g, p, x, lo(), SHURT
@@ -185,8 +180,7 @@ sub Touch ( _
         if abs(lo(i).at.x - px) >= 12 _
             or abs(lo(i).at.y - py + 13) >= 16 then continue for
 
-        lo(i).t = 0
-        se.loose_n = se.loose_n - 1
+        Pick lo(), se, i
         g.bones = g.bones + 1
         Tell ev, EVSOUND, SBONE
     next
@@ -202,9 +196,7 @@ sub Dying ( _
     g as Game, _
     p as Hero _
 )
-    p.dead_t = p.dead_t + STEPT
-    p.vel.y = p.vel.y + GRAV * STEPT
-    p.at.y = p.at.y + p.vel.y * STEPT
+    Fall p
     if p.dead_t < 2 then exit sub
 
     g.lives = g.lives - 1

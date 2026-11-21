@@ -177,3 +177,21 @@ sub Balk (p as Hero, x as integer, r as integer)
         p.vel.x = 0
     end if
 end sub
+
+' Stopped dead at x, the furthest he goes.
+sub Halt (p as Hero, x as single)
+    if p.at.x <= x then exit sub
+
+    p.at.x = x
+    p.gsp = 0
+    p.vel.x = 0
+    p.roll = 0
+end sub
+
+' Stood still at x or past it: there, glad, facing right.
+sub Arrive (p as Hero, x as single)
+    if not p.ground or abs(p.gsp) >= 5 or p.at.x < x then exit sub
+
+    p.win = -1
+    p.face = 0
+end sub

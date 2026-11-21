@@ -4,9 +4,11 @@ defint A-Z
 option explicit
 
 from engine.events import Events
+from engine.clock import STEPT
 from barkley.model.events import EVSHAKE, EVSOUND, Tell
 from barkley.model.game import Game, Loose, NLOOSE, Session
 from barkley.model.hero import Hero
+from barkley.model.level import GRAV
 from barkley.assets.tunes import SDIE, SHISS, SHURT
 from barkley.stage.fx.parts import Shed
 
@@ -71,4 +73,22 @@ sub Lose (ev as Events, se as Session, p as Hero)
     p.vel.y = -340
     p.ground = 0
     Tell ev, EVSOUND, SDIE
+end sub
+
+' Out, he rises and falls through everything.
+sub Fall (p as Hero)
+    p.dead_t = p.dead_t + STEPT
+    p.vel.y = p.vel.y + GRAV * STEPT
+    p.at.y = p.at.y + p.vel.y * STEPT
+end sub
+
+' A fresh Charlie standing at x, y, on stretch sg.
+sub Stand (p as Hero, x as integer, y as integer, sg as integer)
+    dim fresh as Hero
+
+    p = fresh
+    p.at.x = x
+    p.at.y = y
+    p.ground = -1
+    p.sg = sg
 end sub

@@ -18,7 +18,7 @@ from barkley.assets.tunes import Sfx, ZoneTune
 from barkley.world.level import LoadLevel, SINTRO, ZoneOf
 from barkley.world.backdrop import DrawBack, DrawTiles
 from barkley.stage.hero.moves import BARKT
-from barkley.stage.hero.draw import DrawBark, DrawHero, Pose
+from barkley.stage.hero.draw import DrawBark, DrawHero, Pose, Woof
 from barkley.stage.scene import DrawThings
 from barkley.control.keys import MuteKey, Spent
 
@@ -371,10 +371,7 @@ private sub DrawCue ( _
             cu(i).finish.x < cu(i).start.x
         DrawHero wd.gr, wd.art, wd.se, p, cx, cy
     case QWOOF
-        p.at.x = wx
-        p.at.y = wy
-        p.face = a
-        p.bark_t = BARKT - (now - cu(i).t0) / BEATS
+        Woof p, wx, wy, a, BARKT - (now - cu(i).t0) / BEATS
         DrawBark p, cx, cy
     end select
 end sub

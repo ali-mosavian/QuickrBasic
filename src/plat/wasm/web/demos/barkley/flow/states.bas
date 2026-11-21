@@ -31,6 +31,7 @@ from barkley.stage.things.wood import Swarms
 from barkley.stage.things.pass import Avalanche, Homeward
 from barkley.stage.hero.hurt import Lose
 from barkley.stage.hero.feet import Carried
+from barkley.stage.hero.push import Arrive, Halt
 from barkley.control.keys import MuteKey, Spent
 from barkley.control.pilot import Pilot
 from barkley.flow.save import Keep, PickZone, Reach
@@ -355,18 +356,8 @@ private function Met% ( _
     idle.right = p.at.x < wd.lv.fam_x - 108 and not p.win
     MoveHero wd.lv, wd.kinds, wd.gr, wd.ev, wd.se, p, idle, pt()
 
-    if p.at.x > wd.lv.fam_x - 106 then
-        p.at.x = wd.lv.fam_x - 106
-        p.gsp = 0
-        p.vel.x = 0
-        p.roll = 0
-    end if
-
-    if p.ground and abs(p.gsp) < 5 _
-        and p.at.x >= wd.lv.fam_x - 108 then
-        p.win = -1
-        p.face = 0
-    end if
+    Halt p, wd.lv.fam_x - 106
+    Arrive p, wd.lv.fam_x - 108
 
     wd.se.cheer = p.win
     g.cam.x = g.cam.x + (wd.lv.fam_x - 166 - g.cam.x) * 4 * STEPT

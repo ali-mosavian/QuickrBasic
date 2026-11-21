@@ -67,7 +67,7 @@ OWNERS = {
     "event": "engine/events",
 }
 # The fields assigned outside their owner today: the count may only fall.
-OUTSIDE = 225
+OUTSIDE = 204
 
 DRIVER = """from engine.video import Blit, OpenScreen, SH, SW
 from engine.clock import Clock, Pace, Steps, STEPT
@@ -4667,19 +4667,26 @@ def owners_kept() -> int:
     checked on planted assignments: three outside their owner, one in a one-line IF and one to a field's
     field, and four inside. A Vec's x was once owned by the last record to hold a Vec, the camera's by
     Charlie's: renaming the camera a Vec raised the count by five. A local Vec's x once had no owner at all:
-    the count stopped on the first place an event was posted at."""
+    the count stopped on the first place an event was posted at. Their place moving out of play once left
+    nothing planted, reported as a plant missed."""
     files = game_files()
     got = len(outside(files))
     play = DEMO.parent / "barkley/stage/play.bas"
     moves = DEMO.parent / "barkley/stage/hero/moves.bas"
     states = DEMO.parent / "barkley/flow/states.bas"
-    three = "    p = fresh\n    p.gsp = 0\n    if p.dig then p.gsp = 0\n    p.at.x = 0\n"
-    planted = {**files, play: files[play].replace("    p = fresh\n", three, 1)}
+
+    def plant(path: Path, anchor: str, more: str) -> str:
+        if anchor not in files[path]:
+            sys.exit(f"charlie: the planted assignments' place, {anchor.strip()!r}, is gone from {path.name}")
+        return files[path].replace(anchor, anchor + more, 1)
+
+    spawn = "    g.bones = 0\n"
+    planted = {**files, play: plant(play, spawn, "    p.gsp = 0\n    if p.dig then p.gsp = 0\n    p.at.x = 0\n")}
     inside = {
         **files,
-        moves: files[moves].replace("    p.gsp = 0\n", "    p.gsp = 0\n    p.gsp = 0\n    p.at.x = 0\n", 1),
-        states: files[states].replace("    g.lives = 3\n", "    g.lives = 3\n    g.cam.x = 0\n", 1),
-        play: files[play].replace("    p = fresh\n", "    p = fresh\n    dim here as Vec\n    here.x = 0\n", 1),
+        moves: plant(moves, "    p.gsp = 0\n", "    p.gsp = 0\n    p.at.x = 0\n"),
+        states: plant(states, "    g.lives = 3\n", "    g.cam.x = 0\n"),
+        play: plant(play, spawn, "    dim here as Vec\n    here.x = 0\n"),
     }
     if len(outside(planted)) != got + 3 or len(outside(inside)) != got:
         sys.exit("charlie: the count of fields assigned outside their owner misses a planted one")
