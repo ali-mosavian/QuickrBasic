@@ -481,23 +481,29 @@ bool edit_commit(Session *const S)
         b->len--;
 
     changed();
+
+    if (!edit_store(S, uimn.ed.line, b))
+        return false;
+
+    view_commit(S);
+    return true;
+}
+
+bool edit_store(Session *const S, const uint32_t line, LineBuf *const b)
+{
     const uint32_t was = enter_view(S, uimn.ed.view);
     uint32_t lexed;
     const bool canon = edit_canon(S, b->text, b->len, &lexed);
     S->repl.module = was;
+    uimn.text.asis = !canon; /* a syntax error: kept as typed */
 
-    if (!canon) { /* a syntax error: kept as typed */
-        uimn.text.asis = true;
-        text_repl(S, uimn.ed.line, b->text, b->len);
-        return false;
+    if (canon) {
+        b->len = (uint16_t)S->cons.sblen;
+        memcpy(edit_lb_need(S, b, b->len), S->cons.sbuf, S->cons.sblen);
     }
 
-    uimn.text.asis = false;
-    b->len = (uint16_t)S->cons.sblen;
-    memcpy(edit_lb_need(S, b, b->len), S->cons.sbuf, S->cons.sblen);
-    text_repl(S, uimn.ed.line, b->text, b->len);
-    view_commit(S);
-    return true;
+    text_repl(S, line, b->text, b->len);
+    return canon;
 }
 
 void edit_goto(Session *const S, const uint32_t line)

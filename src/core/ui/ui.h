@@ -144,7 +144,14 @@ enum : uint8_t {
 };
 enum : uint16_t { KEY_SHIFT_TAB = 0x0F00 };
 /* A key's character (its low byte). */
-enum : uint8_t { CH_BACKSPACE = 0x08, CH_TAB = 0x09, CH_ENTER = 0x0D, CH_ESC = 0x1B, CH_E0 = 0xE0 };
+enum : uint8_t {
+    CH_BACKSPACE = 0x08,
+    CH_TAB = 0x09,
+    CH_ENTER = 0x0D,
+    CH_ESC = 0x1B,
+    CH_CTRL_MINUS = 0x1F, /* Ctrl+-, the BIOS's; Ctrl+/, ours */
+    CH_E0 = 0xE0,
+};
 
 enum : uint8_t { TAB_STOP = 8 };
 /* The cursor's shapes (pscr_shape). */

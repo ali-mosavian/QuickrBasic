@@ -139,6 +139,10 @@ int32_t host_bios_key(const uint32_t key, const uint32_t typed, const uint8_t fl
         case ']':
             return scan << 8 | 0x1D;
 
+        case '-':
+        case '/': /* ours: the BIOS has none */
+            return scan << 8 | 0x1F;
+
         case ' ':
             return scan << 8 | 0x20;
 

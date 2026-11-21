@@ -23,6 +23,9 @@ enum : uint16_t {
     FX_SHIFT_F3 = 0x5600,
     FX_ALT_W = 0x1100,
     FX_ALT_C = 0x2E00,
+    FX_ALT_UP = 0x9800,
+    FX_ALT_DOWN = 0xA000,
+    FX_CTRL_MINUS = 0x0C1F,
 };
 
 /* The test folder's file name: its path. */

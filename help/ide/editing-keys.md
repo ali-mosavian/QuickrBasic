@@ -18,6 +18,9 @@ See also [selecting text](selecting text), [completion](completion),
     Backspace         delete before the cursor
     Del               delete at the cursor
     Ctrl+Y            delete the whole line
+    Alt+Up, Down      move the line, or the lines selected
+    Shift+Alt+Up, Down  copy them above, below
+    Ctrl+/, Ctrl+-    comment them out, or back in
     Ctrl+Z            undo; Alt+Backspace too
     Ctrl+Shift+Z      redo
     Ins               switch insert and overwrite
@@ -35,6 +38,8 @@ WordStar keys work as well:
 
 Leaving a line commits it: keywords are capitalised, trailing
 spaces dropped and, if checking is on, the syntax checked.
+
+No line moves past a SUB or FUNCTION line or its END.
 
 ## Example
     Type:   print "hi"   then press Down

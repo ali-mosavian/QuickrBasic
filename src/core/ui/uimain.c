@@ -66,6 +66,7 @@
 #include "ui/errors.h"
 #include "ui/findbar.h"
 #include "ui/linemap.h"
+#include "ui/lines.h"
 #include "ui/help.h"
 #include "ui/menu.h"
 #include "ui/mouse.h"
@@ -345,6 +346,13 @@ static bool edit_scan(Session *const S, const uint8_t scan)
         undo_undo(S);
     } else if (scan == SCAN_B && uimn.keyflags & PKEY_CTRL) { /* Ctrl+Alt+B, ours */
         defn_goto(S, true);
+    } else if (scan == SCAN_ALT_UP || scan == SCAN_ALT_DOWN) { /* ours; with Shift, a copy */
+        uimn.ed.sel_on = uimn.ed.sel_on && edit_sel() == SEL_LINES;
+
+        if (shift)
+            lines_copy(S, scan == SCAN_ALT_DOWN);
+        else
+            lines_move(S, scan == SCAN_ALT_DOWN);
     } else
         return false;
 
@@ -406,6 +414,10 @@ static bool edit_control(Session *const S, const uint8_t ch)
 
     case CTRL('B'): /* Go to Definition, ours */
         defn_goto(S, false);
+        return true;
+
+    case CH_CTRL_MINUS: /* ours: the lines commented out, or back */
+        lines_comment(S);
         return true;
 
     case CTRL('Z'): /* Undo; with Shift, Redo */

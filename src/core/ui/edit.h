@@ -43,6 +43,9 @@ void edit_load(Session *S, uint32_t line);
    FUNCTION line typed gets its view (view_commit). false: a syntax error; the line is stored as
    typed. */
 bool edit_commit(Session *S);
+/* b's text stored as line line of the view, as edit_commit stores the cursor's: LIST's spelling,
+   b's then; as typed with a syntax error, false. */
+bool edit_store(Session *S, uint32_t line, LineBuf *b);
 /* Text line line (the whole text's) checked as entered in its view: false it passes; else its
    error's column to *col, its message in uimn.errmsg. */
 bool edit_error(Session *S, uint32_t line, uint16_t *col);
