@@ -38,6 +38,7 @@ a small engine any demo can use, and a game over it.
 | Events | `Events` | `engine/events` | What happened this step, in order |
 | Hero | `Hero` | `stage/hero` | Moves him. Takes a push or a hurt |
 | Things | `Thing` | `stage/things` | Runs each thing's rule. Changes a thing that was touched |
+| Camera | `Camera` | `stage/camera` | Where the screen looks: after Charlie in play, by the script in the intro |
 | Kinds | `Kind` | `model/kinds` | What each kind looks like and does. Read only once loaded |
 | Level | `Level`, `Ground` | `world` | The level as laid, and its ground |
 | Game | `Game`, `Session` | `flow` | Score, lives, the state of play, the save |
@@ -47,6 +48,9 @@ a small engine any demo can use, and a game over it.
 ## Boundaries
 
 - Only a record's own module assigns its fields. Any module may read them.
+- The level's things are made where the level is read, in `world/level` with `world/layout`'s
+  help, which set their fields as they are made. Nothing there runs in play: from then on only
+  `stage/things` changes them.
 - A routine takes its own record first, then only what it reads.
 - A subsystem does not call another's modifiers. The orchestrator calls each with the other's
   result.

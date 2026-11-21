@@ -67,8 +67,11 @@ OWNERS = {
     "events": "engine/events",
     "event": "engine/events",
 }
+# The modules that make a record where the level is read: they set its fields as it is made, its owner
+# changes them from then on.
+MAKERS = dict.fromkeys(("thing", "swarm", "bird", "runner", "rover", "front", "rope"), ("world/level", "world/layout"))
 # The fields assigned outside their owner today: the count may only fall.
-OUTSIDE = 69
+OUTSIDE = 42
 
 DRIVER = """from engine.video import Blit, OpenScreen, SH, SW
 from engine.clock import Clock, Pace, Steps, STEPT
@@ -4660,8 +4663,7 @@ def outside(files: dict[Path, str]) -> list[str]:
                     continue
                 if rec not in OWNERS:
                     sys.exit(f"charlie: {where}: {rec} has no owner in charlie_test.py's OWNERS")
-                own = OWNERS[rec]
-                if where != own and not where.startswith(own + "/"):
+                if not any(where == m or where.startswith(m + "/") for m in (OWNERS[rec], *MAKERS.get(rec, ()))):
                     name = ref.fields[-1][1] if ref.fields else ref.base
                     out.append(f"{where}:{st.toks[0].line} {rec}.{name}")
     return out
@@ -4669,16 +4671,19 @@ def outside(files: dict[Path, str]) -> list[str]:
 
 def owners_kept() -> int:
     """The count of fields assigned outside their owner, which is OUTSIDE: lowered as it falls. The count is
-    checked on planted assignments: three outside their owner, one in a one-line IF and one to a field's
-    field, and four inside. A Vec's x was once owned by the last record to hold a Vec, the camera's by
+    checked on planted assignments: four outside their owner, one in a one-line IF and one to a field's
+    field, and five inside. A Vec's x was once owned by the last record to hold a Vec, the camera's by
     Charlie's: renaming the camera a Vec raised the count by five. A local Vec's x once had no owner at all:
     the count stopped on the first place an event was posted at. Their place moving out of play once left
-    nothing planted, reported as a plant missed."""
+    nothing planted, reported as a plant missed. A thing set as the level is read is not counted; one set by
+    world in play is."""
     files = game_files()
     got = len(outside(files))
     play = DEMO.parent / "barkley/stage/play.bas"
     moves = DEMO.parent / "barkley/stage/hero/moves.bas"
     states = DEMO.parent / "barkley/flow/states.bas"
+    level = DEMO.parent / "barkley/world/level.bas"
+    movers = DEMO.parent / "barkley/world/movers.bas"
 
     def plant(path: Path, anchor: str, more: str) -> str:
         if anchor not in files[path]:
@@ -4686,14 +4691,19 @@ def owners_kept() -> int:
         return files[path].replace(anchor, anchor + more, 1)
 
     spawn = "    g.bones = 0\n"
-    planted = {**files, play: plant(play, spawn, "    p.gsp = 0\n    if p.dig then p.gsp = 0\n    p.at.x = 0\n")}
+    planted = {
+        **files,
+        play: plant(play, spawn, "    p.gsp = 0\n    if p.dig then p.gsp = 0\n    p.at.x = 0\n"),
+        movers: plant(movers, "        s = lv.movers(m).sg\n", "        lv.things(m).state = 0\n"),
+    }
     inside = {
         **files,
         moves: plant(moves, "    p.gsp = 0\n", "    p.gsp = 0\n    p.at.x = 0\n"),
         states: plant(states, "    g.lives = 3\n", "    g.home.x = 0\n"),
         play: plant(play, spawn, "    dim here as Vec\n    here.x = 0\n"),
+        level: plant(level, "    wd.lv.cart.st = 0\n", "    wd.lv.things(0).state = 0\n"),
     }
-    if len(outside(planted)) != got + 3 or len(outside(inside)) != got:
+    if len(outside(planted)) != got + 4 or len(outside(inside)) != got:
         sys.exit("charlie: the count of fields assigned outside their owner misses a planted one")
     if got > OUTSIDE:
         sys.exit(f"charlie: {got} fields assigned outside their record's owner, more than {OUTSIDE}")
