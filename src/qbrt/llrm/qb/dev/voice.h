@@ -35,6 +35,11 @@ typedef struct DevVoice {
                                 envelope and level, to DEV_LAYERS - 1; their hertz, gate, trigger, vibrato and unison
                                 are this one's */
     unsigned short pitch;    /* hundredths of the note's pitch, 1 to 1600; 0 the note's */
+    unsigned char dip;       /* FM: the bend starts so many 15ths of the depth under full, 0 to 15; under its level it
+                                rises to it */
+    unsigned char swept;     /* how long the cutoff takes from `sweep` to `cutoff`: the decay's scale, 0 to 15 */
+    unsigned short sweep;    /* the cutoff a note starts at, Hz; 0 none */
+    unsigned short over;     /* a glide starts at so many hundredths of the pitch, 1 to 1600; 0 by `from` and `under` */
 } DevVoice;
 
 #endif

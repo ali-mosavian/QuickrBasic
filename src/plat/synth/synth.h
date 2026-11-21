@@ -37,6 +37,10 @@ typedef struct SynthOsc {
     /* FM with a fine ratio: the ratio (2^16 is 1), the modulator's own phase and step, and the unison's */
     uint32_t mul, mphase, mstep, mphase2, mstep2;
     uint8_t more; /* a voice's: how many of its layers may be sounding */
+    /* the cutoff's sweep: where it is (2^-20 octaves over 1 Hz), its step a sample and the samples it has left; the
+       cutoff's own f */
+    int32_t cut_at, cut_step, f_end;
+    uint32_t cut_left;
 } SynthOsc;
 
 enum { SYNTH_COMBS = 4, SYNTH_PASSES = 2, SYNTH_COMB_MOST = 2100, SYNTH_PASS_MOST = 256 };

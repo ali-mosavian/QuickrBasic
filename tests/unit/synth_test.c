@@ -202,6 +202,24 @@ TEST(synth_layered_hits_sound_alike)
     }
 }
 
+/* Z's sixth number: where the bend starts, under its level, so it rises to it: a tone that brightens, as a snare's
+   hiss swells in. The bend only fell. */
+TEST(synth_fm_bend_rises)
+{
+    Synth s;
+    DevVoice v = note(441, DEV_FM, 0x00F0);
+    v.depth = 10;
+    v.fall = 0x6F; /* to full in 204 ms */
+    v.dip = 15;    /* from a plain sine */
+    sound(&s, v, RATE);
+    int early = 0, late = 0;
+    for (int i = 1; i < RATE / 50 - 1; i++)
+        early += (buf[i] - buf[i - 1] > 0) != (buf[i + 1] - buf[i] > 0);
+    for (int i = RATE / 2 + 1; i < RATE / 2 + RATE / 50 - 1; i++)
+        late += (buf[i] - buf[i - 1] > 0) != (buf[i + 1] - buf[i] > 0);
+    CHECK(early <= 2 * 441 / 50 + 2 && late > early * 2);
+}
+
 /* How far under a held note's whole sound the part of it off its harmonics is, in dB (0 is all of it): a second of
    `v` from its second second, each harmonic under half the rate measured. 1000 Hz is no divisor of the rate, so what
    folds back from over half of it lands between the harmonics. */
@@ -388,6 +406,22 @@ TEST(synth_glide_slides_to_the_note)
     CHECK(scoop >= 11 && scoop <= 16 && rises(buf + RATE / 4, RATE / 20) >= 21);
 }
 
+/* K's fourth number: the slide starts at so many hundredths of the pitch. From over it started at 1.25 times at the
+   least: the tom's fall of 1.4 times was no patch's. */
+TEST(synth_glide_from_hundredths)
+{
+    Synth s;
+    DevVoice v = note(1000, DEV_TRIANGLE, 0x00F0);
+    v.glide = 4; /* 40 ms */
+    v.over = 140;
+    sound(&s, v, RATE / 5);
+    const int early = rises(buf, RATE / 200), late = rises(buf + RATE / 10, RATE / 100);
+    CHECK(early >= 6 && early <= 7 && late >= 9 && late <= 10);
+    v.over = 71;
+    sound(&s, v, RATE / 5);
+    CHECK(rises(buf, RATE / 200) <= 4 && rises(buf + RATE / 10, RATE / 100) >= 9);
+}
+
 /* H8,0,8,4: 100 ms of attack to full, a decay to about half, held, then a release to silence. */
 TEST(synth_envelope_attacks_sustains_releases)
 {
@@ -422,6 +456,39 @@ TEST(synth_filter_passes_its_band)
         got[f] = peak(buf + RATE / 20, RATE / 20);
     }
     CHECK(got[0] < 1000 && got[1] > 4000);
+}
+
+/* How bright a stretch is: the power of its steps against its own. */
+static double brightness(const int16_t *const x, const int n)
+{
+    double steps = 0, power = 0;
+    for (int i = 1; i < n; i++) {
+        steps += (double)(x[i] - x[i - 1]) * (x[i] - x[i - 1]);
+        power += (double)x[i] * x[i];
+    }
+    return steps / (power + 1);
+}
+
+/* Y's fourth and fifth numbers: the cutoff a note starts at, and how long it takes to the cutoff. A saw swept down
+   from 6000 to 400 Hz starts bright and ends as one filtered at 400; swept up, the other way. The cutoff was fixed for
+   the note: a pluck's brightness fell with its loudness or not at all. */
+TEST(synth_cutoff_sweeps)
+{
+    Synth s;
+    DevVoice v = note(110, DEV_SAW, 0x00F0);
+    v.filter = DEV_LOW_PASS;
+    v.cutoff = 400;
+    sound(&s, v, RATE);
+    const double plain = brightness(buf + RATE / 2, RATE / 50);
+    v.sweep = 6000;
+    v.swept = 7; /* 240 ms */
+    sound(&s, v, RATE);
+    const double start = brightness(buf + RATE / 100, RATE / 50), end = brightness(buf + RATE / 2, RATE / 50);
+    CHECK(start > end * 4 && fabs(end - plain) < plain / 20);
+    v.cutoff = 6000;
+    v.sweep = 400;
+    sound(&s, v, RATE);
+    CHECK(brightness(buf + RATE / 100, RATE / 50) * 4 < brightness(buf + RATE / 2, RATE / 50));
 }
 
 /* 32 voices at full volume, their sum six times what a sample holds: they were clipped flat, nine samples in ten at
@@ -850,6 +917,32 @@ TEST(play_sets_layers)
     CHECK(on[1].v[0].layers == 0 && on[2].v[0].pitch == 200);
     CHECK(on[3].v[0].volume == 12 && on[3].v[0].wave == DEV_FM);
     for (int i = 0; i < 3; i++)
+        CHECK(unit_run(S, wrong[i]) == E_USR);
+}
+
+/* Z's sixth number, the bend's start; Y's fourth and fifth, the cutoff's start and its time; K's fourth, the slide's
+   start in hundredths. */
+TEST(play_sets_changes_within_a_note)
+{
+    static const char *const lines[] = {
+        "10 PLAY \"MF W4 Z1,8,3,15,2,4 Y1,800,6,6000,4 K4,0,0,140 C Y1,800,6,0 C P64\"", nullptr};
+    static const char *const wrong[][2] = {{"10 PLAY \"Y1,800,6,20 C\"", nullptr},
+                                           {"10 PLAY \"W4 Z1,8,3,15,2,16 C\"", nullptr},
+                                           {"10 PLAY \"K4,0,0,1601 C\"", nullptr}, {"10 PLAY \"Y1,800,6,900,16 C\"", nullptr}};
+
+    qbrt_realtime(false);
+    music_clear();
+    const size_t first = headless_voice_count();
+    CHECK(unit_run(S, lines) == ST_OK);
+    qbrt_realtime(true);
+    DevVoice on[2];
+    unsigned n = 0;
+    for (size_t i = first; i < headless_voice_count() && n < 2; i++)
+        if (headless_voice(i).v[0].gate && headless_voice(i).v[0].hertz)
+            on[n++] = headless_voice(i).v[0];
+    CHECK(n == 2 && on[0].dip == 11 && on[0].feedback == 2 && on[0].sweep == 6000 && on[0].swept == 4);
+    CHECK(on[0].over == 140 && on[0].glide == 4 && on[1].sweep == 0 && on[1].swept == 4);
+    for (int i = 0; i < 4; i++)
         CHECK(unit_run(S, wrong[i]) == E_USR);
 }
 

@@ -42,7 +42,8 @@ enum {
     DEFAULT_CUTOFF = 1000,
     DEFAULT_DEPTH = 8,
     DEFAULT_FALL = 0x0F, /* the modulator held at full */
-    HIGHEST_FEEDBACK = 7
+    HIGHEST_FEEDBACK = 7,
+    MOST_PITCH = 1600 /* hundredths of a note's pitch */
 };
 
 /* How much of a note sounds before the silence that ends it, in eighths. */
@@ -192,17 +193,26 @@ static void envelope(Player *p)
     layer_of(p)->envelope = (unsigned short)value;
 }
 
-/* Y mode[, cutoff[, resonance]]: the filter off (0), low-pass, band-pass, high-pass. */
+/* Y mode[, cutoff[, resonance[, from[, time]]]]: the filter off (0), low-pass, band-pass, high-pass; the cutoff a note
+   starts at (0 none) and how long it takes to the cutoff. */
 static void filter(Player *p)
 {
     DevVoice *const v = layer_of(p);
 
     v->filter = (unsigned char)within(p, DEV_UNFILTERED, DEV_HIGH_PASS);
-    if (comma(p)) {
-        v->cutoff = (unsigned short)within(p, LOWEST_CUTOFF, HIGHEST_CUTOFF);
-        if (comma(p))
-            v->resonance = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
-    }
+    if (!comma(p))
+        return;
+    v->cutoff = (unsigned short)within(p, LOWEST_CUTOFF, HIGHEST_CUTOFF);
+    if (!comma(p))
+        return;
+    v->resonance = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
+    if (!comma(p))
+        return;
+    v->sweep = (unsigned short)within(p, 0, HIGHEST_CUTOFF);
+    if (v->sweep && v->sweep < LOWEST_CUTOFF)
+        illegal();
+    if (comma(p))
+        v->swept = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
 }
 
 static void volume(Player *p)
@@ -233,8 +243,9 @@ static unsigned hundredths(Player *p)
     return digits == 1 ? value * 10 : value;
 }
 
-/* Z ratio[.hundredths][, depth[, decay[, level[, feedback]]]]: FM's modulator, its pitch in the note's, how far it
-   bends the carrier, how fast that falls at each note and to what, and how far it bends itself. */
+/* Z ratio[.hundredths][, depth[, decay[, level[, feedback[, start]]]]]: FM's modulator, its pitch in the note's, how
+   far it bends the carrier, how fast that moves at each note, from where (start, 15 full) to what, and how far it
+   bends itself. */
 static void modulator(Player *p)
 {
     DevVoice *const v = layer_of(p);
@@ -253,8 +264,11 @@ static void modulator(Player *p)
     if (!comma(p))
         return;
     v->fall = (unsigned char)((v->fall & ~HIGHEST_NIBBLE) | within(p, 0, HIGHEST_NIBBLE));
+    if (!comma(p))
+        return;
+    v->feedback = (unsigned char)within(p, 0, HIGHEST_FEEDBACK);
     if (comma(p))
-        v->feedback = (unsigned char)within(p, 0, HIGHEST_FEEDBACK);
+        v->dip = (unsigned char)(HIGHEST_NIBBLE - within(p, 0, HIGHEST_NIBBLE));
 }
 
 /* U, I, R and S are the voice's, every layer's. */
@@ -284,7 +298,6 @@ static void side(Player *p)
 /* J n[, pitch]: the commands after it set layer n, 0 the voice's own sound, up to the next J or the string's end. A
    pitch, hundredths of the note's, sounds the layer with the voice; 0 silences it and those after it. Layers sound
    from 1 up, none missed: J0,0 is the voice alone, at its note. */
-enum { MOST_PITCH = 1600 };
 static void layer(Player *p)
 {
     const unsigned n = within(p, 0, DEV_LAYERS - 1);
@@ -309,8 +322,8 @@ static void layer(Player *p)
         voice->layers = (unsigned char)n;
 }
 
-/* K time[, from[, under]]: a note slides to its pitch, from the last note's, from so many quarters over its own, or
-   from so many semitones under it. */
+/* K time[, from[, under[, hundredths]]]: a note slides to its pitch, from the last note's, from so many quarters over
+   its own, from so many semitones under it, or from so many hundredths of it. */
 enum { MOST_UNDER = 24 };
 static void glide(Player *p)
 {
@@ -319,8 +332,11 @@ static void glide(Player *p)
     v->glide = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
     if (comma(p))
         v->from = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
+    if (!comma(p))
+        return;
+    v->under = (unsigned char)within(p, 0, MOST_UNDER);
     if (comma(p))
-        v->under = (unsigned char)within(p, 0, MOST_UNDER);
+        v->over = (unsigned short)within(p, 0, MOST_PITCH);
 }
 
 /* Q percent: the pulse's high part. */

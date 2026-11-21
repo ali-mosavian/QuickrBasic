@@ -29,6 +29,9 @@ enum {
     ROOM_TAIL = 3,        /* seconds until the tail is nothing */
     NOISE_START = 0x7FFFF8,
     PITCH_ONE = 100,      /* a DevVoice's pitch: hundredths */
+    OCTAVE = 1 << 20,     /* a swept cutoff's place: octaves over 1 Hz */
+    SWEEP_RUN = 16,       /* samples a swept cutoff holds */
+    LOWEST_CUTOFF = 30,
     FM_DEPTH = 10431,     /* a depth's half radian of phase, for each of a modulator's 32767: 2^32 / (4 pi 32767) */
 };
 
@@ -128,6 +131,51 @@ static int32_t twice_sin(const int32_t x)
     return (x * (ONE - (x2 * inner >> 16) / 6) >> 16) * 2;
 }
 
+/* `step` times so many hundredths, under INT32_MAX. */
+static uint32_t hundredths_of(const uint32_t step, const uint32_t hundredths)
+{
+    const uint64_t scaled = (uint64_t)step * (hundredths * 65536u / PITCH_ONE) >> 16;
+
+    return scaled < INT32_MAX ? (uint32_t)scaled : INT32_MAX;
+}
+
+/* Sixteenths of a hertz at `at`, OCTAVEs over 1 Hz: 2^x by its series to x^3 between octaves, 0.02% off at most. */
+static uint32_t sixteenths_at(const int32_t at)
+{
+    const uint32_t x = (uint32_t)(at & (OCTAVE - 1)) >> 4, octave = (uint32_t)at >> 20;
+    uint32_t p = 5153;
+
+    p = 14823 + (p * x >> 16);
+    p = 45559 + (p * x >> 16);
+    p = ONE + (p * x >> 16);
+    return octave >= 12 ? p << (octave - 12) : p >> (12 - octave);
+}
+
+/* Where `sixteenths` of a hertz is, OCTAVEs over 1 Hz: sixteenths_at's inverse. */
+static int32_t octaves_of(const uint32_t sixteenths)
+{
+    int32_t low = 0, high = 16 * OCTAVE;
+
+    while (high - low > 1) {
+        const int32_t middle = low + (high - low) / 2;
+
+        if (sixteenths_at(middle) <= sixteenths)
+            low = middle;
+        else
+            high = middle;
+    }
+    return low;
+}
+
+/* The filter's f for a cutoff of `sixteenths` of a hertz: twice a sample, up to a sixth of the rate. */
+static int32_t swept_f(const Synth *const s, const uint32_t sixteenths)
+{
+    const uint32_t highest = s->rate / 6 * 16, lowest = LOWEST_CUTOFF * 16;
+    const uint32_t cutoff = sixteenths < lowest ? lowest : sixteenths > highest ? highest : sixteenths;
+
+    return twice_sin((int32_t)(cutoff * (uint32_t)(PI_ONES / 32) / s->rate));
+}
+
 /* A note begins: the modulator at full, the vibrato waiting, the pitch where its slide starts. `afresh` (a voice of
    layers): its wave, noise and filter from where its first note's were, so its layers add alike at every note. */
 static void begin(const Synth *const s, SynthOsc *const o, const DevVoice *const v, const bool afresh)
@@ -135,15 +183,23 @@ static void begin(const Synth *const s, SynthOsc *const o, const DevVoice *const
     const uint32_t samples = glide_ms[v->glide & HIGHEST_NIBBLE] * s->rate / 1000;
     const uint64_t above = (uint64_t)o->step + (uint64_t)(o->step / 4) * v->from;
     const uint32_t over = !v->from ? o->at : above < INT32_MAX ? (uint32_t)above : INT32_MAX;
-    const uint32_t from =
-        v->under ? (uint32_t)((uint64_t)o->step * under[v->under < 24 ? v->under : 24] >> 16) : over;
+    const uint32_t from = v->over    ? hundredths_of(o->step, v->over)
+                          : v->under ? (uint32_t)((uint64_t)o->step * under[v->under < 24 ? v->under : 24] >> 16)
+                                     : over;
+    const uint32_t swept = decay_ms[v->swept & HIGHEST_NIBBLE] * s->rate / 1000;
 
     if (afresh) {
         o->phase = o->phase2 = 0;
         o->noise = NOISE_START;
         o->low = o->band = 0;
     }
-    o->bend = FULL;
+    o->bend = FULL - v->dip * (FULL / HIGHEST_NIBBLE);
+    o->cut_left = 0;
+    if (v->sweep && v->filter && swept) {
+        o->cut_at = octaves_of(v->sweep * 16u);
+        o->cut_step = (octaves_of(v->cutoff * 16u) - o->cut_at) / (int32_t)swept;
+        o->cut_left = swept;
+    }
     o->mphase = (uint32_t)((uint64_t)o->phase * o->mul >> 16); /* where a whole ratio's would be */
     o->mphase2 = (uint32_t)((uint64_t)o->phase2 * o->mul >> 16);
     o->fed[0] = o->fed[1] = o->fed2[0] = o->fed2[1] = 0;
@@ -161,11 +217,8 @@ static void sound(const Synth *const s, SynthOsc *const o, const DevVoice *const
 {
     o->set = *v;
     o->step = v->hertz * s->per_hertz + v->hertz * s->rest / s->rate; /* hertz * 2^32 / rate */
-    if (v->pitch) {
-        const uint64_t step = (uint64_t)o->step * (v->pitch * 65536u / PITCH_ONE) >> 16;
-
-        o->step = step < INT32_MAX ? (uint32_t)step : INT32_MAX;
-    }
+    if (v->pitch)
+        o->step = hundredths_of(o->step, v->pitch);
     o->mul = v->fine ? (v->ratio * 100u + v->fine) * 65536u / 100 : 0;
     if (attack && v->hertz)
         begin(s, o, v, afresh);
@@ -183,7 +236,7 @@ static void sound(const Synth *const s, SynthOsc *const o, const DevVoice *const
 
     /* twice a sample: up to a sixth of the rate */
     const uint32_t highest = s->rate / 6, cutoff = v->cutoff < highest ? v->cutoff : highest;
-    o->f = twice_sin((int32_t)(PI_ONES * cutoff / (2 * s->rate)));
+    o->f = o->f_end = twice_sin((int32_t)(PI_ONES * cutoff / (2 * s->rate)));
     o->damping = DAMPING_MOST - v->resonance * DAMPING_STEP;
     o->ratio = v->ratio ? v->ratio : 1;
     o->depth = v->depth * (uint32_t)FM_DEPTH;
@@ -478,9 +531,21 @@ static int envelope_run(const Synth *const s, const SynthOsc *const o, const int
     return run;
 }
 
-/* How many of the next `run` samples FM's modulator falls by one step, o->slope, and stays over its floor. */
+/* How many of the next `run` samples FM's modulator moves by one step, o->slope, and stays on its side of its floor:
+   it falls to it, or from under it rises. */
 [[gnu::always_inline]] static inline int bend_run(SynthOsc *const o, const int run)
 {
+    if (o->bend < o->bend_floor) {
+        const int32_t left = (o->bend_floor - o->bend) / o->bend_step;
+
+        if (left <= 0) {
+            o->bend = o->bend_floor;
+            o->slope = 0;
+            return run;
+        }
+        o->slope = -o->bend_step;
+        return left < run ? (int)left : run;
+    }
     const int32_t left = (o->bend - o->bend_floor) / o->bend_step;
 
     if (left <= 0) {
@@ -490,6 +555,22 @@ static int envelope_run(const Synth *const s, const SynthOsc *const o, const int
     }
     o->slope = o->bend_step;
     return left < run ? (int)left : run;
+}
+
+/* The filter for the next `run` samples: while its cutoff sweeps, SWEEP_RUN samples at most at their middle's cutoff;
+   after, the cutoff's own. */
+[[gnu::always_inline]] static inline int sweep_run(const Synth *const s, SynthOsc *const o, int run)
+{
+    if (!o->cut_left) {
+        o->f = o->f_end;
+        return run;
+    }
+    run = run < SWEEP_RUN ? run : SWEEP_RUN;
+    run = (uint32_t)run < o->cut_left ? run : (int)o->cut_left;
+    o->f = swept_f(s, sixteenths_at(o->cut_at + o->cut_step * run / 2));
+    o->cut_at += o->cut_step * run;
+    o->cut_left -= (uint32_t)run;
+    return run;
 }
 
 #ifdef SYNTH_ASM
@@ -548,6 +629,8 @@ void synth_run(SynthRun *r);
         run = pitch_run(&o, s->rate, into->step, run);
         if (wave_kind == DEV_FM || wave_kind == SYNTH_FM_FINE)
             run = bend_run(&o, run);
+        if (filter != DEV_UNFILTERED)
+            run = sweep_run(s, &o, run);
         if (wave_kind == SYNTH_FM_FINE) {
             o.mstep = (uint32_t)((uint64_t)o.step * o.mul >> 16);
             o.mstep2 = (uint32_t)((uint64_t)o.step2 * o.mul >> 16);
@@ -584,6 +667,9 @@ void synth_run(SynthRun *r);
     into->stage = o.stage;
     into->low = o.low;
     into->band = o.band;
+    into->f = o.f;
+    into->cut_at = o.cut_at;
+    into->cut_left = o.cut_left;
     into->bend = o.bend;
     into->fed[0] = o.fed[0];
     into->fed[1] = o.fed[1];

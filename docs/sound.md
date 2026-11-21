@@ -30,10 +30,10 @@ may be `=var;` as in QBasic's commands. A number out of range is Illegal functio
 | `W`n | wave: 0 pulse, 1 triangle, 2 sawtooth, 3 noise, 4 FM | 0–4 | 0 |
 | `Q`n | pulse width, percent high (wave 0 only) | 1–99 | 50 |
 | `H`a`,`d`,`s`,`r | envelope: attack, decay, sustain level, release; all four are needed | 0–15 each | `H0,0,15,0` |
-| `Y`m[`,`f[`,`r]] | filter: 0 off, 1 low-pass, 2 band-pass, 3 high-pass; cutoff in Hz; resonance | m 0–3, f 30–12000, r 0–15 | off, 1000, 0 |
-| `Z`r[`,`d[`,`f[`,`l[`,`b]]]] | FM's modulator: ratio, depth, fall, level, feedback (below) | r 0.01–15.99, d f l 0–15, b 0–7 | `Z1,8,0,15,0` |
+| `Y`m[`,`f[`,`r[`,`s[`,`t]]]] | filter: 0 off, 1 low-pass, 2 band-pass, 3 high-pass; cutoff in Hz; resonance; sweep (below) | m 0–3, f 30–12000, r t 0–15, s 0 or 30–12000 | off, 1000, 0, 0, 0 |
+| `Z`r[`,`d[`,`f[`,`l[`,`b[`,`s]]]]] | FM's modulator: ratio, depth, fall, level, feedback, start (below) | r 0.01–15.99, d f l s 0–15, b 0–7 | `Z1,8,0,15,0,15` |
 | `U`n | vibrato depth | 0–15 | 0 |
-| `K`t[`,`q[`,`u]] | glide: time, from over, from under (below) | t q 0–15, u 0–24 | `K0,0,0` |
+| `K`t[`,`q[`,`u[`,`p]]] | glide: time, from over, from under, from hundredths (below) | t q 0–15, u 0–24, p 0–1600 | `K0,0,0,0` |
 | `S`n | stereo place: 1 the left, 8 the middle, 15 the right | 1–15 | 8 |
 | `R`n | reverb: how much of the voice the room answers | 0–15 | 0 |
 | `I`n | unison: a second copy of the voice, n × 2 cents sharp | 0–15 | 0 |
@@ -70,6 +70,10 @@ held.
 A low-pass removes what is over the cutoff (darker), a high-pass what is under it (thinner), a
 band-pass both. Resonance raises what is at the cutoff: at 15 it whistles.
 
+A sweep starts each note's cutoff at s Hz and moves it to f in the time t, on the envelope's decay
+scale: `Y1,800,6,6000,4` closes from 6000 Hz to 800 in 114 ms, a pluck's brightness falling. From
+under f it opens. s 0 is no sweep.
+
 ### FM: `W4`, `Z`
 
 The note is a sine (the carrier). A second sine (the modulator) bends its phase, which adds
@@ -83,6 +87,7 @@ apart from the volume's envelope, so a note can start bright and end round, as a
 | fall, 0–15 | how fast the bend falls at each note: the envelope's decay scale | 0 at once to its level; 3 a 72 ms pluck; 7 a 240 ms ring |
 | level, 0–15 | the part of the depth the bend falls to and holds | 15 no fall; 11 a held brass; 0 down to a sine |
 | feedback, 0–7 | how far the modulator bends itself | towards a sawtooth, then noise: grit for brass and organs |
+| start, 0–15 | the part of the depth the bend starts at, at each note | 15 full; under the level it rises: `Z1,8,4,15,7,0` swells into a hiss |
 
 The ratio takes up to two decimals: `Z1.41`, `Z0.5`.
 
@@ -110,6 +115,8 @@ Where it starts:
   falls from three times the pitch, a drum's thump.
 - u, 1–24: from u semitones under its own pitch, whatever q is. `K8,0,2` scoops up two semitones in
   120 ms, as a singer or a guitar's bend.
+- p, 1–1600: from p hundredths of its own pitch, whatever q and u are. `K4,0,0,140` falls from 1.4
+  times the pitch in 40 ms, a tom's drop.
 
 ### Stereo, reverb, unison: `S`, `R`, `I`
 
