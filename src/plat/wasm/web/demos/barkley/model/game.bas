@@ -30,10 +30,8 @@ type Loose
 end type
 
 type Part
-    x as single
-    y as single
-    vx as single
-    vy as single
+    at as Vec
+    vel as Vec
     t as single
     c as integer
 end type

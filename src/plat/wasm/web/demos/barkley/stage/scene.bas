@@ -320,8 +320,8 @@ sub DrawParts (pt() as Part, cx as integer, cy as integer)
     dim i as integer, x as integer, y as integer
     for i = 0 to NPART - 1
         if pt(i).t <= 0 then continue for
-        x = cint(pt(i).x) - cx
-        y = cint(pt(i).y) - cy
+        x = cint(pt(i).at.x) - cx
+        y = cint(pt(i).at.y) - cy
         if x < 0 or x >= SW - 1 or y < 0 or y >= SH - 1 then continue for
         pset (x, y), pt(i).c
         if pt(i).t > .25 then pset (x + 1, y), pt(i).c

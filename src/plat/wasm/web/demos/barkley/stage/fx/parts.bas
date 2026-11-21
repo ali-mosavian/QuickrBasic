@@ -34,9 +34,9 @@ sub Particles (se as Session, pt() as Part, dt as single)
     for i = 0 to NPART - 1
         if pt(i).t <= 0 then continue for
         pt(i).t = pt(i).t - dt
-        pt(i).x = pt(i).x + pt(i).vx * dt
-        pt(i).y = pt(i).y + pt(i).vy * dt
-        pt(i).vy = pt(i).vy + 300 * dt
+        pt(i).at.x = pt(i).at.x + pt(i).vel.x * dt
+        pt(i).at.y = pt(i).at.y + pt(i).vel.y * dt
+        pt(i).vel.y = pt(i).vel.y + 300 * dt
         if pt(i).t <= 0 then se.part_n = se.part_n - 1
     next
 end sub
@@ -46,10 +46,10 @@ sub Emit (se as Session, pt() as Part, x as single, y as single, vx as single, v
     if se.part_n >= NPART then exit sub
     for i = 0 to NPART - 1
         if pt(i).t > 0 then continue for
-        pt(i).x = x
-        pt(i).y = y
-        pt(i).vx = vx
-        pt(i).vy = vy
+        pt(i).at.x = x
+        pt(i).at.y = y
+        pt(i).vel.x = vx
+        pt(i).vel.y = vy
         pt(i).t = t
         pt(i).c = c
         se.part_n = se.part_n + 1
