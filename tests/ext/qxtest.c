@@ -3,6 +3,8 @@
 
 static char shouted[256];
 static int32_t started;
+static int32_t channels;
+static volatile int32_t frames; /* rendered, where the device plays */
 
 void qxtest_init(void) {}
 
@@ -42,3 +44,31 @@ float total(const QxArray *const a)
 void fail(const int32_t code) { qx_fail((uint8_t)code); }
 
 int32_t runs(void) { return started; }
+
+/* Silence, its frames counted. */
+static void QX_CALL render(int16_t *const out, const int32_t n)
+{
+    for (int32_t i = 0; i < n * channels; i++)
+        out[i] = 0;
+
+    frames += n;
+}
+
+int32_t audio(void)
+{
+    QxAudio a = {.rate = 22050, .render = render};
+
+    if (!qx_host->audio_open(&a))
+        return 0;
+
+    channels = a.stereo ? 2 : 1;
+    return -1;
+}
+
+int32_t played(void)
+{
+    const uint32_t token = qx_host->audio_lock();
+    const int32_t n = frames;
+    qx_host->audio_unlock(token);
+    return n;
+}

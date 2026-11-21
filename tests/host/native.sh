@@ -1,7 +1,8 @@
 #!/bin/sh
 # A native module (tests/ext/qxtest): each kind of argument and result through its code, its error
-# at the calling line, its start once a run. Then the .qbx files that cannot bind: no slice for this
-# machine, not a .qbx, an entry its code lacks, a DECLARE its code's kinds disagree with.
+# at the calling line, its start once a run, its audio stream refused with no device. Then the .qbx
+# files that cannot bind: no slice for this machine, not a .qbx, an entry its code lacks, a DECLARE
+# its code's kinds disagree with.
 # Usage: native.sh BASIC SLICE TAG, the slice qxtest's for this machine's tag.
 set -e
 B=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
@@ -32,6 +33,7 @@ a(2) = 2
 a(3) = 3
 print total!(a())
 print twice%(21); runs%
+print audio%; played& \ 1000000
 on error goto caught
 fail 5
 print "after"
@@ -40,7 +42,7 @@ caught:
 print "err"; err
 resume next
 EOF
-want=$(printf ' 5  2.5 \nHI THERE\n 42 \n 10 \n 6.5 \n 42  1 \nerr 5 \nafter')
+want=$(printf ' 5  2.5 \nHI THERE\n 42 \n 10 \n 6.5 \n 42  1 \n 0  0 \nerr 5 \nafter')
 out=$(run)
 [ "$out" = "$want" ] || { echo "native: got '$out'"; exit 1; }
 

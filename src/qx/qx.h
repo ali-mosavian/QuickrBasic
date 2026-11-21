@@ -75,8 +75,11 @@ typedef struct QxHost {
     /* Ctrl+Break pressed during the call: a long entry looks, and returns. */
     bool(QX_CALL *stopped)(QxCall *c);
     /* A stream of samples, render called from elsewhere (docs/native-extensions-design.md):
-       false, none on this machine. */
+       false, none on this machine. The rate and channels are then the device's. */
     bool(QX_CALL *audio_open)(QxAudio *a);
+    /* render held off while what it reads changes, till audio_unlock with the token: nests. */
+    uint32_t(QX_CALL *audio_lock)(void);
+    void(QX_CALL *audio_unlock)(uint32_t token);
 } QxHost;
 
 /* One call: its arguments; a FUNCTION's result; an error raised at the calling line once the

@@ -9,6 +9,7 @@
  * find them again by path. docs/native-extensions-design.md is the design.
  */
 #include "io/native.h"
+#include "plat/paud.h"
 #include "plat/pext.h"
 #include "plat/pfil.h"
 #include "util/grow.h"
@@ -27,9 +28,12 @@ static void QX_CALL host_free(void *const p) { pmem_free(p); }
 
 static bool QX_CALL host_audio(QxAudio *const a)
 {
-    (void)a;
-    return false; /* step 3 of the design */
+    return paud_open(a->render, &a->rate, &a->stereo);
 }
+
+static uint32_t QX_CALL host_lock(void) { return paud_lock(); }
+
+static void QX_CALL host_unlock(const uint32_t token) { paud_unlock(token); }
 
 /* The call's string result: vm/ncall.c copies it once the entry returns. */
 static void QX_CALL host_result_str(QxCall *const c, const char *const p, const uint32_t len)
@@ -55,6 +59,8 @@ void natv_init(Natv *const n, Fault *const f)
             .result_str = host_result_str,
             .stopped = host_stopped,
             .audio_open = host_audio,
+            .audio_lock = host_lock,
+            .audio_unlock = host_unlock,
         },
     };
 }

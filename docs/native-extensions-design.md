@@ -243,11 +243,16 @@ typedef struct {
 
 `render` runs elsewhere: in the Sound Blaster's interrupt on DOS, in SDL's thread on the Mac, and in
 the AudioWorklet's thread in the browser. So it touches only the extension's own memory and calls
-nothing in the host. On DOS it uses no x87, as `synth.c` already does not. The program's side and
-`render` hand events through the extension's own lock-free queue.
+nothing in the host. On DOS it uses no x87, as `synth.c` already does not. The program's side
+changes what `render` reads between `audio_lock` and `audio_unlock`, which hold the device off:
+interrupts off on DOS, SDL's stream lock on the Mac.
 
-- **DOS.** The host locks the image's pages (DPMI 0600h) once `render` is set, for a host that
-  pages.
+`plat/paud.h` is the host's side: each device (`sb.c`, `plat/sdl/audio.c`) mixes every stream open
+where it plays, the built-in synthesizer one of them. The first stream starts the device, the last
+stops it, and the process's end closes them all.
+
+- **DOS.** The card's rate, 15873 Hz, mono. The image's pages are not locked (DPMI 0600h): DOS/32A
+  pages nothing by default, and the synthesizer's state is not locked either.
 - **The browser.** The worklet instantiates the same slice against the same shared memory, with its
   own table at the same table base and its own stack. Its pointers mean there what they mean in
   the worker. The host's slots in its table are empty, so a call into the host traps rather than
@@ -345,7 +350,8 @@ and the tutorial's examples gain an `IMPORT synth` line.
    extension called from BASIC (`tests/host/native.sh`). Done.
 2. `pext` for wasm and DOS. The wasm one tested in node (`make wasm-test`); the DOS one built, its
    image's reader tested on the host. Done.
-3. The audio stream; the Sound Blaster, SDL and the worklet moved onto it.
+3. The audio stream; the Sound Blaster, SDL and the worklet moved onto it. The Sound Blaster and
+   SDL done, checked on DOSBox-X and the Mac; the worklet next.
 4. The synthesizer moved into `ext/synth/`, built as `lib/synth.qbx`; PLAY's device; the timed
    events land there.
 5. `plat/synth` out of the core's builds.

@@ -11,6 +11,8 @@ declare sub move cdecl (p as pt, byval dx%)
 declare function total! cdecl (a() as single)
 declare sub fail cdecl (byval code%)
 declare function runs% cdecl ()
+declare function audio% cdecl ()
+declare function played& cdecl ()
 
 function twice% (n%)
     twice% = add%(n%, n%)

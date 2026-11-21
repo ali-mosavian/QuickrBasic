@@ -48,6 +48,8 @@ void dev_voice(unsigned voice, const DevVoice *v);
    for every such note. dev_synth_close stops it when the program ends. */
 void dev_synth_open(void);
 void dev_synth_close(void);
+/* The platform's audio device made the host's (plat/paud.h), at the start; none on some. */
+void dev_audio_init(void);
 
 /* The clock. */
 long dev_clock(void); /* the time of day in hundredths of a second since midnight */
