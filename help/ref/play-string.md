@@ -59,20 +59,25 @@ PLAY a$, b$, ... plays up to 32 voices at once, a string for each.
 Each voice has its own octave, length, tempo and sound. These commands
 choose the sound and switch the voice to the synthesizer:
 ```
-V n          volume, 0 to 15 (default 8)
+V n          volume, 0 to 15 (default 8); V4.5 between two
 W n          wave: 0 pulse, 1 triangle, 2 sawtooth, 3 noise, 4 FM
 Q n          pulse width, percent high, 1 to 99 (default 50)
-H a,d,s,r    envelope: attack, decay, sustain level, release, 0 to 15
-Y m,f,r      filter: m 0 off, 1 low-pass, 2 band-pass, 3 high-pass
-             f cutoff in Hz, 30 to 12000; r resonance, 0 to 15
-Z r,d,f,l,b  FM's modulator: ratio 1 to 15; depth, fall and level
-             0 to 15; feedback 0 to 7
-U n          vibrato, 0 to 15
-K t,q,u      glide: time 0 to 15; from over, 0 to 15; from under,
-             0 to 24 semitones
+H a,d,s,r,f  envelope: attack, decay, sustain level, release, and
+             the fall on from the sustain; 0 to 15
+Y m,f,r,s,t  filter: m 0 off, 1 low-pass, 2 band-pass, 3 high-pass
+             f cutoff in Hz, 30 to 12000; r resonance, 0 to 15; s the
+             cutoff a note starts at, 0 none; t its time, 0 to 15
+Z r,d,f,l,b,s  FM's modulator: ratio 0.01 to 15.99; depth, fall,
+             level, start 0 to 15; feedback 0 to 7
+U n,r,a,c    vibrato, 0 to 15; its rate, tenths of a hertz, 1 to 200;
+             tremolo and the cutoff's wobble with it, 0 to 15
+K t,q,u,p    glide: time 0 to 15; from over, 0 to 15; from under,
+             0 to 24 semitones; from p hundredths, 0 to 1600
 S n          stereo place, 1 left to 15 right (default 8)
 R n          reverb, 0 to 15
 I n          unison, 0 to 15
+J n,p        layer, 0 to 3: the commands after it set it; its pitch,
+             hundredths of the note's, 0 to 1600
 ```
 Under ML a note followed by one of the same pitch is held, not struck
 again. See [Voices](play voices), [FM](play fm),

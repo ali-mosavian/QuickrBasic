@@ -3,7 +3,7 @@
 #ifndef QB_DEV_VOICE_H
 #define QB_DEV_VOICE_H
 
-enum { DEV_VOICES = 32, PAN_MIDDLE = 8 };
+enum { DEV_VOICES = 32, PAN_MIDDLE = 8, DEV_LAYERS = 4 };
 enum DevWave { DEV_PULSE, DEV_TRIANGLE, DEV_SAW, DEV_NOISE, DEV_FM };
 enum DevFilter { DEV_UNFILTERED, DEV_LOW_PASS, DEV_BAND_PASS, DEV_HIGH_PASS };
 
@@ -18,7 +18,7 @@ typedef struct DevVoice {
     unsigned char resonance; /* 0 to 15 */
     unsigned char gate;      /* 1 while the note sounds; 0 starts its release */
     unsigned char trigger;   /* changes at each note: its attack starts again */
-    unsigned char ratio;     /* FM: the modulator's pitch, 1 to 15 times the note's */
+    unsigned char ratio;     /* FM: the modulator's pitch, 0 to 15 times the note's (0 with a fine part) */
     unsigned char depth;     /* FM: how far it bends the carrier, 0 to 15, at the modulator's full level */
     unsigned char fall;      /* FM: the modulator's level falls from full at each note: its decay (SID's 0 to 15) in the
                                 high nibble, the level it holds (0 to 15) in the low */
@@ -30,6 +30,22 @@ typedef struct DevVoice {
     unsigned char reverb;    /* how much of the voice the room answers, 0 to 15 */
     unsigned char under;     /* it slides from n semitones under its own pitch instead, 1 to 24 */
     unsigned char pan;       /* where it is in stereo: 1 the left to 15 the right, 8 (and 0) the middle */
+    unsigned char fine;      /* FM: hundredths added to the ratio, 0 to 99: the modulator off the note's harmonics */
+    unsigned char layers;    /* a note's own: the DevVoices after this one that sound with it, each its own wave, pitch,
+                                envelope and level, to DEV_LAYERS - 1; their hertz, gate, trigger, vibrato and unison
+                                are this one's */
+    unsigned short pitch;    /* hundredths of the note's pitch, 1 to 1600; 0 the note's */
+    unsigned char dip;       /* FM: the bend starts so many 15ths of the depth under full, 0 to 15; under its level it
+                                rises to it */
+    unsigned char swept;     /* how long the cutoff takes from `sweep` to `cutoff`: the decay's scale, 0 to 15 */
+    unsigned short sweep;    /* the cutoff a note starts at, Hz; 0 none */
+    unsigned short over;     /* a glide starts at so many hundredths of the pitch, 1 to 1600; 0 by `from` and `under` */
+    unsigned char fade;      /* the level falls on from the sustain while the note is held: 1 + the decay's scale (0 to
+                                15); 0 holds it */
+    unsigned char loud;      /* hundredths of a step of volume over `volume`, 0 to 99 */
+    unsigned char rate;      /* how often the vibrato's wobble goes round, tenths of a hertz, 1 to 200; 0 is 6 Hz */
+    unsigned char tremolo;   /* the loudness wavers by so many 16ths of itself each way, 0 to 15, with the vibrato */
+    unsigned char wobble;    /* the cutoff wavers by so many tones each way, 0 to 15, with the vibrato */
 } DevVoice;
 
 #endif

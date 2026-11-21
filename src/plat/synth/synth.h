@@ -20,7 +20,7 @@ typedef struct SynthOsc {
     int32_t level;        /* the envelope, 0 to 2^24 */
     uint8_t stage;
     /* worked out when the voice is set: the envelope's steps a sample, the gain (2^15 is 1) */
-    int32_t attack, decay[SYNTH_CURVE], release[SYNTH_CURVE], gain;
+    int32_t attack, decay[SYNTH_CURVE], release[SYNTH_CURVE], fade[SYNTH_CURVE], gain;
     uint32_t ratio, depth; /* FM: the modulator's phase steps a carrier's, the phase a full modulator bends it */
     /* FM: the modulator's level (0 to 2^24), its step down a sample and where it stops; its last two samples and what
        their sum bends its own phase by */
@@ -34,6 +34,15 @@ typedef struct SynthOsc {
     int32_t fed2[2];
     int32_t slide;
     int32_t f, damping, low, band; /* the filter's: f and damping 2^16 is 1, its state in 256ths of a sample */
+    /* FM with a fine ratio: the ratio (2^16 is 1), the modulator's own phase and step, and the unison's */
+    uint32_t mul, mphase, mstep, mphase2, mstep2;
+    uint8_t more; /* a voice's: how many of its layers may be sounding */
+    /* the cutoff's sweep: where it is (2^-20 octaves over 1 Hz), its step a sample and the samples it has left; the
+       cutoff's own f */
+    int32_t cut_at, cut_step, f_end;
+    uint32_t cut_left;
+    int32_t cut_home; /* the cutoff's own place, where a wobble wavers about */
+    int32_t sway;     /* the vibrato's wobble this run, -32767 to 32767 */
 } SynthOsc;
 
 enum { SYNTH_COMBS = 4, SYNTH_PASSES = 2, SYNTH_COMB_MOST = 2100, SYNTH_PASS_MOST = 256 };
@@ -58,6 +67,7 @@ typedef struct Synth {
     /* the limiter: what the mix is turned down by (2^24 is all of it), and what a sample gives back */
     int32_t held, release;
     SynthOsc osc[DEV_VOICES];
+    SynthOsc layer[DEV_VOICES][DEV_LAYERS - 1]; /* each voice's layers after its own sound */
     int16_t sine[SYNTH_SINE];
     SynthRoom room;
 } Synth;
@@ -65,7 +75,7 @@ typedef struct Synth {
 void synth_init(Synth *s, uint32_t rate);
 /* The speaker's tone, 0 silence: safe from another thread than synth_render's. */
 void synth_tone(Synth *s, uint32_t hertz);
-/* Voice `voice` set (dev_voice): not safe while synth_render runs. */
+/* Voice `voice` set (dev_voice), and v->layers layers after v: not safe while synth_render runs. */
 void synth_voice(Synth *s, unsigned voice, const DevVoice *v);
 /* `tick` is called from synth_render, `sixteenths` 16ths of a hertz, by the count of its samples: a sequencer's
    clock with no timer, as exact as the samples. It may set voices. */
