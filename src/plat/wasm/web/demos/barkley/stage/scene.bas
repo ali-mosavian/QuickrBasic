@@ -58,7 +58,7 @@ sub Render (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
     if wd.lv.nRope then DrawLines wd.lv, wd.art, cx, cy
     if wd.lv.stray.st = 2 then DrawStray wd.lv, wd.art, wd.se, cx, cy
     if wd.lv.nMv then DrawCables wd.lv, cx, cy
-    if wd.se.looseN then DrawLoose wd.art, wd.se, cx, cy, lo()
+    if wd.se.loose_n then DrawLoose wd.art, wd.se, cx, cy, lo()
     DrawChase wd.lv, wd.zn, wd.art, wd.se, cx, cy
     DrawHero wd.gr, wd.art, wd.se, p, cx, cy
     if wd.lv.avalX <> NONE then DrawAvalanche wd.lv, wd.art, wd.se, cx, cy
@@ -70,7 +70,7 @@ sub Render (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
     if wd.lv.tide <> NONE then DrawSurf wd.lv, wd.art, cx, cy
     DrawOver wd.lv, wd.zn, wd.art, cx, cy
     if p.bark_t > BARKT - .2 then DrawBark p, cx, cy
-    if wd.se.partN then DrawParts pt(), cx, cy
+    if wd.se.part_n then DrawParts pt(), cx, cy
     select case g.mode
     case TITLE
         Blit wd.art, (SW - 170) \ 2, 22, ITITLE, 170, 26

@@ -160,8 +160,8 @@ sub ResetWorld (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
     g.mode = TITLE
     g.mode_t = 0
     wd.se.cheer = 0
-    wd.se.metT = 0
-    wd.se.pastT = 0
+    wd.se.met_t = 0
+    wd.se.past_t = 0
     if wd.tn.dusk < 16 then
         wd.tn.dusk = 16
         Shade wd.tn
@@ -205,8 +205,8 @@ sub ResetWorld (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
     for i = 0 to NPART - 1
         pt(i).t = 0
     next
-    wd.se.looseN = 0
-    wd.se.partN = 0
+    wd.se.loose_n = 0
+    wd.se.part_n = 0
     Spawn wd.lv, wd.gr, wd.zn, wd.mu, g, p
 end sub
 
@@ -241,9 +241,9 @@ private function Met% (wd as World, g as Game, p as Hero, k as Pad, pt() as Part
     end if
     wd.se.cheer = p.win
     g.cam.x = g.cam.x + (wd.lv.famX - 166 - g.cam.x) * 4 * STEPT
-    wd.se.pastT = wd.se.pastT + STEPT
-    if p.win and g.bonus = 0 then wd.se.metT = wd.se.metT + STEPT
-    parted = wd.se.metT > 6 or wd.se.pastT > 40 or (wd.se.metT > 2 and (k.hit or k.start))
+    wd.se.past_t = wd.se.past_t + STEPT
+    if p.win and g.bonus = 0 then wd.se.met_t = wd.se.met_t + STEPT
+    parted = wd.se.met_t > 6 or wd.se.past_t > 40 or (wd.se.met_t > 2 and (k.hit or k.start))
     if wd.tn.dusk = 16 and parted then wd.tn.dusk = 15
     if wd.tn.dusk < 16 and (wd.se.ticks and 3) = 0 then
         wd.tn.dusk = wd.tn.dusk - 1

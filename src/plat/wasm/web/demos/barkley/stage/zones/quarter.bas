@@ -361,7 +361,7 @@ end function
 sub Snatch (lv as Level, mu as Deck, se as Session, i as integer, lo() as Loose, pt() as Part)
     dim b as integer, n as integer
     b = NONE
-    if se.looseN > 0 and abs(lv.ob(i).s) = 1 then b = Spied%(lv, i, lo())
+    if se.loose_n > 0 and abs(lv.ob(i).s) = 1 then b = Spied%(lv, i, lo())
     if b = NONE then
         Prowl lv, i
         exit sub
@@ -373,7 +373,7 @@ sub Snatch (lv as Level, mu as Deck, se as Session, i as integer, lo() as Loose,
     next
     if abs(lo(b).x - lv.ob(i).x) >= SNATCHR then exit sub
     lo(b).t = 0
-    se.looseN = se.looseN - 1
+    se.loose_n = se.loose_n - 1
     Burst se, pt(), lo(b).x, lo(b).y, 4, 60, CWHITE
     Sfx mu, se, SSNATCH
 end sub

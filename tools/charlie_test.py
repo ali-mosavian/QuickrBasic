@@ -279,7 +279,7 @@ Hurt wd.mu, wd.se, g, p, cint(p.at.x) + 10, lo(), SHURT
 Burst wd.se, pt(), p.at.x, p.at.y - 40, 8, 100, CWHITE
 bx = lo(0).x
 by = lo(0).y
-was = wd.se.looseN = 3 and wd.se.partN >= 8
+was = wd.se.loose_n = 3 and wd.se.part_n >= 8
 for i = 1 to 30
     Tick wd, g, p, k, lo(), pt()
 next
@@ -287,7 +287,7 @@ was = was and lo(0).x <> bx and lo(0).y <> by
 for i = 1 to 300
     Tick wd, g, p, k, lo(), pt()
 next
-if was and wd.se.looseN = 0 and wd.se.partN = 0 then print "spill ok"
+if was and wd.se.loose_n = 0 and wd.se.part_n = 0 then print "spill ok"
 was = 0
 ' the first 45 degree ramp after flat ground, c its first column
 for c = 8 to wd.lv.w - 8
@@ -936,8 +936,8 @@ dim goldOk as integer, goldAt as integer, gold2 as integer, goldScore as long, s
 GoStage wd, 0, g, p, lo(), pt()
 ' the zone's card is across the view's middle as a stage begins, gold on red: past it
 g.mode_t = 20
-wd.se.goldLo = 0
-wd.se.goldHi = 0
+wd.se.gold_lo = 0
+wd.se.gold_hi = 0
 goldAt = -1
 for i = wd.lv.nObj - 1 to 0 step -1
     if wd.lv.ob(i).k <> KGOLD then continue for
@@ -992,15 +992,15 @@ p.vel.y = 0
 Tick wd, g, p, k, lo(), pt()
 Tick wd, g, p, k, lo(), pt()
 goldOk = goldOk and Found%(wd.se, 0, 1) and not Found%(wd.se, 0, 2) and g.score = goldScore + 2 * GOLDPTS
-wd.se.goldLo = 0
+wd.se.gold_lo = 0
 LoadSave wd.se
-goldOk = goldOk and Found%(wd.se, 0, 0) and Found%(wd.se, 0, 1) and not Found%(wd.se, 0, 2) and wd.se.goldLo = 3
+goldOk = goldOk and Found%(wd.se, 0, 0) and Found%(wd.se, 0, 1) and not Found%(wd.se, 0, 2) and wd.se.gold_lo = 3
 Gild wd.se, 12, 2
-goldOk = goldOk and Found%(wd.se, 12, 2) and not Found%(wd.se, 12, 1) and wd.se.goldHi = 256 and wd.se.goldLo = 3
+goldOk = goldOk and Found%(wd.se, 12, 2) and not Found%(wd.se, 12, 1) and wd.se.gold_hi = 256 and wd.se.gold_lo = 3
 Keep wd.se
-wd.se.goldHi = 0
+wd.se.gold_hi = 0
 LoadSave wd.se
-goldOk = goldOk and wd.se.goldHi = 256
+goldOk = goldOk and wd.se.gold_hi = 256
 open "CHARLIE.SAV" for binary as #2
 get #2, 1, saved
 close #2
@@ -1009,7 +1009,7 @@ open "CHARLIE.SAV" for binary as #2
 put #2, 1, saved
 close #2
 LoadSave wd.se
-goldOk = goldOk and wd.se.goldLo = 0 and wd.se.goldHi = 0 and not Found%(wd.se, 0, 0)
+goldOk = goldOk and wd.se.gold_lo = 0 and wd.se.gold_hi = 0 and not Found%(wd.se, 0, 0)
 GoStage wd, 0, g, p, lo(), pt()
 if goldOk then print "gold ok"
 ' after a chase the level's end is the longer one, twelve bars that end, the cat sent packing first, its first half
@@ -1111,12 +1111,12 @@ GoStage wd, 1, g, p, lo(), pt()
 g.score = 1234
 g.mode = CLEARED
 g.bonus = 0
-wd.se.metT = 7
+wd.se.met_t = 7
 for i = 1 to 200
     Advance wd, g, p, k, lo(), pt(), cu()
     if g.mode = INTRO then exit for
 next
-was = g.mode = INTRO and wd.zn.stage = SINTRO and wd.zn.id = 1 and wd.se.sceneNext = 2
+was = g.mode = INTRO and wd.zn.stage = SINTRO and wd.zn.id = 1 and wd.se.scene_next = 2
 was = was and wd.mu.zHeld = BETWEEN + 1 and wd.tn.dusk = 16
 was = was and Sudden%(wd.se, g) and abs(g.mode_t * BEATS - BUMP0) < 1
 was = was and wd.tn.n(2) > 0 and wd.tn.now(wd.tn.which(2, 0)) = wd.tn.own(2, 0)
@@ -1134,12 +1134,12 @@ was = was and wd.mu.zHeld = 5 and wd.tn.dusk = 16 and g.score = 1234
 GoStage wd, 3, g, p, lo(), pt()
 g.mode = CLEARED
 g.bonus = 0
-wd.se.metT = 7
+wd.se.met_t = 7
 for i = 1 to 200
     Advance wd, g, p, k, lo(), pt(), cu()
     if g.mode = INTRO then exit for
 next
-was = was and g.mode = INTRO and wd.zn.id = 2 and wd.se.sceneNext = 4
+was = was and g.mode = INTRO and wd.zn.id = 2 and wd.se.scene_next = 4
 IntroDraw wd, g, p, cu()
 k.hit = -1
 Advance wd, g, p, k, lo(), pt(), cu()
@@ -2057,12 +2057,12 @@ lo(0).y = m - 4
 lo(0).vx = 0
 lo(0).vy = 0
 lo(0).t = 3
-wd.se.looseN = 1
+wd.se.loose_n = 1
 for i = 1 to 40
     Tick wd, g, p, k, lo(), pt()
     if lo(0).t <= 0 then exit for
 next
-was = was and i <= 17 and wd.lv.ob(c).x = bx + 23 and wd.se.looseN = 0 and g.bones = hid
+was = was and i <= 17 and wd.lv.ob(c).x = bx + 23 and wd.se.loose_n = 0 and g.bones = hid
 ' past its beat, and over its head
 lo(0).x = bx + 60
 lo(0).y = m - 4
@@ -2073,19 +2073,19 @@ lo(1).y = m - 80
 lo(1).vx = 0
 lo(1).vy = 0
 lo(1).t = 3
-wd.se.looseN = 2
+wd.se.loose_n = 2
 v = wd.lv.ob(c).x
 for i = 1 to 20
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and lo(0).t > 0 and lo(1).t > 0 and wd.se.looseN = 2 and abs(wd.lv.ob(c).x - v) <= 10
+was = was and lo(0).t > 0 and lo(1).t > 0 and wd.se.loose_n = 2 and abs(wd.lv.ob(c).x - v) <= 10
 ' too new, behind it: left while it is, taken after
 lo(1).t = 0
 lo(0).x = wd.lv.ob(c).x - 20
 lo(0).y = m - 4
 lo(0).vy = 0
 lo(0).t = 3.75
-wd.se.looseN = 1
+wd.se.loose_n = 1
 v = wd.lv.ob(c).x
 for i = 1 to 20
     Tick wd, g, p, k, lo(), pt()
@@ -2094,7 +2094,7 @@ was = was and lo(0).t > 0 and wd.lv.ob(c).x >= v
 for i = 1 to 30
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and lo(0).t <= 0 and wd.se.looseN = 0
+was = was and lo(0).t <= 0 and wd.se.loose_n = 0
 ' barked at from 50 off, a bone 15 past it: it stands, and takes it when it has done
 v = wd.lv.ob(c).x
 Stand wd.lv, wd.gr, p, v - 50, 0
@@ -2105,7 +2105,7 @@ lo(0).x = v + 15
 lo(0).y = m - 4
 lo(0).vy = 0
 lo(0).t = 3
-wd.se.looseN = 1
+wd.se.loose_n = 1
 for i = 1 to 20
     Tick wd, g, p, k, lo(), pt()
 next
@@ -2118,7 +2118,7 @@ colB(1) = point(160 - 2, 100 - 5)
 for i = 1 to 60
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and lo(0).t <= 0 and wd.se.looseN = 0 and g.bones = hid
+was = was and lo(0).t <= 0 and wd.se.loose_n = 0 and g.bones = hid
 ' drawn in its own grey, startled and at a prowl; rolled into, beaten
 g.cam.x = wd.lv.ob(c).x - 160
 g.cam.y = wd.lv.ob(c).y - 100
@@ -2408,16 +2408,16 @@ if was then print "tipper pilot ok"
 ' no way of playing at it got it. Blue hour: a jump up; dropped on the long line, three bounces, then right; from
 ' the last balcony over the tram's way. Festival night: a jump beside the mortar as it fires; the awning to the
 ' balcony, back to its end and up; a jump among the four mortars
-hid = wd.se.goldLo
-shown = wd.se.goldHi
+hid = wd.se.gold_lo
+shown = wd.se.gold_hi
 colA(0) = wd.mu.muted
 wd.mu.muted = -1
 was = -1
 for c = 0 to 5
     GoStage wd, 10 + c \\ 3, g, p, lo(), pt()
     g.mode_t = 20
-    wd.se.goldLo = 0
-    wd.se.goldHi = 0
+    wd.se.gold_lo = 0
+    wd.se.gold_hi = 0
     j = 0
     for i = 0 to wd.lv.nObj - 1
         if wd.lv.ob(i).k <> KGOLD then continue for
@@ -2475,8 +2475,8 @@ k.r = 0
 k.l = 0
 k.jump = 0
 k.hit = 0
-wd.se.goldLo = hid
-wd.se.goldHi = shown
+wd.se.gold_lo = hid
+wd.se.gold_hi = shown
 wd.se.unkept = -1
 Tick wd, g, p, k, lo(), pt()
 wd.mu.muted = colA(0)
@@ -2490,16 +2490,16 @@ dim ways as string, tickWas as long
 ways = "050030009099100501200" + "050030009099100501200" + "050030013003020909900" + "050030009009000909900"
 ways = ways + "050030009099100501200" + "050030009099100501200" + "050030005099100501200"
 ways = ways + "050030041099000909900" + "050030029099003300300" + "050030029099000500300"
-hid = wd.se.goldLo
-shown = wd.se.goldHi
+hid = wd.se.gold_lo
+shown = wd.se.gold_hi
 tickWas = wd.se.ticks
 was = -1
 for c = 0 to 29
     wd.se.ticks = 1000
     GoStage wd, c \\ 3, g, p, lo(), pt()
     g.mode_t = 20
-    wd.se.goldLo = 0
-    wd.se.goldHi = 0
+    wd.se.gold_lo = 0
+    wd.se.gold_hi = 0
     j = 0
     for i = 0 to wd.lv.nObj - 1
         if wd.lv.ob(i).k <> KGOLD then continue for
@@ -2526,8 +2526,8 @@ k.r = 0
 k.l = 0
 k.jump = 0
 k.hit = 0
-wd.se.goldLo = hid
-wd.se.goldHi = shown
+wd.se.gold_lo = hid
+wd.se.gold_hi = shown
 wd.se.unkept = -1
 Tick wd, g, p, k, lo(), pt()
 wd.se.ticks = tickWas
@@ -2948,7 +2948,7 @@ for m = 0 to 2
     p.inv = 0
     p.stun = 0
     g.bones = 5
-    wd.se.partN = 0
+    wd.se.part_n = 0
     Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 40, 300
     p.roll = m = 1
     k.r = m <> 1
@@ -2959,7 +2959,7 @@ for m = 0 to 2
     k.r = 0
     if m <> 1 then was = was and g.bones = 0 and wd.lv.ob(c).s = 0
     if m <> 1 then continue for
-    was = was and g.bones = 5 and wd.lv.ob(c).s > 0 and p.at.x > wd.lv.ob(c).x and wd.se.partN > 0
+    was = was and g.bones = 5 and wd.lv.ob(c).s > 0 and p.at.x > wd.lv.ob(c).x and wd.se.part_n > 0
     Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 60, 0
     for j = 0 to 1
         for i = 1 to 4 + j * 2 * BRAMBLET
@@ -2985,7 +2985,7 @@ p.stun = 0
 for i = 0 to NLOOSE - 1
     lo(i).t = 0
 next
-wd.se.looseN = 0
+wd.se.loose_n = 0
 Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 60, 0
 k.r = -1
 for i = 1 to 90
@@ -3821,7 +3821,7 @@ p.bark_t = 0
 k.bark = -1
 Tick wd, g, p, k, lo(), pt()
 k.bark = 0
-was = was and wd.lv.gulls(0).loot = 0 and wd.se.looseN = 5
+was = was and wd.lv.gulls(0).loot = 0 and wd.se.loose_n = 5
 ' a Charlie with no bones it leaves alone
 Stand wd.lv, wd.gr, p, c - 300, 0
 for i = 1 to 260

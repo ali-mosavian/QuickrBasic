@@ -163,8 +163,8 @@ data "end"
 ' The intro from its first beat: its road, its script, the view on the road's start.
 sub StartIntro (wd as World, g as Game, cu() as Cue)
     wd.se.road = 0
-    wd.se.sceneNext = 0
-    wd.se.sceneEnd = ILEN
+    wd.se.scene_next = 0
+    wd.se.scene_end = ILEN
     LoadLevel wd, SINTRO
     LoadCues cu()
     g.mode = INTRO
@@ -177,8 +177,8 @@ end sub
 ' bars of their own; then that stage.
 sub StartBump (wd as World, g as Game, nxt as integer)
     wd.se.road = ZoneOf%(wd.se, nxt)
-    wd.se.sceneNext = nxt
-    wd.se.sceneEnd = BUMP0 + BUMPLEN
+    wd.se.scene_next = nxt
+    wd.se.scene_end = BUMP0 + BUMPLEN
     LoadLevel wd, SINTRO
     ZoneTune wd.mu, BETWEEN
     wd.tn.dusk = 16
@@ -222,11 +222,11 @@ function IntroOver% (wd as World, g as Game, k as Pad, cu() as Cue)
         i = i + 1
     loop
     Shimmer wd.zn, wd.tn, wd.se
-    if now > wd.se.sceneEnd - 1 and wd.tn.dusk > 0 and (wd.se.ticks and 1) = 0 then
+    if now > wd.se.scene_end - 1 and wd.tn.dusk > 0 and (wd.se.ticks and 1) = 0 then
         wd.tn.dusk = wd.tn.dusk - 1
         Shade wd.tn
     end if
-    IntroOver% = now >= wd.se.sceneEnd or k.hit or k.start or k.quit
+    IntroOver% = now >= wd.se.scene_end or k.hit or k.start or k.quit
     Spent k
 end function
 

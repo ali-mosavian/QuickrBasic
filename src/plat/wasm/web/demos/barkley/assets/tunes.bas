@@ -141,7 +141,7 @@ end function
 
 ' Whether the state's song comes in at once and in full: the level's end, game over, the scene between zones.
 function Sudden% (se as Session, g as Game)
-    Sudden% = g.mode = CLEARED or g.mode = OVER or (g.mode = INTRO and se.sceneNext > 0)
+    Sudden% = g.mode = CLEARED or g.mode = OVER or (g.mode = INTRO and se.scene_next > 0)
 end function
 
 ' Slot n's song, when it is not the one playing, from its start or, late, from the bar it comes in at. The one

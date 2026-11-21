@@ -52,7 +52,7 @@ sub Hurt (mu as Deck, se as Session, g as Game, p as Hero, fromX as integer, lo(
         lo(i).vy = -sin(a) * v
         lo(i).t = 4
     next
-    se.looseN = n
+    se.loose_n = n
     p.ground = 0
     p.roll = 0
     p.charging = 0

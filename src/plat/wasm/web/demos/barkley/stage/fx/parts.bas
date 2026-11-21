@@ -24,7 +24,7 @@ sub LooseBones (lv as Level, se as Session, lo() as Loose, dt as single)
             lo(i).vy = -lo(i).vy * .7
         end if
         if lo(i).y > MH * TS + 16 then lo(i).t = 0
-        if lo(i).t <= 0 then se.looseN = se.looseN - 1
+        if lo(i).t <= 0 then se.loose_n = se.loose_n - 1
     next
 end sub
 
@@ -37,13 +37,13 @@ sub Particles (se as Session, pt() as Part, dt as single)
         pt(i).x = pt(i).x + pt(i).vx * dt
         pt(i).y = pt(i).y + pt(i).vy * dt
         pt(i).vy = pt(i).vy + 300 * dt
-        if pt(i).t <= 0 then se.partN = se.partN - 1
+        if pt(i).t <= 0 then se.part_n = se.part_n - 1
     next
 end sub
 
 sub Emit (se as Session, pt() as Part, x as single, y as single, vx as single, vy as single, t as single, c as integer)
     dim i as integer
-    if se.partN >= NPART then exit sub
+    if se.part_n >= NPART then exit sub
     for i = 0 to NPART - 1
         if pt(i).t > 0 then continue for
         pt(i).x = x
@@ -52,7 +52,7 @@ sub Emit (se as Session, pt() as Part, x as single, y as single, vx as single, v
         pt(i).vy = vy
         pt(i).t = t
         pt(i).c = c
-        se.partN = se.partN + 1
+        se.part_n = se.part_n + 1
         exit sub
     next
 end sub

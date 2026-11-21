@@ -94,7 +94,7 @@ private sub Spill (se as Session, b as Bird, lo() as Loose)
         lo(i).vx = (b.loot * 37 mod 90) - 45
         lo(i).vy = -40
         lo(i).t = 4
-        se.looseN = se.looseN + 1
+        se.loose_n = se.loose_n + 1
         b.loot = b.loot - 1
     next
     b.loot = 0

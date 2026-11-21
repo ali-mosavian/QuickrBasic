@@ -72,10 +72,10 @@ sub Advance (wd as World, g as Game, p as Hero, k as Pad, lo() as Loose, pt() as
         exit sub
     end if
     if IntroOver%(wd, g, k, cu()) = 0 then exit sub
-    if wd.se.sceneNext = 0 then
+    if wd.se.scene_next = 0 then
         ResetWorld wd, g, p, lo(), pt()
         exit sub
     end if
-    GoStage wd, wd.se.sceneNext, g, p, lo(), pt()
-    wd.se.sceneNext = 0
+    GoStage wd, wd.se.scene_next, g, p, lo(), pt()
+    wd.se.scene_next = 0
 end sub

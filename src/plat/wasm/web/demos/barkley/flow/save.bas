@@ -26,21 +26,21 @@ sub LoadSave (se as Session)
         close #2
     end if
     v = v - SAVEMARK
-    se.goldLo = 0
-    se.goldHi = 0
+    se.gold_lo = 0
+    se.gold_hi = 0
     se.unkept = 0
     if v < 0 or v >= ZONES then exit sub
     se.reached = v
-    se.goldLo = lo and &H3FFFFFFF
-    se.goldHi = hi and 511
+    se.gold_lo = lo and &H3FFFFFFF
+    se.gold_hi = hi and 511
 end sub
 
 ' The save as it stands, to CHARLIE.SAV.
 sub Keep (se as Session)
     dim v as long, lo as long, hi as long
     v = SAVEMARK + se.reached
-    lo = se.goldLo
-    hi = se.goldHi
+    lo = se.gold_lo
+    hi = se.gold_hi
     open "CHARLIE.SAV" for binary as #2
     put #2, , v
     put #2, , lo

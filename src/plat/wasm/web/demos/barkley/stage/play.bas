@@ -99,12 +99,12 @@ sub Touch (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as 
         end select
         i = i + 1
     loop
-    if se.looseN = 0 then exit sub
+    if se.loose_n = 0 then exit sub
     for i = 0 to NLOOSE - 1
         if lo(i).t <= 0 or lo(i).t >= TOONEW then continue for
         if abs(lo(i).x - px) >= 12 or abs(lo(i).y - py + 13) >= 16 then continue for
         lo(i).t = 0
-        se.looseN = se.looseN - 1
+        se.loose_n = se.loose_n - 1
         g.bones = g.bones + 1
         Sfx mu, se, SBONE
     next
@@ -158,6 +158,6 @@ sub Things (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() a
         end select
     next
     if lv.nRope then Settle lv
-    if se.looseN then LooseBones lv, se, lo(), DT
-    if se.partN then Particles se, pt(), DT
+    if se.loose_n then LooseBones lv, se, lo(), DT
+    if se.part_n then Particles se, pt(), DT
 end sub

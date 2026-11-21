@@ -73,17 +73,17 @@ end type
 type Session
     ticks as long
     cheer as integer
-    metT as single
-    pastT as single
-    looseN as integer
-    partN as integer
-    sceneEnd as integer
-    sceneNext as integer
+    met_t as single
+    past_t as single
+    loose_n as integer
+    part_n as integer
+    scene_end as integer
+    scene_next as integer
     road as integer
     reached as integer
     pick as integer
-    goldLo as long
-    goldHi as long
+    gold_lo as long
+    gold_hi as long
     unkept as integer
     pulse as long
     tempo as integer
@@ -111,18 +111,18 @@ end function
 ' Whether stage s's golden bone n is found.
 function Found% (se as Session, s as integer, n as integer)
     if s >= 10 then
-        Found% = (se.goldHi and GoldBit&(s, n)) <> 0
+        Found% = (se.gold_hi and GoldBit&(s, n)) <> 0
     else
-        Found% = (se.goldLo and GoldBit&(s, n)) <> 0
+        Found% = (se.gold_lo and GoldBit&(s, n)) <> 0
     end if
 end function
 
 ' Stage s's golden bone n is found, for good.
 sub Gild (se as Session, s as integer, n as integer)
     if s >= 10 then
-        se.goldHi = se.goldHi or GoldBit&(s, n)
+        se.gold_hi = se.gold_hi or GoldBit&(s, n)
     else
-        se.goldLo = se.goldLo or GoldBit&(s, n)
+        se.gold_lo = se.gold_lo or GoldBit&(s, n)
     end if
     se.unkept = -1
 end sub
