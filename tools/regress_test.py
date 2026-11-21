@@ -1795,6 +1795,24 @@ BIG |= {
 }
 
 
+def deftype_at(names: int) -> str:
+    """names variables, then a DEFINT line a letter: the letters' name ids run on from names + 1."""
+    fill = [f"f{i} = 0" for i in range(names)]
+    return bas(*(": ".join(fill[a:a + 12]) for a in range(0, names, 12)),
+               *(f"DEFINT {c}" for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"), 'PRINT "ran"')
+
+
+# The compile pass skipped a DEFtype statement as DATA's text, byte by byte, and stopped inside the
+# first letter's 4-byte name id. At a zero byte the rest of the line was never compiled. At a ':'
+# (ids 314, 570, ..: one name in 256) the id's tail was compiled as a statement: nothing ran, or a
+# module's DEFINT A-Z was a Syntax error that came and went with the program's count of names.
+CASES |= {
+    "c_deftype_rest": ('DEFINT A-Z: PRINT "second"\r\nPRINT "third"\r\n', "second\r\nthird\r\n", "ERROR"),
+    # the first letter's id at every low byte, past 255
+    **{f"c_deftype_id{n}": (deftype_at(n), "ran\r\n", "ERROR") for n in range(250, 536, 26)},
+}
+
+
 # What the host build (plat/host) cannot show as DOS does, each for its reason.
 HOST_SKIP = {"qb_shell": "SHELL runs /bin/sh, whose SET lists its own variables"}
 
