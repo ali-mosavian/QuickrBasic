@@ -119,3 +119,19 @@ sub Toss (p as Hero, y as integer, v as single)
     p.jumped = 0
     p.sprung = -1
 end sub
+
+' Thrown off at vx, vy, sprung.
+sub Fling (p as Hero, vx as single, vy as single)
+    p.ground = 0
+    p.vel.x = vx
+    p.vel.y = vy
+    p.jumped = 0
+    p.sprung = -1
+end sub
+
+' On through a hoop at v, the way he was going, and up.
+sub Spur (p as Hero, v as single)
+    p.vel.x = v * (1 + 2 * (p.vel.x < 0))
+    p.vel.y = -180
+    p.sprung = -1
+end sub

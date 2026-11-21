@@ -5867,6 +5867,8 @@ TOUCH: dict[str, tuple[int | str, ...]] = {
     "KSAPLING": ("TOWN", 0, 0, 0, 0, "SAPT"),
     "KBRAMBLE": ("TOWN", 0, 0, 0, 0, "BRAMBLET"),
     "KAWNING": ("TOWN", 0, 0, 0, 0, "AWNT"),
+    **dict.fromkeys(["KBUMP", "KBUOY"], ("TOWN", 0, 0, 0, 0, 10)),
+    "KHOOP": ("TOWN", 0, 0, 0, 0, 20),
 }
 
 

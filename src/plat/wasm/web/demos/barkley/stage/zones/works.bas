@@ -8,6 +8,7 @@ from engine.events import Events
 from barkley.model.images import IPRESS, IRAIL, ISPARK, ISRAIL
 from barkley.model.hero import Hero
 from barkley.model.level import KPRESS, Level, NONE, TS
+from barkley.model.kinds import Kinds
 from barkley.model.game import Game, Loose, Session
 from barkley.model.events import EVBURST, EVSCORE, EVSOUND, Tell
 from barkley.model.events import TellAt
@@ -15,6 +16,8 @@ from barkley.assets.tunes import SBOOST, SCLANK, SHISS, SHURT, SMARK
 from barkley.assets.tunes import SSPRING
 from barkley.stage.fx.parts import PBUMP, PHOOP, PMARK
 from barkley.stage.fx.damage import Beaten, BOUNCEV, Hurt
+from barkley.stage.hero.push import Fling, Launch, Spur
+from barkley.stage.things.react import Rest, Turn
 
 ' The works' own: a press and a leg of its gantry; a sweeper
 ' and a spark's carriage. A spark goes SPARKR either way
@@ -65,7 +68,7 @@ sub MeetButton (lv as Level, ev as Events, p as Hero, i as integer)
     if abs(lv.things(i).at.x - cint(p.at.x)) >= 9 _
         or abs(cint(p.at.y) - lv.things(i).at.y) >= 4 then exit sub
 
-    lv.things(i).state = 1
+    Turn lv, i, 1
     TellAt ev, EVBURST, csng(lv.things(i).at.x), _
         csng(lv.things(i).at.y - 6), PMARK
     Tell ev, EVSOUND, SMARK
@@ -86,21 +89,19 @@ sub MeetJet ( _
         or abs(lv.things(i).at.x - cint(p.at.x)) >= 10 then exit sub
     if dy > 2 or dy <= -64 or p.vel.y <= -JETV + 60 then exit sub
 
-    if p.ground then
-        p.vel.x = p.gsp
-        Tell ev, EVSOUND, SHISS
-    end if
-
-    p.ground = 0
-    p.vel.y = -JETV
-    p.roll = 0
-    p.jumped = 0
-    p.sprung = -1
+    if p.ground then Tell ev, EVSOUND, SHISS
+    Launch p, JETV, 0, JETV
 end sub
 
 ' A bumper or a buoy: touched, it throws him off the way he
 ' came at it.
-sub MeetBump (lv as Level, ev as Events, p as Hero, i as integer)
+sub MeetBump ( _
+    lv as Level, _
+    kd as Kinds, _
+    ev as Events, _
+    p as Hero, _
+    i as integer _
+)
     dim dx as integer, dy as integer, d as single
 
     dx = cint(p.at.x) - lv.things(i).at.x
@@ -116,12 +117,8 @@ sub MeetBump (lv as Level, ev as Events, p as Hero, i as integer)
         dy = -1
     end if
 
-    p.ground = 0
-    p.vel.x = dx / d * BUMPV
-    p.vel.y = dy / d * BUMPV - 60
-    p.jumped = 0
-    p.sprung = -1
-    lv.things(i).state = 10
+    Fling p, dx / d * BUMPV, dy / d * BUMPV - 60
+    Rest lv, kd, i
     Tell ev, EVSCORE, 10
     TellAt ev, EVBURST, csng(lv.things(i).at.x), _
         csng(lv.things(i).at.y), PBUMP
@@ -153,15 +150,19 @@ end sub
 
 ' A hoop: through it in the air he goes on, faster, the way
 ' he was going.
-sub MeetHoop (lv as Level, ev as Events, p as Hero, i as integer)
+sub MeetHoop ( _
+    lv as Level, _
+    kd as Kinds, _
+    ev as Events, _
+    p as Hero, _
+    i as integer _
+)
     if lv.things(i).state <> 0 or p.ground _
         or abs(lv.things(i).at.x - cint(p.at.x)) >= 9 then exit sub
     if abs(lv.things(i).at.y - cint(p.at.y) + 12) >= 18 then exit sub
 
-    p.vel.x = HOOPV * (1 + 2 * (p.vel.x < 0))
-    p.vel.y = -180
-    p.sprung = -1
-    lv.things(i).state = 20
+    Spur p, HOOPV
+    Rest lv, kd, i
     TellAt ev, EVBURST, csng(lv.things(i).at.x), _
         csng(lv.things(i).at.y), PHOOP
     Tell ev, EVSOUND, SBOOST

@@ -167,11 +167,11 @@ sub Touch ( _
             case KJET
                 MeetJet lv, ev, se, p, i
             case KBUMP, KBUOY
-                MeetBump lv, ev, p, i
+                MeetBump lv, kd, ev, p, i
             case KSPIN
                 MeetSpin lv, ev, se, g, p, i, lo()
             case KHOOP
-                MeetHoop lv, ev, p, i
+                MeetHoop lv, kd, ev, p, i
             end select
         end select
 
