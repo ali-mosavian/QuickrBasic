@@ -72,7 +72,10 @@ sub Nightfall (lv as Level, zn as Realm, tn as Tones)
         k = tn.which(zn.stage, i)
         if k = CFLY or k = CFLY + 1 then continue for
         c = tn.own(zn.stage, i)
-        Tint tn, k, Dimmed%(c and 63, 2, n) + 256& * Dimmed%(c \ 256 and 63, 2, n) + 65536 * Dimmed%(c \ 65536, 6, n)
+        Tint tn, k, _
+            Dimmed%(c and 63, 2, n) _
+            + 256& * Dimmed%(c \ 256 and 63, 2, n) _
+            + 65536 * Dimmed%(c \ 65536, 6, n)
     next
 end sub
 
@@ -94,8 +97,11 @@ sub MeetSapling ( _
 )
     dim py as integer, v as single
     py = cint(p.at.y)
-    if lv.things(i).state > 0 or abs(lv.things(i).at.x + SAPREACH - cint(p.at.x)) >= 10 then exit sub
-    if py < lv.things(i).at.y - 12 or py > lv.things(i).at.y + 2 or (not p.ground and p.vel.y < 0) then exit sub
+    if lv.things(i).state > 0 _
+        or abs(lv.things(i).at.x _
+        + SAPREACH - cint(p.at.x)) >= 10 then exit sub
+    if py < lv.things(i).at.y - 12 or py > lv.things(i).at.y + 2 _
+        or (not p.ground and p.vel.y < 0) then exit sub
     if p.ground then p.vel.x = p.gsp
     v = SAPV + SAPGAIN * abs(p.vel.x)
     if v > SAPMAX then v = SAPMAX
@@ -116,8 +122,11 @@ sub MeetVine ( _
     p as Hero, _
     i as integer _
 )
-    if p.vine or p.vine_t > 0 or p.ground or p.swim or p.stun or p.dead then exit sub
-    if abs(p.at.x - lv.things(i).at.x) >= 12 or abs(p.at.y - VINEGRIP - lv.things(i).at.y - VINELEN) >= 12 then exit sub
+    if p.vine or p.vine_t > 0 or p.ground or p.swim or p.stun _
+        or p.dead then exit sub
+    if abs(p.at.x - lv.things(i).at.x) >= 12 _
+        or abs(p.at.y - VINEGRIP - lv.things(i).at.y _
+        - VINELEN) >= 12 then exit sub
     p.vine = i + 1
     p.sway = (p.at.x - lv.things(i).at.x) / VINELEN
     p.sway_v = p.vel.x / VINELEN
@@ -137,8 +146,10 @@ sub MeetBramble ( _
     i as integer, _
     lo() as Loose _
 )
-    if lv.things(i).state > 0 or abs(lv.things(i).at.x - p.at.x) >= BRAMBLER then exit sub
-    if p.at.y < lv.things(i).at.y - 24 or p.at.y > lv.things(i).at.y + 8 then exit sub
+    if lv.things(i).state > 0 _
+        or abs(lv.things(i).at.x - p.at.x) >= BRAMBLER then exit sub
+    if p.at.y < lv.things(i).at.y - 24 _
+        or p.at.y > lv.things(i).at.y + 8 then exit sub
     if not p.roll then
         Hurt mu, se, g, p, lv.things(i).at.x, lo(), SHURT
         exit sub
@@ -163,7 +174,9 @@ sub MeetMound ( _
         if not on_it then p.dug = 0
         exit sub
     end if
-    if not (on_it and p.crouch and p.ground) or abs(lv.things(i).at.y - p.at.y) >= 8 or lv.things(i).state < 1 then exit sub
+    if not (on_it and p.crouch and p.ground) _
+        or abs(lv.things(i).at.y - p.at.y) >= 8 _
+        or lv.things(i).state < 1 then exit sub
     p.dig = lv.things(i).state
     p.ground = 0
     p.crouch = 0
@@ -183,7 +196,9 @@ sub MeetLog ( _
     i as integer _
 )
     dim s as integer
-    if abs(lv.things(i).at.x - p.at.x) >= LOGR or p.at.y <= lv.things(i).at.y - LOGH or p.at.y > lv.things(i).at.y + 4 then
+    if abs(lv.things(i).at.x - p.at.x) >= LOGR _
+        or p.at.y <= lv.things(i).at.y - LOGH _
+        or p.at.y > lv.things(i).at.y + 4 then
         lv.things(i).state = 0
         exit sub
     end if
@@ -201,7 +216,8 @@ end sub
 sub Regrow (lv as Level, se as Session, pt() as Part, i as integer)
     if lv.things(i).state = 0 then exit sub
     if lv.things(i).state = BRAMBLET then
-        Burst se, pt(), csng(lv.things(i).at.x), csng(lv.things(i).at.y - 12), 10, 140, CLEAF
+        Burst se, pt(), csng(lv.things(i).at.x), _
+            csng(lv.things(i).at.y - 12), 10, 140, CLEAF
     end if
     lv.things(i).state = lv.things(i).state - 1
 end sub
@@ -264,10 +280,13 @@ sub DrawBees ( _
 )
     dim i as integer, j as integer, x as integer, y as integer
     for i = 0 to lv.n_swarms - 1
-        if abs(lv.swarms(i).at.x - cx - SW \ 2) > SW \ 2 + 24 then continue for
+        if abs(lv.swarms(i).at.x - cx - SW \ 2) > SW \ 2 _
+            + 24 then continue for
         for j = 0 to NBEE - 1
-            x = cint(lv.swarms(i).at.x) - cx + cint(13 * sin(se.ticks * .21 + j * 2.4)) - 2
-            y = cint(lv.swarms(i).at.y) - cy + cint(9 * cos(se.ticks * .17 + j * 1.7))
+            x = cint(lv.swarms(i).at.x) - cx _
+                + cint(13 * sin(se.ticks * .21 + j * 2.4)) - 2
+            y = cint(lv.swarms(i).at.y) - cy _
+                + cint(9 * cos(se.ticks * .17 + j * 1.7))
             line (x, y)-(x + 3, y + 1), CBEE, BF
             line (x + 1, y)-(x + 1, y + 1), CINK
             line (x + 3, y)-(x + 3, y + 1), CINK
@@ -286,7 +305,8 @@ sub DrawVine (x as integer, y as integer, a as single)
         pset (u, v), CVINE
         pset (u + 1, v), CVINED
         if j mod 7 = 3 then
-            line (u + 2 - 5 * ((j \ 7) and 1), v)-(u + 3 - 5 * ((j \ 7) and 1), v + 1), CVINE, bf
+            line (u + 2 - 5 * ((j \ 7) and 1), v) _
+                -(u + 3 - 5 * ((j \ 7) and 1), v + 1), CVINE, bf
         end if
     next
     circle (u, v + 3), 3, CVINE
@@ -298,8 +318,10 @@ sub DrawFlies (lv as Level, se as Session, cx as integer)
     dim j as integer, x as integer, y as integer
     for j = 0 to FLYREST + (NFLY - FLYREST) * lv.glow_at \ GLOWN - 1
         if ((se.ticks \ 16 + j * 3) and 7) = 0 then continue for
-        x = (j * 73 + 31 + SW - (cx \ 2) mod SW) mod SW + cint(6 * sin(se.ticks * .02 + j))
-        y = 22 + (j * 47) mod 136 + cint(4 * sin(se.ticks * .031 + j * 2))
+        x = (j * 73 + 31 + SW - (cx \ 2) mod SW) mod SW _
+            + cint(6 * sin(se.ticks * .02 + j))
+        y = 22 + (j * 47) mod 136 _
+            + cint(4 * sin(se.ticks * .031 + j * 2))
         if lv.glow_at = 0 then
             pset (x, y), CFLY
             continue for
@@ -320,13 +342,16 @@ sub Scamper (lv as Level, i as integer, p as Hero)
     dim quarry as integer
     n = abs(lv.things(i).state) - 1
     d = sgn(lv.things(i).state)
-    quarry = abs(p.at.x - lv.things(i).home) < SQRUN + SQSEE and p.at.y > lv.things(i).at.y
-    if n = 0 and quarry and abs(p.at.x - lv.things(i).at.x) >= SQNEAR then
+    quarry = abs(p.at.x - lv.things(i).home) < SQRUN + SQSEE _
+        and p.at.y > lv.things(i).at.y
+    if n = 0 and quarry _
+        and abs(p.at.x - lv.things(i).at.x) >= SQNEAR then
         n = 1
     end if
     if n = 0 then
         if quarry then
-            Loft lv, lv.things(i).at.x + 5 * d, lv.things(i).at.y + 1, 0, 0, IACORN, CNUT
+            Loft lv, lv.things(i).at.x + 5 * d, _
+                lv.things(i).at.y + 1, 0, 0, IACORN, CNUT
         end if
         n = SQWAIT
     end if

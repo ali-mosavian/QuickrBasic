@@ -97,7 +97,8 @@ sub DrawFamily ( _
         k = FamPic%(se, n, cheer)
         w = (art.img(art.at(k)) and 65535) \ 8
         h = art.img(art.at(k)) \ 65536
-        Blit art, x + (n - NFAM \ 2) * FAMSTEP - w \ 2, y - h + 1, k, w, h
+        Blit art, x + (n - NFAM \ 2) * FAMSTEP - w \ 2, y - h + 1, _
+            k, w, h
     next
 end sub
 

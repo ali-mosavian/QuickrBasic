@@ -133,7 +133,8 @@ end sub
 private sub Glide (lv as Level, p as Hero)
     dim i as integer
     for i = 0 to lv.n_ropes - 1
-        if lv.ropes(i).fall = 0 or lv.ropes(i).sg <> p.sg then continue for
+        if lv.ropes(i).fall = 0 _
+            or lv.ropes(i).sg <> p.sg then continue for
         if p.gsp < SLIDEV then p.gsp = p.gsp + SLIDEACC * STEPT
         exit sub
     next
@@ -141,7 +142,8 @@ end sub
 
 ' Whether his feet, falling, have come down through height y this step.
 private function Trodden% (p as Hero, y as integer)
-    Trodden% = not p.ground and p.vel.y > 0 and p.at.y >= y and p.at.y - p.vel.y * STEPT <= y + 2
+    Trodden% = not p.ground and p.vel.y > 0 and p.at.y >= y _
+        and p.at.y - p.vel.y * STEPT <= y + 2
 end function
 
 ' Thrown up from height y at v, his way kept.
@@ -177,7 +179,8 @@ sub MeetAwning ( _
     p as Hero, _
     i as integer _
 )
-    if p.dead or abs(lv.things(i).at.x - p.at.x) >= AWNW or not Trodden%(p, lv.things(i).at.y) then exit sub
+    if p.dead or abs(lv.things(i).at.x - p.at.x) >= AWNW _
+        or not Trodden%(p, lv.things(i).at.y) then exit sub
     Toss p, lv.things(i).at.y, AWNV
     lv.things(i).state = AWNT
     Sfx mu, se, SSPRING
@@ -193,11 +196,13 @@ sub MeetChimney ( _
     i as integer, _
     pt() as Part _
 )
-    if lv.things(i).state < 1 or p.dead or abs(lv.things(i).at.x - p.at.x) >= FLUER then exit sub
+    if lv.things(i).state < 1 or p.dead _
+        or abs(lv.things(i).at.x - p.at.x) >= FLUER then exit sub
     if not Trodden%(p, lv.things(i).at.y - FLUEH) then exit sub
     p.dig = lv.things(i).state
     p.vel.y = 0
-    Burst se, pt(), csng(lv.things(i).at.x), csng(lv.things(i).at.y - FLUEH), 8, 90, CSOOT
+    Burst se, pt(), csng(lv.things(i).at.x), _
+        csng(lv.things(i).at.y - FLUEH), 8, 90, CSOOT
     Sfx mu, se, SROLL
 end sub
 
@@ -236,7 +241,8 @@ sub Pounce (lv as Level, i as integer, p as Hero)
     dim n as integer, d as integer
     if lv.things(i).state = POUNCEGONE then exit sub
     if lv.things(i).state = 0 then
-        if abs(p.at.x - lv.things(i).home) < POUNCER and abs(p.at.y - lv.things(i).at.y) < 40 then
+        if abs(p.at.x - lv.things(i).home) < POUNCER _
+            and abs(p.at.y - lv.things(i).at.y) < 40 then
             Spring lv, i, p
         end if
         exit sub
@@ -244,7 +250,8 @@ sub Pounce (lv as Level, i as integer, p as Hero)
     n = abs(lv.things(i).state)
     d = sgn(lv.things(i).state)
     if n < POUNCEN then
-        lv.things(i).at.x = lv.things(i).home + d * POUNCEFAR * n \ POUNCEN
+        lv.things(i).at.x = lv.things(i).home _
+            + d * POUNCEFAR * n \ POUNCEN
         lv.things(i).state = d * (n + 1)
         exit sub
     end if
@@ -271,7 +278,8 @@ sub MeetPounce ( _
     pt() as Part _
 )
     dim y as integer
-    if lv.things(i).state = 0 or lv.things(i).state = POUNCEGONE or abs(lv.things(i).at.x - cint(p.at.x)) >= 15 then exit sub
+    if lv.things(i).state = 0 or lv.things(i).state = POUNCEGONE _
+        or abs(lv.things(i).at.x - cint(p.at.x)) >= 15 then exit sub
     y = lv.things(i).at.y - Leapt%(lv, i)
     if abs(y - 6 - cint(p.at.y) + 13) >= 17 then exit sub
     Tackle lv, mu, se, g, p, i, 6 + Leapt%(lv, i), lo(), pt()
@@ -297,7 +305,8 @@ end sub
 ' The pulses since mortar i last fired.
 function Fired& (lv as Level, se as Session, i as integer)
     dim q as long
-    q = (se.pulse - clng(lv.things(i).state) * PULSES) mod (clng(MORTARBAR) * PULSES)
+    q = (se.pulse - clng(lv.things(i).state) _
+        * PULSES) mod (clng(MORTARBAR) * PULSES)
     if q < 0 then q = q + clng(MORTARBAR) * PULSES
     Fired& = q
 end function
@@ -315,7 +324,9 @@ end function
 function PotClear% (lv as Level, se as Session, i as integer)
     dim q as long
     q = Fired&(lv, se, i)
-    PotClear% = PotFall%(lv, se, i) = NONE and q < clng(MORTARBAR) * PULSES - clng(CROSST * 60 * se.tempo)
+    PotClear% = PotFall%(lv, se, i) = NONE _
+        and q < clng(MORTARBAR) * PULSES _
+        - clng(CROSST * 60 * se.tempo)
 end function
 
 ' For the pilot at x: the nearest tipper whose pot's place he is under or coming to, NONE with none near.
@@ -326,7 +337,9 @@ function TipperAhead% (lv as Level, x as integer)
     if c < 0 then c = 0
     for i = lv.first(c) to lv.n_things - 1
         if lv.things(i).at.x > x + 200 then exit for
-        if lv.things(i).kind <> KTIPPER or lv.things(i).at.x + POTX + POTR + 8 < x then continue for
+        if lv.things(i).kind <> KTIPPER _
+            or lv.things(i).at.x + POTX + POTR _
+            + 8 < x then continue for
         TipperAhead% = i
         exit for
     next
@@ -344,7 +357,8 @@ sub Tipper ( _
     q = Fired&(lv, se, i)
     land = clng(sqr(2! * SILLUP / GRAV) * 60 * se.tempo)
     if q < land or q >= land + se.tempo then exit sub
-    Burst se, pt(), lv.things(i).at.x + POTX, lv.things(i).at.y - 3, 8, 120, CCLAY
+    Burst se, pt(), lv.things(i).at.x + POTX, lv.things(i).at.y - 3, _
+        8, 120, CCLAY
     Sfx mu, se, SPOP
 end sub
 
@@ -360,7 +374,9 @@ sub MeetTipper ( _
 )
     dim d as integer, foot as integer
     d = PotFall%(lv, se, i)
-    if d = NONE or abs(lv.things(i).at.x + POTX - cint(p.at.x)) >= POTR then exit sub
+    if d = NONE _
+        or abs(lv.things(i).at.x _
+        + POTX - cint(p.at.x)) >= POTR then exit sub
     foot = lv.things(i).at.y - SILLUP + d
     if foot > p.at.y - 28 and foot - 14 < p.at.y then
         Hurt mu, se, g, p, lv.things(i).at.x + POTX, lo(), SHURT
@@ -408,7 +424,8 @@ sub MeetMortar ( _
     if q >= FLASHP then exit sub
     dx = abs(lv.things(i).at.x - cint(p.at.x))
     up = lv.things(i).at.y - MORTARH - cint(p.at.y)
-    if q < se.tempo and dx < MORTARW and up >= 0 and up < MORTARREACH and not p.ground then
+    if q < se.tempo and dx < MORTARW and up >= 0 _
+        and up < MORTARREACH and not p.ground then
         Toss p, cint(p.at.y), MORTARV
         exit sub
     end if
@@ -443,7 +460,8 @@ sub DrawMortar ( _
         line (x - 3, y - 14 - h)-(x - 2, y - 12 - h), CLANT + 1, BF
     elseif q < 2 * PULSES then
         f = (q - PULSES) * 3 \ PULSES
-        Blit art, x - 26, y - 40 - SHELLUP, IBURST + 2 * f + 6 * (i and 1), 48, 48
+        Blit art, x - 26, y - 40 - SHELLUP, _
+            IBURST + 2 * f + 6 * (i and 1), 48, 48
     end if
 end sub
 
@@ -453,9 +471,13 @@ private function Spied% (lv as Level, i as integer, lo() as Loose)
     Spied% = NONE
     best = 2 * BEAT + 1
     for j = 0 to NLOOSE - 1
-        if lo(j).t <= 0 or lo(j).t >= TOONEW or abs(lo(j).at.x - lv.things(i).home) > BEAT then continue for
+        if lo(j).t <= 0 or lo(j).t >= TOONEW _
+            or abs(lo(j).at.x - lv.things(i).home) _
+            > BEAT then continue for
         d = abs(lo(j).at.x - lv.things(i).at.x)
-        if d >= best or abs(lo(j).at.y - lv.things(i).at.y + 6) >= 14 then continue for
+        if d >= best _
+            or abs(lo(j).at.y - lv.things(i).at.y _
+            + 6) >= 14 then continue for
         best = d
         Spied% = j
     next
@@ -531,8 +553,10 @@ private sub Tread (lv as Level, r as Rope)
     if lv.things(i).state = 0 then exit sub
     x = lv.things(i).at.x + lv.things(i).state
     if abs(lv.things(i).state) > 1 then
-        lv.things(i).state = lv.things(i).state - sgn(lv.things(i).state)
-    elseif abs(x - lv.things(i).home) > BEAT or x < r.at.x + WALKIN or x > r.at.x + r.w - WALKIN then
+        lv.things(i).state = lv.things(i).state _
+            - sgn(lv.things(i).state)
+    elseif abs(x - lv.things(i).home) > BEAT or x < r.at.x + WALKIN _
+        or x > r.at.x + r.w - WALKIN then
         lv.things(i).state = -lv.things(i).state
     else
         lv.things(i).at.x = x
@@ -554,9 +578,11 @@ sub DrawLines ( _
         if x >= SW or x + lv.ropes(i).w < 0 then continue for
         y = lv.ropes(i).at.y - cy
         DrawPost x, y, lv.top(lv.ropes(i).at.x \ TS) * TS - cy
-        DrawPost x + lv.ropes(i).w, y + lv.ropes(i).fall, lv.top((lv.ropes(i).at.x + lv.ropes(i).w) \ TS) * TS - cy
+        DrawPost x + lv.ropes(i).w, y + lv.ropes(i).fall, _
+            lv.top((lv.ropes(i).at.x + lv.ropes(i).w) \ TS) * TS - cy
         if lv.ropes(i).fall then
-            line (x, y)-(x + lv.ropes(i).w, y + lv.ropes(i).fall), CQINK
+            line (x, y)-(x + lv.ropes(i).w, y + lv.ropes(i).fall), _
+                CQINK
             Lanterns lv.ropes(i), art, cx, cy
             continue for
         end if
@@ -579,7 +605,8 @@ private sub Lanterns ( _
 )
     dim u as integer
     for u = LANTGAP \ 2 to r.w - 6 step LANTGAP
-        Blit art, r.at.x + u - cx - 4, LineY%(r, u) - cy, IPAPER, 9, 14
+        Blit art, r.at.x + u - cx - 4, LineY%(r, u) - cy, IPAPER, 9, _
+            14
     next
 end sub
 

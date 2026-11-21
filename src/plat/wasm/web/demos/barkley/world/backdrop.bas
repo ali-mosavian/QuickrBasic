@@ -130,7 +130,8 @@ private sub CombColumn ( _
     k = (tx and 3) * 3
     if r * TS > lv.tide or lv.glaze(tx) then w = WETO
     if y > -TS and v > 2 then
-        Blit art, x, y, IAS + w + ((v - 4) * 12 + k + r mod 3) * 2, TS, TS
+        Blit art, x, y, IAS + w + ((v - 4) * 12 + k + r mod 3) * 2, _
+            TS, TS
     end if
     if y > -TS and v > 0 and v <= 2 then
         put (x, y), art.img(art.at(IAF + w + k + r mod 3)), pset
@@ -138,7 +139,9 @@ private sub CombColumn ( _
     y = y + TS
     if v > 2 and y < SH then
         if y > -TS then
-            put (x, y), art.img(art.at(IAU + w + (v - 4) * 12 + k + r mod 3)), pset
+            put (x, y), _
+                art.img(art.at(IAU + w + (v - 4) * 12 + k _
+                + r mod 3)), pset
         end if
         y = y + TS
         r = r + 1

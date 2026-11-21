@@ -73,7 +73,8 @@ sub Grab ( _
 )
     art.at(k) = art.next_at
     get (x1, y1)-(x2, y2), art.img(art.next_at)
-    art.next_at = art.next_at + (4 + clng(x2 - x1 + 1) * (y2 - y1 + 1) + 3) \ 4
+    art.next_at = art.next_at _
+        + (4 + clng(x2 - x1 + 1) * (y2 - y1 + 1) + 3) \ 4
 end sub
 
 ' The w by h at x, y kept as k, and its mask, drawn at mx, my, as k + 1:

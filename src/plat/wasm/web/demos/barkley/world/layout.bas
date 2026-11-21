@@ -42,7 +42,9 @@ end sub
 sub Weed (lv as Level, x as integer)
     dim i as integer
     for i = 0 to lv.n_things - 1
-        if lv.things(i).kind >= KTREE and lv.things(i).kind <= KLAMP and lv.things(i).at.x > x then
+        if lv.things(i).kind >= KTREE _
+            and lv.things(i).kind <= KLAMP _
+            and lv.things(i).at.x > x then
             lv.things(i).kind = 0
         end if
     next
@@ -103,7 +105,8 @@ sub Pit (lv as Level, c as integer, g as integer, n as integer)
     y = (MH - g + PITD) * TS
     for i = 0 to n - 1
         Column lv, c + i, g - PITD, 1
-        if i > 1 and i < n - 3 and (i and 1) = 0 and not Sunk%(lv, y) then
+        if i > 1 and i < n - 3 and (i and 1) = 0 _
+            and not Sunk%(lv, y) then
             AddObj lv, KBONE, (c + i) * TS + 8, y - 14
         end if
     next
@@ -149,7 +152,8 @@ end sub
 
 ' Whether thing i stands rooted in the ground: of a kind from lo to the lamp, or a post.
 function Rooted% (lv as Level, i as integer, lo as integer)
-    Rooted% = (lv.things(i).kind >= lo and lv.things(i).kind <= KLAMP) or lv.things(i).kind >= KPOST
+    Rooted% = (lv.things(i).kind >= lo _
+        and lv.things(i).kind <= KLAMP) or lv.things(i).kind >= KPOST
 end function
 
 ' The things of kind k told each other in pairs: a thing's state its other end, counted from 1. With no way
@@ -157,9 +161,12 @@ end function
 sub Pair (lv as Level, k as integer, back as integer)
     dim i as integer, j as integer
     for i = 0 to lv.n_things - 1
-        if lv.things(i).kind <> k or lv.things(i).state >= 0 then continue for
+        if lv.things(i).kind <> k _
+            or lv.things(i).state >= 0 then continue for
         for j = i + 1 to lv.n_things - 1
-            if lv.things(j).kind <> k or lv.things(j).state <> lv.things(i).state then continue for
+            if lv.things(j).kind <> k _
+                or lv.things(j).state <> lv.things(i).state _
+                then continue for
             lv.things(i).state = j + 1
             lv.things(j).state = 0
             if back then lv.things(j).state = i + 1

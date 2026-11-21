@@ -175,7 +175,8 @@ sub Touch ( _
     if se.loose_n = 0 then exit sub
     for i = 0 to NLOOSE - 1
         if lo(i).t <= 0 or lo(i).t >= TOONEW then continue for
-        if abs(lo(i).at.x - px) >= 12 or abs(lo(i).at.y - py + 13) >= 16 then continue for
+        if abs(lo(i).at.x - px) >= 12 _
+            or abs(lo(i).at.y - py + 13) >= 16 then continue for
         lo(i).t = 0
         se.loose_n = se.loose_n - 1
         g.bones = g.bones + 1
@@ -226,7 +227,9 @@ sub Things ( _
         case KCAT, KCRAB, KSWEEP
             if lv.things(i).state <> 0 then Prowl lv, i
         case KSPARK
-            lv.things(i).at.x = lv.things(i).home + cint(SPARKR * sin((se.ticks + lv.things(i).home) * .03))
+            lv.things(i).at.x = lv.things(i).home _
+                + cint(SPARKR _
+                * sin((se.ticks + lv.things(i).home) * .03))
         case KICICLE
             Totter lv, mu, se, g, pt(), i
         case KLOAD

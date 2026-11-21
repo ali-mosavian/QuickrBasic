@@ -41,7 +41,8 @@ sub Pilot ( _
     k.down = 0
     if p.vine then
         ' hung from a vine: let go on the way up and forward, or where a small swing turns
-        hop_now = p.sway_v > 0 and p.sway > 0 and (p.sway > .5 or p.sway_v < 1)
+        hop_now = p.sway_v > 0 and p.sway > 0 _
+            and (p.sway > .5 or p.sway_v < 1)
     elseif p.swim then
         hop_now = PilotSwim%(lv, zn, p, k)
     elseif p.ground and gr.pt(p.sg).kind = 3 then
@@ -84,7 +85,8 @@ private function PilotSwim% ( _
     want = Solid%(lv, cint(p.at.x) + HW + 2, cint(p.at.y) - 11)
     for i = lv.first(cint(p.at.x) \ TS) to lv.n_things - 1
         if lv.things(i).at.x > p.at.x + 34 then exit for
-        if lv.things(i).kind = KJELLY and lv.things(i).at.x > p.at.x then
+        if lv.things(i).kind = KJELLY _
+            and lv.things(i).at.x > p.at.x then
             want = -1
         end if
     next
@@ -93,7 +95,8 @@ private function PilotSwim% ( _
     if zn.id <> 2 or lv.cart.st <> 1 then exit function
     k.right = 0
     d = cint(lv.cart.at.x - p.at.x)
-    want = lv.cart.t <= 0 and abs(d) < abs(lv.cart.v) * .55 + 12 and abs(d) > abs(lv.cart.v) * .45
+    want = lv.cart.t <= 0 and abs(d) < abs(lv.cart.v) * .55 + 12 _
+        and abs(d) > abs(lv.cart.v) * .45
     PilotSwim% = want and sgn(d) <> sgn(lv.cart.v)
 end function
 
@@ -130,7 +133,8 @@ private function PilotRide% ( _
         case 5
             ' a boat low in its pool: off it at the wall, once the bank is a jump up
             d = lv.top((i + 6) \ TS) * TS
-            if Swing!(lv, se, m, 0) > .85 and d < y and d > y - 44 then
+            if Swing!(lv, se, m, 0) > .85 and d < y _
+                and d > y - 44 then
                 PressOn k
                 want = -1
             end if
@@ -154,7 +158,8 @@ private function PilotRun% ( _
     x = cint(p.at.x)
     y = cint(p.at.y)
     i = x + 22 + cint(abs(p.gsp)) \ 40
-    if Surf%(lv, i, y) = NONE and Surf%(lv, i, y + 2 * TS) = NONE and not Ribbon%(gr, x) then
+    if Surf%(lv, i, y) = NONE and Surf%(lv, i, y + 2 * TS) = NONE _
+        and not Ribbon%(gr, x) then
         want = -1
     end if
     ' a wall, not a ramp's foot
@@ -163,15 +168,24 @@ private function PilotRun% ( _
         if lv.things(i).at.x > x + 130 then exit for
         if lv.things(i).at.x <= x then continue for
         ' a pouncer is jumped in its bin and out of it; a mortar's flash is jumped, whenever it fires
-        d = ((lv.things(i).kind = KCAT or lv.things(i).kind = KSNATCH) and lv.things(i).state <> 0) or lv.things(i).kind = KTHORN
+        d = ((lv.things(i).kind = KCAT _
+            or lv.things(i).kind = KSNATCH) _
+            and lv.things(i).state <> 0) or lv.things(i).kind = KTHORN
         d = d or lv.things(i).kind = KMORTAR
-        d = d or (lv.things(i).kind = KPOUNCE and lv.things(i).state <> POUNCEGONE)
+        d = d or (lv.things(i).kind = KPOUNCE _
+            and lv.things(i).state <> POUNCEGONE)
         if d and lv.things(i).at.x <= x + 50 then want = -1
         ' what is not rolled through, a crab, a jellyfish, a sweeper, a spark: jumped from further back the faster
         ' he goes
-        d = lv.things(i).kind = KJELLY or lv.things(i).kind = KSPARK or (lv.things(i).kind = KCRAB and abs(lv.things(i).state) = 1)
-        d = d or ((lv.things(i).kind = KSWEEP or lv.things(i).kind = KTHROW) and lv.things(i).state <> 0)
-        if d and lv.things(i).at.x <= x + 34 + abs(cint(p.gsp)) \ 8 then
+        d = lv.things(i).kind = KJELLY _
+            or lv.things(i).kind = KSPARK _
+            or (lv.things(i).kind = KCRAB _
+            and abs(lv.things(i).state) = 1)
+        d = d or ((lv.things(i).kind = KSWEEP _
+            or lv.things(i).kind = KTHROW) _
+            and lv.things(i).state <> 0)
+        if d and lv.things(i).at.x <= x + 34 _
+            + abs(cint(p.gsp)) \ 8 then
             want = -1
         end if
     next
@@ -179,7 +193,8 @@ private function PilotRun% ( _
     PilotTipper lv, se, p, k
     PilotGoat lv, p, k, want
     k.down = Rams%(lv, zn, p)
-    if zn.id = 5 and p.roll and lv.cart.st = 1 and lv.cart.at.x - p.at.x > OUTRUN then
+    if zn.id = 5 and p.roll and lv.cart.st = 1 _
+        and lv.cart.at.x - p.at.x > OUTRUN then
         want = -1
     end if
     if zn.id = 4 then PilotCurl lv, p, k, want
@@ -192,7 +207,9 @@ end function
 private function Rams% (lv as Level, zn as Realm, p as Hero)
     dim d as integer
     Rams% = 0
-    if lv.cart.st <> 1 or not (zn.id = 0 or zn.id = 3 or zn.id = 5) then exit function
+    if lv.cart.st <> 1 _
+        or not (zn.id = 0 or zn.id = 3 _
+        or zn.id = 5) then exit function
     d = cint(lv.cart.at.x - p.at.x)
     Rams% = d > 0 and d < RAMREACH and p.gsp > 150
 end function
@@ -228,12 +245,14 @@ private sub PilotDig ( _
     for i = lv.first(c) to lv.n_things - 1
         d = lv.things(i).at.x - x
         if d > 10 + v \ 20 + v * v \ 3600 then exit for
-        if lv.things(i).kind <> KMOUND or d < -40 or p.dug = i + 1 or abs(lv.things(i).at.y - p.at.y) > 8 then continue for
+        if lv.things(i).kind <> KMOUND or d < -40 or p.dug = i + 1 _
+            or abs(lv.things(i).at.y - p.at.y) > 8 then continue for
         if not Walled%(lv, i) then continue for
         want = 0
         k.down = abs(d) < MOUNDR - 3 and abs(v) < 20
         k.right = d >= MOUNDR - 3 and v < 40 + d * 3
-        k.left = (d <= 3 - MOUNDR and v > -60) or (d > 3 - MOUNDR and v > 70 + d * 3)
+        k.left = (d <= 3 - MOUNDR and v > -60) _
+            or (d > 3 - MOUNDR and v > 70 + d * 3)
         exit sub
     next
 end sub
@@ -253,7 +272,9 @@ private sub PilotCurl ( _
     for i = lv.first(c) to lv.n_things - 1
         if lv.things(i).at.x > x + 80 then exit for
         if lv.things(i).at.x < x - LOGR - 4 then continue for
-        if not ((lv.things(i).kind = KBRAMBLE and lv.things(i).state = 0) or lv.things(i).kind = KLOG) then continue for
+        if not ((lv.things(i).kind = KBRAMBLE _
+            and lv.things(i).state = 0) _
+            or lv.things(i).kind = KLOG) then continue for
         if p.gsp > 150 then
             k.down = -1
         else
@@ -333,10 +354,14 @@ private sub PilotGaps ( _
     for m = 0 to lv.n_movers - 1
         d = lv.movers(m).edge - x
         ' a bridge and a pier are run over; a tram's street is run along
-        if lv.movers(m).kind = 4 or lv.movers(m).kind = 6 or lv.movers(m).kind = 8 then
+        if lv.movers(m).kind = 4 or lv.movers(m).kind = 6 _
+            or lv.movers(m).kind = 8 then
             d = NONE
         end if
-        if d <= -4 or d >= 300 or abs(lv.movers(m).at.y + lv.movers(m).reach * (lv.movers(m).kind = 1) - y) >= 200 then continue for
+        if d <= -4 or d >= 300 _
+            or abs(lv.movers(m).at.y _
+            + lv.movers(m).reach * (lv.movers(m).kind = 1) _
+            - y) >= 200 then continue for
         if d < 50 then want = 0
         if p.gsp > 30 + d then k.right = 0
         if p.gsp > 70 + d then k.left = -1
@@ -353,12 +378,16 @@ end sub
 private function Ready% (lv as Level, se as Session, m as integer)
     select case lv.movers(m).kind
     case 0
-        Ready% = Swing!(lv, se, m, 0) < -.85 and Swing!(lv, se, m, 1) < 0
+        Ready% = Swing!(lv, se, m, 0) < -.85 _
+            and Swing!(lv, se, m, 1) < 0
     case 5
         ' a boat aground is no way over: down into its pool
-        Ready% = not Adrift%(lv, m) or (Swing!(lv, se, m, 0) < -.85 and Swing!(lv, se, m, 1) < 0)
+        Ready% = not Adrift%(lv, m) _
+            or (Swing!(lv, se, m, 0) < -.85 _
+            and Swing!(lv, se, m, 1) < 0)
     case 1
-        Ready% = Swing!(lv, se, m, 0) >= 1 and Swing!(lv, se, m, 1) > .2
+        Ready% = Swing!(lv, se, m, 0) >= 1 _
+            and Swing!(lv, se, m, 1) > .2
     case 2, 3, 7
         Ready% = lv.movers(m).t = 0
     end select
@@ -372,10 +401,12 @@ private sub PilotFall (lv as Level, zn as Realm, p as Hero, k as Pad)
     if GoatNear%(lv, cint(p.at.x)) <> NONE then k.right = 0
     for m = 0 to lv.n_movers - 1
         d = lv.movers(m).edge - cint(p.at.x)
-        if lv.movers(m).kind = 4 or lv.movers(m).kind = 6 or lv.movers(m).kind = 8 then
+        if lv.movers(m).kind = 4 or lv.movers(m).kind = 6 _
+            or lv.movers(m).kind = 8 then
             d = NONE
         end if
-        if d <= -40 or d >= 260 or p.coyote > 0 or p.vel.x <= d \ 3 or p.sg = lv.movers(m).sg then continue for
+        if d <= -40 or d >= 260 or p.coyote > 0 or p.vel.x <= d \ 3 _
+            or p.sg = lv.movers(m).sg then continue for
         k.right = 0
         k.left = -1
     next

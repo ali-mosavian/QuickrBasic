@@ -51,7 +51,8 @@ private sub Splat ( _
 )
     lv.lobs(n).live = 0
     lv.n_lobs = lv.n_lobs - 1
-    Burst se, pt(), lv.lobs(n).at.x, lv.lobs(n).at.y, 6, 90, lv.lobs(n).c
+    Burst se, pt(), lv.lobs(n).at.x, lv.lobs(n).at.y, 6, 90, _
+        lv.lobs(n).c
     Sfx mu, se, SPOP
 end sub
 
@@ -71,12 +72,17 @@ sub Volley ( _
         lv.lobs(n).vel.y = lv.lobs(n).vel.y + GRAV * STEPT
         lv.lobs(n).at.x = lv.lobs(n).at.x + lv.lobs(n).vel.x * STEPT
         lv.lobs(n).at.y = lv.lobs(n).at.y + lv.lobs(n).vel.y * STEPT
-        aground = Solid%(lv, cint(lv.lobs(n).at.x), cint(lv.lobs(n).at.y))
+        aground = Solid%(lv, cint(lv.lobs(n).at.x), _
+            cint(lv.lobs(n).at.y))
         if not aground then lv.lobs(n).bedded = 0
-        if abs(lv.lobs(n).at.x - p.at.x) < 10 and abs(lv.lobs(n).at.y - p.at.y + 13) < 14 then
-            Hurt mu, se, g, p, cint(lv.lobs(n).at.x - sgn(lv.lobs(n).vel.x) * 10), lo(), SHURT
+        if abs(lv.lobs(n).at.x - p.at.x) < 10 _
+            and abs(lv.lobs(n).at.y - p.at.y + 13) < 14 then
+            Hurt mu, se, g, p, _
+                cint(lv.lobs(n).at.x - sgn(lv.lobs(n).vel.x) * 10), _
+                lo(), SHURT
             Splat lv, mu, se, n, pt()
-        elseif (aground and not lv.lobs(n).bedded) or lv.lobs(n).at.y > MH * TS then
+        elseif (aground and not lv.lobs(n).bedded) _
+            or lv.lobs(n).at.y > MH * TS then
             Splat lv, mu, se, n, pt()
         end if
     next
@@ -87,6 +93,7 @@ sub DrawLobs (lv as Level, art as Store, cx as integer, cy as integer)
     dim n as integer
     for n = 0 to NLOB - 1
         if lv.lobs(n).live = 0 then continue for
-        Blit art, cint(lv.lobs(n).at.x) - cx - 4, cint(lv.lobs(n).at.y) - cy - 4, lv.lobs(n).pic, 8, 8
+        Blit art, cint(lv.lobs(n).at.x) - cx - 4, _
+            cint(lv.lobs(n).at.y) - cy - 4, lv.lobs(n).pic, 8, 8
     next
 end sub

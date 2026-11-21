@@ -46,7 +46,9 @@ sub Tint (tn as Tones, k as integer, c as long)
     dim d as integer
     tn.now(k) = c
     d = tn.dusk
-    palette k, (c and 63) * d \ 16 + 256& * ((c \ 256 and 63) * d \ 16) + 65536 * ((c \ 65536) * d \ 16)
+    palette k, _
+        (c and 63) * d \ 16 + 256& * ((c \ 256 and 63) * d \ 16) _
+        + 65536 * ((c \ 65536) * d \ 16)
 end sub
 
 ' The tiles that move: a deck's lights run along it, a fan's blades turn, glints go down a pipe; by their colours.

@@ -90,10 +90,12 @@ sub DrawOver ( _
         x = lv.things(i).at.x - cx
         if x > SW then exit do
         if lv.things(i).kind = KWAVE2 then
-            Blit art, x, lv.things(i).at.y - cy - WAVEA - 22, zn.wave + 2, WAVEL, WAVEH
+            Blit art, x, lv.things(i).at.y - cy - WAVEA - 22, _
+                zn.wave + 2, WAVEL, WAVEH
         end if
         if lv.things(i).kind = KLOG then
-            Blit art, x - LOGR, lv.things(i).at.y - cy - 31, ILOG, 64, 32
+            Blit art, x - LOGR, lv.things(i).at.y - cy - 31, ILOG, _
+                64, 32
         end if
         i = i + 1
     loop
@@ -108,7 +110,8 @@ sub DrawBark (p as Hero, cx as integer, cy as integer)
     ' a quarter turn about the way he faces: to the right through 0, to the left about PI
     a = PI * (7 / 4 - p.face)
     circle (x, y), r, CWHITE, a, a + PI / 2 - 2 * PI * (1 - p.face)
-    circle (x, y), r + 4, CWHITE, a, a + PI / 2 - 2 * PI * (1 - p.face)
+    circle (x, y), r + 4, CWHITE, a, _
+        a + PI / 2 - 2 * PI * (1 - p.face)
 end sub
 
 sub DrawHero ( _
@@ -141,7 +144,9 @@ sub DrawHero ( _
     end if
     ' astride a goat: it gallops as the ground lies, and he is GOATH up its back
     if p.goat then
-        Blit art, x - 17, y - 40, IGOATR + ((Slant%(p) + 2) * 2 + ((se.ticks \ 6) and 1)) * 4, 34, 58
+        Blit art, x - 17, y - 40, _
+            IGOATR + ((Slant%(p) + 2) * 2 + ((se.ticks \ 6) and 1)) _
+            * 4, 34, 58
         x = x + cint(GOATH * hv)
         y = y - cint(GOATH * hu)
     end if
@@ -206,7 +211,8 @@ private sub DrawTwisted ( _
     t = cint(a * 6 / PI) mod 12
     j = (f - FRUN) \ 3
     if f >= FDASH then j = f - FDASH
-    Blit art, x - 16, y - 16 - cint(12 * cos(t * PI / 6)), ITW + (p.face * 24 + t * 2 + j) * 2, 32, 32
+    Blit art, x - 16, y - 16 - cint(12 * cos(t * PI / 6)), _
+        ITW + (p.face * 24 + t * 2 + j) * 2, 32, 32
 end sub
 
 ' How far he is turned to the ground he runs on: sixteenths of a turn, nose up.
@@ -240,7 +246,8 @@ private sub DrawUpright ( _
         by = by + 13 - cint(13 * hu)
     end if
     if p.snow < 0 and curled then
-        Blit art, bx - 14, by - 28, ISNOWBALL + (int(p.anim) and 1) * 2, 28, 28
+        Blit art, bx - 14, by - 28, _
+            ISNOWBALL + (int(p.anim) and 1) * 2, 28, 28
         exit sub
     end if
     if f = FHURT or f = FSHIVER then

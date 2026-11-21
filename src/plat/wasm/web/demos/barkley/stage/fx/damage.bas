@@ -110,6 +110,7 @@ sub Beaten ( _
     lv.things(i).state = 0
     g.score = g.score + 100
     g.shake = .15
-    Burst se, pt(), csng(lv.things(i).at.x), csng(lv.things(i).at.y - dy), 10, 130, CWHITE
+    Burst se, pt(), csng(lv.things(i).at.x), _
+        csng(lv.things(i).at.y - dy), 10, 130, CWHITE
     Sfx mu, se, SPOP
 end sub

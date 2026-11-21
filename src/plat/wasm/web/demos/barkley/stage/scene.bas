@@ -151,7 +151,8 @@ sub Render ( _
         Blit wd.art, 6, 5, IHUD, HUDW, HUDH
         ' up and to the right: under it Charlie meets its family
         Panel 116, 4, 315, 36
-        Txt 2, 27 - (len(ZoneName$(wd.zn.id)) + 8) \ 2, ZoneName$(wd.zn.id) + " CLEARED", CYELLOW
+        Txt 2, 27 - (len(ZoneName$(wd.zn.id)) + 8) \ 2, _
+            ZoneName$(wd.zn.id) + " CLEARED", CYELLOW
         Txt 3, 22, "BONUS " + Num$(g.bonus, 6), CWHITE
         Txt 4, 22, "SCORE " + Num$(g.score, 6), CWHITE
         if p.win then Say p, cx, cy, "WOOF!"
@@ -196,15 +197,18 @@ sub DrawThings ( _
         select case k
         case KBONE
             if lv.things(i).state then
-                Blit art, x - 5, y - 5, IBONE + ((se.ticks \ 6) and 3) * 2, 10, 10
+                Blit art, x - 5, y - 5, _
+                    IBONE + ((se.ticks \ 6) and 3) * 2, 10, 10
             end if
         case KGOLD
             ' a golden bone, till it is found
             if Found%(se, zn.stage, GoldNo%(lv, i)) then continue for
-            Blit art, x - 5, y - 5, IGOLD + ((se.ticks \ 6) and 3) * 2, 10, 10
+            Blit art, x - 5, y - 5, _
+                IGOLD + ((se.ticks \ 6) and 3) * 2, 10, 10
         case KCAT, KWALKER
             if lv.things(i).state then
-                Blit art, x - 10, y - 13, CatPic%(se, lv.things(i).state), 20, 14
+                Blit art, x - 10, y - 13, _
+                    CatPic%(se, lv.things(i).state), 20, 14
             end if
         case KPOUNCE
             DrawPouncer lv, art, se, i, x, y
@@ -214,28 +218,36 @@ sub DrawThings ( _
             DrawTipper lv, art, se, i, x, y
         case KSNATCH
             if lv.things(i).state then
-                Blit art, x - 10, y - 13, SnatchPic%(se, lv.things(i).state), 20, 14
+                Blit art, x - 10, y - 13, _
+                    SnatchPic%(se, lv.things(i).state), 20, 14
             end if
         case KBIN
             ' eyes under its lid while its cat, the thing after it, is in it
-            Blit art, x - 9, y - 24, IBIN - 2 * (lv.things(i + 1).state <> 0), 18, 25
+            Blit art, x - 9, y - 24, _
+                IBIN - 2 * (lv.things(i + 1).state <> 0), 18, 25
         case KCRAB
             if lv.things(i).state then
-                Blit art, x - 12, y - 15, CrabPic%(se, lv.things(i).state), 24, 15
+                Blit art, x - 12, y - 15, _
+                    CrabPic%(se, lv.things(i).state), 24, 15
             end if
         case KSPRING
             ' the sands' is a deck chair, the wood's a toadstool
             if zn.id = 2 then
-                Blit art, x - 15, y - 21, ICHAIR - 2 * (lv.things(i).state > 0), 30, 22
+                Blit art, x - 15, y - 21, _
+                    ICHAIR - 2 * (lv.things(i).state > 0), 30, 22
             elseif zn.id = 4 then
-                Blit art, x - 8, y - 15, ITOAD - 2 * (lv.things(i).state > 0), 16, 16
+                Blit art, x - 8, y - 15, _
+                    ITOAD - 2 * (lv.things(i).state > 0), 16, 16
             else
-                Blit art, x - 8, y - 15, ISPRING - 2 * (lv.things(i).state > 0), 16, 16
+                Blit art, x - 8, y - 15, _
+                    ISPRING - 2 * (lv.things(i).state > 0), 16, 16
             end if
         case KSAPLING
-            Blit art, x - 6, y - 49, ISAPLING - 2 * (lv.things(i).state > 0), 60, 50
+            Blit art, x - 6, y - 49, _
+                ISAPLING - 2 * (lv.things(i).state > 0), 60, 50
         case KAWNING
-            Blit art, x - 23, y - 3, IAWNING - 2 * (lv.things(i).state > 0), 46, 22
+            Blit art, x - 23, y - 3, _
+                IAWNING - 2 * (lv.things(i).state > 0), 46, 22
         case KCHIMNEY
             ' the way out smokes
             Blit art, x - 9, y - 31, ICHIMNEY, 18, 32
@@ -243,9 +255,11 @@ sub DrawThings ( _
         case KVINE
             DrawVine x, y, lv.things(i).state / 100
         case KBOOST
-            Blit art, x - 12, y - 9, IBOOST + ((se.ticks \ 4) and 1) * 2, 24, 10
+            Blit art, x - 12, y - 9, _
+                IBOOST + ((se.ticks \ 4) and 1) * 2, 24, 10
         case KMARK
-            Blit art, x - 6, y - 31, IMARK + 2 * lv.things(i).state, 12, 32
+            Blit art, x - 6, y - 31, IMARK + 2 * lv.things(i).state, _
+                12, 32
         case KGOAL
             f = 0
             if lv.things(i).state then f = (se.ticks \ 4) and 3
@@ -258,7 +272,8 @@ sub DrawThings ( _
             if zn.decked then
                 Blit art, x - PIPER, y - PIPER, zn.pipe, PIPER, PIPER
             else
-                k = IAP + (((lv.things(i).at.x \ TS + 1) and 3) * 3 + (lv.things(i).at.y \ TS) mod 3) * 2
+                k = IAP + (((lv.things(i).at.x \ TS + 1) and 3) * 3 _
+                    + (lv.things(i).at.y \ TS) mod 3) * 2
                 Blit art, x - PIPER, y - PIPER, k, PIPER, PIPER + TS
             end if
         case KSLED
@@ -267,18 +282,25 @@ sub DrawThings ( _
             end if
         case KTHROW
             if lv.things(i).state then
-                Blit art, x - 14, y - 25, IFORT - 2 * Risen%(lv, i) - 4 * (lv.things(i).state < 0), 28, 26
+                Blit art, x - 14, y - 25, _
+                    IFORT - 2 * Risen%(lv, i) - 4 _
+                    * (lv.things(i).state < 0), 28, 26
             end if
         case KDRIFT
             Blit art, x - 28, y - 11, IDRIFT, 56, 12
         case KICICLE
             ' loosed, it trembles
-            k = lv.things(i).state > 0 and lv.things(i).state <= TREMBLE and (se.ticks and 2) <> 0
+            k = lv.things(i).state > 0 _
+                and lv.things(i).state <= TREMBLE _
+                and (se.ticks and 2) <> 0
             if lv.things(i).state >= 0 then
-                Blit art, x - 3 - k, y + Fallen%(lv, i), IICICLE, 7, 16
+                Blit art, x - 3 - k, y + Fallen%(lv, i), IICICLE, 7, _
+                    16
             end if
         case KSWEEP
-            k = ISWEEP + ((se.ticks \ 6) and 1) * 2 - 4 * (lv.things(i).state > 0)
+            k = ISWEEP _
+                + ((se.ticks \ 6) and 1) * 2 - 4 _
+                * (lv.things(i).state > 0)
             if lv.things(i).state then
                 Blit art, x - 15, y - 19, k, 30, 20
             end if
@@ -289,7 +311,8 @@ sub DrawThings ( _
         case KLEG
             DrawLeg art, x, y
         case KFLUME
-            Blit art, x, y - 8, IFLUME + ((se.ticks \ 3) and 3) * 2, TS, 29
+            Blit art, x, y - 8, IFLUME + ((se.ticks \ 3) and 3) * 2, _
+                TS, 29
         case KSPOUT
             DrawSpout lv, art, se, x, y, lv.things(i).at.x \ TS, cy
         case KCISTERN
@@ -335,18 +358,21 @@ sub DrawThings ( _
         case KBUSH
             Blit art, x - 20, y - 18, IBUSH, 40, 20
         case KFLOWER
-            Blit art, x - 6, y - 14, IFLOWER + ((se.ticks \ 30 + i) and 1) * 2, 12, 16
+            Blit art, x - 6, y - 14, _
+                IFLOWER + ((se.ticks \ 30 + i) and 1) * 2, 12, 16
         case KROCK
             Blit art, x - 10, y - 10, IROCK, 20, 12
         case KTHORN
             Blit art, x - 8, y - 10, ITHORN, 16, 12
         case KBRAMBLE
-            Blit art, x - 19, y - 25, IBRAMBLE - 2 * (lv.things(i).state > 0), 38, 26
+            Blit art, x - 19, y - 25, _
+                IBRAMBLE - 2 * (lv.things(i).state > 0), 38, 26
         case KMOUND
             Blit art, x - 17, y - 12, IMOUND, 34, 14
         case KSQUIRREL
             ' an acorn held out, it is about to drop it
-            k = ISQUIRREL - 2 * (abs(lv.things(i).state) <= SQAIM) - 4 * (lv.things(i).state > 0)
+            k = ISQUIRREL - 2 * (abs(lv.things(i).state) <= SQAIM) _
+                - 4 * (lv.things(i).state > 0)
             if lv.things(i).state then
                 Blit art, x - 10, y - 17, k, 20, 18
             end if
@@ -365,26 +391,33 @@ sub DrawThings ( _
                 Blit art, x - 6, y - 70, f, 12, 64
             end if
         case KBUMP
-            Blit art, x - 12, y - 12, IBUMP - 2 * (lv.things(i).state > 0), 24, 24
+            Blit art, x - 12, y - 12, _
+                IBUMP - 2 * (lv.things(i).state > 0), 24, 24
         case KBUOY
-            Blit art, x - 9, y - 9, IBUOY - 2 * (lv.things(i).state > 0), 18, 18
+            Blit art, x - 9, y - 9, _
+                IBUOY - 2 * (lv.things(i).state > 0), 18, 18
         case KJELLY
-            Blit art, x - 8, y - 18 + ((se.ticks \ 20) and 1), IJELLY - 2 * (lv.things(i).state > 1), 16, 18
+            Blit art, x - 8, y - 18 + ((se.ticks \ 20) and 1), _
+                IJELLY - 2 * (lv.things(i).state > 1), 16, 18
         case KSPIN
             line (x - 1, y - SPINH)-(x, y - 1), CINK, BF
             a = se.ticks * .06 + lv.things(i).at.x
             for f = 1 to 3
-                pset (x + cint(SPINR * f / 4 * cos(a)), y - SPINH + cint(SPINR * f / 4 * sin(a))), CWHITE
+                pset (x + cint(SPINR * f / 4 * cos(a)), _
+                    y - SPINH + cint(SPINR * f / 4 * sin(a))), CWHITE
             next
             Blit art, x - 4, y - SPINH - 4, ISPIN + 2, 8, 8
-            Blit art, x + cint(SPINR * cos(a)) - 8, y - SPINH + cint(SPINR * sin(a)) - 8, ISPIN, 16, 16
+            Blit art, x + cint(SPINR * cos(a)) - 8, _
+                y - SPINH + cint(SPINR * sin(a)) - 8, ISPIN, 16, 16
         case KBUTTON
-            Blit art, x - 8, y - 8, IBTN + 2 * lv.things(i).state, 16, 8
+            Blit art, x - 8, y - 8, IBTN + 2 * lv.things(i).state, _
+                16, 8
         case KWAVE
             ' a twist's far half; its near one is drawn over Charlie
             Blit art, x, y - WAVEA - 22, zn.wave, WAVEL, WAVEH
         case KHOOP
-            Blit art, x - 6, y - 16, IHOOP - 2 * (lv.things(i).state > 0), 12, 32
+            Blit art, x - 6, y - 16, _
+                IHOOP - 2 * (lv.things(i).state > 0), 12, 32
         end select
     next
 end sub
@@ -395,7 +428,8 @@ private sub DrawCables (lv as Level, cx as integer, cy as integer)
     dim bx as integer, by as integer, i as integer
     dim d as integer
     for m = 0 to lv.n_movers - 1
-        if lv.movers(m).kind <> 3 and lv.movers(m).kind <> 7 then continue for
+        if lv.movers(m).kind <> 3 _
+            and lv.movers(m).kind <> 7 then continue for
         x = lv.movers(m).edge - 8 - cx
         y = lv.movers(m).at.y - CABLEH - cy
         x1 = x + lv.movers(m).reach + MOVEW
@@ -409,7 +443,8 @@ private sub DrawCables (lv as Level, cx as integer, cy as integer)
         by = lv.things(lv.movers(m).thing).at.y - cy
         if lv.movers(m).kind = 3 then
             for i = 4 to MOVEW - 4 step MOVEW - 8
-                line (bx + i, by)-(bx + i, y + 1 + clng(bx + i - x) * d \ (x1 - x)), CINK
+                line (bx + i, by)-(bx + i, _
+                    y + 1 + clng(bx + i - x) * d \ (x1 - x)), CINK
             next
         else
             bx = bx + MOVEW \ 2
@@ -430,8 +465,11 @@ private sub DrawLoose ( _
     dim i as integer, k as integer
     k = IBONE + ((se.ticks \ 6) and 3) * 2
     for i = 0 to NLOOSE - 1
-        if lo(i).t <= 1 and (lo(i).t <= 0 or (se.ticks and 4) = 0) then continue for
-        Blit art, cint(lo(i).at.x) - 5 - cx, cint(lo(i).at.y) - 5 - cy, k, 10, 10
+        if lo(i).t <= 1 _
+            and (lo(i).t <= 0 _
+            or (se.ticks and 4) = 0) then continue for
+        Blit art, cint(lo(i).at.x) - 5 - cx, _
+            cint(lo(i).at.y) - 5 - cy, k, 10, 10
     next
 end sub
 
@@ -441,7 +479,8 @@ sub DrawParts (pt() as Part, cx as integer, cy as integer)
         if pt(i).t <= 0 then continue for
         x = cint(pt(i).at.x) - cx
         y = cint(pt(i).at.y) - cy
-        if x < 0 or x >= SW - 1 or y < 0 or y >= SH - 1 then continue for
+        if x < 0 or x >= SW - 1 or y < 0 _
+            or y >= SH - 1 then continue for
         pset (x, y), pt(i).c
         if pt(i).t > .25 then pset (x + 1, y), pt(i).c
     next

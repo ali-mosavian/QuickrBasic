@@ -55,7 +55,9 @@ const GLOWN = 8
 const SINTRO = NSTAGE
 
 ' the zones' names, 16 letters each; what marks CHARLIE.SAV as the game's: its zone is added to it
-private const ZNAMES = "AMBER DOWNS     CHROME WORKS    SALTWICK SANDS  WHITECAP PASS   RUSSET WOOD     LANTERN QUARTER"
+private const ZNAMES = "AMBER DOWNS     CHROME WORKS    " + _
+    "SALTWICK SANDS  WHITECAP PASS   " + _
+    "RUSSET WOOD     LANTERN QUARTER"
 
 ' A stage's zone: two acts a zone; the intro's road is the Downs.
 function ZoneOf% (se as Session, st as integer)
@@ -223,7 +225,9 @@ sub LoadLevel (wd as World, st as integer)
                 AddObj wd.lv, KWAVE + (i and 1), (c + i * 12) * TS, s
                 if (i and 1) <> 0 then continue for
                 for k = 3 to 9 step 3
-                    AddObj wd.lv, KBONE, (c + i * 12 + k) * TS, s - cint(WAVEA * (1 - cos(PI * k / 12)) / 2) - 6
+                    AddObj wd.lv, KBONE, (c + i * 12 + k) * TS, _
+                        s - cint(WAVEA * (1 - cos(PI * k / 12)) _
+                        / 2) - 6
                 next
             next
             k = 0
@@ -236,7 +240,8 @@ sub LoadLevel (wd as World, st as integer)
         case "pipe"
             ' a wall with a quarter pipe up to it, over the three columns before: nothing grows there
             for i = 0 to wd.lv.n_things - 1
-                if Rooted%(wd.lv, i, KTREE) and wd.lv.things(i).at.x >= c * TS - PIPER then
+                if Rooted%(wd.lv, i, KTREE) _
+                    and wd.lv.things(i).at.x >= c * TS - PIPER then
                     wd.lv.things(i).kind = 0
                 end if
             next
@@ -252,12 +257,14 @@ sub LoadLevel (wd as World, st as integer)
             g = g - n
         case "mover"
             ' at each end of its way it lies 8 over the ground
-            AddMover wd.lv, c * TS + (n * TS - MOVEW) \ 2, s, (n * TS - MOVEW) \ 2 + 8, 0, c * TS
+            AddMover wd.lv, c * TS + (n * TS - MOVEW) \ 2, s, _
+                (n * TS - MOVEW) \ 2 + 8, 0, c * TS
             Pit wd.lv, c, g, n
             c = c + n
         case "boat"
             ' a pool n wide and a boat adrift in it, wall to wall: up and down with the tide, aground at low water
-            AddMover wd.lv, c * TS + (n * TS - MOVEW) \ 2, s + PITD * TS - HULL, (n * TS - MOVEW) \ 2, 5, c * TS
+            AddMover wd.lv, c * TS + (n * TS - MOVEW) \ 2, _
+                s + PITD * TS - HULL, (n * TS - MOVEW) \ 2, 5, c * TS
             Pit wd.lv, c, g, n
             c = c + n
         case "pier"
@@ -268,7 +275,8 @@ sub LoadLevel (wd as World, st as integer)
             Pit wd.lv, c, g, n
             c = c + n
         case "hover"
-            AddMover wd.lv, c * TS + 8, s - n * TS \ 2, n * TS \ 2, 1, c * TS
+            AddMover wd.lv, c * TS + 8, s - n * TS \ 2, n * TS \ 2, _
+                1, c * TS
             Pit wd.lv, c, g, 4
             c = c + 4
             g = g + n
@@ -283,27 +291,31 @@ sub LoadLevel (wd as World, st as integer)
         case "bridge"
             ' a pit n wide, platforms lying on its floor that rise to bridge it once the last button is trodden
             for i = 0 to n \ 3 - 1
-                AddMover wd.lv, (c + i * 3) * TS, s + PITD * TS - 6, PITD * TS - 6, 4, c * TS
+                AddMover wd.lv, (c + i * 3) * TS, s + PITD * TS - 6, _
+                    PITD * TS - 6, 4, c * TS
                 wd.lv.movers(wd.lv.n_movers - 1).button = bx
             next
             Pit wd.lv, c, g, n
             c = c + n
         case "cable"
             ' a basket down a cable over a pit n wide, the ground past it CABLED lower
-            AddMover wd.lv, c * TS - 8, s, n * TS - MOVEW + 16, 3, c * TS
+            AddMover wd.lv, c * TS - 8, s, n * TS - MOVEW + 16, 3, _
+                c * TS
             Pit wd.lv, c, g - CABLED \ TS, n
             c = c + n
             g = g - CABLED \ TS
         case "chair"
             ' a ski lift's chair up a cable over a pit n wide, the ground past it CABLED higher
-            AddMover wd.lv, c * TS - 8, s, n * TS - MOVEW + 16, 7, c * TS
+            AddMover wd.lv, c * TS - 8, s, n * TS - MOVEW + 16, 7, _
+                c * TS
             Pit wd.lv, c, g, n
             c = c + n
             g = g + CABLED \ TS
         case "plat"
             for i = 1 to n mod 100
                 wd.lv.map(c + i, MH - g - n \ 100 - 1) = 1
-                AddObj wd.lv, KPLAT, (c + i) * TS, s - (n \ 100 + 1) * TS
+                AddObj wd.lv, KPLAT, (c + i) * TS, _
+                    s - (n \ 100 + 1) * TS
             next
         case "bones"
             for i = 0 to n - 1
@@ -315,11 +327,13 @@ sub LoadLevel (wd as World, st as integer)
             wd.lv.n_gold = wd.lv.n_gold + 1
         case "arc"
             for i = 0 to n - 1
-                AddObj wd.lv, KBONE, (c + i) * TS + 8, s - 20 - cint(50 * sin(PI * (i + .5) / n))
+                AddObj wd.lv, KBONE, (c + i) * TS + 8, _
+                    s - 20 - cint(50 * sin(PI * (i + .5) / n))
             next
         case "hb"
             for i = 1 to n mod 100
-                AddObj wd.lv, KBONE, (c + i) * TS + 8, s - (n \ 100) * TS - 14
+                AddObj wd.lv, KBONE, (c + i) * TS + 8, _
+                    s - (n \ 100) * TS - 14
             next
         case "cat"
             k = KCAT
@@ -387,14 +401,19 @@ sub LoadLevel (wd as World, st as integer)
         case "walker"
             ' a cat walking the line just hung, its home n columns along it
             i = wd.lv.n_ropes - 1
-            AddObj wd.lv, KWALKER, wd.lv.ropes(i).at.x + POSTIN + n * TS + 8, wd.lv.ropes(i).at.y
+            AddObj wd.lv, KWALKER, _
+                wd.lv.ropes(i).at.x + POSTIN + n * TS + 8, _
+                wd.lv.ropes(i).at.y
         case "slide"
             ' a street n wide and a lantern line down over it, from a post LANTH over the roof here to the roof
             ' past it, LANTFALL lower; a bone over the line every other column
             fall = LANTH + LANTFALL - LANTEND
             Hang wd.lv, c, n, s - LANTH, fall
             for i = 1 to n - 1 step 2
-                AddObj wd.lv, KBONE, (c + i) * TS, s - LANTH - 14 + clng(i * TS + POSTIN) * fall \ (n * TS + POSTIN * 2)
+                AddObj wd.lv, KBONE, (c + i) * TS, _
+                    s - LANTH - 14 _
+                    + clng(i * TS + POSTIN) * fall _
+                    \ (n * TS + POSTIN * 2)
             next
             Pit wd.lv, c, g - LANTFALL \ TS, n
             c = c + n
@@ -419,7 +438,8 @@ sub LoadLevel (wd as World, st as integer)
             wd.lv.things(wd.lv.n_things - 1).state = n
         case "tram"
             ' a tram on the street here, its way the n columns on: they are laid after it
-            AddMover wd.lv, c * TS + 8, s - TRAMH, n * TS - MOVEW - 16, 8, c * TS
+            AddMover wd.lv, c * TS + 8, s - TRAMH, _
+                n * TS - MOVEW - 16, 8, c * TS
         case "pouncer"
             ' a dustbin, and the cat in it
             Clearing wd.lv, c
@@ -501,7 +521,8 @@ sub LoadLevel (wd as World, st as integer)
     wd.lv.wpx = c * TS
     ' nothing grows in front of the family
     for i = 0 to wd.lv.n_things - 1
-        if Rooted%(wd.lv, i, KBUSH) and abs(wd.lv.things(i).at.x - wd.lv.fam_x) < 112 then
+        if Rooted%(wd.lv, i, KBUSH) _
+            and abs(wd.lv.things(i).at.x - wd.lv.fam_x) < 112 then
             wd.lv.things(i).kind = 0
         end if
     next
@@ -540,7 +561,9 @@ private sub Walkers (lv as Level)
     for i = 0 to lv.n_things - 1
         if lv.things(i).kind <> KWALKER then continue for
         for r = 0 to lv.n_ropes - 1
-            if lv.things(i).at.x <= lv.ropes(r).at.x or lv.things(i).at.x >= lv.ropes(r).at.x + lv.ropes(r).w then continue for
+            if lv.things(i).at.x <= lv.ropes(r).at.x _
+                or lv.things(i).at.x >= lv.ropes(r).at.x _
+                + lv.ropes(r).w then continue for
             lv.ropes(r).cat = i + 1
         next
     next

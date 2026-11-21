@@ -46,7 +46,8 @@ sub MeetSpark ( _
     dim x as integer, py as integer
     x = lv.things(i).at.x
     py = cint(p.at.y)
-    if abs(x - cint(p.at.x)) >= 11 or py <= lv.things(i).at.y - 24 or py - 26 >= lv.things(i).at.y then exit sub
+    if abs(x - cint(p.at.x)) >= 11 or py <= lv.things(i).at.y - 24 _
+        or py - 26 >= lv.things(i).at.y then exit sub
     if Lit%(lv, se, i) then Hurt mu, se, g, p, x, lo(), SHISS
 end sub
 
@@ -60,9 +61,11 @@ sub MeetButton ( _
     pt() as Part _
 )
     if lv.things(i).state <> 0 or not p.ground then exit sub
-    if abs(lv.things(i).at.x - cint(p.at.x)) >= 9 or abs(cint(p.at.y) - lv.things(i).at.y) >= 4 then exit sub
+    if abs(lv.things(i).at.x - cint(p.at.x)) >= 9 _
+        or abs(cint(p.at.y) - lv.things(i).at.y) >= 4 then exit sub
     lv.things(i).state = 1
-    Burst se, pt(), csng(lv.things(i).at.x), csng(lv.things(i).at.y - 6), 8, 80, CGOLD + 4
+    Burst se, pt(), csng(lv.things(i).at.x), _
+        csng(lv.things(i).at.y - 6), 8, 80, CGOLD + 4
     Sfx mu, se, SMARK
 end sub
 
@@ -76,7 +79,8 @@ sub MeetJet ( _
 )
     dim dy as integer
     dy = cint(p.at.y) - lv.things(i).at.y
-    if (se.ticks + lv.things(i).at.x) mod 180 >= 80 or abs(lv.things(i).at.x - cint(p.at.x)) >= 10 then exit sub
+    if (se.ticks + lv.things(i).at.x) mod 180 >= 80 _
+        or abs(lv.things(i).at.x - cint(p.at.x)) >= 10 then exit sub
     if dy > 2 or dy <= -64 or p.vel.y <= -JETV + 60 then exit sub
     if p.ground then
         p.vel.x = p.gsp
@@ -102,7 +106,8 @@ sub MeetBump ( _
     dim dx as integer, dy as integer, d as single
     dx = cint(p.at.x) - lv.things(i).at.x
     dy = cint(p.at.y) - 12 - lv.things(i).at.y
-    if lv.things(i).state <> 0 or abs(dx) >= 20 or abs(dy) >= 20 then exit sub
+    if lv.things(i).state <> 0 or abs(dx) >= 20 _
+        or abs(dy) >= 20 then exit sub
     d = sqr(csng(dx) * dx + csng(dy) * dy)
     if d >= 20 then exit sub
     if d < 1 then
@@ -116,7 +121,8 @@ sub MeetBump ( _
     p.sprung = -1
     lv.things(i).state = 10
     g.score = g.score + 10
-    Burst se, pt(), csng(lv.things(i).at.x), csng(lv.things(i).at.y), 6, 90, CGOLD + 4
+    Burst se, pt(), csng(lv.things(i).at.x), _
+        csng(lv.things(i).at.y), 6, 90, CGOLD + 4
     Sfx mu, se, SSPRING
 end sub
 
@@ -135,7 +141,8 @@ sub MeetSpin ( _
     a = se.ticks * .06 + x
     bx = x + cint(SPINR * cos(a))
     by = lv.things(i).at.y - SPINH + cint(SPINR * sin(a))
-    if abs(bx - cint(p.at.x)) < 11 and abs(by - cint(p.at.y) + 12) < 16 then
+    if abs(bx - cint(p.at.x)) < 11 _
+        and abs(by - cint(p.at.y) + 12) < 16 then
         Hurt mu, se, g, p, x, lo(), SHURT
     end if
 end sub
@@ -149,13 +156,15 @@ sub MeetHoop ( _
     i as integer, _
     pt() as Part _
 )
-    if lv.things(i).state <> 0 or p.ground or abs(lv.things(i).at.x - cint(p.at.x)) >= 9 then exit sub
+    if lv.things(i).state <> 0 or p.ground _
+        or abs(lv.things(i).at.x - cint(p.at.x)) >= 9 then exit sub
     if abs(lv.things(i).at.y - cint(p.at.y) + 12) >= 18 then exit sub
     p.vel.x = HOOPV * (1 + 2 * (p.vel.x < 0))
     p.vel.y = -180
     p.sprung = -1
     lv.things(i).state = 20
-    Burst se, pt(), csng(lv.things(i).at.x), csng(lv.things(i).at.y), 8, 120, CGOLD + 4
+    Burst se, pt(), csng(lv.things(i).at.x), _
+        csng(lv.things(i).at.y), 8, 120, CGOLD + 4
     Sfx mu, se, SBOOST
 end sub
 
@@ -173,8 +182,11 @@ sub MeetSweep ( _
 )
     dim y as integer, behind as integer
     y = lv.things(i).at.y
-    if lv.things(i).state = 0 or abs(lv.things(i).at.x - p.at.x) >= 18 or p.at.y < y - 20 or p.at.y > y + 10 then exit sub
-    behind = sgn(p.at.x - lv.things(i).at.x) <> sgn(lv.things(i).state)
+    if lv.things(i).state = 0 _
+        or abs(lv.things(i).at.x - p.at.x) >= 18 or p.at.y < y - 20 _
+        or p.at.y > y + 10 then exit sub
+    behind = sgn(p.at.x _
+        - lv.things(i).at.x) <> sgn(lv.things(i).state)
     if not p.ground and p.vel.y > 0 and p.at.y < y - 8 then
         Beaten lv, mu, se, g, pt(), i, 8
         p.vel.y = -BOUNCEV
@@ -192,7 +204,8 @@ end function
 
 ' Where press i is in its turn, 0 to PRESSP - 1: a press further along a row is later.
 function PressT% (lv as Level, se as Session, i as integer)
-    PressT% = (se.ticks + PRESSP * 100 - lv.things(i).home \ PRESSLAG) mod PRESSP
+    PressT% = (se.ticks _
+        + PRESSP * 100 - lv.things(i).home \ PRESSLAG) mod PRESSP
 end function
 
 ' How far down press i's head is, 0 to PRESSUP.
@@ -206,7 +219,8 @@ function Stroke% (lv as Level, se as Session, i as integer)
     elseif t < PRESSRISE then
         Stroke% = PRESSUP
     else
-        Stroke% = PRESSUP - (t - PRESSRISE) * PRESSUP \ (PRESSP - PRESSRISE)
+        Stroke% = PRESSUP - (t - PRESSRISE) * PRESSUP _
+            \ (PRESSP - PRESSRISE)
     end if
 end function
 
@@ -223,7 +237,8 @@ sub MeetPress ( _
     dim y as integer
     if PressT%(lv, se, i) = PRESSFALL + 10 then Sfx mu, se, SCLANK
     y = lv.things(i).at.y - PRESSUP + Stroke%(lv, se, i)
-    if abs(lv.things(i).at.x - p.at.x) < 26 and p.at.y - 26 < y and p.at.y > y - 14 then
+    if abs(lv.things(i).at.x - p.at.x) < 26 and p.at.y - 26 < y _
+        and p.at.y > y - 14 then
         Hurt mu, se, g, p, lv.things(i).at.x, lo(), SHURT
     end if
 end sub
@@ -237,7 +252,8 @@ function PressAhead% (lv as Level, x as integer)
     i = lv.first(c)
     do while i < lv.n_things
         if lv.things(i).at.x > x + 200 then exit do
-        if lv.things(i).kind = KPRESS and lv.things(i).at.x + 50 >= x then
+        if lv.things(i).kind = KPRESS _
+            and lv.things(i).at.x + 50 >= x then
             PressAhead% = i
             exit do
         end if
@@ -258,7 +274,8 @@ sub DrawSpark ( _
 )
     dim f as integer, k as integer
     for f = -3 to 2
-        Blit art, lv.things(i).home + f * TS - cx, y - 4, ISRAIL, TS, 4
+        Blit art, lv.things(i).home + f * TS - cx, y - 4, ISRAIL, _
+            TS, 4
     next
     k = ISPARK
     if Lit%(lv, se, i) then

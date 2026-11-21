@@ -100,7 +100,8 @@ sub Tunnel ( _
     if abs(dx) > DIGV * STEPT then
         p.vel.x = sgn(dx) * DIGV
         p.at.x = p.at.x + p.vel.x * STEPT
-        p.at.y = p.at.y + (lv.things(i).at.y - p.at.y) * DIGV * STEPT / abs(dx)
+        p.at.y = p.at.y _
+            + (lv.things(i).at.y - p.at.y) * DIGV * STEPT / abs(dx)
         if lv.things(i).kind = KMOUND and (se.ticks and 3) = 0 then
             Burst se, pt(), p.at.x, p.at.y, 2, 50, CLOAM
         end if
@@ -158,7 +159,9 @@ sub Ride ( _
     l = 0
     r = 0
     d = 0
-    if p.ride_t > .1 and (not p.ground or p.ride_t > GOATRIDE or abs(p.at.x - p.last_x) < 1) then
+    if p.ride_t > .1 _
+        and (not p.ground or p.ride_t > GOATRIDE _
+        or abs(p.at.x - p.last_x) < 1) then
         p.goat = 0
         lv.stray.st = 2
     elseif p.ground then
@@ -174,7 +177,9 @@ end sub
 ' is wet, slow and dripping, till a roll shakes him dry.
 sub Soak (lv as Level, se as Session, p as Hero, pt() as Part)
     if p.swim then exit sub
-    if (p.ground and p.at.y > lv.tide + WADE) or (not p.ground and p.vel.y >= 0 and p.at.y > lv.tide + AFLOAT) then
+    if (p.ground and p.at.y > lv.tide + WADE) _
+        or (not p.ground and p.vel.y >= 0 _
+        and p.at.y > lv.tide + AFLOAT) then
         Dunk lv, se, p, pt()
         exit sub
     end if

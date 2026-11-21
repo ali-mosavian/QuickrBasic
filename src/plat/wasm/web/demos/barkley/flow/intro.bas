@@ -48,7 +48,8 @@ private const QEYES = 12
 const QHERO = 13
 private const QWOOF = 14
 const QSND = 15
-private const QNAMES = "cam   house boxes crate hedge fam   van   float baron cat   basketeyes  hero  woof  snd   "
+private const QNAMES = "cam   house boxes crate hedge fam   " + _
+    "van   float baron cat   basketeyes  hero  woof  snd   "
 
 ' The intro's script, back to front: a cue's kind, the beats it is on from and to, where it starts and where it
 ' ends, its ease, its hop and its own number. A van's: 1 its door open, 2 Charlie at its window, 4 looking back
@@ -208,7 +209,9 @@ private sub LoadCues (cu() as Cue)
         read kind
         cu(n).kind = (instr(QNAMES, left$(kind + "     ", 6)) + 5) \ 6
         if cu(n).kind = 0 then exit do
-        read cu(n).t0, cu(n).t1, cu(n).start.x, cu(n).start.y, cu(n).finish.x, cu(n).finish.y, cu(n).ease, cu(n).hop, cu(n).own
+        read cu(n).t0, cu(n).t1, cu(n).start.x, cu(n).start.y, _
+            cu(n).finish.x, cu(n).finish.y, cu(n).ease, cu(n).hop, _
+            cu(n).own
         n = n + 1
     loop
 end sub
@@ -236,7 +239,8 @@ function IntroOver% (wd as World, g as Game, k as Pad, cu() as Cue)
         i = i + 1
     loop
     Shimmer wd.zn, wd.tn, wd.se
-    if now > wd.se.scene_end - 1 and wd.tn.dusk > 0 and (wd.se.ticks and 1) = 0 then
+    if now > wd.se.scene_end - 1 and wd.tn.dusk > 0 _
+        and (wd.se.ticks and 1) = 0 then
         wd.tn.dusk = wd.tn.dusk - 1
         Shade wd.tn
     end if
@@ -261,7 +265,10 @@ sub CueAt ( _
     if cu(i).ease = 1 then v = u * u
     if cu(i).ease = 2 then v = u * (2 - u)
     x = cint(cu(i).start.x + (cu(i).finish.x - cu(i).start.x) * v)
-    y = lv.start.y + cint(cu(i).start.y + (cu(i).finish.y - cu(i).start.y) * v - 4 * cu(i).hop * u * (1 - u))
+    y = lv.start.y _
+        + cint(cu(i).start.y _
+        + (cu(i).finish.y - cu(i).start.y) * v - 4 * cu(i).hop * u _
+        * (1 - u))
 end sub
 
 ' The intro's picture: the Downs, then each cue that is on, in the script's order, between two black bars.
@@ -318,13 +325,15 @@ private sub DrawCue ( _
     case QBARON
         Blit wd.art, x - 20, y - 43, BaronPic%(wd.se, a), 40, 44
     case QCAT
-        DrawCat wd.zn, wd.art, wd.se, x, y, a, cu(i).finish.x < cu(i).start.x
+        DrawCat wd.zn, wd.art, wd.se, x, y, a, _
+            cu(i).finish.x < cu(i).start.x
     case QBASKET
         DrawKeep wd.zn, wd.art, x, y
     case QEYES
         DrawEyes wd.se, x, y, a
     case QHERO
-        Pose wd.lv, wd.gr, wd.se, p, wx, wy, a, cu(i).finish.x < cu(i).start.x
+        Pose wd.lv, wd.gr, wd.se, p, wx, wy, a, _
+            cu(i).finish.x < cu(i).start.x
         DrawHero wd.gr, wd.art, wd.se, p, cx, cy
     case QWOOF
         p.at.x = wx

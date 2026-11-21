@@ -32,7 +32,8 @@ private function Side% (lv as Level, c as integer, n as integer)
     Side% = 0
     if lv.top(n) = MH then
         Side% = MH - lv.top(c)
-    elseif (lv.vis(n) = 1 or lv.vis(n) = 2) and lv.top(n) > lv.top(c) then
+    elseif (lv.vis(n) = 1 or lv.vis(n) = 2) _
+        and lv.top(n) > lv.top(c) then
         Side% = lv.top(n) - lv.top(c)
     end if
 end function
@@ -137,7 +138,8 @@ private sub TrackPlats (lv as Level, gr as Ground)
     x = NONE
     for i = 0 to lv.n_things - 1
         if lv.things(i).kind <> KPLAT then continue for
-        if x <> NONE and lv.things(i).at.x = x1 and lv.things(i).at.y = y then
+        if x <> NONE and lv.things(i).at.x = x1 _
+            and lv.things(i).at.y = y then
             x1 = x1 + TS
             continue for
         end if
@@ -175,9 +177,13 @@ end sub
 private sub TrackMovers (lv as Level, gr as Ground)
     dim i as integer, k as integer
     for i = 0 to lv.n_things - 1
-        if lv.things(i).kind <> KMOVE and lv.things(i).kind <> KSPAN and lv.things(i).kind <> KSEAT and lv.things(i).kind <> KTRAM then continue for
+        if lv.things(i).kind <> KMOVE _
+            and lv.things(i).kind <> KSPAN _
+            and lv.things(i).kind <> KSEAT _
+            and lv.things(i).kind <> KTRAM then continue for
         Knot gr, csng(lv.things(i).at.x), csng(lv.things(i).at.y), 0
-        Knot gr, csng(lv.things(i).at.x + MOVEW), csng(lv.things(i).at.y), 3
+        Knot gr, csng(lv.things(i).at.x + MOVEW), _
+            csng(lv.things(i).at.y), 3
         lv.movers(k).thing = i
         lv.movers(k).sg = gr.n - 2
         lv.movers(k).cv = gr.n_cv
@@ -200,7 +206,8 @@ private function ButtonAt% (lv as Level, x as integer)
     dim j as integer
     ButtonAt% = x
     for j = 0 to lv.n_things - 1
-        if lv.things(j).kind <> KBUTTON or lv.things(j).at.x <> x then continue for
+        if lv.things(j).kind <> KBUTTON _
+            or lv.things(j).at.x <> x then continue for
         ButtonAt% = j
         exit function
     next
@@ -212,7 +219,8 @@ private sub TrackRibbons (lv as Level, gr as Ground)
     dim a as single
     x1 = NONE
     for i = 0 to lv.n_things - 1
-        if lv.things(i).kind <> KWAVE and lv.things(i).kind <> KWAVE2 then continue for
+        if lv.things(i).kind <> KWAVE _
+            and lv.things(i).kind <> KWAVE2 then continue for
         if lv.things(i).at.x <> x1 then
             RibbonEnd gr, x1, y
             y = lv.things(i).at.y
@@ -224,7 +232,8 @@ private sub TrackRibbons (lv as Level, gr as Ground)
         end if
         for j = 1 to 12
             a = PI * j / 12 - PI * (lv.things(i).kind = KWAVE2)
-            Knot gr, csng(lv.things(i).at.x + j * 16), y - WAVEA * (1 - cos(a)) / 2, 2
+            Knot gr, csng(lv.things(i).at.x + j * 16), _
+                y - WAVEA * (1 - cos(a)) / 2, 2
         next
         x1 = lv.things(i).at.x + WAVEL
         gr.cv(gr.n_cv).x_hi = x1 + 8
@@ -246,7 +255,8 @@ private sub TrackSlides (lv as Level, gr as Ground)
     for i = 0 to lv.n_ropes - 1
         if lv.ropes(i).fall = 0 then continue for
         Knot gr, csng(lv.ropes(i).at.x), csng(lv.ropes(i).at.y), 0
-        Knot gr, csng(lv.ropes(i).at.x + lv.ropes(i).w), csng(lv.ropes(i).at.y + lv.ropes(i).fall), 2
+        Knot gr, csng(lv.ropes(i).at.x + lv.ropes(i).w), _
+            csng(lv.ropes(i).at.y + lv.ropes(i).fall), 2
         lv.ropes(i).sg = gr.n - 2
         gr.cv(gr.n_cv).first = gr.n - 2
         gr.cv(gr.n_cv).last = gr.n - 2

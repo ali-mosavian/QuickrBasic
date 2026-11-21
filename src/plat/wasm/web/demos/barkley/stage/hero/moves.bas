@@ -237,7 +237,9 @@ private sub Walk ( _
         if gr.pt(i).kind = 2 or p.gsp = 0 then continue for
         if Wall%(lv, p, sgn(p.gsp)) = 0 then continue for
         p.gsp = 0
-        p.at.y = gr.pt(i).at.y + (p.at.x - gr.pt(i).at.x) * gr.pt(i).dir.y / gr.pt(i).dir.x
+        p.at.y = gr.pt(i).at.y _
+            + (p.at.x - gr.pt(i).at.x) * gr.pt(i).dir.y _
+            / gr.pt(i).dir.x
         Along gr, p, 0
         if not p.ground then exit sub
     next
@@ -260,7 +262,8 @@ private function Winding% ( _
         p.charge = p.charge + 130
         if p.charge > CHARGEMAX then p.charge = CHARGEMAX
         Sfx mu, se, SCHARGE
-        Burst se, pt(), p.at.x - dir * 10, p.at.y - 2, 3, 70, CSTONE + 3
+        Burst se, pt(), p.at.x - dir * 10, p.at.y - 2, 3, 70, _
+            CSTONE + 3
     end if
     Winding% = d
     if d then exit function
@@ -347,7 +350,8 @@ private sub RunOn ( _
         Sfx mu, se, SROLL
     end if
     if p.skid and (se.ticks and 3) = 0 then
-        Emit se, pt(), p.at.x, p.at.y - 1, -p.gsp * .1, -30, .4, CSTONE + 3
+        Emit se, pt(), p.at.x, p.at.y - 1, -p.gsp * .1, -30, .4, _
+            CSTONE + 3
     end if
 end sub
 
@@ -459,7 +463,8 @@ private sub Bonk (lv as Level, p as Hero)
     dim x as integer, y as integer
     x = cint(p.at.x)
     y = cint(p.at.y) - HH
-    if Solid%(lv, x, y) = 0 and Solid%(lv, x - 4, y) = 0 and Solid%(lv, x + 4, y) = 0 then exit sub
+    if Solid%(lv, x, y) = 0 and Solid%(lv, x - 4, y) = 0 _
+        and Solid%(lv, x + 4, y) = 0 then exit sub
     p.at.y = (y \ TS + 1) * TS + HH
     p.vel.y = 0
 end sub
@@ -486,21 +491,26 @@ private sub Bark (lv as Level, mu as Deck, se as Session, p as Hero)
         dx = abs(lv.things(i).at.x - p.at.x)
         dy = abs(lv.things(i).at.y - p.at.y)
         ' an icicle or a ledge's load is loosed from further under it than he can jump
-        hung = lv.things(i).kind = KICICLE or lv.things(i).kind = KLOAD
-        if hung and lv.things(i).state = 0 and dx <= BARKR and dy < 140 then
+        hung = lv.things(i).kind = KICICLE _
+            or lv.things(i).kind = KLOAD
+        if hung and lv.things(i).state = 0 and dx <= BARKR _
+            and dy < 140 then
             lv.things(i).state = 1
         end if
         ' and a squirrel on its bough is cowed
-        cowed = lv.things(i).kind = KSQUIRREL and lv.things(i).state <> 0 and dx <= BARKR and dy < 140
+        cowed = lv.things(i).kind = KSQUIRREL _
+            and lv.things(i).state <> 0 and dx <= BARKR and dy < 140
         if cowed then
             lv.things(i).state = sgn(lv.things(i).state) * SQFRIGHT
         end if
         ' and a pouncer in its bin leaps early, at where he is
-        early = lv.things(i).kind = KPOUNCE and lv.things(i).state = 0 and dx <= BARKR and dy < 40
+        early = lv.things(i).kind = KPOUNCE _
+            and lv.things(i).state = 0 and dx <= BARKR and dy < 40
         if early then
             lv.things(i).state = 1 + 2 * (p.at.x < lv.things(i).at.x)
         end if
-        if lv.things(i).state = 0 or dx > BARKR or dy >= 40 then continue for
+        if lv.things(i).state = 0 or dx > BARKR _
+            or dy >= 40 then continue for
         select case lv.things(i).kind
         case KCAT, KWALKER, KSNATCH
             Flinch lv, i, cint(p.at.x)
@@ -512,7 +522,9 @@ private sub Bark (lv as Level, mu as Deck, se as Session, p as Hero)
     next
     for i = 0 to lv.n_gulls - 1
         if lv.gulls(i).st <= 0 then continue for
-        if abs(lv.gulls(i).at.x - p.at.x) >= GULLHEAR or abs(lv.gulls(i).at.y - p.at.y) >= GULLHEAR then continue for
+        if abs(lv.gulls(i).at.x - p.at.x) >= GULLHEAR _
+            or abs(lv.gulls(i).at.y _
+            - p.at.y) >= GULLHEAR then continue for
         lv.gulls(i).st = GSCARED
     next
 end sub

@@ -22,13 +22,16 @@ sub Hud (art as Store, g as Game, gold as integer)
     dim s as integer, sig as long, i as integer, x as integer
     dim bit as integer
     s = int(g.clock)
-    sig = g.score * 7 + g.bones * 131& + g.lives * 100003 + s * 13& + 1 + (gold + 1) * 15485863&
+    sig = g.score * 7 + g.bones * 131& + g.lives * 100003 + s * 13& _
+        + 1 + (gold + 1) * 15485863&
     if sig = g.sig then exit sub
     g.sig = sig
     line (0, 0)-(HUDW - 1, HUDH - 1), 0, BF
     line (0, 100)-(HUDW - 1, 100 + HUDH - 1), 255, BF
     HudLine art, 0, "SCORE " + Num$(g.score, 6), 6
-    HudLine art, 1, "TIME  " + ltrim$(str$(s \ 60)) + ":" + Num$(clng(s mod 60), 2), 6
+    HudLine art, 1, _
+        "TIME  " + ltrim$(str$(s \ 60)) + ":" _
+        + Num$(clng(s mod 60), 2), 6
     HudLine art, 2, "BONES " + Num$(clng(g.bones), 3), 6
     HudLine art, 3, "CHARLIE x" + ltrim$(str$(g.lives)), 7
     bit = 1
@@ -72,7 +75,8 @@ sub Say (p as Hero, cx as integer, cy as integer, s as string)
     if col > 39 - len(s) then col = 39 - len(s)
     if row < 3 then row = 3
     if row > 23 then row = 23
-    Panel col * 8 - 12, row * 8 - 12, (col + len(s)) * 8 - 5, row * 8 + 3
+    Panel col * 8 - 12, row * 8 - 12, (col + len(s)) * 8 - 5, _
+        row * 8 + 3
     Txt row, col, s, CWHITE
 end sub
 

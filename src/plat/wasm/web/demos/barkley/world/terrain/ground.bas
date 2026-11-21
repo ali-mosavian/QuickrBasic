@@ -61,7 +61,9 @@ private function TileSeg% (gr as Ground, x as integer, y as single)
     if s < 0 then exit function
     ' past a loop that stands in the column: the stretch after it
     if x > gr.pt(s + 1).at.x then s = s + LOOPN + 1
-    if abs(gr.pt(s).at.y + (x - gr.pt(s).at.x) * gr.pt(s).dir.y / gr.pt(s).dir.x - y) < 4 then
+    if abs(gr.pt(s).at.y _
+        + (x - gr.pt(s).at.x) * gr.pt(s).dir.y / gr.pt(s).dir.x _
+        - y) < 4 then
         TileSeg% = s
     end if
 end function
@@ -71,7 +73,9 @@ private function PlatSeg% (gr as Ground, x as integer, y as single)
     dim s as integer
     PlatSeg% = -1
     for s = gr.plat_a to gr.n - 2
-        if gr.pt(s).kind <> 1 or x < gr.pt(s).at.x or x > gr.pt(s + 1).at.x or abs(gr.pt(s).at.y - y) >= 4 then continue for
+        if gr.pt(s).kind <> 1 or x < gr.pt(s).at.x _
+            or x > gr.pt(s + 1).at.x _
+            or abs(gr.pt(s).at.y - y) >= 4 then continue for
         PlatSeg% = s
         exit function
     next
@@ -119,14 +123,16 @@ function Solid% (lv as Level, x as integer, y as integer)
         Solid% = 0
         exit function
     end if
-    Solid% = (y and 15) >= TS - lv.prof(lv.map(x \ TS, y \ TS), x and 15)
+    Solid% = (y and 15) >= TS - lv.prof(lv.map(x \ TS, y \ TS), _
+        x and 15)
 end function
 
 ' Charlie's side toward dir in a wall: pushed out, and true.
 function Wall% (lv as Level, p as Hero, dir as integer)
     dim n as integer, y as integer
     y = cint(p.at.y)
-    do while Solid%(lv, cint(p.at.x) + dir * HW, y - 11) or Solid%(lv, cint(p.at.x) + dir * HW, y - HH + 4)
+    do while Solid%(lv, cint(p.at.x) + dir * HW, y - 11) _
+        or Solid%(lv, cint(p.at.x) + dir * HW, y - HH + 4)
         p.at.x = p.at.x - dir
         n = n + 1
         if n > TS then exit do
@@ -167,7 +173,8 @@ function Land% (lv as Level, gr as Ground, p as Hero, d as integer)
     end if
     if p.at.x < gr.pt(s).at.x then p.at.x = gr.pt(s).at.x
     if p.at.x > gr.pt(s + 1).at.x then p.at.x = gr.pt(s + 1).at.x
-    p.at.y = gr.pt(s).at.y + (p.at.x - gr.pt(s).at.x) * gr.pt(s).dir.y / gr.pt(s).dir.x
+    p.at.y = gr.pt(s).at.y _
+        + (p.at.x - gr.pt(s).at.x) * gr.pt(s).dir.y / gr.pt(s).dir.x
     Settle gr, p, s, d
     Land% = -1
 end function
@@ -206,19 +213,27 @@ function Curve% ( _
     dim d0 as single, d1 as single, t as single, f as single
     Curve% = 0
     for z = 0 to gr.n_cv - 1
-        if p.at.x < gr.cv(z).x_lo - 8 or p.at.x > gr.cv(z).x_hi + 8 then continue for
+        if p.at.x < gr.cv(z).x_lo - 8 _
+            or p.at.x > gr.cv(z).x_hi + 8 then continue for
         a = gr.cv(z).first
         b = gr.cv(z).last
         LoopHalf gr, p, z, x0, a, b
         for s = a to b
-            d1 = (p.at.x - gr.pt(s).at.x) * gr.pt(s).dir.y - (p.at.y - gr.pt(s).at.y) * gr.pt(s).dir.x
-            if d1 >= 0 or p.vel.x * gr.pt(s).dir.y - p.vel.y * gr.pt(s).dir.x >= -1 then continue for
-            d0 = (x0 - gr.pt(s).at.x) * gr.pt(s).dir.y - (y0 - gr.pt(s).at.y) * gr.pt(s).dir.x
-            t = (p.at.x - gr.pt(s).at.x) * gr.pt(s).dir.x + (p.at.y - gr.pt(s).at.y) * gr.pt(s).dir.y
+            d1 = (p.at.x - gr.pt(s).at.x) * gr.pt(s).dir.y _
+                - (p.at.y - gr.pt(s).at.y) * gr.pt(s).dir.x
+            if d1 >= 0 _
+                or p.vel.x * gr.pt(s).dir.y - p.vel.y _
+                * gr.pt(s).dir.x >= -1 then continue for
+            d0 = (x0 - gr.pt(s).at.x) * gr.pt(s).dir.y _
+                - (y0 - gr.pt(s).at.y) * gr.pt(s).dir.x
+            t = (p.at.x - gr.pt(s).at.x) * gr.pt(s).dir.x _
+                + (p.at.y - gr.pt(s).at.y) * gr.pt(s).dir.y
             ' from just behind it too, at a join; not behind a wall
             ' and from further behind a platform, which moves
-            near = d0 > -1 + 3 * (gr.pt(s).kind = 3) and (d0 >= 0 or gr.pt(s).dir.x >= .35)
-            if near = 0 or t < -1 or t > gr.pt(s).length + 1 then continue for
+            near = d0 > -1 + 3 * (gr.pt(s).kind = 3) _
+                and (d0 >= 0 or gr.pt(s).dir.x >= .35)
+            if near = 0 or t < -1 _
+                or t > gr.pt(s).length + 1 then continue for
             if t < 0 then t = 0
             if t > gr.pt(s).length then t = gr.pt(s).length
             p.at.x = gr.pt(s).at.x + gr.pt(s).dir.x * t
@@ -264,7 +279,8 @@ sub Along (gr as Ground, p as Hero, d as single)
     dim i as integer, j as integer, a as integer, t as single
     dim cr as single, dt as single
     i = p.sg
-    t = (p.at.x - gr.pt(i).at.x) * gr.pt(i).dir.x + (p.at.y - gr.pt(i).at.y) * gr.pt(i).dir.y + d
+    t = (p.at.x - gr.pt(i).at.x) * gr.pt(i).dir.x _
+        + (p.at.y - gr.pt(i).at.y) * gr.pt(i).dir.y + d
     do
         if t > gr.pt(i).length then
             j = i + 1
@@ -277,8 +293,10 @@ sub Along (gr as Ground, p as Hero, d as single)
         end if
         if j >= 0 then if gr.pt(j).kind = 0 then j = -1
         if j >= 0 then
-            cr = gr.pt(a).dir.x * gr.pt(a + 1).dir.y - gr.pt(a).dir.y * gr.pt(a + 1).dir.x
-            dt = gr.pt(a).dir.x * gr.pt(a + 1).dir.x + gr.pt(a).dir.y * gr.pt(a + 1).dir.y
+            cr = gr.pt(a).dir.x * gr.pt(a + 1).dir.y _
+                - gr.pt(a).dir.y * gr.pt(a + 1).dir.x
+            dt = gr.pt(a).dir.x * gr.pt(a + 1).dir.x _
+                + gr.pt(a).dir.y * gr.pt(a + 1).dir.y
             if cr > 0 and dt < .64 then j = -1
         end if
         if j < 0 then
@@ -345,7 +363,8 @@ function Ribbon% (gr as Ground, x as integer)
     dim z as integer
     Ribbon% = 0
     for z = 0 to gr.n_cv - 1
-        if gr.cv(z).far < 0 and gr.pt(gr.cv(z).first).kind = 2 and gr.cv(z).x_lo > x - 16 and gr.cv(z).x_lo < x + 60 then
+        if gr.cv(z).far < 0 and gr.pt(gr.cv(z).first).kind = 2 _
+            and gr.cv(z).x_lo > x - 16 and gr.cv(z).x_lo < x + 60 then
             Ribbon% = -1
         end if
     next
@@ -359,7 +378,8 @@ function Twist! (gr as Ground, p as Hero)
     Twist! = -1
     if not p.ground then exit function
     for z = 0 to gr.n_cv - 1
-        if gr.cv(z).far <> -2 or p.sg < gr.cv(z).first or p.sg > gr.cv(z).last then continue for
+        if gr.cv(z).far <> -2 or p.sg < gr.cv(z).first _
+            or p.sg > gr.cv(z).last then continue for
         t = (p.at.x - gr.cv(z).x_lo - 8) / (2 * WAVEL)
         if t < 0 or p.at.x > gr.cv(z).x_hi - 8 then t = 0
         Twist! = (t - int(t)) * 2 * PI

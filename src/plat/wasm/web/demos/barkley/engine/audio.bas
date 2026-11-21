@@ -216,9 +216,11 @@ private sub ReadBar ( _
             mu.song(s).half(h).strike = _
                 Beat$(mu, s, mu.song(s).half(h).kit, 8, 1)
         end if
-        mu.song(s).half(h).bass = Riff$(bas(nb - 1), j, 15 + root, mu.song(s).swing)
+        mu.song(s).half(h).bass = Riff$(bas(nb - 1), j, 15 + root, _
+            mu.song(s).swing)
         mu.song(s).half(h).one = Riff$(br, j, 27, mu.song(s).swing)
-        mu.song(s).half(h).lead = Riff$(sol, j, lead, mu.song(s).swing)
+        mu.song(s).half(h).lead = Riff$(sol, j, lead, _
+            mu.song(s).swing)
         mu.song(s).half(h).two = Riff$(st, j, low, mu.song(s).swing)
         mu.song(s).half(h).under = Riff$(br, j, 15, mu.song(s).swing)
         mu.song(s).half(h).third = Riff$(mid, j, 27, mu.song(s).swing)
@@ -246,7 +248,9 @@ function Beat$ ( _
             d = d + "P" + ln
         else
             if mu.song(s).swing then d = d + "L" + ln
-            d = d + mu.song(s).dr_patch(n) + Vol$(mu.song(s).dr_vol(n), loud, mu.song(s).dr_up(n)) + mu.song(s).dr_note(n)
+            d = d + mu.song(s).dr_patch(n) _
+                + Vol$(mu.song(s).dr_vol(n), loud, _
+                mu.song(s).dr_up(n)) + mu.song(s).dr_note(n)
         end if
     next
     Beat$ = d
@@ -355,14 +359,17 @@ private function Riff$ ( _
                 r = r + 1
             loop
         else
-            note = low + instr("0123456789abcdefghijklmnopqrstuvwxyz", lcase$(c)) - 1
+            note = low _
+                + instr("0123456789abcdefghijklmnopqrstuvwxyz", _
+                lcase$(c)) - 1
             do while i + r <= last and mid$(p, i + r, 1) = "-"
                 r = r + 1
             loop
         end if
         i = i + r
         if swing then
-            s = s + Shuffle$(note, c <> lcase$(c), Swung%(i - r, i - 1))
+            s = s + Shuffle$(note, c <> lcase$(c), _
+                Swung%(i - r, i - 1))
             continue do
         end if
         ' five and seven sixteenths: four and six, then a rest

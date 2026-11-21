@@ -44,7 +44,8 @@ private const TALLYBARS = 6
 private sub Tally (mu as Deck, se as Session, g as Game, k as Pad)
     dim due as integer, take as long
     if g.bonus = 0 then exit sub
-    due = int(EndBeat!(mu, se, g)) - (len(mu.song(CAUGHT).order) - TALLYBARS) * 4 + 1
+    due = int(EndBeat!(mu, se, g)) _
+        - (len(mu.song(CAUGHT).order) - TALLYBARS) * 4 + 1
     if due > TALLYN or k.hit or k.start then due = TALLYN
     if due <= g.tallied then exit sub
     do while g.tallied < due and g.bonus > 0
@@ -86,7 +87,8 @@ sub Tick ( _
     case CLEARED
         ClearedStep wd, g, p, k, lo(), pt()
     case OVER
-        if g.mode_t > OVERT or (g.mode_t > 1.5 and (k.hit or k.start)) or k.quit then
+        if g.mode_t > OVERT _
+            or (g.mode_t > 1.5 and (k.hit or k.start)) or k.quit then
             ResetWorld wd, g, p, lo(), pt()
         end if
     end select
@@ -223,14 +225,19 @@ sub ResetWorld ( _
     for i = 0 to wd.lv.n_things - 1
         wd.lv.things(i).at.x = wd.lv.things(i).home
         ' a burrow's mound keeps its other end, and a chimney; a mortar its beat, and a tipper
-        if wd.lv.things(i).kind = KMOUND or wd.lv.things(i).kind = KCHIMNEY or wd.lv.things(i).kind = KMORTAR then continue for
+        if wd.lv.things(i).kind = KMOUND _
+            or wd.lv.things(i).kind = KCHIMNEY _
+            or wd.lv.things(i).kind = KMORTAR then continue for
         if wd.lv.things(i).kind = KTIPPER then continue for
         wd.lv.things(i).state = 0
         if wd.lv.things(i).kind = KBONE then wd.lv.things(i).state = 1
-        if wd.lv.things(i).kind = KCAT or wd.lv.things(i).kind = KCRAB or wd.lv.things(i).kind = KSWEEP then
+        if wd.lv.things(i).kind = KCAT _
+            or wd.lv.things(i).kind = KCRAB _
+            or wd.lv.things(i).kind = KSWEEP then
             wd.lv.things(i).state = -1
         end if
-        if wd.lv.things(i).kind = KWALKER or wd.lv.things(i).kind = KSNATCH then
+        if wd.lv.things(i).kind = KWALKER _
+            or wd.lv.things(i).kind = KSNATCH then
             wd.lv.things(i).state = -1
         end if
         if wd.lv.things(i).kind = KJELLY then
@@ -242,7 +249,8 @@ sub ResetWorld ( _
         if wd.lv.things(i).kind = KSQUIRREL then
             wd.lv.things(i).state = SQWAIT
         end if
-        if wd.lv.things(i).kind = KGOAT or wd.lv.things(i).kind = KWALL then
+        if wd.lv.things(i).kind = KGOAT _
+            or wd.lv.things(i).kind = KWALL then
             wd.lv.things(i).state = 1
         end if
     next
@@ -309,7 +317,8 @@ private function Met% ( _
         p.vel.x = 0
         p.roll = 0
     end if
-    if p.ground and abs(p.gsp) < 5 and p.at.x >= wd.lv.fam_x - 108 then
+    if p.ground and abs(p.gsp) < 5 _
+        and p.at.x >= wd.lv.fam_x - 108 then
         p.win = -1
         p.face = 0
     end if
@@ -317,7 +326,8 @@ private function Met% ( _
     g.cam.x = g.cam.x + (wd.lv.fam_x - 166 - g.cam.x) * 4 * STEPT
     wd.se.past_t = wd.se.past_t + STEPT
     if p.win and g.bonus = 0 then wd.se.met_t = wd.se.met_t + STEPT
-    parted = wd.se.met_t > 6 or wd.se.past_t > 40 or (wd.se.met_t > 2 and (k.hit or k.start))
+    parted = wd.se.met_t > 6 or wd.se.past_t > 40 _
+        or (wd.se.met_t > 2 and (k.hit or k.start))
     if wd.tn.dusk = 16 and parted then wd.tn.dusk = 15
     if wd.tn.dusk < 16 and (wd.se.ticks and 3) = 0 then
         wd.tn.dusk = wd.tn.dusk - 1

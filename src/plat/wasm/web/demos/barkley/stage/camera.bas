@@ -51,7 +51,8 @@ end sub
 ' under the great oak while the twins have the ball.
 function Headroom% (lv as Level, zn as Realm, p as Hero)
     Headroom% = HEAD
-    if lv.chase_x = NONE or p.at.x < lv.chase_x or p.at.x > lv.chase_end then exit function
+    if lv.chase_x = NONE or p.at.x < lv.chase_x _
+        or p.at.x > lv.chase_end then exit function
     if zn.id = 1 and (lv.cart.st = 1 or lv.cart.st = 2) then
         Headroom% = HEADUP
     end if

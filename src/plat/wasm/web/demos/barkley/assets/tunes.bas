@@ -154,7 +154,8 @@ function EndBeat! (mu as Deck, se as Session, g as Game)
     if mu.muted or not mu.tune then exit function
     EndBeat! = -1
     if mu.slot = CAUGHT then
-        EndBeat! = (se.ticks - mu.song_at) * STEPT * mu.song(CAUGHT).tempo / 60
+        EndBeat! = (se.ticks - mu.song_at) * STEPT _
+            * mu.song(CAUGHT).tempo / 60
     end if
 end function
 
@@ -181,7 +182,8 @@ end function
 
 ' Whether the state's song comes in at once and in full: the level's end, game over, the scene between zones.
 function Sudden% (se as Session, g as Game)
-    Sudden% = g.mode = CLEARED or g.mode = OVER or (g.mode = INTRO and se.scene_next > 0)
+    Sudden% = g.mode = CLEARED or g.mode = OVER _
+        or (g.mode = INTRO and se.scene_next > 0)
 end function
 
 ' Slot n's song, when it is not the one playing, from its start or, late, from the bar it comes in at. The one

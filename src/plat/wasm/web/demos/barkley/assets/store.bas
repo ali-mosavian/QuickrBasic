@@ -137,7 +137,8 @@ private sub BuildGlyphs (art as Store)
                     if point(x, 184 + y) then pset (x, y), ink
                 next
             next
-            MaskGrab art, 0, 0, 9, 9, 20, 0, IGLYPH + (c * NGLYPH + i) * 2
+            MaskGrab art, 0, 0, 9, 9, 20, 0, _
+                IGLYPH + (c * NGLYPH + i) * 2
         next
     next
     line (0, 184)-(8, 191), 0, BF

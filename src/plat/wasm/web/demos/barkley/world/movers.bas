@@ -52,7 +52,8 @@ function Swing! ( _
         ' a boat by its own clock, which stops while it is aground
         q = lv.movers(m).t + m + quarter * PI / 2
     else
-        q = se.ticks * STEPT * (1.1 - .2 * lv.movers(m).kind) + m + quarter * PI / 2
+        q = se.ticks * STEPT * (1.1 - .2 * lv.movers(m).kind) + m _
+            + quarter * PI / 2
     end if
     v = sin(q)
     if lv.movers(m).kind = 1 then
@@ -97,7 +98,8 @@ sub Movers ( _
             if lv.movers(m).t > SPANT + 2 then
                 lv.movers(m).t = SPANT + 2
             end if
-            lv.things(lv.movers(m).thing).state = lv.movers(m).t > 0 and lv.movers(m).t < SPANT
+            lv.things(lv.movers(m).thing).state = lv.movers(m).t _
+                > 0 and lv.movers(m).t < SPANT
             if lv.movers(m).t >= SPANT then
                 if lv.movers(m).t - STEPT < SPANT then
                     Sfx mu, se, SCRACK
@@ -134,11 +136,13 @@ sub Movers ( _
             if not p.ground or p.sg <> s then
                 lv.movers(m).t = lv.movers(m).t - .4 * STEPT
             elseif lv.movers(m).kind = 3 then
-                lv.movers(m).t = lv.movers(m).t + (.25 + lv.movers(m).t) * .6 * STEPT
+                lv.movers(m).t = lv.movers(m).t _
+                    + (.25 + lv.movers(m).t) * .6 * STEPT
             elseif lv.movers(m).kind = 7 then
                 lv.movers(m).t = lv.movers(m).t + SEATV * STEPT
             else
-                lv.movers(m).t = lv.movers(m).t + TRAMV * STEPT / lv.movers(m).reach
+                lv.movers(m).t = lv.movers(m).t _
+                    + TRAMV * STEPT / lv.movers(m).reach
             end if
             if lv.movers(m).t < 0 then lv.movers(m).t = 0
             if lv.movers(m).t > 1 then lv.movers(m).t = 1

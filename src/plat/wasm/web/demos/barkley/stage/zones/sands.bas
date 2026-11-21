@@ -56,8 +56,10 @@ sub MeetFlume ( _
     dim px as integer, py as integer
     px = cint(p.at.x)
     py = cint(p.at.y)
-    if not p.ground or px < lv.things(i).at.x or px >= lv.things(i).at.x + TS then exit sub
-    if py > lv.things(i).at.y - 6 and py < lv.things(i).at.y + TS + 6 then
+    if not p.ground or px < lv.things(i).at.x _
+        or px >= lv.things(i).at.x + TS then exit sub
+    if py > lv.things(i).at.y - 6 _
+        and py < lv.things(i).at.y + TS + 6 then
         Slide mu, se, p
     end if
 end sub
@@ -76,13 +78,16 @@ sub MeetCrab ( _
 )
     dim y as integer
     y = lv.things(i).at.y
-    if lv.things(i).state = 0 or abs(lv.things(i).at.x - p.at.x) >= 15 or p.at.y < y - 22 or p.at.y > y + 10 then exit sub
+    if lv.things(i).state = 0 _
+        or abs(lv.things(i).at.x - p.at.x) >= 15 or p.at.y < y - 22 _
+        or p.at.y > y + 10 then exit sub
     if not p.ground and p.vel.y > 0 and p.at.y < y - 4 then
         p.vel.y = -BOUNCEV
         if abs(lv.things(i).state) > 1 then p.vel.y = -STEPV
         p.jumped = 0
         if abs(lv.things(i).state) < SHELLT \ 3 then
-            lv.things(i).state = sgn(lv.things(i).state) * (SHELLT \ 3)
+            lv.things(i).state = sgn(lv.things(i).state) _
+                * (SHELLT \ 3)
         end if
         Sfx mu, se, SSPRING
     elseif abs(lv.things(i).state) = 1 then
@@ -154,7 +159,8 @@ private sub Gull ( _
         b.at.x = x
         b.at.y = y
         if b.rest > 0 then b.rest = b.rest - STEPT
-        if b.rest <= 0 and b.loot = 0 and g.bones > 0 and abs(p.at.x - x) < GULLSEE and p.at.y > y + 30 then
+        if b.rest <= 0 and b.loot = 0 and g.bones > 0 _
+            and abs(p.at.x - x) < GULLSEE and p.at.y > y + 30 then
             lead = (p.at.y - 13 - y) / DIVEV * 60
             b.aim.x = p.at.x + (p.at.x - p.last_x) * lead
             b.aim.y = p.at.y - 13
@@ -172,7 +178,8 @@ private sub Gull ( _
         Spill se, b, lo()
         b.st = GCLIMB
     end select
-    if abs(b.at.x - p.at.x) >= 13 or abs(b.at.y - p.at.y + 13) >= 15 then exit sub
+    if abs(b.at.x - p.at.x) >= 13 _
+        or abs(b.at.y - p.at.y + 13) >= 15 then exit sub
     if p.roll or p.charging then
         Spill se, b, lo()
         b.st = 0
@@ -217,7 +224,8 @@ sub DrawGulls ( _
     for i = 0 to lv.n_gulls - 1
         x = cint(lv.gulls(i).at.x) - cx
         y = cint(lv.gulls(i).at.y) - cy
-        if lv.gulls(i).st <= 0 or x <= -20 or x >= SW + 20 then continue for
+        if lv.gulls(i).st <= 0 or x <= -20 _
+            or x >= SW + 20 then continue for
         k = IGULL - 4 * lv.gulls(i).face
         if lv.gulls(i).st <> GDIVE then
             k = k + ((se.ticks \ 8) and 1) * 2
@@ -249,8 +257,11 @@ sub MeetJelly ( _
 )
     dim y as integer
     y = lv.things(i).at.y
-    if p.inv > 0 or lv.things(i).state > 1 or abs(lv.things(i).at.x - p.at.x) >= 12 or p.at.y < y - 26 or p.at.y > y + 8 then exit sub
-    if not p.ground and not p.swim and p.vel.y > 0 and p.at.y < y - 10 then
+    if p.inv > 0 or lv.things(i).state > 1 _
+        or abs(lv.things(i).at.x - p.at.x) >= 12 or p.at.y < y - 26 _
+        or p.at.y > y + 8 then exit sub
+    if not p.ground and not p.swim and p.vel.y > 0 _
+        and p.at.y < y - 10 then
         p.vel.y = -JELLYV
         p.jumped = 0
         p.sprung = -1
@@ -264,7 +275,9 @@ end sub
 
 ' The sea's level by the clock: from where the level began it to its other end and back, every TIDEP steps.
 sub Flow (lv as Level, se as Session)
-    lv.tide = lv.tide_lo - cint((lv.tide_lo - lv.tide_hi) * (1 - cos((se.ticks - lv.tide_at) * 2 * PI / TIDEP)) / 2)
+    lv.tide = lv.tide_lo _
+        - cint((lv.tide_lo - lv.tide_hi) _
+        * (1 - cos((se.ticks - lv.tide_at) * 2 * PI / TIDEP)) / 2)
 end sub
 
 ' The sea in each column whose ground is under it: bands of water from its surface down behind the column's top
@@ -327,7 +340,8 @@ sub DrawSurf (lv as Level, art as Store, cx as integer, cy as integer)
         if deep >= 7 then
             Blit art, tx * TS - cx, y, ISURF, TS, 8
         else
-            line (tx * TS - cx, y + 1)-(tx * TS - cx + TS - 1, y + 1), CSEA, BF
+            line (tx * TS - cx, y + 1)-(tx * TS - cx + TS - 1, _
+                y + 1), CSEA, BF
         end if
     next
 end sub
