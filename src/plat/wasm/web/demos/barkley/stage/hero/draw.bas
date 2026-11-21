@@ -29,7 +29,7 @@ sub Pose (lv as Level, gr as Ground, se as Session, p as Hero, x as integer, y a
     p.at.x = x
     p.at.y = y
     p.ground = -1
-    p.sg = SegAt%(lv, gr, x, csng(lv.startY))
+    p.sg = SegAt%(lv, gr, x, csng(lv.start.y))
     p.anim = se.ticks / 4!
     if west or (a and 16) then p.face = 1
     select case a and 15
@@ -52,11 +52,11 @@ sub DrawOver (lv as Level, zn as Realm, art as Store, cx as integer, cy as integ
     c = (cx - WAVEL) \ TS
     if c < 0 then c = 0
     i = lv.first(c)
-    do while i < lv.nObj
-        x = lv.ob(i).at.x - cx
+    do while i < lv.n_things
+        x = lv.things(i).at.x - cx
         if x > SW then exit do
-        if lv.ob(i).kind = KWAVE2 then Blit art, x, lv.ob(i).at.y - cy - WAVEA - 22, zn.wave + 2, WAVEL, WAVEH
-        if lv.ob(i).kind = KLOG then Blit art, x - LOGR, lv.ob(i).at.y - cy - 31, ILOG, 64, 32
+        if lv.things(i).kind = KWAVE2 then Blit art, x, lv.things(i).at.y - cy - WAVEA - 22, zn.wave + 2, WAVEL, WAVEH
+        if lv.things(i).kind = KLOG then Blit art, x - LOGR, lv.things(i).at.y - cy - 31, ILOG, 64, 32
         i = i + 1
     loop
 end sub

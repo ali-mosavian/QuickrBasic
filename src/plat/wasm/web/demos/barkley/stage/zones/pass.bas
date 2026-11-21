@@ -64,7 +64,7 @@ const HEAPR = 24
 
 ' Onto sled i: off on it at once, to the right, curled in nothing but the game's reckoning.
 private sub Board (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
-    lv.ob(i).state = 1
+    lv.things(i).state = 1
     p.sled = -1
     p.roll = -1
     p.jumped = 0
@@ -80,27 +80,27 @@ end sub
 ' An icicle: walked under, it is loosed; falling, it hurts whom it lands on, and breaks.
 sub MeetIcicle (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
     dim x as integer, dx as integer, py as integer, y as integer
-    x = lv.ob(i).at.x
+    x = lv.things(i).at.x
     dx = abs(x - cint(p.at.x))
     py = cint(p.at.y)
-    if lv.ob(i).state = 0 and dx < 20 and py > lv.ob(i).at.y and py < lv.ob(i).at.y + 140 then lv.ob(i).state = 1
-    y = lv.ob(i).at.y + Fallen%(lv, i)
-    if lv.ob(i).state <= TREMBLE or dx >= 9 or py <= y or py - 26 >= y + 16 then exit sub
+    if lv.things(i).state = 0 and dx < 20 and py > lv.things(i).at.y and py < lv.things(i).at.y + 140 then lv.things(i).state = 1
+    y = lv.things(i).at.y + Fallen%(lv, i)
+    if lv.things(i).state <= TREMBLE or dx >= 9 or py <= y or py - 26 >= y + 16 then exit sub
     Hurt mu, se, g, p, x, lo(), SHURT
     Shatter lv, mu, se, pt(), i
 end sub
 
 ' A sled left on the snow: landed on or run onto, he boards it.
 sub MeetSled (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
-    if lv.ob(i).state <> 0 or p.sled or p.stun then exit sub
+    if lv.things(i).state <> 0 or p.sled or p.stun then exit sub
     if not p.ground and p.vel.y <= 0 then exit sub
-    if abs(lv.ob(i).at.x - cint(p.at.x)) >= 14 or abs(cint(p.at.y) - lv.ob(i).at.y + 5) >= 10 then exit sub
+    if abs(lv.things(i).at.x - cint(p.at.x)) >= 14 or abs(cint(p.at.y) - lv.things(i).at.y + 5) >= 10 then exit sub
     Board lv, mu, se, p, i
 end sub
 
 ' Deep snow: it stops a sled dead and he tumbles out of it; rolled through, it packs round him.
 sub MeetDrift (lv as Level, mu as Deck, se as Session, p as Hero, i as integer, pt() as Part)
-    if not p.ground or abs(lv.ob(i).at.x - cint(p.at.x)) >= 22 or abs(cint(p.at.y) - lv.ob(i).at.y) >= 8 then exit sub
+    if not p.ground or abs(lv.things(i).at.x - cint(p.at.x)) >= 22 or abs(cint(p.at.y) - lv.things(i).at.y) >= 8 then exit sub
     if p.sled then
         Alight mu, se, p, pt(), CWHITE
         p.roll = 0
@@ -115,7 +115,7 @@ end sub
 
 ' How far icicle i has fallen: nothing till it has trembled.
 function Fallen% (lv as Level, i as integer)
-    Fallen% = Plunged%(lv.ob(i).state - TREMBLE)
+    Fallen% = Plunged%(lv.things(i).state - TREMBLE)
 end function
 
 ' How far a thing has fallen, n of the things' steps into its fall.
@@ -131,7 +131,7 @@ end function
 function Slid% (lv as Level, i as integer)
     dim n as integer, x as integer
     Slid% = 0
-    n = lv.ob(i).state - TREMBLE
+    n = lv.things(i).state - TREMBLE
     if n <= 0 then exit function
     x = LOADRUN * n * n \ (LOADSLIDE * LOADSLIDE)
     if n > LOADSLIDE then x = LOADRUN + 2 * LOADRUN * (n - LOADSLIDE) \ LOADSLIDE
@@ -143,9 +143,9 @@ end function
 function HeapOf% (lv as Level, i as integer)
     dim j as integer
     HeapOf% = NONE
-    for j = i + 1 to lv.nObj - 1
-        if lv.ob(j).home > lv.ob(i).home + LOADFAR then exit for
-        if lv.ob(j).kind <> KHEAP then continue for
+    for j = i + 1 to lv.n_things - 1
+        if lv.things(j).home > lv.things(i).home + LOADFAR then exit for
+        if lv.things(j).kind <> KHEAP then continue for
         HeapOf% = j
         exit for
     next
@@ -155,9 +155,9 @@ end function
 ' view, and takes him where it reaches him.
 sub Avalanche (lv as Level, mu as Deck, se as Session, g as Game, p as Hero)
     if lv.aval.st = 0 then
-        if p.at.x < lv.avalX then exit sub
+        if p.at.x < lv.aval_x then exit sub
         lv.aval.st = 1
-        lv.aval.x = lv.avalX - AVALLEAD
+        lv.aval.x = lv.aval_x - AVALLEAD
         g.shake = .5
         Sfx mu, se, SCRACK
     end if
@@ -235,54 +235,54 @@ end sub
 ' ledge ends, and stands dazed.
 sub Graze (lv as Level, se as Session, i as integer, p as Hero)
     dim s as integer, f as integer, x as integer
-    s = abs(lv.ob(i).state)
-    f = sgn(lv.ob(i).state)
+    s = abs(lv.things(i).state)
+    f = sgn(lv.things(i).state)
     select case s
     case 1
-        if lv.ob(i).at.x <> lv.ob(i).home then
-            f = sgn(lv.ob(i).home - lv.ob(i).at.x)
-            lv.ob(i).at.x = lv.ob(i).at.x + f * GOATSTEP \ 2
+        if lv.things(i).at.x <> lv.things(i).home then
+            f = sgn(lv.things(i).home - lv.things(i).at.x)
+            lv.things(i).at.x = lv.things(i).at.x + f * GOATSTEP \ 2
         else
-            f = 1 + 2 * (p.at.x < lv.ob(i).at.x)
-            x = abs(p.at.x - lv.ob(i).at.x) < GOATSEE and abs(p.at.y - lv.ob(i).at.y) < 30
+            f = 1 + 2 * (p.at.x < lv.things(i).at.x)
+            x = abs(p.at.x - lv.things(i).at.x) < GOATSEE and abs(p.at.y - lv.things(i).at.y) < 30
             if x and p.goat = 0 and (not lv.gale or Lull%(lv, se) > GUSTP \ 2) then s = GOATWIND + 1
         end if
     case 2: s = GCHARGE
     case GCHARGE
-        x = lv.ob(i).at.x + f * GOATSTEP
-        if (p.at.x - x) * f < 0 or abs(x - lv.ob(i).home) > GOATRUN or Surf%(lv, x + f * 12, lv.ob(i).at.y) <> lv.ob(i).at.y then
+        x = lv.things(i).at.x + f * GOATSTEP
+        if (p.at.x - x) * f < 0 or abs(x - lv.things(i).home) > GOATRUN or Surf%(lv, x + f * 12, lv.things(i).at.y) <> lv.things(i).at.y then
             s = GCHARGE + GOATDAZE
         else
-            lv.ob(i).at.x = x
+            lv.things(i).at.x = x
         end if
     case else
         s = s - 1
         if s = GCHARGE then s = 1
     end select
-    lv.ob(i).state = s * f
+    lv.things(i).state = s * f
 end sub
 
 ' A goat met: come down on, it is ridden; its horns, lowered or at a charge, hurt.
 sub MeetGoat (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose)
     dim s as integer
-    s = abs(lv.ob(i).state)
-    if s = 0 or p.goat or abs(lv.ob(i).at.x - p.at.x) >= 16 or p.at.y < lv.ob(i).at.y - 30 or p.at.y > lv.ob(i).at.y + 8 then exit sub
-    if not p.ground and p.vel.y > 0 and p.at.y < lv.ob(i).at.y - 6 and not p.sled then
+    s = abs(lv.things(i).state)
+    if s = 0 or p.goat or abs(lv.things(i).at.x - p.at.x) >= 16 or p.at.y < lv.things(i).at.y - 30 or p.at.y > lv.things(i).at.y + 8 then exit sub
+    if not p.ground and p.vel.y > 0 and p.at.y < lv.things(i).at.y - 6 and not p.sled then
         Mount lv, mu, se, p, i
-    elseif s > 1 and s <= GCHARGE and p.at.y > lv.ob(i).at.y - 18 then
-        Hurt mu, se, g, p, lv.ob(i).at.x, lo(), SHURT
+    elseif s > 1 and s <= GCHARGE and p.at.y > lv.things(i).at.y - 18 then
+        Hurt mu, se, g, p, lv.things(i).at.x, lo(), SHURT
     end if
 end sub
 
 ' Onto goat i's back: it bolts on along the road. A goat still on its way home is there.
 private sub Mount (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
-    if lv.stray.st then lv.ob(lv.stray.goat).state = 1
+    if lv.stray.st then lv.things(lv.stray.goat).state = 1
     lv.stray.goat = i
     lv.stray.st = 1
-    lv.stray.at.x = lv.ob(i).at.x
-    lv.stray.at.y = lv.ob(i).at.y
-    lv.ob(i).state = 0
-    lv.ob(i).at.x = lv.ob(i).home
+    lv.stray.at.x = lv.things(i).at.x
+    lv.stray.at.y = lv.things(i).at.y
+    lv.things(i).state = 0
+    lv.things(i).at.x = lv.things(i).home
     p.goat = -1
     p.ride_t = 0
     p.at.x = lv.stray.at.x
@@ -298,39 +298,39 @@ end sub
 ' The goat let go runs home along the ground; there, or out of sight, it is at graze again.
 sub Homeward (lv as Level, g as Game)
     dim y as integer
-    lv.stray.at.x = lv.stray.at.x + sgn(lv.ob(lv.stray.goat).home - lv.stray.at.x) * STRAYV * STEPT
+    lv.stray.at.x = lv.stray.at.x + sgn(lv.things(lv.stray.goat).home - lv.stray.at.x) * STRAYV * STEPT
     y = Surf%(lv, cint(lv.stray.at.x), cint(lv.stray.at.y))
     if y <> NONE then lv.stray.at.y = y
-    if abs(lv.stray.at.x - lv.ob(lv.stray.goat).home) >= 6 and abs(lv.stray.at.x - g.cam.x - SW \ 2) <= SW then exit sub
-    lv.ob(lv.stray.goat).state = 1
+    if abs(lv.stray.at.x - lv.things(lv.stray.goat).home) >= 6 and abs(lv.stray.at.x - g.cam.x - SW \ 2) <= SW then exit sub
+    lv.things(lv.stray.goat).state = 1
     lv.stray.st = 0
 end sub
 
 ' An ice wall across the road: he is stopped at it; a goat ridden goes through, and leaves its stump.
 sub MeetWall (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, pt() as Part)
-    if lv.ob(i).state = 0 or abs(lv.ob(i).at.x - p.at.x) >= WALLR then exit sub
-    if p.at.y <= lv.ob(i).at.y - WALLH or p.at.y > lv.ob(i).at.y + 20 then exit sub
+    if lv.things(i).state = 0 or abs(lv.things(i).at.x - p.at.x) >= WALLR then exit sub
+    if p.at.y <= lv.things(i).at.y - WALLH or p.at.y > lv.things(i).at.y + 20 then exit sub
     if p.goat then
-        lv.ob(i).state = 0
+        lv.things(i).state = 0
         g.score = g.score + 100
         g.shake = .2
-        Burst se, pt(), csng(lv.ob(i).at.x), csng(lv.ob(i).at.y - WALLH \ 2), 16, 180, CWHITE
+        Burst se, pt(), csng(lv.things(i).at.x), csng(lv.things(i).at.y - WALLH \ 2), 16, 180, CWHITE
         Sfx mu, se, SCRACK
         exit sub
     end if
-    Balk p, lv.ob(i).at.x, WALLR
+    Balk p, lv.things(i).at.x, WALLR
 end sub
 
 ' A slid load's heap across the road: he is stopped at its flank, nearer its middle the higher his feet, and
 ' over it goes free.
 sub MeetHeap (lv as Level, p as Hero, i as integer)
     dim h as single, r as integer
-    if lv.ob(i).state = 0 then exit sub
-    h = lv.ob(i).at.y - p.at.y
+    if lv.things(i).state = 0 then exit sub
+    h = lv.things(i).at.y - p.at.y
     if h >= HEAPH or h < -20 then exit sub
     if h < 0 then h = 0
     r = cint(HEAPR * (1 - h / HEAPH))
-    if abs(p.at.x - lv.ob(i).at.x) < r then Balk p, lv.ob(i).at.x, r
+    if abs(p.at.x - lv.things(i).at.x) < r then Balk p, lv.things(i).at.x, r
 end sub
 
 ' The goat not ridden within 150 of x, NONE when there is none.
@@ -340,9 +340,9 @@ function GoatNear% (lv as Level, x as integer)
     c = (x - 220) \ TS
     if c < 0 then c = 0
     i = lv.first(c)
-    do while i < lv.nObj
-        if lv.ob(i).home > x + 220 then exit do
-        if lv.ob(i).kind = KGOAT and lv.ob(i).state <> 0 and abs(lv.ob(i).at.x - x) < 150 then GoatNear% = i
+    do while i < lv.n_things
+        if lv.things(i).home > x + 220 then exit do
+        if lv.things(i).kind = KGOAT and lv.things(i).state <> 0 and abs(lv.things(i).at.x - x) < 150 then GoatNear% = i
         i = i + 1
     loop
 end function
@@ -350,7 +350,7 @@ end function
 ' A ledge's load at x, y on the screen: shaking once set off, sliding off, falling; nothing once it is down.
 sub DrawLoad (lv as Level, art as Store, se as Session, i as integer, x as integer, y as integer)
     dim s as integer, jig as integer
-    s = lv.ob(i).state
+    s = lv.things(i).state
     if s < 0 then exit sub
     jig = s > 0 and s <= TREMBLE and (se.ticks and 2) <> 0
     Blit art, x - 34 + jig + Slid%(lv, i), y - 16 + Plunged%(s - TREMBLE - LOADSLIDE), ILOAD, 76, 22
@@ -359,9 +359,9 @@ end sub
 ' Goat i at x, y on the screen: its head up at graze and dazed, down while it gathers itself and charges.
 sub DrawGoat (lv as Level, art as Store, se as Session, i as integer, x as integer, y as integer)
     dim s as integer, f as integer
-    s = abs(lv.ob(i).state)
+    s = abs(lv.things(i).state)
     if s = 0 then exit sub
-    f = -2 * (lv.ob(i).state < 0)
+    f = -2 * (lv.things(i).state < 0)
     if s > 1 and s <= GCHARGE then
         Blit art, x - 17, y - 40, IGOATR + (5 + (s = GCHARGE) * ((se.ticks \ 6) and 1)) * 4 + f, 34, 58
     else
@@ -374,55 +374,55 @@ sub DrawStray (lv as Level, art as Store, se as Session, cx as integer, cy as in
     dim x as integer, y as integer, f as integer
     x = cint(lv.stray.at.x)
     y = cint(lv.stray.at.y)
-    f = ((Lie%(lv, x, y) + 2) * 2 + ((se.ticks \ 6) and 1)) * 4 - 2 * (lv.ob(lv.stray.goat).home < x)
+    f = ((Lie%(lv, x, y) + 2) * 2 + ((se.ticks \ 6) and 1)) * 4 - 2 * (lv.things(lv.stray.goat).home < x)
     Blit art, x - cx - 17, y - cy - 40, IGOATR + f, 34, 58
 end sub
 
 ' Icicle i breaks.
 private sub Shatter (lv as Level, mu as Deck, se as Session, pt() as Part, i as integer)
-    Burst se, pt(), csng(lv.ob(i).at.x), csng(lv.ob(i).at.y + Fallen%(lv, i) + 12), 8, 110, CWHITE
-    lv.ob(i).state = -1
+    Burst se, pt(), csng(lv.things(i).at.x), csng(lv.things(i).at.y + Fallen%(lv, i) + 12), 8, 110, CWHITE
+    lv.things(i).state = -1
     Sfx mu, se, SCRACK
 end sub
 
 ' Icicle i falling: it breaks on the cat or the snow-thrower under it, which is beaten, or on the ground.
 private sub Plunge (lv as Level, mu as Deck, se as Session, g as Game, pt() as Part, i as integer)
     dim j as integer, y as integer, d as integer
-    y = lv.ob(i).at.y + Fallen%(lv, i) + 16
+    y = lv.things(i).at.y + Fallen%(lv, i) + 16
     for j = i - 4 to i + 4
-        if j < 0 or j >= lv.nObj or lv.ob(i).state <= 0 then continue for
-        d = (lv.ob(j).kind = KCAT or lv.ob(j).kind = KTHROW) and lv.ob(j).state <> 0
-        if d = 0 or abs(lv.ob(j).at.x - lv.ob(i).at.x) >= 14 or y <= lv.ob(j).at.y - 16 then continue for
+        if j < 0 or j >= lv.n_things or lv.things(i).state <= 0 then continue for
+        d = (lv.things(j).kind = KCAT or lv.things(j).kind = KTHROW) and lv.things(j).state <> 0
+        if d = 0 or abs(lv.things(j).at.x - lv.things(i).at.x) >= 14 or y <= lv.things(j).at.y - 16 then continue for
         Beaten lv, mu, se, g, pt(), j, 8
         Shatter lv, mu, se, pt(), i
     next
-    if lv.ob(i).state > 0 and Solid%(lv, lv.ob(i).at.x, y) then Shatter lv, mu, se, pt(), i
+    if lv.things(i).state > 0 and Solid%(lv, lv.things(i).at.x, y) then Shatter lv, mu, se, pt(), i
 end sub
 
 ' Whether snow-thrower i is up from behind its wall: open to a roll, and about to throw.
 function Risen% (lv as Level, i as integer)
-    Risen% = abs(lv.ob(i).state) <= THROWUP and abs(lv.ob(i).state) > THROWAT
+    Risen% = abs(lv.things(i).state) <= THROWUP and abs(lv.things(i).state) > THROWAT
 end function
 
 ' Thrower i's snowball, from its paw, lobbed to land where Charlie is now; none if he is far.
 private sub Hurl (lv as Level, i as integer, p as Hero)
     dim x as single, y as single
-    if abs(p.at.x - lv.ob(i).at.x) > THROWR or abs(p.at.y - lv.ob(i).at.y) > 60 then exit sub
-    x = lv.ob(i).at.x + 6 * sgn(lv.ob(i).state)
-    y = lv.ob(i).at.y - 20
+    if abs(p.at.x - lv.things(i).at.x) > THROWR or abs(p.at.y - lv.things(i).at.y) > 60 then exit sub
+    x = lv.things(i).at.x + 6 * sgn(lv.things(i).state)
+    y = lv.things(i).at.y - 20
     Loft lv, x, y, (p.at.x - x) / LOBT, (p.at.y - 12 - y) / LOBT - GRAV * LOBT / 2, ILOB, CWHITE
 end sub
 
 ' A snow-thrower met: ducked, its wall throws him back, neither hurt; up, it is a cat, beaten by a roll.
 sub MeetThrow (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
     dim s as integer
-    if lv.ob(i).state = 0 or abs(lv.ob(i).at.x - p.at.x) >= 16 or p.at.y < lv.ob(i).at.y - 22 or p.at.y > lv.ob(i).at.y + 8 then exit sub
+    if lv.things(i).state = 0 or abs(lv.things(i).at.x - p.at.x) >= 16 or p.at.y < lv.things(i).at.y - 22 or p.at.y > lv.things(i).at.y + 8 then exit sub
     if Risen%(lv, i) then
         Tackle lv, mu, se, g, p, i, 8, lo(), pt()
         exit sub
     end if
-    s = 1 + 2 * (p.at.x < lv.ob(i).at.x)
-    p.at.x = lv.ob(i).at.x + s * 16
+    s = 1 + 2 * (p.at.x < lv.things(i).at.x)
+    p.at.x = lv.things(i).at.x + s * 16
     if p.ground then
         p.gsp = s * 150
     else
@@ -433,47 +433,47 @@ end sub
 
 ' Icicle i, loosed: it trembles a while, then falls.
 sub Totter (lv as Level, mu as Deck, se as Session, g as Game, pt() as Part, i as integer)
-    if lv.ob(i).state <= 0 then exit sub
-    lv.ob(i).state = lv.ob(i).state + 1
-    if lv.ob(i).state > TREMBLE then Plunge lv, mu, se, g, pt(), i
+    if lv.things(i).state <= 0 then exit sub
+    lv.things(i).state = lv.things(i).state + 1
+    if lv.things(i).state > TREMBLE then Plunge lv, mu, se, g, pt(), i
 end sub
 
 ' Load i of snow, set off: a step of its trembling, its slide off the ledge and its fall. Down on the road it is
 ' gone and its heap lies there; Charlie under it is hurt.
 sub Unload (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part, i as integer)
     dim h as integer
-    if lv.ob(i).state <= 0 then exit sub
-    lv.ob(i).state = lv.ob(i).state + 1
+    if lv.things(i).state <= 0 then exit sub
+    lv.things(i).state = lv.things(i).state + 1
     h = HeapOf%(lv, i)
     if h = NONE then exit sub
-    if lv.ob(i).at.y + Plunged%(lv.ob(i).state - TREMBLE - LOADSLIDE) < lv.ob(h).at.y then exit sub
-    lv.ob(i).state = -1
-    lv.ob(h).state = 1
+    if lv.things(i).at.y + Plunged%(lv.things(i).state - TREMBLE - LOADSLIDE) < lv.things(h).at.y then exit sub
+    lv.things(i).state = -1
+    lv.things(h).state = 1
     Bury lv, mu, se, g, pt(), h
-    if abs(p.at.x - lv.ob(h).at.x) >= HEAPR or abs(p.at.y - lv.ob(h).at.y) >= HEAPH then exit sub
-    Hurt mu, se, g, p, lv.ob(h).at.x, lo(), SHURT
+    if abs(p.at.x - lv.things(h).at.x) >= HEAPR or abs(p.at.y - lv.things(h).at.y) >= HEAPH then exit sub
+    Hurt mu, se, g, p, lv.things(h).at.x, lo(), SHURT
 end sub
 
 ' Heap h, come down: the cats and snow-throwers under it are beaten.
 private sub Bury (lv as Level, mu as Deck, se as Session, g as Game, pt() as Part, h as integer)
     dim j as integer, foe as integer
     for j = h - 6 to h + 6
-        if j < 0 or j >= lv.nObj then continue for
-        foe = (lv.ob(j).kind = KCAT or lv.ob(j).kind = KTHROW) and lv.ob(j).state <> 0
-        if foe = 0 or abs(lv.ob(j).at.x - lv.ob(h).at.x) >= HEAPR + 10 then continue for
-        if abs(lv.ob(j).at.y - lv.ob(h).at.y) < 24 then Beaten lv, mu, se, g, pt(), j, 8
+        if j < 0 or j >= lv.n_things then continue for
+        foe = (lv.things(j).kind = KCAT or lv.things(j).kind = KTHROW) and lv.things(j).state <> 0
+        if foe = 0 or abs(lv.things(j).at.x - lv.things(h).at.x) >= HEAPR + 10 then continue for
+        if abs(lv.things(j).at.y - lv.things(h).at.y) < 24 then Beaten lv, mu, se, g, pt(), j, 8
     next
     g.shake = .3
-    Burst se, pt(), csng(lv.ob(h).at.x), csng(lv.ob(h).at.y - 12), 16, 160, CWHITE
+    Burst se, pt(), csng(lv.things(h).at.x), csng(lv.things(h).at.y - 12), 16, 160, CWHITE
     Sfx mu, se, SCRACK
 end sub
 
 ' Snow-thrower i: a step of its turn, facing Charlie; and its throw.
 sub TakeAim (lv as Level, i as integer, p as Hero)
     dim s as integer
-    if lv.ob(i).state = 0 then exit sub
-    s = abs(lv.ob(i).state) - 1
+    if lv.things(i).state = 0 then exit sub
+    s = abs(lv.things(i).state) - 1
     if s = 0 then s = THROWC
-    lv.ob(i).state = s * (1 + 2 * (p.at.x > lv.ob(i).at.x))
+    lv.things(i).state = s * (1 + 2 * (p.at.x > lv.things(i).at.x))
     if s = THROWAT then Hurl lv, i, p
 end sub

@@ -67,12 +67,12 @@ private const LOBNEAR = 70, LOBV = 420!, LOBT = .4, LOBUP2 = 20, TWINGAP = 40
 ' The chase as before Charlie came to it: who flees waiting a little way into the race, the zone's tune back. A
 ' keepsake taken stays taken.
 sub ResetChase (lv as Level, mu as Deck)
-    if lv.chaseX = NONE or lv.cart.st = 3 then exit sub
+    if lv.chase_x = NONE or lv.cart.st = 3 then exit sub
     lv.cart.st = 0
     lv.cart.hits = 0
     lv.cart.v = 0
     lv.cart.t = 0
-    lv.cart.at.x = lv.chaseX + CARTLEAD
+    lv.cart.at.x = lv.chase_x + CARTLEAD
     lv.cart.at.y = lv.top(cint(lv.cart.at.x) \ TS) * TS
     lv.box.st = 0
     lv.box.t = RELOAD
@@ -82,13 +82,13 @@ end sub
 ' A step of the chase, by its state: begun as Charlie comes to the race; then who flees does, by its zone, and he
 ' may meet it; broken, its keepsake is his when he reaches it.
 sub Flee (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
-    if lv.chaseX = NONE then exit sub
+    if lv.chase_x = NONE then exit sub
     if lv.cart.t > 0 then lv.cart.t = lv.cart.t - STEPT
     select case lv.cart.st
     case 0
         if zn.id = 2 then lv.cart.at.y = lv.tide - PEDALUP
         if zn.id = 4 then BallAt lv
-        if p.at.x >= lv.chaseX then StartChase lv, mu
+        if p.at.x >= lv.chase_x then StartChase lv, mu
     case 1
         select case zn.id
         case 0, 3
@@ -146,8 +146,8 @@ private sub MoveCart (lv as Level, p as Hero, pace as single, away as single)
     if lv.cart.t > BOLTS then want = 60
     lv.cart.v = lv.cart.v + (want - lv.cart.v) * 5 * STEPT
     lv.cart.at.x = lv.cart.at.x + lv.cart.v * STEPT
-    if lv.cart.at.x >= lv.chaseEnd then
-        lv.cart.at.x = lv.chaseEnd
+    if lv.cart.at.x >= lv.chase_end then
+        lv.cart.at.x = lv.chase_end
         lv.cart.v = 0
     end if
     s = Surf%(lv, cint(lv.cart.at.x), cint(lv.cart.at.y))
@@ -208,7 +208,7 @@ end sub
 ' Who flees, by its zone; nothing once its keepsake is taken back, but the wood's oak, which stands, and its
 ' twins, who stay to sulk.
 sub DrawChase (lv as Level, zn as Realm, art as Store, se as Session, cx as integer, cy as integer)
-    if lv.chaseX = NONE then exit sub
+    if lv.chase_x = NONE then exit sub
     if zn.id = 4 then
         DrawOak lv, art, cx, cy
         DrawTwins lv, zn, art, cx, cy
@@ -227,7 +227,7 @@ end sub
 ' the street's end, where there is nowhere on to lob it. Only the twins lob by it.
 private sub Lob (lv as Level, p as Hero)
     if lv.box.t > 0 then lv.box.t = lv.box.t - STEPT
-    if lv.box.t > 0 or lv.cart.t > 0 or lv.cart.at.x >= lv.chaseEnd then exit sub
+    if lv.box.t > 0 or lv.cart.t > 0 or lv.cart.at.x >= lv.chase_end then exit sub
     if lv.cart.at.x - p.at.x < LOBNEAR then lv.box.t = LOBWAIT
 end sub
 
@@ -329,11 +329,11 @@ end function
 
 ' Where a twin sits on limb n, the middle of its flat.
 private function SeatX% (lv as Level, n as integer)
-    SeatX% = lv.oakX + LimbX%(n) + LIMBW \ 2
+    SeatX% = lv.oak.x + LimbX%(n) + LIMBW \ 2
 end function
 
 private function SeatY% (lv as Level, n as integer)
-    SeatY% = lv.oakY - LimbUp%(n)
+    SeatY% = lv.oak.y - LimbUp%(n)
 end function
 
 ' The seconds the ball is in the air between the twins: fewer for each catch.
@@ -407,10 +407,10 @@ end function
 ' and its brackets.
 private sub DrawOak (lv as Level, art as Store, cx as integer, cy as integer)
     dim n as integer, x as integer, y as integer, k as integer, w as integer, h as integer
-    x = lv.oakX - cx
+    x = lv.oak.x - cx
     if x < -170 or x > SW + 170 then exit sub
     for n = 0 to NLIMB - 1
-        y = lv.oakY - LimbUp%(n) - LIMBRISE - cy
+        y = lv.oak.y - LimbUp%(n) - LIMBRISE - cy
         ' the middle pair's are the far ones, longer and deeper
         k = ILIMB
         w = 94
@@ -426,13 +426,13 @@ private sub DrawOak (lv as Level, art as Store, cx as integer, cy as integer)
             Blit art, x - 22 - w, y, k + 4, w, h
         end if
     next
-    y = lv.oakY - 45 - cy
+    y = lv.oak.y - 45 - cy
     Blit art, x - 76, y, IOAKFOOT, 152, 48
     do while y > 0
         y = y - 64
         Blit art, x - 33, y, IOAK, 66, 64
     loop
-    y = lv.oakY - cy
+    y = lv.oak.y - cy
     Blit art, x - 2, y - 84, IKNOT, 17, 20
     Blit art, x + 23, y - 34, IBRACKET, 12, 5
     Blit art, x + 26, y - 26, IBRACKET, 12, 5
@@ -492,8 +492,8 @@ private sub MovePedalo (lv as Level)
     if lv.cart.v = 0 then lv.cart.v = 1
     lv.cart.v = sgn(lv.cart.v) * (PEDALV + lv.cart.hits * PEDALMORE)
     lv.cart.at.x = lv.cart.at.x + lv.cart.v * STEPT
-    if lv.cart.at.x > lv.chaseEnd - PEDALW \ 2 then lv.cart.v = -1
-    if lv.cart.at.x < lv.chaseX + PEDALW \ 2 then lv.cart.v = 1
+    if lv.cart.at.x > lv.chase_end - PEDALW \ 2 then lv.cart.v = -1
+    if lv.cart.at.x < lv.chase_x + PEDALW \ 2 then lv.cart.v = 1
 end sub
 
 ' Charlie down onto the pedal boat's deck, out of the air: a bump, it turns round and he goes up off it.
@@ -577,8 +577,8 @@ private sub MoveCrane (lv as Level, p as Hero)
     if lv.cart.t > BOLTS then want = 0
     lv.cart.v = lv.cart.v + (want - lv.cart.v) * 5 * STEPT
     lv.cart.at.x = lv.cart.at.x + lv.cart.v * STEPT
-    if lv.cart.at.x < lv.chaseX + 40 then lv.cart.at.x = lv.chaseX + 40
-    if lv.cart.at.x > lv.chaseEnd - 40 then lv.cart.at.x = lv.chaseEnd - 40
+    if lv.cart.at.x < lv.chase_x + 40 then lv.cart.at.x = lv.chase_x + 40
+    if lv.cart.at.x > lv.chase_end - 40 then lv.cart.at.x = lv.chase_end - 40
 end sub
 
 ' Charlie thrown up to the crane: in the air at its gondola he bumps it and is knocked aside, out of a jet's way,
@@ -639,12 +639,12 @@ private sub DrawCrane (lv as Level, zn as Realm, art as Store, se as Session, cx
     x = cint(lv.cart.at.x) - cx
     fy = cint(lv.cart.at.y) - cy
     y = fy - RAILUP
-    a = (cx - lv.chaseX) \ 32
+    a = (cx - lv.chase_x) \ 32
     if a < 0 then a = 0
-    b = (cx + SW - lv.chaseX) \ 32
-    if b > (lv.chaseEnd - lv.chaseX) \ 32 - 1 then b = (lv.chaseEnd - lv.chaseX) \ 32 - 1
+    b = (cx + SW - lv.chase_x) \ 32
+    if b > (lv.chase_end - lv.chase_x) \ 32 - 1 then b = (lv.chase_end - lv.chase_x) \ 32 - 1
     for i = a to b
-        Blit art, lv.chaseX + i * 32 - cx, y, IRAIL, 32, 8
+        Blit art, lv.chase_x + i * 32 - cx, y, IRAIL, 32, 8
     next
     Blit art, x - 22, y - 2, ICRANE - 2 * (lv.cart.st = 2 or lv.cart.t > BOLTS), 44, 46
     if lv.cart.st = 2 then

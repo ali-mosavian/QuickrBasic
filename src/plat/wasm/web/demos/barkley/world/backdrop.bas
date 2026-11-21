@@ -110,6 +110,6 @@ private sub CombColumn (lv as Level, art as Store, tx as integer, cx as integer,
         if y > -STRIPH then put (x, y), art.img(art.at(IAL + w + (tx and 3))), pset
         y = y + STRIPH
     loop
-    if lv.faceL(tx) then Bare art, x, lv.top(tx) * TS - cy, lv.faceL(tx), IAE
-    if lv.faceR(tx) then Bare art, x, lv.top(tx) * TS - cy, lv.faceR(tx), IAE + 4
+    if lv.face_l(tx) then Bare art, x, lv.top(tx) * TS - cy, lv.face_l(tx), IAE
+    if lv.face_r(tx) then Bare art, x, lv.top(tx) * TS - cy, lv.face_r(tx), IAE + 4
 end sub

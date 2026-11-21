@@ -170,7 +170,7 @@ sub StartIntro (wd as World, g as Game, cu() as Cue)
     g.mode = INTRO
     g.mode_t = 0
     g.cam.x = 0
-    g.cam.y = wd.lv.startY - HORIZON
+    g.cam.y = wd.lv.start.y - HORIZON
 end sub
 
 ' Between zones the van's bump again, on the road of stage nxt's zone: its look, its keepsake and a cat, to four
@@ -185,7 +185,7 @@ sub StartBump (wd as World, g as Game, nxt as integer)
     Shade wd.tn
     g.mode = INTRO
     g.mode_t = BUMP0 / BEATS
-    g.cam.y = wd.lv.startY - HORIZON
+    g.cam.y = wd.lv.start.y - HORIZON
 end sub
 
 ' The script from its DATA: a row a cue, "end" after the last, its kind 0.
@@ -238,7 +238,7 @@ sub CueAt (lv as Level, cu() as Cue, i as integer, t as single, x as integer, y 
     if cu(i).ease = 1 then v = u * u
     if cu(i).ease = 2 then v = u * (2 - u)
     x = cint(cu(i).start.x + (cu(i).finish.x - cu(i).start.x) * v)
-    y = lv.startY + cint(cu(i).start.y + (cu(i).finish.y - cu(i).start.y) * v - 4 * cu(i).hop * u * (1 - u))
+    y = lv.start.y + cint(cu(i).start.y + (cu(i).finish.y - cu(i).start.y) * v - 4 * cu(i).hop * u * (1 - u))
 end sub
 
 ' The intro's picture: the Downs, then each cue that is on, in the script's order, between two black bars.

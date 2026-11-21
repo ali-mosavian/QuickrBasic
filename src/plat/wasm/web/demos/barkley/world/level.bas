@@ -92,10 +92,10 @@ sub LoadLevel (wd as World, st as integer)
     for i = 0 to wd.tn.n(light) - 1
         wd.tn.now(wd.tn.which(light, i)) = wd.tn.own(light, i)
     next
-    wd.lv.goalX = NONE
-    wd.lv.famX = NONE
-    wd.lv.chaseX = NONE
-    wd.lv.tideLo = NONE
+    wd.lv.goal_x = NONE
+    wd.lv.fam_x = NONE
+    wd.lv.chase_x = NONE
+    wd.lv.tide_lo = NONE
     wd.lv.tide = NONE
     wd.lv.cart.st = 0
     for i = 0 to 2
@@ -107,16 +107,16 @@ sub LoadLevel (wd as World, st as integer)
     wd.lv.icing = 0
     wd.lv.gale = 0
     wd.lv.murk = 0
-    wd.lv.glowAt = GLOWN
-    wd.lv.avalX = NONE
-    wd.lv.oakX = NONE
+    wd.lv.glow_at = GLOWN
+    wd.lv.aval_x = NONE
+    wd.lv.oak.x = NONE
     wd.lv.fallow = 0
-    wd.lv.nObj = 0
-    wd.lv.nGold = 0
-    wd.lv.nMv = 0
-    wd.lv.nGulls = 0
-    wd.lv.nSwarm = 0
-    wd.lv.nRope = 0
+    wd.lv.n_things = 0
+    wd.lv.n_gold = 0
+    wd.lv.n_movers = 0
+    wd.lv.n_gulls = 0
+    wd.lv.n_swarms = 0
+    wd.lv.n_ropes = 0
     for i = 0 to MW
         wd.lv.top(i) = MH
     next
@@ -214,8 +214,8 @@ sub LoadLevel (wd as World, st as integer)
         case "hoop": AddObj wd.lv, KHOOP, c * TS + 8, s - n * TS
         case "pipe"
             ' a wall with a quarter pipe up to it, over the three columns before: nothing grows there
-            for i = 0 to wd.lv.nObj - 1
-                if Rooted%(wd.lv, i, KTREE) and wd.lv.ob(i).at.x >= c * TS - PIPER then wd.lv.ob(i).kind = 0
+            for i = 0 to wd.lv.n_things - 1
+                if Rooted%(wd.lv, i, KTREE) and wd.lv.things(i).at.x >= c * TS - PIPER then wd.lv.things(i).kind = 0
             next
             AddObj wd.lv, KPIPE, c * TS, s
             ' Amber Downs' pipe is drawn with the ground under it
@@ -260,7 +260,7 @@ sub LoadLevel (wd as World, st as integer)
             ' a pit n wide, platforms lying on its floor that rise to bridge it once the last button is trodden
             for i = 0 to n \ 3 - 1
                 AddMover wd.lv, (c + i * 3) * TS, s + PITD * TS - 6, PITD * TS - 6, 4, c * TS
-                wd.lv.mv(wd.lv.nMv - 1).button = bx
+                wd.lv.movers(wd.lv.n_movers - 1).button = bx
             next
             Pit wd.lv, c, g, n
             c = c + n
@@ -288,7 +288,7 @@ sub LoadLevel (wd as World, st as integer)
         case "gold"
             ' a golden bone that many tiles over the ground
             AddObj wd.lv, KGOLD, c * TS + 8, s - n * TS - 14
-            wd.lv.nGold = wd.lv.nGold + 1
+            wd.lv.n_gold = wd.lv.n_gold + 1
         case "arc"
             for i = 0 to n - 1
                 AddObj wd.lv, KBONE, (c + i) * TS + 8, s - 20 - cint(50 * sin(PI * (i + .5) / n))
@@ -305,7 +305,7 @@ sub LoadLevel (wd as World, st as integer)
         case "thrower": k = KTHROW
         case "gale": wd.lv.gale = -1
         case "night": wd.lv.murk = -1
-        case "avalanche": wd.lv.avalX = c * TS + 8
+        case "avalanche": wd.lv.aval_x = c * TS + 8
         case "goat"
             Clearing wd.lv, c
             k = KGOAT
@@ -338,9 +338,9 @@ sub LoadLevel (wd as World, st as integer)
         case "buoy": AddObj wd.lv, KBUOY, (c + n) * TS + 8, s
         case "gull"
             ' a gull, its home n tiles over the ground here
-            wd.lv.gulls(wd.lv.nGulls).home.x = c * TS + 8
-            wd.lv.gulls(wd.lv.nGulls).home.y = s - n * TS
-            wd.lv.nGulls = wd.lv.nGulls + 1
+            wd.lv.gulls(wd.lv.n_gulls).home.x = c * TS + 8
+            wd.lv.gulls(wd.lv.n_gulls).home.y = s - n * TS
+            wd.lv.n_gulls = wd.lv.n_gulls + 1
         case "line"
             ' a street n wide and a clothesline over it, post to post, LINEH over the roof here
             Hang wd.lv, c, n, s - LINEH, 0
@@ -348,7 +348,7 @@ sub LoadLevel (wd as World, st as integer)
             c = c + n
         case "walker"
             ' a cat walking the line just hung, its home n columns along it
-            i = wd.lv.nRope - 1
+            i = wd.lv.n_ropes - 1
             AddObj wd.lv, KWALKER, wd.lv.ropes(i).at.x + POSTIN + n * TS + 8, wd.lv.ropes(i).at.y
         case "slide"
             ' a street n wide and a lantern line down over it, from a post LANTH over the roof here to the roof
@@ -369,16 +369,16 @@ sub LoadLevel (wd as World, st as integer)
             ' each other, -n - 1
             Clearing wd.lv, c
             AddObj wd.lv, KCHIMNEY, c * TS + 8, s
-            wd.lv.ob(wd.lv.nObj - 1).state = -n - 1
+            wd.lv.things(wd.lv.n_things - 1).state = -n - 1
         case "mortar"
             ' a mortar, firing on beat n of every bar
             Clearing wd.lv, c
             AddObj wd.lv, KMORTAR, c * TS + 8, s
-            wd.lv.ob(wd.lv.nObj - 1).state = n
+            wd.lv.things(wd.lv.n_things - 1).state = n
         case "tipper"
             ' a house behind the way, a cat at its window: its pot goes on beat n of every bar
             AddObj wd.lv, KTIPPER, c * TS + 8, s
-            wd.lv.ob(wd.lv.nObj - 1).state = n
+            wd.lv.things(wd.lv.n_things - 1).state = n
         case "tram"
             ' a tram on the street here, its way the n columns on: they are laid after it
             AddMover wd.lv, c * TS + 8, s - TRAMH, n * TS - MOVEW - 16, 8, c * TS
@@ -395,17 +395,17 @@ sub LoadLevel (wd as World, st as integer)
         case "squirrel": AddObj wd.lv, KSQUIRREL, c * TS + 8, s - n * TS
         case "bees"
             ' a swarm, its home n tiles over the ground here
-            wd.lv.swarms(wd.lv.nSwarm).home.x = c * TS + 8
-            wd.lv.swarms(wd.lv.nSwarm).home.y = s - n * TS
-            wd.lv.nSwarm = wd.lv.nSwarm + 1
+            wd.lv.swarms(wd.lv.n_swarms).home.x = c * TS + 8
+            wd.lv.swarms(wd.lv.n_swarms).home.y = s - n * TS
+            wd.lv.n_swarms = wd.lv.n_swarms + 1
         case "burrow"
             ' a burrow's mound, its other end the mound of the same n: till they are told each other, -n - 1
             AddObj wd.lv, KMOUND, c * TS + 8, s
-            wd.lv.ob(wd.lv.nObj - 1).state = -n - 1
+            wd.lv.things(wd.lv.n_things - 1).state = -n - 1
         case "oak"
             ' the great oak here, its limbs' flats over the ground either side of it
-            wd.lv.oakX = c * TS + 8
-            wd.lv.oakY = s
+            wd.lv.oak.x = c * TS + 8
+            wd.lv.oak.y = s
             Limbs wd.lv, g
         case "mark": k = KMARK
         case "boost": k = KBOOST
@@ -421,23 +421,23 @@ sub LoadLevel (wd as World, st as integer)
         case "spin": k = KSPIN
         case "goal"
             k = KGOAL
-            wd.lv.goalX = c * TS + 8
+            wd.lv.goal_x = c * TS + 8
         case "fam"
             k = KFAM
-            wd.lv.famX = c * TS + 8
+            wd.lv.fam_x = c * TS + 8
         case "chase"
-            wd.lv.chaseX = c * TS
-            wd.lv.chaseEnd = (c + n) * TS
+            wd.lv.chase_x = c * TS
+            wd.lv.chase_end = (c + n) * TS
         case "tide"
             ' the sea: its height at low water * 100 + at high, in the ground's tiles
-            wd.lv.tideLo = (MH - n \ 100) * TS
-            wd.lv.tideHi = (MH - n mod 100) * TS
-            wd.lv.tide = wd.lv.tideLo
-            wd.lv.tideAt = wd.se.ticks
+            wd.lv.tide_lo = (MH - n \ 100) * TS
+            wd.lv.tide_hi = (MH - n mod 100) * TS
+            wd.lv.tide = wd.lv.tide_lo
+            wd.lv.tide_at = wd.se.ticks
         case "tune": wd.mu.stageTune = n
         case "dog"
-            wd.lv.startX = c * TS + 8
-            wd.lv.startY = s
+            wd.lv.start.x = c * TS + 8
+            wd.lv.start.y = s
         end select
         if wd.zn.decked then k = Plated%(k)
         if k then AddObj wd.lv, k, c * TS + 8, s
@@ -446,8 +446,8 @@ sub LoadLevel (wd as World, st as integer)
     wd.lv.w = c
     wd.lv.wpx = c * TS
     ' nothing grows in front of the family
-    for i = 0 to wd.lv.nObj - 1
-        if Rooted%(wd.lv, i, KBUSH) and abs(wd.lv.ob(i).at.x - wd.lv.famX) < 112 then wd.lv.ob(i).kind = 0
+    for i = 0 to wd.lv.n_things - 1
+        if Rooted%(wd.lv, i, KBUSH) and abs(wd.lv.things(i).at.x - wd.lv.fam_x) < 112 then wd.lv.things(i).kind = 0
     next
     SortObjs wd.lv
     Pair wd.lv, KMOUND, -1
@@ -461,13 +461,13 @@ end sub
 ' A line hung over the street of n columns from column c: its near end at height y, its far end fall lower.
 ' Nothing grows by its posts.
 private sub Hang (lv as Level, c as integer, n as integer, y as integer, fall as integer)
-    lv.ropes(lv.nRope).at.x = c * TS - POSTIN
-    lv.ropes(lv.nRope).w = n * TS + POSTIN * 2
-    lv.ropes(lv.nRope).at.y = y
-    lv.ropes(lv.nRope).fall = fall
-    lv.ropes(lv.nRope).t = 0
-    lv.ropes(lv.nRope).cat = 0
-    lv.nRope = lv.nRope + 1
+    lv.ropes(lv.n_ropes).at.x = c * TS - POSTIN
+    lv.ropes(lv.n_ropes).w = n * TS + POSTIN * 2
+    lv.ropes(lv.n_ropes).at.y = y
+    lv.ropes(lv.n_ropes).fall = fall
+    lv.ropes(lv.n_ropes).t = 0
+    lv.ropes(lv.n_ropes).cat = 0
+    lv.n_ropes = lv.n_ropes + 1
     Weed lv, c * TS - 20
     lv.fallow = c + n + 2
 end sub
@@ -475,10 +475,10 @@ end sub
 ' Each line told the cat that walks it, once the things are in their order: the walker over its street.
 private sub Walkers (lv as Level)
     dim i as integer, r as integer
-    for i = 0 to lv.nObj - 1
-        if lv.ob(i).kind <> KWALKER then continue for
-        for r = 0 to lv.nRope - 1
-            if lv.ob(i).at.x <= lv.ropes(r).at.x or lv.ob(i).at.x >= lv.ropes(r).at.x + lv.ropes(r).w then continue for
+    for i = 0 to lv.n_things - 1
+        if lv.things(i).kind <> KWALKER then continue for
+        for r = 0 to lv.n_ropes - 1
+            if lv.things(i).at.x <= lv.ropes(r).at.x or lv.things(i).at.x >= lv.ropes(r).at.x + lv.ropes(r).w then continue for
             lv.ropes(r).cat = i + 1
         next
     next
@@ -487,19 +487,19 @@ end sub
 ' The pier's fallen spans back in their places, the swarms at home: Charlie starts again before them.
 sub Mend (lv as Level)
     dim m as integer
-    for m = 0 to lv.nSwarm - 1
+    for m = 0 to lv.n_swarms - 1
         lv.swarms(m).at.x = lv.swarms(m).home.x
         lv.swarms(m).at.y = lv.swarms(m).home.y
         lv.swarms(m).st = 0
     next
-    for m = 0 to lv.nMv - 1
-        if lv.mv(m).kind = 6 then lv.mv(m).t = 0
+    for m = 0 to lv.n_movers - 1
+        if lv.movers(m).kind = 6 then lv.movers(m).t = 0
     next
-    for m = 0 to lv.nObj - 1
-        if lv.ob(m).kind = KSLED then lv.ob(m).state = 0
-        if lv.ob(m).kind <> KGOAT then continue for
-        lv.ob(m).state = 1
-        lv.ob(m).at.x = lv.ob(m).home
+    for m = 0 to lv.n_things - 1
+        if lv.things(m).kind = KSLED then lv.things(m).state = 0
+        if lv.things(m).kind <> KGOAT then continue for
+        lv.things(m).state = 1
+        lv.things(m).at.x = lv.things(m).home
     next
     lv.stray.st = 0
     lv.aval.st = 0
@@ -513,7 +513,7 @@ end function
 function GoldNo% (lv as Level, i as integer)
     dim j as integer, n as integer
     for j = 0 to i - 1
-        if lv.ob(j).kind = KGOLD then n = n + 1
+        if lv.things(j).kind = KGOLD then n = n + 1
     next
     GoldNo% = n
 end function

@@ -42,24 +42,24 @@ sub MeetFlume (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
     dim px as integer, py as integer
     px = cint(p.at.x)
     py = cint(p.at.y)
-    if not p.ground or px < lv.ob(i).at.x or px >= lv.ob(i).at.x + TS then exit sub
-    if py > lv.ob(i).at.y - 6 and py < lv.ob(i).at.y + TS + 6 then Slide mu, se, p
+    if not p.ground or px < lv.things(i).at.x or px >= lv.things(i).at.x + TS then exit sub
+    if py > lv.things(i).at.y - 6 and py < lv.things(i).at.y + TS + 6 then Slide mu, se, p
 end sub
 
 ' Charlie at crab i. Down on its back he goes up off it, higher off its shell, and it ducks in a while; at its
 ' side its claws pinch, even a rolling Charlie. In its shell it pinches nobody, and a roll knocks it off the sand.
 sub MeetCrab (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
     dim y as integer
-    y = lv.ob(i).at.y
-    if lv.ob(i).state = 0 or abs(lv.ob(i).at.x - p.at.x) >= 15 or p.at.y < y - 22 or p.at.y > y + 10 then exit sub
+    y = lv.things(i).at.y
+    if lv.things(i).state = 0 or abs(lv.things(i).at.x - p.at.x) >= 15 or p.at.y < y - 22 or p.at.y > y + 10 then exit sub
     if not p.ground and p.vel.y > 0 and p.at.y < y - 4 then
         p.vel.y = -BOUNCEV
-        if abs(lv.ob(i).state) > 1 then p.vel.y = -STEPV
+        if abs(lv.things(i).state) > 1 then p.vel.y = -STEPV
         p.jumped = 0
-        if abs(lv.ob(i).state) < SHELLT \ 3 then lv.ob(i).state = sgn(lv.ob(i).state) * (SHELLT \ 3)
+        if abs(lv.things(i).state) < SHELLT \ 3 then lv.things(i).state = sgn(lv.things(i).state) * (SHELLT \ 3)
         Sfx mu, se, SSPRING
-    elseif abs(lv.ob(i).state) = 1 then
-        Hurt mu, se, g, p, lv.ob(i).at.x, lo(), SHURT
+    elseif abs(lv.things(i).state) = 1 then
+        Hurt mu, se, g, p, lv.things(i).at.x, lo(), SHURT
     elseif p.roll or p.charging then
         Beaten lv, mu, se, g, pt(), i, 6
     end if
@@ -148,7 +148,7 @@ end sub
 
 sub Flock (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
     dim i as integer
-    for i = 0 to lv.nGulls - 1
+    for i = 0 to lv.n_gulls - 1
         if lv.gulls(i).st > 0 then Gull mu, se, lv.gulls(i), i, g, p, lo(), pt()
     next
 end sub
@@ -156,7 +156,7 @@ end sub
 ' The gulls, a bone under one that carries any; wings still in a dive.
 sub DrawGulls (lv as Level, art as Store, se as Session, cx as integer, cy as integer)
     dim i as integer, x as integer, y as integer, k as integer
-    for i = 0 to lv.nGulls - 1
+    for i = 0 to lv.n_gulls - 1
         x = cint(lv.gulls(i).at.x) - cx
         y = cint(lv.gulls(i).at.y) - cy
         if lv.gulls(i).st <= 0 or x <= -20 or x >= SW + 20 then continue for
@@ -179,23 +179,23 @@ end function
 ' it, afloat or not, it stings: not a Charlie on a boat's deck over it.
 sub MeetJelly (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
     dim y as integer
-    y = lv.ob(i).at.y
-    if p.inv > 0 or lv.ob(i).state > 1 or abs(lv.ob(i).at.x - p.at.x) >= 12 or p.at.y < y - 26 or p.at.y > y + 8 then exit sub
+    y = lv.things(i).at.y
+    if p.inv > 0 or lv.things(i).state > 1 or abs(lv.things(i).at.x - p.at.x) >= 12 or p.at.y < y - 26 or p.at.y > y + 8 then exit sub
     if not p.ground and not p.swim and p.vel.y > 0 and p.at.y < y - 10 then
         p.vel.y = -JELLYV
         p.jumped = 0
         p.sprung = -1
-        lv.ob(i).state = 10
+        lv.things(i).state = 10
         Sfx mu, se, SSPRING
     elseif p.at.y > y - 14 then
         p.swim = 0
-        Hurt mu, se, g, p, lv.ob(i).at.x, lo(), SHURT
+        Hurt mu, se, g, p, lv.things(i).at.x, lo(), SHURT
     end if
 end sub
 
 ' The sea's level by the clock: from where the level began it to its other end and back, every TIDEP steps.
 sub Flow (lv as Level, se as Session)
-    lv.tide = lv.tideLo - cint((lv.tideLo - lv.tideHi) * (1 - cos((se.ticks - lv.tideAt) * 2 * PI / TIDEP)) / 2)
+    lv.tide = lv.tide_lo - cint((lv.tide_lo - lv.tide_hi) * (1 - cos((se.ticks - lv.tide_at) * 2 * PI / TIDEP)) / 2)
 end sub
 
 ' The sea in each column whose ground is under it: bands of water from its surface down behind the column's top

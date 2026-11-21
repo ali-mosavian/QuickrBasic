@@ -59,8 +59,8 @@ sub Tick (wd as World, g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Pa
     KeepBeat wd.mu, wd.se
     if wd.zn.id = 1 and (wd.se.ticks and 3) = 0 then Cycle wd.tn, wd.se
     if wd.lv.murk then Nightfall wd.lv, wd.zn, wd.tn
-    if wd.lv.tideLo <> NONE then Flow wd.lv, wd.se
-    if wd.lv.nMv then Movers wd.lv, wd.gr, wd.mu, wd.se, p
+    if wd.lv.tide_lo <> NONE then Flow wd.lv, wd.se
+    if wd.lv.n_movers then Movers wd.lv, wd.gr, wd.mu, wd.se, p
     g.mode_t = g.mode_t + STEPT
     if g.shake > 0 then g.shake = g.shake - STEPT
     if wd.se.unkept then Keep wd.se
@@ -83,7 +83,7 @@ private sub TitleStep (wd as World, g as Game, p as Hero, k as Pad, lo() as Loos
     if k.quit then g.quitting = -1
     if p.dead then
         ResetWorld wd, g, p, lo(), pt()
-    elseif p.at.x >= wd.lv.goalX then
+    elseif p.at.x >= wd.lv.goal_x then
         if Met%(wd, g, p, k, pt()) then ResetWorld wd, g, p, lo(), pt()
     else
         Pilot wd.lv, wd.gr, wd.zn, wd.se, p, auto
@@ -108,13 +108,13 @@ private sub PlayStep (wd as World, g as Game, p as Hero, k as Pad, lo() as Loose
     MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
     Touch wd.lv, wd.zn, wd.mu, wd.se, g, p, lo(), pt()
     if wd.lv.stray.st = 2 then Homeward wd.lv, g
-    if wd.lv.avalX <> NONE then Avalanche wd.lv, wd.mu, wd.se, g, p
+    if wd.lv.aval_x <> NONE then Avalanche wd.lv, wd.mu, wd.se, g, p
     Flee wd.lv, wd.zn, wd.mu, wd.se, g, p, lo(), pt()
-    if wd.lv.nGulls then Flock wd.lv, wd.mu, wd.se, g, p, lo(), pt()
-    if wd.lv.nSwarm then Swarms wd.lv, wd.mu, wd.se, g, p, lo()
-    if wd.lv.lobN then Volley wd.lv, wd.mu, wd.se, g, p, lo(), pt()
+    if wd.lv.n_gulls then Flock wd.lv, wd.mu, wd.se, g, p, lo(), pt()
+    if wd.lv.n_swarms then Swarms wd.lv, wd.mu, wd.se, g, p, lo()
+    if wd.lv.n_lobs then Volley wd.lv, wd.mu, wd.se, g, p, lo(), pt()
     if p.at.y > MH * TS + 24 then Lose wd.mu, wd.se, p
-    if p.at.x >= wd.lv.goalX then StageClear wd.mu, wd.se, g
+    if p.at.x >= wd.lv.goal_x then StageClear wd.mu, wd.se, g
     Camera wd.lv, wd.zn, g, p, 0
 end sub
 
@@ -169,30 +169,30 @@ sub ResetWorld (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
     g.lives = 3
     g.score = 0
     g.clock = 0
-    g.home.x = wd.lv.startX
-    g.home.y = wd.lv.startY
-    for i = 0 to wd.lv.nObj - 1
-        wd.lv.ob(i).at.x = wd.lv.ob(i).home
+    g.home.x = wd.lv.start.x
+    g.home.y = wd.lv.start.y
+    for i = 0 to wd.lv.n_things - 1
+        wd.lv.things(i).at.x = wd.lv.things(i).home
         ' a burrow's mound keeps its other end, and a chimney; a mortar its beat, and a tipper
-        if wd.lv.ob(i).kind = KMOUND or wd.lv.ob(i).kind = KCHIMNEY or wd.lv.ob(i).kind = KMORTAR then continue for
-        if wd.lv.ob(i).kind = KTIPPER then continue for
-        wd.lv.ob(i).state = 0
-        if wd.lv.ob(i).kind = KBONE then wd.lv.ob(i).state = 1
-        if wd.lv.ob(i).kind = KCAT or wd.lv.ob(i).kind = KCRAB or wd.lv.ob(i).kind = KSWEEP then wd.lv.ob(i).state = -1
-        if wd.lv.ob(i).kind = KWALKER or wd.lv.ob(i).kind = KSNATCH then wd.lv.ob(i).state = -1
-        if wd.lv.ob(i).kind = KJELLY then wd.lv.ob(i).state = 1
-        if wd.lv.ob(i).kind = KTHROW then wd.lv.ob(i).state = THROWC
-        if wd.lv.ob(i).kind = KSQUIRREL then wd.lv.ob(i).state = SQWAIT
-        if wd.lv.ob(i).kind = KGOAT or wd.lv.ob(i).kind = KWALL then wd.lv.ob(i).state = 1
+        if wd.lv.things(i).kind = KMOUND or wd.lv.things(i).kind = KCHIMNEY or wd.lv.things(i).kind = KMORTAR then continue for
+        if wd.lv.things(i).kind = KTIPPER then continue for
+        wd.lv.things(i).state = 0
+        if wd.lv.things(i).kind = KBONE then wd.lv.things(i).state = 1
+        if wd.lv.things(i).kind = KCAT or wd.lv.things(i).kind = KCRAB or wd.lv.things(i).kind = KSWEEP then wd.lv.things(i).state = -1
+        if wd.lv.things(i).kind = KWALKER or wd.lv.things(i).kind = KSNATCH then wd.lv.things(i).state = -1
+        if wd.lv.things(i).kind = KJELLY then wd.lv.things(i).state = 1
+        if wd.lv.things(i).kind = KTHROW then wd.lv.things(i).state = THROWC
+        if wd.lv.things(i).kind = KSQUIRREL then wd.lv.things(i).state = SQWAIT
+        if wd.lv.things(i).kind = KGOAT or wd.lv.things(i).kind = KWALL then wd.lv.things(i).state = 1
     next
     for i = 0 to NLOB - 1
         wd.lv.lobs(i).live = 0
     next
-    wd.lv.lobN = 0
+    wd.lv.n_lobs = 0
     for i = 0 to NMOVE
-        wd.lv.mv(i).t = 0
+        wd.lv.movers(i).t = 0
     next
-    for i = 0 to wd.lv.nGulls - 1
+    for i = 0 to wd.lv.n_gulls - 1
         wd.lv.gulls(i).at.x = wd.lv.gulls(i).home.x
         wd.lv.gulls(i).at.y = wd.lv.gulls(i).home.y
         wd.lv.gulls(i).rest = 0
@@ -227,20 +227,20 @@ end sub
 ' with Charlie at its left; a while with them, then the picture fades. Whether it has.
 private function Met% (wd as World, g as Game, p as Hero, k as Pad, pt() as Part)
     dim idle as Pad, parted as integer
-    idle.r = p.at.x < wd.lv.famX - 108 and not p.win
+    idle.r = p.at.x < wd.lv.fam_x - 108 and not p.win
     MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, idle, pt()
-    if p.at.x > wd.lv.famX - 106 then
-        p.at.x = wd.lv.famX - 106
+    if p.at.x > wd.lv.fam_x - 106 then
+        p.at.x = wd.lv.fam_x - 106
         p.gsp = 0
         p.vel.x = 0
         p.roll = 0
     end if
-    if p.ground and abs(p.gsp) < 5 and p.at.x >= wd.lv.famX - 108 then
+    if p.ground and abs(p.gsp) < 5 and p.at.x >= wd.lv.fam_x - 108 then
         p.win = -1
         p.face = 0
     end if
     wd.se.cheer = p.win
-    g.cam.x = g.cam.x + (wd.lv.famX - 166 - g.cam.x) * 4 * STEPT
+    g.cam.x = g.cam.x + (wd.lv.fam_x - 166 - g.cam.x) * 4 * STEPT
     wd.se.past_t = wd.se.past_t + STEPT
     if p.win and g.bonus = 0 then wd.se.met_t = wd.se.met_t + STEPT
     parted = wd.se.met_t > 6 or wd.se.past_t > 40 or (wd.se.met_t > 2 and (k.hit or k.start))

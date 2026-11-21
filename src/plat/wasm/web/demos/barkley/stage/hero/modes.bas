@@ -50,11 +50,11 @@ sub Hang (lv as Level, mu as Deck, se as Session, p as Hero, hit as integer)
     i = p.vine - 1
     p.sway_v = p.sway_v - GRAV / VINELEN * sin(p.sway) * STEPT
     p.sway = p.sway + p.sway_v * STEPT
-    p.at.x = lv.ob(i).at.x + VINELEN * sin(p.sway)
-    p.at.y = lv.ob(i).at.y + VINELEN * cos(p.sway) + VINEGRIP
+    p.at.x = lv.things(i).at.x + VINELEN * sin(p.sway)
+    p.at.y = lv.things(i).at.y + VINELEN * cos(p.sway) + VINEGRIP
     p.vel.x = VINELEN * p.sway_v * cos(p.sway)
     p.vel.y = -VINELEN * p.sway_v * sin(p.sway)
-    lv.ob(i).state = cint(p.sway * 100)
+    lv.things(i).state = cint(p.sway * 100)
     if not (hit or p.stun or p.dead) then exit sub
     p.vine = 0
     p.vine_t = VINEWAIT
@@ -70,20 +70,20 @@ end sub
 sub Tunnel (lv as Level, mu as Deck, se as Session, p as Hero, pt() as Part)
     dim i as integer, dx as single, c as integer
     i = p.dig - 1
-    dx = lv.ob(i).at.x - p.at.x
+    dx = lv.things(i).at.x - p.at.x
     if abs(dx) > DIGV * STEPT then
         p.vel.x = sgn(dx) * DIGV
         p.at.x = p.at.x + p.vel.x * STEPT
-        p.at.y = p.at.y + (lv.ob(i).at.y - p.at.y) * DIGV * STEPT / abs(dx)
-        if lv.ob(i).kind = KMOUND and (se.ticks and 3) = 0 then Burst se, pt(), p.at.x, p.at.y, 2, 50, CLOAM
+        p.at.y = p.at.y + (lv.things(i).at.y - p.at.y) * DIGV * STEPT / abs(dx)
+        if lv.things(i).kind = KMOUND and (se.ticks and 3) = 0 then Burst se, pt(), p.at.x, p.at.y, 2, 50, CLOAM
         exit sub
     end if
-    p.at.x = lv.ob(i).at.x
-    p.at.y = lv.ob(i).at.y
+    p.at.x = lv.things(i).at.x
+    p.at.y = lv.things(i).at.y
     p.vel.x = 0
     p.vel.y = -DIGPOP
     c = CLOAM
-    if lv.ob(i).kind = KCHIMNEY then
+    if lv.things(i).kind = KCHIMNEY then
         p.at.y = p.at.y - FLUEH
         p.vel.y = -FLUEPOP
         c = CSOOT
@@ -103,7 +103,7 @@ function Lull% (lv as Level, se as Session)
     dim t as integer
     t = GUSTP - GUSTON - se.ticks mod GUSTP
     if t < 0 then t = 0
-    if lv.avalX <> NONE and lv.aval.st = 1 then t = GUSTP
+    if lv.aval_x <> NONE and lv.aval.st = 1 then t = GUSTP
     Lull% = t
 end function
 

@@ -78,9 +78,9 @@ end function
 function Sunk% (lv as Level, y as integer)
     dim ebb as integer
     Sunk% = 0
-    if lv.tideLo = NONE then exit function
-    ebb = lv.tideLo
-    if lv.tideHi > ebb then ebb = lv.tideHi
+    if lv.tide_lo = NONE then exit function
+    ebb = lv.tide_lo
+    if lv.tide_hi > ebb then ebb = lv.tide_hi
     Sunk% = y > ebb + WADE
 end function
 

@@ -49,17 +49,17 @@ sub Touch (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as 
     dim i as integer, c as integer, px as integer, py as integer, x as integer, dx as integer
     ' under the ground nothing is met
     if p.dig then exit sub
-    if lv.nRope then Lines lv, mu, se, g, p, pt()
+    if lv.n_ropes then Lines lv, mu, se, g, p, pt()
     px = cint(p.at.x)
     py = cint(p.at.y)
     c = (px - 80) \ TS
     if c < 0 then c = 0
     i = lv.first(c)
-    do while i < lv.nObj
-        x = lv.ob(i).at.x
+    do while i < lv.n_things
+        x = lv.things(i).at.x
         if x > px + 80 then exit do
         dx = abs(x - px)
-        select case lv.ob(i).kind
+        select case lv.things(i).kind
         case KBONE: MeetBone lv, mu, se, g, p, i, pt()
         case KGOLD: MeetGold lv, zn, mu, se, g, p, i, pt()
         case KCAT, KSQUIRREL, KWALKER, KSNATCH: MeetCat lv, mu, se, g, p, i, lo(), pt()
@@ -89,8 +89,8 @@ sub Touch (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as 
         case KBOOST: MeetBoost lv, mu, se, g, p, i, pt()
         case KFLUME, KSPOUT: MeetFlume lv, mu, se, p, i
         case KMARK: MeetMark lv, mu, se, g, p, i, pt()
-        case KGOAL: if px >= x then lv.ob(i).state = 1
-        case KTHORN: if dx < 12 and abs(py - lv.ob(i).at.y) < 8 then Hurt mu, se, g, p, x, lo(), SHURT
+        case KGOAL: if px >= x then lv.things(i).state = 1
+        case KTHORN: if dx < 12 and abs(py - lv.things(i).at.y) < 8 then Hurt mu, se, g, p, x, lo(), SHURT
         case KBUTTON: MeetButton lv, mu, se, p, i, pt()
         case KJET: MeetJet lv, mu, se, p, i
         case KBUMP, KBUOY: MeetBump lv, mu, se, g, p, i, pt()
@@ -132,32 +132,32 @@ sub Things (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() a
     const DT! = STEPT * 2
     c = (cint(g.cam.x) - 100) \ TS
     if c < 0 then c = 0
-    for i = lv.first(c) to lv.nObj - 1
-        if lv.ob(i).home > g.cam.x + SW + 100 then exit for
-        select case lv.ob(i).kind
-        case KCAT, KCRAB, KSWEEP: if lv.ob(i).state <> 0 then Prowl lv, i
-        case KSPARK: lv.ob(i).at.x = lv.ob(i).home + cint(SPARKR * sin((se.ticks + lv.ob(i).home) * .03))
+    for i = lv.first(c) to lv.n_things - 1
+        if lv.things(i).home > g.cam.x + SW + 100 then exit for
+        select case lv.things(i).kind
+        case KCAT, KCRAB, KSWEEP: if lv.things(i).state <> 0 then Prowl lv, i
+        case KSPARK: lv.things(i).at.x = lv.things(i).home + cint(SPARKR * sin((se.ticks + lv.things(i).home) * .03))
         case KICICLE: Totter lv, mu, se, g, pt(), i
         case KLOAD: Unload lv, mu, se, g, p, lo(), pt(), i
-        case KGOAT: if lv.ob(i).state <> 0 then Graze lv, se, i, p
+        case KGOAT: if lv.things(i).state <> 0 then Graze lv, se, i, p
         case KTHROW: TakeAim lv, i, p
-        case KSQUIRREL: if lv.ob(i).state <> 0 then Scamper lv, i, p
+        case KSQUIRREL: if lv.things(i).state <> 0 then Scamper lv, i, p
         case KPOUNCE: Pounce lv, i, p
-        case KSNATCH: if lv.ob(i).state <> 0 then Snatch lv, mu, se, i, lo(), pt()
+        case KSNATCH: if lv.things(i).state <> 0 then Snatch lv, mu, se, i, lo(), pt()
         case KMORTAR: Mortar lv, mu, se, i
         case KTIPPER: Tipper lv, mu, se, i, pt()
-        case KSPRING, KBUMP, KHOOP, KSAPLING, KAWNING: if lv.ob(i).state > 0 then lv.ob(i).state = lv.ob(i).state - 1
+        case KSPRING, KBUMP, KHOOP, KSAPLING, KAWNING: if lv.things(i).state > 0 then lv.things(i).state = lv.things(i).state - 1
         case KBRAMBLE: Regrow lv, se, pt(), i
-        case KVINE: if p.vine <> i + 1 then lv.ob(i).state = lv.ob(i).state * 7 \ 8
+        case KVINE: if p.vine <> i + 1 then lv.things(i).state = lv.things(i).state * 7 \ 8
         case KBUOY
-            lv.ob(i).at.y = Bob%(lv, lv.ob(i).at.x, -4, 9)
-            if lv.ob(i).state > 0 then lv.ob(i).state = lv.ob(i).state - 1
+            lv.things(i).at.y = Bob%(lv, lv.things(i).at.x, -4, 9)
+            if lv.things(i).state > 0 then lv.things(i).state = lv.things(i).state - 1
         case KJELLY
-            lv.ob(i).at.y = Bob%(lv, lv.ob(i).at.x, JELLYD, 0)
-            if lv.ob(i).state > 1 then lv.ob(i).state = lv.ob(i).state - 1
+            lv.things(i).at.y = Bob%(lv, lv.things(i).at.x, JELLYD, 0)
+            if lv.things(i).state > 1 then lv.things(i).state = lv.things(i).state - 1
         end select
     next
-    if lv.nRope then Settle lv
+    if lv.n_ropes then Settle lv
     if se.loose_n then LooseBones lv, se, lo(), DT
     if se.part_n then Particles se, pt(), DT
 end sub

@@ -97,51 +97,49 @@ end type
 
 ' The level as laid: w columns, wpx pixels, of the MW by MH map; a column's top, what shows of it, its faces, its
 ' glaze (the pass's bare ice; icing: those laid now are), the first thing at it. prof: a tile kind's solid height
-' by column. The race from chaseX to chaseEnd and the avalanche's head avalX, NONE where there is none. The
-' sea's surface tide, NONE without one, from tideLo at step tideAt to tideHi half a tide later. Who flees in its
-' chase, a crane's crate, the goat out of its place, the avalanche. The great oak's foot oakX, oakY, NONE without.
+' by column. The race from chase_x to chase_end and the avalanche's head aval_x, NONE where there is none. The
+' sea's surface tide, NONE without one, from tide_lo at step tide_at to tide_hi half a tide later. Who flees in its
+' chase, a crane's crate, the goat out of its place, the avalanche. The great oak's foot oak, its x NONE without.
 ' The quarter's clotheslines.
 type Level
     w as integer
     wpx as integer
-    goalX as integer
-    famX as integer
-    startX as integer
-    startY as integer
-    chaseX as integer
-    chaseEnd as integer
-    avalX as integer
-    oakX as integer
-    oakY as integer
-    nGold as integer
+    goal_x as integer
+    fam_x as integer
+    start as Spot
+    chase_x as integer
+    chase_end as integer
+    aval_x as integer
+    oak as Spot
+    n_gold as integer
     tide as integer
-    tideLo as integer
-    tideHi as integer
-    tideAt as long
+    tide_lo as integer
+    tide_hi as integer
+    tide_at as long
     icing as integer
     fallow as integer
     gale as integer
     murk as integer
     glow as integer
-    glowAt as integer
+    glow_at as integer
     prof() as integer
     top() as integer
     vis() as integer
-    faceL() as integer
-    faceR() as integer
+    face_l() as integer
+    face_r() as integer
     glaze() as integer
     first() as integer
-    nObj as integer
-    ob() as Thing
-    nMv as integer
-    mv() as Mover
-    nGulls as integer
+    n_things as integer
+    things() as Thing
+    n_movers as integer
+    movers() as Mover
+    n_gulls as integer
     gulls() as Bird
-    nSwarm as integer
+    n_swarms as integer
     swarms() as Swarm
-    nRope as integer
+    n_ropes as integer
     ropes() as Rope
-    lobN as integer
+    n_lobs as integer
     lobs() as Lob
     map() as integer
     cart as Runner

@@ -17,7 +17,7 @@ const BOUNCEV = 330!
 sub Tackle (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, dy as integer, lo() as Loose, pt() as Part)
     dim x as integer
     if p.roll = 0 and p.charging = 0 then
-        x = lv.ob(i).at.x
+        x = lv.things(i).at.x
         Hurt mu, se, g, p, x, lo(), SHISS
         exit sub
     end if
@@ -81,9 +81,9 @@ end sub
 
 ' Thing i beaten: gone, its points, a shake and a puff dy over its foot.
 sub Beaten (lv as Level, mu as Deck, se as Session, g as Game, pt() as Part, i as integer, dy as integer)
-    lv.ob(i).state = 0
+    lv.things(i).state = 0
     g.score = g.score + 100
     g.shake = .15
-    Burst se, pt(), csng(lv.ob(i).at.x), csng(lv.ob(i).at.y - dy), 10, 130, CWHITE
+    Burst se, pt(), csng(lv.things(i).at.x), csng(lv.things(i).at.y - dy), 10, 130, CWHITE
     Sfx mu, se, SPOP
 end sub

@@ -30,13 +30,13 @@ sub Loft (lv as Level, x as single, y as single, vx as single, vy as single, pic
     lv.lobs(n).c = c
     lv.lobs(n).bedded = Solid%(lv, cint(x), cint(y))
     lv.lobs(n).live = -1
-    lv.lobN = lv.lobN + 1
+    lv.n_lobs = lv.n_lobs + 1
 end sub
 
 ' What is in the air, n, bursts.
 private sub Splat (lv as Level, mu as Deck, se as Session, n as integer, pt() as Part)
     lv.lobs(n).live = 0
-    lv.lobN = lv.lobN - 1
+    lv.n_lobs = lv.n_lobs - 1
     Burst se, pt(), lv.lobs(n).at.x, lv.lobs(n).at.y, 6, 90, lv.lobs(n).c
     Sfx mu, se, SPOP
 end sub

@@ -23,31 +23,31 @@ private const BOOSTV = 660!
 
 ' A bone where the level put it: taken.
 sub MeetBone (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, pt() as Part)
-    if lv.ob(i).state = 0 or abs(lv.ob(i).at.x - cint(p.at.x)) >= 12 then exit sub
-    if abs(lv.ob(i).at.y - cint(p.at.y) + 13) >= 16 then exit sub
-    lv.ob(i).state = 0
+    if lv.things(i).state = 0 or abs(lv.things(i).at.x - cint(p.at.x)) >= 12 then exit sub
+    if abs(lv.things(i).at.y - cint(p.at.y) + 13) >= 16 then exit sub
+    lv.things(i).state = 0
     g.bones = g.bones + 1
     g.score = g.score + 10
-    Burst se, pt(), csng(lv.ob(i).at.x), csng(lv.ob(i).at.y), 4, 50, CGOLD + 4
+    Burst se, pt(), csng(lv.things(i).at.x), csng(lv.things(i).at.y), 4, 50, CGOLD + 4
     Sfx mu, se, SBONE
 end sub
 
 ' A golden bone not found before: found, for good.
 sub MeetGold (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as Hero, i as integer, pt() as Part)
     dim n as integer
-    if abs(lv.ob(i).at.x - cint(p.at.x)) >= 12 or abs(lv.ob(i).at.y - cint(p.at.y) + 13) >= 16 then exit sub
+    if abs(lv.things(i).at.x - cint(p.at.x)) >= 12 or abs(lv.things(i).at.y - cint(p.at.y) + 13) >= 16 then exit sub
     n = GoldNo%(lv, i)
     if Found%(se, zn.stage, n) then exit sub
     Gild se, zn.stage, n
     g.score = g.score + GOLDPTS
-    Burst se, pt(), csng(lv.ob(i).at.x), csng(lv.ob(i).at.y), 10, 90, CGOLD + 4
+    Burst se, pt(), csng(lv.things(i).at.x), csng(lv.things(i).at.y), 10, 90, CGOLD + 4
     Sfx mu, se, SGOLD
 end sub
 
 ' A cat of the Mob, or a squirrel: rolled or charged into it is beaten, and he bounces off it; else it scratches.
 sub MeetCat (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
-    if lv.ob(i).state = 0 or abs(lv.ob(i).at.x - cint(p.at.x)) >= 15 then exit sub
-    if abs(lv.ob(i).at.y - 6 - cint(p.at.y) + 13) >= 17 then exit sub
+    if lv.things(i).state = 0 or abs(lv.things(i).at.x - cint(p.at.x)) >= 15 then exit sub
+    if abs(lv.things(i).at.y - 6 - cint(p.at.y) + 13) >= 17 then exit sub
     Tackle lv, mu, se, g, p, i, 6, lo(), pt()
 end sub
 
@@ -55,23 +55,23 @@ end sub
 sub MeetSpring (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
     dim py as integer
     py = cint(p.at.y)
-    if abs(lv.ob(i).at.x - cint(p.at.x)) >= 11 or py < lv.ob(i).at.y - 12 or py > lv.ob(i).at.y + 2 then exit sub
+    if abs(lv.things(i).at.x - cint(p.at.x)) >= 11 or py < lv.things(i).at.y - 12 or py > lv.things(i).at.y + 2 then exit sub
     if not p.ground and p.vel.y < 0 then exit sub
     if p.ground then p.vel.x = p.gsp
     p.ground = 0
     p.vel.y = -SPRINGV
-    p.at.y = lv.ob(i).at.y - 12
+    p.at.y = lv.things(i).at.y - 12
     p.roll = 0
     p.jumped = 0
     p.sprung = -1
-    lv.ob(i).state = 8
+    lv.things(i).state = 8
     Sfx mu, se, SSPRING
 end sub
 
 ' A boost pad: run over slower than it sends, he is sent the way he faces.
 sub MeetBoost (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, pt() as Part)
-    if not p.ground or abs(lv.ob(i).at.x - cint(p.at.x)) >= 12 then exit sub
-    if abs(cint(p.at.y) - lv.ob(i).at.y) >= 4 or abs(p.gsp) >= BOOSTV then exit sub
+    if not p.ground or abs(lv.things(i).at.x - cint(p.at.x)) >= 12 then exit sub
+    if abs(cint(p.at.y) - lv.things(i).at.y) >= 4 or abs(p.gsp) >= BOOSTV then exit sub
     p.gsp = BOOSTV * (1 - 2 * p.face)
     g.shake = .2
     Burst se, pt(), p.at.x, p.at.y - 4, 8, 150, CGOLD + 4
@@ -80,11 +80,11 @@ end sub
 
 ' A marker post: passed, it is where he comes back to.
 sub MeetMark (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, pt() as Part)
-    if lv.ob(i).state <> 0 or cint(p.at.x) < lv.ob(i).at.x then exit sub
-    lv.ob(i).state = 1
-    g.home.x = lv.ob(i).at.x
-    g.home.y = lv.ob(i).at.y
-    Burst se, pt(), csng(lv.ob(i).at.x), csng(lv.ob(i).at.y - 28), 8, 80, CGOLD + 4
+    if lv.things(i).state <> 0 or cint(p.at.x) < lv.things(i).at.x then exit sub
+    lv.things(i).state = 1
+    g.home.x = lv.things(i).at.x
+    g.home.y = lv.things(i).at.y
+    Burst se, pt(), csng(lv.things(i).at.x), csng(lv.things(i).at.y - 28), 8, 80, CGOLD + 4
     Sfx mu, se, SMARK
 end sub
 
@@ -95,24 +95,24 @@ end sub
 function Paced% (lv as Level, i as integer)
     dim x as integer, y as integer, s as integer
     Paced% = 0
-    x = lv.ob(i).at.x + lv.ob(i).state
-    y = lv.ob(i).at.y
-    s = Surf%(lv, x + lv.ob(i).state * 8, y)
-    if abs(x - lv.ob(i).home) > BEAT or abs(s - y) > 6 or Solid%(lv, x + lv.ob(i).state * 8, y - 6) then exit function
-    lv.ob(i).at.x = x
+    x = lv.things(i).at.x + lv.things(i).state
+    y = lv.things(i).at.y
+    s = Surf%(lv, x + lv.things(i).state * 8, y)
+    if abs(x - lv.things(i).home) > BEAT or abs(s - y) > 6 or Solid%(lv, x + lv.things(i).state * 8, y - 6) then exit function
+    lv.things(i).at.x = x
     s = Surf%(lv, x, y)
-    if abs(s - y) <= 6 then lv.ob(i).at.y = s
+    if abs(s - y) <= 6 then lv.things(i).at.y = s
     Paced% = -1
 end function
 
 ' A cat's step: startled, it stands and counts its state down to a prowl's; prowling, a pixel along its beat, turned
 ' at the beat's end, a drop or a wall.
 sub Prowl (lv as Level, i as integer)
-    if abs(lv.ob(i).state) > 1 then
-        lv.ob(i).state = lv.ob(i).state - sgn(lv.ob(i).state)
+    if abs(lv.things(i).state) > 1 then
+        lv.things(i).state = lv.things(i).state - sgn(lv.things(i).state)
         exit sub
     end if
-    if not Paced%(lv, i) then lv.ob(i).state = -lv.ob(i).state
+    if not Paced%(lv, i) then lv.things(i).state = -lv.things(i).state
 end sub
 
 ' A cat's picture by its state: startled, turned to what barked, or a stride of its prowl the way it goes.

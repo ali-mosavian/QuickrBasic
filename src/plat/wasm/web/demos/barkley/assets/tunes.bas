@@ -103,7 +103,7 @@ end sub
 ' The level's end for the level there is: after a chase the longer one, the cat sent packing first; in the quarter
 ' before its chase the whistled one, the guitar gone.
 sub EndTune (lv as Level, zn as Realm, mu as Deck)
-    if lv.chaseX <> NONE then
+    if lv.chase_x <> NONE then
         SceneTune mu, PACKING
     elseif zn.id = 5 then
         SceneTune mu, WHISTLED

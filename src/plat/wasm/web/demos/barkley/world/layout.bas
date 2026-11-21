@@ -17,19 +17,19 @@ sub AddMover (lv as Level, x as integer, y as integer, a as integer, k as intege
     case 8: AddObj lv, KTRAM, x, y
     case else: AddObj lv, KMOVE, x, y
     end select
-    lv.mv(lv.nMv).at.x = x
-    lv.mv(lv.nMv).at.y = y
-    lv.mv(lv.nMv).reach = a
-    lv.mv(lv.nMv).kind = k
-    lv.mv(lv.nMv).edge = e
-    lv.nMv = lv.nMv + 1
+    lv.movers(lv.n_movers).at.x = x
+    lv.movers(lv.n_movers).at.y = y
+    lv.movers(lv.n_movers).reach = a
+    lv.movers(lv.n_movers).kind = k
+    lv.movers(lv.n_movers).edge = e
+    lv.n_movers = lv.n_movers + 1
 end sub
 
 ' What grows past x is pulled up.
 sub Weed (lv as Level, x as integer)
     dim i as integer
-    for i = 0 to lv.nObj - 1
-        if lv.ob(i).kind >= KTREE and lv.ob(i).kind <= KLAMP and lv.ob(i).at.x > x then lv.ob(i).kind = 0
+    for i = 0 to lv.n_things - 1
+        if lv.things(i).kind >= KTREE and lv.things(i).kind <= KLAMP and lv.things(i).at.x > x then lv.things(i).kind = 0
     next
 end sub
 
@@ -100,7 +100,7 @@ end sub
 sub Limbs (lv as Level, g as integer)
     dim n as integer, i as integer, c as integer
     for n = 0 to NLIMB - 1
-        c = (lv.oakX + LimbX%(n)) \ TS
+        c = (lv.oak.x + LimbX%(n)) \ TS
         for i = 0 to LIMBW \ TS - 1
             lv.map(c + i, MH - g - LimbUp%(n) \ TS) = 1
         next
@@ -108,29 +108,29 @@ sub Limbs (lv as Level, g as integer)
 end sub
 
 sub AddObj (lv as Level, k as integer, x as integer, y as integer)
-    lv.ob(lv.nObj).kind = k
-    lv.ob(lv.nObj).at.x = x
-    lv.ob(lv.nObj).at.y = y
-    lv.ob(lv.nObj).home = x
-    lv.nObj = lv.nObj + 1
+    lv.things(lv.n_things).kind = k
+    lv.things(lv.n_things).at.x = x
+    lv.things(lv.n_things).at.y = y
+    lv.things(lv.n_things).home = x
+    lv.n_things = lv.n_things + 1
 end sub
 
 ' Whether thing i stands rooted in the ground: of a kind from lo to the lamp, or a post.
 function Rooted% (lv as Level, i as integer, lo as integer)
-    Rooted% = (lv.ob(i).kind >= lo and lv.ob(i).kind <= KLAMP) or lv.ob(i).kind >= KPOST
+    Rooted% = (lv.things(i).kind >= lo and lv.things(i).kind <= KLAMP) or lv.things(i).kind >= KPOST
 end function
 
 ' The things of kind k told each other in pairs: a thing's state its other end, counted from 1. With no way
 ' back the second's is 0: a way out that takes no one in.
 sub Pair (lv as Level, k as integer, back as integer)
     dim i as integer, j as integer
-    for i = 0 to lv.nObj - 1
-        if lv.ob(i).kind <> k or lv.ob(i).state >= 0 then continue for
-        for j = i + 1 to lv.nObj - 1
-            if lv.ob(j).kind <> k or lv.ob(j).state <> lv.ob(i).state then continue for
-            lv.ob(i).state = j + 1
-            lv.ob(j).state = 0
-            if back then lv.ob(j).state = i + 1
+    for i = 0 to lv.n_things - 1
+        if lv.things(i).kind <> k or lv.things(i).state >= 0 then continue for
+        for j = i + 1 to lv.n_things - 1
+            if lv.things(j).kind <> k or lv.things(j).state <> lv.things(i).state then continue for
+            lv.things(i).state = j + 1
+            lv.things(j).state = 0
+            if back then lv.things(j).state = i + 1
             exit for
         next
     next
@@ -139,23 +139,23 @@ end sub
 ' The things by x, and first(c) the first at or past column c.
 sub SortObjs (lv as Level)
     dim i as integer, j as integer, c as integer
-    for i = 1 to lv.nObj - 1
+    for i = 1 to lv.n_things - 1
         j = i
         do while j > 0
-            if lv.ob(j - 1).at.x <= lv.ob(j).at.x then exit do
-            swap lv.ob(j - 1), lv.ob(j)
+            if lv.things(j - 1).at.x <= lv.things(j).at.x then exit do
+            swap lv.things(j - 1), lv.things(j)
             j = j - 1
         loop
     next
     i = 0
     for c = 0 to MW
-        do while i < lv.nObj
-            if lv.ob(i).at.x >= c * TS then exit do
+        do while i < lv.n_things
+            if lv.things(i).at.x >= c * TS then exit do
             i = i + 1
         loop
         lv.first(c) = i
     next
-    for i = 0 to lv.nObj - 1
-        lv.ob(i).home = lv.ob(i).at.x
+    for i = 0 to lv.n_things - 1
+        lv.things(i).home = lv.things(i).at.x
     next
 end sub
