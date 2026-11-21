@@ -3,12 +3,12 @@ defint A-Z
 option explicit
 
 ' The game's time against the screen's frames: lag, the time not yet stepped; span, a frame's length as learnt; late,
-' what the game is behind the clock; n, the frames seen.
+' what the game is behind the clock; frames, the frames seen.
 type Clock
     lag as single
     span as single
     late as single
-    n as single
+    frames as single
 end type
 
 const STEPT = 1! / 60!
@@ -21,9 +21,9 @@ const STEPT = 1! / 60!
 ' the clock (c.late) made up each frame. A stall is made up at once.
 sub Pace (d as single, c as Clock)
     dim a as single, r as single, ph as single
-    c.n = c.n + 1
-    if d < 3 * c.span or c.n < 3 then
-        a = 1 / c.n
+    c.frames = c.frames + 1
+    if d < 3 * c.span or c.frames < 3 then
+        a = 1 / c.frames
         if a < .005 then a = .005
         c.span = c.span + (d - c.span) * a
     end if
