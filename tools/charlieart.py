@@ -44,7 +44,7 @@ def ramp(first: int, a: tuple[int, int, int], b: tuple[int, int, int], n: int) -
 # backdrop use (CLOUD between them is shared), and those nothing uses.
 SPARE = [5, 6, 7, 148, 149, 172, 173, 174, *range(179, 185), *range(225, 256)]
 POOL = {1: [*range(96, 138), *range(141, 148), *range(156, 172), *range(185, 193), *SPARE]}
-ZPAL: dict[int, dict[int, tuple[int, int, int]]] = {stage: {} for stage in range(10)}
+ZPAL: dict[int, dict[int, tuple[int, int, int]]] = {stage: {} for stage in range(12)}
 
 
 def pal(z: int) -> dict[int, tuple[int, int, int]]:
@@ -1179,6 +1179,7 @@ LETTERS: dict[str, tuple[float, list[list[tuple[float, float]]]]] = {
     "N": (4, [[(0, 6), (0, 0), (4, 6), (4, 0)]]),
     "O": (4, [[(1, 0), (3, 0), (4, 1), (4, 5), (3, 6), (1, 6), (0, 5), (0, 1), (1, 0)]]),
     "P": (4, [[(0, 0), (0, 6)], [(0, 0), (2.4, 0), (3.8, 0.8), (3.8, 2.4), (2.4, 3.2), (0, 3.2)]]),
+    "Q": (4, [[(1, 0), (3, 0), (4, 1), (4, 5), (3, 6), (1, 6), (0, 5), (0, 1), (1, 0)], [(2.5, 4.2), (4.2, 6.3)]]),
     "R": (4, [[(0, 0), (0, 6)], [(0, 0), (2.4, 0), (3.8, 0.8), (3.8, 2.4), (2.4, 3.2), (0, 3.2)], [(2, 3.2), (4, 6)]]),
     "S": (
         4,
@@ -4864,10 +4865,281 @@ def russet() -> list[tuple[int, Pic, bool, int]]:
     return out
 
 
+# ---- Lantern Quarter: fish-scale roofs over brick, strings of lanterns across the houses behind; its colours its
+# own, the blue hour and the festival night ----
+
+# the backdrop: the sky down to its afterglow, the moon, three terraces each with its wall, roof and lit window
+QSKY = both(
+    96,
+    "#232A6C #2F3A84 #40509C #5868B0 #7C84C0 #B09CC4 #EDB8A4",
+    "#0A0A26 #0E0E30 #14143C #1A1A48 #222056 #2C2662 #3C2E6E",
+    5,
+)
+QMOON = both(103, "#FFF8D8 #F0E4B8 #D4C4AC", "#FFFCE8 #F4ECC8 #D4CCB8", 5)
+QFAR = both(106, "#9A94C6 #8A86BC #FFE0A0", "#2A2A5E #222252 #FFD080", 5)
+QMID = both(109, "#7074B0 #5E60A2 #FFC870 #62669E", "#20204E #181842 #FFB850 #1A1A44", 5)  # and a window unlit
+QNEAR = both(113, "#4C4E92 #404286 #FFB050", "#15153E #111136 #FFA840", 5)
+# the playfield: indigo scales, a cream eave, brick red, lantern orange
+SCALES = both(116, "#8C98F8 #4C54C8 #343AA0 #1E1C6C", "#7C80E0 #3A3EA8 #282884 #16144C", 5)  # lit, body, rim, gap
+EAVE = both(120, "#FFE8C0 #C89878", "#E8C8A0 #A07868", 5)
+QBRICK = both(122, "#E8785C #C04C44 #963A44 #5A2440", "#B85C5C #8E3C48 #6C2C44 #3A183C", 5)  # to its mortar
+LITPANE = both(126, "#FFF4B0 #FFB840 #4A2038 #3C8C8C", "#FFF8C0 #FFA830 #30142C #2C6C74", 5)  # frame, shutter
+QWALL = both(130, "#8C5068 #74405C #A46474", "#4C2C50 #3C2244 #5E3858", 5)  # a wall behind: body, mortar, lit
+QINK = both(133, "#1C1030", "#0C0820", 5)[0]
+STRIPE = both(134, "#FFF0D0 #FF9838 #C86428", "#F0D8B8 #F08830 #A85028", 5)
+PAPER = both(141, "#FFF8C0 #FFA028 #D84828", "#FFF8C0 #FFA028 #D84828", 5)  # a lantern: its light, itself, its shade
+QPOLE = both(161, "#D8A070 #A06848 #6C4038", "#A07C78 #74546C #4C3458", 5)
+TIN = both(164, "#D8E0F0 #98A4C8 #6870A0 #3C3C70", "#A0A8D0 #6C74A8 #484C84 #282858", 5)
+CLAY = both(190, "#F09860 #C06840 #58B458", "#C07C60 #8C5048 #3C8858", 5)  # a pot lit and shaded, its plant
+
+
+def terrace(
+    p: Pic, base: int, widths: tuple[int, ...], h0: int, hv: int, r: list[int], win: tuple[int, int], lit: int
+) -> None:
+    """A row of houses side by side across p, of period 320: walls of r[0] under roofs of r[1], gabled or flat, a
+    stack on every other; their windows win wide and high, one in lit of them alight, r[2], the rest r[3] where
+    there is one."""
+    assert 320 % sum(widths) == 0
+    x = 0
+    for i in range(len(widths) * (320 // sum(widths))):
+        w = widths[i % len(widths)]
+        top = base - h0 - (i * 11 + base * 3) % hv
+        p.box(x, top, x + w - 1, p.h - 1, r[0])
+        if i % 3 == 0:
+            p.box(x, top - 2, x + w - 1, top, r[1])
+        else:
+            for k in range(w // 2 + 1):
+                p.box(x + k, top - (k * 2 + 2) // 3, x + w - 1 - k, top, r[1])
+        if i % 2:
+            p.box(x + w * 2 // 3, top - w // 3 - 5, x + w * 2 // 3 + max(2, w // 9), top, r[1])
+        for n, wy in enumerate(range(top + 5, p.h, win[1] * 2 + 2)):
+            for m, wx in enumerate(range(x + 3, x + w - win[0] - 1, win[0] * 2 + 1)):
+                on = (i * 5 + n * 3 + m * 7 + base) % lit == 0
+                if on or len(r) > 3:
+                    p.box(wx, wy, wx + win[0] - 1, wy + win[1] - 1, r[2] if on else r[3])
+        x += w
+
+
+def festoon(p: Pic, a: Pt, b: Pt, drop: float, line: int, every: int, lamp: int) -> None:
+    """A far string of lanterns from a to b, hung drop at its middle: a dot of light along it every so often."""
+    n = int(abs(b[0] - a[0]))
+    for i in range(n + 1):
+        t = i / n
+        x, y = round(a[0] + (b[0] - a[0]) * t), round(a[1] + (b[1] - a[1]) * t + drop * 4 * t * (1 - t))
+        p.put(x, y, line)
+        if i % every == every // 2:
+            p.box(x, y + 1, x + 1, y + 2, lamp)
+
+
+def quartersky() -> Pic:
+    """The quarter's far backdrop, of period 320: the sky in bands down to its afterglow, a few stars, the moon; a
+    far terrace, lanterns strung across it, and a nearer one."""
+    p = Pic(320, 200)
+    edges = [0, 18, 36, 52, 66, 78, 90, 200]
+    for y in range(200):
+        p.box(0, y, 319, y, QSKY[max(i for i in range(7) if edges[i] <= y)])
+    for i in range(12):
+        p.put((i * 53 + 17) % 320, (i * 31 + 5) % 60, QMOON[1])
+    fill(p, oval(214, 36, 17, 17), QMOON[1])
+    fill(p, oval(214, 36, 17, 17) & oval(211, 33, 14.5, 14.5), QMOON[0])
+    for cx, cy, r in ((208, 30, 3), (220, 41, 4), (213, 46, 2), (224, 28, 2)):
+        fill(p, oval(cx, cy, r, r * 0.8), QMOON[2])
+    terrace(p, 126, (12, 18, 14, 20, 16), 14, 22, QFAR, (1, 2), 4)
+    festoon(p, (0, 96), (160, 92), 9, QFAR[1], 12, PAPER[1])
+    festoon(p, (160, 92), (320, 96), 11, QFAR[1], 12, PAPER[1])
+    terrace(p, 150, (34, 28, 40, 30, 28), 22, 26, QMID, (3, 4), 5)
+    return p
+
+
+def roofline() -> Pic:
+    """The quarter's nearer band, masked, of period 320, which goes by faster: the roofs across the street, their
+    stacks, a window alight here and there."""
+    p = Pic(320, 80)
+    terrace(p, 66, (36, 44, 32, 48), 30, 14, QNEAR, (3, 4), 7)
+    return p
+
+
+SCALLOP = ("11111111", "10001111", "10111111", "21111112", "32111123", "33222233")
+
+
+def scales(hem: int, d: int) -> int:
+    """The roof's tone d pixels under the surface at column hem, of period 8; 0 under it: its ridge, two rows of
+    fish-scale tiles, each row over the next, and the eave's board."""
+    if d > 15:
+        return 0
+    if d <= 0:
+        return SCALES[0]
+    if d == 1:
+        return SCALES[2]
+    if d >= 14:
+        return EAVE[d - 14]
+    return SCALES[int(SCALLOP[(d - 2) % 6][(hem + 4 * ((d - 2) // 6 % 2)) % 8])]
+
+
+def casement(u: int, v: int) -> int:
+    """A lit window's tone, 28 by 16 with its shutters back and its sill; 0 where the wall shows."""
+    if v >= 14:
+        return EAVE[v - 14] if v - 12 <= u <= 39 - v else 0
+    if u < 4 or u > 23:
+        if not 1 <= v <= 12:
+            return 0
+        return LITPANE[2] if v % 3 == 2 and u % 24 in (1, 2) else LITPANE[3]
+    if u in (4, 13, 14, 23) or v in (0, 6, 13):
+        return LITPANE[2]
+    return LITPANE[0] if u < 13 and v < 6 else LITPANE[1]
+
+
+def brickwork(x: int, y: int) -> int:
+    """The wall's tone at a world pixel, repeating every 64 across and 48 down: brick in courses of eight, every
+    other half a brick along, a few lighter and darker; in each a lit window, in the one tile row a roof at that
+    height hides whole, so that none is cut by an eave."""
+    x, y = x % 64, y % 48
+    if y < 16 and 18 <= x < 46 and casement(x - 18, y):
+        return casement(x - 18, y)
+    k = y // 8
+    u = (x + 8 * (k % 2)) % 64
+    if y % 8 == 7 or u % 16 == 15:
+        return QBRICK[3]
+    h = (u // 16) * 7 + k * 13
+    return QBRICK[2] if h % 5 == 0 else QBRICK[0] if h % 7 == 3 else QBRICK[1]
+
+
+def roofed() -> Skin:
+    """The quarter's ground: a roof's scales over its house's brick."""
+    return Skin(
+        lambda x, y, d, hem: scales(hem, d) or brickwork(x, y), brickwork, QINK, (EAVE[1], QBRICK[0], QBRICK[2])
+    )
+
+
+def balcony() -> Pic:
+    """A floating shelf's 16: a stone slab on a course of brick, iron brackets under it."""
+    p = Pic(16, 16)
+    for x in range(16):
+        for y, tone in enumerate((EAVE[0], EAVE[0], EAVE[1])):
+            p.put(x, y, tone)
+        for y in range(3, 8):
+            p.put(x, y, QBRICK[3] if x % 8 == 7 else QBRICK[0] if y == 3 else QBRICK[1])
+        p.put(x, 8, QINK)
+    for x in (2, 13):
+        p.box(x, 9, x, 13, TIN[3])
+        p.put(x + (1 if x < 8 else -1), 9, TIN[3])
+        p.put(x + (1 if x < 8 else -1), 10, TIN[2])
+    return p
+
+
+def gangplank() -> Pic:
+    """The quarter's moving platform: a plank on two iron shoes."""
+    p = Pic(48, 12)
+    for x in range(1, 47):
+        p.put(x, 1, QPOLE[0])
+        for y in range(2, 5):
+            p.put(x, y, QPOLE[2] if y == 3 and (x * 3) % 17 < 2 else QPOLE[1])
+        p.put(x, 5, QPOLE[2])
+    for x in (5, 39):
+        p.box(x, 6, x + 3, 8, TIN[2])
+        p.box(x, 6, x, 8, TIN[1])
+    return p.outline(QINK)
+
+
+def flowerpot(f: int) -> Pic:
+    """A pot where the Downs have a flower: its plant in bloom, red or orange."""
+    p = Pic(12, 16)
+    p.box(3, 10, 8, 14, CLAY[1])
+    p.box(3, 10, 4, 14, CLAY[0])
+    p.box(2, 9, 9, 9, CLAY[0])
+    p.box(5, 5, 6, 8, CLAY[2])
+    dots(p, CLAY[2], (4, 7), (7, 6), (3, 6), (8, 5))
+    dots(p, PAPER[2 - f], (4, 3), (7, 3), (5, 2), (6, 2), (5, 4), (6, 4), (4, 2), (7, 4))
+    dots(p, PAPER[0], (5, 3), (6, 3))
+    return p.outline(QINK)
+
+
+def housefront() -> Pic:
+    """Where the Downs have a tree: the gable of a house behind the way, a window alight in it, a pot on its sill,
+    a round one under its ridge."""
+    p = Pic(64, 80)
+    for y in range(24, 80):
+        for x in range(8, 56):
+            mortar = y % 8 == 7 or (x + 8 * (y // 8 % 2)) % 16 == 15
+            p.put(x, y, QWALL[2] if x == 8 else QWALL[1] if mortar else QWALL[0])
+    for y in range(2, 25):
+        half = 2 + (y - 2) * 30 // 22
+        for x in range(32 - half, 32 + half):
+            p.put(x, y, SCALES[int(SCALLOP[(y - 2) % 6][(x + 4 * ((y - 2) // 6 % 2)) % 8])])
+    p.box(1, 25, 62, 25, EAVE[0])
+    p.box(2, 26, 61, 26, EAVE[1])
+    fill(p, oval(32, 15, 4.5, 4.5), LITPANE[2])
+    fill(p, oval(32, 15, 3, 3), LITPANE[1])
+    for v in range(16):
+        for u in range(28):
+            if casement(u, v):
+                p.put(18 + u, 42 + v, casement(u, v))
+    paste(p, flowerpot(0), 33, 41)
+    return p.outline(QINK)
+
+
+def skylight() -> Pic:
+    """Where the Downs have a bush: a skylight, its panes lit from under."""
+    p = Pic(40, 20)
+    for y in range(4, 18):
+        inset = max(0, 9 - (y - 4) * 2)
+        for x in range(3 + inset, 37 - inset):
+            bar = (x - 4) % 8 == 0 or y in (4, 17) or x in (3 + inset, 36 - inset)
+            p.put(x, y, LITPANE[2] if bar else LITPANE[0] if x < 20 and y < 10 else LITPANE[1])
+    p.box(1, 18, 38, 18, EAVE[0])
+    p.box(2, 19, 37, 19, EAVE[1])
+    return p.outline(QINK)
+
+
+def teachest() -> Pic:
+    """Where the Downs have a rock: a crate left on the roof."""
+    p = Pic(20, 12)
+    p.box(1, 1, 18, 10, QPOLE[1])
+    p.box(1, 1, 18, 1, QPOLE[0])
+    p.box(1, 10, 18, 10, QPOLE[2])
+    for x in (1, 6, 13, 18):
+        p.box(x, 2, x, 9, QPOLE[2] if x in (6, 13) else QPOLE[0] if x == 1 else QPOLE[2])
+    p.line(7, 9, 12, 2, QPOLE[0])
+    return p.outline(QINK)
+
+
+def birdspikes() -> Pic:
+    """Where the Downs have a thorn: a strip of spikes set against the pigeons."""
+    p = Pic(16, 12)
+    p.box(1, 9, 14, 10, TIN[2])
+    p.box(1, 9, 14, 9, TIN[1])
+    for x, lean in ((2, -1), (5, 0), (8, 1), (11, 0), (13, 1)):
+        p.line(x, 8, x + lean, 2, TIN[1])
+        p.put(x + lean, 1, TIN[0])
+    return p.outline(QINK)
+
+
+def lanternq() -> list[tuple[int, Pic, bool, int]]:
+    """The Lantern Quarter's own pictures, at the indices the Downs' own have."""
+    k, z = 126, 625
+    brick = [EAVE[0], *QBRICK, QBRICK[3]]
+    out = [(0, quartersky(), False, -1), (1, roofline(), True, -1), (28, balcony(), True, -1)]
+    out.append((5, ring(188, 72, 93, scales, brick, QINK), True, -1))
+    out += [(z + 112 + h * 2, ribbon(h, [SCALES[0], *QBRICK, QBRICK[3]], QINK), True, -1) for h in range(2)]
+    out += earth(z + 124, roofed())
+    out += [
+        (z + 124 + 268, gangplank(), True, -1),
+        (k + 36, housefront(), True, -1),
+        (k + 38, skylight(), True, -1),
+        (k + 40, flowerpot(0), True, -1),
+        (k + 42, flowerpot(1), True, -1),
+        (k + 44, teachest(), True, -1),
+        (k + 46, birdspikes(), True, -1),
+        (k + 48, lantern((QPOLE[0], QPOLE[2]), [PAPER[0], PAPER[1]], (STRIPE[1], STRIPE[2]), QINK), True, -1),
+        (k + 376, words("LANTERN QUARTER", 178, 18, 1.35, 2.6), True, -1),
+    ]
+    return out
+
+
 # the pictures only one zone shows: they may use that zone's own colours, and are in the store only while it is
 # played
 OWN: list[set[int]] = [set(), set()]
-ZONES = 5
+ZONES = 6
 
 
 def earth(a: int, skin: Skin) -> list[tuple[int, Pic, bool, int]]:
@@ -5248,7 +5520,7 @@ def group(pics: list[tuple[int, Pic, bool, int]], zone: int) -> list[int]:
     each with its mask. The sands', the pass's and the wood's are their own lists, at the Downs' indices."""
     mine = [q for q in pics if next((z for z, own in enumerate(OWN) if q[0] in own), -1) == zone]
     if zone >= 2:
-        mine = (sands, whitecap, russet)[zone - 2]()
+        mine = (sands, whitecap, russet, lanternq)[zone - 2]()
     vals = [len(mine)]
     for k, p, masked, k2 in mine:
         vals += [k, p.w, p.h, int(masked), k2, *encode(p.longs())]

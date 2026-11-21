@@ -1439,6 +1439,20 @@ for j = 0 to 1
     was = was and wd.zn.id = 3
 next
 if was and colA(0) = colA(1) and hid = &H3F3F3F and wd.tn.now(colA(1)) <> hid then print "pass ok"
+' Lantern Quarter is the sixth zone, by name and in its own colours: its roof's ridge the same picture at both
+' hours, lit indigo at the blue hour and not on the festival night; its tune swung, the festival's the faster
+was = ZoneName$(5) = "LANTERN QUARTER"
+for j = 0 to 1
+    GoStage wd, 10 + j, g, p, lo(), pt()
+    Tick wd, g, p, k, lo(), pt()
+    g.camx = 150
+    g.shake = 0
+    Render wd, g, p, lo(), pt()
+    colA(j) = point(100, GroundAt%(wd.lv, 250) - int(g.camy))
+    if j = 0 then hid = wd.tn.now(colA(0))
+    was = was and wd.zn.id = 5 and wd.mu.song(ZTUNE).swing = 1 and wd.mu.song(ZTUNE).tempo = 132 + 12 * j
+next
+if was and colA(0) = colA(1) and hid = &H3D2522 and wd.tn.now(colA(1)) <> hid then print "quarter ok"
 ' Russet Wood is the fifth zone, by name and in its own colours: its litter's top the same picture at both hours,
 ' russet gold at a misty noon and not on the firefly night
 was = ZoneName$(4) = "RUSSET WOOD"
@@ -3450,6 +3464,7 @@ def main() -> None:
         ("press ok", "presses fall in turn along a row, hurt under and jumped into, and are run under from a stop"),
         ("pass ok", "Whitecap Pass, the fourth zone: its snow white on a clear morning, not at dusk"),
         ("wood ok", "Russet Wood, the fifth zone: its litter russet gold at a misty noon, not on the firefly night"),
+        ("quarter ok", "Lantern Quarter, the sixth zone: its roofs lit indigo at the blue hour, its tune swung"),
         ("firefly ok", "the wood's night dark but for a few fireflies; a bark wakes them and lights it for a while"),
         ("sapling ok", "a bowed sapling throws him who crosses its crown, higher the faster; sprung it throws no one"),
         ("vine ok", "a vine caught in the air swings him as a weight, lets go at a jump, and hangs straight again"),
@@ -3503,7 +3518,7 @@ def main() -> None:
         sys.exit(f"charlie: the title's run not ended with the family, held and faded: {out[-300:]}")
     if "faded ok" not in out:
         sys.exit(f"charlie: the level's end not held, faded out and begun again in full colour: {out[-300:]}")
-    for act in ("1", "2", "3", "4", "5", "6", "7", "8", "9"):
+    for act in ("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"):
         got = out[out.rfind(f"act {act} ") :].split()
         if got[1:6] != [act, "2", "0", act, str(int(act) // 2)]:
             sys.exit(

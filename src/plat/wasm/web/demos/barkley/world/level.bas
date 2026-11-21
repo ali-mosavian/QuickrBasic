@@ -29,7 +29,7 @@ const GLOWN = 8
 const SINTRO = NSTAGE
 
 ' the zones' names, 16 letters each; what marks CHARLIE.SAV as the game's: its zone is added to it
-private const ZNAMES = "AMBER DOWNS     CHROME WORKS    SALTWICK SANDS  WHITECAP PASS   RUSSET WOOD"
+private const ZNAMES = "AMBER DOWNS     CHROME WORKS    SALTWICK SANDS  WHITECAP PASS   RUSSET WOOD     LANTERN QUARTER"
 
 ' A stage's zone: two acts a zone; the intro's road is the Downs.
 function ZoneOf% (se as Session, st as integer)

@@ -203,8 +203,10 @@ Progress is saved at each zone.
 - Music (written): a reel in D minor at 126. A fiddle lead, plucked bass, wood blocks and a hand drum, a
   flute's answer. Night (written): 112, the flute leads, the pluck sparse, crickets.
 
-### 6. Lantern Quarter
+### 6. Lantern Quarter (its look and tune built)
 
+- Built: its backdrop, ground, props and card at the blue hour and on the festival night; two stand-in levels,
+  to its tune and the festival's arrangement. To add: its gadgets, its cats, its acts, its chase, the fireworks.
 - Rule: footing. The ground is narrow, springy or moving: lines, awnings, tram roofs.
 - Gadgets: clotheslines, each landing higher than the last; awnings; chimneys, in one and out another;
   trams; lantern lines to slide.

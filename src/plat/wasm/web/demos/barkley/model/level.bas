@@ -224,4 +224,4 @@ const KMOUND = 52
 const KSQUIRREL = 53
 ' A golden bone: an act has NGOLD of them, each kept once found.
 const KGOLD = 54, NGOLD = 3
-const ZONES = 5, NSTAGE = ZONES * 2
+const ZONES = 6, NSTAGE = ZONES * 2

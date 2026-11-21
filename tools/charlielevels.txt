@@ -210,6 +210,26 @@ flat,8, burrow,4, flat,24, sapling,0, flat,12, wall,7, flat,6, burrow,4, flat,8,
 chase,44, flat,6, sapling,0, flat,14, oak,0, flat,11, spring,0, flat,13
 goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 
+' Lantern Quarter at the blue hour: a stand-in, until its lines, trams and cats are in.
+Level Lantern1
+tune,Lantern
+flat,4, dog,0, flat,4, flower,0, flat,4, bones,6, flat,8, tree,0, flat,4
+upg,2, flat,6, bones,6, flat,6, bush,0, flat,6, dng,2, flat,8, rock,0, flat,6
+up45,3, arc,9, pit,10, flat,14, flower,0, flat,8, tree,0, flat,6
+mark,0, flat,6, spring,0, flat,2, plat,608, hb,706, flat,16, bush,0, flat,6
+dn45,2, flat,8, bones,8, flat,6, thorn,0, flat,8, flower,0, flat,4, up45,3, arc,10, pit,11, flat,8
+tree,0, flat,6, mover,8, flat,8, rock,0, flat,10
+goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
+
+' Lantern Quarter on the festival night: a stand-in too.
+Level Lantern2
+tune,Festival
+flat,4, dog,0, flat,6, bones,6, flat,6, tree,0, flat,6, upg,2, flat,6, bush,0, flat,8
+up45,3, arc,9, pit,10, flat,14, rock,0, flat,6, dng,2, flat,6, bones,6, flat,10
+mark,0, flat,6, mover,7, flat,10, upg,3, flat,4, flower,0, flat,12, thorn,0, flat,8
+tree,0, flat,6, spring,0, flat,2, plat,608, hb,706, flat,16, dn45,3, flat,8
+goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
+
 ' The intro's road: the Downs, flat, the way the van goes; a rock where it bumps.
 ' Between zones it is the next zone's, the van bumping again.
 Level Road
