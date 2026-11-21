@@ -8,9 +8,11 @@ typedef struct {
     uint32_t line, from, to;
 } DebugPos;
 
-/* What the VM reports to the front end, nullptr: nothing. */
+/* What the VM reports to the front end, or asks it; nullptr: nothing, or none asked. */
 typedef struct {
     void (*trace)(Session *S, const DebugPos *at); /* a statement starts under TRON */
+    bool (*breaks)(Session *S, uint32_t line);     /* a breakpoint's line reached: it stops? */
+    bool (*halts)(Session *S); /* a statement starts, Dbug.halting: it stops there? */
 } DebugHooks;
 
 typedef struct Dbug {
@@ -18,6 +20,7 @@ typedef struct Dbug {
     bool trace;    /* each statement to hook (TRON) */
     bool bpon;     /* a line's LF_BP stops */
     bool until;    /* utl: a one-time stop at line uline */
+    bool halting;  /* each statement to hooks->halts (Break When) */
     bool emit;     /* a DBG op starts each statement (comp's) */
     uint32_t pdep; /* DM_PSTEP: stop at this depth or less */
     uint32_t uline;
@@ -28,13 +31,13 @@ typedef struct Dbug {
 /* Whether a DBG has anything to look for: a step, TRON, a breakpoint, until's line. */
 static inline bool dbug_watching(const Dbug *const db)
 {
-    return db->mode || db->trace || db->bpon || db->until;
+    return db->mode || db->trace || db->bpon || db->until || db->halting;
 }
 
 /* Whether a DBG in a line of flags may stop: all but breakpoints watched, or the line has one. */
 static inline bool dbug_may_stop(const Dbug *const db, const uint8_t flags)
 {
-    return db->mode || db->trace || db->until || (db->bpon && flags & LF_BP);
+    return db->mode || db->trace || db->until || db->halting || (db->bpon && flags & LF_BP);
 }
 
 /* dbg_depth: the procedures and GOSUBs being run. */

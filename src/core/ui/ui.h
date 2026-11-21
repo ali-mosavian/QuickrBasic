@@ -82,6 +82,7 @@ enum : uint8_t {
     SL_SMSG,            /* the status bar's message (QBasic's isaStatusAlert) */
     SL_CBP,             /* the current statement on a breakpoint's line */
     SL_CHG,             /* a debug pane's value changed at the stop */
+    SL_CBPL,            /* a breakpoint's line with a condition (Break When's) */
     NSLOT_TH,           /* the slots a theme lists */
     SL_HTXT = NSLOT_TH, /* the help window: text, drawn from the theme's others (them_set) */
     SL_HHEAD,           /*   a heading */
@@ -212,6 +213,8 @@ typedef struct {
     uint32_t first;                             /* tx_v0: the view's first line in the text */
     uint32_t all;                               /* tx_all: the text's lines */
     void (*hook)(uint32_t line, int32_t delta); /* tx_hook: text line added (1), removed (-1) */
+    void (*marks)(uint32_t nth, int32_t delta); /* the nth marked line's mark added (1), removed
+                                                   (-1), TEXT_MARKS all of them */
     bool changed;      /* tx_mod: since the program was entered (a run enters it again) */
     bool unsaved;      /* tx_chg: a file since it was saved (text_unsaved) */
     bool check;        /* syn_on: Options, Syntax Checking */

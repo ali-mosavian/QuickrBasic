@@ -104,6 +104,36 @@ static Dlog ask_dlog = {
     .ctl = ask_ctl,
 };
 
+/* Ctrl+F9's box: an expression, what stops at it, OK, Cancel; its boxes' flags dpan_break's. */
+enum : uint8_t { BREAK_OK = 3 };
+static bool break_changes, break_here;
+static DlogCtl break_ctl[] = {
+    {.kind = CT_FLD,
+     .row = 1,
+     .col = 14,
+     .cols = 34,
+     .rows = 1,
+     .field = &fld,
+     .label = "Expression:",
+     .lrow = 2,
+     .lcol = 2},
+    {.kind = CT_CHK, .row = 4, .col = 2, .text = "When it changes", .check = &break_changes},
+    {.kind = CT_CHK, .row = 5, .col = 2, .text = "Only at this line", .check = &break_here},
+    {.kind = CT_BTN, .row = 8, .col = 12, .cols = 6, .text = uimn_ok},
+    {.kind = CT_BTN, .row = 8, .col = 30, .cols = 10, .text = uimn_cancel},
+};
+static Dlog break_dlog = {
+    .row = 7,
+    .col = 14,
+    .rows = 10,
+    .cols = ASK_COLS,
+    .title = "Break When",
+    .n = 5,
+    .sep = 7,
+    .def = BREAK_OK,
+    .ctl = break_ctl,
+};
+
 /* A line asked in a box titled title, label before it, fld's text at first: true OK, a line
    given, its text in fld, 0-ended. */
 static bool ask(Session *const S, const char *const title, const char *const label)
@@ -373,15 +403,19 @@ static void loc_enter(Session *const S, const uint8_t i)
         set_value(S, i, v);
 }
 
-/* dp_wdel: Del in Watch: the selected watch dropped. */
-static void watch_del(void)
+/* dp_wdel: Del in Watch: the selected watch dropped; a Break When at a line, its breakpoint, which
+   drops it. */
+static void watch_del(Session *const S)
 {
     const uint8_t i = dp.sel[DP_WAT];
+    uint32_t nth;
 
     if (i >= dwat_count())
         return;
-
-    dwat_del(i);
+    if (dwat_mark(i, &nth))
+        text_unmark(S, nth);
+    else
+        dwat_del(S, i);
 
     if (i >= dwat_count() && i > 0)
         dp.sel[DP_WAT] = i - 1;
@@ -406,7 +440,7 @@ static bool scan_key(Session *const S, const uint8_t w, const uint8_t scan)
     if (w == DP_WAT && scan == SCAN_INS)
         watch_add(S);
     else if (w == DP_WAT && scan == SCAN_DEL)
-        watch_del();
+        watch_del(S);
     else if (w == DP_LOC && scan == SCAN_RIGHT)
         dloc_open(S, dp.sel[w]);
     else if (w == DP_LOC && scan == SCAN_LEFT) {
@@ -509,6 +543,32 @@ void dpan_watch(Session *const S)
 {
     if (uimn.pane_on)
         watch_add(S);
+}
+
+void dpan_break(Session *const S)
+{
+    fld.len = fld.col = edit_word((char *)fld.text, DLBUF);
+    break_changes = break_here = false;
+    break_dlog.focus = 0;
+
+    if (uimn.tree.workspace.focus != FOC_EDIT || dlog_run(S, &break_dlog) != BREAK_OK || !fld.len)
+        return;
+
+    BreakWhen how = {.kind = break_changes ? WK_CHANGE : WK_TRUE, .line = break_here};
+
+    if (break_here && !text_mark(S, uimn.ed.line))
+        text_toggle(S, uimn.ed.line);
+    if (break_here)
+        how.nth = text_mark_nth(S, text_rec(S, uimn.ed.line));
+    else
+        how.scope = uimn.pane_on ? insp_scope(S, dp.frame) : 0;
+
+    if (!dwat_break(S, fld.text, fld.len, how) || !uimn.pane_on)
+        return;
+
+    dp.sel[DP_WAT] = dwat_count() - 1;
+    dwat_eval(S);
+    visible(DP_WAT);
 }
 
 void dpan_hover(const uint8_t row, const uint8_t col)

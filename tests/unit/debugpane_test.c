@@ -7,10 +7,13 @@
 #include "plat/pkey.h"
 #include "plat/pscr.h"
 #include "session.h"
+#include "ui/debugui.h"
+#include "ui/debugwatch.h"
 #include "ui/draw.h"
 #include "ui/edit.h"
 #include "ui/mouse.h"
 #include "ui/screen.h"
+#include "ui/text.h"
 #include "ui/theme.h"
 #include "ui/uimain.h"
 #include "ui/view.h"
@@ -47,6 +50,11 @@ static void stopped_in(Session *const S, const char *const *const lines)
 
 static void done(Session *const S)
 {
+    while (dwat_count()) /* none a later test's, nor its keys */
+        dwat_del(S, 0);
+
+    pkey_flush();
+
     remove(path);
     rmdir(dir);
     memcpy(dir + sizeof dir - 7, "XXXXXX", 6);
@@ -149,6 +157,8 @@ static void typed(const char *const text)
 
 enum : uint16_t {
     K_ENTER = 0x1C0D,
+    K_TAB = 0x0F09,
+    K_BAR = 0x3920, /* Space: K_SPACE is SPACE$'s */
     K_UP = 0x4800,
     K_LINE_END = 0x4F00, /* End: K_END is END's */
     K_DOWN = 0x5000,
@@ -665,5 +675,188 @@ TEST(debug_pane_shows_a_long_string_whole)
 
     CHECK(b);
     CHECK(strstr(screen_text(b + 9, 0), "xxxxxxxxxxxxxx...  "));
+    done(S);
+}
+
+static const char *const loop[] = {
+    "stop",
+    "for i = 1 to 10",
+    "y = i",
+    "x = i * 2",
+    "next",
+    "stop",
+    nullptr,
+};
+
+/* Break When's box (Ctrl+F9) given expr, its boxes ticked: When it changes, Only at this line. */
+static void break_when(
+    Session *const S,
+    const char *const expr,
+    const bool changes,
+    const bool here
+)
+{
+    for (uint32_t i = 0; expr[i]; i++)
+        host_key_push((uint8_t)expr[i]);
+
+    host_key_push(K_TAB);
+
+    if (changes)
+        host_key_push(K_BAR);
+
+    host_key_push(K_TAB);
+
+    if (here)
+        host_key_push(K_BAR);
+
+    host_key_push(K_ENTER);
+    wind_focus(S, wind_active());
+    uimn_key(S, (uint16_t)(SCAN_CTRL_F1 + 8) << 8);
+    shown(S);
+}
+
+/* The cursor on the edit window's line line (0 its view's first). */
+static void cursor_to(Session *const S, const uint32_t line)
+{
+    wind_focus(S, wind_active());
+    edit_load(S, view_goline(S, uimn.text.first + line));
+    uimn.edline.col = 0;
+}
+
+static void continued(Session *const S)
+{
+    uimn_cont(S);
+    shown(S);
+}
+
+/* Break When, true: the run stops once its expression turns true, not again while it stays so;
+   Watch shows it marked. */
+TEST(debug_pane_breaks_when_true)
+{
+    stopped_in(S, loop);
+    break_when(S, "x > 7", false, false);
+    continued(S);
+
+    CHECK(rows_are("Locals", " i = 4| y = 4| x = 8"));
+    CHECK(rows_are("Watch", " \x04x > 7 = -1"));
+    continued(S);
+
+    CHECK(rows_are("Locals", " i = 11| y = 10| x = 20"));
+    pane_keys(S, 0, (const uint16_t[]){K_DEL, 0});
+
+    done(S);
+}
+
+/* Break When, changes: the run stops at each change of its value, from the one the stop shows,
+   a value set there too. */
+TEST(debug_pane_breaks_when_a_value_changes)
+{
+    stopped_in(S, loop);
+    break_when(S, "x", true, false);
+    continued(S);
+
+    CHECK(rows_are("Locals", " i = 1| y = 1| x = 2"));
+    typed("100");
+    pane_keys(S, 1, (const uint16_t[]){K_DOWN, K_DOWN, K_ENTER, 0});
+
+    continued(S);
+
+    CHECK(rows_are("Locals", " i = 2| y = 2| x = 4"));
+    pane_keys(S, 0, (const uint16_t[]){K_DEL, 0});
+
+    continued(S);
+
+    CHECK(rows_are("Locals", " i = 11| y = 10| x = 20"));
+    done(S);
+}
+
+/* Break When, only at this line: a breakpoint there that stops when its expression is true, its
+   line in its own colour; it keeps to its line as other breakpoints come and go before it, and
+   goes with its breakpoint. */
+TEST(debug_pane_breaks_at_a_line_when_true)
+{
+    stopped_in(S, loop);
+    cursor_to(S, 3);
+    break_when(S, "i = 6", false, true);
+    const uint8_t row = (uint8_t)(uimn.ed.row0 + 3 - uimn.ed.top);
+
+    CHECK(them_attr(SL_CBPL) != them_attr(SL_BPL));
+    CHECK(attr_at(row, (uint8_t)(uimn.ed.x + 1)) == them_attr(SL_CBPL));
+    cursor_to(S, 2);
+    udbg_bp(S); /* a breakpoint before it */
+    continued(S);
+
+    CHECK(rows_are("Locals", " i = 1| y = 0| x = 0"));
+    cursor_to(S, 2);
+    udbg_bp(S); /* gone again */
+    continued(S);
+
+    CHECK(rows_are("Locals", " i = 6| y = 6| x = 10"));
+    pane_keys(S, 0, (const uint16_t[]){K_DEL, 0}); /* its row in Watch: its breakpoint too */
+
+    CHECK(!text_mark(S, 3));
+    continued(S);
+
+    CHECK(rows_are("Locals", " i = 11| y = 10| x = 20"));
+    CHECK(rows_are("Watch", ""));
+    done(S);
+}
+
+/* A Break When at a line goes with its breakpoint: F9 off, its line deleted, all cleared. */
+TEST(debug_pane_break_when_goes_with_its_breakpoint)
+{
+    stopped_in(S, loop);
+    cursor_to(S, 3);
+    break_when(S, "i = 6", false, true);
+    udbg_bp(S);
+    shown(S);
+
+    CHECK(rows_are("Watch", ""));
+    break_when(S, "i = 6", false, true);
+    text_delete(S, 3);
+    shown(S);
+
+    CHECK(rows_are("Watch", ""));
+    cursor_to(S, 2);
+    break_when(S, "i = 6", false, true);
+    udbg_bpclear(S);
+    shown(S);
+
+    CHECK(rows_are("Watch", ""));
+    done(S);
+}
+
+/* Break When set in a SUB: PRINTed only while it runs, in its scope, each call's turn to true a
+   stop; at a stop elsewhere, not. */
+TEST(debug_pane_breaks_in_its_procedure)
+{
+    stopped_in(
+        S,
+        (const char *const[]){
+            "declare sub bump (n)",
+            "t = 99",
+            "for i = 1 to 3",
+            "bump i",
+            "next",
+            "stop",
+            "sub bump (n)",
+            "if n = 1 then stop",
+            "t = n * 10",
+            "end sub",
+            nullptr,
+        }
+
+    );
+    break_when(S, "t > 15", false, false);
+    continued(S);
+
+    CHECK(rows_are("Locals", " n = 2| t = 20"));
+    continued(S); /* a new call's t: 0, then true again */
+
+    CHECK(rows_are("Locals", " n = 3| t = 30"));
+    continued(S);
+
+    CHECK(rows_are("Locals", " t = 99| i = 4"));
+    CHECK(rows_are("Watch", " \x04t > 15 = (not here)"));
     done(S);
 }

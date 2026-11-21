@@ -1297,6 +1297,10 @@ static bool screen_key(Widget *const w, Session *const S, const uint16_t key)
         dpan_watch(S);
         return true;
 
+    case FKEY(SCAN_CTRL_F1, 9):
+        dpan_break(S);
+        return true;
+
     case FKEY(SCAN_F1, 10):
         udbg_pstep(S);
         return true;

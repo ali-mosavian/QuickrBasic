@@ -5,7 +5,8 @@
  * each found by the line map (linemap.h). A line is its record's pre bytes (its indent and number
  * as typed), then its body as LIST spells it. An LF_ASIS line is its pre alone: a line with a
  * syntax error, kept as typed; uimn.text.asis asks it of the next line stored. A line's mark (a
- * breakpoint) is its LF_BP.
+ * breakpoint) is its LF_BP; a mark added or removed goes to uimn.text.marks by its place among the
+ * marked lines, as Break When's conditions keep to theirs.
  *
  * The editor sees a view: uimn.text.n lines from line uimn.text.first, numbered from 0 (a
  * procedure's lines, view.h). Lines below are the view's unless said. A line added or removed goes
@@ -237,10 +238,24 @@ static void add(Session *const S, const uint8_t *const src, const uint32_t len)
     S->prog.add_flags = 0;
 }
 
-void text_init(Session *const S)
+/* A mark at place nth added (1) or removed (-1): uimn.text.marks told. */
+static void tell_mark(const uint32_t nth, const int32_t delta)
+{
+    if (uimn.text.marks)
+        uimn.text.marks(nth, delta);
+}
+
+/* A new program: the store emptied, its marks gone. */
+static void renew(Session *const S)
 {
     uimn.text.changed = true;
     session_new(S);
+    tell_mark(TEXT_MARKS, -1);
+}
+
+void text_init(Session *const S)
+{
+    renew(S);
     add(S, (const uint8_t *)"", 0);
     lmap_build(S);
     text_whole();
@@ -279,8 +294,15 @@ void text_delete(Session *const S, const uint32_t line)
         return;
     }
 
-    touch(S, prog_line(&S->prog, text_rec(S, line))->file);
-    prog_cut(&S->prog, text_rec(S, line));
+    const uint32_t rec = text_rec(S, line);
+    const bool marked = prog_line(&S->prog, rec)->flags & LF_BP;
+    const uint32_t nth = marked ? text_mark_nth(S, rec) : 0;
+    touch(S, prog_line(&S->prog, rec)->file);
+    prog_cut(&S->prog, rec);
+
+    if (marked)
+        tell_mark(nth, -1);
+
     session_drop(S);
     uimn.text.changed = true;
     lmap_build(S);
@@ -324,7 +346,10 @@ bool text_mark(Session *const S, const uint32_t line)
 
 void text_toggle(Session *const S, const uint32_t line)
 {
-    prog_line(&S->prog, text_rec(S, line))->flags ^= LF_BP;
+    const uint32_t rec = text_rec(S, line);
+    Line *const ln = prog_line(&S->prog, rec);
+    ln->flags ^= LF_BP;
+    tell_mark(text_mark_nth(S, rec), ln->flags & LF_BP ? 1 : -1);
 }
 
 void text_unmark_all(Session *const S)
@@ -333,6 +358,36 @@ void text_unmark_all(Session *const S)
 
          rec += prog_line(&S->prog, rec)->len)
         prog_line(&S->prog, rec)->flags &= ~LF_BP;
+
+    tell_mark(TEXT_MARKS, -1);
+}
+
+uint32_t text_mark_nth(Session *const S, const uint32_t rec)
+{
+    uint32_t n = 0;
+
+    for (uint32_t r = PROGBASE; r < rec; r += prog_line(&S->prog, r)->len)
+        n += !!(prog_line(&S->prog, r)->flags & LF_BP);
+
+    return n;
+}
+
+void text_unmark(Session *const S, const uint32_t nth)
+{
+    uint32_t n = 0;
+
+    for (uint32_t rec = PROGBASE; prog_line(&S->prog, rec)->len;
+
+         rec += prog_line(&S->prog, rec)->len) {
+        Line *const ln = prog_line(&S->prog, rec);
+
+        if (!(ln->flags & LF_BP) || n++ != nth)
+            continue;
+
+        ln->flags &= ~LF_BP;
+        tell_mark(nth, -1);
+        return;
+    }
 }
 
 /* The clipboard holds len bytes. Out of memory. */
@@ -478,8 +533,7 @@ uint16_t text_read(Session *const S, const char *const name)
         return e;
 
     io.pos = io.cnt = 0;
-    uimn.text.changed = true;
-    session_new(S);
+    renew(S);
     io.lines = 0;
     uint32_t n = 0; /* the line's characters, its column */
     srcr_phys_start(&S->srcr.cont);

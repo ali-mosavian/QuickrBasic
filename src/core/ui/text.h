@@ -36,6 +36,12 @@ bool text_mark(Session *S, uint32_t line);
 void text_toggle(Session *S, uint32_t line);
 /* tx_mclr: no line marked, in the whole store. */
 void text_unmark_all(Session *S);
+/* Record rec's place among the store's marked lines: those before it. Each mark added or removed
+   goes to uimn.text.marks by its place; the store emptied, all gone, as TEXT_MARKS. */
+enum : uint32_t { TEXT_MARKS = UINT32_MAX };
+uint32_t text_mark_nth(Session *S, uint32_t rec);
+/* The nth marked line's mark off. */
+void text_unmark(Session *S, uint32_t nth);
 
 /* cb_put: len bytes at src the clipboard; lines: whole lines. Out of memory. */
 void text_clip_put(Session *S, const uint8_t *src, uint16_t len, bool lines);

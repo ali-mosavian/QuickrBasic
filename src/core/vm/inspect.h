@@ -42,6 +42,10 @@ InspValue insp_var(const Session *S, uint32_t f, const InspVar *var);
 /* PRINT expr in frame f's procedure's scope, its output to out (session_eval): its error, else
    ST_OK. */
 Status insp_eval(Session *S, uint32_t f, const char *expr, char out[static 80]);
+/* Frame f's procedure's scope, as insp_eval_in takes it; the module's 0. */
+uint32_t insp_scope(const Session *S, uint32_t f);
+/* insp_eval in scope, the stopped run's frame 0's or the module's. */
+Status insp_eval_in(Session *S, uint32_t scope, const char *expr, char out[static 80]);
 /* Frame f's variables are the ones a statement run in its procedure's scope changes: the stopped
    call's, or the module's; no direct line called into the run. */
 bool insp_settable(const Session *S, uint32_t f);

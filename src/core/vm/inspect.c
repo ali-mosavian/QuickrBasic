@@ -98,7 +98,19 @@ bool insp_newest(const Session *const S, const uint32_t f)
 
 Status insp_eval(Session *const S, const uint32_t f, const char *const expr, char out[static 80])
 {
-    return session_eval(S, expr, frame(S, f).proc, out);
+    return insp_eval_in(S, insp_scope(S, f), expr, out);
+}
+
+uint32_t insp_scope(const Session *const S, const uint32_t f) { return frame(S, f).proc; }
+
+Status insp_eval_in(
+    Session *const S,
+    const uint32_t scope,
+    const char *const expr,
+    char out[static 80]
+)
+{
+    return session_eval(S, expr, scope, out);
 }
 
 bool insp_settable(const Session *const S, const uint32_t f)

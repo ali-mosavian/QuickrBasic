@@ -16,6 +16,9 @@ void dpan_build(Widget *pane, Widget kids[static DPAN_KIDS]);
 void dpan_layout(void);
 /* Shift+F9, the pane shown: Add Watch, the name at the edit window's cursor filled in. */
 void dpan_watch(Session *S);
+/* Ctrl+F9 in the edit window: Break When, the name at its cursor filled in; at its cursor's line, a
+   breakpoint's condition, else of any line, in the selected frame's scope (none: the module's). */
+void dpan_break(Session *S);
 /* dp_hover: the mouse moved to row, col: the tooltip by it. */
 void dpan_hover(uint8_t row, uint8_t col);
 /* dp_tip: stopped, the program as it ran (uimn_stopped): the tooltip drawn by the name under

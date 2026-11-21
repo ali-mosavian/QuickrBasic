@@ -50,6 +50,8 @@ void session_until(Session *const S, const uint32_t line)
 
 void session_trace(Session *const S, const bool on) { S->dbug.trace = on; }
 
+void session_halting(Session *const S, const bool on) { S->dbug.halting = on; }
+
 bool session_tracing(const Session *const S) { return S->dbug.trace; }
 
 bool session_stopped_at(Session *const S, DebugPos *const pos)

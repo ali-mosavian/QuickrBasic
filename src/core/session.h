@@ -108,6 +108,8 @@ void session_arm(Session *S);
 /* The run also stops once at program line line's first statement. */
 void session_until(Session *S, uint32_t line);
 void session_trace(Session *S, bool on);
+/* Each statement to the debug hooks' halts, on: Break When's. */
+void session_halting(Session *S, bool on);
 bool session_tracing(const Session *S);
 /* Where the stopped run goes on: false, none. */
 bool session_stopped_at(Session *S, DebugPos *pos);
