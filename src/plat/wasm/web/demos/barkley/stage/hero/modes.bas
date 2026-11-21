@@ -68,6 +68,20 @@ sub Grab (p as Hero, i as integer, x as integer)
     p.sprung = 0
 end sub
 
+' Astride a bolting goat at x, y: off along the road with
+' it.
+sub Astride (p as Hero, x as single, y as single)
+    p.goat = -1
+    p.ride_t = 0
+    p.at.x = x
+    p.at.y = y - 1
+    p.face = 0
+    p.vel.x = GOATV
+    p.vel.y = 60
+    p.roll = 0
+    p.jumped = 0
+end sub
+
 ' Hung from a vine: he swings as a weight on it, the vine
 ' with him; a jump lets go, with the swing's speed and a hop
 ' up, and a hurt lets go without one.

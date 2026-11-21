@@ -45,8 +45,7 @@ from barkley.stage.zones.sands import CrabPic, DrawGulls, DrawSea
 from barkley.stage.zones.sands import DrawSpout, DrawSurf
 from barkley.stage.zones.wood import DrawBees, DrawFlies, DrawVine
 from barkley.stage.zones.pass import DrawAvalanche, DrawGale, DrawGoat
-from barkley.stage.zones.pass import DrawLoad, DrawStray, Fallen
-from barkley.stage.zones.pass import Risen, TREMBLE
+from barkley.stage.zones.pass import DrawLoad, DrawStray
 from barkley.stage.zones.quarter import DrawLines, DrawMortar
 from barkley.stage.zones.quarter import DrawPouncer, DrawSmoke
 from barkley.stage.zones.quarter import DrawTipper, SnatchPic
@@ -54,6 +53,7 @@ from barkley.stage.hero.modes import FLUEH
 from barkley.stage.zones.chase import DrawChase
 from barkley.stage.hud import Banner, Hud, Num, Panel, Say, Txt
 from barkley.stage.things.wood import SQAIM
+from barkley.stage.things.pass import Fallen, Risen, TREMBLE
 
 private const LD = 188
 private const CABLEH = 44

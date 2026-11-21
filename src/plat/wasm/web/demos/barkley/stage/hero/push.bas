@@ -61,3 +61,35 @@ sub Rush (p as Hero, v as single)
     s = 1 + 2 * (p.gsp < 0)
     if p.ground and p.gsp * s < v then p.gsp = s * v
 end sub
+
+' Onto a sled, curled, off to the right at v at least.
+sub Aboard (p as Hero, v as single)
+    p.sled = -1
+    p.roll = -1
+    p.jumped = 0
+    p.face = 0
+
+    if p.ground then
+        if p.gsp < v then p.gsp = v
+    elseif p.vel.x < v then
+        p.vel.x = v
+    end if
+end sub
+
+' Stopped dead in deep snow: uncurled, a quarter of his
+' speed left.
+sub Stall (p as Hero)
+    p.roll = 0
+    p.gsp = p.gsp * .25
+end sub
+
+' Thrown back to x at v.
+sub Repel (p as Hero, x as single, v as single)
+    p.at.x = x
+
+    if p.ground then
+        p.gsp = v
+    else
+        p.vel.x = v
+    end if
+end sub
