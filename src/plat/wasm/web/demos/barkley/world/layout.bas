@@ -2,8 +2,10 @@
 defint A-Z
 option explicit
 
-from barkley.model.level import KBONE, KBUSH, KFLOWER, KLAMP, KMOVE, KPLAT, KPOST, KSEAT, KSPAN, KSPRING, KTANK
-from barkley.model.level import KTRAM, KTREE, KVENT, Level, MH, MW, Realm, TS
+from barkley.model.level import KBONE, KBUSH, KFLOWER, KLAMP, KMOVE
+from barkley.model.level import KPLAT, KPOST, KSEAT, KSPAN, KSPRING
+from barkley.model.level import KTANK, KTRAM, KTREE, KVENT, Level, MH
+from barkley.model.level import MW, Realm, TS
 from barkley.world.terrain.ground import Sunk
 from barkley.world.terrain.track import LimbUp, LIMBW, LimbX, NLIMB
 

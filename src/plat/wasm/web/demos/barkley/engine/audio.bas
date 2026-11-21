@@ -93,7 +93,8 @@ end sub
 
 ' Song id of the deck's data file into slot s: its order and levels, its kit, and its bars as PLAY strings.
 sub LoadSong (mu as Deck, s as integer, id as integer)
-    dim i as integer, n as integer, bars as integer, octs as integer, songs as long
+    dim i as integer, n as integer, bars as integer, octs as integer
+    dim songs as long
     dim bas(7) as string, hits(7) as string, pat(7) as string
     OpenData mu.dat
     songs = Word&(mu.dat)
@@ -178,7 +179,8 @@ end sub
 ' PLAY strings, the lead's lowest note `lead`. A second voice of two characters is a chord pattern, its x the note,
 ' an octave down. A third voice of no loudness is left out.
 private sub ReadBar (mu as Deck, s as integer, n as integer, bas() as string, hits() as string, pat() as string, lead as integer)
-    dim root as integer, nb as integer, nd as integer, low as integer, j as integer, h as integer
+    dim root as integer, nb as integer, nd as integer, low as integer
+    dim j as integer, h as integer
     dim st as string, br as string, sol as string, mid as string
     root = Word&(mu.dat)
     nb = Word&(mu.dat)
@@ -308,7 +310,8 @@ end function
 ' Half h of a bar's riff as PLAY's notes, its lowest note `low`: at most eight, as the drums' always are. swing:
 ' its sixteenths swung.
 private function Riff$ (p as string, h as integer, low as integer, swing as integer)
-    dim i as integer, j as integer, r as integer, last as integer, note as integer
+    dim i as integer, j as integer, r as integer, last as integer
+    dim note as integer
     dim c as string, s as string, ln as string
     if len(p) < 16 then
         Riff$ = "P2"

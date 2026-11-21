@@ -3,9 +3,11 @@ defint A-Z
 option explicit
 
 from barkley.engine.video import Blit, Store, SW
-from barkley.model.images import IGOATR, IHERO, ILOG, ISLED, ISNOWBALL, ITILT, ITW, NF
+from barkley.model.images import IGOATR, IHERO, ILOG, ISLED, ISNOWBALL
+from barkley.model.images import ITILT, ITW, NF
 from barkley.model.hero import Hero
-from barkley.model.level import Ground, KLOG, KWAVE2, Level, PI, Realm, TS
+from barkley.model.level import Ground, KLOG, KWAVE2, Level, PI, Realm
+from barkley.model.level import TS
 from barkley.model.game import Session
 from barkley.assets.palette import CWHITE
 from barkley.world.terrain.ground import SegAt, Slant, Twist, WAVEL
@@ -91,7 +93,8 @@ sub DrawBark (p as Hero, cx as integer, cy as integer)
 end sub
 
 sub DrawHero (gr as Ground, art as Store, se as Session, p as Hero, cx as integer, cy as integer)
-    dim x as integer, y as integer, f as integer, t as integer, tw as integer
+    dim x as integer, y as integer, f as integer, t as integer
+    dim tw as integer
     dim hu as single, hv as single, a as single, v as single
     if p.dig then exit sub
     if p.inv > 0 and not p.stun and (se.ticks and 4) then exit sub
@@ -191,7 +194,8 @@ end sub
 ' Turned about his middle, 12 off the ground, t sixteenths: the picture as drawn (0) or mirrored to face left (1);
 ' past half a turn the one half a turn back upside down, mirrored (3) or not (2).
 private sub DrawTilted (art as Store, p as Hero, x as integer, y as integer, f as integer, t as integer, hu as single, hv as single)
-    dim j as integer, k as integer, q as integer, bx as integer, by as integer
+    dim j as integer, k as integer, q as integer, bx as integer
+    dim by as integer
     k = (f - FRUN) \ 2
     if f >= FDASH then k = 3 + f - FDASH
     j = p.face

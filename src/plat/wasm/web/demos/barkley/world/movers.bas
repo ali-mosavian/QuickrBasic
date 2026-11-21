@@ -61,7 +61,8 @@ end function
 ' The platforms a step on: to and fro, up and down, or a lift, up while Charlie stands on it and down again
 ' when not. Charlie goes with the one it stands on.
 sub Movers (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero)
-    dim m as integer, s as integer, o as integer, x as single, y as single, dx as single, dy as single
+    dim m as integer, s as integer, o as integer, x as single
+    dim y as single, dx as single, dy as single
     for m = 0 to lv.n_movers - 1
         s = lv.movers(m).sg
         x = lv.movers(m).at.x

@@ -7,7 +7,8 @@ from barkley.engine.input import Poll
 from barkley.engine.clock import Clock, Elapsed, Pace, Steps, STEPT
 from barkley.engine.audio import FeedSong
 from barkley.model.hero import Hero, Pad
-from barkley.model.game import Cue, Game, INTRO, Loose, NCUE, NLOOSE, NPART, Part
+from barkley.model.game import Cue, Game, INTRO, Loose, NCUE, NLOOSE
+from barkley.model.game import NPART, Part
 from barkley.model.world import World
 from barkley.assets.store import BuildArt
 from barkley.assets.tunes import LoadSongs, PickSong, SongFor, Sudden
@@ -22,7 +23,8 @@ from barkley.flow.states import GoStage, ResetWorld, Tick
 ' title.
 sub Main (wd as World)
     dim g as Game, p as Hero, k as Pad
-    dim lo(NLOOSE - 1) as Loose, pt(NPART - 1) as Part, cu(NCUE) as Cue
+    dim lo(NLOOSE - 1) as Loose, pt(NPART - 1) as Part
+    dim cu(NCUE) as Cue
     dim now as single, last as single, c as Clock, n as integer
 
     OpenScreen

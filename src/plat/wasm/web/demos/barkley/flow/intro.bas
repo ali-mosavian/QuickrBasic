@@ -10,7 +10,9 @@ from barkley.model.level import Level
 from barkley.model.game import Cue, Game, INTRO
 from barkley.model.world import World
 from barkley.assets.palette import Shade, Shimmer
-from barkley.assets.cast import BaronPic, DrawCat, DrawEyes, DrawFamily, DrawFloat, DrawKeep, DrawVan
+from barkley.assets.cast import BaronPic, DrawCat, DrawEyes
+from barkley.assets.cast import DrawFamily, DrawFloat, DrawKeep
+from barkley.assets.cast import DrawVan
 from barkley.assets.tunes import Sfx, ZoneTune
 from barkley.world.level import LoadLevel, SINTRO, ZoneOf
 from barkley.world.backdrop import DrawBack, DrawTiles
@@ -214,7 +216,8 @@ end sub
 ' A step of the intro: its view and its sounds by the script, its last beat fading. Whether it is over: played
 ' out, or a key pressed.
 function IntroOver% (wd as World, g as Game, k as Pad, cu() as Cue)
-    dim i as integer, x as integer, y as integer, was as single, now as single
+    dim i as integer, x as integer, y as integer, was as single
+    dim now as single
     wd.se.ticks = wd.se.ticks + 1
     MuteKey wd.mu, k
     was = g.mode_t * BEATS
@@ -272,7 +275,8 @@ end sub
 
 ' Cue i's picture at beat `now`, the view at cx, cy: its foot's middle where the cue is.
 private sub DrawCue (wd as World, cu() as Cue, i as integer, now as single, p as Hero, cx as integer, cy as integer)
-    dim wx as integer, wy as integer, x as integer, y as integer, a as integer
+    dim wx as integer, wy as integer, x as integer, y as integer
+    dim a as integer
     CueAt wd.lv, cu(), i, now, wx, wy
     x = wx - cx
     y = wy - cy

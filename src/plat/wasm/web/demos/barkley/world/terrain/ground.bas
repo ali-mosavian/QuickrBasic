@@ -134,7 +134,8 @@ end function
 
 ' Falling Charlie's feet in the tiles' ground: on the line's stretch there, its speed along it kept.
 function Land% (lv as Level, gr as Ground, p as Hero, d as integer)
-    dim x as integer, y as integer, l as integer, c as integer, r as integer, s as integer
+    dim x as integer, y as integer, l as integer, c as integer
+    dim r as integer, s as integer
     x = cint(p.at.x)
     y = cint(p.at.y)
     l = Surf%(lv, x - 6, y)
@@ -187,7 +188,8 @@ end sub
 ' stood on, or is met fast enough to run along; else off it, sliding. A loop's far half is not there for one that
 ' has not run its near half.
 function Curve% (gr as Ground, p as Hero, x0 as single, y0 as single, d as integer)
-    dim z as integer, s as integer, a as integer, b as integer, near as integer
+    dim z as integer, s as integer, a as integer, b as integer
+    dim near as integer
     dim d0 as single, d1 as single, t as single, f as single
     Curve% = 0
     for z = 0 to gr.n_cv - 1
@@ -239,7 +241,8 @@ end sub
 ' Charlie d pixels along the line, over its joins: slowed in a sharp hollow, into the air over a sharp crest or
 ' off the line's end.
 sub Along (gr as Ground, p as Hero, d as single)
-    dim i as integer, j as integer, a as integer, t as single, cr as single, dt as single
+    dim i as integer, j as integer, a as integer, t as single
+    dim cr as single, dt as single
     i = p.sg
     t = (p.at.x - gr.pt(i).at.x) * gr.pt(i).dir.x + (p.at.y - gr.pt(i).at.y) * gr.pt(i).dir.y + d
     do

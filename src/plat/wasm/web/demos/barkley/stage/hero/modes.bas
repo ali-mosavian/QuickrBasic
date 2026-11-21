@@ -5,7 +5,8 @@ option explicit
 from barkley.engine.clock import STEPT
 from barkley.engine.audio import Deck
 from barkley.model.hero import Hero
-from barkley.model.level import GRAV, Ground, KCHIMNEY, KMOUND, Level, NONE
+from barkley.model.level import GRAV, Ground, KCHIMNEY, KMOUND, Level
+from barkley.model.level import NONE
 from barkley.model.game import Part, Session
 from barkley.assets.palette import CLOAM, CSEA, CSOOT
 from barkley.assets.tunes import Sfx, SJUMP, SPOP

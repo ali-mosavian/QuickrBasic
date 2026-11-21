@@ -9,7 +9,8 @@ from barkley.model.images import IACORN
 from barkley.model.hero import Hero
 from barkley.model.level import Level, Realm, Swarm
 from barkley.model.game import Game, Loose, Part, Session, Tones
-from barkley.assets.palette import CBEE, CFLY, CINK, CLEAF, CLOAM, CNUT, CVINE, CVINED, CWING, Tint
+from barkley.assets.palette import CBEE, CFLY, CINK, CLEAF, CLOAM
+from barkley.assets.palette import CNUT, CVINE, CVINED, CWING, Tint
 from barkley.assets.tunes import Sfx, SHURT, SPOP, SROLL, SSPRING
 from barkley.world.terrain.ground import Balk
 from barkley.world.level import GLOWN
@@ -257,7 +258,8 @@ end sub
 ' steps it stops, an acorn held out the last SQAIM of them, and lets it fall once he is near under it. Cowed,
 ' it keeps still. Its state: the steps till the acorn falls, signed the way it faces.
 sub Scamper (lv as Level, i as integer, p as Hero)
-    dim n as integer, d as integer, perch as integer, quarry as integer
+    dim n as integer, d as integer, perch as integer
+    dim quarry as integer
     n = abs(lv.things(i).state) - 1
     d = sgn(lv.things(i).state)
     quarry = abs(p.at.x - lv.things(i).home) < SQRUN + SQSEE and p.at.y > lv.things(i).at.y

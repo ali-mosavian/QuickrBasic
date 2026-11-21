@@ -5,13 +5,17 @@ option explicit
 from barkley.engine.video import Blit, Store, SW
 from barkley.engine.clock import STEPT
 from barkley.engine.audio import Deck
-from barkley.model.images import IBURST, ICAT, ICATF, IFLOWER, IMORTAR, IPAPER, ISHIRT, ISNATCH, ISOCK, ITALL
+from barkley.model.images import IBURST, ICAT, ICATF, IFLOWER, IMORTAR
+from barkley.model.images import IPAPER, ISHIRT, ISNATCH, ISOCK, ITALL
 from barkley.model.images import ITIPPER, ITROUSERS
 from barkley.model.hero import Hero
 from barkley.model.level import GRAV, KTIPPER, Level, NONE, Rope, TS
-from barkley.model.game import Game, Loose, NLOOSE, Part, PULSES, Session, TOONEW
-from barkley.assets.palette import CCLAY, CLANT, CLINEN, CPOLE, CQINK, CSOOT, CWHITE
-from barkley.assets.tunes import Sfx, SHURT, SMORTAR, SPOP, SROLL, SSNATCH, SSPRING, STWANG
+from barkley.model.game import Game, Loose, NLOOSE, Part, PULSES
+from barkley.model.game import Session, TOONEW
+from barkley.assets.palette import CCLAY, CLANT, CLINEN, CPOLE, CQINK
+from barkley.assets.palette import CSOOT, CWHITE
+from barkley.assets.tunes import Sfx, SHURT, SMORTAR, SPOP, SROLL
+from barkley.assets.tunes import SSNATCH, SSPRING, STWANG
 from barkley.stage.fx.parts import Burst
 from barkley.stage.fx.damage import Beaten, Hurt, Tackle
 from barkley.stage.hero.modes import FLUEH
@@ -171,7 +175,8 @@ end sub
 ' A way out's smoke, from its pot's top at x, y on the screen: three puffs, each rising, drifting and growing in
 ' its turn.
 sub DrawSmoke (se as Session, x as integer, y as integer)
-    dim f as integer, t as integer, r as integer, px as integer, py as integer
+    dim f as integer, t as integer, r as integer, px as integer
+    dim py as integer
     for f = 0 to 2
         t = (se.ticks \ 4 + f * 11) and 31
         r = 1 + t \ 12
@@ -426,7 +431,8 @@ end sub
 
 ' The lines in view: each from post to post, its washing on it.
 sub DrawLines (lv as Level, art as Store, cx as integer, cy as integer)
-    dim i as integer, u as integer, x as integer, y as integer, y1 as integer
+    dim i as integer, u as integer, x as integer, y as integer
+    dim y1 as integer
     for i = 0 to lv.n_ropes - 1
         x = lv.ropes(i).at.x - cx
         if x >= SW or x + lv.ropes(i).w < 0 then continue for

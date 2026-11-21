@@ -7,7 +7,8 @@ from barkley.engine.clock import STEPT
 from barkley.engine.audio import Deck
 from barkley.model.images import IGOAT, IGOATR, ILOAD, ILOB, ISNOWBALL
 from barkley.model.hero import Hero
-from barkley.model.level import GRAV, KCAT, KGOAT, KHEAP, KTHROW, Level, NONE, TS
+from barkley.model.level import GRAV, KCAT, KGOAT, KHEAP, KTHROW
+from barkley.model.level import Level, NONE, TS
 from barkley.model.game import Game, Loose, Part, Session
 from barkley.assets.palette import CFLAKE, CICE, CSNOW, CWHITE
 from barkley.assets.tunes import SBUMP, SCRACK, Sfx, SHURT, SROLL
@@ -178,7 +179,8 @@ end sub
 ' covered, paler at its top; its face rounded, its top heaving, balls of snow rolling on both; blocks of ice
 ' thrown on ahead of it.
 sub DrawAvalanche (lv as Level, art as Store, se as Session, cx as integer, cy as integer)
-    dim x as integer, wx as integer, d as integer, h as integer, y as integer, j as integer
+    dim x as integer, wx as integer, d as integer, h as integer
+    dim y as integer, j as integer
     if lv.aval.st = 0 or lv.aval.x < cx then exit sub
     for x = 0 to SW - 1 step 4
         wx = cx + x

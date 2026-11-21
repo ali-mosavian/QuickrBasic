@@ -3,7 +3,8 @@ defint A-Z
 option explicit
 
 from barkley.engine.video import Blit, SH, Store, SW
-from barkley.model.images import IAC, IAE, IAF, IAL, IAS, IAU, IDK, IWET, IWS, IWT, IZS, IZU
+from barkley.model.images import IAC, IAE, IAF, IAL, IAS, IAU, IDK
+from barkley.model.images import IWET, IWS, IWT, IZS, IZU
 from barkley.model.level import Level, Realm, TS
 
 private const STRIPH = 192
@@ -59,7 +60,8 @@ end sub
 ' A column of the works: its deck's top, then its wall, which hangs from the world, not the deck: single tiles down
 ' to its next 128, then strips. A slope's deck runs on over the wall under it.
 private sub DeckColumn (lv as Level, art as Store, tx as integer, cx as integer, cy as integer)
-    dim x as integer, y as integer, v as integer, k as integer, r as integer
+    dim x as integer, y as integer, v as integer, k as integer
+    dim r as integer
     x = tx * TS - cx
     y = lv.top(tx) * TS - cy
     v = lv.vis(tx)
@@ -85,7 +87,8 @@ end sub
 ' runs on into the tile under it; under a pipe, 0, the pipe's own picture is the ground. A column whose top the tide
 ' is over is of the wet pictures, w on from the dry; so is the pass's bare ice.
 private sub CombColumn (lv as Level, art as Store, tx as integer, cx as integer, cy as integer)
-    dim x as integer, y as integer, v as integer, k as integer, r as integer, w as integer
+    dim x as integer, y as integer, v as integer, k as integer
+    dim r as integer, w as integer
     x = tx * TS - cx
     y = lv.top(tx) * TS - cy
     v = lv.vis(tx)

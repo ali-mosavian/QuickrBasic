@@ -5,12 +5,16 @@ option explicit
 from barkley.engine.clock import STEPT
 from barkley.engine.audio import Deck
 from barkley.model.hero import Hero, Pad
-from barkley.model.level import KBONE, KCAT, KCHIMNEY, KCRAB, KGOAT, KJELLY, KMOUND, KSQUIRREL, KSWEEP, KTHROW, KWALL
-from barkley.model.level import KMORTAR, KSNATCH, KTIPPER, KWALKER, MH, NONE, NSTAGE, TS
-from barkley.model.game import CLEARED, Game, Loose, NLOOSE, NPART, OVER, Part, PLAYING, Session, TITLE
+from barkley.model.level import KBONE, KCAT, KCHIMNEY, KCRAB, KGOAT
+from barkley.model.level import KJELLY, KMORTAR, KMOUND, KSNATCH
+from barkley.model.level import KSQUIRREL, KSWEEP, KTHROW, KTIPPER
+from barkley.model.level import KWALKER, KWALL, MH, NONE, NSTAGE, TS
+from barkley.model.game import CLEARED, Game, Loose, NLOOSE, NPART
+from barkley.model.game import OVER, Part, PLAYING, Session, TITLE
 from barkley.model.world import NLOB, NMOVE, World
 from barkley.assets.palette import Cycle, Shade, Shimmer
-from barkley.assets.tunes import CAUGHT, EndBeat, EndTune, KeepBeat, SBONE, SCLEAR, Sfx
+from barkley.assets.tunes import CAUGHT, EndBeat, EndTune, KeepBeat
+from barkley.assets.tunes import SBONE, SCLEAR, Sfx
 from barkley.world.level import LoadLevel, ZoneOf
 from barkley.world.movers import Movers
 from barkley.stage.fx.damage import Lose

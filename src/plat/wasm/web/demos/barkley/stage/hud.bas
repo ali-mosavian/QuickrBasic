@@ -19,7 +19,8 @@ const PIPY = 22
 ' Called before the frame is drawn: it draws on the page's corner. gold: the act's golden bones found, a bit
 ' each, a pip each after the bones; under 0, it has none.
 sub Hud (art as Store, g as Game, gold as integer)
-    dim s as integer, sig as long, i as integer, x as integer, bit as integer
+    dim s as integer, sig as long, i as integer, x as integer
+    dim bit as integer
     s = int(g.clock)
     sig = g.score * 7 + g.bones * 131& + g.lives * 100003 + s * 13& + 1 + (gold + 1) * 15485863&
     if sig = g.sig then exit sub

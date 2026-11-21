@@ -3,8 +3,10 @@ defint A-Z
 option explicit
 
 from barkley.engine.video import Blit, Store
-from barkley.model.images import FAMF, IBALL, IBARON, IBASKET, ICAMERA, ICAT, IDOOR, IFAM, IFLOAT, IPEEK, ITEDDY, ITOOLS
-from barkley.model.images import IGUITAR, IVAN, IWHEEL, NFAM
+from barkley.model.images import FAMF, IBALL, IBARON, IBASKET, ICAMERA
+from barkley.model.images import ICAT, IDOOR, IFAM, IFLOAT, IGUITAR
+from barkley.model.images import IPEEK, ITEDDY, ITOOLS, IVAN, IWHEEL
+from barkley.model.images import NFAM
 from barkley.model.level import Realm
 from barkley.model.game import Session
 from barkley.assets.palette import CHEDGE, CYELLOW

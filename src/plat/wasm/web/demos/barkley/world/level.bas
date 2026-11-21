@@ -3,21 +3,31 @@ defint A-Z
 option explicit
 
 from barkley.engine.datafile import Chars, DataFile, OpenData, Word
-from barkley.model.images import IBG, ICARD, ICARD2, ILOOP, ITILE, ITILE2, IWAVE, IZ2
-from barkley.model.level import KBONE, KBOOST, KBRAMBLE, KBUMP, KBUOY, KBUSH, KBUTTON, KCAT, KCISTERN, KCRAB, KDRIFT
-from barkley.model.level import KAWNING, KBIN, KCHIMNEY, KGOLD, KMORTAR, KPOUNCE, KSNATCH, KTIPPER, KWALKER
-from barkley.model.level import KFAM, KFLOWER, KFLUME, KGOAL, KGOAT, KHEAP, KHOOP, KICICLE, KJELLY, KJET, KLEG, KLOAD
-from barkley.model.level import KLOG, KLOOP, KMARK, KMOUND, KPIPE, KPLAT, KPRESS, KROCK, KSAPLING, KSLED, KSPARK, KSPIN
-from barkley.model.level import KSPOUT, KSPRING, KSQUIRREL, KSWEEP, KTANK, KTHORN, KTHROW, KTREE, KVENT, KVINE, KWALL
-from barkley.model.level import KWAVE, Level, MH, MW, NONE, NSTAGE, PI, TS
+from barkley.model.images import IBG, ICARD, ICARD2, ILOOP, ITILE
+from barkley.model.images import ITILE2, IWAVE, IZ2
+from barkley.model.level import KAWNING, KBIN, KBONE, KBOOST, KBRAMBLE
+from barkley.model.level import KBUMP, KBUOY, KBUSH, KBUTTON, KCAT
+from barkley.model.level import KCHIMNEY, KCISTERN, KCRAB, KDRIFT
+from barkley.model.level import KFAM, KFLOWER, KFLUME, KGOAL, KGOAT
+from barkley.model.level import KGOLD, KHEAP, KHOOP, KICICLE, KJELLY
+from barkley.model.level import KJET, KLEG, KLOAD, KLOG, KLOOP, KMARK
+from barkley.model.level import KMORTAR, KMOUND, KPIPE, KPLAT, KPOUNCE
+from barkley.model.level import KPRESS, KROCK, KSAPLING, KSLED
+from barkley.model.level import KSNATCH, KSPARK, KSPIN, KSPOUT
+from barkley.model.level import KSPRING, KSQUIRREL, KSWEEP, KTANK
+from barkley.model.level import KTHORN, KTHROW, KTIPPER, KTREE, KVENT
+from barkley.model.level import KVINE, KWALKER, KWALL, KWAVE, Level
+from barkley.model.level import MH, MW, NONE, NSTAGE, PI, TS
 from barkley.model.game import Session
 from barkley.model.world import World
 from barkley.assets.palette import CWATER, Shade
 from barkley.assets.store import LoadZoneArt
 from barkley.assets.tunes import ZoneTune
-from barkley.world.terrain.track import Faces, MOVEW, PIPER, Track, WAVEA
-from barkley.world.layout import AddMover, AddObj, Clearing, Column, Limbs, Pair, Pit, PITD, Rooted, Scatter, Shelf
-from barkley.world.layout import SortObjs, Weed
+from barkley.world.terrain.track import Faces, MOVEW, PIPER, Track
+from barkley.world.terrain.track import WAVEA
+from barkley.world.layout import AddMover, AddObj, Clearing, Column
+from barkley.world.layout import Limbs, Pair, Pit, PITD, Rooted
+from barkley.world.layout import Scatter, Shelf, SortObjs, Weed
 
 ' A clothesline's ends over the roofs it joins, and how far in from their edges its posts stand.
 const LINEH = 24
@@ -81,8 +91,10 @@ end function
 
 ' The ground's columns, then what stands on them, from the stage's level: a command and its count, to its end.
 sub LoadLevel (wd as World, st as integer)
-    dim cmd as string, n as integer, c as integer, g as integer, bx as integer
-    dim i as integer, s as integer, k as integer, z as integer, light as integer, fall as integer
+    dim cmd as string, n as integer, c as integer, g as integer
+    dim bx as integer
+    dim i as integer, s as integer, k as integer, z as integer
+    dim light as integer, fall as integer
     wd.zn.stage = st
     z = ZoneOf%(wd.se, st)
     wd.zn.id = z

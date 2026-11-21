@@ -5,12 +5,14 @@ option explicit
 from barkley.engine.video import Blit, SH, Store, SW
 from barkley.engine.clock import STEPT
 from barkley.engine.audio import Deck
-from barkley.model.images import IBONE, ICRAB, IGULL, IRUNNEL, ISPOUT, ISURF
+from barkley.model.images import IBONE, ICRAB, IGULL, IRUNNEL, ISPOUT
+from barkley.model.images import ISURF
 from barkley.model.hero import Hero
 from barkley.model.level import Bird, Level, NONE, PI, TS
 from barkley.model.game import Game, Loose, NLOOSE, Part, Session
 from barkley.assets.palette import CSEA, CWHITE
-from barkley.assets.tunes import SBOOST, Sfx, SHURT, SPOP, SSPRING, SSQUAWK
+from barkley.assets.tunes import SBOOST, Sfx, SHURT, SPOP, SSPRING
+from barkley.assets.tunes import SSQUAWK
 from barkley.stage.fx.parts import Burst
 from barkley.stage.fx.damage import Beaten, BOUNCEV, Hurt
 from barkley.stage.hero.moves import GSCARED, SHELLT
@@ -208,7 +210,8 @@ end sub
 ' The sea in each column whose ground is under it: bands of water from its surface down behind the column's top
 ' tile, a run of columns alike at a time.
 sub DrawSea (lv as Level, cx as integer, cy as integer)
-    dim tx as integer, tx0 as integer, tx1 as integer, y0 as integer, y1 as integer, x0 as integer, x1 as integer
+    dim tx as integer, tx0 as integer, tx1 as integer, y0 as integer
+    dim y1 as integer, x0 as integer, x1 as integer
     y0 = lv.tide - cy
     if y0 >= SH then exit sub
     tx1 = cx \ TS + SW \ TS

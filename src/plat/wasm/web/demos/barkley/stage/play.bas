@@ -6,25 +6,43 @@ from barkley.engine.video import SW
 from barkley.engine.clock import STEPT
 from barkley.engine.audio import Deck
 from barkley.model.hero import Hero
-from barkley.model.level import GRAV, Ground, KBONE, KBOOST, KBRAMBLE, KBUMP, KBUOY, KBUTTON, KCAT, KCRAB, KDRIFT
-from barkley.model.level import KFLUME, KGOAL, KGOAT, KHEAP, KHOOP, KICICLE, KJELLY, KJET, KLOAD, KLOG, KMARK, KMOUND
-from barkley.model.level import KPRESS, KSAPLING, KSLED, KSPARK, KSPIN, KSPOUT, KSPRING, KSQUIRREL, KSWEEP, KTHORN
-from barkley.model.level import KAWNING, KCHIMNEY, KGOLD, KPOUNCE, KSNATCH, KTHROW, KVINE, KWALKER, KWALL, Level
-from barkley.model.level import KMORTAR, KTIPPER, Realm, TS
-from barkley.model.game import Game, Loose, NLOOSE, OVER, Part, Session, TOONEW
-from barkley.assets.tunes import LEFTBEHIND, SBONE, SceneTune, Sfx, SHURT
+from barkley.model.level import GRAV, Ground, KAWNING, KBONE, KBOOST
+from barkley.model.level import KBRAMBLE, KBUMP, KBUOY, KBUTTON, KCAT
+from barkley.model.level import KCHIMNEY, KCRAB, KDRIFT, KFLUME, KGOAL
+from barkley.model.level import KGOAT, KGOLD, KHEAP, KHOOP, KICICLE
+from barkley.model.level import KJELLY, KJET, KLOAD, KLOG, KMARK
+from barkley.model.level import KMORTAR, KMOUND, KPOUNCE, KPRESS
+from barkley.model.level import KSAPLING, KSLED, KSNATCH, KSPARK
+from barkley.model.level import KSPIN, KSPOUT, KSPRING, KSQUIRREL
+from barkley.model.level import KSWEEP, KTHORN, KTHROW, KTIPPER, KVINE
+from barkley.model.level import KWALKER, KWALL, Level, Realm, TS
+from barkley.model.game import Game, Loose, NLOOSE, OVER, Part
+from barkley.model.game import Session, TOONEW
+from barkley.assets.tunes import LEFTBEHIND, SBONE, SceneTune, Sfx
+from barkley.assets.tunes import SHURT
 from barkley.world.terrain.ground import SegAt
 from barkley.world.level import Mend
 from barkley.stage.fx.parts import LooseBones, Particles
 from barkley.stage.fx.damage import Hurt
-from barkley.stage.zones.downs import MeetBone, MeetBoost, MeetCat, MeetGold, MeetMark, MeetSpring, Prowl
-from barkley.stage.zones.works import MeetBump, MeetButton, MeetHoop, MeetJet, MeetPress, MeetSpark, MeetSpin, MeetSweep
-from barkley.stage.zones.sands import Bob, MeetCrab, MeetFlume, MeetJelly
-from barkley.stage.zones.wood import MeetBramble, MeetLog, MeetMound, MeetSapling, MeetVine, Regrow, Scamper
-from barkley.stage.zones.pass import Graze, MeetDrift, MeetGoat, MeetHeap, MeetIcicle, MeetSled, MeetThrow, MeetWall
-from barkley.stage.zones.pass import TakeAim, Totter, Unload
-from barkley.stage.zones.quarter import Lines, MeetAwning, MeetChimney, MeetMortar, MeetPounce, Mortar, Pounce, Settle
-from barkley.stage.zones.quarter import MeetTipper, Snatch, Tipper
+from barkley.stage.zones.downs import MeetBone, MeetBoost, MeetCat
+from barkley.stage.zones.downs import MeetGold, MeetMark, MeetSpring
+from barkley.stage.zones.downs import Prowl
+from barkley.stage.zones.works import MeetBump, MeetButton, MeetHoop
+from barkley.stage.zones.works import MeetJet, MeetPress, MeetSpark
+from barkley.stage.zones.works import MeetSpin, MeetSweep
+from barkley.stage.zones.sands import Bob, MeetCrab, MeetFlume
+from barkley.stage.zones.sands import MeetJelly
+from barkley.stage.zones.wood import MeetBramble, MeetLog, MeetMound
+from barkley.stage.zones.wood import MeetSapling, MeetVine, Regrow
+from barkley.stage.zones.wood import Scamper
+from barkley.stage.zones.pass import Graze, MeetDrift, MeetGoat
+from barkley.stage.zones.pass import MeetHeap, MeetIcicle, MeetSled
+from barkley.stage.zones.pass import MeetThrow, MeetWall, TakeAim
+from barkley.stage.zones.pass import Totter, Unload
+from barkley.stage.zones.quarter import Lines, MeetAwning, MeetChimney
+from barkley.stage.zones.quarter import MeetMortar, MeetPounce
+from barkley.stage.zones.quarter import MeetTipper, Mortar, Pounce
+from barkley.stage.zones.quarter import Settle, Snatch, Tipper
 from barkley.stage.zones.chase import ResetChase
 from barkley.stage.camera import Camera
 
@@ -46,7 +64,8 @@ end sub
 
 ' Charlie against the things near it, and the loose bones.
 sub Touch (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
-    dim i as integer, c as integer, px as integer, py as integer, x as integer, dx as integer
+    dim i as integer, c as integer, px as integer, py as integer
+    dim x as integer, dx as integer
     ' under the ground nothing is met
     if p.dig then exit sub
     if lv.n_ropes then Lines lv, mu, se, g, p, pt()

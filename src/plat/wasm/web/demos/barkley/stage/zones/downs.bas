@@ -8,7 +8,8 @@ from barkley.model.hero import Hero
 from barkley.model.level import Level, Realm
 from barkley.model.game import Found, Game, Gild, Loose, Part, Session
 from barkley.assets.palette import CGOLD
-from barkley.assets.tunes import SBONE, SBOOST, Sfx, SGOLD, SMARK, SSPRING
+from barkley.assets.tunes import SBONE, SBOOST, Sfx, SGOLD, SMARK
+from barkley.assets.tunes import SSPRING
 from barkley.world.terrain.ground import Solid, Surf
 from barkley.world.level import GoldNo
 from barkley.stage.fx.parts import Burst

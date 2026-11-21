@@ -3,10 +3,10 @@ defint A-Z
 option explicit
 
 from barkley.model.hero import Autopilot, Hero, HW, Pad
-from barkley.model.level import Ground, KBRAMBLE, KCAT, KCRAB, KJELLY, KLOG, KMOUND, KPOUNCE, KSPARK, KSWEEP, KTHORN
-from barkley.model.level import KMORTAR, KSNATCH
-from barkley.model.level import KTHROW
-from barkley.model.level import Level, NONE, Realm, TS
+from barkley.model.level import Ground, KBRAMBLE, KCAT, KCRAB, KJELLY
+from barkley.model.level import KLOG, KMORTAR, KMOUND, KPOUNCE
+from barkley.model.level import KSNATCH, KSPARK, KSWEEP, KTHORN
+from barkley.model.level import KTHROW, Level, NONE, Realm, TS
 from barkley.model.game import Session
 from barkley.world.terrain.ground import Ribbon, Solid, Surf
 from barkley.world.terrain.track import MOVEW
@@ -16,7 +16,8 @@ from barkley.stage.hero.moves import TOP
 from barkley.stage.hero.draw import LOGR
 from barkley.stage.zones.works import PressAhead, PRESSP, PressT
 from barkley.stage.zones.wood import MOUNDR
-from barkley.stage.zones.quarter import PotClear, POTR, POTX, POUNCEGONE, TipperAhead
+from barkley.stage.zones.quarter import PotClear, POTR, POTX
+from barkley.stage.zones.quarter import POUNCEGONE, TipperAhead
 from barkley.stage.zones.pass import GCHARGE, GoatNear
 
 ' How near who flees is rolled into. A bump throws him back curled, and on the quarter's level street a roll only
@@ -83,7 +84,8 @@ end function
 
 ' On a platform: still, till there is ground ahead to jump to. Whether to jump.
 private function PilotRide% (lv as Level, gr as Ground, se as Session, p as Hero, k as Pad)
-    dim y as integer, i as integer, m as integer, d as integer, want as integer
+    dim y as integer, i as integer, m as integer, d as integer
+    dim want as integer
     y = cint(p.at.y)
     HoldBack p, k, 20
     i = cint(gr.pt(p.sg).at.x) + MOVEW + 10
@@ -119,7 +121,8 @@ end function
 ' On the ground: a jump at a gap, a wall, or what would hurt; a wait at a press, a goat, a platform's gap. Whether
 ' to jump.
 private function PilotRun% (lv as Level, gr as Ground, zn as Realm, se as Session, p as Hero, k as Pad)
-    dim x as integer, y as integer, i as integer, d as integer, want as integer
+    dim x as integer, y as integer, i as integer, d as integer
+    dim want as integer
     x = cint(p.at.x)
     y = cint(p.at.y)
     i = x + 22 + cint(abs(p.gsp)) \ 40
@@ -177,7 +180,8 @@ end function
 ' Such a mound ahead, or just passed: braked to a stand on it, and down. The faster he comes the sooner he
 ' brakes; short of it he goes on at a walk.
 private sub PilotDig (lv as Level, p as Hero, k as Pad, want as integer)
-    dim i as integer, x as integer, c as integer, d as integer, v as integer
+    dim i as integer, x as integer, c as integer, d as integer
+    dim v as integer
     x = cint(p.at.x)
     v = cint(p.gsp)
     c = (x - 48) \ TS

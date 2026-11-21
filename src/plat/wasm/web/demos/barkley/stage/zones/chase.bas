@@ -5,14 +5,17 @@ option explicit
 from barkley.engine.video import Blit, Store, SW
 from barkley.engine.clock import STEPT
 from barkley.engine.audio import Deck
-from barkley.model.images import IBRACKET, ICART, ICARTW, ICAT, ICRANE, IDUNKED, IFROST, IKNOT, ILIMB, IOAK, IOAKFOOT
-from barkley.model.images import IPEDAL, IRAIL, IRELAY, ITWIN, IWBOX
+from barkley.model.images import IBRACKET, ICART, ICARTW, ICAT, ICRANE
+from barkley.model.images import IDUNKED, IFROST, IKNOT, ILIMB, IOAK
+from barkley.model.images import IOAKFOOT, IPEDAL, IRAIL, IRELAY
+from barkley.model.images import ITWIN, IWBOX
 from barkley.model.hero import Hero
 from barkley.model.level import GRAV, Level, NONE, Realm, TS
 from barkley.model.game import Game, Loose, Part, PULSES, Session
 from barkley.assets.palette import CEARTH, CYELLOW
 from barkley.assets.cast import DrawKeep
-from barkley.assets.tunes import CAUGHT, SBUMP, Sfx, SHISS, SMARK, SPOP, ZoneTune, ZTUNE
+from barkley.assets.tunes import CAUGHT, SBUMP, Sfx, SHISS, SMARK
+from barkley.assets.tunes import SPOP, ZoneTune, ZTUNE
 from barkley.world.terrain.ground import Lie, Surf
 from barkley.world.terrain.track import LimbUp, LIMBW, LimbX, NLIMB
 from barkley.stage.fx.parts import Burst
@@ -336,7 +339,8 @@ end function
 ' Kipper off the ground on his quick beat, the other twin by; a pip over it for each cat still to bump. Broken,
 ' the guitar where it fell.
 private sub DrawRelay (lv as Level, zn as Realm, art as Store, se as Session, cx as integer, cy as integer)
-    dim x as integer, y as integer, leg as integer, k as integer, i as integer, a as integer, b as integer
+    dim x as integer, y as integer, leg as integer, k as integer
+    dim i as integer, a as integer, b as integer
     dim up as integer, q as single
     x = cint(lv.cart.at.x) - cx
     y = cint(lv.cart.at.y) - cy
@@ -447,7 +451,8 @@ end function
 ' The great oak: its limbs, out from behind it; its foot, and its trunk up from there out of sight; its hollow
 ' and its brackets.
 private sub DrawOak (lv as Level, art as Store, cx as integer, cy as integer)
-    dim n as integer, x as integer, y as integer, k as integer, w as integer, h as integer
+    dim n as integer, x as integer, y as integer, k as integer
+    dim w as integer, h as integer
     x = lv.oak.x - cx
     if x < -170 or x > SW + 170 then exit sub
     for n = 0 to NLIMB - 1
@@ -483,7 +488,8 @@ end sub
 ' The twins on their limbs, each in the picture of what it does, and the ball with a pip over it for each catch
 ' still to make. A catch telling, they are shocked where they sat, then leap to the pair above.
 private sub DrawTwins (lv as Level, zn as Realm, art as Store, cx as integer, cy as integer)
-    dim sd as integer, n as integer, x as single, y as single, u as single, i as integer, bx as integer
+    dim sd as integer, n as integer, x as single, y as single
+    dim u as single, i as integer, bx as integer
     dim by as integer
     for sd = 0 to 1
         n = Roost%(lv) * 2 + sd
@@ -676,7 +682,8 @@ end sub
 ' The rail over the hall and the crane on it, a pip over it for each bump it can still take, its crate on the hook
 ' or falling; broken, its lamp out and the toolbox fallen from it.
 private sub DrawCrane (lv as Level, zn as Realm, art as Store, se as Session, cx as integer, cy as integer)
-    dim x as integer, y as integer, i as integer, fy as integer, a as integer, b as integer, jolt as integer
+    dim x as integer, y as integer, i as integer, fy as integer
+    dim a as integer, b as integer, jolt as integer
     x = cint(lv.cart.at.x) - cx
     fy = cint(lv.cart.at.y) - cy
     y = fy - RAILUP

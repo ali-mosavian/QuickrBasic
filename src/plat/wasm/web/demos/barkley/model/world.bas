@@ -8,7 +8,8 @@ from barkley.engine.input import Keys
 from barkley.engine.audio import Deck, NBAR, NDRUM, NSLOT, NVOICE
 from barkley.model.images import IMGSZ, NIMG
 from barkley.model.hero import Autopilot
-from barkley.model.level import Ground, Level, MH, MW, NSTAGE, Realm, TS, ZONES
+from barkley.model.level import Ground, Level, MH, MW, NSTAGE, Realm
+from barkley.model.level import TS, ZONES
 from barkley.model.game import Session, Tones
 
 ' All of it. What runs the game takes it whole; the rest take the parts they use.

@@ -9,7 +9,8 @@ from barkley.model.hero import Hero
 from barkley.model.level import KPRESS, Level, NONE, TS
 from barkley.model.game import Game, Loose, Part, Session
 from barkley.assets.palette import CGOLD
-from barkley.assets.tunes import SBOOST, SCLANK, Sfx, SHISS, SHURT, SMARK, SSPRING
+from barkley.assets.tunes import SBOOST, SCLANK, Sfx, SHISS, SHURT
+from barkley.assets.tunes import SMARK, SSPRING
 from barkley.stage.fx.parts import Burst
 from barkley.stage.fx.damage import Beaten, BOUNCEV, Hurt
 

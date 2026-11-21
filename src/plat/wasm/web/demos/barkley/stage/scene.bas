@@ -3,22 +3,38 @@ defint A-Z
 option explicit
 
 from barkley.engine.video import Blit, SH, Store, SW
-from barkley.model.images import IAM, IAP, IBONE, IBOOST, IBRAMBLE, IBTN, IBUMP, IBUOY, IBUSH, ICHAIR, ICISTERN, IDASH
-from barkley.model.images import IDRIFT, IFLOWER, IFLUME, IFORT, IGEYSER, IGOAL, IHEAP, IHOOP, IHUD, IICICLE, IJELLY
-from barkley.model.images import IJET, ILAMP, IMARK, IMOUND, IMOVE, IPOST, IROCK, ISAPLING, ISEAT, ISLED, ISPIN, ISPRING
-from barkley.model.images import ISQUIRREL, ISWEEP, ITANK, ITHORN, ITITLE, ITOAD, ITREE, IVENT, IWALL
+from barkley.model.images import IAM, IAP, IAWNING, IBIN, IBONE
+from barkley.model.images import IBOOST, IBRAMBLE, IBTN, IBUMP, IBUOY
+from barkley.model.images import IBUSH, ICHAIR, ICHIMNEY, ICISTERN
+from barkley.model.images import IDASH, IDRIFT, IFLOWER, IFLUME, IFORT
+from barkley.model.images import IGEYSER, IGOAL, IGOLD, IHEAP, IHOOP
+from barkley.model.images import IHUD, IICICLE, IJELLY, IJET, ILAMP
+from barkley.model.images import IMARK, IMOUND, IMOVE, IPOST, IROCK
+from barkley.model.images import ISAPLING, ISEAT, ISLED, ISPIN
+from barkley.model.images import ISPRING, ISQUIRREL, ISWEEP, ITANK
+from barkley.model.images import ITHORN, ITITLE, ITOAD, ITRAM, ITREE
+from barkley.model.images import IVENT, IWALL
 from barkley.model.hero import Hero
-from barkley.model.level import KBONE, KBOOST, KBRAMBLE, KBUMP, KBUOY, KBUSH, KBUTTON, KCAT, KCISTERN, KCRAB, KDRIFT
-from barkley.model.level import KFAM, KFLOWER, KFLUME, KFRONT, KGOAL, KGOAT, KHEAP, KHOOP, KICICLE, KJELLY, KJET, KLAMP
-from barkley.model.level import KLEG, KLOAD, KLOOP, KMARK, KMOUND, KMOVE, KPIPE, KPLAT, KPOST, KPRESS, KROCK, KSAPLING
-from barkley.model.level import KSEAT, KSLED, KSPAN, KSPARK, KSPIN, KSPOUT, KSPRING, KSQUIRREL, KSWEEP, KTANK, KTHORN
-from barkley.model.level import KTHROW, KTREE, KVENT, KVINE, KWALL, KWAVE, Level, NONE, Realm, TS
-from barkley.model.level import KAWNING, KBIN, KCHIMNEY, KGOLD, KMORTAR, KPOUNCE, KSNATCH, KTIPPER, KTRAM, KWALKER
-from barkley.model.level import NGOLD
-from barkley.model.images import IAWNING, IBIN, ICHIMNEY, IGOLD, ITRAM
-from barkley.model.game import CLEARED, Found, Game, Loose, NLOOSE, NPART, OVER, Part, PLAYING, Session, TITLE
+from barkley.model.level import KAWNING, KBIN, KBONE, KBOOST, KBRAMBLE
+from barkley.model.level import KBUMP, KBUOY, KBUSH, KBUTTON, KCAT
+from barkley.model.level import KCHIMNEY, KCISTERN, KCRAB, KDRIFT
+from barkley.model.level import KFAM, KFLOWER, KFLUME, KFRONT, KGOAL
+from barkley.model.level import KGOAT, KGOLD, KHEAP, KHOOP, KICICLE
+from barkley.model.level import KJELLY, KJET, KLAMP, KLEG, KLOAD
+from barkley.model.level import KLOOP, KMARK, KMORTAR, KMOUND, KMOVE
+from barkley.model.level import KPIPE, KPLAT, KPOST, KPOUNCE, KPRESS
+from barkley.model.level import KROCK, KSAPLING, KSEAT, KSLED, KSNATCH
+from barkley.model.level import KSPAN, KSPARK, KSPIN, KSPOUT, KSPRING
+from barkley.model.level import KSQUIRREL, KSWEEP, KTANK, KTHORN
+from barkley.model.level import KTHROW, KTIPPER, KTRAM, KTREE, KVENT
+from barkley.model.level import KVINE, KWALKER, KWALL, KWAVE, Level
+from barkley.model.level import NGOLD, NONE, Realm, TS
+from barkley.model.game import CLEARED, Found, Game, Loose, NLOOSE
+from barkley.model.game import NPART, OVER, Part, PLAYING, Session
+from barkley.model.game import TITLE
 from barkley.model.world import World
-from barkley.assets.palette import CGOLD, CINK, CSCARF, CWHITE, CYELLOW
+from barkley.assets.palette import CGOLD, CINK, CSCARF, CWHITE
+from barkley.assets.palette import CYELLOW
 from barkley.assets.store import HUDH, HUDW
 from barkley.assets.cast import DrawFamily
 from barkley.world.terrain.ground import LOOPR, WAVEL
@@ -28,13 +44,21 @@ from barkley.world.movers import Dip
 from barkley.world.backdrop import DrawBack, DrawTiles
 from barkley.stage.fx.lobs import DrawLobs
 from barkley.stage.hero.moves import BARKT
-from barkley.stage.hero.draw import DrawBark, DrawHero, DrawOver, WAVEH
+from barkley.stage.hero.draw import DrawBark, DrawHero, DrawOver
+from barkley.stage.hero.draw import WAVEH
 from barkley.stage.zones.downs import CatPic
-from barkley.stage.zones.works import DrawLeg, DrawPress, DrawSpark, SPINH, SPINR
-from barkley.stage.zones.sands import CrabPic, DrawGulls, DrawSea, DrawSpout, DrawSurf
-from barkley.stage.zones.wood import DrawBees, DrawFlies, DrawVine, SQAIM
-from barkley.stage.zones.pass import DrawAvalanche, DrawGale, DrawGoat, DrawLoad, DrawStray, Fallen, Risen, TREMBLE
-from barkley.stage.zones.quarter import DrawLines, DrawMortar, DrawPouncer, DrawSmoke, DrawTipper, SnatchPic
+from barkley.stage.zones.works import DrawLeg, DrawPress, DrawSpark
+from barkley.stage.zones.works import SPINH, SPINR
+from barkley.stage.zones.sands import CrabPic, DrawGulls, DrawSea
+from barkley.stage.zones.sands import DrawSpout, DrawSurf
+from barkley.stage.zones.wood import DrawBees, DrawFlies, DrawVine
+from barkley.stage.zones.wood import SQAIM
+from barkley.stage.zones.pass import DrawAvalanche, DrawGale, DrawGoat
+from barkley.stage.zones.pass import DrawLoad, DrawStray, Fallen
+from barkley.stage.zones.pass import Risen, TREMBLE
+from barkley.stage.zones.quarter import DrawLines, DrawMortar
+from barkley.stage.zones.quarter import DrawPouncer, DrawSmoke
+from barkley.stage.zones.quarter import DrawTipper, SnatchPic
 from barkley.stage.hero.modes import FLUEH
 from barkley.stage.zones.chase import DrawChase
 from barkley.stage.hud import Banner, Hud, Num, Panel, Say, Txt
@@ -137,7 +161,8 @@ private function GoldFound% (wd as World)
 end function
 
 sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as integer, cy as integer, back as integer)
-    dim i as integer, c as integer, x as integer, y as integer, k as integer, f as integer, a as single
+    dim i as integer, c as integer, x as integer, y as integer
+    dim k as integer, f as integer, a as single
     c = (cx - WAVEL) \ TS
     if c < 0 then c = 0
     for i = lv.first(c) to lv.n_things - 1
@@ -322,7 +347,8 @@ end sub
 
 ' The cables, their posts, and what hangs from them: a basket by its two lines, a chair by its hanger and grip.
 private sub DrawCables (lv as Level, cx as integer, cy as integer)
-    dim m as integer, x as integer, y as integer, x1 as integer, bx as integer, by as integer, i as integer
+    dim m as integer, x as integer, y as integer, x1 as integer
+    dim bx as integer, by as integer, i as integer
     dim d as integer
     for m = 0 to lv.n_movers - 1
         if lv.movers(m).kind <> 3 and lv.movers(m).kind <> 7 then continue for

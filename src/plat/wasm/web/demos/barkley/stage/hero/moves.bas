@@ -5,14 +5,19 @@ option explicit
 from barkley.engine.clock import STEPT
 from barkley.engine.audio import Deck
 from barkley.model.hero import Hero, HH, Pad
-from barkley.model.level import GRAV, Ground, KCAT, KCRAB, KICICLE, KLOAD, KPOUNCE, KSQUIRREL, KTHROW, KWALKER, Level
-from barkley.model.level import KSNATCH, NONE, TS
+from barkley.model.level import GRAV, Ground, KCAT, KCRAB, KICICLE
+from barkley.model.level import KLOAD, KPOUNCE, KSNATCH, KSQUIRREL
+from barkley.model.level import KTHROW, KWALKER, Level, NONE, TS
 from barkley.model.game import Part, Session
 from barkley.assets.palette import CEARTH, CSTONE, CWHITE
-from barkley.assets.tunes import SBARK, SCHARGE, Sfx, SJUMP, SLAUNCH, SPOP, SROLL
-from barkley.world.terrain.ground import Along, Curve, Drop, Land, Slow, Solid, STALL, Twist, Wall
+from barkley.assets.tunes import SBARK, SCHARGE, Sfx, SJUMP, SLAUNCH
+from barkley.assets.tunes import SPOP, SROLL
+from barkley.world.terrain.ground import Along, Curve, Drop, Land
+from barkley.world.terrain.ground import Slow, Solid, STALL, Twist
+from barkley.world.terrain.ground import Wall
 from barkley.stage.fx.parts import Burst, Emit
-from barkley.stage.hero.modes import Alight, Buffet, Hang, Paddle, Ride, Soak, Tunnel
+from barkley.stage.hero.modes import Alight, Buffet, Hang, Paddle
+from barkley.stage.hero.modes import Ride, Soak, Tunnel
 
 const JUMPV = 330!
 private const JUMPCUT = 160!
@@ -62,7 +67,8 @@ const GSCARED = 4
 const WETTOP = 220!
 
 sub MoveHero (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero, k as Pad, pt() as Part)
-    dim l as integer, r as integer, d as integer, hit as integer, hold as integer
+    dim l as integer, r as integer, d as integer, hit as integer
+    dim hold as integer
     dim v as single
     if p.dig then
         Tunnel lv, mu, se, p, pt()
@@ -172,7 +178,8 @@ end function
 ' On the ground: wind up, jump, roll, run; then along it, a few pixels a
 ' move, into walls and onto the ground's curve.
 private sub Walk (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero, l as integer, r as integer, d as integer, hit as integer, pt() as Part)
-    dim n as integer, s as integer, i as integer, grip as single, push as single
+    dim n as integer, s as integer, i as integer, grip as single
+    dim push as single
     grip = 1
     push = 1
     if Slick%(lv, gr, p) then
@@ -323,7 +330,8 @@ end sub
 ' In the air: gravity, steering, a jump cut short when let go; then a few
 ' pixels a move, into walls, ceilings and onto the ground.
 private sub Airborne (lv as Level, gr as Ground, se as Session, p as Hero, l as integer, r as integer, d as integer, hold as integer, pt() as Part)
-    dim n as integer, s as integer, m as single, landed as integer, fell as single, x0 as single, y0 as single
+    dim n as integer, s as integer, m as single, landed as integer
+    dim fell as single, x0 as single, y0 as single
     p.crouch = 0
     p.charging = 0
     p.skid = 0

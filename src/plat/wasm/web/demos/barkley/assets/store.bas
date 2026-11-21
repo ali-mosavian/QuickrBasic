@@ -58,7 +58,8 @@ end sub
 ' A group of CHARLIE.DAT's pictures, from where the file is, to the store: their count, then each, its mask and
 ' its mirror with it.
 private sub ReadPics (art as Store)
-    dim n as integer, i as integer, k as integer, w as integer, h as integer, masked as integer, k2 as integer
+    dim n as integer, i as integer, k as integer, w as integer
+    dim h as integer, masked as integer, k2 as integer
     n = Word&(art.dat)
     for i = 1 to n
         k = Word&(art.dat)
@@ -114,7 +115,8 @@ end sub
 ' The HUD's characters, each 9 by 9 over a shadow: yellow, then white.
 ' And room for the HUD's picture and mask.
 private sub BuildGlyphs (art as Store)
-    dim i as integer, x as integer, y as integer, c as integer, ink as integer
+    dim i as integer, x as integer, y as integer, c as integer
+    dim ink as integer
     for c = 0 to 1
         ink = CYELLOW
         if c then ink = CWHITE

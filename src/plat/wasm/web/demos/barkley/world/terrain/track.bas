@@ -2,8 +2,9 @@
 defint A-Z
 option explicit
 
-from barkley.model.level import Ground, KBUTTON, KLOOP, KMOVE, KPIPE, KPLAT, KSEAT, KSPAN, KWAVE, KWAVE2, Level, MH, MW
-from barkley.model.level import KTRAM, NONE, PI, TS
+from barkley.model.level import Ground, KBUTTON, KLOOP, KMOVE, KPIPE
+from barkley.model.level import KPLAT, KSEAT, KSPAN, KTRAM, KWAVE
+from barkley.model.level import KWAVE2, Level, MH, MW, NONE, PI, TS
 from barkley.world.terrain.ground import Bearing, LOOPN, LOOPR, WAVEL
 
 const PIPER = 48
@@ -86,7 +87,8 @@ end sub
 
 ' Column c's top tile, a stretch from its left edge to its right, and the loops stood on it.
 private sub TrackTile (lv as Level, gr as Ground, c as integer)
-    dim i as integer, j as integer, k as integer, x as integer, y as integer, yl as integer, yr as integer
+    dim i as integer, j as integer, k as integer, x as integer
+    dim y as integer, yl as integer, yr as integer
     x = c * TS
     k = lv.map(c, lv.top(c))
     y = (lv.top(c) + 1) * TS
@@ -191,7 +193,8 @@ end function
 
 ' The ribbons: halves that meet are one stretch, 8 of flat at each end to run on and off by.
 private sub TrackRibbons (lv as Level, gr as Ground)
-    dim i as integer, j as integer, x1 as integer, y as integer, a as single
+    dim i as integer, j as integer, x1 as integer, y as integer
+    dim a as single
     x1 = NONE
     for i = 0 to lv.n_things - 1
         if lv.things(i).kind <> KWAVE and lv.things(i).kind <> KWAVE2 then continue for
