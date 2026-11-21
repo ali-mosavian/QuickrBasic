@@ -152,7 +152,6 @@ Five slots, set in every theme: SL_ERR, SL_FIND, SL_MATCH, SL_OCC, SL_HINT.
 - Find References and Rename across modules: they need every line's names resolved, as Go to
   Definition resolves one. Next, after this.
 - Parameter help while typing a call to the program's own SUBs and FUNCTIONs.
-- A variable's value shown when the mouse rests on it at a stop.
 - A stop at an untrapped run-time error, with Locals still there.
 - Recovery files and reloading a file changed on disk: they need file times from the platforms.
 - Recent files, which need a settings file.
