@@ -9,11 +9,13 @@ from engine.clock import STEPT
 from engine.events import Events
 from barkley.model.game import Game, Loose, Session
 from barkley.model.hero import Hero
-from barkley.model.level import KBRAMBLE, KBUOY, KGOAT, KICICLE
-from barkley.model.level import KJELLY, KLOAD, KMORTAR, KPOUNCE
-from barkley.model.level import KSNATCH, KSPARK, KSQUIRREL, KTHROW
-from barkley.model.level import KTIPPER, KVINE, Level, TS
+from barkley.model.level import Ground, KBRAMBLE, KBUOY, KGOAT
+from barkley.model.level import KICICLE, KJELLY, KLOAD, KMORTAR
+from barkley.model.level import KPOUNCE, KSLED, KSNATCH, KSPARK
+from barkley.model.level import KSQUIRREL, KTHROW, KTIPPER, KVINE
+from barkley.model.level import Level, TS
 from barkley.model.kinds import Kinds, MOWN, MPROWL, MREST
+from barkley.world.movers import Respan, Totters
 from barkley.stage.zones.sands import Bob
 from barkley.stage.fx.parts import LooseBones
 from barkley.stage.things.react import Prowl
@@ -134,4 +136,50 @@ sub Rewind (lv as Level, kd as Kinds)
     next
 
     Rehome lv
+end sub
+
+' The pier's fallen spans back in their places, the swarms
+' at home: Charlie starts again before them.
+sub Mend (lv as Level)
+    dim m as integer
+
+    for m = 0 to lv.n_swarms - 1
+        lv.swarms(m).at.x = lv.swarms(m).home.x
+        lv.swarms(m).at.y = lv.swarms(m).home.y
+        lv.swarms(m).st = 0
+    next
+
+    Respan lv
+
+    for m = 0 to lv.n_things - 1
+        if lv.things(m).kind = KSLED then lv.things(m).state = 0
+        if lv.things(m).kind <> KGOAT then continue for
+
+        lv.things(m).state = 1
+        lv.things(m).at.x = lv.things(m).home
+    next
+
+    lv.stray.st = 0
+    lv.aval.st = 0
+end sub
+
+' Each mover's thing where its mover went; a pier's span
+' tottering as it does.
+sub Borne (lv as Level, gr as Ground)
+    dim m as integer, o as integer, s as integer
+
+    for m = 0 to lv.n_movers - 1
+        o = lv.movers(m).thing
+        if lv.movers(m).kind = 6 then
+            lv.things(o).state = Totters%(lv, m)
+        end if
+
+        if lv.movers(m).shift.x = 0 and lv.movers(m).shift.y = 0 then
+            continue for
+        end if
+
+        s = lv.movers(m).sg
+        lv.things(o).at.x = cint(gr.pt(s).at.x)
+        lv.things(o).at.y = cint(gr.pt(s).at.y)
+    next
 end sub

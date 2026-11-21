@@ -660,33 +660,6 @@ private sub Walkers (lv as Level)
     next
 end sub
 
-' The pier's fallen spans back in their places, the swarms
-' at home: Charlie starts again before them.
-sub Mend (lv as Level)
-    dim m as integer
-
-    for m = 0 to lv.n_swarms - 1
-        lv.swarms(m).at.x = lv.swarms(m).home.x
-        lv.swarms(m).at.y = lv.swarms(m).home.y
-        lv.swarms(m).st = 0
-    next
-
-    for m = 0 to lv.n_movers - 1
-        if lv.movers(m).kind = 6 then lv.movers(m).t = 0
-    next
-
-    for m = 0 to lv.n_things - 1
-        if lv.things(m).kind = KSLED then lv.things(m).state = 0
-        if lv.things(m).kind <> KGOAT then continue for
-
-        lv.things(m).state = 1
-        lv.things(m).at.x = lv.things(m).home
-    next
-
-    lv.stray.st = 0
-    lv.aval.st = 0
-end sub
-
 function ZoneName$ (z as integer)
     ZoneName$ = rtrim$(mid$(ZNAMES, z * 16 + 1, 16))
 end function

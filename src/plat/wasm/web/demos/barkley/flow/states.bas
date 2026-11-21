@@ -24,7 +24,7 @@ from barkley.stage.zones.wood import Nightfall
 from barkley.stage.zones.chase import Flee
 from barkley.stage.camera import Follow, Look
 from barkley.stage.play import Dying, Spawn, Touch
-from barkley.stage.things.think import Rewind, Things
+from barkley.stage.things.think import Borne, Rewind, Things
 from barkley.stage.fx.parts import Particles, Sweep
 from barkley.stage.things.sands import Flock
 from barkley.stage.things.wood import Swarms
@@ -99,6 +99,7 @@ sub Tick ( _
     if wd.lv.tide_lo <> NONE then Flow wd.lv, wd.se
     if wd.lv.n_movers then
         Movers wd.lv, wd.gr, wd.ev, wd.se, p
+        Borne wd.lv, wd.gr
         Carried wd.lv, wd.gr, p
     end if
 

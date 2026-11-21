@@ -86,7 +86,7 @@ sub Movers ( _
     se as Session, _
     p as Hero _
 )
-    dim m as integer, s as integer, o as integer, x as single
+    dim m as integer, s as integer, x as single
     dim y as single, dx as single, dy as single
 
     for m = 0 to lv.n_movers - 1
@@ -117,9 +117,6 @@ sub Movers ( _
             if lv.movers(m).t > SPANT + 2 then
                 lv.movers(m).t = SPANT + 2
             end if
-
-            lv.things(lv.movers(m).thing).state = lv.movers(m).t _
-                > 0 and lv.movers(m).t < SPANT
 
             if lv.movers(m).t >= SPANT then
                 if lv.movers(m).t - STEPT < SPANT then
@@ -192,9 +189,6 @@ sub Movers ( _
         gr.pt(s + 1).at.y = y
         gr.cv(lv.movers(m).cv).x_lo = int(x)
         gr.cv(lv.movers(m).cv).x_hi = int(x) + MOVEW + 1
-        o = lv.movers(m).thing
-        lv.things(o).at.x = cint(x)
-        lv.things(o).at.y = cint(y)
     next
 end sub
 
@@ -209,5 +203,21 @@ sub Still (lv as Level)
 
     for i = 0 to NMOVE
         lv.movers(i).t = 0
+    next
+end sub
+
+' Mover m a pier's span tottering under who trod it, the
+' moment before it falls.
+function Totters% (lv as Level, m as integer)
+    Totters% = lv.movers(m).kind = 6 and lv.movers(m).t > 0 _
+        and lv.movers(m).t < SPANT
+end function
+
+' The pier's fallen spans back in their places.
+sub Respan (lv as Level)
+    dim m as integer
+
+    for m = 0 to lv.n_movers - 1
+        if lv.movers(m).kind = 6 then lv.movers(m).t = 0
     next
 end sub

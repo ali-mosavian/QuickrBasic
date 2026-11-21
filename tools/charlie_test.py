@@ -68,7 +68,7 @@ OWNERS = {
     "event": "engine/events",
 }
 # The fields assigned outside their owner today: the count may only fall.
-OUTSIDE = 91
+OUTSIDE = 80
 
 DRIVER = """from engine.video import Blit, OpenScreen, SH, SW
 from engine.clock import Clock, Pace, Steps, STEPT
@@ -95,7 +95,8 @@ from barkley.flow.states import KeepBeat
 from barkley.world.terrain.ground import LoadTables, LOOPR, SegAt, Solid, Surf, WADE, WAVEL
 from barkley.world.terrain.track import MOVEW, WAVEA
 from barkley.world.layout import PITD
-from barkley.world.level import CABLED, GoldNo, LANTFALL, LANTH, LoadLevel, Mend, SINTRO, ZoneName
+from barkley.world.level import CABLED, GoldNo, LANTFALL, LANTH, LoadLevel, SINTRO, ZoneName
+from barkley.stage.things.think import Mend
 from barkley.world.movers import FREEB
 from barkley.stage.fx.parts import Burst
 from barkley.stage.fx.damage import BOUNCEV
