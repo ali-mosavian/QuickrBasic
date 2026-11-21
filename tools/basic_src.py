@@ -187,6 +187,7 @@ class Ref:
 
     start: int
     end: int
+    inner: bool  # inside another chain's subscripts
     base: str
     base_type: str
     fields: list[tuple[int, str, str]]  # (token index, field, record it is a field of)
@@ -235,7 +236,7 @@ class Program:
             if var is None or var.type not in self.records:
                 i += 1
                 continue
-            ref = Ref(i, i + 1, t.low, var.type, [])
+            ref = Ref(i, i + 1, any(r.start < i < r.end for r in out), t.low, var.type, [])
             j = i + 1
             if j < len(toks) and toks[j].text == "(":
                 j = skip_parens(toks, j)
@@ -252,7 +253,7 @@ class Program:
                     j = skip_parens(toks, j)
             ref.end = j
             out.append(ref)
-            i = j
+            i += 1
         return out
 
 
@@ -278,7 +279,7 @@ def assigned(prog: Program, mod: Module, st: Stmt) -> list[Ref]:
 def assigned_one(prog: Program, mod: Module, st: Stmt) -> list[Ref]:
     toks = st.toks
     low = [t.low for t in toks]
-    refs = prog.refs(mod, st)
+    refs = [r for r in prog.refs(mod, st) if not r.inner]
     if not refs:
         return []
     start = 1 if low[0] == "let" else 0
