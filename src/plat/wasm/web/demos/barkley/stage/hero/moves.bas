@@ -156,7 +156,7 @@ end sub
 ' Whether Charlie is on bare ice: it keeps his speed and will not give it back.
 private function Slick% (lv as Level, gr as Ground, p as Hero)
     Slick% = 0
-    if gr.pt(p.sg).k = 1 and p.at.x >= 0 then Slick% = lv.glaze(cint(p.at.x) \ TS)
+    if gr.pt(p.sg).kind = 1 and p.at.x >= 0 then Slick% = lv.glaze(cint(p.at.x) \ TS)
 end function
 
 ' On the ground: wind up, jump, roll, run; then along it, a few pixels a
@@ -191,10 +191,10 @@ private sub Walk (lv as Level, gr as Ground, mu as Deck, se as Session, p as Her
         if not p.ground then exit sub
         ' a wall stops it on the tiles' ground; a curve is run up
         i = p.sg
-        if gr.pt(i).k = 2 or p.gsp = 0 then continue for
+        if gr.pt(i).kind = 2 or p.gsp = 0 then continue for
         if Wall%(lv, p, sgn(p.gsp)) = 0 then continue for
         p.gsp = 0
-        p.at.y = gr.pt(i).y + (p.at.x - gr.pt(i).x) * gr.pt(i).v / gr.pt(i).u
+        p.at.y = gr.pt(i).at.y + (p.at.x - gr.pt(i).at.x) * gr.pt(i).dir.y / gr.pt(i).dir.x
         Along gr, p, 0
         if not p.ground then exit sub
     next
@@ -299,9 +299,9 @@ end sub
 ' past the ribbon.
 private sub Falter (gr as Ground, p as Hero)
     if abs(p.gsp) >= STALL then exit sub
-    if gr.pt(p.sg).u < .35 then
+    if gr.pt(p.sg).dir.x < .35 then
         Drop gr, p
-    elseif gr.pt(p.sg).u < .7 then
+    elseif gr.pt(p.sg).dir.x < .7 then
         p.slip = .5
     end if
     if Twist!(gr, p) < 0 then exit sub

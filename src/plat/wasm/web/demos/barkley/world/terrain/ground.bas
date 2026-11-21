@@ -59,8 +59,8 @@ private function TileSeg% (gr as Ground, x as integer, y as single)
     s = gr.col(x \ TS)
     if s < 0 then exit function
     ' past a loop that stands in the column: the stretch after it
-    if x > gr.pt(s + 1).x then s = s + LOOPN + 1
-    if abs(gr.pt(s).y + (x - gr.pt(s).x) * gr.pt(s).v / gr.pt(s).u - y) < 4 then TileSeg% = s
+    if x > gr.pt(s + 1).at.x then s = s + LOOPN + 1
+    if abs(gr.pt(s).at.y + (x - gr.pt(s).at.x) * gr.pt(s).dir.y / gr.pt(s).dir.x - y) < 4 then TileSeg% = s
 end function
 
 ' The platform's stretch under x, at y within 4; -1 when there is none.
@@ -68,7 +68,7 @@ private function PlatSeg% (gr as Ground, x as integer, y as single)
     dim s as integer
     PlatSeg% = -1
     for s = gr.platA to gr.n - 2
-        if gr.pt(s).k <> 1 or x < gr.pt(s).x or x > gr.pt(s + 1).x or abs(gr.pt(s).y - y) >= 4 then continue for
+        if gr.pt(s).kind <> 1 or x < gr.pt(s).at.x or x > gr.pt(s + 1).at.x or abs(gr.pt(s).at.y - y) >= 4 then continue for
         PlatSeg% = s
         exit function
     next
@@ -161,9 +161,9 @@ function Land% (lv as Level, gr as Ground, p as Hero, d as integer)
         Land% = 0
         exit function
     end if
-    if p.at.x < gr.pt(s).x then p.at.x = gr.pt(s).x
-    if p.at.x > gr.pt(s + 1).x then p.at.x = gr.pt(s + 1).x
-    p.at.y = gr.pt(s).y + (p.at.x - gr.pt(s).x) * gr.pt(s).v / gr.pt(s).u
+    if p.at.x < gr.pt(s).at.x then p.at.x = gr.pt(s).at.x
+    if p.at.x > gr.pt(s + 1).at.x then p.at.x = gr.pt(s + 1).at.x
+    p.at.y = gr.pt(s).at.y + (p.at.x - gr.pt(s).at.x) * gr.pt(s).dir.y / gr.pt(s).dir.x
     Settle gr, p, s, d
     Land% = -1
 end function
@@ -171,8 +171,8 @@ end function
 ' Down on stretch s: the speed along it kept.
 private sub Settle (gr as Ground, p as Hero, s as integer, d as integer)
     p.sg = s
-    p.ang = gr.pt(s).a
-    p.gsp = p.vel.x * gr.pt(s).u + p.vel.y * gr.pt(s).v
+    p.ang = gr.pt(s).rise
+    p.gsp = p.vel.x * gr.pt(s).dir.x + p.vel.y * gr.pt(s).dir.y
     if p.jumped and not d and not p.sled then p.roll = 0
     ' hit, it lands where it is and stands afraid a while
     if p.stun then p.gsp = 0
@@ -195,27 +195,27 @@ function Curve% (gr as Ground, p as Hero, x0 as single, y0 as single, d as integ
         b = gr.cv(z).b
         LoopHalf gr, p, z, x0, a, b
         for s = a to b
-            d1 = (p.at.x - gr.pt(s).x) * gr.pt(s).v - (p.at.y - gr.pt(s).y) * gr.pt(s).u
-            if d1 >= 0 or p.vel.x * gr.pt(s).v - p.vel.y * gr.pt(s).u >= -1 then continue for
-            d0 = (x0 - gr.pt(s).x) * gr.pt(s).v - (y0 - gr.pt(s).y) * gr.pt(s).u
-            t = (p.at.x - gr.pt(s).x) * gr.pt(s).u + (p.at.y - gr.pt(s).y) * gr.pt(s).v
+            d1 = (p.at.x - gr.pt(s).at.x) * gr.pt(s).dir.y - (p.at.y - gr.pt(s).at.y) * gr.pt(s).dir.x
+            if d1 >= 0 or p.vel.x * gr.pt(s).dir.y - p.vel.y * gr.pt(s).dir.x >= -1 then continue for
+            d0 = (x0 - gr.pt(s).at.x) * gr.pt(s).dir.y - (y0 - gr.pt(s).at.y) * gr.pt(s).dir.x
+            t = (p.at.x - gr.pt(s).at.x) * gr.pt(s).dir.x + (p.at.y - gr.pt(s).at.y) * gr.pt(s).dir.y
             ' from just behind it too, at a join; not behind a wall
             ' and from further behind a platform, which moves
-            near = d0 > -1 + 3 * (gr.pt(s).k = 3) and (d0 >= 0 or gr.pt(s).u >= .35)
-            if near = 0 or t < -1 or t > gr.pt(s).l + 1 then continue for
+            near = d0 > -1 + 3 * (gr.pt(s).kind = 3) and (d0 >= 0 or gr.pt(s).dir.x >= .35)
+            if near = 0 or t < -1 or t > gr.pt(s).length + 1 then continue for
             if t < 0 then t = 0
-            if t > gr.pt(s).l then t = gr.pt(s).l
-            p.at.x = gr.pt(s).x + gr.pt(s).u * t
-            p.at.y = gr.pt(s).y + gr.pt(s).v * t
-            f = p.vel.x * gr.pt(s).u + p.vel.y * gr.pt(s).v
-            if gr.pt(s).u >= .35 or abs(f) >= STALL then
+            if t > gr.pt(s).length then t = gr.pt(s).length
+            p.at.x = gr.pt(s).at.x + gr.pt(s).dir.x * t
+            p.at.y = gr.pt(s).at.y + gr.pt(s).dir.y * t
+            f = p.vel.x * gr.pt(s).dir.x + p.vel.y * gr.pt(s).dir.y
+            if gr.pt(s).dir.x >= .35 or abs(f) >= STALL then
                 Settle gr, p, s, d
                 Curve% = -1
             else
-                p.at.x = p.at.x + gr.pt(s).v
-                p.at.y = p.at.y - gr.pt(s).u
-                p.vel.x = f * gr.pt(s).u
-                p.vel.y = f * gr.pt(s).v
+                p.at.x = p.at.x + gr.pt(s).dir.y
+                p.at.y = p.at.y - gr.pt(s).dir.x
+                p.vel.x = f * gr.pt(s).dir.x
+                p.vel.y = f * gr.pt(s).dir.y
             end if
             exit function
         next
@@ -240,9 +240,9 @@ end sub
 sub Along (gr as Ground, p as Hero, d as single)
     dim i as integer, j as integer, a as integer, t as single, cr as single, dt as single
     i = p.sg
-    t = (p.at.x - gr.pt(i).x) * gr.pt(i).u + (p.at.y - gr.pt(i).y) * gr.pt(i).v + d
+    t = (p.at.x - gr.pt(i).at.x) * gr.pt(i).dir.x + (p.at.y - gr.pt(i).at.y) * gr.pt(i).dir.y + d
     do
-        if t > gr.pt(i).l then
+        if t > gr.pt(i).length then
             j = i + 1
             a = i
         elseif t < 0 then
@@ -251,32 +251,32 @@ sub Along (gr as Ground, p as Hero, d as single)
         else
             exit do
         end if
-        if j >= 0 then if gr.pt(j).k = 0 then j = -1
+        if j >= 0 then if gr.pt(j).kind = 0 then j = -1
         if j >= 0 then
-            cr = gr.pt(a).u * gr.pt(a + 1).v - gr.pt(a).v * gr.pt(a + 1).u
-            dt = gr.pt(a).u * gr.pt(a + 1).u + gr.pt(a).v * gr.pt(a + 1).v
+            cr = gr.pt(a).dir.x * gr.pt(a + 1).dir.y - gr.pt(a).dir.y * gr.pt(a + 1).dir.x
+            dt = gr.pt(a).dir.x * gr.pt(a + 1).dir.x + gr.pt(a).dir.y * gr.pt(a + 1).dir.y
             if cr > 0 and dt < .64 then j = -1
         end if
         if j < 0 then
-            if t >= 0 then t = gr.pt(i).l
+            if t >= 0 then t = gr.pt(i).length
             if t < 0 then t = 0
-            p.at.x = gr.pt(i).x + gr.pt(i).u * t
-            p.at.y = gr.pt(i).y + gr.pt(i).v * t
+            p.at.x = gr.pt(i).at.x + gr.pt(i).dir.x * t
+            p.at.y = gr.pt(i).at.y + gr.pt(i).dir.y * t
             Drop gr, p
             exit sub
         end if
         if t < 0 then
-            t = t + gr.pt(j).l
+            t = t + gr.pt(j).length
         else
-            t = t - gr.pt(i).l
+            t = t - gr.pt(i).length
         end if
-        if cr < 0 and dt < .7 then Crease p, t, dt, gr.pt(j).l, j > i
+        if cr < 0 and dt < .7 then Crease p, t, dt, gr.pt(j).length, j > i
         i = j
     loop
     p.sg = i
-    p.ang = gr.pt(i).a
-    p.at.x = gr.pt(i).x + gr.pt(i).u * t
-    p.at.y = gr.pt(i).y + gr.pt(i).v * t
+    p.ang = gr.pt(i).rise
+    p.at.x = gr.pt(i).at.x + gr.pt(i).dir.x * t
+    p.at.y = gr.pt(i).at.y + gr.pt(i).dir.y * t
 end sub
 
 ' Over a crease that turns the ground up: speed is lost by the turn's cosine dt, and so is how far he is past the
@@ -298,13 +298,13 @@ sub Drop (gr as Ground, p as Hero)
     dim i as integer
     i = p.sg
     p.ground = 0
-    p.vel.x = p.gsp * gr.pt(i).u
-    p.vel.y = p.gsp * gr.pt(i).v
-    if gr.pt(i).u > .7 then
+    p.vel.x = p.gsp * gr.pt(i).dir.x
+    p.vel.y = p.gsp * gr.pt(i).dir.y
+    if gr.pt(i).dir.x > .7 then
         p.coyote = COYOTE
-    elseif gr.pt(i).u < .35 then
-        p.at.x = p.at.x + 2 * gr.pt(i).v
-        p.at.y = p.at.y - 2 * gr.pt(i).u
+    elseif gr.pt(i).dir.x < .35 then
+        p.at.x = p.at.x + 2 * gr.pt(i).dir.y
+        p.at.y = p.at.y - 2 * gr.pt(i).dir.x
     end if
 end sub
 
@@ -313,7 +313,7 @@ function Ribbon% (gr as Ground, x as integer)
     dim z as integer
     Ribbon% = 0
     for z = 0 to gr.nz - 1
-        if gr.cv(z).m < 0 and gr.pt(gr.cv(z).a).k = 2 and gr.cv(z).l > x - 16 and gr.cv(z).l < x + 60 then Ribbon% = -1
+        if gr.cv(z).m < 0 and gr.pt(gr.cv(z).a).kind = 2 and gr.cv(z).l > x - 16 and gr.cv(z).l < x + 60 then Ribbon% = -1
     next
 end function
 

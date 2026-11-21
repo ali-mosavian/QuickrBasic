@@ -114,8 +114,8 @@ end sub
 private sub Footing (gr as Ground, p as Hero, hu as single, hv as single, a as single, tw as integer)
     hu = 1
     if not p.ground then exit sub
-    hu = gr.pt(p.sg).u
-    hv = gr.pt(p.sg).v
+    hu = gr.pt(p.sg).dir.x
+    hv = gr.pt(p.sg).dir.y
     if Twist!(gr, p) < 0 then exit sub
     a = Twist!(gr, p)
     hu = cos(a)

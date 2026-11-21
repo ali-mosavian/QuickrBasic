@@ -390,7 +390,7 @@ Stand wd.lv, wd.gr, p, c - 8, 460
 was = 0
 for i = 1 to 300
     MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
-    if p.ground then if wd.gr.pt(p.sg).u < -.9 then was = -1
+    if p.ground then if wd.gr.pt(p.sg).dir.x < -.9 then was = -1
     if p.at.x > c + LOOPR + 12 then exit for
 next
 v = was and p.ground and p.at.x > c + LOOPR + 12
@@ -398,7 +398,7 @@ Stand wd.lv, wd.gr, p, c - 60, 200
 was = 0
 for i = 1 to 300
     MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
-    if p.ground then if wd.gr.pt(p.sg).u < 0 then was = -1
+    if p.ground then if wd.gr.pt(p.sg).dir.x < 0 then was = -1
 next
 if v and was = 0 and p.ground and abs(p.at.x - c) < LOOPR and p.at.y > wd.lv.things(j).at.y - 8 then print "loop ok"
 ' too slow at its top, Charlie falls from it and lands inside
@@ -417,7 +417,7 @@ was = 0
 for i = 1 to 90
     MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
     k.hit = 0
-    if p.ground then if wd.gr.pt(p.sg).k = 2 then was = -1
+    if p.ground then if wd.gr.pt(p.sg).kind = 2 then was = -1
 next
 k.jump = 0
 if was = 0 and p.ground and abs(p.at.y - wd.lv.things(j).at.y) < 2 then print "ghost ok"
@@ -431,7 +431,7 @@ k.r = -1
 was = 0
 for i = 1 to 300
     MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
-    if p.ground then if wd.gr.pt(p.sg).u < .1 then was = -1
+    if p.ground then if wd.gr.pt(p.sg).dir.x < .1 then was = -1
     if p.ground and p.at.x > c + 8 then exit for
 next
 if was and p.ground and p.at.x > c + 8 and abs(p.at.y - wd.lv.top(c \\ TS) * TS) < 2 then print "pipe ok"
@@ -446,10 +446,10 @@ was = 0
 v = 0
 for i = 1 to 400
     MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
-    if p.ground then if wd.gr.pt(p.sg).k = 2 and p.at.y < wd.lv.things(j).at.y - WAVEA + 8 then was = was + 1
+    if p.ground then if wd.gr.pt(p.sg).kind = 2 and p.at.y < wd.lv.things(j).at.y - WAVEA + 8 then was = was + 1
     ' down its far sides too: with only the rising halves there it was flown from crest to crest
-    if p.ground then if wd.gr.pt(p.sg).k = 2 and wd.gr.pt(p.sg).v > .3 then v = v + 1
-    if p.ground and wd.gr.pt(p.sg).k = 1 and p.at.x > c + 384 then exit for
+    if p.ground then if wd.gr.pt(p.sg).kind = 2 and wd.gr.pt(p.sg).dir.y > .3 then v = v + 1
+    if p.ground and wd.gr.pt(p.sg).kind = 1 and p.at.x > c + 384 then exit for
 next
 if was > 3 and v > 6 and p.ground and p.at.x > c + 384 and abs(p.at.y - wd.lv.things(j).at.y) < 2 then print "wave ok"
 ' a ribbon is a twist, run on its inside: at its crest Charlie hangs under its line, not stood on it as on a hill
@@ -497,7 +497,7 @@ for i = 1 to 300
     MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
     if p.ground and p.at.y > wd.lv.things(j).at.y + 40 then exit for
 next
-if p.ground and wd.gr.pt(p.sg).k = 1 and p.at.y > wd.lv.things(j).at.y + 40 and p.at.x < c + 384 then print "slow ok"
+if p.ground and wd.gr.pt(p.sg).kind = 1 and p.at.y > wd.lv.things(j).at.y + 40 and p.at.x < c + 384 then print "slow ok"
 ' a bark stops a prowler where it is a while, and it goes on away from him: it walked on as if deaf
 k.r = 0
 StartGame wd, g, p, lo(), pt()
@@ -528,7 +528,7 @@ for i = 1 to 9000
     Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k
     Tick wd, g, p, k, lo(), pt()
     j = 0
-    if p.ground then j = wd.gr.pt(p.sg).u < -.9
+    if p.ground then j = wd.gr.pt(p.sg).dir.x < -.9
     if j and was = 0 then loops = loops + 1
     was = j
     if i mod 30 = 0 then Render wd, g, p, lo(), pt()
@@ -604,8 +604,8 @@ for m = 0 to wd.lv.n_movers - 1
     if wd.lv.movers(m).kind = 0 then exit for
 next
 c = wd.lv.movers(m).sg
-p.at.x = wd.gr.pt(c).x + 24
-p.at.y = wd.gr.pt(c).y
+p.at.x = wd.gr.pt(c).at.x + 24
+p.at.y = wd.gr.pt(c).at.y
 p.sg = c
 p.ground = -1
 p.gsp = 0
@@ -616,7 +616,7 @@ for i = 1 to 240
     if p.at.x < was then was = cint(p.at.x)
     if p.at.x > v then v = cint(p.at.x)
 next
-if p.ground and p.sg = c and abs(p.at.x - wd.gr.pt(c).x - 24) < 2 and v - was > 40 then print "carried ok"
+if p.ground and p.sg = c and abs(p.at.x - wd.gr.pt(c).at.x - 24) < 2 and v - was > 40 then print "carried ok"
 ' who flees in a chase, met at the race's end: run into, its cart hurts Charlie and takes no bump; rolled into, it
 ' takes one and is dazed; dazed, it takes no other
 GoStage wd, 1, g, p, lo(), pt()
@@ -1284,20 +1284,20 @@ c = wd.lv.movers(m).sg
 for i = 1 to 30
     Tick wd, g, p, k, lo(), pt()
 next
-was = m < wd.lv.n_movers and wd.gr.pt(c).y = wd.lv.movers(m).at.y and wd.gr.pt(c).x = wd.lv.movers(m).at.x
+was = m < wd.lv.n_movers and wd.gr.pt(c).at.y = wd.lv.movers(m).at.y and wd.gr.pt(c).at.x = wd.lv.movers(m).at.x
 was = was and wd.lv.tide - FREEB > wd.lv.movers(m).at.y
 wd.lv.tide_lo = wd.lv.movers(m).at.y - 20
 wd.lv.tide_hi = wd.lv.tide_lo
-p.at.x = wd.gr.pt(c).x + 20
-p.at.y = wd.gr.pt(c).y
+p.at.x = wd.gr.pt(c).at.x + 20
+p.at.y = wd.gr.pt(c).at.y
 p.sg = c
 p.ground = -1
 p.gsp = 0
 for i = 1 to 30
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and wd.gr.pt(c).y = wd.lv.tide - FREEB and wd.gr.pt(c).x <> wd.lv.movers(m).at.x
-was = was and p.ground and p.sg = c and abs(p.at.y - wd.gr.pt(c).y) < 1
+was = was and wd.gr.pt(c).at.y = wd.lv.tide - FREEB and wd.gr.pt(c).at.x <> wd.lv.movers(m).at.x
+was = was and p.ground and p.sg = c and abs(p.at.y - wd.gr.pt(c).at.y) < 1
 if was then print "boat ok"
 ' the sands' old pier: a span stays while no one is on it, totters under Charlie stood on it, then falls from under
 ' him into its pool, where he is not lost, and is back when he starts again; run over at speed every span holds
@@ -1316,29 +1316,29 @@ next
 for i = 1 to 60
     Tick wd, g, p, k, lo(), pt()
 next
-was = m < wd.lv.n_movers and spans > 5 and wd.gr.pt(c).y = wd.lv.movers(m).at.y
+was = m < wd.lv.n_movers and spans > 5 and wd.gr.pt(c).at.y = wd.lv.movers(m).at.y
 was = was and wd.lv.movers(m).t = 0 and wd.lv.things(wd.lv.movers(m).thing).kind = KSPAN
-p.at.x = wd.gr.pt(c).x + 24
-p.at.y = wd.gr.pt(c).y
+p.at.x = wd.gr.pt(c).at.x + 24
+p.at.y = wd.gr.pt(c).at.y
 p.sg = c
 p.ground = -1
 p.gsp = 0
 for i = 1 to 12
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and wd.gr.pt(c).y = wd.lv.movers(m).at.y and p.ground and p.sg = c _
+was = was and wd.gr.pt(c).at.y = wd.lv.movers(m).at.y and p.ground and p.sg = c _
     and wd.lv.things(wd.lv.movers(m).thing).state <> 0
 for i = 1 to 60
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and wd.gr.pt(c).y > wd.lv.movers(m).at.y + 200 _
+was = was and wd.gr.pt(c).at.y > wd.lv.movers(m).at.y + 200 _
     and wd.lv.things(wd.lv.movers(m).thing).at.y > wd.lv.movers(m).at.y + 200
 was = was and not (p.ground and p.sg = c)
 ' down on the pool's dry floor, not through it
 was = was and not p.dead and p.ground and abs(p.at.y - (wd.lv.movers(m).at.y + PITD * TS)) < 2
 Spawn wd.lv, wd.gr, wd.zn, wd.mu, g, p
 Tick wd, g, p, k, lo(), pt()
-was = was and wd.gr.pt(c).y = wd.lv.movers(m).at.y and wd.lv.movers(m).t = 0 _
+was = was and wd.gr.pt(c).at.y = wd.lv.movers(m).at.y and wd.lv.movers(m).t = 0 _
     and wd.lv.things(wd.lv.movers(m).thing).state = 0
 Stand wd.lv, wd.gr, p, wd.lv.movers(m).edge - 40, 300
 k.r = -1
@@ -1355,7 +1355,7 @@ for i = 1 to 90
 next
 j = 0
 for i = m to wd.lv.n_movers - 1
-    if wd.lv.movers(i).kind = 6 and wd.gr.pt(wd.lv.movers(i).sg).y > wd.lv.movers(i).at.y + 200 then j = j + 1
+    if wd.lv.movers(i).kind = 6 and wd.gr.pt(wd.lv.movers(i).sg).at.y > wd.lv.movers(i).at.y + 200 then j = j + 1
 next
 if was and j = spans then print "pier ok"
 ' the sands' flume: walked onto, Charlie is swept down it curled, no slower than its water runs, and thrown from
@@ -3927,8 +3927,8 @@ for m = 0 to wd.lv.n_movers - 1
     if wd.lv.movers(m).kind = 2 then exit for
 next
 c = wd.lv.movers(m).sg
-p.at.x = wd.gr.pt(c).x + 20
-p.at.y = wd.gr.pt(c).y
+p.at.x = wd.gr.pt(c).at.x + 20
+p.at.y = wd.gr.pt(c).at.y
 p.sg = c
 p.ground = -1
 p.gsp = 0
@@ -3942,7 +3942,7 @@ for i = 1 to 60
     Tick wd, g, p, k, lo(), pt()
 next
 k.r = 0
-was = was and p.ground and wd.gr.pt(p.sg).k = 1 and p.at.x > wd.lv.movers(m).at.x + MOVEW
+was = was and p.ground and wd.gr.pt(p.sg).kind = 1 and p.at.x > wd.lv.movers(m).at.x + MOVEW
 for i = 1 to 200
     Tick wd, g, p, k, lo(), pt()
 next
@@ -3953,8 +3953,8 @@ for m = 0 to wd.lv.n_movers - 1
     if wd.lv.movers(m).kind = 3 then exit for
 next
 c = wd.lv.movers(m).sg
-p.at.x = wd.gr.pt(c).x + 24
-p.at.y = wd.gr.pt(c).y
+p.at.x = wd.gr.pt(c).at.x + 24
+p.at.y = wd.gr.pt(c).at.y
 p.sg = c
 p.ground = -1
 p.gsp = 0
@@ -4206,8 +4206,8 @@ for m = 0 to wd.lv.n_movers - 1
 next
 was = m < wd.lv.n_movers
 c = wd.lv.movers(m).sg
-p.at.x = wd.gr.pt(c).x + 24
-p.at.y = wd.gr.pt(c).y
+p.at.x = wd.gr.pt(c).at.x + 24
+p.at.y = wd.gr.pt(c).at.y
 p.sg = c
 p.ground = -1
 p.gsp = 0
@@ -4228,7 +4228,7 @@ for i = 1 to 40
 next
 k.r = 0
 k.d = -1
-was = was and p.ground and wd.gr.pt(p.sg).k = 1 and abs(p.at.y - (wd.lv.movers(m).at.y - CABLED)) < 2
+was = was and p.ground and wd.gr.pt(p.sg).kind = 1 and abs(p.at.y - (wd.lv.movers(m).at.y - CABLED)) < 2
 was = was and p.at.x > wd.lv.movers(m).at.x + wd.lv.movers(m).reach + MOVEW
 for i = 1 to 200
     Tick wd, g, p, k, lo(), pt()
@@ -4256,8 +4256,8 @@ was = was and wd.lv.things(j).state = 1
 for i = 1 to 90
     Tick wd, g, p, k, lo(), pt()
 next
-p.at.x = wd.gr.pt(c).x + 24
-p.at.y = wd.gr.pt(c).y
+p.at.x = wd.gr.pt(c).at.x + 24
+p.at.y = wd.gr.pt(c).at.y
 p.sg = c
 p.ground = -1
 p.gsp = 0
@@ -4463,7 +4463,7 @@ sub Stand (lv as Level, gr as Ground, p as Hero, x as integer, v as single)
     p.ground = -1
     p.roll = 0
     p.sg = SegAt%(lv, gr, x, p.at.y)
-    p.ang = gr.pt(p.sg).a
+    p.ang = gr.pt(p.sg).rise
 end sub
 
 ' How many pixels of Charlie's fur the screen holds, w either side of x from y0 to y1.

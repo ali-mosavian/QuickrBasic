@@ -116,13 +116,13 @@ sub Movers (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero)
             x = x + lv.movers(m).reach * lv.movers(m).t
             y = y + Dip%(lv, m) * lv.movers(m).t
         end select
-        dx = x - gr.pt(s).x
-        dy = y - gr.pt(s).y
+        dx = x - gr.pt(s).at.x
+        dy = y - gr.pt(s).at.y
         if dx = 0 and dy = 0 then continue for
-        gr.pt(s).x = x
-        gr.pt(s + 1).x = x + MOVEW
-        gr.pt(s).y = y
-        gr.pt(s + 1).y = y
+        gr.pt(s).at.x = x
+        gr.pt(s + 1).at.x = x + MOVEW
+        gr.pt(s).at.y = y
+        gr.pt(s + 1).at.y = y
         gr.cv(lv.movers(m).cv).l = int(x)
         gr.cv(lv.movers(m).cv).r = int(x) + MOVEW + 1
         o = lv.movers(m).thing

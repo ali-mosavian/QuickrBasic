@@ -148,16 +148,14 @@ type Level
     aval as Front
 end type
 
-' A stretch of the ground's line, from its point x, y to the next: its kind k (0 none, 1 the tiles' top, 2 a
-' curve), l long, u, v a pixel along it, its rise a.
+' A stretch of the ground's line, from its point at to the next: its kind (0 none, 1 the tiles' top, 2 a
+' curve), its length, dir a pixel along it, its rise.
 type Stretch
-    x as single
-    y as single
-    u as single
-    v as single
-    l as single
-    a as single
-    k as integer
+    at as Vec
+    dir as Vec
+    length as single
+    rise as single
+    kind as integer
 end type
 
 ' A curve: stretches a to b, from m on a loop's far half, between x l and r.

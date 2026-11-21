@@ -67,7 +67,7 @@ private sub TrackPipe (lv as Level, gr as Ground, c as integer)
     x = c * TS
     y = lv.things(-2 - gr.col(c)).at.y
     gr.col(c) = -1
-    if gr.pt(gr.n - 1).x <> x or gr.pt(gr.n - 1).y <> y then Knot gr, csng(x), csng(y), 0
+    if gr.pt(gr.n - 1).at.x <> x or gr.pt(gr.n - 1).at.y <> y then Knot gr, csng(x), csng(y), 0
     gr.cv(gr.nz).a = gr.n - 1
     gr.cv(gr.nz).m = -1
     gr.cv(gr.nz).l = x
@@ -93,7 +93,7 @@ private sub TrackTile (lv as Level, gr as Ground, c as integer)
     yl = y - (lv.prof(k, 0) and 30)
     yr = y - (lv.prof(k, TS - 1) and 30)
     j = gr.n = 0
-    if not j then j = gr.pt(gr.n - 1).x <> x or gr.pt(gr.n - 1).y <> yl
+    if not j then j = gr.pt(gr.n - 1).at.x <> x or gr.pt(gr.n - 1).at.y <> yl
     if j then Knot gr, csng(x), csng(yl), 0
     gr.col(c) = gr.n - 1
     for i = lv.first(c) to lv.n_things - 1
@@ -241,21 +241,21 @@ end sub
 ' The line's next point, x, y, a stretch of kind k to it from the last: 0, none.
 private sub Knot (gr as Ground, x as single, y as single, k as integer)
     dim i as integer, u as single, v as single, d as single
-    gr.pt(gr.n).x = x
-    gr.pt(gr.n).y = y
-    gr.pt(gr.n).k = 0
+    gr.pt(gr.n).at.x = x
+    gr.pt(gr.n).at.y = y
+    gr.pt(gr.n).kind = 0
     if k <> 0 then
         i = gr.n - 1
-        u = x - gr.pt(i).x
-        v = y - gr.pt(i).y
+        u = x - gr.pt(i).at.x
+        v = y - gr.pt(i).at.y
         d = sqr(u * u + v * v)
         u = u / d
         v = v / d
-        gr.pt(i).u = u
-        gr.pt(i).v = v
-        gr.pt(i).l = d
-        gr.pt(i).k = k
-        gr.pt(i).a = Bearing!(u, v)
+        gr.pt(i).dir.x = u
+        gr.pt(i).dir.y = v
+        gr.pt(i).length = d
+        gr.pt(i).kind = k
+        gr.pt(i).rise = Bearing!(u, v)
     end if
     gr.n = gr.n + 1
 end sub

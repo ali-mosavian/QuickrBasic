@@ -35,9 +35,9 @@ sub Pilot (lv as Level, gr as Ground, zn as Realm, se as Session, p as Hero, k a
         hopNow = p.sway_v > 0 and p.sway > 0 and (p.sway > .5 or p.sway_v < 1)
     elseif p.swim then
         hopNow = PilotSwim%(lv, zn, p, k)
-    elseif p.ground and gr.pt(p.sg).k = 3 then
+    elseif p.ground and gr.pt(p.sg).kind = 3 then
         want = PilotRide%(lv, gr, se, p, k)
-    elseif p.ground and gr.pt(p.sg).k = 1 then
+    elseif p.ground and gr.pt(p.sg).kind = 1 then
         want = PilotRun%(lv, gr, zn, se, p, k)
     elseif not p.ground then
         PilotFall lv, zn, p, k
@@ -86,7 +86,7 @@ private function PilotRide% (lv as Level, gr as Ground, se as Session, p as Hero
     dim y as integer, i as integer, m as integer, d as integer, want as integer
     y = cint(p.at.y)
     HoldBack p, k, 20
-    i = cint(gr.pt(p.sg).x) + MOVEW + 10
+    i = cint(gr.pt(p.sg).at.x) + MOVEW + 10
     if Surf%(lv, i, y) <> NONE and not Solid%(lv, i, y - 12) then
         PressOn k
         want = -1
