@@ -348,9 +348,9 @@ private function Spied% (lv as Level, i as integer, lo() as Loose)
     Spied% = NONE
     best = 2 * BEAT + 1
     for j = 0 to NLOOSE - 1
-        if lo(j).t <= 0 or lo(j).t >= TOONEW or abs(lo(j).x - lv.ob(i).a) > BEAT then continue for
-        d = abs(lo(j).x - lv.ob(i).x)
-        if d >= best or abs(lo(j).y - lv.ob(i).y + 6) >= 14 then continue for
+        if lo(j).t <= 0 or lo(j).t >= TOONEW or abs(lo(j).at.x - lv.ob(i).a) > BEAT then continue for
+        d = abs(lo(j).at.x - lv.ob(i).x)
+        if d >= best or abs(lo(j).at.y - lv.ob(i).y + 6) >= 14 then continue for
         best = d
         Spied% = j
     next
@@ -366,15 +366,15 @@ sub Snatch (lv as Level, mu as Deck, se as Session, i as integer, lo() as Loose,
         Prowl lv, i
         exit sub
     end if
-    if abs(lo(b).x - lv.ob(i).x) >= 1 then lv.ob(i).s = sgn(lo(b).x - lv.ob(i).x)
+    if abs(lo(b).at.x - lv.ob(i).x) >= 1 then lv.ob(i).s = sgn(lo(b).at.x - lv.ob(i).x)
     for n = 1 to SNATCHV
-        if abs(lo(b).x - lv.ob(i).x) < SNATCHR then exit for
+        if abs(lo(b).at.x - lv.ob(i).x) < SNATCHR then exit for
         if not Paced%(lv, i) then exit for
     next
-    if abs(lo(b).x - lv.ob(i).x) >= SNATCHR then exit sub
+    if abs(lo(b).at.x - lv.ob(i).x) >= SNATCHR then exit sub
     lo(b).t = 0
     se.loose_n = se.loose_n - 1
-    Burst se, pt(), lo(b).x, lo(b).y, 4, 60, CWHITE
+    Burst se, pt(), lo(b).at.x, lo(b).at.y, 4, 60, CWHITE
     Sfx mu, se, SSNATCH
 end sub
 

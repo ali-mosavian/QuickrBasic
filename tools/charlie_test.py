@@ -277,13 +277,13 @@ StartGame wd, g, p, lo(), pt()
 g.bones = 3
 Hurt wd.mu, wd.se, g, p, cint(p.at.x) + 10, lo(), SHURT
 Burst wd.se, pt(), p.at.x, p.at.y - 40, 8, 100, CWHITE
-bx = lo(0).x
-by = lo(0).y
+bx = lo(0).at.x
+by = lo(0).at.y
 was = wd.se.loose_n = 3 and wd.se.part_n >= 8
 for i = 1 to 30
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and lo(0).x <> bx and lo(0).y <> by
+was = was and lo(0).at.x <> bx and lo(0).at.y <> by
 for i = 1 to 300
     Tick wd, g, p, k, lo(), pt()
 next
@@ -2052,10 +2052,10 @@ for i = 0 to wd.lv.nObj - 1
 next
 Stand wd.lv, wd.gr, p, bx - 100, 0
 hid = g.bones
-lo(0).x = bx + 30
-lo(0).y = m - 4
-lo(0).vx = 0
-lo(0).vy = 0
+lo(0).at.x = bx + 30
+lo(0).at.y = m - 4
+lo(0).vel.x = 0
+lo(0).vel.y = 0
 lo(0).t = 3
 wd.se.loose_n = 1
 for i = 1 to 40
@@ -2064,14 +2064,14 @@ for i = 1 to 40
 next
 was = was and i <= 17 and wd.lv.ob(c).x = bx + 23 and wd.se.loose_n = 0 and g.bones = hid
 ' past its beat, and over its head
-lo(0).x = bx + 60
-lo(0).y = m - 4
-lo(0).vy = 0
+lo(0).at.x = bx + 60
+lo(0).at.y = m - 4
+lo(0).vel.y = 0
 lo(0).t = 3
-lo(1).x = bx + 30
-lo(1).y = m - 80
-lo(1).vx = 0
-lo(1).vy = 0
+lo(1).at.x = bx + 30
+lo(1).at.y = m - 80
+lo(1).vel.x = 0
+lo(1).vel.y = 0
 lo(1).t = 3
 wd.se.loose_n = 2
 v = wd.lv.ob(c).x
@@ -2081,9 +2081,9 @@ next
 was = was and lo(0).t > 0 and lo(1).t > 0 and wd.se.loose_n = 2 and abs(wd.lv.ob(c).x - v) <= 10
 ' too new, behind it: left while it is, taken after
 lo(1).t = 0
-lo(0).x = wd.lv.ob(c).x - 20
-lo(0).y = m - 4
-lo(0).vy = 0
+lo(0).at.x = wd.lv.ob(c).x - 20
+lo(0).at.y = m - 4
+lo(0).vel.y = 0
 lo(0).t = 3.75
 wd.se.loose_n = 1
 v = wd.lv.ob(c).x
@@ -2101,9 +2101,9 @@ Stand wd.lv, wd.gr, p, v - 50, 0
 k.bark = -1
 Tick wd, g, p, k, lo(), pt()
 k.bark = 0
-lo(0).x = v + 15
-lo(0).y = m - 4
-lo(0).vy = 0
+lo(0).at.x = v + 15
+lo(0).at.y = m - 4
+lo(0).vel.y = 0
 lo(0).t = 3
 wd.se.loose_n = 1
 for i = 1 to 20

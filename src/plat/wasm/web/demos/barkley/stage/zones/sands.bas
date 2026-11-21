@@ -89,10 +89,10 @@ private sub Spill (se as Session, b as Bird, lo() as Loose)
     for i = 0 to NLOOSE - 1
         if b.loot = 0 then exit for
         if lo(i).t > 0 then continue for
-        lo(i).x = b.x
-        lo(i).y = b.y
-        lo(i).vx = (b.loot * 37 mod 90) - 45
-        lo(i).vy = -40
+        lo(i).at.x = b.x
+        lo(i).at.y = b.y
+        lo(i).vel.x = (b.loot * 37 mod 90) - 45
+        lo(i).vel.y = -40
         lo(i).t = 4
         se.loose_n = se.loose_n + 1
         b.loot = b.loot - 1

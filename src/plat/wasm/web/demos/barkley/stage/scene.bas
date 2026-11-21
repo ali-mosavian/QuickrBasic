@@ -312,7 +312,7 @@ private sub DrawLoose (art as Store, se as Session, cx as integer, cy as integer
     k = IBONE + ((se.ticks \ 6) and 3) * 2
     for i = 0 to NLOOSE - 1
         if lo(i).t <= 1 and (lo(i).t <= 0 or (se.ticks and 4) = 0) then continue for
-        Blit art, cint(lo(i).x) - 5 - cx, cint(lo(i).y) - 5 - cy, k, 10, 10
+        Blit art, cint(lo(i).at.x) - 5 - cx, cint(lo(i).at.y) - 5 - cy, k, 10, 10
     next
 end sub
 

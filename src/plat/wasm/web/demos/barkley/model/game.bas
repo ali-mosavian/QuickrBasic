@@ -24,10 +24,8 @@ end type
 ' A bone knocked loose: t its time left; with TOONEW of it or more left it is not yet to be taken.
 const TOONEW = 3.3
 type Loose
-    x as single
-    y as single
-    vx as single
-    vy as single
+    at as Vec
+    vel as Vec
     t as single
 end type
 

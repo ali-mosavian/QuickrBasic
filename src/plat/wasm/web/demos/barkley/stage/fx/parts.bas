@@ -12,18 +12,18 @@ sub LooseBones (lv as Level, se as Session, lo() as Loose, dt as single)
     for i = 0 to NLOOSE - 1
         if lo(i).t <= 0 then continue for
         lo(i).t = lo(i).t - dt
-        lo(i).vy = lo(i).vy + GRAV * .6 * dt
-        lo(i).x = lo(i).x + lo(i).vx * dt
-        if Solid%(lv, cint(lo(i).x), cint(lo(i).y) - 3) then lo(i).vx = -lo(i).vx
-        lo(i).y = lo(i).y + lo(i).vy * dt
-        x = cint(lo(i).x)
-        y = cint(lo(i).y) + 4
+        lo(i).vel.y = lo(i).vel.y + GRAV * .6 * dt
+        lo(i).at.x = lo(i).at.x + lo(i).vel.x * dt
+        if Solid%(lv, cint(lo(i).at.x), cint(lo(i).at.y) - 3) then lo(i).vel.x = -lo(i).vel.x
+        lo(i).at.y = lo(i).at.y + lo(i).vel.y * dt
+        x = cint(lo(i).at.x)
+        y = cint(lo(i).at.y) + 4
         s = Surf%(lv, x, y)
-        if s <= y and y - s < 14 and lo(i).vy > 0 then
-            lo(i).y = s - 4
-            lo(i).vy = -lo(i).vy * .7
+        if s <= y and y - s < 14 and lo(i).vel.y > 0 then
+            lo(i).at.y = s - 4
+            lo(i).vel.y = -lo(i).vel.y * .7
         end if
-        if lo(i).y > MH * TS + 16 then lo(i).t = 0
+        if lo(i).at.y > MH * TS + 16 then lo(i).t = 0
         if lo(i).t <= 0 then se.loose_n = se.loose_n - 1
     next
 end sub

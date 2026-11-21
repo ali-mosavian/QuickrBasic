@@ -102,7 +102,7 @@ sub Touch (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as 
     if se.loose_n = 0 then exit sub
     for i = 0 to NLOOSE - 1
         if lo(i).t <= 0 or lo(i).t >= TOONEW then continue for
-        if abs(lo(i).x - px) >= 12 or abs(lo(i).y - py + 13) >= 16 then continue for
+        if abs(lo(i).at.x - px) >= 12 or abs(lo(i).at.y - py + 13) >= 16 then continue for
         lo(i).t = 0
         se.loose_n = se.loose_n - 1
         g.bones = g.bones + 1

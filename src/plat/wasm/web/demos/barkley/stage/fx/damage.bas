@@ -46,10 +46,10 @@ sub Hurt (mu as Deck, se as Session, g as Game, p as Hero, fromX as integer, lo(
     for i = 0 to n - 1
         a = PI * (.15 + .7 * i / n)
         v = 240 - 70 * (i and 1)
-        lo(i).x = p.at.x
-        lo(i).y = p.at.y - 13
-        lo(i).vx = cos(a) * v * (1 - 2 * (i and 1)) * .8
-        lo(i).vy = -sin(a) * v
+        lo(i).at.x = p.at.x
+        lo(i).at.y = p.at.y - 13
+        lo(i).vel.x = cos(a) * v * (1 - 2 * (i and 1)) * .8
+        lo(i).vel.y = -sin(a) * v
         lo(i).t = 4
     next
     se.loose_n = n
