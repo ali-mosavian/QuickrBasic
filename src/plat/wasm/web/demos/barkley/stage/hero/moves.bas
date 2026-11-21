@@ -5,7 +5,7 @@ option explicit
 from barkley.engine.clock import STEPT
 from barkley.engine.audio import Deck
 from barkley.model.hero import Hero, HH, Pad
-from barkley.model.level import GRAV, Ground, KCAT, KCRAB, KICICLE, KLOAD, KSQUIRREL, KTHROW, Level, NONE, TS
+from barkley.model.level import GRAV, Ground, KCAT, KCRAB, KICICLE, KLOAD, KPOUNCE, KSQUIRREL, KTHROW, Level, NONE, TS
 from barkley.model.game import Part, Session
 from barkley.assets.palette import CEARTH, CSTONE, CWHITE
 from barkley.assets.tunes import SBARK, SCHARGE, Sfx, SJUMP, SLAUNCH, SPOP, SROLL
@@ -376,9 +376,10 @@ private sub Flinch (lv as Level, i as integer, fromX as integer)
 end sub
 
 ' Charlie barks: every cat the bark reaches flinches, every crab goes into its shell, every gull is scared, every
-' snow-thrower ducks, every squirrel is cowed.
+' snow-thrower ducks, every squirrel is cowed, every pouncer leaps.
 private sub Bark (lv as Level, mu as Deck, se as Session, p as Hero)
-    dim i as integer, c as integer, dx as single, dy as single, hung as integer, cowed as integer
+    dim i as integer, c as integer, dx as single, dy as single
+    dim hung as integer, cowed as integer, early as integer
     p.barkT = BARKT
     Sfx mu, se, SBARK
     if lv.murk then lv.glow = GLOWT
@@ -394,6 +395,9 @@ private sub Bark (lv as Level, mu as Deck, se as Session, p as Hero)
         ' and a squirrel on its bough is cowed
         cowed = lv.ob(i).k = KSQUIRREL and lv.ob(i).s <> 0 and dx <= BARKR and dy < 140
         if cowed then lv.ob(i).s = sgn(lv.ob(i).s) * SQFRIGHT
+        ' and a pouncer in its bin leaps early, at where he is
+        early = lv.ob(i).k = KPOUNCE and lv.ob(i).s = 0 and dx <= BARKR and dy < 40
+        if early then lv.ob(i).s = 1 + 2 * (p.x < lv.ob(i).x)
         if lv.ob(i).s = 0 or dx > BARKR or dy >= 40 then continue for
         select case lv.ob(i).k
         case KCAT: Flinch lv, i, cint(p.x)

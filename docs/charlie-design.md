@@ -206,8 +206,8 @@ Progress is saved at each zone.
 ### 6. Lantern Quarter (its look and tune built)
 
 - Built: its backdrop, ground, props and card at the blue hour and on the festival night; two stand-in levels,
-  to its tune and the festival's arrangement; clotheslines, lantern lines, awnings, chimneys, trams. To add: its
-  cats, its acts, its chase, the fireworks; a street's own paving.
+  to its tune and the festival's arrangement; clotheslines, lantern lines, awnings, chimneys, trams; pouncers.
+  To add: rope-walkers, tippers, runners, its acts, its chase, the fireworks; a street's own paving.
 - A clothesline (`line,N`) spans a street N columns wide, post to post. Come down on, it throws him up, his way
   kept: 60 pixels off the first, 107 off the second in a row, 167 off each after; the ground ends the row.
 - An awning (`awning,N`) stands out from the wall that begins there, N tiles up. Come down on, it throws him 135
@@ -218,6 +218,8 @@ Progress is saved at each zone.
   its roof it goes along the N columns at 240 a second; left, it comes back.
 - A lantern line (`slide,N`) runs from a post 40 over the roof down across a street N columns wide to the roof
   past it, four tiles lower. It is ground: he slides down it, up to 320 a second, bones over it.
+- A pouncer (`pouncer,0`) waits in a dustbin, eyes under the lid. Within 56 of it, it leaps 40 at him; landed, it
+  prowls as a cat does. A bark from up to 72 off brings it out early, short of him.
 - Rule: footing. The ground is narrow, springy or moving: lines, awnings, tram roofs.
 - Gadgets: clotheslines, each landing higher than the last; awnings; chimneys, in one and out another;
   trams; lantern lines to slide.

@@ -13,8 +13,8 @@ from barkley.model.level import KFAM, KFLOWER, KFLUME, KFRONT, KGOAL, KGOAT, KHE
 from barkley.model.level import KLEG, KLOAD, KLOOP, KMARK, KMOUND, KMOVE, KPIPE, KPLAT, KPOST, KPRESS, KROCK, KSAPLING
 from barkley.model.level import KSEAT, KSLED, KSPAN, KSPARK, KSPIN, KSPOUT, KSPRING, KSQUIRREL, KSWEEP, KTANK, KTHORN
 from barkley.model.level import KTHROW, KTREE, KVENT, KVINE, KWALL, KWAVE, Level, NONE, Realm, TS
-from barkley.model.level import KAWNING, KCHIMNEY, KGOLD, KTRAM, NGOLD
-from barkley.model.images import IAWNING, ICHIMNEY, IGOLD, ITRAM
+from barkley.model.level import KAWNING, KBIN, KCHIMNEY, KGOLD, KPOUNCE, KTRAM, NGOLD
+from barkley.model.images import IAWNING, IBIN, ICHIMNEY, IGOLD, ITRAM
 from barkley.model.game import CLEARED, Found, Game, Loose, NLOOSE, NPART, OVER, Part, PLAYING, Session, TITLE
 from barkley.model.world import World
 from barkley.assets.palette import CGOLD, CINK, CSCARF, CWHITE, CYELLOW
@@ -33,7 +33,7 @@ from barkley.stage.zones.works import DrawLeg, DrawPress, DrawSpark, SPINH, SPIN
 from barkley.stage.zones.sands import CrabPic, DrawGulls, DrawSea, DrawSpout, DrawSurf
 from barkley.stage.zones.wood import DrawBees, DrawFlies, DrawVine, SQAIM
 from barkley.stage.zones.pass import DrawAvalanche, DrawGale, DrawGoat, DrawLoad, DrawStray, Fallen, Risen, TREMBLE
-from barkley.stage.zones.quarter import DrawLines, DrawSmoke
+from barkley.stage.zones.quarter import DrawLines, DrawPouncer, DrawSmoke
 from barkley.stage.hero.modes import FLUEH
 from barkley.stage.zones.chase import DrawChase
 from barkley.stage.hud import Banner, Hud, Num, Panel, Say, Txt
@@ -152,6 +152,10 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
             if Found%(se, zn.stage, GoldNo%(lv, i)) then continue for
             Blit art, x - 5, y - 5, IGOLD + ((se.ticks \ 6) and 3) * 2, 10, 10
         case KCAT: if lv.ob(i).s then Blit art, x - 10, y - 13, CatPic%(se, lv.ob(i).s), 20, 14
+        case KPOUNCE: DrawPouncer lv, art, se, i, x, y
+        case KBIN
+            ' eyes under its lid while its cat, the thing after it, is in it
+            Blit art, x - 9, y - 24, IBIN - 2 * (lv.ob(i + 1).s <> 0), 18, 25
         case KCRAB: if lv.ob(i).s then Blit art, x - 12, y - 15, CrabPic%(se, lv.ob(i).s), 24, 15
         case KSPRING
             ' the sands' is a deck chair, the wood's a toadstool

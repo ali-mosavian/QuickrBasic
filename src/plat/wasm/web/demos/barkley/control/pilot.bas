@@ -3,7 +3,8 @@ defint A-Z
 option explicit
 
 from barkley.model.hero import Hero, HW, Pad
-from barkley.model.level import Ground, KBRAMBLE, KCAT, KCRAB, KJELLY, KLOG, KMOUND, KSPARK, KSWEEP, KTHORN, KTHROW
+from barkley.model.level import Ground, KBRAMBLE, KCAT, KCRAB, KJELLY, KLOG, KMOUND, KPOUNCE, KSPARK, KSWEEP, KTHORN
+from barkley.model.level import KTHROW
 from barkley.model.level import Level, NONE, Realm, TS
 from barkley.model.game import Session
 from barkley.world.terrain.ground import Ribbon, Solid, Surf
@@ -14,6 +15,7 @@ from barkley.stage.hero.moves import TOP
 from barkley.stage.hero.draw import LOGR
 from barkley.stage.zones.works import PressAhead, PRESSP, PressT
 from barkley.stage.zones.wood import MOUNDR
+from barkley.stage.zones.quarter import POUNCEGONE
 from barkley.stage.zones.pass import GCHARGE, GoatNear
 
 ' The game's own player: Right held, a jump where one is wanted, still where it must wait.
@@ -122,7 +124,9 @@ private function PilotRun% (lv as Level, gr as Ground, zn as Realm, se as Sessio
     for i = lv.first(x \ TS) to lv.nObj - 1
         if lv.ob(i).x > x + 130 then exit for
         if lv.ob(i).x <= x then continue for
+        ' a pouncer is jumped in its bin and out of it
         d = (lv.ob(i).k = KCAT and lv.ob(i).s <> 0) or lv.ob(i).k = KTHORN
+        d = d or (lv.ob(i).k = KPOUNCE and lv.ob(i).s <> POUNCEGONE)
         if d and lv.ob(i).x <= x + 50 then want = -1
         ' what is not rolled through, a crab, a jellyfish, a sweeper, a spark: jumped from further back the faster
         ' he goes

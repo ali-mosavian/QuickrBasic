@@ -5204,6 +5204,26 @@ def paperlantern() -> Pic:
     return p.outline(QINK)
 
 
+def dustbin(eyes: bool) -> Pic:
+    """A dustbin: its lid lifted from inside and two eyes in the gap, or shut."""
+    p = Pic(18, 25)
+    part(p, rect(2, 9, 15, 23), [TIN[2], TIN[1], TIN[0]], 2, 1.5)
+    for x in (5, 9, 12):
+        p.box(x, 11, x, 22, TIN[2])
+    p.box(1, 8, 16, 9, TIN[0])
+    p.box(13, 8, 16, 9, TIN[1])
+    lid = 2 if eyes else 5
+    if eyes:
+        p.box(2, 5, 15, 7, QINK)
+        for x in (5, 10):
+            p.box(x, 5, x + 1, 6, PAPER[0])
+            p.put(x + 1, 6, GRASS[4])
+    p.box(1, lid, 16, lid + 2, TIN[1])
+    p.box(1, lid, 12, lid, TIN[0])
+    p.box(8, lid - 2, 9, lid - 1, TIN[2])
+    return p.outline(QINK)
+
+
 def lanternq() -> list[tuple[int, Pic, bool, int]]:
     """The Lantern Quarter's own pictures, at the indices the Downs' own have."""
     k, z = 126, 625
@@ -5228,6 +5248,8 @@ def lanternq() -> list[tuple[int, Pic, bool, int]]:
         (z + 1300, chimney(), True, -1),
         (z + 1302, tram(), True, -1),
         (z + 1304, paperlantern(), True, -1),
+        (z + 1306, dustbin(True), True, -1),
+        (z + 1308, dustbin(False), True, -1),
     ]
     return out
 

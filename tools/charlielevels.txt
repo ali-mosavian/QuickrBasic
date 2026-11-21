@@ -214,7 +214,7 @@ goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 Level Lantern1
 tune,Lantern
 flat,4, dog,0, flat,4, flower,0, flat,4, bones,6, flat,8, tree,0, flat,4, line,6, flat,4, chimney,0, flat,6
-upg,2, flat,6, bones,6, flat,6, bush,0, flat,3, chimney,0, flat,5, slide,10, flat,8, awning,2, wall,4, flat,4, dng,2, flat,8, rock,0, flat,6
+upg,2, flat,6, bones,6, flat,6, bush,0, flat,3, chimney,0, flat,5, slide,10, flat,4, bones,3, flat,6, pouncer,0, flat,8, awning,2, wall,4, flat,4, dng,2, flat,8, rock,0, flat,6
 up45,3, arc,9, pit,10, flat,14, flower,0, flat,8, tree,0, flat,6
 mark,0, flat,6, spring,0, flat,2, plat,608, hb,706, flat,16, bush,0, flat,6, awning,3, wall,7, flat,10, drop,7, flat,4
 dn45,2, flat,8, bones,8, flat,6, thorn,0, flat,8, flower,0, flat,4, up45,3, arc,10, pit,11, flat,8

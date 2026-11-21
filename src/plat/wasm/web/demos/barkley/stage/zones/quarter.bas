@@ -1,4 +1,4 @@
-' Lantern Quarter: clotheslines, lantern lines, awnings and chimneys.
+' Lantern Quarter: clotheslines, lantern lines, awnings and chimneys; pouncers.
 defint A-Z
 option explicit
 
@@ -8,11 +8,13 @@ from barkley.engine.audio import Deck
 from barkley.model.images import IPAPER, ISHIRT, ISOCK, ITROUSERS
 from barkley.model.hero import Hero
 from barkley.model.level import Level, Rope, TS
-from barkley.model.game import Part, Session
+from barkley.model.game import Game, Loose, Part, Session
 from barkley.assets.palette import CLINEN, CPOLE, CQINK, CSOOT
 from barkley.assets.tunes import Sfx, SROLL, SSPRING, STWANG
 from barkley.stage.fx.parts import Burst
+from barkley.stage.fx.damage import Tackle
 from barkley.stage.hero.modes import FLUEH
+from barkley.stage.zones.downs import CatPic, Prowl
 
 ' A clothesline: how far its middle hangs under its ends; his speed up off the first he comes down on, what each
 ' more in a row adds, and the row that adds no more; how far it gives under him, and the things' steps it swings;
@@ -35,6 +37,12 @@ const AWNT = 8
 
 ' A chimney's pot: how near its middle he must come down to go in.
 const FLUER = 8
+
+' A pouncer: how near its bin he comes before it leaps; its leap's reach, a cat's beat's, its height and things'
+' steps; its state landed, and beaten.
+const POUNCER = 56, POUNCEFAR = 40, POUNCEN = 20
+private const POUNCEUP = 26
+const POUNCEOUT = 100, POUNCEGONE = 30000
 
 ' Line r's height u along it: hung, and once trodden given where it was, swinging less each step. A lantern
 ' line is taut from end to end.
@@ -136,6 +144,64 @@ sub DrawSmoke (se as Session, x as integer, y as integer)
         line (px - r, py - r + 1)-(px + r, py + r - 1), CSOOT, BF
         line (px - r + 1, py - r)-(px + r - 1, py + r), CSOOT, BF
     next
+end sub
+
+' How high a pouncer is over the roof n steps into its leap.
+private function Arc% (n as integer)
+    Arc% = POUNCEUP * 4 * n * (POUNCEN - n) \ (POUNCEN * POUNCEN)
+end function
+
+' How high pouncer i is over its roof now: in its leap, on its arc.
+function Leapt% (lv as Level, i as integer)
+    Leapt% = 0
+    if abs(lv.ob(i).s) <= POUNCEN then Leapt% = Arc%(abs(lv.ob(i).s) - 1)
+end function
+
+' A pouncer's step. In its bin, state 0, till he comes within POUNCER of it; then it leaps at him, its state one
+' more than the steps of its leap made, signed the way it goes; landed, POUNCEOUT that way, it prowls as a cat of
+' the Mob does; beaten, POUNCEGONE.
+sub Pounce (lv as Level, i as integer, p as Hero)
+    dim n as integer, d as integer
+    if lv.ob(i).s = POUNCEGONE then exit sub
+    if lv.ob(i).s = 0 then
+        if abs(p.x - lv.ob(i).a) < POUNCER and abs(p.y - lv.ob(i).y) < 40 then Spring lv, i, p
+        exit sub
+    end if
+    n = abs(lv.ob(i).s)
+    d = sgn(lv.ob(i).s)
+    if n < POUNCEN then
+        lv.ob(i).x = lv.ob(i).a + d * POUNCEFAR * n \ POUNCEN
+        lv.ob(i).s = d * (n + 1)
+        exit sub
+    end if
+    lv.ob(i).s = d
+    Prowl lv, i
+    lv.ob(i).s = lv.ob(i).s * POUNCEOUT
+end sub
+
+' Pouncer i out of its bin, at him.
+sub Spring (lv as Level, i as integer, p as Hero)
+    lv.ob(i).s = 1
+    if p.x < lv.ob(i).a then lv.ob(i).s = -1
+end sub
+
+' A pouncer out of its bin: rolled or charged into it is beaten, else it scratches. In its bin it is not met.
+sub MeetPounce (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
+    dim y as integer
+    if lv.ob(i).s = 0 or lv.ob(i).s = POUNCEGONE or abs(lv.ob(i).x - cint(p.x)) >= 15 then exit sub
+    y = lv.ob(i).y - Leapt%(lv, i)
+    if abs(y - 6 - cint(p.y) + 13) >= 17 then exit sub
+    Tackle lv, mu, se, g, p, i, 6 + Leapt%(lv, i), lo(), pt()
+    if lv.ob(i).s = 0 then lv.ob(i).s = POUNCEGONE
+end sub
+
+' Pouncer i at x, y on the screen: in its leap the Mob's cat with its back up, on its arc; landed, a cat at a prowl.
+sub DrawPouncer (lv as Level, art as Store, se as Session, i as integer, x as integer, y as integer)
+    dim s as integer
+    s = lv.ob(i).s
+    if s = 0 or s = POUNCEGONE then exit sub
+    if abs(s) <= POUNCEN then s = sgn(s) * 2 else s = sgn(s)
+    Blit art, x - 10, y - 13 - Leapt%(lv, i), CatPic%(se, s), 20, 14
 end sub
 
 ' The lines' step: one that swings, a step nearer rest.

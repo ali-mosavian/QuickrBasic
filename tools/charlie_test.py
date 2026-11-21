@@ -33,7 +33,7 @@ from barkley.model.hero import Hero, Pad
 from barkley.model.level import GRAV, Ground, KBONE, KBRAMBLE, KBUOY, KCAT, KCISTERN, KCRAB, KDRIFT, KGOAT, KHOOP
 from barkley.model.level import KICICLE, KJELLY, KJET, KLEG, KLOAD, KLOG, KLOOP, KMOUND, KPIPE, KPRESS, KSAPLING, KSEAT
 from barkley.model.level import KSLED, KSPAN, KSPARK, KSPRING, KSQUIRREL, KSWEEP, KTHROW, KVINE, KWALL, KWAVE, Level, MH
-from barkley.model.level import KAWNING, KCHIMNEY, KGOLD, NGOLD, NONE, NSTAGE, TS, ZONES
+from barkley.model.level import KAWNING, KBIN, KCHIMNEY, KGOLD, KPOUNCE, NGOLD, NONE, NSTAGE, TS, ZONES
 from barkley.model.game import CLEARED, Cue, Game, INTRO, Loose, NCUE, NLOOSE, NPART, OVER, Part, PLAYING, Session
 from barkley.model.game import Found, Gild, TITLE
 from barkley.assets.palette import CBEE, CFLY, CGOLD, CINK, CNUT, CSEA, CVINE, CVINED, CWHITE, CYELLOW
@@ -58,7 +58,8 @@ from barkley.stage.zones.wood import BRAMBLET, FLYREST, GLOWFADE, LOGH, LOGV, MO
 from barkley.stage.zones.wood import SQRUN, SQV, SQWAIT
 from barkley.stage.zones.pass import Fallen, GCHARGE, HeapOf, HEAPR, LOADRUN, LOADSLIDE, SLEDV, Slid, THROWAT, THROWUP
 from barkley.stage.zones.pass import TREMBLE, WALLR
-from barkley.stage.zones.quarter import AWNT, AWNW, LINESAG, LINET, LineY
+from barkley.stage.zones.quarter import AWNT, AWNW, Leapt, LINESAG, LINET, LineY, POUNCEFAR, POUNCEGONE, POUNCEN
+from barkley.stage.zones.quarter import POUNCEOUT, POUNCER
 from barkley.stage.zones.chase import BOLTS, CARTLEAD, CHASETUNE, NBUMP, PAWUP, PEDALMORE, PEDALUP, PEDALV, PEDALW
 from barkley.stage.zones.chase import RAILUP, TwinPose
 from barkley.stage.camera import Camera, HEAD, Headroom, HEADUP
@@ -1743,6 +1744,88 @@ g.shake = 0
 Render wd, g, p, lo(), pt()
 was = was and point(160, 100) = CQINK and point(160 - 30 + 9, LineY%(wd.lv.ropes(c), 9) - int(g.camy) + 6) = 142
 if was then print "slide ok"
+' a pouncer waits in its bin, eyes under the lid, while he is far; within POUNCER of it it leaps at him, POUNCEFAR
+' along in POUNCEN things' steps, and scratches on its way; landed it prowls as a cat of the Mob does
+for c = 0 to wd.lv.nObj - 1
+    if wd.lv.ob(c).k = KPOUNCE then exit for
+next
+was = c < wd.lv.nObj and wd.lv.ob(c - 1).k = KBIN and wd.lv.ob(c).s = 0
+bx = wd.lv.ob(c).x
+m = wd.lv.ob(c).y
+Stand wd.lv, wd.gr, p, bx - POUNCER - 10, 0
+for i = 1 to 20
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and wd.lv.ob(c).s = 0
+' its eyes show in the bin, and not once it is out
+g.camx = bx - 160
+g.camy = m - 100
+g.shake = 0
+Render wd, g, p, lo(), pt()
+colB(0) = point(160 - 4, 100 - 19)
+' near: out at him, to his left; half its leap on, half its reach along and up over the roof
+Stand wd.lv, wd.gr, p, bx - POUNCER + 4, 0
+g.bones = 5
+p.inv = 0
+for i = 1 to POUNCEN
+    Tick wd, g, p, k, lo(), pt()
+    p.inv = 9
+next
+was = was and wd.lv.ob(c).s < 0 and wd.lv.ob(c).s >= -POUNCEN and abs(wd.lv.ob(c).x - (bx - POUNCEFAR \\ 2)) < 5
+was = was and Leapt%(wd.lv, c) > 15 and wd.lv.ob(c).y = m
+Render wd, g, p, lo(), pt()
+colB(1) = point(160 - 4, 100 - 19)
+was = was and colB(0) = 141 and colB(1) <> 141
+' it scratches in the air
+p.inv = 0
+p.x = wd.lv.ob(c).x
+p.y = wd.lv.ob(c).y - Leapt%(wd.lv, c) + 7
+p.ground = 0
+p.roll = 0
+Tick wd, g, p, k, lo(), pt()
+was = was and p.stun and g.bones = 0
+for i = 1 to POUNCEN * 2
+    Tick wd, g, p, k, lo(), pt()
+    p.inv = 9
+next
+was = was and abs(wd.lv.ob(c).s) = POUNCEOUT and Leapt%(wd.lv, c) = 0 and abs(wd.lv.ob(c).x - bx) <= POUNCEFAR + 1
+v = wd.lv.ob(c).x
+for i = 1 to 8
+    Tick wd, g, p, k, lo(), pt()
+    p.inv = 9
+next
+' a turn at its beat's end, then a pixel a things' step
+was = was and abs(wd.lv.ob(c).x - v) >= 2 and abs(wd.lv.ob(c).x - v) <= 4
+if was then print "pounce ok"
+' a stage begun again has it back in its bin; a bark from past its reach brings it out; rolled into in the air it
+' is beaten, and no cat lands
+GoStage wd, 10, g, p, lo(), pt()
+g.modeT = 20
+was = was and wd.lv.ob(c).s = 0 and wd.lv.ob(c).x = bx
+Stand wd.lv, wd.gr, p, bx - POUNCER - 10, 0
+k.bark = -1
+Tick wd, g, p, k, lo(), pt()
+k.bark = 0
+was = was and wd.lv.ob(c).s < 0 and wd.lv.ob(c).s >= -2
+for i = 1 to 10
+    Tick wd, g, p, k, lo(), pt()
+next
+p.inv = 0
+p.x = wd.lv.ob(c).x
+p.y = wd.lv.ob(c).y - Leapt%(wd.lv, c) + 7
+p.ground = 0
+p.roll = -1
+v = g.score
+Tick wd, g, p, k, lo(), pt()
+was = was and wd.lv.ob(c).s = POUNCEGONE and g.score = v + 100 and not p.stun
+for i = 1 to POUNCEN * 2 + 4
+    Tick wd, g, p, k, lo(), pt()
+next
+g.camx = bx - 160
+g.camy = m - 100
+g.shake = 0
+Render wd, g, p, lo(), pt()
+if was and wd.lv.ob(c).s = POUNCEGONE and point(160 - 4, 100 - 19) <> 141 then print "pouncer ok"
 ' Russet Wood is the fifth zone, by name and in its own colours: its litter's top the same picture at both hours,
 ' russet gold at a misty noon and not on the firefly night
 was = ZoneName$(4) = "RUSSET WOOD"
@@ -3760,6 +3843,8 @@ def main() -> None:
         ("chimney ok", "a chimney takes him down its pot and up out of its other; the way out takes no one in"),
         ("tram ok", "a tram waits at its street's end, carries him along it while he rides, and comes back left"),
         ("slide ok", "a lantern line is ground to slide down, faster as he goes, onto the roof past it"),
+        ("pounce ok", "a pouncer waits in its bin, leaps at him when he is near, scratches, and lands a cat"),
+        ("pouncer ok", "a bark brings a pouncer out early; rolled into in the air it is beaten for good"),
         ("firefly ok", "the wood's night dark but for a few fireflies; a bark wakes them and lights it for a while"),
         ("sapling ok", "a bowed sapling throws him who crosses its crown, higher the faster; sprung it throws no one"),
         ("vine ok", "a vine caught in the air swings him as a weight, lets go at a jump, and hangs straight again"),
