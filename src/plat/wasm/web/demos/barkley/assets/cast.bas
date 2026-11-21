@@ -4,7 +4,7 @@ option explicit
 
 from barkley.engine.video import Blit, Store
 from barkley.model.images import FAMF, IBALL, IBARON, IBASKET, ICAMERA, ICAT, IDOOR, IFAM, IFLOAT, IPEEK, ITEDDY, ITOOLS
-from barkley.model.images import IVAN, IWHEEL, NFAM
+from barkley.model.images import IGUITAR, IVAN, IWHEEL, NFAM
 from barkley.model.level import Realm
 from barkley.model.game import Session
 from barkley.assets.palette import CHEDGE, CYELLOW
@@ -20,6 +20,7 @@ sub DrawKeep (zn as Realm, art as Store, x as integer, y as integer)
     case 2: Blit art, x - 7, y - 15, ITEDDY, 14, 16
     case 3: Blit art, x - 9, y - 13, ICAMERA, 18, 14
     case 4: Blit art, x - 7, y - 13, IBALL, 14, 14
+    case 5: Blit art, x - 13, y - 12, IGUITAR, 26, 13
     end select
 end sub
 

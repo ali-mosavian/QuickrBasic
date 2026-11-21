@@ -19,6 +19,9 @@ from barkley.stage.zones.wood import MOUNDR
 from barkley.stage.zones.quarter import POUNCEGONE
 from barkley.stage.zones.pass import GCHARGE, GoatNear
 
+' How near who flees is rolled into; how far ahead the relay's cat has outrun a roll.
+private const RAMREACH = 120, OUTRUN = 72
+
 ' The game's own player: Right held, a jump where one is wanted, still where it must wait.
 sub Pilot (lv as Level, gr as Ground, zn as Realm, se as Session, p as Hero, k as Pad)
     static hold as integer
@@ -138,12 +141,22 @@ private function PilotRun% (lv as Level, gr as Ground, zn as Realm, se as Sessio
     next
     PilotPress lv, se, p, k, want
     PilotGoat lv, p, k, want
-    ' who flees is rolled into, once there is the speed to roll
-    k.d = (zn.id = 0 or zn.id = 3) and lv.cart.st = 1 and lv.cart.x > x and lv.cart.x - x < 120 and p.gsp > 150
+    k.d = Rams%(lv, zn, p)
+    ' the quarter's street is level, and a roll there only slows: one its cat has outrun is jumped out of
+    if zn.id = 5 and p.roll and lv.cart.st = 1 and lv.cart.x - p.x > OUTRUN then want = -1
     if zn.id = 4 then PilotCurl lv, p, k, want
     PilotGaps lv, se, p, k, want
     if zn.id = 4 then PilotDig lv, p, k, want
     PilotRun% = want
+end function
+
+' Whether who flees is rolled into: on the ground, ahead within RAMREACH, and the speed there to roll.
+private function Rams% (lv as Level, zn as Realm, p as Hero)
+    dim d as integer
+    Rams% = 0
+    if lv.cart.st <> 1 or not (zn.id = 0 or zn.id = 3 or zn.id = 5) then exit function
+    d = cint(lv.cart.x - p.x)
+    Rams% = d > 0 and d < RAMREACH and p.gsp > 150
 end function
 
 ' Whether mound i's burrow comes out further on past a wall no jump clears: a column on its way five tiles over

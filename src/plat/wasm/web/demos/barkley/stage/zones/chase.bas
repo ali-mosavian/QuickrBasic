@@ -6,10 +6,10 @@ from barkley.engine.video import Blit, Store, SW
 from barkley.engine.clock import STEPT
 from barkley.engine.audio import Deck
 from barkley.model.images import IBRACKET, ICART, ICARTW, ICAT, ICRANE, IDUNKED, IFROST, IKNOT, ILIMB, IOAK, IOAKFOOT
-from barkley.model.images import IPEDAL, IRAIL, ITWIN, IWBOX
+from barkley.model.images import IPEDAL, IRAIL, IRELAY, ITWIN, IWBOX
 from barkley.model.hero import Hero
 from barkley.model.level import GRAV, Level, NONE, Realm, TS
-from barkley.model.game import Game, Loose, Part, Session
+from barkley.model.game import Game, Loose, Part, PULSES, Session
 from barkley.assets.palette import CEARTH, CYELLOW
 from barkley.assets.cast import DrawKeep
 from barkley.assets.tunes import CAUGHT, SBUMP, Sfx, SHISS, SMARK, SPOP, ZoneTune, ZTUNE
@@ -53,6 +53,17 @@ private const CRANEV = 90!, CRANEUP = 25!, CRANEBOLT = 260!, CRANER = 22, CRANEH
 const RAILUP = 164
 private const RELOAD = 1.6, HASTE = .3, POISE = .6, TOOLFALL = .4
 
+' The quarter's relay, the guitar from cat to cat, NLEG of them and a bump each: bumped, a cat throws it on to the
+' next, PASSV a second, and is left TUMBLE behind it. Each makes off its own way, LEGV about: Biscuit steadily;
+' Sprocket by the beat, WOUND the quicker for three and still for one; Kipper bobbing, a beat BOB the quicker and
+' HOPUP off the ground, a beat BOB the slower; Frost sliding, SLIDE the quicker down a fall; the twins lobbing it
+' between them, LOBV for LOBT seconds and LOBUP2 high, as Charlie comes within LOBNEAR, and not again for
+' LOBWAIT. The twin without it goes TWINGAP from the one with it.
+const NLEG = 5, LEGV = 250!, LOBWAIT = 2.4
+const TUMBLE = 20
+private const PASSV = 440!, WOUND = 60!, BOB = 110!, HOPUP = 10, SLIDE = 200!
+private const LOBNEAR = 70, LOBV = 420!, LOBT = .4, LOBUP2 = 20, TWINGAP = 40
+
 ' The chase as before Charlie came to it: who flees waiting a little way into the race, the zone's tune back. A
 ' keepsake taken stays taken.
 sub ResetChase (lv as Level, mu as Deck)
@@ -82,7 +93,7 @@ sub Flee (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as H
         select case zn.id
         case 0, 3
             ' a cart and a toboggan go alike
-            MoveCart lv, p, MakesOff!(zn)
+            MoveCart lv, p, CRUISE, MakesOff!(zn)
             MeetCart lv, mu, se, g, p, lo(), pt()
         case 1
             MoveCrane lv, p
@@ -92,7 +103,14 @@ sub Flee (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as H
             MovePedalo lv
             MeetPedalo lv, mu, se, g, p, pt()
         case 4: Juggle lv, mu, se, g, p, pt()
+        case 5
+            Lob lv, p
+            MoveCart lv, p, LegPace!(lv, se), PASSV
+            MeetRelay lv, mu, se, g, p, lo(), pt()
         end select
+        ' its last bump breaks it; the twins' ball is his with the catch
+        if lv.cart.hits >= Bumps%(zn) then BreakCart lv, mu, se, pt()
+        if zn.id = 4 and lv.cart.st = 2 then TakeKeep lv, mu, se, g, pt()
     case 2
         if zn.id = 1 and lv.cart.t > 2 - TOOLFALL then exit sub
         ' the sands' keepsake floats
@@ -118,11 +136,11 @@ private function MakesOff! (zn as Realm)
     if zn.id = 3 then MakesOff! = TOBOLT
 end function
 
-' The cart along the ground: dawdling when Charlie is far behind it, slow while a bump has it dazed, then making
-' off at `away`; no further than the race's end.
-private sub MoveCart (lv as Level, p as Hero, away as single)
+' The cart along the ground at `pace`: dawdling when Charlie is far behind it, slow while a bump has it dazed,
+' then making off at `away`; no further than the race's end.
+private sub MoveCart (lv as Level, p as Hero, pace as single, away as single)
     dim want as single, s as integer
-    want = CRUISE
+    want = pace
     if lv.cart.x - p.x > 240 then want = DAWDLE
     if lv.cart.t > 0 then want = away
     if lv.cart.t > BOLTS then want = 60
@@ -156,7 +174,13 @@ private sub MeetCart (lv as Level, mu as Deck, se as Session, g as Game, p as He
     p.vy = -BOUNCEV
 end sub
 
-' A bump told, its sparks at height y: who flees is dazed, and broken by its last.
+' The bumps that end a zone's chase: the relay's is one a cat.
+private function Bumps% (zn as Realm)
+    Bumps% = NBUMP
+    if zn.id = 5 then Bumps% = NLEG
+end function
+
+' A bump told, its sparks at height y: who flees is dazed.
 private sub Bumped (lv as Level, mu as Deck, se as Session, g as Game, pt() as Part, y as single)
     lv.cart.hits = lv.cart.hits + 1
     lv.cart.t = DAZED
@@ -164,7 +188,6 @@ private sub Bumped (lv as Level, mu as Deck, se as Session, g as Game, pt() as P
     g.shake = .2
     Burst se, pt(), lv.cart.x + 0, y, 12, 150, CYELLOW
     Sfx mu, se, SBUMP
-    if lv.cart.hits >= NBUMP then BreakCart lv, mu, se, pt()
 end sub
 
 ' Who flees is broken and the keepsake left lying; the zone's tune again.
@@ -196,7 +219,106 @@ sub DrawChase (lv as Level, zn as Realm, art as Store, se as Session, cx as inte
     case 1: DrawCrane lv, zn, art, se, cx, cy
     case 2: DrawPedalo lv, zn, art, se, cx, cy
     case 3: DrawFrost lv, zn, art, se, cx, cy
+    case 5: DrawRelay lv, zn, art, se, cx, cy
     end select
+end sub
+
+' A lob's clock: begun as Charlie comes near who has the guitar, no sooner than LOBWAIT after the last. Only the
+' twins lob by it.
+private sub Lob (lv as Level, p as Hero)
+    if lv.box.t > 0 then lv.box.t = lv.box.t - STEPT
+    if lv.box.t > 0 or lv.cart.t > 0 then exit sub
+    if lv.cart.x - p.x < LOBNEAR then lv.box.t = LOBWAIT
+end sub
+
+' Whether the guitar is in the air between the twins.
+function Lobbed% (lv as Level)
+    Lobbed% = lv.cart.hits = NLEG - 1 and lv.box.t > LOBWAIT - LOBT
+end function
+
+' The pace of who has the guitar, by the relay's leg.
+private function LegPace! (lv as Level, se as Session)
+    dim beat as integer
+    beat = (se.pulse \ PULSES) and 3
+    LegPace! = LEGV
+    select case lv.cart.hits
+    case 1
+        LegPace! = LEGV + WOUND
+        if beat = 3 then LegPace! = 0
+    case 2: LegPace! = LEGV + BOB * (1 - 2 * (beat and 1))
+    case 3: if Lie%(lv, cint(lv.cart.x), cint(lv.cart.y)) < 0 then LegPace! = LEGV + SLIDE
+    case 4: if Lobbed%(lv) then LegPace! = LOBV
+    end select
+end function
+
+' Charlie at who has the guitar, as at a cart; not while the twins have it in the air. A bump is marked where it
+' was made, for the cat left there off its feet.
+private sub MeetRelay (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
+    dim was as integer
+    if Lobbed%(lv) then exit sub
+    was = lv.cart.hits
+    MeetCart lv, mu, se, g, p, lo(), pt()
+    if lv.cart.hits = was then exit sub
+    lv.box.x = lv.cart.x - TUMBLE
+    lv.box.y = lv.cart.y
+    lv.box.t = 0
+end sub
+
+' The twins' places from the guitar's, a and b: with it in the air, who threw it falling behind and who catches it
+' ahead; else one under it, the other round from behind to TWINGAP ahead by the next lob.
+private sub TwinsAt (lv as Level, a as integer, b as integer)
+    dim w as single
+    a = 0
+    b = TWINGAP
+    if lv.box.t <= 0 then exit sub
+    w = (LOBWAIT - lv.box.t) / LOBT
+    if w < 1 then
+        a = -cint(TWINGAP * w)
+        b = cint(TWINGAP * (1 - w))
+    else
+        b = cint(TWINGAP * (1 - 2 * lv.box.t / (LOBWAIT - LOBT)))
+    end if
+end sub
+
+' How high the guitar is over its cat's back: thrown on from a bump, coming down to the next cat; lobbed, over
+' the twins.
+private function Aloft% (lv as Level)
+    dim w as single
+    Aloft% = 0
+    if lv.cart.t > BOLTS then Aloft% = cint((lv.cart.t - BOLTS) * 60)
+    if not Lobbed%(lv) then exit function
+    w = (LOBWAIT - lv.box.t) / LOBT
+    Aloft% = cint(LOBUP2 * 4 * w * (1 - w))
+end function
+
+' The relay: the cat last bumped off its feet where it was, a while; who has the guitar striding, it on its back,
+' Kipper off the ground on his quick beat, the other twin by; a pip over it for each cat still to bump. Broken,
+' the guitar where it fell.
+private sub DrawRelay (lv as Level, zn as Realm, art as Store, se as Session, cx as integer, cy as integer)
+    dim x as integer, y as integer, leg as integer, k as integer, i as integer, a as integer, b as integer
+    dim up as integer, q as single
+    x = cint(lv.cart.x) - cx
+    y = cint(lv.cart.y) - cy
+    leg = lv.cart.hits
+    if leg > 0 and lv.cart.t > 0 then
+        Blit art, cint(lv.box.x) - cx - 10, cint(lv.box.y) - cy - 17, IRELAY + (leg * 3 - 1) * 2, 20, 18
+    end if
+    if lv.cart.st = 2 then
+        DrawKeep zn, art, x, y - ((se.ticks \ 16) and 1)
+        exit sub
+    end if
+    q = (se.pulse mod PULSES) / PULSES
+    if leg = 2 and ((se.pulse \ PULSES) and 1) = 0 then up = cint(HOPUP * 4 * q * (1 - q))
+    DrawKeep zn, art, x - 9, y - 10 - up - Aloft%(lv)
+    k = IRELAY + (leg * 3 + ((se.ticks \ 4) and 1)) * 2
+    if leg = NLEG - 1 then
+        TwinsAt lv, a, b
+        Blit art, x + b - 10, y - 17, k, 20, 18
+    end if
+    Blit art, x + a - 10, y - 17 - up, k, 20, 18
+    for i = leg to NLEG - 1
+        line (x - 18 + i * 8, y - 40)-(x - 14 + i * 8, y - 36), CYELLOW, BF
+    next
 end sub
 
 ' The twins' pair of limbs: one higher for each catch, the highest for the last.
@@ -258,7 +380,6 @@ private sub Juggle (lv as Level, mu as Deck, se as Session, g as Game, p as Hero
     lv.box.st = 0
     lv.box.t = TWINHOLD
     Bumped lv, mu, se, g, pt(), lv.cart.y - 7
-    if lv.cart.st = 2 then TakeKeep lv, mu, se, g, pt()
 end sub
 
 ' The picture of the twin on side sd, 0 the left: 0 grinning, 1 reaching, 2 a paw out, 3 shocked, 4 sulking. The

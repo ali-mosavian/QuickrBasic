@@ -231,6 +231,7 @@ flat,8, plat,404, hb,504, flat,8, plat,404, flat,8, awning,3, wall,6, flat,10
 goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 
 ' Lantern Quarter on the festival night. mortar: one here, firing on that beat of every four.
+' chase: a street that long, a fall every 54 columns: the relay for the guitar.
 Level Lantern2
 tune,Festival
 flat,4, dog,0, flat,6, bones,6, flat,6, tree,0, flat,8, mortar,1, gold,14, flat,5, mortar,3, flat,6, thorn,0, flat,8
@@ -243,6 +244,9 @@ up45,3, arc,9, pit,10, flat,10, line,7, walker,2, flat,6, snatcher,0, flat,6, ca
 mark,0, flat,8, mortar,2, plat,1107, hb,1207, flat,10, plat,1105, hb,1205, flat,8, cat,0, flat,6, cat,0, flat,8
 drop,5, tram,26, flat,8, cat,0, flat,8, cat,0, flat,10, awning,3, wall,5, flat,8
 mortar,0, flat,5, cat,0, flat,5, mortar,2, flat,5, pouncer,0, flat,6, mortar,1, flat,8
+mark,0, flat,8
+chase,320, flat,16, bones,8, dng,2, flat,50, bones,8, dng,2, flat,50, bones,8, dng,2, flat,50, bones,8
+dng,2, flat,50, bones,8, dng,2, flat,50, bones,8, flat,40
 goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 
 ' The intro's road: the Downs, flat, the way the van goes; a rock where it bumps.

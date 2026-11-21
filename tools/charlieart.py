@@ -1264,10 +1264,10 @@ def goldbone(turn: float) -> Pic:
     return p.outline()
 
 
-GINGER = EARTH[2:]
+CATFUR = EARTH[2:]
 
 
-def startled(fur: list[int] = GINGER) -> Pic:
+def startled(fur: list[int] = CATFUR) -> Pic:
     """The cat barked at: its back arched, its legs stiff, its tail a brush, an eye wide."""
     p = Pic(20, 14)
     p.line(3, 7, 2, 3, fur[2], 2)
@@ -1289,7 +1289,7 @@ def startled(fur: list[int] = GINGER) -> Pic:
     return p.outline()
 
 
-def cat(f: int, fur: list[int] = GINGER) -> Pic:
+def cat(f: int, fur: list[int] = CATFUR) -> Pic:
     """A cat, ginger unless told, prowling right: its tail up, its back striped."""
     p = Pic(20, 14)
     p.line(3, 8, 1.5, 4, fur[2])
@@ -5237,6 +5237,59 @@ def snatcher(f: int) -> Pic:
     return p
 
 
+def keepguitar() -> Pic:
+    """The big one's guitar as a cat carries it, lying, its neck out behind: an amber body dark at its edge, two
+    pickups, a pale neck."""
+    p = Pic(26, 13)
+    body = oval(17, 7, 6.6, 5.2) | oval(10.5, 6.5, 4.2, 3.8)
+    for x, y in body:  # the burst: by how much of the body is about a dot
+        near = sum((x + i, y + j) in body for i in range(-2, 3) for j in range(-2, 3))
+        p.put(x, y, EARTH[1] if near < 19 else EARTH[4] if near < 25 else GOLD[2])
+    for x in (14, 18):
+        p.box(x, 5, x, 9, DARK[1])
+    p.box(2, 6, 7, 6, BLOND[3])
+    p.box(2, 7, 7, 7, HAIR[1])
+    p.box(0, 5, 2, 8, HAIR[1])
+    dots(p, WHITE, (1, 5), (1, 8))
+    return p.outline()
+
+
+TWINFUR = [HAIR[0], HAIR[0], HAIR[1], HAIR[2], HAIR[2], HAIR[3]]
+
+
+def relaycat(leg: int, f: int) -> Pic:
+    """Who carries the guitar on the relay's leg, 20 by 18, its feet on the last row: Biscuit, ginger, a red
+    kerchief; Sprocket in a hard hat; Kipper in his captain's cap; Frost, white, in goggles and a pink scarf; a
+    Bramble twin, a brown tabby in a mask. f: 0 and 1 its strides, 2 it bumped, its hat off its head."""
+    fur = [CATFUR, CATFUR, CATFUR, FUR, TWINFUR][leg]
+    p = Pic(20, 18)
+    paste(p, startled(fur) if f == 2 else cat(f, fur), 0, 4)
+    hy = 1 if f == 2 else 5
+    if leg == 0:
+        p.box(11, 11, 13, 12, SCARF[2])
+        p.put(10, 12, SCARF[1])
+    elif leg == 1:
+        p.box(13, hy, 17, hy + 1, GOLD[3])
+        p.box(14, hy, 15, hy, GOLD[4])
+        p.box(12, hy + 2, 19, hy + 2, GOLD[1])
+    elif leg == 2:
+        p.box(12, hy - 1, 17, hy, WHITE)
+        p.box(12, hy + 1, 19, hy + 1, DARK[0])
+        p.put(15, hy, GOLD[3])
+    elif leg == 3:
+        p.box(13, 8, 18, 9, DARK[0])
+        p.box(16, 8, 17, 9, TEAL[4])
+        p.box(11, 11, 13, 12, PETAL[1])
+        p.box(8, 10, 10, 10, PETAL[1])
+        p.box(6, 9, 7, 9, PETAL[0])
+    else:
+        for y in (8, 9):
+            for x in range(13, 19):
+                if p.p[y][x] in fur:
+                    p.put(x, y, DARK[0])
+    return p.outline()
+
+
 def mortar() -> Pic:
     """A firework's mortar: a short tube leant back on its foot, a band round it."""
     p = Pic(13, 15)
@@ -5295,6 +5348,8 @@ def lanternq() -> list[tuple[int, Pic, bool, int]]:
         (z + 1322, mortar(), True, -1),
         *[(z + 1324 + f * 2, burst(f, FIRE[0], FIRE[1]), True, -1) for f in range(3)],
         *[(z + 1330 + f * 2, burst(f, FIRE[2], FIRE[3]), True, -1) for f in range(3)],
+        (z + 1336, keepguitar(), True, -1),
+        *[(z + 1338 + (leg * 3 + f) * 2, relaycat(leg, f), True, -1) for leg in range(5) for f in range(3)],
     ]
     return out
 

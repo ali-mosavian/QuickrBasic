@@ -96,10 +96,12 @@ const IGOLD = ITWIN + 20
 
 ' The quarter's washing on its lines: a shirt, trousers, a sock; an awning, and trodden; a chimney; a tram; a
 ' paper lantern; a dustbin with eyes under its lid, and shut; a snatcher, laid out as the cat: two strides right,
-' two left, then startled right and left; a mortar; a firework's burst opening in three, in two colours.
+' two left, then startled right and left; a mortar; a firework's burst opening in three, in two colours; the
+' guitar; the relay's five cats, each two strides and bumped.
 const ISHIRT = IGOLD + 8, ITROUSERS = ISHIRT + 2, ISOCK = ITROUSERS + 2, IAWNING = ISOCK + 2
 const ICHIMNEY = IAWNING + 4, ITRAM = ICHIMNEY + 2, IPAPER = ITRAM + 2, IBIN = IPAPER + 2, ISNATCH = IBIN + 4
-const IMORTAR = ISNATCH + 12, IBURST = IMORTAR + 2, NIMG = IBURST + 12
+const IMORTAR = ISNATCH + 12, IBURST = IMORTAR + 2, IGUITAR = IBURST + 12, IRELAY = IGUITAR + 2
+const NIMG = IRELAY + 30
 
 ' the picture store's LONGs: for what every zone shows and the largest zone's own
 const IMGSZ = 490000

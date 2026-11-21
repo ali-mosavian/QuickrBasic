@@ -36,7 +36,7 @@ from barkley.model.level import KSLED, KSPAN, KSPARK, KSPRING, KSQUIRREL, KSWEEP
 from barkley.model.level import KAWNING, KBIN, KCHIMNEY, KGOLD, KPOUNCE, KWALKER, NGOLD, NONE, NSTAGE, TS, ZONES
 from barkley.model.level import KMORTAR, KSNATCH
 from barkley.model.game import CLEARED, Cue, Game, INTRO, Loose, NCUE, NLOOSE, NPART, OVER, Part, PLAYING, Session
-from barkley.model.game import Found, Gild, TITLE
+from barkley.model.game import Found, Gild, PULSES, TITLE
 from barkley.assets.palette import CBEE, CFLY, CGOLD, CINK, CNUT, CSEA, CVINE, CVINED, CWHITE, CYELLOW
 from barkley.assets.palette import CLINEN, CPOLE, CQINK, CSOOT
 from barkley.assets.store import BuildArt
@@ -62,7 +62,7 @@ from barkley.stage.zones.pass import TREMBLE, WALLR
 from barkley.stage.zones.quarter import AWNT, AWNW, Leapt, LINESAG, LINET, LineY, POUNCEFAR, POUNCEGONE, POUNCEN
 from barkley.stage.zones.quarter import POUNCEOUT, POUNCER
 from barkley.stage.zones.chase import BOLTS, CARTLEAD, CHASETUNE, NBUMP, PAWUP, PEDALMORE, PEDALUP, PEDALV, PEDALW
-from barkley.stage.zones.chase import RAILUP, TwinPose
+from barkley.stage.zones.chase import LEGV, Lobbed, LOBWAIT, NLEG, RAILUP, TUMBLE, TwinPose
 from barkley.stage.camera import Camera, HEAD, Headroom, HEADUP
 from barkley.stage.scene import Render
 from barkley.stage.play import JELLYD, SPARKR, Spawn, Things
@@ -2312,6 +2312,113 @@ wd.se.unkept = -1
 Tick wd, g, p, k, lo(), pt()
 wd.se.ticks = tickWas
 if was then print "golds ok"
+' the festival night ends in a relay for the big one's guitar: five cats, a bump each, and the third bump no end
+' of it. Each goes its own way, Charlie kept behind it: Biscuit steadily; Sprocket by the beat, with a rest;
+' Kipper quick and slow in turn; Frost the quicker down a fall and never slower; the twins steadily till he
+' nears, then a lob: quick, out of a roll's reach while it flies, and no other till LOBWAIT is out. Rolled into,
+' each takes its bump, throws the guitar on well ahead and is left there off its feet; the fifth leaves the
+' guitar lying, the zone's tune back, and it is his to take
+dim relayOk as integer, slowest as single, quickest as single, lobs as integer, bar as integer
+GoStage wd, 11, g, p, lo(), pt()
+g.modeT = 20
+c = wd.mu.zHeld
+Stand wd.lv, wd.gr, p, wd.lv.chaseX + 4, 0
+Tick wd, g, p, k, lo(), pt()
+relayOk = wd.lv.cart.st = 1 and wd.lv.cart.hits = 0 and wd.mu.zHeld = CHASETUNE + 1 and c <> CHASETUNE + 1
+bar = 4 * PULSES \\ wd.se.tempo + 1
+for m = 0 to NLEG - 1
+    ' a bar of its pace, the street's second fall on its way
+    wd.lv.cart.x = wd.lv.chaseX + 70 * TS - 350
+    wd.lv.cart.y = GroundAt%(wd.lv, cint(wd.lv.cart.x))
+    slowest = 1000
+    quickest = 0
+    for i = 1 to 60 + bar
+        Stand wd.lv, wd.gr, p, cint(wd.lv.cart.x) - 150, 0
+        Tick wd, g, p, k, lo(), pt()
+        if i <= 60 then continue for
+        if wd.lv.cart.v < slowest then slowest = wd.lv.cart.v
+        if wd.lv.cart.v > quickest then quickest = wd.lv.cart.v
+    next
+    select case m
+    case 0, 4: relayOk = relayOk and abs(slowest - LEGV) < 5 and abs(quickest - LEGV) < 5
+    case 1: relayOk = relayOk and slowest < LEGV - 150 and quickest > LEGV + 30
+    case 2: relayOk = relayOk and slowest < LEGV - 50 and slowest > LEGV - 150 and quickest > LEGV + 50
+    case 3: relayOk = relayOk and slowest > LEGV - 5 and quickest > LEGV + 80
+    end select
+    if m = 1 then
+        ' drawn: the guitar's amber over Sprocket's back, his hard hat, a pip for each cat still to bump
+        g.shake = 0
+        g.camx = wd.lv.cart.x - 160
+        g.camy = wd.lv.cart.y - 150
+        Render wd, g, p, lo(), pt()
+        relayOk = relayOk and point(160 - 6, 150 - 15) = CGOLD + 2 and point(160 + 5, 150 - 11) = CGOLD + 3
+        relayOk = relayOk and point(160 - 16, 150 - 38) <> CYELLOW and point(160 - 8, 150 - 38) = CYELLOW
+        relayOk = relayOk and point(160 + 16, 150 - 38) = CYELLOW and point(160 + 24, 150 - 38) <> CYELLOW
+    end if
+    if m = NLEG - 1 then
+        Stand wd.lv, wd.gr, p, cint(wd.lv.cart.x) - 60, 0
+        Tick wd, g, p, k, lo(), pt()
+        relayOk = relayOk and Lobbed%(wd.lv)
+        quickest = 0
+        for i = 1 to 20
+            Stand wd.lv, wd.gr, p, cint(wd.lv.cart.x) - 10, 300
+            p.roll = -1
+            Tick wd, g, p, k, lo(), pt()
+            if wd.lv.cart.v > quickest then quickest = wd.lv.cart.v
+        next
+        relayOk = relayOk and Lobbed%(wd.lv) and wd.lv.cart.hits = m and p.inv <= 0 and quickest > LEGV + 80
+        lobs = 0
+        v = cint(LOBWAIT * 60)
+        for i = 22 to v + 10
+            bt = wd.lv.box.t
+            Stand wd.lv, wd.gr, p, cint(wd.lv.cart.x) - 60, 0
+            Tick wd, g, p, k, lo(), pt()
+            if wd.lv.box.t > bt then lobs = lobs + 1
+            if i = v - 10 then relayOk = relayOk and lobs = 0 and not Lobbed%(wd.lv)
+        next
+        relayOk = relayOk and lobs = 1
+        for i = 1 to 30
+            Stand wd.lv, wd.gr, p, cint(wd.lv.cart.x) - 150, 0
+            Tick wd, g, p, k, lo(), pt()
+        next
+    end if
+    hid = g.score
+    Stand wd.lv, wd.gr, p, cint(wd.lv.cart.x) - 30, 450
+    p.roll = -1
+    for i = 1 to 40
+        Tick wd, g, p, k, lo(), pt()
+        if wd.lv.cart.hits > m then exit for
+    next
+    relayOk = relayOk and wd.lv.cart.hits = m + 1 and g.score = hid + 500 and wd.lv.cart.t > BOLTS
+    relayOk = relayOk and abs(wd.lv.box.x - (wd.lv.cart.x - TUMBLE)) < 4
+    if m < NLEG - 1 then relayOk = relayOk and wd.lv.cart.st = 1
+    if m = 1 then
+        ' drawn, Charlie thrown back clear of him: Sprocket left there, his hat off his head
+        for i = 1 to 20
+            Tick wd, g, p, k, lo(), pt()
+        next
+        g.camx = wd.lv.box.x - 160
+        g.camy = wd.lv.box.y - 150
+        Render wd, g, p, lo(), pt()
+        relayOk = relayOk and point(160 + 5, 150 - 15) = CGOLD + 3
+    end if
+    bx = wd.lv.cart.x
+    for i = 1 to 90
+        Stand wd.lv, wd.gr, p, cint(wd.lv.cart.x) - 150, 0
+        Tick wd, g, p, k, lo(), pt()
+    next
+    if m < NLEG - 1 then relayOk = relayOk and wd.lv.cart.x - bx > 350
+next
+relayOk = relayOk and wd.lv.cart.st = 2 and wd.mu.zHeld = c
+g.camx = wd.lv.cart.x - 160
+g.camy = wd.lv.cart.y - 150
+Render wd, g, p, lo(), pt()
+relayOk = relayOk and point(160 + 3, 150 - 6) = CGOLD + 2
+hid = g.score
+Stand wd.lv, wd.gr, p, cint(wd.lv.cart.x), 0
+Tick wd, g, p, k, lo(), pt()
+relayOk = relayOk and wd.lv.cart.st = 3 and g.score = hid + 1000
+if relayOk then print "relay ok"
 ' Russet Wood is the fifth zone, by name and in its own colours: its litter's top the same picture at both hours,
 ' russet gold at a misty noon and not on the firefly night
 was = ZoneName$(4) = "RUSSET WOOD"
@@ -3941,6 +4048,8 @@ for m = 1 to NSTAGE - 1
     ' and the pass's dusk: Frost bumped off her toboggan, twice at the least sled against sled, and the camera
     ' taken. Checked by a bump, his sled never caught her up again: one bump of the three was made on it
     if m = 7 and wd.lv.cart.st = 3 and wd.lv.cart.hits = NBUMP and rams >= 2 then print "frost ok"
+    ' and the festival night: each of the relay's five cats bumped, and the guitar taken
+    if m = 11 and wd.lv.cart.st = 3 and wd.lv.cart.hits = NLEG then print "relay won ok"
     print "act"; m; g.mode; g.lives - j; wd.zn.stage; wd.zn.id; cint(p.x)
     k.l = 0
     k.r = 0
@@ -4339,6 +4448,7 @@ def main() -> None:
         ("mortar pilot ok", "the pilot jumps a mortar's flash: through the festival night it is never hurt"),
         ("quarter gold ok", "each of the Lantern Quarter's six golden bones can be got"),
         ("golds ok", "each of the first ten acts has three golden bones, and each can be got"),
+        ("relay ok", "the quarter's relay: five cats, each its own pace, a bump each; the twins lob; the guitar taken"),
         ("firefly ok", "the wood's night dark but for a few fireflies; a bark wakes them and lights it for a while"),
         ("sapling ok", "a bowed sapling throws him who crosses its crown, higher the faster; sprung it throws no one"),
         ("vine ok", "a vine caught in the air swings him as a weight, lets go at a jump, and hangs straight again"),
@@ -4360,6 +4470,7 @@ def main() -> None:
         ("avalanche ok", "the dusk's avalanche waits till he is past, comes on behind him, takes him where he stops"),
         ("toboggan ok", "Frost's toboggan lies as the ground does; on his sled a bump checks him; the camera is taken"),
         ("frost ok", "the pass's dusk ended in its chase: Frost bumped twice sled against sled, the camera taken"),
+        ("relay won ok", "the festival night ended in its relay: the pilot bumped all five cats and took the guitar"),
         ("gale ok", "the dusk's gusts bear him back on his feet and in the air, not crouched or curled; snow streams"),
         ("goat ok", "an ice wall stops him; a goat's charge hurts; jumped, it is ridden through, as the ground lies"),
         ("thrower ok", "a snow-thrower's wall throws a roll back; its snowball hurts where he stood; up, it is beaten"),

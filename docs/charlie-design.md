@@ -207,7 +207,7 @@ Progress is saved at each zone.
 
 - Built: its backdrop, ground, props and card at the blue hour and on the festival night; its two acts, to its
   tune and the festival's arrangement, three golden bones in each; clotheslines, lantern lines, awnings,
-  chimneys, trams, mortars; pouncers, rope-walkers, snatchers. To add: tippers, its chase; a street's own
+  chimneys, trams, mortars; pouncers, rope-walkers, snatchers; its chase. To add: tippers; a street's own
   paving, the market's stalls.
 - A clothesline (`line,N`) spans a street N columns wide, post to post. Come down on, it throws him up, his way
   kept: 60 pixels off the first, 107 off the second in a row, 167 off each after; the ground ends the row.
@@ -243,8 +243,11 @@ Progress is saved at each zone.
   over a balcony an awning throws him onto; in the middle of four mortars a chimney leads past.
 - A ramp to jump from stands 20 columns or more past what the pilot jumps: landed on from a jump it is too
   steep to walk up, and a jump from it goes back.
-- Chase: a relay. The guitar passes from Biscuit to Sprocket to Kipper to Frost to the twins, each stretch in
-  that cat's own style. The big one's guitar.
+- Chase (built): a relay at the festival's end, down a street of five falls. The big one's guitar passes from
+  Biscuit to Sprocket to Kipper to Frost to the twins: a bump each, and the bumped cat throws it on to the
+  next. Biscuit goes steadily; Sprocket by the beat, three and a rest; Kipper a beat quick and a beat slow;
+  Frost quicker down a fall; the twins lob it on as he nears, out of reach while it flies, and not again for
+  2.4 seconds. The street is level: a roll only slows there, so the pilot hops out of one a cat has outrun.
 - Look: fish-scale roof tiles over brick. Indigo, lantern orange, brick red. Stacked houses, lit windows, the
   moon; fireworks in act 2.
 - Music (written): a sly swing in A minor at 132. An accordion lead, plucked bass, brushed snare, a muted
