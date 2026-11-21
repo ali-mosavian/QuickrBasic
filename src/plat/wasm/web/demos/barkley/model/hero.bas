@@ -5,7 +5,8 @@ option explicit
 ' Charlie. x, y: the feet. gsp: speed along the ground, ang its rise in
 ' radians, uphill to the right > 0, right round on a loop. sg: the stretch
 ' of the ground's line it is on, or left last; slip: the seconds the keys
-' are no help, slid off a slope too steep for its speed.
+' are no help, slid off a slope too steep for its speed. hops: the lines he has
+' come down on in a row, none since the ground.
 type Hero
     x as single
     y as single
@@ -47,6 +48,7 @@ type Hero
     swayV as single
     dig as integer
     dug as integer
+    hops as integer
 end type
 
 ' Held keys, and jump's press since the last step.

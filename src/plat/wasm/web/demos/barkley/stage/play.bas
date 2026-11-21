@@ -22,6 +22,7 @@ from barkley.stage.zones.sands import Bob, MeetCrab, MeetFlume, MeetJelly
 from barkley.stage.zones.wood import MeetBramble, MeetLog, MeetMound, MeetSapling, MeetVine, Regrow, Scamper
 from barkley.stage.zones.pass import Graze, MeetDrift, MeetGoat, MeetHeap, MeetIcicle, MeetSled, MeetThrow, MeetWall
 from barkley.stage.zones.pass import TakeAim, Totter, Unload
+from barkley.stage.zones.quarter import Lines, Settle
 from barkley.stage.zones.chase import ResetChase
 from barkley.stage.camera import Camera
 
@@ -46,6 +47,7 @@ sub Touch (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as 
     dim i as integer, c as integer, px as integer, py as integer, x as integer, dx as integer
     ' under the ground nothing is met
     if p.dig then exit sub
+    if lv.nRope then Lines lv, mu, se, p
     px = cint(p.x)
     py = cint(p.y)
     c = (px - 80) \ TS
@@ -144,6 +146,7 @@ sub Things (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() a
             if lv.ob(i).s > 1 then lv.ob(i).s = lv.ob(i).s - 1
         end select
     next
+    if lv.nRope then Settle lv
     if se.looseN then LooseBones lv, se, lo(), DT
     if se.partN then Particles se, pt(), DT
 end sub

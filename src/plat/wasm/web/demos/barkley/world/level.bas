@@ -19,6 +19,10 @@ from barkley.world.terrain.track import Faces, MOVEW, PIPER, Track, WAVEA
 from barkley.world.layout import AddMover, AddObj, Burrows, Clearing, Column, Limbs, Pit, PITD, Rooted, Scatter, Shelf
 from barkley.world.layout import SortObjs, Weed
 
+' A clothesline's ends over the roofs it joins, and how far in from their edges its posts stand.
+const LINEH = 24
+private const POSTIN = 6
+
 private const HULL = 11
 const CABLED = 64
 const LOADFAR = 104
@@ -101,6 +105,7 @@ sub LoadLevel (wd as World, st as integer)
     wd.lv.nMv = 0
     wd.lv.nGulls = 0
     wd.lv.nSwarm = 0
+    wd.lv.nRope = 0
     for i = 0 to MW
         wd.lv.top(i) = MH
     next
@@ -324,6 +329,17 @@ sub LoadLevel (wd as World, st as integer)
             wd.lv.gulls(wd.lv.nGulls).hx = c * TS + 8
             wd.lv.gulls(wd.lv.nGulls).hy = s - n * TS
             wd.lv.nGulls = wd.lv.nGulls + 1
+        case "line"
+            ' a street n wide and a clothesline over it, post to post, LINEH over the roof here
+            wd.lv.ropes(wd.lv.nRope).x = c * TS - POSTIN
+            wd.lv.ropes(wd.lv.nRope).w = n * TS + POSTIN * 2
+            wd.lv.ropes(wd.lv.nRope).y = s - LINEH
+            wd.lv.ropes(wd.lv.nRope).t = 0
+            wd.lv.nRope = wd.lv.nRope + 1
+            Weed wd.lv, c * TS - 20
+            wd.lv.fallow = c + n + 2
+            Pit wd.lv, c, g, n
+            c = c + n
         case "spring": k = KSPRING
         case "sapling": k = KSAPLING
         case "bramble": k = KBRAMBLE

@@ -52,6 +52,15 @@ type Runner
     st as integer
 end type
 
+' A clothesline: from x, w wide, its ends at y; where along it it was last trodden, and the steps since.
+type Rope
+    x as integer
+    w as integer
+    y as integer
+    at as integer
+    t as integer
+end type
+
 ' A thing of the level: where it is, its kind and state, and its home x, which the level's order goes by.
 type Thing
     x as integer
@@ -95,6 +104,7 @@ end type
 ' by column. The race from chaseX to chaseEnd and the avalanche's head avalX, NONE where there is none. The
 ' sea's surface tide, NONE without one, from tideLo at step tideAt to tideHi half a tide later. Who flees in its
 ' chase, a crane's crate, the goat out of its place, the avalanche. The great oak's foot oakX, oakY, NONE without.
+' The quarter's clotheslines.
 type Level
     w as integer
     wpx as integer
@@ -133,6 +143,8 @@ type Level
     gulls() as Bird
     nSwarm as integer
     swarms() as Swarm
+    nRope as integer
+    ropes() as Rope
     lobN as integer
     lobs() as Lob
     map() as integer

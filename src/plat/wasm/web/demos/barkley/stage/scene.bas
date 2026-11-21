@@ -33,6 +33,7 @@ from barkley.stage.zones.works import DrawLeg, DrawPress, DrawSpark, SPINH, SPIN
 from barkley.stage.zones.sands import CrabPic, DrawGulls, DrawSea, DrawSpout, DrawSurf
 from barkley.stage.zones.wood import DrawBees, DrawFlies, DrawVine, SQAIM
 from barkley.stage.zones.pass import DrawAvalanche, DrawGale, DrawGoat, DrawLoad, DrawStray, Fallen, Risen, TREMBLE
+from barkley.stage.zones.quarter import DrawLines
 from barkley.stage.zones.chase import DrawChase
 from barkley.stage.hud import Banner, Hud, Num, Panel, Say, Txt
 
@@ -52,6 +53,7 @@ sub Render (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
     DrawThings wd.lv, wd.zn, wd.art, wd.se, cx, cy, -1
     DrawTiles wd.lv, wd.zn, wd.art, cx, cy
     DrawThings wd.lv, wd.zn, wd.art, wd.se, cx, cy, 0
+    if wd.lv.nRope then DrawLines wd.lv, wd.art, cx, cy
     if wd.lv.stray.st = 2 then DrawStray wd.lv, wd.art, wd.se, cx, cy
     if wd.lv.nMv then DrawCables wd.lv, cx, cy
     if wd.se.looseN then DrawLoose wd.art, wd.se, cx, cy, lo()

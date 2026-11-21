@@ -15,6 +15,9 @@ const CNUT = 130
 const CBEE = 116, CWING = 102
 const CSEA = 141
 
+' The quarter's: its ink, its linen from white, its poles lit to dark.
+const CQINK = 133, CLINEN = 156, CPOLE = 161
+
 ' The palette's ramps, dark to light, as charlieart.py's.
 const CHUD = 0, CWHITE = 1, CINK = 2, CYELLOW = 3
 private const CRED = 4

@@ -10,7 +10,7 @@ from barkley.model.game import CLEARED, Game, INTRO, OVER, Session, TITLE
 
 const SJUMP = 0, SBONE = 1, SHURT = 2, SSPRING = 3, SPOP = 4, SROLL = 5
 const SCHARGE = 6, SLAUNCH = 7, SCLEAR = 8, SDIE = 9, SMARK = 10, SBOOST = 11, SHISS = 12, SBARK = 13, SBUMP = 14
-const SSQUAWK = 15, SCRACK = 16, SCLANK = 17, SGOLD = 18
+const SSQUAWK = 15, SCRACK = 16, SCLANK = 17, SGOLD = 18, STWANG = 19
 const CAUGHTUP = 2, PACKING = 10, LEFTBEHIND = 11
 const ZTUNE = 0
 private const THEME = 1
@@ -56,6 +56,9 @@ sub Sfx (mu as Deck, se as Session, id as integer)
     case SGOLD
         ' a golden bone: a bright chord run up, its top held
         s = "L32O5EAO6C+EL8A"
+    case STWANG
+        ' a line trodden: plucked, and sprung back
+        s = "L64O2GO3DGO4D"
     end select
     play , , , "T255W1V13Y0K0I0H0,0,15,0" + s
 end sub

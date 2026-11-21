@@ -92,7 +92,10 @@ const ISQUIRREL = IMOUND + 2, IACORN = ISQUIRREL + 8
 const ITOAD = IACORN + 2, IOAK = ITOAD + 4, IOAKFOOT = IOAK + 2, ILIMB = IOAKFOOT + 2, IKNOT = ILIMB + 8
 const IBRACKET = IKNOT + 2, ITWIN = IBRACKET + 4
 ' A golden bone, turned as a bone is.
-const IGOLD = ITWIN + 20, NIMG = IGOLD + 8
+const IGOLD = ITWIN + 20
+
+' The quarter's washing on its lines: a shirt, trousers, a sock.
+const ISHIRT = IGOLD + 8, ITROUSERS = ISHIRT + 2, ISOCK = ITROUSERS + 2, NIMG = ISOCK + 2
 
 ' the picture store's LONGs: for what every zone shows and the largest zone's own
 const IMGSZ = 490000

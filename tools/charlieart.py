@@ -4891,6 +4891,8 @@ PAPER = both(141, "#FFF8C0 #FFA028 #D84828", "#FFF8C0 #FFA028 #D84828", 5)  # a 
 QPOLE = both(161, "#D8A070 #A06848 #6C4038", "#A07C78 #74546C #4C3458", 5)
 TIN = both(164, "#D8E0F0 #98A4C8 #6870A0 #3C3C70", "#A0A8D0 #6C74A8 #484C84 #282858", 5)
 CLAY = both(190, "#F09860 #C06840 #58B458", "#C07C60 #8C5048 #3C8858", 5)  # a pot lit and shaded, its plant
+# washing: white and its shade, blue, red, yellow
+LINEN = both(156, "#FFFFFF #C8D0F0 #58A0E8 #F05868 #FFD860", "#D8DCF8 #9CA4D8 #4878C8 #C84868 #E0B860", 5)
 
 
 def terrace(
@@ -5114,6 +5116,28 @@ def birdspikes() -> Pic:
     return p.outline(QINK)
 
 
+def washing(what: int) -> Pic:
+    """What hangs on a clothesline, its peg at the middle of its top: a striped shirt, trousers, a sock."""
+    if what == 0:
+        p = Pic(18, 15)
+        sleeves = poly([(5, 1), (1, 5), (3, 8), (5, 6)]) | poly([(13, 1), (17, 5), (15, 8), (13, 6)])
+        part(p, rect(5, 1, 12, 13) | sleeves, [LINEN[1], LINEN[0]], 1.5)
+        for y in (4, 7, 10):
+            for x in range(5, 13):
+                if p.get(x, y):
+                    p.put(x, y, LINEN[3])
+        p.box(8, 1, 9, 1, LINEN[1])
+    elif what == 1:
+        p = Pic(13, 17)
+        legs = rect(1, 1, 11, 5) | rect(1, 5, 4, 15) | rect(8, 5, 11, 15)
+        part(p, legs, [NAVY[1], LINEN[2], LINEN[1]], 1.5, 1.2)
+    else:
+        p = Pic(8, 11)
+        part(p, rect(1, 1, 4, 7) | rect(1, 6, 6, 9), [QPOLE[0], LINEN[4]], 1.2)
+        p.box(1, 1, 4, 2, LINEN[3])
+    return p.outline(QINK)
+
+
 def lanternq() -> list[tuple[int, Pic, bool, int]]:
     """The Lantern Quarter's own pictures, at the indices the Downs' own have."""
     k, z = 126, 625
@@ -5132,6 +5156,7 @@ def lanternq() -> list[tuple[int, Pic, bool, int]]:
         (k + 46, birdspikes(), True, -1),
         (k + 48, lantern((QPOLE[0], QPOLE[2]), [PAPER[0], PAPER[1]], (STRIPE[1], STRIPE[2]), QINK), True, -1),
         (k + 376, words("LANTERN QUARTER", 178, 18, 1.35, 2.6), True, -1),
+        *[(z + 1290 + f * 2, washing(f), True, -1) for f in range(3)],
     ]
     return out
 

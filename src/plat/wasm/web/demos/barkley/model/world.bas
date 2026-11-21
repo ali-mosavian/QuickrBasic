@@ -37,6 +37,9 @@ private const NSWARM = 4
 ' the bones it takes, how far a bark reaches it; and what it is doing: gone is 0.
 private const NGULL = 6
 
+' The clotheslines a level may hold.
+private const NROPE = 12
+
 ' The records' arrays, sized: a TYPE's own bounds must be numbers, and these are constants.
 sub Allot (wd as World)
     dim i as integer
@@ -52,6 +55,7 @@ sub Allot (wd as World)
     redim wd.lv.mv(NMOVE)
     redim wd.lv.gulls(NGULL - 1)
     redim wd.lv.swarms(NSWARM - 1)
+    redim wd.lv.ropes(NROPE - 1)
     redim wd.lv.lobs(NLOB - 1)
     redim wd.gr.pt(NPTS)
     redim wd.gr.cv(NZONE)

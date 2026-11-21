@@ -206,7 +206,10 @@ Progress is saved at each zone.
 ### 6. Lantern Quarter (its look and tune built)
 
 - Built: its backdrop, ground, props and card at the blue hour and on the festival night; two stand-in levels,
-  to its tune and the festival's arrangement. To add: its gadgets, its cats, its acts, its chase, the fireworks.
+  to its tune and the festival's arrangement; clotheslines. To add: its other gadgets, its cats, its acts, its
+  chase, the fireworks.
+- A clothesline (`line,N`) spans a street N columns wide, post to post. Come down on, it throws him up, his way
+  kept: 60 pixels off the first, 107 off the second in a row, 167 off each after; the ground ends the row.
 - Rule: footing. The ground is narrow, springy or moving: lines, awnings, tram roofs.
 - Gadgets: clotheslines, each landing higher than the last; awnings; chimneys, in one and out another;
   trams; lantern lines to slide.
