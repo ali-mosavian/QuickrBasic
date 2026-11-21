@@ -72,6 +72,7 @@
 #include "ui/menu.h"
 #include "ui/mouse.h"
 #include "ui/pages.h"
+#include "ui/pairs.h"
 #include "ui/screen.h"
 #include "ui/search.h"
 #include "ui/highlight.h"
@@ -428,6 +429,10 @@ static bool edit_control(Session *const S, const uint8_t ch)
         else
             edit_bs_word(S);
 
+        return true;
+
+    case CTRL(']'): /* ours: the matching bracket, the block's next keyword */
+        pairs_jump(S);
         return true;
 
     case CH_CTRL_MINUS: /* ours: the lines commented out, or back */

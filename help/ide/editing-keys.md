@@ -23,6 +23,8 @@ See also [selecting text](selecting text), [completion](completion),
     Alt+Up, Down      move the line, or the lines selected
     Shift+Alt+Up, Down  copy them above, below
     Ctrl+/, Ctrl+-    comment them out, or back in
+    Ctrl+]            to the matching bracket, or the block's next
+                      keyword (FOR, NEXT; IF, ELSE, END IF; ...)
     Ctrl+Z            undo; Alt+Backspace too
     Ctrl+Shift+Z      redo
     Ins               switch insert and overwrite
@@ -46,6 +48,9 @@ No line moves past a SUB or FUNCTION line or its END.
 Typing ( or " puts in its closing one too, before a space, a ) or
 the line's end; typing the closing one steps over it. Backspace
 between ( ) or "" takes both. Not in a comment or in overtype.
+
+With the cursor on a bracket its partner is lit; on a block's
+keyword, the block's others are.
 
 ## Example
     Type:   print "hi"   then press Down

@@ -27,6 +27,7 @@
 #include "ui/edit.h"
 #include "ui/errors.h"
 #include "ui/findbar.h"
+#include "ui/pairs.h"
 #include "ui/menu.h"
 #include "ui/screen.h"
 #include "ui/help.h"
@@ -201,6 +202,10 @@ static void draw_row(Session *const S, const uint16_t r)
     udbg_row(S, row, col, line);
     errs_paint(S, row, col, line + uimn.text.first, v.text, len);
     fbar_paint(row, col, v.text, len);
+
+    if (has_focus())
+        pairs_paint(row, col, line + uimn.text.first);
+
     sel_row(row, col, line);
 }
 
@@ -270,6 +275,10 @@ void draw_edit(Session *const S, const bool ina)
                          : GLYPH_UP /* none by the pane */
     );
     sel = inactive ? SEL_NONE : edit_sel();
+
+    if (has_focus())
+        pairs_find(S);
+
 
     for (uint16_t r = 0; r < e->rows; r++)
         draw_row(S, r);

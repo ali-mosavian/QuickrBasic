@@ -21,6 +21,8 @@ Menu commands are in [menus](menus).
  - Find opens a bar on the status row, not a box: the match moves as
    you type, through every SUB and module ([Find Bar](Find Bar)).
  - ( and " get their closing one as they are typed.
+ - The cursor's bracket's partner and its block's keywords are lit;
+   Ctrl+] goes to them.
  - Ctrl+Backspace and Ctrl+Del delete a word; a double click selects
    one, a triple click the line.
  - Alt+Up and Alt+Down move lines, with Shift copy them, and Ctrl+/
