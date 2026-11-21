@@ -10,7 +10,7 @@ from barkley.model.hero import Hero, Pad
 from barkley.model.level import Level
 from barkley.model.game import Cue, Game, INTRO
 from barkley.model.world import World
-from barkley.assets.palette import Shade, Shimmer
+from barkley.assets.palette import Dusk, Shade, Shimmer
 from barkley.assets.cast import BaronPic, DrawCat, DrawEyes
 from barkley.assets.cast import DrawFamily, DrawFloat, DrawKeep
 from barkley.assets.cast import DrawVan
@@ -207,7 +207,7 @@ sub StartBump (wd as World, g as Game, nxt as integer)
     wd.se.scene_end = BUMP0 + BUMPLEN
     LoadLevel wd, SINTRO
     ZoneTune wd.mu, BETWEEN
-    wd.tn.dusk = 16
+    Dusk wd.tn, 16
     Shade wd.tn
     g.mode = INTRO
     g.mode_t = BUMP0 / BEATS
@@ -264,7 +264,7 @@ function IntroOver% (wd as World, g as Game, k as Pad, cu() as Cue)
 
     if now > wd.se.scene_end - 1 and wd.tn.dusk > 0 _
         and (wd.se.ticks and 1) = 0 then
-        wd.tn.dusk = wd.tn.dusk - 1
+        Dusk wd.tn, wd.tn.dusk - 1
         Shade wd.tn
     end if
 

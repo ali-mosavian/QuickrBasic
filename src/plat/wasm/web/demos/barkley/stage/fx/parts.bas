@@ -332,3 +332,16 @@ sub Puff (se as Session, pt() as Part, at as Vec, id as integer)
         Burst se, pt(), at.x, at.y, 10, 140, CEARTH + 4
     end select
 end sub
+
+' No bones loose, no specks.
+sub Sweep (lo() as Loose, pt() as Part)
+    dim i as integer
+
+    for i = 0 to NLOOSE - 1
+        lo(i).t = 0
+    next
+
+    for i = 0 to NPART - 1
+        pt(i).t = 0
+    next
+end sub

@@ -201,14 +201,13 @@ type Ground
     col() as integer
 end type
 
-' The zone played, 0 the Amber Downs, and its stage; the one
-' ResetWorld is to load; its pictures: tiles, backdrop,
-' loop, pipe, card, ribbon. decked: its ground is a deck,
-' the works' kind, else earth, the Downs'.
+' The zone played, 0 the Amber Downs, and its stage; its
+' pictures: tiles, backdrop, loop, pipe, card, ribbon.
+' decked: its ground is a deck, the works' kind, else earth,
+' the Downs'.
 type Realm
     id as integer
     stage as integer
-    next_up as integer
     tile as integer
     back as integer
     ring as integer

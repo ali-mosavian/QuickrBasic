@@ -67,7 +67,7 @@ OWNERS = {
     "event": "engine/events",
 }
 # The fields assigned outside their owner today: the count may only fall.
-OUTSIDE = 131
+OUTSIDE = 103
 
 DRIVER = """from engine.video import Blit, OpenScreen, SH, SW
 from engine.clock import Clock, Pace, Steps, STEPT
@@ -274,7 +274,7 @@ IntroDraw wd, g, p, cu()
 hid = hid - Pix&(c - 60, 8, HORIZON - 45, HORIZON - 14)
 shown = shown - Pix&(c - 92, 16, HORIZON - 45, HORIZON - 14)
 if hid = 0 and shown <> 0 then print "door ok"
-ResetWorld wd, g, p, lo(), pt()
+ResetWorld wd, 0, g, p, lo(), pt()
 wd.mu.muted = 0
 g.mode = TITLE
 wd.mu.muted = -1

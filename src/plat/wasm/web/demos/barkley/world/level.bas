@@ -22,7 +22,7 @@ from barkley.model.level import MH, MW, NONE, NSTAGE, PI, TS
 from barkley.model.game import Session
 from barkley.model.world import World
 from barkley.model.kinds import Kinds
-from barkley.assets.palette import CWATER, Shade
+from barkley.assets.palette import Lighting, Shade
 from barkley.assets.store import LoadZoneArt
 from barkley.assets.tunes import ZoneTune
 from barkley.world.terrain.track import Faces, MOVEW, PIPER, Track
@@ -139,24 +139,13 @@ sub LoadLevel (wd as World, st as integer)
     if st = SINTRO then light = wd.se.road * 2
     if light = 0 and st = SINTRO then light = 1
 
-    for i = 0 to 255
-        wd.tn.now(i) = wd.tn.day(i)
-    next
-
-    for i = 0 to wd.tn.n(light) - 1
-        wd.tn.now(wd.tn.which(light, i)) = wd.tn.own(light, i)
-    next
-
+    Lighting wd.tn, light
     wd.lv.goal_x = NONE
     wd.lv.fam_x = NONE
     wd.lv.chase_x = NONE
     wd.lv.tide_lo = NONE
     wd.lv.tide = NONE
     wd.lv.cart.st = 0
-
-    for i = 0 to 2
-        wd.tn.glint(i) = wd.tn.now(CWATER + 1 + i)
-    next
 
     Shade wd.tn
     redim wd.lv.map(MW - 1, MH - 1)

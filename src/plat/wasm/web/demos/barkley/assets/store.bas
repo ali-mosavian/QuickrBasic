@@ -6,9 +6,10 @@ option explicit
 from engine.datafile import OpenData, Word
 from engine.video import Flop, Grab, MaskGrab, Mirror, Store
 from barkley.model.images import IGLYPH, IHUD, ITILT, NGLYPH
-from barkley.model.level import NSTAGE, ZONES
+from barkley.model.level import ZONES
 from barkley.model.game import Tones
-from barkley.assets.palette import CINK, CWHITE, CYELLOW, Tint
+from barkley.assets.palette import CINK, CWHITE, CYELLOW, KeepDay
+from barkley.assets.palette import ReadTones
 
 const HUDW = 108
 const HUDH = 40
@@ -31,35 +32,18 @@ sub BuildArt (art as Store, tn as Tones)
     BuildGlyphs art
     art.zone_at = art.next_at
 
-    for i = 0 to 255
-        tn.day(i) = tn.now(i)
-    next
+    KeepDay tn
 end sub
 
 ' The palette and the pictures every zone shows from
 ' CHARLIE.DAT.
 private sub LoadArt (art as Store, tn as Tones)
-    dim n as integer, i as integer, k as integer
+    dim k as integer
 
-    tn.dusk = 16
     OpenData art.dat
     ' past where the tunes, the levels and the kinds start
     seek #art.dat.num, 13
-    n = Word&(art.dat)
-
-    for i = 1 to n
-        k = Word&(art.dat)
-        Tint tn, k, Word&(art.dat)
-    next
-
-    for k = 0 to NSTAGE - 1
-        tn.n(k) = Word&(art.dat)
-
-        for i = 0 to tn.n(k) - 1
-            tn.which(k, i) = Word&(art.dat)
-            tn.own(k, i) = Word&(art.dat)
-        next
-    next
+    ReadTones tn, art.dat
 
     for k = 0 to ZONES - 1
         art.dat_at(k) = Word&(art.dat)

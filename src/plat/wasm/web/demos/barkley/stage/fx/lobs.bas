@@ -100,3 +100,14 @@ sub DrawLobs (lv as Level, art as Store, cx as integer, cy as integer)
             cint(lv.lobs(n).at.y) - cy - 4, lv.lobs(n).pic, 8, 8
     next
 end sub
+
+' Nothing in the air.
+sub Recall (lv as Level)
+    dim i as integer
+
+    for i = 0 to NLOB - 1
+        lv.lobs(i).live = 0
+    next
+
+    lv.n_lobs = 0
+end sub

@@ -117,7 +117,7 @@ sub Advance ( _
     if IntroOver%(wd, g, k, cu()) = 0 then exit sub
 
     if wd.se.scene_next = 0 then
-        ResetWorld wd, g, p, lo(), pt()
+        ResetWorld wd, 0, g, p, lo(), pt()
         exit sub
     end if
 

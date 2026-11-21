@@ -21,6 +21,7 @@ from barkley.stage.things.wood import Regrow, Scamper
 from barkley.stage.things.pass import Graze, TakeAim, Totter, Unload
 from barkley.stage.things.quarter import Mortar, Pounce, Settle
 from barkley.stage.things.quarter import Snatch, Tipper
+from barkley.stage.things.sands import Rehome
 
 ' A spark's reach from home; a jellyfish's depth.
 const SPARKR = 40
@@ -117,4 +118,20 @@ private sub Think ( _
             lv.things(i).state = lv.things(i).state - 1
         end if
     end select
+end sub
+
+' The level's things as it starts: each at home, as its kind
+' starts unless it keeps how it was left; the gulls too.
+sub Rewind (lv as Level, kd as Kinds)
+    dim i as integer, k as integer
+
+    for i = 0 to lv.n_things - 1
+        lv.things(i).at.x = lv.things(i).home
+        k = lv.things(i).kind
+        if kd.k(k).keeps then continue for
+
+        lv.things(i).state = kd.k(k).start
+    next
+
+    Rehome lv
 end sub

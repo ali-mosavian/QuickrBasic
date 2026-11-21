@@ -11,7 +11,7 @@ from barkley.model.game import Session
 from barkley.model.events import EVSOUND, Tell
 from barkley.assets.tunes import SCRACK
 from barkley.world.terrain.track import MOVEW
-from barkley.world.level import CABLED
+from barkley.world.level import CABLED, NMOVE
 
 ' a boat's deck over the water it floats on, and over the
 ' floor it lies on
@@ -202,3 +202,12 @@ end sub
 function Falls% (lv as Level, m as integer)
     Falls% = lv.movers(m).kind = 6 and lv.movers(m).t >= SPANT
 end function
+
+' Every mover at its start.
+sub Still (lv as Level)
+    dim i as integer
+
+    for i = 0 to NMOVE
+        lv.movers(i).t = 0
+    next
+end sub

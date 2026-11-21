@@ -8,25 +8,25 @@ from engine.audio import Deck
 from engine.events import Events
 from barkley.model.hero import Hero, Pad
 from barkley.model.level import MH, NONE, NSTAGE, TS
-from barkley.model.game import CLEARED, Game, Loose, NLOOSE, NPART
-from barkley.model.game import OVER, Part, PLAYING, Session, TITLE
+from barkley.model.game import CLEARED, Game, Loose, OVER, Part
+from barkley.model.game import PLAYING, Session, TITLE
 from barkley.model.world import World
 from barkley.model.events import EVSOUND, Tell
-from barkley.assets.palette import Cycle, Shade, Shimmer
+from barkley.assets.palette import Cycle, Dusk, Shade, Shimmer
 from barkley.assets.tunes import CAUGHT, EndBeat, EndTune, SBONE
 from barkley.assets.tunes import SCLEAR, ZTUNE
-from barkley.world.level import LoadLevel, NLOB, NMOVE, ZoneOf
-from barkley.world.movers import Movers
-from barkley.stage.fx.lobs import Volley
+from barkley.world.level import LoadLevel, ZoneOf
+from barkley.world.movers import Movers, Still
+from barkley.stage.fx.lobs import Recall, Volley
 from barkley.stage.hero.moves import MoveHero
 from barkley.stage.zones.sands import Flow
 from barkley.stage.zones.wood import Nightfall
 from barkley.stage.zones.chase import Flee
 from barkley.stage.camera import Camera
 from barkley.stage.play import Dying, Spawn, Touch
-from barkley.stage.things.think import Things
-from barkley.stage.fx.parts import Particles
-from barkley.stage.things.sands import Flock, GHOVER
+from barkley.stage.things.think import Rewind, Things
+from barkley.stage.fx.parts import Particles, Sweep
+from barkley.stage.things.sands import Flock
 from barkley.stage.things.wood import Swarms
 from barkley.stage.things.pass import Avalanche, Homeward
 from barkley.stage.hero.hurt import Lose
@@ -117,7 +117,7 @@ sub Tick ( _
     case OVER
         if g.mode_t > OVERT _
             or (g.mode_t > 1.5 and (k.hit or k.start)) or k.quit then
-            ResetWorld wd, g, p, lo(), pt()
+            ResetWorld wd, 0, g, p, lo(), pt()
         end if
     end select
 
@@ -150,10 +150,10 @@ private sub TitleStep ( _
     if k.quit then g.quitting = -1
 
     if p.dead then
-        ResetWorld wd, g, p, lo(), pt()
+        ResetWorld wd, 0, g, p, lo(), pt()
     elseif p.at.x >= wd.lv.goal_x then
         if Met%(wd, g, p, k, pt()) then
-            ResetWorld wd, g, p, lo(), pt()
+            ResetWorld wd, 0, g, p, lo(), pt()
         end if
     else
         Pilot wd.lv, wd.gr, wd.zn, wd.se, p, auto, wd.pilot
@@ -178,7 +178,7 @@ private sub PlayStep ( _
     lo() as Loose, _
     pt() as Part _
 )
-    if k.quit then ResetWorld wd, g, p, lo(), pt()
+    if k.quit then ResetWorld wd, 0, g, p, lo(), pt()
 
     if p.dead then
         Dying wd.lv, wd.gr, wd.zn, wd.ev, g, p
@@ -226,7 +226,7 @@ private sub ClearedStep ( _
     Tally wd.mu, wd.ev, wd.se, g, k
 
     if k.quit then
-        ResetWorld wd, g, p, lo(), pt()
+        ResetWorld wd, 0, g, p, lo(), pt()
         exit sub
     end if
 
@@ -235,7 +235,7 @@ private sub ClearedStep ( _
     nxt = wd.zn.stage + 1
 
     if nxt > NSTAGE - 1 then
-        ResetWorld wd, g, p, lo(), pt()
+        ResetWorld wd, 0, g, p, lo(), pt()
         exit sub
     end if
 
@@ -248,18 +248,17 @@ private sub ClearedStep ( _
     end if
 end sub
 
-' The level as it starts, the title up, Charlie at the start
+' Stage n as it starts, the title up, Charlie at its start
 ' for the pilot.
 sub ResetWorld ( _
     wd as World, _
+    n as integer, _
     g as Game, _
     p as Hero, _
     lo() as Loose, _
     pt() as Part _
 )
-    dim i as integer, k as integer
-
-    if wd.zn.stage <> wd.zn.next_up then LoadLevel wd, wd.zn.next_up
+    if wd.zn.stage <> n then LoadLevel wd, n
     EndTune wd.lv, wd.zn, wd.mu
     wd.lv.glow = 0
     g.mode = TITLE
@@ -269,7 +268,7 @@ sub ResetWorld ( _
     wd.se.past_t = 0
 
     if wd.tn.dusk < 16 then
-        wd.tn.dusk = 16
+        Dusk wd.tn, 16
         Shade wd.tn
     end if
 
@@ -279,40 +278,10 @@ sub ResetWorld ( _
     g.home.x = wd.lv.start.x
     g.home.y = wd.lv.start.y
 
-    for i = 0 to wd.lv.n_things - 1
-        wd.lv.things(i).at.x = wd.lv.things(i).home
-        k = wd.lv.things(i).kind
-        if wd.kinds.k(k).keeps then continue for
-
-        wd.lv.things(i).state = wd.kinds.k(k).start
-    next
-
-    for i = 0 to NLOB - 1
-        wd.lv.lobs(i).live = 0
-    next
-
-    wd.lv.n_lobs = 0
-
-    for i = 0 to NMOVE
-        wd.lv.movers(i).t = 0
-    next
-
-    for i = 0 to wd.lv.n_gulls - 1
-        wd.lv.gulls(i).at.x = wd.lv.gulls(i).home.x
-        wd.lv.gulls(i).at.y = wd.lv.gulls(i).home.y
-        wd.lv.gulls(i).rest = 0
-        wd.lv.gulls(i).st = GHOVER
-        wd.lv.gulls(i).loot = 0
-    next
-
-    for i = 0 to NLOOSE - 1
-        lo(i).t = 0
-    next
-
-    for i = 0 to NPART - 1
-        pt(i).t = 0
-    next
-
+    Rewind wd.lv, wd.kinds
+    Recall wd.lv
+    Still wd.lv
+    Sweep lo(), pt()
     wd.se.loose_n = 0
     wd.se.part_n = 0
     Spawn wd.lv, wd.gr, wd.zn, wd.ev, g, p
@@ -332,9 +301,7 @@ sub GoStage ( _
 
     sc = g.score
     left0 = g.lives
-    wd.zn.next_up = n
-    ResetWorld wd, g, p, lo(), pt()
-    wd.zn.next_up = 0
+    ResetWorld wd, n, g, p, lo(), pt()
     g.mode = PLAYING
     g.score = sc
     g.lives = left0
@@ -365,10 +332,10 @@ private function Met% ( _
     if p.win and g.bonus = 0 then wd.se.met_t = wd.se.met_t + STEPT
     parted = wd.se.met_t > 6 or wd.se.past_t > 40 _
         or (wd.se.met_t > 2 and (k.hit or k.start))
-    if wd.tn.dusk = 16 and parted then wd.tn.dusk = 15
+    if wd.tn.dusk = 16 and parted then Dusk wd.tn, 15
 
     if wd.tn.dusk < 16 and (wd.se.ticks and 3) = 0 then
-        wd.tn.dusk = wd.tn.dusk - 1
+        Dusk wd.tn, wd.tn.dusk - 1
         Shade wd.tn
     end if
 
@@ -384,9 +351,7 @@ sub StartGame ( _
     lo() as Loose, _
     pt() as Part _
 )
-    wd.zn.next_up = wd.se.pick * 2
-    ResetWorld wd, g, p, lo(), pt()
-    wd.zn.next_up = 0
+    ResetWorld wd, wd.se.pick * 2, g, p, lo(), pt()
     g.mode = PLAYING
 end sub
 

@@ -3,6 +3,7 @@
 defint A-Z
 option explicit
 
+from engine.datafile import DataFile, Word
 from barkley.model.level import NSTAGE, Realm
 from barkley.model.game import Session, Tones
 
@@ -106,4 +107,59 @@ sub AllotTones (tn as Tones)
     redim tn.n(NSTAGE - 1)
     redim tn.which(NSTAGE - 1, 159)
     redim tn.own(NSTAGE - 1, 159)
+end sub
+
+' The palette as CHARLIE.DAT has it, full lit, and each
+' stage's own tones.
+sub ReadTones (tn as Tones, dat as DataFile)
+    dim n as integer, i as integer, k as integer
+
+    tn.dusk = 16
+    n = Word&(dat)
+
+    for i = 1 to n
+        k = Word&(dat)
+        Tint tn, k, Word&(dat)
+    next
+
+    for k = 0 to NSTAGE - 1
+        tn.n(k) = Word&(dat)
+
+        for i = 0 to tn.n(k) - 1
+            tn.which(k, i) = Word&(dat)
+            tn.own(k, i) = Word&(dat)
+        next
+    next
+end sub
+
+' The palette as it is kept for the day.
+sub KeepDay (tn as Tones)
+    dim i as integer
+
+    for i = 0 to 255
+        tn.day(i) = tn.now(i)
+    next
+end sub
+
+' Stage k's light: the day's palette with the stage's own
+' tones in, the lake's glints taken from it.
+sub Lighting (tn as Tones, k as integer)
+    dim i as integer
+
+    for i = 0 to 255
+        tn.now(i) = tn.day(i)
+    next
+
+    for i = 0 to tn.n(k) - 1
+        tn.now(tn.which(k, i)) = tn.own(k, i)
+    next
+
+    for i = 0 to 2
+        tn.glint(i) = tn.now(CWATER + 1 + i)
+    next
+end sub
+
+' The palette d sixteenths lit, when next shaded.
+sub Dusk (tn as Tones, d as integer)
+    tn.dusk = d
 end sub

@@ -132,3 +132,16 @@ sub Flock ( _
         Gull ev, se, lv.gulls(i), i, g, p, lo()
     next
 end sub
+
+' The gulls home, hovering, with nothing.
+sub Rehome (lv as Level)
+    dim i as integer
+
+    for i = 0 to lv.n_gulls - 1
+        lv.gulls(i).at.x = lv.gulls(i).home.x
+        lv.gulls(i).at.y = lv.gulls(i).home.y
+        lv.gulls(i).rest = 0
+        lv.gulls(i).st = GHOVER
+        lv.gulls(i).loot = 0
+    next
+end sub
