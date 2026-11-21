@@ -9,7 +9,7 @@ from barkley.model.hero import Hero
 from barkley.model.level import GRAV, Ground, KBONE, KBOOST, KBRAMBLE, KBUMP, KBUOY, KBUTTON, KCAT, KCRAB, KDRIFT
 from barkley.model.level import KFLUME, KGOAL, KGOAT, KHEAP, KHOOP, KICICLE, KJELLY, KJET, KLOAD, KLOG, KMARK, KMOUND
 from barkley.model.level import KPRESS, KSAPLING, KSLED, KSPARK, KSPIN, KSPOUT, KSPRING, KSQUIRREL, KSWEEP, KTHORN
-from barkley.model.level import KGOLD, KTHROW, KVINE, KWALL, Level, Realm, TS
+from barkley.model.level import KAWNING, KGOLD, KTHROW, KVINE, KWALL, Level, Realm, TS
 from barkley.model.game import Game, Loose, NLOOSE, OVER, Part, Session
 from barkley.assets.tunes import LEFTBEHIND, SBONE, SceneTune, Sfx, SHURT
 from barkley.world.terrain.ground import SegAt
@@ -22,7 +22,7 @@ from barkley.stage.zones.sands import Bob, MeetCrab, MeetFlume, MeetJelly
 from barkley.stage.zones.wood import MeetBramble, MeetLog, MeetMound, MeetSapling, MeetVine, Regrow, Scamper
 from barkley.stage.zones.pass import Graze, MeetDrift, MeetGoat, MeetHeap, MeetIcicle, MeetSled, MeetThrow, MeetWall
 from barkley.stage.zones.pass import TakeAim, Totter, Unload
-from barkley.stage.zones.quarter import Lines, Settle
+from barkley.stage.zones.quarter import Lines, MeetAwning, Settle
 from barkley.stage.zones.chase import ResetChase
 from barkley.stage.camera import Camera
 
@@ -75,6 +75,7 @@ sub Touch (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as 
         case KJELLY: MeetJelly lv, mu, se, g, p, i, lo(), pt()
         case KSPRING: MeetSpring lv, mu, se, p, i
         case KSAPLING: MeetSapling lv, mu, se, p, i
+        case KAWNING: MeetAwning lv, mu, se, p, i
         case KVINE: MeetVine lv, mu, se, p, i
         case KBRAMBLE: MeetBramble lv, mu, se, g, p, i, lo()
         case KLOG: MeetLog lv, mu, se, p, i
@@ -135,7 +136,7 @@ sub Things (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() a
         case KGOAT: if lv.ob(i).s <> 0 then Graze lv, se, i, p
         case KTHROW: TakeAim lv, i, p
         case KSQUIRREL: if lv.ob(i).s <> 0 then Scamper lv, i, p
-        case KSPRING, KBUMP, KHOOP, KSAPLING: if lv.ob(i).s > 0 then lv.ob(i).s = lv.ob(i).s - 1
+        case KSPRING, KBUMP, KHOOP, KSAPLING, KAWNING: if lv.ob(i).s > 0 then lv.ob(i).s = lv.ob(i).s - 1
         case KBRAMBLE: Regrow lv, se, pt(), i
         case KVINE: if p.vine <> i + 1 then lv.ob(i).s = lv.ob(i).s * 7 \ 8
         case KBUOY

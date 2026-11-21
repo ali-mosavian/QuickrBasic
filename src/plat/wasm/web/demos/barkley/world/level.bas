@@ -5,7 +5,7 @@ option explicit
 from barkley.engine.datafile import Chars, OpenData, Word
 from barkley.model.images import IBG, ICARD, ICARD2, ILOOP, ITILE, ITILE2, IWAVE, IZ2
 from barkley.model.level import KBONE, KBOOST, KBRAMBLE, KBUMP, KBUOY, KBUSH, KBUTTON, KCAT, KCISTERN, KCRAB, KDRIFT
-from barkley.model.level import KGOLD
+from barkley.model.level import KAWNING, KGOLD
 from barkley.model.level import KFAM, KFLOWER, KFLUME, KGOAL, KGOAT, KHEAP, KHOOP, KICICLE, KJELLY, KJET, KLEG, KLOAD
 from barkley.model.level import KLOG, KLOOP, KMARK, KMOUND, KPIPE, KPLAT, KPRESS, KROCK, KSAPLING, KSLED, KSPARK, KSPIN
 from barkley.model.level import KSPOUT, KSPRING, KSQUIRREL, KSWEEP, KTANK, KTHORN, KTHROW, KTREE, KVENT, KVINE, KWALL
@@ -22,6 +22,9 @@ from barkley.world.layout import SortObjs, Weed
 ' A clothesline's ends over the roofs it joins, and how far in from their edges its posts stand.
 const LINEH = 24
 private const POSTIN = 6
+
+' An awning's middle out from its wall.
+private const AWNOUT = 23
 
 private const HULL = 11
 const CABLED = 64
@@ -340,6 +343,9 @@ sub LoadLevel (wd as World, st as integer)
             wd.lv.fallow = c + n + 2
             Pit wd.lv, c, g, n
             c = c + n
+        case "awning"
+            ' an awning out from the wall that begins here, n tiles over the roof
+            AddObj wd.lv, KAWNING, c * TS - AWNOUT, s - n * TS
         case "spring": k = KSPRING
         case "sapling": k = KSAPLING
         case "bramble": k = KBRAMBLE

@@ -5138,6 +5138,22 @@ def washing(what: int) -> Pic:
     return p.outline(QINK)
 
 
+def awning(trodden: bool) -> Pic:
+    """An awning out from a wall, its rail along its top: striped canvas down to a scalloped hem; trodden, the
+    canvas given under him."""
+    p = Pic(46, 22)
+    p.box(1, 1, 44, 2, QPOLE[2])
+    for x in range(1, 45):
+        dip = min(2, (x - 1) // 3, (44 - x) // 3) if trodden else 0
+        stripe = ((x + 2) // 5) % 2
+        p.box(x, 3, x, 3 + dip, STRIPE[2] if dip else STRIPE[0])
+        for y in range(4, 13):
+            p.put(x, y + dip, STRIPE[2] if y == 12 else STRIPE[stripe])
+        for y in range(13, 14 + (2, 4, 4, 4, 2)[(x + 2) % 5]):
+            p.put(x, y + dip, STRIPE[stripe] if y < 16 else STRIPE[2] if stripe else CLOUD[1])
+    return p.outline(QINK)
+
+
 def lanternq() -> list[tuple[int, Pic, bool, int]]:
     """The Lantern Quarter's own pictures, at the indices the Downs' own have."""
     k, z = 126, 625
@@ -5157,6 +5173,8 @@ def lanternq() -> list[tuple[int, Pic, bool, int]]:
         (k + 48, lantern((QPOLE[0], QPOLE[2]), [PAPER[0], PAPER[1]], (STRIPE[1], STRIPE[2]), QINK), True, -1),
         (k + 376, words("LANTERN QUARTER", 178, 18, 1.35, 2.6), True, -1),
         *[(z + 1290 + f * 2, washing(f), True, -1) for f in range(3)],
+        (z + 1296, awning(False), True, -1),
+        (z + 1298, awning(True), True, -1),
     ]
     return out
 

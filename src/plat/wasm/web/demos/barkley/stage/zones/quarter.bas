@@ -1,4 +1,4 @@
-' Lantern Quarter: clotheslines.
+' Lantern Quarter: clotheslines and awnings.
 defint A-Z
 option explicit
 
@@ -10,7 +10,7 @@ from barkley.model.hero import Hero
 from barkley.model.level import Level, Rope, TS
 from barkley.model.game import Session
 from barkley.assets.palette import CLINEN, CPOLE, CQINK
-from barkley.assets.tunes import Sfx, STWANG
+from barkley.assets.tunes import Sfx, SSPRING, STWANG
 
 ' A clothesline: how far its middle hangs under its ends; his speed up off the first he comes down on, what each
 ' more in a row adds, and the row that adds no more; how far it gives under him, and the things' steps it swings;
@@ -20,6 +20,11 @@ const LINEV = 300!, LINEMORE = 100!, LINEROW = 3
 private const LINEGIVE = 8
 const LINET = 30
 private const WASH = 22
+
+' An awning: half its width; his speed up off it; the things' steps it stays given.
+const AWNW = 22
+const AWNV = 450!
+const AWNT = 8
 
 ' Line r's height u along it: hung, and once trodden given where it was, swinging less each step.
 function LineY% (r as Rope, u as integer)
@@ -43,23 +48,41 @@ sub Lines (lv as Level, mu as Deck, se as Session, p as Hero)
         u = cint(p.x) - lv.ropes(i).x
         if u < 1 or u >= lv.ropes(i).w then continue for
         y = LineY%(lv.ropes(i), u)
-        if p.y < y or p.y - p.vy * STEPT > y + 2 then continue for
+        if not Trodden%(p, y) then continue for
         Pluck lv.ropes(i), mu, se, p, u, y
         exit sub
     next
 end sub
 
-' Line r trodden u along it, at height y: he is thrown up off it, and it swings.
-private sub Pluck (r as Rope, mu as Deck, se as Session, p as Hero, u as integer, y as integer)
+' Whether his feet, falling, have come down through height y this step.
+private function Trodden% (p as Hero, y as integer)
+    Trodden% = not p.ground and p.vy > 0 and p.y >= y and p.y - p.vy * STEPT <= y + 2
+end function
+
+' Thrown up from height y at v, his way kept.
+private sub Toss (p as Hero, y as integer, v as single)
     p.y = y
-    p.vy = -(LINEV + LINEMORE * p.hops)
-    if p.hops < LINEROW - 1 then p.hops = p.hops + 1
+    p.vy = -v
     p.roll = 0
     p.jumped = 0
     p.sprung = -1
+end sub
+
+' Line r trodden u along it, at height y: he is thrown up off it, and it swings.
+private sub Pluck (r as Rope, mu as Deck, se as Session, p as Hero, u as integer, y as integer)
+    Toss p, y, LINEV + LINEMORE * p.hops
+    if p.hops < LINEROW - 1 then p.hops = p.hops + 1
     r.at = u
     r.t = LINET
     Sfx mu, se, STWANG
+end sub
+
+' An awning: come down on, its canvas throws him up, his way kept; from under he goes through it.
+sub MeetAwning (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
+    if p.dead or abs(lv.ob(i).x - p.x) >= AWNW or not Trodden%(p, lv.ob(i).y) then exit sub
+    Toss p, lv.ob(i).y, AWNV
+    lv.ob(i).s = AWNT
+    Sfx mu, se, SSPRING
 end sub
 
 ' The lines' step: one that swings, a step nearer rest.

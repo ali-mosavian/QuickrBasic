@@ -33,7 +33,7 @@ from barkley.model.hero import Hero, Pad
 from barkley.model.level import GRAV, Ground, KBONE, KBRAMBLE, KBUOY, KCAT, KCISTERN, KCRAB, KDRIFT, KGOAT, KHOOP
 from barkley.model.level import KICICLE, KJELLY, KJET, KLEG, KLOAD, KLOG, KLOOP, KMOUND, KPIPE, KPRESS, KSAPLING, KSEAT
 from barkley.model.level import KSLED, KSPAN, KSPARK, KSPRING, KSQUIRREL, KSWEEP, KTHROW, KVINE, KWALL, KWAVE, Level, MH
-from barkley.model.level import KGOLD, NGOLD, NONE, NSTAGE, TS, ZONES
+from barkley.model.level import KAWNING, KGOLD, NGOLD, NONE, NSTAGE, TS, ZONES
 from barkley.model.game import CLEARED, Cue, Game, INTRO, Loose, NCUE, NLOOSE, NPART, OVER, Part, PLAYING, Session
 from barkley.model.game import Found, Gild, TITLE
 from barkley.assets.palette import CBEE, CFLY, CGOLD, CINK, CNUT, CSEA, CVINE, CVINED, CWHITE, CYELLOW
@@ -58,7 +58,7 @@ from barkley.stage.zones.wood import BRAMBLET, FLYREST, GLOWFADE, LOGH, LOGV, MO
 from barkley.stage.zones.wood import SQRUN, SQV, SQWAIT
 from barkley.stage.zones.pass import Fallen, GCHARGE, HeapOf, HEAPR, LOADRUN, LOADSLIDE, SLEDV, Slid, THROWAT, THROWUP
 from barkley.stage.zones.pass import TREMBLE, WALLR
-from barkley.stage.zones.quarter import LINEMORE, LINEROW, LINESAG, LINET, LINEV, LineY
+from barkley.stage.zones.quarter import AWNT, AWNW, LINESAG, LINET, LineY
 from barkley.stage.zones.chase import BOLTS, CARTLEAD, CHASETUNE, NBUMP, PAWUP, PEDALMORE, PEDALUP, PEDALV, PEDALW
 from barkley.stage.zones.chase import RAILUP, TwinPose
 from barkley.stage.camera import Camera, HEAD, Headroom, HEADUP
@@ -1455,8 +1455,8 @@ for j = 0 to 1
     was = was and wd.zn.id = 5 and wd.mu.song(ZTUNE).swing = 1 and wd.mu.song(ZTUNE).tempo = 132 + 12 * j
 next
 if was and colA(0) = colA(1) and hid = &H3D2522 and wd.tn.now(colA(1)) <> hid then print "quarter ok"
-' a clothesline throws him who comes down on it, his way kept: 60 up off the first, LINEV squared over twice
-' GRAV, and higher off each more in a row, the third's height the most; the ground ends the row; from under he
+' a clothesline throws him who comes down on it, his way kept: 60 up off the first, 300 squared over twice GRAV,
+' 107 off the second in a row at 400 and 167 off the third at 500, the most; the ground ends the row; from under he
 ' goes through it, and under it falls on; trodden it gives, and is still again LINET things' steps on; drawn
 ' post to post
 GoStage wd, 10, g, p, lo(), pt()
@@ -1491,9 +1491,8 @@ for j = 0 to 4
     next
     colA(j) = m - cint(p.y)
 next
-was = was and abs(colA(0) - LINEV * LINEV / (2 * GRAV)) < 8 and colA(1) > colA(0) + 30 and colA(2) > colA(1) + 30
+was = was and abs(colA(0) - 60) < 8 and abs(colA(1) - 107) < 8 and abs(colA(2) - 167) < 8
 was = was and abs(colA(3) - colA(2)) < 6 and abs(colA(4) - colA(0)) < 6 and hid > m + 3
-was = was and abs(colA(2) - (LINEV + LINEMORE * (LINEROW - 1)) ^ 2 / (2 * GRAV)) < 10
 ' from under: risen through it, the row not begun
 p.x = c
 p.y = m + 20
@@ -1520,6 +1519,68 @@ Render wd, g, p, lo(), pt()
 was = was and point(160, m - int(g.camy)) = CLINEN and point(160, m - 6 - int(g.camy)) <> CLINEN
 was = was and point(wd.lv.ropes(0).x - int(g.camx), m + 6 - int(g.camy)) = CPOLE + 1
 if was then print "line ok"
+' an awning throws him who comes down on it 135 up, 450 squared over twice GRAV, however often; it stays given
+' AWNT things' steps, drawn so; from under he goes through it, and past its edge he falls by it
+for c = 0 to wd.lv.nObj - 1
+    if wd.lv.ob(c).k = KAWNING then exit for
+next
+was = c < wd.lv.nObj
+m = wd.lv.ob(c).y
+for j = 0 to 2
+    if j < 2 then
+        p.ground = 0
+        ' near its outer edge, then at its middle
+        p.x = wd.lv.ob(c).x - (AWNW - 2) * (1 - j)
+        p.y = m - 30
+        p.vx = 0
+        p.vy = 0
+        p.jumped = -1
+    end if
+    for i = 1 to 200
+        Tick wd, g, p, k, lo(), pt()
+        if p.vy < 0 then exit for
+    next
+    was = was and abs(p.y - m) < 4 and wd.lv.ob(c).s >= AWNT - 1 and p.sprung
+    for i = 1 to 200
+        Tick wd, g, p, k, lo(), pt()
+        if p.vy >= 0 then exit for
+    next
+    colA(j) = m - cint(p.y)
+next
+was = was and abs(colA(0) - 135) < 8 and abs(colA(1) - colA(0)) < 3 and abs(colA(2) - colA(0)) < 3
+' its canvas's top row at rest, and given
+p.x = wd.lv.ob(c).x - 100
+g.camx = wd.lv.ob(c).x - 160
+g.camy = m - 100
+for j = 0 to 1
+    wd.lv.ob(c).s = j * AWNT
+    g.shake = 0
+    Render wd, g, p, lo(), pt()
+    colB(j) = point(160, 101)
+next
+was = was and colB(0) <> colB(1) and colB(0) >= 134 and colB(0) <= 136 and colB(1) >= 134 and colB(1) <= 136
+for i = 1 to AWNT * 2 + 2
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and wd.lv.ob(c).s = 0
+' from under: risen through it; and a step past its edge, fallen by
+p.ground = 0
+p.x = wd.lv.ob(c).x
+p.y = m + 20
+p.vy = -300
+for i = 1 to 12
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and p.y < m - 10 and p.vy < 0 and wd.lv.ob(c).s = 0
+p.x = wd.lv.ob(c).x - AWNW - 1
+p.y = m - 10
+p.vx = 0
+p.vy = 100
+for i = 1 to 12
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and p.y > m + 10 and wd.lv.ob(c).s = 0
+if was then print "awning ok"
 ' Russet Wood is the fifth zone, by name and in its own colours: its litter's top the same picture at both hours,
 ' russet gold at a misty noon and not on the firefly night
 was = ZoneName$(4) = "RUSSET WOOD"
@@ -3533,6 +3594,7 @@ def main() -> None:
         ("wood ok", "Russet Wood, the fifth zone: its litter russet gold at a misty noon, not on the firefly night"),
         ("quarter ok", "Lantern Quarter, the sixth zone: its roofs lit indigo at the blue hour, its tune swung"),
         ("line ok", "a clothesline throws him up, higher each time in a row; passed through from under; drawn"),
+        ("awning ok", "an awning throws him up the same each time; passed through from under, and by past its edge"),
         ("firefly ok", "the wood's night dark but for a few fireflies; a bark wakes them and lights it for a while"),
         ("sapling ok", "a bowed sapling throws him who crosses its crown, higher the faster; sprung it throws no one"),
         ("vine ok", "a vine caught in the air swings him as a weight, lets go at a jump, and hangs straight again"),
