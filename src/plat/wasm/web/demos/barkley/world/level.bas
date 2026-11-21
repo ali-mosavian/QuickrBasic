@@ -395,8 +395,8 @@ sub LoadLevel (wd as World, st as integer)
         case "squirrel": AddObj wd.lv, KSQUIRREL, c * TS + 8, s - n * TS
         case "bees"
             ' a swarm, its home n tiles over the ground here
-            wd.lv.swarms(wd.lv.nSwarm).hx = c * TS + 8
-            wd.lv.swarms(wd.lv.nSwarm).hy = s - n * TS
+            wd.lv.swarms(wd.lv.nSwarm).home.x = c * TS + 8
+            wd.lv.swarms(wd.lv.nSwarm).home.y = s - n * TS
             wd.lv.nSwarm = wd.lv.nSwarm + 1
         case "burrow"
             ' a burrow's mound, its other end the mound of the same n: till they are told each other, -n - 1
@@ -488,8 +488,8 @@ end sub
 sub Mend (lv as Level)
     dim m as integer
     for m = 0 to lv.nSwarm - 1
-        lv.swarms(m).x = lv.swarms(m).hx
-        lv.swarms(m).y = lv.swarms(m).hy
+        lv.swarms(m).at.x = lv.swarms(m).home.x
+        lv.swarms(m).at.y = lv.swarms(m).home.y
         lv.swarms(m).st = 0
     next
     for m = 0 to lv.nMv - 1

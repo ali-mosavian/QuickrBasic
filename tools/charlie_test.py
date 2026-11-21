@@ -3203,8 +3203,8 @@ if was and colA(0) = -1 and colA(1) = -6 then print "squirrel ok"
 ' on the 15th step, 53 pixels at BEEV; a walk does not lose it, a run has by the 50th step, BEELOSE behind, and it
 ' goes home; so it does when he starts again
 was = wd.lv.nSwarm > 0
-v = wd.lv.swarms(0).hx
-m = wd.lv.swarms(0).hy
+v = wd.lv.swarms(0).home.x
+m = wd.lv.swarms(0).home.y
 was = was and GroundAt%(wd.lv, v) = m + 48
 p.inv = 0
 p.stun = 0
@@ -3215,7 +3215,7 @@ Mend wd.lv
 for i = 1 to 30
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and wd.lv.swarms(0).st = 0 and wd.lv.swarms(0).x = v and wd.lv.swarms(0).y = m
+was = was and wd.lv.swarms(0).st = 0 and wd.lv.swarms(0).at.x = v and wd.lv.swarms(0).at.y = m
 g.shake = 0
 Render wd, g, p, lo(), pt()
 c = 0
@@ -3235,16 +3235,16 @@ was = was and i = 15 and g.bones = 0 and wd.lv.swarms(0).st = 1
 ' walked from, it keeps up
 p.stun = 0
 Stand wd.lv, wd.gr, p, v - 40, 0
-wd.lv.swarms(0).x = p.at.x
-wd.lv.swarms(0).y = p.at.y - 13
+wd.lv.swarms(0).at.x = p.at.x
+wd.lv.swarms(0).at.y = p.at.y - 13
 for i = 1 to 60
     p.inv = 9
     p.gsp = 100
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and wd.lv.swarms(0).st = 1 and abs(wd.lv.swarms(0).x - p.at.x) < 8 and p.at.x > v
+was = was and wd.lv.swarms(0).st = 1 and abs(wd.lv.swarms(0).at.x - p.at.x) < 8 and p.at.x > v
 ' run from, it is lost
-wd.lv.swarms(0).x = p.at.x
+wd.lv.swarms(0).at.x = p.at.x
 k.r = -1
 for i = 1 to 70
     p.inv = 9
@@ -3254,16 +3254,16 @@ for i = 1 to 70
 next
 k.r = 0
 was = was and i = 50
-bx = wd.lv.swarms(0).x
+bx = wd.lv.swarms(0).at.x
 Stand wd.lv, wd.gr, p, cint(p.at.x), 0
 for i = 1 to 200
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and bx > v + 100 and wd.lv.swarms(0).st = 0 and wd.lv.swarms(0).x = v and wd.lv.swarms(0).y = m
+was = was and bx > v + 100 and wd.lv.swarms(0).st = 0 and wd.lv.swarms(0).at.x = v and wd.lv.swarms(0).at.y = m
 wd.lv.swarms(0).st = 1
-wd.lv.swarms(0).x = v + 50
+wd.lv.swarms(0).at.x = v + 50
 Spawn wd.lv, wd.gr, wd.zn, wd.mu, g, p
-if was and wd.lv.swarms(0).st = 0 and wd.lv.swarms(0).x = v then print "bees ok"
+if was and wd.lv.swarms(0).st = 0 and wd.lv.swarms(0).at.x = v then print "bees ok"
 ' the pilot, curled still past what he rolled through and slower than a run, hops out of the roll: left in it
 ' he was a crawl by the bees, and stung to death
 for c = 0 to wd.lv.nObj - 1

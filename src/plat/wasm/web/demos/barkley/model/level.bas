@@ -2,12 +2,12 @@
 defint A-Z
 option explicit
 
-' A swarm of bees: where it is, its home, and what it does: 0 at home, 1 after him, 2 on its way home.
+from barkley.engine.vec import Spot, Vec
+
+' A swarm of bees: where it is, at; its home; and what it does: 0 at home, 1 after him, 2 on its way home.
 type Swarm
-    x as single
-    y as single
-    hx as integer
-    hy as integer
+    at as Vec
+    home as Spot
     st as integer
 end type
 

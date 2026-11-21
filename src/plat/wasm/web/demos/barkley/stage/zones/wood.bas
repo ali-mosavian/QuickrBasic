@@ -172,25 +172,25 @@ end sub
 ' BEELOSE behind, it goes home.
 private sub Buzz (mu as Deck, se as Session, b as Swarm, g as Game, p as Hero, lo() as Loose)
     dim dx as single, dy as single, d as single
-    dx = p.at.x - b.x
-    dy = p.at.y - 13 - b.y
+    dx = p.at.x - b.at.x
+    dy = p.at.y - 13 - b.at.y
     d = sqr(dx * dx + dy * dy)
     if d < BEESEE then b.st = 1
     if b.st = 1 and d > BEELOSE then b.st = 2
     if b.st = 0 then exit sub
-    if b.st = 1 and d < BEER + BEEV * STEPT then Hurt mu, se, g, p, cint(b.x), lo(), SHURT
+    if b.st = 1 and d < BEER + BEEV * STEPT then Hurt mu, se, g, p, cint(b.at.x), lo(), SHURT
     if b.st = 2 then
-        dx = b.hx - b.x
-        dy = b.hy - b.y
+        dx = b.home.x - b.at.x
+        dy = b.home.y - b.at.y
         d = sqr(dx * dx + dy * dy)
     end if
     if d > BEEV * STEPT then
-        b.x = b.x + dx * BEEV * STEPT / d
-        b.y = b.y + dy * BEEV * STEPT / d
+        b.at.x = b.at.x + dx * BEEV * STEPT / d
+        b.at.y = b.at.y + dy * BEEV * STEPT / d
         exit sub
     end if
-    b.x = b.x + dx
-    b.y = b.y + dy
+    b.at.x = b.at.x + dx
+    b.at.y = b.at.y + dy
     if b.st = 2 then b.st = 0
 end sub
 
@@ -198,10 +198,10 @@ end sub
 sub DrawBees (lv as Level, se as Session, cx as integer, cy as integer)
     dim i as integer, j as integer, x as integer, y as integer
     for i = 0 to lv.nSwarm - 1
-        if abs(lv.swarms(i).x - cx - SW \ 2) > SW \ 2 + 24 then continue for
+        if abs(lv.swarms(i).at.x - cx - SW \ 2) > SW \ 2 + 24 then continue for
         for j = 0 to NBEE - 1
-            x = cint(lv.swarms(i).x) - cx + cint(13 * sin(se.ticks * .21 + j * 2.4)) - 2
-            y = cint(lv.swarms(i).y) - cy + cint(9 * cos(se.ticks * .17 + j * 1.7))
+            x = cint(lv.swarms(i).at.x) - cx + cint(13 * sin(se.ticks * .21 + j * 2.4)) - 2
+            y = cint(lv.swarms(i).at.y) - cy + cint(9 * cos(se.ticks * .17 + j * 1.7))
             line (x, y)-(x + 3, y + 1), CBEE, BF
             line (x + 1, y)-(x + 1, y + 1), CINK
             line (x + 3, y)-(x + 3, y + 1), CINK
