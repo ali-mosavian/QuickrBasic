@@ -8,12 +8,14 @@ void dpan_open(Session *S);
 /* dp_close: no pane; its focus to the edit window. */
 void dpan_close(void);
 /* The pane's widgets: its ops and children kids, Watch, Locals, Call stack, the tooltip. Keys:
-   Tab, Shift+Tab its windows; Up, Down a row; Enter a frame; Ins, Del in Watch a watch; Esc back
-   to the edit window. A press focuses a window, selects a row, a frame's row the frame. */
+   Tab, Shift+Tab its windows; Up, Down a row; Enter a frame; Ins, Del in Watch a watch; in Locals
+   Enter or Right a record or array opened, Left shut; Esc back to the edit window. A press focuses a window, selects a row, a frame's row the frame. */
 enum { DPAN_KIDS = 4 };
 void dpan_build(Widget *pane, Widget kids[static DPAN_KIDS]);
 /* dp_geo: its windows' rects, from the rows the immediate window leaves. */
 void dpan_layout(void);
+/* Shift+F9, the pane shown: Add Watch, the name at the edit window's cursor filled in. */
+void dpan_watch(Session *S);
 /* dp_hover: the mouse moved to row, col: the tooltip by it. */
 void dpan_hover(uint8_t row, uint8_t col);
 /* dp_tip: stopped, the program as it ran (uimn_stopped): the tooltip drawn by the name under

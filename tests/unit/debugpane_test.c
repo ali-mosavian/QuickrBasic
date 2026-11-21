@@ -543,3 +543,23 @@ TEST(debug_pane_counts_frames_past_its_rows)
     ));
     done(S);
 }
+
+/* Add Watch asked for an expression typed whole: Shift+F9 in the editor, and Ins in Watch, fill in
+   the name at the editor's cursor. */
+TEST(debug_pane_watches_the_name_at_the_cursor)
+{
+    stopped_in(S, fact);
+    edit_load(S, view_goline(S, uimn.text.first + 2)); /* t% = n% * 10 */
+    uimn.edline.col = 0;
+    typed("");
+    uimn_key(S, (uint16_t)(SCAN_SHIFT_F1 + 8) << 8); /* Shift+F9 */
+    shown(S);
+
+    CHECK(rows_are("Watch", " t% = 30"));
+    uimn.edline.col = 5;
+    typed("");
+    pane_keys(S, 0, (const uint16_t[]){K_INS, 0});
+
+    CHECK(rows_are("Watch", " t% = 30| n% = 3"));
+    done(S);
+}

@@ -103,6 +103,9 @@ uint8_t *edit_body(uint8_t *text);
    uimn.errmsg its message, edit's error column set for edit_commit; sbuf not made. *lexed: the
    body's tokens' length in comp_cbuf when sbuf is LIST's spelling, else 0. */
 bool edit_canon(Session *S, uint8_t *text, uint16_t len, uint32_t *lexed);
+/* The name at the edit window's cursor, its dots and suffix kept (hdoc_word), to out, max bytes
+   with the 0; its length, 0 none. */
+uint16_t edit_word(char *out, uint16_t max);
 /* ui_dxerr: a compile error's words in uimn.errmsg: its class, what is wrong, then what to do,
    wrapped for a box (diag's). text the line's, 0-ended; op its ERR op. The column in text it is
    at. Uses cons.inbuf and comp_cbuf. */

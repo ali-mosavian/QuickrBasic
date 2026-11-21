@@ -277,12 +277,12 @@ static void go(Session *const S, const uint8_t i)
     edit_ensure();
 }
 
-/* dp_wadd: Ins in Watch: an expression asked, added, evaluated. */
+/* dp_wadd: Ins in Watch: an expression asked, the name at the edit window's cursor at first;
+   added, evaluated. */
 static void watch_add(Session *const S)
 {
     add_dlog.focus = 0;
-    fld.len = 0;
-    fld.col = 0;
+    fld.len = fld.col = edit_word((char *)fld.text, DLBUF);
 
     if (dlog_run(S, &add_dlog) != 1 || !fld.len)
         return;
@@ -424,6 +424,12 @@ void dpan_build(Widget *const pane, Widget kids[static DPAN_KIDS])
 
         tree_add(pane, &kids[i]);
     }
+}
+
+void dpan_watch(Session *const S)
+{
+    if (uimn.pane_on)
+        watch_add(S);
 }
 
 void dpan_hover(const uint8_t row, const uint8_t col)
