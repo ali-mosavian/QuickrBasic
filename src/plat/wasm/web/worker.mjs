@@ -18,7 +18,7 @@ onmessage = ({ data: { module, memory, args, files } }) => {
     tone: (hz) => postMessage({ tone: hz, at: performance.now() }),
     voice: (n, bytes) => postMessage({ voice: n, bytes }),
   };
-  const ex = new WebAssembly.Instance(module, imports(memory, host)).exports;
+  const ex = (host.ex = new WebAssembly.Instance(module, imports(memory, host)).exports);
   new Irq(memory, ex.irq()).keyboard = true; // before main: the runtime's console is the screen
   postMessage({ irq: ex.irq(), scans: ex.scans(), frames: ex.frames() });
   let code = 0;

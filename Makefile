@@ -150,12 +150,31 @@ test: $(DOS_EXE) | $(DOSBOX_BIN)
 	BASIC_EXE=$(B)/basic32.exe $(PY) tools/gfx_test.py
 	IDE_EXE=$(B)/ide32.exe $(PY) tools/ide_test.py
 
-# the native ABI's test extension (tests/ext): its glue, its slice for this machine; native.sh packs it
-build/host/ext/qxtest_qx.c: tests/ext/qxtest.bas tools/qbx.py
+# the native ABI's test extension (tests/ext): its glue, then a slice for each platform; native.sh packs them
+build/ext/qxtest_qx.c: tests/ext/qxtest.bas tools/qbx.py
 	@mkdir -p $(@D)
 	$(PY) tools/qbx.py glue $< qxtest $(@D)
-build/host/ext/qxtest.so: tests/ext/qxtest.c build/host/ext/qxtest_qx.c src/qx/qx.h
-	$(HOST_CC) -std=c23 -O1 -Wall -Wextra -Isrc/qx -Ibuild/host/ext $(HOST_SLICE) $(filter %.c,$^) -o $@
+QXTEST := tests/ext/qxtest.c build/ext/qxtest_qx.c
+QX_CFLAGS := -std=c23 -O2 -Wall -Wextra -ffreestanding -Isrc/qx -Ibuild/ext
+build/host/ext/qxtest.so: $(QXTEST) src/qx/qx.h
+	@mkdir -p $(@D)
+	$(HOST_CC) $(QX_CFLAGS) $(HOST_SLICE) $(QXTEST) -o $@
+# wasm's a side module, with the IDE's features; DOS's a DLL, made an image by qbx.py pack
+WASM_FEATURES := atomics,bulk-memory,bulk-memory-opt,mutable-globals,sign-ext,call-indirect-overlong,nontrapping-fptoint,reference-types,multivalue
+build/wasm/ext/qxtest.wasm: $(QXTEST) src/qx/qx.h
+	@mkdir -p $(@D)
+	$(CLANG) --target=wasm32-unknown-unknown -matomics -mbulk-memory -fPIC -fvisibility=hidden $(QX_CFLAGS) \
+		-c tests/ext/qxtest.c -o $(@D)/qxtest.o
+	$(CLANG) --target=wasm32-unknown-unknown -matomics -mbulk-memory -fPIC -fvisibility=hidden $(QX_CFLAGS) \
+		-c build/ext/qxtest_qx.c -o $(@D)/qxtest_qx.o
+	$(WASM_LD) -shared --experimental-pic --shared-memory --features=$(WASM_FEATURES) -o $@ $(@D)/qxtest.o $(@D)/qxtest_qx.o
+LLD_LINK ?= $(firstword $(wildcard /opt/homebrew/opt/lld/bin/lld-link) lld-link)
+DOS_SLICE_CC = $(CLANG) --target=i386-pc-win32 -march=i386 -fno-asynchronous-unwind-tables $(QX_CFLAGS)
+$(B)/ext/qxtest.dll: $(QXTEST) src/qx/qx.h
+	@mkdir -p $(@D)
+	$(DOS_SLICE_CC) -c tests/ext/qxtest.c -o $(@D)/qxtest.obj
+	$(DOS_SLICE_CC) -c build/ext/qxtest_qx.c -o $(@D)/qxtest_qx.obj
+	$(LLD_LINK) /dll /noentry /nodefaultlib /out:$@ $(@D)/qxtest.obj $(@D)/qxtest_qx.obj
 host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/hostperf/basic build/host/ext/qxtest.so
 	for t in $(TOOLS_TEST); do $(PY) $$t || exit 1; done
 	build/host/unit_tests
@@ -309,6 +328,7 @@ WASM_OBJ := $(WASM_C:src/%.c=build/wasm/obj/%.o) $(WASM_QBRT_C:%.c=build/wasm/qb
 # render_stack the page's display
 WASM_WRAP := gd_set_mode dev_tone dev_voice $(addprefix dev_text_,size cursor move cursor_show get put write scroll pages_reset pages copy)
 WASM_LDFLAGS := --no-entry --export=__main_void --export=__wasm_call_ctors --export=__stack_pointer --export=host_tick_fire --import-memory \
+	--export-table --growable-table \
 	--shared-memory --initial-memory=33554432 --max-memory=1073741824 --stack-first -z stack-size=8388608 \
 	$(addprefix --wrap=,$(WASM_WRAP))
 
@@ -359,8 +379,9 @@ build/web/%: src/plat/wasm/web/%
 	@mkdir -p $(@D)
 	cp $< $@
 
-wasm-test: build/wasm/basic build/wasm/ide.wasm
+wasm-test: build/wasm/basic build/wasm/ide.wasm build/wasm/ext/qxtest.wasm
 	grep -q 'wasm/include/wasm.h' build/wasm/obj/plat/wasm/pterm.o.d # a changed WasmIrq rebuilds its users
+	PY=$(PY) sh tests/host/native.sh $< build/wasm/ext/qxtest.wasm wasm32
 	BASIC_EXE=$< $(PY) tools/regress_test.py $<
 	node tools/wasm/frame_test.mjs build/wasm/ide.wasm
 	node tools/wasm/play_test.mjs build/wasm/basic.wasm

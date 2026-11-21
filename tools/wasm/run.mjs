@@ -65,7 +65,7 @@ if (isMainThread) {
       throw new Exit(String(code));
     },
   };
-  const ex = new WebAssembly.Instance(module, imports(memory, host)).exports;
+  const ex = (host.ex = new WebAssembly.Instance(module, imports(memory, host)).exports);
   parentPort.postMessage({ irq: ex.irq(), scans: ex.scans(), frames: ex.frames() });
   let code = 0;
   try {

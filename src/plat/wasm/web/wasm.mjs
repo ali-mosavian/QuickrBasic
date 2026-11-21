@@ -29,9 +29,52 @@ function normal(path) {
 // A DevVoice's bytes (qbrt's dev/voice.h), as the synthesizer's AudioWorklet takes them (synth.mjs).
 export const VOICE_BYTES = 28;
 
+// A side module's dylink.0: the memory (bytes, alignment) and table entries it needs.
+function dylink(mod) {
+  const [section] = WebAssembly.Module.customSections(mod, 'dylink.0');
+  const b = new Uint8Array(section ?? new ArrayBuffer(0));
+  let at = 0;
+  const leb = () => {
+    let r = 0, s = 0, x;
+    do { x = b[at++]; r |= (x & 0x7f) << s; s += 7; } while (x & 0x80);
+    return r >>> 0;
+  };
+  while (at < b.length) {
+    const kind = b[at++], len = leb(), end = at + len;
+    if (kind === 1) return { mem: leb(), align: 1 << leb(), table: leb() };
+    at = end;
+  }
+  return null;
+}
+
+// A native extension's side module (plat/wasm/pext.c) on the instance ex's memory, table and stack
+// pointer: qx_init_<name>'s table index, 0 if it will not load.
+function loadExt(memory, ex, bytes, name) {
+  const mod = new WebAssembly.Module(bytes); // synchronous: the module's own thread may
+  const need = dylink(mod);
+  if (!need) throw new Error('not a side module');
+  const memoryBase = need.mem ? ex.pext_alloc(need.mem, need.align) : 0;
+  if (need.mem && !memoryBase) throw new Error('no memory');
+  const table = ex.__indirect_function_table;
+  const tableBase = table.grow(need.table + 1);
+  const global = (v) => new WebAssembly.Global({ value: 'i32', mutable: false }, v);
+  const ext = new WebAssembly.Instance(mod, {
+    env: {
+      memory, __indirect_function_table: table, __stack_pointer: ex.__stack_pointer,
+      __memory_base: global(memoryBase), __table_base: global(tableBase),
+    },
+  }).exports;
+  ext.__wasm_apply_data_relocs?.();
+  ext.__wasm_call_ctors?.();
+  const init = ext[`qx_init_${name}`];
+  if (!init) throw new Error(`no qx_init_${name}`);
+  table.set(tableBase + need.table, init);
+  return tableBase + need.table;
+}
+
 // host: { fs, cwd, args, write(fd, bytes), exit(code), stdin(n) -> bytes, stdio(fd) -> a stat,
-// tone(hz), voice(n, bytes) }; cwd is
-// the module's own (a worker has no chdir), its paths resolved against it.
+// tone(hz), voice(n, bytes), ex: the instance's exports, set once it is made (a native extension
+// loads on them) }; cwd is the module's own (a worker has no chdir), its paths resolved against it.
 export function imports(memory, host) {
   const { fs } = host;
   let cwd = normal(host.cwd);
@@ -140,6 +183,14 @@ export function imports(memory, host) {
     exit: (code) => host.exit(code),
     tone: (hz) => host.tone?.(hz),
     voice: (n, p) => host.voice?.(n, u8().slice(p, p + VOICE_BYTES)),
+    ext_load: (p, n, name, len) => {
+      try {
+        return loadExt(memory, host.ex, u8().slice(p, p + n), new TextDecoder().decode(u8().slice(name, name + len)));
+      } catch (e) {
+        console.error(`native extension: ${e.message}`);
+        return 0;
+      }
+    },
   };
   const math = { sin: Math.sin, cos: Math.cos, tan: Math.tan, atan: Math.atan, atan2: Math.atan2, exp: Math.exp,
     exp2: (x) => 2 ** x, log: Math.log, log2: Math.log2, log10: Math.log10, pow: Math.pow, fmod: (x, y) => x % y };

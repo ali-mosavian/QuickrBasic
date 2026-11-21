@@ -267,18 +267,19 @@ nothing in the host. On DOS it uses no x87, as `synth.c` already does not. The p
 
 ## Loading, step by step
 
-`io/qbx.c` is shared. It reads the header and checks the magic, the format's version and the ABI's
-major. It takes the slice whose tag is this build's, hands it to `pext_load` (`plat/pext.h`), then
+`io/qbxfile.c` and `io/native.c` are shared. They read the header and check the magic, the format's
+version and the ABI's major. It takes the slice whose tag is this build's, hands it to `pext_load` (`plat/pext.h`), then
 calls `qx_init_<name>`. A file is loaded once in a process, kept by its path and hash.
 
-**DOS** (`plat/dos32/pext.c`, about 50 lines). `tools/qbx.py pack` has made the DLL, linked at
-base 0, into an image, its bss's size, its relocations' offsets and its entry's offset. The loader:
+**DOS** (`plat/dos32/pext.c`, `util/image.c`). `tools/qbx.py pack` makes the DLL an image at 0:
+its sections where they lie, its relocations' offsets and its entry's offset. The loader:
 
-1. takes a block from `pmem_resize`;
-2. copies the image in and zeroes the bss;
-3. adds the block's address to the 32-bit word at each relocation's offset;
-4. checks that CS's base is DS's, then calls the entry, cdecl;
-5. locks the block's pages (DPMI 0600h) once a `render` is set.
+1. takes a block from `pmem_resize`, aligned to 16;
+2. checks that CS's base is DS's and its limit past the block;
+3. copies the image in and zeroes the rest (the bss);
+4. adds the block's address to the 32-bit word at each relocation's offset, and calls the entry,
+   cdecl;
+5. locks the block's pages (DPMI 0600h) once a `render` is set (step 3).
 
 **Mac** (`plat/host/pext.c`):
 
@@ -289,14 +290,15 @@ base 0, into an image, its bss's size, its relocations' offsets and its entry's 
 **Linux:** the same, but the slice is written to `memfd_create` and loaded with
 `dlopen("/proc/self/fd/n")`. No file is written.
 
-**Browser** (`plat/wasm/pext.c`, `web/wasm.mjs`). The IDE is linked `--export-table
---growable-table`. The C side calls a JS import, which runs synchronously in the worker:
+**Browser and node** (`plat/wasm/pext.c`, `web/wasm.mjs`). The module is linked `--export-table
+--growable-table`. The C side calls the `ext_load` import, which runs synchronously on its thread:
 
 1. `new WebAssembly.Module(bytes)`;
 2. reads `dylink.0`: the memory and table the module needs;
-3. takes a block from the host's heap and grows the host's table;
+3. takes zeroed memory from the host's heap (`pext_alloc`) and grows the host's table;
 4. instantiates it with the shared memory, the table, `__stack_pointer` and the two bases;
-5. runs `__wasm_apply_data_relocs` and `__wasm_call_ctors`, then `qx_init_<name>`.
+5. runs `__wasm_apply_data_relocs` and `__wasm_call_ctors`, puts `qx_init_<name>` in the table and
+   returns its index, the function pointer.
 
 When the extension opens audio, the worker posts the bytes, the bases and a stack block to the
 AudioWorklet. It instantiates the same module, without relocations or constructors, and calls
@@ -311,7 +313,7 @@ interface and the slices in a `.qbx`. The flags, as the prototype used them:
 
 | Slice | Compile | Link |
 |---|---|---|
-| `dos-i386` | `clang --target=i386-pc-win32 -march=i386 -ffreestanding`; jwasm `-coff` for asm | `lld-link /dll /noentry /nodefaultlib` |
+| `dos-i386` | `clang --target=i386-pc-win32 -march=i386 -ffreestanding`; jwasm `-coff` for asm. The glue defines `_fltused` | `lld-link /dll /noentry /nodefaultlib` |
 | `macos` | `clang -arch arm64 -arch x86_64 -mmacosx-version-min=13.0 -fvisibility=hidden` | `-dynamiclib` |
 | `linux-x86_64` | `clang --target=x86_64-linux-gnu -fPIC -fvisibility=hidden` | `ld.lld -shared -nostdlib` |
 | `wasm32` | `clang --target=wasm32 -fPIC -matomics -mbulk-memory` | `wasm-ld -shared --experimental-pic --shared-memory --features=` the host's |
@@ -341,7 +343,8 @@ and the tutorial's examples gain an `IMPORT synth` line.
 
 1. `qx.h`, the file's reader, `pext` for the host, `K_NCALL`, DECLARE's binding. A small test
    extension called from BASIC (`tests/host/native.sh`). Done.
-2. `pext` for wasm and DOS. The wasm one tested in node, as `make wasm-test` runs.
+2. `pext` for wasm and DOS. The wasm one tested in node (`make wasm-test`); the DOS one built, its
+   image's reader tested on the host. Done.
 3. The audio stream; the Sound Blaster, SDL and the worklet moved onto it.
 4. The synthesizer moved into `ext/synth/`, built as `lib/synth.qbx`; PLAY's device; the timed
    events land there.

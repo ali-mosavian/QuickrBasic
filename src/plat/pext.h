@@ -1,7 +1,7 @@
 /* Native code: an extension's slice loaded as this machine's.
  *
  * # How it works
- * A .qbx holds a slice of code for each platform (io/qbx.c); this build's is the one tagged
+ * A .qbx holds a slice of code for each platform (io/qbxfile.c); this build's is the one tagged
  * pext_tag. pext_load makes it this machine's code and finds its qx_init_<name>: dlopen on the
  * Mac and Linux, a relocated image on DOS, a side module on wasm. A slice imports no symbol, so
  * nothing is resolved but its entry. docs/native-extensions-design.md has each one's steps.
