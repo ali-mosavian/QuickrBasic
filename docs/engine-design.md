@@ -1,6 +1,6 @@
 # A 2D engine for the demos
 
-A design, being built: steps 1 and 2 of its steps have landed. CHARLIE BARKLEY's `barkley` package becomes
+A design, being built: steps 1 to 3 of its steps have landed. CHARLIE BARKLEY's `barkley` package becomes
 a small engine any demo can use, and a game over it.
 
 ## Goals
@@ -35,7 +35,7 @@ a small engine any demo can use, and a game over it.
 | Keys | `Keys` | `engine/input` | Held keys from the port, or from `INKEY$`'s repeats |
 | Sound | `Deck` | `engine/audio` | Songs from the data file, fed to `PLAY` half a bar at a time |
 | Data | `DataFile` | `engine/datafile` | Words and strings from the data file |
-| Events | `Events` | `engine/events`, new | What happened this step, in order |
+| Events | `Events` | `engine/events` | What happened this step, in order |
 | Hero | `Hero` | `stage/hero` | Moves him. Takes a push or a hurt |
 | Things | `Thing` | `stage/things`, new | Runs each thing's rule. Changes a thing that was touched |
 | Kinds | `Kind` | `model/kinds`, new | What each kind looks like, does and gives. Read only once loaded |
@@ -64,6 +64,7 @@ a small engine any demo can use, and a game over it.
   camera, the drawing, the flip and the song.
 - A step runs its passes in one fixed order.
 - `Deliver` then empties the queue. Each event goes to its owner's modifier, in the order posted.
+- The particles step after `Deliver`, so a burst flies in the step that posted it.
 
 ## Events
 
@@ -82,6 +83,7 @@ Post events, EVSOUND, hero.at, SSPRING
   the game's test fails on a count above zero.
 - Events replace the `Deck`, `Session`, `Part` and `Loose` parameters that play takes only to pass
   on to `Sfx` and `Burst`.
+- A burst's amount is a puff: one of `stage/fx`'s rows of sparks, speed and colour.
 
 ## Things
 
@@ -177,14 +179,14 @@ Measured by `python3 tools/bench.py engine`; the fields assigned outside their o
 | `Meet` routines, in six zone modules | 34 |
 | Comparisons of a thing's kind outside those switches | 68, in 12 files |
 | Files that assign a thing's field | 14, in 96 assignments |
-| Fields assigned outside their record's owner | 556 |
-| Routines that take the `Deck` | 108 of 406 |
-| `Sfx` calls outside `assets` | 60 |
-| Routines that take the whole `World` | 19 |
+| Fields assigned outside their record's owner | 539 |
+| Routines that take the `Deck` | 21 of 413 |
+| `Sfx` calls outside `assets` | 2 |
+| Routines that take the whole `World` | 20 |
 | Game code that `engine` imports | none |
 | Other game demos with their own key, clock and sound code | 4 of 4 |
-| Lines over 70 columns | 0 of 13,049 |
-| Comment lines over 60 columns | 0 of 1,623 |
+| Lines over 70 columns | 0 of 13,203 |
+| Comment lines over 60 columns | 0 of 1,683 |
 | Routine headers over 70 columns | 0 |
 
 ## Steps

@@ -6,7 +6,6 @@ from svg import LINE, MUTED, THEME, Svg
 
 OUT = sys.argv[1]
 W = 1000
-NEW = THEME["warn"][1]
 UP = THEME["front"][1]
 
 
@@ -37,7 +36,7 @@ def layers() -> None:
 
     s.panel(left, 180, game, 84, "front", "barkley · main, flow", "the only code that takes the World")
     s.chips(left + 16, 220, ["Main", "Advance", "Tick", "title", "intro", "save"], "front")
-    s.chip(left + 430, 220, "Deliver", "warn")
+    s.chip(left + 430, 220, "Deliver", "front")
 
     s.panel(left, 290, half, 112, "engine", "barkley · play", "changes state, draws nothing")
     s.chips(left + 16, 330, ["hero", "things", "touch", "zones", "camera", "parts"], "engine", maxw=half - 32)
@@ -55,7 +54,7 @@ def layers() -> None:
 
     s.panel(left, 538, full, 84, "base", "engine", "knows no game")
     s.chips(left + 16, 578, ["Clock", "screen", "Store", "Keys", "Deck", "data file"], "base")
-    s.chip(left + 470, 578, "Events", "warn")
+    s.chip(left + 470, 578, "Events", "base")
 
     s.panel(left, 648, full, 64, "base", "BASIC", "the language's own")
     s.chips(left + 120, 666, ["SCREEN 13", "PUT, GET", "PLAY", "INP(&H60)", "TIMER", "files"], "base")
@@ -104,7 +103,7 @@ def subsystems() -> None:
         ("Store", ["Grab", "MaskGrab", "Flop", "Blit"], []),
         ("Keys", ["Poll", "Held2"], []),
         ("Deck", ["LoadSong", "StartSong", "FeedSong"], []),
-        ("Events", [], ["Post", "Taken"]),
+        ("Events", ["Post", "Taken"], []),
     ]
     rows(s, 32, 132, 452, engine, "base")
 
@@ -114,8 +113,8 @@ def subsystems() -> None:
         ("Things", ["AddObj"], ["Think", "React"]),
         ("Kinds, read only", [], ["LoadKinds"]),
         ("Level, Ground", ["LoadLevel", "LoadTables"], []),
-        ("Game", ["GoStage", "StartGame"], ["Score"]),
-        ("Part, Loose", ["Emit", "Burst", "Particles"], []),
+        ("Game", ["GoStage", "StartGame", "Deliver"], []),
+        ("Part, Loose", ["Emit", "Burst", "Puff", "Particles"], []),
     ]
     rows(s, 500, 132, 468, game, "engine")
 
@@ -165,21 +164,21 @@ def frame() -> None:
         stage(52 + i * 128, 244, label, note, "engine", 112)
         if i:
             s.arrow([(52 + (i - 1) * 128 + 112, 270), (52 + i * 128 - 2, 270)], color=green[1])
-    s.box(52, 352, 496, 52, "warn", r=8)
-    s.text(300, 374, "Events", size=13, weight=700, anchor="middle", mono=True, fill=THEME["warn"][2])
+    s.box(52, 352, 496, 52, "base", r=8)
+    s.text(300, 374, "Events", size=13, weight=700, anchor="middle", mono=True, fill=base[2])
     s.text(300, 392, "sound · score · burst · shake", size=11, anchor="middle", fill=MUTED)
     for i in range(4):
         x = 52 + i * 128 + 56
         s.arrow([(x, 296), (x, 350)], color=UP, dash=True)
 
-    stage(600, 352, "Deliver", "empties the queue", "warn", 112)
-    s.arrow([(548, 378), (598, 378)], color=NEW)
-    owners = [("Deck", "a sound"), ("Game", "score, lives"), ("Parts", "dust, sparks")]
+    stage(600, 352, "Deliver", "empties the queue", "base", 112)
+    s.arrow([(548, 378), (598, 378)])
+    owners = [("Deck", "a sound, a song"), ("Game", "score, shake"), ("Parts", "sparks, then their step")]
     for i, (label, note) in enumerate(owners):
         stage(760, 236 + i * 62, label, note, "engine", 188)
-    s.arrow([(712, 378), (736, 378), (736, 262), (758, 262)], color=NEW)
-    s.arrow([(736, 324), (758, 324)], color=NEW)
-    s.arrow([(736, 378), (736, 386), (758, 386)], color=NEW)
+    s.arrow([(712, 378), (736, 378), (736, 262), (758, 262)])
+    s.arrow([(736, 324), (758, 324)])
+    s.arrow([(736, 378), (736, 386), (758, 386)])
 
     y = 468
     after = [
