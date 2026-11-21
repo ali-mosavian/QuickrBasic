@@ -7,7 +7,7 @@ from engine.events import Events
 from barkley.model.hero import Hero
 from barkley.model.level import Level, PI
 from barkley.model.game import Game, Loose, NLOOSE, Part, Session
-from barkley.model.events import EVSOUND, Tell
+from barkley.model.events import EVSCORE, EVSOUND, Tell
 from barkley.assets.palette import CWHITE
 from barkley.assets.tunes import SDIE, SHISS, SHURT, SPOP
 from barkley.stage.fx.parts import Burst
@@ -125,7 +125,7 @@ sub Beaten ( _
     dy as integer _
 )
     lv.things(i).state = 0
-    g.score = g.score + 100
+    Tell ev, EVSCORE, 100
     g.shake = .15
     Burst se, pt(), csng(lv.things(i).at.x), _
         csng(lv.things(i).at.y - dy), 10, 130, CWHITE

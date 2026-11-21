@@ -9,7 +9,7 @@ from barkley.model.images import IPRESS, IRAIL, ISPARK, ISRAIL
 from barkley.model.hero import Hero
 from barkley.model.level import KPRESS, Level, NONE, TS
 from barkley.model.game import Game, Loose, Part, Session
-from barkley.model.events import EVSOUND, Tell
+from barkley.model.events import EVSCORE, EVSOUND, Tell
 from barkley.assets.palette import CGOLD
 from barkley.assets.tunes import SBOOST, SCLANK, SHISS, SHURT, SMARK
 from barkley.assets.tunes import SSPRING
@@ -111,7 +111,6 @@ sub MeetBump ( _
     lv as Level, _
     ev as Events, _
     se as Session, _
-    g as Game, _
     p as Hero, _
     i as integer, _
     pt() as Part _
@@ -137,7 +136,7 @@ sub MeetBump ( _
     p.jumped = 0
     p.sprung = -1
     lv.things(i).state = 10
-    g.score = g.score + 10
+    Tell ev, EVSCORE, 10
     Burst se, pt(), csng(lv.things(i).at.x), _
         csng(lv.things(i).at.y), 6, 90, CGOLD + 4
     Tell ev, EVSOUND, SSPRING

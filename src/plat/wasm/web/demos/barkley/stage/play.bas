@@ -105,7 +105,7 @@ sub Touch ( _
         case KBONE
             MeetBone lv, ev, se, g, p, i, pt()
         case KGOLD
-            MeetGold lv, zn, ev, se, g, p, i, pt()
+            MeetGold lv, zn, ev, se, p, i, pt()
         case KCAT, KSQUIRREL, KWALKER, KSNATCH
             MeetCat lv, ev, se, g, p, i, lo(), pt()
         case KCRAB
@@ -171,7 +171,7 @@ sub Touch ( _
         case KJET
             MeetJet lv, ev, se, p, i
         case KBUMP, KBUOY
-            MeetBump lv, ev, se, g, p, i, pt()
+            MeetBump lv, ev, se, p, i, pt()
         case KSPIN
             MeetSpin lv, ev, se, g, p, i, lo()
         case KHOOP

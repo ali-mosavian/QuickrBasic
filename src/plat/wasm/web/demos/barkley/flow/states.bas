@@ -118,7 +118,7 @@ sub Tick ( _
         Things wd.lv, wd.ev, wd.se, g, p, lo(), pt()
     end if
 
-    Deliver wd
+    Deliver wd, g
 
     Shimmer wd.zn, wd.tn, wd.se
     Spent k
@@ -338,7 +338,7 @@ sub ResetWorld ( _
     wd.se.loose_n = 0
     wd.se.part_n = 0
     Spawn wd.lv, wd.gr, wd.zn, wd.ev, g, p
-    Deliver wd
+    Deliver wd, g
 end sub
 
 ' A level cleared: on to level n, the score and lives kept.

@@ -11,7 +11,7 @@ from barkley.model.hero import Hero
 from barkley.model.level import GRAV, KCAT, KGOAT, KHEAP, KTHROW
 from barkley.model.level import Level, NONE, TS
 from barkley.model.game import Game, Loose, Part, Session
-from barkley.model.events import EVSOUND, Tell
+from barkley.model.events import EVSCORE, EVSOUND, Tell
 from barkley.assets.palette import CFLAKE, CICE, CSNOW, CWHITE
 from barkley.assets.tunes import SBUMP, SCRACK, SHURT, SROLL
 from barkley.world.terrain.ground import Balk, Lie, Solid, Surf
@@ -500,7 +500,7 @@ sub MeetWall ( _
 
     if p.goat then
         lv.things(i).state = 0
-        g.score = g.score + 100
+        Tell ev, EVSCORE, 100
         g.shake = .2
         Burst se, pt(), csng(lv.things(i).at.x), _
             csng(lv.things(i).at.y - WALLH \ 2), 16, 180, CWHITE

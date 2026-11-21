@@ -11,7 +11,7 @@ from barkley.model.images import ISURF
 from barkley.model.hero import Hero
 from barkley.model.level import Bird, Level, NONE, PI, TS
 from barkley.model.game import Game, Loose, NLOOSE, Part, Session
-from barkley.model.events import EVSOUND, Tell
+from barkley.model.events import EVSCORE, EVSOUND, Tell
 from barkley.assets.palette import CSEA, CWHITE
 from barkley.assets.tunes import SBOOST, SHURT, SPOP, SSPRING, SSQUAWK
 from barkley.stage.fx.parts import Burst
@@ -212,7 +212,7 @@ private sub Gull ( _
     if p.roll or p.charging then
         Spill se, b, lo()
         b.st = 0
-        g.score = g.score + 100
+        Tell ev, EVSCORE, 100
         Burst se, pt(), b.at.x, b.at.y, 10, 130, CWHITE
         Tell ev, EVSOUND, SPOP
     elseif b.st = GDIVE then

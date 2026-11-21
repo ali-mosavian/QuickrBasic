@@ -17,6 +17,9 @@ const EVCHASETUNE = 3
 ' The level's end's slot to a song, its number the amount.
 const EVSCENETUNE = 4
 
+' Points to the score, the amount.
+const EVSCORE = 5
+
 ' An event that happened at no place.
 sub Tell (ev as Events, what as integer, amount as integer)
     dim nowhere as Vec

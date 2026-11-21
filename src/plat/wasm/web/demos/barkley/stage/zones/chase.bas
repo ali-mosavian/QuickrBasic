@@ -13,7 +13,8 @@ from barkley.model.images import ITWIN, IWBOX
 from barkley.model.hero import Hero
 from barkley.model.level import GRAV, Level, NONE, Realm, TS
 from barkley.model.game import Game, Loose, Part, PULSES, Session
-from barkley.model.events import EVCHASETUNE, EVSOUND, EVTUNE, Tell
+from barkley.model.events import EVCHASETUNE, EVSCORE, EVSOUND, EVTUNE
+from barkley.model.events import Tell
 from barkley.assets.palette import CEARTH, CYELLOW
 from barkley.assets.cast import DrawKeep
 from barkley.assets.tunes import SBUMP, SHISS, SMARK, SPOP
@@ -182,7 +183,7 @@ sub Flee ( _
         if lv.cart.hits >= Bumps%(zn) then BreakCart lv, ev, se, pt()
 
         if zn.id = 4 and lv.cart.st = 2 then
-            TakeKeep lv, ev, se, g, pt()
+            TakeKeep lv, ev, se, pt()
         end if
     case 2
         if zn.id = 1 and lv.cart.t > 2 - TOOLFALL then exit sub
@@ -195,7 +196,7 @@ sub Flee ( _
         if abs(p.at.x - lv.cart.at.x) < 16 _
             and p.at.y > lv.cart.at.y - 90 _
             and p.at.y < lv.cart.at.y + 8 then
-            TakeKeep lv, ev, se, g, pt()
+            TakeKeep lv, ev, se, pt()
         end if
     end select
 end sub
@@ -292,7 +293,7 @@ private sub Bumped ( _
 )
     lv.cart.hits = lv.cart.hits + 1
     lv.cart.t = DAZED
-    g.score = g.score + 500
+    Tell ev, EVSCORE, 500
     g.shake = .2
     Burst se, pt(), lv.cart.at.x + 0, y, 12, 150, CYELLOW
     Tell ev, EVSOUND, SBUMP
@@ -317,11 +318,10 @@ private sub TakeKeep ( _
     lv as Level, _
     ev as Events, _
     se as Session, _
-    g as Game, _
     pt() as Part _
 )
     lv.cart.st = 3
-    g.score = g.score + 1000
+    Tell ev, EVSCORE, 1000
     Burst se, pt(), lv.cart.at.x + 0, lv.cart.at.y - 8, 12, 120, _
         CYELLOW
     Tell ev, EVSOUND, SMARK

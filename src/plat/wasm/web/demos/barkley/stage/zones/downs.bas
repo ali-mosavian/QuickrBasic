@@ -8,7 +8,7 @@ from barkley.model.images import ICAT, ICATF
 from barkley.model.hero import Hero
 from barkley.model.level import Level, Realm
 from barkley.model.game import Found, Game, Gild, Loose, Part, Session
-from barkley.model.events import EVSOUND, Tell
+from barkley.model.events import EVSCORE, EVSOUND, Tell
 from barkley.assets.palette import CGOLD
 from barkley.assets.tunes import SBONE, SBOOST, SGOLD, SMARK, SSPRING
 from barkley.world.terrain.ground import Solid, Surf
@@ -39,7 +39,7 @@ sub MeetBone ( _
 
     lv.things(i).state = 0
     g.bones = g.bones + 1
-    g.score = g.score + 10
+    Tell ev, EVSCORE, 10
     Burst se, pt(), csng(lv.things(i).at.x), _
         csng(lv.things(i).at.y), 4, 50, CGOLD + 4
     Tell ev, EVSOUND, SBONE
@@ -51,7 +51,6 @@ sub MeetGold ( _
     zn as Realm, _
     ev as Events, _
     se as Session, _
-    g as Game, _
     p as Hero, _
     i as integer, _
     pt() as Part _
@@ -66,7 +65,7 @@ sub MeetGold ( _
     if Found%(se, zn.stage, n) then exit sub
 
     Gild se, zn.stage, n
-    g.score = g.score + GOLDPTS
+    Tell ev, EVSCORE, GOLDPTS
     Burst se, pt(), csng(lv.things(i).at.x), _
         csng(lv.things(i).at.y), 10, 90, CGOLD + 4
     Tell ev, EVSOUND, SGOLD
