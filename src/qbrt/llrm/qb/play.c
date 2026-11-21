@@ -11,6 +11,8 @@
    through the synthesizer (dev_voice), each from its own queue; so does one string with a
    command QB never had (synth_commands; docs/sound.md).
    Without them a voice is the speaker, as in QB. */
+#include <string.h>
+
 #include "music.h"
 #include "nhstutil.h"
 #include "varptr.h"
@@ -52,13 +54,20 @@ typedef struct Player {
     Macro outer[MACRO_NESTING + 1];
     int octave, length, tempo;
     enum Style style;
-    byte synth;     /* the first voice is the synthesizer's, else the speaker; the others always are */
-    DevVoice sound; /* what its next note sounds like */
+    byte synth; /* the first voice is the synthesizer's, else the speaker; the others always are */
+    byte layer; /* the layer the sound's commands set (J) */
+    DevVoice sound[DEV_LAYERS]; /* what its next note sounds like: its own sound and sound[0].layers more */
 } Player;
 
 static void illegal(void)
 {
     qb_error(BE_ILLFUN);
+}
+
+/* The layer J chose: the sound its commands set. */
+static DevVoice *layer_of(Player *p)
+{
+    return &p->sound[p->layer];
 }
 
 /* The number that follows a command, or -1 if there is none. */
@@ -128,10 +137,11 @@ static unsigned frequency(int note)
 static void play_note(Player *p, unsigned voice, int note, long time)
 {
     const long sounding = note ? time * p->style / LEGATO : time;
-    DevVoice v = p->sound;
+    DevVoice v[DEV_LAYERS];
 
-    v.hertz = note ? frequency(note) : 0;
-    music_queue(voice, p->synth || voice > 0, &v, sounding, time - sounding);
+    memcpy(v, p->sound, sizeof v);
+    v[0].hertz = note ? frequency(note) : 0;
+    music_queue(voice, p->synth || voice > 0, v, sounding, time - sounding);
 }
 
 static int dots(Player *p)
@@ -179,28 +189,30 @@ static void envelope(Player *p)
             illegal();
         value = value << 4 | within(p, 0, HIGHEST_NIBBLE);
     }
-    p->sound.envelope = (unsigned short)value;
+    layer_of(p)->envelope = (unsigned short)value;
 }
 
 /* Y mode[, cutoff[, resonance]]: the filter off (0), low-pass, band-pass, high-pass. */
 static void filter(Player *p)
 {
-    p->sound.filter = (unsigned char)within(p, DEV_UNFILTERED, DEV_HIGH_PASS);
+    DevVoice *const v = layer_of(p);
+
+    v->filter = (unsigned char)within(p, DEV_UNFILTERED, DEV_HIGH_PASS);
     if (comma(p)) {
-        p->sound.cutoff = (unsigned short)within(p, LOWEST_CUTOFF, HIGHEST_CUTOFF);
+        v->cutoff = (unsigned short)within(p, LOWEST_CUTOFF, HIGHEST_CUTOFF);
         if (comma(p))
-            p->sound.resonance = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
+            v->resonance = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
     }
 }
 
 static void volume(Player *p)
 {
-    p->sound.volume = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
+    layer_of(p)->volume = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
 }
 
 static void wave(Player *p)
 {
-    p->sound.wave = (unsigned char)within(p, DEV_PULSE, DEV_FM);
+    layer_of(p)->wave = (unsigned char)within(p, DEV_PULSE, DEV_FM);
 }
 
 /* The hundredths after a number's point: ".5" 50, ".05" 5; 0 with no point. */
@@ -225,46 +237,76 @@ static unsigned hundredths(Player *p)
    bends the carrier, how fast that falls at each note and to what, and how far it bends itself. */
 static void modulator(Player *p)
 {
+    DevVoice *const v = layer_of(p);
     const unsigned whole = within(p, 0, HIGHEST_NIBBLE), part = hundredths(p);
 
     if (!whole && !part)
         illegal();
-    p->sound.ratio = (unsigned char)whole;
-    p->sound.fine = (unsigned char)part;
+    v->ratio = (unsigned char)whole;
+    v->fine = (unsigned char)part;
     if (!comma(p))
         return;
-    p->sound.depth = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
+    v->depth = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
     if (!comma(p))
         return;
-    p->sound.fall = (unsigned char)(within(p, 0, HIGHEST_NIBBLE) << 4 | (p->sound.fall & HIGHEST_NIBBLE));
+    v->fall = (unsigned char)(within(p, 0, HIGHEST_NIBBLE) << 4 | (v->fall & HIGHEST_NIBBLE));
     if (!comma(p))
         return;
-    p->sound.fall = (unsigned char)((p->sound.fall & ~HIGHEST_NIBBLE) | within(p, 0, HIGHEST_NIBBLE));
+    v->fall = (unsigned char)((v->fall & ~HIGHEST_NIBBLE) | within(p, 0, HIGHEST_NIBBLE));
     if (comma(p))
-        p->sound.feedback = (unsigned char)within(p, 0, HIGHEST_FEEDBACK);
+        v->feedback = (unsigned char)within(p, 0, HIGHEST_FEEDBACK);
 }
 
+/* U, I, R and S are the voice's, every layer's. */
 static void vibrato(Player *p)
 {
-    p->sound.vibrato = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
+    p->sound[0].vibrato = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
 }
 
 /* I n: a second voice in unison, n times 2 cents sharp. */
 static void unison(Player *p)
 {
-    p->sound.spread = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
+    p->sound[0].spread = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
 }
 
 /* R n: how much of the voice the room answers. */
 static void reverb(Player *p)
 {
-    p->sound.reverb = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
+    p->sound[0].reverb = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
 }
 
 /* S n: where the voice is in stereo, 1 the left to 15 the right, 8 the middle. */
 static void side(Player *p)
 {
-    p->sound.pan = (unsigned char)within(p, 1, HIGHEST_NIBBLE);
+    p->sound[0].pan = (unsigned char)within(p, 1, HIGHEST_NIBBLE);
+}
+
+/* J n[, pitch]: the commands after it set layer n, 0 the voice's own sound, up to the next J or the string's end. A
+   pitch, hundredths of the note's, sounds the layer with the voice; 0 silences it and those after it. Layers sound
+   from 1 up, none missed: J0,0 is the voice alone, at its note. */
+enum { MOST_PITCH = 1600 };
+static void layer(Player *p)
+{
+    const unsigned n = within(p, 0, DEV_LAYERS - 1);
+    DevVoice *const voice = &p->sound[0];
+
+    p->layer = (byte)n;
+    if (!comma(p))
+        return;
+    const unsigned pitch = within(p, 0, MOST_PITCH);
+
+    if (!pitch) {
+        if (!n)
+            voice->pitch = 0;
+        if (voice->layers >= n)
+            voice->layers = (unsigned char)(n ? n - 1 : 0);
+        return;
+    }
+    if (n > voice->layers + 1u)
+        illegal();
+    p->sound[n].pitch = (unsigned short)pitch;
+    if (n > voice->layers)
+        voice->layers = (unsigned char)n;
 }
 
 /* K time[, from[, under]]: a note slides to its pitch, from the last note's, from so many quarters over its own, or
@@ -272,17 +314,19 @@ static void side(Player *p)
 enum { MOST_UNDER = 24 };
 static void glide(Player *p)
 {
-    p->sound.glide = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
+    DevVoice *const v = layer_of(p);
+
+    v->glide = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
     if (comma(p))
-        p->sound.from = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
+        v->from = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
     if (comma(p))
-        p->sound.under = (unsigned char)within(p, 0, MOST_UNDER);
+        v->under = (unsigned char)within(p, 0, MOST_UNDER);
 }
 
 /* Q percent: the pulse's high part. */
 static void width(Player *p)
 {
-    p->sound.width = (unsigned short)(within(p, 1, 99) * WIDTH_SCALE / 100);
+    layer_of(p)->width = (unsigned short)(within(p, 1, 99) * WIDTH_SCALE / 100);
 }
 
 /* The commands QB never had: each sets the voice's sound, and makes it the synthesizer's. */
@@ -290,7 +334,7 @@ static const struct {
     char letter;
     void (*set)(Player *p);
 } synth_commands[] = {{'V', volume}, {'W', wave}, {'Q', width}, {'H', envelope}, {'Y', filter}, {'Z', modulator},
-                    {'U', vibrato}, {'K', glide}, {'I', unison}, {'R', reverb}, {'S', side}};
+                    {'U', vibrato}, {'K', glide}, {'I', unison}, {'R', reverb}, {'S', side}, {'J', layer}};
 
 static void synth_command(Player *p, char command)
 {
@@ -331,8 +375,10 @@ static int step(Player *p, unsigned voice)
         command = macro_next(&p->m);
         if (!command) {
             /* the end of a string X ran: on with the one around it */
-            if (!p->m.depth)
+            if (!p->m.depth) {
+                p->layer = 0;
                 return 0;
+            }
             macro_leave(&p->m, &p->outer[p->m.depth - 1]);
             continue;
         }
@@ -405,8 +451,9 @@ static int step(Player *p, unsigned voice)
    the first is what SOUND reads. */
 #define FIRST_SOUND {0, DEFAULT_WIDTH, DEFAULT_ENVELOPE, DEFAULT_CUTOFF, DEV_PULSE, DEFAULT_VOLUME, DEV_UNFILTERED, 0, 0, 0, 1, DEFAULT_DEPTH, DEFAULT_FALL, 0, 0, 0, 0, 0, 0, 0, 0}
 static const DevVoice first_sound = FIRST_SOUND;
-static Player players[DEV_VOICES] = {
-    [0 ... DEV_VOICES - 1] = {{0, 0, 0}, {{0, 0, 0}}, DEFAULT_OCTAVE, DEFAULT_LENGTH, DEFAULT_TEMPO, NORMAL, 0, FIRST_SOUND}};
+static Player players[DEV_VOICES] = {[0 ... DEV_VOICES - 1] = {{0, 0, 0}, {{0, 0, 0}}, DEFAULT_OCTAVE, DEFAULT_LENGTH,
+                                                               DEFAULT_TEMPO, NORMAL, 0, 0,
+                                                               {[0 ... DEV_LAYERS - 1] = FIRST_SOUND}}};
 
 /* B$SPLY: PLAY with the string of commands.  What the commands set (the octave,
    the length, the tempo, the style and foreground or background) stays set for
@@ -415,6 +462,7 @@ static Player players[DEV_VOICES] = {
 void B_SPLY(SD *commands)
 {
     macro_begin(&players[0].m, commands);
+    players[0].layer = 0;
     while (step(&players[0], 0))
         ;
     str_free_if_tmp(commands);
@@ -432,6 +480,7 @@ void B_SPLYV(SD *const *commands, unsigned count)
         if (!more[i])
             continue;
         players[i].synth = 1;
+        players[i].layer = 0;
         macro_begin(&players[i].m, commands[i]);
         music_align(i);
     }
@@ -456,8 +505,12 @@ void music_reset(void)
     unsigned i;
 
     for (i = 0; i < DEV_VOICES; i++) {
+        unsigned k;
+
         players[i].synth = 0;
-        players[i].sound = first_sound;
+        players[i].layer = 0;
+        for (k = 0; k < DEV_LAYERS; k++)
+            players[i].sound[k] = first_sound;
     }
 }
 

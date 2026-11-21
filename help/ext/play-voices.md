@@ -38,10 +38,12 @@ Each number may be =var; as usual.
     S n            stereo place 1-15 (default 8, the middle)
     R n            reverb 0-15
     I n            unison 0-15
+    J n,p          layer 0-3, its pitch in hundredths of the note's
 
 See [waves](play waves), [envelopes](play envelope),
 [filters](play filter), [FM](play fm), [vibrato and glide](play pitch),
-[stereo, reverb and unison](play space). Recipes: [examples](play examples).
+[stereo, reverb and unison](play space), [layers](play layers).
+Recipes: [examples](play examples).
 
 Timing
 A synthesizer voice's notes are timed to 3.4 ms, a 16th of a clock

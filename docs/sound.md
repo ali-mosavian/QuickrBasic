@@ -37,6 +37,7 @@ may be `=var;` as in QBasic's commands. A number out of range is Illegal functio
 | `S`n | stereo place: 1 the left, 8 the middle, 15 the right | 1–15 | 8 |
 | `R`n | reverb: how much of the voice the room answers | 0–15 | 0 |
 | `I`n | unison: a second copy of the voice, n × 2 cents sharp | 0–15 | 0 |
+| `J`n[`,`p] | layer: the one the commands after it set; its pitch (below) | n 0–3, p 0–1600 | `J0` |
 
 A number left off the end of `Y`, `Z` or `K` keeps its last value.
 
@@ -117,6 +118,23 @@ Where it starts:
   and bass dry.
 - `I` plays the voice twice, the copy n × 2 cents sharp: the two beat against each other, as a
   section of players. Not on DOS, nor for noise.
+
+### Layers: `J`
+
+A voice sounds up to three layers with its own sound, each its own wave, envelope, filter, FM, glide
+and volume, at its own pitch: a drum's thump and its hiss, or sines at a bell's partials.
+
+- `J`n chooses the layer the commands after it set: 0 the voice's own sound, 1 to 3 its layers. It
+  holds until the next `J` or the end of the string.
+- `J`n`,`p sounds layer n at p hundredths of the note's pitch: 100 the note, 200 an octave over, 159
+  a drum's second ring. Layers come on in order, 1 before 2.
+- p 0 silences layer n and those after it. `J0,0` is the voice alone again, at its note.
+- `U`, `I`, `R` and `S` are the voice's, whatever layer `J` chose.
+- Each note starts its layers together, every wave from its beginning, so every hit sounds the same.
+  A layer costs as much as a voice.
+
+`W4 Z1,0 H0,4,0,3 K1,4 V12 J1,250 W3 H2,4,0,4 Y2,3000,4 V9 O2 E` is a snare: a sine's thump falling,
+and a hiss.
 
 ## Time
 

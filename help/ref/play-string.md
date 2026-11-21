@@ -73,6 +73,8 @@ K t,q,u      glide: time 0 to 15; from over, 0 to 15; from under,
 S n          stereo place, 1 left to 15 right (default 8)
 R n          reverb, 0 to 15
 I n          unison, 0 to 15
+J n,p        layer, 0 to 3: the commands after it set it; its pitch,
+             hundredths of the note's, 0 to 1600
 ```
 Under ML a note followed by one of the same pitch is held, not struck
 again. See [Voices](play voices), [FM](play fm),

@@ -1,5 +1,5 @@
 // The synthesizer's voices as an AudioWorklet: plat/synth's C (synth.wasm, given as processorOptions.module), so
-// the page sounds as the Mac does. Each message is [voice, a DevVoice's bytes] (wasm.mjs's VOICE_BYTES).
+// the page sounds as the Mac does. Each message is [voice, its DevVoices' bytes] (wasm.mjs's VOICE_BYTES).
 class Synth extends AudioWorkletProcessor {
   constructor({ processorOptions: { module } }) {
     super();

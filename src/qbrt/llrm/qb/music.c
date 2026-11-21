@@ -1,6 +1,8 @@
 /* The music queues (music.h): a ring for each voice that the clock tick
    empties: the program writes `head` and the tick writes `tail`, so neither
    needs the other to stop.  SOUND (QB rt B$SOND) queues in the first. */
+#include <string.h>
+
 #include "music.h"
 #include "nhstutil.h"
 
@@ -12,7 +14,7 @@ enum { FINE = MUSIC_FINE, FINE_KEPT = 2 };
 typedef struct Note {
     unsigned sound, quiet; /* parts of tone, then of silence */
     byte synth;            /* through dev_voice, else the speaker */
-    DevVoice v;            /* v.hertz 0 for a rest */
+    DevVoice v[DEV_LAYERS]; /* v[0].hertz 0 for a rest; its layers after it */
 } Note;
 
 enum {
@@ -28,7 +30,7 @@ typedef struct Voice {
     unsigned long end; /* the tick the queue's last note ends at */
     /* the tick's: the note now is the synthesizer's; it is gated; the synthesizer has sounded since the last cut */
     byte synth, gated, used;
-    DevVoice now;
+    DevVoice now[DEV_LAYERS];
 } Voice;
 
 static Voice voices[DEV_VOICES];
@@ -46,29 +48,29 @@ static void note_off(Voice *v, unsigned index)
         dev_tone(0);
     else if (v->gated) {
         v->gated = 0;
-        v->now.gate = 0;
-        dev_voice(index, &v->now);
+        v->now[0].gate = 0;
+        dev_voice(index, v->now);
     }
 }
 
 /* A note run into by the one before it (legato), at its pitch, is that note held: not struck again. */
 static void note_on(Voice *v, unsigned index, const Note *n)
 {
-    const int tied = v->synth && v->gated && n->synth && v->now.hertz == n->v.hertz;
-    const unsigned char trigger = (unsigned char)(v->now.trigger + !tied);
+    const int tied = v->synth && v->gated && n->synth && v->now[0].hertz == n->v[0].hertz;
+    const unsigned char trigger = (unsigned char)(v->now[0].trigger + !tied);
 
     v->synth = n->synth;
-    if (!n->v.hertz)
+    if (!n->v[0].hertz)
         return;
     if (!n->synth) {
-        dev_tone(n->v.hertz);
+        dev_tone(n->v[0].hertz);
         return;
     }
-    v->now = n->v;
-    v->now.gate = 1;
-    v->now.trigger = trigger;
+    memcpy(v->now, n->v, (1 + n->v[0].layers) * sizeof n->v[0]);
+    v->now[0].gate = 1;
+    v->now[0].trigger = trigger;
     v->gated = v->used = 1;
-    dev_voice(index, &v->now);
+    dev_voice(index, v->now);
 }
 
 /* Whether the note ending runs into the next (legato) at its own pitch: it is held, not let go. */
@@ -77,7 +79,7 @@ static int tied(const Voice *v)
     const Note *const next = &v->queue[v->tail];
 
     return v->synth && v->gated && !v->quiet_left && v->tail != v->head && next->synth && next->sound &&
-           next->v.hertz == v->now.hertz;
+           next->v[0].hertz == v->now[0].hertz;
 }
 
 /* A voice's tick: counts the note out, and starts the next. */
@@ -204,7 +206,7 @@ void music_queue(unsigned voice, byte synth, const DevVoice *v, long sound, long
     wait_for_turn(at);
     n = &at->queue[at->head];
     n->synth = synth;
-    n->v = *v;
+    memcpy(n->v, v, (1 + v->layers) * sizeof *v);
     if (synth) {
         /* the note's whole time on one count, so it starts where the bar puts it; its sound the nearest tick */
         const unsigned whole = parts_of(sound + quiet, &at->owed_sound);

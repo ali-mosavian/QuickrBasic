@@ -3,7 +3,7 @@
 #ifndef QB_DEV_VOICE_H
 #define QB_DEV_VOICE_H
 
-enum { DEV_VOICES = 32, PAN_MIDDLE = 8 };
+enum { DEV_VOICES = 32, PAN_MIDDLE = 8, DEV_LAYERS = 4 };
 enum DevWave { DEV_PULSE, DEV_TRIANGLE, DEV_SAW, DEV_NOISE, DEV_FM };
 enum DevFilter { DEV_UNFILTERED, DEV_LOW_PASS, DEV_BAND_PASS, DEV_HIGH_PASS };
 
@@ -31,6 +31,10 @@ typedef struct DevVoice {
     unsigned char under;     /* it slides from n semitones under its own pitch instead, 1 to 24 */
     unsigned char pan;       /* where it is in stereo: 1 the left to 15 the right, 8 (and 0) the middle */
     unsigned char fine;      /* FM: hundredths added to the ratio, 0 to 99: the modulator off the note's harmonics */
+    unsigned char layers;    /* a note's own: the DevVoices after this one that sound with it, each its own wave, pitch,
+                                envelope and level, to DEV_LAYERS - 1; their hertz, gate, trigger, vibrato and unison
+                                are this one's */
+    unsigned short pitch;    /* hundredths of the note's pitch, 1 to 1600; 0 the note's */
 } DevVoice;
 
 #endif

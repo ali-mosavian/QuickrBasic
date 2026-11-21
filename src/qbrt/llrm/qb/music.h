@@ -23,8 +23,9 @@ void music_fine_tick(void);
 /* music in the foreground (MF, the default): each note waits for the one sounding to end */
 extern byte music_foreground;
 
-/* Queues in `voice` a note of `v` (v->hertz 0 a rest), through the synthesizer if `synth`, `sound` and then `quiet`
-   thousandths of a tick long; the parts of a tick are carried to the voice's next note. */
+/* Queues in `voice` a note of `v` and its v->layers layers after it (v->hertz 0 a rest), through the synthesizer if
+   `synth`, `sound` and then `quiet` thousandths of a tick long; the parts of a tick are carried to the voice's next
+   note. */
 void music_queue(unsigned voice, byte synth, const DevVoice *v, long sound, long quiet);
 /* The tick `voice`'s queue ends at, now if it is empty. */
 unsigned long music_end(unsigned voice);

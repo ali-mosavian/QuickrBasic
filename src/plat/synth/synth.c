@@ -27,6 +27,8 @@ enum {
     RELEASES_A_SECOND = 5, /* a fifth of a second from silence back to full */
     ROOM_FEEDBACK = 200,  /* of 256: a comb's sound comes back at 0.78, a tail of about a second */
     ROOM_TAIL = 3,        /* seconds until the tail is nothing */
+    NOISE_START = 0x7FFFF8,
+    PITCH_ONE = 100,      /* a DevVoice's pitch: hundredths */
     FM_DEPTH = 10431,     /* a depth's half radian of phase, for each of a modulator's 32767: 2^32 / (4 pi 32767) */
 };
 
@@ -82,8 +84,12 @@ void synth_init(Synth *const s, const uint32_t rate)
         s->room.pass_len[i] = (uint16_t)(len < 1 ? 1 : len > SYNTH_PASS_MOST ? SYNTH_PASS_MOST : len);
     }
     for (int i = 0; i < DEV_VOICES; i++) {
-        s->osc[i].noise = 0x7FFFF8;
+        s->osc[i].noise = NOISE_START;
         s->osc[i].stage = STAGE_CUT;
+        for (int k = 0; k < DEV_LAYERS - 1; k++) {
+            s->layer[i][k].noise = NOISE_START;
+            s->layer[i][k].stage = STAGE_CUT;
+        }
     }
 }
 
@@ -122,8 +128,9 @@ static int32_t twice_sin(const int32_t x)
     return (x * (ONE - (x2 * inner >> 16) / 6) >> 16) * 2;
 }
 
-/* A note begins: the modulator at full, the vibrato waiting, the pitch where its slide starts. */
-static void begin(const Synth *const s, SynthOsc *const o, const DevVoice *const v)
+/* A note begins: the modulator at full, the vibrato waiting, the pitch where its slide starts. `afresh` (a voice of
+   layers): its wave, noise and filter from where its first note's were, so its layers add alike at every note. */
+static void begin(const Synth *const s, SynthOsc *const o, const DevVoice *const v, const bool afresh)
 {
     const uint32_t samples = glide_ms[v->glide & HIGHEST_NIBBLE] * s->rate / 1000;
     const uint64_t above = (uint64_t)o->step + (uint64_t)(o->step / 4) * v->from;
@@ -131,6 +138,11 @@ static void begin(const Synth *const s, SynthOsc *const o, const DevVoice *const
     const uint32_t from =
         v->under ? (uint32_t)((uint64_t)o->step * under[v->under < 24 ? v->under : 24] >> 16) : over;
 
+    if (afresh) {
+        o->phase = o->phase2 = 0;
+        o->noise = NOISE_START;
+        o->low = o->band = 0;
+    }
     o->bend = FULL;
     o->mphase = (uint32_t)((uint64_t)o->phase * o->mul >> 16); /* where a whole ratio's would be */
     o->mphase2 = (uint32_t)((uint64_t)o->phase2 * o->mul >> 16);
@@ -143,18 +155,20 @@ static void begin(const Synth *const s, SynthOsc *const o, const DevVoice *const
         o->slide = o->step > o->at ? 1 : -1;
 }
 
-void synth_voice(Synth *const s, const unsigned voice, const DevVoice *const v)
+/* An oscillator set to `v`, its note begun if `attack`. */
+static void sound(const Synth *const s, SynthOsc *const o, const DevVoice *const v, const bool attack,
+                  const bool afresh)
 {
-    if (voice >= DEV_VOICES)
-        return;
-    SynthOsc *const o = &s->osc[voice];
-    const bool attack = v->gate && (!o->set.gate || v->trigger != o->set.trigger);
-
     o->set = *v;
     o->step = v->hertz * s->per_hertz + v->hertz * s->rest / s->rate; /* hertz * 2^32 / rate */
+    if (v->pitch) {
+        const uint64_t step = (uint64_t)o->step * (v->pitch * 65536u / PITCH_ONE) >> 16;
+
+        o->step = step < INT32_MAX ? (uint32_t)step : INT32_MAX;
+    }
     o->mul = v->fine ? (v->ratio * 100u + v->fine) * 65536u / 100 : 0;
     if (attack && v->hertz)
-        begin(s, o, v);
+        begin(s, o, v, afresh);
     if (!v->hertz)
         o->stage = STAGE_CUT;
     else if (attack)
@@ -179,6 +193,36 @@ void synth_voice(Synth *const s, const unsigned voice, const DevVoice *const v)
     o->lfo_step = VIBRATO_HERTZ * s->per_hertz;
 }
 
+void synth_voice(Synth *const s, const unsigned voice, const DevVoice *const v)
+{
+    if (voice >= DEV_VOICES)
+        return;
+    SynthOsc *const o = &s->osc[voice];
+    const bool attack = v->gate && (!o->set.gate || v->trigger != o->set.trigger);
+    const unsigned layers = v->layers < DEV_LAYERS ? v->layers : DEV_LAYERS - 1;
+
+    sound(s, o, v, attack, layers > 0);
+    for (unsigned k = 1; k < DEV_LAYERS; k++) {
+        SynthOsc *const l = &s->layer[voice][k - 1];
+
+        if (k > layers) {
+            if (attack || !v->hertz) /* a layer the note has not: out in 2 ms */
+                l->stage = STAGE_CUT;
+            continue;
+        }
+        DevVoice one = v[k];
+
+        one.hertz = v->hertz;
+        one.gate = v->gate;
+        one.trigger = v->trigger;
+        one.vibrato = v->vibrato;
+        one.spread = v->spread;
+        one.layers = 0;
+        sound(s, l, &one, attack, true);
+    }
+    o->more = (uint8_t)(layers > o->more ? layers : o->more);
+}
+
 /* The speaker's next sample, as QB's square wave always was. */
 static int32_t speaker(Synth *const s)
 {
@@ -194,6 +238,12 @@ static int32_t speaker(Synth *const s)
     s->gain += want == s->hertz && s->hertz ? s->gain < fade : -(s->gain > 0);
     s->phase = (s->phase + s->hertz) % s->rate;
     return (s->phase < s->rate / 2 ? SPEAKER_LOUD : -SPEAKER_LOUD) * s->gain / fade;
+}
+
+/* Silent until its next note. */
+static bool hushed(const SynthOsc *const o)
+{
+    return o->level == 0 && (o->stage == STAGE_CUT || o->stage == STAGE_RELEASE);
 }
 
 /* A falling envelope's step at its level. */
@@ -484,7 +534,7 @@ void synth_run(SynthRun *r);
     o.set.wave = (unsigned char)wave_kind;
     o.set.filter = (unsigned char)filter;
     for (int i = 0; i < n;) {
-        if (o.level == 0 && (o.stage == STAGE_CUT || o.stage == STAGE_RELEASE)) /* silent until the next note */
+        if (hushed(&o))
             break;
         int32_t delta;
         int run = envelope_run(s, &o, n - i, &delta);
@@ -554,7 +604,7 @@ void synth_run(SynthRun *r);
 /* Each wave and filter its own loop. */
 static void voice(const Synth *const s, SynthOsc *const o, int32_t *const sum, const int n)
 {
-    if (o->level == 0 && (o->stage == STAGE_CUT || o->stage == STAGE_RELEASE))
+    if (hushed(o))
         return;
     switch (o->set.wave) {
     case DEV_TRIANGLE:
@@ -575,6 +625,14 @@ static void voice(const Synth *const s, SynthOsc *const o, int32_t *const sum, c
     default:
         switch (o->set.filter) { VOICE_FILTERS(DEV_PULSE) }
     }
+}
+
+/* Voice v and its layers. */
+static void layered(Synth *const s, const int v, int32_t *const sum, const int n)
+{
+    voice(s, &s->osc[v], sum, n);
+    for (int k = 0; k < s->osc[v].more; k++)
+        voice(s, &s->layer[v][k], sum, n);
 }
 
 /* The room's answer to `wet`, added to `sum`. */
@@ -614,13 +672,16 @@ static void voices(Synth *const s, int32_t *const sum, int32_t *const left, int3
 
     for (int v = 0; v < DEV_VOICES; v++) {
         SynthOsc *const o = &s->osc[v];
-        const bool silent = o->level == 0 && (o->stage == STAGE_CUT || o->stage == STAGE_RELEASE);
+
+        while (o->more && hushed(&s->layer[v][o->more - 1]))
+            o->more--;
+        const bool silent = hushed(o) && !o->more;
         const int to = o->set.pan ? o->set.pan - PAN_MIDDLE : 0; /* -7 the left, 7 the right */
         const bool aside = left && to && !silent;
         const bool roomed = o->set.reverb && !silent;
 
         if (!aside && !roomed) {
-            voice(s, o, sum, n);
+            layered(s, v, sum, n);
             continue;
         }
         if (roomed && !sent && !s->room.live)
@@ -631,7 +692,7 @@ static void voices(Synth *const s, int32_t *const sum, int32_t *const left, int3
             one[i] = 0;
             wet[i] = sent || !roomed ? wet[i] : 0;
         }
-        voice(s, o, one, n);
+        layered(s, v, one, n);
         if (aside) {
             const int32_t near = PAN_MIDDLE - 1, far = near - (to < 0 ? -to : to);
             int32_t *const more = to < 0 ? left : right, *const less = to < 0 ? right : left;

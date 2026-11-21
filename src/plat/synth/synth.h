@@ -36,6 +36,7 @@ typedef struct SynthOsc {
     int32_t f, damping, low, band; /* the filter's: f and damping 2^16 is 1, its state in 256ths of a sample */
     /* FM with a fine ratio: the ratio (2^16 is 1), the modulator's own phase and step, and the unison's */
     uint32_t mul, mphase, mstep, mphase2, mstep2;
+    uint8_t more; /* a voice's: how many of its layers may be sounding */
 } SynthOsc;
 
 enum { SYNTH_COMBS = 4, SYNTH_PASSES = 2, SYNTH_COMB_MOST = 2100, SYNTH_PASS_MOST = 256 };
@@ -60,6 +61,7 @@ typedef struct Synth {
     /* the limiter: what the mix is turned down by (2^24 is all of it), and what a sample gives back */
     int32_t held, release;
     SynthOsc osc[DEV_VOICES];
+    SynthOsc layer[DEV_VOICES][DEV_LAYERS - 1]; /* each voice's layers after its own sound */
     int16_t sine[SYNTH_SINE];
     SynthRoom room;
 } Synth;
@@ -67,7 +69,7 @@ typedef struct Synth {
 void synth_init(Synth *s, uint32_t rate);
 /* The speaker's tone, 0 silence: safe from another thread than synth_render's. */
 void synth_tone(Synth *s, uint32_t hertz);
-/* Voice `voice` set (dev_voice): not safe while synth_render runs. */
+/* Voice `voice` set (dev_voice), and v->layers layers after v: not safe while synth_render runs. */
 void synth_voice(Synth *s, unsigned voice, const DevVoice *v);
 /* `tick` is called from synth_render, `sixteenths` 16ths of a hertz, by the count of its samples: a sequencer's
    clock with no timer, as exact as the samples. It may set voices. */

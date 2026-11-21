@@ -71,7 +71,7 @@ void __real_dev_voice(unsigned voice, const DevVoice *v);
 
 void __wrap_dev_voice(const unsigned voice, const DevVoice *const v)
 {
-    js_voice(voice, v);
+    js_voice(voice, v, 1u + v->layers);
     __real_dev_voice(voice, v);
 }
 

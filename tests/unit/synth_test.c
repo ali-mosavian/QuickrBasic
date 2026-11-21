@@ -17,13 +17,15 @@ typedef struct {
 } HeadlessTone;
 typedef struct {
     unsigned voice;
-    DevVoice v;
+    DevVoice v[DEV_LAYERS];
     long tick;
 } HeadlessVoice;
 size_t headless_tone_count(void);
 HeadlessTone headless_tone(size_t index);
 size_t headless_voice_count(void);
 HeadlessVoice headless_voice(size_t index);
+void headless_voice_forget(void);
+void headless_reset(void);
 void headless_run(long hundredths);
 
 enum { RATE = 44100, TICK_SAMPLES = RATE * 10 / 182 };
@@ -141,6 +143,63 @@ TEST(synth_fm_bends_a_sine)
     for (int i = RATE / 2 + 1; i < RATE / 2 + RATE / 50 - 1; i++)
         late += (buf[i] - buf[i - 1] > 0) != (buf[i + 1] - buf[i] > 0);
     CHECK(early > late);
+}
+
+/* A voice of layers sounds as its layers would as voices of their own, from their first note, added. */
+TEST(synth_layers_sound_as_voices_added)
+{
+    static int16_t apart[RATE / 2];
+    Synth s;
+    DevVoice v[3] = {note(200, DEV_FM, 0x0A50), note(200, DEV_NOISE, 0x1630), note(200, DEV_SAW, 0x0400)};
+    v[0].depth = 3;
+    v[0].volume = 6;
+    v[0].layers = 2;
+    v[1].pitch = 1500;
+    v[1].volume = 5;
+    v[1].filter = DEV_LOW_PASS;
+    v[1].cutoff = 3000;
+    v[2].pitch = 276;
+    v[2].volume = 3;
+    synth_init(&s, RATE);
+    for (unsigned k = 0; k < 3; k++) {
+        DevVoice one = v[k];
+        one.layers = 0;
+        synth_voice(&s, k, &one);
+    }
+    synth_render(&s, apart, RATE / 2);
+    synth_init(&s, RATE);
+    s.osc[0].phase = 12345; /* a voice's last note left it anywhere */
+    synth_voice(&s, 0, v);
+    synth_render(&s, buf, RATE / 2);
+    CHECK(peak(buf, RATE / 2) > 3000 && !memcmp(buf, apart, sizeof apart));
+}
+
+/* A voice's layers start together at each note, so its hits sound alike. Two voices as a hit's thump and hiss started
+   wherever their last notes left them: one pair's first 60 ms came 3.4 to 6.1 dB from the recording by phase alone. */
+TEST(synth_layered_hits_sound_alike)
+{
+    static int16_t first[RATE / 10];
+    Synth s;
+    DevVoice v[2] = {note(147, DEV_FM, 0x0300), note(147, DEV_NOISE, 0x0300)};
+    v[0].depth = 0;
+    v[0].layers = 1;
+    v[1].pitch = 3000;
+    v[1].filter = DEV_BAND_PASS;
+    v[1].cutoff = 2400;
+    v[1].resonance = 6;
+    synth_init(&s, RATE);
+    for (int hit = 0; hit < 3; hit++) {
+        v[0].gate = 1;
+        v[0].trigger = (unsigned char)(hit + 1);
+        synth_voice(&s, 0, v);
+        synth_render(&s, hit ? buf : first, RATE / 10);
+        CHECK(peak(first, RATE / 10) > 1000);
+        if (hit)
+            CHECK(!memcmp(buf, first, sizeof first));
+        v[0].gate = 0;
+        synth_voice(&s, 0, v);
+        synth_render(&s, buf, RATE / 3 + 777 * hit); /* the hits apart by no whole period */
+    }
 }
 
 /* How far under a held note's whole sound the part of it off its harmonics is, in dB (0 is all of it): a second of
@@ -598,10 +657,10 @@ TEST(play_of_three_strings_plays_three_voices)
     for (size_t i = first; i < headless_voice_count(); i++) {
         const HeadlessVoice h = headless_voice(i);
         CHECK(h.voice < 3);
-        if (h.v.gate && ons[h.voice] < 2) {
+        if (h.v[0].gate && ons[h.voice] < 2) {
             start[h.voice][ons[h.voice]] = h.tick;
-            on[h.voice][ons[h.voice]++] = h.v.hertz;
-        } else if (!h.v.gate && h.v.hertz)
+            on[h.voice][ons[h.voice]++] = h.v[0].hertz;
+        } else if (!h.v[0].gate && h.v[0].hertz)
             offs[h.voice]++;
     }
     CHECK(on[0][0] == 262 && on[0][1] == 330 && on[1][0] == 330 && on[1][1] == 392);
@@ -632,7 +691,7 @@ TEST(play_voices_keep_time_with_each_other)
     long zero = -1;
     for (size_t i = first; i < headless_voice_count(); i++) {
         const HeadlessVoice h = headless_voice(i);
-        if (h.voice > 1 || !h.v.gate || !h.v.hertz || ons[h.voice] >= 16)
+        if (h.voice > 1 || !h.v[0].gate || !h.v[0].hertz || ons[h.voice] >= 16)
             continue;
         zero = zero < 0 ? h.tick : zero;
         CHECK(h.tick - zero == place[h.voice][ons[h.voice]++] * 1950L / 1000);
@@ -685,7 +744,7 @@ TEST(play_synth_notes_start_between_clock_ticks)
             music_fine_tick();
         ons[k] = 0;
         for (size_t i = first; i < headless_voice_count(); i++)
-            ons[k] += headless_voice(i).v.gate && headless_voice(i).v.hertz;
+            ons[k] += headless_voice(i).v[0].gate && headless_voice(i).v[0].hertz;
     }
     CHECK(ons[0] == 1 && ons[1] == 1 && ons[2] == 2);
     music_clear();
@@ -704,7 +763,7 @@ TEST(play_sets_the_voice)
     CHECK(unit_run(S, lines) == ST_OK);
     qbrt_realtime(true);
     CHECK(headless_voice_count() > first);
-    const DevVoice v = headless_voice(first).v;
+    const DevVoice v = headless_voice(first).v[0];
     CHECK(v.wave == DEV_SAW && v.width == 25 * 4096 / 100 && v.volume == 12 && v.envelope == 0x12A3);
     CHECK(v.filter == DEV_LOW_PASS && v.cutoff == 800 && v.resonance == 9 && v.gate == 1);
 }
@@ -725,7 +784,7 @@ TEST(play_sets_fm)
     CHECK(unit_run(S, lines) == ST_OK);
     qbrt_realtime(true);
     CHECK(headless_voice_count() > first);
-    const DevVoice v = headless_voice(first).v;
+    const DevVoice v = headless_voice(first).v[0];
     CHECK(v.wave == DEV_FM && v.ratio == 3 && v.depth == 11);
     CHECK(v.fall == 0x62 && v.feedback == 5 && v.vibrato == 7 && v.glide == 4 && v.from == 8 && v.spread == 9);
     CHECK(v.reverb == 6 && v.under == 5 && v.pan == 3);
@@ -750,7 +809,7 @@ TEST(play_sets_fm_fine)
     qbrt_realtime(true);
     unsigned got[3][3], n = 0;
     for (size_t i = first; i < headless_voice_count() && n < 3; i++) {
-        const DevVoice v = headless_voice(i).v;
+        const DevVoice v = headless_voice(i).v[0];
         if (v.gate && v.hertz) {
             got[n][0] = v.ratio;
             got[n][1] = v.fine;
@@ -760,6 +819,37 @@ TEST(play_sets_fm_fine)
     CHECK(n == 3 && got[0][0] == 1 && got[0][1] == 41 && got[0][2] == 6);
     CHECK(got[1][0] == 0 && got[1][1] == 50 && got[2][0] == 2 && got[2][1] == 5);
     for (int i = 0; i < 4; i++)
+        CHECK(unit_run(S, wrong[i]) == E_USR);
+}
+
+/* J chooses the layer the commands after it set, to the string's end; its pitch sounds the layer, 0 silences it and
+   those after it. U, I, R and S are the voice's. */
+TEST(play_sets_layers)
+{
+    static const char *const lines[] = {
+        "10 PLAY \"MF W4 Z1,0 H0,4,0,3 J1,150 W3 H0,2,0,2 V5 S3 J2,250 W1 C J1,0 C J0,200 C P64\": PLAY \"V12 C P64\"",
+        nullptr};
+    static const char *const wrong[][2] = {{"10 PLAY \"J4 C\"", nullptr}, {"10 PLAY \"J2,100 C\"", nullptr},
+                                           {"10 PLAY \"J1,1601 C\"", nullptr}};
+
+    qbrt_realtime(false);
+    music_clear();
+    const size_t first = headless_voice_count();
+    CHECK(unit_run(S, lines) == ST_OK);
+    qbrt_realtime(true);
+    HeadlessVoice on[4];
+    unsigned n = 0;
+    for (size_t i = first; i < headless_voice_count() && n < 4; i++)
+        if (headless_voice(i).v[0].gate && headless_voice(i).v[0].hertz)
+            on[n++] = headless_voice(i);
+    CHECK(n == 4);
+    const DevVoice *const v = on[0].v;
+    CHECK(v[0].layers == 2 && v[0].wave == DEV_FM && v[0].pan == 3 && v[0].envelope == 0x0403 && !v[0].pitch);
+    CHECK(v[1].wave == DEV_NOISE && v[1].pitch == 150 && v[1].volume == 5 && v[1].envelope == 0x0202);
+    CHECK(v[2].wave == DEV_TRIANGLE && v[2].pitch == 250);
+    CHECK(on[1].v[0].layers == 0 && on[2].v[0].pitch == 200);
+    CHECK(on[3].v[0].volume == 12 && on[3].v[0].wave == DEV_FM);
+    for (int i = 0; i < 3; i++)
         CHECK(unit_run(S, wrong[i]) == E_USR);
 }
 
@@ -816,9 +906,9 @@ TEST(play_of_32_strings_plays_32_voices)
         start[v] = -1;
     for (size_t i = first; i < headless_voice_count(); i++) {
         const HeadlessVoice h = headless_voice(i);
-        if (h.v.gate && start[h.voice] < 0) {
+        if (h.v[0].gate && start[h.voice] < 0) {
             start[h.voice] = h.tick;
-            hertz[h.voice] = h.v.hertz;
+            hertz[h.voice] = h.v[0].hertz;
         }
     }
     for (int v = 0; v < 32; v++) /* each its own note, a semitone over the last */
@@ -833,6 +923,7 @@ TEST(play_left_out_strings_leave_their_voices)
 
     qbrt_realtime(false);
     music_clear(); /* an earlier test's music */
+    headless_reset(); /* and the part of a tick it left, which the second PLAY(0)'s hundredth could finish */
     const size_t first = headless_voice_count();
     CHECK(unit_run(S, lines) == ST_OK);
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 3  3 \r");
@@ -842,7 +933,7 @@ TEST(play_left_out_strings_leave_their_voices)
     int third = 0, others = 0;
     for (size_t i = first; i < headless_voice_count(); i++) {
         const HeadlessVoice h = headless_voice(i);
-        third += h.voice == 2 && h.v.gate && h.v.hertz == 392;
+        third += h.voice == 2 && h.v[0].gate && h.v[0].hertz == 392;
         others += h.voice != 2;
     }
     CHECK(third == 1 && others == 0);
@@ -876,7 +967,7 @@ TEST(play_legato_ties_a_pitch_to_itself)
     int struck = 0, last = -1;
     unsigned hertz = 0;
     for (size_t i = first; i < headless_voice_count(); i++) {
-        const DevVoice v = headless_voice(i).v;
+        const DevVoice v = headless_voice(i).v[0];
 
         if (v.gate && v.trigger != last) {
             struck++;
@@ -896,7 +987,7 @@ static void play_tick(void)
     music_fine_tick();
     for (; played_from < headless_voice_count(); played_from++) {
         const HeadlessVoice h = headless_voice(played_from);
-        synth_voice(played, h.voice, &h.v);
+        synth_voice(played, h.voice, h.v);
     }
 }
 
@@ -910,7 +1001,8 @@ static uint32_t played_hash(Session *const S, const char *const strings, const u
 
     snprintf(line, sizeof line, "10 PLAY \"MB\": PLAY \"%s\"", strings);
     music_clear();
-    played_from = headless_voice_count();
+    headless_voice_forget();
+    played_from = 0;
     CHECK(unit_run(S, lines) == ST_OK);
     synth_init(&s, rate);
     synth_clock(&s, play_tick, 4661);
@@ -924,7 +1016,7 @@ static uint32_t played_hash(Session *const S, const char *const strings, const u
         for (int i = 0; i < 1000 * sides; i++)
             hash = hash * 31 + (uint32_t)out[i];
     }
-    CHECK(headless_voice_count() < 65536); /* the log kept every voice */
+    CHECK(headless_voice_count() < 16384); /* the log kept every voice */
     music_clear();
     return hash;
 }
