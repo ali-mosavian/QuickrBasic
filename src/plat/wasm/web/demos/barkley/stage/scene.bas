@@ -46,8 +46,8 @@ private const SEATH = 30
 ' Back to front, then the screen's words.
 sub Render (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
     dim cx as integer, cy as integer, x as integer, s as string
-    cx = int(g.camx)
-    cy = int(g.camy)
+    cx = int(g.cam.x)
+    cy = int(g.cam.y)
     if g.shake > 0 then cy = cy + ((wd.se.ticks and 2) - 1) * 2
     if g.mode <> TITLE then Hud wd.art, g, GoldFound%(wd)
     DrawBack wd.zn, wd.art, cx, cy
@@ -99,10 +99,10 @@ sub Render (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
         elseif p.idle_t > 3 then
             Say p, cx, cy, "..."
         end if
-        if g.modeT < 2.6 then
-            x = cint(g.modeT * 900) - SW
+        if g.mode_t < 2.6 then
+            x = cint(g.mode_t * 900) - SW
             if x > 0 then x = 0
-            if g.modeT > 2.2 then x = cint((g.modeT - 2.2) * 900)
+            if g.mode_t > 2.2 then x = cint((g.mode_t - 2.2) * 900)
             line (x, 84)-(x + SW - 1, 110), CSCARF, BF
             line (x, 84)-(x + SW - 1, 85), CGOLD + 3, BF
             line (x, 109)-(x + SW - 1, 110), CGOLD + 3, BF

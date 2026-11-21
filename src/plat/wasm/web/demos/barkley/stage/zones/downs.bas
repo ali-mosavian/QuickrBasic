@@ -82,8 +82,8 @@ end sub
 sub MeetMark (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, pt() as Part)
     if lv.ob(i).s <> 0 or cint(p.at.x) < lv.ob(i).x then exit sub
     lv.ob(i).s = 1
-    g.homeX = lv.ob(i).x
-    g.homeY = lv.ob(i).y
+    g.home.x = lv.ob(i).x
+    g.home.y = lv.ob(i).y
     Burst se, pt(), csng(lv.ob(i).x), csng(lv.ob(i).y - 28), 8, 80, CGOLD + 4
     Sfx mu, se, SMARK
 end sub

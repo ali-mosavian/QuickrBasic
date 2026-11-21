@@ -2,6 +2,8 @@
 defint A-Z
 option explicit
 
+from barkley.engine.vec import Spot, Vec
+
 type Game
     mode as integer
     bones as integer
@@ -11,12 +13,10 @@ type Game
     tallied as integer
     sig as long
     clock as single
-    camx as single
-    camy as single
-    modeT as single
+    cam as Vec
+    mode_t as single
     shake as single
-    homeX as integer
-    homeY as integer
+    home as Spot
     page as integer
     quitting as integer
 end type

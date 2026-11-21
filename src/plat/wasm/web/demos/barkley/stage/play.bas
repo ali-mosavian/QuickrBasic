@@ -34,10 +34,10 @@ const JELLYD = 10
 sub Spawn (lv as Level, gr as Ground, zn as Realm, mu as Deck, g as Game, p as Hero)
     dim fresh as Hero
     p = fresh
-    p.at.x = g.homeX
-    p.at.y = g.homeY
+    p.at.x = g.home.x
+    p.at.y = g.home.y
     p.ground = -1
-    p.sg = SegAt%(lv, gr, g.homeX, csng(g.homeY))
+    p.sg = SegAt%(lv, gr, g.home.x, csng(g.home.y))
     g.bones = 0
     ResetChase lv, mu
     Mend lv
@@ -119,7 +119,7 @@ sub Dying (lv as Level, gr as Ground, zn as Realm, mu as Deck, g as Game, p as H
     g.lives = g.lives - 1
     if g.lives <= 0 then
         g.mode = OVER
-        g.modeT = 0
+        g.mode_t = 0
         SceneTune mu, LEFTBEHIND
     else
         Spawn lv, gr, zn, mu, g, p
@@ -130,10 +130,10 @@ sub Things (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() a
     dim i as integer, c as integer
     ' typed: a const made from a const and left typeless is rounded to a whole number, 0 here
     const DT! = STEPT * 2
-    c = (cint(g.camx) - 100) \ TS
+    c = (cint(g.cam.x) - 100) \ TS
     if c < 0 then c = 0
     for i = lv.first(c) to lv.nObj - 1
-        if lv.ob(i).a > g.camx + SW + 100 then exit for
+        if lv.ob(i).a > g.cam.x + SW + 100 then exit for
         select case lv.ob(i).k
         case KCAT, KCRAB, KSWEEP: if lv.ob(i).s <> 0 then Prowl lv, i
         case KSPARK: lv.ob(i).x = lv.ob(i).a + cint(SPARKR * sin((se.ticks + lv.ob(i).a) * .03))

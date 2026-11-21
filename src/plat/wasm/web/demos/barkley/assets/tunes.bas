@@ -115,7 +115,7 @@ end sub
 ' Beats of the level's end sounded: by the tune's own clock, by the scene's where no music plays; under none before
 ' it has begun.
 function EndBeat! (mu as Deck, se as Session, g as Game)
-    EndBeat! = g.modeT * mu.song(CAUGHT).tempo / 60
+    EndBeat! = g.mode_t * mu.song(CAUGHT).tempo / 60
     if mu.muted or not mu.tune then exit function
     EndBeat! = -1
     if mu.slot = CAUGHT then EndBeat! = (se.ticks - mu.songAt) * STEPT * mu.song(CAUGHT).tempo / 60

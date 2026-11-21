@@ -162,7 +162,7 @@ sub Avalanche (lv as Level, mu as Deck, se as Session, g as Game, p as Hero)
         Sfx mu, se, SCRACK
     end if
     lv.aval.x = lv.aval.x + AVALV * STEPT
-    if (se.ticks and 15) = 0 and lv.aval.x > g.camx - 40 then g.shake = .12
+    if (se.ticks and 15) = 0 and lv.aval.x > g.cam.x - 40 then g.shake = .12
     if lv.aval.x > p.at.x - 6 then Lose mu, se, p
 end sub
 
@@ -301,7 +301,7 @@ sub Homeward (lv as Level, g as Game)
     lv.stray.x = lv.stray.x + sgn(lv.ob(lv.stray.i).a - lv.stray.x) * STRAYV * STEPT
     y = Surf%(lv, cint(lv.stray.x), cint(lv.stray.y))
     if y <> NONE then lv.stray.y = y
-    if abs(lv.stray.x - lv.ob(lv.stray.i).a) >= 6 and abs(lv.stray.x - g.camx - SW \ 2) <= SW then exit sub
+    if abs(lv.stray.x - lv.ob(lv.stray.i).a) >= 6 and abs(lv.stray.x - g.cam.x - SW \ 2) <= SW then exit sub
     lv.ob(lv.stray.i).s = 1
     lv.stray.st = 0
 end sub

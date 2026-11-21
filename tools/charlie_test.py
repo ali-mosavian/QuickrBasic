@@ -149,7 +149,7 @@ for j = 0 to wd.lv.nObj - 1
         wd.lv.ob(j).x = 24
         wd.lv.ob(j).a = 24
         wd.lv.ob(j).y = wd.lv.startY
-        g.camx = 0
+        g.cam.x = 0
         exit for
     end if
 next
@@ -213,11 +213,11 @@ for i = 1 to 4000
     if i mod 15 = 0 then IntroDraw wd, g, p, cu()
     select case i
     case 60: if point(0, 0) <> 0 or point(30, 100) < 130 or point(30, 100) > 136 then was = 0
-    case 300: if g.camx < 0 or g.camx > 60 or p.at.x < 70 or p.at.x > 250 then was = 0
-    case 1200: if g.camx <> 1400 then was = 0
-    case 1680: if g.camx <> 2140 then was = 0
-    case 2700: if g.camx <> 3900 or p.at.x <> 4060 or p.gsp <> 0 then was = 0
-    case 3300: if p.gsp < 400 or p.at.x - g.camx < 150 or p.at.x - g.camx > 300 then was = 0
+    case 300: if g.cam.x < 0 or g.cam.x > 60 or p.at.x < 70 or p.at.x > 250 then was = 0
+    case 1200: if g.cam.x <> 1400 then was = 0
+    case 1680: if g.cam.x <> 2140 then was = 0
+    case 2700: if g.cam.x <> 3900 or p.at.x <> 4060 or p.gsp <> 0 then was = 0
+    case 3300: if p.gsp < 400 or p.at.x - g.cam.x < 150 or p.at.x - g.cam.x > 300 then was = 0
     end select
 next
 was = was and abs(i - ILEN * 30) < 3 and g.mode = TITLE
@@ -239,11 +239,11 @@ StartIntro wd, g, cu()
 for i = 1 to 2145
     Advance wd, g, p, k, lo(), pt(), cu()
 next
-bt = g.modeT * BEATS
+bt = g.mode_t * BEATS
 m = OnCue%(cu(), QHERO, bt)
 j = OnCue%(cu(), QVAN, bt)
 CueAt wd.lv, cu(), j, bt, c, v
-c = c - cint(g.camx)
+c = c - cint(g.cam.x)
 IntroDraw wd, g, p, cu()
 hid = Pix&(c - 60, 8, HORIZON - 45, HORIZON - 14)
 shown = Pix&(c - 92, 16, HORIZON - 45, HORIZON - 14)
@@ -458,8 +458,8 @@ was = 0
 for i = 1 to 200
     MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
     if p.ground and abs(p.at.x - c - WAVEL) < 6 then
-        g.camx = p.at.x - 160
-        g.camy = p.at.y - 100
+        g.cam.x = p.at.x - 160
+        g.cam.y = p.at.y - 100
         Render wd, g, p, lo(), pt()
         if Fur%(160, 8, 104, 124) > 40 and Fur%(160, 8, 76, 96) = 0 then was = -1
         exit for
@@ -473,15 +473,15 @@ was = 0
 for i = 1 to 200
     MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
     if p.ground and (was and 1) = 0 and abs(p.at.x - c - WAVEL / 2) < 6 then
-        g.camx = p.at.x - 160
-        g.camy = p.at.y - 100
+        g.cam.x = p.at.x - 160
+        g.cam.y = p.at.y - 100
         Render wd, g, p, lo(), pt()
         if Fur%(160, 2, 92, 99) > 20 and Fur%(160, 2, 103, 107) > 12 and Fur%(160, 8, 70, 87) = 0 then print "turn ok"
         was = was or 1
     end if
     if p.ground and abs(p.at.x - c - WAVEL * 1.5) < 6 then
-        g.camx = p.at.x - 160
-        g.camy = p.at.y - 100
+        g.cam.x = p.at.x - 160
+        g.cam.y = p.at.y - 100
         Render wd, g, p, lo(), pt()
         if Fur%(160, 16, 60, 140) = 0 then print "hid ok"
         exit for
@@ -545,7 +545,7 @@ for i = 1 to 400
 next
 Render wd, g, p, lo(), pt()
 was = p.win and abs(p.at.x - (wd.lv.famX - 106)) < 3 and wd.se.cheer
-if was and abs(g.camx - (wd.lv.famX - 166)) < 3 then print "met ok"
+if was and abs(g.cam.x - (wd.lv.famX - 166)) < 3 then print "met ok"
 ' They were one picture waiting and one cheering, and the Baron two lumps on a back: each of them waits in three
 ' pictures and cheers in six, he sits in four and points in two, and each one's last is the art tool's, its size
 ' read from the picture
@@ -652,7 +652,7 @@ k.r = 0
 ' and a wheel in the air. The picture without the cart and with it, down its wheels' columns: halfway down a slope
 ' of the race, then at the slope's foot, its front wheel on the level
 GoStage wd, 1, g, p, lo(), pt()
-g.modeT = 5
+g.mode_t = 5
 g.shake = 0
 was = -1
 c = wd.lv.chaseX + 104
@@ -667,15 +667,15 @@ for j = 0 to 1
     wd.lv.cart.x = c
     wd.lv.cart.y = GroundAt%(wd.lv, c)
     Stand wd.lv, wd.gr, p, c - 200, 0
-    g.camx = c - 160
-    g.camy = wd.lv.cart.y - 124
+    g.cam.x = c - 160
+    g.cam.y = wd.lv.cart.y - 124
     Render wd, g, p, lo(), pt()
     KeepCol 147, colA()
     KeepCol 173, colB()
     wd.lv.cart.st = 1
     Render wd, g, p, lo(), pt()
-    v = Lowest%(147, colA()) - (GroundAt%(wd.lv, c - 13) - cint(g.camy))
-    m = Lowest%(173, colB()) - (GroundAt%(wd.lv, c + 13) - cint(g.camy))
+    v = Lowest%(147, colA()) - (GroundAt%(wd.lv, c - 13) - cint(g.cam.y))
+    m = Lowest%(173, colB()) - (GroundAt%(wd.lv, c + 13) - cint(g.cam.y))
     if c >= wd.lv.chaseEnd - 104 or abs(v) > 1 or abs(m) > 1 then was = 0
 next
 if was then print "tilt ok"
@@ -699,7 +699,7 @@ for i = 1 to 70
     if not p.ground then m = -1
 next
 k.jump = 0
-v = cint(wd.lv.cart.y) - RAILUP - cint(g.camy)
+v = cint(wd.lv.cart.y) - RAILUP - cint(g.cam.y)
 was = wd.lv.cart.st = 1 and wd.mu.zHeld = CHASETUNE + 1 and m and p.ground and wd.lv.cart.hits = 0 and v >= 0 and v < 40
 wd.se.ticks = 180 - (c mod 180)
 Stand wd.lv, wd.gr, p, c, 0
@@ -935,7 +935,7 @@ if layers_ok then print "layers ok"
 dim goldOk as integer, goldAt as integer, gold2 as integer, goldScore as long, saved as long
 GoStage wd, 0, g, p, lo(), pt()
 ' the zone's card is across the view's middle as a stage begins, gold on red: past it
-g.modeT = 20
+g.mode_t = 20
 wd.se.goldLo = 0
 wd.se.goldHi = 0
 goldAt = -1
@@ -948,8 +948,8 @@ goldOk = wd.lv.nGold = NGOLD and goldAt >= 0 and GoldNo%(wd.lv, goldAt) = 0 and 
 Stand wd.lv, wd.gr, p, wd.lv.ob(goldAt).x, 0
 goldOk = goldOk and wd.lv.ob(goldAt).y = p.at.y - 5 * TS - 14 and not Found%(wd.se, 0, 0)
 g.shake = 0
-g.camx = wd.lv.ob(goldAt).x - 160
-g.camy = wd.lv.ob(goldAt).y - 100
+g.cam.x = wd.lv.ob(goldAt).x - 160
+g.cam.y = wd.lv.ob(goldAt).y - 100
 Render wd, g, p, lo(), pt()
 goldOk = goldOk and point(160, 100) >= CGOLD and point(160, 100) <= CGOLD + 4
 goldOk = goldOk and point(6 + PIPX + 3, 5 + PIPY + 3) = CINK
@@ -980,8 +980,8 @@ goldOk = goldOk and g.score = goldScore + GOLDPTS
 ' he stands clear of where it was: over it he hid it, found or not
 Stand wd.lv, wd.gr, p, wd.lv.ob(goldAt).x - 60, 0
 g.shake = 0
-g.camx = wd.lv.ob(goldAt).x - 160
-g.camy = wd.lv.ob(goldAt).y - 100
+g.cam.x = wd.lv.ob(goldAt).x - 160
+g.cam.y = wd.lv.ob(goldAt).y - 100
 Render wd, g, p, lo(), pt()
 goldOk = goldOk and (point(160, 100) < CGOLD or point(160, 100) > CGOLD + 4)
 goldOk = goldOk and point(6 + PIPX + 3, 5 + PIPY + 3) = CYELLOW and point(6 + PIPX + 11, 5 + PIPY + 3) = CINK
@@ -1060,7 +1060,7 @@ GoStage wd, 0, g, p, lo(), pt()
 ' step on each of their beats, the last of it on their last; a key takes it all at once. The beat is the tune's
 ' own, counted from where it began, and the scene's with no music. It ran out in a second, off the beat
 g.mode = CLEARED
-g.modeT = 0
+g.mode_t = 0
 g.tallied = 0
 g.bonus = 1600
 hid = g.score
@@ -1086,7 +1086,7 @@ next
 was = was and g.bonus = 0 and g.score = hid + 1600 and g.tallied = TALLYN
 GoStage wd, 0, g, p, lo(), pt()
 g.mode = CLEARED
-g.modeT = 0
+g.mode_t = 0
 g.tallied = 0
 g.bonus = 1230
 hid = g.score
@@ -1118,13 +1118,13 @@ for i = 1 to 200
 next
 was = g.mode = INTRO and wd.zn.stage = SINTRO and wd.zn.id = 1 and wd.se.sceneNext = 2
 was = was and wd.mu.zHeld = BETWEEN + 1 and wd.tn.dusk = 16
-was = was and Sudden%(wd.se, g) and abs(g.modeT * BEATS - BUMP0) < 1
+was = was and Sudden%(wd.se, g) and abs(g.mode_t * BEATS - BUMP0) < 1
 was = was and wd.tn.n(2) > 0 and wd.tn.now(wd.tn.which(2, 0)) = wd.tn.own(2, 0)
 for i = 1 to 12 * 30
     Advance wd, g, p, k, lo(), pt(), cu()
     if (i mod 60) = 0 then IntroDraw wd, g, p, cu()
 next
-was = was and g.mode = INTRO and abs(g.camx - 2140) < 1
+was = was and g.mode = INTRO and abs(g.cam.x - 2140) < 1
 for i = 1 to 200
     Advance wd, g, p, k, lo(), pt(), cu()
     if g.mode <> INTRO then exit for
@@ -1150,7 +1150,7 @@ if was then print "bump ok"
 ' Saltwick Sands' sea rises and falls by the clock, from low water to high and back, and from low water at the
 ' level's start whatever the clock then: it began where the game's clock had it, a sunset's high water by chance
 GoStage wd, 4, g, p, lo(), pt()
-g.modeT = 5
+g.mode_t = 5
 hid = wd.se.ticks
 Flow wd.lv, wd.se
 was = wd.lv.tide = wd.lv.tideLo and wd.lv.tideLo > wd.lv.tideHi and wd.se.ticks > 0
@@ -1188,15 +1188,15 @@ next
 if was and p.at.x - j > 20 and p.at.x - j < 50 then print "tide ok"
 ' the sea is drawn in the gap up to its surface and not over it; ground the sea is over is under it too, and of
 ' the wet pictures: its top tile was sand
-g.camx = c * TS - 100
-g.camy = wd.lv.tide - 100
+g.cam.x = c * TS - 100
+g.cam.y = wd.lv.tide - 100
 Render wd, g, p, lo(), pt()
 was = point(104, 104) = CSEA + 2 and (point(104, 94) < CSEA or point(104, 94) > CSEA + 6)
 wd.lv.tideLo = wd.lv.top(c - 2) * TS - 20
 wd.lv.tideHi = wd.lv.tideLo
 Tick wd, g, p, k, lo(), pt()
-g.camx = c * TS - 100
-g.camy = wd.lv.tide - 100
+g.cam.x = c * TS - 100
+g.cam.y = wd.lv.tide - 100
 Render wd, g, p, lo(), pt()
 j = point(72, 130)
 if was and point(72, 104) = CSEA + 2 and j >= CSEA and j <= CSEA + 6 then print "sea ok"
@@ -1376,11 +1376,11 @@ for i = 1 to 200
 next
 k.r = 0
 was = was and v > 2 and i < 60 and p.vel.x >= FLUMEV
-g.camx = wd.lv.ob(j).x - 100
+g.cam.x = wd.lv.ob(j).x - 100
 g.shake = 0
 Render wd, g, p, lo(), pt()
 c = 100
-m = wd.lv.ob(j).y - int(g.camy)
+m = wd.lv.ob(j).y - int(g.cam.y)
 if was and point(c + 40, m + 42) = point(c + 95, m + 77) and wd.art.at(ICISTERN) > 0 then print "flume ok"
 ' a works' sweeper hurts whoever meets its hood, a rolling Charlie too; rolled into from behind it is beaten, and
 ' landed on, with a bounce. Jumped at 50 pixels like a cat, its hood caught the pilot rising
@@ -1527,15 +1527,15 @@ next
 k.r = 0
 was = was and i < 400
 Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 60, 0
-g.camx = wd.lv.ob(c).x - 160
+g.cam.x = wd.lv.ob(c).x - 160
 g.shake = 0
 for j = 0 to 1
     do until PressT%(wd.lv, wd.se, c) = 20 + j * (PRESSFALL - 4)
         wd.se.ticks = wd.se.ticks + 1
     loop
     Render wd, g, p, lo(), pt()
-    colA(j) = point(160, wd.lv.ob(c).y - int(g.camy) - 4)
-    colB(j) = point(160, wd.lv.ob(c).y - int(g.camy) - PRESSUP - 4)
+    colA(j) = point(160, wd.lv.ob(c).y - int(g.cam.y) - 4)
+    colB(j) = point(160, wd.lv.ob(c).y - int(g.cam.y) - PRESSUP - 4)
 next
 if was and colA(0) <> colA(1) and colB(0) <> colB(1) then print "press ok"
 ' Whitecap Pass is the fourth zone, by name and in its own colours: its snow's top the same picture at both hours,
@@ -1544,10 +1544,10 @@ was = ZoneName$(3) = "WHITECAP PASS"
 for j = 0 to 1
     GoStage wd, 6 + j, g, p, lo(), pt()
     Tick wd, g, p, k, lo(), pt()
-    g.camx = 150
+    g.cam.x = 150
     g.shake = 0
     Render wd, g, p, lo(), pt()
-    colA(j) = point(100, GroundAt%(wd.lv, 250) - int(g.camy))
+    colA(j) = point(100, GroundAt%(wd.lv, 250) - int(g.cam.y))
     if j = 0 then hid = wd.tn.now(colA(0))
     was = was and wd.zn.id = 3
 next
@@ -1558,10 +1558,10 @@ was = ZoneName$(5) = "LANTERN QUARTER"
 for j = 0 to 1
     GoStage wd, 10 + j, g, p, lo(), pt()
     Tick wd, g, p, k, lo(), pt()
-    g.camx = 150
+    g.cam.x = 150
     g.shake = 0
     Render wd, g, p, lo(), pt()
-    colA(j) = point(100, GroundAt%(wd.lv, 250) - int(g.camy))
+    colA(j) = point(100, GroundAt%(wd.lv, 250) - int(g.cam.y))
     if j = 0 then hid = wd.tn.now(colA(0))
     was = was and wd.zn.id = 5 and wd.mu.song(ZTUNE).swing = 1 and wd.mu.song(ZTUNE).tempo = 132 + 12 * j
 next
@@ -1571,7 +1571,7 @@ if was and colA(0) = colA(1) and hid = &H3D2522 and wd.tn.now(colA(1)) <> hid th
 ' goes through it, and under it falls on; trodden it gives, and is still again LINET things' steps on; drawn
 ' post to post
 GoStage wd, 10, g, p, lo(), pt()
-g.modeT = 20
+g.mode_t = 20
 was = wd.lv.nRope > 0
 c = wd.lv.ropes(0).x + wd.lv.ropes(0).w \\ 2
 m = wd.lv.ropes(0).y + LINESAG
@@ -1624,11 +1624,11 @@ for i = 1 to LINET * 2 + 4
     Tick wd, g, p, k, lo(), pt()
 next
 was = was and wd.lv.ropes(0).t = 0 and LineY%(wd.lv.ropes(0), wd.lv.ropes(0).w \\ 2) = m
-g.camx = c - 160
+g.cam.x = c - 160
 g.shake = 0
 Render wd, g, p, lo(), pt()
-was = was and point(160, m - int(g.camy)) = CLINEN and point(160, m - 6 - int(g.camy)) <> CLINEN
-was = was and point(wd.lv.ropes(0).x - int(g.camx), m + 6 - int(g.camy)) = CPOLE + 1
+was = was and point(160, m - int(g.cam.y)) = CLINEN and point(160, m - 6 - int(g.cam.y)) <> CLINEN
+was = was and point(wd.lv.ropes(0).x - int(g.cam.x), m + 6 - int(g.cam.y)) = CPOLE + 1
 if was then print "line ok"
 ' an awning throws him who comes down on it 135 up, 450 squared over twice GRAV, however often; it stays given
 ' AWNT things' steps, drawn so; from under he goes through it, and past its edge he falls by it
@@ -1661,8 +1661,8 @@ next
 was = was and abs(colA(0) - 135) < 8 and abs(colA(1) - colA(0)) < 3 and abs(colA(2) - colA(0)) < 3
 ' its canvas's top row at rest, and given
 p.at.x = wd.lv.ob(c).x - 100
-g.camx = wd.lv.ob(c).x - 160
-g.camy = m - 100
+g.cam.x = wd.lv.ob(c).x - 160
+g.cam.y = m - 100
 for j = 0 to 1
     wd.lv.ob(c).s = j * AWNT
     g.shake = 0
@@ -1738,7 +1738,7 @@ next
 was = was and p.dig = m + 1 and abs(p.at.x - bx - 15 * DIGV / 60) < 1
 g.shake = 0
 Render wd, g, p, lo(), pt()
-was = was and Fur%(cint(p.at.x) - int(g.camx), 14, cint(p.at.y) - 26 - int(g.camy), cint(p.at.y) - int(g.camy)) = 0
+was = was and Fur%(cint(p.at.x) - int(g.cam.x), 14, cint(p.at.y) - 26 - int(g.cam.y), cint(p.at.y) - int(g.cam.y)) = 0
 for i = 1 to 600
     Tick wd, g, p, k, lo(), pt()
     if p.dig = 0 then exit for
@@ -1755,8 +1755,8 @@ for j = 0 to 1
     v = c
     if j = 1 then v = m
     colB(j) = 0
-    g.camx = wd.lv.ob(v).x - 160
-    g.camy = wd.lv.ob(v).y - 150
+    g.cam.x = wd.lv.ob(v).x - 160
+    g.cam.y = wd.lv.ob(v).y - 150
     for i = 0 to 7
         wd.se.ticks = wd.se.ticks + 16
         g.shake = 0
@@ -1792,7 +1792,7 @@ was = was and abs(wd.lv.ob(c).x - bx - 240) < 6 and abs(p.at.x - wd.lv.ob(c).x -
 was = was and p.sg = wd.lv.mv(m).s
 g.shake = 0
 Render wd, g, p, lo(), pt()
-was = was and point(wd.lv.ob(c).x + 20 - int(g.camx), wd.lv.ob(c).y + 23 - int(g.camy)) = 187
+was = was and point(wd.lv.ob(c).x + 20 - int(g.cam.x), wd.lv.ob(c).y + 23 - int(g.cam.y)) = 187
 for i = 1 to 600
     Tick wd, g, p, k, lo(), pt()
 next
@@ -1848,11 +1848,11 @@ for i = 1 to 8
 next
 was = was and p.at.y < m - 4 and not p.ground
 Stand wd.lv, wd.gr, p, wd.lv.ropes(c).x - 60, 0
-g.camx = bx - 160
-g.camy = m - 100
+g.cam.x = bx - 160
+g.cam.y = m - 100
 g.shake = 0
 Render wd, g, p, lo(), pt()
-was = was and point(160, 100) = CQINK and point(160 - 30 + 9, LineY%(wd.lv.ropes(c), 9) - int(g.camy) + 6) = 142
+was = was and point(160, 100) = CQINK and point(160 - 30 + 9, LineY%(wd.lv.ropes(c), 9) - int(g.cam.y) + 6) = 142
 if was then print "slide ok"
 ' a pouncer waits in its bin, eyes under the lid, while he is far; within POUNCER of it it leaps at him, POUNCEFAR
 ' along in POUNCEN things' steps, and scratches on its way; landed it prowls as a cat of the Mob does
@@ -1868,8 +1868,8 @@ for i = 1 to 20
 next
 was = was and wd.lv.ob(c).s = 0
 ' its eyes show in the bin, and not once it is out
-g.camx = bx - 160
-g.camy = m - 100
+g.cam.x = bx - 160
+g.cam.y = m - 100
 g.shake = 0
 Render wd, g, p, lo(), pt()
 colB(0) = point(160 - 4, 100 - 19)
@@ -1910,7 +1910,7 @@ if was then print "pounce ok"
 ' a stage begun again has it back in its bin; a bark from past its reach brings it out; rolled into in the air it
 ' is beaten, and no cat lands
 GoStage wd, 10, g, p, lo(), pt()
-g.modeT = 20
+g.mode_t = 20
 was = was and wd.lv.ob(c).s = 0 and wd.lv.ob(c).x = bx
 Stand wd.lv, wd.gr, p, bx - POUNCER - 10, 0
 k.bark = -1
@@ -1931,8 +1931,8 @@ was = was and wd.lv.ob(c).s = POUNCEGONE and g.score = v + 100 and not p.stun
 for i = 1 to POUNCEN * 2 + 4
     Tick wd, g, p, k, lo(), pt()
 next
-g.camx = bx - 160
-g.camy = m - 100
+g.cam.x = bx - 160
+g.cam.y = m - 100
 g.shake = 0
 Render wd, g, p, lo(), pt()
 if was and wd.lv.ob(c).s = POUNCEGONE and point(160 - 4, 100 - 19) <> 141 then print "pouncer ok"
@@ -1941,7 +1941,7 @@ if was and wd.lv.ob(c).s = POUNCEGONE and point(160 - 4, 100 - 19) <> 141 then p
 ' startled, then it walks on away; who comes down on its line shakes it off, beaten, once; a stage begun again has
 ' it back, and it scratches him who rises into it
 GoStage wd, 10, g, p, lo(), pt()
-g.modeT = 20
+g.mode_t = 20
 c = 0
 j = 0
 was = 0
@@ -1985,8 +1985,8 @@ was = was and wd.lv.ob(c).s = -1 and wd.lv.ob(c).x < v - 2
 ' drawn on its line: its back's fur
 colA(2) = wd.lv.ob(c).x
 colA(3) = wd.lv.ob(c).y
-g.camx = colA(2) - 160
-g.camy = colA(3) - 100
+g.cam.x = colA(2) - 160
+g.cam.y = colA(3) - 100
 g.shake = 0
 Render wd, g, p, lo(), pt()
 colB(0) = point(160 - 2, 100 - 5)
@@ -2014,14 +2014,14 @@ Stand wd.lv, wd.gr, p, bx + 130, 0
 for i = 1 to 70
     Tick wd, g, p, k, lo(), pt()
 next
-g.camx = colA(2) - 160
-g.camy = colA(3) - 100
+g.cam.x = colA(2) - 160
+g.cam.y = colA(3) - 100
 g.shake = 0
 Render wd, g, p, lo(), pt()
 colB(1) = point(160 - 2, 100 - 5)
 was = was and colB(0) >= 32 and colB(0) <= 37 and (colB(1) < 32 or colB(1) > 37)
 GoStage wd, 10, g, p, lo(), pt()
-g.modeT = 20
+g.mode_t = 20
 was = was and wd.lv.ob(c).s = -1 and wd.lv.ob(c).x = bx + 46
 g.bones = 2
 p.inv = 0
@@ -2038,7 +2038,7 @@ if was then print "walker ok"
 ' leaves; one too new it leaves till it is not; startled by a bark it takes none; rolled into it is beaten as a cat;
 ' a stage begun again has it back
 GoStage wd, 10, g, p, lo(), pt()
-g.modeT = 20
+g.mode_t = 20
 c = 0
 for i = 0 to wd.lv.nObj - 1
     if wd.lv.ob(i).k = KSNATCH then c = i
@@ -2110,8 +2110,8 @@ for i = 1 to 20
     Tick wd, g, p, k, lo(), pt()
 next
 was = was and lo(0).t > 0 and wd.lv.ob(c).s > 1 and abs(wd.lv.ob(c).x - v) <= 1
-g.camx = wd.lv.ob(c).x - 160
-g.camy = wd.lv.ob(c).y - 100
+g.cam.x = wd.lv.ob(c).x - 160
+g.cam.y = wd.lv.ob(c).y - 100
 g.shake = 0
 Render wd, g, p, lo(), pt()
 colB(1) = point(160 - 2, 100 - 5)
@@ -2120,8 +2120,8 @@ for i = 1 to 60
 next
 was = was and lo(0).t <= 0 and wd.se.looseN = 0 and g.bones = hid
 ' drawn in its own grey, startled and at a prowl; rolled into, beaten
-g.camx = wd.lv.ob(c).x - 160
-g.camy = wd.lv.ob(c).y - 100
+g.cam.x = wd.lv.ob(c).x - 160
+g.cam.y = wd.lv.ob(c).y - 100
 g.shake = 0
 Render wd, g, p, lo(), pt()
 colB(0) = point(160 - 2, 100 - 5)
@@ -2136,7 +2136,7 @@ p.vel.y = 0
 Tick wd, g, p, k, lo(), pt()
 was = was and wd.lv.ob(c).s = 0 and g.score = shown + 100 and not p.stun
 GoStage wd, 10, g, p, lo(), pt()
-g.modeT = 20
+g.mode_t = 20
 was = was and wd.lv.ob(c).s = -1 and wd.lv.ob(c).x = bx
 if was then print "snatcher ok"
 ' a mortar fires on its own beat of every four, by the zone tune's clock. The festival's is 144 beats a minute: a
@@ -2145,7 +2145,7 @@ if was then print "snatcher ok"
 ' at 620, his way kept, 256 high, 620 squared over twice GRAV; 3 ticks on he falls on. Its shell is 46 up half a
 ' beat on, 12 ticks; a beat and a half on its burst's white middle is 96 up. A stage begun again keeps its beat
 GoStage wd, 11, g, p, lo(), pt()
-g.modeT = 20
+g.mode_t = 20
 for c = 0 to wd.lv.nObj - 1
     if wd.lv.ob(c).k = KMORTAR then exit for
 next
@@ -2225,8 +2225,8 @@ for j = 0 to 2
     do until wd.se.ticks mod 100 = 37 + j * 25
         Tick wd, g, p, k, lo(), pt()
     loop
-    g.camx = bx - 160
-    g.camy = m - 150
+    g.cam.x = bx - 160
+    g.cam.y = m - 150
     g.shake = 0
     Render wd, g, p, lo(), pt()
     colA(1 + j) = point(158, 87)
@@ -2270,7 +2270,7 @@ if was then print "mortar ok"
 ' festival night's two from ten moments of the bar, it is never hurt. From the stage's start it would come to
 ' them at one moment only, the one a platform before them lets it through at
 GoStage wd, 11, g, p, lo(), pt()
-g.modeT = 20
+g.mode_t = 20
 for c = 0 to wd.lv.nObj - 1
     if wd.lv.ob(c).k = KMORTAR then exit for
 next
@@ -2298,7 +2298,7 @@ if was then print "mortar pilot ok"
 ' head, and no one a step aside; under a bare sill no one is hurt. The way is clear for the pilot from the pot's
 ' breaking till 0.8 seconds before the next
 GoStage wd, 11, g, p, lo(), pt()
-g.modeT = 20
+g.mode_t = 20
 for c = 0 to wd.lv.nObj - 1
     if wd.lv.ob(c).k = KTIPPER then exit for
 next
@@ -2328,8 +2328,8 @@ loop
 was = was and PotFall%(wd.lv, wd.se, c) = 15
 ' drawn: the house's wall; the pot in the air, its sill bare
 g.shake = 0
-g.camx = wd.lv.ob(c).x - 160
-g.camy = m - 150
+g.cam.x = wd.lv.ob(c).x - 160
+g.cam.y = m - 150
 Render wd, g, p, lo(), pt()
 was = was and point(140, 70) >= 130 and point(140, 70) <= 132
 was = was and point(167, 92) = CCLAY and point(167, 77) <> CCLAY and point(161, 77) <> 140
@@ -2370,8 +2370,8 @@ do until wd.se.ticks mod 100 = 49
     j = wd.se.ticks mod 100
     if j = 80 or j = 0 or j = 30 then was = was and PotClear%(wd.lv, wd.se, c) = (j = 80 or j = 0)
     if j <> 90 and j <> 20 and j <> 40 then continue do
-    g.camx = wd.lv.ob(c).x - 160
-    g.camy = m - 150
+    g.cam.x = wd.lv.ob(c).x - 160
+    g.cam.y = m - 150
     Render wd, g, p, lo(), pt()
     was = was and (point(167, 77) = CCLAY) = (j <> 90) and (point(161, 77) = 140) = (j = 40)
 loop
@@ -2415,7 +2415,7 @@ wd.mu.muted = -1
 was = -1
 for c = 0 to 5
     GoStage wd, 10 + c \\ 3, g, p, lo(), pt()
-    g.modeT = 20
+    g.mode_t = 20
     wd.se.goldLo = 0
     wd.se.goldHi = 0
     j = 0
@@ -2497,7 +2497,7 @@ was = -1
 for c = 0 to 29
     wd.se.ticks = 1000
     GoStage wd, c \\ 3, g, p, lo(), pt()
-    g.modeT = 20
+    g.mode_t = 20
     wd.se.goldLo = 0
     wd.se.goldHi = 0
     j = 0
@@ -2541,7 +2541,7 @@ if was then print "golds ok"
 ' guitar lying, the zone's tune back, and it is his to take
 dim relayOk as integer, slowest as single, quickest as single, lobs as integer, bar as integer
 GoStage wd, 11, g, p, lo(), pt()
-g.modeT = 20
+g.mode_t = 20
 c = wd.mu.zHeld
 Stand wd.lv, wd.gr, p, wd.lv.chaseX + 4, 0
 Tick wd, g, p, k, lo(), pt()
@@ -2569,8 +2569,8 @@ for m = 0 to NLEG - 1
     if m = 1 then
         ' drawn: the guitar's amber over Sprocket's back, his hard hat, a pip for each cat still to bump
         g.shake = 0
-        g.camx = wd.lv.cart.x - 160
-        g.camy = wd.lv.cart.y - 150
+        g.cam.x = wd.lv.cart.x - 160
+        g.cam.y = wd.lv.cart.y - 150
         Render wd, g, p, lo(), pt()
         relayOk = relayOk and point(160 - 6, 150 - 15) = CGOLD + 2 and point(160 + 5, 150 - 11) = CGOLD + 3
         relayOk = relayOk and point(160 - 16, 150 - 38) <> CYELLOW and point(160 - 8, 150 - 38) = CYELLOW
@@ -2627,8 +2627,8 @@ for m = 0 to NLEG - 1
         for i = 1 to 20
             Tick wd, g, p, k, lo(), pt()
         next
-        g.camx = wd.lv.box.x - 160
-        g.camy = wd.lv.box.y - 150
+        g.cam.x = wd.lv.box.x - 160
+        g.cam.y = wd.lv.box.y - 150
         Render wd, g, p, lo(), pt()
         relayOk = relayOk and point(160 + 5, 150 - 15) = CGOLD + 3
     end if
@@ -2640,8 +2640,8 @@ for m = 0 to NLEG - 1
     if m < NLEG - 1 then relayOk = relayOk and wd.lv.cart.x - bx > 350
 next
 relayOk = relayOk and wd.lv.cart.st = 2 and wd.mu.zHeld = c
-g.camx = wd.lv.cart.x - 160
-g.camy = wd.lv.cart.y - 150
+g.cam.x = wd.lv.cart.x - 160
+g.cam.y = wd.lv.cart.y - 150
 Render wd, g, p, lo(), pt()
 relayOk = relayOk and point(160 + 3, 150 - 6) = CGOLD + 2
 hid = g.score
@@ -2655,10 +2655,10 @@ was = ZoneName$(4) = "RUSSET WOOD"
 for j = 0 to 1
     GoStage wd, 8 + j, g, p, lo(), pt()
     Tick wd, g, p, k, lo(), pt()
-    g.camx = 150
+    g.cam.x = 150
     g.shake = 0
     Render wd, g, p, lo(), pt()
-    colA(j) = point(100, GroundAt%(wd.lv, 250) - int(g.camy))
+    colA(j) = point(100, GroundAt%(wd.lv, 250) - int(g.cam.y))
     if j = 0 then hid = wd.tn.now(colA(0))
     was = was and wd.zn.id = 4
 next
@@ -2829,13 +2829,13 @@ twinsOk = twinsOk and wd.mu.zHeld = twTune and TwinPose%(wd.lv, 0) = 4 and TwinP
 ' toadstool, its cap the wood's berry. The oak is looked at 40 lower on the screen: the HUD's golden-bone pips
 ' lie over the left twin's place else
 g.shake = 0
-g.camx = wd.lv.oakX - 160
-g.camy = wd.lv.oakY - 230
+g.cam.x = wd.lv.oakX - 160
+g.cam.y = wd.lv.oakY - 230
 Render wd, g, p, lo(), pt()
 twinsOk = twinsOk and point(160, 130) >= 129 and point(160, 130) <= 133
 twinsOk = twinsOk and point(160 - 64 - 6, 230 - 9 * TS - 19) = 79 and point(160 + 64 + 6, 230 - 10 * TS - 19) = 79
-g.camx = wd.lv.oakX + 16
-g.camy = wd.lv.oakY - 190
+g.cam.x = wd.lv.oakX + 16
+g.cam.y = wd.lv.oakY - 190
 Render wd, g, p, lo(), pt()
 twinsOk = twinsOk and point(157, 180) = 157
 if twinsOk then print "twins ok"
@@ -2884,7 +2884,7 @@ Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 60, 0
 for m = 0 to 1
     g.shake = 0
     Render wd, g, p, lo(), pt()
-    colB(m) = point(wd.lv.ob(c).x + SAPREACH + 5 - int(g.camx), wd.lv.ob(c).y - 6 - int(g.camy))
+    colB(m) = point(wd.lv.ob(c).x + SAPREACH + 5 - int(g.cam.x), wd.lv.ob(c).y - 6 - int(g.cam.y))
     wd.lv.ob(c).s = 0
 next
 if was and (colB(0) < 134 or colB(0) > 137) and colB(1) >= 134 and colB(1) <= 137 then print "sapling ok"
@@ -2911,9 +2911,9 @@ for i = 1 to 120
     if colB(0) <> 0 or p.sway < .8 then continue for
     g.shake = 0
     Render wd, g, p, lo(), pt()
-    m = wd.lv.ob(c).x + cint(28 * sin(p.sway)) - int(g.camx)
-    colB(0) = point(m, wd.lv.ob(c).y + cint(28 * cos(p.sway)) - int(g.camy))
-    colB(1) = point(wd.lv.ob(c).x - int(g.camx), wd.lv.ob(c).y + 28 - int(g.camy))
+    m = wd.lv.ob(c).x + cint(28 * sin(p.sway)) - int(g.cam.x)
+    colB(0) = point(m, wd.lv.ob(c).y + cint(28 * cos(p.sway)) - int(g.cam.y))
+    colB(1) = point(wd.lv.ob(c).x - int(g.cam.x), wd.lv.ob(c).y + 28 - int(g.cam.y))
 next
 was = was and p.vine = c + 1 and colA(0) > 97 and colA(0) < 107 and colA(1) < -97 and colA(1) > -107
 was = was and colB(0) = CVINE and colB(1) <> CVINE and colB(1) <> CVINED
@@ -2934,9 +2934,9 @@ for i = 1 to 80
     Tick wd, g, p, k, lo(), pt()
 next
 g.shake = 0
-g.camy = wd.lv.ob(c).y - 40
+g.cam.y = wd.lv.ob(c).y - 40
 Render wd, g, p, lo(), pt()
-j = point(wd.lv.ob(c).x - int(g.camx), 68)
+j = point(wd.lv.ob(c).x - int(g.cam.x), 68)
 if was and wd.lv.ob(c).s = 0 and j = CVINE then print "vine ok"
 ' bramble hurts him who walks into it, his bones lost; curled he goes through it, his bones kept, and it is drawn
 ' cut, its leaves in the air; BRAMBLET steps on it is grown again and hurts
@@ -2967,7 +2967,7 @@ for m = 0 to 2
         next
         g.shake = 0
         Render wd, g, p, lo(), pt()
-        colB(j) = point(wd.lv.ob(c).x - 19 + 22 - int(g.camx), wd.lv.ob(c).y - 25 + 7 - int(g.camy))
+        colB(j) = point(wd.lv.ob(c).x - 19 + 22 - int(g.cam.x), wd.lv.ob(c).y - 25 + 7 - int(g.cam.y))
     next
     ' a thorn's pale point is there grown, and not cut
     was = was and wd.lv.ob(c).s = 0 and colB(0) <> 125 and colB(1) = 125
@@ -3021,7 +3021,7 @@ for i = 1 to 90
     if abs(p.at.x - wd.lv.ob(c).x) >= 8 then continue for
     g.shake = 0
     Render wd, g, p, lo(), pt()
-    colA(0) = Fur%(cint(p.at.x) - int(g.camx), 14, cint(p.at.y) - 26 - int(g.camy), cint(p.at.y) - int(g.camy))
+    colA(0) = Fur%(cint(p.at.x) - int(g.cam.x), 14, cint(p.at.y) - 26 - int(g.cam.y), cint(p.at.y) - int(g.cam.y))
     colA(1) = 1
 next
 was = was and colA(1) = 1 and colA(0) = 0 and p.at.x > wd.lv.ob(c).x + LOGR and p.roll
@@ -3053,8 +3053,8 @@ was = was and p.at.x > wd.lv.ob(c).x + MOUNDR and p.at.x < wd.lv.ob(c).x + 20
 Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 40, 0
 g.shake = 0
 Render wd, g, p, lo(), pt()
-j = wd.lv.ob(c).x - int(g.camx) - 1
-m = wd.lv.ob(c).y - int(g.camy)
+j = wd.lv.ob(c).x - int(g.cam.x) - 1
+m = wd.lv.ob(c).y - int(g.cam.y)
 was = was and point(j, m - 3) = 137 and point(j, m - 9) = 123
 Stand wd.lv, wd.gr, p, wd.lv.ob(c).x + 3, 0
 k.d = -1
@@ -3069,7 +3069,7 @@ was = was and p.dig = v + 1 and abs(p.at.x - bx - 15 * DIGV / 60) < 1
 Hurt wd.mu, wd.se, g, p, 0, lo(), SHURT
 g.shake = 0
 Render wd, g, p, lo(), pt()
-was = was and Fur%(cint(p.at.x) - int(g.camx), 14, cint(p.at.y) - 26 - int(g.camy), cint(p.at.y) - int(g.camy)) = 0
+was = was and Fur%(cint(p.at.x) - int(g.cam.x), 14, cint(p.at.y) - 26 - int(g.cam.y), cint(p.at.y) - int(g.cam.y)) = 0
 for i = 16 to 60
     Tick wd, g, p, k, lo(), pt()
     if p.dig = 0 then exit for
@@ -3120,8 +3120,8 @@ for i = 1 to 40
 next
 g.shake = 0
 Render wd, g, p, lo(), pt()
-j = wd.lv.ob(c).x - int(g.camx)
-m = wd.lv.ob(c).y - int(g.camy)
+j = wd.lv.ob(c).x - int(g.cam.x)
+m = wd.lv.ob(c).y - int(g.cam.y)
 was = was and abs(wd.lv.ob(c).x - v - 30) < SQV and wd.lv.ob(c).s = SQWAIT - 20
 was = was and point(j - 4, m - 13) = 160 and point(j + 6, m - 5) <> 116
 for i = 41 to 119
@@ -3137,9 +3137,9 @@ for i = 1 to 21
 next
 g.shake = 0
 Render wd, g, p, lo(), pt()
-j = cint(wd.lv.lobs(0).x) - int(g.camx) - 1
+j = cint(wd.lv.lobs(0).x) - int(g.cam.x) - 1
 was = was and wd.lv.lobN = 1 and p.stun = 0 and g.bones = 5
-was = was and point(j, cint(wd.lv.lobs(0).y) - int(g.camy) - 2) = 161
+was = was and point(j, cint(wd.lv.lobs(0).y) - int(g.cam.y) - 2) = 161
 Tick wd, g, p, k, lo(), pt()
 was = was and wd.lv.lobN = 0 and p.stun <> 0 and g.bones = 0 and not p.dead
 ' it bursts in its own colour
@@ -3166,7 +3166,8 @@ for i = 1 to 40
     if wd.lv.lobN > 0 and bx = NONE then bx = p.at.x - wd.lv.ob(c).x
 next
 k.r = 0
-was = was and abs(bx) < SQNEAR and wd.lv.lobN = 0 and p.stun = 0 and g.bones >= 5 and p.at.x > v + 60 and g.mode = PLAYING
+was = was and abs(bx) < SQNEAR and wd.lv.lobN = 0 and p.stun = 0 and g.bones >= 5 and _
+    p.at.x > v + 60 and g.mode = PLAYING
 ' a bark under it: it keeps still, and nothing falls
 StandUnder wd.lv, wd.gr, p, v + 30, v + 100
 p.gsp = 0
@@ -3218,8 +3219,8 @@ was = was and wd.lv.swarms(0).st = 0 and wd.lv.swarms(0).x = v and wd.lv.swarms(
 g.shake = 0
 Render wd, g, p, lo(), pt()
 c = 0
-for j = m - int(g.camy) - 12 to m - int(g.camy) + 12
-    for i = v - int(g.camx) - 18 to v - int(g.camx) + 18
+for j = m - int(g.cam.y) - 12 to m - int(g.cam.y) + 12
+    for i = v - int(g.cam.x) - 18 to v - int(g.cam.x) + 18
         if point(i, j) = CBEE then c = c + 1
     next
 next
@@ -3307,12 +3308,12 @@ for j = 0 to 1
     next
     k.r = 0
     colA(2 + j) = cint(p.gsp)
-    g.camx = c * TS - 32
+    g.cam.x = c * TS - 32
     g.shake = 0
     Render wd, g, p, lo(), pt()
     v = 0
     for i = 32 to 287
-        if wd.tn.now(point(i, wd.lv.top(c) * TS - int(g.camy))) = &H3F3F3F then v = v + 1
+        if wd.tn.now(point(i, wd.lv.top(c) * TS - int(g.cam.y))) = &H3F3F3F then v = v + 1
     next
     colB(2 + j) = v
 next
@@ -3372,7 +3373,8 @@ for i = 1 to 600
     Tick wd, g, p, k, lo(), pt()
     if not p.sled then exit for
 next
-was = was and i < 600 and abs(p.at.x - wd.lv.ob(m).x) < 40 and p.inv <= 0 and p.ground and not p.roll and wd.lv.ob(c).s = 1
+was = was and i < 600 and abs(p.at.x - wd.lv.ob(m).x) < 40 and p.inv <= 0 and p.ground and _
+    not p.roll and wd.lv.ob(c).s = 1
 Spawn wd.lv, wd.gr, wd.zn, wd.mu, g, p
 was = was and wd.lv.ob(c).s = 0
 Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 16, 40
@@ -3399,10 +3401,10 @@ for j = 0 to 1
     p.vel.y = 0
     Tick wd, g, p, k, lo(), pt()
     was = was and (not p.ground) = (j = 0)
-    g.camx = wd.lv.ob(c).x - 100
+    g.cam.x = wd.lv.ob(c).x - 100
     g.shake = 0
     Render wd, g, p, lo(), pt()
-    colA(j) = point(100, wd.lv.ob(c).y - 34 - int(g.camy))
+    colA(j) = point(100, wd.lv.ob(c).y - 34 - int(g.cam.y))
 next
 if was and colA(0) >= 116 and colA(0) <= 126 and colA(1) <> colA(0) then print "geyser ok"
 ' deep snow rolled through at speed packs round him, and not walked through nor rolled through slowly: a snowball,
@@ -3427,8 +3429,8 @@ for j = 0 to 2
 next
 g.shake = 0
 Render wd, g, p, lo(), pt()
-c = cint(p.at.x) - int(g.camx)
-v = cint(p.at.y) - int(g.camy)
+c = cint(p.at.x) - int(g.cam.x)
+v = cint(p.at.y) - int(g.cam.y)
 was = was and Fur%(c, 14, v - 28, v) = 0 and point(c, v - 14) >= 116 and point(c, v - 14) <= 120
 ' rolled on out of the snow, it is his still
 for i = 1 to 20
@@ -3485,8 +3487,8 @@ for j = 0 to 1
     ' a snowball, as it is drawn
     g.shake = 0
     Render wd, g, p, lo(), pt()
-    v = cint(wd.lv.lobs(0).x) - int(g.camx) - 1
-    was = was and point(v, cint(wd.lv.lobs(0).y) - int(g.camy) - 2) = 116
+    v = cint(wd.lv.lobs(0).x) - int(g.cam.x) - 1
+    was = was and point(v, cint(wd.lv.lobs(0).y) - int(g.cam.y) - 2) = 116
     if j then Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 160, 0
     for i = 1 to 70
         Tick wd, g, p, k, lo(), pt()
@@ -3501,8 +3503,8 @@ g.shake = 0
 for j = 0 to 1
     wd.lv.ob(c).s = THROWC - j * (THROWC - THROWUP)
     Render wd, g, p, lo(), pt()
-    y = wd.lv.ob(c).y - int(g.camy)
-    shown = Pix&(wd.lv.ob(c).x - int(g.camx) - 14, 28, y - 25, y - 12)
+    y = wd.lv.ob(c).y - int(g.cam.y)
+    shown = Pix&(wd.lv.ob(c).x - int(g.cam.x) - 14, 28, y - 25, y - 12)
     if j = 0 then bt = shown
 next
 was = was and shown <> bt
@@ -4105,14 +4107,14 @@ p.at.x = wd.lv.avalX + 10
 j = g.lives
 g.shake = 0
 Render wd, g, p, lo(), pt()
-v = point(wd.lv.avalX - 100 - int(g.camx), cint(p.at.y) - 30 - int(g.camy))
+v = point(wd.lv.avalX - 100 - int(g.cam.x), cint(p.at.y) - 30 - int(g.cam.y))
 for i = 1 to 80
     Tick wd, g, p, k, lo(), pt()
     if p.dead then exit for
     if i = 30 then
         g.shake = 0
         Render wd, g, p, lo(), pt()
-        c = point(wd.lv.avalX - 100 - int(g.camx), cint(p.at.y) - 30 - int(g.camy))
+        c = point(wd.lv.avalX - 100 - int(g.cam.x), cint(p.at.y) - 30 - int(g.cam.y))
     end if
 next
 ' the snow's tones are 116 to 118
@@ -4141,10 +4143,10 @@ for j = 0 to 1
     Render wd, g, p, lo(), pt()
     v = NONE
     c = NONE
-    for i = cint(wd.lv.cart.y) - 40 - int(g.camy) to cint(wd.lv.cart.y) + 20 - int(g.camy)
+    for i = cint(wd.lv.cart.y) - 40 - int(g.cam.y) to cint(wd.lv.cart.y) + 20 - int(g.cam.y)
         if i >= 0 and i < SH then
-            if point(cint(wd.lv.cart.x) - 10 - int(g.camx), i) = 59 then v = i
-            if point(cint(wd.lv.cart.x) + 8 - int(g.camx), i) = 59 then c = i
+            if point(cint(wd.lv.cart.x) - 10 - int(g.cam.x), i) = 59 then v = i
+            if point(cint(wd.lv.cart.x) + 8 - int(g.cam.x), i) = 59 then c = i
         end if
     next
     was = was and v <> NONE and c - v = j * 9
@@ -4517,8 +4519,8 @@ function Fall% (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part, 
     dim y as integer, ya as integer, yb as integer, sx as integer, sy as integer, pass as integer, was as single
     Fall% = NONE
     g.shake = 0
-    sx = cint(p.at.x) - int(g.camx)
-    sy = cint(p.at.y) - int(g.camy)
+    sx = cint(p.at.x) - int(g.cam.x)
+    sy = cint(p.at.y) - int(g.cam.y)
     for pass = 0 to 1
         ' first with him blinked out, as when he has been hurt
         was = p.inv
@@ -4570,7 +4572,6 @@ def game_files() -> dict[Path, str]:
 def outside(files: dict[Path, str]) -> list[str]:
     """Each field assigned outside its record's owner, as module:line record.field."""
     prog = basic_src.Program(files)
-    holder = {f.type: rec for rec, fs in prog.records.items() for f in fs.values() if f.type in prog.records}
     out = []
     for mod in prog.modules:
         where = mod.path.relative_to(DEMO.parent).with_suffix("").as_posix().removeprefix("barkley/")
@@ -4578,9 +4579,9 @@ def outside(files: dict[Path, str]) -> list[str]:
             for ref in basic_src.assigned(prog, mod, st):
                 if not ref.fields and not (st.routine and ref.base in mod.routines[st.routine].params):
                     continue
-                rec = ref.type if not ref.fields else ref.fields[-1][2]
-                while rec not in OWNERS and rec in holder:
-                    rec = holder[rec]
+                # the record the field is of, else the one that holds it, back along the chain
+                held = [ref.base_type] + [f[2] for f in ref.fields]
+                rec = next((r for r in reversed(held) if r in OWNERS), held[-1])
                 if rec not in OWNERS:
                     sys.exit(f"charlie: {where}: {rec} has no owner in charlie_test.py's OWNERS")
                 own = OWNERS[rec]
@@ -4592,15 +4593,22 @@ def outside(files: dict[Path, str]) -> list[str]:
 
 def owners_kept() -> int:
     """The count of fields assigned outside their owner, which is OUTSIDE: lowered as it falls. The count is
-    checked on planted assignments, two outside their owner (one in a one-line IF) and one inside."""
+    checked on planted assignments: three outside their owner, one in a one-line IF and one to a field's
+    field, and three inside. A Vec's x was once owned by the last record to hold a Vec, the camera's by
+    Charlie's: renaming the camera a Vec raised the count by five."""
     files = game_files()
     got = len(outside(files))
     play = DEMO.parent / "barkley/stage/play.bas"
     moves = DEMO.parent / "barkley/stage/hero/moves.bas"
-    two = "    p = fresh\n    p.gsp = 0\n    if p.dig then p.gsp = 0\n"
-    planted = {**files, play: files[play].replace("    p = fresh\n", two, 1)}
-    inside = {**files, moves: files[moves].replace("    p.gsp = 0\n", "    p.gsp = 0\n    p.gsp = 0\n", 1)}
-    if len(outside(planted)) != got + 2 or len(outside(inside)) != got:
+    states = DEMO.parent / "barkley/flow/states.bas"
+    three = "    p = fresh\n    p.gsp = 0\n    if p.dig then p.gsp = 0\n    p.at.x = 0\n"
+    planted = {**files, play: files[play].replace("    p = fresh\n", three, 1)}
+    inside = {
+        **files,
+        moves: files[moves].replace("    p.gsp = 0\n", "    p.gsp = 0\n    p.gsp = 0\n    p.at.x = 0\n", 1),
+        states: files[states].replace("    g.lives = 3\n", "    g.lives = 3\n    g.cam.x = 0\n", 1),
+    }
+    if len(outside(planted)) != got + 3 or len(outside(inside)) != got:
         sys.exit("charlie: the count of fields assigned outside their owner misses a planted one")
     if got > OUTSIDE:
         sys.exit(f"charlie: {got} fields assigned outside their record's owner, more than {OUTSIDE}")

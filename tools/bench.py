@@ -684,7 +684,7 @@ def charlie_modules() -> dict[str, bytes]:
 def charlie_program() -> str:
     """CHARLIE.BAS's Main swapped for a loop of each CHARLIE_EACH call (after an empty one), its ms a call to EACH.TXT."""
     head = CHARLIE.read_text().split("\nMain wd\nend\n", 1)[0]
-    move = f"FOR q = 1 TO 60: {CHARLIE_STEP}: NEXT\ncx = INT(g.camx): cy = INT(g.camy)\n"
+    move = f"FOR q = 1 TO 60: {CHARLIE_STEP}: NEXT\ncx = INT(g.cam.x): cy = INT(g.cam.y)\n"
     loops = "".join(f"{move}n = 0: t0 = TIMER\nDO\n    FOR q = 1 TO {EACH_REPS}\n    {call}\n    NEXT\n"
                     f"    n = n + {EACH_REPS}\nLOOP UNTIL TIMER - t0 >= 2\n"
                     "PRINT #1, (TIMER - t0) / n * 1000; n\n" for call in ("REM", *CHARLIE_EACH))

@@ -61,7 +61,7 @@ sub Tick (wd as World, g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Pa
     if wd.lv.murk then Nightfall wd.lv, wd.zn, wd.tn
     if wd.lv.tideLo <> NONE then Flow wd.lv, wd.se
     if wd.lv.nMv then Movers wd.lv, wd.gr, wd.mu, wd.se, p
-    g.modeT = g.modeT + STEPT
+    g.mode_t = g.mode_t + STEPT
     if g.shake > 0 then g.shake = g.shake - STEPT
     if wd.se.unkept then Keep wd.se
     MuteKey wd.mu, k
@@ -70,7 +70,7 @@ sub Tick (wd as World, g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Pa
     case PLAYING: PlayStep wd, g, p, k, lo(), pt()
     case CLEARED: ClearedStep wd, g, p, k, lo(), pt()
     case OVER
-        if g.modeT > OVERT or (g.modeT > 1.5 and (k.hit or k.start)) or k.quit then ResetWorld wd, g, p, lo(), pt()
+        if g.mode_t > OVERT or (g.mode_t > 1.5 and (k.hit or k.start)) or k.quit then ResetWorld wd, g, p, lo(), pt()
     end select
     if (wd.se.ticks and 1) = 0 then Things wd.lv, wd.mu, wd.se, g, p, lo(), pt()
     Shimmer wd.zn, wd.tn, wd.se
@@ -121,7 +121,7 @@ end sub
 ' The goal passed: the stage is cleared, its bonus by its bones and its time.
 private sub StageClear (mu as Deck, se as Session, g as Game)
     g.mode = CLEARED
-    g.modeT = 0
+    g.mode_t = 0
     g.tallied = 0
     g.bonus = g.bones * 50& + 10& * (240 - int(g.clock))
     if g.bonus < g.bones * 50& then g.bonus = g.bones * 50&
@@ -158,7 +158,7 @@ sub ResetWorld (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
     EndTune wd.lv, wd.zn, wd.mu
     wd.lv.glow = 0
     g.mode = TITLE
-    g.modeT = 0
+    g.mode_t = 0
     wd.se.cheer = 0
     wd.se.metT = 0
     wd.se.pastT = 0
@@ -169,8 +169,8 @@ sub ResetWorld (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
     g.lives = 3
     g.score = 0
     g.clock = 0
-    g.homeX = wd.lv.startX
-    g.homeY = wd.lv.startY
+    g.home.x = wd.lv.startX
+    g.home.y = wd.lv.startY
     for i = 0 to wd.lv.nObj - 1
         wd.lv.ob(i).x = wd.lv.ob(i).a
         ' a burrow's mound keeps its other end, and a chimney; a mortar its beat, and a tipper
@@ -240,7 +240,7 @@ private function Met% (wd as World, g as Game, p as Hero, k as Pad, pt() as Part
         p.face = 0
     end if
     wd.se.cheer = p.win
-    g.camx = g.camx + (wd.lv.famX - 166 - g.camx) * 4 * STEPT
+    g.cam.x = g.cam.x + (wd.lv.famX - 166 - g.cam.x) * 4 * STEPT
     wd.se.pastT = wd.se.pastT + STEPT
     if p.win and g.bonus = 0 then wd.se.metT = wd.se.metT + STEPT
     parted = wd.se.metT > 6 or wd.se.pastT > 40 or (wd.se.metT > 2 and (k.hit or k.start))

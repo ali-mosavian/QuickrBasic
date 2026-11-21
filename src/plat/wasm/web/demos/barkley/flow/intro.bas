@@ -168,9 +168,9 @@ sub StartIntro (wd as World, g as Game, cu() as Cue)
     LoadLevel wd, SINTRO
     LoadCues cu()
     g.mode = INTRO
-    g.modeT = 0
-    g.camx = 0
-    g.camy = wd.lv.startY - HORIZON
+    g.mode_t = 0
+    g.cam.x = 0
+    g.cam.y = wd.lv.startY - HORIZON
 end sub
 
 ' Between zones the van's bump again, on the road of stage nxt's zone: its look, its keepsake and a cat, to four
@@ -184,8 +184,8 @@ sub StartBump (wd as World, g as Game, nxt as integer)
     wd.tn.dusk = 16
     Shade wd.tn
     g.mode = INTRO
-    g.modeT = BUMP0 / BEATS
-    g.camy = wd.lv.startY - HORIZON
+    g.mode_t = BUMP0 / BEATS
+    g.cam.y = wd.lv.startY - HORIZON
 end sub
 
 ' The script from its DATA: a row a cue, "end" after the last, its kind 0.
@@ -207,15 +207,15 @@ function IntroOver% (wd as World, g as Game, k as Pad, cu() as Cue)
     dim i as integer, x as integer, y as integer, was as single, now as single
     wd.se.ticks = wd.se.ticks + 1
     MuteKey wd.mu, k
-    was = g.modeT * BEATS
-    g.modeT = g.modeT + STEPT
-    now = g.modeT * BEATS
+    was = g.mode_t * BEATS
+    g.mode_t = g.mode_t + STEPT
+    now = g.mode_t * BEATS
     do while cu(i).kind
         if now >= cu(i).t0 and now < cu(i).t1 then
             select case cu(i).kind
             case QCAM
                 CueAt wd.lv, cu(), i, now, x, y
-                g.camx = x
+                g.cam.x = x
             case QSND: if was < cu(i).t0 then Sfx wd.mu, wd.se, cu(i).a
             end select
         end if
@@ -244,9 +244,9 @@ end sub
 ' The intro's picture: the Downs, then each cue that is on, in the script's order, between two black bars.
 sub IntroDraw (wd as World, g as Game, p as Hero, cu() as Cue)
     dim i as integer, cx as integer, cy as integer, now as single
-    cx = int(g.camx)
-    cy = int(g.camy)
-    now = g.modeT * BEATS
+    cx = int(g.cam.x)
+    cy = int(g.cam.y)
+    now = g.mode_t * BEATS
     DrawBack wd.zn, wd.art, cx, cy
     DrawThings wd.lv, wd.zn, wd.art, wd.se, cx, cy, -1
     DrawTiles wd.lv, wd.zn, wd.art, cx, cy
