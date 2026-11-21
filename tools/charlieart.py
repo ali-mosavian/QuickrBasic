@@ -5819,16 +5819,50 @@ DRAWN: dict[str, tuple[int | str, ...]] = {
     "KBUTTON": ("IBTN", -8, -8, 16, 8, 2, "FSTATE"),
 }
 
+# The facts asked about kinds. The state a kind starts a stage in, else 0; the kinds that keep theirs: a burrow's mound
+# its other end, a chimney too, a mortar its beat, a tipper its pot.
+START: dict[str, int | str] = {
+    "KBONE": 1,
+    "KCAT": -1,
+    "KCRAB": -1,
+    "KSWEEP": -1,
+    "KWALKER": -1,
+    "KSNATCH": -1,
+    "KJELLY": 1,
+    "KTHROW": "THROWC",
+    "KSQUIRREL": "SQWAIT",
+    "KGOAT": 1,
+    "KWALL": 1,
+}
+KEEPS = {"KMOUND", "KCHIMNEY", "KMORTAR", "KTIPPER"}
+RIDES = {"KMOVE", "KSPAN", "KSEAT", "KTRAM"}  # carried along a track
+HANGS = {"KICICLE", "KLOAD"}  # loosed by a bark from under it
+CRUSHED = {"KCAT", "KTHROW"}  # beaten, awake, by a falling icicle or the avalanche
+GROWS = {"KTREE", "KBUSH", "KFLOWER", "KROCK", "KTHORN", "KLAMP"}  # pulled up where the ground changes
+
 
 def kinds() -> list[int]:
     """The kinds' rows as CHARLIE.DAT holds them: their count, then each kind's picture, box, frames, the way it picks
-    one and its rate; a kind that draws itself, naughts."""
+    one and its rate, naughts for a kind that draws itself; then the state it starts in, and whether it keeps its own,
+    rides, hangs, is crushed and grows, -1 for yes."""
     src = (GAME / "model/level.bas").read_text()
     ids = {k: int(v) for k, v in re.findall(r"(?m)^const (K[A-Z0-9]+) = (\d+)", src) if k != "KFRONT"}
     rows = [[0] * 8 for _ in range(max(ids.values()) + 1)]
     for kind, row in DRAWN.items():
         full = (*row, 1, "FNONE", 0) if len(row) == 5 else (*row, 0)[:8]
         rows[ids[kind]] = [v if isinstance(v, int) else game_const(v) for v in full]
+    names = {k: kind for kind, k in ids.items()}
+    for k, row in enumerate(rows):
+        kind = names.get(k, "")
+        start = START.get(kind, 0)
+        row.append(start if isinstance(start, int) else game_const(start))
+        row += [-(kind in fact) for fact in (KEEPS, RIDES, HANGS, CRUSHED, GROWS)]
+    for kind in [*START, *KEEPS, *RIDES, *HANGS, *CRUSHED, *GROWS]:
+        if kind not in ids:
+            sys.exit(f"charlieart: the game has no kind {kind}")
+    # row 0, no kind's, once went without its facts, and every row after it was read six LONGs out
+    if any(len(r) != len(rows[0]) for r in rows):
+        sys.exit("charlieart: the kinds' rows are not all one length")
     return [len(rows), *(v for r in rows for v in r)]
 
 

@@ -6,11 +6,12 @@ option explicit
 from engine.clock import STEPT
 from engine.events import Events
 from barkley.model.hero import Hero, HH, Pad
-from barkley.model.level import GRAV, Ground, KCAT, KCRAB, KICICLE
-from barkley.model.level import KLOAD, KPOUNCE, KSNATCH, KSQUIRREL
-from barkley.model.level import KTHROW, KWALKER, Level, NONE, TS
+from barkley.model.level import GRAV, Ground, KCAT, KCRAB, KPOUNCE
+from barkley.model.level import KSNATCH, KSQUIRREL, KTHROW, KWALKER
+from barkley.model.level import Level, NONE, TS
 from barkley.model.game import Part, Session
 from barkley.model.events import EVBURST, EVSOUND, Tell, TellAt
+from barkley.model.kinds import Kinds
 from barkley.assets.palette import CSTONE
 from barkley.assets.tunes import SBARK, SCHARGE, SJUMP, SLAUNCH, SPOP
 from barkley.assets.tunes import SROLL
@@ -79,6 +80,7 @@ const WETTOP = 220!
 
 sub MoveHero ( _
     lv as Level, _
+    kd as Kinds, _
     gr as Ground, _
     ev as Events, _
     se as Session, _
@@ -126,7 +128,8 @@ sub MoveHero ( _
 
     if p.bark_t > 0 then p.bark_t = p.bark_t - STEPT
     if p.vine_t > 0 then p.vine_t = p.vine_t - STEPT
-    if k.bark and p.stun = 0 and p.bark_t <= 0 then Bark lv, ev, se, p
+    if k.bark and p.stun = 0 and p.bark_t <= 0 then Bark lv, kd, ev, _
+        se, p
     KeepJump ev, se, p, hit
     if p.coyote > 0 then p.coyote = p.coyote - STEPT
     if p.inv > 0 then p.inv = p.inv - STEPT
@@ -570,7 +573,13 @@ end sub
 ' crab goes into its shell, every gull is scared, every
 ' snow-thrower ducks, every squirrel is cowed, every pouncer
 ' leaps.
-private sub Bark (lv as Level, ev as Events, se as Session, p as Hero)
+private sub Bark ( _
+    lv as Level, _
+    kd as Kinds, _
+    ev as Events, _
+    se as Session, _
+    p as Hero _
+)
     dim i as integer, c as integer, dx as single, dy as single
     dim hung as integer, cowed as integer, early as integer
 
@@ -587,8 +596,7 @@ private sub Bark (lv as Level, ev as Events, se as Session, p as Hero)
         dy = abs(lv.things(i).at.y - p.at.y)
         ' an icicle or a ledge's load is loosed from further
         ' under it than he can jump
-        hung = lv.things(i).kind = KICICLE _
-            or lv.things(i).kind = KLOAD
+        hung = kd.k(lv.things(i).kind).hangs
 
         if hung and lv.things(i).state = 0 and dx <= BARKR _
             and dy < 140 then

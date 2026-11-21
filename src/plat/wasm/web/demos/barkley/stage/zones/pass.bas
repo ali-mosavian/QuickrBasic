@@ -8,11 +8,11 @@ from engine.clock import STEPT
 from engine.events import Events
 from barkley.model.images import IGOAT, IGOATR, ILOAD, ILOB, ISNOWBALL
 from barkley.model.hero import Hero
-from barkley.model.level import GRAV, KCAT, KGOAT, KHEAP, KTHROW
-from barkley.model.level import Level, NONE, TS
+from barkley.model.level import GRAV, KGOAT, KHEAP, Level, NONE, TS
 from barkley.model.game import Game, Loose, Session
 from barkley.model.events import EVBURST, EVSCORE, EVSHAKE, EVSOUND
 from barkley.model.events import Tell, TellAt
+from barkley.model.kinds import Kinds
 from barkley.assets.palette import CFLAKE, CICE, CSNOW, CWHITE
 from barkley.assets.tunes import SBUMP, SCRACK, SHURT, SROLL
 from barkley.world.terrain.ground import Balk, Lie, Solid, Surf
@@ -611,7 +611,12 @@ end sub
 
 ' Icicle i falling: it breaks on the cat or the snow-thrower
 ' under it, which is beaten, or on the ground.
-private sub Plunge (lv as Level, ev as Events, i as integer)
+private sub Plunge ( _
+    lv as Level, _
+    kd as Kinds, _
+    ev as Events, _
+    i as integer _
+)
     dim j as integer, y as integer, d as integer
 
     y = lv.things(i).at.y + Fallen%(lv, i) + 16
@@ -620,8 +625,8 @@ private sub Plunge (lv as Level, ev as Events, i as integer)
         if j < 0 or j >= lv.n_things _
             or lv.things(i).state <= 0 then continue for
 
-        d = (lv.things(j).kind = KCAT _
-            or lv.things(j).kind = KTHROW) and lv.things(j).state <> 0
+        d = kd.k(lv.things(j).kind).crushed _
+            and lv.things(j).state <> 0
         if d = 0 _
             or abs(lv.things(j).at.x - lv.things(i).at.x) >= 14 _
             or y <= lv.things(j).at.y - 16 then continue for
@@ -693,11 +698,11 @@ sub MeetThrow ( _
 end sub
 
 ' Icicle i, loosed: it trembles a while, then falls.
-sub Totter (lv as Level, ev as Events, i as integer)
+sub Totter (lv as Level, kd as Kinds, ev as Events, i as integer)
     if lv.things(i).state <= 0 then exit sub
 
     lv.things(i).state = lv.things(i).state + 1
-    if lv.things(i).state > TREMBLE then Plunge lv, ev, i
+    if lv.things(i).state > TREMBLE then Plunge lv, kd, ev, i
 end sub
 
 ' Load i of snow, set off: a step of its trembling, its
@@ -705,6 +710,7 @@ end sub
 ' gone and its heap lies there; Charlie under it is hurt.
 sub Unload ( _
     lv as Level, _
+    kd as Kinds, _
     ev as Events, _
     se as Session, _
     g as Game, _
@@ -725,7 +731,7 @@ sub Unload ( _
 
     lv.things(i).state = -1
     lv.things(h).state = 1
-    Bury lv, ev, h
+    Bury lv, kd, ev, h
     if abs(p.at.x - lv.things(h).at.x) >= HEAPR _
         or abs(p.at.y - lv.things(h).at.y) >= HEAPH then exit sub
 
@@ -734,14 +740,19 @@ end sub
 
 ' Heap h, come down: the cats and snow-throwers under it are
 ' beaten.
-private sub Bury (lv as Level, ev as Events, h as integer)
+private sub Bury ( _
+    lv as Level, _
+    kd as Kinds, _
+    ev as Events, _
+    h as integer _
+)
     dim j as integer, foe as integer
 
     for j = h - 6 to h + 6
         if j < 0 or j >= lv.n_things then continue for
 
-        foe = (lv.things(j).kind = KCAT _
-            or lv.things(j).kind = KTHROW) and lv.things(j).state <> 0
+        foe = kd.k(lv.things(j).kind).crushed _
+            and lv.things(j).state <> 0
         if foe = 0 _
             or abs(lv.things(j).at.x - lv.things(h).at.x) >= HEAPR _
             + 10 then continue for

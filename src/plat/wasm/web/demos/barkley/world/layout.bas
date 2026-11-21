@@ -5,8 +5,9 @@ option explicit
 
 from barkley.model.level import KBONE, KBUSH, KFLOWER, KLAMP, KMOVE
 from barkley.model.level import KPLAT, KPOST, KSEAT, KSPAN, KSPRING
-from barkley.model.level import KTANK, KTRAM, KTREE, KVENT, Level, MH
-from barkley.model.level import MW, Realm, TS
+from barkley.model.level import KTANK, KTRAM, KVENT, Level, MH, MW
+from barkley.model.level import Realm, TS
+from barkley.model.kinds import Kinds
 from barkley.world.terrain.ground import Sunk
 from barkley.world.terrain.track import LimbUp, LIMBW, LimbX, NLIMB
 
@@ -42,12 +43,11 @@ sub AddMover ( _
 end sub
 
 ' What grows past x is pulled up.
-sub Weed (lv as Level, x as integer)
+sub Weed (lv as Level, kd as Kinds, x as integer)
     dim i as integer
 
     for i = 0 to lv.n_things - 1
-        if lv.things(i).kind < KTREE _
-            or lv.things(i).kind > KLAMP _
+        if kd.k(lv.things(i).kind).grows = 0 _
             or lv.things(i).at.x <= x then continue for
 
         lv.things(i).kind = 0
@@ -55,8 +55,8 @@ sub Weed (lv as Level, x as integer)
 end sub
 
 ' Nothing grows about column c, to hide what stands there.
-sub Clearing (lv as Level, c as integer)
-    Weed lv, c * TS - 28
+sub Clearing (lv as Level, kd as Kinds, c as integer)
+    Weed lv, kd, c * TS - 28
     lv.fallow = c + 3
 end sub
 

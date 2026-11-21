@@ -2,9 +2,10 @@
 defint A-Z
 option explicit
 
-from barkley.model.level import Ground, KBUTTON, KLOOP, KMOVE, KPIPE
-from barkley.model.level import KPLAT, KSEAT, KSPAN, KTRAM, KWAVE
-from barkley.model.level import KWAVE2, Level, MH, MW, NONE, PI, TS
+from barkley.model.level import Ground, KBUTTON, KLOOP, KPIPE, KPLAT
+from barkley.model.level import KWAVE, KWAVE2, Level, MH, MW, NONE, PI
+from barkley.model.level import TS
+from barkley.model.kinds import Kinds
 from barkley.world.terrain.ground import Bearing, LOOPN, LOOPR, WAVEL
 
 const PIPER = 48
@@ -44,7 +45,7 @@ private function Side% (lv as Level, c as integer, n as integer)
     end if
 end function
 
-sub Track (lv as Level, gr as Ground)
+sub Track (lv as Level, kd as Kinds, gr as Ground)
     dim c as integer, i as integer
 
     gr.n = 0
@@ -72,7 +73,7 @@ sub Track (lv as Level, gr as Ground)
     gr.plat_a = gr.n
     TrackPlats lv, gr
     TrackLimbs lv, gr
-    TrackMovers lv, gr
+    TrackMovers lv, kd, gr
     TrackRibbons lv, gr
     TrackSlides lv, gr
 end sub
@@ -214,14 +215,11 @@ end sub
 
 ' The moving platforms: a stretch each, a curve of one, in
 ' the order they were made.
-private sub TrackMovers (lv as Level, gr as Ground)
+private sub TrackMovers (lv as Level, kd as Kinds, gr as Ground)
     dim i as integer, k as integer
 
     for i = 0 to lv.n_things - 1
-        if lv.things(i).kind <> KMOVE _
-            and lv.things(i).kind <> KSPAN _
-            and lv.things(i).kind <> KSEAT _
-            and lv.things(i).kind <> KTRAM then continue for
+        if kd.k(lv.things(i).kind).rides = 0 then continue for
 
         Knot gr, csng(lv.things(i).at.x), csng(lv.things(i).at.y), 0
         Knot gr, csng(lv.things(i).at.x + MOVEW), _

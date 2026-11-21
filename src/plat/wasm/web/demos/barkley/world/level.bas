@@ -21,6 +21,7 @@ from barkley.model.level import KVINE, KWALKER, KWALL, KWAVE, Level
 from barkley.model.level import MH, MW, NONE, NSTAGE, PI, TS
 from barkley.model.game import Session
 from barkley.model.world import World
+from barkley.model.kinds import Kinds
 from barkley.assets.palette import CWATER, Shade
 from barkley.assets.store import LoadZoneArt
 from barkley.assets.tunes import ZoneTune
@@ -207,7 +208,7 @@ sub LoadLevel (wd as World, st as integer)
             ' a 45 degree fall of n and a flume down it,
             ' from the tank at its head to its level end a
             ' column on; nothing grows by the tank
-            Weed wd.lv, c * TS - 44
+            Weed wd.lv, wd.kinds, c * TS - 44
             AddObj wd.lv, KCISTERN, c * TS, s
 
             for i = 1 to n
@@ -401,10 +402,10 @@ sub LoadLevel (wd as World, st as integer)
         case "avalanche"
             wd.lv.aval_x = c * TS + 8
         case "goat"
-            Clearing wd.lv, c
+            Clearing wd.lv, wd.kinds, c
             k = KGOAT
         case "icewall"
-            Clearing wd.lv, c
+            Clearing wd.lv, wd.kinds, c
             k = KWALL
         case "icicle"
             ' a shelf of three, n tiles over the ground
@@ -452,7 +453,7 @@ sub LoadLevel (wd as World, st as integer)
         case "line"
             ' a street n wide and a clothesline over it,
             ' post to post, LINEH over the roof here
-            Hang wd.lv, c, n, s - LINEH, 0
+            Hang wd.lv, wd.kinds, c, n, s - LINEH, 0
             Pit wd.lv, c, g, n
             c = c + n
         case "walker"
@@ -468,7 +469,7 @@ sub LoadLevel (wd as World, st as integer)
             ' the roof past it, LANTFALL lower; a bone over
             ' the line every other column
             fall = LANTH + LANTFALL - LANTEND
-            Hang wd.lv, c, n, s - LANTH, fall
+            Hang wd.lv, wd.kinds, c, n, s - LANTH, fall
 
             for i = 1 to n - 1 step 2
                 AddObj wd.lv, KBONE, (c + i) * TS, _
@@ -488,12 +489,12 @@ sub LoadLevel (wd as World, st as integer)
             ' a chimney: of the two of one n the first is
             ' the way in, the second the way out; till they
             ' are told each other, -n - 1
-            Clearing wd.lv, c
+            Clearing wd.lv, wd.kinds, c
             AddObj wd.lv, KCHIMNEY, c * TS + 8, s
             wd.lv.things(wd.lv.n_things - 1).state = -n - 1
         case "mortar"
             ' a mortar, firing on beat n of every bar
-            Clearing wd.lv, c
+            Clearing wd.lv, wd.kinds, c
             AddObj wd.lv, KMORTAR, c * TS + 8, s
             wd.lv.things(wd.lv.n_things - 1).state = n
         case "tipper"
@@ -508,7 +509,7 @@ sub LoadLevel (wd as World, st as integer)
                 n * TS - MOVEW - 16, 8, c * TS
         case "pouncer"
             ' a dustbin, and the cat in it
-            Clearing wd.lv, c
+            Clearing wd.lv, wd.kinds, c
             AddObj wd.lv, KBIN, c * TS + 8, s
             k = KPOUNCE
         case "spring"
@@ -557,7 +558,7 @@ sub LoadLevel (wd as World, st as integer)
         case "thorn"
             k = KTHORN
         case "jet"
-            Clearing wd.lv, c
+            Clearing wd.lv, wd.kinds, c
             k = KJET
         case "spin"
             k = KSPIN
@@ -605,7 +606,7 @@ sub LoadLevel (wd as World, st as integer)
     Pair wd.lv, KMOUND, -1
     Pair wd.lv, KCHIMNEY, 0
     Walkers wd.lv
-    Track wd.lv, wd.gr
+    Track wd.lv, wd.kinds, wd.gr
     Faces wd.lv
     ZoneTune wd.mu, wd.lv.tune
 end sub
@@ -615,6 +616,7 @@ end sub
 ' grows by its posts.
 private sub Hang ( _
     lv as Level, _
+    kd as Kinds, _
     c as integer, _
     n as integer, _
     y as integer, _
@@ -627,7 +629,7 @@ private sub Hang ( _
     lv.ropes(lv.n_ropes).t = 0
     lv.ropes(lv.n_ropes).cat = 0
     lv.n_ropes = lv.n_ropes + 1
-    Weed lv, c * TS - 20
+    Weed lv, kd, c * TS - 20
     lv.fallow = c + n + 2
 end sub
 

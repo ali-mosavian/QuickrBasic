@@ -67,7 +67,7 @@ OWNERS = {
     "event": "engine/events",
 }
 # The fields assigned outside their owner today: the count may only fall.
-OUTSIDE = 539
+OUTSIDE = 532
 
 DRIVER = """from engine.video import Blit, OpenScreen, SH, SW
 from engine.clock import Clock, Pace, Steps, STEPT
@@ -166,7 +166,7 @@ for j = 0 to wd.lv.n_things - 1
     end if
 next
 for i = 1 to 300
-    Things wd.lv, wd.ev, wd.se, g, p, lo()
+    Things wd.lv, wd.kinds, wd.ev, wd.se, g, p, lo()
     Deliver wd, g, pt()
 next
 print "edge ok"
@@ -315,7 +315,7 @@ k.right = -1
 for v = 120 to 840 step 60
     Stand wd.lv, wd.gr, p, c * TS - 30, csng(v)
     for i = 1 to 12
-        MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+        MoveHero wd.lv, wd.kinds, wd.gr, wd.ev, wd.se, p, k, pt()
         Deliver wd, g, pt()
         if p.at.x > c * TS + 24 then exit for
         if p.ground and p.gsp < v / 2 then was = -1
@@ -325,7 +325,7 @@ next
 k.right = 0
 Stand wd.lv, wd.gr, p, c * TS + 8, 0
 for i = 1 to 90
-    MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+    MoveHero wd.lv, wd.kinds, wd.gr, wd.ev, wd.se, p, k, pt()
     Deliver wd, g, pt()
 next
 if was = 0 and abs(p.at.x - (c * TS + 8)) < 2 then print "slope ok"
@@ -355,7 +355,7 @@ k.jump = 0
 k.hit = 0
 was = 0
 for i = 1 to 60
-    MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+    MoveHero wd.lv, wd.kinds, wd.gr, wd.ev, wd.se, p, k, pt()
     Deliver wd, g, pt()
     k.hit = 0
     if not p.ground then was = was + 1
@@ -374,7 +374,7 @@ k.jump = 0
 k.hit = 0
 v = cint(p.at.y)
 for i = 1 to 45
-    MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+    MoveHero wd.lv, wd.kinds, wd.gr, wd.ev, wd.se, p, k, pt()
     Deliver wd, g, pt()
 next
 if p.at.y > v + 20 then print "ledge ok"
@@ -393,7 +393,7 @@ for c = 40 to wd.lv.wpx - 40 step 7
     p.ground = 0
     p.sg = 0
     for i = 1 to 200
-        MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+        MoveHero wd.lv, wd.kinds, wd.gr, wd.ev, wd.se, p, k, pt()
         Deliver wd, g, pt()
         if p.ground or p.at.y > MH * TS then exit for
     next
@@ -409,7 +409,7 @@ c = wd.lv.things(j).at.x
 Stand wd.lv, wd.gr, p, c - 8, 460
 was = 0
 for i = 1 to 300
-    MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+    MoveHero wd.lv, wd.kinds, wd.gr, wd.ev, wd.se, p, k, pt()
     Deliver wd, g, pt()
     if p.ground then if wd.gr.pt(p.sg).dir.x < -.9 then was = -1
     if p.at.x > c + LOOPR + 12 then exit for
@@ -418,7 +418,7 @@ v = was and p.ground and p.at.x > c + LOOPR + 12
 Stand wd.lv, wd.gr, p, c - 60, 200
 was = 0
 for i = 1 to 300
-    MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+    MoveHero wd.lv, wd.kinds, wd.gr, wd.ev, wd.se, p, k, pt()
     Deliver wd, g, pt()
     if p.ground then if wd.gr.pt(p.sg).dir.x < 0 then was = -1
 next
@@ -427,7 +427,7 @@ if v and was = 0 and p.ground and abs(p.at.x - c) < LOOPR and p.at.y > wd.lv.thi
 Stand wd.lv, wd.gr, p, c - 8, 340
 was = 0
 for i = 1 to 200
-    MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+    MoveHero wd.lv, wd.kinds, wd.gr, wd.ev, wd.se, p, k, pt()
     Deliver wd, g, pt()
     if not p.ground and p.at.y < wd.lv.things(j).at.y - LOOPR then was = -1
 next
@@ -438,7 +438,7 @@ k.hit = -1
 k.jump = -1
 was = 0
 for i = 1 to 90
-    MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+    MoveHero wd.lv, wd.kinds, wd.gr, wd.ev, wd.se, p, k, pt()
     Deliver wd, g, pt()
     k.hit = 0
     if p.ground then if wd.gr.pt(p.sg).kind = 2 then was = -1
@@ -454,7 +454,7 @@ Stand wd.lv, wd.gr, p, c - 100, 360
 k.right = -1
 was = 0
 for i = 1 to 300
-    MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+    MoveHero wd.lv, wd.kinds, wd.gr, wd.ev, wd.se, p, k, pt()
     Deliver wd, g, pt()
     if p.ground then if wd.gr.pt(p.sg).dir.x < .1 then was = -1
     if p.ground and p.at.x > c + 8 then exit for
@@ -470,7 +470,7 @@ k.right = -1
 was = 0
 v = 0
 for i = 1 to 400
-    MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+    MoveHero wd.lv, wd.kinds, wd.gr, wd.ev, wd.se, p, k, pt()
     Deliver wd, g, pt()
     if p.ground then if wd.gr.pt(p.sg).kind = 2 and p.at.y < wd.lv.things(j).at.y - WAVEA + 8 then was = was + 1
     ' down its far sides too: with only the rising halves there it was flown from crest to crest
@@ -482,7 +482,7 @@ if was > 3 and v > 6 and p.ground and p.at.x > c + 384 and abs(p.at.y - wd.lv.th
 Stand wd.lv, wd.gr, p, c - 40, 420
 was = 0
 for i = 1 to 200
-    MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+    MoveHero wd.lv, wd.kinds, wd.gr, wd.ev, wd.se, p, k, pt()
     Deliver wd, g, pt()
     if p.ground and abs(p.at.x - c - WAVEL) < 6 then
         g.cam.x = p.at.x - 160
@@ -498,7 +498,7 @@ if was then print "twist ok"
 Stand wd.lv, wd.gr, p, c - 40, 420
 was = 0
 for i = 1 to 200
-    MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+    MoveHero wd.lv, wd.kinds, wd.gr, wd.ev, wd.se, p, k, pt()
     Deliver wd, g, pt()
     if p.ground and (was and 1) = 0 and abs(p.at.x - c - WAVEL / 2) < 6 then
         g.cam.x = p.at.x - 160
@@ -522,7 +522,7 @@ for i = 1 to 300
         p.gsp = 100
         k.right = 0
     end if
-    MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+    MoveHero wd.lv, wd.kinds, wd.gr, wd.ev, wd.se, p, k, pt()
     Deliver wd, g, pt()
     if p.ground and p.at.y > wd.lv.things(j).at.y + 40 then exit for
 next

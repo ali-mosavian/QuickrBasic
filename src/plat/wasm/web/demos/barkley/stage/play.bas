@@ -20,6 +20,7 @@ from barkley.model.level import KWALKER, KWALL, Level, Realm, TS
 from barkley.model.game import Game, Loose, NLOOSE, OVER, Part
 from barkley.model.game import Session, TOONEW
 from barkley.model.events import EVSCENETUNE, EVSOUND, Tell
+from barkley.model.kinds import Kinds
 from barkley.assets.tunes import LEFTBEHIND, SBONE, SHURT
 from barkley.world.terrain.ground import SegAt
 from barkley.world.level import Mend
@@ -223,6 +224,7 @@ end sub
 
 sub Things ( _
     lv as Level, _
+    kd as Kinds, _
     ev as Events, _
     se as Session, _
     g as Game, _
@@ -248,9 +250,9 @@ sub Things ( _
                 + cint(SPARKR _
                 * sin((se.ticks + lv.things(i).home) * .03))
         case KICICLE
-            Totter lv, ev, i
+            Totter lv, kd, ev, i
         case KLOAD
-            Unload lv, ev, se, g, p, lo(), i
+            Unload lv, kd, ev, se, g, p, lo(), i
         case KGOAT
             if lv.things(i).state <> 0 then Graze lv, se, i, p
         case KTHROW
