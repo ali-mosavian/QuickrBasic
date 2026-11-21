@@ -12,7 +12,7 @@ from barkley.model.world import NLOB
 from barkley.model.events import EVBURST, EVSOUND, Tell, TellAt
 from barkley.assets.tunes import SHURT, SPOP
 from barkley.world.terrain.ground import Solid
-from barkley.stage.fx.damage import Hurt
+from barkley.stage.hero.hurt import Hurt
 
 ' Something let go at x, y with the speed vx, vy, to fly
 ' till it meets Charlie or the ground: its picture, and the

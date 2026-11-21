@@ -17,7 +17,7 @@ from barkley.assets.cast import DrawKeep
 from barkley.assets.tunes import SHISS
 from barkley.world.terrain.ground import Lie, Surf
 from barkley.world.terrain.track import LimbUp, NLIMB
-from barkley.stage.fx.damage import BOUNCEV, Hurt
+from barkley.stage.fx.damage import BOUNCEV
 from barkley.stage.zones.pass import SLEDV
 from barkley.stage.hero.push import Bat, Check, Knock, Rebound
 from barkley.stage.things.chase import BallAt, BOLTS, BreakBox
@@ -32,6 +32,7 @@ from barkley.stage.things.chase import PEDALUP, PEDALW, Pitch, RAILUP
 from barkley.stage.things.chase import Reverse, Roost, SeatX, SeatY
 from barkley.stage.things.chase import StartChase, TakeKeep, TOOLFALL
 from barkley.stage.things.chase import TWINGAP, Unseat, Unwind
+from barkley.stage.hero.hurt import Hurt
 
 ' Biscuit's honey cart less its wheels, as it goes and
 ' bumped: level, then leaning half a gentle slope's fall and

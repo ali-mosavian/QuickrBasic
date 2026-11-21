@@ -5,13 +5,15 @@ option explicit
 
 from engine.events import Events
 from barkley.model.hero import Hero
-from barkley.model.level import Level, PI
-from barkley.model.game import Game, Loose, NLOOSE, Session
+from barkley.model.level import Level
+from barkley.model.game import Game, Loose, Session
 from barkley.model.events import EVBURST, EVSCORE, EVSHAKE, EVSOUND
 from barkley.model.events import Tell, TellAt
-from barkley.assets.tunes import SDIE, SHISS, SHURT, SPOP
+from barkley.assets.tunes import SHISS, SPOP
 from barkley.stage.fx.parts import PBEATEN
 from barkley.stage.things.react import Turn
+from barkley.stage.hero.hurt import Hurt
+from barkley.stage.hero.push import Recoil
 
 const BOUNCEV = 330!
 
@@ -37,80 +39,7 @@ sub Tackle ( _
     end if
 
     Beaten lv, ev, i, dy
-    if not p.ground and p.vel.y > 0 then p.vel.y = -BOUNCEV
-end sub
-
-' Hit: the bones fly loose and Charlie is knocked back; with
-' none, it is out.
-sub Hurt ( _
-    ev as Events, _
-    se as Session, _
-    g as Game, _
-    p as Hero, _
-    from_x as integer, _
-    lo() as Loose, _
-    snd as integer _
-)
-    dim i as integer, n as integer, a as single, v as single
-
-    if p.inv > 0 or p.dig then exit sub
-
-    ' a snowball takes the hit for him
-    if p.snow < 0 then
-        p.snow = 1
-        p.inv = 1
-        exit sub
-    end if
-
-    if snd = SHISS then Tell ev, EVSOUND, snd
-
-    if g.bones = 0 then
-        Lose ev, se, p
-        exit sub
-    end if
-
-    n = g.bones
-    if n > NLOOSE then n = NLOOSE
-    g.bones = 0
-
-    for i = 0 to n - 1
-        a = PI * (.15 + .7 * i / n)
-        v = 240 - 70 * (i and 1)
-        lo(i).at.x = p.at.x
-        lo(i).at.y = p.at.y - 13
-        lo(i).vel.x = cos(a) * v * (1 - 2 * (i and 1)) * .8
-        lo(i).vel.y = -sin(a) * v
-        lo(i).t = 4
-    next
-
-    se.loose_n = n
-    p.ground = 0
-    p.roll = 0
-    p.charging = 0
-    p.crouch = 0
-    p.jumped = 0
-    p.stun = -1
-    p.inv = 2
-    p.vel.y = -260
-
-    if p.at.x < from_x then
-        p.vel.x = -140
-    else
-        p.vel.x = 140
-    end if
-
-    Tell ev, EVSHAKE, 25
-    if snd = SHURT then Tell ev, EVSOUND, snd
-end sub
-
-sub Lose (ev as Events, se as Session, p as Hero)
-    if p.dead then exit sub
-
-    p.dead = -1
-    p.dead_t = 0
-    p.vel.y = -340
-    p.ground = 0
-    Tell ev, EVSOUND, SDIE
+    Recoil p, BOUNCEV
 end sub
 
 ' Thing i beaten: gone, its points, a shake and a puff dy

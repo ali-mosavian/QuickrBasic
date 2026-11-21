@@ -17,7 +17,6 @@ from barkley.assets.tunes import CAUGHT, EndBeat, EndTune, KeepBeat
 from barkley.assets.tunes import SBONE, SCLEAR
 from barkley.world.level import LoadLevel, ZoneOf
 from barkley.world.movers import Movers
-from barkley.stage.fx.damage import Lose
 from barkley.stage.fx.lobs import Volley
 from barkley.stage.hero.moves import MoveHero
 from barkley.stage.zones.sands import Flow
@@ -30,6 +29,7 @@ from barkley.stage.fx.parts import Particles
 from barkley.stage.things.sands import Flock, GHOVER
 from barkley.stage.things.wood import Swarms
 from barkley.stage.things.pass import Avalanche, Homeward
+from barkley.stage.hero.hurt import Lose
 from barkley.control.keys import MuteKey, Spent
 from barkley.control.pilot import Pilot
 from barkley.flow.save import Keep, PickZone, Reach

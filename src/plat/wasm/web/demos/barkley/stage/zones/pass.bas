@@ -16,13 +16,14 @@ from barkley.assets.tunes import SBUMP, SCRACK, SHURT, SROLL
 from barkley.world.terrain.ground import Balk, Lie, Surf
 from barkley.world.level import LOADFAR
 from barkley.stage.fx.parts import PDRIFT, PSLEDSNOW, PWALL
-from barkley.stage.fx.damage import Hurt, Tackle
+from barkley.stage.fx.damage import Tackle
 from barkley.stage.hero.modes import Alight, Astride, Lull
 from barkley.stage.hero.push import Aboard, Repel, Stall
 from barkley.stage.things.react import Turn
 from barkley.stage.things.pass import AVALH, Bolt, Fallen, GCHARGE
 from barkley.stage.things.pass import HEAPH, HEAPR, LOADRUN, LOADSLIDE
 from barkley.stage.things.pass import Plunged, Risen, Shatter, TREMBLE
+from barkley.stage.hero.hurt import Hurt
 
 const SLEDV = 120!
 

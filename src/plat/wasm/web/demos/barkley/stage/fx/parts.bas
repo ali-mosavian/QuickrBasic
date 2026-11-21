@@ -177,6 +177,29 @@ sub Pick (lo() as Loose, se as Session, b as integer)
     se.loose_n = se.loose_n - 1
 end sub
 
+' n bones knocked loose from x, y, fanned out over it.
+sub Shed ( _
+    lo() as Loose, _
+    se as Session, _
+    x as single, _
+    y as single, _
+    n as integer _
+)
+    dim i as integer, a as single, v as single
+
+    for i = 0 to n - 1
+        a = PI * (.15 + .7 * i / n)
+        v = 240 - 70 * (i and 1)
+        lo(i).at.x = x
+        lo(i).at.y = y
+        lo(i).vel.x = cos(a) * v * (1 - 2 * (i and 1)) * .8
+        lo(i).vel.y = -sin(a) * v
+        lo(i).t = 4
+    next
+
+    se.loose_n = n
+end sub
+
 ' The particles, dt on: each on its arc till its time is up.
 sub Particles (se as Session, pt() as Part, dt as single)
     dim i as integer

@@ -158,3 +158,8 @@ sub Bat (p as Hero, vx as single, vy as single)
     p.vel.x = vx
     p.vel.y = vy
 end sub
+
+' Falling onto something, up off it at v.
+sub Recoil (p as Hero, v as single)
+    if not p.ground and p.vel.y > 0 then p.vel.y = -v
+end sub

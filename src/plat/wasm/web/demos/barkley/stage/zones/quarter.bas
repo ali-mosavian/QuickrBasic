@@ -19,7 +19,7 @@ from barkley.assets.palette import CLANT, CLINEN, CPOLE, CQINK, CSOOT
 from barkley.assets.palette import CWHITE
 from barkley.assets.tunes import SHURT, SROLL, SSPRING, STWANG
 from barkley.stage.fx.parts import PSOOT
-from barkley.stage.fx.damage import Beaten, Hurt, Tackle
+from barkley.stage.fx.damage import Beaten, Tackle
 from barkley.stage.hero.modes import FLUEH
 from barkley.stage.zones.downs import CatPic
 from barkley.stage.things.react import Rest, Turn
@@ -31,6 +31,7 @@ from barkley.stage.things.quarter import MORTARREACH, MORTARV, MORTARW
 from barkley.stage.things.quarter import PotFall, POTR, POTX
 from barkley.stage.things.quarter import POUNCEGONE, POUNCEN, SHELLUP
 from barkley.stage.things.quarter import SILLUP, Twang, WASH
+from barkley.stage.hero.hurt import Hurt
 
 ' A lantern line: how far apart its lanterns hang; the speed
 ' he slides down it at, and how fast he gathers it.

@@ -17,11 +17,12 @@ from barkley.model.kinds import Kinds
 from barkley.assets.tunes import SCRACK, SHURT
 from barkley.world.level import LOADFAR
 from barkley.world.terrain.ground import Solid, Surf
-from barkley.stage.fx.damage import Beaten, Hurt, Lose
+from barkley.stage.fx.damage import Beaten
 from barkley.stage.hero.modes import GUSTP, Lull
 from barkley.stage.fx.lobs import Loft
 from barkley.stage.fx.parts import PBURY, PSHATTER, PSNOWBALL
 from barkley.stage.hero.moves import THROWC
+from barkley.stage.hero.hurt import Hurt, Lose
 
 ' A snow-thrower, a cat behind a wall of snow, its state's
 ' sign the way it faces: its turn is THROWC of the things'

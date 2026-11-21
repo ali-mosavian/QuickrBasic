@@ -14,11 +14,12 @@ from barkley.model.game import Game, Loose, Part, Session
 from barkley.model.events import EVSOUND, Tell
 from barkley.assets.palette import CSEA
 from barkley.assets.tunes import SBOOST, SHURT, SSPRING
-from barkley.stage.fx.damage import Beaten, BOUNCEV, Hurt
+from barkley.stage.fx.damage import Beaten, BOUNCEV
 from barkley.stage.hero.moves import SHELLT
 from barkley.stage.hero.push import Rebound, Shoot
 from barkley.stage.things.react import Rest, Turn
 from barkley.stage.things.sands import GDIVE
+from barkley.stage.hero.hurt import Hurt
 
 const FLUMEV = 460!
 const STEPV = 430!

@@ -11,9 +11,9 @@ from barkley.model.hero import Hero
 from barkley.model.images import IACORN
 from barkley.model.level import Level, Swarm
 from barkley.assets.tunes import SHURT
-from barkley.stage.fx.damage import Hurt
 from barkley.stage.fx.lobs import Loft
 from barkley.stage.fx.parts import PACORN, PLEAF
+from barkley.stage.hero.hurt import Hurt
 
 ' A bramble: the things' steps till it has grown back.
 const BRAMBLET = 90

@@ -23,7 +23,6 @@ from barkley.model.kinds import Kinds, TBOUNCE, TOWN
 from barkley.assets.tunes import LEFTBEHIND, SBONE, SHURT, SSPRING
 from barkley.world.terrain.ground import SegAt
 from barkley.world.level import Mend
-from barkley.stage.fx.damage import Hurt
 from barkley.stage.zones.downs import MeetBone, MeetBoost, MeetCat
 from barkley.stage.zones.downs import MeetGold, MeetMark
 from barkley.stage.zones.works import MeetBump, MeetButton, MeetHoop
@@ -42,6 +41,7 @@ from barkley.stage.camera import Camera
 from barkley.stage.hero.push import Launch, Perch
 from barkley.stage.things.react import Rest
 from barkley.stage.things.chase import ResetChase
+from barkley.stage.hero.hurt import Hurt
 
 sub Spawn ( _
     lv as Level, _

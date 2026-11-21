@@ -15,9 +15,10 @@ from barkley.model.events import TellAt
 from barkley.assets.tunes import SBOOST, SCLANK, SHISS, SHURT, SMARK
 from barkley.assets.tunes import SSPRING
 from barkley.stage.fx.parts import PBUMP, PHOOP, PMARK
-from barkley.stage.fx.damage import Beaten, BOUNCEV, Hurt
+from barkley.stage.fx.damage import Beaten, BOUNCEV
 from barkley.stage.hero.push import Fling, Launch, Spur
 from barkley.stage.things.react import Rest, Turn
+from barkley.stage.hero.hurt import Hurt
 
 ' The works' own: a press and a leg of its gantry; a sweeper
 ' and a spark's carriage. A spark goes SPARKR either way
