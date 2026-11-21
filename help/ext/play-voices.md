@@ -27,7 +27,7 @@ Allowed in any PLAY string. Using one, or a second string, sends the
 voice through the synthesizer. Each sets the notes that follow it.
 Each number may be =var; as usual.
 
-    V n            volume 0-15 (default 8)
+    V n            volume 0-15 (default 8); V4.5 between two
     W n            wave 0-4
     Q n            pulse width 1-99 percent (default 50)
     H a,d,s,r,f    envelope, each 0-15 (default 0,0,15,0)

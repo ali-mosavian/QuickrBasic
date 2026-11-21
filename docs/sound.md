@@ -26,7 +26,7 @@ may be `=var;` as in QBasic's commands. A number out of range is Illegal functio
 
 | Command | Sets | Range | Default |
 |---|---|---|---|
-| `V`n | volume | 0–15 | 8 |
+| `V`n | volume, with up to two decimals: `V4.5` | 0–15 | 8 |
 | `W`n | wave: 0 pulse, 1 triangle, 2 sawtooth, 3 noise, 4 FM | 0–4 | 0 |
 | `Q`n | pulse width, percent high (wave 0 only) | 1–99 | 50 |
 | `H`a`,`d`,`s`,`r[`,`f] | envelope: attack, decay, sustain level, release, all four needed; fade (below) | 0–15 each | `H0,0,15,0` |

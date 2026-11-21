@@ -110,6 +110,24 @@ static int comma(Player *p)
     return 0;
 }
 
+/* The hundredths after a number's point: ".5" 50, ".05" 5; 0 with no point. */
+static unsigned hundredths(Player *p)
+{
+    unsigned value = 0, digits = 0;
+
+    if (p->m.at >= p->m.end || *p->m.at != '.')
+        return 0;
+    p->m.at++;
+    while (p->m.at < p->m.end && *p->m.at >= '0' && *p->m.at <= '9') {
+        if (++digits > 2)
+            illegal();
+        value = value * 10 + (unsigned)(*p->m.at++ - '0');
+    }
+    if (!digits)
+        illegal();
+    return digits == 1 ? value * 10 : value;
+}
+
 /* A note of `length`th of a whole note and `dots` dots, in thousandths of a
    tick. */
 static long duration(const Player *p, int length, int dots)
@@ -217,32 +235,20 @@ static void filter(Player *p)
         v->swept = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
 }
 
+/* V volume[.hundredths]: 0 to 15. */
 static void volume(Player *p)
 {
-    layer_of(p)->volume = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
+    DevVoice *const v = layer_of(p);
+
+    v->volume = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
+    v->loud = (unsigned char)hundredths(p);
+    if (v->loud && v->volume == HIGHEST_NIBBLE)
+        illegal();
 }
 
 static void wave(Player *p)
 {
     layer_of(p)->wave = (unsigned char)within(p, DEV_PULSE, DEV_FM);
-}
-
-/* The hundredths after a number's point: ".5" 50, ".05" 5; 0 with no point. */
-static unsigned hundredths(Player *p)
-{
-    unsigned value = 0, digits = 0;
-
-    if (p->m.at >= p->m.end || *p->m.at != '.')
-        return 0;
-    p->m.at++;
-    while (p->m.at < p->m.end && *p->m.at >= '0' && *p->m.at <= '9') {
-        if (++digits > 2)
-            illegal();
-        value = value * 10 + (unsigned)(*p->m.at++ - '0');
-    }
-    if (!digits)
-        illegal();
-    return digits == 1 ? value * 10 : value;
 }
 
 /* Z ratio[.hundredths][, depth[, decay[, level[, feedback[, start]]]]]: FM's modulator, its pitch in the note's, how

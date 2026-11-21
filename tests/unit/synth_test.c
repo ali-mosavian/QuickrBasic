@@ -474,6 +474,22 @@ TEST(synth_envelope_falls_on_from_its_sustain)
     CHECK(at < held && at > held * 3 / 4 && later > held * 3 / 10 && later < held * 4 / 10);
 }
 
+/* V's hundredths: a level between two steps. V was 0 to 15 in even steps: V4 to V5 is 1.9 dB, and a hat that
+   belonged between them could not be trimmed. */
+TEST(synth_volume_in_hundredths)
+{
+    Synth s;
+    int tops[3];
+    for (int k = 0; k < 3; k++) {
+        DevVoice v = note(440, DEV_PULSE, 0x00F0);
+        v.volume = (unsigned char)(k == 2 ? 5 : 4);
+        v.loud = (unsigned char)(k == 1 ? 50 : 0);
+        sound(&s, v, RATE / 10);
+        tops[k] = peak(buf + RATE / 20, RATE / 20);
+    }
+    CHECK(tops[0] < tops[2] && abs(tops[1] * 2 - tops[0] - tops[2]) <= 4);
+}
+
 /* How bright a stretch is: the power of its steps against its own. */
 static double brightness(const int16_t *const x, const int n)
 {
@@ -980,6 +996,27 @@ TEST(play_sets_a_second_decay)
             on[n++] = headless_voice(i).v[0];
     CHECK(n == 2 && on[0].envelope == 0x0483 && on[0].fade == 10 && on[1].fade == 0);
     CHECK(unit_run(S, wrong) == E_USR);
+}
+
+/* V takes hundredths after a point, under 15. */
+TEST(play_sets_volume_in_hundredths)
+{
+    static const char *const lines[] = {"10 PLAY \"MF V4.5 C V15 C P64\"", nullptr};
+    static const char *const wrong[][2] = {{"10 PLAY \"V15.5 C\"", nullptr}, {"10 PLAY \"V4.125 C\"", nullptr}};
+
+    qbrt_realtime(false);
+    music_clear();
+    const size_t first = headless_voice_count();
+    CHECK(unit_run(S, lines) == ST_OK);
+    qbrt_realtime(true);
+    DevVoice on[2];
+    unsigned n = 0;
+    for (size_t i = first; i < headless_voice_count() && n < 2; i++)
+        if (headless_voice(i).v[0].gate && headless_voice(i).v[0].hertz)
+            on[n++] = headless_voice(i).v[0];
+    CHECK(n == 2 && on[0].volume == 4 && on[0].loud == 50 && on[1].volume == 15 && on[1].loud == 0);
+    for (int i = 0; i < 2; i++)
+        CHECK(unit_run(S, wrong[i]) == E_USR);
 }
 
 TEST(play_voice_out_of_range)

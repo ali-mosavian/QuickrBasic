@@ -211,6 +211,12 @@ static void begin(const Synth *const s, SynthOsc *const o, const DevVoice *const
         o->slide = o->step > o->at ? 1 : -1;
 }
 
+/* A volume's gain, 2^15 at full. */
+static int32_t gain_of(const unsigned volume)
+{
+    return (int32_t)(volume * (uint32_t)VOICE_LOUD * 32768u / (HIGHEST_NIBBLE * 32767u));
+}
+
 /* An oscillator set to `v`, its note begun if `attack`. */
 static void sound(const Synth *const s, SynthOsc *const o, const DevVoice *const v, const bool attack,
                   const bool afresh)
@@ -234,7 +240,9 @@ static void sound(const Synth *const s, SynthOsc *const o, const DevVoice *const
     falling(s, o->release, decay_ms[v->envelope & HIGHEST_NIBBLE]);
     if (v->fade)
         falling(s, o->fade, decay_ms[(v->fade - 1) & HIGHEST_NIBBLE]);
-    o->gain = (int32_t)(v->volume * (uint32_t)VOICE_LOUD * 32768u / (HIGHEST_NIBBLE * 32767u));
+    o->gain = gain_of(v->volume);
+    if (v->loud)
+        o->gain += (gain_of(v->volume + 1u) - o->gain) * v->loud / 100;
 
     /* twice a sample: up to a sixth of the rate */
     const uint32_t highest = s->rate / 6, cutoff = v->cutoff < highest ? v->cutoff : highest;

@@ -59,7 +59,7 @@ PLAY a$, b$, ... plays up to 32 voices at once, a string for each.
 Each voice has its own octave, length, tempo and sound. These commands
 choose the sound and switch the voice to the synthesizer:
 ```
-V n          volume, 0 to 15 (default 8)
+V n          volume, 0 to 15 (default 8); V4.5 between two
 W n          wave: 0 pulse, 1 triangle, 2 sawtooth, 3 noise, 4 FM
 Q n          pulse width, percent high, 1 to 99 (default 50)
 H a,d,s,r,f  envelope: attack, decay, sustain level, release, and

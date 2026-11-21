@@ -42,6 +42,7 @@ typedef struct DevVoice {
     unsigned short over;     /* a glide starts at so many hundredths of the pitch, 1 to 1600; 0 by `from` and `under` */
     unsigned char fade;      /* the level falls on from the sustain while the note is held: 1 + the decay's scale (0 to
                                 15); 0 holds it */
+    unsigned char loud;      /* hundredths of a step of volume over `volume`, 0 to 99 */
 } DevVoice;
 
 #endif
