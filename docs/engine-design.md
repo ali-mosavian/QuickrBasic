@@ -1,7 +1,7 @@
 # A 2D engine for the demos
 
-A design, not built yet. CHARLIE BARKLEY's `barkley` package becomes a small engine any demo can
-use, and a game over it.
+A design, being built: step 1 of its steps has landed. CHARLIE BARKLEY's `barkley` package becomes
+a small engine any demo can use, and a game over it.
 
 ## Goals
 
@@ -34,7 +34,7 @@ use, and a game over it.
 | Pictures | `Store` | `engine/video` | Grabs, mirrors and blits pictures |
 | Keys | `Keys` | `engine/input` | Held keys from the port, or from `INKEY$`'s repeats |
 | Sound | `Deck` | `engine/audio` | Songs from the data file, fed to `PLAY` half a bar at a time |
-| Data | the open file | `engine/datafile` | Words and strings from the data file |
+| Data | `DataFile` | `engine/datafile` | Words and strings from the data file |
 | Events | `Events` | `engine/events`, new | What happened this step, in order |
 | Hero | `Hero` | `stage/hero` | Moves him. Takes a push or a hurt |
 | Things | `Thing` | `stage/things`, new | Runs each thing's rule. Changes a thing that was touched |
@@ -166,22 +166,26 @@ end sub
 
 ## Today
 
+Measured by `python3 tools/bench.py engine`; the fields assigned outside their owner by
+`tools/charlie_test.py`.
+
 | Measure | Now |
 |---|---|
 | Kinds of thing | 63 |
 | `case` branches that name a kind: draw, touch, think | 60, 36, 16 |
-| Draw branches that are one `Blit` | 33 of 60 |
+| Draw branches that are one `Blit` | 29 of 60 |
 | `Meet` routines, in six zone modules | 34 |
-| Comparisons of a thing's kind outside those switches | 60, in 10 files |
+| Comparisons of a thing's kind outside those switches | 68, in 12 files |
 | Files that assign a thing's field | 14, in 96 assignments |
-| Routines that take the `Deck` | 108 of 402 |
+| Fields assigned outside their record's owner | 556 |
+| Routines that take the `Deck` | 108 of 406 |
 | `Sfx` calls outside `assets` | 60 |
 | Routines that take the whole `World` | 19 |
 | Game code that `engine` imports | none |
 | Other game demos with their own key, clock and sound code | 4 of 4 |
-| Lines over 70 columns | 1,267 of 8,595 |
-| Comment lines over 60 columns | 674 of 946 |
-| Routine headers over 70 columns | 180 |
+| Lines over 70 columns | 0 of 13,049 |
+| Comment lines over 60 columns | 0 of 1,623 |
+| Routine headers over 70 columns | 0 |
 
 ## Steps
 
@@ -191,7 +195,7 @@ Each step leaves `tools/charlie_test.py` passing and the game playing as before.
 2. Move `barkley/engine` to `demos/engine`. Imports change and no code does.
 3. Add `Events`, sounds first: play posts, `Deliver` calls `Sfx`, and the `Deck` leaves play's
    parameter lists. Then score, bursts and shakes.
-4. Add `Kind` rows inside `barkley`. Drawing first, where 33 branches become rows. Then the facts
+4. Add `Kind` rows inside `barkley`. Drawing first, where 29 branches become rows. Then the facts
    asked about kinds. Then touch and rules, a zone at a time.
 5. Move a subsystem from `barkley` to `engine` when MOTHLITE or RUSTLINE needs it.
 
