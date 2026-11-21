@@ -5,6 +5,7 @@
 #include <time.h>
 #include "qbrt/qbrt.h"
 #include "headless.h"
+#include "tick.h"
 
 #ifndef QBRT_SCREEN
 #define QBRT_SCREEN 0
@@ -41,7 +42,9 @@ void qbrt_realtime(const bool yes)
 
 void qbrt_tick_poll(void)
 {
-    if (!realtime && polled)
+    if (realtime)
+        host_tick_due();
+    else if (polled)
         headless_run(1);
 
     polled = true;
