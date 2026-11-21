@@ -22,6 +22,7 @@
 #include "io/console.h"
 #include "io/diag.h"
 #include "io/file.h"
+#include "io/native.h"
 #include "io/repl.h"
 #include "io/source.h"
 #include "mem/alloc.h"
@@ -69,6 +70,7 @@ struct Session {
     Link link;
     List list;
     Modu modu;
+    Natv natv;
     Prog prog;
     ProgUser prog_user;
     CompRun comp_run;

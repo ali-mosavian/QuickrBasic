@@ -984,7 +984,9 @@ static void decl_result(DeclScan *const ds, const uint32_t n, const bool define)
         decl_as(ds, b, n, *decl_item(ds->at + 1) == '(');
 }
 
-/* DECLARE SUB|FUNCTION n: its flag; its parameters in its own scope. */
+/* DECLARE SUB|FUNCTION n [CDECL] [ALIAS "x"]: its flag; its parameters in its own scope. In a
+   native module, one with CDECL is the module's own procedure, its code the extension's: exported
+   as a SUB or FUNCTION it defines would be. */
 static void decl_declare(DeclScan *const ds)
 {
     ds->at++;
@@ -998,7 +1000,19 @@ static void decl_declare(DeclScan *const ds)
     if (*ds->at != M_VAR)
         return;
 
+    const uint8_t *const at = ds->at;
     const uint32_t n = decl_name(ds, nullptr);
+    const bool cdecl = ds->at[0] == TK_X && ds->at[1] == TK1_CDECL;
+
+    if (cdecl)
+        ds->at += 2;
+    if (ds->at[0] == TK_X && ds->at[1] == TK1_ALIAS && ds->at[2] == '"')
+        ds->at = decl_item(ds->at + 2);
+    if (cdecl && ds->d->native) {
+        decl_mine(ds, at, n);
+        scop_bind(ds->sc, ds->d->module, n)->flags |= BF_PROC;
+    }
+
     symb_name(ds->sy, n)->flags |= flag;
     ds->d->scope = n;
     decl_params(ds);

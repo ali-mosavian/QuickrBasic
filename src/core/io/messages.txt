@@ -26,6 +26,8 @@ Duplicate definition /fixed|`{name}` is a fixed array field: its TYPE sets its s
 Syntax error /import|{statement} must be the first statement on its line|put it on a line of its own
 Name of subprogram illegal /reserved|`{text}` is a reserved word, so it cannot name a SUB or FUNCTION|rename it
 Subprogram not defined|`{name}` is DECLAREd, but no SUB of that name is defined|write `SUB {name} ... END SUB`, or remove the DECLARE and its calls
+Subprogram not defined /native|the native module's code has no entry for `{name}`|name its C function with ALIAS, or rebuild the module with it
+Parameter type mismatch /native|`{name}`'s code takes other arguments than this DECLARE gives: their kinds, or a TYPE's bytes|make the DECLARE match the module's code, then rebuild its glue with tools/qbx.py
 Function not defined /declared|`{name}` is DECLAREd, but no FUNCTION of that name is defined|write `FUNCTION {name} ... END FUNCTION`, or remove the DECLARE and its calls
 Type mismatch /record|`{name}` holds a variable-length STRING or a dynamic array, so its bytes are not all its data|read and write its fields one by one, or keep its TYPE to numbers and STRING * n
 Type mismatch /sadd|`{name}` is not a variable-length STRING, the one kind of variable SADD and SSEG take|use VARPTR for any other variable

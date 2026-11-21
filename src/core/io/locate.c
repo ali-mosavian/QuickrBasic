@@ -1,17 +1,15 @@
 /* Where a module's file is.
  *
  * # How it works
- * A module's name `lib.gfx` is the file `lib/gfx.bas`, or for FROM the package folder `lib/gfx/`,
- * under the first root that has it: the main program's folder, each of BASICLIB's folders
- * (';'-separated), then `lib/` beside the interpreter. FROM's leading dots name one root instead:
- * the importing file's folder, a folder up for each dot past the first.
+ * A module's name `lib.gfx` is the file `lib/gfx.bas`, else the native module `lib/gfx.qbx`, or for
+ * FROM the package folder `lib/gfx/`, under the first root that has it: the main program's folder,
+ * each of BASICLIB's folders (';'-separated), then `lib/` beside the interpreter. FROM's leading
+ * dots name one root instead: the importing file's folder, a folder up for each dot past the first.
  */
 #include "io/locate.h"
 #include "io/path.h"
 #include "plat/psys.h"
 #include <string.h>
-
-enum { EXT = 4 }; /* ".bas" */
 
 /* The root's n bytes, then name n's parts as folders, then tail: to out, its "." and ".." parts
    taken out. false: too long. */
@@ -57,7 +55,7 @@ static bool folder(char *const out)
     return true;
 }
 
-/* Name n under the root's n bytes: its file, else (dir not null) its folder. */
+/* Name n under the root's n bytes: its file, a .bas then a .qbx, else (dir not null) its folder. */
 static bool under(
     const char *const root,
     const uint32_t n,
@@ -67,6 +65,8 @@ static bool under(
 )
 {
     if (m->len && place(out, root, n, m, ".bas") && path_exists(out))
+        return true;
+    if (m->len && place(out, root, n, m, ".qbx") && path_exists(out))
         return true;
 
     return dir && place(out, root, n, m, "") && (*dir = folder(out));

@@ -154,19 +154,19 @@ declare sub stop_song cdecl alias "music_stop" ()
 declare function beat! cdecl ()
 ```
 
-A DECLARE in a native module with no definition is native: ALIAS names its entry, else its own
-name does.
+A CDECL DECLARE in a native module is native: ALIAS names its entry, else its own name does.
+Elsewhere CDECL changes nothing.
 
 1. **Load.** The interface is read as a module's lines, as a `.bas` is (`io/repl.c`). The IDE
    reads it when an IMPORT is typed, `basic32` when the program loads. The editor shows its lines
    and does not change them.
 2. **Link** (`link_start`). The slice is loaded the first time (`pext_load`) and `qx_init_<name>`
-   called. Each native DECLARE finds its entry by name. The entry's `kinds` must match the
-   declaration's parameters, and each `QxType` the TYPE of its name in bytes: else Parameter type
-   mismatch at the DECLARE. The entry takes a slot in the native table (an arena), its number in
-   the call's code.
-3. **Run.** `O_NCALL slot` pushes the arguments as a PCALL does, then the handler reads the slot,
-   lays the arguments out and calls. Nothing is looked up by name while the program runs.
+   called. Each native DECLARE finds its entry by name: none, Subprogram not defined. The entry's
+   `kinds` must match the declaration's parameters, and each `QxType` the TYPE of its name in
+   bytes: else Parameter type mismatch at the DECLARE. The procedure keeps the entry.
+3. **Run.** The arguments are pushed as a PCALL's, then the procedure's number and
+   `CALL K_NCALL` (`vm/ncall.c`): the op table is full. It lays the arguments out from the
+   procedure's entry and calls. Nothing is looked up by name while the program runs.
 
 ## Writing one: plain C
 
@@ -339,8 +339,8 @@ and the tutorial's examples gain an `IMPORT synth` line.
 
 **Steps,** a PR each, with its tests:
 
-1. `qx.h`, the file's reader, `pext` for the host, `O_NCALL`, DECLARE's binding. A small test
-   extension called from BASIC.
+1. `qx.h`, the file's reader, `pext` for the host, `K_NCALL`, DECLARE's binding. A small test
+   extension called from BASIC (`tests/host/native.sh`). Done.
 2. `pext` for wasm and DOS. The wasm one tested in node, as `make wasm-test` runs.
 3. The audio stream; the Sound Blaster, SDL and the worklet moved onto it.
 4. The synthesizer moved into `ext/synth/`, built as `lib/synth.qbx`; PLAY's device; the timed
@@ -352,7 +352,7 @@ and the tutorial's examples gain an `IMPORT synth` line.
 `tools/extproto/run.sh` builds one extension for each slice. `ext.c` is plain C functions, glued to
 `ext.bas` by `tools/qbx.py`. It has data with pointers, a call back into the host and a `render`.
 `drive.c`, the VM's stand-in, checks each entry's kinds and each TYPE's size, then calls each entry
-as `O_NCALL` would: values, a record, a number by reference, a string in and out, an error.
+as `K_NCALL` does: values, a record, a number by reference, a string in and out, an error.
 
 - **Mac:** a universal dylib loads with `dlopen`; every call is as expected on both halves (x86-64
   under Rosetta). It imports no symbol. Apple's linker refuses one without libSystem, so it is linked.

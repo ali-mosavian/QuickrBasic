@@ -671,14 +671,16 @@ static bool write_module(Session *const S, const char *const name, const uint32_
     return true;
 }
 
-/* The program to uimn.file, each module changed to its own. */
+/* The program to uimn.file, each module changed to its own; a native one's never: its file is a
+   .qbx, its text the interface in it. */
 static bool write_file(Session *const S)
 {
     if (!write_module(S, uimn.file, 0))
         return false;
 
     for (uint32_t m = 1; m < modu_count(&S->modu); m++)
-        if (text_unsaved(S, m) && !write_module(S, modu_module_path(&S->modu, m), m))
+        if (text_unsaved(S, m) && !modu_mod(&S->modu, m)->native &&
+            !write_module(S, modu_module_path(&S->modu, m), m))
             return false;
 
     return true;

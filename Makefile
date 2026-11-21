@@ -150,13 +150,20 @@ test: $(DOS_EXE) | $(DOSBOX_BIN)
 	BASIC_EXE=$(B)/basic32.exe $(PY) tools/gfx_test.py
 	IDE_EXE=$(B)/ide32.exe $(PY) tools/ide_test.py
 
-host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/hostperf/basic
+# the native ABI's test extension (tests/ext): its glue, its slice for this machine; native.sh packs it
+build/host/ext/qxtest_qx.c: tests/ext/qxtest.bas tools/qbx.py
+	@mkdir -p $(@D)
+	$(PY) tools/qbx.py glue $< qxtest $(@D)
+build/host/ext/qxtest.so: tests/ext/qxtest.c build/host/ext/qxtest_qx.c src/qx/qx.h
+	$(HOST_CC) -std=c23 -O1 -Wall -Wextra -Isrc/qx -Ibuild/host/ext $(HOST_SLICE) $(filter %.c,$^) -o $@
+host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/hostperf/basic build/host/ext/qxtest.so
 	for t in $(TOOLS_TEST); do $(PY) $$t || exit 1; done
 	build/host/unit_tests
 	sh tests/host/longpath.sh build/host/basic
 	sh tests/host/dosname.sh build/host/basic
 	sh tests/host/check.sh build/host/basic
 	sh tests/host/import.sh build/host/basic
+	PY=$(PY) sh tests/host/native.sh build/host/basic build/host/ext/qxtest.so $(HOST_TAG)
 	$(PY) tools/golden.py
 	BASIC_EXE=build/host/basic $(PY) tools/regress_test.py build/host/basic
 	BASIC_EXE=build/host/basic $(PY) tools/conformance.py
@@ -202,11 +209,18 @@ $(eval $(call host_rules,build/host,$(HOST_CFLAGS)))
 # tools/bench.py's: optimized, no op count; QB_INSNS reports the instructions it ran
 $(eval $(call host_rules,build/hostperf,$(filter-out -O1 -g -DEXEC_COUNT,$(HOST_CFLAGS)) -O2))
 
+# dlopen (plat/host/pext.c): in libc on the Mac, libdl on glibc before 2.34
+HOST_OS := $(shell uname -s)
+HOST_DL := $(if $(filter Linux,$(HOST_OS)),-ldl)
+# this machine's slice in a .qbx, and how a slice is linked: the Mac's needs libSystem, though it uses none of it
+HOST_TAG := $(if $(filter Darwin,$(HOST_OS)),macos,linux-x86_64)
+HOST_SLICE := -shared -fPIC -ffreestanding -fvisibility=hidden $(if $(filter Linux,$(HOST_OS)),-nostdlib)
+
 host: build/host/basic
 build/host/basic: $(build/host_OBJ) build/host/obj/app/basic32.o build/host/obj/plat/host/app/term.o
-	$(HOST_CC) $^ -lm -o $@
+	$(HOST_CC) $^ -lm $(HOST_DL) -o $@
 build/hostperf/basic: $(build/hostperf_OBJ) build/hostperf/obj/app/basic32.o build/hostperf/obj/plat/host/app/insns.o
-	$(HOST_CC) $^ -lm -o $@
+	$(HOST_CC) $^ -lm $(HOST_DL) -o $@
 
 # ---- The Mac's: the IDE in a window, build/mac/QuickrBasic.app, universal (arm64 and x86-64, macOS 13 on); mac-zip,
 # the app zipped. SDL 3 is linked in, built by tools/deps.sh sdl. The display is plat/view's, as the browser's; wrap.h
@@ -267,12 +281,12 @@ build/host/unit/%.o: tests/unit/%.c
 build/host/test.hlp: tools/mkhelp.py $(wildcard tests/help/*)
 	$(PY) tools/mkhelp.py tests/help -o $@
 build/host/unit_tests: $(build/host_OBJ) $(UNIT_UI_OBJ) $(UNIT_OBJ) build/host/obj/lib/div64.o build/host/test.hlp
-	$(HOST_CC) $(filter-out %.hlp,$^) -lm -o $@
+	$(HOST_CC) $(filter-out %.hlp,$^) -lm $(HOST_DL) -o $@
 build/host/golden/dump.o: tests/golden/dump.c
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) $(DEPFLAGS) -c $< -o $@
 build/host/golden_dump: $(build/host_OBJ) build/host/golden/dump.o
-	$(HOST_CC) $^ -lm -o $@
+	$(HOST_CC) $^ -lm $(HOST_DL) -o $@
 
 # ---- WebAssembly: the host's platform where it is portable, src/plat/wasm for the rest. Stock clang and
 # wasm-ld; longjmp is wasm's exceptions, the memory shared with the page's thread (src/plat/wasm/include/wasm.h) ----
