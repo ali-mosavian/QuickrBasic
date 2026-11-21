@@ -5,6 +5,7 @@
  * variables and next line from the VM's call frames.
  */
 #include "session.h"
+#include "io/errmsg.h"
 #include "vm/flow.h"
 #include "vm/stmts.h"
 
@@ -139,6 +140,11 @@ Status session_eval(
 )
 {
     return dbug_eval(S, expr, proc, out);
+}
+
+const char *session_errtext(const Session *const S, const uint8_t code)
+{
+    return emsg_text(S->vm.err.user, code);
 }
 
 void session_clear(Session *const S)

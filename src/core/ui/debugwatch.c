@@ -6,8 +6,7 @@
  */
 #include "ui/debugwatch.h"
 #include "session.h"
-#include "io/errmsg.h"
-#include "ui/debugvalue.h"
+#include "ui/debugtext.h"
 
 enum {
     NWATCH = 8, /* watches at most */
@@ -18,7 +17,7 @@ static struct {
     uint8_t n;
     char wx[NWATCH][WXLEN];
     char wv[NWATCH][DP_TWMAX];
-    char row[DVAL_ROW];
+    char row[DTXT_ROW];
 } wat;
 
 uint8_t dwat_count(void) { return wat.n; }
@@ -52,22 +51,22 @@ static char *eval_text(char *d, const char *const out)
 static char *value(Session *const S, char *const d, const char *const expr, const uint32_t proc)
 {
     if (strchr(expr, ':'))
-        return dval_cpy(d, emsg_text(S->vm.err.user, E_SN));
+        return dtxt_cpy(d, session_errtext(S, E_SN));
     if (session_in_direct(S))
-        return dval_cpy(d, "(not here)");
+        return dtxt_cpy(d, "(not here)");
 
     char out[80];
     const Status st = session_eval(S, expr, proc, out);
-    return st != ST_OK ? dval_cpy(d, emsg_text(S->vm.err.user, (uint8_t)st)) : eval_text(d, out);
+    return st != ST_OK ? dtxt_cpy(d, session_errtext(S, (uint8_t)st)) : eval_text(d, out);
 }
 
 void dwat_eval(Session *const S, const uint32_t proc)
 {
     for (uint8_t i = 0; i < wat.n; i++) {
-        char *d = dval_cpy(dval_cpy(wat.row, wat.wx[i]), " = ");
+        char *d = dtxt_cpy(dtxt_cpy(wat.row, wat.wx[i]), " = ");
         d = value(S, d, wat.wx[i], proc);
         *d = 0;
-        dval_cut(wat.wv[i], wat.row);
+        dtxt_cut(wat.wv[i], wat.row);
     }
 }
 

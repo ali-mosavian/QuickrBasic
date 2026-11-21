@@ -5,7 +5,7 @@
  * from column FRAME_LINE, n the line's in its view.
  */
 #include "ui/debugstack.h"
-#include "ui/debugvalue.h"
+#include "ui/debugtext.h"
 #include "ui/linemap.h"
 #include "ui/view.h"
 
@@ -31,7 +31,7 @@ static void frame1(Session *const S, StackFrame *const f, const DebugFrame *cons
     uint32_t tl;
 
     if (at->line == DLINE || !lmap_of(S, at->line, &tl)) {
-        dval_cpy(f->text, "Immediate");
+        dtxt_cpy(f->text, "Immediate");
         return;
     }
 
@@ -45,7 +45,7 @@ static void frame1(Session *const S, StackFrame *const f, const DebugFrame *cons
     for (int i = 0; i < FRAME_NAME && name[i]; i++)
         f->text[i] = name[i];
 
-    dval_dec(dval_cpy(f->text + FRAME_LINE, "line "), (uint16_t)n);
+    dtxt_dec(dtxt_cpy(f->text + FRAME_LINE, "line "), (uint16_t)n);
 }
 
 void dstk_read(Session *const S)

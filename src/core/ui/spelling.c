@@ -13,6 +13,7 @@
 #include "comp/declare.h"
 #include "comp/dfa.h"
 #include "ui/linemap.h"
+#include "vm/inspect.h"
 #include "ui/view.h"
 
 enum {
@@ -110,7 +111,5 @@ char *spel_name(const Session *const S, char *const d, const uint32_t name, cons
         return d + e->len;
     }
 
-    const uint8_t *const t = symb_text(&S->symb, name);
-    memcpy(d, t + 1, t[0]);
-    return d + t[0];
+    return insp_name(S, d, name);
 }
