@@ -802,7 +802,6 @@ void ctrl_swap(Comp *const C)
 {
     if (recswap(C))
         return;
-
     const uint8_t *const a = C->p;
     need_var(C);
     expr_load(C);
@@ -1602,7 +1601,7 @@ static bool namestmt(Comp *const C)
         return true;
     }
 
-    return arrcopy(C) || reccopy(C) || subcall(C);
+    return arrcopy(C) || reccopy(C) || subcall(C) || snds_named(C);
 }
 
 /* LET: an array's or a record's copy, else not one. */

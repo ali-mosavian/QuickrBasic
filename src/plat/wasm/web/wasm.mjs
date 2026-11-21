@@ -26,10 +26,11 @@ function normal(path) {
   return '/' + out.join('/');
 }
 
-// A DevVoice's bytes (qbrt's dev/voice.h), as the synthesizer's AudioWorklet takes them (synth.mjs).
-export const VOICE_BYTES = 28;
+// A DevVoice's bytes (qbrt's dev/voice.h), as the synthesizer's AudioWorklet takes them (synth.mjs): a note is one
+// and its layers'.
+export const VOICE_BYTES = 44;
 
-// host: { fs, cwd, args, write(fd, bytes), exit(code), stdin(n) -> bytes, stdio(fd) -> a stat,
+// host: { fs, cwd, args, write(fd, bytes), exit(code), stdin(n) -> bytes, stdio(fd) -> a stat, isatty(fd),
 // tone(hz), voice(n, bytes) }; cwd is
 // the module's own (a worker has no chdir), its paths resolved against it.
 export function imports(memory, host) {
@@ -116,6 +117,7 @@ export function imports(memory, host) {
       d.setFloat64(out + 8, st.mtimeMs, true);
       return 0;
     }),
+    fs_isatty: (fd) => (fd < FIRST_FD && host.isatty(fd) ? 1 : 0),
     fs_mkdir: (p) => run(() => (fs.mkdirSync(at(p)), 0)),
     fs_rmdir: (p) => run(() => (fs.rmdirSync(at(p)), 0)),
     fs_unlink: (p) => run(() => (fs.unlinkSync(at(p)), 0)),
@@ -139,7 +141,7 @@ export function imports(memory, host) {
     args: (buf, cap) => put(buf, cap - 1, host.args),
     exit: (code) => host.exit(code),
     tone: (hz) => host.tone?.(hz),
-    voice: (n, p) => host.voice?.(n, u8().slice(p, p + VOICE_BYTES)),
+    voice: (n, p, count) => host.voice?.(n, u8().slice(p, p + VOICE_BYTES * count)),
   };
   const math = { sin: Math.sin, cos: Math.cos, tan: Math.tan, atan: Math.atan, atan2: Math.atan2, exp: Math.exp,
     exp2: (x) => 2 ** x, log: Math.log, log2: Math.log2, log10: Math.log10, pow: Math.pow, fmod: (x, y) => x % y };

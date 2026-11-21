@@ -28806,6 +28806,96 @@ qb/segld.bas L 12 8e257d429291
 qb/segld.bas L 13 d7f7609509d7
 qb/segld.bas L 14 ddbc7219f8c0
 qb/segld.bas L 15 434dcc901c19
+qb/song.bas 0 fb96549631c8
+qb/song.bas 1 fb96549631c8
+qb/song.bas 2 fb96549631c8
+qb/song.bas 3 fb96549631c8
+qb/song.bas 4 fb96549631c8
+qb/song.bas 5 fb96549631c8
+qb/song.bas 6 fb96549631c8
+qb/song.bas 7 fb96549631c8
+qb/song.bas 8 fb96549631c8
+qb/song.bas 9 fb96549631c8
+qb/song.bas 10 cbd40dd917fa
+qb/song.bas 11 6b3cf0adc1f2
+qb/song.bas 12 845c0a4b0cb8
+qb/song.bas 13 229a913a4e28
+qb/song.bas 14 7128f47e4449
+qb/song.bas 15 d3ad717fe030
+qb/song.bas 16 eb8993728407
+qb/song.bas 17 1be60d42f685
+qb/song.bas 18 86e69dc7cf4d
+qb/song.bas 19 8afb84350baa
+qb/song.bas 20 fb96549631c8
+qb/song.bas 21 fb96549631c8
+qb/song.bas 22 fb96549631c8
+qb/song.bas 23 fb96549631c8
+qb/song.bas 24 fb96549631c8
+qb/song.bas 25 fb96549631c8
+qb/song.bas 26 fb96549631c8
+qb/song.bas 27 fb96549631c8
+qb/song.bas 28 fb96549631c8
+qb/song.bas 29 fb96549631c8
+qb/song.bas 30 fb96549631c8
+qb/song.bas 31 fb96549631c8
+qb/song.bas 32 61b622d42887
+qb/song.bas 33 300d20ee5a52
+qb/song.bas 34 8ee54491d40e
+qb/song.bas 35 fe487aba9b7d
+qb/song.bas 36 bf94a8b4097f
+qb/song.bas 37 e26c94cb214d
+qb/song.bas 38 057deec09cac
+qb/song.bas 39 15f84df6811c
+qb/song.bas 40 300d20ee5a52
+qb/song.bas 41 734be0afba18
+qb/song.bas 42 840fe09b2660
+qb/song.bas 43 7badc90e52e7
+qb/song.bas 44 87523856172e
+qb/song.bas L 0 2cc68e2cc985
+qb/song.bas L 1 0d5ce80063f5
+qb/song.bas L 2 6e9148b1f064
+qb/song.bas L 3 67a53252c22c
+qb/song.bas L 4 2eca46b36be8
+qb/song.bas L 5 8bdac796c55a
+qb/song.bas L 6 92b9a1bf8c34
+qb/song.bas L 7 1216b34874df
+qb/song.bas L 8 0ceb4694e530
+qb/song.bas L 9 b3b4f50dfc0a
+qb/song.bas L 10 2492b5c845e3
+qb/song.bas L 11 af6a42b4895d
+qb/song.bas L 12 39bd9ac0c640
+qb/song.bas L 13 a0cda7b853f0
+qb/song.bas L 14 90918dc4ed38
+qb/song.bas L 15 d3feee437b36
+qb/song.bas L 16 fdf339e0babe
+qb/song.bas L 17 1a783159647e
+qb/song.bas L 18 a6b8d07553c8
+qb/song.bas L 19 56b4db985716
+qb/song.bas L 20 06efd464b409
+qb/song.bas L 21 8e8d9df9e910
+qb/song.bas L 22 ac32f3b09453
+qb/song.bas L 23 78644c64de4b
+qb/song.bas L 24 c62d883fea43
+qb/song.bas L 25 ad5850809d56
+qb/song.bas L 26 05866b391024
+qb/song.bas L 27 a294090c2ca5
+qb/song.bas L 28 3e40eb5c1dc4
+qb/song.bas L 29 228dcf918f97
+qb/song.bas L 30 dde52fd211a9
+qb/song.bas L 31 d0aba59b3211
+qb/song.bas L 32 d04b137a7807
+qb/song.bas L 33 36db33475a61
+qb/song.bas L 34 bd06fcc1cd6d
+qb/song.bas L 35 a3a1b41b3cc9
+qb/song.bas L 36 b83e293175ca
+qb/song.bas L 37 a31df036e9b0
+qb/song.bas L 38 bde687583804
+qb/song.bas L 39 fec3a416a01e
+qb/song.bas L 40 91b621155dea
+qb/song.bas L 41 098ea1dbe7d5
+qb/song.bas L 42 1ba3c029283d
+qb/song.bas L 43 2ad6fb57a28c
+qb/song.bas L 44 1a998e42bde4
 qb/spill.bas 0 fb96549631c8
 qb/spill.bas 1 fb96549631c8
 qb/spill.bas 2 fb96549631c8

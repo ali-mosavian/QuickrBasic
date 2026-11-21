@@ -1,6 +1,7 @@
 // node tools/wasm/run.mjs MODULE.wasm [ARGS...]: the wasm build as a command, as build/host/basic
 // is. The module runs in a worker; this thread is its interrupts: the tick, Ctrl+C as STOP.
 import fs from 'node:fs';
+import tty from 'node:tty';
 import { Worker, isMainThread, workerData, parentPort } from 'node:worker_threads';
 import { imports, memory as newMemory, Irq, sidecar, ticker, MUSIC_HZ } from '../../src/plat/wasm/web/wasm.mjs';
 
@@ -59,6 +60,7 @@ if (isMainThread) {
       }
     },
     stdio: (fd) => fs.fstatSync(fd),
+    isatty: (fd) => tty.isatty(fd),
     tone,
     voice,
     exit: (code) => {

@@ -153,6 +153,14 @@ void B_SPLY(QbrtStr *commands);
 enum { QBRT_VOICES = 32 };
 void B_SPLYV(QbrtStr *const *commands, unsigned count);
 unsigned music_waiting(void);
+/* Songs (llrm's song.h): instrument n, commands$; music events(), from: `count` records of `size` bytes, each five
+   32-bit integers first (at, length, sound, pitch, loud), again from tick `from` at their end, none if negative; music
+   stop, ticks; note sound, pitch, length, loud; beat(). */
+void song_instrument(int n, QbrtStr *commands);
+void song_play(const unsigned char *events, unsigned count, unsigned size, long from);
+void song_stop(long ticks);
+void song_note(int sound, int pitch, long length, int loud);
+float song_beat(void);
 /* VARPTR$ of the variable at address of QBasic's type byte type: the type, then the address. */
 enum { QBRT_VARPTR = 5 };
 void qbrt_varptr(uint32_t address, uint8_t type, char out[static QBRT_VARPTR]);

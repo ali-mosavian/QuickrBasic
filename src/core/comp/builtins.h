@@ -28,6 +28,9 @@ enum : uint8_t { XF_LEAD = 0x80, XF_MIN = 0x7F };
 extern const XFn fns_x[];
 extern const uint32_t fns_nx;
 
+/* beat()'s, a song's (comp/sndstmt.c): a name, not a token. */
+enum : uint16_t { XF_BEAT = 0xFFFF };
+const XFn *fns_beat(void);
 /* tok (100h + n for TK_X n) one of fns_x: a function. */
 bool fns_isx(uint16_t tok);
 

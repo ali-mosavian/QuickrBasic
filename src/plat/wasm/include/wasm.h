@@ -15,6 +15,7 @@ IMPORT(fs_close) int js_fs_close(int fd);
 IMPORT(fs_truncate) int js_fs_truncate(int fd, double size);
 /* *out: mode, size, then the time it was changed in ms since 1970 (f64). */
 IMPORT(fs_stat) int js_fs_stat(const char *path, int fd, void *out);
+IMPORT(fs_isatty) int js_fs_isatty(int fd);
 IMPORT(fs_mkdir) int js_fs_mkdir(const char *path);
 IMPORT(fs_rmdir) int js_fs_rmdir(const char *path);
 IMPORT(fs_unlink) int js_fs_unlink(const char *path);
@@ -35,7 +36,7 @@ IMPORT(exit) void js_exit(int code);
 /* A tone of hz, 0 none. */
 IMPORT(tone) void js_tone(uint32_t hz);
 /* A synthesizer's voice set: v its DevVoice (qbrt's dev/voice.h), read before the call returns. */
-IMPORT(voice) void js_voice(uint32_t voice, const void *v);
+IMPORT(voice) void js_voice(uint32_t voice, const void *v, uint32_t count);
 
 /* What the page's thread writes while the module runs, in its shared memory (irq()'s address): the
    tick's and STOP's flags and bits, ORed in as the interrupts would; the keys typed, a ring it

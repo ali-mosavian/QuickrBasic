@@ -6,7 +6,7 @@
 #include "dos.h"
 #include "plat/pfil.h"
 
-enum { IOCTL_DEVICE = 0x80, NO_DRIVE = 0xFFFF };
+enum { IOCTL_CON = 0x03 /* console input, output */, IOCTL_DEVICE = 0x80, NO_DRIVE = 0xFFFF };
 
 static uint32_t ptr(const void *const p) { return (uint32_t)(uintptr_t)p; }
 
@@ -95,11 +95,11 @@ uint16_t pfil_printer(PfilHandle *const h)
     return PFIL_OK;
 }
 
-bool pfil_isdev(const PfilHandle h)
+bool pfil_iscon(const PfilHandle h)
 {
     PdosRegs r = {.eax = pdos_fn(DOS_IOCTL, 0), .ebx = h};
 
-    return !dos(&r) && r.edx & IOCTL_DEVICE;
+    return !dos(&r) && r.edx & IOCTL_DEVICE && r.edx & IOCTL_CON;
 }
 
 /* AH=fn on name. */

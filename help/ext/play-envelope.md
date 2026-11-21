@@ -2,7 +2,7 @@
 keys: play envelope, H command, ADSR, envelope
 
 Syntax
-    H attack, decay, sustain, release
+    H attack, decay, sustain, release [, fade]
 
 Shapes the loudness of every note the voice plays next. All four
 numbers are 0 to 15.
@@ -18,8 +18,11 @@ attack, full sustain, instant release.
     decay     time to fall to the sustain level: 6 ms to 24 s
     sustain   the level held while the note lasts: 0 silent, 15 full
     release   time to fade after the note ends: 6 ms to 24 s
+    fade      the fall on from the sustain while the note is held,
+              on the decay's scale; left off, the level holds
 
-Give all four numbers; fewer is Illegal function call.
+Give the first four numbers; fewer is Illegal function call.
+H0,4,1,7,10 falls to a sustain of 1, then on, as a drum's ring.
 
 With sustain 0 a note is a pluck: it dies in the decay however long
 it is held. The times, for 0 to 15:

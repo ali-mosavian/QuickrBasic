@@ -31,6 +31,7 @@ ssize_t write(const int fd, const void *const p, const size_t n)
     return ret(js_fs_write(fd, p, n));
 }
 int close(const int fd) { return ret(js_fs_close(fd)); }
+int isatty(const int fd) { return js_fs_isatty(fd); }
 int ftruncate(const int fd, const off_t size) { return ret(js_fs_truncate(fd, (double)size)); }
 int unlink(const char *const path) { return ret(js_fs_unlink(path)); }
 int rmdir(const char *const path) { return ret(js_fs_rmdir(path)); }
