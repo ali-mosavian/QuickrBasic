@@ -297,7 +297,7 @@ TEST(editor_goes_to_a_definition)
 TEST(editor_goes_to_a_definition_on_ctrl_click)
 {
     open_definitions(S);
-    uimn_rows(25); /* the windows where the mouse finds them */
+    uimn_size(PSCR_80X25); /* the windows where the mouse finds them */
     fx_cursor_on(S, "import gfx", "import");
     const uint32_t line = fx_line_of(S, "bump 1") - uimn.text.first;
     uimn.mouse = (UiMouse){.event = MS_PRESS,
@@ -316,7 +316,7 @@ TEST(editor_goes_to_a_definition_on_ctrl_click)
 TEST(editor_goes_to_a_definition_beside)
 {
     open_definitions(S);
-    uimn_rows(25);
+    uimn_size(PSCR_80X25);
     uimn.keyflags = PKEY_CTRL | PKEY_ALT;
     fx_cursor_on(S, "print total; top; p.x", "print");
     uimn_key(S, 0x3000);
@@ -336,7 +336,7 @@ TEST(editor_goes_to_a_definition_beside)
 TEST(editor_goes_to_a_definition_beside_on_ctrl_alt_click)
 {
     open_definitions(S);
-    uimn_rows(25);
+    uimn_size(PSCR_80X25);
     fx_cursor_on(S, "import gfx", "import");
     const uint32_t line = fx_line_of(S, "bump 1") - uimn.text.first;
     uimn.mouse = (UiMouse){.event = MS_PRESS,

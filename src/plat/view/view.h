@@ -6,7 +6,7 @@
 #define PLAT_VIEW_H
 #include "base.h"
 
-enum { VIEW_MAX_W = 720, VIEW_MAX_H = 480, VIEW_CELL_W = 9 };
+enum { VIEW_MAX_W = 132 * 9, VIEW_MAX_H = 480, VIEW_CELL_W = 9 }; /* 132 columns of 9 dots */
 
 /* The page's layout is wasm.mjs's too. */
 typedef struct {

@@ -68,13 +68,13 @@ static void text(const bool blink, const ViewPointer pointer)
         colours[i] =
             rgba(eight(s.palette[i * 3]), eight(s.palette[i * 3 + 1]), eight(s.palette[i * 3 + 2]));
 
-    out.width = PSCR_COLS * CELL_W;
+    out.width = s.cols * CELL_W;
     out.height = s.rows * ch;
     out.cell_h = ch;
 
     for (uint32_t row = 0; row < s.rows; row++)
-        for (uint32_t col = 0; col < PSCR_COLS; col++) {
-            const PscrCell c = s.cells[row * PSCR_COLS + col];
+        for (uint32_t col = 0; col < s.cols; col++) {
+            const PscrCell c = s.cells[row * s.cols + col];
             const bool under = pointer.shown && row == pointer.row && col == pointer.col;
             const uint8_t attr = (uint8_t)(c >> 8) ^ (under ? POINTER : 0);
             const uint32_t bg = colours[attr >> 4 & 7];
@@ -92,13 +92,13 @@ static void text(const bool blink, const ViewPointer pointer)
             }
         }
 
-    if (!blink || s.shape & PSCR_HIDDEN || s.row >= s.rows || s.col >= PSCR_COLS)
+    if (!blink || s.shape & PSCR_HIDDEN || s.row >= s.rows || s.col >= s.cols)
         return;
 
     /* the shape's lines are a CGA cell's, of 8: the VGA BIOS's emulation keeps lines 0-3 from the
        top, 4-7 from the bottom, its last line left clear (0607h: 13-14 of 16) */
     const uint32_t first = vga_line(s.shape >> 8 & 7, ch), last = vga_line(s.shape & 7, ch) + 1;
-    const uint32_t fg = colours[s.cells[s.row * PSCR_COLS + s.col] >> 8 & 15];
+    const uint32_t fg = colours[s.cells[s.row * s.cols + s.col] >> 8 & 15];
 
     for (uint32_t line = first; line < last && line < ch; line++)
         for (uint32_t bit = 0; bit < CELL_W; bit++)

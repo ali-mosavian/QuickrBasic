@@ -813,7 +813,7 @@ static void file_exit(Session *const S)
     if (!ask_save(S))
         return;
 
-    pscr_text(25);
+    pscr_text(PSCR_80X25);
     cons_exit(&S->cons, 0);
 }
 
@@ -1203,15 +1203,11 @@ void uimn_act(Session *const S, const uint8_t action)
         udbg_sout(S);
         break;
 
-    case ACT_ROWS25:
-    case ACT_ROWS43:
-    case ACT_ROWS50:
-        uimn_rows(rows_of(action));
-        break;
-
     default:
         if (action >= ACT_TH2 && action < ACT_SOUT)
             act_theme(action);
+        else if (action >= ACT_SIZE && action < ACT_SIZE + uimn.nsizes)
+            uimn_size(uimn.sizes[action - ACT_SIZE]);
 
         break;
     }
@@ -1425,8 +1421,8 @@ static void build_tree(void)
         const WidgetOps *ops;
         Rect rect;
     } tree[] = {
-        {&uimn.tree.menubar, &uimn.tree.screen, &menubar_ops, {0, 0, 1, PSCR_COLS}},
-        {&uimn.tree.workspace, &uimn.tree.screen, &workspace_ops, {}}, /* sized by uimn_rows */
+        {&uimn.tree.menubar, &uimn.tree.screen, &menubar_ops, {0, 0, 1, 80}},
+        {&uimn.tree.workspace, &uimn.tree.screen, &workspace_ops, {}}, /* sized by uimn_size */
         {&uimn.tree.statusbar, &uimn.tree.screen, &statusbar_ops, {}},
         {&uimn.tree.editors, &uimn.tree.workspace, nullptr, {}},
         {&uimn.tree.imm, &uimn.tree.workspace, &imm_ops, {}},
@@ -1471,7 +1467,10 @@ void uimn_modal(Session *const S, Widget *const w)
 void uimn_init(Session *const S)
 {
     S->repl.keep_pre = true; /* a module's lines shown as typed */
-    uimn.rows = 25; /* till uimn_rows */
+    uimn.rows = 25;          /* till uimn_size */
+    uimn.cols = 80;
+    uimn.nsizes = pscr_sizes(uimn.sizes);
+    menu_sizes();
     build_tree();
     undo_init();
     jumps_init(); /* after undo's hook */
@@ -1533,16 +1532,22 @@ static uint16_t cmdline_file(bool *const most)
     return n;
 }
 
-void uimn_rows(const uint8_t rows)
+void uimn_size(const PscrSize size)
 {
-    uimn.rows = pscr_text(rows);
+    const PscrSize s = pscr_text(size);
+    uimn.rows = s.rows;
+    uimn.cols = s.cols;
     them_in(); /* the mode's change loaded VGA's colours */
-    scrn_size(uimn.rows);
-    uimn.tree.screen.rect = (Rect){0, 0, uimn.rows, PSCR_COLS};
+    scrn_size(s);
+    uimn.tree.screen.rect = (Rect){0, 0, uimn.rows, uimn.cols};
 
-    uimn.tree.workspace.rect = (Rect){1, 0, win_rows(), PSCR_COLS};
+    uimn.tree.menubar.rect.cols = uimn.cols;
+    uimn.tree.workspace.rect = (Rect){1, 0, win_rows(), uimn.cols};
 
-    uimn.tree.statusbar.rect = (Rect){status_row(), 0, 1, PSCR_COLS};
+    uimn.tree.statusbar.rect = (Rect){status_row(), 0, 1, uimn.cols};
+
+    if (uimn.dp_col > uimn.cols - DP_PANEMIN)
+        uimn.dp_col = uimn.cols - DP_PANEMIN;
 
     wind_fit();
 }
@@ -1555,7 +1560,7 @@ void uimn_start(Session *const S)
     uimn_init(S);
     bool most;
     const uint16_t n = cmdline_file(&most);
-    uimn_rows(most ? 50 : 25); /* /H: the most the card has */
+    uimn_size(most ? (PscrSize){80, 50} : PSCR_80X25); /* /H: VGA's most */
     them_qbasic();
 
     if (n) {

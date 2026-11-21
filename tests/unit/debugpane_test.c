@@ -68,10 +68,10 @@ static void done(Session *const S)
 /* Screen row row from column c0 to the pane's right border, trailing spaces cut. */
 static const char *screen_text(const uint8_t row, const uint8_t c0)
 {
-    static char s[PSCR_COLS + 1];
+    static char s[PSCR_COLS_MAX + 1];
     uint8_t n = 0;
 
-    for (uint8_t c = c0; c < PSCR_COLS - 1; c++)
+    for (uint8_t c = c0; c < uimn.cols - 1; c++)
         s[n++] = (char)host_cell(0, row, c);
 
     while (n && s[n - 1] == ' ')
@@ -563,7 +563,7 @@ TEST(debug_pane_counts_frames_past_its_rows)
         " \x19 5 more, module last"
     ));
     const uint8_t more = (uint8_t)(title_row("Call stack") + 5);
-    uimn_rows(25); /* the windows where the mouse finds them */
+    uimn_size(PSCR_80X25); /* the windows where the mouse finds them */
     uimn.mouse = (UiMouse){.event = MS_PRESS, .row = more, .col = (uint8_t)(uimn.dp_col + 2)};
 
     uimn_key(S, KEY_MOUSE); /* a press on the row past the frames: no frame chosen */
@@ -872,7 +872,7 @@ static uint8_t row_of_line(const uint32_t line)
 /* The edit window's text on its line line, inside its borders, trailing spaces cut. */
 static const char *window_line(const uint32_t line)
 {
-    static char s[PSCR_COLS + 1];
+    static char s[PSCR_COLS_MAX + 1];
     uint8_t n = 0;
 
     for (uint8_t c = 0; c < uimn.ed.width; c++)

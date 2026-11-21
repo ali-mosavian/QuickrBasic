@@ -56,10 +56,8 @@ enum : uint8_t {
     ACT_TH2, /* themes 2 .. NTHEME-1 */
     ACT_SOUT = ACT_TH2 + NTHEME - 2,
     ACT_NONE,
-    ACT_ROWS25, /* Display Size: 25, 43, 50 rows */
-    ACT_ROWS43,
-    ACT_ROWS50,
-    ACT_HINDEX, /* Help: Index, Contents, Topic, Using Help */
+    ACT_SIZE,                               /* Display Size: uimn.sizes', PSCR_SIZES_MAX of them */
+    ACT_HINDEX = ACT_SIZE + PSCR_SIZES_MAX, /* Help: Index, Contents, Topic, Using Help */
     ACT_HCONT,
     ACT_HTOPIC,
     ACT_HUSING,
@@ -68,14 +66,10 @@ enum : uint8_t {
 };
 static_assert(ACT_TH2 == 33 && ACT_NONE == 41);
 
-/* Display Size's action a's rows. */
-static inline uint8_t rows_of(const uint8_t a)
-{
-    return a == ACT_ROWS25 ? 25 : a == ACT_ROWS43 ? 43 : 50;
-}
-
-/* mn_x: each title's column on the bar (QBasic's). */
-extern const uint8_t menu_x[NMENU];
+/* mn_x: title b's column on the bar: QBasic's, Help's from the screen's right edge. */
+uint8_t menu_col(uint8_t b);
+/* Display Size's items: uimn.sizes', numbered. */
+void menu_sizes(void);
 /* mn_tt: each title, '&' before its key. */
 extern const char *const menu_title[NMENU];
 

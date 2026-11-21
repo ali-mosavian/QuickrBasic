@@ -1,7 +1,8 @@
 /* The text screen on the host.
  *
  * # How it works
- * Pages in memory, for tests and a display to read (host.h).
+ * Pages in memory, for tests and a display to read (host.h). The card is an SVGA's: VGA's sizes,
+ * then VESA's text modes (108h, 109h .. 10Ch).
  */
 #include "plat/host/host.h"
 #include "plat/pscr.h"
@@ -9,8 +10,20 @@
 enum { NPAGE = 8, CH_BEL = 7 };
 enum : PscrCell { BLANK = 0x0720 };
 
-static PscrCell pages[NPAGE][PSCR_ROWS_MAX * PSCR_COLS];
-static uint8_t rows = 25;
+static const PscrSize sizes[] = {
+    {80, 25},
+    {80, 43},
+    {80, 50},
+    {80, 60},
+    {132, 25},
+    {132, 43},
+    {132, 50},
+    {132, 60},
+};
+static_assert(countof(sizes) <= PSCR_SIZES_MAX);
+
+static PscrCell pages[NPAGE][PSCR_ROWS_MAX * PSCR_COLS_MAX];
+static PscrSize size = PSCR_80X25;
 static struct {
     uint8_t row, col;
 } cursors[NPAGE];
@@ -28,7 +41,8 @@ static uint16_t shape = 0x0607;
 
 static PscrCell *cell(const uint8_t page, const uint8_t row, const uint8_t col)
 {
-    return &pages[page % NPAGE][(row * PSCR_COLS + col) % (rows * PSCR_COLS)];
+    const uint32_t cols = size.cols;
+    return &pages[page % NPAGE][(row * cols + col) % (size.rows * cols)];
 }
 
 PscrCell host_cell(const uint8_t page, const uint8_t row, const uint8_t col)
@@ -41,7 +55,8 @@ HostScreen host_screen(void)
     HostScreen s = {
         .cells = pages[shown],
         .page = shown,
-        .rows = rows,
+        .cols = size.cols,
+        .rows = size.rows,
         .row = cursors[shown].row,
         .col = cursors[shown].col,
         .shape = shape,
@@ -51,20 +66,30 @@ HostScreen host_screen(void)
     return s;
 }
 
-uint8_t pscr_rows(void) { return rows; }
-
-uint8_t pscr_text(const uint8_t want)
+uint8_t pscr_sizes(PscrSize out[PSCR_SIZES_MAX])
 {
-    rows = want == 43 || want == 50 ? want : 25;
+    __builtin_memcpy(out, sizes, sizeof sizes);
+    return countof(sizes);
+}
+
+PscrSize pscr_size(void) { return size; }
+
+PscrSize pscr_text(const PscrSize want)
+{
+    size = PSCR_80X25;
+
+    for (uint32_t i = 0; i < countof(sizes); i++)
+        if (sizes[i].cols == want.cols && sizes[i].rows == want.rows)
+            size = want;
 
     for (uint32_t p = 0; p < NPAGE; p++)
-        for (uint32_t i = 0; i < PSCR_ROWS_MAX * PSCR_COLS; i++)
+        for (uint32_t i = 0; i < PSCR_ROWS_MAX * PSCR_COLS_MAX; i++)
             pages[p][i] = BLANK;
 
     shown = 0;
     shape = 0x0607;
     __builtin_memcpy(palette, bios_palette, sizeof palette);
-    return rows;
+    return size;
 }
 
 void pscr_page(const uint8_t page) { shown = page % NPAGE; }

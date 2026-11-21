@@ -37,5 +37,5 @@ void scrn_shape(uint16_t lines);
 /* sc_flip: the drawn screen to page 0, in the vertical retrace. */
 void scrn_flip(void);
 /* The screen's rows: n (pscr_text's). */
-void scrn_size(uint8_t n);
+void scrn_size(PscrSize s);
 #endif

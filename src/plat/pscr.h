@@ -1,4 +1,5 @@
-/* The text screen: 80 by 25 cells on pages, the cursor, the video mode, the 16 text colours.
+/* The text screen: cells on pages (80 by 25 at first), the cursor, the video mode, the 16 text
+ * colours.
  *
  * # How it works
  * A cell is text memory's: the character in the low byte, the attribute in the high. The editor
@@ -6,25 +7,34 @@
  * writes there while it is the page shown.
  *
  * On DOS32 the cells are colour text memory (B800h + page * 1000h), the rest INT 10h, the DAC's
- * ports 3C8h/3C9h and the input status port 3DAh.
+ * ports 3C8h/3C9h and the input status port 3DAh. Sizes past 80x50 are the card's VESA text modes.
  */
 #ifndef PLAT_PSCR_H
 #define PLAT_PSCR_H
 #include "base.h"
 
-enum { PSCR_ROWS_MAX = 50, PSCR_COLS = 80 }; /* the screen's rows: pscr_rows */
+enum { PSCR_ROWS_MAX = 60, PSCR_COLS_MAX = 132, PSCR_SIZES_MAX = 8 };
+
+/* A text mode's size, in cells. */
+typedef struct {
+    uint8_t cols, rows;
+} PscrSize;
+
+static constexpr PscrSize PSCR_80X25 = {80, 25};
 
 /* A cell as text memory holds it: the character in the low byte, the attribute in the high. */
 typedef uint16_t PscrCell;
 
 enum : uint16_t { PSCR_HIDDEN = 0x2000 }; /* pscr_shape's: no cursor */
 
-/* 80-column colour text of rows rows (25, 43, 50; INT 10h mode 3, then the 8x8 font past 25):
-   every page cleared, page 0 shown, the BIOS palette. The rows it has: fewer when the card has
-   not as many (an EGA's 43 for 50). */
-uint8_t pscr_text(uint8_t rows);
-/* The text screen's rows now. */
-uint8_t pscr_rows(void);
+/* The sizes the card's colour text has to sizes, 80x25, 80x43 and 80x50 first: their number. */
+uint8_t pscr_sizes(PscrSize sizes[PSCR_SIZES_MAX]);
+/* Colour text of size, one of pscr_sizes' (80 columns: INT 10h mode 3, the 8x8 font past 25
+   rows; else its VESA mode): every page cleared, page 0 shown, the BIOS palette. The size it
+   has: fewer rows when the card has not as many (an EGA's 43 for 50), 80x25 for one it lacks. */
+PscrSize pscr_text(PscrSize size);
+/* The text screen's size now. */
+PscrSize pscr_size(void);
 /* The page shown (INT 10h AH=5). */
 void pscr_page(uint8_t page);
 

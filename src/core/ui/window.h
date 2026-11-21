@@ -41,7 +41,7 @@ void wind_grow(void);
 void wind_shrink(void);
 /* wn_max: Ctrl+F10: the focused window the whole screen; again, the windows as they were. */
 void wind_max(void);
-/* The windows fitted to the screen's rows (uimn_rows): ED1 takes the difference, else the start's
+/* The windows fitted to the screen's rows (uimn_size): ED1 takes the difference, else the start's
    layout. */
 void wind_fit(void);
 /* The mouse's event on a line between windows: a press there holds it (a title row's is its

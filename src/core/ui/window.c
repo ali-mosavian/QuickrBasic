@@ -57,7 +57,7 @@ static uint8_t ed1_cols(void)
 void wind_layout(void)
 {
     UiWins *const ws = &uimn.win;
-    ws->cols = uimn.pane_on ? uimn.dp_col : PSCR_COLS;
+    ws->cols = uimn.pane_on ? uimn.dp_col : uimn.cols;
     uint8_t row = 1; /* the next window's title row */
     for (uint8_t w = 0; w < NWIN; w++) {
         UiWin *const p = win(w);
@@ -69,7 +69,7 @@ void wind_layout(void)
 
         const uint16_t first = row + 1; /* the first row under the title */
         Rect *const r = &wind_widget(w)->rect;
-        *r = (Rect){row, 0, p->height, w == W_HELP ? ws->cols : PSCR_COLS};
+        *r = (Rect){row, 0, p->height, w == W_HELP ? ws->cols : uimn.cols};
         wind_widget(w)->visible = p->height != 0;
 
         if (w == W_HELP) { /* no edit state or text rows */
@@ -114,13 +114,13 @@ void wind_layout(void)
     uimn.tree.editors.rect = (Rect){over, 0, (uint8_t)(imm_row - over), ws->cols};
 
     uimn.tree.pane.rect =
-        (Rect){1, uimn.dp_col - 1, win_rows() - win(W_IMM)->height, PSCR_COLS - uimn.dp_col + 1};
+        (Rect){1, uimn.dp_col - 1, win_rows() - win(W_IMM)->height, uimn.cols - uimn.dp_col + 1};
 
     uimn.tree.pane.visible = uimn.pane_on;
     dpan_layout();
 
     if (win(W_HELP)->height) { /* the help window is the whole screen between the bars: QBasic's */
-        wind_widget(W_HELP)->rect = (Rect){1, 0, win_rows(), PSCR_COLS};
+        wind_widget(W_HELP)->rect = (Rect){1, 0, win_rows(), uimn.cols};
         uimn.tree.editors.visible = false;
         uimn.tree.pane.visible = false;
     } else {
@@ -457,7 +457,8 @@ bool wind_drag(void)
 
     if (held == SEAM_PANE && uimn.pane_on) {
         const uint8_t to = m->col + 1; /* the line at the mouse */
-        uimn.dp_col = to < DP_COLMIN ? DP_COLMIN : to > DP_COLMAX ? DP_COLMAX : to;
+        const uint8_t most = uimn.cols - DP_PANEMIN;
+        uimn.dp_col = to < DP_COLMIN ? DP_COLMIN : to > most ? most : to;
     } else if (held == SEAM_BESIDE) {
         uimn.win.ed1_cols = m->col + 1;
     } else if (held == SEAM_TITLE) {
