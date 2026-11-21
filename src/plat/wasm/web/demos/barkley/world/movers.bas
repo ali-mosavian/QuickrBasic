@@ -78,7 +78,7 @@ sub Movers (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero)
             ' a pier's span: trodden, it totters a moment, then falls from under who is on it, and stays fallen
             if lv.mv(m).t > 0 or (p.ground and p.sg = s) then lv.mv(m).t = lv.mv(m).t + STEPT
             if lv.mv(m).t > SPANT + 2 then lv.mv(m).t = SPANT + 2
-            lv.ob(lv.mv(m).o).s = lv.mv(m).t > 0 and lv.mv(m).t < SPANT
+            lv.ob(lv.mv(m).o).state = lv.mv(m).t > 0 and lv.mv(m).t < SPANT
             if lv.mv(m).t >= SPANT then
                 if lv.mv(m).t - STEPT < SPANT then Sfx mu, se, SCRACK
                 if p.ground and p.sg = s then Drop gr, p
@@ -96,7 +96,7 @@ sub Movers (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero)
             if lv.mv(m).t > lv.mv(m).a then lv.mv(m).t = lv.mv(m).a
             y = y - lv.mv(m).t
         case 4
-            if lv.ob(lv.mv(m).b).s then lv.mv(m).t = lv.mv(m).t + 200 * STEPT
+            if lv.ob(lv.mv(m).b).state then lv.mv(m).t = lv.mv(m).t + 200 * STEPT
             if lv.mv(m).t > lv.mv(m).a then lv.mv(m).t = lv.mv(m).a
             y = y - lv.mv(m).t
         case 3, 7, 8
@@ -126,8 +126,8 @@ sub Movers (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero)
         gr.cv(lv.mv(m).z).l = int(x)
         gr.cv(lv.mv(m).z).r = int(x) + MOVEW + 1
         o = lv.mv(m).o
-        lv.ob(o).x = cint(x)
-        lv.ob(o).y = cint(y)
+        lv.ob(o).at.x = cint(x)
+        lv.ob(o).at.y = cint(y)
         if not p.ground or p.sg <> s then continue for
         p.at.x = p.at.x + dx
         p.at.y = p.at.y + dy

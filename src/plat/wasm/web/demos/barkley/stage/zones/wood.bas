@@ -78,8 +78,8 @@ end function
 sub MeetSapling (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
     dim py as integer, v as single
     py = cint(p.at.y)
-    if lv.ob(i).s > 0 or abs(lv.ob(i).x + SAPREACH - cint(p.at.x)) >= 10 then exit sub
-    if py < lv.ob(i).y - 12 or py > lv.ob(i).y + 2 or (not p.ground and p.vel.y < 0) then exit sub
+    if lv.ob(i).state > 0 or abs(lv.ob(i).at.x + SAPREACH - cint(p.at.x)) >= 10 then exit sub
+    if py < lv.ob(i).at.y - 12 or py > lv.ob(i).at.y + 2 or (not p.ground and p.vel.y < 0) then exit sub
     if p.ground then p.vel.x = p.gsp
     v = SAPV + SAPGAIN * abs(p.vel.x)
     if v > SAPMAX then v = SAPMAX
@@ -88,16 +88,16 @@ sub MeetSapling (lv as Level, mu as Deck, se as Session, p as Hero, i as integer
     p.roll = 0
     p.jumped = 0
     p.sprung = -1
-    lv.ob(i).s = SAPT
+    lv.ob(i).state = SAPT
     Sfx mu, se, SSPRING
 end sub
 
 ' A vine's end reached in the air, and no vine just let go: he hangs from it, his way become its swing.
 sub MeetVine (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
     if p.vine or p.vine_t > 0 or p.ground or p.swim or p.stun or p.dead then exit sub
-    if abs(p.at.x - lv.ob(i).x) >= 12 or abs(p.at.y - VINEGRIP - lv.ob(i).y - VINELEN) >= 12 then exit sub
+    if abs(p.at.x - lv.ob(i).at.x) >= 12 or abs(p.at.y - VINEGRIP - lv.ob(i).at.y - VINELEN) >= 12 then exit sub
     p.vine = i + 1
-    p.sway = (p.at.x - lv.ob(i).x) / VINELEN
+    p.sway = (p.at.x - lv.ob(i).at.x) / VINELEN
     p.sway_v = p.vel.x / VINELEN
     p.roll = 0
     p.jumped = 0
@@ -107,13 +107,13 @@ end sub
 
 ' Bramble: it hurts him, but curled he cuts through it.
 sub MeetBramble (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose)
-    if lv.ob(i).s > 0 or abs(lv.ob(i).x - p.at.x) >= BRAMBLER then exit sub
-    if p.at.y < lv.ob(i).y - 24 or p.at.y > lv.ob(i).y + 8 then exit sub
+    if lv.ob(i).state > 0 or abs(lv.ob(i).at.x - p.at.x) >= BRAMBLER then exit sub
+    if p.at.y < lv.ob(i).at.y - 24 or p.at.y > lv.ob(i).at.y + 8 then exit sub
     if not p.roll then
-        Hurt mu, se, g, p, lv.ob(i).x, lo(), SHURT
+        Hurt mu, se, g, p, lv.ob(i).at.x, lo(), SHURT
         exit sub
     end if
-    lv.ob(i).s = BRAMBLET
+    lv.ob(i).state = BRAMBLET
     Sfx mu, se, SPOP
 end sub
 
@@ -121,13 +121,13 @@ end sub
 ' back till he has stepped off it.
 sub MeetMound (lv as Level, mu as Deck, se as Session, p as Hero, i as integer, pt() as Part)
     dim onIt as integer
-    onIt = abs(lv.ob(i).x - p.at.x) < MOUNDR
+    onIt = abs(lv.ob(i).at.x - p.at.x) < MOUNDR
     if p.dug = i + 1 then
         if not onIt then p.dug = 0
         exit sub
     end if
-    if not (onIt and p.crouch and p.ground) or abs(lv.ob(i).y - p.at.y) >= 8 or lv.ob(i).s < 1 then exit sub
-    p.dig = lv.ob(i).s
+    if not (onIt and p.crouch and p.ground) or abs(lv.ob(i).at.y - p.at.y) >= 8 or lv.ob(i).state < 1 then exit sub
+    p.dig = lv.ob(i).state
     p.ground = 0
     p.crouch = 0
     p.gsp = 0
@@ -140,25 +140,25 @@ end sub
 ' leaves it at LOGV. Its state: he is in it.
 sub MeetLog (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
     dim s as integer
-    if abs(lv.ob(i).x - p.at.x) >= LOGR or p.at.y <= lv.ob(i).y - LOGH or p.at.y > lv.ob(i).y + 4 then
-        lv.ob(i).s = 0
+    if abs(lv.ob(i).at.x - p.at.x) >= LOGR or p.at.y <= lv.ob(i).at.y - LOGH or p.at.y > lv.ob(i).at.y + 4 then
+        lv.ob(i).state = 0
         exit sub
     end if
     if not p.roll then
-        Balk p, lv.ob(i).x, LOGR
+        Balk p, lv.ob(i).at.x, LOGR
         exit sub
     end if
-    if lv.ob(i).s = 0 then Sfx mu, se, SSPRING
-    lv.ob(i).s = 1
+    if lv.ob(i).state = 0 then Sfx mu, se, SSPRING
+    lv.ob(i).state = 1
     s = 1 + 2 * (p.gsp < 0)
     if p.ground and p.gsp * s < LOGV then p.gsp = s * LOGV
 end sub
 
 ' Bramble's step: just cut, its leaves fly; cut, it grows back BRAMBLET steps on.
 sub Regrow (lv as Level, se as Session, pt() as Part, i as integer)
-    if lv.ob(i).s = 0 then exit sub
-    if lv.ob(i).s = BRAMBLET then Burst se, pt(), csng(lv.ob(i).x), csng(lv.ob(i).y - 12), 10, 140, CLEAF
-    lv.ob(i).s = lv.ob(i).s - 1
+    if lv.ob(i).state = 0 then exit sub
+    if lv.ob(i).state = BRAMBLET then Burst se, pt(), csng(lv.ob(i).at.x), csng(lv.ob(i).at.y - 12), 10, 140, CLEAF
+    lv.ob(i).state = lv.ob(i).state - 1
 end sub
 
 sub Swarms (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose)
@@ -249,22 +249,22 @@ end sub
 ' it keeps still. Its state: the steps till the acorn falls, signed the way it faces.
 sub Scamper (lv as Level, i as integer, p as Hero)
     dim n as integer, d as integer, perch as integer, quarry as integer
-    n = abs(lv.ob(i).s) - 1
-    d = sgn(lv.ob(i).s)
-    quarry = abs(p.at.x - lv.ob(i).a) < SQRUN + SQSEE and p.at.y > lv.ob(i).y
-    if n = 0 and quarry and abs(p.at.x - lv.ob(i).x) >= SQNEAR then n = 1
+    n = abs(lv.ob(i).state) - 1
+    d = sgn(lv.ob(i).state)
+    quarry = abs(p.at.x - lv.ob(i).home) < SQRUN + SQSEE and p.at.y > lv.ob(i).at.y
+    if n = 0 and quarry and abs(p.at.x - lv.ob(i).at.x) >= SQNEAR then n = 1
     if n = 0 then
-        if quarry then Loft lv, lv.ob(i).x + 5 * d, lv.ob(i).y + 1, 0, 0, IACORN, CNUT
+        if quarry then Loft lv, lv.ob(i).at.x + 5 * d, lv.ob(i).at.y + 1, 0, 0, IACORN, CNUT
         n = SQWAIT
     end if
-    lv.ob(i).s = d * n
+    lv.ob(i).state = d * n
     if n <= SQAIM or n > SQWAIT then exit sub
-    perch = lv.ob(i).a
+    perch = lv.ob(i).home
     if quarry then perch = cint(p.at.x)
-    if perch < lv.ob(i).a - SQRUN then perch = lv.ob(i).a - SQRUN
-    if perch > lv.ob(i).a + SQRUN then perch = lv.ob(i).a + SQRUN
-    if abs(perch - lv.ob(i).x) < SQV then exit sub
-    d = sgn(perch - lv.ob(i).x)
-    lv.ob(i).x = lv.ob(i).x + d * SQV
-    lv.ob(i).s = d * n
+    if perch < lv.ob(i).home - SQRUN then perch = lv.ob(i).home - SQRUN
+    if perch > lv.ob(i).home + SQRUN then perch = lv.ob(i).home + SQRUN
+    if abs(perch - lv.ob(i).at.x) < SQV then exit sub
+    d = sgn(perch - lv.ob(i).at.x)
+    lv.ob(i).at.x = lv.ob(i).at.x + d * SQV
+    lv.ob(i).state = d * n
 end sub

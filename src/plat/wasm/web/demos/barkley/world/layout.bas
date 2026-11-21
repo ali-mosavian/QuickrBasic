@@ -29,7 +29,7 @@ end sub
 sub Weed (lv as Level, x as integer)
     dim i as integer
     for i = 0 to lv.nObj - 1
-        if lv.ob(i).k >= KTREE and lv.ob(i).k <= KLAMP and lv.ob(i).x > x then lv.ob(i).k = 0
+        if lv.ob(i).kind >= KTREE and lv.ob(i).kind <= KLAMP and lv.ob(i).at.x > x then lv.ob(i).kind = 0
     next
 end sub
 
@@ -108,16 +108,16 @@ sub Limbs (lv as Level, g as integer)
 end sub
 
 sub AddObj (lv as Level, k as integer, x as integer, y as integer)
-    lv.ob(lv.nObj).k = k
-    lv.ob(lv.nObj).x = x
-    lv.ob(lv.nObj).y = y
-    lv.ob(lv.nObj).a = x
+    lv.ob(lv.nObj).kind = k
+    lv.ob(lv.nObj).at.x = x
+    lv.ob(lv.nObj).at.y = y
+    lv.ob(lv.nObj).home = x
     lv.nObj = lv.nObj + 1
 end sub
 
 ' Whether thing i stands rooted in the ground: of a kind from lo to the lamp, or a post.
 function Rooted% (lv as Level, i as integer, lo as integer)
-    Rooted% = (lv.ob(i).k >= lo and lv.ob(i).k <= KLAMP) or lv.ob(i).k >= KPOST
+    Rooted% = (lv.ob(i).kind >= lo and lv.ob(i).kind <= KLAMP) or lv.ob(i).kind >= KPOST
 end function
 
 ' The things of kind k told each other in pairs: a thing's state its other end, counted from 1. With no way
@@ -125,12 +125,12 @@ end function
 sub Pair (lv as Level, k as integer, back as integer)
     dim i as integer, j as integer
     for i = 0 to lv.nObj - 1
-        if lv.ob(i).k <> k or lv.ob(i).s >= 0 then continue for
+        if lv.ob(i).kind <> k or lv.ob(i).state >= 0 then continue for
         for j = i + 1 to lv.nObj - 1
-            if lv.ob(j).k <> k or lv.ob(j).s <> lv.ob(i).s then continue for
-            lv.ob(i).s = j + 1
-            lv.ob(j).s = 0
-            if back then lv.ob(j).s = i + 1
+            if lv.ob(j).kind <> k or lv.ob(j).state <> lv.ob(i).state then continue for
+            lv.ob(i).state = j + 1
+            lv.ob(j).state = 0
+            if back then lv.ob(j).state = i + 1
             exit for
         next
     next
@@ -142,7 +142,7 @@ sub SortObjs (lv as Level)
     for i = 1 to lv.nObj - 1
         j = i
         do while j > 0
-            if lv.ob(j - 1).x <= lv.ob(j).x then exit do
+            if lv.ob(j - 1).at.x <= lv.ob(j).at.x then exit do
             swap lv.ob(j - 1), lv.ob(j)
             j = j - 1
         loop
@@ -150,12 +150,12 @@ sub SortObjs (lv as Level)
     i = 0
     for c = 0 to MW
         do while i < lv.nObj
-            if lv.ob(i).x >= c * TS then exit do
+            if lv.ob(i).at.x >= c * TS then exit do
             i = i + 1
         loop
         lv.first(c) = i
     next
     for i = 0 to lv.nObj - 1
-        lv.ob(i).a = lv.ob(i).x
+        lv.ob(i).home = lv.ob(i).at.x
     next
 end sub

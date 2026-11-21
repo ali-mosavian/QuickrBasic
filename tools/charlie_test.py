@@ -145,10 +145,10 @@ dim lo(NLOOSE - 1) as Loose, pt(NPART - 1) as Part, cu(NCUE) as Cue, spans as in
 wd.mu.muted = -1
 StartGame wd, g, p, lo(), pt()
 for j = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(j).k = KCAT then
-        wd.lv.ob(j).x = 24
-        wd.lv.ob(j).a = 24
-        wd.lv.ob(j).y = wd.lv.startY
+    if wd.lv.ob(j).kind = KCAT then
+        wd.lv.ob(j).at.x = 24
+        wd.lv.ob(j).home = 24
+        wd.lv.ob(j).at.y = wd.lv.startY
         g.cam.x = 0
         exit for
     end if
@@ -383,9 +383,9 @@ if was = 0 then print "drop ok"
 ' a loop is ground: met fast, no key held, it is run round, over its top and out the far side; met slowly Charlie
 ' stalls on its side and slides back to its foot
 for j = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(j).k = KLOOP then exit for
+    if wd.lv.ob(j).kind = KLOOP then exit for
 next
-c = wd.lv.ob(j).x
+c = wd.lv.ob(j).at.x
 Stand wd.lv, wd.gr, p, c - 8, 460
 was = 0
 for i = 1 to 300
@@ -400,13 +400,13 @@ for i = 1 to 300
     MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
     if p.ground then if wd.gr.pt(p.sg).u < 0 then was = -1
 next
-if v and was = 0 and p.ground and abs(p.at.x - c) < LOOPR and p.at.y > wd.lv.ob(j).y - 8 then print "loop ok"
+if v and was = 0 and p.ground and abs(p.at.x - c) < LOOPR and p.at.y > wd.lv.ob(j).at.y - 8 then print "loop ok"
 ' too slow at its top, Charlie falls from it and lands inside
 Stand wd.lv, wd.gr, p, c - 8, 340
 was = 0
 for i = 1 to 200
     MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
-    if not p.ground and p.at.y < wd.lv.ob(j).y - LOOPR then was = -1
+    if not p.ground and p.at.y < wd.lv.ob(j).at.y - LOOPR then was = -1
 next
 if was and p.ground and p.at.x < c + LOOPR then print "stall ok"
 ' a jump before a loop comes down on the ground under it, not on the far half of the ring
@@ -420,12 +420,12 @@ for i = 1 to 90
     if p.ground then if wd.gr.pt(p.sg).k = 2 then was = -1
 next
 k.jump = 0
-if was = 0 and p.ground and abs(p.at.y - wd.lv.ob(j).y) < 2 then print "ghost ok"
+if was = 0 and p.ground and abs(p.at.y - wd.lv.ob(j).at.y) < 2 then print "ghost ok"
 ' a quarter pipe is run up, and its wall: off the top and onto the ground above
 for j = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(j).k = KPIPE then exit for
+    if wd.lv.ob(j).kind = KPIPE then exit for
 next
-c = wd.lv.ob(j).x
+c = wd.lv.ob(j).at.x
 Stand wd.lv, wd.gr, p, c - 100, 360
 k.r = -1
 was = 0
@@ -437,21 +437,21 @@ next
 if was and p.ground and p.at.x > c + 8 and abs(p.at.y - wd.lv.top(c \\ TS) * TS) < 2 then print "pipe ok"
 ' a ribbon is ground: run onto at speed it is ridden over each hump and off its far end onto the ground
 for j = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(j).k = KWAVE then exit for
+    if wd.lv.ob(j).kind = KWAVE then exit for
 next
-c = wd.lv.ob(j).x
+c = wd.lv.ob(j).at.x
 Stand wd.lv, wd.gr, p, c - 40, 420
 k.r = -1
 was = 0
 v = 0
 for i = 1 to 400
     MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
-    if p.ground then if wd.gr.pt(p.sg).k = 2 and p.at.y < wd.lv.ob(j).y - WAVEA + 8 then was = was + 1
+    if p.ground then if wd.gr.pt(p.sg).k = 2 and p.at.y < wd.lv.ob(j).at.y - WAVEA + 8 then was = was + 1
     ' down its far sides too: with only the rising halves there it was flown from crest to crest
     if p.ground then if wd.gr.pt(p.sg).k = 2 and wd.gr.pt(p.sg).v > .3 then v = v + 1
     if p.ground and wd.gr.pt(p.sg).k = 1 and p.at.x > c + 384 then exit for
 next
-if was > 3 and v > 6 and p.ground and p.at.x > c + 384 and abs(p.at.y - wd.lv.ob(j).y) < 2 then print "wave ok"
+if was > 3 and v > 6 and p.ground and p.at.x > c + 384 and abs(p.at.y - wd.lv.ob(j).at.y) < 2 then print "wave ok"
 ' a ribbon is a twist, run on its inside: at its crest Charlie hangs under its line, not stood on it as on a hill
 Stand wd.lv, wd.gr, p, c - 40, 420
 was = 0
@@ -495,33 +495,33 @@ for i = 1 to 300
         k.r = 0
     end if
     MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
-    if p.ground and p.at.y > wd.lv.ob(j).y + 40 then exit for
+    if p.ground and p.at.y > wd.lv.ob(j).at.y + 40 then exit for
 next
-if p.ground and wd.gr.pt(p.sg).k = 1 and p.at.y > wd.lv.ob(j).y + 40 and p.at.x < c + 384 then print "slow ok"
+if p.ground and wd.gr.pt(p.sg).k = 1 and p.at.y > wd.lv.ob(j).at.y + 40 and p.at.x < c + 384 then print "slow ok"
 ' a bark stops a prowler where it is a while, and it goes on away from him: it walked on as if deaf
 k.r = 0
 StartGame wd, g, p, lo(), pt()
 j = -1
 for i = 0 to wd.lv.nObj - 1
-    c = wd.lv.ob(i).a - 40
-    if wd.lv.ob(i).k = KCAT and j < 0 and abs(GroundAt%(wd.lv, c) - wd.lv.ob(i).y) < 8 then
+    c = wd.lv.ob(i).home - 40
+    if wd.lv.ob(i).kind = KCAT and j < 0 and abs(GroundAt%(wd.lv, c) - wd.lv.ob(i).at.y) < 8 then
         if SegAt%(wd.lv, wd.gr, c, csng(GroundAt%(wd.lv, c))) >= 0 then j = i
     end if
 next
-wd.lv.ob(j).x = wd.lv.ob(j).a
-wd.lv.ob(j).s = -1
-Stand wd.lv, wd.gr, p, wd.lv.ob(j).a - 40, 0
+wd.lv.ob(j).at.x = wd.lv.ob(j).home
+wd.lv.ob(j).state = -1
+Stand wd.lv, wd.gr, p, wd.lv.ob(j).home - 40, 0
 k.bark = -1
 Tick wd, g, p, k, lo(), pt()
 was = 0
 for i = 1 to 20
     Tick wd, g, p, k, lo(), pt()
-    if wd.lv.ob(j).x <> wd.lv.ob(j).a then was = was + 1
+    if wd.lv.ob(j).at.x <> wd.lv.ob(j).home then was = was + 1
 next
 for i = 1 to 60
     Tick wd, g, p, k, lo(), pt()
 next
-if was = 0 and wd.lv.ob(j).x > wd.lv.ob(j).a then print "bark ok"
+if was = 0 and wd.lv.ob(j).at.x > wd.lv.ob(j).home then print "bark ok"
 was = 0
 StartGame wd, g, p, lo(), pt()
 for i = 1 to 9000
@@ -684,9 +684,9 @@ was = 0
 ' jump does not reach it; a jet's throw does and bumps it: it is dazed and Charlie knocked back down
 GoStage wd, 3, g, p, lo(), pt()
 for j = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(j).k = KJET and wd.lv.ob(j).x > wd.lv.chaseX then exit for
+    if wd.lv.ob(j).kind = KJET and wd.lv.ob(j).at.x > wd.lv.chaseX then exit for
 next
-c = wd.lv.ob(j).x
+c = wd.lv.ob(j).at.x
 Stand wd.lv, wd.gr, p, c - 40, 0
 Tick wd, g, p, k, lo(), pt()
 wd.lv.box.t = 9
@@ -711,13 +711,13 @@ next
 was = was and wd.lv.cart.hits = 1 and wd.lv.cart.t > BOLTS and p.vel.y > 0 and not p.ground
 ' and a hoop's throw does, from the side
 for j = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(j).k = KHOOP and wd.lv.ob(j).x > wd.lv.chaseX then exit for
+    if wd.lv.ob(j).kind = KHOOP and wd.lv.ob(j).at.x > wd.lv.chaseX then exit for
 next
 wd.lv.cart.t = 0
-wd.lv.cart.at.x = wd.lv.ob(j).x + 200
+wd.lv.cart.at.x = wd.lv.ob(j).at.x + 200
 wd.lv.box.t = 9
-p.at.x = wd.lv.ob(j).x - 12
-p.at.y = wd.lv.ob(j).y + 12
+p.at.x = wd.lv.ob(j).at.x - 12
+p.at.y = wd.lv.ob(j).at.y + 12
 p.ground = 0
 p.vel.x = 300
 p.vel.y = 0
@@ -940,16 +940,16 @@ wd.se.gold_lo = 0
 wd.se.gold_hi = 0
 goldAt = -1
 for i = wd.lv.nObj - 1 to 0 step -1
-    if wd.lv.ob(i).k <> KGOLD then continue for
+    if wd.lv.ob(i).kind <> KGOLD then continue for
     gold2 = goldAt
     goldAt = i
 next
 goldOk = wd.lv.nGold = NGOLD and goldAt >= 0 and GoldNo%(wd.lv, goldAt) = 0 and GoldNo%(wd.lv, gold2) = 1
-Stand wd.lv, wd.gr, p, wd.lv.ob(goldAt).x, 0
-goldOk = goldOk and wd.lv.ob(goldAt).y = p.at.y - 5 * TS - 14 and not Found%(wd.se, 0, 0)
+Stand wd.lv, wd.gr, p, wd.lv.ob(goldAt).at.x, 0
+goldOk = goldOk and wd.lv.ob(goldAt).at.y = p.at.y - 5 * TS - 14 and not Found%(wd.se, 0, 0)
 g.shake = 0
-g.cam.x = wd.lv.ob(goldAt).x - 160
-g.cam.y = wd.lv.ob(goldAt).y - 100
+g.cam.x = wd.lv.ob(goldAt).at.x - 160
+g.cam.y = wd.lv.ob(goldAt).at.y - 100
 Render wd, g, p, lo(), pt()
 goldOk = goldOk and point(160, 100) >= CGOLD and point(160, 100) <= CGOLD + 4
 goldOk = goldOk and point(6 + PIPX + 3, 5 + PIPY + 3) = CINK
@@ -970,23 +970,23 @@ get #2, 5, saved
 close #2
 goldOk = goldOk and saved = 1
 for j = 0 to 1
-    p.at.x = wd.lv.ob(goldAt).x
-    p.at.y = wd.lv.ob(goldAt).y + 13
+    p.at.x = wd.lv.ob(goldAt).at.x
+    p.at.y = wd.lv.ob(goldAt).at.y + 13
     p.ground = 0
     p.vel.y = 0
     Tick wd, g, p, k, lo(), pt()
 next
 goldOk = goldOk and g.score = goldScore + GOLDPTS
 ' he stands clear of where it was: over it he hid it, found or not
-Stand wd.lv, wd.gr, p, wd.lv.ob(goldAt).x - 60, 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(goldAt).at.x - 60, 0
 g.shake = 0
-g.cam.x = wd.lv.ob(goldAt).x - 160
-g.cam.y = wd.lv.ob(goldAt).y - 100
+g.cam.x = wd.lv.ob(goldAt).at.x - 160
+g.cam.y = wd.lv.ob(goldAt).at.y - 100
 Render wd, g, p, lo(), pt()
 goldOk = goldOk and (point(160, 100) < CGOLD or point(160, 100) > CGOLD + 4)
 goldOk = goldOk and point(6 + PIPX + 3, 5 + PIPY + 3) = CYELLOW and point(6 + PIPX + 11, 5 + PIPY + 3) = CINK
-p.at.x = wd.lv.ob(gold2).x
-p.at.y = wd.lv.ob(gold2).y + 13
+p.at.x = wd.lv.ob(gold2).at.x
+p.at.y = wd.lv.ob(gold2).at.y + 13
 p.ground = 0
 p.vel.y = 0
 Tick wd, g, p, k, lo(), pt()
@@ -1268,8 +1268,8 @@ for m = 4 to 5
     next
     ' and no bone nor spring lies where the sea never leaves: the sunset's pools had bones on their floors
     for i = 0 to wd.lv.nObj - 1
-        if wd.lv.ob(i).k = KBONE and wd.lv.ob(i).y > ebb + 9 then zp = 0
-        if wd.lv.ob(i).k = KSPRING and wd.lv.ob(i).y > ebb + WADE then zp = 0
+        if wd.lv.ob(i).kind = KBONE and wd.lv.ob(i).at.y > ebb + 9 then zp = 0
+        if wd.lv.ob(i).kind = KSPRING and wd.lv.ob(i).at.y > ebb + WADE then zp = 0
     next
 next
 if was and brim < ebb then print "shore ok"
@@ -1317,7 +1317,7 @@ for i = 1 to 60
     Tick wd, g, p, k, lo(), pt()
 next
 was = m < wd.lv.nMv and spans > 5 and wd.gr.pt(c).y = wd.lv.mv(m).y
-was = was and wd.lv.mv(m).t = 0 and wd.lv.ob(wd.lv.mv(m).o).k = KSPAN
+was = was and wd.lv.mv(m).t = 0 and wd.lv.ob(wd.lv.mv(m).o).kind = KSPAN
 p.at.x = wd.gr.pt(c).x + 24
 p.at.y = wd.gr.pt(c).y
 p.sg = c
@@ -1326,17 +1326,17 @@ p.gsp = 0
 for i = 1 to 12
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and wd.gr.pt(c).y = wd.lv.mv(m).y and p.ground and p.sg = c and wd.lv.ob(wd.lv.mv(m).o).s <> 0
+was = was and wd.gr.pt(c).y = wd.lv.mv(m).y and p.ground and p.sg = c and wd.lv.ob(wd.lv.mv(m).o).state <> 0
 for i = 1 to 60
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and wd.gr.pt(c).y > wd.lv.mv(m).y + 200 and wd.lv.ob(wd.lv.mv(m).o).y > wd.lv.mv(m).y + 200
+was = was and wd.gr.pt(c).y > wd.lv.mv(m).y + 200 and wd.lv.ob(wd.lv.mv(m).o).at.y > wd.lv.mv(m).y + 200
 was = was and not (p.ground and p.sg = c)
 ' down on the pool's dry floor, not through it
 was = was and not p.dead and p.ground and abs(p.at.y - (wd.lv.mv(m).y + PITD * TS)) < 2
 Spawn wd.lv, wd.gr, wd.zn, wd.mu, g, p
 Tick wd, g, p, k, lo(), pt()
-was = was and wd.gr.pt(c).y = wd.lv.mv(m).y and wd.lv.mv(m).t = 0 and wd.lv.ob(wd.lv.mv(m).o).s = 0
+was = was and wd.gr.pt(c).y = wd.lv.mv(m).y and wd.lv.mv(m).t = 0 and wd.lv.ob(wd.lv.mv(m).o).state = 0
 Stand wd.lv, wd.gr, p, wd.lv.mv(m).e - 40, 300
 k.r = -1
 v = 0
@@ -1360,65 +1360,65 @@ if was and j = spans then print "pier ok"
 ' end's cap over it. A slope took him at his own pace
 GoStage wd, 4, g, p, lo(), pt()
 for j = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(j).k = KCISTERN then exit for
+    if wd.lv.ob(j).kind = KCISTERN then exit for
 next
 was = j < wd.lv.nObj
-Stand wd.lv, wd.gr, p, wd.lv.ob(j).x - 30, 80
+Stand wd.lv, wd.gr, p, wd.lv.ob(j).at.x - 30, 80
 k.r = -1
 v = 0
 for i = 1 to 200
     Tick wd, g, p, k, lo(), pt()
-    if p.ground and p.at.x > wd.lv.ob(j).x + 30 and p.at.x < wd.lv.ob(j).x + 70 then
+    if p.ground and p.at.x > wd.lv.ob(j).at.x + 30 and p.at.x < wd.lv.ob(j).at.x + 70 then
         v = v + 1
         if p.gsp < FLUMEV or not p.roll then was = 0
     end if
-    if not p.ground and p.at.x > wd.lv.ob(j).x + 96 then exit for
+    if not p.ground and p.at.x > wd.lv.ob(j).at.x + 96 then exit for
 next
 k.r = 0
 was = was and v > 2 and i < 60 and p.vel.x >= FLUMEV
-g.cam.x = wd.lv.ob(j).x - 100
+g.cam.x = wd.lv.ob(j).at.x - 100
 g.shake = 0
 Render wd, g, p, lo(), pt()
 c = 100
-m = wd.lv.ob(j).y - int(g.cam.y)
+m = wd.lv.ob(j).at.y - int(g.cam.y)
 if was and point(c + 40, m + 42) = point(c + 95, m + 77) and wd.art.at(ICISTERN) > 0 then print "flume ok"
 ' a works' sweeper hurts whoever meets its hood, a rolling Charlie too; rolled into from behind it is beaten, and
 ' landed on, with a bounce. Jumped at 50 pixels like a cat, its hood caught the pilot rising
 GoStage wd, 2, g, p, lo(), pt()
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KSWEEP then exit for
+    if wd.lv.ob(c).kind = KSWEEP then exit for
 next
 was = c < wd.lv.nObj
 for j = 0 to 1
     g.bones = 5
     p.inv = 0
     p.stun = 0
-    wd.lv.ob(c).s = -1
-    Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 14, 200
+    wd.lv.ob(c).state = -1
+    Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 14, 200
     if j then p.roll = -1
     Tick wd, g, p, k, lo(), pt()
-    was = was and p.inv > 0 and wd.lv.ob(c).s <> 0
+    was = was and p.inv > 0 and wd.lv.ob(c).state <> 0
 next
 hid = g.score
 p.inv = 0
 p.stun = 0
-wd.lv.ob(c).s = -1
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x + 14, -200
+wd.lv.ob(c).state = -1
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x + 14, -200
 p.roll = -1
 Tick wd, g, p, k, lo(), pt()
-was = was and wd.lv.ob(c).s = 0 and g.score = hid + 100 and p.inv <= 0
+was = was and wd.lv.ob(c).state = 0 and g.score = hid + 100 and p.inv <= 0
 ' rising past its hood, his feet over its top, he is clear of it
-wd.lv.ob(c).s = -1
-p.at.x = wd.lv.ob(c).x - 15
-p.at.y = wd.lv.ob(c).y - 22
+wd.lv.ob(c).state = -1
+p.at.x = wd.lv.ob(c).at.x - 15
+p.at.y = wd.lv.ob(c).at.y - 22
 p.ground = 0
 p.roll = 0
 p.vel.x = 0
 p.vel.y = -200
 Tick wd, g, p, k, lo(), pt()
-was = was and p.inv <= 0 and wd.lv.ob(c).s <> 0
-p.at.x = wd.lv.ob(c).x
-p.at.y = wd.lv.ob(c).y - 30
+was = was and p.inv <= 0 and wd.lv.ob(c).state <> 0
+p.at.x = wd.lv.ob(c).at.x
+p.at.y = wd.lv.ob(c).at.y - 30
 p.ground = 0
 p.roll = 0
 p.vel.x = 0
@@ -1427,31 +1427,31 @@ for i = 1 to 20
     Tick wd, g, p, k, lo(), pt()
     if p.vel.y < 0 then exit for
 next
-if was and wd.lv.ob(c).s = 0 and p.inv <= 0 and abs(p.vel.y + BOUNCEV) < 30 then print "sweeper ok"
+if was and wd.lv.ob(c).state = 0 and p.inv <= 0 and abs(p.vel.y + BOUNCEV) < 30 then print "sweeper ok"
 ' a works' spark goes SPARKR either way along its rail; its carriage hurts for the SPARKLIT steps of SPARKP it is
 ' alight, and is safe dark
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KSPARK then exit for
+    if wd.lv.ob(c).kind = KSPARK then exit for
 next
 was = c < wd.lv.nObj
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).a - 100, 0
-m = wd.lv.ob(c).x
-v = wd.lv.ob(c).x
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).home - 100, 0
+m = wd.lv.ob(c).at.x
+v = wd.lv.ob(c).at.x
 for i = 1 to 240
     Tick wd, g, p, k, lo(), pt()
-    if wd.lv.ob(c).x < m then m = wd.lv.ob(c).x
-    if wd.lv.ob(c).x > v then v = wd.lv.ob(c).x
+    if wd.lv.ob(c).at.x < m then m = wd.lv.ob(c).at.x
+    if wd.lv.ob(c).at.x > v then v = wd.lv.ob(c).at.x
 next
-was = was and m >= wd.lv.ob(c).a - SPARKR and m < wd.lv.ob(c).a - SPARKR + 4
-was = was and v <= wd.lv.ob(c).a + SPARKR and v > wd.lv.ob(c).a + SPARKR - 4
+was = was and m >= wd.lv.ob(c).home - SPARKR and m < wd.lv.ob(c).home - SPARKR + 4
+was = was and v <= wd.lv.ob(c).home + SPARKR and v > wd.lv.ob(c).home + SPARKR - 4
 for j = 0 to 1
-    do until (wd.se.ticks + wd.lv.ob(c).a) mod SPARKP = 10 + j * SPARKLIT
+    do until (wd.se.ticks + wd.lv.ob(c).home) mod SPARKP = 10 + j * SPARKLIT
         wd.se.ticks = wd.se.ticks + 1
     loop
     g.bones = 5
     p.inv = 0
     p.stun = 0
-    Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 4, 0
+    Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 4, 0
     Tick wd, g, p, k, lo(), pt()
     was = was and (p.inv > 0) = (j = 0)
 next
@@ -1461,10 +1461,10 @@ if was then print "spark ok"
 ' up; from a stop, a run begun as the first has risen goes under the whole row; the head is drawn where it is
 GoStage wd, 3, g, p, lo(), pt()
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KPRESS then exit for
+    if wd.lv.ob(c).kind = KPRESS then exit for
 next
 for m = c + 1 to wd.lv.nObj - 1
-    if wd.lv.ob(m).k = KPRESS then exit for
+    if wd.lv.ob(m).kind = KPRESS then exit for
 next
 was = m < wd.lv.nObj
 do until Stroke%(wd.lv, wd.se, c) = 0 and PressT%(wd.lv, wd.se, c) < 20
@@ -1473,7 +1473,7 @@ loop
 g.bones = 5
 p.inv = 0
 p.stun = 0
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x, 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x, 0
 v = -1
 j = -1
 for i = 1 to PRESSP
@@ -1488,14 +1488,14 @@ loop
 do while Stroke%(wd.lv, wd.se, m) = PRESSUP
     wd.se.ticks = wd.se.ticks - 1
 loop
-was = was and (wd.se.ticks + 1 - j) mod PRESSP = (wd.lv.ob(m).x - wd.lv.ob(c).x) \\ PRESSLAG
+was = was and (wd.se.ticks + 1 - j) mod PRESSP = (wd.lv.ob(m).at.x - wd.lv.ob(c).at.x) \\ PRESSLAG
 do until Stroke%(wd.lv, wd.se, c) = 0 and PressT%(wd.lv, wd.se, c) < 20
     wd.se.ticks = wd.se.ticks + 1
 loop
 g.bones = 5
 p.inv = 0
 p.stun = 0
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x, 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x, 0
 k.hit = -1
 k.jump = -1
 for i = 1 to 20
@@ -1514,28 +1514,28 @@ loop
 g.bones = 5
 p.inv = 0
 p.stun = 0
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 60, 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 60, 0
 for j = m to wd.lv.nObj - 1
-    if wd.lv.ob(j).k = KLEG then exit for
+    if wd.lv.ob(j).kind = KLEG then exit for
 next
 k.r = -1
 for i = 1 to 400
     Tick wd, g, p, k, lo(), pt()
     if p.inv > 0 then was = 0
-    if p.at.x > wd.lv.ob(j).x + 20 then exit for
+    if p.at.x > wd.lv.ob(j).at.x + 20 then exit for
 next
 k.r = 0
 was = was and i < 400
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 60, 0
-g.cam.x = wd.lv.ob(c).x - 160
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 60, 0
+g.cam.x = wd.lv.ob(c).at.x - 160
 g.shake = 0
 for j = 0 to 1
     do until PressT%(wd.lv, wd.se, c) = 20 + j * (PRESSFALL - 4)
         wd.se.ticks = wd.se.ticks + 1
     loop
     Render wd, g, p, lo(), pt()
-    colA(j) = point(160, wd.lv.ob(c).y - int(g.cam.y) - 4)
-    colB(j) = point(160, wd.lv.ob(c).y - int(g.cam.y) - PRESSUP - 4)
+    colA(j) = point(160, wd.lv.ob(c).at.y - int(g.cam.y) - 4)
+    colB(j) = point(160, wd.lv.ob(c).at.y - int(g.cam.y) - PRESSUP - 4)
 next
 if was and colA(0) <> colA(1) and colB(0) <> colB(1) then print "press ok"
 ' Whitecap Pass is the fourth zone, by name and in its own colours: its snow's top the same picture at both hours,
@@ -1633,15 +1633,15 @@ if was then print "line ok"
 ' an awning throws him who comes down on it 135 up, 450 squared over twice GRAV, however often; it stays given
 ' AWNT things' steps, drawn so; from under he goes through it, and past its edge he falls by it
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KAWNING then exit for
+    if wd.lv.ob(c).kind = KAWNING then exit for
 next
 was = c < wd.lv.nObj
-m = wd.lv.ob(c).y
+m = wd.lv.ob(c).at.y
 for j = 0 to 2
     if j < 2 then
         p.ground = 0
         ' near its outer edge, then at its middle
-        p.at.x = wd.lv.ob(c).x - (AWNW - 2) * (1 - j)
+        p.at.x = wd.lv.ob(c).at.x - (AWNW - 2) * (1 - j)
         p.at.y = m - 30
         p.vel.x = 0
         p.vel.y = 0
@@ -1651,7 +1651,7 @@ for j = 0 to 2
         Tick wd, g, p, k, lo(), pt()
         if p.vel.y < 0 then exit for
     next
-    was = was and abs(p.at.y - m) < 4 and wd.lv.ob(c).s >= AWNT - 1 and p.sprung
+    was = was and abs(p.at.y - m) < 4 and wd.lv.ob(c).state >= AWNT - 1 and p.sprung
     for i = 1 to 200
         Tick wd, g, p, k, lo(), pt()
         if p.vel.y >= 0 then exit for
@@ -1660,11 +1660,11 @@ for j = 0 to 2
 next
 was = was and abs(colA(0) - 135) < 8 and abs(colA(1) - colA(0)) < 3 and abs(colA(2) - colA(0)) < 3
 ' its canvas's top row at rest, and given
-p.at.x = wd.lv.ob(c).x - 100
-g.cam.x = wd.lv.ob(c).x - 160
+p.at.x = wd.lv.ob(c).at.x - 100
+g.cam.x = wd.lv.ob(c).at.x - 160
 g.cam.y = m - 100
 for j = 0 to 1
-    wd.lv.ob(c).s = j * AWNT
+    wd.lv.ob(c).state = j * AWNT
     g.shake = 0
     Render wd, g, p, lo(), pt()
     colB(j) = point(160, 101)
@@ -1673,41 +1673,41 @@ was = was and colB(0) <> colB(1) and colB(0) >= 134 and colB(0) <= 136 and colB(
 for i = 1 to AWNT * 2 + 2
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and wd.lv.ob(c).s = 0
+was = was and wd.lv.ob(c).state = 0
 ' from under: risen through it; and a step past its edge, fallen by
 p.ground = 0
-p.at.x = wd.lv.ob(c).x
+p.at.x = wd.lv.ob(c).at.x
 p.at.y = m + 20
 p.vel.y = -300
 for i = 1 to 12
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and p.at.y < m - 10 and p.vel.y < 0 and wd.lv.ob(c).s = 0
-p.at.x = wd.lv.ob(c).x - AWNW - 1
+was = was and p.at.y < m - 10 and p.vel.y < 0 and wd.lv.ob(c).state = 0
+p.at.x = wd.lv.ob(c).at.x - AWNW - 1
 p.at.y = m - 10
 p.vel.x = 0
 p.vel.y = 100
 for i = 1 to 12
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and p.at.y > m + 10 and wd.lv.ob(c).s = 0
+was = was and p.at.y > m + 10 and wd.lv.ob(c).state = 0
 if was then print "awning ok"
 ' a chimney that leads on takes him who comes down into its pot: unseen, through the houses to its other at DIGV,
 ' and up out of that one's pot 118 over it, 420 squared over twice GRAV; the way out takes no one in, and it
 ' alone smokes; past a pot's edge he falls by it, and on the roof he walks by it
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KCHIMNEY then exit for
+    if wd.lv.ob(c).kind = KCHIMNEY then exit for
 next
 was = c < wd.lv.nObj
-m = wd.lv.ob(c).s - 1
-was = was and m > c and wd.lv.ob(m).k = KCHIMNEY and wd.lv.ob(m).s = 0
+m = wd.lv.ob(c).state - 1
+was = was and m > c and wd.lv.ob(m).kind = KCHIMNEY and wd.lv.ob(m).state = 0
 for j = 0 to 2
     ' into the way in; onto the way out; a step past the way in's edge
     v = c
     if j = 1 then v = m
     p.ground = 0
-    p.at.x = wd.lv.ob(v).x - 9 * (j = 2)
-    p.at.y = wd.lv.ob(v).y - FLUEH - 20
+    p.at.x = wd.lv.ob(v).at.x - 9 * (j = 2)
+    p.at.y = wd.lv.ob(v).at.y - FLUEH - 20
     p.vel.x = 0
     p.vel.y = 0
     for i = 1 to 40
@@ -1718,14 +1718,14 @@ for j = 0 to 2
 next
 was = was and colA(0) = m + 1 and colA(1) = 0 and colA(2) = 0
 ' nor is it gone into from the roof it stands on
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x, 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x, 0
 for i = 1 to 3
     Tick wd, g, p, k, lo(), pt()
 next
 was = was and p.dig = 0 and p.ground
 p.ground = 0
-p.at.x = wd.lv.ob(c).x
-p.at.y = wd.lv.ob(c).y - FLUEH - 20
+p.at.x = wd.lv.ob(c).at.x
+p.at.y = wd.lv.ob(c).at.y - FLUEH - 20
 p.vel.y = 0
 for i = 1 to 40
     Tick wd, g, p, k, lo(), pt()
@@ -1743,20 +1743,20 @@ for i = 1 to 600
     Tick wd, g, p, k, lo(), pt()
     if p.dig = 0 then exit for
 next
-was = was and abs(p.at.x - wd.lv.ob(m).x) < 1 and abs(p.at.y - (wd.lv.ob(m).y - FLUEH)) < 8 and p.vel.y < 0
+was = was and abs(p.at.x - wd.lv.ob(m).at.x) < 1 and abs(p.at.y - (wd.lv.ob(m).at.y - FLUEH)) < 8 and p.vel.y < 0
 for i = 1 to 200
     Tick wd, g, p, k, lo(), pt()
     if p.vel.y >= 0 then exit for
 next
-was = was and abs(wd.lv.ob(m).y - FLUEH - p.at.y - 118) < 8
+was = was and abs(wd.lv.ob(m).at.y - FLUEH - p.at.y - 118) < 8
 ' the stack's brick at each, and smoke over the way out's pot only, counted over a puff's rise
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 60, 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 60, 0
 for j = 0 to 1
     v = c
     if j = 1 then v = m
     colB(j) = 0
-    g.cam.x = wd.lv.ob(v).x - 160
-    g.cam.y = wd.lv.ob(v).y - 150
+    g.cam.x = wd.lv.ob(v).at.x - 160
+    g.cam.y = wd.lv.ob(v).at.y - 150
     for i = 0 to 7
         wd.se.ticks = wd.se.ticks + 16
         g.shake = 0
@@ -1779,7 +1779,7 @@ Stand wd.lv, wd.gr, p, wd.lv.mv(m).e - 40, 0
 for i = 1 to 30
     Tick wd, g, p, k, lo(), pt()
 next
-bx = wd.lv.ob(c).x
+bx = wd.lv.ob(c).at.x
 was = was and bx = wd.lv.mv(m).x and wd.lv.mv(m).t = 0
 p.at.x = bx + MOVEW \\ 2
 p.at.y = wd.lv.mv(m).y
@@ -1788,21 +1788,21 @@ p.ang = 0
 for i = 1 to 60
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and abs(wd.lv.ob(c).x - bx - 240) < 6 and abs(p.at.x - wd.lv.ob(c).x - MOVEW \\ 2) < 2 and p.ground
+was = was and abs(wd.lv.ob(c).at.x - bx - 240) < 6 and abs(p.at.x - wd.lv.ob(c).at.x - MOVEW \\ 2) < 2 and p.ground
 was = was and p.sg = wd.lv.mv(m).s
 g.shake = 0
 Render wd, g, p, lo(), pt()
-was = was and point(wd.lv.ob(c).x + 20 - int(g.cam.x), wd.lv.ob(c).y + 23 - int(g.cam.y)) = 187
+was = was and point(wd.lv.ob(c).at.x + 20 - int(g.cam.x), wd.lv.ob(c).at.y + 23 - int(g.cam.y)) = 187
 for i = 1 to 600
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and wd.lv.mv(m).t = 1 and wd.lv.ob(c).x = bx + wd.lv.mv(m).a and p.ground and p.sg = wd.lv.mv(m).s
-was = was and wd.lv.ob(c).y = wd.lv.mv(m).y
+was = was and wd.lv.mv(m).t = 1 and wd.lv.ob(c).at.x = bx + wd.lv.mv(m).a and p.ground and p.sg = wd.lv.mv(m).s
+was = was and wd.lv.ob(c).at.y = wd.lv.mv(m).y
 Stand wd.lv, wd.gr, p, wd.lv.mv(m).e - 40, 0
 for i = 1 to 200
     Tick wd, g, p, k, lo(), pt()
 next
-if was and wd.lv.mv(m).t = 0 and wd.lv.ob(c).x = bx then print "tram ok"
+if was and wd.lv.mv(m).t = 0 and wd.lv.ob(c).at.x = bx then print "tram ok"
 ' a lantern line is ground: come down on, he stands on it and it throws no one; left to it he slides down it,
 ' faster as he goes, off its end and onto the roof past it, LANTFALL lower; from under he goes through it; drawn
 ' taut in ink, a lantern's light under it
@@ -1857,16 +1857,16 @@ if was then print "slide ok"
 ' a pouncer waits in its bin, eyes under the lid, while he is far; within POUNCER of it it leaps at him, POUNCEFAR
 ' along in POUNCEN things' steps, and scratches on its way; landed it prowls as a cat of the Mob does
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KPOUNCE then exit for
+    if wd.lv.ob(c).kind = KPOUNCE then exit for
 next
-was = c < wd.lv.nObj and wd.lv.ob(c - 1).k = KBIN and wd.lv.ob(c).s = 0
-bx = wd.lv.ob(c).x
-m = wd.lv.ob(c).y
+was = c < wd.lv.nObj and wd.lv.ob(c - 1).kind = KBIN and wd.lv.ob(c).state = 0
+bx = wd.lv.ob(c).at.x
+m = wd.lv.ob(c).at.y
 Stand wd.lv, wd.gr, p, bx - POUNCER - 10, 0
 for i = 1 to 20
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and wd.lv.ob(c).s = 0
+was = was and wd.lv.ob(c).state = 0
 ' its eyes show in the bin, and not once it is out
 g.cam.x = bx - 160
 g.cam.y = m - 100
@@ -1881,15 +1881,16 @@ for i = 1 to POUNCEN
     Tick wd, g, p, k, lo(), pt()
     p.inv = 9
 next
-was = was and wd.lv.ob(c).s < 0 and wd.lv.ob(c).s >= -POUNCEN and abs(wd.lv.ob(c).x - (bx - POUNCEFAR \\ 2)) < 5
-was = was and Leapt%(wd.lv, c) > 15 and wd.lv.ob(c).y = m
+was = was and wd.lv.ob(c).state < 0 and wd.lv.ob(c).state >= -POUNCEN _
+    and abs(wd.lv.ob(c).at.x - (bx - POUNCEFAR \\ 2)) < 5
+was = was and Leapt%(wd.lv, c) > 15 and wd.lv.ob(c).at.y = m
 Render wd, g, p, lo(), pt()
 colB(1) = point(160 - 4, 100 - 19)
 was = was and colB(0) = 141 and colB(1) <> 141
 ' it scratches in the air
 p.inv = 0
-p.at.x = wd.lv.ob(c).x
-p.at.y = wd.lv.ob(c).y - Leapt%(wd.lv, c) + 7
+p.at.x = wd.lv.ob(c).at.x
+p.at.y = wd.lv.ob(c).at.y - Leapt%(wd.lv, c) + 7
 p.ground = 0
 p.roll = 0
 Tick wd, g, p, k, lo(), pt()
@@ -1898,36 +1899,37 @@ for i = 1 to POUNCEN * 2
     Tick wd, g, p, k, lo(), pt()
     p.inv = 9
 next
-was = was and abs(wd.lv.ob(c).s) = POUNCEOUT and Leapt%(wd.lv, c) = 0 and abs(wd.lv.ob(c).x - bx) <= POUNCEFAR + 1
-v = wd.lv.ob(c).x
+was = was and abs(wd.lv.ob(c).state) = POUNCEOUT and Leapt%(wd.lv, c) = 0 _
+    and abs(wd.lv.ob(c).at.x - bx) <= POUNCEFAR + 1
+v = wd.lv.ob(c).at.x
 for i = 1 to 8
     Tick wd, g, p, k, lo(), pt()
     p.inv = 9
 next
 ' a turn at its beat's end, then a pixel a things' step
-was = was and abs(wd.lv.ob(c).x - v) >= 2 and abs(wd.lv.ob(c).x - v) <= 4
+was = was and abs(wd.lv.ob(c).at.x - v) >= 2 and abs(wd.lv.ob(c).at.x - v) <= 4
 if was then print "pounce ok"
 ' a stage begun again has it back in its bin; a bark from past its reach brings it out; rolled into in the air it
 ' is beaten, and no cat lands
 GoStage wd, 10, g, p, lo(), pt()
 g.mode_t = 20
-was = was and wd.lv.ob(c).s = 0 and wd.lv.ob(c).x = bx
+was = was and wd.lv.ob(c).state = 0 and wd.lv.ob(c).at.x = bx
 Stand wd.lv, wd.gr, p, bx - POUNCER - 10, 0
 k.bark = -1
 Tick wd, g, p, k, lo(), pt()
 k.bark = 0
-was = was and wd.lv.ob(c).s < 0 and wd.lv.ob(c).s >= -2
+was = was and wd.lv.ob(c).state < 0 and wd.lv.ob(c).state >= -2
 for i = 1 to 10
     Tick wd, g, p, k, lo(), pt()
 next
 p.inv = 0
-p.at.x = wd.lv.ob(c).x
-p.at.y = wd.lv.ob(c).y - Leapt%(wd.lv, c) + 7
+p.at.x = wd.lv.ob(c).at.x
+p.at.y = wd.lv.ob(c).at.y - Leapt%(wd.lv, c) + 7
 p.ground = 0
 p.roll = -1
 v = g.score
 Tick wd, g, p, k, lo(), pt()
-was = was and wd.lv.ob(c).s = POUNCEGONE and g.score = v + 100 and not p.stun
+was = was and wd.lv.ob(c).state = POUNCEGONE and g.score = v + 100 and not p.stun
 for i = 1 to POUNCEN * 2 + 4
     Tick wd, g, p, k, lo(), pt()
 next
@@ -1935,7 +1937,7 @@ g.cam.x = bx - 160
 g.cam.y = m - 100
 g.shake = 0
 Render wd, g, p, lo(), pt()
-if was and wd.lv.ob(c).s = POUNCEGONE and point(160 - 4, 100 - 19) <> 141 then print "pouncer ok"
+if was and wd.lv.ob(c).state = POUNCEGONE and point(160 - 4, 100 - 19) <> 141 then print "pouncer ok"
 ' a rope-walker is a cat on a clothesline, its home two columns along it: it walks the line a pixel a things'
 ' step, from 14 short of the line's end to 40 past its home, at the line's height; a bark from near stands it
 ' startled, then it walks on away; who comes down on its line shakes it off, beaten, once; a stage begun again has
@@ -1946,45 +1948,45 @@ c = 0
 j = 0
 was = 0
 for i = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(i).k = KWALKER then c = i
+    if wd.lv.ob(i).kind = KWALKER then c = i
 next
 for i = 0 to wd.lv.nRope - 1
     if wd.lv.ropes(i).cat <> c + 1 then continue for
     j = i
-    was = wd.lv.ob(c).k = KWALKER
+    was = wd.lv.ob(c).kind = KWALKER
 next
 bx = wd.lv.ropes(j).at.x
 m = wd.lv.ropes(j).at.y
-was = was and wd.lv.ropes(j).w = 124 and wd.lv.ob(c).x = bx + 46 and wd.lv.ob(c).s = -1
+was = was and wd.lv.ropes(j).w = 124 and wd.lv.ob(c).at.x = bx + 46 and wd.lv.ob(c).state = -1
 Stand wd.lv, wd.gr, p, bx - 30, 0
 colA(0) = 9999
 colA(1) = 0
 for i = 1 to 240
     Tick wd, g, p, k, lo(), pt()
-    if wd.lv.ob(c).x < colA(0) then colA(0) = wd.lv.ob(c).x
-    if wd.lv.ob(c).x > colA(1) then colA(1) = wd.lv.ob(c).x
-    if wd.lv.ob(c).x = bx + 14 then was = was and wd.lv.ob(c).y = m + 2
-    if wd.lv.ob(c).x = bx + 86 then was = was and wd.lv.ob(c).y = m + 4
+    if wd.lv.ob(c).at.x < colA(0) then colA(0) = wd.lv.ob(c).at.x
+    if wd.lv.ob(c).at.x > colA(1) then colA(1) = wd.lv.ob(c).at.x
+    if wd.lv.ob(c).at.x = bx + 14 then was = was and wd.lv.ob(c).at.y = m + 2
+    if wd.lv.ob(c).at.x = bx + 86 then was = was and wd.lv.ob(c).at.y = m + 4
 next
-was = was and colA(0) = bx + 14 and colA(1) = bx + 86 and wd.lv.ob(c).s = -1
+was = was and colA(0) = bx + 14 and colA(1) = bx + 86 and wd.lv.ob(c).state = -1
 ' barked at from the roof past it
 Stand wd.lv, wd.gr, p, bx + 130, 0
-v = wd.lv.ob(c).x
+v = wd.lv.ob(c).at.x
 k.bark = -1
 Tick wd, g, p, k, lo(), pt()
 k.bark = 0
-was = was and wd.lv.ob(c).s < -1
+was = was and wd.lv.ob(c).state < -1
 for i = 1 to 40
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and wd.lv.ob(c).s < -1 and abs(wd.lv.ob(c).x - v) <= 1
+was = was and wd.lv.ob(c).state < -1 and abs(wd.lv.ob(c).at.x - v) <= 1
 for i = 1 to 20
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and wd.lv.ob(c).s = -1 and wd.lv.ob(c).x < v - 2
+was = was and wd.lv.ob(c).state = -1 and wd.lv.ob(c).at.x < v - 2
 ' drawn on its line: its back's fur
-colA(2) = wd.lv.ob(c).x
-colA(3) = wd.lv.ob(c).y
+colA(2) = wd.lv.ob(c).at.x
+colA(3) = wd.lv.ob(c).at.y
 g.cam.x = colA(2) - 160
 g.cam.y = colA(3) - 100
 g.shake = 0
@@ -2004,7 +2006,7 @@ for j = 0 to 1
         Tick wd, g, p, k, lo(), pt()
         if p.vel.y < 0 then exit for
     next
-    was = was and p.vel.y < 0 and wd.lv.ob(c).s = 0 and g.score = hid + 100 and g.bones = 2 and not p.stun
+    was = was and p.vel.y < 0 and wd.lv.ob(c).state = 0 and g.score = hid + 100 and g.bones = 2 and not p.stun
     for i = 1 to 200
         Tick wd, g, p, k, lo(), pt()
         if p.vel.y >= 0 then exit for
@@ -2022,13 +2024,13 @@ colB(1) = point(160 - 2, 100 - 5)
 was = was and colB(0) >= 32 and colB(0) <= 37 and (colB(1) < 32 or colB(1) > 37)
 GoStage wd, 10, g, p, lo(), pt()
 g.mode_t = 20
-was = was and wd.lv.ob(c).s = -1 and wd.lv.ob(c).x = bx + 46
+was = was and wd.lv.ob(c).state = -1 and wd.lv.ob(c).at.x = bx + 46
 g.bones = 2
 p.inv = 0
 p.ground = 0
 p.roll = 0
-p.at.x = wd.lv.ob(c).x
-p.at.y = wd.lv.ob(c).y + 10
+p.at.x = wd.lv.ob(c).at.x
+p.at.y = wd.lv.ob(c).at.y + 10
 p.vel.y = -100
 Tick wd, g, p, k, lo(), pt()
 was = was and p.stun and g.bones = 0
@@ -2041,14 +2043,14 @@ GoStage wd, 10, g, p, lo(), pt()
 g.mode_t = 20
 c = 0
 for i = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(i).k = KSNATCH then c = i
+    if wd.lv.ob(i).kind = KSNATCH then c = i
 next
-bx = wd.lv.ob(c).x
-m = wd.lv.ob(c).y
-was = wd.lv.ob(c).k = KSNATCH and wd.lv.ob(c).s = -1
+bx = wd.lv.ob(c).at.x
+m = wd.lv.ob(c).at.y
+was = wd.lv.ob(c).kind = KSNATCH and wd.lv.ob(c).state = -1
 ' the bones that lie by it taken away: his count is to tell only what he gets of the loose ones
 for i = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(i).k = KBONE and abs(wd.lv.ob(i).x - bx) < 200 then wd.lv.ob(i).s = 0
+    if wd.lv.ob(i).kind = KBONE and abs(wd.lv.ob(i).at.x - bx) < 200 then wd.lv.ob(i).state = 0
 next
 Stand wd.lv, wd.gr, p, bx - 100, 0
 hid = g.bones
@@ -2062,7 +2064,7 @@ for i = 1 to 40
     Tick wd, g, p, k, lo(), pt()
     if lo(0).t <= 0 then exit for
 next
-was = was and i <= 17 and wd.lv.ob(c).x = bx + 23 and wd.se.loose_n = 0 and g.bones = hid
+was = was and i <= 17 and wd.lv.ob(c).at.x = bx + 23 and wd.se.loose_n = 0 and g.bones = hid
 ' past its beat, and over its head
 lo(0).at.x = bx + 60
 lo(0).at.y = m - 4
@@ -2074,29 +2076,29 @@ lo(1).vel.x = 0
 lo(1).vel.y = 0
 lo(1).t = 3
 wd.se.loose_n = 2
-v = wd.lv.ob(c).x
+v = wd.lv.ob(c).at.x
 for i = 1 to 20
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and lo(0).t > 0 and lo(1).t > 0 and wd.se.loose_n = 2 and abs(wd.lv.ob(c).x - v) <= 10
+was = was and lo(0).t > 0 and lo(1).t > 0 and wd.se.loose_n = 2 and abs(wd.lv.ob(c).at.x - v) <= 10
 ' too new, behind it: left while it is, taken after
 lo(1).t = 0
-lo(0).at.x = wd.lv.ob(c).x - 20
+lo(0).at.x = wd.lv.ob(c).at.x - 20
 lo(0).at.y = m - 4
 lo(0).vel.y = 0
 lo(0).t = 3.75
 wd.se.loose_n = 1
-v = wd.lv.ob(c).x
+v = wd.lv.ob(c).at.x
 for i = 1 to 20
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and lo(0).t > 0 and wd.lv.ob(c).x >= v
+was = was and lo(0).t > 0 and wd.lv.ob(c).at.x >= v
 for i = 1 to 30
     Tick wd, g, p, k, lo(), pt()
 next
 was = was and lo(0).t <= 0 and wd.se.loose_n = 0
 ' barked at from 50 off, a bone 15 past it: it stands, and takes it when it has done
-v = wd.lv.ob(c).x
+v = wd.lv.ob(c).at.x
 Stand wd.lv, wd.gr, p, v - 50, 0
 k.bark = -1
 Tick wd, g, p, k, lo(), pt()
@@ -2109,9 +2111,9 @@ wd.se.loose_n = 1
 for i = 1 to 20
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and lo(0).t > 0 and wd.lv.ob(c).s > 1 and abs(wd.lv.ob(c).x - v) <= 1
-g.cam.x = wd.lv.ob(c).x - 160
-g.cam.y = wd.lv.ob(c).y - 100
+was = was and lo(0).t > 0 and wd.lv.ob(c).state > 1 and abs(wd.lv.ob(c).at.x - v) <= 1
+g.cam.x = wd.lv.ob(c).at.x - 160
+g.cam.y = wd.lv.ob(c).at.y - 100
 g.shake = 0
 Render wd, g, p, lo(), pt()
 colB(1) = point(160 - 2, 100 - 5)
@@ -2120,8 +2122,8 @@ for i = 1 to 60
 next
 was = was and lo(0).t <= 0 and wd.se.loose_n = 0 and g.bones = hid
 ' drawn in its own grey, startled and at a prowl; rolled into, beaten
-g.cam.x = wd.lv.ob(c).x - 160
-g.cam.y = wd.lv.ob(c).y - 100
+g.cam.x = wd.lv.ob(c).at.x - 160
+g.cam.y = wd.lv.ob(c).at.y - 100
 g.shake = 0
 Render wd, g, p, lo(), pt()
 colB(0) = point(160 - 2, 100 - 5)
@@ -2130,14 +2132,14 @@ shown = g.score
 p.inv = 0
 p.ground = 0
 p.roll = -1
-p.at.x = wd.lv.ob(c).x
-p.at.y = wd.lv.ob(c).y - 3
+p.at.x = wd.lv.ob(c).at.x
+p.at.y = wd.lv.ob(c).at.y - 3
 p.vel.y = 0
 Tick wd, g, p, k, lo(), pt()
-was = was and wd.lv.ob(c).s = 0 and g.score = shown + 100 and not p.stun
+was = was and wd.lv.ob(c).state = 0 and g.score = shown + 100 and not p.stun
 GoStage wd, 10, g, p, lo(), pt()
 g.mode_t = 20
-was = was and wd.lv.ob(c).s = -1 and wd.lv.ob(c).x = bx
+was = was and wd.lv.ob(c).state = -1 and wd.lv.ob(c).at.x = bx
 if was then print "snatcher ok"
 ' a mortar fires on its own beat of every four, by the zone tune's clock. The festival's is 144 beats a minute: a
 ' beat is 25 ticks, and the mortar on beat 1 fires at each tick 25 past a hundred. Who stands beside it then is
@@ -2147,11 +2149,11 @@ if was then print "snatcher ok"
 GoStage wd, 11, g, p, lo(), pt()
 g.mode_t = 20
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KMORTAR then exit for
+    if wd.lv.ob(c).kind = KMORTAR then exit for
 next
-was = c < wd.lv.nObj and wd.lv.ob(c).s = 1 and wd.mu.song(ZTUNE).tempo = 144
-bx = wd.lv.ob(c).x
-m = wd.lv.ob(c).y
+was = c < wd.lv.nObj and wd.lv.ob(c).state = 1 and wd.mu.song(ZTUNE).tempo = 144
+bx = wd.lv.ob(c).at.x
+m = wd.lv.ob(c).at.y
 colA(0) = wd.mu.muted
 wd.mu.muted = -1
 ' beside it from 15 ticks after it fired till it fires again, unhurt; then burnt
@@ -2272,9 +2274,9 @@ if was then print "mortar ok"
 GoStage wd, 11, g, p, lo(), pt()
 g.mode_t = 20
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KMORTAR then exit for
+    if wd.lv.ob(c).kind = KMORTAR then exit for
 next
-bx = wd.lv.ob(c).x
+bx = wd.lv.ob(c).at.x
 colA(0) = wd.mu.muted
 wd.mu.muted = -1
 was = c < wd.lv.nObj
@@ -2300,14 +2302,14 @@ if was then print "mortar pilot ok"
 GoStage wd, 11, g, p, lo(), pt()
 g.mode_t = 20
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KTIPPER then exit for
+    if wd.lv.ob(c).kind = KTIPPER then exit for
 next
 was = c < wd.lv.nObj
 for i = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(i).k = KPOUNCE then wd.lv.ob(i).s = POUNCEGONE
+    if wd.lv.ob(i).kind = KPOUNCE then wd.lv.ob(i).state = POUNCEGONE
 next
-bx = wd.lv.ob(c).x + POTX
-m = wd.lv.ob(c).y
+bx = wd.lv.ob(c).at.x + POTX
+m = wd.lv.ob(c).at.y
 colA(0) = wd.mu.muted
 wd.mu.muted = -1
 k.r = 0
@@ -2328,7 +2330,7 @@ loop
 was = was and PotFall%(wd.lv, wd.se, c) = 15
 ' drawn: the house's wall; the pot in the air, its sill bare
 g.shake = 0
-g.cam.x = wd.lv.ob(c).x - 160
+g.cam.x = wd.lv.ob(c).at.x - 160
 g.cam.y = m - 150
 Render wd, g, p, lo(), pt()
 was = was and point(140, 70) >= 130 and point(140, 70) <= 132
@@ -2370,7 +2372,7 @@ do until wd.se.ticks mod 100 = 49
     j = wd.se.ticks mod 100
     if j = 80 or j = 0 or j = 30 then was = was and PotClear%(wd.lv, wd.se, c) = (j = 80 or j = 0)
     if j <> 90 and j <> 20 and j <> 40 then continue do
-    g.cam.x = wd.lv.ob(c).x - 160
+    g.cam.x = wd.lv.ob(c).at.x - 160
     g.cam.y = m - 150
     Render wd, g, p, lo(), pt()
     was = was and (point(167, 77) = CCLAY) = (j <> 90) and (point(161, 77) = 140) = (j = 40)
@@ -2420,12 +2422,12 @@ for c = 0 to 5
     wd.se.gold_hi = 0
     j = 0
     for i = 0 to wd.lv.nObj - 1
-        if wd.lv.ob(i).k <> KGOLD then continue for
+        if wd.lv.ob(i).kind <> KGOLD then continue for
         colB(j) = i
         j = j + 1
     next
     m = colB(c mod 3)
-    bx = wd.lv.ob(m).x
+    bx = wd.lv.ob(m).at.x
     p.inv = 9
     ' v: the tick he jumps at, or on the line holds right from
     select case c
@@ -2441,7 +2443,7 @@ for c = 0 to 5
         p.at.y = wd.lv.ropes(0).at.y - 30
         v = 110
         if c = 2 then p.at.x = bx - 50
-        if c = 2 then p.at.y = wd.lv.ob(m).y + 14 + 7 * TS - 82
+        if c = 2 then p.at.y = wd.lv.ob(m).at.y + 14 + 7 * TS - 82
         if c = 2 then v = 18
     case 3
         Stand wd.lv, wd.gr, p, bx - 10, 0
@@ -2460,7 +2462,7 @@ for c = 0 to 5
         k.jump = c <> 1 and i >= v and i < v + 25
         k.hit = c <> 1 and i = v
         ' on the balcony: back to its end, and up
-        if c = 4 and p.ground and p.at.y < wd.lv.ob(m).y + 14 + 6 * TS - 70 then
+        if c = 4 and p.ground and p.at.y < wd.lv.ob(m).at.y + 14 + 6 * TS - 70 then
             k.r = 0
             k.l = p.at.x > bx + 10
             k.jump = not k.l
@@ -2502,12 +2504,12 @@ for c = 0 to 29
     wd.se.gold_hi = 0
     j = 0
     for i = 0 to wd.lv.nObj - 1
-        if wd.lv.ob(i).k <> KGOLD then continue for
+        if wd.lv.ob(i).kind <> KGOLD then continue for
         colB(j) = i
         j = j + 1
     next
     was = was and j = NGOLD
-    bx = wd.lv.ob(colB(c mod 3)).x
+    bx = wd.lv.ob(colB(c mod 3)).at.x
     Stand wd.lv, wd.gr, p, cint(bx - val(mid$(ways, c * 7 + 1, 3))), 100 * val(mid$(ways, c * 7 + 7, 1))
     p.inv = 9
     v = val(mid$(ways, c * 7 + 4, 2))
@@ -2711,23 +2713,23 @@ was = was and wd.tn.now(96) = &H0A0403
 ' other end, six tiles up; the next mound, whose burrow leads back, it runs over
 dim dugOut as integer
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KMOUND then exit for
+    if wd.lv.ob(c).kind = KMOUND then exit for
 next
-v = wd.lv.ob(c).s - 1
+v = wd.lv.ob(c).state - 1
 dugOut = c < wd.lv.nObj and v > c
 if v < 0 then v = c
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 150, 300
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 150, 300
 for i = 1 to 200
     Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k
     Tick wd, g, p, k, lo(), pt()
-    if p.ground and p.at.x > wd.lv.ob(v).x + 40 then exit for
+    if p.ground and p.at.x > wd.lv.ob(v).at.x + 40 then exit for
 next
-dugOut = dugOut and i < 200 and p.ground and abs(p.at.y - wd.lv.ob(c).y + 6 * TS) < 2
+dugOut = dugOut and i < 200 and p.ground and abs(p.at.y - wd.lv.ob(c).at.y + 6 * TS) < 2
 for i = 1 to 400
     Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k
     Tick wd, g, p, k, lo(), pt()
     dugOut = dugOut and p.dig = 0
-    if p.at.x > wd.lv.ob(v).x + 600 then exit for
+    if p.at.x > wd.lv.ob(v).at.x + 600 then exit for
 next
 dugOut = dugOut and i < 400
 k.l = 0
@@ -2845,60 +2847,60 @@ if was and wd.lv.murk = 0 and wd.tn.now(96) = wd.tn.own(8, 0) then print "firefl
 ' a sapling bowed to the ground throws him who crosses its crown, the higher the faster he came: from a walk over a
 ' jump's height, from a run 60 higher yet; sprung it stands upright and throws no one, then bows again
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KSAPLING then exit for
+    if wd.lv.ob(c).kind = KSAPLING then exit for
 next
 was = c < wd.lv.nObj
 k.r = -1
 for m = 0 to 1
-    wd.lv.ob(c).s = 0
-    Stand wd.lv, wd.gr, p, wd.lv.ob(c).x, 0
+    wd.lv.ob(c).state = 0
+    Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x, 0
     p.gsp = 100 + m * 250
     for i = 1 to 60
         Tick wd, g, p, k, lo(), pt()
         if not p.ground then exit for
     next
-    was = was and p.sprung and wd.lv.ob(c).s > 0 and abs(p.at.x - wd.lv.ob(c).x - SAPREACH) < 20
+    was = was and p.sprung and wd.lv.ob(c).state > 0 and abs(p.at.x - wd.lv.ob(c).at.x - SAPREACH) < 20
     ' the vine in his way is not for this throw
     p.vine_t = 9
     for i = 1 to 200
         Tick wd, g, p, k, lo(), pt()
         if p.vel.y >= 0 then exit for
     next
-    colA(m) = wd.lv.ob(c).y - cint(p.at.y)
+    colA(m) = wd.lv.ob(c).at.y - cint(p.at.y)
 next
 k.r = 0
 was = was and colA(0) > JUMPV * JUMPV / (2 * GRAV) and colA(1) > colA(0) + 60
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 60, 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 60, 0
 for i = 1 to 2 * SAPT + 4
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and wd.lv.ob(c).s = 0
-wd.lv.ob(c).s = SAPT
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x + SAPREACH, 0
+was = was and wd.lv.ob(c).state = 0
+wd.lv.ob(c).state = SAPT
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x + SAPREACH, 0
 for i = 1 to 4
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and p.ground and wd.lv.ob(c).s > 0
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 60, 0
+was = was and p.ground and wd.lv.ob(c).state > 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 60, 0
 ' its leaves are at its crown's place bowed, and not sprung
 for m = 0 to 1
     g.shake = 0
     Render wd, g, p, lo(), pt()
-    colB(m) = point(wd.lv.ob(c).x + SAPREACH + 5 - int(g.cam.x), wd.lv.ob(c).y - 6 - int(g.cam.y))
-    wd.lv.ob(c).s = 0
+    colB(m) = point(wd.lv.ob(c).at.x + SAPREACH + 5 - int(g.cam.x), wd.lv.ob(c).at.y - 6 - int(g.cam.y))
+    wd.lv.ob(c).state = 0
 next
 if was and (colB(0) < 134 or colB(0) > 137) and colB(1) >= 134 and colB(1) <= 137 then print "sapling ok"
 ' a vine's end caught in the air: he hangs from it and swings as a weight would, 200 a second at its foot to 58
 ' degrees, 1.02 of a radian, and back as far, the vine drawn with him; a jump at its foot lets go with the swing's
 ' speed and a hop; the vine is not caught again at once, and hangs straight again
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KVINE then exit for
+    if wd.lv.ob(c).kind = KVINE then exit for
 next
 was = c < wd.lv.nObj
 p.vine_t = 0
 p.ground = 0
-p.at.x = wd.lv.ob(c).x
-p.at.y = wd.lv.ob(c).y + VINELEN + VINEGRIP
+p.at.x = wd.lv.ob(c).at.x
+p.at.y = wd.lv.ob(c).at.y + VINELEN + VINEGRIP
 p.vel.x = 200
 p.vel.y = 0
 colA(0) = 0
@@ -2911,9 +2913,9 @@ for i = 1 to 120
     if colB(0) <> 0 or p.sway < .8 then continue for
     g.shake = 0
     Render wd, g, p, lo(), pt()
-    m = wd.lv.ob(c).x + cint(28 * sin(p.sway)) - int(g.cam.x)
-    colB(0) = point(m, wd.lv.ob(c).y + cint(28 * cos(p.sway)) - int(g.cam.y))
-    colB(1) = point(wd.lv.ob(c).x - int(g.cam.x), wd.lv.ob(c).y + 28 - int(g.cam.y))
+    m = wd.lv.ob(c).at.x + cint(28 * sin(p.sway)) - int(g.cam.x)
+    colB(0) = point(m, wd.lv.ob(c).at.y + cint(28 * cos(p.sway)) - int(g.cam.y))
+    colB(1) = point(wd.lv.ob(c).at.x - int(g.cam.x), wd.lv.ob(c).at.y + 28 - int(g.cam.y))
 next
 was = was and p.vine = c + 1 and colA(0) > 97 and colA(0) < 107 and colA(1) < -97 and colA(1) > -107
 was = was and colB(0) = CVINE and colB(1) <> CVINE and colB(1) <> CVINED
@@ -2929,19 +2931,19 @@ for i = 1 to 3
     Tick wd, g, p, k, lo(), pt()
 next
 was = was and p.vine = 0
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 60, 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 60, 0
 for i = 1 to 80
     Tick wd, g, p, k, lo(), pt()
 next
 g.shake = 0
-g.cam.y = wd.lv.ob(c).y - 40
+g.cam.y = wd.lv.ob(c).at.y - 40
 Render wd, g, p, lo(), pt()
-j = point(wd.lv.ob(c).x - int(g.cam.x), 68)
-if was and wd.lv.ob(c).s = 0 and j = CVINE then print "vine ok"
+j = point(wd.lv.ob(c).at.x - int(g.cam.x), 68)
+if was and wd.lv.ob(c).state = 0 and j = CVINE then print "vine ok"
 ' bramble hurts him who walks into it, his bones lost; curled he goes through it, his bones kept, and it is drawn
 ' cut, its leaves in the air; BRAMBLET steps on it is grown again and hurts
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KBRAMBLE then exit for
+    if wd.lv.ob(c).kind = KBRAMBLE then exit for
 next
 was = c < wd.lv.nObj
 for m = 0 to 2
@@ -2949,34 +2951,34 @@ for m = 0 to 2
     p.stun = 0
     g.bones = 5
     wd.se.part_n = 0
-    Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 40, 300
+    Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 40, 300
     p.roll = m = 1
     k.r = m <> 1
     for i = 1 to 60
         Tick wd, g, p, k, lo(), pt()
-        if g.bones = 0 or p.at.x > wd.lv.ob(c).x + 24 then exit for
+        if g.bones = 0 or p.at.x > wd.lv.ob(c).at.x + 24 then exit for
     next
     k.r = 0
-    if m <> 1 then was = was and g.bones = 0 and wd.lv.ob(c).s = 0
+    if m <> 1 then was = was and g.bones = 0 and wd.lv.ob(c).state = 0
     if m <> 1 then continue for
-    was = was and g.bones = 5 and wd.lv.ob(c).s > 0 and p.at.x > wd.lv.ob(c).x and wd.se.part_n > 0
-    Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 60, 0
+    was = was and g.bones = 5 and wd.lv.ob(c).state > 0 and p.at.x > wd.lv.ob(c).at.x and wd.se.part_n > 0
+    Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 60, 0
     for j = 0 to 1
         for i = 1 to 4 + j * 2 * BRAMBLET
             Tick wd, g, p, k, lo(), pt()
         next
         g.shake = 0
         Render wd, g, p, lo(), pt()
-        colB(j) = point(wd.lv.ob(c).x - 19 + 22 - int(g.cam.x), wd.lv.ob(c).y - 25 + 7 - int(g.cam.y))
+        colB(j) = point(wd.lv.ob(c).at.x - 19 + 22 - int(g.cam.x), wd.lv.ob(c).at.y - 25 + 7 - int(g.cam.y))
     next
     ' a thorn's pale point is there grown, and not cut
-    was = was and wd.lv.ob(c).s = 0 and colB(0) <> 125 and colB(1) = 125
+    was = was and wd.lv.ob(c).state = 0 and colB(0) <> 125 and colB(1) = 125
 next
 if was then print "bramble ok"
 ' a hollow log stops him on foot at its end, and a jump clears it, as does a throw over it; curled he is shot
 ' through it and leaves it at LOGV, none of his fur seen while he is in it
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KLOG then exit for
+    if wd.lv.ob(c).kind = KLOG then exit for
 next
 was = c < wd.lv.nObj
 p.inv = 0
@@ -2986,77 +2988,78 @@ for i = 0 to NLOOSE - 1
     lo(i).t = 0
 next
 wd.se.loose_n = 0
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 60, 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 60, 0
 k.r = -1
 for i = 1 to 90
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and abs(p.at.x - (wd.lv.ob(c).x - LOGR)) < 2 and p.ground
+was = was and abs(p.at.x - (wd.lv.ob(c).at.x - LOGR)) < 2 and p.ground
 k.hit = -1
 for i = 1 to 90
     Tick wd, g, p, k, lo(), pt()
     k.hit = 0
-    if p.ground and p.at.x > wd.lv.ob(c).x + LOGR then exit for
+    if p.ground and p.at.x > wd.lv.ob(c).at.x + LOGR then exit for
 next
-was = was and p.ground and p.at.x > wd.lv.ob(c).x + LOGR
+was = was and p.ground and p.at.x > wd.lv.ob(c).at.x + LOGR
 k.r = 0
 ' thrown over it uncurled he is not stopped in the air
 p.ground = 0
 p.roll = 0
-p.at.x = wd.lv.ob(c).x - LOGR - 20
-p.at.y = wd.lv.ob(c).y - LOGH - 40
+p.at.x = wd.lv.ob(c).at.x - LOGR - 20
+p.at.y = wd.lv.ob(c).at.y - LOGH - 40
 p.vel.x = 200
 p.vel.y = -150
 for i = 1 to 20
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and p.at.x > wd.lv.ob(c).x
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 60, 200
+was = was and p.at.x > wd.lv.ob(c).at.x
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 60, 200
 p.roll = -1
 colA(0) = 0
 colA(1) = 0
 for i = 1 to 90
     Tick wd, g, p, k, lo(), pt()
-    if p.at.x > wd.lv.ob(c).x + LOGR + 2 then exit for
-    if abs(p.at.x - wd.lv.ob(c).x) >= 8 then continue for
+    if p.at.x > wd.lv.ob(c).at.x + LOGR + 2 then exit for
+    if abs(p.at.x - wd.lv.ob(c).at.x) >= 8 then continue for
     g.shake = 0
     Render wd, g, p, lo(), pt()
     colA(0) = Fur%(cint(p.at.x) - int(g.cam.x), 14, cint(p.at.y) - 26 - int(g.cam.y), cint(p.at.y) - int(g.cam.y))
     colA(1) = 1
 next
-was = was and colA(1) = 1 and colA(0) = 0 and p.at.x > wd.lv.ob(c).x + LOGR and p.roll
+was = was and colA(1) = 1 and colA(0) = 0 and p.at.x > wd.lv.ob(c).at.x + LOGR and p.roll
 if was and abs(p.gsp - LOGV) < 30 then print "log ok"
 ' a burrow's mound leaves him be who runs over it; crouched on it he digs in, and goes DIGV for its other mound
 ' unseen, the bones and the bramble over his way and a hit nothing to him; there he is thrown up DIGPOP, and it
 ' does not take him back while he stays on it; stepped off and on again it does, to the first
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KMOUND then exit for
+    if wd.lv.ob(c).kind = KMOUND then exit for
 next
 was = c < wd.lv.nObj
-v = wd.lv.ob(c).s - 1
+v = wd.lv.ob(c).state - 1
 if v < 0 then v = c
-was = was and v > c and wd.lv.ob(v).k = KMOUND and wd.lv.ob(v).s = c + 1 and wd.lv.ob(v).x = wd.lv.ob(c).x + 224
+was = was and v > c and wd.lv.ob(v).kind = KMOUND and wd.lv.ob(v).state = c + 1 _
+    and wd.lv.ob(v).at.x = wd.lv.ob(c).at.x + 224
 p.inv = 0
 p.stun = 0
 p.roll = 0
 p.dug = 0
 k.d = 0
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 40, 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 40, 0
 k.r = -1
 for i = 1 to 60
     Tick wd, g, p, k, lo(), pt()
     was = was and p.dig = 0
-    if p.at.x > wd.lv.ob(c).x + MOUNDR + 2 then exit for
+    if p.at.x > wd.lv.ob(c).at.x + MOUNDR + 2 then exit for
 next
 k.r = 0
-was = was and p.at.x > wd.lv.ob(c).x + MOUNDR and p.at.x < wd.lv.ob(c).x + 20
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 40, 0
+was = was and p.at.x > wd.lv.ob(c).at.x + MOUNDR and p.at.x < wd.lv.ob(c).at.x + 20
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 40, 0
 g.shake = 0
 Render wd, g, p, lo(), pt()
-j = wd.lv.ob(c).x - int(g.cam.x) - 1
-m = wd.lv.ob(c).y - int(g.cam.y)
+j = wd.lv.ob(c).at.x - int(g.cam.x) - 1
+m = wd.lv.ob(c).at.y - int(g.cam.y)
 was = was and point(j, m - 3) = 137 and point(j, m - 9) = 123
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x + 3, 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x + 3, 0
 k.d = -1
 Tick wd, g, p, k, lo(), pt()
 was = was and p.dig = v + 1
@@ -3075,7 +3078,7 @@ for i = 16 to 60
     if p.dig = 0 then exit for
 next
 ' 224 pixels at 400 a second: 33 steps, and out on the 34th
-was = was and i = 34 and p.at.x = wd.lv.ob(v).x and g.bones = m and p.stun = 0 and not p.dead
+was = was and i = 34 and p.at.x = wd.lv.ob(v).at.x and g.bones = m and p.stun = 0 and not p.dead
 by = p.at.y
 for i = 1 to 120
     Tick wd, g, p, k, lo(), pt()
@@ -3083,28 +3086,28 @@ for i = 1 to 120
     was = was and p.dig = 0
 next
 ' thrown up at 260 against 750: 45 pixels
-was = was and abs(wd.lv.ob(v).y - by - 45) < 4 and p.ground and abs(p.at.x - wd.lv.ob(v).x) < 2
+was = was and abs(wd.lv.ob(v).at.y - by - 45) < 4 and p.ground and abs(p.at.x - wd.lv.ob(v).at.x) < 2
 k.d = 0
-Stand wd.lv, wd.gr, p, wd.lv.ob(v).x + MOUNDR + 4, 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(v).at.x + MOUNDR + 4, 0
 Tick wd, g, p, k, lo(), pt()
-Stand wd.lv, wd.gr, p, wd.lv.ob(v).x - 2, 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(v).at.x - 2, 0
 k.d = -1
 for i = 1 to 80
     Tick wd, g, p, k, lo(), pt()
     if p.dug = c + 1 then exit for
 next
 k.d = 0
-if was and p.dug = c + 1 and p.at.x = wd.lv.ob(c).x then print "burrow ok"
+if was and p.dug = c + 1 and p.at.x = wd.lv.ob(c).at.x then print "burrow ok"
 ' a squirrel stands on its bough, and keeps over him who is under it, turned his way; SQWAIT of the things' steps
 ' on, the last SQAIM of them with an acorn held out, it lets one fall: 52 pixels to his head, 22 steps, and it
 ' hurts; run under, he is gone before it lands; a bark cows it, still and without acorns; on its bough he is
 ' scratched by it on foot, and beats it curled
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KSQUIRREL then exit for
+    if wd.lv.ob(c).kind = KSQUIRREL then exit for
 next
-v = wd.lv.ob(c).a
-was = c < wd.lv.nObj and wd.lv.ob(c).s <> 0 and GroundAt%(wd.lv, v) = wd.lv.ob(c).y
-was = was and GroundAt%(wd.lv, v + 100) = wd.lv.ob(c).y + 80
+v = wd.lv.ob(c).home
+was = c < wd.lv.nObj and wd.lv.ob(c).state <> 0 and GroundAt%(wd.lv, v) = wd.lv.ob(c).at.y
+was = was and GroundAt%(wd.lv, v + 100) = wd.lv.ob(c).at.y + 80
 p.inv = 0
 p.stun = 0
 p.roll = 0
@@ -3112,17 +3115,17 @@ k.d = 0
 StandUnder wd.lv, wd.gr, p, v + 30, v + 100
 Camera wd.lv, wd.zn, g, p, -1
 if wd.se.ticks and 1 then Tick wd, g, p, k, lo(), pt()
-wd.lv.ob(c).x = v
-wd.lv.ob(c).s = SQWAIT
+wd.lv.ob(c).at.x = v
+wd.lv.ob(c).state = SQWAIT
 g.bones = 5
 for i = 1 to 40
     Tick wd, g, p, k, lo(), pt()
 next
 g.shake = 0
 Render wd, g, p, lo(), pt()
-j = wd.lv.ob(c).x - int(g.cam.x)
-m = wd.lv.ob(c).y - int(g.cam.y)
-was = was and abs(wd.lv.ob(c).x - v - 30) < SQV and wd.lv.ob(c).s = SQWAIT - 20
+j = wd.lv.ob(c).at.x - int(g.cam.x)
+m = wd.lv.ob(c).at.y - int(g.cam.y)
+was = was and abs(wd.lv.ob(c).at.x - v - 30) < SQV and wd.lv.ob(c).state = SQWAIT - 20
 was = was and point(j - 4, m - 13) = 160 and point(j + 6, m - 5) <> 116
 for i = 41 to 119
     Tick wd, g, p, k, lo(), pt()
@@ -3131,7 +3134,7 @@ g.shake = 0
 Render wd, g, p, lo(), pt()
 was = was and point(j + 6, m - 5) = 116 and wd.lv.lobN = 0 and p.stun = 0
 Tick wd, g, p, k, lo(), pt()
-was = was and wd.lv.lobN = 1 and wd.lv.ob(c).s = SQWAIT
+was = was and wd.lv.lobN = 1 and wd.lv.ob(c).state = SQWAIT
 for i = 1 to 21
     Tick wd, g, p, k, lo(), pt()
 next
@@ -3157,13 +3160,13 @@ p.stun = 0
 g.bones = 5
 StandUnder wd.lv, wd.gr, p, v - 130, v + 100
 p.gsp = TOP
-wd.lv.ob(c).x = v - SQRUN
-wd.lv.ob(c).s = -2
+wd.lv.ob(c).at.x = v - SQRUN
+wd.lv.ob(c).state = -2
 k.r = -1
 bx = NONE
 for i = 1 to 40
     Tick wd, g, p, k, lo(), pt()
-    if wd.lv.lobN > 0 and bx = NONE then bx = p.at.x - wd.lv.ob(c).x
+    if wd.lv.lobN > 0 and bx = NONE then bx = p.at.x - wd.lv.ob(c).at.x
 next
 k.r = 0
 was = was and abs(bx) < SQNEAR and wd.lv.lobN = 0 and p.stun = 0 and g.bones >= 5 and _
@@ -3172,20 +3175,20 @@ was = was and abs(bx) < SQNEAR and wd.lv.lobN = 0 and p.stun = 0 and g.bones >= 
 StandUnder wd.lv, wd.gr, p, v + 30, v + 100
 p.gsp = 0
 p.bark_t = 0
-wd.lv.ob(c).x = v
-wd.lv.ob(c).s = SQWAIT
+wd.lv.ob(c).at.x = v
+wd.lv.ob(c).state = SQWAIT
 k.bark = -1
 Tick wd, g, p, k, lo(), pt()
 k.bark = 0
-was = was and abs(wd.lv.ob(c).s) > SQWAIT
+was = was and abs(wd.lv.ob(c).state) > SQWAIT
 for i = 1 to 100
     Tick wd, g, p, k, lo(), pt()
-    was = was and wd.lv.ob(c).x = v and wd.lv.lobN = 0
+    was = was and wd.lv.ob(c).at.x = v and wd.lv.lobN = 0
 next
 ' on its bough: on foot it scratches him, curled he beats it
 for j = 0 to 1
-    wd.lv.ob(c).x = v
-    wd.lv.ob(c).s = SQWAIT
+    wd.lv.ob(c).at.x = v
+    wd.lv.ob(c).state = SQWAIT
     p.inv = 0
     p.stun = 0
     g.bones = 5
@@ -3194,9 +3197,9 @@ for j = 0 to 1
     p.roll = -j
     for i = 1 to 20
         Tick wd, g, p, k, lo(), pt()
-        if p.stun or wd.lv.ob(c).s = 0 then exit for
+        if p.stun or wd.lv.ob(c).state = 0 then exit for
     next
-    colA(j) = (p.stun <> 0) + 2 * (wd.lv.ob(c).s = 0) + 4 * (g.score = hid + 100)
+    colA(j) = (p.stun <> 0) + 2 * (wd.lv.ob(c).state = 0) + 4 * (g.score = hid + 100)
 next
 if was and colA(0) = -1 and colA(1) = -6 then print "squirrel ok"
 ' a swarm of bees keeps at home while he is far, drawn there; near it he wakes it, and it is on him and stings
@@ -3267,11 +3270,11 @@ if was and wd.lv.swarms(0).st = 0 and wd.lv.swarms(0).at.x = v then print "bees 
 ' the pilot, curled still past what he rolled through and slower than a run, hops out of the roll: left in it
 ' he was a crawl by the bees, and stung to death
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KSQUIRREL then exit for
+    if wd.lv.ob(c).kind = KSQUIRREL then exit for
 next
 p.inv = 0
 p.stun = 0
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).a + 80, 250
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).home + 80, 250
 p.roll = -1
 for i = 1 to 65
     Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k
@@ -3325,18 +3328,18 @@ if was and colB(2) > 180 and colB(3) < 100 then print "ice ok"
 ' deep snow ends the ride, he unhurt; a restart puts the sled back; hurt, he is off it
 GoStage wd, 6, g, p, lo(), pt()
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KSLED then exit for
+    if wd.lv.ob(c).kind = KSLED then exit for
 next
 for m = c to wd.lv.nObj - 1
-    if wd.lv.ob(m).k = KDRIFT then exit for
+    if wd.lv.ob(m).kind = KDRIFT then exit for
 next
 was = c < wd.lv.nObj and m < wd.lv.nObj
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 16, 40
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 16, 40
 for i = 1 to 20
     Tick wd, g, p, k, lo(), pt()
     if p.sled then exit for
 next
-was = was and p.sled and wd.lv.ob(c).s = 1 and p.gsp >= SLEDV and Fall%(wd, g, p, lo(), pt(), 59, -10, 8) = 0
+was = was and p.sled and wd.lv.ob(c).state = 1 and p.gsp >= SLEDV and Fall%(wd, g, p, lo(), pt(), 59, -10, 8) = 0
 for i = 1 to 200
     Tick wd, g, p, k, lo(), pt()
     if p.ground and p.ang < -.3 then exit for
@@ -3373,11 +3376,11 @@ for i = 1 to 600
     Tick wd, g, p, k, lo(), pt()
     if not p.sled then exit for
 next
-was = was and i < 600 and abs(p.at.x - wd.lv.ob(m).x) < 40 and p.inv <= 0 and p.ground and _
-    not p.roll and wd.lv.ob(c).s = 1
+was = was and i < 600 and abs(p.at.x - wd.lv.ob(m).at.x) < 40 and p.inv <= 0 and p.ground and _
+    not p.roll and wd.lv.ob(c).state = 1
 Spawn wd.lv, wd.gr, wd.zn, wd.mu, g, p
-was = was and wd.lv.ob(c).s = 0
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 16, 40
+was = was and wd.lv.ob(c).state = 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 16, 40
 for i = 1 to 20
     Tick wd, g, p, k, lo(), pt()
 next
@@ -3390,28 +3393,28 @@ if was and not p.sled and p.inv > 0 then print "sled ok"
 ' blows goes up, and stays down while it sleeps
 GoStage wd, 6, g, p, lo(), pt()
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KJET then exit for
+    if wd.lv.ob(c).kind = KJET then exit for
 next
 was = c < wd.lv.nObj
 for j = 0 to 1
-    do until (wd.se.ticks + wd.lv.ob(c).x) mod 180 = 10 + j * 90
+    do until (wd.se.ticks + wd.lv.ob(c).at.x) mod 180 = 10 + j * 90
         wd.se.ticks = wd.se.ticks + 1
     loop
-    Stand wd.lv, wd.gr, p, wd.lv.ob(c).x, 0
+    Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x, 0
     p.vel.y = 0
     Tick wd, g, p, k, lo(), pt()
     was = was and (not p.ground) = (j = 0)
-    g.cam.x = wd.lv.ob(c).x - 100
+    g.cam.x = wd.lv.ob(c).at.x - 100
     g.shake = 0
     Render wd, g, p, lo(), pt()
-    colA(j) = point(100, wd.lv.ob(c).y - 34 - int(g.cam.y))
+    colA(j) = point(100, wd.lv.ob(c).at.y - 34 - int(g.cam.y))
 next
 if was and colA(0) >= 116 and colA(0) <= 126 and colA(1) <> colA(0) then print "geyser ok"
 ' deep snow rolled through at speed packs round him, and not walked through nor rolled through slowly: a snowball,
 ' none of him seen in it; it takes a hit for him, his bones kept, and flies apart; it lasts no longer than his roll
 GoStage wd, 7, g, p, lo(), pt()
 for m = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(m).k = KDRIFT then exit for
+    if wd.lv.ob(m).kind = KDRIFT then exit for
 next
 was = m < wd.lv.nObj
 ' till the act's card is off the screen
@@ -3419,7 +3422,7 @@ for i = 1 to 240
     Tick wd, g, p, k, lo(), pt()
 next
 for j = 0 to 2
-    Stand wd.lv, wd.gr, p, wd.lv.ob(m).x - 40, 200 - 140 * (j and 1)
+    Stand wd.lv, wd.gr, p, wd.lv.ob(m).at.x - 40, 200 - 140 * (j and 1)
     if j then p.roll = -1
     for i = 1 to 30
         Tick wd, g, p, k, lo(), pt()
@@ -3436,7 +3439,7 @@ was = was and Fur%(c, 14, v - 28, v) = 0 and point(c, v - 14) >= 116 and point(c
 for i = 1 to 20
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and p.snow < 0 and p.at.x > wd.lv.ob(m).x + 30
+was = was and p.snow < 0 and p.at.x > wd.lv.ob(m).at.x + 30
 g.bones = 5
 p.inv = 0
 Hurt wd.mu, wd.se, g, p, cint(p.at.x) + 10, lo(), SHURT
@@ -3444,7 +3447,7 @@ was = was and g.bones = 5 and p.inv > 0 and p.roll
 Tick wd, g, p, k, lo(), pt()
 was = was and p.snow = 0
 p.inv = 0
-Stand wd.lv, wd.gr, p, wd.lv.ob(m).x - 40, 200
+Stand wd.lv, wd.gr, p, wd.lv.ob(m).at.x - 40, 200
 p.roll = -1
 for i = 1 to 30
     Tick wd, g, p, k, lo(), pt()
@@ -3459,26 +3462,26 @@ if was and p.snow = 0 then print "snowball ok"
 ' beats it; a bark ducks it
 GoStage wd, 6, g, p, lo(), pt()
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KTHROW then exit for
+    if wd.lv.ob(c).kind = KTHROW then exit for
 next
 was = c < wd.lv.nObj
 for i = 1 to 240
     Tick wd, g, p, k, lo(), pt()
 next
-wd.lv.ob(c).s = THROWC
+wd.lv.ob(c).state = THROWC
 g.bones = 5
 hid = g.score
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 18, 200
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 18, 200
 p.roll = -1
 Tick wd, g, p, k, lo(), pt()
-was = was and wd.lv.ob(c).s <> 0 and p.inv <= 0 and p.gsp < 0 and g.score = hid
+was = was and wd.lv.ob(c).state <> 0 and p.inv <= 0 and p.gsp < 0 and g.score = hid
 for j = 0 to 1
     g.bones = 5
     p.inv = 0
     p.stun = 0
     p.roll = 0
-    wd.lv.ob(c).s = THROWAT + 1
-    Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 100, 0
+    wd.lv.ob(c).state = THROWAT + 1
+    Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 100, 0
     for i = 1 to 4
         Tick wd, g, p, k, lo(), pt()
         if wd.lv.lobN then exit for
@@ -3489,7 +3492,7 @@ for j = 0 to 1
     Render wd, g, p, lo(), pt()
     v = cint(wd.lv.lobs(0).at.x) - int(g.cam.x) - 1
     was = was and point(v, cint(wd.lv.lobs(0).at.y) - int(g.cam.y) - 2) = 116
-    if j then Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 160, 0
+    if j then Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 160, 0
     for i = 1 to 70
         Tick wd, g, p, k, lo(), pt()
         if wd.lv.lobN = 0 then exit for
@@ -3498,82 +3501,82 @@ for j = 0 to 1
 next
 p.inv = 0
 p.stun = 0
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 60, 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 60, 0
 g.shake = 0
 for j = 0 to 1
-    wd.lv.ob(c).s = THROWC - j * (THROWC - THROWUP)
+    wd.lv.ob(c).state = THROWC - j * (THROWC - THROWUP)
     Render wd, g, p, lo(), pt()
-    y = wd.lv.ob(c).y - int(g.cam.y)
-    shown = Pix&(wd.lv.ob(c).x - int(g.cam.x) - 14, 28, y - 25, y - 12)
+    y = wd.lv.ob(c).at.y - int(g.cam.y)
+    shown = Pix&(wd.lv.ob(c).at.x - int(g.cam.x) - 14, 28, y - 25, y - 12)
     if j = 0 then bt = shown
 next
 was = was and shown <> bt
 hid = g.score
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 18, 200
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 18, 200
 p.roll = -1
 Tick wd, g, p, k, lo(), pt()
-was = was and wd.lv.ob(c).s = 0 and g.score = hid + 100
-wd.lv.ob(c).s = THROWUP - 2
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 40, 0
+was = was and wd.lv.ob(c).state = 0 and g.score = hid + 100
+wd.lv.ob(c).state = THROWUP - 2
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 40, 0
 p.bark_t = 0
 k.bark = -1
 Tick wd, g, p, k, lo(), pt()
 k.bark = 0
-if was and abs(wd.lv.ob(c).s) > THROWUP then print "thrower ok"
+if was and abs(wd.lv.ob(c).state) > THROWUP then print "thrower ok"
 ' the pass's icicle hangs while he is off to its side; a bark from there looses it, and it breaks on the ground;
 ' stood under, he looses it: it trembles TREMBLE of the things' steps, falls, hurts him and breaks; over a
 ' snow-thrower, a bark brings it down on it
 GoStage wd, 6, g, p, lo(), pt()
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KICICLE then exit for
+    if wd.lv.ob(c).kind = KICICLE then exit for
 next
 was = c < wd.lv.nObj
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 60, 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 60, 0
 for i = 1 to 30
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and wd.lv.ob(c).s = 0
+was = was and wd.lv.ob(c).state = 0
 p.bark_t = 0
 k.bark = -1
 Tick wd, g, p, k, lo(), pt()
 k.bark = 0
-was = was and wd.lv.ob(c).s > 0
+was = was and wd.lv.ob(c).state > 0
 v = 0
 for i = 1 to 120
     Tick wd, g, p, k, lo(), pt()
     if Fallen%(wd.lv, c) > v then v = Fallen%(wd.lv, c)
-    if wd.lv.ob(c).s < 0 then exit for
+    if wd.lv.ob(c).state < 0 then exit for
 next
 was = was and i < 120 and p.inv <= 0 and v > 60
-wd.lv.ob(c).s = 0
+wd.lv.ob(c).state = 0
 g.bones = 5
-p.at.x = wd.lv.ob(c).x
+p.at.x = wd.lv.ob(c).at.x
 Tick wd, g, p, k, lo(), pt()
-was = was and wd.lv.ob(c).s > 0 and Fallen%(wd.lv, c) = 0
+was = was and wd.lv.ob(c).state > 0 and Fallen%(wd.lv, c) = 0
 for i = 1 to 120
     Tick wd, g, p, k, lo(), pt()
-    if wd.lv.ob(c).s > 0 and wd.lv.ob(c).s <= TREMBLE and Fallen%(wd.lv, c) <> 0 then was = 0
+    if wd.lv.ob(c).state > 0 and wd.lv.ob(c).state <= TREMBLE and Fallen%(wd.lv, c) <> 0 then was = 0
     if p.inv > 0 then exit for
 next
-was = was and i > TREMBLE * 2 and i < TREMBLE * 2 + 40 and wd.lv.ob(c).s = -1 and g.bones = 0
+was = was and i > TREMBLE * 2 and i < TREMBLE * 2 + 40 and wd.lv.ob(c).state = -1 and g.bones = 0
 GoStage wd, 7, g, p, lo(), pt()
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KICICLE then exit for
+    if wd.lv.ob(c).kind = KICICLE then exit for
 next
 for m = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(m).k = KTHROW and abs(wd.lv.ob(m).x - wd.lv.ob(c).x) < 14 then exit for
+    if wd.lv.ob(m).kind = KTHROW and abs(wd.lv.ob(m).at.x - wd.lv.ob(c).at.x) < 14 then exit for
 next
 was = was and c < wd.lv.nObj and m < wd.lv.nObj
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 60, 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 60, 0
 p.bark_t = 0
 k.bark = -1
 Tick wd, g, p, k, lo(), pt()
 k.bark = 0
 for i = 1 to 120
     Tick wd, g, p, k, lo(), pt()
-    if wd.lv.ob(c).s < 0 then exit for
+    if wd.lv.ob(c).state < 0 then exit for
 next
-if was and i < 120 and wd.lv.ob(m).s = 0 and p.inv <= 0 then print "icicle ok"
+if was and i < 120 and wd.lv.ob(m).state = 0 and p.inv <= 0 then print "icicle ok"
 ' the dusk's loaded ledge holds while he stands by it; a bark from there sets it off: it trembles, slides off its
 ' ledge and comes down on the snow-thrower past it, which is beaten; its heap stops him on foot at either flank,
 ' and a jump takes him over it; the level begun again, the load is back on its ledge. The heap was the load
@@ -3581,43 +3584,43 @@ if was and i < 120 and wd.lv.ob(m).s = 0 and p.inv <= 0 then print "icicle ok"
 GoStage wd, 7, g, p, lo(), pt()
 wd.lv.gale = 0
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KLOAD then exit for
+    if wd.lv.ob(c).kind = KLOAD then exit for
 next
 for m = c to wd.lv.nObj - 1
-    if wd.lv.ob(m).k = KTHROW then exit for
+    if wd.lv.ob(m).kind = KTHROW then exit for
 next
 j = HeapOf%(wd.lv, c)
 was = c < wd.lv.nObj and m < wd.lv.nObj and j <> NONE
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 60, 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 60, 0
 g.bones = 5
 for i = 1 to 30
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and wd.lv.ob(c).s = 0 and wd.lv.ob(j).s = 0 and wd.lv.ob(m).s <> 0
+was = was and wd.lv.ob(c).state = 0 and wd.lv.ob(j).state = 0 and wd.lv.ob(m).state <> 0
 p.bark_t = 0
 k.bark = -1
 Tick wd, g, p, k, lo(), pt()
 k.bark = 0
-was = was and wd.lv.ob(c).s > 0
+was = was and wd.lv.ob(c).state > 0
 v = 0
 for i = 1 to 200
     Tick wd, g, p, k, lo(), pt()
-    if wd.lv.ob(c).s = TREMBLE + LOADSLIDE then v = Slid%(wd.lv, c)
-    if wd.lv.ob(c).s < 0 then exit for
+    if wd.lv.ob(c).state = TREMBLE + LOADSLIDE then v = Slid%(wd.lv, c)
+    if wd.lv.ob(c).state < 0 then exit for
 next
-was = was and i < 200 and v = LOADRUN and wd.lv.ob(j).s = 1 and wd.lv.ob(m).s = 0
-was = was and abs(wd.lv.ob(j).x - wd.lv.ob(m).x) < HEAPR
+was = was and i < 200 and v = LOADRUN and wd.lv.ob(j).state = 1 and wd.lv.ob(m).state = 0
+was = was and abs(wd.lv.ob(j).at.x - wd.lv.ob(m).at.x) < HEAPR
 for i = 1 to 150
     Tick wd, g, p, k, lo(), pt()
 next
-Stand wd.lv, wd.gr, p, wd.lv.ob(j).x - 70, 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(j).at.x - 70, 0
 p.inv = 0
 p.stun = 0
 k.r = -1
 for i = 1 to 90
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and p.ground and abs(p.at.x - (wd.lv.ob(j).x - HEAPR)) < 2 and abs(p.gsp) < 20
+was = was and p.ground and abs(p.at.x - (wd.lv.ob(j).at.x - HEAPR)) < 2 and abs(p.gsp) < 20
 k.hit = -1
 k.jump = -1
 for i = 1 to 60
@@ -3625,31 +3628,32 @@ for i = 1 to 60
     if p.ground then k.jump = 0
 next
 k.r = 0
-was = was and p.at.x > wd.lv.ob(j).x + HEAPR
-Stand wd.lv, wd.gr, p, wd.lv.ob(j).x + 70, 0
+was = was and p.at.x > wd.lv.ob(j).at.x + HEAPR
+Stand wd.lv, wd.gr, p, wd.lv.ob(j).at.x + 70, 0
 k.l = -1
 for i = 1 to 90
     Tick wd, g, p, k, lo(), pt()
 next
 k.l = 0
-was = was and p.ground and abs(p.at.x - (wd.lv.ob(j).x + HEAPR)) < 2
+was = was and p.ground and abs(p.at.x - (wd.lv.ob(j).at.x + HEAPR)) < 2
 GoStage wd, 7, g, p, lo(), pt()
-if was and wd.lv.ob(c).s = 0 and wd.lv.ob(j).s = 0 and wd.lv.ob(c).y < wd.lv.ob(j).y - 80 then print "slide ok"
+if was and wd.lv.ob(c).state = 0 and wd.lv.ob(j).state = 0 _
+    and wd.lv.ob(c).at.y < wd.lv.ob(j).at.y - 80 then print "slide ok"
 ' a crab pinches at its side, a rolling Charlie too; down on its back he goes up off it unhurt and it ducks into
 ' its shell, and comes out again
 GoStage wd, 4, g, p, lo(), pt()
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KCRAB then exit for
+    if wd.lv.ob(c).kind = KCRAB then exit for
 next
 was = c < wd.lv.nObj
 for j = 0 to 1
     g.bones = 5
     p.inv = 0
     p.stun = 0
-    Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 16, 200
+    Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 16, 200
     if j then p.roll = -1
     Tick wd, g, p, k, lo(), pt()
-    was = was and p.inv > 0 and abs(wd.lv.ob(c).s) = 1
+    was = was and p.inv > 0 and abs(wd.lv.ob(c).state) = 1
 next
 for j = 0 to 1
     ' barked at the second time round, it keeps to its shell: no pinch at its side, and a higher step
@@ -3657,19 +3661,19 @@ for j = 0 to 1
     p.stun = 0
     g.bones = 5
     if j then
-        wd.lv.ob(c).s = 1
+        wd.lv.ob(c).state = 1
         p.bark_t = 0
-        Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 40, 0
+        Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 40, 0
         k.bark = -1
         Tick wd, g, p, k, lo(), pt()
         k.bark = 0
-        was = was and abs(wd.lv.ob(c).s) > SHELLT - 4
-        Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 12, 0
+        was = was and abs(wd.lv.ob(c).state) > SHELLT - 4
+        Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 12, 0
         Tick wd, g, p, k, lo(), pt()
         was = was and p.inv <= 0
     end if
-    p.at.x = wd.lv.ob(c).x
-    p.at.y = wd.lv.ob(c).y - 30
+    p.at.x = wd.lv.ob(c).at.x
+    p.at.y = wd.lv.ob(c).at.y - 30
     p.ground = 0
     p.vel.x = 0
     p.vel.y = 100
@@ -3677,44 +3681,44 @@ for j = 0 to 1
         Tick wd, g, p, k, lo(), pt()
         if p.vel.y < 0 then exit for
     next
-    was = was and p.inv <= 0 and abs(wd.lv.ob(c).s) > 1
+    was = was and p.inv <= 0 and abs(wd.lv.ob(c).state) > 1
     if j = 0 then was = was and abs(p.vel.y + BOUNCEV) < 30
     if j = 1 then was = was and abs(p.vel.y + STEPV) < 30
 next
 ' in its shell a roll knocks it off the sand; out of it again after SHELLT of its steps
-wd.lv.ob(c).s = SHELLT
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 100, 0
+wd.lv.ob(c).state = SHELLT
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 100, 0
 for i = 1 to SHELLT * 2 + 4
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and abs(wd.lv.ob(c).s) = 1
-wd.lv.ob(c).s = SHELLT
+was = was and abs(wd.lv.ob(c).state) = 1
+wd.lv.ob(c).state = SHELLT
 hid = g.score
 p.inv = 0
 p.stun = 0
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 16, 200
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 16, 200
 p.roll = -1
 Tick wd, g, p, k, lo(), pt()
-if was and wd.lv.ob(c).s = 0 and g.score = hid + 100 and p.inv <= 0 then print "crab ok"
+if was and wd.lv.ob(c).state = 0 and g.score = hid + 100 and p.inv <= 0 then print "crab ok"
 ' a jellyfish floats at the sea's top, and lies on the ground where the sea is lower
 GoStage wd, 4, g, p, lo(), pt()
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KJELLY then exit for
+    if wd.lv.ob(c).kind = KJELLY then exit for
 next
-v = wd.lv.top(wd.lv.ob(c).x \\ TS) * TS
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 70, 0
+v = wd.lv.top(wd.lv.ob(c).at.x \\ TS) * TS
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 70, 0
 for j = 0 to 1
     wd.lv.tideLo = v - 40 + 80 * j
     wd.lv.tideHi = wd.lv.tideLo
     for i = 1 to 4
         Tick wd, g, p, k, lo(), pt()
     next
-    if j = 0 then was = c < wd.lv.nObj and wd.lv.ob(c).y = wd.lv.tide + JELLYD
-    if j = 1 then was = was and wd.lv.ob(c).y = v
+    if j = 0 then was = c < wd.lv.nObj and wd.lv.ob(c).at.y = wd.lv.tide + JELLYD
+    if j = 1 then was = was and wd.lv.ob(c).at.y = v
 next
 ' his feet in it, it stings; his feet over it, as on a boat's deck, it does not: he was stung through the deck
 g.bones = 5
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 8, 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 8, 0
 Tick wd, g, p, k, lo(), pt()
 was = was and p.inv > 0
 for j = 0 to 2
@@ -3722,7 +3726,7 @@ for j = 0 to 2
     ' sting: he was stung coming back down off a low ceiling
     p.inv = 0
     p.stun = 0
-    p.at.x = wd.lv.ob(c).x
+    p.at.x = wd.lv.ob(c).at.x
     p.at.y = v - 16 + 24 * (j = 1) - 12 * (j = 2)
     p.ground = 0
     p.vel.x = 0
@@ -3733,13 +3737,13 @@ for j = 0 to 2
         if j <> 1 or p.vel.y < 0 then exit for
     next
     was = was and p.inv <= 0
-    if j = 1 then was = was and abs(p.vel.y + JELLYV) < 30 and wd.lv.ob(c).s > 1
+    if j = 1 then was = was and abs(p.vel.y + JELLYV) < 30 and wd.lv.ob(c).state > 1
 next
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 70, 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 70, 0
 for i = 1 to 30
     Tick wd, g, p, k, lo(), pt()
 next
-if was and wd.lv.ob(c).s = 1 then print "jelly ok"
+if was and wd.lv.ob(c).state = 1 then print "jelly ok"
 ' a swimmer it stings is thrown out of the sea, and back in it paddles again: hurt into the sea, he floated
 ' there for good, the keys dead
 wd.lv.tideLo = v - 40
@@ -3749,14 +3753,14 @@ for i = 1 to 4
 next
 p.inv = 0
 g.bones = 5
-p.at.x = wd.lv.ob(c).x - 8
+p.at.x = wd.lv.ob(c).at.x - 8
 p.at.y = wd.lv.tide + AFLOAT
 p.ground = 0
 p.swim = -1
 p.vel.x = 0
 Tick wd, g, p, k, lo(), pt()
 was = p.inv > 0 and p.swim = 0 and p.stun
-p.at.x = wd.lv.ob(c).x + 20
+p.at.x = wd.lv.ob(c).at.x + 20
 for i = 1 to 120
     Tick wd, g, p, k, lo(), pt()
     if p.swim then exit for
@@ -3770,23 +3774,23 @@ k.r = 0
 if was and p.swim and p.at.x - j > 15 then print "dazed ok"
 ' a buoy rides the sea's top, and bumps Charlie off it
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KBUOY then exit for
+    if wd.lv.ob(c).kind = KBUOY then exit for
 next
 was = c < wd.lv.nObj
 p.swim = 0
 p.inv = 0
 p.stun = 0
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 90, 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 90, 0
 for j = 0 to 1
     wd.lv.tideLo = p.at.y + 30 + 20 * j
     wd.lv.tideHi = wd.lv.tideLo
     for i = 1 to 4
         Tick wd, g, p, k, lo(), pt()
     next
-    was = was and wd.lv.ob(c).y = wd.lv.tide - 4
+    was = was and wd.lv.ob(c).at.y = wd.lv.tide - 4
 next
-p.at.x = wd.lv.ob(c).x
-p.at.y = wd.lv.ob(c).y - 24
+p.at.x = wd.lv.ob(c).at.x
+p.at.y = wd.lv.ob(c).at.y - 24
 p.ground = 0
 p.vel.x = 0
 p.vel.y = 100
@@ -3794,7 +3798,7 @@ for i = 1 to 20
     Tick wd, g, p, k, lo(), pt()
     if p.vel.y < 0 then exit for
 next
-if was and p.vel.y < -300 and wd.lv.ob(c).s > 0 and not p.swim then print "buoy ok"
+if was and p.vel.y < -300 and wd.lv.ob(c).state > 0 and not p.swim then print "buoy ok"
 ' a gull hovers about its home while Charlie is far off; once he stands under it with bones it dives, takes
 ' five, and climbs home with them, to dive no more
 GoStage wd, 4, g, p, lo(), pt()
@@ -3851,7 +3855,7 @@ wd.lv.cart.st = 0
 GoStage wd, 5, g, p, lo(), pt()
 ' its channel's buoys out of the way of these landings
 for i = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(i).k = KBUOY and wd.lv.ob(i).x > wd.lv.chaseX then wd.lv.ob(i).k = 0
+    if wd.lv.ob(i).kind = KBUOY and wd.lv.ob(i).at.x > wd.lv.chaseX then wd.lv.ob(i).kind = 0
 next
 Tick wd, g, p, k, lo(), pt()
 v = wd.lv.cart.st = 0 and wd.lv.cart.at.y = wd.lv.tide - PEDALUP
@@ -3959,38 +3963,38 @@ if was and abs(p.at.y - (wd.lv.mv(m).y + CABLED)) < 2 then print "cable ok"
 ' falling on a fall; two seconds on he is off it, and it runs home to graze
 GoStage wd, 6, g, p, lo(), pt()
 for m = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(m).k = KGOAT then exit for
+    if wd.lv.ob(m).kind = KGOAT then exit for
 next
 for c = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(c).k = KWALL then exit for
+    if wd.lv.ob(c).kind = KWALL then exit for
 next
 was = m < wd.lv.nObj and c < wd.lv.nObj
-Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 60, 200
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).at.x - 60, 200
 k.r = -1
 for i = 1 to 60
     Tick wd, g, p, k, lo(), pt()
 next
 k.r = 0
-was = was and wd.lv.ob(c).s = 1 and p.at.x <= wd.lv.ob(c).x - WALLR and p.gsp = 0
-Stand wd.lv, wd.gr, p, wd.lv.ob(m).x - 92, 0
+was = was and wd.lv.ob(c).state = 1 and p.at.x <= wd.lv.ob(c).at.x - WALLR and p.gsp = 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(m).at.x - 92, 0
 for i = 1 to 60
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and abs(wd.lv.ob(m).s) = 1 and wd.lv.ob(m).x = wd.lv.ob(m).a
+was = was and abs(wd.lv.ob(m).state) = 1 and wd.lv.ob(m).at.x = wd.lv.ob(m).home
 g.bones = 5
-Stand wd.lv, wd.gr, p, wd.lv.ob(m).x - 50, 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(m).at.x - 50, 0
 for i = 1 to 120
     Tick wd, g, p, k, lo(), pt()
-    if i <= 24 and wd.lv.ob(m).x <> wd.lv.ob(m).a then was = 0
+    if i <= 24 and wd.lv.ob(m).at.x <> wd.lv.ob(m).home then was = 0
     if p.inv > 0 then exit for
 next
 was = was and i > 33 and i < 41 and g.bones = 0
 GoStage wd, 6, g, p, lo(), pt()
 g.bones = 5
-Stand wd.lv, wd.gr, p, wd.lv.ob(m).x - 50, 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(m).at.x - 50, 0
 for i = 1 to 60
     Tick wd, g, p, k, lo(), pt()
-    if abs(wd.lv.ob(m).s) = GCHARGE then exit for
+    if abs(wd.lv.ob(m).state) = GCHARGE then exit for
 next
 k.hit = -1
 k.jump = -1
@@ -3999,7 +4003,8 @@ for i = 1 to 80
     if p.goat then exit for
 next
 k.jump = 0
-was = was and p.goat and wd.lv.ob(m).s = 0 and p.inv <= 0 and g.bones = 5 and abs(p.at.x - (wd.lv.ob(m).a - 50)) < 12
+was = was and p.goat and wd.lv.ob(m).state = 0 and p.inv <= 0 and g.bones = 5 _
+    and abs(p.at.x - (wd.lv.ob(m).home - 50)) < 12
 k.l = -1
 v = NONE
 j = NONE
@@ -4008,15 +4013,15 @@ for i = 1 to 200
     if not p.goat then exit for
     if p.ground and p.gsp < 200 then was = 0
     if i = 30 then v = Fall%(wd, g, p, lo(), pt(), 132, -8, -2)
-    if j = NONE and p.ground and p.at.y > wd.lv.ob(m).y + 8 then j = Fall%(wd, g, p, lo(), pt(), 132, -8, -2)
+    if j = NONE and p.ground and p.at.y > wd.lv.ob(m).at.y + 8 then j = Fall%(wd, g, p, lo(), pt(), 132, -8, -2)
 next
 k.l = 0
-was = was and i > 114 and i < 124 and wd.lv.ob(c).s = 0 and v = 0 and j = 3 and p.at.x > wd.lv.ob(c).x + 100
+was = was and i > 114 and i < 124 and wd.lv.ob(c).state = 0 and v = 0 and j = 3 and p.at.x > wd.lv.ob(c).at.x + 100
 for i = 1 to 300
     Tick wd, g, p, k, lo(), pt()
     if wd.lv.stray.st = 0 then exit for
 next
-if was and i < 300 and abs(wd.lv.ob(m).s) = 1 and wd.lv.ob(m).x = wd.lv.ob(m).a then print "goat ok"
+if was and i < 300 and abs(wd.lv.ob(m).state) = 1 and wd.lv.ob(m).at.x = wd.lv.ob(m).home then print "goat ok"
 ' the dusk's blizzard, none on the morning: of every 192 ticks it blows the last 72. In its calm he stands where
 ' he is. In a gust, on his feet, 600 against his friction's 280 bears him back to 200 a second: 165 to 190 by
 ' its end; crouched he keeps his place; curled at 200 he rolls on 88 to 97 in half a second, as in a calm; a jump
@@ -4025,10 +4030,10 @@ GoStage wd, 6, g, p, lo(), pt()
 was = wd.lv.gale = 0
 GoStage wd, 7, g, p, lo(), pt()
 for m = 0 to wd.lv.nObj - 1
-    if wd.lv.ob(m).k = KTHROW then exit for
+    if wd.lv.ob(m).kind = KTHROW then exit for
 next
-wd.lv.ob(m).s = 0
-j = wd.lv.ob(m).x - 120
+wd.lv.ob(m).state = 0
+j = wd.lv.ob(m).at.x - 120
 was = was and wd.lv.gale and m < wd.lv.nObj
 wd.se.ticks = 1920
 Stand wd.lv, wd.gr, p, j, 0
@@ -4204,7 +4209,7 @@ for i = 1 to 400
     if wd.lv.mv(m).t = 1 then exit for
 next
 was = was and i >= 171 and i <= 174 and p.ground and p.sg = c and abs(p.at.x - (wd.lv.mv(m).x + wd.lv.mv(m).a + 24)) < 2
-was = was and abs(p.at.y - (wd.lv.mv(m).y - CABLED)) < 2 and wd.lv.ob(wd.lv.mv(m).o).k = KSEAT
+was = was and abs(p.at.y - (wd.lv.mv(m).y - CABLED)) < 2 and wd.lv.ob(wd.lv.mv(m).o).kind = KSEAT
 k.d = 0
 k.r = -1
 wd.se.ticks = 1920
@@ -4230,14 +4235,14 @@ c = wd.lv.mv(m).s
 for i = 1 to 60
     Tick wd, g, p, k, lo(), pt()
 next
-was = wd.lv.mv(m).t = 0 and wd.lv.ob(j).s = 0
-Stand wd.lv, wd.gr, p, wd.lv.ob(j).x - 12, 60
+was = wd.lv.mv(m).t = 0 and wd.lv.ob(j).state = 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(j).at.x - 12, 60
 k.r = -1
 for i = 1 to 20
     Tick wd, g, p, k, lo(), pt()
 next
 k.r = 0
-was = was and wd.lv.ob(j).s = 1
+was = was and wd.lv.ob(j).state = 1
 for i = 1 to 90
     Tick wd, g, p, k, lo(), pt()
 next

@@ -142,20 +142,20 @@ end sub
 
 ' An awning: come down on, its canvas throws him up, his way kept; from under he goes through it.
 sub MeetAwning (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
-    if p.dead or abs(lv.ob(i).x - p.at.x) >= AWNW or not Trodden%(p, lv.ob(i).y) then exit sub
-    Toss p, lv.ob(i).y, AWNV
-    lv.ob(i).s = AWNT
+    if p.dead or abs(lv.ob(i).at.x - p.at.x) >= AWNW or not Trodden%(p, lv.ob(i).at.y) then exit sub
+    Toss p, lv.ob(i).at.y, AWNV
+    lv.ob(i).state = AWNT
     Sfx mu, se, SSPRING
 end sub
 
 ' A chimney that leads on: come down into its pot, he goes down it for the one it leads to. A way out takes no
 ' one in.
 sub MeetChimney (lv as Level, mu as Deck, se as Session, p as Hero, i as integer, pt() as Part)
-    if lv.ob(i).s < 1 or p.dead or abs(lv.ob(i).x - p.at.x) >= FLUER then exit sub
-    if not Trodden%(p, lv.ob(i).y - FLUEH) then exit sub
-    p.dig = lv.ob(i).s
+    if lv.ob(i).state < 1 or p.dead or abs(lv.ob(i).at.x - p.at.x) >= FLUER then exit sub
+    if not Trodden%(p, lv.ob(i).at.y - FLUEH) then exit sub
+    p.dig = lv.ob(i).state
     p.vel.y = 0
-    Burst se, pt(), csng(lv.ob(i).x), csng(lv.ob(i).y - FLUEH), 8, 90, CSOOT
+    Burst se, pt(), csng(lv.ob(i).at.x), csng(lv.ob(i).at.y - FLUEH), 8, 90, CSOOT
     Sfx mu, se, SROLL
 end sub
 
@@ -181,7 +181,7 @@ end function
 ' How high pouncer i is over its roof now: in its leap, on its arc.
 function Leapt% (lv as Level, i as integer)
     Leapt% = 0
-    if abs(lv.ob(i).s) <= POUNCEN then Leapt% = Arc%(abs(lv.ob(i).s) - 1)
+    if abs(lv.ob(i).state) <= POUNCEN then Leapt% = Arc%(abs(lv.ob(i).state) - 1)
 end function
 
 ' A pouncer's step. In its bin, state 0, till he comes within POUNCER of it; then it leaps at him, its state one
@@ -189,43 +189,43 @@ end function
 ' the Mob does; beaten, POUNCEGONE.
 sub Pounce (lv as Level, i as integer, p as Hero)
     dim n as integer, d as integer
-    if lv.ob(i).s = POUNCEGONE then exit sub
-    if lv.ob(i).s = 0 then
-        if abs(p.at.x - lv.ob(i).a) < POUNCER and abs(p.at.y - lv.ob(i).y) < 40 then Spring lv, i, p
+    if lv.ob(i).state = POUNCEGONE then exit sub
+    if lv.ob(i).state = 0 then
+        if abs(p.at.x - lv.ob(i).home) < POUNCER and abs(p.at.y - lv.ob(i).at.y) < 40 then Spring lv, i, p
         exit sub
     end if
-    n = abs(lv.ob(i).s)
-    d = sgn(lv.ob(i).s)
+    n = abs(lv.ob(i).state)
+    d = sgn(lv.ob(i).state)
     if n < POUNCEN then
-        lv.ob(i).x = lv.ob(i).a + d * POUNCEFAR * n \ POUNCEN
-        lv.ob(i).s = d * (n + 1)
+        lv.ob(i).at.x = lv.ob(i).home + d * POUNCEFAR * n \ POUNCEN
+        lv.ob(i).state = d * (n + 1)
         exit sub
     end if
-    lv.ob(i).s = d
+    lv.ob(i).state = d
     Prowl lv, i
-    lv.ob(i).s = lv.ob(i).s * POUNCEOUT
+    lv.ob(i).state = lv.ob(i).state * POUNCEOUT
 end sub
 
 ' Pouncer i out of its bin, at him.
 sub Spring (lv as Level, i as integer, p as Hero)
-    lv.ob(i).s = 1
-    if p.at.x < lv.ob(i).a then lv.ob(i).s = -1
+    lv.ob(i).state = 1
+    if p.at.x < lv.ob(i).home then lv.ob(i).state = -1
 end sub
 
 ' A pouncer out of its bin: rolled or charged into it is beaten, else it scratches. In its bin it is not met.
 sub MeetPounce (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
     dim y as integer
-    if lv.ob(i).s = 0 or lv.ob(i).s = POUNCEGONE or abs(lv.ob(i).x - cint(p.at.x)) >= 15 then exit sub
-    y = lv.ob(i).y - Leapt%(lv, i)
+    if lv.ob(i).state = 0 or lv.ob(i).state = POUNCEGONE or abs(lv.ob(i).at.x - cint(p.at.x)) >= 15 then exit sub
+    y = lv.ob(i).at.y - Leapt%(lv, i)
     if abs(y - 6 - cint(p.at.y) + 13) >= 17 then exit sub
     Tackle lv, mu, se, g, p, i, 6 + Leapt%(lv, i), lo(), pt()
-    if lv.ob(i).s = 0 then lv.ob(i).s = POUNCEGONE
+    if lv.ob(i).state = 0 then lv.ob(i).state = POUNCEGONE
 end sub
 
 ' Pouncer i at x, y on the screen: in its leap the Mob's cat with its back up, on its arc; landed, a cat at a prowl.
 sub DrawPouncer (lv as Level, art as Store, se as Session, i as integer, x as integer, y as integer)
     dim s as integer
-    s = lv.ob(i).s
+    s = lv.ob(i).state
     if s = 0 or s = POUNCEGONE then exit sub
     if abs(s) <= POUNCEN then s = sgn(s) * 2 else s = sgn(s)
     Blit art, x - 10, y - 13 - Leapt%(lv, i), CatPic%(se, s), 20, 14
@@ -234,7 +234,7 @@ end sub
 ' The pulses since mortar i last fired.
 function Fired& (lv as Level, se as Session, i as integer)
     dim q as long
-    q = (se.pulse - clng(lv.ob(i).s) * PULSES) mod (clng(MORTARBAR) * PULSES)
+    q = (se.pulse - clng(lv.ob(i).state) * PULSES) mod (clng(MORTARBAR) * PULSES)
     if q < 0 then q = q + clng(MORTARBAR) * PULSES
     Fired& = q
 end function
@@ -262,8 +262,8 @@ function TipperAhead% (lv as Level, x as integer)
     c = (x - 64) \ TS
     if c < 0 then c = 0
     for i = lv.first(c) to lv.nObj - 1
-        if lv.ob(i).x > x + 200 then exit for
-        if lv.ob(i).k <> KTIPPER or lv.ob(i).x + POTX + POTR + 8 < x then continue for
+        if lv.ob(i).at.x > x + 200 then exit for
+        if lv.ob(i).kind <> KTIPPER or lv.ob(i).at.x + POTX + POTR + 8 < x then continue for
         TipperAhead% = i
         exit for
     next
@@ -275,7 +275,7 @@ sub Tipper (lv as Level, mu as Deck, se as Session, i as integer, pt() as Part)
     q = Fired&(lv, se, i)
     land = clng(sqr(2! * SILLUP / GRAV) * 60 * se.tempo)
     if q < land or q >= land + se.tempo then exit sub
-    Burst se, pt(), lv.ob(i).x + POTX, lv.ob(i).y - 3, 8, 120, CCLAY
+    Burst se, pt(), lv.ob(i).at.x + POTX, lv.ob(i).at.y - 3, 8, 120, CCLAY
     Sfx mu, se, SPOP
 end sub
 
@@ -283,9 +283,9 @@ end sub
 sub MeetTipper (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose)
     dim d as integer, foot as integer
     d = PotFall%(lv, se, i)
-    if d = NONE or abs(lv.ob(i).x + POTX - cint(p.at.x)) >= POTR then exit sub
-    foot = lv.ob(i).y - SILLUP + d
-    if foot > p.at.y - 28 and foot - 14 < p.at.y then Hurt mu, se, g, p, lv.ob(i).x + POTX, lo(), SHURT
+    if d = NONE or abs(lv.ob(i).at.x + POTX - cint(p.at.x)) >= POTR then exit sub
+    foot = lv.ob(i).at.y - SILLUP + d
+    if foot > p.at.y - 28 and foot - 14 < p.at.y then Hurt mu, se, g, p, lv.ob(i).at.x + POTX, lo(), SHURT
 end sub
 
 ' Tipper i, its house's middle at x and its foot at y on the screen: the house; its cat at the upper window, a paw
@@ -312,13 +312,13 @@ sub MeetMortar (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i 
     dim q as long, dx as integer, up as integer
     q = Fired&(lv, se, i)
     if q >= FLASHP then exit sub
-    dx = abs(lv.ob(i).x - cint(p.at.x))
-    up = lv.ob(i).y - MORTARH - cint(p.at.y)
+    dx = abs(lv.ob(i).at.x - cint(p.at.x))
+    up = lv.ob(i).at.y - MORTARH - cint(p.at.y)
     if q < se.tempo and dx < MORTARW and up >= 0 and up < MORTARREACH and not p.ground then
         Toss p, cint(p.at.y), MORTARV
         exit sub
     end if
-    if dx < BLASTW and abs(up + MORTARH) < 12 then Hurt mu, se, g, p, lv.ob(i).x, lo(), SHURT
+    if dx < BLASTW and abs(up + MORTARH) < 12 then Hurt mu, se, g, p, lv.ob(i).at.x, lo(), SHURT
 end sub
 
 ' Mortar i at x, y on the screen: its tube; its fuse alight the beat before it fires; its flash; its shell a beat on
@@ -348,9 +348,9 @@ private function Spied% (lv as Level, i as integer, lo() as Loose)
     Spied% = NONE
     best = 2 * BEAT + 1
     for j = 0 to NLOOSE - 1
-        if lo(j).t <= 0 or lo(j).t >= TOONEW or abs(lo(j).at.x - lv.ob(i).a) > BEAT then continue for
-        d = abs(lo(j).at.x - lv.ob(i).x)
-        if d >= best or abs(lo(j).at.y - lv.ob(i).y + 6) >= 14 then continue for
+        if lo(j).t <= 0 or lo(j).t >= TOONEW or abs(lo(j).at.x - lv.ob(i).home) > BEAT then continue for
+        d = abs(lo(j).at.x - lv.ob(i).at.x)
+        if d >= best or abs(lo(j).at.y - lv.ob(i).at.y + 6) >= 14 then continue for
         best = d
         Spied% = j
     next
@@ -361,17 +361,17 @@ end function
 sub Snatch (lv as Level, mu as Deck, se as Session, i as integer, lo() as Loose, pt() as Part)
     dim b as integer, n as integer
     b = NONE
-    if se.loose_n > 0 and abs(lv.ob(i).s) = 1 then b = Spied%(lv, i, lo())
+    if se.loose_n > 0 and abs(lv.ob(i).state) = 1 then b = Spied%(lv, i, lo())
     if b = NONE then
         Prowl lv, i
         exit sub
     end if
-    if abs(lo(b).at.x - lv.ob(i).x) >= 1 then lv.ob(i).s = sgn(lo(b).at.x - lv.ob(i).x)
+    if abs(lo(b).at.x - lv.ob(i).at.x) >= 1 then lv.ob(i).state = sgn(lo(b).at.x - lv.ob(i).at.x)
     for n = 1 to SNATCHV
-        if abs(lo(b).at.x - lv.ob(i).x) < SNATCHR then exit for
+        if abs(lo(b).at.x - lv.ob(i).at.x) < SNATCHR then exit for
         if not Paced%(lv, i) then exit for
     next
-    if abs(lo(b).at.x - lv.ob(i).x) >= SNATCHR then exit sub
+    if abs(lo(b).at.x - lv.ob(i).at.x) >= SNATCHR then exit sub
     lo(b).t = 0
     se.loose_n = se.loose_n - 1
     Burst se, pt(), lo(b).at.x, lo(b).at.y, 4, 60, CWHITE
@@ -386,7 +386,7 @@ end function
 
 ' Rope-walker i shaken off its line: beaten, where it was.
 private sub Shaken (lv as Level, mu as Deck, se as Session, g as Game, pt() as Part, i as integer)
-    if lv.ob(i).s then Beaten lv, mu, se, g, pt(), i, 6
+    if lv.ob(i).state then Beaten lv, mu, se, g, pt(), i, 6
 end sub
 
 ' The lines' step: one that swings, a step nearer rest; the cat on one, a step along it.
@@ -403,16 +403,16 @@ end sub
 private sub Tread (lv as Level, r as Rope)
     dim i as integer, x as integer
     i = r.cat - 1
-    if lv.ob(i).s = 0 then exit sub
-    x = lv.ob(i).x + lv.ob(i).s
-    if abs(lv.ob(i).s) > 1 then
-        lv.ob(i).s = lv.ob(i).s - sgn(lv.ob(i).s)
-    elseif abs(x - lv.ob(i).a) > BEAT or x < r.at.x + WALKIN or x > r.at.x + r.w - WALKIN then
-        lv.ob(i).s = -lv.ob(i).s
+    if lv.ob(i).state = 0 then exit sub
+    x = lv.ob(i).at.x + lv.ob(i).state
+    if abs(lv.ob(i).state) > 1 then
+        lv.ob(i).state = lv.ob(i).state - sgn(lv.ob(i).state)
+    elseif abs(x - lv.ob(i).home) > BEAT or x < r.at.x + WALKIN or x > r.at.x + r.w - WALKIN then
+        lv.ob(i).state = -lv.ob(i).state
     else
-        lv.ob(i).x = x
+        lv.ob(i).at.x = x
     end if
-    lv.ob(i).y = LineY%(r, lv.ob(i).x - r.at.x)
+    lv.ob(i).at.y = LineY%(r, lv.ob(i).at.x - r.at.x)
 end sub
 
 ' The lines in view: each from post to post, its washing on it.

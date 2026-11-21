@@ -172,18 +172,18 @@ sub ResetWorld (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
     g.home.x = wd.lv.startX
     g.home.y = wd.lv.startY
     for i = 0 to wd.lv.nObj - 1
-        wd.lv.ob(i).x = wd.lv.ob(i).a
+        wd.lv.ob(i).at.x = wd.lv.ob(i).home
         ' a burrow's mound keeps its other end, and a chimney; a mortar its beat, and a tipper
-        if wd.lv.ob(i).k = KMOUND or wd.lv.ob(i).k = KCHIMNEY or wd.lv.ob(i).k = KMORTAR then continue for
-        if wd.lv.ob(i).k = KTIPPER then continue for
-        wd.lv.ob(i).s = 0
-        if wd.lv.ob(i).k = KBONE then wd.lv.ob(i).s = 1
-        if wd.lv.ob(i).k = KCAT or wd.lv.ob(i).k = KCRAB or wd.lv.ob(i).k = KSWEEP then wd.lv.ob(i).s = -1
-        if wd.lv.ob(i).k = KWALKER or wd.lv.ob(i).k = KSNATCH then wd.lv.ob(i).s = -1
-        if wd.lv.ob(i).k = KJELLY then wd.lv.ob(i).s = 1
-        if wd.lv.ob(i).k = KTHROW then wd.lv.ob(i).s = THROWC
-        if wd.lv.ob(i).k = KSQUIRREL then wd.lv.ob(i).s = SQWAIT
-        if wd.lv.ob(i).k = KGOAT or wd.lv.ob(i).k = KWALL then wd.lv.ob(i).s = 1
+        if wd.lv.ob(i).kind = KMOUND or wd.lv.ob(i).kind = KCHIMNEY or wd.lv.ob(i).kind = KMORTAR then continue for
+        if wd.lv.ob(i).kind = KTIPPER then continue for
+        wd.lv.ob(i).state = 0
+        if wd.lv.ob(i).kind = KBONE then wd.lv.ob(i).state = 1
+        if wd.lv.ob(i).kind = KCAT or wd.lv.ob(i).kind = KCRAB or wd.lv.ob(i).kind = KSWEEP then wd.lv.ob(i).state = -1
+        if wd.lv.ob(i).kind = KWALKER or wd.lv.ob(i).kind = KSNATCH then wd.lv.ob(i).state = -1
+        if wd.lv.ob(i).kind = KJELLY then wd.lv.ob(i).state = 1
+        if wd.lv.ob(i).kind = KTHROW then wd.lv.ob(i).state = THROWC
+        if wd.lv.ob(i).kind = KSQUIRREL then wd.lv.ob(i).state = SQWAIT
+        if wd.lv.ob(i).kind = KGOAT or wd.lv.ob(i).kind = KWALL then wd.lv.ob(i).state = 1
     next
     for i = 0 to NLOB - 1
         wd.lv.lobs(i).live = 0

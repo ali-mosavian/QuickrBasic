@@ -372,8 +372,8 @@ end sub
 ' A cat barked at from fromX stands startled STARTLED steps, then prowls away from there: its state's size is the
 ' steps left, its sign the way it will go.
 private sub Flinch (lv as Level, i as integer, fromX as integer)
-    lv.ob(i).s = STARTLED
-    if lv.ob(i).x < fromX then lv.ob(i).s = -STARTLED
+    lv.ob(i).state = STARTLED
+    if lv.ob(i).at.x < fromX then lv.ob(i).state = -STARTLED
 end sub
 
 ' Charlie barks: every cat the bark reaches flinches, every crab goes into its shell, every gull is scared, every
@@ -387,23 +387,23 @@ private sub Bark (lv as Level, mu as Deck, se as Session, p as Hero)
     c = (cint(p.at.x) - BARKR - 40) \ TS
     if c < 0 then c = 0
     for i = lv.first(c) to lv.nObj - 1
-        if lv.ob(i).a > p.at.x + BARKR + 40 then exit for
-        dx = abs(lv.ob(i).x - p.at.x)
-        dy = abs(lv.ob(i).y - p.at.y)
+        if lv.ob(i).home > p.at.x + BARKR + 40 then exit for
+        dx = abs(lv.ob(i).at.x - p.at.x)
+        dy = abs(lv.ob(i).at.y - p.at.y)
         ' an icicle or a ledge's load is loosed from further under it than he can jump
-        hung = lv.ob(i).k = KICICLE or lv.ob(i).k = KLOAD
-        if hung and lv.ob(i).s = 0 and dx <= BARKR and dy < 140 then lv.ob(i).s = 1
+        hung = lv.ob(i).kind = KICICLE or lv.ob(i).kind = KLOAD
+        if hung and lv.ob(i).state = 0 and dx <= BARKR and dy < 140 then lv.ob(i).state = 1
         ' and a squirrel on its bough is cowed
-        cowed = lv.ob(i).k = KSQUIRREL and lv.ob(i).s <> 0 and dx <= BARKR and dy < 140
-        if cowed then lv.ob(i).s = sgn(lv.ob(i).s) * SQFRIGHT
+        cowed = lv.ob(i).kind = KSQUIRREL and lv.ob(i).state <> 0 and dx <= BARKR and dy < 140
+        if cowed then lv.ob(i).state = sgn(lv.ob(i).state) * SQFRIGHT
         ' and a pouncer in its bin leaps early, at where he is
-        early = lv.ob(i).k = KPOUNCE and lv.ob(i).s = 0 and dx <= BARKR and dy < 40
-        if early then lv.ob(i).s = 1 + 2 * (p.at.x < lv.ob(i).x)
-        if lv.ob(i).s = 0 or dx > BARKR or dy >= 40 then continue for
-        select case lv.ob(i).k
+        early = lv.ob(i).kind = KPOUNCE and lv.ob(i).state = 0 and dx <= BARKR and dy < 40
+        if early then lv.ob(i).state = 1 + 2 * (p.at.x < lv.ob(i).at.x)
+        if lv.ob(i).state = 0 or dx > BARKR or dy >= 40 then continue for
+        select case lv.ob(i).kind
         case KCAT, KWALKER, KSNATCH: Flinch lv, i, cint(p.at.x)
-        case KCRAB: lv.ob(i).s = sgn(lv.ob(i).s) * SHELLT
-        case KTHROW: lv.ob(i).s = sgn(lv.ob(i).s) * THROWC
+        case KCRAB: lv.ob(i).state = sgn(lv.ob(i).state) * SHELLT
+        case KTHROW: lv.ob(i).state = sgn(lv.ob(i).state) * THROWC
         end select
     next
     for i = 0 to lv.nGulls - 1

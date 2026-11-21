@@ -61,11 +61,10 @@ end type
 
 ' A thing of the level: where it is, its kind and state, and its home x, which the level's order goes by.
 type Thing
-    x as integer
-    y as integer
-    k as integer
-    s as integer
-    a as integer
+    at as Spot
+    kind as integer
+    state as integer
+    home as integer
 end type
 
 ' A moving platform: its thing o, its stretch s and curve z; its middle x, y and reach a; k 0 to and fro, 1 up and

@@ -69,8 +69,8 @@ private function PilotSwim% (lv as Level, zn as Realm, p as Hero, k as Pad)
     dim i as integer, d as integer, want as integer
     want = Solid%(lv, cint(p.at.x) + HW + 2, cint(p.at.y) - 11)
     for i = lv.first(cint(p.at.x) \ TS) to lv.nObj - 1
-        if lv.ob(i).x > p.at.x + 34 then exit for
-        if lv.ob(i).k = KJELLY and lv.ob(i).x > p.at.x then want = -1
+        if lv.ob(i).at.x > p.at.x + 34 then exit for
+        if lv.ob(i).kind = KJELLY and lv.ob(i).at.x > p.at.x then want = -1
     next
     PilotSwim% = want
     ' Kipper's boat about: still, and a hop as it comes, to come down on its deck
@@ -127,18 +127,18 @@ private function PilotRun% (lv as Level, gr as Ground, zn as Realm, se as Sessio
     ' a wall, not a ramp's foot
     if Solid%(lv, x + 13, y - 20) then want = -1
     for i = lv.first(x \ TS) to lv.nObj - 1
-        if lv.ob(i).x > x + 130 then exit for
-        if lv.ob(i).x <= x then continue for
+        if lv.ob(i).at.x > x + 130 then exit for
+        if lv.ob(i).at.x <= x then continue for
         ' a pouncer is jumped in its bin and out of it; a mortar's flash is jumped, whenever it fires
-        d = ((lv.ob(i).k = KCAT or lv.ob(i).k = KSNATCH) and lv.ob(i).s <> 0) or lv.ob(i).k = KTHORN
-        d = d or lv.ob(i).k = KMORTAR
-        d = d or (lv.ob(i).k = KPOUNCE and lv.ob(i).s <> POUNCEGONE)
-        if d and lv.ob(i).x <= x + 50 then want = -1
+        d = ((lv.ob(i).kind = KCAT or lv.ob(i).kind = KSNATCH) and lv.ob(i).state <> 0) or lv.ob(i).kind = KTHORN
+        d = d or lv.ob(i).kind = KMORTAR
+        d = d or (lv.ob(i).kind = KPOUNCE and lv.ob(i).state <> POUNCEGONE)
+        if d and lv.ob(i).at.x <= x + 50 then want = -1
         ' what is not rolled through, a crab, a jellyfish, a sweeper, a spark: jumped from further back the faster
         ' he goes
-        d = lv.ob(i).k = KJELLY or lv.ob(i).k = KSPARK or (lv.ob(i).k = KCRAB and abs(lv.ob(i).s) = 1)
-        d = d or ((lv.ob(i).k = KSWEEP or lv.ob(i).k = KTHROW) and lv.ob(i).s <> 0)
-        if d and lv.ob(i).x <= x + 34 + abs(cint(p.gsp)) \ 8 then want = -1
+        d = lv.ob(i).kind = KJELLY or lv.ob(i).kind = KSPARK or (lv.ob(i).kind = KCRAB and abs(lv.ob(i).state) = 1)
+        d = d or ((lv.ob(i).kind = KSWEEP or lv.ob(i).kind = KTHROW) and lv.ob(i).state <> 0)
+        if d and lv.ob(i).at.x <= x + 34 + abs(cint(p.gsp)) \ 8 then want = -1
     next
     PilotPress lv, se, p, k, want
     PilotTipper lv, se, p, k
@@ -165,10 +165,10 @@ end function
 private function Walled% (lv as Level, i as integer)
     dim c as integer, j as integer
     Walled% = 0
-    j = lv.ob(i).s - 1
+    j = lv.ob(i).state - 1
     if j < 0 then exit function
-    for c = lv.ob(i).x \ TS to lv.ob(j).x \ TS
-        if lv.top(c) > lv.ob(i).y \ TS - 5 then continue for
+    for c = lv.ob(i).at.x \ TS to lv.ob(j).at.x \ TS
+        if lv.top(c) > lv.ob(i).at.y \ TS - 5 then continue for
         Walled% = -1
         exit function
     next
@@ -183,9 +183,9 @@ private sub PilotDig (lv as Level, p as Hero, k as Pad, want as integer)
     c = (x - 48) \ TS
     if c < 0 then c = 0
     for i = lv.first(c) to lv.nObj - 1
-        d = lv.ob(i).x - x
+        d = lv.ob(i).at.x - x
         if d > 10 + v \ 20 + v * v \ 3600 then exit for
-        if lv.ob(i).k <> KMOUND or d < -40 or p.dug = i + 1 or abs(lv.ob(i).y - p.at.y) > 8 then continue for
+        if lv.ob(i).kind <> KMOUND or d < -40 or p.dug = i + 1 or abs(lv.ob(i).at.y - p.at.y) > 8 then continue for
         if not Walled%(lv, i) then continue for
         want = 0
         k.d = abs(d) < MOUNDR - 3 and abs(v) < 20
@@ -203,9 +203,9 @@ private sub PilotCurl (lv as Level, p as Hero, k as Pad, want as integer)
     c = (x - LOGR - 8) \ TS
     if c < 0 then c = 0
     for i = lv.first(c) to lv.nObj - 1
-        if lv.ob(i).x > x + 80 then exit for
-        if lv.ob(i).x < x - LOGR - 4 then continue for
-        if not ((lv.ob(i).k = KBRAMBLE and lv.ob(i).s = 0) or lv.ob(i).k = KLOG) then continue for
+        if lv.ob(i).at.x > x + 80 then exit for
+        if lv.ob(i).at.x < x - LOGR - 4 then continue for
+        if not ((lv.ob(i).kind = KBRAMBLE and lv.ob(i).state = 0) or lv.ob(i).kind = KLOG) then continue for
         if p.gsp > 150 then
             k.d = -1
         else
@@ -221,7 +221,7 @@ private sub PilotPress (lv as Level, se as Session, p as Hero, k as Pad, want as
     dim i as integer, d as integer
     i = PressAhead%(lv, cint(p.at.x))
     if i = NONE then exit sub
-    d = lv.ob(i).x - 26 - cint(p.at.x)
+    d = lv.ob(i).at.x - 26 - cint(p.at.x)
     if d < 60 then want = 0
     if d <= 0 or d >= 40 + cint(p.gsp) \ 5 then exit sub
     if (PressT%(lv, se, i) + 22) mod PRESSP > 52 then HoldBack p, k, 20
@@ -232,7 +232,7 @@ private sub PilotTipper (lv as Level, se as Session, p as Hero, k as Pad)
     dim i as integer, d as integer
     i = TipperAhead%(lv, cint(p.at.x))
     if i = NONE then exit sub
-    d = lv.ob(i).x + POTX - POTR - 8 - cint(p.at.x)
+    d = lv.ob(i).at.x + POTX - POTR - 8 - cint(p.at.x)
     if d <= 0 or d >= 40 + cint(p.gsp) \ 5 then exit sub
     if not PotClear%(lv, se, i) then HoldBack p, k, 20
 end sub
@@ -242,8 +242,8 @@ private sub PilotGoat (lv as Level, p as Hero, k as Pad, want as integer)
     dim i as integer, d as integer
     i = GoatNear%(lv, cint(p.at.x))
     if i = NONE or p.goat <> 0 then exit sub
-    d = lv.ob(i).x - cint(p.at.x)
-    if abs(lv.ob(i).s) = GCHARGE then
+    d = lv.ob(i).at.x - cint(p.at.x)
+    if abs(lv.ob(i).state) = GCHARGE then
         k.r = 0
         want = abs(d) < 70
         exit sub

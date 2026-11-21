@@ -27,26 +27,26 @@ const SPINR = 30, SPINH = 70
 ' A spark on its cable: lit, it stings.
 sub MeetSpark (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose)
     dim x as integer, py as integer
-    x = lv.ob(i).x
+    x = lv.ob(i).at.x
     py = cint(p.at.y)
-    if abs(x - cint(p.at.x)) >= 11 or py <= lv.ob(i).y - 24 or py - 26 >= lv.ob(i).y then exit sub
+    if abs(x - cint(p.at.x)) >= 11 or py <= lv.ob(i).at.y - 24 or py - 26 >= lv.ob(i).at.y then exit sub
     if Lit%(lv, se, i) then Hurt mu, se, g, p, x, lo(), SHISS
 end sub
 
 ' A button in the floor: stood on, it is pressed.
 sub MeetButton (lv as Level, mu as Deck, se as Session, p as Hero, i as integer, pt() as Part)
-    if lv.ob(i).s <> 0 or not p.ground then exit sub
-    if abs(lv.ob(i).x - cint(p.at.x)) >= 9 or abs(cint(p.at.y) - lv.ob(i).y) >= 4 then exit sub
-    lv.ob(i).s = 1
-    Burst se, pt(), csng(lv.ob(i).x), csng(lv.ob(i).y - 6), 8, 80, CGOLD + 4
+    if lv.ob(i).state <> 0 or not p.ground then exit sub
+    if abs(lv.ob(i).at.x - cint(p.at.x)) >= 9 or abs(cint(p.at.y) - lv.ob(i).at.y) >= 4 then exit sub
+    lv.ob(i).state = 1
+    Burst se, pt(), csng(lv.ob(i).at.x), csng(lv.ob(i).at.y - 6), 8, 80, CGOLD + 4
     Sfx mu, se, SMARK
 end sub
 
 ' A jet, blowing 80 ticks of 180: who is over it goes up.
 sub MeetJet (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
     dim dy as integer
-    dy = cint(p.at.y) - lv.ob(i).y
-    if (se.ticks + lv.ob(i).x) mod 180 >= 80 or abs(lv.ob(i).x - cint(p.at.x)) >= 10 then exit sub
+    dy = cint(p.at.y) - lv.ob(i).at.y
+    if (se.ticks + lv.ob(i).at.x) mod 180 >= 80 or abs(lv.ob(i).at.x - cint(p.at.x)) >= 10 then exit sub
     if dy > 2 or dy <= -64 or p.vel.y <= -JETV + 60 then exit sub
     if p.ground then
         p.vel.x = p.gsp
@@ -62,9 +62,9 @@ end sub
 ' A bumper or a buoy: touched, it throws him off the way he came at it.
 sub MeetBump (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, pt() as Part)
     dim dx as integer, dy as integer, d as single
-    dx = cint(p.at.x) - lv.ob(i).x
-    dy = cint(p.at.y) - 12 - lv.ob(i).y
-    if lv.ob(i).s <> 0 or abs(dx) >= 20 or abs(dy) >= 20 then exit sub
+    dx = cint(p.at.x) - lv.ob(i).at.x
+    dy = cint(p.at.y) - 12 - lv.ob(i).at.y
+    if lv.ob(i).state <> 0 or abs(dx) >= 20 or abs(dy) >= 20 then exit sub
     d = sqr(csng(dx) * dx + csng(dy) * dy)
     if d >= 20 then exit sub
     if d < 1 then
@@ -76,31 +76,31 @@ sub MeetBump (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as
     p.vel.y = dy / d * BUMPV - 60
     p.jumped = 0
     p.sprung = -1
-    lv.ob(i).s = 10
+    lv.ob(i).state = 10
     g.score = g.score + 10
-    Burst se, pt(), csng(lv.ob(i).x), csng(lv.ob(i).y), 6, 90, CGOLD + 4
+    Burst se, pt(), csng(lv.ob(i).at.x), csng(lv.ob(i).at.y), 6, 90, CGOLD + 4
     Sfx mu, se, SSPRING
 end sub
 
 ' A ball going round its post: it hurts.
 sub MeetSpin (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose)
     dim a as single, x as integer, bx as integer, by as integer
-    x = lv.ob(i).x
+    x = lv.ob(i).at.x
     a = se.ticks * .06 + x
     bx = x + cint(SPINR * cos(a))
-    by = lv.ob(i).y - SPINH + cint(SPINR * sin(a))
+    by = lv.ob(i).at.y - SPINH + cint(SPINR * sin(a))
     if abs(bx - cint(p.at.x)) < 11 and abs(by - cint(p.at.y) + 12) < 16 then Hurt mu, se, g, p, x, lo(), SHURT
 end sub
 
 ' A hoop: through it in the air he goes on, faster, the way he was going.
 sub MeetHoop (lv as Level, mu as Deck, se as Session, p as Hero, i as integer, pt() as Part)
-    if lv.ob(i).s <> 0 or p.ground or abs(lv.ob(i).x - cint(p.at.x)) >= 9 then exit sub
-    if abs(lv.ob(i).y - cint(p.at.y) + 12) >= 18 then exit sub
+    if lv.ob(i).state <> 0 or p.ground or abs(lv.ob(i).at.x - cint(p.at.x)) >= 9 then exit sub
+    if abs(lv.ob(i).at.y - cint(p.at.y) + 12) >= 18 then exit sub
     p.vel.x = HOOPV * (1 + 2 * (p.vel.x < 0))
     p.vel.y = -180
     p.sprung = -1
-    lv.ob(i).s = 20
-    Burst se, pt(), csng(lv.ob(i).x), csng(lv.ob(i).y), 8, 120, CGOLD + 4
+    lv.ob(i).state = 20
+    Burst se, pt(), csng(lv.ob(i).at.x), csng(lv.ob(i).at.y), 8, 120, CGOLD + 4
     Sfx mu, se, SBOOST
 end sub
 
@@ -108,27 +108,27 @@ end sub
 ' behind, it is beaten.
 sub MeetSweep (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
     dim y as integer, behind as integer
-    y = lv.ob(i).y
-    if lv.ob(i).s = 0 or abs(lv.ob(i).x - p.at.x) >= 18 or p.at.y < y - 20 or p.at.y > y + 10 then exit sub
-    behind = sgn(p.at.x - lv.ob(i).x) <> sgn(lv.ob(i).s)
+    y = lv.ob(i).at.y
+    if lv.ob(i).state = 0 or abs(lv.ob(i).at.x - p.at.x) >= 18 or p.at.y < y - 20 or p.at.y > y + 10 then exit sub
+    behind = sgn(p.at.x - lv.ob(i).at.x) <> sgn(lv.ob(i).state)
     if not p.ground and p.vel.y > 0 and p.at.y < y - 8 then
         Beaten lv, mu, se, g, pt(), i, 8
         p.vel.y = -BOUNCEV
     elseif behind and (p.roll or p.charging) then
         Beaten lv, mu, se, g, pt(), i, 8
     else
-        Hurt mu, se, g, p, lv.ob(i).x, lo(), SHURT
+        Hurt mu, se, g, p, lv.ob(i).at.x, lo(), SHURT
     end if
 end sub
 
 ' Whether spark i is alight: its carriage hurts then, and is safe dark.
 private function Lit% (lv as Level, se as Session, i as integer)
-    Lit% = (se.ticks + lv.ob(i).a) mod SPARKP < SPARKLIT
+    Lit% = (se.ticks + lv.ob(i).home) mod SPARKP < SPARKLIT
 end function
 
 ' Where press i is in its turn, 0 to PRESSP - 1: a press further along a row is later.
 function PressT% (lv as Level, se as Session, i as integer)
-    PressT% = (se.ticks + PRESSP * 100 - lv.ob(i).a \ PRESSLAG) mod PRESSP
+    PressT% = (se.ticks + PRESSP * 100 - lv.ob(i).home \ PRESSLAG) mod PRESSP
 end function
 
 ' How far down press i's head is, 0 to PRESSUP.
@@ -150,8 +150,8 @@ end function
 sub MeetPress (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose)
     dim y as integer
     if PressT%(lv, se, i) = PRESSFALL + 10 then Sfx mu, se, SCLANK
-    y = lv.ob(i).y - PRESSUP + Stroke%(lv, se, i)
-    if abs(lv.ob(i).x - p.at.x) < 26 and p.at.y - 26 < y and p.at.y > y - 14 then Hurt mu, se, g, p, lv.ob(i).x, lo(), SHURT
+    y = lv.ob(i).at.y - PRESSUP + Stroke%(lv, se, i)
+    if abs(lv.ob(i).at.x - p.at.x) < 26 and p.at.y - 26 < y and p.at.y > y - 14 then Hurt mu, se, g, p, lv.ob(i).at.x, lo(), SHURT
 end sub
 
 ' For the pilot at x: the nearest press he is under or coming to, NONE with none near.
@@ -162,8 +162,8 @@ function PressAhead% (lv as Level, x as integer)
     if c < 0 then c = 0
     i = lv.first(c)
     do while i < lv.nObj
-        if lv.ob(i).x > x + 200 then exit do
-        if lv.ob(i).k = KPRESS and lv.ob(i).x + 50 >= x then
+        if lv.ob(i).at.x > x + 200 then exit do
+        if lv.ob(i).kind = KPRESS and lv.ob(i).at.x + 50 >= x then
             PressAhead% = i
             exit do
         end if
@@ -176,7 +176,7 @@ end function
 sub DrawSpark (lv as Level, art as Store, se as Session, i as integer, x as integer, y as integer, cx as integer)
     dim f as integer, k as integer
     for f = -3 to 2
-        Blit art, lv.ob(i).a + f * TS - cx, y - 4, ISRAIL, TS, 4
+        Blit art, lv.ob(i).home + f * TS - cx, y - 4, ISRAIL, TS, 4
     next
     k = ISPARK
     if Lit%(lv, se, i) then k = ISPARK + 2 + ((se.ticks \ 3) and 1) * 2

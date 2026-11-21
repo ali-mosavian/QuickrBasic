@@ -53,10 +53,10 @@ sub DrawOver (lv as Level, zn as Realm, art as Store, cx as integer, cy as integ
     if c < 0 then c = 0
     i = lv.first(c)
     do while i < lv.nObj
-        x = lv.ob(i).x - cx
+        x = lv.ob(i).at.x - cx
         if x > SW then exit do
-        if lv.ob(i).k = KWAVE2 then Blit art, x, lv.ob(i).y - cy - WAVEA - 22, zn.wave + 2, WAVEL, WAVEH
-        if lv.ob(i).k = KLOG then Blit art, x - LOGR, lv.ob(i).y - cy - 31, ILOG, 64, 32
+        if lv.ob(i).kind = KWAVE2 then Blit art, x, lv.ob(i).at.y - cy - WAVEA - 22, zn.wave + 2, WAVEL, WAVEH
+        if lv.ob(i).kind = KLOG then Blit art, x - LOGR, lv.ob(i).at.y - cy - 31, ILOG, 64, 32
         i = i + 1
     loop
 end sub

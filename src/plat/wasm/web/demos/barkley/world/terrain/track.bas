@@ -43,7 +43,7 @@ sub Track (lv as Level, gr as Ground)
         gr.col(c) = -1
     next
     for i = 0 to lv.nObj - 1
-        if lv.ob(i).k = KPIPE then gr.col((lv.ob(i).x - PIPER) \ TS) = -2 - i
+        if lv.ob(i).kind = KPIPE then gr.col((lv.ob(i).at.x - PIPER) \ TS) = -2 - i
     next
     for c = 0 to lv.w - 1
         if gr.col(c) < -1 then
@@ -65,7 +65,7 @@ end sub
 private sub TrackPipe (lv as Level, gr as Ground, c as integer)
     dim x as integer, y as integer, j as integer, a as single
     x = c * TS
-    y = lv.ob(-2 - gr.col(c)).y
+    y = lv.ob(-2 - gr.col(c)).at.y
     gr.col(c) = -1
     if gr.pt(gr.n - 1).x <> x or gr.pt(gr.n - 1).y <> y then Knot gr, csng(x), csng(y), 0
     gr.cv(gr.nz).a = gr.n - 1
@@ -97,8 +97,8 @@ private sub TrackTile (lv as Level, gr as Ground, c as integer)
     if j then Knot gr, csng(x), csng(yl), 0
     gr.col(c) = gr.n - 1
     for i = lv.first(c) to lv.nObj - 1
-        if lv.ob(i).x >= x + TS then exit for
-        if lv.ob(i).k = KLOOP then TrackLoop gr, lv.ob(i).x, yl
+        if lv.ob(i).at.x >= x + TS then exit for
+        if lv.ob(i).kind = KLOOP then TrackLoop gr, lv.ob(i).at.x, yl
     next
     Knot gr, csng(x + TS), csng(yr), 1
 end sub
@@ -125,15 +125,15 @@ private sub TrackPlats (lv as Level, gr as Ground)
     dim i as integer, x as integer, x1 as integer, y as integer
     x = NONE
     for i = 0 to lv.nObj - 1
-        if lv.ob(i).k <> KPLAT then continue for
-        if x <> NONE and lv.ob(i).x = x1 and lv.ob(i).y = y then
+        if lv.ob(i).kind <> KPLAT then continue for
+        if x <> NONE and lv.ob(i).at.x = x1 and lv.ob(i).at.y = y then
             x1 = x1 + TS
             continue for
         end if
         Plank gr, x, x1, y
-        x = lv.ob(i).x
+        x = lv.ob(i).at.x
         x1 = x + TS
-        y = lv.ob(i).y
+        y = lv.ob(i).at.y
     next
     Plank gr, x, x1, y
 end sub
@@ -159,9 +159,9 @@ end sub
 private sub TrackMovers (lv as Level, gr as Ground)
     dim i as integer, k as integer
     for i = 0 to lv.nObj - 1
-        if lv.ob(i).k <> KMOVE and lv.ob(i).k <> KSPAN and lv.ob(i).k <> KSEAT and lv.ob(i).k <> KTRAM then continue for
-        Knot gr, csng(lv.ob(i).x), csng(lv.ob(i).y), 0
-        Knot gr, csng(lv.ob(i).x + MOVEW), csng(lv.ob(i).y), 3
+        if lv.ob(i).kind <> KMOVE and lv.ob(i).kind <> KSPAN and lv.ob(i).kind <> KSEAT and lv.ob(i).kind <> KTRAM then continue for
+        Knot gr, csng(lv.ob(i).at.x), csng(lv.ob(i).at.y), 0
+        Knot gr, csng(lv.ob(i).at.x + MOVEW), csng(lv.ob(i).at.y), 3
         lv.mv(k).o = i
         lv.mv(k).s = gr.n - 2
         lv.mv(k).z = gr.nz
@@ -170,8 +170,8 @@ private sub TrackMovers (lv as Level, gr as Ground)
         gr.cv(gr.nz).a = gr.n - 2
         gr.cv(gr.nz).b = gr.n - 2
         gr.cv(gr.nz).m = -1
-        gr.cv(gr.nz).l = lv.ob(i).x
-        gr.cv(gr.nz).r = lv.ob(i).x + MOVEW
+        gr.cv(gr.nz).l = lv.ob(i).at.x
+        gr.cv(gr.nz).r = lv.ob(i).at.x + MOVEW
         gr.nz = gr.nz + 1
         k = k + 1
     next
@@ -182,7 +182,7 @@ private function ButtonAt% (lv as Level, x as integer)
     dim j as integer
     ButtonAt% = x
     for j = 0 to lv.nObj - 1
-        if lv.ob(j).k <> KBUTTON or lv.ob(j).x <> x then continue for
+        if lv.ob(j).kind <> KBUTTON or lv.ob(j).at.x <> x then continue for
         ButtonAt% = j
         exit function
     next
@@ -193,21 +193,21 @@ private sub TrackRibbons (lv as Level, gr as Ground)
     dim i as integer, j as integer, x1 as integer, y as integer, a as single
     x1 = NONE
     for i = 0 to lv.nObj - 1
-        if lv.ob(i).k <> KWAVE and lv.ob(i).k <> KWAVE2 then continue for
-        if lv.ob(i).x <> x1 then
+        if lv.ob(i).kind <> KWAVE and lv.ob(i).kind <> KWAVE2 then continue for
+        if lv.ob(i).at.x <> x1 then
             RibbonEnd gr, x1, y
-            y = lv.ob(i).y
-            Knot gr, csng(lv.ob(i).x - 8), csng(y), 0
+            y = lv.ob(i).at.y
+            Knot gr, csng(lv.ob(i).at.x - 8), csng(y), 0
             gr.cv(gr.nz).a = gr.n - 1
             gr.cv(gr.nz).m = -2
-            gr.cv(gr.nz).l = lv.ob(i).x - 8
-            Knot gr, csng(lv.ob(i).x), csng(y), 2
+            gr.cv(gr.nz).l = lv.ob(i).at.x - 8
+            Knot gr, csng(lv.ob(i).at.x), csng(y), 2
         end if
         for j = 1 to 12
-            a = PI * j / 12 - PI * (lv.ob(i).k = KWAVE2)
-            Knot gr, csng(lv.ob(i).x + j * 16), y - WAVEA * (1 - cos(a)) / 2, 2
+            a = PI * j / 12 - PI * (lv.ob(i).kind = KWAVE2)
+            Knot gr, csng(lv.ob(i).at.x + j * 16), y - WAVEA * (1 - cos(a)) / 2, 2
         next
-        x1 = lv.ob(i).x + WAVEL
+        x1 = lv.ob(i).at.x + WAVEL
         gr.cv(gr.nz).r = x1 + 8
     next
     RibbonEnd gr, x1, y

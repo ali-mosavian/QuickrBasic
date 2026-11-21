@@ -215,7 +215,7 @@ sub LoadLevel (wd as World, st as integer)
         case "pipe"
             ' a wall with a quarter pipe up to it, over the three columns before: nothing grows there
             for i = 0 to wd.lv.nObj - 1
-                if Rooted%(wd.lv, i, KTREE) and wd.lv.ob(i).x >= c * TS - PIPER then wd.lv.ob(i).k = 0
+                if Rooted%(wd.lv, i, KTREE) and wd.lv.ob(i).at.x >= c * TS - PIPER then wd.lv.ob(i).kind = 0
             next
             AddObj wd.lv, KPIPE, c * TS, s
             ' Amber Downs' pipe is drawn with the ground under it
@@ -369,16 +369,16 @@ sub LoadLevel (wd as World, st as integer)
             ' each other, -n - 1
             Clearing wd.lv, c
             AddObj wd.lv, KCHIMNEY, c * TS + 8, s
-            wd.lv.ob(wd.lv.nObj - 1).s = -n - 1
+            wd.lv.ob(wd.lv.nObj - 1).state = -n - 1
         case "mortar"
             ' a mortar, firing on beat n of every bar
             Clearing wd.lv, c
             AddObj wd.lv, KMORTAR, c * TS + 8, s
-            wd.lv.ob(wd.lv.nObj - 1).s = n
+            wd.lv.ob(wd.lv.nObj - 1).state = n
         case "tipper"
             ' a house behind the way, a cat at its window: its pot goes on beat n of every bar
             AddObj wd.lv, KTIPPER, c * TS + 8, s
-            wd.lv.ob(wd.lv.nObj - 1).s = n
+            wd.lv.ob(wd.lv.nObj - 1).state = n
         case "tram"
             ' a tram on the street here, its way the n columns on: they are laid after it
             AddMover wd.lv, c * TS + 8, s - TRAMH, n * TS - MOVEW - 16, 8, c * TS
@@ -401,7 +401,7 @@ sub LoadLevel (wd as World, st as integer)
         case "burrow"
             ' a burrow's mound, its other end the mound of the same n: till they are told each other, -n - 1
             AddObj wd.lv, KMOUND, c * TS + 8, s
-            wd.lv.ob(wd.lv.nObj - 1).s = -n - 1
+            wd.lv.ob(wd.lv.nObj - 1).state = -n - 1
         case "oak"
             ' the great oak here, its limbs' flats over the ground either side of it
             wd.lv.oakX = c * TS + 8
@@ -447,7 +447,7 @@ sub LoadLevel (wd as World, st as integer)
     wd.lv.wpx = c * TS
     ' nothing grows in front of the family
     for i = 0 to wd.lv.nObj - 1
-        if Rooted%(wd.lv, i, KBUSH) and abs(wd.lv.ob(i).x - wd.lv.famX) < 112 then wd.lv.ob(i).k = 0
+        if Rooted%(wd.lv, i, KBUSH) and abs(wd.lv.ob(i).at.x - wd.lv.famX) < 112 then wd.lv.ob(i).kind = 0
     next
     SortObjs wd.lv
     Pair wd.lv, KMOUND, -1
@@ -476,9 +476,9 @@ end sub
 private sub Walkers (lv as Level)
     dim i as integer, r as integer
     for i = 0 to lv.nObj - 1
-        if lv.ob(i).k <> KWALKER then continue for
+        if lv.ob(i).kind <> KWALKER then continue for
         for r = 0 to lv.nRope - 1
-            if lv.ob(i).x <= lv.ropes(r).at.x or lv.ob(i).x >= lv.ropes(r).at.x + lv.ropes(r).w then continue for
+            if lv.ob(i).at.x <= lv.ropes(r).at.x or lv.ob(i).at.x >= lv.ropes(r).at.x + lv.ropes(r).w then continue for
             lv.ropes(r).cat = i + 1
         next
     next
@@ -496,10 +496,10 @@ sub Mend (lv as Level)
         if lv.mv(m).k = 6 then lv.mv(m).t = 0
     next
     for m = 0 to lv.nObj - 1
-        if lv.ob(m).k = KSLED then lv.ob(m).s = 0
-        if lv.ob(m).k <> KGOAT then continue for
-        lv.ob(m).s = 1
-        lv.ob(m).x = lv.ob(m).a
+        if lv.ob(m).kind = KSLED then lv.ob(m).state = 0
+        if lv.ob(m).kind <> KGOAT then continue for
+        lv.ob(m).state = 1
+        lv.ob(m).at.x = lv.ob(m).home
     next
     lv.stray.st = 0
     lv.aval.st = 0
@@ -513,7 +513,7 @@ end function
 function GoldNo% (lv as Level, i as integer)
     dim j as integer, n as integer
     for j = 0 to i - 1
-        if lv.ob(j).k = KGOLD then n = n + 1
+        if lv.ob(j).kind = KGOLD then n = n + 1
     next
     GoldNo% = n
 end function
