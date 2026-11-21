@@ -75,7 +75,18 @@ Status unit_run(Session *const S, const char *const *const lines)
 
 static Session session;
 
-int main(void)
+/* A test's name holds one of the arguments, or there are none. */
+static bool picked(const char *const name, const int argc, const char *const *const argv)
+{
+    for (int i = 1; i < argc; i++)
+        if (strstr(name, argv[i]))
+            return true;
+
+    return argc < 2;
+}
+
+/* Each test, or with arguments those whose names hold one. */
+int main(const int argc, const char *const *const argv)
 {
     Session *const S = &session;
     static const FrontEnd editor = {
@@ -84,12 +95,18 @@ int main(void)
 
     boot(S, &editor);
 
+    uint32_t ran = 0;
+
     for (uint32_t i = 0; i < ntests; i++) {
+        if (!picked(tests[i].name, argc, argv))
+            continue;
+
         current = tests[i].name;
         tests[i].fn(S);
+        ran++;
     }
 
-    printf("%u tests, %u failures\n", ntests, failures);
+    printf("%u tests, %u failures\n", ran, failures);
     return failures ? 1 : 0;
 }
 
