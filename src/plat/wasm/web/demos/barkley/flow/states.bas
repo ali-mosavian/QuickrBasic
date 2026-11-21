@@ -25,7 +25,8 @@ from barkley.stage.zones.wood import Nightfall, Swarms
 from barkley.stage.zones.pass import Avalanche, Homeward
 from barkley.stage.zones.chase import Flee
 from barkley.stage.camera import Camera
-from barkley.stage.play import Dying, Spawn, Things, Touch
+from barkley.stage.play import Dying, Spawn, Touch
+from barkley.stage.things import Things
 from barkley.stage.fx.parts import Particles
 from barkley.control.keys import MuteKey, Spent
 from barkley.control.pilot import Pilot

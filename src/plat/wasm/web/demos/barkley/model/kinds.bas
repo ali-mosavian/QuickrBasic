@@ -15,11 +15,19 @@ const FSWAY = 2
 const FSTATE = 3
 const FPRESS = 4
 
+' How a thing is moved: not at all; by its kind's own rule;
+' prowling, turned where its beat ends; resting, its state
+' counted down to 0.
+const MNONE = 0
+const MOWN = 1
+const MPROWL = 2
+const MREST = 3
+
 ' A kind's picture, its box from the thing's place, and its
 ' frames: none, and the kind draws itself. The state it
 ' starts a stage in; whether it keeps its own, rides a
 ' track, hangs where a bark looses it, is crushed by a fall,
-' grows where the ground is laid.
+' grows where the ground is laid. How it is moved.
 type Kind
     pic as integer
     dx as integer
@@ -35,6 +43,7 @@ type Kind
     hangs as integer
     crushed as integer
     grows as integer
+    mind as integer
 end type
 
 ' The kinds, by their numbers.
@@ -67,6 +76,7 @@ sub LoadKinds (kd as Kinds, df as DataFile)
         kd.k(i).hangs = Word&(df)
         kd.k(i).crushed = Word&(df)
         kd.k(i).grows = Word&(df)
+        kd.k(i).mind = Word&(df)
     next
 
     close #df.num

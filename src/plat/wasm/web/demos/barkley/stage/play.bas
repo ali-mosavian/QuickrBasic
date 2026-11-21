@@ -3,7 +3,6 @@
 defint A-Z
 option explicit
 
-from engine.video import SW
 from engine.clock import STEPT
 from engine.events import Events
 from barkley.model.hero import Hero
@@ -11,45 +10,36 @@ from barkley.model.level import GRAV, Ground, KAWNING, KBONE, KBOOST
 from barkley.model.level import KBRAMBLE, KBUMP, KBUOY, KBUTTON, KCAT
 from barkley.model.level import KCHIMNEY, KCRAB, KDRIFT, KFLUME, KGOAL
 from barkley.model.level import KGOAT, KGOLD, KHEAP, KHOOP, KICICLE
-from barkley.model.level import KJELLY, KJET, KLOAD, KLOG, KMARK
-from barkley.model.level import KMORTAR, KMOUND, KPOUNCE, KPRESS
-from barkley.model.level import KSAPLING, KSLED, KSNATCH, KSPARK
-from barkley.model.level import KSPIN, KSPOUT, KSPRING, KSQUIRREL
-from barkley.model.level import KSWEEP, KTHORN, KTHROW, KTIPPER, KVINE
-from barkley.model.level import KWALKER, KWALL, Level, Realm, TS
+from barkley.model.level import KJELLY, KJET, KLOG, KMARK, KMORTAR
+from barkley.model.level import KMOUND, KPOUNCE, KPRESS, KSAPLING
+from barkley.model.level import KSLED, KSNATCH, KSPARK, KSPIN, KSPOUT
+from barkley.model.level import KSPRING, KSQUIRREL, KSWEEP, KTHORN
+from barkley.model.level import KTHROW, KTIPPER, KVINE, KWALKER, KWALL
+from barkley.model.level import Level, Realm, TS
 from barkley.model.game import Game, Loose, NLOOSE, OVER, Part
 from barkley.model.game import Session, TOONEW
 from barkley.model.events import EVSCENETUNE, EVSOUND, Tell
-from barkley.model.kinds import Kinds
 from barkley.assets.tunes import LEFTBEHIND, SBONE, SHURT
 from barkley.world.terrain.ground import SegAt
 from barkley.world.level import Mend
-from barkley.stage.fx.parts import LooseBones
 from barkley.stage.fx.damage import Hurt
 from barkley.stage.zones.downs import MeetBone, MeetBoost, MeetCat
 from barkley.stage.zones.downs import MeetGold, MeetMark, MeetSpring
-from barkley.stage.zones.downs import Prowl
 from barkley.stage.zones.works import MeetBump, MeetButton, MeetHoop
 from barkley.stage.zones.works import MeetJet, MeetPress, MeetSpark
 from barkley.stage.zones.works import MeetSpin, MeetSweep
-from barkley.stage.zones.sands import Bob, MeetCrab, MeetFlume
-from barkley.stage.zones.sands import MeetJelly
+from barkley.stage.zones.sands import MeetCrab, MeetFlume, MeetJelly
 from barkley.stage.zones.wood import MeetBramble, MeetLog, MeetMound
-from barkley.stage.zones.wood import MeetSapling, MeetVine, Regrow
-from barkley.stage.zones.wood import Scamper
-from barkley.stage.zones.pass import Graze, MeetDrift, MeetGoat
-from barkley.stage.zones.pass import MeetHeap, MeetIcicle, MeetSled
-from barkley.stage.zones.pass import MeetThrow, MeetWall, TakeAim
-from barkley.stage.zones.pass import Totter, Unload
+from barkley.stage.zones.wood import MeetSapling, MeetVine
+from barkley.stage.zones.pass import MeetDrift, MeetGoat, MeetHeap
+from barkley.stage.zones.pass import MeetIcicle, MeetSled, MeetThrow
+from barkley.stage.zones.pass import MeetWall
 from barkley.stage.zones.quarter import Lines, MeetAwning, MeetChimney
 from barkley.stage.zones.quarter import MeetMortar, MeetPounce
-from barkley.stage.zones.quarter import MeetTipper, Mortar, Pounce
-from barkley.stage.zones.quarter import Settle, Snatch, Tipper
+from barkley.stage.zones.quarter import MeetTipper
 from barkley.stage.zones.chase import ResetChase
 from barkley.stage.camera import Camera
 
-const SPARKR = 40
-const JELLYD = 10
 
 sub Spawn ( _
     lv as Level, _
@@ -220,80 +210,4 @@ sub Dying ( _
     else
         Spawn lv, gr, zn, ev, g, p
     end if
-end sub
-
-sub Things ( _
-    lv as Level, _
-    kd as Kinds, _
-    ev as Events, _
-    se as Session, _
-    g as Game, _
-    p as Hero, _
-    lo() as Loose _
-)
-    dim i as integer, c as integer
-    ' typed: a const made from a const and left typeless is
-    ' rounded to a whole number, 0 here
-    const DT! = STEPT * 2
-
-    c = (cint(g.cam.x) - 100) \ TS
-    if c < 0 then c = 0
-
-    for i = lv.first(c) to lv.n_things - 1
-        if lv.things(i).home > g.cam.x + SW + 100 then exit for
-
-        select case lv.things(i).kind
-        case KCAT, KCRAB, KSWEEP
-            if lv.things(i).state <> 0 then Prowl lv, i
-        case KSPARK
-            lv.things(i).at.x = lv.things(i).home _
-                + cint(SPARKR _
-                * sin((se.ticks + lv.things(i).home) * .03))
-        case KICICLE
-            Totter lv, kd, ev, i
-        case KLOAD
-            Unload lv, kd, ev, se, g, p, lo(), i
-        case KGOAT
-            if lv.things(i).state <> 0 then Graze lv, se, i, p
-        case KTHROW
-            TakeAim lv, i, p
-        case KSQUIRREL
-            if lv.things(i).state <> 0 then Scamper lv, i, p
-        case KPOUNCE
-            Pounce lv, i, p
-        case KSNATCH
-            if lv.things(i).state <> 0 then
-                Snatch lv, ev, se, i, lo()
-            end if
-        case KMORTAR
-            Mortar lv, ev, se, i
-        case KTIPPER
-            Tipper lv, ev, se, i
-        case KSPRING, KBUMP, KHOOP, KSAPLING, KAWNING
-            if lv.things(i).state > 0 then
-                lv.things(i).state = lv.things(i).state - 1
-            end if
-        case KBRAMBLE
-            Regrow lv, ev, i
-        case KVINE
-            if p.vine <> i + 1 then
-                lv.things(i).state = lv.things(i).state * 7 \ 8
-            end if
-        case KBUOY
-            lv.things(i).at.y = Bob%(lv, lv.things(i).at.x, -4, 9)
-
-            if lv.things(i).state > 0 then
-                lv.things(i).state = lv.things(i).state - 1
-            end if
-        case KJELLY
-            lv.things(i).at.y = Bob%(lv, lv.things(i).at.x, JELLYD, 0)
-
-            if lv.things(i).state > 1 then
-                lv.things(i).state = lv.things(i).state - 1
-            end if
-        end select
-    next
-
-    if lv.n_ropes then Settle lv
-    if se.loose_n then LooseBones lv, se, lo(), DT
 end sub

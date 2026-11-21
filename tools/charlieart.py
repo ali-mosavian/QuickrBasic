@@ -5839,12 +5839,19 @@ RIDES = {"KMOVE", "KSPAN", "KSEAT", "KTRAM"}  # carried along a track
 HANGS = {"KICICLE", "KLOAD"}  # loosed by a bark from under it
 CRUSHED = {"KCAT", "KTHROW"}  # beaten, awake, by a falling icicle or the avalanche
 GROWS = {"KTREE", "KBUSH", "KFLOWER", "KROCK", "KTHORN", "KLAMP"}  # pulled up where the ground changes
+# How each moves, model/kinds.bas's M consts; any other not at all.
+MIND = {
+    **dict.fromkeys(["KCAT", "KCRAB", "KSWEEP"], "MPROWL"),
+    **dict.fromkeys(["KSPRING", "KBUMP", "KHOOP", "KSAPLING", "KAWNING"], "MREST"),
+    **dict.fromkeys(["KSPARK", "KICICLE", "KLOAD", "KGOAT", "KTHROW", "KSQUIRREL", "KPOUNCE", "KSNATCH"], "MOWN"),
+    **dict.fromkeys(["KMORTAR", "KTIPPER", "KBRAMBLE", "KVINE", "KBUOY", "KJELLY"], "MOWN"),
+}
 
 
 def kinds() -> list[int]:
     """The kinds' rows as CHARLIE.DAT holds them: their count, then each kind's picture, box, frames, the way it picks
     one and its rate, naughts for a kind that draws itself; then the state it starts in, and whether it keeps its own,
-    rides, hangs, is crushed and grows, -1 for yes."""
+    rides, hangs, is crushed and grows, -1 for yes; how it moves."""
     src = (GAME / "model/level.bas").read_text()
     ids = {k: int(v) for k, v in re.findall(r"(?m)^const (K[A-Z0-9]+) = (\d+)", src) if k != "KFRONT"}
     rows = [[0] * 8 for _ in range(max(ids.values()) + 1)]
@@ -5857,7 +5864,8 @@ def kinds() -> list[int]:
         start = START.get(kind, 0)
         row.append(start if isinstance(start, int) else game_const(start))
         row += [-(kind in fact) for fact in (KEEPS, RIDES, HANGS, CRUSHED, GROWS)]
-    for kind in [*START, *KEEPS, *RIDES, *HANGS, *CRUSHED, *GROWS]:
+        row.append(game_const(MIND.get(kind, "MNONE")))
+    for kind in [*START, *KEEPS, *RIDES, *HANGS, *CRUSHED, *GROWS, *MIND]:
         if kind not in ids:
             sys.exit(f"charlieart: the game has no kind {kind}")
     # row 0, no kind's, once went without its facts, and every row after it was read six LONGs out
