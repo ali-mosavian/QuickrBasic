@@ -2,6 +2,7 @@
 // (worker.mjs); this thread is its VGA card and its interrupts: it renders the screen from the
 // shared memory in an instance of its own, ORs in the tick, types the keys.
 import { biosKey, scanCode, shiftFlags } from './keys.mjs';
+import { uploadAs } from './upload.mjs';
 import { memory as newMemory, Irq, sidecar, ticker, MUSIC_HZ, AUDIO_RATE } from './wasm.mjs';
 
 const BLINK_MS = 267;
@@ -252,11 +253,12 @@ addEventListener('pointerdown', () => {
   if (irq) begin();
 });
 
-// An upload is kept and opened: the IDE starts again with it.
+// An upload is kept, and the IDE starts again: with it open, unless it is a native module (uploadAs).
 document.getElementById('upload').addEventListener('change', async (e) => {
   const f = e.target.files[0];
   if (!f) return;
-  const name = f.name.toUpperCase().replace(/[^A-Z0-9_.]/g, '').slice(0, 12);
-  keep('/' + name, new Uint8Array(await f.arrayBuffer()));
-  location.search = '?open=' + encodeURIComponent(name);
+  const { path, open } = uploadAs(f.name);
+  keep(path, new Uint8Array(await f.arrayBuffer()));
+  if (open) location.search = '?open=' + encodeURIComponent(path.slice(1));
+  else location.reload();
 });

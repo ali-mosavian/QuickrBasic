@@ -392,6 +392,7 @@ wasm-test: build/wasm/basic build/wasm/ide.wasm build/wasm/ext/qxtest.wasm
 	node tools/wasm/frame_test.mjs build/wasm/ide.wasm
 	node tools/wasm/play_test.mjs build/wasm/basic.wasm
 	node tools/wasm/scan_test.mjs build/wasm/basic.wasm
+	node tools/wasm/upload_test.mjs
 	node tools/wasm/retrace_test.mjs build/wasm/basic.wasm
 	BASIC_EXE=$< $(PY) tools/conformance.py
 
