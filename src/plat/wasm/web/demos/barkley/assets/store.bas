@@ -4,9 +4,9 @@ defint A-Z
 option explicit
 
 from engine.datafile import OpenData, Word
-from engine.video import Flop, Grab, MaskGrab, Mirror, Store
+from engine.video import Flop, Grab, MaskGrab, Mirror, ReadZones
+from engine.video import Reuse, Seal, Store, Unpack
 from barkley.model.images import IGLYPH, IHUD, ITILT, NGLYPH
-from barkley.model.level import ZONES
 from barkley.model.game import Tones
 from barkley.assets.palette import CINK, CWHITE, CYELLOW, KeepDay
 from barkley.assets.palette import ReadTones
@@ -30,7 +30,7 @@ sub BuildArt (art as Store, tn as Tones)
     next
 
     BuildGlyphs art
-    art.zone_at = art.next_at
+    Seal art
 
     KeepDay tn
 end sub
@@ -38,17 +38,11 @@ end sub
 ' The palette and the pictures every zone shows from
 ' CHARLIE.DAT.
 private sub LoadArt (art as Store, tn as Tones)
-    dim k as integer
-
     OpenData art.dat
     ' past where the tunes, the levels and the kinds start
     seek #art.dat.num, 13
     ReadTones tn, art.dat
-
-    for k = 0 to ZONES - 1
-        art.dat_at(k) = Word&(art.dat)
-    next
-
+    ReadZones art
     ReadPics art
     close #art.dat.num
 end sub
@@ -68,13 +62,8 @@ private sub ReadPics (art as Store)
         h = Word&(art.dat)
         masked = Word&(art.dat)
         k2 = Word&(art.dat)
-        art.at(k) = art.next_at
-        Unpack art
-
-        if masked then
-            art.at(k + 1) = art.next_at
-            Unpack art
-        end if
+        Unpack art, k
+        if masked then Unpack art, k + 1
 
         if k2 < 0 then continue for
 
@@ -88,39 +77,11 @@ end sub
 sub LoadZoneArt (art as Store, z as integer)
     if art.zone = z + 1 then exit sub
 
-    art.zone = z + 1
+    Reuse art, z
     OpenData art.dat
     seek #art.dat.num, art.dat_at(z)
-    art.next_at = art.zone_at
     ReadPics art
     close #art.dat.num
-end sub
-
-' A run-length stream of the file's LONGs to art.img at
-' art.nextAt: n then n values, -n then one value n times, 0
-' the end.
-private sub Unpack (art as Store)
-    dim n as integer, e as long, v as long
-
-    n = Word&(art.dat)
-
-    do while n
-        if n > 0 then
-            for e = art.next_at to art.next_at + n - 1
-                get #art.dat.num, , art.img(e)
-            next
-        else
-            n = -n
-            v = Word&(art.dat)
-
-            for e = art.next_at to art.next_at + n - 1
-                art.img(e) = v
-            next
-        end if
-
-        art.next_at = art.next_at + n
-        n = Word&(art.dat)
-    loop
 end sub
 
 ' The HUD's characters, each 9 by 9 over a shadow: yellow,

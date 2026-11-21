@@ -1,9 +1,9 @@
-' SCREEN 13 on two pages: pictures put, grabbed, masked and
-' mirrored.
+' SCREEN 13 on two pages: pictures unpacked from the data
+' file, put, grabbed, masked and mirrored.
 defint A-Z
 option explicit
 
-from engine.datafile import DataFile
+from engine.datafile import DataFile, Word
 
 ' The pictures, end to end in img: where each starts, and
 ' the next free place. A zone's own go after all the others,
@@ -142,4 +142,66 @@ sub AllotStore ( _
     redim art.img(size)
     redim art.at(n)
     redim art.dat_at(zones - 1)
+end sub
+
+' The w by h at x1, y1 to x2, y2 grabbed again as k, in the
+' room it has.
+sub Regrab ( _
+    art as Store, _
+    x1 as integer, _
+    y1 as integer, _
+    x2 as integer, _
+    y2 as integer, _
+    k as integer _
+)
+    get (x1, y1)-(x2, y2), art.img(art.at(k))
+end sub
+
+' Picture k from the data file, at the next free place: a
+' run-length stream of LONGs, n then n values, -n then one
+' value n times, 0 the end.
+sub Unpack (art as Store, k as integer)
+    dim n as integer, e as long, v as long
+
+    art.at(k) = art.next_at
+    n = Word&(art.dat)
+
+    do while n
+        if n > 0 then
+            for e = art.next_at to art.next_at + n - 1
+                get #art.dat.num, , art.img(e)
+            next
+        else
+            n = -n
+            v = Word&(art.dat)
+
+            for e = art.next_at to art.next_at + n - 1
+                art.img(e) = v
+            next
+        end if
+
+        art.next_at = art.next_at + n
+        n = Word&(art.dat)
+    loop
+end sub
+
+' Where each zone's pictures start in the data file.
+sub ReadZones (art as Store)
+    dim z as integer
+
+    for z = 0 to ubound(art.dat_at)
+        art.dat_at(z) = Word&(art.dat)
+    next
+end sub
+
+' The pictures so far every zone's: a zone's own go after
+' them.
+sub Seal (art as Store)
+    art.zone_at = art.next_at
+end sub
+
+' The zone's room in the store given to zone z's pictures.
+sub Reuse (art as Store, z as integer)
+    art.zone = z + 1
+    art.next_at = art.zone_at
 end sub

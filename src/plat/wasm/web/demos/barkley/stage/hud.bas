@@ -2,7 +2,7 @@
 defint A-Z
 option explicit
 
-from engine.video import Store
+from engine.video import Regrab, Store
 from barkley.model.images import IGLYPH, IHUD, NGLYPH
 from barkley.model.hero import Hero
 from barkley.model.level import NGOLD
@@ -54,8 +54,8 @@ sub Hud (art as Store, g as Game, gold as integer)
         bit = bit * 2
     next
 
-    get (0, 0)-(HUDW - 1, HUDH - 1), art.img(art.at(IHUD))
-    get (0, 100)-(HUDW - 1, 100 + HUDH - 1), art.img(art.at(IHUD + 1))
+    Regrab art, 0, 0, HUDW - 1, HUDH - 1, IHUD
+    Regrab art, 0, 100, HUDW - 1, 100 + HUDH - 1, IHUD + 1
 end sub
 
 ' A row of the HUD's picture and mask: s, its first n
