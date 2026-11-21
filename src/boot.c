@@ -2,7 +2,8 @@
  *
  * # How it works
  * boot sets the error handler, takes the arena from the platform (exiting with "Out of memory" when
- * it gives too little), then runs each module's init in the asm's order (main.asm's rt_start):
+ * it gives too little, or when the regions do not fit it: an error then has no REPL to land in),
+ * then runs each module's init in the asm's order (main.asm's rt_start):
  * fixed regions first, then the blocks (code cache, program store), the front end's regions, and
  * the symbol tables last, as they grow while code holds their cells. The front end's regions are
  * placed with the program's.
@@ -30,6 +31,15 @@
 #include "vm/stmts.h"
 #include "vm/system.h"
 
+[[noreturn]]
+static void out_of_memory(void)
+{
+    static const char msg[] = "Out of memory\r\n";
+    uint32_t put;
+    pfil_write(PFIL_STDERR, msg, sizeof msg - 1, &put);
+    psys_exit(1);
+}
+
 void boot(Session *const S, const FrontEnd *const fe)
 {
     S->repl.fe = fe;
@@ -41,12 +51,14 @@ void boot(Session *const S, const FrontEnd *const fe)
     stmt_usng_init(S);
     Addr lo, hi;
 
-    if (!pmem_init(HMIN, fe->heap ? fe->heap : C_HEAP, &lo, &hi)) {
-        static const char msg[] = "Out of memory\r\n";
-        uint32_t put;
-        pfil_write(PFIL_STDERR, msg, sizeof msg - 1, &put);
-        psys_exit(1);
-    }
+    if (!pmem_init(HMIN, fe->heap ? fe->heap : C_HEAP, &lo, &hi))
+        out_of_memory();
+
+    Catch c;
+    fault_push(&S->fault, &c);
+
+    if (setjmp(c.jb))
+        out_of_memory();
 
     scop_init(&S->scop, &S->fault); /* its arena's first block from the C side's heap */
 
@@ -103,4 +115,5 @@ void boot(Session *const S, const FrontEnd *const fe)
     psys_init(&S->vm.stop, SF_BRK);
     syst_init(&S->syst);
     session_new(S);
+    fault_pop(&S->fault);
 }
