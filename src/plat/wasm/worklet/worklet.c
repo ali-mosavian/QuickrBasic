@@ -4,7 +4,7 @@
 
 enum { QUANTUM = 128 }; /* an AudioWorklet's frames a call */
 
-static_assert(sizeof(DevVoice) == 40, "wasm.mjs's VOICE_BYTES");
+static_assert(sizeof(DevVoice) == 44, "wasm.mjs's VOICE_BYTES");
 
 static Synth synth;
 static DevVoice in[DEV_LAYERS];

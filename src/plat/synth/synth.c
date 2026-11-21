@@ -253,7 +253,9 @@ static void sound(const Synth *const s, SynthOsc *const o, const DevVoice *const
     o->bend_step = step_of(s, decay_ms[v->fall >> 4]);
     o->bend_floor = (v->fall & HIGHEST_NIBBLE) * (FULL / HIGHEST_NIBBLE);
     o->feedback = v->feedback ? 1u << (FEEDBACK_SHIFT + v->feedback) : 0;
-    o->lfo_step = VIBRATO_HERTZ * s->per_hertz;
+    o->lfo_step = v->rate ? v->rate * s->per_hertz / 10 : VIBRATO_HERTZ * s->per_hertz;
+    if (v->wobble)
+        o->cut_home = octaves_of(v->cutoff * 16u);
 }
 
 void synth_voice(Synth *const s, const unsigned voice, const DevVoice *const v)
@@ -279,6 +281,9 @@ void synth_voice(Synth *const s, const unsigned voice, const DevVoice *const v)
         one.gate = v->gate;
         one.trigger = v->trigger;
         one.vibrato = v->vibrato;
+        one.rate = v->rate;
+        one.tremolo = v->tremolo;
+        one.wobble = v->wobble;
         one.spread = v->spread;
         one.layers = 0;
         sound(s, l, &one, attack, true);
@@ -524,8 +529,8 @@ static int envelope_run(const Synth *const s, const SynthOsc *const o, const int
     }
 }
 
-/* The pitch for the next `run` samples, in o->step: the slide moved on towards `target`, the vibrato added. Both
-   step once a run, not a sample: a run is 64 samples at most. */
+/* The pitch for the next `run` samples, in o->step: the slide moved on towards `target`, the vibrato added, and its
+   wobble in o->sway for the loudness and the cutoff. They step once a run, not a sample: a run is 64 samples at most. */
 [[gnu::always_inline]] static inline int pitch_run(SynthOsc *const o, const uint32_t rate, const uint32_t target,
                                                   const int run)
 {
@@ -535,12 +540,14 @@ static int envelope_run(const Synth *const s, const SynthOsc *const o, const int
         o->at = !o->slide || (o->slide > 0 ? next >= target : next <= target) ? target : (uint32_t)next;
     }
     o->step = o->at;
-    if (o->set.vibrato && o->age >= rate / VIBRATO_WAITS) {
+    o->sway = 0;
+    if ((o->set.vibrato || o->set.tremolo || o->set.wobble) && o->age >= rate / VIBRATO_WAITS) {
         const int32_t x = (int32_t)(o->lfo >> 16);
         const int32_t sway = x < 16384 ? x * 2 : x < 49152 ? 65535 - x * 2 : x * 2 - 131071; /* a triangle from 0 */
 
         o->step += (uint32_t)(int32_t)((int64_t)o->at * (o->set.vibrato * sway) >> VIBRATO_SHIFT);
         o->lfo += o->lfo_step * (uint32_t)run;
+        o->sway = sway;
     } else
         o->age += (uint32_t)run;
     o->step2 = o->step + ((o->step >> 10) + (o->step >> 13)) * o->set.spread; /* 0.11% is 2 cents */
@@ -573,20 +580,22 @@ static int envelope_run(const Synth *const s, const SynthOsc *const o, const int
     return left < run ? (int)left : run;
 }
 
-/* The filter for the next `run` samples: while its cutoff sweeps, SWEEP_RUN samples at most at their middle's cutoff;
-   after, the cutoff's own. */
-[[gnu::always_inline]] static inline int sweep_run(const Synth *const s, SynthOsc *const o, int run)
+/* The filter's f for the next `run` samples: a sweeping cutoff's at the run's middle, the wobble added; else the
+   cutoff's own. A sweeping run is SWEEP_RUN samples at most (voice_run). */
+[[gnu::always_inline]] static inline void filter_run(const Synth *const s, SynthOsc *const o, const int run)
 {
-    if (!o->cut_left) {
+    if (!o->cut_left && !o->set.wobble) {
         o->f = o->f_end;
-        return run;
+        return;
     }
-    run = run < SWEEP_RUN ? run : SWEEP_RUN;
-    run = (uint32_t)run < o->cut_left ? run : (int)o->cut_left;
-    o->f = swept_f(s, sixteenths_at(o->cut_at + o->cut_step * run / 2));
-    o->cut_at += o->cut_step * run;
-    o->cut_left -= (uint32_t)run;
-    return run;
+    const int32_t at = (o->cut_left ? o->cut_at + o->cut_step * run / 2 : o->cut_home) +
+                       (int32_t)((int64_t)o->set.wobble * (OCTAVE / 6) * o->sway >> 15);
+
+    o->f = swept_f(s, sixteenths_at(at > 0 ? at : 0));
+    if (o->cut_left) {
+        o->cut_at += o->cut_step * run;
+        o->cut_left -= (uint32_t)run;
+    }
 }
 
 #ifdef SYNTH_ASM
@@ -606,15 +615,16 @@ void synth_run(SynthRun *r);
 
 /* The run of samples from sum[i], the envelope moving by delta after each but the last: C's loop. */
 [[gnu::always_inline]] static inline void samples_run(const Synth *const s, SynthOsc *const o, int32_t *const sum,
-                                                      int i, const int run, const int32_t delta, const unsigned filter)
+                                                      int i, const int run, const int32_t delta, const int32_t gain,
+                                                      const unsigned filter)
 {
     for (const int end = i + run;;) {
         /* under 2^15 times 2^15, and unfiltered under 2^15 times the gain: int32 holds them */
         const int32_t out = voiced(o, s->sine) * (o->level >> 9) >> 15;
         if (filter != DEV_UNFILTERED)
-            sum[i] += (int32_t)((int64_t)filtered(o, out) * o->gain >> 15);
+            sum[i] += (int32_t)((int64_t)filtered(o, out) * gain >> 15);
         else
-            sum[i] += out * o->gain >> 15;
+            sum[i] += out * gain >> 15;
         if (++i == end)
             break;
         o->level += delta;
@@ -642,22 +652,28 @@ void synth_run(SynthRun *r);
             delta = 0;
         } else
             o.level += delta;
+        if (filter != DEV_UNFILTERED && o.cut_left) {
+            run = run < SWEEP_RUN ? run : SWEEP_RUN;
+            run = (uint32_t)run < o.cut_left ? run : (int)o.cut_left;
+        }
         run = pitch_run(&o, s->rate, into->step, run);
         if (wave_kind == DEV_FM || wave_kind == SYNTH_FM_FINE)
             run = bend_run(&o, run);
         if (filter != DEV_UNFILTERED)
-            run = sweep_run(s, &o, run);
+            filter_run(s, &o, run);
+        /* the tremolo: under 2^7 times 2^15 */
+        const int32_t gain = o.set.tremolo ? o.gain + ((o.gain * o.set.tremolo >> 4) * o.sway >> 15) : o.gain;
         if (wave_kind == SYNTH_FM_FINE) {
             o.mstep = (uint32_t)((uint64_t)o.step * o.mul >> 16);
             o.mstep2 = (uint32_t)((uint64_t)o.step2 * o.mul >> 16);
         }
 #ifdef SYNTH_ASM
         if (wave_kind == SYNTH_FM_FINE) {
-            samples_run(s, &o, sum, i, run, delta, filter);
+            samples_run(s, &o, sum, i, run, delta, gain, filter);
             i += run;
             continue;
         }
-        SynthRun r = {o.phase, o.step, o.level, delta, o.low, o.band, o.f, o.damping, o.gain, sum + i, run, o.noise,
+        SynthRun r = {o.phase, o.step, o.level, delta, o.low, o.band, o.f, o.damping, gain, sum + i, run, o.noise,
                       o.set.width, wave_kind * 4 + filter, 0, s->sine, o.ratio, o.depth,
                       o.bend, o.slope, {o.fed[0], o.fed[1]}, o.feedback};
         synth_run(&r);
@@ -671,7 +687,7 @@ void synth_run(SynthRun *r);
         o.fed[1] = r.fed[1];
         i += run;
 #else
-        samples_run(s, &o, sum, i, run, delta, filter);
+        samples_run(s, &o, sum, i, run, delta, gain, filter);
         i += run;
 #endif
     }

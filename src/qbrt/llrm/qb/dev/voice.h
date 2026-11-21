@@ -43,6 +43,9 @@ typedef struct DevVoice {
     unsigned char fade;      /* the level falls on from the sustain while the note is held: 1 + the decay's scale (0 to
                                 15); 0 holds it */
     unsigned char loud;      /* hundredths of a step of volume over `volume`, 0 to 99 */
+    unsigned char rate;      /* how often the vibrato's wobble goes round, tenths of a hertz, 1 to 200; 0 is 6 Hz */
+    unsigned char tremolo;   /* the loudness wavers by so many 16ths of itself each way, 0 to 15, with the vibrato */
+    unsigned char wobble;    /* the cutoff wavers by so many tones each way, 0 to 15, with the vibrato */
 } DevVoice;
 
 #endif

@@ -280,9 +280,22 @@ static void modulator(Player *p)
 }
 
 /* U, I, R and S are the voice's, every layer's. */
+/* U depth[, rate[, tremolo[, wobble]]]: the pitch wavers, tenths of a hertz a time round; the loudness and the cutoff
+   with it. */
+enum { MOST_RATE = 200 };
 static void vibrato(Player *p)
 {
-    p->sound[0].vibrato = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
+    DevVoice *const v = &p->sound[0];
+
+    v->vibrato = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
+    if (!comma(p))
+        return;
+    v->rate = (unsigned char)within(p, 1, MOST_RATE);
+    if (!comma(p))
+        return;
+    v->tremolo = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
+    if (comma(p))
+        v->wobble = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
 }
 
 /* I n: a second voice in unison, n times 2 cents sharp. */

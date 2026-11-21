@@ -69,7 +69,8 @@ Y m,f,r,s,t  filter: m 0 off, 1 low-pass, 2 band-pass, 3 high-pass
              cutoff a note starts at, 0 none; t its time, 0 to 15
 Z r,d,f,l,b,s  FM's modulator: ratio 0.01 to 15.99; depth, fall,
              level, start 0 to 15; feedback 0 to 7
-U n          vibrato, 0 to 15
+U n,r,a,c    vibrato, 0 to 15; its rate, tenths of a hertz, 1 to 200;
+             tremolo and the cutoff's wobble with it, 0 to 15
 K t,q,u,p    glide: time 0 to 15; from over, 0 to 15; from under,
              0 to 24 semitones; from p hundredths, 0 to 1600
 S n          stereo place, 1 left to 15 right (default 8)

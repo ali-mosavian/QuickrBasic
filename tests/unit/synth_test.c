@@ -349,6 +349,60 @@ TEST(synth_vibrato_wavers_after_a_wait)
     CHECK(off == 0);
 }
 
+/* How bright a stretch is: the power of its steps against its own. */
+static double brightness(const int16_t *const x, const int n)
+{
+    double steps = 0, power = 0;
+    for (int i = 1; i < n; i++) {
+        steps += (double)(x[i] - x[i - 1]) * (x[i] - x[i - 1]);
+        power += (double)x[i] * x[i];
+    }
+    return steps / (power + 1);
+}
+
+/* The loudest sample of each 10 ms of the second from `from`. */
+static void tens(const int from, int *const top)
+{
+    for (int k = 0; k < 100; k++)
+        top[k] = peak(buf + from + k * RATE / 100, RATE / 100);
+}
+
+/* U's second, third and fourth numbers: the wobble's rate, and the loudness and the cutoff wavering with it. U was the
+   one wobble, the pitch's, at 6 Hz. */
+TEST(synth_tremolo_and_wobble_at_their_rate)
+{
+    static int16_t two[2 * RATE];
+    Synth s;
+    DevVoice v = note(441, DEV_TRIANGLE, 0x00F0);
+    int top[100], least = 1 << 30, most = 0, turns = 0;
+    v.rate = 100; /* 10 Hz */
+    v.tremolo = 8;
+    sound(&s, v, RATE / 2 + RATE);
+    tens(RATE / 2, top);
+    for (int k = 0; k < 100; k++) {
+        least = top[k] < least ? top[k] : least;
+        most = top[k] > most ? top[k] : most;
+        turns += k > 0 && k < 99 && top[k] > top[k - 1] && top[k] >= top[k + 1];
+    }
+    CHECK(most > least * 5 / 2 && most < least * 7 / 2 && turns >= 9 && turns <= 11); /* 1.5 against 0.5 */
+
+    v = note(110, DEV_SAW, 0x00F0);
+    v.filter = DEV_LOW_PASS;
+    v.cutoff = 800;
+    v.rate = 20; /* 2 Hz */
+    v.wobble = 12;
+    synth_init(&s, RATE);
+    synth_voice(&s, 0, &v);
+    synth_render(&s, two, 2 * RATE);
+    double dull = 1e30, bright = 0;
+    for (int k = 0; k < 50; k++) {
+        const double b = brightness(two + RATE / 2 + k * RATE / 50, RATE / 50);
+        dull = b < dull ? b : dull;
+        bright = b > bright ? b : bright;
+    }
+    CHECK(bright > dull * 8);
+}
+
 /* A unison: two saws 16 cents apart beat four times a second, so the sound swells and thins; one alone is as loud
    all through. */
 TEST(synth_unison_beats)
@@ -488,17 +542,6 @@ TEST(synth_volume_in_hundredths)
         tops[k] = peak(buf + RATE / 20, RATE / 20);
     }
     CHECK(tops[0] < tops[2] && abs(tops[1] * 2 - tops[0] - tops[2]) <= 4);
-}
-
-/* How bright a stretch is: the power of its steps against its own. */
-static double brightness(const int16_t *const x, const int n)
-{
-    double steps = 0, power = 0;
-    for (int i = 1; i < n; i++) {
-        steps += (double)(x[i] - x[i - 1]) * (x[i] - x[i - 1]);
-        power += (double)x[i] * x[i];
-    }
-    return steps / (power + 1);
 }
 
 /* Y's fourth and fifth numbers: the cutoff a note starts at, and how long it takes to the cutoff. A saw swept down
@@ -1016,6 +1059,29 @@ TEST(play_sets_volume_in_hundredths)
             on[n++] = headless_voice(i).v[0];
     CHECK(n == 2 && on[0].volume == 4 && on[0].loud == 50 && on[1].volume == 15 && on[1].loud == 0);
     for (int i = 0; i < 2; i++)
+        CHECK(unit_run(S, wrong[i]) == E_USR);
+}
+
+/* U's rate, tremolo and wobble; a number left off keeps its last value. */
+TEST(play_sets_movement)
+{
+    static const char *const lines[] = {"10 PLAY \"MF U5,25,6,4 C U3 C P64\"", nullptr};
+    static const char *const wrong[][2] = {{"10 PLAY \"U5,0 C\"", nullptr}, {"10 PLAY \"U5,201 C\"", nullptr},
+                                           {"10 PLAY \"U5,60,16 C\"", nullptr}, {"10 PLAY \"U5,60,6,16 C\"", nullptr}};
+
+    qbrt_realtime(false);
+    music_clear();
+    const size_t first = headless_voice_count();
+    CHECK(unit_run(S, lines) == ST_OK);
+    qbrt_realtime(true);
+    DevVoice on[2];
+    unsigned n = 0;
+    for (size_t i = first; i < headless_voice_count() && n < 2; i++)
+        if (headless_voice(i).v[0].gate && headless_voice(i).v[0].hertz)
+            on[n++] = headless_voice(i).v[0];
+    CHECK(n == 2 && on[0].vibrato == 5 && on[0].rate == 25 && on[0].tremolo == 6 && on[0].wobble == 4);
+    CHECK(on[1].vibrato == 3 && on[1].rate == 25 && on[1].tremolo == 6);
+    for (int i = 0; i < 4; i++)
         CHECK(unit_run(S, wrong[i]) == E_USR);
 }
 

@@ -32,14 +32,14 @@ may be `=var;` as in QBasic's commands. A number out of range is Illegal functio
 | `H`a`,`d`,`s`,`r[`,`f] | envelope: attack, decay, sustain level, release, all four needed; fade (below) | 0–15 each | `H0,0,15,0` |
 | `Y`m[`,`f[`,`r[`,`s[`,`t]]]] | filter: 0 off, 1 low-pass, 2 band-pass, 3 high-pass; cutoff in Hz; resonance; sweep (below) | m 0–3, f 30–12000, r t 0–15, s 0 or 30–12000 | off, 1000, 0, 0, 0 |
 | `Z`r[`,`d[`,`f[`,`l[`,`b[`,`s]]]]] | FM's modulator: ratio, depth, fall, level, feedback, start (below) | r 0.01–15.99, d f l s 0–15, b 0–7 | `Z1,8,0,15,0,15` |
-| `U`n | vibrato depth | 0–15 | 0 |
+| `U`n[`,`r[`,`a[`,`c]]] | vibrato: depth, rate, tremolo, the cutoff's wobble (below) | n a c 0–15, r 1–200 | `U0,60,0,0` |
 | `K`t[`,`q[`,`u[`,`p]]] | glide: time, from over, from under, from hundredths (below) | t q 0–15, u 0–24, p 0–1600 | `K0,0,0,0` |
 | `S`n | stereo place: 1 the left, 8 the middle, 15 the right | 1–15 | 8 |
 | `R`n | reverb: how much of the voice the room answers | 0–15 | 0 |
 | `I`n | unison: a second copy of the voice, n × 2 cents sharp | 0–15 | 0 |
 | `J`n[`,`p] | layer: the one the commands after it set; its pitch (below) | n 0–3, p 0–1600 | `J0` |
 
-A number left off the end of `Y`, `Z` or `K` keeps its last value.
+A number left off the end of `Y`, `Z`, `K` or `U` keeps its last value.
 
 ### Waves: `W`, `Q`
 
@@ -103,6 +103,13 @@ The ratio takes up to two decimals: `Z1.41`, `Z0.5`.
 The pitch wavers 6 times a second, once the note has sounded a fifth of a second: short notes stay
 steady, held ones sing. The depth is n × 0.2% of the pitch each way: `U5` is gentle, `U15` (3%, half
 a semitone) wide.
+
+- r: how often it goes round, tenths of a hertz: 60 is 6 times a second, 5 once in two seconds.
+- a: tremolo, the loudness wavering with it, a 16ths of itself each way.
+- c: the cutoff wavering with it, c tones each way: `Y1,800 U0,20,0,12` sweeps a filter from 200 to
+  3200 Hz and back twice a second.
+
+The tremolo and the wobble wait as the vibrato does. `U` is the voice's, every layer's.
 
 ### Glide: `K`
 

@@ -41,6 +41,8 @@ typedef struct SynthOsc {
        cutoff's own f */
     int32_t cut_at, cut_step, f_end;
     uint32_t cut_left;
+    int32_t cut_home; /* the cutoff's own place, where a wobble wavers about */
+    int32_t sway;     /* the vibrato's wobble this run, -32767 to 32767 */
 } SynthOsc;
 
 enum { SYNTH_COMBS = 4, SYNTH_PASSES = 2, SYNTH_COMB_MOST = 2100, SYNTH_PASS_MOST = 256 };

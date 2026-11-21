@@ -33,7 +33,7 @@ Each number may be =var; as usual.
     H a,d,s,r,f    envelope, each 0-15 (default 0,0,15,0)
     Y m,f,r,s,t    filter
     Z r,d,f,l,b,s  FM's modulator
-    U n            vibrato 0-15
+    U n,r,a,c      vibrato 0-15, its rate, tremolo, wobble
     K t,q,u,p      glide
     S n            stereo place 1-15 (default 8, the middle)
     R n            reverb 0-15
