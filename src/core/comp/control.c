@@ -795,6 +795,8 @@ void ctrl_swap(Comp *const C)
 {
     if (recswap(C))
         return;
+    if (comp_cur(C) != M_VAR) /* var_leaf reads a name's number there */
+        synerr(C);
 
     const uint8_t *const a = C->p;
     expr_load(C);

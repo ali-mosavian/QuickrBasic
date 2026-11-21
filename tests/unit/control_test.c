@@ -320,3 +320,12 @@ TEST(typed_declaration_error_returned_at_its_place)
     CHECK(declared_op.code == E_OM && declared_op.at == 0); /* at c, the field */
     CHECK(!S->vm.err.active);
 }
+
+/* SWAP's first operand a variable: SWAP 1, a ran, and SWAP at a line's end read the bytes past it
+   as a name's number (the suggester's check of "... THEN SWAP" crashed). */
+TEST(swap_of_a_value_is_a_syntax_error)
+{
+    static const char *const lines[] = {"10 a = 1: SWAP 1, a", nullptr};
+
+    CHECK(unit_run(S, lines) == E_SN);
+}
