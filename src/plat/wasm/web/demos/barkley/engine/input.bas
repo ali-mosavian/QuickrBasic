@@ -5,7 +5,7 @@ option explicit
 ' The keys held and since when; the last scan code, and whether the keyboard's port answers.
 type Keys
     held(127) as integer
-    t(127) as single
+    since(127) as single
     last as integer
     port as integer
 end type
@@ -30,6 +30,6 @@ function Held2% (kb as Keys, s as integer, t as single)
     if kb.port then
         Held2% = kb.held(s)
     else
-        Held2% = t - kb.t(s) < .55 and kb.t(s) > 0
+        Held2% = t - kb.since(s) < .55 and kb.since(s) > 0
     end if
 end function

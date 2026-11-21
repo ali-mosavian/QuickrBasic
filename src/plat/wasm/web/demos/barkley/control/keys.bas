@@ -23,13 +23,13 @@ sub ReadPad (kb as Keys, mu as Deck, k as Pad)
         case chr$(13): k.start = -1
         case " "
             k.start = -1
-            kb.t(SCSPACE) = t
+            kb.since(SCSPACE) = t
         case "x", "X": k.bark = -1
-        case "z", "Z": kb.t(SCZ) = t
-        case chr$(0) + "K": kb.t(SCLEFT) = t
-        case chr$(0) + "M": kb.t(SCRIGHT) = t
-        case chr$(0) + "H": kb.t(SCUP) = t
-        case chr$(0) + "P": kb.t(SCDOWN) = t
+        case "z", "Z": kb.since(SCZ) = t
+        case chr$(0) + "K": kb.since(SCLEFT) = t
+        case chr$(0) + "M": kb.since(SCRIGHT) = t
+        case chr$(0) + "H": kb.since(SCUP) = t
+        case chr$(0) + "P": kb.since(SCDOWN) = t
         end select
     loop while len(c)
     k.l = Held2%(kb, SCLEFT, t)
