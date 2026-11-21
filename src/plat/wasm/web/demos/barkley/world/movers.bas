@@ -123,8 +123,8 @@ sub Movers (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero)
         gr.pt(s + 1).at.x = x + MOVEW
         gr.pt(s).at.y = y
         gr.pt(s + 1).at.y = y
-        gr.cv(lv.movers(m).cv).l = int(x)
-        gr.cv(lv.movers(m).cv).r = int(x) + MOVEW + 1
+        gr.cv(lv.movers(m).cv).x_lo = int(x)
+        gr.cv(lv.movers(m).cv).x_hi = int(x) + MOVEW + 1
         o = lv.movers(m).thing
         lv.things(o).at.x = cint(x)
         lv.things(o).at.y = cint(y)

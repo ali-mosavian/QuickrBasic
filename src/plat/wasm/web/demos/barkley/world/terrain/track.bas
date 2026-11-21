@@ -68,10 +68,10 @@ private sub TrackPipe (lv as Level, gr as Ground, c as integer)
     y = lv.things(-2 - gr.col(c)).at.y
     gr.col(c) = -1
     if gr.pt(gr.n - 1).at.x <> x or gr.pt(gr.n - 1).at.y <> y then Knot gr, csng(x), csng(y), 0
-    gr.cv(gr.nz).a = gr.n - 1
-    gr.cv(gr.nz).m = -1
-    gr.cv(gr.nz).l = x
-    gr.cv(gr.nz).r = x + PIPER
+    gr.cv(gr.nz).first = gr.n - 1
+    gr.cv(gr.nz).far = -1
+    gr.cv(gr.nz).x_lo = x
+    gr.cv(gr.nz).x_hi = x + PIPER
     for j = 1 to PIPEN - 1
         a = j * PI / 2 / PIPEN
         Knot gr, x + PIPER * sin(a), y - PIPER + PIPER * cos(a), 2
@@ -79,7 +79,7 @@ private sub TrackPipe (lv as Level, gr as Ground, c as integer)
     Knot gr, csng(x + PIPER), csng(y - PIPER), 2
     j = lv.top(c + PIPER \ TS) * TS
     if j < y - PIPER then Knot gr, csng(x + PIPER), csng(j), 2
-    gr.cv(gr.nz).b = gr.n - 2
+    gr.cv(gr.nz).last = gr.n - 2
     gr.nz = gr.nz + 1
 end sub
 
@@ -107,16 +107,16 @@ end sub
 private sub TrackLoop (gr as Ground, x as integer, y as integer)
     dim j as integer, a as single
     Knot gr, csng(x), csng(y), 1
-    gr.cv(gr.nz).a = gr.n - 1
-    gr.cv(gr.nz).m = gr.n - 1 + LOOPN \ 2
-    gr.cv(gr.nz).l = x - LOOPR
-    gr.cv(gr.nz).r = x + LOOPR
+    gr.cv(gr.nz).first = gr.n - 1
+    gr.cv(gr.nz).far = gr.n - 1 + LOOPN \ 2
+    gr.cv(gr.nz).x_lo = x - LOOPR
+    gr.cv(gr.nz).x_hi = x + LOOPR
     for j = 1 to LOOPN - 1
         a = j * 2 * PI / LOOPN
         Knot gr, x + LOOPR * sin(a), y - LOOPR + LOOPR * cos(a), 2
     next
     Knot gr, csng(x), csng(y), 2
-    gr.cv(gr.nz).b = gr.n - 2
+    gr.cv(gr.nz).last = gr.n - 2
     gr.nz = gr.nz + 1
 end sub
 
@@ -167,11 +167,11 @@ private sub TrackMovers (lv as Level, gr as Ground)
         lv.movers(k).cv = gr.nz
         lv.movers(k).t = 0
         if lv.movers(k).kind = 4 then lv.movers(k).button = ButtonAt%(lv, lv.movers(k).button)
-        gr.cv(gr.nz).a = gr.n - 2
-        gr.cv(gr.nz).b = gr.n - 2
-        gr.cv(gr.nz).m = -1
-        gr.cv(gr.nz).l = lv.things(i).at.x
-        gr.cv(gr.nz).r = lv.things(i).at.x + MOVEW
+        gr.cv(gr.nz).first = gr.n - 2
+        gr.cv(gr.nz).last = gr.n - 2
+        gr.cv(gr.nz).far = -1
+        gr.cv(gr.nz).x_lo = lv.things(i).at.x
+        gr.cv(gr.nz).x_hi = lv.things(i).at.x + MOVEW
         gr.nz = gr.nz + 1
         k = k + 1
     next
@@ -198,9 +198,9 @@ private sub TrackRibbons (lv as Level, gr as Ground)
             RibbonEnd gr, x1, y
             y = lv.things(i).at.y
             Knot gr, csng(lv.things(i).at.x - 8), csng(y), 0
-            gr.cv(gr.nz).a = gr.n - 1
-            gr.cv(gr.nz).m = -2
-            gr.cv(gr.nz).l = lv.things(i).at.x - 8
+            gr.cv(gr.nz).first = gr.n - 1
+            gr.cv(gr.nz).far = -2
+            gr.cv(gr.nz).x_lo = lv.things(i).at.x - 8
             Knot gr, csng(lv.things(i).at.x), csng(y), 2
         end if
         for j = 1 to 12
@@ -208,7 +208,7 @@ private sub TrackRibbons (lv as Level, gr as Ground)
             Knot gr, csng(lv.things(i).at.x + j * 16), y - WAVEA * (1 - cos(a)) / 2, 2
         next
         x1 = lv.things(i).at.x + WAVEL
-        gr.cv(gr.nz).r = x1 + 8
+        gr.cv(gr.nz).x_hi = x1 + 8
     next
     RibbonEnd gr, x1, y
 end sub
@@ -217,7 +217,7 @@ end sub
 private sub RibbonEnd (gr as Ground, x1 as integer, y as integer)
     if x1 = NONE then exit sub
     Knot gr, csng(x1 + 8), csng(y), 2
-    gr.cv(gr.nz).b = gr.n - 2
+    gr.cv(gr.nz).last = gr.n - 2
     gr.nz = gr.nz + 1
 end sub
 
@@ -229,11 +229,11 @@ private sub TrackSlides (lv as Level, gr as Ground)
         Knot gr, csng(lv.ropes(i).at.x), csng(lv.ropes(i).at.y), 0
         Knot gr, csng(lv.ropes(i).at.x + lv.ropes(i).w), csng(lv.ropes(i).at.y + lv.ropes(i).fall), 2
         lv.ropes(i).sg = gr.n - 2
-        gr.cv(gr.nz).a = gr.n - 2
-        gr.cv(gr.nz).b = gr.n - 2
-        gr.cv(gr.nz).m = -1
-        gr.cv(gr.nz).l = lv.ropes(i).at.x
-        gr.cv(gr.nz).r = lv.ropes(i).at.x + lv.ropes(i).w
+        gr.cv(gr.nz).first = gr.n - 2
+        gr.cv(gr.nz).last = gr.n - 2
+        gr.cv(gr.nz).far = -1
+        gr.cv(gr.nz).x_lo = lv.ropes(i).at.x
+        gr.cv(gr.nz).x_hi = lv.ropes(i).at.x + lv.ropes(i).w
         gr.nz = gr.nz + 1
     next
 end sub

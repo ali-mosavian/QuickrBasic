@@ -158,13 +158,13 @@ type Stretch
     kind as integer
 end type
 
-' A curve: stretches a to b, from m on a loop's far half, between x l and r.
+' A curve: stretches first to last, from far on a loop's far half, between x_lo and x_hi.
 type Bend
-    a as integer
-    b as integer
-    m as integer
-    l as integer
-    r as integer
+    first as integer
+    last as integer
+    far as integer
+    x_lo as integer
+    x_hi as integer
 end type
 
 ' The ground's line, what Charlie runs on: n points, the platforms' from platA; nz curves; a column's stretch.

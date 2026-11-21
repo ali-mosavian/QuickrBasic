@@ -190,9 +190,9 @@ function Curve% (gr as Ground, p as Hero, x0 as single, y0 as single, d as integ
     dim d0 as single, d1 as single, t as single, f as single
     Curve% = 0
     for z = 0 to gr.nz - 1
-        if p.at.x < gr.cv(z).l - 8 or p.at.x > gr.cv(z).r + 8 then continue for
-        a = gr.cv(z).a
-        b = gr.cv(z).b
+        if p.at.x < gr.cv(z).x_lo - 8 or p.at.x > gr.cv(z).x_hi + 8 then continue for
+        a = gr.cv(z).first
+        b = gr.cv(z).last
         LoopHalf gr, p, z, x0, a, b
         for s = a to b
             d1 = (p.at.x - gr.pt(s).at.x) * gr.pt(s).dir.y - (p.at.y - gr.pt(s).at.y) * gr.pt(s).dir.x
@@ -225,13 +225,13 @@ end function
 ' Of curve z, a loop, the half that is there for him, from stretch a to b: its far one once he has run its near.
 private sub LoopHalf (gr as Ground, p as Hero, z as integer, x0 as single, a as integer, b as integer)
     dim far as integer
-    if gr.cv(z).m < 0 then exit sub
-    far = p.sg >= gr.cv(z).m
-    if p.sg >= gr.platA then far = x0 > gr.cv(z).l + LOOPR
+    if gr.cv(z).far < 0 then exit sub
+    far = p.sg >= gr.cv(z).far
+    if p.sg >= gr.platA then far = x0 > gr.cv(z).x_lo + LOOPR
     if far then
-        a = gr.cv(z).m
+        a = gr.cv(z).far
     else
-        b = gr.cv(z).m - 1
+        b = gr.cv(z).far - 1
     end if
 end sub
 
@@ -313,7 +313,7 @@ function Ribbon% (gr as Ground, x as integer)
     dim z as integer
     Ribbon% = 0
     for z = 0 to gr.nz - 1
-        if gr.cv(z).m < 0 and gr.pt(gr.cv(z).a).kind = 2 and gr.cv(z).l > x - 16 and gr.cv(z).l < x + 60 then Ribbon% = -1
+        if gr.cv(z).far < 0 and gr.pt(gr.cv(z).first).kind = 2 and gr.cv(z).x_lo > x - 16 and gr.cv(z).x_lo < x + 60 then Ribbon% = -1
     next
 end function
 
@@ -325,9 +325,9 @@ function Twist! (gr as Ground, p as Hero)
     Twist! = -1
     if not p.ground then exit function
     for z = 0 to gr.nz - 1
-        if gr.cv(z).m <> -2 or p.sg < gr.cv(z).a or p.sg > gr.cv(z).b then continue for
-        t = (p.at.x - gr.cv(z).l - 8) / (2 * WAVEL)
-        if t < 0 or p.at.x > gr.cv(z).r - 8 then t = 0
+        if gr.cv(z).far <> -2 or p.sg < gr.cv(z).first or p.sg > gr.cv(z).last then continue for
+        t = (p.at.x - gr.cv(z).x_lo - 8) / (2 * WAVEL)
+        if t < 0 or p.at.x > gr.cv(z).x_hi - 8 then t = 0
         Twist! = (t - int(t)) * 2 * PI
         exit function
     next
