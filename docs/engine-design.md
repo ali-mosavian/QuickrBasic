@@ -180,15 +180,15 @@ Measured by `python3 tools/bench.py engine`; the fields assigned outside their o
 | Draw branches that are one `Blit` | 5 of 36 |
 | `Meet` routines, in six zone modules | 33 |
 | Comparisons of a thing's kind outside those switches | 40, in 11 files |
-| Files that assign a thing's field | 12, in 73 assignments |
-| Fields assigned outside their record's owner | 279 |
-| Routines that take the `Deck` | 21 of 446 |
+| Files that assign a thing's field | 8, in 71 assignments |
+| Fields assigned outside their record's owner | 103 |
+| Routines that take the `Deck` | 26 of 477 |
 | `Sfx` calls outside `assets` | 2 |
 | Routines that take the whole `World` | 20 |
 | Game code that `engine` imports | none |
 | Other game demos with their own key, clock and sound code | 4 of 4 |
-| Lines over 70 columns | 0 of 13,601 |
-| Comment lines over 60 columns | 0 of 1,759 |
+| Lines over 70 columns | 0 of 13,839 |
+| Comment lines over 60 columns | 0 of 1,796 |
 | Routine headers over 70 columns | 0 |
 
 ## Steps
