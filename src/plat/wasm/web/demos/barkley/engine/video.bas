@@ -3,14 +3,14 @@ defint A-Z
 option explicit
 
 ' The pictures, end to end in img: where each starts, and the next free place. A zone's own go after all the others, at
-' zoneAt: datAt, where each zone's start in CHARLIE.DAT; zone, whose are there, one more than its number.
+' zone_at: dat_at, where each zone's start in CHARLIE.DAT; zone, whose are there, one more than its number.
 type Store
     img() as long
     at() as long
-    nextAt as long
-    zoneAt as long
+    next_at as long
+    zone_at as long
     zone as integer
-    datAt() as long
+    dat_at() as long
 end type
 
 const SW = 320, SH = 200
@@ -48,9 +48,9 @@ sub Mirror (art as Store, k as integer, k2 as integer, w as integer, h as intege
 end sub
 
 sub Grab (art as Store, x1 as integer, y1 as integer, x2 as integer, y2 as integer, k as integer)
-    art.at(k) = art.nextAt
-    get (x1, y1)-(x2, y2), art.img(art.nextAt)
-    art.nextAt = art.nextAt + (4 + clng(x2 - x1 + 1) * (y2 - y1 + 1) + 3) \ 4
+    art.at(k) = art.next_at
+    get (x1, y1)-(x2, y2), art.img(art.next_at)
+    art.next_at = art.next_at + (4 + clng(x2 - x1 + 1) * (y2 - y1 + 1) + 3) \ 4
 end sub
 
 ' The w by h at x, y kept as k, and its mask, drawn at mx, my, as k + 1:

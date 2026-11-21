@@ -787,7 +787,7 @@ was = 0
 ' a zone's own pictures are in the store only while it is played, where the last zone's were: after the Downs the
 ' works' tank is as the art tool drew it, after the works the Downs' tree, and the store no fuller for the change
 GoStage wd, 0, g, p, lo(), pt()
-hid = wd.art.nextAt
+hid = wd.art.next_at
 GoStage wd, 2, g, p, lo(), pt()
 line (0, 0)-(63, 79), 0, BF
 Blit wd.art, 0, 0, ITANK, 32, 40
@@ -795,7 +795,7 @@ print "zonetank"; Pix&(0, 32, 0, 39)
 GoStage wd, 0, g, p, lo(), pt()
 line (0, 0)-(63, 79), 0, BF
 Blit wd.art, 0, 0, ITREE, 64, 80
-print "zonetree"; Pix&(0, 64, 0, 79); wd.art.nextAt - hid; wd.art.zoneAt > 0
+print "zonetree"; Pix&(0, 64, 0, 79); wd.art.next_at - hid; wd.art.zone_at > 0
 ' the sands have their own tune in the zone's slot, at 120: its kit, its voicings and its first half bar played.
 ' They had the Downs'
 GoStage wd, 4, g, p, lo(), pt()

@@ -22,7 +22,7 @@ sub BuildArt (art as Store, tn as Tones)
         Flop art, ITILT + i, ITILT + 160 + i, 32, 32
     next
     BuildGlyphs art
-    art.zoneAt = art.nextAt
+    art.zone_at = art.next_at
     for i = 0 to 255
         tn.day(i) = tn.now(i)
     next
@@ -48,7 +48,7 @@ private sub LoadArt (art as Store, tn as Tones)
         next
     next
     for k = 0 to ZONES - 1
-        art.datAt(k) = Word&
+        art.dat_at(k) = Word&
     next
     ReadPics art
     close #1
@@ -65,10 +65,10 @@ private sub ReadPics (art as Store)
         h = Word&
         masked = Word&
         k2 = Word&
-        art.at(k) = art.nextAt
+        art.at(k) = art.next_at
         Unpack art
         if masked then
-            art.at(k + 1) = art.nextAt
+            art.at(k + 1) = art.next_at
             Unpack art
         end if
         if k2 < 0 then continue for
@@ -82,8 +82,8 @@ sub LoadZoneArt (art as Store, z as integer)
     if art.zone = z + 1 then exit sub
     art.zone = z + 1
     OpenData
-    seek #1, art.datAt(z)
-    art.nextAt = art.zoneAt
+    seek #1, art.dat_at(z)
+    art.next_at = art.zone_at
     ReadPics art
     close #1
 end sub
@@ -95,17 +95,17 @@ private sub Unpack (art as Store)
     n = Word&
     do while n
         if n > 0 then
-            for e = art.nextAt to art.nextAt + n - 1
+            for e = art.next_at to art.next_at + n - 1
                 get #1, , art.img(e)
             next
         else
             n = -n
             v = Word&
-            for e = art.nextAt to art.nextAt + n - 1
+            for e = art.next_at to art.next_at + n - 1
                 art.img(e) = v
             next
         end if
-        art.nextAt = art.nextAt + n
+        art.next_at = art.next_at + n
         n = Word&
     loop
 end sub
