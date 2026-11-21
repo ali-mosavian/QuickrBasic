@@ -645,14 +645,15 @@ CHARLIE = ROOT / "src/plat/wasm/web/demos/CHARLIE.BAS"
 # the game's own pilot playing from the start; each call for 2 s, a second of play between them
 CHARLIE_STEP = "Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k, wd.pilot: Tick wd, g, p, k, lo(), pt()"
 CHARLIE_EACH = (CHARLIE_STEP, "DrawBack wd.zn, wd.art, cx, cy",
-                "DrawThings wd.lv, wd.zn, wd.art, wd.se, cx, cy, -1", "DrawTiles wd.lv, wd.zn, wd.art, cx, cy",
-                "DrawThings wd.lv, wd.zn, wd.art, wd.se, cx, cy, 0", "DrawHero wd.gr, wd.art, wd.se, p, cx, cy",
+                "DrawThings wd.lv, wd.zn, wd.art, wd.kinds, wd.se, cx, cy, -1", "DrawTiles wd.lv, wd.zn, wd.art, cx, cy",
+                "DrawThings wd.lv, wd.zn, wd.art, wd.kinds, wd.se, cx, cy, 0", "DrawHero wd.gr, wd.art, wd.se, p, cx, cy",
                 "DrawParts pt(), cx, cy", "Blit wd.art, 6, 5, IHUD, HUDW, HUDH", "Flip g.page", "Render wd, g, p, lo(), pt()")
 CHARLIE_IMPORTS = "".join(f"FROM {'' if m.startswith('engine.') else 'barkley.'}{m} IMPORT {n}\n" for m, n in (
     ("engine.video", "Blit, Flip, OpenScreen"),
     ("model.images", "IHUD"),
     ("model.hero", "Hero, Pad"),
     ("model.game", "Game, Loose, NLOOSE, NPART, Part"),
+    ("model.kinds", "LoadKinds"),
     ("assets.store", "BuildArt, HUDH, HUDW"),
     ("assets.tunes", "LoadSongs"),
     ("world.terrain.ground", "LoadTables"),
@@ -666,6 +667,7 @@ CHARLIE_IMPORTS = "".join(f"FROM {'' if m.startswith('engine.') else 'barkley.'}
 CHARLIE_SETUP = """OpenScreen
 LoadTables wd.lv
 BuildArt wd.art, wd.tn
+LoadKinds wd.kinds, wd.dat
 LoadLevel wd, 0
 DIM g AS Game, p AS Hero, k AS Pad, lo(NLOOSE - 1) AS Loose, pt(NPART - 1) AS Part
 DIM q AS INTEGER, n AS LONG, t0 AS SINGLE, cx AS INTEGER, cy AS INTEGER

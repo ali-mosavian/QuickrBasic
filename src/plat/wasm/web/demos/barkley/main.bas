@@ -10,6 +10,7 @@ from barkley.model.hero import Hero, Pad
 from barkley.model.game import Cue, Game, INTRO, Loose, NCUE, NLOOSE
 from barkley.model.game import NPART, Part
 from barkley.model.world import World
+from barkley.model.kinds import LoadKinds
 from barkley.assets.store import BuildArt
 from barkley.assets.tunes import LoadSongs, PickSong, SongFor, Sudden
 from barkley.world.terrain.ground import LoadTables
@@ -30,6 +31,7 @@ sub Main (wd as World)
     OpenScreen
     LoadTables wd.lv
     BuildArt wd.art, wd.tn
+    LoadKinds wd.kinds, wd.dat
     g.page = 1
     StartIntro wd, g, cu()
     LoadSongs wd.mu

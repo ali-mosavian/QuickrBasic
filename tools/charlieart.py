@@ -2,7 +2,8 @@
 """charlieart.py [--check] [--sheet PNG]: CHARLIE.BAS's palette and pictures (Charlie, tiles, things, props),
 drawn here in flat tones and written to CHARLIE.DAT beside the game, a little-endian LONG a value:
 drawn by the game they would cost its start-up a pixel at a time. --check: fail when the file is
-stale. --sheet: every picture to a PNG, to look at. The game's tunes, tools/charliesong.txt, go in after them.
+stale. --sheet: every picture to a PNG, to look at. The game's tunes, tools/charliesong.txt, go in after them,
+then the kinds' rows.
 
 A picture in the file: its index, width, height, masked, mirror's index (-1 none), then its GET buffer's
 LONGs and, masked, its mask's: a count n then n values; -n then one value n times; 0 the end."""
@@ -5702,13 +5703,21 @@ def sound(n: int, s: list[int | str]) -> None:
         bad("has DATA left over")
 
 
+@functools.cache
+def game_src() -> str:
+    return "\n".join(p.read_text() for d in (GAME, ENGINE) for p in sorted(d.rglob("*.bas")))
+
+
 def game_const(name: str) -> int:
-    """A CONST of the game's, a whole number."""
-    src = "\n".join(p.read_text() for d in (GAME, ENGINE) for p in sorted(d.rglob("*.bas")))
-    m = re.search(rf"(?i)\b{name} = (\d+)", src)
+    """A CONST of the game's, a whole number: an expression of numbers and the game's other CONSTs."""
+    m = re.search(rf"(?im)^(?:private )?const {name} = ([^'\n]+)", game_src())
     if not m:
         sys.exit(f"charlieart: the game has no const {name}")
-    return int(m[1])
+    expr = m[1].strip()
+    if not re.fullmatch(r"[\w\s+*()\\-]+", expr):
+        sys.exit(f"charlieart: the game's const {name} is not whole numbers: {expr}")
+    py = re.sub(r"[A-Za-z_]\w*", lambda t: str(game_const(t[0])), expr).replace("\\", "//")
+    return int(eval(py, {"__builtins__": {}}))
 
 
 def audit(pics: list[tuple[int, Pic, bool, int]]) -> None:
@@ -5780,10 +5789,53 @@ def group(pics: list[tuple[int, Pic, bool, int]], zone: int) -> list[int]:
     return vals
 
 
+SEATH = 30  # a seat's height over its rail
+# A kind drawn by its row: its picture; its box, from the thing's place; how many frames it has, how one is picked (by
+# FTICK, FSWAY, FSTATE or FPRESS, model/kinds.bas's) and the ticks a frame. A name is the game's CONST.
+DRAWN: dict[str, tuple[int | str, ...]] = {
+    "KDRIFT": ("IDRIFT", -28, -11, 56, 12),
+    "KCISTERN": ("ICISTERN", -30, -25, 30, 30),
+    "KSEAT": ("ISEAT", 0, -SEATH, "MOVEW", SEATH + 8),
+    "KTRAM": ("ITRAM", -9, -1, 66, 33),
+    "KPOST": ("IPOST", -7, -47, 16, 48),
+    "KTANK": ("ITANK", -16, -39, 32, 40),
+    "KVENT": ("IVENT", -8, -27, 16, 28),
+    "KTREE": ("ITREE", -32, -78, 64, 80),
+    "KBUSH": ("IBUSH", -20, -18, 40, 20),
+    "KROCK": ("IROCK", -10, -10, 20, 12),
+    "KTHORN": ("ITHORN", -8, -10, 16, 12),
+    "KMOUND": ("IMOUND", -17, -12, 34, 14),
+    "KLAMP": ("ILAMP", -10, -42, 20, 44),
+    "KBOOST": ("IBOOST", -12, -9, 24, 10, 2, "FTICK", 4),
+    "KFLUME": ("IFLUME", 0, -8, "TS", 29, 4, "FTICK", 3),
+    "KFLOWER": ("IFLOWER", -6, -14, 12, 16, 2, "FSWAY", 30),
+    "KSAPLING": ("ISAPLING", -6, -49, 60, 50, 2, "FPRESS"),
+    "KAWNING": ("IAWNING", -23, -3, 46, 22, 2, "FPRESS"),
+    "KBRAMBLE": ("IBRAMBLE", -19, -25, 38, 26, 2, "FPRESS"),
+    "KBUMP": ("IBUMP", -12, -12, 24, 24, 2, "FPRESS"),
+    "KBUOY": ("IBUOY", -9, -9, 18, 18, 2, "FPRESS"),
+    "KHOOP": ("IHOOP", -6, -16, 12, 32, 2, "FPRESS"),
+    "KMARK": ("IMARK", -6, -31, 12, 32, 2, "FSTATE"),
+    "KBUTTON": ("IBTN", -8, -8, 16, 8, 2, "FSTATE"),
+}
+
+
+def kinds() -> list[int]:
+    """The kinds' rows as CHARLIE.DAT holds them: their count, then each kind's picture, box, frames, the way it picks
+    one and its rate; a kind that draws itself, naughts."""
+    src = (GAME / "model/level.bas").read_text()
+    ids = {k: int(v) for k, v in re.findall(r"(?m)^const (K[A-Z0-9]+) = (\d+)", src) if k != "KFRONT"}
+    rows = [[0] * 8 for _ in range(max(ids.values()) + 1)]
+    for kind, row in DRAWN.items():
+        full = (*row, 1, "FNONE", 0) if len(row) == 5 else (*row, 0)[:8]
+        rows[ids[kind]] = [v if isinstance(v, int) else game_const(v) for v in full]
+    return [len(rows), *(v for r in rows for v in r)]
+
+
 def blob() -> bytes:
-    """CHARLIE.DAT: the 1-based bytes its tunes and its levels start at, the palette, each stage's own, the 1-based
-    byte each zone's own pictures start at, the pictures every zone shows, each zone's own, the levels, the tunes;
-    each value a little-endian LONG."""
+    """CHARLIE.DAT: the 1-based bytes its tunes, its levels and its kinds start at, the palette, each stage's own, the
+    1-based byte each zone's own pictures start at, the pictures every zone shows, each zone's own, the levels, the
+    tunes, the kinds; each value a little-endian LONG."""
     pics = pictures()
     audit(pics)
     vals = [len(PAL)]
@@ -5794,10 +5846,13 @@ def blob() -> bytes:
         for i, (r, g, b) in sorted(ZPAL[z].items()):
             vals += [i, r + 256 * g + 65536 * b]
     groups = [group(pics, z) for z in range(-1, ZONES)]
-    at = [4 * (2 + len(vals) + ZONES + sum(len(g) for g in groups[: z + 1])) + 1 for z in range(ZONES)]
+    at = [4 * (3 + len(vals) + ZONES + sum(len(g) for g in groups[: z + 1])) + 1 for z in range(ZONES)]
     vals += at + [v for g in groups for v in g]
-    lv = levels()
-    return struct.pack(f"<{len(vals) + 2}i", len(vals) * 4 + 9 + len(lv), len(vals) * 4 + 9, *vals) + lv + song()
+    lv, tunes = levels(), song()
+    start = len(vals) * 4 + 13
+    head = (start + len(lv), start, start + len(lv) + len(tunes))
+    kd = kinds()
+    return struct.pack(f"<{len(vals) + 3}i", *head, *vals) + lv + tunes + struct.pack(f"<{len(kd)}i", *kd)
 
 
 def sheet(path: Path) -> None:

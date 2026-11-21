@@ -61,6 +61,8 @@ OWNERS = {
     "loose": "stage/fx",
     "lob": "stage/fx",
     "world": "model/world",
+    "kinds": "model/kinds",
+    "kind": "model/kinds",
     "events": "engine/events",
     "event": "engine/events",
 }
@@ -72,6 +74,7 @@ from engine.clock import Clock, Pace, Steps, STEPT
 from engine.audio import Beat, Half, NBAR, NextHalf, NSLOT, NVOICE, Song, StartSong
 from barkley.model.images import FAMF, IBARON, ICISTERN, IFAM, ITANK, ITREE, NFAM
 from barkley.model.hero import Hero, Pad
+from barkley.model.kinds import LoadKinds
 from barkley.model.level import GRAV, Ground, KBONE, KBRAMBLE, KBUOY, KCAT, KCISTERN, KCRAB, KDRIFT, KGOAT, KHOOP
 from barkley.model.level import KICICLE, KJELLY, KJET, KLEG, KLOAD, KLOG, KLOOP, KMOUND, KPIPE, KPRESS, KSAPLING, KSEAT
 from barkley.model.level import KSLED, KSPAN, KSPARK, KSPRING, KSQUIRREL, KSWEEP, KTHROW, KVINE, KWALL, KWAVE, Level, MH
@@ -145,6 +148,7 @@ if Uneven%(75, 256, 0, 2, 480) + Uneven%(20000, 128, 0, 1, 2) = 0 then print "pa
 OpenScreen
 LoadTables wd.lv
 BuildArt wd.art, wd.tn
+LoadKinds wd.kinds, wd.dat
 LoadLevel wd, 0
 dim g as Game, p as Hero, k as Pad, i as long, j as integer, loops as integer, was as integer
 dim c as integer, v as integer, m as integer, zp as integer, seen as string, brim as integer, ebb as integer

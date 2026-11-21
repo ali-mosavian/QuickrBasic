@@ -308,9 +308,9 @@ sub IntroDraw (wd as World, g as Game, p as Hero, cu() as Cue)
     cy = int(g.cam.y)
     now = g.mode_t * BEATS
     DrawBack wd.zn, wd.art, cx, cy
-    DrawThings wd.lv, wd.zn, wd.art, wd.se, cx, cy, -1
+    DrawThings wd.lv, wd.zn, wd.art, wd.kinds, wd.se, cx, cy, -1
     DrawTiles wd.lv, wd.zn, wd.art, cx, cy
-    DrawThings wd.lv, wd.zn, wd.art, wd.se, cx, cy, 0
+    DrawThings wd.lv, wd.zn, wd.art, wd.kinds, wd.se, cx, cy, 0
 
     do while cu(i).kind
         if now >= cu(i).t0 and now < cu(i).t1 then

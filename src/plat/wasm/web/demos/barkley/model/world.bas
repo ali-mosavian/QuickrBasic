@@ -12,6 +12,7 @@ from barkley.model.hero import Autopilot
 from barkley.model.level import Ground, Level, MH, MW, NSTAGE, Realm
 from barkley.model.level import TS, ZONES
 from barkley.model.game import Session, Tones
+from barkley.model.kinds import Kinds
 
 ' All of it. What runs the game takes it whole; the rest
 ' take the parts they use.
@@ -27,6 +28,7 @@ type World
     pilot as Autopilot
     dat as DataFile
     ev as Events
+    kinds as Kinds
 end type
 
 private const NPTS = 1600
@@ -58,8 +60,8 @@ private const NROPE = 12
 sub Allot (wd as World)
     dim i as integer
 
-    ' where its tunes and its levels start, then its
-    ' pictures
+    ' where its tunes, its levels and its kinds start, then
+    ' its pictures
     NameData wd.dat, "CHARLIE.DAT", "CHARLIE.DAT, the game's " + _
         "pictures and tunes, must be beside CHARLIE.BAS."
     NameData wd.mu.dat, wd.dat.path, wd.dat.lack

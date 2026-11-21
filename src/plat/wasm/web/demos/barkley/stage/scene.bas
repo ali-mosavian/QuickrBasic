@@ -3,36 +3,28 @@ defint A-Z
 option explicit
 
 from engine.video import Blit, SH, Store, SW
-from barkley.model.images import IAM, IAP, IAWNING, IBIN, IBONE
-from barkley.model.images import IBOOST, IBRAMBLE, IBTN, IBUMP, IBUOY
-from barkley.model.images import IBUSH, ICHAIR, ICHIMNEY, ICISTERN
-from barkley.model.images import IDASH, IDRIFT, IFLOWER, IFLUME, IFORT
-from barkley.model.images import IGEYSER, IGOAL, IGOLD, IHEAP, IHOOP
-from barkley.model.images import IHUD, IICICLE, IJELLY, IJET, ILAMP
-from barkley.model.images import IMARK, IMOUND, IMOVE, IPOST, IROCK
-from barkley.model.images import ISAPLING, ISEAT, ISLED, ISPIN
-from barkley.model.images import ISPRING, ISQUIRREL, ISWEEP, ITANK
-from barkley.model.images import ITHORN, ITITLE, ITOAD, ITRAM, ITREE
-from barkley.model.images import IVENT, IWALL
+from barkley.model.images import IAM, IAP, IBIN, IBONE, ICHAIR
+from barkley.model.images import ICHIMNEY, IDASH, IFORT, IGEYSER
+from barkley.model.images import IGOAL, IGOLD, IHEAP, IHUD, IICICLE
+from barkley.model.images import IJELLY, IJET, IMOVE, ISLED, ISPIN
+from barkley.model.images import ISPRING, ISQUIRREL, ISWEEP, ITITLE
+from barkley.model.images import ITOAD, IWALL
 from barkley.model.hero import Hero
-from barkley.model.level import KAWNING, KBIN, KBONE, KBOOST, KBRAMBLE
-from barkley.model.level import KBUMP, KBUOY, KBUSH, KBUTTON, KCAT
-from barkley.model.level import KCHIMNEY, KCISTERN, KCRAB, KDRIFT
-from barkley.model.level import KFAM, KFLOWER, KFLUME, KFRONT, KGOAL
-from barkley.model.level import KGOAT, KGOLD, KHEAP, KHOOP, KICICLE
-from barkley.model.level import KJELLY, KJET, KLAMP, KLEG, KLOAD
-from barkley.model.level import KLOOP, KMARK, KMORTAR, KMOUND, KMOVE
-from barkley.model.level import KPIPE, KPLAT, KPOST, KPOUNCE, KPRESS
-from barkley.model.level import KROCK, KSAPLING, KSEAT, KSLED, KSNATCH
+from barkley.model.level import KBIN, KBONE, KCAT, KCHIMNEY, KCRAB
+from barkley.model.level import KFAM, KFRONT, KGOAL, KGOAT, KGOLD
+from barkley.model.level import KHEAP, KICICLE, KJELLY, KJET, KLEG
+from barkley.model.level import KLOAD, KLOOP, KMORTAR, KMOVE, KPIPE
+from barkley.model.level import KPLAT, KPOUNCE, KPRESS, KSLED, KSNATCH
 from barkley.model.level import KSPAN, KSPARK, KSPIN, KSPOUT, KSPRING
-from barkley.model.level import KSQUIRREL, KSWEEP, KTANK, KTHORN
-from barkley.model.level import KTHROW, KTIPPER, KTRAM, KTREE, KVENT
+from barkley.model.level import KSQUIRREL, KSWEEP, KTHROW, KTIPPER
 from barkley.model.level import KVINE, KWALKER, KWALL, KWAVE, Level
 from barkley.model.level import NGOLD, NONE, Realm, TS
 from barkley.model.game import CLEARED, Found, Game, Loose, NLOOSE
 from barkley.model.game import NPART, OVER, Part, PLAYING, Session
 from barkley.model.game import TITLE
 from barkley.model.world import World
+from barkley.model.kinds import FPRESS, FSTATE, FSWAY, FTICK, Kind
+from barkley.model.kinds import Kinds
 from barkley.assets.palette import CGOLD, CINK, CSCARF, CWHITE
 from barkley.assets.palette import CYELLOW
 from barkley.assets.store import HUDH, HUDW
@@ -83,9 +75,9 @@ sub Render ( _
     if g.mode <> TITLE then Hud wd.art, g, GoldFound%(wd)
     DrawBack wd.zn, wd.art, cx, cy
     if wd.lv.tide <> NONE then DrawSea wd.lv, cx, cy
-    DrawThings wd.lv, wd.zn, wd.art, wd.se, cx, cy, -1
+    DrawThings wd.lv, wd.zn, wd.art, wd.kinds, wd.se, cx, cy, -1
     DrawTiles wd.lv, wd.zn, wd.art, cx, cy
-    DrawThings wd.lv, wd.zn, wd.art, wd.se, cx, cy, 0
+    DrawThings wd.lv, wd.zn, wd.art, wd.kinds, wd.se, cx, cy, 0
     if wd.lv.n_ropes then DrawLines wd.lv, wd.art, cx, cy
     if wd.lv.stray.st = 2 then DrawStray wd.lv, wd.art, wd.se, cx, cy
     if wd.lv.n_movers then DrawCables wd.lv, cx, cy
@@ -196,6 +188,7 @@ sub DrawThings ( _
     lv as Level, _
     zn as Realm, _
     art as Store, _
+    kd as Kinds, _
     se as Session, _
     cx as integer, _
     cy as integer, _
@@ -215,6 +208,11 @@ sub DrawThings ( _
         if (k >= KLOOP and k < KFRONT) <> back then continue for
 
         y = lv.things(i).at.y - cy
+
+        if kd.k(k).frames then
+            DrawRow kd.k(k), art, se, i, lv.things(i).state, x, y
+            continue for
+        end if
 
         select case k
         case KBONE
@@ -267,24 +265,12 @@ sub DrawThings ( _
                 Blit art, x - 8, y - 15, _
                     ISPRING - 2 * (lv.things(i).state > 0), 16, 16
             end if
-        case KSAPLING
-            Blit art, x - 6, y - 49, _
-                ISAPLING - 2 * (lv.things(i).state > 0), 60, 50
-        case KAWNING
-            Blit art, x - 23, y - 3, _
-                IAWNING - 2 * (lv.things(i).state > 0), 46, 22
         case KCHIMNEY
             ' the way out smokes
             Blit art, x - 9, y - 31, ICHIMNEY, 18, 32
             if lv.things(i).state = 0 then DrawSmoke se, x, y - FLUEH
         case KVINE
             DrawVine x, y, lv.things(i).state / 100
-        case KBOOST
-            Blit art, x - 12, y - 9, _
-                IBOOST + ((se.ticks \ 4) and 1) * 2, 24, 10
-        case KMARK
-            Blit art, x - 6, y - 31, IMARK + 2 * lv.things(i).state, _
-                12, 32
         case KGOAL
             f = 0
             if lv.things(i).state then f = (se.ticks \ 4) and 3
@@ -311,8 +297,6 @@ sub DrawThings ( _
                     IFORT - 2 * Risen%(lv, i) - 4 _
                     * (lv.things(i).state < 0), 28, 26
             end if
-        case KDRIFT
-            Blit art, x - 28, y - 11, IDRIFT, 56, 12
         case KICICLE
             ' loosed, it trembles
             k = lv.things(i).state > 0 _
@@ -337,15 +321,8 @@ sub DrawThings ( _
             DrawPress lv, art, se, i, x, y
         case KLEG
             DrawLeg art, x, y
-        case KFLUME
-            Blit art, x, y - 8, IFLUME + ((se.ticks \ 3) and 3) * 2, _
-                TS, 29
         case KSPOUT
             DrawSpout lv, art, se, x, y, lv.things(i).at.x \ TS, cy
-        case KCISTERN
-            Blit art, x - 30, y - 25, ICISTERN, 30, 30
-        case KSEAT
-            Blit art, x, y - SEATH, ISEAT, MOVEW, SEATH + 8
         case KWALL
             if lv.things(i).state then
                 Blit art, x - 9, y - 81, IWALL, 18, 82
@@ -373,30 +350,6 @@ sub DrawThings ( _
             else
                 Blit art, x, y, IAM, MOVEW, 12
             end if
-        case KTRAM
-            Blit art, x - 9, y - 1, ITRAM, 66, 33
-        case KPOST
-            Blit art, x - 7, y - 47, IPOST, 16, 48
-        case KTANK
-            Blit art, x - 16, y - 39, ITANK, 32, 40
-        case KVENT
-            Blit art, x - 8, y - 27, IVENT, 16, 28
-        case KTREE
-            Blit art, x - 32, y - 78, ITREE, 64, 80
-        case KBUSH
-            Blit art, x - 20, y - 18, IBUSH, 40, 20
-        case KFLOWER
-            Blit art, x - 6, y - 14, _
-                IFLOWER + ((se.ticks \ 30 + i) and 1) * 2, 12, 16
-        case KROCK
-            Blit art, x - 10, y - 10, IROCK, 20, 12
-        case KTHORN
-            Blit art, x - 8, y - 10, ITHORN, 16, 12
-        case KBRAMBLE
-            Blit art, x - 19, y - 25, _
-                IBRAMBLE - 2 * (lv.things(i).state > 0), 38, 26
-        case KMOUND
-            Blit art, x - 17, y - 12, IMOUND, 34, 14
         case KSQUIRREL
             ' an acorn held out, it is about to drop it
             k = ISQUIRREL - 2 * (abs(lv.things(i).state) <= SQAIM) _
@@ -409,8 +362,6 @@ sub DrawThings ( _
             ' who meets Charlie: they cheer once it has come
             ' to them
             DrawFamily art, se, x, y, se.cheer
-        case KLAMP
-            Blit art, x - 10, y - 42, ILAMP, 20, 44
         case KJET
             ' in the pass a geyser
             k = IJET
@@ -421,12 +372,6 @@ sub DrawThings ( _
             if (se.ticks + lv.things(i).at.x) mod 180 < 80 then
                 Blit art, x - 6, y - 70, f, 12, 64
             end if
-        case KBUMP
-            Blit art, x - 12, y - 12, _
-                IBUMP - 2 * (lv.things(i).state > 0), 24, 24
-        case KBUOY
-            Blit art, x - 9, y - 9, _
-                IBUOY - 2 * (lv.things(i).state > 0), 18, 18
         case KJELLY
             Blit art, x - 8, y - 18 + ((se.ticks \ 20) and 1), _
                 IJELLY - 2 * (lv.things(i).state > 1), 16, 18
@@ -442,16 +387,10 @@ sub DrawThings ( _
             Blit art, x - 4, y - SPINH - 4, ISPIN + 2, 8, 8
             Blit art, x + cint(SPINR * cos(a)) - 8, _
                 y - SPINH + cint(SPINR * sin(a)) - 8, ISPIN, 16, 16
-        case KBUTTON
-            Blit art, x - 8, y - 8, IBTN + 2 * lv.things(i).state, _
-                16, 8
         case KWAVE
             ' a twist's far half; its near one is drawn over
             ' Charlie
             Blit art, x, y - WAVEA - 22, zn.wave, WAVEL, WAVEH
-        case KHOOP
-            Blit art, x - 6, y - 16, _
-                IHOOP - 2 * (lv.things(i).state > 0), 12, 32
         end select
     next
 end sub
@@ -529,4 +468,31 @@ sub DrawParts (pt() as Part, cx as integer, cy as integer)
         pset (x, y), pt(i).c
         if pt(i).t > .25 then pset (x + 1, y), pt(i).c
     next
+end sub
+
+' A kind drawn by its row, thing i at x, y in its state: the
+' frame its row picks.
+private sub DrawRow ( _
+    kd as Kind, _
+    art as Store, _
+    se as Session, _
+    i as integer, _
+    state as integer, _
+    x as integer, _
+    y as integer _
+)
+    dim f as integer
+
+    select case kd.by
+    case FTICK
+        f = (se.ticks \ kd.rate) and (kd.frames - 1)
+    case FSWAY
+        f = (se.ticks \ kd.rate + i) and (kd.frames - 1)
+    case FSTATE
+        f = state
+    case FPRESS
+        f = -(state > 0)
+    end select
+
+    Blit art, x + kd.dx, y + kd.dy, kd.pic + 2 * f, kd.w, kd.h
 end sub

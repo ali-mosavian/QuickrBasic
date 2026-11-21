@@ -39,12 +39,12 @@ end sub
 ' The palette and the pictures every zone shows from
 ' CHARLIE.DAT.
 private sub LoadArt (art as Store, tn as Tones)
-    dim n as integer, i as integer, k as integer, c as long
+    dim n as integer, i as integer, k as integer
 
     tn.dusk = 16
     OpenData art.dat
-    c = Word&(art.dat)
-    c = Word&(art.dat)
+    ' past where the tunes, the levels and the kinds start
+    seek #art.dat.num, 13
     n = Word&(art.dat)
 
     for i = 1 to n
