@@ -39,7 +39,7 @@ const DRYT = .35
 ' Off the sled, which is no more: a puff of colour c where it was.
 sub Alight (mu as Deck, se as Session, p as Hero, pt() as Part, c as integer)
     p.sled = 0
-    Burst se, pt(), p.x, p.y - 4, 10, 120, c
+    Burst se, pt(), p.at.x, p.at.y - 4, 10, 120, c
     Sfx mu, se, SPOP
 end sub
 
@@ -48,19 +48,19 @@ end sub
 sub Hang (lv as Level, mu as Deck, se as Session, p as Hero, hit as integer)
     dim i as integer
     i = p.vine - 1
-    p.swayV = p.swayV - GRAV / VINELEN * sin(p.sway) * STEPT
-    p.sway = p.sway + p.swayV * STEPT
-    p.x = lv.ob(i).x + VINELEN * sin(p.sway)
-    p.y = lv.ob(i).y + VINELEN * cos(p.sway) + VINEGRIP
-    p.vx = VINELEN * p.swayV * cos(p.sway)
-    p.vy = -VINELEN * p.swayV * sin(p.sway)
+    p.sway_v = p.sway_v - GRAV / VINELEN * sin(p.sway) * STEPT
+    p.sway = p.sway + p.sway_v * STEPT
+    p.at.x = lv.ob(i).x + VINELEN * sin(p.sway)
+    p.at.y = lv.ob(i).y + VINELEN * cos(p.sway) + VINEGRIP
+    p.vel.x = VINELEN * p.sway_v * cos(p.sway)
+    p.vel.y = -VINELEN * p.sway_v * sin(p.sway)
     lv.ob(i).s = cint(p.sway * 100)
     if not (hit or p.stun or p.dead) then exit sub
     p.vine = 0
-    p.vineT = VINEWAIT
+    p.vine_t = VINEWAIT
     p.want = 0
     if not hit then exit sub
-    p.vy = p.vy - VINEHOP
+    p.vel.y = p.vel.y - VINEHOP
     p.roll = -1
     Sfx mu, se, SJUMP
 end sub
@@ -70,22 +70,22 @@ end sub
 sub Tunnel (lv as Level, mu as Deck, se as Session, p as Hero, pt() as Part)
     dim i as integer, dx as single, c as integer
     i = p.dig - 1
-    dx = lv.ob(i).x - p.x
+    dx = lv.ob(i).x - p.at.x
     if abs(dx) > DIGV * STEPT then
-        p.vx = sgn(dx) * DIGV
-        p.x = p.x + p.vx * STEPT
-        p.y = p.y + (lv.ob(i).y - p.y) * DIGV * STEPT / abs(dx)
-        if lv.ob(i).k = KMOUND and (se.ticks and 3) = 0 then Burst se, pt(), p.x, p.y, 2, 50, CLOAM
+        p.vel.x = sgn(dx) * DIGV
+        p.at.x = p.at.x + p.vel.x * STEPT
+        p.at.y = p.at.y + (lv.ob(i).y - p.at.y) * DIGV * STEPT / abs(dx)
+        if lv.ob(i).k = KMOUND and (se.ticks and 3) = 0 then Burst se, pt(), p.at.x, p.at.y, 2, 50, CLOAM
         exit sub
     end if
-    p.x = lv.ob(i).x
-    p.y = lv.ob(i).y
-    p.vx = 0
-    p.vy = -DIGPOP
+    p.at.x = lv.ob(i).x
+    p.at.y = lv.ob(i).y
+    p.vel.x = 0
+    p.vel.y = -DIGPOP
     c = CLOAM
     if lv.ob(i).k = KCHIMNEY then
-        p.y = p.y - FLUEH
-        p.vy = -FLUEPOP
+        p.at.y = p.at.y - FLUEH
+        p.vel.y = -FLUEPOP
         c = CSOOT
     end if
     p.dig = 0
@@ -93,7 +93,7 @@ sub Tunnel (lv as Level, mu as Deck, se as Session, p as Hero, pt() as Part)
     p.roll = 0
     p.jumped = 0
     p.sprung = -1
-    Burst se, pt(), p.x, p.y - 4, 10, 140, c
+    Burst se, pt(), p.at.x, p.at.y - 4, 10, 140, c
     Sfx mu, se, SPOP
 end sub
 
@@ -111,7 +111,7 @@ end function
 sub Buffet (lv as Level, se as Session, p as Hero)
     if Lull%(lv, se) > 0 or p.swim or p.sled or p.goat then exit sub
     if not p.ground then
-        if p.vx > -WINDV then p.vx = p.vx - WINDA * STEPT
+        if p.vel.x > -WINDV then p.vel.x = p.vel.x - WINDA * STEPT
     elseif not (p.roll or p.crouch or p.charging) then
         if p.gsp > -WINDV then p.gsp = p.gsp - WINDG * STEPT
     end if
@@ -120,19 +120,19 @@ end sub
 ' Astride a goat: it runs on along the road and takes no rein. Off the ground, stopped or GOATRIDE on, he is off
 ' it, and it turns for home from where it last stood.
 sub Ride (lv as Level, p as Hero, l as integer, r as integer, d as integer)
-    p.rideT = p.rideT + STEPT
+    p.ride_t = p.ride_t + STEPT
     l = 0
     r = 0
     d = 0
-    if p.rideT > .1 and (not p.ground or p.rideT > GOATRIDE or abs(p.x - p.lastx) < 1) then
+    if p.ride_t > .1 and (not p.ground or p.ride_t > GOATRIDE or abs(p.at.x - p.last_x) < 1) then
         p.goat = 0
         lv.stray.st = 2
     elseif p.ground then
         p.gsp = GOATV
         p.face = 0
         p.roll = 0
-        lv.stray.x = p.x
-        lv.stray.y = p.y
+        lv.stray.x = p.at.x
+        lv.stray.y = p.at.y
     end if
 end sub
 
@@ -140,25 +140,25 @@ end sub
 ' is wet, slow and dripping, till a roll shakes him dry.
 sub Soak (lv as Level, se as Session, p as Hero, pt() as Part)
     if p.swim then exit sub
-    if (p.ground and p.y > lv.tide + WADE) or (not p.ground and p.vy >= 0 and p.y > lv.tide + AFLOAT) then
+    if (p.ground and p.at.y > lv.tide + WADE) or (not p.ground and p.vel.y >= 0 and p.at.y > lv.tide + AFLOAT) then
         Dunk lv, se, p, pt()
         exit sub
     end if
     if p.wet <= 0 then exit sub
     if p.roll and p.ground then
         p.wet = p.wet - STEPT
-        if p.wet <= 0 then Burst se, pt(), p.x, p.y - 12, 10, 130, CSEA + 1
+        if p.wet <= 0 then Burst se, pt(), p.at.x, p.at.y - 12, 10, 130, CSEA + 1
     elseif (se.ticks and 7) = 0 then
-        Emit se, pt(), p.x, p.y - 14, 0, 30, .3, CSEA + 2
+        Emit se, pt(), p.at.x, p.at.y - 14, 0, 30, .3, CSEA + 2
     end if
 end sub
 
 ' Into the sea: what he ran at he swims at, and a fall splashes. A hurt ends on landing: the sea is a landing too.
 private sub Dunk (lv as Level, se as Session, p as Hero, pt() as Part)
     if p.ground then
-        p.vx = p.gsp * cos(p.ang)
-    elseif p.vy > 200 then
-        Burst se, pt(), p.x, lv.tide + 0!, 8, 110, CSEA
+        p.vel.x = p.gsp * cos(p.ang)
+    elseif p.vel.y > 200 then
+        Burst se, pt(), p.at.x, lv.tide + 0!, 8, 110, CSEA
     end if
     p.swim = -1
     p.ground = 0
@@ -177,28 +177,28 @@ sub Paddle (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero, l a
     p.wet = DRYT
     if hit then
         p.swim = 0
-        p.vy = -HOPV
+        p.vel.y = -HOPV
         p.jumped = -1
-        Burst se, pt(), p.x, lv.tide + 0!, 5, 80, CSEA
+        Burst se, pt(), p.at.x, lv.tide + 0!, 5, 80, CSEA
         Sfx mu, se, SJUMP
         exit sub
     end if
     if r then
-        if p.vx < PADV then p.vx = p.vx + PADACC * STEPT
+        if p.vel.x < PADV then p.vel.x = p.vel.x + PADACC * STEPT
         p.face = 0
     elseif l then
-        if p.vx > -PADV then p.vx = p.vx - PADACC * STEPT
+        if p.vel.x > -PADV then p.vel.x = p.vel.x - PADACC * STEPT
         p.face = 1
     else
-        Slow p.vx, PADACC
+        Slow p.vel.x, PADACC
     end if
     ' the speed he came in with is soon lost
-    if abs(p.vx) > PADV then Slow p.vx, PADACC * 4
-    p.x = p.x + p.vx * STEPT
-    if p.vx <> 0 then
-        if Wall%(lv, p, sgn(p.vx)) then p.vx = 0
+    if abs(p.vel.x) > PADV then Slow p.vel.x, PADACC * 4
+    p.at.x = p.at.x + p.vel.x * STEPT
+    if p.vel.x <> 0 then
+        if Wall%(lv, p, sgn(p.vel.x)) then p.vel.x = 0
     end if
-    p.y = lv.tide + AFLOAT
-    p.vy = 0
+    p.at.y = lv.tide + AFLOAT
+    p.vel.y = 0
     if Land%(lv, gr, p, 0) then p.swim = 0
 end sub

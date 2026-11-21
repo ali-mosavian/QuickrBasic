@@ -32,7 +32,7 @@ sub Pilot (lv as Level, gr as Ground, zn as Realm, se as Session, p as Hero, k a
     k.d = 0
     if p.vine then
         ' hung from a vine: let go on the way up and forward, or where a small swing turns
-        hopNow = p.swayV > 0 and p.sway > 0 and (p.sway > .5 or p.swayV < 1)
+        hopNow = p.sway_v > 0 and p.sway > 0 and (p.sway > .5 or p.sway_v < 1)
     elseif p.swim then
         hopNow = PilotSwim%(lv, zn, p, k)
     elseif p.ground and gr.pt(p.sg).k = 3 then
@@ -67,16 +67,16 @@ end sub
 ' Afloat: on to the right, a hop where a bank is in the way, or a jellyfish. Whether to hop.
 private function PilotSwim% (lv as Level, zn as Realm, p as Hero, k as Pad)
     dim i as integer, d as integer, want as integer
-    want = Solid%(lv, cint(p.x) + HW + 2, cint(p.y) - 11)
-    for i = lv.first(cint(p.x) \ TS) to lv.nObj - 1
-        if lv.ob(i).x > p.x + 34 then exit for
-        if lv.ob(i).k = KJELLY and lv.ob(i).x > p.x then want = -1
+    want = Solid%(lv, cint(p.at.x) + HW + 2, cint(p.at.y) - 11)
+    for i = lv.first(cint(p.at.x) \ TS) to lv.nObj - 1
+        if lv.ob(i).x > p.at.x + 34 then exit for
+        if lv.ob(i).k = KJELLY and lv.ob(i).x > p.at.x then want = -1
     next
     PilotSwim% = want
     ' Kipper's boat about: still, and a hop as it comes, to come down on its deck
     if zn.id <> 2 or lv.cart.st <> 1 then exit function
     k.r = 0
-    d = cint(lv.cart.x - p.x)
+    d = cint(lv.cart.x - p.at.x)
     want = lv.cart.t <= 0 and abs(d) < abs(lv.cart.v) * .55 + 12 and abs(d) > abs(lv.cart.v) * .45
     PilotSwim% = want and sgn(d) <> sgn(lv.cart.v)
 end function
@@ -84,7 +84,7 @@ end function
 ' On a platform: still, till there is ground ahead to jump to. Whether to jump.
 private function PilotRide% (lv as Level, gr as Ground, se as Session, p as Hero, k as Pad)
     dim y as integer, i as integer, m as integer, d as integer, want as integer
-    y = cint(p.y)
+    y = cint(p.at.y)
     HoldBack p, k, 20
     i = cint(gr.pt(p.sg).x) + MOVEW + 10
     if Surf%(lv, i, y) <> NONE and not Solid%(lv, i, y - 12) then
@@ -120,8 +120,8 @@ end function
 ' to jump.
 private function PilotRun% (lv as Level, gr as Ground, zn as Realm, se as Session, p as Hero, k as Pad)
     dim x as integer, y as integer, i as integer, d as integer, want as integer
-    x = cint(p.x)
-    y = cint(p.y)
+    x = cint(p.at.x)
+    y = cint(p.at.y)
     i = x + 22 + cint(abs(p.gsp)) \ 40
     if Surf%(lv, i, y) = NONE and Surf%(lv, i, y + 2 * TS) = NONE and not Ribbon%(gr, x) then want = -1
     ' a wall, not a ramp's foot
@@ -144,7 +144,7 @@ private function PilotRun% (lv as Level, gr as Ground, zn as Realm, se as Sessio
     PilotTipper lv, se, p, k
     PilotGoat lv, p, k, want
     k.d = Rams%(lv, zn, p)
-    if zn.id = 5 and p.roll and lv.cart.st = 1 and lv.cart.x - p.x > OUTRUN then want = -1
+    if zn.id = 5 and p.roll and lv.cart.st = 1 and lv.cart.x - p.at.x > OUTRUN then want = -1
     if zn.id = 4 then PilotCurl lv, p, k, want
     PilotGaps lv, se, p, k, want
     if zn.id = 4 then PilotDig lv, p, k, want
@@ -156,7 +156,7 @@ private function Rams% (lv as Level, zn as Realm, p as Hero)
     dim d as integer
     Rams% = 0
     if lv.cart.st <> 1 or not (zn.id = 0 or zn.id = 3 or zn.id = 5) then exit function
-    d = cint(lv.cart.x - p.x)
+    d = cint(lv.cart.x - p.at.x)
     Rams% = d > 0 and d < RAMREACH and p.gsp > 150
 end function
 
@@ -178,14 +178,14 @@ end function
 ' brakes; short of it he goes on at a walk.
 private sub PilotDig (lv as Level, p as Hero, k as Pad, want as integer)
     dim i as integer, x as integer, c as integer, d as integer, v as integer
-    x = cint(p.x)
+    x = cint(p.at.x)
     v = cint(p.gsp)
     c = (x - 48) \ TS
     if c < 0 then c = 0
     for i = lv.first(c) to lv.nObj - 1
         d = lv.ob(i).x - x
         if d > 10 + v \ 20 + v * v \ 3600 then exit for
-        if lv.ob(i).k <> KMOUND or d < -40 or p.dug = i + 1 or abs(lv.ob(i).y - p.y) > 8 then continue for
+        if lv.ob(i).k <> KMOUND or d < -40 or p.dug = i + 1 or abs(lv.ob(i).y - p.at.y) > 8 then continue for
         if not Walled%(lv, i) then continue for
         want = 0
         k.d = abs(d) < MOUNDR - 3 and abs(v) < 20
@@ -199,7 +199,7 @@ end sub
 ' curled still and slower than a run: out of the roll by a hop.
 private sub PilotCurl (lv as Level, p as Hero, k as Pad, want as integer)
     dim i as integer, x as integer, c as integer
-    x = cint(p.x)
+    x = cint(p.at.x)
     c = (x - LOGR - 8) \ TS
     if c < 0 then c = 0
     for i = lv.first(c) to lv.nObj - 1
@@ -219,9 +219,9 @@ end sub
 ' A row of presses ahead: to a stop before it, on once its first is well risen, and no jump under one.
 private sub PilotPress (lv as Level, se as Session, p as Hero, k as Pad, want as integer)
     dim i as integer, d as integer
-    i = PressAhead%(lv, cint(p.x))
+    i = PressAhead%(lv, cint(p.at.x))
     if i = NONE then exit sub
-    d = lv.ob(i).x - 26 - cint(p.x)
+    d = lv.ob(i).x - 26 - cint(p.at.x)
     if d < 60 then want = 0
     if d <= 0 or d >= 40 + cint(p.gsp) \ 5 then exit sub
     if (PressT%(lv, se, i) + 22) mod PRESSP > 52 then HoldBack p, k, 20
@@ -230,9 +230,9 @@ end sub
 ' A tipper ahead: to a stop short of where its pot comes down, on once one has broken and the next is not soon.
 private sub PilotTipper (lv as Level, se as Session, p as Hero, k as Pad)
     dim i as integer, d as integer
-    i = TipperAhead%(lv, cint(p.x))
+    i = TipperAhead%(lv, cint(p.at.x))
     if i = NONE then exit sub
-    d = lv.ob(i).x + POTX - POTR - 8 - cint(p.x)
+    d = lv.ob(i).x + POTX - POTR - 8 - cint(p.at.x)
     if d <= 0 or d >= 40 + cint(p.gsp) \ 5 then exit sub
     if not PotClear%(lv, se, i) then HoldBack p, k, 20
 end sub
@@ -240,9 +240,9 @@ end sub
 ' A goat near: to a stand short of it, up as it charges, and down on its back.
 private sub PilotGoat (lv as Level, p as Hero, k as Pad, want as integer)
     dim i as integer, d as integer
-    i = GoatNear%(lv, cint(p.x))
+    i = GoatNear%(lv, cint(p.at.x))
     if i = NONE or p.goat <> 0 then exit sub
-    d = lv.ob(i).x - cint(p.x)
+    d = lv.ob(i).x - cint(p.at.x)
     if abs(lv.ob(i).s) = GCHARGE then
         k.r = 0
         want = abs(d) < 70
@@ -256,8 +256,8 @@ end sub
 ' A platform's gap ahead: slowly to its edge, there till the platform is at it and staying, then on.
 private sub PilotGaps (lv as Level, se as Session, p as Hero, k as Pad, want as integer)
     dim m as integer, d as integer, x as integer, y as integer
-    x = cint(p.x)
-    y = cint(p.y)
+    x = cint(p.at.x)
+    y = cint(p.at.y)
     for m = 0 to lv.nMv - 1
         d = lv.mv(m).e - x
         ' a bridge and a pier are run over; a tram's street is run along
@@ -292,11 +292,11 @@ end function
 private sub PilotFall (lv as Level, zn as Realm, p as Hero, k as Pad)
     dim m as integer, d as integer
     if zn.id = 2 and lv.cart.st = 1 then k.r = 0
-    if GoatNear%(lv, cint(p.x)) <> NONE then k.r = 0
+    if GoatNear%(lv, cint(p.at.x)) <> NONE then k.r = 0
     for m = 0 to lv.nMv - 1
-        d = lv.mv(m).e - cint(p.x)
+        d = lv.mv(m).e - cint(p.at.x)
         if lv.mv(m).k = 4 or lv.mv(m).k = 6 or lv.mv(m).k = 8 then d = NONE
-        if d <= -40 or d >= 260 or p.coyote > 0 or p.vx <= d \ 3 or p.sg = lv.mv(m).s then continue for
+        if d <= -40 or d >= 260 or p.coyote > 0 or p.vel.x <= d \ 3 or p.sg = lv.mv(m).s then continue for
         k.r = 0
         k.l = -1
     next

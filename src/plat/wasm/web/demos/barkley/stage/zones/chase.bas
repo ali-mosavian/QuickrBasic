@@ -88,7 +88,7 @@ sub Flee (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as H
     case 0
         if zn.id = 2 then lv.cart.y = lv.tide - PEDALUP
         if zn.id = 4 then BallAt lv
-        if p.x >= lv.chaseX then StartChase lv, mu
+        if p.at.x >= lv.chaseX then StartChase lv, mu
     case 1
         select case zn.id
         case 0, 3
@@ -116,7 +116,7 @@ sub Flee (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as H
         ' the sands' keepsake floats
         if zn.id = 2 then lv.cart.y = lv.tide
         ' over it will do: he comes down off the last bump past it
-        if abs(p.x - lv.cart.x) < 16 and p.y > lv.cart.y - 90 and p.y < lv.cart.y + 8 then TakeKeep lv, mu, se, g, pt()
+        if abs(p.at.x - lv.cart.x) < 16 and p.at.y > lv.cart.y - 90 and p.at.y < lv.cart.y + 8 then TakeKeep lv, mu, se, g, pt()
     end select
 end sub
 
@@ -141,7 +141,7 @@ end function
 private sub MoveCart (lv as Level, p as Hero, pace as single, away as single)
     dim want as single, s as integer
     want = pace
-    if lv.cart.x - p.x > 240 then want = DAWDLE
+    if lv.cart.x - p.at.x > 240 then want = DAWDLE
     if lv.cart.t > 0 then want = away
     if lv.cart.t > BOLTS then want = 60
     lv.cart.v = lv.cart.v + (want - lv.cart.v) * 5 * STEPT
@@ -158,7 +158,7 @@ end sub
 ' checked; else it hurts him. Its last bump breaks it.
 private sub MeetCart (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
     if lv.cart.t > BOLTS or p.dead then exit sub
-    if abs(p.x - lv.cart.x) > CARTR or p.y < lv.cart.y - 46 or p.y > lv.cart.y + 6 then exit sub
+    if abs(p.at.x - lv.cart.x) > CARTR or p.at.y < lv.cart.y - 46 or p.at.y > lv.cart.y + 6 then exit sub
     if not (p.roll or p.charging) then
         Hurt mu, se, g, p, cint(lv.cart.x), lo(), SHISS
         exit sub
@@ -166,12 +166,12 @@ private sub MeetCart (lv as Level, mu as Deck, se as Session, g as Game, p as He
     Bumped lv, mu, se, g, pt(), lv.cart.y - 20
     ' sled against sled he is checked, not thrown: a sled thrown back has no brake to stop it
     if p.sled and p.ground then p.gsp = SLEDV
-    if p.sled and not p.ground then p.vx = SLEDV
+    if p.sled and not p.ground then p.vel.x = SLEDV
     if p.sled then exit sub
     p.ground = 0
     p.jumped = 0
-    p.vx = -120
-    p.vy = -BOUNCEV
+    p.vel.x = -120
+    p.vel.y = -BOUNCEV
 end sub
 
 ' The bumps that end a zone's chase: the relay's is one a cat.
@@ -228,7 +228,7 @@ end sub
 private sub Lob (lv as Level, p as Hero)
     if lv.box.t > 0 then lv.box.t = lv.box.t - STEPT
     if lv.box.t > 0 or lv.cart.t > 0 or lv.cart.x >= lv.chaseEnd then exit sub
-    if lv.cart.x - p.x < LOBNEAR then lv.box.t = LOBWAIT
+    if lv.cart.x - p.at.x < LOBNEAR then lv.box.t = LOBWAIT
 end sub
 
 ' Whether the guitar is in the air between the twins.
@@ -374,7 +374,7 @@ private sub Juggle (lv as Level, mu as Deck, se as Session, g as Game, p as Hero
     end if
     BallAt lv
     if (lv.box.st and 1) = 0 or p.dead then exit sub
-    if abs(p.x - lv.cart.x) > CATCHR or abs(p.y - 12 - (lv.cart.y - 7)) > CATCHR then exit sub
+    if abs(p.at.x - lv.cart.x) > CATCHR or abs(p.at.y - 12 - (lv.cart.y - 7)) > CATCHR then exit sub
     lv.box.x = lv.cart.x
     lv.box.y = lv.cart.y
     lv.box.st = 0
@@ -498,11 +498,11 @@ end sub
 
 ' Charlie down onto the pedal boat's deck, out of the air: a bump, it turns round and he goes up off it.
 private sub MeetPedalo (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, pt() as Part)
-    if lv.cart.t > BOLTS or p.dead or p.ground or p.swim or p.vy <= 0 then exit sub
-    if abs(p.x - lv.cart.x) > PEDALW \ 2 or p.y < lv.cart.y - 6 or p.y > lv.cart.y + 14 then exit sub
+    if lv.cart.t > BOLTS or p.dead or p.ground or p.swim or p.vel.y <= 0 then exit sub
+    if abs(p.at.x - lv.cart.x) > PEDALW \ 2 or p.at.y < lv.cart.y - 6 or p.at.y > lv.cart.y + 14 then exit sub
     Bumped lv, mu, se, g, pt(), lv.cart.y - 8
     lv.cart.v = -lv.cart.v
-    p.vy = -BOUNCEV
+    p.vel.y = -BOUNCEV
     p.jumped = 0
 end sub
 
@@ -570,7 +570,7 @@ end sub
 ' it holds a crate over him; bumped, still a while, then off from him at speed.
 private sub MoveCrane (lv as Level, p as Hero)
     dim want as single, dir as integer
-    dir = sgn(p.x - lv.cart.x)
+    dir = sgn(p.at.x - lv.cart.x)
     want = dir * (CRANEV + CRANEUP * lv.cart.hits)
     if lv.box.st = 1 then want = 0
     if lv.cart.t > 0 then want = CRANEBOLT * (2 * (dir > 0) + 1)
@@ -587,12 +587,12 @@ private sub MeetCrane (lv as Level, mu as Deck, se as Session, g as Game, p as H
     dim foot as single
     if lv.cart.t > BOLTS or p.dead or p.ground then exit sub
     foot = lv.cart.y - CRANEH
-    if abs(p.x - lv.cart.x) > CRANER or p.y - 26 > foot or p.y < foot - 24 then exit sub
+    if abs(p.at.x - lv.cart.x) > CRANER or p.at.y - 26 > foot or p.at.y < foot - 24 then exit sub
     if lv.box.st > 0 or lv.box.t <= 0 then BreakBox lv, mu, se, pt()
     Bumped lv, mu, se, g, pt(), foot - 12
-    p.vx = 140 * (2 * (p.x <= lv.cart.x) + 1)
-    p.vy = 160
-    if p.y < foot - 14 then p.vy = -200
+    p.vel.x = 140 * (2 * (p.at.x <= lv.cart.x) + 1)
+    p.vel.y = 160
+    if p.at.y < foot - 14 then p.vel.y = -200
 end sub
 
 ' The crane's crate, by its state: on the hook, and held still once it is over Charlie; let go a moment later; then
@@ -603,7 +603,7 @@ private sub DropBox (lv as Level, mu as Deck, se as Session, g as Game, p as Her
     case 0
         lv.box.x = lv.cart.x
         lv.box.y = lv.cart.y - CRANEH + 16
-        if lv.box.t <= 0 and lv.cart.t <= 0 and abs(p.x - lv.cart.x) < 10 then
+        if lv.box.t <= 0 and lv.cart.t <= 0 and abs(p.at.x - lv.cart.x) < 10 then
             lv.box.st = 1
             lv.box.t = POISE
         end if
@@ -615,7 +615,7 @@ private sub DropBox (lv as Level, mu as Deck, se as Session, g as Game, p as Her
     case 2
         lv.box.v = lv.box.v + GRAV * STEPT
         lv.box.y = lv.box.y + lv.box.v * STEPT
-        if abs(p.x - lv.box.x) < 14 and p.y > lv.box.y - 16 and p.y - 26 < lv.box.y and not p.dead then
+        if abs(p.at.x - lv.box.x) < 14 and p.at.y > lv.box.y - 16 and p.at.y - 26 < lv.box.y and not p.dead then
             Hurt mu, se, g, p, cint(lv.box.x), lo(), SHISS
             BreakBox lv, mu, se, pt()
         elseif lv.box.y >= lv.cart.y then

@@ -282,10 +282,10 @@ private sub DrawCue (wd as World, cu() as Cue, i as integer, now as single, p as
         Pose wd.lv, wd.gr, wd.se, p, wx, wy, a, cu(i).x1 < cu(i).x0
         DrawHero wd.gr, wd.art, wd.se, p, cx, cy
     case QWOOF
-        p.x = wx
-        p.y = wy
+        p.at.x = wx
+        p.at.y = wy
         p.face = a
-        p.barkT = BARKT - (now - cu(i).t0) / BEATS
+        p.bark_t = BARKT - (now - cu(i).t0) / BEATS
         DrawBark p, cx, cy
     end select
 end sub

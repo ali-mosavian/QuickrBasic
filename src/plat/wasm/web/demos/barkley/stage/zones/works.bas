@@ -28,15 +28,15 @@ const SPINR = 30, SPINH = 70
 sub MeetSpark (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose)
     dim x as integer, py as integer
     x = lv.ob(i).x
-    py = cint(p.y)
-    if abs(x - cint(p.x)) >= 11 or py <= lv.ob(i).y - 24 or py - 26 >= lv.ob(i).y then exit sub
+    py = cint(p.at.y)
+    if abs(x - cint(p.at.x)) >= 11 or py <= lv.ob(i).y - 24 or py - 26 >= lv.ob(i).y then exit sub
     if Lit%(lv, se, i) then Hurt mu, se, g, p, x, lo(), SHISS
 end sub
 
 ' A button in the floor: stood on, it is pressed.
 sub MeetButton (lv as Level, mu as Deck, se as Session, p as Hero, i as integer, pt() as Part)
     if lv.ob(i).s <> 0 or not p.ground then exit sub
-    if abs(lv.ob(i).x - cint(p.x)) >= 9 or abs(cint(p.y) - lv.ob(i).y) >= 4 then exit sub
+    if abs(lv.ob(i).x - cint(p.at.x)) >= 9 or abs(cint(p.at.y) - lv.ob(i).y) >= 4 then exit sub
     lv.ob(i).s = 1
     Burst se, pt(), csng(lv.ob(i).x), csng(lv.ob(i).y - 6), 8, 80, CGOLD + 4
     Sfx mu, se, SMARK
@@ -45,15 +45,15 @@ end sub
 ' A jet, blowing 80 ticks of 180: who is over it goes up.
 sub MeetJet (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
     dim dy as integer
-    dy = cint(p.y) - lv.ob(i).y
-    if (se.ticks + lv.ob(i).x) mod 180 >= 80 or abs(lv.ob(i).x - cint(p.x)) >= 10 then exit sub
-    if dy > 2 or dy <= -64 or p.vy <= -JETV + 60 then exit sub
+    dy = cint(p.at.y) - lv.ob(i).y
+    if (se.ticks + lv.ob(i).x) mod 180 >= 80 or abs(lv.ob(i).x - cint(p.at.x)) >= 10 then exit sub
+    if dy > 2 or dy <= -64 or p.vel.y <= -JETV + 60 then exit sub
     if p.ground then
-        p.vx = p.gsp
+        p.vel.x = p.gsp
         Sfx mu, se, SHISS
     end if
     p.ground = 0
-    p.vy = -JETV
+    p.vel.y = -JETV
     p.roll = 0
     p.jumped = 0
     p.sprung = -1
@@ -62,8 +62,8 @@ end sub
 ' A bumper or a buoy: touched, it throws him off the way he came at it.
 sub MeetBump (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, pt() as Part)
     dim dx as integer, dy as integer, d as single
-    dx = cint(p.x) - lv.ob(i).x
-    dy = cint(p.y) - 12 - lv.ob(i).y
+    dx = cint(p.at.x) - lv.ob(i).x
+    dy = cint(p.at.y) - 12 - lv.ob(i).y
     if lv.ob(i).s <> 0 or abs(dx) >= 20 or abs(dy) >= 20 then exit sub
     d = sqr(csng(dx) * dx + csng(dy) * dy)
     if d >= 20 then exit sub
@@ -72,8 +72,8 @@ sub MeetBump (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as
         dy = -1
     end if
     p.ground = 0
-    p.vx = dx / d * BUMPV
-    p.vy = dy / d * BUMPV - 60
+    p.vel.x = dx / d * BUMPV
+    p.vel.y = dy / d * BUMPV - 60
     p.jumped = 0
     p.sprung = -1
     lv.ob(i).s = 10
@@ -89,15 +89,15 @@ sub MeetSpin (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as
     a = se.ticks * .06 + x
     bx = x + cint(SPINR * cos(a))
     by = lv.ob(i).y - SPINH + cint(SPINR * sin(a))
-    if abs(bx - cint(p.x)) < 11 and abs(by - cint(p.y) + 12) < 16 then Hurt mu, se, g, p, x, lo(), SHURT
+    if abs(bx - cint(p.at.x)) < 11 and abs(by - cint(p.at.y) + 12) < 16 then Hurt mu, se, g, p, x, lo(), SHURT
 end sub
 
 ' A hoop: through it in the air he goes on, faster, the way he was going.
 sub MeetHoop (lv as Level, mu as Deck, se as Session, p as Hero, i as integer, pt() as Part)
-    if lv.ob(i).s <> 0 or p.ground or abs(lv.ob(i).x - cint(p.x)) >= 9 then exit sub
-    if abs(lv.ob(i).y - cint(p.y) + 12) >= 18 then exit sub
-    p.vx = HOOPV * (1 + 2 * (p.vx < 0))
-    p.vy = -180
+    if lv.ob(i).s <> 0 or p.ground or abs(lv.ob(i).x - cint(p.at.x)) >= 9 then exit sub
+    if abs(lv.ob(i).y - cint(p.at.y) + 12) >= 18 then exit sub
+    p.vel.x = HOOPV * (1 + 2 * (p.vel.x < 0))
+    p.vel.y = -180
     p.sprung = -1
     lv.ob(i).s = 20
     Burst se, pt(), csng(lv.ob(i).x), csng(lv.ob(i).y), 8, 120, CGOLD + 4
@@ -109,11 +109,11 @@ end sub
 sub MeetSweep (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
     dim y as integer, behind as integer
     y = lv.ob(i).y
-    if lv.ob(i).s = 0 or abs(lv.ob(i).x - p.x) >= 18 or p.y < y - 20 or p.y > y + 10 then exit sub
-    behind = sgn(p.x - lv.ob(i).x) <> sgn(lv.ob(i).s)
-    if not p.ground and p.vy > 0 and p.y < y - 8 then
+    if lv.ob(i).s = 0 or abs(lv.ob(i).x - p.at.x) >= 18 or p.at.y < y - 20 or p.at.y > y + 10 then exit sub
+    behind = sgn(p.at.x - lv.ob(i).x) <> sgn(lv.ob(i).s)
+    if not p.ground and p.vel.y > 0 and p.at.y < y - 8 then
         Beaten lv, mu, se, g, pt(), i, 8
-        p.vy = -BOUNCEV
+        p.vel.y = -BOUNCEV
     elseif behind and (p.roll or p.charging) then
         Beaten lv, mu, se, g, pt(), i, 8
     else
@@ -151,7 +151,7 @@ sub MeetPress (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i a
     dim y as integer
     if PressT%(lv, se, i) = PRESSFALL + 10 then Sfx mu, se, SCLANK
     y = lv.ob(i).y - PRESSUP + Stroke%(lv, se, i)
-    if abs(lv.ob(i).x - p.x) < 26 and p.y - 26 < y and p.y > y - 14 then Hurt mu, se, g, p, lv.ob(i).x, lo(), SHURT
+    if abs(lv.ob(i).x - p.at.x) < 26 and p.at.y - 26 < y and p.at.y > y - 14 then Hurt mu, se, g, p, lv.ob(i).x, lo(), SHURT
 end sub
 
 ' For the pilot at x: the nearest press he is under or coming to, NONE with none near.

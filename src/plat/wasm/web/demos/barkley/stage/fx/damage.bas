@@ -22,7 +22,7 @@ sub Tackle (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as i
         exit sub
     end if
     Beaten lv, mu, se, g, pt(), i, dy
-    if not p.ground and p.vy > 0 then p.vy = -BOUNCEV
+    if not p.ground and p.vel.y > 0 then p.vel.y = -BOUNCEV
 end sub
 
 ' Hit: the bones fly loose and Charlie is knocked back; with none, it is out.
@@ -46,8 +46,8 @@ sub Hurt (mu as Deck, se as Session, g as Game, p as Hero, fromX as integer, lo(
     for i = 0 to n - 1
         a = PI * (.15 + .7 * i / n)
         v = 240 - 70 * (i and 1)
-        lo(i).x = p.x
-        lo(i).y = p.y - 13
+        lo(i).x = p.at.x
+        lo(i).y = p.at.y - 13
         lo(i).vx = cos(a) * v * (1 - 2 * (i and 1)) * .8
         lo(i).vy = -sin(a) * v
         lo(i).t = 4
@@ -60,11 +60,11 @@ sub Hurt (mu as Deck, se as Session, g as Game, p as Hero, fromX as integer, lo(
     p.jumped = 0
     p.stun = -1
     p.inv = 2
-    p.vy = -260
-    if p.x < fromX then
-        p.vx = -140
+    p.vel.y = -260
+    if p.at.x < fromX then
+        p.vel.x = -140
     else
-        p.vx = 140
+        p.vel.x = 140
     end if
     g.shake = .25
     if snd = SHURT then Sfx mu, se, snd
@@ -73,8 +73,8 @@ end sub
 sub Lose (mu as Deck, se as Session, p as Hero)
     if p.dead then exit sub
     p.dead = -1
-    p.deadT = 0
-    p.vy = -340
+    p.dead_t = 0
+    p.vel.y = -340
     p.ground = 0
     Sfx mu, se, SDIE
 end sub

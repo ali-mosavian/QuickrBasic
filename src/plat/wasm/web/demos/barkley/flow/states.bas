@@ -83,13 +83,13 @@ private sub TitleStep (wd as World, g as Game, p as Hero, k as Pad, lo() as Loos
     if k.quit then g.quitting = -1
     if p.dead then
         ResetWorld wd, g, p, lo(), pt()
-    elseif p.x >= wd.lv.goalX then
+    elseif p.at.x >= wd.lv.goalX then
         if Met%(wd, g, p, k, pt()) then ResetWorld wd, g, p, lo(), pt()
     else
         Pilot wd.lv, wd.gr, wd.zn, wd.se, p, auto
         MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, auto, pt()
         Touch wd.lv, wd.zn, wd.mu, wd.se, g, p, lo(), pt()
-        if p.y > MH * TS + 24 then Lose wd.mu, wd.se, p
+        if p.at.y > MH * TS + 24 then Lose wd.mu, wd.se, p
         Camera wd.lv, wd.zn, g, p, 0
     end if
     PickZone wd.se, k
@@ -113,8 +113,8 @@ private sub PlayStep (wd as World, g as Game, p as Hero, k as Pad, lo() as Loose
     if wd.lv.nGulls then Flock wd.lv, wd.mu, wd.se, g, p, lo(), pt()
     if wd.lv.nSwarm then Swarms wd.lv, wd.mu, wd.se, g, p, lo()
     if wd.lv.lobN then Volley wd.lv, wd.mu, wd.se, g, p, lo(), pt()
-    if p.y > MH * TS + 24 then Lose wd.mu, wd.se, p
-    if p.x >= wd.lv.goalX then StageClear wd.mu, wd.se, g
+    if p.at.y > MH * TS + 24 then Lose wd.mu, wd.se, p
+    if p.at.x >= wd.lv.goalX then StageClear wd.mu, wd.se, g
     Camera wd.lv, wd.zn, g, p, 0
 end sub
 
@@ -227,15 +227,15 @@ end sub
 ' with Charlie at its left; a while with them, then the picture fades. Whether it has.
 private function Met% (wd as World, g as Game, p as Hero, k as Pad, pt() as Part)
     dim idle as Pad, parted as integer
-    idle.r = p.x < wd.lv.famX - 108 and not p.win
+    idle.r = p.at.x < wd.lv.famX - 108 and not p.win
     MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, idle, pt()
-    if p.x > wd.lv.famX - 106 then
-        p.x = wd.lv.famX - 106
+    if p.at.x > wd.lv.famX - 106 then
+        p.at.x = wd.lv.famX - 106
         p.gsp = 0
-        p.vx = 0
+        p.vel.x = 0
         p.roll = 0
     end if
-    if p.ground and abs(p.gsp) < 5 and p.x >= wd.lv.famX - 108 then
+    if p.ground and abs(p.gsp) < 5 and p.at.x >= wd.lv.famX - 108 then
         p.win = -1
         p.face = 0
     end if

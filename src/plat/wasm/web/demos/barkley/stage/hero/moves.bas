@@ -62,7 +62,7 @@ sub MoveHero (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero, k
     if p.snow < 0 and not p.roll then p.snow = 1
     if p.snow > 0 then
         p.snow = 0
-        Burst se, pt(), p.x, p.y - 12, 12, 140, CWHITE
+        Burst se, pt(), p.at.x, p.at.y - 12, 12, 140, CWHITE
         Sfx mu, se, SPOP
     end if
     ' a ride lasts as long as its roll: come to a stand, hurt or thrown, the sled is left in pieces
@@ -79,14 +79,14 @@ sub MoveHero (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero, k
         hit = k.hit
         hold = k.jump
     end if
-    if p.barkT > 0 then p.barkT = p.barkT - STEPT
-    if p.vineT > 0 then p.vineT = p.vineT - STEPT
-    if k.bark and p.stun = 0 and p.barkT <= 0 then Bark lv, mu, se, p
+    if p.bark_t > 0 then p.bark_t = p.bark_t - STEPT
+    if p.vine_t > 0 then p.vine_t = p.vine_t - STEPT
+    if k.bark and p.stun = 0 and p.bark_t <= 0 then Bark lv, mu, se, p
     KeepJump mu, se, p, hit
     if p.coyote > 0 then p.coyote = p.coyote - STEPT
     if p.inv > 0 then p.inv = p.inv - STEPT
     if p.goat then Ride lv, p, l, r, d
-    p.lastx = p.x
+    p.last_x = p.at.x
     ' slid off a slope too steep for its speed, the keys are no help a while
     if p.slip > 0 and p.ground then
         l = 0
@@ -104,25 +104,25 @@ sub MoveHero (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero, k
         Airborne lv, gr, se, p, l, r, d, hold, pt()
     end if
     if lv.tide <> NONE then Soak lv, se, p, pt()
-    if p.x < 8 then
-        p.x = 8
+    if p.at.x < 8 then
+        p.at.x = 8
         p.gsp = 0
-        p.vx = 0
+        p.vel.x = 0
     end if
-    if p.x > lv.wpx - 8 then
-        p.x = lv.wpx - 8
+    if p.at.x > lv.wpx - 8 then
+        p.at.x = lv.wpx - 8
         p.gsp = 0
-        p.vx = 0
+        p.vel.x = 0
     end if
     if p.ground then
         v = abs(p.gsp)
     else
-        v = abs(p.vx)
+        v = abs(p.vel.x)
     end if
     if v < 5 and p.ground then
-        p.idleT = p.idleT + STEPT
+        p.idle_t = p.idle_t + STEPT
     else
-        p.idleT = 0
+        p.idle_t = 0
     end if
     if p.roll or p.charging then
         if p.charging then v = 300 + p.charge
@@ -145,7 +145,7 @@ private sub KeepJump (mu as Deck, se as Session, p as Hero, hit as integer)
         exit sub
     end if
     if p.coyote <= 0 then exit sub
-    p.vy = -JUMPV
+    p.vel.y = -JUMPV
     p.jumped = -1
     p.roll = -1
     p.coyote = 0
@@ -156,7 +156,7 @@ end sub
 ' Whether Charlie is on bare ice: it keeps his speed and will not give it back.
 private function Slick% (lv as Level, gr as Ground, p as Hero)
     Slick% = 0
-    if gr.pt(p.sg).k = 1 and p.x >= 0 then Slick% = lv.glaze(cint(p.x) \ TS)
+    if gr.pt(p.sg).k = 1 and p.at.x >= 0 then Slick% = lv.glaze(cint(p.at.x) \ TS)
 end function
 
 ' On the ground: wind up, jump, roll, run; then along it, a few pixels a
@@ -194,7 +194,7 @@ private sub Walk (lv as Level, gr as Ground, mu as Deck, se as Session, p as Her
         if gr.pt(i).k = 2 or p.gsp = 0 then continue for
         if Wall%(lv, p, sgn(p.gsp)) = 0 then continue for
         p.gsp = 0
-        p.y = gr.pt(i).y + (p.x - gr.pt(i).x) * gr.pt(i).v / gr.pt(i).u
+        p.at.y = gr.pt(i).y + (p.at.x - gr.pt(i).x) * gr.pt(i).v / gr.pt(i).u
         Along gr, p, 0
         if not p.ground then exit sub
     next
@@ -210,7 +210,7 @@ private function Winding% (mu as Deck, se as Session, p as Hero, d as integer, h
         p.charge = p.charge + 130
         if p.charge > CHARGEMAX then p.charge = CHARGEMAX
         Sfx mu, se, SCHARGE
-        Burst se, pt(), p.x - dir * 10, p.y - 2, 3, 70, CSTONE + 3
+        Burst se, pt(), p.at.x - dir * 10, p.at.y - 2, 3, 70, CSTONE + 3
     end if
     Winding% = d
     if d then exit function
@@ -231,8 +231,8 @@ private sub Leap (mu as Deck, se as Session, p as Hero)
     end if
     sn = sin(p.ang)
     cs = cos(p.ang)
-    p.vx = p.gsp * cs - JUMPV * sn
-    p.vy = -p.gsp * sn - JUMPV * cs
+    p.vel.x = p.gsp * cs - JUMPV * sn
+    p.vel.y = -p.gsp * sn - JUMPV * cs
     p.ground = 0
     p.roll = -1
     p.jumped = -1
@@ -275,7 +275,7 @@ private sub RunOn (mu as Deck, se as Session, p as Hero, l as integer, r as inte
         p.crouch = 0
         Sfx mu, se, SROLL
     end if
-    if p.skid and (se.ticks and 3) = 0 then Emit se, pt(), p.x, p.y - 1, -p.gsp * .1, -30, .4, CSTONE + 3
+    if p.skid and (se.ticks and 3) = 0 then Emit se, pt(), p.at.x, p.at.y - 1, -p.gsp * .1, -30, .4, CSTONE + 3
 end sub
 
 ' A key held, way 1 right or -1 left: against his speed a brake, and a skid; with it a push, up to his most.
@@ -307,7 +307,7 @@ private sub Falter (gr as Ground, p as Hero)
     if Twist!(gr, p) < 0 then exit sub
     if cos(Twist!(gr, p)) >= -.5 then exit sub
     Drop gr, p
-    p.y = p.y + 26
+    p.at.y = p.at.y + 26
 end sub
 
 ' In the air: gravity, steering, a jump cut short when let go; then a few
@@ -317,56 +317,56 @@ private sub Airborne (lv as Level, gr as Ground, se as Session, p as Hero, l as 
     p.crouch = 0
     p.charging = 0
     p.skid = 0
-    p.vy = p.vy + GRAV * STEPT
-    if p.vy > 900 then p.vy = 900
+    p.vel.y = p.vel.y + GRAV * STEPT
+    if p.vel.y > 900 then p.vel.y = 900
     if r then
         Steer p, 1
     elseif l then
         Steer p, -1
     end if
-    if p.jumped and not hold and p.vy < -JUMPCUT then p.vy = -JUMPCUT
-    m = abs(p.vx)
-    if abs(p.vy) > m then m = abs(p.vy)
+    if p.jumped and not hold and p.vel.y < -JUMPCUT then p.vel.y = -JUMPCUT
+    m = abs(p.vel.x)
+    if abs(p.vel.y) > m then m = abs(p.vel.y)
     n = 1 + int(m * STEPT / 8)
     for s = 1 to n
-        x0 = p.x
-        y0 = p.y
-        p.x = p.x + p.vx * STEPT / n
-        if p.vx <> 0 then if Wall%(lv, p, sgn(p.vx)) then p.vx = 0
-        p.y = p.y + p.vy * STEPT / n
-        fell = p.vy
+        x0 = p.at.x
+        y0 = p.at.y
+        p.at.x = p.at.x + p.vel.x * STEPT / n
+        if p.vel.x <> 0 then if Wall%(lv, p, sgn(p.vel.x)) then p.vel.x = 0
+        p.at.y = p.at.y + p.vel.y * STEPT / n
+        fell = p.vel.y
         landed = Curve%(gr, p, x0, y0, d)
         if landed then exit for
-        if p.vy < 0 then
+        if p.vel.y < 0 then
             Bonk lv, p
             continue for
         end if
-        fell = p.vy
+        fell = p.vel.y
         landed = Land%(lv, gr, p, d)
         if landed then exit for
     next
-    if landed and fell > 420 then Burst se, pt(), p.x, p.y - 2, 5, 60, CSTONE + 3
+    if landed and fell > 420 then Burst se, pt(), p.at.x, p.at.y - 2, 5, 60, CSTONE + 3
 end sub
 
 ' In the air a key held, way 1 right or -1 left: he turns that way and gathers speed, up to his most.
 private sub Steer (p as Hero, way as integer)
     dim v as single
     p.face = (1 - way) \ 2
-    v = p.vx * way
+    v = p.vel.x * way
     if v >= TOP then exit sub
     v = v + AIRACC * STEPT
     if v > TOP then v = TOP
-    p.vx = v * way
+    p.vel.x = v * way
 end sub
 
 ' Rising, his head against a ceiling: stopped under it.
 private sub Bonk (lv as Level, p as Hero)
     dim x as integer, y as integer
-    x = cint(p.x)
-    y = cint(p.y) - HH
+    x = cint(p.at.x)
+    y = cint(p.at.y) - HH
     if Solid%(lv, x, y) = 0 and Solid%(lv, x - 4, y) = 0 and Solid%(lv, x + 4, y) = 0 then exit sub
-    p.y = (y \ TS + 1) * TS + HH
-    p.vy = 0
+    p.at.y = (y \ TS + 1) * TS + HH
+    p.vel.y = 0
 end sub
 
 ' A cat barked at from fromX stands startled STARTLED steps, then prowls away from there: its state's size is the
@@ -381,15 +381,15 @@ end sub
 private sub Bark (lv as Level, mu as Deck, se as Session, p as Hero)
     dim i as integer, c as integer, dx as single, dy as single
     dim hung as integer, cowed as integer, early as integer
-    p.barkT = BARKT
+    p.bark_t = BARKT
     Sfx mu, se, SBARK
     if lv.murk then lv.glow = GLOWT
-    c = (cint(p.x) - BARKR - 40) \ TS
+    c = (cint(p.at.x) - BARKR - 40) \ TS
     if c < 0 then c = 0
     for i = lv.first(c) to lv.nObj - 1
-        if lv.ob(i).a > p.x + BARKR + 40 then exit for
-        dx = abs(lv.ob(i).x - p.x)
-        dy = abs(lv.ob(i).y - p.y)
+        if lv.ob(i).a > p.at.x + BARKR + 40 then exit for
+        dx = abs(lv.ob(i).x - p.at.x)
+        dy = abs(lv.ob(i).y - p.at.y)
         ' an icicle or a ledge's load is loosed from further under it than he can jump
         hung = lv.ob(i).k = KICICLE or lv.ob(i).k = KLOAD
         if hung and lv.ob(i).s = 0 and dx <= BARKR and dy < 140 then lv.ob(i).s = 1
@@ -398,17 +398,17 @@ private sub Bark (lv as Level, mu as Deck, se as Session, p as Hero)
         if cowed then lv.ob(i).s = sgn(lv.ob(i).s) * SQFRIGHT
         ' and a pouncer in its bin leaps early, at where he is
         early = lv.ob(i).k = KPOUNCE and lv.ob(i).s = 0 and dx <= BARKR and dy < 40
-        if early then lv.ob(i).s = 1 + 2 * (p.x < lv.ob(i).x)
+        if early then lv.ob(i).s = 1 + 2 * (p.at.x < lv.ob(i).x)
         if lv.ob(i).s = 0 or dx > BARKR or dy >= 40 then continue for
         select case lv.ob(i).k
-        case KCAT, KWALKER, KSNATCH: Flinch lv, i, cint(p.x)
+        case KCAT, KWALKER, KSNATCH: Flinch lv, i, cint(p.at.x)
         case KCRAB: lv.ob(i).s = sgn(lv.ob(i).s) * SHELLT
         case KTHROW: lv.ob(i).s = sgn(lv.ob(i).s) * THROWC
         end select
     next
     for i = 0 to lv.nGulls - 1
         if lv.gulls(i).st <= 0 then continue for
-        if abs(lv.gulls(i).x - p.x) >= GULLHEAR or abs(lv.gulls(i).y - p.y) >= GULLHEAR then continue for
+        if abs(lv.gulls(i).x - p.at.x) >= GULLHEAR or abs(lv.gulls(i).y - p.at.y) >= GULLHEAR then continue for
         lv.gulls(i).st = GSCARED
     next
 end sub

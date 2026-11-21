@@ -69,7 +69,7 @@ sub Render (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
     if wd.lv.lobN then DrawLobs wd.lv, wd.art, cx, cy
     if wd.lv.tide <> NONE then DrawSurf wd.lv, wd.art, cx, cy
     DrawOver wd.lv, wd.zn, wd.art, cx, cy
-    if p.barkT > BARKT - .2 then DrawBark p, cx, cy
+    if p.bark_t > BARKT - .2 then DrawBark p, cx, cy
     if wd.se.partN then DrawParts pt(), cx, cy
     select case g.mode
     case TITLE
@@ -94,9 +94,9 @@ sub Render (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
         Blit wd.art, 6, 5, IHUD, HUDW, HUDH
         if p.stun then
             Say p, cx, cy, "HEY!"
-        elseif p.idleT > 5 then
+        elseif p.idle_t > 5 then
             Say p, cx, cy, "C'MON!"
-        elseif p.idleT > 3 then
+        elseif p.idle_t > 3 then
             Say p, cx, cy, "..."
         end if
         if g.modeT < 2.6 then

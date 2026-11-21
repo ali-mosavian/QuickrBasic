@@ -92,11 +92,11 @@ sub Lines (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, pt() as
     dim i as integer, u as integer, y as integer
     if p.ground or p.swim or p.vine then p.hops = 0
     if p.ground then Glide lv, p
-    if p.ground or p.vy <= 0 or p.dead then exit sub
+    if p.ground or p.vel.y <= 0 or p.dead then exit sub
     for i = 0 to lv.nRope - 1
         ' a lantern line is ground, not a spring
         if lv.ropes(i).fall then continue for
-        u = cint(p.x) - lv.ropes(i).x
+        u = cint(p.at.x) - lv.ropes(i).x
         if u < 1 or u >= lv.ropes(i).w then continue for
         y = LineY%(lv.ropes(i), u)
         if not Trodden%(p, y) then continue for
@@ -119,13 +119,13 @@ end sub
 
 ' Whether his feet, falling, have come down through height y this step.
 private function Trodden% (p as Hero, y as integer)
-    Trodden% = not p.ground and p.vy > 0 and p.y >= y and p.y - p.vy * STEPT <= y + 2
+    Trodden% = not p.ground and p.vel.y > 0 and p.at.y >= y and p.at.y - p.vel.y * STEPT <= y + 2
 end function
 
 ' Thrown up from height y at v, his way kept.
 private sub Toss (p as Hero, y as integer, v as single)
-    p.y = y
-    p.vy = -v
+    p.at.y = y
+    p.vel.y = -v
     p.roll = 0
     p.jumped = 0
     p.sprung = -1
@@ -142,7 +142,7 @@ end sub
 
 ' An awning: come down on, its canvas throws him up, his way kept; from under he goes through it.
 sub MeetAwning (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
-    if p.dead or abs(lv.ob(i).x - p.x) >= AWNW or not Trodden%(p, lv.ob(i).y) then exit sub
+    if p.dead or abs(lv.ob(i).x - p.at.x) >= AWNW or not Trodden%(p, lv.ob(i).y) then exit sub
     Toss p, lv.ob(i).y, AWNV
     lv.ob(i).s = AWNT
     Sfx mu, se, SSPRING
@@ -151,10 +151,10 @@ end sub
 ' A chimney that leads on: come down into its pot, he goes down it for the one it leads to. A way out takes no
 ' one in.
 sub MeetChimney (lv as Level, mu as Deck, se as Session, p as Hero, i as integer, pt() as Part)
-    if lv.ob(i).s < 1 or p.dead or abs(lv.ob(i).x - p.x) >= FLUER then exit sub
+    if lv.ob(i).s < 1 or p.dead or abs(lv.ob(i).x - p.at.x) >= FLUER then exit sub
     if not Trodden%(p, lv.ob(i).y - FLUEH) then exit sub
     p.dig = lv.ob(i).s
-    p.vy = 0
+    p.vel.y = 0
     Burst se, pt(), csng(lv.ob(i).x), csng(lv.ob(i).y - FLUEH), 8, 90, CSOOT
     Sfx mu, se, SROLL
 end sub
@@ -191,7 +191,7 @@ sub Pounce (lv as Level, i as integer, p as Hero)
     dim n as integer, d as integer
     if lv.ob(i).s = POUNCEGONE then exit sub
     if lv.ob(i).s = 0 then
-        if abs(p.x - lv.ob(i).a) < POUNCER and abs(p.y - lv.ob(i).y) < 40 then Spring lv, i, p
+        if abs(p.at.x - lv.ob(i).a) < POUNCER and abs(p.at.y - lv.ob(i).y) < 40 then Spring lv, i, p
         exit sub
     end if
     n = abs(lv.ob(i).s)
@@ -209,15 +209,15 @@ end sub
 ' Pouncer i out of its bin, at him.
 sub Spring (lv as Level, i as integer, p as Hero)
     lv.ob(i).s = 1
-    if p.x < lv.ob(i).a then lv.ob(i).s = -1
+    if p.at.x < lv.ob(i).a then lv.ob(i).s = -1
 end sub
 
 ' A pouncer out of its bin: rolled or charged into it is beaten, else it scratches. In its bin it is not met.
 sub MeetPounce (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
     dim y as integer
-    if lv.ob(i).s = 0 or lv.ob(i).s = POUNCEGONE or abs(lv.ob(i).x - cint(p.x)) >= 15 then exit sub
+    if lv.ob(i).s = 0 or lv.ob(i).s = POUNCEGONE or abs(lv.ob(i).x - cint(p.at.x)) >= 15 then exit sub
     y = lv.ob(i).y - Leapt%(lv, i)
-    if abs(y - 6 - cint(p.y) + 13) >= 17 then exit sub
+    if abs(y - 6 - cint(p.at.y) + 13) >= 17 then exit sub
     Tackle lv, mu, se, g, p, i, 6 + Leapt%(lv, i), lo(), pt()
     if lv.ob(i).s = 0 then lv.ob(i).s = POUNCEGONE
 end sub
@@ -283,9 +283,9 @@ end sub
 sub MeetTipper (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose)
     dim d as integer, foot as integer
     d = PotFall%(lv, se, i)
-    if d = NONE or abs(lv.ob(i).x + POTX - cint(p.x)) >= POTR then exit sub
+    if d = NONE or abs(lv.ob(i).x + POTX - cint(p.at.x)) >= POTR then exit sub
     foot = lv.ob(i).y - SILLUP + d
-    if foot > p.y - 28 and foot - 14 < p.y then Hurt mu, se, g, p, lv.ob(i).x + POTX, lo(), SHURT
+    if foot > p.at.y - 28 and foot - 14 < p.at.y then Hurt mu, se, g, p, lv.ob(i).x + POTX, lo(), SHURT
 end sub
 
 ' Tipper i, its house's middle at x and its foot at y on the screen: the house; its cat at the upper window, a paw
@@ -312,10 +312,10 @@ sub MeetMortar (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i 
     dim q as long, dx as integer, up as integer
     q = Fired&(lv, se, i)
     if q >= FLASHP then exit sub
-    dx = abs(lv.ob(i).x - cint(p.x))
-    up = lv.ob(i).y - MORTARH - cint(p.y)
+    dx = abs(lv.ob(i).x - cint(p.at.x))
+    up = lv.ob(i).y - MORTARH - cint(p.at.y)
     if q < se.tempo and dx < MORTARW and up >= 0 and up < MORTARREACH and not p.ground then
-        Toss p, cint(p.y), MORTARV
+        Toss p, cint(p.at.y), MORTARV
         exit sub
     end if
     if dx < BLASTW and abs(up + MORTARH) < 12 then Hurt mu, se, g, p, lv.ob(i).x, lo(), SHURT

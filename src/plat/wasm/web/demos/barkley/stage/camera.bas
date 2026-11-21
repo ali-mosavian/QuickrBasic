@@ -16,23 +16,23 @@ sub Camera (lv as Level, zn as Realm, g as Game, p as Hero, snap as integer)
     if p.ground then
         v = p.gsp
     else
-        v = p.vx
+        v = p.vel.x
     end if
     v = v * .2
     if v > 70 then v = 70
     if v < -70 then v = -70
-    tx = p.x - SW \ 2 + v
-    ty = p.y - Headroom%(lv, zn, p)
+    tx = p.at.x - SW \ 2 + v
+    ty = p.at.y - Headroom%(lv, zn, p)
     if snap then
         g.camx = tx
         g.camy = ty
     else
         g.camx = g.camx + (tx - g.camx) * 7 * STEPT
         g.camy = g.camy + (ty - g.camy) * 6 * STEPT
-        if p.x - g.camx > 250 then g.camx = p.x - 250
-        if p.x - g.camx < 70 then g.camx = p.x - 70
-        if p.y - g.camy > 172 then g.camy = p.y - 172
-        if p.y - g.camy < 48 then g.camy = p.y - 48
+        if p.at.x - g.camx > 250 then g.camx = p.at.x - 250
+        if p.at.x - g.camx < 70 then g.camx = p.at.x - 70
+        if p.at.y - g.camy > 172 then g.camy = p.at.y - 172
+        if p.at.y - g.camy < 48 then g.camy = p.at.y - 48
     end if
     if g.camx < 0 then g.camx = 0
     if g.camx > lv.wpx - SW then g.camx = lv.wpx - SW
@@ -44,7 +44,7 @@ end sub
 ' under the great oak while the twins have the ball.
 function Headroom% (lv as Level, zn as Realm, p as Hero)
     Headroom% = HEAD
-    if lv.chaseX = NONE or p.x < lv.chaseX or p.x > lv.chaseEnd then exit function
+    if lv.chaseX = NONE or p.at.x < lv.chaseX or p.at.x > lv.chaseEnd then exit function
     if zn.id = 1 and (lv.cart.st = 1 or lv.cart.st = 2) then Headroom% = HEADUP
     if zn.id = 4 and lv.cart.st = 1 then Headroom% = HEADUP
 end function

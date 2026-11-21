@@ -129,7 +129,7 @@ sub Movers (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero)
         lv.ob(o).x = cint(x)
         lv.ob(o).y = cint(y)
         if not p.ground or p.sg <> s then continue for
-        p.x = p.x + dx
-        p.y = p.y + dy
+        p.at.x = p.at.x + dx
+        p.at.y = p.at.y + dy
     next
 end sub

@@ -122,9 +122,9 @@ end function
 ' Charlie's side toward dir in a wall: pushed out, and true.
 function Wall% (lv as Level, p as Hero, dir as integer)
     dim n as integer, y as integer
-    y = cint(p.y)
-    do while Solid%(lv, cint(p.x) + dir * HW, y - 11) or Solid%(lv, cint(p.x) + dir * HW, y - HH + 4)
-        p.x = p.x - dir
+    y = cint(p.at.y)
+    do while Solid%(lv, cint(p.at.x) + dir * HW, y - 11) or Solid%(lv, cint(p.at.x) + dir * HW, y - HH + 4)
+        p.at.x = p.at.x - dir
         n = n + 1
         if n > TS then exit do
     loop
@@ -134,8 +134,8 @@ end function
 ' Falling Charlie's feet in the tiles' ground: on the line's stretch there, its speed along it kept.
 function Land% (lv as Level, gr as Ground, p as Hero, d as integer)
     dim x as integer, y as integer, l as integer, c as integer, r as integer, s as integer
-    x = cint(p.x)
-    y = cint(p.y)
+    x = cint(p.at.x)
+    y = cint(p.at.y)
     l = Surf%(lv, x - 6, y)
     c = Surf%(lv, x, y)
     r = Surf%(lv, x + 6, y)
@@ -152,18 +152,18 @@ function Land% (lv as Level, gr as Ground, p as Hero, d as integer)
     elseif l < r then
         s = SegAt%(lv, gr, x - 6, csng(l))
         ' going off that edge, not onto it: no ground
-        if p.vx > 0 then s = -1
+        if p.vel.x > 0 then s = -1
     else
         s = SegAt%(lv, gr, x + 6, csng(r))
-        if p.vx < 0 then s = -1
+        if p.vel.x < 0 then s = -1
     end if
     if s < 0 then
         Land% = 0
         exit function
     end if
-    if p.x < gr.pt(s).x then p.x = gr.pt(s).x
-    if p.x > gr.pt(s + 1).x then p.x = gr.pt(s + 1).x
-    p.y = gr.pt(s).y + (p.x - gr.pt(s).x) * gr.pt(s).v / gr.pt(s).u
+    if p.at.x < gr.pt(s).x then p.at.x = gr.pt(s).x
+    if p.at.x > gr.pt(s + 1).x then p.at.x = gr.pt(s + 1).x
+    p.at.y = gr.pt(s).y + (p.at.x - gr.pt(s).x) * gr.pt(s).v / gr.pt(s).u
     Settle gr, p, s, d
     Land% = -1
 end function
@@ -172,7 +172,7 @@ end function
 private sub Settle (gr as Ground, p as Hero, s as integer, d as integer)
     p.sg = s
     p.ang = gr.pt(s).a
-    p.gsp = p.vx * gr.pt(s).u + p.vy * gr.pt(s).v
+    p.gsp = p.vel.x * gr.pt(s).u + p.vel.y * gr.pt(s).v
     if p.jumped and not d and not p.sled then p.roll = 0
     ' hit, it lands where it is and stands afraid a while
     if p.stun then p.gsp = 0
@@ -190,32 +190,32 @@ function Curve% (gr as Ground, p as Hero, x0 as single, y0 as single, d as integ
     dim d0 as single, d1 as single, t as single, f as single
     Curve% = 0
     for z = 0 to gr.nz - 1
-        if p.x < gr.cv(z).l - 8 or p.x > gr.cv(z).r + 8 then continue for
+        if p.at.x < gr.cv(z).l - 8 or p.at.x > gr.cv(z).r + 8 then continue for
         a = gr.cv(z).a
         b = gr.cv(z).b
         LoopHalf gr, p, z, x0, a, b
         for s = a to b
-            d1 = (p.x - gr.pt(s).x) * gr.pt(s).v - (p.y - gr.pt(s).y) * gr.pt(s).u
-            if d1 >= 0 or p.vx * gr.pt(s).v - p.vy * gr.pt(s).u >= -1 then continue for
+            d1 = (p.at.x - gr.pt(s).x) * gr.pt(s).v - (p.at.y - gr.pt(s).y) * gr.pt(s).u
+            if d1 >= 0 or p.vel.x * gr.pt(s).v - p.vel.y * gr.pt(s).u >= -1 then continue for
             d0 = (x0 - gr.pt(s).x) * gr.pt(s).v - (y0 - gr.pt(s).y) * gr.pt(s).u
-            t = (p.x - gr.pt(s).x) * gr.pt(s).u + (p.y - gr.pt(s).y) * gr.pt(s).v
+            t = (p.at.x - gr.pt(s).x) * gr.pt(s).u + (p.at.y - gr.pt(s).y) * gr.pt(s).v
             ' from just behind it too, at a join; not behind a wall
             ' and from further behind a platform, which moves
             near = d0 > -1 + 3 * (gr.pt(s).k = 3) and (d0 >= 0 or gr.pt(s).u >= .35)
             if near = 0 or t < -1 or t > gr.pt(s).l + 1 then continue for
             if t < 0 then t = 0
             if t > gr.pt(s).l then t = gr.pt(s).l
-            p.x = gr.pt(s).x + gr.pt(s).u * t
-            p.y = gr.pt(s).y + gr.pt(s).v * t
-            f = p.vx * gr.pt(s).u + p.vy * gr.pt(s).v
+            p.at.x = gr.pt(s).x + gr.pt(s).u * t
+            p.at.y = gr.pt(s).y + gr.pt(s).v * t
+            f = p.vel.x * gr.pt(s).u + p.vel.y * gr.pt(s).v
             if gr.pt(s).u >= .35 or abs(f) >= STALL then
                 Settle gr, p, s, d
                 Curve% = -1
             else
-                p.x = p.x + gr.pt(s).v
-                p.y = p.y - gr.pt(s).u
-                p.vx = f * gr.pt(s).u
-                p.vy = f * gr.pt(s).v
+                p.at.x = p.at.x + gr.pt(s).v
+                p.at.y = p.at.y - gr.pt(s).u
+                p.vel.x = f * gr.pt(s).u
+                p.vel.y = f * gr.pt(s).v
             end if
             exit function
         next
@@ -240,7 +240,7 @@ end sub
 sub Along (gr as Ground, p as Hero, d as single)
     dim i as integer, j as integer, a as integer, t as single, cr as single, dt as single
     i = p.sg
-    t = (p.x - gr.pt(i).x) * gr.pt(i).u + (p.y - gr.pt(i).y) * gr.pt(i).v + d
+    t = (p.at.x - gr.pt(i).x) * gr.pt(i).u + (p.at.y - gr.pt(i).y) * gr.pt(i).v + d
     do
         if t > gr.pt(i).l then
             j = i + 1
@@ -260,8 +260,8 @@ sub Along (gr as Ground, p as Hero, d as single)
         if j < 0 then
             if t >= 0 then t = gr.pt(i).l
             if t < 0 then t = 0
-            p.x = gr.pt(i).x + gr.pt(i).u * t
-            p.y = gr.pt(i).y + gr.pt(i).v * t
+            p.at.x = gr.pt(i).x + gr.pt(i).u * t
+            p.at.y = gr.pt(i).y + gr.pt(i).v * t
             Drop gr, p
             exit sub
         end if
@@ -275,8 +275,8 @@ sub Along (gr as Ground, p as Hero, d as single)
     loop
     p.sg = i
     p.ang = gr.pt(i).a
-    p.x = gr.pt(i).x + gr.pt(i).u * t
-    p.y = gr.pt(i).y + gr.pt(i).v * t
+    p.at.x = gr.pt(i).x + gr.pt(i).u * t
+    p.at.y = gr.pt(i).y + gr.pt(i).v * t
 end sub
 
 ' Over a crease that turns the ground up: speed is lost by the turn's cosine dt, and so is how far he is past the
@@ -298,13 +298,13 @@ sub Drop (gr as Ground, p as Hero)
     dim i as integer
     i = p.sg
     p.ground = 0
-    p.vx = p.gsp * gr.pt(i).u
-    p.vy = p.gsp * gr.pt(i).v
+    p.vel.x = p.gsp * gr.pt(i).u
+    p.vel.y = p.gsp * gr.pt(i).v
     if gr.pt(i).u > .7 then
         p.coyote = COYOTE
     elseif gr.pt(i).u < .35 then
-        p.x = p.x + 2 * gr.pt(i).v
-        p.y = p.y - 2 * gr.pt(i).u
+        p.at.x = p.at.x + 2 * gr.pt(i).v
+        p.at.y = p.at.y - 2 * gr.pt(i).u
     end if
 end sub
 
@@ -326,8 +326,8 @@ function Twist! (gr as Ground, p as Hero)
     if not p.ground then exit function
     for z = 0 to gr.nz - 1
         if gr.cv(z).m <> -2 or p.sg < gr.cv(z).a or p.sg > gr.cv(z).b then continue for
-        t = (p.x - gr.cv(z).l - 8) / (2 * WAVEL)
-        if t < 0 or p.x > gr.cv(z).r - 8 then t = 0
+        t = (p.at.x - gr.cv(z).l - 8) / (2 * WAVEL)
+        if t < 0 or p.at.x > gr.cv(z).r - 8 then t = 0
         Twist! = (t - int(t)) * 2 * PI
         exit function
     next
@@ -347,12 +347,12 @@ end sub
 ' Charlie stopped r from x, on the side of it he is.
 sub Balk (p as Hero, x as integer, r as integer)
     dim s as integer
-    s = 1 + 2 * (p.x < x)
-    p.x = x + s * r
+    s = 1 + 2 * (p.at.x < x)
+    p.at.x = x + s * r
     if p.ground then
         if p.gsp * s < 0 then p.gsp = 0
-    elseif p.vx * s < 0 then
-        p.vx = 0
+    elseif p.vel.x * s < 0 then
+        p.vel.x = 0
     end if
 end sub
 

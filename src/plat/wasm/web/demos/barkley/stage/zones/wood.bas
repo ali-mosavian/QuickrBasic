@@ -77,14 +77,14 @@ end function
 ' it stands sprung a moment before it bows again.
 sub MeetSapling (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
     dim py as integer, v as single
-    py = cint(p.y)
-    if lv.ob(i).s > 0 or abs(lv.ob(i).x + SAPREACH - cint(p.x)) >= 10 then exit sub
-    if py < lv.ob(i).y - 12 or py > lv.ob(i).y + 2 or (not p.ground and p.vy < 0) then exit sub
-    if p.ground then p.vx = p.gsp
-    v = SAPV + SAPGAIN * abs(p.vx)
+    py = cint(p.at.y)
+    if lv.ob(i).s > 0 or abs(lv.ob(i).x + SAPREACH - cint(p.at.x)) >= 10 then exit sub
+    if py < lv.ob(i).y - 12 or py > lv.ob(i).y + 2 or (not p.ground and p.vel.y < 0) then exit sub
+    if p.ground then p.vel.x = p.gsp
+    v = SAPV + SAPGAIN * abs(p.vel.x)
     if v > SAPMAX then v = SAPMAX
     p.ground = 0
-    p.vy = -v
+    p.vel.y = -v
     p.roll = 0
     p.jumped = 0
     p.sprung = -1
@@ -94,11 +94,11 @@ end sub
 
 ' A vine's end reached in the air, and no vine just let go: he hangs from it, his way become its swing.
 sub MeetVine (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
-    if p.vine or p.vineT > 0 or p.ground or p.swim or p.stun or p.dead then exit sub
-    if abs(p.x - lv.ob(i).x) >= 12 or abs(p.y - VINEGRIP - lv.ob(i).y - VINELEN) >= 12 then exit sub
+    if p.vine or p.vine_t > 0 or p.ground or p.swim or p.stun or p.dead then exit sub
+    if abs(p.at.x - lv.ob(i).x) >= 12 or abs(p.at.y - VINEGRIP - lv.ob(i).y - VINELEN) >= 12 then exit sub
     p.vine = i + 1
-    p.sway = (p.x - lv.ob(i).x) / VINELEN
-    p.swayV = p.vx / VINELEN
+    p.sway = (p.at.x - lv.ob(i).x) / VINELEN
+    p.sway_v = p.vel.x / VINELEN
     p.roll = 0
     p.jumped = 0
     p.sprung = 0
@@ -107,8 +107,8 @@ end sub
 
 ' Bramble: it hurts him, but curled he cuts through it.
 sub MeetBramble (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose)
-    if lv.ob(i).s > 0 or abs(lv.ob(i).x - p.x) >= BRAMBLER then exit sub
-    if p.y < lv.ob(i).y - 24 or p.y > lv.ob(i).y + 8 then exit sub
+    if lv.ob(i).s > 0 or abs(lv.ob(i).x - p.at.x) >= BRAMBLER then exit sub
+    if p.at.y < lv.ob(i).y - 24 or p.at.y > lv.ob(i).y + 8 then exit sub
     if not p.roll then
         Hurt mu, se, g, p, lv.ob(i).x, lo(), SHURT
         exit sub
@@ -121,18 +121,18 @@ end sub
 ' back till he has stepped off it.
 sub MeetMound (lv as Level, mu as Deck, se as Session, p as Hero, i as integer, pt() as Part)
     dim onIt as integer
-    onIt = abs(lv.ob(i).x - p.x) < MOUNDR
+    onIt = abs(lv.ob(i).x - p.at.x) < MOUNDR
     if p.dug = i + 1 then
         if not onIt then p.dug = 0
         exit sub
     end if
-    if not (onIt and p.crouch and p.ground) or abs(lv.ob(i).y - p.y) >= 8 or lv.ob(i).s < 1 then exit sub
+    if not (onIt and p.crouch and p.ground) or abs(lv.ob(i).y - p.at.y) >= 8 or lv.ob(i).s < 1 then exit sub
     p.dig = lv.ob(i).s
     p.ground = 0
     p.crouch = 0
     p.gsp = 0
-    p.vy = 0
-    Burst se, pt(), p.x, p.y - 4, 10, 140, CLOAM
+    p.vel.y = 0
+    Burst se, pt(), p.at.x, p.at.y - 4, 10, 140, CLOAM
     Sfx mu, se, SROLL
 end sub
 
@@ -140,7 +140,7 @@ end sub
 ' leaves it at LOGV. Its state: he is in it.
 sub MeetLog (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
     dim s as integer
-    if abs(lv.ob(i).x - p.x) >= LOGR or p.y <= lv.ob(i).y - LOGH or p.y > lv.ob(i).y + 4 then
+    if abs(lv.ob(i).x - p.at.x) >= LOGR or p.at.y <= lv.ob(i).y - LOGH or p.at.y > lv.ob(i).y + 4 then
         lv.ob(i).s = 0
         exit sub
     end if
@@ -172,8 +172,8 @@ end sub
 ' BEELOSE behind, it goes home.
 private sub Buzz (mu as Deck, se as Session, b as Swarm, g as Game, p as Hero, lo() as Loose)
     dim dx as single, dy as single, d as single
-    dx = p.x - b.x
-    dy = p.y - 13 - b.y
+    dx = p.at.x - b.x
+    dy = p.at.y - 13 - b.y
     d = sqr(dx * dx + dy * dy)
     if d < BEESEE then b.st = 1
     if b.st = 1 and d > BEELOSE then b.st = 2
@@ -251,8 +251,8 @@ sub Scamper (lv as Level, i as integer, p as Hero)
     dim n as integer, d as integer, perch as integer, quarry as integer
     n = abs(lv.ob(i).s) - 1
     d = sgn(lv.ob(i).s)
-    quarry = abs(p.x - lv.ob(i).a) < SQRUN + SQSEE and p.y > lv.ob(i).y
-    if n = 0 and quarry and abs(p.x - lv.ob(i).x) >= SQNEAR then n = 1
+    quarry = abs(p.at.x - lv.ob(i).a) < SQRUN + SQSEE and p.at.y > lv.ob(i).y
+    if n = 0 and quarry and abs(p.at.x - lv.ob(i).x) >= SQNEAR then n = 1
     if n = 0 then
         if quarry then Loft lv, lv.ob(i).x + 5 * d, lv.ob(i).y + 1, 0, 0, IACORN, CNUT
         n = SQWAIT
@@ -260,7 +260,7 @@ sub Scamper (lv as Level, i as integer, p as Hero)
     lv.ob(i).s = d * n
     if n <= SQAIM or n > SQWAIT then exit sub
     perch = lv.ob(i).a
-    if quarry then perch = cint(p.x)
+    if quarry then perch = cint(p.at.x)
     if perch < lv.ob(i).a - SQRUN then perch = lv.ob(i).a - SQRUN
     if perch > lv.ob(i).a + SQRUN then perch = lv.ob(i).a + SQRUN
     if abs(perch - lv.ob(i).x) < SQV then exit sub

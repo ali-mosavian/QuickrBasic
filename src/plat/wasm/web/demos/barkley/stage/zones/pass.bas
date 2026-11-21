@@ -71,8 +71,8 @@ private sub Board (lv as Level, mu as Deck, se as Session, p as Hero, i as integ
     p.face = 0
     if p.ground then
         if p.gsp < SLEDV then p.gsp = SLEDV
-    elseif p.vx < SLEDV then
-        p.vx = SLEDV
+    elseif p.vel.x < SLEDV then
+        p.vel.x = SLEDV
     end if
     Sfx mu, se, SROLL
 end sub
@@ -81,8 +81,8 @@ end sub
 sub MeetIcicle (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
     dim x as integer, dx as integer, py as integer, y as integer
     x = lv.ob(i).x
-    dx = abs(x - cint(p.x))
-    py = cint(p.y)
+    dx = abs(x - cint(p.at.x))
+    py = cint(p.at.y)
     if lv.ob(i).s = 0 and dx < 20 and py > lv.ob(i).y and py < lv.ob(i).y + 140 then lv.ob(i).s = 1
     y = lv.ob(i).y + Fallen%(lv, i)
     if lv.ob(i).s <= TREMBLE or dx >= 9 or py <= y or py - 26 >= y + 16 then exit sub
@@ -93,14 +93,14 @@ end sub
 ' A sled left on the snow: landed on or run onto, he boards it.
 sub MeetSled (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
     if lv.ob(i).s <> 0 or p.sled or p.stun then exit sub
-    if not p.ground and p.vy <= 0 then exit sub
-    if abs(lv.ob(i).x - cint(p.x)) >= 14 or abs(cint(p.y) - lv.ob(i).y + 5) >= 10 then exit sub
+    if not p.ground and p.vel.y <= 0 then exit sub
+    if abs(lv.ob(i).x - cint(p.at.x)) >= 14 or abs(cint(p.at.y) - lv.ob(i).y + 5) >= 10 then exit sub
     Board lv, mu, se, p, i
 end sub
 
 ' Deep snow: it stops a sled dead and he tumbles out of it; rolled through, it packs round him.
 sub MeetDrift (lv as Level, mu as Deck, se as Session, p as Hero, i as integer, pt() as Part)
-    if not p.ground or abs(lv.ob(i).x - cint(p.x)) >= 22 or abs(cint(p.y) - lv.ob(i).y) >= 8 then exit sub
+    if not p.ground or abs(lv.ob(i).x - cint(p.at.x)) >= 22 or abs(cint(p.at.y) - lv.ob(i).y) >= 8 then exit sub
     if p.sled then
         Alight mu, se, p, pt(), CWHITE
         p.roll = 0
@@ -109,7 +109,7 @@ sub MeetDrift (lv as Level, mu as Deck, se as Session, p as Hero, i as integer, 
     end if
     if p.roll = 0 or p.snow <> 0 or abs(p.gsp) < SNOWV then exit sub
     p.snow = -1
-    Burst se, pt(), p.x, p.y - 8, 8, 100, CWHITE
+    Burst se, pt(), p.at.x, p.at.y - 8, 8, 100, CWHITE
     Sfx mu, se, SROLL
 end sub
 
@@ -155,7 +155,7 @@ end function
 ' view, and takes him where it reaches him.
 sub Avalanche (lv as Level, mu as Deck, se as Session, g as Game, p as Hero)
     if lv.aval.st = 0 then
-        if p.x < lv.avalX then exit sub
+        if p.at.x < lv.avalX then exit sub
         lv.aval.st = 1
         lv.aval.x = lv.avalX - AVALLEAD
         g.shake = .5
@@ -163,7 +163,7 @@ sub Avalanche (lv as Level, mu as Deck, se as Session, g as Game, p as Hero)
     end if
     lv.aval.x = lv.aval.x + AVALV * STEPT
     if (se.ticks and 15) = 0 and lv.aval.x > g.camx - 40 then g.shake = .12
-    if lv.aval.x > p.x - 6 then Lose mu, se, p
+    if lv.aval.x > p.at.x - 6 then Lose mu, se, p
 end sub
 
 ' The avalanche over the view: its snow from the view's left to its front, AVALH deep on the ground it has
@@ -243,14 +243,14 @@ sub Graze (lv as Level, se as Session, i as integer, p as Hero)
             f = sgn(lv.ob(i).a - lv.ob(i).x)
             lv.ob(i).x = lv.ob(i).x + f * GOATSTEP \ 2
         else
-            f = 1 + 2 * (p.x < lv.ob(i).x)
-            x = abs(p.x - lv.ob(i).x) < GOATSEE and abs(p.y - lv.ob(i).y) < 30
+            f = 1 + 2 * (p.at.x < lv.ob(i).x)
+            x = abs(p.at.x - lv.ob(i).x) < GOATSEE and abs(p.at.y - lv.ob(i).y) < 30
             if x and p.goat = 0 and (not lv.gale or Lull%(lv, se) > GUSTP \ 2) then s = GOATWIND + 1
         end if
     case 2: s = GCHARGE
     case GCHARGE
         x = lv.ob(i).x + f * GOATSTEP
-        if (p.x - x) * f < 0 or abs(x - lv.ob(i).a) > GOATRUN or Surf%(lv, x + f * 12, lv.ob(i).y) <> lv.ob(i).y then
+        if (p.at.x - x) * f < 0 or abs(x - lv.ob(i).a) > GOATRUN or Surf%(lv, x + f * 12, lv.ob(i).y) <> lv.ob(i).y then
             s = GCHARGE + GOATDAZE
         else
             lv.ob(i).x = x
@@ -266,10 +266,10 @@ end sub
 sub MeetGoat (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose)
     dim s as integer
     s = abs(lv.ob(i).s)
-    if s = 0 or p.goat or abs(lv.ob(i).x - p.x) >= 16 or p.y < lv.ob(i).y - 30 or p.y > lv.ob(i).y + 8 then exit sub
-    if not p.ground and p.vy > 0 and p.y < lv.ob(i).y - 6 and not p.sled then
+    if s = 0 or p.goat or abs(lv.ob(i).x - p.at.x) >= 16 or p.at.y < lv.ob(i).y - 30 or p.at.y > lv.ob(i).y + 8 then exit sub
+    if not p.ground and p.vel.y > 0 and p.at.y < lv.ob(i).y - 6 and not p.sled then
         Mount lv, mu, se, p, i
-    elseif s > 1 and s <= GCHARGE and p.y > lv.ob(i).y - 18 then
+    elseif s > 1 and s <= GCHARGE and p.at.y > lv.ob(i).y - 18 then
         Hurt mu, se, g, p, lv.ob(i).x, lo(), SHURT
     end if
 end sub
@@ -284,12 +284,12 @@ private sub Mount (lv as Level, mu as Deck, se as Session, p as Hero, i as integ
     lv.ob(i).s = 0
     lv.ob(i).x = lv.ob(i).a
     p.goat = -1
-    p.rideT = 0
-    p.x = lv.stray.x
-    p.y = lv.stray.y - 1
+    p.ride_t = 0
+    p.at.x = lv.stray.x
+    p.at.y = lv.stray.y - 1
     p.face = 0
-    p.vx = GOATV
-    p.vy = 60
+    p.vel.x = GOATV
+    p.vel.y = 60
     p.roll = 0
     p.jumped = 0
     Sfx mu, se, SBUMP
@@ -308,8 +308,8 @@ end sub
 
 ' An ice wall across the road: he is stopped at it; a goat ridden goes through, and leaves its stump.
 sub MeetWall (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, pt() as Part)
-    if lv.ob(i).s = 0 or abs(lv.ob(i).x - p.x) >= WALLR then exit sub
-    if p.y <= lv.ob(i).y - WALLH or p.y > lv.ob(i).y + 20 then exit sub
+    if lv.ob(i).s = 0 or abs(lv.ob(i).x - p.at.x) >= WALLR then exit sub
+    if p.at.y <= lv.ob(i).y - WALLH or p.at.y > lv.ob(i).y + 20 then exit sub
     if p.goat then
         lv.ob(i).s = 0
         g.score = g.score + 100
@@ -326,11 +326,11 @@ end sub
 sub MeetHeap (lv as Level, p as Hero, i as integer)
     dim h as single, r as integer
     if lv.ob(i).s = 0 then exit sub
-    h = lv.ob(i).y - p.y
+    h = lv.ob(i).y - p.at.y
     if h >= HEAPH or h < -20 then exit sub
     if h < 0 then h = 0
     r = cint(HEAPR * (1 - h / HEAPH))
-    if abs(p.x - lv.ob(i).x) < r then Balk p, lv.ob(i).x, r
+    if abs(p.at.x - lv.ob(i).x) < r then Balk p, lv.ob(i).x, r
 end sub
 
 ' The goat not ridden within 150 of x, NONE when there is none.
@@ -407,26 +407,26 @@ end function
 ' Thrower i's snowball, from its paw, lobbed to land where Charlie is now; none if he is far.
 private sub Hurl (lv as Level, i as integer, p as Hero)
     dim x as single, y as single
-    if abs(p.x - lv.ob(i).x) > THROWR or abs(p.y - lv.ob(i).y) > 60 then exit sub
+    if abs(p.at.x - lv.ob(i).x) > THROWR or abs(p.at.y - lv.ob(i).y) > 60 then exit sub
     x = lv.ob(i).x + 6 * sgn(lv.ob(i).s)
     y = lv.ob(i).y - 20
-    Loft lv, x, y, (p.x - x) / LOBT, (p.y - 12 - y) / LOBT - GRAV * LOBT / 2, ILOB, CWHITE
+    Loft lv, x, y, (p.at.x - x) / LOBT, (p.at.y - 12 - y) / LOBT - GRAV * LOBT / 2, ILOB, CWHITE
 end sub
 
 ' A snow-thrower met: ducked, its wall throws him back, neither hurt; up, it is a cat, beaten by a roll.
 sub MeetThrow (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
     dim s as integer
-    if lv.ob(i).s = 0 or abs(lv.ob(i).x - p.x) >= 16 or p.y < lv.ob(i).y - 22 or p.y > lv.ob(i).y + 8 then exit sub
+    if lv.ob(i).s = 0 or abs(lv.ob(i).x - p.at.x) >= 16 or p.at.y < lv.ob(i).y - 22 or p.at.y > lv.ob(i).y + 8 then exit sub
     if Risen%(lv, i) then
         Tackle lv, mu, se, g, p, i, 8, lo(), pt()
         exit sub
     end if
-    s = 1 + 2 * (p.x < lv.ob(i).x)
-    p.x = lv.ob(i).x + s * 16
+    s = 1 + 2 * (p.at.x < lv.ob(i).x)
+    p.at.x = lv.ob(i).x + s * 16
     if p.ground then
         p.gsp = s * 150
     else
-        p.vx = s * 150
+        p.vel.x = s * 150
     end if
     Sfx mu, se, SBUMP
 end sub
@@ -450,7 +450,7 @@ sub Unload (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() a
     lv.ob(i).s = -1
     lv.ob(h).s = 1
     Bury lv, mu, se, g, pt(), h
-    if abs(p.x - lv.ob(h).x) >= HEAPR or abs(p.y - lv.ob(h).y) >= HEAPH then exit sub
+    if abs(p.at.x - lv.ob(h).x) >= HEAPR or abs(p.at.y - lv.ob(h).y) >= HEAPH then exit sub
     Hurt mu, se, g, p, lv.ob(h).x, lo(), SHURT
 end sub
 
@@ -474,6 +474,6 @@ sub TakeAim (lv as Level, i as integer, p as Hero)
     if lv.ob(i).s = 0 then exit sub
     s = abs(lv.ob(i).s) - 1
     if s = 0 then s = THROWC
-    lv.ob(i).s = s * (1 + 2 * (p.x > lv.ob(i).x))
+    lv.ob(i).s = s * (1 + 2 * (p.at.x > lv.ob(i).x))
     if s = THROWAT then Hurl lv, i, p
 end sub

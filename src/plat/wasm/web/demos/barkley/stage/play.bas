@@ -34,8 +34,8 @@ const JELLYD = 10
 sub Spawn (lv as Level, gr as Ground, zn as Realm, mu as Deck, g as Game, p as Hero)
     dim fresh as Hero
     p = fresh
-    p.x = g.homeX
-    p.y = g.homeY
+    p.at.x = g.homeX
+    p.at.y = g.homeY
     p.ground = -1
     p.sg = SegAt%(lv, gr, g.homeX, csng(g.homeY))
     g.bones = 0
@@ -50,8 +50,8 @@ sub Touch (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as 
     ' under the ground nothing is met
     if p.dig then exit sub
     if lv.nRope then Lines lv, mu, se, g, p, pt()
-    px = cint(p.x)
-    py = cint(p.y)
+    px = cint(p.at.x)
+    py = cint(p.at.y)
     c = (px - 80) \ TS
     if c < 0 then c = 0
     i = lv.first(c)
@@ -112,10 +112,10 @@ end sub
 
 ' Out: Charlie rises and falls through everything; then the next life.
 sub Dying (lv as Level, gr as Ground, zn as Realm, mu as Deck, g as Game, p as Hero)
-    p.deadT = p.deadT + STEPT
-    p.vy = p.vy + GRAV * STEPT
-    p.y = p.y + p.vy * STEPT
-    if p.deadT < 2 then exit sub
+    p.dead_t = p.dead_t + STEPT
+    p.vel.y = p.vel.y + GRAV * STEPT
+    p.at.y = p.at.y + p.vel.y * STEPT
+    if p.dead_t < 2 then exit sub
     g.lives = g.lives - 1
     if g.lives <= 0 then
         g.mode = OVER

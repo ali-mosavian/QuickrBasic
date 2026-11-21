@@ -26,8 +26,8 @@ const LOGR = 32
 sub Pose (lv as Level, gr as Ground, se as Session, p as Hero, x as integer, y as integer, a as integer, west as integer)
     dim fresh as Hero
     p = fresh
-    p.x = x
-    p.y = y
+    p.at.x = x
+    p.at.y = y
     p.ground = -1
     p.sg = SegAt%(lv, gr, x, csng(lv.startY))
     p.anim = se.ticks / 4!
@@ -64,9 +64,9 @@ end sub
 ' The bark, seen: two arcs before his muzzle, wider as it goes.
 sub DrawBark (p as Hero, cx as integer, cy as integer)
     dim x as integer, y as integer, r as integer, a as single
-    x = cint(p.x) - cx + (1 - 2 * p.face) * 12
-    y = cint(p.y) - cy - 18
-    r = 5 + cint((BARKT - p.barkT) * 50)
+    x = cint(p.at.x) - cx + (1 - 2 * p.face) * 12
+    y = cint(p.at.y) - cy - 18
+    r = 5 + cint((BARKT - p.bark_t) * 50)
     ' a quarter turn about the way he faces: to the right through 0, to the left about PI
     a = PI * (7 / 4 - p.face)
     circle (x, y), r, CWHITE, a, a + PI / 2 - 2 * PI * (1 - p.face)
@@ -78,10 +78,10 @@ sub DrawHero (gr as Ground, art as Store, se as Session, p as Hero, cx as intege
     dim hu as single, hv as single, a as single, v as single
     if p.dig then exit sub
     if p.inv > 0 and not p.stun and (se.ticks and 4) then exit sub
-    x = cint(p.x) - cx
-    y = cint(p.y) - cy
+    x = cint(p.at.x) - cx
+    y = cint(p.at.y) - cy
     Footing gr, p, hu, hv, a, tw
-    v = p.vx
+    v = p.vel.x
     if p.ground then v = p.gsp
     if abs(v) > 400 and not p.dead then SpeedLines se, x, y - cint(14 * hu), sgn(v)
     f = HeroFrame%(se, p)
@@ -218,5 +218,5 @@ end function
 private function Standing% (se as Session, p as Hero)
     Standing% = FIDLE
     if se.ticks mod 180 < 8 then Standing% = FBLINK
-    if p.idleT > 3 then Standing% = FTAP + ((se.ticks \ 12) and 1)
+    if p.idle_t > 3 then Standing% = FTAP + ((se.ticks \ 12) and 1)
 end function

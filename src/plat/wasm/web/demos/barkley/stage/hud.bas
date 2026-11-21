@@ -57,8 +57,8 @@ end sub
 ' What Charlie says, in a box over its head.
 sub Say (p as Hero, cx as integer, cy as integer, s as string)
     dim row as integer, col as integer
-    col = (cint(p.x) - cx) \ 8 - len(s) \ 2 + 1
-    row = (cint(p.y) - cy - 42) \ 8
+    col = (cint(p.at.x) - cx) \ 8 - len(s) \ 2 + 1
+    row = (cint(p.at.y) - cy - 42) \ 8
     if col < 2 then col = 2
     if col > 39 - len(s) then col = 39 - len(s)
     if row < 3 then row = 3

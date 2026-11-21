@@ -51,7 +51,7 @@ sub Volley (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() a
         lv.lobs(n).y = lv.lobs(n).y + lv.lobs(n).vy * STEPT
         aground = Solid%(lv, cint(lv.lobs(n).x), cint(lv.lobs(n).y))
         if not aground then lv.lobs(n).bedded = 0
-        if abs(lv.lobs(n).x - p.x) < 10 and abs(lv.lobs(n).y - p.y + 13) < 14 then
+        if abs(lv.lobs(n).x - p.at.x) < 10 and abs(lv.lobs(n).y - p.at.y + 13) < 14 then
             Hurt mu, se, g, p, cint(lv.lobs(n).x - sgn(lv.lobs(n).vx) * 10), lo(), SHURT
             Splat lv, mu, se, n, pt()
         elseif (aground and not lv.lobs(n).bedded) or lv.lobs(n).y > MH * TS then

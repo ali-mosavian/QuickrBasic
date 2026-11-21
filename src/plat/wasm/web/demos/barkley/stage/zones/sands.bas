@@ -40,8 +40,8 @@ end sub
 ' A flume's tile or a spout's: stood in its water, he slides.
 sub MeetFlume (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
     dim px as integer, py as integer
-    px = cint(p.x)
-    py = cint(p.y)
+    px = cint(p.at.x)
+    py = cint(p.at.y)
     if not p.ground or px < lv.ob(i).x or px >= lv.ob(i).x + TS then exit sub
     if py > lv.ob(i).y - 6 and py < lv.ob(i).y + TS + 6 then Slide mu, se, p
 end sub
@@ -51,10 +51,10 @@ end sub
 sub MeetCrab (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
     dim y as integer
     y = lv.ob(i).y
-    if lv.ob(i).s = 0 or abs(lv.ob(i).x - p.x) >= 15 or p.y < y - 22 or p.y > y + 10 then exit sub
-    if not p.ground and p.vy > 0 and p.y < y - 4 then
-        p.vy = -BOUNCEV
-        if abs(lv.ob(i).s) > 1 then p.vy = -STEPV
+    if lv.ob(i).s = 0 or abs(lv.ob(i).x - p.at.x) >= 15 or p.at.y < y - 22 or p.at.y > y + 10 then exit sub
+    if not p.ground and p.vel.y > 0 and p.at.y < y - 4 then
+        p.vel.y = -BOUNCEV
+        if abs(lv.ob(i).s) > 1 then p.vel.y = -STEPV
         p.jumped = 0
         if abs(lv.ob(i).s) < SHELLT \ 3 then lv.ob(i).s = sgn(lv.ob(i).s) * (SHELLT \ 3)
         Sfx mu, se, SSPRING
@@ -113,10 +113,10 @@ private sub Gull (mu as Deck, se as Session, b as Bird, n as integer, g as Game,
         b.x = x
         b.y = y
         if b.t > 0 then b.t = b.t - STEPT
-        if b.t <= 0 and b.loot = 0 and g.bones > 0 and abs(p.x - x) < GULLSEE and p.y > y + 30 then
-            lead = (p.y - 13 - y) / DIVEV * 60
-            b.tx = p.x + (p.x - p.lastx) * lead
-            b.ty = p.y - 13
+        if b.t <= 0 and b.loot = 0 and g.bones > 0 and abs(p.at.x - x) < GULLSEE and p.at.y > y + 30 then
+            lead = (p.at.y - 13 - y) / DIVEV * 60
+            b.tx = p.at.x + (p.at.x - p.last_x) * lead
+            b.ty = p.at.y - 13
             b.st = GDIVE
             Sfx mu, se, SSQUAWK
         end if
@@ -130,7 +130,7 @@ private sub Gull (mu as Deck, se as Session, b as Bird, n as integer, g as Game,
         Spill se, b, lo()
         b.st = GCLIMB
     end select
-    if abs(b.x - p.x) >= 13 or abs(b.y - p.y + 13) >= 15 then exit sub
+    if abs(b.x - p.at.x) >= 13 or abs(b.y - p.at.y + 13) >= 15 then exit sub
     if p.roll or p.charging then
         Spill se, b, lo()
         b.st = 0
@@ -180,14 +180,14 @@ end function
 sub MeetJelly (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
     dim y as integer
     y = lv.ob(i).y
-    if p.inv > 0 or lv.ob(i).s > 1 or abs(lv.ob(i).x - p.x) >= 12 or p.y < y - 26 or p.y > y + 8 then exit sub
-    if not p.ground and not p.swim and p.vy > 0 and p.y < y - 10 then
-        p.vy = -JELLYV
+    if p.inv > 0 or lv.ob(i).s > 1 or abs(lv.ob(i).x - p.at.x) >= 12 or p.at.y < y - 26 or p.at.y > y + 8 then exit sub
+    if not p.ground and not p.swim and p.vel.y > 0 and p.at.y < y - 10 then
+        p.vel.y = -JELLYV
         p.jumped = 0
         p.sprung = -1
         lv.ob(i).s = 10
         Sfx mu, se, SSPRING
-    elseif p.y > y - 14 then
+    elseif p.at.y > y - 14 then
         p.swim = 0
         Hurt mu, se, g, p, lv.ob(i).x, lo(), SHURT
     end if
