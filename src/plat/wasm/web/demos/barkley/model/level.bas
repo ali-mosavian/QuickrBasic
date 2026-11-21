@@ -53,7 +53,8 @@ type Runner
 end type
 
 ' A clothesline: from x, w wide, its ends at y; where along it it was last trodden, and the steps since. A lantern
-' line is one whose far end hangs fall lower: taut, and ground to slide down, its stretch sg.
+' line is one whose far end hangs fall lower: taut, and ground to slide down, its stretch sg. cat: one more than
+' the thing that is the cat walking it, 0 with none.
 type Rope
     x as integer
     w as integer
@@ -62,6 +63,7 @@ type Rope
     t as integer
     fall as integer
     sg as integer
+    cat as integer
 end type
 
 ' A thing of the level: where it is, its kind and state, and its home x, which the level's order goes by.
@@ -240,5 +242,5 @@ const KMOUND = 52
 const KSQUIRREL = 53
 ' A golden bone: an act has NGOLD of them, each kept once found.
 const KGOLD = 54, NGOLD = 3
-const KAWNING = 55, KCHIMNEY = 56, KTRAM = 57, KBIN = 58, KPOUNCE = 59
+const KAWNING = 55, KCHIMNEY = 56, KTRAM = 57, KBIN = 58, KPOUNCE = 59, KWALKER = 60
 const ZONES = 6, NSTAGE = ZONES * 2

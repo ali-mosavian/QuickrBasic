@@ -33,7 +33,7 @@ from barkley.model.hero import Hero, Pad
 from barkley.model.level import GRAV, Ground, KBONE, KBRAMBLE, KBUOY, KCAT, KCISTERN, KCRAB, KDRIFT, KGOAT, KHOOP
 from barkley.model.level import KICICLE, KJELLY, KJET, KLEG, KLOAD, KLOG, KLOOP, KMOUND, KPIPE, KPRESS, KSAPLING, KSEAT
 from barkley.model.level import KSLED, KSPAN, KSPARK, KSPRING, KSQUIRREL, KSWEEP, KTHROW, KVINE, KWALL, KWAVE, Level, MH
-from barkley.model.level import KAWNING, KBIN, KCHIMNEY, KGOLD, KPOUNCE, NGOLD, NONE, NSTAGE, TS, ZONES
+from barkley.model.level import KAWNING, KBIN, KCHIMNEY, KGOLD, KPOUNCE, KWALKER, NGOLD, NONE, NSTAGE, TS, ZONES
 from barkley.model.game import CLEARED, Cue, Game, INTRO, Loose, NCUE, NLOOSE, NPART, OVER, Part, PLAYING, Session
 from barkley.model.game import Found, Gild, TITLE
 from barkley.assets.palette import CBEE, CFLY, CGOLD, CINK, CNUT, CSEA, CVINE, CVINED, CWHITE, CYELLOW
@@ -1826,6 +1826,103 @@ g.camy = m - 100
 g.shake = 0
 Render wd, g, p, lo(), pt()
 if was and wd.lv.ob(c).s = POUNCEGONE and point(160 - 4, 100 - 19) <> 141 then print "pouncer ok"
+' a rope-walker is a cat on a clothesline, its home two columns along it: it walks the line a pixel a things'
+' step, from 14 short of the line's end to 40 past its home, at the line's height; a bark from near stands it
+' startled, then it walks on away; who comes down on its line shakes it off, beaten, once; a stage begun again has
+' it back, and it scratches him who rises into it
+GoStage wd, 10, g, p, lo(), pt()
+g.modeT = 20
+c = 0
+j = 0
+was = 0
+for i = 0 to wd.lv.nObj - 1
+    if wd.lv.ob(i).k = KWALKER then c = i
+next
+for i = 0 to wd.lv.nRope - 1
+    if wd.lv.ropes(i).cat <> c + 1 then continue for
+    j = i
+    was = wd.lv.ob(c).k = KWALKER
+next
+bx = wd.lv.ropes(j).x
+m = wd.lv.ropes(j).y
+was = was and wd.lv.ropes(j).w = 124 and wd.lv.ob(c).x = bx + 46 and wd.lv.ob(c).s = -1
+Stand wd.lv, wd.gr, p, bx - 30, 0
+colA(0) = 9999
+colA(1) = 0
+for i = 1 to 240
+    Tick wd, g, p, k, lo(), pt()
+    if wd.lv.ob(c).x < colA(0) then colA(0) = wd.lv.ob(c).x
+    if wd.lv.ob(c).x > colA(1) then colA(1) = wd.lv.ob(c).x
+    if wd.lv.ob(c).x = bx + 14 then was = was and wd.lv.ob(c).y = m + 2
+    if wd.lv.ob(c).x = bx + 86 then was = was and wd.lv.ob(c).y = m + 4
+next
+was = was and colA(0) = bx + 14 and colA(1) = bx + 86 and wd.lv.ob(c).s = -1
+' barked at from the roof past it
+Stand wd.lv, wd.gr, p, bx + 130, 0
+v = wd.lv.ob(c).x
+k.bark = -1
+Tick wd, g, p, k, lo(), pt()
+k.bark = 0
+was = was and wd.lv.ob(c).s < -1
+for i = 1 to 40
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and wd.lv.ob(c).s < -1 and abs(wd.lv.ob(c).x - v) <= 1
+for i = 1 to 20
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and wd.lv.ob(c).s = -1 and wd.lv.ob(c).x < v - 2
+' drawn on its line: its back's fur
+colA(2) = wd.lv.ob(c).x
+colA(3) = wd.lv.ob(c).y
+g.camx = colA(2) - 160
+g.camy = colA(3) - 100
+g.shake = 0
+Render wd, g, p, lo(), pt()
+colB(0) = point(160 - 2, 100 - 5)
+' he comes down on the line 44 or more from it, twice
+hid = g.score
+g.bones = 2
+p.ground = 0
+p.x = bx + 20
+p.y = m - 20
+p.vx = 0
+p.vy = 0
+p.roll = 0
+for j = 0 to 1
+    for i = 1 to 200
+        Tick wd, g, p, k, lo(), pt()
+        if p.vy < 0 then exit for
+    next
+    was = was and p.vy < 0 and wd.lv.ob(c).s = 0 and g.score = hid + 100 and g.bones = 2 and not p.stun
+    for i = 1 to 200
+        Tick wd, g, p, k, lo(), pt()
+        if p.vy >= 0 then exit for
+    next
+next
+Stand wd.lv, wd.gr, p, bx + 130, 0
+for i = 1 to 70
+    Tick wd, g, p, k, lo(), pt()
+next
+g.camx = colA(2) - 160
+g.camy = colA(3) - 100
+g.shake = 0
+Render wd, g, p, lo(), pt()
+colB(1) = point(160 - 2, 100 - 5)
+was = was and colB(0) >= 32 and colB(0) <= 37 and (colB(1) < 32 or colB(1) > 37)
+GoStage wd, 10, g, p, lo(), pt()
+g.modeT = 20
+was = was and wd.lv.ob(c).s = -1 and wd.lv.ob(c).x = bx + 46
+g.bones = 2
+p.inv = 0
+p.ground = 0
+p.roll = 0
+p.x = wd.lv.ob(c).x
+p.y = wd.lv.ob(c).y + 10
+p.vy = -100
+Tick wd, g, p, k, lo(), pt()
+was = was and p.stun and g.bones = 0
+if was then print "walker ok"
 ' Russet Wood is the fifth zone, by name and in its own colours: its litter's top the same picture at both hours,
 ' russet gold at a misty noon and not on the firefly night
 was = ZoneName$(4) = "RUSSET WOOD"
@@ -3845,6 +3942,7 @@ def main() -> None:
         ("slide ok", "a lantern line is ground to slide down, faster as he goes, onto the roof past it"),
         ("pounce ok", "a pouncer waits in its bin, leaps at him when he is near, scratches, and lands a cat"),
         ("pouncer ok", "a bark brings a pouncer out early; rolled into in the air it is beaten for good"),
+        ("walker ok", "a rope-walker walks its clothesline, flinches at a bark, is shaken off by a bounce, scratches"),
         ("firefly ok", "the wood's night dark but for a few fireflies; a bark wakes them and lights it for a while"),
         ("sapling ok", "a bowed sapling throws him who crosses its crown, higher the faster; sprung it throws no one"),
         ("vine ok", "a vine caught in the air swings him as a weight, lets go at a jump, and hangs straight again"),

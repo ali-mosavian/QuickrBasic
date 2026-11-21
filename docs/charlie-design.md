@@ -206,8 +206,8 @@ Progress is saved at each zone.
 ### 6. Lantern Quarter (its look and tune built)
 
 - Built: its backdrop, ground, props and card at the blue hour and on the festival night; two stand-in levels,
-  to its tune and the festival's arrangement; clotheslines, lantern lines, awnings, chimneys, trams; pouncers.
-  To add: rope-walkers, tippers, runners, its acts, its chase, the fireworks; a street's own paving.
+  to its tune and the festival's arrangement; clotheslines, lantern lines, awnings, chimneys, trams; pouncers,
+  rope-walkers. To add: tippers, runners, its acts, its chase, the fireworks; a street's own paving.
 - A clothesline (`line,N`) spans a street N columns wide, post to post. Come down on, it throws him up, his way
   kept: 60 pixels off the first, 107 off the second in a row, 167 off each after; the ground ends the row.
 - An awning (`awning,N`) stands out from the wall that begins there, N tiles up. Come down on, it throws him 135
@@ -220,6 +220,9 @@ Progress is saved at each zone.
   past it, four tiles lower. It is ground: he slides down it, up to 320 a second, bones over it.
 - A pouncer (`pouncer,0`) waits in a dustbin, eyes under the lid. Within 56 of it, it leaps 40 at him; landed, it
   prowls as a cat does. A bark from up to 72 off brings it out early, short of him.
+- A rope-walker (`walker,n` after a `line`) is a cat walking that clothesline, its home n columns along it: 40
+  either side, never nearer than 14 to the line's end. Who comes down on its line shakes it off, beaten. A bark
+  stands it startled, as a cat.
 - Rule: footing. The ground is narrow, springy or moving: lines, awnings, tram roofs.
 - Gadgets: clotheslines, each landing higher than the last; awnings; chimneys, in one and out another;
   trams; lantern lines to slide.

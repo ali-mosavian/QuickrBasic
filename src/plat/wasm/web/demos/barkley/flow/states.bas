@@ -6,7 +6,7 @@ from barkley.engine.clock import STEPT
 from barkley.engine.audio import Deck
 from barkley.model.hero import Hero, Pad
 from barkley.model.level import KBONE, KCAT, KCHIMNEY, KCRAB, KGOAT, KJELLY, KMOUND, KSQUIRREL, KSWEEP, KTHROW, KWALL
-from barkley.model.level import MH, NONE, NSTAGE, TS
+from barkley.model.level import KWALKER, MH, NONE, NSTAGE, TS
 from barkley.model.game import CLEARED, Game, Loose, NLOOSE, NPART, OVER, Part, PLAYING, Session, TITLE
 from barkley.model.world import NLOB, NMOVE, World
 from barkley.assets.palette import Cycle, Shade, Shimmer
@@ -177,6 +177,7 @@ sub ResetWorld (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
         wd.lv.ob(i).s = 0
         if wd.lv.ob(i).k = KBONE then wd.lv.ob(i).s = 1
         if wd.lv.ob(i).k = KCAT or wd.lv.ob(i).k = KCRAB or wd.lv.ob(i).k = KSWEEP then wd.lv.ob(i).s = -1
+        if wd.lv.ob(i).k = KWALKER then wd.lv.ob(i).s = -1
         if wd.lv.ob(i).k = KJELLY then wd.lv.ob(i).s = 1
         if wd.lv.ob(i).k = KTHROW then wd.lv.ob(i).s = THROWC
         if wd.lv.ob(i).k = KSQUIRREL then wd.lv.ob(i).s = SQWAIT

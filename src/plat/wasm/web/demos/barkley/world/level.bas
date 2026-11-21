@@ -5,7 +5,7 @@ option explicit
 from barkley.engine.datafile import Chars, OpenData, Word
 from barkley.model.images import IBG, ICARD, ICARD2, ILOOP, ITILE, ITILE2, IWAVE, IZ2
 from barkley.model.level import KBONE, KBOOST, KBRAMBLE, KBUMP, KBUOY, KBUSH, KBUTTON, KCAT, KCISTERN, KCRAB, KDRIFT
-from barkley.model.level import KAWNING, KBIN, KCHIMNEY, KGOLD, KPOUNCE
+from barkley.model.level import KAWNING, KBIN, KCHIMNEY, KGOLD, KPOUNCE, KWALKER
 from barkley.model.level import KFAM, KFLOWER, KFLUME, KGOAL, KGOAT, KHEAP, KHOOP, KICICLE, KJELLY, KJET, KLEG, KLOAD
 from barkley.model.level import KLOG, KLOOP, KMARK, KMOUND, KPIPE, KPLAT, KPRESS, KROCK, KSAPLING, KSLED, KSPARK, KSPIN
 from barkley.model.level import KSPOUT, KSPRING, KSQUIRREL, KSWEEP, KTANK, KTHORN, KTHROW, KTREE, KVENT, KVINE, KWALL
@@ -345,6 +345,10 @@ sub LoadLevel (wd as World, st as integer)
             Hang wd.lv, c, n, s - LINEH, 0
             Pit wd.lv, c, g, n
             c = c + n
+        case "walker"
+            ' a cat walking the line just hung, its home n columns along it
+            i = wd.lv.nRope - 1
+            AddObj wd.lv, KWALKER, wd.lv.ropes(i).x + POSTIN + n * TS + 8, wd.lv.ropes(i).y
         case "slide"
             ' a street n wide and a lantern line down over it, from a post LANTH over the roof here to the roof
             ' past it, LANTFALL lower; a bone over the line every other column
@@ -438,6 +442,7 @@ sub LoadLevel (wd as World, st as integer)
     SortObjs wd.lv
     Pair wd.lv, KMOUND, -1
     Pair wd.lv, KCHIMNEY, 0
+    Walkers wd.lv
     Track wd.lv, wd.gr
     Faces wd.lv
     ZoneTune wd.mu, wd.mu.stageTune
@@ -451,9 +456,22 @@ private sub Hang (lv as Level, c as integer, n as integer, y as integer, fall as
     lv.ropes(lv.nRope).y = y
     lv.ropes(lv.nRope).fall = fall
     lv.ropes(lv.nRope).t = 0
+    lv.ropes(lv.nRope).cat = 0
     lv.nRope = lv.nRope + 1
     Weed lv, c * TS - 20
     lv.fallow = c + n + 2
+end sub
+
+' Each line told the cat that walks it, once the things are in their order: the walker over its street.
+private sub Walkers (lv as Level)
+    dim i as integer, r as integer
+    for i = 0 to lv.nObj - 1
+        if lv.ob(i).k <> KWALKER then continue for
+        for r = 0 to lv.nRope - 1
+            if lv.ob(i).x <= lv.ropes(r).x or lv.ob(i).x >= lv.ropes(r).x + lv.ropes(r).w then continue for
+            lv.ropes(r).cat = i + 1
+        next
+    next
 end sub
 
 ' The pier's fallen spans back in their places, the swarms at home: Charlie starts again before them.

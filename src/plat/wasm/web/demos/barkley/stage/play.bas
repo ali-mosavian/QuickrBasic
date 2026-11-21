@@ -9,7 +9,7 @@ from barkley.model.hero import Hero
 from barkley.model.level import GRAV, Ground, KBONE, KBOOST, KBRAMBLE, KBUMP, KBUOY, KBUTTON, KCAT, KCRAB, KDRIFT
 from barkley.model.level import KFLUME, KGOAL, KGOAT, KHEAP, KHOOP, KICICLE, KJELLY, KJET, KLOAD, KLOG, KMARK, KMOUND
 from barkley.model.level import KPRESS, KSAPLING, KSLED, KSPARK, KSPIN, KSPOUT, KSPRING, KSQUIRREL, KSWEEP, KTHORN
-from barkley.model.level import KAWNING, KCHIMNEY, KGOLD, KPOUNCE, KTHROW, KVINE, KWALL, Level, Realm, TS
+from barkley.model.level import KAWNING, KCHIMNEY, KGOLD, KPOUNCE, KTHROW, KVINE, KWALKER, KWALL, Level, Realm, TS
 from barkley.model.game import Game, Loose, NLOOSE, OVER, Part, Session
 from barkley.assets.tunes import LEFTBEHIND, SBONE, SceneTune, Sfx, SHURT
 from barkley.world.terrain.ground import SegAt
@@ -47,7 +47,7 @@ sub Touch (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as 
     dim i as integer, c as integer, px as integer, py as integer, x as integer, dx as integer
     ' under the ground nothing is met
     if p.dig then exit sub
-    if lv.nRope then Lines lv, mu, se, p
+    if lv.nRope then Lines lv, mu, se, g, p, pt()
     px = cint(p.x)
     py = cint(p.y)
     c = (px - 80) \ TS
@@ -60,7 +60,7 @@ sub Touch (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as 
         select case lv.ob(i).k
         case KBONE: MeetBone lv, mu, se, g, p, i, pt()
         case KGOLD: MeetGold lv, zn, mu, se, g, p, i, pt()
-        case KCAT, KSQUIRREL: MeetCat lv, mu, se, g, p, i, lo(), pt()
+        case KCAT, KSQUIRREL, KWALKER: MeetCat lv, mu, se, g, p, i, lo(), pt()
         case KCRAB: MeetCrab lv, mu, se, g, p, i, lo(), pt()
         case KSWEEP: MeetSweep lv, mu, se, g, p, i, lo(), pt()
         case KTHROW: MeetThrow lv, mu, se, g, p, i, lo(), pt()

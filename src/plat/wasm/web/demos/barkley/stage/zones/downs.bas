@@ -15,6 +15,9 @@ from barkley.stage.fx.parts import Burst
 from barkley.stage.fx.damage import Tackle
 
 private const SPRINGV = 560!
+
+' A cat's beat: how far from its home it prowls.
+const BEAT = 40
 const GOLDPTS = 1000
 private const BOOSTV = 660!
 
@@ -99,7 +102,7 @@ sub Prowl (lv as Level, i as integer)
     x = lv.ob(i).x + lv.ob(i).s
     y = lv.ob(i).y
     s = Surf%(lv, x + lv.ob(i).s * 8, y)
-    if abs(x - lv.ob(i).a) > 40 or abs(s - y) > 6 or Solid%(lv, x + lv.ob(i).s * 8, y - 6) then
+    if abs(x - lv.ob(i).a) > BEAT or abs(s - y) > 6 or Solid%(lv, x + lv.ob(i).s * 8, y - 6) then
         lv.ob(i).s = -lv.ob(i).s
         exit sub
     end if

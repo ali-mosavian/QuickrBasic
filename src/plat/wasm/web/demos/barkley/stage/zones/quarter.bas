@@ -1,4 +1,4 @@
-' Lantern Quarter: clotheslines, lantern lines, awnings and chimneys; pouncers.
+' Lantern Quarter: clotheslines, lantern lines, awnings and chimneys; pouncers and rope-walkers.
 defint A-Z
 option explicit
 
@@ -12,9 +12,9 @@ from barkley.model.game import Game, Loose, Part, Session
 from barkley.assets.palette import CLINEN, CPOLE, CQINK, CSOOT
 from barkley.assets.tunes import Sfx, SROLL, SSPRING, STWANG
 from barkley.stage.fx.parts import Burst
-from barkley.stage.fx.damage import Tackle
+from barkley.stage.fx.damage import Beaten, Tackle
 from barkley.stage.hero.modes import FLUEH
-from barkley.stage.zones.downs import CatPic, Prowl
+from barkley.stage.zones.downs import BEAT, CatPic, Prowl
 
 ' A clothesline: how far its middle hangs under its ends; his speed up off the first he comes down on, what each
 ' more in a row adds, and the row that adds no more; how far it gives under him, and the things' steps it swings;
@@ -24,6 +24,9 @@ const LINEV = 300!, LINEMORE = 100!, LINEROW = 3
 private const LINEGIVE = 8
 const LINET = 30
 private const WASH = 22
+
+' A rope-walker: how near its line's ends it walks.
+const WALKIN = 14
 
 ' A lantern line: how far apart its lanterns hang; the speed he slides down it at, and how fast he gathers it.
 private const LANTGAP = 18
@@ -63,7 +66,7 @@ end function
 
 ' The lines: come down on, one throws him up, his way kept, each in a row harder than the last, up to LINEROW;
 ' on the ground the row is over. From under, he goes through it. On a lantern line he slides.
-sub Lines (lv as Level, mu as Deck, se as Session, p as Hero)
+sub Lines (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, pt() as Part)
     dim i as integer, u as integer, y as integer
     if p.ground or p.swim or p.vine then p.hops = 0
     if p.ground then Glide lv, p
@@ -76,6 +79,8 @@ sub Lines (lv as Level, mu as Deck, se as Session, p as Hero)
         y = LineY%(lv.ropes(i), u)
         if not Trodden%(p, y) then continue for
         Pluck lv.ropes(i), mu, se, p, u, y
+        ' the cat walking it is shaken off
+        if lv.ropes(i).cat then Shaken lv, mu, se, g, pt(), lv.ropes(i).cat - 1
         exit sub
     next
 end sub
@@ -204,12 +209,35 @@ sub DrawPouncer (lv as Level, art as Store, se as Session, i as integer, x as in
     Blit art, x - 10, y - 13 - Leapt%(lv, i), CatPic%(se, s), 20, 14
 end sub
 
-' The lines' step: one that swings, a step nearer rest.
+' Rope-walker i shaken off its line: beaten, where it was.
+private sub Shaken (lv as Level, mu as Deck, se as Session, g as Game, pt() as Part, i as integer)
+    if lv.ob(i).s then Beaten lv, mu, se, g, pt(), i, 6
+end sub
+
+' The lines' step: one that swings, a step nearer rest; the cat on one, a step along it.
 sub Settle (lv as Level)
     dim i as integer
     for i = 0 to lv.nRope - 1
         if lv.ropes(i).t > 0 then lv.ropes(i).t = lv.ropes(i).t - 1
+        if lv.ropes(i).cat then Tread lv, lv.ropes(i)
     next
+end sub
+
+' The cat walking line r: a pixel a step along its beat, turned at the beat's end and WALKIN from the line's;
+' startled, it stands and counts its state down to a walk's, as a cat does. At the line's height, as it swings.
+private sub Tread (lv as Level, r as Rope)
+    dim i as integer, x as integer
+    i = r.cat - 1
+    if lv.ob(i).s = 0 then exit sub
+    x = lv.ob(i).x + lv.ob(i).s
+    if abs(lv.ob(i).s) > 1 then
+        lv.ob(i).s = lv.ob(i).s - sgn(lv.ob(i).s)
+    elseif abs(x - lv.ob(i).a) > BEAT or x < r.x + WALKIN or x > r.x + r.w - WALKIN then
+        lv.ob(i).s = -lv.ob(i).s
+    else
+        lv.ob(i).x = x
+    end if
+    lv.ob(i).y = LineY%(r, lv.ob(i).x - r.x)
 end sub
 
 ' The lines in view: each from post to post, its washing on it.

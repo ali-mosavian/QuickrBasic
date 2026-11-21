@@ -13,7 +13,7 @@ from barkley.model.level import KFAM, KFLOWER, KFLUME, KFRONT, KGOAL, KGOAT, KHE
 from barkley.model.level import KLEG, KLOAD, KLOOP, KMARK, KMOUND, KMOVE, KPIPE, KPLAT, KPOST, KPRESS, KROCK, KSAPLING
 from barkley.model.level import KSEAT, KSLED, KSPAN, KSPARK, KSPIN, KSPOUT, KSPRING, KSQUIRREL, KSWEEP, KTANK, KTHORN
 from barkley.model.level import KTHROW, KTREE, KVENT, KVINE, KWALL, KWAVE, Level, NONE, Realm, TS
-from barkley.model.level import KAWNING, KBIN, KCHIMNEY, KGOLD, KPOUNCE, KTRAM, NGOLD
+from barkley.model.level import KAWNING, KBIN, KCHIMNEY, KGOLD, KPOUNCE, KTRAM, KWALKER, NGOLD
 from barkley.model.images import IAWNING, IBIN, ICHIMNEY, IGOLD, ITRAM
 from barkley.model.game import CLEARED, Found, Game, Loose, NLOOSE, NPART, OVER, Part, PLAYING, Session, TITLE
 from barkley.model.world import World
@@ -151,7 +151,7 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
             ' a golden bone, till it is found
             if Found%(se, zn.stage, GoldNo%(lv, i)) then continue for
             Blit art, x - 5, y - 5, IGOLD + ((se.ticks \ 6) and 3) * 2, 10, 10
-        case KCAT: if lv.ob(i).s then Blit art, x - 10, y - 13, CatPic%(se, lv.ob(i).s), 20, 14
+        case KCAT, KWALKER: if lv.ob(i).s then Blit art, x - 10, y - 13, CatPic%(se, lv.ob(i).s), 20, 14
         case KPOUNCE: DrawPouncer lv, art, se, i, x, y
         case KBIN
             ' eyes under its lid while its cat, the thing after it, is in it
