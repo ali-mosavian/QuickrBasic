@@ -3,6 +3,7 @@
 defint A-Z
 option explicit
 
+from engine.clock import STEPT
 from barkley.model.hero import Hero
 
 ' Sprung up at v, and gain of his speed along, most at most:
@@ -92,4 +93,29 @@ sub Repel (p as Hero, x as single, v as single)
     else
         p.vel.x = v
     end if
+end sub
+
+' A hop more in a row, up to the most less one.
+sub Hop (p as Hero, most as integer)
+    if p.hops < most - 1 then p.hops = p.hops + 1
+end sub
+
+' Faster by acc a second till he goes at v.
+sub Gather (p as Hero, v as single, acc as single)
+    if p.gsp < v then p.gsp = p.gsp + acc * STEPT
+end sub
+
+' Down a chimney, for the one it leads to, d.
+sub Descend (p as Hero, d as integer)
+    p.dig = d
+    p.vel.y = 0
+end sub
+
+' Thrown up from height y at v, his way kept.
+sub Toss (p as Hero, y as integer, v as single)
+    p.at.y = y
+    p.vel.y = -v
+    p.roll = 0
+    p.jumped = 0
+    p.sprung = -1
 end sub

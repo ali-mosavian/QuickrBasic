@@ -5866,6 +5866,7 @@ TOUCH: dict[str, tuple[int | str, ...]] = {
     "KJELLY": ("TOWN", 0, 0, 0, 0, 10),
     "KSAPLING": ("TOWN", 0, 0, 0, 0, "SAPT"),
     "KBRAMBLE": ("TOWN", 0, 0, 0, 0, "BRAMBLET"),
+    "KAWNING": ("TOWN", 0, 0, 0, 0, "AWNT"),
 }
 
 

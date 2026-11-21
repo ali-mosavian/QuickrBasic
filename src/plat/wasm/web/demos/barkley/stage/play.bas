@@ -43,7 +43,6 @@ from barkley.stage.camera import Camera
 from barkley.stage.hero.push import Launch, Perch
 from barkley.stage.things.react import Rest
 
-
 sub Spawn ( _
     lv as Level, _
     gr as Ground, _
@@ -134,7 +133,7 @@ sub Touch ( _
             case KSAPLING
                 MeetSapling lv, kd, ev, se, p, i
             case KAWNING
-                MeetAwning lv, ev, se, p, i
+                MeetAwning lv, kd, ev, se, p, i
             case KCHIMNEY
                 MeetChimney lv, ev, p, i
             case KPOUNCE

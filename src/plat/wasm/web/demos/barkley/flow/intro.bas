@@ -184,7 +184,6 @@ data "snd", 129.75, 130, 0, 0, 0, 0, 0, 0, 12
 data "cat", 130.25, 134.5, 2186, 0, 2500, 0, 0, 0, 1
 data "end"
 
-
 ' The intro from its first beat: its road, its script, the
 ' view on the road's start.
 sub StartIntro (wd as World, g as Game, cu() as Cue)

@@ -16,11 +16,11 @@ from barkley.model.level import KTIPPER, KVINE, Level, TS
 from barkley.model.kinds import Kinds, MOWN, MPROWL, MREST
 from barkley.stage.zones.sands import Bob
 from barkley.stage.fx.parts import LooseBones
-from barkley.stage.zones.quarter import Mortar, Pounce, Settle, Snatch
-from barkley.stage.zones.quarter import Tipper
 from barkley.stage.things.react import Prowl
 from barkley.stage.things.wood import Regrow, Scamper
 from barkley.stage.things.pass import Graze, TakeAim, Totter, Unload
+from barkley.stage.things.quarter import Mortar, Pounce, Settle
+from barkley.stage.things.quarter import Snatch, Tipper
 
 ' A spark's reach from home; a jellyfish's depth.
 const SPARKR = 40

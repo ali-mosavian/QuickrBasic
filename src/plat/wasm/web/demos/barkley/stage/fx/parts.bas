@@ -171,6 +171,12 @@ sub Strew ( _
     next
 end sub
 
+' Loose bone b taken for good.
+sub Pick (lo() as Loose, se as Session, b as integer)
+    lo(b).t = 0
+    se.loose_n = se.loose_n - 1
+end sub
+
 ' The particles, dt on: each on its arc till its time is up.
 sub Particles (se as Session, pt() as Part, dt as single)
     dim i as integer

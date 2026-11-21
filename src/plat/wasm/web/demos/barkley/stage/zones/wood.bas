@@ -35,7 +35,6 @@ private const SAPGAIN = .8
 private const SAPMAX = 700!
 const SAPT = 30
 
-
 ' How near a bramble hurts.
 private const BRAMBLER = 16
 

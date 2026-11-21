@@ -77,7 +77,6 @@ const LOADSLIDE = 20
 const HEAPH = 30
 const HEAPR = 24
 
-
 ' The avalanche's step: let go as he passes its head, its
 ' front comes on, the ground shaking while it is in view,
 ' and takes him where it reaches him.

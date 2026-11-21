@@ -17,10 +17,11 @@ from barkley.stage.hero.moves import TOP
 from barkley.stage.hero.draw import LOGR
 from barkley.stage.zones.works import PressAhead, PRESSP, PressT
 from barkley.stage.zones.wood import MOUNDR
-from barkley.stage.zones.quarter import PotClear, POTR, POTX
-from barkley.stage.zones.quarter import POUNCEGONE, TipperAhead
+from barkley.stage.zones.quarter import TipperAhead
 from barkley.stage.zones.pass import GoatNear
 from barkley.stage.things.pass import GCHARGE
+from barkley.stage.things.quarter import PotClear, POTR, POTX
+from barkley.stage.things.quarter import POUNCEGONE
 
 ' How near who flees is rolled into. A bump throws him back
 ' curled, and on the quarter's level street a roll only
