@@ -13,8 +13,8 @@ from barkley.model.level import KFAM, KFLOWER, KFLUME, KFRONT, KGOAL, KGOAT, KHE
 from barkley.model.level import KLEG, KLOAD, KLOOP, KMARK, KMOUND, KMOVE, KPIPE, KPLAT, KPOST, KPRESS, KROCK, KSAPLING
 from barkley.model.level import KSEAT, KSLED, KSPAN, KSPARK, KSPIN, KSPOUT, KSPRING, KSQUIRREL, KSWEEP, KTANK, KTHORN
 from barkley.model.level import KTHROW, KTREE, KVENT, KVINE, KWALL, KWAVE, Level, NONE, Realm, TS
-from barkley.model.level import KAWNING, KCHIMNEY, KGOLD, NGOLD
-from barkley.model.images import IAWNING, ICHIMNEY, IGOLD
+from barkley.model.level import KAWNING, KCHIMNEY, KGOLD, KTRAM, NGOLD
+from barkley.model.images import IAWNING, ICHIMNEY, IGOLD, ITRAM
 from barkley.model.game import CLEARED, Found, Game, Loose, NLOOSE, NPART, OVER, Part, PLAYING, Session, TITLE
 from barkley.model.world import World
 from barkley.assets.palette import CGOLD, CINK, CSCARF, CWHITE, CYELLOW
@@ -223,6 +223,7 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
             else
                 Blit art, x, y, IAM, MOVEW, 12
             end if
+        case KTRAM: Blit art, x - 9, y - 1, ITRAM, 66, 33
         case KPOST: Blit art, x - 7, y - 47, IPOST, 16, 48
         case KTANK: Blit art, x - 16, y - 39, ITANK, 32, 40
         case KVENT: Blit art, x - 8, y - 27, IVENT, 16, 28

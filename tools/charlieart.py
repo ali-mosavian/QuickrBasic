@@ -4891,6 +4891,8 @@ PAPER = both(141, "#FFF8C0 #FFA028 #D84828", "#FFF8C0 #FFA028 #D84828", 5)  # a 
 QPOLE = both(161, "#D8A070 #A06848 #6C4038", "#A07C78 #74546C #4C3458", 5)
 TIN = both(164, "#D8E0F0 #98A4C8 #6870A0 #3C3C70", "#A0A8D0 #6C74A8 #484C84 #282858", 5)
 CLAY = both(190, "#F09860 #C06840 #58B458", "#C07C60 #8C5048 #3C8858", 5)  # a pot lit and shaded, its plant
+# a tram: its roof lit and shaded, its side red to dark, its windows
+TRAMWAY = both(185, "#FFF0C8 #D8C098 #E05040 #A83440 #FFD878", "#F0DCB0 #B8A088 #C84040 #8C2C40 #FFD060", 5)
 # washing: white and its shade, blue, red, yellow
 LINEN = both(156, "#FFFFFF #C8D0F0 #58A0E8 #F05868 #FFD860", "#D8DCF8 #9CA4D8 #4878C8 #C84868 #E0B860", 5)
 
@@ -5170,6 +5172,28 @@ def chimney() -> Pic:
     return p.outline(QINK)
 
 
+def tram() -> Pic:
+    """A tram seen from its side: a cream roof to ride, lit windows, a red side with a cream band, its wheels."""
+    p = Pic(66, 33)
+    part(p, poly([(2, 7), (4, 3), (10, 1), (55, 1), (61, 3), (63, 7)]), [TRAMWAY[1], TRAMWAY[0]], 1.5)
+    p.box(3, 7, 62, 18, TRAMWAY[0])
+    p.box(3, 18, 62, 18, TRAMWAY[1])
+    for i in range(6):
+        x = 6 + i * 9 + (i > 2) * 2
+        p.box(x, 9, x + 6, 16, TRAMWAY[4])
+        p.box(x, 9, x + 6, 9, LITPANE[0])
+        p.box(x, 17, x + 6, 17, TRAMWAY[1])
+    p.box(3, 19, 62, 27, TRAMWAY[2])
+    p.box(3, 19, 62, 19, QBRICK[0])
+    p.box(3, 22, 62, 22, TRAMWAY[0])
+    p.box(3, 26, 62, 27, TRAMWAY[3])
+    p.box(5, 28, 60, 30, TIN[3])
+    for cx in (15, 50):
+        fill(p, oval(cx, 30, 3.4, 2.6), TIN[2])
+    p.box(1, 21, 2, 22, LITPANE[0])
+    return p.outline(QINK)
+
+
 def lanternq() -> list[tuple[int, Pic, bool, int]]:
     """The Lantern Quarter's own pictures, at the indices the Downs' own have."""
     k, z = 126, 625
@@ -5192,6 +5216,7 @@ def lanternq() -> list[tuple[int, Pic, bool, int]]:
         (z + 1296, awning(False), True, -1),
         (z + 1298, awning(True), True, -1),
         (z + 1300, chimney(), True, -1),
+        (z + 1302, tram(), True, -1),
     ]
     return out
 

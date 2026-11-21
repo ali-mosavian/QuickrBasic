@@ -71,7 +71,8 @@ type Thing
 end type
 
 ' A moving platform: its thing o, its stretch s and curve z; its middle x, y and reach a; k 0 to and fro, 1 up and
-' down, 2 a lift, t how far up it is; e the edge before it; b a bridge's button.
+' down, 2 a lift, t how far up it is; e the edge before it; b a bridge's button. 3 a basket down a cable, 7 a chair
+' up one, 8 a tram along a street: t how far along.
 type Mover
     o as integer
     s as integer
@@ -236,5 +237,5 @@ const KMOUND = 52
 const KSQUIRREL = 53
 ' A golden bone: an act has NGOLD of them, each kept once found.
 const KGOLD = 54, NGOLD = 3
-const KAWNING = 55, KCHIMNEY = 56
+const KAWNING = 55, KCHIMNEY = 56, KTRAM = 57
 const ZONES = 6, NSTAGE = ZONES * 2

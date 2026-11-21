@@ -218,7 +218,7 @@ upg,2, flat,6, bones,6, flat,6, bush,0, flat,3, chimney,0, flat,5, dng,2, flat,8
 up45,3, arc,9, pit,10, flat,14, flower,0, flat,8, tree,0, flat,6
 mark,0, flat,6, spring,0, flat,2, plat,608, hb,706, flat,16, bush,0, flat,6, awning,3, wall,7, flat,10, drop,7, flat,4
 dn45,2, flat,8, bones,8, flat,6, thorn,0, flat,8, flower,0, flat,4, up45,3, arc,10, pit,11, flat,8
-tree,0, flat,6, mover,8, flat,8, rock,0, flat,10
+tree,0, flat,6, mover,8, flat,8, rock,0, flat,10, drop,5, tram,24, flat,24, awning,3, wall,5, flat,8
 goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 
 ' Lantern Quarter on the festival night: a stand-in too.

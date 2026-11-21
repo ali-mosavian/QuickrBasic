@@ -91,6 +91,12 @@ private function PilotRide% (lv as Level, gr as Ground, se as Session, p as Hero
             ' a bridge is run over, and a pier
             PressOn k
             want = 0
+        case 8
+            ' a tram is ridden to its way's end, and left by a jump
+            if lv.mv(m).t >= 1 then
+                PressOn k
+                want = -1
+            end if
         case 5
             ' a boat low in its pool: off it at the wall, once the bank is a jump up
             d = lv.top((i + 6) \ TS) * TS
@@ -224,7 +230,8 @@ private sub PilotGaps (lv as Level, se as Session, p as Hero, k as Pad, want as 
     y = cint(p.y)
     for m = 0 to lv.nMv - 1
         d = lv.mv(m).e - x
-        if lv.mv(m).k = 4 or lv.mv(m).k = 6 then d = NONE
+        ' a bridge and a pier are run over; a tram's street is run along
+        if lv.mv(m).k = 4 or lv.mv(m).k = 6 or lv.mv(m).k = 8 then d = NONE
         if d <= -4 or d >= 300 or abs(lv.mv(m).y + lv.mv(m).a * (lv.mv(m).k = 1) - y) >= 200 then continue for
         if d < 50 then want = 0
         if p.gsp > 30 + d then k.r = 0
@@ -258,7 +265,7 @@ private sub PilotFall (lv as Level, zn as Realm, p as Hero, k as Pad)
     if GoatNear%(lv, cint(p.x)) <> NONE then k.r = 0
     for m = 0 to lv.nMv - 1
         d = lv.mv(m).e - cint(p.x)
-        if lv.mv(m).k = 4 or lv.mv(m).k = 6 then d = NONE
+        if lv.mv(m).k = 4 or lv.mv(m).k = 6 or lv.mv(m).k = 8 then d = NONE
         if d <= -40 or d >= 260 or p.coyote > 0 or p.vx <= d \ 3 or p.sg = lv.mv(m).s then continue for
         k.r = 0
         k.l = -1

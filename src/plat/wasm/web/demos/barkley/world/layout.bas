@@ -3,7 +3,7 @@ defint A-Z
 option explicit
 
 from barkley.model.level import KBONE, KBUSH, KFLOWER, KLAMP, KMOVE, KPLAT, KPOST, KSEAT, KSPAN, KSPRING, KTANK
-from barkley.model.level import KTREE, KVENT, Level, MH, MW, Realm, TS
+from barkley.model.level import KTRAM, KTREE, KVENT, Level, MH, MW, Realm, TS
 from barkley.world.terrain.ground import Sunk
 from barkley.world.terrain.track import LimbUp, LIMBW, LimbX, NLIMB
 
@@ -14,6 +14,7 @@ sub AddMover (lv as Level, x as integer, y as integer, a as integer, k as intege
     select case k
     case 6: AddObj lv, KSPAN, x, y
     case 7: AddObj lv, KSEAT, x, y
+    case 8: AddObj lv, KTRAM, x, y
     case else: AddObj lv, KMOVE, x, y
     end select
     lv.mv(lv.nMv).x = x

@@ -22,10 +22,15 @@ private const SPANT = .25, SPANDROP = 400
 ' frame stands SEATH over its seat.
 private const SEATV = .35
 
-' How far cable m's far end hangs under its near one: a basket's cable falls, a ski lift's climbs.
+' A tram: its speed along its street while he rides its roof.
+const TRAMV = 240!
+
+' How far cable m's far end hangs under its near one: a basket's cable falls, a ski lift's climbs; a tram's street
+' is level.
 function Dip% (lv as Level, m as integer)
     Dip% = CABLED
     if lv.mv(m).k = 7 then Dip% = -CABLED
+    if lv.mv(m).k = 8 then Dip% = 0
 end function
 
 ' Boat m is off the floor of its pool.
@@ -94,14 +99,17 @@ sub Movers (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero)
             if lv.ob(lv.mv(m).b).s then lv.mv(m).t = lv.mv(m).t + 200 * STEPT
             if lv.mv(m).t > lv.mv(m).a then lv.mv(m).t = lv.mv(m).a
             y = y - lv.mv(m).t
-        case 3, 7
-            ' while stood on: a basket down its cable, faster as it goes, a chair up its own steadily; back when left
+        case 3, 7, 8
+            ' while stood on: a basket down its cable, faster as it goes, a chair up its own steadily, a tram along
+            ' its street at TRAMV; back when left
             if not p.ground or p.sg <> s then
                 lv.mv(m).t = lv.mv(m).t - .4 * STEPT
             elseif lv.mv(m).k = 3 then
                 lv.mv(m).t = lv.mv(m).t + (.25 + lv.mv(m).t) * .6 * STEPT
-            else
+            elseif lv.mv(m).k = 7 then
                 lv.mv(m).t = lv.mv(m).t + SEATV * STEPT
+            else
+                lv.mv(m).t = lv.mv(m).t + TRAMV * STEPT / lv.mv(m).a
             end if
             if lv.mv(m).t < 0 then lv.mv(m).t = 0
             if lv.mv(m).t > 1 then lv.mv(m).t = 1

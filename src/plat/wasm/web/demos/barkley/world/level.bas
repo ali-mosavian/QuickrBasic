@@ -23,6 +23,9 @@ from barkley.world.layout import SortObjs, Weed
 const LINEH = 24
 private const POSTIN = 6
 
+' A tram's roof over its street.
+const TRAMH = 32
+
 ' An awning's middle out from its wall.
 private const AWNOUT = 23
 
@@ -352,6 +355,9 @@ sub LoadLevel (wd as World, st as integer)
             Clearing wd.lv, c
             AddObj wd.lv, KCHIMNEY, c * TS + 8, s
             wd.lv.ob(wd.lv.nObj - 1).s = -n - 1
+        case "tram"
+            ' a tram on the street here, its way the n columns on: they are laid after it
+            AddMover wd.lv, c * TS + 8, s - TRAMH, n * TS - MOVEW - 16, 8, c * TS
         case "spring": k = KSPRING
         case "sapling": k = KSAPLING
         case "bramble": k = KBRAMBLE

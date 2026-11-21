@@ -3,7 +3,7 @@ defint A-Z
 option explicit
 
 from barkley.model.level import Ground, KBUTTON, KLOOP, KMOVE, KPIPE, KPLAT, KSEAT, KSPAN, KWAVE, KWAVE2, Level, MH, MW
-from barkley.model.level import NONE, PI, TS
+from barkley.model.level import KTRAM, NONE, PI, TS
 from barkley.world.terrain.ground import Bearing, LOOPN, LOOPR, WAVEL
 
 const PIPER = 48
@@ -158,7 +158,7 @@ end sub
 private sub TrackMovers (lv as Level, gr as Ground)
     dim i as integer, k as integer
     for i = 0 to lv.nObj - 1
-        if lv.ob(i).k <> KMOVE and lv.ob(i).k <> KSPAN and lv.ob(i).k <> KSEAT then continue for
+        if lv.ob(i).k <> KMOVE and lv.ob(i).k <> KSPAN and lv.ob(i).k <> KSEAT and lv.ob(i).k <> KTRAM then continue for
         Knot gr, csng(lv.ob(i).x), csng(lv.ob(i).y), 0
         Knot gr, csng(lv.ob(i).x + MOVEW), csng(lv.ob(i).y), 3
         lv.mv(k).o = i

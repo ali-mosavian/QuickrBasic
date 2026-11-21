@@ -1657,6 +1657,41 @@ for j = 0 to 1
     was = was and point(160, 140) >= 122 and point(160, 140) <= 125
 next
 if was and colB(0) = 0 and colB(1) > 8 then print "chimney ok"
+' a tram waits at its street's near end while no one rides it; ridden, it goes along at 240 a second, he with it,
+' to its way's end and no further, level all the way; left, it comes back; drawn in its red
+for m = 0 to wd.lv.nMv - 1
+    if wd.lv.mv(m).k = 8 then exit for
+next
+was = m < wd.lv.nMv
+c = wd.lv.mv(m).o
+Stand wd.lv, wd.gr, p, wd.lv.mv(m).e - 40, 0
+for i = 1 to 30
+    Tick wd, g, p, k, lo(), pt()
+next
+bx = wd.lv.ob(c).x
+was = was and bx = wd.lv.mv(m).x and wd.lv.mv(m).t = 0
+p.x = bx + MOVEW \\ 2
+p.y = wd.lv.mv(m).y
+p.sg = wd.lv.mv(m).s
+p.ang = 0
+for i = 1 to 60
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and abs(wd.lv.ob(c).x - bx - 240) < 6 and abs(p.x - wd.lv.ob(c).x - MOVEW \\ 2) < 2 and p.ground
+was = was and p.sg = wd.lv.mv(m).s
+g.shake = 0
+Render wd, g, p, lo(), pt()
+was = was and point(wd.lv.ob(c).x + 20 - int(g.camx), wd.lv.ob(c).y + 23 - int(g.camy)) = 187
+for i = 1 to 600
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and wd.lv.mv(m).t = 1 and wd.lv.ob(c).x = bx + wd.lv.mv(m).a and p.ground and p.sg = wd.lv.mv(m).s
+was = was and wd.lv.ob(c).y = wd.lv.mv(m).y
+Stand wd.lv, wd.gr, p, wd.lv.mv(m).e - 40, 0
+for i = 1 to 200
+    Tick wd, g, p, k, lo(), pt()
+next
+if was and wd.lv.mv(m).t = 0 and wd.lv.ob(c).x = bx then print "tram ok"
 ' Russet Wood is the fifth zone, by name and in its own colours: its litter's top the same picture at both hours,
 ' russet gold at a misty noon and not on the firefly night
 was = ZoneName$(4) = "RUSSET WOOD"
@@ -3672,6 +3707,7 @@ def main() -> None:
         ("line ok", "a clothesline throws him up, higher each time in a row; passed through from under; drawn"),
         ("awning ok", "an awning throws him up the same each time; passed through from under, and by past its edge"),
         ("chimney ok", "a chimney takes him down its pot and up out of its other; the way out takes no one in"),
+        ("tram ok", "a tram waits at its street's end, carries him along it while he rides, and comes back left"),
         ("firefly ok", "the wood's night dark but for a few fireflies; a bark wakes them and lights it for a while"),
         ("sapling ok", "a bowed sapling throws him who crosses its crown, higher the faster; sprung it throws no one"),
         ("vine ok", "a vine caught in the air swings him as a weight, lets go at a jump, and hangs straight again"),
