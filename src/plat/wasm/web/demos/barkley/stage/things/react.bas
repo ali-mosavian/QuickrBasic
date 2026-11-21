@@ -140,3 +140,14 @@ sub Heard ( _
         lv.gulls(i).st = GSCARED
     next
 end sub
+
+' The goat ridden, at x, y.
+sub Trot (lv as Level, x as single, y as single)
+    lv.stray.at.x = x
+    lv.stray.at.y = y
+end sub
+
+' The goat let go: home it runs.
+sub Unhitch (lv as Level)
+    lv.stray.st = 2
+end sub

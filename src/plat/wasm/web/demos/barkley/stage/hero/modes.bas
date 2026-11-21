@@ -15,6 +15,7 @@ from barkley.world.terrain.ground import Slow, WADE
 from barkley.stage.fx.parts import PDIG, PDRIP, PDRY, PFLUE, PMOUND
 from barkley.stage.fx.parts import PPADDLE, PSPLASH
 from barkley.stage.hero.feet import Land, Wall
+from barkley.stage.things.react import Trot, Turn, Unhitch
 
 const GOATV = 240!
 private const GOATRIDE = 2!
@@ -102,7 +103,7 @@ sub Hang ( _
     p.at.y = lv.things(i).at.y + VINELEN * cos(p.sway) + VINEGRIP
     p.vel.x = VINELEN * p.sway_v * cos(p.sway)
     p.vel.y = -VINELEN * p.sway_v * sin(p.sway)
-    lv.things(i).state = cint(p.sway * 100)
+    Turn lv, i, cint(p.sway * 100)
     if not (hit or p.stun or p.dead) then exit sub
 
     p.vine = 0
@@ -202,13 +203,12 @@ sub Ride ( _
         and (not p.ground or p.ride_t > GOATRIDE _
         or abs(p.at.x - p.last_x) < 1) then
         p.goat = 0
-        lv.stray.st = 2
+        Unhitch lv
     elseif p.ground then
         p.gsp = GOATV
         p.face = 0
         p.roll = 0
-        lv.stray.at.x = p.at.x
-        lv.stray.at.y = p.at.y
+        Trot lv, p.at.x, p.at.y
     end if
 end sub
 
