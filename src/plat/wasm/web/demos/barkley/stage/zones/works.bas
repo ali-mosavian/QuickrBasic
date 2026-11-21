@@ -3,8 +3,8 @@
 defint A-Z
 option explicit
 
-from barkley.engine.video import Blit, Store
-from barkley.engine.audio import Deck
+from engine.video import Blit, Store
+from engine.audio import Deck
 from barkley.model.images import IPRESS, IRAIL, ISPARK, ISRAIL
 from barkley.model.hero import Hero
 from barkley.model.level import KPRESS, Level, NONE, TS

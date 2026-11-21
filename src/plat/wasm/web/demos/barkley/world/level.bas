@@ -3,7 +3,7 @@
 defint A-Z
 option explicit
 
-from barkley.engine.datafile import Chars, DataFile, OpenData, Word
+from engine.datafile import Chars, DataFile, OpenData, Word
 from barkley.model.images import IBG, ICARD, ICARD2, ILOOP, ITILE
 from barkley.model.images import ITILE2, IWAVE, IZ2
 from barkley.model.level import KAWNING, KBIN, KBONE, KBOOST, KBRAMBLE

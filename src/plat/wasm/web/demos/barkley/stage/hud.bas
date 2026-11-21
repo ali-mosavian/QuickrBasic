@@ -2,7 +2,7 @@
 defint A-Z
 option explicit
 
-from barkley.engine.video import Store
+from engine.video import Store
 from barkley.model.images import IGLYPH, IHUD, NGLYPH
 from barkley.model.hero import Hero
 from barkley.model.level import NGOLD

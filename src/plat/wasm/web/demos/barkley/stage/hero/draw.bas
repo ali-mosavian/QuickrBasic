@@ -2,7 +2,7 @@
 defint A-Z
 option explicit
 
-from barkley.engine.video import Blit, Store, SW
+from engine.video import Blit, Store, SW
 from barkley.model.images import IGOATR, IHERO, ILOG, ISLED, ISNOWBALL
 from barkley.model.images import ITILT, ITW, NF
 from barkley.model.hero import Hero

@@ -4,8 +4,8 @@
 defint A-Z
 option explicit
 
-from barkley.engine.clock import STEPT
-from barkley.engine.audio import Deck, HushSong, LoadSong
+from engine.clock import STEPT
+from engine.audio import Deck, HushSong, LoadSong
 from barkley.model.level import Level, NONE, Realm
 from barkley.model.game import CLEARED, Game, INTRO, OVER, Session
 from barkley.model.game import TITLE

@@ -3,7 +3,7 @@
 defint A-Z
 option explicit
 
-from barkley.engine.datafile import DataFile
+from engine.datafile import DataFile
 
 ' The pictures, end to end in img: where each starts, and
 ' the next free place. A zone's own go after all the others,

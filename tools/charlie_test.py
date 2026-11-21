@@ -65,9 +65,9 @@ OWNERS = {
 # The fields assigned outside their owner today: the count may only fall.
 OUTSIDE = 556
 
-DRIVER = """from barkley.engine.video import Blit, OpenScreen, SH, SW
-from barkley.engine.clock import Clock, Pace, Steps, STEPT
-from barkley.engine.audio import Beat, Half, NBAR, NextHalf, NSLOT, NVOICE, Song, StartSong
+DRIVER = """from engine.video import Blit, OpenScreen, SH, SW
+from engine.clock import Clock, Pace, Steps, STEPT
+from engine.audio import Beat, Half, NBAR, NextHalf, NSLOT, NVOICE, Song, StartSong
 from barkley.model.images import FAMF, IBARON, ICISTERN, IFAM, ITANK, ITREE, NFAM
 from barkley.model.hero import Hero, Pad
 from barkley.model.level import GRAV, Ground, KBONE, KBRAMBLE, KBUOY, KCAT, KCISTERN, KCRAB, KDRIFT, KGOAT, KHOOP
@@ -4680,7 +4680,8 @@ def main() -> None:
         path = Path(tmp) / "T.BAS"
         path.write_text(src.replace("\nMain wd\nend\n", "\n" + DRIVER, 1))
         shutil.copy(DEMO.with_suffix(".DAT"), tmp)
-        shutil.copytree(DEMO.parent / "barkley", Path(tmp) / "barkley")
+        for package in ("barkley", "engine"):
+            shutil.copytree(DEMO.parent / package, Path(tmp) / package)
         run = subprocess.run([exe, path.name], cwd=tmp, capture_output=True, timeout=300)
     out = run.stdout.decode(errors="replace") + run.stderr.decode(errors="replace")
     if "edge ok" not in out:

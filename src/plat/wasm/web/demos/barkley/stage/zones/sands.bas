@@ -3,9 +3,9 @@
 defint A-Z
 option explicit
 
-from barkley.engine.video import Blit, SH, Store, SW
-from barkley.engine.clock import STEPT
-from barkley.engine.audio import Deck
+from engine.video import Blit, SH, Store, SW
+from engine.clock import STEPT
+from engine.audio import Deck
 from barkley.model.images import IBONE, ICRAB, IGULL, IRUNNEL, ISPOUT
 from barkley.model.images import ISURF
 from barkley.model.hero import Hero

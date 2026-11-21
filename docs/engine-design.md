@@ -1,6 +1,6 @@
 # A 2D engine for the demos
 
-A design, being built: step 1 of its steps has landed. CHARLIE BARKLEY's `barkley` package becomes
+A design, being built: steps 1 and 2 of its steps have landed. CHARLIE BARKLEY's `barkley` package becomes
 a small engine any demo can use, and a game over it.
 
 ## Goals
@@ -19,7 +19,7 @@ a small engine any demo can use, and a game over it.
 
 ![Layers](img/engine-layers.svg)
 
-- `engine` is `barkley/engine` moved beside the demos. It imports nothing from the game today.
+- `engine` is `demos/engine`, beside the demos. It imports nothing from the game.
 - Imports point down, by name.
 - Play calls nothing above it. What it has to report, it posts as an event.
 

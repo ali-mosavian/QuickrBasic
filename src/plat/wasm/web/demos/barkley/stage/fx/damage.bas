@@ -3,7 +3,7 @@
 defint A-Z
 option explicit
 
-from barkley.engine.audio import Deck
+from engine.audio import Deck
 from barkley.model.hero import Hero
 from barkley.model.level import Level, PI
 from barkley.model.game import Game, Loose, NLOOSE, Part, Session

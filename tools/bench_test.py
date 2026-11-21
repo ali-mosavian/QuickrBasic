@@ -99,7 +99,8 @@ def charlie_each() -> None:
     and a LoadLevel without its level, it found no Main in the game and stopped before a single measurement."""
     with tempfile.TemporaryDirectory() as d:
         (Path(d) / "CHARLIE.DAT").write_bytes(bench.CHARLIE.with_suffix(".DAT").read_bytes())
-        shutil.copytree(bench.CHARLIE.with_name("barkley"), Path(d) / "barkley")
+        for package in ("barkley", "engine"):
+            shutil.copytree(bench.CHARLIE.with_name(package), Path(d) / package)
         (Path(d) / "C.BAS").write_text(bench.charlie_program().replace("TIMER - t0 >= 2", "TIMER - t0 >= 0"))
         subprocess.run([str(bench.ROOT / "build/host/basic"), "C.BAS"], cwd=d, stdin=subprocess.DEVNULL,
                        capture_output=True, timeout=120, env=os.environ | {"SDL_VIDEODRIVER": "dummy"})

@@ -2,9 +2,9 @@
 defint A-Z
 option explicit
 
-from barkley.engine.video import Blit, Store
-from barkley.engine.clock import STEPT
-from barkley.engine.audio import Deck
+from engine.video import Blit, Store
+from engine.clock import STEPT
+from engine.audio import Deck
 from barkley.model.hero import Hero
 from barkley.model.level import GRAV, Level, MH, TS
 from barkley.model.game import Game, Loose, Part, Session

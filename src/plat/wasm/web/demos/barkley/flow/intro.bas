@@ -3,8 +3,8 @@
 defint A-Z
 option explicit
 
-from barkley.engine.video import Blit, SH, SW
-from barkley.engine.clock import STEPT
+from engine.video import Blit, SH, SW
+from engine.clock import STEPT
 from barkley.model.images import IBOXES, ICRATE, IHEDGE, IHOUSE
 from barkley.model.hero import Hero, Pad
 from barkley.model.level import Level

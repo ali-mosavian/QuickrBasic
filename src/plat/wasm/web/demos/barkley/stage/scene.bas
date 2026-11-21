@@ -2,7 +2,7 @@
 defint A-Z
 option explicit
 
-from barkley.engine.video import Blit, SH, Store, SW
+from engine.video import Blit, SH, Store, SW
 from barkley.model.images import IAM, IAP, IAWNING, IBIN, IBONE
 from barkley.model.images import IBOOST, IBRAMBLE, IBTN, IBUMP, IBUOY
 from barkley.model.images import IBUSH, ICHAIR, ICHIMNEY, ICISTERN

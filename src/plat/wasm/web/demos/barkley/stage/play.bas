@@ -3,9 +3,9 @@
 defint A-Z
 option explicit
 
-from barkley.engine.video import SW
-from barkley.engine.clock import STEPT
-from barkley.engine.audio import Deck
+from engine.video import SW
+from engine.clock import STEPT
+from engine.audio import Deck
 from barkley.model.hero import Hero
 from barkley.model.level import GRAV, Ground, KAWNING, KBONE, KBOOST
 from barkley.model.level import KBRAMBLE, KBUMP, KBUOY, KBUTTON, KCAT

@@ -4,9 +4,9 @@
 defint A-Z
 option explicit
 
-from barkley.engine.video import Blit, Store, SW
-from barkley.engine.clock import STEPT
-from barkley.engine.audio import Deck
+from engine.video import Blit, Store, SW
+from engine.clock import STEPT
+from engine.audio import Deck
 from barkley.model.images import IBURST, ICAT, ICATF, IFLOWER, IMORTAR
 from barkley.model.images import IPAPER, ISHIRT, ISNATCH, ISOCK, ITALL
 from barkley.model.images import ITIPPER, ITROUSERS

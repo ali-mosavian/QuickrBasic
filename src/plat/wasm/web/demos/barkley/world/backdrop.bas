@@ -2,7 +2,7 @@
 defint A-Z
 option explicit
 
-from barkley.engine.video import Blit, SH, Store, SW
+from engine.video import Blit, SH, Store, SW
 from barkley.model.images import IAC, IAE, IAF, IAL, IAS, IAU, IDK
 from barkley.model.images import IWET, IWS, IWT, IZS, IZU
 from barkley.model.level import Level, Realm, TS

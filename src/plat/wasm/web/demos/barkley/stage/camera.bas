@@ -3,8 +3,8 @@
 defint A-Z
 option explicit
 
-from barkley.engine.video import SH, SW
-from barkley.engine.clock import STEPT
+from engine.video import SH, SW
+from engine.clock import STEPT
 from barkley.model.hero import Hero
 from barkley.model.level import Level, MH, NONE, Realm, TS
 from barkley.model.game import Game

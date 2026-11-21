@@ -3,7 +3,7 @@
 defint A-Z
 option explicit
 
-from barkley.engine.audio import Deck
+from engine.audio import Deck
 from barkley.model.images import ICAT, ICATF
 from barkley.model.hero import Hero
 from barkley.model.level import Level, Realm

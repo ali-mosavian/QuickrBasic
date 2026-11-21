@@ -2,10 +2,10 @@
 defint A-Z
 option explicit
 
-from barkley.engine.video import Flip, OpenScreen
-from barkley.engine.input import Poll
-from barkley.engine.clock import Clock, Elapsed, Pace, Steps, STEPT
-from barkley.engine.audio import FeedSong
+from engine.video import Flip, OpenScreen
+from engine.input import Poll
+from engine.clock import Clock, Elapsed, Pace, Steps, STEPT
+from engine.audio import FeedSong
 from barkley.model.hero import Hero, Pad
 from barkley.model.game import Cue, Game, INTRO, Loose, NCUE, NLOOSE
 from barkley.model.game import NPART, Part

@@ -3,7 +3,7 @@
 defint A-Z
 option explicit
 
-from barkley.engine.clock import STEPT
+from engine.clock import STEPT
 from barkley.model.hero import Hero, HH, HW
 from barkley.model.level import Ground, Level, MH, NONE, PI, TS
 

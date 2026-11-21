@@ -3,7 +3,7 @@
 defint A-Z
 option explicit
 
-from barkley.engine.datafile import Chars, DataFile, OpenData, Word
+from engine.datafile import Chars, DataFile, OpenData, Word
 
 ' Half a bar as PLAY strings: its drums and their letters,
 ' the bass, the two chord voices, the lead, the first voice

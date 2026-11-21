@@ -3,9 +3,9 @@
 defint A-Z
 option explicit
 
-from barkley.engine.video import SW
-from barkley.engine.clock import STEPT
-from barkley.engine.audio import Deck
+from engine.video import SW
+from engine.clock import STEPT
+from engine.audio import Deck
 from barkley.model.images import IACORN
 from barkley.model.hero import Hero
 from barkley.model.level import Level, Realm, Swarm

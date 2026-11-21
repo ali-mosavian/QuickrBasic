@@ -3,7 +3,7 @@
 defint A-Z
 option explicit
 
-from barkley.engine.video import Blit, Store
+from engine.video import Blit, Store
 from barkley.model.images import FAMF, IBALL, IBARON, IBASKET, ICAMERA
 from barkley.model.images import ICAT, IDOOR, IFAM, IFLOAT, IGUITAR
 from barkley.model.images import IPEEK, ITEDDY, ITOOLS, IVAN, IWHEEL

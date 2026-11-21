@@ -3,7 +3,7 @@
 defint A-Z
 option explicit
 
-from barkley.engine.vec import Spot, Vec
+from engine.vec import Spot, Vec
 
 type Game
     mode as integer

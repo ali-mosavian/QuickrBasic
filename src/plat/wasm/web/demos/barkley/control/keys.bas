@@ -3,8 +3,8 @@
 defint A-Z
 option explicit
 
-from barkley.engine.input import Held2, Keys, Poll
-from barkley.engine.audio import CutVoices, Deck
+from engine.input import Held2, Keys, Poll
+from engine.audio import CutVoices, Deck
 from barkley.model.hero import Pad
 
 private const SCLEFT = 75

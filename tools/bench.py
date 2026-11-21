@@ -648,7 +648,7 @@ CHARLIE_EACH = (CHARLIE_STEP, "DrawBack wd.zn, wd.art, cx, cy",
                 "DrawThings wd.lv, wd.zn, wd.art, wd.se, cx, cy, -1", "DrawTiles wd.lv, wd.zn, wd.art, cx, cy",
                 "DrawThings wd.lv, wd.zn, wd.art, wd.se, cx, cy, 0", "DrawHero wd.gr, wd.art, wd.se, p, cx, cy",
                 "DrawParts pt(), cx, cy", "Blit wd.art, 6, 5, IHUD, HUDW, HUDH", "Flip g.page", "Render wd, g, p, lo(), pt()")
-CHARLIE_IMPORTS = "".join(f"FROM barkley.{m} IMPORT {n}\n" for m, n in (
+CHARLIE_IMPORTS = "".join(f"FROM {'' if m.startswith('engine.') else 'barkley.'}{m} IMPORT {n}\n" for m, n in (
     ("engine.video", "Blit, Flip, OpenScreen"),
     ("model.images", "IHUD"),
     ("model.hero", "Hero, Pad"),
@@ -678,9 +678,12 @@ OPEN "EACH.TXT" FOR OUTPUT AS #1
 
 
 def charlie_modules() -> dict[str, bytes]:
-    """The game's package by the path each module sits at beside CHARLIE.BAS."""
-    root = CHARLIE.with_name("barkley")
-    return {f"barkley/{p.relative_to(root).as_posix()}": p.read_bytes() for p in sorted(root.rglob("*.bas"))}
+    """The game's package and the engine by the path each module sits at beside CHARLIE.BAS."""
+    return {
+        p.relative_to(CHARLIE.parent).as_posix(): p.read_bytes()
+        for d in ("barkley", "engine")
+        for p in sorted(CHARLIE.with_name(d).rglob("*.bas"))
+    }
 
 
 def charlie_program() -> str:

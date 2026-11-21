@@ -3,8 +3,8 @@
 defint A-Z
 option explicit
 
-from barkley.engine.clock import STEPT
-from barkley.engine.audio import Deck
+from engine.clock import STEPT
+from engine.audio import Deck
 from barkley.model.hero import Hero, HH, Pad
 from barkley.model.level import GRAV, Ground, KCAT, KCRAB, KICICLE
 from barkley.model.level import KLOAD, KPOUNCE, KSNATCH, KSQUIRREL

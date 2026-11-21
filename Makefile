@@ -85,8 +85,8 @@ IDE_OBJ := $(CORE_OBJ) $(UI_C:src/%.c=$(B)/obj/%.obj) $(B)/obj/app/ide32.obj
 DOS_EXE := $(B)/basic32.exe $(B)/ide32.exe $(B)/DOS32A.EXE $(B)/BASIC.HLP
 # the release: the programs by their DOS names, with the games (src/plat/wasm/web/demos)
 DOS_GAMES := $(addprefix src/plat/wasm/web/demos/,GORILLA.BAS NIBBLES.BAS MOTHLITE.BAS RUSTLINE.BAS CHARLIE.BAS CHARLIE.DAT)
-# CHARLIE.BAS imports its package, the barkley folder beside it
-DOS_MODULES := $(shell find src/plat/wasm/web/demos/barkley -name '*.bas')
+# CHARLIE.BAS imports its package and the engine, the barkley and engine folders beside it
+DOS_MODULES := $(shell find src/plat/wasm/web/demos/barkley src/plat/wasm/web/demos/engine -name '*.bas')
 
 all: $(DOS_EXE)
 
@@ -128,9 +128,10 @@ dos-zip: $(DOS_EXE) $(DOS_GAMES) $(DOS_MODULES)
 	cp $(B)/ide32.exe $(B)/release/IDE32.EXE
 	cp $(B)/basic32.exe $(B)/release/BASIC32.EXE
 	cp $(B)/DOS32A.EXE $(B)/BASIC.HLP $(DOS_GAMES) $(B)/release/
-	rm -rf $(B)/release/barkley
+	rm -rf $(B)/release/barkley $(B)/release/engine
 	cp -R src/plat/wasm/web/demos/barkley $(B)/release/barkley
-	cd $(B)/release && zip -q -X -r ../QuickrBasic-dos.zip IDE32.EXE BASIC32.EXE DOS32A.EXE BASIC.HLP GORILLA.BAS NIBBLES.BAS MOTHLITE.BAS RUSTLINE.BAS CHARLIE.BAS CHARLIE.DAT barkley
+	cp -R src/plat/wasm/web/demos/engine $(B)/release/engine
+	cd $(B)/release && zip -q -X -r ../QuickrBasic-dos.zip IDE32.EXE BASIC32.EXE DOS32A.EXE BASIC.HLP GORILLA.BAS NIBBLES.BAS MOTHLITE.BAS RUSTLINE.BAS CHARLIE.BAS CHARLIE.DAT barkley engine
 
 -include $(shell find $(B) -name '*.d' 2>/dev/null)
 

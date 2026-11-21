@@ -3,7 +3,7 @@
 defint A-Z
 option explicit
 
-from barkley.engine.vec import Spot, Vec
+from engine.vec import Spot, Vec
 
 ' A swarm of bees: where it is, its home, and what it
 ' does: 0 at home, 1 after him, 2 on its way home.

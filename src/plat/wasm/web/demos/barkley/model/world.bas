@@ -2,10 +2,10 @@
 defint A-Z
 option explicit
 
-from barkley.engine.datafile import DataFile, NameData
-from barkley.engine.video import Store
-from barkley.engine.input import Keys
-from barkley.engine.audio import Deck, NBAR, NDRUM, NSLOT, NVOICE
+from engine.datafile import DataFile, NameData
+from engine.video import Store
+from engine.input import Keys
+from engine.audio import Deck, NBAR, NDRUM, NSLOT, NVOICE
 from barkley.model.images import IMGSZ, NIMG
 from barkley.model.hero import Autopilot
 from barkley.model.level import Ground, Level, MH, MW, NSTAGE, Realm

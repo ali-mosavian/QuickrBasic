@@ -2,7 +2,7 @@
 defint A-Z
 option explicit
 
-from barkley.engine.vec import Vec
+from engine.vec import Vec
 
 ' Charlie. at: the feet. gsp: speed along the ground, ang
 ' its rise in radians, uphill to the right > 0, right round

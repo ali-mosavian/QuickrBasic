@@ -24,6 +24,7 @@ DAT = ROOT / "src/plat/wasm/web/demos/CHARLIE.DAT"
 SONG = ROOT / "tools/charliesong.txt"
 LEVELS = ROOT / "tools/charlielevels.txt"
 GAME = ROOT / "src/plat/wasm/web/demos/barkley"  # the game's package
+ENGINE = GAME.with_name("engine")  # the engine it runs on
 INK, WHITE = 2, 1
 PAL: dict[int, tuple[int, int, int]] = {0: (2, 2, 8), 1: (63, 63, 63), 2: (5, 3, 8), 3: (63, 56, 20), 4: (60, 14, 12)}
 
@@ -5703,7 +5704,8 @@ def sound(n: int, s: list[int | str]) -> None:
 
 def game_const(name: str) -> int:
     """A CONST of the game's, a whole number."""
-    m = re.search(rf"(?i)\b{name} = (\d+)", "\n".join(p.read_text() for p in sorted(GAME.rglob("*.bas"))))
+    src = "\n".join(p.read_text() for d in (GAME, ENGINE) for p in sorted(d.rglob("*.bas")))
+    m = re.search(rf"(?i)\b{name} = (\d+)", src)
     if not m:
         sys.exit(f"charlieart: the game has no const {name}")
     return int(m[1])

@@ -3,8 +3,8 @@
 defint A-Z
 option explicit
 
-from barkley.engine.datafile import OpenData, Word
-from barkley.engine.video import Flop, Grab, MaskGrab, Mirror, Store
+from engine.datafile import OpenData, Word
+from engine.video import Flop, Grab, MaskGrab, Mirror, Store
 from barkley.model.images import IGLYPH, IHUD, ITILT, NGLYPH
 from barkley.model.level import NSTAGE, ZONES
 from barkley.model.game import Tones
