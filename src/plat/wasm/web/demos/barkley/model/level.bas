@@ -26,10 +26,8 @@ end type
 ' What is thrown or dropped, on its arc: its picture, and the colour it bursts in. bedded: let go in a bough,
 ' which it falls out of before any ground stops it.
 type Lob
-    x as single
-    y as single
-    vx as single
-    vy as single
+    at as Vec
+    vel as Vec
     live as integer
     pic as integer
     c as integer

@@ -3137,9 +3137,9 @@ for i = 1 to 21
 next
 g.shake = 0
 Render wd, g, p, lo(), pt()
-j = cint(wd.lv.lobs(0).x) - int(g.cam.x) - 1
+j = cint(wd.lv.lobs(0).at.x) - int(g.cam.x) - 1
 was = was and wd.lv.lobN = 1 and p.stun = 0 and g.bones = 5
-was = was and point(j, cint(wd.lv.lobs(0).y) - int(g.cam.y) - 2) = 161
+was = was and point(j, cint(wd.lv.lobs(0).at.y) - int(g.cam.y) - 2) = 161
 Tick wd, g, p, k, lo(), pt()
 was = was and wd.lv.lobN = 0 and p.stun <> 0 and g.bones = 0 and not p.dead
 ' it bursts in its own colour
@@ -3487,8 +3487,8 @@ for j = 0 to 1
     ' a snowball, as it is drawn
     g.shake = 0
     Render wd, g, p, lo(), pt()
-    v = cint(wd.lv.lobs(0).x) - int(g.cam.x) - 1
-    was = was and point(v, cint(wd.lv.lobs(0).y) - int(g.cam.y) - 2) = 116
+    v = cint(wd.lv.lobs(0).at.x) - int(g.cam.x) - 1
+    was = was and point(v, cint(wd.lv.lobs(0).at.y) - int(g.cam.y) - 2) = 116
     if j then Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 160, 0
     for i = 1 to 70
         Tick wd, g, p, k, lo(), pt()

@@ -22,10 +22,10 @@ sub Loft (lv as Level, x as single, y as single, vx as single, vy as single, pic
         if not lv.lobs(n).live then exit for
     next
     if n = NLOB then exit sub
-    lv.lobs(n).x = x
-    lv.lobs(n).y = y
-    lv.lobs(n).vx = vx
-    lv.lobs(n).vy = vy
+    lv.lobs(n).at.x = x
+    lv.lobs(n).at.y = y
+    lv.lobs(n).vel.x = vx
+    lv.lobs(n).vel.y = vy
     lv.lobs(n).pic = pic
     lv.lobs(n).c = c
     lv.lobs(n).bedded = Solid%(lv, cint(x), cint(y))
@@ -37,7 +37,7 @@ end sub
 private sub Splat (lv as Level, mu as Deck, se as Session, n as integer, pt() as Part)
     lv.lobs(n).live = 0
     lv.lobN = lv.lobN - 1
-    Burst se, pt(), lv.lobs(n).x, lv.lobs(n).y, 6, 90, lv.lobs(n).c
+    Burst se, pt(), lv.lobs(n).at.x, lv.lobs(n).at.y, 6, 90, lv.lobs(n).c
     Sfx mu, se, SPOP
 end sub
 
@@ -46,15 +46,15 @@ sub Volley (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() a
     dim n as integer, aground as integer
     for n = 0 to NLOB - 1
         if lv.lobs(n).live = 0 then continue for
-        lv.lobs(n).vy = lv.lobs(n).vy + GRAV * STEPT
-        lv.lobs(n).x = lv.lobs(n).x + lv.lobs(n).vx * STEPT
-        lv.lobs(n).y = lv.lobs(n).y + lv.lobs(n).vy * STEPT
-        aground = Solid%(lv, cint(lv.lobs(n).x), cint(lv.lobs(n).y))
+        lv.lobs(n).vel.y = lv.lobs(n).vel.y + GRAV * STEPT
+        lv.lobs(n).at.x = lv.lobs(n).at.x + lv.lobs(n).vel.x * STEPT
+        lv.lobs(n).at.y = lv.lobs(n).at.y + lv.lobs(n).vel.y * STEPT
+        aground = Solid%(lv, cint(lv.lobs(n).at.x), cint(lv.lobs(n).at.y))
         if not aground then lv.lobs(n).bedded = 0
-        if abs(lv.lobs(n).x - p.at.x) < 10 and abs(lv.lobs(n).y - p.at.y + 13) < 14 then
-            Hurt mu, se, g, p, cint(lv.lobs(n).x - sgn(lv.lobs(n).vx) * 10), lo(), SHURT
+        if abs(lv.lobs(n).at.x - p.at.x) < 10 and abs(lv.lobs(n).at.y - p.at.y + 13) < 14 then
+            Hurt mu, se, g, p, cint(lv.lobs(n).at.x - sgn(lv.lobs(n).vel.x) * 10), lo(), SHURT
             Splat lv, mu, se, n, pt()
-        elseif (aground and not lv.lobs(n).bedded) or lv.lobs(n).y > MH * TS then
+        elseif (aground and not lv.lobs(n).bedded) or lv.lobs(n).at.y > MH * TS then
             Splat lv, mu, se, n, pt()
         end if
     next
@@ -65,6 +65,6 @@ sub DrawLobs (lv as Level, art as Store, cx as integer, cy as integer)
     dim n as integer
     for n = 0 to NLOB - 1
         if lv.lobs(n).live = 0 then continue for
-        Blit art, cint(lv.lobs(n).x) - cx - 4, cint(lv.lobs(n).y) - cy - 4, lv.lobs(n).pic, 8, 8
+        Blit art, cint(lv.lobs(n).at.x) - cx - 4, cint(lv.lobs(n).at.y) - cy - 4, lv.lobs(n).pic, 8, 8
     next
 end sub
