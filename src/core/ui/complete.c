@@ -35,6 +35,7 @@
 #include "ui/screen.h"
 #include "ui/text.h"
 #include "ui/uimain.h"
+#include "util/hash.h"
 
 enum {
     AC_ROWS = 8,  /* the list's rows */
@@ -100,15 +101,7 @@ static bool cmpl_find(Session *const S)
 }
 
 /* The edit line's characters summed: its ghost still its own. */
-static uint32_t cmpl_sum(const LineBuf *const b)
-{
-    uint32_t h = 2166136261u;
-
-    for (uint16_t i = 0; i < b->len; i++)
-        h = (h ^ b->text[i]) * 16777619u;
-
-    return h;
-}
+static uint32_t cmpl_sum(const LineBuf *const b) { return fnv(FNV_SEED, b->text, b->len); }
 
 /* A ghost, and the line as it was found for. */
 static bool cmpl_ghost(void)

@@ -15,6 +15,7 @@
 #include "session.h"
 #include "ui/debugtext.h"
 #include "ui/text.h"
+#include "util/hash.h"
 #include "vm/inspect.h"
 
 enum {
@@ -63,14 +64,9 @@ static char *eval_text(char *d, const char *const out)
     return d;
 }
 
-static uint32_t hash(const char *s)
+static uint32_t hash(const char *const s)
 {
-    uint32_t h = 2166136261u;
-
-    while (*s)
-        h = (h ^ (uint8_t)*s++) * 16777619u;
-
-    return h;
+    return fnv(FNV_SEED, (const uint8_t *)s, (uint32_t)strlen(s));
 }
 
 /* PRINT's text t is of a number not 0. */

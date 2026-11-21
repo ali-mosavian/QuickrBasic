@@ -39,6 +39,7 @@
 #include "mem/scope.h"
 #include "vm/flow.h"
 #include "util/grow.h"
+#include "util/hash.h"
 
 enum {
     NNAMES = 512,   /* the names kept of a scan */
@@ -106,15 +107,7 @@ static struct {
     uint8_t ndo, nwhile, nsel; /* DO, WHILE, SELECT CASE open at the word */
 } sg;
 
-static uint32_t sugg_hash(const uint8_t *const s, const uint32_t n)
-{
-    uint32_t h = 2166136261u;
-
-    for (uint32_t i = 0; i < n; i++)
-        h = (h ^ s[i]) * 16777619u;
-
-    return h;
-}
+static uint32_t sugg_hash(const uint8_t *const s, const uint32_t n) { return fnv(FNV_SEED, s, n); }
 
 /* ---- the compiler's verdict */
 
