@@ -75,9 +75,9 @@ private function TileSeg% (gr as Ground, x as integer, y as single)
 
     if abs(gr.pt(s).at.y _
         + (x - gr.pt(s).at.x) * gr.pt(s).dir.y / gr.pt(s).dir.x _
-        - y) < 4 then
-        TileSeg% = s
-    end if
+        - y) >= 4 then exit function
+
+    TileSeg% = s
 end function
 
 ' The platform's stretch under x, at y within 4; -1 when
@@ -432,10 +432,12 @@ function Ribbon% (gr as Ground, x as integer)
     Ribbon% = 0
 
     for z = 0 to gr.n_cv - 1
-        if gr.cv(z).far < 0 and gr.pt(gr.cv(z).first).kind = 2 _
-            and gr.cv(z).x_lo > x - 16 and gr.cv(z).x_lo < x + 60 then
-            Ribbon% = -1
-        end if
+        if gr.cv(z).far >= 0 or gr.pt(gr.cv(z).first).kind <> 2 _
+            then continue for
+        if gr.cv(z).x_lo <= x - 16 or gr.cv(z).x_lo >= x + 60 _
+            then continue for
+
+        Ribbon% = -1
     next
 end function
 

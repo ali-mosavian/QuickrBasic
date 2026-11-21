@@ -76,9 +76,9 @@ sub DrawFloat ( _
     Blit art, x - 33, y - 18, k, 18, 18
     Blit art, x + 15, y - 18, k, 18, 18
 
-    if a and 1 then
-        Blit art, x - 42, ry - 35, BaronPic%(se, 0), 40, 44
-    end if
+    if (a and 1) = 0 then exit sub
+
+    Blit art, x - 42, ry - 35, BaronPic%(se, 0), 40, 44
 end sub
 
 ' The Baron's picture: sat, his tail swaying and now and

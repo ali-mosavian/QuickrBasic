@@ -929,9 +929,9 @@ private sub MoveCrane (lv as Level, p as Hero)
         lv.cart.at.x = lv.chase_x + 40
     end if
 
-    if lv.cart.at.x > lv.chase_end - 40 then
-        lv.cart.at.x = lv.chase_end - 40
-    end if
+    if lv.cart.at.x <= lv.chase_end - 40 then exit sub
+
+    lv.cart.at.x = lv.chase_end - 40
 end sub
 
 ' Charlie thrown up to the crane: in the air at its gondola

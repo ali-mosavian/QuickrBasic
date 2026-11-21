@@ -221,9 +221,9 @@ end sub
 private function Slick% (lv as Level, gr as Ground, p as Hero)
     Slick% = 0
 
-    if gr.pt(p.sg).kind = 1 and p.at.x >= 0 then
-        Slick% = lv.glaze(cint(p.at.x) \ TS)
-    end if
+    if gr.pt(p.sg).kind <> 1 or p.at.x < 0 then exit function
+
+    Slick% = lv.glaze(cint(p.at.x) \ TS)
 end function
 
 ' On the ground: wind up, jump, roll, run; then along it, a
@@ -416,10 +416,10 @@ private sub RunOn ( _
         Sfx mu, se, SROLL
     end if
 
-    if p.skid and (se.ticks and 3) = 0 then
-        Emit se, pt(), p.at.x, p.at.y - 1, -p.gsp * .1, -30, .4, _
-            CSTONE + 3
-    end if
+    if p.skid = 0 or (se.ticks and 3) <> 0 then exit sub
+
+    Emit se, pt(), p.at.x, p.at.y - 1, -p.gsp * .1, -30, .4, _
+        CSTONE + 3
 end sub
 
 ' A key held, way 1 right or -1 left: against his speed a
@@ -528,9 +528,9 @@ private sub Airborne ( _
         if landed then exit for
     next
 
-    if landed and fell > 420 then
-        Burst se, pt(), p.at.x, p.at.y - 2, 5, 60, CSTONE + 3
-    end if
+    if landed = 0 or fell <= 420 then exit sub
+
+    Burst se, pt(), p.at.x, p.at.y - 2, 5, 60, CSTONE + 3
 end sub
 
 ' In the air a key held, way 1 right or -1 left: he turns

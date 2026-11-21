@@ -157,9 +157,9 @@ private sub BuildGlyphs (art as Store)
 
             for y = 0 to 7
                 for x = 0 to 7
-                    if point(x, 184 + y) then
-                        pset (x + 1, y + 1), CINK
-                    end if
+                    if point(x, 184 + y) = 0 then continue for
+
+                    pset (x + 1, y + 1), CINK
                 next
             next
 

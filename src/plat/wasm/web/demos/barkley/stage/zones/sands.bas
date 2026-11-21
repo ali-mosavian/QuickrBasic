@@ -66,10 +66,10 @@ sub MeetFlume ( _
     if not p.ground or px < lv.things(i).at.x _
         or px >= lv.things(i).at.x + TS then exit sub
 
-    if py > lv.things(i).at.y - 6 _
-        and py < lv.things(i).at.y + TS + 6 then
-        Slide mu, se, p
-    end if
+    if py <= lv.things(i).at.y - 6 _
+        or py >= lv.things(i).at.y + TS + 6 then exit sub
+
+    Slide mu, se, p
 end sub
 
 ' Charlie at crab i. Down on its back he goes up off it,
@@ -236,9 +236,9 @@ sub Flock ( _
     dim i as integer
 
     for i = 0 to lv.n_gulls - 1
-        if lv.gulls(i).st > 0 then
-            Gull mu, se, lv.gulls(i), i, g, p, lo(), pt()
-        end if
+        if lv.gulls(i).st <= 0 then continue for
+
+        Gull mu, se, lv.gulls(i), i, g, p, lo(), pt()
     next
 end sub
 

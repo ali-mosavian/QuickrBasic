@@ -22,13 +22,13 @@ sub OpenData (df as DataFile)
     df.num = freefile
     open df.path for binary as #df.num
 
-    if lof(df.num) = 0 then
-        close #df.num
-        kill df.path
-        screen 0
-        print df.lack
-        end
-    end if
+    if lof(df.num) <> 0 then exit sub
+
+    close #df.num
+    kill df.path
+    screen 0
+    print df.lack
+    end
 end sub
 
 ' df's next LONG.

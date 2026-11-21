@@ -524,9 +524,9 @@ sub MeetHeap (lv as Level, p as Hero, i as integer)
     if h < 0 then h = 0
     r = cint(HEAPR * (1 - h / HEAPH))
 
-    if abs(p.at.x - lv.things(i).at.x) < r then
-        Balk p, lv.things(i).at.x, r
-    end if
+    if abs(p.at.x - lv.things(i).at.x) >= r then exit sub
+
+    Balk p, lv.things(i).at.x, r
 end sub
 
 ' The goat not ridden within 150 of x, NONE when there is
@@ -656,10 +656,10 @@ private sub Plunge ( _
         Shatter lv, mu, se, pt(), i
     next
 
-    if lv.things(i).state > 0 _
-        and Solid%(lv, lv.things(i).at.x, y) then
-        Shatter lv, mu, se, pt(), i
-    end if
+    if lv.things(i).state <= 0 _
+        or Solid%(lv, lv.things(i).at.x, y) = 0 then exit sub
+
+    Shatter lv, mu, se, pt(), i
 end sub
 
 ' Whether snow-thrower i is up from behind its wall: open to
@@ -788,9 +788,10 @@ private sub Bury ( _
             or abs(lv.things(j).at.x - lv.things(h).at.x) >= HEAPR _
             + 10 then continue for
 
-        if abs(lv.things(j).at.y - lv.things(h).at.y) < 24 then
-            Beaten lv, mu, se, g, pt(), j, 8
-        end if
+        if abs(lv.things(j).at.y _
+            - lv.things(h).at.y) >= 24 then continue for
+
+        Beaten lv, mu, se, g, pt(), j, 8
     next
 
     g.shake = .3

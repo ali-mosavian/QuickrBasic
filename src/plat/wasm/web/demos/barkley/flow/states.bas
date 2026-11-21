@@ -292,10 +292,10 @@ sub ResetWorld ( _
             wd.lv.things(i).state = SQWAIT
         end if
 
-        if wd.lv.things(i).kind = KGOAT _
-            or wd.lv.things(i).kind = KWALL then
-            wd.lv.things(i).state = 1
-        end if
+        if wd.lv.things(i).kind <> KGOAT _
+            and wd.lv.things(i).kind <> KWALL then continue for
+
+        wd.lv.things(i).state = 1
     next
 
     for i = 0 to NLOB - 1

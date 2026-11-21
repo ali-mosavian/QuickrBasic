@@ -170,10 +170,10 @@ function EndBeat! (mu as Deck, se as Session, g as Game)
 
     EndBeat! = -1
 
-    if mu.slot = CAUGHT then
-        EndBeat! = (se.ticks - mu.song_at) * STEPT _
-            * mu.song(CAUGHT).tempo / 60
-    end if
+    if mu.slot <> CAUGHT then exit function
+
+    EndBeat! = (se.ticks - mu.song_at) * STEPT _
+        * mu.song(CAUGHT).tempo / 60
 end function
 
 ' The zone tune's clock told the session: by the tune's own

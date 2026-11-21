@@ -272,10 +272,11 @@ sub LoadLevel (wd as World, st as integer)
             ' a wall with a quarter pipe up to it, over the
             ' three columns before: nothing grows there
             for i = 0 to wd.lv.n_things - 1
-                if Rooted%(wd.lv, i, KTREE) _
-                    and wd.lv.things(i).at.x >= c * TS - PIPER then
-                    wd.lv.things(i).kind = 0
-                end if
+                if not Rooted%(wd.lv, i, KTREE) _
+                    or wd.lv.things(i).at.x < c * TS - PIPER _
+                    then continue for
+
+                wd.lv.things(i).kind = 0
             next
 
             AddObj wd.lv, KPIPE, c * TS, s
@@ -429,9 +430,9 @@ sub LoadLevel (wd as World, st as integer)
             for i = 0 to n * 4 - 1
                 Column wd.lv, c + i, g, 1
 
-                if (i and 3) = 1 then
-                    AddObj wd.lv, KPRESS, (c + i + 1) * TS, s
-                end if
+                if (i and 3) <> 1 then continue for
+
+                AddObj wd.lv, KPRESS, (c + i + 1) * TS, s
             next
 
             c = c + n * 4
@@ -593,10 +594,11 @@ sub LoadLevel (wd as World, st as integer)
 
     ' nothing grows in front of the family
     for i = 0 to wd.lv.n_things - 1
-        if Rooted%(wd.lv, i, KBUSH) _
-            and abs(wd.lv.things(i).at.x - wd.lv.fam_x) < 112 then
-            wd.lv.things(i).kind = 0
-        end if
+        if not Rooted%(wd.lv, i, KBUSH) _
+            or abs(wd.lv.things(i).at.x - wd.lv.fam_x) >= 112 _
+            then continue for
+
+        wd.lv.things(i).kind = 0
     next
 
     SortObjs wd.lv

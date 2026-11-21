@@ -100,10 +100,10 @@ private function PilotSwim% ( _
     for i = lv.first(cint(p.at.x) \ TS) to lv.n_things - 1
         if lv.things(i).at.x > p.at.x + 34 then exit for
 
-        if lv.things(i).kind = KJELLY _
-            and lv.things(i).at.x > p.at.x then
-            want = -1
-        end if
+        if lv.things(i).kind <> KJELLY _
+            or lv.things(i).at.x <= p.at.x then continue for
+
+        want = -1
     next
 
     PilotSwim% = want
@@ -220,10 +220,11 @@ private function PilotRun% ( _
             or lv.things(i).kind = KTHROW) _
             and lv.things(i).state <> 0)
 
-        if d and lv.things(i).at.x <= x + 34 _
-            + abs(cint(p.gsp)) \ 8 then
-            want = -1
-        end if
+        if d = 0 _
+            or lv.things(i).at.x > x + 34 _
+            + abs(cint(p.gsp)) \ 8 then continue for
+
+        want = -1
     next
 
     PilotPress lv, se, p, k, want
@@ -359,9 +360,9 @@ private sub PilotPress ( _
     if d < 60 then want = 0
     if d <= 0 or d >= 40 + cint(p.gsp) \ 5 then exit sub
 
-    if (PressT%(lv, se, i) + 22) mod PRESSP > 52 then
-        HoldBack p, k, 20
-    end if
+    if (PressT%(lv, se, i) + 22) mod PRESSP <= 52 then exit sub
+
+    HoldBack p, k, 20
 end sub
 
 ' A tipper ahead: to a stop short of where its pot comes

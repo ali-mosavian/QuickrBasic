@@ -131,9 +131,9 @@ private sub DeckColumn ( _
 
     y = (lv.top(tx) + 1) * TS - cy
 
-    if v > 2 and y < SH and y > -TS then
-        Blit art, x, y, IZU + ((v - 4) * 4 + (tx and 3)) * 2, TS, TS
-    end if
+    if v <= 2 or y >= SH or y <= -TS then exit sub
+
+    Blit art, x, y, IZU + ((v - 4) * 4 + (tx and 3)) * 2, TS, TS
 end sub
 
 ' A column of the downs: its turf, then its comb, which
@@ -204,7 +204,7 @@ private sub CombColumn ( _
         Bare art, x, lv.top(tx) * TS - cy, lv.face_l(tx), IAE
     end if
 
-    if lv.face_r(tx) then
-        Bare art, x, lv.top(tx) * TS - cy, lv.face_r(tx), IAE + 4
-    end if
+    if lv.face_r(tx) = 0 then exit sub
+
+    Bare art, x, lv.top(tx) * TS - cy, lv.face_r(tx), IAE + 4
 end sub

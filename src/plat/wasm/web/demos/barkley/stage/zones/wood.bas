@@ -349,10 +349,10 @@ sub DrawVine (x as integer, y as integer, a as single)
         pset (u, v), CVINE
         pset (u + 1, v), CVINED
 
-        if j mod 7 = 3 then
-            line (u + 2 - 5 * ((j \ 7) and 1), v) _
-                -(u + 3 - 5 * ((j \ 7) and 1), v + 1), CVINE, bf
-        end if
+        if j mod 7 <> 3 then continue for
+
+        line (u + 2 - 5 * ((j \ 7) and 1), v) _
+            -(u + 3 - 5 * ((j \ 7) and 1), v + 1), CVINE, bf
     next
 
     circle (u, v + 3), 3, CVINE

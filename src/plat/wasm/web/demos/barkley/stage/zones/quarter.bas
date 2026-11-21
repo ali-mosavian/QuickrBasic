@@ -272,9 +272,9 @@ end function
 function Leapt% (lv as Level, i as integer)
     Leapt% = 0
 
-    if abs(lv.things(i).state) <= POUNCEN then
-        Leapt% = Arc%(abs(lv.things(i).state) - 1)
-    end if
+    if abs(lv.things(i).state) > POUNCEN then exit function
+
+    Leapt% = Arc%(abs(lv.things(i).state) - 1)
 end function
 
 ' A pouncer's step. In its bin, state 0, till he comes
@@ -451,9 +451,9 @@ sub MeetTipper ( _
 
     foot = lv.things(i).at.y - SILLUP + d
 
-    if foot > p.at.y - 28 and foot - 14 < p.at.y then
-        Hurt mu, se, g, p, lv.things(i).at.x + POTX, lo(), SHURT
-    end if
+    if foot <= p.at.y - 28 or foot - 14 >= p.at.y then exit sub
+
+    Hurt mu, se, g, p, lv.things(i).at.x + POTX, lo(), SHURT
 end sub
 
 ' Tipper i, its house's middle at x and its foot at y on the
@@ -511,9 +511,9 @@ sub MeetMortar ( _
         exit sub
     end if
 
-    if dx < BLASTW and abs(up + MORTARH) < 12 then
-        Hurt mu, se, g, p, lv.things(i).at.x, lo(), SHURT
-    end if
+    if dx >= BLASTW or abs(up + MORTARH) >= 12 then exit sub
+
+    Hurt mu, se, g, p, lv.things(i).at.x, lo(), SHURT
 end sub
 
 ' Mortar i at x, y on the screen: its tube; its fuse alight
@@ -623,9 +623,9 @@ end sub
 function SnatchPic% (se as Session, s as integer)
     SnatchPic% = ISNATCH + CatPic%(se, s) - ICAT
 
-    if abs(s) > 1 then
-        SnatchPic% = ISNATCH + 8 + CatPic%(se, s) - ICATF
-    end if
+    if abs(s) <= 1 then exit function
+
+    SnatchPic% = ISNATCH + 8 + CatPic%(se, s) - ICATF
 end function
 
 ' Rope-walker i shaken off its line: beaten, where it was.

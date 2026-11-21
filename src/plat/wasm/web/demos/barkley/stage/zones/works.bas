@@ -159,10 +159,10 @@ sub MeetSpin ( _
     bx = x + cint(SPINR * cos(a))
     by = lv.things(i).at.y - SPINH + cint(SPINR * sin(a))
 
-    if abs(bx - cint(p.at.x)) < 11 _
-        and abs(by - cint(p.at.y) + 12) < 16 then
-        Hurt mu, se, g, p, x, lo(), SHURT
-    end if
+    if abs(bx - cint(p.at.x)) >= 11 _
+        or abs(by - cint(p.at.y) + 12) >= 16 then exit sub
+
+    Hurt mu, se, g, p, x, lo(), SHURT
 end sub
 
 ' A hoop: through it in the air he goes on, faster, the way
@@ -268,10 +268,10 @@ sub MeetPress ( _
     if PressT%(lv, se, i) = PRESSFALL + 10 then Sfx mu, se, SCLANK
     y = lv.things(i).at.y - PRESSUP + Stroke%(lv, se, i)
 
-    if abs(lv.things(i).at.x - p.at.x) < 26 and p.at.y - 26 < y _
-        and p.at.y > y - 14 then
-        Hurt mu, se, g, p, lv.things(i).at.x, lo(), SHURT
-    end if
+    if abs(lv.things(i).at.x - p.at.x) >= 26 or p.at.y - 26 >= y _
+        or p.at.y <= y - 14 then exit sub
+
+    Hurt mu, se, g, p, lv.things(i).at.x, lo(), SHURT
 end sub
 
 ' For the pilot at x: the nearest press he is under or

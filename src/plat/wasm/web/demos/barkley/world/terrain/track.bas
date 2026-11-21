@@ -55,9 +55,9 @@ sub Track (lv as Level, gr as Ground)
     next
 
     for i = 0 to lv.n_things - 1
-        if lv.things(i).kind = KPIPE then
-            gr.col((lv.things(i).at.x - PIPER) \ TS) = -2 - i
-        end if
+        if lv.things(i).kind <> KPIPE then continue for
+
+        gr.col((lv.things(i).at.x - PIPER) \ TS) = -2 - i
     next
 
     for c = 0 to lv.w - 1
@@ -132,9 +132,9 @@ private sub TrackTile (lv as Level, gr as Ground, c as integer)
     for i = lv.first(c) to lv.n_things - 1
         if lv.things(i).at.x >= x + TS then exit for
 
-        if lv.things(i).kind = KLOOP then
-            TrackLoop gr, lv.things(i).at.x, yl
-        end if
+        if lv.things(i).kind <> KLOOP then continue for
+
+        TrackLoop gr, lv.things(i).at.x, yl
     next
 
     Knot gr, csng(x + TS), csng(yr), 1
