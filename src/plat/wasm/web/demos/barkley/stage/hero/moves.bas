@@ -66,7 +66,15 @@ private const GULLHEAR = 130
 const GSCARED = 4
 const WETTOP = 220!
 
-sub MoveHero (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero, k as Pad, pt() as Part)
+sub MoveHero ( _
+    lv as Level, _
+    gr as Ground, _
+    mu as Deck, _
+    se as Session, _
+    p as Hero, _
+    k as Pad, _
+    pt() as Part _
+)
     dim l as integer, r as integer, d as integer, hit as integer
     dim hold as integer
     dim v as single
@@ -151,7 +159,12 @@ sub MoveHero (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero, k
 end sub
 
 ' A jump pressed just before landing, or just after the ground ran out, was lost: it is kept a moment.
-private sub KeepJump (mu as Deck, se as Session, p as Hero, hit as integer)
+private sub KeepJump ( _
+    mu as Deck, _
+    se as Session, _
+    p as Hero, _
+    hit as integer _
+)
     if hit then p.want = JBUFFER
     if p.want <= 0 then exit sub
     p.want = p.want - STEPT
@@ -179,7 +192,18 @@ end function
 
 ' On the ground: wind up, jump, roll, run; then along it, a few pixels a
 ' move, into walls and onto the ground's curve.
-private sub Walk (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero, l as integer, r as integer, d as integer, hit as integer, pt() as Part)
+private sub Walk ( _
+    lv as Level, _
+    gr as Ground, _
+    mu as Deck, _
+    se as Session, _
+    p as Hero, _
+    l as integer, _
+    r as integer, _
+    d as integer, _
+    hit as integer, _
+    pt() as Part _
+)
     dim n as integer, s as integer, i as integer, grip as single
     dim push as single
     grip = 1
@@ -221,7 +245,14 @@ private sub Walk (lv as Level, gr as Ground, mu as Deck, se as Session, p as Her
 end sub
 
 ' A dash wound up: each press winds it further; Down let go, he is away. Whether it is still held.
-private function Winding% (mu as Deck, se as Session, p as Hero, d as integer, hit as integer, pt() as Part)
+private function Winding% ( _
+    mu as Deck, _
+    se as Session, _
+    p as Hero, _
+    d as integer, _
+    hit as integer, _
+    pt() as Part _
+)
     dim dir as integer
     dir = 1 - 2 * p.face
     p.charge = p.charge * (1 - 2 * STEPT)
@@ -260,7 +291,12 @@ private sub Leap (mu as Deck, se as Session, p as Hero)
 end sub
 
 ' Rolling: the slope pulls harder down than it holds back up, and the keys only brake.
-private sub RollOn (p as Hero, l as integer, r as integer, grip as single)
+private sub RollOn ( _
+    p as Hero, _
+    l as integer, _
+    r as integer, _
+    grip as single _
+)
     dim sn as single, f as single
     sn = sin(p.ang)
     f = RDNS
@@ -278,7 +314,17 @@ private sub RollOn (p as Hero, l as integer, r as integer, grip as single)
 end sub
 
 ' Running: the slope, then the keys, or with none the ground's drag. Down at speed, he curls up.
-private sub RunOn (mu as Deck, se as Session, p as Hero, l as integer, r as integer, d as integer, grip as single, push as single, pt() as Part)
+private sub RunOn ( _
+    mu as Deck, _
+    se as Session, _
+    p as Hero, _
+    l as integer, _
+    r as integer, _
+    d as integer, _
+    grip as single, _
+    push as single, _
+    pt() as Part _
+)
     dim sn as single, cs as single
     sn = sin(p.ang)
     cs = cos(p.ang)
@@ -306,7 +352,12 @@ private sub RunOn (mu as Deck, se as Session, p as Hero, l as integer, r as inte
 end sub
 
 ' A key held, way 1 right or -1 left: against his speed a brake, and a skid; with it a push, up to his most.
-private sub Shove (p as Hero, way as integer, grip as single, push as single)
+private sub Shove ( _
+    p as Hero, _
+    way as integer, _
+    grip as single, _
+    push as single _
+)
     dim v as single, most as single
     most = TOP
     if p.wet > 0 then most = WETTOP
@@ -339,7 +390,17 @@ end sub
 
 ' In the air: gravity, steering, a jump cut short when let go; then a few
 ' pixels a move, into walls, ceilings and onto the ground.
-private sub Airborne (lv as Level, gr as Ground, se as Session, p as Hero, l as integer, r as integer, d as integer, hold as integer, pt() as Part)
+private sub Airborne ( _
+    lv as Level, _
+    gr as Ground, _
+    se as Session, _
+    p as Hero, _
+    l as integer, _
+    r as integer, _
+    d as integer, _
+    hold as integer, _
+    pt() as Part _
+)
     dim n as integer, s as integer, m as single, landed as integer
     dim fell as single, x0 as single, y0 as single
     p.crouch = 0

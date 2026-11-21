@@ -150,7 +150,12 @@ private sub TrackPlats (lv as Level, gr as Ground)
 end sub
 
 ' A platform's stretch from x to x1 at height y, where there is one.
-private sub Plank (gr as Ground, x as integer, x1 as integer, y as integer)
+private sub Plank ( _
+    gr as Ground, _
+    x as integer, _
+    x1 as integer, _
+    y as integer _
+)
     if x = NONE then exit sub
     Knot gr, csng(x), csng(y), 0
     Knot gr, csng(x1), csng(y), 1
@@ -253,7 +258,12 @@ private sub TrackSlides (lv as Level, gr as Ground)
 end sub
 
 ' The line's next point, x, y, a stretch of kind k to it from the last: 0, none.
-private sub Knot (gr as Ground, x as single, y as single, k as integer)
+private sub Knot ( _
+    gr as Ground, _
+    x as single, _
+    y as single, _
+    k as integer _
+)
     dim i as integer, u as single, v as single, d as single
     gr.pt(gr.n).at.x = x
     gr.pt(gr.n).at.y = y

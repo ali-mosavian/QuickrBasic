@@ -173,7 +173,12 @@ function Land% (lv as Level, gr as Ground, p as Hero, d as integer)
 end function
 
 ' Down on stretch s: the speed along it kept.
-private sub Settle (gr as Ground, p as Hero, s as integer, d as integer)
+private sub Settle ( _
+    gr as Ground, _
+    p as Hero, _
+    s as integer, _
+    d as integer _
+)
     p.sg = s
     p.ang = gr.pt(s).rise
     p.gsp = p.vel.x * gr.pt(s).dir.x + p.vel.y * gr.pt(s).dir.y
@@ -189,7 +194,13 @@ end sub
 ' Charlie in the air, come from x0, y0, through a curve's stretch from its open side: down on it where it can be
 ' stood on, or is met fast enough to run along; else off it, sliding. A loop's far half is not there for one that
 ' has not run its near half.
-function Curve% (gr as Ground, p as Hero, x0 as single, y0 as single, d as integer)
+function Curve% ( _
+    gr as Ground, _
+    p as Hero, _
+    x0 as single, _
+    y0 as single, _
+    d as integer _
+)
     dim z as integer, s as integer, a as integer, b as integer
     dim near as integer
     dim d0 as single, d1 as single, t as single, f as single
@@ -228,7 +239,14 @@ function Curve% (gr as Ground, p as Hero, x0 as single, y0 as single, d as integ
 end function
 
 ' Of curve z, a loop, the half that is there for him, from stretch a to b: its far one once he has run its near.
-private sub LoopHalf (gr as Ground, p as Hero, z as integer, x0 as single, a as integer, b as integer)
+private sub LoopHalf ( _
+    gr as Ground, _
+    p as Hero, _
+    z as integer, _
+    x0 as single, _
+    a as integer, _
+    b as integer _
+)
     dim far as integer
     if gr.cv(z).far < 0 then exit sub
     far = p.sg >= gr.cv(z).far
@@ -289,7 +307,13 @@ end sub
 
 ' Over a crease that turns the ground up: speed is lost by the turn's cosine dt, and so is how far he is past the
 ' crease on the new stretch, l long; ahead, the crease is at its start.
-private sub Crease (p as Hero, t as single, dt as single, l as single, ahead as integer)
+private sub Crease ( _
+    p as Hero, _
+    t as single, _
+    dt as single, _
+    l as single, _
+    ahead as integer _
+)
     dim k as single
     k = dt
     if k < 0 then k = 0

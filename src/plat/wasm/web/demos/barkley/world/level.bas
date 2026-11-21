@@ -516,7 +516,13 @@ end sub
 
 ' A line hung over the street of n columns from column c: its near end at height y, its far end fall lower.
 ' Nothing grows by its posts.
-private sub Hang (lv as Level, c as integer, n as integer, y as integer, fall as integer)
+private sub Hang ( _
+    lv as Level, _
+    c as integer, _
+    n as integer, _
+    y as integer, _
+    fall as integer _
+)
     lv.ropes(lv.n_ropes).at.x = c * TS - POSTIN
     lv.ropes(lv.n_ropes).w = n * TS + POSTIN * 2
     lv.ropes(lv.n_ropes).at.y = y

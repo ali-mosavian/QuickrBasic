@@ -47,7 +47,12 @@ sub Hud (art as Store, g as Game, gold as integer)
 end sub
 
 ' A row of the HUD's picture and mask: s, its first n characters yellow.
-private sub HudLine (art as Store, row as integer, s as string, n as integer)
+private sub HudLine ( _
+    art as Store, _
+    row as integer, _
+    s as string, _
+    n as integer _
+)
     dim i as integer, k as integer
     for i = 1 to len(s)
         k = instr("0123456789:xABCDEHILMNOPRST", mid$(s, i, 1)) - 1

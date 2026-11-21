@@ -46,7 +46,13 @@ private sub Slide (mu as Deck, se as Session, p as Hero)
 end sub
 
 ' A flume's tile or a spout's: stood in its water, he slides.
-sub MeetFlume (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
+sub MeetFlume ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    p as Hero, _
+    i as integer _
+)
     dim px as integer, py as integer
     px = cint(p.at.x)
     py = cint(p.at.y)
@@ -58,7 +64,16 @@ end sub
 
 ' Charlie at crab i. Down on its back he goes up off it, higher off its shell, and it ducks in a while; at its
 ' side its claws pinch, even a rolling Charlie. In its shell it pinches nobody, and a roll knocks it off the sand.
-sub MeetCrab (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
+sub MeetCrab ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    i as integer, _
+    lo() as Loose, _
+    pt() as Part _
+)
     dim y as integer
     y = lv.things(i).at.y
     if lv.things(i).state = 0 or abs(lv.things(i).at.x - p.at.x) >= 15 or p.at.y < y - 22 or p.at.y > y + 10 then exit sub
@@ -78,7 +93,12 @@ sub MeetCrab (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as
 end sub
 
 ' Gull b toward x, y at v: there, or nearer. Whether it is there.
-private function Glide% (b as Bird, x as single, y as single, v as single)
+private function Glide% ( _
+    b as Bird, _
+    x as single, _
+    y as single, _
+    v as single _
+)
     dim dx as single, dy as single, d as single
     dx = x - b.at.x
     dy = y - b.at.y
@@ -115,7 +135,16 @@ end sub
 ' Gull b, the n'th, for a step. It hovers about its home till Charlie, with bones, passes under: then dives at
 ' where he will be, takes bones if it reaches him, and climbs home with them, to dive no more. A bark scares it
 ' home and makes it drop what it took; a rolling Charlie knocks it out of the air.
-private sub Gull (mu as Deck, se as Session, b as Bird, n as integer, g as Game, p as Hero, lo() as Loose, pt() as Part)
+private sub Gull ( _
+    mu as Deck, _
+    se as Session, _
+    b as Bird, _
+    n as integer, _
+    g as Game, _
+    p as Hero, _
+    lo() as Loose, _
+    pt() as Part _
+)
     dim x as single, y as single, lead as single
     x = b.home.x + 24 * sin(se.ticks * .02 + n * 2)
     y = b.home.y + 4 * sin(se.ticks * .07 + n)
@@ -159,7 +188,15 @@ private sub Gull (mu as Deck, se as Session, b as Bird, n as integer, g as Game,
     end if
 end sub
 
-sub Flock (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
+sub Flock ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    lo() as Loose, _
+    pt() as Part _
+)
     dim i as integer
     for i = 0 to lv.n_gulls - 1
         if lv.gulls(i).st > 0 then
@@ -169,7 +206,13 @@ sub Flock (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as
 end sub
 
 ' The gulls, a bone under one that carries any; wings still in a dive.
-sub DrawGulls (lv as Level, art as Store, se as Session, cx as integer, cy as integer)
+sub DrawGulls ( _
+    lv as Level, _
+    art as Store, _
+    se as Session, _
+    cx as integer, _
+    cy as integer _
+)
     dim i as integer, x as integer, y as integer, k as integer
     for i = 0 to lv.n_gulls - 1
         x = cint(lv.gulls(i).at.x) - cx
@@ -194,7 +237,16 @@ end function
 
 ' Charlie at jellyfish i. Down on its bell he is thrown high, and it stings nobody while it is flat; his feet in
 ' it, afloat or not, it stings: not a Charlie on a boat's deck over it.
-sub MeetJelly (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
+sub MeetJelly ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    i as integer, _
+    lo() as Loose, _
+    pt() as Part _
+)
     dim y as integer
     y = lv.things(i).at.y
     if p.inv > 0 or lv.things(i).state > 1 or abs(lv.things(i).at.x - p.at.x) >= 12 or p.at.y < y - 26 or p.at.y > y + 8 then exit sub
@@ -244,7 +296,14 @@ sub DrawSea (lv as Level, cx as integer, cy as integer)
 end sub
 
 ' Rows a to b of a band of the sea, of colour c, no lower than row last or the screen's foot.
-private sub SeaBand (x0 as integer, x1 as integer, a as integer, b as integer, last as integer, c as integer)
+private sub SeaBand ( _
+    x0 as integer, _
+    x1 as integer, _
+    a as integer, _
+    b as integer, _
+    last as integer, _
+    c as integer _
+)
     dim y0 as integer, y1 as integer
     y0 = a
     y1 = b
@@ -275,7 +334,15 @@ end sub
 
 ' A flume's end at x, y on the screen, over column c: the water falling from it to the sea, or to the floor of a
 ' dry pool, then its trough.
-sub DrawSpout (lv as Level, art as Store, se as Session, x as integer, y as integer, c as integer, cy as integer)
+sub DrawSpout ( _
+    lv as Level, _
+    art as Store, _
+    se as Session, _
+    x as integer, _
+    y as integer, _
+    c as integer, _
+    cy as integer _
+)
     dim e as integer, yy as integer, k as integer
     k = ((se.ticks \ 3) and 3) * 2
     e = lv.top(c + 1) * TS

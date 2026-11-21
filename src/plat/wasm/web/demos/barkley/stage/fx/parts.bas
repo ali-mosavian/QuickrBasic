@@ -7,7 +7,12 @@ from barkley.model.game import Loose, NLOOSE, NPART, Part, Session
 from barkley.world.terrain.ground import Solid, Surf
 
 ' The bones knocked loose, dt on: each falls and bounces till its time is up or it is off the world's foot.
-sub LooseBones (lv as Level, se as Session, lo() as Loose, dt as single)
+sub LooseBones ( _
+    lv as Level, _
+    se as Session, _
+    lo() as Loose, _
+    dt as single _
+)
     dim i as integer, x as integer, y as integer, s as integer
     for i = 0 to NLOOSE - 1
         if lo(i).t <= 0 then continue for
@@ -43,7 +48,16 @@ sub Particles (se as Session, pt() as Part, dt as single)
     next
 end sub
 
-sub Emit (se as Session, pt() as Part, x as single, y as single, vx as single, vy as single, t as single, c as integer)
+sub Emit ( _
+    se as Session, _
+    pt() as Part, _
+    x as single, _
+    y as single, _
+    vx as single, _
+    vy as single, _
+    t as single, _
+    c as integer _
+)
     dim i as integer
     if se.part_n >= NPART then exit sub
     for i = 0 to NPART - 1
@@ -60,7 +74,15 @@ sub Emit (se as Session, pt() as Part, x as single, y as single, vx as single, v
 end sub
 
 ' n sparks out from x, y at speed v.
-sub Burst (se as Session, pt() as Part, x as single, y as single, n as integer, v as single, c as integer)
+sub Burst ( _
+    se as Session, _
+    pt() as Part, _
+    x as single, _
+    y as single, _
+    n as integer, _
+    v as single, _
+    c as integer _
+)
     dim i as integer, a as single
     for i = 0 to n - 1
         a = 2 * PI * (i + rnd * .5) / n

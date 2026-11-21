@@ -34,7 +34,15 @@ const SPINR = 30
 const SPINH = 70
 
 ' A spark on its cable: lit, it stings.
-sub MeetSpark (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose)
+sub MeetSpark ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    i as integer, _
+    lo() as Loose _
+)
     dim x as integer, py as integer
     x = lv.things(i).at.x
     py = cint(p.at.y)
@@ -43,7 +51,14 @@ sub MeetSpark (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i a
 end sub
 
 ' A button in the floor: stood on, it is pressed.
-sub MeetButton (lv as Level, mu as Deck, se as Session, p as Hero, i as integer, pt() as Part)
+sub MeetButton ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    p as Hero, _
+    i as integer, _
+    pt() as Part _
+)
     if lv.things(i).state <> 0 or not p.ground then exit sub
     if abs(lv.things(i).at.x - cint(p.at.x)) >= 9 or abs(cint(p.at.y) - lv.things(i).at.y) >= 4 then exit sub
     lv.things(i).state = 1
@@ -52,7 +67,13 @@ sub MeetButton (lv as Level, mu as Deck, se as Session, p as Hero, i as integer,
 end sub
 
 ' A jet, blowing 80 ticks of 180: who is over it goes up.
-sub MeetJet (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
+sub MeetJet ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    p as Hero, _
+    i as integer _
+)
     dim dy as integer
     dy = cint(p.at.y) - lv.things(i).at.y
     if (se.ticks + lv.things(i).at.x) mod 180 >= 80 or abs(lv.things(i).at.x - cint(p.at.x)) >= 10 then exit sub
@@ -69,7 +90,15 @@ sub MeetJet (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
 end sub
 
 ' A bumper or a buoy: touched, it throws him off the way he came at it.
-sub MeetBump (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, pt() as Part)
+sub MeetBump ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    i as integer, _
+    pt() as Part _
+)
     dim dx as integer, dy as integer, d as single
     dx = cint(p.at.x) - lv.things(i).at.x
     dy = cint(p.at.y) - 12 - lv.things(i).at.y
@@ -92,7 +121,15 @@ sub MeetBump (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as
 end sub
 
 ' A ball going round its post: it hurts.
-sub MeetSpin (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose)
+sub MeetSpin ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    i as integer, _
+    lo() as Loose _
+)
     dim a as single, x as integer, bx as integer, by as integer
     x = lv.things(i).at.x
     a = se.ticks * .06 + x
@@ -104,7 +141,14 @@ sub MeetSpin (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as
 end sub
 
 ' A hoop: through it in the air he goes on, faster, the way he was going.
-sub MeetHoop (lv as Level, mu as Deck, se as Session, p as Hero, i as integer, pt() as Part)
+sub MeetHoop ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    p as Hero, _
+    i as integer, _
+    pt() as Part _
+)
     if lv.things(i).state <> 0 or p.ground or abs(lv.things(i).at.x - cint(p.at.x)) >= 9 then exit sub
     if abs(lv.things(i).at.y - cint(p.at.y) + 12) >= 18 then exit sub
     p.vel.x = HOOPV * (1 + 2 * (p.vel.x < 0))
@@ -117,7 +161,16 @@ end sub
 
 ' A sweeper met: armoured before, its hood hurts whoever meets it, curled or not; landed on, or rolled into from
 ' behind, it is beaten.
-sub MeetSweep (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
+sub MeetSweep ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    i as integer, _
+    lo() as Loose, _
+    pt() as Part _
+)
     dim y as integer, behind as integer
     y = lv.things(i).at.y
     if lv.things(i).state = 0 or abs(lv.things(i).at.x - p.at.x) >= 18 or p.at.y < y - 20 or p.at.y > y + 10 then exit sub
@@ -158,7 +211,15 @@ function Stroke% (lv as Level, se as Session, i as integer)
 end function
 
 ' A press met: its head, wherever in its stroke, hurts who is under it or against it. It lands with a clank.
-sub MeetPress (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose)
+sub MeetPress ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    i as integer, _
+    lo() as Loose _
+)
     dim y as integer
     if PressT%(lv, se, i) = PRESSFALL + 10 then Sfx mu, se, SCLANK
     y = lv.things(i).at.y - PRESSUP + Stroke%(lv, se, i)
@@ -186,7 +247,15 @@ end function
 
 ' Spark i, its carriage at x, y on the screen: its rail, a tile's length from its home either way and between;
 ' the carriage dark, or alight.
-sub DrawSpark (lv as Level, art as Store, se as Session, i as integer, x as integer, y as integer, cx as integer)
+sub DrawSpark ( _
+    lv as Level, _
+    art as Store, _
+    se as Session, _
+    i as integer, _
+    x as integer, _
+    y as integer, _
+    cx as integer _
+)
     dim f as integer, k as integer
     for f = -3 to 2
         Blit art, lv.things(i).home + f * TS - cx, y - 4, ISRAIL, TS, 4
@@ -199,7 +268,14 @@ sub DrawSpark (lv as Level, art as Store, se as Session, i as integer, x as inte
 end sub
 
 ' Press i at x, the floor at y on the screen: its length of girder, its rod down to its head, its housing.
-sub DrawPress (lv as Level, art as Store, se as Session, i as integer, x as integer, y as integer)
+sub DrawPress ( _
+    lv as Level, _
+    art as Store, _
+    se as Session, _
+    i as integer, _
+    x as integer, _
+    y as integer _
+)
     dim yy as integer, hy as integer
     Blit art, x - 32, y - PRESSH - 8, IRAIL, 32, 8
     Blit art, x, y - PRESSH - 8, IRAIL, 32, 8

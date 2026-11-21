@@ -245,7 +245,14 @@ function IntroOver% (wd as World, g as Game, k as Pad, cu() as Cue)
 end function
 
 ' Where cue i is at beat t, in the world: along its way, eased, a hop's arc over it.
-sub CueAt (lv as Level, cu() as Cue, i as integer, t as single, x as integer, y as integer)
+sub CueAt ( _
+    lv as Level, _
+    cu() as Cue, _
+    i as integer, _
+    t as single, _
+    x as integer, _
+    y as integer _
+)
     dim u as single, v as single
     if cu(i).t1 > cu(i).t0 then
         u = (t - cu(i).t0) / (cu(i).t1 - cu(i).t0)
@@ -278,7 +285,15 @@ sub IntroDraw (wd as World, g as Game, p as Hero, cu() as Cue)
 end sub
 
 ' Cue i's picture at beat `now`, the view at cx, cy: its foot's middle where the cue is.
-private sub DrawCue (wd as World, cu() as Cue, i as integer, now as single, p as Hero, cx as integer, cy as integer)
+private sub DrawCue ( _
+    wd as World, _
+    cu() as Cue, _
+    i as integer, _
+    now as single, _
+    p as Hero, _
+    cx as integer, _
+    cy as integer _
+)
     dim wx as integer, wy as integer, x as integer, y as integer
     dim a as integer
     CueAt wd.lv, cu(), i, now, wx, wy

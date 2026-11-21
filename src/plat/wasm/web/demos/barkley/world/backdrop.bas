@@ -13,7 +13,13 @@ private const STRIPH = 192
 private const WETO = IWET - IAF
 
 ' A bare side of the ground from x, y0, n tiles down: picture k its turf's end, k + 2 the comb's.
-private sub Bare (art as Store, x as integer, y0 as integer, n as integer, k as integer)
+private sub Bare ( _
+    art as Store, _
+    x as integer, _
+    y0 as integer, _
+    n as integer, _
+    k as integer _
+)
     dim i as integer, y as integer, j as integer
     j = k
     y = y0
@@ -43,7 +49,13 @@ sub DrawBack (zn as Realm, art as Store, cx as integer, cy as integer)
 end sub
 
 ' Each column in view: its top tile, then its earth in strips below.
-sub DrawTiles (lv as Level, zn as Realm, art as Store, cx as integer, cy as integer)
+sub DrawTiles ( _
+    lv as Level, _
+    zn as Realm, _
+    art as Store, _
+    cx as integer, _
+    cy as integer _
+)
     dim tx as integer, tx1 as integer
     tx1 = cx \ TS + SW \ TS
     if tx1 > lv.w - 1 then tx1 = lv.w - 1
@@ -59,7 +71,13 @@ end sub
 
 ' A column of the works: its deck's top, then its wall, which hangs from the world, not the deck: single tiles down
 ' to its next 128, then strips. A slope's deck runs on over the wall under it.
-private sub DeckColumn (lv as Level, art as Store, tx as integer, cx as integer, cy as integer)
+private sub DeckColumn ( _
+    lv as Level, _
+    art as Store, _
+    tx as integer, _
+    cx as integer, _
+    cy as integer _
+)
     dim x as integer, y as integer, v as integer, k as integer
     dim r as integer
     x = tx * TS - cx
@@ -96,7 +114,13 @@ end sub
 ' A column of the downs: its turf, then its comb, which hangs from the world too, of period 64 by 48: a slope's turf
 ' runs on into the tile under it; under a pipe, 0, the pipe's own picture is the ground. A column whose top the tide
 ' is over is of the wet pictures, w on from the dry; so is the pass's bare ice.
-private sub CombColumn (lv as Level, art as Store, tx as integer, cx as integer, cy as integer)
+private sub CombColumn ( _
+    lv as Level, _
+    art as Store, _
+    tx as integer, _
+    cx as integer, _
+    cy as integer _
+)
     dim x as integer, y as integer, v as integer, k as integer
     dim r as integer, w as integer
     x = tx * TS - cx

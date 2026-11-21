@@ -12,7 +12,13 @@ const HEAD = 124
 const HEADUP = 172
 
 ' The view ahead of Charlie's run, kept in the level; snap puts it there.
-sub Camera (lv as Level, zn as Realm, g as Game, p as Hero, snap as integer)
+sub Camera ( _
+    lv as Level, _
+    zn as Realm, _
+    g as Game, _
+    p as Hero, _
+    snap as integer _
+)
     dim tx as single, ty as single, v as single
     if p.ground then
         v = p.gsp

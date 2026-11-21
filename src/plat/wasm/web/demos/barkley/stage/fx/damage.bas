@@ -14,7 +14,17 @@ const BOUNCEV = 330!
 
 ' One of the Mob run into: rolled or charged into it is beaten, dy up from its foot, and he bounces off it; else
 ' it hurts.
-sub Tackle (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, dy as integer, lo() as Loose, pt() as Part)
+sub Tackle ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    i as integer, _
+    dy as integer, _
+    lo() as Loose, _
+    pt() as Part _
+)
     dim x as integer
     if p.roll = 0 and p.charging = 0 then
         x = lv.things(i).at.x
@@ -26,7 +36,15 @@ sub Tackle (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as i
 end sub
 
 ' Hit: the bones fly loose and Charlie is knocked back; with none, it is out.
-sub Hurt (mu as Deck, se as Session, g as Game, p as Hero, from_x as integer, lo() as Loose, snd as integer)
+sub Hurt ( _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    from_x as integer, _
+    lo() as Loose, _
+    snd as integer _
+)
     dim i as integer, n as integer, a as single, v as single
     if p.inv > 0 or p.dig then exit sub
     ' a snowball takes the hit for him
@@ -80,7 +98,15 @@ sub Lose (mu as Deck, se as Session, p as Hero)
 end sub
 
 ' Thing i beaten: gone, its points, a shake and a puff dy over its foot.
-sub Beaten (lv as Level, mu as Deck, se as Session, g as Game, pt() as Part, i as integer, dy as integer)
+sub Beaten ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    pt() as Part, _
+    i as integer, _
+    dy as integer _
+)
     lv.things(i).state = 0
     g.score = g.score + 100
     g.shake = .15

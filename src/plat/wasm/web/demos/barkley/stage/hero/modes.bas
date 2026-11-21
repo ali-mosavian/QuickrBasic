@@ -45,7 +45,13 @@ private const HOPV = 250!
 const DRYT = .35
 
 ' Off the sled, which is no more: a puff of colour c where it was.
-sub Alight (mu as Deck, se as Session, p as Hero, pt() as Part, c as integer)
+sub Alight ( _
+    mu as Deck, _
+    se as Session, _
+    p as Hero, _
+    pt() as Part, _
+    c as integer _
+)
     p.sled = 0
     Burst se, pt(), p.at.x, p.at.y - 4, 10, 120, c
     Sfx mu, se, SPOP
@@ -53,7 +59,13 @@ end sub
 
 ' Hung from a vine: he swings as a weight on it, the vine with him; a jump lets go, with the swing's speed and a
 ' hop up, and a hurt lets go without one.
-sub Hang (lv as Level, mu as Deck, se as Session, p as Hero, hit as integer)
+sub Hang ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    p as Hero, _
+    hit as integer _
+)
     dim i as integer
     i = p.vine - 1
     p.sway_v = p.sway_v - GRAV / VINELEN * sin(p.sway) * STEPT
@@ -75,7 +87,13 @@ end sub
 
 ' Under the ground to the mound he digs for: straight there at DIGV, unseen, the loam stirred over him; there,
 ' thrown up out of it. Down a chimney the same, through the houses: up out of the other's pot, in its soot.
-sub Tunnel (lv as Level, mu as Deck, se as Session, p as Hero, pt() as Part)
+sub Tunnel ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    p as Hero, _
+    pt() as Part _
+)
     dim i as integer, dx as single, c as integer
     i = p.dig - 1
     dx = lv.things(i).at.x - p.at.x
@@ -129,7 +147,13 @@ end sub
 
 ' Astride a goat: it runs on along the road and takes no rein. Off the ground, stopped or GOATRIDE on, he is off
 ' it, and it turns for home from where it last stood.
-sub Ride (lv as Level, p as Hero, l as integer, r as integer, d as integer)
+sub Ride ( _
+    lv as Level, _
+    p as Hero, _
+    l as integer, _
+    r as integer, _
+    d as integer _
+)
     p.ride_t = p.ride_t + STEPT
     l = 0
     r = 0
@@ -179,7 +203,17 @@ end sub
 
 ' Afloat: at the water's surface as it rises and falls, paddled left and right, slowly; a jump is a hop out of
 ' it, and ground come to under the surface is waded onto.
-sub Paddle (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero, l as integer, r as integer, hit as integer, pt() as Part)
+sub Paddle ( _
+    lv as Level, _
+    gr as Ground, _
+    mu as Deck, _
+    se as Session, _
+    p as Hero, _
+    l as integer, _
+    r as integer, _
+    hit as integer, _
+    pt() as Part _
+)
     p.roll = 0
     p.jumped = 0
     p.sprung = 0

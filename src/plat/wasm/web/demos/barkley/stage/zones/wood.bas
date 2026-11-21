@@ -85,7 +85,13 @@ end function
 
 ' A sapling bowed to the ground: crossing its crown he is thrown up, the higher the faster he came, his way kept;
 ' it stands sprung a moment before it bows again.
-sub MeetSapling (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
+sub MeetSapling ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    p as Hero, _
+    i as integer _
+)
     dim py as integer, v as single
     py = cint(p.at.y)
     if lv.things(i).state > 0 or abs(lv.things(i).at.x + SAPREACH - cint(p.at.x)) >= 10 then exit sub
@@ -103,7 +109,13 @@ sub MeetSapling (lv as Level, mu as Deck, se as Session, p as Hero, i as integer
 end sub
 
 ' A vine's end reached in the air, and no vine just let go: he hangs from it, his way become its swing.
-sub MeetVine (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
+sub MeetVine ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    p as Hero, _
+    i as integer _
+)
     if p.vine or p.vine_t > 0 or p.ground or p.swim or p.stun or p.dead then exit sub
     if abs(p.at.x - lv.things(i).at.x) >= 12 or abs(p.at.y - VINEGRIP - lv.things(i).at.y - VINELEN) >= 12 then exit sub
     p.vine = i + 1
@@ -116,7 +128,15 @@ sub MeetVine (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
 end sub
 
 ' Bramble: it hurts him, but curled he cuts through it.
-sub MeetBramble (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose)
+sub MeetBramble ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    i as integer, _
+    lo() as Loose _
+)
     if lv.things(i).state > 0 or abs(lv.things(i).at.x - p.at.x) >= BRAMBLER then exit sub
     if p.at.y < lv.things(i).at.y - 24 or p.at.y > lv.things(i).at.y + 8 then exit sub
     if not p.roll then
@@ -129,7 +149,14 @@ end sub
 
 ' A burrow's mound: crouched on it he digs in, for its other end; the mound he comes out of will not take him
 ' back till he has stepped off it.
-sub MeetMound (lv as Level, mu as Deck, se as Session, p as Hero, i as integer, pt() as Part)
+sub MeetMound ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    p as Hero, _
+    i as integer, _
+    pt() as Part _
+)
     dim on_it as integer
     on_it = abs(lv.things(i).at.x - p.at.x) < MOUNDR
     if p.dug = i + 1 then
@@ -148,7 +175,13 @@ end sub
 
 ' A hollow log across the way: on foot he is stopped at its end; curled he is shot through it, out of sight, and
 ' leaves it at LOGV. Its state: he is in it.
-sub MeetLog (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
+sub MeetLog ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    p as Hero, _
+    i as integer _
+)
     dim s as integer
     if abs(lv.things(i).at.x - p.at.x) >= LOGR or p.at.y <= lv.things(i).at.y - LOGH or p.at.y > lv.things(i).at.y + 4 then
         lv.things(i).state = 0
@@ -173,7 +206,14 @@ sub Regrow (lv as Level, se as Session, pt() as Part, i as integer)
     lv.things(i).state = lv.things(i).state - 1
 end sub
 
-sub Swarms (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose)
+sub Swarms ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    lo() as Loose _
+)
     dim i as integer
     for i = 0 to lv.n_swarms - 1
         Buzz mu, se, lv.swarms(i), g, p, lo()
@@ -182,7 +222,14 @@ end sub
 
 ' A swarm's step: he comes within BEESEE of it and it is after his head, at BEEV; on him, it stings; left
 ' BEELOSE behind, it goes home.
-private sub Buzz (mu as Deck, se as Session, b as Swarm, g as Game, p as Hero, lo() as Loose)
+private sub Buzz ( _
+    mu as Deck, _
+    se as Session, _
+    b as Swarm, _
+    g as Game, _
+    p as Hero, _
+    lo() as Loose _
+)
     dim dx as single, dy as single, d as single
     dx = p.at.x - b.at.x
     dy = p.at.y - 13 - b.at.y
@@ -209,7 +256,12 @@ private sub Buzz (mu as Deck, se as Session, b as Swarm, g as Game, p as Hero, l
 end sub
 
 ' The swarms: each bee round its swarm's middle on a loop of its own, its wings over it.
-sub DrawBees (lv as Level, se as Session, cx as integer, cy as integer)
+sub DrawBees ( _
+    lv as Level, _
+    se as Session, _
+    cx as integer, _
+    cy as integer _
+)
     dim i as integer, j as integer, x as integer, y as integer
     for i = 0 to lv.n_swarms - 1
         if abs(lv.swarms(i).at.x - cx - SW \ 2) > SW \ 2 + 24 then continue for

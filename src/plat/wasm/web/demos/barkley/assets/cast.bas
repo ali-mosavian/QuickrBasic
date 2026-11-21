@@ -34,7 +34,13 @@ end sub
 
 ' The van, its foot's middle at x, y on the screen and wx along the road: it rides a pixel up and down as it goes,
 ' its wheels turning. a: 1 its back door open, 2 Charlie leaning from its window, open, 4 looking back from its rear one.
-sub DrawVan (art as Store, x as integer, y as integer, wx as integer, a as integer)
+sub DrawVan ( _
+    art as Store, _
+    x as integer, _
+    y as integer, _
+    wx as integer, _
+    a as integer _
+)
     dim ry as integer, k as integer
     ry = y - 79 - ((wx \ 40) and 1)
     Blit art, x - 70, ry, IVAN, 140, 80
@@ -47,7 +53,14 @@ sub DrawVan (art as Store, x as integer, y as integer, wx as integer, a as integ
 end sub
 
 ' The Mob's float likewise, rattling. a: 1 the Baron sat on its crates.
-sub DrawFloat (art as Store, se as Session, x as integer, y as integer, wx as integer, a as integer)
+sub DrawFloat ( _
+    art as Store, _
+    se as Session, _
+    x as integer, _
+    y as integer, _
+    wx as integer, _
+    a as integer _
+)
     dim ry as integer, k as integer
     ry = y - 39 - ((wx \ 24) and 1)
     Blit art, x - 44, ry, IFLOAT, 88, 40
@@ -72,7 +85,13 @@ end function
 
 ' Who meets Charlie, the middle one's feet at x, y. A picture's first LONG holds its size, as GET left it: each
 ' stands with its middle column on its place in the line and its last row on the ground.
-sub DrawFamily (art as Store, se as Session, x as integer, y as integer, cheer as integer)
+sub DrawFamily ( _
+    art as Store, _
+    se as Session, _
+    x as integer, _
+    y as integer, _
+    cheer as integer _
+)
     dim n as integer, k as integer, w as integer, h as integer
     for n = 0 to NFAM - 1
         k = FamPic%(se, n, cheer)
@@ -94,7 +113,15 @@ function FamPic% (se as Session, n as integer, cheer as integer)
 end function
 
 ' A cat of the Mob, a stride of its prowl, west or east. a: 1 the basket on its back, 2 stood still.
-sub DrawCat (zn as Realm, art as Store, se as Session, x as integer, y as integer, a as integer, west as integer)
+sub DrawCat ( _
+    zn as Realm, _
+    art as Store, _
+    se as Session, _
+    x as integer, _
+    y as integer, _
+    a as integer, _
+    west as integer _
+)
     dim k as integer
     k = ICAT
     if (a and 2) = 0 then k = k + ((se.ticks \ 6) and 1) * 2

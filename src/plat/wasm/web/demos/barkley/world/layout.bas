@@ -12,7 +12,14 @@ from barkley.world.terrain.track import LimbUp, LIMBW, LimbX, NLIMB
 const PITD = 5
 
 ' A moving platform, its middle's left end at x, y; reach a, kind k; e the edge before it.
-sub AddMover (lv as Level, x as integer, y as integer, a as integer, k as integer, e as integer)
+sub AddMover ( _
+    lv as Level, _
+    x as integer, _
+    y as integer, _
+    a as integer, _
+    k as integer, _
+    e as integer _
+)
     select case k
     case 6
         AddObj lv, KSPAN, x, y
@@ -106,7 +113,14 @@ sub Pit (lv as Level, c as integer, g as integer, n as integer)
 end sub
 
 ' A shelf w wide, n tiles over the ground, s, at column c; g the ground's height in tiles.
-sub Shelf (lv as Level, c as integer, g as integer, s as integer, n as integer, w as integer)
+sub Shelf ( _
+    lv as Level, _
+    c as integer, _
+    g as integer, _
+    s as integer, _
+    n as integer, _
+    w as integer _
+)
     dim i as integer
     for i = 0 to w - 1
         lv.map(c + i, MH - g - n - 1) = 1

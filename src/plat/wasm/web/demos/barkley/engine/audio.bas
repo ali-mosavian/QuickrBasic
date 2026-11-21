@@ -178,7 +178,15 @@ end sub
 ' Slot s's bar n, the data file's next: its root, bass riff and drum pattern, and four riffs, made its two half bars'
 ' PLAY strings, the lead's lowest note `lead`. A second voice of two characters is a chord pattern, its x the note,
 ' an octave down. A third voice of no loudness is left out.
-private sub ReadBar (mu as Deck, s as integer, n as integer, bas() as string, hits() as string, pat() as string, lead as integer)
+private sub ReadBar ( _
+    mu as Deck, _
+    s as integer, _
+    n as integer, _
+    bas() as string, _
+    hits() as string, _
+    pat() as string, _
+    lead as integer _
+)
     dim root as integer, nb as integer, nd as integer, low as integer
     dim j as integer, h as integer
     dim st as string, br as string, sol as string, mid as string
@@ -245,7 +253,11 @@ function Beat$ ( _
 end function
 
 ' PLAY's volume for a level `loud` eighths as loud, rounded up by `up` eighths.
-private function Vol$ (level as integer, loud as integer, up as integer)
+private function Vol$ ( _
+    level as integer, _
+    loud as integer, _
+    up as integer _
+)
     Vol$ = "V" + ltrim$(str$((level * loud + up) \ 8))
 end function
 
@@ -284,7 +296,11 @@ end function
 
 ' A swung note, a rest where it is 0, n twenty-fourths of a bar long; slid: into from the note before. A length
 ' no one PLAY length says is the next shorter, then a rest.
-private function Shuffle$ (note as integer, slid as integer, n as integer)
+private function Shuffle$ ( _
+    note as integer, _
+    slid as integer, _
+    n as integer _
+)
     dim cut as integer, ln as string, dot as string
     select case n
     case 5, 7, 10
@@ -309,7 +325,12 @@ end function
 
 ' Half h of a bar's riff as PLAY's notes, its lowest note `low`: at most eight, as the drums' always are. swing:
 ' its sixteenths swung.
-private function Riff$ (p as string, h as integer, low as integer, swing as integer)
+private function Riff$ ( _
+    p as string, _
+    h as integer, _
+    low as integer, _
+    swing as integer _
+)
     dim i as integer, j as integer, r as integer, last as integer
     dim note as integer
     dim c as string, s as string, ln as string
@@ -414,7 +435,12 @@ end sub
 
 ' Song sg's bar b, the half the deck is at, to PLAY, `loud` eighths as loud: its voices each their own string.
 ' The drums' strikes are the ninth.
-private sub PlayHalf (mu as Deck, sg as Song, b as integer, loud as integer)
+private sub PlayHalf ( _
+    mu as Deck, _
+    sg as Song, _
+    b as integer, _
+    loud as integer _
+)
     dim v as integer, h as integer
     dim t as string, d as string, bass as string, under as string
     dim one as string, two as string, solo as string, midv as string

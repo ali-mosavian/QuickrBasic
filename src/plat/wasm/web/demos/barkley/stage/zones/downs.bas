@@ -23,7 +23,15 @@ const GOLDPTS = 1000
 private const BOOSTV = 660!
 
 ' A bone where the level put it: taken.
-sub MeetBone (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, pt() as Part)
+sub MeetBone ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    i as integer, _
+    pt() as Part _
+)
     if lv.things(i).state = 0 or abs(lv.things(i).at.x - cint(p.at.x)) >= 12 then exit sub
     if abs(lv.things(i).at.y - cint(p.at.y) + 13) >= 16 then exit sub
     lv.things(i).state = 0
@@ -34,7 +42,16 @@ sub MeetBone (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as
 end sub
 
 ' A golden bone not found before: found, for good.
-sub MeetGold (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as Hero, i as integer, pt() as Part)
+sub MeetGold ( _
+    lv as Level, _
+    zn as Realm, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    i as integer, _
+    pt() as Part _
+)
     dim n as integer
     if abs(lv.things(i).at.x - cint(p.at.x)) >= 12 or abs(lv.things(i).at.y - cint(p.at.y) + 13) >= 16 then exit sub
     n = GoldNo%(lv, i)
@@ -46,14 +63,29 @@ sub MeetGold (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p 
 end sub
 
 ' A cat of the Mob, or a squirrel: rolled or charged into it is beaten, and he bounces off it; else it scratches.
-sub MeetCat (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
+sub MeetCat ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    i as integer, _
+    lo() as Loose, _
+    pt() as Part _
+)
     if lv.things(i).state = 0 or abs(lv.things(i).at.x - cint(p.at.x)) >= 15 then exit sub
     if abs(lv.things(i).at.y - 6 - cint(p.at.y) + 13) >= 17 then exit sub
     Tackle lv, mu, se, g, p, i, 6, lo(), pt()
 end sub
 
 ' A spring: come down on or stood on, it throws him up.
-sub MeetSpring (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
+sub MeetSpring ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    p as Hero, _
+    i as integer _
+)
     dim py as integer
     py = cint(p.at.y)
     if abs(lv.things(i).at.x - cint(p.at.x)) >= 11 or py < lv.things(i).at.y - 12 or py > lv.things(i).at.y + 2 then exit sub
@@ -70,7 +102,15 @@ sub MeetSpring (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
 end sub
 
 ' A boost pad: run over slower than it sends, he is sent the way he faces.
-sub MeetBoost (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, pt() as Part)
+sub MeetBoost ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    i as integer, _
+    pt() as Part _
+)
     if not p.ground or abs(lv.things(i).at.x - cint(p.at.x)) >= 12 then exit sub
     if abs(cint(p.at.y) - lv.things(i).at.y) >= 4 or abs(p.gsp) >= BOOSTV then exit sub
     p.gsp = BOOSTV * (1 - 2 * p.face)
@@ -80,7 +120,15 @@ sub MeetBoost (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i a
 end sub
 
 ' A marker post: passed, it is where he comes back to.
-sub MeetMark (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, pt() as Part)
+sub MeetMark ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    i as integer, _
+    pt() as Part _
+)
     if lv.things(i).state <> 0 or cint(p.at.x) < lv.things(i).at.x then exit sub
     lv.things(i).state = 1
     g.home.x = lv.things(i).at.x

@@ -35,7 +35,16 @@ const LOGR = 32
 
 ' Charlie as a cue has it, at x, y in the world. a: 0 stood, 1 running, 2 at full tilt, 3 curled, 4 crouched,
 ' 5 shaken, 6 glad, 7 wound up; 16 more, or west, facing left.
-sub Pose (lv as Level, gr as Ground, se as Session, p as Hero, x as integer, y as integer, a as integer, west as integer)
+sub Pose ( _
+    lv as Level, _
+    gr as Ground, _
+    se as Session, _
+    p as Hero, _
+    x as integer, _
+    y as integer, _
+    a as integer, _
+    west as integer _
+)
     dim fresh as Hero
     p = fresh
     p.at.x = x
@@ -66,7 +75,13 @@ end sub
 ' frame turned to it.
 ' What is nearer than Charlie: the near half of each ribbon's twist, which hides what runs behind it, and a
 ' hollow log.
-sub DrawOver (lv as Level, zn as Realm, art as Store, cx as integer, cy as integer)
+sub DrawOver ( _
+    lv as Level, _
+    zn as Realm, _
+    art as Store, _
+    cx as integer, _
+    cy as integer _
+)
     dim i as integer, c as integer, x as integer
     c = (cx - WAVEL) \ TS
     if c < 0 then c = 0
@@ -96,7 +111,14 @@ sub DrawBark (p as Hero, cx as integer, cy as integer)
     circle (x, y), r + 4, CWHITE, a, a + PI / 2 - 2 * PI * (1 - p.face)
 end sub
 
-sub DrawHero (gr as Ground, art as Store, se as Session, p as Hero, cx as integer, cy as integer)
+sub DrawHero ( _
+    gr as Ground, _
+    art as Store, _
+    se as Session, _
+    p as Hero, _
+    cx as integer, _
+    cy as integer _
+)
     dim x as integer, y as integer, f as integer, t as integer
     dim tw as integer
     dim hu as single, hv as single, a as single, v as single
@@ -137,7 +159,14 @@ end sub
 
 ' The ground's lie under him, hu and hv; round a ribbon's twist he keeps to the inside, over the line then under
 ' it: a the turn he is at, tw set.
-private sub Footing (gr as Ground, p as Hero, hu as single, hv as single, a as single, tw as integer)
+private sub Footing ( _
+    gr as Ground, _
+    p as Hero, _
+    hu as single, _
+    hv as single, _
+    a as single, _
+    tw as integer _
+)
     hu = 1
     if not p.ground then exit sub
     hu = gr.pt(p.sg).dir.x
@@ -150,7 +179,12 @@ private sub Footing (gr as Ground, p as Hero, hu as single, hv as single, a as s
 end sub
 
 ' The air he cuts at speed: four lines behind him, d the way he goes, about height y.
-private sub SpeedLines (se as Session, x as integer, y as integer, d as integer)
+private sub SpeedLines ( _
+    se as Session, _
+    x as integer, _
+    y as integer, _
+    d as integer _
+)
     dim j as integer, sy as integer, n as integer
     for j = 0 to 3
         sy = y - 12 + (se.ticks * 7 + j * 11) mod 22
@@ -160,7 +194,14 @@ private sub SpeedLines (se as Session, x as integer, y as integer, d as integer)
 end sub
 
 ' Running round a twist: rolled with the ribbon, a twelfth of a turn a picture, its paws' line 12 off its middle.
-private sub DrawTwisted (art as Store, p as Hero, x as integer, y as integer, f as integer, a as single)
+private sub DrawTwisted ( _
+    art as Store, _
+    p as Hero, _
+    x as integer, _
+    y as integer, _
+    f as integer, _
+    a as single _
+)
     dim t as integer, j as integer
     t = cint(a * 6 / PI) mod 12
     j = (f - FRUN) \ 3
@@ -180,7 +221,16 @@ end function
 
 ' Not turned: as drawn. Curled on the ground, his middle is 13 off it, whichever way that is; in a snowball none
 ' of him shows; afraid, he shakes.
-private sub DrawUpright (art as Store, se as Session, p as Hero, x as integer, y as integer, f as integer, hu as single, hv as single)
+private sub DrawUpright ( _
+    art as Store, _
+    se as Session, _
+    p as Hero, _
+    x as integer, _
+    y as integer, _
+    f as integer, _
+    hu as single, _
+    hv as single _
+)
     dim curled as integer, bx as integer, by as integer
     bx = x
     by = y
@@ -201,7 +251,16 @@ end sub
 
 ' Turned about his middle, 12 off the ground, t sixteenths: the picture as drawn (0) or mirrored to face left (1);
 ' past half a turn the one half a turn back upside down, mirrored (3) or not (2).
-private sub DrawTilted (art as Store, p as Hero, x as integer, y as integer, f as integer, t as integer, hu as single, hv as single)
+private sub DrawTilted ( _
+    art as Store, _
+    p as Hero, _
+    x as integer, _
+    y as integer, _
+    f as integer, _
+    t as integer, _
+    hu as single, _
+    hv as single _
+)
     dim j as integer, k as integer, q as integer, bx as integer
     dim by as integer
     k = (f - FRUN) \ 2

@@ -26,7 +26,15 @@ private const RAMREACH = 120
 private const OUTRUN = 140
 
 ' The game's own player: Right held, a jump where one is wanted, still where it must wait.
-sub Pilot (lv as Level, gr as Ground, zn as Realm, se as Session, p as Hero, k as Pad, ap as Autopilot)
+sub Pilot ( _
+    lv as Level, _
+    gr as Ground, _
+    zn as Realm, _
+    se as Session, _
+    p as Hero, _
+    k as Pad, _
+    ap as Autopilot _
+)
     dim want as integer, hop_now as integer
     k.right = -1
     k.left = 0
@@ -66,7 +74,12 @@ private sub HoldBack (p as Hero, k as Pad, v as integer)
 end sub
 
 ' Afloat: on to the right, a hop where a bank is in the way, or a jellyfish. Whether to hop.
-private function PilotSwim% (lv as Level, zn as Realm, p as Hero, k as Pad)
+private function PilotSwim% ( _
+    lv as Level, _
+    zn as Realm, _
+    p as Hero, _
+    k as Pad _
+)
     dim i as integer, d as integer, want as integer
     want = Solid%(lv, cint(p.at.x) + HW + 2, cint(p.at.y) - 11)
     for i = lv.first(cint(p.at.x) \ TS) to lv.n_things - 1
@@ -85,7 +98,13 @@ private function PilotSwim% (lv as Level, zn as Realm, p as Hero, k as Pad)
 end function
 
 ' On a platform: still, till there is ground ahead to jump to. Whether to jump.
-private function PilotRide% (lv as Level, gr as Ground, se as Session, p as Hero, k as Pad)
+private function PilotRide% ( _
+    lv as Level, _
+    gr as Ground, _
+    se as Session, _
+    p as Hero, _
+    k as Pad _
+)
     dim y as integer, i as integer, m as integer, d as integer
     dim want as integer
     y = cint(p.at.y)
@@ -122,7 +141,14 @@ end function
 
 ' On the ground: a jump at a gap, a wall, or what would hurt; a wait at a press, a goat, a platform's gap. Whether
 ' to jump.
-private function PilotRun% (lv as Level, gr as Ground, zn as Realm, se as Session, p as Hero, k as Pad)
+private function PilotRun% ( _
+    lv as Level, _
+    gr as Ground, _
+    zn as Realm, _
+    se as Session, _
+    p as Hero, _
+    k as Pad _
+)
     dim x as integer, y as integer, i as integer, d as integer
     dim want as integer
     x = cint(p.at.x)
@@ -187,7 +213,12 @@ end function
 
 ' Such a mound ahead, or just passed: braked to a stand on it, and down. The faster he comes the sooner he
 ' brakes; short of it he goes on at a walk.
-private sub PilotDig (lv as Level, p as Hero, k as Pad, want as integer)
+private sub PilotDig ( _
+    lv as Level, _
+    p as Hero, _
+    k as Pad, _
+    want as integer _
+)
     dim i as integer, x as integer, c as integer, d as integer
     dim v as integer
     x = cint(p.at.x)
@@ -209,7 +240,12 @@ end sub
 
 ' Grown bramble or a log ahead, or about him: rolled through with the speed to roll, else jumped. Past them,
 ' curled still and slower than a run: out of the roll by a hop.
-private sub PilotCurl (lv as Level, p as Hero, k as Pad, want as integer)
+private sub PilotCurl ( _
+    lv as Level, _
+    p as Hero, _
+    k as Pad, _
+    want as integer _
+)
     dim i as integer, x as integer, c as integer
     x = cint(p.at.x)
     c = (x - LOGR - 8) \ TS
@@ -229,7 +265,13 @@ private sub PilotCurl (lv as Level, p as Hero, k as Pad, want as integer)
 end sub
 
 ' A row of presses ahead: to a stop before it, on once its first is well risen, and no jump under one.
-private sub PilotPress (lv as Level, se as Session, p as Hero, k as Pad, want as integer)
+private sub PilotPress ( _
+    lv as Level, _
+    se as Session, _
+    p as Hero, _
+    k as Pad, _
+    want as integer _
+)
     dim i as integer, d as integer
     i = PressAhead%(lv, cint(p.at.x))
     if i = NONE then exit sub
@@ -242,7 +284,12 @@ private sub PilotPress (lv as Level, se as Session, p as Hero, k as Pad, want as
 end sub
 
 ' A tipper ahead: to a stop short of where its pot comes down, on once one has broken and the next is not soon.
-private sub PilotTipper (lv as Level, se as Session, p as Hero, k as Pad)
+private sub PilotTipper ( _
+    lv as Level, _
+    se as Session, _
+    p as Hero, _
+    k as Pad _
+)
     dim i as integer, d as integer
     i = TipperAhead%(lv, cint(p.at.x))
     if i = NONE then exit sub
@@ -252,7 +299,12 @@ private sub PilotTipper (lv as Level, se as Session, p as Hero, k as Pad)
 end sub
 
 ' A goat near: to a stand short of it, up as it charges, and down on its back.
-private sub PilotGoat (lv as Level, p as Hero, k as Pad, want as integer)
+private sub PilotGoat ( _
+    lv as Level, _
+    p as Hero, _
+    k as Pad, _
+    want as integer _
+)
     dim i as integer, d as integer
     i = GoatNear%(lv, cint(p.at.x))
     if i = NONE or p.goat <> 0 then exit sub
@@ -268,7 +320,13 @@ private sub PilotGoat (lv as Level, p as Hero, k as Pad, want as integer)
 end sub
 
 ' A platform's gap ahead: slowly to its edge, there till the platform is at it and staying, then on.
-private sub PilotGaps (lv as Level, se as Session, p as Hero, k as Pad, want as integer)
+private sub PilotGaps ( _
+    lv as Level, _
+    se as Session, _
+    p as Hero, _
+    k as Pad, _
+    want as integer _
+)
     dim m as integer, d as integer, x as integer, y as integer
     x = cint(p.at.x)
     y = cint(p.at.y)
@@ -324,7 +382,13 @@ private sub PilotFall (lv as Level, zn as Realm, p as Hero, k as Pad)
 end sub
 
 ' A blizzard: no jump is begun from a walk that a gust would catch, and while it blows he keeps low.
-private sub PilotGale (lv as Level, se as Session, p as Hero, k as Pad, want as integer)
+private sub PilotGale ( _
+    lv as Level, _
+    se as Session, _
+    p as Hero, _
+    k as Pad, _
+    want as integer _
+)
     if Lull%(lv, se) < 56 and want and abs(p.gsp) < 150 then
         want = 0
         HoldBack p, k, 20

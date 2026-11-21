@@ -116,7 +116,16 @@ end sub
 
 ' A step of the chase, by its state: begun as Charlie comes to the race; then who flees does, by its zone, and he
 ' may meet it; broken, its keepsake is his when he reaches it.
-sub Flee (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
+sub Flee ( _
+    lv as Level, _
+    zn as Realm, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    lo() as Loose, _
+    pt() as Part _
+)
     if lv.chase_x = NONE then exit sub
     if lv.cart.t > 0 then lv.cart.t = lv.cart.t - STEPT
     select case lv.cart.st
@@ -178,7 +187,12 @@ end function
 
 ' The cart along the ground at `pace`: dawdling when Charlie is far behind it, slow while a bump has it dazed,
 ' then making off at `away`; no further than the race's end.
-private sub MoveCart (lv as Level, p as Hero, pace as single, away as single)
+private sub MoveCart ( _
+    lv as Level, _
+    p as Hero, _
+    pace as single, _
+    away as single _
+)
     dim want as single, s as integer
     want = pace
     if lv.cart.at.x - p.at.x > 240 then want = DAWDLE
@@ -196,7 +210,15 @@ end sub
 
 ' Charlie at the cart, once it is over its last bump: curled, he bumps it and is thrown back off it, or on a sled
 ' checked; else it hurts him. Its last bump breaks it.
-private sub MeetCart (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
+private sub MeetCart ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    lo() as Loose, _
+    pt() as Part _
+)
     if lv.cart.t > BOLTS or p.dead then exit sub
     if abs(p.at.x - lv.cart.at.x) > CARTR or p.at.y < lv.cart.at.y - 46 or p.at.y > lv.cart.at.y + 6 then exit sub
     if not (p.roll or p.charging) then
@@ -221,7 +243,14 @@ private function Bumps% (zn as Realm)
 end function
 
 ' A bump told, its sparks at height y: who flees is dazed.
-private sub Bumped (lv as Level, mu as Deck, se as Session, g as Game, pt() as Part, y as single)
+private sub Bumped ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    pt() as Part, _
+    y as single _
+)
     lv.cart.hits = lv.cart.hits + 1
     lv.cart.t = DAZED
     g.score = g.score + 500
@@ -231,14 +260,25 @@ private sub Bumped (lv as Level, mu as Deck, se as Session, g as Game, pt() as P
 end sub
 
 ' Who flees is broken and the keepsake left lying; the zone's tune again.
-private sub BreakCart (lv as Level, mu as Deck, se as Session, pt() as Part)
+private sub BreakCart ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    pt() as Part _
+)
     lv.cart.st = 2
     lv.cart.t = 2
     Burst se, pt(), lv.cart.at.x + 0, lv.cart.at.y - 12, 16, 200, CEARTH + 4
     ZoneTune mu, mu.stage_tune
 end sub
 
-private sub TakeKeep (lv as Level, mu as Deck, se as Session, g as Game, pt() as Part)
+private sub TakeKeep ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    pt() as Part _
+)
     lv.cart.st = 3
     g.score = g.score + 1000
     Burst se, pt(), lv.cart.at.x + 0, lv.cart.at.y - 8, 12, 120, CYELLOW
@@ -247,7 +287,14 @@ end sub
 
 ' Who flees, by its zone; nothing once its keepsake is taken back, but the wood's oak, which stands, and its
 ' twins, who stay to sulk.
-sub DrawChase (lv as Level, zn as Realm, art as Store, se as Session, cx as integer, cy as integer)
+sub DrawChase ( _
+    lv as Level, _
+    zn as Realm, _
+    art as Store, _
+    se as Session, _
+    cx as integer, _
+    cy as integer _
+)
     if lv.chase_x = NONE then exit sub
     if zn.id = 4 then
         DrawOak lv, art, cx, cy
@@ -303,7 +350,15 @@ end function
 
 ' Charlie at who has the guitar, as at a cart; not while the twins have it in the air. A bump is marked where it
 ' was made, for the cat left there off its feet.
-private sub MeetRelay (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
+private sub MeetRelay ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    lo() as Loose, _
+    pt() as Part _
+)
     dim was as integer
     if Lobbed%(lv) then exit sub
     was = lv.cart.hits
@@ -344,7 +399,14 @@ end function
 ' The relay: the cat last bumped off its feet where it was, a while; who has the guitar striding, it on its back,
 ' Kipper off the ground on his quick beat, the other twin by; a pip over it for each cat still to bump. Broken,
 ' the guitar where it fell.
-private sub DrawRelay (lv as Level, zn as Realm, art as Store, se as Session, cx as integer, cy as integer)
+private sub DrawRelay ( _
+    lv as Level, _
+    zn as Realm, _
+    art as Store, _
+    se as Session, _
+    cx as integer, _
+    cy as integer _
+)
     dim x as integer, y as integer, leg as integer, k as integer
     dim i as integer, a as integer, b as integer
     dim up as integer, q as single
@@ -418,7 +480,14 @@ end sub
 ' The twins' game, a step: the ball held, then lobbed across, then held again; held too while a catch tells. At
 ' the ball on its way he has caught it: a bump, the twins off to the pair above and the ball tossed up after
 ' them. The third catch, and the ball is his.
-private sub Juggle (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, pt() as Part)
+private sub Juggle ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    pt() as Part _
+)
     if lv.cart.t <= 0 then lv.box.t = lv.box.t - STEPT
     if lv.box.t <= 0 then
         lv.box.st = (lv.box.st + 1) and 3
@@ -458,7 +527,12 @@ end function
 
 ' The great oak: its limbs, out from behind it; its foot, and its trunk up from there out of sight; its hollow
 ' and its brackets.
-private sub DrawOak (lv as Level, art as Store, cx as integer, cy as integer)
+private sub DrawOak ( _
+    lv as Level, _
+    art as Store, _
+    cx as integer, _
+    cy as integer _
+)
     dim n as integer, x as integer, y as integer, k as integer
     dim w as integer, h as integer
     x = lv.oak.x - cx
@@ -495,7 +569,13 @@ end sub
 
 ' The twins on their limbs, each in the picture of what it does, and the ball with a pip over it for each catch
 ' still to make. A catch telling, they are shocked where they sat, then leap to the pair above.
-private sub DrawTwins (lv as Level, zn as Realm, art as Store, cx as integer, cy as integer)
+private sub DrawTwins ( _
+    lv as Level, _
+    zn as Realm, _
+    art as Store, _
+    cx as integer, _
+    cy as integer _
+)
     dim sd as integer, n as integer, x as single, y as single
     dim u as single, i as integer, bx as integer
     dim by as integer
@@ -525,7 +605,14 @@ end sub
 
 ' Frost on her toboggan as the ground lies, shaken while a bump has her dazed, the bumps she can yet take over
 ' her; knocked off it, she sits in deep snow, the camera lying by her.
-private sub DrawFrost (lv as Level, zn as Realm, art as Store, se as Session, cx as integer, cy as integer)
+private sub DrawFrost ( _
+    lv as Level, _
+    zn as Realm, _
+    art as Store, _
+    se as Session, _
+    cx as integer, _
+    cy as integer _
+)
     dim x as integer, y as integer, i as integer
     x = cint(lv.cart.at.x) - cx
     y = cint(lv.cart.at.y) - cy
@@ -554,7 +641,14 @@ private sub MovePedalo (lv as Level)
 end sub
 
 ' Charlie down onto the pedal boat's deck, out of the air: a bump, it turns round and he goes up off it.
-private sub MeetPedalo (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, pt() as Part)
+private sub MeetPedalo ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    pt() as Part _
+)
     if lv.cart.t > BOLTS or p.dead or p.ground or p.swim or p.vel.y <= 0 then exit sub
     if abs(p.at.x - lv.cart.at.x) > PEDALW \ 2 or p.at.y < lv.cart.at.y - 6 or p.at.y > lv.cart.at.y + 14 then exit sub
     Bumped lv, mu, se, g, pt(), lv.cart.at.y - 8
@@ -565,7 +659,14 @@ end sub
 
 ' The pedal boat, a pip over it for each bump it can still take; broken, the teddy afloat where it sank, and the
 ' cat paddling off a while.
-private sub DrawPedalo (lv as Level, zn as Realm, art as Store, se as Session, cx as integer, cy as integer)
+private sub DrawPedalo ( _
+    lv as Level, _
+    zn as Realm, _
+    art as Store, _
+    se as Session, _
+    cx as integer, _
+    cy as integer _
+)
     dim x as integer, y as integer, i as integer
     x = cint(lv.cart.at.x) - cx
     y = cint(lv.cart.at.y) - cy
@@ -581,14 +682,28 @@ private sub DrawPedalo (lv as Level, zn as Realm, art as Store, se as Session, c
 end sub
 
 ' The cat making off from (x, y), v a second, a while after its ride broke.
-private sub DrawFled (lv as Level, art as Store, se as Session, x as integer, y as integer, v as integer)
+private sub DrawFled ( _
+    lv as Level, _
+    art as Store, _
+    se as Session, _
+    x as integer, _
+    y as integer, _
+    v as integer _
+)
     if lv.cart.t <= 0 then exit sub
     Blit art, x + cint((2 - lv.cart.t) * v), y, ICAT + ((se.ticks \ 4) and 1) * 2, 20, 14
 end sub
 
 ' The cart, a pip over it for each bump it can still take; broken, the keepsake where it fell, and the cat making
 ' off a while.
-private sub DrawCart (lv as Level, zn as Realm, art as Store, se as Session, cx as integer, cy as integer)
+private sub DrawCart ( _
+    lv as Level, _
+    zn as Realm, _
+    art as Store, _
+    se as Session, _
+    cx as integer, _
+    cy as integer _
+)
     dim x as integer, y as integer, i as integer
     x = cint(lv.cart.at.x) - cx
     y = cint(lv.cart.at.y) - cy
@@ -606,7 +721,12 @@ end sub
 ' The cart on its ground, its middle at x on the screen: each wheel on the ground under it, turning as it goes,
 ' and the planks between them, leaning by what the wheels' grounds differ: not at all, half a gentle slope's fall,
 ' or all of one's.
-private sub DrawWheels (lv as Level, art as Store, x as integer, cy as integer)
+private sub DrawWheels ( _
+    lv as Level, _
+    art as Store, _
+    x as integer, _
+    cy as integer _
+)
     dim ya as integer, yb as integer, lean as integer, k as integer
     ya = Surf%(lv, cint(lv.cart.at.x) - WHEELS, cint(lv.cart.at.y))
     yb = Surf%(lv, cint(lv.cart.at.x) + WHEELS, cint(lv.cart.at.y))
@@ -644,7 +764,14 @@ end sub
 
 ' Charlie thrown up to the crane: in the air at its gondola he bumps it and is knocked aside, out of a jet's way,
 ' and down, or up off it if he came down on it; its crate is lost.
-private sub MeetCrane (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, pt() as Part)
+private sub MeetCrane ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    pt() as Part _
+)
     dim foot as single
     if lv.cart.t > BOLTS or p.dead or p.ground then exit sub
     foot = lv.cart.at.y - CRANEH
@@ -658,7 +785,15 @@ end sub
 
 ' The crane's crate, by its state: on the hook, and held still once it is over Charlie; let go a moment later; then
 ' falling, to hurt him if it meets him and to break on the floor.
-private sub DropBox (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
+private sub DropBox ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    lo() as Loose, _
+    pt() as Part _
+)
     if lv.box.t > 0 then lv.box.t = lv.box.t - STEPT
     select case lv.box.st
     case 0
@@ -686,7 +821,12 @@ private sub DropBox (lv as Level, mu as Deck, se as Session, g as Game, p as Her
 end sub
 
 ' The crate in bits where it is, the next a while off: sooner for each bump the crane has had.
-private sub BreakBox (lv as Level, mu as Deck, se as Session, pt() as Part)
+private sub BreakBox ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    pt() as Part _
+)
     Burst se, pt(), lv.box.at.x + 0, lv.box.at.y - 8, 10, 140, CEARTH + 4
     Sfx mu, se, SPOP
     lv.box.st = 0
@@ -695,7 +835,14 @@ end sub
 
 ' The rail over the hall and the crane on it, a pip over it for each bump it can still take, its crate on the hook
 ' or falling; broken, its lamp out and the toolbox fallen from it.
-private sub DrawCrane (lv as Level, zn as Realm, art as Store, se as Session, cx as integer, cy as integer)
+private sub DrawCrane ( _
+    lv as Level, _
+    zn as Realm, _
+    art as Store, _
+    se as Session, _
+    cx as integer, _
+    cy as integer _
+)
     dim x as integer, y as integer, i as integer, fy as integer
     dim a as integer, b as integer, jolt as integer
     x = cint(lv.cart.at.x) - cx

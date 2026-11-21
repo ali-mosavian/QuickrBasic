@@ -30,7 +30,13 @@ sub Flip (page as integer)
 end sub
 
 ' Image k upside down as k2.
-sub Flop (art as Store, k as integer, k2 as integer, w as integer, h as integer)
+sub Flop ( _
+    art as Store, _
+    k as integer, _
+    k2 as integer, _
+    w as integer, _
+    h as integer _
+)
     dim y as integer, strip(40) as long
     put (0, 0), art.img(art.at(k)), pset
     for y = 0 to h - 1
@@ -41,7 +47,13 @@ sub Flop (art as Store, k as integer, k2 as integer, w as integer, h as integer)
 end sub
 
 ' Image k, w by h, mirrored as k2: a column at a time.
-sub Mirror (art as Store, k as integer, k2 as integer, w as integer, h as integer)
+sub Mirror ( _
+    art as Store, _
+    k as integer, _
+    k2 as integer, _
+    w as integer, _
+    h as integer _
+)
     dim x as integer, strip(40) as long
     put (0, 0), art.img(art.at(k)), pset
     for x = 0 to w - 1
@@ -51,7 +63,14 @@ sub Mirror (art as Store, k as integer, k2 as integer, w as integer, h as intege
     Grab art, 100, 0, 100 + w - 1, h - 1, k2
 end sub
 
-sub Grab (art as Store, x1 as integer, y1 as integer, x2 as integer, y2 as integer, k as integer)
+sub Grab ( _
+    art as Store, _
+    x1 as integer, _
+    y1 as integer, _
+    x2 as integer, _
+    y2 as integer, _
+    k as integer _
+)
     art.at(k) = art.next_at
     get (x1, y1)-(x2, y2), art.img(art.next_at)
     art.next_at = art.next_at + (4 + clng(x2 - x1 + 1) * (y2 - y1 + 1) + 3) \ 4
@@ -59,7 +78,16 @@ end sub
 
 ' The w by h at x, y kept as k, and its mask, drawn at mx, my, as k + 1:
 ' 255 where it is clear, 0 where drawn.
-sub MaskGrab (art as Store, x as integer, y as integer, w as integer, h as integer, mx as integer, my as integer, k as integer)
+sub MaskGrab ( _
+    art as Store, _
+    x as integer, _
+    y as integer, _
+    w as integer, _
+    h as integer, _
+    mx as integer, _
+    my as integer, _
+    k as integer _
+)
     dim i as integer, j as integer
     for j = 0 to h - 1
         for i = 0 to w - 1
@@ -75,7 +103,14 @@ sub MaskGrab (art as Store, x as integer, y as integer, w as integer, h as integ
 end sub
 
 ' Masked image k, w by h, at x, y; nothing when wholly off the screen.
-sub Blit (art as Store, x as integer, y as integer, k as integer, w as integer, h as integer)
+sub Blit ( _
+    art as Store, _
+    x as integer, _
+    y as integer, _
+    k as integer, _
+    w as integer, _
+    h as integer _
+)
     if x + w <= 0 or x >= SW or y + h <= 0 or y >= SH then exit sub
     put (x, y), art.img(art.at(k + 1)), and
     put (x, y), art.img(art.at(k)), or

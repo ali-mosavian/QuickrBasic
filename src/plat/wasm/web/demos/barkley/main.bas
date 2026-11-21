@@ -68,7 +68,15 @@ sub Main (wd as World)
 end sub
 
 ' A step: of the intro, and on to the title once it is over; else of the game.
-sub Advance (wd as World, g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part, cu() as Cue)
+sub Advance ( _
+    wd as World, _
+    g as Game, _
+    p as Hero, _
+    k as Pad, _
+    lo() as Loose, _
+    pt() as Part, _
+    cu() as Cue _
+)
     if g.mode <> INTRO then
         Tick wd, g, p, k, lo(), pt()
         exit sub

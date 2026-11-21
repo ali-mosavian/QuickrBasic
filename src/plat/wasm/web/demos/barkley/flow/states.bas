@@ -58,7 +58,14 @@ private sub Tally (mu as Deck, se as Session, g as Game, k as Pad)
 end sub
 
 ' A step. The title plays itself: Charlie run by the pilot.
-sub Tick (wd as World, g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
+sub Tick ( _
+    wd as World, _
+    g as Game, _
+    p as Hero, _
+    k as Pad, _
+    lo() as Loose, _
+    pt() as Part _
+)
     wd.se.ticks = wd.se.ticks + 1
     KeepBeat wd.mu, wd.se
     if wd.zn.id = 1 and (wd.se.ticks and 3) = 0 then
@@ -91,7 +98,14 @@ sub Tick (wd as World, g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Pa
 end sub
 
 ' The title's step: behind it the game plays itself, from the start again when that ends; a key starts a game.
-private sub TitleStep (wd as World, g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
+private sub TitleStep ( _
+    wd as World, _
+    g as Game, _
+    p as Hero, _
+    k as Pad, _
+    lo() as Loose, _
+    pt() as Part _
+)
     dim auto as Pad
     if k.quit then g.quitting = -1
     if p.dead then
@@ -113,7 +127,14 @@ end sub
 
 ' A game's step: Charlie moved, against the things and what chases, flies and is thrown; past the goal, the stage
 ' is cleared.
-private sub PlayStep (wd as World, g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
+private sub PlayStep ( _
+    wd as World, _
+    g as Game, _
+    p as Hero, _
+    k as Pad, _
+    lo() as Loose, _
+    pt() as Part _
+)
     if k.quit then ResetWorld wd, g, p, lo(), pt()
     if p.dead then
         Dying wd.lv, wd.gr, wd.zn, wd.mu, g, p
@@ -145,7 +166,14 @@ end sub
 
 ' A cleared stage's step: its tally; then, met, a while and the fade over, on to the next stage, or after the
 ' last, the title.
-private sub ClearedStep (wd as World, g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
+private sub ClearedStep ( _
+    wd as World, _
+    g as Game, _
+    p as Hero, _
+    k as Pad, _
+    lo() as Loose, _
+    pt() as Part _
+)
     dim nxt as integer
     Tally wd.mu, wd.se, g, k
     if k.quit then
@@ -167,7 +195,13 @@ private sub ClearedStep (wd as World, g as Game, p as Hero, k as Pad, lo() as Lo
 end sub
 
 ' The level as it starts, the title up, Charlie at the start for the pilot.
-sub ResetWorld (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
+sub ResetWorld ( _
+    wd as World, _
+    g as Game, _
+    p as Hero, _
+    lo() as Loose, _
+    pt() as Part _
+)
     dim i as integer
     if wd.zn.stage <> wd.zn.next_up then LoadLevel wd, wd.zn.next_up
     EndTune wd.lv, wd.zn, wd.mu
@@ -238,7 +272,14 @@ sub ResetWorld (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
 end sub
 
 ' A level cleared: on to level n, the score and lives kept.
-sub GoStage (wd as World, n as integer, g as Game, p as Hero, lo() as Loose, pt() as Part)
+sub GoStage ( _
+    wd as World, _
+    n as integer, _
+    g as Game, _
+    p as Hero, _
+    lo() as Loose, _
+    pt() as Part _
+)
     dim sc as long, left0 as integer
     sc = g.score
     left0 = g.lives
@@ -252,7 +293,13 @@ end sub
 
 ' Past the goal, a game's or the title's: on to the family and no further, the view sliding on to hold them all
 ' with Charlie at its left; a while with them, then the picture fades. Whether it has.
-private function Met% (wd as World, g as Game, p as Hero, k as Pad, pt() as Part)
+private function Met% ( _
+    wd as World, _
+    g as Game, _
+    p as Hero, _
+    k as Pad, _
+    pt() as Part _
+)
     dim idle as Pad, parted as integer
     idle.right = p.at.x < wd.lv.fam_x - 108 and not p.win
     MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, idle, pt()
@@ -280,7 +327,13 @@ private function Met% (wd as World, g as Game, p as Hero, k as Pad, pt() as Part
 end function
 
 ' A game from its start, at the first act of the zone picked on the title.
-sub StartGame (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
+sub StartGame ( _
+    wd as World, _
+    g as Game, _
+    p as Hero, _
+    lo() as Loose, _
+    pt() as Part _
+)
     wd.zn.next_up = wd.se.pick * 2
     ResetWorld wd, g, p, lo(), pt()
     wd.zn.next_up = 0

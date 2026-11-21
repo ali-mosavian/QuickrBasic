@@ -49,7 +49,14 @@ from barkley.stage.camera import Camera
 const SPARKR = 40
 const JELLYD = 10
 
-sub Spawn (lv as Level, gr as Ground, zn as Realm, mu as Deck, g as Game, p as Hero)
+sub Spawn ( _
+    lv as Level, _
+    gr as Ground, _
+    zn as Realm, _
+    mu as Deck, _
+    g as Game, _
+    p as Hero _
+)
     dim fresh as Hero
     p = fresh
     p.at.x = g.home.x
@@ -63,7 +70,16 @@ sub Spawn (lv as Level, gr as Ground, zn as Realm, mu as Deck, g as Game, p as H
 end sub
 
 ' Charlie against the things near it, and the loose bones.
-sub Touch (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
+sub Touch ( _
+    lv as Level, _
+    zn as Realm, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    lo() as Loose, _
+    pt() as Part _
+)
     dim i as integer, c as integer, px as integer, py as integer
     dim x as integer, dx as integer
     ' under the ground nothing is met
@@ -168,7 +184,14 @@ sub Touch (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as 
 end sub
 
 ' Out: Charlie rises and falls through everything; then the next life.
-sub Dying (lv as Level, gr as Ground, zn as Realm, mu as Deck, g as Game, p as Hero)
+sub Dying ( _
+    lv as Level, _
+    gr as Ground, _
+    zn as Realm, _
+    mu as Deck, _
+    g as Game, _
+    p as Hero _
+)
     p.dead_t = p.dead_t + STEPT
     p.vel.y = p.vel.y + GRAV * STEPT
     p.at.y = p.at.y + p.vel.y * STEPT
@@ -183,7 +206,15 @@ sub Dying (lv as Level, gr as Ground, zn as Realm, mu as Deck, g as Game, p as H
     end if
 end sub
 
-sub Things (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
+sub Things ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    lo() as Loose, _
+    pt() as Part _
+)
     dim i as integer, c as integer
     ' typed: a const made from a const and left typeless is rounded to a whole number, 0 here
     const DT! = STEPT * 2

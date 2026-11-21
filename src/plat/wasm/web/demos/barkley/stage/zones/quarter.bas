@@ -101,7 +101,14 @@ end function
 
 ' The lines: come down on, one throws him up, his way kept, each in a row harder than the last, up to LINEROW;
 ' on the ground the row is over. From under, he goes through it. On a lantern line he slides.
-sub Lines (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, pt() as Part)
+sub Lines ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    pt() as Part _
+)
     dim i as integer, u as integer, y as integer
     if p.ground or p.swim or p.vine then p.hops = 0
     if p.ground then Glide lv, p
@@ -147,7 +154,14 @@ private sub Toss (p as Hero, y as integer, v as single)
 end sub
 
 ' Line r trodden u along it, at height y: he is thrown up off it, and it swings.
-private sub Pluck (r as Rope, mu as Deck, se as Session, p as Hero, u as integer, y as integer)
+private sub Pluck ( _
+    r as Rope, _
+    mu as Deck, _
+    se as Session, _
+    p as Hero, _
+    u as integer, _
+    y as integer _
+)
     Toss p, y, LINEV + LINEMORE * p.hops
     if p.hops < LINEROW - 1 then p.hops = p.hops + 1
     r.trod = u
@@ -156,7 +170,13 @@ private sub Pluck (r as Rope, mu as Deck, se as Session, p as Hero, u as integer
 end sub
 
 ' An awning: come down on, its canvas throws him up, his way kept; from under he goes through it.
-sub MeetAwning (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
+sub MeetAwning ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    p as Hero, _
+    i as integer _
+)
     if p.dead or abs(lv.things(i).at.x - p.at.x) >= AWNW or not Trodden%(p, lv.things(i).at.y) then exit sub
     Toss p, lv.things(i).at.y, AWNV
     lv.things(i).state = AWNT
@@ -165,7 +185,14 @@ end sub
 
 ' A chimney that leads on: come down into its pot, he goes down it for the one it leads to. A way out takes no
 ' one in.
-sub MeetChimney (lv as Level, mu as Deck, se as Session, p as Hero, i as integer, pt() as Part)
+sub MeetChimney ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    p as Hero, _
+    i as integer, _
+    pt() as Part _
+)
     if lv.things(i).state < 1 or p.dead or abs(lv.things(i).at.x - p.at.x) >= FLUER then exit sub
     if not Trodden%(p, lv.things(i).at.y - FLUEH) then exit sub
     p.dig = lv.things(i).state
@@ -233,7 +260,16 @@ sub Spring (lv as Level, i as integer, p as Hero)
 end sub
 
 ' A pouncer out of its bin: rolled or charged into it is beaten, else it scratches. In its bin it is not met.
-sub MeetPounce (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
+sub MeetPounce ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    i as integer, _
+    lo() as Loose, _
+    pt() as Part _
+)
     dim y as integer
     if lv.things(i).state = 0 or lv.things(i).state = POUNCEGONE or abs(lv.things(i).at.x - cint(p.at.x)) >= 15 then exit sub
     y = lv.things(i).at.y - Leapt%(lv, i)
@@ -243,7 +279,14 @@ sub MeetPounce (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i 
 end sub
 
 ' Pouncer i at x, y on the screen: in its leap the Mob's cat with its back up, on its arc; landed, a cat at a prowl.
-sub DrawPouncer (lv as Level, art as Store, se as Session, i as integer, x as integer, y as integer)
+sub DrawPouncer ( _
+    lv as Level, _
+    art as Store, _
+    se as Session, _
+    i as integer, _
+    x as integer, _
+    y as integer _
+)
     dim s as integer
     s = lv.things(i).state
     if s = 0 or s = POUNCEGONE then exit sub
@@ -290,7 +333,13 @@ function TipperAhead% (lv as Level, x as integer)
 end function
 
 ' A tipper's step: its pot breaks at the step it lands.
-sub Tipper (lv as Level, mu as Deck, se as Session, i as integer, pt() as Part)
+sub Tipper ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    i as integer, _
+    pt() as Part _
+)
     dim q as long, land as long
     q = Fired&(lv, se, i)
     land = clng(sqr(2! * SILLUP / GRAV) * 60 * se.tempo)
@@ -300,7 +349,15 @@ sub Tipper (lv as Level, mu as Deck, se as Session, i as integer, pt() as Part)
 end sub
 
 ' Charlie at tipper i: its pot on its way down hurts whom it comes to.
-sub MeetTipper (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose)
+sub MeetTipper ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    i as integer, _
+    lo() as Loose _
+)
     dim d as integer, foot as integer
     d = PotFall%(lv, se, i)
     if d = NONE or abs(lv.things(i).at.x + POTX - cint(p.at.x)) >= POTR then exit sub
@@ -312,7 +369,14 @@ end sub
 
 ' Tipper i, its house's middle at x and its foot at y on the screen: the house; its cat at the upper window, a paw
 ' out the beat before its pot goes; the pot in the air, or on the sill from two beats after it went.
-sub DrawTipper (lv as Level, art as Store, se as Session, i as integer, x as integer, y as integer)
+sub DrawTipper ( _
+    lv as Level, _
+    art as Store, _
+    se as Session, _
+    i as integer, _
+    x as integer, _
+    y as integer _
+)
     dim q as long, d as integer
     q = Fired&(lv, se, i)
     d = PotFall%(lv, se, i)
@@ -330,7 +394,15 @@ end sub
 
 ' A mortar: at the tick it fires, who is in the air over its mouth is thrown up, his way kept; while its flash
 ' burns, who is beside it is burnt.
-sub MeetMortar (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose)
+sub MeetMortar ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    i as integer, _
+    lo() as Loose _
+)
     dim q as long, dx as integer, up as integer
     q = Fired&(lv, se, i)
     if q >= FLASHP then exit sub
@@ -347,7 +419,14 @@ end sub
 
 ' Mortar i at x, y on the screen: its tube; its fuse alight the beat before it fires; its flash; its shell a beat on
 ' its way up, its trail under it, and a beat burst where that ends, in one of two colours.
-sub DrawMortar (lv as Level, art as Store, se as Session, i as integer, x as integer, y as integer)
+sub DrawMortar ( _
+    lv as Level, _
+    art as Store, _
+    se as Session, _
+    i as integer, _
+    x as integer, _
+    y as integer _
+)
     dim q as long, h as integer, f as integer
     Blit art, x - 6, y - 14, IMORTAR, 13, 15
     q = Fired&(lv, se, i)
@@ -384,7 +463,14 @@ end function
 
 ' Snatcher i's step: a loose bone within its beat it runs to, SNATCHV a cat's pace, and takes for good; with none,
 ' or startled, it is a cat.
-sub Snatch (lv as Level, mu as Deck, se as Session, i as integer, lo() as Loose, pt() as Part)
+sub Snatch ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    i as integer, _
+    lo() as Loose, _
+    pt() as Part _
+)
     dim b as integer, n as integer
     b = NONE
     if se.loose_n > 0 and abs(lv.things(i).state) = 1 then
@@ -417,7 +503,14 @@ function SnatchPic% (se as Session, s as integer)
 end function
 
 ' Rope-walker i shaken off its line: beaten, where it was.
-private sub Shaken (lv as Level, mu as Deck, se as Session, g as Game, pt() as Part, i as integer)
+private sub Shaken ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    pt() as Part, _
+    i as integer _
+)
     if lv.things(i).state then Beaten lv, mu, se, g, pt(), i, 6
 end sub
 
@@ -448,7 +541,12 @@ private sub Tread (lv as Level, r as Rope)
 end sub
 
 ' The lines in view: each from post to post, its washing on it.
-sub DrawLines (lv as Level, art as Store, cx as integer, cy as integer)
+sub DrawLines ( _
+    lv as Level, _
+    art as Store, _
+    cx as integer, _
+    cy as integer _
+)
     dim i as integer, u as integer, x as integer, y as integer
     dim y1 as integer
     for i = 0 to lv.n_ropes - 1
@@ -473,7 +571,12 @@ sub DrawLines (lv as Level, art as Store, cx as integer, cy as integer)
 end sub
 
 ' Line r's paper lanterns, one every LANTGAP hung under it.
-private sub Lanterns (r as Rope, art as Store, cx as integer, cy as integer)
+private sub Lanterns ( _
+    r as Rope, _
+    art as Store, _
+    cx as integer, _
+    cy as integer _
+)
     dim u as integer
     for u = LANTGAP \ 2 to r.w - 6 step LANTGAP
         Blit art, r.at.x + u - cx - 4, LineY%(r, u) - cy, IPAPER, 9, 14
@@ -498,7 +601,12 @@ end sub
 
 ' Line r's washing, pegged every WASH along it and hung as it hangs: by where it is, a shirt, trousers, a sock,
 ' or a peg left bare.
-private sub Washing (r as Rope, art as Store, cx as integer, cy as integer)
+private sub Washing ( _
+    r as Rope, _
+    art as Store, _
+    cx as integer, _
+    cy as integer _
+)
     dim u as integer, x as integer, y as integer
     for u = 16 to r.w - 14 step WASH
         x = r.at.x + u - cx

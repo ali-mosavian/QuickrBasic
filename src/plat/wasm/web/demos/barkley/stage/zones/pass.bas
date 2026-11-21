@@ -72,7 +72,13 @@ private const HEAPH = 30
 const HEAPR = 24
 
 ' Onto sled i: off on it at once, to the right, curled in nothing but the game's reckoning.
-private sub Board (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
+private sub Board ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    p as Hero, _
+    i as integer _
+)
     lv.things(i).state = 1
     p.sled = -1
     p.roll = -1
@@ -87,7 +93,16 @@ private sub Board (lv as Level, mu as Deck, se as Session, p as Hero, i as integ
 end sub
 
 ' An icicle: walked under, it is loosed; falling, it hurts whom it lands on, and breaks.
-sub MeetIcicle (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
+sub MeetIcicle ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    i as integer, _
+    lo() as Loose, _
+    pt() as Part _
+)
     dim x as integer, dx as integer, py as integer, y as integer
     x = lv.things(i).at.x
     dx = abs(x - cint(p.at.x))
@@ -102,7 +117,13 @@ sub MeetIcicle (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i 
 end sub
 
 ' A sled left on the snow: landed on or run onto, he boards it.
-sub MeetSled (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
+sub MeetSled ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    p as Hero, _
+    i as integer _
+)
     if lv.things(i).state <> 0 or p.sled or p.stun then exit sub
     if not p.ground and p.vel.y <= 0 then exit sub
     if abs(lv.things(i).at.x - cint(p.at.x)) >= 14 or abs(cint(p.at.y) - lv.things(i).at.y + 5) >= 10 then exit sub
@@ -110,7 +131,14 @@ sub MeetSled (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
 end sub
 
 ' Deep snow: it stops a sled dead and he tumbles out of it; rolled through, it packs round him.
-sub MeetDrift (lv as Level, mu as Deck, se as Session, p as Hero, i as integer, pt() as Part)
+sub MeetDrift ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    p as Hero, _
+    i as integer, _
+    pt() as Part _
+)
     if not p.ground or abs(lv.things(i).at.x - cint(p.at.x)) >= 22 or abs(cint(p.at.y) - lv.things(i).at.y) >= 8 then exit sub
     if p.sled then
         Alight mu, se, p, pt(), CWHITE
@@ -166,7 +194,13 @@ end function
 
 ' The avalanche's step: let go as he passes its head, its front comes on, the ground shaking while it is in
 ' view, and takes him where it reaches him.
-sub Avalanche (lv as Level, mu as Deck, se as Session, g as Game, p as Hero)
+sub Avalanche ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero _
+)
     if lv.aval.st = 0 then
         if p.at.x < lv.aval_x then exit sub
         lv.aval.st = 1
@@ -184,7 +218,13 @@ end sub
 ' The avalanche over the view: its snow from the view's left to its front, AVALH deep on the ground it has
 ' covered, paler at its top; its face rounded, its top heaving, balls of snow rolling on both; blocks of ice
 ' thrown on ahead of it.
-sub DrawAvalanche (lv as Level, art as Store, se as Session, cx as integer, cy as integer)
+sub DrawAvalanche ( _
+    lv as Level, _
+    art as Store, _
+    se as Session, _
+    cx as integer, _
+    cy as integer _
+)
     dim x as integer, wx as integer, d as integer, h as integer
     dim y as integer, j as integer
     if lv.aval.st = 0 or lv.aval.x < cx then exit sub
@@ -282,7 +322,15 @@ sub Graze (lv as Level, se as Session, i as integer, p as Hero)
 end sub
 
 ' A goat met: come down on, it is ridden; its horns, lowered or at a charge, hurt.
-sub MeetGoat (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose)
+sub MeetGoat ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    i as integer, _
+    lo() as Loose _
+)
     dim s as integer
     s = abs(lv.things(i).state)
     if s = 0 or p.goat or abs(lv.things(i).at.x - p.at.x) >= 16 or p.at.y < lv.things(i).at.y - 30 or p.at.y > lv.things(i).at.y + 8 then exit sub
@@ -294,7 +342,13 @@ sub MeetGoat (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as
 end sub
 
 ' Onto goat i's back: it bolts on along the road. A goat still on its way home is there.
-private sub Mount (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
+private sub Mount ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    p as Hero, _
+    i as integer _
+)
     if lv.stray.st then lv.things(lv.stray.goat).state = 1
     lv.stray.goat = i
     lv.stray.st = 1
@@ -326,7 +380,15 @@ sub Homeward (lv as Level, g as Game)
 end sub
 
 ' An ice wall across the road: he is stopped at it; a goat ridden goes through, and leaves its stump.
-sub MeetWall (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, pt() as Part)
+sub MeetWall ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    i as integer, _
+    pt() as Part _
+)
     if lv.things(i).state = 0 or abs(lv.things(i).at.x - p.at.x) >= WALLR then exit sub
     if p.at.y <= lv.things(i).at.y - WALLH or p.at.y > lv.things(i).at.y + 20 then exit sub
     if p.goat then
@@ -371,7 +433,14 @@ function GoatNear% (lv as Level, x as integer)
 end function
 
 ' A ledge's load at x, y on the screen: shaking once set off, sliding off, falling; nothing once it is down.
-sub DrawLoad (lv as Level, art as Store, se as Session, i as integer, x as integer, y as integer)
+sub DrawLoad ( _
+    lv as Level, _
+    art as Store, _
+    se as Session, _
+    i as integer, _
+    x as integer, _
+    y as integer _
+)
     dim s as integer, jig as integer
     s = lv.things(i).state
     if s < 0 then exit sub
@@ -380,7 +449,14 @@ sub DrawLoad (lv as Level, art as Store, se as Session, i as integer, x as integ
 end sub
 
 ' Goat i at x, y on the screen: its head up at graze and dazed, down while it gathers itself and charges.
-sub DrawGoat (lv as Level, art as Store, se as Session, i as integer, x as integer, y as integer)
+sub DrawGoat ( _
+    lv as Level, _
+    art as Store, _
+    se as Session, _
+    i as integer, _
+    x as integer, _
+    y as integer _
+)
     dim s as integer, f as integer
     s = abs(lv.things(i).state)
     if s = 0 then exit sub
@@ -393,7 +469,13 @@ sub DrawGoat (lv as Level, art as Store, se as Session, i as integer, x as integ
 end sub
 
 ' The goat on its way home, as the ground lies under it.
-sub DrawStray (lv as Level, art as Store, se as Session, cx as integer, cy as integer)
+sub DrawStray ( _
+    lv as Level, _
+    art as Store, _
+    se as Session, _
+    cx as integer, _
+    cy as integer _
+)
     dim x as integer, y as integer, f as integer
     x = cint(lv.stray.at.x)
     y = cint(lv.stray.at.y)
@@ -402,14 +484,27 @@ sub DrawStray (lv as Level, art as Store, se as Session, cx as integer, cy as in
 end sub
 
 ' Icicle i breaks.
-private sub Shatter (lv as Level, mu as Deck, se as Session, pt() as Part, i as integer)
+private sub Shatter ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    pt() as Part, _
+    i as integer _
+)
     Burst se, pt(), csng(lv.things(i).at.x), csng(lv.things(i).at.y + Fallen%(lv, i) + 12), 8, 110, CWHITE
     lv.things(i).state = -1
     Sfx mu, se, SCRACK
 end sub
 
 ' Icicle i falling: it breaks on the cat or the snow-thrower under it, which is beaten, or on the ground.
-private sub Plunge (lv as Level, mu as Deck, se as Session, g as Game, pt() as Part, i as integer)
+private sub Plunge ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    pt() as Part, _
+    i as integer _
+)
     dim j as integer, y as integer, d as integer
     y = lv.things(i).at.y + Fallen%(lv, i) + 16
     for j = i - 4 to i + 4
@@ -439,7 +534,16 @@ private sub Hurl (lv as Level, i as integer, p as Hero)
 end sub
 
 ' A snow-thrower met: ducked, its wall throws him back, neither hurt; up, it is a cat, beaten by a roll.
-sub MeetThrow (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
+sub MeetThrow ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    i as integer, _
+    lo() as Loose, _
+    pt() as Part _
+)
     dim s as integer
     if lv.things(i).state = 0 or abs(lv.things(i).at.x - p.at.x) >= 16 or p.at.y < lv.things(i).at.y - 22 or p.at.y > lv.things(i).at.y + 8 then exit sub
     if Risen%(lv, i) then
@@ -457,7 +561,14 @@ sub MeetThrow (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i a
 end sub
 
 ' Icicle i, loosed: it trembles a while, then falls.
-sub Totter (lv as Level, mu as Deck, se as Session, g as Game, pt() as Part, i as integer)
+sub Totter ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    pt() as Part, _
+    i as integer _
+)
     if lv.things(i).state <= 0 then exit sub
     lv.things(i).state = lv.things(i).state + 1
     if lv.things(i).state > TREMBLE then Plunge lv, mu, se, g, pt(), i
@@ -465,7 +576,16 @@ end sub
 
 ' Load i of snow, set off: a step of its trembling, its slide off the ledge and its fall. Down on the road it is
 ' gone and its heap lies there; Charlie under it is hurt.
-sub Unload (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part, i as integer)
+sub Unload ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    lo() as Loose, _
+    pt() as Part, _
+    i as integer _
+)
     dim h as integer
     if lv.things(i).state <= 0 then exit sub
     lv.things(i).state = lv.things(i).state + 1
@@ -480,7 +600,14 @@ sub Unload (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() a
 end sub
 
 ' Heap h, come down: the cats and snow-throwers under it are beaten.
-private sub Bury (lv as Level, mu as Deck, se as Session, g as Game, pt() as Part, h as integer)
+private sub Bury ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    pt() as Part, _
+    h as integer _
+)
     dim j as integer, foe as integer
     for j = h - 6 to h + 6
         if j < 0 or j >= lv.n_things then continue for

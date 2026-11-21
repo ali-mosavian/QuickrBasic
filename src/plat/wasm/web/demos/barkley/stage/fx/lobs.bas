@@ -16,7 +16,15 @@ from barkley.stage.fx.damage import Hurt
 
 ' Something let go at x, y with the speed vx, vy, to fly till it meets Charlie or the ground: its picture, and
 ' the colour it bursts in. None while NLOB are in the air.
-sub Loft (lv as Level, x as single, y as single, vx as single, vy as single, pic as integer, c as integer)
+sub Loft ( _
+    lv as Level, _
+    x as single, _
+    y as single, _
+    vx as single, _
+    vy as single, _
+    pic as integer, _
+    c as integer _
+)
     dim n as integer
     for n = 0 to NLOB - 1
         if not lv.lobs(n).live then exit for
@@ -34,7 +42,13 @@ sub Loft (lv as Level, x as single, y as single, vx as single, vy as single, pic
 end sub
 
 ' What is in the air, n, bursts.
-private sub Splat (lv as Level, mu as Deck, se as Session, n as integer, pt() as Part)
+private sub Splat ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    n as integer, _
+    pt() as Part _
+)
     lv.lobs(n).live = 0
     lv.n_lobs = lv.n_lobs - 1
     Burst se, pt(), lv.lobs(n).at.x, lv.lobs(n).at.y, 6, 90, lv.lobs(n).c
@@ -42,7 +56,15 @@ private sub Splat (lv as Level, mu as Deck, se as Session, n as integer, pt() as
 end sub
 
 ' What is in the air, each on its arc till it meets Charlie, whom it hurts, or the ground.
-sub Volley (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
+sub Volley ( _
+    lv as Level, _
+    mu as Deck, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    lo() as Loose, _
+    pt() as Part _
+)
     dim n as integer, aground as integer
     for n = 0 to NLOB - 1
         if lv.lobs(n).live = 0 then continue for

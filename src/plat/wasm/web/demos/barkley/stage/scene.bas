@@ -68,7 +68,13 @@ private const CABLEH = 44
 private const SEATH = 30
 
 ' Back to front, then the screen's words.
-sub Render (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
+sub Render ( _
+    wd as World, _
+    g as Game, _
+    p as Hero, _
+    lo() as Loose, _
+    pt() as Part _
+)
     dim cx as integer, cy as integer, x as integer, s as string
     cx = int(g.cam.x)
     cy = int(g.cam.y)
@@ -168,7 +174,15 @@ private function GoldFound% (wd as World)
     GoldFound% = v
 end function
 
-sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as integer, cy as integer, back as integer)
+sub DrawThings ( _
+    lv as Level, _
+    zn as Realm, _
+    art as Store, _
+    se as Session, _
+    cx as integer, _
+    cy as integer, _
+    back as integer _
+)
     dim i as integer, c as integer, x as integer, y as integer
     dim k as integer, f as integer, a as single
     c = (cx - WAVEL) \ TS
@@ -406,7 +420,13 @@ private sub DrawCables (lv as Level, cx as integer, cy as integer)
     next
 end sub
 
-private sub DrawLoose (art as Store, se as Session, cx as integer, cy as integer, lo() as Loose)
+private sub DrawLoose ( _
+    art as Store, _
+    se as Session, _
+    cx as integer, _
+    cy as integer, _
+    lo() as Loose _
+)
     dim i as integer, k as integer
     k = IBONE + ((se.ticks \ 6) and 3) * 2
     for i = 0 to NLOOSE - 1

@@ -41,7 +41,12 @@ end function
 
 ' Platform m's swing now, -1 to 1, held a while at each end when it goes up and down; quarter: a quarter of its
 ' way on, which tells where it is going.
-function Swing! (lv as Level, se as Session, m as integer, quarter as integer)
+function Swing! ( _
+    lv as Level, _
+    se as Session, _
+    m as integer, _
+    quarter as integer _
+)
     dim q as single, v as single
     if lv.movers(m).kind = 5 then
         ' a boat by its own clock, which stops while it is aground
@@ -60,7 +65,13 @@ end function
 
 ' The platforms a step on: to and fro, up and down, or a lift, up while Charlie stands on it and down again
 ' when not. Charlie goes with the one it stands on.
-sub Movers (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero)
+sub Movers ( _
+    lv as Level, _
+    gr as Ground, _
+    mu as Deck, _
+    se as Session, _
+    p as Hero _
+)
     dim m as integer, s as integer, o as integer, x as single
     dim y as single, dx as single, dy as single
     for m = 0 to lv.n_movers - 1
