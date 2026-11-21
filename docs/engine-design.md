@@ -1,6 +1,6 @@
 # A 2D engine for the demos
 
-A design, being built: steps 1 to 3 of its steps have landed. CHARLIE BARKLEY's `barkley` package becomes
+A design, being built: steps 1 to 4 of its steps have landed. CHARLIE BARKLEY's `barkley` package becomes
 a small engine any demo can use, and a game over it.
 
 ## Goals
@@ -37,8 +37,8 @@ a small engine any demo can use, and a game over it.
 | Data | `DataFile` | `engine/datafile` | Words and strings from the data file |
 | Events | `Events` | `engine/events` | What happened this step, in order |
 | Hero | `Hero` | `stage/hero` | Moves him. Takes a push or a hurt |
-| Things | `Thing` | `stage/things`, new | Runs each thing's rule. Changes a thing that was touched |
-| Kinds | `Kind` | `model/kinds`, new | What each kind looks like, does and gives. Read only once loaded |
+| Things | `Thing` | `stage/things` | Runs each thing's rule. Changes a thing that was touched |
+| Kinds | `Kind` | `model/kinds` | What each kind looks like and does. Read only once loaded |
 | Level | `Level`, `Ground` | `world` | The level as laid, and its ground |
 | Game | `Game`, `Session` | `flow` | Score, lives, the state of play, the save |
 | Effects | `Part`, `Loose` | `stage/fx` | Particles and dropped bones |
@@ -89,17 +89,19 @@ Post events, EVSOUND, hero.at, SSPRING
 
 ![Things](img/engine-things.svg)
 
-- A `Kind` row holds what three switches hold now: the picture, box and frames; what a touch does
-  and gives; the rule it moves by; the facts asked about it, such as whether it is a foe.
+- A `Kind` row holds the picture, box and frames; what a touch does, with its box, speed and the
+  state it leaves; the rule it moves by; the facts asked about it, such as whether a fall crushes it.
 - A pass switches on the rule, not the kind. A cat, a crab and a sweeper share `PROWL`.
 - BASIC has no procedure values, so each pass keeps one `select case`. A rule is named nowhere else.
 - A kind too odd for the table says `OWN` and keeps its own routine and case.
 - A touch is split by owner. `Touch` finds what the hero met and how. `Push` gives the hero the
   bounce, the stop or the hurt. `React` changes the thing. The sound and the score are events.
+- A zone's rules live in `stage/things`, one module a zone. Its touches and drawing stay in
+  `stage/zones`.
 - `tools/charlieart.py` writes the rows into `CHARLIE.DAT`, beside the pictures they name.
 
-`MeetSpring` shows the split. Today it assigns seven of the hero's fields and one of the spring's,
-and plays a sound. It becomes a row: box 16 by 16, `BOUNCE`, 560 up.
+`MeetSpring` showed the split. It assigned seven of the hero's fields and one of the spring's, and
+played a sound. It is a row now: box 22 by 14, `BOUNCE`, 560 up, resting 8 steps.
 
 ## Code rules
 
@@ -174,19 +176,19 @@ Measured by `python3 tools/bench.py engine`; the fields assigned outside their o
 | Measure | Now |
 |---|---|
 | Kinds of thing | 63 |
-| `case` branches that name a kind: draw, touch, think | 60, 36, 16 |
-| Draw branches that are one `Blit` | 29 of 60 |
-| `Meet` routines, in six zone modules | 34 |
-| Comparisons of a thing's kind outside those switches | 68, in 12 files |
-| Files that assign a thing's field | 14, in 96 assignments |
-| Fields assigned outside their record's owner | 539 |
-| Routines that take the `Deck` | 21 of 413 |
+| `case` branches that name a kind: draw, touch, think | 36, 35, 14 |
+| Draw branches that are one `Blit` | 5 of 36 |
+| `Meet` routines, in six zone modules | 33 |
+| Comparisons of a thing's kind outside those switches | 40, in 11 files |
+| Files that assign a thing's field | 12, in 73 assignments |
+| Fields assigned outside their record's owner | 279 |
+| Routines that take the `Deck` | 21 of 446 |
 | `Sfx` calls outside `assets` | 2 |
 | Routines that take the whole `World` | 20 |
 | Game code that `engine` imports | none |
 | Other game demos with their own key, clock and sound code | 4 of 4 |
-| Lines over 70 columns | 0 of 13,203 |
-| Comment lines over 60 columns | 0 of 1,683 |
+| Lines over 70 columns | 0 of 13,601 |
+| Comment lines over 60 columns | 0 of 1,759 |
 | Routine headers over 70 columns | 0 |
 
 ## Steps

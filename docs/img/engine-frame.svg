@@ -77,7 +77,4 @@
 <text x="80" y="546" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">imports, calls</text>
 <path d="M202,542 L242,542" fill="none" stroke="#4f46e5" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#ah4f46e5)"/>
 <text x="250" y="546" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">reports through the event queue</text>
-<rect x="470" y="528" width="44.8" height="28" rx="6" fill="#ffffff" stroke="#ea580c" stroke-opacity="0.55"/>
-<text x="492.4" y="546.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#7c2d12" text-anchor="middle">new</text>
-<text x="524" y="546" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">not in the code yet</text>
 </svg>

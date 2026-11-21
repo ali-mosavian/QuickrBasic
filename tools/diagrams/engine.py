@@ -9,16 +9,11 @@ W = 1000
 UP = THEME["front"][1]
 
 
-def legend(s: Svg, y: int, arrows: bool = True) -> None:
-    x = 32
-    if arrows:
-        s.arrow([(32, y), (72, y)])
-        s.text(80, y + 4, "imports, calls", size=12, fill=MUTED)
-        s.arrow([(202, y), (242, y)], color=UP, dash=True)
-        s.text(250, y + 4, "reports through the event queue", size=12, fill=MUTED)
-        x = 470
-    s.chip(x, y - 14, "new", "warn")
-    s.text(x + 54, y + 4, "not in the code yet", size=12, fill=MUTED)
+def legend(s: Svg, y: int) -> None:
+    s.arrow([(32, y), (72, y)])
+    s.text(80, y + 4, "imports, calls", size=12, fill=MUTED)
+    s.arrow([(202, y), (242, y)], color=UP, dash=True)
+    s.text(250, y + 4, "reports through the event queue", size=12, fill=MUTED)
 
 
 def layers() -> None:
@@ -45,7 +40,7 @@ def layers() -> None:
 
     s.panel(left, 428, game, 84, "engine", "barkley · model, world, assets", "records, and what fills them")
     s.chips(left + 16, 468, ["Hero", "Game", "Level", "Ground", "layout", "pictures", "tunes"], "engine")
-    s.chip(left + 548, 468, "Kinds", "warn")
+    s.chip(left + 548, 468, "Kinds", "engine")
 
     s.box(other, 180, full - game - 16, 332, "front", dash=True)
     s.text(other + 16, 206, "another demo's game", size=15, weight=700, fill=THEME["front"][2])
@@ -92,7 +87,7 @@ def rows(s: Svg, x: int, y: int, w: int, items: list[tuple[str, list[str], list[
 def subsystems() -> None:
     s = Svg(
         W,
-        600,
+        572,
         "Subsystems",
         "A subsystem is one record and the routines that change it. Nothing else assigns its fields.",
     )
@@ -109,9 +104,9 @@ def subsystems() -> None:
 
     s.panel(500, 90, 468, 310, "engine", "barkley", "the game")
     game = [
-        ("Hero", ["MoveHero", "Hurt"], ["Push"]),
-        ("Things", ["AddObj"], ["Think", "React"]),
-        ("Kinds, read only", [], ["LoadKinds"]),
+        ("Hero", ["MoveHero", "Hurt", "Push"], []),
+        ("Things", ["AddObj", "Think", "React"], []),
+        ("Kinds, read only", ["LoadKinds"], []),
         ("Level, Ground", ["LoadLevel", "LoadTables"], []),
         ("Game", ["GoStage", "StartGame", "Deliver"], []),
         ("Part, Loose", ["Emit", "Burst", "Puff", "Particles"], []),
@@ -127,7 +122,6 @@ def subsystems() -> None:
     ]
     for i, r in enumerate(rules):
         s.text(52, 462 + i * 22, "•  " + r, size=13)
-    legend(s, 576, arrows=False)
     s.save(f"{OUT}/engine-subsystems.svg")
 
 
@@ -214,15 +208,15 @@ def things() -> None:
     s = Svg(
         W, 560, "Things", "A kind is a row. Each pass reads its own columns, and switches on the rule, not on the kind."
     )
-    s.panel(32, 90, 936, 196, "warn", "Kind", "one row a kind, read from CHARLIE.DAT")
-    head = ["kind", "picture", "box", "frames", "touch", "gives", "mind", "foe"]
+    s.panel(32, 90, 936, 196, "engine", "Kind", "one row a kind, read from CHARLIE.DAT")
+    head = ["kind", "picture", "box", "frames", "touch", "rest", "mind", "crushed"]
     body = [
-        ["bone", "IBONE", "10 by 10", "4, by tick", "TAKE", "1 bone", "none", "no"],
-        ["cat", "ICAT", "20 by 14", "2, by tick", "STOMP", "hurt", "PROWL", "yes"],
-        ["spring", "ISPRING", "16 by 16", "2, by state", "BOUNCE", "560 up", "REST", "no"],
-        ["icicle", "IICICLE", "7 by 16", "1", "OWN", "", "OWN", "no"],
+        ["spring", "OWN", "", "", "BOUNCE", "8", "REST", "no"],
+        ["cat", "OWN", "", "", "OWN", "", "PROWL", "yes"],
+        ["hoop", "IHOOP", "12 by 32", "2, pressed", "OWN", "20", "REST", "no"],
+        ["bush", "IBUSH", "40 by 20", "1", "none", "", "none", "no"],
     ]
-    table(s, 52, 130, [96, 110, 96, 130, 106, 106, 106, 146], head, body, "warn")
+    table(s, 52, 130, [96, 110, 96, 130, 106, 106, 106, 146], head, body, "engine")
     s.text(52, 274, "OWN: the kind has its own routine, one case in that pass.", size=12, fill=MUTED)
 
     s.panel(32, 306, 340, 196, "engine", "Thing", "one row a thing")
@@ -239,18 +233,17 @@ def things() -> None:
 
     passes = [
         ("Think", "mind", "moves it, by its rule"),
-        ("Touch", "box, touch, gives", "what the hero met, and how"),
+        ("Touch", "touch, box, up, rest", "what the hero met, and how"),
         ("Draw", "picture, frames", "blits it"),
-        ("Ask", "foe", "a column, where the code lists kinds now"),
+        ("Ask", "crushed, rides", "a column, not a list of kinds"),
     ]
     for i, (name, cols, does) in enumerate(passes):
         y = 306 + i * 50
         s.box(412, y, 556, 42, "engine", r=8)
         s.text(428, y + 26, name, size=13, weight=700, mono=True, fill=THEME["engine"][2])
-        s.text(496, y + 26, cols, size=12, mono=True, fill=THEME["warn"][2])
+        s.text(496, y + 26, cols, size=12, mono=True, fill=THEME["engine"][2])
         s.text(668, y + 26, does, size=12, fill=MUTED)
         s.arrow([(372, y + 21), (410, y + 21)])
-    legend(s, 536, arrows=False)
     s.save(f"{OUT}/engine-things.svg")
 
 
