@@ -6,7 +6,6 @@
 
 #include "edfix.h"
 #include "plat/host/host.h"
-#include "plat/pkey.h"
 #include "ui/draw.h"
 #include "ui/edit.h"
 #include "ui/screen.h"
@@ -92,7 +91,7 @@ uint32_t fx_line_of(Session *const S, const char *const text)
 }
 
 /* Text line line typed over with text and entered, as the editor's Enter does: edit_commit's
-   answer, false a syntax error (its box closed). */
+   answer, false a syntax error (the line kept as typed). */
 bool fx_typed_over(Session *const S, const uint32_t line, const char *const text)
 {
     CHECK(line < uimn.text.all);
@@ -104,10 +103,7 @@ bool fx_typed_over(Session *const S, const uint32_t line, const char *const text
     uimn.edline.len = (uint16_t)strlen(text);
     memcpy(edit_lb_need(S, &uimn.edline, uimn.edline.len), text, uimn.edline.len);
     uimn.edline.dirty = true;
-    host_key_push(0x011B); /* Esc: an error's box closed, not waited on */
-    const bool ok = edit_commit(S);
-    pkey_flush();
-    return ok;
+    return edit_commit(S);
 }
 
 void fx_retype(Session *const S, const uint32_t line, const char *const text)

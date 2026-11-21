@@ -43,7 +43,7 @@ void fx_done(Session *S, const char *const *names);
 /* The text line, from the whole text's first, that is text, as LIST spells it; ~0 none. */
 uint32_t fx_line_of(Session *S, const char *text);
 /* Text line line typed over with text and entered, as the editor's Enter does: edit_commit's
-   answer, false a syntax error (its box closed). */
+   answer, false a syntax error (the line kept as typed). */
 bool fx_typed_over(Session *S, uint32_t line, const char *text);
 void fx_retype(Session *S, uint32_t line, const char *text);
 /* text's first word's column. */
