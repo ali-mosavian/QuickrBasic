@@ -2,8 +2,8 @@
 # A native module (tests/ext/qxtest): each kind of argument and result through its code, its error
 # at the calling line, its start once a run, its audio stream refused with no device. Then the .qbx
 # files that cannot bind: no slice for this machine, not a .qbx, an entry its code lacks, a DECLARE
-# its code's kinds disagree with.
-# Usage: native.sh BASIC SLICE TAG, the slice qxtest's for this machine's tag.
+# its code's kinds disagree with. With audio, a device (QB_AUDIO) plays its stream.
+# Usage: native.sh BASIC SLICE TAG [audio], the slice qxtest's for this machine's tag.
 set -e
 B=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
 S=$(cd "$(dirname "$2")" && pwd)/$(basename "$2")
@@ -45,6 +45,13 @@ EOF
 want=$(printf ' 5  2.5 \nHI THERE\n 42 \n 10 \n 6.5 \n 42  1 \n 0  0 \nerr 5 \nafter')
 out=$(run)
 [ "$out" = "$want" ] || { echo "native: got '$out'"; exit 1; }
+
+if [ "$4" = audio ]; then
+    printf 'from qxtest import *\nprint audio%%\nt! = timer\ndo\nloop until timer - t! > .5\nprint played& > 0\n' \
+        > "$D/a.bas"
+    out=$(cd "$D" && QB_AUDIO=1 "$B" a.bas < /dev/null 2>&1 | tr -d '\r')
+    [ "$out" = "$(printf -- '-1 \n-1 ')" ] || { echo "native: audio: got '$out'"; exit 1; }
+fi
 
 expect() { # the program's output has $1, $2 says which .qbx
     out=$(run) || true

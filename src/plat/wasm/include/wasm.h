@@ -39,6 +39,9 @@ IMPORT(voice) void js_voice(uint32_t voice, const void *v);
 /* A native extension's side module, bytes at slice, instantiated here: qx_init_<name>'s table
    index, 0 none (plat/wasm/pext.c). */
 IMPORT(ext_load) uint32_t js_ext_load(const void *slice, uint32_t bytes, const char *name, size_t len);
+/* An extension's render (its table index) played on the device's thread, its stereo frames written
+   at out, on its own stack (its top), under the lock word at lock: the rate, 0 no device. */
+IMPORT(audio_open) uint32_t js_audio_open(uint32_t render, void *out, void *stack, volatile int32_t *lock);
 
 /* What the page's thread writes while the module runs, in its shared memory (irq()'s address): the
    tick's and STOP's flags and bits, ORed in as the interrupts would; the keys typed, a ring it

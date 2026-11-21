@@ -381,7 +381,7 @@ build/web/%: src/plat/wasm/web/%
 
 wasm-test: build/wasm/basic build/wasm/ide.wasm build/wasm/ext/qxtest.wasm
 	grep -q 'wasm/include/wasm.h' build/wasm/obj/plat/wasm/pterm.o.d # a changed WasmIrq rebuilds its users
-	PY=$(PY) sh tests/host/native.sh $< build/wasm/ext/qxtest.wasm wasm32
+	PY=$(PY) sh tests/host/native.sh $< build/wasm/ext/qxtest.wasm wasm32 audio
 	BASIC_EXE=$< $(PY) tools/regress_test.py $<
 	node tools/wasm/frame_test.mjs build/wasm/ide.wasm
 	node tools/wasm/play_test.mjs build/wasm/basic.wasm

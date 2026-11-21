@@ -253,10 +253,11 @@ stops it, and the process's end closes them all.
 
 - **DOS.** The card's rate, 15873 Hz, mono. The image's pages are not locked (DPMI 0600h): DOS/32A
   pages nothing by default, and the synthesizer's state is not locked either.
-- **The browser.** The worklet instantiates the same slice against the same shared memory, with its
-  own table at the same table base and its own stack. Its pointers mean there what they mean in
-  the worker. The host's slots in its table are empty, so a call into the host traps rather than
-  runs something else.
+- **The browser.** 48000 Hz, stereo; the page's AudioContext runs at that rate. The worklet
+  instantiates the same slice against the same shared memory, with its own table at the same table
+  base and its own stack. Its pointers mean there what they mean in the worker. The host's slots in
+  its table are empty, so a call into the host traps, and the worklet drops that stream. The lock
+  is a word in shared memory, which the worklet holds while `render` runs.
 - **No device** (DOS without a Sound Blaster, Linux): `audio_open` returns false. The synthesizer
   then plays voice 1 on the speaker, as today.
 
@@ -283,8 +284,7 @@ its sections where they lie, its relocations' offsets and its entry's offset. Th
 2. checks that CS's base is DS's and its limit past the block;
 3. copies the image in and zeroes the rest (the bss);
 4. adds the block's address to the 32-bit word at each relocation's offset, and calls the entry,
-   cdecl;
-5. locks the block's pages (DPMI 0600h) once a `render` is set (step 3).
+   cdecl.
 
 **Mac** (`plat/host/pext.c`):
 
@@ -305,9 +305,11 @@ its sections where they lie, its relocations' offsets and its entry's offset. Th
 5. runs `__wasm_apply_data_relocs` and `__wasm_call_ctors`, puts `qx_init_<name>` in the table and
    returns its index, the function pointer.
 
-When the extension opens audio, the worker posts the bytes, the bases and a stack block to the
-AudioWorklet. It instantiates the same module, without relocations or constructors, and calls
-`render` for each block.
+When the extension opens audio (`plat/wasm/paud.c`), the `audio_open` import sends the module, its
+bases, `render`'s index, an out block, a stack and the lock word to the device's thread: through
+the page to the AudioWorklet (`synth.mjs`), or in node to `tools/wasm/device.mjs` (`QB_AUDIO`).
+That thread instantiates the same module, without relocations or constructors (`wasm.mjs`'s
+`stream`), and calls `render` each quantum.
 
 **Unit tests** link an extension in, through the inittab: its tests need no loader.
 
@@ -350,8 +352,8 @@ and the tutorial's examples gain an `IMPORT synth` line.
    extension called from BASIC (`tests/host/native.sh`). Done.
 2. `pext` for wasm and DOS. The wasm one tested in node (`make wasm-test`); the DOS one built, its
    image's reader tested on the host. Done.
-3. The audio stream; the Sound Blaster, SDL and the worklet moved onto it. The Sound Blaster and
-   SDL done, checked on DOSBox-X and the Mac; the worklet next.
+3. The audio stream; the Sound Blaster, SDL and the worklet moved onto it. Done: checked on
+   DOSBox-X, the Mac and in a browser; node's stand-in device tested (`make wasm-test`).
 4. The synthesizer moved into `ext/synth/`, built as `lib/synth.qbx`; PLAY's device; the timed
    events land there.
 5. `plat/synth` out of the core's builds.
@@ -373,7 +375,7 @@ as `K_NCALL` does: values, a record, a number by reference, a string in and out,
 - **DOS:** an i386 DLL built `-mregparm=3` has no imports and only HIGHLOW relocations. Not run:
   native only.
 - **Linux:** a shared object with no needed library. Not run: no Linux here.
-- Not checked: a real AudioWorklet in a browser, and dlopen of a file from the cache on a fresh Mac.
+- Not checked: dlopen of a file from the cache on a fresh Mac.
 
 ## Open questions
 

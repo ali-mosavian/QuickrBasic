@@ -8,9 +8,12 @@ class Exit extends Error {}
 
 // QB_SCANS: port 60h's bytes in hex, comma apart, pushed as the module starts, for tools/wasm/scan_test.mjs.
 // QB_TONES: each tone and voice (its hertz and gate) and its time (ms) to standard error, for
-// tools/wasm/play_test.mjs.
+// tools/wasm/play_test.mjs. QB_AUDIO: an audio device, device.mjs, playing the streams opened.
 const log = (line) => fs.writeSync(2, `${line} ${performance.now().toFixed(1)}\n`);
 const tone = process.env.QB_TONES ? (hz) => log(`tone ${hz}`) : undefined;
+const audio = process.env.QB_AUDIO
+  ? (spec) => new Worker(new URL('./device.mjs', import.meta.url), { workerData: spec }).unref()
+  : undefined;
 const voice = process.env.QB_TONES
   ? (n, b) => log(`voice ${n} ${new DataView(b.buffer).getUint32(0, true)} ${b[14]}`)
   : undefined;
@@ -61,6 +64,7 @@ if (isMainThread) {
     stdio: (fd) => fs.fstatSync(fd),
     tone,
     voice,
+    audio,
     exit: (code) => {
       throw new Exit(String(code));
     },
