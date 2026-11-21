@@ -1561,7 +1561,7 @@ void uimn_rows(const uint8_t rows)
 
 void uimn_start(Session *const S)
 {
-    if (!S->cons.stdin_dev || !pfil_isdev(PFIL_STDOUT))
+    if (!S->cons.stdin_con || !pfil_iscon(PFIL_STDOUT))
         return;
 
     uimn_init(S);

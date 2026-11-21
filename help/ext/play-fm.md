@@ -3,7 +3,7 @@ keys: play fm, Z command, FM, modulator
 
 Syntax
     W4
-    Z ratio [, depth [, fall [, level [, feedback]]]]
+    Z ratio [, depth [, fall [, level [, feedback [, start]]]]]
 
 Wave 4 is a sine bent by a second sine, the modulator. Z sets the
 modulator, and with it the tone: basses, brass, organs, bells, drums.
@@ -14,9 +14,11 @@ See also [PLAY voices](play voices), [waves](play waves),
 ## Details
 Bending the sine adds harmonics: the further, the brighter.
 
-    ratio      1 to 15 (default 1): the modulator's pitch, so many
-               times the note's. 1 is full, like a sawtooth; 2 hollow,
-               like a square; high odd ones ring like metal
+    ratio      0.01 to 15.99 (default 1): the modulator's pitch, so
+               many times the note's. 1 is full, like a sawtooth; 2
+               hollow, like a square; high odd ones ring like metal;
+               one with hundredths, as 1.41, rings off the note's
+               harmonics, as a drum
     depth      0 to 15 (default 8): how far it bends. 0 is a plain
                sine, 4 warm, 8 bright, 12 and over harsh
     fall       0 to 15 (default 0): how fast the bend falls at each
@@ -25,6 +27,8 @@ Bending the sine adds harmonics: the further, the brighter.
                falls to and holds. 15 is no fall, 0 down to a sine
     feedback   0 to 7 (default 0): the modulator bends itself, towards
                a sawtooth, then noise
+    start      0 to 15 (default 15): the part of the depth the bend
+               starts at. Under the level, it rises to it
 
 A number left off the end keeps its last value.
 

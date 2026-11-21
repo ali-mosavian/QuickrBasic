@@ -1,5 +1,5 @@
 // The synthesizer's voices as an AudioWorklet: plat/synth's C (synth.wasm, given as processorOptions.module), so
-// the page sounds as the Mac does, and the extensions' audio streams mixed in. A message is [voice, a DevVoice's
+// the page sounds as the Mac does, and the extensions' audio streams mixed in. A message is [voice, its DevVoices'
 // bytes] (wasm.mjs's VOICE_BYTES), or { stream }: a stream's spec, played by wasm.mjs's stream.
 import { stream } from './wasm.mjs';
 

@@ -26,8 +26,9 @@ function normal(path) {
   return '/' + out.join('/');
 }
 
-// A DevVoice's bytes (qbrt's dev/voice.h), as the synthesizer's AudioWorklet takes them (synth.mjs).
-export const VOICE_BYTES = 28;
+// A DevVoice's bytes (qbrt's dev/voice.h), as the synthesizer's AudioWorklet takes them (synth.mjs): a note is one
+// and its layers'.
+export const VOICE_BYTES = 44;
 
 // A side module's dylink.0: the memory (bytes, alignment) and table entries it needs.
 function dylink(mod) {
@@ -106,7 +107,7 @@ export function stream({ module, memory, memoryBase, tableBase, size, render, ou
 }
 
 // host: { fs, cwd, args, write(fd, bytes), exit(code), stdin(n) -> bytes, stdio(fd) -> a stat,
-// tone(hz), voice(n, bytes), audio(spec): a stream's spec (stream()) to the device's thread, none
+// isatty(fd), tone(hz), voice(n, bytes), audio(spec): a stream's spec (stream()) to the device's thread, none
 // with no device; ex: the instance's exports, set once it is made (a native extension loads on
 // them) }; cwd is the module's own (a worker has no chdir), its paths resolved against it.
 export function imports(memory, host) {
@@ -193,6 +194,7 @@ export function imports(memory, host) {
       d.setFloat64(out + 8, st.mtimeMs, true);
       return 0;
     }),
+    fs_isatty: (fd) => (fd < FIRST_FD && host.isatty(fd) ? 1 : 0),
     fs_mkdir: (p) => run(() => (fs.mkdirSync(at(p)), 0)),
     fs_rmdir: (p) => run(() => (fs.rmdirSync(at(p)), 0)),
     fs_unlink: (p) => run(() => (fs.unlinkSync(at(p)), 0)),
@@ -216,7 +218,7 @@ export function imports(memory, host) {
     args: (buf, cap) => put(buf, cap - 1, host.args),
     exit: (code) => host.exit(code),
     tone: (hz) => host.tone?.(hz),
-    voice: (n, p) => host.voice?.(n, u8().slice(p, p + VOICE_BYTES)),
+    voice: (n, p, count) => host.voice?.(n, u8().slice(p, p + VOICE_BYTES * count)),
     ext_load: (p, n, name, len) => {
       try {
         return loadExt(memory, host.ex, u8().slice(p, p + n), new TextDecoder().decode(u8().slice(name, name + len)));

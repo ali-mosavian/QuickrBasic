@@ -97,9 +97,15 @@ const XFn fns_x[] = {
     {0x100 + TK1_STRIG, 0, 1, 1, T_INT, "I", SC_STRIG},
     {0x100 + TK1_PEN, 0, 1, 1, T_INT, "I", SC_PEN},
     {0x100 + TK1_SCREEN, 0, 2, 3, T_INT, {'I', 'I', 'I'}, SC_SCRN},
+    {XF_BEAT, 0, 0, 0, T_FLT, "", SC_BEAT},
 };
 
 const uint32_t fns_nx = sizeof fns_x / sizeof fns_x[0];
+
+const XFn *fns_beat(void)
+{
+    return &fns_x[fns_nx - 1];
+}
 
 bool fns_isx(const uint16_t tok)
 {

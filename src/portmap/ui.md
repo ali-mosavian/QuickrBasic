@@ -50,7 +50,7 @@ implementer's unless given. Platform: `plat/pscr.h` (screen), `plat/pmou.h` (mou
 | `g_state.mm.cachebase`, `progbase`, `progend`, `addfl`, `addat`, `preptr`, `prelen` | `allo.cache`, `prog.base`, `prog.end`, `prog.add_flags`, `prog.add_at`, `prog.pre`, `prog.pre_len` |
 | `g_state.rn.lnum` (tx_make) | `prog_add`/`prog_ins`'s `num` |
 | `g_state.mm.bodyptr`, `bodylen` | their `body`, `len` |
-| `g_state.io.sbx`, `ocap`, `pcol`, `isdev`, `lmode` | `cons.sblen`, `cons.capture`, `cons.col`, `cons.stdin_dev`, `repl.loading` |
+| `g_state.io.sbx`, `ocap`, `pcol`, `isdev`, `lmode` | `cons.sblen`, `cons.capture`, `cons.col`, `cons.stdin_con`, `repl.loading` |
 | `g_state.cm.cchk`, `cproc` | `comp.check`, `comp.proc` |
 | `g_state.lx.nsyms` | `symb.nvars` |
 | `g_state.dbg.*` | `dbug.*` (vm.md) |
@@ -81,7 +81,7 @@ implementer's unless given. Platform: `plat/pscr.h` (screen), `plat/pmou.h` (mou
 | INT 16h AH=2, 10h, 11h | `pkey_shift`, `pkey_read`, `pkey_ready` (vm's) |
 | `ds:[46Ch]` | `pclk_ticks()` (vm's) |
 | INT 21h 3Dh 3Fh 3Ch 40h 3Eh | `pfil_open`, `pfil_read`, `pfil_create`, `pfil_write`, `pfil_close` |
-| INT 21h 4400h on handle 1 (bit 80h) | `pfil_isdev(PFIL_STDOUT)` |
+| INT 21h 4400h on handle 1 (bit 80h) | `pfil_iscon(PFIL_STDOUT)` (bits 80h and 3) |
 | INT 21h 4300h | `pfil_getattr` |
 | INT 21h 1Ah 4Eh 4Fh (`dl_dta`) | `pfil_first`, `pfil_next` (`PfilFind`) |
 | INT 21h 19h, 47h, 3Bh | `pfil_curdrive`, `pfil_curdir`, `pfil_chdir` |
