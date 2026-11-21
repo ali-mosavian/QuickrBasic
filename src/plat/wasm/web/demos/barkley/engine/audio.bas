@@ -20,36 +20,36 @@ type Half
 end type
 
 ' A song: its half bars, its bars' order and voicings, and its kit: the sounds of its lead, bass, low double and
-' third voice; by voicing, its letter's place in voLet, the two chord voices' sounds and whether the double plays;
-' by drum, its letter's place in drLet, its sound, how loud, what a fade rounds it up by, and its note.
+' third voice; by voicing, its letter's place in vo_let, the two chord voices' sounds and whether the double plays;
+' by drum, its letter's place in dr_let, its sound, how loud, what a fade rounds it up by, and its note.
 type Song
     half() as Half
     order as string
     voicing as string
     tempo as integer
-    bassIn as integer
+    bass_in as integer
     lvl(5) as integer
     fade as integer
     entry as integer
     ends as integer
     swing as integer
-    leadP as string
-    bassP as string
-    underP as string
-    midP as string
-    voLet as string
-    drLet as string
-    voOne() as string
-    voTwo() as string
-    voUnder() as integer
-    drPatch() as string
-    drNote() as string
-    drVol() as integer
-    drUp() as integer
+    lead_p as string
+    bass_p as string
+    under_p as string
+    mid_p as string
+    vo_let as string
+    dr_let as string
+    vo_one() as string
+    vo_two() as string
+    vo_under() as integer
+    dr_patch() as string
+    dr_note() as string
+    dr_vol() as integer
+    dr_up() as integer
     layered as integer
 end type
 
-' The music: the slot playing, its bar and half; ended: it has ended and nothing plays. zHeld: the song in the
+' The music: the slot playing, its bar and half; ended: it has ended and nothing plays. z_held: the song in the
 ' zone's slot, one more than its number in CHARLIE.DAT: 0 before any.
 type Deck
     song() as Song
@@ -58,16 +58,16 @@ type Deck
     half as integer
     ended as integer
     coming as integer
-    comingBar as integer
-    fadeOut as integer
-    fadeIn as integer
-    stageTune as integer
+    coming_bar as integer
+    fade_out as integer
+    fade_in as integer
+    stage_tune as integer
     tune as integer
-    zHeld as integer
-    cHeld as integer
-    songAt as long
+    z_held as integer
+    c_held as integer
+    song_at as long
     muted as integer
-    barkAt as long
+    bark_at as long
 end type
 
 ' The songs held at once, each in its slot: the zone's tune, Charlie's theme, the level's end. A song's most bars,
@@ -85,7 +85,7 @@ end sub
 sub HushSong (mu as Deck)
     mu.slot = -1
     mu.ended = -1
-    mu.fadeOut = 0
+    mu.fade_out = 0
 end sub
 
 ' Song id of CHARLIE.DAT into slot s: its order and levels, its kit, and its bars as PLAY strings.
@@ -100,7 +100,7 @@ sub LoadSong (mu as Deck, s as integer, id as integer)
     mu.song(s).voicing = Chars$
     bars = Word&
     mu.song(s).tempo = Word&
-    mu.song(s).bassIn = Word&
+    mu.song(s).bass_in = Word&
     for i = 0 to 5
         mu.song(s).lvl(i) = Word&
     next
@@ -122,28 +122,28 @@ end sub
 ' Slot s's kit, CHARLIE.DAT's next: four sounds, its voicings and its drums.
 private sub ReadKit (mu as Deck, s as integer)
     dim i as integer, n as integer
-    mu.song(s).leadP = Chars$
-    mu.song(s).bassP = Chars$
-    mu.song(s).underP = Chars$
-    mu.song(s).midP = Chars$
-    mu.song(s).voLet = ""
+    mu.song(s).lead_p = Chars$
+    mu.song(s).bass_p = Chars$
+    mu.song(s).under_p = Chars$
+    mu.song(s).mid_p = Chars$
+    mu.song(s).vo_let = ""
     n = Word&
     for i = 0 to n - 1
-        mu.song(s).voLet = mu.song(s).voLet + Chars$
-        mu.song(s).voOne(i) = Chars$
-        mu.song(s).voTwo(i) = Chars$
-        mu.song(s).voUnder(i) = Word&
+        mu.song(s).vo_let = mu.song(s).vo_let + Chars$
+        mu.song(s).vo_one(i) = Chars$
+        mu.song(s).vo_two(i) = Chars$
+        mu.song(s).vo_under(i) = Word&
     next
-    mu.song(s).drLet = ""
+    mu.song(s).dr_let = ""
     n = Word&
     for i = 0 to n - 1
-        mu.song(s).drLet = mu.song(s).drLet + Chars$
-        mu.song(s).drPatch(i) = Chars$
-        mu.song(s).drVol(i) = Word&
-        mu.song(s).drUp(i) = Word&
-        mu.song(s).drNote(i) = Chars$
+        mu.song(s).dr_let = mu.song(s).dr_let + Chars$
+        mu.song(s).dr_patch(i) = Chars$
+        mu.song(s).dr_vol(i) = Word&
+        mu.song(s).dr_up(i) = Word&
+        mu.song(s).dr_note(i) = Chars$
     next
-    mu.song(s).layered = Doubled%(mu.song(s).drLet)
+    mu.song(s).layered = Doubled%(mu.song(s).dr_let)
 end sub
 
 ' Where the letter at place n of a comes again, or -1.
@@ -224,8 +224,8 @@ function Beat$ ( _
 )
     dim q as integer, n as integer, d as string, ln as string
     for q = 1 to 8
-        n = instr(mu.song(s).drLet, mid$(x, q, 1)) - 1
-        if layer and n >= 0 then n = Again%(mu.song(s).drLet, n)
+        n = instr(mu.song(s).dr_let, mid$(x, q, 1)) - 1
+        if layer and n >= 0 then n = Again%(mu.song(s).dr_let, n)
         ' a swung song's sixteenths: a beat's first two a twelfth each, its last two a twenty-fourth
         ln = "16"
         if mu.song(s).swing then ln = Triplet$(Swung%(q, q))
@@ -233,7 +233,7 @@ function Beat$ ( _
             d = d + "P" + ln
         else
             if mu.song(s).swing then d = d + "L" + ln
-            d = d + mu.song(s).drPatch(n) + Vol$(mu.song(s).drVol(n), loud, mu.song(s).drUp(n)) + mu.song(s).drNote(n)
+            d = d + mu.song(s).dr_patch(n) + Vol$(mu.song(s).dr_vol(n), loud, mu.song(s).dr_up(n)) + mu.song(s).dr_note(n)
         end if
     next
     Beat$ = d
@@ -368,18 +368,18 @@ end sub
 sub NextHalf (mu as Deck, ticks as long)
     dim b as integer, loud as integer, n as integer
     ' the song picked comes in once this one has faded, or at once when it has ended
-    if mu.coming >= 0 and (mu.fadeOut = 0 or mu.ended) then StartSong mu, ticks
+    if mu.coming >= 0 and (mu.fade_out = 0 or mu.ended) then StartSong mu, ticks
     if mu.ended then exit sub
     n = len(mu.song(mu.slot).order)
     b = asc(mid$(mu.song(mu.slot).order, mu.bar + 1, 1)) - 97
     loud = (n - mu.bar) * 2 - mu.half
     if loud > 8 or mu.bar < n - mu.song(mu.slot).fade then loud = 8
-    if mu.fadeOut > 0 then
-        loud = loud * mu.fadeOut \ 3
-        mu.fadeOut = mu.fadeOut - 1
-    elseif mu.fadeIn > 0 then
-        loud = loud * (3 - mu.fadeIn) \ 3
-        mu.fadeIn = mu.fadeIn - 1
+    if mu.fade_out > 0 then
+        loud = loud * mu.fade_out \ 3
+        mu.fade_out = mu.fade_out - 1
+    elseif mu.fade_in > 0 then
+        loud = loud * (3 - mu.fade_in) \ 3
+        mu.fade_in = mu.fade_in - 1
     end if
     PlayHalf mu, mu.song(mu.slot), b, loud
     mu.half = 1 - mu.half
@@ -407,13 +407,13 @@ private sub PlayHalf (mu as Deck, sg as Song, b as integer, loud as integer)
     end if
     ' the bass waits its bars; the low double plays under the voicings that have it
     bass = Vol$(sg.lvl(4), loud, 0) + sg.half(h).bass
-    if mu.bar < sg.bassIn then bass = "P2"
-    v = instr(sg.voLet, mid$(sg.voicing, b + 1, 1)) - 1
+    if mu.bar < sg.bass_in then bass = "P2"
+    v = instr(sg.vo_let, mid$(sg.voicing, b + 1, 1)) - 1
     under = "P2"
-    if sg.voUnder(v) then under = Vol$(sg.lvl(3), loud, 0) + sg.half(h).under
-    one = t + sg.voOne(v) + Vol$(sg.lvl(0), loud, 0) + sg.half(h).one
-    solo = t + sg.leadP + Vol$(sg.lvl(1), loud, 7) + sg.half(h).lead
-    two = t + sg.voTwo(v) + Vol$(sg.lvl(2), loud, 0) + sg.half(h).two
+    if sg.vo_under(v) then under = Vol$(sg.lvl(3), loud, 0) + sg.half(h).under
+    one = t + sg.vo_one(v) + Vol$(sg.lvl(0), loud, 0) + sg.half(h).one
+    solo = t + sg.lead_p + Vol$(sg.lvl(1), loud, 7) + sg.half(h).lead
+    two = t + sg.vo_two(v) + Vol$(sg.lvl(2), loud, 0) + sg.half(h).two
     midv = t + Vol$(sg.lvl(5), loud, 0) + sg.half(h).third
     play t + d, t + bass, one, , solo, two, t + under, midv, _
         t + strike
@@ -423,14 +423,14 @@ end sub
 ' left, the second and the low double to the right; the room answers little.
 sub StartSong (mu as Deck, ticks as long)
     ' its first note sounds once what is queued has: the sixteenths left of the song before
-    mu.songAt = ticks
-    if mu.slot >= 0 then mu.songAt = ticks + play(0) * 900& \ mu.song(mu.slot).tempo
+    mu.song_at = ticks
+    if mu.slot >= 0 then mu.song_at = ticks + play(0) * 900& \ mu.song(mu.slot).tempo
     mu.slot = mu.coming
-    mu.bar = mu.comingBar
+    mu.bar = mu.coming_bar
     mu.half = 0
     mu.coming = -1
     mu.ended = 0
-    mu.fadeOut = 0
+    mu.fade_out = 0
     Patch mu.song(mu.slot)
 end sub
 
@@ -438,7 +438,7 @@ end sub
 private sub Patch (sg as Song)
     dim t as string
     t = "T" + ltrim$(str$(sg.tempo))
-    play "MB" + t + "Z1,0L16", t + sg.bassP, t + "R2S4", , _
-        t + "R2" + sg.leadP, t + "R2S12", t + sg.underP, _
-        t + sg.midP, t + "L16"
+    play "MB" + t + "Z1,0L16", t + sg.bass_p, t + "R2S4", , _
+        t + "R2" + sg.lead_p, t + "R2S12", t + sg.under_p, _
+        t + sg.mid_p, t + "L16"
 end sub

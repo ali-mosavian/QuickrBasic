@@ -24,8 +24,8 @@ sub Sfx (mu as Deck, se as Session, id as integer)
     case SJUMP: s = "L64O4CEGO5C"
     case SBONE
         ' a bark: a low woof slid up into, two voices beating, through a mouth; one at a time
-        if abs(se.ticks - mu.barkAt) < 8 then exit sub
-        mu.barkAt = se.ticks
+        if abs(se.ticks - mu.bark_at) < 8 then exit sub
+        mu.bark_at = se.ticks
         s = "W2I15Y2,1000,6H0,6,2,3K4,0,6L8O3D"
     case SHURT: s = "L32O3GECO2G"
     case SSPRING: s = "L64O3CGO4EO5CG"
@@ -76,27 +76,27 @@ sub LoadSongs (mu as Deck)
     SceneTune mu, CAUGHTUP
     mu.slot = -1
     mu.coming = THEME
-    mu.comingBar = 0
+    mu.coming_bar = 0
     mu.ended = -1
     mu.tune = -1
 end sub
 
 ' Song id into the zone's slot, unless it is there: what was playing from the slot is dropped.
 sub ZoneTune (mu as Deck, id as integer)
-    if mu.zHeld = id + 1 then exit sub
-    mu.zHeld = id + 1
+    if mu.z_held = id + 1 then exit sub
+    mu.z_held = id + 1
     LoadSong mu, ZTUNE, id
-    mu.song(CAUGHT).leadP = mu.song(ZTUNE).leadP
+    mu.song(CAUGHT).lead_p = mu.song(ZTUNE).lead_p
     if mu.slot = ZTUNE then HushSong mu
 end sub
 
 ' Song id into the level's end's slot, unless it is there, the zone's lead its own: what was playing from the
 ' slot is dropped.
 sub SceneTune (mu as Deck, id as integer)
-    if mu.cHeld = id + 1 then exit sub
-    mu.cHeld = id + 1
+    if mu.c_held = id + 1 then exit sub
+    mu.c_held = id + 1
     LoadSong mu, CAUGHT, id
-    mu.song(CAUGHT).leadP = mu.song(ZTUNE).leadP
+    mu.song(CAUGHT).lead_p = mu.song(ZTUNE).lead_p
     if mu.slot = CAUGHT then HushSong mu
 end sub
 
@@ -118,7 +118,7 @@ function EndBeat! (mu as Deck, se as Session, g as Game)
     EndBeat! = g.mode_t * mu.song(CAUGHT).tempo / 60
     if mu.muted or not mu.tune then exit function
     EndBeat! = -1
-    if mu.slot = CAUGHT then EndBeat! = (se.ticks - mu.songAt) * STEPT * mu.song(CAUGHT).tempo / 60
+    if mu.slot = CAUGHT then EndBeat! = (se.ticks - mu.song_at) * STEPT * mu.song(CAUGHT).tempo / 60
 end function
 
 ' The zone tune's clock told the session: by the tune's own ticks while it plays, by the game's where it does not.
@@ -126,7 +126,7 @@ sub KeepBeat (mu as Deck, se as Session)
     se.tempo = mu.song(ZTUNE).tempo
     se.pulse = se.ticks * se.tempo
     if mu.muted or not mu.tune or mu.slot <> ZTUNE then exit sub
-    se.pulse = (se.ticks - mu.songAt) * se.tempo
+    se.pulse = (se.ticks - mu.song_at) * se.tempo
 end sub
 
 ' The slot to play for the game's state: the theme for the title, the level's end or game over, else the zone's
@@ -149,16 +149,16 @@ end function
 sub PickSong (mu as Deck, n as integer, late as integer)
     if n = mu.slot then
         mu.coming = -1
-        mu.fadeOut = 0
+        mu.fade_out = 0
         exit sub
     end if
     if n = mu.coming then exit sub
     mu.coming = n
-    mu.comingBar = 0
-    mu.fadeOut = 2
-    mu.fadeIn = 2
+    mu.coming_bar = 0
+    mu.fade_out = 2
+    mu.fade_in = 2
     if late = 0 then exit sub
-    mu.comingBar = mu.song(n).entry
-    mu.fadeOut = 1
-    mu.fadeIn = 0
+    mu.coming_bar = mu.song(n).entry
+    mu.fade_out = 1
+    mu.fade_in = 0
 end sub

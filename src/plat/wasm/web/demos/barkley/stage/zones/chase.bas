@@ -76,7 +76,7 @@ sub ResetChase (lv as Level, mu as Deck)
     lv.cart.at.y = lv.top(cint(lv.cart.at.x) \ TS) * TS
     lv.box.st = 0
     lv.box.t = RELOAD
-    ZoneTune mu, mu.stageTune
+    ZoneTune mu, mu.stage_tune
 end sub
 
 ' A step of the chase, by its state: begun as Charlie comes to the race; then who flees does, by its zone, and he
@@ -124,10 +124,10 @@ end sub
 private sub StartChase (lv as Level, mu as Deck)
     dim zlead as string
     lv.cart.st = 1
-    zlead = mu.song(CAUGHT).leadP
+    zlead = mu.song(CAUGHT).lead_p
     ZoneTune mu, CHASETUNE
-    mu.song(ZTUNE).leadP = zlead
-    mu.song(CAUGHT).leadP = zlead
+    mu.song(ZTUNE).lead_p = zlead
+    mu.song(CAUGHT).lead_p = zlead
 end sub
 
 ' How fast who flees makes off from a bump.
@@ -195,7 +195,7 @@ private sub BreakCart (lv as Level, mu as Deck, se as Session, pt() as Part)
     lv.cart.st = 2
     lv.cart.t = 2
     Burst se, pt(), lv.cart.at.x + 0, lv.cart.at.y - 12, 16, 200, CEARTH + 4
-    ZoneTune mu, mu.stageTune
+    ZoneTune mu, mu.stage_tune
 end sub
 
 private sub TakeKeep (lv as Level, mu as Deck, se as Session, g as Game, pt() as Part)

@@ -164,7 +164,7 @@ for j = 0 to NSLOT - 1
     StartSong wd.mu, wd.se.ticks
     play Beat$(wd.mu, j, wd.mu.song(j).half(0).kit, 3, 0)
     for i = 0 to NVOICE - 1
-        play , , wd.mu.song(j).voOne(i) + "V1", , , wd.mu.song(j).voTwo(i) + "V1"
+        play , , wd.mu.song(j).vo_one(i) + "V1", , , wd.mu.song(j).vo_two(i) + "V1"
     next
 next
 play "T255", "T255", "T255", , "T255", "T255", "T255", "T255", "T255"
@@ -193,9 +193,9 @@ StartIntro wd, g, cu()
 PickSong wd.mu, SongFor%(g), 0
 NextHalf wd.mu, wd.se.ticks
 for i = 0 to NVOICE - 1
-    play , , wd.mu.song(ZTUNE).voOne(i) + "V1", , , wd.mu.song(ZTUNE).voTwo(i) + "V1"
+    play , , wd.mu.song(ZTUNE).vo_one(i) + "V1", , , wd.mu.song(ZTUNE).vo_two(i) + "V1"
 next
-was = wd.mu.slot = ZTUNE and wd.mu.zHeld = 4
+was = wd.mu.slot = ZTUNE and wd.mu.z_held = 4
 if was and len(wd.mu.song(ZTUNE).order) = 28 and wd.mu.song(ZTUNE).ends then print "intro tune ok"
 ' the intro, played through and drawn: the view where the script has it, on the house, the hedge, the bump and
 ' where Charlie lands; a cue of every kind; Charlie stood by the road, then away at full tilt; at its end the
@@ -221,7 +221,7 @@ for i = 1 to 4000
     end select
 next
 was = was and abs(i - ILEN * 30) < 3 and g.mode = TITLE
-if was and wd.zn.stage = 0 and wd.mu.zHeld = 1 and wd.tn.dusk = 16 then print "intro ok"
+if was and wd.zn.stage = 0 and wd.mu.z_held = 1 and wd.tn.dusk = 16 then print "intro ok"
 was = 0
 ' a key skips it
 StartIntro wd, g, cu()
@@ -596,9 +596,9 @@ GoStage wd, 2, g, p, lo(), pt()
 PickSong wd.mu, SongFor%(g), 0
 NextHalf wd.mu, wd.se.ticks
 for i = 0 to NVOICE - 1
-    play , , wd.mu.song(ZTUNE).voOne(i) + "V1", , , wd.mu.song(ZTUNE).voTwo(i) + "V1"
+    play , , wd.mu.song(ZTUNE).vo_one(i) + "V1", , , wd.mu.song(ZTUNE).vo_two(i) + "V1"
 next
-if wd.mu.slot = ZTUNE and wd.mu.zHeld = 5 and wd.mu.song(ZTUNE).tempo = 132 then print "works tune ok"
+if wd.mu.slot = ZTUNE and wd.mu.z_held = 5 and wd.mu.song(ZTUNE).tempo = 132 then print "works tune ok"
 ' a platform carries who stands on it, to and fro
 for m = 0 to wd.lv.n_movers - 1
     if wd.lv.movers(m).kind = 0 then exit for
@@ -700,7 +700,8 @@ for i = 1 to 70
 next
 k.jump = 0
 v = cint(wd.lv.cart.at.y) - RAILUP - cint(g.cam.y)
-was = wd.lv.cart.st = 1 and wd.mu.zHeld = CHASETUNE + 1 and m and p.ground and wd.lv.cart.hits = 0 and v >= 0 and v < 40
+was = wd.lv.cart.st = 1 and wd.mu.z_held = CHASETUNE + 1 and m and p.ground and wd.lv.cart.hits = 0 _
+    and v >= 0 and v < 40
 wd.se.ticks = 180 - (c mod 180)
 Stand wd.lv, wd.gr, p, c, 0
 wd.lv.cart.at.x = c
@@ -773,7 +774,7 @@ for i = 1 to 40
     Tick wd, g, p, k, lo(), pt()
     if wd.lv.cart.st = 2 then exit for
 next
-was = wd.lv.cart.st = 2 and wd.lv.cart.hits = NBUMP and wd.mu.zHeld = 9
+was = wd.lv.cart.st = 2 and wd.lv.cart.hits = NBUMP and wd.mu.z_held = 9
 for i = 1 to 10
     Tick wd, g, p, k, lo(), pt()
 next
@@ -802,45 +803,45 @@ GoStage wd, 4, g, p, lo(), pt()
 PickSong wd.mu, SongFor%(g), 0
 NextHalf wd.mu, wd.se.ticks
 for i = 0 to NVOICE - 1
-    play , , wd.mu.song(ZTUNE).voOne(i) + "V1", , , wd.mu.song(ZTUNE).voTwo(i) + "V1"
+    play , , wd.mu.song(ZTUNE).vo_one(i) + "V1", , , wd.mu.song(ZTUNE).vo_two(i) + "V1"
 next
-was = wd.mu.slot = ZTUNE and wd.mu.zHeld = 7
+was = wd.mu.slot = ZTUNE and wd.mu.z_held = 7
 if was and wd.mu.song(ZTUNE).tempo = 120 and len(wd.mu.song(ZTUNE).order) = 36 then print "sands tune ok"
 ' a zone's second act plays its tune arranged again, a song of its own over the first act's bars, its first half
 ' bar and voicings played: the sands' sunset at 108 with a second pan under the first, silent at noon; the works'
 ' night with its lead an octave down; the Downs' evening on the organs from its first bar. Each had its first act's
 was = wd.mu.song(ZTUNE).half(8).third = "P2" and wd.mu.song(ZTUNE).lvl(5) = 0
 GoStage wd, 5, g, p, lo(), pt()
-was = was and wd.mu.zHeld = 10 and wd.mu.song(ZTUNE).tempo = 108 and len(wd.mu.song(ZTUNE).order) = 36
+was = was and wd.mu.z_held = 10 and wd.mu.song(ZTUNE).tempo = 108 and len(wd.mu.song(ZTUNE).order) = 36
 was = was and instr(wd.mu.song(ZTUNE).half(8).third, "N49") = 3
 GoStage wd, 2, g, p, lo(), pt()
 act1 = wd.mu.song(ZTUNE).half(8).lead
 GoStage wd, 3, g, p, lo(), pt()
-was = was and wd.mu.zHeld = 9 and wd.mu.song(ZTUNE).tempo = 132 and instr(act1, "N53") = 3
+was = was and wd.mu.z_held = 9 and wd.mu.song(ZTUNE).tempo = 132 and instr(act1, "N53") = 3
 was = was and instr(wd.mu.song(ZTUNE).half(8).lead, "N41") = 3
 GoStage wd, 0, g, p, lo(), pt()
-was = was and wd.mu.zHeld = 1 and left$(wd.mu.song(ZTUNE).voicing, 1) = "h"
+was = was and wd.mu.z_held = 1 and left$(wd.mu.song(ZTUNE).voicing, 1) = "h"
 GoStage wd, 1, g, p, lo(), pt()
-was = was and wd.mu.zHeld = 8 and wd.mu.song(ZTUNE).voicing = string$(28, "o") and len(wd.mu.song(ZTUNE).order) = 76
+was = was and wd.mu.z_held = 8 and wd.mu.song(ZTUNE).voicing = string$(28, "o") and len(wd.mu.song(ZTUNE).order) = 76
 ' the pass's blizzard in F sharp minor, its third voice the wind: it played the morning's tune, in A
 GoStage wd, 6, g, p, lo(), pt()
-was = was and wd.mu.zHeld = 14 and instr(wd.mu.song(ZTUNE).half(8).bass, "N22") > 0
+was = was and wd.mu.z_held = 14 and instr(wd.mu.song(ZTUNE).half(8).bass, "N22") > 0
 GoStage wd, 7, g, p, lo(), pt()
-was = was and wd.mu.zHeld = 15 and wd.mu.song(ZTUNE).tempo = 150 and len(wd.mu.song(ZTUNE).order) = 36
-was = was and instr(wd.mu.song(ZTUNE).half(8).bass, "N19") > 0 and instr(wd.mu.song(ZTUNE).midP, "W3") > 0
+was = was and wd.mu.z_held = 15 and wd.mu.song(ZTUNE).tempo = 150 and len(wd.mu.song(ZTUNE).order) = 36
+was = was and instr(wd.mu.song(ZTUNE).half(8).bass, "N19") > 0 and instr(wd.mu.song(ZTUNE).mid_p, "W3") > 0
 ' the wood's reel in D minor at 126, a fiddle's saw leading; its night at 112, the flute's triangle leading: both
 ' played the Downs' tunes
 GoStage wd, 8, g, p, lo(), pt()
-was = was and wd.mu.zHeld = 16 and wd.mu.song(ZTUNE).tempo = 126 and len(wd.mu.song(ZTUNE).order) = 36
-was = was and instr(wd.mu.song(ZTUNE).half(8).bass, "N15") > 0 and instr(wd.mu.song(ZTUNE).leadP, "W2") > 0
+was = was and wd.mu.z_held = 16 and wd.mu.song(ZTUNE).tempo = 126 and len(wd.mu.song(ZTUNE).order) = 36
+was = was and instr(wd.mu.song(ZTUNE).half(8).bass, "N15") > 0 and instr(wd.mu.song(ZTUNE).lead_p, "W2") > 0
 GoStage wd, 9, g, p, lo(), pt()
-was = was and wd.mu.zHeld = 17 and wd.mu.song(ZTUNE).tempo = 112 and instr(wd.mu.song(ZTUNE).leadP, "W1") > 0
+was = was and wd.mu.z_held = 17 and wd.mu.song(ZTUNE).tempo = 112 and instr(wd.mu.song(ZTUNE).lead_p, "W1") > 0
 for m = 1 to 9 step 2
     GoStage wd, m, g, p, lo(), pt()
     PickSong wd.mu, SongFor%(g), 0
     NextHalf wd.mu, wd.se.ticks
     for i = 0 to NVOICE - 1
-        play , , wd.mu.song(ZTUNE).voOne(i) + "V1", , , wd.mu.song(ZTUNE).voTwo(i) + "V1"
+        play , , wd.mu.song(ZTUNE).vo_one(i) + "V1", , , wd.mu.song(ZTUNE).vo_two(i) + "V1"
     next
     was = was and wd.mu.slot = ZTUNE
 next
@@ -887,11 +888,11 @@ dim kit as string, kitOk as integer, zt as integer
 kitOk = -1
 for i = 0 to 4
     select case i
-    case 0: kit = wd.mu.song(ZTUNE).leadP
-    case 1: kit = wd.mu.song(ZTUNE).bassP
-    case 2: kit = wd.mu.song(ZTUNE).midP
-    case 3: kit = wd.mu.song(ZTUNE).voOne(0)
-    case 4: kit = wd.mu.song(ZTUNE).voTwo(0)
+    case 0: kit = wd.mu.song(ZTUNE).lead_p
+    case 1: kit = wd.mu.song(ZTUNE).bass_p
+    case 2: kit = wd.mu.song(ZTUNE).mid_p
+    case 3: kit = wd.mu.song(ZTUNE).vo_one(0)
+    case 4: kit = wd.mu.song(ZTUNE).vo_two(0)
     end select
     kitOk = kitOk and instr(kit, "W4") = 0 and instr(kit, "Y") > 0 and instr(kit, "R") > 0 and instr(kit, "R0") = 0
     kitOk = kitOk and not (instr(kit, "W0") > 0 and instr(kit, "Y1") > 0)
@@ -903,8 +904,8 @@ dim drums_ok as integer
 drums_ok = -1
 for zt = 17 to 18
     ZoneTune wd.mu, zt
-    for i = 0 to len(wd.mu.song(ZTUNE).drLet) - 1
-        kit = wd.mu.song(ZTUNE).drPatch(i)
+    for i = 0 to len(wd.mu.song(ZTUNE).dr_let) - 1
+        kit = wd.mu.song(ZTUNE).dr_patch(i)
         kitOk = kitOk and instr(kit, "W3") = 0
         drums_ok = drums_ok and instr(kit, "W4") > 0
         drums_ok = drums_ok and instr(kit, "Z1,0H") = 0
@@ -1015,21 +1016,21 @@ if goldOk then print "gold ok"
 ' after a chase the level's end is the longer one, twelve bars that end, the cat sent packing first, its first half
 ' bar played; where there is no chase it is the eight. It was the eight everywhere
 GoStage wd, 1, g, p, lo(), pt()
-was = wd.mu.cHeld = PACKING + 1 and len(wd.mu.song(CAUGHT).order) = 12 and wd.mu.song(CAUGHT).ends
+was = wd.mu.c_held = PACKING + 1 and len(wd.mu.song(CAUGHT).order) = 12 and wd.mu.song(CAUGHT).ends
 g.mode = CLEARED
 PickSong wd.mu, SongFor%(g), -1
 NextHalf wd.mu, wd.se.ticks
 was = was and wd.mu.slot = CAUGHT and wd.mu.bar = 0 and wd.mu.half = 1
 GoStage wd, 0, g, p, lo(), pt()
-if was and wd.mu.cHeld = CAUGHTUP + 1 and len(wd.mu.song(CAUGHT).order) = 8 then print "packing ok"
+if was and wd.mu.c_held = CAUGHTUP + 1 and len(wd.mu.song(CAUGHT).order) = 8 then print "packing ok"
 ' in the quarter the guitar is gone till its chase: the blue hour's end is the eight bars whistled, a flute where
 ' her string was; the festival night's, after the chase, the twelve with her guitar. It was the guitar's eight
 GoStage wd, 10, g, p, lo(), pt()
-was = wd.mu.cHeld = WHISTLED + 1 and len(wd.mu.song(CAUGHT).order) = 8 and wd.mu.song(CAUGHT).voicing = "wwwwwwww"
+was = wd.mu.c_held = WHISTLED + 1 and len(wd.mu.song(CAUGHT).order) = 8 and wd.mu.song(CAUGHT).voicing = "wwwwwwww"
 GoStage wd, 11, g, p, lo(), pt()
-was = was and wd.mu.cHeld = PACKING + 1 and wd.mu.song(CAUGHT).voicing <> "wwwwwwww"
+was = was and wd.mu.c_held = PACKING + 1 and wd.mu.song(CAUGHT).voicing <> "wwwwwwww"
 GoStage wd, 0, g, p, lo(), pt()
-if was and wd.mu.cHeld = CAUGHTUP + 1 then print "whistled ok"
+if was and wd.mu.c_held = CAUGHTUP + 1 then print "whistled ok"
 ' the last life lost, game over has its own tune in that slot, four bars at 80 that end, its first half bar played,
 ' and stays while it plays; then the title, the level's end back in its slot. Game over was five seconds of the
 ' zone's tune
@@ -1042,7 +1043,7 @@ for i = 1 to 200
     Tick wd, g, p, k, lo(), pt()
     if g.mode = OVER then exit for
 next
-was = g.mode = OVER and wd.mu.cHeld = LEFTBEHIND + 1 and SongFor%(g) = CAUGHT and wd.mu.song(CAUGHT).tempo = 80
+was = g.mode = OVER and wd.mu.c_held = LEFTBEHIND + 1 and SongFor%(g) = CAUGHT and wd.mu.song(CAUGHT).tempo = 80
 PickSong wd.mu, SongFor%(g), -1
 NextHalf wd.mu, wd.se.ticks
 was = was and wd.mu.slot = CAUGHT and len(wd.mu.song(CAUGHT).order) = 4 and wd.mu.song(CAUGHT).ends
@@ -1054,7 +1055,7 @@ for i = 1 to 400
     Tick wd, g, p, k, lo(), pt()
     if g.mode = TITLE then exit for
 next
-if was and g.mode = TITLE and i < 400 and wd.mu.cHeld = CAUGHTUP + 1 then print "over ok"
+if was and g.mode = TITLE and i < 400 and wd.mu.c_held = CAUGHTUP + 1 then print "over ok"
 GoStage wd, 0, g, p, lo(), pt()
 ' the level's end counts the bonus into the score in time with its tune: none before the bars its lead plays, a
 ' step on each of their beats, the last of it on their last; a key takes it all at once. The beat is the tune's
@@ -1096,7 +1097,7 @@ k.hit = 0
 was = was and g.bonus = 0 and g.score = hid + 1230
 wd.mu.muted = 0
 wd.mu.slot = CAUGHT
-wd.mu.songAt = wd.se.ticks - 150
+wd.mu.song_at = wd.se.ticks - 150
 was = was and abs(EndBeat!(wd.mu, wd.se, g) - 5) < .01
 wd.mu.slot = ZTUNE
 was = was and EndBeat!(wd.mu, wd.se, g) < 0
@@ -1117,7 +1118,7 @@ for i = 1 to 200
     if g.mode = INTRO then exit for
 next
 was = g.mode = INTRO and wd.zn.stage = SINTRO and wd.zn.id = 1 and wd.se.scene_next = 2
-was = was and wd.mu.zHeld = BETWEEN + 1 and wd.tn.dusk = 16
+was = was and wd.mu.z_held = BETWEEN + 1 and wd.tn.dusk = 16
 was = was and Sudden%(wd.se, g) and abs(g.mode_t * BEATS - BUMP0) < 1
 was = was and wd.tn.n(2) > 0 and wd.tn.now(wd.tn.which(2, 0)) = wd.tn.own(2, 0)
 for i = 1 to 12 * 30
@@ -1130,7 +1131,7 @@ for i = 1 to 200
     if g.mode <> INTRO then exit for
 next
 was = was and i < 200 and g.mode = PLAYING and wd.zn.stage = 2
-was = was and wd.mu.zHeld = 5 and wd.tn.dusk = 16 and g.score = 1234
+was = was and wd.mu.z_held = 5 and wd.tn.dusk = 16 and g.score = 1234
 GoStage wd, 3, g, p, lo(), pt()
 g.mode = CLEARED
 g.bonus = 0
@@ -1144,7 +1145,7 @@ IntroDraw wd, g, p, cu()
 k.hit = -1
 Advance wd, g, p, k, lo(), pt(), cu()
 k.hit = 0
-was = was and g.mode = PLAYING and wd.zn.stage = 4 and wd.mu.zHeld = 7
+was = was and g.mode = PLAYING and wd.zn.stage = 4 and wd.mu.z_held = 7
 GoStage wd, 0, g, p, lo(), pt()
 if was then print "bump ok"
 ' Saltwick Sands' sea rises and falls by the clock, from low water to high and back, and from low water at the
@@ -2245,7 +2246,7 @@ was = was and colA(1) = 141 and colA(2) <> 141 and colA(3) <> 141
 was = was and colB(1) <> 147 and colB(2) = 147 and colB(3) <> 147
 ' the clock: the game's ticks, each the tune's beats a minute of pulses; the tune's own ticks while it plays
 hid = wd.se.ticks
-shown = wd.mu.songAt
+shown = wd.mu.song_at
 colA(4) = wd.mu.tune
 colA(5) = wd.mu.slot
 wd.se.ticks = 1000
@@ -2254,7 +2255,7 @@ was = was and wd.se.pulse = 144000 and wd.se.tempo = 144
 wd.mu.muted = 0
 wd.mu.tune = -1
 wd.mu.slot = ZTUNE
-wd.mu.songAt = 400
+wd.mu.song_at = 400
 KeepBeat wd.mu, wd.se
 was = was and wd.se.pulse = 86400
 wd.mu.muted = -1
@@ -2269,7 +2270,7 @@ wd.mu.slot = CAUGHT
 KeepBeat wd.mu, wd.se
 was = was and wd.se.pulse = 144000
 wd.se.ticks = hid
-wd.mu.songAt = shown
+wd.mu.song_at = shown
 wd.mu.tune = colA(4)
 wd.mu.slot = colA(5)
 wd.mu.muted = colA(0)
@@ -2550,10 +2551,10 @@ if was then print "golds ok"
 dim relayOk as integer, slowest as single, quickest as single, lobs as integer, bar as integer
 GoStage wd, 11, g, p, lo(), pt()
 g.mode_t = 20
-c = wd.mu.zHeld
+c = wd.mu.z_held
 Stand wd.lv, wd.gr, p, wd.lv.chase_x + 4, 0
 Tick wd, g, p, k, lo(), pt()
-relayOk = wd.lv.cart.st = 1 and wd.lv.cart.hits = 0 and wd.mu.zHeld = CHASETUNE + 1 and c <> CHASETUNE + 1
+relayOk = wd.lv.cart.st = 1 and wd.lv.cart.hits = 0 and wd.mu.z_held = CHASETUNE + 1 and c <> CHASETUNE + 1
 bar = 4 * PULSES \\ wd.se.tempo + 1
 for m = 0 to NLEG - 1
     ' a bar of its pace, the street's second fall on its way
@@ -2647,7 +2648,7 @@ for m = 0 to NLEG - 1
     next
     if m < NLEG - 1 then relayOk = relayOk and wd.lv.cart.at.x - bx > 350
 next
-relayOk = relayOk and wd.lv.cart.st = 2 and wd.mu.zHeld = c
+relayOk = relayOk and wd.lv.cart.st = 2 and wd.mu.z_held = c
 g.cam.x = wd.lv.cart.at.x - 160
 g.cam.y = wd.lv.cart.at.y - 150
 Render wd, g, p, lo(), pt()
@@ -2752,7 +2753,7 @@ if dugOut then print "dig ok"
 ' it as it comes by. The third catch and the ball is his, the zone's tune back, the twins sulking
 dim twinsOk as integer, twScore as long, twTune as integer
 GoStage wd, 9, g, p, lo(), pt()
-twTune = wd.mu.zHeld
+twTune = wd.mu.z_held
 Stand wd.lv, wd.gr, p, wd.lv.chase_x - 40, 0
 Tick wd, g, p, k, lo(), pt()
 twinsOk = wd.lv.oak.x <> NONE and wd.lv.cart.st = 0 and Headroom%(wd.lv, wd.zn, p) = HEAD
@@ -2760,7 +2761,7 @@ twinsOk = twinsOk and TwinPose%(wd.lv, 0) = 1 and TwinPose%(wd.lv, 1) = 0
 Stand wd.lv, wd.gr, p, wd.lv.oak.x - 20, 0
 Tick wd, g, p, k, lo(), pt()
 twinsOk = twinsOk and wd.lv.cart.st = 1 and wd.lv.box.st = 0 and Headroom%(wd.lv, wd.zn, p) = HEADUP
-twinsOk = twinsOk and wd.mu.zHeld = CHASETUNE + 1 and twTune <> CHASETUNE + 1
+twinsOk = twinsOk and wd.mu.z_held = CHASETUNE + 1 and twTune <> CHASETUNE + 1
 twinsOk = twinsOk and wd.lv.cart.at.x = wd.lv.oak.x - 64 and wd.lv.cart.at.y = wd.lv.oak.y - 3 * TS - PAWUP
 for i = 1 to 120
     Tick wd, g, p, k, lo(), pt()
@@ -2832,7 +2833,7 @@ next
 AtBall wd.lv, p
 Tick wd, g, p, k, lo(), pt()
 twinsOk = twinsOk and i < 60 and wd.lv.cart.st = 3 and wd.lv.cart.hits = NBUMP and g.score = twScore + 2500
-twinsOk = twinsOk and wd.mu.zHeld = twTune and TwinPose%(wd.lv, 0) = 4 and TwinPose%(wd.lv, 1) = 4
+twinsOk = twinsOk and wd.mu.z_held = twTune and TwinPose%(wd.lv, 0) = 4 and TwinPose%(wd.lv, 1) = 4
 ' drawn: the oak's bark at its trunk; each twin's mask where it sits on the top pair; the wood's spring a
 ' toadstool, its cap the wood's berry. The oak is looked at 40 lower on the screen: the HUD's golden-bone pips
 ' lie over the left twin's place else
@@ -4284,12 +4285,12 @@ for m = 1 to NSTAGE - 1
         v = wd.lv.cart.hits
         Tick wd, g, p, k, lo(), pt()
         if wd.lv.cart.hits > v and p.sled then rams = rams + 1
-        if wd.lv.cart.st = 1 and wd.mu.zHeld = CHASETUNE + 1 and wd.lv.cart.at.x > wd.lv.chase_x + 600 then was = -1
+        if wd.lv.cart.st = 1 and wd.mu.z_held = CHASETUNE + 1 and wd.lv.cart.at.x > wd.lv.chase_x + 600 then was = -1
         if g.mode <> PLAYING then exit for
     next
     ' the Downs' evening ends in a chase: the cart fled down the race to the chase's tune, was bumped till it broke,
     ' and its keepsake taken, the zone's tune back
-    if m = 1 and was and wd.lv.cart.st = 3 and wd.lv.cart.hits = NBUMP and wd.mu.zHeld = 8 then print "chase ok"
+    if m = 1 and was and wd.lv.cart.st = 3 and wd.lv.cart.hits = NBUMP and wd.mu.z_held = 8 then print "chase ok"
     ' and the sands' sunset: the pilot hops out of the sea onto Kipper's boat till it sinks, and takes the teddy
     if m = 5 and wd.lv.cart.st = 3 and wd.lv.cart.hits = NBUMP then print "kipper ok"
     ' and the pass's dusk: Frost bumped off her toboggan, twice at the least sled against sled, and the camera
@@ -4309,7 +4310,7 @@ for i = 1 to 1600
     Tick wd, g, p, k, lo(), pt()
     if g.mode = TITLE then exit for
 next
-if g.mode = TITLE and wd.zn.id = 0 and wd.tn.dusk = 16 and wd.mu.zHeld = 1 then print "home ok"
+if g.mode = TITLE and wd.zn.id = 0 and wd.tn.dusk = 16 and wd.mu.z_held = 1 then print "home ok"
 ' the Amber Downs in the shared colours again: a zone's own are put back when it is left
 if zp and wd.tn.now(wd.tn.which(1, 0)) = wd.tn.day(wd.tn.which(1, 0)) then print "palette ok"
 ' the title's own run ends the same way: it began again the moment Charlie passed the goal, the family never met
