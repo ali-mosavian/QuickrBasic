@@ -70,6 +70,10 @@ void edit_enter(Session *S);
 void edit_bs(Session *S);
 /* ed_del: Del: past the end the next line joins this one. */
 void edit_del(Session *S);
+/* Ctrl+Backspace, Ctrl+Del: to where Ctrl+Left, Ctrl+Right go, deleted; at the line's start, its
+   end, Backspace's and Del's join. */
+void edit_bs_word(Session *S);
+void edit_del_word(Session *S);
 /* ed_tab: Tab: spaces to the next column of 8. */
 void edit_tab(void);
 /* ed_ctrly: Ctrl+Y: the line to the clipboard, out of the text. */
@@ -77,6 +81,10 @@ void edit_ctrly(Session *S);
 
 /* sel_mark: a shifted move: the selection starts at the cursor if not on yet. */
 void edit_sel_mark(void);
+/* A double click: the word at the cursor selected, the cursor at its end; none: nothing. */
+void edit_sel_word(void);
+/* A triple click: the cursor's line selected whole, the cursor at the next one's start. */
+void edit_sel_line(Session *S);
 /* sel_get: the selection: SEL_PIECE (uimn.ed.sel_a to sel_b columns of the cursor's line),
    SEL_LINES (sel_a to sel_b lines; a lower end at column 0 not its line's), SEL_NONE. */
 uint8_t edit_sel(void);

@@ -134,6 +134,7 @@ enum : uint8_t {
     SCAN_ALT_MINUS = 0x82,
     SCAN_ALT_EQUALS = 0x83,
     SCAN_CTRL_INS = 0x92,
+    SCAN_CTRL_DEL = 0x93,
     SCAN_ALT_UP = 0x98,
     SCAN_ALT_LEFT = 0x9B,
     SCAN_ALT_RIGHT = 0x9D,
@@ -150,6 +151,7 @@ enum : uint8_t {
     CH_ENTER = 0x0D,
     CH_ESC = 0x1B,
     CH_CTRL_MINUS = 0x1F, /* Ctrl+-, the BIOS's; Ctrl+/, ours */
+    CH_CTRL_BACKSPACE = 0x7F,
     CH_E0 = 0xE0,
 };
 
@@ -297,6 +299,8 @@ typedef struct {
     uint8_t event;    /* ms_ev: MS_* (mouse.h) */
     uint8_t row, col; /* ms_pos: its cell at the event */
     bool hover;       /* ms_hov: a move with no button is an event (the key loop's wait) */
+    uint8_t clicks;   /* a press's: 1, 2 or 3, the presses in a row at its cell, each soon after */
+    uint32_t pressed; /* the last press's tick (pclk_ticks) */
 } UiMouse;
 
 typedef struct {

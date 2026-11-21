@@ -54,6 +54,7 @@
 #include "ui/dialog.h"
 #include "ui/helpdoc.h"
 #include "ui/linemap.h"
+#include "ui/search.h"
 #include "ui/text.h"
 #include "ui/uimain.h"
 #include "ui/view.h"
@@ -699,6 +700,34 @@ void edit_bs(Session *const S)
     changed();
 }
 
+void edit_bs_word(Session *const S)
+{
+    LineBuf *const b = &uimn.edline;
+
+    if (!b->col) {
+        edit_bs(S);
+        return;
+    }
+
+    const uint16_t to = b->col;
+    edit_lb_wleft(b);
+    edit_lb_cut(b, b->col, to);
+}
+
+void edit_del_word(Session *const S)
+{
+    LineBuf *const b = &uimn.edline;
+
+    if (b->col >= b->len) {
+        edit_del(S);
+        return;
+    }
+
+    const uint16_t from = b->col;
+    edit_lb_wright(b);
+    edit_lb_cut(b, from, b->col);
+}
+
 void edit_del(Session *const S)
 {
     LineBuf *const b = &uimn.edline;
@@ -766,6 +795,36 @@ void edit_sel_mark(void)
     uimn.ed.sel_on = true;
     uimn.ed.sel_line = uimn.ed.line;
     uimn.ed.sel_col = uimn.edline.col;
+}
+
+void edit_sel_word(void)
+{
+    const LineBuf *const b = &uimn.edline;
+    uint16_t from = b->col, to = b->col;
+
+    while (from && from <= b->len && srch_wordc(b->text[from - 1]))
+        from--;
+    while (to < b->len && srch_wordc(b->text[to]))
+        to++;
+    if (from == to)
+        return;
+
+    uimn.ed.sel_line = uimn.ed.line;
+    uimn.ed.sel_col = from;
+    uimn.ed.sel_on = true;
+    uimn.edline.col = to;
+}
+
+void edit_sel_line(Session *const S)
+{
+    uimn.ed.sel_line = uimn.ed.line;
+    uimn.ed.sel_col = 0;
+    uimn.ed.sel_on = true;
+
+    if (uimn.ed.line + 1 < uimn.text.n) /* a lines' selection: to the next one's start */
+        edit_goto(S, uimn.ed.line + 1);
+
+    uimn.edline.col = uimn.ed.line == uimn.ed.sel_line ? uimn.edline.len : 0;
 }
 
 uint8_t edit_sel(void)

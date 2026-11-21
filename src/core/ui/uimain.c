@@ -342,6 +342,11 @@ static bool edit_scan(Session *const S, const uint8_t scan)
             uimn.ed.insert = !uimn.ed.insert;
     } else if (scan == SCAN_CTRL_INS) {
         edit_copy(S);
+    } else if (scan == SCAN_CTRL_DEL) { /* ours */
+        if (edit_sel())
+            edit_clear(S);
+        else
+            edit_del_word(S);
     } else if (scan == SCAN_BACKSPACE && uimn.keyflags & PKEY_ALT) { /* QBasic's Undo */
         undo_undo(S);
     } else if (scan == SCAN_B && uimn.keyflags & PKEY_CTRL) { /* Ctrl+Alt+B, ours */
@@ -414,6 +419,14 @@ static bool edit_control(Session *const S, const uint8_t ch)
 
     case CTRL('B'): /* Go to Definition, ours */
         defn_goto(S, false);
+        return true;
+
+    case CH_CTRL_BACKSPACE: /* ours */
+        if (edit_sel())
+            edit_clear(S);
+        else
+            edit_bs_word(S);
+
         return true;
 
     case CH_CTRL_MINUS: /* ours: the lines commented out, or back */

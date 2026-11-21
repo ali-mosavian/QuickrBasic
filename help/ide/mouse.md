@@ -9,6 +9,7 @@ See also [survival](survival), [windows](windows).
     Click a menu title, then an item    runs it
     Click in text                       moves the cursor
     Drag in text, or Shift+click        selects
+    Double-click, triple-click          selects the word, the line
     Click a window                      focuses it
     Click or drag a scroll bar          scrolls
     Click a status-bar key              same as pressing it

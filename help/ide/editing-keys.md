@@ -17,6 +17,8 @@ See also [selecting text](selecting text), [completion](completion),
     Enter             split the line; indent follows the block
     Backspace         delete before the cursor
     Del               delete at the cursor
+    Ctrl+Backspace    delete to the word's start
+    Ctrl+Del          delete to the next word
     Ctrl+Y            delete the whole line
     Alt+Up, Down      move the line, or the lines selected
     Shift+Alt+Up, Down  copy them above, below

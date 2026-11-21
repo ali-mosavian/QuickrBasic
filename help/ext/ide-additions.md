@@ -20,6 +20,8 @@ Menu commands are in [menus](menus).
    the cursor moves on and Ctrl+F8 goes back to it.
  - Find opens a bar on the status row, not a box: the match moves as
    you type, through every SUB and module ([Find Bar](Find Bar)).
+ - Ctrl+Backspace and Ctrl+Del delete a word; a double click selects
+   one, a triple click the line.
  - Alt+Up and Alt+Down move lines, with Shift copy them, and Ctrl+/
    comments them out ([editing keys](editing keys)).
  - [Completion](completion): Tab lists what fits at the cursor.
