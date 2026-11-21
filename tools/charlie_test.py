@@ -247,8 +247,8 @@ c = c - cint(g.cam.x)
 IntroDraw wd, g, p, cu()
 hid = Pix&(c - 60, 8, HORIZON - 45, HORIZON - 14)
 shown = Pix&(c - 92, 16, HORIZON - 45, HORIZON - 14)
-cu(m).y0 = cu(m).y0 - 300
-cu(m).y1 = cu(m).y1 - 300
+cu(m).start.y = cu(m).start.y - 300
+cu(m).finish.y = cu(m).finish.y - 300
 IntroDraw wd, g, p, cu()
 hid = hid - Pix&(c - 60, 8, HORIZON - 45, HORIZON - 14)
 shown = shown - Pix&(c - 92, 16, HORIZON - 45, HORIZON - 14)

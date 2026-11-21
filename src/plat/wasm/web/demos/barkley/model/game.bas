@@ -36,19 +36,17 @@ type Part
     c as integer
 end type
 
-' A cue of the intro's script: what, from beat t0 to t1, on its way from x0, y0 to x1, y1 in the world, y from the
-' ground and up under 0. ease: 1 gathering speed, 2 losing it; hop: an arc that high over its way; a: its own.
+' A cue of the intro's script: what, from beat t0 to t1, on its way from start to finish in the world, y from the
+' ground and up under 0. ease: 1 gathering speed, 2 losing it; hop: an arc that high over its way; own: its own.
 type Cue
     kind as integer
     t0 as single
     t1 as single
-    x0 as single
-    y0 as single
-    x1 as single
-    y1 as single
+    start as Vec
+    finish as Vec
     ease as integer
     hop as integer
-    a as integer
+    own as integer
 end type
 
 ' The colours: the shared ones as built, each stage's own over them (how many, which, what), and those shown,

@@ -196,7 +196,7 @@ private sub LoadCues (cu() as Cue)
         read kind
         cu(n).kind = (instr(QNAMES, left$(kind + "     ", 6)) + 5) \ 6
         if cu(n).kind = 0 then exit do
-        read cu(n).t0, cu(n).t1, cu(n).x0, cu(n).y0, cu(n).x1, cu(n).y1, cu(n).ease, cu(n).hop, cu(n).a
+        read cu(n).t0, cu(n).t1, cu(n).start.x, cu(n).start.y, cu(n).finish.x, cu(n).finish.y, cu(n).ease, cu(n).hop, cu(n).own
         n = n + 1
     loop
 end sub
@@ -216,7 +216,7 @@ function IntroOver% (wd as World, g as Game, k as Pad, cu() as Cue)
             case QCAM
                 CueAt wd.lv, cu(), i, now, x, y
                 g.cam.x = x
-            case QSND: if was < cu(i).t0 then Sfx wd.mu, wd.se, cu(i).a
+            case QSND: if was < cu(i).t0 then Sfx wd.mu, wd.se, cu(i).own
             end select
         end if
         i = i + 1
@@ -237,8 +237,8 @@ sub CueAt (lv as Level, cu() as Cue, i as integer, t as single, x as integer, y 
     v = u
     if cu(i).ease = 1 then v = u * u
     if cu(i).ease = 2 then v = u * (2 - u)
-    x = cint(cu(i).x0 + (cu(i).x1 - cu(i).x0) * v)
-    y = lv.startY + cint(cu(i).y0 + (cu(i).y1 - cu(i).y0) * v - 4 * cu(i).hop * u * (1 - u))
+    x = cint(cu(i).start.x + (cu(i).finish.x - cu(i).start.x) * v)
+    y = lv.startY + cint(cu(i).start.y + (cu(i).finish.y - cu(i).start.y) * v - 4 * cu(i).hop * u * (1 - u))
 end sub
 
 ' The intro's picture: the Downs, then each cue that is on, in the script's order, between two black bars.
@@ -265,7 +265,7 @@ private sub DrawCue (wd as World, cu() as Cue, i as integer, now as single, p as
     CueAt wd.lv, cu(), i, now, wx, wy
     x = wx - cx
     y = wy - cy
-    a = cu(i).a
+    a = cu(i).own
     select case cu(i).kind
     case QHOUSE: Blit wd.art, x - 66, y - 123, IHOUSE, 132, 124
     case QBOXES: Blit wd.art, x - 22, y - 39, IBOXES, 44, 40
@@ -275,11 +275,11 @@ private sub DrawCue (wd as World, cu() as Cue, i as integer, now as single, p as
     case QVAN: DrawVan wd.art, x, y, wx, a
     case QFLOAT: DrawFloat wd.art, wd.se, x, y, wx, a
     case QBARON: Blit wd.art, x - 20, y - 43, BaronPic%(wd.se, a), 40, 44
-    case QCAT: DrawCat wd.zn, wd.art, wd.se, x, y, a, cu(i).x1 < cu(i).x0
+    case QCAT: DrawCat wd.zn, wd.art, wd.se, x, y, a, cu(i).finish.x < cu(i).start.x
     case QBASKET: DrawKeep wd.zn, wd.art, x, y
     case QEYES: DrawEyes wd.se, x, y, a
     case QHERO
-        Pose wd.lv, wd.gr, wd.se, p, wx, wy, a, cu(i).x1 < cu(i).x0
+        Pose wd.lv, wd.gr, wd.se, p, wx, wy, a, cu(i).finish.x < cu(i).start.x
         DrawHero wd.gr, wd.art, wd.se, p, cx, cy
     case QWOOF
         p.at.x = wx
