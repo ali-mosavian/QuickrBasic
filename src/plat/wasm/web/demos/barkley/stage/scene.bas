@@ -85,7 +85,9 @@ sub Render (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
     if wd.se.loose_n then DrawLoose wd.art, wd.se, cx, cy, lo()
     DrawChase wd.lv, wd.zn, wd.art, wd.se, cx, cy
     DrawHero wd.gr, wd.art, wd.se, p, cx, cy
-    if wd.lv.aval_x <> NONE then DrawAvalanche wd.lv, wd.art, wd.se, cx, cy
+    if wd.lv.aval_x <> NONE then
+        DrawAvalanche wd.lv, wd.art, wd.se, cx, cy
+    end if
     if wd.lv.gale then DrawGale wd.lv, wd.se
     if wd.lv.murk then DrawFlies wd.lv, wd.se, cx
     if wd.lv.n_gulls then DrawGulls wd.lv, wd.art, wd.se, cx, cy
@@ -104,7 +106,11 @@ sub Render (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
             Panel 0, 165, SW - 1, SH - 1
             s = ZoneName$(wd.se.pick)
             if wd.se.pick > 0 then s = "< " + s else s = "  " + s
-            if wd.se.pick < wd.se.reached then s = s + " >" else s = s + "  "
+            if wd.se.pick < wd.se.reached then
+                s = s + " >"
+            else
+                s = s + "  "
+            end if
             Banner 22, s, CWHITE
         else
             Panel 0, 181, SW - 1, SH - 1
@@ -131,7 +137,9 @@ sub Render (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
             line (x, 84)-(x + SW - 1, 85), CGOLD + 3, BF
             line (x, 109)-(x + SW - 1, 110), CGOLD + 3, BF
             Blit wd.art, x + (SW - 178) \ 2, 89, wd.zn.card, 178, 18
-            if (wd.zn.stage and 1) and x = 0 then Txt 14, 17, "ACT 2", CYELLOW
+            if (wd.zn.stage and 1) and x = 0 then
+                Txt 14, 17, "ACT 2", CYELLOW
+            end if
         end if
     case CLEARED
         Blit wd.art, 6, 5, IHUD, HUDW, HUDH
@@ -173,13 +181,17 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
         y = lv.things(i).at.y - cy
         select case k
         case KBONE
-            if lv.things(i).state then Blit art, x - 5, y - 5, IBONE + ((se.ticks \ 6) and 3) * 2, 10, 10
+            if lv.things(i).state then
+                Blit art, x - 5, y - 5, IBONE + ((se.ticks \ 6) and 3) * 2, 10, 10
+            end if
         case KGOLD
             ' a golden bone, till it is found
             if Found%(se, zn.stage, GoldNo%(lv, i)) then continue for
             Blit art, x - 5, y - 5, IGOLD + ((se.ticks \ 6) and 3) * 2, 10, 10
         case KCAT, KWALKER
-            if lv.things(i).state then Blit art, x - 10, y - 13, CatPic%(se, lv.things(i).state), 20, 14
+            if lv.things(i).state then
+                Blit art, x - 10, y - 13, CatPic%(se, lv.things(i).state), 20, 14
+            end if
         case KPOUNCE
             DrawPouncer lv, art, se, i, x, y
         case KMORTAR
@@ -187,12 +199,16 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
         case KTIPPER
             DrawTipper lv, art, se, i, x, y
         case KSNATCH
-            if lv.things(i).state then Blit art, x - 10, y - 13, SnatchPic%(se, lv.things(i).state), 20, 14
+            if lv.things(i).state then
+                Blit art, x - 10, y - 13, SnatchPic%(se, lv.things(i).state), 20, 14
+            end if
         case KBIN
             ' eyes under its lid while its cat, the thing after it, is in it
             Blit art, x - 9, y - 24, IBIN - 2 * (lv.things(i + 1).state <> 0), 18, 25
         case KCRAB
-            if lv.things(i).state then Blit art, x - 12, y - 15, CrabPic%(se, lv.things(i).state), 24, 15
+            if lv.things(i).state then
+                Blit art, x - 12, y - 15, CrabPic%(se, lv.things(i).state), 24, 15
+            end if
         case KSPRING
             ' the sands' is a deck chair, the wood's a toadstool
             if zn.id = 2 then
@@ -232,18 +248,26 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
                 Blit art, x - PIPER, y - PIPER, k, PIPER, PIPER + TS
             end if
         case KSLED
-            if lv.things(i).state = 0 then Blit art, x - 15, y - 25, ISLED + 4, 30, 42
+            if lv.things(i).state = 0 then
+                Blit art, x - 15, y - 25, ISLED + 4, 30, 42
+            end if
         case KTHROW
-            if lv.things(i).state then Blit art, x - 14, y - 25, IFORT - 2 * Risen%(lv, i) - 4 * (lv.things(i).state < 0), 28, 26
+            if lv.things(i).state then
+                Blit art, x - 14, y - 25, IFORT - 2 * Risen%(lv, i) - 4 * (lv.things(i).state < 0), 28, 26
+            end if
         case KDRIFT
             Blit art, x - 28, y - 11, IDRIFT, 56, 12
         case KICICLE
             ' loosed, it trembles
             k = lv.things(i).state > 0 and lv.things(i).state <= TREMBLE and (se.ticks and 2) <> 0
-            if lv.things(i).state >= 0 then Blit art, x - 3 - k, y + Fallen%(lv, i), IICICLE, 7, 16
+            if lv.things(i).state >= 0 then
+                Blit art, x - 3 - k, y + Fallen%(lv, i), IICICLE, 7, 16
+            end if
         case KSWEEP
             k = ISWEEP + ((se.ticks \ 6) and 1) * 2 - 4 * (lv.things(i).state > 0)
-            if lv.things(i).state then Blit art, x - 15, y - 19, k, 30, 20
+            if lv.things(i).state then
+                Blit art, x - 15, y - 19, k, 30, 20
+            end if
         case KSPARK
             DrawSpark lv, art, se, i, x, y, cx
         case KPRESS
@@ -269,7 +293,9 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
         case KLOAD
             DrawLoad lv, art, se, i, x, y
         case KHEAP
-            if lv.things(i).state then Blit art, x - 30, y - 33, IHEAP, 60, 34
+            if lv.things(i).state then
+                Blit art, x - 30, y - 33, IHEAP, 60, 34
+            end if
         case KSPAN
             ' three planks; tottering, it shakes
             if lv.things(i).state then y = y + ((se.ticks \ 2) and 1)
@@ -307,7 +333,9 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
         case KSQUIRREL
             ' an acorn held out, it is about to drop it
             k = ISQUIRREL - 2 * (abs(lv.things(i).state) <= SQAIM) - 4 * (lv.things(i).state > 0)
-            if lv.things(i).state then Blit art, x - 10, y - 17, k, 20, 18
+            if lv.things(i).state then
+                Blit art, x - 10, y - 17, k, 20, 18
+            end if
         case KFAM
             ' who meets Charlie: they cheer once it has come to them
             DrawFamily art, se, x, y, se.cheer
@@ -319,7 +347,9 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
             if zn.id = 3 then k = IGEYSER
             Blit art, x - 8, y - 6, k, 16, 6
             f = k + 2 + ((se.ticks \ 3) and 1) * 2
-            if (se.ticks + lv.things(i).at.x) mod 180 < 80 then Blit art, x - 6, y - 70, f, 12, 64
+            if (se.ticks + lv.things(i).at.x) mod 180 < 80 then
+                Blit art, x - 6, y - 70, f, 12, 64
+            end if
         case KBUMP
             Blit art, x - 12, y - 12, IBUMP - 2 * (lv.things(i).state > 0), 24, 24
         case KBUOY

@@ -54,7 +54,9 @@ sub DrawFloat (art as Store, se as Session, x as integer, y as integer, wx as in
     k = IWHEEL + ((wx \ 6) and 1) * 2
     Blit art, x - 33, y - 18, k, 18, 18
     Blit art, x + 15, y - 18, k, 18, 18
-    if a and 1 then Blit art, x - 42, ry - 35, BaronPic%(se, 0), 40, 44
+    if a and 1 then
+        Blit art, x - 42, ry - 35, BaronPic%(se, 0), 40, 44
+    end if
 end sub
 
 ' The Baron's picture: sat, his tail swaying and now and then a blink; or pointing.

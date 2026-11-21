@@ -71,7 +71,9 @@ private function PilotSwim% (lv as Level, zn as Realm, p as Hero, k as Pad)
     want = Solid%(lv, cint(p.at.x) + HW + 2, cint(p.at.y) - 11)
     for i = lv.first(cint(p.at.x) \ TS) to lv.n_things - 1
         if lv.things(i).at.x > p.at.x + 34 then exit for
-        if lv.things(i).kind = KJELLY and lv.things(i).at.x > p.at.x then want = -1
+        if lv.things(i).kind = KJELLY and lv.things(i).at.x > p.at.x then
+            want = -1
+        end if
     next
     PilotSwim% = want
     ' Kipper's boat about: still, and a hop as it comes, to come down on its deck
@@ -126,7 +128,9 @@ private function PilotRun% (lv as Level, gr as Ground, zn as Realm, se as Sessio
     x = cint(p.at.x)
     y = cint(p.at.y)
     i = x + 22 + cint(abs(p.gsp)) \ 40
-    if Surf%(lv, i, y) = NONE and Surf%(lv, i, y + 2 * TS) = NONE and not Ribbon%(gr, x) then want = -1
+    if Surf%(lv, i, y) = NONE and Surf%(lv, i, y + 2 * TS) = NONE and not Ribbon%(gr, x) then
+        want = -1
+    end if
     ' a wall, not a ramp's foot
     if Solid%(lv, x + 13, y - 20) then want = -1
     for i = lv.first(x \ TS) to lv.n_things - 1
@@ -141,13 +145,17 @@ private function PilotRun% (lv as Level, gr as Ground, zn as Realm, se as Sessio
         ' he goes
         d = lv.things(i).kind = KJELLY or lv.things(i).kind = KSPARK or (lv.things(i).kind = KCRAB and abs(lv.things(i).state) = 1)
         d = d or ((lv.things(i).kind = KSWEEP or lv.things(i).kind = KTHROW) and lv.things(i).state <> 0)
-        if d and lv.things(i).at.x <= x + 34 + abs(cint(p.gsp)) \ 8 then want = -1
+        if d and lv.things(i).at.x <= x + 34 + abs(cint(p.gsp)) \ 8 then
+            want = -1
+        end if
     next
     PilotPress lv, se, p, k, want
     PilotTipper lv, se, p, k
     PilotGoat lv, p, k, want
     k.down = Rams%(lv, zn, p)
-    if zn.id = 5 and p.roll and lv.cart.st = 1 and lv.cart.at.x - p.at.x > OUTRUN then want = -1
+    if zn.id = 5 and p.roll and lv.cart.st = 1 and lv.cart.at.x - p.at.x > OUTRUN then
+        want = -1
+    end if
     if zn.id = 4 then PilotCurl lv, p, k, want
     PilotGaps lv, se, p, k, want
     if zn.id = 4 then PilotDig lv, p, k, want
@@ -228,7 +236,9 @@ private sub PilotPress (lv as Level, se as Session, p as Hero, k as Pad, want as
     d = lv.things(i).at.x - 26 - cint(p.at.x)
     if d < 60 then want = 0
     if d <= 0 or d >= 40 + cint(p.gsp) \ 5 then exit sub
-    if (PressT%(lv, se, i) + 22) mod PRESSP > 52 then HoldBack p, k, 20
+    if (PressT%(lv, se, i) + 22) mod PRESSP > 52 then
+        HoldBack p, k, 20
+    end if
 end sub
 
 ' A tipper ahead: to a stop short of where its pot comes down, on once one has broken and the next is not soon.
@@ -265,7 +275,9 @@ private sub PilotGaps (lv as Level, se as Session, p as Hero, k as Pad, want as 
     for m = 0 to lv.n_movers - 1
         d = lv.movers(m).edge - x
         ' a bridge and a pier are run over; a tram's street is run along
-        if lv.movers(m).kind = 4 or lv.movers(m).kind = 6 or lv.movers(m).kind = 8 then d = NONE
+        if lv.movers(m).kind = 4 or lv.movers(m).kind = 6 or lv.movers(m).kind = 8 then
+            d = NONE
+        end if
         if d <= -4 or d >= 300 or abs(lv.movers(m).at.y + lv.movers(m).reach * (lv.movers(m).kind = 1) - y) >= 200 then continue for
         if d < 50 then want = 0
         if p.gsp > 30 + d then k.right = 0
@@ -302,7 +314,9 @@ private sub PilotFall (lv as Level, zn as Realm, p as Hero, k as Pad)
     if GoatNear%(lv, cint(p.at.x)) <> NONE then k.right = 0
     for m = 0 to lv.n_movers - 1
         d = lv.movers(m).edge - cint(p.at.x)
-        if lv.movers(m).kind = 4 or lv.movers(m).kind = 6 or lv.movers(m).kind = 8 then d = NONE
+        if lv.movers(m).kind = 4 or lv.movers(m).kind = 6 or lv.movers(m).kind = 8 then
+            d = NONE
+        end if
         if d <= -40 or d >= 260 or p.coyote > 0 or p.vel.x <= d \ 3 or p.sg = lv.movers(m).sg then continue for
         k.right = 0
         k.left = -1

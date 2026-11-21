@@ -35,7 +35,9 @@ end sub
 sub Weed (lv as Level, x as integer)
     dim i as integer
     for i = 0 to lv.n_things - 1
-        if lv.things(i).kind >= KTREE and lv.things(i).kind <= KLAMP and lv.things(i).at.x > x then lv.things(i).kind = 0
+        if lv.things(i).kind >= KTREE and lv.things(i).kind <= KLAMP and lv.things(i).at.x > x then
+            lv.things(i).kind = 0
+        end if
     next
 end sub
 
@@ -94,9 +96,13 @@ sub Pit (lv as Level, c as integer, g as integer, n as integer)
     y = (MH - g + PITD) * TS
     for i = 0 to n - 1
         Column lv, c + i, g - PITD, 1
-        if i > 1 and i < n - 3 and (i and 1) = 0 and not Sunk%(lv, y) then AddObj lv, KBONE, (c + i) * TS + 8, y - 14
+        if i > 1 and i < n - 3 and (i and 1) = 0 and not Sunk%(lv, y) then
+            AddObj lv, KBONE, (c + i) * TS + 8, y - 14
+        end if
     next
-    if not Sunk%(lv, y) then AddObj lv, KSPRING, (c + n - 2) * TS + 8, y
+    if not Sunk%(lv, y) then
+        AddObj lv, KSPRING, (c + n - 2) * TS + 8, y
+    end if
 end sub
 
 ' A shelf w wide, n tiles over the ground, s, at column c; g the ground's height in tiles.

@@ -146,13 +146,17 @@ sub Flee (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as H
         end select
         ' its last bump breaks it; the twins' ball is his with the catch
         if lv.cart.hits >= Bumps%(zn) then BreakCart lv, mu, se, pt()
-        if zn.id = 4 and lv.cart.st = 2 then TakeKeep lv, mu, se, g, pt()
+        if zn.id = 4 and lv.cart.st = 2 then
+            TakeKeep lv, mu, se, g, pt()
+        end if
     case 2
         if zn.id = 1 and lv.cart.t > 2 - TOOLFALL then exit sub
         ' the sands' keepsake floats
         if zn.id = 2 then lv.cart.at.y = lv.tide
         ' over it will do: he comes down off the last bump past it
-        if abs(p.at.x - lv.cart.at.x) < 16 and p.at.y > lv.cart.at.y - 90 and p.at.y < lv.cart.at.y + 8 then TakeKeep lv, mu, se, g, pt()
+        if abs(p.at.x - lv.cart.at.x) < 16 and p.at.y > lv.cart.at.y - 90 and p.at.y < lv.cart.at.y + 8 then
+            TakeKeep lv, mu, se, g, pt()
+        end if
     end select
 end sub
 
@@ -289,7 +293,9 @@ private function LegPace! (lv as Level, se as Session)
     case 2
         LegPace! = LEGV + BOB * (1 - 2 * (beat and 1))
     case 3
-        if Lie%(lv, cint(lv.cart.at.x), cint(lv.cart.at.y)) < 0 then LegPace! = LEGV + SLIDE
+        if Lie%(lv, cint(lv.cart.at.x), cint(lv.cart.at.y)) < 0 then
+            LegPace! = LEGV + SLIDE
+        end if
     case 4
         if Lobbed%(lv) then LegPace! = LOBV
     end select
@@ -353,7 +359,9 @@ private sub DrawRelay (lv as Level, zn as Realm, art as Store, se as Session, cx
         exit sub
     end if
     q = (se.pulse mod PULSES) / PULSES
-    if leg = 2 and ((se.pulse \ PULSES) and 1) = 0 then up = cint(HOPUP * 4 * q * (1 - q))
+    if leg = 2 and ((se.pulse \ PULSES) and 1) = 0 then
+        up = cint(HOPUP * 4 * q * (1 - q))
+    end if
     DrawKeep zn, art, x - 9, y - 10 - up - Aloft%(lv)
     k = IRELAY + (leg * 3 + ((se.ticks \ 4) and 1)) * 2
     if leg = NLEG - 1 then
@@ -496,7 +504,9 @@ private sub DrawTwins (lv as Level, zn as Realm, art as Store, cx as integer, cy
         x = SeatX%(lv, n)
         y = SeatY%(lv, n)
         u = 0
-        if lv.cart.st = 1 and lv.cart.t > 0 then u = lv.cart.t / (DAZED * .6)
+        if lv.cart.st = 1 and lv.cart.t > 0 then
+            u = lv.cart.t / (DAZED * .6)
+        end if
         if u > 1 then u = 1
         if u > 0 then
             x = x + (SeatX%(lv, n - 2) - x) * u
@@ -624,8 +634,12 @@ private sub MoveCrane (lv as Level, p as Hero)
     if lv.cart.t > BOLTS then want = 0
     lv.cart.v = lv.cart.v + (want - lv.cart.v) * 5 * STEPT
     lv.cart.at.x = lv.cart.at.x + lv.cart.v * STEPT
-    if lv.cart.at.x < lv.chase_x + 40 then lv.cart.at.x = lv.chase_x + 40
-    if lv.cart.at.x > lv.chase_end - 40 then lv.cart.at.x = lv.chase_end - 40
+    if lv.cart.at.x < lv.chase_x + 40 then
+        lv.cart.at.x = lv.chase_x + 40
+    end if
+    if lv.cart.at.x > lv.chase_end - 40 then
+        lv.cart.at.x = lv.chase_end - 40
+    end if
 end sub
 
 ' Charlie thrown up to the crane: in the air at its gondola he bumps it and is knocked aside, out of a jet's way,
@@ -690,7 +704,9 @@ private sub DrawCrane (lv as Level, zn as Realm, art as Store, se as Session, cx
     a = (cx - lv.chase_x) \ 32
     if a < 0 then a = 0
     b = (cx + SW - lv.chase_x) \ 32
-    if b > (lv.chase_end - lv.chase_x) \ 32 - 1 then b = (lv.chase_end - lv.chase_x) \ 32 - 1
+    if b > (lv.chase_end - lv.chase_x) \ 32 - 1 then
+        b = (lv.chase_end - lv.chase_x) \ 32 - 1
+    end if
     for i = a to b
         Blit art, lv.chase_x + i * 32 - cx, y, IRAIL, 32, 8
     next

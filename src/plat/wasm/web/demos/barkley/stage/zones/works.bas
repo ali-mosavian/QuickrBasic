@@ -98,7 +98,9 @@ sub MeetSpin (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as
     a = se.ticks * .06 + x
     bx = x + cint(SPINR * cos(a))
     by = lv.things(i).at.y - SPINH + cint(SPINR * sin(a))
-    if abs(bx - cint(p.at.x)) < 11 and abs(by - cint(p.at.y) + 12) < 16 then Hurt mu, se, g, p, x, lo(), SHURT
+    if abs(bx - cint(p.at.x)) < 11 and abs(by - cint(p.at.y) + 12) < 16 then
+        Hurt mu, se, g, p, x, lo(), SHURT
+    end if
 end sub
 
 ' A hoop: through it in the air he goes on, faster, the way he was going.
@@ -160,7 +162,9 @@ sub MeetPress (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i a
     dim y as integer
     if PressT%(lv, se, i) = PRESSFALL + 10 then Sfx mu, se, SCLANK
     y = lv.things(i).at.y - PRESSUP + Stroke%(lv, se, i)
-    if abs(lv.things(i).at.x - p.at.x) < 26 and p.at.y - 26 < y and p.at.y > y - 14 then Hurt mu, se, g, p, lv.things(i).at.x, lo(), SHURT
+    if abs(lv.things(i).at.x - p.at.x) < 26 and p.at.y - 26 < y and p.at.y > y - 14 then
+        Hurt mu, se, g, p, lv.things(i).at.x, lo(), SHURT
+    end if
 end sub
 
 ' For the pilot at x: the nearest press he is under or coming to, NONE with none near.
@@ -188,7 +192,9 @@ sub DrawSpark (lv as Level, art as Store, se as Session, i as integer, x as inte
         Blit art, lv.things(i).home + f * TS - cx, y - 4, ISRAIL, TS, 4
     next
     k = ISPARK
-    if Lit%(lv, se, i) then k = ISPARK + 2 + ((se.ticks \ 3) and 1) * 2
+    if Lit%(lv, se, i) then
+        k = ISPARK + 2 + ((se.ticks \ 3) and 1) * 2
+    end if
     Blit art, x - 11, y - 24, k, 22, 22
 end sub
 

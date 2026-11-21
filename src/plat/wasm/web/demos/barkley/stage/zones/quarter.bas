@@ -115,7 +115,9 @@ sub Lines (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, pt() as
         if not Trodden%(p, y) then continue for
         Pluck lv.ropes(i), mu, se, p, u, y
         ' the cat walking it is shaken off
-        if lv.ropes(i).cat then Shaken lv, mu, se, g, pt(), lv.ropes(i).cat - 1
+        if lv.ropes(i).cat then
+            Shaken lv, mu, se, g, pt(), lv.ropes(i).cat - 1
+        end if
         exit sub
     next
 end sub
@@ -195,7 +197,9 @@ end function
 ' How high pouncer i is over its roof now: in its leap, on its arc.
 function Leapt% (lv as Level, i as integer)
     Leapt% = 0
-    if abs(lv.things(i).state) <= POUNCEN then Leapt% = Arc%(abs(lv.things(i).state) - 1)
+    if abs(lv.things(i).state) <= POUNCEN then
+        Leapt% = Arc%(abs(lv.things(i).state) - 1)
+    end if
 end function
 
 ' A pouncer's step. In its bin, state 0, till he comes within POUNCER of it; then it leaps at him, its state one
@@ -205,7 +209,9 @@ sub Pounce (lv as Level, i as integer, p as Hero)
     dim n as integer, d as integer
     if lv.things(i).state = POUNCEGONE then exit sub
     if lv.things(i).state = 0 then
-        if abs(p.at.x - lv.things(i).home) < POUNCER and abs(p.at.y - lv.things(i).at.y) < 40 then Spring lv, i, p
+        if abs(p.at.x - lv.things(i).home) < POUNCER and abs(p.at.y - lv.things(i).at.y) < 40 then
+            Spring lv, i, p
+        end if
         exit sub
     end if
     n = abs(lv.things(i).state)
@@ -299,7 +305,9 @@ sub MeetTipper (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i 
     d = PotFall%(lv, se, i)
     if d = NONE or abs(lv.things(i).at.x + POTX - cint(p.at.x)) >= POTR then exit sub
     foot = lv.things(i).at.y - SILLUP + d
-    if foot > p.at.y - 28 and foot - 14 < p.at.y then Hurt mu, se, g, p, lv.things(i).at.x + POTX, lo(), SHURT
+    if foot > p.at.y - 28 and foot - 14 < p.at.y then
+        Hurt mu, se, g, p, lv.things(i).at.x + POTX, lo(), SHURT
+    end if
 end sub
 
 ' Tipper i, its house's middle at x and its foot at y on the screen: the house; its cat at the upper window, a paw
@@ -332,7 +340,9 @@ sub MeetMortar (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i 
         Toss p, cint(p.at.y), MORTARV
         exit sub
     end if
-    if dx < BLASTW and abs(up + MORTARH) < 12 then Hurt mu, se, g, p, lv.things(i).at.x, lo(), SHURT
+    if dx < BLASTW and abs(up + MORTARH) < 12 then
+        Hurt mu, se, g, p, lv.things(i).at.x, lo(), SHURT
+    end if
 end sub
 
 ' Mortar i at x, y on the screen: its tube; its fuse alight the beat before it fires; its flash; its shell a beat on
@@ -345,7 +355,9 @@ sub DrawMortar (lv as Level, art as Store, se as Session, i as integer, x as int
         line (x - 3, y - 21)-(x - 2, y - 13), CWHITE, BF
         line (x - 7, y - 18)-(x + 2, y - 17), CWHITE, BF
     end if
-    if q >= (MORTARBAR - 1) * PULSES and (se.ticks and 4) then line (x - 3, y - 16)-(x - 2, y - 15), CLANT, BF
+    if q >= (MORTARBAR - 1) * PULSES and (se.ticks and 4) then
+        line (x - 3, y - 16)-(x - 2, y - 15), CLANT, BF
+    end if
     if q < PULSES then
         h = SHELLUP * q \ PULSES
         line (x - 3, y - 18 - h)-(x - 2, y - 15 - h), CLANT, BF
@@ -375,12 +387,16 @@ end function
 sub Snatch (lv as Level, mu as Deck, se as Session, i as integer, lo() as Loose, pt() as Part)
     dim b as integer, n as integer
     b = NONE
-    if se.loose_n > 0 and abs(lv.things(i).state) = 1 then b = Spied%(lv, i, lo())
+    if se.loose_n > 0 and abs(lv.things(i).state) = 1 then
+        b = Spied%(lv, i, lo())
+    end if
     if b = NONE then
         Prowl lv, i
         exit sub
     end if
-    if abs(lo(b).at.x - lv.things(i).at.x) >= 1 then lv.things(i).state = sgn(lo(b).at.x - lv.things(i).at.x)
+    if abs(lo(b).at.x - lv.things(i).at.x) >= 1 then
+        lv.things(i).state = sgn(lo(b).at.x - lv.things(i).at.x)
+    end if
     for n = 1 to SNATCHV
         if abs(lo(b).at.x - lv.things(i).at.x) < SNATCHR then exit for
         if not Paced%(lv, i) then exit for
@@ -395,7 +411,9 @@ end sub
 ' A snatcher's picture by its state: the cat's, of its own set.
 function SnatchPic% (se as Session, s as integer)
     SnatchPic% = ISNATCH + CatPic%(se, s) - ICAT
-    if abs(s) > 1 then SnatchPic% = ISNATCH + 8 + CatPic%(se, s) - ICATF
+    if abs(s) > 1 then
+        SnatchPic% = ISNATCH + 8 + CatPic%(se, s) - ICATF
+    end if
 end function
 
 ' Rope-walker i shaken off its line: beaten, where it was.

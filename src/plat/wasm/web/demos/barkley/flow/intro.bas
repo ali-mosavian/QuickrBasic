@@ -247,7 +247,9 @@ end function
 ' Where cue i is at beat t, in the world: along its way, eased, a hop's arc over it.
 sub CueAt (lv as Level, cu() as Cue, i as integer, t as single, x as integer, y as integer)
     dim u as single, v as single
-    if cu(i).t1 > cu(i).t0 then u = (t - cu(i).t0) / (cu(i).t1 - cu(i).t0)
+    if cu(i).t1 > cu(i).t0 then
+        u = (t - cu(i).t0) / (cu(i).t1 - cu(i).t0)
+    end if
     v = u
     if cu(i).ease = 1 then v = u * u
     if cu(i).ease = 2 then v = u * (2 - u)
@@ -266,7 +268,9 @@ sub IntroDraw (wd as World, g as Game, p as Hero, cu() as Cue)
     DrawTiles wd.lv, wd.zn, wd.art, cx, cy
     DrawThings wd.lv, wd.zn, wd.art, wd.se, cx, cy, 0
     do while cu(i).kind
-        if now >= cu(i).t0 and now < cu(i).t1 then DrawCue wd, cu(), i, now, p, cx, cy
+        if now >= cu(i).t0 and now < cu(i).t1 then
+            DrawCue wd, cu(), i, now, p, cx, cy
+        end if
         i = i + 1
     loop
     line (0, 0)-(SW - 1, BARH - 1), 0, BF

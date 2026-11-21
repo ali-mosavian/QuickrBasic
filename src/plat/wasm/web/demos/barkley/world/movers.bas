@@ -80,15 +80,23 @@ sub Movers (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero)
             y = y + lv.movers(m).reach * Swing!(lv, se, m, 0)
         case 6
             ' a pier's span: trodden, it totters a moment, then falls from under who is on it, and stays fallen
-            if lv.movers(m).t > 0 or (p.ground and p.sg = s) then lv.movers(m).t = lv.movers(m).t + STEPT
-            if lv.movers(m).t > SPANT + 2 then lv.movers(m).t = SPANT + 2
+            if lv.movers(m).t > 0 or (p.ground and p.sg = s) then
+                lv.movers(m).t = lv.movers(m).t + STEPT
+            end if
+            if lv.movers(m).t > SPANT + 2 then
+                lv.movers(m).t = SPANT + 2
+            end if
             lv.things(lv.movers(m).thing).state = lv.movers(m).t > 0 and lv.movers(m).t < SPANT
             if lv.movers(m).t >= SPANT then
-                if lv.movers(m).t - STEPT < SPANT then Sfx mu, se, SCRACK
+                if lv.movers(m).t - STEPT < SPANT then
+                    Sfx mu, se, SCRACK
+                end if
                 if p.ground and p.sg = s then Drop gr, p
                 dy = lv.movers(m).t - SPANT
                 y = y + 80 * dy + GRAV * dy * dy
-                if y > lv.movers(m).at.y + SPANDROP then y = lv.movers(m).at.y + SPANDROP
+                if y > lv.movers(m).at.y + SPANDROP then
+                    y = lv.movers(m).at.y + SPANDROP
+                end if
             end if
         case 2
             if p.ground and p.sg = s then
@@ -97,11 +105,17 @@ sub Movers (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero)
                 lv.movers(m).t = lv.movers(m).t - 60 * STEPT
             end if
             if lv.movers(m).t < 0 then lv.movers(m).t = 0
-            if lv.movers(m).t > lv.movers(m).reach then lv.movers(m).t = lv.movers(m).reach
+            if lv.movers(m).t > lv.movers(m).reach then
+                lv.movers(m).t = lv.movers(m).reach
+            end if
             y = y - lv.movers(m).t
         case 4
-            if lv.things(lv.movers(m).button).state then lv.movers(m).t = lv.movers(m).t + 200 * STEPT
-            if lv.movers(m).t > lv.movers(m).reach then lv.movers(m).t = lv.movers(m).reach
+            if lv.things(lv.movers(m).button).state then
+                lv.movers(m).t = lv.movers(m).t + 200 * STEPT
+            end if
+            if lv.movers(m).t > lv.movers(m).reach then
+                lv.movers(m).t = lv.movers(m).reach
+            end if
             y = y - lv.movers(m).t
         case 3, 7, 8
             ' while stood on: a basket down its cable, faster as it goes, a chair up its own steadily, a tram along

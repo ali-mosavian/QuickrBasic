@@ -61,7 +61,9 @@ end sub
 sub Tick (wd as World, g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
     wd.se.ticks = wd.se.ticks + 1
     KeepBeat wd.mu, wd.se
-    if wd.zn.id = 1 and (wd.se.ticks and 3) = 0 then Cycle wd.tn, wd.se
+    if wd.zn.id = 1 and (wd.se.ticks and 3) = 0 then
+        Cycle wd.tn, wd.se
+    end if
     if wd.lv.murk then Nightfall wd.lv, wd.zn, wd.tn
     if wd.lv.tide_lo <> NONE then Flow wd.lv, wd.se
     if wd.lv.n_movers then Movers wd.lv, wd.gr, wd.mu, wd.se, p
@@ -77,9 +79,13 @@ sub Tick (wd as World, g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Pa
     case CLEARED
         ClearedStep wd, g, p, k, lo(), pt()
     case OVER
-        if g.mode_t > OVERT or (g.mode_t > 1.5 and (k.hit or k.start)) or k.quit then ResetWorld wd, g, p, lo(), pt()
+        if g.mode_t > OVERT or (g.mode_t > 1.5 and (k.hit or k.start)) or k.quit then
+            ResetWorld wd, g, p, lo(), pt()
+        end if
     end select
-    if (wd.se.ticks and 1) = 0 then Things wd.lv, wd.mu, wd.se, g, p, lo(), pt()
+    if (wd.se.ticks and 1) = 0 then
+        Things wd.lv, wd.mu, wd.se, g, p, lo(), pt()
+    end if
     Shimmer wd.zn, wd.tn, wd.se
     Spent k
 end sub
@@ -91,7 +97,9 @@ private sub TitleStep (wd as World, g as Game, p as Hero, k as Pad, lo() as Loos
     if p.dead then
         ResetWorld wd, g, p, lo(), pt()
     elseif p.at.x >= wd.lv.goal_x then
-        if Met%(wd, g, p, k, pt()) then ResetWorld wd, g, p, lo(), pt()
+        if Met%(wd, g, p, k, pt()) then
+            ResetWorld wd, g, p, lo(), pt()
+        end if
     else
         Pilot wd.lv, wd.gr, wd.zn, wd.se, p, auto, wd.pilot
         MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, auto, pt()
@@ -185,12 +193,24 @@ sub ResetWorld (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
         if wd.lv.things(i).kind = KTIPPER then continue for
         wd.lv.things(i).state = 0
         if wd.lv.things(i).kind = KBONE then wd.lv.things(i).state = 1
-        if wd.lv.things(i).kind = KCAT or wd.lv.things(i).kind = KCRAB or wd.lv.things(i).kind = KSWEEP then wd.lv.things(i).state = -1
-        if wd.lv.things(i).kind = KWALKER or wd.lv.things(i).kind = KSNATCH then wd.lv.things(i).state = -1
-        if wd.lv.things(i).kind = KJELLY then wd.lv.things(i).state = 1
-        if wd.lv.things(i).kind = KTHROW then wd.lv.things(i).state = THROWC
-        if wd.lv.things(i).kind = KSQUIRREL then wd.lv.things(i).state = SQWAIT
-        if wd.lv.things(i).kind = KGOAT or wd.lv.things(i).kind = KWALL then wd.lv.things(i).state = 1
+        if wd.lv.things(i).kind = KCAT or wd.lv.things(i).kind = KCRAB or wd.lv.things(i).kind = KSWEEP then
+            wd.lv.things(i).state = -1
+        end if
+        if wd.lv.things(i).kind = KWALKER or wd.lv.things(i).kind = KSNATCH then
+            wd.lv.things(i).state = -1
+        end if
+        if wd.lv.things(i).kind = KJELLY then
+            wd.lv.things(i).state = 1
+        end if
+        if wd.lv.things(i).kind = KTHROW then
+            wd.lv.things(i).state = THROWC
+        end if
+        if wd.lv.things(i).kind = KSQUIRREL then
+            wd.lv.things(i).state = SQWAIT
+        end if
+        if wd.lv.things(i).kind = KGOAT or wd.lv.things(i).kind = KWALL then
+            wd.lv.things(i).state = 1
+        end if
     next
     for i = 0 to NLOB - 1
         wd.lv.lobs(i).live = 0

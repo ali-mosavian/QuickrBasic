@@ -74,8 +74,12 @@ sub DrawOver (lv as Level, zn as Realm, art as Store, cx as integer, cy as integ
     do while i < lv.n_things
         x = lv.things(i).at.x - cx
         if x > SW then exit do
-        if lv.things(i).kind = KWAVE2 then Blit art, x, lv.things(i).at.y - cy - WAVEA - 22, zn.wave + 2, WAVEL, WAVEH
-        if lv.things(i).kind = KLOG then Blit art, x - LOGR, lv.things(i).at.y - cy - 31, ILOG, 64, 32
+        if lv.things(i).kind = KWAVE2 then
+            Blit art, x, lv.things(i).at.y - cy - WAVEA - 22, zn.wave + 2, WAVEL, WAVEH
+        end if
+        if lv.things(i).kind = KLOG then
+            Blit art, x - LOGR, lv.things(i).at.y - cy - 31, ILOG, 64, 32
+        end if
         i = i + 1
     loop
 end sub
@@ -103,7 +107,9 @@ sub DrawHero (gr as Ground, art as Store, se as Session, p as Hero, cx as intege
     Footing gr, p, hu, hv, a, tw
     v = p.vel.x
     if p.ground then v = p.gsp
-    if abs(v) > 400 and not p.dead then SpeedLines se, x, y - cint(14 * hu), sgn(v)
+    if abs(v) > 400 and not p.dead then
+        SpeedLines se, x, y - cint(14 * hu), sgn(v)
+    end if
     f = HeroFrame%(se, p)
     ' on a sled: it lies as the ground does, and he stands on it
     if p.sled then
@@ -187,7 +193,9 @@ private sub DrawUpright (art as Store, se as Session, p as Hero, x as integer, y
         Blit art, bx - 14, by - 28, ISNOWBALL + (int(p.anim) and 1) * 2, 28, 28
         exit sub
     end if
-    if f = FHURT or f = FSHIVER then bx = bx + ((se.ticks \ 2) and 1) * 2 - 1
+    if f = FHURT or f = FSHIVER then
+        bx = bx + ((se.ticks \ 2) and 1) * 2 - 1
+    end if
     Blit art, bx - 16, by - 31, IHERO + (p.face * NF + f) * 2, 32, 32
 end sub
 

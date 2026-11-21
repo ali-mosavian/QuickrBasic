@@ -140,7 +140,9 @@ sub Touch (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as 
         case KGOAL
             if px >= x then lv.things(i).state = 1
         case KTHORN
-            if dx < 12 and abs(py - lv.things(i).at.y) < 8 then Hurt mu, se, g, p, x, lo(), SHURT
+            if dx < 12 and abs(py - lv.things(i).at.y) < 8 then
+                Hurt mu, se, g, p, x, lo(), SHURT
+            end if
         case KBUTTON
             MeetButton lv, mu, se, p, i, pt()
         case KJET
@@ -207,23 +209,33 @@ sub Things (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() a
         case KPOUNCE
             Pounce lv, i, p
         case KSNATCH
-            if lv.things(i).state <> 0 then Snatch lv, mu, se, i, lo(), pt()
+            if lv.things(i).state <> 0 then
+                Snatch lv, mu, se, i, lo(), pt()
+            end if
         case KMORTAR
             Mortar lv, mu, se, i
         case KTIPPER
             Tipper lv, mu, se, i, pt()
         case KSPRING, KBUMP, KHOOP, KSAPLING, KAWNING
-            if lv.things(i).state > 0 then lv.things(i).state = lv.things(i).state - 1
+            if lv.things(i).state > 0 then
+                lv.things(i).state = lv.things(i).state - 1
+            end if
         case KBRAMBLE
             Regrow lv, se, pt(), i
         case KVINE
-            if p.vine <> i + 1 then lv.things(i).state = lv.things(i).state * 7 \ 8
+            if p.vine <> i + 1 then
+                lv.things(i).state = lv.things(i).state * 7 \ 8
+            end if
         case KBUOY
             lv.things(i).at.y = Bob%(lv, lv.things(i).at.x, -4, 9)
-            if lv.things(i).state > 0 then lv.things(i).state = lv.things(i).state - 1
+            if lv.things(i).state > 0 then
+                lv.things(i).state = lv.things(i).state - 1
+            end if
         case KJELLY
             lv.things(i).at.y = Bob%(lv, lv.things(i).at.x, JELLYD, 0)
-            if lv.things(i).state > 1 then lv.things(i).state = lv.things(i).state - 1
+            if lv.things(i).state > 1 then
+                lv.things(i).state = lv.things(i).state - 1
+            end if
         end select
     next
     if lv.n_ropes then Settle lv

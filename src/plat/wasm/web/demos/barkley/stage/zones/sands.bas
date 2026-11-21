@@ -51,7 +51,9 @@ sub MeetFlume (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
     px = cint(p.at.x)
     py = cint(p.at.y)
     if not p.ground or px < lv.things(i).at.x or px >= lv.things(i).at.x + TS then exit sub
-    if py > lv.things(i).at.y - 6 and py < lv.things(i).at.y + TS + 6 then Slide mu, se, p
+    if py > lv.things(i).at.y - 6 and py < lv.things(i).at.y + TS + 6 then
+        Slide mu, se, p
+    end if
 end sub
 
 ' Charlie at crab i. Down on its back he goes up off it, higher off its shell, and it ducks in a while; at its
@@ -64,7 +66,9 @@ sub MeetCrab (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as
         p.vel.y = -BOUNCEV
         if abs(lv.things(i).state) > 1 then p.vel.y = -STEPV
         p.jumped = 0
-        if abs(lv.things(i).state) < SHELLT \ 3 then lv.things(i).state = sgn(lv.things(i).state) * (SHELLT \ 3)
+        if abs(lv.things(i).state) < SHELLT \ 3 then
+            lv.things(i).state = sgn(lv.things(i).state) * (SHELLT \ 3)
+        end if
         Sfx mu, se, SSPRING
     elseif abs(lv.things(i).state) = 1 then
         Hurt mu, se, g, p, lv.things(i).at.x, lo(), SHURT
@@ -158,7 +162,9 @@ end sub
 sub Flock (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
     dim i as integer
     for i = 0 to lv.n_gulls - 1
-        if lv.gulls(i).st > 0 then Gull mu, se, lv.gulls(i), i, g, p, lo(), pt()
+        if lv.gulls(i).st > 0 then
+            Gull mu, se, lv.gulls(i), i, g, p, lo(), pt()
+        end if
     next
 end sub
 
@@ -170,7 +176,9 @@ sub DrawGulls (lv as Level, art as Store, se as Session, cx as integer, cy as in
         y = cint(lv.gulls(i).at.y) - cy
         if lv.gulls(i).st <= 0 or x <= -20 or x >= SW + 20 then continue for
         k = IGULL - 4 * lv.gulls(i).face
-        if lv.gulls(i).st <> GDIVE then k = k + ((se.ticks \ 8) and 1) * 2
+        if lv.gulls(i).st <> GDIVE then
+            k = k + ((se.ticks \ 8) and 1) * 2
+        end if
         Blit art, x - 13, y - 10, k, 26, 20
         if lv.gulls(i).loot then Blit art, x - 5, y + 3, IBONE, 10, 10
     next

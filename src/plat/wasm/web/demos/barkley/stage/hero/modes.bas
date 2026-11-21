@@ -83,7 +83,9 @@ sub Tunnel (lv as Level, mu as Deck, se as Session, p as Hero, pt() as Part)
         p.vel.x = sgn(dx) * DIGV
         p.at.x = p.at.x + p.vel.x * STEPT
         p.at.y = p.at.y + (lv.things(i).at.y - p.at.y) * DIGV * STEPT / abs(dx)
-        if lv.things(i).kind = KMOUND and (se.ticks and 3) = 0 then Burst se, pt(), p.at.x, p.at.y, 2, 50, CLOAM
+        if lv.things(i).kind = KMOUND and (se.ticks and 3) = 0 then
+            Burst se, pt(), p.at.x, p.at.y, 2, 50, CLOAM
+        end if
         exit sub
     end if
     p.at.x = lv.things(i).at.x
@@ -155,7 +157,9 @@ sub Soak (lv as Level, se as Session, p as Hero, pt() as Part)
     if p.wet <= 0 then exit sub
     if p.roll and p.ground then
         p.wet = p.wet - STEPT
-        if p.wet <= 0 then Burst se, pt(), p.at.x, p.at.y - 12, 10, 130, CSEA + 1
+        if p.wet <= 0 then
+            Burst se, pt(), p.at.x, p.at.y - 12, 10, 130, CSEA + 1
+        end if
     elseif (se.ticks and 7) = 0 then
         Emit se, pt(), p.at.x, p.at.y - 14, 0, 30, .3, CSEA + 2
     end if

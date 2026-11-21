@@ -61,7 +61,9 @@ private function TileSeg% (gr as Ground, x as integer, y as single)
     if s < 0 then exit function
     ' past a loop that stands in the column: the stretch after it
     if x > gr.pt(s + 1).at.x then s = s + LOOPN + 1
-    if abs(gr.pt(s).at.y + (x - gr.pt(s).at.x) * gr.pt(s).dir.y / gr.pt(s).dir.x - y) < 4 then TileSeg% = s
+    if abs(gr.pt(s).at.y + (x - gr.pt(s).at.x) * gr.pt(s).dir.y / gr.pt(s).dir.x - y) < 4 then
+        TileSeg% = s
+    end if
 end function
 
 ' The platform's stretch under x, at y within 4; -1 when there is none.
@@ -274,7 +276,9 @@ sub Along (gr as Ground, p as Hero, d as single)
         else
             t = t - gr.pt(i).length
         end if
-        if cr < 0 and dt < .7 then Crease p, t, dt, gr.pt(j).length, j > i
+        if cr < 0 and dt < .7 then
+            Crease p, t, dt, gr.pt(j).length, j > i
+        end if
         i = j
     loop
     p.sg = i
@@ -317,7 +321,9 @@ function Ribbon% (gr as Ground, x as integer)
     dim z as integer
     Ribbon% = 0
     for z = 0 to gr.n_cv - 1
-        if gr.cv(z).far < 0 and gr.pt(gr.cv(z).first).kind = 2 and gr.cv(z).x_lo > x - 16 and gr.cv(z).x_lo < x + 60 then Ribbon% = -1
+        if gr.cv(z).far < 0 and gr.pt(gr.cv(z).first).kind = 2 and gr.cv(z).x_lo > x - 16 and gr.cv(z).x_lo < x + 60 then
+            Ribbon% = -1
+        end if
     next
 end function
 

@@ -167,7 +167,9 @@ end sub
 ' Bramble's step: just cut, its leaves fly; cut, it grows back BRAMBLET steps on.
 sub Regrow (lv as Level, se as Session, pt() as Part, i as integer)
     if lv.things(i).state = 0 then exit sub
-    if lv.things(i).state = BRAMBLET then Burst se, pt(), csng(lv.things(i).at.x), csng(lv.things(i).at.y - 12), 10, 140, CLEAF
+    if lv.things(i).state = BRAMBLET then
+        Burst se, pt(), csng(lv.things(i).at.x), csng(lv.things(i).at.y - 12), 10, 140, CLEAF
+    end if
     lv.things(i).state = lv.things(i).state - 1
 end sub
 
@@ -188,7 +190,9 @@ private sub Buzz (mu as Deck, se as Session, b as Swarm, g as Game, p as Hero, l
     if d < BEESEE then b.st = 1
     if b.st = 1 and d > BEELOSE then b.st = 2
     if b.st = 0 then exit sub
-    if b.st = 1 and d < BEER + BEEV * STEPT then Hurt mu, se, g, p, cint(b.at.x), lo(), SHURT
+    if b.st = 1 and d < BEER + BEEV * STEPT then
+        Hurt mu, se, g, p, cint(b.at.x), lo(), SHURT
+    end if
     if b.st = 2 then
         dx = b.home.x - b.at.x
         dy = b.home.y - b.at.y
@@ -229,7 +233,9 @@ sub DrawVine (x as integer, y as integer, a as single)
         v = y + cint(j * cos(a))
         pset (u, v), CVINE
         pset (u + 1, v), CVINED
-        if j mod 7 = 3 then line (u + 2 - 5 * ((j \ 7) and 1), v)-(u + 3 - 5 * ((j \ 7) and 1), v + 1), CVINE, bf
+        if j mod 7 = 3 then
+            line (u + 2 - 5 * ((j \ 7) and 1), v)-(u + 3 - 5 * ((j \ 7) and 1), v + 1), CVINE, bf
+        end if
     next
     circle (u, v + 3), 3, CVINE
 end sub
@@ -263,17 +269,25 @@ sub Scamper (lv as Level, i as integer, p as Hero)
     n = abs(lv.things(i).state) - 1
     d = sgn(lv.things(i).state)
     quarry = abs(p.at.x - lv.things(i).home) < SQRUN + SQSEE and p.at.y > lv.things(i).at.y
-    if n = 0 and quarry and abs(p.at.x - lv.things(i).at.x) >= SQNEAR then n = 1
+    if n = 0 and quarry and abs(p.at.x - lv.things(i).at.x) >= SQNEAR then
+        n = 1
+    end if
     if n = 0 then
-        if quarry then Loft lv, lv.things(i).at.x + 5 * d, lv.things(i).at.y + 1, 0, 0, IACORN, CNUT
+        if quarry then
+            Loft lv, lv.things(i).at.x + 5 * d, lv.things(i).at.y + 1, 0, 0, IACORN, CNUT
+        end if
         n = SQWAIT
     end if
     lv.things(i).state = d * n
     if n <= SQAIM or n > SQWAIT then exit sub
     perch = lv.things(i).home
     if quarry then perch = cint(p.at.x)
-    if perch < lv.things(i).home - SQRUN then perch = lv.things(i).home - SQRUN
-    if perch > lv.things(i).home + SQRUN then perch = lv.things(i).home + SQRUN
+    if perch < lv.things(i).home - SQRUN then
+        perch = lv.things(i).home - SQRUN
+    end if
+    if perch > lv.things(i).home + SQRUN then
+        perch = lv.things(i).home + SQRUN
+    end if
     if abs(perch - lv.things(i).at.x) < SQV then exit sub
     d = sgn(perch - lv.things(i).at.x)
     lv.things(i).at.x = lv.things(i).at.x + d * SQV

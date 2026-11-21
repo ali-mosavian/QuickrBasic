@@ -172,7 +172,9 @@ end sub
 ' Whether Charlie is on bare ice: it keeps his speed and will not give it back.
 private function Slick% (lv as Level, gr as Ground, p as Hero)
     Slick% = 0
-    if gr.pt(p.sg).kind = 1 and p.at.x >= 0 then Slick% = lv.glaze(cint(p.at.x) \ TS)
+    if gr.pt(p.sg).kind = 1 and p.at.x >= 0 then
+        Slick% = lv.glaze(cint(p.at.x) \ TS)
+    end if
 end function
 
 ' On the ground: wind up, jump, roll, run; then along it, a few pixels a
@@ -265,8 +267,12 @@ private sub RollOn (p as Hero, l as integer, r as integer, grip as single)
     if (p.gsp > 0) = (sn > 0) then f = RUPS
     p.gsp = p.gsp - f * sn * STEPT
     ' a sled has no brake
-    if l and p.gsp > 0 and not p.sled then p.gsp = p.gsp - RDEC * grip * STEPT
-    if r and p.gsp < 0 and not p.sled then p.gsp = p.gsp + RDEC * grip * STEPT
+    if l and p.gsp > 0 and not p.sled then
+        p.gsp = p.gsp - RDEC * grip * STEPT
+    end if
+    if r and p.gsp < 0 and not p.sled then
+        p.gsp = p.gsp + RDEC * grip * STEPT
+    end if
     Slow p.gsp, RFRIC * grip
     if abs(p.gsp) < 30 and abs(sn) < .2 then p.roll = 0
 end sub
@@ -276,7 +282,9 @@ private sub RunOn (mu as Deck, se as Session, p as Hero, l as integer, r as inte
     dim sn as single, cs as single
     sn = sin(p.ang)
     cs = cos(p.ang)
-    if p.gsp <> 0 or abs(sn) > .75 or p.slip > 0 then p.gsp = p.gsp - SLOPE * sn * STEPT
+    if p.gsp <> 0 or abs(sn) > .75 or p.slip > 0 then
+        p.gsp = p.gsp - SLOPE * sn * STEPT
+    end if
     if p.crouch then
         Slow p.gsp, FRIC * 4 * grip
     elseif r then
@@ -292,7 +300,9 @@ private sub RunOn (mu as Deck, se as Session, p as Hero, l as integer, r as inte
         p.crouch = 0
         Sfx mu, se, SROLL
     end if
-    if p.skid and (se.ticks and 3) = 0 then Emit se, pt(), p.at.x, p.at.y - 1, -p.gsp * .1, -30, .4, CSTONE + 3
+    if p.skid and (se.ticks and 3) = 0 then
+        Emit se, pt(), p.at.x, p.at.y - 1, -p.gsp * .1, -30, .4, CSTONE + 3
+    end if
 end sub
 
 ' A key held, way 1 right or -1 left: against his speed a brake, and a skid; with it a push, up to his most.
@@ -342,7 +352,9 @@ private sub Airborne (lv as Level, gr as Ground, se as Session, p as Hero, l as 
     elseif l then
         Steer p, -1
     end if
-    if p.jumped and not hold and p.vel.y < -JUMPCUT then p.vel.y = -JUMPCUT
+    if p.jumped and not hold and p.vel.y < -JUMPCUT then
+        p.vel.y = -JUMPCUT
+    end if
     m = abs(p.vel.x)
     if abs(p.vel.y) > m then m = abs(p.vel.y)
     n = 1 + int(m * STEPT / 8)
@@ -350,7 +362,9 @@ private sub Airborne (lv as Level, gr as Ground, se as Session, p as Hero, l as 
         x0 = p.at.x
         y0 = p.at.y
         p.at.x = p.at.x + p.vel.x * STEPT / n
-        if p.vel.x <> 0 then if Wall%(lv, p, sgn(p.vel.x)) then p.vel.x = 0
+        if p.vel.x <> 0 then
+            if Wall%(lv, p, sgn(p.vel.x)) then p.vel.x = 0
+        end if
         p.at.y = p.at.y + p.vel.y * STEPT / n
         fell = p.vel.y
         landed = Curve%(gr, p, x0, y0, d)
@@ -363,7 +377,9 @@ private sub Airborne (lv as Level, gr as Ground, se as Session, p as Hero, l as 
         landed = Land%(lv, gr, p, d)
         if landed then exit for
     next
-    if landed and fell > 420 then Burst se, pt(), p.at.x, p.at.y - 2, 5, 60, CSTONE + 3
+    if landed and fell > 420 then
+        Burst se, pt(), p.at.x, p.at.y - 2, 5, 60, CSTONE + 3
+    end if
 end sub
 
 ' In the air a key held, way 1 right or -1 left: he turns that way and gathers speed, up to his most.
@@ -410,13 +426,19 @@ private sub Bark (lv as Level, mu as Deck, se as Session, p as Hero)
         dy = abs(lv.things(i).at.y - p.at.y)
         ' an icicle or a ledge's load is loosed from further under it than he can jump
         hung = lv.things(i).kind = KICICLE or lv.things(i).kind = KLOAD
-        if hung and lv.things(i).state = 0 and dx <= BARKR and dy < 140 then lv.things(i).state = 1
+        if hung and lv.things(i).state = 0 and dx <= BARKR and dy < 140 then
+            lv.things(i).state = 1
+        end if
         ' and a squirrel on its bough is cowed
         cowed = lv.things(i).kind = KSQUIRREL and lv.things(i).state <> 0 and dx <= BARKR and dy < 140
-        if cowed then lv.things(i).state = sgn(lv.things(i).state) * SQFRIGHT
+        if cowed then
+            lv.things(i).state = sgn(lv.things(i).state) * SQFRIGHT
+        end if
         ' and a pouncer in its bin leaps early, at where he is
         early = lv.things(i).kind = KPOUNCE and lv.things(i).state = 0 and dx <= BARKR and dy < 40
-        if early then lv.things(i).state = 1 + 2 * (p.at.x < lv.things(i).at.x)
+        if early then
+            lv.things(i).state = 1 + 2 * (p.at.x < lv.things(i).at.x)
+        end if
         if lv.things(i).state = 0 or dx > BARKR or dy >= 40 then continue for
         select case lv.things(i).kind
         case KCAT, KWALKER, KSNATCH

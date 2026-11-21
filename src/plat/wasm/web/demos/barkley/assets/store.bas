@@ -127,7 +127,9 @@ private sub BuildGlyphs (art as Store)
             print mid$("0123456789:xABCDEHILMNOPRST", i + 1, 1);
             for y = 0 to 7
                 for x = 0 to 7
-                    if point(x, 184 + y) then pset (x + 1, y + 1), CINK
+                    if point(x, 184 + y) then
+                        pset (x + 1, y + 1), CINK
+                    end if
                 next
             next
             for y = 0 to 7

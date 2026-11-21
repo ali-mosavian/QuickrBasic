@@ -92,7 +92,9 @@ sub MeetIcicle (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i 
     x = lv.things(i).at.x
     dx = abs(x - cint(p.at.x))
     py = cint(p.at.y)
-    if lv.things(i).state = 0 and dx < 20 and py > lv.things(i).at.y and py < lv.things(i).at.y + 140 then lv.things(i).state = 1
+    if lv.things(i).state = 0 and dx < 20 and py > lv.things(i).at.y and py < lv.things(i).at.y + 140 then
+        lv.things(i).state = 1
+    end if
     y = lv.things(i).at.y + Fallen%(lv, i)
     if lv.things(i).state <= TREMBLE or dx >= 9 or py <= y or py - 26 >= y + 16 then exit sub
     Hurt mu, se, g, p, x, lo(), SHURT
@@ -143,7 +145,9 @@ function Slid% (lv as Level, i as integer)
     n = lv.things(i).state - TREMBLE
     if n <= 0 then exit function
     x = LOADRUN * n * n \ (LOADSLIDE * LOADSLIDE)
-    if n > LOADSLIDE then x = LOADRUN + 2 * LOADRUN * (n - LOADSLIDE) \ LOADSLIDE
+    if n > LOADSLIDE then
+        x = LOADRUN + 2 * LOADRUN * (n - LOADSLIDE) \ LOADSLIDE
+    end if
     if x > LOADFAR then x = LOADFAR
     Slid% = x
 end function
@@ -171,7 +175,9 @@ sub Avalanche (lv as Level, mu as Deck, se as Session, g as Game, p as Hero)
         Sfx mu, se, SCRACK
     end if
     lv.aval.x = lv.aval.x + AVALV * STEPT
-    if (se.ticks and 15) = 0 and lv.aval.x > g.cam.x - 40 then g.shake = .12
+    if (se.ticks and 15) = 0 and lv.aval.x > g.cam.x - 40 then
+        g.shake = .12
+    end if
     if lv.aval.x > p.at.x - 6 then Lose mu, se, p
 end sub
 
@@ -255,7 +261,9 @@ sub Graze (lv as Level, se as Session, i as integer, p as Hero)
         else
             f = 1 + 2 * (p.at.x < lv.things(i).at.x)
             x = abs(p.at.x - lv.things(i).at.x) < GOATSEE and abs(p.at.y - lv.things(i).at.y) < 30
-            if x and p.goat = 0 and (not lv.gale or Lull%(lv, se) > GUSTP \ 2) then s = GOATWIND + 1
+            if x and p.goat = 0 and (not lv.gale or Lull%(lv, se) > GUSTP \ 2) then
+                s = GOATWIND + 1
+            end if
         end if
     case 2
         s = GCHARGE
@@ -341,7 +349,9 @@ sub MeetHeap (lv as Level, p as Hero, i as integer)
     if h >= HEAPH or h < -20 then exit sub
     if h < 0 then h = 0
     r = cint(HEAPR * (1 - h / HEAPH))
-    if abs(p.at.x - lv.things(i).at.x) < r then Balk p, lv.things(i).at.x, r
+    if abs(p.at.x - lv.things(i).at.x) < r then
+        Balk p, lv.things(i).at.x, r
+    end if
 end sub
 
 ' The goat not ridden within 150 of x, NONE when there is none.
@@ -353,7 +363,9 @@ function GoatNear% (lv as Level, x as integer)
     i = lv.first(c)
     do while i < lv.n_things
         if lv.things(i).home > x + 220 then exit do
-        if lv.things(i).kind = KGOAT and lv.things(i).state <> 0 and abs(lv.things(i).at.x - x) < 150 then GoatNear% = i
+        if lv.things(i).kind = KGOAT and lv.things(i).state <> 0 and abs(lv.things(i).at.x - x) < 150 then
+            GoatNear% = i
+        end if
         i = i + 1
     loop
 end function
@@ -407,7 +419,9 @@ private sub Plunge (lv as Level, mu as Deck, se as Session, g as Game, pt() as P
         Beaten lv, mu, se, g, pt(), j, 8
         Shatter lv, mu, se, pt(), i
     next
-    if lv.things(i).state > 0 and Solid%(lv, lv.things(i).at.x, y) then Shatter lv, mu, se, pt(), i
+    if lv.things(i).state > 0 and Solid%(lv, lv.things(i).at.x, y) then
+        Shatter lv, mu, se, pt(), i
+    end if
 end sub
 
 ' Whether snow-thrower i is up from behind its wall: open to a roll, and about to throw.
@@ -472,7 +486,9 @@ private sub Bury (lv as Level, mu as Deck, se as Session, g as Game, pt() as Par
         if j < 0 or j >= lv.n_things then continue for
         foe = (lv.things(j).kind = KCAT or lv.things(j).kind = KTHROW) and lv.things(j).state <> 0
         if foe = 0 or abs(lv.things(j).at.x - lv.things(h).at.x) >= HEAPR + 10 then continue for
-        if abs(lv.things(j).at.y - lv.things(h).at.y) < 24 then Beaten lv, mu, se, g, pt(), j, 8
+        if abs(lv.things(j).at.y - lv.things(h).at.y) < 24 then
+            Beaten lv, mu, se, g, pt(), j, 8
+        end if
     next
     g.shake = .3
     Burst se, pt(), csng(lv.things(h).at.x), csng(lv.things(h).at.y - 12), 16, 160, CWHITE

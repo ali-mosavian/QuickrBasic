@@ -14,7 +14,9 @@ sub LooseBones (lv as Level, se as Session, lo() as Loose, dt as single)
         lo(i).t = lo(i).t - dt
         lo(i).vel.y = lo(i).vel.y + GRAV * .6 * dt
         lo(i).at.x = lo(i).at.x + lo(i).vel.x * dt
-        if Solid%(lv, cint(lo(i).at.x), cint(lo(i).at.y) - 3) then lo(i).vel.x = -lo(i).vel.x
+        if Solid%(lv, cint(lo(i).at.x), cint(lo(i).at.y) - 3) then
+            lo(i).vel.x = -lo(i).vel.x
+        end if
         lo(i).at.y = lo(i).at.y + lo(i).vel.y * dt
         x = cint(lo(i).at.x)
         y = cint(lo(i).at.y) + 4

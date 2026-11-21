@@ -65,22 +65,32 @@ private sub DeckColumn (lv as Level, art as Store, tx as integer, cx as integer,
     x = tx * TS - cx
     y = lv.top(tx) * TS - cy
     v = lv.vis(tx)
-    if y > -TS and v <= 2 then put (x, y), art.img(art.at(IDK + (tx and 3))), pset
-    if y > -TS and v > 2 then Blit art, x, y, IZS + ((v - 4) * 4 + (tx and 3)) * 2, TS, TS
+    if y > -TS and v <= 2 then
+        put (x, y), art.img(art.at(IDK + (tx and 3))), pset
+    end if
+    if y > -TS and v > 2 then
+        Blit art, x, y, IZS + ((v - 4) * 4 + (tx and 3)) * 2, TS, TS
+    end if
     y = y + TS
     k = (tx and 3) * 8
     r = lv.top(tx) + 1
     do while (r and 7) <> 0 and y < SH
-        if y > -TS then put (x, y), art.img(art.at(IWT + k + (r and 7))), pset
+        if y > -TS then
+            put (x, y), art.img(art.at(IWT + k + (r and 7))), pset
+        end if
         r = r + 1
         y = y + TS
     loop
     do while y < SH
-        if y > -128 then put (x, y), art.img(art.at(IWS + (tx and 3))), pset
+        if y > -128 then
+            put (x, y), art.img(art.at(IWS + (tx and 3))), pset
+        end if
         y = y + 128
     loop
     y = (lv.top(tx) + 1) * TS - cy
-    if v > 2 and y < SH and y > -TS then Blit art, x, y, IZU + ((v - 4) * 4 + (tx and 3)) * 2, TS, TS
+    if v > 2 and y < SH and y > -TS then
+        Blit art, x, y, IZU + ((v - 4) * 4 + (tx and 3)) * 2, TS, TS
+    end if
 end sub
 
 ' A column of the downs: its turf, then its comb, which hangs from the world too, of period 64 by 48: a slope's turf
@@ -95,24 +105,38 @@ private sub CombColumn (lv as Level, art as Store, tx as integer, cx as integer,
     r = lv.top(tx)
     k = (tx and 3) * 3
     if r * TS > lv.tide or lv.glaze(tx) then w = WETO
-    if y > -TS and v > 2 then Blit art, x, y, IAS + w + ((v - 4) * 12 + k + r mod 3) * 2, TS, TS
-    if y > -TS and v > 0 and v <= 2 then put (x, y), art.img(art.at(IAF + w + k + r mod 3)), pset
+    if y > -TS and v > 2 then
+        Blit art, x, y, IAS + w + ((v - 4) * 12 + k + r mod 3) * 2, TS, TS
+    end if
+    if y > -TS and v > 0 and v <= 2 then
+        put (x, y), art.img(art.at(IAF + w + k + r mod 3)), pset
+    end if
     y = y + TS
     if v > 2 and y < SH then
-        if y > -TS then put (x, y), art.img(art.at(IAU + w + (v - 4) * 12 + k + r mod 3)), pset
+        if y > -TS then
+            put (x, y), art.img(art.at(IAU + w + (v - 4) * 12 + k + r mod 3)), pset
+        end if
         y = y + TS
         r = r + 1
     end if
     r = r + 1
     do while r mod 3 <> 0 and y < SH
-        if y > -TS then put (x, y), art.img(art.at(IAC + w + k + r mod 3)), pset
+        if y > -TS then
+            put (x, y), art.img(art.at(IAC + w + k + r mod 3)), pset
+        end if
         r = r + 1
         y = y + TS
     loop
     do while y < SH
-        if y > -STRIPH then put (x, y), art.img(art.at(IAL + w + (tx and 3))), pset
+        if y > -STRIPH then
+            put (x, y), art.img(art.at(IAL + w + (tx and 3))), pset
+        end if
         y = y + STRIPH
     loop
-    if lv.face_l(tx) then Bare art, x, lv.top(tx) * TS - cy, lv.face_l(tx), IAE
-    if lv.face_r(tx) then Bare art, x, lv.top(tx) * TS - cy, lv.face_r(tx), IAE + 4
+    if lv.face_l(tx) then
+        Bare art, x, lv.top(tx) * TS - cy, lv.face_l(tx), IAE
+    end if
+    if lv.face_r(tx) then
+        Bare art, x, lv.top(tx) * TS - cy, lv.face_r(tx), IAE + 4
+    end if
 end sub

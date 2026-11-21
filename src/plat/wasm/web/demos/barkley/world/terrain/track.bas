@@ -45,7 +45,9 @@ sub Track (lv as Level, gr as Ground)
         gr.col(c) = -1
     next
     for i = 0 to lv.n_things - 1
-        if lv.things(i).kind = KPIPE then gr.col((lv.things(i).at.x - PIPER) \ TS) = -2 - i
+        if lv.things(i).kind = KPIPE then
+            gr.col((lv.things(i).at.x - PIPER) \ TS) = -2 - i
+        end if
     next
     for c = 0 to lv.w - 1
         if gr.col(c) < -1 then
@@ -69,7 +71,9 @@ private sub TrackPipe (lv as Level, gr as Ground, c as integer)
     x = c * TS
     y = lv.things(-2 - gr.col(c)).at.y
     gr.col(c) = -1
-    if gr.pt(gr.n - 1).at.x <> x or gr.pt(gr.n - 1).at.y <> y then Knot gr, csng(x), csng(y), 0
+    if gr.pt(gr.n - 1).at.x <> x or gr.pt(gr.n - 1).at.y <> y then
+        Knot gr, csng(x), csng(y), 0
+    end if
     gr.cv(gr.n_cv).first = gr.n - 1
     gr.cv(gr.n_cv).far = -1
     gr.cv(gr.n_cv).x_lo = x
@@ -96,12 +100,16 @@ private sub TrackTile (lv as Level, gr as Ground, c as integer)
     yl = y - (lv.prof(k, 0) and 30)
     yr = y - (lv.prof(k, TS - 1) and 30)
     j = gr.n = 0
-    if not j then j = gr.pt(gr.n - 1).at.x <> x or gr.pt(gr.n - 1).at.y <> yl
+    if not j then
+        j = gr.pt(gr.n - 1).at.x <> x or gr.pt(gr.n - 1).at.y <> yl
+    end if
     if j then Knot gr, csng(x), csng(yl), 0
     gr.col(c) = gr.n - 1
     for i = lv.first(c) to lv.n_things - 1
         if lv.things(i).at.x >= x + TS then exit for
-        if lv.things(i).kind = KLOOP then TrackLoop gr, lv.things(i).at.x, yl
+        if lv.things(i).kind = KLOOP then
+            TrackLoop gr, lv.things(i).at.x, yl
+        end if
     next
     Knot gr, csng(x + TS), csng(yr), 1
 end sub
@@ -169,7 +177,9 @@ private sub TrackMovers (lv as Level, gr as Ground)
         lv.movers(k).sg = gr.n - 2
         lv.movers(k).cv = gr.n_cv
         lv.movers(k).t = 0
-        if lv.movers(k).kind = 4 then lv.movers(k).button = ButtonAt%(lv, lv.movers(k).button)
+        if lv.movers(k).kind = 4 then
+            lv.movers(k).button = ButtonAt%(lv, lv.movers(k).button)
+        end if
         gr.cv(gr.n_cv).first = gr.n - 2
         gr.cv(gr.n_cv).last = gr.n - 2
         gr.cv(gr.n_cv).far = -1

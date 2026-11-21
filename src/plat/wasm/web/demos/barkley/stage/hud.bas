@@ -36,7 +36,9 @@ sub Hud (art as Store, g as Game, gold as integer)
         if gold < 0 then exit for
         x = PIPX + i * 8
         line (x, PIPY)-(x + 6, PIPY + 6), CINK, BF
-        if gold and bit then line (x + 1, PIPY + 1)-(x + 5, PIPY + 5), CYELLOW, BF
+        if gold and bit then
+            line (x + 1, PIPY + 1)-(x + 5, PIPY + 5), CYELLOW, BF
+        end if
         line (x, 100 + PIPY)-(x + 6, 106 + PIPY), 0, BF
         bit = bit * 2
     next

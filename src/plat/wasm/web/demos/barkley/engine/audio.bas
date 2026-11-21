@@ -388,7 +388,9 @@ end sub
 sub NextHalf (mu as Deck, ticks as long)
     dim b as integer, loud as integer, n as integer
     ' the song picked comes in once this one has faded, or at once when it has ended
-    if mu.coming >= 0 and (mu.fade_out = 0 or mu.ended) then StartSong mu, ticks
+    if mu.coming >= 0 and (mu.fade_out = 0 or mu.ended) then
+        StartSong mu, ticks
+    end if
     if mu.ended then exit sub
     n = len(mu.song(mu.slot).order)
     b = asc(mid$(mu.song(mu.slot).order, mu.bar + 1, 1)) - 97
@@ -430,7 +432,9 @@ private sub PlayHalf (mu as Deck, sg as Song, b as integer, loud as integer)
     if mu.bar < sg.bass_in then bass = "P2"
     v = instr(sg.vo_let, mid$(sg.voicing, b + 1, 1)) - 1
     under = "P2"
-    if sg.vo_under(v) then under = Vol$(sg.lvl(3), loud, 0) + sg.half(h).under
+    if sg.vo_under(v) then
+        under = Vol$(sg.lvl(3), loud, 0) + sg.half(h).under
+    end if
     one = t + sg.vo_one(v) + Vol$(sg.lvl(0), loud, 0) + sg.half(h).one
     solo = t + sg.lead_p + Vol$(sg.lvl(1), loud, 7) + sg.half(h).lead
     two = t + sg.vo_two(v) + Vol$(sg.lvl(2), loud, 0) + sg.half(h).two
@@ -444,7 +448,9 @@ end sub
 sub StartSong (mu as Deck, ticks as long)
     ' its first note sounds once what is queued has: the sixteenths left of the song before
     mu.song_at = ticks
-    if mu.slot >= 0 then mu.song_at = ticks + play(0) * 900& \ mu.song(mu.slot).tempo
+    if mu.slot >= 0 then
+        mu.song_at = ticks + play(0) * 900& \ mu.song(mu.slot).tempo
+    end if
     mu.slot = mu.coming
     mu.bar = mu.coming_bar
     mu.half = 0
