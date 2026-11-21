@@ -38,10 +38,10 @@ from barkley.stage.zones.pass import MeetWall
 from barkley.stage.zones.quarter import Lines, MeetAwning, MeetChimney
 from barkley.stage.zones.quarter import MeetMortar, MeetPounce
 from barkley.stage.zones.quarter import MeetTipper
-from barkley.stage.zones.chase import ResetChase
 from barkley.stage.camera import Camera
 from barkley.stage.hero.push import Launch, Perch
 from barkley.stage.things.react import Rest
+from barkley.stage.things.chase import ResetChase
 
 sub Spawn ( _
     lv as Level, _

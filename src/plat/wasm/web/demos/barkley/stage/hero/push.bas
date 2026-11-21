@@ -135,3 +135,26 @@ sub Spur (p as Hero, v as single)
     p.vel.y = -180
     p.sprung = -1
 end sub
+
+' Checked to v the way he goes, on the ground or not.
+sub Check (p as Hero, v as single)
+    if p.ground then
+        p.gsp = v
+    else
+        p.vel.x = v
+    end if
+end sub
+
+' Thrown off the ground at vx, vy.
+sub Knock (p as Hero, vx as single, vy as single)
+    p.ground = 0
+    p.jumped = 0
+    p.vel.x = vx
+    p.vel.y = vy
+end sub
+
+' Knocked aside in the air at vx, vy.
+sub Bat (p as Hero, vx as single, vy as single)
+    p.vel.x = vx
+    p.vel.y = vy
+end sub
