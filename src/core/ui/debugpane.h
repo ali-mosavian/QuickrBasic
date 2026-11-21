@@ -21,6 +21,9 @@ void dpan_watch(Session *S);
 void dpan_break(Session *S);
 /* dp_hover: the mouse moved to row, col: the tooltip by it. */
 void dpan_hover(uint8_t row, uint8_t col);
+/* Stopped, the program as it ran (uimn_stopped), the pane up, the edit window on the selected
+   frame's view: its values are the ones Locals shows. */
+bool dpan_frame_shown(void);
 /* dp_tip: stopped, the program as it ran (uimn_stopped): the tooltip drawn by the name under
    the mouse or the cursor, in the selected frame's view. */
 void dpan_tip(Session *S);

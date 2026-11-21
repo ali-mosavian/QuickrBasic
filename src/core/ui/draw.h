@@ -20,7 +20,7 @@ void draw_edit_cursor(Widget *w);
 void draw_imm_cursor(Widget *w);
 /* dr_status: the status bar: the keys (draw_keys) or uimn.help after "F1=Help"; the cursor's
    line and column from column 62 when they fit, ^Q pending, Caps and Num Lock, as QBasic's. */
-void draw_status(void);
+void draw_status(Session *S);
 /* dr_skeys: the status bar's keys for the state: the immediate window's, else Continue's (a stop
    to go on from: uimn_stopped), else the editor's. */
 const StatusKeys *draw_keys(void);

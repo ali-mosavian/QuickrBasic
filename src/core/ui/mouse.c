@@ -33,10 +33,12 @@
 #include "ui/menu.h"
 #include "ui/screen.h"
 #include "ui/window.h"
+#include "plat/pclk.h"
 #include "plat/pmou.h"
 
 enum : uint8_t {
     BUTTON_LEFT = 1, /* PmouState.buttons */
+    CLICK_TICKS = 9, /* a double click's second press: within half a second */
 };
 
 void mous_init(void)
@@ -85,6 +87,13 @@ bool mous_poll(void)
 
     if (!ev)
         return false;
+
+    if (ev == MS_PRESS) { /* a double or triple click: soon after one at the same cell */
+        const uint32_t now = pclk_ticks();
+        const bool again = s.row == m->row && s.col == m->col && now - m->pressed <= CLICK_TICKS;
+        m->clicks = again && m->clicks < 3 ? (uint8_t)(m->clicks + 1) : 1;
+        m->pressed = now;
+    }
 
     m->event = ev;
     m->row = s.row;
@@ -186,10 +195,14 @@ static void edit_click(Session *const S, const uint8_t w, const uint8_t row, con
         edit_sel_mark();
     else
         e->sel_on = false;
-    if (!edit_goto(S, line))
-        return;
 
+    edit_goto(S, line);
     uimn.edline.col = (uint16_t)(col - e->x - 1 + e->left);
+
+    if (m->event == MS_PRESS && m->clicks == 2 && !(uimn.keyflags & PKEY_SHIFT))
+        edit_sel_word();
+    else if (m->event == MS_PRESS && m->clicks == 3 && !(uimn.keyflags & PKEY_SHIFT))
+        edit_sel_line(S);
 
     if (m->event == MS_PRESS && uimn.keyflags & PKEY_CTRL) /* Go to Definition, ours */
         defn_goto(S, uimn.keyflags & PKEY_ALT);

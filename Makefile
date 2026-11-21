@@ -290,6 +290,10 @@ $(MAC)/ext/qxtest.qbx: tests/ext/qxtest.bas build/host/ext/qxtest.so tools/qbx.p
 	@mkdir -p $(@D)
 	$(PY) tools/qbx.py pack $@ $< macos=build/host/ext/qxtest.so
 
+# The editor's pictures in docs/ide-design.md, taken from the Mac's window
+feel-shots: mac
+	$(PY) tools/diagrams/shots.py $(APP)/Contents/MacOS/QuickrBasic docs/img/feel
+
 # The tutorial's pictures of the synthesizer, drawn from its own samples (docs/play-tutorial.md)
 build/host/synthdump: tools/diagrams/synthdump.c src/plat/synth/synth.c src/plat/synth/synth.h
 	$(HOST_CC) -std=c23 -O2 -Wall -Wextra -Isrc $(filter %.c,$^) -o $@

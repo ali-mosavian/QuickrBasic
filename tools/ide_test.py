@@ -284,9 +284,10 @@ def play() -> None:
     press("tab", "enter")
     assert "SQ.BAS" in look()[1] and text()[:3] == ["FOR I = 1 TO 3", "  PRINT I * I", "NEXT"], look()
 
-    # Find selects the match; Change All.
+    # Find's bar selects the match as it is typed; Esc leaves it selected. Change All.
     press(f"0x{ALT_S:x}", "f")
-    keys("i * i\n")
+    keys("i * i")
+    press("esc")
     assert look()[24].endswith("00002:014"), look()[24]
     press(f"0x{ALT_S:x}", "c")
     keys("3")
@@ -317,32 +318,16 @@ def play() -> None:
     assert text()[0] == "FOR I = 1 TO 4" and not any("COMPLETE" in r for r in look()), look()
     # Ctrl+L repeats the find, as QBasic.
     press("0x77", f"0x{ALT_S:x}", "f")
-    keys("i\n")
+    keys("i")
+    press("esc")
     s.send({"cmd": "key", "scancode": 0x26, "ascii": 0x0C, "stop": True})
     s.run_to_key(3000)
     assert look()[24].endswith("00002:006"), look()[24]
-    # Find starts from the selection, else the word at the cursor.
+    # Find starts from the selection, else the word at the cursor, on the status row.
     press(f"0x{ALT_S:x}", "f")
-    scr = [r.ljust(80) for r in look("find")]
-    # QBasic's dlgSearchFind (uisearch.des), its places client-relative.
-    assert scr[9][12:22] == "FIND WHAT:" and scr[9][24:27] == "I  ", scr
-    assert (scr[16][19:25], scr[16][34:44], scr[16][52:60]) == ("< OK >", "< CANCEL >", "< HELP >"), scr[16]
-    # Its letters lit once Alt is down (COW dlgcore.c); Alt+M checks Match.
-    assert 0x7F not in attrs(9)[11:60], attrs(9)[11:60]
-    flags(0x08)
-    s.resume(100)
-    flags(0)
-    s.resume(100)
-    assert attrs(9)[12] == 0x7F and attrs(9)[13] == 0x70, attrs(9)[11:16]
-    flags(0x08)
-    press("0x32")  # Alt+M
-    flags(0)
-    assert "[X] MATCH UPPER/LOWERCASE" in look()[13], look()
-    flags(0x08)
-    press("0x32")  # once more: off
-    flags(0)
+    assert look()[24].startswith(" FIND: I "), look()[24]
     press("esc", "0x77", *["right"] * 10, f"0x{ALT_S:x}", "f")
-    scr = look(); assert scr[9].ljust(80)[24:27] == "TO ", scr
+    assert look()[24].startswith(" FIND: TO "), look()[24]
     press("esc")
 
     # Save As, then Exit to DOS.

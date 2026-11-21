@@ -8,7 +8,22 @@
 #include "fault.h"
 
 typedef void TestFn(Session *S);
-void unit_register(const char *name, TestFn *fn);
+
+typedef struct UnitTest {
+    const char *name;
+    TestFn *fn;
+    struct UnitTest *next;
+} UnitTest;
+
+/* Tests in the order added: end is the last's next, or first. */
+typedef struct {
+    UnitTest *first, **end;
+} UnitList;
+
+/* Every TEST's. */
+extern UnitList unit_tests;
+/* t the last of l's. */
+void unit_add(UnitList *l, UnitTest *t);
 void unit_fail(const char *file, int line, const char *what);
 
 /* The program's lines (nullptr ended) as the only ones. */
@@ -28,10 +43,11 @@ Status unit_run_bytes(Session *S, const char *src, size_t n);
 
 #define TEST(name)                                                                                 \
     static void name(Session *S);                                                                  \
+    static UnitTest name##_test = {#name, name, nullptr};                                          \
     [[gnu::constructor]]                                                                           \
     static void name##_register(void)                                                              \
     {                                                                                              \
-        unit_register(#name, name);                                                                \
+        unit_add(&unit_tests, &name##_test);                                                       \
     }                                                                                              \
     static void name([[maybe_unused]] Session *const S)
 

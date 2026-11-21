@@ -96,3 +96,11 @@ TEST(tty_a_sequence_cut_short_waits_for_more)
     CHECK(!tty_parse(&t, (const uint8_t *)"\x1b[1;5", 5, false, &e));
     CHECK(!tty_parse(&t, (const uint8_t *)"\x1b", 1, false, &e));
 }
+
+/* Ctrl+/ and Ctrl+- (and Ctrl+_, which terminals send for both) were no key: now the BIOS's
+   Ctrl+- 0C1Fh, and the window's Ctrl+/ 351Fh. */
+TEST(tty_ctrl_minus_and_slash_are_keys)
+{
+    CHECK(key_of("\x1f") == 0x0C1F);
+    CHECK(host_bios_key('-', 0, PKEY_CTRL) == 0x0C1F && host_bios_key('/', 0, PKEY_CTRL) == 0x351F);
+}

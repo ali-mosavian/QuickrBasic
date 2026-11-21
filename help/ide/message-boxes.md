@@ -21,8 +21,8 @@ Messages the editor shows:
 Enter takes the default button; Esc cancels. Yes, No and Cancel can
 also be chosen by their lit letters.
 
-A syntax error found when you leave a line is shown the same way;
-see [syntax checking](syntax checking).
+A syntax error is not: it is lit in the line; see
+[syntax checking](syntax checking).
 
 ## Example
     Alt+F, O       open the Open box

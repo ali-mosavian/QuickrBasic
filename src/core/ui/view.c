@@ -31,6 +31,7 @@
 #include "ui/dialog.h"
 #include "ui/edit.h"
 #include "ui/indent.h"
+#include "ui/jumps.h"
 #include "ui/linemap.h"
 #include "ui/text.h"
 #include "ui/uimain.h"
@@ -60,6 +61,10 @@ static struct {
     uint32_t *order; /* the SUBs list's views: each file's module, then its procedures by name */
     uint32_t order_cap;
     uint32_t epoch, drops; /* the modules' (Modu's) when the views were made */
+    View *was;             /* view_rebuild's: the views before, their names */
+    uint32_t was_cap;
+    char *was_names;
+    uint32_t was_ncap;
 } vw = {.new_line = {.grows = true}};
 
 static LineBuf name_field = {.text = vw.name_text, .cap = DLBUF}; /* vw_fld: New SUB's name */
@@ -366,6 +371,47 @@ void view_reset(Session *const S)
     view_apply();
 }
 
+/* The view now that is old view v of the views and names was: its file's procedure of its name,
+   else its file's module. */
+static uint32_t now_of(const View *const was, const char *const names, const uint32_t v)
+{
+    const View *const w = &was[v];
+    uint32_t module = view_of_module(w->module);
+
+    for (uint32_t i = module + 1; w->kind && i < vw.n && vw.tab[i].kind; i++)
+        if (vw.tab[i].kind == w->kind && same_caseless(view_name(i), names + w->name))
+            return i;
+
+    return module;
+}
+
+void view_rebuild(Session *const S)
+{
+    const uint32_t n = vw.n, nlen = vw.nlen;
+
+    if (!GROW(vw.was, vw.was_cap, n) || !GROW(vw.was_names, vw.was_ncap, nlen)) {
+        scan(S);
+        windows_on_module();
+        view_apply();
+        return;
+    }
+
+    memcpy(vw.was, vw.tab, n * sizeof *vw.tab);
+    memcpy(vw.was_names, vw.names, nlen);
+    scan(S);
+
+    for (uint32_t v = 0; v < n; v++) /* the places kept */
+        keep_place(&vw.tab[now_of(vw.was, vw.was_names, v)], &vw.was[v]);
+
+    uint32_t *const views[] =
+        {&uimn.ed.view, &uimn.win.win[W_ED1].ed.view, &uimn.win.win[W_ED2].ed.view};
+
+    for (uint32_t i = 0; i < countof(views); i++)
+        *views[i] = *views[i] < n ? now_of(vw.was, vw.was_names, *views[i]) : 0;
+
+    view_apply();
+}
+
 void view_apply(void)
 {
     if (!vw.n) {
@@ -380,8 +426,9 @@ void view_apply(void)
     text_view(v->first, v->n);
 }
 
-/* View v in the active window, the cursor where it was left. */
-static void show(Session *const S, const uint32_t v)
+uint32_t view_count(void) { return vw.n; }
+
+void view_show(Session *const S, const uint32_t v)
 {
     edit_commit(S);
     View *const left = &vw.tab[uimn.ed.view]; /* the place left */
@@ -480,7 +527,7 @@ uint32_t view_goline(Session *const S, const uint32_t line)
     const uint32_t v = view_of(line);
 
     if (v != uimn.ed.view)
-        show(S, v);
+        view_show(S, v);
 
     view_apply();
     return line - uimn.text.first;
@@ -489,10 +536,10 @@ uint32_t view_goline(Session *const S, const uint32_t line)
 void view_next(Session *const S)
 {
     const uint32_t v = uimn.ed.view + 1;
-    show(S, v < vw.n ? v : 0);
+    view_show(S, v < vw.n ? v : 0);
 }
 
-void view_prev(Session *const S) { show(S, uimn.ed.view ? uimn.ed.view - 1 : vw.n - 1); }
+void view_prev(Session *const S) { view_show(S, uimn.ed.view ? uimn.ed.view - 1 : vw.n - 1); }
 
 /* A procedure at the end of the active view's file: vw.new_line, a blank a step in, its END (kind
    PK_SUB, PK_FUNC); shown, the cursor on the blank. */
@@ -522,7 +569,7 @@ static void add(Session *const S, const uint8_t k)
     v->top = 0;
     v->col = INDT_STEP;
     view_apply(); /* the old view's place kept */
-    show(S, last + 1);
+    view_show(S, last + 1);
 }
 
 /* Text line line (the active view's) an IMPORT or FROM: the modules it names loaded, shown. */
@@ -603,7 +650,7 @@ static void new_proc(Session *const S, const uint8_t k, const char *const title)
     uint32_t v;
 
     if (find(&v)) {
-        show(S, v);
+        view_show(S, v);
         return;
     }
 
@@ -714,10 +761,11 @@ void view_subs(Session *const S)
     const uint32_t v = list.n ? vw.order[list.sel] : 0;
 
     if (b == SUBS_ACTIVE) {
-        show(S, v);
+        jumps_push();
+        view_show(S, v);
     } else if (b == SUBS_SPLIT) { /* the split's other window shows it */
         wind_other(S, false);
-        show(S, v);
+        view_show(S, v);
     } else if (b == SUBS_DELETE) {
         del(S, v);
     }

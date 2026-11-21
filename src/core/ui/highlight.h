@@ -18,6 +18,18 @@ void synt_toggle(void);
 void synt_row(Session *S, uint8_t row, uint8_t col, const uint8_t *text, uint32_t len);
 /* The slot of each of the len (SYNT_KEEP at most) characters at text, to cols. */
 void synt_cols(Session *S, const uint8_t *text, uint32_t len, uint8_t cols[static SYNT_KEEP]);
+/* cols, else the len (SYNT_KEEP at most) characters' slots worked out: good till the next line's. */
+const uint8_t *synt_need(Session *S, const uint8_t *text, uint32_t len, const uint8_t *cols);
+/* A name, where cols colour one (a variable's, a parameter's, a procedure's being declared), starts
+   at text[i]: its base's length to *n, its suffix (% & ! # $, 0 none) to *sfx. */
+bool synt_name(
+    const uint8_t *text,
+    uint32_t len,
+    const uint8_t *cols,
+    uint32_t i,
+    uint32_t *n,
+    uint8_t *sfx
+);
 /* synt_row's colours from a line's cols, len characters: those shown from uimn.ed.left. */
 void synt_paint(uint8_t row, uint8_t col, const uint8_t *cols, uint32_t len);
 #endif

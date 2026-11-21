@@ -53,6 +53,11 @@ condition of a breakpoint on the cursor's line, drawn in its own
 colour: the run stops there when it is true. Watch lists these
 marked with a diamond; Del drops one, with its breakpoint.
 
+Each line of the stopped procedure shows, dim after its end, the
+values of the numbers and strings it names, as Locals has them;
+another frame chosen, that frame's lines and values. They go when
+the program is changed or runs on.
+
 Resting the mouse on a variable in the program shows its value.
 Drag the pane's left border to change its width.
 

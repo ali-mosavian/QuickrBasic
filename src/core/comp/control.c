@@ -791,14 +791,19 @@ static bool recswap(Comp *const C)
     return true;
 }
 
+/* A variable at comp.p, else a Syntax error: the grammar leaves SWAP's to ctrl_swap. */
+static void need_var(Comp *const C)
+{
+    if (comp_cur(C) != M_VAR)
+        synerr(C);
+}
+
 void ctrl_swap(Comp *const C)
 {
     if (recswap(C))
         return;
-    if (comp_cur(C) != M_VAR) /* var_leaf reads a name's number there */
-        synerr(C);
-
     const uint8_t *const a = C->p;
+    need_var(C);
     expr_load(C);
     selvar(C, 'S' - '0', comp_type(C));
     stv(C);
@@ -807,6 +812,7 @@ void ctrl_swap(Comp *const C)
         synerr(C);
 
     const uint8_t *const b = ++C->p;
+    need_var(C);
     C->p = a; /* a = b */
     expr_target(C);
     C->p = b;

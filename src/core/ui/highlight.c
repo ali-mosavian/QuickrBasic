@@ -268,6 +268,48 @@ void synt_cols(
     memcpy(cols, hl.cols, len);
 }
 
+const uint8_t *synt_need(
+    Session *const S,
+    const uint8_t *const text,
+    const uint32_t len,
+    const uint8_t *const cols
+)
+{
+    if (cols)
+        return cols;
+
+    line(S, text, len, 0, SYNT_KEEP);
+    return hl.cols;
+}
+
+static bool suffix(const uint8_t c) { return c && memchr("%&!#$", c, 5) != nullptr; }
+
+static bool name_slot(const uint8_t s) { return s == SL_NAM || s == SL_PAR || s == SL_FNM; }
+
+bool synt_name(
+    const uint8_t *const text,
+    const uint32_t len,
+    const uint8_t *const cols,
+    const uint32_t i,
+    uint32_t *const n,
+    uint8_t *const sfx
+)
+{
+    if (i >= len || i >= SYNT_KEEP || !name_slot(cols[i]) || !is_letter(text[i]))
+        return false;
+    if (i && is_name_char(text[i - 1]))
+        return false;
+
+    uint32_t j = i;
+
+    while (j < len && is_name_char(text[j]))
+        j++;
+
+    *n = j - i;
+    *sfx = j < len && suffix(text[j]) ? text[j] : 0;
+    return true;
+}
+
 void synt_paint(const uint8_t row, const uint8_t col, const uint8_t *const cols, const uint32_t len)
 {
     const uint32_t left = uimn.ed.left;
