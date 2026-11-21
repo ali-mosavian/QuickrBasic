@@ -16,6 +16,7 @@
 #include "vm/inspect.h"
 #include "ui/debugtext.h"
 #include "ui/spelling.h"
+#include "util/hash.h"
 
 enum {
     NROW = 160,  /* the rows at most */
@@ -92,13 +93,13 @@ uint16_t dloc_width(const uint8_t i) { return loc.rows[i].width; }
 static uint32_t hash(uint32_t h, const char *s, const bool nocase)
 {
     for (; *s; s++)
-        h = (h ^ (nocase ? upcase((uint8_t)*s) : (uint8_t)*s)) * 16777619u;
+        h = fnv_byte(h, nocase ? upcase((uint8_t)*s) : (uint8_t)*s);
 
     return h;
 }
 
 /* Path path's key: a name's case aside, in the frame's view. */
-static uint32_t key_of(const char *const path) { return hash(2166136261u ^ loc.view, path, true); }
+static uint32_t key_of(const char *const path) { return hash(FNV_SEED ^ loc.view, path, true); }
 
 /* key's entry in the open ones; nullptr shut. */
 static Open *opened(const uint32_t key)
@@ -116,7 +117,7 @@ static bool changed(const uint32_t key, const char *const s)
     if (!loc.newest)
         return false;
 
-    const uint32_t h = hash(2166136261u, s, false);
+    const uint32_t h = hash(FNV_SEED, s, false);
 
     for (uint32_t i = 0; i < loc.nseen && i < NSEEN; i++) {
         Seen *const e = &loc.seen[i];
@@ -389,11 +390,11 @@ uint8_t dloc_close(Session *const S, uint8_t i)
     return i;
 }
 
-const char *dloc_find(Session *const S, const uint8_t *const s, const uint32_t n, const uint8_t sfx)
+uint8_t dloc_find(Session *const S, const uint8_t *const s, const uint32_t n, const uint8_t sfx)
 {
     for (uint8_t i = 0; i < loc.n; i++)
         if (loc.rows[i].top && insp_is(S, &loc.rows[i].var, s, n, sfx))
-            return loc.rows[i].text;
+            return i;
 
-    return nullptr;
+    return DLOC_NONE;
 }

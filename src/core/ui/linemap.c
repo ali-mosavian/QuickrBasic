@@ -33,6 +33,7 @@ void lmap_init(Session *const S) { allo_new(&S->allo, LMINIT, nullptr); }
 
 void lmap_build(Session *const S)
 {
+    uimn.text.gen++; /* the text made again */
     uint32_t n = 0;
 
     for (uint32_t rec = PROGBASE; prog_line(&S->prog, rec)->len;

@@ -83,6 +83,11 @@ enum : uint8_t {
     SL_CBP,             /* the current statement on a breakpoint's line */
     SL_CHG,             /* a debug pane's value changed at the stop */
     SL_CBPL,            /* a breakpoint's line with a condition (Break When's) */
+    SL_ERR,             /* a syntax error's word */
+    SL_FIND,            /* the find bar's matches */
+    SL_MATCH,           /* the cursor's bracket's partner, its block's keywords */
+    SL_OCC,             /* the uses of the name at the cursor */
+    SL_HINT,            /* a stop's values after a line's end */
     NSLOT_TH,           /* the slots a theme lists */
     SL_HTXT = NSLOT_TH, /* the help window: text, drawn from the theme's others (them_set) */
     SL_HHEAD,           /*   a heading */
@@ -123,6 +128,7 @@ enum : uint8_t {
     SCAN_CTRL_HOME = 0x77,
     SCAN_CTRL_PGUP = 0x84,
     SCAN_ESC = 0x01,
+    SCAN_BACKSPACE = 0x0E,
     SCAN_ENTER = 0x1C,
     SCAN_L = 0x26,
     SCAN_B = 0x30,
@@ -131,6 +137,7 @@ enum : uint8_t {
     SCAN_ALT_MINUS = 0x82,
     SCAN_ALT_EQUALS = 0x83,
     SCAN_CTRL_INS = 0x92,
+    SCAN_CTRL_DEL = 0x93,
     SCAN_ALT_UP = 0x98,
     SCAN_ALT_LEFT = 0x9B,
     SCAN_ALT_RIGHT = 0x9D,
@@ -141,7 +148,15 @@ enum : uint8_t {
 };
 enum : uint16_t { KEY_SHIFT_TAB = 0x0F00 };
 /* A key's character (its low byte). */
-enum : uint8_t { CH_BACKSPACE = 0x08, CH_TAB = 0x09, CH_ENTER = 0x0D, CH_ESC = 0x1B, CH_E0 = 0xE0 };
+enum : uint8_t {
+    CH_BACKSPACE = 0x08,
+    CH_TAB = 0x09,
+    CH_ENTER = 0x0D,
+    CH_ESC = 0x1B,
+    CH_CTRL_MINUS = 0x1F, /* Ctrl+-, the BIOS's; Ctrl+/, ours */
+    CH_CTRL_BACKSPACE = 0x7F,
+    CH_E0 = 0xE0,
+};
 
 enum : uint8_t { TAB_STOP = 8 };
 /* The cursor's shapes (pscr_shape). */
@@ -215,7 +230,13 @@ typedef struct {
     void (*hook)(uint32_t line, int32_t delta); /* tx_hook: text line added (1), removed (-1) */
     void (*marks)(uint32_t nth, int32_t delta); /* the nth marked line's mark added (1), removed
                                                    (-1), TEXT_MARKS all of them */
+    void (*edits)(
+        Session *S,
+        uint32_t line,
+        uint8_t e
+    );                 /* text line line's change: TE_* (text.h) */
     bool changed;      /* tx_mod: since the program was entered (a run enters it again) */
+    uint32_t gen;      /* the text's changes so far: a cache's key */
     bool unsaved;      /* tx_chg: a file since it was saved (text_unsaved) */
     bool check;        /* syn_on: Options, Syntax Checking */
     bool asis;         /* tx_asis: the next line stored as typed */
@@ -281,6 +302,8 @@ typedef struct {
     uint8_t event;    /* ms_ev: MS_* (mouse.h) */
     uint8_t row, col; /* ms_pos: its cell at the event */
     bool hover;       /* ms_hov: a move with no button is an event (the key loop's wait) */
+    uint8_t clicks;   /* a press's: 1, 2 or 3, the presses in a row at its cell, each soon after */
+    uint32_t pressed; /* the last press's tick (pclk_ticks) */
 } UiMouse;
 
 typedef struct {

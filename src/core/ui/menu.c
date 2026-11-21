@@ -59,6 +59,9 @@ static const Item m_file[] = {
     {},
 };
 static const Item m_edit[] = {
+    {ACT_UNDO, MF_ED, "&Undo", "Ctrl+Z"},
+    {ACT_REDO, MF_ED, "&Redo", "Ctrl+Shift+Z"},
+    SEP,
     {ACT_CUT, MF_SEL, "Cu&t", "Shift+Del"},
     {ACT_COPY, MF_SEL, "&Copy", "Ctrl+Ins"},
     {ACT_PASTE, MF_CLP, "&Paste", "Shift+Ins"},
@@ -713,7 +716,7 @@ static void mn_draw(Widget *const w, Session *const S)
         box(S);
     }
 
-    draw_status();
+    draw_status(S);
 }
 
 /* Key k, KEY_MOUSE the mouse's event: the menus hidden when one is chosen or they are left. */

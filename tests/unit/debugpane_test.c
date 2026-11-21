@@ -41,6 +41,7 @@ static void stopped_in(Session *const S, const char *const *const lines)
 
     fclose(f);
     S->dbug.mode = 0;
+    S->lexr.cols = true; /* the IDE's: the highlighter's columns */
     uimn_init(S);
     them_set(0); /* the attributes a test reads: none set, all 0 */
     uimn_open(S, path);
@@ -60,6 +61,7 @@ static void done(Session *const S)
     memcpy(dir + sizeof dir - 7, "XXXXXX", 6);
     uimn.on = false;
     S->repl.keep_pre = false;
+    S->lexr.cols = false;
     session_new(S);
 }
 
@@ -781,7 +783,7 @@ TEST(debug_pane_breaks_at_a_line_when_true)
     const uint8_t row = (uint8_t)(uimn.ed.row0 + 3 - uimn.ed.top);
 
     CHECK(them_attr(SL_CBPL) != them_attr(SL_BPL));
-    CHECK(attr_at(row, (uint8_t)(uimn.ed.x + 1)) == them_attr(SL_CBPL));
+    CHECK(attr_at(row, (uint8_t)(uimn.ed.x + 2)) == them_attr(SL_CBPL)); /* x's: SL_OCC's */
     cursor_to(S, 2);
     udbg_bp(S); /* a breakpoint before it */
     continued(S);
@@ -858,5 +860,136 @@ TEST(debug_pane_breaks_in_its_procedure)
 
     CHECK(rows_are("Locals", " t = 99| i = 4"));
     CHECK(rows_are("Watch", " \x04t > 15 = (not here)"));
+    done(S);
+}
+
+/* The edit window's screen row of its line line (its view's, 0 the first). */
+static uint8_t row_of_line(const uint32_t line)
+{
+    return (uint8_t)(uimn.ed.row0 + line - uimn.ed.top);
+}
+
+/* The edit window's text on its line line, inside its borders, trailing spaces cut. */
+static const char *window_line(const uint32_t line)
+{
+    static char s[PSCR_COLS + 1];
+    uint8_t n = 0;
+
+    for (uint8_t c = 0; c < uimn.ed.width; c++)
+        s[n++] = (char)host_cell(0, row_of_line(line), (uint8_t)(uimn.ed.x + 1 + c));
+
+    while (n && s[n - 1] == ' ')
+        n--;
+
+    s[n] = 0;
+    return s;
+}
+
+static bool line_is(const uint32_t line, const char *const want)
+{
+    const char *const got = window_line(line);
+
+    if (strcmp(got, want))
+        fprintf(stderr, "  line %u: \"%s\"\n  want: \"%s\"\n", line, got, want);
+
+    return !strcmp(got, want);
+}
+
+/* At a stop the stopped call's lines had no values: each now shows those of the variables it
+   names after its end, once each, as Locals names them; an older frame chosen, its call's. */
+TEST(debug_pane_values_beside_the_code)
+{
+    stopped_in(S, fact);
+    CHECK(line_is(0, "sub fact (n%)  n% = 3"));
+    CHECK(line_is(1, "shared s$  s$ = \"hi\""));
+    CHECK(line_is(2, "t% = n% * 10  t% = 30  n% = 3"));
+    CHECK(line_is(3, "if n% > 3 then fact n% - 1  n% = 3"));
+    CHECK(line_is(4, "stop"));
+    CHECK(line_is(5, "r& = r& * n%  r& = 1  n% = 3"));
+    pane_keys(S, 2, (const uint16_t[]){K_DOWN, K_ENTER, 0});
+
+    CHECK(line_is(2, "t% = n% * 10  t% = 40  n% = 4"));
+    done(S);
+}
+
+/* A record or an array shows nothing; nor a name that is no variable of the frame. */
+TEST(debug_pane_values_of_numbers_and_strings_only)
+{
+    stopped_in(
+        S,
+        (const char *const[]){
+            "type pt",
+            "x as integer",
+            "end type",
+            "dim p as pt",
+            "dim a(2)",
+            "k = 7",
+            "p.x = k: a(1) = k: q = r",
+            "stop",
+            nullptr,
+        }
+
+    );
+    CHECK(line_is(3, "dim p as pt"));
+    CHECK(line_is(6, "p.x = k: a(1) = k: q = r  k = 7  q = 0  r = 0"));
+    done(S);
+}
+
+/* The values in SL_HINT, the code as it was; gone once the text changes. */
+TEST(debug_pane_values_dim_and_gone_with_a_change)
+{
+    stopped_in(S, (const char *const[]){"a = 1: b = 2: stop: b = 3: stop", "c = 1", nullptr});
+
+    them_qbasic();
+    shown(S);
+    CHECK(them_attr(SL_HINT) != them_attr(SL_ED));
+    const char *const code = "a = 1: b = 2: stop: b = 3: stop";
+    const uint8_t at = (uint8_t)(uimn.ed.x + 1 + strlen(code) + 2), r = row_of_line(0);
+    CHECK(line_is(0, "a = 1: b = 2: stop: b = 3: stop  a = 1  b = 2"));
+    CHECK(attr_at(r, at) == them_attr(SL_HINT) && attr_at(r, at - 3) != them_attr(SL_HINT));
+    continued(S);
+    CHECK(line_is(0, "a = 1: b = 2: stop: b = 3: stop  a = 1  b = 3"));
+    cursor_to(S, 1);
+    uimn_key(S, K_LINE_END);
+    uimn_key(S, '2');
+    uimn_key(S, K_UP);
+    shown(S);
+    CHECK(line_is(0, code));
+    done(S);
+}
+
+/* The values cut at the window's edges, the text scrolled sideways: none spills past the right
+   one into the next row. */
+TEST(debug_pane_values_cut_at_the_window)
+{
+    static char line[200];
+    const char *const code = "a1 = 1: s$ = string$(70, \"x\") ' ";
+    memset(line, 0, sizeof line);
+    strcpy(line, code);
+    memset(line + strlen(code), '-', 30);
+    stopped_in(S, (const char *const[]){line, "stop", nullptr});
+
+    const uint32_t end = (uint32_t)strlen(line) + 2; /* the values' first column */
+    const uint8_t r = row_of_line(0);
+    const uint16_t border = host_cell(0, r + 1, uimn.ed.x);
+    const uint32_t s_at = end + 8;                       /* s$'s value, after "a1 = 1  " */
+    uimn.ed.left = (uint16_t)(s_at + 4 - uimn.ed.width); /* "s$ =" shows */
+    shown(S);
+    const char *const shown_row = window_line(0);
+    CHECK(!strcmp(shown_row + strlen(shown_row) - 4, "s$ ="));
+    CHECK(host_cell(0, r + 1, uimn.ed.x) == border);
+    uimn.ed.left = (uint16_t)(end + 2); /* "a1" cut */
+    shown(S);
+    CHECK(!strncmp(window_line(0), " = 1  s$ = \"xxx", 15));
+    done(S);
+}
+
+/* The edit window on another view than the stopped frame's: its lines show nothing. */
+TEST(debug_pane_values_in_the_frame_s_view_only)
+{
+    stopped_in(S, fact);
+    edit_load(S, view_goline(S, 4)); /* the module's r& = 1 */
+    shown(S);
+    CHECK(line_is(4, "r& = 1"));
     done(S);
 }

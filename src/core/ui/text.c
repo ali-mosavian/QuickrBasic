@@ -194,18 +194,28 @@ static uint16_t neighbour(Session *const S, const uint32_t line)
     return near < uimn.text.all ? prog_line(&S->prog, lmap_off(S, near))->file : 0;
 }
 
-/* The line of len characters at src stored as text line line: before it (insert), else in its
-   place, its mark, file and source line kept; its names its file's module's. */
-static void put(
+/* Text line line's change e: uimn.text.edits told. */
+static void edited(Session *const S, const uint32_t line, const TextEdit e)
+{
+    uimn.text.gen++;
+
+    if (uimn.text.edits)
+        uimn.text.edits(S, line, e);
+}
+
+/* The line of len characters at src stored as text line line of file: before it (insert), else
+   in its place, its mark and source line kept; its names its file's module's. */
+static void store(
     Session *const S,
     const uint32_t line,
     const uint8_t *const src,
     const uint32_t len,
-    const bool insert
+    const bool insert,
+    const uint16_t file
 )
 {
     const Line *const old = prog_line(&S->prog, lmap_off(S, line));
-    const uint16_t file = insert ? neighbour(S, line) : old->file, src_line = insert ? 0 : old->src;
+    const uint16_t src_line = insert ? 0 : old->src;
     const uint8_t mark = insert ? 0 : old->flags & LF_BP;
     const uint32_t module = S->repl.module;
     S->repl.module = modu_of(&S->modu, file);
@@ -226,6 +236,25 @@ static void put(
     S->prog.add_src = 0;
     uimn.text.changed = true;
     lmap_build(S);
+}
+
+/* store's, its file the line's it replaces, a line inserted its neighbour's; uimn.text.edits
+   told. */
+static void put(
+    Session *const S,
+    const uint32_t line,
+    const uint8_t *const src,
+    const uint32_t len,
+    const bool insert
+)
+{
+    if (!insert)
+        edited(S, line, TE_REPLACING);
+
+    const uint16_t file =
+        insert ? neighbour(S, line) : prog_line(&S->prog, lmap_off(S, line))->file;
+    store(S, line, src, len, insert, file);
+    edited(S, line, insert ? TE_INSERTED : TE_REPLACED);
 }
 
 /* The line of len characters at src stored after the rest, the map not made. */
@@ -287,14 +316,10 @@ void text_insert(
     tell(whole, 1);
 }
 
-void text_delete(Session *const S, const uint32_t line)
+/* Text line line out, its mark told gone. */
+static void cut(Session *const S, const uint32_t line)
 {
-    if (uimn.text.n <= 1) { /* the view's last line is emptied */
-        text_repl(S, line, (const uint8_t *)"", 0);
-        return;
-    }
-
-    const uint32_t rec = text_rec(S, line);
+    const uint32_t rec = lmap_off(S, line);
     const bool marked = prog_line(&S->prog, rec)->flags & LF_BP;
     const uint32_t nth = marked ? text_mark_nth(S, rec) : 0;
     touch(S, prog_line(&S->prog, rec)->file);
@@ -306,9 +331,42 @@ void text_delete(Session *const S, const uint32_t line)
     session_drop(S);
     uimn.text.changed = true;
     lmap_build(S);
-    uimn.text.n--;
-    tell(line + uimn.text.first, -1);
 }
+
+void text_delete(Session *const S, const uint32_t line)
+{
+    if (uimn.text.n <= 1) { /* the view's last line is emptied */
+        text_repl(S, line, (const uint8_t *)"", 0);
+        return;
+    }
+
+    const uint32_t whole = line + uimn.text.first;
+    edited(S, whole, TE_DELETING);
+    cut(S, whole);
+    uimn.text.n--;
+    tell(whole, -1);
+}
+
+TextKind text_kind(Session *const S, const uint32_t line)
+{
+    const Line *const p = prog_line(&S->prog, lmap_off(S, line));
+    return (TextKind){p->file, p->flags & LF_ASIS};
+}
+
+void text_place(
+    Session *const S,
+    const uint32_t line,
+    const uint8_t *const src,
+    const uint16_t len,
+    const TextKind k,
+    const bool insert
+)
+{
+    uimn.text.asis = k.asis;
+    store(S, line, src, len, insert, k.file);
+}
+
+void text_remove(Session *const S, const uint32_t line) { cut(S, line); }
 
 uint32_t text_module(Session *const S, const uint32_t line)
 {

@@ -697,11 +697,15 @@ static void tip_show(const char *const s, const uint32_t start, const uint32_t l
     scrn_fill(row, x, SL_BAR, ' ', 1);
 }
 
+bool dpan_frame_shown(void)
+{
+    return uimn.pane_on && uimn_stopped() && dstk_count() &&
+           dstk_at(dp.frame)->view == uimn.ed.view;
+}
+
 void dpan_tip(Session *const S)
 {
-    if (!uimn.pane_on || !uimn_stopped() || !dstk_count())
-        return;
-    if (dstk_at(dp.frame)->view != uimn.ed.view) /* in the frame's view */
+    if (!dpan_frame_shown())
         return;
 
     const uint8_t *text;
@@ -716,8 +720,8 @@ void dpan_tip(Session *const S)
     if (!word(text, len, col, &start, &n, &sfx))
         return;
 
-    const char *const s = dloc_find(S, text + start, n, sfx);
+    const uint8_t r = dloc_find(S, text + start, n, sfx);
 
-    if (s)
-        tip_show(s, start, line);
+    if (r != DLOC_NONE)
+        tip_show(dloc_row(r), start, line);
 }

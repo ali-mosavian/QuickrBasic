@@ -77,8 +77,8 @@ static TtyKind byte(TtyIn *const t, TtyEvent *const e, const uint8_t c, const ui
     if (c < 27)
         return key(e, (uint32_t)('a' + c - 1), 0, flags | PKEY_CTRL);
 
-    if (c < ' ') /* Ctrl+\ ] ^ _ */
-        return key(e, (uint32_t)"\\]^_"[c - 28], 0, flags | PKEY_CTRL);
+    if (c < ' ') /* Ctrl+\ ] ^, and Ctrl+- (Ctrl+_ and Ctrl+/ send it too) */
+        return key(e, (uint32_t)"\\]^-"[c - 28], 0, flags | PKEY_CTRL);
 
     if (c >= 0x80) /* UTF-8's: no BIOS key */
         return e->kind = TTY_NONE;

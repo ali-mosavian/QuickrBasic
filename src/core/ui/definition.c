@@ -9,6 +9,7 @@
  * Ctrl+Alt shows it in the split's other window, split side by side first when there is none.
  */
 #include "ui/definition.h"
+#include "ui/jumps.h"
 #include "session.h"
 #include "comp/bind.h"
 #include "comp/comp.h"
@@ -333,6 +334,8 @@ void defn_goto(Session *const S, const bool beside)
         return pscr_beep();
     if (beside)
         wind_other(S, true);
+    else
+        jumps_push();
 
     jump(S, f);
 }

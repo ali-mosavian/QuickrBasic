@@ -19,24 +19,20 @@
  * # asm structure
  * | asm | here | |
  * |---|---|---|
- * | (none) | indt_enter | NEW |
+ * | (none) | indt_enter, indt_events | NEW |
  */
 #include "ui/indent.h"
 #include "ui/ui.h"
 
-typedef enum : uint8_t { K_FOR, K_DO, K_WHILE, K_IF, K_SEL, K_SUB, K_FUNC, K_TYPE, K_DEF } Kind;
-typedef enum : int8_t { EV_END = -1, EV_MID = 0, EV_OPEN = 1 } What;
+typedef IndtKind Kind;
+typedef IndtWhat What;
+typedef IndtEv Ev;
 
-typedef struct {
-    Kind kind;
-    What what;
-    bool lead; /* in the line's first statement */
-} Ev;
-
-enum { NEV = 32, WORD = 12 };
+enum { NEV = INDT_NEV, WORD = 12 };
 
 typedef struct {
     const uint8_t *p, *end;
+    const uint8_t *word; /* indt_word's word's start */
 } Cur;
 
 static void indt_blanks(Cur *const c)
@@ -49,6 +45,7 @@ static void indt_blanks(Cur *const c)
 static void indt_word(Cur *const c, char *const w)
 {
     indt_blanks(c);
+    c->word = c->p;
     uint32_t n = 0;
 
     while (c->p < c->end && (is_word_char(*c->p) || *c->p == '$')) {
@@ -108,16 +105,25 @@ static bool indt_then(Cur c)
     return !strcmp(last, "THEN");
 }
 
-static uint32_t indt_add(Ev *const ev, uint32_t n, const Kind k, const What what, const bool lead)
+/* An event of the keyword from at to the cursor in text. */
+static uint32_t indt_add(
+    Ev *const ev,
+    uint32_t n,
+    const Kind k,
+    const What what,
+    const bool lead,
+    const uint8_t *const text,
+    const uint8_t *const at,
+    const Cur *const c
+)
 {
     if (n < NEV)
-        ev[n++] = (Ev){k, what, lead};
+        ev[n++] = (Ev){k, what, lead, (uint16_t)(at - text), (uint16_t)(c->p - at)};
 
     return n;
 }
 
-/* The line's events, in order; their count. */
-static uint32_t indt_scan(const uint8_t *const text, const uint16_t len, Ev *const ev)
+uint32_t indt_events(const uint8_t *const text, const uint16_t len, Ev *const ev)
 {
     static const struct {
         char word[WORD];
@@ -150,7 +156,7 @@ static uint32_t indt_scan(const uint8_t *const text, const uint16_t len, Ev *con
         {"DEF", K_DEF},
     };
 
-    Cur c = {text, text + len};
+    Cur c = {text, text + len, text};
 
     uint32_t n = 0;
     indt_blanks(&c);
@@ -169,10 +175,14 @@ static uint32_t indt_scan(const uint8_t *const text, const uint16_t len, Ev *con
 
         if (!strcmp(w, "IF") || !strcmp(w, "ELSEIF")) { /* the line's rest is its own */
             if (*w == 'E')
-                return indt_add(ev, n, K_IF, EV_MID, lead);
+                return indt_add(ev, n, K_IF, EV_MID, lead, text, c.word, &c);
 
-            return indt_then(c) ? indt_add(ev, n, K_IF, EV_OPEN, lead) : n;
+            const uint8_t *const at = c.word;
+            const Cur word = c;
+            return indt_then(c) ? indt_add(ev, n, K_IF, EV_OPEN, lead, text, at, &word) : n;
         }
+
+        const uint8_t *const at = c.word;
 
         if (!strcmp(w, "END")) {
             char w2[WORD];
@@ -180,29 +190,29 @@ static uint32_t indt_scan(const uint8_t *const text, const uint16_t len, Ev *con
 
             for (uint32_t i = 0; i < countof(ends); i++)
                 if (!strcmp(w2, ends[i].word))
-                    n = indt_add(ev, n, ends[i].kind, EV_END, lead);
+                    n = indt_add(ev, n, ends[i].kind, EV_END, lead, text, at, &c);
         } else if (!strcmp(w, "NEXT")) {
-            const uint8_t *const at = c.p;
+            const Cur word = c;
             indt_skip(&c, &commas);
-            c.p = at;
+            c = word;
 
             for (uint32_t i = 0; i <= commas; i++)
-                n = indt_add(ev, n, K_FOR, EV_END, lead);
+                n = indt_add(ev, n, K_FOR, EV_END, lead, text, at, &word);
         } else if (!strcmp(w, "DEF")) {
-            const uint8_t *const at = c.p;
+            const Cur word = c;
             bool eq = false;
 
             for (; c.p < c.end && *c.p != ':' && *c.p != '\''; c.p++)
                 eq |= *c.p == '=';
 
-            c.p = at;
+            c = word;
 
             if (!eq)
-                n = indt_add(ev, n, K_DEF, EV_OPEN, lead);
+                n = indt_add(ev, n, K_DEF, EV_OPEN, lead, text, at, &word);
         } else {
             for (uint32_t i = 0; i < countof(plain); i++)
                 if (!strcmp(w, plain[i].word))
-                    n = indt_add(ev, n, plain[i].kind, plain[i].what, lead);
+                    n = indt_add(ev, n, plain[i].kind, plain[i].what, lead, text, at, &c);
         }
 
         commas = 0;
@@ -234,7 +244,7 @@ static int32_t indt_start(IndtGet *const get, void *const ctx, const uint32_t li
         const uint16_t len = get(ctx, i, text);
         Ev ev[NEV];
 
-        for (uint32_t e = indt_scan(text, len, ev); e--;) {
+        for (uint32_t e = indt_events(text, len, ev); e--;) {
             if (ev[e].kind != k || ev[e].what == EV_MID)
                 continue;
             if (ev[e].what == EV_END)
@@ -260,7 +270,7 @@ void indt_enter(
 )
 {
     Ev ev[NEV];
-    const uint32_t nev = indt_scan(text, n, ev);
+    const uint32_t nev = indt_events(text, n, ev);
     *self = indt_lead(text, n);
 
     if (nev && ev[0].lead && ev[0].what != EV_OPEN) { /* an end, a middle: back to its start */

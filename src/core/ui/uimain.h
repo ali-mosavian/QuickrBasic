@@ -32,6 +32,8 @@ uint16_t uimn_getkey(void);
 /* ui_key: key: Alt and the mouse; else to the focused window, then up the tree to the screen's
    run, window and menu keys. */
 void uimn_key(Session *S, uint16_t key);
+/* The key loop's: key's command (uimn_key) one undo step, its error shown. */
+void uimn_command(Session *S, uint16_t key);
 /* A modal widget w (a menu, a dialog) shown and run, every key and click its, till it hides. */
 void uimn_modal(Session *S, Widget *w);
 /* ui_act: menu command action (ACT_*, menu.h); ACT_NONE and past: nothing. */

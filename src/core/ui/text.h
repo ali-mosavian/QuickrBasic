@@ -24,6 +24,28 @@ void text_repl(Session *S, uint32_t line, const uint8_t *src, uint16_t len);
 void text_insert(Session *S, uint32_t line, const uint8_t *src, uint16_t len);
 /* tx_dell: line out, the hook told; the view's last line left is emptied instead. */
 void text_delete(Session *S, uint32_t line);
+/* A change to the text, as uimn.text.edits is told it with the whole text's line: the line about
+   to be replaced, replaced; inserted; about to be deleted. */
+typedef enum : uint8_t { TE_REPLACING, TE_REPLACED, TE_INSERTED, TE_DELETING } TextEdit;
+/* A line's file, and whether it is kept as typed. */
+typedef struct {
+    uint16_t file;
+    bool asis;
+} TextKind;
+/* Text line line's (the whole text's, not the view's). */
+TextKind text_kind(Session *S, uint32_t line);
+/* The len characters at src text line line, before it (insert) or in its place: k's file's, as
+   typed when k.asis. No view changes; uimn.text.edits is not told. */
+void text_place(
+    Session *S,
+    uint32_t line,
+    const uint8_t *src,
+    uint16_t len,
+    TextKind k,
+    bool insert
+);
+/* Text line line out. No view changes; uimn.text.edits is not told. */
+void text_remove(Session *S, uint32_t line);
 /* Text line line's module (not the view's line). */
 uint32_t text_module(Session *S, uint32_t line);
 /* Module module changed since saved; then saved; none changed (a program opened). */

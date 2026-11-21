@@ -6,19 +6,15 @@
 #include "ui/linemap.h"
 #include "unit.h"
 
-enum { MAX_TESTS = 256 };
-
-static struct {
-    const char *name;
-    TestFn *fn;
-} tests[MAX_TESTS];
-static uint32_t ntests, failures;
+UnitList unit_tests = {nullptr, &unit_tests.first};
+static uint32_t failures;
 static const char *current;
 
-void unit_register(const char *const name, TestFn *const fn)
+void unit_add(UnitList *const l, UnitTest *const t)
 {
-    if (ntests < MAX_TESTS)
-        tests[ntests++] = (typeof(tests[0])){name, fn};
+    t->next = nullptr;
+    *l->end = t;
+    l->end = &t->next;
 }
 
 void unit_fail(const char *const file, const int line, const char *const what)
@@ -75,7 +71,18 @@ Status unit_run(Session *const S, const char *const *const lines)
 
 static Session session;
 
-int main(void)
+/* A test's name holds one of the arguments, or there are none. */
+static bool picked(const char *const name, const int argc, const char *const *const argv)
+{
+    for (int i = 1; i < argc; i++)
+        if (strstr(name, argv[i]))
+            return true;
+
+    return argc < 2;
+}
+
+/* Each test, or with arguments those whose names hold one. */
+int main(const int argc, const char *const *const argv)
 {
     Session *const S = &session;
     static const FrontEnd editor = {
@@ -84,12 +91,18 @@ int main(void)
 
     boot(S, &editor);
 
-    for (uint32_t i = 0; i < ntests; i++) {
-        current = tests[i].name;
-        tests[i].fn(S);
+    uint32_t ran = 0;
+
+    for (const UnitTest *t = unit_tests.first; t; t = t->next) {
+        if (!picked(t->name, argc, argv))
+            continue;
+
+        current = t->name;
+        t->fn(S);
+        ran++;
     }
 
-    printf("%u tests, %u failures\n", ntests, failures);
+    printf("%u tests, %u failures\n", ran, failures);
     return failures ? 1 : 0;
 }
 
