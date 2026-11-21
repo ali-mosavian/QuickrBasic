@@ -42,7 +42,17 @@ InspValue insp_var(const Session *S, uint32_t f, const InspVar *var);
 /* PRINT expr in frame f's procedure's scope, its output to out (session_eval): its error, else
    ST_OK. */
 Status insp_eval(Session *S, uint32_t f, const char *expr, char out[static 80]);
+/* Frame f's variables are the ones a statement run in its procedure's scope changes: the stopped
+   call's, or the module's; no direct line called into the run. */
+bool insp_settable(const Session *S, uint32_t f);
+/* path = value run in frame f's procedure's scope (session_exec), f insp_settable: its error, else
+   ST_OK. */
+Status insp_set(Session *S, uint32_t f, const char *path, const char *value);
 static inline InspKind insp_kind(const InspValue *const v) { return v->kind; }
+static inline bool insp_string(const InspValue *const v)
+{
+    return v->kind == IV_SCALAR && v->type == ET_SD;
+}
 /* Name name's own text (capitals) at d; past it. */
 char *insp_name(const Session *S, char *d, uint32_t name);
 /* Variable var is the name s, n long, suffix sfx (0 none): its letters the name's, the suffix, if
@@ -51,6 +61,8 @@ bool insp_is(const Session *S, const InspVar *var, const uint8_t *s, uint32_t n,
 /* Scalar v as text at d, room characters of a string's at most: a number as PRINT's without its
    sign's space, a string in quotes, its 0s spaces. Past it. */
 char *insp_text(const Session *S, const InspValue *v, char *d, uint32_t room);
+/* String v's length; its first room characters at d, its 0s spaces. */
+uint32_t insp_chars(const Session *S, const InspValue *v, char *d, uint32_t room);
 /* Record v's TYPE's name id; its fields; field i's value, its name id to *name. */
 uint32_t insp_type(const Session *S, const InspValue *v);
 uint32_t insp_nfields(const Session *S, const InspValue *v);

@@ -36,9 +36,11 @@ typedef struct {
     uint8_t depth;
     uint8_t hi; /* a value changed at this stop: its first column + 1; else 0 */
     bool top;   /* a variable's own row: var is its */
+    uint16_t width; /* its text's, uncut */
     InspVar var;
     InspValue value;
     uint32_t key; /* LR_REST: its array's */
+    char path[PATH];
     char text[DP_TWMAX];
 } LocRow;
 
@@ -76,6 +78,15 @@ uint8_t dloc_count(void) { return loc.n; }
 const char *dloc_row(const uint8_t i) { return loc.rows[i].text; }
 
 uint8_t dloc_changed(const uint8_t i) { return loc.rows[i].hi; }
+
+const InspValue *dloc_value(const uint8_t i)
+{
+    return i < loc.n && loc.rows[i].kind == LR_VALUE ? &loc.rows[i].value : nullptr;
+}
+
+const char *dloc_path(const uint8_t i) { return loc.rows[i].path; }
+
+uint16_t dloc_width(const uint8_t i) { return loc.rows[i].width; }
 
 /* Text s's hash from h, letters' case aside when nocase. */
 static uint32_t hash(uint32_t h, const char *s, const bool nocase)
@@ -270,6 +281,7 @@ static void value_rows(
     const bool can = openable(S, v) && depth < DEPTH;
     r->value = *v;
     r->key = key_of(path);
+    join(r->path, path, "");
     const bool open = can && opened(r->key);
 
     if (can)
@@ -289,6 +301,7 @@ static void value_rows(
     }
 
     *d = 0;
+    r->width = (uint16_t)(d - loc.row);
     dtxt_cut(r->text, loc.row);
 
     if (open && kind == IV_RECORD)

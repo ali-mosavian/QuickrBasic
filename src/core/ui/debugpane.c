@@ -35,6 +35,7 @@
 #include "session.h"
 #include "ui/debuglocals.h"
 #include "ui/debugstack.h"
+#include "ui/debugtext.h"
 #include "ui/debugwatch.h"
 #include "ui/dialog.h"
 #include "ui/draw.h"
@@ -75,34 +76,52 @@ static struct {
     uint8_t tip_row, tip_col;
 } dp;
 
+/* ask's box: a label, a line, OK, Cancel; its field from the label's end on. */
+enum { ASK_COLS = 52, ASK_LCOL = 2, ASK_LABEL = 30 };
 static uint8_t fld_text[DLBUF];
-static LineBuf fld = {.text = fld_text, .cap = DLBUF}; /* Ins's expression */
+static LineBuf fld = {.text = fld_text, .cap = DLBUF}; /* the line asked */
+static char ask_label[ASK_LABEL + 1];
 
-static DlogCtl add_ctl[] = {
+static DlogCtl ask_ctl[] = {
     {.kind = CT_FLD,
      .row = 1,
-     .col = 14,
-     .cols = 34,
      .rows = 1,
      .field = &fld,
-     .label = "Expression:",
+     .label = ask_label,
      .lrow = 2,
-     .lcol = 2},
+     .lcol = ASK_LCOL},
     {.kind = CT_BTN, .row = 6, .col = 12, .cols = 6, .text = uimn_ok},
     {.kind = CT_BTN, .row = 6, .col = 30, .cols = 10, .text = uimn_cancel},
 };
-static Dlog add_dlog = {
+static Dlog ask_dlog = {
     .row = 8,
     .col = 14,
     .rows = 8,
-    .cols = 52,
-    .title = "Add Watch",
+    .cols = ASK_COLS,
     .n = 3,
-    .focus = 0,
     .sep = 5,
     .def = 1,
-    .ctl = add_ctl,
+    .ctl = ask_ctl,
 };
+
+/* A line asked in a box titled title, label before it, fld's text at first: true OK, a line
+   given, its text in fld, 0-ended. */
+static bool ask(Session *const S, const char *const title, const char *const label)
+{
+    dtxt_cut(ask_label, label);
+    ask_label[ASK_LABEL] = 0;
+    const uint8_t col = (uint8_t)(ASK_LCOL + strlen(ask_label) + 1);
+    ask_ctl[0].col = col;
+    ask_ctl[0].cols = (uint8_t)(ASK_COLS - col - 4);
+    ask_dlog.title = title;
+    ask_dlog.focus = 0;
+
+    if (dlog_run(S, &ask_dlog) != 1 || !fld.len)
+        return false;
+
+    fld.text[fld.len] = 0;
+    return true;
+}
 
 static const char sfx_char[] = "%&!#$"; /* a name's suffix */
 
@@ -281,17 +300,77 @@ static void go(Session *const S, const uint8_t i)
    added, evaluated. */
 static void watch_add(Session *const S)
 {
-    add_dlog.focus = 0;
     fld.len = fld.col = edit_word((char *)fld.text, DLBUF);
 
-    if (dlog_run(S, &add_dlog) != 1 || !fld.len)
-        return;
-    if (!dwat_add(fld.text, fld.len))
+    if (!ask(S, "Add Watch", "Expression:") || !dwat_add(fld.text, fld.len))
         return;
 
     dp.sel[DP_WAT] = dwat_count() - 1;
     dwat_eval(S);
     visible(DP_WAT);
+}
+
+/* Enter on Locals' row i, value v, a number's or a string's: a new value asked, v's at first, set
+   in the frame's scope; the pane read again. */
+static void set_value(Session *const S, const uint8_t i, const InspValue *const v)
+{
+    if (!insp_settable(S, dp.frame)) {
+        dlog_ok(S, "Only the stopped call's values and the module's are set.");
+        return;
+    }
+
+    char label[DTXT_ROW];
+    *dtxt_cpy(dtxt_cpy(label, dloc_path(i)), " =") = 0;
+    fld.len = fld.col = (uint16_t)(insp_text(S, v, (char *)fld.text, DLBUF - 3) - (char *)fld.text);
+
+    if (!ask(S, "Set Value", label))
+        return;
+
+    const Status st = insp_set(S, dp.frame, dloc_path(i), (const char *)fld.text);
+
+    if (st != ST_OK)
+        dlog_ok(S, session_errtext(S, (uint8_t)st));
+
+    read_locals(S);
+    dwat_eval(S);
+}
+
+/* Enter on Locals' row i, string v past the window's width: a box of it whole, VIEW_COLS a
+   line, VIEW_ROWS of them at most, titled by its expression and length. */
+static void show_whole(Session *const S, const uint8_t i, const InspValue *const v)
+{
+    enum { VIEW_COLS = 64, VIEW_ROWS = 8, ROOM = VIEW_COLS * VIEW_ROWS };
+
+    char s[ROOM], text[VIEW_ROWS * (VIEW_COLS + 1)], title[DTXT_ROW];
+    const uint32_t len = insp_chars(S, v, s, ROOM);
+    char *d = dtxt_dec(dtxt_cpy(dtxt_cpy(title, dloc_path(i)), ", "), (int32_t)len);
+    *dtxt_cpy(d, len == 1 ? " character" : " characters") = 0;
+    d = text;
+
+    for (uint32_t k = 0; k < len && k < ROOM; k++) {
+        if (k && !(k % VIEW_COLS))
+            *d++ = '|'; /* the box's next line */
+
+        *d++ = s[k] == '|' ? (char)GLYPH_V : s[k];
+    }
+
+    *(len > ROOM ? dtxt_cpy(d - 3, "...") : d) = 0;
+    dtxt_cut(s, title);
+    dlog_text(S, s, text);
+}
+
+/* Enter on Locals' row i: a record or array opened, its rest shown; a string past the window's
+   width shown whole; another value a new one asked. */
+static void loc_enter(Session *const S, const uint8_t i)
+{
+    const InspValue *const v = dloc_value(i);
+
+    if (dloc_open(S, i) || !v || insp_kind(v) != IV_SCALAR)
+        return;
+    if (insp_string(v) && dloc_width(i) >= text_width() - 1)
+        show_whole(S, i, v);
+    else
+        set_value(S, i, v);
 }
 
 /* dp_wdel: Del in Watch: the selected watch dropped. */
@@ -349,7 +428,7 @@ static bool child_key(Widget *const x, Session *const S, const uint16_t key)
     const uint8_t c = (uint8_t)key;
 
     if (c == CH_ENTER && w == DP_LOC)
-        dloc_open(S, dp.sel[w]);
+        loc_enter(S, dp.sel[w]);
     else if (c == CH_ENTER && w == DP_STK && dp.sel[w] < dstk_count())
         go(S, dp.sel[w]);
     else if (c != CH_ENTER)

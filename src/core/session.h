@@ -136,6 +136,8 @@ Addr session_cell(const Session *S, const DebugFrame *f, uint32_t id, int32_t pa
 bool session_in_direct(const Session *S);
 /* PRINT expr in procedure proc's scope to out (dbug_eval): its error, else ST_OK. */
 Status session_eval(Session *S, const char *expr, uint32_t proc, char out[static 80]);
+/* Statement stmt run so (dbug_exec). */
+Status session_exec(Session *S, const char *stmt, uint32_t proc, char out[static 80]);
 /* Error code's message, the program's own ON ERROR texts' too. */
 const char *session_errtext(const Session *S, uint8_t code);
 #endif

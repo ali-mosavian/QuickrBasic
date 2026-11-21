@@ -188,6 +188,16 @@ Status session_eval(
     return dbug_eval(S, expr, proc, out);
 }
 
+Status session_exec(
+    Session *const S,
+    const char *const stmt,
+    const uint32_t proc,
+    char out[static 80]
+)
+{
+    return dbug_exec(S, stmt, proc, out);
+}
+
 const char *session_errtext(const Session *const S, const uint8_t code)
 {
     return emsg_text(S->vm.err.user, code);

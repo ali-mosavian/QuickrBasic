@@ -150,12 +150,32 @@ static void typed(const char *const text)
 enum : uint16_t {
     K_ENTER = 0x1C0D,
     K_UP = 0x4800,
+    K_LINE_END = 0x4F00, /* End: K_END is END's */
     K_DOWN = 0x5000,
     K_ARROW_LEFT = 0x4B00, /* K_LEFT is LEFT$'s */
     K_ARROW_RIGHT = 0x4D00,
     K_INS = 0x5200,
     K_DEL = 0x5300,
 };
+
+/* Keys pressed in Locals, the last opening a box, OK'd, the screen not drawn again: the row of its
+   top, titled title; 0 none. */
+static uint8_t box_of(Session *const S, const uint16_t *const keys, const char *const title)
+{
+    host_key_push(K_ENTER);
+    wind_focus(S, W_DBG);
+    uimn.tree.pane.focus = 1;
+
+    for (uint32_t i = 0; keys[i]; i++)
+        uimn_key(S, keys[i]);
+
+    uint8_t r = 1;
+
+    while (r < 24 && !strstr(screen_text(r, 0), title))
+        r++;
+
+    return r < 24 ? r : 0;
+}
 
 static const char *const fact[] = {
     "declare sub fact (n%)",
@@ -561,5 +581,89 @@ TEST(debug_pane_watches_the_name_at_the_cursor)
     pane_keys(S, 0, (const uint16_t[]){K_INS, 0});
 
     CHECK(rows_are("Watch", " t% = 30| n% = 3"));
+    done(S);
+}
+
+/* Enter on a value in Locals: a new one asked, its current one filled in, set as the program would
+   (path = value) in the frame's scope; an error leaves it. The stopped call's and the module's are
+   set; an older call's, not the probe's to reach, are not. */
+TEST(debug_pane_sets_a_value)
+{
+    stopped_in(S, fact);
+    host_key_push(K_LINE_END); /* past the 30 filled in */
+    typed("0");
+    pane_keys(S, 1, (const uint16_t[]){K_DOWN, K_ENTER, 0});
+
+    CHECK(rows_are(
+        "Locals",
+        " n% = 3| t% = 300| \xC4\xC4\xC4 shared \xC4\xC4\xC4| r& = 1| s$ = \"hi\""
+    ));
+    typed("\"yo\" + s$");
+    pane_keys(S, 1, (const uint16_t[]){K_DOWN, K_DOWN, K_DOWN, K_ENTER, 0});
+
+    CHECK(rows_are(
+        "Locals",
+        " n% = 3| t% = 300| \xC4\xC4\xC4 shared \xC4\xC4\xC4| r& = 1| s$ = \"yohi\""
+    ));
+    typed("\"x\"");
+    host_key_push(K_ENTER); /* the error's box */
+    pane_keys(S, 1, (const uint16_t[]){K_UP, K_UP, K_UP, K_UP, K_ENTER, 0});
+
+    CHECK(rows_are(
+        "Locals",
+        " n% = 3| t% = 300| \xC4\xC4\xC4 shared \xC4\xC4\xC4| r& = 1| s$ = \"yohi\""
+    ));
+    pane_keys(S, 2, (const uint16_t[]){K_DOWN, K_ENTER, 0});
+
+    typed("7"); /* the box saying it is not set takes them, the 7 doing nothing */
+    pane_keys(S, 1, (const uint16_t[]){K_UP, K_ENTER, 0});
+
+    CHECK(rows_are(
+        "Locals",
+        " n% = 4| t% = 40| \xC4\xC4\xC4 shared \xC4\xC4\xC4| r& = 1| s$ = \"yohi\""
+    ));
+    pane_keys(S, 2, (const uint16_t[]){K_UP, K_ENTER, 0});
+
+    CHECK(rows_are(
+        "Locals",
+        " n% = 3| t% = 300| \xC4\xC4\xC4 shared \xC4\xC4\xC4| r& = 1| s$ = \"yohi\""
+    ));
+    pane_keys(S, 2, (const uint16_t[]){K_DOWN, K_DOWN, K_ENTER, 0});
+
+    typed("d# * 2");
+    pane_keys(S, 1, (const uint16_t[]){K_DOWN, K_DOWN, K_ENTER, 0});
+
+    CHECK(rows_are("Locals", " r& = 1| s$ = \"yohi\"| d# = 5"));
+    done(S);
+}
+
+/* Enter on a string longer than its row: a box of it whole, 64 characters a line, titled by its
+   expression and length; a '|' a line drawn, not the box's next line; past 8 lines, "...". */
+TEST(debug_pane_shows_a_long_string_whole)
+{
+    stopped_in(
+        S,
+        (const char *const[]){
+            "greet$ = \"a rather long string that will not fit in the pane at all|nor on one "
+            "line\"",
+            "big$ = string$(600, \"x\")",
+            "stop",
+            nullptr,
+        }
+
+    );
+    const uint8_t r = box_of(S, (const uint16_t[]){K_ENTER, 0}, "greet$, 73 characters");
+
+    CHECK(r);
+    CHECK(strstr(
+        screen_text(r + 2, 0),
+        "  a rather long string that will not fit in the pane at all\xB3nor on  "
+    ));
+    CHECK(strstr(screen_text(r + 3, 0), "   one line "));
+    shown(S);
+    const uint8_t b = box_of(S, (const uint16_t[]){K_DOWN, K_ENTER, 0}, "big$, 600 characters");
+
+    CHECK(b);
+    CHECK(strstr(screen_text(b + 9, 0), "xxxxxxxxxxxxxx...  "));
     done(S);
 }

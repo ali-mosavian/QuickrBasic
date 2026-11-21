@@ -45,6 +45,8 @@ DebugPos dbug_pos(Session *S, uint32_t line, const uint8_t *code);
    79 chars at most; the stopped run as it was. A FUNCTION it calls runs; no breakpoint, step,
    trace or event stops it. Its error, else ST_OK. */
 Status dbug_eval(Session *S, const char *expr, uint32_t proc, char out[static 80]);
+/* Statement stmt run as dbug_eval runs its PRINT. */
+Status dbug_exec(Session *S, const char *stmt, uint32_t proc, char out[static 80]);
 /* dbg_evx: the probe's line ended (sc_end, ex_end): back to dbug_eval, ST_OK. An error comes
    back through its catch (dbg_ever). */
 [[noreturn]]

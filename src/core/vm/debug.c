@@ -6,8 +6,8 @@
  * (once). A stop is a STOP: CONT goes on past the DBG. With trace set each statement first goes to
  * hooks->trace with its place. The direct line has no DBG.
  *
- * The probe (dbug_eval) runs PRINT expr in a procedure's scope as a nested exec_run, the stopped
- * run's fields saved and restored around it. A FUNCTION it calls runs; no breakpoint, step, trace
+ * The probe (dbug_eval, dbug_exec) runs PRINT expr, or a statement, in a procedure's scope as a
+ * nested exec_run, the stopped run's fields saved and restored around it. A FUNCTION it calls runs; no breakpoint, step, trace
  * or event stops it. Its end (dbug_done) or error (dbug_fail) longjmps back to dbug_eval.
  *
  * # asm structure (retired/asm32/vm/dbg.asm)
@@ -181,13 +181,13 @@ static void restore(Session *const S, const Saved *const s)
     S->chnl.out = s->out;
 }
 
-/* Run "PRINT expr" as the direct line, its output to cons.sbuf, under its own catch: its
-   error, else ST_OK. */
-static Status run_probe(Session *const S, const char *const expr)
+/* Run pre then text as the direct line, its output to cons.sbuf, under its own catch: its error,
+   else ST_OK. */
+static Status run_probe(Session *const S, const char *const pre, const char *const text)
 {
-    static const char print[] = "PRINT ";
-    memcpy(S->cons.inbuf, print, strlen(print));
-    memcpy(S->cons.inbuf + strlen(print), expr, strlen(expr) + 1);
+    const size_t n = strlen(pre);
+    memcpy(S->cons.inbuf, pre, n);
+    memcpy(S->cons.inbuf + n, text, strlen(text) + 1);
     S->vm.line = DLINE;
     Catch c;
     fault_push(&S->fault, &c);
@@ -206,7 +206,14 @@ static Status run_probe(Session *const S, const char *const expr)
     return c.code;
 }
 
-Status dbug_eval(Session *const S, const char *const expr, const uint32_t proc, char out[static 80])
+/* pre then text run as the probe's line in procedure proc's scope: dbug_eval's, dbug_exec's. */
+static Status probe(
+    Session *const S,
+    const char *const pre,
+    const char *const text,
+    const uint32_t proc,
+    char out[static 80]
+)
 {
     static Saved s; /* one probe at a time: no line of its can run another */
     save(S, &s);
@@ -217,7 +224,7 @@ Status dbug_eval(Session *const S, const char *const expr, const uint32_t proc, 
     S->evnt.on = false;
     S->cons.capture = CAP_SBUF;
     S->cons.sblen = 0;
-    const Status st = run_probe(S, expr);
+    const Status st = run_probe(S, pre, text);
     const uint32_t n = S->cons.sblen < PROBE_OUT_MAX ? S->cons.sblen : PROBE_OUT_MAX;
     memcpy(out, S->cons.sbuf, n);
     out[n] = 0;
@@ -225,6 +232,16 @@ Status dbug_eval(Session *const S, const char *const expr, const uint32_t proc, 
     S->comp.dlproc = 0;
     fmth_clear();
     return st;
+}
+
+Status dbug_eval(Session *const S, const char *const expr, const uint32_t proc, char out[static 80])
+{
+    return probe(S, "PRINT ", expr, proc, out);
+}
+
+Status dbug_exec(Session *const S, const char *const stmt, const uint32_t proc, char out[static 80])
+{
+    return probe(S, "", stmt, proc, out);
 }
 
 void dbug_done(Session *const S) { fault_throw(&S->fault, ST_OK); }

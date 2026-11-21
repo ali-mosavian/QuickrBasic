@@ -101,6 +101,27 @@ Status insp_eval(Session *const S, const uint32_t f, const char *const expr, cha
     return session_eval(S, expr, frame(S, f).proc, out);
 }
 
+bool insp_settable(const Session *const S, const uint32_t f)
+{
+    return !session_in_direct(S) && (!f || !frame(S, f).proc); /* the probe's: the stop's frame */
+}
+
+Status insp_set(Session *const S, const uint32_t f, const char *const path, const char *const value)
+{
+    enum { STMT = 512 };
+
+    char stmt[STMT], out[80];
+    const size_t np = strlen(path), nv = strlen(value);
+
+    if (np + nv + 4 > STMT)
+        return E_LS;
+
+    memcpy(stmt, path, np);
+    memcpy(stmt + np, " = ", 3);
+    memcpy(stmt + np + 3, value, nv + 1);
+    return session_exec(S, stmt, frame(S, f).proc, out);
+}
+
 uint32_t insp_params(
     const Session *const S,
     const uint32_t f,
@@ -226,17 +247,21 @@ bool insp_is(
     return true;
 }
 
-/* n bytes of text s in quotes at d, room of them at most, a 0 a space; past it. */
-static char *quoted(char *d, const uint8_t *const s, const uint32_t n, const uint32_t room)
+uint32_t insp_chars(
+    const Session *const S,
+    const InspValue *const v,
+    char *const d,
+    const uint32_t room
+)
 {
-    const uint32_t len = n > room ? room : n;
-    *d++ = '"';
+    const Desc *const s = (const Desc *)at(v->at);
+    const uint8_t *const p = v->fix ? at(v->at) : at(s->ptr);
+    const uint32_t len = v->fix ? v->fix : s->len;
 
-    for (uint32_t i = 0; i < len; i++)
-        *d++ = s[i] ? (char)s[i] : ' ';
+    for (uint32_t i = 0; i < len && i < room; i++)
+        d[i] = p[i] ? (char)p[i] : ' ';
 
-    *d++ = '"';
-    return d;
+    return len;
 }
 
 char *insp_text(const Session *const S, const InspValue *const v, char *d, const uint32_t room)
@@ -258,11 +283,11 @@ char *insp_text(const Session *const S, const InspValue *const v, char *d, const
         break;
 
     case ET_SD: {
-        if (v->fix)
-            return quoted(d, at(v->at), v->fix, room);
-
-        const Desc *const s = (const Desc *)at(v->at);
-        return quoted(d, at(s->ptr), s->len, room);
+        *d++ = '"';
+        const uint32_t len = insp_chars(S, v, d, room);
+        d += len < room ? len : room;
+        *d++ = '"';
+        return d;
     }
 
     case ET_SH:
