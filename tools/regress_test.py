@@ -762,6 +762,11 @@ CASES |= {
     "qb_reffld_fixed": (bas("TYPE t", " s AS STRING * 5", "END TYPE", "DIM r AS t", 'r.s = "abc"', "show r.s",
                             'PRINT "["; r.s; "]"', "SUB show (a$)", 'PRINT "["; a$; "]"', 'a$ = "zz"', "END SUB"),
                         "[abc  ]\r\n[abc  ]\r\n", "ERROR"),
+    # A fixed-length string variable too, as QB converts it: by reference, the callee's store made the
+    # STRING * 5 six characters long, a shorter one shorter.
+    "qb_reffix_var": (bas("DIM s AS STRING * 5", 's = "abc"', "t s", 'PRINT "["; s; "]"; LEN(s); f(s)', "SUB t (a$)",
+                          'a$ = "xyzzyq"', "END SUB", "FUNCTION f (b$)", 'b$ = "z": f = LEN(b$)', "END FUNCTION"),
+                      "[abc  ] 5  1 \r\n", "ERROR"),
 }
 
 
@@ -1787,6 +1792,24 @@ BIG |= {
                                "sub g (x())", " redim x(20): x(1) = 3", "end sub"),
                            " 3000  14  0 \r\n 0 10 10 \r\nr 0r 10 10  10 \r\n 5  0 \r\n 3  20 \r\n 2  3 \r\n"
                            "back\r\n", "ERROR"),
+}
+
+
+def deftype_at(names: int) -> str:
+    """names variables, then a DEFINT line a letter: the letters' name ids run on from names + 1."""
+    fill = [f"f{i} = 0" for i in range(names)]
+    return bas(*(": ".join(fill[a:a + 12]) for a in range(0, names, 12)),
+               *(f"DEFINT {c}" for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"), 'PRINT "ran"')
+
+
+# The compile pass skipped a DEFtype statement as DATA's text, byte by byte, and stopped inside the
+# first letter's 4-byte name id. At a zero byte the rest of the line was never compiled. At a ':'
+# (ids 314, 570, ..: one name in 256) the id's tail was compiled as a statement: nothing ran, or a
+# module's DEFINT A-Z was a Syntax error that came and went with the program's count of names.
+CASES |= {
+    "c_deftype_rest": ('DEFINT A-Z: PRINT "second"\r\nPRINT "third"\r\n', "second\r\nthird\r\n", "ERROR"),
+    # the first letter's id at every low byte, past 255
+    **{f"c_deftype_id{n}": (deftype_at(n), "ran\r\n", "ERROR") for n in range(250, 536, 26)},
 }
 
 
