@@ -2,7 +2,8 @@
 // (worker.mjs); this thread is its VGA card and its interrupts: it renders the screen from the
 // shared memory in an instance of its own, ORs in the tick, types the keys.
 import { biosKey, scanCode, shiftFlags } from './keys.mjs';
-import { memory as newMemory, Irq, sidecar, ticker, MUSIC_HZ } from './wasm.mjs';
+import { uploadAs } from './upload.mjs';
+import { memory as newMemory, Irq, sidecar, ticker, MUSIC_HZ, AUDIO_RATE } from './wasm.mjs';
 
 const BLINK_MS = 267;
 const DEMOS = ['WELCOME.BAS', 'GORILLA.BAS', 'NIBBLES.BAS', 'MOTHLITE.BAS', 'RUSTLINE.BAS', 'CHARLIE.BAS'];
@@ -58,13 +59,14 @@ function keep(path, bytes) {
 }
 
 // The speaker: a square wave, from the first key or click (a browser wants a gesture first). The
-// synthesizer's voices: an AudioWorklet (synth.mjs); those set before it is ready wait for it.
+// synthesizer's voices and the extensions' audio streams: an AudioWorklet (synth.mjs), at the rate
+// the module was told (AUDIO_RATE); those sent before it is ready wait for it.
 let audio, osc, gain, synth;
 const voices = [];
 const synthModule = WebAssembly.compileStreaming(fetch('synth.wasm'));
 function wake() {
   if (!audio) {
-    audio = new AudioContext();
+    audio = new AudioContext({ sampleRate: AUDIO_RATE });
     osc = audio.createOscillator();
     gain = audio.createGain();
     gain.gain.value = 0;
@@ -74,7 +76,7 @@ function wake() {
     Promise.all([synthModule, audio.audioWorklet.addModule('synth.mjs')]).then(([module]) => {
       synth = new AudioWorkletNode(audio, 'synth', { outputChannelCount: [2], processorOptions: { module } });
       synth.connect(audio.destination);
-      for (const v of voices.splice(0)) synth.port.postMessage(v);
+      for (const v of [...streams.splice(0), ...voices.splice(0)]) synth.port.postMessage(v);
     }).catch((e) => console.error('no synthesizer:', e));
   }
   if (audio.state !== 'running') audio.resume().catch(() => {});
@@ -83,6 +85,11 @@ function voice(n, bytes) {
   if (!audio) return;
   if (synth) synth.port.postMessage([n, bytes]);
   else voices.push([n, bytes]);
+}
+const streams = [];
+function stream(spec) {
+  if (synth) synth.port.postMessage({ stream: spec });
+  else streams.push({ stream: spec });
 }
 function tone(hz) {
   if (!audio) return;
@@ -118,6 +125,8 @@ worker.onmessage = ({ data }) => {
     tone(data.tone);
   } else if ('voice' in data) {
     voice(data.voice, data.bytes);
+  } else if ('audio' in data) {
+    stream(data.audio);
   } else if ('out' in data) {
     console.log(data.out);
   } else if ('exit' in data) {
@@ -244,11 +253,12 @@ addEventListener('pointerdown', () => {
   if (irq) begin();
 });
 
-// An upload is kept and opened: the IDE starts again with it.
+// An upload is kept, and the IDE starts again: with it open, unless it is a native module (uploadAs).
 document.getElementById('upload').addEventListener('change', async (e) => {
   const f = e.target.files[0];
   if (!f) return;
-  const name = f.name.toUpperCase().replace(/[^A-Z0-9_.]/g, '').slice(0, 12);
-  keep('/' + name, new Uint8Array(await f.arrayBuffer()));
-  location.search = '?open=' + encodeURIComponent(name);
+  const { path, open } = uploadAs(f.name);
+  keep(path, new Uint8Array(await f.arrayBuffer()));
+  if (open) location.search = '?open=' + encodeURIComponent(path.slice(1));
+  else location.reload();
 });

@@ -804,6 +804,7 @@ void flow_end(Session *const S)
         dbug_done(S);
 
     fault_check(&S->fault, chnl_closeall(&S->chnl));
+    natv_stop(&S->natv);
     flow_drop_calls(S);
     repl_ready(S);
 }

@@ -164,6 +164,8 @@ void dev_voice(unsigned voice, const DevVoice *v)
 
 void dev_synth_open(void) {}
 
+void dev_audio_init(void) {}
+
 void dev_synth_close(void) {}
 
 size_t headless_voice_count(void)

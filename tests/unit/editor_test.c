@@ -43,6 +43,18 @@ static void write_file(const char *const name, const char *const text)
     fclose(f);
 }
 
+/* dir's file name: a .qbx of the interface text alone, no code. */
+static void write_qbx(const char *const name, const char *const text)
+{
+    const uint32_t n = (uint32_t)strlen(text);
+    uint8_t head[20] = {'Q', 'B', 'X', 0x1A, 1, 0, 1, 0, 0, 0, 0, 0, sizeof head};
+
+    memcpy(head + 16, &n, sizeof n);
+    FILE *const f = fopen(path_of(name), "wb");
+    CHECK(f && fwrite(head, 1, sizeof head, f) == sizeof head && fputs(text, f) >= 0);
+    fclose(f);
+}
+
 /* dir's file name's text. */
 static const char *file_text(const char *const name)
 {
@@ -483,4 +495,28 @@ TEST(editor_starts_with_one_window)
     uimn_init(S);
     CHECK(!uimn.win.win[W_ED2].height && !uimn.win.vert);
     done(S, (const char *[]){"main.bas", "gfx.bas", nullptr});
+}
+
+/* A native module's interface was edited as a .bas's lines are: the editor changed what the code
+   was built against. A line typed over, or one split by Enter, is refused, its box closed. */
+TEST(editor_keeps_a_native_module_s_lines)
+{
+    static const char declare[] = "declare sub beep_twice cdecl ()";
+    CHECK(mkdtemp(dir));
+    write_qbx("nat.qbx", "declare sub beep_twice cdecl ()\r\n");
+    write_file("main.bas", "import nat\r\nnat.beep_twice\r\n");
+    S->dbug.mode = 0;
+    uimn_init(S);
+    uimn_open(S, path_of("main.bas"));
+    const uint32_t line = line_of(S, declare), all = uimn.text.all;
+    CHECK(line != ~0u);
+    CHECK(!typed_over(S, line, "declare sub other cdecl ()"));
+    edit_load(S, view_goline(S, line));
+    uimn.edline.col = 4;
+    host_key_push(0x011B);
+    edit_enter(S);
+    pkey_flush();
+    CHECK(line_of(S, declare) == line && uimn.text.all == all);
+    CHECK(!text_unsaved(S, 1));
+    done(S, (const char *[]){"main.bas", "nat.qbx", nullptr});
 }

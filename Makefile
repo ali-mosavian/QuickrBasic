@@ -74,7 +74,7 @@ QBRT_DOS_INC := -Isrc/qbrt/include $(addprefix -I$(QBRT)/qb/,dos/m32 . dev dev/d
 NAMES := $(B)/qbrt/names.h
 
 CORE_C := $(shell find src/core src/lib -name '*.c' -not -path 'src/core/ui/*') $(wildcard src/plat/dos32/*.c) \
-	src/plat/synth/synth.c src/boot.c
+	src/plat/synth/synth.c src/plat/audio/paud.c src/boot.c
 UI_C := $(wildcard src/core/ui/*.c)
 DOS_ASM := $(wildcard src/plat/dos32/*.asm)
 ASM_OBJ := $(DOS_ASM:src/%.asm=$(B)/obj/%.obj) $(QBRT_DOS_ASM:%.asm=$(B)/qbrt/%.obj)
@@ -136,7 +136,7 @@ dos-zip: $(DOS_EXE) $(DOS_GAMES) $(DOS_MODULES)
 
 # ---- The tests ----
 
-TOOLS_TEST := tools/cfmt_test.py tools/libcalls_test.py tools/gas2coff_test.py tools/conformance_test.py tools/mkhelp_test.py tools/golden_test.py
+TOOLS_TEST := tools/cfmt_test.py tools/libcalls_test.py tools/gas2coff_test.py tools/conformance_test.py tools/mkhelp_test.py tools/golden_test.py tools/qbx_test.py
 test: $(DOS_EXE) | $(DOSBOX_BIN)
 	sh tests/gen/dfa.sh
 	sh tests/gen/messages.sh
@@ -150,13 +150,39 @@ test: $(DOS_EXE) | $(DOSBOX_BIN)
 	BASIC_EXE=$(B)/basic32.exe $(PY) tools/gfx_test.py
 	IDE_EXE=$(B)/ide32.exe $(PY) tools/ide_test.py
 
-host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/hostperf/basic
+# the native ABI's test extension (tests/ext): its glue, then a slice for each platform; native.sh packs them
+build/ext/qxtest_qx.c: tests/ext/qxtest.bas tools/qbx.py
+	@mkdir -p $(@D)
+	$(PY) tools/qbx.py glue $< qxtest $(@D)
+QXTEST := tests/ext/qxtest.c build/ext/qxtest_qx.c
+QX_CFLAGS := -std=c23 -O2 -Wall -Wextra -ffreestanding -Isrc/qx -Ibuild/ext
+build/host/ext/qxtest.so: $(QXTEST) src/qx/qx.h
+	@mkdir -p $(@D)
+	$(HOST_CC) $(QX_CFLAGS) $(HOST_SLICE) $(QXTEST) -o $@
+# wasm's a side module, with the IDE's features; DOS's a DLL, made an image by qbx.py pack
+WASM_FEATURES := atomics,bulk-memory,bulk-memory-opt,mutable-globals,sign-ext,call-indirect-overlong,nontrapping-fptoint,reference-types,multivalue
+build/wasm/ext/qxtest.wasm: $(QXTEST) src/qx/qx.h
+	@mkdir -p $(@D)
+	$(CLANG) --target=wasm32-unknown-unknown -matomics -mbulk-memory -fPIC -fvisibility=hidden $(QX_CFLAGS) \
+		-c tests/ext/qxtest.c -o $(@D)/qxtest.o
+	$(CLANG) --target=wasm32-unknown-unknown -matomics -mbulk-memory -fPIC -fvisibility=hidden $(QX_CFLAGS) \
+		-c build/ext/qxtest_qx.c -o $(@D)/qxtest_qx.o
+	$(WASM_LD) -shared --experimental-pic --shared-memory --features=$(WASM_FEATURES) -o $@ $(@D)/qxtest.o $(@D)/qxtest_qx.o
+LLD_LINK ?= $(firstword $(wildcard /opt/homebrew/opt/lld/bin/lld-link) lld-link)
+DOS_SLICE_CC = $(CLANG) --target=i386-pc-win32 -march=i386 -fno-asynchronous-unwind-tables $(QX_CFLAGS)
+$(B)/ext/qxtest.dll: $(QXTEST) src/qx/qx.h
+	@mkdir -p $(@D)
+	$(DOS_SLICE_CC) -c tests/ext/qxtest.c -o $(@D)/qxtest.obj
+	$(DOS_SLICE_CC) -c build/ext/qxtest_qx.c -o $(@D)/qxtest_qx.obj
+	$(LLD_LINK) /dll /noentry /nodefaultlib /out:$@ $(@D)/qxtest.obj $(@D)/qxtest_qx.obj
+host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/hostperf/basic build/host/ext/qxtest.so
 	for t in $(TOOLS_TEST); do $(PY) $$t || exit 1; done
 	build/host/unit_tests
 	sh tests/host/longpath.sh build/host/basic
 	sh tests/host/dosname.sh build/host/basic
 	sh tests/host/check.sh build/host/basic
 	sh tests/host/import.sh build/host/basic
+	PY=$(PY) sh tests/host/native.sh build/host/basic build/host/ext/qxtest.so $(HOST_TAG)
 	$(PY) tools/golden.py
 	BASIC_EXE=build/host/basic $(PY) tools/regress_test.py build/host/basic
 	BASIC_EXE=build/host/basic $(PY) tools/conformance.py
@@ -175,7 +201,7 @@ HOST_CFLAGS := -std=c23 -D_DEFAULT_SOURCE -O1 -g -Wall -Wextra -Wno-unused-param
 	-Isrc/plat/host/include -Isrc -Isrc/core
 HOST_C := $(shell find src/core -name '*.c' -not -path 'src/core/ui/*') src/core/ui/tree.c src/core/ui/indent.c \
 	src/core/ui/helpfile.c src/core/ui/helpdoc.c \
-	$(wildcard src/plat/host/*.c) src/plat/synth/synth.c src/boot.c
+	$(wildcard src/plat/host/*.c) src/plat/synth/synth.c src/plat/audio/paud.c src/boot.c
 QBRT_HOST_C := $(QBRT_PORTABLE) $(addprefix qb/,posix/block.c posix/ad.c posix/mathops.c dev/headless/headless.c dev/pixmem.c \
 	dev/host/video.c dev/host/vgadata.c dev/host/tick.c) shared/posix/os.c
 QBRT_HOST_INC := -Isrc/qbrt/include $(addprefix -I$(QBRT)/,qb/posix qb qb/dev qb/dev/headless qb/dev/host shared/posix)
@@ -202,11 +228,20 @@ $(eval $(call host_rules,build/host,$(HOST_CFLAGS)))
 # tools/bench.py's: optimized, no op count; QB_INSNS reports the instructions it ran
 $(eval $(call host_rules,build/hostperf,$(filter-out -O1 -g -DEXEC_COUNT,$(HOST_CFLAGS)) -O2))
 
+# dlopen (plat/host/pext.c): in libc on the Mac, libdl on glibc before 2.34
+HOST_OS := $(shell uname -s)
+HOST_DL := $(if $(filter Linux,$(HOST_OS)),-ldl)
+# this machine's slice in a .qbx, and how a slice is linked: the Mac's needs libSystem, though it uses none of it
+HOST_TAG := $(if $(filter Darwin,$(HOST_OS)),macos,linux-x86_64)
+# the Mac's slice universal, as the app is: its x86-64 half (Rosetta, an Intel Mac) loads it too
+HOST_SLICE := -shared -fPIC -ffreestanding -fvisibility=hidden $(if $(filter Linux,$(HOST_OS)),-nostdlib) \
+	$(if $(filter Darwin,$(HOST_OS)),-arch arm64 -arch x86_64 -mmacosx-version-min=13.0)
+
 host: build/host/basic
 build/host/basic: $(build/host_OBJ) build/host/obj/app/basic32.o build/host/obj/plat/host/app/term.o
-	$(HOST_CC) $^ -lm -o $@
+	$(HOST_CC) $^ -lm $(HOST_DL) -o $@
 build/hostperf/basic: $(build/hostperf_OBJ) build/hostperf/obj/app/basic32.o build/hostperf/obj/plat/host/app/insns.o
-	$(HOST_CC) $^ -lm -o $@
+	$(HOST_CC) $^ -lm $(HOST_DL) -o $@
 
 # ---- The Mac's: the IDE in a window, build/mac/QuickrBasic.app, universal (arm64 and x86-64, macOS 13 on); mac-zip,
 # the app zipped. SDL 3 is linked in, built by tools/deps.sh sdl. The display is plat/view's, as the browser's; wrap.h
@@ -247,9 +282,13 @@ $(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(MAC)/QuickrBasic $(HELP) $
 mac-zip: mac
 	cd $(MAC) && ditto -c -k --keepParent QuickrBasic.app QuickrBasic-mac.zip
 # each architecture's half (x86-64's under Rosetta, where there is one)
-mac-test: mac
-	$(PY) tools/mac_test.py $(APP)/Contents/MacOS/QuickrBasic arm64
-	if arch -x86_64 /usr/bin/true 2>/dev/null; then $(PY) tools/mac_test.py $(APP)/Contents/MacOS/QuickrBasic x86_64; fi
+mac-test: mac $(MAC)/ext/qxtest.qbx
+	$(PY) tools/mac_test.py $(APP)/Contents/MacOS/QuickrBasic arm64 $(MAC)/ext/qxtest.qbx
+	if arch -x86_64 /usr/bin/true 2>/dev/null; then \
+		$(PY) tools/mac_test.py $(APP)/Contents/MacOS/QuickrBasic x86_64 $(MAC)/ext/qxtest.qbx; fi
+$(MAC)/ext/qxtest.qbx: tests/ext/qxtest.bas build/host/ext/qxtest.so tools/qbx.py
+	@mkdir -p $(@D)
+	$(PY) tools/qbx.py pack $@ $< macos=build/host/ext/qxtest.so
 
 # The tutorial's pictures of the synthesizer, drawn from its own samples (docs/play-tutorial.md)
 build/host/synthdump: tools/diagrams/synthdump.c src/plat/synth/synth.c src/plat/synth/synth.h
@@ -267,12 +306,12 @@ build/host/unit/%.o: tests/unit/%.c
 build/host/test.hlp: tools/mkhelp.py $(wildcard tests/help/*)
 	$(PY) tools/mkhelp.py tests/help -o $@
 build/host/unit_tests: $(build/host_OBJ) $(UNIT_UI_OBJ) $(UNIT_OBJ) build/host/obj/lib/div64.o build/host/test.hlp
-	$(HOST_CC) $(filter-out %.hlp,$^) -lm -o $@
+	$(HOST_CC) $(filter-out %.hlp,$^) -lm $(HOST_DL) -o $@
 build/host/golden/dump.o: tests/golden/dump.c
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) $(DEPFLAGS) -c $< -o $@
 build/host/golden_dump: $(build/host_OBJ) build/host/golden/dump.o
-	$(HOST_CC) $^ -lm -o $@
+	$(HOST_CC) $^ -lm $(HOST_DL) -o $@
 
 # ---- WebAssembly: the host's platform where it is portable, src/plat/wasm for the rest. Stock clang and
 # wasm-ld; longjmp is wasm's exceptions, the memory shared with the page's thread (src/plat/wasm/include/wasm.h) ----
@@ -286,7 +325,7 @@ WASM_CFLAGS := $(WASM_TARGET) -std=c23 -O2 -g -Wall -Wextra -Wno-unused-paramete
 	-DPFIL_PATH=1024 -DAC=$(AC) -isystem src/plat/wasm/include -isystem src/lib/include -Isrc -Isrc/core
 # -MD, not -MMD: the shim's headers are -isystem, and -MMD leaves those out of the dependencies
 WASM_DEPFLAGS = -MD -MP -MF $@.d -MT $@
-WASM_C := $(filter-out src/plat/host/% src/plat/synth/%,$(HOST_C)) $(addprefix src/plat/host/,pclk.c pfil.c pfpu.c pkey.c pscr.c ports.c) $(wildcard src/plat/wasm/*.c) \
+WASM_C := $(filter-out src/plat/host/% src/plat/synth/% src/plat/audio/%,$(HOST_C)) $(addprefix src/plat/host/,pclk.c pfil.c pfpu.c pkey.c pscr.c ports.c) $(wildcard src/plat/wasm/*.c) \
 	$(wildcard src/plat/view/*.c)
 WASM_QBRT_C := $(filter-out shared/posix/os.c,$(QBRT_HOST_C))
 WASM_OBJ := $(WASM_C:src/%.c=build/wasm/obj/%.o) $(WASM_QBRT_C:%.c=build/wasm/qbrt/%.o) build/wasm/obj/qbrt/qbrt.o \
@@ -295,6 +334,7 @@ WASM_OBJ := $(WASM_C:src/%.c=build/wasm/obj/%.o) $(WASM_QBRT_C:%.c=build/wasm/qb
 # render_stack the page's display
 WASM_WRAP := gd_set_mode dev_tone dev_voice $(addprefix dev_text_,size cursor move cursor_show get put write scroll pages_reset pages copy)
 WASM_LDFLAGS := --no-entry --export=__main_void --export=__wasm_call_ctors --export=__stack_pointer --export=host_tick_fire --import-memory \
+	--export-table --growable-table \
 	--shared-memory --initial-memory=33554432 --max-memory=1073741824 --stack-first -z stack-size=8388608 \
 	$(addprefix --wrap=,$(WASM_WRAP))
 
@@ -345,12 +385,14 @@ build/web/%: src/plat/wasm/web/%
 	@mkdir -p $(@D)
 	cp $< $@
 
-wasm-test: build/wasm/basic build/wasm/ide.wasm
+wasm-test: build/wasm/basic build/wasm/ide.wasm build/wasm/ext/qxtest.wasm
 	grep -q 'wasm/include/wasm.h' build/wasm/obj/plat/wasm/pterm.o.d # a changed WasmIrq rebuilds its users
+	PY=$(PY) sh tests/host/native.sh $< build/wasm/ext/qxtest.wasm wasm32 audio
 	BASIC_EXE=$< $(PY) tools/regress_test.py $<
 	node tools/wasm/frame_test.mjs build/wasm/ide.wasm
 	node tools/wasm/play_test.mjs build/wasm/basic.wasm
 	node tools/wasm/scan_test.mjs build/wasm/basic.wasm
+	node tools/wasm/upload_test.mjs
 	node tools/wasm/retrace_test.mjs build/wasm/basic.wasm
 	BASIC_EXE=$< $(PY) tools/conformance.py
 

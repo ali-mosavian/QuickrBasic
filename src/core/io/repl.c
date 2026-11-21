@@ -55,6 +55,7 @@
 #include "io/diag.h"
 #include "io/errmsg.h"
 #include "io/locate.h"
+#include "io/native.h"
 #include "io/path.h"
 #include "io/source.h"
 #include "mem/alloc.h"
@@ -124,12 +125,12 @@ void repl_fault(Fault *const f, const Failure *const e)
 {
     Session *const S = container_of(f, Session, fault);
 
+    if (e->code == E_USR)
+        S->vm.err.user = e->user;
     if (e->at != FAULT_KEEP)
         repl_raise_at(S, e);
     if (e->line != FAULT_KEEP)
         S->vm.line = e->line;
-    if (e->code == E_USR)
-        S->vm.err.user = e->user;
 
     repl_error(S, e->code);
 }
@@ -391,6 +392,7 @@ static void reset(Session *const S)
 {
     S->vm.err.active = false;
     S->vm.running = false; /* its loop's frame is gone */
+    natv_stop(&S->natv);
     chnl_clear(&S->chnl);
     cons_fresh(&S->cons);
     S->vm.sp = flow_stack_base(&S->vm); /* below a stop's frames, which CONT and probes keep */
@@ -857,10 +859,18 @@ static void not_found(Session *const S)
         fault_qberr(&S->fault, QB_FILE_NOT_FOUND);
 }
 
-/* The module at path imported by the one being read: loaded once, declared before it. */
+/* The module at path imported by the one being read: loaded once, declared before it. A .qbx's
+   header is read now, so an error in it is at the IMPORT. */
 static void import(Session *const S, const char *const path)
 {
-    modu_import(&S->modu, S->repl.module, modu_module(&S->modu, path));
+    const uint32_t m = modu_module(&S->modu, path);
+
+    if (qbxf_is(path)) {
+        natv_open(&S->natv, path);
+        modu_mod(&S->modu, m)->native = true;
+    }
+
+    modu_import(&S->modu, S->repl.module, m);
 }
 
 /* One name the line gives: a module's file added to those to load, once. */
@@ -966,13 +976,21 @@ static void find_imports(Session *const S, const char *const path)
     impt_line(body, imported, &im);
 }
 
-/* Enter the lines of file name, read as file number num; an include's on the number below, in
-   place. Then the console's again. */
-static void read_file(Session *const S, const char *const name, const int32_t num)
+/* Enter the lines of file name from offset from on, read as file number num; an include's on the
+   number below, in place. Then the console's again. */
+static void read_file(
+    Session *const S,
+    const char *const name,
+    const int32_t num,
+    const uint32_t from
+)
 {
     Chnl *const cl = &S->chnl;
     Chan *c;
     fault_check(&S->fault, chnl_open(cl, num, name, FM_IN, RECLEN_DEFAULT, &c));
+
+    if (from)
+        fault_check(&S->fault, chnl_seek(c, from));
 
     uint32_t len;
 
@@ -1005,7 +1023,7 @@ static void read_file(Session *const S, const char *const name, const int32_t nu
 
         if (inc) { /* its lines next */
             char path[PFIL_PATH];
-            read_file(S, include_path(name, S->repl.incl, path), num - 1);
+            read_file(S, include_path(name, S->repl.incl, path), num - 1, 0);
             fault_check(&S->fault, chnl_find(cl, num, &c));
             fault_check(&S->fault, chnl_in(cl, c));
         }
@@ -1065,7 +1083,16 @@ static void read_modules(Session *const S, const uint32_t from, const uint32_t l
         modu_top(&S->modu, m, prog_at(&S->prog));
         module_end(S);
         S->repl.module = m;
-        read_file(S, path, SOURCE_FILENO);
+
+        if (!modu_mod(&S->modu, m)->native) {
+            read_file(S, path, SOURCE_FILENO, 0);
+            continue;
+        }
+
+        const uint8_t flags = S->prog.add_flags; /* a .qbx: its interface, its last part */
+        S->prog.add_flags = flags | LF_NATIVE;
+        read_file(S, path, SOURCE_FILENO, natv_open(&S->natv, path));
+        S->prog.add_flags = flags;
     }
 
     module_end(S); /* the last module's */
@@ -1175,9 +1202,12 @@ static void declare_program(Session *const S)
         const uint32_t from = m ? top + prog_line(&S->prog, top)->len : PROGBASE;
         const uint32_t to = m + 1 < n ? modu_top_of(&S->modu, m + 1) : prog_at(&S->prog);
         decl_module(&S->decl, &S->scop, &S->symb, sc_module(m), top);
+        S->decl.native = modu_mod(&S->modu, m)->native;
 
         for (uint32_t line = from; line < to; line += prog_line(&S->prog, line)->len)
             redeclare(S, line);
+
+        S->decl.native = false;
     }
 
     S->vm.line = DLINE;
@@ -1193,7 +1223,7 @@ void repl_load(Session *const S)
     S->repl.nfile = 0;
     S->repl.module = 0;
     modu_clear(&S->modu, S->repl.file);
-    read_file(S, S->repl.file, SOURCE_FILENO);
+    read_file(S, S->repl.file, SOURCE_FILENO, 0);
     read_modules(S, 1, 0);
     declare_program(S);
     S->repl.loading = false;
@@ -1267,7 +1297,7 @@ static void walk(Session *const S, const bool lenient)
         S->prog.add_flags = LF_INC;
         char path[PFIL_PATH];
         const char *const from = modu_module_path(&S->modu, S->repl.module);
-        read_file(S, include_path(from, S->repl.incl, path), SOURCE_FILENO - 1);
+        read_file(S, include_path(from, S->repl.incl, path), SOURCE_FILENO - 1, 0);
         line = S->prog.add_at;
         S->prog.add_at = 0;
         S->prog.add_flags = 0;

@@ -26,6 +26,7 @@
 #include "rtinit.h"
 #include "varptr.h"
 #include "base.h"
+#include "plat/paud.h"
 
 struct ModuleData {
     char unused;
@@ -189,6 +190,7 @@ void qbrt_done(void)
     dev_tone(0);
     dev_tick_stop();
     dev_synth_close();
+    paud_end(); /* an extension's streams too: the card stopped before the process ends */
 }
 
 /* VARPTR$'s address, an Addr: its variable. */
@@ -229,5 +231,6 @@ void qbrt_init(Fault *const f, volatile uint8_t *const brk, void *const room, co
     varptr_at = vm_variable;
     varptr_desc = vm_string;
     qbrt_device();
+    dev_audio_init();
     qb_start();
 }

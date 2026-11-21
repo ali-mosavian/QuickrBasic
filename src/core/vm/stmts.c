@@ -600,6 +600,7 @@ void stmt_rungo(Session *const S, const uint32_t line)
     evnt_clear(S);
     chai_start(&S->chai, &S->symb);
     modu_run_reset(&S->modu);
+    natv_start(&S->natv);
     S->vm.err.active = false;
     S->vm.err.code = 0;
     S->vm.err.line = 0;
@@ -681,6 +682,7 @@ void stmt_end(Session *const S)
         dbug_done(S);
 
     fault_check(&S->fault, chnl_closeall(&S->chnl));
+    natv_stop(&S->natv);
     flow_setcont(&S->vm, &S->allo);
     ready(S);
 }

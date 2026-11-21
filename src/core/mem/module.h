@@ -23,11 +23,13 @@ typedef struct {
 } ModuRead;
 
 /* Each module's: its path, its LF_TOP line (the END before its lines; 0 the main's), as read and
-   again at each link; the editor's: its lines changed since saved; its run's state: its code run by
-   an IMPORT, its ON ERROR handler's line (0 none), its READ place. */
+   again at each link; a native module's (a .qbx's: io/native.c); the editor's: its lines changed
+   since saved; its run's state: its code run by an IMPORT, its ON ERROR handler's line (0 none), its
+   READ place. */
 typedef struct {
     uint32_t path; /* an offset in Modu.text */
     uint32_t top;
+    bool native;
     bool edited;
     bool ran;
     uint32_t handler;
