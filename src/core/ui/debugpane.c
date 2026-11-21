@@ -206,7 +206,7 @@ static uint32_t stop_proc(void) { return dstk_count() ? dstk_at(0)->at.proc : 0;
 static void read_locals(Session *const S)
 {
     if (dstk_count())
-        dloc_read(S, &dstk_at(dp.frame)->at, dstk_newest(dp.frame));
+        dloc_read(S, dstk_at(dp.frame), dstk_newest(dp.frame));
 }
 
 void dpan_open(Session *const S)

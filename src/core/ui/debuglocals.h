@@ -1,14 +1,13 @@
 /* The debugger's Locals. How it works: debuglocals.c. */
 #ifndef UI_DEBUGLOCALS_H
 #define UI_DEBUGLOCALS_H
-#include "session.h"
-#include "ui/ui.h"
+#include "ui/debugstack.h"
 
 /* A new stop: a change seen from now on is this stop's. */
 void dloc_stop(void);
-/* Locals of frame f: its procedure's variables as it sees them. newest: f is its procedure's newest
-   frame (dstk_newest), whose values are the ones a change is seen in. */
-void dloc_read(Session *S, const DebugFrame *f, bool newest);
+/* Locals of frame f: its procedure's variables as it sees them, named as declared. newest: f is its
+   procedure's newest frame (dstk_newest), whose values are the ones a change is seen in. */
+void dloc_read(Session *S, const StackFrame *f, bool newest);
 /* The rows read; row i of them. */
 uint8_t dloc_count(void);
 const char *dloc_row(uint8_t i);

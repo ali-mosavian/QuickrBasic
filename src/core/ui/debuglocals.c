@@ -1,7 +1,8 @@
 /* The debugger's Locals: the selected frame's procedure's variables, the module's at the module.
  *
  * # How it works
- * A row is a variable's name, " = ", its value as the frame sees it (session_cell). The rows run the
+ * A row is a variable's name as declared (spelling.c), " = ", its value as the frame sees it
+ * (session_cell). The rows run the
  * last changed first, else the parameters first, then by id. A change is a row's text unlike the
  * one its variable had at the stop before, kept in seen by id and name (a relinked program's id may
  * be another's).
@@ -11,6 +12,7 @@
 #include "mem/scope.h"
 #include "mem/symbols.h"
 #include "ui/debugvalue.h"
+#include "ui/spelling.h"
 
 enum {
     NDVAR = 64,  /* the variables shown at most */
@@ -69,10 +71,8 @@ static bool is_param(Session *const S, const uint32_t id)
 static void var_text(Session *const S, const uint32_t id, const int32_t par)
 {
     const Var *const v = symb_var(&S->symb, id);
-    const uint8_t *const name = symb_text(&S->symb, v->name);
-    char *d = loc.row;
-    memcpy(d, name + 1, name[0]);
-    d += name[0];
+    const uint32_t scope = symb_varx(&S->symb, id)->scope;
+    char *d = spel_name(S, loc.row, v->name, scope & ~SC_MOD ? SPEL_LOCAL : SPEL_MODULE);
 
     if (v->type <= ET_SD && sfx_of[v->type])
         *d++ = sfx_of[v->type];
@@ -162,11 +162,12 @@ static bool skipped(Session *const S, const uint32_t id)
     return (v->info & (VI_ARR | VK_MASK)) == VK_FN || symb_text(&S->symb, v->name)[1] == LOOP_NAME;
 }
 
-void dloc_read(Session *const S, const DebugFrame *const f, const bool newest)
+void dloc_read(Session *const S, const StackFrame *const f, const bool newest)
 {
-    loc.frame = *f;
-    loc.proc = f->proc;
+    loc.frame = f->at;
+    loc.proc = f->at.proc;
     loc.n = 0;
+    spel_read(S, f->view == DSTK_NOVIEW ? 0 : f->view);
 
     if (loc.proc) {
         const Proc *const p = blok_proc(&S->blok, loc.proc);

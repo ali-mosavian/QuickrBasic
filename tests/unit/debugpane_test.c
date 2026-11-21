@@ -171,7 +171,7 @@ TEST(debug_pane_shows_frames_and_their_locals)
 {
     stopped_in(S, fact);
     CHECK(uimn.pane_on);
-    CHECK(rows_are("Locals", " N% = 3| T% = 30"));
+    CHECK(rows_are("Locals", " n% = 3| t% = 30"));
     CHECK(rows_are(
         "Call stack",
         "\x10"
@@ -179,10 +179,10 @@ TEST(debug_pane_shows_frames_and_their_locals)
     ));
     pane_keys(S, 2, (const uint16_t[]){K_DOWN, K_ENTER, 0});
 
-    CHECK(rows_are("Locals", " N% = 4| T% = 40"));
+    CHECK(rows_are("Locals", " n% = 4| t% = 40"));
     pane_keys(S, 2, (const uint16_t[]){K_DOWN, K_ENTER, 0});
 
-    CHECK(rows_are("Locals", " R& = 1| S$ = \"hi\"| D# = 2.5"));
+    CHECK(rows_are("Locals", " r& = 1| s$ = \"hi\"| d# = 2.5"));
     done(S);
 }
 
@@ -212,10 +212,10 @@ TEST(debug_pane_puts_the_last_changed_first)
 {
     stopped_in(S, (const char *const[]){"a = 1: b = 2: stop: b = 3: stop", nullptr});
 
-    CHECK(rows_are("Locals", " A = 1| B = 2"));
+    CHECK(rows_are("Locals", " a = 1| b = 2"));
     uimn_cont(S);
     shown(S);
-    CHECK(rows_are("Locals", " B = 3| A = 1"));
+    CHECK(rows_are("Locals", " b = 3| a = 1"));
     done(S);
 }
 
@@ -227,10 +227,41 @@ TEST(debug_pane_tooltip_shows_a_variable)
     uimn.edline.col = 0;
     uimn.tip_mouse = false;
     shown(S);
-    CHECK(strstr(screen_text((uint8_t)(uimn.ed.row0 + 3), 0), " T% = 30 "));
+    CHECK(strstr(screen_text((uint8_t)(uimn.ed.row0 + 3), 0), " t% = 30 "));
     edit_load(S, view_goline(S, uimn.text.first + 1)); /* shared s$ */
     uimn.edline.col = 7;
     shown(S);
-    CHECK(strstr(screen_text((uint8_t)(uimn.ed.row0 + 2), 0), " S$ = \"hi\" "));
+    CHECK(strstr(screen_text((uint8_t)(uimn.ed.row0 + 2), 0), " s$ = \"hi\" "));
+    done(S);
+}
+
+/* Locals named each variable in capitals, not as its program spells it: as declared, else as
+   first named; a procedure's variable as its lines spell it, a module's as the module's, a field's
+   spelling none's. */
+TEST(debug_pane_names_variables_as_declared)
+{
+    stopped_in(
+        S,
+        (const char *const[]){
+            "type pt",
+            "X as integer",
+            "end type",
+            "dim Total as long",
+            "TOTAL = 5",
+            "myVar = 1: MYVAR = 2",
+            "COUNT = 7: x = 1",
+            "bump 3",
+            "sub bump (Count)",
+            "MyVar = 9",
+            "stop",
+            "end sub",
+            nullptr,
+        }
+
+    );
+    CHECK(rows_are("Locals", " Count = 3| MyVar = 9"));
+    pane_keys(S, 2, (const uint16_t[]){K_DOWN, K_ENTER, 0});
+
+    CHECK(rows_are("Locals", " myVar = 2| COUNT = 7| Total& = 5| x = 1"));
     done(S);
 }
