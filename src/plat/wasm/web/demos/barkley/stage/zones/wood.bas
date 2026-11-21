@@ -70,14 +70,18 @@ private const BEELOSE = 160
 ' fireflies' always.
 sub Nightfall (lv as Level, zn as Realm, tn as Tones)
     dim i as integer, n as integer, k as integer, c as long
+
     if lv.glow > 0 then lv.glow = lv.glow - 1
     n = GLOWN
     if lv.glow < GLOWFADE then n = lv.glow * GLOWN \ GLOWFADE
     if n = lv.glow_at then exit sub
+
     lv.glow_at = n
+
     for i = 0 to tn.n(zn.stage) - 1
         k = tn.which(zn.stage, i)
         if k = CFLY or k = CFLY + 1 then continue for
+
         c = tn.own(zn.stage, i)
         Tint tn, k, _
             Dimmed%(c and 63, 2, n) _
@@ -90,6 +94,7 @@ end sub
 ' with none, three tenths of it over f.
 private function Dimmed% (v as integer, f as integer, n as integer)
     dim d as integer
+
     d = f + v * 3 \ 10
     Dimmed% = d + (v - d) * n \ GLOWN
 end function
@@ -105,12 +110,14 @@ sub MeetSapling ( _
     i as integer _
 )
     dim py as integer, v as single
+
     py = cint(p.at.y)
     if lv.things(i).state > 0 _
         or abs(lv.things(i).at.x _
         + SAPREACH - cint(p.at.x)) >= 10 then exit sub
     if py < lv.things(i).at.y - 12 or py > lv.things(i).at.y + 2 _
         or (not p.ground and p.vel.y < 0) then exit sub
+
     if p.ground then p.vel.x = p.gsp
     v = SAPV + SAPGAIN * abs(p.vel.x)
     if v > SAPMAX then v = SAPMAX
@@ -137,6 +144,7 @@ sub MeetVine ( _
     if abs(p.at.x - lv.things(i).at.x) >= 12 _
         or abs(p.at.y - VINEGRIP - lv.things(i).at.y _
         - VINELEN) >= 12 then exit sub
+
     p.vine = i + 1
     p.sway = (p.at.x - lv.things(i).at.x) / VINELEN
     p.sway_v = p.vel.x / VINELEN
@@ -160,10 +168,12 @@ sub MeetBramble ( _
         or abs(lv.things(i).at.x - p.at.x) >= BRAMBLER then exit sub
     if p.at.y < lv.things(i).at.y - 24 _
         or p.at.y > lv.things(i).at.y + 8 then exit sub
+
     if not p.roll then
         Hurt mu, se, g, p, lv.things(i).at.x, lo(), SHURT
         exit sub
     end if
+
     lv.things(i).state = BRAMBLET
     Sfx mu, se, SPOP
 end sub
@@ -180,14 +190,18 @@ sub MeetMound ( _
     pt() as Part _
 )
     dim on_it as integer
+
     on_it = abs(lv.things(i).at.x - p.at.x) < MOUNDR
+
     if p.dug = i + 1 then
         if not on_it then p.dug = 0
         exit sub
     end if
+
     if not (on_it and p.crouch and p.ground) _
         or abs(lv.things(i).at.y - p.at.y) >= 8 _
         or lv.things(i).state < 1 then exit sub
+
     p.dig = lv.things(i).state
     p.ground = 0
     p.crouch = 0
@@ -208,16 +222,19 @@ sub MeetLog ( _
     i as integer _
 )
     dim s as integer
+
     if abs(lv.things(i).at.x - p.at.x) >= LOGR _
         or p.at.y <= lv.things(i).at.y - LOGH _
         or p.at.y > lv.things(i).at.y + 4 then
         lv.things(i).state = 0
         exit sub
     end if
+
     if not p.roll then
         Balk p, lv.things(i).at.x, LOGR
         exit sub
     end if
+
     if lv.things(i).state = 0 then Sfx mu, se, SSPRING
     lv.things(i).state = 1
     s = 1 + 2 * (p.gsp < 0)
@@ -228,10 +245,12 @@ end sub
 ' back BRAMBLET steps on.
 sub Regrow (lv as Level, se as Session, pt() as Part, i as integer)
     if lv.things(i).state = 0 then exit sub
+
     if lv.things(i).state = BRAMBLET then
         Burst se, pt(), csng(lv.things(i).at.x), _
             csng(lv.things(i).at.y - 12), 10, 140, CLEAF
     end if
+
     lv.things(i).state = lv.things(i).state - 1
 end sub
 
@@ -244,6 +263,7 @@ sub Swarms ( _
     lo() as Loose _
 )
     dim i as integer
+
     for i = 0 to lv.n_swarms - 1
         Buzz mu, se, lv.swarms(i), g, p, lo()
     next
@@ -261,25 +281,30 @@ private sub Buzz ( _
     lo() as Loose _
 )
     dim dx as single, dy as single, d as single
+
     dx = p.at.x - b.at.x
     dy = p.at.y - 13 - b.at.y
     d = sqr(dx * dx + dy * dy)
     if d < BEESEE then b.st = 1
     if b.st = 1 and d > BEELOSE then b.st = 2
     if b.st = 0 then exit sub
+
     if b.st = 1 and d < BEER + BEEV * STEPT then
         Hurt mu, se, g, p, cint(b.at.x), lo(), SHURT
     end if
+
     if b.st = 2 then
         dx = b.home.x - b.at.x
         dy = b.home.y - b.at.y
         d = sqr(dx * dx + dy * dy)
     end if
+
     if d > BEEV * STEPT then
         b.at.x = b.at.x + dx * BEEV * STEPT / d
         b.at.y = b.at.y + dy * BEEV * STEPT / d
         exit sub
     end if
+
     b.at.x = b.at.x + dx
     b.at.y = b.at.y + dy
     if b.st = 2 then b.st = 0
@@ -294,9 +319,11 @@ sub DrawBees ( _
     cy as integer _
 )
     dim i as integer, j as integer, x as integer, y as integer
+
     for i = 0 to lv.n_swarms - 1
         if abs(lv.swarms(i).at.x - cx - SW \ 2) > SW \ 2 _
             + 24 then continue for
+
         for j = 0 to NBEE - 1
             x = cint(lv.swarms(i).at.x) - cx _
                 + cint(13 * sin(se.ticks * .21 + j * 2.4)) - 2
@@ -315,16 +342,19 @@ end sub
 ' about, a loop at its end.
 sub DrawVine (x as integer, y as integer, a as single)
     dim j as integer, u as integer, v as integer
+
     for j = 0 to VINELEN
         u = x + cint(j * sin(a))
         v = y + cint(j * cos(a))
         pset (u, v), CVINE
         pset (u + 1, v), CVINED
+
         if j mod 7 = 3 then
             line (u + 2 - 5 * ((j \ 7) and 1), v) _
                 -(u + 3 - 5 * ((j \ 7) and 1), v + 1), CVINE, bf
         end if
     next
+
     circle (u, v + 3), 3, CVINE
 end sub
 
@@ -333,16 +363,20 @@ end sub
 ' while a bark's light lasts.
 sub DrawFlies (lv as Level, se as Session, cx as integer)
     dim j as integer, x as integer, y as integer
+
     for j = 0 to FLYREST + (NFLY - FLYREST) * lv.glow_at \ GLOWN - 1
         if ((se.ticks \ 16 + j * 3) and 7) = 0 then continue for
+
         x = (j * 73 + 31 + SW - (cx \ 2) mod SW) mod SW _
             + cint(6 * sin(se.ticks * .02 + j))
         y = 22 + (j * 47) mod 136 _
             + cint(4 * sin(se.ticks * .031 + j * 2))
+
         if lv.glow_at = 0 then
             pset (x, y), CFLY
             continue for
         end if
+
         pset (x, y), CFLY + 1
         pset (x - 1, y), CFLY
         pset (x + 1, y), CFLY
@@ -360,32 +394,42 @@ end sub
 sub Scamper (lv as Level, i as integer, p as Hero)
     dim n as integer, d as integer, perch as integer
     dim quarry as integer
+
     n = abs(lv.things(i).state) - 1
     d = sgn(lv.things(i).state)
     quarry = abs(p.at.x - lv.things(i).home) < SQRUN + SQSEE _
         and p.at.y > lv.things(i).at.y
+
     if n = 0 and quarry _
         and abs(p.at.x - lv.things(i).at.x) >= SQNEAR then
         n = 1
     end if
+
     if n = 0 then
         if quarry then
             Loft lv, lv.things(i).at.x + 5 * d, _
                 lv.things(i).at.y + 1, 0, 0, IACORN, CNUT
         end if
+
         n = SQWAIT
     end if
+
     lv.things(i).state = d * n
     if n <= SQAIM or n > SQWAIT then exit sub
+
     perch = lv.things(i).home
     if quarry then perch = cint(p.at.x)
+
     if perch < lv.things(i).home - SQRUN then
         perch = lv.things(i).home - SQRUN
     end if
+
     if perch > lv.things(i).home + SQRUN then
         perch = lv.things(i).home + SQRUN
     end if
+
     if abs(perch - lv.things(i).at.x) < SQV then exit sub
+
     d = sgn(perch - lv.things(i).at.x)
     lv.things(i).at.x = lv.things(i).at.x + d * SQV
     lv.things(i).state = d * n

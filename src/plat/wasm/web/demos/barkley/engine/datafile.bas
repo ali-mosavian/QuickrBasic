@@ -21,6 +21,7 @@ end sub
 sub OpenData (df as DataFile)
     df.num = freefile
     open df.path for binary as #df.num
+
     if lof(df.num) = 0 then
         close #df.num
         kill df.path
@@ -33,6 +34,7 @@ end sub
 ' df's next LONG.
 function Word& (df as DataFile)
     dim v as long
+
     get #df.num, , v
     Word& = v
 end function
@@ -40,6 +42,7 @@ end function
 ' df's next string: its length, then its characters.
 function Chars$ (df as DataFile)
     dim s as string
+
     s = space$(Word&(df))
     if len(s) then get #df.num, , s
     Chars$ = s

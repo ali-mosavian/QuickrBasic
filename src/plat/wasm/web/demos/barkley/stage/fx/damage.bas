@@ -28,11 +28,13 @@ sub Tackle ( _
     pt() as Part _
 )
     dim x as integer
+
     if p.roll = 0 and p.charging = 0 then
         x = lv.things(i).at.x
         Hurt mu, se, g, p, x, lo(), SHISS
         exit sub
     end if
+
     Beaten lv, mu, se, g, pt(), i, dy
     if not p.ground and p.vel.y > 0 then p.vel.y = -BOUNCEV
 end sub
@@ -49,21 +51,27 @@ sub Hurt ( _
     snd as integer _
 )
     dim i as integer, n as integer, a as single, v as single
+
     if p.inv > 0 or p.dig then exit sub
+
     ' a snowball takes the hit for him
     if p.snow < 0 then
         p.snow = 1
         p.inv = 1
         exit sub
     end if
+
     if snd = SHISS then Sfx mu, se, snd
+
     if g.bones = 0 then
         Lose mu, se, p
         exit sub
     end if
+
     n = g.bones
     if n > NLOOSE then n = NLOOSE
     g.bones = 0
+
     for i = 0 to n - 1
         a = PI * (.15 + .7 * i / n)
         v = 240 - 70 * (i and 1)
@@ -73,6 +81,7 @@ sub Hurt ( _
         lo(i).vel.y = -sin(a) * v
         lo(i).t = 4
     next
+
     se.loose_n = n
     p.ground = 0
     p.roll = 0
@@ -82,17 +91,20 @@ sub Hurt ( _
     p.stun = -1
     p.inv = 2
     p.vel.y = -260
+
     if p.at.x < from_x then
         p.vel.x = -140
     else
         p.vel.x = 140
     end if
+
     g.shake = .25
     if snd = SHURT then Sfx mu, se, snd
 end sub
 
 sub Lose (mu as Deck, se as Session, p as Hero)
     if p.dead then exit sub
+
     p.dead = -1
     p.dead_t = 0
     p.vel.y = -340

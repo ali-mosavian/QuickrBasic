@@ -30,20 +30,25 @@ const STEPT = 1! / 60!
 ' made up at once.
 sub Pace (d as single, c as Clock)
     dim a as single, r as single, ph as single
+
     c.frames = c.frames + 1
+
     if d < 3 * c.span or c.frames < 3 then
         a = 1 / c.frames
         if a < .005 then a = .005
         c.span = c.span + (d - c.span) * a
     end if
+
     r = c.span / STEPT
     a = 0
     if abs(r - 1) < .05 then a = STEPT
     if abs(r - .5) < .03 then a = STEPT / 2
+
     if a = 0 then
         ByClock d, c
         exit sub
     end if
+
     c.late = 0
     ph = c.lag - a * int(c.lag / a)
     c.lag = c.lag + (a / 2 - ph) * .05
@@ -56,12 +61,15 @@ end sub
 ' up at once.
 private sub ByClock (d as single, c as Clock)
     dim a as single
+
     a = c.span + c.late * .02
     c.late = c.late + d - a
+
     if abs(c.late) > .1 then
         a = a + c.late
         c.late = 0
     end if
+
     if a < 0 then a = 0
     c.lag = c.lag + a
 end sub
@@ -69,16 +77,20 @@ end sub
 ' The steps the game is behind by, taken off its lag.
 function Steps% (c as Clock)
     dim n as integer
+
     if c.lag > .1 then c.lag = .1
+
     do while c.lag >= STEPT
         c.lag = c.lag - STEPT
         n = n + 1
     loop
+
     Steps% = n
 end function
 
 function Elapsed! (a as single, b as single)
     dim d as single
+
     d = b - a
     if d < 0 or d > .1 then d = .1
     Elapsed! = d

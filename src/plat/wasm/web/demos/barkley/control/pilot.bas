@@ -40,9 +40,11 @@ sub Pilot ( _
     ap as Autopilot _
 )
     dim want as integer, hop_now as integer
+
     k.right = -1
     k.left = 0
     k.down = 0
+
     if p.vine then
         ' hung from a vine: let go on the way up and
         ' forward, or where a small swing turns
@@ -57,12 +59,15 @@ sub Pilot ( _
     elseif not p.ground then
         PilotFall lv, zn, p, k
     end if
+
     if lv.gale and p.ground then PilotGale lv, se, p, k, want
+
     ' afloat a hop is made though the last is still held
     if hop_now or (want and ap.hold = 0) then
         k.hit = -1
         ap.hold = 24
     end if
+
     k.jump = ap.hold > 0
     if ap.hold > 0 then ap.hold = ap.hold - 1
 end sub
@@ -89,18 +94,23 @@ private function PilotSwim% ( _
     k as Pad _
 )
     dim i as integer, d as integer, want as integer
+
     want = Solid%(lv, cint(p.at.x) + HW + 2, cint(p.at.y) - 11)
+
     for i = lv.first(cint(p.at.x) \ TS) to lv.n_things - 1
         if lv.things(i).at.x > p.at.x + 34 then exit for
+
         if lv.things(i).kind = KJELLY _
             and lv.things(i).at.x > p.at.x then
             want = -1
         end if
     next
+
     PilotSwim% = want
     ' Kipper's boat about: still, and a hop as it comes, to
     ' come down on its deck
     if zn.id <> 2 or lv.cart.st <> 1 then exit function
+
     k.right = 0
     d = cint(lv.cart.at.x - p.at.x)
     want = lv.cart.t <= 0 and abs(d) < abs(lv.cart.v) * .55 + 12 _
@@ -119,15 +129,19 @@ private function PilotRide% ( _
 )
     dim y as integer, i as integer, m as integer, d as integer
     dim want as integer
+
     y = cint(p.at.y)
     HoldBack p, k, 20
     i = cint(gr.pt(p.sg).at.x) + MOVEW + 10
+
     if Surf%(lv, i, y) <> NONE and not Solid%(lv, i, y - 12) then
         PressOn k
         want = -1
     end if
+
     for m = 0 to lv.n_movers - 1
         if lv.movers(m).sg <> p.sg then continue for
+
         select case lv.movers(m).kind
         case 4, 6
             ' a bridge is run over, and a pier
@@ -144,6 +158,7 @@ private function PilotRide% ( _
             ' a boat low in its pool: off it at the wall,
             ' once the bank is a jump up
             d = lv.top((i + 6) \ TS) * TS
+
             if Swing!(lv, se, m, 0) > .85 and d < y _
                 and d > y - 44 then
                 PressOn k
@@ -151,6 +166,7 @@ private function PilotRide% ( _
             end if
         end select
     next
+
     PilotRide% = want
 end function
 
@@ -167,18 +183,23 @@ private function PilotRun% ( _
 )
     dim x as integer, y as integer, i as integer, d as integer
     dim want as integer
+
     x = cint(p.at.x)
     y = cint(p.at.y)
     i = x + 22 + cint(abs(p.gsp)) \ 40
+
     if Surf%(lv, i, y) = NONE and Surf%(lv, i, y + 2 * TS) = NONE _
         and not Ribbon%(gr, x) then
         want = -1
     end if
+
     ' a wall, not a ramp's foot
     if Solid%(lv, x + 13, y - 20) then want = -1
+
     for i = lv.first(x \ TS) to lv.n_things - 1
         if lv.things(i).at.x > x + 130 then exit for
         if lv.things(i).at.x <= x then continue for
+
         ' a pouncer is jumped in its bin and out of it; a
         ' mortar's flash is jumped, whenever it fires
         d = ((lv.things(i).kind = KCAT _
@@ -198,19 +219,23 @@ private function PilotRun% ( _
         d = d or ((lv.things(i).kind = KSWEEP _
             or lv.things(i).kind = KTHROW) _
             and lv.things(i).state <> 0)
+
         if d and lv.things(i).at.x <= x + 34 _
             + abs(cint(p.gsp)) \ 8 then
             want = -1
         end if
     next
+
     PilotPress lv, se, p, k, want
     PilotTipper lv, se, p, k
     PilotGoat lv, p, k, want
     k.down = Rams%(lv, zn, p)
+
     if zn.id = 5 and p.roll and lv.cart.st = 1 _
         and lv.cart.at.x - p.at.x > OUTRUN then
         want = -1
     end if
+
     if zn.id = 4 then PilotCurl lv, p, k, want
     PilotGaps lv, se, p, k, want
     if zn.id = 4 then PilotDig lv, p, k, want
@@ -221,10 +246,12 @@ end function
 ' and the speed there to roll.
 private function Rams% (lv as Level, zn as Realm, p as Hero)
     dim d as integer
+
     Rams% = 0
     if lv.cart.st <> 1 _
         or not (zn.id = 0 or zn.id = 3 _
         or zn.id = 5) then exit function
+
     d = cint(lv.cart.at.x - p.at.x)
     Rams% = d > 0 and d < RAMREACH and p.gsp > 150
 end function
@@ -234,11 +261,14 @@ end function
 ' own ground, or more.
 private function Walled% (lv as Level, i as integer)
     dim c as integer, j as integer
+
     Walled% = 0
     j = lv.things(i).state - 1
     if j < 0 then exit function
+
     for c = lv.things(i).at.x \ TS to lv.things(j).at.x \ TS
         if lv.top(c) > lv.things(i).at.y \ TS - 5 then continue for
+
         Walled% = -1
         exit function
     next
@@ -255,16 +285,19 @@ private sub PilotDig ( _
 )
     dim i as integer, x as integer, c as integer, d as integer
     dim v as integer
+
     x = cint(p.at.x)
     v = cint(p.gsp)
     c = (x - 48) \ TS
     if c < 0 then c = 0
+
     for i = lv.first(c) to lv.n_things - 1
         d = lv.things(i).at.x - x
         if d > 10 + v \ 20 + v * v \ 3600 then exit for
         if lv.things(i).kind <> KMOUND or d < -40 or p.dug = i + 1 _
             or abs(lv.things(i).at.y - p.at.y) > 8 then continue for
         if not Walled%(lv, i) then continue for
+
         want = 0
         k.down = abs(d) < MOUNDR - 3 and abs(v) < 20
         k.right = d >= MOUNDR - 3 and v < 40 + d * 3
@@ -284,22 +317,27 @@ private sub PilotCurl ( _
     want as integer _
 )
     dim i as integer, x as integer, c as integer
+
     x = cint(p.at.x)
     c = (x - LOGR - 8) \ TS
     if c < 0 then c = 0
+
     for i = lv.first(c) to lv.n_things - 1
         if lv.things(i).at.x > x + 80 then exit for
         if lv.things(i).at.x < x - LOGR - 4 then continue for
         if not ((lv.things(i).kind = KBRAMBLE _
             and lv.things(i).state = 0) _
             or lv.things(i).kind = KLOG) then continue for
+
         if p.gsp > 150 then
             k.down = -1
         else
             want = -1
         end if
+
         exit sub
     next
+
     if p.roll and abs(p.gsp) < TOP then want = -1
 end sub
 
@@ -313,11 +351,14 @@ private sub PilotPress ( _
     want as integer _
 )
     dim i as integer, d as integer
+
     i = PressAhead%(lv, cint(p.at.x))
     if i = NONE then exit sub
+
     d = lv.things(i).at.x - 26 - cint(p.at.x)
     if d < 60 then want = 0
     if d <= 0 or d >= 40 + cint(p.gsp) \ 5 then exit sub
+
     if (PressT%(lv, se, i) + 22) mod PRESSP > 52 then
         HoldBack p, k, 20
     end if
@@ -332,10 +373,13 @@ private sub PilotTipper ( _
     k as Pad _
 )
     dim i as integer, d as integer
+
     i = TipperAhead%(lv, cint(p.at.x))
     if i = NONE then exit sub
+
     d = lv.things(i).at.x + POTX - POTR - 8 - cint(p.at.x)
     if d <= 0 or d >= 40 + cint(p.gsp) \ 5 then exit sub
+
     if not PotClear%(lv, se, i) then HoldBack p, k, 20
 end sub
 
@@ -348,15 +392,20 @@ private sub PilotGoat ( _
     want as integer _
 )
     dim i as integer, d as integer
+
     i = GoatNear%(lv, cint(p.at.x))
     if i = NONE or p.goat <> 0 then exit sub
+
     d = lv.things(i).at.x - cint(p.at.x)
+
     if abs(lv.things(i).state) = GCHARGE then
         k.right = 0
         want = abs(d) < 70
         exit sub
     end if
+
     if d <= 0 or d >= 56 + cint(p.gsp) \ 4 then exit sub
+
     want = 0
     HoldBack p, k, 20
 end sub
@@ -371,24 +420,30 @@ private sub PilotGaps ( _
     want as integer _
 )
     dim m as integer, d as integer, x as integer, y as integer
+
     x = cint(p.at.x)
     y = cint(p.at.y)
+
     for m = 0 to lv.n_movers - 1
         d = lv.movers(m).edge - x
+
         ' a bridge and a pier are run over; a tram's street
         ' is run along
         if lv.movers(m).kind = 4 or lv.movers(m).kind = 6 _
             or lv.movers(m).kind = 8 then
             d = NONE
         end if
+
         if d <= -4 or d >= 300 _
             or abs(lv.movers(m).at.y _
             + lv.movers(m).reach * (lv.movers(m).kind = 1) _
             - y) >= 200 then continue for
+
         if d < 50 then want = 0
         if p.gsp > 30 + d then k.right = 0
         if p.gsp > 70 + d then k.left = -1
         if d >= 10 then continue for
+
         if Ready%(lv, se, m) then
             PressOn k
         else
@@ -422,16 +477,21 @@ end function
 ' it.
 private sub PilotFall (lv as Level, zn as Realm, p as Hero, k as Pad)
     dim m as integer, d as integer
+
     if zn.id = 2 and lv.cart.st = 1 then k.right = 0
     if GoatNear%(lv, cint(p.at.x)) <> NONE then k.right = 0
+
     for m = 0 to lv.n_movers - 1
         d = lv.movers(m).edge - cint(p.at.x)
+
         if lv.movers(m).kind = 4 or lv.movers(m).kind = 6 _
             or lv.movers(m).kind = 8 then
             d = NONE
         end if
+
         if d <= -40 or d >= 260 or p.coyote > 0 or p.vel.x <= d \ 3 _
             or p.sg = lv.movers(m).sg then continue for
+
         k.right = 0
         k.left = -1
     next
@@ -450,6 +510,7 @@ private sub PilotGale ( _
         want = 0
         HoldBack p, k, 20
     end if
+
     if Lull%(lv, se) = 0 then k.down = -1
     ' and from a crouch no jump: that would wind up a dash
     if p.crouch then want = 0

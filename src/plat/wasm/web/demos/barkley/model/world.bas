@@ -55,6 +55,7 @@ private const NROPE = 12
 ' numbers, and these are constants.
 sub Allot (wd as World)
     dim i as integer
+
     ' where its tunes and its levels start, then its
     ' pictures
     NameData wd.dat, "CHARLIE.DAT", "CHARLIE.DAT, the game's " + _
@@ -85,6 +86,7 @@ sub Allot (wd as World)
     redim wd.tn.which(NSTAGE - 1, 159)
     redim wd.tn.own(NSTAGE - 1, 159)
     redim wd.mu.song(NSLOT - 1)
+
     for i = 0 to NSLOT - 1
         redim wd.mu.song(i).half(NBAR * 2 - 1)
         redim wd.mu.song(i).vo_one(NVOICE - 1)

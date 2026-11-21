@@ -22,16 +22,19 @@ sub Camera ( _
     snap as integer _
 )
     dim tx as single, ty as single, v as single
+
     if p.ground then
         v = p.gsp
     else
         v = p.vel.x
     end if
+
     v = v * .2
     if v > 70 then v = 70
     if v < -70 then v = -70
     tx = p.at.x - SW \ 2 + v
     ty = p.at.y - Headroom%(lv, zn, p)
+
     if snap then
         g.cam.x = tx
         g.cam.y = ty
@@ -43,6 +46,7 @@ sub Camera ( _
         if p.at.y - g.cam.y > 172 then g.cam.y = p.at.y - 172
         if p.at.y - g.cam.y < 48 then g.cam.y = p.at.y - 48
     end if
+
     if g.cam.x < 0 then g.cam.x = 0
     if g.cam.x > lv.wpx - SW then g.cam.x = lv.wpx - SW
     if g.cam.y < 0 then g.cam.y = 0
@@ -56,8 +60,10 @@ function Headroom% (lv as Level, zn as Realm, p as Hero)
     Headroom% = HEAD
     if lv.chase_x = NONE or p.at.x < lv.chase_x _
         or p.at.x > lv.chase_end then exit function
+
     if zn.id = 1 and (lv.cart.st = 1 or lv.cart.st = 2) then
         Headroom% = HEADUP
     end if
+
     if zn.id = 4 and lv.cart.st = 1 then Headroom% = HEADUP
 end function

@@ -27,10 +27,13 @@ sub Loft ( _
     c as integer _
 )
     dim n as integer
+
     for n = 0 to NLOB - 1
         if not lv.lobs(n).live then exit for
     next
+
     if n = NLOB then exit sub
+
     lv.lobs(n).at.x = x
     lv.lobs(n).at.y = y
     lv.lobs(n).vel.x = vx
@@ -69,14 +72,17 @@ sub Volley ( _
     pt() as Part _
 )
     dim n as integer, aground as integer
+
     for n = 0 to NLOB - 1
         if lv.lobs(n).live = 0 then continue for
+
         lv.lobs(n).vel.y = lv.lobs(n).vel.y + GRAV * STEPT
         lv.lobs(n).at.x = lv.lobs(n).at.x + lv.lobs(n).vel.x * STEPT
         lv.lobs(n).at.y = lv.lobs(n).at.y + lv.lobs(n).vel.y * STEPT
         aground = Solid%(lv, cint(lv.lobs(n).at.x), _
             cint(lv.lobs(n).at.y))
         if not aground then lv.lobs(n).bedded = 0
+
         if abs(lv.lobs(n).at.x - p.at.x) < 10 _
             and abs(lv.lobs(n).at.y - p.at.y + 13) < 14 then
             Hurt mu, se, g, p, _
@@ -93,8 +99,10 @@ end sub
 ' What is in the air.
 sub DrawLobs (lv as Level, art as Store, cx as integer, cy as integer)
     dim n as integer
+
     for n = 0 to NLOB - 1
         if lv.lobs(n).live = 0 then continue for
+
         Blit art, cint(lv.lobs(n).at.x) - cx - 4, _
             cint(lv.lobs(n).at.y) - cy - 4, lv.lobs(n).pic, 8, 8
     next

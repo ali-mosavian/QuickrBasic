@@ -76,6 +76,7 @@ end function
 ' tools/charlielevels.txt.
 private sub SeekLevel (df as DataFile, st as integer)
     dim levels as long
+
     OpenData df
     seek #df.num, 5
     levels = Word&(df)
@@ -106,6 +107,7 @@ sub LoadLevel (wd as World, st as integer)
     dim bx as integer
     dim i as integer, s as integer, k as integer, z as integer
     dim light as integer, fall as integer
+
     wd.zn.stage = st
     z = ZoneOf%(wd.se, st)
     wd.zn.id = z
@@ -115,21 +117,26 @@ sub LoadLevel (wd as World, st as integer)
     light = st
     if st = SINTRO then light = wd.se.road * 2
     if light = 0 and st = SINTRO then light = 1
+
     for i = 0 to 255
         wd.tn.now(i) = wd.tn.day(i)
     next
+
     for i = 0 to wd.tn.n(light) - 1
         wd.tn.now(wd.tn.which(light, i)) = wd.tn.own(light, i)
     next
+
     wd.lv.goal_x = NONE
     wd.lv.fam_x = NONE
     wd.lv.chase_x = NONE
     wd.lv.tide_lo = NONE
     wd.lv.tide = NONE
     wd.lv.cart.st = 0
+
     for i = 0 to 2
         wd.tn.glint(i) = wd.tn.now(CWATER + 1 + i)
     next
+
     Shade wd.tn
     redim wd.lv.map(MW - 1, MH - 1)
     redim wd.lv.glaze(MW)
@@ -146,11 +153,14 @@ sub LoadLevel (wd as World, st as integer)
     wd.lv.n_gulls = 0
     wd.lv.n_swarms = 0
     wd.lv.n_ropes = 0
+
     for i = 0 to MW
         wd.lv.top(i) = MH
     next
+
     g = 10
     wd.zn.decked = z = 1
+
     if wd.zn.decked then
         wd.zn.tile = ITILE2
         wd.zn.back = IZ2
@@ -165,12 +175,15 @@ sub LoadLevel (wd as World, st as integer)
         wd.zn.card = ICARD
         wd.zn.wave = IWAVE
     end if
+
     SeekLevel wd.dat, st
+
     do
         cmd = Chars$(wd.dat)
         n = Word&(wd.dat)
         s = (MH - g) * TS
         k = 0
+
         select case cmd
         case "flat"
             for i = 1 to n
@@ -196,12 +209,14 @@ sub LoadLevel (wd as World, st as integer)
             ' column on; nothing grows by the tank
             Weed wd.lv, c * TS - 44
             AddObj wd.lv, KCISTERN, c * TS, s
+
             for i = 1 to n
                 g = g - 1
                 Column wd.lv, c, g, 3
                 AddObj wd.lv, KFLUME, c * TS, (MH - g - 1) * TS
                 c = c + 1
             next
+
             Column wd.lv, c, g, 1
             AddObj wd.lv, KSPOUT, c * TS, (MH - g) * TS
             c = c + 1
@@ -238,12 +253,14 @@ sub LoadLevel (wd as World, st as integer)
             for i = 0 to n * 2 - 1
                 AddObj wd.lv, KWAVE + (i and 1), (c + i * 12) * TS, s
                 if (i and 1) <> 0 then continue for
+
                 for k = 3 to 9 step 3
                     AddObj wd.lv, KBONE, (c + i * 12 + k) * TS, _
                         s - cint(WAVEA * (1 - cos(PI * k / 12)) _
                         / 2) - 6
                 next
             next
+
             k = 0
             Pit wd.lv, c, g, n * 24
             c = c + n * 24
@@ -260,7 +277,9 @@ sub LoadLevel (wd as World, st as integer)
                     wd.lv.things(i).kind = 0
                 end if
             next
+
             AddObj wd.lv, KPIPE, c * TS, s
+
             ' Amber Downs' pipe is drawn with the ground
             ' under it
             if z = 0 then
@@ -268,6 +287,7 @@ sub LoadLevel (wd as World, st as integer)
                 wd.lv.vis(c - 2) = 0
                 wd.lv.vis(c - 3) = 0
             end if
+
             g = g + n
         case "drop"
             g = g - n
@@ -292,6 +312,7 @@ sub LoadLevel (wd as World, st as integer)
             for i = 0 to n \ 3 - 1
                 AddMover wd.lv, (c + i * 3) * TS, s, 0, 6, c * TS
             next
+
             Pit wd.lv, c, g, n
             c = c + n
         case "hover"
@@ -317,6 +338,7 @@ sub LoadLevel (wd as World, st as integer)
                     PITD * TS - 6, 4, c * TS
                 wd.lv.movers(wd.lv.n_movers - 1).button = bx
             next
+
             Pit wd.lv, c, g, n
             c = c + n
         case "cable"
@@ -403,12 +425,15 @@ sub LoadLevel (wd as World, st as integer)
             ' n presses on a gantry over level ground, four
             ' columns each, a leg at either end
             AddObj wd.lv, KLEG, c * TS, s
+
             for i = 0 to n * 4 - 1
                 Column wd.lv, c + i, g, 1
+
                 if (i and 3) = 1 then
                     AddObj wd.lv, KPRESS, (c + i + 1) * TS, s
                 end if
             next
+
             c = c + n * 4
             AddObj wd.lv, KLEG, c * TS - 8, s
         case "jelly"
@@ -443,12 +468,14 @@ sub LoadLevel (wd as World, st as integer)
             ' the line every other column
             fall = LANTH + LANTFALL - LANTEND
             Hang wd.lv, c, n, s - LANTH, fall
+
             for i = 1 to n - 1 step 2
                 AddObj wd.lv, KBONE, (c + i) * TS, _
                     s - LANTH - 14 _
                     + clng(i * TS + POSTIN) * fall _
                     \ (n * TS + POSTIN * 2)
             next
+
             Pit wd.lv, c, g - LANTFALL \ TS, n
             c = c + n
             g = g - LANTFALL \ TS
@@ -555,12 +582,15 @@ sub LoadLevel (wd as World, st as integer)
             wd.lv.start.x = c * TS + 8
             wd.lv.start.y = s
         end select
+
         if wd.zn.decked then k = Plated%(k)
         if k then AddObj wd.lv, k, c * TS + 8, s
     loop until cmd = "end"
+
     close #wd.dat.num
     wd.lv.w = c
     wd.lv.wpx = c * TS
+
     ' nothing grows in front of the family
     for i = 0 to wd.lv.n_things - 1
         if Rooted%(wd.lv, i, KBUSH) _
@@ -568,6 +598,7 @@ sub LoadLevel (wd as World, st as integer)
             wd.lv.things(i).kind = 0
         end if
     next
+
     SortObjs wd.lv
     Pair wd.lv, KMOUND, -1
     Pair wd.lv, KCHIMNEY, 0
@@ -602,12 +633,15 @@ end sub
 ' in their order: the walker over its street.
 private sub Walkers (lv as Level)
     dim i as integer, r as integer
+
     for i = 0 to lv.n_things - 1
         if lv.things(i).kind <> KWALKER then continue for
+
         for r = 0 to lv.n_ropes - 1
             if lv.things(i).at.x <= lv.ropes(r).at.x _
                 or lv.things(i).at.x >= lv.ropes(r).at.x _
                 + lv.ropes(r).w then continue for
+
             lv.ropes(r).cat = i + 1
         next
     next
@@ -617,20 +651,25 @@ end sub
 ' at home: Charlie starts again before them.
 sub Mend (lv as Level)
     dim m as integer
+
     for m = 0 to lv.n_swarms - 1
         lv.swarms(m).at.x = lv.swarms(m).home.x
         lv.swarms(m).at.y = lv.swarms(m).home.y
         lv.swarms(m).st = 0
     next
+
     for m = 0 to lv.n_movers - 1
         if lv.movers(m).kind = 6 then lv.movers(m).t = 0
     next
+
     for m = 0 to lv.n_things - 1
         if lv.things(m).kind = KSLED then lv.things(m).state = 0
         if lv.things(m).kind <> KGOAT then continue for
+
         lv.things(m).state = 1
         lv.things(m).at.x = lv.things(m).home
     next
+
     lv.stray.st = 0
     lv.aval.st = 0
 end sub
@@ -643,8 +682,10 @@ end function
 ' x.
 function GoldNo% (lv as Level, i as integer)
     dim j as integer, n as integer
+
     for j = 0 to i - 1
         if lv.things(j).kind = KGOLD then n = n + 1
     next
+
     GoldNo% = n
 end function

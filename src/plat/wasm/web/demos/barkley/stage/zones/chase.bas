@@ -123,6 +123,7 @@ private const TWINGAP = 40
 ' keepsake taken stays taken.
 sub ResetChase (lv as Level, mu as Deck)
     if lv.chase_x = NONE or lv.cart.st = 3 then exit sub
+
     lv.cart.st = 0
     lv.cart.hits = 0
     lv.cart.v = 0
@@ -148,7 +149,9 @@ sub Flee ( _
     pt() as Part _
 )
     if lv.chase_x = NONE then exit sub
+
     if lv.cart.t > 0 then lv.cart.t = lv.cart.t - STEPT
+
     select case lv.cart.st
     case 0
         if zn.id = 2 then lv.cart.at.y = lv.tide - PEDALUP
@@ -174,16 +177,20 @@ sub Flee ( _
             MoveCart lv, p, LegPace!(lv, se), PASSV
             MeetRelay lv, mu, se, g, p, lo(), pt()
         end select
+
         ' its last bump breaks it; the twins' ball is his
         ' with the catch
         if lv.cart.hits >= Bumps%(zn) then BreakCart lv, mu, se, pt()
+
         if zn.id = 4 and lv.cart.st = 2 then
             TakeKeep lv, mu, se, g, pt()
         end if
     case 2
         if zn.id = 1 and lv.cart.t > 2 - TOOLFALL then exit sub
+
         ' the sands' keepsake floats
         if zn.id = 2 then lv.cart.at.y = lv.tide
+
         ' over it will do: he comes down off the last bump
         ' past it
         if abs(p.at.x - lv.cart.at.x) < 16 _
@@ -198,6 +205,7 @@ end sub
 ' the zone's own lead plays it, and the level's end still.
 private sub StartChase (lv as Level, mu as Deck)
     dim zlead as string
+
     lv.cart.st = 1
     zlead = mu.song(CAUGHT).lead_p
     ZoneTune mu, CHASETUNE
@@ -221,16 +229,19 @@ private sub MoveCart ( _
     away as single _
 )
     dim want as single, s as integer
+
     want = pace
     if lv.cart.at.x - p.at.x > 240 then want = DAWDLE
     if lv.cart.t > 0 then want = away
     if lv.cart.t > BOLTS then want = 60
     lv.cart.v = lv.cart.v + (want - lv.cart.v) * 5 * STEPT
     lv.cart.at.x = lv.cart.at.x + lv.cart.v * STEPT
+
     if lv.cart.at.x >= lv.chase_end then
         lv.cart.at.x = lv.chase_end
         lv.cart.v = 0
     end if
+
     s = Surf%(lv, cint(lv.cart.at.x), cint(lv.cart.at.y))
     if s <> NONE then lv.cart.at.y = s
 end sub
@@ -251,16 +262,19 @@ private sub MeetCart ( _
     if abs(p.at.x - lv.cart.at.x) > CARTR _
         or p.at.y < lv.cart.at.y - 46 _
         or p.at.y > lv.cart.at.y + 6 then exit sub
+
     if not (p.roll or p.charging) then
         Hurt mu, se, g, p, cint(lv.cart.at.x), lo(), SHISS
         exit sub
     end if
+
     Bumped lv, mu, se, g, pt(), lv.cart.at.y - 20
     ' sled against sled he is checked, not thrown: a sled
     ' thrown back has no brake to stop it
     if p.sled and p.ground then p.gsp = SLEDV
     if p.sled and not p.ground then p.vel.x = SLEDV
     if p.sled then exit sub
+
     p.ground = 0
     p.jumped = 0
     p.vel.x = -120
@@ -332,11 +346,14 @@ sub DrawChase ( _
     cy as integer _
 )
     if lv.chase_x = NONE then exit sub
+
     if zn.id = 4 then
         DrawOak lv, art, cx, cy
         DrawTwins lv, zn, art, cx, cy
     end if
+
     if lv.cart.st = 3 then exit sub
+
     select case zn.id
     case 0
         DrawCart lv, zn, art, se, cx, cy
@@ -359,6 +376,7 @@ private sub Lob (lv as Level, p as Hero)
     if lv.box.t > 0 then lv.box.t = lv.box.t - STEPT
     if lv.box.t > 0 or lv.cart.t > 0 _
         or lv.cart.at.x >= lv.chase_end then exit sub
+
     if lv.cart.at.x - p.at.x < LOBNEAR then lv.box.t = LOBWAIT
 end sub
 
@@ -370,8 +388,10 @@ end function
 ' The pace of who has the guitar, by the relay's leg.
 private function LegPace! (lv as Level, se as Session)
     dim beat as integer
+
     beat = (se.pulse \ PULSES) and 3
     LegPace! = LEGV
+
     select case lv.cart.hits
     case 1
         LegPace! = LEGV + WOUND
@@ -400,10 +420,13 @@ private sub MeetRelay ( _
     pt() as Part _
 )
     dim was as integer
+
     if Lobbed%(lv) then exit sub
+
     was = lv.cart.hits
     MeetCart lv, mu, se, g, p, lo(), pt()
     if lv.cart.hits = was then exit sub
+
     lv.box.at.x = lv.cart.at.x - TUMBLE
     lv.box.at.y = lv.cart.at.y
     lv.box.t = 0
@@ -415,10 +438,13 @@ end sub
 ' TWINGAP ahead by the next lob.
 private sub TwinsAt (lv as Level, a as integer, b as integer)
     dim w as single
+
     a = 0
     b = TWINGAP
     if lv.box.t <= 0 then exit sub
+
     w = (LOBWAIT - lv.box.t) / LOBT
+
     if w < 1 then
         a = -cint(TWINGAP * w)
         b = cint(TWINGAP * (1 - w))
@@ -432,9 +458,11 @@ end sub
 ' twins.
 private function Aloft% (lv as Level)
     dim w as single
+
     Aloft% = 0
     if lv.cart.t > BOLTS then Aloft% = cint((lv.cart.t - BOLTS) * 60)
     if not Lobbed%(lv) then exit function
+
     w = (LOBWAIT - lv.box.t) / LOBT
     Aloft% = cint(LOBUP2 * 4 * w * (1 - w))
 end function
@@ -455,29 +483,38 @@ private sub DrawRelay ( _
     dim x as integer, y as integer, leg as integer, k as integer
     dim i as integer, a as integer, b as integer
     dim up as integer, q as single
+
     x = cint(lv.cart.at.x) - cx
     y = cint(lv.cart.at.y) - cy
     leg = lv.cart.hits
+
     if leg > 0 and lv.cart.t > 0 then
         Blit art, cint(lv.box.at.x) - cx - 10, _
             cint(lv.box.at.y) - cy - 17, IRELAY + (leg * 3 - 1) * 2, _
             20, 18
     end if
+
     if lv.cart.st = 2 then
         DrawKeep zn, art, x, y - ((se.ticks \ 16) and 1)
         exit sub
     end if
+
     q = (se.pulse mod PULSES) / PULSES
+
     if leg = 2 and ((se.pulse \ PULSES) and 1) = 0 then
         up = cint(HOPUP * 4 * q * (1 - q))
     end if
+
     DrawKeep zn, art, x - 9, y - 10 - up - Aloft%(lv)
     k = IRELAY + (leg * 3 + ((se.ticks \ 4) and 1)) * 2
+
     if leg = NLEG - 1 then
         TwinsAt lv, a, b
         Blit art, x + b - 10, y - 17, k, 20, 18
     end if
+
     Blit art, x + a - 10, y - 17 - up, k, 20, 18
+
     for i = leg to NLEG - 1
         line (x - 18 + i * 8, y - 40)-(x - 14 + i * 8, y - 36), _
             CYELLOW, BF
@@ -514,9 +551,11 @@ end function
 ' it next.
 private sub BallAt (lv as Level)
     dim n as integer, x as single, y as single, u as single
+
     n = Roost%(lv) * 2 + lv.box.st \ 2
     x = SeatX%(lv, n)
     y = SeatY%(lv, n) - PAWUP
+
     if lv.cart.t > 0 then
         u = lv.cart.t / DAZED
         x = x + (lv.box.at.x - x) * u
@@ -526,6 +565,7 @@ private sub BallAt (lv as Level)
         x = x + (SeatX%(lv, n xor 1) - x) * u
         y = y + (SeatY%(lv, n xor 1) - PAWUP - y) * u
     end if
+
     lv.cart.at.x = x
     lv.cart.at.y = y - LOBUP * 4 * u * (1 - u)
 end sub
@@ -544,16 +584,19 @@ private sub Juggle ( _
     pt() as Part _
 )
     if lv.cart.t <= 0 then lv.box.t = lv.box.t - STEPT
+
     if lv.box.t <= 0 then
         lv.box.st = (lv.box.st + 1) and 3
         lv.box.t = TWINHOLD
         if lv.box.st and 1 then lv.box.t = LobTime!(lv)
     end if
+
     BallAt lv
     if (lv.box.st and 1) = 0 or p.dead then exit sub
     if abs(p.at.x - lv.cart.at.x) > CATCHR _
         or abs(p.at.y - 12 - (lv.cart.at.y - 7)) _
         > CATCHR then exit sub
+
     lv.box.at.x = lv.cart.at.x
     lv.box.at.y = lv.cart.at.y
     lv.box.st = 0
@@ -569,18 +612,25 @@ end sub
 ' is out a while, and the other reaches for it.
 function TwinPose% (lv as Level, sd as integer)
     dim mine as integer
+
     TwinPose% = 4
     if lv.cart.st = 3 then exit function
+
     TwinPose% = 3
     if lv.cart.t > DAZED * .6 then exit function
+
     TwinPose% = 1
     if lv.cart.t > 0 then exit function
+
     mine = lv.box.st \ 2 = sd
+
     if (lv.box.st and 1) = 0 then
         TwinPose% = -mine
         exit function
     end if
+
     if not mine then exit function
+
     TwinPose% = 0
     if lv.box.t > LobTime!(lv) - .35 then TwinPose% = 2
 end function
@@ -596,8 +646,10 @@ private sub DrawOak ( _
 )
     dim n as integer, x as integer, y as integer, k as integer
     dim w as integer, h as integer
+
     x = lv.oak.x - cx
     if x < -170 or x > SW + 170 then exit sub
+
     for n = 0 to NLIMB - 1
         y = lv.oak.y - LimbUp%(n) - LIMBRISE - cy
         ' the middle pair's are the far ones, longer and
@@ -605,23 +657,28 @@ private sub DrawOak ( _
         k = ILIMB
         w = 94
         h = 50
+
         if n \ 2 = 1 then
             k = ILIMB + 2
             w = 142
             h = 58
         end if
+
         if n and 1 then
             Blit art, x + 22, y, k, w, h
         else
             Blit art, x - 22 - w, y, k + 4, w, h
         end if
     next
+
     y = lv.oak.y - 45 - cy
     Blit art, x - 76, y, IOAKFOOT, 152, 48
+
     do while y > 0
         y = y - 64
         Blit art, x - 33, y, IOAK, 66, 64
     loop
+
     y = lv.oak.y - cy
     Blit art, x - 2, y - 84, IKNOT, 17, 20
     Blit art, x + 23, y - 34, IBRACKET, 12, 5
@@ -643,26 +700,34 @@ private sub DrawTwins ( _
     dim sd as integer, n as integer, x as single, y as single
     dim u as single, i as integer, bx as integer
     dim by as integer
+
     for sd = 0 to 1
         n = Roost%(lv) * 2 + sd
         x = SeatX%(lv, n)
         y = SeatY%(lv, n)
         u = 0
+
         if lv.cart.st = 1 and lv.cart.t > 0 then
             u = lv.cart.t / (DAZED * .6)
         end if
+
         if u > 1 then u = 1
+
         if u > 0 then
             x = x + (SeatX%(lv, n - 2) - x) * u
             y = y + (SeatY%(lv, n - 2) - y) * u - 24 * 4 * u * (1 - u)
         end if
+
         Blit art, cint(x) - 15 - cx, cint(y) - 27 - cy, _
             ITWIN + (sd * 5 + TwinPose%(lv, sd)) * 2, 31, 28
     next
+
     if lv.cart.st = 3 then exit sub
+
     bx = cint(lv.cart.at.x) - cx
     by = cint(lv.cart.at.y) - cy
     DrawKeep zn, art, bx, by
+
     for i = lv.cart.hits to NBUMP - 1
         line (bx - 10 + i * 8, by - 22)-(bx - 6 + i * 8, by - 18), _
             CYELLOW, BF
@@ -682,17 +747,21 @@ private sub DrawFrost ( _
     cy as integer _
 )
     dim x as integer, y as integer, i as integer
+
     x = cint(lv.cart.at.x) - cx
     y = cint(lv.cart.at.y) - cy
+
     if lv.cart.st = 2 then
         Blit art, x - 62, y - 21, IDUNKED, 56, 22
         DrawKeep zn, art, x, y - ((se.ticks \ 16) and 1)
         exit sub
     end if
+
     if lv.cart.t > BOLTS then x = x + ((se.ticks \ 2) and 1) * 2 - 1
     Blit art, x - 17, y - 46, _
         IFROST + (Lie%(lv, cint(lv.cart.at.x), cint(lv.cart.at.y)) _
         + 2) * 2, 34, 65
+
     for i = lv.cart.hits to NBUMP - 1
         line (x - 10 + i * 8, y - 40)-(x - 6 + i * 8, y - 36), _
             CYELLOW, BF
@@ -705,6 +774,7 @@ end sub
 private sub MovePedalo (lv as Level)
     lv.cart.at.y = lv.tide - PEDALUP
     if lv.cart.t > BOLTS then exit sub
+
     if lv.cart.v = 0 then lv.cart.v = 1
     lv.cart.v = sgn(lv.cart.v) * (PEDALV + lv.cart.hits * PEDALMORE)
     lv.cart.at.x = lv.cart.at.x + lv.cart.v * STEPT
@@ -727,6 +797,7 @@ private sub MeetPedalo ( _
     if abs(p.at.x - lv.cart.at.x) > PEDALW \ 2 _
         or p.at.y < lv.cart.at.y - 6 _
         or p.at.y > lv.cart.at.y + 14 then exit sub
+
     Bumped lv, mu, se, g, pt(), lv.cart.at.y - 8
     lv.cart.v = -lv.cart.v
     p.vel.y = -BOUNCEV
@@ -745,14 +816,18 @@ private sub DrawPedalo ( _
     cy as integer _
 )
     dim x as integer, y as integer, i as integer
+
     x = cint(lv.cart.at.x) - cx
     y = cint(lv.cart.at.y) - cy
+
     if lv.cart.st = 2 then
         DrawKeep zn, art, x, y + 3 - ((se.ticks \ 16) and 1)
         DrawFled lv, art, se, x, y - 9, 120
         exit sub
     end if
+
     Blit art, x - 26, y - 22, IPEDAL - 2 * (lv.cart.t > BOLTS), 52, 34
+
     for i = lv.cart.hits to NBUMP - 1
         line (x - 10 + i * 8, y - 34)-(x - 6 + i * 8, y - 30), _
             CYELLOW, BF
@@ -770,6 +845,7 @@ private sub DrawFled ( _
     v as integer _
 )
     if lv.cart.t <= 0 then exit sub
+
     Blit art, x + cint((2 - lv.cart.t) * v), y, _
         ICAT + ((se.ticks \ 4) and 1) * 2, 20, 14
 end sub
@@ -786,14 +862,18 @@ private sub DrawCart ( _
     cy as integer _
 )
     dim x as integer, y as integer, i as integer
+
     x = cint(lv.cart.at.x) - cx
     y = cint(lv.cart.at.y) - cy
+
     if lv.cart.st = 2 then
         DrawKeep zn, art, x, y - ((se.ticks \ 16) and 1)
         DrawFled lv, art, se, x, y - 13, 260
         exit sub
     end if
+
     DrawWheels lv, art, x, cy
+
     for i = lv.cart.hits to NBUMP - 1
         line (x - 10 + i * 8, y - 50)-(x - 6 + i * 8, y - 46), _
             CYELLOW, BF
@@ -812,6 +892,7 @@ private sub DrawWheels ( _
     cy as integer _
 )
     dim ya as integer, yb as integer, lean as integer, k as integer
+
     ya = Surf%(lv, cint(lv.cart.at.x) - WHEELS, cint(lv.cart.at.y))
     yb = Surf%(lv, cint(lv.cart.at.x) + WHEELS, cint(lv.cart.at.y))
     if ya = NONE then ya = cint(lv.cart.at.y)
@@ -835,6 +916,7 @@ end sub
 ' from him at speed.
 private sub MoveCrane (lv as Level, p as Hero)
     dim want as single, dir as integer
+
     dir = sgn(p.at.x - lv.cart.at.x)
     want = dir * (CRANEV + CRANEUP * lv.cart.hits)
     if lv.box.st = 1 then want = 0
@@ -842,9 +924,11 @@ private sub MoveCrane (lv as Level, p as Hero)
     if lv.cart.t > BOLTS then want = 0
     lv.cart.v = lv.cart.v + (want - lv.cart.v) * 5 * STEPT
     lv.cart.at.x = lv.cart.at.x + lv.cart.v * STEPT
+
     if lv.cart.at.x < lv.chase_x + 40 then
         lv.cart.at.x = lv.chase_x + 40
     end if
+
     if lv.cart.at.x > lv.chase_end - 40 then
         lv.cart.at.x = lv.chase_end - 40
     end if
@@ -863,10 +947,13 @@ private sub MeetCrane ( _
     pt() as Part _
 )
     dim foot as single
+
     if lv.cart.t > BOLTS or p.dead or p.ground then exit sub
+
     foot = lv.cart.at.y - CRANEH
     if abs(p.at.x - lv.cart.at.x) > CRANER or p.at.y - 26 > foot _
         or p.at.y < foot - 24 then exit sub
+
     if lv.box.st > 0 or lv.box.t <= 0 then BreakBox lv, mu, se, pt()
     Bumped lv, mu, se, g, pt(), foot - 12
     p.vel.x = 140 * (2 * (p.at.x <= lv.cart.at.x) + 1)
@@ -888,10 +975,12 @@ private sub DropBox ( _
     pt() as Part _
 )
     if lv.box.t > 0 then lv.box.t = lv.box.t - STEPT
+
     select case lv.box.st
     case 0
         lv.box.at.x = lv.cart.at.x
         lv.box.at.y = lv.cart.at.y - CRANEH + 16
+
         if lv.box.t <= 0 and lv.cart.t <= 0 _
             and abs(p.at.x - lv.cart.at.x) < 10 then
             lv.box.st = 1
@@ -905,6 +994,7 @@ private sub DropBox ( _
     case 2
         lv.box.v = lv.box.v + GRAV * STEPT
         lv.box.at.y = lv.box.at.y + lv.box.v * STEPT
+
         if abs(p.at.x - lv.box.at.x) < 14 _
             and p.at.y > lv.box.at.y - 16 _
             and p.at.y - 26 < lv.box.at.y and not p.dead then
@@ -945,31 +1035,39 @@ private sub DrawCrane ( _
 )
     dim x as integer, y as integer, i as integer, fy as integer
     dim a as integer, b as integer, jolt as integer
+
     x = cint(lv.cart.at.x) - cx
     fy = cint(lv.cart.at.y) - cy
     y = fy - RAILUP
     a = (cx - lv.chase_x) \ 32
     if a < 0 then a = 0
     b = (cx + SW - lv.chase_x) \ 32
+
     if b > (lv.chase_end - lv.chase_x) \ 32 - 1 then
         b = (lv.chase_end - lv.chase_x) \ 32 - 1
     end if
+
     for i = a to b
         Blit art, lv.chase_x + i * 32 - cx, y, IRAIL, 32, 8
     next
+
     Blit art, x - 22, y - 2, _
         ICRANE - 2 * (lv.cart.st = 2 or lv.cart.t > BOLTS), 44, 46
+
     if lv.cart.st = 2 then
         i = cint((lv.cart.t - 2 + TOOLFALL) * CRANEH / TOOLFALL)
         if i < 0 then i = 0
         DrawKeep zn, art, x, fy - i - ((se.ticks \ 16) and 1)
         exit sub
     end if
+
     for i = lv.cart.hits to NBUMP - 1
         line (x - 10 + i * 8, y - 7)-(x - 6 + i * 8, y - 3), _
             CYELLOW, BF
     next
+
     if lv.box.st = 0 and lv.box.t > 0 then exit sub
+
     jolt = (lv.box.st = 1) * ((se.ticks \ 3) and 1)
     Blit art, cint(lv.box.at.x) - cx - 8 + jolt, _
         cint(lv.box.at.y) - cy - 16, IWBOX, 16, 16

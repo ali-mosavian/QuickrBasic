@@ -43,7 +43,9 @@ const CAUGHT = 2
 ' A sound on the fourth voice, the tune's five left playing.
 sub Sfx (mu as Deck, se as Session, id as integer)
     dim s as string
+
     if mu.muted then exit sub
+
     select case id
     case SJUMP
         s = "L64O4CEGO5C"
@@ -51,6 +53,7 @@ sub Sfx (mu as Deck, se as Session, id as integer)
         ' a bark: a low woof slid up into, two voices
         ' beating, through a mouth; one at a time
         if abs(se.ticks - mu.bark_at) < 8 then exit sub
+
         mu.bark_at = se.ticks
         s = "W2I15Y2,1000,6H0,6,2,3K4,0,6L8O3D"
     case SHURT
@@ -105,6 +108,7 @@ sub Sfx (mu as Deck, se as Session, id as integer)
         ' up
         s = "L64O1CO0GL32O5CEG"
     end select
+
     play , , , "T255W1V13Y0K0I0H0,0,15,0" + s
 end sub
 
@@ -125,6 +129,7 @@ end sub
 ' playing from the slot is dropped.
 sub ZoneTune (mu as Deck, id as integer)
     if mu.z_held = id + 1 then exit sub
+
     mu.z_held = id + 1
     LoadSong mu, ZTUNE, id
     mu.song(CAUGHT).lead_p = mu.song(ZTUNE).lead_p
@@ -136,6 +141,7 @@ end sub
 ' dropped.
 sub SceneTune (mu as Deck, id as integer)
     if mu.c_held = id + 1 then exit sub
+
     mu.c_held = id + 1
     LoadSong mu, CAUGHT, id
     mu.song(CAUGHT).lead_p = mu.song(ZTUNE).lead_p
@@ -161,7 +167,9 @@ end sub
 function EndBeat! (mu as Deck, se as Session, g as Game)
     EndBeat! = g.mode_t * mu.song(CAUGHT).tempo / 60
     if mu.muted or not mu.tune then exit function
+
     EndBeat! = -1
+
     if mu.slot = CAUGHT then
         EndBeat! = (se.ticks - mu.song_at) * STEPT _
             * mu.song(CAUGHT).tempo / 60
@@ -174,6 +182,7 @@ sub KeepBeat (mu as Deck, se as Session)
     se.tempo = mu.song(ZTUNE).tempo
     se.pulse = se.ticks * se.tempo
     if mu.muted or not mu.tune or mu.slot <> ZTUNE then exit sub
+
     se.pulse = (se.ticks - mu.song_at) * se.tempo
 end sub
 
@@ -207,12 +216,15 @@ sub PickSong (mu as Deck, n as integer, late as integer)
         mu.fade_out = 0
         exit sub
     end if
+
     if n = mu.coming then exit sub
+
     mu.coming = n
     mu.coming_bar = 0
     mu.fade_out = 2
     mu.fade_in = 2
     if late = 0 then exit sub
+
     mu.coming_bar = mu.song(n).entry
     mu.fade_out = 1
     mu.fade_in = 0

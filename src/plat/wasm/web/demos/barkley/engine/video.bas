@@ -42,11 +42,14 @@ sub Flop ( _
     h as integer _
 )
     dim y as integer, strip(40) as long
+
     put (0, 0), art.img(art.at(k)), pset
+
     for y = 0 to h - 1
         get (0, y)-(w - 1, y), strip
         put (100, h - 1 - y), strip, pset
     next
+
     Grab art, 100, 0, 100 + w - 1, h - 1, k2
 end sub
 
@@ -59,11 +62,14 @@ sub Mirror ( _
     h as integer _
 )
     dim x as integer, strip(40) as long
+
     put (0, 0), art.img(art.at(k)), pset
+
     for x = 0 to w - 1
         get (x, 0)-(x, h - 1), strip
         put (100 + w - 1 - x, 0), strip, pset
     next
+
     Grab art, 100, 0, 100 + w - 1, h - 1, k2
 end sub
 
@@ -94,6 +100,7 @@ sub MaskGrab ( _
     k as integer _
 )
     dim i as integer, j as integer
+
     for j = 0 to h - 1
         for i = 0 to w - 1
             if point(x + i, y + j) then
@@ -103,6 +110,7 @@ sub MaskGrab ( _
             end if
         next
     next
+
     Grab art, x, y, x + w - 1, y + h - 1, k
     Grab art, mx, my, mx + w - 1, my + h - 1, k + 1
 end sub
@@ -118,6 +126,7 @@ sub Blit ( _
     h as integer _
 )
     if x + w <= 0 or x >= SW or y + h <= 0 or y >= SH then exit sub
+
     put (x, y), art.img(art.at(k + 1)), and
     put (x, y), art.img(art.at(k)), or
 end sub

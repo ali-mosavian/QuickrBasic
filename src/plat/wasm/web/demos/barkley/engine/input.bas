@@ -15,11 +15,15 @@ end type
 ' a release clears.
 sub Poll (kb as Keys)
     dim s as integer
+
     s = inp(&H60)
     if s = kb.last then exit sub
+
     kb.last = s
     if s = 255 or s = 224 then exit sub
+
     kb.port = -1
+
     if s and 128 then
         kb.held(s and 127) = 0
     else

@@ -76,6 +76,7 @@ sub Render ( _
     pt() as Part _
 )
     dim cx as integer, cy as integer, x as integer, s as string
+
     cx = int(g.cam.x)
     cy = int(g.cam.y)
     if g.shake > 0 then cy = cy + ((wd.se.ticks and 2) - 1) * 2
@@ -91,9 +92,11 @@ sub Render ( _
     if wd.se.loose_n then DrawLoose wd.art, wd.se, cx, cy, lo()
     DrawChase wd.lv, wd.zn, wd.art, wd.se, cx, cy
     DrawHero wd.gr, wd.art, wd.se, p, cx, cy
+
     if wd.lv.aval_x <> NONE then
         DrawAvalanche wd.lv, wd.art, wd.se, cx, cy
     end if
+
     if wd.lv.gale then DrawGale wd.lv, wd.se
     if wd.lv.murk then DrawFlies wd.lv, wd.se, cx
     if wd.lv.n_gulls then DrawGulls wd.lv, wd.art, wd.se, cx, cy
@@ -103,25 +106,30 @@ sub Render ( _
     DrawOver wd.lv, wd.zn, wd.art, cx, cy
     if p.bark_t > BARKT - .2 then DrawBark p, cx, cy
     if wd.se.part_n then DrawParts pt(), cx, cy
+
     select case g.mode
     case TITLE
         Blit wd.art, (SW - 170) \ 2, 22, ITITLE, 170, 26
         Blit wd.art, (SW - 170) \ 2, 52, IDASH, 170, 26
+
         if wd.se.reached then
             ' the zone a game starts at, an arrow each way
             ' there is another to pick
             Panel 0, 165, SW - 1, SH - 1
             s = ZoneName$(wd.se.pick)
             if wd.se.pick > 0 then s = "< " + s else s = "  " + s
+
             if wd.se.pick < wd.se.reached then
                 s = s + " >"
             else
                 s = s + "  "
             end if
+
             Banner 22, s, CWHITE
         else
             Panel 0, 181, SW - 1, SH - 1
         end if
+
         if (wd.se.ticks \ 30) and 1 then
             Banner 24, "PRESS SPACE", CYELLOW
         else
@@ -129,6 +137,7 @@ sub Render ( _
         end if
     case PLAYING
         Blit wd.art, 6, 5, IHUD, HUDW, HUDH
+
         if p.stun then
             Say p, cx, cy, "HEY!"
         elseif p.idle_t > 5 then
@@ -136,6 +145,7 @@ sub Render ( _
         elseif p.idle_t > 3 then
             Say p, cx, cy, "..."
         end if
+
         if g.mode_t < 2.6 then
             x = cint(g.mode_t * 900) - SW
             if x > 0 then x = 0
@@ -144,6 +154,7 @@ sub Render ( _
             line (x, 84)-(x + SW - 1, 85), CGOLD + 3, BF
             line (x, 109)-(x + SW - 1, 110), CGOLD + 3, BF
             Blit wd.art, x + (SW - 178) \ 2, 89, wd.zn.card, 178, 18
+
             if (wd.zn.stage and 1) and x = 0 then
                 Txt 14, 17, "ACT 2", CYELLOW
             end if
@@ -170,11 +181,14 @@ end sub
 ' -1 where it has none.
 private function GoldFound% (wd as World)
     dim n as integer, v as integer
+
     GoldFound% = -1
     if wd.lv.n_gold = 0 then exit function
+
     for n = NGOLD - 1 to 0 step -1
         v = v * 2 - Found%(wd.se, wd.zn.stage, n)
     next
+
     GoldFound% = v
 end function
 
@@ -189,14 +203,19 @@ sub DrawThings ( _
 )
     dim i as integer, c as integer, x as integer, y as integer
     dim k as integer, f as integer, a as single
+
     c = (cx - WAVEL) \ TS
     if c < 0 then c = 0
+
     for i = lv.first(c) to lv.n_things - 1
         x = lv.things(i).at.x - cx
         if x > SW + 96 then exit for
+
         k = lv.things(i).kind
         if (k >= KLOOP and k < KFRONT) <> back then continue for
+
         y = lv.things(i).at.y - cy
+
         select case k
         case KBONE
             if lv.things(i).state then
@@ -206,6 +225,7 @@ sub DrawThings ( _
         case KGOLD
             ' a golden bone, till it is found
             if Found%(se, zn.stage, GoldNo%(lv, i)) then continue for
+
             Blit art, x - 5, y - 5, _
                 IGOLD + ((se.ticks \ 6) and 3) * 2, 10, 10
         case KCAT, KWALKER
@@ -298,6 +318,7 @@ sub DrawThings ( _
             k = lv.things(i).state > 0 _
                 and lv.things(i).state <= TREMBLE _
                 and (se.ticks and 2) <> 0
+
             if lv.things(i).state >= 0 then
                 Blit art, x - 3 - k, y + Fallen%(lv, i), IICICLE, 7, _
                     16
@@ -306,6 +327,7 @@ sub DrawThings ( _
             k = ISWEEP _
                 + ((se.ticks \ 6) and 1) * 2 - 4 _
                 * (lv.things(i).state > 0)
+
             if lv.things(i).state then
                 Blit art, x - 15, y - 19, k, 30, 20
             end if
@@ -341,6 +363,7 @@ sub DrawThings ( _
         case KSPAN
             ' three planks; tottering, it shakes
             if lv.things(i).state then y = y + ((se.ticks \ 2) and 1)
+
             for f = 0 to 2
                 Blit art, x + f * TS, y, zn.tile + 18, TS, TS
             next
@@ -378,6 +401,7 @@ sub DrawThings ( _
             ' an acorn held out, it is about to drop it
             k = ISQUIRREL - 2 * (abs(lv.things(i).state) <= SQAIM) _
                 - 4 * (lv.things(i).state > 0)
+
             if lv.things(i).state then
                 Blit art, x - 10, y - 17, k, 20, 18
             end if
@@ -393,6 +417,7 @@ sub DrawThings ( _
             if zn.id = 3 then k = IGEYSER
             Blit art, x - 8, y - 6, k, 16, 6
             f = k + 2 + ((se.ticks \ 3) and 1) * 2
+
             if (se.ticks + lv.things(i).at.x) mod 180 < 80 then
                 Blit art, x - 6, y - 70, f, 12, 64
             end if
@@ -408,10 +433,12 @@ sub DrawThings ( _
         case KSPIN
             line (x - 1, y - SPINH)-(x, y - 1), CINK, BF
             a = se.ticks * .06 + lv.things(i).at.x
+
             for f = 1 to 3
                 pset (x + cint(SPINR * f / 4 * cos(a)), _
                     y - SPINH + cint(SPINR * f / 4 * sin(a))), CWHITE
             next
+
             Blit art, x - 4, y - SPINH - 4, ISPIN + 2, 8, 8
             Blit art, x + cint(SPINR * cos(a)) - 8, _
                 y - SPINH + cint(SPINR * sin(a)) - 8, ISPIN, 16, 16
@@ -435,20 +462,24 @@ private sub DrawCables (lv as Level, cx as integer, cy as integer)
     dim m as integer, x as integer, y as integer, x1 as integer
     dim bx as integer, by as integer, i as integer
     dim d as integer
+
     for m = 0 to lv.n_movers - 1
         if lv.movers(m).kind <> 3 _
             and lv.movers(m).kind <> 7 then continue for
+
         x = lv.movers(m).edge - 8 - cx
         y = lv.movers(m).at.y - CABLEH - cy
         x1 = x + lv.movers(m).reach + MOVEW
         d = Dip%(lv, m)
         if x >= SW or x1 < 0 then continue for
+
         line (x, y)-(x1, y + d), CINK
         line (x, y + 1)-(x1, y + d + 1), CYELLOW
         line (x - 1, y - 2)-(x, y + CABLEH), CINK, BF
         line (x1, y + d - 2)-(x1 + 1, y + d + CABLEH), CINK, BF
         bx = lv.things(lv.movers(m).thing).at.x - cx
         by = lv.things(lv.movers(m).thing).at.y - cy
+
         if lv.movers(m).kind = 3 then
             for i = 4 to MOVEW - 4 step MOVEW - 8
                 line (bx + i, by)-(bx + i, _
@@ -471,11 +502,14 @@ private sub DrawLoose ( _
     lo() as Loose _
 )
     dim i as integer, k as integer
+
     k = IBONE + ((se.ticks \ 6) and 3) * 2
+
     for i = 0 to NLOOSE - 1
         if lo(i).t <= 1 _
             and (lo(i).t <= 0 _
             or (se.ticks and 4) = 0) then continue for
+
         Blit art, cint(lo(i).at.x) - 5 - cx, _
             cint(lo(i).at.y) - 5 - cy, k, 10, 10
     next
@@ -483,12 +517,15 @@ end sub
 
 sub DrawParts (pt() as Part, cx as integer, cy as integer)
     dim i as integer, x as integer, y as integer
+
     for i = 0 to NPART - 1
         if pt(i).t <= 0 then continue for
+
         x = cint(pt(i).at.x) - cx
         y = cint(pt(i).at.y) - cy
         if x < 0 or x >= SW - 1 or y < 0 _
             or y >= SH - 1 then continue for
+
         pset (x, y), pt(i).c
         if pt(i).t > .25 then pset (x + 1, y), pt(i).c
     next

@@ -37,6 +37,7 @@ sub Main (wd as World)
 
     last = timer
     c.span = STEPT
+
     do
         ' the next frame on the screen (port 3DAh's retrace;
         ' with no display, the next look), the keys read
@@ -44,6 +45,7 @@ sub Main (wd as World)
         do
             Poll wd.kb
         loop until inp(&H3DA) and 8
+
         now = timer
         Pace Elapsed!(last, now), c
         last = now
@@ -52,17 +54,21 @@ sub Main (wd as World)
         ' two
         n = Steps%(c)
         if n = 0 then continue do
+
         do while n
             Advance wd, g, p, k, lo(), pt(), cu()
             n = n - 1
         loop
+
         PickSong wd.mu, SongFor%(g), Sudden%(wd.se, g)
         FeedSong wd.mu, wd.se.ticks
+
         if g.mode = INTRO then
             IntroDraw wd, g, p, cu()
         else
             Render wd, g, p, lo(), pt()
         end if
+
         Flip g.page
     loop until g.quitting
 
@@ -85,11 +91,14 @@ sub Advance ( _
         Tick wd, g, p, k, lo(), pt()
         exit sub
     end if
+
     if IntroOver%(wd, g, k, cu()) = 0 then exit sub
+
     if wd.se.scene_next = 0 then
         ResetWorld wd, g, p, lo(), pt()
         exit sub
     end if
+
     GoStage wd, wd.se.scene_next, g, p, lo(), pt()
     wd.se.scene_next = 0
 end sub

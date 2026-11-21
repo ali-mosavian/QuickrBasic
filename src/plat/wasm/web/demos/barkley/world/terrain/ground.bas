@@ -24,6 +24,7 @@ const WADE = 10
 ' steep over two tiles.
 sub LoadTables (lv as Level)
     dim i as integer
+
     for i = 0 to TS - 1
         lv.prof(1, i) = TS
         lv.prof(2, i) = i + 1
@@ -50,8 +51,10 @@ end function
 ' of y; -1 when there is none.
 function SegAt% (lv as Level, gr as Ground, x as integer, y as single)
     dim s as integer
+
     SegAt% = -1
     if x < 0 or x >= lv.wpx then exit function
+
     s = TileSeg%(gr, x, y)
     if s < 0 then s = PlatSeg%(gr, x, y)
     SegAt% = s
@@ -61,12 +64,15 @@ end function
 ' there is none.
 private function TileSeg% (gr as Ground, x as integer, y as single)
     dim s as integer
+
     TileSeg% = -1
     s = gr.col(x \ TS)
     if s < 0 then exit function
+
     ' past a loop that stands in the column: the stretch
     ' after it
     if x > gr.pt(s + 1).at.x then s = s + LOOPN + 1
+
     if abs(gr.pt(s).at.y _
         + (x - gr.pt(s).at.x) * gr.pt(s).dir.y / gr.pt(s).dir.x _
         - y) < 4 then
@@ -78,11 +84,14 @@ end function
 ' there is none.
 private function PlatSeg% (gr as Ground, x as integer, y as single)
     dim s as integer
+
     PlatSeg% = -1
+
     for s = gr.plat_a to gr.n - 2
         if gr.pt(s).kind <> 1 or x < gr.pt(s).at.x _
             or x > gr.pt(s + 1).at.x _
             or abs(gr.pt(s).at.y - y) >= 4 then continue for
+
         PlatSeg% = s
         exit function
     next
@@ -92,8 +101,10 @@ end function
 ' wades, at low water too.
 function Sunk% (lv as Level, y as integer)
     dim ebb as integer
+
     Sunk% = 0
     if lv.tide_lo = NONE then exit function
+
     ebb = lv.tide_lo
     if lv.tide_hi > ebb then ebb = lv.tide_hi
     Sunk% = y > ebb + WADE
@@ -104,13 +115,17 @@ end function
 ' NONE when both are, or off the level.
 function Surf% (lv as Level, sx as integer, y as integer)
     dim tx as integer, ty as integer, i as integer, h as integer
+
     Surf% = NONE
     if sx < 0 or sx >= lv.wpx or y < TS then exit function
+
     tx = sx \ TS
     i = sx and 15
     ty = y \ TS
     if ty >= MH - 1 then exit function
+
     h = lv.prof(lv.map(tx, ty), i)
+
     if h = TS then
         Surf% = ty * TS - lv.prof(lv.map(tx, ty - 1), i)
     elseif h = 0 then
@@ -127,10 +142,12 @@ function Solid% (lv as Level, x as integer, y as integer)
         Solid% = -1
         exit function
     end if
+
     if y < 0 or y >= MH * TS then
         Solid% = 0
         exit function
     end if
+
     Solid% = (y and 15) >= TS - lv.prof(lv.map(x \ TS, y \ TS), _
         x and 15)
 end function
@@ -138,13 +155,16 @@ end function
 ' Charlie's side toward dir in a wall: pushed out, and true.
 function Wall% (lv as Level, p as Hero, dir as integer)
     dim n as integer, y as integer
+
     y = cint(p.at.y)
+
     do while Solid%(lv, cint(p.at.x) + dir * HW, y - 11) _
         or Solid%(lv, cint(p.at.x) + dir * HW, y - HH + 4)
         p.at.x = p.at.x - dir
         n = n + 1
         if n > TS then exit do
     loop
+
     Wall% = n > 0
 end function
 
@@ -153,6 +173,7 @@ end function
 function Land% (lv as Level, gr as Ground, p as Hero, d as integer)
     dim x as integer, y as integer, l as integer, c as integer
     dim r as integer, s as integer
+
     x = cint(p.at.x)
     y = cint(p.at.y)
     l = Surf%(lv, x - 6, y)
@@ -161,10 +182,12 @@ function Land% (lv as Level, gr as Ground, p as Hero, d as integer)
     if l > y or l < y - 14 then l = NONE
     if c > y or c < y - 14 then c = NONE
     if r > y or r < y - 14 then r = NONE
+
     if l = NONE and c = NONE and r = NONE then
         Land% = 0
         exit function
     end if
+
     ' by a foot on an edge: onto the edge
     if c <> NONE then
         s = SegAt%(lv, gr, x, csng(c))
@@ -176,10 +199,12 @@ function Land% (lv as Level, gr as Ground, p as Hero, d as integer)
         s = SegAt%(lv, gr, x + 6, csng(r))
         if p.vel.x < 0 then s = -1
     end if
+
     if s < 0 then
         Land% = 0
         exit function
     end if
+
     if p.at.x < gr.pt(s).at.x then p.at.x = gr.pt(s).at.x
     if p.at.x > gr.pt(s + 1).at.x then p.at.x = gr.pt(s + 1).at.x
     p.at.y = gr.pt(s).at.y _
@@ -222,19 +247,24 @@ function Curve% ( _
     dim z as integer, s as integer, a as integer, b as integer
     dim near as integer
     dim d0 as single, d1 as single, t as single, f as single
+
     Curve% = 0
+
     for z = 0 to gr.n_cv - 1
         if p.at.x < gr.cv(z).x_lo - 8 _
             or p.at.x > gr.cv(z).x_hi + 8 then continue for
+
         a = gr.cv(z).first
         b = gr.cv(z).last
         LoopHalf gr, p, z, x0, a, b
+
         for s = a to b
             d1 = (p.at.x - gr.pt(s).at.x) * gr.pt(s).dir.y _
                 - (p.at.y - gr.pt(s).at.y) * gr.pt(s).dir.x
             if d1 >= 0 _
                 or p.vel.x * gr.pt(s).dir.y - p.vel.y _
                 * gr.pt(s).dir.x >= -1 then continue for
+
             d0 = (x0 - gr.pt(s).at.x) * gr.pt(s).dir.y _
                 - (y0 - gr.pt(s).at.y) * gr.pt(s).dir.x
             t = (p.at.x - gr.pt(s).at.x) * gr.pt(s).dir.x _
@@ -246,11 +276,13 @@ function Curve% ( _
                 and (d0 >= 0 or gr.pt(s).dir.x >= .35)
             if near = 0 or t < -1 _
                 or t > gr.pt(s).length + 1 then continue for
+
             if t < 0 then t = 0
             if t > gr.pt(s).length then t = gr.pt(s).length
             p.at.x = gr.pt(s).at.x + gr.pt(s).dir.x * t
             p.at.y = gr.pt(s).at.y + gr.pt(s).dir.y * t
             f = p.vel.x * gr.pt(s).dir.x + p.vel.y * gr.pt(s).dir.y
+
             if gr.pt(s).dir.x >= .35 or abs(f) >= STALL then
                 Settle gr, p, s, d
                 Curve% = -1
@@ -260,6 +292,7 @@ function Curve% ( _
                 p.vel.x = f * gr.pt(s).dir.x
                 p.vel.y = f * gr.pt(s).dir.y
             end if
+
             exit function
         next
     next
@@ -276,9 +309,12 @@ private sub LoopHalf ( _
     b as integer _
 )
     dim far as integer
+
     if gr.cv(z).far < 0 then exit sub
+
     far = p.sg >= gr.cv(z).far
     if p.sg >= gr.plat_a then far = x0 > gr.cv(z).x_lo + LOOPR
+
     if far then
         a = gr.cv(z).far
     else
@@ -292,9 +328,11 @@ end sub
 sub Along (gr as Ground, p as Hero, d as single)
     dim i as integer, j as integer, a as integer, t as single
     dim cr as single, dt as single
+
     i = p.sg
     t = (p.at.x - gr.pt(i).at.x) * gr.pt(i).dir.x _
         + (p.at.y - gr.pt(i).at.y) * gr.pt(i).dir.y + d
+
     do
         if t > gr.pt(i).length then
             j = i + 1
@@ -305,7 +343,9 @@ sub Along (gr as Ground, p as Hero, d as single)
         else
             exit do
         end if
+
         if j >= 0 then if gr.pt(j).kind = 0 then j = -1
+
         if j >= 0 then
             cr = gr.pt(a).dir.x * gr.pt(a + 1).dir.y _
                 - gr.pt(a).dir.y * gr.pt(a + 1).dir.x
@@ -313,6 +353,7 @@ sub Along (gr as Ground, p as Hero, d as single)
                 + gr.pt(a).dir.y * gr.pt(a + 1).dir.y
             if cr > 0 and dt < .64 then j = -1
         end if
+
         if j < 0 then
             if t >= 0 then t = gr.pt(i).length
             if t < 0 then t = 0
@@ -321,16 +362,20 @@ sub Along (gr as Ground, p as Hero, d as single)
             Drop gr, p
             exit sub
         end if
+
         if t < 0 then
             t = t + gr.pt(j).length
         else
             t = t - gr.pt(i).length
         end if
+
         if cr < 0 and dt < .7 then
             Crease p, t, dt, gr.pt(j).length, j > i
         end if
+
         i = j
     loop
+
     p.sg = i
     p.ang = gr.pt(i).rise
     p.at.x = gr.pt(i).at.x + gr.pt(i).dir.x * t
@@ -349,9 +394,11 @@ private sub Crease ( _
     ahead as integer _
 )
     dim k as single
+
     k = dt
     if k < 0 then k = 0
     p.gsp = p.gsp * k
+
     if ahead then
         t = t * k
     else
@@ -363,10 +410,12 @@ end sub
 ' clear of it.
 sub Drop (gr as Ground, p as Hero)
     dim i as integer
+
     i = p.sg
     p.ground = 0
     p.vel.x = p.gsp * gr.pt(i).dir.x
     p.vel.y = p.gsp * gr.pt(i).dir.y
+
     if gr.pt(i).dir.x > .7 then
         p.coyote = COYOTE
     elseif gr.pt(i).dir.x < .35 then
@@ -379,7 +428,9 @@ end sub
 ' run off, not jumped.
 function Ribbon% (gr as Ground, x as integer)
     dim z as integer
+
     Ribbon% = 0
+
     for z = 0 to gr.n_cv - 1
         if gr.cv(z).far < 0 and gr.pt(gr.cv(z).first).kind = 2 _
             and gr.cv(z).x_lo > x - 16 and gr.cv(z).x_lo < x + 60 then
@@ -396,11 +447,14 @@ end function
 ' its crest; -1 on none.
 function Twist! (gr as Ground, p as Hero)
     dim z as integer, t as single
+
     Twist! = -1
     if not p.ground then exit function
+
     for z = 0 to gr.n_cv - 1
         if gr.cv(z).far <> -2 or p.sg < gr.cv(z).first _
             or p.sg > gr.cv(z).last then continue for
+
         t = (p.at.x - gr.cv(z).x_lo - 8) / (2 * WAVEL)
         if t < 0 or p.at.x > gr.cv(z).x_hi - 8 then t = 0
         Twist! = (t - int(t)) * 2 * PI
@@ -422,8 +476,10 @@ end sub
 ' Charlie stopped r from x, on the side of it he is.
 sub Balk (p as Hero, x as integer, r as integer)
     dim s as integer
+
     s = 1 + 2 * (p.at.x < x)
     p.at.x = x + s * r
+
     if p.ground then
         if p.gsp * s < 0 then p.gsp = 0
     elseif p.vel.x * s < 0 then
@@ -435,6 +491,7 @@ end sub
 ' it is drawn: -2 to 2, level 0.
 function Slant% (p as Hero)
     dim t as integer
+
     if p.ground then t = cint(p.ang * 8 / PI)
     if t > 2 then t = 2
     if t < -2 then t = -2
@@ -445,6 +502,7 @@ end function
 ' rides it is drawn: -2 to 2, level 0.
 function Lie% (lv as Level, x as integer, y as integer)
     dim a as integer, b as integer, t as integer
+
     a = Surf%(lv, x - 8, y)
     b = Surf%(lv, x + 8, y)
     if a <> NONE and b <> NONE then t = (a - b) \ 8

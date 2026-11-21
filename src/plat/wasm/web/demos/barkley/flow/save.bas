@@ -15,25 +15,30 @@ private const SAVEMARK = 1128398848
 ' there were any.
 sub LoadSave (se as Session)
     dim v as long, lo as long, hi as long, f as integer
+
     se.reached = 0
     f = freefile
     open "CHARLIE.SAV" for binary as #f
     if lof(f) >= 4 then get #f, , v
+
     if lof(f) >= 12 then
         get #f, , lo
         get #f, , hi
     end if
+
     if lof(f) = 0 then
         close #f
         kill "CHARLIE.SAV"
     else
         close #f
     end if
+
     v = v - SAVEMARK
     se.gold_lo = 0
     se.gold_hi = 0
     se.unkept = 0
     if v < 0 or v >= ZONES then exit sub
+
     se.reached = v
     se.gold_lo = lo and &H3FFFFFFF
     se.gold_hi = hi and 511
@@ -42,6 +47,7 @@ end sub
 ' The save as it stands, to CHARLIE.SAV.
 sub Keep (se as Session)
     dim v as long, lo as long, hi as long, f as integer
+
     v = SAVEMARK + se.reached
     lo = se.gold_lo
     hi = se.gold_hi
@@ -58,6 +64,7 @@ end sub
 ' than any before.
 sub Reach (se as Session, z as integer)
     if z <= se.reached then exit sub
+
     se.reached = z
     Keep se
 end sub
@@ -70,5 +77,6 @@ sub PickZone (se as Session, k as Pad)
         if se.pick < 0 then se.pick = 0
         if se.pick > se.reached then se.pick = se.reached
     end if
+
     se.pick_held = k.left or k.right
 end sub

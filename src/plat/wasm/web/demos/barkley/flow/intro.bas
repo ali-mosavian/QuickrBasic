@@ -219,11 +219,14 @@ end sub
 ' last, its kind 0.
 private sub LoadCues (cu() as Cue)
     dim n as integer, kind as string
+
     restore Cues
+
     do
         read kind
         cu(n).kind = (instr(QNAMES, left$(kind + "     ", 6)) + 5) \ 6
         if cu(n).kind = 0 then exit do
+
         read cu(n).t0, cu(n).t1, cu(n).start.x, cu(n).start.y, _
             cu(n).finish.x, cu(n).finish.y, cu(n).ease, cu(n).hop, _
             cu(n).own
@@ -237,11 +240,13 @@ end sub
 function IntroOver% (wd as World, g as Game, k as Pad, cu() as Cue)
     dim i as integer, x as integer, y as integer, was as single
     dim now as single
+
     wd.se.ticks = wd.se.ticks + 1
     MuteKey wd.mu, k
     was = g.mode_t * BEATS
     g.mode_t = g.mode_t + STEPT
     now = g.mode_t * BEATS
+
     do while cu(i).kind
         if now >= cu(i).t0 and now < cu(i).t1 then
             select case cu(i).kind
@@ -252,14 +257,18 @@ function IntroOver% (wd as World, g as Game, k as Pad, cu() as Cue)
                 if was < cu(i).t0 then Sfx wd.mu, wd.se, cu(i).own
             end select
         end if
+
         i = i + 1
     loop
+
     Shimmer wd.zn, wd.tn, wd.se
+
     if now > wd.se.scene_end - 1 and wd.tn.dusk > 0 _
         and (wd.se.ticks and 1) = 0 then
         wd.tn.dusk = wd.tn.dusk - 1
         Shade wd.tn
     end if
+
     IntroOver% = now >= wd.se.scene_end or k.hit or k.start or k.quit
     Spent k
 end function
@@ -275,9 +284,11 @@ sub CueAt ( _
     y as integer _
 )
     dim u as single, v as single
+
     if cu(i).t1 > cu(i).t0 then
         u = (t - cu(i).t0) / (cu(i).t1 - cu(i).t0)
     end if
+
     v = u
     if cu(i).ease = 1 then v = u * u
     if cu(i).ease = 2 then v = u * (2 - u)
@@ -292,6 +303,7 @@ end sub
 ' in the script's order, between two black bars.
 sub IntroDraw (wd as World, g as Game, p as Hero, cu() as Cue)
     dim i as integer, cx as integer, cy as integer, now as single
+
     cx = int(g.cam.x)
     cy = int(g.cam.y)
     now = g.mode_t * BEATS
@@ -299,12 +311,15 @@ sub IntroDraw (wd as World, g as Game, p as Hero, cu() as Cue)
     DrawThings wd.lv, wd.zn, wd.art, wd.se, cx, cy, -1
     DrawTiles wd.lv, wd.zn, wd.art, cx, cy
     DrawThings wd.lv, wd.zn, wd.art, wd.se, cx, cy, 0
+
     do while cu(i).kind
         if now >= cu(i).t0 and now < cu(i).t1 then
             DrawCue wd, cu(), i, now, p, cx, cy
         end if
+
         i = i + 1
     loop
+
     line (0, 0)-(SW - 1, BARH - 1), 0, BF
     line (0, SH - BARH)-(SW - 1, SH - 1), 0, BF
 end sub
@@ -322,10 +337,12 @@ private sub DrawCue ( _
 )
     dim wx as integer, wy as integer, x as integer, y as integer
     dim a as integer
+
     CueAt wd.lv, cu(), i, now, wx, wy
     x = wx - cx
     y = wy - cy
     a = cu(i).own
+
     select case cu(i).kind
     case QHOUSE
         Blit wd.art, x - 66, y - 123, IHOUSE, 132, 124

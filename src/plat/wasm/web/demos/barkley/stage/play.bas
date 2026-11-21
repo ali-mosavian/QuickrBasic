@@ -59,6 +59,7 @@ sub Spawn ( _
     p as Hero _
 )
     dim fresh as Hero
+
     p = fresh
     p.at.x = g.home.x
     p.at.y = g.home.y
@@ -83,18 +84,23 @@ sub Touch ( _
 )
     dim i as integer, c as integer, px as integer, py as integer
     dim x as integer, dx as integer
+
     ' under the ground nothing is met
     if p.dig then exit sub
+
     if lv.n_ropes then Lines lv, mu, se, g, p, pt()
     px = cint(p.at.x)
     py = cint(p.at.y)
     c = (px - 80) \ TS
     if c < 0 then c = 0
     i = lv.first(c)
+
     do while i < lv.n_things
         x = lv.things(i).at.x
         if x > px + 80 then exit do
+
         dx = abs(x - px)
+
         select case lv.things(i).kind
         case KBONE
             MeetBone lv, mu, se, g, p, i, pt()
@@ -171,13 +177,17 @@ sub Touch ( _
         case KHOOP
             MeetHoop lv, mu, se, p, i, pt()
         end select
+
         i = i + 1
     loop
+
     if se.loose_n = 0 then exit sub
+
     for i = 0 to NLOOSE - 1
         if lo(i).t <= 0 or lo(i).t >= TOONEW then continue for
         if abs(lo(i).at.x - px) >= 12 _
             or abs(lo(i).at.y - py + 13) >= 16 then continue for
+
         lo(i).t = 0
         se.loose_n = se.loose_n - 1
         g.bones = g.bones + 1
@@ -199,7 +209,9 @@ sub Dying ( _
     p.vel.y = p.vel.y + GRAV * STEPT
     p.at.y = p.at.y + p.vel.y * STEPT
     if p.dead_t < 2 then exit sub
+
     g.lives = g.lives - 1
+
     if g.lives <= 0 then
         g.mode = OVER
         g.mode_t = 0
@@ -222,10 +234,13 @@ sub Things ( _
     ' typed: a const made from a const and left typeless is
     ' rounded to a whole number, 0 here
     const DT! = STEPT * 2
+
     c = (cint(g.cam.x) - 100) \ TS
     if c < 0 then c = 0
+
     for i = lv.first(c) to lv.n_things - 1
         if lv.things(i).home > g.cam.x + SW + 100 then exit for
+
         select case lv.things(i).kind
         case KCAT, KCRAB, KSWEEP
             if lv.things(i).state <> 0 then Prowl lv, i
@@ -265,16 +280,19 @@ sub Things ( _
             end if
         case KBUOY
             lv.things(i).at.y = Bob%(lv, lv.things(i).at.x, -4, 9)
+
             if lv.things(i).state > 0 then
                 lv.things(i).state = lv.things(i).state - 1
             end if
         case KJELLY
             lv.things(i).at.y = Bob%(lv, lv.things(i).at.x, JELLYD, 0)
+
             if lv.things(i).state > 1 then
                 lv.things(i).state = lv.things(i).state - 1
             end if
         end select
     next
+
     if lv.n_ropes then Settle lv
     if se.loose_n then LooseBones lv, se, lo(), DT
     if se.part_n then Particles se, pt(), DT

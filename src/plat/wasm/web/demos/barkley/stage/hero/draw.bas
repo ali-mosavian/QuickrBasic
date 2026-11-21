@@ -48,6 +48,7 @@ sub Pose ( _
     west as integer _
 )
     dim fresh as Hero
+
     p = fresh
     p.at.x = x
     p.at.y = y
@@ -55,6 +56,7 @@ sub Pose ( _
     p.sg = SegAt%(lv, gr, x, csng(lv.start.y))
     p.anim = se.ticks / 4!
     if west or (a and 16) then p.face = 1
+
     select case a and 15
     case 1
         p.gsp = 200 * (1 - 2 * p.face)
@@ -85,20 +87,25 @@ sub DrawOver ( _
     cy as integer _
 )
     dim i as integer, c as integer, x as integer
+
     c = (cx - WAVEL) \ TS
     if c < 0 then c = 0
     i = lv.first(c)
+
     do while i < lv.n_things
         x = lv.things(i).at.x - cx
         if x > SW then exit do
+
         if lv.things(i).kind = KWAVE2 then
             Blit art, x, lv.things(i).at.y - cy - WAVEA - 22, _
                 zn.wave + 2, WAVEL, WAVEH
         end if
+
         if lv.things(i).kind = KLOG then
             Blit art, x - LOGR, lv.things(i).at.y - cy - 31, ILOG, _
                 64, 32
         end if
+
         i = i + 1
     loop
 end sub
@@ -107,6 +114,7 @@ end sub
 ' goes.
 sub DrawBark (p as Hero, cx as integer, cy as integer)
     dim x as integer, y as integer, r as integer, a as single
+
     x = cint(p.at.x) - cx + (1 - 2 * p.face) * 12
     y = cint(p.at.y) - cy - 18
     r = 5 + cint((BARKT - p.bark_t) * 50)
@@ -129,17 +137,22 @@ sub DrawHero ( _
     dim x as integer, y as integer, f as integer, t as integer
     dim tw as integer
     dim hu as single, hv as single, a as single, v as single
+
     if p.dig then exit sub
     if p.inv > 0 and not p.stun and (se.ticks and 4) then exit sub
+
     x = cint(p.at.x) - cx
     y = cint(p.at.y) - cy
     Footing gr, p, hu, hv, a, tw
     v = p.vel.x
     if p.ground then v = p.gsp
+
     if abs(v) > 400 and not p.dead then
         SpeedLines se, x, y - cint(14 * hu), sgn(v)
     end if
+
     f = HeroFrame%(se, p)
+
     ' on a sled: it lies as the ground does, and he stands
     ' on it
     if p.sled then
@@ -147,6 +160,7 @@ sub DrawHero ( _
         x = x + cint(SLEDH * hv)
         y = y - cint(SLEDH * hu)
     end if
+
     ' astride a goat: it gallops as the ground lies, and he
     ' is GOATH up its back
     if p.goat then
@@ -156,15 +170,19 @@ sub DrawHero ( _
         x = x + cint(GOATH * hv)
         y = y - cint(GOATH * hu)
     end if
+
     if tw and f >= FRUN and f < FBALL then
         DrawTwisted art, p, x, y, f, a
         exit sub
     end if
+
     if p.ground and f >= FRUN and f < FBALL then t = Turned%(p)
+
     if t = 0 then
         DrawUpright art, se, p, x, y, f, hu, hv
         exit sub
     end if
+
     DrawTilted art, p, x, y, f, t, hu, hv
 end sub
 
@@ -181,9 +199,11 @@ private sub Footing ( _
 )
     hu = 1
     if not p.ground then exit sub
+
     hu = gr.pt(p.sg).dir.x
     hv = gr.pt(p.sg).dir.y
     if Twist!(gr, p) < 0 then exit sub
+
     a = Twist!(gr, p)
     hu = cos(a)
     hv = 0
@@ -199,6 +219,7 @@ private sub SpeedLines ( _
     d as integer _
 )
     dim j as integer, sy as integer, n as integer
+
     for j = 0 to 3
         sy = y - 12 + (se.ticks * 7 + j * 11) mod 22
         n = 12 + (se.ticks * 5 + j * 9) mod 18
@@ -217,6 +238,7 @@ private sub DrawTwisted ( _
     a as single _
 )
     dim t as integer, j as integer
+
     t = cint(a * 6 / PI) mod 12
     j = (f - FRUN) \ 3
     if f >= FDASH then j = f - FDASH
@@ -228,6 +250,7 @@ end sub
 ' of a turn, nose up.
 private function Turned% (p as Hero)
     dim v as single, t as integer
+
     v = p.ang
     if p.face then v = -v
     t = cint(v * 8 / PI)
@@ -249,21 +272,26 @@ private sub DrawUpright ( _
     hv as single _
 )
     dim curled as integer, bx as integer, by as integer
+
     bx = x
     by = y
     curled = f >= FBALL and f < FBALL + 4
+
     if p.ground and curled then
         bx = bx + cint(13 * hv)
         by = by + 13 - cint(13 * hu)
     end if
+
     if p.snow < 0 and curled then
         Blit art, bx - 14, by - 28, _
             ISNOWBALL + (int(p.anim) and 1) * 2, 28, 28
         exit sub
     end if
+
     if f = FHURT or f = FSHIVER then
         bx = bx + ((se.ticks \ 2) and 1) * 2 - 1
     end if
+
     Blit art, bx - 16, by - 31, IHERO + (p.face * NF + f) * 2, 32, 32
 end sub
 
@@ -283,14 +311,17 @@ private sub DrawTilted ( _
 )
     dim j as integer, k as integer, q as integer, bx as integer
     dim by as integer
+
     k = (f - FRUN) \ 2
     if f >= FDASH then k = 3 + f - FDASH
     j = p.face
     q = t
+
     if q >= 8 then
         q = q - 8
         j = 3 - j
     end if
+
     bx = x + cint(12 * hv) - 16 + (j and 1)
     by = y - cint(12 * hu) - 18 - 5 * (j > 1)
     Blit art, bx, by, ITILT + (j * 40 + q * 5 + k) * 2, 32, 32
@@ -298,6 +329,7 @@ end sub
 
 private function HeroFrame% (se as Session, p as Hero)
     HeroFrame% = FRUN + int(p.anim) mod 6
+
     if p.dead or p.stun then
         HeroFrame% = FHURT
         if (se.ticks \ 3) and 1 then HeroFrame% = FSHIVER

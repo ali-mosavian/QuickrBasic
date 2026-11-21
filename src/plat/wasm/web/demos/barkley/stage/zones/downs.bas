@@ -36,6 +36,7 @@ sub MeetBone ( _
     if lv.things(i).state = 0 _
         or abs(lv.things(i).at.x - cint(p.at.x)) >= 12 then exit sub
     if abs(lv.things(i).at.y - cint(p.at.y) + 13) >= 16 then exit sub
+
     lv.things(i).state = 0
     g.bones = g.bones + 1
     g.score = g.score + 10
@@ -56,11 +57,14 @@ sub MeetGold ( _
     pt() as Part _
 )
     dim n as integer
+
     if abs(lv.things(i).at.x - cint(p.at.x)) >= 12 _
         or abs(lv.things(i).at.y - cint(p.at.y) _
         + 13) >= 16 then exit sub
+
     n = GoldNo%(lv, i)
     if Found%(se, zn.stage, n) then exit sub
+
     Gild se, zn.stage, n
     g.score = g.score + GOLDPTS
     Burst se, pt(), csng(lv.things(i).at.x), _
@@ -84,6 +88,7 @@ sub MeetCat ( _
         or abs(lv.things(i).at.x - cint(p.at.x)) >= 15 then exit sub
     if abs(lv.things(i).at.y - 6 - cint(p.at.y) _
         + 13) >= 17 then exit sub
+
     Tackle lv, mu, se, g, p, i, 6, lo(), pt()
 end sub
 
@@ -96,11 +101,13 @@ sub MeetSpring ( _
     i as integer _
 )
     dim py as integer
+
     py = cint(p.at.y)
     if abs(lv.things(i).at.x - cint(p.at.x)) >= 11 _
         or py < lv.things(i).at.y - 12 _
         or py > lv.things(i).at.y + 2 then exit sub
     if not p.ground and p.vel.y < 0 then exit sub
+
     if p.ground then p.vel.x = p.gsp
     p.ground = 0
     p.vel.y = -SPRINGV
@@ -127,6 +134,7 @@ sub MeetBoost ( _
         or abs(lv.things(i).at.x - cint(p.at.x)) >= 12 then exit sub
     if abs(cint(p.at.y) - lv.things(i).at.y) >= 4 _
         or abs(p.gsp) >= BOOSTV then exit sub
+
     p.gsp = BOOSTV * (1 - 2 * p.face)
     g.shake = .2
     Burst se, pt(), p.at.x, p.at.y - 4, 8, 150, CGOLD + 4
@@ -145,6 +153,7 @@ sub MeetMark ( _
 )
     if lv.things(i).state <> 0 _
         or cint(p.at.x) < lv.things(i).at.x then exit sub
+
     lv.things(i).state = 1
     g.home.x = lv.things(i).at.x
     g.home.y = lv.things(i).at.y
@@ -160,6 +169,7 @@ end sub
 ' it: whether it went.
 function Paced% (lv as Level, i as integer)
     dim x as integer, y as integer, s as integer
+
     Paced% = 0
     x = lv.things(i).at.x + lv.things(i).state
     y = lv.things(i).at.y
@@ -167,6 +177,7 @@ function Paced% (lv as Level, i as integer)
     if abs(x - lv.things(i).home) > BEAT or abs(s - y) > 6 _
         or Solid%(lv, x + lv.things(i).state * 8, _
         y - 6) then exit function
+
     lv.things(i).at.x = x
     s = Surf%(lv, x, y)
     if abs(s - y) <= 6 then lv.things(i).at.y = s
@@ -182,6 +193,7 @@ sub Prowl (lv as Level, i as integer)
             - sgn(lv.things(i).state)
         exit sub
     end if
+
     if not Paced%(lv, i) then lv.things(i).state = -lv.things(i).state
 end sub
 

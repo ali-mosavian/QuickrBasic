@@ -55,6 +55,7 @@ function Swing! ( _
     quarter as integer _
 )
     dim q as single, v as single
+
     if lv.movers(m).kind = 5 then
         ' a boat by its own clock, which stops while it is
         ' aground
@@ -63,12 +64,15 @@ function Swing! ( _
         q = se.ticks * STEPT * (1.1 - .2 * lv.movers(m).kind) + m _
             + quarter * PI / 2
     end if
+
     v = sin(q)
+
     if lv.movers(m).kind = 1 then
         v = v * 1.3
         if v > 1 then v = 1
         if v < -1 then v = -1
     end if
+
     Swing! = v
 end function
 
@@ -84,10 +88,12 @@ sub Movers ( _
 )
     dim m as integer, s as integer, o as integer, x as single
     dim y as single, dx as single, dy as single
+
     for m = 0 to lv.n_movers - 1
         s = lv.movers(m).sg
         x = lv.movers(m).at.x
         y = lv.movers(m).at.y
+
         select case lv.movers(m).kind
         case 0
             x = x + lv.movers(m).reach * Swing!(lv, se, m, 0)
@@ -96,6 +102,7 @@ sub Movers ( _
                 lv.movers(m).t = lv.movers(m).t + STEPT
                 y = lv.tide - FREEB
             end if
+
             x = x + lv.movers(m).reach * Swing!(lv, se, m, 0)
         case 1
             y = y + lv.movers(m).reach * Swing!(lv, se, m, 0)
@@ -106,18 +113,23 @@ sub Movers ( _
             if lv.movers(m).t > 0 or (p.ground and p.sg = s) then
                 lv.movers(m).t = lv.movers(m).t + STEPT
             end if
+
             if lv.movers(m).t > SPANT + 2 then
                 lv.movers(m).t = SPANT + 2
             end if
+
             lv.things(lv.movers(m).thing).state = lv.movers(m).t _
                 > 0 and lv.movers(m).t < SPANT
+
             if lv.movers(m).t >= SPANT then
                 if lv.movers(m).t - STEPT < SPANT then
                     Sfx mu, se, SCRACK
                 end if
+
                 if p.ground and p.sg = s then Drop gr, p
                 dy = lv.movers(m).t - SPANT
                 y = y + 80 * dy + GRAV * dy * dy
+
                 if y > lv.movers(m).at.y + SPANDROP then
                     y = lv.movers(m).at.y + SPANDROP
                 end if
@@ -128,18 +140,23 @@ sub Movers ( _
             else
                 lv.movers(m).t = lv.movers(m).t - 60 * STEPT
             end if
+
             if lv.movers(m).t < 0 then lv.movers(m).t = 0
+
             if lv.movers(m).t > lv.movers(m).reach then
                 lv.movers(m).t = lv.movers(m).reach
             end if
+
             y = y - lv.movers(m).t
         case 4
             if lv.things(lv.movers(m).button).state then
                 lv.movers(m).t = lv.movers(m).t + 200 * STEPT
             end if
+
             if lv.movers(m).t > lv.movers(m).reach then
                 lv.movers(m).t = lv.movers(m).reach
             end if
+
             y = y - lv.movers(m).t
         case 3, 7, 8
             ' while stood on: a basket down its cable,
@@ -157,14 +174,17 @@ sub Movers ( _
                 lv.movers(m).t = lv.movers(m).t _
                     + TRAMV * STEPT / lv.movers(m).reach
             end if
+
             if lv.movers(m).t < 0 then lv.movers(m).t = 0
             if lv.movers(m).t > 1 then lv.movers(m).t = 1
             x = x + lv.movers(m).reach * lv.movers(m).t
             y = y + Dip%(lv, m) * lv.movers(m).t
         end select
+
         dx = x - gr.pt(s).at.x
         dy = y - gr.pt(s).at.y
         if dx = 0 and dy = 0 then continue for
+
         gr.pt(s).at.x = x
         gr.pt(s + 1).at.x = x + MOVEW
         gr.pt(s).at.y = y
@@ -175,6 +195,7 @@ sub Movers ( _
         lv.things(o).at.x = cint(x)
         lv.things(o).at.y = cint(y)
         if not p.ground or p.sg <> s then continue for
+
         p.at.x = p.at.x + dx
         p.at.y = p.at.y + dy
     next

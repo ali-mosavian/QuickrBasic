@@ -60,10 +60,12 @@ sub MeetFlume ( _
     i as integer _
 )
     dim px as integer, py as integer
+
     px = cint(p.at.x)
     py = cint(p.at.y)
     if not p.ground or px < lv.things(i).at.x _
         or px >= lv.things(i).at.x + TS then exit sub
+
     if py > lv.things(i).at.y - 6 _
         and py < lv.things(i).at.y + TS + 6 then
         Slide mu, se, p
@@ -85,18 +87,22 @@ sub MeetCrab ( _
     pt() as Part _
 )
     dim y as integer
+
     y = lv.things(i).at.y
     if lv.things(i).state = 0 _
         or abs(lv.things(i).at.x - p.at.x) >= 15 or p.at.y < y - 22 _
         or p.at.y > y + 10 then exit sub
+
     if not p.ground and p.vel.y > 0 and p.at.y < y - 4 then
         p.vel.y = -BOUNCEV
         if abs(lv.things(i).state) > 1 then p.vel.y = -STEPV
         p.jumped = 0
+
         if abs(lv.things(i).state) < SHELLT \ 3 then
             lv.things(i).state = sgn(lv.things(i).state) _
                 * (SHELLT \ 3)
         end if
+
         Sfx mu, se, SSPRING
     elseif abs(lv.things(i).state) = 1 then
         Hurt mu, se, g, p, lv.things(i).at.x, lo(), SHURT
@@ -114,10 +120,12 @@ private function Glide% ( _
     v as single _
 )
     dim dx as single, dy as single, d as single
+
     dx = x - b.at.x
     dy = y - b.at.y
     d = sqr(dx * dx + dy * dy)
     if dx <> 0 then b.face = dx < 0
+
     if d <= v * STEPT then
         b.at.x = x
         b.at.y = y
@@ -133,9 +141,11 @@ end function
 ' to be picked up.
 private sub Spill (se as Session, b as Bird, lo() as Loose)
     dim i as integer
+
     for i = 0 to NLOOSE - 1
         if b.loot = 0 then exit for
         if lo(i).t > 0 then continue for
+
         lo(i).at.x = b.at.x
         lo(i).at.y = b.at.y
         lo(i).vel.x = (b.loot * 37 mod 90) - 45
@@ -144,6 +154,7 @@ private sub Spill (se as Session, b as Bird, lo() as Loose)
         se.loose_n = se.loose_n + 1
         b.loot = b.loot - 1
     next
+
     b.loot = 0
 end sub
 
@@ -164,14 +175,17 @@ private sub Gull ( _
     pt() as Part _
 )
     dim x as single, y as single, lead as single
+
     x = b.home.x + 24 * sin(se.ticks * .02 + n * 2)
     y = b.home.y + 4 * sin(se.ticks * .07 + n)
+
     select case b.st
     case GHOVER
         b.face = cos(se.ticks * .02 + n * 2) < 0
         b.at.x = x
         b.at.y = y
         if b.rest > 0 then b.rest = b.rest - STEPT
+
         if b.rest <= 0 and b.loot = 0 and g.bones > 0 _
             and abs(p.at.x - x) < GULLSEE and p.at.y > y + 30 then
             lead = (p.at.y - 13 - y) / DIVEV * 60
@@ -191,8 +205,10 @@ private sub Gull ( _
         Spill se, b, lo()
         b.st = GCLIMB
     end select
+
     if abs(b.at.x - p.at.x) >= 13 _
         or abs(b.at.y - p.at.y + 13) >= 15 then exit sub
+
     if p.roll or p.charging then
         Spill se, b, lo()
         b.st = 0
@@ -218,6 +234,7 @@ sub Flock ( _
     pt() as Part _
 )
     dim i as integer
+
     for i = 0 to lv.n_gulls - 1
         if lv.gulls(i).st > 0 then
             Gull mu, se, lv.gulls(i), i, g, p, lo(), pt()
@@ -235,15 +252,19 @@ sub DrawGulls ( _
     cy as integer _
 )
     dim i as integer, x as integer, y as integer, k as integer
+
     for i = 0 to lv.n_gulls - 1
         x = cint(lv.gulls(i).at.x) - cx
         y = cint(lv.gulls(i).at.y) - cy
         if lv.gulls(i).st <= 0 or x <= -20 _
             or x >= SW + 20 then continue for
+
         k = IGULL - 4 * lv.gulls(i).face
+
         if lv.gulls(i).st <> GDIVE then
             k = k + ((se.ticks \ 8) and 1) * 2
         end if
+
         Blit art, x - 13, y - 10, k, 26, 20
         if lv.gulls(i).loot then Blit art, x - 5, y + 3, IBONE, 10, 10
     next
@@ -253,6 +274,7 @@ end sub
 ' up over the ground there when the sea is lower.
 function Bob% (lv as Level, x as integer, h as integer, up as integer)
     dim y as integer
+
     y = lv.top(x \ TS) * TS - up
     if lv.tide <> NONE and lv.tide + h < y then y = lv.tide + h
     Bob% = y
@@ -273,10 +295,12 @@ sub MeetJelly ( _
     pt() as Part _
 )
     dim y as integer
+
     y = lv.things(i).at.y
     if p.inv > 0 or lv.things(i).state > 1 _
         or abs(lv.things(i).at.x - p.at.x) >= 12 or p.at.y < y - 26 _
         or p.at.y > y + 8 then exit sub
+
     if not p.ground and not p.swim and p.vel.y > 0 _
         and p.at.y < y - 10 then
         p.vel.y = -JELLYV
@@ -304,17 +328,22 @@ end sub
 sub DrawSea (lv as Level, cx as integer, cy as integer)
     dim tx as integer, tx0 as integer, tx1 as integer, y0 as integer
     dim y1 as integer, x0 as integer, x1 as integer
+
     y0 = lv.tide - cy
     if y0 >= SH then exit sub
+
     tx1 = cx \ TS + SW \ TS
     if tx1 > lv.w - 1 then tx1 = lv.w - 1
     tx = cx \ TS
+
     do while tx <= tx1
         if lv.top(tx) * TS > lv.tide then
             tx0 = tx
+
             do while tx < tx1 and lv.top(tx + 1) = lv.top(tx0)
                 tx = tx + 1
             loop
+
             y1 = (lv.top(tx0) + 1) * TS - 1 - cy
             x0 = tx0 * TS - cx
             x1 = tx * TS + TS - 1 - cx
@@ -323,6 +352,7 @@ sub DrawSea (lv as Level, cx as integer, cy as integer)
             SeaBand x0, x1, y0 + 8, y0 + 25, y1, CSEA + 3
             SeaBand x0, x1, y0 + 26, SH - 1, y1, CSEA + 4
         end if
+
         tx = tx + 1
     loop
 end sub
@@ -338,6 +368,7 @@ private sub SeaBand ( _
     c as integer _
 )
     dim y0 as integer, y1 as integer
+
     y0 = a
     y1 = b
     if y0 < 0 then y0 = 0
@@ -352,13 +383,17 @@ end sub
 ' nothing.
 sub DrawSurf (lv as Level, art as Store, cx as integer, cy as integer)
     dim tx as integer, tx1 as integer, y as integer, deep as integer
+
     y = lv.tide - cy - 1
     if y >= SH or y < -8 then exit sub
+
     tx1 = cx \ TS + SW \ TS
     if tx1 > lv.w - 1 then tx1 = lv.w - 1
+
     for tx = cx \ TS to tx1
         deep = lv.top(tx) * TS - lv.tide
         if deep <= 0 or lv.vis(tx) > 2 then continue for
+
         if deep >= 7 then
             Blit art, tx * TS - cx, y, ISURF, TS, 8
         else
@@ -381,16 +416,20 @@ sub DrawSpout ( _
     cy as integer _
 )
     dim e as integer, yy as integer, k as integer
+
     k = ((se.ticks \ 3) and 3) * 2
     e = lv.top(c + 1) * TS
     if lv.tide <> NONE and lv.tide < e then e = lv.tide + 2
     e = e - cy
+
     if e > y then
         Blit art, x + TS - 1, y - 8, IRUNNEL + k, 5, 8
+
         for yy = e - 8 to y step -8
             Blit art, x + TS - 1, yy, IRUNNEL + k, 5, 8
         next
     end if
+
     Blit art, x, y - 8, ISPOUT + k, TS, 13
 end sub
 

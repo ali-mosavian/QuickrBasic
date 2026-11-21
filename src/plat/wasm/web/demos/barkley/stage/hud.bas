@@ -23,10 +23,12 @@ const PIPY = 22
 sub Hud (art as Store, g as Game, gold as integer)
     dim s as integer, sig as long, i as integer, x as integer
     dim bit as integer
+
     s = int(g.clock)
     sig = g.score * 7 + g.bones * 131& + g.lives * 100003 + s * 13& _
         + 1 + (gold + 1) * 15485863&
     if sig = g.sig then exit sub
+
     g.sig = sig
     line (0, 0)-(HUDW - 1, HUDH - 1), 0, BF
     line (0, 100)-(HUDW - 1, 100 + HUDH - 1), 255, BF
@@ -37,16 +39,21 @@ sub Hud (art as Store, g as Game, gold as integer)
     HudLine art, 2, "BONES " + Num$(clng(g.bones), 3), 6
     HudLine art, 3, "CHARLIE x" + ltrim$(str$(g.lives)), 7
     bit = 1
+
     for i = 0 to NGOLD - 1
         if gold < 0 then exit for
+
         x = PIPX + i * 8
         line (x, PIPY)-(x + 6, PIPY + 6), CINK, BF
+
         if gold and bit then
             line (x + 1, PIPY + 1)-(x + 5, PIPY + 5), CYELLOW, BF
         end if
+
         line (x, 100 + PIPY)-(x + 6, 106 + PIPY), 0, BF
         bit = bit * 2
     next
+
     get (0, 0)-(HUDW - 1, HUDH - 1), art.img(art.at(IHUD))
     get (0, 100)-(HUDW - 1, 100 + HUDH - 1), art.img(art.at(IHUD + 1))
 end sub
@@ -60,9 +67,11 @@ private sub HudLine ( _
     n as integer _
 )
     dim i as integer, k as integer
+
     for i = 1 to len(s)
         k = instr("0123456789:xABCDEHILMNOPRST", mid$(s, i, 1)) - 1
         if k < 0 then continue for
+
         k = IGLYPH + (k - NGLYPH * (i > n)) * 2
         put (i * 9 - 9, row * 10), art.img(art.at(k)), pset
         put (i * 9 - 9, 100 + row * 10), art.img(art.at(k + 1)), pset
@@ -72,6 +81,7 @@ end sub
 ' What Charlie says, in a box over its head.
 sub Say (p as Hero, cx as integer, cy as integer, s as string)
     dim row as integer, col as integer
+
     col = (cint(p.at.x) - cx) \ 8 - len(s) \ 2 + 1
     row = (cint(p.at.y) - cy - 42) \ 8
     if col < 2 then col = 2
@@ -87,6 +97,7 @@ end sub
 ' of it, the scene through the rest.
 sub Panel (x1 as integer, y1 as integer, x2 as integer, y2 as integer)
     dim y as integer
+
     for y = y1 to y2
         if (x1 + y) and 1 then
             line (x1, y)-(x2, y), CHUD, , &H5555
@@ -94,6 +105,7 @@ sub Panel (x1 as integer, y1 as integer, x2 as integer, y2 as integer)
             line (x1, y)-(x2, y), CHUD, , &HAAAA
         end if
     next
+
     line (x1, y1)-(x2, y2), CGOLD + 2, B
 end sub
 

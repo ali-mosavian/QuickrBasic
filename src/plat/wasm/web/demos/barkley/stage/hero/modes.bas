@@ -75,6 +75,7 @@ sub Hang ( _
     hit as integer _
 )
     dim i as integer
+
     i = p.vine - 1
     p.sway_v = p.sway_v - GRAV / VINELEN * sin(p.sway) * STEPT
     p.sway = p.sway + p.sway_v * STEPT
@@ -84,10 +85,12 @@ sub Hang ( _
     p.vel.y = -VINELEN * p.sway_v * sin(p.sway)
     lv.things(i).state = cint(p.sway * 100)
     if not (hit or p.stun or p.dead) then exit sub
+
     p.vine = 0
     p.vine_t = VINEWAIT
     p.want = 0
     if not hit then exit sub
+
     p.vel.y = p.vel.y - VINEHOP
     p.roll = -1
     Sfx mu, se, SJUMP
@@ -105,28 +108,35 @@ sub Tunnel ( _
     pt() as Part _
 )
     dim i as integer, dx as single, c as integer
+
     i = p.dig - 1
     dx = lv.things(i).at.x - p.at.x
+
     if abs(dx) > DIGV * STEPT then
         p.vel.x = sgn(dx) * DIGV
         p.at.x = p.at.x + p.vel.x * STEPT
         p.at.y = p.at.y _
             + (lv.things(i).at.y - p.at.y) * DIGV * STEPT / abs(dx)
+
         if lv.things(i).kind = KMOUND and (se.ticks and 3) = 0 then
             Burst se, pt(), p.at.x, p.at.y, 2, 50, CLOAM
         end if
+
         exit sub
     end if
+
     p.at.x = lv.things(i).at.x
     p.at.y = lv.things(i).at.y
     p.vel.x = 0
     p.vel.y = -DIGPOP
     c = CLOAM
+
     if lv.things(i).kind = KCHIMNEY then
         p.at.y = p.at.y - FLUEH
         p.vel.y = -FLUEPOP
         c = CSOOT
     end if
+
     p.dig = 0
     p.dug = i + 1
     p.roll = 0
@@ -141,6 +151,7 @@ end sub
 ' nothing may stop him then, and a gust would.
 function Lull% (lv as Level, se as Session)
     dim t as integer
+
     t = GUSTP - GUSTON - se.ticks mod GUSTP
     if t < 0 then t = 0
     if lv.aval_x <> NONE and lv.aval.st = 1 then t = GUSTP
@@ -151,6 +162,7 @@ end function
 ' spared curled or crouched on the ground, or mounted.
 sub Buffet (lv as Level, se as Session, p as Hero)
     if Lull%(lv, se) > 0 or p.swim or p.sled or p.goat then exit sub
+
     if not p.ground then
         if p.vel.x > -WINDV then p.vel.x = p.vel.x - WINDA * STEPT
     elseif not (p.roll or p.crouch or p.charging) then
@@ -172,6 +184,7 @@ sub Ride ( _
     l = 0
     r = 0
     d = 0
+
     if p.ride_t > .1 _
         and (not p.ground or p.ride_t > GOATRIDE _
         or abs(p.at.x - p.last_x) < 1) then
@@ -191,15 +204,19 @@ end sub
 ' wet, slow and dripping, till a roll shakes him dry.
 sub Soak (lv as Level, se as Session, p as Hero, pt() as Part)
     if p.swim then exit sub
+
     if (p.ground and p.at.y > lv.tide + WADE) _
         or (not p.ground and p.vel.y >= 0 _
         and p.at.y > lv.tide + AFLOAT) then
         Dunk lv, se, p, pt()
         exit sub
     end if
+
     if p.wet <= 0 then exit sub
+
     if p.roll and p.ground then
         p.wet = p.wet - STEPT
+
         if p.wet <= 0 then
             Burst se, pt(), p.at.x, p.at.y - 12, 10, 130, CSEA + 1
         end if
@@ -217,6 +234,7 @@ private sub Dunk (lv as Level, se as Session, p as Hero, pt() as Part)
     elseif p.vel.y > 200 then
         Burst se, pt(), p.at.x, lv.tide + 0!, 8, 110, CSEA
     end if
+
     p.swim = -1
     p.ground = 0
     p.stun = 0
@@ -243,6 +261,7 @@ sub Paddle ( _
     p.charging = 0
     p.skid = 0
     p.wet = DRYT
+
     if hit then
         p.swim = 0
         p.vel.y = -HOPV
@@ -251,6 +270,7 @@ sub Paddle ( _
         Sfx mu, se, SJUMP
         exit sub
     end if
+
     if r then
         if p.vel.x < PADV then p.vel.x = p.vel.x + PADACC * STEPT
         p.face = 0
@@ -260,12 +280,15 @@ sub Paddle ( _
     else
         Slow p.vel.x, PADACC
     end if
+
     ' the speed he came in with is soon lost
     if abs(p.vel.x) > PADV then Slow p.vel.x, PADACC * 4
     p.at.x = p.at.x + p.vel.x * STEPT
+
     if p.vel.x <> 0 then
         if Wall%(lv, p, sgn(p.vel.x)) then p.vel.x = 0
     end if
+
     p.at.y = lv.tide + AFLOAT
     p.vel.y = 0
     if Land%(lv, gr, p, 0) then p.swim = 0

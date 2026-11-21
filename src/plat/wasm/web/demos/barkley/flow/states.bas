@@ -48,11 +48,14 @@ private const TALLYBARS = 6
 ' all of it at a key.
 private sub Tally (mu as Deck, se as Session, g as Game, k as Pad)
     dim due as integer, take as long
+
     if g.bonus = 0 then exit sub
+
     due = int(EndBeat!(mu, se, g)) _
         - (len(mu.song(CAUGHT).order) - TALLYBARS) * 4 + 1
     if due > TALLYN or k.hit or k.start then due = TALLYN
     if due <= g.tallied then exit sub
+
     do while g.tallied < due and g.bonus > 0
         take = ((g.bonus \ (TALLYN - g.tallied) + 9) \ 10) * 10
         g.tallied = g.tallied + 1
@@ -60,6 +63,7 @@ private sub Tally (mu as Deck, se as Session, g as Game, k as Pad)
         g.bonus = g.bonus - take
         g.score = g.score + take
     loop
+
     Sfx mu, se, SBONE
 end sub
 
@@ -74,9 +78,11 @@ sub Tick ( _
 )
     wd.se.ticks = wd.se.ticks + 1
     KeepBeat wd.mu, wd.se
+
     if wd.zn.id = 1 and (wd.se.ticks and 3) = 0 then
         Cycle wd.tn, wd.se
     end if
+
     if wd.lv.murk then Nightfall wd.lv, wd.zn, wd.tn
     if wd.lv.tide_lo <> NONE then Flow wd.lv, wd.se
     if wd.lv.n_movers then Movers wd.lv, wd.gr, wd.mu, wd.se, p
@@ -84,6 +90,7 @@ sub Tick ( _
     if g.shake > 0 then g.shake = g.shake - STEPT
     if wd.se.unkept then Keep wd.se
     MuteKey wd.mu, k
+
     select case g.mode
     case TITLE
         TitleStep wd, g, p, k, lo(), pt()
@@ -97,9 +104,11 @@ sub Tick ( _
             ResetWorld wd, g, p, lo(), pt()
         end if
     end select
+
     if (wd.se.ticks and 1) = 0 then
         Things wd.lv, wd.mu, wd.se, g, p, lo(), pt()
     end if
+
     Shimmer wd.zn, wd.tn, wd.se
     Spent k
 end sub
@@ -115,7 +124,9 @@ private sub TitleStep ( _
     pt() as Part _
 )
     dim auto as Pad
+
     if k.quit then g.quitting = -1
+
     if p.dead then
         ResetWorld wd, g, p, lo(), pt()
     elseif p.at.x >= wd.lv.goal_x then
@@ -129,6 +140,7 @@ private sub TitleStep ( _
         if p.at.y > MH * TS + 24 then Lose wd.mu, wd.se, p
         Camera wd.lv, wd.zn, g, p, 0
     end if
+
     PickZone wd.se, k
     if k.hit or k.start then StartGame wd, g, p, lo(), pt()
 end sub
@@ -145,10 +157,12 @@ private sub PlayStep ( _
     pt() as Part _
 )
     if k.quit then ResetWorld wd, g, p, lo(), pt()
+
     if p.dead then
         Dying wd.lv, wd.gr, wd.zn, wd.mu, g, p
         exit sub
     end if
+
     g.clock = g.clock + STEPT
     MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
     Touch wd.lv, wd.zn, wd.mu, wd.se, g, p, lo(), pt()
@@ -186,18 +200,25 @@ private sub ClearedStep ( _
     pt() as Part _
 )
     dim nxt as integer
+
     Tally wd.mu, wd.se, g, k
+
     if k.quit then
         ResetWorld wd, g, p, lo(), pt()
         exit sub
     end if
+
     if Met%(wd, g, p, k, pt()) = 0 then exit sub
+
     nxt = wd.zn.stage + 1
+
     if nxt > NSTAGE - 1 then
         ResetWorld wd, g, p, lo(), pt()
         exit sub
     end if
+
     Reach wd.se, ZoneOf%(wd.se, nxt)
+
     if ZoneOf%(wd.se, nxt) = wd.zn.id then
         GoStage wd, nxt, g, p, lo(), pt()
     else
@@ -215,6 +236,7 @@ sub ResetWorld ( _
     pt() as Part _
 )
     dim i as integer
+
     if wd.zn.stage <> wd.zn.next_up then LoadLevel wd, wd.zn.next_up
     EndTune wd.lv, wd.zn, wd.mu
     wd.lv.glow = 0
@@ -223,15 +245,18 @@ sub ResetWorld ( _
     wd.se.cheer = 0
     wd.se.met_t = 0
     wd.se.past_t = 0
+
     if wd.tn.dusk < 16 then
         wd.tn.dusk = 16
         Shade wd.tn
     end if
+
     g.lives = 3
     g.score = 0
     g.clock = 0
     g.home.x = wd.lv.start.x
     g.home.y = wd.lv.start.y
+
     for i = 0 to wd.lv.n_things - 1
         wd.lv.things(i).at.x = wd.lv.things(i).home
         ' a burrow's mound keeps its other end, and a
@@ -240,38 +265,49 @@ sub ResetWorld ( _
             or wd.lv.things(i).kind = KCHIMNEY _
             or wd.lv.things(i).kind = KMORTAR then continue for
         if wd.lv.things(i).kind = KTIPPER then continue for
+
         wd.lv.things(i).state = 0
         if wd.lv.things(i).kind = KBONE then wd.lv.things(i).state = 1
+
         if wd.lv.things(i).kind = KCAT _
             or wd.lv.things(i).kind = KCRAB _
             or wd.lv.things(i).kind = KSWEEP then
             wd.lv.things(i).state = -1
         end if
+
         if wd.lv.things(i).kind = KWALKER _
             or wd.lv.things(i).kind = KSNATCH then
             wd.lv.things(i).state = -1
         end if
+
         if wd.lv.things(i).kind = KJELLY then
             wd.lv.things(i).state = 1
         end if
+
         if wd.lv.things(i).kind = KTHROW then
             wd.lv.things(i).state = THROWC
         end if
+
         if wd.lv.things(i).kind = KSQUIRREL then
             wd.lv.things(i).state = SQWAIT
         end if
+
         if wd.lv.things(i).kind = KGOAT _
             or wd.lv.things(i).kind = KWALL then
             wd.lv.things(i).state = 1
         end if
     next
+
     for i = 0 to NLOB - 1
         wd.lv.lobs(i).live = 0
     next
+
     wd.lv.n_lobs = 0
+
     for i = 0 to NMOVE
         wd.lv.movers(i).t = 0
     next
+
     for i = 0 to wd.lv.n_gulls - 1
         wd.lv.gulls(i).at.x = wd.lv.gulls(i).home.x
         wd.lv.gulls(i).at.y = wd.lv.gulls(i).home.y
@@ -279,12 +315,15 @@ sub ResetWorld ( _
         wd.lv.gulls(i).st = GHOVER
         wd.lv.gulls(i).loot = 0
     next
+
     for i = 0 to NLOOSE - 1
         lo(i).t = 0
     next
+
     for i = 0 to NPART - 1
         pt(i).t = 0
     next
+
     wd.se.loose_n = 0
     wd.se.part_n = 0
     Spawn wd.lv, wd.gr, wd.zn, wd.mu, g, p
@@ -300,6 +339,7 @@ sub GoStage ( _
     pt() as Part _
 )
     dim sc as long, left0 as integer
+
     sc = g.score
     left0 = g.lives
     wd.zn.next_up = n
@@ -322,19 +362,23 @@ private function Met% ( _
     pt() as Part _
 )
     dim idle as Pad, parted as integer
+
     idle.right = p.at.x < wd.lv.fam_x - 108 and not p.win
     MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, idle, pt()
+
     if p.at.x > wd.lv.fam_x - 106 then
         p.at.x = wd.lv.fam_x - 106
         p.gsp = 0
         p.vel.x = 0
         p.roll = 0
     end if
+
     if p.ground and abs(p.gsp) < 5 _
         and p.at.x >= wd.lv.fam_x - 108 then
         p.win = -1
         p.face = 0
     end if
+
     wd.se.cheer = p.win
     g.cam.x = g.cam.x + (wd.lv.fam_x - 166 - g.cam.x) * 4 * STEPT
     wd.se.past_t = wd.se.past_t + STEPT
@@ -342,10 +386,12 @@ private function Met% ( _
     parted = wd.se.met_t > 6 or wd.se.past_t > 40 _
         or (wd.se.met_t > 2 and (k.hit or k.start))
     if wd.tn.dusk = 16 and parted then wd.tn.dusk = 15
+
     if wd.tn.dusk < 16 and (wd.se.ticks and 3) = 0 then
         wd.tn.dusk = wd.tn.dusk - 1
         Shade wd.tn
     end if
+
     Met% = wd.tn.dusk <= 0
 end function
 

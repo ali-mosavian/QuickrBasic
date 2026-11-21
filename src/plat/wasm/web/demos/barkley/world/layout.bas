@@ -32,6 +32,7 @@ sub AddMover ( _
     case else
         AddObj lv, KMOVE, x, y
     end select
+
     lv.movers(lv.n_movers).at.x = x
     lv.movers(lv.n_movers).at.y = y
     lv.movers(lv.n_movers).reach = a
@@ -43,6 +44,7 @@ end sub
 ' What grows past x is pulled up.
 sub Weed (lv as Level, x as integer)
     dim i as integer
+
     for i = 0 to lv.n_things - 1
         if lv.things(i).kind >= KTREE _
             and lv.things(i).kind <= KLAMP _
@@ -62,6 +64,7 @@ end sub
 ' column; none before column lv.fallow.
 sub Scatter (lv as Level, zn as Realm, c as integer, s as integer)
     if c < 8 or c < lv.fallow then exit sub
+
     if zn.decked then
         ' lamp posts, tanks and valve stacks along the decks
         select case (c * 37 + 11) mod 23
@@ -72,8 +75,10 @@ sub Scatter (lv as Level, zn as Realm, c as integer, s as integer)
         case 17
             AddObj lv, KVENT, c * TS + 8, s
         end select
+
         exit sub
     end if
+
     select case (c * 37 + 11) mod 19
     case 0, 7
         AddObj lv, KFLOWER, c * TS + 8, s
@@ -88,10 +93,13 @@ end sub
 ' slope on top.
 sub Column (lv as Level, c as integer, g as integer, kind as integer)
     dim r as integer
+
     for r = MH - g to MH - 1
         lv.map(c, r) = 1
     next
+
     lv.glaze(c) = lv.icing
+
     if kind > 1 then
         lv.map(c, MH - g - 1) = kind
         lv.top(c) = MH - g - 1
@@ -107,14 +115,18 @@ end sub
 ' it, a spring at its far wall.
 sub Pit (lv as Level, c as integer, g as integer, n as integer)
     dim i as integer, y as integer
+
     y = (MH - g + PITD) * TS
+
     for i = 0 to n - 1
         Column lv, c + i, g - PITD, 1
+
         if i > 1 and i < n - 3 and (i and 1) = 0 _
             and not Sunk%(lv, y) then
             AddObj lv, KBONE, (c + i) * TS + 8, y - 14
         end if
     next
+
     if not Sunk%(lv, y) then
         AddObj lv, KSPRING, (c + n - 2) * TS + 8, y
     end if
@@ -131,6 +143,7 @@ sub Shelf ( _
     w as integer _
 )
     dim i as integer
+
     for i = 0 to w - 1
         lv.map(c + i, MH - g - n - 1) = 1
         AddObj lv, KPLAT, (c + i) * TS, s - (n + 1) * TS
@@ -141,8 +154,10 @@ end sub
 ' ground's height in tiles at its foot.
 sub Limbs (lv as Level, g as integer)
     dim n as integer, i as integer, c as integer
+
     for n = 0 to NLIMB - 1
         c = (lv.oak.x + LimbX%(n)) \ TS
+
         for i = 0 to LIMBW \ TS - 1
             lv.map(c + i, MH - g - LimbUp%(n) \ TS) = 1
         next
@@ -169,13 +184,16 @@ end function
 ' second's is 0: a way out that takes no one in.
 sub Pair (lv as Level, k as integer, back as integer)
     dim i as integer, j as integer
+
     for i = 0 to lv.n_things - 1
         if lv.things(i).kind <> k _
             or lv.things(i).state >= 0 then continue for
+
         for j = i + 1 to lv.n_things - 1
             if lv.things(j).kind <> k _
                 or lv.things(j).state <> lv.things(i).state _
                 then continue for
+
             lv.things(i).state = j + 1
             lv.things(j).state = 0
             if back then lv.things(j).state = i + 1
@@ -188,22 +206,30 @@ end sub
 ' c.
 sub SortObjs (lv as Level)
     dim i as integer, j as integer, c as integer
+
     for i = 1 to lv.n_things - 1
         j = i
+
         do while j > 0
             if lv.things(j - 1).at.x <= lv.things(j).at.x then exit do
+
             swap lv.things(j - 1), lv.things(j)
             j = j - 1
         loop
     next
+
     i = 0
+
     for c = 0 to MW
         do while i < lv.n_things
             if lv.things(i).at.x >= c * TS then exit do
+
             i = i + 1
         loop
+
         lv.first(c) = i
     next
+
     for i = 0 to lv.n_things - 1
         lv.things(i).home = lv.things(i).at.x
     next

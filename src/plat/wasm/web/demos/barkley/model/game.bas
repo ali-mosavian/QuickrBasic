@@ -112,10 +112,13 @@ const NCUE = 112
 ' file.
 private function GoldBit& (s as integer, n as integer)
     dim k as integer, v as long
+
     v = 1
+
     for k = 1 to (s mod 10) * 3 + n
         v = v * 2
     next
+
     GoldBit& = v
 end function
 
@@ -135,5 +138,6 @@ sub Gild (se as Session, s as integer, n as integer)
     else
         se.gold_lo = se.gold_lo or GoldBit&(s, n)
     end if
+
     se.unkept = -1
 end sub

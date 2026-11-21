@@ -16,10 +16,13 @@ private const SCZ = 44
 
 sub ReadPad (kb as Keys, mu as Deck, k as Pad)
     dim c as string, t as single
+
     Poll kb
     t = timer
+
     do
         c = inkey$
+
         select case c
         case chr$(27)
             k.quit = -1
@@ -47,6 +50,7 @@ sub ReadPad (kb as Keys, mu as Deck, k as Pad)
             kb.since(SCDOWN) = t
         end select
     loop while len(c)
+
     k.left = Held2%(kb, SCLEFT, t)
     k.right = Held2%(kb, SCRIGHT, t)
     k.down = Held2%(kb, SCDOWN, t)
@@ -59,6 +63,7 @@ end sub
 ' M: the sound off, or on again.
 sub MuteKey (mu as Deck, k as Pad)
     if k.mute = 0 then exit sub
+
     mu.muted = not mu.muted
     k.mute = 0
     if mu.muted then CutVoices

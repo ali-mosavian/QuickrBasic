@@ -46,6 +46,7 @@ private const CCHASE = 213
 ' Colour k is c, shown dusk sixteenths as bright.
 sub Tint (tn as Tones, k as integer, c as long)
     dim d as integer
+
     tn.now(k) = c
     d = tn.dusk
     palette k, _
@@ -57,17 +58,20 @@ end sub
 ' blades turn, glints go down a pipe; by their colours.
 sub Cycle (tn as Tones, se as Session)
     dim i as integer
+
     for i = 0 to 3
         if i = (se.ticks \ 8 and 3) then
             Tint tn, CCHASE + i, 4144952
         else
             Tint tn, CCHASE + i, 3550218
         end if
+
         if (i + se.ticks \ 4) and 2 then
             Tint tn, CCHASE + 4 + i, 2235666
         else
             Tint tn, CCHASE + 4 + i, 525317
         end if
+
         if i = (se.ticks \ 4 and 3) then
             Tint tn, CCHASE + 8 + i, 2242111
         else
@@ -78,6 +82,7 @@ end sub
 
 sub Shade (tn as Tones)
     dim k as integer
+
     for k = 0 to 255
         Tint tn, k, tn.now(k)
     next
@@ -87,7 +92,9 @@ end sub
 ' every 16 steps.
 sub Shimmer (zn as Realm, tn as Tones, se as Session)
     dim i as integer
+
     if zn.id <> 0 or (se.ticks and 15) <> 0 then exit sub
+
     i = se.ticks \ 16
     Tint tn, CWATER + 1, tn.glint(i mod 3)
     Tint tn, CWATER + 2, tn.glint((i + 1) mod 3)
