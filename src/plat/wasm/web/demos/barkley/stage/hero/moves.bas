@@ -10,14 +10,15 @@ from barkley.model.level import GRAV, Ground, KCAT, KCRAB, KICICLE
 from barkley.model.level import KLOAD, KPOUNCE, KSNATCH, KSQUIRREL
 from barkley.model.level import KTHROW, KWALKER, Level, NONE, TS
 from barkley.model.game import Part, Session
-from barkley.model.events import EVSOUND, Tell
-from barkley.assets.palette import CEARTH, CSTONE, CWHITE
+from barkley.model.events import EVBURST, EVSOUND, Tell, TellAt
+from barkley.assets.palette import CSTONE
 from barkley.assets.tunes import SBARK, SCHARGE, SJUMP, SLAUNCH, SPOP
 from barkley.assets.tunes import SROLL
 from barkley.world.terrain.ground import Along, Curve, Drop, Land
 from barkley.world.terrain.ground import Slow, Solid, STALL, Twist
 from barkley.world.terrain.ground import Wall
-from barkley.stage.fx.parts import Burst, Emit
+from barkley.stage.fx.parts import Emit, PLAND, PSLEDWOOD, PSNOWCOAT
+from barkley.stage.fx.parts import PWIND
 from barkley.stage.hero.modes import Alight, Buffet, Hang, Paddle
 from barkley.stage.hero.modes import Ride, Soak, Tunnel
 
@@ -90,7 +91,7 @@ sub MoveHero ( _
     dim v as single
 
     if p.dig then
-        Tunnel lv, ev, se, p, pt()
+        Tunnel lv, ev, se, p
         exit sub
     end if
 
@@ -100,13 +101,13 @@ sub MoveHero ( _
 
     if p.snow > 0 then
         p.snow = 0
-        Burst se, pt(), p.at.x, p.at.y - 12, 12, 140, CWHITE
+        TellAt ev, EVBURST, p.at.x, p.at.y - 12, PSNOWCOAT
         Tell ev, EVSOUND, SPOP
     end if
 
     ' a ride lasts as long as its roll: come to a stand,
     ' hurt or thrown, the sled is left in pieces
-    if p.sled and not p.roll then Alight ev, se, p, pt(), CEARTH + 4
+    if p.sled and not p.roll then Alight ev, p, PSLEDWOOD
 
     ' a jump held through the hit is a jump as it ends: it
     ' was forgotten
@@ -145,14 +146,14 @@ sub MoveHero ( _
     if p.vine then
         Hang lv, ev, se, p, hit
     elseif p.swim then
-        Paddle lv, gr, ev, se, p, l, r, hit, pt()
+        Paddle lv, gr, ev, p, l, r, hit
     elseif p.ground then
         Walk lv, gr, ev, se, p, l, r, d, hit, pt()
     else
-        Airborne lv, gr, se, p, l, r, d, hold, pt()
+        Airborne lv, ev, gr, p, l, r, d, hold
     end if
 
-    if lv.tide <> NONE then Soak lv, se, p, pt()
+    if lv.tide <> NONE then Soak lv, ev, se, p
 
     if p.at.x < 8 then
         p.at.x = 8
@@ -255,7 +256,7 @@ private sub Walk ( _
     if p.sled then grip = grip * SLEDGRIP
 
     if p.charging then
-        if Winding%(ev, se, p, d, hit, pt()) then exit sub
+        if Winding%(ev, p, d, hit) then exit sub
     elseif hit then
         Leap ev, se, p
         exit sub
@@ -299,11 +300,9 @@ end sub
 ' he is away. Whether it is still held.
 private function Winding% ( _
     ev as Events, _
-    se as Session, _
     p as Hero, _
     d as integer, _
-    hit as integer, _
-    pt() as Part _
+    hit as integer _
 )
     dim dir as integer
 
@@ -314,8 +313,7 @@ private function Winding% ( _
         p.charge = p.charge + 130
         if p.charge > CHARGEMAX then p.charge = CHARGEMAX
         Tell ev, EVSOUND, SCHARGE
-        Burst se, pt(), p.at.x - dir * 10, p.at.y - 2, 3, 70, _
-            CSTONE + 3
+        TellAt ev, EVBURST, p.at.x - dir * 10, p.at.y - 2, PWIND
     end if
 
     Winding% = d
@@ -473,14 +471,13 @@ end sub
 ' onto the ground.
 private sub Airborne ( _
     lv as Level, _
+    ev as Events, _
     gr as Ground, _
-    se as Session, _
     p as Hero, _
     l as integer, _
     r as integer, _
     d as integer, _
-    hold as integer, _
-    pt() as Part _
+    hold as integer _
 )
     dim n as integer, s as integer, m as single, landed as integer
     dim fell as single, x0 as single, y0 as single
@@ -531,7 +528,7 @@ private sub Airborne ( _
 
     if landed = 0 or fell <= 420 then exit sub
 
-    Burst se, pt(), p.at.x, p.at.y - 2, 5, 60, CSTONE + 3
+    TellAt ev, EVBURST, p.at.x, p.at.y - 2, PLAND
 end sub
 
 ' In the air a key held, way 1 right or -1 left: he turns

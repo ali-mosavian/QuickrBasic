@@ -9,14 +9,14 @@ from engine.events import Events
 from barkley.model.images import IACORN
 from barkley.model.hero import Hero
 from barkley.model.level import Level, Realm, Swarm
-from barkley.model.game import Game, Loose, Part, Session, Tones
-from barkley.model.events import EVSOUND, Tell
-from barkley.assets.palette import CBEE, CFLY, CINK, CLEAF, CLOAM
-from barkley.assets.palette import CNUT, CVINE, CVINED, CWING, Tint
+from barkley.model.game import Game, Loose, Session, Tones
+from barkley.model.events import EVBURST, EVSOUND, Tell, TellAt
+from barkley.assets.palette import CBEE, CFLY, CINK, CVINE, CVINED
+from barkley.assets.palette import CWING, Tint
 from barkley.assets.tunes import SHURT, SPOP, SROLL, SSPRING
 from barkley.world.terrain.ground import Balk
 from barkley.world.level import GLOWN
-from barkley.stage.fx.parts import Burst
+from barkley.stage.fx.parts import PACORN, PLEAF, PMOUND
 from barkley.stage.fx.damage import Hurt
 from barkley.stage.fx.lobs import Loft
 from barkley.stage.hero.modes import VINEGRIP, VINELEN
@@ -182,14 +182,7 @@ end sub
 ' A burrow's mound: crouched on it he digs in, for its other
 ' end; the mound he comes out of will not take him back till
 ' he has stepped off it.
-sub MeetMound ( _
-    lv as Level, _
-    ev as Events, _
-    se as Session, _
-    p as Hero, _
-    i as integer, _
-    pt() as Part _
-)
+sub MeetMound (lv as Level, ev as Events, p as Hero, i as integer)
     dim on_it as integer
 
     on_it = abs(lv.things(i).at.x - p.at.x) < MOUNDR
@@ -208,7 +201,7 @@ sub MeetMound ( _
     p.crouch = 0
     p.gsp = 0
     p.vel.y = 0
-    Burst se, pt(), p.at.x, p.at.y - 4, 10, 140, CLOAM
+    TellAt ev, EVBURST, p.at.x, p.at.y - 4, PMOUND
     Tell ev, EVSOUND, SROLL
 end sub
 
@@ -244,12 +237,12 @@ end sub
 
 ' Bramble's step: just cut, its leaves fly; cut, it grows
 ' back BRAMBLET steps on.
-sub Regrow (lv as Level, se as Session, pt() as Part, i as integer)
+sub Regrow (lv as Level, ev as Events, i as integer)
     if lv.things(i).state = 0 then exit sub
 
     if lv.things(i).state = BRAMBLET then
-        Burst se, pt(), csng(lv.things(i).at.x), _
-            csng(lv.things(i).at.y - 12), 10, 140, CLEAF
+        TellAt ev, EVBURST, csng(lv.things(i).at.x), _
+            csng(lv.things(i).at.y - 12), PLEAF
     end if
 
     lv.things(i).state = lv.things(i).state - 1
@@ -409,7 +402,7 @@ sub Scamper (lv as Level, i as integer, p as Hero)
     if n = 0 then
         if quarry then
             Loft lv, lv.things(i).at.x + 5 * d, _
-                lv.things(i).at.y + 1, 0, 0, IACORN, CNUT
+                lv.things(i).at.y + 1, 0, 0, IACORN, PACORN
         end if
 
         n = SQWAIT

@@ -23,7 +23,7 @@ from barkley.model.events import EVSCENETUNE, EVSOUND, Tell
 from barkley.assets.tunes import LEFTBEHIND, SBONE, SHURT
 from barkley.world.terrain.ground import SegAt
 from barkley.world.level import Mend
-from barkley.stage.fx.parts import LooseBones, Particles
+from barkley.stage.fx.parts import LooseBones
 from barkley.stage.fx.damage import Hurt
 from barkley.stage.zones.downs import MeetBone, MeetBoost, MeetCat
 from barkley.stage.zones.downs import MeetGold, MeetMark, MeetSpring
@@ -88,7 +88,7 @@ sub Touch ( _
     ' under the ground nothing is met
     if p.dig then exit sub
 
-    if lv.n_ropes then Lines lv, ev, se, g, p, pt()
+    if lv.n_ropes then Lines lv, ev, se, g, p
     px = cint(p.at.x)
     py = cint(p.at.y)
     c = (px - 80) \ TS
@@ -103,29 +103,29 @@ sub Touch ( _
 
         select case lv.things(i).kind
         case KBONE
-            MeetBone lv, ev, se, g, p, i, pt()
+            MeetBone lv, ev, g, p, i
         case KGOLD
-            MeetGold lv, zn, ev, se, p, i, pt()
+            MeetGold lv, zn, ev, se, p, i
         case KCAT, KSQUIRREL, KWALKER, KSNATCH
-            MeetCat lv, ev, se, g, p, i, lo(), pt()
+            MeetCat lv, ev, se, g, p, i, lo()
         case KCRAB
-            MeetCrab lv, ev, se, g, p, i, lo(), pt()
+            MeetCrab lv, ev, se, g, p, i, lo()
         case KSWEEP
-            MeetSweep lv, ev, se, g, p, i, lo(), pt()
+            MeetSweep lv, ev, se, g, p, i, lo()
         case KTHROW
-            MeetThrow lv, ev, se, g, p, i, lo(), pt()
+            MeetThrow lv, ev, se, g, p, i, lo()
         case KGOAT
             MeetGoat lv, ev, se, g, p, i, lo()
         case KWALL
-            MeetWall lv, ev, se, g, p, i, pt()
+            MeetWall lv, ev, g, p, i
         case KHEAP
             MeetHeap lv, p, i
         case KICICLE
-            MeetIcicle lv, ev, se, g, p, i, lo(), pt()
+            MeetIcicle lv, ev, se, g, p, i, lo()
         case KSLED
             MeetSled lv, ev, se, p, i
         case KDRIFT
-            MeetDrift lv, ev, se, p, i, pt()
+            MeetDrift lv, ev, p, i
         case KSPARK
             MeetSpark lv, ev, se, g, p, i, lo()
         case KPRESS
@@ -139,9 +139,9 @@ sub Touch ( _
         case KAWNING
             MeetAwning lv, ev, se, p, i
         case KCHIMNEY
-            MeetChimney lv, ev, se, p, i, pt()
+            MeetChimney lv, ev, p, i
         case KPOUNCE
-            MeetPounce lv, ev, se, g, p, i, lo(), pt()
+            MeetPounce lv, ev, se, g, p, i, lo()
         case KMORTAR
             MeetMortar lv, ev, se, g, p, i, lo()
         case KTIPPER
@@ -153,13 +153,13 @@ sub Touch ( _
         case KLOG
             MeetLog lv, ev, se, p, i
         case KMOUND
-            MeetMound lv, ev, se, p, i, pt()
+            MeetMound lv, ev, p, i
         case KBOOST
-            MeetBoost lv, ev, se, g, p, i, pt()
+            MeetBoost lv, ev, g, p, i
         case KFLUME, KSPOUT
             MeetFlume lv, ev, se, p, i
         case KMARK
-            MeetMark lv, ev, se, g, p, i, pt()
+            MeetMark lv, ev, g, p, i
         case KGOAL
             if px >= x then lv.things(i).state = 1
         case KTHORN
@@ -167,15 +167,15 @@ sub Touch ( _
                 Hurt ev, se, g, p, x, lo(), SHURT
             end if
         case KBUTTON
-            MeetButton lv, ev, se, p, i, pt()
+            MeetButton lv, ev, p, i
         case KJET
             MeetJet lv, ev, se, p, i
         case KBUMP, KBUOY
-            MeetBump lv, ev, se, p, i, pt()
+            MeetBump lv, ev, p, i
         case KSPIN
             MeetSpin lv, ev, se, g, p, i, lo()
         case KHOOP
-            MeetHoop lv, ev, se, p, i, pt()
+            MeetHoop lv, ev, p, i
         end select
 
         i = i + 1
@@ -227,8 +227,7 @@ sub Things ( _
     se as Session, _
     g as Game, _
     p as Hero, _
-    lo() as Loose, _
-    pt() as Part _
+    lo() as Loose _
 )
     dim i as integer, c as integer
     ' typed: a const made from a const and left typeless is
@@ -249,9 +248,9 @@ sub Things ( _
                 + cint(SPARKR _
                 * sin((se.ticks + lv.things(i).home) * .03))
         case KICICLE
-            Totter lv, ev, se, g, pt(), i
+            Totter lv, ev, g, i
         case KLOAD
-            Unload lv, ev, se, g, p, lo(), pt(), i
+            Unload lv, ev, se, g, p, lo(), i
         case KGOAT
             if lv.things(i).state <> 0 then Graze lv, se, i, p
         case KTHROW
@@ -262,18 +261,18 @@ sub Things ( _
             Pounce lv, i, p
         case KSNATCH
             if lv.things(i).state <> 0 then
-                Snatch lv, ev, se, i, lo(), pt()
+                Snatch lv, ev, se, i, lo()
             end if
         case KMORTAR
             Mortar lv, ev, se, i
         case KTIPPER
-            Tipper lv, ev, se, i, pt()
+            Tipper lv, ev, se, i
         case KSPRING, KBUMP, KHOOP, KSAPLING, KAWNING
             if lv.things(i).state > 0 then
                 lv.things(i).state = lv.things(i).state - 1
             end if
         case KBRAMBLE
-            Regrow lv, se, pt(), i
+            Regrow lv, ev, i
         case KVINE
             if p.vine <> i + 1 then
                 lv.things(i).state = lv.things(i).state * 7 \ 8
@@ -295,5 +294,4 @@ sub Things ( _
 
     if lv.n_ropes then Settle lv
     if se.loose_n then LooseBones lv, se, lo(), DT
-    if se.part_n then Particles se, pt(), DT
 end sub

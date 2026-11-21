@@ -8,12 +8,12 @@ from engine.events import Events
 from barkley.model.hero import Hero
 from barkley.model.level import GRAV, Ground, KCHIMNEY, KMOUND, Level
 from barkley.model.level import NONE
-from barkley.model.game import Part, Session
-from barkley.model.events import EVSOUND, Tell
-from barkley.assets.palette import CLOAM, CSEA, CSOOT
+from barkley.model.game import Session
+from barkley.model.events import EVBURST, EVSOUND, Tell, TellAt
 from barkley.assets.tunes import SJUMP, SPOP
 from barkley.world.terrain.ground import Land, Slow, WADE, Wall
-from barkley.stage.fx.parts import Burst, Emit
+from barkley.stage.fx.parts import PDIG, PDRIP, PDRY, PFLUE, PMOUND
+from barkley.stage.fx.parts import PPADDLE, PSPLASH
 
 const GOATV = 240!
 private const GOATRIDE = 2!
@@ -51,17 +51,10 @@ private const PADACC = 260!
 private const HOPV = 250!
 const DRYT = .35
 
-' Off the sled, which is no more: a puff of colour c where
-' it was.
-sub Alight ( _
-    ev as Events, _
-    se as Session, _
-    p as Hero, _
-    pt() as Part, _
-    c as integer _
-)
+' Off the sled, which is no more: puff where it was.
+sub Alight (ev as Events, p as Hero, puff as integer)
     p.sled = 0
-    Burst se, pt(), p.at.x, p.at.y - 4, 10, 120, c
+    TellAt ev, EVBURST, p.at.x, p.at.y - 4, puff
     Tell ev, EVSOUND, SPOP
 end sub
 
@@ -101,14 +94,8 @@ end sub
 ' at DIGV, unseen, the loam stirred over him; there, thrown
 ' up out of it. Down a chimney the same, through the houses:
 ' up out of the other's pot, in its soot.
-sub Tunnel ( _
-    lv as Level, _
-    ev as Events, _
-    se as Session, _
-    p as Hero, _
-    pt() as Part _
-)
-    dim i as integer, dx as single, c as integer
+sub Tunnel (lv as Level, ev as Events, se as Session, p as Hero)
+    dim i as integer, dx as single, puff as integer
 
     i = p.dig - 1
     dx = lv.things(i).at.x - p.at.x
@@ -120,7 +107,7 @@ sub Tunnel ( _
             + (lv.things(i).at.y - p.at.y) * DIGV * STEPT / abs(dx)
 
         if lv.things(i).kind = KMOUND and (se.ticks and 3) = 0 then
-            Burst se, pt(), p.at.x, p.at.y, 2, 50, CLOAM
+            TellAt ev, EVBURST, p.at.x, p.at.y, PDIG
         end if
 
         exit sub
@@ -130,12 +117,12 @@ sub Tunnel ( _
     p.at.y = lv.things(i).at.y
     p.vel.x = 0
     p.vel.y = -DIGPOP
-    c = CLOAM
+    puff = PMOUND
 
     if lv.things(i).kind = KCHIMNEY then
         p.at.y = p.at.y - FLUEH
         p.vel.y = -FLUEPOP
-        c = CSOOT
+        puff = PFLUE
     end if
 
     p.dig = 0
@@ -143,7 +130,7 @@ sub Tunnel ( _
     p.roll = 0
     p.jumped = 0
     p.sprung = -1
-    Burst se, pt(), p.at.x, p.at.y - 4, 10, 140, c
+    TellAt ev, EVBURST, p.at.x, p.at.y - 4, puff
     Tell ev, EVSOUND, SPOP
 end sub
 
@@ -203,13 +190,13 @@ end sub
 ' Charlie and the sea. He is afloat once his feet are under
 ' it, falling or deeper than he can wade. Out of it he is
 ' wet, slow and dripping, till a roll shakes him dry.
-sub Soak (lv as Level, se as Session, p as Hero, pt() as Part)
+sub Soak (lv as Level, ev as Events, se as Session, p as Hero)
     if p.swim then exit sub
 
     if (p.ground and p.at.y > lv.tide + WADE) _
         or (not p.ground and p.vel.y >= 0 _
         and p.at.y > lv.tide + AFLOAT) then
-        Dunk lv, se, p, pt()
+        Dunk lv, ev, p
         exit sub
     end if
 
@@ -219,21 +206,21 @@ sub Soak (lv as Level, se as Session, p as Hero, pt() as Part)
         p.wet = p.wet - STEPT
 
         if p.wet <= 0 then
-            Burst se, pt(), p.at.x, p.at.y - 12, 10, 130, CSEA + 1
+            TellAt ev, EVBURST, p.at.x, p.at.y - 12, PDRY
         end if
     elseif (se.ticks and 7) = 0 then
-        Emit se, pt(), p.at.x, p.at.y - 14, 0, 30, .3, CSEA + 2
+        TellAt ev, EVBURST, p.at.x, p.at.y - 14, PDRIP
     end if
 end sub
 
 ' Into the sea: what he ran at he swims at, and a fall
 ' splashes. A hurt ends on landing: the sea is a landing
 ' too.
-private sub Dunk (lv as Level, se as Session, p as Hero, pt() as Part)
+private sub Dunk (lv as Level, ev as Events, p as Hero)
     if p.ground then
         p.vel.x = p.gsp * cos(p.ang)
     elseif p.vel.y > 200 then
-        Burst se, pt(), p.at.x, lv.tide + 0!, 8, 110, CSEA
+        TellAt ev, EVBURST, p.at.x, lv.tide + 0!, PSPLASH
     end if
 
     p.swim = -1
@@ -248,12 +235,10 @@ sub Paddle ( _
     lv as Level, _
     gr as Ground, _
     ev as Events, _
-    se as Session, _
     p as Hero, _
     l as integer, _
     r as integer, _
-    hit as integer, _
-    pt() as Part _
+    hit as integer _
 )
     p.roll = 0
     p.jumped = 0
@@ -267,7 +252,7 @@ sub Paddle ( _
         p.swim = 0
         p.vel.y = -HOPV
         p.jumped = -1
-        Burst se, pt(), p.at.x, lv.tide + 0!, 5, 80, CSEA
+        TellAt ev, EVBURST, p.at.x, lv.tide + 0!, PPADDLE
         Tell ev, EVSOUND, SJUMP
         exit sub
     end if

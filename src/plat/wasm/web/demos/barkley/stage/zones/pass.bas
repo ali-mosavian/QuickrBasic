@@ -10,13 +10,15 @@ from barkley.model.images import IGOAT, IGOATR, ILOAD, ILOB, ISNOWBALL
 from barkley.model.hero import Hero
 from barkley.model.level import GRAV, KCAT, KGOAT, KHEAP, KTHROW
 from barkley.model.level import Level, NONE, TS
-from barkley.model.game import Game, Loose, Part, Session
-from barkley.model.events import EVSCORE, EVSOUND, Tell
+from barkley.model.game import Game, Loose, Session
+from barkley.model.events import EVBURST, EVSCORE, EVSOUND, Tell
+from barkley.model.events import TellAt
 from barkley.assets.palette import CFLAKE, CICE, CSNOW, CWHITE
 from barkley.assets.tunes import SBUMP, SCRACK, SHURT, SROLL
 from barkley.world.terrain.ground import Balk, Lie, Solid, Surf
 from barkley.world.level import LOADFAR
-from barkley.stage.fx.parts import Burst
+from barkley.stage.fx.parts import PBURY, PDRIFT, PSHATTER, PSLEDSNOW
+from barkley.stage.fx.parts import PSNOWBALL, PWALL
 from barkley.stage.fx.damage import Beaten, Hurt, Lose, Tackle
 from barkley.stage.fx.lobs import Loft
 from barkley.stage.hero.modes import Alight, GOATV, GUSTP, Lull
@@ -122,8 +124,7 @@ sub MeetIcicle ( _
     g as Game, _
     p as Hero, _
     i as integer, _
-    lo() as Loose, _
-    pt() as Part _
+    lo() as Loose _
 )
     dim x as integer, dx as integer, py as integer, y as integer
 
@@ -142,7 +143,7 @@ sub MeetIcicle ( _
         or py - 26 >= y + 16 then exit sub
 
     Hurt ev, se, g, p, x, lo(), SHURT
-    Shatter lv, ev, se, pt(), i
+    Shatter lv, ev, i
 end sub
 
 ' A sled left on the snow: landed on or run onto, he boards
@@ -165,19 +166,12 @@ end sub
 
 ' Deep snow: it stops a sled dead and he tumbles out of it;
 ' rolled through, it packs round him.
-sub MeetDrift ( _
-    lv as Level, _
-    ev as Events, _
-    se as Session, _
-    p as Hero, _
-    i as integer, _
-    pt() as Part _
-)
+sub MeetDrift (lv as Level, ev as Events, p as Hero, i as integer)
     if not p.ground or abs(lv.things(i).at.x - cint(p.at.x)) >= 22 _
         or abs(cint(p.at.y) - lv.things(i).at.y) >= 8 then exit sub
 
     if p.sled then
-        Alight ev, se, p, pt(), CWHITE
+        Alight ev, p, PSLEDSNOW
         p.roll = 0
         p.gsp = p.gsp * .25
         exit sub
@@ -186,7 +180,7 @@ sub MeetDrift ( _
     if p.roll = 0 or p.snow <> 0 or abs(p.gsp) < SNOWV then exit sub
 
     p.snow = -1
-    Burst se, pt(), p.at.x, p.at.y - 8, 8, 100, CWHITE
+    TellAt ev, EVBURST, p.at.x, p.at.y - 8, PDRIFT
     Tell ev, EVSOUND, SROLL
 end sub
 
@@ -487,11 +481,9 @@ end sub
 sub MeetWall ( _
     lv as Level, _
     ev as Events, _
-    se as Session, _
     g as Game, _
     p as Hero, _
-    i as integer, _
-    pt() as Part _
+    i as integer _
 )
     if lv.things(i).state = 0 _
         or abs(lv.things(i).at.x - p.at.x) >= WALLR then exit sub
@@ -502,8 +494,8 @@ sub MeetWall ( _
         lv.things(i).state = 0
         Tell ev, EVSCORE, 100
         g.shake = .2
-        Burst se, pt(), csng(lv.things(i).at.x), _
-            csng(lv.things(i).at.y - WALLH \ 2), 16, 180, CWHITE
+        TellAt ev, EVBURST, csng(lv.things(i).at.x), _
+            csng(lv.things(i).at.y - WALLH \ 2), PWALL
         Tell ev, EVSOUND, SCRACK
         exit sub
     end if
@@ -616,15 +608,9 @@ sub DrawStray ( _
 end sub
 
 ' Icicle i breaks.
-private sub Shatter ( _
-    lv as Level, _
-    ev as Events, _
-    se as Session, _
-    pt() as Part, _
-    i as integer _
-)
-    Burst se, pt(), csng(lv.things(i).at.x), _
-        csng(lv.things(i).at.y + Fallen%(lv, i) + 12), 8, 110, CWHITE
+private sub Shatter (lv as Level, ev as Events, i as integer)
+    TellAt ev, EVBURST, csng(lv.things(i).at.x), _
+        csng(lv.things(i).at.y + Fallen%(lv, i) + 12), PSHATTER
     lv.things(i).state = -1
     Tell ev, EVSOUND, SCRACK
 end sub
@@ -634,9 +620,7 @@ end sub
 private sub Plunge ( _
     lv as Level, _
     ev as Events, _
-    se as Session, _
     g as Game, _
-    pt() as Part, _
     i as integer _
 )
     dim j as integer, y as integer, d as integer
@@ -653,14 +637,14 @@ private sub Plunge ( _
             or abs(lv.things(j).at.x - lv.things(i).at.x) >= 14 _
             or y <= lv.things(j).at.y - 16 then continue for
 
-        Beaten lv, ev, se, g, pt(), j, 8
-        Shatter lv, ev, se, pt(), i
+        Beaten lv, ev, g, j, 8
+        Shatter lv, ev, i
     next
 
     if lv.things(i).state <= 0 _
         or Solid%(lv, lv.things(i).at.x, y) = 0 then exit sub
 
-    Shatter lv, ev, se, pt(), i
+    Shatter lv, ev, i
 end sub
 
 ' Whether snow-thrower i is up from behind its wall: open to
@@ -681,7 +665,7 @@ private sub Hurl (lv as Level, i as integer, p as Hero)
     x = lv.things(i).at.x + 6 * sgn(lv.things(i).state)
     y = lv.things(i).at.y - 20
     Loft lv, x, y, (p.at.x - x) / LOBT, _
-        (p.at.y - 12 - y) / LOBT - GRAV * LOBT / 2, ILOB, CWHITE
+        (p.at.y - 12 - y) / LOBT - GRAV * LOBT / 2, ILOB, PSNOWBALL
 end sub
 
 ' A snow-thrower met: ducked, its wall throws him back,
@@ -693,8 +677,7 @@ sub MeetThrow ( _
     g as Game, _
     p as Hero, _
     i as integer, _
-    lo() as Loose, _
-    pt() as Part _
+    lo() as Loose _
 )
     dim s as integer
 
@@ -704,7 +687,7 @@ sub MeetThrow ( _
         or p.at.y > lv.things(i).at.y + 8 then exit sub
 
     if Risen%(lv, i) then
-        Tackle lv, ev, se, g, p, i, 8, lo(), pt()
+        Tackle lv, ev, se, g, p, i, 8, lo()
         exit sub
     end if
 
@@ -721,18 +704,11 @@ sub MeetThrow ( _
 end sub
 
 ' Icicle i, loosed: it trembles a while, then falls.
-sub Totter ( _
-    lv as Level, _
-    ev as Events, _
-    se as Session, _
-    g as Game, _
-    pt() as Part, _
-    i as integer _
-)
+sub Totter (lv as Level, ev as Events, g as Game, i as integer)
     if lv.things(i).state <= 0 then exit sub
 
     lv.things(i).state = lv.things(i).state + 1
-    if lv.things(i).state > TREMBLE then Plunge lv, ev, se, g, pt(), i
+    if lv.things(i).state > TREMBLE then Plunge lv, ev, g, i
 end sub
 
 ' Load i of snow, set off: a step of its trembling, its
@@ -745,7 +721,6 @@ sub Unload ( _
     g as Game, _
     p as Hero, _
     lo() as Loose, _
-    pt() as Part, _
     i as integer _
 )
     dim h as integer
@@ -761,7 +736,7 @@ sub Unload ( _
 
     lv.things(i).state = -1
     lv.things(h).state = 1
-    Bury lv, ev, se, g, pt(), h
+    Bury lv, ev, g, h
     if abs(p.at.x - lv.things(h).at.x) >= HEAPR _
         or abs(p.at.y - lv.things(h).at.y) >= HEAPH then exit sub
 
@@ -770,14 +745,7 @@ end sub
 
 ' Heap h, come down: the cats and snow-throwers under it are
 ' beaten.
-private sub Bury ( _
-    lv as Level, _
-    ev as Events, _
-    se as Session, _
-    g as Game, _
-    pt() as Part, _
-    h as integer _
-)
+private sub Bury (lv as Level, ev as Events, g as Game, h as integer)
     dim j as integer, foe as integer
 
     for j = h - 6 to h + 6
@@ -792,12 +760,12 @@ private sub Bury ( _
         if abs(lv.things(j).at.y _
             - lv.things(h).at.y) >= 24 then continue for
 
-        Beaten lv, ev, se, g, pt(), j, 8
+        Beaten lv, ev, g, j, 8
     next
 
     g.shake = .3
-    Burst se, pt(), csng(lv.things(h).at.x), _
-        csng(lv.things(h).at.y - 12), 16, 160, CWHITE
+    TellAt ev, EVBURST, csng(lv.things(h).at.x), _
+        csng(lv.things(h).at.y - 12), PBURY
     Tell ev, EVSOUND, SCRACK
 end sub
 

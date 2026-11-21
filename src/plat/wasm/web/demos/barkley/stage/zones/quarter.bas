@@ -12,14 +12,14 @@ from barkley.model.images import IPAPER, ISHIRT, ISNATCH, ISOCK, ITALL
 from barkley.model.images import ITIPPER, ITROUSERS
 from barkley.model.hero import Hero
 from barkley.model.level import GRAV, KTIPPER, Level, NONE, Rope, TS
-from barkley.model.game import Game, Loose, NLOOSE, Part, PULSES
-from barkley.model.game import Session, TOONEW
-from barkley.model.events import EVSOUND, Tell
-from barkley.assets.palette import CCLAY, CLANT, CLINEN, CPOLE, CQINK
-from barkley.assets.palette import CSOOT, CWHITE
+from barkley.model.game import Game, Loose, NLOOSE, PULSES, Session
+from barkley.model.game import TOONEW
+from barkley.model.events import EVBURST, EVSOUND, Tell, TellAt
+from barkley.assets.palette import CLANT, CLINEN, CPOLE, CQINK, CSOOT
+from barkley.assets.palette import CWHITE
 from barkley.assets.tunes import SHURT, SMORTAR, SPOP, SROLL, SSNATCH
 from barkley.assets.tunes import SSPRING, STWANG
-from barkley.stage.fx.parts import Burst
+from barkley.stage.fx.parts import PPOT, PSNATCH, PSOOT
 from barkley.stage.fx.damage import Beaten, Hurt, Tackle
 from barkley.stage.hero.modes import FLUEH
 from barkley.stage.zones.downs import BEAT, CatPic, Paced, Prowl
@@ -130,8 +130,7 @@ sub Lines ( _
     ev as Events, _
     se as Session, _
     g as Game, _
-    p as Hero, _
-    pt() as Part _
+    p as Hero _
 )
     dim i as integer, u as integer, y as integer
 
@@ -153,7 +152,7 @@ sub Lines ( _
 
         ' the cat walking it is shaken off
         if lv.ropes(i).cat then
-            Shaken lv, ev, se, g, pt(), lv.ropes(i).cat - 1
+            Shaken lv, ev, g, lv.ropes(i).cat - 1
         end if
 
         exit sub
@@ -227,22 +226,15 @@ end sub
 ' A chimney that leads on: come down into its pot, he goes
 ' down it for the one it leads to. A way out takes no one
 ' in.
-sub MeetChimney ( _
-    lv as Level, _
-    ev as Events, _
-    se as Session, _
-    p as Hero, _
-    i as integer, _
-    pt() as Part _
-)
+sub MeetChimney (lv as Level, ev as Events, p as Hero, i as integer)
     if lv.things(i).state < 1 or p.dead _
         or abs(lv.things(i).at.x - p.at.x) >= FLUER then exit sub
     if not Trodden%(p, lv.things(i).at.y - FLUEH) then exit sub
 
     p.dig = lv.things(i).state
     p.vel.y = 0
-    Burst se, pt(), csng(lv.things(i).at.x), _
-        csng(lv.things(i).at.y - FLUEH), 8, 90, CSOOT
+    TellAt ev, EVBURST, csng(lv.things(i).at.x), _
+        csng(lv.things(i).at.y - FLUEH), PSOOT
     Tell ev, EVSOUND, SROLL
 end sub
 
@@ -327,8 +319,7 @@ sub MeetPounce ( _
     g as Game, _
     p as Hero, _
     i as integer, _
-    lo() as Loose, _
-    pt() as Part _
+    lo() as Loose _
 )
     dim y as integer
 
@@ -338,7 +329,7 @@ sub MeetPounce ( _
     y = lv.things(i).at.y - Leapt%(lv, i)
     if abs(y - 6 - cint(p.at.y) + 13) >= 17 then exit sub
 
-    Tackle lv, ev, se, g, p, i, 6 + Leapt%(lv, i), lo(), pt()
+    Tackle lv, ev, se, g, p, i, 6 + Leapt%(lv, i), lo()
     if lv.things(i).state = 0 then lv.things(i).state = POUNCEGONE
 end sub
 
@@ -414,21 +405,15 @@ function TipperAhead% (lv as Level, x as integer)
 end function
 
 ' A tipper's step: its pot breaks at the step it lands.
-sub Tipper ( _
-    lv as Level, _
-    ev as Events, _
-    se as Session, _
-    i as integer, _
-    pt() as Part _
-)
+sub Tipper (lv as Level, ev as Events, se as Session, i as integer)
     dim q as long, land as long
 
     q = Fired&(lv, se, i)
     land = clng(sqr(2! * SILLUP / GRAV) * 60 * se.tempo)
     if q < land or q >= land + se.tempo then exit sub
 
-    Burst se, pt(), lv.things(i).at.x + POTX, lv.things(i).at.y - 3, _
-        8, 120, CCLAY
+    TellAt ev, EVBURST, lv.things(i).at.x + POTX, _
+        lv.things(i).at.y - 3, PPOT
     Tell ev, EVSOUND, SPOP
 end sub
 
@@ -586,8 +571,7 @@ sub Snatch ( _
     ev as Events, _
     se as Session, _
     i as integer, _
-    lo() as Loose, _
-    pt() as Part _
+    lo() as Loose _
 )
     dim b as integer, n as integer
 
@@ -615,7 +599,7 @@ sub Snatch ( _
 
     lo(b).t = 0
     se.loose_n = se.loose_n - 1
-    Burst se, pt(), lo(b).at.x, lo(b).at.y, 4, 60, CWHITE
+    TellAt ev, EVBURST, lo(b).at.x, lo(b).at.y, PSNATCH
     Tell ev, EVSOUND, SSNATCH
 end sub
 
@@ -633,12 +617,10 @@ end function
 private sub Shaken ( _
     lv as Level, _
     ev as Events, _
-    se as Session, _
     g as Game, _
-    pt() as Part, _
     i as integer _
 )
-    if lv.things(i).state then Beaten lv, ev, se, g, pt(), i, 6
+    if lv.things(i).state then Beaten lv, ev, g, i, 6
 end sub
 
 ' The lines' step: one that swings, a step nearer rest; the

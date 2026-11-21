@@ -34,7 +34,7 @@ type Lob
     vel as Vec
     live as integer
     pic as integer
-    c as integer
+    splat as integer
     bedded as integer
 end type
 

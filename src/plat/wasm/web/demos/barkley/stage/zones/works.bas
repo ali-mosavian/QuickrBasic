@@ -8,12 +8,12 @@ from engine.events import Events
 from barkley.model.images import IPRESS, IRAIL, ISPARK, ISRAIL
 from barkley.model.hero import Hero
 from barkley.model.level import KPRESS, Level, NONE, TS
-from barkley.model.game import Game, Loose, Part, Session
-from barkley.model.events import EVSCORE, EVSOUND, Tell
-from barkley.assets.palette import CGOLD
+from barkley.model.game import Game, Loose, Session
+from barkley.model.events import EVBURST, EVSCORE, EVSOUND, Tell
+from barkley.model.events import TellAt
 from barkley.assets.tunes import SBOOST, SCLANK, SHISS, SHURT, SMARK
 from barkley.assets.tunes import SSPRING
-from barkley.stage.fx.parts import Burst
+from barkley.stage.fx.parts import PBUMP, PHOOP, PMARK
 from barkley.stage.fx.damage import Beaten, BOUNCEV, Hurt
 
 ' The works' own: a press and a leg of its gantry; a sweeper
@@ -60,21 +60,14 @@ sub MeetSpark ( _
 end sub
 
 ' A button in the floor: stood on, it is pressed.
-sub MeetButton ( _
-    lv as Level, _
-    ev as Events, _
-    se as Session, _
-    p as Hero, _
-    i as integer, _
-    pt() as Part _
-)
+sub MeetButton (lv as Level, ev as Events, p as Hero, i as integer)
     if lv.things(i).state <> 0 or not p.ground then exit sub
     if abs(lv.things(i).at.x - cint(p.at.x)) >= 9 _
         or abs(cint(p.at.y) - lv.things(i).at.y) >= 4 then exit sub
 
     lv.things(i).state = 1
-    Burst se, pt(), csng(lv.things(i).at.x), _
-        csng(lv.things(i).at.y - 6), 8, 80, CGOLD + 4
+    TellAt ev, EVBURST, csng(lv.things(i).at.x), _
+        csng(lv.things(i).at.y - 6), PMARK
     Tell ev, EVSOUND, SMARK
 end sub
 
@@ -107,14 +100,7 @@ end sub
 
 ' A bumper or a buoy: touched, it throws him off the way he
 ' came at it.
-sub MeetBump ( _
-    lv as Level, _
-    ev as Events, _
-    se as Session, _
-    p as Hero, _
-    i as integer, _
-    pt() as Part _
-)
+sub MeetBump (lv as Level, ev as Events, p as Hero, i as integer)
     dim dx as integer, dy as integer, d as single
 
     dx = cint(p.at.x) - lv.things(i).at.x
@@ -137,8 +123,8 @@ sub MeetBump ( _
     p.sprung = -1
     lv.things(i).state = 10
     Tell ev, EVSCORE, 10
-    Burst se, pt(), csng(lv.things(i).at.x), _
-        csng(lv.things(i).at.y), 6, 90, CGOLD + 4
+    TellAt ev, EVBURST, csng(lv.things(i).at.x), _
+        csng(lv.things(i).at.y), PBUMP
     Tell ev, EVSOUND, SSPRING
 end sub
 
@@ -167,14 +153,7 @@ end sub
 
 ' A hoop: through it in the air he goes on, faster, the way
 ' he was going.
-sub MeetHoop ( _
-    lv as Level, _
-    ev as Events, _
-    se as Session, _
-    p as Hero, _
-    i as integer, _
-    pt() as Part _
-)
+sub MeetHoop (lv as Level, ev as Events, p as Hero, i as integer)
     if lv.things(i).state <> 0 or p.ground _
         or abs(lv.things(i).at.x - cint(p.at.x)) >= 9 then exit sub
     if abs(lv.things(i).at.y - cint(p.at.y) + 12) >= 18 then exit sub
@@ -183,8 +162,8 @@ sub MeetHoop ( _
     p.vel.y = -180
     p.sprung = -1
     lv.things(i).state = 20
-    Burst se, pt(), csng(lv.things(i).at.x), _
-        csng(lv.things(i).at.y), 8, 120, CGOLD + 4
+    TellAt ev, EVBURST, csng(lv.things(i).at.x), _
+        csng(lv.things(i).at.y), PHOOP
     Tell ev, EVSOUND, SBOOST
 end sub
 
@@ -198,8 +177,7 @@ sub MeetSweep ( _
     g as Game, _
     p as Hero, _
     i as integer, _
-    lo() as Loose, _
-    pt() as Part _
+    lo() as Loose _
 )
     dim y as integer, behind as integer
 
@@ -212,10 +190,10 @@ sub MeetSweep ( _
         - lv.things(i).at.x) <> sgn(lv.things(i).state)
 
     if not p.ground and p.vel.y > 0 and p.at.y < y - 8 then
-        Beaten lv, ev, se, g, pt(), i, 8
+        Beaten lv, ev, g, i, 8
         p.vel.y = -BOUNCEV
     elseif behind and (p.roll or p.charging) then
-        Beaten lv, ev, se, g, pt(), i, 8
+        Beaten lv, ev, g, i, 8
     else
         Hurt ev, se, g, p, lv.things(i).at.x, lo(), SHURT
     end if

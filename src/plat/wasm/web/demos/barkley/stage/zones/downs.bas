@@ -7,13 +7,13 @@ from engine.events import Events
 from barkley.model.images import ICAT, ICATF
 from barkley.model.hero import Hero
 from barkley.model.level import Level, Realm
-from barkley.model.game import Found, Game, Gild, Loose, Part, Session
-from barkley.model.events import EVSCORE, EVSOUND, Tell
-from barkley.assets.palette import CGOLD
+from barkley.model.game import Found, Game, Gild, Loose, Session
+from barkley.model.events import EVBURST, EVSCORE, EVSOUND, Tell
+from barkley.model.events import TellAt
 from barkley.assets.tunes import SBONE, SBOOST, SGOLD, SMARK, SSPRING
 from barkley.world.terrain.ground import Solid, Surf
 from barkley.world.level import GoldNo
-from barkley.stage.fx.parts import Burst
+from barkley.stage.fx.parts import PBONE, PBOOST, PGOLD, PMARK
 from barkley.stage.fx.damage import Tackle
 
 private const SPRINGV = 560!
@@ -27,11 +27,9 @@ private const BOOSTV = 660!
 sub MeetBone ( _
     lv as Level, _
     ev as Events, _
-    se as Session, _
     g as Game, _
     p as Hero, _
-    i as integer, _
-    pt() as Part _
+    i as integer _
 )
     if lv.things(i).state = 0 _
         or abs(lv.things(i).at.x - cint(p.at.x)) >= 12 then exit sub
@@ -40,8 +38,8 @@ sub MeetBone ( _
     lv.things(i).state = 0
     g.bones = g.bones + 1
     Tell ev, EVSCORE, 10
-    Burst se, pt(), csng(lv.things(i).at.x), _
-        csng(lv.things(i).at.y), 4, 50, CGOLD + 4
+    TellAt ev, EVBURST, csng(lv.things(i).at.x), _
+        csng(lv.things(i).at.y), PBONE
     Tell ev, EVSOUND, SBONE
 end sub
 
@@ -52,8 +50,7 @@ sub MeetGold ( _
     ev as Events, _
     se as Session, _
     p as Hero, _
-    i as integer, _
-    pt() as Part _
+    i as integer _
 )
     dim n as integer
 
@@ -66,8 +63,8 @@ sub MeetGold ( _
 
     Gild se, zn.stage, n
     Tell ev, EVSCORE, GOLDPTS
-    Burst se, pt(), csng(lv.things(i).at.x), _
-        csng(lv.things(i).at.y), 10, 90, CGOLD + 4
+    TellAt ev, EVBURST, csng(lv.things(i).at.x), _
+        csng(lv.things(i).at.y), PGOLD
     Tell ev, EVSOUND, SGOLD
 end sub
 
@@ -80,15 +77,14 @@ sub MeetCat ( _
     g as Game, _
     p as Hero, _
     i as integer, _
-    lo() as Loose, _
-    pt() as Part _
+    lo() as Loose _
 )
     if lv.things(i).state = 0 _
         or abs(lv.things(i).at.x - cint(p.at.x)) >= 15 then exit sub
     if abs(lv.things(i).at.y - 6 - cint(p.at.y) _
         + 13) >= 17 then exit sub
 
-    Tackle lv, ev, se, g, p, i, 6, lo(), pt()
+    Tackle lv, ev, se, g, p, i, 6, lo()
 end sub
 
 ' A spring: come down on or stood on, it throws him up.
@@ -123,11 +119,9 @@ end sub
 sub MeetBoost ( _
     lv as Level, _
     ev as Events, _
-    se as Session, _
     g as Game, _
     p as Hero, _
-    i as integer, _
-    pt() as Part _
+    i as integer _
 )
     if not p.ground _
         or abs(lv.things(i).at.x - cint(p.at.x)) >= 12 then exit sub
@@ -136,7 +130,7 @@ sub MeetBoost ( _
 
     p.gsp = BOOSTV * (1 - 2 * p.face)
     g.shake = .2
-    Burst se, pt(), p.at.x, p.at.y - 4, 8, 150, CGOLD + 4
+    TellAt ev, EVBURST, p.at.x, p.at.y - 4, PBOOST
     Tell ev, EVSOUND, SBOOST
 end sub
 
@@ -144,11 +138,9 @@ end sub
 sub MeetMark ( _
     lv as Level, _
     ev as Events, _
-    se as Session, _
     g as Game, _
     p as Hero, _
-    i as integer, _
-    pt() as Part _
+    i as integer _
 )
     if lv.things(i).state <> 0 _
         or cint(p.at.x) < lv.things(i).at.x then exit sub
@@ -156,8 +148,8 @@ sub MeetMark ( _
     lv.things(i).state = 1
     g.home.x = lv.things(i).at.x
     g.home.y = lv.things(i).at.y
-    Burst se, pt(), csng(lv.things(i).at.x), _
-        csng(lv.things(i).at.y - 28), 8, 80, CGOLD + 4
+    TellAt ev, EVBURST, csng(lv.things(i).at.x), _
+        csng(lv.things(i).at.y - 28), PMARK
     Tell ev, EVSOUND, SMARK
 end sub
 

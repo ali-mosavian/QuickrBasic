@@ -6,11 +6,11 @@ option explicit
 from engine.events import Events
 from barkley.model.hero import Hero
 from barkley.model.level import Level, PI
-from barkley.model.game import Game, Loose, NLOOSE, Part, Session
-from barkley.model.events import EVSCORE, EVSOUND, Tell
-from barkley.assets.palette import CWHITE
+from barkley.model.game import Game, Loose, NLOOSE, Session
+from barkley.model.events import EVBURST, EVSCORE, EVSOUND, Tell
+from barkley.model.events import TellAt
 from barkley.assets.tunes import SDIE, SHISS, SHURT, SPOP
-from barkley.stage.fx.parts import Burst
+from barkley.stage.fx.parts import PBEATEN
 
 const BOUNCEV = 330!
 
@@ -25,8 +25,7 @@ sub Tackle ( _
     p as Hero, _
     i as integer, _
     dy as integer, _
-    lo() as Loose, _
-    pt() as Part _
+    lo() as Loose _
 )
     dim x as integer
 
@@ -36,7 +35,7 @@ sub Tackle ( _
         exit sub
     end if
 
-    Beaten lv, ev, se, g, pt(), i, dy
+    Beaten lv, ev, g, i, dy
     if not p.ground and p.vel.y > 0 then p.vel.y = -BOUNCEV
 end sub
 
@@ -118,16 +117,14 @@ end sub
 sub Beaten ( _
     lv as Level, _
     ev as Events, _
-    se as Session, _
     g as Game, _
-    pt() as Part, _
     i as integer, _
     dy as integer _
 )
     lv.things(i).state = 0
     Tell ev, EVSCORE, 100
     g.shake = .15
-    Burst se, pt(), csng(lv.things(i).at.x), _
-        csng(lv.things(i).at.y - dy), 10, 130, CWHITE
+    TellAt ev, EVBURST, csng(lv.things(i).at.x), _
+        csng(lv.things(i).at.y - dy), PBEATEN
     Tell ev, EVSOUND, SPOP
 end sub

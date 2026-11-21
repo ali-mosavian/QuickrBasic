@@ -2,9 +2,112 @@
 defint A-Z
 option explicit
 
+from engine.vec import Vec
 from barkley.model.level import GRAV, Level, MH, PI, TS
 from barkley.model.game import Loose, NLOOSE, NPART, Part, Session
+from barkley.assets.palette import CCLAY, CEARTH, CGOLD, CLEAF, CLOAM
+from barkley.assets.palette import CNUT, CSEA, CSOOT, CSTONE, CWHITE
+from barkley.assets.palette import CYELLOW
 from barkley.world.terrain.ground import Solid, Surf
+
+' The snow he rolled up, flown apart.
+const PSNOWCOAT = 0
+
+' A dash wound up.
+const PWIND = 1
+
+' A long fall landed.
+const PLAND = 2
+
+' Off the sled, into snow.
+const PSLEDSNOW = 3
+
+' Off the sled, the sled gone.
+const PSLEDWOOD = 4
+
+' The loam stirred over him.
+const PDIG = 5
+
+' Up out of a mound.
+const PMOUND = 6
+
+' Up out of a pot, in its soot.
+const PFLUE = 7
+
+' The sea shaken off.
+const PDRY = 8
+
+' A drop off him, wet.
+const PDRIP = 9
+
+' Into the sea.
+const PSPLASH = 10
+
+' A paddle.
+const PPADDLE = 11
+
+' A foe beaten.
+const PBEATEN = 12
+
+' A bone taken.
+const PBONE = 13
+
+' A golden bone taken.
+const PGOLD = 14
+
+' A boost.
+const PBOOST = 15
+
+' A mark or a button met.
+const PMARK = 16
+
+' A bumper.
+const PBUMP = 17
+
+' A hoop gone through.
+const PHOOP = 18
+
+' A drift ploughed.
+const PDRIFT = 19
+
+' A wall of snow broken.
+const PWALL = 20
+
+' An icicle shattered.
+const PSHATTER = 21
+
+' A thrower buried.
+const PBURY = 22
+
+' A bramble grown back.
+const PLEAF = 23
+
+' Down a chimney.
+const PSOOT = 24
+
+' A pot broken.
+const PPOT = 25
+
+' A bone snatched.
+const PSNATCH = 26
+
+' An acorn burst.
+const PACORN = 27
+
+' A snowball burst.
+const PSNOWBALL = 28
+
+' The cart bumped.
+const PCARTBUMP = 29
+
+' The cart broken.
+const PCART = 30
+
+' The keepsake taken.
+const PKEEP = 31
+
+' The box broken.
+const PBOX = 32
 
 ' The bones knocked loose, dt on: each falls and bounces
 ' till its time is up or it is off the world's foot.
@@ -101,4 +204,76 @@ sub Burst ( _
         a = 2 * PI * (i + rnd * .5) / n
         Emit se, pt(), x, y, cos(a) * v, sin(a) * v - v * .5, .5, c
     next
+end sub
+
+' The puff id at at: its sparks, or its drop.
+sub Puff (se as Session, pt() as Part, at as Vec, id as integer)
+    select case id
+    case PSNOWCOAT
+        Burst se, pt(), at.x, at.y, 12, 140, CWHITE
+    case PWIND
+        Burst se, pt(), at.x, at.y, 3, 70, CSTONE + 3
+    case PLAND
+        Burst se, pt(), at.x, at.y, 5, 60, CSTONE + 3
+    case PSLEDSNOW
+        Burst se, pt(), at.x, at.y, 10, 120, CWHITE
+    case PSLEDWOOD
+        Burst se, pt(), at.x, at.y, 10, 120, CEARTH + 4
+    case PDIG
+        Burst se, pt(), at.x, at.y, 2, 50, CLOAM
+    case PMOUND
+        Burst se, pt(), at.x, at.y, 10, 140, CLOAM
+    case PFLUE
+        Burst se, pt(), at.x, at.y, 10, 140, CSOOT
+    case PDRY
+        Burst se, pt(), at.x, at.y, 10, 130, CSEA + 1
+    case PDRIP
+        Emit se, pt(), at.x, at.y, 0, 30, .3, CSEA + 2
+    case PSPLASH
+        Burst se, pt(), at.x, at.y, 8, 110, CSEA
+    case PPADDLE
+        Burst se, pt(), at.x, at.y, 5, 80, CSEA
+    case PBEATEN
+        Burst se, pt(), at.x, at.y, 10, 130, CWHITE
+    case PBONE
+        Burst se, pt(), at.x, at.y, 4, 50, CGOLD + 4
+    case PGOLD
+        Burst se, pt(), at.x, at.y, 10, 90, CGOLD + 4
+    case PBOOST
+        Burst se, pt(), at.x, at.y, 8, 150, CGOLD + 4
+    case PMARK
+        Burst se, pt(), at.x, at.y, 8, 80, CGOLD + 4
+    case PBUMP
+        Burst se, pt(), at.x, at.y, 6, 90, CGOLD + 4
+    case PHOOP
+        Burst se, pt(), at.x, at.y, 8, 120, CGOLD + 4
+    case PDRIFT
+        Burst se, pt(), at.x, at.y, 8, 100, CWHITE
+    case PWALL
+        Burst se, pt(), at.x, at.y, 16, 180, CWHITE
+    case PSHATTER
+        Burst se, pt(), at.x, at.y, 8, 110, CWHITE
+    case PBURY
+        Burst se, pt(), at.x, at.y, 16, 160, CWHITE
+    case PLEAF
+        Burst se, pt(), at.x, at.y, 10, 140, CLEAF
+    case PSOOT
+        Burst se, pt(), at.x, at.y, 8, 90, CSOOT
+    case PPOT
+        Burst se, pt(), at.x, at.y, 8, 120, CCLAY
+    case PSNATCH
+        Burst se, pt(), at.x, at.y, 4, 60, CWHITE
+    case PACORN
+        Burst se, pt(), at.x, at.y, 6, 90, CNUT
+    case PSNOWBALL
+        Burst se, pt(), at.x, at.y, 6, 90, CWHITE
+    case PCARTBUMP
+        Burst se, pt(), at.x, at.y, 12, 150, CYELLOW
+    case PCART
+        Burst se, pt(), at.x, at.y, 16, 200, CEARTH + 4
+    case PKEEP
+        Burst se, pt(), at.x, at.y, 12, 120, CYELLOW
+    case PBOX
+        Burst se, pt(), at.x, at.y, 10, 140, CEARTH + 4
+    end select
 end sub

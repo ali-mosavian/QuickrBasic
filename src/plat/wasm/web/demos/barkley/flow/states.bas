@@ -29,6 +29,7 @@ from barkley.stage.zones.pass import Avalanche, Homeward
 from barkley.stage.zones.chase import Flee
 from barkley.stage.camera import Camera
 from barkley.stage.play import Dying, Spawn, Things, Touch
+from barkley.stage.fx.parts import Particles
 from barkley.control.keys import MuteKey, Spent
 from barkley.control.pilot import Pilot
 from barkley.flow.save import Keep, PickZone, Reach
@@ -115,10 +116,14 @@ sub Tick ( _
     end select
 
     if (wd.se.ticks and 1) = 0 then
-        Things wd.lv, wd.ev, wd.se, g, p, lo(), pt()
+        Things wd.lv, wd.ev, wd.se, g, p, lo()
     end if
 
-    Deliver wd, g
+    Deliver wd, g, pt()
+
+    if (wd.se.ticks and 1) = 0 and wd.se.part_n then
+        Particles wd.se, pt(), STEPT * 2
+    end if
 
     Shimmer wd.zn, wd.tn, wd.se
     Spent k
@@ -179,10 +184,10 @@ private sub PlayStep ( _
     Touch wd.lv, wd.zn, wd.ev, wd.se, g, p, lo(), pt()
     if wd.lv.stray.st = 2 then Homeward wd.lv, g
     if wd.lv.aval_x <> NONE then Avalanche wd.lv, wd.ev, wd.se, g, p
-    Flee wd.lv, wd.zn, wd.ev, wd.se, g, p, lo(), pt()
-    if wd.lv.n_gulls then Flock wd.lv, wd.ev, wd.se, g, p, lo(), pt()
+    Flee wd.lv, wd.zn, wd.ev, wd.se, g, p, lo()
+    if wd.lv.n_gulls then Flock wd.lv, wd.ev, wd.se, g, p, lo()
     if wd.lv.n_swarms then Swarms wd.lv, wd.ev, wd.se, g, p, lo()
-    if wd.lv.n_lobs then Volley wd.lv, wd.ev, wd.se, g, p, lo(), pt()
+    if wd.lv.n_lobs then Volley wd.lv, wd.ev, wd.se, g, p, lo()
     if p.at.y > MH * TS + 24 then Lose wd.ev, wd.se, p
     if p.at.x >= wd.lv.goal_x then StageClear wd.ev, wd.se, g
     Camera wd.lv, wd.zn, g, p, 0
@@ -338,7 +343,7 @@ sub ResetWorld ( _
     wd.se.loose_n = 0
     wd.se.part_n = 0
     Spawn wd.lv, wd.gr, wd.zn, wd.ev, g, p
-    Deliver wd, g
+    Deliver wd, g, pt()
 end sub
 
 ' A level cleared: on to level n, the score and lives kept.

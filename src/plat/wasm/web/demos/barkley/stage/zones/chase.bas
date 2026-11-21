@@ -12,15 +12,15 @@ from barkley.model.images import IOAKFOOT, IPEDAL, IRAIL, IRELAY
 from barkley.model.images import ITWIN, IWBOX
 from barkley.model.hero import Hero
 from barkley.model.level import GRAV, Level, NONE, Realm, TS
-from barkley.model.game import Game, Loose, Part, PULSES, Session
-from barkley.model.events import EVCHASETUNE, EVSCORE, EVSOUND, EVTUNE
-from barkley.model.events import Tell
-from barkley.assets.palette import CEARTH, CYELLOW
+from barkley.model.game import Game, Loose, PULSES, Session
+from barkley.model.events import EVBURST, EVCHASETUNE, EVSCORE
+from barkley.model.events import EVSOUND, EVTUNE, Tell, TellAt
+from barkley.assets.palette import CYELLOW
 from barkley.assets.cast import DrawKeep
 from barkley.assets.tunes import SBUMP, SHISS, SMARK, SPOP
 from barkley.world.terrain.ground import Lie, Surf
 from barkley.world.terrain.track import LimbUp, LIMBW, LimbX, NLIMB
-from barkley.stage.fx.parts import Burst
+from barkley.stage.fx.parts import PBOX, PCART, PCARTBUMP, PKEEP
 from barkley.stage.fx.damage import BOUNCEV, Hurt
 from barkley.stage.zones.pass import SLEDV
 
@@ -145,8 +145,7 @@ sub Flee ( _
     se as Session, _
     g as Game, _
     p as Hero, _
-    lo() as Loose, _
-    pt() as Part _
+    lo() as Loose _
 )
     if lv.chase_x = NONE then exit sub
 
@@ -162,28 +161,28 @@ sub Flee ( _
         case 0, 3
             ' a cart and a toboggan go alike
             MoveCart lv, p, CRUISE, MakesOff!(zn)
-            MeetCart lv, ev, se, g, p, lo(), pt()
+            MeetCart lv, ev, se, g, p, lo()
         case 1
             MoveCrane lv, p
-            MeetCrane lv, ev, se, g, p, pt()
-            DropBox lv, ev, se, g, p, lo(), pt()
+            MeetCrane lv, ev, g, p
+            DropBox lv, ev, se, g, p, lo()
         case 2
             MovePedalo lv
-            MeetPedalo lv, ev, se, g, p, pt()
+            MeetPedalo lv, ev, g, p
         case 4
-            Juggle lv, ev, se, g, p, pt()
+            Juggle lv, ev, g, p
         case 5
             Lob lv, p
             MoveCart lv, p, LegPace!(lv, se), PASSV
-            MeetRelay lv, ev, se, g, p, lo(), pt()
+            MeetRelay lv, ev, se, g, p, lo()
         end select
 
         ' its last bump breaks it; the twins' ball is his
         ' with the catch
-        if lv.cart.hits >= Bumps%(zn) then BreakCart lv, ev, se, pt()
+        if lv.cart.hits >= Bumps%(zn) then BreakCart lv, ev
 
         if zn.id = 4 and lv.cart.st = 2 then
-            TakeKeep lv, ev, se, pt()
+            TakeKeep lv, ev
         end if
     case 2
         if zn.id = 1 and lv.cart.t > 2 - TOOLFALL then exit sub
@@ -196,7 +195,7 @@ sub Flee ( _
         if abs(p.at.x - lv.cart.at.x) < 16 _
             and p.at.y > lv.cart.at.y - 90 _
             and p.at.y < lv.cart.at.y + 8 then
-            TakeKeep lv, ev, se, pt()
+            TakeKeep lv, ev
         end if
     end select
 end sub
@@ -249,8 +248,7 @@ private sub MeetCart ( _
     se as Session, _
     g as Game, _
     p as Hero, _
-    lo() as Loose, _
-    pt() as Part _
+    lo() as Loose _
 )
     if lv.cart.t > BOLTS or p.dead then exit sub
     if abs(p.at.x - lv.cart.at.x) > CARTR _
@@ -262,7 +260,7 @@ private sub MeetCart ( _
         exit sub
     end if
 
-    Bumped lv, ev, se, g, pt(), lv.cart.at.y - 20
+    Bumped lv, ev, g, lv.cart.at.y - 20
     ' sled against sled he is checked, not thrown: a sled
     ' thrown back has no brake to stop it
     if p.sled and p.ground then p.gsp = SLEDV
@@ -283,47 +281,28 @@ private function Bumps% (zn as Realm)
 end function
 
 ' A bump told, its sparks at height y: who flees is dazed.
-private sub Bumped ( _
-    lv as Level, _
-    ev as Events, _
-    se as Session, _
-    g as Game, _
-    pt() as Part, _
-    y as single _
-)
+private sub Bumped (lv as Level, ev as Events, g as Game, y as single)
     lv.cart.hits = lv.cart.hits + 1
     lv.cart.t = DAZED
     Tell ev, EVSCORE, 500
     g.shake = .2
-    Burst se, pt(), lv.cart.at.x + 0, y, 12, 150, CYELLOW
+    TellAt ev, EVBURST, lv.cart.at.x + 0, y, PCARTBUMP
     Tell ev, EVSOUND, SBUMP
 end sub
 
 ' Who flees is broken and the keepsake left lying; the
 ' zone's tune again.
-private sub BreakCart ( _
-    lv as Level, _
-    ev as Events, _
-    se as Session, _
-    pt() as Part _
-)
+private sub BreakCart (lv as Level, ev as Events)
     lv.cart.st = 2
     lv.cart.t = 2
-    Burst se, pt(), lv.cart.at.x + 0, lv.cart.at.y - 12, 16, 200, _
-        CEARTH + 4
+    TellAt ev, EVBURST, lv.cart.at.x + 0, lv.cart.at.y - 12, PCART
     Tell ev, EVTUNE, lv.tune
 end sub
 
-private sub TakeKeep ( _
-    lv as Level, _
-    ev as Events, _
-    se as Session, _
-    pt() as Part _
-)
+private sub TakeKeep (lv as Level, ev as Events)
     lv.cart.st = 3
     Tell ev, EVSCORE, 1000
-    Burst se, pt(), lv.cart.at.x + 0, lv.cart.at.y - 8, 12, 120, _
-        CYELLOW
+    TellAt ev, EVBURST, lv.cart.at.x + 0, lv.cart.at.y - 8, PKEEP
     Tell ev, EVSOUND, SMARK
 end sub
 
@@ -409,15 +388,14 @@ private sub MeetRelay ( _
     se as Session, _
     g as Game, _
     p as Hero, _
-    lo() as Loose, _
-    pt() as Part _
+    lo() as Loose _
 )
     dim was as integer
 
     if Lobbed%(lv) then exit sub
 
     was = lv.cart.hits
-    MeetCart lv, ev, se, g, p, lo(), pt()
+    MeetCart lv, ev, se, g, p, lo()
     if lv.cart.hits = was then exit sub
 
     lv.box.at.x = lv.cart.at.x - TUMBLE
@@ -568,14 +546,7 @@ end sub
 ' the ball on its way he has caught it: a bump, the twins
 ' off to the pair above and the ball tossed up after them.
 ' The third catch, and the ball is his.
-private sub Juggle ( _
-    lv as Level, _
-    ev as Events, _
-    se as Session, _
-    g as Game, _
-    p as Hero, _
-    pt() as Part _
-)
+private sub Juggle (lv as Level, ev as Events, g as Game, p as Hero)
     if lv.cart.t <= 0 then lv.box.t = lv.box.t - STEPT
 
     if lv.box.t <= 0 then
@@ -594,7 +565,7 @@ private sub Juggle ( _
     lv.box.at.y = lv.cart.at.y
     lv.box.st = 0
     lv.box.t = TWINHOLD
-    Bumped lv, ev, se, g, pt(), lv.cart.at.y - 7
+    Bumped lv, ev, g, lv.cart.at.y - 7
 end sub
 
 ' The picture of the twin on side sd, 0 the left: 0
@@ -780,10 +751,8 @@ end sub
 private sub MeetPedalo ( _
     lv as Level, _
     ev as Events, _
-    se as Session, _
     g as Game, _
-    p as Hero, _
-    pt() as Part _
+    p as Hero _
 )
     if lv.cart.t > BOLTS or p.dead or p.ground or p.swim _
         or p.vel.y <= 0 then exit sub
@@ -791,7 +760,7 @@ private sub MeetPedalo ( _
         or p.at.y < lv.cart.at.y - 6 _
         or p.at.y > lv.cart.at.y + 14 then exit sub
 
-    Bumped lv, ev, se, g, pt(), lv.cart.at.y - 8
+    Bumped lv, ev, g, lv.cart.at.y - 8
     lv.cart.v = -lv.cart.v
     p.vel.y = -BOUNCEV
     p.jumped = 0
@@ -934,10 +903,8 @@ end sub
 private sub MeetCrane ( _
     lv as Level, _
     ev as Events, _
-    se as Session, _
     g as Game, _
-    p as Hero, _
-    pt() as Part _
+    p as Hero _
 )
     dim foot as single
 
@@ -947,8 +914,8 @@ private sub MeetCrane ( _
     if abs(p.at.x - lv.cart.at.x) > CRANER or p.at.y - 26 > foot _
         or p.at.y < foot - 24 then exit sub
 
-    if lv.box.st > 0 or lv.box.t <= 0 then BreakBox lv, ev, se, pt()
-    Bumped lv, ev, se, g, pt(), foot - 12
+    if lv.box.st > 0 or lv.box.t <= 0 then BreakBox lv, ev
+    Bumped lv, ev, g, foot - 12
     p.vel.x = 140 * (2 * (p.at.x <= lv.cart.at.x) + 1)
     p.vel.y = 160
     if p.at.y < foot - 14 then p.vel.y = -200
@@ -964,8 +931,7 @@ private sub DropBox ( _
     se as Session, _
     g as Game, _
     p as Hero, _
-    lo() as Loose, _
-    pt() as Part _
+    lo() as Loose _
 )
     if lv.box.t > 0 then lv.box.t = lv.box.t - STEPT
 
@@ -992,23 +958,17 @@ private sub DropBox ( _
             and p.at.y > lv.box.at.y - 16 _
             and p.at.y - 26 < lv.box.at.y and not p.dead then
             Hurt ev, se, g, p, cint(lv.box.at.x), lo(), SHISS
-            BreakBox lv, ev, se, pt()
+            BreakBox lv, ev
         elseif lv.box.at.y >= lv.cart.at.y then
-            BreakBox lv, ev, se, pt()
+            BreakBox lv, ev
         end if
     end select
 end sub
 
 ' The crate in bits where it is, the next a while off:
 ' sooner for each bump the crane has had.
-private sub BreakBox ( _
-    lv as Level, _
-    ev as Events, _
-    se as Session, _
-    pt() as Part _
-)
-    Burst se, pt(), lv.box.at.x + 0, lv.box.at.y - 8, 10, 140, _
-        CEARTH + 4
+private sub BreakBox (lv as Level, ev as Events)
+    TellAt ev, EVBURST, lv.box.at.x + 0, lv.box.at.y - 8, PBOX
     Tell ev, EVSOUND, SPOP
     lv.box.st = 0
     lv.box.t = RELOAD - HASTE * lv.cart.hits

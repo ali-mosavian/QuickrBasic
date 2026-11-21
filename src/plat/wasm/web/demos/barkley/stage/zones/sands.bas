@@ -11,10 +11,11 @@ from barkley.model.images import ISURF
 from barkley.model.hero import Hero
 from barkley.model.level import Bird, Level, NONE, PI, TS
 from barkley.model.game import Game, Loose, NLOOSE, Part, Session
-from barkley.model.events import EVSCORE, EVSOUND, Tell
-from barkley.assets.palette import CSEA, CWHITE
+from barkley.model.events import EVBURST, EVSCORE, EVSOUND, Tell
+from barkley.model.events import TellAt
+from barkley.assets.palette import CSEA
 from barkley.assets.tunes import SBOOST, SHURT, SPOP, SSPRING, SSQUAWK
-from barkley.stage.fx.parts import Burst
+from barkley.stage.fx.parts import PBEATEN
 from barkley.stage.fx.damage import Beaten, BOUNCEV, Hurt
 from barkley.stage.hero.moves import GSCARED, SHELLT
 
@@ -83,8 +84,7 @@ sub MeetCrab ( _
     g as Game, _
     p as Hero, _
     i as integer, _
-    lo() as Loose, _
-    pt() as Part _
+    lo() as Loose _
 )
     dim y as integer
 
@@ -107,7 +107,7 @@ sub MeetCrab ( _
     elseif abs(lv.things(i).state) = 1 then
         Hurt ev, se, g, p, lv.things(i).at.x, lo(), SHURT
     elseif p.roll or p.charging then
-        Beaten lv, ev, se, g, pt(), i, 6
+        Beaten lv, ev, g, i, 6
     end if
 end sub
 
@@ -171,8 +171,7 @@ private sub Gull ( _
     n as integer, _
     g as Game, _
     p as Hero, _
-    lo() as Loose, _
-    pt() as Part _
+    lo() as Loose _
 )
     dim x as single, y as single, lead as single
 
@@ -213,7 +212,7 @@ private sub Gull ( _
         Spill se, b, lo()
         b.st = 0
         Tell ev, EVSCORE, 100
-        Burst se, pt(), b.at.x, b.at.y, 10, 130, CWHITE
+        TellAt ev, EVBURST, b.at.x, b.at.y, PBEATEN
         Tell ev, EVSOUND, SPOP
     elseif b.st = GDIVE then
         b.loot = g.bones
@@ -230,15 +229,14 @@ sub Flock ( _
     se as Session, _
     g as Game, _
     p as Hero, _
-    lo() as Loose, _
-    pt() as Part _
+    lo() as Loose _
 )
     dim i as integer
 
     for i = 0 to lv.n_gulls - 1
         if lv.gulls(i).st <= 0 then continue for
 
-        Gull ev, se, lv.gulls(i), i, g, p, lo(), pt()
+        Gull ev, se, lv.gulls(i), i, g, p, lo()
     next
 end sub
 
