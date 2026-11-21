@@ -27,9 +27,9 @@ private const RAMREACH = 120, OUTRUN = 140
 sub Pilot (lv as Level, gr as Ground, zn as Realm, se as Session, p as Hero, k as Pad)
     static hold as integer
     dim want as integer, hopNow as integer
-    k.r = -1
-    k.l = 0
-    k.d = 0
+    k.right = -1
+    k.left = 0
+    k.down = 0
     if p.vine then
         ' hung from a vine: let go on the way up and forward, or where a small swing turns
         hopNow = p.sway_v > 0 and p.sway > 0 and (p.sway > .5 or p.sway_v < 1)
@@ -54,14 +54,14 @@ end sub
 
 ' The pilot's keys: on to the right.
 private sub PressOn (k as Pad)
-    k.r = -1
-    k.l = 0
+    k.right = -1
+    k.left = 0
 end sub
 
 ' The pilot's keys: no further, and back against a speed over v.
 private sub HoldBack (p as Hero, k as Pad, v as integer)
-    k.r = 0
-    if p.gsp > v then k.l = -1
+    k.right = 0
+    if p.gsp > v then k.left = -1
 end sub
 
 ' Afloat: on to the right, a hop where a bank is in the way, or a jellyfish. Whether to hop.
@@ -75,7 +75,7 @@ private function PilotSwim% (lv as Level, zn as Realm, p as Hero, k as Pad)
     PilotSwim% = want
     ' Kipper's boat about: still, and a hop as it comes, to come down on its deck
     if zn.id <> 2 or lv.cart.st <> 1 then exit function
-    k.r = 0
+    k.right = 0
     d = cint(lv.cart.at.x - p.at.x)
     want = lv.cart.t <= 0 and abs(d) < abs(lv.cart.v) * .55 + 12 and abs(d) > abs(lv.cart.v) * .45
     PilotSwim% = want and sgn(d) <> sgn(lv.cart.v)
@@ -143,7 +143,7 @@ private function PilotRun% (lv as Level, gr as Ground, zn as Realm, se as Sessio
     PilotPress lv, se, p, k, want
     PilotTipper lv, se, p, k
     PilotGoat lv, p, k, want
-    k.d = Rams%(lv, zn, p)
+    k.down = Rams%(lv, zn, p)
     if zn.id = 5 and p.roll and lv.cart.st = 1 and lv.cart.at.x - p.at.x > OUTRUN then want = -1
     if zn.id = 4 then PilotCurl lv, p, k, want
     PilotGaps lv, se, p, k, want
@@ -188,9 +188,9 @@ private sub PilotDig (lv as Level, p as Hero, k as Pad, want as integer)
         if lv.things(i).kind <> KMOUND or d < -40 or p.dug = i + 1 or abs(lv.things(i).at.y - p.at.y) > 8 then continue for
         if not Walled%(lv, i) then continue for
         want = 0
-        k.d = abs(d) < MOUNDR - 3 and abs(v) < 20
-        k.r = d >= MOUNDR - 3 and v < 40 + d * 3
-        k.l = (d <= 3 - MOUNDR and v > -60) or (d > 3 - MOUNDR and v > 70 + d * 3)
+        k.down = abs(d) < MOUNDR - 3 and abs(v) < 20
+        k.right = d >= MOUNDR - 3 and v < 40 + d * 3
+        k.left = (d <= 3 - MOUNDR and v > -60) or (d > 3 - MOUNDR and v > 70 + d * 3)
         exit sub
     next
 end sub
@@ -207,7 +207,7 @@ private sub PilotCurl (lv as Level, p as Hero, k as Pad, want as integer)
         if lv.things(i).at.x < x - LOGR - 4 then continue for
         if not ((lv.things(i).kind = KBRAMBLE and lv.things(i).state = 0) or lv.things(i).kind = KLOG) then continue for
         if p.gsp > 150 then
-            k.d = -1
+            k.down = -1
         else
             want = -1
         end if
@@ -244,7 +244,7 @@ private sub PilotGoat (lv as Level, p as Hero, k as Pad, want as integer)
     if i = NONE or p.goat <> 0 then exit sub
     d = lv.things(i).at.x - cint(p.at.x)
     if abs(lv.things(i).state) = GCHARGE then
-        k.r = 0
+        k.right = 0
         want = abs(d) < 70
         exit sub
     end if
@@ -264,8 +264,8 @@ private sub PilotGaps (lv as Level, se as Session, p as Hero, k as Pad, want as 
         if lv.movers(m).kind = 4 or lv.movers(m).kind = 6 or lv.movers(m).kind = 8 then d = NONE
         if d <= -4 or d >= 300 or abs(lv.movers(m).at.y + lv.movers(m).reach * (lv.movers(m).kind = 1) - y) >= 200 then continue for
         if d < 50 then want = 0
-        if p.gsp > 30 + d then k.r = 0
-        if p.gsp > 70 + d then k.l = -1
+        if p.gsp > 30 + d then k.right = 0
+        if p.gsp > 70 + d then k.left = -1
         if d >= 10 then continue for
         if Ready%(lv, se, m) then
             PressOn k
@@ -291,14 +291,14 @@ end function
 ' before it.
 private sub PilotFall (lv as Level, zn as Realm, p as Hero, k as Pad)
     dim m as integer, d as integer
-    if zn.id = 2 and lv.cart.st = 1 then k.r = 0
-    if GoatNear%(lv, cint(p.at.x)) <> NONE then k.r = 0
+    if zn.id = 2 and lv.cart.st = 1 then k.right = 0
+    if GoatNear%(lv, cint(p.at.x)) <> NONE then k.right = 0
     for m = 0 to lv.n_movers - 1
         d = lv.movers(m).edge - cint(p.at.x)
         if lv.movers(m).kind = 4 or lv.movers(m).kind = 6 or lv.movers(m).kind = 8 then d = NONE
         if d <= -40 or d >= 260 or p.coyote > 0 or p.vel.x <= d \ 3 or p.sg = lv.movers(m).sg then continue for
-        k.r = 0
-        k.l = -1
+        k.right = 0
+        k.left = -1
     next
 end sub
 
@@ -308,7 +308,7 @@ private sub PilotGale (lv as Level, se as Session, p as Hero, k as Pad, want as 
         want = 0
         HoldBack p, k, 20
     end if
-    if Lull%(lv, se) = 0 then k.d = -1
+    if Lull%(lv, se) = 0 then k.down = -1
     ' and from a crouch no jump: that would wind up a dash
     if p.crouch then want = 0
     ' curled and come to a stand on a slope, held there by the key: out of it by a jump

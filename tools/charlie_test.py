@@ -296,7 +296,7 @@ for c = 8 to wd.lv.w - 8
 next
 ' run onto it at every speed: at some, its rise ahead was taken for a wall and Charlie stopped dead at its foot
 StartGame wd, g, p, lo(), pt()
-k.r = -1
+k.right = -1
 for v = 120 to 840 step 60
     Stand wd.lv, wd.gr, p, c * TS - 30, csng(v)
     for i = 1 to 12
@@ -306,7 +306,7 @@ for v = 120 to 840 step 60
     next
 next
 ' and stood on it, no key down, it stays: it slid back to the foot
-k.r = 0
+k.right = 0
 Stand wd.lv, wd.gr, p, c * TS + 8, 0
 for i = 1 to 90
     MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
@@ -333,7 +333,7 @@ for c = 8 to wd.lv.w - 8
     if GroundAt%(wd.lv, c * TS) = NONE and GroundAt%(wd.lv, c * TS - 20) <> NONE then exit for
 next
 Stand wd.lv, wd.gr, p, c * TS - 20, 200
-k.r = -1
+k.right = -1
 k.jump = 0
 k.hit = 0
 was = 0
@@ -351,7 +351,7 @@ if p.jumped and p.vel.y < -250 then print "edge jump ok"
 ' walked slowly off an edge, Charlie falls at once: a foot still over the ground put it back on the edge, and it
 ' hung there half a second, till it was fast enough to clear it in a step
 Stand wd.lv, wd.gr, p, c * TS - 20, 60
-k.r = -1
+k.right = -1
 k.jump = 0
 k.hit = 0
 v = cint(p.at.y)
@@ -360,7 +360,7 @@ for i = 1 to 45
 next
 if p.at.y > v + 20 then print "ledge ok"
 was = 0
-k.r = 0
+k.right = 0
 k.jump = 0
 k.hit = 0
 k.was = 0
@@ -427,7 +427,7 @@ for j = 0 to wd.lv.n_things - 1
 next
 c = wd.lv.things(j).at.x
 Stand wd.lv, wd.gr, p, c - 100, 360
-k.r = -1
+k.right = -1
 was = 0
 for i = 1 to 300
     MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
@@ -441,7 +441,7 @@ for j = 0 to wd.lv.n_things - 1
 next
 c = wd.lv.things(j).at.x
 Stand wd.lv, wd.gr, p, c - 40, 420
-k.r = -1
+k.right = -1
 was = 0
 v = 0
 for i = 1 to 400
@@ -492,14 +492,14 @@ Stand wd.lv, wd.gr, p, c - 40, 420
 for i = 1 to 300
     if p.ground and p.at.x >= c + 150 and p.at.x < c + 230 then
         p.gsp = 100
-        k.r = 0
+        k.right = 0
     end if
     MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
     if p.ground and p.at.y > wd.lv.things(j).at.y + 40 then exit for
 next
 if p.ground and wd.gr.pt(p.sg).kind = 1 and p.at.y > wd.lv.things(j).at.y + 40 and p.at.x < c + 384 then print "slow ok"
 ' a bark stops a prowler where it is a while, and it goes on away from him: it walked on as if deaf
-k.r = 0
+k.right = 0
 StartGame wd, g, p, lo(), pt()
 j = -1
 for i = 0 to wd.lv.n_things - 1
@@ -535,9 +535,9 @@ for i = 1 to 9000
     if g.mode <> PLAYING then exit for
 next
 print "result"; g.mode; g.lives; g.bones; loops; cint(p.at.x); cint(p.at.y)
-k.l = 0
-k.r = 0
-k.d = 0
+k.left = 0
+k.right = 0
+k.down = 0
 k.jump = 0
 k.hit = 0
 for i = 1 to 400
@@ -624,7 +624,7 @@ wd.lv.cart.st = 1
 wd.lv.cart.at.x = wd.lv.chase_end
 wd.lv.cart.at.y = GroundAt%(wd.lv, wd.lv.chase_end)
 g.bones = 3
-k.r = -1
+k.right = -1
 Stand wd.lv, wd.gr, p, wd.lv.chase_end - 60, 200
 for i = 1 to 40
     Tick wd, g, p, k, lo(), pt()
@@ -647,7 +647,7 @@ for i = 1 to 10
 next
 if was and c and wd.lv.cart.hits = 1 and g.bones = 3 then print "cart ok"
 was = 0
-k.r = 0
+k.right = 0
 ' on a slope the cart follows it, each wheel on the ground under it: it was drawn level, a wheel sunk in the slope
 ' and a wheel in the air. The picture without the cart and with it, down its wheels' columns: halfway down a slope
 ' of the race, then at the slope's foot, its front wheel on the level
@@ -1182,7 +1182,7 @@ for i = 1 to 90
 next
 was = was and p.swim and not p.dead and g.lives = j and abs(p.at.y - (wd.lv.tide + AFLOAT)) < 1
 j = cint(p.at.x)
-k.r = -1
+k.right = -1
 for i = 1 to 40
     Tick wd, g, p, k, lo(), pt()
 next
@@ -1213,7 +1213,7 @@ for j = 0 to 1
     p.swim = -1
     p.ground = 0
     p.vel.x = 0
-    k.r = -1
+    k.right = -1
     k.jump = -1
     for i = 1 to 90
         if i = 20 then k.hit = -1
@@ -1231,24 +1231,24 @@ wd.lv.tide_hi = wd.lv.tide_lo
 Stand wd.lv, wd.gr, p, m * TS + 24, WETTOP - 20
 p.swim = 0
 p.wet = DRYT
-k.r = -1
+k.right = -1
 for i = 1 to 30
     Tick wd, g, p, k, lo(), pt()
 next
 was = p.wet > 0 and p.gsp > WETTOP - 20 and p.gsp <= WETTOP + 1
 Stand wd.lv, wd.gr, p, m * TS + 24, WETTOP - 20
 p.roll = -1
-k.r = 0
+k.right = 0
 for i = 1 to 30
     Tick wd, g, p, k, lo(), pt()
 next
 was = was and p.wet <= 0
 Stand wd.lv, wd.gr, p, m * TS + 24, WETTOP - 20
-k.r = -1
+k.right = -1
 for i = 1 to 30
     Tick wd, g, p, k, lo(), pt()
 next
-k.r = 0
+k.right = 0
 if was and p.gsp > WETTOP + 60 then print "wet ok"
 ' no water is a trap: the bank past each stretch swum at high water is within a hop of it, two tiles, or the
 ' stretch is waded at low water, to its spring. A sea gap's far bank was seven tiles up, Charlie afloat for good.
@@ -1342,14 +1342,14 @@ Tick wd, g, p, k, lo(), pt()
 was = was and wd.gr.pt(c).at.y = wd.lv.movers(m).at.y and wd.lv.movers(m).t = 0 _
     and wd.lv.things(wd.lv.movers(m).thing).state = 0
 Stand wd.lv, wd.gr, p, wd.lv.movers(m).edge - 40, 300
-k.r = -1
+k.right = -1
 v = 0
 for i = 1 to 200
     Tick wd, g, p, k, lo(), pt()
     if p.swim or p.at.y > wd.lv.movers(m).at.y + 8 then v = -1
     if p.at.x > wd.lv.movers(m).edge + spans * MOVEW + 30 then exit for
 next
-k.r = 0
+k.right = 0
 was = was and i < 200 and v = 0 and p.ground and abs(p.at.y - wd.lv.movers(m).at.y) < 2
 for i = 1 to 90
     Tick wd, g, p, k, lo(), pt()
@@ -1368,7 +1368,7 @@ for j = 0 to wd.lv.n_things - 1
 next
 was = j < wd.lv.n_things
 Stand wd.lv, wd.gr, p, wd.lv.things(j).at.x - 30, 80
-k.r = -1
+k.right = -1
 v = 0
 for i = 1 to 200
     Tick wd, g, p, k, lo(), pt()
@@ -1378,7 +1378,7 @@ for i = 1 to 200
     end if
     if not p.ground and p.at.x > wd.lv.things(j).at.x + 96 then exit for
 next
-k.r = 0
+k.right = 0
 was = was and v > 2 and i < 60 and p.vel.x >= FLUMEV
 g.cam.x = wd.lv.things(j).at.x - 100
 g.shake = 0
@@ -1522,13 +1522,13 @@ Stand wd.lv, wd.gr, p, wd.lv.things(c).at.x - 60, 0
 for j = m to wd.lv.n_things - 1
     if wd.lv.things(j).kind = KLEG then exit for
 next
-k.r = -1
+k.right = -1
 for i = 1 to 400
     Tick wd, g, p, k, lo(), pt()
     if p.inv > 0 then was = 0
     if p.at.x > wd.lv.things(j).at.x + 20 then exit for
 next
-k.r = 0
+k.right = 0
 was = was and i < 400
 Stand wd.lv, wd.gr, p, wd.lv.things(c).at.x - 60, 0
 g.cam.x = wd.lv.things(c).at.x - 160
@@ -2319,9 +2319,9 @@ bx = wd.lv.things(c).at.x + POTX
 m = wd.lv.things(c).at.y
 colA(0) = wd.mu.muted
 wd.mu.muted = -1
-k.r = 0
-k.l = 0
-k.d = 0
+k.right = 0
+k.left = 0
+k.down = 0
 k.jump = 0
 k.hit = 0
 Stand wd.lv, wd.gr, p, bx - 100, 0
@@ -2407,8 +2407,8 @@ for j = 0 to 99
     next
     was = was and p.at.x > bx + 60
 next
-k.r = 0
-k.l = 0
+k.right = 0
+k.left = 0
 k.jump = 0
 k.hit = 0
 wd.mu.muted = colA(0)
@@ -2464,24 +2464,24 @@ for c = 0 to 5
         v = 8
     end select
     for i = 1 to 260
-        k.r = c <> 3 and (c <> 1 or i >= v)
-        k.l = 0
+        k.right = c <> 3 and (c <> 1 or i >= v)
+        k.left = 0
         k.jump = c <> 1 and i >= v and i < v + 25
         k.hit = c <> 1 and i = v
         ' on the balcony: back to its end, and up
         if c = 4 and p.ground and p.at.y < wd.lv.things(m).at.y + 14 + 6 * TS - 70 then
-            k.r = 0
-            k.l = p.at.x > bx + 10
-            k.jump = not k.l
-            k.hit = not k.l
+            k.right = 0
+            k.left = p.at.x > bx + 10
+            k.jump = not k.left
+            k.hit = not k.left
         end if
         Tick wd, g, p, k, lo(), pt()
         if Found%(wd.se, 10 + c \\ 3, c mod 3) then exit for
     next
     was = was and Found%(wd.se, 10 + c \\ 3, c mod 3)
 next
-k.r = 0
-k.l = 0
+k.right = 0
+k.left = 0
 k.jump = 0
 k.hit = 0
 wd.se.gold_lo = hid
@@ -2522,8 +2522,8 @@ for c = 0 to 29
     v = val(mid$(ways, c * 7 + 4, 2))
     m = val(mid$(ways, c * 7 + 6, 1))
     for i = 1 to 300
-        k.r = m = 0 or p.at.x < bx - 3
-        k.l = m <> 0 and p.at.x > bx + 3
+        k.right = m = 0 or p.at.x < bx - 3
+        k.left = m <> 0 and p.at.x > bx + 3
         k.jump = i >= v and i < v + 25
         k.hit = i = v
         Tick wd, g, p, k, lo(), pt()
@@ -2531,8 +2531,8 @@ for c = 0 to 29
     next
     was = was and Found%(wd.se, c \\ 3, c mod 3)
 next
-k.r = 0
-k.l = 0
+k.right = 0
+k.left = 0
 k.jump = 0
 k.hit = 0
 wd.se.gold_lo = hid
@@ -2739,9 +2739,9 @@ for i = 1 to 400
     if p.at.x > wd.lv.things(v).at.x + 600 then exit for
 next
 dugOut = dugOut and i < 400
-k.l = 0
-k.r = 0
-k.d = 0
+k.left = 0
+k.right = 0
+k.down = 0
 k.jump = 0
 k.hit = 0
 if dugOut then print "dig ok"
@@ -2857,7 +2857,7 @@ for c = 0 to wd.lv.n_things - 1
     if wd.lv.things(c).kind = KSAPLING then exit for
 next
 was = c < wd.lv.n_things
-k.r = -1
+k.right = -1
 for m = 0 to 1
     wd.lv.things(c).state = 0
     Stand wd.lv, wd.gr, p, wd.lv.things(c).at.x, 0
@@ -2875,7 +2875,7 @@ for m = 0 to 1
     next
     colA(m) = wd.lv.things(c).at.y - cint(p.at.y)
 next
-k.r = 0
+k.right = 0
 was = was and colA(0) > JUMPV * JUMPV / (2 * GRAV) and colA(1) > colA(0) + 60
 Stand wd.lv, wd.gr, p, wd.lv.things(c).at.x - 60, 0
 for i = 1 to 2 * SAPT + 4
@@ -2960,12 +2960,12 @@ for m = 0 to 2
     wd.se.part_n = 0
     Stand wd.lv, wd.gr, p, wd.lv.things(c).at.x - 40, 300
     p.roll = m = 1
-    k.r = m <> 1
+    k.right = m <> 1
     for i = 1 to 60
         Tick wd, g, p, k, lo(), pt()
         if g.bones = 0 or p.at.x > wd.lv.things(c).at.x + 24 then exit for
     next
-    k.r = 0
+    k.right = 0
     if m <> 1 then was = was and g.bones = 0 and wd.lv.things(c).state = 0
     if m <> 1 then continue for
     was = was and g.bones = 5 and wd.lv.things(c).state > 0 and p.at.x > wd.lv.things(c).at.x and wd.se.part_n > 0
@@ -2996,7 +2996,7 @@ for i = 0 to NLOOSE - 1
 next
 wd.se.loose_n = 0
 Stand wd.lv, wd.gr, p, wd.lv.things(c).at.x - 60, 0
-k.r = -1
+k.right = -1
 for i = 1 to 90
     Tick wd, g, p, k, lo(), pt()
 next
@@ -3008,7 +3008,7 @@ for i = 1 to 90
     if p.ground and p.at.x > wd.lv.things(c).at.x + LOGR then exit for
 next
 was = was and p.ground and p.at.x > wd.lv.things(c).at.x + LOGR
-k.r = 0
+k.right = 0
 ' thrown over it uncurled he is not stopped in the air
 p.ground = 0
 p.roll = 0
@@ -3050,15 +3050,15 @@ p.inv = 0
 p.stun = 0
 p.roll = 0
 p.dug = 0
-k.d = 0
+k.down = 0
 Stand wd.lv, wd.gr, p, wd.lv.things(c).at.x - 40, 0
-k.r = -1
+k.right = -1
 for i = 1 to 60
     Tick wd, g, p, k, lo(), pt()
     was = was and p.dig = 0
     if p.at.x > wd.lv.things(c).at.x + MOUNDR + 2 then exit for
 next
-k.r = 0
+k.right = 0
 was = was and p.at.x > wd.lv.things(c).at.x + MOUNDR and p.at.x < wd.lv.things(c).at.x + 20
 Stand wd.lv, wd.gr, p, wd.lv.things(c).at.x - 40, 0
 g.shake = 0
@@ -3067,7 +3067,7 @@ j = wd.lv.things(c).at.x - int(g.cam.x) - 1
 m = wd.lv.things(c).at.y - int(g.cam.y)
 was = was and point(j, m - 3) = 137 and point(j, m - 9) = 123
 Stand wd.lv, wd.gr, p, wd.lv.things(c).at.x + 3, 0
-k.d = -1
+k.down = -1
 Tick wd, g, p, k, lo(), pt()
 was = was and p.dig = v + 1
 bx = p.at.x
@@ -3094,16 +3094,16 @@ for i = 1 to 120
 next
 ' thrown up at 260 against 750: 45 pixels
 was = was and abs(wd.lv.things(v).at.y - by - 45) < 4 and p.ground and abs(p.at.x - wd.lv.things(v).at.x) < 2
-k.d = 0
+k.down = 0
 Stand wd.lv, wd.gr, p, wd.lv.things(v).at.x + MOUNDR + 4, 0
 Tick wd, g, p, k, lo(), pt()
 Stand wd.lv, wd.gr, p, wd.lv.things(v).at.x - 2, 0
-k.d = -1
+k.down = -1
 for i = 1 to 80
     Tick wd, g, p, k, lo(), pt()
     if p.dug = c + 1 then exit for
 next
-k.d = 0
+k.down = 0
 if was and p.dug = c + 1 and p.at.x = wd.lv.things(c).at.x then print "burrow ok"
 ' a squirrel stands on its bough, and keeps over him who is under it, turned his way; SQWAIT of the things' steps
 ' on, the last SQAIM of them with an acorn held out, it lets one fall: 52 pixels to his head, 22 steps, and it
@@ -3118,7 +3118,7 @@ was = was and GroundAt%(wd.lv, v + 100) = wd.lv.things(c).at.y + 80
 p.inv = 0
 p.stun = 0
 p.roll = 0
-k.d = 0
+k.down = 0
 StandUnder wd.lv, wd.gr, p, v + 30, v + 100
 Camera wd.lv, wd.zn, g, p, -1
 if wd.se.ticks and 1 then Tick wd, g, p, k, lo(), pt()
@@ -3169,13 +3169,13 @@ StandUnder wd.lv, wd.gr, p, v - 130, v + 100
 p.gsp = TOP
 wd.lv.things(c).at.x = v - SQRUN
 wd.lv.things(c).state = -2
-k.r = -1
+k.right = -1
 bx = NONE
 for i = 1 to 40
     Tick wd, g, p, k, lo(), pt()
     if wd.lv.n_lobs > 0 and bx = NONE then bx = p.at.x - wd.lv.things(c).at.x
 next
-k.r = 0
+k.right = 0
 was = was and abs(bx) < SQNEAR and wd.lv.n_lobs = 0 and p.stun = 0 and g.bones >= 5 and _
     p.at.x > v + 60 and g.mode = PLAYING
 ' a bark under it: it keeps still, and nothing falls
@@ -3255,14 +3255,14 @@ next
 was = was and wd.lv.swarms(0).st = 1 and abs(wd.lv.swarms(0).at.x - p.at.x) < 8 and p.at.x > v
 ' run from, it is lost
 wd.lv.swarms(0).at.x = p.at.x
-k.r = -1
+k.right = -1
 for i = 1 to 70
     p.inv = 9
     p.gsp = TOP
     Tick wd, g, p, k, lo(), pt()
     if wd.lv.swarms(0).st = 2 then exit for
 next
-k.r = 0
+k.right = 0
 was = was and i = 50
 bx = wd.lv.swarms(0).at.x
 Stand wd.lv, wd.gr, p, cint(p.at.x), 0
@@ -3287,9 +3287,9 @@ for i = 1 to 65
     Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k
     Tick wd, g, p, k, lo(), pt()
 next
-k.l = 0
-k.r = 0
-k.d = 0
+k.left = 0
+k.right = 0
+k.down = 0
 k.jump = 0
 k.hit = 0
 if p.roll = 0 and p.ground and p.gsp >= 250 then print "uncurl ok"
@@ -3305,18 +3305,18 @@ for j = 0 to 1
     next
     colA(j) = cint(p.gsp)
     Stand wd.lv, wd.gr, p, c * TS + 8, 200
-    k.l = -1
+    k.left = -1
     for i = 1 to 10
         Tick wd, g, p, k, lo(), pt()
     next
-    k.l = 0
+    k.left = 0
     colB(j) = cint(p.gsp)
     Stand wd.lv, wd.gr, p, c * TS + 8, 0
-    k.r = -1
+    k.right = -1
     for i = 1 to 30
         Tick wd, g, p, k, lo(), pt()
     next
-    k.r = 0
+    k.right = 0
     colA(2 + j) = cint(p.gsp)
     g.cam.x = c * TS - 32
     g.shake = 0
@@ -3362,11 +3362,11 @@ for i = 1 to 200
     if p.ground and abs(p.ang) < .05 then exit for
 next
 v = cint(p.gsp)
-k.l = -1
+k.left = -1
 for i = 1 to 15
     Tick wd, g, p, k, lo(), pt()
 next
-k.l = 0
+k.left = 0
 was = was and p.sled and p.gsp > v - 15
 k.hit = -1
 k.jump = -1
@@ -3623,7 +3623,7 @@ next
 Stand wd.lv, wd.gr, p, wd.lv.things(j).at.x - 70, 0
 p.inv = 0
 p.stun = 0
-k.r = -1
+k.right = -1
 for i = 1 to 90
     Tick wd, g, p, k, lo(), pt()
 next
@@ -3634,14 +3634,14 @@ for i = 1 to 60
     Tick wd, g, p, k, lo(), pt()
     if p.ground then k.jump = 0
 next
-k.r = 0
+k.right = 0
 was = was and p.at.x > wd.lv.things(j).at.x + HEAPR
 Stand wd.lv, wd.gr, p, wd.lv.things(j).at.x + 70, 0
-k.l = -1
+k.left = -1
 for i = 1 to 90
     Tick wd, g, p, k, lo(), pt()
 next
-k.l = 0
+k.left = 0
 was = was and p.ground and abs(p.at.x - (wd.lv.things(j).at.x + HEAPR)) < 2
 GoStage wd, 7, g, p, lo(), pt()
 if was and wd.lv.things(c).state = 0 and wd.lv.things(j).state = 0 _
@@ -3773,11 +3773,11 @@ for i = 1 to 120
     if p.swim then exit for
 next
 j = cint(p.at.x)
-k.r = -1
+k.right = -1
 for i = 1 to 40
     Tick wd, g, p, k, lo(), pt()
 next
-k.r = 0
+k.right = 0
 if was and p.swim and p.at.x - j > 15 then print "dazed ok"
 ' a buoy rides the sea's top, and bumps Charlie off it
 for c = 0 to wd.lv.n_things - 1
@@ -3938,11 +3938,11 @@ for i = 1 to 200
 next
 was = wd.lv.movers(m).t = wd.lv.movers(m).reach and p.ground _
     and abs(p.at.y - (wd.lv.movers(m).at.y - wd.lv.movers(m).reach)) < 2
-k.r = -1
+k.right = -1
 for i = 1 to 60
     Tick wd, g, p, k, lo(), pt()
 next
-k.r = 0
+k.right = 0
 was = was and p.ground and wd.gr.pt(p.sg).kind = 1 and p.at.x > wd.lv.movers(m).at.x + MOVEW
 for i = 1 to 200
     Tick wd, g, p, k, lo(), pt()
@@ -3978,11 +3978,11 @@ for c = 0 to wd.lv.n_things - 1
 next
 was = m < wd.lv.n_things and c < wd.lv.n_things
 Stand wd.lv, wd.gr, p, wd.lv.things(c).at.x - 60, 200
-k.r = -1
+k.right = -1
 for i = 1 to 60
     Tick wd, g, p, k, lo(), pt()
 next
-k.r = 0
+k.right = 0
 was = was and wd.lv.things(c).state = 1 and p.at.x <= wd.lv.things(c).at.x - WALLR and p.gsp = 0
 Stand wd.lv, wd.gr, p, wd.lv.things(m).at.x - 92, 0
 for i = 1 to 60
@@ -4013,7 +4013,7 @@ next
 k.jump = 0
 was = was and p.goat and wd.lv.things(m).state = 0 and p.inv <= 0 and g.bones = 5 _
     and abs(p.at.x - (wd.lv.things(m).home - 50)) < 12
-k.l = -1
+k.left = -1
 v = NONE
 j = NONE
 for i = 1 to 200
@@ -4023,7 +4023,7 @@ for i = 1 to 200
     if i = 30 then v = Fall%(wd, g, p, lo(), pt(), 132, -8, -2)
     if j = NONE and p.ground and p.at.y > wd.lv.things(m).at.y + 8 then j = Fall%(wd, g, p, lo(), pt(), 132, -8, -2)
 next
-k.l = 0
+k.left = 0
 was = was and i > 114 and i < 124 and wd.lv.things(c).state = 0 and v = 0 and j = 3 _
     and p.at.x > wd.lv.things(c).at.x + 100
 for i = 1 to 300
@@ -4066,7 +4066,7 @@ next
 was = was and p.at.x - j < -165 and p.at.x - j > -190 and Lull%(wd.lv, wd.se) = 120
 wd.se.ticks = 2040
 Stand wd.lv, wd.gr, p, j, 0
-k.d = -1
+k.down = -1
 for i = 1 to 36
     Tick wd, g, p, k, lo(), pt()
 next
@@ -4085,7 +4085,7 @@ Stand wd.lv, wd.gr, p, j - 150, 200
 for i = 1 to 30
     Tick wd, g, p, k, lo(), pt()
 next
-k.d = 0
+k.down = 0
 was = was and p.roll and p.at.x - (j - 150) > 88 and p.at.x - (j - 150) < 97
 wd.se.ticks = 2040
 Stand wd.lv, wd.gr, p, j, 0
@@ -4110,7 +4110,7 @@ GoStage wd, 7, g, p, lo(), pt()
 was = was and wd.lv.aval_x <> NONE
 wd.se.ticks = 1920
 Stand wd.lv, wd.gr, p, wd.lv.aval_x - 40, 0
-k.d = -1
+k.down = -1
 ' till the act's card is off the view, which the spot read below may lie under
 for i = 1 to 260
     Tick wd, g, p, k, lo(), pt()
@@ -4138,7 +4138,7 @@ for i = 1 to 400
     Tick wd, g, p, k, lo(), pt()
     if not p.dead then exit for
 next
-k.d = 0
+k.down = 0
 if was and i < 400 and g.lives = j - 1 and wd.lv.aval.st = 0 and p.at.x < wd.lv.aval_x then print "avalanche ok"
 ' the pass's chase: Frost's toboggan is drawn as the ground lies, its slats level on the flat and, from 10 behind
 ' her middle to 8 before it, 9 lower on a fall of one in two, as Charlie's sled is. On his sled he bumps her and
@@ -4146,7 +4146,7 @@ if was and i < 400 and g.lives = j - 1 and wd.lv.aval.st = 0 and p.at.x < wd.lv.
 GoStage wd, 7, g, p, lo(), pt()
 wd.se.ticks = 1920
 Stand wd.lv, wd.gr, p, wd.lv.chase_x + 180, 0
-k.d = -1
+k.down = -1
 for i = 1 to 150
     Tick wd, g, p, k, lo(), pt()
 next
@@ -4166,7 +4166,7 @@ for j = 0 to 1
     next
     was = was and v <> NONE and c - v = j * 9
 next
-k.d = 0
+k.down = 0
 wd.lv.cart.at.x = p.at.x + 60
 wd.lv.cart.at.y = p.at.y
 wd.lv.cart.v = 0
@@ -4212,7 +4212,7 @@ p.at.y = wd.gr.pt(c).at.y
 p.sg = c
 p.ground = -1
 p.gsp = 0
-k.d = -1
+k.down = -1
 for i = 1 to 400
     Tick wd, g, p, k, lo(), pt()
     if i = 86 then was = was and abs(p.at.y - (wd.lv.movers(m).at.y - CABLED \\ 2)) < 3
@@ -4221,20 +4221,20 @@ next
 was = was and i >= 171 and i <= 174 and p.ground and p.sg = c _
     and abs(p.at.x - (wd.lv.movers(m).at.x + wd.lv.movers(m).reach + 24)) < 2
 was = was and abs(p.at.y - (wd.lv.movers(m).at.y - CABLED)) < 2 and wd.lv.things(wd.lv.movers(m).thing).kind = KSEAT
-k.d = 0
-k.r = -1
+k.down = 0
+k.right = -1
 wd.se.ticks = 1920
 for i = 1 to 40
     Tick wd, g, p, k, lo(), pt()
 next
-k.r = 0
-k.d = -1
+k.right = 0
+k.down = -1
 was = was and p.ground and wd.gr.pt(p.sg).kind = 1 and abs(p.at.y - (wd.lv.movers(m).at.y - CABLED)) < 2
 was = was and p.at.x > wd.lv.movers(m).at.x + wd.lv.movers(m).reach + MOVEW
 for i = 1 to 200
     Tick wd, g, p, k, lo(), pt()
 next
-k.d = 0
+k.down = 0
 if was and wd.lv.movers(m).t = 0 then print "chair ok"
 ' a button trodden raises its bridge out of the pit, and the bridge carries
 GoStage wd, 2, g, p, lo(), pt()
@@ -4248,11 +4248,11 @@ for i = 1 to 60
 next
 was = wd.lv.movers(m).t = 0 and wd.lv.things(j).state = 0
 Stand wd.lv, wd.gr, p, wd.lv.things(j).at.x - 12, 60
-k.r = -1
+k.right = -1
 for i = 1 to 20
     Tick wd, g, p, k, lo(), pt()
 next
-k.r = 0
+k.right = 0
 was = was and wd.lv.things(j).state = 1
 for i = 1 to 90
     Tick wd, g, p, k, lo(), pt()
@@ -4299,9 +4299,9 @@ for m = 1 to NSTAGE - 1
     ' and the festival night: each of the relay's five cats bumped, and the guitar taken
     if m = 11 and wd.lv.cart.st = 3 and wd.lv.cart.hits = NLEG then print "relay won ok"
     print "act"; m; g.mode; g.lives - j; wd.zn.stage; wd.zn.id; cint(p.at.x)
-    k.l = 0
-    k.r = 0
-    k.d = 0
+    k.left = 0
+    k.right = 0
+    k.down = 0
     k.jump = 0
     k.hit = 0
 next
@@ -4343,14 +4343,14 @@ Reach wd.se, 1
 wd.se.reached = 0
 LoadSave wd.se
 was = was and wd.se.reached = 1 and wd.se.pick = 0
-k.r = -1
+k.right = -1
 Tick wd, g, p, k, lo(), pt()
 Tick wd, g, p, k, lo(), pt()
-k.r = 0
+k.right = 0
 Tick wd, g, p, k, lo(), pt()
-k.r = -1
+k.right = -1
 Tick wd, g, p, k, lo(), pt()
-k.r = 0
+k.right = 0
 was = was and wd.se.pick = 1 and g.mode = TITLE
 k.start = -1
 Tick wd, g, p, k, lo(), pt()

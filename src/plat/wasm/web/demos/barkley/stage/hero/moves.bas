@@ -73,9 +73,9 @@ sub MoveHero (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero, k
         if k.jump then k.hit = -1
     end if
     if p.stun = 0 then
-        l = k.l
-        r = k.r
-        d = k.d
+        l = k.left
+        r = k.right
+        d = k.down
         hit = k.hit
         hold = k.jump
     end if

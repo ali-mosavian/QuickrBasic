@@ -32,9 +32,9 @@ sub ReadPad (kb as Keys, mu as Deck, k as Pad)
         case chr$(0) + "P": kb.since(SCDOWN) = t
         end select
     loop while len(c)
-    k.l = Held2%(kb, SCLEFT, t)
-    k.r = Held2%(kb, SCRIGHT, t)
-    k.d = Held2%(kb, SCDOWN, t)
+    k.left = Held2%(kb, SCLEFT, t)
+    k.right = Held2%(kb, SCRIGHT, t)
+    k.down = Held2%(kb, SCDOWN, t)
     k.jump = Held2%(kb, SCSPACE, t) or Held2%(kb, SCZ, t) or Held2%(kb, SCUP, t)
     if k.jump and not k.was then k.hit = -1
     k.was = k.jump

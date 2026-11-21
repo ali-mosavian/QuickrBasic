@@ -227,7 +227,7 @@ end sub
 ' with Charlie at its left; a while with them, then the picture fades. Whether it has.
 private function Met% (wd as World, g as Game, p as Hero, k as Pad, pt() as Part)
     dim idle as Pad, parted as integer
-    idle.r = p.at.x < wd.lv.fam_x - 108 and not p.win
+    idle.right = p.at.x < wd.lv.fam_x - 108 and not p.win
     MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, idle, pt()
     if p.at.x > wd.lv.fam_x - 106 then
         p.at.x = wd.lv.fam_x - 106

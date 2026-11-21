@@ -59,10 +59,10 @@ end sub
 ' On the title Left and Right pick the zone a game starts at, of those reached: a step a press.
 sub PickZone (se as Session, k as Pad)
     static leaning as integer
-    if (k.l or k.r) and not leaning then
-        se.pick = se.pick + k.l - k.r
+    if (k.left or k.right) and not leaning then
+        se.pick = se.pick + k.left - k.right
         if se.pick < 0 then se.pick = 0
         if se.pick > se.reached then se.pick = se.reached
     end if
-    leaning = k.l or k.r
+    leaning = k.left or k.right
 end sub

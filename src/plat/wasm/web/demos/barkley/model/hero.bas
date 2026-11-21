@@ -53,9 +53,9 @@ end type
 
 ' Held keys, and jump's press since the last step.
 type Pad
-    l as integer
-    r as integer
-    d as integer
+    left as integer
+    right as integer
+    down as integer
     jump as integer
     hit as integer
     was as integer
