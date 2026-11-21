@@ -48,7 +48,8 @@ use, and a game over it.
 
 - Only a record's own module assigns its fields. Any module may read them.
 - A routine takes its own record first, then only what it reads.
-- A subsystem does not call another's modifiers. The orchestrator calls each with the other's result.
+- A subsystem does not call another's modifiers. The orchestrator calls each with the other's
+  result.
 - Play posts an event for what it does not need answered: a sound, a score, a burst of sparks.
 - Only the orchestrator, `main` and `flow`, takes the `World`.
 - Drawing assigns nothing but the screen.
@@ -69,12 +70,11 @@ use, and a game over it.
 ```basic
 type Event
     what as integer
-    x as integer
-    y as integer
-    n as integer
+    at as Vec
+    amount as integer
 end type
 
-Post ev, EVSOUND, 0, 0, SSPRING
+Post events, EVSOUND, hero.at, SSPRING
 ```
 
 - `Post` appends an event. `Taken%` hands out the next, and is false when none is left.
@@ -99,6 +99,71 @@ Post ev, EVSOUND, 0, 0, SSPRING
 `MeetSpring` shows the split. Today it assigns seven of the hero's fields and one of the spring's,
 and plays a sound. It becomes a row: box 16 by 16, `BOUNCE`, 560 up.
 
+## Code rules
+
+**Layout**
+
+- Keywords and built-ins are lower case.
+- One statement a line. One `const` a line.
+- Code is 70 columns at most, a comment 60.
+- A blank line parts a routine's paragraphs: after each guard, between its blocks.
+- A `case` body is always on its own line, indented.
+- A header that does not fit one line is wrapped as Python's: `(` ends the first line, each
+  parameter has its own line one indent in, and `) as type` closes it. Today each wrapped line ends
+  in ` _`.
+
+**Names and data**
+
+- Variables and fields are snake_case. A name says what it means and stays short.
+- A record is made of smaller records: a position and a velocity are each a record of `x` and `y`.
+  `pos` is a reserved word today, so the field is `at`.
+- No globals and no `dim shared`. State is records passed as parameters.
+- Dynamic arrays live in records. Nothing has a fixed limit.
+- A file's number is never assumed: `freefile` gives it and a record keeps it.
+
+**Flow**
+
+- Guards first: `exit` and `continue` instead of nested conditionals, in `for`, `do` and `while`
+  too.
+
+**Packages**
+
+- A package is split by what its code does. Deeper means narrower.
+- A child never imports its parent. An import names what it uses, never `*`.
+- An engine package carries no game's name.
+
+**All of it**
+
+- DRY, SRP, open/closed and separation of concerns, as in the goals.
+- Speed and memory count: a frame's loops stay tight, and a zone loads only its own pictures and
+  songs.
+- A comment is for what the code cannot say. Names and structure carry the rest.
+- A gap in the language is reported to the language, not worked around here.
+- Every fix gets a regression test that fails first, in the same commit.
+
+```basic
+type Vec
+    x as single
+    y as single
+end type
+
+type Hero
+    at as Vec
+    vel as Vec
+    on_ground as integer
+end type
+
+' A point moved by a speed for a time.
+sub Move ( _
+    at as Vec, _
+    vel as Vec, _
+    dt as single _
+)
+    at.x = at.x + vel.x * dt
+    at.y = at.y + vel.y * dt
+end sub
+```
+
 ## Today
 
 | Measure | Now |
@@ -114,16 +179,20 @@ and plays a sound. It becomes a row: box 16 by 16, `BOUNCE`, 560 up.
 | Routines that take the whole `World` | 19 |
 | Game code that `engine` imports | none |
 | Other game demos with their own key, clock and sound code | 4 of 4 |
+| Lines over 70 columns | 1,267 of 8,595 |
+| Comment lines over 60 columns | 674 of 946 |
+| Routine headers over 70 columns | 180 |
 
 ## Steps
 
 Each step leaves `tools/charlie_test.py` passing and the game playing as before.
 
-1. Move `barkley/engine` to `demos/engine`. Imports change and no code does.
-2. Add `Events`, sounds first: play posts, `Deliver` calls `Sfx`, and the `Deck` leaves play's
+1. Apply the code rules to `barkley`, one record's renames a commit.
+2. Move `barkley/engine` to `demos/engine`. Imports change and no code does.
+3. Add `Events`, sounds first: play posts, `Deliver` calls `Sfx`, and the `Deck` leaves play's
    parameter lists. Then score, bursts and shakes.
-3. Add `Kind` rows inside `barkley`. Drawing first, where 33 branches become rows. Then the facts
+4. Add `Kind` rows inside `barkley`. Drawing first, where 33 branches become rows. Then the facts
    asked about kinds. Then touch and rules, a zone at a time.
-4. Move a subsystem from `barkley` to `engine` when MOTHLITE or RUSTLINE needs it.
+5. Move a subsystem from `barkley` to `engine` when MOTHLITE or RUSTLINE needs it.
 
 The drawings are made by `python3 tools/diagrams/engine.py docs/img`.
