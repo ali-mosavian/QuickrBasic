@@ -21,8 +21,8 @@ from barkley.stage.fx.damage import Beaten
 from barkley.stage.hero.modes import GUSTP, Lull
 from barkley.stage.fx.lobs import Loft
 from barkley.stage.fx.parts import PBURY, PSHATTER, PSNOWBALL
-from barkley.stage.hero.moves import THROWC
 from barkley.stage.hero.hurt import Hurt, Lose
+from barkley.stage.things.react import THROWC
 
 ' A snow-thrower, a cat behind a wall of snow, its state's
 ' sign the way it faces: its turn is THROWC of the things'

@@ -6,9 +6,7 @@ option explicit
 from engine.clock import STEPT
 from engine.events import Events
 from barkley.model.hero import Hero, HH, Pad
-from barkley.model.level import GRAV, Ground, KCAT, KCRAB, KPOUNCE
-from barkley.model.level import KSNATCH, KSQUIRREL, KTHROW, KWALKER
-from barkley.model.level import Level, NONE, TS
+from barkley.model.level import GRAV, Ground, Level, NONE, TS
 from barkley.model.game import Part, Session
 from barkley.model.events import EVBURST, EVSOUND, Tell, TellAt
 from barkley.model.kinds import Kinds
@@ -21,6 +19,7 @@ from barkley.stage.fx.parts import PWIND
 from barkley.stage.hero.modes import Alight, Buffet, Hang, Paddle
 from barkley.stage.hero.modes import Ride, Soak, Tunnel
 from barkley.stage.hero.feet import Along, Curve, Drop, Land, Wall
+from barkley.stage.things.react import Heard
 
 const JUMPV = 330!
 private const JUMPCUT = 160!
@@ -53,28 +52,16 @@ private const JBUFFER = .1
 ' ground on it.
 private const SLEDGRIP = .3
 
-const THROWC = 75
-
 ' The wood's night: its fireflies' two colours, never
 ' dimmed; the steps a bark's light lasts, the last of them
 ' fading; the parts its light is counted in; the fireflies
 ' awake, and at rest.
 const GLOWT = 300
 
-private const SQFRIGHT = 150
-
-' A bark: how far it carries, the seconds to the next, and
-' the steps a cat stands startled by it.
+' A bark: how far it carries, and the seconds to the next.
 private const BARKR = 72
 const BARKT = .4
-private const STARTLED = 24
 
-' A crab: the steps it keeps to its shell once barked at,
-' and how fast Charlie goes up off its back.
-const SHELLT = 150
-
-private const GULLHEAR = 130
-const GSCARED = 4
 const WETTOP = 220!
 
 sub MoveHero ( _
@@ -560,18 +547,7 @@ private sub Bonk (lv as Level, p as Hero)
     p.vel.y = 0
 end sub
 
-' A cat barked at from fromX stands startled STARTLED steps,
-' then prowls away from there: its state's size is the steps
-' left, its sign the way it will go.
-private sub Flinch (lv as Level, i as integer, from_x as integer)
-    lv.things(i).state = STARTLED
-    if lv.things(i).at.x < from_x then lv.things(i).state = -STARTLED
-end sub
-
-' Charlie barks: every cat the bark reaches flinches, every
-' crab goes into its shell, every gull is scared, every
-' snow-thrower ducks, every squirrel is cowed, every pouncer
-' leaps.
+' Charlie barks, and what hears it is startled.
 private sub Bark ( _
     lv as Level, _
     kd as Kinds, _
@@ -579,65 +555,8 @@ private sub Bark ( _
     se as Session, _
     p as Hero _
 )
-    dim i as integer, c as integer, dx as single, dy as single
-    dim hung as integer, cowed as integer, early as integer
-
     p.bark_t = BARKT
     Tell ev, EVSOUND, SBARK
     if lv.murk then lv.glow = GLOWT
-    c = (cint(p.at.x) - BARKR - 40) \ TS
-    if c < 0 then c = 0
-
-    for i = lv.first(c) to lv.n_things - 1
-        if lv.things(i).home > p.at.x + BARKR + 40 then exit for
-
-        dx = abs(lv.things(i).at.x - p.at.x)
-        dy = abs(lv.things(i).at.y - p.at.y)
-        ' an icicle or a ledge's load is loosed from further
-        ' under it than he can jump
-        hung = kd.k(lv.things(i).kind).hangs
-
-        if hung and lv.things(i).state = 0 and dx <= BARKR _
-            and dy < 140 then
-            lv.things(i).state = 1
-        end if
-
-        ' and a squirrel on its bough is cowed
-        cowed = lv.things(i).kind = KSQUIRREL _
-            and lv.things(i).state <> 0 and dx <= BARKR and dy < 140
-
-        if cowed then
-            lv.things(i).state = sgn(lv.things(i).state) * SQFRIGHT
-        end if
-
-        ' and a pouncer in its bin leaps early, at where he
-        ' is
-        early = lv.things(i).kind = KPOUNCE _
-            and lv.things(i).state = 0 and dx <= BARKR and dy < 40
-
-        if early then
-            lv.things(i).state = 1 + 2 * (p.at.x < lv.things(i).at.x)
-        end if
-
-        if lv.things(i).state = 0 or dx > BARKR _
-            or dy >= 40 then continue for
-
-        select case lv.things(i).kind
-        case KCAT, KWALKER, KSNATCH
-            Flinch lv, i, cint(p.at.x)
-        case KCRAB
-            lv.things(i).state = sgn(lv.things(i).state) * SHELLT
-        case KTHROW
-            lv.things(i).state = sgn(lv.things(i).state) * THROWC
-        end select
-    next
-
-    for i = 0 to lv.n_gulls - 1
-        if lv.gulls(i).st <= 0 then continue for
-        if abs(lv.gulls(i).at.x - p.at.x) >= GULLHEAR _
-            or abs(lv.gulls(i).at.y _
-            - p.at.y) >= GULLHEAR then continue for
-
-        lv.gulls(i).st = GSCARED
-    next
+    Heard lv, kd, p.at.x, p.at.y, BARKR
 end sub

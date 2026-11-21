@@ -11,8 +11,8 @@ from barkley.model.events import TellAt
 from barkley.model.game import Game, Loose, Session
 from barkley.model.hero import Hero
 from barkley.assets.tunes import SPOP, SSQUAWK
-from barkley.stage.hero.moves import GSCARED
 from barkley.stage.fx.parts import PBEATEN, Strew
+from barkley.stage.things.react import GSCARED
 
 private const GULLSEE = 100
 private const DIVEV = 210!
