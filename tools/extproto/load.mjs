@@ -46,7 +46,8 @@ const env = {
   },
 };
 host = new WebAssembly.Instance(new WebAssembly.Module(readFileSync(process.argv[2])), { env });
-console.log('add(40, 2) =', host.exports.run());
+const failed = host.exports.run();
+console.log('drive:', failed ? `failed at step ${failed}` : 'all as expected');
 
 const ex = host.exports;
 const worklet = new Worker(new URL('./worklet.mjs', import.meta.url), {
