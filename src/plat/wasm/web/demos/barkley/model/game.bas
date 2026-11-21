@@ -85,7 +85,13 @@ type Session
     goldLo as long
     goldHi as long
     unkept as integer
+    pulse as long
+    tempo as integer
 end type
+
+' The zone tune's clock is the session's pulse, PULSES of it a beat: a tick is the tune's beats a minute of them,
+' its tempo.
+const PULSES = 3600
 
 const NLOOSE = 24, NPART = 48
 const TITLE = 0, PLAYING = 1, CLEARED = 2, OVER = 3, INTRO = 4

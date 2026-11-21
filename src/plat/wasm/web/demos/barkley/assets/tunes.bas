@@ -10,7 +10,7 @@ from barkley.model.game import CLEARED, Game, INTRO, OVER, Session, TITLE
 
 const SJUMP = 0, SBONE = 1, SHURT = 2, SSPRING = 3, SPOP = 4, SROLL = 5
 const SCHARGE = 6, SLAUNCH = 7, SCLEAR = 8, SDIE = 9, SMARK = 10, SBOOST = 11, SHISS = 12, SBARK = 13, SBUMP = 14
-const SSQUAWK = 15, SCRACK = 16, SCLANK = 17, SGOLD = 18, STWANG = 19, SSNATCH = 20
+const SSQUAWK = 15, SCRACK = 16, SCLANK = 17, SGOLD = 18, STWANG = 19, SSNATCH = 20, SMORTAR = 21
 const CAUGHTUP = 2, PACKING = 10, LEFTBEHIND = 11
 const ZTUNE = 0
 private const THEME = 1
@@ -62,6 +62,9 @@ sub Sfx (mu as Deck, se as Session, id as integer)
     case SSNATCH
         ' a bone snatched: the bone's own notes, low and turned over
         s = "L64O3EO2B"
+    case SMORTAR
+        ' a mortar fired: a thump, and its shell's whistle up
+        s = "L64O1CO0GL32O5CEG"
     end select
     play , , , "T255W1V13Y0K0I0H0,0,15,0" + s
 end sub
@@ -114,6 +117,14 @@ function EndBeat! (mu as Deck, se as Session, g as Game)
     EndBeat! = -1
     if mu.slot = CAUGHT then EndBeat! = (se.ticks - mu.songAt) * STEPT * mu.song(CAUGHT).tempo / 60
 end function
+
+' The zone tune's clock told the session: by the tune's own ticks while it plays, by the game's where it does not.
+sub KeepBeat (mu as Deck, se as Session)
+    se.tempo = mu.song(ZTUNE).tempo
+    se.pulse = se.ticks * se.tempo
+    if mu.muted or not mu.tune or mu.slot <> ZTUNE then exit sub
+    se.pulse = (se.ticks - mu.songAt) * se.tempo
+end sub
 
 ' The slot to play for the game's state: the theme for the title, the level's end or game over, else the zone's
 ' tune.

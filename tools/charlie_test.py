@@ -34,7 +34,7 @@ from barkley.model.level import GRAV, Ground, KBONE, KBRAMBLE, KBUOY, KCAT, KCIS
 from barkley.model.level import KICICLE, KJELLY, KJET, KLEG, KLOAD, KLOG, KLOOP, KMOUND, KPIPE, KPRESS, KSAPLING, KSEAT
 from barkley.model.level import KSLED, KSPAN, KSPARK, KSPRING, KSQUIRREL, KSWEEP, KTHROW, KVINE, KWALL, KWAVE, Level, MH
 from barkley.model.level import KAWNING, KBIN, KCHIMNEY, KGOLD, KPOUNCE, KWALKER, NGOLD, NONE, NSTAGE, TS, ZONES
-from barkley.model.level import KSNATCH
+from barkley.model.level import KMORTAR, KSNATCH
 from barkley.model.game import CLEARED, Cue, Game, INTRO, Loose, NCUE, NLOOSE, NPART, OVER, Part, PLAYING, Session
 from barkley.model.game import Found, Gild, TITLE
 from barkley.assets.palette import CBEE, CFLY, CGOLD, CINK, CNUT, CSEA, CVINE, CVINED, CWHITE, CYELLOW
@@ -42,7 +42,7 @@ from barkley.assets.palette import CLINEN, CPOLE, CQINK, CSOOT
 from barkley.assets.store import BuildArt
 from barkley.assets.cast import BaronPic, FamPic
 from barkley.assets.tunes import CAUGHT, CAUGHTUP, EndBeat, LEFTBEHIND, LoadSongs, PACKING, PickSong, SCLANK, Sfx, SHURT
-from barkley.assets.tunes import SJUMP, SongFor, SSNATCH, Sudden, ZoneTune, ZTUNE
+from barkley.assets.tunes import KeepBeat, SJUMP, SMORTAR, SongFor, Sudden, ZoneTune, ZTUNE
 from barkley.world.terrain.ground import LoadTables, LOOPR, SegAt, Solid, Surf, WADE, WAVEL
 from barkley.world.terrain.track import MOVEW, WAVEA
 from barkley.world.layout import PITD
@@ -136,7 +136,7 @@ for j = 0 to NSLOT - 1
         play hf.drums, hf.bass, hf.one, , hf.lead, hf.two, hf.under, hf.third
     next
 next
-for j = SJUMP to SSNATCH
+for j = SJUMP to SMORTAR
     Sfx wd.mu, wd.se, j
 next
 print "sounds ok"
@@ -2030,6 +2030,160 @@ GoStage wd, 10, g, p, lo(), pt()
 g.modeT = 20
 was = was and wd.lv.ob(c).s = -1 and wd.lv.ob(c).x = bx
 if was then print "snatcher ok"
+' a mortar fires on its own beat of every four, by the zone tune's clock. The festival's is 144 beats a minute: a
+' beat is 25 ticks, and the mortar on beat 1 fires at each tick 25 past a hundred. Who stands beside it then is
+' burnt, and for 6 ticks more, not the 7th, and at no other. Who is in the air over its mouth at that tick goes up
+' at 620, his way kept, 256 high, 620 squared over twice GRAV; 3 ticks on he falls on. Its shell is 46 up half a
+' beat on, 12 ticks; a beat and a half on its burst's white middle is 96 up. A stage begun again keeps its beat
+GoStage wd, 11, g, p, lo(), pt()
+g.modeT = 20
+for c = 0 to wd.lv.nObj - 1
+    if wd.lv.ob(c).k = KMORTAR then exit for
+next
+was = c < wd.lv.nObj and wd.lv.ob(c).s = 1 and wd.mu.song(ZTUNE).tempo = 144
+bx = wd.lv.ob(c).x
+m = wd.lv.ob(c).y
+colA(0) = wd.mu.muted
+wd.mu.muted = -1
+' beside it from 15 ticks after it fired till it fires again, unhurt; then burnt
+Stand wd.lv, wd.gr, p, bx - 10, 0
+g.bones = 3
+p.inv = 9
+do until wd.se.ticks mod 100 = 40
+    Tick wd, g, p, k, lo(), pt()
+loop
+p.inv = 0
+do until wd.se.ticks mod 100 = 24
+    Tick wd, g, p, k, lo(), pt()
+loop
+was = was and not p.stun and g.bones = 3
+Tick wd, g, p, k, lo(), pt()
+was = was and p.stun and g.bones = 0
+' the 7th tick on, not
+do until wd.se.ticks mod 100 = 31
+    Tick wd, g, p, k, lo(), pt()
+loop
+Stand wd.lv, wd.gr, p, bx - 10, 0
+p.stun = 0
+p.inv = 0
+g.bones = 3
+Tick wd, g, p, k, lo(), pt()
+was = was and not p.stun and g.bones = 3
+' the 6th, burnt
+p.inv = 9
+do until wd.se.ticks mod 100 = 30
+    Tick wd, g, p, k, lo(), pt()
+loop
+p.inv = 0
+Tick wd, g, p, k, lo(), pt()
+was = was and p.stun and g.bones = 0
+' 10 over its mouth as it fires
+p.inv = 9
+do until wd.se.ticks mod 100 = 24
+    Tick wd, g, p, k, lo(), pt()
+loop
+p.stun = 0
+p.inv = 0
+p.ground = 0
+p.roll = 0
+p.x = bx
+p.y = m - 24
+p.vx = 80
+p.vy = 0
+Tick wd, g, p, k, lo(), pt()
+was = was and p.vy = -620 and p.vx > 60 and not p.stun
+v = cint(p.y)
+for i = 1 to 200
+    Tick wd, g, p, k, lo(), pt()
+    if p.vy >= 0 then exit for
+next
+was = was and abs(v - cint(p.y) - 256) < 8
+' there 3 ticks after it fires
+do until wd.se.ticks mod 100 = 27
+    Tick wd, g, p, k, lo(), pt()
+loop
+p.ground = 0
+p.x = bx
+p.y = m - 24
+p.vx = 0
+p.vy = 0
+Tick wd, g, p, k, lo(), pt()
+was = was and p.vy > 0 and not p.stun
+' drawn: its tube and its shell, its burst, and neither two beats on
+Stand wd.lv, wd.gr, p, bx - 60, 0
+p.inv = 9
+for j = 0 to 2
+    do until wd.se.ticks mod 100 = 37 + j * 25
+        Tick wd, g, p, k, lo(), pt()
+    loop
+    g.camx = bx - 160
+    g.camy = m - 150
+    g.shake = 0
+    Render wd, g, p, lo(), pt()
+    colA(1 + j) = point(158, 87)
+    colB(1 + j) = point(158, 38)
+    was = was and point(160, 144) >= 164 and point(160, 144) <= 166
+next
+was = was and colA(1) = 141 and colA(2) <> 141 and colA(3) <> 141
+was = was and colB(1) <> 147 and colB(2) = 147 and colB(3) <> 147
+' the clock: the game's ticks, each the tune's beats a minute of pulses; the tune's own ticks while it plays
+hid = wd.se.ticks
+shown = wd.mu.songAt
+colA(4) = wd.mu.tune
+colA(5) = wd.mu.slot
+wd.se.ticks = 1000
+KeepBeat wd.mu, wd.se
+was = was and wd.se.pulse = 144000 and wd.se.tempo = 144
+wd.mu.muted = 0
+wd.mu.tune = -1
+wd.mu.slot = ZTUNE
+wd.mu.songAt = 400
+KeepBeat wd.mu, wd.se
+was = was and wd.se.pulse = 86400
+wd.mu.muted = -1
+KeepBeat wd.mu, wd.se
+was = was and wd.se.pulse = 144000
+wd.mu.muted = 0
+wd.mu.tune = 0
+KeepBeat wd.mu, wd.se
+was = was and wd.se.pulse = 144000
+wd.mu.tune = -1
+wd.mu.slot = CAUGHT
+KeepBeat wd.mu, wd.se
+was = was and wd.se.pulse = 144000
+wd.se.ticks = hid
+wd.mu.songAt = shown
+wd.mu.tune = colA(4)
+wd.mu.slot = colA(5)
+wd.mu.muted = colA(0)
+if was then print "mortar ok"
+' the pilot walked into a mortar's flash, burnt in 9 runs of 25: it jumps one now, whenever it fires. Run past the
+' festival night's two from ten moments of the bar, it is never hurt. From the stage's start it would come to
+' them at one moment only, the one a platform before them lets it through at
+GoStage wd, 11, g, p, lo(), pt()
+g.modeT = 20
+for c = 0 to wd.lv.nObj - 1
+    if wd.lv.ob(c).k = KMORTAR then exit for
+next
+bx = wd.lv.ob(c).x
+colA(0) = wd.mu.muted
+wd.mu.muted = -1
+was = c < wd.lv.nObj
+for j = 0 to 9
+    Stand wd.lv, wd.gr, p, bx - 150, 0
+    p.stun = 0
+    p.inv = 0
+    wd.se.ticks = j * 10
+    for i = 1 to 600
+        Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k
+        Tick wd, g, p, k, lo(), pt()
+        if p.stun then was = 0
+        if p.x > bx + 250 then exit for
+    next
+    was = was and p.x > bx + 250
+next
+wd.mu.muted = colA(0)
+if was then print "mortar pilot ok"
 ' Russet Wood is the fifth zone, by name and in its own colours: its litter's top the same picture at both hours,
 ' russet gold at a misty noon and not on the firefly night
 was = ZoneName$(4) = "RUSSET WOOD"
@@ -4051,6 +4205,8 @@ def main() -> None:
         ("pouncer ok", "a bark brings a pouncer out early; rolled into in the air it is beaten for good"),
         ("walker ok", "a rope-walker walks its clothesline, flinches at a bark, is shaken off by a bounce, scratches"),
         ("snatcher ok", "a snatcher runs to a loose bone in its beat and takes it for good; startled it takes none"),
+        ("mortar ok", "a mortar fires on its beat of the tune: it burns who is beside it and throws up who is over it"),
+        ("mortar pilot ok", "the pilot jumps a mortar's flash: through the festival night it is never hurt"),
         ("firefly ok", "the wood's night dark but for a few fireflies; a bark wakes them and lights it for a while"),
         ("sapling ok", "a bowed sapling throws him who crosses its crown, higher the faster; sprung it throws no one"),
         ("vine ok", "a vine caught in the air swings him as a weight, lets go at a jump, and hangs straight again"),

@@ -6,11 +6,11 @@ from barkley.engine.clock import STEPT
 from barkley.engine.audio import Deck
 from barkley.model.hero import Hero, Pad
 from barkley.model.level import KBONE, KCAT, KCHIMNEY, KCRAB, KGOAT, KJELLY, KMOUND, KSQUIRREL, KSWEEP, KTHROW, KWALL
-from barkley.model.level import KSNATCH, KWALKER, MH, NONE, NSTAGE, TS
+from barkley.model.level import KMORTAR, KSNATCH, KWALKER, MH, NONE, NSTAGE, TS
 from barkley.model.game import CLEARED, Game, Loose, NLOOSE, NPART, OVER, Part, PLAYING, Session, TITLE
 from barkley.model.world import NLOB, NMOVE, World
 from barkley.assets.palette import Cycle, Shade, Shimmer
-from barkley.assets.tunes import CAUGHT, EndBeat, EndTune, SBONE, SCLEAR, Sfx
+from barkley.assets.tunes import CAUGHT, EndBeat, EndTune, KeepBeat, SBONE, SCLEAR, Sfx
 from barkley.world.level import LoadLevel, ZoneOf
 from barkley.world.movers import Movers
 from barkley.stage.fx.damage import Lose
@@ -56,6 +56,7 @@ end sub
 ' A step. The title plays itself: Charlie run by the pilot.
 sub Tick (wd as World, g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
     wd.se.ticks = wd.se.ticks + 1
+    KeepBeat wd.mu, wd.se
     if wd.zn.id = 1 and (wd.se.ticks and 3) = 0 then Cycle wd.tn, wd.se
     if wd.lv.murk then Nightfall wd.lv, wd.zn, wd.tn
     if wd.lv.tideLo <> NONE then Flow wd.lv, wd.se
@@ -172,8 +173,8 @@ sub ResetWorld (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
     g.homeY = wd.lv.startY
     for i = 0 to wd.lv.nObj - 1
         wd.lv.ob(i).x = wd.lv.ob(i).a
-        ' a burrow's mound keeps its other end, and a chimney
-        if wd.lv.ob(i).k = KMOUND or wd.lv.ob(i).k = KCHIMNEY then continue for
+        ' a burrow's mound keeps its other end, and a chimney; a mortar its beat
+        if wd.lv.ob(i).k = KMOUND or wd.lv.ob(i).k = KCHIMNEY or wd.lv.ob(i).k = KMORTAR then continue for
         wd.lv.ob(i).s = 0
         if wd.lv.ob(i).k = KBONE then wd.lv.ob(i).s = 1
         if wd.lv.ob(i).k = KCAT or wd.lv.ob(i).k = KCRAB or wd.lv.ob(i).k = KSWEEP then wd.lv.ob(i).s = -1

@@ -206,8 +206,8 @@ Progress is saved at each zone.
 ### 6. Lantern Quarter (its look and tune built)
 
 - Built: its backdrop, ground, props and card at the blue hour and on the festival night; two stand-in levels,
-  to its tune and the festival's arrangement; clotheslines, lantern lines, awnings, chimneys, trams; pouncers,
-  rope-walkers, snatchers. To add: tippers, its acts, its chase, the fireworks; a street's own paving.
+  to its tune and the festival's arrangement; clotheslines, lantern lines, awnings, chimneys, trams, mortars;
+  pouncers, rope-walkers, snatchers. To add: tippers, its acts, its chase; a street's own paving.
 - A clothesline (`line,N`) spans a street N columns wide, post to post. Come down on, it throws him up, his way
   kept: 60 pixels off the first, 107 off the second in a row, 167 off each after; the ground ends the row.
 - An awning (`awning,N`) stands out from the wall that begins there, N tiles up. Come down on, it throws him 135
@@ -225,6 +225,10 @@ Progress is saved at each zone.
   stands it startled, as a cat.
 - A snatcher (`snatcher,0`) is a grey cat in a mask. It prowls as a cat; a loose bone within its beat it runs to
   at three times the pace and takes for good. Startled by a bark it takes none.
+- A mortar (`mortar,n`) fires on beat n of every four of the zone's tune, its fuse alight the beat before. As it
+  fires, who is in the air over its mouth goes up at 620, some 256 high; for a quarter beat its flash burns who
+  stands beside it. Its shell bursts 96 up: the fireworks. The beat is the tune's own clock while it plays, the
+  game's when it does not.
 - Rule: footing. The ground is narrow, springy or moving: lines, awnings, tram roofs.
 - Gadgets: clotheslines, each landing higher than the last; awnings; chimneys, in one and out another;
   trams; lantern lines to slide.

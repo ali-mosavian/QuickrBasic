@@ -4892,6 +4892,7 @@ PAPER = both(141, "#FFF8C0 #FFA028 #D84828", "#FFF8C0 #FFA028 #D84828", 5)  # a 
 QPOLE = both(161, "#D8A070 #A06848 #6C4038", "#A07C78 #74546C #4C3458", 5)
 TIN = both(164, "#D8E0F0 #98A4C8 #6870A0 #3C3C70", "#A0A8D0 #6C74A8 #484C84 #282858", 5)
 CLAY = both(190, "#F09860 #C06840 #58B458", "#C07C60 #8C5048 #3C8858", 5)  # a pot lit and shaded, its plant
+FIRE = both(144, "#FF78B8 #FFE070 #70F0E0 #FFFFFF", "#FF78B8 #FFE070 #70F0E0 #FFFFFF", 5)  # a firework's
 # a tram: its roof lit and shaded, its side red to dark, its windows
 TRAMWAY = both(185, "#FFF0C8 #D8C098 #E05040 #A83440 #FFD878", "#F0DCB0 #B8A088 #C84040 #8C2C40 #FFD060", 5)
 # washing: white and its shade, blue, red, yellow
@@ -5236,6 +5237,33 @@ def snatcher(f: int) -> Pic:
     return p
 
 
+def mortar() -> Pic:
+    """A firework's mortar: a short tube leant back on its foot, a band round it."""
+    p = Pic(13, 15)
+    m = poly([(4, 13), (2, 3), (7, 1), (10, 12)])
+    part(p, m, [TIN[2], TIN[1], TIN[0]], 1.5, 1.2)
+    for x, y in m:
+        if y in (6, 7):
+            p.put(x, y, PAPER[2])
+    p.box(1, 13, 11, 14, QPOLE[2])
+    return p.outline(QINK)
+
+
+def burst(f: int, a: int, b: int) -> Pic:
+    """A firework burst, f 0 to 2 as it opens: sixteen rays of dots out from a white middle, by turns in a and b, a
+    dot of a at each ray's end. Opened, its middle and its inmost dots are gone."""
+    p = Pic(48, 48)
+    r = (8, 15, 22)[f]
+    for k in range(16):
+        ang = 2 * math.pi * k / 16
+        for d in (0.38, 0.62, 0.84)[f // 2 :]:
+            p.put(round(24 + r * d * math.cos(ang)), round(24 + r * d * math.sin(ang) * 0.92), a if k % 2 else b)
+        p.put(round(24 + r * math.cos(ang)), round(24 + r * math.sin(ang) * 0.92), a)
+    if f < 2:
+        p.box(23, 23, 24, 24, FIRE[3])
+    return p
+
+
 def lanternq() -> list[tuple[int, Pic, bool, int]]:
     """The Lantern Quarter's own pictures, at the indices the Downs' own have."""
     k, z = 126, 625
@@ -5264,6 +5292,9 @@ def lanternq() -> list[tuple[int, Pic, bool, int]]:
         (z + 1308, dustbin(False), True, -1),
         *[(z + 1310 + f * 2, snatcher(f), True, z + 1314 + f * 2) for f in range(2)],
         (z + 1318, snatcher(2), True, z + 1320),
+        (z + 1322, mortar(), True, -1),
+        *[(z + 1324 + f * 2, burst(f, FIRE[0], FIRE[1]), True, -1) for f in range(3)],
+        *[(z + 1330 + f * 2, burst(f, FIRE[2], FIRE[3]), True, -1) for f in range(3)],
     ]
     return out
 

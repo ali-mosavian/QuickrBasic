@@ -1,18 +1,18 @@
-' Lantern Quarter: clotheslines, lantern lines, awnings and chimneys; pouncers, rope-walkers and snatchers.
+' Lantern Quarter: clotheslines, lantern lines, awnings, chimneys and mortars; pouncers, rope-walkers and snatchers.
 defint A-Z
 option explicit
 
 from barkley.engine.video import Blit, Store, SW
 from barkley.engine.clock import STEPT
 from barkley.engine.audio import Deck
-from barkley.model.images import ICAT, ICATF, IPAPER, ISHIRT, ISNATCH, ISOCK, ITROUSERS
+from barkley.model.images import IBURST, ICAT, ICATF, IMORTAR, IPAPER, ISHIRT, ISNATCH, ISOCK, ITROUSERS
 from barkley.model.hero import Hero
 from barkley.model.level import Level, NONE, Rope, TS
-from barkley.model.game import Game, Loose, NLOOSE, Part, Session, TOONEW
-from barkley.assets.palette import CLINEN, CPOLE, CQINK, CSOOT, CWHITE
-from barkley.assets.tunes import Sfx, SROLL, SSNATCH, SSPRING, STWANG
+from barkley.model.game import Game, Loose, NLOOSE, Part, PULSES, Session, TOONEW
+from barkley.assets.palette import CLANT, CLINEN, CPOLE, CQINK, CSOOT, CWHITE
+from barkley.assets.tunes import Sfx, SHURT, SMORTAR, SROLL, SSNATCH, SSPRING, STWANG
 from barkley.stage.fx.parts import Burst
-from barkley.stage.fx.damage import Beaten, Tackle
+from barkley.stage.fx.damage import Beaten, Hurt, Tackle
 from barkley.stage.hero.modes import FLUEH
 from barkley.stage.zones.downs import BEAT, CatPic, Paced, Prowl
 
@@ -30,6 +30,17 @@ const WALKIN = 14
 
 ' A snatcher: the pixels a things' step it runs to a loose bone, and how near one it takes it.
 const SNATCHV = 3, SNATCHR = 8
+
+' A mortar fires on its own beat of every MORTARBAR, the one its state names; its flash burns FLASHP pulses, a
+' quarter beat. Its mouth is MORTARH over the roof. Who is within MORTARW of its middle and less than MORTARREACH
+' over its mouth as it fires goes up at MORTARV; who is within BLASTW beside it burns. Its shell bursts SHELLUP up.
+const MORTARBAR = 4
+const FLASHP = 900
+const MORTARH = 14
+const MORTARW = 12, MORTARREACH = 48
+const MORTARV = 620!
+const BLASTW = 18
+const SHELLUP = 96
 
 ' A lantern line: how far apart its lanterns hang; the speed he slides down it at, and how fast he gathers it.
 private const LANTGAP = 18
@@ -210,6 +221,55 @@ sub DrawPouncer (lv as Level, art as Store, se as Session, i as integer, x as in
     if s = 0 or s = POUNCEGONE then exit sub
     if abs(s) <= POUNCEN then s = sgn(s) * 2 else s = sgn(s)
     Blit art, x - 10, y - 13 - Leapt%(lv, i), CatPic%(se, s), 20, 14
+end sub
+
+' The pulses since mortar i last fired.
+function Fired& (lv as Level, se as Session, i as integer)
+    dim q as long
+    q = (se.pulse - clng(lv.ob(i).s) * PULSES) mod (clng(MORTARBAR) * PULSES)
+    if q < 0 then q = q + clng(MORTARBAR) * PULSES
+    Fired& = q
+end function
+
+' A mortar's step: its thump at the step it fires.
+sub Mortar (lv as Level, mu as Deck, se as Session, i as integer)
+    if Fired&(lv, se, i) < 2 * se.tempo then Sfx mu, se, SMORTAR
+end sub
+
+' A mortar: at the tick it fires, who is in the air over its mouth is thrown up, his way kept; while its flash
+' burns, who is beside it is burnt.
+sub MeetMortar (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose)
+    dim q as long, dx as integer, up as integer
+    q = Fired&(lv, se, i)
+    if q >= FLASHP then exit sub
+    dx = abs(lv.ob(i).x - cint(p.x))
+    up = lv.ob(i).y - MORTARH - cint(p.y)
+    if q < se.tempo and dx < MORTARW and up >= 0 and up < MORTARREACH and not p.ground then
+        Toss p, cint(p.y), MORTARV
+        exit sub
+    end if
+    if dx < BLASTW and abs(up + MORTARH) < 12 then Hurt mu, se, g, p, lv.ob(i).x, lo(), SHURT
+end sub
+
+' Mortar i at x, y on the screen: its tube; its fuse alight the beat before it fires; its flash; its shell a beat on
+' its way up, its trail under it, and a beat burst where that ends, in one of two colours.
+sub DrawMortar (lv as Level, art as Store, se as Session, i as integer, x as integer, y as integer)
+    dim q as long, h as integer, f as integer
+    Blit art, x - 6, y - 14, IMORTAR, 13, 15
+    q = Fired&(lv, se, i)
+    if q < FLASHP then
+        line (x - 3, y - 21)-(x - 2, y - 13), CWHITE, BF
+        line (x - 7, y - 18)-(x + 2, y - 17), CWHITE, BF
+    end if
+    if q >= (MORTARBAR - 1) * PULSES and (se.ticks and 4) then line (x - 3, y - 16)-(x - 2, y - 15), CLANT, BF
+    if q < PULSES then
+        h = SHELLUP * q \ PULSES
+        line (x - 3, y - 18 - h)-(x - 2, y - 15 - h), CLANT, BF
+        line (x - 3, y - 14 - h)-(x - 2, y - 12 - h), CLANT + 1, BF
+    elseif q < 2 * PULSES then
+        f = (q - PULSES) * 3 \ PULSES
+        Blit art, x - 26, y - 40 - SHELLUP, IBURST + 2 * f + 6 * (i and 1), 48, 48
+    end if
 end sub
 
 ' The loose bone nearest snatcher i of those to be taken that are within its beat and by its height; NONE with none.

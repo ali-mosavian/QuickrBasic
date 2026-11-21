@@ -5,7 +5,7 @@ option explicit
 from barkley.engine.datafile import Chars, OpenData, Word
 from barkley.model.images import IBG, ICARD, ICARD2, ILOOP, ITILE, ITILE2, IWAVE, IZ2
 from barkley.model.level import KBONE, KBOOST, KBRAMBLE, KBUMP, KBUOY, KBUSH, KBUTTON, KCAT, KCISTERN, KCRAB, KDRIFT
-from barkley.model.level import KAWNING, KBIN, KCHIMNEY, KGOLD, KPOUNCE, KSNATCH, KWALKER
+from barkley.model.level import KAWNING, KBIN, KCHIMNEY, KGOLD, KMORTAR, KPOUNCE, KSNATCH, KWALKER
 from barkley.model.level import KFAM, KFLOWER, KFLUME, KGOAL, KGOAT, KHEAP, KHOOP, KICICLE, KJELLY, KJET, KLEG, KLOAD
 from barkley.model.level import KLOG, KLOOP, KMARK, KMOUND, KPIPE, KPLAT, KPRESS, KROCK, KSAPLING, KSLED, KSPARK, KSPIN
 from barkley.model.level import KSPOUT, KSPRING, KSQUIRREL, KSWEEP, KTANK, KTHORN, KTHROW, KTREE, KVENT, KVINE, KWALL
@@ -370,6 +370,11 @@ sub LoadLevel (wd as World, st as integer)
             Clearing wd.lv, c
             AddObj wd.lv, KCHIMNEY, c * TS + 8, s
             wd.lv.ob(wd.lv.nObj - 1).s = -n - 1
+        case "mortar"
+            ' a mortar, firing on beat n of every bar
+            Clearing wd.lv, c
+            AddObj wd.lv, KMORTAR, c * TS + 8, s
+            wd.lv.ob(wd.lv.nObj - 1).s = n
         case "tram"
             ' a tram on the street here, its way the n columns on: they are laid after it
             AddMover wd.lv, c * TS + 8, s - TRAMH, n * TS - MOVEW - 16, 8, c * TS

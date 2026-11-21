@@ -4,7 +4,7 @@ option explicit
 
 from barkley.model.hero import Hero, HW, Pad
 from barkley.model.level import Ground, KBRAMBLE, KCAT, KCRAB, KJELLY, KLOG, KMOUND, KPOUNCE, KSPARK, KSWEEP, KTHORN
-from barkley.model.level import KSNATCH
+from barkley.model.level import KMORTAR, KSNATCH
 from barkley.model.level import KTHROW
 from barkley.model.level import Level, NONE, Realm, TS
 from barkley.model.game import Session
@@ -125,8 +125,9 @@ private function PilotRun% (lv as Level, gr as Ground, zn as Realm, se as Sessio
     for i = lv.first(x \ TS) to lv.nObj - 1
         if lv.ob(i).x > x + 130 then exit for
         if lv.ob(i).x <= x then continue for
-        ' a pouncer is jumped in its bin and out of it
+        ' a pouncer is jumped in its bin and out of it; a mortar's flash is jumped, whenever it fires
         d = ((lv.ob(i).k = KCAT or lv.ob(i).k = KSNATCH) and lv.ob(i).s <> 0) or lv.ob(i).k = KTHORN
+        d = d or lv.ob(i).k = KMORTAR
         d = d or (lv.ob(i).k = KPOUNCE and lv.ob(i).s <> POUNCEGONE)
         if d and lv.ob(i).x <= x + 50 then want = -1
         ' what is not rolled through, a crab, a jellyfish, a sweeper, a spark: jumped from further back the faster
