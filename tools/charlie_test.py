@@ -12,6 +12,9 @@ The level cleared, Charlie must go on to its family past the goal and stop by th
 Chrome Works, is played through the same way, its moving platforms and lifts ridden.
 First a cat is walked to the level's left end: its look ahead,
 left of column 0, was a negative tile column, and the game stopped with Subscript out of range.
+
+Before it runs, the fields assigned outside their record's owner are counted (docs/engine-design.md,
+Boundaries): the count may only fall.
 """
 
 import sys
@@ -20,10 +23,45 @@ import tempfile
 import subprocess
 from pathlib import Path
 
+import basic_src
 import charlieart
 
 ROOT = Path(__file__).resolve().parents[1]
 DEMO = ROOT / "src/plat/wasm/web/demos/CHARLIE.BAS"
+
+# Each record's owner, the package or module that alone assigns its fields; a record not named
+# here is owned with the record it is a field of.
+OWNERS = {
+    "clock": "engine/clock",
+    "store": "engine/video",
+    "keys": "engine/input",
+    "deck": "engine/audio",
+    "song": "engine/audio",
+    "half": "engine/audio",
+    "hero": "stage/hero",
+    "pad": "control",
+    "thing": "stage/things",
+    "swarm": "stage/things",
+    "bird": "stage/things",
+    "runner": "stage/things",
+    "rover": "stage/things",
+    "front": "stage/things",
+    "rope": "stage/things",
+    "level": "world",
+    "ground": "world",
+    "realm": "world",
+    "mover": "world",
+    "game": "flow",
+    "session": "flow",
+    "cue": "flow/intro",
+    "tones": "assets/palette",
+    "part": "stage/fx",
+    "loose": "stage/fx",
+    "lob": "stage/fx",
+    "world": "model/world",
+}
+# The fields assigned outside their owner today: the count may only fall.
+OUTSIDE = 556
 
 DRIVER = """from barkley.engine.video import Blit, OpenScreen, SH, SW
 from barkley.engine.clock import Clock, Pace, Steps, STEPT
@@ -4523,6 +4561,54 @@ end function
 """
 
 
+def game_files() -> dict[Path, str]:
+    """The game's modules and its main program, by path."""
+    mods = sorted(p for d in ("barkley", "engine") for p in (DEMO.parent / d).rglob("*.bas"))
+    return {p: p.read_text() for p in [*mods, DEMO]}
+
+
+def outside(files: dict[Path, str]) -> list[str]:
+    """Each field assigned outside its record's owner, as module:line record.field."""
+    prog = basic_src.Program(files)
+    holder = {f.type: rec for rec, fs in prog.records.items() for f in fs.values() if f.type in prog.records}
+    out = []
+    for mod in prog.modules:
+        where = mod.path.relative_to(DEMO.parent).with_suffix("").as_posix().removeprefix("barkley/")
+        for st in mod.stmts:
+            for ref in basic_src.assigned(prog, mod, st):
+                if not ref.fields and not (st.routine and ref.base in mod.routines[st.routine].params):
+                    continue
+                rec = ref.type if not ref.fields else ref.fields[-1][2]
+                while rec not in OWNERS and rec in holder:
+                    rec = holder[rec]
+                if rec not in OWNERS:
+                    sys.exit(f"charlie: {where}: {rec} has no owner in charlie_test.py's OWNERS")
+                own = OWNERS[rec]
+                if where != own and not where.startswith(own + "/"):
+                    name = ref.fields[-1][1] if ref.fields else ref.base
+                    out.append(f"{where}:{st.toks[0].line} {rec}.{name}")
+    return out
+
+
+def owners_kept() -> int:
+    """The count of fields assigned outside their owner, which is OUTSIDE: lowered as it falls. The count is
+    checked on planted assignments, two outside their owner (one in a one-line IF) and one inside."""
+    files = game_files()
+    got = len(outside(files))
+    play = DEMO.parent / "barkley/stage/play.bas"
+    moves = DEMO.parent / "barkley/stage/hero/moves.bas"
+    two = "    p = fresh\n    p.gsp = 0\n    if p.dig then p.gsp = 0\n"
+    planted = {**files, play: files[play].replace("    p = fresh\n", two, 1)}
+    inside = {**files, moves: files[moves].replace("    p.gsp = 0\n", "    p.gsp = 0\n    p.gsp = 0\n", 1)}
+    if len(outside(planted)) != got + 2 or len(outside(inside)) != got:
+        sys.exit("charlie: the count of fields assigned outside their owner misses a planted one")
+    if got > OUTSIDE:
+        sys.exit(f"charlie: {got} fields assigned outside their record's owner, more than {OUTSIDE}")
+    if got < OUTSIDE:
+        sys.exit(f"charlie: {got} fields assigned outside their record's owner: lower OUTSIDE to it")
+    return got
+
+
 def pix(p: charlieart.Pic) -> int:
     """A picture summed by place as the driver's Pix& sums the screen."""
     return sum(c * ((x + y * 7) % 31 + 1) for y, row in enumerate(p.p) for x, c in enumerate(row))
@@ -4545,6 +4631,7 @@ def refused(kind: str, text: str) -> bool:
 
 def main() -> None:
     exe = Path(sys.argv[1] if len(sys.argv) > 1 else ROOT / "build/host/basic").resolve()
+    kept = owners_kept()
     src = DEMO.read_text()
     assert "\nMain wd\nend\n" in src, "CHARLIE.BAS's main call moved"
     art = subprocess.run([sys.executable, ROOT / "tools/charlieart.py", "--check"], capture_output=True, text=True)
@@ -4727,7 +4814,7 @@ def main() -> None:
         sys.exit(
             f"charlie: not cleared on the first life round 10 loops (mode, lives, bones, loops, x, y): {out[-300:]}"
         )
-    print(f"charlie ok: cleared with {words[3]} bones")
+    print(f"charlie ok: cleared with {words[3]} bones; {kept} fields assigned outside their owner")
 
 
 if __name__ == "__main__":
