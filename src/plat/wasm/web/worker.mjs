@@ -14,6 +14,7 @@ onmessage = ({ data: { module, memory, args, files } }) => {
     write: (fd, bytes) => postMessage({ out: new TextDecoder('latin1').decode(bytes) }),
     stdin: () => new Uint8Array(0),
     stdio: () => ({ mode: 0o020666, size: 0, mtimeMs: 0 }),
+    isatty: () => true, // the page
     exit: (code) => { throw new Exit(String(code)); },
     tone: (hz) => postMessage({ tone: hz, at: performance.now() }),
     voice: (n, bytes) => postMessage({ voice: n, bytes }),

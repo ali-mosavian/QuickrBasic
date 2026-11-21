@@ -15,6 +15,7 @@ IMPORT(fs_close) int js_fs_close(int fd);
 IMPORT(fs_truncate) int js_fs_truncate(int fd, double size);
 /* *out: mode, size, then the time it was changed in ms since 1970 (f64). */
 IMPORT(fs_stat) int js_fs_stat(const char *path, int fd, void *out);
+IMPORT(fs_isatty) int js_fs_isatty(int fd);
 IMPORT(fs_mkdir) int js_fs_mkdir(const char *path);
 IMPORT(fs_rmdir) int js_fs_rmdir(const char *path);
 IMPORT(fs_unlink) int js_fs_unlink(const char *path);
