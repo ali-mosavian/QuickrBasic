@@ -338,8 +338,8 @@ sub LoadLevel (wd as World, st as integer)
         case "buoy": AddObj wd.lv, KBUOY, (c + n) * TS + 8, s
         case "gull"
             ' a gull, its home n tiles over the ground here
-            wd.lv.gulls(wd.lv.nGulls).hx = c * TS + 8
-            wd.lv.gulls(wd.lv.nGulls).hy = s - n * TS
+            wd.lv.gulls(wd.lv.nGulls).home.x = c * TS + 8
+            wd.lv.gulls(wd.lv.nGulls).home.y = s - n * TS
             wd.lv.nGulls = wd.lv.nGulls + 1
         case "line"
             ' a street n wide and a clothesline over it, post to post, LINEH over the roof here

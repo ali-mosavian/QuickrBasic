@@ -3798,14 +3798,14 @@ if was and p.vel.y < -300 and wd.lv.ob(c).s > 0 and not p.swim then print "buoy 
 ' a gull hovers about its home while Charlie is far off; once he stands under it with bones it dives, takes
 ' five, and climbs home with them, to dive no more
 GoStage wd, 4, g, p, lo(), pt()
-c = wd.lv.gulls(0).hx
+c = wd.lv.gulls(0).home.x
 g.bones = 8
 Stand wd.lv, wd.gr, p, c - 300, 0
 for i = 1 to 30
     Tick wd, g, p, k, lo(), pt()
 next
-was = wd.lv.nGulls > 0 and wd.lv.gulls(0).st = GHOVER and abs(wd.lv.gulls(0).x - c) <= 24
-was = was and abs(wd.lv.gulls(0).y - wd.lv.gulls(0).hy) <= 4
+was = wd.lv.nGulls > 0 and wd.lv.gulls(0).st = GHOVER and abs(wd.lv.gulls(0).at.x - c) <= 24
+was = was and abs(wd.lv.gulls(0).at.y - wd.lv.gulls(0).home.y) <= 4
 Stand wd.lv, wd.gr, p, c, 0
 for i = 1 to 120
     Tick wd, g, p, k, lo(), pt()
@@ -3839,10 +3839,10 @@ p.ground = 0
 p.vel.y = -100
 p.roll = -1
 wd.lv.gulls(0).st = GDIVE
-wd.lv.gulls(0).x = p.at.x
-wd.lv.gulls(0).y = p.at.y - 13
-wd.lv.gulls(0).tx = p.at.x
-wd.lv.gulls(0).ty = p.at.y - 13
+wd.lv.gulls(0).at.x = p.at.x
+wd.lv.gulls(0).at.y = p.at.y - 13
+wd.lv.gulls(0).aim.x = p.at.x
+wd.lv.gulls(0).aim.y = p.at.y - 13
 Tick wd, g, p, k, lo(), pt()
 if was and wd.lv.gulls(0).st = 0 and g.score = hid + 100 then print "gull ok"
 ' Kipper's pedal boat waits on the sea in its channel; Charlie come to it, it goes to the channel's end and

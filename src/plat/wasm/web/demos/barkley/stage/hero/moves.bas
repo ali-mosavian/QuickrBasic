@@ -408,7 +408,7 @@ private sub Bark (lv as Level, mu as Deck, se as Session, p as Hero)
     next
     for i = 0 to lv.nGulls - 1
         if lv.gulls(i).st <= 0 then continue for
-        if abs(lv.gulls(i).x - p.at.x) >= GULLHEAR or abs(lv.gulls(i).y - p.at.y) >= GULLHEAR then continue for
+        if abs(lv.gulls(i).at.x - p.at.x) >= GULLHEAR or abs(lv.gulls(i).at.y - p.at.y) >= GULLHEAR then continue for
         lv.gulls(i).st = GSCARED
     next
 end sub

@@ -68,17 +68,17 @@ end sub
 ' Gull b toward x, y at v: there, or nearer. Whether it is there.
 private function Glide% (b as Bird, x as single, y as single, v as single)
     dim dx as single, dy as single, d as single
-    dx = x - b.x
-    dy = y - b.y
+    dx = x - b.at.x
+    dy = y - b.at.y
     d = sqr(dx * dx + dy * dy)
     if dx <> 0 then b.face = dx < 0
     if d <= v * STEPT then
-        b.x = x
-        b.y = y
+        b.at.x = x
+        b.at.y = y
         Glide% = -1
     else
-        b.x = b.x + dx / d * v * STEPT
-        b.y = b.y + dy / d * v * STEPT
+        b.at.x = b.at.x + dx / d * v * STEPT
+        b.at.y = b.at.y + dy / d * v * STEPT
         Glide% = 0
     end if
 end function
@@ -89,8 +89,8 @@ private sub Spill (se as Session, b as Bird, lo() as Loose)
     for i = 0 to NLOOSE - 1
         if b.loot = 0 then exit for
         if lo(i).t > 0 then continue for
-        lo(i).at.x = b.x
-        lo(i).at.y = b.y
+        lo(i).at.x = b.at.x
+        lo(i).at.y = b.at.y
         lo(i).vel.x = (b.loot * 37 mod 90) - 45
         lo(i).vel.y = -40
         lo(i).t = 4
@@ -105,37 +105,37 @@ end sub
 ' home and makes it drop what it took; a rolling Charlie knocks it out of the air.
 private sub Gull (mu as Deck, se as Session, b as Bird, n as integer, g as Game, p as Hero, lo() as Loose, pt() as Part)
     dim x as single, y as single, lead as single
-    x = b.hx + 24 * sin(se.ticks * .02 + n * 2)
-    y = b.hy + 4 * sin(se.ticks * .07 + n)
+    x = b.home.x + 24 * sin(se.ticks * .02 + n * 2)
+    y = b.home.y + 4 * sin(se.ticks * .07 + n)
     select case b.st
     case GHOVER
         b.face = cos(se.ticks * .02 + n * 2) < 0
-        b.x = x
-        b.y = y
-        if b.t > 0 then b.t = b.t - STEPT
-        if b.t <= 0 and b.loot = 0 and g.bones > 0 and abs(p.at.x - x) < GULLSEE and p.at.y > y + 30 then
+        b.at.x = x
+        b.at.y = y
+        if b.rest > 0 then b.rest = b.rest - STEPT
+        if b.rest <= 0 and b.loot = 0 and g.bones > 0 and abs(p.at.x - x) < GULLSEE and p.at.y > y + 30 then
             lead = (p.at.y - 13 - y) / DIVEV * 60
-            b.tx = p.at.x + (p.at.x - p.last_x) * lead
-            b.ty = p.at.y - 13
+            b.aim.x = p.at.x + (p.at.x - p.last_x) * lead
+            b.aim.y = p.at.y - 13
             b.st = GDIVE
             Sfx mu, se, SSQUAWK
         end if
-    case GDIVE: if Glide%(b, b.tx, b.ty, DIVEV) then b.st = GCLIMB
+    case GDIVE: if Glide%(b, b.aim.x, b.aim.y, DIVEV) then b.st = GCLIMB
     case GCLIMB
         if Glide%(b, x, y, CLIMBV) then
             b.st = GHOVER
-            b.t = GULLREST
+            b.rest = GULLREST
         end if
     case GSCARED
         Spill se, b, lo()
         b.st = GCLIMB
     end select
-    if abs(b.x - p.at.x) >= 13 or abs(b.y - p.at.y + 13) >= 15 then exit sub
+    if abs(b.at.x - p.at.x) >= 13 or abs(b.at.y - p.at.y + 13) >= 15 then exit sub
     if p.roll or p.charging then
         Spill se, b, lo()
         b.st = 0
         g.score = g.score + 100
-        Burst se, pt(), b.x, b.y, 10, 130, CWHITE
+        Burst se, pt(), b.at.x, b.at.y, 10, 130, CWHITE
         Sfx mu, se, SPOP
     elseif b.st = GDIVE then
         b.loot = g.bones
@@ -157,8 +157,8 @@ end sub
 sub DrawGulls (lv as Level, art as Store, se as Session, cx as integer, cy as integer)
     dim i as integer, x as integer, y as integer, k as integer
     for i = 0 to lv.nGulls - 1
-        x = cint(lv.gulls(i).x) - cx
-        y = cint(lv.gulls(i).y) - cy
+        x = cint(lv.gulls(i).at.x) - cx
+        y = cint(lv.gulls(i).at.y) - cy
         if lv.gulls(i).st <= 0 or x <= -20 or x >= SW + 20 then continue for
         k = IGULL - 4 * lv.gulls(i).face
         if lv.gulls(i).st <> GDIVE then k = k + ((se.ticks \ 8) and 1) * 2

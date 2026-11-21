@@ -193,9 +193,9 @@ sub ResetWorld (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
         wd.lv.mv(i).t = 0
     next
     for i = 0 to wd.lv.nGulls - 1
-        wd.lv.gulls(i).x = wd.lv.gulls(i).hx
-        wd.lv.gulls(i).y = wd.lv.gulls(i).hy
-        wd.lv.gulls(i).t = 0
+        wd.lv.gulls(i).at.x = wd.lv.gulls(i).home.x
+        wd.lv.gulls(i).at.y = wd.lv.gulls(i).home.y
+        wd.lv.gulls(i).rest = 0
         wd.lv.gulls(i).st = GHOVER
         wd.lv.gulls(i).loot = 0
     next

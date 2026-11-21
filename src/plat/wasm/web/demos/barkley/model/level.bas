@@ -11,16 +11,13 @@ type Swarm
     st as integer
 end type
 
-' A gull: where it is, its home, where its dive is aimed, the seconds till it may dive again, what it is doing,
+' A gull: where it is, its home, where its dive is aimed, the seconds of rest till it may dive again, what it is doing,
 ' the bones it carries, and whether it heads left.
 type Bird
-    x as single
-    y as single
-    hx as integer
-    hy as integer
-    tx as single
-    ty as single
-    t as single
+    at as Vec
+    home as Spot
+    aim as Vec
+    rest as single
     st as integer
     loot as integer
     face as integer
