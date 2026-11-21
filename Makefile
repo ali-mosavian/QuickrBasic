@@ -246,8 +246,9 @@ $(B)/lib/gfx.qbx: $(GFX_PARTS) $(B)/ext/gfx.dll tools/qbx.py
 -include $(GFX_DOS_OBJ:%=%.d)
 
 host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/hostperf/basic build/host/ext/qxtest.so \
-		build/host/lib/gfx.qbx
+		build/host/lib/gfx.qbx $(NAMES)
 	for t in $(TOOLS_TEST); do $(PY) $$t || exit 1; done
+	CLANG=$(CLANG) $(PY) tools/rtstatic_test.py $(NAMES) $(addprefix $(QBRT)/,$(QBRT_DOS_C)) src/qbrt/qbrt.c src/qbrt/qbrt_dos.c
 	build/host/unit_tests
 	sh tests/host/longpath.sh build/host/basic
 	sh tests/host/dosname.sh build/host/basic

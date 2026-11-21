@@ -4,7 +4,7 @@
    The card is the host's audio device (plat/paud.h): it plays a DMA buffer of two halves over and over (8-bit,
    auto-initialize) and interrupts as each half ends; the interrupt fills that half from the streams open, the
    synthesizer (plat/synth) one of them. The card is started by the first stream, the synthesizer's at its first note,
-   so a program that never uses one never touches it. */
+   so a program that never uses one never touches it, nor takes the memory either needs. */
 #include "device.h"
 #include "llrm_os.h"
 #include "music.h"
@@ -59,11 +59,12 @@ static struct {
     unsigned char opened, tried;
     unsigned selector; /* the DOS memory's */
     unsigned char *buffer;
+    short *samples; /* a half's, mixed; taken with the card */
     unsigned half; /* the one to fill next */
     unsigned pic_mask; /* the card's line's mask bit as it was */
 } card;
 
-static Synth synth;
+static Synth *synth;           /* taken while its stream is open */
 static unsigned char synth_on; /* its stream open */
 
 /* ---- the DSP ---- */
@@ -188,7 +189,7 @@ static void buffer_close(void)
 
 static void fill(unsigned half)
 {
-    static short samples[HALF];
+    const short *const samples = card.samples;
     unsigned char *const out = card.buffer + half * HALF;
     unsigned i;
 
@@ -196,7 +197,7 @@ static void fill(unsigned half)
        carried to the next, so the loss is hiss over the notes, not grit on them */
     static int carry;
 
-    paud_mix(samples, HALF);
+    paud_mix(card.samples, HALF);
     for (i = 0; i < HALF; i++) {
         const int exact = samples[i] * 3 + carry, level = exact >> 10;
 
@@ -243,12 +244,14 @@ static bool card_start(void)
 
     if (card.tried)
         return card.opened;
+    card.samples = dev_take(HALF * sizeof *card.samples); /* Out of memory: tried again at the next note */
     card.tried = 1;
-    if (!blaster() || !dsp_reset() || !dsp_write(DSP_VERSION) || dsp_read() < 2 || dsp_read() < 0)
+    if (!blaster() || !dsp_reset() || !dsp_write(DSP_VERSION) || dsp_read() < 2 || dsp_read() < 0 ||
+        !(physical = buffer_open())) {
+        dev_give(card.samples);
+        card.samples = 0;
         return false;
-    physical = buffer_open();
-    if (!physical)
-        return false;
+    }
 
     card.half = 0;
     fill(0);
@@ -285,6 +288,8 @@ static void card_stop(void)
     dev_sb_unhook();
     dsp_reset();
     buffer_close();
+    dev_give(card.samples);
+    card.samples = 0;
 }
 
 static uint32_t card_lock(void) { return dev_irq_save(); }
@@ -302,7 +307,7 @@ static const PaudDevice card_device = {
 
 void dev_audio_init(void) { paud_device(&card_device); }
 
-static void QX_CALL synth_stream(int16_t *out, int32_t frames) { synth_render(&synth, out, frames); }
+static void QX_CALL synth_stream(int16_t *out, int32_t frames) { synth_render(synth, out, frames); }
 
 void dev_synth_open(void)
 {
@@ -311,9 +316,14 @@ void dev_synth_open(void)
 
     if (synth_on || (card.tried && !card.opened))
         return;
-    synth_init(&synth, card_device.rate);
-    synth_clock(&synth, music_fine_tick, MUSIC_FINE_RATE);
+    synth = dev_take(sizeof *synth);
+    synth_init(synth, card_device.rate);
+    synth_clock(synth, music_fine_tick, MUSIC_FINE_RATE);
     synth_on = paud_open(synth_stream, &rate, &stereo);
+    if (!synth_on) {
+        dev_give(synth);
+        synth = 0;
+    }
 }
 
 void dev_synth_close(void)
@@ -322,6 +332,8 @@ void dev_synth_close(void)
         return;
     synth_on = 0;
     paud_close(synth_stream);
+    dev_give(synth);
+    synth = 0;
 }
 
 void dev_voice(unsigned voice, const DevVoice *v)
@@ -329,7 +341,7 @@ void dev_voice(unsigned voice, const DevVoice *v)
     if (synth_on) {
         const uint32_t token = paud_lock();
 
-        synth_voice(&synth, voice, v);
+        synth_voice(synth, voice, v);
         paud_unlock(token);
     } else if (voice == 0)
         dev_tone(v->gate ? v->hertz : 0);

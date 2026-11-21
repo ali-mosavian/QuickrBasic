@@ -8,13 +8,15 @@
  *
  * Its memory is the arena's: its strings and local heap a region boot carves (they hold still); a
  * PAINT's queue the BASIC heap's free part, lent for the fill (nothing else allocates during one).
+ * Its buffers (graphics pages, the music's queues, the synthesizer) are the C heap's, taken when a
+ * program first uses them (dev_take): a program that never does takes none.
  * Its initializers are called here, in its modules' order (xi.h only declares them). A wait for the
  * music (play.c's QB_IDLE, the Makefile's) is qbrt_idle: BREAK empties the queue so it ends.
  *
  * # asm structure
  * | asm | here | |
  * |---|---|---|
- * | (none) | qbrt_init, module_*, md_*, qbrt_land, qbrt_palette_using, qbrt_get, qbrt_put, qbrt_screen, qbrt_idle, qbrt_done, qbrt_varptr | NEW |
+ * | (none) | qbrt_init, module_*, md_*, qbrt_land, qbrt_palette_using, qbrt_get, qbrt_put, qbrt_screen, dev_take, dev_give, qbrt_idle, qbrt_done, qbrt_varptr | NEW |
  */
 #include "qbrt/qbrt.h"
 #include "ad.h"
@@ -27,6 +29,7 @@
 #include "varptr.h"
 #include "base.h"
 #include "plat/paud.h"
+#include "plat/pmem.h"
 
 struct ModuleData {
     char unused;
@@ -181,6 +184,18 @@ void *qb_paint_queue_open(unsigned long *const bytes)
 }
 
 void qb_paint_queue_close(void) { qbrt_lend(nullptr, 0); }
+
+void *dev_take(const unsigned long bytes)
+{
+    void *const p = pmem_resize(nullptr, bytes);
+
+    if (!p)
+        qb_error(BE_MEMORY);
+
+    return memset(p, 0, bytes);
+}
+
+void dev_give(void *const block) { pmem_free(block); }
 
 void qbrt_idle(void)
 {
