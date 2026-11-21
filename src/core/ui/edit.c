@@ -9,6 +9,8 @@
  * A selection from (sel_line, sel_col) to the cursor is a piece of one line, or whole lines when it
  * spans several. The insert mode, uimn.ed.insert, is every line buffer's.
  *
+ * A native module's view (a .qbx's interface) is not changed: each edit asks edit_refused first.
+ *
  * The immediate window keeps its last lines (uimn.imm); edit_imm_up and edit_imm_down recall them
  * into uimn.immline.
  *
@@ -51,6 +53,7 @@
 #include "io/console.h"
 #include "io/diag.h"
 #include "io/errmsg.h"
+#include "mem/module.h"
 #include "ui/dialog.h"
 #include "ui/helpdoc.h"
 #include "ui/linemap.h"
@@ -430,6 +433,18 @@ void edit_load(Session *const S, const uint32_t line)
     uimn.edline.dirty = false;
 }
 
+bool edit_refused_in(Session *const S, const uint32_t v)
+{
+    if (!modu_mod(&S->modu, view_module(v))->native)
+        return false;
+
+    edit_load(S, uimn.ed.line);
+    dlog_ok(S, "A native module's lines can't be changed");
+    return true;
+}
+
+bool edit_refused(Session *const S) { return edit_refused_in(S, uimn.ed.view); }
+
 /* The lines entered next view v's: its file's names, its declarations its file's, its procedure's.
    The module entered before (repl.module). */
 static uint32_t enter_view(Session *const S, const uint32_t v)
@@ -474,6 +489,8 @@ bool edit_commit(Session *const S)
 
     if (!b->dirty)
         return true;
+    if (edit_refused(S))
+        return false;
 
     b->dirty = false;
 
@@ -623,6 +640,9 @@ static void reindent(LineBuf *const b, const uint16_t n)
 
 void edit_enter(Session *const S)
 {
+    if (edit_refused(S))
+        return;
+
     LineBuf *const b = &uimn.edline;
     const uint16_t lead = indent(b);
     uint16_t ind = lead > b->col ? b->col : lead;
@@ -650,6 +670,9 @@ void edit_enter(Session *const S)
 
 void edit_bs(Session *const S)
 {
+    if (edit_refused(S))
+        return;
+
     LineBuf *const b = &uimn.edline;
 
     if (b->col && indent(b) >= b->col) { /* in the indent: back to the step before */
@@ -685,6 +708,9 @@ void edit_bs(Session *const S)
 
 void edit_del(Session *const S)
 {
+    if (edit_refused(S))
+        return;
+
     LineBuf *const b = &uimn.edline;
 
     if (edit_lb_del(b))
@@ -721,6 +747,9 @@ void edit_tab(void)
 
 void edit_ctrly(Session *const S)
 {
+    if (edit_refused(S))
+        return;
+
     LineBuf *const b = &uimn.edline;
 
     if (b->dirty) { /* kept as typed: no syntax check */
@@ -800,6 +829,9 @@ uint8_t edit_copy(Session *const S)
 
 void edit_clear(Session *const S)
 {
+    if (edit_sel() && edit_refused(S))
+        return;
+
     const uint8_t s = edit_sel();
     uimn.ed.sel_on = false;
 
@@ -843,6 +875,9 @@ static uint32_t clip_line(Session *const S, const uint8_t *const s, const uint32
 
 void edit_paste(Session *const S)
 {
+    if (edit_refused(S))
+        return;
+
     edit_clear(S);
     const uint16_t len = uimn.text.clip_len;
 
