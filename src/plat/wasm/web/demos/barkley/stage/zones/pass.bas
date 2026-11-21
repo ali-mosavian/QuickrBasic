@@ -276,17 +276,17 @@ end sub
 
 ' Onto goat i's back: it bolts on along the road. A goat still on its way home is there.
 private sub Mount (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
-    if lv.stray.st then lv.ob(lv.stray.i).state = 1
-    lv.stray.i = i
+    if lv.stray.st then lv.ob(lv.stray.goat).state = 1
+    lv.stray.goat = i
     lv.stray.st = 1
-    lv.stray.x = lv.ob(i).at.x
-    lv.stray.y = lv.ob(i).at.y
+    lv.stray.at.x = lv.ob(i).at.x
+    lv.stray.at.y = lv.ob(i).at.y
     lv.ob(i).state = 0
     lv.ob(i).at.x = lv.ob(i).home
     p.goat = -1
     p.ride_t = 0
-    p.at.x = lv.stray.x
-    p.at.y = lv.stray.y - 1
+    p.at.x = lv.stray.at.x
+    p.at.y = lv.stray.at.y - 1
     p.face = 0
     p.vel.x = GOATV
     p.vel.y = 60
@@ -298,11 +298,11 @@ end sub
 ' The goat let go runs home along the ground; there, or out of sight, it is at graze again.
 sub Homeward (lv as Level, g as Game)
     dim y as integer
-    lv.stray.x = lv.stray.x + sgn(lv.ob(lv.stray.i).home - lv.stray.x) * STRAYV * STEPT
-    y = Surf%(lv, cint(lv.stray.x), cint(lv.stray.y))
-    if y <> NONE then lv.stray.y = y
-    if abs(lv.stray.x - lv.ob(lv.stray.i).home) >= 6 and abs(lv.stray.x - g.cam.x - SW \ 2) <= SW then exit sub
-    lv.ob(lv.stray.i).state = 1
+    lv.stray.at.x = lv.stray.at.x + sgn(lv.ob(lv.stray.goat).home - lv.stray.at.x) * STRAYV * STEPT
+    y = Surf%(lv, cint(lv.stray.at.x), cint(lv.stray.at.y))
+    if y <> NONE then lv.stray.at.y = y
+    if abs(lv.stray.at.x - lv.ob(lv.stray.goat).home) >= 6 and abs(lv.stray.at.x - g.cam.x - SW \ 2) <= SW then exit sub
+    lv.ob(lv.stray.goat).state = 1
     lv.stray.st = 0
 end sub
 
@@ -372,9 +372,9 @@ end sub
 ' The goat on its way home, as the ground lies under it.
 sub DrawStray (lv as Level, art as Store, se as Session, cx as integer, cy as integer)
     dim x as integer, y as integer, f as integer
-    x = cint(lv.stray.x)
-    y = cint(lv.stray.y)
-    f = ((Lie%(lv, x, y) + 2) * 2 + ((se.ticks \ 6) and 1)) * 4 - 2 * (lv.ob(lv.stray.i).home < x)
+    x = cint(lv.stray.at.x)
+    y = cint(lv.stray.at.y)
+    f = ((Lie%(lv, x, y) + 2) * 2 + ((se.ticks \ 6) and 1)) * 4 - 2 * (lv.ob(lv.stray.goat).home < x)
     Blit art, x - cx - 17, y - cy - 40, IGOATR + f, 34, 58
 end sub
 

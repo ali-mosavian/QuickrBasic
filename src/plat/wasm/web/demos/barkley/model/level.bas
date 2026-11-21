@@ -84,9 +84,8 @@ end type
 
 ' The goat out of its place: st 1 ridden, 2 on its way home from at, 0 none.
 type Rover
-    x as single
-    y as single
-    i as integer
+    at as Vec
+    goat as integer
     st as integer
 end type
 

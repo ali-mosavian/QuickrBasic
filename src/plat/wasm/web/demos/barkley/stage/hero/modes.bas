@@ -131,8 +131,8 @@ sub Ride (lv as Level, p as Hero, l as integer, r as integer, d as integer)
         p.gsp = GOATV
         p.face = 0
         p.roll = 0
-        lv.stray.x = p.at.x
-        lv.stray.y = p.at.y
+        lv.stray.at.x = p.at.x
+        lv.stray.at.y = p.at.y
     end if
 end sub
 
