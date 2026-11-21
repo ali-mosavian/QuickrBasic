@@ -1246,12 +1246,11 @@ void dlog_err(Session *const S, char *text)
 
     if (bar) {
         *bar = 0;
-        dl.title = text;
-        text = bar + 1;
+        dlog_text(S, text, bar + 1);
+    } else {
+        dlog_ok(S, text);
     }
 
-    dlog_ok(S, text);
-    dl.title = nullptr;
     dl.adjust = false;
     uimn.ed.sel_on = false; /* the error's word, shown till now */
 }
@@ -1285,6 +1284,13 @@ uint8_t *dlog_wrap(uint8_t *dst, const uint8_t *const src, const uint32_t len, c
 }
 
 void dlog_ok(Session *const S, const char *const text) { dlog_msg(S, text, bt_ok); }
+
+void dlog_text(Session *const S, const char *const title, const char *const text)
+{
+    dl.title = title;
+    dlog_ok(S, text);
+    dl.title = nullptr;
+}
 
 uint8_t dlog_ync(Session *const S, const char *const text)
 {

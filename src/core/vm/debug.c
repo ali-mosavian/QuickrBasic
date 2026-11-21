@@ -2,12 +2,13 @@
  *
  * # How it works
  * With dbug.emit set (the IDE) each program statement's code starts with a DBG op (dbug_dbg). It
- * stops for a step (mode), a breakpoint at its line's first statement (LF_BP) and until's line
- * (once). A stop is a STOP: CONT goes on past the DBG. With trace set each statement first goes to
+ * stops for a step (mode), a breakpoint at its line's first statement (LF_BP) the front end lets
+ * stop (hooks->breaks), until's line (once), and, halting, where the front end says
+ * (hooks->halts). A stop is a STOP: CONT goes on past the DBG. With trace set each statement first goes to
  * hooks->trace with its place. The direct line has no DBG.
  *
- * The probe (dbug_eval) runs PRINT expr in a procedure's scope as a nested exec_run, the stopped
- * run's fields saved and restored around it. A FUNCTION it calls runs; no breakpoint, step, trace
+ * The probe (dbug_eval, dbug_exec) runs PRINT expr, or a statement, in a procedure's scope as a
+ * nested exec_run, the stopped run's fields saved and restored around it. A FUNCTION it calls runs; no breakpoint, step, trace
  * or event stops it. Its end (dbug_done) or error (dbug_fail) longjmps back to dbug_eval.
  *
  * # asm structure (retired/asm32/vm/dbg.asm)
@@ -57,7 +58,16 @@ static bool stops_at(Session *const S, const uint32_t line, const uint8_t *const
     if ((uint32_t)(addr_of(op) - S->allo.cache) != ln->code)
         return false;
 
-    return (S->dbug.until && line == S->dbug.uline) || (S->dbug.bpon && ln->flags & LF_BP);
+    const DebugHooks *const h = S->dbug.hooks;
+    return (S->dbug.until && line == S->dbug.uline) ||
+           (S->dbug.bpon && ln->flags & LF_BP && (!h || !h->breaks || h->breaks(S, line)));
+}
+
+/* The front end halts the run at this statement (Break When). */
+static bool halts(Session *const S)
+{
+    const DebugHooks *const h = S->dbug.hooks;
+    return S->dbug.halting && h && h->halts && h->halts(S);
 }
 
 /* DBG: a statement starts. */
@@ -73,7 +83,7 @@ void dbug_dbg(Session *const S)
         S->dbug.hooks->trace(S, &at);
     }
 
-    if (!stops_at(S, S->vm.line, op))
+    if (!stops_at(S, S->vm.line, op) && !halts(S))
         return;
 
     S->dbug.mode = 0;
@@ -116,7 +126,7 @@ typedef struct {
     uint8_t capture, col;
     uint32_t sblen;
     uint8_t mode;
-    bool trace, bpon, until, events_on;
+    bool trace, bpon, until, halting, events_on;
     uint8_t out;
 } Saved;
 
@@ -145,6 +155,7 @@ static void save(Session *const S, Saved *const s)
         .trace = S->dbug.trace,
         .bpon = S->dbug.bpon,
         .until = S->dbug.until,
+        .halting = S->dbug.halting,
         .events_on = S->evnt.on,
         .out = S->chnl.out,
     };
@@ -177,17 +188,18 @@ static void restore(Session *const S, const Saved *const s)
     S->dbug.trace = s->trace;
     S->dbug.bpon = s->bpon;
     S->dbug.until = s->until;
+    S->dbug.halting = s->halting;
     S->evnt.on = s->events_on;
     S->chnl.out = s->out;
 }
 
-/* Run "PRINT expr" as the direct line, its output to cons.sbuf, under its own catch: its
-   error, else ST_OK. */
-static Status run_probe(Session *const S, const char *const expr)
+/* Run pre then text as the direct line, its output to cons.sbuf, under its own catch: its error,
+   else ST_OK. */
+static Status run_probe(Session *const S, const char *const pre, const char *const text)
 {
-    static const char print[] = "PRINT ";
-    memcpy(S->cons.inbuf, print, strlen(print));
-    memcpy(S->cons.inbuf + strlen(print), expr, strlen(expr) + 1);
+    const size_t n = strlen(pre);
+    memcpy(S->cons.inbuf, pre, n);
+    memcpy(S->cons.inbuf + n, text, strlen(text) + 1);
     S->vm.line = DLINE;
     Catch c;
     fault_push(&S->fault, &c);
@@ -206,18 +218,25 @@ static Status run_probe(Session *const S, const char *const expr)
     return c.code;
 }
 
-Status dbug_eval(Session *const S, const char *const expr, const uint32_t proc, char out[static 80])
+/* pre then text run as the probe's line in procedure proc's scope: dbug_eval's, dbug_exec's. */
+static Status probe(
+    Session *const S,
+    const char *const pre,
+    const char *const text,
+    const uint32_t proc,
+    char out[static 80]
+)
 {
     static Saved s; /* one probe at a time: no line of its can run another */
     save(S, &s);
     S->comp.dlproc = proc;
     S->dbug.mode = 0;
-    S->dbug.trace = S->dbug.bpon = S->dbug.until = false;
+    S->dbug.trace = S->dbug.bpon = S->dbug.until = S->dbug.halting = false;
     S->vm.stop = 0;
     S->evnt.on = false;
     S->cons.capture = CAP_SBUF;
     S->cons.sblen = 0;
-    const Status st = run_probe(S, expr);
+    const Status st = run_probe(S, pre, text);
     const uint32_t n = S->cons.sblen < PROBE_OUT_MAX ? S->cons.sblen : PROBE_OUT_MAX;
     memcpy(out, S->cons.sbuf, n);
     out[n] = 0;
@@ -225,6 +244,16 @@ Status dbug_eval(Session *const S, const char *const expr, const uint32_t proc, 
     S->comp.dlproc = 0;
     fmth_clear();
     return st;
+}
+
+Status dbug_eval(Session *const S, const char *const expr, const uint32_t proc, char out[static 80])
+{
+    return probe(S, "PRINT ", expr, proc, out);
+}
+
+Status dbug_exec(Session *const S, const char *const stmt, const uint32_t proc, char out[static 80])
+{
+    return probe(S, "", stmt, proc, out);
 }
 
 void dbug_done(Session *const S) { fault_throw(&S->fault, ST_OK); }

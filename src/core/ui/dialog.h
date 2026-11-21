@@ -78,6 +78,8 @@ uint8_t dlog_run(Session *S, Dlog *d);
 uint8_t dlog_msg(Session *S, const char *text, const MsgButton *buttons);
 /* dl_ok: a message box with OK (and Help). */
 void dlog_ok(Session *S, const char *text);
+/* dlog_ok's box titled title, its lines left-aligned under it. */
+void dlog_text(Session *S, const char *title, const char *text);
 /* dl_ync: a message box with Yes, No, Cancel (and Help): 0 Yes, 1 No, 2 Cancel or Esc. */
 uint8_t dlog_ync(Session *S, const char *text);
 enum : uint8_t { YNC_YES = 0, YNC_NO = 1 };

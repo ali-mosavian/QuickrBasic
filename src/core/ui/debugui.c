@@ -33,6 +33,7 @@
 #include "plat/pscr.h"
 #include "ui/dialog.h"
 #include "ui/debugpane.h"
+#include "ui/debugwatch.h"
 #include "ui/edit.h"
 #include "ui/linemap.h"
 #include "ui/pages.h"
@@ -107,11 +108,18 @@ static void trace(Session *const S, const DebugPos *const at)
     hl.on = false;
 }
 
+/* DebugHooks.breaks: program line line's breakpoint stops, its Break When's condition met. */
+static bool breaks(Session *const S, const uint32_t line)
+{
+    return dwat_breaks(S, text_mark_nth(S, line));
+}
+
 void udbg_init(Session *const S)
 {
-    static const DebugHooks hooks = {.trace = trace};
+    static const DebugHooks hooks = {.trace = trace, .breaks = breaks, .halts = dwat_halts};
 
     session_debug(S, &hooks);
+    uimn.text.marks = dwat_marks;
 }
 
 void udbg_prep(Session *const S)
@@ -143,7 +151,12 @@ void udbg_row(Session *const S, const uint8_t row, const uint8_t col, const uint
     const bool bp = text_mark(S, line);
 
     if (bp)
-        scrn_attr(row, col, uimn.ed.width, SL_BPL);
+        scrn_attr(
+            row,
+            col,
+            uimn.ed.width,
+            dwat_conditional(text_mark_nth(S, text_rec(S, line))) ? SL_CBPL : SL_BPL
+        );
     if (!hl.on || uimn.text.changed || line + uimn.text.first != hl.line)
         return;
     if (line == uimn.ed.line && uimn.edline.dirty) /* not while it is being changed */

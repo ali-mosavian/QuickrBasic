@@ -52,6 +52,7 @@
 #include "io/diag.h"
 #include "io/errmsg.h"
 #include "ui/dialog.h"
+#include "ui/helpdoc.h"
 #include "ui/linemap.h"
 #include "ui/text.h"
 #include "ui/uimain.h"
@@ -349,6 +350,11 @@ bool edit_canon(Session *const S, uint8_t *const text, const uint16_t len, uint3
     S->cons.sblen = uc.n; /* as typed */
     memcpy(S->cons.sbuf, uc.src, uc.n);
     return true;
+}
+
+uint16_t edit_word(char *const out, const uint16_t max)
+{
+    return hdoc_word(uimn.edline.text, uimn.edline.len, uimn.edline.col, out, max);
 }
 
 static void what(Session *const S) { diag_what(&S->diag); }

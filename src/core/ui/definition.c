@@ -16,7 +16,6 @@
 #include "comp/dfa.h"
 #include "plat/pscr.h"
 #include "ui/edit.h"
-#include "ui/helpdoc.h"
 #include "ui/linemap.h"
 #include "ui/uimain.h"
 #include "ui/view.h"
@@ -283,7 +282,7 @@ static uint32_t line_number(const char *const w, const uint16_t n)
 static Found find(Session *const S)
 {
     char w[UINT8_MAX + 1];
-    uint16_t n = hdoc_word(uimn.edline.text, uimn.edline.len, uimn.edline.col, w, sizeof w);
+    uint16_t n = edit_word(w, sizeof w);
 
     if (!n || !edit_commit(S))
         return (Found){.line = NONE};
