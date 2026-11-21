@@ -44,14 +44,7 @@ through `text.c`, then rebuilds the views.
 
 A line with a syntax error no longer stops the cursor. It is stored as typed, as now, and lit:
 
-```
- ┌─────────────────────────── MAIN.BAS ───────────────────────────┐
- │FOR i = 1 TO 10                                                  │
- │    PRINT i *                                                    │   "i *" in SL_ERR
- │NEXT i                                                           │
- └─────────────────────────────────────────────────────────────────┘
-  Expected an expression after *                    1 error  00003:014
-```
+![An error lit, its message on the status bar](img/feel/error.png)
 
 - The error's word is drawn in SL_ERR.
 - With the cursor on the line, the status bar shows the message; at its right, the count of lines with
@@ -66,9 +59,7 @@ Built on `edit.c` (commit without `dlog_err`) and a new `ui/errors.c` that finds
 
 Search, Find opens a bar on the status row instead of a box:
 
-```
-  Find: total_                     3 of 12   Alt+C=Case  Alt+W=Word  Enter=Next  Esc=Close
-```
+![The find bar](img/feel/find.png)
 
 - Each key typed moves to the first match from where the search began, at once.
 - Every match on screen is drawn in SL_FIND; the count is of the whole program.
@@ -110,13 +101,7 @@ Built on a new `ui/closers.c`; the string and comment test is the highlighter's.
 With the cursor on a bracket, it and its partner are drawn in SL_MATCH. On a block's keyword, every
 keyword of that block is:
 
-```
- │IF ok THEN                                                       │   IF, ELSE and END IF in SL_MATCH
- │    PRINT "yes"                                                  │
- │ELSE                                                             │
- │    PRINT "no"                                                   │
- │END IF                                                           │
-```
+![IF, ELSE and END IF lit](img/feel/matches.png)
 
 The blocks are IF/ELSEIF/ELSE/END IF (not a one-line IF), FOR/NEXT, DO/LOOP, WHILE/WEND,
 SELECT/CASE/END SELECT, SUB/END SUB, FUNCTION/END FUNCTION and TYPE/END TYPE. Ctrl+] goes to the next
@@ -129,6 +114,8 @@ Built on a new `ui/pairs.c`: brackets over the highlighter's slots, blocks over 
 With the cursor on a name, every other use of it on screen is drawn in SL_OCC. A use is the same name, case
 aside, its suffix the same or none, where the highlighter colours a name: not in a string or comment.
 
+![The uses of x lit](img/feel/uses.png)
+
 Built on a new `ui/uses.c`, over the highlighter's slots.
 
 ## 9. Go to, back and forward
@@ -136,14 +123,7 @@ Built on a new `ui/uses.c`, over the highlighter's slots.
 Ctrl+P opens a box that lists every procedure and file. Typing narrows it to the entries whose letters
 contain the typed ones in order:
 
-```
- ┌──────────── Go To ────────────┐
- │ drw                           │
- │ DrawWorld        GAME.BAS     │
- │ DrawWave         SOUND.BAS    │
- │ DRAW.BAS                      │
- └───────────────────────────────┘
-```
+![The Go To box](img/feel/goto.png)
 
 Enter shows the one chosen. Go To, Go to Definition, F2's list, Find, F3 and Ctrl+F8 remember where the
 cursor was: Alt+Left goes back, Alt+Right forward again. 32 places are kept.
@@ -155,10 +135,7 @@ Built on a new `ui/jumps.c` for the places and `ui/goto.c` for the box.
 At a stop, each line of the stopped procedure that shows on screen gets the values of the variables it
 names, dim after its end:
 
-```
- │FOR i = 1 TO n                       i = 3  n = 10               │
- │    total = total + price(i)         total = 47.5  i = 3          │
-```
+![Values beside the code at a stop](img/feel/values.png)
 
 Numbers and strings only; a record or array shows nothing. Values cut at the window's edge. They go when
 the run goes on.
