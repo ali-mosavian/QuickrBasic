@@ -4,6 +4,7 @@ and refuses an interface it cannot glue. tools/extproto/run.sh runs the glue end
 
 import sys
 import shutil
+import struct
 import tempfile
 import subprocess
 from pathlib import Path
@@ -32,6 +33,50 @@ sub wrapped (n%)
     n% = n% + 1
 end sub
 """
+
+
+def dll(imports: int = 0, machine: int = 0x14C) -> bytes:
+    """An i386 DLL as lld-link lays one out, based at 10000000h: one section at 1000h, 300h bytes
+    stored of 2000h. Its word at 1000h points to qx_init_t at 1010h, relocated; its exports at
+    1100h, its relocations at 1200h."""
+    base, va, opt = 0x10000000, 0x1000, 0x58
+    sec = bytearray(0x300)
+    struct.pack_into("<I", sec, 0, base + 0x1010)
+    sec[0x10:0x14] = b"\x31\xc0\xc3\x90"
+    struct.pack_into("<IIIIIIIIIII", sec, 0x100, 0, 0, 0, 0, 1, 1, 1, va + 0x140, va + 0x144, va + 0x148, 0)
+    struct.pack_into("<IIH", sec, 0x140, va + 0x10, va + 0x150, 0)
+    sec[0x150:0x15A] = b"qx_init_t\0"
+    struct.pack_into("<IIHH", sec, 0x200, va, 12, 0x3000, 0)
+    head = bytearray(0x400)
+    head[0:2] = b"MZ"
+    struct.pack_into("<I", head, 0x3C, 0x40)
+    head[0x40:0x44] = b"PE\0\0"
+    struct.pack_into("<HHIIIHH", head, 0x44, machine, 1, 0, 0, 0, 224, 0x2102)
+    struct.pack_into("<H", head, opt, 0x10B)
+    struct.pack_into("<I", head, opt + 28, base)
+    struct.pack_into("<I", head, opt + 56, 0x3000)
+    struct.pack_into("<I", head, opt + 92, 16)
+    struct.pack_into("<II", head, opt + 96, va + 0x100, 0x60)
+    struct.pack_into("<II", head, opt + 96 + 8, imports, 40 if imports else 0)
+    struct.pack_into("<II", head, opt + 96 + 40, va + 0x200, 12)
+    struct.pack_into("<8sIIIIIIHHI", head, opt + 224, b".data", 0x2000, va, 0x300, 0x400, 0, 0, 0, 0, 0)
+    return bytes(head) + bytes(sec)
+
+
+def coff_symbols(obj: bytes) -> tuple[set[str], set[str]]:
+    """A COFF object's external symbols: those it defines, those it needs."""
+    table, count = struct.unpack_from("<II", obj, 8)
+    strings = table + 18 * count
+    defined, needed, i = set(), set(), 0
+    while i < count:
+        raw, value, section, _, storage, aux = struct.unpack_from("<8sIhHBB", obj, table + 18 * i)
+        if raw[:4] == b"\0\0\0\0":
+            raw = obj[strings + struct.unpack_from("<I", raw, 4)[0] :]
+        name = raw.split(b"\0")[0].decode()
+        if storage == 2:  # external
+            (defined if section > 0 or value else needed).add(name)
+        i += 1 + aux
+    return defined, needed
 
 
 def refused(text: str, why: str) -> str | None:
@@ -118,6 +163,27 @@ if __name__ == "__main__":
     except qbx.QbxError:
         pass
 
+    # a DOS slice is the DLL as an image at 0 (util/image.c): its sections where they lie, its words rebased
+    img = qbx.image(dll())
+    magic, stored, size, entry, nrelocs = qbx.IMAGE.unpack_from(img)
+    words = img[qbx.IMAGE.size :]
+    padded = (stored + 3) & ~3
+    relocs = struct.unpack_from(f"<{nrelocs}I", words, padded)
+    if (magic, size, entry, relocs) != (b"QXI\x01", 0x3000, 0x1010, (0x1000,)):
+        bad.append(f"a DLL's image wrong: {(magic, size, entry, relocs)}")
+    if struct.unpack_from("<I", words, 0x1000)[0] != 0x1010 or words[0x1010:0x1013] != b"\x31\xc0\xc3":
+        bad.append("a DLL's image not rebased to 0, or its code not where it lies")
+    if stored > 0x1300 or len(img) != qbx.IMAGE.size + padded + 4 * nrelocs:
+        bad.append(f"a DLL's image stored its zeros: {stored} bytes")
+    if qbx.unpack(qbx.pack(b"", {"dos-i386": dll()}))[1]["dos-i386"] != img:
+        bad.append("pack kept a DOS slice's DLL, not its image")
+    for why, data in (("imports", dll(imports=0x1250)), ("x86-64", dll(machine=0x8664)), ("not a DLL", b"MZ")):
+        try:
+            qbx.image(data)
+            bad.append(f"a DLL that {why} made an image")
+        except qbx.QbxError:
+            pass
+
     # natives named as the glue's own names compile: a SUB fail clashed with qx_fail, stop with the stop hook
     clash = "".join(
         f"declare sub {n} cdecl ()\n" for n in ("fail", "stop", "start", "module", "now", "entries", "host")
@@ -136,6 +202,48 @@ if __name__ == "__main__":
             )
             if done.returncode:
                 bad.append(f"natives named as the glue's own did not compile: {done.stderr.strip()[:300]}")
+    # a DOS slice links with no library: a double in it needed the Windows target's __fltused
+    if cc is not None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            (out / "f.bas").write_text("declare function half# cdecl (byval d#)\n", encoding="utf-8")
+            (out / "f.c").write_text(
+                '#include "f_qx.h"\nvoid f_init(void) {}\nvoid f_start(void) {}\nvoid f_stop(void) {}\n'
+                "double half(const double d) { return d / 2; }\n",
+                encoding="utf-8",
+            )
+            qbx.glue(out / "f.bas", "f", out)
+            qx = Path(__file__).parents[1] / "src/qx"
+            defined, needed = set(), set()
+            for c in ("f.c", "f_qx.c"):
+                done = subprocess.run(
+                    [
+                        cc,
+                        "--target=i386-pc-win32",
+                        "-march=i386",
+                        "-ffreestanding",
+                        "-std=c23",
+                        "-O2",
+                        f"-I{qx}",
+                        f"-I{out}",
+                        "-c",
+                        str(out / c),
+                        "-o",
+                        str(out / f"{c}.obj"),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                if done.returncode:
+                    bad.append(f"a DOS slice's {c} did not compile: {done.stderr.strip()[:300]}")
+                    break
+                mine, theirs = coff_symbols((out / f"{c}.obj").read_bytes())
+                defined |= mine
+                needed |= theirs
+            if missing := needed - defined:
+                bad.append(f"a DOS slice needs what no library gives it: {sorted(missing)}")
+
     if refused("declare sub qx_init_x cdecl ()", "qx_"):
         bad.append("a native named qx_... was accepted: the glue's names start so")
 

@@ -107,6 +107,10 @@ CDECL uint32_t pdos_environ(uint32_t index, uint8_t *buf, uint32_t cap);
 
 /* DS's selector. */
 CDECL uint16_t pdos_ds(void);
+/* CS's selector. */
+CDECL uint16_t pdos_cs(void);
+/* Selector sel's limit: its segment's last offset. */
+CDECL uint32_t pdos_limit(uint32_t sel);
 
 /* The PSP's command tail, its leading blanks skipped, at most max bytes; its length. */
 CDECL uint32_t pdos_cmdline(char *buf, uint32_t max);
