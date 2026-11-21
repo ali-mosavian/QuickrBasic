@@ -53,7 +53,7 @@ the one verb whose meaning grows.
 | Saltwick Sands | a crab hides in its shell and is a step; a gull drops the bones it took |
 | Whitecap Pass | icicles fall; a loaded ledge slides |
 | Russet Wood | fireflies wake and light the ground |
-| Lantern Quarter | a pouncer leaps early; a rope-walker wobbles |
+| Lantern Quarter | a pouncer leaps early; a rope-walker and a snatcher stand startled |
 | Clock Tower | a bell rings and stuns what is near |
 
 ## How the game grows
@@ -207,7 +207,7 @@ Progress is saved at each zone.
 
 - Built: its backdrop, ground, props and card at the blue hour and on the festival night; two stand-in levels,
   to its tune and the festival's arrangement; clotheslines, lantern lines, awnings, chimneys, trams; pouncers,
-  rope-walkers. To add: tippers, runners, its acts, its chase, the fireworks; a street's own paving.
+  rope-walkers, snatchers. To add: tippers, its acts, its chase, the fireworks; a street's own paving.
 - A clothesline (`line,N`) spans a street N columns wide, post to post. Come down on, it throws him up, his way
   kept: 60 pixels off the first, 107 off the second in a row, 167 off each after; the ground ends the row.
 - An awning (`awning,N`) stands out from the wall that begins there, N tiles up. Come down on, it throws him 135
@@ -223,11 +223,13 @@ Progress is saved at each zone.
 - A rope-walker (`walker,n` after a `line`) is a cat walking that clothesline, its home n columns along it: 40
   either side, never nearer than 14 to the line's end. Who comes down on its line shakes it off, beaten. A bark
   stands it startled, as a cat.
+- A snatcher (`snatcher,0`) is a grey cat in a mask. It prowls as a cat; a loose bone within its beat it runs to
+  at three times the pace and takes for good. Startled by a bark it takes none.
 - Rule: footing. The ground is narrow, springy or moving: lines, awnings, tram roofs.
 - Gadgets: clotheslines, each landing higher than the last; awnings; chimneys, in one and out another;
   trams; lantern lines to slide.
 - Enemies: pouncers, eyes in a bin and a leap as he nears; rope-walkers, shaken off by bouncing their line;
-  tippers, dropping flowerpots from sills in rhythm; runners, who snatch the bones he drops.
+  tippers, dropping flowerpots from sills in rhythm; snatchers, who run off with the bones he drops.
 - Act 1, blue hour: the roofs above, fast and gapped; the street below, safe, with trams. A tram ride through
   the market.
 - Act 2, festival night: mortars on the roofs fire on the tune's beat, a hazard from the side and a launcher

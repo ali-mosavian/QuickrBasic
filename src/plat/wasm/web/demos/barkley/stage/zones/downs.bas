@@ -91,24 +91,28 @@ end sub
 ' Thirty times a second: cats near the view pace about their homes,
 ' turning at edges and walls; springs settle; loose bones bounce and
 ' fade; sparks fall.
+' Cat i a pixel on the way it faces, where its beat, the ground and no wall let it: whether it went.
+function Paced% (lv as Level, i as integer)
+    dim x as integer, y as integer, s as integer
+    Paced% = 0
+    x = lv.ob(i).x + lv.ob(i).s
+    y = lv.ob(i).y
+    s = Surf%(lv, x + lv.ob(i).s * 8, y)
+    if abs(x - lv.ob(i).a) > BEAT or abs(s - y) > 6 or Solid%(lv, x + lv.ob(i).s * 8, y - 6) then exit function
+    lv.ob(i).x = x
+    s = Surf%(lv, x, y)
+    if abs(s - y) <= 6 then lv.ob(i).y = s
+    Paced% = -1
+end function
+
 ' A cat's step: startled, it stands and counts its state down to a prowl's; prowling, a pixel along its beat, turned
 ' at the beat's end, a drop or a wall.
 sub Prowl (lv as Level, i as integer)
-    dim x as integer, y as integer, s as integer
     if abs(lv.ob(i).s) > 1 then
         lv.ob(i).s = lv.ob(i).s - sgn(lv.ob(i).s)
         exit sub
     end if
-    x = lv.ob(i).x + lv.ob(i).s
-    y = lv.ob(i).y
-    s = Surf%(lv, x + lv.ob(i).s * 8, y)
-    if abs(x - lv.ob(i).a) > BEAT or abs(s - y) > 6 or Solid%(lv, x + lv.ob(i).s * 8, y - 6) then
-        lv.ob(i).s = -lv.ob(i).s
-        exit sub
-    end if
-    lv.ob(i).x = x
-    s = Surf%(lv, x, y)
-    if abs(s - y) <= 6 then lv.ob(i).y = s
+    if not Paced%(lv, i) then lv.ob(i).s = -lv.ob(i).s
 end sub
 
 ' A cat's picture by its state: startled, turned to what barked, or a stride of its prowl the way it goes.

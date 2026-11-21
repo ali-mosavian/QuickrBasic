@@ -21,7 +21,8 @@ type Game
     quitting as integer
 end type
 
-' A bone knocked loose: t its time left.
+' A bone knocked loose: t its time left; with TOONEW of it or more left it is not yet to be taken.
+const TOONEW = 3.3
 type Loose
     x as single
     y as single

@@ -1,20 +1,20 @@
-' Lantern Quarter: clotheslines, lantern lines, awnings and chimneys; pouncers and rope-walkers.
+' Lantern Quarter: clotheslines, lantern lines, awnings and chimneys; pouncers, rope-walkers and snatchers.
 defint A-Z
 option explicit
 
 from barkley.engine.video import Blit, Store, SW
 from barkley.engine.clock import STEPT
 from barkley.engine.audio import Deck
-from barkley.model.images import IPAPER, ISHIRT, ISOCK, ITROUSERS
+from barkley.model.images import ICAT, ICATF, IPAPER, ISHIRT, ISNATCH, ISOCK, ITROUSERS
 from barkley.model.hero import Hero
-from barkley.model.level import Level, Rope, TS
-from barkley.model.game import Game, Loose, Part, Session
-from barkley.assets.palette import CLINEN, CPOLE, CQINK, CSOOT
-from barkley.assets.tunes import Sfx, SROLL, SSPRING, STWANG
+from barkley.model.level import Level, NONE, Rope, TS
+from barkley.model.game import Game, Loose, NLOOSE, Part, Session, TOONEW
+from barkley.assets.palette import CLINEN, CPOLE, CQINK, CSOOT, CWHITE
+from barkley.assets.tunes import Sfx, SROLL, SSNATCH, SSPRING, STWANG
 from barkley.stage.fx.parts import Burst
 from barkley.stage.fx.damage import Beaten, Tackle
 from barkley.stage.hero.modes import FLUEH
-from barkley.stage.zones.downs import BEAT, CatPic, Prowl
+from barkley.stage.zones.downs import BEAT, CatPic, Paced, Prowl
 
 ' A clothesline: how far its middle hangs under its ends; his speed up off the first he comes down on, what each
 ' more in a row adds, and the row that adds no more; how far it gives under him, and the things' steps it swings;
@@ -27,6 +27,9 @@ private const WASH = 22
 
 ' A rope-walker: how near its line's ends it walks.
 const WALKIN = 14
+
+' A snatcher: the pixels a things' step it runs to a loose bone, and how near one it takes it.
+const SNATCHV = 3, SNATCHR = 8
 
 ' A lantern line: how far apart its lanterns hang; the speed he slides down it at, and how fast he gathers it.
 private const LANTGAP = 18
@@ -208,6 +211,48 @@ sub DrawPouncer (lv as Level, art as Store, se as Session, i as integer, x as in
     if abs(s) <= POUNCEN then s = sgn(s) * 2 else s = sgn(s)
     Blit art, x - 10, y - 13 - Leapt%(lv, i), CatPic%(se, s), 20, 14
 end sub
+
+' The loose bone nearest snatcher i of those to be taken that are within its beat and by its height; NONE with none.
+private function Spied% (lv as Level, i as integer, lo() as Loose)
+    dim j as integer, d as integer, best as integer
+    Spied% = NONE
+    best = 2 * BEAT + 1
+    for j = 0 to NLOOSE - 1
+        if lo(j).t <= 0 or lo(j).t >= TOONEW or abs(lo(j).x - lv.ob(i).a) > BEAT then continue for
+        d = abs(lo(j).x - lv.ob(i).x)
+        if d >= best or abs(lo(j).y - lv.ob(i).y + 6) >= 14 then continue for
+        best = d
+        Spied% = j
+    next
+end function
+
+' Snatcher i's step: a loose bone within its beat it runs to, SNATCHV a cat's pace, and takes for good; with none,
+' or startled, it is a cat.
+sub Snatch (lv as Level, mu as Deck, se as Session, i as integer, lo() as Loose, pt() as Part)
+    dim b as integer, n as integer
+    b = NONE
+    if se.looseN > 0 and abs(lv.ob(i).s) = 1 then b = Spied%(lv, i, lo())
+    if b = NONE then
+        Prowl lv, i
+        exit sub
+    end if
+    if abs(lo(b).x - lv.ob(i).x) >= 1 then lv.ob(i).s = sgn(lo(b).x - lv.ob(i).x)
+    for n = 1 to SNATCHV
+        if abs(lo(b).x - lv.ob(i).x) < SNATCHR then exit for
+        if not Paced%(lv, i) then exit for
+    next
+    if abs(lo(b).x - lv.ob(i).x) >= SNATCHR then exit sub
+    lo(b).t = 0
+    se.looseN = se.looseN - 1
+    Burst se, pt(), lo(b).x, lo(b).y, 4, 60, CWHITE
+    Sfx mu, se, SSNATCH
+end sub
+
+' A snatcher's picture by its state: the cat's, of its own set.
+function SnatchPic% (se as Session, s as integer)
+    SnatchPic% = ISNATCH + CatPic%(se, s) - ICAT
+    if abs(s) > 1 then SnatchPic% = ISNATCH + 8 + CatPic%(se, s) - ICATF
+end function
 
 ' Rope-walker i shaken off its line: beaten, where it was.
 private sub Shaken (lv as Level, mu as Deck, se as Session, g as Game, pt() as Part, i as integer)

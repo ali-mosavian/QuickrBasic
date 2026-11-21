@@ -34,6 +34,7 @@ from barkley.model.level import GRAV, Ground, KBONE, KBRAMBLE, KBUOY, KCAT, KCIS
 from barkley.model.level import KICICLE, KJELLY, KJET, KLEG, KLOAD, KLOG, KLOOP, KMOUND, KPIPE, KPRESS, KSAPLING, KSEAT
 from barkley.model.level import KSLED, KSPAN, KSPARK, KSPRING, KSQUIRREL, KSWEEP, KTHROW, KVINE, KWALL, KWAVE, Level, MH
 from barkley.model.level import KAWNING, KBIN, KCHIMNEY, KGOLD, KPOUNCE, KWALKER, NGOLD, NONE, NSTAGE, TS, ZONES
+from barkley.model.level import KSNATCH
 from barkley.model.game import CLEARED, Cue, Game, INTRO, Loose, NCUE, NLOOSE, NPART, OVER, Part, PLAYING, Session
 from barkley.model.game import Found, Gild, TITLE
 from barkley.assets.palette import CBEE, CFLY, CGOLD, CINK, CNUT, CSEA, CVINE, CVINED, CWHITE, CYELLOW
@@ -41,7 +42,7 @@ from barkley.assets.palette import CLINEN, CPOLE, CQINK, CSOOT
 from barkley.assets.store import BuildArt
 from barkley.assets.cast import BaronPic, FamPic
 from barkley.assets.tunes import CAUGHT, CAUGHTUP, EndBeat, LEFTBEHIND, LoadSongs, PACKING, PickSong, SCLANK, Sfx, SHURT
-from barkley.assets.tunes import SJUMP, SongFor, STWANG, Sudden, ZoneTune, ZTUNE
+from barkley.assets.tunes import SJUMP, SongFor, SSNATCH, Sudden, ZoneTune, ZTUNE
 from barkley.world.terrain.ground import LoadTables, LOOPR, SegAt, Solid, Surf, WADE, WAVEL
 from barkley.world.terrain.track import MOVEW, WAVEA
 from barkley.world.layout import PITD
@@ -135,7 +136,7 @@ for j = 0 to NSLOT - 1
         play hf.drums, hf.bass, hf.one, , hf.lead, hf.two, hf.under, hf.third
     next
 next
-for j = SJUMP to STWANG
+for j = SJUMP to SSNATCH
     Sfx wd.mu, wd.se, j
 next
 print "sounds ok"
@@ -1923,6 +1924,112 @@ p.vy = -100
 Tick wd, g, p, k, lo(), pt()
 was = was and p.stun and g.bones = 0
 if was then print "walker ok"
+' a snatcher is a cat that runs off with loose bones. One to be taken, 30 along its beat: it runs to it three
+' pixels a things' step and takes it for good 23 along, 7 short of it. One past its beat, or over its head, it
+' leaves; one too new it leaves till it is not; startled by a bark it takes none; rolled into it is beaten as a cat;
+' a stage begun again has it back
+GoStage wd, 10, g, p, lo(), pt()
+g.modeT = 20
+c = 0
+for i = 0 to wd.lv.nObj - 1
+    if wd.lv.ob(i).k = KSNATCH then c = i
+next
+bx = wd.lv.ob(c).x
+m = wd.lv.ob(c).y
+was = wd.lv.ob(c).k = KSNATCH and wd.lv.ob(c).s = -1
+' the bones that lie by it taken away: his count is to tell only what he gets of the loose ones
+for i = 0 to wd.lv.nObj - 1
+    if wd.lv.ob(i).k = KBONE and abs(wd.lv.ob(i).x - bx) < 200 then wd.lv.ob(i).s = 0
+next
+Stand wd.lv, wd.gr, p, bx - 100, 0
+hid = g.bones
+lo(0).x = bx + 30
+lo(0).y = m - 4
+lo(0).vx = 0
+lo(0).vy = 0
+lo(0).t = 3
+wd.se.looseN = 1
+for i = 1 to 40
+    Tick wd, g, p, k, lo(), pt()
+    if lo(0).t <= 0 then exit for
+next
+was = was and i <= 17 and wd.lv.ob(c).x = bx + 23 and wd.se.looseN = 0 and g.bones = hid
+' past its beat, and over its head
+lo(0).x = bx + 60
+lo(0).y = m - 4
+lo(0).vy = 0
+lo(0).t = 3
+lo(1).x = bx + 30
+lo(1).y = m - 80
+lo(1).vx = 0
+lo(1).vy = 0
+lo(1).t = 3
+wd.se.looseN = 2
+v = wd.lv.ob(c).x
+for i = 1 to 20
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and lo(0).t > 0 and lo(1).t > 0 and wd.se.looseN = 2 and abs(wd.lv.ob(c).x - v) <= 10
+' too new, behind it: left while it is, taken after
+lo(1).t = 0
+lo(0).x = wd.lv.ob(c).x - 20
+lo(0).y = m - 4
+lo(0).vy = 0
+lo(0).t = 3.75
+wd.se.looseN = 1
+v = wd.lv.ob(c).x
+for i = 1 to 20
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and lo(0).t > 0 and wd.lv.ob(c).x >= v
+for i = 1 to 30
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and lo(0).t <= 0 and wd.se.looseN = 0
+' barked at from 50 off, a bone 15 past it: it stands, and takes it when it has done
+v = wd.lv.ob(c).x
+Stand wd.lv, wd.gr, p, v - 50, 0
+k.bark = -1
+Tick wd, g, p, k, lo(), pt()
+k.bark = 0
+lo(0).x = v + 15
+lo(0).y = m - 4
+lo(0).vy = 0
+lo(0).t = 3
+wd.se.looseN = 1
+for i = 1 to 20
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and lo(0).t > 0 and wd.lv.ob(c).s > 1 and abs(wd.lv.ob(c).x - v) <= 1
+g.camx = wd.lv.ob(c).x - 160
+g.camy = wd.lv.ob(c).y - 100
+g.shake = 0
+Render wd, g, p, lo(), pt()
+colB(1) = point(160 - 2, 100 - 5)
+for i = 1 to 60
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and lo(0).t <= 0 and wd.se.looseN = 0 and g.bones = hid
+' drawn in its own grey, startled and at a prowl; rolled into, beaten
+g.camx = wd.lv.ob(c).x - 160
+g.camy = wd.lv.ob(c).y - 100
+g.shake = 0
+Render wd, g, p, lo(), pt()
+colB(0) = point(160 - 2, 100 - 5)
+was = was and colB(0) >= 164 and colB(0) <= 167 and colB(1) >= 164 and colB(1) <= 167
+shown = g.score
+p.inv = 0
+p.ground = 0
+p.roll = -1
+p.x = wd.lv.ob(c).x
+p.y = wd.lv.ob(c).y - 3
+p.vy = 0
+Tick wd, g, p, k, lo(), pt()
+was = was and wd.lv.ob(c).s = 0 and g.score = shown + 100 and not p.stun
+GoStage wd, 10, g, p, lo(), pt()
+g.modeT = 20
+was = was and wd.lv.ob(c).s = -1 and wd.lv.ob(c).x = bx
+if was then print "snatcher ok"
 ' Russet Wood is the fifth zone, by name and in its own colours: its litter's top the same picture at both hours,
 ' russet gold at a misty noon and not on the firefly night
 was = ZoneName$(4) = "RUSSET WOOD"
@@ -3943,6 +4050,7 @@ def main() -> None:
         ("pounce ok", "a pouncer waits in its bin, leaps at him when he is near, scratches, and lands a cat"),
         ("pouncer ok", "a bark brings a pouncer out early; rolled into in the air it is beaten for good"),
         ("walker ok", "a rope-walker walks its clothesline, flinches at a bark, is shaken off by a bounce, scratches"),
+        ("snatcher ok", "a snatcher runs to a loose bone in its beat and takes it for good; startled it takes none"),
         ("firefly ok", "the wood's night dark but for a few fireflies; a bark wakes them and lights it for a while"),
         ("sapling ok", "a bowed sapling throws him who crosses its crown, higher the faster; sprung it throws no one"),
         ("vine ok", "a vine caught in the air swings him as a weight, lets go at a jump, and hangs straight again"),

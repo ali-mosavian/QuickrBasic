@@ -1264,10 +1264,12 @@ def goldbone(turn: float) -> Pic:
     return p.outline()
 
 
-def startled() -> Pic:
+GINGER = EARTH[2:]
+
+
+def startled(fur: list[int] = GINGER) -> Pic:
     """The cat barked at: its back arched, its legs stiff, its tail a brush, an eye wide."""
     p = Pic(20, 14)
-    fur = EARTH[2:]
     p.line(3, 7, 2, 3, fur[2], 2)
     p.ball(2.5, 2.5, 2.2, 2.2, fur, 0.4, 1.1)
     for x in (4, 6, 11, 13):
@@ -1287,10 +1289,9 @@ def startled() -> Pic:
     return p.outline()
 
 
-def cat(f: int) -> Pic:
-    """A ginger cat, prowling right: its tail up, its back striped."""
+def cat(f: int, fur: list[int] = GINGER) -> Pic:
+    """A cat, ginger unless told, prowling right: its tail up, its back striped."""
     p = Pic(20, 14)
-    fur = EARTH[2:]
     p.line(3, 8, 1.5, 4, fur[2])
     p.line(1.5, 4, 2 + f, 2, fur[3])
     for i, x in enumerate((4, 6, 11, 13)):
@@ -5224,6 +5225,17 @@ def dustbin(eyes: bool) -> Pic:
     return p.outline(QINK)
 
 
+def snatcher(f: int) -> Pic:
+    """A snatcher, an alley cat in grey with a mask across its eyes: f 0 and 1 its strides, 2 it startled."""
+    fur = [TIN[2], TIN[2], TIN[1], TIN[1], TIN[0], TIN[0]]
+    p = startled(fur) if f == 2 else cat(f, fur)
+    for y in (4, 5):
+        for x in range(13, 19):
+            if p.p[y][x] in fur:
+                p.put(x, y, QINK)
+    return p
+
+
 def lanternq() -> list[tuple[int, Pic, bool, int]]:
     """The Lantern Quarter's own pictures, at the indices the Downs' own have."""
     k, z = 126, 625
@@ -5250,6 +5262,8 @@ def lanternq() -> list[tuple[int, Pic, bool, int]]:
         (z + 1304, paperlantern(), True, -1),
         (z + 1306, dustbin(True), True, -1),
         (z + 1308, dustbin(False), True, -1),
+        *[(z + 1310 + f * 2, snatcher(f), True, z + 1314 + f * 2) for f in range(2)],
+        (z + 1318, snatcher(2), True, z + 1320),
     ]
     return out
 

@@ -6,7 +6,7 @@ from barkley.engine.clock import STEPT
 from barkley.engine.audio import Deck
 from barkley.model.hero import Hero, HH, Pad
 from barkley.model.level import GRAV, Ground, KCAT, KCRAB, KICICLE, KLOAD, KPOUNCE, KSQUIRREL, KTHROW, KWALKER, Level
-from barkley.model.level import NONE, TS
+from barkley.model.level import KSNATCH, NONE, TS
 from barkley.model.game import Part, Session
 from barkley.assets.palette import CEARTH, CSTONE, CWHITE
 from barkley.assets.tunes import SBARK, SCHARGE, Sfx, SJUMP, SLAUNCH, SPOP, SROLL
@@ -401,7 +401,7 @@ private sub Bark (lv as Level, mu as Deck, se as Session, p as Hero)
         if early then lv.ob(i).s = 1 + 2 * (p.x < lv.ob(i).x)
         if lv.ob(i).s = 0 or dx > BARKR or dy >= 40 then continue for
         select case lv.ob(i).k
-        case KCAT, KWALKER: Flinch lv, i, cint(p.x)
+        case KCAT, KWALKER, KSNATCH: Flinch lv, i, cint(p.x)
         case KCRAB: lv.ob(i).s = sgn(lv.ob(i).s) * SHELLT
         case KTHROW: lv.ob(i).s = sgn(lv.ob(i).s) * THROWC
         end select

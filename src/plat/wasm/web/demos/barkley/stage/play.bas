@@ -9,8 +9,9 @@ from barkley.model.hero import Hero
 from barkley.model.level import GRAV, Ground, KBONE, KBOOST, KBRAMBLE, KBUMP, KBUOY, KBUTTON, KCAT, KCRAB, KDRIFT
 from barkley.model.level import KFLUME, KGOAL, KGOAT, KHEAP, KHOOP, KICICLE, KJELLY, KJET, KLOAD, KLOG, KMARK, KMOUND
 from barkley.model.level import KPRESS, KSAPLING, KSLED, KSPARK, KSPIN, KSPOUT, KSPRING, KSQUIRREL, KSWEEP, KTHORN
-from barkley.model.level import KAWNING, KCHIMNEY, KGOLD, KPOUNCE, KTHROW, KVINE, KWALKER, KWALL, Level, Realm, TS
-from barkley.model.game import Game, Loose, NLOOSE, OVER, Part, Session
+from barkley.model.level import KAWNING, KCHIMNEY, KGOLD, KPOUNCE, KSNATCH, KTHROW, KVINE, KWALKER, KWALL, Level
+from barkley.model.level import Realm, TS
+from barkley.model.game import Game, Loose, NLOOSE, OVER, Part, Session, TOONEW
 from barkley.assets.tunes import LEFTBEHIND, SBONE, SceneTune, Sfx, SHURT
 from barkley.world.terrain.ground import SegAt
 from barkley.world.level import Mend
@@ -22,7 +23,7 @@ from barkley.stage.zones.sands import Bob, MeetCrab, MeetFlume, MeetJelly
 from barkley.stage.zones.wood import MeetBramble, MeetLog, MeetMound, MeetSapling, MeetVine, Regrow, Scamper
 from barkley.stage.zones.pass import Graze, MeetDrift, MeetGoat, MeetHeap, MeetIcicle, MeetSled, MeetThrow, MeetWall
 from barkley.stage.zones.pass import TakeAim, Totter, Unload
-from barkley.stage.zones.quarter import Lines, MeetAwning, MeetChimney, MeetPounce, Pounce, Settle
+from barkley.stage.zones.quarter import Lines, MeetAwning, MeetChimney, MeetPounce, Pounce, Settle, Snatch
 from barkley.stage.zones.chase import ResetChase
 from barkley.stage.camera import Camera
 
@@ -60,7 +61,7 @@ sub Touch (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as 
         select case lv.ob(i).k
         case KBONE: MeetBone lv, mu, se, g, p, i, pt()
         case KGOLD: MeetGold lv, zn, mu, se, g, p, i, pt()
-        case KCAT, KSQUIRREL, KWALKER: MeetCat lv, mu, se, g, p, i, lo(), pt()
+        case KCAT, KSQUIRREL, KWALKER, KSNATCH: MeetCat lv, mu, se, g, p, i, lo(), pt()
         case KCRAB: MeetCrab lv, mu, se, g, p, i, lo(), pt()
         case KSWEEP: MeetSweep lv, mu, se, g, p, i, lo(), pt()
         case KTHROW: MeetThrow lv, mu, se, g, p, i, lo(), pt()
@@ -97,7 +98,7 @@ sub Touch (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as 
     loop
     if se.looseN = 0 then exit sub
     for i = 0 to NLOOSE - 1
-        if lo(i).t <= 0 or lo(i).t >= 3.3 then continue for
+        if lo(i).t <= 0 or lo(i).t >= TOONEW then continue for
         if abs(lo(i).x - px) >= 12 or abs(lo(i).y - py + 13) >= 16 then continue for
         lo(i).t = 0
         se.looseN = se.looseN - 1
@@ -139,6 +140,7 @@ sub Things (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() a
         case KTHROW: TakeAim lv, i, p
         case KSQUIRREL: if lv.ob(i).s <> 0 then Scamper lv, i, p
         case KPOUNCE: Pounce lv, i, p
+        case KSNATCH: if lv.ob(i).s <> 0 then Snatch lv, mu, se, i, lo(), pt()
         case KSPRING, KBUMP, KHOOP, KSAPLING, KAWNING: if lv.ob(i).s > 0 then lv.ob(i).s = lv.ob(i).s - 1
         case KBRAMBLE: Regrow lv, se, pt(), i
         case KVINE: if p.vine <> i + 1 then lv.ob(i).s = lv.ob(i).s * 7 \ 8
