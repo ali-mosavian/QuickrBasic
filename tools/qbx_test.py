@@ -244,6 +244,42 @@ if __name__ == "__main__":
             if missing := needed - defined:
                 bad.append(f"a DOS slice needs what no library gives it: {sorted(missing)}")
 
+    # QX_CALL is one convention on i386 whatever the build's -mregparm: the DOS core is built with 3 and
+    # its cdecl calls passed the extension's arguments in registers; add% gave 0, a string crashed it
+    if cc is not None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            (out / "f.c").write_text(
+                '#include "qx.h"\nint32_t QX_CALL f(const int32_t a, const int32_t b) { return a - b; }\n',
+                encoding="utf-8",
+            )
+            qx = Path(__file__).parents[1] / "src/qx"
+            code = []
+            for regparm in ("-mregparm=3", "-mregparm=0"):
+                done = subprocess.run(
+                    [
+                        cc,
+                        "--target=i386-pc-win32",
+                        "-march=i386",
+                        regparm,
+                        "-O2",
+                        "-ffreestanding",
+                        f"-I{qx}",
+                        "-S",
+                        "-o",
+                        "-",
+                        str(out / "f.c"),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                code.append(
+                    [line for line in done.stdout.splitlines() if line.startswith("\t") and "." not in line[:3]]
+                )
+            if done.returncode or code[0] != code[1]:
+                bad.append(f"QX_CALL changed with -mregparm: {code[0]} against {code[1]}")
+
     if refused("declare sub qx_init_x cdecl ()", "qx_"):
         bad.append("a native named qx_... was accepted: the glue's names start so")
 

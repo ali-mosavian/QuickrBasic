@@ -20,7 +20,7 @@
 #include <stdint.h>
 
 #if defined(__i386__)
-#define QX_CALL __attribute__((cdecl)) /* the ABI's, whatever the core's -mregparm */
+#define QX_CALL __attribute__((cdecl, regparm(0))) /* cdecl alone keeps -mregparm's registers */
 #else
 #define QX_CALL
 #endif
