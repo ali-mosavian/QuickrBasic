@@ -154,7 +154,7 @@ end sub
 ' The level as it starts, the title up, Charlie at the start for the pilot.
 sub ResetWorld (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
     dim i as integer
-    if wd.zn.stage <> wd.zn.nextUp then LoadLevel wd, wd.zn.nextUp
+    if wd.zn.stage <> wd.zn.next_up then LoadLevel wd, wd.zn.next_up
     EndTune wd.lv, wd.zn, wd.mu
     wd.lv.glow = 0
     g.mode = TITLE
@@ -215,9 +215,9 @@ sub GoStage (wd as World, n as integer, g as Game, p as Hero, lo() as Loose, pt(
     dim sc as long, left0 as integer
     sc = g.score
     left0 = g.lives
-    wd.zn.nextUp = n
+    wd.zn.next_up = n
     ResetWorld wd, g, p, lo(), pt()
-    wd.zn.nextUp = 0
+    wd.zn.next_up = 0
     g.mode = PLAYING
     g.score = sc
     g.lives = left0
@@ -254,8 +254,8 @@ end function
 
 ' A game from its start, at the first act of the zone picked on the title.
 sub StartGame (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
-    wd.zn.nextUp = wd.se.pick * 2
+    wd.zn.next_up = wd.se.pick * 2
     ResetWorld wd, g, p, lo(), pt()
-    wd.zn.nextUp = 0
+    wd.zn.next_up = 0
     g.mode = PLAYING
 end sub

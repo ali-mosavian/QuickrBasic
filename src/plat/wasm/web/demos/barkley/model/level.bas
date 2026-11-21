@@ -182,7 +182,7 @@ end type
 type Realm
     id as integer
     stage as integer
-    nextUp as integer
+    next_up as integer
     tile as integer
     back as integer
     ring as integer
