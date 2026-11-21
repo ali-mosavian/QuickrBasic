@@ -15,7 +15,8 @@
    byte a pixel, drawn by pixmem.c. A change of the visible page swaps the two;
    PCOPY copies one over the other. In 04h, 06h and 13h a copy of the visible
    page is kept while nothing draws on it: a swap copies the hidden page out
-   and takes the copy as the hidden one. */
+   and takes the copy as the hidden one. The two are taken when a program first
+   uses its second page, and given back at the next mode set. */
 #include <string.h>
 
 #include "device.h"
@@ -50,7 +51,6 @@ enum {
     LINEAR_BYTES = 320 * 200,
     CGA_BYTES = 0x4000,
     SOFT_PAGES = 2,
-    SWAP_CHUNK = 0x400,
     SET_PAGE = 0x0500,
     MODE_LINEAR = 0x13,
     SET_COLOR_SELECT = 0x0B00,
@@ -75,9 +75,9 @@ static unsigned pitch = 80; /* bytes of a row of one plane */
 static unsigned page_count = 1, page_paragraphs; /* the pages the mode holds, and the paragraphs of one */
 
 static Video *adapter;                         /* the adapter's screen */
-static u8 hidden_store[PLANAR_WIDTH * PLANAR_HEIGHT], shown_store[LINEAR_BYTES];
-static u8 *hidden = hidden_store;              /* the page not on the adapter */
-static u8 *shown_copy = shown_store;           /* the adapter's page, while shown_ok */
+static u8 *soft_block;                         /* hidden's and shown_copy's, taken */
+static u8 *hidden;                             /* the page not on the adapter */
+static u8 *shown_copy;                         /* the adapter's page, while shown_ok (not 12h) */
 static int shown_ok;
 static unsigned soft_mode;                     /* the mode's: 0, or 04h, 06h, 12h or 13h */
 static unsigned shown;                         /* the page on the adapter, where soft_mode */
@@ -138,10 +138,9 @@ int gd_set_mode(unsigned mode)
         page_count = SOFT_PAGES;
     shown = 0;
     in_memory = 0;
-    hidden = hidden_store;
-    shown_copy = shown_store;
+    dev_give(soft_block);
+    soft_block = hidden = shown_copy = 0;
     shown_ok = 0;
-    memset(hidden, 0, sizeof hidden_store);
     if ((r.rax & 0x7F) != (mode & 0x7F))
         return 0;
 
@@ -208,6 +207,19 @@ static void planar_row_out(unsigned y, const u8 *pixels)
     controller(GC_MODE, WRITE_MODE_2);
 }
 
+/* The hidden page and the shown one's copy, taken once a mode's second page is used. */
+static void soft_take(void)
+{
+    if (soft_block)
+        return;
+    if (soft_mode == MODE_640_480) {
+        soft_block = hidden = dev_take(PLANAR_WIDTH * PLANAR_HEIGHT);
+        return;
+    }
+    soft_block = hidden = dev_take(2UL * soft_bytes());
+    shown_copy = hidden + soft_bytes();
+}
+
 static void move(void *to, const void *from, unsigned count)
 {
     BlockOp op;
@@ -231,7 +243,7 @@ static void soft_swap(void)
             planar_row_out(y, hidden + y * PLANAR_WIDTH);
             memcpy(hidden + y * PLANAR_WIDTH, row, PLANAR_WIDTH);
         }
-    } else if (soft_bytes() <= sizeof shown_store) {
+    } else {
         u8 *const was = hidden;
 
         if (!shown_ok)
@@ -240,17 +252,6 @@ static void soft_swap(void)
         hidden = shown_copy;
         shown_copy = was;
         shown_ok = 1;
-    } else {
-        u8 held[SWAP_CHUNK];
-        unsigned at, n = soft_bytes();
-
-        for (at = 0; at < n; at += SWAP_CHUNK) {
-            const unsigned count = n - at < SWAP_CHUNK ? n - at : SWAP_CHUNK;
-
-            move(held, (const void *)(adapter + at), count);
-            move((void *)(adapter + at), hidden + at, count);
-            move(hidden + at, held, count);
-        }
     }
 }
 
@@ -297,6 +298,8 @@ int gd_set_pages(unsigned active, unsigned visible)
     if (active >= page_count || visible >= page_count)
         return 0;
     if (soft_mode) {
+        if (active | visible | shown)
+            soft_take();
         if (visible != shown) {
             soft_swap();
             shown = visible;
@@ -321,6 +324,7 @@ int gd_copy_page(unsigned from, unsigned to)
     if (from == to)
         return 1;
     if (soft_mode) {
+        soft_take();
         soft_copy(to != shown);
         return 1;
     }

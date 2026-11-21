@@ -47,11 +47,17 @@ typedef struct Strike {
     unsigned long length; /* parts */
 } Strike;
 
-static DevVoice instruments[SONG_INSTRUMENTS + 1][DEV_LAYERS];
-static unsigned long tails[SONG_INSTRUMENTS + 1]; /* an instrument's longest release, parts; 0 not defined */
+/* The songs' tables: taken at the first instrument or song, given back by song_give. */
+typedef struct Tables {
+    DevVoice instruments[SONG_INSTRUMENTS + 1][DEV_LAYERS];
+    unsigned long tails[SONG_INSTRUMENTS + 1]; /* an instrument's longest release, parts; 0 not defined */
+    Tempo tempi[TEMPI];
+    Held held[DEV_VOICES];
+    Strike strikes[STRIKES];
+    Note *notes; /* the song's, taken for it */
+} Tables;
 
-static Note notes[SONG_NOTES];
-static Tempo tempi[TEMPI];
+static Tables *sg;
 static unsigned count, tempo_count, loop_next;
 static unsigned long end, loop_at;  /* parts: the song's end, and where it goes back to */
 static long end_tick, loop_tick;    /* the same in ticks; loop_tick < 0, none */
@@ -61,8 +67,6 @@ static volatile unsigned long passes;
 static volatile byte live, looping;
 static volatile unsigned long fade_left, fade_total;
 
-static Held held[DEV_VOICES];
-static Strike strikes[STRIKES];
 static volatile unsigned strike_head, strike_tail;
 static volatile unsigned long clock; /* parts the song's tick has run */
 static volatile byte awake;          /* a song, a strike or a note of ours: the tick has work */
@@ -74,6 +78,13 @@ static volatile byte awake;          /* a song, a strike or a note of ours: the 
 static void illegal(void)
 {
     qb_error(BE_ILLFUN);
+}
+
+static Tables *tables(void)
+{
+    if (!sg)
+        sg = dev_take(sizeof *sg);
+    return sg;
 }
 
 /* Parts of a tick a minute. */
@@ -93,9 +104,9 @@ static const Tempo *tempo_at(long tick)
 {
     unsigned k = 0;
 
-    while (k + 1 < tempo_count && tempi[k + 1].tick <= tick)
+    while (k + 1 < tempo_count && sg->tempi[k + 1].tick <= tick)
         k++;
-    return &tempi[k];
+    return &sg->tempi[k];
 }
 
 /* Where tick `tick` falls, in parts from the song's start. */
@@ -111,15 +122,15 @@ static double tick_of(unsigned long part)
 {
     unsigned k = 0;
 
-    while (k + 1 < tempo_count && tempi[k + 1].part <= (double)part)
+    while (k + 1 < tempo_count && sg->tempi[k + 1].part <= (double)part)
         k++;
-    return (double)tempi[k].tick + ((double)part - tempi[k].part) / tempi[k].per_tick;
+    return (double)sg->tempi[k].tick + ((double)part - sg->tempi[k].part) / sg->tempi[k].per_tick;
 }
 
 /* The voice's sound to the synthesizer, at its note's loudness and the fade's. */
 static void send(unsigned voice)
 {
-    const Held *const h = &held[voice];
+    const Held *const h = &sg->held[voice];
     DevVoice v[DEV_LAYERS];
     const unsigned layers = 1u + h->sound[0].layers;
 
@@ -137,7 +148,7 @@ static void send(unsigned voice)
 
 static void let_go(unsigned voice)
 {
-    Held *const h = &held[voice];
+    Held *const h = &sg->held[voice];
 
     h->gated = 0;
     h->sound[0].gate = 0;
@@ -150,13 +161,13 @@ static unsigned pick(void)
     unsigned best = DEV_VOICES;
 
     for (int i = DEV_VOICES - 1; i >= 0; i--) {
-        const Held *const h = &held[i];
+        const Held *const h = &sg->held[i];
 
         if (!music_idle((unsigned)i))
             continue;
         if (!h->ours || clock >= h->free)
             return (unsigned)i;
-        if (best == DEV_VOICES || h->free < held[best].free)
+        if (best == DEV_VOICES || h->free < sg->held[best].free)
             best = (unsigned)i;
     }
     return best;
@@ -167,17 +178,17 @@ static void start(unsigned sound, unsigned pitch, unsigned long length, unsigned
 {
     const unsigned voice = pick();
 
-    if (voice == DEV_VOICES || !tails[sound])
+    if (voice == DEV_VOICES || !sg->tails[sound])
         return;
-    Held *const h = &held[voice];
+    Held *const h = &sg->held[voice];
 
-    memcpy(h->sound, instruments[sound], sizeof h->sound);
+    memcpy(h->sound, sg->instruments[sound], sizeof h->sound);
     h->sound[0].hertz = play_hertz((int)pitch);
     h->sound[0].gate = 1;
     h->sound[0].trigger = ++h->trigger;
     h->loud = (byte)loud;
     h->off = clock + (length ? length : 1);
-    h->free = h->off + tails[sound];
+    h->free = h->off + sg->tails[sound];
     h->gated = h->ours = 1;
     send(voice);
 }
@@ -188,7 +199,7 @@ static void stop_now(void)
     live = 0;
     fade_left = fade_total = 0;
     for (unsigned i = 0; i < DEV_VOICES; i++)
-        if (held[i].ours && held[i].gated)
+        if (sg->held[i].ours && sg->held[i].gated)
             let_go(i);
 }
 
@@ -200,17 +211,17 @@ void song_tick(void)
     byte gated = 0;
 
     for (unsigned i = 0; i < DEV_VOICES; i++)
-        if (held[i].gated && clock >= held[i].off)
+        if (sg->held[i].gated && clock >= sg->held[i].off)
             let_go(i);
     while (strike_tail != strike_head) {
-        const Strike *const s = &strikes[strike_tail];
+        const Strike *const s = &sg->strikes[strike_tail];
 
         start(s->sound, s->pitch, s->length, s->loud);
         strike_tail = (strike_tail + 1) % STRIKES;
     }
     if (live) {
-        while (next < count && notes[next].on <= at) {
-            const Note *const n = &notes[next++];
+        while (next < count && sg->notes[next].on <= at) {
+            const Note *const n = &sg->notes[next++];
 
             start(n->sound, n->pitch, n->off - n->on, n->loud);
         }
@@ -229,18 +240,19 @@ void song_tick(void)
             stop_now();
         else if (fade_left % FADE_EVERY == 0)
             for (unsigned i = 0; i < DEV_VOICES; i++)
-                if (held[i].ours && held[i].gated)
+                if (sg->held[i].ours && sg->held[i].gated)
                     send(i);
     }
     for (unsigned i = 0; i < DEV_VOICES; i++)
-        gated |= held[i].gated;
+        gated |= sg->held[i].gated;
     if (!live && !gated && strike_head == strike_tail)
         awake = 0;
 }
 
 void song_taken(unsigned voice)
 {
-    held[voice].ours = held[voice].gated = 0;
+    if (sg)
+        sg->held[voice].ours = sg->held[voice].gated = 0;
 }
 
 void song_clear(void)
@@ -250,10 +262,10 @@ void song_clear(void)
     live = awake = 0;
     fade_left = fade_total = 0;
     strike_tail = strike_head;
-    for (unsigned i = 0; i < DEV_VOICES; i++) {
-        if (held[i].ours)
+    for (unsigned i = 0; sg && i < DEV_VOICES; i++) {
+        if (sg->held[i].ours)
             dev_voice(i, &silence);
-        held[i].ours = held[i].gated = 0;
+        sg->held[i].ours = sg->held[i].gated = 0;
     }
 }
 
@@ -264,6 +276,7 @@ void song_instrument(int n, SD *commands)
 
     if (n < 1 || n > SONG_INSTRUMENTS)
         illegal();
+    tables();
     play_sound(commands, sound);
     for (unsigned k = 0; k <= sound[0].layers; k++) {
         const unsigned long ms = release_ms[sound[k].envelope & 15];
@@ -271,8 +284,8 @@ void song_instrument(int n, SD *commands)
         longest = ms > longest ? ms : longest;
     }
     dev_tick_hold();
-    memcpy(instruments[n], sound, sizeof sound);
-    tails[n] = 1 + (unsigned long)((double)longest * parts_a_minute() / 60000.0);
+    memcpy(sg->instruments[n], sound, sizeof sound);
+    sg->tails[n] = 1 + (unsigned long)((double)longest * parts_a_minute() / 60000.0);
     dev_tick_release();
 }
 
@@ -287,14 +300,18 @@ static long field(const unsigned char *event, unsigned k)
 
 void song_play(const unsigned char *events, unsigned n, unsigned size, long from)
 {
+    tables();
     dev_tick_hold();
     stop_now();
     dev_tick_release();
+    dev_give(sg->notes);
+    sg->notes = 0;
+    sg->notes = dev_take((n < SONG_NOTES ? n + 1UL : SONG_NOTES) * sizeof *sg->notes);
 
     /* the tempi first, in order of their ticks: every note's time depends on them */
     tempo_count = 1;
-    tempi[0].tick = 0;
-    tempi[0].per_tick = per_tick(DEFAULT_TEMPO);
+    sg->tempi[0].tick = 0;
+    sg->tempi[0].per_tick = per_tick(DEFAULT_TEMPO);
     end_tick = 0;
     for (unsigned i = 0; i < n; i++) {
         const unsigned char *const e = events + (unsigned long)i * size;
@@ -314,18 +331,18 @@ void song_play(const unsigned char *events, unsigned n, unsigned size, long from
         else if (tempo_count == TEMPI)
             illegal();
         else {
-            while (k > 1 && tempi[k - 1].tick > tick) {
-                tempi[k] = tempi[k - 1];
+            while (k > 1 && sg->tempi[k - 1].tick > tick) {
+                sg->tempi[k] = sg->tempi[k - 1];
                 k--;
             }
             tempo_count++;
         }
-        tempi[k].tick = tick;
-        tempi[k].per_tick = per_tick(pitch);
+        sg->tempi[k].tick = tick;
+        sg->tempi[k].per_tick = per_tick(pitch);
     }
-    tempi[0].part = 0;
+    sg->tempi[0].part = 0;
     for (unsigned k = 1; k < tempo_count; k++)
-        tempi[k].part = tempi[k - 1].part + (double)(tempi[k].tick - tempi[k - 1].tick) * tempi[k - 1].per_tick;
+        sg->tempi[k].part = sg->tempi[k - 1].part + (double)(sg->tempi[k].tick - sg->tempi[k - 1].tick) * sg->tempi[k - 1].per_tick;
 
     count = 0;
     for (unsigned i = 0; i < n; i++) {
@@ -335,13 +352,13 @@ void song_play(const unsigned char *events, unsigned n, unsigned size, long from
 
         if (!sound)
             continue;
-        if (pitch < 0 || pitch > HIGHEST_NOTE || loud < 0 || loud > FULL || !tails[sound])
+        if (pitch < 0 || pitch > HIGHEST_NOTE || loud < 0 || loud > FULL || !sg->tails[sound])
             illegal();
         if (!pitch)
             continue; /* a rest: the song's end at least as late as it */
         if (count == SONG_NOTES)
             illegal();
-        Note *const note = &notes[count++];
+        Note *const note = &sg->notes[count++];
 
         note->on = part_of(tick);
         note->off = part_of(tick + length);
@@ -354,12 +371,12 @@ void song_play(const unsigned char *events, unsigned n, unsigned size, long from
     /* in the order they start: a shell sort, no library's */
     for (unsigned gap = count / 2; gap; gap /= 2)
         for (unsigned i = gap; i < count; i++) {
-            const Note moving = notes[i];
+            const Note moving = sg->notes[i];
             unsigned j = i;
 
-            for (; j >= gap && notes[j - gap].on > moving.on; j -= gap)
-                notes[j] = notes[j - gap];
-            notes[j] = moving;
+            for (; j >= gap && sg->notes[j - gap].on > moving.on; j -= gap)
+                sg->notes[j] = sg->notes[j - gap];
+            sg->notes[j] = moving;
         }
 
     end = part_of(end_tick);
@@ -372,7 +389,7 @@ void song_play(const unsigned char *events, unsigned n, unsigned size, long from
         if (from >= end_tick)
             illegal();
         loop_at = part_of(from);
-        for (loop_next = 0; loop_next < count && notes[loop_next].on < loop_at; loop_next++)
+        for (loop_next = 0; loop_next < count && sg->notes[loop_next].on < loop_at; loop_next++)
             ;
     }
     dev_tick_hold();
@@ -387,6 +404,8 @@ void song_stop(long ticks)
 {
     if (ticks < 0)
         illegal();
+    if (!sg)
+        return; /* no song */
     const unsigned long parts = (unsigned long)((double)ticks * tempo_at((long)tick_of(at))->per_tick + 0.5);
 
     dev_tick_hold();
@@ -399,7 +418,7 @@ void song_stop(long ticks)
 
 void song_note(int sound, int pitch, long length, int loud)
 {
-    if (sound < 1 || sound > SONG_INSTRUMENTS || !tails[sound] || pitch < 0 || pitch > HIGHEST_NOTE || length < 0 ||
+    if (sound < 1 || sound > SONG_INSTRUMENTS || !sg || !sg->tails[sound] || pitch < 0 || pitch > HIGHEST_NOTE || length < 0 ||
         loud < 0 || loud > FULL)
         illegal();
     if (!pitch)
@@ -409,7 +428,7 @@ void song_note(int sound, int pitch, long length, int loud)
     music_start();
     while ((strike_head + 1) % STRIKES == strike_tail)
         QB_IDLE();
-    Strike *const s = &strikes[strike_head];
+    Strike *const s = &sg->strikes[strike_head];
 
     s->sound = (unsigned char)sound;
     s->pitch = (unsigned char)pitch;
@@ -417,6 +436,19 @@ void song_note(int sound, int pitch, long length, int loud)
     s->length = (unsigned long)((double)length * now + 0.5);
     strike_head = (strike_head + 1) % STRIKES;
     awake = 1;
+}
+
+void song_give(void)
+{
+    Tables *const t = sg;
+
+    if (!t || awake)
+        return;
+    dev_tick_hold();
+    sg = 0;
+    dev_tick_release();
+    dev_give(t->notes);
+    dev_give(t);
 }
 
 float song_beat(void)

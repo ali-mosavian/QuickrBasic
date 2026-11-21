@@ -176,8 +176,9 @@ $(B)/ext/qxtest.dll: $(QXTEST) src/qx/qx.h
 	$(DOS_SLICE_CC) -c tests/ext/qxtest.c -o $(@D)/qxtest.obj
 	$(DOS_SLICE_CC) -c build/ext/qxtest_qx.c -o $(@D)/qxtest_qx.obj
 	$(LLD_LINK) /dll /noentry /nodefaultlib /out:$@ $(@D)/qxtest.obj $(@D)/qxtest_qx.obj
-host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/hostperf/basic build/host/ext/qxtest.so
+host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/hostperf/basic build/host/ext/qxtest.so $(NAMES)
 	for t in $(TOOLS_TEST); do $(PY) $$t || exit 1; done
+	CLANG=$(CLANG) $(PY) tools/rtstatic_test.py $(NAMES) $(addprefix $(QBRT)/,$(QBRT_DOS_C)) src/qbrt/qbrt.c src/qbrt/qbrt_dos.c
 	build/host/unit_tests
 	sh tests/host/longpath.sh build/host/basic
 	sh tests/host/dosname.sh build/host/basic

@@ -28,12 +28,16 @@ void llrm_os_exit(const unsigned char code) { psys_exit(code); }
 
 unsigned char llrm_os_console_key_ready(void) { return pkey_ready(); }
 
-/* The environment's string `index` (NAME=value) in data, max bytes at most; its length, -1 past the last. */
+enum { ENV_MOST = 0x8000 }; /* DOS's */
+
+/* The environment's string `index` (NAME=value) in data, max bytes at most; its length, -1 past the last. Its copy
+   is taken for the call. */
 int llrm_os_environment(const unsigned index, unsigned char *const data, const unsigned max)
 {
-    static char env[0x8000]; /* DOS's most */
-    const uint32_t n = psys_environ(env, sizeof env);
+    char *const env = dev_take(ENV_MOST);
+    const uint32_t n = psys_environ(env, ENV_MOST);
     uint32_t at = 0;
+    int found = -1;
 
     for (unsigned i = 0; at < n && env[at]; i++) {
         uint32_t length = 0;
@@ -44,11 +48,15 @@ int llrm_os_environment(const unsigned index, unsigned char *const data, const u
             const uint32_t put = length < max ? length : max;
             for (uint32_t k = 0; k < put; k++)
                 data[k] = (unsigned char)env[at + k];
-            return (int)put;
+
+            found = (int)put;
+            break;
         }
         at += length + 1;
     }
-    return -1;
+
+    dev_give(env);
+    return found;
 }
 
 unsigned char llrm_os_console_read_key(void) { return (unsigned char)pkey_wait(); }

@@ -498,9 +498,18 @@ static int step(Player *p, unsigned voice)
    the first is what SOUND reads. */
 #define FIRST_SOUND {0, DEFAULT_WIDTH, DEFAULT_ENVELOPE, DEFAULT_CUTOFF, DEV_PULSE, DEFAULT_VOLUME, DEV_UNFILTERED, 0, 0, 0, 1, DEFAULT_DEPTH, DEFAULT_FALL, 0, 0, 0, 0, 0, 0, 0, 0}
 static const DevVoice first_sound = FIRST_SOUND;
-static Player players[DEV_VOICES] = {[0 ... DEV_VOICES - 1] = {{0, 0, 0}, {{0, 0, 0}}, DEFAULT_OCTAVE, DEFAULT_LENGTH,
-                                                               DEFAULT_TEMPO, NORMAL, 0, 0,
-                                                               {[0 ... DEV_LAYERS - 1] = FIRST_SOUND}}};
+static const Player first_player = {{0, 0, 0}, {{0, 0, 0}}, DEFAULT_OCTAVE, DEFAULT_LENGTH, DEFAULT_TEMPO, NORMAL, 0, 0,
+                                    {[0 ... DEV_LAYERS - 1] = FIRST_SOUND}};
+static Player *players[DEV_VOICES]; /* taken at the voice's first PLAY */
+
+static Player *player(unsigned voice)
+{
+    if (!players[voice]) {
+        players[voice] = dev_take(sizeof *players[voice]);
+        *players[voice] = first_player;
+    }
+    return players[voice];
+}
 
 /* B$SPLY: PLAY with the string of commands.  What the commands set (the octave,
    the length, the tempo, the style and foreground or background) stays set for
@@ -508,9 +517,11 @@ static Player players[DEV_VOICES] = {[0 ... DEV_VOICES - 1] = {{0, 0, 0}, {{0, 0
    sounding to end. */
 void B_SPLY(SD *commands)
 {
-    macro_begin(&players[0].m, commands);
-    players[0].layer = 0;
-    while (step(&players[0], 0))
+    Player *const p = player(0);
+
+    macro_begin(&p->m, commands);
+    p->layer = 0;
+    while (step(p, 0))
         ;
     str_free_if_tmp(commands);
 }
@@ -526,9 +537,11 @@ void B_SPLYV(SD *const *commands, unsigned count)
         more[i] = commands[i] != 0;
         if (!more[i])
             continue;
-        players[i].synth = 1;
-        players[i].layer = 0;
-        macro_begin(&players[i].m, commands[i]);
+        Player *const p = player(i);
+
+        p->synth = 1;
+        p->layer = 0;
+        macro_begin(&p->m, commands[i]);
         music_align(i);
     }
     for (;;) {
@@ -539,7 +552,7 @@ void B_SPLYV(SD *const *commands, unsigned count)
                 next = i;
         if (next == count)
             break;
-        more[next] = (byte)step(&players[next], next);
+        more[next] = (byte)step(players[next], next);
     }
     for (i = 0; i < count; i++)
         if (commands[i])
@@ -548,16 +561,8 @@ void B_SPLYV(SD *const *commands, unsigned count)
 
 void play_sound(SD *commands, DevVoice sound[DEV_LAYERS])
 {
-    static Player p;
-    unsigned k;
+    Player p = first_player;
 
-    p.octave = DEFAULT_OCTAVE;
-    p.length = DEFAULT_LENGTH;
-    p.tempo = DEFAULT_TEMPO;
-    p.style = NORMAL;
-    p.layer = 0;
-    for (k = 0; k < DEV_LAYERS; k++)
-        p.sound[k] = first_sound;
     macro_begin(&p.m, commands);
     while (step(&p, NO_VOICE))
         ;
@@ -571,12 +576,15 @@ void music_reset(void)
     unsigned i;
 
     for (i = 0; i < DEV_VOICES; i++) {
+        Player *const p = players[i];
         unsigned k;
 
-        players[i].synth = 0;
-        players[i].layer = 0;
+        if (!p)
+            continue;
+        p->synth = 0;
+        p->layer = 0;
         for (k = 0; k < DEV_LAYERS; k++)
-            players[i].sound[k] = first_sound;
+            p->sound[k] = first_sound;
     }
 }
 
