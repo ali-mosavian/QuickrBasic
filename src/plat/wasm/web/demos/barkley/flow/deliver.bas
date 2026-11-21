@@ -10,8 +10,8 @@ from barkley.model.game import Game, Part
 from barkley.assets.tunes import ChaseTune, SceneTune, Sfx, ZoneTune
 from barkley.stage.fx.parts import Puff
 
-' The step's events, in the order posted, each to its owner's
-' modifier; the queue empty after.
+' The step's events, in the order posted, each to its
+' owner's modifier; the queue empty after.
 sub Deliver (wd as World, g as Game, pt() as Part)
     dim e as Event
 

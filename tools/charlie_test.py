@@ -4681,6 +4681,16 @@ def owners_kept() -> int:
     return got
 
 
+def widths(files: dict[Path, str]) -> None:
+    """The code rules' widths: code 70 columns, a comment 60. Two comments of 61 came in with the event queue,
+    and only the engine bench saw them."""
+    for path, text in files.items():
+        for n, line in enumerate(text.split("\n"), 1):
+            limit = 60 if line.lstrip().startswith("'") else 70
+            if len(line) > limit:
+                sys.exit(f"charlie: {path.name}:{n} is {len(line)} columns, over {limit}")
+
+
 def pix(p: charlieart.Pic) -> int:
     """A picture summed by place as the driver's Pix& sums the screen."""
     return sum(c * ((x + y * 7) % 31 + 1) for y, row in enumerate(p.p) for x, c in enumerate(row))
@@ -4703,6 +4713,7 @@ def refused(kind: str, text: str) -> bool:
 
 def main() -> None:
     exe = Path(sys.argv[1] if len(sys.argv) > 1 else ROOT / "build/host/basic").resolve()
+    widths(game_files())
     kept = owners_kept()
     src = DEMO.read_text()
     assert "\nMain wd\nend\n" in src, "CHARLIE.BAS's main call moved"
