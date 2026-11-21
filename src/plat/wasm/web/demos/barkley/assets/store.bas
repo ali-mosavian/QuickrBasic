@@ -32,39 +32,39 @@ end sub
 private sub LoadArt (art as Store, tn as Tones)
     dim n as integer, i as integer, k as integer, c as long
     tn.dusk = 16
-    OpenData
-    c = Word&
-    c = Word&
-    n = Word&
+    OpenData art.dat
+    c = Word&(art.dat)
+    c = Word&(art.dat)
+    n = Word&(art.dat)
     for i = 1 to n
-        k = Word&
-        Tint tn, k, Word&
+        k = Word&(art.dat)
+        Tint tn, k, Word&(art.dat)
     next
     for k = 0 to NSTAGE - 1
-        tn.n(k) = Word&
+        tn.n(k) = Word&(art.dat)
         for i = 0 to tn.n(k) - 1
-            tn.which(k, i) = Word&
-            tn.own(k, i) = Word&
+            tn.which(k, i) = Word&(art.dat)
+            tn.own(k, i) = Word&(art.dat)
         next
     next
     for k = 0 to ZONES - 1
-        art.dat_at(k) = Word&
+        art.dat_at(k) = Word&(art.dat)
     next
     ReadPics art
-    close #1
+    close #art.dat.num
 end sub
 
 ' A group of CHARLIE.DAT's pictures, from where the file is, to the store: their count, then each, its mask and
 ' its mirror with it.
 private sub ReadPics (art as Store)
     dim n as integer, i as integer, k as integer, w as integer, h as integer, masked as integer, k2 as integer
-    n = Word&
+    n = Word&(art.dat)
     for i = 1 to n
-        k = Word&
-        w = Word&
-        h = Word&
-        masked = Word&
-        k2 = Word&
+        k = Word&(art.dat)
+        w = Word&(art.dat)
+        h = Word&(art.dat)
+        masked = Word&(art.dat)
+        k2 = Word&(art.dat)
         art.at(k) = art.next_at
         Unpack art
         if masked then
@@ -81,32 +81,32 @@ end sub
 sub LoadZoneArt (art as Store, z as integer)
     if art.zone = z + 1 then exit sub
     art.zone = z + 1
-    OpenData
-    seek #1, art.dat_at(z)
+    OpenData art.dat
+    seek #art.dat.num, art.dat_at(z)
     art.next_at = art.zone_at
     ReadPics art
-    close #1
+    close #art.dat.num
 end sub
 
 ' A run-length stream of the file's LONGs to art.img at art.nextAt: n then n values, -n then
 ' one value n times, 0 the end.
 private sub Unpack (art as Store)
     dim n as integer, e as long, v as long
-    n = Word&
+    n = Word&(art.dat)
     do while n
         if n > 0 then
             for e = art.next_at to art.next_at + n - 1
-                get #1, , art.img(e)
+                get #art.dat.num, , art.img(e)
             next
         else
             n = -n
-            v = Word&
+            v = Word&(art.dat)
             for e = art.next_at to art.next_at + n - 1
                 art.img(e) = v
             next
         end if
         art.next_at = art.next_at + n
-        n = Word&
+        n = Word&(art.dat)
     loop
 end sub
 

@@ -2,7 +2,7 @@
 defint A-Z
 option explicit
 
-from barkley.engine.datafile import Chars, OpenData, Word
+from barkley.engine.datafile import Chars, DataFile, OpenData, Word
 from barkley.model.images import IBG, ICARD, ICARD2, ILOOP, ITILE, ITILE2, IWAVE, IZ2
 from barkley.model.level import KBONE, KBOOST, KBRAMBLE, KBUMP, KBUOY, KBUSH, KBUTTON, KCAT, KCISTERN, KCRAB, KDRIFT
 from barkley.model.level import KAWNING, KBIN, KCHIMNEY, KGOLD, KMORTAR, KPOUNCE, KSNATCH, KTIPPER, KWALKER
@@ -54,13 +54,13 @@ end function
 
 ' CHARLIE.DAT open at a stage's level: a zone's two acts, zone by zone, then the intro's road. They are written
 ' in tools/charlielevels.txt.
-private sub SeekLevel (st as integer)
+private sub SeekLevel (df as DataFile, st as integer)
     dim levels as long
-    OpenData
-    seek #1, 5
-    levels = Word&
-    seek #1, levels + 4 + st * 4
-    seek #1, levels + Word&
+    OpenData df
+    seek #df.num, 5
+    levels = Word&(df)
+    seek #df.num, levels + 4 + st * 4
+    seek #df.num, levels + Word&(df)
 end sub
 
 ' A prop as the works have it, where the van's road is theirs: a tank for a tree, a vent for a bush; nothing grows
@@ -136,10 +136,10 @@ sub LoadLevel (wd as World, st as integer)
         wd.zn.card = ICARD
         wd.zn.wave = IWAVE
     end if
-    SeekLevel st
+    SeekLevel wd.dat, st
     do
-        cmd = Chars$
-        n = Word&
+        cmd = Chars$(wd.dat)
+        n = Word&(wd.dat)
         s = (MH - g) * TS
         k = 0
         select case cmd
@@ -442,7 +442,7 @@ sub LoadLevel (wd as World, st as integer)
         if wd.zn.decked then k = Plated%(k)
         if k then AddObj wd.lv, k, c * TS + 8, s
     loop until cmd = "end"
-    close #1
+    close #wd.dat.num
     wd.lv.w = c
     wd.lv.wpx = c * TS
     ' nothing grows in front of the family

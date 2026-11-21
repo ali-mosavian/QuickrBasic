@@ -2,7 +2,7 @@
 defint A-Z
 option explicit
 
-from barkley.engine.datafile import Chars, OpenData, Word
+from barkley.engine.datafile import Chars, DataFile, OpenData, Word
 
 ' Half a bar as PLAY strings: its drums and their letters, the bass, the two chord voices, the lead, the first
 ' voice an octave down, and the third voice.
@@ -50,9 +50,10 @@ type Song
 end type
 
 ' The music: the slot playing, its bar and half; ended: it has ended and nothing plays. z_held: the song in the
-' zone's slot, one more than its number in CHARLIE.DAT: 0 before any.
+' zone's slot, one more than its number in the data file: 0 before any. dat: the file its songs are in.
 type Deck
     song() as Song
+    dat as DataFile
     slot as integer
     bar as integer
     half as integer
@@ -88,60 +89,60 @@ sub HushSong (mu as Deck)
     mu.fade_out = 0
 end sub
 
-' Song id of CHARLIE.DAT into slot s: its order and levels, its kit, and its bars as PLAY strings.
+' Song id of the deck's data file into slot s: its order and levels, its kit, and its bars as PLAY strings.
 sub LoadSong (mu as Deck, s as integer, id as integer)
     dim i as integer, n as integer, bars as integer, octs as integer, songs as long
     dim bas(7) as string, hits(7) as string, pat(7) as string
-    OpenData
-    songs = Word&
-    seek #1, songs + 4 + id * 4
-    seek #1, songs + Word&
-    mu.song(s).order = Chars$
-    mu.song(s).voicing = Chars$
-    bars = Word&
-    mu.song(s).tempo = Word&
-    mu.song(s).bass_in = Word&
+    OpenData mu.dat
+    songs = Word&(mu.dat)
+    seek #mu.dat.num, songs + 4 + id * 4
+    seek #mu.dat.num, songs + Word&(mu.dat)
+    mu.song(s).order = Chars$(mu.dat)
+    mu.song(s).voicing = Chars$(mu.dat)
+    bars = Word&(mu.dat)
+    mu.song(s).tempo = Word&(mu.dat)
+    mu.song(s).bass_in = Word&(mu.dat)
     for i = 0 to 5
-        mu.song(s).lvl(i) = Word&
+        mu.song(s).lvl(i) = Word&(mu.dat)
     next
-    mu.song(s).fade = Word&
-    mu.song(s).entry = Word&
-    mu.song(s).ends = Word&
-    octs = Word&
-    mu.song(s).swing = Word&
+    mu.song(s).fade = Word&(mu.dat)
+    mu.song(s).entry = Word&(mu.dat)
+    mu.song(s).ends = Word&(mu.dat)
+    octs = Word&(mu.dat)
+    mu.song(s).swing = Word&(mu.dat)
     ReadKit mu, s
-    ReadList bas()
-    ReadList hits()
-    ReadList pat()
+    ReadList mu.dat, bas()
+    ReadList mu.dat, hits()
+    ReadList mu.dat, pat()
     for n = 0 to bars - 1
         ReadBar mu, s, n, bas(), hits(), pat(), 27 + 12 * octs
     next
-    close #1
+    close #mu.dat.num
 end sub
 
-' Slot s's kit, CHARLIE.DAT's next: four sounds, its voicings and its drums.
+' Slot s's kit, the data file's next: four sounds, its voicings and its drums.
 private sub ReadKit (mu as Deck, s as integer)
     dim i as integer, n as integer
-    mu.song(s).lead_p = Chars$
-    mu.song(s).bass_p = Chars$
-    mu.song(s).under_p = Chars$
-    mu.song(s).mid_p = Chars$
+    mu.song(s).lead_p = Chars$(mu.dat)
+    mu.song(s).bass_p = Chars$(mu.dat)
+    mu.song(s).under_p = Chars$(mu.dat)
+    mu.song(s).mid_p = Chars$(mu.dat)
     mu.song(s).vo_let = ""
-    n = Word&
+    n = Word&(mu.dat)
     for i = 0 to n - 1
-        mu.song(s).vo_let = mu.song(s).vo_let + Chars$
-        mu.song(s).vo_one(i) = Chars$
-        mu.song(s).vo_two(i) = Chars$
-        mu.song(s).vo_under(i) = Word&
+        mu.song(s).vo_let = mu.song(s).vo_let + Chars$(mu.dat)
+        mu.song(s).vo_one(i) = Chars$(mu.dat)
+        mu.song(s).vo_two(i) = Chars$(mu.dat)
+        mu.song(s).vo_under(i) = Word&(mu.dat)
     next
     mu.song(s).dr_let = ""
-    n = Word&
+    n = Word&(mu.dat)
     for i = 0 to n - 1
-        mu.song(s).dr_let = mu.song(s).dr_let + Chars$
-        mu.song(s).dr_patch(i) = Chars$
-        mu.song(s).dr_vol(i) = Word&
-        mu.song(s).dr_up(i) = Word&
-        mu.song(s).dr_note(i) = Chars$
+        mu.song(s).dr_let = mu.song(s).dr_let + Chars$(mu.dat)
+        mu.song(s).dr_patch(i) = Chars$(mu.dat)
+        mu.song(s).dr_vol(i) = Word&(mu.dat)
+        mu.song(s).dr_up(i) = Word&(mu.dat)
+        mu.song(s).dr_note(i) = Chars$(mu.dat)
     next
     mu.song(s).layered = Doubled%(mu.song(s).dr_let)
 end sub
@@ -162,28 +163,28 @@ private function Doubled% (a as string)
     next
 end function
 
-' CHARLIE.DAT's next list of strings, after its count.
-private sub ReadList (a() as string)
+' The data file's next list of strings, after its count.
+private sub ReadList (df as DataFile, a() as string)
     dim i as integer, n as integer
-    n = Word&
+    n = Word&(df)
     for i = 0 to n - 1
-        a(i) = Chars$
+        a(i) = Chars$(df)
     next
 end sub
 
-' Slot s's bar n, CHARLIE.DAT's next: its root, bass riff and drum pattern, and four riffs, made its two half bars'
+' Slot s's bar n, the data file's next: its root, bass riff and drum pattern, and four riffs, made its two half bars'
 ' PLAY strings, the lead's lowest note `lead`. A second voice of two characters is a chord pattern, its x the note,
 ' an octave down. A third voice of no loudness is left out.
 private sub ReadBar (mu as Deck, s as integer, n as integer, bas() as string, hits() as string, pat() as string, lead as integer)
     dim root as integer, nb as integer, nd as integer, low as integer, j as integer, h as integer
     dim st as string, br as string, sol as string, mid as string
-    root = Word&
-    nb = Word&
-    nd = Word&
-    st = Chars$
-    br = Chars$
-    sol = Chars$
-    mid = Chars$
+    root = Word&(mu.dat)
+    nb = Word&(mu.dat)
+    nd = Word&(mu.dat)
+    st = Chars$(mu.dat)
+    br = Chars$(mu.dat)
+    sol = Chars$(mu.dat)
+    mid = Chars$(mu.dat)
     if mu.song(s).lvl(5) = 0 then mid = ""
     low = 27
     if len(st) = 2 then

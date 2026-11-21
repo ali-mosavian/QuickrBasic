@@ -33,6 +33,7 @@ DEMO = ROOT / "src/plat/wasm/web/demos/CHARLIE.BAS"
 # here is owned with the record it is a field of.
 OWNERS = {
     "clock": "engine/clock",
+    "datafile": "engine/datafile",
     "store": "engine/video",
     "keys": "engine/input",
     "deck": "engine/audio",

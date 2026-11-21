@@ -11,19 +11,20 @@ private const SAVEMARK = 1128398848
 ' The furthest zone reached and the golden bones found, from CHARLIE.SAV: the first and none without the file, or
 ' with one that is not the game's; none from a file of before there were any.
 sub LoadSave (se as Session)
-    dim v as long, lo as long, hi as long
+    dim v as long, lo as long, hi as long, f as integer
     se.reached = 0
-    open "CHARLIE.SAV" for binary as #2
-    if lof(2) >= 4 then get #2, , v
-    if lof(2) >= 12 then
-        get #2, , lo
-        get #2, , hi
+    f = freefile
+    open "CHARLIE.SAV" for binary as #f
+    if lof(f) >= 4 then get #f, , v
+    if lof(f) >= 12 then
+        get #f, , lo
+        get #f, , hi
     end if
-    if lof(2) = 0 then
-        close #2
+    if lof(f) = 0 then
+        close #f
         kill "CHARLIE.SAV"
     else
-        close #2
+        close #f
     end if
     v = v - SAVEMARK
     se.gold_lo = 0
@@ -37,15 +38,16 @@ end sub
 
 ' The save as it stands, to CHARLIE.SAV.
 sub Keep (se as Session)
-    dim v as long, lo as long, hi as long
+    dim v as long, lo as long, hi as long, f as integer
     v = SAVEMARK + se.reached
     lo = se.gold_lo
     hi = se.gold_hi
-    open "CHARLIE.SAV" for binary as #2
-    put #2, , v
-    put #2, , lo
-    put #2, , hi
-    close #2
+    f = freefile
+    open "CHARLIE.SAV" for binary as #f
+    put #f, , v
+    put #f, , lo
+    put #f, , hi
+    close #f
     se.unkept = 0
 end sub
 

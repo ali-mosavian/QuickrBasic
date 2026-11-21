@@ -2,29 +2,45 @@
 defint A-Z
 option explicit
 
-' CHARLIE.DAT open as #1: where its tunes and its levels start, then its pictures.
-sub OpenData
-    open "CHARLIE.DAT" for binary as #1
-    if lof(1) = 0 then
-        close #1
-        kill "CHARLIE.DAT"
+' A data file: its name, what to say when it is not there, and its
+' number while it is open.
+type DataFile
+    path as string
+    lack as string
+    num as integer
+end type
+
+' df named path; lack is said when it is not there.
+sub NameData (df as DataFile, path as string, lack as string)
+    df.path = path
+    df.lack = lack
+end sub
+
+' df open, at its start; when it is not there the program ends,
+' saying df.lack.
+sub OpenData (df as DataFile)
+    df.num = freefile
+    open df.path for binary as #df.num
+    if lof(df.num) = 0 then
+        close #df.num
+        kill df.path
         screen 0
-        print "CHARLIE.DAT, the game's pictures and tunes, must be beside CHARLIE.BAS."
+        print df.lack
         end
     end if
 end sub
 
-' CHARLIE.DAT's next LONG.
-function Word&
+' df's next LONG.
+function Word& (df as DataFile)
     dim v as long
-    get #1, , v
+    get #df.num, , v
     Word& = v
 end function
 
-' CHARLIE.DAT's next string: its length, then its characters.
-function Chars$
+' df's next string: its length, then its characters.
+function Chars$ (df as DataFile)
     dim s as string
-    s = space$(Word&)
-    if len(s) then get #1, , s
+    s = space$(Word&(df))
+    if len(s) then get #df.num, , s
     Chars$ = s
 end function

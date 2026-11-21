@@ -2,8 +2,10 @@
 defint A-Z
 option explicit
 
+from barkley.engine.datafile import DataFile
+
 ' The pictures, end to end in img: where each starts, and the next free place. A zone's own go after all the others, at
-' zone_at: dat_at, where each zone's start in CHARLIE.DAT; zone, whose are there, one more than its number.
+' zone_at: dat_at, where each zone's start in the data file; zone, whose are there, one more than its number; dat, the file they are in.
 type Store
     img() as long
     at() as long
@@ -11,6 +13,7 @@ type Store
     zone_at as long
     zone as integer
     dat_at() as long
+    dat as DataFile
 end type
 
 const SW = 320, SH = 200

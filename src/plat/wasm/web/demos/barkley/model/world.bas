@@ -2,6 +2,7 @@
 defint A-Z
 option explicit
 
+from barkley.engine.datafile import DataFile, NameData
 from barkley.engine.video import Store
 from barkley.engine.input import Keys
 from barkley.engine.audio import Deck, NBAR, NDRUM, NSLOT, NVOICE
@@ -21,6 +22,7 @@ type World
     mu as Deck
     se as Session
     pilot as Autopilot
+    dat as DataFile
 end type
 
 private const NPTS = 1600, NZONE = 47
@@ -45,6 +47,11 @@ private const NROPE = 12
 ' The records' arrays, sized: a TYPE's own bounds must be numbers, and these are constants.
 sub Allot (wd as World)
     dim i as integer
+    ' where its tunes and its levels start, then its pictures
+    NameData wd.dat, "CHARLIE.DAT", "CHARLIE.DAT, the game's " + _
+        "pictures and tunes, must be beside CHARLIE.BAS."
+    NameData wd.mu.dat, wd.dat.path, wd.dat.lack
+    NameData wd.art.dat, wd.dat.path, wd.dat.lack
     redim wd.lv.map(MW - 1, MH - 1)
     redim wd.lv.prof(7, TS - 1)
     redim wd.lv.top(MW)
