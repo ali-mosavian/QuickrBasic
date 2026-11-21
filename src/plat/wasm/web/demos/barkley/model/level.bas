@@ -52,13 +52,16 @@ type Runner
     st as integer
 end type
 
-' A clothesline: from x, w wide, its ends at y; where along it it was last trodden, and the steps since.
+' A clothesline: from x, w wide, its ends at y; where along it it was last trodden, and the steps since. A lantern
+' line is one whose far end hangs fall lower: taut, and ground to slide down, its stretch sg.
 type Rope
     x as integer
     w as integer
     y as integer
     at as integer
     t as integer
+    fall as integer
+    sg as integer
 end type
 
 ' A thing of the level: where it is, its kind and state, and its home x, which the level's order goes by.

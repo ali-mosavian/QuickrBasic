@@ -37,7 +37,7 @@ from barkley.model.level import KAWNING, KCHIMNEY, KGOLD, NGOLD, NONE, NSTAGE, T
 from barkley.model.game import CLEARED, Cue, Game, INTRO, Loose, NCUE, NLOOSE, NPART, OVER, Part, PLAYING, Session
 from barkley.model.game import Found, Gild, TITLE
 from barkley.assets.palette import CBEE, CFLY, CGOLD, CINK, CNUT, CSEA, CVINE, CVINED, CWHITE, CYELLOW
-from barkley.assets.palette import CLINEN, CPOLE, CSOOT
+from barkley.assets.palette import CLINEN, CPOLE, CQINK, CSOOT
 from barkley.assets.store import BuildArt
 from barkley.assets.cast import BaronPic, FamPic
 from barkley.assets.tunes import CAUGHT, CAUGHTUP, EndBeat, LEFTBEHIND, LoadSongs, PACKING, PickSong, SCLANK, Sfx, SHURT
@@ -45,7 +45,7 @@ from barkley.assets.tunes import SJUMP, SongFor, STWANG, Sudden, ZoneTune, ZTUNE
 from barkley.world.terrain.ground import LoadTables, LOOPR, SegAt, Solid, Surf, WADE, WAVEL
 from barkley.world.terrain.track import MOVEW, WAVEA
 from barkley.world.layout import PITD
-from barkley.world.level import CABLED, GoldNo, LoadLevel, Mend, SINTRO, ZoneName
+from barkley.world.level import CABLED, GoldNo, LANTFALL, LANTH, LoadLevel, Mend, SINTRO, ZoneName
 from barkley.world.movers import FREEB
 from barkley.stage.fx.parts import Burst
 from barkley.stage.fx.damage import BOUNCEV, Hurt, Lose
@@ -1692,6 +1692,57 @@ for i = 1 to 200
     Tick wd, g, p, k, lo(), pt()
 next
 if was and wd.lv.mv(m).t = 0 and wd.lv.ob(c).x = bx then print "tram ok"
+' a lantern line is ground: come down on, he stands on it and it throws no one; left to it he slides down it,
+' faster as he goes, off its end and onto the roof past it, LANTFALL lower; from under he goes through it; drawn
+' taut in ink, a lantern's light under it
+for c = 0 to wd.lv.nRope - 1
+    if wd.lv.ropes(c).fall then exit for
+next
+was = c < wd.lv.nRope
+bx = wd.lv.ropes(c).x + 30
+m = LineY%(wd.lv.ropes(c), 30)
+p.ground = 0
+p.x = bx
+p.y = m - 20
+p.vx = 0
+p.vy = 0
+for i = 1 to 40
+    Tick wd, g, p, k, lo(), pt()
+    if p.ground then exit for
+next
+was = was and p.ground and p.sg = wd.lv.ropes(c).sg and p.hops = 0 and wd.lv.ropes(c).t = 0
+was = was and abs(p.y - LineY%(wd.lv.ropes(c), cint(p.x) - wd.lv.ropes(c).x)) < 3
+for j = 0 to 1
+    for i = 1 to 12
+        Tick wd, g, p, k, lo(), pt()
+    next
+    colA(j) = p.gsp
+    was = was and p.ground and p.sg = wd.lv.ropes(c).sg
+next
+was = was and colA(0) > 60 and colA(1) > colA(0) + 60
+for i = 1 to 600
+    Tick wd, g, p, k, lo(), pt()
+    if p.ground and p.sg <> wd.lv.ropes(c).sg then exit for
+next
+was = was and p.x > wd.lv.ropes(c).x + wd.lv.ropes(c).w
+was = was and abs(p.y - (wd.lv.ropes(c).y + LANTH + LANTFALL)) < 2
+' from under: risen through it
+p.ground = 0
+p.x = bx
+p.y = m + 24
+p.vx = 0
+p.vy = -330
+for i = 1 to 8
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and p.y < m - 4 and not p.ground
+Stand wd.lv, wd.gr, p, wd.lv.ropes(c).x - 60, 0
+g.camx = bx - 160
+g.camy = m - 100
+g.shake = 0
+Render wd, g, p, lo(), pt()
+was = was and point(160, 100) = CQINK and point(160 - 30 + 9, LineY%(wd.lv.ropes(c), 9) - int(g.camy) + 6) = 142
+if was then print "slide ok"
 ' Russet Wood is the fifth zone, by name and in its own colours: its litter's top the same picture at both hours,
 ' russet gold at a misty noon and not on the firefly night
 was = ZoneName$(4) = "RUSSET WOOD"
@@ -3708,6 +3759,7 @@ def main() -> None:
         ("awning ok", "an awning throws him up the same each time; passed through from under, and by past its edge"),
         ("chimney ok", "a chimney takes him down its pot and up out of its other; the way out takes no one in"),
         ("tram ok", "a tram waits at its street's end, carries him along it while he rides, and comes back left"),
+        ("slide ok", "a lantern line is ground to slide down, faster as he goes, onto the roof past it"),
         ("firefly ok", "the wood's night dark but for a few fireflies; a bark wakes them and lights it for a while"),
         ("sapling ok", "a bowed sapling throws him who crosses its crown, higher the faster; sprung it throws no one"),
         ("vine ok", "a vine caught in the air swings him as a weight, lets go at a jump, and hangs straight again"),

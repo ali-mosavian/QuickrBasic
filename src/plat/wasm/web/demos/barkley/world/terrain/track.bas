@@ -58,6 +58,7 @@ sub Track (lv as Level, gr as Ground)
     TrackLimbs lv, gr
     TrackMovers lv, gr
     TrackRibbons lv, gr
+    TrackSlides lv, gr
 end sub
 
 ' A quarter pipe from column c, marked there with the thing that is it: up its curve, then its wall.
@@ -218,6 +219,23 @@ private sub RibbonEnd (gr as Ground, x1 as integer, y as integer)
     Knot gr, csng(x1 + 8), csng(y), 2
     gr.cv(gr.nz).b = gr.n - 2
     gr.nz = gr.nz + 1
+end sub
+
+' The lantern lines: a stretch each from end to end, a curve of one.
+private sub TrackSlides (lv as Level, gr as Ground)
+    dim i as integer
+    for i = 0 to lv.nRope - 1
+        if lv.ropes(i).fall = 0 then continue for
+        Knot gr, csng(lv.ropes(i).x), csng(lv.ropes(i).y), 0
+        Knot gr, csng(lv.ropes(i).x + lv.ropes(i).w), csng(lv.ropes(i).y + lv.ropes(i).fall), 2
+        lv.ropes(i).sg = gr.n - 2
+        gr.cv(gr.nz).a = gr.n - 2
+        gr.cv(gr.nz).b = gr.n - 2
+        gr.cv(gr.nz).m = -1
+        gr.cv(gr.nz).l = lv.ropes(i).x
+        gr.cv(gr.nz).r = lv.ropes(i).x + lv.ropes(i).w
+        gr.nz = gr.nz + 1
+    next
 end sub
 
 ' The line's next point, x, y, a stretch of kind k to it from the last: 0, none.

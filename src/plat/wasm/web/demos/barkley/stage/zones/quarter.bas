@@ -1,11 +1,11 @@
-' Lantern Quarter: clotheslines, awnings and chimneys.
+' Lantern Quarter: clotheslines, lantern lines, awnings and chimneys.
 defint A-Z
 option explicit
 
 from barkley.engine.video import Blit, Store, SW
 from barkley.engine.clock import STEPT
 from barkley.engine.audio import Deck
-from barkley.model.images import ISHIRT, ISOCK, ITROUSERS
+from barkley.model.images import IPAPER, ISHIRT, ISOCK, ITROUSERS
 from barkley.model.hero import Hero
 from barkley.model.level import Level, Rope, TS
 from barkley.model.game import Part, Session
@@ -23,6 +23,11 @@ private const LINEGIVE = 8
 const LINET = 30
 private const WASH = 22
 
+' A lantern line: how far apart its lanterns hang; the speed he slides down it at, and how fast he gathers it.
+private const LANTGAP = 18
+const SLIDEV = 320!
+private const SLIDEACC = 600!
+
 ' An awning: half its width; his speed up off it; the things' steps it stays given.
 const AWNW = 22
 const AWNV = 450!
@@ -31,9 +36,14 @@ const AWNT = 8
 ' A chimney's pot: how near its middle he must come down to go in.
 const FLUER = 8
 
-' Line r's height u along it: hung, and once trodden given where it was, swinging less each step.
+' Line r's height u along it: hung, and once trodden given where it was, swinging less each step. A lantern
+' line is taut from end to end.
 function LineY% (r as Rope, u as integer)
     dim y as single, d as single
+    if r.fall then
+        LineY% = r.y + (clng(r.fall) * u + r.w \ 2) \ r.w
+        exit function
+    end if
     y = r.y + LINESAG * 4! * u * (r.w - u) / r.w / r.w
     if r.t > 0 then
         d = u / r.at
@@ -44,17 +54,30 @@ function LineY% (r as Rope, u as integer)
 end function
 
 ' The lines: come down on, one throws him up, his way kept, each in a row harder than the last, up to LINEROW;
-' on the ground the row is over. From under, he goes through it.
+' on the ground the row is over. From under, he goes through it. On a lantern line he slides.
 sub Lines (lv as Level, mu as Deck, se as Session, p as Hero)
     dim i as integer, u as integer, y as integer
     if p.ground or p.swim or p.vine then p.hops = 0
+    if p.ground then Glide lv, p
     if p.ground or p.vy <= 0 or p.dead then exit sub
     for i = 0 to lv.nRope - 1
+        ' a lantern line is ground, not a spring
+        if lv.ropes(i).fall then continue for
         u = cint(p.x) - lv.ropes(i).x
         if u < 1 or u >= lv.ropes(i).w then continue for
         y = LineY%(lv.ropes(i), u)
         if not Trodden%(p, y) then continue for
         Pluck lv.ropes(i), mu, se, p, u, y
+        exit sub
+    next
+end sub
+
+' Stood on a lantern line he slides down it, faster till he goes at SLIDEV: the ground's drag does not hold him.
+private sub Glide (lv as Level, p as Hero)
+    dim i as integer
+    for i = 0 to lv.nRope - 1
+        if lv.ropes(i).fall = 0 or lv.ropes(i).sg <> p.sg then continue for
+        if p.gsp < SLIDEV then p.gsp = p.gsp + SLIDEACC * STEPT
         exit sub
     next
 end sub
@@ -129,9 +152,14 @@ sub DrawLines (lv as Level, art as Store, cx as integer, cy as integer)
     for i = 0 to lv.nRope - 1
         x = lv.ropes(i).x - cx
         if x >= SW or x + lv.ropes(i).w < 0 then continue for
-        DrawPost x, lv.ropes(i).y - cy, lv.top(lv.ropes(i).x \ TS) * TS - cy
-        DrawPost x + lv.ropes(i).w, lv.ropes(i).y - cy, lv.top((lv.ropes(i).x + lv.ropes(i).w) \ TS) * TS - cy
         y = lv.ropes(i).y - cy
+        DrawPost x, y, lv.top(lv.ropes(i).x \ TS) * TS - cy
+        DrawPost x + lv.ropes(i).w, y + lv.ropes(i).fall, lv.top((lv.ropes(i).x + lv.ropes(i).w) \ TS) * TS - cy
+        if lv.ropes(i).fall then
+            line (x, y)-(x + lv.ropes(i).w, y + lv.ropes(i).fall), CQINK
+            Lanterns lv.ropes(i), art, cx, cy
+            continue for
+        end if
         for u = 8 to lv.ropes(i).w + 7 step 8
             if u > lv.ropes(i).w then u = lv.ropes(i).w
             y1 = LineY%(lv.ropes(i), u) - cy
@@ -139,6 +167,14 @@ sub DrawLines (lv as Level, art as Store, cx as integer, cy as integer)
             y = y1
         next
         Washing lv.ropes(i), art, cx, cy
+    next
+end sub
+
+' Line r's paper lanterns, one every LANTGAP hung under it.
+private sub Lanterns (r as Rope, art as Store, cx as integer, cy as integer)
+    dim u as integer
+    for u = LANTGAP \ 2 to r.w - 6 step LANTGAP
+        Blit art, r.x + u - cx - 4, LineY%(r, u) - cy, IPAPER, 9, 14
     next
 end sub
 

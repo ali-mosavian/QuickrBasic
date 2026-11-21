@@ -5194,6 +5194,16 @@ def tram() -> Pic:
     return p.outline(QINK)
 
 
+def paperlantern() -> Pic:
+    """A paper lantern hung from a line: lit from inside, a cap over it and under it, its tassel."""
+    p = Pic(9, 14)
+    part(p, oval(4.5, 6.5, 3.6, 4.4), [PAPER[2], PAPER[1], PAPER[0]], 1.3, 1.7)
+    p.box(3, 1, 5, 1, QPOLE[2])
+    p.box(3, 11, 5, 11, QPOLE[2])
+    p.put(4, 12, PAPER[2])
+    return p.outline(QINK)
+
+
 def lanternq() -> list[tuple[int, Pic, bool, int]]:
     """The Lantern Quarter's own pictures, at the indices the Downs' own have."""
     k, z = 126, 625
@@ -5217,6 +5227,7 @@ def lanternq() -> list[tuple[int, Pic, bool, int]]:
         (z + 1298, awning(True), True, -1),
         (z + 1300, chimney(), True, -1),
         (z + 1302, tram(), True, -1),
+        (z + 1304, paperlantern(), True, -1),
     ]
     return out
 

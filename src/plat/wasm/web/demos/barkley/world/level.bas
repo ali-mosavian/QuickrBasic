@@ -26,6 +26,11 @@ private const POSTIN = 6
 ' A tram's roof over its street.
 const TRAMH = 32
 
+' A lantern line: its post over the roof it leaves, how far lower the roof it comes down to lies, and its end over
+' that one.
+const LANTH = 40, LANTFALL = 64
+private const LANTEND = 8
+
 ' An awning's middle out from its wall.
 private const AWNOUT = 23
 
@@ -72,7 +77,7 @@ end function
 ' The ground's columns, then what stands on them, from the stage's level: a command and its count, to its end.
 sub LoadLevel (wd as World, st as integer)
     dim cmd as string, n as integer, c as integer, g as integer, bx as integer
-    dim i as integer, s as integer, k as integer, z as integer, light as integer
+    dim i as integer, s as integer, k as integer, z as integer, light as integer, fall as integer
     wd.zn.stage = st
     z = ZoneOf%(wd.se, st)
     wd.zn.id = z
@@ -337,15 +342,20 @@ sub LoadLevel (wd as World, st as integer)
             wd.lv.nGulls = wd.lv.nGulls + 1
         case "line"
             ' a street n wide and a clothesline over it, post to post, LINEH over the roof here
-            wd.lv.ropes(wd.lv.nRope).x = c * TS - POSTIN
-            wd.lv.ropes(wd.lv.nRope).w = n * TS + POSTIN * 2
-            wd.lv.ropes(wd.lv.nRope).y = s - LINEH
-            wd.lv.ropes(wd.lv.nRope).t = 0
-            wd.lv.nRope = wd.lv.nRope + 1
-            Weed wd.lv, c * TS - 20
-            wd.lv.fallow = c + n + 2
+            Hang wd.lv, c, n, s - LINEH, 0
             Pit wd.lv, c, g, n
             c = c + n
+        case "slide"
+            ' a street n wide and a lantern line down over it, from a post LANTH over the roof here to the roof
+            ' past it, LANTFALL lower; a bone over the line every other column
+            fall = LANTH + LANTFALL - LANTEND
+            Hang wd.lv, c, n, s - LANTH, fall
+            for i = 1 to n - 1 step 2
+                AddObj wd.lv, KBONE, (c + i) * TS, s - LANTH - 14 + clng(i * TS + POSTIN) * fall \ (n * TS + POSTIN * 2)
+            next
+            Pit wd.lv, c, g - LANTFALL \ TS, n
+            c = c + n
+            g = g - LANTFALL \ TS
         case "awning"
             ' an awning out from the wall that begins here, n tiles over the roof
             AddObj wd.lv, KAWNING, c * TS - AWNOUT, s - n * TS
@@ -426,6 +436,19 @@ sub LoadLevel (wd as World, st as integer)
     Track wd.lv, wd.gr
     Faces wd.lv
     ZoneTune wd.mu, wd.mu.stageTune
+end sub
+
+' A line hung over the street of n columns from column c: its near end at height y, its far end fall lower.
+' Nothing grows by its posts.
+private sub Hang (lv as Level, c as integer, n as integer, y as integer, fall as integer)
+    lv.ropes(lv.nRope).x = c * TS - POSTIN
+    lv.ropes(lv.nRope).w = n * TS + POSTIN * 2
+    lv.ropes(lv.nRope).y = y
+    lv.ropes(lv.nRope).fall = fall
+    lv.ropes(lv.nRope).t = 0
+    lv.nRope = lv.nRope + 1
+    Weed lv, c * TS - 20
+    lv.fallow = c + n + 2
 end sub
 
 ' The pier's fallen spans back in their places, the swarms at home: Charlie starts again before them.

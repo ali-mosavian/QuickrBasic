@@ -94,9 +94,10 @@ const IBRACKET = IKNOT + 2, ITWIN = IBRACKET + 4
 ' A golden bone, turned as a bone is.
 const IGOLD = ITWIN + 20
 
-' The quarter's washing on its lines: a shirt, trousers, a sock; an awning, and trodden; a chimney; a tram.
+' The quarter's washing on its lines: a shirt, trousers, a sock; an awning, and trodden; a chimney; a tram; a
+' paper lantern.
 const ISHIRT = IGOLD + 8, ITROUSERS = ISHIRT + 2, ISOCK = ITROUSERS + 2, IAWNING = ISOCK + 2
-const ICHIMNEY = IAWNING + 4, ITRAM = ICHIMNEY + 2, NIMG = ITRAM + 2
+const ICHIMNEY = IAWNING + 4, ITRAM = ICHIMNEY + 2, IPAPER = ITRAM + 2, NIMG = IPAPER + 2
 
 ' the picture store's LONGs: for what every zone shows and the largest zone's own
 const IMGSZ = 490000
