@@ -28,6 +28,7 @@
 #include "ui/errors.h"
 #include "ui/findbar.h"
 #include "ui/pairs.h"
+#include "ui/uses.h"
 #include "ui/menu.h"
 #include "ui/screen.h"
 #include "ui/help.h"
@@ -200,6 +201,10 @@ static void draw_row(Session *const S, const uint16_t r)
         synt_row(S, row, col, v.text, len);
 
     udbg_row(S, row, col, line);
+
+    if (has_focus())
+        uses_paint(S, row, col, v.text, len, v.cols);
+
     errs_paint(S, row, col, line + uimn.text.first, v.text, len);
     fbar_paint(row, col, v.text, len);
 
@@ -276,8 +281,10 @@ void draw_edit(Session *const S, const bool ina)
     );
     sel = inactive ? SEL_NONE : edit_sel();
 
-    if (has_focus())
+    if (has_focus()) {
         pairs_find(S);
+        uses_find(S);
+    }
 
 
     for (uint16_t r = 0; r < e->rows; r++)

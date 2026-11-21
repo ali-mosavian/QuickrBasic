@@ -86,6 +86,7 @@ enum : uint8_t {
     SL_ERR,             /* a syntax error's word */
     SL_FIND,            /* the find bar's matches */
     SL_MATCH,           /* the cursor's bracket's partner, its block's keywords */
+    SL_OCC,             /* the uses of the name at the cursor */
     NSLOT_TH,           /* the slots a theme lists */
     SL_HTXT = NSLOT_TH, /* the help window: text, drawn from the theme's others (them_set) */
     SL_HHEAD,           /*   a heading */

@@ -50,7 +50,7 @@ the line's end; typing the closing one steps over it. Backspace
 between ( ) or "" takes both. Not in a comment or in overtype.
 
 With the cursor on a bracket its partner is lit; on a block's
-keyword, the block's others are.
+keyword, the block's others are; on a name, its uses on screen.
 
 ## Example
     Type:   print "hi"   then press Down
