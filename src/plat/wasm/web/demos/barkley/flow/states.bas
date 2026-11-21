@@ -26,7 +26,7 @@ from barkley.stage.zones.pass import Avalanche, Homeward
 from barkley.stage.zones.chase import Flee
 from barkley.stage.camera import Camera
 from barkley.stage.play import Dying, Spawn, Touch
-from barkley.stage.things import Things
+from barkley.stage.things.think import Things
 from barkley.stage.fx.parts import Particles
 from barkley.control.keys import MuteKey, Spent
 from barkley.control.pilot import Pilot
@@ -150,7 +150,7 @@ private sub TitleStep ( _
     else
         Pilot wd.lv, wd.gr, wd.zn, wd.se, p, auto, wd.pilot
         MoveHero wd.lv, wd.kinds, wd.gr, wd.ev, wd.se, p, auto, pt()
-        Touch wd.lv, wd.zn, wd.ev, wd.se, g, p, lo(), pt()
+        Touch wd.lv, wd.zn, wd.kinds, wd.ev, wd.se, g, p, lo(), pt()
         if p.at.y > MH * TS + 24 then Lose wd.ev, wd.se, p
         Camera wd.lv, wd.zn, g, p, 0
     end if
@@ -179,7 +179,7 @@ private sub PlayStep ( _
 
     g.clock = g.clock + STEPT
     MoveHero wd.lv, wd.kinds, wd.gr, wd.ev, wd.se, p, k, pt()
-    Touch wd.lv, wd.zn, wd.ev, wd.se, g, p, lo(), pt()
+    Touch wd.lv, wd.zn, wd.kinds, wd.ev, wd.se, g, p, lo(), pt()
     if wd.lv.stray.st = 2 then Homeward wd.lv, g
     if wd.lv.aval_x <> NONE then Avalanche wd.lv, wd.ev, wd.se, g, p
     Flee wd.lv, wd.zn, wd.ev, wd.se, g, p, lo()

@@ -11,6 +11,7 @@ from barkley.model.events import EVBURST, EVSCORE, EVSHAKE, EVSOUND
 from barkley.model.events import Tell, TellAt
 from barkley.assets.tunes import SDIE, SHISS, SHURT, SPOP
 from barkley.stage.fx.parts import PBEATEN
+from barkley.stage.things.react import Turn
 
 const BOUNCEV = 330!
 
@@ -115,7 +116,7 @@ end sub
 ' Thing i beaten: gone, its points, a shake and a puff dy
 ' over its foot.
 sub Beaten (lv as Level, ev as Events, i as integer, dy as integer)
-    lv.things(i).state = 0
+    Turn lv, i, 0
     Tell ev, EVSCORE, 100
     Tell ev, EVSHAKE, 15
     TellAt ev, EVBURST, csng(lv.things(i).at.x), _

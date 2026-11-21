@@ -67,7 +67,7 @@ OWNERS = {
     "event": "engine/events",
 }
 # The fields assigned outside their owner today: the count may only fall.
-OUTSIDE = 525
+OUTSIDE = 509
 
 DRIVER = """from engine.video import Blit, OpenScreen, SH, SW
 from engine.clock import Clock, Pace, Steps, STEPT
@@ -112,7 +112,7 @@ from barkley.stage.zones.chase import LEGV, Lobbed, LOBWAIT, NLEG, RAILUP, TUMBL
 from barkley.stage.camera import Camera, HEAD, Headroom, HEADUP
 from barkley.stage.scene import Render
 from barkley.stage.play import Spawn
-from barkley.stage.things import JELLYD, SPARKR, Things
+from barkley.stage.things.think import JELLYD, SPARKR, Things
 from barkley.control.pilot import Pilot
 from barkley.flow.save import Keep, LoadSave, Reach
 from barkley.stage.hud import PIPX, PIPY

@@ -22,7 +22,8 @@ from barkley.assets.tunes import SSPRING, STWANG
 from barkley.stage.fx.parts import PPOT, PSNATCH, PSOOT
 from barkley.stage.fx.damage import Beaten, Hurt, Tackle
 from barkley.stage.hero.modes import FLUEH
-from barkley.stage.zones.downs import BEAT, CatPic, Paced, Prowl
+from barkley.stage.zones.downs import CatPic
+from barkley.stage.things.react import BEAT, Paced, Prowl
 
 ' A clothesline: how far its middle hangs under its ends;
 ' his speed up off the first he comes down on, what each

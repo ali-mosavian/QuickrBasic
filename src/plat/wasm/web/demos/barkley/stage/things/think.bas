@@ -19,8 +19,8 @@ from barkley.stage.zones.pass import Graze, TakeAim, Totter, Unload
 from barkley.stage.fx.parts import LooseBones
 from barkley.stage.zones.quarter import Mortar, Pounce, Settle, Snatch
 from barkley.stage.zones.quarter import Tipper
-from barkley.stage.zones.downs import Prowl
 from barkley.stage.zones.wood import Regrow, Scamper
+from barkley.stage.things.react import Prowl
 
 ' A spark's reach from home; a jellyfish's depth.
 const SPARKR = 40

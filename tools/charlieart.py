@@ -5846,12 +5846,30 @@ MIND = {
     **dict.fromkeys(["KSPARK", "KICICLE", "KLOAD", "KGOAT", "KTHROW", "KSQUIRREL", "KPOUNCE", "KSNATCH"], "MOWN"),
     **dict.fromkeys(["KMORTAR", "KTIPPER", "KBRAMBLE", "KVINE", "KBUOY", "KJELLY"], "MOWN"),
 }
+# What a touch does, model/kinds.bas's T consts: a kind not named does nothing. A row's touch: its reach each side, its
+# top above and bottom below the thing's place, how fast it throws him up, the state it rests in, met.
+TOUCH: dict[str, tuple[int | str, ...]] = {
+    "KSPRING": ("TBOUNCE", 11, 12, 2, 560, 8),
+    **dict.fromkeys(
+        ["KBONE", "KGOLD", "KCAT", "KSQUIRREL", "KWALKER", "KSNATCH", "KCRAB", "KSWEEP", "KTHROW", "KGOAT", "KWALL"],
+        ("TOWN",),
+    ),
+    **dict.fromkeys(
+        ["KHEAP", "KICICLE", "KSLED", "KDRIFT", "KSPARK", "KPRESS", "KJELLY", "KSAPLING", "KAWNING", "KCHIMNEY"],
+        ("TOWN",),
+    ),
+    **dict.fromkeys(
+        ["KPOUNCE", "KMORTAR", "KTIPPER", "KVINE", "KBRAMBLE", "KLOG", "KMOUND", "KBOOST", "KFLUME", "KSPOUT"],
+        ("TOWN",),
+    ),
+    **dict.fromkeys(["KMARK", "KGOAL", "KTHORN", "KBUTTON", "KJET", "KBUMP", "KBUOY", "KSPIN", "KHOOP"], ("TOWN",)),
+}
 
 
 def kinds() -> list[int]:
     """The kinds' rows as CHARLIE.DAT holds them: their count, then each kind's picture, box, frames, the way it picks
     one and its rate, naughts for a kind that draws itself; then the state it starts in, and whether it keeps its own,
-    rides, hangs, is crushed and grows, -1 for yes; how it moves."""
+    rides, hangs, is crushed and grows, -1 for yes; how it moves; what a touch does, and its box, speed and rest."""
     src = (GAME / "model/level.bas").read_text()
     ids = {k: int(v) for k, v in re.findall(r"(?m)^const (K[A-Z0-9]+) = (\d+)", src) if k != "KFRONT"}
     rows = [[0] * 8 for _ in range(max(ids.values()) + 1)]
@@ -5865,7 +5883,9 @@ def kinds() -> list[int]:
         row.append(start if isinstance(start, int) else game_const(start))
         row += [-(kind in fact) for fact in (KEEPS, RIDES, HANGS, CRUSHED, GROWS)]
         row.append(game_const(MIND.get(kind, "MNONE")))
-    for kind in [*START, *KEEPS, *RIDES, *HANGS, *CRUSHED, *GROWS, *MIND]:
+        touch = (*TOUCH.get(kind, ("TNONE",)), 0, 0, 0, 0, 0)[:6]
+        row += [v if isinstance(v, int) else game_const(v) for v in touch]
+    for kind in [*START, *KEEPS, *RIDES, *HANGS, *CRUSHED, *GROWS, *MIND, *TOUCH]:
         if kind not in ids:
             sys.exit(f"charlieart: the game has no kind {kind}")
     # row 0, no kind's, once went without its facts, and every row after it was read six LONGs out

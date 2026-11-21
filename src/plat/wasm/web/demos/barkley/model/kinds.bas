@@ -23,11 +23,19 @@ const MOWN = 1
 const MPROWL = 2
 const MREST = 3
 
+' What a touch does: nothing; the kind's own; throws him up.
+const TNONE = 0
+const TOWN = 1
+const TBOUNCE = 2
+
 ' A kind's picture, its box from the thing's place, and its
 ' frames: none, and the kind draws itself. The state it
 ' starts a stage in; whether it keeps its own, rides a
 ' track, hangs where a bark looses it, is crushed by a fall,
-' grows where the ground is laid. How it is moved.
+' grows where the ground is laid. How it is moved. What a
+' touch does; the box it is met in, from its place: reach
+' each side, top above, bottom below; how fast it throws
+' him up; the state it rests in, met.
 type Kind
     pic as integer
     dx as integer
@@ -44,6 +52,12 @@ type Kind
     crushed as integer
     grows as integer
     mind as integer
+    touch as integer
+    reach as integer
+    top as integer
+    bottom as integer
+    up as integer
+    rest as integer
 end type
 
 ' The kinds, by their numbers.
@@ -77,6 +91,12 @@ sub LoadKinds (kd as Kinds, df as DataFile)
         kd.k(i).crushed = Word&(df)
         kd.k(i).grows = Word&(df)
         kd.k(i).mind = Word&(df)
+        kd.k(i).touch = Word&(df)
+        kd.k(i).reach = Word&(df)
+        kd.k(i).top = Word&(df)
+        kd.k(i).bottom = Word&(df)
+        kd.k(i).up = Word&(df)
+        kd.k(i).rest = Word&(df)
     next
 
     close #df.num
