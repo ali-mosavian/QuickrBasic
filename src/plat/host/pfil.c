@@ -174,13 +174,12 @@ uint16_t pfil_printer(PfilHandle *const h)
     return result(fd);
 }
 
-bool pfil_isdev(const PfilHandle h)
+bool pfil_iscon(const PfilHandle h)
 {
     if (host_term_window() && (h == PFIL_STDIN || h == PFIL_STDOUT))
         return true; /* the console is the window, whatever they are */
 
-    struct stat st;
-    return !fstat(h, &st) && S_ISCHR(st.st_mode);
+    return isatty(h);
 }
 
 /* The call's error on name; a missing file's directory missing is Path not found. */

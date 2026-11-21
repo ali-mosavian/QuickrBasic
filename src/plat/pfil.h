@@ -54,8 +54,9 @@ uint16_t pfil_seek(PfilHandle h, int32_t off, uint8_t origin, uint32_t *pos);
 uint16_t pfil_close(PfilHandle h);
 /* The printer's handle, LPRINT's and LPT1's; it stays open. */
 uint16_t pfil_printer(PfilHandle *h);
-/* The handle is a device (the console, NUL), not a disk file. */
-bool pfil_isdev(PfilHandle h);
+/* The handle is the console: standard input's keys, standard output's screen; not a file or
+   another device (NUL). */
+bool pfil_iscon(PfilHandle h);
 
 uint16_t pfil_delete(const char *name);
 uint16_t pfil_rename(const char *from, const char *to);

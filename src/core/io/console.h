@@ -28,7 +28,7 @@ typedef struct Cons {
     uint32_t inlen;     /* inbuf's line, its length */
     int32_t inpos;      /* INPUT: the end of the last field, -1 before the first */
     bool from_file;     /* INPUT#: no prompts, a field past the line reads the next */
-    bool stdin_dev;     /* standard input is a device (the console), read key by key */
+    bool stdin_con;     /* standard input is the console, read key by key */
     uint8_t status;     /* the I/O status (I.LD.ST), always 0 */
     uint16_t oblen;     /* obuf's bytes */
     uint8_t *inbuf;     /* INMAX+1: a line read, 0 after; srcr's window */
@@ -63,8 +63,8 @@ void cons_msg(Cons *co, uint8_t id);
 void cons_kw(Cons *co, uint8_t tok);
 void cons_kw1(Cons *co, uint8_t n);
 
-/* "? " and a line read; a line read into inbuf, 0 after, inpos -1. Errors: Out of DATA at
-   standard input's end, 62 at a file's (or its read's error), BREAK on the STOP key. */
+/* "? " and a line read; a line read into inbuf, 0 after, inpos -1. Errors: 62 at the input's
+   end (or its read's error), BREAK on the STOP key. */
 [[nodiscard]]
 Status cons_prompt(Cons *co);
 [[nodiscard]]

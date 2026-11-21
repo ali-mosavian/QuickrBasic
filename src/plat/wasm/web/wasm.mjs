@@ -30,7 +30,7 @@ function normal(path) {
 // and its layers'.
 export const VOICE_BYTES = 44;
 
-// host: { fs, cwd, args, write(fd, bytes), exit(code), stdin(n) -> bytes, stdio(fd) -> a stat,
+// host: { fs, cwd, args, write(fd, bytes), exit(code), stdin(n) -> bytes, stdio(fd) -> a stat, isatty(fd),
 // tone(hz), voice(n, bytes) }; cwd is
 // the module's own (a worker has no chdir), its paths resolved against it.
 export function imports(memory, host) {
@@ -117,6 +117,7 @@ export function imports(memory, host) {
       d.setFloat64(out + 8, st.mtimeMs, true);
       return 0;
     }),
+    fs_isatty: (fd) => (fd < FIRST_FD && host.isatty(fd) ? 1 : 0),
     fs_mkdir: (p) => run(() => (fs.mkdirSync(at(p)), 0)),
     fs_rmdir: (p) => run(() => (fs.rmdirSync(at(p)), 0)),
     fs_unlink: (p) => run(() => (fs.unlinkSync(at(p)), 0)),
