@@ -5,6 +5,7 @@ option explicit
 
 from engine.clock import STEPT
 from engine.audio import Deck
+from engine.events import Events
 from barkley.model.hero import Hero, Pad
 from barkley.model.level import KBONE, KCAT, KCHIMNEY, KCRAB, KGOAT
 from barkley.model.level import KJELLY, KMORTAR, KMOUND, KSNATCH
@@ -13,9 +14,10 @@ from barkley.model.level import KWALKER, KWALL, MH, NONE, NSTAGE, TS
 from barkley.model.game import CLEARED, Game, Loose, NLOOSE, NPART
 from barkley.model.game import OVER, Part, PLAYING, Session, TITLE
 from barkley.model.world import NLOB, NMOVE, World
+from barkley.model.events import EVSOUND, Tell
 from barkley.assets.palette import Cycle, Shade, Shimmer
 from barkley.assets.tunes import CAUGHT, EndBeat, EndTune, KeepBeat
-from barkley.assets.tunes import SBONE, SCLEAR, Sfx
+from barkley.assets.tunes import SBONE, SCLEAR
 from barkley.world.level import LoadLevel, ZoneOf
 from barkley.world.movers import Movers
 from barkley.stage.fx.damage import Lose
@@ -31,6 +33,7 @@ from barkley.control.keys import MuteKey, Spent
 from barkley.control.pilot import Pilot
 from barkley.flow.save import Keep, PickZone, Reach
 from barkley.flow.intro import StartBump
+from barkley.flow.deliver import Deliver
 
 ' The level's end's songs, and game over's, by their numbers
 ' in CHARLIE.DAT; how long game over stays, its tune's
@@ -46,7 +49,13 @@ private const TALLYBARS = 6
 ' end: a step and a woof on each beat of the bars its lead
 ' plays, the bonus shared between the steps left, in tens;
 ' all of it at a key.
-private sub Tally (mu as Deck, se as Session, g as Game, k as Pad)
+private sub Tally ( _
+    mu as Deck, _
+    ev as Events, _
+    se as Session, _
+    g as Game, _
+    k as Pad _
+)
     dim due as integer, take as long
 
     if g.bonus = 0 then exit sub
@@ -64,7 +73,7 @@ private sub Tally (mu as Deck, se as Session, g as Game, k as Pad)
         g.score = g.score + take
     loop
 
-    Sfx mu, se, SBONE
+    Tell ev, EVSOUND, SBONE
 end sub
 
 ' A step. The title plays itself: Charlie run by the pilot.
@@ -85,7 +94,7 @@ sub Tick ( _
 
     if wd.lv.murk then Nightfall wd.lv, wd.zn, wd.tn
     if wd.lv.tide_lo <> NONE then Flow wd.lv, wd.se
-    if wd.lv.n_movers then Movers wd.lv, wd.gr, wd.mu, wd.se, p
+    if wd.lv.n_movers then Movers wd.lv, wd.gr, wd.ev, wd.se, p
     g.mode_t = g.mode_t + STEPT
     if g.shake > 0 then g.shake = g.shake - STEPT
     if wd.se.unkept then Keep wd.se
@@ -106,8 +115,10 @@ sub Tick ( _
     end select
 
     if (wd.se.ticks and 1) = 0 then
-        Things wd.lv, wd.mu, wd.se, g, p, lo(), pt()
+        Things wd.lv, wd.ev, wd.se, g, p, lo(), pt()
     end if
+
+    Deliver wd
 
     Shimmer wd.zn, wd.tn, wd.se
     Spent k
@@ -135,9 +146,9 @@ private sub TitleStep ( _
         end if
     else
         Pilot wd.lv, wd.gr, wd.zn, wd.se, p, auto, wd.pilot
-        MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, auto, pt()
-        Touch wd.lv, wd.zn, wd.mu, wd.se, g, p, lo(), pt()
-        if p.at.y > MH * TS + 24 then Lose wd.mu, wd.se, p
+        MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, auto, pt()
+        Touch wd.lv, wd.zn, wd.ev, wd.se, g, p, lo(), pt()
+        if p.at.y > MH * TS + 24 then Lose wd.ev, wd.se, p
         Camera wd.lv, wd.zn, g, p, 0
     end if
 
@@ -159,33 +170,33 @@ private sub PlayStep ( _
     if k.quit then ResetWorld wd, g, p, lo(), pt()
 
     if p.dead then
-        Dying wd.lv, wd.gr, wd.zn, wd.mu, g, p
+        Dying wd.lv, wd.gr, wd.zn, wd.ev, g, p
         exit sub
     end if
 
     g.clock = g.clock + STEPT
-    MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
-    Touch wd.lv, wd.zn, wd.mu, wd.se, g, p, lo(), pt()
+    MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+    Touch wd.lv, wd.zn, wd.ev, wd.se, g, p, lo(), pt()
     if wd.lv.stray.st = 2 then Homeward wd.lv, g
-    if wd.lv.aval_x <> NONE then Avalanche wd.lv, wd.mu, wd.se, g, p
-    Flee wd.lv, wd.zn, wd.mu, wd.se, g, p, lo(), pt()
-    if wd.lv.n_gulls then Flock wd.lv, wd.mu, wd.se, g, p, lo(), pt()
-    if wd.lv.n_swarms then Swarms wd.lv, wd.mu, wd.se, g, p, lo()
-    if wd.lv.n_lobs then Volley wd.lv, wd.mu, wd.se, g, p, lo(), pt()
-    if p.at.y > MH * TS + 24 then Lose wd.mu, wd.se, p
-    if p.at.x >= wd.lv.goal_x then StageClear wd.mu, wd.se, g
+    if wd.lv.aval_x <> NONE then Avalanche wd.lv, wd.ev, wd.se, g, p
+    Flee wd.lv, wd.zn, wd.ev, wd.se, g, p, lo(), pt()
+    if wd.lv.n_gulls then Flock wd.lv, wd.ev, wd.se, g, p, lo(), pt()
+    if wd.lv.n_swarms then Swarms wd.lv, wd.ev, wd.se, g, p, lo()
+    if wd.lv.n_lobs then Volley wd.lv, wd.ev, wd.se, g, p, lo(), pt()
+    if p.at.y > MH * TS + 24 then Lose wd.ev, wd.se, p
+    if p.at.x >= wd.lv.goal_x then StageClear wd.ev, wd.se, g
     Camera wd.lv, wd.zn, g, p, 0
 end sub
 
 ' The goal passed: the stage is cleared, its bonus by its
 ' bones and its time.
-private sub StageClear (mu as Deck, se as Session, g as Game)
+private sub StageClear (ev as Events, se as Session, g as Game)
     g.mode = CLEARED
     g.mode_t = 0
     g.tallied = 0
     g.bonus = g.bones * 50& + 10& * (240 - int(g.clock))
     if g.bonus < g.bones * 50& then g.bonus = g.bones * 50&
-    Sfx mu, se, SCLEAR
+    Tell ev, EVSOUND, SCLEAR
 end sub
 
 ' A cleared stage's step: its tally; then, met, a while and
@@ -201,7 +212,7 @@ private sub ClearedStep ( _
 )
     dim nxt as integer
 
-    Tally wd.mu, wd.se, g, k
+    Tally wd.mu, wd.ev, wd.se, g, k
 
     if k.quit then
         ResetWorld wd, g, p, lo(), pt()
@@ -326,7 +337,8 @@ sub ResetWorld ( _
 
     wd.se.loose_n = 0
     wd.se.part_n = 0
-    Spawn wd.lv, wd.gr, wd.zn, wd.mu, g, p
+    Spawn wd.lv, wd.gr, wd.zn, wd.ev, g, p
+    Deliver wd
 end sub
 
 ' A level cleared: on to level n, the score and lives kept.
@@ -364,7 +376,7 @@ private function Met% ( _
     dim idle as Pad, parted as integer
 
     idle.right = p.at.x < wd.lv.fam_x - 108 and not p.win
-    MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, idle, pt()
+    MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, idle, pt()
 
     if p.at.x > wd.lv.fam_x - 106 then
         p.at.x = wd.lv.fam_x - 106

@@ -4,12 +4,13 @@ option explicit
 
 from engine.video import Blit, Store
 from engine.clock import STEPT
-from engine.audio import Deck
+from engine.events import Events
 from barkley.model.hero import Hero
 from barkley.model.level import GRAV, Level, MH, TS
 from barkley.model.game import Game, Loose, Part, Session
 from barkley.model.world import NLOB
-from barkley.assets.tunes import Sfx, SHURT, SPOP
+from barkley.model.events import EVSOUND, Tell
+from barkley.assets.tunes import SHURT, SPOP
 from barkley.world.terrain.ground import Solid
 from barkley.stage.fx.parts import Burst
 from barkley.stage.fx.damage import Hurt
@@ -48,7 +49,7 @@ end sub
 ' What is in the air, n, bursts.
 private sub Splat ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     n as integer, _
     pt() as Part _
@@ -57,14 +58,14 @@ private sub Splat ( _
     lv.n_lobs = lv.n_lobs - 1
     Burst se, pt(), lv.lobs(n).at.x, lv.lobs(n).at.y, 6, 90, _
         lv.lobs(n).c
-    Sfx mu, se, SPOP
+    Tell ev, EVSOUND, SPOP
 end sub
 
 ' What is in the air, each on its arc till it meets Charlie,
 ' whom it hurts, or the ground.
 sub Volley ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     p as Hero, _
@@ -85,13 +86,13 @@ sub Volley ( _
 
         if abs(lv.lobs(n).at.x - p.at.x) < 10 _
             and abs(lv.lobs(n).at.y - p.at.y + 13) < 14 then
-            Hurt mu, se, g, p, _
+            Hurt ev, se, g, p, _
                 cint(lv.lobs(n).at.x - sgn(lv.lobs(n).vel.x) * 10), _
                 lo(), SHURT
-            Splat lv, mu, se, n, pt()
+            Splat lv, ev, se, n, pt()
         elseif (aground and not lv.lobs(n).bedded) _
             or lv.lobs(n).at.y > MH * TS then
-            Splat lv, mu, se, n, pt()
+            Splat lv, ev, se, n, pt()
         end if
     next
 end sub

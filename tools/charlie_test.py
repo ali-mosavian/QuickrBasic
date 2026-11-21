@@ -61,6 +61,8 @@ OWNERS = {
     "loose": "stage/fx",
     "lob": "stage/fx",
     "world": "model/world",
+    "events": "engine/events",
+    "event": "engine/events",
 }
 # The fields assigned outside their owner today: the count may only fall.
 OUTSIDE = 555
@@ -81,7 +83,8 @@ from barkley.assets.palette import CBEE, CFLY, CGOLD, CINK, CNUT, CSEA, CVINE, C
 from barkley.assets.palette import CCLAY, CLINEN, CPOLE, CQINK, CSOOT
 from barkley.assets.store import BuildArt
 from barkley.assets.cast import BaronPic, FamPic
-from barkley.assets.tunes import CAUGHT, CAUGHTUP, EndBeat, LEFTBEHIND, LoadSongs, PACKING, PickSong, SCLANK, Sfx, SHURT
+from barkley.assets.tunes import CHASETUNE, CAUGHT, CAUGHTUP, EndBeat, LEFTBEHIND, LoadSongs, PACKING, PickSong, _
+    SCLANK, Sfx, SHURT
 from barkley.assets.tunes import KeepBeat, SJUMP, SMORTAR, SongFor, Sudden, WHISTLED, ZoneTune, ZTUNE
 from barkley.world.terrain.ground import LoadTables, LOOPR, SegAt, Solid, Surf, WADE, WAVEL
 from barkley.world.terrain.track import MOVEW, WAVEA
@@ -101,7 +104,7 @@ from barkley.stage.zones.pass import Fallen, GCHARGE, HeapOf, HEAPR, LOADRUN, LO
 from barkley.stage.zones.pass import TREMBLE, WALLR
 from barkley.stage.zones.quarter import AWNT, AWNW, Leapt, LINESAG, LINET, LineY, POUNCEFAR, POUNCEGONE, POUNCEN
 from barkley.stage.zones.quarter import PotClear, PotFall, POTR, POTX, POUNCEOUT, POUNCER, SILLUP
-from barkley.stage.zones.chase import BOLTS, CARTLEAD, CHASETUNE, NBUMP, PAWUP, PEDALMORE, PEDALUP, PEDALV, PEDALW
+from barkley.stage.zones.chase import BOLTS, CARTLEAD, NBUMP, PAWUP, PEDALMORE, PEDALUP, PEDALV, PEDALW
 from barkley.stage.zones.chase import LEGV, Lobbed, LOBWAIT, NLEG, RAILUP, TUMBLE, TwinPose
 from barkley.stage.camera import Camera, HEAD, Headroom, HEADUP
 from barkley.stage.scene import Render
@@ -113,6 +116,9 @@ from barkley.stage.zones.downs import GOLDPTS
 from barkley.flow.intro import BEATS, BETWEEN, BUMP0, CueAt, HORIZON, ILEN, IntroDraw, QHERO, QSND, QVAN, StartIntro
 from barkley.flow.states import GoStage, ResetWorld, StartGame, TALLYN, Tick
 from barkley.main import Advance
+from barkley.flow.deliver import Deliver
+from engine.events import Event, EVLAST, Events, Post, Taken
+from barkley.model.events import EVSOUND
 declare function GroundAt% (lv as Level, x as integer)
 declare function HalfLen% (x as string)
 declare function Tripled% (x as string)
@@ -156,7 +162,8 @@ for j = 0 to wd.lv.n_things - 1
     end if
 next
 for i = 1 to 300
-    Things wd.lv, wd.mu, wd.se, g, p, lo(), pt()
+    Things wd.lv, wd.ev, wd.se, g, p, lo(), pt()
+    Deliver wd
 next
 print "edge ok"
 wd.mu.muted = 0
@@ -263,7 +270,8 @@ StartGame wd, g, p, lo(), pt()
 g.bones = 3
 k.jump = -1
 k.was = -1
-Hurt wd.mu, wd.se, g, p, cint(p.at.x) + 10, lo(), SHURT
+Hurt wd.ev, wd.se, g, p, cint(p.at.x) + 10, lo(), SHURT
+Deliver wd
 for i = 1 to 150
     Tick wd, g, p, k, lo(), pt()
     if p.stun = 0 and p.jumped then was = -1
@@ -277,7 +285,8 @@ k.was = 0
 dim bx as single, by as single
 StartGame wd, g, p, lo(), pt()
 g.bones = 3
-Hurt wd.mu, wd.se, g, p, cint(p.at.x) + 10, lo(), SHURT
+Hurt wd.ev, wd.se, g, p, cint(p.at.x) + 10, lo(), SHURT
+Deliver wd
 Burst wd.se, pt(), p.at.x, p.at.y - 40, 8, 100, CWHITE
 bx = lo(0).at.x
 by = lo(0).at.y
@@ -302,7 +311,8 @@ k.right = -1
 for v = 120 to 840 step 60
     Stand wd.lv, wd.gr, p, c * TS - 30, csng(v)
     for i = 1 to 12
-        MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
+        MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+        Deliver wd
         if p.at.x > c * TS + 24 then exit for
         if p.ground and p.gsp < v / 2 then was = -1
     next
@@ -311,7 +321,8 @@ next
 k.right = 0
 Stand wd.lv, wd.gr, p, c * TS + 8, 0
 for i = 1 to 90
-    MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
+    MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+    Deliver wd
 next
 if was = 0 and abs(p.at.x - (c * TS + 8)) < 2 then print "slope ok"
 ' a jump pressed a moment before landing is made on landing: it was lost
@@ -340,7 +351,8 @@ k.jump = 0
 k.hit = 0
 was = 0
 for i = 1 to 60
-    MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
+    MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+    Deliver wd
     k.hit = 0
     if not p.ground then was = was + 1
     if was = 3 then
@@ -358,7 +370,8 @@ k.jump = 0
 k.hit = 0
 v = cint(p.at.y)
 for i = 1 to 45
-    MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
+    MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+    Deliver wd
 next
 if p.at.y > v + 20 then print "ledge ok"
 was = 0
@@ -376,7 +389,8 @@ for c = 40 to wd.lv.wpx - 40 step 7
     p.ground = 0
     p.sg = 0
     for i = 1 to 200
-        MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
+        MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+        Deliver wd
         if p.ground or p.at.y > MH * TS then exit for
     next
     if p.ground = 0 and wd.lv.top(c \\ TS) < MH then was = was + 1
@@ -391,7 +405,8 @@ c = wd.lv.things(j).at.x
 Stand wd.lv, wd.gr, p, c - 8, 460
 was = 0
 for i = 1 to 300
-    MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
+    MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+    Deliver wd
     if p.ground then if wd.gr.pt(p.sg).dir.x < -.9 then was = -1
     if p.at.x > c + LOOPR + 12 then exit for
 next
@@ -399,7 +414,8 @@ v = was and p.ground and p.at.x > c + LOOPR + 12
 Stand wd.lv, wd.gr, p, c - 60, 200
 was = 0
 for i = 1 to 300
-    MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
+    MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+    Deliver wd
     if p.ground then if wd.gr.pt(p.sg).dir.x < 0 then was = -1
 next
 if v and was = 0 and p.ground and abs(p.at.x - c) < LOOPR and p.at.y > wd.lv.things(j).at.y - 8 then print "loop ok"
@@ -407,7 +423,8 @@ if v and was = 0 and p.ground and abs(p.at.x - c) < LOOPR and p.at.y > wd.lv.thi
 Stand wd.lv, wd.gr, p, c - 8, 340
 was = 0
 for i = 1 to 200
-    MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
+    MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+    Deliver wd
     if not p.ground and p.at.y < wd.lv.things(j).at.y - LOOPR then was = -1
 next
 if was and p.ground and p.at.x < c + LOOPR then print "stall ok"
@@ -417,7 +434,8 @@ k.hit = -1
 k.jump = -1
 was = 0
 for i = 1 to 90
-    MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
+    MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+    Deliver wd
     k.hit = 0
     if p.ground then if wd.gr.pt(p.sg).kind = 2 then was = -1
 next
@@ -432,7 +450,8 @@ Stand wd.lv, wd.gr, p, c - 100, 360
 k.right = -1
 was = 0
 for i = 1 to 300
-    MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
+    MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+    Deliver wd
     if p.ground then if wd.gr.pt(p.sg).dir.x < .1 then was = -1
     if p.ground and p.at.x > c + 8 then exit for
 next
@@ -447,7 +466,8 @@ k.right = -1
 was = 0
 v = 0
 for i = 1 to 400
-    MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
+    MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+    Deliver wd
     if p.ground then if wd.gr.pt(p.sg).kind = 2 and p.at.y < wd.lv.things(j).at.y - WAVEA + 8 then was = was + 1
     ' down its far sides too: with only the rising halves there it was flown from crest to crest
     if p.ground then if wd.gr.pt(p.sg).kind = 2 and wd.gr.pt(p.sg).dir.y > .3 then v = v + 1
@@ -458,7 +478,8 @@ if was > 3 and v > 6 and p.ground and p.at.x > c + 384 and abs(p.at.y - wd.lv.th
 Stand wd.lv, wd.gr, p, c - 40, 420
 was = 0
 for i = 1 to 200
-    MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
+    MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+    Deliver wd
     if p.ground and abs(p.at.x - c - WAVEL) < 6 then
         g.cam.x = p.at.x - 160
         g.cam.y = p.at.y - 100
@@ -473,7 +494,8 @@ if was then print "twist ok"
 Stand wd.lv, wd.gr, p, c - 40, 420
 was = 0
 for i = 1 to 200
-    MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
+    MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+    Deliver wd
     if p.ground and (was and 1) = 0 and abs(p.at.x - c - WAVEL / 2) < 6 then
         g.cam.x = p.at.x - 160
         g.cam.y = p.at.y - 100
@@ -496,7 +518,8 @@ for i = 1 to 300
         p.gsp = 100
         k.right = 0
     end if
-    MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
+    MoveHero wd.lv, wd.gr, wd.ev, wd.se, p, k, pt()
+    Deliver wd
     if p.ground and p.at.y > wd.lv.things(j).at.y + 40 then exit for
 next
 if p.ground and wd.gr.pt(p.sg).kind = 1 and p.at.y > wd.lv.things(j).at.y + 40 and p.at.x < c + 384 then print "slow ok"
@@ -1040,7 +1063,8 @@ k.hit = 0
 k.start = 0
 k.quit = 0
 g.lives = 1
-Lose wd.mu, wd.se, p
+Lose wd.ev, wd.se, p
+Deliver wd
 for i = 1 to 200
     Tick wd, g, p, k, lo(), pt()
     if g.mode = OVER then exit for
@@ -1339,7 +1363,8 @@ was = was and wd.gr.pt(c).at.y > wd.lv.movers(m).at.y + 200 _
 was = was and not (p.ground and p.sg = c)
 ' down on the pool's dry floor, not through it
 was = was and not p.dead and p.ground and abs(p.at.y - (wd.lv.movers(m).at.y + PITD * TS)) < 2
-Spawn wd.lv, wd.gr, wd.zn, wd.mu, g, p
+Spawn wd.lv, wd.gr, wd.zn, wd.ev, g, p
+Deliver wd
 Tick wd, g, p, k, lo(), pt()
 was = was and wd.gr.pt(c).at.y = wd.lv.movers(m).at.y and wd.lv.movers(m).t = 0 _
     and wd.lv.things(wd.lv.movers(m).thing).state = 0
@@ -3078,7 +3103,8 @@ for i = 1 to 15
     Tick wd, g, p, k, lo(), pt()
 next
 was = was and p.dig = v + 1 and abs(p.at.x - bx - 15 * DIGV / 60) < 1
-Hurt wd.mu, wd.se, g, p, 0, lo(), SHURT
+Hurt wd.ev, wd.se, g, p, 0, lo(), SHURT
+Deliver wd
 g.shake = 0
 Render wd, g, p, lo(), pt()
 was = was and Fur%(cint(p.at.x) - int(g.cam.x), 14, cint(p.at.y) - 26 - int(g.cam.y), cint(p.at.y) - int(g.cam.y)) = 0
@@ -3274,7 +3300,8 @@ next
 was = was and bx > v + 100 and wd.lv.swarms(0).st = 0 and wd.lv.swarms(0).at.x = v and wd.lv.swarms(0).at.y = m
 wd.lv.swarms(0).st = 1
 wd.lv.swarms(0).at.x = v + 50
-Spawn wd.lv, wd.gr, wd.zn, wd.mu, g, p
+Spawn wd.lv, wd.gr, wd.zn, wd.ev, g, p
+Deliver wd
 if was and wd.lv.swarms(0).st = 0 and wd.lv.swarms(0).at.x = v then print "bees ok"
 ' the pilot, curled still past what he rolled through and slower than a run, hops out of the roll: left in it
 ' he was a crawl by the bees, and stung to death
@@ -3387,7 +3414,8 @@ for i = 1 to 600
 next
 was = was and i < 600 and abs(p.at.x - wd.lv.things(m).at.x) < 40 and p.inv <= 0 and p.ground and _
     not p.roll and wd.lv.things(c).state = 1
-Spawn wd.lv, wd.gr, wd.zn, wd.mu, g, p
+Spawn wd.lv, wd.gr, wd.zn, wd.ev, g, p
+Deliver wd
 was = was and wd.lv.things(c).state = 0
 Stand wd.lv, wd.gr, p, wd.lv.things(c).at.x - 16, 40
 for i = 1 to 20
@@ -3395,7 +3423,8 @@ for i = 1 to 20
 next
 g.bones = 5
 was = was and p.sled
-Hurt wd.mu, wd.se, g, p, cint(p.at.x) + 10, lo(), SHURT
+Hurt wd.ev, wd.se, g, p, cint(p.at.x) + 10, lo(), SHURT
+Deliver wd
 Tick wd, g, p, k, lo(), pt()
 if was and not p.sled and p.inv > 0 then print "sled ok"
 ' in the pass a jet is a geyser: its column the pass's water and not the works' steam; who is over it while it
@@ -3451,7 +3480,8 @@ next
 was = was and p.snow < 0 and p.at.x > wd.lv.things(m).at.x + 30
 g.bones = 5
 p.inv = 0
-Hurt wd.mu, wd.se, g, p, cint(p.at.x) + 10, lo(), SHURT
+Hurt wd.ev, wd.se, g, p, cint(p.at.x) + 10, lo(), SHURT
+Deliver wd
 was = was and g.bones = 5 and p.inv > 0 and p.roll
 Tick wd, g, p, k, lo(), pt()
 was = was and p.snow = 0
@@ -4357,6 +4387,17 @@ was = was and wd.se.pick = 1 and g.mode = TITLE
 k.start = -1
 Tick wd, g, p, k, lo(), pt()
 if was and g.mode = PLAYING and wd.zn.stage = 2 and g.lives = 3 then print "save ok"
+' an event posted to a full queue is dropped and counted, never handed out; the game's own queue dropped none
+dim full as Events, got as Event
+for i = 0 to EVLAST + 1
+    Post full, EVSOUND, p.at, SJUMP
+next
+j = 0
+do while Taken%(full, got)
+    j = j + 1
+loop
+if full.dropped = 1 and j = EVLAST + 1 and full.n = 0 then print "queue ok"
+print "dropped"; wd.ev.dropped
 end
 
 ' 900 frames at hz a second, not in step with the clock, their times read off it at grain moves a second, the first
@@ -4811,9 +4852,13 @@ def main() -> None:
         ("reach ok", "no bone nor spring of the sands lies where the sea never leaves"),
         ("pedalo ok", "Kipper's boat goes up and down its channel, is bumped from above, faster each time, and sunk"),
         ("kipper ok", "the sands' sunset ended in its chase: the boat sunk by three bumps, the teddy taken"),
+        ("queue ok", "an event posted to a full queue dropped and counted, the rest handed out in turn"),
     ):
         if said not in out:
             sys.exit(f"charlie: not {what}: {out[-300:]}")
+    dropped = out[out.rfind("dropped") :].split()
+    if dropped[1:2] != ["0"]:
+        sys.exit(f"charlie: events dropped from a full queue: {out[-300:]}")
     tank, tree = out[out.rfind("zonetank") :].split(), out[out.rfind("zonetree") :].split()
     if tank[1:2] != [str(pix(charlieart.tank()))] or tree[1:4] != [str(pix(charlieart.tree())), "0", "-1"]:
         sys.exit(

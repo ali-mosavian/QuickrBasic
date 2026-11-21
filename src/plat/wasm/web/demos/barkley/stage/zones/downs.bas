@@ -3,14 +3,14 @@
 defint A-Z
 option explicit
 
-from engine.audio import Deck
+from engine.events import Events
 from barkley.model.images import ICAT, ICATF
 from barkley.model.hero import Hero
 from barkley.model.level import Level, Realm
 from barkley.model.game import Found, Game, Gild, Loose, Part, Session
+from barkley.model.events import EVSOUND, Tell
 from barkley.assets.palette import CGOLD
-from barkley.assets.tunes import SBONE, SBOOST, Sfx, SGOLD, SMARK
-from barkley.assets.tunes import SSPRING
+from barkley.assets.tunes import SBONE, SBOOST, SGOLD, SMARK, SSPRING
 from barkley.world.terrain.ground import Solid, Surf
 from barkley.world.level import GoldNo
 from barkley.stage.fx.parts import Burst
@@ -26,7 +26,7 @@ private const BOOSTV = 660!
 ' A bone where the level put it: taken.
 sub MeetBone ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     p as Hero, _
@@ -42,14 +42,14 @@ sub MeetBone ( _
     g.score = g.score + 10
     Burst se, pt(), csng(lv.things(i).at.x), _
         csng(lv.things(i).at.y), 4, 50, CGOLD + 4
-    Sfx mu, se, SBONE
+    Tell ev, EVSOUND, SBONE
 end sub
 
 ' A golden bone not found before: found, for good.
 sub MeetGold ( _
     lv as Level, _
     zn as Realm, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     p as Hero, _
@@ -69,14 +69,14 @@ sub MeetGold ( _
     g.score = g.score + GOLDPTS
     Burst se, pt(), csng(lv.things(i).at.x), _
         csng(lv.things(i).at.y), 10, 90, CGOLD + 4
-    Sfx mu, se, SGOLD
+    Tell ev, EVSOUND, SGOLD
 end sub
 
 ' A cat of the Mob, or a squirrel: rolled or charged into it
 ' is beaten, and he bounces off it; else it scratches.
 sub MeetCat ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     p as Hero, _
@@ -89,13 +89,13 @@ sub MeetCat ( _
     if abs(lv.things(i).at.y - 6 - cint(p.at.y) _
         + 13) >= 17 then exit sub
 
-    Tackle lv, mu, se, g, p, i, 6, lo(), pt()
+    Tackle lv, ev, se, g, p, i, 6, lo(), pt()
 end sub
 
 ' A spring: come down on or stood on, it throws him up.
 sub MeetSpring ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     p as Hero, _
     i as integer _
@@ -116,14 +116,14 @@ sub MeetSpring ( _
     p.jumped = 0
     p.sprung = -1
     lv.things(i).state = 8
-    Sfx mu, se, SSPRING
+    Tell ev, EVSOUND, SSPRING
 end sub
 
 ' A boost pad: run over slower than it sends, he is sent the
 ' way he faces.
 sub MeetBoost ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     p as Hero, _
@@ -138,13 +138,13 @@ sub MeetBoost ( _
     p.gsp = BOOSTV * (1 - 2 * p.face)
     g.shake = .2
     Burst se, pt(), p.at.x, p.at.y - 4, 8, 150, CGOLD + 4
-    Sfx mu, se, SBOOST
+    Tell ev, EVSOUND, SBOOST
 end sub
 
 ' A marker post: passed, it is where he comes back to.
 sub MeetMark ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     p as Hero, _
@@ -159,7 +159,7 @@ sub MeetMark ( _
     g.home.y = lv.things(i).at.y
     Burst se, pt(), csng(lv.things(i).at.x), _
         csng(lv.things(i).at.y - 28), 8, 80, CGOLD + 4
-    Sfx mu, se, SMARK
+    Tell ev, EVSOUND, SMARK
 end sub
 
 ' Thirty times a second: cats near the view pace about their

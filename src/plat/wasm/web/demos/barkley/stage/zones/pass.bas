@@ -5,14 +5,15 @@ option explicit
 
 from engine.video import Blit, SH, Store, SW
 from engine.clock import STEPT
-from engine.audio import Deck
+from engine.events import Events
 from barkley.model.images import IGOAT, IGOATR, ILOAD, ILOB, ISNOWBALL
 from barkley.model.hero import Hero
 from barkley.model.level import GRAV, KCAT, KGOAT, KHEAP, KTHROW
 from barkley.model.level import Level, NONE, TS
 from barkley.model.game import Game, Loose, Part, Session
+from barkley.model.events import EVSOUND, Tell
 from barkley.assets.palette import CFLAKE, CICE, CSNOW, CWHITE
-from barkley.assets.tunes import SBUMP, SCRACK, Sfx, SHURT, SROLL
+from barkley.assets.tunes import SBUMP, SCRACK, SHURT, SROLL
 from barkley.world.terrain.ground import Balk, Lie, Solid, Surf
 from barkley.world.level import LOADFAR
 from barkley.stage.fx.parts import Burst
@@ -92,7 +93,7 @@ const HEAPR = 24
 ' nothing but the game's reckoning.
 private sub Board ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     p as Hero, _
     i as integer _
@@ -109,14 +110,14 @@ private sub Board ( _
         p.vel.x = SLEDV
     end if
 
-    Sfx mu, se, SROLL
+    Tell ev, EVSOUND, SROLL
 end sub
 
 ' An icicle: walked under, it is loosed; falling, it hurts
 ' whom it lands on, and breaks.
 sub MeetIcicle ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     p as Hero, _
@@ -140,15 +141,15 @@ sub MeetIcicle ( _
     if lv.things(i).state <= TREMBLE or dx >= 9 or py <= y _
         or py - 26 >= y + 16 then exit sub
 
-    Hurt mu, se, g, p, x, lo(), SHURT
-    Shatter lv, mu, se, pt(), i
+    Hurt ev, se, g, p, x, lo(), SHURT
+    Shatter lv, ev, se, pt(), i
 end sub
 
 ' A sled left on the snow: landed on or run onto, he boards
 ' it.
 sub MeetSled ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     p as Hero, _
     i as integer _
@@ -159,14 +160,14 @@ sub MeetSled ( _
         or abs(cint(p.at.y) - lv.things(i).at.y _
         + 5) >= 10 then exit sub
 
-    Board lv, mu, se, p, i
+    Board lv, ev, se, p, i
 end sub
 
 ' Deep snow: it stops a sled dead and he tumbles out of it;
 ' rolled through, it packs round him.
 sub MeetDrift ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     p as Hero, _
     i as integer, _
@@ -176,7 +177,7 @@ sub MeetDrift ( _
         or abs(cint(p.at.y) - lv.things(i).at.y) >= 8 then exit sub
 
     if p.sled then
-        Alight mu, se, p, pt(), CWHITE
+        Alight ev, se, p, pt(), CWHITE
         p.roll = 0
         p.gsp = p.gsp * .25
         exit sub
@@ -186,7 +187,7 @@ sub MeetDrift ( _
 
     p.snow = -1
     Burst se, pt(), p.at.x, p.at.y - 8, 8, 100, CWHITE
-    Sfx mu, se, SROLL
+    Tell ev, EVSOUND, SROLL
 end sub
 
 ' How far icicle i has fallen: nothing till it has trembled.
@@ -246,7 +247,7 @@ end function
 ' and takes him where it reaches him.
 sub Avalanche ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     p as Hero _
@@ -257,7 +258,7 @@ sub Avalanche ( _
         lv.aval.st = 1
         lv.aval.x = lv.aval_x - AVALLEAD
         g.shake = .5
-        Sfx mu, se, SCRACK
+        Tell ev, EVSOUND, SCRACK
     end if
 
     lv.aval.x = lv.aval.x + AVALV * STEPT
@@ -266,7 +267,7 @@ sub Avalanche ( _
         g.shake = .12
     end if
 
-    if lv.aval.x > p.at.x - 6 then Lose mu, se, p
+    if lv.aval.x > p.at.x - 6 then Lose ev, se, p
 end sub
 
 ' The avalanche over the view: its snow from the view's left
@@ -413,7 +414,7 @@ end sub
 ' or at a charge, hurt.
 sub MeetGoat ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     p as Hero, _
@@ -429,10 +430,10 @@ sub MeetGoat ( _
 
     if not p.ground and p.vel.y > 0 _
         and p.at.y < lv.things(i).at.y - 6 and not p.sled then
-        Mount lv, mu, se, p, i
+        Mount lv, ev, se, p, i
     elseif s > 1 and s <= GCHARGE _
         and p.at.y > lv.things(i).at.y - 18 then
-        Hurt mu, se, g, p, lv.things(i).at.x, lo(), SHURT
+        Hurt ev, se, g, p, lv.things(i).at.x, lo(), SHURT
     end if
 end sub
 
@@ -440,7 +441,7 @@ end sub
 ' still on its way home is there.
 private sub Mount ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     p as Hero, _
     i as integer _
@@ -461,7 +462,7 @@ private sub Mount ( _
     p.vel.y = 60
     p.roll = 0
     p.jumped = 0
-    Sfx mu, se, SBUMP
+    Tell ev, EVSOUND, SBUMP
 end sub
 
 ' The goat let go runs home along the ground; there, or out
@@ -485,7 +486,7 @@ end sub
 ' ridden goes through, and leaves its stump.
 sub MeetWall ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     p as Hero, _
@@ -503,7 +504,7 @@ sub MeetWall ( _
         g.shake = .2
         Burst se, pt(), csng(lv.things(i).at.x), _
             csng(lv.things(i).at.y - WALLH \ 2), 16, 180, CWHITE
-        Sfx mu, se, SCRACK
+        Tell ev, EVSOUND, SCRACK
         exit sub
     end if
 
@@ -617,7 +618,7 @@ end sub
 ' Icicle i breaks.
 private sub Shatter ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     pt() as Part, _
     i as integer _
@@ -625,14 +626,14 @@ private sub Shatter ( _
     Burst se, pt(), csng(lv.things(i).at.x), _
         csng(lv.things(i).at.y + Fallen%(lv, i) + 12), 8, 110, CWHITE
     lv.things(i).state = -1
-    Sfx mu, se, SCRACK
+    Tell ev, EVSOUND, SCRACK
 end sub
 
 ' Icicle i falling: it breaks on the cat or the snow-thrower
 ' under it, which is beaten, or on the ground.
 private sub Plunge ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     pt() as Part, _
@@ -652,14 +653,14 @@ private sub Plunge ( _
             or abs(lv.things(j).at.x - lv.things(i).at.x) >= 14 _
             or y <= lv.things(j).at.y - 16 then continue for
 
-        Beaten lv, mu, se, g, pt(), j, 8
-        Shatter lv, mu, se, pt(), i
+        Beaten lv, ev, se, g, pt(), j, 8
+        Shatter lv, ev, se, pt(), i
     next
 
     if lv.things(i).state <= 0 _
         or Solid%(lv, lv.things(i).at.x, y) = 0 then exit sub
 
-    Shatter lv, mu, se, pt(), i
+    Shatter lv, ev, se, pt(), i
 end sub
 
 ' Whether snow-thrower i is up from behind its wall: open to
@@ -687,7 +688,7 @@ end sub
 ' neither hurt; up, it is a cat, beaten by a roll.
 sub MeetThrow ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     p as Hero, _
@@ -703,7 +704,7 @@ sub MeetThrow ( _
         or p.at.y > lv.things(i).at.y + 8 then exit sub
 
     if Risen%(lv, i) then
-        Tackle lv, mu, se, g, p, i, 8, lo(), pt()
+        Tackle lv, ev, se, g, p, i, 8, lo(), pt()
         exit sub
     end if
 
@@ -716,13 +717,13 @@ sub MeetThrow ( _
         p.vel.x = s * 150
     end if
 
-    Sfx mu, se, SBUMP
+    Tell ev, EVSOUND, SBUMP
 end sub
 
 ' Icicle i, loosed: it trembles a while, then falls.
 sub Totter ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     pt() as Part, _
@@ -731,7 +732,7 @@ sub Totter ( _
     if lv.things(i).state <= 0 then exit sub
 
     lv.things(i).state = lv.things(i).state + 1
-    if lv.things(i).state > TREMBLE then Plunge lv, mu, se, g, pt(), i
+    if lv.things(i).state > TREMBLE then Plunge lv, ev, se, g, pt(), i
 end sub
 
 ' Load i of snow, set off: a step of its trembling, its
@@ -739,7 +740,7 @@ end sub
 ' gone and its heap lies there; Charlie under it is hurt.
 sub Unload ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     p as Hero, _
@@ -760,18 +761,18 @@ sub Unload ( _
 
     lv.things(i).state = -1
     lv.things(h).state = 1
-    Bury lv, mu, se, g, pt(), h
+    Bury lv, ev, se, g, pt(), h
     if abs(p.at.x - lv.things(h).at.x) >= HEAPR _
         or abs(p.at.y - lv.things(h).at.y) >= HEAPH then exit sub
 
-    Hurt mu, se, g, p, lv.things(h).at.x, lo(), SHURT
+    Hurt ev, se, g, p, lv.things(h).at.x, lo(), SHURT
 end sub
 
 ' Heap h, come down: the cats and snow-throwers under it are
 ' beaten.
 private sub Bury ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     pt() as Part, _
@@ -791,13 +792,13 @@ private sub Bury ( _
         if abs(lv.things(j).at.y _
             - lv.things(h).at.y) >= 24 then continue for
 
-        Beaten lv, mu, se, g, pt(), j, 8
+        Beaten lv, ev, se, g, pt(), j, 8
     next
 
     g.shake = .3
     Burst se, pt(), csng(lv.things(h).at.x), _
         csng(lv.things(h).at.y - 12), 16, 160, CWHITE
-    Sfx mu, se, SCRACK
+    Tell ev, EVSOUND, SCRACK
 end sub
 
 ' Snow-thrower i: a step of its turn, facing Charlie; and

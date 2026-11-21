@@ -5,14 +5,15 @@ option explicit
 
 from engine.video import SW
 from engine.clock import STEPT
-from engine.audio import Deck
+from engine.events import Events
 from barkley.model.images import IACORN
 from barkley.model.hero import Hero
 from barkley.model.level import Level, Realm, Swarm
 from barkley.model.game import Game, Loose, Part, Session, Tones
+from barkley.model.events import EVSOUND, Tell
 from barkley.assets.palette import CBEE, CFLY, CINK, CLEAF, CLOAM
 from barkley.assets.palette import CNUT, CVINE, CVINED, CWING, Tint
-from barkley.assets.tunes import Sfx, SHURT, SPOP, SROLL, SSPRING
+from barkley.assets.tunes import SHURT, SPOP, SROLL, SSPRING
 from barkley.world.terrain.ground import Balk
 from barkley.world.level import GLOWN
 from barkley.stage.fx.parts import Burst
@@ -104,7 +105,7 @@ end function
 ' stands sprung a moment before it bows again.
 sub MeetSapling ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     p as Hero, _
     i as integer _
@@ -127,14 +128,14 @@ sub MeetSapling ( _
     p.jumped = 0
     p.sprung = -1
     lv.things(i).state = SAPT
-    Sfx mu, se, SSPRING
+    Tell ev, EVSOUND, SSPRING
 end sub
 
 ' A vine's end reached in the air, and no vine just let go:
 ' he hangs from it, his way become its swing.
 sub MeetVine ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     p as Hero, _
     i as integer _
@@ -151,13 +152,13 @@ sub MeetVine ( _
     p.roll = 0
     p.jumped = 0
     p.sprung = 0
-    Sfx mu, se, SSPRING
+    Tell ev, EVSOUND, SSPRING
 end sub
 
 ' Bramble: it hurts him, but curled he cuts through it.
 sub MeetBramble ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     p as Hero, _
@@ -170,12 +171,12 @@ sub MeetBramble ( _
         or p.at.y > lv.things(i).at.y + 8 then exit sub
 
     if not p.roll then
-        Hurt mu, se, g, p, lv.things(i).at.x, lo(), SHURT
+        Hurt ev, se, g, p, lv.things(i).at.x, lo(), SHURT
         exit sub
     end if
 
     lv.things(i).state = BRAMBLET
-    Sfx mu, se, SPOP
+    Tell ev, EVSOUND, SPOP
 end sub
 
 ' A burrow's mound: crouched on it he digs in, for its other
@@ -183,7 +184,7 @@ end sub
 ' he has stepped off it.
 sub MeetMound ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     p as Hero, _
     i as integer, _
@@ -208,7 +209,7 @@ sub MeetMound ( _
     p.gsp = 0
     p.vel.y = 0
     Burst se, pt(), p.at.x, p.at.y - 4, 10, 140, CLOAM
-    Sfx mu, se, SROLL
+    Tell ev, EVSOUND, SROLL
 end sub
 
 ' A hollow log across the way: on foot he is stopped at its
@@ -216,7 +217,7 @@ end sub
 ' leaves it at LOGV. Its state: he is in it.
 sub MeetLog ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     p as Hero, _
     i as integer _
@@ -235,7 +236,7 @@ sub MeetLog ( _
         exit sub
     end if
 
-    if lv.things(i).state = 0 then Sfx mu, se, SSPRING
+    if lv.things(i).state = 0 then Tell ev, EVSOUND, SSPRING
     lv.things(i).state = 1
     s = 1 + 2 * (p.gsp < 0)
     if p.ground and p.gsp * s < LOGV then p.gsp = s * LOGV
@@ -256,7 +257,7 @@ end sub
 
 sub Swarms ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     p as Hero, _
@@ -265,7 +266,7 @@ sub Swarms ( _
     dim i as integer
 
     for i = 0 to lv.n_swarms - 1
-        Buzz mu, se, lv.swarms(i), g, p, lo()
+        Buzz ev, se, lv.swarms(i), g, p, lo()
     next
 end sub
 
@@ -273,7 +274,7 @@ end sub
 ' after his head, at BEEV; on him, it stings; left BEELOSE
 ' behind, it goes home.
 private sub Buzz ( _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     b as Swarm, _
     g as Game, _
@@ -290,7 +291,7 @@ private sub Buzz ( _
     if b.st = 0 then exit sub
 
     if b.st = 1 and d < BEER + BEEV * STEPT then
-        Hurt mu, se, g, p, cint(b.at.x), lo(), SHURT
+        Hurt ev, se, g, p, cint(b.at.x), lo(), SHURT
     end if
 
     if b.st = 2 then

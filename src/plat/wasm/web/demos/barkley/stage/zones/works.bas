@@ -4,14 +4,15 @@ defint A-Z
 option explicit
 
 from engine.video import Blit, Store
-from engine.audio import Deck
+from engine.events import Events
 from barkley.model.images import IPRESS, IRAIL, ISPARK, ISRAIL
 from barkley.model.hero import Hero
 from barkley.model.level import KPRESS, Level, NONE, TS
 from barkley.model.game import Game, Loose, Part, Session
+from barkley.model.events import EVSOUND, Tell
 from barkley.assets.palette import CGOLD
-from barkley.assets.tunes import SBOOST, SCLANK, Sfx, SHISS, SHURT
-from barkley.assets.tunes import SMARK, SSPRING
+from barkley.assets.tunes import SBOOST, SCLANK, SHISS, SHURT, SMARK
+from barkley.assets.tunes import SSPRING
 from barkley.stage.fx.parts import Burst
 from barkley.stage.fx.damage import Beaten, BOUNCEV, Hurt
 
@@ -41,7 +42,7 @@ const SPINH = 70
 ' A spark on its cable: lit, it stings.
 sub MeetSpark ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     p as Hero, _
@@ -55,13 +56,13 @@ sub MeetSpark ( _
     if abs(x - cint(p.at.x)) >= 11 or py <= lv.things(i).at.y - 24 _
         or py - 26 >= lv.things(i).at.y then exit sub
 
-    if Lit%(lv, se, i) then Hurt mu, se, g, p, x, lo(), SHISS
+    if Lit%(lv, se, i) then Hurt ev, se, g, p, x, lo(), SHISS
 end sub
 
 ' A button in the floor: stood on, it is pressed.
 sub MeetButton ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     p as Hero, _
     i as integer, _
@@ -74,13 +75,13 @@ sub MeetButton ( _
     lv.things(i).state = 1
     Burst se, pt(), csng(lv.things(i).at.x), _
         csng(lv.things(i).at.y - 6), 8, 80, CGOLD + 4
-    Sfx mu, se, SMARK
+    Tell ev, EVSOUND, SMARK
 end sub
 
 ' A jet, blowing 80 ticks of 180: who is over it goes up.
 sub MeetJet ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     p as Hero, _
     i as integer _
@@ -94,7 +95,7 @@ sub MeetJet ( _
 
     if p.ground then
         p.vel.x = p.gsp
-        Sfx mu, se, SHISS
+        Tell ev, EVSOUND, SHISS
     end if
 
     p.ground = 0
@@ -108,7 +109,7 @@ end sub
 ' came at it.
 sub MeetBump ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     p as Hero, _
@@ -139,13 +140,13 @@ sub MeetBump ( _
     g.score = g.score + 10
     Burst se, pt(), csng(lv.things(i).at.x), _
         csng(lv.things(i).at.y), 6, 90, CGOLD + 4
-    Sfx mu, se, SSPRING
+    Tell ev, EVSOUND, SSPRING
 end sub
 
 ' A ball going round its post: it hurts.
 sub MeetSpin ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     p as Hero, _
@@ -162,14 +163,14 @@ sub MeetSpin ( _
     if abs(bx - cint(p.at.x)) >= 11 _
         or abs(by - cint(p.at.y) + 12) >= 16 then exit sub
 
-    Hurt mu, se, g, p, x, lo(), SHURT
+    Hurt ev, se, g, p, x, lo(), SHURT
 end sub
 
 ' A hoop: through it in the air he goes on, faster, the way
 ' he was going.
 sub MeetHoop ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     p as Hero, _
     i as integer, _
@@ -185,7 +186,7 @@ sub MeetHoop ( _
     lv.things(i).state = 20
     Burst se, pt(), csng(lv.things(i).at.x), _
         csng(lv.things(i).at.y), 8, 120, CGOLD + 4
-    Sfx mu, se, SBOOST
+    Tell ev, EVSOUND, SBOOST
 end sub
 
 ' A sweeper met: armoured before, its hood hurts whoever
@@ -193,7 +194,7 @@ end sub
 ' behind, it is beaten.
 sub MeetSweep ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     p as Hero, _
@@ -212,12 +213,12 @@ sub MeetSweep ( _
         - lv.things(i).at.x) <> sgn(lv.things(i).state)
 
     if not p.ground and p.vel.y > 0 and p.at.y < y - 8 then
-        Beaten lv, mu, se, g, pt(), i, 8
+        Beaten lv, ev, se, g, pt(), i, 8
         p.vel.y = -BOUNCEV
     elseif behind and (p.roll or p.charging) then
-        Beaten lv, mu, se, g, pt(), i, 8
+        Beaten lv, ev, se, g, pt(), i, 8
     else
-        Hurt mu, se, g, p, lv.things(i).at.x, lo(), SHURT
+        Hurt ev, se, g, p, lv.things(i).at.x, lo(), SHURT
     end if
 end sub
 
@@ -256,7 +257,7 @@ end function
 ' is under it or against it. It lands with a clank.
 sub MeetPress ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     p as Hero, _
@@ -265,13 +266,16 @@ sub MeetPress ( _
 )
     dim y as integer
 
-    if PressT%(lv, se, i) = PRESSFALL + 10 then Sfx mu, se, SCLANK
+    if PressT%(lv, se, i) = PRESSFALL + 10 then
+        Tell ev, EVSOUND, SCLANK
+    end if
+
     y = lv.things(i).at.y - PRESSUP + Stroke%(lv, se, i)
 
     if abs(lv.things(i).at.x - p.at.x) >= 26 or p.at.y - 26 >= y _
         or p.at.y <= y - 14 then exit sub
 
-    Hurt mu, se, g, p, lv.things(i).at.x, lo(), SHURT
+    Hurt ev, se, g, p, lv.things(i).at.x, lo(), SHURT
 end sub
 
 ' For the pilot at x: the nearest press he is under or

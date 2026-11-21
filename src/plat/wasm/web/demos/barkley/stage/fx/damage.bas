@@ -3,12 +3,13 @@
 defint A-Z
 option explicit
 
-from engine.audio import Deck
+from engine.events import Events
 from barkley.model.hero import Hero
 from barkley.model.level import Level, PI
 from barkley.model.game import Game, Loose, NLOOSE, Part, Session
+from barkley.model.events import EVSOUND, Tell
 from barkley.assets.palette import CWHITE
-from barkley.assets.tunes import SDIE, Sfx, SHISS, SHURT, SPOP
+from barkley.assets.tunes import SDIE, SHISS, SHURT, SPOP
 from barkley.stage.fx.parts import Burst
 
 const BOUNCEV = 330!
@@ -18,7 +19,7 @@ const BOUNCEV = 330!
 ' it hurts.
 sub Tackle ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     p as Hero, _
@@ -31,18 +32,18 @@ sub Tackle ( _
 
     if p.roll = 0 and p.charging = 0 then
         x = lv.things(i).at.x
-        Hurt mu, se, g, p, x, lo(), SHISS
+        Hurt ev, se, g, p, x, lo(), SHISS
         exit sub
     end if
 
-    Beaten lv, mu, se, g, pt(), i, dy
+    Beaten lv, ev, se, g, pt(), i, dy
     if not p.ground and p.vel.y > 0 then p.vel.y = -BOUNCEV
 end sub
 
 ' Hit: the bones fly loose and Charlie is knocked back; with
 ' none, it is out.
 sub Hurt ( _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     p as Hero, _
@@ -61,10 +62,10 @@ sub Hurt ( _
         exit sub
     end if
 
-    if snd = SHISS then Sfx mu, se, snd
+    if snd = SHISS then Tell ev, EVSOUND, snd
 
     if g.bones = 0 then
-        Lose mu, se, p
+        Lose ev, se, p
         exit sub
     end if
 
@@ -99,24 +100,24 @@ sub Hurt ( _
     end if
 
     g.shake = .25
-    if snd = SHURT then Sfx mu, se, snd
+    if snd = SHURT then Tell ev, EVSOUND, snd
 end sub
 
-sub Lose (mu as Deck, se as Session, p as Hero)
+sub Lose (ev as Events, se as Session, p as Hero)
     if p.dead then exit sub
 
     p.dead = -1
     p.dead_t = 0
     p.vel.y = -340
     p.ground = 0
-    Sfx mu, se, SDIE
+    Tell ev, EVSOUND, SDIE
 end sub
 
 ' Thing i beaten: gone, its points, a shake and a puff dy
 ' over its foot.
 sub Beaten ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     pt() as Part, _
@@ -128,5 +129,5 @@ sub Beaten ( _
     g.shake = .15
     Burst se, pt(), csng(lv.things(i).at.x), _
         csng(lv.things(i).at.y - dy), 10, 130, CWHITE
-    Sfx mu, se, SPOP
+    Tell ev, EVSOUND, SPOP
 end sub

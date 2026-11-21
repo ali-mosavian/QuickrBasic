@@ -5,15 +5,15 @@ option explicit
 
 from engine.video import Blit, SH, Store, SW
 from engine.clock import STEPT
-from engine.audio import Deck
+from engine.events import Events
 from barkley.model.images import IBONE, ICRAB, IGULL, IRUNNEL, ISPOUT
 from barkley.model.images import ISURF
 from barkley.model.hero import Hero
 from barkley.model.level import Bird, Level, NONE, PI, TS
 from barkley.model.game import Game, Loose, NLOOSE, Part, Session
+from barkley.model.events import EVSOUND, Tell
 from barkley.assets.palette import CSEA, CWHITE
-from barkley.assets.tunes import SBOOST, Sfx, SHURT, SPOP, SSPRING
-from barkley.assets.tunes import SSQUAWK
+from barkley.assets.tunes import SBOOST, SHURT, SPOP, SSPRING, SSQUAWK
 from barkley.stage.fx.parts import Burst
 from barkley.stage.fx.damage import Beaten, BOUNCEV, Hurt
 from barkley.stage.hero.moves import GSCARED, SHELLT
@@ -43,8 +43,8 @@ const TIDEP = 1440
 
 ' Down a flume: swept off his feet, curled, and no slower
 ' than its water runs.
-private sub Slide (mu as Deck, se as Session, p as Hero)
-    if not p.roll then Sfx mu, se, SBOOST
+private sub Slide (ev as Events, se as Session, p as Hero)
+    if not p.roll then Tell ev, EVSOUND, SBOOST
     p.roll = -1
     p.face = 0
     if p.gsp < FLUMEV then p.gsp = FLUMEV
@@ -54,7 +54,7 @@ end sub
 ' slides.
 sub MeetFlume ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     p as Hero, _
     i as integer _
@@ -69,7 +69,7 @@ sub MeetFlume ( _
     if py <= lv.things(i).at.y - 6 _
         or py >= lv.things(i).at.y + TS + 6 then exit sub
 
-    Slide mu, se, p
+    Slide ev, se, p
 end sub
 
 ' Charlie at crab i. Down on its back he goes up off it,
@@ -78,7 +78,7 @@ end sub
 ' pinches nobody, and a roll knocks it off the sand.
 sub MeetCrab ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     p as Hero, _
@@ -103,11 +103,11 @@ sub MeetCrab ( _
                 * (SHELLT \ 3)
         end if
 
-        Sfx mu, se, SSPRING
+        Tell ev, EVSOUND, SSPRING
     elseif abs(lv.things(i).state) = 1 then
-        Hurt mu, se, g, p, lv.things(i).at.x, lo(), SHURT
+        Hurt ev, se, g, p, lv.things(i).at.x, lo(), SHURT
     elseif p.roll or p.charging then
-        Beaten lv, mu, se, g, pt(), i, 6
+        Beaten lv, ev, se, g, pt(), i, 6
     end if
 end sub
 
@@ -165,7 +165,7 @@ end sub
 ' home and makes it drop what it took; a rolling Charlie
 ' knocks it out of the air.
 private sub Gull ( _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     b as Bird, _
     n as integer, _
@@ -192,7 +192,7 @@ private sub Gull ( _
             b.aim.x = p.at.x + (p.at.x - p.last_x) * lead
             b.aim.y = p.at.y - 13
             b.st = GDIVE
-            Sfx mu, se, SSQUAWK
+            Tell ev, EVSOUND, SSQUAWK
         end if
     case GDIVE
         if Glide%(b, b.aim.x, b.aim.y, DIVEV) then b.st = GCLIMB
@@ -214,19 +214,19 @@ private sub Gull ( _
         b.st = 0
         g.score = g.score + 100
         Burst se, pt(), b.at.x, b.at.y, 10, 130, CWHITE
-        Sfx mu, se, SPOP
+        Tell ev, EVSOUND, SPOP
     elseif b.st = GDIVE then
         b.loot = g.bones
         if b.loot > GULLTAKE then b.loot = GULLTAKE
         g.bones = g.bones - b.loot
         b.st = GCLIMB
-        Sfx mu, se, SSQUAWK
+        Tell ev, EVSOUND, SSQUAWK
     end if
 end sub
 
 sub Flock ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     p as Hero, _
@@ -238,7 +238,7 @@ sub Flock ( _
     for i = 0 to lv.n_gulls - 1
         if lv.gulls(i).st <= 0 then continue for
 
-        Gull mu, se, lv.gulls(i), i, g, p, lo(), pt()
+        Gull ev, se, lv.gulls(i), i, g, p, lo(), pt()
     next
 end sub
 
@@ -286,7 +286,7 @@ end function
 ' deck over it.
 sub MeetJelly ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     g as Game, _
     p as Hero, _
@@ -307,10 +307,10 @@ sub MeetJelly ( _
         p.jumped = 0
         p.sprung = -1
         lv.things(i).state = 10
-        Sfx mu, se, SSPRING
+        Tell ev, EVSOUND, SSPRING
     elseif p.at.y > y - 14 then
         p.swim = 0
-        Hurt mu, se, g, p, lv.things(i).at.x, lo(), SHURT
+        Hurt ev, se, g, p, lv.things(i).at.x, lo(), SHURT
     end if
 end sub
 

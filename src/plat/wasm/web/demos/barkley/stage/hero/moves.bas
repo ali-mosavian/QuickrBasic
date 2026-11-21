@@ -4,15 +4,16 @@ defint A-Z
 option explicit
 
 from engine.clock import STEPT
-from engine.audio import Deck
+from engine.events import Events
 from barkley.model.hero import Hero, HH, Pad
 from barkley.model.level import GRAV, Ground, KCAT, KCRAB, KICICLE
 from barkley.model.level import KLOAD, KPOUNCE, KSNATCH, KSQUIRREL
 from barkley.model.level import KTHROW, KWALKER, Level, NONE, TS
 from barkley.model.game import Part, Session
+from barkley.model.events import EVSOUND, Tell
 from barkley.assets.palette import CEARTH, CSTONE, CWHITE
-from barkley.assets.tunes import SBARK, SCHARGE, Sfx, SJUMP, SLAUNCH
-from barkley.assets.tunes import SPOP, SROLL
+from barkley.assets.tunes import SBARK, SCHARGE, SJUMP, SLAUNCH, SPOP
+from barkley.assets.tunes import SROLL
 from barkley.world.terrain.ground import Along, Curve, Drop, Land
 from barkley.world.terrain.ground import Slow, Solid, STALL, Twist
 from barkley.world.terrain.ground import Wall
@@ -78,7 +79,7 @@ const WETTOP = 220!
 sub MoveHero ( _
     lv as Level, _
     gr as Ground, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     p as Hero, _
     k as Pad, _
@@ -89,7 +90,7 @@ sub MoveHero ( _
     dim v as single
 
     if p.dig then
-        Tunnel lv, mu, se, p, pt()
+        Tunnel lv, ev, se, p, pt()
         exit sub
     end if
 
@@ -100,12 +101,12 @@ sub MoveHero ( _
     if p.snow > 0 then
         p.snow = 0
         Burst se, pt(), p.at.x, p.at.y - 12, 12, 140, CWHITE
-        Sfx mu, se, SPOP
+        Tell ev, EVSOUND, SPOP
     end if
 
     ' a ride lasts as long as its roll: come to a stand,
     ' hurt or thrown, the sled is left in pieces
-    if p.sled and not p.roll then Alight mu, se, p, pt(), CEARTH + 4
+    if p.sled and not p.roll then Alight ev, se, p, pt(), CEARTH + 4
 
     ' a jump held through the hit is a jump as it ends: it
     ' was forgotten
@@ -124,8 +125,8 @@ sub MoveHero ( _
 
     if p.bark_t > 0 then p.bark_t = p.bark_t - STEPT
     if p.vine_t > 0 then p.vine_t = p.vine_t - STEPT
-    if k.bark and p.stun = 0 and p.bark_t <= 0 then Bark lv, mu, se, p
-    KeepJump mu, se, p, hit
+    if k.bark and p.stun = 0 and p.bark_t <= 0 then Bark lv, ev, se, p
+    KeepJump ev, se, p, hit
     if p.coyote > 0 then p.coyote = p.coyote - STEPT
     if p.inv > 0 then p.inv = p.inv - STEPT
     if p.goat then Ride lv, p, l, r, d
@@ -142,11 +143,11 @@ sub MoveHero ( _
     if lv.gale then Buffet lv, se, p
 
     if p.vine then
-        Hang lv, mu, se, p, hit
+        Hang lv, ev, se, p, hit
     elseif p.swim then
-        Paddle lv, gr, mu, se, p, l, r, hit, pt()
+        Paddle lv, gr, ev, se, p, l, r, hit, pt()
     elseif p.ground then
-        Walk lv, gr, mu, se, p, l, r, d, hit, pt()
+        Walk lv, gr, ev, se, p, l, r, d, hit, pt()
     else
         Airborne lv, gr, se, p, l, r, d, hold, pt()
     end if
@@ -190,7 +191,7 @@ end sub
 ' A jump pressed just before landing, or just after the
 ' ground ran out, was lost: it is kept a moment.
 private sub KeepJump ( _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     p as Hero, _
     hit as integer _
@@ -213,7 +214,7 @@ private sub KeepJump ( _
     p.roll = -1
     p.coyote = 0
     p.want = 0
-    Sfx mu, se, SJUMP
+    Tell ev, EVSOUND, SJUMP
 end sub
 
 ' Whether Charlie is on bare ice: it keeps his speed and
@@ -231,7 +232,7 @@ end function
 private sub Walk ( _
     lv as Level, _
     gr as Ground, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     p as Hero, _
     l as integer, _
@@ -254,9 +255,9 @@ private sub Walk ( _
     if p.sled then grip = grip * SLEDGRIP
 
     if p.charging then
-        if Winding%(mu, se, p, d, hit, pt()) then exit sub
+        if Winding%(ev, se, p, d, hit, pt()) then exit sub
     elseif hit then
-        Leap mu, se, p
+        Leap ev, se, p
         exit sub
     end if
 
@@ -266,7 +267,7 @@ private sub Walk ( _
     if p.roll then
         RollOn p, l, r, grip
     else
-        RunOn mu, se, p, l, r, d, grip, push, pt()
+        RunOn ev, se, p, l, r, d, grip, push, pt()
     end if
 
     if p.gsp > MAXV then p.gsp = MAXV
@@ -297,7 +298,7 @@ end sub
 ' A dash wound up: each press winds it further; Down let go,
 ' he is away. Whether it is still held.
 private function Winding% ( _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     p as Hero, _
     d as integer, _
@@ -312,7 +313,7 @@ private function Winding% ( _
     if hit then
         p.charge = p.charge + 130
         if p.charge > CHARGEMAX then p.charge = CHARGEMAX
-        Sfx mu, se, SCHARGE
+        Tell ev, EVSOUND, SCHARGE
         Burst se, pt(), p.at.x - dir * 10, p.at.y - 2, 3, 70, _
             CSTONE + 3
     end if
@@ -323,18 +324,18 @@ private function Winding% ( _
     p.charging = 0
     p.roll = -1
     p.gsp = (CHARGE0 + p.charge) * dir
-    Sfx mu, se, SLAUNCH
+    Tell ev, EVSOUND, SLAUNCH
 end function
 
 ' The jump key on the ground: from a crouch a dash is begun;
 ' else he jumps, off the ground as it lies.
-private sub Leap (mu as Deck, se as Session, p as Hero)
+private sub Leap (ev as Events, se as Session, p as Hero)
     dim sn as single, cs as single
 
     if p.crouch then
         p.charging = -1
         p.charge = 0
-        Sfx mu, se, SCHARGE
+        Tell ev, EVSOUND, SCHARGE
         exit sub
     end if
 
@@ -346,7 +347,7 @@ private sub Leap (mu as Deck, se as Session, p as Hero)
     p.roll = -1
     p.jumped = -1
     p.crouch = 0
-    Sfx mu, se, SJUMP
+    Tell ev, EVSOUND, SJUMP
 end sub
 
 ' Rolling: the slope pulls harder down than it holds back
@@ -380,7 +381,7 @@ end sub
 ' Running: the slope, then the keys, or with none the
 ' ground's drag. Down at speed, he curls up.
 private sub RunOn ( _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     p as Hero, _
     l as integer, _
@@ -413,7 +414,7 @@ private sub RunOn ( _
     if d and abs(p.gsp) >= 60 then
         p.roll = -1
         p.crouch = 0
-        Sfx mu, se, SROLL
+        Tell ev, EVSOUND, SROLL
     end if
 
     if p.skid = 0 or (se.ticks and 3) <> 0 then exit sub
@@ -572,12 +573,12 @@ end sub
 ' crab goes into its shell, every gull is scared, every
 ' snow-thrower ducks, every squirrel is cowed, every pouncer
 ' leaps.
-private sub Bark (lv as Level, mu as Deck, se as Session, p as Hero)
+private sub Bark (lv as Level, ev as Events, se as Session, p as Hero)
     dim i as integer, c as integer, dx as single, dy as single
     dim hung as integer, cowed as integer, early as integer
 
     p.bark_t = BARKT
-    Sfx mu, se, SBARK
+    Tell ev, EVSOUND, SBARK
     if lv.murk then lv.glow = GLOWT
     c = (cint(p.at.x) - BARKR - 40) \ TS
     if c < 0 then c = 0

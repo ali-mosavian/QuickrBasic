@@ -4,13 +4,14 @@ defint A-Z
 option explicit
 
 from engine.clock import STEPT
-from engine.audio import Deck
+from engine.events import Events
 from barkley.model.hero import Hero
 from barkley.model.level import GRAV, Ground, KCHIMNEY, KMOUND, Level
 from barkley.model.level import NONE
 from barkley.model.game import Part, Session
+from barkley.model.events import EVSOUND, Tell
 from barkley.assets.palette import CLOAM, CSEA, CSOOT
-from barkley.assets.tunes import Sfx, SJUMP, SPOP
+from barkley.assets.tunes import SJUMP, SPOP
 from barkley.world.terrain.ground import Land, Slow, WADE, Wall
 from barkley.stage.fx.parts import Burst, Emit
 
@@ -53,7 +54,7 @@ const DRYT = .35
 ' Off the sled, which is no more: a puff of colour c where
 ' it was.
 sub Alight ( _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     p as Hero, _
     pt() as Part, _
@@ -61,7 +62,7 @@ sub Alight ( _
 )
     p.sled = 0
     Burst se, pt(), p.at.x, p.at.y - 4, 10, 120, c
-    Sfx mu, se, SPOP
+    Tell ev, EVSOUND, SPOP
 end sub
 
 ' Hung from a vine: he swings as a weight on it, the vine
@@ -69,7 +70,7 @@ end sub
 ' up, and a hurt lets go without one.
 sub Hang ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     p as Hero, _
     hit as integer _
@@ -93,7 +94,7 @@ sub Hang ( _
 
     p.vel.y = p.vel.y - VINEHOP
     p.roll = -1
-    Sfx mu, se, SJUMP
+    Tell ev, EVSOUND, SJUMP
 end sub
 
 ' Under the ground to the mound he digs for: straight there
@@ -102,7 +103,7 @@ end sub
 ' up out of the other's pot, in its soot.
 sub Tunnel ( _
     lv as Level, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     p as Hero, _
     pt() as Part _
@@ -143,7 +144,7 @@ sub Tunnel ( _
     p.jumped = 0
     p.sprung = -1
     Burst se, pt(), p.at.x, p.at.y - 4, 10, 140, c
-    Sfx mu, se, SPOP
+    Tell ev, EVSOUND, SPOP
 end sub
 
 ' The ticks of calm left before the blizzard's next gust: 0
@@ -246,7 +247,7 @@ end sub
 sub Paddle ( _
     lv as Level, _
     gr as Ground, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     p as Hero, _
     l as integer, _
@@ -267,7 +268,7 @@ sub Paddle ( _
         p.vel.y = -HOPV
         p.jumped = -1
         Burst se, pt(), p.at.x, lv.tide + 0!, 5, 80, CSEA
-        Sfx mu, se, SJUMP
+        Tell ev, EVSOUND, SJUMP
         exit sub
     end if
 

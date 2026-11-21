@@ -6,6 +6,7 @@ from engine.datafile import DataFile, NameData
 from engine.video import Store
 from engine.input import Keys
 from engine.audio import Deck, NBAR, NDRUM, NSLOT, NVOICE
+from engine.events import Events
 from barkley.model.images import IMGSZ, NIMG
 from barkley.model.hero import Autopilot
 from barkley.model.level import Ground, Level, MH, MW, NSTAGE, Realm
@@ -25,6 +26,7 @@ type World
     se as Session
     pilot as Autopilot
     dat as DataFile
+    ev as Events
 end type
 
 private const NPTS = 1600

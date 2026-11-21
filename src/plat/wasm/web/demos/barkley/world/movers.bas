@@ -4,11 +4,12 @@ defint A-Z
 option explicit
 
 from engine.clock import STEPT
-from engine.audio import Deck
+from engine.events import Events
 from barkley.model.hero import Hero
 from barkley.model.level import GRAV, Ground, Level, PI
 from barkley.model.game import Session
-from barkley.assets.tunes import SCRACK, Sfx
+from barkley.model.events import EVSOUND, Tell
+from barkley.assets.tunes import SCRACK
 from barkley.world.terrain.ground import Drop
 from barkley.world.terrain.track import MOVEW
 from barkley.world.level import CABLED
@@ -82,7 +83,7 @@ end function
 sub Movers ( _
     lv as Level, _
     gr as Ground, _
-    mu as Deck, _
+    ev as Events, _
     se as Session, _
     p as Hero _
 )
@@ -123,7 +124,7 @@ sub Movers ( _
 
             if lv.movers(m).t >= SPANT then
                 if lv.movers(m).t - STEPT < SPANT then
-                    Sfx mu, se, SCRACK
+                    Tell ev, EVSOUND, SCRACK
                 end if
 
                 if p.ground and p.sg = s then Drop gr, p

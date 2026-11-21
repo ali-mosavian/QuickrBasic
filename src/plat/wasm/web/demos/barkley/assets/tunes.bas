@@ -36,6 +36,7 @@ const CAUGHTUP = 2
 const PACKING = 10
 const LEFTBEHIND = 11
 const WHISTLED = 19
+const CHASETUNE = 5
 const ZTUNE = 0
 private const THEME = 1
 const CAUGHT = 2
@@ -123,6 +124,17 @@ sub LoadSongs (mu as Deck)
     mu.coming_bar = 0
     mu.ended = -1
     mu.tune = -1
+end sub
+
+' The chase's song in the zone's slot: the zone's own lead
+' plays it, and the level's end still.
+sub ChaseTune (mu as Deck)
+    dim zlead as string
+
+    zlead = mu.song(CAUGHT).lead_p
+    ZoneTune mu, CHASETUNE
+    mu.song(ZTUNE).lead_p = zlead
+    mu.song(CAUGHT).lead_p = zlead
 end sub
 
 ' Song id into the zone's slot, unless it is there: what was
