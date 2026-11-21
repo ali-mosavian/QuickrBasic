@@ -6,19 +6,15 @@
 #include "ui/linemap.h"
 #include "unit.h"
 
-enum { MAX_TESTS = 256 };
-
-static struct {
-    const char *name;
-    TestFn *fn;
-} tests[MAX_TESTS];
-static uint32_t ntests, failures;
+UnitList unit_tests = {nullptr, &unit_tests.first};
+static uint32_t failures;
 static const char *current;
 
-void unit_register(const char *const name, TestFn *const fn)
+void unit_add(UnitList *const l, UnitTest *const t)
 {
-    if (ntests < MAX_TESTS)
-        tests[ntests++] = (typeof(tests[0])){name, fn};
+    t->next = nullptr;
+    *l->end = t;
+    l->end = &t->next;
 }
 
 void unit_fail(const char *const file, const int line, const char *const what)
@@ -97,12 +93,12 @@ int main(const int argc, const char *const *const argv)
 
     uint32_t ran = 0;
 
-    for (uint32_t i = 0; i < ntests; i++) {
-        if (!picked(tests[i].name, argc, argv))
+    for (const UnitTest *t = unit_tests.first; t; t = t->next) {
+        if (!picked(t->name, argc, argv))
             continue;
 
-        current = tests[i].name;
-        tests[i].fn(S);
+        current = t->name;
+        t->fn(S);
         ran++;
     }
 
