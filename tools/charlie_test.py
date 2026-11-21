@@ -2489,14 +2489,16 @@ Tick wd, g, p, k, lo(), pt()
 twinsOk = twinsOk and i < 60 and wd.lv.cart.st = 3 and wd.lv.cart.hits = NBUMP and g.score = twScore + 2500
 twinsOk = twinsOk and wd.mu.zHeld = twTune and TwinPose%(wd.lv, 0) = 4 and TwinPose%(wd.lv, 1) = 4
 ' drawn: the oak's bark at its trunk; each twin's mask where it sits on the top pair; the wood's spring a
-' toadstool, its cap the wood's berry
+' toadstool, its cap the wood's berry. The oak is looked at 40 lower on the screen: the HUD's golden-bone pips
+' lie over the left twin's place else
 g.shake = 0
 g.camx = wd.lv.oakX - 160
-g.camy = wd.lv.oakY - 190
+g.camy = wd.lv.oakY - 230
 Render wd, g, p, lo(), pt()
-twinsOk = twinsOk and point(160, 90) >= 129 and point(160, 90) <= 133
-twinsOk = twinsOk and point(160 - 64 - 6, 190 - 9 * TS - 19) = 79 and point(160 + 64 + 6, 190 - 10 * TS - 19) = 79
+twinsOk = twinsOk and point(160, 130) >= 129 and point(160, 130) <= 133
+twinsOk = twinsOk and point(160 - 64 - 6, 230 - 9 * TS - 19) = 79 and point(160 + 64 + 6, 230 - 10 * TS - 19) = 79
 g.camx = wd.lv.oakX + 16
+g.camy = wd.lv.oakY - 190
 Render wd, g, p, lo(), pt()
 twinsOk = twinsOk and point(157, 180) = 157
 if twinsOk then print "twins ok"
