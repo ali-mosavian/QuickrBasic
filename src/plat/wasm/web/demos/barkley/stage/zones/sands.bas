@@ -10,6 +10,7 @@ from barkley.model.images import IBONE, ICRAB, IGULL, IRUNNEL, ISPOUT
 from barkley.model.images import ISURF
 from barkley.model.hero import Hero
 from barkley.model.level import Bird, Level, NONE, PI, TS
+from barkley.model.kinds import Kinds
 from barkley.model.game import Game, Loose, NLOOSE, Part, Session
 from barkley.model.events import EVBURST, EVSCORE, EVSOUND, Tell
 from barkley.model.events import TellAt
@@ -18,6 +19,8 @@ from barkley.assets.tunes import SBOOST, SHURT, SPOP, SSPRING, SSQUAWK
 from barkley.stage.fx.parts import PBEATEN
 from barkley.stage.fx.damage import Beaten, BOUNCEV, Hurt
 from barkley.stage.hero.moves import GSCARED, SHELLT
+from barkley.stage.hero.push import Rebound, Shoot
+from barkley.stage.things.react import Rest, Turn
 
 const FLUMEV = 460!
 const STEPV = 430!
@@ -46,9 +49,7 @@ const TIDEP = 1440
 ' than its water runs.
 private sub Slide (ev as Events, se as Session, p as Hero)
     if not p.roll then Tell ev, EVSOUND, SBOOST
-    p.roll = -1
-    p.face = 0
-    if p.gsp < FLUMEV then p.gsp = FLUMEV
+    Shoot p, FLUMEV
 end sub
 
 ' A flume's tile or a spout's: stood in its water, he
@@ -86,7 +87,7 @@ sub MeetCrab ( _
     i as integer, _
     lo() as Loose _
 )
-    dim y as integer
+    dim y as integer, v as single
 
     y = lv.things(i).at.y
     if lv.things(i).state = 0 _
@@ -94,13 +95,12 @@ sub MeetCrab ( _
         or p.at.y > y + 10 then exit sub
 
     if not p.ground and p.vel.y > 0 and p.at.y < y - 4 then
-        p.vel.y = -BOUNCEV
-        if abs(lv.things(i).state) > 1 then p.vel.y = -STEPV
-        p.jumped = 0
+        v = BOUNCEV
+        if abs(lv.things(i).state) > 1 then v = STEPV
+        Rebound p, v, 0
 
         if abs(lv.things(i).state) < SHELLT \ 3 then
-            lv.things(i).state = sgn(lv.things(i).state) _
-                * (SHELLT \ 3)
+            Turn lv, i, sgn(lv.things(i).state) * (SHELLT \ 3)
         end if
 
         Tell ev, EVSOUND, SSPRING
@@ -284,6 +284,7 @@ end function
 ' deck over it.
 sub MeetJelly ( _
     lv as Level, _
+    kd as Kinds, _
     ev as Events, _
     se as Session, _
     g as Game, _
@@ -301,10 +302,8 @@ sub MeetJelly ( _
 
     if not p.ground and not p.swim and p.vel.y > 0 _
         and p.at.y < y - 10 then
-        p.vel.y = -JELLYV
-        p.jumped = 0
-        p.sprung = -1
-        lv.things(i).state = 10
+        Rebound p, JELLYV, -1
+        Rest lv, kd, i
         Tell ev, EVSOUND, SSPRING
     elseif p.at.y > y - 14 then
         p.swim = 0

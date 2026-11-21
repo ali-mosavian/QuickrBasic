@@ -5855,9 +5855,10 @@ TOUCH: dict[str, tuple[int | str, ...]] = {
         ("TOWN",),
     ),
     **dict.fromkeys(
-        ["KHEAP", "KICICLE", "KSLED", "KDRIFT", "KSPARK", "KPRESS", "KJELLY", "KSAPLING", "KAWNING", "KCHIMNEY"],
+        ["KHEAP", "KICICLE", "KSLED", "KDRIFT", "KSPARK", "KPRESS", "KSAPLING", "KAWNING", "KCHIMNEY"],
         ("TOWN",),
     ),
+    "KJELLY": ("TOWN", 0, 0, 0, 0, 10),
     **dict.fromkeys(
         ["KPOUNCE", "KMORTAR", "KTIPPER", "KVINE", "KBRAMBLE", "KLOG", "KMOUND", "KBOOST", "KFLUME", "KSPOUT"],
         ("TOWN",),

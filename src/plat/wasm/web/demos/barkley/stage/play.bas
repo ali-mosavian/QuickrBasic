@@ -130,7 +130,7 @@ sub Touch ( _
             case KPRESS
                 MeetPress lv, ev, se, g, p, i, lo()
             case KJELLY
-                MeetJelly lv, ev, se, g, p, i, lo(), pt()
+                MeetJelly lv, kd, ev, se, g, p, i, lo(), pt()
             case KSAPLING
                 MeetSapling lv, ev, se, p, i
             case KAWNING

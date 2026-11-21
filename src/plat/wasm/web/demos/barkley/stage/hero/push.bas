@@ -29,3 +29,18 @@ end sub
 sub Boost (p as Hero, v as single)
     p.gsp = v * (1 - 2 * p.face)
 end sub
+
+' Off something's top at v, his jump his again; sprung, as
+' by a spring.
+sub Rebound (p as Hero, v as single, sprung as integer)
+    p.vel.y = -v
+    p.jumped = 0
+    if sprung then p.sprung = -1
+end sub
+
+' Down a flume, curled, rightward at v at least.
+sub Shoot (p as Hero, v as single)
+    p.roll = -1
+    p.face = 0
+    if p.gsp < v then p.gsp = v
+end sub
