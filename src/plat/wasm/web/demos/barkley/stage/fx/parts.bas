@@ -145,6 +145,32 @@ sub LooseBones ( _
     next
 end sub
 
+' n bones let fall at x, y, loose, to be picked up.
+sub Strew ( _
+    lo() as Loose, _
+    se as Session, _
+    x as single, _
+    y as single, _
+    n as integer _
+)
+    dim i as integer, m as integer
+
+    m = n
+
+    for i = 0 to NLOOSE - 1
+        if m = 0 then exit for
+        if lo(i).t > 0 then continue for
+
+        lo(i).at.x = x
+        lo(i).at.y = y
+        lo(i).vel.x = (m * 37 mod 90) - 45
+        lo(i).vel.y = -40
+        lo(i).t = 4
+        se.loose_n = se.loose_n + 1
+        m = m - 1
+    next
+end sub
+
 ' The particles, dt on: each on its arc till its time is up.
 sub Particles (se as Session, pt() as Part, dt as single)
     dim i as integer
