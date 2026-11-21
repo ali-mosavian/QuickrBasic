@@ -72,6 +72,8 @@ void fx_done(Session *const S, const char *const *const names)
     uimn.on = false;
     S->repl.keep_pre = false;
     S->lexr.cols = false;
+    S->dbug.emit = false; /* uimn_init's debugger out: as boot left it */
+    S->dbug.hooks = nullptr;
     modu_clear(&S->modu, "");
     session_new(S);
 }
