@@ -36,6 +36,7 @@
  * - D3. Not carried over.
  */
 #include "comp/expr.h"
+#include "comp/sndstmt.h"
 #include "comp/builtins.h"
 #include "comp/fold.h"
 #include "comp/refs.h"
@@ -521,6 +522,15 @@ static Node *var_leaf(Comp *const C)
             const Proc *const pr = ref_proc(C, &idx);
             return ref_call(C, name, idx, pr, ARGS_PAREN);
         }
+    }
+
+    if (snds_beat(C)) {
+        Node *const n = args_node(C, N_XFN);
+        n->op = (uint8_t)(fns_beat() - fns_x);
+        n->type = T_FLT;
+        n->mode = XM_ARGS;
+        n->end = C->p;
+        return n;
     }
 
     Node *const r = ref_record(C);

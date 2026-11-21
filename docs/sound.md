@@ -171,6 +171,57 @@ and a hiss.
   background (`MB`) it waits only while a queue is full.
 - `PLAY(n)` counts the notes waiting in voice 1, whatever n is. A rest counts.
 
+## Songs
+
+A song is an array of timed notes that the music's clock plays by itself. Nothing is fed while it
+plays, and each note starts at its time from the song's start, so a long song does not drift.
+
+- `instrument n, commands$` sets sound n, 1 to 64, by the commands of a `PLAY` string, layers too.
+  A note in commands$ is an error.
+- `music events()` plays a song from now. events() is an array of a `TYPE` whose first five fields
+  are `INTEGER` or `LONG`: at, length, kind, pitch, loud, by any names.
+  - at and length are ticks, 96 a quarter: a 16th is 24, an 8th triplet 32.
+  - kind is the instrument. 0 is a tempo: pitch is then quarters a minute, 32 to 255, from at on.
+    Until the first, 120.
+  - pitch is `PLAY`'s `N`, 1 to 84; 0 a rest.
+  - loud is hundredths of the instrument's volume, 0 to 100.
+- Events may come in any order. Events on one tick start together: a chord is three notes at one at.
+- `music events(), from` plays the song again from tick from each time it ends.
+- `music stop` ends the song now; `music stop, ticks` fades it out over that many ticks.
+- `note n, pitch, length, loud` strikes instrument n at once, beside a song or without one. length
+  is ticks at the song's tempo, else 120's.
+- `beat()` is the quarters since the song began, counting on through its loops; 0 when none plays.
+
+Each note takes a voice of its own, from voice 32 down, where `PLAY` takes them from 1 up, so notes
+that overlap ring on. A note takes a voice `PLAY` is not using whose last note has died away, or else
+the one whose sound ends first, cutting it. With every voice `PLAY`'s, the note is not played.
+
+`note`, `music`, `beat` and `instrument` stay a program's own names wherever QBasic allows a name: a
+variable, an array, a `SUB` or a `FUNCTION` called that works as before.
+
+```basic
+type event
+    at as integer
+    length as integer
+    kind as integer
+    pitch as integer
+    loud as integer
+end type
+
+instrument 1, "W4 Z1,0 H0,4,0,4 V12"
+instrument 2, "W3 Y2,3000,2 H0,2,0,2 V10"
+dim ev(3) as event
+for i = 0 to 3
+    read ev(i).at, ev(i).length, ev(i).kind
+    read ev(i).pitch, ev(i).loud
+next i
+data 0, 0, 0, 140, 0
+data 0, 48, 1, 25, 100
+data 0, 24, 2, 61, 80
+data 48, 24, 2, 61, 60
+music ev(), 0
+```
+
 ## Loudness
 
 Every voice at `V15` is as loud as it gets; the voices are added. When the sum would pass full

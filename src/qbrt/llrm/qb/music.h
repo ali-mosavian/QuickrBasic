@@ -37,5 +37,15 @@ unsigned music_waiting(void);
 void music_clear(void);
 /* The program has ended: music_clear, and the tick stops. */
 void music_halt(void);
+/* The synthesizer open and the tick running, for notes that are not queued (song.c). */
+void music_start(void);
+/* Whether `voice` has nothing of PLAY's queued or sounding: a song may take it. */
+int music_idle(unsigned voice);
+
+/* PLAY's note n, 1 to 84, in Hz (play.c). */
+unsigned play_hertz(int note);
+/* `commands`, PLAY's, set a fresh sound and its layers, which `sound` takes; a note among them is an Illegal function
+   call (play.c). */
+void play_sound(SD *commands, DevVoice sound[DEV_LAYERS]);
 
 #endif

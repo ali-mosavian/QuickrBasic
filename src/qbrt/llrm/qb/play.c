@@ -152,12 +152,22 @@ static unsigned frequency(int note)
     return octave >= 0 ? hertz << octave : hertz >> -octave;
 }
 
+unsigned play_hertz(int note)
+{
+    return frequency(note);
+}
+
+/* The voice of an instrument's commands (play_sound): a note there is wrong. */
+enum { NO_VOICE = DEV_VOICES };
+
 /* Queues a note, or a rest with `note` 0, `time` long, in `voice`. */
 static void play_note(Player *p, unsigned voice, int note, long time)
 {
     const long sounding = note ? time * p->style / LEGATO : time;
     DevVoice v[DEV_LAYERS];
 
+    if (voice == NO_VOICE)
+        illegal();
     memcpy(v, p->sound, sizeof v);
     v[0].hertz = note ? frequency(note) : 0;
     music_queue(voice, p->synth || voice > 0, v, sounding, time - sounding);
@@ -534,6 +544,25 @@ void B_SPLYV(SD *const *commands, unsigned count)
     for (i = 0; i < count; i++)
         if (commands[i])
             str_free_if_tmp(commands[i]);
+}
+
+void play_sound(SD *commands, DevVoice sound[DEV_LAYERS])
+{
+    static Player p;
+    unsigned k;
+
+    p.octave = DEFAULT_OCTAVE;
+    p.length = DEFAULT_LENGTH;
+    p.tempo = DEFAULT_TEMPO;
+    p.style = NORMAL;
+    p.layer = 0;
+    for (k = 0; k < DEV_LAYERS; k++)
+        p.sound[k] = first_sound;
+    macro_begin(&p.m, commands);
+    while (step(&p, NO_VOICE))
+        ;
+    str_free_if_tmp(commands);
+    memcpy(sound, p.sound, sizeof p.sound);
 }
 
 /* RUN: what PLAY set of the synthesizer is undone, so a program sounds as QB's until it sets it again. */

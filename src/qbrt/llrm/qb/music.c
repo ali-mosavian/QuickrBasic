@@ -5,6 +5,7 @@
 
 #include "music.h"
 #include "nhstutil.h"
+#include "song.h"
 
 /* The queues count time in parts of a clock tick: a synthesizer that renders its own samples ticks them from its
    sample count (music_fine_tick, after MGL's mixer and its module player), else the clock tick runs a tick's parts
@@ -66,6 +67,7 @@ static void note_on(Voice *v, unsigned index, const Note *n)
         dev_tone(n->v[0].hertz);
         return;
     }
+    song_taken(index);
     memcpy(v->now, n->v, (1 + n->v[0].layers) * sizeof n->v[0]);
     v->now[0].gate = 1;
     v->now[0].trigger = trigger;
@@ -108,6 +110,7 @@ static void part_tick(void)
     music_ticks++;
     for (i = 0; i < DEV_VOICES; i++)
         voice_tick(&voices[i], i);
+    song_tick();
 }
 
 /* The clock tick: its parts, unless the synthesizer is ticking them. */
@@ -243,7 +246,24 @@ void music_clear(void)
             dev_voice(i, &silence);
         }
     }
+    song_clear();
     dev_tone(0);
+}
+
+void music_start(void)
+{
+    dev_synth_open();
+    if (!tick_started) {
+        dev_tick_start();
+        tick_started = 1;
+    }
+}
+
+int music_idle(unsigned voice)
+{
+    const Voice *const v = &voices[voice];
+
+    return v->tail == v->head && !v->sound_left && !v->quiet_left && !v->gated;
 }
 
 /* B$SOND: SOUND frequency, duration in clock ticks (18.2 a second).  In
