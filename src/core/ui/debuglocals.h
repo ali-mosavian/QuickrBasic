@@ -11,6 +11,8 @@ void dloc_read(Session *S, const StackFrame *f, bool newest);
 /* The rows read; row i of them. */
 uint8_t dloc_count(void);
 const char *dloc_row(uint8_t i);
+/* Row i's value changed at this stop: its first column + 1; else 0. */
+uint8_t dloc_changed(uint8_t i);
 /* The row of the name s, n long, suffix sfx (0 none): a Locals variable of it, else a module one
    the frame's procedure sees, SHARED; nullptr none. */
 const char *dloc_find(Session *S, const uint8_t *s, uint32_t n, uint8_t sfx);

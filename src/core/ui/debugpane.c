@@ -53,19 +53,21 @@ enum {
     DP_STK = 2,
 };
 
-/* A window's list: its title, its rows, row i's text. */
+/* A window's list: its title, its rows, row i's text, the column + 1 its changed value starts at
+   (nullptr, 0: none). */
 typedef struct {
     const char *title;
     uint8_t (*count)(void);
     const char *(*row)(uint8_t i);
+    uint8_t (*changed)(uint8_t i);
 } PaneList;
 
 static const char *frame_row(const uint8_t i) { return dstk_at(i)->text; }
 
 static const PaneList lists[NDP] = {
-    [DP_WAT] = {"Watch", dwat_count, dwat_row},
-    [DP_LOC] = {"Locals", dloc_count, dloc_row},
-    [DP_STK] = {"Call stack", dstk_count, frame_row},
+    [DP_WAT] = {"Watch", dwat_count, dwat_row, nullptr},
+    [DP_LOC] = {"Locals", dloc_count, dloc_row, dloc_changed},
+    [DP_STK] = {"Call stack", dstk_count, frame_row, nullptr},
 };
 
 static struct {
@@ -172,6 +174,10 @@ static void line1(const uint8_t w, const uint8_t r)
             n++;
 
         scrn_strn(row, col, (const uint8_t *)s, n, slot);
+        const uint8_t hi = lists[w].changed && slot == SL_ED ? lists[w].changed((uint8_t)i) : 0;
+
+        if (hi && hi - 1 < n)
+            scrn_attr(row, col + hi - 1, n - (hi - 1), SL_CHG);
     }
 
     scrn_fill(row, PSCR_COLS - 1, SL_ED, GLYPH_V, 1);

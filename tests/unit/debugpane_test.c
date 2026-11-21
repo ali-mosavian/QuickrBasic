@@ -10,6 +10,7 @@
 #include "ui/draw.h"
 #include "ui/edit.h"
 #include "ui/screen.h"
+#include "ui/theme.h"
 #include "ui/uimain.h"
 #include "ui/view.h"
 #include "ui/window.h"
@@ -37,6 +38,7 @@ static void stopped_in(Session *const S, const char *const *const lines)
     fclose(f);
     S->dbug.mode = 0;
     uimn_init(S);
+    them_set(0); /* the attributes a test reads: none set, all 0 */
     uimn_open(S, path);
     uimn_run(S);
     shown(S);
@@ -207,15 +209,27 @@ TEST(debug_pane_watches_expressions)
     done(S);
 }
 
-/* Locals: the last changed first. b, changed after the first stop, came before a. */
-TEST(debug_pane_puts_the_last_changed_first)
+/* The attribute screen row row's column c is drawn in. */
+static uint8_t attr_at(const uint8_t row, const uint8_t c)
+{
+    return (uint8_t)(host_cell(0, row, c) >> 8);
+}
+
+/* Locals put the last changed first, so rows moved at each step: they keep their places, a value
+   changed at the stop drawn in its own colour. */
+TEST(debug_pane_marks_values_changed_at_the_stop)
 {
     stopped_in(S, (const char *const[]){"a = 1: b = 2: stop: b = 3: stop", nullptr});
 
+    const uint8_t r = title_row("Locals") + 1, v = uimn.dp_col + 5; /* " a = 1": 1's column */
+    CHECK(them_attr(SL_CHG) != them_attr(SL_ED)); /* else the colours below tell nothing */
     CHECK(rows_are("Locals", " a = 1| b = 2"));
+    CHECK(attr_at(r, v) == them_attr(SL_ED) && attr_at(r + 1, v) == them_attr(SL_ED));
     uimn_cont(S);
     shown(S);
-    CHECK(rows_are("Locals", " b = 3| a = 1"));
+    CHECK(rows_are("Locals", " a = 1| b = 3"));
+    CHECK(attr_at(r, v) == them_attr(SL_ED) && attr_at(r + 1, v) == them_attr(SL_CHG));
+    CHECK(attr_at(r + 1, v - 2) == them_attr(SL_ED)); /* the name's, " = " */
     done(S);
 }
 
@@ -262,6 +276,6 @@ TEST(debug_pane_names_variables_as_declared)
     CHECK(rows_are("Locals", " Count = 3| MyVar = 9"));
     pane_keys(S, 2, (const uint16_t[]){K_DOWN, K_ENTER, 0});
 
-    CHECK(rows_are("Locals", " myVar = 2| COUNT = 7| Total& = 5| x = 1"));
+    CHECK(rows_are("Locals", " Total& = 5| myVar = 2| COUNT = 7| x = 1"));
     done(S);
 }

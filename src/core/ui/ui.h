@@ -54,34 +54,35 @@ enum {
 
 /* Attribute slots (the asm's A_ED ..): each theme's attribute for it (theme.h). */
 enum : uint8_t {
-    SL_ED,   /* the edit windows' text, frames */
-    SL_SEL,  /* the selection */
-    SL_TTL,  /* the focused window's title */
-    SL_BAR,  /* the menu bar, scroll bars */
-    SL_HOT,  /* a hotkey on the bar */
-    SL_STAT, /* the status bar */
-    SL_MSEL, /* the menu item lit */
-    SL_MHOT, /* its hotkey */
-    SL_GRAY, /* a gray item */
-    SL_BPL,  /* a breakpoint's line */
-    SL_CUR,  /* the statement a stop or trace is at */
-    SL_DLG,  /* dialogs */
-    SL_DSEL, /* a dialog's selected item */
-    SL_DFOC, /* a button with the focus */
-    SL_SHD,  /* a box's shadow */
-    SL_THB,  /* a scroll bar's thumb */
-    SL_KW,   /* synt: keywords */
-    SL_STR,  /*   strings */
-    SL_NUM,  /*   numbers */
-    SL_COM,  /*   comments */
-    SL_NAM,  /*   names */
-    SL_FNM,  /*   a SUB's or FUNCTION's name where declared */
-    SL_PAR,  /*   its parameters */
-    SL_TYP,  /*   types */
-    SL_OP,   /*   operators */
-    SL_SMSG, /* the status bar's message (QBasic's isaStatusAlert) */
-    SL_CBP,  /* the current statement on a breakpoint's line */
-    NSLOT_TH, /* the slots a theme lists */
+    SL_ED,              /* the edit windows' text, frames */
+    SL_SEL,             /* the selection */
+    SL_TTL,             /* the focused window's title */
+    SL_BAR,             /* the menu bar, scroll bars */
+    SL_HOT,             /* a hotkey on the bar */
+    SL_STAT,            /* the status bar */
+    SL_MSEL,            /* the menu item lit */
+    SL_MHOT,            /* its hotkey */
+    SL_GRAY,            /* a gray item */
+    SL_BPL,             /* a breakpoint's line */
+    SL_CUR,             /* the statement a stop or trace is at */
+    SL_DLG,             /* dialogs */
+    SL_DSEL,            /* a dialog's selected item */
+    SL_DFOC,            /* a button with the focus */
+    SL_SHD,             /* a box's shadow */
+    SL_THB,             /* a scroll bar's thumb */
+    SL_KW,              /* synt: keywords */
+    SL_STR,             /*   strings */
+    SL_NUM,             /*   numbers */
+    SL_COM,             /*   comments */
+    SL_NAM,             /*   names */
+    SL_FNM,             /*   a SUB's or FUNCTION's name where declared */
+    SL_PAR,             /*   its parameters */
+    SL_TYP,             /*   types */
+    SL_OP,              /*   operators */
+    SL_SMSG,            /* the status bar's message (QBasic's isaStatusAlert) */
+    SL_CBP,             /* the current statement on a breakpoint's line */
+    SL_CHG,             /* a debug pane's value changed at the stop */
+    NSLOT_TH,           /* the slots a theme lists */
     SL_HTXT = NSLOT_TH, /* the help window: text, drawn from the theme's others (them_set) */
     SL_HHEAD,           /*   a heading */
     SL_HLINK,           /*   a hot link */

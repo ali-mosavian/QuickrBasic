@@ -2,10 +2,9 @@
  *
  * # How it works
  * A row is a variable's name as declared (spelling.c), " = ", its value as the frame sees it
- * (session_cell). The rows run the
- * last changed first, else the parameters first, then by id. A change is a row's text unlike the
- * one its variable had at the stop before, kept in seen by id and name (a relinked program's id may
- * be another's).
+ * (session_cell). The rows run the parameters first, then by id, the same at each stop. A change is a
+ * row's text unlike the one its variable had at the stop before, kept in seen by id and name (a
+ * relinked program's id may be another's); its value is drawn in SL_CHG.
  */
 #include "ui/debuglocals.h"
 #include "comp/blocks.h"
@@ -35,8 +34,8 @@ static struct {
     DebugFrame frame;
     uint32_t proc; /* the frame's procedure, 0 the module */
     uint8_t n;
-    uint32_t vid[NDVAR];   /* the rows' variables */
-    uint32_t vstop[NDVAR]; /* their last changes */
+    uint32_t vid[NDVAR]; /* the rows' variables */
+    uint8_t vhi[NDVAR];  /* a value changed at this stop: its first column + 1; else 0 */
     char vt[NDVAR][DP_TWMAX];
     char row[DVAL_ROW]; /* a row being made */
     char tip[DP_TWMAX]; /* a module variable's row, dloc_find's */
@@ -50,6 +49,8 @@ void dloc_stop(void) { loc.stops++; }
 uint8_t dloc_count(void) { return loc.n; }
 
 const char *dloc_row(const uint8_t i) { return loc.vt[i]; }
+
+uint8_t dloc_changed(const uint8_t i) { return loc.vhi[i]; }
 
 /* id is a parameter of procedure loc.proc. */
 static bool is_param(Session *const S, const uint32_t id)
@@ -67,8 +68,8 @@ static bool is_param(Session *const S, const uint32_t id)
 }
 
 /* Variable id's row in loc.row: its name, " = ", its value as the frame sees it; par its
-   parameter's place or -1. */
-static void var_text(Session *const S, const uint32_t id, const int32_t par)
+   parameter's place or -1. Its value's first column. */
+static uint8_t var_text(Session *const S, const uint32_t id, const int32_t par)
 {
     const Var *const v = symb_var(&S->symb, id);
     const uint32_t scope = symb_varx(&S->symb, id)->scope;
@@ -78,6 +79,7 @@ static void var_text(Session *const S, const uint32_t id, const int32_t par)
         *d++ = sfx_of[v->type];
 
     d = dval_cpy(d, " = ");
+    const uint8_t col = (uint8_t)(d - loc.row);
 
     if (v->info & VI_ARR)
         d = dval_cpy(d, "(array)");
@@ -87,6 +89,7 @@ static void var_text(Session *const S, const uint32_t id, const int32_t par)
         d = dval_var(S, d, id, session_cell(S, &loc.frame, id, par));
 
     *d = 0;
+    return col;
 }
 
 static uint32_t hash(const char *s)
@@ -133,25 +136,17 @@ static uint32_t changed_at(Session *const S, const uint32_t id, const bool newes
     return e->stop;
 }
 
-/* The next row, after the rows changed as late or later: variable id, parameter par of its
-   procedure or -1. */
+/* The next row: variable id, parameter par of its procedure or -1. */
 static void var1(Session *const S, const uint32_t id, const int32_t par, const bool newest)
 {
     if (loc.n >= NDVAR)
         return;
 
-    var_text(S, id, par);
-    const uint32_t stop = changed_at(S, id, newest);
-    uint8_t i = loc.n++;
-
-    for (; i && loc.vstop[i - 1] < stop; i--) {
-        loc.vid[i] = loc.vid[i - 1];
-        loc.vstop[i] = loc.vstop[i - 1];
-        memcpy(loc.vt[i], loc.vt[i - 1], sizeof loc.vt[i]);
-    }
-
+    const uint8_t col = var_text(S, id, par);
+    const bool changed = changed_at(S, id, newest) == loc.stops && newest;
+    const uint8_t i = loc.n++;
     loc.vid[i] = id;
-    loc.vstop[i] = stop;
+    loc.vhi[i] = changed && col < DP_TWMAX - 1 ? col + 1 : 0;
     dval_cut(loc.vt[i], loc.row);
 }
 
