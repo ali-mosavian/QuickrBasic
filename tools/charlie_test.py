@@ -67,7 +67,7 @@ OWNERS = {
     "event": "engine/events",
 }
 # The fields assigned outside their owner today: the count may only fall.
-OUTSIDE = 471
+OUTSIDE = 438
 
 DRIVER = """from engine.video import Blit, OpenScreen, SH, SW
 from engine.clock import Clock, Pace, Steps, STEPT
@@ -102,8 +102,8 @@ from barkley.stage.hero.draw import LOGR
 from barkley.stage.zones.works import PRESSFALL, PRESSLAG, PRESSP, PRESSRISE, PressT, PRESSUP, SPARKLIT, SPARKP, Stroke
 from barkley.stage.zones.sands import Flow, FLUMEV, JELLYV, STEPV, TIDEP
 from barkley.stage.things.sands import GCLIMB, GDIVE, GHOVER
-from barkley.stage.zones.wood import BRAMBLET, FLYREST, GLOWFADE, LOGH, LOGV, MOUNDR, NBEE, SAPREACH, SAPT, SQNEAR
-from barkley.stage.zones.wood import SQRUN, SQV, SQWAIT
+from barkley.stage.zones.wood import FLYREST, GLOWFADE, LOGH, LOGV, MOUNDR, NBEE, SAPREACH, SAPT
+from barkley.stage.things.wood import BRAMBLET, SQNEAR, SQRUN, SQV, SQWAIT
 from barkley.stage.zones.pass import Fallen, GCHARGE, HeapOf, HEAPR, LOADRUN, LOADSLIDE, SLEDV, Slid, THROWAT, THROWUP
 from barkley.stage.zones.pass import TREMBLE, WALLR
 from barkley.stage.zones.quarter import AWNT, AWNW, Leapt, LINESAG, LINET, LineY, POUNCEFAR, POUNCEGONE, POUNCEN

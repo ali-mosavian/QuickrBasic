@@ -21,7 +21,7 @@ from barkley.stage.fx.damage import Lose
 from barkley.stage.fx.lobs import Volley
 from barkley.stage.hero.moves import MoveHero
 from barkley.stage.zones.sands import Flow
-from barkley.stage.zones.wood import Nightfall, Swarms
+from barkley.stage.zones.wood import Nightfall
 from barkley.stage.zones.pass import Avalanche, Homeward
 from barkley.stage.zones.chase import Flee
 from barkley.stage.camera import Camera
@@ -29,6 +29,7 @@ from barkley.stage.play import Dying, Spawn, Touch
 from barkley.stage.things.think import Things
 from barkley.stage.fx.parts import Particles
 from barkley.stage.things.sands import Flock, GHOVER
+from barkley.stage.things.wood import Swarms
 from barkley.control.keys import MuteKey, Spent
 from barkley.control.pilot import Pilot
 from barkley.flow.save import Keep, PickZone, Reach

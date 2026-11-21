@@ -5849,21 +5849,23 @@ MIND = {
 # What a touch does, model/kinds.bas's T consts: a kind not named does nothing. A row's touch: its reach each side, its
 # top above and bottom below the thing's place, how fast it throws him up, the state it rests in, met.
 TOUCH: dict[str, tuple[int | str, ...]] = {
-    "KSPRING": ("TBOUNCE", 11, 12, 2, 560, 8),
     **dict.fromkeys(
         ["KBONE", "KGOLD", "KCAT", "KSQUIRREL", "KWALKER", "KSNATCH", "KCRAB", "KSWEEP", "KTHROW", "KGOAT", "KWALL"],
         ("TOWN",),
     ),
     **dict.fromkeys(
-        ["KHEAP", "KICICLE", "KSLED", "KDRIFT", "KSPARK", "KPRESS", "KSAPLING", "KAWNING", "KCHIMNEY"],
+        ["KHEAP", "KICICLE", "KSLED", "KDRIFT", "KSPARK", "KPRESS", "KAWNING", "KCHIMNEY"],
         ("TOWN",),
     ),
-    "KJELLY": ("TOWN", 0, 0, 0, 0, 10),
     **dict.fromkeys(
-        ["KPOUNCE", "KMORTAR", "KTIPPER", "KVINE", "KBRAMBLE", "KLOG", "KMOUND", "KBOOST", "KFLUME", "KSPOUT"],
+        ["KPOUNCE", "KMORTAR", "KTIPPER", "KVINE", "KLOG", "KMOUND", "KBOOST", "KFLUME", "KSPOUT"],
         ("TOWN",),
     ),
     **dict.fromkeys(["KMARK", "KGOAL", "KTHORN", "KBUTTON", "KJET", "KBUMP", "KBUOY", "KSPIN", "KHOOP"], ("TOWN",)),
+    "KSPRING": ("TBOUNCE", 11, 12, 2, 560, 8),
+    "KJELLY": ("TOWN", 0, 0, 0, 0, 10),
+    "KSAPLING": ("TOWN", 0, 0, 0, 0, "SAPT"),
+    "KBRAMBLE": ("TOWN", 0, 0, 0, 0, "BRAMBLET"),
 }
 
 

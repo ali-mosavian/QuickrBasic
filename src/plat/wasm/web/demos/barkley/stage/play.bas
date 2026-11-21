@@ -132,7 +132,7 @@ sub Touch ( _
             case KJELLY
                 MeetJelly lv, kd, ev, se, g, p, i, lo(), pt()
             case KSAPLING
-                MeetSapling lv, ev, se, p, i
+                MeetSapling lv, kd, ev, se, p, i
             case KAWNING
                 MeetAwning lv, ev, se, p, i
             case KCHIMNEY
@@ -146,7 +146,7 @@ sub Touch ( _
             case KVINE
                 MeetVine lv, ev, se, p, i
             case KBRAMBLE
-                MeetBramble lv, ev, se, g, p, i, lo()
+                MeetBramble lv, kd, ev, se, g, p, i, lo()
             case KLOG
                 MeetLog lv, ev, se, p, i
             case KMOUND

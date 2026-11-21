@@ -58,6 +58,16 @@ sub Alight (ev as Events, p as Hero, puff as integer)
     Tell ev, EVSOUND, SPOP
 end sub
 
+' Vine i, its root at x, caught: his way become its swing.
+sub Grab (p as Hero, i as integer, x as integer)
+    p.vine = i + 1
+    p.sway = (p.at.x - x) / VINELEN
+    p.sway_v = p.vel.x / VINELEN
+    p.roll = 0
+    p.jumped = 0
+    p.sprung = 0
+end sub
+
 ' Hung from a vine: he swings as a weight on it, the vine
 ' with him; a jump lets go, with the swing's speed and a hop
 ' up, and a hurt lets go without one.

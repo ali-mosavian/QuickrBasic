@@ -44,3 +44,20 @@ sub Shoot (p as Hero, v as single)
     p.face = 0
     if p.gsp < v then p.gsp = v
 end sub
+
+' Into a burrow, for its other end, d.
+sub Burrow (p as Hero, d as integer)
+    p.dig = d
+    p.ground = 0
+    p.crouch = 0
+    p.gsp = 0
+    p.vel.y = 0
+end sub
+
+' On the ground, v at least the way he goes.
+sub Rush (p as Hero, v as single)
+    dim s as integer
+
+    s = 1 + 2 * (p.gsp < 0)
+    if p.ground and p.gsp * s < v then p.gsp = s * v
+end sub
