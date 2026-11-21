@@ -610,3 +610,53 @@ sub AllotDeck (mu as Deck)
         redim mu.song(i).dr_up(NDRUM - 1)
     next
 end sub
+
+' Deck mu playing nothing, song first coming, its tune on.
+sub Prime (mu as Deck, first as integer)
+    mu.slot = -1
+    mu.coming = first
+    mu.coming_bar = 0
+    mu.ended = -1
+    mu.tune = -1
+end sub
+
+' Slot s's song led by lead.
+sub Lead (mu as Deck, s as integer, lead as string)
+    mu.song(s).lead_p = lead
+end sub
+
+' The sound off, or on again.
+sub Mute (mu as Deck)
+    mu.muted = not mu.muted
+    if mu.muted then CutVoices
+end sub
+
+' The tune off, or on again; the sounds play on.
+sub ToggleTune (mu as Deck)
+    mu.tune = not mu.tune
+    if not mu.tune then CutVoices
+end sub
+
+' Slot n's song, when it is not the one playing, from its
+' start or, late, from the bar it comes in at. The one
+' playing fades over a bar (half of one, late) and the next
+' fades in over one; late, it comes in full.
+sub PickSong (mu as Deck, n as integer, late as integer)
+    if n = mu.slot then
+        mu.coming = -1
+        mu.fade_out = 0
+        exit sub
+    end if
+
+    if n = mu.coming then exit sub
+
+    mu.coming = n
+    mu.coming_bar = 0
+    mu.fade_out = 2
+    mu.fade_in = 2
+    if late = 0 then exit sub
+
+    mu.coming_bar = mu.song(n).entry
+    mu.fade_out = 1
+    mu.fade_in = 0
+end sub

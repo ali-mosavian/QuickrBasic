@@ -13,8 +13,8 @@ from barkley.model.game import OVER, Part, PLAYING, Session, TITLE
 from barkley.model.world import World
 from barkley.model.events import EVSOUND, Tell
 from barkley.assets.palette import Cycle, Shade, Shimmer
-from barkley.assets.tunes import CAUGHT, EndBeat, EndTune, KeepBeat
-from barkley.assets.tunes import SBONE, SCLEAR
+from barkley.assets.tunes import CAUGHT, EndBeat, EndTune, SBONE
+from barkley.assets.tunes import SCLEAR, ZTUNE
 from barkley.world.level import LoadLevel, NLOB, NMOVE, ZoneOf
 from barkley.world.movers import Movers
 from barkley.stage.fx.lobs import Volley
@@ -388,4 +388,14 @@ sub StartGame ( _
     ResetWorld wd, g, p, lo(), pt()
     wd.zn.next_up = 0
     g.mode = PLAYING
+end sub
+
+' The zone tune's clock told the session: by the tune's own
+' ticks while it plays, by the game's where it does not.
+sub KeepBeat (mu as Deck, se as Session)
+    se.tempo = mu.song(ZTUNE).tempo
+    se.pulse = se.ticks * se.tempo
+    if mu.muted or not mu.tune or mu.slot <> ZTUNE then exit sub
+
+    se.pulse = (se.ticks - mu.song_at) * se.tempo
 end sub

@@ -5,7 +5,7 @@ defint A-Z
 option explicit
 
 from engine.clock import STEPT
-from engine.audio import Deck, HushSong, LoadSong
+from engine.audio import Deck, HushSong, Lead, LoadSong, Prime
 from barkley.model.level import Level, NONE, Realm
 from barkley.model.game import CLEARED, Game, INTRO, OVER, Session
 from barkley.model.game import TITLE
@@ -119,11 +119,7 @@ end sub
 sub LoadSongs (mu as Deck)
     LoadSong mu, THEME, 1
     SceneTune mu, CAUGHTUP
-    mu.slot = -1
-    mu.coming = THEME
-    mu.coming_bar = 0
-    mu.ended = -1
-    mu.tune = -1
+    Prime mu, THEME
 end sub
 
 ' The chase's song in the zone's slot: the zone's own lead
@@ -133,8 +129,8 @@ sub ChaseTune (mu as Deck)
 
     zlead = mu.song(CAUGHT).lead_p
     ZoneTune mu, CHASETUNE
-    mu.song(ZTUNE).lead_p = zlead
-    mu.song(CAUGHT).lead_p = zlead
+    Lead mu, ZTUNE, zlead
+    Lead mu, CAUGHT, zlead
 end sub
 
 ' Song id into the zone's slot, unless it is there: what was
@@ -144,7 +140,7 @@ sub ZoneTune (mu as Deck, id as integer)
 
     mu.z_held = id + 1
     LoadSong mu, ZTUNE, id
-    mu.song(CAUGHT).lead_p = mu.song(ZTUNE).lead_p
+    Lead mu, CAUGHT, mu.song(ZTUNE).lead_p
     if mu.slot = ZTUNE then HushSong mu
 end sub
 
@@ -156,7 +152,7 @@ sub SceneTune (mu as Deck, id as integer)
 
     mu.c_held = id + 1
     LoadSong mu, CAUGHT, id
-    mu.song(CAUGHT).lead_p = mu.song(ZTUNE).lead_p
+    Lead mu, CAUGHT, mu.song(ZTUNE).lead_p
     if mu.slot = CAUGHT then HushSong mu
 end sub
 
@@ -188,16 +184,6 @@ function EndBeat! (mu as Deck, se as Session, g as Game)
         * mu.song(CAUGHT).tempo / 60
 end function
 
-' The zone tune's clock told the session: by the tune's own
-' ticks while it plays, by the game's where it does not.
-sub KeepBeat (mu as Deck, se as Session)
-    se.tempo = mu.song(ZTUNE).tempo
-    se.pulse = se.ticks * se.tempo
-    if mu.muted or not mu.tune or mu.slot <> ZTUNE then exit sub
-
-    se.pulse = (se.ticks - mu.song_at) * se.tempo
-end sub
-
 ' The slot to play for the game's state: the theme for the
 ' title, the level's end or game over, else the zone's tune.
 function SongFor% (g as Game)
@@ -217,27 +203,3 @@ function Sudden% (se as Session, g as Game)
     Sudden% = g.mode = CLEARED or g.mode = OVER _
         or (g.mode = INTRO and se.scene_next > 0)
 end function
-
-' Slot n's song, when it is not the one playing, from its
-' start or, late, from the bar it comes in at. The one
-' playing fades over a bar (half of one, late) and the next
-' fades in over one; late, it comes in full.
-sub PickSong (mu as Deck, n as integer, late as integer)
-    if n = mu.slot then
-        mu.coming = -1
-        mu.fade_out = 0
-        exit sub
-    end if
-
-    if n = mu.coming then exit sub
-
-    mu.coming = n
-    mu.coming_bar = 0
-    mu.fade_out = 2
-    mu.fade_in = 2
-    if late = 0 then exit sub
-
-    mu.coming_bar = mu.song(n).entry
-    mu.fade_out = 1
-    mu.fade_in = 0
-end sub

@@ -40,3 +40,8 @@ function Held2% (kb as Keys, s as integer, t as single)
         Held2% = t - kb.since(s) < .55 and kb.since(s) > 0
     end if
 end function
+
+' Key sc seen at t.
+sub Saw (kb as Keys, sc as integer, t as single)
+    kb.since(sc) = t
+end sub

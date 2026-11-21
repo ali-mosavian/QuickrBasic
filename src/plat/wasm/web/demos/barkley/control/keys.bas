@@ -3,8 +3,8 @@
 defint A-Z
 option explicit
 
-from engine.input import Held2, Keys, Poll
-from engine.audio import CutVoices, Deck
+from engine.input import Held2, Keys, Poll, Saw
+from engine.audio import Deck, Mute, ToggleTune
 from barkley.model.hero import Pad
 
 private const SCLEFT = 75
@@ -29,25 +29,24 @@ sub ReadPad (kb as Keys, mu as Deck, k as Pad)
         case "m", "M"
             k.mute = -1
         case "n", "N"
-            mu.tune = not mu.tune
-            if not mu.tune then CutVoices
+            ToggleTune mu
         case chr$(13)
             k.start = -1
         case " "
             k.start = -1
-            kb.since(SCSPACE) = t
+            Saw kb, SCSPACE, t
         case "x", "X"
             k.bark = -1
         case "z", "Z"
-            kb.since(SCZ) = t
+            Saw kb, SCZ, t
         case chr$(0) + "K"
-            kb.since(SCLEFT) = t
+            Saw kb, SCLEFT, t
         case chr$(0) + "M"
-            kb.since(SCRIGHT) = t
+            Saw kb, SCRIGHT, t
         case chr$(0) + "H"
-            kb.since(SCUP) = t
+            Saw kb, SCUP, t
         case chr$(0) + "P"
-            kb.since(SCDOWN) = t
+            Saw kb, SCDOWN, t
         end select
     loop while len(c)
 
@@ -64,9 +63,8 @@ end sub
 sub MuteKey (mu as Deck, k as Pad)
     if k.mute = 0 then exit sub
 
-    mu.muted = not mu.muted
+    Mute mu
     k.mute = 0
-    if mu.muted then CutVoices
 end sub
 
 ' The presses a step has seen are spent.
