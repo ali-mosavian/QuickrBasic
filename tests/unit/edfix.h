@@ -18,6 +18,7 @@ enum : uint16_t {
     FX_DEL = 0x5300,
     FX_CTRL_Y = 0x1519,
     FX_CTRL_Z = 0x2C1A,
+    FX_CTRL_F8 = 0x6500,
 };
 
 /* The test folder's file name: its path. */
@@ -45,4 +46,13 @@ void fx_key(Session *S, uint16_t key, uint8_t flags);
 void fx_type(Session *S, const char *text);
 /* The cursor's line as edited, 0-ended. */
 const char *fx_line(void);
+/* The screen drawn and shown; screen row row's text, its spaces at the end cut; a cell's
+   attribute. */
+void fx_shown(Session *S);
+const char *fx_row(uint8_t row);
+uint8_t fx_attr(uint8_t row, uint8_t col);
+/* The active window's screen row of text line line (the whole text's); the screen column of the
+   cursor's line's column col. */
+uint8_t fx_row_of(uint32_t line);
+uint8_t fx_col_at(uint16_t col);
 #endif

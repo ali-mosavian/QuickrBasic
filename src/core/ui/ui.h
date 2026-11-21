@@ -83,6 +83,7 @@ enum : uint8_t {
     SL_CBP,             /* the current statement on a breakpoint's line */
     SL_CHG,             /* a debug pane's value changed at the stop */
     SL_CBPL,            /* a breakpoint's line with a condition (Break When's) */
+    SL_ERR,             /* a syntax error's word */
     NSLOT_TH,           /* the slots a theme lists */
     SL_HTXT = NSLOT_TH, /* the help window: text, drawn from the theme's others (them_set) */
     SL_HHEAD,           /*   a heading */

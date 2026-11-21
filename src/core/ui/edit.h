@@ -40,14 +40,17 @@ void edit_lb_wright(LineBuf *b);
 /* ed_load: line into uimn.edline, not dirty; the column stays. */
 void edit_load(Session *S, uint32_t line);
 /* ed_commit: a dirty line back to the text (above), uimn.text.changed, unsaved; a SUB or
-   FUNCTION line typed gets its view (view_commit). false: a syntax error, shown in a box with its
-   word selected; the line is stored as typed. */
+   FUNCTION line typed gets its view (view_commit). false: a syntax error; the line is stored as
+   typed. */
 bool edit_commit(Session *S);
+/* Text line line (the whole text's) checked as entered in its view: false it passes; else its
+   error's column to *col, its message in uimn.errmsg. */
+bool edit_error(Session *S, uint32_t line, uint16_t *col);
 /* Each line kept as typed checked again, as entered in its view: stored as edit_canon makes it
    when it passes now (a call into a module just bound). */
 void edit_recheck(Session *S);
-/* ed_goto: the cursor to line, this one committed first; false: it stayed (a syntax error). */
-bool edit_goto(Session *S, uint32_t line);
+/* ed_goto: the cursor to line, this one committed first. */
+void edit_goto(Session *S, uint32_t line);
 /* ed_up, ed_down, ed_pgup, ed_pgdn, ed_first, ed_last: the cursor a line up, down, a window up,
    down; to the first line (column 0), the last (past its end). */
 void edit_up(Session *S);

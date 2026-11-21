@@ -16,7 +16,8 @@ Menu commands are in [menus](menus).
  - [Undo](Undo Command) and [Redo](Redo Command): Ctrl+Z and
    Ctrl+Shift+Z, back to when the program was opened.
  - Each line is checked as it is entered
-   ([syntax checking](syntax checking)).
+   ([syntax checking](syntax checking)). An error is lit, not boxed;
+   the cursor moves on and Ctrl+F8 goes back to it.
  - [Completion](completion): Tab lists what fits at the cursor.
  - [Debug pane](debug pane): at a stop, Watch, Locals and Call stack
    beside the code. Records and arrays open in Locals, values can be

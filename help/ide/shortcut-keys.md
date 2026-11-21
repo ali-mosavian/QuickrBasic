@@ -14,6 +14,7 @@ See also [editing keys](editing keys), [survival](survival).
     F6            next window   Shift+F6   previous
     F7, F10       step over     Ctrl+F7    run to the cursor line
     F8            step          Shift+F8   step out
+    Ctrl+F8       next syntax error
     F9            breakpoint
     Ctrl+F10      maximise window
     Alt+Plus/Minus  grow, shrink window

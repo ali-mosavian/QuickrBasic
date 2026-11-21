@@ -3,8 +3,8 @@
  *
  * # How it works
  * The program window edits its line, uimn.ed.line, in uimn.edline and stores it when the cursor
- * leaves (edit_commit): spaces at its end cut, keywords capitalised, the syntax checked. A syntax
- * error is shown and the cursor stays.
+ * leaves (edit_commit): spaces at its end cut, keywords capitalised, the syntax checked. A line with
+ * a syntax error is stored as typed and the cursor goes on (errors.h shows it).
  *
  * A selection from (sel_line, sel_col) to the cursor is a piece of one line, or whole lines when it
  * spans several. The insert mode, uimn.ed.insert, is every line buffer's.
@@ -489,8 +489,6 @@ bool edit_commit(Session *const S)
     if (!canon) { /* a syntax error: kept as typed */
         uimn.text.asis = true;
         text_repl(S, uimn.ed.line, b->text, b->len);
-        uimn_selword(uc.ecol); /* the error's word */
-        dlog_err(S, uimn.errmsg);
         return false;
     }
 
@@ -502,13 +500,25 @@ bool edit_commit(Session *const S)
     return true;
 }
 
-bool edit_goto(Session *const S, const uint32_t line)
+void edit_goto(Session *const S, const uint32_t line)
 {
-    if (!edit_commit(S))
-        return false;
-
+    edit_commit(S);
     edit_load(S, line);
-    return true;
+}
+
+bool edit_error(Session *const S, const uint32_t line, uint16_t *const col)
+{
+    static LineBuf b = {.grows = true};
+
+    const uint32_t len = text_record(S, lmap_off(S, line), &b);
+    const uint32_t was = enter_view(S, view_of(line));
+    uint32_t lexed;
+    const bool canon = edit_canon(S, b.text, (uint16_t)len, &lexed);
+    S->repl.module = was;
+    enter_view(S, uimn.ed.view); /* the cursor's procedure's declarations again */
+    S->repl.module = was;
+    *col = uc.ecol;
+    return !canon;
 }
 
 void edit_up(Session *const S)
@@ -548,8 +558,8 @@ void edit_first(Session *const S)
 
 void edit_last(Session *const S)
 {
-    if (edit_goto(S, uimn.text.n - 1))
-        uimn.edline.col = uimn.edline.len;
+    edit_goto(S, uimn.text.n - 1);
+    uimn.edline.col = uimn.edline.len;
 }
 
 void edit_ensure(void)

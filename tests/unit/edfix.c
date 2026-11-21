@@ -7,7 +7,9 @@
 #include "edfix.h"
 #include "plat/host/host.h"
 #include "plat/pkey.h"
+#include "ui/draw.h"
 #include "ui/edit.h"
+#include "ui/screen.h"
 #include "ui/linemap.h"
 #include "ui/text.h"
 #include "ui/uimain.h"
@@ -54,6 +56,7 @@ void fx_open_program(Session *const S, const char *const gfx)
     fx_write_file("main.bas", "import gfx\r\ngfx.hi\r\n");
     fx_write_file("gfx.bas", gfx);
     S->dbug.mode = 0; /* debug_test.c's last step */
+    S->lexr.cols = true; /* the IDE's, uimn_front_end's regions: the error columns */
     uimn_init(S);
     uimn_open(S, fx_path_of("main.bas"));
 }
@@ -68,6 +71,7 @@ void fx_done(Session *const S, const char *const *const names)
     memcpy(dir + sizeof dir - 7, "XXXXXX", 6);
     uimn.on = false;
     S->repl.keep_pre = false;
+    S->lexr.cols = false;
     modu_clear(&S->modu, "");
     session_new(S);
 }
@@ -153,3 +157,36 @@ const char *fx_line(void)
     line[n] = 0;
     return line;
 }
+
+void fx_shown(Session *const S)
+{
+    draw_all(S);
+    scrn_flip();
+}
+
+const char *fx_row(const uint8_t row)
+{
+    static char s[PSCR_COLS + 1];
+    uint8_t n = 0;
+
+    for (uint8_t c = 0; c < PSCR_COLS; c++)
+        s[n++] = (char)host_cell(0, row, c);
+
+    while (n && s[n - 1] == ' ')
+        n--;
+
+    s[n] = 0;
+    return s;
+}
+
+uint8_t fx_attr(const uint8_t row, const uint8_t col)
+{
+    return (uint8_t)(host_cell(0, row, col) >> 8);
+}
+
+uint8_t fx_row_of(const uint32_t line)
+{
+    return (uint8_t)(uimn.ed.row0 + line - uimn.text.first - uimn.ed.top);
+}
+
+uint8_t fx_col_at(const uint16_t col) { return (uint8_t)(uimn.ed.x + 1 + col - uimn.ed.left); }

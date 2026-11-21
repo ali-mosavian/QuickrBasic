@@ -716,7 +716,7 @@ static void mn_draw(Widget *const w, Session *const S)
         box(S);
     }
 
-    draw_status();
+    draw_status(S);
 }
 
 /* Key k, KEY_MOUSE the mouse's event: the menus hidden when one is chosen or they are left. */

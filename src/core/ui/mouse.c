@@ -186,9 +186,8 @@ static void edit_click(Session *const S, const uint8_t w, const uint8_t row, con
         edit_sel_mark();
     else
         e->sel_on = false;
-    if (!edit_goto(S, line))
-        return;
 
+    edit_goto(S, line);
     uimn.edline.col = (uint16_t)(col - e->x - 1 + e->left);
 
     if (m->event == MS_PRESS && uimn.keyflags & PKEY_CTRL) /* Go to Definition, ours */

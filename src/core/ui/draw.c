@@ -25,6 +25,7 @@
 #include "ui/complete.h"
 #include "ui/debugpane.h"
 #include "ui/edit.h"
+#include "ui/errors.h"
 #include "ui/menu.h"
 #include "ui/screen.h"
 #include "ui/help.h"
@@ -197,6 +198,7 @@ static void draw_row(Session *const S, const uint16_t r)
         synt_row(S, row, col, v.text, len);
 
     udbg_row(S, row, col, line);
+    errs_paint(S, row, col, line + uimn.text.first, v.text, len);
     sel_row(row, col, line);
 }
 
@@ -365,13 +367,41 @@ static char *decimal(char *const dst, uint32_t v, const int n)
     return dst + n;
 }
 
-/* The status bar's left: the keys, else F1 and the help line; false: that ran past its bar. */
-static bool status_left(void)
+/* The count of lines with errors, at the end of the bar's left part when it fits past column c. */
+static void status_errors(Session *const S, const uint8_t c)
+{
+    const uint32_t n = errs_count(S);
+
+    if (!n)
+        return;
+
+    char text[24];
+    char *d = text;
+    *d++ = '(';
+    d = uimn_dec(d, (uint16_t)(n < UINT16_MAX ? n : UINT16_MAX));
+    memcpy(d, n == 1 ? " error)" : " errors)", n == 1 ? 8 : 9);
+    const uint8_t at = (uint8_t)(STATUS_BAR_COL - 1 - strlen(text));
+
+    if (at > c)
+        scrn_str(status_row(), at, text, SL_SMSG, SL_SMSG);
+}
+
+/* The status bar's left: the cursor's line's error, else the keys and the errors' count; else F1
+   and the help line. false: that ran past its bar. */
+static bool status_left(Session *const S)
 {
     const char *const help = uimn.help;
 
     if (!help) {
-        scrn_str(status_row(), 1, draw_keys()->text, SL_SMSG, SL_SMSG);
+        const char *const err = errs_message(S);
+
+        if (!err) {
+            status_errors(S, scrn_str(status_row(), 1, draw_keys()->text, SL_SMSG, SL_SMSG));
+            return true;
+        }
+
+        const uint32_t n = strlen(err), most = STATUS_BAR_COL - 2;
+        scrn_strn(status_row(), 1, (const uint8_t *)err, (uint16_t)(n < most ? n : most), SL_SMSG);
         return true;
     }
 
@@ -407,7 +437,7 @@ static void status_pos(void)
 
 enum : uint8_t { STATUS_HELP_BAR_COL = 72 }; /* where the bar is while the help window has the focus */
 
-void draw_status(void)
+void draw_status(Session *const S)
 {
     scrn_fill(status_row(), 0, SL_STAT, ' ', PSCR_COLS);
 
@@ -417,7 +447,7 @@ void draw_status(void)
         return;
     }
 
-    if (!status_left())
+    if (!status_left(S))
         return;
 
     scrn_fill(status_row(), STATUS_BAR_COL, SL_STAT, GLYPH_V, 1);

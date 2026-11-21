@@ -61,6 +61,7 @@
 #include "ui/debugpane.h"
 #include "ui/draw.h"
 #include "ui/edit.h"
+#include "ui/errors.h"
 #include "ui/linemap.h"
 #include "ui/help.h"
 #include "ui/menu.h"
@@ -1300,6 +1301,10 @@ static bool screen_key(Widget *const w, Session *const S, const uint16_t key)
         udbg_sout(S);
         return true;
 
+    case FKEY(SCAN_CTRL_F1, 8): /* ours */
+        errs_next(S);
+        return true;
+
     case FKEY(SCAN_F1, 9):
         udbg_bp(S);
         return true;
@@ -1419,7 +1424,7 @@ void uimn_command(Session *const S, const uint16_t key)
 /* ---- the start */
 
 static void menubar_draw(Widget *const w, Session *const S) { menu_bar(); }
-static void statusbar_draw(Widget *const w, Session *const S) { draw_status(); }
+static void statusbar_draw(Widget *const w, Session *const S) { draw_status(S); }
 static const WidgetOps screen_ops = {.key = screen_key, .mouse = mous_screen};
 static const WidgetOps menubar_ops = {.draw = menubar_draw, .mouse = mous_menubar};
 static const WidgetOps workspace_ops = {.mouse = mous_workspace};
