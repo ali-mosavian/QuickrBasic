@@ -5,6 +5,12 @@ option explicit
 
 from engine.vec import Spot, Vec
 
+' Where the screen looks: its top left in the level.
+type Camera
+    x as single
+    y as single
+end type
+
 type Game
     mode as integer
     bones as integer
@@ -14,7 +20,7 @@ type Game
     tallied as integer
     sig as long
     clock as single
-    cam as Vec
+    cam as Camera
     mode_t as single
     shake as single
     home as Spot

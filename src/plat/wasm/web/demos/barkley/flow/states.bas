@@ -22,7 +22,7 @@ from barkley.stage.hero.moves import MoveHero
 from barkley.stage.zones.sands import Flow
 from barkley.stage.zones.wood import Nightfall
 from barkley.stage.zones.chase import Flee
-from barkley.stage.camera import Camera
+from barkley.stage.camera import Follow, Look
 from barkley.stage.play import Dying, Spawn, Touch
 from barkley.stage.things.think import Rewind, Things
 from barkley.stage.fx.parts import Particles, Sweep
@@ -160,7 +160,7 @@ private sub TitleStep ( _
         MoveHero wd.lv, wd.kinds, wd.gr, wd.ev, wd.se, p, auto, pt()
         Touch wd.lv, wd.zn, wd.kinds, wd.ev, wd.se, g, p, lo(), pt()
         if p.at.y > MH * TS + 24 then Lose wd.ev, wd.se, p
-        Camera wd.lv, wd.zn, g, p, 0
+        Follow wd.lv, wd.zn, g.cam, p, 0
     end if
 
     PickZone wd.se, k
@@ -196,7 +196,7 @@ private sub PlayStep ( _
     if wd.lv.n_lobs then Volley wd.lv, wd.ev, wd.se, g, p, lo()
     if p.at.y > MH * TS + 24 then Lose wd.ev, wd.se, p
     if p.at.x >= wd.lv.goal_x then StageClear wd.ev, wd.se, g
-    Camera wd.lv, wd.zn, g, p, 0
+    Follow wd.lv, wd.zn, g.cam, p, 0
 end sub
 
 ' The goal passed: the stage is cleared, its bonus by its
@@ -327,7 +327,8 @@ private function Met% ( _
     Arrive p, wd.lv.fam_x - 108
 
     wd.se.cheer = p.win
-    g.cam.x = g.cam.x + (wd.lv.fam_x - 166 - g.cam.x) * 4 * STEPT
+    Look g.cam, g.cam.x + (wd.lv.fam_x - 166 - g.cam.x) * 4 * STEPT, _
+        g.cam.y
     wd.se.past_t = wd.se.past_t + STEPT
     if p.win and g.bonus = 0 then wd.se.met_t = wd.se.met_t + STEPT
     parted = wd.se.met_t > 6 or wd.se.past_t > 40 _

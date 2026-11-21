@@ -176,7 +176,7 @@ def frame() -> None:
 
     y = 468
     after = [
-        ("Camera", "follows"),
+        ("Follow", "the camera moves"),
         ("Render", "draws the state"),
         ("Flip", "shows the page"),
         ("FeedSong", "the next half bar"),

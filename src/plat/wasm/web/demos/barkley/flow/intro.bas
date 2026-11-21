@@ -20,6 +20,7 @@ from barkley.world.backdrop import DrawBack, DrawTiles
 from barkley.stage.hero.moves import BARKT
 from barkley.stage.hero.draw import DrawBark, DrawHero, Pose, Woof
 from barkley.stage.scene import DrawThings
+from barkley.stage.camera import Look
 from barkley.control.keys import MuteKey, Spent
 
 ' each zone's tune, its number in CHARLIE.DAT: a digit a
@@ -194,8 +195,7 @@ sub StartIntro (wd as World, g as Game, cu() as Cue)
     LoadCues cu()
     g.mode = INTRO
     g.mode_t = 0
-    g.cam.x = 0
-    g.cam.y = wd.lv.start.y - HORIZON
+    Look g.cam, 0, wd.lv.start.y - HORIZON
 end sub
 
 ' Between zones the van's bump again, on the road of stage
@@ -211,7 +211,7 @@ sub StartBump (wd as World, g as Game, nxt as integer)
     Shade wd.tn
     g.mode = INTRO
     g.mode_t = BUMP0 / BEATS
-    g.cam.y = wd.lv.start.y - HORIZON
+    Look g.cam, g.cam.x, wd.lv.start.y - HORIZON
 end sub
 
 ' The script from its DATA: a row a cue, "end" after the
@@ -251,7 +251,7 @@ function IntroOver% (wd as World, g as Game, k as Pad, cu() as Cue)
             select case cu(i).kind
             case QCAM
                 CueAt wd.lv, cu(), i, now, x, y
-                g.cam.x = x
+                Look g.cam, csng(x), g.cam.y
             case QSND
                 if was < cu(i).t0 then Sfx wd.mu, wd.se, cu(i).own
             end select

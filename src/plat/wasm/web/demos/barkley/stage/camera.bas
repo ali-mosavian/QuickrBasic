@@ -7,17 +7,17 @@ from engine.video import SH, SW
 from engine.clock import STEPT
 from barkley.model.hero import Hero
 from barkley.model.level import Level, MH, NONE, Realm, TS
-from barkley.model.game import Game
+from barkley.model.game import Camera
 
 const HEAD = 124
 const HEADUP = 172
 
 ' The view ahead of Charlie's run, kept in the level; snap
 ' puts it there.
-sub Camera ( _
+sub Follow ( _
     lv as Level, _
     zn as Realm, _
-    g as Game, _
+    cam as Camera, _
     p as Hero, _
     snap as integer _
 )
@@ -36,21 +36,21 @@ sub Camera ( _
     ty = p.at.y - Headroom%(lv, zn, p)
 
     if snap then
-        g.cam.x = tx
-        g.cam.y = ty
+        cam.x = tx
+        cam.y = ty
     else
-        g.cam.x = g.cam.x + (tx - g.cam.x) * 7 * STEPT
-        g.cam.y = g.cam.y + (ty - g.cam.y) * 6 * STEPT
-        if p.at.x - g.cam.x > 250 then g.cam.x = p.at.x - 250
-        if p.at.x - g.cam.x < 70 then g.cam.x = p.at.x - 70
-        if p.at.y - g.cam.y > 172 then g.cam.y = p.at.y - 172
-        if p.at.y - g.cam.y < 48 then g.cam.y = p.at.y - 48
+        cam.x = cam.x + (tx - cam.x) * 7 * STEPT
+        cam.y = cam.y + (ty - cam.y) * 6 * STEPT
+        if p.at.x - cam.x > 250 then cam.x = p.at.x - 250
+        if p.at.x - cam.x < 70 then cam.x = p.at.x - 70
+        if p.at.y - cam.y > 172 then cam.y = p.at.y - 172
+        if p.at.y - cam.y < 48 then cam.y = p.at.y - 48
     end if
 
-    if g.cam.x < 0 then g.cam.x = 0
-    if g.cam.x > lv.wpx - SW then g.cam.x = lv.wpx - SW
-    if g.cam.y < 0 then g.cam.y = 0
-    if g.cam.y > MH * TS - SH then g.cam.y = MH * TS - SH
+    if cam.x < 0 then cam.x = 0
+    if cam.x > lv.wpx - SW then cam.x = lv.wpx - SW
+    if cam.y < 0 then cam.y = 0
+    if cam.y > MH * TS - SH then cam.y = MH * TS - SH
 end sub
 
 ' How far under the view's top Charlie is kept: further in a
@@ -67,3 +67,9 @@ function Headroom% (lv as Level, zn as Realm, p as Hero)
 
     if zn.id = 4 and lv.cart.st = 1 then Headroom% = HEADUP
 end function
+
+' The view's top left put at x, y.
+sub Look (cam as Camera, x as single, y as single)
+    cam.x = x
+    cam.y = y
+end sub

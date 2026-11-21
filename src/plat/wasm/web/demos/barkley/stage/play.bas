@@ -36,7 +36,7 @@ from barkley.stage.zones.pass import MeetWall
 from barkley.stage.zones.quarter import Lines, MeetAwning, MeetChimney
 from barkley.stage.zones.quarter import MeetMortar, MeetPounce
 from barkley.stage.zones.quarter import MeetTipper
-from barkley.stage.camera import Camera
+from barkley.stage.camera import Follow
 from barkley.stage.hero.push import Launch, Perch
 from barkley.stage.things.react import Rest, Turn
 from barkley.stage.things.chase import ResetChase
@@ -56,7 +56,7 @@ sub Spawn ( _
     g.bones = 0
     ResetChase lv, ev
     Mend lv
-    Camera lv, zn, g, p, -1
+    Follow lv, zn, g.cam, p, -1
 end sub
 
 ' Charlie against the things near it, and the loose bones.

@@ -49,6 +49,7 @@ OWNERS = {
     "rover": "stage/things",
     "front": "stage/things",
     "rope": "stage/things",
+    "camera": "stage/camera",
     "level": "world",
     "ground": "world",
     "realm": "world",
@@ -67,7 +68,7 @@ OWNERS = {
     "event": "engine/events",
 }
 # The fields assigned outside their owner today: the count may only fall.
-OUTSIDE = 103
+OUTSIDE = 91
 
 DRIVER = """from engine.video import Blit, OpenScreen, SH, SW
 from engine.clock import Clock, Pace, Steps, STEPT
@@ -116,7 +117,7 @@ from barkley.stage.things.quarter import PotClear, PotFall, POTR, POTX, POUNCEOU
 from barkley.stage.things.chase import BOLTS, CARTLEAD, NBUMP, PAWUP, PEDALMORE, PEDALUP, PEDALV, PEDALW
 from barkley.stage.zones.chase import TwinPose
 from barkley.stage.things.chase import LEGV, Lobbed, LOBWAIT, NLEG, RAILUP, TUMBLE
-from barkley.stage.camera import Camera, HEAD, Headroom, HEADUP
+from barkley.stage.camera import Follow, HEAD, Headroom, HEADUP
 from barkley.stage.scene import Render
 from barkley.stage.play import Spawn
 from barkley.stage.things.think import JELLYD, SPARKR, Things
@@ -3160,7 +3161,7 @@ p.stun = 0
 p.roll = 0
 k.down = 0
 StandUnder wd.lv, wd.gr, p, v + 30, v + 100
-Camera wd.lv, wd.zn, g, p, -1
+Follow wd.lv, wd.zn, g.cam, p, -1
 if wd.se.ticks and 1 then Tick wd, g, p, k, lo(), pt()
 wd.lv.things(c).at.x = v
 wd.lv.things(c).state = SQWAIT
@@ -3260,7 +3261,7 @@ p.inv = 0
 p.stun = 0
 p.roll = 0
 Stand wd.lv, wd.gr, p, v - 100, 0
-Camera wd.lv, wd.zn, g, p, -1
+Follow wd.lv, wd.zn, g.cam, p, -1
 Mend wd.lv
 for i = 1 to 30
     Tick wd, g, p, k, lo(), pt()
@@ -4688,7 +4689,7 @@ def owners_kept() -> int:
     inside = {
         **files,
         moves: plant(moves, "    p.gsp = 0\n", "    p.gsp = 0\n    p.at.x = 0\n"),
-        states: plant(states, "    g.lives = 3\n", "    g.cam.x = 0\n"),
+        states: plant(states, "    g.lives = 3\n", "    g.home.x = 0\n"),
         play: plant(play, spawn, "    dim here as Vec\n    here.x = 0\n"),
     }
     if len(outside(planted)) != got + 3 or len(outside(inside)) != got:
