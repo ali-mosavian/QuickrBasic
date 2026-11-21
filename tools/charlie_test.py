@@ -76,6 +76,7 @@ from barkley.main import Advance
 declare function GroundAt% (lv as Level, x as integer)
 declare function HalfLen% (x as string)
 declare function Tripled% (x as string)
+declare function Moves% (x as string, wide as integer)
 declare function SongLasts% (sg as Song)
 declare sub Stand (lv as Level, gr as Ground, p as Hero, x as integer, v as single)
 declare sub StandUnder (lv as Level, gr as Ground, p as Hero, x as integer, x0 as integer)
@@ -808,9 +809,9 @@ next
 GoStage wd, 0, g, p, lo(), pt()
 if was then print "arranged ok"
 ' a swung song's off-beat eighth comes on the triplet's last: each voice of each of its half bars still lasts half
-' a bar. A string plucked on the off beats is a rest of two thirds of a beat, a twenty-fourth's note and its rest;
-' the brushes on the beat a twelfth, then the beat's rests. A straight song has no such lengths. Swing was not
-' played at all: the quarter's tune would have been straight
+' a bar. The lead's eighths are a sixth and a twelfth, turn about; the string on two a quarter's rest, a sixth and a
+' twelfth's rest; the brushes on the beat a twelfth, then the beat's rests. A straight song has no such lengths.
+' Swing was not played at all: the quarter's tune would have been straight
 dim swingOk as integer
 swingOk = wd.mu.song(ZTUNE).swing = 0 and SongLasts%(wd.mu.song(ZTUNE))
 for i = 0 to 7
@@ -818,14 +819,30 @@ for i = 0 to 7
 next
 ZoneTune wd.mu, 17
 swingOk = swingOk and wd.mu.song(ZTUNE).swing = 1 and wd.mu.song(ZTUNE).tempo = 132 and SongLasts%(wd.mu.song(ZTUNE))
-swingOk = swingOk and wd.mu.song(ZTUNE).half(2).one = "P6L24N49P6P24L24N53P24"
+swingOk = swingOk and wd.mu.song(ZTUNE).half(8).lead = "L6N58L12N57L6N58L12N60"
+swingOk = swingOk and wd.mu.song(ZTUNE).half(2).one = "P4L6N41P12"
 swingOk = swingOk and left$(wd.mu.song(ZTUNE).half(0).drums, 3) = "L12"
 swingOk = swingOk and right$(wd.mu.song(ZTUNE).half(0).drums, 9) = "P12P24P24"
 for i = 0 to 39
     swingOk = swingOk and HalfLen%(wd.mu.song(ZTUNE).half(i).drums) = 24
 next
-ZoneTune wd.mu, 0
 if swingOk then print "swing ok"
+' the quarter's tune is sung: none of its lead's notes is a twenty-fourth, in its half bars more of the lead's moves
+' are steps than leaps three times over, and where the lead plays the trumpet rests and the clavinet has a chord's
+' note at most. It was pecked, its off-beat eighths 66 ms long, all leaps from chord note to chord note, the Mob's
+' riff and the trumpet over it: it sounded random
+dim sungOk as integer, near as integer, far as integer
+sungOk = -1
+for i = 0 to 39
+    hf = wd.mu.song(ZTUNE).half(i)
+    sungOk = sungOk and instr(hf.lead, "L24N") = 0
+    near = near + Moves%(hf.lead, 0)
+    far = far + Moves%(hf.lead, -1)
+    if instr(hf.lead, "N") = 0 then continue for
+    sungOk = sungOk and instr(hf.third, "N") = 0 and Moves%(hf.two, 0) + Moves%(hf.two, -1) = 0
+next
+ZoneTune wd.mu, 0
+if sungOk and near > 3 * far then print "sung ok"
 ' the Downs' first act has three golden bones, none found. The first is over the first tree, five tiles up, drawn
 ' in gold, and a full jump from the ground under it finds it: a thousand points, and it is in the save a step on,
 ' twelve bytes of it. Found, it is not drawn, and not found twice; its pip on the HUD is lit and the next dark.
@@ -4301,6 +4318,20 @@ function Tripled% (x as string)
     Tripled% = instr(x, "L12") > 0 or instr(x, "L24") > 0 or instr(x, "P12") > 0 or instr(x, "P24") > 0
 end function
 
+' How many of a PLAY string's notes are a step from the note before them, two semitones at most; wide: how many
+' are further.
+function Moves% (x as string, wide as integer)
+    dim i as integer, n as integer, last as integer, count as integer
+    i = instr(x, "N")
+    do while i > 0
+        n = val(mid$(x, i + 1, 2))
+        if last > 0 and n <> last and (abs(n - last) > 2) = wide then count = count + 1
+        last = n
+        i = instr(i + 1, x, "N")
+    loop
+    Moves% = count
+end function
+
 ' Whether each voice of each of a song's half bars lasts half a bar.
 function SongLasts% (sg as Song)
     dim i as integer, h as integer, nBars as integer
@@ -4536,6 +4567,7 @@ def main() -> None:
         ("sands tune ok", "Saltwick Sands played to their own tune"),
         ("arranged ok", "a zone's second act played to its tune arranged again: evening, night, sunset, blizzard"),
         ("swing ok", "a swung song's off-beat eighths on the triplet's last, each half bar still half a bar long"),
+        ("sung ok", "the quarter's tune sung: its notes held, by step, the trumpet and the clavinet out of its way"),
         ("gold ok", "an act's three golden bones: found by a touch, kept in the save at once, a pip each on the HUD"),
         ("packing ok", "after a chase the level's end is the longer one, twelve bars; the eight elsewhere"),
         ("whistled ok", "the quarter's blue hour ends whistled, the guitar gone; its festival night with the guitar"),

@@ -255,9 +255,9 @@ Progress is saved at each zone.
   slows: the pilot hops out of it once the cat is 140 ahead.
 - Look: fish-scale roof tiles over brick. Indigo, lantern orange, brick red. Stacked houses, lit windows, the
   moon; fireworks in act 2.
-- Music (written): a sly swing in A minor at 132. An accordion lead, plucked bass, brushed snare, a muted
-  trumpet's answer, the Mob's motif under it. Festival (written): 144, full brass, toms for the fireworks,
-  claps.
+- Music (written): a sly swing in A minor at 132. An accordion sings it by step, a muted trumpet answers
+  where it rests; plucked bass in two, the chord on two and four, brushed snare, the Mob's motif in the four
+  bars before it. Festival (written): 144, full brass, toms for the fireworks, claps.
 
 ### 7. Clock Tower
 
