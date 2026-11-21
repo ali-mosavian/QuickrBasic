@@ -1,17 +1,42 @@
-' Which song plays when, and the sound effects.
-' The tunes are in CHARLIE.DAT with the pictures, from tools/charliesong.txt.
+' Which song plays when, and the sound effects. The tunes
+' are in CHARLIE.DAT with the pictures, from
+' tools/charliesong.txt.
 defint A-Z
 option explicit
 
-from barkley.engine.clock import STEPT
-from barkley.engine.audio import Deck, HushSong, LoadSong
-from barkley.model.level import Level, NONE
-from barkley.model.game import CLEARED, Game, INTRO, OVER, Session, TITLE
+from engine.clock import STEPT
+from engine.audio import Deck, HushSong, Lead, LoadSong, Prime
+from barkley.model.level import Level, NONE, Realm
+from barkley.model.game import CLEARED, Game, INTRO, OVER, Session
+from barkley.model.game import TITLE
 
-const SJUMP = 0, SBONE = 1, SHURT = 2, SSPRING = 3, SPOP = 4, SROLL = 5
-const SCHARGE = 6, SLAUNCH = 7, SCLEAR = 8, SDIE = 9, SMARK = 10, SBOOST = 11, SHISS = 12, SBARK = 13, SBUMP = 14
-const SSQUAWK = 15, SCRACK = 16, SCLANK = 17
-const CAUGHTUP = 2, PACKING = 10, LEFTBEHIND = 11
+const SJUMP = 0
+const SBONE = 1
+const SHURT = 2
+const SSPRING = 3
+const SPOP = 4
+const SROLL = 5
+const SCHARGE = 6
+const SLAUNCH = 7
+const SCLEAR = 8
+const SDIE = 9
+const SMARK = 10
+const SBOOST = 11
+const SHISS = 12
+const SBARK = 13
+const SBUMP = 14
+const SSQUAWK = 15
+const SCRACK = 16
+const SCLANK = 17
+const SGOLD = 18
+const STWANG = 19
+const SSNATCH = 20
+const SMORTAR = 21
+const CAUGHTUP = 2
+const PACKING = 10
+const LEFTBEHIND = 11
+const WHISTLED = 19
+const CHASETUNE = 5
 const ZTUNE = 0
 private const THEME = 1
 const CAUGHT = 2
@@ -19,25 +44,41 @@ const CAUGHT = 2
 ' A sound on the fourth voice, the tune's five left playing.
 sub Sfx (mu as Deck, se as Session, id as integer)
     dim s as string
+
     if mu.muted then exit sub
+
     select case id
-    case SJUMP: s = "L64O4CEGO5C"
+    case SJUMP
+        s = "L64O4CEGO5C"
     case SBONE
-        ' a bark: a low woof slid up into, two voices beating, through a mouth; one at a time
-        if abs(se.ticks - mu.barkAt) < 8 then exit sub
-        mu.barkAt = se.ticks
+        ' a bark: a low woof slid up into, two voices
+        ' beating, through a mouth; one at a time
+        if abs(se.ticks - mu.bark_at) < 8 then exit sub
+
+        mu.bark_at = se.ticks
         s = "W2I15Y2,1000,6H0,6,2,3K4,0,6L8O3D"
-    case SHURT: s = "L32O3GECO2G"
-    case SSPRING: s = "L64O3CGO4EO5CG"
-    case SPOP: s = "L64O5GO4CO5E"
-    case SROLL: s = "L64O3CFA"
-    case SCHARGE: s = "L64O4CDEFG"
-    case SLAUNCH: s = "L64O3GO4CGO5CG"
-    case SCLEAR: s = "L16O5CEGO6CL8E"
-    case SDIE: s = "L16O4CO3BAGL8F"
-    case SMARK: s = "L32O5CEGO6C"
-    case SBOOST: s = "L64O4CEGO5CEGO6C"
-    case SHISS: s = "W3Y3,3500,0H3,8,0,3L4O6B"
+    case SHURT
+        s = "L32O3GECO2G"
+    case SSPRING
+        s = "L64O3CGO4EO5CG"
+    case SPOP
+        s = "L64O5GO4CO5E"
+    case SROLL
+        s = "L64O3CFA"
+    case SCHARGE
+        s = "L64O4CDEFG"
+    case SLAUNCH
+        s = "L64O3GO4CGO5CG"
+    case SCLEAR
+        s = "L16O5CEGO6CL8E"
+    case SDIE
+        s = "L16O4CO3BAGL8F"
+    case SMARK
+        s = "L32O5CEGO6C"
+    case SBOOST
+        s = "L64O4CEGO5CEGO6C"
+    case SHISS
+        s = "W3Y3,3500,0H3,8,0,3L4O6B"
     case SBARK
         ' two woofs, the second lower, through a mouth
         s = "W2I15Y2,1300,6H0,5,3,3K3,0,7L16O3FP32L8O3D"
@@ -53,89 +94,112 @@ sub Sfx (mu as Deck, se as Session, id as integer)
     case SCLANK
         ' a press lands
         s = "W3L32O2CL16O1C"
+    case SGOLD
+        ' a golden bone: a bright chord run up, its top held
+        s = "L32O5EAO6C+EL8A"
+    case STWANG
+        ' a line trodden: plucked, and sprung back
+        s = "L64O2GO3DGO4D"
+    case SSNATCH
+        ' a bone snatched: the bone's own notes, low and
+        ' turned over
+        s = "L64O3EO2B"
+    case SMORTAR
+        ' a mortar fired: a thump, and its shell's whistle
+        ' up
+        s = "L64O1CO0GL32O5CEG"
     end select
+
     play , , , "T255W1V13Y0K0I0H0,0,15,0" + s
 end sub
 
-' The songs the game holds from its start; a stage's own comes with its level. The level's end is led by the
-' zone's lead.
+' The songs the game holds from its start; a stage's own
+' comes with its level. The level's end is led by the zone's
+' lead.
 sub LoadSongs (mu as Deck)
     LoadSong mu, THEME, 1
     SceneTune mu, CAUGHTUP
-    mu.slot = -1
-    mu.coming = THEME
-    mu.comingBar = 0
-    mu.ended = -1
-    mu.tune = -1
+    Prime mu, THEME
 end sub
 
-' Song id into the zone's slot, unless it is there: what was playing from the slot is dropped.
+' The chase's song in the zone's slot: the zone's own lead
+' plays it, and the level's end still.
+sub ChaseTune (mu as Deck)
+    dim zlead as string
+
+    zlead = mu.song(CAUGHT).lead_p
+    ZoneTune mu, CHASETUNE
+    Lead mu, ZTUNE, zlead
+    Lead mu, CAUGHT, zlead
+end sub
+
+' Song id into the zone's slot, unless it is there: what was
+' playing from the slot is dropped.
 sub ZoneTune (mu as Deck, id as integer)
-    if mu.zHeld = id + 1 then exit sub
-    mu.zHeld = id + 1
+    if mu.z_held = id + 1 then exit sub
+
+    mu.z_held = id + 1
     LoadSong mu, ZTUNE, id
-    mu.song(CAUGHT).leadP = mu.song(ZTUNE).leadP
+    Lead mu, CAUGHT, mu.song(ZTUNE).lead_p
     if mu.slot = ZTUNE then HushSong mu
 end sub
 
-' Song id into the level's end's slot, unless it is there, the zone's lead its own: what was playing from the
-' slot is dropped.
+' Song id into the level's end's slot, unless it is there,
+' the zone's lead its own: what was playing from the slot is
+' dropped.
 sub SceneTune (mu as Deck, id as integer)
-    if mu.cHeld = id + 1 then exit sub
-    mu.cHeld = id + 1
+    if mu.c_held = id + 1 then exit sub
+
+    mu.c_held = id + 1
     LoadSong mu, CAUGHT, id
-    mu.song(CAUGHT).leadP = mu.song(ZTUNE).leadP
+    Lead mu, CAUGHT, mu.song(ZTUNE).lead_p
     if mu.slot = CAUGHT then HushSong mu
 end sub
 
-' The level's end for the level there is: after a chase the longer one, the cat sent packing first.
-sub EndTune (lv as Level, mu as Deck)
-    if lv.chaseX = NONE then
-        SceneTune mu, CAUGHTUP
-    else
+' The level's end for the level there is: after a chase the
+' longer one, the cat sent packing first; in the quarter
+' before its chase the whistled one, the guitar gone.
+sub EndTune (lv as Level, zn as Realm, mu as Deck)
+    if lv.chase_x <> NONE then
         SceneTune mu, PACKING
+    elseif zn.id = 5 then
+        SceneTune mu, WHISTLED
+    else
+        SceneTune mu, CAUGHTUP
     end if
 end sub
 
-' Beats of the level's end sounded: by the tune's own clock, by the scene's where no music plays; under none before
-' it has begun.
+' Beats of the level's end sounded: by the tune's own clock,
+' by the scene's where no music plays; under none before it
+' has begun.
 function EndBeat! (mu as Deck, se as Session, g as Game)
-    EndBeat! = g.modeT * mu.song(CAUGHT).tempo / 60
+    EndBeat! = g.mode_t * mu.song(CAUGHT).tempo / 60
     if mu.muted or not mu.tune then exit function
+
     EndBeat! = -1
-    if mu.slot = CAUGHT then EndBeat! = (se.ticks - mu.songAt) * STEPT * mu.song(CAUGHT).tempo / 60
+
+    if mu.slot <> CAUGHT then exit function
+
+    EndBeat! = (se.ticks - mu.song_at) * STEPT _
+        * mu.song(CAUGHT).tempo / 60
 end function
 
-' The slot to play for the game's state: the theme for the title, the level's end or game over, else the zone's
-' tune.
+' The slot to play for the game's state: the theme for the
+' title, the level's end or game over, else the zone's tune.
 function SongFor% (g as Game)
     select case g.mode
-    case TITLE: SongFor% = THEME
-    case CLEARED, OVER: SongFor% = CAUGHT
-    case else: SongFor% = ZTUNE
+    case TITLE
+        SongFor% = THEME
+    case CLEARED, OVER
+        SongFor% = CAUGHT
+    case else
+        SongFor% = ZTUNE
     end select
 end function
 
-' Whether the state's song comes in at once and in full: the level's end, game over, the scene between zones.
+' Whether the state's song comes in at once and in full: the
+' level's end, game over, the scene between zones.
 function Sudden% (se as Session, g as Game)
-    Sudden% = g.mode = CLEARED or g.mode = OVER or (g.mode = INTRO and se.sceneNext > 0)
+    Sudden% = g.mode = CLEARED or g.mode = OVER _
+        or (g.mode = INTRO and se.scene_next > 0)
 end function
-
-' Slot n's song, when it is not the one playing, from its start or, late, from the bar it comes in at. The one
-' playing fades over a bar (half of one, late) and the next fades in over one; late, it comes in full.
-sub PickSong (mu as Deck, n as integer, late as integer)
-    if n = mu.slot then
-        mu.coming = -1
-        mu.fadeOut = 0
-        exit sub
-    end if
-    if n = mu.coming then exit sub
-    mu.coming = n
-    mu.comingBar = 0
-    mu.fadeOut = 2
-    mu.fadeIn = 2
-    if late = 0 then exit sub
-    mu.comingBar = mu.song(n).entry
-    mu.fadeOut = 1
-    mu.fadeIn = 0
-end sub

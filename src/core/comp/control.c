@@ -1715,6 +1715,11 @@ bool ctrl_stmt(Comp *const C)
 
     case TK_TYPE:
     case TK_OPTION:
+    case TK_DEFINT:
+    case TK_DEFLNG:
+    case TK_DEFSNG:
+    case TK_DEFDBL:
+    case TK_DEFSTR:
         skip(C);
         return true; /* entered with the line (decl_line), no code */
     case TK_EXIT:

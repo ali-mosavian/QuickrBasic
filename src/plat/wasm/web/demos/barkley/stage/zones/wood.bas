@@ -1,207 +1,222 @@
-' Russet Wood: saplings, vines, bramble, logs and burrows, bees, squirrels and fireflies.
+' Russet Wood: saplings, vines, bramble, logs and burrows,
+' bees, squirrels and fireflies.
 defint A-Z
 option explicit
 
-from barkley.engine.video import SW
-from barkley.engine.clock import STEPT
-from barkley.engine.audio import Deck
-from barkley.model.images import IACORN
+from engine.video import SW
+from engine.events import Events
 from barkley.model.hero import Hero
-from barkley.model.level import Level, Realm, Swarm
-from barkley.model.game import Game, Loose, Part, Session, Tones
-from barkley.assets.palette import CBEE, CFLY, CINK, CLEAF, CLOAM, CNUT, CVINE, CVINED, CWING, Tint
-from barkley.assets.tunes import Sfx, SHURT, SPOP, SROLL, SSPRING
-from barkley.world.terrain.ground import Balk
+from barkley.model.level import Level, Realm
+from barkley.model.kinds import Kinds
+from barkley.model.game import Game, Loose, Session, Tones
+from barkley.model.events import EVBURST, EVSOUND, Tell, TellAt
+from barkley.assets.palette import CBEE, CFLY, CINK, CVINE, CVINED
+from barkley.assets.palette import CWING, Tint
+from barkley.assets.tunes import SHURT, SPOP, SROLL, SSPRING
 from barkley.world.level import GLOWN
-from barkley.stage.fx.parts import Burst
-from barkley.stage.fx.damage import Hurt
-from barkley.stage.fx.lobs import Loft
-from barkley.stage.hero.modes import VINEGRIP, VINELEN
+from barkley.stage.fx.parts import PMOUND
+from barkley.stage.hero.modes import Grab, VINEGRIP, VINELEN
 from barkley.stage.hero.draw import LOGR
+from barkley.stage.hero.push import Balk, Burrow, Launch, Rush
+from barkley.stage.things.react import Rest, Turn
+from barkley.stage.hero.hurt import Hurt
 
 const GLOWFADE = 60
 private const NFLY = 18
 const FLYREST = 5
 
-' A sapling: its crown that far from its foot; its throw, what each of his speed adds to it, and at the most;
-' the things' steps it stands sprung.
+' A sapling: its crown that far from its foot; its throw,
+' what each of his speed adds to it, and at the most; the
+' things' steps it stands sprung.
 const SAPREACH = 38
-private const SAPV = 280!, SAPGAIN = .8, SAPMAX = 700!
+private const SAPV = 280!
+private const SAPGAIN = .8
+private const SAPMAX = 700!
 const SAPT = 30
 
-' Bramble: how near hurts; the things' steps till it has grown back; its leaves' colour.
+' How near a bramble hurts.
 private const BRAMBLER = 16
-const BRAMBLET = 90
 
-const LOGH = 30, LOGV = 520!
+const LOGH = 30
+const LOGV = 520!
 
-' A burrow's mound: how near he digs in; his speed under the ground, and up out of the other end; the loam's
-' colour.
+' A burrow's mound: how near he digs in; his speed under the
+' ground, and up out of the other end; the loam's colour.
 const MOUNDR = 12
 
-' A squirrel on a bough: how far it runs either side of its home, and how far past that it follows him with
-' its eye; its run a things' step; the steps between its acorns, the last of them stood with one held out,
-' and how near under it he must be for it to fall; the steps a bark keeps it cowed; an acorn's colour.
-const SQRUN = 48
-private const SQSEE = 100
-const SQV = 3, SQWAIT = 60, SQAIM = 15, SQNEAR = 24
-
 const NBEE = 9
-private const BEESEE = 60, BEEV = 170!, BEER = 12, BEELOSE = 160
 
-' The wood's night: a bark's light counted down, and the zone's own colours as bright as it leaves them, the
+' The wood's night: a bark's light counted down, and the
+' zone's own colours as bright as it leaves them, the
 ' fireflies' always.
 sub Nightfall (lv as Level, zn as Realm, tn as Tones)
     dim i as integer, n as integer, k as integer, c as long
+
     if lv.glow > 0 then lv.glow = lv.glow - 1
     n = GLOWN
     if lv.glow < GLOWFADE then n = lv.glow * GLOWN \ GLOWFADE
-    if n = lv.glowAt then exit sub
-    lv.glowAt = n
+    if n = lv.glow_at then exit sub
+
+    lv.glow_at = n
+
     for i = 0 to tn.n(zn.stage) - 1
         k = tn.which(zn.stage, i)
         if k = CFLY or k = CFLY + 1 then continue for
+
         c = tn.own(zn.stage, i)
-        Tint tn, k, Dimmed%(c and 63, 2, n) + 256& * Dimmed%(c \ 256 and 63, 2, n) + 65536 * Dimmed%(c \ 65536, 6, n)
+        Tint tn, k, _
+            Dimmed%(c and 63, 2, n) _
+            + 256& * Dimmed%(c \ 256 and 63, 2, n) _
+            + 65536 * Dimmed%(c \ 65536, 6, n)
     next
 end sub
 
-' v of a colour's 63 with n of GLOWN parts of its light: with none, three tenths of it over f.
+' v of a colour's 63 with n of GLOWN parts of its light:
+' with none, three tenths of it over f.
 private function Dimmed% (v as integer, f as integer, n as integer)
     dim d as integer
+
     d = f + v * 3 \ 10
     Dimmed% = d + (v - d) * n \ GLOWN
 end function
 
-' A sapling bowed to the ground: crossing its crown he is thrown up, the higher the faster he came, his way kept;
-' it stands sprung a moment before it bows again.
-sub MeetSapling (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
-    dim py as integer, v as single
-    py = cint(p.y)
-    if lv.ob(i).s > 0 or abs(lv.ob(i).x + SAPREACH - cint(p.x)) >= 10 then exit sub
-    if py < lv.ob(i).y - 12 or py > lv.ob(i).y + 2 or (not p.ground and p.vy < 0) then exit sub
-    if p.ground then p.vx = p.gsp
-    v = SAPV + SAPGAIN * abs(p.vx)
-    if v > SAPMAX then v = SAPMAX
-    p.ground = 0
-    p.vy = -v
-    p.roll = 0
-    p.jumped = 0
-    p.sprung = -1
-    lv.ob(i).s = SAPT
-    Sfx mu, se, SSPRING
+' A sapling bowed to the ground: crossing its crown he is
+' thrown up, the higher the faster he came, his way kept; it
+' stands sprung a moment before it bows again.
+sub MeetSapling ( _
+    lv as Level, _
+    kd as Kinds, _
+    ev as Events, _
+    se as Session, _
+    p as Hero, _
+    i as integer _
+)
+    dim py as integer
+
+    py = cint(p.at.y)
+    if lv.things(i).state > 0 _
+        or abs(lv.things(i).at.x _
+        + SAPREACH - cint(p.at.x)) >= 10 then exit sub
+    if py < lv.things(i).at.y - 12 or py > lv.things(i).at.y + 2 _
+        or (not p.ground and p.vel.y < 0) then exit sub
+
+    Launch p, SAPV, SAPGAIN, SAPMAX
+    Rest lv, kd, i
+    Tell ev, EVSOUND, SSPRING
 end sub
 
-' A vine's end reached in the air, and no vine just let go: he hangs from it, his way become its swing.
-sub MeetVine (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
-    if p.vine or p.vineT > 0 or p.ground or p.swim or p.stun or p.dead then exit sub
-    if abs(p.x - lv.ob(i).x) >= 12 or abs(p.y - VINEGRIP - lv.ob(i).y - VINELEN) >= 12 then exit sub
-    p.vine = i + 1
-    p.sway = (p.x - lv.ob(i).x) / VINELEN
-    p.swayV = p.vx / VINELEN
-    p.roll = 0
-    p.jumped = 0
-    p.sprung = 0
-    Sfx mu, se, SSPRING
+' A vine's end reached in the air, and no vine just let go:
+' he hangs from it, his way become its swing.
+sub MeetVine ( _
+    lv as Level, _
+    ev as Events, _
+    se as Session, _
+    p as Hero, _
+    i as integer _
+)
+    if p.vine or p.vine_t > 0 or p.ground or p.swim or p.stun _
+        or p.dead then exit sub
+    if abs(p.at.x - lv.things(i).at.x) >= 12 _
+        or abs(p.at.y - VINEGRIP - lv.things(i).at.y _
+        - VINELEN) >= 12 then exit sub
+
+    Grab p, i, lv.things(i).at.x
+    Tell ev, EVSOUND, SSPRING
 end sub
 
 ' Bramble: it hurts him, but curled he cuts through it.
-sub MeetBramble (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose)
-    if lv.ob(i).s > 0 or abs(lv.ob(i).x - p.x) >= BRAMBLER then exit sub
-    if p.y < lv.ob(i).y - 24 or p.y > lv.ob(i).y + 8 then exit sub
+sub MeetBramble ( _
+    lv as Level, _
+    kd as Kinds, _
+    ev as Events, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    i as integer, _
+    lo() as Loose _
+)
+    if lv.things(i).state > 0 _
+        or abs(lv.things(i).at.x - p.at.x) >= BRAMBLER then exit sub
+    if p.at.y < lv.things(i).at.y - 24 _
+        or p.at.y > lv.things(i).at.y + 8 then exit sub
+
     if not p.roll then
-        Hurt mu, se, g, p, lv.ob(i).x, lo(), SHURT
+        Hurt ev, se, g, p, lv.things(i).at.x, lo(), SHURT
         exit sub
     end if
-    lv.ob(i).s = BRAMBLET
-    Sfx mu, se, SPOP
+
+    Rest lv, kd, i
+    Tell ev, EVSOUND, SPOP
 end sub
 
-' A burrow's mound: crouched on it he digs in, for its other end; the mound he comes out of will not take him
-' back till he has stepped off it.
-sub MeetMound (lv as Level, mu as Deck, se as Session, p as Hero, i as integer, pt() as Part)
-    dim onIt as integer
-    onIt = abs(lv.ob(i).x - p.x) < MOUNDR
+' A burrow's mound: crouched on it he digs in, for its other
+' end; the mound he comes out of will not take him back till
+' he has stepped off it.
+sub MeetMound (lv as Level, ev as Events, p as Hero, i as integer)
+    dim on_it as integer
+
+    on_it = abs(lv.things(i).at.x - p.at.x) < MOUNDR
+
     if p.dug = i + 1 then
-        if not onIt then p.dug = 0
+        if not on_it then p.dug = 0
         exit sub
     end if
-    if not (onIt and p.crouch and p.ground) or abs(lv.ob(i).y - p.y) >= 8 or lv.ob(i).s < 1 then exit sub
-    p.dig = lv.ob(i).s
-    p.ground = 0
-    p.crouch = 0
-    p.gsp = 0
-    p.vy = 0
-    Burst se, pt(), p.x, p.y - 4, 10, 140, CLOAM
-    Sfx mu, se, SROLL
+
+    if not (on_it and p.crouch and p.ground) _
+        or abs(lv.things(i).at.y - p.at.y) >= 8 _
+        or lv.things(i).state < 1 then exit sub
+
+    Burrow p, lv.things(i).state
+    TellAt ev, EVBURST, p.at.x, p.at.y - 4, PMOUND
+    Tell ev, EVSOUND, SROLL
 end sub
 
-' A hollow log across the way: on foot he is stopped at its end; curled he is shot through it, out of sight, and
+' A hollow log across the way: on foot he is stopped at its
+' end; curled he is shot through it, out of sight, and
 ' leaves it at LOGV. Its state: he is in it.
-sub MeetLog (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
-    dim s as integer
-    if abs(lv.ob(i).x - p.x) >= LOGR or p.y <= lv.ob(i).y - LOGH or p.y > lv.ob(i).y + 4 then
-        lv.ob(i).s = 0
+sub MeetLog ( _
+    lv as Level, _
+    ev as Events, _
+    se as Session, _
+    p as Hero, _
+    i as integer _
+)
+    if abs(lv.things(i).at.x - p.at.x) >= LOGR _
+        or p.at.y <= lv.things(i).at.y - LOGH _
+        or p.at.y > lv.things(i).at.y + 4 then
+        Turn lv, i, 0
         exit sub
     end if
+
     if not p.roll then
-        Balk p, lv.ob(i).x, LOGR
+        Balk p, lv.things(i).at.x, LOGR
         exit sub
     end if
-    if lv.ob(i).s = 0 then Sfx mu, se, SSPRING
-    lv.ob(i).s = 1
-    s = 1 + 2 * (p.gsp < 0)
-    if p.ground and p.gsp * s < LOGV then p.gsp = s * LOGV
+
+    if lv.things(i).state = 0 then Tell ev, EVSOUND, SSPRING
+    Turn lv, i, 1
+    Rush p, LOGV
 end sub
 
-' Bramble's step: just cut, its leaves fly; cut, it grows back BRAMBLET steps on.
-sub Regrow (lv as Level, se as Session, pt() as Part, i as integer)
-    if lv.ob(i).s = 0 then exit sub
-    if lv.ob(i).s = BRAMBLET then Burst se, pt(), csng(lv.ob(i).x), csng(lv.ob(i).y - 12), 10, 140, CLEAF
-    lv.ob(i).s = lv.ob(i).s - 1
-end sub
-
-sub Swarms (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose)
-    dim i as integer
-    for i = 0 to lv.nSwarm - 1
-        Buzz mu, se, lv.swarms(i), g, p, lo()
-    next
-end sub
-
-' A swarm's step: he comes within BEESEE of it and it is after his head, at BEEV; on him, it stings; left
-' BEELOSE behind, it goes home.
-private sub Buzz (mu as Deck, se as Session, b as Swarm, g as Game, p as Hero, lo() as Loose)
-    dim dx as single, dy as single, d as single
-    dx = p.x - b.x
-    dy = p.y - 13 - b.y
-    d = sqr(dx * dx + dy * dy)
-    if d < BEESEE then b.st = 1
-    if b.st = 1 and d > BEELOSE then b.st = 2
-    if b.st = 0 then exit sub
-    if b.st = 1 and d < BEER + BEEV * STEPT then Hurt mu, se, g, p, cint(b.x), lo(), SHURT
-    if b.st = 2 then
-        dx = b.hx - b.x
-        dy = b.hy - b.y
-        d = sqr(dx * dx + dy * dy)
-    end if
-    if d > BEEV * STEPT then
-        b.x = b.x + dx * BEEV * STEPT / d
-        b.y = b.y + dy * BEEV * STEPT / d
-        exit sub
-    end if
-    b.x = b.x + dx
-    b.y = b.y + dy
-    if b.st = 2 then b.st = 0
-end sub
-
-' The swarms: each bee round its swarm's middle on a loop of its own, its wings over it.
-sub DrawBees (lv as Level, se as Session, cx as integer, cy as integer)
+' The swarms: each bee round its swarm's middle on a loop of
+' its own, its wings over it.
+sub DrawBees ( _
+    lv as Level, _
+    se as Session, _
+    cx as integer, _
+    cy as integer _
+)
     dim i as integer, j as integer, x as integer, y as integer
-    for i = 0 to lv.nSwarm - 1
-        if abs(lv.swarms(i).x - cx - SW \ 2) > SW \ 2 + 24 then continue for
+
+    for i = 0 to lv.n_swarms - 1
+        if abs(lv.swarms(i).at.x - cx - SW \ 2) > SW \ 2 _
+            + 24 then continue for
+
         for j = 0 to NBEE - 1
-            x = cint(lv.swarms(i).x) - cx + cint(13 * sin(se.ticks * .21 + j * 2.4)) - 2
-            y = cint(lv.swarms(i).y) - cy + cint(9 * cos(se.ticks * .17 + j * 1.7))
+            x = cint(lv.swarms(i).at.x) - cx _
+                + cint(13 * sin(se.ticks * .21 + j * 2.4)) - 2
+            y = cint(lv.swarms(i).at.y) - cy _
+                + cint(9 * cos(se.ticks * .17 + j * 1.7))
             line (x, y)-(x + 3, y + 1), CBEE, BF
             line (x + 1, y)-(x + 1, y + 1), CINK
             line (x + 3, y)-(x + 3, y + 1), CINK
@@ -210,61 +225,50 @@ sub DrawBees (lv as Level, se as Session, cx as integer, cy as integer)
     next
 end sub
 
-' A vine hung from x, y on the screen, swung a radians from straight down: two strands, a leaf to each side turn
+' A vine hung from x, y on the screen, swung a radians from
+' straight down: two strands, a leaf to each side turn
 ' about, a loop at its end.
 sub DrawVine (x as integer, y as integer, a as single)
     dim j as integer, u as integer, v as integer
+
     for j = 0 to VINELEN
         u = x + cint(j * sin(a))
         v = y + cint(j * cos(a))
         pset (u, v), CVINE
         pset (u + 1, v), CVINED
-        if j mod 7 = 3 then line (u + 2 - 5 * ((j \ 7) and 1), v)-(u + 3 - 5 * ((j \ 7) and 1), v + 1), CVINE, bf
+
+        if j mod 7 <> 3 then continue for
+
+        line (u + 2 - 5 * ((j \ 7) and 1), v) _
+            -(u + 3 - 5 * ((j \ 7) and 1), v + 1), CVINE, bf
     next
+
     circle (u, v + 3), 3, CVINE
 end sub
 
-' The wood's fireflies over the view, drifting, each dark a moment in turn: a few at rest, and all of them, haloed,
+' The wood's fireflies over the view, drifting, each dark a
+' moment in turn: a few at rest, and all of them, haloed,
 ' while a bark's light lasts.
 sub DrawFlies (lv as Level, se as Session, cx as integer)
     dim j as integer, x as integer, y as integer
-    for j = 0 to FLYREST + (NFLY - FLYREST) * lv.glowAt \ GLOWN - 1
+
+    for j = 0 to FLYREST + (NFLY - FLYREST) * lv.glow_at \ GLOWN - 1
         if ((se.ticks \ 16 + j * 3) and 7) = 0 then continue for
-        x = (j * 73 + 31 + SW - (cx \ 2) mod SW) mod SW + cint(6 * sin(se.ticks * .02 + j))
-        y = 22 + (j * 47) mod 136 + cint(4 * sin(se.ticks * .031 + j * 2))
-        if lv.glowAt = 0 then
+
+        x = (j * 73 + 31 + SW - (cx \ 2) mod SW) mod SW _
+            + cint(6 * sin(se.ticks * .02 + j))
+        y = 22 + (j * 47) mod 136 _
+            + cint(4 * sin(se.ticks * .031 + j * 2))
+
+        if lv.glow_at = 0 then
             pset (x, y), CFLY
             continue for
         end if
+
         pset (x, y), CFLY + 1
         pset (x - 1, y), CFLY
         pset (x + 1, y), CFLY
         pset (x, y - 1), CFLY
         pset (x, y + 1), CFLY
     next
-end sub
-
-' Squirrel i on its bough: while Charlie is under its run it keeps over him, else it goes home; every SQWAIT
-' steps it stops, an acorn held out the last SQAIM of them, and lets it fall once he is near under it. Cowed,
-' it keeps still. Its state: the steps till the acorn falls, signed the way it faces.
-sub Scamper (lv as Level, i as integer, p as Hero)
-    dim n as integer, d as integer, perch as integer, quarry as integer
-    n = abs(lv.ob(i).s) - 1
-    d = sgn(lv.ob(i).s)
-    quarry = abs(p.x - lv.ob(i).a) < SQRUN + SQSEE and p.y > lv.ob(i).y
-    if n = 0 and quarry and abs(p.x - lv.ob(i).x) >= SQNEAR then n = 1
-    if n = 0 then
-        if quarry then Loft lv, lv.ob(i).x + 5 * d, lv.ob(i).y + 1, 0, 0, IACORN, CNUT
-        n = SQWAIT
-    end if
-    lv.ob(i).s = d * n
-    if n <= SQAIM or n > SQWAIT then exit sub
-    perch = lv.ob(i).a
-    if quarry then perch = cint(p.x)
-    if perch < lv.ob(i).a - SQRUN then perch = lv.ob(i).a - SQRUN
-    if perch > lv.ob(i).a + SQRUN then perch = lv.ob(i).a + SQRUN
-    if abs(perch - lv.ob(i).x) < SQV then exit sub
-    d = sgn(perch - lv.ob(i).x)
-    lv.ob(i).x = lv.ob(i).x + d * SQV
-    lv.ob(i).s = d * n
 end sub

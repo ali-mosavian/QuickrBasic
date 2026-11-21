@@ -1,48 +1,73 @@
-' The game's states: the title, play, a stage cleared, the next stage, the tally.
+' The game's states: the title, play, a stage cleared, the
+' next stage, the tally.
 defint A-Z
 option explicit
 
-from barkley.engine.clock import STEPT
-from barkley.engine.audio import Deck
+from engine.clock import STEPT
+from engine.audio import Deck
+from engine.events import Events
 from barkley.model.hero import Hero, Pad
-from barkley.model.level import KBONE, KCAT, KCRAB, KGOAT, KJELLY, KMOUND, KSQUIRREL, KSWEEP, KTHROW, KWALL, MH, NONE
-from barkley.model.level import NSTAGE, TS
-from barkley.model.game import CLEARED, Game, Loose, NLOOSE, NPART, OVER, Part, PLAYING, Session, TITLE
-from barkley.model.world import NLOB, NMOVE, World
-from barkley.assets.palette import Cycle, Shade, Shimmer
-from barkley.assets.tunes import CAUGHT, EndBeat, EndTune, SBONE, SCLEAR, Sfx
+from barkley.model.level import MH, NONE, NSTAGE, TS
+from barkley.model.game import CLEARED, Game, Loose, OVER, Part
+from barkley.model.game import PLAYING, Session, TITLE
+from barkley.model.world import World
+from barkley.model.events import EVSOUND, Tell
+from barkley.assets.palette import Cycle, Dusk, Shade, Shimmer
+from barkley.assets.tunes import CAUGHT, EndBeat, EndTune, SBONE
+from barkley.assets.tunes import SCLEAR, ZTUNE
 from barkley.world.level import LoadLevel, ZoneOf
-from barkley.world.movers import Movers
-from barkley.stage.fx.damage import Lose
-from barkley.stage.fx.lobs import Volley
-from barkley.stage.hero.moves import MoveHero, THROWC
-from barkley.stage.zones.sands import Flock, Flow, GHOVER
-from barkley.stage.zones.wood import Nightfall, SQWAIT, Swarms
-from barkley.stage.zones.pass import Avalanche, Homeward
+from barkley.world.movers import Movers, Still
+from barkley.stage.fx.lobs import Recall, Volley
+from barkley.stage.hero.moves import MoveHero
+from barkley.stage.zones.sands import Flow
+from barkley.stage.zones.wood import Nightfall
 from barkley.stage.zones.chase import Flee
-from barkley.stage.camera import Camera
-from barkley.stage.play import Dying, Spawn, Things, Touch
+from barkley.stage.camera import Follow, Look
+from barkley.stage.play import Dying, Spawn, Touch
+from barkley.stage.things.think import Borne, Rewind, Things
+from barkley.stage.fx.parts import Particles, Sweep
+from barkley.stage.things.sands import Flock
+from barkley.stage.things.wood import Swarms
+from barkley.stage.things.pass import Avalanche, Homeward
+from barkley.stage.hero.hurt import Lose
+from barkley.stage.hero.feet import Carried
+from barkley.stage.hero.push import Arrive, Halt
 from barkley.control.keys import MuteKey, Spent
 from barkley.control.pilot import Pilot
-from barkley.flow.save import PickZone, Reach
+from barkley.flow.save import Keep, PickZone, Reach
 from barkley.flow.intro import StartBump
+from barkley.flow.deliver import Deliver
 
-' The level's end's songs, and game over's, by their numbers in CHARLIE.DAT; how long game over stays, its tune's
+' The level's end's songs, and game over's, by their numbers
+' in CHARLIE.DAT; how long game over stays, its tune's
 ' length.
 private const OVERT = 13
 
-' The bonus is counted over the level's end's bars its lead plays, the last six but two: a step a beat.
+' The bonus is counted over the level's end's bars its lead
+' plays, the last six but two: a step a beat.
 const TALLYN = 16
 private const TALLYBARS = 6
 
-' The bonus counted into the score in time with the level's end: a step and a woof on each beat of the bars its
-' lead plays, the bonus shared between the steps left, in tens; all of it at a key.
-private sub Tally (mu as Deck, se as Session, g as Game, k as Pad)
+' The bonus counted into the score in time with the level's
+' end: a step and a woof on each beat of the bars its lead
+' plays, the bonus shared between the steps left, in tens;
+' all of it at a key.
+private sub Tally ( _
+    mu as Deck, _
+    ev as Events, _
+    se as Session, _
+    g as Game, _
+    k as Pad _
+)
     dim due as integer, take as long
+
     if g.bonus = 0 then exit sub
-    due = int(EndBeat!(mu, se, g)) - (len(mu.song(CAUGHT).order) - TALLYBARS) * 4 + 1
+
+    due = int(EndBeat!(mu, se, g)) _
+        - (len(mu.song(CAUGHT).order) - TALLYBARS) * 4 + 1
     if due > TALLYN or k.hit or k.start then due = TALLYN
     if due <= g.tallied then exit sub
+
     do while g.tallied < due and g.bonus > 0
         take = ((g.bonus \ (TALLYN - g.tallied) + 9) \ 10) * 10
         g.tallied = g.tallied + 1
@@ -50,98 +75,173 @@ private sub Tally (mu as Deck, se as Session, g as Game, k as Pad)
         g.bonus = g.bonus - take
         g.score = g.score + take
     loop
-    Sfx mu, se, SBONE
+
+    Tell ev, EVSOUND, SBONE
 end sub
 
 ' A step. The title plays itself: Charlie run by the pilot.
-sub Tick (wd as World, g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
+sub Tick ( _
+    wd as World, _
+    g as Game, _
+    p as Hero, _
+    k as Pad, _
+    lo() as Loose, _
+    pt() as Part _
+)
     wd.se.ticks = wd.se.ticks + 1
-    if wd.zn.id = 1 and (wd.se.ticks and 3) = 0 then Cycle wd.tn, wd.se
+    KeepBeat wd.mu, wd.se
+
+    if wd.zn.id = 1 and (wd.se.ticks and 3) = 0 then
+        Cycle wd.tn, wd.se
+    end if
+
     if wd.lv.murk then Nightfall wd.lv, wd.zn, wd.tn
-    if wd.lv.tideLo <> NONE then Flow wd.lv, wd.se
-    if wd.lv.nMv then Movers wd.lv, wd.gr, wd.mu, wd.se, p
-    g.modeT = g.modeT + STEPT
+    if wd.lv.tide_lo <> NONE then Flow wd.lv, wd.se
+    if wd.lv.n_movers then
+        Movers wd.lv, wd.gr, wd.ev, wd.se, p
+        Borne wd.lv, wd.gr
+        Carried wd.lv, wd.gr, p
+    end if
+
+    g.mode_t = g.mode_t + STEPT
     if g.shake > 0 then g.shake = g.shake - STEPT
+    if wd.se.unkept then Keep wd.se
     MuteKey wd.mu, k
+
     select case g.mode
-    case TITLE: TitleStep wd, g, p, k, lo(), pt()
-    case PLAYING: PlayStep wd, g, p, k, lo(), pt()
-    case CLEARED: ClearedStep wd, g, p, k, lo(), pt()
+    case TITLE
+        TitleStep wd, g, p, k, lo(), pt()
+    case PLAYING
+        PlayStep wd, g, p, k, lo(), pt()
+    case CLEARED
+        ClearedStep wd, g, p, k, lo(), pt()
     case OVER
-        if g.modeT > OVERT or (g.modeT > 1.5 and (k.hit or k.start)) or k.quit then ResetWorld wd, g, p, lo(), pt()
+        if g.mode_t > OVERT _
+            or (g.mode_t > 1.5 and (k.hit or k.start)) or k.quit then
+            ResetWorld wd, 0, g, p, lo(), pt()
+        end if
     end select
-    if (wd.se.ticks and 1) = 0 then Things wd.lv, wd.mu, wd.se, g, p, lo(), pt()
+
+    if (wd.se.ticks and 1) = 0 then
+        Things wd.lv, wd.kinds, wd.ev, wd.se, g, p, lo()
+    end if
+
+    Deliver wd, g, pt()
+
+    if (wd.se.ticks and 1) = 0 and wd.se.part_n then
+        Particles wd.se, pt(), STEPT * 2
+    end if
+
     Shimmer wd.zn, wd.tn, wd.se
     Spent k
 end sub
 
-' The title's step: behind it the game plays itself, from the start again when that ends; a key starts a game.
-private sub TitleStep (wd as World, g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
+' The title's step: behind it the game plays itself, from
+' the start again when that ends; a key starts a game.
+private sub TitleStep ( _
+    wd as World, _
+    g as Game, _
+    p as Hero, _
+    k as Pad, _
+    lo() as Loose, _
+    pt() as Part _
+)
     dim auto as Pad
+
     if k.quit then g.quitting = -1
+
     if p.dead then
-        ResetWorld wd, g, p, lo(), pt()
-    elseif p.x >= wd.lv.goalX then
-        if Met%(wd, g, p, k, pt()) then ResetWorld wd, g, p, lo(), pt()
+        ResetWorld wd, 0, g, p, lo(), pt()
+    elseif p.at.x >= wd.lv.goal_x then
+        if Met%(wd, g, p, k, pt()) then
+            ResetWorld wd, 0, g, p, lo(), pt()
+        end if
     else
-        Pilot wd.lv, wd.gr, wd.zn, wd.se, p, auto
-        MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, auto, pt()
-        Touch wd.lv, wd.mu, wd.se, g, p, lo(), pt()
-        if p.y > MH * TS + 24 then Lose wd.mu, wd.se, p
-        Camera wd.lv, wd.zn, g, p, 0
+        Pilot wd.lv, wd.gr, wd.zn, wd.se, p, auto, wd.pilot
+        MoveHero wd.lv, wd.kinds, wd.gr, wd.ev, wd.se, p, auto, pt()
+        Touch wd.lv, wd.zn, wd.kinds, wd.ev, wd.se, g, p, lo(), pt()
+        if p.at.y > MH * TS + 24 then Lose wd.ev, wd.se, p
+        Follow wd.lv, wd.zn, g.cam, p, 0
     end if
+
     PickZone wd.se, k
     if k.hit or k.start then StartGame wd, g, p, lo(), pt()
 end sub
 
-' A game's step: Charlie moved, against the things and what chases, flies and is thrown; past the goal, the stage
-' is cleared.
-private sub PlayStep (wd as World, g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
-    if k.quit then ResetWorld wd, g, p, lo(), pt()
+' A game's step: Charlie moved, against the things and what
+' chases, flies and is thrown; past the goal, the stage is
+' cleared.
+private sub PlayStep ( _
+    wd as World, _
+    g as Game, _
+    p as Hero, _
+    k as Pad, _
+    lo() as Loose, _
+    pt() as Part _
+)
+    if k.quit then ResetWorld wd, 0, g, p, lo(), pt()
+
     if p.dead then
-        Dying wd.lv, wd.gr, wd.zn, wd.mu, g, p
+        Dying wd.lv, wd.gr, wd.zn, wd.ev, g, p
         exit sub
     end if
+
     g.clock = g.clock + STEPT
-    MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
-    Touch wd.lv, wd.mu, wd.se, g, p, lo(), pt()
+    MoveHero wd.lv, wd.kinds, wd.gr, wd.ev, wd.se, p, k, pt()
+    Touch wd.lv, wd.zn, wd.kinds, wd.ev, wd.se, g, p, lo(), pt()
     if wd.lv.stray.st = 2 then Homeward wd.lv, g
-    if wd.lv.avalX <> NONE then Avalanche wd.lv, wd.mu, wd.se, g, p
-    Flee wd.lv, wd.zn, wd.mu, wd.se, g, p, lo(), pt()
-    if wd.lv.nGulls then Flock wd.lv, wd.mu, wd.se, g, p, lo(), pt()
-    if wd.lv.nSwarm then Swarms wd.lv, wd.mu, wd.se, g, p, lo()
-    if wd.lv.lobN then Volley wd.lv, wd.mu, wd.se, g, p, lo(), pt()
-    if p.y > MH * TS + 24 then Lose wd.mu, wd.se, p
-    if p.x >= wd.lv.goalX then StageClear wd.mu, wd.se, g
-    Camera wd.lv, wd.zn, g, p, 0
+    if wd.lv.aval_x <> NONE then Avalanche wd.lv, wd.ev, wd.se, g, p
+    Flee wd.lv, wd.zn, wd.ev, wd.se, g, p, lo()
+    if wd.lv.n_gulls then Flock wd.lv, wd.ev, wd.se, g, p, lo()
+    if wd.lv.n_swarms then Swarms wd.lv, wd.ev, wd.se, g, p, lo()
+    if wd.lv.n_lobs then Volley wd.lv, wd.ev, wd.se, g, p, lo()
+    if p.at.y > MH * TS + 24 then Lose wd.ev, wd.se, p
+    if p.at.x >= wd.lv.goal_x then StageClear wd.ev, wd.se, g
+    Follow wd.lv, wd.zn, g.cam, p, 0
 end sub
 
-' The goal passed: the stage is cleared, its bonus by its bones and its time.
-private sub StageClear (mu as Deck, se as Session, g as Game)
+' The goal passed: the stage is cleared, its bonus by its
+' bones and its time.
+private sub StageClear (ev as Events, se as Session, g as Game)
     g.mode = CLEARED
-    g.modeT = 0
+    g.mode_t = 0
     g.tallied = 0
     g.bonus = g.bones * 50& + 10& * (240 - int(g.clock))
     if g.bonus < g.bones * 50& then g.bonus = g.bones * 50&
-    Sfx mu, se, SCLEAR
+    Tell ev, EVSOUND, SCLEAR
 end sub
 
-' A cleared stage's step: its tally; then, met, a while and the fade over, on to the next stage, or after the
-' last, the title.
-private sub ClearedStep (wd as World, g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
+' A cleared stage's step: its tally; then, met, a while and
+' the fade over, on to the next stage, or after the last,
+' the title.
+private sub ClearedStep ( _
+    wd as World, _
+    g as Game, _
+    p as Hero, _
+    k as Pad, _
+    lo() as Loose, _
+    pt() as Part _
+)
     dim nxt as integer
-    Tally wd.mu, wd.se, g, k
+
+    Tally wd.mu, wd.ev, wd.se, g, k
+
     if k.quit then
-        ResetWorld wd, g, p, lo(), pt()
+        ResetWorld wd, 0, g, p, lo(), pt()
         exit sub
     end if
+
     if Met%(wd, g, p, k, pt()) = 0 then exit sub
+
     nxt = wd.zn.stage + 1
+
     if nxt > NSTAGE - 1 then
-        ResetWorld wd, g, p, lo(), pt()
+        ResetWorld wd, 0, g, p, lo(), pt()
         exit sub
     end if
+
     Reach wd.se, ZoneOf%(wd.se, nxt)
+
     if ZoneOf%(wd.se, nxt) = wd.zn.id then
         GoStage wd, nxt, g, p, lo(), pt()
     else
@@ -149,109 +249,120 @@ private sub ClearedStep (wd as World, g as Game, p as Hero, k as Pad, lo() as Lo
     end if
 end sub
 
-' The level as it starts, the title up, Charlie at the start for the pilot.
-sub ResetWorld (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
-    dim i as integer
-    if wd.zn.stage <> wd.zn.nextUp then LoadLevel wd, wd.zn.nextUp
-    EndTune wd.lv, wd.mu
+' Stage n as it starts, the title up, Charlie at its start
+' for the pilot.
+sub ResetWorld ( _
+    wd as World, _
+    n as integer, _
+    g as Game, _
+    p as Hero, _
+    lo() as Loose, _
+    pt() as Part _
+)
+    if wd.zn.stage <> n then LoadLevel wd, n
+    EndTune wd.lv, wd.zn, wd.mu
     wd.lv.glow = 0
     g.mode = TITLE
-    g.modeT = 0
+    g.mode_t = 0
     wd.se.cheer = 0
-    wd.se.metT = 0
-    wd.se.pastT = 0
+    wd.se.met_t = 0
+    wd.se.past_t = 0
+
     if wd.tn.dusk < 16 then
-        wd.tn.dusk = 16
+        Dusk wd.tn, 16
         Shade wd.tn
     end if
+
     g.lives = 3
     g.score = 0
     g.clock = 0
-    g.homeX = wd.lv.startX
-    g.homeY = wd.lv.startY
-    for i = 0 to wd.lv.nObj - 1
-        wd.lv.ob(i).x = wd.lv.ob(i).a
-        ' a burrow's mound keeps its other end
-        if wd.lv.ob(i).k = KMOUND then continue for
-        wd.lv.ob(i).s = 0
-        if wd.lv.ob(i).k = KBONE then wd.lv.ob(i).s = 1
-        if wd.lv.ob(i).k = KCAT or wd.lv.ob(i).k = KCRAB or wd.lv.ob(i).k = KSWEEP then wd.lv.ob(i).s = -1
-        if wd.lv.ob(i).k = KJELLY then wd.lv.ob(i).s = 1
-        if wd.lv.ob(i).k = KTHROW then wd.lv.ob(i).s = THROWC
-        if wd.lv.ob(i).k = KSQUIRREL then wd.lv.ob(i).s = SQWAIT
-        if wd.lv.ob(i).k = KGOAT or wd.lv.ob(i).k = KWALL then wd.lv.ob(i).s = 1
-    next
-    for i = 0 to NLOB - 1
-        wd.lv.lobs(i).live = 0
-    next
-    wd.lv.lobN = 0
-    for i = 0 to NMOVE
-        wd.lv.mv(i).t = 0
-    next
-    for i = 0 to wd.lv.nGulls - 1
-        wd.lv.gulls(i).x = wd.lv.gulls(i).hx
-        wd.lv.gulls(i).y = wd.lv.gulls(i).hy
-        wd.lv.gulls(i).t = 0
-        wd.lv.gulls(i).st = GHOVER
-        wd.lv.gulls(i).loot = 0
-    next
-    for i = 0 to NLOOSE - 1
-        lo(i).t = 0
-    next
-    for i = 0 to NPART - 1
-        pt(i).t = 0
-    next
-    wd.se.looseN = 0
-    wd.se.partN = 0
-    Spawn wd.lv, wd.gr, wd.zn, wd.mu, g, p
+    g.home.x = wd.lv.start.x
+    g.home.y = wd.lv.start.y
+
+    Rewind wd.lv, wd.kinds
+    Recall wd.lv
+    Still wd.lv
+    Sweep lo(), pt()
+    wd.se.loose_n = 0
+    wd.se.part_n = 0
+    Spawn wd.lv, wd.gr, wd.zn, wd.ev, g, p
+    Deliver wd, g, pt()
 end sub
 
 ' A level cleared: on to level n, the score and lives kept.
-sub GoStage (wd as World, n as integer, g as Game, p as Hero, lo() as Loose, pt() as Part)
+sub GoStage ( _
+    wd as World, _
+    n as integer, _
+    g as Game, _
+    p as Hero, _
+    lo() as Loose, _
+    pt() as Part _
+)
     dim sc as long, left0 as integer
+
     sc = g.score
     left0 = g.lives
-    wd.zn.nextUp = n
-    ResetWorld wd, g, p, lo(), pt()
-    wd.zn.nextUp = 0
+    ResetWorld wd, n, g, p, lo(), pt()
     g.mode = PLAYING
     g.score = sc
     g.lives = left0
 end sub
 
-' Past the goal, a game's or the title's: on to the family and no further, the view sliding on to hold them all
-' with Charlie at its left; a while with them, then the picture fades. Whether it has.
-private function Met% (wd as World, g as Game, p as Hero, k as Pad, pt() as Part)
+' Past the goal, a game's or the title's: on to the family
+' and no further, the view sliding on to hold them all with
+' Charlie at its left; a while with them, then the picture
+' fades. Whether it has.
+private function Met% ( _
+    wd as World, _
+    g as Game, _
+    p as Hero, _
+    k as Pad, _
+    pt() as Part _
+)
     dim idle as Pad, parted as integer
-    idle.r = p.x < wd.lv.famX - 108 and not p.win
-    MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, idle, pt()
-    if p.x > wd.lv.famX - 106 then
-        p.x = wd.lv.famX - 106
-        p.gsp = 0
-        p.vx = 0
-        p.roll = 0
-    end if
-    if p.ground and abs(p.gsp) < 5 and p.x >= wd.lv.famX - 108 then
-        p.win = -1
-        p.face = 0
-    end if
+
+    idle.right = p.at.x < wd.lv.fam_x - 108 and not p.win
+    MoveHero wd.lv, wd.kinds, wd.gr, wd.ev, wd.se, p, idle, pt()
+
+    Halt p, wd.lv.fam_x - 106
+    Arrive p, wd.lv.fam_x - 108
+
     wd.se.cheer = p.win
-    g.camx = g.camx + (wd.lv.famX - 166 - g.camx) * 4 * STEPT
-    wd.se.pastT = wd.se.pastT + STEPT
-    if p.win and g.bonus = 0 then wd.se.metT = wd.se.metT + STEPT
-    parted = wd.se.metT > 6 or wd.se.pastT > 40 or (wd.se.metT > 2 and (k.hit or k.start))
-    if wd.tn.dusk = 16 and parted then wd.tn.dusk = 15
+    Look g.cam, g.cam.x + (wd.lv.fam_x - 166 - g.cam.x) * 4 * STEPT, _
+        g.cam.y
+    wd.se.past_t = wd.se.past_t + STEPT
+    if p.win and g.bonus = 0 then wd.se.met_t = wd.se.met_t + STEPT
+    parted = wd.se.met_t > 6 or wd.se.past_t > 40 _
+        or (wd.se.met_t > 2 and (k.hit or k.start))
+    if wd.tn.dusk = 16 and parted then Dusk wd.tn, 15
+
     if wd.tn.dusk < 16 and (wd.se.ticks and 3) = 0 then
-        wd.tn.dusk = wd.tn.dusk - 1
+        Dusk wd.tn, wd.tn.dusk - 1
         Shade wd.tn
     end if
+
     Met% = wd.tn.dusk <= 0
 end function
 
-' A game from its start, at the first act of the zone picked on the title.
-sub StartGame (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
-    wd.zn.nextUp = wd.se.pick * 2
-    ResetWorld wd, g, p, lo(), pt()
-    wd.zn.nextUp = 0
+' A game from its start, at the first act of the zone picked
+' on the title.
+sub StartGame ( _
+    wd as World, _
+    g as Game, _
+    p as Hero, _
+    lo() as Loose, _
+    pt() as Part _
+)
+    ResetWorld wd, wd.se.pick * 2, g, p, lo(), pt()
     g.mode = PLAYING
+end sub
+
+' The zone tune's clock told the session: by the tune's own
+' ticks while it plays, by the game's where it does not.
+sub KeepBeat (mu as Deck, se as Session)
+    se.tempo = mu.song(ZTUNE).tempo
+    se.pulse = se.ticks * se.tempo
+    if mu.muted or not mu.tune or mu.slot <> ZTUNE then exit sub
+
+    se.pulse = (se.ticks - mu.song_at) * se.tempo
 end sub

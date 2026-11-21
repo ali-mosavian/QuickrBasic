@@ -53,7 +53,7 @@ the one verb whose meaning grows.
 | Saltwick Sands | a crab hides in its shell and is a step; a gull drops the bones it took |
 | Whitecap Pass | icicles fall; a loaded ledge slides |
 | Russet Wood | fireflies wake and light the ground |
-| Lantern Quarter | a pouncer leaps early; a rope-walker wobbles |
+| Lantern Quarter | a pouncer leaps early; a rope-walker and a snatcher stand startled |
 | Clock Tower | a bell rings and stuns what is near |
 
 ## How the game grows
@@ -203,23 +203,63 @@ Progress is saved at each zone.
 - Music (written): a reel in D minor at 126. A fiddle lead, plucked bass, wood blocks and a hand drum, a
   flute's answer. Night (written): 112, the flute leads, the pluck sparse, crickets.
 
-### 6. Lantern Quarter
+### 6. Lantern Quarter (its look and tune built)
 
+- Built: its backdrop, ground, props and card at the blue hour and on the festival night; its two acts, to its
+  tune and the festival's arrangement, three golden bones in each; clotheslines, lantern lines, awnings,
+  chimneys, trams, mortars; pouncers, rope-walkers, snatchers, tippers; its chase. To add: a street's own
+  paving, the market's stalls.
+- A clothesline (`line,N`) spans a street N columns wide, post to post. Come down on, it throws him up, his way
+  kept: 60 pixels off the first, 107 off the second in a row, 167 off each after; the ground ends the row.
+- An awning (`awning,N`) stands out from the wall that begins there, N tiles up. Come down on, it throws him 135
+  up: run at the wall and jump, and it carries him over a wall of ten tiles.
+- Chimneys (`chimney,n`) come in pairs of one n: the first is the way in, the second, which smokes, the way out.
+  Come down into the first's pot, he goes through the houses and is thrown 118 up out of the second's.
+- A tram (`tram,N`) waits at the near end of a street laid after it, its roof 32 over the paving. While he rides
+  its roof it goes along the N columns at 240 a second; left, it comes back.
+- A lantern line (`slide,N`) runs from a post 40 over the roof down across a street N columns wide to the roof
+  past it, four tiles lower. It is ground: he slides down it, up to 320 a second, bones over it.
+- A pouncer (`pouncer,0`) waits in a dustbin, eyes under the lid. Within 56 of it, it leaps 40 at him; landed, it
+  prowls as a cat does. A bark from up to 72 off brings it out early, short of him.
+- A rope-walker (`walker,n` after a `line`) is a cat walking that clothesline, its home n columns along it: 40
+  either side, never nearer than 14 to the line's end. Who comes down on its line shakes it off, beaten. A bark
+  stands it startled, as a cat.
+- A snatcher (`snatcher,0`) is a grey cat in a mask. It prowls as a cat; a loose bone within its beat it runs to
+  at three times the pace and takes for good. Startled by a bark it takes none.
+- A tipper (`tipper,n`) is a cat at a high window of a house behind the way. On beat n of every four it tips a
+  flowerpot off the sill: the pot falls 70 to the paving and breaks, and hurts whom it comes down on. The sill
+  is bare for two beats; the beat before the next pot goes, the cat's paw is out. The pilot stops short of it
+  till a pot has broken, and does not go under with the next less than 0.8 seconds off.
+- A mortar (`mortar,n`) fires on beat n of every four of the zone's tune, its fuse alight the beat before. As it
+  fires, who is in the air over its mouth goes up at 620, some 256 high; for a quarter beat its flash burns who
+  stands beside it. Its shell bursts 96 up: the fireworks. The beat is the tune's own clock while it plays, the
+  game's when it does not.
 - Rule: footing. The ground is narrow, springy or moving: lines, awnings, tram roofs.
 - Gadgets: clotheslines, each landing higher than the last; awnings; chimneys, in one and out another;
   trams; lantern lines to slide.
 - Enemies: pouncers, eyes in a bin and a leap as he nears; rope-walkers, shaken off by bouncing their line;
-  tippers, dropping flowerpots from sills in rhythm; runners, who snatch the bones he drops.
+  tippers, dropping flowerpots from sills in rhythm; snatchers, who run off with the bones he drops.
 - Act 1, blue hour: the roofs above, fast and gapped; the street below, safe, with trams. A tram ride through
-  the market.
+  the market, balconies over it. Its golden bones: a jump up; over a long clothesline's end, from the third
+  bounce; past the first tram's way, from its last balcony.
 - Act 2, festival night: mortars on the roofs fire on the tune's beat, a hazard from the side and a launcher
-  from above. Cats in crowds.
-- Chase: a relay. The guitar passes from Biscuit to Sprocket to Kipper to Frost to the twins, each stretch in
-  that cat's own style. The big one's guitar.
+  from above. Cats in crowds. Its golden bones: high over the first mortar, by a jump beside it as it fires;
+  over a balcony an awning throws him onto; in the middle of four mortars a chimney leads past.
+- A ramp to jump from stands 20 columns or more past what the pilot jumps: landed on from a jump it is too
+  steep to walk up, and a jump from it goes back.
+- Chase (built): a relay at the festival's end, down a street of five falls. The big one's guitar passes from
+  Biscuit to Sprocket to Kipper to Frost to the twins: a bump each, and the bumped cat throws it on to the
+  next. Biscuit goes steadily; Sprocket by the beat, three and a rest; Kipper a beat quick and a beat slow;
+  Frost quicker down a fall; the twins lob it on as he nears, out of reach while it flies, not again for 2.4
+  seconds, and not at the street's end. A bump throws him back curled, and on the level street a roll only
+  slows: the pilot hops out of it once the cat is 140 ahead.
 - Look: fish-scale roof tiles over brick. Indigo, lantern orange, brick red. Stacked houses, lit windows, the
   moon; fireworks in act 2.
-- Music: a sly swing in A minor at 132. An accordion lead, plucked bass, brushed snare, a muted trumpet's
-  answer, the Mob's motif under it. Festival: 144, full brass, toms for the fireworks, claps.
+- Music (written): a sly swing in A minor at 132. An accordion sings it by step, a muted trumpet answers
+  where it rests; plucked bass in two, the chord on two and four, a stick across the rim, the Mob's motif in
+  the four bars before it. No FM voice. The drums are FM, each fitted to a recorded drum and chosen by ear.
+  The snare is two notes at once on two voices, a thump under its hiss.
+  Festival (written): 144, full brass, toms for the fireworks, claps.
 
 ### 7. Clock Tower
 
@@ -253,7 +293,7 @@ tune.
 | Title | Charlie's theme, as now. |
 | Level's end | *Caught Up*, its own tune: the family tune as the big one plays it when Charlie arrives. Eight bars at 120, not looped. Two bars of guitar alone, four with the zone's lead and bass, a run and a held chord with his woof. The tally counts in time with it, a step a beat of the lead's four bars. It replaces Charlie's theme there. |
 | Level's end after a chase | *Sent Packing*, the same in twelve bars: first the Mob's motif tumbling downward, the cat running off. |
-| Level's end, Lantern Quarter act 1 | Whistled: the guitar is gone. It comes back after the chase. |
+| Level's end, Lantern Quarter act 1 (written) | Whistled: the guitar is gone, a flute in its place. It comes back after the chase. |
 | Chase | One tune, the Mob's motif at 160 over a driving bass, led by the zone's own lead instrument. Each bump sounds the first notes of Charlie's theme. |
 | The Baron | His own chase tune at 168, organ and bells. The third part is Charlie's theme outright. |
 | Between zones | *The Bump*, four bars: the stop-time hit, then the Mob's motif. |
@@ -288,12 +328,16 @@ A still mockup of each zone is agreed before it is wired in.
 - Levels in the data file, not the program's DATA (built): written in `tools/charlielevels.txt`.
 - Songs loaded a zone at a time, more than the two there are.
 - A kit named by each song. The horn, organ and clavinet are fixed in the loader now.
-- A song that ends, swing, and scenes cut on a song's bar count.
+- A song that ends, swing (built: a song's off-beat eighths on the triplet's last), and scenes cut on a song's
+  bar count.
 - The bark, and each zone's rule: tide, grip, sled, catapult, swing, dark, lines, turning ground.
 - A chase: a cat that flees along the course and is bumped.
 - A save file (built): `CHARLIE.SAV` keeps the furthest zone reached; Left and Right on the title pick the
   zone a game starts at.
 - The autopilot test clears every act, as it does now.
+- Golden bones (built): three an act, a level's `gold`; found by a touch, kept in `CHARLIE.SAV` at once, a pip
+  each on the HUD. Placed in all twelve acts built, 36: the first by a jump, the others by what the zone throws
+  him with, a spring, a geyser, a quarter pipe, a sapling, a mortar, and from its high road. The test gets each.
 
 ## Build order
 

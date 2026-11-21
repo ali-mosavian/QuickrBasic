@@ -378,7 +378,7 @@ END FUNCTION
 ```
 
 From here: change a bar's notes, add a second four bars, drop the drums out for a bar before they
-come back, raise the lead an octave the second time round. `src/plat/wasm/web/demos/barkley/engine/audio.bas`
+come back, raise the lead an octave the second time round. `src/plat/wasm/web/demos/engine/audio.bas`
 plays two songs this way, with fades between them.
 
 ## 13. Sound effects

@@ -1,148 +1,236 @@
-' A stage's step: Charlie against the things of the level; his death and his return.
+' A stage's step: Charlie against the things of the level;
+' his death and his return.
 defint A-Z
 option explicit
 
-from barkley.engine.video import SW
-from barkley.engine.clock import STEPT
-from barkley.engine.audio import Deck
+from engine.events import Events
 from barkley.model.hero import Hero
-from barkley.model.level import GRAV, Ground, KBONE, KBOOST, KBRAMBLE, KBUMP, KBUOY, KBUTTON, KCAT, KCRAB, KDRIFT
-from barkley.model.level import KFLUME, KGOAL, KGOAT, KHEAP, KHOOP, KICICLE, KJELLY, KJET, KLOAD, KLOG, KMARK, KMOUND
-from barkley.model.level import KPRESS, KSAPLING, KSLED, KSPARK, KSPIN, KSPOUT, KSPRING, KSQUIRREL, KSWEEP, KTHORN
-from barkley.model.level import KTHROW, KVINE, KWALL, Level, Realm, TS
-from barkley.model.game import Game, Loose, NLOOSE, OVER, Part, Session
-from barkley.assets.tunes import LEFTBEHIND, SBONE, SceneTune, Sfx, SHURT
+from barkley.model.level import Ground, KAWNING, KBONE, KBOOST
+from barkley.model.level import KBRAMBLE, KBUMP, KBUOY, KBUTTON, KCAT
+from barkley.model.level import KCHIMNEY, KCRAB, KDRIFT, KFLUME, KGOAL
+from barkley.model.level import KGOAT, KGOLD, KHEAP, KHOOP, KICICLE
+from barkley.model.level import KJELLY, KJET, KLOG, KMARK, KMORTAR
+from barkley.model.level import KMOUND, KPOUNCE, KPRESS, KSAPLING
+from barkley.model.level import KSLED, KSNATCH, KSPARK, KSPIN, KSPOUT
+from barkley.model.level import KSQUIRREL, KSWEEP, KTHORN, KTHROW
+from barkley.model.level import KTIPPER, KVINE, KWALKER, KWALL, Level
+from barkley.model.level import Realm, TS
+from barkley.model.game import Game, Loose, NLOOSE, OVER, Part
+from barkley.model.game import Session, TOONEW
+from barkley.model.events import EVSCENETUNE, EVSOUND, Tell
+from barkley.model.kinds import Kinds, TBOUNCE, TOWN
+from barkley.assets.tunes import LEFTBEHIND, SBONE, SHURT, SSPRING
 from barkley.world.terrain.ground import SegAt
-from barkley.world.level import Mend
-from barkley.stage.fx.parts import LooseBones, Particles
-from barkley.stage.fx.damage import Hurt
-from barkley.stage.zones.downs import MeetBone, MeetBoost, MeetCat, MeetMark, MeetSpring, Prowl
-from barkley.stage.zones.works import MeetBump, MeetButton, MeetHoop, MeetJet, MeetPress, MeetSpark, MeetSpin, MeetSweep
-from barkley.stage.zones.sands import Bob, MeetCrab, MeetFlume, MeetJelly
-from barkley.stage.zones.wood import MeetBramble, MeetLog, MeetMound, MeetSapling, MeetVine, Regrow, Scamper
-from barkley.stage.zones.pass import Graze, MeetDrift, MeetGoat, MeetHeap, MeetIcicle, MeetSled, MeetThrow, MeetWall
-from barkley.stage.zones.pass import TakeAim, Totter, Unload
-from barkley.stage.zones.chase import ResetChase
-from barkley.stage.camera import Camera
+from barkley.stage.zones.downs import MeetBone, MeetBoost, MeetCat
+from barkley.stage.zones.downs import MeetGold, MeetMark
+from barkley.stage.zones.works import MeetBump, MeetButton, MeetHoop
+from barkley.stage.zones.works import MeetJet, MeetPress, MeetSpark
+from barkley.stage.zones.works import MeetSpin, MeetSweep
+from barkley.stage.zones.sands import MeetCrab, MeetFlume, MeetJelly
+from barkley.stage.zones.wood import MeetBramble, MeetLog, MeetMound
+from barkley.stage.zones.wood import MeetSapling, MeetVine
+from barkley.stage.zones.pass import MeetDrift, MeetGoat, MeetHeap
+from barkley.stage.zones.pass import MeetIcicle, MeetSled, MeetThrow
+from barkley.stage.zones.pass import MeetWall
+from barkley.stage.zones.quarter import Lines, MeetAwning, MeetChimney
+from barkley.stage.zones.quarter import MeetMortar, MeetPounce
+from barkley.stage.zones.quarter import MeetTipper
+from barkley.stage.camera import Follow
+from barkley.stage.hero.push import Launch, Perch
+from barkley.stage.things.react import Rest, Turn
+from barkley.stage.things.chase import ResetChase
+from barkley.stage.hero.hurt import Fall, Hurt, Stand
+from barkley.stage.fx.parts import Pick
+from barkley.stage.things.think import Mend
 
-const SPARKR = 40
-const JELLYD = 10
-
-sub Spawn (lv as Level, gr as Ground, zn as Realm, mu as Deck, g as Game, p as Hero)
-    dim fresh as Hero
-    p = fresh
-    p.x = g.homeX
-    p.y = g.homeY
-    p.ground = -1
-    p.sg = SegAt%(lv, gr, g.homeX, csng(g.homeY))
+sub Spawn ( _
+    lv as Level, _
+    gr as Ground, _
+    zn as Realm, _
+    ev as Events, _
+    g as Game, _
+    p as Hero _
+)
+    Stand p, g.home.x, g.home.y, _
+        SegAt%(lv, gr, g.home.x, csng(g.home.y))
     g.bones = 0
-    ResetChase lv, mu
+    ResetChase lv, ev
     Mend lv
-    Camera lv, zn, g, p, -1
+    Follow lv, zn, g.cam, p, -1
 end sub
 
 ' Charlie against the things near it, and the loose bones.
-sub Touch (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
-    dim i as integer, c as integer, px as integer, py as integer, x as integer, dx as integer
+sub Touch ( _
+    lv as Level, _
+    zn as Realm, _
+    kd as Kinds, _
+    ev as Events, _
+    se as Session, _
+    g as Game, _
+    p as Hero, _
+    lo() as Loose, _
+    pt() as Part _
+)
+    dim i as integer, c as integer, px as integer, py as integer
+    dim x as integer, dx as integer
+
     ' under the ground nothing is met
     if p.dig then exit sub
-    px = cint(p.x)
-    py = cint(p.y)
+
+    if lv.n_ropes then Lines lv, ev, se, p
+    px = cint(p.at.x)
+    py = cint(p.at.y)
     c = (px - 80) \ TS
     if c < 0 then c = 0
     i = lv.first(c)
-    do while i < lv.nObj
-        x = lv.ob(i).x
+
+    do while i < lv.n_things
+        x = lv.things(i).at.x
         if x > px + 80 then exit do
+
         dx = abs(x - px)
-        select case lv.ob(i).k
-        case KBONE: MeetBone lv, mu, se, g, p, i, pt()
-        case KCAT, KSQUIRREL: MeetCat lv, mu, se, g, p, i, lo(), pt()
-        case KCRAB: MeetCrab lv, mu, se, g, p, i, lo(), pt()
-        case KSWEEP: MeetSweep lv, mu, se, g, p, i, lo(), pt()
-        case KTHROW: MeetThrow lv, mu, se, g, p, i, lo(), pt()
-        case KGOAT: MeetGoat lv, mu, se, g, p, i, lo()
-        case KWALL: MeetWall lv, mu, se, g, p, i, pt()
-        case KHEAP: MeetHeap lv, p, i
-        case KICICLE: MeetIcicle lv, mu, se, g, p, i, lo(), pt()
-        case KSLED: MeetSled lv, mu, se, p, i
-        case KDRIFT: MeetDrift lv, mu, se, p, i, pt()
-        case KSPARK: MeetSpark lv, mu, se, g, p, i, lo()
-        case KPRESS: MeetPress lv, mu, se, g, p, i, lo()
-        case KJELLY: MeetJelly lv, mu, se, g, p, i, lo(), pt()
-        case KSPRING: MeetSpring lv, mu, se, p, i
-        case KSAPLING: MeetSapling lv, mu, se, p, i
-        case KVINE: MeetVine lv, mu, se, p, i
-        case KBRAMBLE: MeetBramble lv, mu, se, g, p, i, lo()
-        case KLOG: MeetLog lv, mu, se, p, i
-        case KMOUND: MeetMound lv, mu, se, p, i, pt()
-        case KBOOST: MeetBoost lv, mu, se, g, p, i, pt()
-        case KFLUME, KSPOUT: MeetFlume lv, mu, se, p, i
-        case KMARK: MeetMark lv, mu, se, g, p, i, pt()
-        case KGOAL: if px >= x then lv.ob(i).s = 1
-        case KTHORN: if dx < 12 and abs(py - lv.ob(i).y) < 8 then Hurt mu, se, g, p, x, lo(), SHURT
-        case KBUTTON: MeetButton lv, mu, se, p, i, pt()
-        case KJET: MeetJet lv, mu, se, p, i
-        case KBUMP, KBUOY: MeetBump lv, mu, se, g, p, i, pt()
-        case KSPIN: MeetSpin lv, mu, se, g, p, i, lo()
-        case KHOOP: MeetHoop lv, mu, se, p, i, pt()
+
+        select case kd.k(lv.things(i).kind).touch
+        case TBOUNCE
+            Bounced lv, kd, ev, p, i
+        case TOWN
+            select case lv.things(i).kind
+            case KBONE
+                MeetBone lv, ev, g, p, i
+            case KGOLD
+                MeetGold lv, zn, ev, se, p, i
+            case KCAT, KSQUIRREL, KWALKER, KSNATCH
+                MeetCat lv, ev, se, g, p, i, lo()
+            case KCRAB
+                MeetCrab lv, ev, se, g, p, i, lo()
+            case KSWEEP
+                MeetSweep lv, ev, se, g, p, i, lo()
+            case KTHROW
+                MeetThrow lv, ev, se, g, p, i, lo()
+            case KGOAT
+                MeetGoat lv, ev, se, g, p, i, lo()
+            case KWALL
+                MeetWall lv, ev, p, i
+            case KHEAP
+                MeetHeap lv, p, i
+            case KICICLE
+                MeetIcicle lv, ev, se, g, p, i, lo()
+            case KSLED
+                MeetSled lv, ev, se, p, i
+            case KDRIFT
+                MeetDrift lv, ev, p, i
+            case KSPARK
+                MeetSpark lv, ev, se, g, p, i, lo()
+            case KPRESS
+                MeetPress lv, ev, se, g, p, i, lo()
+            case KJELLY
+                MeetJelly lv, kd, ev, se, g, p, i, lo(), pt()
+            case KSAPLING
+                MeetSapling lv, kd, ev, se, p, i
+            case KAWNING
+                MeetAwning lv, kd, ev, se, p, i
+            case KCHIMNEY
+                MeetChimney lv, ev, p, i
+            case KPOUNCE
+                MeetPounce lv, ev, se, g, p, i, lo()
+            case KMORTAR
+                MeetMortar lv, ev, se, g, p, i, lo()
+            case KTIPPER
+                MeetTipper lv, ev, se, g, p, i, lo()
+            case KVINE
+                MeetVine lv, ev, se, p, i
+            case KBRAMBLE
+                MeetBramble lv, kd, ev, se, g, p, i, lo()
+            case KLOG
+                MeetLog lv, ev, se, p, i
+            case KMOUND
+                MeetMound lv, ev, p, i
+            case KBOOST
+                MeetBoost lv, ev, p, i
+            case KFLUME, KSPOUT
+                MeetFlume lv, ev, se, p, i
+            case KMARK
+                MeetMark lv, ev, g, p, i
+            case KGOAL
+                if px >= x then Turn lv, i, 1
+            case KTHORN
+                if dx < 12 and abs(py - lv.things(i).at.y) < 8 then
+                    Hurt ev, se, g, p, x, lo(), SHURT
+                end if
+            case KBUTTON
+                MeetButton lv, ev, p, i
+            case KJET
+                MeetJet lv, ev, se, p, i
+            case KBUMP, KBUOY
+                MeetBump lv, kd, ev, p, i
+            case KSPIN
+                MeetSpin lv, ev, se, g, p, i, lo()
+            case KHOOP
+                MeetHoop lv, kd, ev, p, i
+            end select
         end select
+
         i = i + 1
     loop
-    if se.looseN = 0 then exit sub
+
+    if se.loose_n = 0 then exit sub
+
     for i = 0 to NLOOSE - 1
-        if lo(i).t <= 0 or lo(i).t >= 3.3 then continue for
-        if abs(lo(i).x - px) >= 12 or abs(lo(i).y - py + 13) >= 16 then continue for
-        lo(i).t = 0
-        se.looseN = se.looseN - 1
+        if lo(i).t <= 0 or lo(i).t >= TOONEW then continue for
+        if abs(lo(i).at.x - px) >= 12 _
+            or abs(lo(i).at.y - py + 13) >= 16 then continue for
+
+        Pick lo(), se, i
         g.bones = g.bones + 1
-        Sfx mu, se, SBONE
+        Tell ev, EVSOUND, SBONE
     next
 end sub
 
-' Out: Charlie rises and falls through everything; then the next life.
-sub Dying (lv as Level, gr as Ground, zn as Realm, mu as Deck, g as Game, p as Hero)
-    p.deadT = p.deadT + STEPT
-    p.vy = p.vy + GRAV * STEPT
-    p.y = p.y + p.vy * STEPT
-    if p.deadT < 2 then exit sub
+' Out: Charlie rises and falls through everything; then the
+' next life.
+sub Dying ( _
+    lv as Level, _
+    gr as Ground, _
+    zn as Realm, _
+    ev as Events, _
+    g as Game, _
+    p as Hero _
+)
+    Fall p
+    if p.dead_t < 2 then exit sub
+
     g.lives = g.lives - 1
+
     if g.lives <= 0 then
         g.mode = OVER
-        g.modeT = 0
-        SceneTune mu, LEFTBEHIND
+        g.mode_t = 0
+        Tell ev, EVSCENETUNE, LEFTBEHIND
     else
-        Spawn lv, gr, zn, mu, g, p
+        Spawn lv, gr, zn, ev, g, p
     end if
 end sub
 
-sub Things (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
-    dim i as integer, c as integer
-    ' typed: a const made from a const and left typeless is rounded to a whole number, 0 here
-    const DT! = STEPT * 2
-    c = (cint(g.camx) - 100) \ TS
-    if c < 0 then c = 0
-    for i = lv.first(c) to lv.nObj - 1
-        if lv.ob(i).a > g.camx + SW + 100 then exit for
-        select case lv.ob(i).k
-        case KCAT, KCRAB, KSWEEP: if lv.ob(i).s <> 0 then Prowl lv, i
-        case KSPARK: lv.ob(i).x = lv.ob(i).a + cint(SPARKR * sin((se.ticks + lv.ob(i).a) * .03))
-        case KICICLE: Totter lv, mu, se, g, pt(), i
-        case KLOAD: Unload lv, mu, se, g, p, lo(), pt(), i
-        case KGOAT: if lv.ob(i).s <> 0 then Graze lv, se, i, p
-        case KTHROW: TakeAim lv, i, p
-        case KSQUIRREL: if lv.ob(i).s <> 0 then Scamper lv, i, p
-        case KSPRING, KBUMP, KHOOP, KSAPLING: if lv.ob(i).s > 0 then lv.ob(i).s = lv.ob(i).s - 1
-        case KBRAMBLE: Regrow lv, se, pt(), i
-        case KVINE: if p.vine <> i + 1 then lv.ob(i).s = lv.ob(i).s * 7 \ 8
-        case KBUOY
-            lv.ob(i).y = Bob%(lv, lv.ob(i).x, -4, 9)
-            if lv.ob(i).s > 0 then lv.ob(i).s = lv.ob(i).s - 1
-        case KJELLY
-            lv.ob(i).y = Bob%(lv, lv.ob(i).x, JELLYD, 0)
-            if lv.ob(i).s > 1 then lv.ob(i).s = lv.ob(i).s - 1
-        end select
-    next
-    if se.looseN then LooseBones lv, se, lo(), DT
-    if se.partN then Particles se, pt(), DT
+' A thing that throws him up, met: within its row's reach,
+' between its top and its bottom, and not as he rises. He
+' is sprung up from its top at its row's speed; it rests.
+private sub Bounced ( _
+    lv as Level, _
+    kd as Kinds, _
+    ev as Events, _
+    p as Hero, _
+    i as integer _
+)
+    dim py as integer, k as integer
+
+    k = lv.things(i).kind
+    py = cint(p.at.y)
+    if abs(lv.things(i).at.x - cint(p.at.x)) >= kd.k(k).reach _
+        or py < lv.things(i).at.y - kd.k(k).top _
+        or py > lv.things(i).at.y + kd.k(k).bottom then exit sub
+    if not p.ground and p.vel.y < 0 then exit sub
+
+    Launch p, csng(kd.k(k).up), 0, csng(kd.k(k).up)
+    Perch p, lv.things(i).at.y - kd.k(k).top
+    Rest lv, kd, i
+    Tell ev, EVSOUND, SSPRING
 end sub

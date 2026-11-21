@@ -1,127 +1,223 @@
-' The moving platforms: to and fro, up and down, lifts, cables.
+' The moving platforms: to and fro, up and down, lifts,
+' cables.
 defint A-Z
 option explicit
 
-from barkley.engine.clock import STEPT
-from barkley.engine.audio import Deck
+from engine.clock import STEPT
+from engine.events import Events
 from barkley.model.hero import Hero
 from barkley.model.level import GRAV, Ground, Level, PI
 from barkley.model.game import Session
-from barkley.assets.tunes import SCRACK, Sfx
-from barkley.world.terrain.ground import Drop
+from barkley.model.events import EVSOUND, Tell
+from barkley.assets.tunes import SCRACK
 from barkley.world.terrain.track import MOVEW
-from barkley.world.level import CABLED
+from barkley.world.level import CABLED, NMOVE
 
-' a boat's deck over the water it floats on, and over the floor it lies on
+' a boat's deck over the water it floats on, and over the
+' floor it lies on
 const FREEB = 7
 
-' A span of the sands' old pier: the seconds it totters once trodden, and how far it falls.
-private const SPANT = .25, SPANDROP = 400
+' A span of the sands' old pier: the seconds it totters once
+' trodden, and how far it falls.
+private const SPANT = .25
+private const SPANDROP = 400
 
-' A ski lift's chair, a platform that goes up its cable SEATV of the way a second while he stands on it; its
-' frame stands SEATH over its seat.
+' A ski lift's chair, a platform that goes up its cable
+' SEATV of the way a second while he stands on it; its frame
+' stands SEATH over its seat.
 private const SEATV = .35
 
-' How far cable m's far end hangs under its near one: a basket's cable falls, a ski lift's climbs.
+' A tram: its speed along its street while he rides its
+' roof.
+const TRAMV = 240!
+
+' How far cable m's far end hangs under its near one: a
+' basket's cable falls, a ski lift's climbs; a tram's street
+' is level.
 function Dip% (lv as Level, m as integer)
     Dip% = CABLED
-    if lv.mv(m).k = 7 then Dip% = -CABLED
+    if lv.movers(m).kind = 7 then Dip% = -CABLED
+    if lv.movers(m).kind = 8 then Dip% = 0
 end function
 
 ' Boat m is off the floor of its pool.
 function Adrift% (lv as Level, m as integer)
-    Adrift% = lv.tide - FREEB < lv.mv(m).y
+    Adrift% = lv.tide - FREEB < lv.movers(m).at.y
 end function
 
-' Platform m's swing now, -1 to 1, held a while at each end when it goes up and down; quarter: a quarter of its
-' way on, which tells where it is going.
-function Swing! (lv as Level, se as Session, m as integer, quarter as integer)
+' Platform m's swing now, -1 to 1, held a while at each end
+' when it goes up and down; quarter: a quarter of its way
+' on, which tells where it is going.
+function Swing! ( _
+    lv as Level, _
+    se as Session, _
+    m as integer, _
+    quarter as integer _
+)
     dim q as single, v as single
-    if lv.mv(m).k = 5 then
-        ' a boat by its own clock, which stops while it is aground
-        q = lv.mv(m).t + m + quarter * PI / 2
+
+    if lv.movers(m).kind = 5 then
+        ' a boat by its own clock, which stops while it is
+        ' aground
+        q = lv.movers(m).t + m + quarter * PI / 2
     else
-        q = se.ticks * STEPT * (1.1 - .2 * lv.mv(m).k) + m + quarter * PI / 2
+        q = se.ticks * STEPT * (1.1 - .2 * lv.movers(m).kind) + m _
+            + quarter * PI / 2
     end if
+
     v = sin(q)
-    if lv.mv(m).k = 1 then
+
+    if lv.movers(m).kind = 1 then
         v = v * 1.3
         if v > 1 then v = 1
         if v < -1 then v = -1
     end if
+
     Swing! = v
 end function
 
-' The platforms a step on: to and fro, up and down, or a lift, up while Charlie stands on it and down again
-' when not. Charlie goes with the one it stands on.
-sub Movers (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero)
-    dim m as integer, s as integer, o as integer, x as single, y as single, dx as single, dy as single
-    for m = 0 to lv.nMv - 1
-        s = lv.mv(m).s
-        x = lv.mv(m).x
-        y = lv.mv(m).y
-        select case lv.mv(m).k
-        case 0: x = x + lv.mv(m).a * Swing!(lv, se, m, 0)
+' The platforms a step on: to and fro, up and down, or a
+' lift, up while Charlie stands on it and down again when
+' not. Each keeps how far it went.
+sub Movers ( _
+    lv as Level, _
+    gr as Ground, _
+    ev as Events, _
+    se as Session, _
+    p as Hero _
+)
+    dim m as integer, s as integer, x as single
+    dim y as single, dx as single, dy as single
+
+    for m = 0 to lv.n_movers - 1
+        s = lv.movers(m).sg
+        x = lv.movers(m).at.x
+        y = lv.movers(m).at.y
+
+        select case lv.movers(m).kind
+        case 0
+            x = x + lv.movers(m).reach * Swing!(lv, se, m, 0)
         case 5
             if Adrift%(lv, m) then
-                lv.mv(m).t = lv.mv(m).t + STEPT
+                lv.movers(m).t = lv.movers(m).t + STEPT
                 y = lv.tide - FREEB
             end if
-            x = x + lv.mv(m).a * Swing!(lv, se, m, 0)
-        case 1: y = y + lv.mv(m).a * Swing!(lv, se, m, 0)
+
+            x = x + lv.movers(m).reach * Swing!(lv, se, m, 0)
+        case 1
+            y = y + lv.movers(m).reach * Swing!(lv, se, m, 0)
         case 6
-            ' a pier's span: trodden, it totters a moment, then falls from under who is on it, and stays fallen
-            if lv.mv(m).t > 0 or (p.ground and p.sg = s) then lv.mv(m).t = lv.mv(m).t + STEPT
-            if lv.mv(m).t > SPANT + 2 then lv.mv(m).t = SPANT + 2
-            lv.ob(lv.mv(m).o).s = lv.mv(m).t > 0 and lv.mv(m).t < SPANT
-            if lv.mv(m).t >= SPANT then
-                if lv.mv(m).t - STEPT < SPANT then Sfx mu, se, SCRACK
-                if p.ground and p.sg = s then Drop gr, p
-                dy = lv.mv(m).t - SPANT
+            ' a pier's span: trodden, it totters a moment,
+            ' then falls from under who is on it, and stays
+            ' fallen
+            if lv.movers(m).t > 0 or (p.ground and p.sg = s) then
+                lv.movers(m).t = lv.movers(m).t + STEPT
+            end if
+
+            if lv.movers(m).t > SPANT + 2 then
+                lv.movers(m).t = SPANT + 2
+            end if
+
+            if lv.movers(m).t >= SPANT then
+                if lv.movers(m).t - STEPT < SPANT then
+                    Tell ev, EVSOUND, SCRACK
+                end if
+
+                dy = lv.movers(m).t - SPANT
                 y = y + 80 * dy + GRAV * dy * dy
-                if y > lv.mv(m).y + SPANDROP then y = lv.mv(m).y + SPANDROP
+
+                if y > lv.movers(m).at.y + SPANDROP then
+                    y = lv.movers(m).at.y + SPANDROP
+                end if
             end if
         case 2
             if p.ground and p.sg = s then
-                lv.mv(m).t = lv.mv(m).t + 90 * STEPT
+                lv.movers(m).t = lv.movers(m).t + 90 * STEPT
             else
-                lv.mv(m).t = lv.mv(m).t - 60 * STEPT
+                lv.movers(m).t = lv.movers(m).t - 60 * STEPT
             end if
-            if lv.mv(m).t < 0 then lv.mv(m).t = 0
-            if lv.mv(m).t > lv.mv(m).a then lv.mv(m).t = lv.mv(m).a
-            y = y - lv.mv(m).t
+
+            if lv.movers(m).t < 0 then lv.movers(m).t = 0
+
+            if lv.movers(m).t > lv.movers(m).reach then
+                lv.movers(m).t = lv.movers(m).reach
+            end if
+
+            y = y - lv.movers(m).t
         case 4
-            if lv.ob(lv.mv(m).b).s then lv.mv(m).t = lv.mv(m).t + 200 * STEPT
-            if lv.mv(m).t > lv.mv(m).a then lv.mv(m).t = lv.mv(m).a
-            y = y - lv.mv(m).t
-        case 3, 7
-            ' while stood on: a basket down its cable, faster as it goes, a chair up its own steadily; back when left
-            if not p.ground or p.sg <> s then
-                lv.mv(m).t = lv.mv(m).t - .4 * STEPT
-            elseif lv.mv(m).k = 3 then
-                lv.mv(m).t = lv.mv(m).t + (.25 + lv.mv(m).t) * .6 * STEPT
-            else
-                lv.mv(m).t = lv.mv(m).t + SEATV * STEPT
+            if lv.things(lv.movers(m).button).state then
+                lv.movers(m).t = lv.movers(m).t + 200 * STEPT
             end if
-            if lv.mv(m).t < 0 then lv.mv(m).t = 0
-            if lv.mv(m).t > 1 then lv.mv(m).t = 1
-            x = x + lv.mv(m).a * lv.mv(m).t
-            y = y + Dip%(lv, m) * lv.mv(m).t
+
+            if lv.movers(m).t > lv.movers(m).reach then
+                lv.movers(m).t = lv.movers(m).reach
+            end if
+
+            y = y - lv.movers(m).t
+        case 3, 7, 8
+            ' while stood on: a basket down its cable,
+            ' faster as it goes, a chair up its own
+            ' steadily, a tram along its street at TRAMV;
+            ' back when left
+            if not p.ground or p.sg <> s then
+                lv.movers(m).t = lv.movers(m).t - .4 * STEPT
+            elseif lv.movers(m).kind = 3 then
+                lv.movers(m).t = lv.movers(m).t _
+                    + (.25 + lv.movers(m).t) * .6 * STEPT
+            elseif lv.movers(m).kind = 7 then
+                lv.movers(m).t = lv.movers(m).t + SEATV * STEPT
+            else
+                lv.movers(m).t = lv.movers(m).t _
+                    + TRAMV * STEPT / lv.movers(m).reach
+            end if
+
+            if lv.movers(m).t < 0 then lv.movers(m).t = 0
+            if lv.movers(m).t > 1 then lv.movers(m).t = 1
+            x = x + lv.movers(m).reach * lv.movers(m).t
+            y = y + Dip%(lv, m) * lv.movers(m).t
         end select
-        dx = x - gr.pt(s).x
-        dy = y - gr.pt(s).y
+
+        dx = x - gr.pt(s).at.x
+        dy = y - gr.pt(s).at.y
+        lv.movers(m).shift.x = dx
+        lv.movers(m).shift.y = dy
         if dx = 0 and dy = 0 then continue for
-        gr.pt(s).x = x
-        gr.pt(s + 1).x = x + MOVEW
-        gr.pt(s).y = y
-        gr.pt(s + 1).y = y
-        gr.cv(lv.mv(m).z).l = int(x)
-        gr.cv(lv.mv(m).z).r = int(x) + MOVEW + 1
-        o = lv.mv(m).o
-        lv.ob(o).x = cint(x)
-        lv.ob(o).y = cint(y)
-        if not p.ground or p.sg <> s then continue for
-        p.x = p.x + dx
-        p.y = p.y + dy
+
+        gr.pt(s).at.x = x
+        gr.pt(s + 1).at.x = x + MOVEW
+        gr.pt(s).at.y = y
+        gr.pt(s + 1).at.y = y
+        gr.cv(lv.movers(m).cv).x_lo = int(x)
+        gr.cv(lv.movers(m).cv).x_hi = int(x) + MOVEW + 1
+    next
+end sub
+
+' Whether span m falls from under who stands on it.
+function Falls% (lv as Level, m as integer)
+    Falls% = lv.movers(m).kind = 6 and lv.movers(m).t >= SPANT
+end function
+
+' Every mover at its start.
+sub Still (lv as Level)
+    dim i as integer
+
+    for i = 0 to NMOVE
+        lv.movers(i).t = 0
+    next
+end sub
+
+' Mover m a pier's span tottering under who trod it, the
+' moment before it falls.
+function Totters% (lv as Level, m as integer)
+    Totters% = lv.movers(m).kind = 6 and lv.movers(m).t > 0 _
+        and lv.movers(m).t < SPANT
+end function
+
+' The pier's fallen spans back in their places.
+sub Respan (lv as Level)
+    dim m as integer
+
+    for m = 0 to lv.n_movers - 1
+        if lv.movers(m).kind = 6 then lv.movers(m).t = 0
     next
 end sub

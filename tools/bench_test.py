@@ -99,13 +99,46 @@ def charlie_each() -> None:
     and a LoadLevel without its level, it found no Main in the game and stopped before a single measurement."""
     with tempfile.TemporaryDirectory() as d:
         (Path(d) / "CHARLIE.DAT").write_bytes(bench.CHARLIE.with_suffix(".DAT").read_bytes())
-        shutil.copytree(bench.CHARLIE.with_name("barkley"), Path(d) / "barkley")
+        for package in ("barkley", "engine"):
+            shutil.copytree(bench.CHARLIE.with_name(package), Path(d) / package)
         (Path(d) / "C.BAS").write_text(bench.charlie_program().replace("TIMER - t0 >= 2", "TIMER - t0 >= 0"))
         subprocess.run([str(bench.ROOT / "build/host/basic"), "C.BAS"], cwd=d, stdin=subprocess.DEVNULL,
                        capture_output=True, timeout=120, env=os.environ | {"SDL_VIDEODRIVER": "dummy"})
         log = Path(d) / "EACH.TXT"
         rows = [r for r in log.read_text().split("\n") if r.strip()] if log.exists() else []
         assert len(rows) == 1 + len(bench.CHARLIE_EACH), rows[:3]
+
+
+def charlie_think() -> None:
+    """The think count is the cases of the things' own rules' switch on a kind. Once the things' pass switched on
+    their kind's mind it still read the pass, and counted 0 of 14."""
+    think = bench.CHARLIE.with_name("barkley") / "stage/things/think.bas"
+    body = think.read_text().split("private sub Think (")[1].split("\nend sub")[0]
+    want = len(re.findall(r"(?m)^    case K", body))
+    got = bench.engine_measures()["`case` branches that name a kind: draw, touch, think"].split(", ")[2]
+    assert want and got == str(want), f"think counted {got} of {want}"
+
+
+KIND_READS = """type Thing
+    kind as integer
+end type
+sub S (t as Thing)
+    dim k as integer, b as integer
+    k = t.kind
+    if t.kind = 3 then k = 1
+    b = t.kind = 4
+    t.kind = 2
+end sub
+"""
+
+
+def kind_compares() -> None:
+    """A kind read into a variable is not compared: counted as compared, the reads in DrawThings, Touch and
+    ResetWorld raised the Today table's comparisons by three."""
+    prog = bench.basic_src.Program({Path("k.bas"): KIND_READS})
+    mod = prog.modules[0]
+    got = [bench.kind_compares(prog, mod, st) for st in mod.stmts]
+    assert sum(got) == 2, f"{sum(got)} comparisons of a kind, of 2: {got}"
 
 
 # Instructions a pass on arm64 macOS, with room over what they measured; past one, a regression.
@@ -157,6 +190,8 @@ def costs(b: bench.Build) -> None:
 def main() -> int:
     each_reps()
     charlie_each()
+    charlie_think()
+    kind_compares()
     profile_cycles()
     profile_stop()
     broken_counter()

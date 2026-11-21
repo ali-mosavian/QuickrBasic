@@ -1,0 +1,207 @@
+' SCREEN 13 on two pages: pictures unpacked from the data
+' file, put, grabbed, masked and mirrored.
+defint A-Z
+option explicit
+
+from engine.datafile import DataFile, Word
+
+' The pictures, end to end in img: where each starts, and
+' the next free place. A zone's own go after all the others,
+' at zone_at: dat_at, where each zone's start in the data
+' file; zone, whose are there, one more than its number;
+' dat, the file they are in.
+type Store
+    img() as long
+    at() as long
+    next_at as long
+    zone_at as long
+    zone as integer
+    dat_at() as long
+    dat as DataFile
+end type
+
+const SW = 320
+const SH = 200
+
+sub OpenScreen
+    screen 13, , 1, 0
+end sub
+
+' Shows the page just drawn, draws on the other.
+sub Flip (page as integer)
+    screen , , 1 - page, page
+    page = 1 - page
+end sub
+
+' Image k upside down as k2.
+sub Flop ( _
+    art as Store, _
+    k as integer, _
+    k2 as integer, _
+    w as integer, _
+    h as integer _
+)
+    dim y as integer, strip(40) as long
+
+    put (0, 0), art.img(art.at(k)), pset
+
+    for y = 0 to h - 1
+        get (0, y)-(w - 1, y), strip
+        put (100, h - 1 - y), strip, pset
+    next
+
+    Grab art, 100, 0, 100 + w - 1, h - 1, k2
+end sub
+
+' Image k, w by h, mirrored as k2: a column at a time.
+sub Mirror ( _
+    art as Store, _
+    k as integer, _
+    k2 as integer, _
+    w as integer, _
+    h as integer _
+)
+    dim x as integer, strip(40) as long
+
+    put (0, 0), art.img(art.at(k)), pset
+
+    for x = 0 to w - 1
+        get (x, 0)-(x, h - 1), strip
+        put (100 + w - 1 - x, 0), strip, pset
+    next
+
+    Grab art, 100, 0, 100 + w - 1, h - 1, k2
+end sub
+
+sub Grab ( _
+    art as Store, _
+    x1 as integer, _
+    y1 as integer, _
+    x2 as integer, _
+    y2 as integer, _
+    k as integer _
+)
+    art.at(k) = art.next_at
+    get (x1, y1)-(x2, y2), art.img(art.next_at)
+    art.next_at = art.next_at _
+        + (4 + clng(x2 - x1 + 1) * (y2 - y1 + 1) + 3) \ 4
+end sub
+
+' The w by h at x, y kept as k, and its mask, drawn at mx,
+' my, as k + 1: 255 where it is clear, 0 where drawn.
+sub MaskGrab ( _
+    art as Store, _
+    x as integer, _
+    y as integer, _
+    w as integer, _
+    h as integer, _
+    mx as integer, _
+    my as integer, _
+    k as integer _
+)
+    dim i as integer, j as integer
+
+    for j = 0 to h - 1
+        for i = 0 to w - 1
+            if point(x + i, y + j) then
+                pset (mx + i, my + j), 0
+            else
+                pset (mx + i, my + j), 255
+            end if
+        next
+    next
+
+    Grab art, x, y, x + w - 1, y + h - 1, k
+    Grab art, mx, my, mx + w - 1, my + h - 1, k + 1
+end sub
+
+' Masked image k, w by h, at x, y; nothing when wholly off
+' the screen.
+sub Blit ( _
+    art as Store, _
+    x as integer, _
+    y as integer, _
+    k as integer, _
+    w as integer, _
+    h as integer _
+)
+    if x + w <= 0 or x >= SW or y + h <= 0 or y >= SH then exit sub
+
+    put (x, y), art.img(art.at(k + 1)), and
+    put (x, y), art.img(art.at(k)), or
+end sub
+
+' Store art sized: size bytes of n pictures, from a data
+' file of zones zones.
+sub AllotStore ( _
+    art as Store, _
+    size as long, _
+    n as integer, _
+    zones as integer _
+)
+    redim art.img(size)
+    redim art.at(n)
+    redim art.dat_at(zones - 1)
+end sub
+
+' The w by h at x1, y1 to x2, y2 grabbed again as k, in the
+' room it has.
+sub Regrab ( _
+    art as Store, _
+    x1 as integer, _
+    y1 as integer, _
+    x2 as integer, _
+    y2 as integer, _
+    k as integer _
+)
+    get (x1, y1)-(x2, y2), art.img(art.at(k))
+end sub
+
+' Picture k from the data file, at the next free place: a
+' run-length stream of LONGs, n then n values, -n then one
+' value n times, 0 the end.
+sub Unpack (art as Store, k as integer)
+    dim n as integer, e as long, v as long
+
+    art.at(k) = art.next_at
+    n = Word&(art.dat)
+
+    do while n
+        if n > 0 then
+            for e = art.next_at to art.next_at + n - 1
+                get #art.dat.num, , art.img(e)
+            next
+        else
+            n = -n
+            v = Word&(art.dat)
+
+            for e = art.next_at to art.next_at + n - 1
+                art.img(e) = v
+            next
+        end if
+
+        art.next_at = art.next_at + n
+        n = Word&(art.dat)
+    loop
+end sub
+
+' Where each zone's pictures start in the data file.
+sub ReadZones (art as Store)
+    dim z as integer
+
+    for z = 0 to ubound(art.dat_at)
+        art.dat_at(z) = Word&(art.dat)
+    next
+end sub
+
+' The pictures so far every zone's: a zone's own go after
+' them.
+sub Seal (art as Store)
+    art.zone_at = art.next_at
+end sub
+
+' The zone's room in the store given to zone z's pictures.
+sub Reuse (art as Store, z as integer)
+    art.zone = z + 1
+    art.next_at = art.zone_at
+end sub

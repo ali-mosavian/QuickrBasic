@@ -2,18 +2,19 @@
 ' the intro's road. A level is "Level name" and its commands, left to right: a command and its count, to "end".
 ' g, the ground's height in tiles, starts at 10. plat and hb: height * 100 + length.
 ' tune: the level's song, by its name in tools/charliesong.txt.
+' gold: a golden bone that many tiles over the ground: an act has three.
 
 ' The Amber Downs.
 Level Downs1
 tune,Downs
-flat,4, dog,0, flat,4, flower,0, flat,4, bones,6, flat,8, tree,0, flat,4
+flat,4, dog,0, flat,4, flower,0, flat,4, bones,6, flat,8, tree,0, gold,5, flat,4
 upg,2, flat,3, cat,0, flat,6, bush,0, dng,3, boost,0, bones,8, flat,10
 loop,0, flat,8, bones,6, flat,6, up45,2, flat,2, arc,7, gap,7, flat,8
 mark,0, flat,4, dn45,4, dng,4, boost,0, bones,10, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
 tree,0, flat,4, boost,0, flat,6, pipe,6, flat,6, bones,6, flat,22
 boost,0, flat,4, wave,1, flat,8
 dng,5, boost,0, bones,10, flat,10, up45,3, arc,11, pit,12, flat,10
-cat,0, flat,6, bush,0, flat,4, spring,0, flat,2, plat,608, hb,706, flat,16, spin,0, flat,8
+cat,0, flat,6, bush,0, flat,4, spring,0, gold,12, flat,2, plat,608, hb,706, flat,8, gold,10, flat,8, spin,0, flat,8
 upg,4, flat,4, flower,0, flat,4
 mark,0, flat,4, cable,22, flat,8, dn45,2, dng,2, boost,0, flat,5, loop,0, flat,6, boost,0, bones,8, flat,6, loop,0
 flat,6, boost,0, flat,6, loop,0, flat,10, up45,4, hoop,1, arc,10, pit,12, flat,10
@@ -36,9 +37,9 @@ tune,Evening
 flat,4, dog,0, flat,6, bones,6, flat,6, boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
 up45,3, arc,9, pit,10, flat,8, flower,0, flat,4
 dng,4, boost,0, bones,10, flat,10, loop,0, flat,8, boost,0, flat,4, wave,2, flat,8
-cat,0, flat,8, tree,0, flat,6, upg,3, flat,4, button,0, flat,8, bridge,10, flat,6, mark,0, flat,6
+cat,0, flat,8, tree,0, gold,5, flat,6, upg,3, flat,4, button,0, flat,8, bridge,10, flat,6, mark,0, flat,6
 dn45,3, dng,3, boost,0, bones,8, flat,8, loop,0, flat,6, up45,4, hoop,1, arc,11, pit,12, flat,10
-spring,0, flat,2, plat,608, hb,706, flat,16, bush,0, flat,6, cable,22, flat,8
+spring,0, gold,12, flat,2, plat,608, hb,706, flat,8, gold,10, flat,8, bush,0, flat,6, cable,22, flat,8
 boost,0, flat,6, pipe,6, flat,6, bones,6, flat,22, boost,0, flat,4, wave,1, flat,8
 dng,5, boost,0, bones,10, flat,12, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8, thorn,0, flat,6, rock,0, flat,4
 jet,0, flat,3, bump,5, flat,3, bump,6, flat,6, mark,0, flat,4, up45,3, arc,10, pit,11, flat,8
@@ -55,11 +56,11 @@ goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 ' 14 columns or more past a pit, 20 past a lift, a platform or a cable, where the jump off it lands.
 Level Works1
 tune,Works
-flat,4, dog,0, flat,8, bones,6, flat,8, boost,0, bones,8, flat,10, loop,0, flat,10
+flat,4, dog,0, flat,8, gold,5, bones,6, flat,8, boost,0, bones,8, flat,10, loop,0, flat,10
 boost,0, flat,4, wave,1, flat,8
 dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8, up45,3, arc,9, pit,10, flat,14
-sweeper,0, flat,12, mover,8, flat,8, jet,0, flat,3, bump,5, flat,3, bump,5, flat,6, button,0, flat,10, bridge,9, flat,6, mark,0, flat,6
-boost,0, flat,6, pipe,6, flat,8, bones,8, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0, flat,10
+sweeper,0, flat,12, mover,8, flat,8, jet,0, gold,10, flat,3, bump,5, flat,3, bump,5, flat,6, button,0, flat,10, bridge,9, flat,6, mark,0, flat,6
+boost,0, flat,6, pipe,6, gold,5, flat,8, bones,8, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0, flat,10
 lift,6, flat,8, spin,0, flat,8, bones,6, flat,6, cable,20, flat,22, spark,0, flat,14, dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0
 flat,8, up45,4, hoop,1, arc,11, pit,12, flat,10
 mark,0, flat,18, hover,5, flat,22, sweeper,0, flat,8, bones,6, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0
@@ -70,14 +71,14 @@ flat,10, goal,0, flat,9, fam,0, flat,6, flat,5, end,0
 ' goes along its roof.
 Level Works2
 tune,Night
-flat,4, dog,0, flat,8, bones,6, flat,6, boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, loop,0, flat,16
+flat,4, dog,0, flat,8, gold,5, bones,6, flat,6, boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, loop,0, flat,16
 mover,7, flat,8, bones,6, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0, flat,8
 up45,3, arc,9, pit,10, flat,14, sweeper,0, flat,10, hover,5, flat,8, mark,0, flat,6
 boost,0, flat,4, wave,1, flat,8, dng,3, boost,0, flat,8, loop,0, flat,8, button,0, flat,10, bridge,10, flat,8
-jet,0, flat,3, bump,5, flat,3, bump,5, flat,8, lift,6, flat,8, bones,6, flat,8, bones,12, press,3, flat,6
+jet,0, gold,10, flat,3, bump,5, flat,3, bump,5, flat,8, lift,6, flat,8, bones,6, flat,8, bones,12, press,3, flat,6
 dng,4, boost,0, bones,10, flat,10, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
 up45,4, hoop,1, arc,11, pit,12, flat,10, mark,0, flat,6, cable,20, flat,22, spark,0, flat,8
-boost,0, flat,6, pipe,5, flat,8, bones,6, flat,20, drop,4, flat,16, mover,8, flat,20, bones,16, press,4, flat,6
+boost,0, flat,6, pipe,5, gold,5, flat,8, bones,6, flat,20, drop,4, flat,16, mover,8, flat,20, bones,16, press,4, flat,6
 dng,3, boost,0, flat,8, loop,0, flat,10, spin,0, flat,8, mark,0, flat,8
 chase,96, flat,10, jet,0, flat,8, hoop,8, flat,8, jet,0, flat,16, jet,0, flat,8, hoop,8, flat,8, jet,0, flat,16
 jet,0, flat,22
@@ -90,7 +91,7 @@ goal,0, flat,9, fam,0, flat,6, flat,5, end,0
 ' flume: a fall that many tiles down and a flume in it, which ends a column on, over a pool.
 Level Sands1
 tune,Sands
-tide,409, flat,4, dog,0, flat,6, flower,0, flat,4, bones,6, flat,8, tree,0, flat,6
+tide,409, flat,4, dog,0, flat,6, flower,0, flat,4, bones,6, flat,8, tree,0, gold,5, flat,6
 jelly,3, pit,8, flat,6, crab,0, plat,604, hb,704, flat,8, bones,6, flat,6, gull,6, bush,0, flat,4
 upg,2, flat,4, dng,3, boost,0, bones,8, flat,10, loop,0, flat,8
 up45,2, flat,2, arc,7, gap,7, flat,10
@@ -99,7 +100,7 @@ dng,3, plat,312, hb,410, boost,0, bones,10, flat,14, jelly,4, flat,10, upg,3, fl
 tree,0, flat,4, boost,0, flat,6, pipe,6, flat,6, bones,6, gull,5, flat,10
 flume,5, boat,10, flat,4, dng,1, flat,4, loop,0, flat,8
 up45,1, flat,2, arc,9, buoy,4, gap,9, flat,10, mark,0, flat,6, bones,22, pier,24, flat,8
-dng,1, flat,4, jelly,4, buoy,8, pit,12, flat,8, spring,0, flat,2, plat,608, hb,706, flat,20, crab,0, flat,10, bush,0, flat,6
+dng,1, flat,4, jelly,4, buoy,8, pit,12, flat,8, spring,0, gold,12, flat,2, plat,608, hb,706, flat,8, gold,10, flat,12, crab,0, flat,10, bush,0, flat,6
 boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, pipe,5, flat,10, flower,0, flat,6
 goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 
@@ -110,11 +111,11 @@ tune,Sunset
 tide,1008, flat,4, dog,0, flat,6, bones,6, flat,6, boost,0, flat,6, loop,0, flat,8
 boat,10, flat,6, crab,0, bones,6, gull,6, flat,8, jelly,6, boat,12, flat,8, mark,0, flat,6
 dng,2, plat,310, hb,408, boost,0, bones,8, flat,12, jelly,4, flat,10, upg,2, flat,6
-up45,1, flat,2, arc,9, buoy,4, gap,9, flat,10, gull,6, tree,0, flat,6
+up45,1, flat,2, arc,9, buoy,4, gap,9, flat,10, gull,6, tree,0, gold,5, flat,6
 dng,1, flat,4, boost,0, flat,6, loop,0, flat,8, jelly,4, pit,10, flat,6, crab,0, plat,604, hb,704, flat,8
 bush,0, flat,4, boost,0, flat,6, pipe,5, flat,6, bones,6, flat,10, flume,5
 boat,12, flat,6, mark,0, gull,6, flat,4, boat,10, flat,8
-spring,0, flat,2, plat,608, hb,706, flat,16, buoy,6, pit,12, flat,8, mark,0, flat,8
+spring,0, gold,12, flat,2, plat,608, hb,706, flat,8, gold,10, flat,8, buoy,6, pit,12, flat,8, mark,0, flat,8
 chase,44, buoy,14, buoy,29, pit,44, flat,10
 boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, pipe,5, flat,10
 goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
@@ -130,7 +131,7 @@ goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 ' columns of its goat on the same ground, and no mark between them.
 Level Pass1
 tune,Whitecap
-flat,4, dog,0, flat,4, flower,0, flat,4, bones,6, flat,8, tree,0, flat,4
+flat,4, dog,0, flat,4, flower,0, flat,4, bones,6, flat,8, tree,0, gold,5, flat,4
 lift,6, flat,8, bones,6, flat,6, chair,18, flat,10, tree,0, flat,22
 sled,0, flat,6, dng,5, bones,10, flat,12, pit,5, flat,8, dng,4, bones,8, flat,14, drift,0, flat,10
 flat,6, up45,3, arc,9, pit,10, flat,14
@@ -143,7 +144,7 @@ ice,1, dng,4, bones,8, flat,10, thorn,0, flat,12, ice,0, flower,0, flat,6, up45,
 mark,0, flat,6, chair,18, flat,8, bones,6, flat,6, lift,6, flat,16
 sled,0, flat,6, dng,6, bones,10, flat,10, up45,2, arc,9, pit,10, flat,8
 dng,6, bones,10, flat,12, dng,3, flat,14, drift,0, flat,10
-tree,0, flat,6, jet,0, flat,2, plat,608, hb,706, flat,16, bush,0, flat,6
+tree,0, flat,6, jet,0, gold,10, flat,2, plat,608, hb,706, flat,8, gold,10, flat,8, bush,0, flat,6
 goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 
 ' Whitecap Pass at dusk: up to the summit by slope, chair and lift, then the run down from it. gale: a blizzard
@@ -155,12 +156,12 @@ goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 Level Pass2
 tune,Blizzard
 gale,0
-flat,4, dog,0, flat,6, bones,6, flat,6, upg,2, flat,6, tree,0, flat,6, boost,0, flat,6, loop,0, flat,8
-up45,3, arc,9, pit,10, flat,14, rock,0, flat,6, jet,0, flat,4, upg,2, flat,6, bones,6, flat,6, chair,18, flat,10
+flat,4, dog,0, flat,6, bones,6, flat,6, upg,2, flat,6, tree,0, gold,5, flat,6, boost,0, flat,6, loop,0, flat,8
+up45,3, arc,9, pit,10, flat,14, rock,0, flat,6, jet,0, gold,10, flat,4, upg,2, flat,6, bones,6, flat,6, chair,18, flat,10
 mark,0, flat,6, mover,7, flat,21, icicle,7, flat,1, thrower,0, flat,8, dng,3, flat,4, bush,0, flat,4, drift,0
 flat,12, goat,0, flat,14, icewall,0, flat,6
 ice,1, flat,16, thorn,0, flat,10, ice,0, flat,6
-dng,4, boost,0, bones,10, flat,10, loop,0, flat,8, boost,0, flat,6, pipe,6, flat,8, flower,0, flat,4
+dng,4, boost,0, bones,10, flat,10, loop,0, flat,8, boost,0, flat,6, pipe,6, gold,5, flat,8, flower,0, flat,4
 mark,0, flat,1, load,5, flat,8, thrower,0, flat,21, button,0, flat,8, bridge,10, flat,8
 upg,3, flat,8, icicle,6, flat,6, lift,5, flat,12, thrower,0, flat,14, tree,0, flat,6
 mark,0, flat,10, sled,0, flat,6
@@ -182,14 +183,14 @@ goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 ' either side of it to stand on, where the twins play the chase.
 Level Wood1
 tune,Russet
-flat,4, dog,0, flat,4, flower,0, flat,4, bones,6, flat,6, dng,6, bones,6, flat,10, tree,0, flat,6
+flat,4, dog,0, flat,4, flower,0, gold,5, flat,4, bones,6, flat,6, dng,6, bones,6, flat,10, tree,0, flat,6
 bramble,0, flat,12, bones,5, flat,8, log,0, flat,12, bees,3, flat,24, tree,0, flat,6
 burrow,0, flat,2, bones,3, flat,1, bramble,0, flat,3, bramble,0, flat,3, bramble,0, flat,5, burrow,0, flat,4, plat,407, flat,4, squirrel,5
 flat,10, bones,6, flat,22
-sapling,0, flat,12, wall,7, flat,8, mark,0, flat,8, tree,0, flat,6, bones,5, flat,10
+sapling,0, flat,12, wall,7, gold,3, flat,8, mark,0, flat,8, tree,0, flat,6, bones,5, flat,10
 vine,5, pit,7, flat,10, log,0, flat,12, bramble,0, flat,10, plat,407, flat,4, squirrel,5, flat,12
 bees,4, flat,10, bones,6, flat,24
-sapling,0, flat,12, wall,9, flat,14, mark,0, flat,12, bones,6, flat,16
+sapling,0, flat,12, wall,9, gold,3, flat,14, mark,0, flat,12, bones,6, flat,16
 bramble,0, flat,4, bramble,0, flat,10, vine,5, pit,8, flat,12, log,0, flat,14, tree,0, flat,8
 goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 
@@ -200,13 +201,53 @@ goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 Level Wood2
 tune,Fireflies
 night,0
-flat,4, dog,0, flat,6, bones,6, flat,8, tree,0, flat,6, bramble,0, flat,12, bones,5, flat,6, vine,5, pit,7, flat,12, log,0, flat,14
+flat,4, dog,0, flat,6, bones,6, flat,8, tree,0, gold,5, flat,6, bramble,0, flat,12, bones,5, flat,6, vine,5, pit,7, flat,12, log,0, flat,14
 dn45,4, flat,8, bones,4, flat,6, burrow,0, flat,10, bramble,0, flat,8, burrow,1, flat,8, burrow,2, flat,6
 wall,6, flat,4, burrow,0, flat,6, bones,6, flat,6, mark,0, flat,10, dn45,6
 flat,6, burrow,1, flat,6, bees,3, flat,10, plat,407, flat,4, squirrel,5, flat,8, burrow,2, flat,22, burrow,3, flat,6
 wall,6, flat,4, burrow,3, flat,6, bones,6, flat,6, mark,0, flat,10, dn45,6
-flat,8, burrow,4, flat,24, sapling,0, flat,12, wall,7, flat,6, burrow,4, flat,8, bones,6, flat,4
-chase,44, flat,6, sapling,0, flat,14, oak,0, flat,11, spring,0, flat,13
+flat,8, burrow,4, flat,24, sapling,0, flat,12, wall,7, gold,3, flat,6, burrow,4, flat,8, bones,6, flat,4
+chase,44, flat,6, sapling,0, flat,14, oak,0, flat,11, spring,0, gold,12, flat,13
+goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
+
+' Lantern Quarter at the blue hour. line: a street that wide under a clothesline; walker: a cat on the line just
+' hung, its home that many columns along. slide: a street under a lantern line, the roof past it four lower.
+' tipper: a house behind the way, a cat at its window dropping a pot on that beat of every four.
+' awning: one out from the wall that begins here, that many tiles up. chimney: the two of one number are a way in
+' and its way out. tram: a tram, its way the columns of street laid after it. pouncer, snatcher: one here.
+Level Lantern1
+tune,Lantern
+flat,4, dog,0, flat,4, flower,0, flat,4, bones,6, flat,8, tree,0, gold,5, flat,6
+line,9, gold,10, flat,8, bush,0, flat,4, awning,2, wall,4, flat,4, bones,6, flat,8
+line,7, flat,5, line,6, flat,6, rock,0, flat,4
+mark,0, flat,6, chimney,0, flat,6, awning,3, wall,6, flat,8, chimney,0, flat,4, bones,6, flat,8
+slide,10, flat,6, pouncer,0, flat,8, flower,0, flat,4
+dng,2, flat,6, bones,4, flat,6, snatcher,0, flat,8, line,6, walker,1, flat,6, tipper,1, flat,6
+mark,0, flat,6, drop,6, tram,30, flat,10, plat,406, hb,506, flat,12, plat,405, hb,505, flat,8, gold,7, flat,4
+awning,3, wall,6, flat,8, pouncer,0, flat,8, line,5, flat,4, line,5, flat,4, line,5, flat,8, bones,8, flat,14
+tipper,3, flat,10, bush,0, flat,6, snatcher,0, flat,10, rock,0, flat,12, up45,3, arc,9, pit,10, flat,10
+mark,0, flat,6, slide,12, flat,6, line,7, walker,2, flat,6, awning,2, wall,4, flat,6, thorn,0, flat,8
+drop,7, tram,56, flat,8, plat,404, hb,504, flat,8, plat,404, flat,8, plat,404, hb,504, flat,8, plat,404
+flat,8, plat,404, hb,504, flat,8, plat,404, flat,8, awning,3, wall,6, flat,10
+goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
+
+' Lantern Quarter on the festival night. mortar: one here, firing on that beat of every four.
+' chase: a street that long, a fall every 54 columns: the relay for the guitar.
+Level Lantern2
+tune,Festival
+flat,4, dog,0, flat,6, bones,6, flat,6, tree,0, flat,8, mortar,1, gold,14, flat,5, mortar,3, flat,6, thorn,0, flat,8
+bush,0, flat,6, cat,0, flat,5, cat,0, flat,6, bones,6, flat,8, line,7, flat,6, snatcher,0, flat,5, cat,0, flat,8
+awning,2, wall,4, plat,405, gold,6, flat,8, pouncer,0, flat,6, pouncer,0, flat,8, tipper,2, flat,10
+mark,0, flat,6, slide,10, flat,6, cat,0, flat,4, cat,0, flat,4, cat,0, flat,8
+chimney,0, flat,6, mortar,0, flat,4, mortar,1, flat,2, gold,5, flat,2, mortar,2, flat,4, mortar,3, flat,6
+chimney,0, flat,6, bones,6, flat,8
+up45,3, arc,9, pit,10, flat,10, line,7, walker,2, flat,6, snatcher,0, flat,6, cat,0, flat,8
+mark,0, flat,8, mortar,2, plat,1107, hb,1207, flat,10, plat,1105, hb,1205, flat,8, cat,0, flat,6, cat,0, flat,8
+drop,5, tram,26, flat,8, cat,0, flat,8, cat,0, flat,10, awning,3, wall,5, flat,8
+mortar,0, flat,5, cat,0, flat,5, mortar,2, flat,5, pouncer,0, flat,6, mortar,1, flat,8
+mark,0, flat,8
+chase,320, flat,16, bones,8, dng,2, flat,50, bones,8, dng,2, flat,50, bones,8, dng,2, flat,50, bones,8
+dng,2, flat,50, bones,8, dng,2, flat,50, bones,8, flat,40
 goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 
 ' The intro's road: the Downs, flat, the way the van goes; a rock where it bumps.
