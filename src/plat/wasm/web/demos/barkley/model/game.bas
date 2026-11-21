@@ -81,8 +81,41 @@ type Session
     road as integer
     reached as integer
     pick as integer
+    goldLo as long
+    goldHi as long
+    unkept as integer
 end type
 
 const NLOOSE = 24, NPART = 48
 const TITLE = 0, PLAYING = 1, CLEARED = 2, OVER = 3, INTRO = 4
 const NCUE = 112
+
+' The golden bones found are a bit each, three a stage, ten stages to a LONG: goldLo's the first ten, goldHi's the
+' rest. unkept: something of the save is not yet in its file.
+private function GoldBit& (s as integer, n as integer)
+    dim k as integer, v as long
+    v = 1
+    for k = 1 to (s mod 10) * 3 + n
+        v = v * 2
+    next
+    GoldBit& = v
+end function
+
+' Whether stage s's golden bone n is found.
+function Found% (se as Session, s as integer, n as integer)
+    if s >= 10 then
+        Found% = (se.goldHi and GoldBit&(s, n)) <> 0
+    else
+        Found% = (se.goldLo and GoldBit&(s, n)) <> 0
+    end if
+end function
+
+' Stage s's golden bone n is found, for good.
+sub Gild (se as Session, s as integer, n as integer)
+    if s >= 10 then
+        se.goldHi = se.goldHi or GoldBit&(s, n)
+    else
+        se.goldLo = se.goldLo or GoldBit&(s, n)
+    end if
+    se.unkept = -1
+end sub

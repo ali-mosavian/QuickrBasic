@@ -24,7 +24,7 @@ from barkley.stage.camera import Camera
 from barkley.stage.play import Dying, Spawn, Things, Touch
 from barkley.control.keys import MuteKey, Spent
 from barkley.control.pilot import Pilot
-from barkley.flow.save import PickZone, Reach
+from barkley.flow.save import Keep, PickZone, Reach
 from barkley.flow.intro import StartBump
 
 ' The level's end's songs, and game over's, by their numbers in CHARLIE.DAT; how long game over stays, its tune's
@@ -62,6 +62,7 @@ sub Tick (wd as World, g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Pa
     if wd.lv.nMv then Movers wd.lv, wd.gr, wd.mu, wd.se, p
     g.modeT = g.modeT + STEPT
     if g.shake > 0 then g.shake = g.shake - STEPT
+    if wd.se.unkept then Keep wd.se
     MuteKey wd.mu, k
     select case g.mode
     case TITLE: TitleStep wd, g, p, k, lo(), pt()
@@ -86,7 +87,7 @@ private sub TitleStep (wd as World, g as Game, p as Hero, k as Pad, lo() as Loos
     else
         Pilot wd.lv, wd.gr, wd.zn, wd.se, p, auto
         MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, auto, pt()
-        Touch wd.lv, wd.mu, wd.se, g, p, lo(), pt()
+        Touch wd.lv, wd.zn, wd.mu, wd.se, g, p, lo(), pt()
         if p.y > MH * TS + 24 then Lose wd.mu, wd.se, p
         Camera wd.lv, wd.zn, g, p, 0
     end if
@@ -104,7 +105,7 @@ private sub PlayStep (wd as World, g as Game, p as Hero, k as Pad, lo() as Loose
     end if
     g.clock = g.clock + STEPT
     MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, k, pt()
-    Touch wd.lv, wd.mu, wd.se, g, p, lo(), pt()
+    Touch wd.lv, wd.zn, wd.mu, wd.se, g, p, lo(), pt()
     if wd.lv.stray.st = 2 then Homeward wd.lv, g
     if wd.lv.avalX <> NONE then Avalanche wd.lv, wd.mu, wd.se, g, p
     Flee wd.lv, wd.zn, wd.mu, wd.se, g, p, lo(), pt()

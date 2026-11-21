@@ -1250,6 +1250,19 @@ def bone(turn: float) -> Pic:
     return p.outline()
 
 
+def goldbone(turn: float) -> Pic:
+    """A golden bone, turned: a bone in gold, a glint on its upper knob."""
+    p = Pic(10, 10)
+    c, s = math.cos(turn), math.sin(turn)
+    p.line(4.5 - c * 2.4, 4.5 - s * 2.4, 4.5 + c * 2.4, 4.5 + s * 2.4, GOLD[3], 2)
+    for end in (-2.6, 2.6):
+        for side in (-1.2, 1.2):
+            p.ball(4.5 + c * end - s * side, 4.5 + s * end + c * side, 1.3, 1.3, GOLD[1:], 0.5, 1.2)
+    top = min((y, x) for y in range(10) for x in range(10) if p.p[y][x])
+    p.put(top[1], top[0], WHITE)
+    return p.outline()
+
+
 def startled() -> Pic:
     """The cat barked at: its back arched, its legs stiff, its tail a brush, an eye wide."""
     p = Pic(20, 14)
@@ -4979,6 +4992,7 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
         for f in range(2)
     ]
     out.append((5, ring(188, 72, 93, turf, AMBER, PLUM), True, -1))
+    out += [(z + 1282 + f * 2, goldbone(f * math.pi / 4), True, -1) for f in range(4)]
     OWN[0].update({0, 1, 5, itile + 18, z + 112, z + 114, *range(a, a + 278), *range(k + 36, k + 50)})
     OWN[0].update({*range(z + 626, z + 642), k + 376})
     return out
@@ -5066,6 +5080,8 @@ def levels() -> bytes:
             sys.exit(f"charlieart: level {i} has a burrow without its two mounds")
         if [c for c, _ in lv].count("tune") != 1:
             sys.exit(f"charlieart: level {i} does not name its one tune")
+        if [c for c, _ in lv].count("gold") not in (0, game_const("NGOLD")):
+            sys.exit(f"charlieart: level {i} has golden bones, and not the game's NGOLD")
     blocks = [
         b"".join(struct.pack("<i", len(c)) + c.encode("ascii") + struct.pack("<i", int(v)) for c, v in lv)
         for lv in found

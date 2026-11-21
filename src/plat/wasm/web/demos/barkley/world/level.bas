@@ -5,6 +5,7 @@ option explicit
 from barkley.engine.datafile import Chars, OpenData, Word
 from barkley.model.images import IBG, ICARD, ICARD2, ILOOP, ITILE, ITILE2, IWAVE, IZ2
 from barkley.model.level import KBONE, KBOOST, KBRAMBLE, KBUMP, KBUOY, KBUSH, KBUTTON, KCAT, KCISTERN, KCRAB, KDRIFT
+from barkley.model.level import KGOLD
 from barkley.model.level import KFAM, KFLOWER, KFLUME, KGOAL, KGOAT, KHEAP, KHOOP, KICICLE, KJELLY, KJET, KLEG, KLOAD
 from barkley.model.level import KLOG, KLOOP, KMARK, KMOUND, KPIPE, KPLAT, KPRESS, KROCK, KSAPLING, KSLED, KSPARK, KSPIN
 from barkley.model.level import KSPOUT, KSPRING, KSQUIRREL, KSWEEP, KTANK, KTHORN, KTHROW, KTREE, KVENT, KVINE, KWALL
@@ -96,6 +97,7 @@ sub LoadLevel (wd as World, st as integer)
     wd.lv.oakX = NONE
     wd.lv.fallow = 0
     wd.lv.nObj = 0
+    wd.lv.nGold = 0
     wd.lv.nMv = 0
     wd.lv.nGulls = 0
     wd.lv.nSwarm = 0
@@ -267,6 +269,10 @@ sub LoadLevel (wd as World, st as integer)
             for i = 0 to n - 1
                 AddObj wd.lv, KBONE, (c + i) * TS + 8, s - 14
             next
+        case "gold"
+            ' a golden bone that many tiles over the ground
+            AddObj wd.lv, KGOLD, c * TS + 8, s - n * TS - 14
+            wd.lv.nGold = wd.lv.nGold + 1
         case "arc"
             for i = 0 to n - 1
                 AddObj wd.lv, KBONE, (c + i) * TS + 8, s - 20 - cint(50 * sin(PI * (i + .5) / n))
@@ -410,4 +416,13 @@ end sub
 
 function ZoneName$ (z as integer)
     ZoneName$ = rtrim$(mid$(ZNAMES, z * 16 + 1, 16))
+end function
+
+' Which of its level's golden bones thing i is, from 0, by x.
+function GoldNo% (lv as Level, i as integer)
+    dim j as integer, n as integer
+    for j = 0 to i - 1
+        if lv.ob(j).k = KGOLD then n = n + 1
+    next
+    GoldNo% = n
 end function

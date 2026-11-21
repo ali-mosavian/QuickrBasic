@@ -2,18 +2,19 @@
 ' the intro's road. A level is "Level name" and its commands, left to right: a command and its count, to "end".
 ' g, the ground's height in tiles, starts at 10. plat and hb: height * 100 + length.
 ' tune: the level's song, by its name in tools/charliesong.txt.
+' gold: a golden bone that many tiles over the ground: an act has three, or none yet.
 
 ' The Amber Downs.
 Level Downs1
 tune,Downs
-flat,4, dog,0, flat,4, flower,0, flat,4, bones,6, flat,8, tree,0, flat,4
+flat,4, dog,0, flat,4, flower,0, flat,4, bones,6, flat,8, tree,0, gold,5, flat,4
 upg,2, flat,3, cat,0, flat,6, bush,0, dng,3, boost,0, bones,8, flat,10
 loop,0, flat,8, bones,6, flat,6, up45,2, flat,2, arc,7, gap,7, flat,8
 mark,0, flat,4, dn45,4, dng,4, boost,0, bones,10, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
 tree,0, flat,4, boost,0, flat,6, pipe,6, flat,6, bones,6, flat,22
 boost,0, flat,4, wave,1, flat,8
 dng,5, boost,0, bones,10, flat,10, up45,3, arc,11, pit,12, flat,10
-cat,0, flat,6, bush,0, flat,4, spring,0, flat,2, plat,608, hb,706, flat,16, spin,0, flat,8
+cat,0, flat,6, bush,0, flat,4, spring,0, gold,12, flat,2, plat,608, hb,706, flat,8, gold,10, flat,8, spin,0, flat,8
 upg,4, flat,4, flower,0, flat,4
 mark,0, flat,4, cable,22, flat,8, dn45,2, dng,2, boost,0, flat,5, loop,0, flat,6, boost,0, bones,8, flat,6, loop,0
 flat,6, boost,0, flat,6, loop,0, flat,10, up45,4, hoop,1, arc,10, pit,12, flat,10

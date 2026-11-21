@@ -33,10 +33,10 @@ from barkley.model.hero import Hero, Pad
 from barkley.model.level import GRAV, Ground, KBONE, KBRAMBLE, KBUOY, KCAT, KCISTERN, KCRAB, KDRIFT, KGOAT, KHOOP
 from barkley.model.level import KICICLE, KJELLY, KJET, KLEG, KLOAD, KLOG, KLOOP, KMOUND, KPIPE, KPRESS, KSAPLING, KSEAT
 from barkley.model.level import KSLED, KSPAN, KSPARK, KSPRING, KSQUIRREL, KSWEEP, KTHROW, KVINE, KWALL, KWAVE, Level, MH
-from barkley.model.level import NONE, NSTAGE, TS, ZONES
+from barkley.model.level import KGOLD, NGOLD, NONE, NSTAGE, TS, ZONES
 from barkley.model.game import CLEARED, Cue, Game, INTRO, Loose, NCUE, NLOOSE, NPART, OVER, Part, PLAYING, Session
-from barkley.model.game import TITLE
-from barkley.assets.palette import CBEE, CFLY, CNUT, CSEA, CVINE, CVINED, CWHITE
+from barkley.model.game import Found, Gild, TITLE
+from barkley.assets.palette import CBEE, CFLY, CGOLD, CINK, CNUT, CSEA, CVINE, CVINED, CWHITE, CYELLOW
 from barkley.assets.store import BuildArt
 from barkley.assets.cast import BaronPic, FamPic
 from barkley.assets.tunes import CAUGHT, CAUGHTUP, EndBeat, LEFTBEHIND, LoadSongs, PACKING, PickSong, SCLANK, Sfx, SHURT
@@ -44,7 +44,7 @@ from barkley.assets.tunes import SJUMP, SongFor, Sudden, ZoneTune, ZTUNE
 from barkley.world.terrain.ground import LoadTables, LOOPR, SegAt, Solid, Surf, WADE, WAVEL
 from barkley.world.terrain.track import MOVEW, WAVEA
 from barkley.world.layout import PITD
-from barkley.world.level import CABLED, LoadLevel, Mend, SINTRO, ZoneName
+from barkley.world.level import CABLED, GoldNo, LoadLevel, Mend, SINTRO, ZoneName
 from barkley.world.movers import FREEB
 from barkley.stage.fx.parts import Burst
 from barkley.stage.fx.damage import BOUNCEV, Hurt, Lose
@@ -63,7 +63,9 @@ from barkley.stage.camera import Camera, HEAD, Headroom, HEADUP
 from barkley.stage.scene import Render
 from barkley.stage.play import JELLYD, SPARKR, Spawn, Things
 from barkley.control.pilot import Pilot
-from barkley.flow.save import LoadSave, Reach
+from barkley.flow.save import Keep, LoadSave, Reach
+from barkley.stage.hud import PIPX, PIPY
+from barkley.stage.zones.downs import GOLDPTS
 from barkley.flow.intro import BEATS, BETWEEN, BUMP0, CueAt, HORIZON, ILEN, IntroDraw, QHERO, QSND, QVAN, StartIntro
 from barkley.flow.states import GoStage, ResetWorld, StartGame, TALLYN, Tick
 from barkley.main import Advance
@@ -820,6 +822,91 @@ for i = 0 to 39
 next
 ZoneTune wd.mu, 0
 if swingOk then print "swing ok"
+' the Downs' first act has three golden bones, none found. The first is over the first tree, five tiles up, drawn
+' in gold, and a full jump from the ground under it finds it: a thousand points, and it is in the save a step on,
+' twelve bytes of it. Found, it is not drawn, and not found twice; its pip on the HUD is lit and the next dark.
+' The second found, the save has both, and read back gives both and not the third; a save of four bytes, of
+' before there were any, gives none. A stage past the tenth keeps its own in the save's last part
+dim goldOk as integer, goldAt as integer, gold2 as integer, goldScore as long, saved as long
+GoStage wd, 0, g, p, lo(), pt()
+' the zone's card is across the view's middle as a stage begins, gold on red: past it
+g.modeT = 20
+wd.se.goldLo = 0
+wd.se.goldHi = 0
+goldAt = -1
+for i = wd.lv.nObj - 1 to 0 step -1
+    if wd.lv.ob(i).k <> KGOLD then continue for
+    gold2 = goldAt
+    goldAt = i
+next
+goldOk = wd.lv.nGold = NGOLD and goldAt >= 0 and GoldNo%(wd.lv, goldAt) = 0 and GoldNo%(wd.lv, gold2) = 1
+Stand wd.lv, wd.gr, p, wd.lv.ob(goldAt).x, 0
+goldOk = goldOk and wd.lv.ob(goldAt).y = p.y - 5 * TS - 14 and not Found%(wd.se, 0, 0)
+g.shake = 0
+g.camx = wd.lv.ob(goldAt).x - 160
+g.camy = wd.lv.ob(goldAt).y - 100
+Render wd, g, p, lo(), pt()
+goldOk = goldOk and point(160, 100) >= CGOLD and point(160, 100) <= CGOLD + 4
+goldOk = goldOk and point(6 + PIPX + 3, 5 + PIPY + 3) = CINK
+goldScore = g.score
+k.jump = -1
+k.hit = -1
+for i = 1 to 40
+    Tick wd, g, p, k, lo(), pt()
+    k.hit = 0
+    if Found%(wd.se, 0, 0) then exit for
+next
+k.jump = 0
+goldOk = goldOk and i < 40 and g.score = goldScore + GOLDPTS and wd.se.unkept
+Tick wd, g, p, k, lo(), pt()
+open "CHARLIE.SAV" for binary as #2
+goldOk = goldOk and lof(2) = 12 and wd.se.unkept = 0
+get #2, 5, saved
+close #2
+goldOk = goldOk and saved = 1
+for j = 0 to 1
+    p.x = wd.lv.ob(goldAt).x
+    p.y = wd.lv.ob(goldAt).y + 13
+    p.ground = 0
+    p.vy = 0
+    Tick wd, g, p, k, lo(), pt()
+next
+goldOk = goldOk and g.score = goldScore + GOLDPTS
+' he stands clear of where it was: over it he hid it, found or not
+Stand wd.lv, wd.gr, p, wd.lv.ob(goldAt).x - 60, 0
+g.shake = 0
+g.camx = wd.lv.ob(goldAt).x - 160
+g.camy = wd.lv.ob(goldAt).y - 100
+Render wd, g, p, lo(), pt()
+goldOk = goldOk and (point(160, 100) < CGOLD or point(160, 100) > CGOLD + 4)
+goldOk = goldOk and point(6 + PIPX + 3, 5 + PIPY + 3) = CYELLOW and point(6 + PIPX + 11, 5 + PIPY + 3) = CINK
+p.x = wd.lv.ob(gold2).x
+p.y = wd.lv.ob(gold2).y + 13
+p.ground = 0
+p.vy = 0
+Tick wd, g, p, k, lo(), pt()
+Tick wd, g, p, k, lo(), pt()
+goldOk = goldOk and Found%(wd.se, 0, 1) and not Found%(wd.se, 0, 2) and g.score = goldScore + 2 * GOLDPTS
+wd.se.goldLo = 0
+LoadSave wd.se
+goldOk = goldOk and Found%(wd.se, 0, 0) and Found%(wd.se, 0, 1) and not Found%(wd.se, 0, 2) and wd.se.goldLo = 3
+Gild wd.se, 12, 2
+goldOk = goldOk and Found%(wd.se, 12, 2) and not Found%(wd.se, 12, 1) and wd.se.goldHi = 256 and wd.se.goldLo = 3
+Keep wd.se
+wd.se.goldHi = 0
+LoadSave wd.se
+goldOk = goldOk and wd.se.goldHi = 256
+open "CHARLIE.SAV" for binary as #2
+get #2, 1, saved
+close #2
+kill "CHARLIE.SAV"
+open "CHARLIE.SAV" for binary as #2
+put #2, 1, saved
+close #2
+LoadSave wd.se
+goldOk = goldOk and wd.se.goldLo = 0 and wd.se.goldHi = 0 and not Found%(wd.se, 0, 0)
+GoStage wd, 0, g, p, lo(), pt()
+if goldOk then print "gold ok"
 ' after a chase the level's end is the longer one, twelve bars that end, the cat sent packing first, its first half
 ' bar played; where there is no chase it is the eight. It was the eight everywhere
 GoStage wd, 1, g, p, lo(), pt()
@@ -3336,6 +3423,7 @@ def main() -> None:
         ("sands tune ok", "Saltwick Sands played to their own tune"),
         ("arranged ok", "a zone's second act played to its tune arranged again: evening, night, sunset, blizzard"),
         ("swing ok", "a swung song's off-beat eighths on the triplet's last, each half bar still half a bar long"),
+        ("gold ok", "an act's three golden bones: found by a touch, kept in the save at once, a pip each on the HUD"),
         ("packing ok", "after a chase the level's end is the longer one, twelve bars; the eight elsewhere"),
         ("over ok", "game over played by its own tune and held while it plays; then the title"),
         ("tally ok", "the level's end's bonus counted on its tune's beats, a step each, and all at once at a key"),

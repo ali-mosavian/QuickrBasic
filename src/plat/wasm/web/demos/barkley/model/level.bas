@@ -107,6 +107,7 @@ type Level
     avalX as integer
     oakX as integer
     oakY as integer
+    nGold as integer
     tide as integer
     tideLo as integer
     tideHi as integer
@@ -221,4 +222,6 @@ const KBRAMBLE = 50
 const KLOG = 51
 const KMOUND = 52
 const KSQUIRREL = 53
+' A golden bone: an act has NGOLD of them, each kept once found.
+const KGOLD = 54, NGOLD = 3
 const ZONES = 5, NSTAGE = ZONES * 2

@@ -296,6 +296,8 @@ A still mockup of each zone is agreed before it is wired in.
 - A save file (built): `CHARLIE.SAV` keeps the furthest zone reached; Left and Right on the title pick the
   zone a game starts at.
 - The autopilot test clears every act, as it does now.
+- Golden bones (built): three an act, a level's `gold`; found by a touch, kept in `CHARLIE.SAV` at once, a pip
+  each on the HUD. Placed so far: the Downs' first act.
 
 ## Build order
 

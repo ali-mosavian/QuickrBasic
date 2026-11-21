@@ -5,17 +5,22 @@ option explicit
 from barkley.engine.video import Store
 from barkley.model.images import IGLYPH, IHUD, NGLYPH
 from barkley.model.hero import Hero
+from barkley.model.level import NGOLD
 from barkley.model.game import Game
-from barkley.assets.palette import CGOLD, CHUD, CWHITE
+from barkley.assets.palette import CGOLD, CHUD, CINK, CWHITE, CYELLOW
 from barkley.assets.store import HUDH, HUDW
+
+' Where in the HUD the golden bones' pips begin.
+const PIPX = 84, PIPY = 22
 
 ' The score, time, bones and lives, top left over the scene: a picture
 ' and its mask, put together from the characters when a number moves.
-' Called before the frame is drawn: it draws on the page's corner.
-sub Hud (art as Store, g as Game)
-    dim s as integer, sig as long
+' Called before the frame is drawn: it draws on the page's corner. gold: the act's golden bones found, a bit
+' each, a pip each after the bones; under 0, it has none.
+sub Hud (art as Store, g as Game, gold as integer)
+    dim s as integer, sig as long, i as integer, x as integer, bit as integer
     s = int(g.clock)
-    sig = g.score * 7 + g.bones * 131& + g.lives * 100003 + s * 13& + 1
+    sig = g.score * 7 + g.bones * 131& + g.lives * 100003 + s * 13& + 1 + (gold + 1) * 15485863&
     if sig = g.sig then exit sub
     g.sig = sig
     line (0, 0)-(HUDW - 1, HUDH - 1), 0, BF
@@ -24,6 +29,15 @@ sub Hud (art as Store, g as Game)
     HudLine art, 1, "TIME  " + ltrim$(str$(s \ 60)) + ":" + Num$(clng(s mod 60), 2), 6
     HudLine art, 2, "BONES " + Num$(clng(g.bones), 3), 6
     HudLine art, 3, "CHARLIE x" + ltrim$(str$(g.lives)), 7
+    bit = 1
+    for i = 0 to NGOLD - 1
+        if gold < 0 then exit for
+        x = PIPX + i * 8
+        line (x, PIPY)-(x + 6, PIPY + 6), CINK, BF
+        if gold and bit then line (x + 1, PIPY + 1)-(x + 5, PIPY + 5), CYELLOW, BF
+        line (x, 100 + PIPY)-(x + 6, 106 + PIPY), 0, BF
+        bit = bit * 2
+    next
     get (0, 0)-(HUDW - 1, HUDH - 1), art.img(art.at(IHUD))
     get (0, 100)-(HUDW - 1, 100 + HUDH - 1), art.img(art.at(IHUD + 1))
 end sub

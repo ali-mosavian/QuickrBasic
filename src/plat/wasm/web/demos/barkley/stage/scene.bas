@@ -13,14 +13,16 @@ from barkley.model.level import KFAM, KFLOWER, KFLUME, KFRONT, KGOAL, KGOAT, KHE
 from barkley.model.level import KLEG, KLOAD, KLOOP, KMARK, KMOUND, KMOVE, KPIPE, KPLAT, KPOST, KPRESS, KROCK, KSAPLING
 from barkley.model.level import KSEAT, KSLED, KSPAN, KSPARK, KSPIN, KSPOUT, KSPRING, KSQUIRREL, KSWEEP, KTANK, KTHORN
 from barkley.model.level import KTHROW, KTREE, KVENT, KVINE, KWALL, KWAVE, Level, NONE, Realm, TS
-from barkley.model.game import CLEARED, Game, Loose, NLOOSE, NPART, OVER, Part, PLAYING, Session, TITLE
+from barkley.model.level import KGOLD, NGOLD
+from barkley.model.images import IGOLD
+from barkley.model.game import CLEARED, Found, Game, Loose, NLOOSE, NPART, OVER, Part, PLAYING, Session, TITLE
 from barkley.model.world import World
 from barkley.assets.palette import CGOLD, CINK, CSCARF, CWHITE, CYELLOW
 from barkley.assets.store import HUDH, HUDW
 from barkley.assets.cast import DrawFamily
 from barkley.world.terrain.ground import LOOPR, WAVEL
 from barkley.world.terrain.track import MOVEW, PIPER, WAVEA
-from barkley.world.level import ZoneName
+from barkley.world.level import GoldNo, ZoneName
 from barkley.world.movers import Dip
 from barkley.world.backdrop import DrawBack, DrawTiles
 from barkley.stage.fx.lobs import DrawLobs
@@ -44,7 +46,7 @@ sub Render (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
     cx = int(g.camx)
     cy = int(g.camy)
     if g.shake > 0 then cy = cy + ((wd.se.ticks and 2) - 1) * 2
-    if g.mode <> TITLE then Hud wd.art, g
+    if g.mode <> TITLE then Hud wd.art, g, GoldFound%(wd)
     DrawBack wd.zn, wd.art, cx, cy
     if wd.lv.tide <> NONE then DrawSea wd.lv, cx, cy
     DrawThings wd.lv, wd.zn, wd.art, wd.se, cx, cy, -1
@@ -119,6 +121,17 @@ sub Render (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
 end sub
 
 ' The things in view: back, the scenery behind the ground; else the rest.
+' The level's golden bones found, a bit each; -1 where it has none.
+private function GoldFound% (wd as World)
+    dim n as integer, v as integer
+    GoldFound% = -1
+    if wd.lv.nGold = 0 then exit function
+    for n = NGOLD - 1 to 0 step -1
+        v = v * 2 - Found%(wd.se, wd.zn.stage, n)
+    next
+    GoldFound% = v
+end function
+
 sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as integer, cy as integer, back as integer)
     dim i as integer, c as integer, x as integer, y as integer, k as integer, f as integer, a as single
     c = (cx - WAVEL) \ TS
@@ -131,6 +144,10 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
         y = lv.ob(i).y - cy
         select case k
         case KBONE: if lv.ob(i).s then Blit art, x - 5, y - 5, IBONE + ((se.ticks \ 6) and 3) * 2, 10, 10
+        case KGOLD
+            ' a golden bone, till it is found
+            if Found%(se, zn.stage, GoldNo%(lv, i)) then continue for
+            Blit art, x - 5, y - 5, IGOLD + ((se.ticks \ 6) and 3) * 2, 10, 10
         case KCAT: if lv.ob(i).s then Blit art, x - 10, y - 13, CatPic%(se, lv.ob(i).s), 20, 14
         case KCRAB: if lv.ob(i).s then Blit art, x - 12, y - 15, CrabPic%(se, lv.ob(i).s), 24, 15
         case KSPRING

@@ -5,15 +5,17 @@ option explicit
 from barkley.engine.audio import Deck
 from barkley.model.images import ICAT, ICATF
 from barkley.model.hero import Hero
-from barkley.model.level import Level
-from barkley.model.game import Game, Loose, Part, Session
+from barkley.model.level import Level, Realm
+from barkley.model.game import Found, Game, Gild, Loose, Part, Session
 from barkley.assets.palette import CGOLD
-from barkley.assets.tunes import SBONE, SBOOST, Sfx, SMARK, SSPRING
+from barkley.assets.tunes import SBONE, SBOOST, Sfx, SGOLD, SMARK, SSPRING
 from barkley.world.terrain.ground import Solid, Surf
+from barkley.world.level import GoldNo
 from barkley.stage.fx.parts import Burst
 from barkley.stage.fx.damage import Tackle
 
 private const SPRINGV = 560!
+const GOLDPTS = 1000
 private const BOOSTV = 660!
 
 ' A bone where the level put it: taken.
@@ -25,6 +27,18 @@ sub MeetBone (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as
     g.score = g.score + 10
     Burst se, pt(), csng(lv.ob(i).x), csng(lv.ob(i).y), 4, 50, CGOLD + 4
     Sfx mu, se, SBONE
+end sub
+
+' A golden bone not found before: found, for good.
+sub MeetGold (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as Hero, i as integer, pt() as Part)
+    dim n as integer
+    if abs(lv.ob(i).x - cint(p.x)) >= 12 or abs(lv.ob(i).y - cint(p.y) + 13) >= 16 then exit sub
+    n = GoldNo%(lv, i)
+    if Found%(se, zn.stage, n) then exit sub
+    Gild se, zn.stage, n
+    g.score = g.score + GOLDPTS
+    Burst se, pt(), csng(lv.ob(i).x), csng(lv.ob(i).y), 10, 90, CGOLD + 4
+    Sfx mu, se, SGOLD
 end sub
 
 ' A cat of the Mob, or a squirrel: rolled or charged into it is beaten, and he bounces off it; else it scratches.

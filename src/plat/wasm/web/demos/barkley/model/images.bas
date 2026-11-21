@@ -90,7 +90,9 @@ const ISQUIRREL = IMOUND + 2, IACORN = ISQUIRREL + 8
 ' the right, near and far, then their mirrors; its hollow; a bracket of fungus and its mirror; the Bramble
 ' twins, five pictures each: grinning, reaching, a paw out, shocked, sulking.
 const ITOAD = IACORN + 2, IOAK = ITOAD + 4, IOAKFOOT = IOAK + 2, ILIMB = IOAKFOOT + 2, IKNOT = ILIMB + 8
-const IBRACKET = IKNOT + 2, ITWIN = IBRACKET + 4, NIMG = ITWIN + 20
+const IBRACKET = IKNOT + 2, ITWIN = IBRACKET + 4
+' A golden bone, turned as a bone is.
+const IGOLD = ITWIN + 20, NIMG = IGOLD + 8
 
 ' the picture store's LONGs: for what every zone shows and the largest zone's own
 const IMGSZ = 490000

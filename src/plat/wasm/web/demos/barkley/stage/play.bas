@@ -9,14 +9,14 @@ from barkley.model.hero import Hero
 from barkley.model.level import GRAV, Ground, KBONE, KBOOST, KBRAMBLE, KBUMP, KBUOY, KBUTTON, KCAT, KCRAB, KDRIFT
 from barkley.model.level import KFLUME, KGOAL, KGOAT, KHEAP, KHOOP, KICICLE, KJELLY, KJET, KLOAD, KLOG, KMARK, KMOUND
 from barkley.model.level import KPRESS, KSAPLING, KSLED, KSPARK, KSPIN, KSPOUT, KSPRING, KSQUIRREL, KSWEEP, KTHORN
-from barkley.model.level import KTHROW, KVINE, KWALL, Level, Realm, TS
+from barkley.model.level import KGOLD, KTHROW, KVINE, KWALL, Level, Realm, TS
 from barkley.model.game import Game, Loose, NLOOSE, OVER, Part, Session
 from barkley.assets.tunes import LEFTBEHIND, SBONE, SceneTune, Sfx, SHURT
 from barkley.world.terrain.ground import SegAt
 from barkley.world.level import Mend
 from barkley.stage.fx.parts import LooseBones, Particles
 from barkley.stage.fx.damage import Hurt
-from barkley.stage.zones.downs import MeetBone, MeetBoost, MeetCat, MeetMark, MeetSpring, Prowl
+from barkley.stage.zones.downs import MeetBone, MeetBoost, MeetCat, MeetGold, MeetMark, MeetSpring, Prowl
 from barkley.stage.zones.works import MeetBump, MeetButton, MeetHoop, MeetJet, MeetPress, MeetSpark, MeetSpin, MeetSweep
 from barkley.stage.zones.sands import Bob, MeetCrab, MeetFlume, MeetJelly
 from barkley.stage.zones.wood import MeetBramble, MeetLog, MeetMound, MeetSapling, MeetVine, Regrow, Scamper
@@ -42,7 +42,7 @@ sub Spawn (lv as Level, gr as Ground, zn as Realm, mu as Deck, g as Game, p as H
 end sub
 
 ' Charlie against the things near it, and the loose bones.
-sub Touch (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
+sub Touch (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
     dim i as integer, c as integer, px as integer, py as integer, x as integer, dx as integer
     ' under the ground nothing is met
     if p.dig then exit sub
@@ -57,6 +57,7 @@ sub Touch (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as
         dx = abs(x - px)
         select case lv.ob(i).k
         case KBONE: MeetBone lv, mu, se, g, p, i, pt()
+        case KGOLD: MeetGold lv, zn, mu, se, g, p, i, pt()
         case KCAT, KSQUIRREL: MeetCat lv, mu, se, g, p, i, lo(), pt()
         case KCRAB: MeetCrab lv, mu, se, g, p, i, lo(), pt()
         case KSWEEP: MeetSweep lv, mu, se, g, p, i, lo(), pt()
