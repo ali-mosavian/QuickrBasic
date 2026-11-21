@@ -11,9 +11,10 @@ from barkley.model.level import NONE
 from barkley.model.game import Session
 from barkley.model.events import EVBURST, EVSOUND, Tell, TellAt
 from barkley.assets.tunes import SJUMP, SPOP
-from barkley.world.terrain.ground import Land, Slow, WADE, Wall
+from barkley.world.terrain.ground import Slow, WADE
 from barkley.stage.fx.parts import PDIG, PDRIP, PDRY, PFLUE, PMOUND
 from barkley.stage.fx.parts import PPADDLE, PSPLASH
+from barkley.stage.hero.feet import Land, Wall
 
 const GOATV = 240!
 private const GOATRIDE = 2!

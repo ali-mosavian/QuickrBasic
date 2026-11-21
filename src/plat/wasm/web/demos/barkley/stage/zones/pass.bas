@@ -13,12 +13,12 @@ from barkley.model.events import EVBURST, EVSCORE, EVSHAKE, EVSOUND
 from barkley.model.events import Tell, TellAt
 from barkley.assets.palette import CFLAKE, CICE, CSNOW, CWHITE
 from barkley.assets.tunes import SBUMP, SCRACK, SHURT, SROLL
-from barkley.world.terrain.ground import Balk, Lie, Surf
+from barkley.world.terrain.ground import Lie, Surf
 from barkley.world.level import LOADFAR
 from barkley.stage.fx.parts import PDRIFT, PSLEDSNOW, PWALL
 from barkley.stage.fx.damage import Tackle
 from barkley.stage.hero.modes import Alight, Astride, Lull
-from barkley.stage.hero.push import Aboard, Repel, Stall
+from barkley.stage.hero.push import Aboard, Balk, Mire, Repel
 from barkley.stage.things.react import Turn
 from barkley.stage.things.pass import AVALH, Bolt, Fallen, GCHARGE
 from barkley.stage.things.pass import HEAPH, HEAPR, LOADRUN, LOADSLIDE
@@ -109,7 +109,7 @@ sub MeetDrift (lv as Level, ev as Events, p as Hero, i as integer)
 
     if p.sled then
         Alight ev, p, PSLEDSNOW
-        Stall p
+        Mire p
         exit sub
     end if
 

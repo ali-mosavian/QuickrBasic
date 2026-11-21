@@ -15,13 +15,12 @@ from barkley.model.kinds import Kinds
 from barkley.assets.palette import CSTONE
 from barkley.assets.tunes import SBARK, SCHARGE, SJUMP, SLAUNCH, SPOP
 from barkley.assets.tunes import SROLL
-from barkley.world.terrain.ground import Along, Curve, Drop, Land
 from barkley.world.terrain.ground import Slow, Solid, STALL, Twist
-from barkley.world.terrain.ground import Wall
 from barkley.stage.fx.parts import Emit, PLAND, PSLEDWOOD, PSNOWCOAT
 from barkley.stage.fx.parts import PWIND
 from barkley.stage.hero.modes import Alight, Buffet, Hang, Paddle
 from barkley.stage.hero.modes import Ride, Soak, Tunnel
+from barkley.stage.hero.feet import Along, Curve, Drop, Land, Wall
 
 const JUMPV = 330!
 private const JUMPCUT = 160!

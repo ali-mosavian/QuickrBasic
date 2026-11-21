@@ -10,7 +10,6 @@ from barkley.model.level import GRAV, Ground, Level, PI
 from barkley.model.game import Session
 from barkley.model.events import EVSOUND, Tell
 from barkley.assets.tunes import SCRACK
-from barkley.world.terrain.ground import Drop
 from barkley.world.terrain.track import MOVEW
 from barkley.world.level import CABLED
 
@@ -79,7 +78,7 @@ end function
 
 ' The platforms a step on: to and fro, up and down, or a
 ' lift, up while Charlie stands on it and down again when
-' not. Charlie goes with the one it stands on.
+' not. Each keeps how far it went.
 sub Movers ( _
     lv as Level, _
     gr as Ground, _
@@ -127,7 +126,6 @@ sub Movers ( _
                     Tell ev, EVSOUND, SCRACK
                 end if
 
-                if p.ground and p.sg = s then Drop gr, p
                 dy = lv.movers(m).t - SPANT
                 y = y + 80 * dy + GRAV * dy * dy
 
@@ -184,6 +182,8 @@ sub Movers ( _
 
         dx = x - gr.pt(s).at.x
         dy = y - gr.pt(s).at.y
+        lv.movers(m).shift.x = dx
+        lv.movers(m).shift.y = dy
         if dx = 0 and dy = 0 then continue for
 
         gr.pt(s).at.x = x
@@ -195,9 +195,10 @@ sub Movers ( _
         o = lv.movers(m).thing
         lv.things(o).at.x = cint(x)
         lv.things(o).at.y = cint(y)
-        if not p.ground or p.sg <> s then continue for
-
-        p.at.x = p.at.x + dx
-        p.at.y = p.at.y + dy
     next
 end sub
+
+' Whether span m falls from under who stands on it.
+function Falls% (lv as Level, m as integer)
+    Falls% = lv.movers(m).kind = 6 and lv.movers(m).t >= SPANT
+end function

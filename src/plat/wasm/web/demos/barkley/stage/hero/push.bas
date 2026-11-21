@@ -79,7 +79,7 @@ end sub
 
 ' Stopped dead in deep snow: uncurled, a quarter of his
 ' speed left.
-sub Stall (p as Hero)
+sub Mire (p as Hero)
     p.roll = 0
     p.gsp = p.gsp * .25
 end sub
@@ -162,4 +162,18 @@ end sub
 ' Falling onto something, up off it at v.
 sub Recoil (p as Hero, v as single)
     if not p.ground and p.vel.y > 0 then p.vel.y = -v
+end sub
+
+' Charlie stopped r from x, on the side of it he is.
+sub Balk (p as Hero, x as integer, r as integer)
+    dim s as integer
+
+    s = 1 + 2 * (p.at.x < x)
+    p.at.x = x + s * r
+
+    if p.ground then
+        if p.gsp * s < 0 then p.gsp = 0
+    elseif p.vel.x * s < 0 then
+        p.vel.x = 0
+    end if
 end sub

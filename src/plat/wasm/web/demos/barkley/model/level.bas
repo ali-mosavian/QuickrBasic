@@ -93,6 +93,7 @@ type Mover
     edge as integer
     button as integer
     t as single
+    shift as Vec
 end type
 
 ' The goat out of its place: st 1 ridden, 2 on its way home

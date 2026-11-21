@@ -30,6 +30,7 @@ from barkley.stage.things.sands import Flock, GHOVER
 from barkley.stage.things.wood import Swarms
 from barkley.stage.things.pass import Avalanche, Homeward
 from barkley.stage.hero.hurt import Lose
+from barkley.stage.hero.feet import Carried
 from barkley.control.keys import MuteKey, Spent
 from barkley.control.pilot import Pilot
 from barkley.flow.save import Keep, PickZone, Reach
@@ -95,7 +96,11 @@ sub Tick ( _
 
     if wd.lv.murk then Nightfall wd.lv, wd.zn, wd.tn
     if wd.lv.tide_lo <> NONE then Flow wd.lv, wd.se
-    if wd.lv.n_movers then Movers wd.lv, wd.gr, wd.ev, wd.se, p
+    if wd.lv.n_movers then
+        Movers wd.lv, wd.gr, wd.ev, wd.se, p
+        Carried wd.lv, wd.gr, p
+    end if
+
     g.mode_t = g.mode_t + STEPT
     if g.shake > 0 then g.shake = g.shake - STEPT
     if wd.se.unkept then Keep wd.se

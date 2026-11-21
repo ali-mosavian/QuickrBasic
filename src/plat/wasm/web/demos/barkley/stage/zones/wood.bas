@@ -13,12 +13,11 @@ from barkley.model.events import EVBURST, EVSOUND, Tell, TellAt
 from barkley.assets.palette import CBEE, CFLY, CINK, CVINE, CVINED
 from barkley.assets.palette import CWING, Tint
 from barkley.assets.tunes import SHURT, SPOP, SROLL, SSPRING
-from barkley.world.terrain.ground import Balk
 from barkley.world.level import GLOWN
 from barkley.stage.fx.parts import PMOUND
 from barkley.stage.hero.modes import Grab, VINEGRIP, VINELEN
 from barkley.stage.hero.draw import LOGR
-from barkley.stage.hero.push import Burrow, Launch, Rush
+from barkley.stage.hero.push import Balk, Burrow, Launch, Rush
 from barkley.stage.things.react import Rest, Turn
 from barkley.stage.hero.hurt import Hurt
 
