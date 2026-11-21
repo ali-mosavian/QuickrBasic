@@ -1,4 +1,5 @@
-' Charlie hurt or tackled, a life lost, one of the Mob beaten.
+' Charlie hurt or tackled, a life lost, one of the Mob
+' beaten.
 defint A-Z
 option explicit
 
@@ -12,7 +13,8 @@ from barkley.stage.fx.parts import Burst
 
 const BOUNCEV = 330!
 
-' One of the Mob run into: rolled or charged into it is beaten, dy up from its foot, and he bounces off it; else
+' One of the Mob run into: rolled or charged into it is
+' beaten, dy up from its foot, and he bounces off it; else
 ' it hurts.
 sub Tackle ( _
     lv as Level, _
@@ -35,7 +37,8 @@ sub Tackle ( _
     if not p.ground and p.vel.y > 0 then p.vel.y = -BOUNCEV
 end sub
 
-' Hit: the bones fly loose and Charlie is knocked back; with none, it is out.
+' Hit: the bones fly loose and Charlie is knocked back; with
+' none, it is out.
 sub Hurt ( _
     mu as Deck, _
     se as Session, _
@@ -97,7 +100,8 @@ sub Lose (mu as Deck, se as Session, p as Hero)
     Sfx mu, se, SDIE
 end sub
 
-' Thing i beaten: gone, its points, a shake and a puff dy over its foot.
+' Thing i beaten: gone, its points, a shake and a puff dy
+' over its foot.
 sub Beaten ( _
     lv as Level, _
     mu as Deck, _

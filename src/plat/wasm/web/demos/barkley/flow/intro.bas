@@ -1,4 +1,5 @@
-' The intro, and the bump between zones: a script of cues played by the beat.
+' The intro, and the bump between zones: a script of cues
+' played by the beat.
 defint A-Z
 option explicit
 
@@ -21,15 +22,17 @@ from barkley.stage.hero.draw import DrawBark, DrawHero, Pose
 from barkley.stage.scene import DrawThings
 from barkley.control.keys import MuteKey, Spent
 
-' each zone's tune, its number in CHARLIE.DAT: a digit a zone
-' The intro: BEATS a second, ILEN of them, the ground HORIZON down the screen between two bars BARH high. Its
+' each zone's tune, its number in CHARLIE.DAT: a digit a
+' zone The intro: BEATS a second, ILEN of them, the ground
+' HORIZON down the screen between two bars BARH high. Its
 ' cues' kinds, in QNAMES' order, six letters a name.
 const BEATS = 2!
 const ILEN = 112
 const HORIZON = 150
 private const BARH = 14
 
-' Between zones the bump again: its cues' first beat and how many, its song's number in CHARLIE.DAT.
+' Between zones the bump again: its cues' first beat and how
+' many, its song's number in CHARLIE.DAT.
 const BUMP0 = 120
 private const BUMPLEN = 16
 const BETWEEN = 12
@@ -51,12 +54,17 @@ const QSND = 15
 private const QNAMES = "cam   house boxes crate hedge fam   " + _
     "van   float baron cat   basketeyes  hero  woof  snd   "
 
-' The intro's script, back to front: a cue's kind, the beats it is on from and to, where it starts and where it
-' ends, its ease, its hop and its own number. A van's: 1 its door open, 2 Charlie at its window, 4 looking back
-' from it. A float's: 1 the Baron aboard. A cat's: 1 the basket on it, 2 stood still. Charlie's: Pose's. A sound's:
-' Sfx's. A scene every 16 beats, as the tune has them. What goes into the van, or is in it, comes before it.
+' The intro's script, back to front: a cue's kind, the beats
+' it is on from and to, where it starts and where it ends,
+' its ease, its hop and its own number. A van's: 1 its door
+' open, 2 Charlie at its window, 4 looking back from it. A
+' float's: 1 the Baron aboard. A cat's: 1 the basket on it,
+' 2 stood still. Charlie's: Pose's. A sound's: Sfx's. A
+' scene every 16 beats, as the tune has them. What goes into
+' the van, or is in it, comes before it.
 Cues:
-' the last morning: the family at the door, the boxes thrown aboard, Charlie round them all and in
+' the last morning: the family at the door, the boxes thrown
+' aboard, Charlie round them all and in
 data "cam", 0, 16, 0, 0, 60, 0, 0, 0, 0
 data "house", 0, 32, 40, 0, 40, 0, 0, 0, 0
 data "fam", 0, 16, 120, 0, 120, 0, 0, 0, 1
@@ -78,7 +86,8 @@ data "cam", 16, 17, 80, 0, 80, 0, 0, 0, 0
 data "cam", 17, 32, 80, 0, 1120, 0, 1, 0, 0
 data "van", 16, 17, 330, 0, 330, 0, 0, 0, 2
 data "van", 17, 32, 330, 0, 1280, 0, 1, 0, 2
-' a hedge it passes: eyes, then the Mob, the Baron last; he points, their float comes, and they are after it
+' a hedge it passes: eyes, then the Mob, the Baron last; he
+' points, their float comes, and they are after it
 data "cam", 32, 48, 1400, 0, 1400, 0, 0, 0, 0
 data "cat", 37, 40, 1570, 0, 1660, 0, 0, 0, 0
 data "cat", 40, 46, 1660, 0, 1660, 0, 0, 0, 2
@@ -98,7 +107,8 @@ data "baron", 45, 45.75, 1644, 0, 1568, -31, 0, 16, 0
 data "float", 45.75, 48, 1590, 0, 1890, 0, 1, 0, 1
 data "cat", 46, 48, 1660, 0, 1840, 0, 0, 0, 0
 data "cat", 46, 48, 1690, 0, 1860, 0, 0, 0, 0
-' a bump: the latch pops and the basket is out; eyes in a hedge, a leap, and Biscuit is away with it
+' a bump: the latch pops and the basket is out; eyes in a
+' hedge, a leap, and Biscuit is away with it
 data "cam", 48, 64, 2140, 0, 2140, 0, 0, 0, 0
 data "hedge", 48, 64, 2180, 0, 2180, 0, 0, 0, 0
 data "eyes", 54, 58, 2146, -22, 2146, -22, 0, 0, 1
@@ -113,7 +123,8 @@ data "cat", 58, 58.75, 2150, -20, 2172, 0, 0, 12, 0
 data "cat", 58.75, 59.25, 2172, 0, 2172, 0, 0, 0, 2
 data "snd", 58.75, 59, 0, 0, 0, 0, 0, 0, 12
 data "cat", 59.25, 63.5, 2186, 0, 2500, 0, 0, 0, 1
-' Charlie has seen: he barks from the window and no one hears; out of the door, then, and down
+' Charlie has seen: he barks from the window and no one
+' hears; out of the door, then, and down
 data "cam", 64, 72, 2700, 0, 3740, 0, 0, 0, 0
 data "cam", 72, 75, 3740, 0, 3900, 0, 2, 0, 0
 data "cam", 75, 100, 3900, 0, 3900, 0, 0, 0, 0
@@ -129,7 +140,8 @@ data "snd", 69, 69.5, 0, 0, 0, 0, 0, 0, 13
 data "hero", 72, 73.5, 3864, -13, 3960, 0, 0, 28, 3
 data "hero", 73.5, 75.5, 3960, 0, 4060, 0, 2, 0, 3
 data "hero", 75.5, 80, 4060, 0, 4060, 0, 0, 0, 5
-' the cat goes by him with the basket, then the Mob on its float: he looks after them, and barks
+' the cat goes by him with the basket, then the Mob on its
+' float: he looks after them, and barks
 data "float", 85.5, 89.5, 3830, 0, 4330, 0, 0, 0, 1
 data "hero", 80, 81, 4060, 0, 4060, 0, 0, 0, 0
 data "hero", 81, 82.6, 4060, 0, 4060, 0, 0, 0, 16
@@ -156,8 +168,8 @@ data "hero", 100, 102, 4060, 0, 4260, 0, 1, 0, 2
 data "hero", 102, 112, 4260, 0, 6160, 0, 0, 0, 2
 data "cam", 100, 102, 3900, 0, 4020, 0, 1, 0, 0
 data "cam", 102, 112, 4020, 0, 5940, 0, 0, 0, 0
-' between zones, the bump again on the next zone's road: its keepsake out, and the cat that was following away
-' with it
+' between zones, the bump again on the next zone's road: its
+' keepsake out, and the cat that was following away with it
 data "cam", 120, 136, 2140, 0, 2140, 0, 0, 0, 0
 data "van", 120, 122, 1998, 0, 2258, 0, 0, 0, 2
 data "van", 122, 123, 2258, 0, 2388, 0, 0, 9, 3
@@ -173,7 +185,8 @@ data "cat", 130.25, 134.5, 2186, 0, 2500, 0, 0, 0, 1
 data "end"
 
 
-' The intro from its first beat: its road, its script, the view on the road's start.
+' The intro from its first beat: its road, its script, the
+' view on the road's start.
 sub StartIntro (wd as World, g as Game, cu() as Cue)
     wd.se.road = 0
     wd.se.scene_next = 0
@@ -186,8 +199,9 @@ sub StartIntro (wd as World, g as Game, cu() as Cue)
     g.cam.y = wd.lv.start.y - HORIZON
 end sub
 
-' Between zones the van's bump again, on the road of stage nxt's zone: its look, its keepsake and a cat, to four
-' bars of their own; then that stage.
+' Between zones the van's bump again, on the road of stage
+' nxt's zone: its look, its keepsake and a cat, to four bars
+' of their own; then that stage.
 sub StartBump (wd as World, g as Game, nxt as integer)
     wd.se.road = ZoneOf%(wd.se, nxt)
     wd.se.scene_next = nxt
@@ -201,7 +215,8 @@ sub StartBump (wd as World, g as Game, nxt as integer)
     g.cam.y = wd.lv.start.y - HORIZON
 end sub
 
-' The script from its DATA: a row a cue, "end" after the last, its kind 0.
+' The script from its DATA: a row a cue, "end" after the
+' last, its kind 0.
 private sub LoadCues (cu() as Cue)
     dim n as integer, kind as string
     restore Cues
@@ -216,7 +231,8 @@ private sub LoadCues (cu() as Cue)
     loop
 end sub
 
-' A step of the intro: its view and its sounds by the script, its last beat fading. Whether it is over: played
+' A step of the intro: its view and its sounds by the
+' script, its last beat fading. Whether it is over: played
 ' out, or a key pressed.
 function IntroOver% (wd as World, g as Game, k as Pad, cu() as Cue)
     dim i as integer, x as integer, y as integer, was as single
@@ -248,7 +264,8 @@ function IntroOver% (wd as World, g as Game, k as Pad, cu() as Cue)
     Spent k
 end function
 
-' Where cue i is at beat t, in the world: along its way, eased, a hop's arc over it.
+' Where cue i is at beat t, in the world: along its way,
+' eased, a hop's arc over it.
 sub CueAt ( _
     lv as Level, _
     cu() as Cue, _
@@ -271,7 +288,8 @@ sub CueAt ( _
         * (1 - u))
 end sub
 
-' The intro's picture: the Downs, then each cue that is on, in the script's order, between two black bars.
+' The intro's picture: the Downs, then each cue that is on,
+' in the script's order, between two black bars.
 sub IntroDraw (wd as World, g as Game, p as Hero, cu() as Cue)
     dim i as integer, cx as integer, cy as integer, now as single
     cx = int(g.cam.x)
@@ -291,7 +309,8 @@ sub IntroDraw (wd as World, g as Game, p as Hero, cu() as Cue)
     line (0, SH - BARH)-(SW - 1, SH - 1), 0, BF
 end sub
 
-' Cue i's picture at beat `now`, the view at cx, cy: its foot's middle where the cue is.
+' Cue i's picture at beat `now`, the view at cx, cy: its
+' foot's middle where the cue is.
 private sub DrawCue ( _
     wd as World, _
     cu() as Cue, _

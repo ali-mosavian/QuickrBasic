@@ -1,4 +1,5 @@
-' A stage's step: Charlie against the things of the level; his death and his return.
+' A stage's step: Charlie against the things of the level;
+' his death and his return.
 defint A-Z
 option explicit
 
@@ -184,7 +185,8 @@ sub Touch ( _
     next
 end sub
 
-' Out: Charlie rises and falls through everything; then the next life.
+' Out: Charlie rises and falls through everything; then the
+' next life.
 sub Dying ( _
     lv as Level, _
     gr as Ground, _
@@ -217,7 +219,8 @@ sub Things ( _
     pt() as Part _
 )
     dim i as integer, c as integer
-    ' typed: a const made from a const and left typeless is rounded to a whole number, 0 here
+    ' typed: a const made from a const and left typeless is
+    ' rounded to a whole number, 0 here
     const DT! = STEPT * 2
     c = (cint(g.cam.x) - 100) \ TS
     if c < 0 then c = 0

@@ -2,8 +2,8 @@
 defint A-Z
 option explicit
 
-' A data file: its name, what to say when it is not there, and its
-' number while it is open.
+' A data file: its name, what to say when it is not there,
+' and its number while it is open.
 type DataFile
     path as string
     lack as string
@@ -16,8 +16,8 @@ sub NameData (df as DataFile, path as string, lack as string)
     df.lack = lack
 end sub
 
-' df open, at its start; when it is not there the program ends,
-' saying df.lack.
+' df open, at its start; when it is not there the program
+' ends, saying df.lack.
 sub OpenData (df as DataFile)
     df.num = freefile
     open df.path for binary as #df.num

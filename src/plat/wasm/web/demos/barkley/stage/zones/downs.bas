@@ -1,4 +1,5 @@
-' The Amber Downs: the Mob's cats, bones, springs, boost pads and marker posts.
+' The Amber Downs: the Mob's cats, bones, springs, boost
+' pads and marker posts.
 defint A-Z
 option explicit
 
@@ -67,7 +68,8 @@ sub MeetGold ( _
     Sfx mu, se, SGOLD
 end sub
 
-' A cat of the Mob, or a squirrel: rolled or charged into it is beaten, and he bounces off it; else it scratches.
+' A cat of the Mob, or a squirrel: rolled or charged into it
+' is beaten, and he bounces off it; else it scratches.
 sub MeetCat ( _
     lv as Level, _
     mu as Deck, _
@@ -110,7 +112,8 @@ sub MeetSpring ( _
     Sfx mu, se, SSPRING
 end sub
 
-' A boost pad: run over slower than it sends, he is sent the way he faces.
+' A boost pad: run over slower than it sends, he is sent the
+' way he faces.
 sub MeetBoost ( _
     lv as Level, _
     mu as Deck, _
@@ -150,10 +153,11 @@ sub MeetMark ( _
     Sfx mu, se, SMARK
 end sub
 
-' Thirty times a second: cats near the view pace about their homes,
-' turning at edges and walls; springs settle; loose bones bounce and
-' fade; sparks fall.
-' Cat i a pixel on the way it faces, where its beat, the ground and no wall let it: whether it went.
+' Thirty times a second: cats near the view pace about their
+' homes, turning at edges and walls; springs settle; loose
+' bones bounce and fade; sparks fall. Cat i a pixel on the
+' way it faces, where its beat, the ground and no wall let
+' it: whether it went.
 function Paced% (lv as Level, i as integer)
     dim x as integer, y as integer, s as integer
     Paced% = 0
@@ -169,8 +173,9 @@ function Paced% (lv as Level, i as integer)
     Paced% = -1
 end function
 
-' A cat's step: startled, it stands and counts its state down to a prowl's; prowling, a pixel along its beat, turned
-' at the beat's end, a drop or a wall.
+' A cat's step: startled, it stands and counts its state
+' down to a prowl's; prowling, a pixel along its beat,
+' turned at the beat's end, a drop or a wall.
 sub Prowl (lv as Level, i as integer)
     if abs(lv.things(i).state) > 1 then
         lv.things(i).state = lv.things(i).state _
@@ -180,7 +185,8 @@ sub Prowl (lv as Level, i as integer)
     if not Paced%(lv, i) then lv.things(i).state = -lv.things(i).state
 end sub
 
-' A cat's picture by its state: startled, turned to what barked, or a stride of its prowl the way it goes.
+' A cat's picture by its state: startled, turned to what
+' barked, or a stride of its prowl the way it goes.
 function CatPic% (se as Session, s as integer)
     if abs(s) > 1 then
         CatPic% = ICATF - 2 * (s > 0)

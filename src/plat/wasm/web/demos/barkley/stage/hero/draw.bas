@@ -30,11 +30,13 @@ private const SLEDH = 5
 private const GOATH = 14
 const WAVEH = WAVEA + 36
 
-' A hollow log: half its length, its height, and the speed he is shot through it curled.
+' A hollow log: half its length, its height, and the speed
+' he is shot through it curled.
 const LOGR = 32
 
-' Charlie as a cue has it, at x, y in the world. a: 0 stood, 1 running, 2 at full tilt, 3 curled, 4 crouched,
-' 5 shaken, 6 glad, 7 wound up; 16 more, or west, facing left.
+' Charlie as a cue has it, at x, y in the world. a: 0 stood,
+' 1 running, 2 at full tilt, 3 curled, 4 crouched, 5 shaken,
+' 6 glad, 7 wound up; 16 more, or west, facing left.
 sub Pose ( _
     lv as Level, _
     gr as Ground, _
@@ -71,10 +73,10 @@ sub Pose ( _
     end select
 end sub
 
-' Charlie, and streaks of wind behind it at speed; running on a slope, the
-' frame turned to it.
-' What is nearer than Charlie: the near half of each ribbon's twist, which hides what runs behind it, and a
-' hollow log.
+' Charlie, and streaks of wind behind it at speed; running
+' on a slope, the frame turned to it. What is nearer than
+' Charlie: the near half of each ribbon's twist, which hides
+' what runs behind it, and a hollow log.
 sub DrawOver ( _
     lv as Level, _
     zn as Realm, _
@@ -101,13 +103,15 @@ sub DrawOver ( _
     loop
 end sub
 
-' The bark, seen: two arcs before his muzzle, wider as it goes.
+' The bark, seen: two arcs before his muzzle, wider as it
+' goes.
 sub DrawBark (p as Hero, cx as integer, cy as integer)
     dim x as integer, y as integer, r as integer, a as single
     x = cint(p.at.x) - cx + (1 - 2 * p.face) * 12
     y = cint(p.at.y) - cy - 18
     r = 5 + cint((BARKT - p.bark_t) * 50)
-    ' a quarter turn about the way he faces: to the right through 0, to the left about PI
+    ' a quarter turn about the way he faces: to the right
+    ' through 0, to the left about PI
     a = PI * (7 / 4 - p.face)
     circle (x, y), r, CWHITE, a, a + PI / 2 - 2 * PI * (1 - p.face)
     circle (x, y), r + 4, CWHITE, a, _
@@ -136,13 +140,15 @@ sub DrawHero ( _
         SpeedLines se, x, y - cint(14 * hu), sgn(v)
     end if
     f = HeroFrame%(se, p)
-    ' on a sled: it lies as the ground does, and he stands on it
+    ' on a sled: it lies as the ground does, and he stands
+    ' on it
     if p.sled then
         Blit art, x - 15, y - 25, ISLED + (Slant%(p) + 2) * 2, 30, 42
         x = x + cint(SLEDH * hv)
         y = y - cint(SLEDH * hu)
     end if
-    ' astride a goat: it gallops as the ground lies, and he is GOATH up its back
+    ' astride a goat: it gallops as the ground lies, and he
+    ' is GOATH up its back
     if p.goat then
         Blit art, x - 17, y - 40, _
             IGOATR + ((Slant%(p) + 2) * 2 + ((se.ticks \ 6) and 1)) _
@@ -162,8 +168,9 @@ sub DrawHero ( _
     DrawTilted art, p, x, y, f, t, hu, hv
 end sub
 
-' The ground's lie under him, hu and hv; round a ribbon's twist he keeps to the inside, over the line then under
-' it: a the turn he is at, tw set.
+' The ground's lie under him, hu and hv; round a ribbon's
+' twist he keeps to the inside, over the line then under it:
+' a the turn he is at, tw set.
 private sub Footing ( _
     gr as Ground, _
     p as Hero, _
@@ -183,7 +190,8 @@ private sub Footing ( _
     tw = -1
 end sub
 
-' The air he cuts at speed: four lines behind him, d the way he goes, about height y.
+' The air he cuts at speed: four lines behind him, d the way
+' he goes, about height y.
 private sub SpeedLines ( _
     se as Session, _
     x as integer, _
@@ -198,7 +206,8 @@ private sub SpeedLines ( _
     next
 end sub
 
-' Running round a twist: rolled with the ribbon, a twelfth of a turn a picture, its paws' line 12 off its middle.
+' Running round a twist: rolled with the ribbon, a twelfth
+' of a turn a picture, its paws' line 12 off its middle.
 private sub DrawTwisted ( _
     art as Store, _
     p as Hero, _
@@ -215,7 +224,8 @@ private sub DrawTwisted ( _
         ITW + (p.face * 24 + t * 2 + j) * 2, 32, 32
 end sub
 
-' How far he is turned to the ground he runs on: sixteenths of a turn, nose up.
+' How far he is turned to the ground he runs on: sixteenths
+' of a turn, nose up.
 private function Turned% (p as Hero)
     dim v as single, t as integer
     v = p.ang
@@ -225,8 +235,9 @@ private function Turned% (p as Hero)
     Turned% = t and 15
 end function
 
-' Not turned: as drawn. Curled on the ground, his middle is 13 off it, whichever way that is; in a snowball none
-' of him shows; afraid, he shakes.
+' Not turned: as drawn. Curled on the ground, his middle is
+' 13 off it, whichever way that is; in a snowball none of
+' him shows; afraid, he shakes.
 private sub DrawUpright ( _
     art as Store, _
     se as Session, _
@@ -256,8 +267,10 @@ private sub DrawUpright ( _
     Blit art, bx - 16, by - 31, IHERO + (p.face * NF + f) * 2, 32, 32
 end sub
 
-' Turned about his middle, 12 off the ground, t sixteenths: the picture as drawn (0) or mirrored to face left (1);
-' past half a turn the one half a turn back upside down, mirrored (3) or not (2).
+' Turned about his middle, 12 off the ground, t sixteenths:
+' the picture as drawn (0) or mirrored to face left (1);
+' past half a turn the one half a turn back upside down,
+' mirrored (3) or not (2).
 private sub DrawTilted ( _
     art as Store, _
     p as Hero, _
@@ -309,7 +322,8 @@ private function HeroFrame% (se as Session, p as Hero)
     end if
 end function
 
-' Stood still: a blink now and then, and after a while a tap of the paw.
+' Stood still: a blink now and then, and after a while a tap
+' of the paw.
 private function Standing% (se as Session, p as Hero)
     Standing% = FIDLE
     if se.ticks mod 180 < 8 then Standing% = FBLINK

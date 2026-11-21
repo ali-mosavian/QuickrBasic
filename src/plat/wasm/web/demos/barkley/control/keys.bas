@@ -1,4 +1,5 @@
-' The player's keys made Charlie's pad; M and N for the music.
+' The player's keys made Charlie's pad; M and N for the
+' music.
 defint A-Z
 option explicit
 

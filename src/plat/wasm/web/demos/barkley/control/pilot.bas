@@ -1,4 +1,5 @@
-' The game's own player: a pad that holds right and jumps at pits, walls and cats.
+' The game's own player: a pad that holds right and jumps at
+' pits, walls and cats.
 defint A-Z
 option explicit
 
@@ -20,12 +21,15 @@ from barkley.stage.zones.quarter import PotClear, POTR, POTX
 from barkley.stage.zones.quarter import POUNCEGONE, TipperAhead
 from barkley.stage.zones.pass import GCHARGE, GoatNear
 
-' How near who flees is rolled into. A bump throws him back curled, and on the quarter's level street a roll only
-' slows: he hops out of it once its cat is OUTRUN ahead, further than a hop gains on one that stops.
+' How near who flees is rolled into. A bump throws him back
+' curled, and on the quarter's level street a roll only
+' slows: he hops out of it once its cat is OUTRUN ahead,
+' further than a hop gains on one that stops.
 private const RAMREACH = 120
 private const OUTRUN = 140
 
-' The game's own player: Right held, a jump where one is wanted, still where it must wait.
+' The game's own player: Right held, a jump where one is
+' wanted, still where it must wait.
 sub Pilot ( _
     lv as Level, _
     gr as Ground, _
@@ -40,7 +44,8 @@ sub Pilot ( _
     k.left = 0
     k.down = 0
     if p.vine then
-        ' hung from a vine: let go on the way up and forward, or where a small swing turns
+        ' hung from a vine: let go on the way up and
+        ' forward, or where a small swing turns
         hop_now = p.sway_v > 0 and p.sway > 0 _
             and (p.sway > .5 or p.sway_v < 1)
     elseif p.swim then
@@ -68,13 +73,15 @@ private sub PressOn (k as Pad)
     k.left = 0
 end sub
 
-' The pilot's keys: no further, and back against a speed over v.
+' The pilot's keys: no further, and back against a speed
+' over v.
 private sub HoldBack (p as Hero, k as Pad, v as integer)
     k.right = 0
     if p.gsp > v then k.left = -1
 end sub
 
-' Afloat: on to the right, a hop where a bank is in the way, or a jellyfish. Whether to hop.
+' Afloat: on to the right, a hop where a bank is in the way,
+' or a jellyfish. Whether to hop.
 private function PilotSwim% ( _
     lv as Level, _
     zn as Realm, _
@@ -91,7 +98,8 @@ private function PilotSwim% ( _
         end if
     next
     PilotSwim% = want
-    ' Kipper's boat about: still, and a hop as it comes, to come down on its deck
+    ' Kipper's boat about: still, and a hop as it comes, to
+    ' come down on its deck
     if zn.id <> 2 or lv.cart.st <> 1 then exit function
     k.right = 0
     d = cint(lv.cart.at.x - p.at.x)
@@ -100,7 +108,8 @@ private function PilotSwim% ( _
     PilotSwim% = want and sgn(d) <> sgn(lv.cart.v)
 end function
 
-' On a platform: still, till there is ground ahead to jump to. Whether to jump.
+' On a platform: still, till there is ground ahead to jump
+' to. Whether to jump.
 private function PilotRide% ( _
     lv as Level, _
     gr as Ground, _
@@ -125,13 +134,15 @@ private function PilotRide% ( _
             PressOn k
             want = 0
         case 8
-            ' a tram is ridden to its way's end, and left by a jump
+            ' a tram is ridden to its way's end, and left by
+            ' a jump
             if lv.movers(m).t >= 1 then
                 PressOn k
                 want = -1
             end if
         case 5
-            ' a boat low in its pool: off it at the wall, once the bank is a jump up
+            ' a boat low in its pool: off it at the wall,
+            ' once the bank is a jump up
             d = lv.top((i + 6) \ TS) * TS
             if Swing!(lv, se, m, 0) > .85 and d < y _
                 and d > y - 44 then
@@ -143,7 +154,8 @@ private function PilotRide% ( _
     PilotRide% = want
 end function
 
-' On the ground: a jump at a gap, a wall, or what would hurt; a wait at a press, a goat, a platform's gap. Whether
+' On the ground: a jump at a gap, a wall, or what would
+' hurt; a wait at a press, a goat, a platform's gap. Whether
 ' to jump.
 private function PilotRun% ( _
     lv as Level, _
@@ -167,7 +179,8 @@ private function PilotRun% ( _
     for i = lv.first(x \ TS) to lv.n_things - 1
         if lv.things(i).at.x > x + 130 then exit for
         if lv.things(i).at.x <= x then continue for
-        ' a pouncer is jumped in its bin and out of it; a mortar's flash is jumped, whenever it fires
+        ' a pouncer is jumped in its bin and out of it; a
+        ' mortar's flash is jumped, whenever it fires
         d = ((lv.things(i).kind = KCAT _
             or lv.things(i).kind = KSNATCH) _
             and lv.things(i).state <> 0) or lv.things(i).kind = KTHORN
@@ -175,8 +188,9 @@ private function PilotRun% ( _
         d = d or (lv.things(i).kind = KPOUNCE _
             and lv.things(i).state <> POUNCEGONE)
         if d and lv.things(i).at.x <= x + 50 then want = -1
-        ' what is not rolled through, a crab, a jellyfish, a sweeper, a spark: jumped from further back the faster
-        ' he goes
+        ' what is not rolled through, a crab, a jellyfish, a
+        ' sweeper, a spark: jumped from further back the
+        ' faster he goes
         d = lv.things(i).kind = KJELLY _
             or lv.things(i).kind = KSPARK _
             or (lv.things(i).kind = KCRAB _
@@ -203,7 +217,8 @@ private function PilotRun% ( _
     PilotRun% = want
 end function
 
-' Whether who flees is rolled into: ahead within RAMREACH, and the speed there to roll.
+' Whether who flees is rolled into: ahead within RAMREACH,
+' and the speed there to roll.
 private function Rams% (lv as Level, zn as Realm, p as Hero)
     dim d as integer
     Rams% = 0
@@ -214,8 +229,9 @@ private function Rams% (lv as Level, zn as Realm, p as Hero)
     Rams% = d > 0 and d < RAMREACH and p.gsp > 150
 end function
 
-' Whether mound i's burrow comes out further on past a wall no jump clears: a column on its way five tiles over
-' its own ground, or more.
+' Whether mound i's burrow comes out further on past a wall
+' no jump clears: a column on its way five tiles over its
+' own ground, or more.
 private function Walled% (lv as Level, i as integer)
     dim c as integer, j as integer
     Walled% = 0
@@ -228,8 +244,9 @@ private function Walled% (lv as Level, i as integer)
     next
 end function
 
-' Such a mound ahead, or just passed: braked to a stand on it, and down. The faster he comes the sooner he
-' brakes; short of it he goes on at a walk.
+' Such a mound ahead, or just passed: braked to a stand on
+' it, and down. The faster he comes the sooner he brakes;
+' short of it he goes on at a walk.
 private sub PilotDig ( _
     lv as Level, _
     p as Hero, _
@@ -257,8 +274,9 @@ private sub PilotDig ( _
     next
 end sub
 
-' Grown bramble or a log ahead, or about him: rolled through with the speed to roll, else jumped. Past them,
-' curled still and slower than a run: out of the roll by a hop.
+' Grown bramble or a log ahead, or about him: rolled through
+' with the speed to roll, else jumped. Past them, curled
+' still and slower than a run: out of the roll by a hop.
 private sub PilotCurl ( _
     lv as Level, _
     p as Hero, _
@@ -285,7 +303,8 @@ private sub PilotCurl ( _
     if p.roll and abs(p.gsp) < TOP then want = -1
 end sub
 
-' A row of presses ahead: to a stop before it, on once its first is well risen, and no jump under one.
+' A row of presses ahead: to a stop before it, on once its
+' first is well risen, and no jump under one.
 private sub PilotPress ( _
     lv as Level, _
     se as Session, _
@@ -304,7 +323,8 @@ private sub PilotPress ( _
     end if
 end sub
 
-' A tipper ahead: to a stop short of where its pot comes down, on once one has broken and the next is not soon.
+' A tipper ahead: to a stop short of where its pot comes
+' down, on once one has broken and the next is not soon.
 private sub PilotTipper ( _
     lv as Level, _
     se as Session, _
@@ -319,7 +339,8 @@ private sub PilotTipper ( _
     if not PotClear%(lv, se, i) then HoldBack p, k, 20
 end sub
 
-' A goat near: to a stand short of it, up as it charges, and down on its back.
+' A goat near: to a stand short of it, up as it charges, and
+' down on its back.
 private sub PilotGoat ( _
     lv as Level, _
     p as Hero, _
@@ -340,7 +361,8 @@ private sub PilotGoat ( _
     HoldBack p, k, 20
 end sub
 
-' A platform's gap ahead: slowly to its edge, there till the platform is at it and staying, then on.
+' A platform's gap ahead: slowly to its edge, there till the
+' platform is at it and staying, then on.
 private sub PilotGaps ( _
     lv as Level, _
     se as Session, _
@@ -353,7 +375,8 @@ private sub PilotGaps ( _
     y = cint(p.at.y)
     for m = 0 to lv.n_movers - 1
         d = lv.movers(m).edge - x
-        ' a bridge and a pier are run over; a tram's street is run along
+        ' a bridge and a pier are run over; a tram's street
+        ' is run along
         if lv.movers(m).kind = 4 or lv.movers(m).kind = 6 _
             or lv.movers(m).kind = 8 then
             d = NONE
@@ -374,7 +397,8 @@ private sub PilotGaps ( _
     next
 end sub
 
-' Whether moving platform m is at its gap's edge and staying, to be stepped onto.
+' Whether moving platform m is at its gap's edge and
+' staying, to be stepped onto.
 private function Ready% (lv as Level, se as Session, m as integer)
     select case lv.movers(m).kind
     case 0
@@ -393,8 +417,9 @@ private function Ready% (lv as Level, se as Session, m as integer)
     end select
 end function
 
-' In the air: straight down onto Kipper's deck or a goat's back; slowed toward a platform's gap, to come down
-' before it.
+' In the air: straight down onto Kipper's deck or a goat's
+' back; slowed toward a platform's gap, to come down before
+' it.
 private sub PilotFall (lv as Level, zn as Realm, p as Hero, k as Pad)
     dim m as integer, d as integer
     if zn.id = 2 and lv.cart.st = 1 then k.right = 0
@@ -412,7 +437,8 @@ private sub PilotFall (lv as Level, zn as Realm, p as Hero, k as Pad)
     next
 end sub
 
-' A blizzard: no jump is begun from a walk that a gust would catch, and while it blows he keeps low.
+' A blizzard: no jump is begun from a walk that a gust would
+' catch, and while it blows he keeps low.
 private sub PilotGale ( _
     lv as Level, _
     se as Session, _
@@ -427,6 +453,7 @@ private sub PilotGale ( _
     if Lull%(lv, se) = 0 then k.down = -1
     ' and from a crouch no jump: that would wind up a dash
     if p.crouch then want = 0
-    ' curled and come to a stand on a slope, held there by the key: out of it by a jump
+    ' curled and come to a stand on a slope, held there by
+    ' the key: out of it by a jump
     if p.roll and abs(p.gsp) < 30 then want = -1
 end sub

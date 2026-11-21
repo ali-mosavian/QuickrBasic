@@ -1,4 +1,5 @@
-' The camera: where the screen looks, and the headroom above Charlie.
+' The camera: where the screen looks, and the headroom above
+' Charlie.
 defint A-Z
 option explicit
 
@@ -11,7 +12,8 @@ from barkley.model.game import Game
 const HEAD = 124
 const HEADUP = 172
 
-' The view ahead of Charlie's run, kept in the level; snap puts it there.
+' The view ahead of Charlie's run, kept in the level; snap
+' puts it there.
 sub Camera ( _
     lv as Level, _
     zn as Realm, _
@@ -47,8 +49,9 @@ sub Camera ( _
     if g.cam.y > MH * TS - SH then g.cam.y = MH * TS - SH
 end sub
 
-' How far under the view's top Charlie is kept: further in a crane's hall while it hangs there, to see it, and
-' under the great oak while the twins have the ball.
+' How far under the view's top Charlie is kept: further in a
+' crane's hall while it hangs there, to see it, and under
+' the great oak while the twins have the ball.
 function Headroom% (lv as Level, zn as Realm, p as Hero)
     Headroom% = HEAD
     if lv.chase_x = NONE or p.at.x < lv.chase_x _

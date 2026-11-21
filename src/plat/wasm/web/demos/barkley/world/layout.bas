@@ -1,4 +1,5 @@
-' What a level is laid with: columns, pits, shelves, scenery and things.
+' What a level is laid with: columns, pits, shelves, scenery
+' and things.
 defint A-Z
 option explicit
 
@@ -11,7 +12,8 @@ from barkley.world.terrain.track import LimbUp, LIMBW, LimbX, NLIMB
 
 const PITD = 5
 
-' A moving platform, its middle's left end at x, y; reach a, kind k; e the edge before it.
+' A moving platform, its middle's left end at x, y; reach a,
+' kind k; e the edge before it.
 sub AddMover ( _
     lv as Level, _
     x as integer, _
@@ -56,7 +58,8 @@ sub Clearing (lv as Level, c as integer)
     lv.fallow = c + 3
 end sub
 
-' Flowers, bushes and lantern plants along the flats, by the column; none before column lv.fallow.
+' Flowers, bushes and lantern plants along the flats, by the
+' column; none before column lv.fallow.
 sub Scatter (lv as Level, zn as Realm, c as integer, s as integer)
     if c < 8 or c < lv.fallow then exit sub
     if zn.decked then
@@ -81,7 +84,8 @@ sub Scatter (lv as Level, zn as Realm, c as integer, s as integer)
     end select
 end sub
 
-' Column c solid g tiles up from the bottom; kind over 1 a slope on top.
+' Column c solid g tiles up from the bottom; kind over 1 a
+' slope on top.
 sub Column (lv as Level, c as integer, g as integer, kind as integer)
     dim r as integer
     for r = MH - g to MH - 1
@@ -98,7 +102,8 @@ sub Column (lv as Level, c as integer, g as integer, kind as integer)
     end if
 end sub
 
-' Under a jump or a platform, not a fall to nothing: n columns from c of floor PITD under the ground g, bones on
+' Under a jump or a platform, not a fall to nothing: n
+' columns from c of floor PITD under the ground g, bones on
 ' it, a spring at its far wall.
 sub Pit (lv as Level, c as integer, g as integer, n as integer)
     dim i as integer, y as integer
@@ -115,7 +120,8 @@ sub Pit (lv as Level, c as integer, g as integer, n as integer)
     end if
 end sub
 
-' A shelf w wide, n tiles over the ground, s, at column c; g the ground's height in tiles.
+' A shelf w wide, n tiles over the ground, s, at column c; g
+' the ground's height in tiles.
 sub Shelf ( _
     lv as Level, _
     c as integer, _
@@ -131,7 +137,8 @@ sub Shelf ( _
     next
 end sub
 
-' The great oak's limbs' flats, solid to stand on; g the ground's height in tiles at its foot.
+' The great oak's limbs' flats, solid to stand on; g the
+' ground's height in tiles at its foot.
 sub Limbs (lv as Level, g as integer)
     dim n as integer, i as integer, c as integer
     for n = 0 to NLIMB - 1
@@ -150,14 +157,16 @@ sub AddObj (lv as Level, k as integer, x as integer, y as integer)
     lv.n_things = lv.n_things + 1
 end sub
 
-' Whether thing i stands rooted in the ground: of a kind from lo to the lamp, or a post.
+' Whether thing i stands rooted in the ground: of a kind
+' from lo to the lamp, or a post.
 function Rooted% (lv as Level, i as integer, lo as integer)
     Rooted% = (lv.things(i).kind >= lo _
         and lv.things(i).kind <= KLAMP) or lv.things(i).kind >= KPOST
 end function
 
-' The things of kind k told each other in pairs: a thing's state its other end, counted from 1. With no way
-' back the second's is 0: a way out that takes no one in.
+' The things of kind k told each other in pairs: a thing's
+' state its other end, counted from 1. With no way back the
+' second's is 0: a way out that takes no one in.
 sub Pair (lv as Level, k as integer, back as integer)
     dim i as integer, j as integer
     for i = 0 to lv.n_things - 1
@@ -175,7 +184,8 @@ sub Pair (lv as Level, k as integer, back as integer)
     next
 end sub
 
-' The things by x, and first(c) the first at or past column c.
+' The things by x, and first(c) the first at or past column
+' c.
 sub SortObjs (lv as Level)
     dim i as integer, j as integer, c as integer
     for i = 1 to lv.n_things - 1

@@ -1,4 +1,5 @@
-' Charlie's moves: walking, jumping, rolling, winding up, in the air; his bark.
+' Charlie's moves: walking, jumping, rolling, winding up, in
+' the air; his bark.
 defint A-Z
 option explicit
 
@@ -33,33 +34,41 @@ private const RUPS = 300!
 private const RDNS = 1100!
 private const MAXV = 900!
 
-' On bare ice: what is left of the ground's braking and its friction, and of a run's push.
+' On bare ice: what is left of the ground's braking and its
+' friction, and of a run's push.
 private const ICEGRIP = .12
 private const ICEPUSH = .4
 private const CHARGE0 = 480!
 private const CHARGEMAX = 360!
 
-' A jump asked for this long before landing is made on it; one this long after running off an edge still is.
+' A jump asked for this long before landing is made on it;
+' one this long after running off an edge still is.
 private const JBUFFER = .1
 
-' The pass's own: deep snow, and a sled. Boarded, a sled goes off at SLEDV at the least; the snow's friction on
-' it is SLEDGRIP of a roll's; Charlie stands SLEDH over the ground on it.
+' The pass's own: deep snow, and a sled. Boarded, a sled
+' goes off at SLEDV at the least; the snow's friction on it
+' is SLEDGRIP of a roll's; Charlie stands SLEDH over the
+' ground on it.
 private const SLEDGRIP = .3
 
 const THROWC = 75
 
-' The wood's night: its fireflies' two colours, never dimmed; the steps a bark's light lasts, the last of them
-' fading; the parts its light is counted in; the fireflies awake, and at rest.
+' The wood's night: its fireflies' two colours, never
+' dimmed; the steps a bark's light lasts, the last of them
+' fading; the parts its light is counted in; the fireflies
+' awake, and at rest.
 const GLOWT = 300
 
 private const SQFRIGHT = 150
 
-' A bark: how far it carries, the seconds to the next, and the steps a cat stands startled by it.
+' A bark: how far it carries, the seconds to the next, and
+' the steps a cat stands startled by it.
 private const BARKR = 72
 const BARKT = .4
 private const STARTLED = 24
 
-' A crab: the steps it keeps to its shell once barked at, and how fast Charlie goes up off its back.
+' A crab: the steps it keeps to its shell once barked at,
+' and how fast Charlie goes up off its back.
 const SHELLT = 150
 
 private const GULLHEAR = 130
@@ -82,16 +91,19 @@ sub MoveHero ( _
         Tunnel lv, mu, se, p, pt()
         exit sub
     end if
-    ' a snowball lasts as long as its roll; broken, by a hit or his uncurling, it flies apart
+    ' a snowball lasts as long as its roll; broken, by a hit
+    ' or his uncurling, it flies apart
     if p.snow < 0 and not p.roll then p.snow = 1
     if p.snow > 0 then
         p.snow = 0
         Burst se, pt(), p.at.x, p.at.y - 12, 12, 140, CWHITE
         Sfx mu, se, SPOP
     end if
-    ' a ride lasts as long as its roll: come to a stand, hurt or thrown, the sled is left in pieces
+    ' a ride lasts as long as its roll: come to a stand,
+    ' hurt or thrown, the sled is left in pieces
     if p.sled and not p.roll then Alight mu, se, p, pt(), CEARTH + 4
-    ' a jump held through the hit is a jump as it ends: it was forgotten
+    ' a jump held through the hit is a jump as it ends: it
+    ' was forgotten
     if p.stun and p.ground and p.inv < 1 then
         p.stun = 0
         if k.jump then k.hit = -1
@@ -111,7 +123,8 @@ sub MoveHero ( _
     if p.inv > 0 then p.inv = p.inv - STEPT
     if p.goat then Ride lv, p, l, r, d
     p.last_x = p.at.x
-    ' slid off a slope too steep for its speed, the keys are no help a while
+    ' slid off a slope too steep for its speed, the keys are
+    ' no help a while
     if p.slip > 0 and p.ground then
         l = 0
         r = 0
@@ -158,7 +171,8 @@ sub MoveHero ( _
     end if
 end sub
 
-' A jump pressed just before landing, or just after the ground ran out, was lost: it is kept a moment.
+' A jump pressed just before landing, or just after the
+' ground ran out, was lost: it is kept a moment.
 private sub KeepJump ( _
     mu as Deck, _
     se as Session, _
@@ -182,7 +196,8 @@ private sub KeepJump ( _
     Sfx mu, se, SJUMP
 end sub
 
-' Whether Charlie is on bare ice: it keeps his speed and will not give it back.
+' Whether Charlie is on bare ice: it keeps his speed and
+' will not give it back.
 private function Slick% (lv as Level, gr as Ground, p as Hero)
     Slick% = 0
     if gr.pt(p.sg).kind = 1 and p.at.x >= 0 then
@@ -190,8 +205,8 @@ private function Slick% (lv as Level, gr as Ground, p as Hero)
     end if
 end function
 
-' On the ground: wind up, jump, roll, run; then along it, a few pixels a
-' move, into walls and onto the ground's curve.
+' On the ground: wind up, jump, roll, run; then along it, a
+' few pixels a move, into walls and onto the ground's curve.
 private sub Walk ( _
     lv as Level, _
     gr as Ground, _
@@ -232,7 +247,8 @@ private sub Walk ( _
     for s = 1 to n
         Along gr, p, p.gsp * STEPT / n
         if not p.ground then exit sub
-        ' a wall stops it on the tiles' ground; a curve is run up
+        ' a wall stops it on the tiles' ground; a curve is
+        ' run up
         i = p.sg
         if gr.pt(i).kind = 2 or p.gsp = 0 then continue for
         if Wall%(lv, p, sgn(p.gsp)) = 0 then continue for
@@ -246,7 +262,8 @@ private sub Walk ( _
     Falter gr, p
 end sub
 
-' A dash wound up: each press winds it further; Down let go, he is away. Whether it is still held.
+' A dash wound up: each press winds it further; Down let go,
+' he is away. Whether it is still held.
 private function Winding% ( _
     mu as Deck, _
     se as Session, _
@@ -273,7 +290,8 @@ private function Winding% ( _
     Sfx mu, se, SLAUNCH
 end function
 
-' The jump key on the ground: from a crouch a dash is begun; else he jumps, off the ground as it lies.
+' The jump key on the ground: from a crouch a dash is begun;
+' else he jumps, off the ground as it lies.
 private sub Leap (mu as Deck, se as Session, p as Hero)
     dim sn as single, cs as single
     if p.crouch then
@@ -293,7 +311,8 @@ private sub Leap (mu as Deck, se as Session, p as Hero)
     Sfx mu, se, SJUMP
 end sub
 
-' Rolling: the slope pulls harder down than it holds back up, and the keys only brake.
+' Rolling: the slope pulls harder down than it holds back
+' up, and the keys only brake.
 private sub RollOn ( _
     p as Hero, _
     l as integer, _
@@ -316,7 +335,8 @@ private sub RollOn ( _
     if abs(p.gsp) < 30 and abs(sn) < .2 then p.roll = 0
 end sub
 
-' Running: the slope, then the keys, or with none the ground's drag. Down at speed, he curls up.
+' Running: the slope, then the keys, or with none the
+' ground's drag. Down at speed, he curls up.
 private sub RunOn ( _
     mu as Deck, _
     se as Session, _
@@ -355,7 +375,8 @@ private sub RunOn ( _
     end if
 end sub
 
-' A key held, way 1 right or -1 left: against his speed a brake, and a skid; with it a push, up to his most.
+' A key held, way 1 right or -1 left: against his speed a
+' brake, and a skid; with it a push, up to his most.
 private sub Shove ( _
     p as Hero, _
     way as integer, _
@@ -377,8 +398,9 @@ private sub Shove ( _
     if v >= 0 then p.face = (1 - way) \ 2
 end sub
 
-' Too slow for a wall or a roof, off it; for a steep slope, down it; and off the roof of a ribbon's twist, down
-' past the ribbon.
+' Too slow for a wall or a roof, off it; for a steep slope,
+' down it; and off the roof of a ribbon's twist, down past
+' the ribbon.
 private sub Falter (gr as Ground, p as Hero)
     if abs(p.gsp) >= STALL then exit sub
     if gr.pt(p.sg).dir.x < .35 then
@@ -392,8 +414,9 @@ private sub Falter (gr as Ground, p as Hero)
     p.at.y = p.at.y + 26
 end sub
 
-' In the air: gravity, steering, a jump cut short when let go; then a few
-' pixels a move, into walls, ceilings and onto the ground.
+' In the air: gravity, steering, a jump cut short when let
+' go; then a few pixels a move, into walls, ceilings and
+' onto the ground.
 private sub Airborne ( _
     lv as Level, _
     gr as Ground, _
@@ -447,7 +470,8 @@ private sub Airborne ( _
     end if
 end sub
 
-' In the air a key held, way 1 right or -1 left: he turns that way and gathers speed, up to his most.
+' In the air a key held, way 1 right or -1 left: he turns
+' that way and gathers speed, up to his most.
 private sub Steer (p as Hero, way as integer)
     dim v as single
     p.face = (1 - way) \ 2
@@ -469,15 +493,18 @@ private sub Bonk (lv as Level, p as Hero)
     p.vel.y = 0
 end sub
 
-' A cat barked at from fromX stands startled STARTLED steps, then prowls away from there: its state's size is the
-' steps left, its sign the way it will go.
+' A cat barked at from fromX stands startled STARTLED steps,
+' then prowls away from there: its state's size is the steps
+' left, its sign the way it will go.
 private sub Flinch (lv as Level, i as integer, from_x as integer)
     lv.things(i).state = STARTLED
     if lv.things(i).at.x < from_x then lv.things(i).state = -STARTLED
 end sub
 
-' Charlie barks: every cat the bark reaches flinches, every crab goes into its shell, every gull is scared, every
-' snow-thrower ducks, every squirrel is cowed, every pouncer leaps.
+' Charlie barks: every cat the bark reaches flinches, every
+' crab goes into its shell, every gull is scared, every
+' snow-thrower ducks, every squirrel is cowed, every pouncer
+' leaps.
 private sub Bark (lv as Level, mu as Deck, se as Session, p as Hero)
     dim i as integer, c as integer, dx as single, dy as single
     dim hung as integer, cowed as integer, early as integer
@@ -490,7 +517,8 @@ private sub Bark (lv as Level, mu as Deck, se as Session, p as Hero)
         if lv.things(i).home > p.at.x + BARKR + 40 then exit for
         dx = abs(lv.things(i).at.x - p.at.x)
         dy = abs(lv.things(i).at.y - p.at.y)
-        ' an icicle or a ledge's load is loosed from further under it than he can jump
+        ' an icicle or a ledge's load is loosed from further
+        ' under it than he can jump
         hung = lv.things(i).kind = KICICLE _
             or lv.things(i).kind = KLOAD
         if hung and lv.things(i).state = 0 and dx <= BARKR _
@@ -503,7 +531,8 @@ private sub Bark (lv as Level, mu as Deck, se as Session, p as Hero)
         if cowed then
             lv.things(i).state = sgn(lv.things(i).state) * SQFRIGHT
         end if
-        ' and a pouncer in its bin leaps early, at where he is
+        ' and a pouncer in its bin leaps early, at where he
+        ' is
         early = lv.things(i).kind = KPOUNCE _
             and lv.things(i).state = 0 and dx <= BARKR and dy < 40
         if early then

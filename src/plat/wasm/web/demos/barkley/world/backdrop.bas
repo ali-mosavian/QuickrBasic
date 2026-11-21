@@ -9,10 +9,12 @@ from barkley.model.level import Level, Realm, TS
 
 private const STRIPH = 192
 
-' The sands' ground again as it is under the tide, picture for picture, and the water's edge.
+' The sands' ground again as it is under the tide, picture
+' for picture, and the water's edge.
 private const WETO = IWET - IAF
 
-' A bare side of the ground from x, y0, n tiles down: picture k its turf's end, k + 2 the comb's.
+' A bare side of the ground from x, y0, n tiles down:
+' picture k its turf's end, k + 2 the comb's.
 private sub Bare ( _
     art as Store, _
     x as integer, _
@@ -31,8 +33,9 @@ private sub Bare ( _
     next
 end sub
 
-' The far backdrop an eighth of the view's scroll, the near hills half,
-' both wrapping; the hills sink as the view rises.
+' The far backdrop an eighth of the view's scroll, the near
+' hills half, both wrapping; the hills sink as the view
+' rises.
 sub DrawBack (zn as Realm, art as Store, cx as integer, cy as integer)
     dim o as integer, y as integer
     o = (cx \ 8) mod SW
@@ -48,7 +51,8 @@ sub DrawBack (zn as Realm, art as Store, cx as integer, cy as integer)
     put (SW - o, y), art.img(art.at(zn.back + 1)), or
 end sub
 
-' Each column in view: its top tile, then its earth in strips below.
+' Each column in view: its top tile, then its earth in
+' strips below.
 sub DrawTiles ( _
     lv as Level, _
     zn as Realm, _
@@ -69,8 +73,10 @@ sub DrawTiles ( _
     next
 end sub
 
-' A column of the works: its deck's top, then its wall, which hangs from the world, not the deck: single tiles down
-' to its next 128, then strips. A slope's deck runs on over the wall under it.
+' A column of the works: its deck's top, then its wall,
+' which hangs from the world, not the deck: single tiles
+' down to its next 128, then strips. A slope's deck runs on
+' over the wall under it.
 private sub DeckColumn ( _
     lv as Level, _
     art as Store, _
@@ -111,9 +117,12 @@ private sub DeckColumn ( _
     end if
 end sub
 
-' A column of the downs: its turf, then its comb, which hangs from the world too, of period 64 by 48: a slope's turf
-' runs on into the tile under it; under a pipe, 0, the pipe's own picture is the ground. A column whose top the tide
-' is over is of the wet pictures, w on from the dry; so is the pass's bare ice.
+' A column of the downs: its turf, then its comb, which
+' hangs from the world too, of period 64 by 48: a slope's
+' turf runs on into the tile under it; under a pipe, 0, the
+' pipe's own picture is the ground. A column whose top the
+' tide is over is of the wet pictures, w on from the dry; so
+' is the pass's bare ice.
 private sub CombColumn ( _
     lv as Level, _
     art as Store, _

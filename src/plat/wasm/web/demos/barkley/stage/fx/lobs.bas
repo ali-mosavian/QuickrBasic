@@ -14,8 +14,9 @@ from barkley.world.terrain.ground import Solid
 from barkley.stage.fx.parts import Burst
 from barkley.stage.fx.damage import Hurt
 
-' Something let go at x, y with the speed vx, vy, to fly till it meets Charlie or the ground: its picture, and
-' the colour it bursts in. None while NLOB are in the air.
+' Something let go at x, y with the speed vx, vy, to fly
+' till it meets Charlie or the ground: its picture, and the
+' colour it bursts in. None while NLOB are in the air.
 sub Loft ( _
     lv as Level, _
     x as single, _
@@ -56,7 +57,8 @@ private sub Splat ( _
     Sfx mu, se, SPOP
 end sub
 
-' What is in the air, each on its arc till it meets Charlie, whom it hurts, or the ground.
+' What is in the air, each on its arc till it meets Charlie,
+' whom it hurts, or the ground.
 sub Volley ( _
     lv as Level, _
     mu as Deck, _

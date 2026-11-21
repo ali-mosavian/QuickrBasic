@@ -1,4 +1,5 @@
-' The zones reached, kept in CHARLIE.SAV; the zone picked on the title.
+' The zones reached, kept in CHARLIE.SAV; the zone picked on
+' the title.
 defint A-Z
 option explicit
 
@@ -8,8 +9,10 @@ from barkley.model.game import Session
 
 private const SAVEMARK = 1128398848
 
-' The furthest zone reached and the golden bones found, from CHARLIE.SAV: the first and none without the file, or
-' with one that is not the game's; none from a file of before there were any.
+' The furthest zone reached and the golden bones found, from
+' CHARLIE.SAV: the first and none without the file, or with
+' one that is not the game's; none from a file of before
+' there were any.
 sub LoadSave (se as Session)
     dim v as long, lo as long, hi as long, f as integer
     se.reached = 0
@@ -51,14 +54,16 @@ sub Keep (se as Session)
     se.unkept = 0
 end sub
 
-' Zone z is reached: kept in CHARLIE.SAV when it is further than any before.
+' Zone z is reached: kept in CHARLIE.SAV when it is further
+' than any before.
 sub Reach (se as Session, z as integer)
     if z <= se.reached then exit sub
     se.reached = z
     Keep se
 end sub
 
-' On the title Left and Right pick the zone a game starts at, of those reached: a step a press.
+' On the title Left and Right pick the zone a game starts
+' at, of those reached: a step a press.
 sub PickZone (se as Session, k as Pad)
     if (k.left or k.right) and not se.pick_held then
         se.pick = se.pick + k.left - k.right

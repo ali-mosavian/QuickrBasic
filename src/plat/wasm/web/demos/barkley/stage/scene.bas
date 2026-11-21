@@ -108,7 +108,8 @@ sub Render ( _
         Blit wd.art, (SW - 170) \ 2, 22, ITITLE, 170, 26
         Blit wd.art, (SW - 170) \ 2, 52, IDASH, 170, 26
         if wd.se.reached then
-            ' the zone a game starts at, an arrow each way there is another to pick
+            ' the zone a game starts at, an arrow each way
+            ' there is another to pick
             Panel 0, 165, SW - 1, SH - 1
             s = ZoneName$(wd.se.pick)
             if wd.se.pick > 0 then s = "< " + s else s = "  " + s
@@ -149,7 +150,8 @@ sub Render ( _
         end if
     case CLEARED
         Blit wd.art, 6, 5, IHUD, HUDW, HUDH
-        ' up and to the right: under it Charlie meets its family
+        ' up and to the right: under it Charlie meets its
+        ' family
         Panel 116, 4, 315, 36
         Txt 2, 27 - (len(ZoneName$(wd.zn.id)) + 8) \ 2, _
             ZoneName$(wd.zn.id) + " CLEARED", CYELLOW
@@ -163,8 +165,9 @@ sub Render ( _
     end select
 end sub
 
-' The things in view: back, the scenery behind the ground; else the rest.
-' The level's golden bones found, a bit each; -1 where it has none.
+' The things in view: back, the scenery behind the ground;
+' else the rest. The level's golden bones found, a bit each;
+' -1 where it has none.
 private function GoldFound% (wd as World)
     dim n as integer, v as integer
     GoldFound% = -1
@@ -222,7 +225,8 @@ sub DrawThings ( _
                     SnatchPic%(se, lv.things(i).state), 20, 14
             end if
         case KBIN
-            ' eyes under its lid while its cat, the thing after it, is in it
+            ' eyes under its lid while its cat, the thing
+            ' after it, is in it
             Blit art, x - 9, y - 24, _
                 IBIN - 2 * (lv.things(i + 1).state <> 0), 18, 25
         case KCRAB
@@ -231,7 +235,8 @@ sub DrawThings ( _
                     CrabPic%(se, lv.things(i).state), 24, 15
             end if
         case KSPRING
-            ' the sands' is a deck chair, the wood's a toadstool
+            ' the sands' is a deck chair, the wood's a
+            ' toadstool
             if zn.id = 2 then
                 Blit art, x - 15, y - 21, _
                     ICHAIR - 2 * (lv.things(i).state > 0), 30, 22
@@ -377,7 +382,8 @@ sub DrawThings ( _
                 Blit art, x - 10, y - 17, k, 20, 18
             end if
         case KFAM
-            ' who meets Charlie: they cheer once it has come to them
+            ' who meets Charlie: they cheer once it has come
+            ' to them
             DrawFamily art, se, x, y, se.cheer
         case KLAMP
             Blit art, x - 10, y - 42, ILAMP, 20, 44
@@ -413,7 +419,8 @@ sub DrawThings ( _
             Blit art, x - 8, y - 8, IBTN + 2 * lv.things(i).state, _
                 16, 8
         case KWAVE
-            ' a twist's far half; its near one is drawn over Charlie
+            ' a twist's far half; its near one is drawn over
+            ' Charlie
             Blit art, x, y - WAVEA - 22, zn.wave, WAVEL, WAVEH
         case KHOOP
             Blit art, x - 6, y - 16, _
@@ -422,7 +429,8 @@ sub DrawThings ( _
     next
 end sub
 
-' The cables, their posts, and what hangs from them: a basket by its two lines, a chair by its hanger and grip.
+' The cables, their posts, and what hangs from them: a
+' basket by its two lines, a chair by its hanger and grip.
 private sub DrawCables (lv as Level, cx as integer, cy as integer)
     dim m as integer, x as integer, y as integer, x1 as integer
     dim bx as integer, by as integer, i as integer

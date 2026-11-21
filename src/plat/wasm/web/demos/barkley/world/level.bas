@@ -1,4 +1,5 @@
-' A stage's level, loaded from CHARLIE.DAT; the zone of a stage.
+' A stage's level, loaded from CHARLIE.DAT; the zone of a
+' stage.
 defint A-Z
 option explicit
 
@@ -29,14 +30,16 @@ from barkley.world.layout import AddMover, AddObj, Clearing, Column
 from barkley.world.layout import Limbs, Pair, Pit, PITD, Rooted
 from barkley.world.layout import Scatter, Shelf, SortObjs, Weed
 
-' A clothesline's ends over the roofs it joins, and how far in from their edges its posts stand.
+' A clothesline's ends over the roofs it joins, and how far
+' in from their edges its posts stand.
 const LINEH = 24
 private const POSTIN = 6
 
 ' A tram's roof over its street.
 const TRAMH = 32
 
-' A lantern line: its post over the roof it leaves, how far lower the roof it comes down to lies, and its end over
+' A lantern line: its post over the roof it leaves, how far
+' lower the roof it comes down to lies, and its end over
 ' that one.
 const LANTH = 40
 const LANTFALL = 64
@@ -50,23 +53,27 @@ const CABLED = 64
 const LOADFAR = 104
 const GLOWN = 8
 
-' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
-' the stages played, and after them the intro's road
+' The levels: a zone's two acts, the second at another hour
+' in other colours, zone by zone. the stages played, and
+' after them the intro's road
 const SINTRO = NSTAGE
 
-' the zones' names, 16 letters each; what marks CHARLIE.SAV as the game's: its zone is added to it
+' the zones' names, 16 letters each; what marks CHARLIE.SAV
+' as the game's: its zone is added to it
 private const ZNAMES = "AMBER DOWNS     CHROME WORKS    " + _
     "SALTWICK SANDS  WHITECAP PASS   " + _
     "RUSSET WOOD     LANTERN QUARTER"
 
-' A stage's zone: two acts a zone; the intro's road is the Downs.
+' A stage's zone: two acts a zone; the intro's road is the
+' Downs.
 function ZoneOf% (se as Session, st as integer)
     ZoneOf% = st \ 2
     if st = SINTRO then ZoneOf% = se.road
 end function
 
-' CHARLIE.DAT open at a stage's level: a zone's two acts, zone by zone, then the intro's road. They are written
-' in tools/charlielevels.txt.
+' CHARLIE.DAT open at a stage's level: a zone's two acts,
+' zone by zone, then the intro's road. They are written in
+' tools/charlielevels.txt.
 private sub SeekLevel (df as DataFile, st as integer)
     dim levels as long
     OpenData df
@@ -76,8 +83,9 @@ private sub SeekLevel (df as DataFile, st as integer)
     seek #df.num, levels + Word&(df)
 end sub
 
-' A prop as the works have it, where the van's road is theirs: a tank for a tree, a vent for a bush; nothing grows
-' there, and no rock lies.
+' A prop as the works have it, where the van's road is
+' theirs: a tank for a tree, a vent for a bush; nothing
+' grows there, and no rock lies.
 private function Plated% (k as integer)
     select case k
     case KTREE
@@ -91,7 +99,8 @@ private function Plated% (k as integer)
     end select
 end function
 
-' The ground's columns, then what stands on them, from the stage's level: a command and its count, to its end.
+' The ground's columns, then what stands on them, from the
+' stage's level: a command and its count, to its end.
 sub LoadLevel (wd as World, st as integer)
     dim cmd as string, n as integer, c as integer, g as integer
     dim bx as integer
@@ -101,7 +110,8 @@ sub LoadLevel (wd as World, st as integer)
     z = ZoneOf%(wd.se, st)
     wd.zn.id = z
     LoadZoneArt wd.art, z
-    ' the intro's road is the Downs at dawn, lit as at evening; a later zone's is lit as its first act
+    ' the intro's road is the Downs at dawn, lit as at
+    ' evening; a later zone's is lit as its first act
     light = st
     if st = SINTRO then light = wd.se.road * 2
     if light = 0 and st = SINTRO then light = 1
@@ -181,8 +191,9 @@ sub LoadLevel (wd as World, st as integer)
                 c = c + 1
             next
         case "flume"
-            ' a 45 degree fall of n and a flume down it, from the tank at its head to its level end a column on;
-            ' nothing grows by the tank
+            ' a 45 degree fall of n and a flume down it,
+            ' from the tank at its head to its level end a
+            ' column on; nothing grows by the tank
             Weed wd.lv, c * TS - 44
             AddObj wd.lv, KCISTERN, c * TS, s
             for i = 1 to n
@@ -211,16 +222,19 @@ sub LoadLevel (wd as World, st as integer)
         case "gap"
             c = c + n
         case "ice"
-            ' the ground from here bare ice, or with 0 under snow again
+            ' the ground from here bare ice, or with 0 under
+            ' snow again
             wd.lv.icing = n <> 0
         case "wall"
             g = g + n
         case "pit"
-            ' not a fall to nothing: a floor PITD down, a spring at its far wall
+            ' not a fall to nothing: a floor PITD down, a
+            ' spring at its far wall
             Pit wd.lv, c, g, n
             c = c + n
         case "wave"
-            ' a ribbon of n twists over a pit, each two halves of WAVEL, bones up its far side
+            ' a ribbon of n twists over a pit, each two
+            ' halves of WAVEL, bones up its far side
             for i = 0 to n * 2 - 1
                 AddObj wd.lv, KWAVE + (i and 1), (c + i * 12) * TS, s
                 if (i and 1) <> 0 then continue for
@@ -238,7 +252,8 @@ sub LoadLevel (wd as World, st as integer)
         case "hoop"
             AddObj wd.lv, KHOOP, c * TS + 8, s - n * TS
         case "pipe"
-            ' a wall with a quarter pipe up to it, over the three columns before: nothing grows there
+            ' a wall with a quarter pipe up to it, over the
+            ' three columns before: nothing grows there
             for i = 0 to wd.lv.n_things - 1
                 if Rooted%(wd.lv, i, KTREE) _
                     and wd.lv.things(i).at.x >= c * TS - PIPER then
@@ -246,7 +261,8 @@ sub LoadLevel (wd as World, st as integer)
                 end if
             next
             AddObj wd.lv, KPIPE, c * TS, s
-            ' Amber Downs' pipe is drawn with the ground under it
+            ' Amber Downs' pipe is drawn with the ground
+            ' under it
             if z = 0 then
                 wd.lv.vis(c - 1) = 0
                 wd.lv.vis(c - 2) = 0
@@ -256,19 +272,23 @@ sub LoadLevel (wd as World, st as integer)
         case "drop"
             g = g - n
         case "mover"
-            ' at each end of its way it lies 8 over the ground
+            ' at each end of its way it lies 8 over the
+            ' ground
             AddMover wd.lv, c * TS + (n * TS - MOVEW) \ 2, s, _
                 (n * TS - MOVEW) \ 2 + 8, 0, c * TS
             Pit wd.lv, c, g, n
             c = c + n
         case "boat"
-            ' a pool n wide and a boat adrift in it, wall to wall: up and down with the tide, aground at low water
+            ' a pool n wide and a boat adrift in it, wall to
+            ' wall: up and down with the tide, aground at
+            ' low water
             AddMover wd.lv, c * TS + (n * TS - MOVEW) \ 2, _
                 s + PITD * TS - HULL, (n * TS - MOVEW) \ 2, 5, c * TS
             Pit wd.lv, c, g, n
             c = c + n
         case "pier"
-            ' a pool n wide under an old pier, a span every three columns: each falls once it is trodden
+            ' a pool n wide under an old pier, a span every
+            ' three columns: each falls once it is trodden
             for i = 0 to n \ 3 - 1
                 AddMover wd.lv, (c + i * 3) * TS, s, 0, 6, c * TS
             next
@@ -289,7 +309,9 @@ sub LoadLevel (wd as World, st as integer)
             k = KBUTTON
             bx = c * TS + 8
         case "bridge"
-            ' a pit n wide, platforms lying on its floor that rise to bridge it once the last button is trodden
+            ' a pit n wide, platforms lying on its floor
+            ' that rise to bridge it once the last button is
+            ' trodden
             for i = 0 to n \ 3 - 1
                 AddMover wd.lv, (c + i * 3) * TS, s + PITD * TS - 6, _
                     PITD * TS - 6, 4, c * TS
@@ -298,14 +320,16 @@ sub LoadLevel (wd as World, st as integer)
             Pit wd.lv, c, g, n
             c = c + n
         case "cable"
-            ' a basket down a cable over a pit n wide, the ground past it CABLED lower
+            ' a basket down a cable over a pit n wide, the
+            ' ground past it CABLED lower
             AddMover wd.lv, c * TS - 8, s, n * TS - MOVEW + 16, 3, _
                 c * TS
             Pit wd.lv, c, g - CABLED \ TS, n
             c = c + n
             g = g - CABLED \ TS
         case "chair"
-            ' a ski lift's chair up a cable over a pit n wide, the ground past it CABLED higher
+            ' a ski lift's chair up a cable over a pit n
+            ' wide, the ground past it CABLED higher
             AddMover wd.lv, c * TS - 8, s, n * TS - MOVEW + 16, 7, _
                 c * TS
             Pit wd.lv, c, g, n
@@ -360,11 +384,14 @@ sub LoadLevel (wd as World, st as integer)
             Clearing wd.lv, c
             k = KWALL
         case "icicle"
-            ' a shelf of three, n tiles over the ground here, and an icicle under its middle
+            ' a shelf of three, n tiles over the ground
+            ' here, and an icicle under its middle
             Shelf wd.lv, c, g, s, n, 3
             AddObj wd.lv, KICICLE, c * TS + 24, s - n * TS - 6
         case "load"
-            ' a shelf of four, n tiles over the ground here, a load of snow on it, and where its heap will lie
+            ' a shelf of four, n tiles over the ground here,
+            ' a load of snow on it, and where its heap will
+            ' lie
             Shelf wd.lv, c, g, s, n, 4
             AddObj wd.lv, KLOAD, c * TS + 32, s - (n + 1) * TS
             AddObj wd.lv, KHEAP, c * TS + 32 + LOADFAR, s
@@ -373,7 +400,8 @@ sub LoadLevel (wd as World, st as integer)
         case "spark"
             k = KSPARK
         case "press"
-            ' n presses on a gantry over level ground, four columns each, a leg at either end
+            ' n presses on a gantry over level ground, four
+            ' columns each, a leg at either end
             AddObj wd.lv, KLEG, c * TS, s
             for i = 0 to n * 4 - 1
                 Column wd.lv, c + i, g, 1
@@ -384,7 +412,9 @@ sub LoadLevel (wd as World, st as integer)
             c = c + n * 4
             AddObj wd.lv, KLEG, c * TS - 8, s
         case "jelly"
-            ' a jellyfish n columns on, a buoy: afloat where the sea is over the ground there, aground where not
+            ' a jellyfish n columns on, a buoy: afloat where
+            ' the sea is over the ground there, aground
+            ' where not
             AddObj wd.lv, KJELLY, (c + n) * TS + 8, s
         case "buoy"
             AddObj wd.lv, KBUOY, (c + n) * TS + 8, s
@@ -394,19 +424,23 @@ sub LoadLevel (wd as World, st as integer)
             wd.lv.gulls(wd.lv.n_gulls).home.y = s - n * TS
             wd.lv.n_gulls = wd.lv.n_gulls + 1
         case "line"
-            ' a street n wide and a clothesline over it, post to post, LINEH over the roof here
+            ' a street n wide and a clothesline over it,
+            ' post to post, LINEH over the roof here
             Hang wd.lv, c, n, s - LINEH, 0
             Pit wd.lv, c, g, n
             c = c + n
         case "walker"
-            ' a cat walking the line just hung, its home n columns along it
+            ' a cat walking the line just hung, its home n
+            ' columns along it
             i = wd.lv.n_ropes - 1
             AddObj wd.lv, KWALKER, _
                 wd.lv.ropes(i).at.x + POSTIN + n * TS + 8, _
                 wd.lv.ropes(i).at.y
         case "slide"
-            ' a street n wide and a lantern line down over it, from a post LANTH over the roof here to the roof
-            ' past it, LANTFALL lower; a bone over the line every other column
+            ' a street n wide and a lantern line down over
+            ' it, from a post LANTH over the roof here to
+            ' the roof past it, LANTFALL lower; a bone over
+            ' the line every other column
             fall = LANTH + LANTFALL - LANTEND
             Hang wd.lv, c, n, s - LANTH, fall
             for i = 1 to n - 1 step 2
@@ -419,11 +453,13 @@ sub LoadLevel (wd as World, st as integer)
             c = c + n
             g = g - LANTFALL \ TS
         case "awning"
-            ' an awning out from the wall that begins here, n tiles over the roof
+            ' an awning out from the wall that begins here,
+            ' n tiles over the roof
             AddObj wd.lv, KAWNING, c * TS - AWNOUT, s - n * TS
         case "chimney"
-            ' a chimney: of the two of one n the first is the way in, the second the way out; till they are told
-            ' each other, -n - 1
+            ' a chimney: of the two of one n the first is
+            ' the way in, the second the way out; till they
+            ' are told each other, -n - 1
             Clearing wd.lv, c
             AddObj wd.lv, KCHIMNEY, c * TS + 8, s
             wd.lv.things(wd.lv.n_things - 1).state = -n - 1
@@ -433,11 +469,13 @@ sub LoadLevel (wd as World, st as integer)
             AddObj wd.lv, KMORTAR, c * TS + 8, s
             wd.lv.things(wd.lv.n_things - 1).state = n
         case "tipper"
-            ' a house behind the way, a cat at its window: its pot goes on beat n of every bar
+            ' a house behind the way, a cat at its window:
+            ' its pot goes on beat n of every bar
             AddObj wd.lv, KTIPPER, c * TS + 8, s
             wd.lv.things(wd.lv.n_things - 1).state = n
         case "tram"
-            ' a tram on the street here, its way the n columns on: they are laid after it
+            ' a tram on the street here, its way the n
+            ' columns on: they are laid after it
             AddMover wd.lv, c * TS + 8, s - TRAMH, _
                 n * TS - MOVEW - 16, 8, c * TS
         case "pouncer"
@@ -463,11 +501,14 @@ sub LoadLevel (wd as World, st as integer)
             wd.lv.swarms(wd.lv.n_swarms).home.y = s - n * TS
             wd.lv.n_swarms = wd.lv.n_swarms + 1
         case "burrow"
-            ' a burrow's mound, its other end the mound of the same n: till they are told each other, -n - 1
+            ' a burrow's mound, its other end the mound of
+            ' the same n: till they are told each other, -n
+            ' - 1
             AddObj wd.lv, KMOUND, c * TS + 8, s
             wd.lv.things(wd.lv.n_things - 1).state = -n - 1
         case "oak"
-            ' the great oak here, its limbs' flats over the ground either side of it
+            ' the great oak here, its limbs' flats over the
+            ' ground either side of it
             wd.lv.oak.x = c * TS + 8
             wd.lv.oak.y = s
             Limbs wd.lv, g
@@ -502,7 +543,8 @@ sub LoadLevel (wd as World, st as integer)
             wd.lv.chase_x = c * TS
             wd.lv.chase_end = (c + n) * TS
         case "tide"
-            ' the sea: its height at low water * 100 + at high, in the ground's tiles
+            ' the sea: its height at low water * 100 + at
+            ' high, in the ground's tiles
             wd.lv.tide_lo = (MH - n \ 100) * TS
             wd.lv.tide_hi = (MH - n mod 100) * TS
             wd.lv.tide = wd.lv.tide_lo
@@ -535,8 +577,9 @@ sub LoadLevel (wd as World, st as integer)
     ZoneTune wd.mu, wd.mu.stage_tune
 end sub
 
-' A line hung over the street of n columns from column c: its near end at height y, its far end fall lower.
-' Nothing grows by its posts.
+' A line hung over the street of n columns from column c:
+' its near end at height y, its far end fall lower. Nothing
+' grows by its posts.
 private sub Hang ( _
     lv as Level, _
     c as integer, _
@@ -555,7 +598,8 @@ private sub Hang ( _
     lv.fallow = c + n + 2
 end sub
 
-' Each line told the cat that walks it, once the things are in their order: the walker over its street.
+' Each line told the cat that walks it, once the things are
+' in their order: the walker over its street.
 private sub Walkers (lv as Level)
     dim i as integer, r as integer
     for i = 0 to lv.n_things - 1
@@ -569,7 +613,8 @@ private sub Walkers (lv as Level)
     next
 end sub
 
-' The pier's fallen spans back in their places, the swarms at home: Charlie starts again before them.
+' The pier's fallen spans back in their places, the swarms
+' at home: Charlie starts again before them.
 sub Mend (lv as Level)
     dim m as integer
     for m = 0 to lv.n_swarms - 1
@@ -594,7 +639,8 @@ function ZoneName$ (z as integer)
     ZoneName$ = rtrim$(mid$(ZNAMES, z * 16 + 1, 16))
 end function
 
-' Which of its level's golden bones thing i is, from 0, by x.
+' Which of its level's golden bones thing i is, from 0, by
+' x.
 function GoldNo% (lv as Level, i as integer)
     dim j as integer, n as integer
     for j = 0 to i - 1

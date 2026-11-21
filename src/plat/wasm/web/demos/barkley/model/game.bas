@@ -1,4 +1,5 @@
-' A game's records: its score and mode, the session, loose bones, sparks, cues, the palette's state.
+' A game's records: its score and mode, the session, loose
+' bones, sparks, cues, the palette's state.
 defint A-Z
 option explicit
 
@@ -21,7 +22,8 @@ type Game
     quitting as integer
 end type
 
-' A bone knocked loose: t its time left; with TOONEW of it or more left it is not yet to be taken.
+' A bone knocked loose: t its time left; with TOONEW of it
+' or more left it is not yet to be taken.
 const TOONEW = 3.3
 type Loose
     at as Vec
@@ -36,8 +38,10 @@ type Part
     c as integer
 end type
 
-' A cue of the intro's script: what, from beat t0 to t1, on its way from start to finish in the world, y from the
-' ground and up under 0. ease: 1 gathering speed, 2 losing it; hop: an arc that high over its way; own: its own.
+' A cue of the intro's script: what, from beat t0 to t1, on
+' its way from start to finish in the world, y from the
+' ground and up under 0. ease: 1 gathering speed, 2 losing
+' it; hop: an arc that high over its way; own: its own.
 type Cue
     kind as integer
     t0 as single
@@ -49,8 +53,9 @@ type Cue
     own as integer
 end type
 
-' The colours: the shared ones as built, each stage's own over them (how many, which, what), and those shown,
-' dusk sixteenths of them.
+' The colours: the shared ones as built, each stage's own
+' over them (how many, which, what), and those shown, dusk
+' sixteenths of them.
 type Tones
     day(255) as long
     now(255) as long
@@ -61,9 +66,12 @@ type Tones
     dusk as integer
 end type
 
-' The game's steps; metT: the seconds Charlie has been with its family. The scene playing: the beat it ends at, the
-' stage it leads to (0 the title), the zone its road is in. The furthest zone a game has reached, kept in
-' CHARLIE.SAV, and the zone picked on the title to start at, and whether a pick's key is held.
+' The game's steps; met_t: the seconds Charlie has been with
+' its family. The scene playing: the beat it ends at, the
+' stage it leads to (0 the title), the zone its road is in.
+' The furthest zone a game has reached, kept in CHARLIE.SAV,
+' and the zone picked on the title to start at, and whether
+' a pick's key is held.
 type Session
     ticks as long
     cheer as integer
@@ -84,8 +92,9 @@ type Session
     tempo as integer
 end type
 
-' The zone tune's clock is the session's pulse, PULSES of it a beat: a tick is the tune's beats a minute of them,
-' its tempo.
+' The zone tune's clock is the session's pulse, PULSES of it
+' a beat: a tick is the tune's beats a minute of them, its
+' tempo.
 const PULSES = 3600
 
 const NLOOSE = 24
@@ -97,8 +106,10 @@ const OVER = 3
 const INTRO = 4
 const NCUE = 112
 
-' The golden bones found are a bit each, three a stage, ten stages to a LONG: goldLo's the first ten, goldHi's the
-' rest. unkept: something of the save is not yet in its file.
+' The golden bones found are a bit each, three a stage, ten
+' stages to a LONG: goldLo's the first ten, goldHi's the
+' rest. unkept: something of the save is not yet in its
+' file.
 private function GoldBit& (s as integer, n as integer)
     dim k as integer, v as long
     v = 1

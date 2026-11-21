@@ -12,7 +12,8 @@ from barkley.model.level import Ground, Level, MH, MW, NSTAGE, Realm
 from barkley.model.level import TS, ZONES
 from barkley.model.game import Session, Tones
 
-' All of it. What runs the game takes it whole; the rest take the parts they use.
+' All of it. What runs the game takes it whole; the rest
+' take the parts they use.
 type World
     lv as Level
     gr as Ground
@@ -35,21 +36,27 @@ const NMOVE = 23
 private const MAXOBJ = 600
 const NLOB = 4
 
-' Bees: the swarms a level may hold, and the bees drawn in one; how near he wakes it; its speed, under his
-' run's; how near it stings; how far behind he has lost it; a bee's body and its wings.
+' Bees: the swarms a level may hold, and the bees drawn in
+' one; how near he wakes it; its speed, under his run's; how
+' near it stings; how far behind he has lost it; a bee's
+' body and its wings.
 private const NSWARM = 4
 
-' A gull: how near Charlie passes under it for a dive, its dive's speed and its climb's, its rest between dives,
-' the bones it takes, how far a bark reaches it; and what it is doing: gone is 0.
+' A gull: how near Charlie passes under it for a dive, its
+' dive's speed and its climb's, its rest between dives, the
+' bones it takes, how far a bark reaches it; and what it is
+' doing: gone is 0.
 private const NGULL = 6
 
 ' The clotheslines a level may hold.
 private const NROPE = 12
 
-' The records' arrays, sized: a TYPE's own bounds must be numbers, and these are constants.
+' The records' arrays, sized: a TYPE's own bounds must be
+' numbers, and these are constants.
 sub Allot (wd as World)
     dim i as integer
-    ' where its tunes and its levels start, then its pictures
+    ' where its tunes and its levels start, then its
+    ' pictures
     NameData wd.dat, "CHARLIE.DAT", "CHARLIE.DAT, the game's " + _
         "pictures and tunes, must be beside CHARLIE.BAS."
     NameData wd.mu.dat, wd.dat.path, wd.dat.lack

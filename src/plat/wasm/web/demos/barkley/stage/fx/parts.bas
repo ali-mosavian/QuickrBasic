@@ -6,7 +6,8 @@ from barkley.model.level import GRAV, Level, MH, PI, TS
 from barkley.model.game import Loose, NLOOSE, NPART, Part, Session
 from barkley.world.terrain.ground import Solid, Surf
 
-' The bones knocked loose, dt on: each falls and bounces till its time is up or it is off the world's foot.
+' The bones knocked loose, dt on: each falls and bounces
+' till its time is up or it is off the world's foot.
 sub LooseBones ( _
     lv as Level, _
     se as Session, _

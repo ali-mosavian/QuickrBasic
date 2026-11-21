@@ -1,4 +1,5 @@
-' The Chrome Works: presses, sweepers, sparks, jets, bumpers and hoops.
+' The Chrome Works: presses, sweepers, sparks, jets, bumpers
+' and hoops.
 defint A-Z
 option explicit
 
@@ -14,10 +15,14 @@ from barkley.assets.tunes import SMARK, SSPRING
 from barkley.stage.fx.parts import Burst
 from barkley.stage.fx.damage import Beaten, BOUNCEV, Hurt
 
-' The works' own: a press and a leg of its gantry; a sweeper and a spark's carriage. A spark goes SPARKR either way
-' along its rail, alight SPARKLIT steps of every SPARKP. A press hangs PRESSH over the floor, its head's foot
-' PRESSUP over it when up; of its turn's PRESSP steps it is up till PRESSFALL, down by ten on, held till PRESSRISE,
-' then rising; a press a step later for every PRESSLAG along, so a row's turns go along it with a run.
+' The works' own: a press and a leg of its gantry; a sweeper
+' and a spark's carriage. A spark goes SPARKR either way
+' along its rail, alight SPARKLIT steps of every SPARKP. A
+' press hangs PRESSH over the floor, its head's foot PRESSUP
+' over it when up; of its turn's PRESSP steps it is up till
+' PRESSFALL, down by ten on, held till PRESSRISE, then
+' rising; a press a step later for every PRESSLAG along, so
+' a row's turns go along it with a run.
 const SPARKP = 150
 const SPARKLIT = 90
 
@@ -93,7 +98,8 @@ sub MeetJet ( _
     p.sprung = -1
 end sub
 
-' A bumper or a buoy: touched, it throws him off the way he came at it.
+' A bumper or a buoy: touched, it throws him off the way he
+' came at it.
 sub MeetBump ( _
     lv as Level, _
     mu as Deck, _
@@ -147,7 +153,8 @@ sub MeetSpin ( _
     end if
 end sub
 
-' A hoop: through it in the air he goes on, faster, the way he was going.
+' A hoop: through it in the air he goes on, faster, the way
+' he was going.
 sub MeetHoop ( _
     lv as Level, _
     mu as Deck, _
@@ -168,7 +175,8 @@ sub MeetHoop ( _
     Sfx mu, se, SBOOST
 end sub
 
-' A sweeper met: armoured before, its hood hurts whoever meets it, curled or not; landed on, or rolled into from
+' A sweeper met: armoured before, its hood hurts whoever
+' meets it, curled or not; landed on, or rolled into from
 ' behind, it is beaten.
 sub MeetSweep ( _
     lv as Level, _
@@ -197,12 +205,14 @@ sub MeetSweep ( _
     end if
 end sub
 
-' Whether spark i is alight: its carriage hurts then, and is safe dark.
+' Whether spark i is alight: its carriage hurts then, and is
+' safe dark.
 private function Lit% (lv as Level, se as Session, i as integer)
     Lit% = (se.ticks + lv.things(i).home) mod SPARKP < SPARKLIT
 end function
 
-' Where press i is in its turn, 0 to PRESSP - 1: a press further along a row is later.
+' Where press i is in its turn, 0 to PRESSP - 1: a press
+' further along a row is later.
 function PressT% (lv as Level, se as Session, i as integer)
     PressT% = (se.ticks _
         + PRESSP * 100 - lv.things(i).home \ PRESSLAG) mod PRESSP
@@ -224,7 +234,8 @@ function Stroke% (lv as Level, se as Session, i as integer)
     end if
 end function
 
-' A press met: its head, wherever in its stroke, hurts who is under it or against it. It lands with a clank.
+' A press met: its head, wherever in its stroke, hurts who
+' is under it or against it. It lands with a clank.
 sub MeetPress ( _
     lv as Level, _
     mu as Deck, _
@@ -243,7 +254,8 @@ sub MeetPress ( _
     end if
 end sub
 
-' For the pilot at x: the nearest press he is under or coming to, NONE with none near.
+' For the pilot at x: the nearest press he is under or
+' coming to, NONE with none near.
 function PressAhead% (lv as Level, x as integer)
     dim i as integer, c as integer
     PressAhead% = NONE
@@ -261,8 +273,9 @@ function PressAhead% (lv as Level, x as integer)
     loop
 end function
 
-' Spark i, its carriage at x, y on the screen: its rail, a tile's length from its home either way and between;
-' the carriage dark, or alight.
+' Spark i, its carriage at x, y on the screen: its rail, a
+' tile's length from its home either way and between; the
+' carriage dark, or alight.
 sub DrawSpark ( _
     lv as Level, _
     art as Store, _
@@ -284,7 +297,8 @@ sub DrawSpark ( _
     Blit art, x - 11, y - 24, k, 22, 22
 end sub
 
-' Press i at x, the floor at y on the screen: its length of girder, its rod down to its head, its housing.
+' Press i at x, the floor at y on the screen: its length of
+' girder, its rod down to its head, its housing.
 sub DrawPress ( _
     lv as Level, _
     art as Store, _
@@ -304,7 +318,8 @@ sub DrawPress ( _
     Blit art, x - 19, hy, IPRESS + 4, 38, 16
 end sub
 
-' A leg of a gantry, its left at x, the floor at y on the screen.
+' A leg of a gantry, its left at x, the floor at y on the
+' screen.
 sub DrawLeg (art as Store, x as integer, y as integer)
     dim yy as integer
     for yy = y - 8 to y - PRESSH step -8

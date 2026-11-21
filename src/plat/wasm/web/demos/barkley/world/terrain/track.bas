@@ -14,9 +14,12 @@ const WAVEA = 96
 const NLIMB = 6
 const LIMBW = 48
 
-' The ground's line from the columns' tops, left to right, broken where they do not meet; a loop spliced in where
-' it stands, a quarter pipe and its wall over the three columns before the wall; then the platforms' tops.
-' Where a flat column stands over a lower flat one, or over none, its side shows: for how many tiles down.
+' The ground's line from the columns' tops, left to right,
+' broken where they do not meet; a loop spliced in where it
+' stands, a quarter pipe and its wall over the three columns
+' before the wall; then the platforms' tops. Where a flat
+' column stands over a lower flat one, or over none, its
+' side shows: for how many tiles down.
 sub Faces (lv as Level)
     dim c as integer
     for c = 0 to lv.w - 1
@@ -66,7 +69,8 @@ sub Track (lv as Level, gr as Ground)
     TrackSlides lv, gr
 end sub
 
-' A quarter pipe from column c, marked there with the thing that is it: up its curve, then its wall.
+' A quarter pipe from column c, marked there with the thing
+' that is it: up its curve, then its wall.
 private sub TrackPipe (lv as Level, gr as Ground, c as integer)
     dim x as integer, y as integer, j as integer, a as single
     x = c * TS
@@ -90,14 +94,16 @@ private sub TrackPipe (lv as Level, gr as Ground, c as integer)
     gr.n_cv = gr.n_cv + 1
 end sub
 
-' Column c's top tile, a stretch from its left edge to its right, and the loops stood on it.
+' Column c's top tile, a stretch from its left edge to its
+' right, and the loops stood on it.
 private sub TrackTile (lv as Level, gr as Ground, c as integer)
     dim i as integer, j as integer, k as integer, x as integer
     dim y as integer, yl as integer, yr as integer
     x = c * TS
     k = lv.map(c, lv.top(c))
     y = (lv.top(c) + 1) * TS
-    ' a tile's top at its edges: its profile's, to the even pixel
+    ' a tile's top at its edges: its profile's, to the even
+    ' pixel
     yl = y - (lv.prof(k, 0) and 30)
     yr = y - (lv.prof(k, TS - 1) and 30)
     j = gr.n = 0
@@ -115,7 +121,8 @@ private sub TrackTile (lv as Level, gr as Ground, c as integer)
     Knot gr, csng(x + TS), csng(yr), 1
 end sub
 
-' A loop stood at x, its foot at y: a ring of LOOPN stretches, a curve.
+' A loop stood at x, its foot at y: a ring of LOOPN
+' stretches, a curve.
 private sub TrackLoop (gr as Ground, x as integer, y as integer)
     dim j as integer, a as single
     Knot gr, csng(x), csng(y), 1
@@ -132,7 +139,8 @@ private sub TrackLoop (gr as Ground, x as integer, y as integer)
     gr.n_cv = gr.n_cv + 1
 end sub
 
-' The platforms: those side by side at one height are one stretch.
+' The platforms: those side by side at one height are one
+' stretch.
 private sub TrackPlats (lv as Level, gr as Ground)
     dim i as integer, x as integer, x1 as integer, y as integer
     x = NONE
@@ -151,7 +159,8 @@ private sub TrackPlats (lv as Level, gr as Ground)
     Plank gr, x, x1, y
 end sub
 
-' A platform's stretch from x to x1 at height y, where there is one.
+' A platform's stretch from x to x1 at height y, where there
+' is one.
 private sub Plank ( _
     gr as Ground, _
     x as integer, _
@@ -173,7 +182,8 @@ private sub TrackLimbs (lv as Level, gr as Ground)
     next
 end sub
 
-' The moving platforms: a stretch each, a curve of one, in the order they were made.
+' The moving platforms: a stretch each, a curve of one, in
+' the order they were made.
 private sub TrackMovers (lv as Level, gr as Ground)
     dim i as integer, k as integer
     for i = 0 to lv.n_things - 1
@@ -201,7 +211,8 @@ private sub TrackMovers (lv as Level, gr as Ground)
     next
 end sub
 
-' A bridge's button, the one at x: its number among the things, or x where there is none.
+' A bridge's button, the one at x: its number among the
+' things, or x where there is none.
 private function ButtonAt% (lv as Level, x as integer)
     dim j as integer
     ButtonAt% = x
@@ -213,7 +224,8 @@ private function ButtonAt% (lv as Level, x as integer)
     next
 end function
 
-' The ribbons: halves that meet are one stretch, 8 of flat at each end to run on and off by.
+' The ribbons: halves that meet are one stretch, 8 of flat
+' at each end to run on and off by.
 private sub TrackRibbons (lv as Level, gr as Ground)
     dim i as integer, j as integer, x1 as integer, y as integer
     dim a as single
@@ -241,7 +253,8 @@ private sub TrackRibbons (lv as Level, gr as Ground)
     RibbonEnd gr, x1, y
 end sub
 
-' A ribbon's far end at x1, y, where there is one: its flat, and its curve closed.
+' A ribbon's far end at x1, y, where there is one: its flat,
+' and its curve closed.
 private sub RibbonEnd (gr as Ground, x1 as integer, y as integer)
     if x1 = NONE then exit sub
     Knot gr, csng(x1 + 8), csng(y), 2
@@ -249,7 +262,8 @@ private sub RibbonEnd (gr as Ground, x1 as integer, y as integer)
     gr.n_cv = gr.n_cv + 1
 end sub
 
-' The lantern lines: a stretch each from end to end, a curve of one.
+' The lantern lines: a stretch each from end to end, a curve
+' of one.
 private sub TrackSlides (lv as Level, gr as Ground)
     dim i as integer
     for i = 0 to lv.n_ropes - 1
@@ -267,7 +281,8 @@ private sub TrackSlides (lv as Level, gr as Ground)
     next
 end sub
 
-' The line's next point, x, y, a stretch of kind k to it from the last: 0, none.
+' The line's next point, x, y, a stretch of kind k to it
+' from the last: 0, none.
 private sub Knot ( _
     gr as Ground, _
     x as single, _
@@ -294,7 +309,8 @@ private sub Knot ( _
     gr.n = gr.n + 1
 end sub
 
-' Limb n of the oak, 0 its lowest, left and right in turn: its flat's left end from the oak's middle, the middle
+' Limb n of the oak, 0 its lowest, left and right in turn:
+' its flat's left end from the oak's middle, the middle
 ' pair's further out.
 function LimbX% (n as integer)
     dim d as integer
@@ -304,7 +320,8 @@ function LimbX% (n as integer)
     LimbX% = d
 end function
 
-' And its flat's top over the oak's foot: three tiles a pair, the right a tile over the left.
+' And its flat's top over the oak's foot: three tiles a
+' pair, the right a tile over the left.
 function LimbUp% (n as integer)
     LimbUp% = (3 + (n \ 2) * 3 + (n and 1)) * TS
 end function

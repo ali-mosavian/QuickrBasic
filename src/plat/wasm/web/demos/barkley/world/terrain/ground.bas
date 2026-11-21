@@ -1,4 +1,5 @@
-' The ground's queries: surface, wall, landing, slope, loop, ribbon; the tables they read.
+' The ground's queries: surface, wall, landing, slope, loop,
+' ribbon; the tables they read.
 defint A-Z
 option explicit
 
@@ -9,7 +10,8 @@ from barkley.model.level import Ground, Level, MH, NONE, PI, TS
 const LOOPR = 72
 private const COYOTE = .1
 
-' The ground's line: its most points, a loop's and a quarter pipe's stretches, the curves there can be; under STALL
+' The ground's line: its most points, a loop's and a quarter
+' pipe's stretches, the curves there can be; under STALL
 ' Charlie cannot stay on a wall or a roof.
 const LOOPN = 48
 const STALL = 150!
@@ -17,8 +19,9 @@ const STALL = 150!
 const WAVEL = 192
 const WADE = 10
 
-' Each tile kind's column heights: 1 solid; 2, 3 rise and fall at 45
-' degrees; 4 and 5, 6 and 7 rise and fall half as steep over two tiles.
+' Each tile kind's column heights: 1 solid; 2, 3 rise and
+' fall at 45 degrees; 4 and 5, 6 and 7 rise and fall half as
+' steep over two tiles.
 sub LoadTables (lv as Level)
     dim i as integer
     for i = 0 to TS - 1
@@ -43,7 +46,8 @@ function Bearing! (u as single, v as single)
     end if
 end function
 
-' The tiles' stretch of the line under x, its top within 4 of y; -1 when there is none.
+' The tiles' stretch of the line under x, its top within 4
+' of y; -1 when there is none.
 function SegAt% (lv as Level, gr as Ground, x as integer, y as single)
     dim s as integer
     SegAt% = -1
@@ -53,13 +57,15 @@ function SegAt% (lv as Level, gr as Ground, x as integer, y as single)
     SegAt% = s
 end function
 
-' The tiles' stretch under x, its top within 4 of y; -1 when there is none.
+' The tiles' stretch under x, its top within 4 of y; -1 when
+' there is none.
 private function TileSeg% (gr as Ground, x as integer, y as single)
     dim s as integer
     TileSeg% = -1
     s = gr.col(x \ TS)
     if s < 0 then exit function
-    ' past a loop that stands in the column: the stretch after it
+    ' past a loop that stands in the column: the stretch
+    ' after it
     if x > gr.pt(s + 1).at.x then s = s + LOOPN + 1
     if abs(gr.pt(s).at.y _
         + (x - gr.pt(s).at.x) * gr.pt(s).dir.y / gr.pt(s).dir.x _
@@ -68,7 +74,8 @@ private function TileSeg% (gr as Ground, x as integer, y as single)
     end if
 end function
 
-' The platform's stretch under x, at y within 4; -1 when there is none.
+' The platform's stretch under x, at y within 4; -1 when
+' there is none.
 private function PlatSeg% (gr as Ground, x as integer, y as single)
     dim s as integer
     PlatSeg% = -1
@@ -81,7 +88,8 @@ private function PlatSeg% (gr as Ground, x as integer, y as single)
     next
 end function
 
-' Ground at y is under the sea for good: deeper than Charlie wades, at low water too.
+' Ground at y is under the sea for good: deeper than Charlie
+' wades, at low water too.
 function Sunk% (lv as Level, y as integer)
     dim ebb as integer
     Sunk% = 0
@@ -91,9 +99,9 @@ function Sunk% (lv as Level, y as integer)
     Sunk% = y > ebb + WADE
 end function
 
-' The ground's top at column sx near y: in y's tile, the one above when
-' that is full, the one below when it is empty; NONE when both are, or
-' off the level.
+' The ground's top at column sx near y: in y's tile, the one
+' above when that is full, the one below when it is empty;
+' NONE when both are, or off the level.
 function Surf% (lv as Level, sx as integer, y as integer)
     dim tx as integer, ty as integer, i as integer, h as integer
     Surf% = NONE
@@ -140,7 +148,8 @@ function Wall% (lv as Level, p as Hero, dir as integer)
     Wall% = n > 0
 end function
 
-' Falling Charlie's feet in the tiles' ground: on the line's stretch there, its speed along it kept.
+' Falling Charlie's feet in the tiles' ground: on the line's
+' stretch there, its speed along it kept.
 function Land% (lv as Level, gr as Ground, p as Hero, d as integer)
     dim x as integer, y as integer, l as integer, c as integer
     dim r as integer, s as integer
@@ -198,9 +207,11 @@ private sub Settle ( _
     p.coyote = 0
 end sub
 
-' Charlie in the air, come from x0, y0, through a curve's stretch from its open side: down on it where it can be
-' stood on, or is met fast enough to run along; else off it, sliding. A loop's far half is not there for one that
-' has not run its near half.
+' Charlie in the air, come from x0, y0, through a curve's
+' stretch from its open side: down on it where it can be
+' stood on, or is met fast enough to run along; else off it,
+' sliding. A loop's far half is not there for one that has
+' not run its near half.
 function Curve% ( _
     gr as Ground, _
     p as Hero, _
@@ -228,8 +239,9 @@ function Curve% ( _
                 - (y0 - gr.pt(s).at.y) * gr.pt(s).dir.x
             t = (p.at.x - gr.pt(s).at.x) * gr.pt(s).dir.x _
                 + (p.at.y - gr.pt(s).at.y) * gr.pt(s).dir.y
-            ' from just behind it too, at a join; not behind a wall
-            ' and from further behind a platform, which moves
+            ' from just behind it too, at a join; not behind
+            ' a wall and from further behind a platform,
+            ' which moves
             near = d0 > -1 + 3 * (gr.pt(s).kind = 3) _
                 and (d0 >= 0 or gr.pt(s).dir.x >= .35)
             if near = 0 or t < -1 _
@@ -253,7 +265,8 @@ function Curve% ( _
     next
 end function
 
-' Of curve z, a loop, the half that is there for him, from stretch a to b: its far one once he has run its near.
+' Of curve z, a loop, the half that is there for him, from
+' stretch a to b: its far one once he has run its near.
 private sub LoopHalf ( _
     gr as Ground, _
     p as Hero, _
@@ -273,8 +286,9 @@ private sub LoopHalf ( _
     end if
 end sub
 
-' Charlie d pixels along the line, over its joins: slowed in a sharp hollow, into the air over a sharp crest or
-' off the line's end.
+' Charlie d pixels along the line, over its joins: slowed in
+' a sharp hollow, into the air over a sharp crest or off the
+' line's end.
 sub Along (gr as Ground, p as Hero, d as single)
     dim i as integer, j as integer, a as integer, t as single
     dim cr as single, dt as single
@@ -323,8 +337,10 @@ sub Along (gr as Ground, p as Hero, d as single)
     p.at.y = gr.pt(i).at.y + gr.pt(i).dir.y * t
 end sub
 
-' Over a crease that turns the ground up: speed is lost by the turn's cosine dt, and so is how far he is past the
-' crease on the new stretch, l long; ahead, the crease is at its start.
+' Over a crease that turns the ground up: speed is lost by
+' the turn's cosine dt, and so is how far he is past the
+' crease on the new stretch, l long; ahead, the crease is at
+' its start.
 private sub Crease ( _
     p as Hero, _
     t as single, _
@@ -343,7 +359,8 @@ private sub Crease ( _
     end if
 end sub
 
-' Off the ground, its speed kept: from a wall or a roof, clear of it.
+' Off the ground, its speed kept: from a wall or a roof,
+' clear of it.
 sub Drop (gr as Ground, p as Hero)
     dim i as integer
     i = p.sg
@@ -358,7 +375,8 @@ sub Drop (gr as Ground, p as Hero)
     end if
 end sub
 
-' Whether a ribbon starts within 60 ahead of x: its edge is run off, not jumped.
+' Whether a ribbon starts within 60 ahead of x: its edge is
+' run off, not jumped.
 function Ribbon% (gr as Ground, x as integer)
     dim z as integer
     Ribbon% = 0
@@ -370,9 +388,12 @@ function Ribbon% (gr as Ground, x as integer)
     next
 end function
 
-' A ribbon is a strip wound once round a line along its way, each twist 2 * WAVEL long: its near edge rises to a
-' crest and falls, and what runs it goes round its inside, on its far side going up and behind it coming down.
-' How far round p on one is: 0 upright at its foot, PI upside down under its crest; -1 on none.
+' A ribbon is a strip wound once round a line along its way,
+' each twist 2 * WAVEL long: its near edge rises to a crest
+' and falls, and what runs it goes round its inside, on its
+' far side going up and behind it coming down. How far round
+' p on one is: 0 upright at its foot, PI upside down under
+' its crest; -1 on none.
 function Twist! (gr as Ground, p as Hero)
     dim z as integer, t as single
     Twist! = -1
@@ -410,7 +431,8 @@ sub Balk (p as Hero, x as integer, r as integer)
     end if
 end sub
 
-' How the ground lies under him, of the five ways what rides it is drawn: -2 to 2, level 0.
+' How the ground lies under him, of the five ways what rides
+' it is drawn: -2 to 2, level 0.
 function Slant% (p as Hero)
     dim t as integer
     if p.ground then t = cint(p.ang * 8 / PI)
@@ -419,7 +441,8 @@ function Slant% (p as Hero)
     Slant% = t
 end function
 
-' How the ground lies at x near y, of the five ways what rides it is drawn: -2 to 2, level 0.
+' How the ground lies at x near y, of the five ways what
+' rides it is drawn: -2 to 2, level 0.
 function Lie% (lv as Level, x as integer, y as integer)
     dim a as integer, b as integer, t as integer
     a = Surf%(lv, x - 8, y)

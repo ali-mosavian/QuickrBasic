@@ -1,4 +1,5 @@
-' The palette: built, tinted, shaded by zone, cycled, shimmering.
+' The palette: built, tinted, shaded by zone, cycled,
+' shimmering.
 defint A-Z
 option explicit
 
@@ -18,7 +19,8 @@ const CBEE = 116
 const CWING = 102
 const CSEA = 141
 
-' The quarter's: its ink, its linen from white, its poles lit to dark, its smoke.
+' The quarter's: its ink, its linen from white, its poles
+' lit to dark, its smoke.
 const CQINK = 133
 const CLANT = 141
 const CLINEN = 156
@@ -51,7 +53,8 @@ sub Tint (tn as Tones, k as integer, c as long)
         + 65536 * ((c \ 65536) * d \ 16)
 end sub
 
-' The tiles that move: a deck's lights run along it, a fan's blades turn, glints go down a pipe; by their colours.
+' The tiles that move: a deck's lights run along it, a fan's
+' blades turn, glints go down a pipe; by their colours.
 sub Cycle (tn as Tones, se as Session)
     dim i as integer
     for i = 0 to 3
@@ -80,7 +83,8 @@ sub Shade (tn as Tones)
     next
 end sub
 
-' The Downs' lake glints: its three tones change places, every 16 steps.
+' The Downs' lake glints: its three tones change places,
+' every 16 steps.
 sub Shimmer (zn as Realm, tn as Tones, se as Session)
     dim i as integer
     if zn.id <> 0 or (se.ticks and 15) <> 0 then exit sub

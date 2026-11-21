@@ -1,4 +1,5 @@
-' The moving platforms: to and fro, up and down, lifts, cables.
+' The moving platforms: to and fro, up and down, lifts,
+' cables.
 defint A-Z
 option explicit
 
@@ -12,21 +13,26 @@ from barkley.world.terrain.ground import Drop
 from barkley.world.terrain.track import MOVEW
 from barkley.world.level import CABLED
 
-' a boat's deck over the water it floats on, and over the floor it lies on
+' a boat's deck over the water it floats on, and over the
+' floor it lies on
 const FREEB = 7
 
-' A span of the sands' old pier: the seconds it totters once trodden, and how far it falls.
+' A span of the sands' old pier: the seconds it totters once
+' trodden, and how far it falls.
 private const SPANT = .25
 private const SPANDROP = 400
 
-' A ski lift's chair, a platform that goes up its cable SEATV of the way a second while he stands on it; its
-' frame stands SEATH over its seat.
+' A ski lift's chair, a platform that goes up its cable
+' SEATV of the way a second while he stands on it; its frame
+' stands SEATH over its seat.
 private const SEATV = .35
 
-' A tram: its speed along its street while he rides its roof.
+' A tram: its speed along its street while he rides its
+' roof.
 const TRAMV = 240!
 
-' How far cable m's far end hangs under its near one: a basket's cable falls, a ski lift's climbs; a tram's street
+' How far cable m's far end hangs under its near one: a
+' basket's cable falls, a ski lift's climbs; a tram's street
 ' is level.
 function Dip% (lv as Level, m as integer)
     Dip% = CABLED
@@ -39,8 +45,9 @@ function Adrift% (lv as Level, m as integer)
     Adrift% = lv.tide - FREEB < lv.movers(m).at.y
 end function
 
-' Platform m's swing now, -1 to 1, held a while at each end when it goes up and down; quarter: a quarter of its
-' way on, which tells where it is going.
+' Platform m's swing now, -1 to 1, held a while at each end
+' when it goes up and down; quarter: a quarter of its way
+' on, which tells where it is going.
 function Swing! ( _
     lv as Level, _
     se as Session, _
@@ -49,7 +56,8 @@ function Swing! ( _
 )
     dim q as single, v as single
     if lv.movers(m).kind = 5 then
-        ' a boat by its own clock, which stops while it is aground
+        ' a boat by its own clock, which stops while it is
+        ' aground
         q = lv.movers(m).t + m + quarter * PI / 2
     else
         q = se.ticks * STEPT * (1.1 - .2 * lv.movers(m).kind) + m _
@@ -64,8 +72,9 @@ function Swing! ( _
     Swing! = v
 end function
 
-' The platforms a step on: to and fro, up and down, or a lift, up while Charlie stands on it and down again
-' when not. Charlie goes with the one it stands on.
+' The platforms a step on: to and fro, up and down, or a
+' lift, up while Charlie stands on it and down again when
+' not. Charlie goes with the one it stands on.
 sub Movers ( _
     lv as Level, _
     gr as Ground, _
@@ -91,7 +100,9 @@ sub Movers ( _
         case 1
             y = y + lv.movers(m).reach * Swing!(lv, se, m, 0)
         case 6
-            ' a pier's span: trodden, it totters a moment, then falls from under who is on it, and stays fallen
+            ' a pier's span: trodden, it totters a moment,
+            ' then falls from under who is on it, and stays
+            ' fallen
             if lv.movers(m).t > 0 or (p.ground and p.sg = s) then
                 lv.movers(m).t = lv.movers(m).t + STEPT
             end if
@@ -131,8 +142,10 @@ sub Movers ( _
             end if
             y = y - lv.movers(m).t
         case 3, 7, 8
-            ' while stood on: a basket down its cable, faster as it goes, a chair up its own steadily, a tram along
-            ' its street at TRAMV; back when left
+            ' while stood on: a basket down its cable,
+            ' faster as it goes, a chair up its own
+            ' steadily, a tram along its street at TRAMV;
+            ' back when left
             if not p.ground or p.sg <> s then
                 lv.movers(m).t = lv.movers(m).t - .4 * STEPT
             elseif lv.movers(m).kind = 3 then

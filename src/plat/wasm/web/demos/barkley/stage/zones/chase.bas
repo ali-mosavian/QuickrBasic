@@ -1,4 +1,5 @@
-' The chases: who flees with a zone's keepsake, and the bumps that break it.
+' The chases: who flees with a zone's keepsake, and the
+' bumps that break it.
 defint A-Z
 option explicit
 
@@ -22,19 +23,25 @@ from barkley.stage.fx.parts import Burst
 from barkley.stage.fx.damage import BOUNCEV, Hurt
 from barkley.stage.zones.pass import SLEDV
 
-' Biscuit's honey cart less its wheels, as it goes and bumped: level, then leaning half a gentle slope's fall and
-' all of one's, CARTLEAN higher over and under each time; then its wheel at two turns. Its wheels are WHEELS
-' either side of its middle.
+' Biscuit's honey cart less its wheels, as it goes and
+' bumped: level, then leaning half a gentle slope's fall and
+' all of one's, CARTLEAN higher over and under each time;
+' then its wheel at two turns. Its wheels are WHEELS either
+' side of its middle.
 private const CARTW = 56
 private const CARTH = 34
 private const CARTLEAN = 7
 private const WHEELS = 13
 
-' The great oak, its foot at lv.oakX, lv.oakY: NLIMB limbs up it, left and right in turn, each a flat LIMBW long
-' to stand on, LIMBRISE down its picture. The Bramble twins sit on a pair of them, and after each catch on the
-' pair above: one holds the ball PAWUP over its limb TWINHOLD seconds, then lobs it to the other, TWINLOB seconds
-' on its way and LOBUP over the straight line, TWINHASTE less for each catch. Within CATCHR of the ball on its
-' way, he has caught it.
+' The great oak, its foot at lv.oakX, lv.oakY: NLIMB limbs
+' up it, left and right in turn, each a flat LIMBW long to
+' stand on, LIMBRISE down its picture. The Bramble twins sit
+' on a pair of them, and after each catch on the pair above:
+' one holds the ball PAWUP over its limb TWINHOLD seconds,
+' then lobs it to the other, TWINLOB seconds on its way and
+' LOBUP over the straight line, TWINHASTE less for each
+' catch. Within CATCHR of the ball on its way, he has caught
+' it.
 private const LIMBRISE = 14
 private const TWINHOLD = .6
 private const TWINLOB = 1.5
@@ -43,15 +50,19 @@ private const LOBUP = 40
 const PAWUP = 24
 private const CATCHR = 18
 
-' Kipper's pedal boat: its speed, what each bump adds to it, its length, and its deck over the sea.
+' Kipper's pedal boat: its speed, what each bump adds to it,
+' its length, and its deck over the sea.
 const PEDALV = 130!
 const PEDALMORE = 40!
 const PEDALW = 48
 const PEDALUP = 8
 
-' A chase: the cart's speed, when Charlie is far behind it, and away from a bump, a toboggan's less, for a sled to
-' catch it again; how far ahead of the race's start it waits; how near touches it; the seconds a bump tells, the
-' last of them bolting; the bumps that break it; its tune's number in CHARLIE.DAT.
+' A chase: the cart's speed, when Charlie is far behind it,
+' and away from a bump, a toboggan's less, for a sled to
+' catch it again; how far ahead of the race's start it
+' waits; how near touches it; the seconds a bump tells, the
+' last of them bolting; the bumps that break it; its tune's
+' number in CHARLIE.DAT.
 private const CRUISE = 330!
 private const DAWDLE = 200!
 private const BOLT = 560!
@@ -63,10 +74,13 @@ const BOLTS = 1!
 const NBUMP = 3
 const CHASETUNE = 5
 
-' The works' crane: its speed after Charlie, what each bump adds, and away from one; how near touches it; its
-' gondola's foot over the floor, out of a jump's reach, and its rail's top; the seconds to its next crate, what
-' each bump takes off them, and the seconds one is held over Charlie; the view's height over him, by habit and
-' under a crane; the seconds its keepsake falls.
+' The works' crane: its speed after Charlie, what each bump
+' adds, and away from one; how near touches it; its
+' gondola's foot over the floor, out of a jump's reach, and
+' its rail's top; the seconds to its next crate, what each
+' bump takes off them, and the seconds one is held over
+' Charlie; the view's height over him, by habit and under a
+' crane; the seconds its keepsake falls.
 private const CRANEV = 90!
 private const CRANEUP = 25!
 private const CRANEBOLT = 260!
@@ -78,12 +92,17 @@ private const HASTE = .3
 private const POISE = .6
 private const TOOLFALL = .4
 
-' The quarter's relay, the guitar from cat to cat, NLEG of them and a bump each: bumped, a cat throws it on to the
-' next, PASSV a second, and is left TUMBLE behind it. Each makes off its own way, LEGV about: Biscuit steadily;
-' Sprocket by the beat, WOUND the quicker for three and still for one; Kipper bobbing, a beat BOB the quicker and
-' HOPUP off the ground, a beat BOB the slower; Frost sliding, SLIDE the quicker down a fall; the twins lobbing it
-' between them, LOBV for LOBT seconds and LOBUP2 high, as Charlie comes within LOBNEAR, and not again for
-' LOBWAIT. The twin without it goes TWINGAP from the one with it.
+' The quarter's relay, the guitar from cat to cat, NLEG of
+' them and a bump each: bumped, a cat throws it on to the
+' next, PASSV a second, and is left TUMBLE behind it. Each
+' makes off its own way, LEGV about: Biscuit steadily;
+' Sprocket by the beat, WOUND the quicker for three and
+' still for one; Kipper bobbing, a beat BOB the quicker and
+' HOPUP off the ground, a beat BOB the slower; Frost
+' sliding, SLIDE the quicker down a fall; the twins lobbing
+' it between them, LOBV for LOBT seconds and LOBUP2 high, as
+' Charlie comes within LOBNEAR, and not again for LOBWAIT.
+' The twin without it goes TWINGAP from the one with it.
 const NLEG = 5
 const LEGV = 250!
 const LOBWAIT = 2.4
@@ -99,7 +118,8 @@ private const LOBT = .4
 private const LOBUP2 = 20
 private const TWINGAP = 40
 
-' The chase as before Charlie came to it: who flees waiting a little way into the race, the zone's tune back. A
+' The chase as before Charlie came to it: who flees waiting
+' a little way into the race, the zone's tune back. A
 ' keepsake taken stays taken.
 sub ResetChase (lv as Level, mu as Deck)
     if lv.chase_x = NONE or lv.cart.st = 3 then exit sub
@@ -114,8 +134,9 @@ sub ResetChase (lv as Level, mu as Deck)
     ZoneTune mu, mu.stage_tune
 end sub
 
-' A step of the chase, by its state: begun as Charlie comes to the race; then who flees does, by its zone, and he
-' may meet it; broken, its keepsake is his when he reaches it.
+' A step of the chase, by its state: begun as Charlie comes
+' to the race; then who flees does, by its zone, and he may
+' meet it; broken, its keepsake is his when he reaches it.
 sub Flee ( _
     lv as Level, _
     zn as Realm, _
@@ -153,7 +174,8 @@ sub Flee ( _
             MoveCart lv, p, LegPace!(lv, se), PASSV
             MeetRelay lv, mu, se, g, p, lo(), pt()
         end select
-        ' its last bump breaks it; the twins' ball is his with the catch
+        ' its last bump breaks it; the twins' ball is his
+        ' with the catch
         if lv.cart.hits >= Bumps%(zn) then BreakCart lv, mu, se, pt()
         if zn.id = 4 and lv.cart.st = 2 then
             TakeKeep lv, mu, se, g, pt()
@@ -162,7 +184,8 @@ sub Flee ( _
         if zn.id = 1 and lv.cart.t > 2 - TOOLFALL then exit sub
         ' the sands' keepsake floats
         if zn.id = 2 then lv.cart.at.y = lv.tide
-        ' over it will do: he comes down off the last bump past it
+        ' over it will do: he comes down off the last bump
+        ' past it
         if abs(p.at.x - lv.cart.at.x) < 16 _
             and p.at.y > lv.cart.at.y - 90 _
             and p.at.y < lv.cart.at.y + 8 then
@@ -171,7 +194,8 @@ sub Flee ( _
     end select
 end sub
 
-' The cart is off, to the chase's tune in the zone's slot: the zone's own lead plays it, and the level's end still.
+' The cart is off, to the chase's tune in the zone's slot:
+' the zone's own lead plays it, and the level's end still.
 private sub StartChase (lv as Level, mu as Deck)
     dim zlead as string
     lv.cart.st = 1
@@ -187,8 +211,9 @@ private function MakesOff! (zn as Realm)
     if zn.id = 3 then MakesOff! = TOBOLT
 end function
 
-' The cart along the ground at `pace`: dawdling when Charlie is far behind it, slow while a bump has it dazed,
-' then making off at `away`; no further than the race's end.
+' The cart along the ground at `pace`: dawdling when Charlie
+' is far behind it, slow while a bump has it dazed, then
+' making off at `away`; no further than the race's end.
 private sub MoveCart ( _
     lv as Level, _
     p as Hero, _
@@ -210,8 +235,9 @@ private sub MoveCart ( _
     if s <> NONE then lv.cart.at.y = s
 end sub
 
-' Charlie at the cart, once it is over its last bump: curled, he bumps it and is thrown back off it, or on a sled
-' checked; else it hurts him. Its last bump breaks it.
+' Charlie at the cart, once it is over its last bump:
+' curled, he bumps it and is thrown back off it, or on a
+' sled checked; else it hurts him. Its last bump breaks it.
 private sub MeetCart ( _
     lv as Level, _
     mu as Deck, _
@@ -230,7 +256,8 @@ private sub MeetCart ( _
         exit sub
     end if
     Bumped lv, mu, se, g, pt(), lv.cart.at.y - 20
-    ' sled against sled he is checked, not thrown: a sled thrown back has no brake to stop it
+    ' sled against sled he is checked, not thrown: a sled
+    ' thrown back has no brake to stop it
     if p.sled and p.ground then p.gsp = SLEDV
     if p.sled and not p.ground then p.vel.x = SLEDV
     if p.sled then exit sub
@@ -240,7 +267,8 @@ private sub MeetCart ( _
     p.vel.y = -BOUNCEV
 end sub
 
-' The bumps that end a zone's chase: the relay's is one a cat.
+' The bumps that end a zone's chase: the relay's is one a
+' cat.
 private function Bumps% (zn as Realm)
     Bumps% = NBUMP
     if zn.id = 5 then Bumps% = NLEG
@@ -263,7 +291,8 @@ private sub Bumped ( _
     Sfx mu, se, SBUMP
 end sub
 
-' Who flees is broken and the keepsake left lying; the zone's tune again.
+' Who flees is broken and the keepsake left lying; the
+' zone's tune again.
 private sub BreakCart ( _
     lv as Level, _
     mu as Deck, _
@@ -291,8 +320,9 @@ private sub TakeKeep ( _
     Sfx mu, se, SMARK
 end sub
 
-' Who flees, by its zone; nothing once its keepsake is taken back, but the wood's oak, which stands, and its
-' twins, who stay to sulk.
+' Who flees, by its zone; nothing once its keepsake is taken
+' back, but the wood's oak, which stands, and its twins, who
+' stay to sulk.
 sub DrawChase ( _
     lv as Level, _
     zn as Realm, _
@@ -321,8 +351,10 @@ sub DrawChase ( _
     end select
 end sub
 
-' A lob's clock: begun as Charlie comes near who has the guitar, no sooner than LOBWAIT after the last, and not at
-' the street's end, where there is nowhere on to lob it. Only the twins lob by it.
+' A lob's clock: begun as Charlie comes near who has the
+' guitar, no sooner than LOBWAIT after the last, and not at
+' the street's end, where there is nowhere on to lob it.
+' Only the twins lob by it.
 private sub Lob (lv as Level, p as Hero)
     if lv.box.t > 0 then lv.box.t = lv.box.t - STEPT
     if lv.box.t > 0 or lv.cart.t > 0 _
@@ -355,8 +387,9 @@ private function LegPace! (lv as Level, se as Session)
     end select
 end function
 
-' Charlie at who has the guitar, as at a cart; not while the twins have it in the air. A bump is marked where it
-' was made, for the cat left there off its feet.
+' Charlie at who has the guitar, as at a cart; not while the
+' twins have it in the air. A bump is marked where it was
+' made, for the cat left there off its feet.
 private sub MeetRelay ( _
     lv as Level, _
     mu as Deck, _
@@ -376,8 +409,10 @@ private sub MeetRelay ( _
     lv.box.t = 0
 end sub
 
-' The twins' places from the guitar's, a and b: with it in the air, who threw it falling behind and who catches it
-' ahead; else one under it, the other round from behind to TWINGAP ahead by the next lob.
+' The twins' places from the guitar's, a and b: with it in
+' the air, who threw it falling behind and who catches it
+' ahead; else one under it, the other round from behind to
+' TWINGAP ahead by the next lob.
 private sub TwinsAt (lv as Level, a as integer, b as integer)
     dim w as single
     a = 0
@@ -392,8 +427,9 @@ private sub TwinsAt (lv as Level, a as integer, b as integer)
     end if
 end sub
 
-' How high the guitar is over its cat's back: thrown on from a bump, coming down to the next cat; lobbed, over
-' the twins.
+' How high the guitar is over its cat's back: thrown on from
+' a bump, coming down to the next cat; lobbed, over the
+' twins.
 private function Aloft% (lv as Level)
     dim w as single
     Aloft% = 0
@@ -403,9 +439,11 @@ private function Aloft% (lv as Level)
     Aloft% = cint(LOBUP2 * 4 * w * (1 - w))
 end function
 
-' The relay: the cat last bumped off its feet where it was, a while; who has the guitar striding, it on its back,
-' Kipper off the ground on his quick beat, the other twin by; a pip over it for each cat still to bump. Broken,
-' the guitar where it fell.
+' The relay: the cat last bumped off its feet where it was,
+' a while; who has the guitar striding, it on its back,
+' Kipper off the ground on his quick beat, the other twin
+' by; a pip over it for each cat still to bump. Broken, the
+' guitar where it fell.
 private sub DrawRelay ( _
     lv as Level, _
     zn as Realm, _
@@ -446,7 +484,8 @@ private sub DrawRelay ( _
     next
 end sub
 
-' The twins' pair of limbs: one higher for each catch, the highest for the last.
+' The twins' pair of limbs: one higher for each catch, the
+' highest for the last.
 private function Roost% (lv as Level)
     Roost% = lv.cart.hits
     if lv.cart.hits > NLIMB \ 2 - 1 then Roost% = NLIMB \ 2 - 1
@@ -461,14 +500,18 @@ private function SeatY% (lv as Level, n as integer)
     SeatY% = lv.oak.y - LimbUp%(n)
 end function
 
-' The seconds the ball is in the air between the twins: fewer for each catch.
+' The seconds the ball is in the air between the twins:
+' fewer for each catch.
 private function LobTime! (lv as Level)
     LobTime! = TWINLOB - TWINHASTE * lv.cart.hits
 end function
 
-' The ball where it is, lv.cart its foot: over the paws of the twin that holds it, lv.box.st 0 the left and 2 the
-' right; odd, on its way from that one to the other, lv.box.t seconds still to go; a catch still telling, up from
-' where he caught it, lv.box.x, lv.box.y, to who holds it next.
+' The ball where it is, lv.cart its foot: over the paws of
+' the twin that holds it, lv.box.st 0 the left and 2 the
+' right; odd, on its way from that one to the other,
+' lv.box.t seconds still to go; a catch still telling, up
+' from where he caught it, lv.box.x, lv.box.y, to who holds
+' it next.
 private sub BallAt (lv as Level)
     dim n as integer, x as single, y as single, u as single
     n = Roost%(lv) * 2 + lv.box.st \ 2
@@ -487,9 +530,11 @@ private sub BallAt (lv as Level)
     lv.cart.at.y = y - LOBUP * 4 * u * (1 - u)
 end sub
 
-' The twins' game, a step: the ball held, then lobbed across, then held again; held too while a catch tells. At
-' the ball on its way he has caught it: a bump, the twins off to the pair above and the ball tossed up after
-' them. The third catch, and the ball is his.
+' The twins' game, a step: the ball held, then lobbed
+' across, then held again; held too while a catch tells. At
+' the ball on its way he has caught it: a bump, the twins
+' off to the pair above and the ball tossed up after them.
+' The third catch, and the ball is his.
 private sub Juggle ( _
     lv as Level, _
     mu as Deck, _
@@ -516,9 +561,12 @@ private sub Juggle ( _
     Bumped lv, mu, se, g, pt(), lv.cart.at.y - 7
 end sub
 
-' The picture of the twin on side sd, 0 the left: 0 grinning, 1 reaching, 2 a paw out, 3 shocked, 4 sulking. The
-' ball his, they sulk; a catch shocks them, then they reach for the pair above; who holds the ball reaches up with
-' it while the other grins; thrown, the thrower's paw is out a while, and the other reaches for it.
+' The picture of the twin on side sd, 0 the left: 0
+' grinning, 1 reaching, 2 a paw out, 3 shocked, 4 sulking.
+' The ball his, they sulk; a catch shocks them, then they
+' reach for the pair above; who holds the ball reaches up
+' with it while the other grins; thrown, the thrower's paw
+' is out a while, and the other reaches for it.
 function TwinPose% (lv as Level, sd as integer)
     dim mine as integer
     TwinPose% = 4
@@ -537,8 +585,9 @@ function TwinPose% (lv as Level, sd as integer)
     if lv.box.t > LobTime!(lv) - .35 then TwinPose% = 2
 end function
 
-' The great oak: its limbs, out from behind it; its foot, and its trunk up from there out of sight; its hollow
-' and its brackets.
+' The great oak: its limbs, out from behind it; its foot,
+' and its trunk up from there out of sight; its hollow and
+' its brackets.
 private sub DrawOak ( _
     lv as Level, _
     art as Store, _
@@ -551,7 +600,8 @@ private sub DrawOak ( _
     if x < -170 or x > SW + 170 then exit sub
     for n = 0 to NLIMB - 1
         y = lv.oak.y - LimbUp%(n) - LIMBRISE - cy
-        ' the middle pair's are the far ones, longer and deeper
+        ' the middle pair's are the far ones, longer and
+        ' deeper
         k = ILIMB
         w = 94
         h = 50
@@ -579,8 +629,10 @@ private sub DrawOak ( _
     Blit art, x - 35, y - 60, IBRACKET + 2, 12, 5
 end sub
 
-' The twins on their limbs, each in the picture of what it does, and the ball with a pip over it for each catch
-' still to make. A catch telling, they are shocked where they sat, then leap to the pair above.
+' The twins on their limbs, each in the picture of what it
+' does, and the ball with a pip over it for each catch still
+' to make. A catch telling, they are shocked where they sat,
+' then leap to the pair above.
 private sub DrawTwins ( _
     lv as Level, _
     zn as Realm, _
@@ -617,8 +669,10 @@ private sub DrawTwins ( _
     next
 end sub
 
-' Frost on her toboggan as the ground lies, shaken while a bump has her dazed, the bumps she can yet take over
-' her; knocked off it, she sits in deep snow, the camera lying by her.
+' Frost on her toboggan as the ground lies, shaken while a
+' bump has her dazed, the bumps she can yet take over her;
+' knocked off it, she sits in deep snow, the camera lying by
+' her.
 private sub DrawFrost ( _
     lv as Level, _
     zn as Realm, _
@@ -645,7 +699,8 @@ private sub DrawFrost ( _
     next
 end sub
 
-' Kipper's pedal boat on the sea, from one end of its channel to the other and back: faster for each bump it has
+' Kipper's pedal boat on the sea, from one end of its
+' channel to the other and back: faster for each bump it has
 ' taken, and still a moment after one.
 private sub MovePedalo (lv as Level)
     lv.cart.at.y = lv.tide - PEDALUP
@@ -657,7 +712,8 @@ private sub MovePedalo (lv as Level)
     if lv.cart.at.x < lv.chase_x + PEDALW \ 2 then lv.cart.v = 1
 end sub
 
-' Charlie down onto the pedal boat's deck, out of the air: a bump, it turns round and he goes up off it.
+' Charlie down onto the pedal boat's deck, out of the air: a
+' bump, it turns round and he goes up off it.
 private sub MeetPedalo ( _
     lv as Level, _
     mu as Deck, _
@@ -677,8 +733,9 @@ private sub MeetPedalo ( _
     p.jumped = 0
 end sub
 
-' The pedal boat, a pip over it for each bump it can still take; broken, the teddy afloat where it sank, and the
-' cat paddling off a while.
+' The pedal boat, a pip over it for each bump it can still
+' take; broken, the teddy afloat where it sank, and the cat
+' paddling off a while.
 private sub DrawPedalo ( _
     lv as Level, _
     zn as Realm, _
@@ -702,7 +759,8 @@ private sub DrawPedalo ( _
     next
 end sub
 
-' The cat making off from (x, y), v a second, a while after its ride broke.
+' The cat making off from (x, y), v a second, a while after
+' its ride broke.
 private sub DrawFled ( _
     lv as Level, _
     art as Store, _
@@ -716,8 +774,9 @@ private sub DrawFled ( _
         ICAT + ((se.ticks \ 4) and 1) * 2, 20, 14
 end sub
 
-' The cart, a pip over it for each bump it can still take; broken, the keepsake where it fell, and the cat making
-' off a while.
+' The cart, a pip over it for each bump it can still take;
+' broken, the keepsake where it fell, and the cat making off
+' a while.
 private sub DrawCart ( _
     lv as Level, _
     zn as Realm, _
@@ -741,9 +800,11 @@ private sub DrawCart ( _
     next
 end sub
 
-' The cart on its ground, its middle at x on the screen: each wheel on the ground under it, turning as it goes,
-' and the planks between them, leaning by what the wheels' grounds differ: not at all, half a gentle slope's fall,
-' or all of one's.
+' The cart on its ground, its middle at x on the screen:
+' each wheel on the ground under it, turning as it goes, and
+' the planks between them, leaning by what the wheels'
+' grounds differ: not at all, half a gentle slope's fall, or
+' all of one's.
 private sub DrawWheels ( _
     lv as Level, _
     art as Store, _
@@ -768,8 +829,10 @@ private sub DrawWheels ( _
     Blit art, x + WHEELS - 6, yb - cy - 12, k, 13, 13
 end sub
 
-' The crane along its rail, kept to the hall: after Charlie, to be over him, faster for each bump, and still while
-' it holds a crate over him; bumped, still a while, then off from him at speed.
+' The crane along its rail, kept to the hall: after Charlie,
+' to be over him, faster for each bump, and still while it
+' holds a crate over him; bumped, still a while, then off
+' from him at speed.
 private sub MoveCrane (lv as Level, p as Hero)
     dim want as single, dir as integer
     dir = sgn(p.at.x - lv.cart.at.x)
@@ -787,8 +850,10 @@ private sub MoveCrane (lv as Level, p as Hero)
     end if
 end sub
 
-' Charlie thrown up to the crane: in the air at its gondola he bumps it and is knocked aside, out of a jet's way,
-' and down, or up off it if he came down on it; its crate is lost.
+' Charlie thrown up to the crane: in the air at its gondola
+' he bumps it and is knocked aside, out of a jet's way, and
+' down, or up off it if he came down on it; its crate is
+' lost.
 private sub MeetCrane ( _
     lv as Level, _
     mu as Deck, _
@@ -809,8 +874,10 @@ private sub MeetCrane ( _
     if p.at.y < foot - 14 then p.vel.y = -200
 end sub
 
-' The crane's crate, by its state: on the hook, and held still once it is over Charlie; let go a moment later; then
-' falling, to hurt him if it meets him and to break on the floor.
+' The crane's crate, by its state: on the hook, and held
+' still once it is over Charlie; let go a moment later; then
+' falling, to hurt him if it meets him and to break on the
+' floor.
 private sub DropBox ( _
     lv as Level, _
     mu as Deck, _
@@ -849,7 +916,8 @@ private sub DropBox ( _
     end select
 end sub
 
-' The crate in bits where it is, the next a while off: sooner for each bump the crane has had.
+' The crate in bits where it is, the next a while off:
+' sooner for each bump the crane has had.
 private sub BreakBox ( _
     lv as Level, _
     mu as Deck, _
@@ -863,8 +931,10 @@ private sub BreakBox ( _
     lv.box.t = RELOAD - HASTE * lv.cart.hits
 end sub
 
-' The rail over the hall and the crane on it, a pip over it for each bump it can still take, its crate on the hook
-' or falling; broken, its lamp out and the toolbox fallen from it.
+' The rail over the hall and the crane on it, a pip over it
+' for each bump it can still take, its crate on the hook or
+' falling; broken, its lamp out and the toolbox fallen from
+' it.
 private sub DrawCrane ( _
     lv as Level, _
     zn as Realm, _

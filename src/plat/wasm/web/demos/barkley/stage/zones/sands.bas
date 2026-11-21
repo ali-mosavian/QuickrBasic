@@ -1,4 +1,5 @@
-' Saltwick Sands: the sea and its tide, crabs, jellyfish, gulls and the flume.
+' Saltwick Sands: the sea and its tide, crabs, jellyfish,
+' gulls and the flume.
 defint A-Z
 option explicit
 
@@ -20,7 +21,8 @@ from barkley.stage.hero.moves import GSCARED, SHELLT
 const FLUMEV = 460!
 const STEPV = 430!
 
-' How fast Charlie goes up off a jellyfish's bell, and how far under the sea's top its arms' ends float.
+' How fast Charlie goes up off a jellyfish's bell, and how
+' far under the sea's top its arms' ends float.
 const JELLYV = 480!
 
 private const GULLSEE = 100
@@ -32,12 +34,15 @@ const GHOVER = 1
 const GDIVE = 2
 const GCLIMB = 3
 
-' The tide: the steps of its turn; how deep Charlie floats, and how deep he wades before he does; his paddling
-' speed and its gain; his hop out of the water; the seconds of rolling that shake him dry, and his top speed
-' till then; the first of the sea's colours.
+' The tide: the steps of its turn; how deep Charlie floats,
+' and how deep he wades before he does; his paddling speed
+' and its gain; his hop out of the water; the seconds of
+' rolling that shake him dry, and his top speed till then;
+' the first of the sea's colours.
 const TIDEP = 1440
 
-' Down a flume: swept off his feet, curled, and no slower than its water runs.
+' Down a flume: swept off his feet, curled, and no slower
+' than its water runs.
 private sub Slide (mu as Deck, se as Session, p as Hero)
     if not p.roll then Sfx mu, se, SBOOST
     p.roll = -1
@@ -45,7 +50,8 @@ private sub Slide (mu as Deck, se as Session, p as Hero)
     if p.gsp < FLUMEV then p.gsp = FLUMEV
 end sub
 
-' A flume's tile or a spout's: stood in its water, he slides.
+' A flume's tile or a spout's: stood in its water, he
+' slides.
 sub MeetFlume ( _
     lv as Level, _
     mu as Deck, _
@@ -64,8 +70,10 @@ sub MeetFlume ( _
     end if
 end sub
 
-' Charlie at crab i. Down on its back he goes up off it, higher off its shell, and it ducks in a while; at its
-' side its claws pinch, even a rolling Charlie. In its shell it pinches nobody, and a roll knocks it off the sand.
+' Charlie at crab i. Down on its back he goes up off it,
+' higher off its shell, and it ducks in a while; at its side
+' its claws pinch, even a rolling Charlie. In its shell it
+' pinches nobody, and a roll knocks it off the sand.
 sub MeetCrab ( _
     lv as Level, _
     mu as Deck, _
@@ -97,7 +105,8 @@ sub MeetCrab ( _
     end if
 end sub
 
-' Gull b toward x, y at v: there, or nearer. Whether it is there.
+' Gull b toward x, y at v: there, or nearer. Whether it is
+' there.
 private function Glide% ( _
     b as Bird, _
     x as single, _
@@ -120,7 +129,8 @@ private function Glide% ( _
     end if
 end function
 
-' Gull b lets go of the bones it carries: they fall loose, to be picked up.
+' Gull b lets go of the bones it carries: they fall loose,
+' to be picked up.
 private sub Spill (se as Session, b as Bird, lo() as Loose)
     dim i as integer
     for i = 0 to NLOOSE - 1
@@ -137,9 +147,12 @@ private sub Spill (se as Session, b as Bird, lo() as Loose)
     b.loot = 0
 end sub
 
-' Gull b, the n'th, for a step. It hovers about its home till Charlie, with bones, passes under: then dives at
-' where he will be, takes bones if it reaches him, and climbs home with them, to dive no more. A bark scares it
-' home and makes it drop what it took; a rolling Charlie knocks it out of the air.
+' Gull b, the n'th, for a step. It hovers about its home
+' till Charlie, with bones, passes under: then dives at
+' where he will be, takes bones if it reaches him, and
+' climbs home with them, to dive no more. A bark scares it
+' home and makes it drop what it took; a rolling Charlie
+' knocks it out of the air.
 private sub Gull ( _
     mu as Deck, _
     se as Session, _
@@ -212,7 +225,8 @@ sub Flock ( _
     next
 end sub
 
-' The gulls, a bone under one that carries any; wings still in a dive.
+' The gulls, a bone under one that carries any; wings still
+' in a dive.
 sub DrawGulls ( _
     lv as Level, _
     art as Store, _
@@ -235,7 +249,8 @@ sub DrawGulls ( _
     next
 end sub
 
-' Where a thing afloat at x lies: h under the sea's top, or up over the ground there when the sea is lower.
+' Where a thing afloat at x lies: h under the sea's top, or
+' up over the ground there when the sea is lower.
 function Bob% (lv as Level, x as integer, h as integer, up as integer)
     dim y as integer
     y = lv.top(x \ TS) * TS - up
@@ -243,8 +258,10 @@ function Bob% (lv as Level, x as integer, h as integer, up as integer)
     Bob% = y
 end function
 
-' Charlie at jellyfish i. Down on its bell he is thrown high, and it stings nobody while it is flat; his feet in
-' it, afloat or not, it stings: not a Charlie on a boat's deck over it.
+' Charlie at jellyfish i. Down on its bell he is thrown
+' high, and it stings nobody while it is flat; his feet in
+' it, afloat or not, it stings: not a Charlie on a boat's
+' deck over it.
 sub MeetJelly ( _
     lv as Level, _
     mu as Deck, _
@@ -273,15 +290,17 @@ sub MeetJelly ( _
     end if
 end sub
 
-' The sea's level by the clock: from where the level began it to its other end and back, every TIDEP steps.
+' The sea's level by the clock: from where the level began
+' it to its other end and back, every TIDEP steps.
 sub Flow (lv as Level, se as Session)
     lv.tide = lv.tide_lo _
         - cint((lv.tide_lo - lv.tide_hi) _
         * (1 - cos((se.ticks - lv.tide_at) * 2 * PI / TIDEP)) / 2)
 end sub
 
-' The sea in each column whose ground is under it: bands of water from its surface down behind the column's top
-' tile, a run of columns alike at a time.
+' The sea in each column whose ground is under it: bands of
+' water from its surface down behind the column's top tile,
+' a run of columns alike at a time.
 sub DrawSea (lv as Level, cx as integer, cy as integer)
     dim tx as integer, tx0 as integer, tx1 as integer, y0 as integer
     dim y1 as integer, x0 as integer, x1 as integer
@@ -308,7 +327,8 @@ sub DrawSea (lv as Level, cx as integer, cy as integer)
     loop
 end sub
 
-' Rows a to b of a band of the sea, of colour c, no lower than row last or the screen's foot.
+' Rows a to b of a band of the sea, of colour c, no lower
+' than row last or the screen's foot.
 private sub SeaBand ( _
     x0 as integer, _
     x1 as integer, _
@@ -326,8 +346,10 @@ private sub SeaBand ( _
     if y0 <= y1 then line (x0, y0)-(x1, y1), c, BF
 end sub
 
-' The water's edge over what is in it: foam and the first of the water, in each column of the sea deep enough
-' for them; in a shallower one the foam's line alone, and on a slope nothing.
+' The water's edge over what is in it: foam and the first of
+' the water, in each column of the sea deep enough for them;
+' in a shallower one the foam's line alone, and on a slope
+' nothing.
 sub DrawSurf (lv as Level, art as Store, cx as integer, cy as integer)
     dim tx as integer, tx1 as integer, y as integer, deep as integer
     y = lv.tide - cy - 1
@@ -346,8 +368,9 @@ sub DrawSurf (lv as Level, art as Store, cx as integer, cy as integer)
     next
 end sub
 
-' A flume's end at x, y on the screen, over column c: the water falling from it to the sea, or to the floor of a
-' dry pool, then its trough.
+' A flume's end at x, y on the screen, over column c: the
+' water falling from it to the sea, or to the floor of a dry
+' pool, then its trough.
 sub DrawSpout ( _
     lv as Level, _
     art as Store, _
@@ -371,7 +394,8 @@ sub DrawSpout ( _
     Blit art, x, y - 8, ISPOUT + k, TS, 13
 end sub
 
-' A crab's picture by its state: in its shell, or a frame of its scuttle.
+' A crab's picture by its state: in its shell, or a frame of
+' its scuttle.
 function CrabPic% (se as Session, s as integer)
     if abs(s) > 1 then
         CrabPic% = ICRAB + 4

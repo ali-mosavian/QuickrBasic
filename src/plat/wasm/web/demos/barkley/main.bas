@@ -19,8 +19,8 @@ from barkley.flow.save import LoadSave
 from barkley.flow.intro import IntroDraw, IntroOver, StartIntro
 from barkley.flow.states import GoStage, ResetWorld, Tick
 
-' Set up, then read input, step in fixed ticks and draw, till Esc on the
-' title.
+' Set up, then read input, step in fixed ticks and draw,
+' till Esc on the title.
 sub Main (wd as World)
     dim g as Game, p as Hero, k as Pad
     dim lo(NLOOSE - 1) as Loose, pt(NPART - 1) as Part
@@ -38,7 +38,9 @@ sub Main (wd as World)
     last = timer
     c.span = STEPT
     do
-        ' the next frame on the screen (port 3DAh's retrace; with no display, the next look), the keys read meanwhile
+        ' the next frame on the screen (port 3DAh's retrace;
+        ' with no display, the next look), the keys read
+        ' meanwhile
         do
             Poll wd.kb
         loop until inp(&H3DA) and 8
@@ -46,7 +48,8 @@ sub Main (wd as World)
         Pace Elapsed!(last, now), c
         last = now
         ReadPad wd.kb, wd.mu, k
-        ' a picture for each step, none for a frame between two
+        ' a picture for each step, none for a frame between
+        ' two
         n = Steps%(c)
         if n = 0 then continue do
         do while n
@@ -67,7 +70,8 @@ sub Main (wd as World)
     width 80
 end sub
 
-' A step: of the intro, and on to the title once it is over; else of the game.
+' A step: of the intro, and on to the title once it is over;
+' else of the game.
 sub Advance ( _
     wd as World, _
     g as Game, _

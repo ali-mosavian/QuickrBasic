@@ -1,4 +1,5 @@
-' Russet Wood: saplings, vines, bramble, logs and burrows, bees, squirrels and fireflies.
+' Russet Wood: saplings, vines, bramble, logs and burrows,
+' bees, squirrels and fireflies.
 defint A-Z
 option explicit
 
@@ -24,28 +25,33 @@ const GLOWFADE = 60
 private const NFLY = 18
 const FLYREST = 5
 
-' A sapling: its crown that far from its foot; its throw, what each of his speed adds to it, and at the most;
-' the things' steps it stands sprung.
+' A sapling: its crown that far from its foot; its throw,
+' what each of his speed adds to it, and at the most; the
+' things' steps it stands sprung.
 const SAPREACH = 38
 private const SAPV = 280!
 private const SAPGAIN = .8
 private const SAPMAX = 700!
 const SAPT = 30
 
-' Bramble: how near hurts; the things' steps till it has grown back; its leaves' colour.
+' Bramble: how near hurts; the things' steps till it has
+' grown back; its leaves' colour.
 private const BRAMBLER = 16
 const BRAMBLET = 90
 
 const LOGH = 30
 const LOGV = 520!
 
-' A burrow's mound: how near he digs in; his speed under the ground, and up out of the other end; the loam's
-' colour.
+' A burrow's mound: how near he digs in; his speed under the
+' ground, and up out of the other end; the loam's colour.
 const MOUNDR = 12
 
-' A squirrel on a bough: how far it runs either side of its home, and how far past that it follows him with
-' its eye; its run a things' step; the steps between its acorns, the last of them stood with one held out,
-' and how near under it he must be for it to fall; the steps a bark keeps it cowed; an acorn's colour.
+' A squirrel on a bough: how far it runs either side of its
+' home, and how far past that it follows him with its eye;
+' its run a things' step; the steps between its acorns, the
+' last of them stood with one held out, and how near under
+' it he must be for it to fall; the steps a bark keeps it
+' cowed; an acorn's colour.
 const SQRUN = 48
 private const SQSEE = 100
 const SQV = 3
@@ -59,7 +65,8 @@ private const BEEV = 170!
 private const BEER = 12
 private const BEELOSE = 160
 
-' The wood's night: a bark's light counted down, and the zone's own colours as bright as it leaves them, the
+' The wood's night: a bark's light counted down, and the
+' zone's own colours as bright as it leaves them, the
 ' fireflies' always.
 sub Nightfall (lv as Level, zn as Realm, tn as Tones)
     dim i as integer, n as integer, k as integer, c as long
@@ -79,15 +86,17 @@ sub Nightfall (lv as Level, zn as Realm, tn as Tones)
     next
 end sub
 
-' v of a colour's 63 with n of GLOWN parts of its light: with none, three tenths of it over f.
+' v of a colour's 63 with n of GLOWN parts of its light:
+' with none, three tenths of it over f.
 private function Dimmed% (v as integer, f as integer, n as integer)
     dim d as integer
     d = f + v * 3 \ 10
     Dimmed% = d + (v - d) * n \ GLOWN
 end function
 
-' A sapling bowed to the ground: crossing its crown he is thrown up, the higher the faster he came, his way kept;
-' it stands sprung a moment before it bows again.
+' A sapling bowed to the ground: crossing its crown he is
+' thrown up, the higher the faster he came, his way kept; it
+' stands sprung a moment before it bows again.
 sub MeetSapling ( _
     lv as Level, _
     mu as Deck, _
@@ -114,7 +123,8 @@ sub MeetSapling ( _
     Sfx mu, se, SSPRING
 end sub
 
-' A vine's end reached in the air, and no vine just let go: he hangs from it, his way become its swing.
+' A vine's end reached in the air, and no vine just let go:
+' he hangs from it, his way become its swing.
 sub MeetVine ( _
     lv as Level, _
     mu as Deck, _
@@ -158,8 +168,9 @@ sub MeetBramble ( _
     Sfx mu, se, SPOP
 end sub
 
-' A burrow's mound: crouched on it he digs in, for its other end; the mound he comes out of will not take him
-' back till he has stepped off it.
+' A burrow's mound: crouched on it he digs in, for its other
+' end; the mound he comes out of will not take him back till
+' he has stepped off it.
 sub MeetMound ( _
     lv as Level, _
     mu as Deck, _
@@ -186,7 +197,8 @@ sub MeetMound ( _
     Sfx mu, se, SROLL
 end sub
 
-' A hollow log across the way: on foot he is stopped at its end; curled he is shot through it, out of sight, and
+' A hollow log across the way: on foot he is stopped at its
+' end; curled he is shot through it, out of sight, and
 ' leaves it at LOGV. Its state: he is in it.
 sub MeetLog ( _
     lv as Level, _
@@ -212,7 +224,8 @@ sub MeetLog ( _
     if p.ground and p.gsp * s < LOGV then p.gsp = s * LOGV
 end sub
 
-' Bramble's step: just cut, its leaves fly; cut, it grows back BRAMBLET steps on.
+' Bramble's step: just cut, its leaves fly; cut, it grows
+' back BRAMBLET steps on.
 sub Regrow (lv as Level, se as Session, pt() as Part, i as integer)
     if lv.things(i).state = 0 then exit sub
     if lv.things(i).state = BRAMBLET then
@@ -236,8 +249,9 @@ sub Swarms ( _
     next
 end sub
 
-' A swarm's step: he comes within BEESEE of it and it is after his head, at BEEV; on him, it stings; left
-' BEELOSE behind, it goes home.
+' A swarm's step: he comes within BEESEE of it and it is
+' after his head, at BEEV; on him, it stings; left BEELOSE
+' behind, it goes home.
 private sub Buzz ( _
     mu as Deck, _
     se as Session, _
@@ -271,7 +285,8 @@ private sub Buzz ( _
     if b.st = 2 then b.st = 0
 end sub
 
-' The swarms: each bee round its swarm's middle on a loop of its own, its wings over it.
+' The swarms: each bee round its swarm's middle on a loop of
+' its own, its wings over it.
 sub DrawBees ( _
     lv as Level, _
     se as Session, _
@@ -295,7 +310,8 @@ sub DrawBees ( _
     next
 end sub
 
-' A vine hung from x, y on the screen, swung a radians from straight down: two strands, a leaf to each side turn
+' A vine hung from x, y on the screen, swung a radians from
+' straight down: two strands, a leaf to each side turn
 ' about, a loop at its end.
 sub DrawVine (x as integer, y as integer, a as single)
     dim j as integer, u as integer, v as integer
@@ -312,7 +328,8 @@ sub DrawVine (x as integer, y as integer, a as single)
     circle (u, v + 3), 3, CVINE
 end sub
 
-' The wood's fireflies over the view, drifting, each dark a moment in turn: a few at rest, and all of them, haloed,
+' The wood's fireflies over the view, drifting, each dark a
+' moment in turn: a few at rest, and all of them, haloed,
 ' while a bark's light lasts.
 sub DrawFlies (lv as Level, se as Session, cx as integer)
     dim j as integer, x as integer, y as integer
@@ -334,9 +351,12 @@ sub DrawFlies (lv as Level, se as Session, cx as integer)
     next
 end sub
 
-' Squirrel i on its bough: while Charlie is under its run it keeps over him, else it goes home; every SQWAIT
-' steps it stops, an acorn held out the last SQAIM of them, and lets it fall once he is near under it. Cowed,
-' it keeps still. Its state: the steps till the acorn falls, signed the way it faces.
+' Squirrel i on its bough: while Charlie is under its run it
+' keeps over him, else it goes home; every SQWAIT steps it
+' stops, an acorn held out the last SQAIM of them, and lets
+' it fall once he is near under it. Cowed, it keeps still.
+' Its state: the steps till the acorn falls, signed the way
+' it faces.
 sub Scamper (lv as Level, i as integer, p as Hero)
     dim n as integer, d as integer, perch as integer
     dim quarry as integer

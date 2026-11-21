@@ -1,12 +1,14 @@
-' The song player: songs read, played a half bar at a time, faded.
+' The song player: songs read, played a half bar at a time,
+' faded.
 defint A-Z
 option explicit
 
 from barkley.engine.datafile import Chars, DataFile, OpenData, Word
 
-' Half a bar as PLAY strings: its drums and their letters, the bass, the two chord voices, the lead, the first
-' voice an octave down, and the third voice.
-' strike: the drums' second sounds, on their own voice.
+' Half a bar as PLAY strings: its drums and their letters,
+' the bass, the two chord voices, the lead, the first voice
+' an octave down, and the third voice. strike: the drums'
+' second sounds, on their own voice.
 type Half
     drums as string
     strike as string
@@ -19,9 +21,12 @@ type Half
     third as string
 end type
 
-' A song: its half bars, its bars' order and voicings, and its kit: the sounds of its lead, bass, low double and
-' third voice; by voicing, its letter's place in vo_let, the two chord voices' sounds and whether the double plays;
-' by drum, its letter's place in dr_let, its sound, how loud, what a fade rounds it up by, and its note.
+' A song: its half bars, its bars' order and voicings, and
+' its kit: the sounds of its lead, bass, low double and
+' third voice; by voicing, its letter's place in vo_let, the
+' two chord voices' sounds and whether the double plays; by
+' drum, its letter's place in dr_let, its sound, how loud,
+' what a fade rounds it up by, and its note.
 type Song
     half() as Half
     order as string
@@ -49,8 +54,10 @@ type Song
     layered as integer
 end type
 
-' The music: the slot playing, its bar and half; ended: it has ended and nothing plays. z_held: the song in the
-' zone's slot, one more than its number in the data file: 0 before any. dat: the file its songs are in.
+' The music: the slot playing, its bar and half; ended: it
+' has ended and nothing plays. z_held: the song in the
+' zone's slot, one more than its number in the data file: 0
+' before any. dat: the file its songs are in.
 type Deck
     song() as Song
     dat as DataFile
@@ -71,7 +78,8 @@ type Deck
     bark_at as long
 end type
 
-' The songs held at once, each in its slot: the zone's tune, Charlie's theme, the level's end. A song's most bars,
+' The songs held at once, each in its slot: the zone's tune,
+' Charlie's theme, the level's end. A song's most bars,
 ' voicings and drums.
 const NSLOT = 3
 const NBAR = 30
@@ -84,14 +92,16 @@ sub CutVoices ()
         "P64", "P64"
 end sub
 
-' The song playing dropped where it is: the next picked starts at once.
+' The song playing dropped where it is: the next picked
+' starts at once.
 sub HushSong (mu as Deck)
     mu.slot = -1
     mu.ended = -1
     mu.fade_out = 0
 end sub
 
-' Song id of the deck's data file into slot s: its order and levels, its kit, and its bars as PLAY strings.
+' Song id of the deck's data file into slot s: its order and
+' levels, its kit, and its bars as PLAY strings.
 sub LoadSong (mu as Deck, s as integer, id as integer)
     dim i as integer, n as integer, bars as integer, octs as integer
     dim songs as long
@@ -123,7 +133,8 @@ sub LoadSong (mu as Deck, s as integer, id as integer)
     close #mu.dat.num
 end sub
 
-' Slot s's kit, the data file's next: four sounds, its voicings and its drums.
+' Slot s's kit, the data file's next: four sounds, its
+' voicings and its drums.
 private sub ReadKit (mu as Deck, s as integer)
     dim i as integer, n as integer
     mu.song(s).lead_p = Chars$(mu.dat)
@@ -175,9 +186,12 @@ private sub ReadList (df as DataFile, a() as string)
     next
 end sub
 
-' Slot s's bar n, the data file's next: its root, bass riff and drum pattern, and four riffs, made its two half bars'
-' PLAY strings, the lead's lowest note `lead`. A second voice of two characters is a chord pattern, its x the note,
-' an octave down. A third voice of no loudness is left out.
+' Slot s's bar n, the data file's next: its root, bass riff
+' and drum pattern, and four riffs, made its two half bars'
+' PLAY strings, the lead's lowest note `lead`. A second
+' voice of two characters is a chord pattern, its x the
+' note, an octave down. A third voice of no loudness is left
+' out.
 private sub ReadBar ( _
     mu as Deck, _
     s as integer, _
@@ -241,7 +255,8 @@ function Beat$ ( _
     for q = 1 to 8
         n = instr(mu.song(s).dr_let, mid$(x, q, 1)) - 1
         if layer and n >= 0 then n = Again%(mu.song(s).dr_let, n)
-        ' a swung song's sixteenths: a beat's first two a twelfth each, its last two a twenty-fourth
+        ' a swung song's sixteenths: a beat's first two a
+        ' twelfth each, its last two a twenty-fourth
         ln = "16"
         if mu.song(s).swing then ln = Triplet$(Swung%(q, q))
         if n < 0 then
@@ -256,7 +271,8 @@ function Beat$ ( _
     Beat$ = d
 end function
 
-' PLAY's volume for a level `loud` eighths as loud, rounded up by `up` eighths.
+' PLAY's volume for a level `loud` eighths as loud, rounded
+' up by `up` eighths.
 private function Vol$ ( _
     level as integer, _
     loud as integer, _
@@ -265,8 +281,10 @@ private function Vol$ ( _
     Vol$ = "V" + ltrim$(str$((level * loud + up) \ 8))
 end function
 
-' A bar's sixteenths from its i-th to its j-th, swung, in twenty-fourths of a bar: a beat's first two are two
-' each and its last two one, so its off-beat eighth comes on the triplet's last.
+' A bar's sixteenths from its i-th to its j-th, swung, in
+' twenty-fourths of a bar: a beat's first two are two each
+' and its last two one, so its off-beat eighth comes on the
+' triplet's last.
 private function Swung% (i as integer, j as integer)
     dim k as integer, n as integer
     for k = i to j
@@ -276,7 +294,8 @@ private function Swung% (i as integer, j as integer)
     Swung% = n
 end function
 
-' PLAY's length for n twenty-fourths of a bar, of those one length says.
+' PLAY's length for n twenty-fourths of a bar, of those one
+' length says.
 private function Triplet$ (n as integer)
     select case n
     case 1
@@ -298,8 +317,9 @@ private function Triplet$ (n as integer)
     end select
 end function
 
-' A swung note, a rest where it is 0, n twenty-fourths of a bar long; slid: into from the note before. A length
-' no one PLAY length says is the next shorter, then a rest.
+' A swung note, a rest where it is 0, n twenty-fourths of a
+' bar long; slid: into from the note before. A length no one
+' PLAY length says is the next shorter, then a rest.
 private function Shuffle$ ( _
     note as integer, _
     slid as integer, _
@@ -327,8 +347,9 @@ private function Shuffle$ ( _
     Shuffle$ = ln
 end function
 
-' Half h of a bar's riff as PLAY's notes, its lowest note `low`: at most eight, as the drums' always are. swing:
-' its sixteenths swung.
+' Half h of a bar's riff as PLAY's notes, its lowest note
+' `low`: at most eight, as the drums' always are. swing: its
+' sixteenths swung.
 private function Riff$ ( _
     p as string, _
     h as integer, _
@@ -372,7 +393,8 @@ private function Riff$ ( _
                 Swung%(i - r, i - 1))
             continue do
         end if
-        ' five and seven sixteenths: four and six, then a rest
+        ' five and seven sixteenths: four and six, then a
+        ' rest
         j = 0
         if r = 5 or r = 7 then
             r = r - 1
@@ -402,20 +424,24 @@ private function Riff$ ( _
     Riff$ = s
 end function
 
-' The next half bar, once the last is nearly played: the drums are the first voice, eight sixteenths every time,
-' so PLAY(0) counts the tune's own clock. The last four bars fade, an eighth a half bar.
-' The music kept fed: when little is left to play, its next half bar.
+' The next half bar, once the last is nearly played: the
+' drums are the first voice, eight sixteenths every time, so
+' PLAY(0) counts the tune's own clock. The last four bars
+' fade, an eighth a half bar. The music kept fed: when
+' little is left to play, its next half bar.
 sub FeedSong (mu as Deck, ticks as long)
     if mu.muted or not mu.tune then exit sub
     if play(0) > 2 then exit sub
     NextHalf mu, ticks
 end sub
 
-' The playing song's next half bar to PLAY, its voices each their own string; or the song that was coming, begun.
+' The playing song's next half bar to PLAY, its voices each
+' their own string; or the song that was coming, begun.
 ' Nothing once a song has ended.
 sub NextHalf (mu as Deck, ticks as long)
     dim b as integer, loud as integer, n as integer
-    ' the song picked comes in once this one has faded, or at once when it has ended
+    ' the song picked comes in once this one has faded, or
+    ' at once when it has ended
     if mu.coming >= 0 and (mu.fade_out = 0 or mu.ended) then
         StartSong mu, ticks
     end if
@@ -440,8 +466,9 @@ sub NextHalf (mu as Deck, ticks as long)
     mu.ended = mu.song(mu.slot).ends
 end sub
 
-' Song sg's bar b, the half the deck is at, to PLAY, `loud` eighths as loud: its voices each their own string.
-' The drums' strikes are the ninth.
+' Song sg's bar b, the half the deck is at, to PLAY, `loud`
+' eighths as loud: its voices each their own string. The
+' drums' strikes are the ninth.
 private sub PlayHalf ( _
     mu as Deck, _
     sg as Song, _
@@ -460,7 +487,8 @@ private sub PlayHalf ( _
     if loud < 8 and sg.layered then
         strike = Beat$(mu, mu.slot, sg.half(h).kit, loud, 1)
     end if
-    ' the bass waits its bars; the low double plays under the voicings that have it
+    ' the bass waits its bars; the low double plays under
+    ' the voicings that have it
     bass = Vol$(sg.lvl(4), loud, 0) + sg.half(h).bass
     if mu.bar < sg.bass_in then bass = "P2"
     v = instr(sg.vo_let, mid$(sg.voicing, b + 1, 1)) - 1
@@ -476,10 +504,13 @@ private sub PlayHalf ( _
         t + strike
 end sub
 
-' The song that was coming begins: its kit to the voices that keep theirs. In stereo: the first chord voice to the
-' left, the second and the low double to the right; the room answers little.
+' The song that was coming begins: its kit to the voices
+' that keep theirs. In stereo: the first chord voice to the
+' left, the second and the low double to the right; the room
+' answers little.
 sub StartSong (mu as Deck, ticks as long)
-    ' its first note sounds once what is queued has: the sixteenths left of the song before
+    ' its first note sounds once what is queued has: the
+    ' sixteenths left of the song before
     mu.song_at = ticks
     if mu.slot >= 0 then
         mu.song_at = ticks + play(0) * 900& \ mu.song(mu.slot).tempo

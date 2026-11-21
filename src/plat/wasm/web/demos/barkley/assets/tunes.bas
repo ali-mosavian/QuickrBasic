@@ -1,5 +1,6 @@
-' Which song plays when, and the sound effects.
-' The tunes are in CHARLIE.DAT with the pictures, from tools/charliesong.txt.
+' Which song plays when, and the sound effects. The tunes
+' are in CHARLIE.DAT with the pictures, from
+' tools/charliesong.txt.
 defint A-Z
 option explicit
 
@@ -47,7 +48,8 @@ sub Sfx (mu as Deck, se as Session, id as integer)
     case SJUMP
         s = "L64O4CEGO5C"
     case SBONE
-        ' a bark: a low woof slid up into, two voices beating, through a mouth; one at a time
+        ' a bark: a low woof slid up into, two voices
+        ' beating, through a mouth; one at a time
         if abs(se.ticks - mu.bark_at) < 8 then exit sub
         mu.bark_at = se.ticks
         s = "W2I15Y2,1000,6H0,6,2,3K4,0,6L8O3D"
@@ -95,17 +97,20 @@ sub Sfx (mu as Deck, se as Session, id as integer)
         ' a line trodden: plucked, and sprung back
         s = "L64O2GO3DGO4D"
     case SSNATCH
-        ' a bone snatched: the bone's own notes, low and turned over
+        ' a bone snatched: the bone's own notes, low and
+        ' turned over
         s = "L64O3EO2B"
     case SMORTAR
-        ' a mortar fired: a thump, and its shell's whistle up
+        ' a mortar fired: a thump, and its shell's whistle
+        ' up
         s = "L64O1CO0GL32O5CEG"
     end select
     play , , , "T255W1V13Y0K0I0H0,0,15,0" + s
 end sub
 
-' The songs the game holds from its start; a stage's own comes with its level. The level's end is led by the
-' zone's lead.
+' The songs the game holds from its start; a stage's own
+' comes with its level. The level's end is led by the zone's
+' lead.
 sub LoadSongs (mu as Deck)
     LoadSong mu, THEME, 1
     SceneTune mu, CAUGHTUP
@@ -116,7 +121,8 @@ sub LoadSongs (mu as Deck)
     mu.tune = -1
 end sub
 
-' Song id into the zone's slot, unless it is there: what was playing from the slot is dropped.
+' Song id into the zone's slot, unless it is there: what was
+' playing from the slot is dropped.
 sub ZoneTune (mu as Deck, id as integer)
     if mu.z_held = id + 1 then exit sub
     mu.z_held = id + 1
@@ -125,8 +131,9 @@ sub ZoneTune (mu as Deck, id as integer)
     if mu.slot = ZTUNE then HushSong mu
 end sub
 
-' Song id into the level's end's slot, unless it is there, the zone's lead its own: what was playing from the
-' slot is dropped.
+' Song id into the level's end's slot, unless it is there,
+' the zone's lead its own: what was playing from the slot is
+' dropped.
 sub SceneTune (mu as Deck, id as integer)
     if mu.c_held = id + 1 then exit sub
     mu.c_held = id + 1
@@ -135,7 +142,8 @@ sub SceneTune (mu as Deck, id as integer)
     if mu.slot = CAUGHT then HushSong mu
 end sub
 
-' The level's end for the level there is: after a chase the longer one, the cat sent packing first; in the quarter
+' The level's end for the level there is: after a chase the
+' longer one, the cat sent packing first; in the quarter
 ' before its chase the whistled one, the guitar gone.
 sub EndTune (lv as Level, zn as Realm, mu as Deck)
     if lv.chase_x <> NONE then
@@ -147,8 +155,9 @@ sub EndTune (lv as Level, zn as Realm, mu as Deck)
     end if
 end sub
 
-' Beats of the level's end sounded: by the tune's own clock, by the scene's where no music plays; under none before
-' it has begun.
+' Beats of the level's end sounded: by the tune's own clock,
+' by the scene's where no music plays; under none before it
+' has begun.
 function EndBeat! (mu as Deck, se as Session, g as Game)
     EndBeat! = g.mode_t * mu.song(CAUGHT).tempo / 60
     if mu.muted or not mu.tune then exit function
@@ -159,7 +168,8 @@ function EndBeat! (mu as Deck, se as Session, g as Game)
     end if
 end function
 
-' The zone tune's clock told the session: by the tune's own ticks while it plays, by the game's where it does not.
+' The zone tune's clock told the session: by the tune's own
+' ticks while it plays, by the game's where it does not.
 sub KeepBeat (mu as Deck, se as Session)
     se.tempo = mu.song(ZTUNE).tempo
     se.pulse = se.ticks * se.tempo
@@ -167,8 +177,8 @@ sub KeepBeat (mu as Deck, se as Session)
     se.pulse = (se.ticks - mu.song_at) * se.tempo
 end sub
 
-' The slot to play for the game's state: the theme for the title, the level's end or game over, else the zone's
-' tune.
+' The slot to play for the game's state: the theme for the
+' title, the level's end or game over, else the zone's tune.
 function SongFor% (g as Game)
     select case g.mode
     case TITLE
@@ -180,14 +190,17 @@ function SongFor% (g as Game)
     end select
 end function
 
-' Whether the state's song comes in at once and in full: the level's end, game over, the scene between zones.
+' Whether the state's song comes in at once and in full: the
+' level's end, game over, the scene between zones.
 function Sudden% (se as Session, g as Game)
     Sudden% = g.mode = CLEARED or g.mode = OVER _
         or (g.mode = INTRO and se.scene_next > 0)
 end function
 
-' Slot n's song, when it is not the one playing, from its start or, late, from the bar it comes in at. The one
-' playing fades over a bar (half of one, late) and the next fades in over one; late, it comes in full.
+' Slot n's song, when it is not the one playing, from its
+' start or, late, from the bar it comes in at. The one
+' playing fades over a bar (half of one, late) and the next
+' fades in over one; late, it comes in full.
 sub PickSong (mu as Deck, n as integer, late as integer)
     if n = mu.slot then
         mu.coming = -1

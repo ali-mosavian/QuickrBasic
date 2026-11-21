@@ -2,7 +2,8 @@
 defint A-Z
 option explicit
 
-' The keys held and since when; the last scan code, and whether the keyboard's port answers.
+' The keys held and since when; the last scan code, and
+' whether the keyboard's port answers.
 type Keys
     held(127) as integer
     since(127) as single
@@ -10,7 +11,8 @@ type Keys
     port as integer
 end type
 
-' The keyboard port's last scan code: a press sets kb.held, a release clears.
+' The keyboard port's last scan code: a press sets kb.held,
+' a release clears.
 sub Poll (kb as Keys)
     dim s as integer
     s = inp(&H60)
@@ -25,7 +27,8 @@ sub Poll (kb as Keys)
     end if
 end sub
 
-' Key s held: by the port, or, without it, typed within a repeat's wait.
+' Key s held: by the port, or, without it, typed within a
+' repeat's wait.
 function Held2% (kb as Keys, s as integer, t as single)
     if kb.port then
         Held2% = kb.held(s)

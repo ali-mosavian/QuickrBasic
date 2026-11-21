@@ -1,4 +1,5 @@
-' The cast drawn: the family, the baron, cats, the van, the keepsake.
+' The cast drawn: the family, the baron, cats, the van, the
+' keepsake.
 defint A-Z
 option explicit
 
@@ -13,7 +14,8 @@ from barkley.assets.palette import CHEDGE, CYELLOW
 
 private const FAMSTEP = 36
 
-' The zone's keepsake, its foot's middle at x, y on the screen: the picnic basket, the toolbox, the teddy, the
+' The zone's keepsake, its foot's middle at x, y on the
+' screen: the picnic basket, the toolbox, the teddy, the
 ' camera, the ball.
 sub DrawKeep (zn as Realm, art as Store, x as integer, y as integer)
     select case zn.id
@@ -32,8 +34,11 @@ sub DrawKeep (zn as Realm, art as Store, x as integer, y as integer)
     end select
 end sub
 
-' The van, its foot's middle at x, y on the screen and wx along the road: it rides a pixel up and down as it goes,
-' its wheels turning. a: 1 its back door open, 2 Charlie leaning from its window, open, 4 looking back from its rear one.
+' The van, its foot's middle at x, y on the screen and wx
+' along the road: it rides a pixel up and down as it goes,
+' its wheels turning. a: 1 its back door open, 2 Charlie
+' leaning from its window, open, 4 looking back from its
+' rear one.
 sub DrawVan ( _
     art as Store, _
     x as integer, _
@@ -52,7 +57,8 @@ sub DrawVan ( _
     if a and 4 then Blit art, x - 17, ry + 32, IPEEK + 2, 30, 20
 end sub
 
-' The Mob's float likewise, rattling. a: 1 the Baron sat on its crates.
+' The Mob's float likewise, rattling. a: 1 the Baron sat on
+' its crates.
 sub DrawFloat ( _
     art as Store, _
     se as Session, _
@@ -72,7 +78,8 @@ sub DrawFloat ( _
     end if
 end sub
 
-' The Baron's picture: sat, his tail swaying and now and then a blink; or pointing.
+' The Baron's picture: sat, his tail swaying and now and
+' then a blink; or pointing.
 function BaronPic% (se as Session, aim as integer)
     dim s as integer, f as integer
     s = (se.ticks \ 12) and 7
@@ -83,8 +90,10 @@ function BaronPic% (se as Session, aim as integer)
     BaronPic% = IBARON + f * 2
 end function
 
-' Who meets Charlie, the middle one's feet at x, y. A picture's first LONG holds its size, as GET left it: each
-' stands with its middle column on its place in the line and its last row on the ground.
+' Who meets Charlie, the middle one's feet at x, y. A
+' picture's first LONG holds its size, as GET left it: each
+' stands with its middle column on its place in the line and
+' its last row on the ground.
 sub DrawFamily ( _
     art as Store, _
     se as Session, _
@@ -102,8 +111,9 @@ sub DrawFamily ( _
     next
 end sub
 
-' The picture of the family's n-th: waiting it sways and now and then blinks; cheering it runs its six, each out
-' of step with the next.
+' The picture of the family's n-th: waiting it sways and now
+' and then blinks; cheering it runs its six, each out of
+' step with the next.
 function FamPic% (se as Session, n as integer, cheer as integer)
     dim s as integer, f as integer
     s = (se.ticks \ 16 + n * 3) mod 12
@@ -113,7 +123,8 @@ function FamPic% (se as Session, n as integer, cheer as integer)
     FamPic% = IFAM + (n * FAMF + f) * 2
 end function
 
-' A cat of the Mob, a stride of its prowl, west or east. a: 1 the basket on its back, 2 stood still.
+' A cat of the Mob, a stride of its prowl, west or east. a:
+' 1 the basket on its back, 2 stood still.
 sub DrawCat ( _
     zn as Realm, _
     art as Store, _
@@ -131,7 +142,8 @@ sub DrawCat ( _
     if a and 1 then DrawKeep zn, art, x - 2, y - 12
 end sub
 
-' Pairs of eyes in a hedge, n of them from x, y, each in a gap of its leaves and blinking in its turn.
+' Pairs of eyes in a hedge, n of them from x, y, each in a
+' gap of its leaves and blinking in its turn.
 sub DrawEyes (se as Session, x as integer, y as integer, n as integer)
     dim i as integer, ex as integer, ey as integer
     for i = 0 to n - 1

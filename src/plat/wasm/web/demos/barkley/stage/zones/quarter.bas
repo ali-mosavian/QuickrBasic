@@ -1,4 +1,6 @@
-' Lantern Quarter: clotheslines, lantern lines, awnings, chimneys and mortars; pouncers, rope-walkers and snatchers.
+' Lantern Quarter: clotheslines, lantern lines, awnings,
+' chimneys and mortars; pouncers, rope-walkers and
+' snatchers.
 defint A-Z
 option explicit
 
@@ -21,9 +23,11 @@ from barkley.stage.fx.damage import Beaten, Hurt, Tackle
 from barkley.stage.hero.modes import FLUEH
 from barkley.stage.zones.downs import BEAT, CatPic, Paced, Prowl
 
-' A clothesline: how far its middle hangs under its ends; his speed up off the first he comes down on, what each
-' more in a row adds, and the row that adds no more; how far it gives under him, and the things' steps it swings;
-' how far apart its washing is pegged.
+' A clothesline: how far its middle hangs under its ends;
+' his speed up off the first he comes down on, what each
+' more in a row adds, and the row that adds no more; how far
+' it gives under him, and the things' steps it swings; how
+' far apart its washing is pegged.
 const LINESAG = 5
 const LINEV = 300!
 const LINEMORE = 100!
@@ -35,22 +39,30 @@ private const WASH = 22
 ' A rope-walker: how near its line's ends it walks.
 const WALKIN = 14
 
-' A snatcher: the pixels a things' step it runs to a loose bone, and how near one it takes it.
+' A snatcher: the pixels a things' step it runs to a loose
+' bone, and how near one it takes it.
 const SNATCHV = 3
 const SNATCHR = 8
 
-' A tipper's pot leaves its sill on its own beat of every MORTARBAR, the one its state names, as a mortar fires.
-' It falls SILLUP, POTX from the house's middle, and breaks on the paving; on its way it hurts whom it meets
-' within POTR. The sill is bare for two beats, and the beat before the next the cat's paw is out. For the pilot
-' the way under is clear once a pot has broken, while there are CROSST seconds till the next.
+' A tipper's pot leaves its sill on its own beat of every
+' MORTARBAR, the one its state names, as a mortar fires. It
+' falls SILLUP, POTX from the house's middle, and breaks on
+' the paving; on its way it hurts whom it meets within POTR.
+' The sill is bare for two beats, and the beat before the
+' next the cat's paw is out. For the pilot the way under is
+' clear once a pot has broken, while there are CROSST
+' seconds till the next.
 const SILLUP = 70
 const POTX = 7
 const POTR = 10
 private const CROSST = .8
 
-' A mortar fires on its own beat of every MORTARBAR, the one its state names; its flash burns FLASHP pulses, a
-' quarter beat. Its mouth is MORTARH over the roof. Who is within MORTARW of its middle and less than MORTARREACH
-' over its mouth as it fires goes up at MORTARV; who is within BLASTW beside it burns. Its shell bursts SHELLUP up.
+' A mortar fires on its own beat of every MORTARBAR, the one
+' its state names; its flash burns FLASHP pulses, a quarter
+' beat. Its mouth is MORTARH over the roof. Who is within
+' MORTARW of its middle and less than MORTARREACH over its
+' mouth as it fires goes up at MORTARV; who is within BLASTW
+' beside it burns. Its shell bursts SHELLUP up.
 const MORTARBAR = 4
 const FLASHP = 900
 const MORTARH = 14
@@ -60,20 +72,24 @@ const MORTARV = 620!
 const BLASTW = 18
 const SHELLUP = 96
 
-' A lantern line: how far apart its lanterns hang; the speed he slides down it at, and how fast he gathers it.
+' A lantern line: how far apart its lanterns hang; the speed
+' he slides down it at, and how fast he gathers it.
 private const LANTGAP = 18
 const SLIDEV = 320!
 private const SLIDEACC = 600!
 
-' An awning: half its width; his speed up off it; the things' steps it stays given.
+' An awning: half its width; his speed up off it; the
+' things' steps it stays given.
 const AWNW = 22
 const AWNV = 450!
 const AWNT = 8
 
-' A chimney's pot: how near its middle he must come down to go in.
+' A chimney's pot: how near its middle he must come down to
+' go in.
 const FLUER = 8
 
-' A pouncer: how near its bin he comes before it leaps; its leap's reach, a cat's beat's, its height and things'
+' A pouncer: how near its bin he comes before it leaps; its
+' leap's reach, a cat's beat's, its height and things'
 ' steps; its state landed, and beaten.
 const POUNCER = 56
 const POUNCEFAR = 40
@@ -82,8 +98,9 @@ private const POUNCEUP = 26
 const POUNCEOUT = 100
 const POUNCEGONE = 30000
 
-' Line r's height u along it: hung, and once trodden given where it was, swinging less each step. A lantern
-' line is taut from end to end.
+' Line r's height u along it: hung, and once trodden given
+' where it was, swinging less each step. A lantern line is
+' taut from end to end.
 function LineY% (r as Rope, u as integer)
     dim y as single, d as single
     if r.fall then
@@ -99,8 +116,10 @@ function LineY% (r as Rope, u as integer)
     LineY% = cint(y)
 end function
 
-' The lines: come down on, one throws him up, his way kept, each in a row harder than the last, up to LINEROW;
-' on the ground the row is over. From under, he goes through it. On a lantern line he slides.
+' The lines: come down on, one throws him up, his way kept,
+' each in a row harder than the last, up to LINEROW; on the
+' ground the row is over. From under, he goes through it. On
+' a lantern line he slides.
 sub Lines ( _
     lv as Level, _
     mu as Deck, _
@@ -129,7 +148,8 @@ sub Lines ( _
     next
 end sub
 
-' Stood on a lantern line he slides down it, faster till he goes at SLIDEV: the ground's drag does not hold him.
+' Stood on a lantern line he slides down it, faster till he
+' goes at SLIDEV: the ground's drag does not hold him.
 private sub Glide (lv as Level, p as Hero)
     dim i as integer
     for i = 0 to lv.n_ropes - 1
@@ -140,7 +160,8 @@ private sub Glide (lv as Level, p as Hero)
     next
 end sub
 
-' Whether his feet, falling, have come down through height y this step.
+' Whether his feet, falling, have come down through height y
+' this step.
 private function Trodden% (p as Hero, y as integer)
     Trodden% = not p.ground and p.vel.y > 0 and p.at.y >= y _
         and p.at.y - p.vel.y * STEPT <= y + 2
@@ -155,7 +176,8 @@ private sub Toss (p as Hero, y as integer, v as single)
     p.sprung = -1
 end sub
 
-' Line r trodden u along it, at height y: he is thrown up off it, and it swings.
+' Line r trodden u along it, at height y: he is thrown up
+' off it, and it swings.
 private sub Pluck ( _
     r as Rope, _
     mu as Deck, _
@@ -171,7 +193,8 @@ private sub Pluck ( _
     Sfx mu, se, STWANG
 end sub
 
-' An awning: come down on, its canvas throws him up, his way kept; from under he goes through it.
+' An awning: come down on, its canvas throws him up, his way
+' kept; from under he goes through it.
 sub MeetAwning ( _
     lv as Level, _
     mu as Deck, _
@@ -186,8 +209,9 @@ sub MeetAwning ( _
     Sfx mu, se, SSPRING
 end sub
 
-' A chimney that leads on: come down into its pot, he goes down it for the one it leads to. A way out takes no
-' one in.
+' A chimney that leads on: come down into its pot, he goes
+' down it for the one it leads to. A way out takes no one
+' in.
 sub MeetChimney ( _
     lv as Level, _
     mu as Deck, _
@@ -206,7 +230,8 @@ sub MeetChimney ( _
     Sfx mu, se, SROLL
 end sub
 
-' A way out's smoke, from its pot's top at x, y on the screen: three puffs, each rising, drifting and growing in
+' A way out's smoke, from its pot's top at x, y on the
+' screen: three puffs, each rising, drifting and growing in
 ' its turn.
 sub DrawSmoke (se as Session, x as integer, y as integer)
     dim f as integer, t as integer, r as integer, px as integer
@@ -226,7 +251,8 @@ private function Arc% (n as integer)
     Arc% = POUNCEUP * 4 * n * (POUNCEN - n) \ (POUNCEN * POUNCEN)
 end function
 
-' How high pouncer i is over its roof now: in its leap, on its arc.
+' How high pouncer i is over its roof now: in its leap, on
+' its arc.
 function Leapt% (lv as Level, i as integer)
     Leapt% = 0
     if abs(lv.things(i).state) <= POUNCEN then
@@ -234,8 +260,10 @@ function Leapt% (lv as Level, i as integer)
     end if
 end function
 
-' A pouncer's step. In its bin, state 0, till he comes within POUNCER of it; then it leaps at him, its state one
-' more than the steps of its leap made, signed the way it goes; landed, POUNCEOUT that way, it prowls as a cat of
+' A pouncer's step. In its bin, state 0, till he comes
+' within POUNCER of it; then it leaps at him, its state one
+' more than the steps of its leap made, signed the way it
+' goes; landed, POUNCEOUT that way, it prowls as a cat of
 ' the Mob does; beaten, POUNCEGONE.
 sub Pounce (lv as Level, i as integer, p as Hero)
     dim n as integer, d as integer
@@ -266,7 +294,8 @@ sub Spring (lv as Level, i as integer, p as Hero)
     if p.at.x < lv.things(i).home then lv.things(i).state = -1
 end sub
 
-' A pouncer out of its bin: rolled or charged into it is beaten, else it scratches. In its bin it is not met.
+' A pouncer out of its bin: rolled or charged into it is
+' beaten, else it scratches. In its bin it is not met.
 sub MeetPounce ( _
     lv as Level, _
     mu as Deck, _
@@ -286,7 +315,8 @@ sub MeetPounce ( _
     if lv.things(i).state = 0 then lv.things(i).state = POUNCEGONE
 end sub
 
-' Pouncer i at x, y on the screen: in its leap the Mob's cat with its back up, on its arc; landed, a cat at a prowl.
+' Pouncer i at x, y on the screen: in its leap the Mob's cat
+' with its back up, on its arc; landed, a cat at a prowl.
 sub DrawPouncer ( _
     lv as Level, _
     art as Store, _
@@ -311,7 +341,8 @@ function Fired& (lv as Level, se as Session, i as integer)
     Fired& = q
 end function
 
-' How far tipper i's pot has fallen from its sill; NONE with none in the air.
+' How far tipper i's pot has fallen from its sill; NONE with
+' none in the air.
 function PotFall% (lv as Level, se as Session, i as integer)
     dim t as single, d as single
     PotFall% = NONE
@@ -320,7 +351,8 @@ function PotFall% (lv as Level, se as Session, i as integer)
     if d < SILLUP then PotFall% = cint(d)
 end function
 
-' Whether the way under tipper i is clear to set off through.
+' Whether the way under tipper i is clear to set off
+' through.
 function PotClear% (lv as Level, se as Session, i as integer)
     dim q as long
     q = Fired&(lv, se, i)
@@ -329,7 +361,8 @@ function PotClear% (lv as Level, se as Session, i as integer)
         - clng(CROSST * 60 * se.tempo)
 end function
 
-' For the pilot at x: the nearest tipper whose pot's place he is under or coming to, NONE with none near.
+' For the pilot at x: the nearest tipper whose pot's place
+' he is under or coming to, NONE with none near.
 function TipperAhead% (lv as Level, x as integer)
     dim i as integer, c as integer
     TipperAhead% = NONE
@@ -362,7 +395,8 @@ sub Tipper ( _
     Sfx mu, se, SPOP
 end sub
 
-' Charlie at tipper i: its pot on its way down hurts whom it comes to.
+' Charlie at tipper i: its pot on its way down hurts whom it
+' comes to.
 sub MeetTipper ( _
     lv as Level, _
     mu as Deck, _
@@ -383,8 +417,10 @@ sub MeetTipper ( _
     end if
 end sub
 
-' Tipper i, its house's middle at x and its foot at y on the screen: the house; its cat at the upper window, a paw
-' out the beat before its pot goes; the pot in the air, or on the sill from two beats after it went.
+' Tipper i, its house's middle at x and its foot at y on the
+' screen: the house; its cat at the upper window, a paw out
+' the beat before its pot goes; the pot in the air, or on
+' the sill from two beats after it went.
 sub DrawTipper ( _
     lv as Level, _
     art as Store, _
@@ -408,8 +444,9 @@ sub Mortar (lv as Level, mu as Deck, se as Session, i as integer)
     if Fired&(lv, se, i) < 2 * se.tempo then Sfx mu, se, SMORTAR
 end sub
 
-' A mortar: at the tick it fires, who is in the air over its mouth is thrown up, his way kept; while its flash
-' burns, who is beside it is burnt.
+' A mortar: at the tick it fires, who is in the air over its
+' mouth is thrown up, his way kept; while its flash burns,
+' who is beside it is burnt.
 sub MeetMortar ( _
     lv as Level, _
     mu as Deck, _
@@ -434,8 +471,10 @@ sub MeetMortar ( _
     end if
 end sub
 
-' Mortar i at x, y on the screen: its tube; its fuse alight the beat before it fires; its flash; its shell a beat on
-' its way up, its trail under it, and a beat burst where that ends, in one of two colours.
+' Mortar i at x, y on the screen: its tube; its fuse alight
+' the beat before it fires; its flash; its shell a beat on
+' its way up, its trail under it, and a beat burst where
+' that ends, in one of two colours.
 sub DrawMortar ( _
     lv as Level, _
     art as Store, _
@@ -465,7 +504,9 @@ sub DrawMortar ( _
     end if
 end sub
 
-' The loose bone nearest snatcher i of those to be taken that are within its beat and by its height; NONE with none.
+' The loose bone nearest snatcher i of those to be taken
+' that are within its beat and by its height; NONE with
+' none.
 private function Spied% (lv as Level, i as integer, lo() as Loose)
     dim j as integer, d as integer, best as integer
     Spied% = NONE
@@ -483,7 +524,8 @@ private function Spied% (lv as Level, i as integer, lo() as Loose)
     next
 end function
 
-' Snatcher i's step: a loose bone within its beat it runs to, SNATCHV a cat's pace, and takes for good; with none,
+' Snatcher i's step: a loose bone within its beat it runs
+' to, SNATCHV a cat's pace, and takes for good; with none,
 ' or startled, it is a cat.
 sub Snatch ( _
     lv as Level, _
@@ -516,7 +558,8 @@ sub Snatch ( _
     Sfx mu, se, SSNATCH
 end sub
 
-' A snatcher's picture by its state: the cat's, of its own set.
+' A snatcher's picture by its state: the cat's, of its own
+' set.
 function SnatchPic% (se as Session, s as integer)
     SnatchPic% = ISNATCH + CatPic%(se, s) - ICAT
     if abs(s) > 1 then
@@ -536,7 +579,8 @@ private sub Shaken ( _
     if lv.things(i).state then Beaten lv, mu, se, g, pt(), i, 6
 end sub
 
-' The lines' step: one that swings, a step nearer rest; the cat on one, a step along it.
+' The lines' step: one that swings, a step nearer rest; the
+' cat on one, a step along it.
 sub Settle (lv as Level)
     dim i as integer
     for i = 0 to lv.n_ropes - 1
@@ -545,8 +589,10 @@ sub Settle (lv as Level)
     next
 end sub
 
-' The cat walking line r: a pixel a step along its beat, turned at the beat's end and WALKIN from the line's;
-' startled, it stands and counts its state down to a walk's, as a cat does. At the line's height, as it swings.
+' The cat walking line r: a pixel a step along its beat,
+' turned at the beat's end and WALKIN from the line's;
+' startled, it stands and counts its state down to a walk's,
+' as a cat does. At the line's height, as it swings.
 private sub Tread (lv as Level, r as Rope)
     dim i as integer, x as integer
     i = r.cat - 1
@@ -564,7 +610,8 @@ private sub Tread (lv as Level, r as Rope)
     lv.things(i).at.y = LineY%(r, lv.things(i).at.x - r.at.x)
 end sub
 
-' The lines in view: each from post to post, its washing on it.
+' The lines in view: each from post to post, its washing on
+' it.
 sub DrawLines ( _
     lv as Level, _
     art as Store, _
@@ -610,8 +657,9 @@ private sub Lanterns ( _
     next
 end sub
 
-' A line's end at x, y on the screen, the roof under it at y1: a post up from the roof, its crossbar under its
-' top; where the roof is no lower, a hook in the wall.
+' A line's end at x, y on the screen, the roof under it at
+' y1: a post up from the roof, its crossbar under its top;
+' where the roof is no lower, a hook in the wall.
 private sub DrawPost (x as integer, y as integer, y1 as integer)
     if y1 < y + 6 then
         line (x - 1, y - 1)-(x + 1, y + 1), CQINK, BF
@@ -626,8 +674,9 @@ private sub DrawPost (x as integer, y as integer, y1 as integer)
     line (x - 4, y + 2)-(x + 4, y + 2), CPOLE
 end sub
 
-' Line r's washing, pegged every WASH along it and hung as it hangs: by where it is, a shirt, trousers, a sock,
-' or a peg left bare.
+' Line r's washing, pegged every WASH along it and hung as
+' it hangs: by where it is, a shirt, trousers, a sock, or a
+' peg left bare.
 private sub Washing ( _
     r as Rope, _
     art as Store, _

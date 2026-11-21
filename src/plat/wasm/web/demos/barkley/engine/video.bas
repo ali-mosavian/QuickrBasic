@@ -1,11 +1,15 @@
-' SCREEN 13 on two pages: pictures put, grabbed, masked and mirrored.
+' SCREEN 13 on two pages: pictures put, grabbed, masked and
+' mirrored.
 defint A-Z
 option explicit
 
 from barkley.engine.datafile import DataFile
 
-' The pictures, end to end in img: where each starts, and the next free place. A zone's own go after all the others, at
-' zone_at: dat_at, where each zone's start in the data file; zone, whose are there, one more than its number; dat, the file they are in.
+' The pictures, end to end in img: where each starts, and
+' the next free place. A zone's own go after all the others,
+' at zone_at: dat_at, where each zone's start in the data
+' file; zone, whose are there, one more than its number;
+' dat, the file they are in.
 type Store
     img() as long
     at() as long
@@ -77,8 +81,8 @@ sub Grab ( _
         + (4 + clng(x2 - x1 + 1) * (y2 - y1 + 1) + 3) \ 4
 end sub
 
-' The w by h at x, y kept as k, and its mask, drawn at mx, my, as k + 1:
-' 255 where it is clear, 0 where drawn.
+' The w by h at x, y kept as k, and its mask, drawn at mx,
+' my, as k + 1: 255 where it is clear, 0 where drawn.
 sub MaskGrab ( _
     art as Store, _
     x as integer, _
@@ -103,7 +107,8 @@ sub MaskGrab ( _
     Grab art, mx, my, mx + w - 1, my + h - 1, k + 1
 end sub
 
-' Masked image k, w by h, at x, y; nothing when wholly off the screen.
+' Masked image k, w by h, at x, y; nothing when wholly off
+' the screen.
 sub Blit ( _
     art as Store, _
     x as integer, _

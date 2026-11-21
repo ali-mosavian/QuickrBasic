@@ -14,10 +14,12 @@ from barkley.assets.store import HUDH, HUDW
 const PIPX = 84
 const PIPY = 22
 
-' The score, time, bones and lives, top left over the scene: a picture
-' and its mask, put together from the characters when a number moves.
-' Called before the frame is drawn: it draws on the page's corner. gold: the act's golden bones found, a bit
-' each, a pip each after the bones; under 0, it has none.
+' The score, time, bones and lives, top left over the scene:
+' a picture and its mask, put together from the characters
+' when a number moves. Called before the frame is drawn: it
+' draws on the page's corner. gold: the act's golden bones
+' found, a bit each, a pip each after the bones; under 0, it
+' has none.
 sub Hud (art as Store, g as Game, gold as integer)
     dim s as integer, sig as long, i as integer, x as integer
     dim bit as integer
@@ -49,7 +51,8 @@ sub Hud (art as Store, g as Game, gold as integer)
     get (0, 100)-(HUDW - 1, 100 + HUDH - 1), art.img(art.at(IHUD + 1))
 end sub
 
-' A row of the HUD's picture and mask: s, its first n characters yellow.
+' A row of the HUD's picture and mask: s, its first n
+' characters yellow.
 private sub HudLine ( _
     art as Store, _
     row as integer, _
@@ -80,7 +83,8 @@ sub Say (p as Hero, cx as integer, cy as integer, s as string)
     Txt row, col, s, CWHITE
 end sub
 
-' A dark box with a gold edge, for words: every other pixel of it, the scene through the rest.
+' A dark box with a gold edge, for words: every other pixel
+' of it, the scene through the rest.
 sub Panel (x1 as integer, y1 as integer, x2 as integer, y2 as integer)
     dim y as integer
     for y = y1 to y2

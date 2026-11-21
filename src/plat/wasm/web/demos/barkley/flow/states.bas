@@ -1,4 +1,5 @@
-' The game's states: the title, play, a stage cleared, the next stage, the tally.
+' The game's states: the title, play, a stage cleared, the
+' next stage, the tally.
 defint A-Z
 option explicit
 
@@ -31,16 +32,20 @@ from barkley.control.pilot import Pilot
 from barkley.flow.save import Keep, PickZone, Reach
 from barkley.flow.intro import StartBump
 
-' The level's end's songs, and game over's, by their numbers in CHARLIE.DAT; how long game over stays, its tune's
+' The level's end's songs, and game over's, by their numbers
+' in CHARLIE.DAT; how long game over stays, its tune's
 ' length.
 private const OVERT = 13
 
-' The bonus is counted over the level's end's bars its lead plays, the last six but two: a step a beat.
+' The bonus is counted over the level's end's bars its lead
+' plays, the last six but two: a step a beat.
 const TALLYN = 16
 private const TALLYBARS = 6
 
-' The bonus counted into the score in time with the level's end: a step and a woof on each beat of the bars its
-' lead plays, the bonus shared between the steps left, in tens; all of it at a key.
+' The bonus counted into the score in time with the level's
+' end: a step and a woof on each beat of the bars its lead
+' plays, the bonus shared between the steps left, in tens;
+' all of it at a key.
 private sub Tally (mu as Deck, se as Session, g as Game, k as Pad)
     dim due as integer, take as long
     if g.bonus = 0 then exit sub
@@ -99,7 +104,8 @@ sub Tick ( _
     Spent k
 end sub
 
-' The title's step: behind it the game plays itself, from the start again when that ends; a key starts a game.
+' The title's step: behind it the game plays itself, from
+' the start again when that ends; a key starts a game.
 private sub TitleStep ( _
     wd as World, _
     g as Game, _
@@ -127,8 +133,9 @@ private sub TitleStep ( _
     if k.hit or k.start then StartGame wd, g, p, lo(), pt()
 end sub
 
-' A game's step: Charlie moved, against the things and what chases, flies and is thrown; past the goal, the stage
-' is cleared.
+' A game's step: Charlie moved, against the things and what
+' chases, flies and is thrown; past the goal, the stage is
+' cleared.
 private sub PlayStep ( _
     wd as World, _
     g as Game, _
@@ -156,7 +163,8 @@ private sub PlayStep ( _
     Camera wd.lv, wd.zn, g, p, 0
 end sub
 
-' The goal passed: the stage is cleared, its bonus by its bones and its time.
+' The goal passed: the stage is cleared, its bonus by its
+' bones and its time.
 private sub StageClear (mu as Deck, se as Session, g as Game)
     g.mode = CLEARED
     g.mode_t = 0
@@ -166,8 +174,9 @@ private sub StageClear (mu as Deck, se as Session, g as Game)
     Sfx mu, se, SCLEAR
 end sub
 
-' A cleared stage's step: its tally; then, met, a while and the fade over, on to the next stage, or after the
-' last, the title.
+' A cleared stage's step: its tally; then, met, a while and
+' the fade over, on to the next stage, or after the last,
+' the title.
 private sub ClearedStep ( _
     wd as World, _
     g as Game, _
@@ -196,7 +205,8 @@ private sub ClearedStep ( _
     end if
 end sub
 
-' The level as it starts, the title up, Charlie at the start for the pilot.
+' The level as it starts, the title up, Charlie at the start
+' for the pilot.
 sub ResetWorld ( _
     wd as World, _
     g as Game, _
@@ -224,7 +234,8 @@ sub ResetWorld ( _
     g.home.y = wd.lv.start.y
     for i = 0 to wd.lv.n_things - 1
         wd.lv.things(i).at.x = wd.lv.things(i).home
-        ' a burrow's mound keeps its other end, and a chimney; a mortar its beat, and a tipper
+        ' a burrow's mound keeps its other end, and a
+        ' chimney; a mortar its beat, and a tipper
         if wd.lv.things(i).kind = KMOUND _
             or wd.lv.things(i).kind = KCHIMNEY _
             or wd.lv.things(i).kind = KMORTAR then continue for
@@ -299,8 +310,10 @@ sub GoStage ( _
     g.lives = left0
 end sub
 
-' Past the goal, a game's or the title's: on to the family and no further, the view sliding on to hold them all
-' with Charlie at its left; a while with them, then the picture fades. Whether it has.
+' Past the goal, a game's or the title's: on to the family
+' and no further, the view sliding on to hold them all with
+' Charlie at its left; a while with them, then the picture
+' fades. Whether it has.
 private function Met% ( _
     wd as World, _
     g as Game, _
@@ -336,7 +349,8 @@ private function Met% ( _
     Met% = wd.tn.dusk <= 0
 end function
 
-' A game from its start, at the first act of the zone picked on the title.
+' A game from its start, at the first act of the zone picked
+' on the title.
 sub StartGame ( _
     wd as World, _
     g as Game, _

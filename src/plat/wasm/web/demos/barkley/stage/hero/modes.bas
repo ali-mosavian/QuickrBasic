@@ -1,4 +1,5 @@
-' Charlie on what a zone gives him: water, vines, goats, sleds, burrows; the gale and the tide on him.
+' Charlie on what a zone gives him: water, vines, goats,
+' sleds, burrows; the gale and the tide on him.
 defint A-Z
 option explicit
 
@@ -16,17 +17,21 @@ from barkley.stage.fx.parts import Burst, Emit
 const GOATV = 240!
 private const GOATRIDE = 2!
 
-' A blizzard: of every GUSTP ticks the wind blows the last GUSTON, from the right, the snow streaming GUSTTELL
-' before it does. On his feet it bears him back, WINDG a second each second on the ground and WINDA in the air,
-' curled or not, till he goes with it at WINDV; curled or crouched on the ground, or mounted, it passes over him.
+' A blizzard: of every GUSTP ticks the wind blows the last
+' GUSTON, from the right, the snow streaming GUSTTELL before
+' it does. On his feet it bears him back, WINDG a second
+' each second on the ground and WINDA in the air, curled or
+' not, till he goes with it at WINDV; curled or crouched on
+' the ground, or mounted, it passes over him.
 const GUSTP = 192
 private const GUSTON = 72
 private const WINDG = 600!
 private const WINDA = 900!
 private const WINDV = 200!
 
-' A vine: its length; how far under its end his feet hang; the hop up as he lets go, and the seconds before he
-' may catch one again; its two colours.
+' A vine: its length; how far under its end his feet hang;
+' the hop up as he lets go, and the seconds before he may
+' catch one again; its two colours.
 const VINELEN = 56
 const VINEGRIP = 14
 private const VINEHOP = 150!
@@ -35,7 +40,8 @@ private const VINEWAIT = .4
 const DIGV = 400!
 private const DIGPOP = 260!
 
-' A chimney: its pot's top over the roof, and his speed up out of one.
+' A chimney: its pot's top over the roof, and his speed up
+' out of one.
 const FLUEH = 30
 private const FLUEPOP = 420!
 const AFLOAT = 6
@@ -44,7 +50,8 @@ private const PADACC = 260!
 private const HOPV = 250!
 const DRYT = .35
 
-' Off the sled, which is no more: a puff of colour c where it was.
+' Off the sled, which is no more: a puff of colour c where
+' it was.
 sub Alight ( _
     mu as Deck, _
     se as Session, _
@@ -57,8 +64,9 @@ sub Alight ( _
     Sfx mu, se, SPOP
 end sub
 
-' Hung from a vine: he swings as a weight on it, the vine with him; a jump lets go, with the swing's speed and a
-' hop up, and a hurt lets go without one.
+' Hung from a vine: he swings as a weight on it, the vine
+' with him; a jump lets go, with the swing's speed and a hop
+' up, and a hurt lets go without one.
 sub Hang ( _
     lv as Level, _
     mu as Deck, _
@@ -85,8 +93,10 @@ sub Hang ( _
     Sfx mu, se, SJUMP
 end sub
 
-' Under the ground to the mound he digs for: straight there at DIGV, unseen, the loam stirred over him; there,
-' thrown up out of it. Down a chimney the same, through the houses: up out of the other's pot, in its soot.
+' Under the ground to the mound he digs for: straight there
+' at DIGV, unseen, the loam stirred over him; there, thrown
+' up out of it. Down a chimney the same, through the houses:
+' up out of the other's pot, in its soot.
 sub Tunnel ( _
     lv as Level, _
     mu as Deck, _
@@ -126,8 +136,9 @@ sub Tunnel ( _
     Sfx mu, se, SPOP
 end sub
 
-' The ticks of calm left before the blizzard's next gust: 0 while it blows. The wind drops while the avalanche
-' comes: nothing may stop him then, and a gust would.
+' The ticks of calm left before the blizzard's next gust: 0
+' while it blows. The wind drops while the avalanche comes:
+' nothing may stop him then, and a gust would.
 function Lull% (lv as Level, se as Session)
     dim t as integer
     t = GUSTP - GUSTON - se.ticks mod GUSTP
@@ -136,7 +147,8 @@ function Lull% (lv as Level, se as Session)
     Lull% = t
 end function
 
-' A gust on him: borne back on his feet and in the air, spared curled or crouched on the ground, or mounted.
+' A gust on him: borne back on his feet and in the air,
+' spared curled or crouched on the ground, or mounted.
 sub Buffet (lv as Level, se as Session, p as Hero)
     if Lull%(lv, se) > 0 or p.swim or p.sled or p.goat then exit sub
     if not p.ground then
@@ -146,7 +158,8 @@ sub Buffet (lv as Level, se as Session, p as Hero)
     end if
 end sub
 
-' Astride a goat: it runs on along the road and takes no rein. Off the ground, stopped or GOATRIDE on, he is off
+' Astride a goat: it runs on along the road and takes no
+' rein. Off the ground, stopped or GOATRIDE on, he is off
 ' it, and it turns for home from where it last stood.
 sub Ride ( _
     lv as Level, _
@@ -173,8 +186,9 @@ sub Ride ( _
     end if
 end sub
 
-' Charlie and the sea. He is afloat once his feet are under it, falling or deeper than he can wade. Out of it he
-' is wet, slow and dripping, till a roll shakes him dry.
+' Charlie and the sea. He is afloat once his feet are under
+' it, falling or deeper than he can wade. Out of it he is
+' wet, slow and dripping, till a roll shakes him dry.
 sub Soak (lv as Level, se as Session, p as Hero, pt() as Part)
     if p.swim then exit sub
     if (p.ground and p.at.y > lv.tide + WADE) _
@@ -194,7 +208,9 @@ sub Soak (lv as Level, se as Session, p as Hero, pt() as Part)
     end if
 end sub
 
-' Into the sea: what he ran at he swims at, and a fall splashes. A hurt ends on landing: the sea is a landing too.
+' Into the sea: what he ran at he swims at, and a fall
+' splashes. A hurt ends on landing: the sea is a landing
+' too.
 private sub Dunk (lv as Level, se as Session, p as Hero, pt() as Part)
     if p.ground then
         p.vel.x = p.gsp * cos(p.ang)
@@ -206,8 +222,9 @@ private sub Dunk (lv as Level, se as Session, p as Hero, pt() as Part)
     p.stun = 0
 end sub
 
-' Afloat: at the water's surface as it rises and falls, paddled left and right, slowly; a jump is a hop out of
-' it, and ground come to under the surface is waded onto.
+' Afloat: at the water's surface as it rises and falls,
+' paddled left and right, slowly; a jump is a hop out of it,
+' and ground come to under the surface is waded onto.
 sub Paddle ( _
     lv as Level, _
     gr as Ground, _

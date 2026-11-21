@@ -1,10 +1,12 @@
-' The picture store's layout, as charlieart.py's: each picture's number.
+' The picture store's layout, as charlieart.py's: each
+' picture's number.
 defint A-Z
 option explicit
 
 const NF = 23
 
-' Images in art.img from art.at(k); a masked one's mask at k + 1. As charlieart.py's.
+' Images in art.img from art.at(k); a masked one's mask at k
+' + 1. As charlieart.py's.
 const IBG = 0
 private const IMID = 1
 const ILOOP = 5
@@ -51,7 +53,8 @@ const IHOOP = ISPIN + 4
 const IWAVE = IHOOP + 4
 const IBTN = IWAVE + 8
 
-' Amber Downs' ground, by the comb's column of 4 and row of 3: flats, slopes, the tile under each slope, the comb
+' Amber Downs' ground, by the comb's column of 4 and row of
+' 3: flats, slopes, the tile under each slope, the comb
 ' alone and in strips, quarter pipes; its moving platform.
 const IAF = IBTN + 4
 const IAS = IAF + 12
@@ -62,17 +65,22 @@ const IAP = IAL + 4
 const IAM = IAP + 24
 const IAE = IAM + 2
 
-' The works' slopes, by the deck's four 16s: each kind's tile, then what of its deck runs on into the tile under.
+' The works' slopes, by the deck's four 16s: each kind's
+' tile, then what of its deck runs on into the tile under.
 const IZS = IAE + 8
 const IZU = IZS + 48
 
-' Charlie round a ribbon's twist, 8 pictures of two frames, then facing left: stood on it, pressed flatter twice,
-' seen from over its back, hung under it flatter twice and whole, seen from under.
+' Charlie round a ribbon's twist, 8 pictures of two frames,
+' then facing left: stood on it, pressed flatter twice, seen
+' from over its back, hung under it flatter twice and whole,
+' seen from under.
 const ITW = IZU + 48
 const ICATF = ITW + 96
 
-' the intro's: the van, a wheel at two turns, the van's back door open, Charlie at its window and looking back
-' from it; the old house, the boxes and one thrown, a hedge, the Mob's float, the basket
+' the intro's: the van, a wheel at two turns, the van's back
+' door open, Charlie at its window and looking back from it;
+' the old house, the boxes and one thrown, a hedge, the
+' Mob's float, the basket
 const IVAN = ICATF + 4
 const IWHEEL = IVAN + 2
 const IDOOR = IWHEEL + 4
@@ -87,7 +95,8 @@ const IBASKET = IFLOAT + 6
 const ICART = IBASKET + 2
 const ICARTW = ICART + 12
 
-' Sprocket's crane as it goes and bumped, a length of its rail, its crate, the toolbox.
+' Sprocket's crane as it goes and bumped, a length of its
+' rail, its crate, the toolbox.
 const ICRANE = ICARTW + 4
 const IRAIL = ICRANE + 4
 const IWBOX = IRAIL + 2
@@ -103,47 +112,56 @@ const IGULL = ICHAIR + 4
 const IPEDAL = IGULL + 8
 const ITEDDY = IPEDAL + 4
 
-' The flume: its fall and its end, four frames each of running water, the water falling from it, its tank.
+' The flume: its fall and its end, four frames each of
+' running water, the water falling from it, its tank.
 const IFLUME = ITEDDY + 2
 const ISPOUT = IFLUME + 8
 const IRUNNEL = ISPOUT + 8
 const ICISTERN = IRUNNEL + 8
 
-' The works' sweeper, two frames going left and their mirrors; a spark's carriage dark and two frames alight, a
-' tile of its rail; a press's housing, a length of its rod, its head.
+' The works' sweeper, two frames going left and their
+' mirrors; a spark's carriage dark and two frames alight, a
+' tile of its rail; a press's housing, a length of its rod,
+' its head.
 const ISWEEP = ICISTERN + 2
 const ISPARK = ISWEEP + 8
 const ISRAIL = ISPARK + 6
 const IPRESS = ISRAIL + 2
 
-' The pass's keepsake, the fair one's camera.
-' A sled as the ground lies, from a steep fall to the right to a steep rise; deep snow.
+' The pass's keepsake, the fair one's camera. A sled as the
+' ground lies, from a steep fall to the right to a steep
+' rise; deep snow.
 const ICAMERA = IPRESS + 6
 const ISLED = ICAMERA + 2
 const IDRIFT = ISLED + 10
 
-' A geyser, where the works have a jet: its mouth, its column at two beats.
-' The snowball he is in, at two turns.
+' A geyser, where the works have a jet: its mouth, its
+' column at two beats. The snowball he is in, at two turns.
 const IGEYSER = IDRIFT + 2
 const ISNOWBALL = IGEYSER + 6
 
-' A snow-thrower ducked and up, facing left, then their mirrors; its snowball.
+' A snow-thrower ducked and up, facing left, then their
+' mirrors; its snowball.
 const IFORT = ISNOWBALL + 4
 const ILOB = IFORT + 8
 const IICICLE = ILOB + 2
 const ISEAT = IICICLE + 2
 
-' A goat's: at graze, then at a charge as the ground lies, five ways, two strides each; each with its mirror.
+' A goat's: at graze, then at a charge as the ground lies,
+' five ways, two strides each; each with its mirror.
 const IGOAT = ISEAT + 2
 const IGOATR = IGOAT + 4
 const IWALL = IGOATR + 40
 
-' Frost on her toboggan as the ground lies, five ways; and knocked into deep snow.
+' Frost on her toboggan as the ground lies, five ways; and
+' knocked into deep snow.
 const IFROST = IWALL + 4
 const IDUNKED = IFROST + 10
 
-' Who meets Charlie, NFAM of them FAMSTEP apart, each in FAMF pictures: three of a wait, six of a cheer. The Baron's:
-' four sat, his tail swaying and a blink, then two pointing.
+' Who meets Charlie, NFAM of them FAMSTEP apart, each in
+' FAMF pictures: three of a wait, six of a cheer. The
+' Baron's: four sat, his tail swaying and a blink, then two
+' pointing.
 const IFAM = IDUNKED + 2
 const NFAM = 5
 const FAMF = 9
@@ -153,8 +171,10 @@ const IBARON = IFAM + NFAM * FAMF * 2
 const ILOAD = IBARON + 12
 const IHEAP = ILOAD + 2
 
-' The wood's keepsake, the Pomchi's ball; a sapling bowed, and sprung; bramble grown, and cut; a hollow log; a
-' burrow's mound; a squirrel to the left, and with an acorn held out, and both to the right; an acorn.
+' The wood's keepsake, the Pomchi's ball; a sapling bowed,
+' and sprung; bramble grown, and cut; a hollow log; a
+' burrow's mound; a squirrel to the left, and with an acorn
+' held out, and both to the right; an acorn.
 const IBALL = IHEAP + 2
 const ISAPLING = IBALL + 2
 const IBRAMBLE = ISAPLING + 4
@@ -163,9 +183,12 @@ const IMOUND = ILOG + 2
 const ISQUIRREL = IMOUND + 2
 const IACORN = ISQUIRREL + 8
 
-' The wood's spring, a toadstool, and trodden; a length of the great oak's trunk and its foot; a limb of it to
-' the right, near and far, then their mirrors; its hollow; a bracket of fungus and its mirror; the Bramble
-' twins, five pictures each: grinning, reaching, a paw out, shocked, sulking.
+' The wood's spring, a toadstool, and trodden; a length of
+' the great oak's trunk and its foot; a limb of it to the
+' right, near and far, then their mirrors; its hollow; a
+' bracket of fungus and its mirror; the Bramble twins, five
+' pictures each: grinning, reaching, a paw out, shocked,
+' sulking.
 const ITOAD = IACORN + 2
 const IOAK = ITOAD + 4
 const IOAKFOOT = IOAK + 2
@@ -176,10 +199,14 @@ const ITWIN = IBRACKET + 4
 ' A golden bone, turned as a bone is.
 const IGOLD = ITWIN + 20
 
-' The quarter's washing on its lines: a shirt, trousers, a sock; an awning, and trodden; a chimney; a tram; a
-' paper lantern; a dustbin with eyes under its lid, and shut; a snatcher, laid out as the cat: two strides right,
-' two left, then startled right and left; a mortar; a firework's burst opening in three, in two colours; the
-' guitar; the relay's five cats, each two strides and bumped; a tipper's house, its cat sat and with a paw out.
+' The quarter's washing on its lines: a shirt, trousers, a
+' sock; an awning, and trodden; a chimney; a tram; a paper
+' lantern; a dustbin with eyes under its lid, and shut; a
+' snatcher, laid out as the cat: two strides right, two
+' left, then startled right and left; a mortar; a firework's
+' burst opening in three, in two colours; the guitar; the
+' relay's five cats, each two strides and bumped; a tipper's
+' house, its cat sat and with a paw out.
 const ISHIRT = IGOLD + 8
 const ITROUSERS = ISHIRT + 2
 const ISOCK = ITROUSERS + 2
@@ -197,5 +224,6 @@ const ITALL = IRELAY + 30
 const ITIPPER = ITALL + 2
 const NIMG = ITIPPER + 4
 
-' the picture store's LONGs: for what every zone shows and the largest zone's own
+' the picture store's LONGs: for what every zone shows and
+' the largest zone's own
 const IMGSZ = 490000

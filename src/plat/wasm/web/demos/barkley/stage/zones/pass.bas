@@ -1,4 +1,5 @@
-' Whitecap Pass: sleds, the gale and the avalanche, goats, ice walls, loads of snow, snow-throwers.
+' Whitecap Pass: sleds, the gale and the avalanche, goats,
+' ice walls, loads of snow, snow-throwers.
 defint A-Z
 option explicit
 
@@ -22,26 +23,36 @@ from barkley.stage.hero.moves import THROWC
 
 const SLEDV = 120!
 
-' Rolled through at SNOWV or faster, deep snow packs round him.
+' Rolled through at SNOWV or faster, deep snow packs round
+' him.
 private const SNOWV = 100!
 
-' A snow-thrower, a cat behind a wall of snow, its state's sign the way it faces: its turn is THROWC of the
-' things' steps, ducked till THROWUP are left, then up and open; with THROWAT left it throws, if Charlie is
-' within THROWR, a snowball LOBT in the air, and ducks. NLOB of them fly at once.
+' A snow-thrower, a cat behind a wall of snow, its state's
+' sign the way it faces: its turn is THROWC of the things'
+' steps, ducked till THROWUP are left, then up and open;
+' with THROWAT left it throws, if Charlie is within THROWR,
+' a snowball LOBT in the air, and ducks. NLOB of them fly at
+' once.
 const THROWUP = 30
 const THROWAT = 10
 private const THROWR = 180
 private const LOBT = .9
 
-' An icicle: its state 0 hung, the things' steps since it was loosed, or -1 broken. It trembles TREMBLE of
-' them, then falls.
+' An icicle: its state 0 hung, the things' steps since it
+' was loosed, or -1 broken. It trembles TREMBLE of them,
+' then falls.
 const TREMBLE = 10
 
-' A goat, its state's sign the way it faces: 1 at graze, at home, till it sees him within GOATSEE on its ledge; then its
-' head is down GOATWIND of the things' steps and it charges, GOATSTEP a step, till it is under or past him or
-' GOATRUN from home, and stands dazed GOATDAZE steps; 0 while it is ridden or on its way home. Its lowered horns
-' hurt. Come down on, it bolts on along the road, to the right, at GOATV, he astride GOATH up, till he is off the
-' ground, stopped or GOATRIDE seconds on; then it runs home at STRAYV.
+' A goat, its state's sign the way it faces: 1 at graze, at
+' home, till it sees him within GOATSEE on its ledge; then
+' its head is down GOATWIND of the things' steps and it
+' charges, GOATSTEP a step, till it is under or past him or
+' GOATRUN from home, and stands dazed GOATDAZE steps; 0
+' while it is ridden or on its way home. Its lowered horns
+' hurt. Come down on, it bolts on along the road, to the
+' right, at GOATV, he astride GOATH up, till he is off the
+' ground, stopped or GOATRIDE seconds on; then it runs home
+' at STRAYV.
 private const GOATSEE = 72
 private const GOATWIND = 12
 const GCHARGE = 100
@@ -52,26 +63,33 @@ private const STRAYV = 300!
 
 private const GUSTTELL = 24
 
-' The avalanche: let go as he passes lv.avalX, its front comes on from AVALLEAD behind at AVALV, the snow AVALH deep
-' behind it, and takes him where it reaches him.
+' The avalanche: let go as he passes lv.avalX, its front
+' comes on from AVALLEAD behind at AVALV, the snow AVALH
+' deep behind it, and takes him where it reaches him.
 private const AVALV = 300!
 private const AVALLEAD = 220
 private const AVALH = 70
 
-' An ice wall, WALLH tall, stops him WALLR from its middle: only a goat ridden breaks it.
+' An ice wall, WALLH tall, stops him WALLR from its middle:
+' only a goat ridden breaks it.
 private const WALLH = 80
 const WALLR = 15
 
-' A ledge's load of snow: its state 0 heaped, the things' steps since a bark set it off, or -1 gone. It trembles
-' TREMBLE of them, slides LOADRUN along its ledge in LOADSLIDE more, gathering way, then falls at the speed it left
-' with, to its heap's place LOADFAR on: there cats and snow-throwers are beaten. Its heap: its state 1 once it lies
-' there, HEAPH tall and HEAPR either way at its foot; it stops him.
+' A ledge's load of snow: its state 0 heaped, the things'
+' steps since a bark set it off, or -1 gone. It trembles
+' TREMBLE of them, slides LOADRUN along its ledge in
+' LOADSLIDE more, gathering way, then falls at the speed it
+' left with, to its heap's place LOADFAR on: there cats and
+' snow-throwers are beaten. Its heap: its state 1 once it
+' lies there, HEAPH tall and HEAPR either way at its foot;
+' it stops him.
 const LOADRUN = 40
 const LOADSLIDE = 20
 private const HEAPH = 30
 const HEAPR = 24
 
-' Onto sled i: off on it at once, to the right, curled in nothing but the game's reckoning.
+' Onto sled i: off on it at once, to the right, curled in
+' nothing but the game's reckoning.
 private sub Board ( _
     lv as Level, _
     mu as Deck, _
@@ -92,7 +110,8 @@ private sub Board ( _
     Sfx mu, se, SROLL
 end sub
 
-' An icicle: walked under, it is loosed; falling, it hurts whom it lands on, and breaks.
+' An icicle: walked under, it is loosed; falling, it hurts
+' whom it lands on, and breaks.
 sub MeetIcicle ( _
     lv as Level, _
     mu as Deck, _
@@ -119,7 +138,8 @@ sub MeetIcicle ( _
     Shatter lv, mu, se, pt(), i
 end sub
 
-' A sled left on the snow: landed on or run onto, he boards it.
+' A sled left on the snow: landed on or run onto, he boards
+' it.
 sub MeetSled ( _
     lv as Level, _
     mu as Deck, _
@@ -135,7 +155,8 @@ sub MeetSled ( _
     Board lv, mu, se, p, i
 end sub
 
-' Deep snow: it stops a sled dead and he tumbles out of it; rolled through, it packs round him.
+' Deep snow: it stops a sled dead and he tumbles out of it;
+' rolled through, it packs round him.
 sub MeetDrift ( _
     lv as Level, _
     mu as Deck, _
@@ -163,7 +184,8 @@ function Fallen% (lv as Level, i as integer)
     Fallen% = Plunged%(lv.things(i).state - TREMBLE)
 end function
 
-' How far a thing has fallen, n of the things' steps into its fall.
+' How far a thing has fallen, n of the things' steps into
+' its fall.
 private function Plunged% (n as integer)
     dim t as single
     Plunged% = 0
@@ -172,7 +194,8 @@ private function Plunged% (n as integer)
     Plunged% = cint(GRAV * t * t / 2)
 end function
 
-' How far along load i has come: nothing till it has trembled, LOADRUN at its ledge's end, LOADFAR at the most.
+' How far along load i has come: nothing till it has
+' trembled, LOADRUN at its ledge's end, LOADFAR at the most.
 function Slid% (lv as Level, i as integer)
     dim n as integer, x as integer
     Slid% = 0
@@ -199,8 +222,9 @@ function HeapOf% (lv as Level, i as integer)
     next
 end function
 
-' The avalanche's step: let go as he passes its head, its front comes on, the ground shaking while it is in
-' view, and takes him where it reaches him.
+' The avalanche's step: let go as he passes its head, its
+' front comes on, the ground shaking while it is in view,
+' and takes him where it reaches him.
 sub Avalanche ( _
     lv as Level, _
     mu as Deck, _
@@ -222,9 +246,11 @@ sub Avalanche ( _
     if lv.aval.x > p.at.x - 6 then Lose mu, se, p
 end sub
 
-' The avalanche over the view: its snow from the view's left to its front, AVALH deep on the ground it has
-' covered, paler at its top; its face rounded, its top heaving, balls of snow rolling on both; blocks of ice
-' thrown on ahead of it.
+' The avalanche over the view: its snow from the view's left
+' to its front, AVALH deep on the ground it has covered,
+' paler at its top; its face rounded, its top heaving, balls
+' of snow rolling on both; blocks of ice thrown on ahead of
+' it.
 sub DrawAvalanche ( _
     lv as Level, _
     art as Store, _
@@ -279,7 +305,8 @@ private function SnowTop% (lv as Level, x as integer)
     SnowTop% = y
 end function
 
-' The blizzard over the view: flakes aslant always; a gust's streaks of snow from the right, fewer as it rises.
+' The blizzard over the view: flakes aslant always; a gust's
+' streaks of snow from the right, fewer as it rises.
 sub DrawGale (lv as Level, se as Session)
     dim j as integer, x as integer, y as integer, n as integer
     for j = 0 to 23
@@ -301,9 +328,11 @@ sub DrawGale (lv as Level, se as Session)
     next
 end sub
 
-' A goat's step: off its place it trots home; at graze there it faces him and, seeing him on its ledge, lowers its
-' head, in a blizzard only with the calm left to charge in; then it charges till it is under or past him or its
-' ledge ends, and stands dazed.
+' A goat's step: off its place it trots home; at graze there
+' it faces him and, seeing him on its ledge, lowers its
+' head, in a blizzard only with the calm left to charge in;
+' then it charges till it is under or past him or its ledge
+' ends, and stands dazed.
 sub Graze (lv as Level, se as Session, i as integer, p as Hero)
     dim s as integer, f as integer, x as integer
     s = abs(lv.things(i).state)
@@ -341,7 +370,8 @@ sub Graze (lv as Level, se as Session, i as integer, p as Hero)
     lv.things(i).state = s * f
 end sub
 
-' A goat met: come down on, it is ridden; its horns, lowered or at a charge, hurt.
+' A goat met: come down on, it is ridden; its horns, lowered
+' or at a charge, hurt.
 sub MeetGoat ( _
     lv as Level, _
     mu as Deck, _
@@ -365,7 +395,8 @@ sub MeetGoat ( _
     end if
 end sub
 
-' Onto goat i's back: it bolts on along the road. A goat still on its way home is there.
+' Onto goat i's back: it bolts on along the road. A goat
+' still on its way home is there.
 private sub Mount ( _
     lv as Level, _
     mu as Deck, _
@@ -392,7 +423,8 @@ private sub Mount ( _
     Sfx mu, se, SBUMP
 end sub
 
-' The goat let go runs home along the ground; there, or out of sight, it is at graze again.
+' The goat let go runs home along the ground; there, or out
+' of sight, it is at graze again.
 sub Homeward (lv as Level, g as Game)
     dim y as integer
     lv.stray.at.x = lv.stray.at.x _
@@ -406,7 +438,8 @@ sub Homeward (lv as Level, g as Game)
     lv.stray.st = 0
 end sub
 
-' An ice wall across the road: he is stopped at it; a goat ridden goes through, and leaves its stump.
+' An ice wall across the road: he is stopped at it; a goat
+' ridden goes through, and leaves its stump.
 sub MeetWall ( _
     lv as Level, _
     mu as Deck, _
@@ -432,8 +465,9 @@ sub MeetWall ( _
     Balk p, lv.things(i).at.x, WALLR
 end sub
 
-' A slid load's heap across the road: he is stopped at its flank, nearer its middle the higher his feet, and
-' over it goes free.
+' A slid load's heap across the road: he is stopped at its
+' flank, nearer its middle the higher his feet, and over it
+' goes free.
 sub MeetHeap (lv as Level, p as Hero, i as integer)
     dim h as single, r as integer
     if lv.things(i).state = 0 then exit sub
@@ -446,7 +480,8 @@ sub MeetHeap (lv as Level, p as Hero, i as integer)
     end if
 end sub
 
-' The goat not ridden within 150 of x, NONE when there is none.
+' The goat not ridden within 150 of x, NONE when there is
+' none.
 function GoatNear% (lv as Level, x as integer)
     dim i as integer, c as integer
     GoatNear% = NONE
@@ -463,7 +498,8 @@ function GoatNear% (lv as Level, x as integer)
     loop
 end function
 
-' A ledge's load at x, y on the screen: shaking once set off, sliding off, falling; nothing once it is down.
+' A ledge's load at x, y on the screen: shaking once set
+' off, sliding off, falling; nothing once it is down.
 sub DrawLoad ( _
     lv as Level, _
     art as Store, _
@@ -480,7 +516,8 @@ sub DrawLoad ( _
         y - 16 + Plunged%(s - TREMBLE - LOADSLIDE), ILOAD, 76, 22
 end sub
 
-' Goat i at x, y on the screen: its head up at graze and dazed, down while it gathers itself and charges.
+' Goat i at x, y on the screen: its head up at graze and
+' dazed, down while it gathers itself and charges.
 sub DrawGoat ( _
     lv as Level, _
     art as Store, _
@@ -532,7 +569,8 @@ private sub Shatter ( _
     Sfx mu, se, SCRACK
 end sub
 
-' Icicle i falling: it breaks on the cat or the snow-thrower under it, which is beaten, or on the ground.
+' Icicle i falling: it breaks on the cat or the snow-thrower
+' under it, which is beaten, or on the ground.
 private sub Plunge ( _
     lv as Level, _
     mu as Deck, _
@@ -560,13 +598,15 @@ private sub Plunge ( _
     end if
 end sub
 
-' Whether snow-thrower i is up from behind its wall: open to a roll, and about to throw.
+' Whether snow-thrower i is up from behind its wall: open to
+' a roll, and about to throw.
 function Risen% (lv as Level, i as integer)
     Risen% = abs(lv.things(i).state) <= THROWUP _
         and abs(lv.things(i).state) > THROWAT
 end function
 
-' Thrower i's snowball, from its paw, lobbed to land where Charlie is now; none if he is far.
+' Thrower i's snowball, from its paw, lobbed to land where
+' Charlie is now; none if he is far.
 private sub Hurl (lv as Level, i as integer, p as Hero)
     dim x as single, y as single
     if abs(p.at.x - lv.things(i).at.x) > THROWR _
@@ -577,7 +617,8 @@ private sub Hurl (lv as Level, i as integer, p as Hero)
         (p.at.y - 12 - y) / LOBT - GRAV * LOBT / 2, ILOB, CWHITE
 end sub
 
-' A snow-thrower met: ducked, its wall throws him back, neither hurt; up, it is a cat, beaten by a roll.
+' A snow-thrower met: ducked, its wall throws him back,
+' neither hurt; up, it is a cat, beaten by a roll.
 sub MeetThrow ( _
     lv as Level, _
     mu as Deck, _
@@ -621,7 +662,8 @@ sub Totter ( _
     if lv.things(i).state > TREMBLE then Plunge lv, mu, se, g, pt(), i
 end sub
 
-' Load i of snow, set off: a step of its trembling, its slide off the ledge and its fall. Down on the road it is
+' Load i of snow, set off: a step of its trembling, its
+' slide off the ledge and its fall. Down on the road it is
 ' gone and its heap lies there; Charlie under it is hurt.
 sub Unload ( _
     lv as Level, _
@@ -649,7 +691,8 @@ sub Unload ( _
     Hurt mu, se, g, p, lv.things(h).at.x, lo(), SHURT
 end sub
 
-' Heap h, come down: the cats and snow-throwers under it are beaten.
+' Heap h, come down: the cats and snow-throwers under it are
+' beaten.
 private sub Bury ( _
     lv as Level, _
     mu as Deck, _
@@ -676,7 +719,8 @@ private sub Bury ( _
     Sfx mu, se, SCRACK
 end sub
 
-' Snow-thrower i: a step of its turn, facing Charlie; and its throw.
+' Snow-thrower i: a step of its turn, facing Charlie; and
+' its throw.
 sub TakeAim (lv as Level, i as integer, p as Hero)
     dim s as integer
     if lv.things(i).state = 0 then exit sub

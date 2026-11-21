@@ -1,4 +1,5 @@
-' The picture store: the font and the HUD built, CHARLIE.DAT's pictures loaded, a zone's own swapped in.
+' The picture store: the font and the HUD built,
+' CHARLIE.DAT's pictures loaded, a zone's own swapped in.
 defint A-Z
 option explicit
 
@@ -12,13 +13,15 @@ from barkley.assets.palette import CINK, CWHITE, CYELLOW, Tint
 const HUDW = 108
 const HUDH = 40
 
-' The pictures every zone shows: CHARLIE.DAT's, then those built from them or drawn here on the hidden page. A
-' zone's own come after them with its level.
+' The pictures every zone shows: CHARLIE.DAT's, then those
+' built from them or drawn here on the hidden page. A zone's
+' own come after them with its level.
 sub BuildArt (art as Store, tn as Tones)
     dim i as integer
     cls
     LoadArt art, tn
-    ' the turned run, as drawn and mirrored: each upside down too, for the far side of a loop
+    ' the turned run, as drawn and mirrored: each upside
+    ' down too, for the far side of a loop
     for i = 0 to 159
         Flop art, ITILT + i, ITILT + 160 + i, 32, 32
     next
@@ -29,7 +32,8 @@ sub BuildArt (art as Store, tn as Tones)
     next
 end sub
 
-' The palette and the pictures every zone shows from CHARLIE.DAT.
+' The palette and the pictures every zone shows from
+' CHARLIE.DAT.
 private sub LoadArt (art as Store, tn as Tones)
     dim n as integer, i as integer, k as integer, c as long
     tn.dusk = 16
@@ -55,8 +59,9 @@ private sub LoadArt (art as Store, tn as Tones)
     close #art.dat.num
 end sub
 
-' A group of CHARLIE.DAT's pictures, from where the file is, to the store: their count, then each, its mask and
-' its mirror with it.
+' A group of CHARLIE.DAT's pictures, from where the file is,
+' to the store: their count, then each, its mask and its
+' mirror with it.
 private sub ReadPics (art as Store)
     dim n as integer, i as integer, k as integer, w as integer
     dim h as integer, masked as integer, k2 as integer
@@ -79,7 +84,8 @@ private sub ReadPics (art as Store)
     next
 end sub
 
-' Zone z's own pictures in the store, where the last zone's were.
+' Zone z's own pictures in the store, where the last zone's
+' were.
 sub LoadZoneArt (art as Store, z as integer)
     if art.zone = z + 1 then exit sub
     art.zone = z + 1
@@ -90,8 +96,9 @@ sub LoadZoneArt (art as Store, z as integer)
     close #art.dat.num
 end sub
 
-' A run-length stream of the file's LONGs to art.img at art.nextAt: n then n values, -n then
-' one value n times, 0 the end.
+' A run-length stream of the file's LONGs to art.img at
+' art.nextAt: n then n values, -n then one value n times, 0
+' the end.
 private sub Unpack (art as Store)
     dim n as integer, e as long, v as long
     n = Word&(art.dat)
@@ -112,8 +119,8 @@ private sub Unpack (art as Store)
     loop
 end sub
 
-' The HUD's characters, each 9 by 9 over a shadow: yellow, then white.
-' And room for the HUD's picture and mask.
+' The HUD's characters, each 9 by 9 over a shadow: yellow,
+' then white. And room for the HUD's picture and mask.
 private sub BuildGlyphs (art as Store)
     dim i as integer, x as integer, y as integer, c as integer
     dim ink as integer

@@ -1,18 +1,21 @@
-' A level's records and measures: tiles, gravity, the kinds of what stands in it, its ground, its zone.
+' A level's records and measures: tiles, gravity, the kinds
+' of what stands in it, its ground, its zone.
 defint A-Z
 option explicit
 
 from barkley.engine.vec import Spot, Vec
 
-' A swarm of bees: where it is, at; its home; and what it does: 0 at home, 1 after him, 2 on its way home.
+' A swarm of bees: where it is, its home, and what it
+' does: 0 at home, 1 after him, 2 on its way home.
 type Swarm
     at as Vec
     home as Spot
     st as integer
 end type
 
-' A gull: where it is, its home, where its dive is aimed, the seconds of rest till it may dive again, what it is doing,
-' the bones it carries, and whether it heads left.
+' A gull: where it is, its home, where its dive is aimed,
+' the seconds of rest till it may dive again, what it is
+' doing, the bones it carries, and whether it heads left.
 type Bird
     at as Vec
     home as Spot
@@ -23,8 +26,9 @@ type Bird
     face as integer
 end type
 
-' What is thrown or dropped, on its arc: its picture, and the colour it bursts in. bedded: let go in a bough,
-' which it falls out of before any ground stops it.
+' What is thrown or dropped, on its arc: its picture, and
+' the colour it bursts in. bedded: let go in a bough, which
+' it falls out of before any ground stops it.
 type Lob
     at as Vec
     vel as Vec
@@ -34,10 +38,14 @@ type Lob
     bedded as integer
 end type
 
-' Who flees with a keepsake at an act's end: x, y the foot of its cart, or the floor under its crane, v its speed,
-' t the seconds its last bump or its breaking still tells, hits its bumps. st: 0 waiting, 1 fleeing, 2 broken and
-' the keepsake lying, 3 the keepsake taken back. A crane's crate is one too: x, y its foot, v its fall, t the
-' seconds to its next step. st: 0 on the hook once t is out, 1 held over Charlie, 2 falling.
+' Who flees with a keepsake at an act's end: at the foot
+' of its cart, or the floor under its crane, v its speed, t
+' the seconds its last bump or its breaking still tells,
+' hits its bumps. st: 0 waiting, 1 fleeing, 2 broken and the
+' keepsake lying, 3 the keepsake taken back. A crane's crate
+' is one too: at its foot, v its fall, t the seconds to
+' its next step. st: 0 on the hook once t is out, 1 held
+' over Charlie, 2 falling.
 type Runner
     at as Vec
     v as single
@@ -46,9 +54,11 @@ type Runner
     st as integer
 end type
 
-' A clothesline: from at, w wide, its ends level; trod: where along it it was last trodden, t the steps since. A lantern
-' line is one whose far end hangs fall lower: taut, and ground to slide down, its stretch sg. cat: one more than
-' the thing that is the cat walking it, 0 with none.
+' A clothesline: from at, w wide, its ends level; trod:
+' where along it it was last trodden, t the steps since. A
+' lantern line is one whose far end hangs fall lower: taut,
+' and ground to slide down, its stretch sg. cat: one more
+' than the thing that is the cat walking it, 0 with none.
 type Rope
     at as Spot
     w as integer
@@ -59,7 +69,8 @@ type Rope
     cat as integer
 end type
 
-' A thing of the level: where it is, its kind and state, and its home x, which the level's order goes by.
+' A thing of the level: where it is, its kind and state, and
+' its home x, which the level's order goes by.
 type Thing
     at as Spot
     kind as integer
@@ -67,9 +78,11 @@ type Thing
     home as integer
 end type
 
-' A moving platform: its thing, its stretch sg and curve cv; its middle at, its reach; kind 0 to and fro, 1 up and
-' down, 2 a lift, t how far up it is; the edge before it; a bridge's button. 3 a basket down a cable, 7 a chair
-' up one, 8 a tram along a street: t how far along.
+' A moving platform: its thing, its stretch sg and curve cv;
+' its middle at, its reach; kind 0 to and fro, 1 up and
+' down, 2 a lift, t how far up it is; the edge before it; a
+' bridge's button. 3 a basket down a cable, 7 a chair up
+' one, 8 a tram along a street: t how far along.
 type Mover
     thing as integer
     sg as integer
@@ -82,7 +95,8 @@ type Mover
     t as single
 end type
 
-' The goat out of its place: st 1 ridden, 2 on its way home from at, 0 none.
+' The goat out of its place: st 1 ridden, 2 on its way home
+' from at, 0 none.
 type Rover
     at as Vec
     goat as integer
@@ -95,11 +109,16 @@ type Front
     st as integer
 end type
 
-' The level as laid: w columns, wpx pixels, of the MW by MH map; a column's top, what shows of it, its faces, its
-' glaze (the pass's bare ice; icing: those laid now are), the first thing at it. prof: a tile kind's solid height
-' by column. The race from chase_x to chase_end and the avalanche's head aval_x, NONE where there is none. The
-' sea's surface tide, NONE without one, from tide_lo at step tide_at to tide_hi half a tide later. Who flees in its
-' chase, a crane's crate, the goat out of its place, the avalanche. The great oak's foot oak, its x NONE without.
+' The level as laid: w columns, wpx pixels, of the MW by MH
+' map; a column's top, what shows of it, its faces, its
+' glaze (the pass's bare ice; icing: those laid now are),
+' the first thing at it. prof: a tile kind's solid height by
+' column. The race from chase_x to chase_end and the
+' avalanche's head aval_x, NONE where there is none. The
+' sea's surface tide, NONE without one, from tide_lo at step
+' tide_at to tide_hi half a tide later. Who flees in its
+' chase, a crane's crate, the goat out of its place, the
+' avalanche. The great oak's foot oak, its x NONE without.
 ' The quarter's clotheslines.
 type Level
     w as integer
@@ -148,8 +167,9 @@ type Level
     aval as Front
 end type
 
-' A stretch of the ground's line, from its point at to the next: its kind (0 none, 1 the tiles' top, 2 a
-' curve), its length, dir a pixel along it, its rise.
+' A stretch of the ground's line, from its point at to the
+' next: its kind (0 none, 1 the tiles' top, 2 a curve), its
+' length, dir a pixel along it, its rise.
 type Stretch
     at as Vec
     dir as Vec
@@ -158,7 +178,8 @@ type Stretch
     kind as integer
 end type
 
-' A curve: stretches first to last, from far on a loop's far half, between x_lo and x_hi.
+' A curve: stretches first to last, from far on a loop's far
+' half, between x_lo and x_hi.
 type Bend
     first as integer
     last as integer
@@ -167,7 +188,8 @@ type Bend
     x_hi as integer
 end type
 
-' The ground's line, what Charlie runs on: n points, the platforms' from plat_a; n_cv curves; a column's stretch.
+' The ground's line, what Charlie runs on: n points, the
+' platforms' from plat_a; n_cv curves; a column's stretch.
 type Ground
     n as integer
     plat_a as integer
@@ -177,8 +199,10 @@ type Ground
     col() as integer
 end type
 
-' The zone played, 0 the Amber Downs, and its stage; the one ResetWorld is to load; its pictures: tiles, backdrop,
-' loop, pipe, card, ribbon. decked: its ground is a deck, the works' kind, else earth, the Downs'.
+' The zone played, 0 the Amber Downs, and its stage; the one
+' ResetWorld is to load; its pictures: tiles, backdrop,
+' loop, pipe, card, ribbon. decked: its ground is a deck,
+' the works' kind, else earth, the Downs'.
 type Realm
     id as integer
     stage as integer
@@ -192,8 +216,9 @@ type Realm
     decked as integer
 end type
 
-' The world: MW by MH tiles of TS pixels; lv.w columns used. A tile's kind
-' is its profile, lv.prof: each column's solid height from its bottom.
+' The world: MW by MH tiles of TS pixels; lv.w columns used.
+' A tile's kind is its profile, lv.prof: each column's solid
+' height from its bottom.
 const TS = 16
 const MW = 800
 const MH = 30
@@ -201,8 +226,8 @@ const NONE = 30000
 const PI = 3.141593
 const GRAV = 750!
 
-' What stands in the level, by x. From KLOOP on: scenery, drawn behind
-' the ground.
+' What stands in the level, by x. From KLOOP on: scenery,
+' drawn behind the ground.
 const KBONE = 1
 const KCAT = 2
 const KSPRING = 3
@@ -247,8 +272,9 @@ const KWALL = 37
 const KLOAD = 48
 const KHEAP = 49
 
-' From KFRONT on: drawn over the ground. The sands' flume: a column of its fall, its level end, the tank at its
-' head; the speed its water carries Charlie at.
+' From KFRONT on: drawn over the ground. The sands' flume: a
+' column of its fall, its level end, the tank at its head;
+' the speed its water carries Charlie at.
 const KFRONT = 40
 const KFLUME = 40
 const KSPOUT = 41
@@ -262,7 +288,8 @@ const KBRAMBLE = 50
 const KLOG = 51
 const KMOUND = 52
 const KSQUIRREL = 53
-' A golden bone: an act has NGOLD of them, each kept once found.
+' A golden bone: an act has NGOLD of them, each kept once
+' found.
 const KGOLD = 54
 const NGOLD = 3
 const KAWNING = 55
