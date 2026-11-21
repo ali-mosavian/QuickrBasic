@@ -2,10 +2,10 @@
 ;
 ; # How it works
 ; The vector is patched into the INT instruction's operand, as the code is writable under DOS/32A.
-; Also holds pdos_ds, pdos_cmdline and pdos_environ.
+; Also holds pdos_ds, pdos_cs, pdos_limit, pdos_cmdline and pdos_environ.
         .386
         .model  flat
-        public  _pdos_int, _pdos_ds, _pdos_cmdline, _pdos_environ
+        public  _pdos_int, _pdos_ds, _pdos_cs, _pdos_limit, _pdos_cmdline, _pdos_environ
         extern  LL$PSP:word
         extern  LL$ENVIRONMENT_READ:near
         .code
@@ -51,6 +51,16 @@ _pdos_environ:
 _pdos_ds:
         xor     eax,eax
         mov     ax,ds
+        ret
+; uint16_t pdos_cs(void): CS's selector.
+_pdos_cs:
+        xor     eax,eax
+        mov     ax,cs
+        ret
+; uint32_t pdos_limit(uint32_t sel): the selector's limit, its segment's last offset.
+_pdos_limit:
+        mov     ecx,[esp+4]
+        lsl     eax,ecx
         ret
 ; uint32_t pdos_cmdline(char *buf, uint32_t max): the PSP's command tail without its leading
 ; blanks, at most max bytes; its length. (llrm's LL$COMMAND_LINE reads its arguments a slot high.)

@@ -1,4 +1,4 @@
-"""The Mac's window (plat/sdl), drawn off-screen: python3 tools/mac_test.py QUICKRBASIC [ARCH].
+"""The Mac's window (plat/sdl), drawn off-screen: python3 tools/mac_test.py QUICKRBASIC [ARCH [QBX]].
 
 The program is opened, the frame QB_SHOT writes is read back: the editor's screen at the VGA's
 720x400, its menu bar grey, the program's window blue, its text on it. With Alt+F typed (QB_KEYS),
@@ -26,6 +26,8 @@ to the topic, Shift+F1 opens Using Help), F1 off a keyword only beeps, and F1 in
 dialog shows help over it: the help system was once "Help is not available".
 Started in / as from Finder, the app copies its demos into ~/Documents/QuickrBasic, the folders beside
 them too: a fixed list of files once left CHARLIE.BAS without its barkley package.
+QBX, tests/ext's qxtest packed for macos: a program imports it and draws if its add%(2, 3) is 5. Its slice
+was arm64's alone once, and the x86-64 half stopped at the IMPORT.
 """
 
 import os
@@ -44,6 +46,7 @@ HIDDEN = {
     "text": "SCREEN 0, , 1, 0\nCOLOR 4, 4\nCLS\n",
 }
 LOOP = "DO\nLOOP\n"
+NATIVE = "from qxtest import *\nSCREEN 9\nIF add%(2, 3) = 5 THEN LINE (0, 0)-(100, 100), 4, BF\n" + LOOP
 HELP = "60:3B00"  # F1
 HELP_ESC = "60:3B00 70:011B"  # F1, Esc
 HELP_BACK = "60:3B00 70:0F09 80:1C0D 90:6800"  # F1, Tab, Enter (Index), Alt+F1
@@ -171,12 +174,17 @@ def finder_copy(run: list[str], binary: str) -> bool:
     want = {p.relative_to(demos) for p in demos.rglob("*") if p.is_file() and not p.name.startswith(".")}
     with tempfile.TemporaryDirectory() as home:
         (Path(home) / "Documents").mkdir()
-        env = os.environ | {"HOME": home, "QB_SHOT": f"{home}/shot.ppm", "SDL_VIDEO_DRIVER": "offscreen",
-                            "SDL_AUDIO_DRIVER": "dummy"}
+        env = os.environ | {
+            "HOME": home,
+            "QB_SHOT": f"{home}/shot.ppm",
+            "SDL_VIDEO_DRIVER": "offscreen",
+            "SDL_AUDIO_DRIVER": "dummy",
+        }
         subprocess.run(run, env=env, timeout=30, check=True, cwd="/")
         got = Path(home) / "Documents/QuickrBasic"
         return any(p.parts[0] == "barkley" for p in want) and all(
-            (got / p).is_file() and (got / p).read_bytes() == (demos / p).read_bytes() for p in want)
+            (got / p).is_file() and (got / p).read_bytes() == (demos / p).read_bytes() for p in want
+        )
 
 
 def main() -> None:
@@ -186,6 +194,12 @@ def main() -> None:
         binary = str(Path(sys.argv[1]).resolve())
         run = ["arch", f"-{sys.argv[2]}", binary] if len(sys.argv) > 2 else [binary]
         copied = finder_copy(run, binary)
+        native = None
+        if len(sys.argv) > 3:
+            (Path(tmp) / "qxtest.qbx").write_bytes(Path(sys.argv[3]).read_bytes())
+            (Path(tmp) / "NATIVE.BAS").write_text(NATIVE)
+            nw, _, drawn = frame(run, Path(tmp) / "NATIVE.BAS", "3F00")
+            native = pixel(nw, drawn, 50, 50) == RED
         w, h, pixels = frame(run, program)
         _, _, menu = frame(run, program, "2100")
         box = Path(tmp) / "BOX.BAS"
@@ -295,7 +309,10 @@ def main() -> None:
         "insert cursor lines 13-14": pixel(rw, rstart, 13, 45) == pixel(rw, rstart, 13, 46) != pixel(rw, rstart, 13, 44)
         and pixel(rw, rstart, 13, 47) != pixel(rw, rstart, 13, 45),
         "F1 on PRINT opens help": f1 != base,
-        "help's status line shows all its keys, no line:column": len({pixel(w, f1, x, y) for x in range(9 * 73, 9 * 80) for y in range(386, 398)}) == 1
+        "help's status line shows all its keys, no line:column": len(
+            {pixel(w, f1, x, y) for x in range(9 * 73, 9 * 80) for y in range(386, 398)}
+        )
+        == 1
         and {pixel(w, f1, x, 392) for x in range(9 * 55, 9 * 70)} != {pixel(w, f1, 9 * 78, 392)},
         "help fills the screen between the bars, a short topic too": blue_cells(fw, f1_for) == 0,
         "a link's words are not the arrows' green": green_cells(fw, f1_for, 32, 48, 9 * 16, 9 * 21) == 0
@@ -308,6 +325,7 @@ def main() -> None:
         "F1 in a dialog shows help": open_f1 != open_only,
         "a long name's title whole": title_cells(lw, long_title) == len(f"LONG.BAS:{LONG_NAME}") + 3,
         "a Finder start copies the demos, their folders too": copied,
+        "a native module runs": native is not False,
     }
     failed = [name for name, ok in checks.items() if not ok]
     print(f"mac {sys.argv[2] if len(sys.argv) > 2 else ''} " + ("ok" if not failed else "FAIL " + ", ".join(failed)))

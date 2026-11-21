@@ -66,6 +66,9 @@ bool clos_type(Session *const S, const uint8_t ch)
 
 bool clos_bs(Session *const S)
 {
+    if (edit_refused(S))
+        return true;
+
     LineBuf *const b = &uimn.edline;
     const uint16_t col = b->col;
 

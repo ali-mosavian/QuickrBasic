@@ -123,8 +123,9 @@ typedef struct PACKED {
 static_assert(sizeof(Line) == 20);
 enum { HDR = sizeof(Line) };
 /* LF_NODEF: decl_line found no DEFtype in it, decl_defevents passes it. LF_TOP: the END before an
-   imported module's lines, where its file's settings start, and past the last module's. */
-enum : uint8_t { LF_ASIS = 1, LF_BP = 2, LF_INC = 4, LF_NODEF = 8, LF_TOP = 32 };
+   imported module's lines, where its file's settings start, and past the last module's.
+   LF_NATIVE: a native module's interface (a .qbx's): its DECLARE CDECLs name its code's entries. */
+enum : uint8_t { LF_ASIS = 1, LF_BP = 2, LF_INC = 4, LF_NODEF = 8, LF_TOP = 32, LF_NATIVE = 64 };
 enum : uint32_t {
     NONUM = 0xFFFF,
     LMAX = 0x17000,    /* a line's body at most: 0xFEE0 with 2-byte name ids, times 7/5 */
@@ -330,6 +331,8 @@ enum : uint8_t { PK_SUB = 1, PK_FUNC = 2, PK_END = 3 };
 enum : uint8_t {
     PF_STAT = 1,
     PF_DEF = 2,
-    PF_RESARG = 8
-}; /* PF_RESARG, ours: a FUNCTION's record or array result, its last parameter (blok_nargs) */
+    PF_RESARG = 8,
+    PF_NATIVE = 16
+}; /* ours: PF_RESARG, a FUNCTION's record or array result, its last parameter (blok_nargs);
+      PF_NATIVE, a native module's DECLARE CDECL, its code an extension's entry (io/native.c) */
 #endif

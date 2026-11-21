@@ -636,6 +636,9 @@ static bool find(uint32_t *const v)
 /* New SUB, New FUNCTION: kind k's name asked. */
 static void new_proc(Session *const S, const uint8_t k, const char *const title)
 {
+    if (edit_refused(S)) /* it goes in the active view's file */
+        return;
+
     dg_vnew.title = title;
     dg_vnew.focus = 0;
     name_field.len = 0;
@@ -667,7 +670,7 @@ void view_newfn(Session *const S) { new_proc(S, PK_FUNC, u_nfn); }
 /* View v's procedure out of the text, after asking; a file's module stays. */
 static void del(Session *const S, const uint32_t v)
 {
-    if (!proc_view(v) || dlog_ync(S, u_delp) != YNC_YES)
+    if (!proc_view(v) || edit_refused_in(S, v) || dlog_ync(S, u_delp) != YNC_YES)
         return;
 
     const uint32_t first = vw.tab[v].first, n = vw.tab[v].n; /* at least its SUB line */

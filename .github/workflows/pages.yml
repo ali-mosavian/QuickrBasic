@@ -23,6 +23,11 @@ jobs:
       - run: make -j4 web CLANG=clang-20 WASM_LD=wasm-ld-20
       - run: node tools/wasm/frame_test.mjs build/wasm/ide.wasm
       - run: node tools/wasm/help_test.mjs
+      - run: node tools/wasm/upload_test.mjs
+      # a native module's side module, run in node with its audio stream on a device's thread
+      - run: |
+          make -j4 build/wasm/basic build/wasm/ext/qxtest.wasm CLANG=clang-20 WASM_LD=wasm-ld-20
+          sh tests/host/native.sh build/wasm/basic build/wasm/ext/qxtest.wasm wasm32 audio
       - uses: actions/upload-pages-artifact@v3
         with:
           path: build/web

@@ -34,6 +34,17 @@ void fx_write_file(const char *const name, const char *const text)
     fclose(f);
 }
 
+void fx_write_qbx(const char *const name, const char *const text)
+{
+    const uint32_t n = (uint32_t)strlen(text);
+    uint8_t head[20] = {'Q', 'B', 'X', 0x1A, 1, 0, 1, 0, 0, 0, 0, 0, sizeof head};
+
+    memcpy(head + 16, &n, sizeof n);
+    FILE *const f = fopen(fx_path_of(name), "wb");
+    CHECK(f && fwrite(head, 1, sizeof head, f) == sizeof head && fputs(text, f) >= 0);
+    fclose(f);
+}
+
 /* dir's file name's text. */
 const char *fx_file_text(const char *const name)
 {

@@ -38,6 +38,8 @@ enum : uint16_t {
 /* The test folder's file name: its path. */
 const char *fx_path_of(const char *name);
 void fx_write_file(const char *name, const char *text);
+/* The test folder's file name: a .qbx of the interface text alone, no code. */
+void fx_write_qbx(const char *name, const char *text);
 /* The test folder's file name's text. */
 const char *fx_file_text(const char *name);
 /* main.bas importing gfx.bas, opened. */

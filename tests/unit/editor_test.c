@@ -374,3 +374,66 @@ TEST(editor_starts_with_one_window)
     CHECK(!uimn.win.win[W_ED2].height && !uimn.win.vert);
     fx_done(S, (const char *[]){"main.bas", "gfx.bas", nullptr});
 }
+
+/* A native module's interface was edited as a .bas's lines are: the editor changed what the code
+   was built against. A line typed over, or one split by Enter, is refused, its box closed. */
+TEST(editor_keeps_a_native_module_s_lines)
+{
+    static const char declare[] = "declare sub beep_twice cdecl ()";
+    fx_open_program(S, "");
+    fx_write_qbx("nat.qbx", "declare sub beep_twice cdecl ()\r\n");
+    fx_write_file("main.bas", "import nat\r\nnat.beep_twice\r\n");
+    uimn_open(S, fx_path_of("main.bas"));
+    const uint32_t line = fx_line_of(S, declare), all = uimn.text.all;
+    CHECK(line != ~0u);
+    host_key_push(FX_ESC); /* the refusal's box */
+    CHECK(!fx_typed_over(S, line, "declare sub other cdecl ()"));
+    edit_load(S, view_goline(S, line));
+    uimn.edline.col = 4;
+    host_key_push(0x011B);
+    edit_enter(S);
+    pkey_flush();
+    CHECK(fx_line_of(S, declare) == line && uimn.text.all == all);
+    CHECK(!text_unsaved(S, 1));
+    fx_done(S, (const char *[]){"main.bas", "gfx.bas", "nat.qbx", nullptr});
+}
+
+/* The keys this editor added changed a native module's lines past its refusal: moving, copying
+   and commenting lines, deleting a word, Backspace between ( and ). Each is refused, its box
+   closed, the line as stored. */
+TEST(editor_keeps_a_native_module_s_lines_from_each_key)
+{
+    static const char one[] = "declare sub beep_twice cdecl ()",
+                      two[] = "declare sub beep cdecl ()";
+    fx_open_program(S, "");
+    fx_write_qbx("nat.qbx", "declare sub beep_twice cdecl ()\r\ndeclare sub beep cdecl ()\r\n");
+    fx_write_file("main.bas", "import nat\r\nnat.beep_twice\r\n");
+    uimn_open(S, fx_path_of("main.bas"));
+    const uint32_t line = fx_line_of(S, one), all = uimn.text.all;
+
+    static const struct {
+        uint16_t key;
+        uint8_t flags;
+        uint16_t col;
+    } keys[] = {
+        {FX_ALT_DOWN, PKEY_ALT, 0},
+        {FX_ALT_DOWN, PKEY_ALT | PKEY_SHIFT, 0},
+        {FX_CTRL_MINUS, PKEY_CTRL, 0},
+        {FX_CTRL_BACKSPACE, PKEY_CTRL, 11},
+        {FX_CTRL_DEL, PKEY_CTRL, 4},
+        {FX_BACKSPACE, 0, 30}, /* between ( and ) */
+    };
+
+    for (size_t i = 0; i < countof(keys); i++) {
+        edit_load(S, view_goline(S, line));
+        uimn.edline.col = keys[i].col;
+        host_key_push(FX_ESC);
+        fx_key(S, keys[i].key, keys[i].flags);
+        pkey_flush();
+        CHECK(!strcmp(fx_line(), one));
+        CHECK(fx_line_of(S, one) == line && fx_line_of(S, two) == line + 1);
+        CHECK(uimn.text.all == all && !text_unsaved(S, 1));
+    }
+
+    fx_done(S, (const char *[]){"main.bas", "gfx.bas", "nat.qbx", nullptr});
+}

@@ -980,7 +980,7 @@ static void cg_arg(Code *const c, const Node *const n)
 }
 
 /* A procedure's call: its arguments, PCALL, a record result's place; one DECLAREd only: ERROR, its
-   result's load. */
+   result's load; a native one's: its number, CALL NCALL, which pushes its result. */
 static void cg_call(Code *const c, const Node *const n)
 {
     if (n->mode == CALL_UNDEF) {
@@ -992,6 +992,14 @@ static void cg_call(Code *const c, const Node *const n)
 
     for (const Node *a = n->b; a != nullptr; a = a->next)
         gen(c, a);
+
+    if (n->mode == CALL_NATIVE) {
+        code_int(c, n->num);
+        code_call(c, K_NCALL);
+        c->type = n->type;
+        c->iload = c->iloadend = nullptr;
+        return;
+    }
 
     code_op(c, O_PCALL); /* the procedure, its locals' cells, its parameters (link's), its Jump */
     code_dword(c, n->num);

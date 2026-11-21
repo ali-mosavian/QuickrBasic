@@ -91,8 +91,9 @@ enum : uint8_t {
     PA_FIELD, /* a fixed array field whole: its field cell (mem/array.c) */
 };
 
-/* N_CALL's mode: a procedure's, or one DECLAREd only: ERROR when run, then its result's load. */
-enum : uint8_t { CALL_PROC, CALL_UNDEF };
+/* N_CALL's mode: a procedure's; one DECLAREd only: ERROR when run, then its result's load; a native
+   one's (PF_NATIVE). */
+enum : uint8_t { CALL_PROC, CALL_UNDEF, CALL_NATIVE };
 
 /* How a whole array is written, ours: f alone (a record's field), a(), a(:) its elements. */
 typedef enum : uint8_t { WR_ALONE, WR_ARRAY, WR_ELEMS } Written;

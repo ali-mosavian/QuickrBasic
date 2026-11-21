@@ -1,6 +1,8 @@
-/* The speaker and the synthesizer's voices (plat/synth), rendered in SDL's audio callback; with no audio device the
- * program runs silent. The runtime's tones and voices come here by wrap.h, and go on to its own device. */
+/* The host's audio device on the Mac (plat/paud.h): SDL's stream, each stream open mixed in its callback; the speaker
+ * and the synthesizer's voices (plat/synth) one of them. With no audio device the program runs silent. The runtime's
+ * tones and voices come here by wrap.h, and go on to its own device. */
 #include "sdl.h"
+#include "plat/paud.h"
 #include "plat/synth/synth.h"
 
 enum { RATE = 44100, CHUNK = 1024 };
@@ -28,12 +30,36 @@ void __wrap_dev_tone(const unsigned hertz)
 /* the callback runs with the stream locked */
 void __wrap_dev_voice(const unsigned voice, const DevVoice *const v)
 {
-    if (stream)
-        SDL_LockAudioStream(stream);
+    const uint32_t token = paud_lock();
     synth_voice(&synth, voice, v);
-    if (stream)
-        SDL_UnlockAudioStream(stream);
+    paud_unlock(token);
     __real_dev_voice(voice, v);
+}
+
+static bool device_start(void) { return true; }
+
+static void device_stop(void) {}
+
+static uint32_t device_lock(void)
+{
+    SDL_LockAudioStream(stream);
+    return 0;
+}
+
+static void device_unlock(const uint32_t token) { SDL_UnlockAudioStream(stream); }
+
+static const PaudDevice device = {
+    .rate = RATE,
+    .stereo = true,
+    .start = device_start,
+    .stop = device_stop,
+    .lock = device_lock,
+    .unlock = device_unlock,
+};
+
+static void QX_CALL synth_stream(int16_t *const out, const int32_t frames)
+{
+    synth_render_stereo(&synth, out, frames);
 }
 
 static void fill(void *const user, SDL_AudioStream *const s, const int more, const int total)
@@ -43,7 +69,7 @@ static void fill(void *const user, SDL_AudioStream *const s, const int more, con
     for (int n = more / (int)(2 * sizeof buf[0]); n > 0;) {
         const int chunk = n < CHUNK ? n : CHUNK;
 
-        synth_render_stereo(&synth, buf, chunk);
+        paud_mix(buf, chunk);
         SDL_PutAudioStreamData(s, buf, chunk * (int)(2 * sizeof buf[0]));
         n -= chunk;
     }
@@ -56,6 +82,13 @@ void sdl_audio_open(void)
     synth_init(&synth, RATE);
     synth_clock(&synth, tick, FINE_RATE);
     stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, fill, nullptr);
-    if (stream)
-        SDL_ResumeAudioStreamDevice(stream);
+
+    if (!stream)
+        return;
+
+    uint32_t rate;
+    bool stereo;
+    paud_device(&device);
+    paud_open(synth_stream, &rate, &stereo);
+    SDL_ResumeAudioStreamDevice(stream);
 }

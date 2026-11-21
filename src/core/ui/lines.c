@@ -5,10 +5,11 @@
  * takes the neighbour out and puts it back on the block's other side, so the block's own records
  * stay, their breakpoints with them. Each is one command, so one undo step.
  *
- * None goes past a procedure's bounds: a SUB or FUNCTION line, the view's first, or an END SUB
- * or END FUNCTION line is never moved, copied, commented or moved past; the key beeps. A
- * comment goes after the line's number and indent; a line taken out of one is stored as the
- * editor stores a line left (edit_store), so with an error it is kept as typed.
+ * None changes a native module's lines (edit_refused). None goes past a procedure's bounds: a SUB
+ * or FUNCTION line, the view's first, or an END SUB or END FUNCTION line is never moved, copied,
+ * commented or moved past; the key beeps. A comment goes after the line's number and indent; a
+ * line taken out of one is stored as the editor stores a line left (edit_store), so with an error
+ * it is kept as typed.
  */
 #include "ui/lines.h"
 #include "plat/pscr.h"
@@ -95,6 +96,9 @@ static void carry(Session *const S, const uint32_t line, const uint32_t to)
 
 void lines_move(Session *const S, const bool down)
 {
+    if (edit_refused(S))
+        return;
+
     edit_commit(S);
     uint32_t a, b;
     block(&a, &b);
@@ -119,6 +123,9 @@ void lines_move(Session *const S, const bool down)
 
 void lines_copy(Session *const S, const bool down)
 {
+    if (edit_refused(S))
+        return;
+
     edit_commit(S);
     uint32_t a, b;
     block(&a, &b);
@@ -181,6 +188,9 @@ static void comment(Session *const S, const uint32_t line, const bool out)
 
 void lines_comment(Session *const S)
 {
+    if (edit_refused(S))
+        return;
+
     edit_commit(S);
     uint32_t a, b;
     block(&a, &b);

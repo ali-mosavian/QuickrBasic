@@ -1,6 +1,6 @@
 // The module's thread: the IDE on an in-memory file system. The page gives it the module, the shared
 // memory, the command line and the files; it tells the page the irq block's address, each file
-// written (to keep), each tone and voice, and the exit.
+// written (to keep), each tone and voice, each audio stream opened, and the exit.
 import { MemFs } from './memfs.mjs';
 import { imports, Irq } from './wasm.mjs';
 
@@ -18,8 +18,9 @@ onmessage = ({ data: { module, memory, args, files } }) => {
     exit: (code) => { throw new Exit(String(code)); },
     tone: (hz) => postMessage({ tone: hz, at: performance.now() }),
     voice: (n, bytes) => postMessage({ voice: n, bytes }),
+    audio: (spec) => postMessage({ audio: spec }),
   };
-  const ex = new WebAssembly.Instance(module, imports(memory, host)).exports;
+  const ex = (host.ex = new WebAssembly.Instance(module, imports(memory, host)).exports);
   new Irq(memory, ex.irq()).keyboard = true; // before main: the runtime's console is the screen
   postMessage({ irq: ex.irq(), scans: ex.scans(), frames: ex.frames() });
   let code = 0;

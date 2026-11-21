@@ -20,6 +20,11 @@ A module is a file: `gfx` is `gfx.bas`. A dotted name is a package
 path: `lib.gfx` is `lib/gfx.bas`, and a package is a folder with no
 other file needed. `FROM lib IMPORT gfx` loads `lib/gfx.bas` too.
 
+A module can be native, `gfx.qbx`: compiled code and the BASIC
+interface its procedures are DECLAREd in. It is imported and used as
+a `.bas` is; `gfx.bas` is found first when both are there. One with no
+code for this machine is an Advanced feature unavailable error.
+
 A module is looked for in the main program's folder, then in each
 folder of the BASICLIB environment variable, separated by `;`, then in
 `lib` beside the interpreter. The first found is used.

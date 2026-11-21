@@ -383,7 +383,7 @@ static void edit_ctrlq(Widget *const w, Session *const S, const uint8_t ch)
             continue;
         if (wordstar_q[i].scan) {
             edit_key(w, S, (uint16_t)(wordstar_q[i].scan << 8));
-        } else { /* Ctrl+Q,Y: to the line's end out */
+        } else if (!edit_refused(S)) { /* Ctrl+Q,Y: to the line's end out */
             uimn.ed.sel_on = false;
             edit_lb_cut(b, b->col, b->len);
         }
@@ -411,6 +411,9 @@ static bool edit_control(Session *const S, const uint8_t ch)
 
     case CH_TAB:
         uimn.ed.sel_on = false;
+
+        if (edit_refused(S))
+            return true;
 #if AC
 
         if (cmpl_tab(S))
@@ -491,6 +494,8 @@ static bool edit_key(Widget *const w, Session *const S, const uint16_t key)
         return true;
     if (ch < ' ')
         return false;
+    if (edit_refused(S))
+        return true;
     if (edit_sel() == SEL_PIECE)
         edit_clear(S);
 
@@ -568,6 +573,10 @@ static void change(Session *const S)
 {
     uint16_t from;
     srch_default(&from);
+
+    if (edit_refused(S))
+        return;
+
     const uint8_t r = dlog_change(S);
 
     if (r > CHANGE_ALL)
@@ -638,14 +647,16 @@ static bool write_module(Session *const S, const char *const name, const uint32_
     return true;
 }
 
-/* The program to uimn.file, each module changed to its own. */
+/* The program to uimn.file, each module changed to its own; a native one's never: its file is a
+   .qbx, its text the interface in it. */
 static bool write_file(Session *const S)
 {
     if (!write_module(S, uimn.file, 0))
         return false;
 
     for (uint32_t m = 1; m < modu_count(&S->modu); m++)
-        if (text_unsaved(S, m) && !write_module(S, modu_module_path(&S->modu, m), m))
+        if (text_unsaved(S, m) && !modu_mod(&S->modu, m)->native &&
+            !write_module(S, modu_module_path(&S->modu, m), m))
             return false;
 
     return true;

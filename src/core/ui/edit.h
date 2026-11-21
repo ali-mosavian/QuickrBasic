@@ -39,6 +39,11 @@ void edit_lb_wright(LineBuf *b);
 /* The program window. */
 /* ed_load: line into uimn.edline, not dirty; the column stays. */
 void edit_load(Session *S, uint32_t line);
+/* View v a native module's interface, its lines what its code was built against: true, refused,
+   the program window's line as stored again and a box saying so. */
+bool edit_refused_in(Session *S, uint32_t v);
+/* edit_refused_in the program window's view: each edit asks first. */
+bool edit_refused(Session *S);
 /* ed_commit: a dirty line back to the text (above), uimn.text.changed, unsaved; a SUB or
    FUNCTION line typed gets its view (view_commit). false: a syntax error; the line is stored as
    typed. */
