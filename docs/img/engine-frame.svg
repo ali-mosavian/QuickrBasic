@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="560" viewBox="0 0 1000 560"><defs><marker id="ah059669" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#059669"/></marker><marker id="ah4f46e5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#4f46e5"/></marker><marker id="ah9ca3af" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9ca3af"/></marker><marker id="ahea580c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ea580c"/></marker></defs>
+<rect width="1000" height="560" fill="#ffffff"/>
+<text x="32" y="40" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" font-weight="700" fill="#1f2937" text-anchor="start">One frame</text>
+<text x="32" y="64" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#6b7280" text-anchor="start">Steps are 1/60 s whatever the frame rate. Play posts events; Deliver hands each to its owner.</text>
+<rect x="32" y="100" width="104" height="52" rx="8" fill="#f5f5f4" stroke="#78716c" stroke-width="1.25"/>
+<text x="84.0" y="122" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="13" font-weight="700" fill="#292524" text-anchor="middle">Poll</text>
+<text x="84.0" y="140" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">keys</text>
+<path d="M136,126 L150,126" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<rect x="152" y="100" width="104" height="52" rx="8" fill="#f5f5f4" stroke="#78716c" stroke-width="1.25"/>
+<text x="204.0" y="122" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="13" font-weight="700" fill="#292524" text-anchor="middle">Pace</text>
+<text x="204.0" y="140" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">time passed</text>
+<path d="M256,126 L270,126" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<rect x="272" y="100" width="104" height="52" rx="8" fill="#f5f5f4" stroke="#78716c" stroke-width="1.25"/>
+<text x="324.0" y="122" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="13" font-weight="700" fill="#292524" text-anchor="middle">ReadPad</text>
+<text x="324.0" y="140" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">keys to a Pad</text>
+<path d="M376,126 L390,126" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<text x="392" y="130" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="13" font-weight="700" fill="#292524" text-anchor="start">Steps</text>
+<path d="M436,126 L476,126 L476,198" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<rect x="32" y="200" width="936" height="232" rx="10" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
+<text x="48" y="226" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#064e3b" text-anchor="start">one step</text>
+<text x="952" y="226" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#059669" text-anchor="end" font-style="italic">0, 1 or more a frame</text>
+<rect x="52" y="244" width="112" height="52" rx="8" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
+<text x="108.0" y="266" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="13" font-weight="700" fill="#064e3b" text-anchor="middle">MoveHero</text>
+<text x="108.0" y="284" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">the hero</text>
+<rect x="180" y="244" width="112" height="52" rx="8" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
+<text x="236.0" y="266" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="13" font-weight="700" fill="#064e3b" text-anchor="middle">Think</text>
+<text x="236.0" y="284" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">each thing&#x27;s rule</text>
+<path d="M164,270 L178,270" fill="none" stroke="#059669" stroke-width="1.6" marker-end="url(#ah059669)"/>
+<rect x="308" y="244" width="112" height="52" rx="8" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
+<text x="364.0" y="266" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="13" font-weight="700" fill="#064e3b" text-anchor="middle">Touch</text>
+<text x="364.0" y="284" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">hero on things</text>
+<path d="M292,270 L306,270" fill="none" stroke="#059669" stroke-width="1.6" marker-end="url(#ah059669)"/>
+<rect x="436" y="244" width="112" height="52" rx="8" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
+<text x="492.0" y="266" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="13" font-weight="700" fill="#064e3b" text-anchor="middle">zone</text>
+<text x="492.0" y="284" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">tide, chase, gale</text>
+<path d="M420,270 L434,270" fill="none" stroke="#059669" stroke-width="1.6" marker-end="url(#ah059669)"/>
+<rect x="52" y="352" width="496" height="52" rx="8" fill="#fff7ed" stroke="#ea580c" stroke-width="1.25"/>
+<text x="300" y="374" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="13" font-weight="700" fill="#7c2d12" text-anchor="middle">Events</text>
+<text x="300" y="392" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">sound · score · burst · shake</text>
+<path d="M108,296 L108,350" fill="none" stroke="#4f46e5" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#ah4f46e5)"/>
+<path d="M236,296 L236,350" fill="none" stroke="#4f46e5" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#ah4f46e5)"/>
+<path d="M364,296 L364,350" fill="none" stroke="#4f46e5" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#ah4f46e5)"/>
+<path d="M492,296 L492,350" fill="none" stroke="#4f46e5" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#ah4f46e5)"/>
+<rect x="600" y="352" width="112" height="52" rx="8" fill="#fff7ed" stroke="#ea580c" stroke-width="1.25"/>
+<text x="656.0" y="374" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="13" font-weight="700" fill="#7c2d12" text-anchor="middle">Deliver</text>
+<text x="656.0" y="392" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">empties the queue</text>
+<path d="M548,378 L598,378" fill="none" stroke="#ea580c" stroke-width="1.6" marker-end="url(#ahea580c)"/>
+<rect x="760" y="236" width="188" height="52" rx="8" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
+<text x="854.0" y="258" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="13" font-weight="700" fill="#064e3b" text-anchor="middle">Deck</text>
+<text x="854.0" y="276" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">a sound</text>
+<rect x="760" y="298" width="188" height="52" rx="8" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
+<text x="854.0" y="320" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="13" font-weight="700" fill="#064e3b" text-anchor="middle">Game</text>
+<text x="854.0" y="338" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">score, lives</text>
+<rect x="760" y="360" width="188" height="52" rx="8" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
+<text x="854.0" y="382" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="13" font-weight="700" fill="#064e3b" text-anchor="middle">Parts</text>
+<text x="854.0" y="400" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">dust, sparks</text>
+<path d="M712,378 L736,378 L736,262 L758,262" fill="none" stroke="#ea580c" stroke-width="1.6" marker-end="url(#ahea580c)"/>
+<path d="M736,324 L758,324" fill="none" stroke="#ea580c" stroke-width="1.6" marker-end="url(#ahea580c)"/>
+<path d="M736,378 L736,386 L758,386" fill="none" stroke="#ea580c" stroke-width="1.6" marker-end="url(#ahea580c)"/>
+<path d="M84,432 L84,466" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<rect x="32" y="468" width="120" height="52" rx="8" fill="#f5f5f4" stroke="#78716c" stroke-width="1.25"/>
+<text x="92.0" y="490" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="13" font-weight="700" fill="#292524" text-anchor="middle">Camera</text>
+<text x="92.0" y="508" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">follows</text>
+<rect x="168" y="468" width="120" height="52" rx="8" fill="#f5f5f4" stroke="#78716c" stroke-width="1.25"/>
+<text x="228.0" y="490" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="13" font-weight="700" fill="#292524" text-anchor="middle">Render</text>
+<text x="228.0" y="508" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">draws the state</text>
+<path d="M152,494 L166,494" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<rect x="304" y="468" width="120" height="52" rx="8" fill="#f5f5f4" stroke="#78716c" stroke-width="1.25"/>
+<text x="364.0" y="490" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="13" font-weight="700" fill="#292524" text-anchor="middle">Flip</text>
+<text x="364.0" y="508" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">shows the page</text>
+<path d="M288,494 L302,494" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<rect x="440" y="468" width="120" height="52" rx="8" fill="#f5f5f4" stroke="#78716c" stroke-width="1.25"/>
+<text x="500.0" y="490" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="13" font-weight="700" fill="#292524" text-anchor="middle">FeedSong</text>
+<text x="500.0" y="508" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">the next half bar</text>
+<path d="M424,494 L438,494" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<path d="M32,542 L72,542" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<text x="80" y="546" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">imports, calls</text>
+<path d="M202,542 L242,542" fill="none" stroke="#4f46e5" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#ah4f46e5)"/>
+<text x="250" y="546" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">reports through the event queue</text>
+<rect x="470" y="528" width="44.8" height="28" rx="6" fill="#ffffff" stroke="#ea580c" stroke-opacity="0.55"/>
+<text x="492.4" y="546.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#7c2d12" text-anchor="middle">new</text>
+<text x="524" y="546" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">not in the code yet</text>
+</svg>
