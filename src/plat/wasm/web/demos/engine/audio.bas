@@ -69,7 +69,6 @@ type Deck
     coming_bar as integer
     fade_out as integer
     fade_in as integer
-    stage_tune as integer
     tune as integer
     z_held as integer
     c_held as integer

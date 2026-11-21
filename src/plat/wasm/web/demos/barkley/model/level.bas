@@ -119,7 +119,7 @@ end type
 ' tide_at to tide_hi half a tide later. Who flees in its
 ' chase, a crane's crate, the goat out of its place, the
 ' avalanche. The great oak's foot oak, its x NONE without.
-' The quarter's clotheslines.
+' The quarter's clotheslines. tune: the level's own song.
 type Level
     w as integer
     wpx as integer
@@ -141,6 +141,7 @@ type Level
     murk as integer
     glow as integer
     glow_at as integer
+    tune as integer
     prof() as integer
     top() as integer
     vis() as integer

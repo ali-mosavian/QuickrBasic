@@ -578,7 +578,7 @@ sub LoadLevel (wd as World, st as integer)
             wd.lv.tide = wd.lv.tide_lo
             wd.lv.tide_at = wd.se.ticks
         case "tune"
-            wd.mu.stage_tune = n
+            wd.lv.tune = n
         case "dog"
             wd.lv.start.x = c * TS + 8
             wd.lv.start.y = s
@@ -607,7 +607,7 @@ sub LoadLevel (wd as World, st as integer)
     Walkers wd.lv
     Track wd.lv, wd.gr
     Faces wd.lv
-    ZoneTune wd.mu, wd.mu.stage_tune
+    ZoneTune wd.mu, wd.lv.tune
 end sub
 
 ' A line hung over the street of n columns from column c:

@@ -132,7 +132,7 @@ sub ResetChase (lv as Level, mu as Deck)
     lv.cart.at.y = lv.top(cint(lv.cart.at.x) \ TS) * TS
     lv.box.st = 0
     lv.box.t = RELOAD
-    ZoneTune mu, mu.stage_tune
+    ZoneTune mu, lv.tune
 end sub
 
 ' A step of the chase, by its state: begun as Charlie comes
@@ -317,7 +317,7 @@ private sub BreakCart ( _
     lv.cart.t = 2
     Burst se, pt(), lv.cart.at.x + 0, lv.cart.at.y - 12, 16, 200, _
         CEARTH + 4
-    ZoneTune mu, mu.stage_tune
+    ZoneTune mu, lv.tune
 end sub
 
 private sub TakeKeep ( _
