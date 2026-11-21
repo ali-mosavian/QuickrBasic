@@ -54,13 +54,38 @@ static bool is_param(const Session *const S, const uint32_t proc, const uint32_t
     return false;
 }
 
-uint32_t insp_vars(
-    const Session *const S,
-    const uint32_t proc,
-    InspVar *const out,
-    const uint32_t max
-)
+/* Frame f of the stopped run; none, the module's. */
+static DebugFrame frame(const Session *const S, const uint32_t f)
 {
+    DebugFrame d = {.line = DLINE, .call = -1};
+
+    session_frame(S, f, &d);
+    return d;
+}
+
+uint32_t insp_frames(const Session *const S) { return session_nframes(S); }
+
+uint32_t insp_line(const Session *const S, const uint32_t f) { return frame(S, f).line; }
+
+bool insp_newest(const Session *const S, const uint32_t f)
+{
+    const uint32_t proc = frame(S, f).proc;
+
+    for (uint32_t i = 0; i < f; i++)
+        if (frame(S, i).proc == proc)
+            return false;
+
+    return true;
+}
+
+Status insp_eval(Session *const S, const uint32_t f, const char *const expr, char out[static 80])
+{
+    return session_eval(S, expr, frame(S, f).proc, out);
+}
+
+uint32_t insp_vars(const Session *const S, const uint32_t f, InspVar *const out, const uint32_t max)
+{
+    const uint32_t proc = frame(S, f).proc;
     uint32_t n = 0;
 
     if (proc) {
@@ -92,11 +117,12 @@ static bool seen(const Session *const S, const uint32_t proc, const uint32_t id)
 
 uint32_t insp_shared(
     const Session *const S,
-    const uint32_t proc,
+    const uint32_t f,
     InspVar *const out,
     const uint32_t max
 )
 {
+    const uint32_t proc = frame(S, f).proc;
     uint32_t n = 0;
 
     for (uint32_t id = 1; proc && id < S->symb.nvars && n < max; id++)
@@ -124,10 +150,11 @@ static uint32_t cell_type(const Var *const v)
     }
 }
 
-InspValue insp_var(const Session *const S, const DebugFrame *const f, const InspVar *const var)
+InspValue insp_var(const Session *const S, const uint32_t f, const InspVar *const var)
 {
     const Var *const v = symb_var(&S->symb, var->id);
-    const Addr cell = session_cell(S, f, var->id, -1);
+    const DebugFrame at = frame(S, f);
+    const Addr cell = session_cell(S, &at, var->id, -1);
 
     if (symb_is_record(&S->symb, var->id))
         return cell ? (InspValue){.kind = IV_RECORD, .type = v->type, .at = arry_view(cell).data}

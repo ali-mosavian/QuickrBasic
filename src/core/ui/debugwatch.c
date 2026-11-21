@@ -1,12 +1,13 @@
 /* The debugger's Watch: expressions, each PRINTed at each stop.
  *
  * # How it works
- * A watch is PRINTed by session_eval in the stop's procedure's scope; its row is what PRINT shows,
+ * A watch is PRINTed in the stopped frame's procedure's scope (vm/inspect.h); its row is what PRINT shows,
  * its spaces and end of line left out. Watches are kept across runs.
  */
 #include "ui/debugwatch.h"
 #include "session.h"
 #include "ui/debugtext.h"
+#include "vm/inspect.h"
 
 enum {
     NWATCH = 8, /* watches at most */
@@ -48,7 +49,7 @@ static char *eval_text(char *d, const char *const out)
 /* Expression expr's value as text at d: session_eval's output, its spaces and end of line left
    out; an error's message. A ':' (another statement) or a direct line's frame on cstk (its code
    would go): none. Past it. */
-static char *value(Session *const S, char *const d, const char *const expr, const uint32_t proc)
+static char *value(Session *const S, char *const d, const char *const expr)
 {
     if (strchr(expr, ':'))
         return dtxt_cpy(d, session_errtext(S, E_SN));
@@ -56,15 +57,15 @@ static char *value(Session *const S, char *const d, const char *const expr, cons
         return dtxt_cpy(d, "(not here)");
 
     char out[80];
-    const Status st = session_eval(S, expr, proc, out);
+    const Status st = insp_eval(S, 0, expr, out);
     return st != ST_OK ? dtxt_cpy(d, session_errtext(S, (uint8_t)st)) : eval_text(d, out);
 }
 
-void dwat_eval(Session *const S, const uint32_t proc)
+void dwat_eval(Session *const S)
 {
     for (uint8_t i = 0; i < wat.n; i++) {
         char *d = dtxt_cpy(dtxt_cpy(wat.row, wat.wx[i]), " = ");
-        d = value(S, d, wat.wx[i], proc);
+        d = value(S, d, wat.wx[i]);
         *d = 0;
         dtxt_cut(wat.wv[i], wat.row);
     }

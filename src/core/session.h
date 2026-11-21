@@ -126,6 +126,10 @@ typedef struct {
 
 /* The stopped run's frames to out, newest first, at most max; how many. */
 uint32_t session_frames(const Session *S, DebugFrame out[], uint32_t max);
+/* The stopped run's frame i, newest first, to *out; false: past the last. */
+bool session_frame(const Session *S, uint32_t i, DebugFrame *out);
+/* The stopped run's frames. */
+uint32_t session_nframes(const Session *S);
 /* Variable id's cell as frame f sees it (par unused: the frame knows its parameters). */
 Addr session_cell(const Session *S, const DebugFrame *f, uint32_t id, int32_t par);
 /* A direct line called into the stopped run: evaluating would drop its code. */

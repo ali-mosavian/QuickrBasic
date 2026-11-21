@@ -25,8 +25,7 @@ typedef struct {
 } Seen;
 
 static struct {
-    DebugFrame frame;
-    uint32_t proc; /* the frame's procedure, 0 the module */
+    uint8_t frame;
     uint8_t n;
     InspVar var[NDVAR]; /* the rows' variables */
     uint8_t vhi[NDVAR]; /* a value changed at this stop: its first column + 1; else 0 */
@@ -57,7 +56,7 @@ static uint8_t var_text(Session *const S, const InspVar *const var)
 
     d = dtxt_cpy(d, " = ");
     const uint8_t col = (uint8_t)(d - loc.row);
-    const InspValue v = insp_var(S, &loc.frame, var);
+    const InspValue v = insp_var(S, loc.frame, var);
 
     if (v.kind == IV_ARRAY)
         d = dtxt_cpy(d, "(array)");
@@ -80,8 +79,8 @@ static uint32_t hash(const char *s)
     return h;
 }
 
-/* The stop variable var's row last changed at, its text in loc.row; newest as dloc_read's. 0: not
-   changed since first seen. */
+/* The stop variable var's row last changed at, its text in loc.row; newest: its frame is its
+   procedure's newest, whose values a change is seen in. 0: not changed since first seen. */
 static uint32_t changed_at(const InspVar *const var, const bool newest)
 {
     const uint32_t h = hash(loc.row);
@@ -113,12 +112,13 @@ static uint32_t changed_at(const InspVar *const var, const bool newest)
     return e->stop;
 }
 
-void dloc_read(Session *const S, const StackFrame *const f, const bool newest)
+void dloc_read(Session *const S, const uint8_t f)
 {
-    loc.frame = f->at;
-    loc.proc = f->at.proc;
-    spel_read(S, f->view == DSTK_NOVIEW ? 0 : f->view);
-    loc.n = (uint8_t)insp_vars(S, loc.proc, loc.var, NDVAR);
+    const uint32_t view = dstk_at(f)->view;
+    const bool newest = insp_newest(S, f);
+    loc.frame = f;
+    spel_read(S, view == DSTK_NOVIEW ? 0 : view);
+    loc.n = (uint8_t)insp_vars(S, f, loc.var, NDVAR);
 
     for (uint8_t i = 0; i < loc.n; i++) {
         const uint8_t col = var_text(S, &loc.var[i]);
@@ -135,7 +135,7 @@ const char *dloc_find(Session *const S, const uint8_t *const s, const uint32_t n
             return loc.vt[i];
 
     InspVar shared[NDVAR];
-    const uint32_t ns = insp_shared(S, loc.proc, shared, NDVAR);
+    const uint32_t ns = insp_shared(S, loc.frame, shared, NDVAR);
 
     for (uint32_t i = 0; i < ns; i++) {
         if (!insp_is(S, &shared[i], s, n, sfx))

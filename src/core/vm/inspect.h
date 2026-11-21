@@ -3,16 +3,18 @@
 #define VM_INSPECT_H
 #include "session.h"
 
-/* A variable a debugger lists: its id, its name's id, the suffix its type shows (0 none), whether
-   it is a procedure's own (else a module's). */
+/* A stopped run's frame is its number, 0 the newest; a debugger keeps no more of it. */
+
+/* A variable a debugger lists: its name's id (the program's tokens'), the suffix its type shows (0
+   none), whether it is a procedure's own (else a module's); its id is this module's. */
 typedef struct {
     uint32_t id, name;
     char sfx;
     bool local;
 } InspVar;
 
-/* A value of the stopped run: a number or string, a record, an array; none (an array not made).
-   Its other fields are this module's: a debugger only passes it back. */
+/* A value of the stopped run: a number or string, a record, an array; none (a record not made).
+   A debugger reads it only through insp_kind and the functions below. */
 typedef enum : uint8_t { IV_NONE, IV_SCALAR, IV_RECORD, IV_ARRAY } InspKind;
 typedef struct {
     InspKind kind;
@@ -22,13 +24,23 @@ typedef struct {
     uint32_t key;  /* a fixed array field's (decl_fieldkey); 0 a header's array */
 } InspValue;
 
-/* Procedure proc's variables (0 the module's): its parameters first, then its own by id; DEF FNs'
-   and hidden ones left out. To out, max at most; how many. */
-uint32_t insp_vars(const Session *S, uint32_t proc, InspVar *out, uint32_t max);
-/* The module's variables procedure proc sees, DIM SHARED or SHARED in it, by id. */
-uint32_t insp_shared(const Session *S, uint32_t proc, InspVar *out, uint32_t max);
+/* The stopped run's frames; frame f's program line, DLINE the immediate window's. */
+uint32_t insp_frames(const Session *S);
+uint32_t insp_line(const Session *S, uint32_t f);
+/* Frame f is its procedure's newest call: its variables are its own, not saved by a newer one. */
+bool insp_newest(const Session *S, uint32_t f);
+/* Frame f's procedure's variables (the module's at the module): its parameters first, then its own
+   by id; DEF FNs' and hidden ones left out. To out, max at most; how many. */
+uint32_t insp_vars(const Session *S, uint32_t f, InspVar *out, uint32_t max);
+/* The module's variables frame f's procedure sees, DIM SHARED or SHARED in it, by id; none at the
+   module. */
+uint32_t insp_shared(const Session *S, uint32_t f, InspVar *out, uint32_t max);
 /* Variable var as frame f sees it. */
-InspValue insp_var(const Session *S, const DebugFrame *f, const InspVar *var);
+InspValue insp_var(const Session *S, uint32_t f, const InspVar *var);
+/* PRINT expr in frame f's procedure's scope, its output to out (session_eval): its error, else
+   ST_OK. */
+Status insp_eval(Session *S, uint32_t f, const char *expr, char out[static 80]);
+static inline InspKind insp_kind(const InspValue *const v) { return v->kind; }
 /* Name name's own text (capitals) at d; past it. */
 char *insp_name(const Session *S, char *d, uint32_t name);
 /* Variable var is the name s, n long, suffix sfx (0 none): its letters the name's, the suffix, if

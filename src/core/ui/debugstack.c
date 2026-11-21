@@ -1,13 +1,14 @@
 /* The debugger's call stack: the stop's frames, each with its line and the row it shows.
  *
  * # How it works
- * The frames are session_frames', NDFRM at most. A frame's row is its view's name, then "line n"
+ * The frames are the run's (vm/inspect.h), NDFRM at most. A frame's row is its view's name, then "line n"
  * from column FRAME_LINE, n the line's in its view.
  */
 #include "ui/debugstack.h"
 #include "ui/debugtext.h"
 #include "ui/linemap.h"
 #include "ui/view.h"
+#include "vm/inspect.h"
 
 enum {
     NDFRM = 16,      /* the frames shown at most */
@@ -20,17 +21,17 @@ static struct {
     StackFrame fr[NDFRM];
 } stk;
 
-/* Frame f at at: its text line, view and row. */
-static void frame1(Session *const S, StackFrame *const f, const DebugFrame *const at)
+/* Frame f of the run's frame i: its text line, view and row. */
+static void frame1(Session *const S, StackFrame *const f, const uint8_t i)
 {
-    f->at = *at;
+    const uint32_t pline = insp_line(S, i);
     f->line = -1;
     f->view = DSTK_NOVIEW;
     memset(f->text, ' ', DP_TWMAX);
     f->text[DP_TWMAX] = 0;
     uint32_t tl;
 
-    if (at->line == DLINE || !lmap_of(S, at->line, &tl)) {
+    if (pline == DLINE || !lmap_of(S, pline, &tl)) {
         dtxt_cpy(f->text, "Immediate");
         return;
     }
@@ -50,22 +51,13 @@ static void frame1(Session *const S, StackFrame *const f, const DebugFrame *cons
 
 void dstk_read(Session *const S)
 {
-    DebugFrame at[NDFRM];
-    stk.n = (uint8_t)session_frames(S, at, NDFRM);
+    const uint32_t n = insp_frames(S);
+    stk.n = (uint8_t)(n < NDFRM ? n : NDFRM);
 
     for (uint8_t i = 0; i < stk.n; i++)
-        frame1(S, &stk.fr[i], &at[i]);
+        frame1(S, &stk.fr[i], i);
 }
 
 uint8_t dstk_count(void) { return stk.n; }
 
 const StackFrame *dstk_at(const uint8_t i) { return &stk.fr[i]; }
-
-bool dstk_newest(const uint8_t i)
-{
-    for (uint8_t j = 0; j < i; j++)
-        if (stk.fr[j].at.proc == stk.fr[i].at.proc)
-            return false;
-
-    return true;
-}

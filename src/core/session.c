@@ -91,22 +91,68 @@ static int32_t call_from(const Vm *const vm, int32_t i)
     return -1;
 }
 
+/* A walk down the stopped run's frames: the VM frame to look for the next call from, the line the
+   next frame is at; done past the module's. */
+typedef struct {
+    int32_t i;
+    uint32_t line;
+    bool done;
+} FrameWalk;
+
+static FrameWalk walk_start(const Session *const S)
+{
+    return (FrameWalk){.i = (int32_t)vm_nframes(&S->vm) - 1, .line = S->vm.cont.line};
+}
+
+/* The walk's next frame to *out; false none. */
+static bool walk_next(const Session *const S, FrameWalk *const w, DebugFrame *const out)
+{
+    if (w->done)
+        return false;
+
+    const int32_t c = call_from(&S->vm, w->i);
+    *out = (DebugFrame){.line = w->line, .call = c, .proc = c < 0 ? 0 : S->vm.frames[c].call.proc};
+
+    w->done = c < 0;
+
+    if (c >= 0) {
+        w->line = S->vm.frames[c].ret.line;
+        w->i = c - 1;
+    }
+
+    return true;
+}
+
 uint32_t session_frames(const Session *const S, DebugFrame out[], const uint32_t max)
 {
+    FrameWalk w = walk_start(S);
     uint32_t n = 0;
-    uint32_t line = S->vm.cont.line;
 
-    for (int32_t i = (int32_t)vm_nframes(&S->vm) - 1; n < max;) {
-        const int32_t c = call_from(&S->vm, i);
-        out[n++] =
-            (DebugFrame){.line = line, .call = c, .proc = c < 0 ? 0 : S->vm.frames[c].call.proc};
+    while (n < max && walk_next(S, &w, &out[n]))
+        n++;
 
-        if (c < 0)
-            break;
+    return n;
+}
 
-        line = S->vm.frames[c].ret.line;
-        i = c - 1;
-    }
+bool session_frame(const Session *const S, const uint32_t i, DebugFrame *const out)
+{
+    FrameWalk w = walk_start(S);
+
+    for (uint32_t n = 0; walk_next(S, &w, out); n++)
+        if (n == i)
+            return true;
+
+    return false;
+}
+
+uint32_t session_nframes(const Session *const S)
+{
+    FrameWalk w = walk_start(S);
+    DebugFrame f;
+    uint32_t n = 0;
+
+    while (walk_next(S, &w, &f))
+        n++;
 
     return n;
 }

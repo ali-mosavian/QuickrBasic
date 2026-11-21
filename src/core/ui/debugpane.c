@@ -205,14 +205,11 @@ static void child_draw(Widget *const x, Session *const S)
         line1(w, r);
 }
 
-/* The stop's procedure: the Watch's scope. */
-static uint32_t stop_proc(void) { return dstk_count() ? dstk_at(0)->at.proc : 0; }
-
 /* Locals of frame dp.frame. */
 static void read_locals(Session *const S)
 {
     if (dstk_count())
-        dloc_read(S, dstk_at(dp.frame), dstk_newest(dp.frame));
+        dloc_read(S, dp.frame);
 }
 
 void dpan_open(Session *const S)
@@ -225,7 +222,7 @@ void dpan_open(Session *const S)
     memset(dp.top, 0, sizeof dp.top);
     dstk_read(S);
     read_locals(S);
-    dwat_eval(S, stop_proc());
+    dwat_eval(S);
     wind_imm_hide();
     wind_layout();
 }
@@ -294,7 +291,7 @@ static void watch_add(Session *const S)
         return;
 
     dp.sel[DP_WAT] = dwat_count() - 1;
-    dwat_eval(S, stop_proc());
+    dwat_eval(S);
     visible(DP_WAT);
 }
 
