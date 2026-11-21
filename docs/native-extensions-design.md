@@ -1,0 +1,379 @@
+# Native extensions: design
+
+A native extension is a module whose procedures are machine code. The program writes `IMPORT synth`
+and it works on DOS, the Mac, Linux and the browser, in the IDE and in `basic32`. The extension is
+one file, `synth.qbx`: a BASIC interface and one slice of code for each platform. The synthesizer is
+the first one; it leaves the language.
+
+Status: a design for review. `tools/extproto/run.sh` is the prototype that settled the loaders.
+
+## What the program sees
+
+```basic
+import synth
+synth.instrument 1, kick
+synth.note 1, 36, 96, 12
+print synth.beat()
+```
+
+- `synth.qbx` is found as `synth.bas` is: the program's folder, each folder of `BASICLIB`, then
+  `lib/` beside the interpreter. The synthesizer ships in that `lib/`.
+- No flag, no path and no step for a platform: the same file is copied everywhere.
+- Its names follow the rules of any module's: `synth.note`, or `FROM synth IMPORT note`.
+- A platform the file has no code for still opens, checks and completes the program. A run stops
+  at the IMPORT line with a new error: Native code not built for this machine.
+
+## Python, the reference
+
+| Python | QuickrBasic |
+|---|---|
+| `foo.cpython-312-darwin.so`, a wheel for each platform, pip picks one | `foo.qbx`, every platform's slice in it; nothing to pick |
+| `PyInit_foo` returns a `PyModuleDef` | `qx_init_foo` returns a `QxModule` |
+| the C API, the limited API and `abi3` | one API, all of it limited: the table `qx_init_<name>` is given |
+| `.pyi` stubs for the editor | the interface: BASIC source in the file |
+| `sys.path` | `locate.c`'s roots |
+| the inittab: modules built into the interpreter | the same table, for tests and a platform with no loader |
+| `import readline` changes `input()` | `IMPORT synth` gives `PLAY` its synthesizer (below) |
+
+## On disk
+
+| Part | Holds |
+|---|---|
+| Header | `QBX` and 1Ah, the file format's version, the ABI's major and the minor it needs |
+| Interface | the module's BASIC source: TYPEs, CONSTs, native DECLAREs, procedures in BASIC |
+| Slices | a tag, an offset and a size each |
+| Help (later) | pages for F1, in the help's Markdown |
+
+| Slice | Holds | Loaded by |
+|---|---|---|
+| `dos-i386` | a flat image, its relocations' offsets and its entry's offset, made from an `lld-link` DLL by `tools/qbx.py` | our loader: a heap block, the relocations added, the entry called |
+| `macos` | a universal dylib, arm64 and x86-64 | written once to `~/Library/Caches/QuickrBasic/<hash>.dylib`, then `dlopen` |
+| `linux-x86_64` | an ELF shared object | `memfd_create`, then `dlopen("/proc/self/fd/n")`: no file written |
+| `wasm32` | a side module (`wasm-ld -shared`) | the worker's JS: instantiated into the IDE's own memory and table |
+
+**One file, not one per platform.** There is no installer to pick a slice, so the file carries all
+of them. Today's `synth.c` is 30 KB of i386 code, 37 KB of arm64 and 41 KB of wasm. `tools/qbx.py
+strip` keeps only some slices, for the DOS release.
+
+**The native loaders where there are some.** `dlopen` gives debuggers and crash reports the
+extension's symbols. On arm64 macOS only signed pages run, and the linker signs a dylib. DOS/32A has
+no loader, but its code and data share one zero-based flat segment, so a relocated image in the
+heap runs as it is. The loader checks that CS's base is DS's before it calls one.
+
+**A slice imports nothing.** Everything an extension needs from the host comes through the table
+`qx_init_<name>` is given. So a Linux slice needs no glibc version, the DOS loader resolves no symbols, and
+the wasm side module imports only the memory, the table, the stack and its two bases. The Mac's
+linker refuses a dylib without libSystem, so it is linked, and no symbol of it is used.
+
+## The ABI: `src/qx/qx.h`
+
+The contract between the host and an extension's glue. The author writes plain C functions and
+`tools/qbx.py` writes the glue ([below](#writing-one-plain-c)). The header is its own, with
+`stdint.h` alone.
+
+```c
+typedef struct QxCall QxCall;
+typedef void QX_CALL QxFn(QxCall *c);
+
+typedef struct { const char *ptr; uint32_t len; } QxStr;
+typedef struct { void *data; uint32_t count, elem; int32_t lbound; } QxArray;
+
+typedef union {      /* one argument, as the DECLARE has it */
+    int32_t i;        /* INTEGER, LONG, SHORT and BYTE by value */
+    float f;
+    double d;
+    QxStr s;          /* a string, read-only */
+    void *ref;        /* by reference: the variable; a record */
+    QxArray *a;       /* an array, name() */
+} QxArg;
+
+struct QxCall {
+    const QxHost *host;
+    const QxArg *arg;
+    QxArg result;     /* a FUNCTION's; a string's through host->result_str */
+    uint8_t error;    /* not 0: raised at the calling line once the entry returns */
+};
+
+typedef struct { const char *name, *kinds; QxFn *fn; } QxEntry;  /* kinds: a letter an argument */
+typedef struct { const char *name; uint32_t bytes; } QxType;     /* a TYPE the entries read */
+
+typedef struct {
+    uint32_t size, abi;
+    const QxEntry *entries; uint32_t nentries;
+    const QxType *types; uint32_t ntypes;
+    void (QX_CALL *start)(void);  /* a run starts: RUN's defaults */
+    void (QX_CALL *stop)(void);   /* it ends: END, an error, Break, CHAIN, an edit */
+} QxModule;
+
+typedef struct QxHost {
+    uint32_t size, abi;           /* grows at its end only */
+    void *(QX_CALL *alloc)(uint32_t bytes);
+    void (QX_CALL *free)(void *p);
+    void (QX_CALL *result_str)(QxCall *c, const char *p, uint32_t len);
+    bool (QX_CALL *stopped)(void);              /* Ctrl+Break: a long entry looks */
+    bool (QX_CALL *audio_open)(QxAudio *a);     /* below */
+    void (QX_CALL *play_device)(const QxPlay *p);
+    /* ... */
+} QxHost;
+
+const QxModule *QX_CALL qx_init_synth(const QxHost *host);
+```
+
+- **One shape for every entry**, `void f(QxCall *)`: no thunk for each signature in the host. The
+  host lays the arguments out as the DECLARE has them, Python's `METH_FASTCALL`.
+- **`kinds`** has a letter an argument: `XFn`'s I, W, U, F, D and S (`comp/builtins.h`), R an array,
+  T a record, & before a number by reference.
+- **Errors are returned, not thrown.** An entry sets `c->error` and returns; the host raises it. No
+  `longjmp` runs through the extension's frames, which matters on DOS and for wasm's
+  exception-based `longjmp`.
+- **Pointers last for the call.** The collector may move a string or an array after it. An entry
+  keeps a copy of what it needs.
+- **`QX_CALL` is cdecl on i386.** The core is built `-mregparm=3`; the ABI does not follow the
+  core's flags.
+- **The extension's memory is the host's** (`host->alloc`): the C heap (`pmem_resize`), on wasm
+  in the shared memory.
+
+## Binding: QB 4.5's DECLARE
+
+QB 4.5 called C and asm routines through `DECLARE SUB name CDECL ALIAS "name" (...)`. The compiler
+parses that form today and ignores CDECL and ALIAS (`comp/control.c`). In a native module's
+interface it names an entry:
+
+```basic
+' synth.qbx's interface
+type event
+    tick as long
+    length as long
+    sound as short
+    pitch as byte
+    loud as byte
+end type
+declare sub note cdecl (byval n%, byval pitch%, byval length%, byval loud%)
+declare sub music cdecl (events() as event, byval loop_from%)
+declare sub stop_song cdecl alias "music_stop" ()
+declare function beat! cdecl ()
+```
+
+A DECLARE in a native module with no definition is native: ALIAS names its entry, else its own
+name does.
+
+1. **Load.** The interface is read as a module's lines, as a `.bas` is (`io/repl.c`). The IDE
+   reads it when an IMPORT is typed, `basic32` when the program loads. The editor shows its lines
+   and does not change them.
+2. **Link** (`link_start`). The slice is loaded the first time (`pext_load`) and `qx_init_<name>`
+   called. Each native DECLARE finds its entry by name. The entry's `kinds` must match the
+   declaration's parameters, and each `QxType` the TYPE of its name in bytes: else Parameter type
+   mismatch at the DECLARE. The entry takes a slot in the native table (an arena), its number in
+   the call's code.
+3. **Run.** `O_NCALL slot` pushes the arguments as a PCALL does, then the handler reads the slot,
+   lays the arguments out and calls. Nothing is looked up by name while the program runs.
+
+## Writing one: plain C
+
+```c
+#include "synth_qx.h" /* tools/qbx.py glue synth.bas synth OUTDIR */
+
+void synth_init(void) { qx_host->audio_open(&audio); }
+void synth_start(void) { ... }
+void synth_stop(void) { ... }
+
+void note(int32_t n, int32_t pitch, int32_t length, int32_t loud) { ... }
+void music(const QxArray *events, int32_t loop_from) { const synth_event *e = events->data; ... }
+float beat(void) { ... }
+```
+
+`tools/qbx.py glue` reads the interface and writes two files:
+
+- `NAME_qx.h`: each TYPE as a packed struct, its size asserted as BASIC lays it out; each native
+  DECLARE as a C prototype. A function that does not match its DECLARE is a compile error.
+- `NAME_qx.c`: a wrapper for each, which lays out the `QxCall`'s arguments for the function; the
+  entry table with its kinds; `qx_init_NAME`, which calls `NAME_init`.
+
+| BASIC | C |
+|---|---|
+| `integer`, `long`, `%`, `&` | `int32_t` |
+| `short` | `int16_t` |
+| `byte` | `uint8_t` |
+| `single`, `!` | `float` |
+| `double`, `#` | `double` |
+| `string`, `$` | `QxStr`, read-only; a FUNCTION's is copied in |
+| a number by reference | its pointer |
+| a record | `NAME_type *` |
+| an array, `x()` | `const QxArray *` |
+
+`qx_fail(code)` sets the running call's error. pybind11, nanobind and Cython do the same for
+Python.
+
+The VM does no translation of its own. A foreign call at run time would need assembly for i386,
+x86-64 and arm64. It could not reach wasm at all, whose indirect calls must name the exact
+signature. Generated glue leaves every calling convention to the C compiler.
+
+## Versioning
+
+- The ABI has a major and a minor, in the file's header and in the handshake. A host loads only
+  its own major: else Native module needs another QuickrBasic, at the IMPORT line.
+- A minor adds to the end of `QxHost`. An extension built for minor n loads on every host from n
+  on, and checks `host->size` for anything newer. `QxModule.size` does the same the other way.
+- Frozen for a major: `QxCall`, `QxArg`, `QxStr` and `QxArray`, cdecl, the kinds' letters, and the
+  wasm features the side module is built with.
+- The file format has its own version: a reader of version 1 reads every version 1 file.
+- This is Python's `abi3` with no other API beside it: one build runs on every later host of its
+  major, so a file needs no tag for each host version.
+
+## Lifetime
+
+- A slice is loaded once in a process and never unloaded, as in Python. CHAIN and a new program
+  keep it.
+- `start` runs at each run's start, `stop` at each end. The synthesizer sets its voices back in
+  `start` and is quiet after `stop`.
+- A rebuilt `.qbx` loads again when its bytes change: the hash names its cached file.
+
+## Audio, and code that runs elsewhere
+
+The host keeps the devices: the Sound Blaster on DOS, SDL's callback on the Mac, the page's
+AudioWorklet, and the PC speaker. An extension asks for a stream:
+
+```c
+typedef struct {
+    uint32_t rate;      /* asked; the host writes what it gives */
+    bool stereo;
+    void (QX_CALL *render)(int16_t *out, int32_t frames);
+} QxAudio;
+```
+
+`render` runs elsewhere: in the Sound Blaster's interrupt on DOS, in SDL's thread on the Mac, and in
+the AudioWorklet's thread in the browser. So it touches only the extension's own memory and calls
+nothing in the host. On DOS it uses no x87, as `synth.c` already does not. The program's side and
+`render` hand events through the extension's own lock-free queue.
+
+- **DOS.** The host locks the image's pages (DPMI 0600h) once `render` is set, for a host that
+  pages.
+- **The browser.** The worklet instantiates the same slice against the same shared memory, with its
+  own table at the same table base and its own stack. Its pointers mean there what they mean in
+  the worker. The host's slots in its table are empty, so a call into the host traps rather than
+  runs something else.
+- **No device** (DOS without a Sound Blaster, Linux): `audio_open` returns false. The synthesizer
+  then plays voice 1 on the speaker, as today.
+
+## Finding one
+
+- `locate.c` looks for `name.bas`, then `name.qbx`, under each root. A `.bas` at the same root wins.
+- A FROM package's folder may hold `.qbx` modules as it holds `.bas` ones.
+- `lib/` beside the interpreter: `LIB\SYNTH.QBX` beside `IDE32.EXE`; in the app,
+  `Contents/Resources/lib` (locate's root moves there in a bundle); `C:\LIB\` in the page's file
+  system (`psys_self` is `C:\BASIC.EXE`), filled as the demos are; `lib/` beside `basic` on Linux.
+- The IDE and `basic32` share the loader. There is no other compiled form: `basic32` runs the
+  program.
+
+## Loading, step by step
+
+`io/qbx.c` is shared. It reads the header and checks the magic, the format's version and the ABI's
+major. It takes the slice whose tag is this build's, hands it to `pext_load` (`plat/pext.h`), then
+calls `qx_init_<name>`. A file is loaded once in a process, kept by its path and hash.
+
+**DOS** (`plat/dos32/pext.c`, about 50 lines). `tools/qbx.py pack` has made the DLL, linked at
+base 0, into an image, its bss's size, its relocations' offsets and its entry's offset. The loader:
+
+1. takes a block from `pmem_resize`;
+2. copies the image in and zeroes the bss;
+3. adds the block's address to the 32-bit word at each relocation's offset;
+4. checks that CS's base is DS's, then calls the entry, cdecl;
+5. locks the block's pages (DPMI 0600h) once a `render` is set.
+
+**Mac** (`plat/host/pext.c`):
+
+1. names a file by the slice's hash, `~/Library/Caches/QuickrBasic/<hash>.dylib`;
+2. writes it if it is not there: a temporary file, then a rename;
+3. `dlopen`, then `dlsym("qx_init_<name>")`.
+
+**Linux:** the same, but the slice is written to `memfd_create` and loaded with
+`dlopen("/proc/self/fd/n")`. No file is written.
+
+**Browser** (`plat/wasm/pext.c`, `web/wasm.mjs`). The IDE is linked `--export-table
+--growable-table`. The C side calls a JS import, which runs synchronously in the worker:
+
+1. `new WebAssembly.Module(bytes)`;
+2. reads `dylink.0`: the memory and table the module needs;
+3. takes a block from the host's heap and grows the host's table;
+4. instantiates it with the shared memory, the table, `__stack_pointer` and the two bases;
+5. runs `__wasm_apply_data_relocs` and `__wasm_call_ctors`, then `qx_init_<name>`.
+
+When the extension opens audio, the worker posts the bytes, the bases and a stack block to the
+AudioWorklet. It instantiates the same module, without relocations or constructors, and calls
+`render` for each block.
+
+**Unit tests** link an extension in, through the inittab: its tests need no loader.
+
+## Building one
+
+`tools/qbx.py glue` writes the glue, each slice is built with it, and `tools/qbx.py pack` puts the
+interface and the slices in a `.qbx`. The flags, as the prototype used them:
+
+| Slice | Compile | Link |
+|---|---|---|
+| `dos-i386` | `clang --target=i386-pc-win32 -march=i386 -ffreestanding`; jwasm `-coff` for asm | `lld-link /dll /noentry /nodefaultlib` |
+| `macos` | `clang -arch arm64 -arch x86_64 -mmacosx-version-min=13.0 -fvisibility=hidden` | `-dynamiclib` |
+| `linux-x86_64` | `clang --target=x86_64-linux-gnu -fPIC -fvisibility=hidden` | `ld.lld -shared -nostdlib` |
+| `wasm32` | `clang --target=wasm32 -fPIC -matomics -mbulk-memory` | `wasm-ld -shared --experimental-pic --shared-memory --features=` the host's |
+
+One Mac builds all four with clang and lld. The repo's `make` builds `lib/synth.qbx` for every
+target and ships it.
+
+## The synthesizer, moved
+
+| Piece | Today | After |
+|---|---|---|
+| `plat/synth/synth.c`: oscillators, filter, room | linked into every build | the extension's slices |
+| DOS's inner loop (`synthrun.asm`) and its tables | `plat/dos32` | the DOS slice |
+| the synthesizer's PLAY commands and voice queues (`play.c`, `music.c`) | the runtime | the extension: one clock in `render`, exact to the sample |
+| the timed events (`instrument`, `music`, `note`, `beat`) | planned as keywords | the interface's DECLAREs. No new keyword, so a QBasic program that names a variable `note` still runs |
+| the speaker's square wave on the Mac and the page (`synth_tone`) | `synth.c` | the host: QBasic's PLAY needs it with nothing imported |
+| Sound Blaster, SDL audio, the worklet | tied to `synth.c` | the host's stream, for any extension |
+| `synth.wasm`, `worklet.c`, its loader in `synth.mjs` | the page | gone: the worklet runs the slice |
+
+**PLAY.** The language keeps QBasic's PLAY: one string, the speaker, MF and MB, PLAY(n), ON PLAY.
+Its synthesizer becomes a device an extension installs (`host->play_device`: strings in, notes
+waiting out, reset). `IMPORT synth` installs it. A `PLAY` with a second string or a synthesizer's
+command and no device is Advanced feature unavailable, QB's error 73. MOTHLITE, CHARLIE, the demos
+and the tutorial's examples gain an `IMPORT synth` line.
+
+**Steps,** a PR each, with its tests:
+
+1. `qx.h`, the file's reader, `pext` for the host, `O_NCALL`, DECLARE's binding. A small test
+   extension called from BASIC.
+2. `pext` for wasm and DOS. The wasm one tested in node, as `make wasm-test` runs.
+3. The audio stream; the Sound Blaster, SDL and the worklet moved onto it.
+4. The synthesizer moved into `ext/synth/`, built as `lib/synth.qbx`; PLAY's device; the timed
+   events land there.
+5. `plat/synth` out of the core's builds.
+
+## The prototype
+
+`tools/extproto/run.sh` builds one extension for each slice. `ext.c` is plain C functions, glued to
+`ext.bas` by `tools/qbx.py`. It has data with pointers, a call back into the host and a `render`.
+`drive.c`, the VM's stand-in, checks each entry's kinds and each TYPE's size, then calls each entry
+as `O_NCALL` would: values, a record, a number by reference, a string in and out, an error.
+
+- **Mac:** a universal dylib loads with `dlopen`; every call is as expected on both halves (x86-64
+  under Rosetta). It imports no symbol. Apple's linker refuses one without libSystem, so it is linked.
+- **wasm:** the side module loads synchronously into the host's shared memory and growable table.
+  Every call is as expected, by pointer both ways. A second
+  thread instantiates the same bytes against the same memory and runs `render`, which reads what
+  the first thread wrote. `wasm-ld` needs the features named when nothing in the module uses
+  atomics.
+- **DOS:** an i386 DLL built `-mregparm=3` has no imports and only HIGHLOW relocations. Not run:
+  native only.
+- **Linux:** a shared object with no needed library. Not run: no Linux here.
+- Not checked: a real AudioWorklet in a browser, and dlopen of a file from the cache on a fresh Mac.
+
+## Open questions
+
+1. PLAY: the device an import installs (as above), or `PLAY a$, b$` moves into the module as a
+   procedure, leaving the statement for the speaker alone?
+2. A synthesizer's PLAY string with nothing imported: error 73 (as above), or the core imports
+   `synth` itself? The second keeps every program working and ties the language to the name.
+3. One file for every platform (as above), or one for each, smaller but the right one to be
+   copied?
+4. Which folders may load native code: every root (Python's rule), or only `lib/` beside the
+   interpreter unless the user allows the program's folder? The browser's sandbox holds either way.
+5. The interface in the editor read-only (as above), or hidden, with F2 listing its procedures?
