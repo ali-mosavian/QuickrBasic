@@ -5,6 +5,8 @@
 
 /* wn_init: one edit window (20 rows) over the immediate window (3), as QBasic starts. */
 void wind_init(void);
+/* The debug pane's first column: a quarter of the screen's columns, DP_LEAST at least. */
+uint8_t wind_pane_col(void);
 /* wn_layout: each window's rows and columns (uimn.ed / win[].ed row0 rows x width,
    uimn.imm.row0 rows, its widget's rect, shown) from the heights, top down. */
 void wind_layout(void);

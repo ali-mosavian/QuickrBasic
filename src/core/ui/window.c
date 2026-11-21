@@ -128,13 +128,19 @@ void wind_layout(void)
     }
 }
 
+uint8_t wind_pane_col(void)
+{
+    const uint8_t quarter = uimn.cols / 4;
+    return (uint8_t)(uimn.cols - (quarter > DP_LEAST ? quarter : DP_LEAST));
+}
+
 void wind_init(void)
 {
     win(W_ED1)->height = ED1_INIT; /* 25 rows'; wind_fit fits them to the screen's */
     win(W_ED2)->height = 0;
     uimn.win.vert = false;
     win(W_IMM)->height = IMM_INIT;
-    uimn.dp_col = DP_COL;
+    uimn.dp_col = wind_pane_col();
     uimn.tree.editors.focus = 0;
     wind_layout();
 }

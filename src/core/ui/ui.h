@@ -23,7 +23,7 @@
  * | MS_KEY | KEY_MOUSE | MIRROR |
  * | IMN, IMW, ED_COLS, DLBUF, FLDMAX, TXMAX, LNMAX, LNBUF, HLPSZ | same | MIRROR |
  * | NWIN, W_HELP, W_ED1, W_ED2, W_IMM, W_DBG | same | MIRROR |
- * | DP_COL, DP_W, DP_TW | same | MIRROR |
+ * | DP_COL, DP_W, DP_TW | wind_pane_col (a quarter of the screen), DP_TWMAX | CHANGED |
  * | g_clpb | uimn.text.clip, clip_cap (CLIPSZ at most) | MIRROR; grown |
  *
  * - D1. Zeroed, so out of the image's data: uimn_start sets what needs a value. The dialog line
@@ -189,11 +189,12 @@ enum : uint8_t { FOC_EDIT = 0, FOC_IMM = 1, FOC_PANE = 2, FOC_HELP = 3 };
 /* The windows, top down (window.h); the debug pane is beside them, not in uimn.win.win[]. */
 enum : uint8_t { W_HELP = 0, W_ED1 = 1, W_ED2 = 2, W_IMM = 3, NWIN = 4, W_DBG = NWIN };
 
-/* The debug pane's columns (debugpane.h): the edit windows have uimn.dp_col, DP_COL at first, the
-   pane the rest, their last one the line between them; a drag of it moves it within DP_COLMIN ..
-   the screen's columns less DP_PANEMIN. A row of the pane holds DP_TWMAX characters at most. */
+/* The debug pane's columns (debugpane.h): the edit windows have uimn.dp_col, the pane the rest,
+   their last one the line between them. The pane is a quarter of the screen's columns, DP_LEAST
+   at least (wind_pane_col); a drag of the line moves it within DP_COLMIN .. the screen's columns
+   less DP_PANEMIN. A row of the pane holds DP_TWMAX characters at most. */
 enum {
-    DP_COL = 50,
+    DP_LEAST = 30,
     DP_COLMIN = 20,
     DP_PANEMIN = 20,
     DP_TWMAX = PSCR_COLS_MAX - DP_COLMIN - 1,
@@ -276,7 +277,7 @@ typedef struct {
 
 typedef struct {
     UiWin win[NWIN];
-    uint8_t cols;     /* wcols: the edit windows' columns: 80, DP_COL with the pane */
+    uint8_t cols;     /* wcols: the edit windows' columns: the screen's, dp_col with the pane */
     bool maxed;       /* wmax: Ctrl+F10's; saved the heights before */
     bool vert;        /* wvert: ED2 beside ED1, in ED1's rows */
     bool vert_saved;  /* wvsav: vert before Ctrl+F10 */

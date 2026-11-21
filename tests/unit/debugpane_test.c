@@ -236,6 +236,32 @@ TEST(debug_pane_shows_frames_and_their_locals)
     done(S);
 }
 
+/* The column of the line between the edit windows and the pane, on the first text row. */
+static uint8_t seam(void)
+{
+    for (uint8_t c = 1; c < uimn.cols; c++)
+        if ((uint8_t)host_cell(0, 2, c) == GLYPH_V)
+            return c;
+
+    return 0;
+}
+
+/* The pane is a quarter of the screen's columns, 30 at least, after a change of size too: 31 with
+   its line at 80 columns, 34 at 132. At 132 it kept 80's column 50: 83 columns wide. */
+TEST(debug_pane_is_a_quarter_of_the_screen)
+{
+    stopped_in(S, fact);
+    CHECK(seam() == 49);
+    uimn_size((PscrSize){132, 50});
+
+    shown(S);
+    CHECK(seam() == 98);
+    uimn_size(PSCR_80X25);
+    shown(S);
+    CHECK(seam() == 49);
+    done(S);
+}
+
 /* Watch: Ins asks for an expression, PRINTed in the stopped call's scope; an error is its message;
    Del drops the selected one. */
 TEST(debug_pane_watches_expressions)

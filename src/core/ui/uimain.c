@@ -1546,8 +1546,7 @@ void uimn_size(const PscrSize size)
 
     uimn.tree.statusbar.rect = (Rect){status_row(), 0, 1, uimn.cols};
 
-    if (uimn.dp_col > uimn.cols - DP_PANEMIN)
-        uimn.dp_col = uimn.cols - DP_PANEMIN;
+    uimn.dp_col = wind_pane_col();
 
     wind_fit();
 }
