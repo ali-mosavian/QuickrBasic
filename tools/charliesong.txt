@@ -554,13 +554,14 @@ DATA 2, 3, 3, "....c-......c-..", "....i-......i-..", "u-------........", ".....
 ' its close; the second part falls a step a bar in C and climbs back. A muted trumpet answers where a phrase
 ' rests, and nowhere else. A plucked bass in two, walking under the answers and the second part; a string and a
 ' clavinet pluck the chord on two and four. Brushes on two and four, a hat on the swung eighth after them. Four
-' bars in, the Mob's tune creeping in on the clavinet for two of them; then A twice, B, and A.
+' bars in, the Mob's tune creeping in on the clavinet for two of them; then A twice, B, and A. No voice is FM:
+' saws and narrow pulses through filters, in the room. A pulse is band-passed: low-passed, its DC would get by.
 Song Lantern:
-DATA "abcdefghijklefghijklmnopqrstefghijkl", "ssssssssssssssssssss", 20, 132, 0, 6, 14, 7, 0, 11, 9, 0, 0, 0, 0, 1
-DATA "W2Y1,3400,2H1,2,13,2U2I7R3"
-DATA "W4Z1,12,4,4H0,8,0,3", "W4Z1,12,4,4H0,8,0,3", "S10R4W4Z1,8,3,11,4H1,4,10,2U8I2"
+DATA "abcdefghijklefghijklmnopqrstefghijkl", "ssssssssssssssssssss", 20, 132, 0, 8, 14, 11, 0, 11, 8, 0, 0, 0, 0, 1
+DATA "W2Y1,2800,3H2,3,12,3U2I7R6"
+DATA "W2Y1,480,4H0,8,3,4U0I0R2", "W2Y1,480,4H0,8,3,4U0I0R2", "S10R6W0Q9Y2,1800,5H2,3,11,3U6I0"
 DATA 1
-DATA "s", "S5R3W4Z2,6,3,2H0,6,0,2", "S11R3W4Z3,9,3,1,3H0,4,1,2U0I0", 0
+DATA "s", "S5R5W2Y1,1600,2H0,6,0,3U0I0", "S11R5W0Q12Y2,1100,1H0,5,2,2U0I0", 0
 DATA 7
 USE DrumSet
 DATA "w", "W3H0,6,0,2K0Y3,1800,0", 8, 0, "O6B"

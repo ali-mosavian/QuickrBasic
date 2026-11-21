@@ -841,8 +841,25 @@ for i = 0 to 39
     if instr(hf.lead, "N") = 0 then continue for
     sungOk = sungOk and instr(hf.third, "N") = 0 and Moves%(hf.two, 0) + Moves%(hf.two, -1) = 0
 next
+' the quarter's kit is no FM: its lead, bass, trumpet and both chord voices are saws and pulses, each filtered and
+' in the room, none a pulse through a low-pass, which lets the synthesizer's pulse's DC by. All but the lead were
+' FM, near dry: it sounded as an AdLib card
+dim kit as string, kitOk as integer
+kitOk = -1
+for i = 0 to 4
+    select case i
+    case 0: kit = wd.mu.song(ZTUNE).leadP
+    case 1: kit = wd.mu.song(ZTUNE).bassP
+    case 2: kit = wd.mu.song(ZTUNE).midP
+    case 3: kit = wd.mu.song(ZTUNE).voOne(0)
+    case 4: kit = wd.mu.song(ZTUNE).voTwo(0)
+    end select
+    kitOk = kitOk and instr(kit, "W4") = 0 and instr(kit, "Y") > 0 and instr(kit, "R") > 0 and instr(kit, "R0") = 0
+    kitOk = kitOk and not (instr(kit, "W0") > 0 and instr(kit, "Y1") > 0)
+next
 ZoneTune wd.mu, 0
 if sungOk and near > 3 * far then print "sung ok"
+if kitOk then print "kit ok"
 ' the Downs' first act has three golden bones, none found. The first is over the first tree, five tiles up, drawn
 ' in gold, and a full jump from the ground under it finds it: a thousand points, and it is in the save a step on,
 ' twelve bytes of it. Found, it is not drawn, and not found twice; its pip on the HUD is lit and the next dark.
@@ -4568,6 +4585,7 @@ def main() -> None:
         ("arranged ok", "a zone's second act played to its tune arranged again: evening, night, sunset, blizzard"),
         ("swing ok", "a swung song's off-beat eighths on the triplet's last, each half bar still half a bar long"),
         ("sung ok", "the quarter's tune sung: its notes held, by step, the trumpet and the clavinet out of its way"),
+        ("kit ok", "the quarter's kit no FM: saws and pulses, filtered, in the room, no pulse's DC let by"),
         ("gold ok", "an act's three golden bones: found by a touch, kept in the save at once, a pip each on the HUD"),
         ("packing ok", "after a chase the level's end is the longer one, twelve bars; the eight elsewhere"),
         ("whistled ok", "the quarter's blue hour ends whistled, the guitar gone; its festival night with the guitar"),
