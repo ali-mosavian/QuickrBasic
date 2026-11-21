@@ -67,7 +67,9 @@ linker refuses a dylib without libSystem, so it is linked, and no symbol of it i
 
 ## The ABI: `src/qx/qx.h`
 
-The one header an extension includes. Its own, with `stdint.h` alone.
+The contract between the host and an extension's glue. The author writes plain C functions and
+`tools/qbx.py` writes the glue ([below](#writing-one-plain-c)). The header is its own, with
+`stdint.h` alone.
 
 ```c
 typedef struct QxCall QxCall;
@@ -92,7 +94,7 @@ struct QxCall {
     uint8_t error;    /* not 0: raised at the calling line once the entry returns */
 };
 
-typedef struct { const char *name, *kinds; QxFn *fn; } QxEntry;  /* kinds: XFn's letters */
+typedef struct { const char *name, *kinds; QxFn *fn; } QxEntry;  /* kinds: a letter an argument */
 typedef struct { const char *name; uint32_t bytes; } QxType;     /* a TYPE the entries read */
 
 typedef struct {
@@ -118,8 +120,9 @@ const QxModule *QX_CALL qx_init_synth(const QxHost *host);
 ```
 
 - **One shape for every entry**, `void f(QxCall *)`: no thunk for each signature in the host. The
-  host lays the arguments out as the DECLARE has them, Python's `METH_FASTCALL`. `kinds` spells
-  them in the letters of `comp/builtins.h`'s `XFn`.
+  host lays the arguments out as the DECLARE has them, Python's `METH_FASTCALL`.
+- **`kinds`** has a letter an argument: `XFn`'s I, W, U, F, D and S (`comp/builtins.h`), R an array,
+  T a record, & before a number by reference.
 - **Errors are returned, not thrown.** An entry sets `c->error` and returns; the host raises it. No
   `longjmp` runs through the extension's frames, which matters on DOS and for wasm's
   exception-based `longjmp`.
@@ -164,6 +167,46 @@ name does.
    the call's code.
 3. **Run.** `O_NCALL slot` pushes the arguments as a PCALL does, then the handler reads the slot,
    lays the arguments out and calls. Nothing is looked up by name while the program runs.
+
+## Writing one: plain C
+
+```c
+#include "synth_qx.h" /* tools/qbx.py glue synth.bas synth OUTDIR */
+
+void synth_init(void) { qx_host->audio_open(&audio); }
+void synth_start(void) { ... }
+void synth_stop(void) { ... }
+
+void note(int32_t n, int32_t pitch, int32_t length, int32_t loud) { ... }
+void music(const QxArray *events, int32_t loop_from) { const synth_event *e = events->data; ... }
+float beat(void) { ... }
+```
+
+`tools/qbx.py glue` reads the interface and writes two files:
+
+- `NAME_qx.h`: each TYPE as a packed struct, its size asserted as BASIC lays it out; each native
+  DECLARE as a C prototype. A function that does not match its DECLARE is a compile error.
+- `NAME_qx.c`: a wrapper for each, which lays out the `QxCall`'s arguments for the function; the
+  entry table with its kinds; `qx_init_NAME`, which calls `NAME_init`.
+
+| BASIC | C |
+|---|---|
+| `integer`, `long`, `%`, `&` | `int32_t` |
+| `short` | `int16_t` |
+| `byte` | `uint8_t` |
+| `single`, `!` | `float` |
+| `double`, `#` | `double` |
+| `string`, `$` | `QxStr`, read-only; a FUNCTION's is copied in |
+| a number by reference | its pointer |
+| a record | `NAME_type *` |
+| an array, `x()` | `const QxArray *` |
+
+`qx_fail(code)` sets the running call's error. pybind11, nanobind and Cython do the same for
+Python.
+
+The VM does no translation of its own. A foreign call at run time would need assembly for i386,
+x86-64 and arm64. It could not reach wasm at all, whose indirect calls must name the exact
+signature. Generated glue leaves every calling convention to the C compiler.
 
 ## Versioning
 
@@ -222,25 +265,53 @@ nothing in the host. On DOS it uses no x87, as `synth.c` already does not. The p
 - The IDE and `basic32` share the loader. There is no other compiled form: `basic32` runs the
   program.
 
-## The platform's part: `plat/pext.h`
+## Loading, step by step
 
-`pext_load(slice, bytes, name)`: a loaded slice's `qx_init_<name>`, or null. The rest is shared.
+`io/qbx.c` is shared. It reads the header and checks the magic, the format's version and the ABI's
+major. It takes the slice whose tag is this build's, hands it to `pext_load` (`plat/pext.h`), then
+calls `qx_init_<name>`. A file is loaded once in a process, kept by its path and hash.
 
-| Build | `pext` | Notes |
-|---|---|---|
-| DOS | `plat/dos32/pext.c` | about 50 lines: a block from `pmem_resize`, relocations, the entry |
-| Mac, Linux | `plat/host/pext.c` | `dlopen` and `dlsym`; the cache file on the Mac, memfd on Linux |
-| wasm | `plat/wasm/pext.c`, `web/wasm.mjs` | the IDE is linked `--export-table --growable-table`; JS reads `dylink.0`, takes memory from the host and slots from the table, then instantiates; synchronous in the worker |
-| unit tests | the inittab | the extension linked in: its tests run without a loader |
+**DOS** (`plat/dos32/pext.c`, about 50 lines). `tools/qbx.py pack` has made the DLL, linked at
+base 0, into an image, its bss's size, its relocations' offsets and its entry's offset. The loader:
+
+1. takes a block from `pmem_resize`;
+2. copies the image in and zeroes the bss;
+3. adds the block's address to the 32-bit word at each relocation's offset;
+4. checks that CS's base is DS's, then calls the entry, cdecl;
+5. locks the block's pages (DPMI 0600h) once a `render` is set.
+
+**Mac** (`plat/host/pext.c`):
+
+1. names a file by the slice's hash, `~/Library/Caches/QuickrBasic/<hash>.dylib`;
+2. writes it if it is not there: a temporary file, then a rename;
+3. `dlopen`, then `dlsym("qx_init_<name>")`.
+
+**Linux:** the same, but the slice is written to `memfd_create` and loaded with
+`dlopen("/proc/self/fd/n")`. No file is written.
+
+**Browser** (`plat/wasm/pext.c`, `web/wasm.mjs`). The IDE is linked `--export-table
+--growable-table`. The C side calls a JS import, which runs synchronously in the worker:
+
+1. `new WebAssembly.Module(bytes)`;
+2. reads `dylink.0`: the memory and table the module needs;
+3. takes a block from the host's heap and grows the host's table;
+4. instantiates it with the shared memory, the table, `__stack_pointer` and the two bases;
+5. runs `__wasm_apply_data_relocs` and `__wasm_call_ctors`, then `qx_init_<name>`.
+
+When the extension opens audio, the worker posts the bytes, the bases and a stack block to the
+AudioWorklet. It instantiates the same module, without relocations or constructors, and calls
+`render` for each block.
+
+**Unit tests** link an extension in, through the inittab: its tests need no loader.
 
 ## Building one
 
-`tools/qbx.py pack` puts an interface and the slices in a `.qbx`. The flags, as the prototype used
-them:
+`tools/qbx.py glue` writes the glue, each slice is built with it, and `tools/qbx.py pack` puts the
+interface and the slices in a `.qbx`. The flags, as the prototype used them:
 
 | Slice | Compile | Link |
 |---|---|---|
-| `dos-i386` | `clang --target=i386-pc-win32 -march=i386 -ffreestanding`; jwasm `-coff` for asm | `lld-link /dll /noentry /nodefaultlib /export:qx_init_<name>` |
+| `dos-i386` | `clang --target=i386-pc-win32 -march=i386 -ffreestanding`; jwasm `-coff` for asm | `lld-link /dll /noentry /nodefaultlib` |
 | `macos` | `clang -arch arm64 -arch x86_64 -mmacosx-version-min=13.0 -fvisibility=hidden` | `-dynamiclib` |
 | `linux-x86_64` | `clang --target=x86_64-linux-gnu -fPIC -fvisibility=hidden` | `ld.lld -shared -nostdlib` |
 | `wasm32` | `clang --target=wasm32 -fPIC -matomics -mbulk-memory` | `wasm-ld -shared --experimental-pic --shared-memory --features=` the host's |
@@ -278,13 +349,15 @@ and the tutorial's examples gain an `IMPORT synth` line.
 
 ## The prototype
 
-`tools/extproto/run.sh` builds one extension, `ext.c`, for each slice. It has data with pointers,
-an entry that calls back into the host, and a `render`.
+`tools/extproto/run.sh` builds one extension for each slice. `ext.c` is plain C functions, glued to
+`ext.bas` by `tools/qbx.py`. It has data with pointers, a call back into the host and a `render`.
+`drive.c`, the VM's stand-in, checks each entry's kinds and each TYPE's size, then calls each entry
+as `O_NCALL` would: values, a record, a number by reference, a string in and out, an error.
 
-- **Mac:** a universal dylib loads with `dlopen` and runs on both halves (x86-64 under Rosetta). It
-  imports no symbol. Apple's linker refuses one without libSystem, so it is linked.
+- **Mac:** a universal dylib loads with `dlopen`; every call is as expected on both halves (x86-64
+  under Rosetta). It imports no symbol. Apple's linker refuses one without libSystem, so it is linked.
 - **wasm:** the side module loads synchronously into the host's shared memory and growable table.
-  The host calls its entries by pointer, and it calls the host back through the table. A second
+  Every call is as expected, by pointer both ways. A second
   thread instantiates the same bytes against the same memory and runs `render`, which reads what
   the first thread wrote. `wasm-ld` needs the features named when nothing in the module uses
   atomics.
