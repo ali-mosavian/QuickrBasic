@@ -167,11 +167,11 @@ type Bend
     x_hi as integer
 end type
 
-' The ground's line, what Charlie runs on: n points, the platforms' from platA; nz curves; a column's stretch.
+' The ground's line, what Charlie runs on: n points, the platforms' from plat_a; n_cv curves; a column's stretch.
 type Ground
     n as integer
-    platA as integer
-    nz as integer
+    plat_a as integer
+    n_cv as integer
     pt() as Stretch
     cv() as Bend
     col() as integer

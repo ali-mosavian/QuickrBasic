@@ -67,7 +67,7 @@ end function
 private function PlatSeg% (gr as Ground, x as integer, y as single)
     dim s as integer
     PlatSeg% = -1
-    for s = gr.platA to gr.n - 2
+    for s = gr.plat_a to gr.n - 2
         if gr.pt(s).kind <> 1 or x < gr.pt(s).at.x or x > gr.pt(s + 1).at.x or abs(gr.pt(s).at.y - y) >= 4 then continue for
         PlatSeg% = s
         exit function
@@ -189,7 +189,7 @@ function Curve% (gr as Ground, p as Hero, x0 as single, y0 as single, d as integ
     dim z as integer, s as integer, a as integer, b as integer, near as integer
     dim d0 as single, d1 as single, t as single, f as single
     Curve% = 0
-    for z = 0 to gr.nz - 1
+    for z = 0 to gr.n_cv - 1
         if p.at.x < gr.cv(z).x_lo - 8 or p.at.x > gr.cv(z).x_hi + 8 then continue for
         a = gr.cv(z).first
         b = gr.cv(z).last
@@ -227,7 +227,7 @@ private sub LoopHalf (gr as Ground, p as Hero, z as integer, x0 as single, a as 
     dim far as integer
     if gr.cv(z).far < 0 then exit sub
     far = p.sg >= gr.cv(z).far
-    if p.sg >= gr.platA then far = x0 > gr.cv(z).x_lo + LOOPR
+    if p.sg >= gr.plat_a then far = x0 > gr.cv(z).x_lo + LOOPR
     if far then
         a = gr.cv(z).far
     else
@@ -312,7 +312,7 @@ end sub
 function Ribbon% (gr as Ground, x as integer)
     dim z as integer
     Ribbon% = 0
-    for z = 0 to gr.nz - 1
+    for z = 0 to gr.n_cv - 1
         if gr.cv(z).far < 0 and gr.pt(gr.cv(z).first).kind = 2 and gr.cv(z).x_lo > x - 16 and gr.cv(z).x_lo < x + 60 then Ribbon% = -1
     next
 end function
@@ -324,7 +324,7 @@ function Twist! (gr as Ground, p as Hero)
     dim z as integer, t as single
     Twist! = -1
     if not p.ground then exit function
-    for z = 0 to gr.nz - 1
+    for z = 0 to gr.n_cv - 1
         if gr.cv(z).far <> -2 or p.sg < gr.cv(z).first or p.sg > gr.cv(z).last then continue for
         t = (p.at.x - gr.cv(z).x_lo - 8) / (2 * WAVEL)
         if t < 0 or p.at.x > gr.cv(z).x_hi - 8 then t = 0

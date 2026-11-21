@@ -38,7 +38,7 @@ end function
 sub Track (lv as Level, gr as Ground)
     dim c as integer, i as integer
     gr.n = 0
-    gr.nz = 0
+    gr.n_cv = 0
     for c = 0 to MW
         gr.col(c) = -1
     next
@@ -53,7 +53,7 @@ sub Track (lv as Level, gr as Ground)
             TrackTile lv, gr, c
         end if
     next
-    gr.platA = gr.n
+    gr.plat_a = gr.n
     TrackPlats lv, gr
     TrackLimbs lv, gr
     TrackMovers lv, gr
@@ -68,10 +68,10 @@ private sub TrackPipe (lv as Level, gr as Ground, c as integer)
     y = lv.things(-2 - gr.col(c)).at.y
     gr.col(c) = -1
     if gr.pt(gr.n - 1).at.x <> x or gr.pt(gr.n - 1).at.y <> y then Knot gr, csng(x), csng(y), 0
-    gr.cv(gr.nz).first = gr.n - 1
-    gr.cv(gr.nz).far = -1
-    gr.cv(gr.nz).x_lo = x
-    gr.cv(gr.nz).x_hi = x + PIPER
+    gr.cv(gr.n_cv).first = gr.n - 1
+    gr.cv(gr.n_cv).far = -1
+    gr.cv(gr.n_cv).x_lo = x
+    gr.cv(gr.n_cv).x_hi = x + PIPER
     for j = 1 to PIPEN - 1
         a = j * PI / 2 / PIPEN
         Knot gr, x + PIPER * sin(a), y - PIPER + PIPER * cos(a), 2
@@ -79,8 +79,8 @@ private sub TrackPipe (lv as Level, gr as Ground, c as integer)
     Knot gr, csng(x + PIPER), csng(y - PIPER), 2
     j = lv.top(c + PIPER \ TS) * TS
     if j < y - PIPER then Knot gr, csng(x + PIPER), csng(j), 2
-    gr.cv(gr.nz).last = gr.n - 2
-    gr.nz = gr.nz + 1
+    gr.cv(gr.n_cv).last = gr.n - 2
+    gr.n_cv = gr.n_cv + 1
 end sub
 
 ' Column c's top tile, a stretch from its left edge to its right, and the loops stood on it.
@@ -107,17 +107,17 @@ end sub
 private sub TrackLoop (gr as Ground, x as integer, y as integer)
     dim j as integer, a as single
     Knot gr, csng(x), csng(y), 1
-    gr.cv(gr.nz).first = gr.n - 1
-    gr.cv(gr.nz).far = gr.n - 1 + LOOPN \ 2
-    gr.cv(gr.nz).x_lo = x - LOOPR
-    gr.cv(gr.nz).x_hi = x + LOOPR
+    gr.cv(gr.n_cv).first = gr.n - 1
+    gr.cv(gr.n_cv).far = gr.n - 1 + LOOPN \ 2
+    gr.cv(gr.n_cv).x_lo = x - LOOPR
+    gr.cv(gr.n_cv).x_hi = x + LOOPR
     for j = 1 to LOOPN - 1
         a = j * 2 * PI / LOOPN
         Knot gr, x + LOOPR * sin(a), y - LOOPR + LOOPR * cos(a), 2
     next
     Knot gr, csng(x), csng(y), 2
-    gr.cv(gr.nz).last = gr.n - 2
-    gr.nz = gr.nz + 1
+    gr.cv(gr.n_cv).last = gr.n - 2
+    gr.n_cv = gr.n_cv + 1
 end sub
 
 ' The platforms: those side by side at one height are one stretch.
@@ -164,15 +164,15 @@ private sub TrackMovers (lv as Level, gr as Ground)
         Knot gr, csng(lv.things(i).at.x + MOVEW), csng(lv.things(i).at.y), 3
         lv.movers(k).thing = i
         lv.movers(k).sg = gr.n - 2
-        lv.movers(k).cv = gr.nz
+        lv.movers(k).cv = gr.n_cv
         lv.movers(k).t = 0
         if lv.movers(k).kind = 4 then lv.movers(k).button = ButtonAt%(lv, lv.movers(k).button)
-        gr.cv(gr.nz).first = gr.n - 2
-        gr.cv(gr.nz).last = gr.n - 2
-        gr.cv(gr.nz).far = -1
-        gr.cv(gr.nz).x_lo = lv.things(i).at.x
-        gr.cv(gr.nz).x_hi = lv.things(i).at.x + MOVEW
-        gr.nz = gr.nz + 1
+        gr.cv(gr.n_cv).first = gr.n - 2
+        gr.cv(gr.n_cv).last = gr.n - 2
+        gr.cv(gr.n_cv).far = -1
+        gr.cv(gr.n_cv).x_lo = lv.things(i).at.x
+        gr.cv(gr.n_cv).x_hi = lv.things(i).at.x + MOVEW
+        gr.n_cv = gr.n_cv + 1
         k = k + 1
     next
 end sub
@@ -198,9 +198,9 @@ private sub TrackRibbons (lv as Level, gr as Ground)
             RibbonEnd gr, x1, y
             y = lv.things(i).at.y
             Knot gr, csng(lv.things(i).at.x - 8), csng(y), 0
-            gr.cv(gr.nz).first = gr.n - 1
-            gr.cv(gr.nz).far = -2
-            gr.cv(gr.nz).x_lo = lv.things(i).at.x - 8
+            gr.cv(gr.n_cv).first = gr.n - 1
+            gr.cv(gr.n_cv).far = -2
+            gr.cv(gr.n_cv).x_lo = lv.things(i).at.x - 8
             Knot gr, csng(lv.things(i).at.x), csng(y), 2
         end if
         for j = 1 to 12
@@ -208,7 +208,7 @@ private sub TrackRibbons (lv as Level, gr as Ground)
             Knot gr, csng(lv.things(i).at.x + j * 16), y - WAVEA * (1 - cos(a)) / 2, 2
         next
         x1 = lv.things(i).at.x + WAVEL
-        gr.cv(gr.nz).x_hi = x1 + 8
+        gr.cv(gr.n_cv).x_hi = x1 + 8
     next
     RibbonEnd gr, x1, y
 end sub
@@ -217,8 +217,8 @@ end sub
 private sub RibbonEnd (gr as Ground, x1 as integer, y as integer)
     if x1 = NONE then exit sub
     Knot gr, csng(x1 + 8), csng(y), 2
-    gr.cv(gr.nz).last = gr.n - 2
-    gr.nz = gr.nz + 1
+    gr.cv(gr.n_cv).last = gr.n - 2
+    gr.n_cv = gr.n_cv + 1
 end sub
 
 ' The lantern lines: a stretch each from end to end, a curve of one.
@@ -229,12 +229,12 @@ private sub TrackSlides (lv as Level, gr as Ground)
         Knot gr, csng(lv.ropes(i).at.x), csng(lv.ropes(i).at.y), 0
         Knot gr, csng(lv.ropes(i).at.x + lv.ropes(i).w), csng(lv.ropes(i).at.y + lv.ropes(i).fall), 2
         lv.ropes(i).sg = gr.n - 2
-        gr.cv(gr.nz).first = gr.n - 2
-        gr.cv(gr.nz).last = gr.n - 2
-        gr.cv(gr.nz).far = -1
-        gr.cv(gr.nz).x_lo = lv.ropes(i).at.x
-        gr.cv(gr.nz).x_hi = lv.ropes(i).at.x + lv.ropes(i).w
-        gr.nz = gr.nz + 1
+        gr.cv(gr.n_cv).first = gr.n - 2
+        gr.cv(gr.n_cv).last = gr.n - 2
+        gr.cv(gr.n_cv).far = -1
+        gr.cv(gr.n_cv).x_lo = lv.ropes(i).at.x
+        gr.cv(gr.n_cv).x_hi = lv.ropes(i).at.x + lv.ropes(i).w
+        gr.n_cv = gr.n_cv + 1
     next
 end sub
 

@@ -2806,7 +2806,7 @@ next
 twinsOk = twinsOk and i < 60 and wd.lv.box.st = 0 and wd.lv.cart.at.x = wd.lv.oak.x - 112
 twinsOk = twinsOk and wd.lv.cart.at.y = wd.lv.oak.y - 6 * TS - PAWUP
 Stand wd.lv, wd.gr, p, wd.lv.oak.x - 42, 0
-twinsOk = twinsOk and p.at.y = wd.lv.oak.y - 9 * TS and p.sg >= wd.gr.platA
+twinsOk = twinsOk and p.at.y = wd.lv.oak.y - 9 * TS and p.sg >= wd.gr.plat_a
 for i = 1 to 200
     Tick wd, g, p, k, lo(), pt()
     if wd.lv.cart.hits = 2 then exit for
