@@ -349,7 +349,7 @@ sub LoadLevel (wd as World, st as integer)
         case "walker"
             ' a cat walking the line just hung, its home n columns along it
             i = wd.lv.nRope - 1
-            AddObj wd.lv, KWALKER, wd.lv.ropes(i).x + POSTIN + n * TS + 8, wd.lv.ropes(i).y
+            AddObj wd.lv, KWALKER, wd.lv.ropes(i).at.x + POSTIN + n * TS + 8, wd.lv.ropes(i).at.y
         case "slide"
             ' a street n wide and a lantern line down over it, from a post LANTH over the roof here to the roof
             ' past it, LANTFALL lower; a bone over the line every other column
@@ -461,9 +461,9 @@ end sub
 ' A line hung over the street of n columns from column c: its near end at height y, its far end fall lower.
 ' Nothing grows by its posts.
 private sub Hang (lv as Level, c as integer, n as integer, y as integer, fall as integer)
-    lv.ropes(lv.nRope).x = c * TS - POSTIN
+    lv.ropes(lv.nRope).at.x = c * TS - POSTIN
     lv.ropes(lv.nRope).w = n * TS + POSTIN * 2
-    lv.ropes(lv.nRope).y = y
+    lv.ropes(lv.nRope).at.y = y
     lv.ropes(lv.nRope).fall = fall
     lv.ropes(lv.nRope).t = 0
     lv.ropes(lv.nRope).cat = 0
@@ -478,7 +478,7 @@ private sub Walkers (lv as Level)
     for i = 0 to lv.nObj - 1
         if lv.ob(i).k <> KWALKER then continue for
         for r = 0 to lv.nRope - 1
-            if lv.ob(i).x <= lv.ropes(r).x or lv.ob(i).x >= lv.ropes(r).x + lv.ropes(r).w then continue for
+            if lv.ob(i).x <= lv.ropes(r).at.x or lv.ob(i).x >= lv.ropes(r).at.x + lv.ropes(r).w then continue for
             lv.ropes(r).cat = i + 1
         next
     next

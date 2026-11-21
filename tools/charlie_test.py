@@ -1573,12 +1573,12 @@ if was and colA(0) = colA(1) and hid = &H3D2522 and wd.tn.now(colA(1)) <> hid th
 GoStage wd, 10, g, p, lo(), pt()
 g.mode_t = 20
 was = wd.lv.nRope > 0
-c = wd.lv.ropes(0).x + wd.lv.ropes(0).w \\ 2
-m = wd.lv.ropes(0).y + LINESAG
+c = wd.lv.ropes(0).at.x + wd.lv.ropes(0).w \\ 2
+m = wd.lv.ropes(0).at.y + LINESAG
 for j = 0 to 4
     if j = 4 then
         ' a row ended on the roof before it, then begun again
-        Stand wd.lv, wd.gr, p, wd.lv.ropes(0).x - 30, 0
+        Stand wd.lv, wd.gr, p, wd.lv.ropes(0).at.x - 30, 0
         Tick wd, g, p, k, lo(), pt()
         was = was and p.hops = 0
     end if
@@ -1619,7 +1619,7 @@ p.vel.y = 50
 Tick wd, g, p, k, lo(), pt()
 was = was and p.at.y > m + 20 and p.vel.y > 50 and p.hops = 0
 ' at rest it hangs LINESAG at its middle, drawn there, its post under its end
-Stand wd.lv, wd.gr, p, wd.lv.ropes(0).x - 60, 0
+Stand wd.lv, wd.gr, p, wd.lv.ropes(0).at.x - 60, 0
 for i = 1 to LINET * 2 + 4
     Tick wd, g, p, k, lo(), pt()
 next
@@ -1628,7 +1628,7 @@ g.cam.x = c - 160
 g.shake = 0
 Render wd, g, p, lo(), pt()
 was = was and point(160, m - int(g.cam.y)) = CLINEN and point(160, m - 6 - int(g.cam.y)) <> CLINEN
-was = was and point(wd.lv.ropes(0).x - int(g.cam.x), m + 6 - int(g.cam.y)) = CPOLE + 1
+was = was and point(wd.lv.ropes(0).at.x - int(g.cam.x), m + 6 - int(g.cam.y)) = CPOLE + 1
 if was then print "line ok"
 ' an awning throws him who comes down on it 135 up, 450 squared over twice GRAV, however often; it stays given
 ' AWNT things' steps, drawn so; from under he goes through it, and past its edge he falls by it
@@ -1810,7 +1810,7 @@ for c = 0 to wd.lv.nRope - 1
     if wd.lv.ropes(c).fall then exit for
 next
 was = c < wd.lv.nRope
-bx = wd.lv.ropes(c).x + 30
+bx = wd.lv.ropes(c).at.x + 30
 m = LineY%(wd.lv.ropes(c), 30)
 p.ground = 0
 p.at.x = bx
@@ -1822,7 +1822,7 @@ for i = 1 to 40
     if p.ground then exit for
 next
 was = was and p.ground and p.sg = wd.lv.ropes(c).sg and p.hops = 0 and wd.lv.ropes(c).t = 0
-was = was and abs(p.at.y - LineY%(wd.lv.ropes(c), cint(p.at.x) - wd.lv.ropes(c).x)) < 3
+was = was and abs(p.at.y - LineY%(wd.lv.ropes(c), cint(p.at.x) - wd.lv.ropes(c).at.x)) < 3
 for j = 0 to 1
     for i = 1 to 12
         Tick wd, g, p, k, lo(), pt()
@@ -1835,8 +1835,8 @@ for i = 1 to 600
     Tick wd, g, p, k, lo(), pt()
     if p.ground and p.sg <> wd.lv.ropes(c).sg then exit for
 next
-was = was and p.at.x > wd.lv.ropes(c).x + wd.lv.ropes(c).w
-was = was and abs(p.at.y - (wd.lv.ropes(c).y + LANTH + LANTFALL)) < 2
+was = was and p.at.x > wd.lv.ropes(c).at.x + wd.lv.ropes(c).w
+was = was and abs(p.at.y - (wd.lv.ropes(c).at.y + LANTH + LANTFALL)) < 2
 ' from under: risen through it
 p.ground = 0
 p.at.x = bx
@@ -1847,7 +1847,7 @@ for i = 1 to 8
     Tick wd, g, p, k, lo(), pt()
 next
 was = was and p.at.y < m - 4 and not p.ground
-Stand wd.lv, wd.gr, p, wd.lv.ropes(c).x - 60, 0
+Stand wd.lv, wd.gr, p, wd.lv.ropes(c).at.x - 60, 0
 g.cam.x = bx - 160
 g.cam.y = m - 100
 g.shake = 0
@@ -1953,8 +1953,8 @@ for i = 0 to wd.lv.nRope - 1
     j = i
     was = wd.lv.ob(c).k = KWALKER
 next
-bx = wd.lv.ropes(j).x
-m = wd.lv.ropes(j).y
+bx = wd.lv.ropes(j).at.x
+m = wd.lv.ropes(j).at.y
 was = was and wd.lv.ropes(j).w = 124 and wd.lv.ob(c).x = bx + 46 and wd.lv.ob(c).s = -1
 Stand wd.lv, wd.gr, p, bx - 30, 0
 colA(0) = 9999
@@ -2437,8 +2437,8 @@ for c = 0 to 5
         p.roll = 0
         p.vel.x = 0
         p.vel.y = 0
-        p.at.x = wd.lv.ropes(0).x + 40
-        p.at.y = wd.lv.ropes(0).y - 30
+        p.at.x = wd.lv.ropes(0).at.x + 40
+        p.at.y = wd.lv.ropes(0).at.y - 30
         v = 110
         if c = 2 then p.at.x = bx - 50
         if c = 2 then p.at.y = wd.lv.ob(m).y + 14 + 7 * TS - 82

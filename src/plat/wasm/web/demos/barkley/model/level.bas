@@ -46,14 +46,13 @@ type Runner
     st as integer
 end type
 
-' A clothesline: from x, w wide, its ends at y; where along it it was last trodden, and the steps since. A lantern
+' A clothesline: from at, w wide, its ends level; trod: where along it it was last trodden, t the steps since. A lantern
 ' line is one whose far end hangs fall lower: taut, and ground to slide down, its stretch sg. cat: one more than
 ' the thing that is the cat walking it, 0 with none.
 type Rope
-    x as integer
+    at as Spot
     w as integer
-    y as integer
-    at as integer
+    trod as integer
     t as integer
     fall as integer
     sg as integer

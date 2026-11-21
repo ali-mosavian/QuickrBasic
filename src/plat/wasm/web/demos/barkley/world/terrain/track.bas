@@ -226,14 +226,14 @@ private sub TrackSlides (lv as Level, gr as Ground)
     dim i as integer
     for i = 0 to lv.nRope - 1
         if lv.ropes(i).fall = 0 then continue for
-        Knot gr, csng(lv.ropes(i).x), csng(lv.ropes(i).y), 0
-        Knot gr, csng(lv.ropes(i).x + lv.ropes(i).w), csng(lv.ropes(i).y + lv.ropes(i).fall), 2
+        Knot gr, csng(lv.ropes(i).at.x), csng(lv.ropes(i).at.y), 0
+        Knot gr, csng(lv.ropes(i).at.x + lv.ropes(i).w), csng(lv.ropes(i).at.y + lv.ropes(i).fall), 2
         lv.ropes(i).sg = gr.n - 2
         gr.cv(gr.nz).a = gr.n - 2
         gr.cv(gr.nz).b = gr.n - 2
         gr.cv(gr.nz).m = -1
-        gr.cv(gr.nz).l = lv.ropes(i).x
-        gr.cv(gr.nz).r = lv.ropes(i).x + lv.ropes(i).w
+        gr.cv(gr.nz).l = lv.ropes(i).at.x
+        gr.cv(gr.nz).r = lv.ropes(i).at.x + lv.ropes(i).w
         gr.nz = gr.nz + 1
     next
 end sub

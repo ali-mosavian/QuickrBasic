@@ -74,13 +74,13 @@ const POUNCEOUT = 100, POUNCEGONE = 30000
 function LineY% (r as Rope, u as integer)
     dim y as single, d as single
     if r.fall then
-        LineY% = r.y + (clng(r.fall) * u + r.w \ 2) \ r.w
+        LineY% = r.at.y + (clng(r.fall) * u + r.w \ 2) \ r.w
         exit function
     end if
-    y = r.y + LINESAG * 4! * u * (r.w - u) / r.w / r.w
+    y = r.at.y + LINESAG * 4! * u * (r.w - u) / r.w / r.w
     if r.t > 0 then
-        d = u / r.at
-        if u > r.at then d = (r.w - u) / (r.w - r.at)
+        d = u / r.trod
+        if u > r.trod then d = (r.w - u) / (r.w - r.trod)
         y = y + LINEGIVE * d * r.t / LINET * cos((LINET - r.t) * .7)
     end if
     LineY% = cint(y)
@@ -96,7 +96,7 @@ sub Lines (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, pt() as
     for i = 0 to lv.nRope - 1
         ' a lantern line is ground, not a spring
         if lv.ropes(i).fall then continue for
-        u = cint(p.at.x) - lv.ropes(i).x
+        u = cint(p.at.x) - lv.ropes(i).at.x
         if u < 1 or u >= lv.ropes(i).w then continue for
         y = LineY%(lv.ropes(i), u)
         if not Trodden%(p, y) then continue for
@@ -135,7 +135,7 @@ end sub
 private sub Pluck (r as Rope, mu as Deck, se as Session, p as Hero, u as integer, y as integer)
     Toss p, y, LINEV + LINEMORE * p.hops
     if p.hops < LINEROW - 1 then p.hops = p.hops + 1
-    r.at = u
+    r.trod = u
     r.t = LINET
     Sfx mu, se, STWANG
 end sub
@@ -407,23 +407,23 @@ private sub Tread (lv as Level, r as Rope)
     x = lv.ob(i).x + lv.ob(i).s
     if abs(lv.ob(i).s) > 1 then
         lv.ob(i).s = lv.ob(i).s - sgn(lv.ob(i).s)
-    elseif abs(x - lv.ob(i).a) > BEAT or x < r.x + WALKIN or x > r.x + r.w - WALKIN then
+    elseif abs(x - lv.ob(i).a) > BEAT or x < r.at.x + WALKIN or x > r.at.x + r.w - WALKIN then
         lv.ob(i).s = -lv.ob(i).s
     else
         lv.ob(i).x = x
     end if
-    lv.ob(i).y = LineY%(r, lv.ob(i).x - r.x)
+    lv.ob(i).y = LineY%(r, lv.ob(i).x - r.at.x)
 end sub
 
 ' The lines in view: each from post to post, its washing on it.
 sub DrawLines (lv as Level, art as Store, cx as integer, cy as integer)
     dim i as integer, u as integer, x as integer, y as integer, y1 as integer
     for i = 0 to lv.nRope - 1
-        x = lv.ropes(i).x - cx
+        x = lv.ropes(i).at.x - cx
         if x >= SW or x + lv.ropes(i).w < 0 then continue for
-        y = lv.ropes(i).y - cy
-        DrawPost x, y, lv.top(lv.ropes(i).x \ TS) * TS - cy
-        DrawPost x + lv.ropes(i).w, y + lv.ropes(i).fall, lv.top((lv.ropes(i).x + lv.ropes(i).w) \ TS) * TS - cy
+        y = lv.ropes(i).at.y - cy
+        DrawPost x, y, lv.top(lv.ropes(i).at.x \ TS) * TS - cy
+        DrawPost x + lv.ropes(i).w, y + lv.ropes(i).fall, lv.top((lv.ropes(i).at.x + lv.ropes(i).w) \ TS) * TS - cy
         if lv.ropes(i).fall then
             line (x, y)-(x + lv.ropes(i).w, y + lv.ropes(i).fall), CQINK
             Lanterns lv.ropes(i), art, cx, cy
@@ -443,7 +443,7 @@ end sub
 private sub Lanterns (r as Rope, art as Store, cx as integer, cy as integer)
     dim u as integer
     for u = LANTGAP \ 2 to r.w - 6 step LANTGAP
-        Blit art, r.x + u - cx - 4, LineY%(r, u) - cy, IPAPER, 9, 14
+        Blit art, r.at.x + u - cx - 4, LineY%(r, u) - cy, IPAPER, 9, 14
     next
 end sub
 
@@ -468,9 +468,9 @@ end sub
 private sub Washing (r as Rope, art as Store, cx as integer, cy as integer)
     dim u as integer, x as integer, y as integer
     for u = 16 to r.w - 14 step WASH
-        x = r.x + u - cx
+        x = r.at.x + u - cx
         y = LineY%(r, u) - cy - 1
-        select case (r.x \ TS + (u \ WASH) * 3) mod 5
+        select case (r.at.x \ TS + (u \ WASH) * 3) mod 5
         case 0: Blit art, x - 9, y, ISHIRT, 18, 15
         case 2: Blit art, x - 6, y, ITROUSERS, 13, 17
         case 3: Blit art, x - 4, y, ISOCK, 8, 11
