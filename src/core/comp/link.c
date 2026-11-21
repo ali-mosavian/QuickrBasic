@@ -42,6 +42,8 @@
 #include "comp/fold.h"
 #include "comp/frame.h"
 #include "comp/select.h"
+#include "io/msg.h"
+#include "io/native.h"
 #include "io/repl.h"
 #include "mem/alloc.h"
 #include "mem/array.h"
@@ -701,6 +703,136 @@ static void link_lines(Comp *const C)
     }
 }
 
+/* Native procedure p's error at its DECLARE's name: code, or QBasic's user; dg its words. */
+[[noreturn]]
+static void native_fail(
+    Comp *const C,
+    const Proc *const p,
+    const uint8_t code,
+    const uint16_t user,
+    const uint8_t dg
+)
+{
+    fault_raise(
+        C->fault,
+        (Failure){
+            .code = code,
+            .user = user,
+            .dg = dg,
+            .line = p->first,
+            .at = p->at - p->first - HDR,
+        }
+
+    );
+}
+
+/* Variable id as an argument's kind (qx/qx.h): its letter; &, by reference, before a number's. */
+static uint32_t native_kind(
+    const Symb *const sy,
+    const uint32_t id,
+    const bool byval,
+    char *const out
+)
+{
+    const Var *const v = symb_var(sy, id);
+    const uint8_t k = v->info & VK_MASK;
+    const char c = symb_is_record(sy, id) ? 'T' /* its info VI_ARR's too */
+                   : v->info & VI_ARR     ? 'R'
+                   : k == VK_STR          ? 'S'
+                   : v->type == ET_SH     ? 'W'
+                   : v->type == ET_BY     ? 'U'
+                   : k == VK_INT          ? 'I'
+                   : v->info & SK_DBL     ? 'D'
+                                          : 'F';
+    const bool ref = !byval && c != 'R' && c != 'T' && c != 'S';
+
+    if (ref)
+        *out = '&';
+
+    out[ref] = c;
+    return 1 + ref;
+}
+
+/* The entry's name: the DECLARE's ALIAS, else the procedure's own; its text to *name. */
+static uint32_t native_name(const Comp *const C, const Proc *const p, const uint8_t **const name)
+{
+    const uint8_t *q = decl_item(at(C->prog->base + p->at)) + 2; /* past its name and CDECL */
+
+    if (q[0] == TK_X && q[1] == TK1_ALIAS && q[2] == '"') {
+        const uint8_t *const end = decl_item(q + 2);
+        *name = q + 3;
+        return (uint32_t)(end - q - 3 - (end[-1] == '"'));
+    }
+
+    const uint8_t *const t = symb_text(C->symb, p->name);
+    *name = t + 1;
+    return t[0];
+}
+
+/* Each native procedure's entry in its module's code, its arguments' kinds and the TYPEs they read
+   as its DECLARE has them. */
+static void link_natives(Comp *const C)
+{
+    for (uint32_t i = 1; i < C->blok->procs.n; i++) {
+        Proc *const p = btab_at(&C->blok->procs, i);
+
+        if (!(p->flags & PF_NATIVE))
+            continue;
+
+        const uint32_t m = modu_of(C->modu, prog_line(C->prog, p->first)->file);
+        const QxModule *const mod = natv_module(C->natv, modu_module_path(C->modu, m));
+
+        if (!mod)
+            native_fail(C, p, E_USR, QB_NO_ADVANCED, 0);
+
+        const uint8_t *name;
+        const uint32_t len = native_name(C, p, &name);
+        const QxEntry *const e = natv_entry(mod, (const char *)name, len);
+
+        if (!e)
+            native_fail(C, p, E_SND, 0, DG_SUBPROGRAM_NOT_DEFINED_NATIVE);
+
+        char kinds[2 * UINT8_MAX + 1];
+        uint32_t n = 0;
+
+        for (uint16_t k = 0; k < p->npar && n + 2 < sizeof kinds; k++) {
+            const Var *const v = symb_var(C->symb, p->params[k].var);
+            const uint32_t at_ = n;
+            n += native_kind(C->symb, p->params[k].var, p->params[k].byval, kinds + n);
+
+            if (kinds[at_] == '&' && (kinds[at_ + 1] == 'W' || kinds[at_ + 1] == 'U'))
+                native_fail(
+                    C,
+                    p,
+                    E_PTM,
+                    0,
+                    DG_PARAMETER_TYPE_MISMATCH_NATIVE
+                ); /* its cell is 4 bytes */
+            if (v->type >= ET_REC) {
+                const TypeDef *const t = decl_type(C->decl, v->type - ET_REC);
+                const uint8_t *const tn = symb_text(C->symb, t->name);
+                const uint32_t bytes = natv_type(mod, (const char *)tn + 1, tn[0]);
+
+                if (bytes && bytes != t->size)
+                    native_fail(C, p, E_PTM, 0, DG_PARAMETER_TYPE_MISMATCH_NATIVE);
+            }
+        }
+
+        kinds[n] = 0;
+
+        if (strcmp(kinds, e->kinds))
+            native_fail(C, p, E_PTM, 0, DG_PARAMETER_TYPE_MISMATCH_NATIVE);
+
+        char res[2] = {};
+
+        if (p->kind == PK_FUNC)
+            native_kind(C->symb, p->result, true, res);
+
+        p->native = e;
+        p->nres = res[0];
+    }
+}
+
 /* Blocks paired, every line compiled and resolved; the ledger holds what was not found. */
 static void build(Comp *const C)
 {
@@ -709,6 +841,7 @@ static void build(Comp *const C)
     symb_size(C->symb, C->blok->nnames);
     decl_defevents(C->decl, C->scop, C->symb, C->prog); /* the typed lines' DEFtypes too */
     link_procvars(C);
+    link_natives(C);
     Addr base;
     memset(C->memo, 0, sizeof C->memo);
     C->memo_on = true;

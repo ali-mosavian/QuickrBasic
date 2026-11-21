@@ -76,6 +76,7 @@ typedef struct {
     bool baseset;    /* g_obset: the module's OPTION BASE given */
     bool dimmed;     /* g_odim: an array DIMmed (OPTION BASE after: an error) */
     bool deft;       /* decl_line's line has a DEFtype */
+    bool native;     /* the module being entered is a .qbx's interface: its DECLARE CDECLs native */
     uint8_t *opts;   /* g_obase, g_oexp: each module's DO_*, by its number */
     uint32_t nopts, optcap;
     uint32_t ndefev, defcap; /* g_ndev: DEFtype lines */

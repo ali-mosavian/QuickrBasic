@@ -9,6 +9,7 @@
  * Ctrl+Alt shows it in the split's other window, split side by side first when there is none.
  */
 #include "ui/definition.h"
+#include "ui/jumps.h"
 #include "session.h"
 #include "comp/bind.h"
 #include "comp/comp.h"
@@ -16,7 +17,6 @@
 #include "comp/dfa.h"
 #include "plat/pscr.h"
 #include "ui/edit.h"
-#include "ui/helpdoc.h"
 #include "ui/linemap.h"
 #include "ui/uimain.h"
 #include "ui/view.h"
@@ -283,7 +283,7 @@ static uint32_t line_number(const char *const w, const uint16_t n)
 static Found find(Session *const S)
 {
     char w[UINT8_MAX + 1];
-    uint16_t n = hdoc_word(uimn.edline.text, uimn.edline.len, uimn.edline.col, w, sizeof w);
+    uint16_t n = edit_word(w, sizeof w);
 
     if (!n || !edit_commit(S))
         return (Found){.line = NONE};
@@ -334,6 +334,8 @@ void defn_goto(Session *const S, const bool beside)
         return pscr_beep();
     if (beside)
         wind_other(S, true);
+    else
+        jumps_push();
 
     jump(S, f);
 }

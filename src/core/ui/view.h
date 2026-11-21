@@ -19,6 +19,9 @@ typedef struct {
 /* vw_reset: a new or loaded text: each file's module's lines first, the views, both windows on
    the main's module, uimn.text.hook set. */
 void view_reset(Session *S);
+/* The views made again from the text, as a change outside the views left it (an undo): each
+   window, and each place kept, on the view of the same procedure, else of its file's module. */
+void view_rebuild(Session *S);
 /* vw_apply: the active window's view (uimn.ed.view, 0 when past the views) the text's. */
 void view_apply(void);
 /* vw_goline: text line line in the active window, its view shown (the cursor where that view
@@ -45,6 +48,10 @@ uint32_t view_proc(Session *S, uint32_t v);
 uint32_t view_procedure(Session *S, uint32_t module, uint32_t name);
 /* The view of module's own lines, its file's first; the main's, 0, when it has none. */
 uint32_t view_of_module(uint32_t module);
+/* The views. */
+uint32_t view_count(void);
+/* View v in the active window, the cursor where it left it. */
+void view_show(Session *S, uint32_t v);
 /* vw_next, vw_prev: Shift+F2, Ctrl+F2: the next view, the one before, in the active window. */
 void view_next(Session *S);
 void view_prev(Session *S);

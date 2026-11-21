@@ -5,6 +5,7 @@
 #include "fault.h"
 #include "mem/program.h"
 #include "mem/symbols.h"
+#include "qx/qx.h"
 #include "util/btab.h"
 
 /* A block statement's entry. */
@@ -41,6 +42,9 @@ typedef struct {
     uint32_t nframe; /* its frame's cells (comp/frame.c) */
     Param *params;
     uint32_t skip; /* past its END: a target */
+    /* PF_NATIVE: its extension's entry, and its result's kind (qx/qx.h's letter, 0 a SUB's): link's */
+    const QxEntry *native;
+    char nres;
 } Proc;
 
 /* The program's blocks and procedures, as blok_pair found them; its arena holds them. */

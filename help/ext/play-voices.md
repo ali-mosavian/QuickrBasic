@@ -27,21 +27,23 @@ Allowed in any PLAY string. Using one, or a second string, sends the
 voice through the synthesizer. Each sets the notes that follow it.
 Each number may be =var; as usual.
 
-    V n            volume 0-15 (default 8)
+    V n            volume 0-15 (default 8); V4.5 between two
     W n            wave 0-4
     Q n            pulse width 1-99 percent (default 50)
-    H a,d,s,r      envelope, each 0-15 (default 0,0,15,0)
-    Y m,f,r        filter
-    Z r,d,f,l,b    FM's modulator
-    U n            vibrato 0-15
-    K t,q,u        glide
+    H a,d,s,r,f    envelope, each 0-15 (default 0,0,15,0)
+    Y m,f,r,s,t    filter
+    Z r,d,f,l,b,s  FM's modulator
+    U n,r,a,c      vibrato 0-15, its rate, tremolo, wobble
+    K t,q,u,p      glide
     S n            stereo place 1-15 (default 8, the middle)
     R n            reverb 0-15
     I n            unison 0-15
+    J n,p          layer 0-3, its pitch in hundredths of the note's
 
 See [waves](play waves), [envelopes](play envelope),
 [filters](play filter), [FM](play fm), [vibrato and glide](play pitch),
-[stereo, reverb and unison](play space). Recipes: [examples](play examples).
+[stereo, reverb and unison](play space), [layers](play layers).
+Recipes: [examples](play examples).
 
 Timing
 A synthesizer voice's notes are timed to 3.4 ms, a 16th of a clock

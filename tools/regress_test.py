@@ -86,6 +86,9 @@ CASES = {
     # INPUT "p", x printed "p? ": a comma means no ?. Redirected input is not echoed.
     "qb_input": (('INPUT "a", x\r\nINPUT "b"; y\r\nINPUT z\r\nPRINT x; y; z\r\n', "1\r\n2\r\n3\r\n"),
                  "a\r\nb? \r\n? \r\n 1  2  3 \r\n", "ERROR"),
+    # INPUT past redirected input's last line was Out of DATA.
+    "qb_input_past_end": (('INPUT a$\r\nPRINT a$\r\nINPUT b$\r\nPRINT "after"\r\n', "x\r\n"),
+                          "x\r\n? \r\nInput past end of file", "after"),
     # INPUT's end was 16 bits of a cache offset: past 64 KB of code an empty reply went elsewhere.
     "qb_input_far": (("".join("b = 1" + "".join(f": b = b * 3 + {k}" for k in range(20)) + "\r\n" for _ in range(600))
                       + "INPUT x, y: PRINT 1\r\nPRINT 2\r\n", "\r\n"), "? \r\n 1 \r\n 2 \r\n", "ERROR"),
@@ -1693,6 +1696,18 @@ def check_host_errors(tmp: Path) -> None:
         assert re.search(out, p.stdout) and re.search(err, p.stderr) and p.returncode == rc, got
 
 
+def check_input_from_null(tmp: Path) -> None:
+    """Standard input /dev/null, a device but no keyboard, was read key by key: each read was Enter,
+    so an INPUT loop printed for ever."""
+    (tmp / "null.bas").write_text('10 INPUT a$\nPRINT "got"\nGOTO 10\n')
+    try:
+        p = subprocess.run([str(dosrun.COM.resolve()), "null.bas"], cwd=tmp, stdin=subprocess.DEVNULL,
+                           capture_output=True, text=True, timeout=5)
+    except subprocess.TimeoutExpired:
+        raise AssertionError("INPUT from /dev/null did not end") from None
+    assert "Input past end of file" in p.stdout and "got" not in p.stdout, p.stdout
+
+
 # The compiler's fixed tables, each Out of memory or a Syntax error one past its size; a program
 # grows until memory runs out.
 BIG |= {
@@ -1822,6 +1837,7 @@ def main() -> None:
     tmp = Path(tempfile.mkdtemp())
     if dosrun.is_host(dosrun.COM):
         check_host_errors(tmp)
+        check_input_from_null(tmp)
         for k in HOST_SKIP:
             CASES.pop(k)
     jobs = {k: v[0] for k, v in (CASES | EXAMPLES).items()}

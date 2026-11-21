@@ -39,15 +39,26 @@ void edit_lb_wright(LineBuf *b);
 /* The program window. */
 /* ed_load: line into uimn.edline, not dirty; the column stays. */
 void edit_load(Session *S, uint32_t line);
+/* View v a native module's interface, its lines what its code was built against: true, refused,
+   the program window's line as stored again and a box saying so. */
+bool edit_refused_in(Session *S, uint32_t v);
+/* edit_refused_in the program window's view: each edit asks first. */
+bool edit_refused(Session *S);
 /* ed_commit: a dirty line back to the text (above), uimn.text.changed, unsaved; a SUB or
-   FUNCTION line typed gets its view (view_commit). false: a syntax error, shown in a box with its
-   word selected; the line is stored as typed. */
+   FUNCTION line typed gets its view (view_commit). false: a syntax error; the line is stored as
+   typed. */
 bool edit_commit(Session *S);
+/* b's text stored as line line of the view, as edit_commit stores the cursor's: LIST's spelling,
+   b's then; as typed with a syntax error, false. */
+bool edit_store(Session *S, uint32_t line, LineBuf *b);
+/* Text line line (the whole text's) checked as entered in its view: false it passes; else its
+   error's column to *col, its message in uimn.errmsg. */
+bool edit_error(Session *S, uint32_t line, uint16_t *col);
 /* Each line kept as typed checked again, as entered in its view: stored as edit_canon makes it
    when it passes now (a call into a module just bound). */
 void edit_recheck(Session *S);
-/* ed_goto: the cursor to line, this one committed first; false: it stayed (a syntax error). */
-bool edit_goto(Session *S, uint32_t line);
+/* ed_goto: the cursor to line, this one committed first. */
+void edit_goto(Session *S, uint32_t line);
 /* ed_up, ed_down, ed_pgup, ed_pgdn, ed_first, ed_last: the cursor a line up, down, a window up,
    down; to the first line (column 0), the last (past its end). */
 void edit_up(Session *S);
@@ -64,6 +75,10 @@ void edit_enter(Session *S);
 void edit_bs(Session *S);
 /* ed_del: Del: past the end the next line joins this one. */
 void edit_del(Session *S);
+/* Ctrl+Backspace, Ctrl+Del: to where Ctrl+Left, Ctrl+Right go, deleted; at the line's start, its
+   end, Backspace's and Del's join. */
+void edit_bs_word(Session *S);
+void edit_del_word(Session *S);
 /* ed_tab: Tab: spaces to the next column of 8. */
 void edit_tab(void);
 /* ed_ctrly: Ctrl+Y: the line to the clipboard, out of the text. */
@@ -71,6 +86,10 @@ void edit_ctrly(Session *S);
 
 /* sel_mark: a shifted move: the selection starts at the cursor if not on yet. */
 void edit_sel_mark(void);
+/* A double click: the word at the cursor selected, the cursor at its end; none: nothing. */
+void edit_sel_word(void);
+/* A triple click: the cursor's line selected whole, the cursor at the next one's start. */
+void edit_sel_line(Session *S);
 /* sel_get: the selection: SEL_PIECE (uimn.ed.sel_a to sel_b columns of the cursor's line),
    SEL_LINES (sel_a to sel_b lines; a lower end at column 0 not its line's), SEL_NONE. */
 uint8_t edit_sel(void);
@@ -103,6 +122,9 @@ uint8_t *edit_body(uint8_t *text);
    uimn.errmsg its message, edit's error column set for edit_commit; sbuf not made. *lexed: the
    body's tokens' length in comp_cbuf when sbuf is LIST's spelling, else 0. */
 bool edit_canon(Session *S, uint8_t *text, uint16_t len, uint32_t *lexed);
+/* The name at the edit window's cursor, its dots and suffix kept (hdoc_word), to out, max bytes
+   with the 0; its length, 0 none. */
+uint16_t edit_word(char *out, uint16_t max);
 /* ui_dxerr: a compile error's words in uimn.errmsg: its class, what is wrong, then what to do,
    wrapped for a box (diag's). text the line's, 0-ended; op its ERR op. The column in text it is
    at. Uses cons.inbuf and comp_cbuf. */

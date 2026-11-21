@@ -1,5 +1,5 @@
 # IDE Additions
-keys: ide additions, IDE extras, Step Out, Go to Definition
+keys: ide additions, IDE extras, Step Out, Go to Definition, Go To
 
 What the editor does that QBasic's did not: highlighting, line
 checking, completion, a debug pane, nine themes, split windows.
@@ -13,11 +13,27 @@ Menu commands are in [menus](menus).
  - Highlighting: keywords, numbers, strings, comments and names in
    their own colours ([Syntax Highlighting](syntax highlighting)).
    It comes from the compiler's lexer, so it never disagrees with it.
+ - [Undo](Undo Command) and [Redo](Redo Command): Ctrl+Z and
+   Ctrl+Shift+Z, back to when the program was opened.
  - Each line is checked as it is entered
-   ([syntax checking](syntax checking)).
+   ([syntax checking](syntax checking)). An error is lit, not boxed;
+   the cursor moves on and Ctrl+F8 goes back to it.
+ - Find opens a bar on the status row, not a box: the match moves as
+   you type, through every SUB and module ([Find Bar](Find Bar)).
+ - ( and " get their closing one as they are typed.
+ - The cursor's bracket's partner and its block's keywords are lit;
+   Ctrl+] goes to them. So are the uses of the name at the cursor.
+ - Ctrl+Backspace and Ctrl+Del delete a word; a double click selects
+   one, a triple click the line.
+ - Alt+Up and Alt+Down move lines, with Shift copy them, and Ctrl+/
+   comments them out ([editing keys](editing keys)).
  - [Completion](completion): Tab lists what fits at the cursor.
  - [Debug pane](debug pane): at a stop, Watch, Locals and Call stack
-   beside the code.
+   beside the code. Records and arrays open in Locals, values can be
+   set, and Break When (Ctrl+F9) stops the run when an expression
+   turns true or changes.
+ - At a stop, each line of the stopped procedure shows the values of
+   the variables it names after its end.
  - Debug, Step Out (Shift+F8) runs on until the current procedure
    returns, then stops at the next statement in its caller. Step (F8)
    and Step Over (F7) run one statement, into calls or over them
@@ -35,6 +51,11 @@ Menu commands are in [menus](menus).
    or label, in another file for a name an IMPORT gives. Ctrl+Alt+B,
    or Ctrl+Alt+click, shows it in the other window of a split, split
    side by side first when there is none.
+ - Go To: Ctrl+P lists every procedure and file. Typing letters of a
+   name, in order, narrows the list ("drw" finds DrawWorld); Enter
+   shows the one chosen.
+ - Alt+Left goes back to where a jump left: Go To, Go to Definition,
+   F2, Find, F3 or Ctrl+F8. Alt+Right goes forward again.
  - F2 lists procedures sorted by name, in columns. The Open box lists
    files sorted, in three columns, and shows a long path shortened.
  - A program's graphics screen is kept while the editor is shown.

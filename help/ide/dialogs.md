@@ -25,12 +25,12 @@ Controls:
 The Help button shows the box's topic.
 
 The boxes: [Open Dialog](Open Dialog), [Save As Dialog](Save As Dialog),
-[Find Dialog](Find Dialog), [Change Dialog](Change Dialog),
+[Change Dialog](Change Dialog),
 [SUBs Dialog](SUBs Dialog), [New SUB Dialog](New SUB Dialog).
 
 ## Example
-    Alt+S, F       open the Find box
+    Alt+S, C       open the Change box
     type  PRINT    replaces the offered text
-    Tab            to Match Upper/Lowercase
+    Tab, Tab       to Match Upper/Lowercase
     Space          tick it
-    Enter          OK: find the match
+    Esc            close it

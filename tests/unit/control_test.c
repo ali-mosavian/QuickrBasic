@@ -320,3 +320,25 @@ TEST(typed_declaration_error_returned_at_its_place)
     CHECK(declared_op.code == E_OM && declared_op.at == 0); /* at c, the field */
     CHECK(!S->vm.err.active);
 }
+
+/* SWAP took the token after it as a variable unasked: SWAP alone read past the line's end, a name
+   of whatever bytes an earlier line left there; completion's check of SWAP while typing crashed. */
+TEST(check_swap_needs_its_variables)
+{
+    memset(S->comp.cbuf, 0x7F, 256); /* past the line's end: no name a variable could have */
+    CHECK(check_errs(S, "swap"));
+    memset(S->comp.cbuf, 0x7F, 256);
+    CHECK(check_errs(S, "swap a,"));
+    memset(S->comp.cbuf, 0x7F, 256);
+    CHECK(check_errs(S, "swap 1, 2"));
+    CHECK(!check_errs(S, "swap a, b"));
+}
+
+/* SWAP's first operand a variable: SWAP 1, a ran, and SWAP at a line's end read the bytes past it
+   as a name's number (the suggester's check of "... THEN SWAP" crashed). */
+TEST(swap_of_a_value_is_a_syntax_error)
+{
+    static const char *const lines[] = {"10 a = 1: SWAP 1, a", nullptr};
+
+    CHECK(unit_run(S, lines) == E_SN);
+}

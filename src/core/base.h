@@ -59,6 +59,16 @@ static inline void wr16(const Addr a, const uint16_t v) { store16(at(a), v); }
 static inline void wr32(const Addr a, const uint32_t v) { store32(at(a), v); }
 
 static inline uint8_t upcase(const uint8_t c) { return c >= 'a' && c <= 'z' ? c - ('a' - 'A') : c; }
+/* The 0-ended a and b the same, case aside. */
+static inline bool same_caseless(const char *const a, const char *const b)
+{
+    for (uint32_t i = 0;; i++) {
+        if (upcase((uint8_t)a[i]) != upcase((uint8_t)b[i]))
+            return false;
+        if (!a[i])
+            return true;
+    }
+}
 static inline uint8_t downcase(const uint8_t c)
 {
     return c >= 'A' && c <= 'Z' ? c + ('a' - 'A') : c;

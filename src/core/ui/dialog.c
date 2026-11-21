@@ -20,19 +20,20 @@
  * | dl_msg, dl_ok, dl_ync | dlog_msg, dlog_ok, dlog_ync | MIRROR |
  * | dl_err | dlog_err | MIRROR; writes a 0 at its first '|' |
  * | dl_wrap, wr_ind | dlog_wrap, its indent | MIRROR; D1 |
- * | dl_open, dl_saveas, dl_find | dlog_open, dlog_saveas, dlog_find | MIRROR; D2 |
+ * | dl_open, dl_saveas | dlog_open, dlog_saveas | MIRROR; D2 |
+ * | dl_find, dg_find | findbar.c's bar | MOVED; a bar, not a box |
  * | dl_conf, dl_change | dlog_conf, dlog_change | MIRROR |
  * | dl_fok | dlog_fileok | MIRROR; D2 |
  * | dl_bhelp | dlog_nohelp | MIRROR; D2 |
  * | ui_ledit | dlog_ledit | MIRROR |
  * | dl_ctl, dl_pos, dl_draw, dl_one, dl_dfld, dl_dlst, dl_dbtn, dl_hk, dl_acc, dl_dchk, dl_hit, dl_step, dl_run0, dl_bw, dl_files, dl_fsel, dl_dsel, dl_name1 | statics | MIRROR |
- * | dg_open, dg_save, dg_find, dg_conf, dg_chg | static Dlogs | MIRROR |
+ * | dg_open, dg_save, dg_conf, dg_chg | static Dlogs | MIRROR |
  * | TDLG, TCTL, TLIST | Dlog, DlogCtl, DlogList | D3 |
  * | TBTN, bt_ok, bt_ync | MsgButton; static lists | MIRROR |
  * | TMSGD, g_ui.dg.*, bf.msg_txt, msg_d, ls_fl, ls_dl, dl_mask, dl_path, dl_dta | statics | D4 |
  * | g_ui.bf.dl_fn, dl_name | uimn.fname, uimn.chosen | MOVED (ui.h) |
  * | g_ui.bf.fd_what, fd_to, g_ui.fd.fd_case, fd_whole | uimn.find_what, change_to, match_case, whole_word | MOVED (ui.h) |
- * | CT_*, CF_NOF, DO_OK, DS_OK, DF_OK, DC_FV | same (dialog.h); DLOG_ESC 0xFF | MIRROR |
+ * | CT_*, CF_NOF, DO_OK, DS_OK, DC_FV | same (dialog.h); DLOG_ESC 0xFF | MIRROR |
  * | u_open, u_saveas, u_find, u_change, u_fname, u_files, u_dirs, u_skip, u_chg1, u_fwhat, u_cto, u_case, u_whole, u_fverify, u_chall, u_mbas, u_bas, u_star, u_yes, u_no | statics | MIRROR |
  * | DL_WRAP | static (44) | MIRROR |
  * | LSMAX | none: the lists grow | D5 |
@@ -72,10 +73,10 @@ enum {
    buttons MSG_GAP apart under it. */
 enum { MSG_TOP = 2, MSG_TCOL = 3, MSG_GAP = 3, MSG_PAD = 6 };
 
-static const char s_open[] = "Open", s_saveas[] = "Save As", s_find[] = "Find",
-                  s_change[] = "Change", s_fname[] = "File &Name:", s_files[] = "&Files",
-                  s_dirs[] = "&Dirs/Drives", s_yes[] = "&Yes", s_no[] = "&No", s_skip[] = "&Skip",
-                  s_chg1[] = "&Change", s_fwhat[] = "&Find What:", s_cto[] = "Change &To:",
+static const char s_open[] = "Open", s_saveas[] = "Save As", s_change[] = "Change",
+                  s_fname[] = "File &Name:", s_files[] = "&Files", s_dirs[] = "&Dirs/Drives",
+                  s_yes[] = "&Yes", s_no[] = "&No", s_skip[] = "&Skip", s_chg1[] = "&Change",
+                  s_fwhat[] = "&Find What:", s_cto[] = "Change &To:",
                   s_case[] = "&Match Upper/Lowercase", s_whole[] = "&Whole Word",
                   s_fverify[] = "Find and &Verify", s_chall[] = "&Change All";
 
@@ -180,24 +181,6 @@ static DlogCtl save_ctl[] = {
     {.kind = CT_BTN, .row = 16, .col = 31, .cols = 8, .text = uimn_helpbtn, .hook = dlog_nohelp},
 };
 static Dlog dg_save = {3, 19, 18, 42, s_saveas, 6, 0, 15, DS_OK, save_ctl};
-
-static DlogCtl find_ctl[] = {
-    {.kind = CT_FLD,
-     .row = 1,
-     .col = 13,
-     .cols = 42,
-     .rows = 1,
-     .field = &uimn.find_what,
-     .label = s_fwhat,
-     .lrow = 2,
-     .lcol = 2},
-    {.kind = CT_CHK, .row = 6, .col = 5, .text = s_case, .check = &uimn.match_case},
-    {.kind = CT_CHK, .row = 6, .col = 38, .text = s_whole, .check = &uimn.whole_word},
-    {.kind = CT_BTN, .row = 9, .col = 9, .cols = 6, .text = uimn_ok},
-    {.kind = CT_BTN, .row = 9, .col = 24, .cols = 10, .text = uimn_cancel},
-    {.kind = CT_BTN, .row = 9, .col = 42, .cols = 8, .text = uimn_helpbtn, .hook = dlog_nohelp},
-};
-static Dlog dg_find = {7, 10, 11, 59, s_find, 6, 0, 8, DF_OK, find_ctl};
 
 static DlogCtl conf_ctl[] = {
     /* Find and Verify's question (uisearch.des dlgConfirm) */
@@ -1246,12 +1229,11 @@ void dlog_err(Session *const S, char *text)
 
     if (bar) {
         *bar = 0;
-        dl.title = text;
-        text = bar + 1;
+        dlog_text(S, text, bar + 1);
+    } else {
+        dlog_ok(S, text);
     }
 
-    dlog_ok(S, text);
-    dl.title = nullptr;
     dl.adjust = false;
     uimn.ed.sel_on = false; /* the error's word, shown till now */
 }
@@ -1285,6 +1267,13 @@ uint8_t *dlog_wrap(uint8_t *dst, const uint8_t *const src, const uint32_t len, c
 }
 
 void dlog_ok(Session *const S, const char *const text) { dlog_msg(S, text, bt_ok); }
+
+void dlog_text(Session *const S, const char *const title, const char *const text)
+{
+    dl.title = title;
+    dlog_ok(S, text);
+    dl.title = nullptr;
+}
 
 uint8_t dlog_ync(Session *const S, const char *const text)
 {
@@ -1468,12 +1457,6 @@ bool dlog_saveas(Session *const S)
 }
 
 /* ---- Find, Change */
-
-bool dlog_find(Session *const S)
-{
-    dg_find.focus = 0;
-    return dlog_run(S, &dg_find) == DF_OK;
-}
 
 uint8_t dlog_conf(Session *const S)
 {

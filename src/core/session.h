@@ -22,6 +22,7 @@
 #include "io/console.h"
 #include "io/diag.h"
 #include "io/file.h"
+#include "io/native.h"
 #include "io/repl.h"
 #include "io/source.h"
 #include "mem/alloc.h"
@@ -69,6 +70,7 @@ struct Session {
     Link link;
     List list;
     Modu modu;
+    Natv natv;
     Prog prog;
     ProgUser prog_user;
     CompRun comp_run;
@@ -108,6 +110,8 @@ void session_arm(Session *S);
 /* The run also stops once at program line line's first statement. */
 void session_until(Session *S, uint32_t line);
 void session_trace(Session *S, bool on);
+/* Each statement to the debug hooks' halts, on: Break When's. */
+void session_halting(Session *S, bool on);
 bool session_tracing(const Session *S);
 /* Where the stopped run goes on: false, none. */
 bool session_stopped_at(Session *S, DebugPos *pos);
@@ -126,10 +130,18 @@ typedef struct {
 
 /* The stopped run's frames to out, newest first, at most max; how many. */
 uint32_t session_frames(const Session *S, DebugFrame out[], uint32_t max);
+/* The stopped run's frame i, newest first, to *out; false: past the last. */
+bool session_frame(const Session *S, uint32_t i, DebugFrame *out);
+/* The stopped run's frames. */
+uint32_t session_nframes(const Session *S);
 /* Variable id's cell as frame f sees it (par unused: the frame knows its parameters). */
 Addr session_cell(const Session *S, const DebugFrame *f, uint32_t id, int32_t par);
 /* A direct line called into the stopped run: evaluating would drop its code. */
 bool session_in_direct(const Session *S);
 /* PRINT expr in procedure proc's scope to out (dbug_eval): its error, else ST_OK. */
 Status session_eval(Session *S, const char *expr, uint32_t proc, char out[static 80]);
+/* Statement stmt run so (dbug_exec). */
+Status session_exec(Session *S, const char *stmt, uint32_t proc, char out[static 80]);
+/* Error code's message, the program's own ON ERROR texts' too. */
+const char *session_errtext(const Session *S, uint8_t code);
 #endif

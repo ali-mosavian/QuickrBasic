@@ -7,7 +7,8 @@ See also [editing keys](editing keys), [mouse](mouse).
 
 ## Details
 Hold Shift while moving the cursor with any movement key, or drag
-the mouse, or Shift+click to extend. The selected text is shown
+the mouse, or Shift+click to extend. A double click selects the
+word, a triple click the line. The selected text is shown
 reversed. Any move without Shift drops the selection, as does Esc.
 
 Typing a character replaces a selection inside one line.

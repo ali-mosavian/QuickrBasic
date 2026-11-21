@@ -26,12 +26,90 @@ function normal(path) {
   return '/' + out.join('/');
 }
 
-// A DevVoice's bytes (qbrt's dev/voice.h), as the synthesizer's AudioWorklet takes them (synth.mjs).
-export const VOICE_BYTES = 28;
+// A DevVoice's bytes (qbrt's dev/voice.h), as the synthesizer's AudioWorklet takes them (synth.mjs): a note is one
+// and its layers'.
+export const VOICE_BYTES = 44;
+
+// A side module's dylink.0: the memory (bytes, alignment) and table entries it needs.
+function dylink(mod) {
+  const [section] = WebAssembly.Module.customSections(mod, 'dylink.0');
+  const b = new Uint8Array(section ?? new ArrayBuffer(0));
+  let at = 0;
+  const leb = () => {
+    let r = 0, s = 0, x;
+    do { x = b[at++]; r |= (x & 0x7f) << s; s += 7; } while (x & 0x80);
+    return r >>> 0;
+  };
+  while (at < b.length) {
+    const kind = b[at++], len = leb(), end = at + len;
+    if (kind === 1) return { mem: leb(), align: 1 << leb(), table: leb() };
+    at = end;
+  }
+  return null;
+}
+
+// Each side module loaded: { mod, memoryBase, tableBase, need }, for an audio stream's other thread.
+const loaded = [];
+
+// A native extension's side module (plat/wasm/pext.c) on the instance ex's memory, table and stack
+// pointer: qx_init_<name>'s table index, 0 if it will not load.
+function loadExt(memory, ex, bytes, name) {
+  const mod = new WebAssembly.Module(bytes); // synchronous: the module's own thread may
+  const need = dylink(mod);
+  if (!need) throw new Error('not a side module');
+  const memoryBase = need.mem ? ex.pext_alloc(need.mem, need.align) : 0;
+  if (need.mem && !memoryBase) throw new Error('no memory');
+  const table = ex.__indirect_function_table;
+  const tableBase = table.grow(need.table + 1);
+  const global = (v) => new WebAssembly.Global({ value: 'i32', mutable: false }, v);
+  const ext = new WebAssembly.Instance(mod, {
+    env: {
+      memory, __indirect_function_table: table, __stack_pointer: ex.__stack_pointer,
+      __memory_base: global(memoryBase), __table_base: global(tableBase),
+    },
+  }).exports;
+  ext.__wasm_apply_data_relocs?.();
+  ext.__wasm_call_ctors?.();
+  const init = ext[`qx_init_${name}`];
+  if (!init) throw new Error(`no qx_init_${name}`);
+  table.set(tableBase + need.table, init);
+  loaded.push({ mod, memoryBase, tableBase, need });
+  return tableBase + need.table;
+}
+
+// The audio rate a device plays at: the page's AudioContext is made at it (main.mjs).
+export const AUDIO_RATE = 48000;
+
+// An audio stream on another thread (plat/wasm/paud.c): the side module of render's table index
+// instantiated again on the same memory, with a table of its own at the same base and its own
+// stack; its data is the first instance's, so nothing is relocated or constructed again. The
+// render is called under the lock word the module's side holds: frames -> the stereo samples at
+// out. Its calls into the host would find empty slots, and trap.
+export function stream({ module, memory, memoryBase, tableBase, size, render, out, stack, lock }) {
+  const global = (v, mutable = false) => new WebAssembly.Global({ value: 'i32', mutable }, v);
+  const table = new WebAssembly.Table({ initial: size, element: 'anyfunc' });
+  new WebAssembly.Instance(module, {
+    env: {
+      memory, __indirect_function_table: table, __stack_pointer: global(stack, true),
+      __memory_base: global(memoryBase), __table_base: global(tableBase),
+    },
+  });
+  const fn = table.get(render), i32 = new Int32Array(memory.buffer);
+  return (frames) => {
+    while (Atomics.compareExchange(i32, lock >> 2, 0, 1) !== 0);
+    try {
+      fn(out, frames);
+    } finally {
+      Atomics.store(i32, lock >> 2, 0);
+    }
+    return new Int16Array(memory.buffer, out, frames * 2);
+  };
+}
 
 // host: { fs, cwd, args, write(fd, bytes), exit(code), stdin(n) -> bytes, stdio(fd) -> a stat,
-// tone(hz), voice(n, bytes) }; cwd is
-// the module's own (a worker has no chdir), its paths resolved against it.
+// isatty(fd), tone(hz), voice(n, bytes), audio(spec): a stream's spec (stream()) to the device's thread, none
+// with no device; ex: the instance's exports, set once it is made (a native extension loads on
+// them) }; cwd is the module's own (a worker has no chdir), its paths resolved against it.
 export function imports(memory, host) {
   const { fs } = host;
   let cwd = normal(host.cwd);
@@ -116,6 +194,7 @@ export function imports(memory, host) {
       d.setFloat64(out + 8, st.mtimeMs, true);
       return 0;
     }),
+    fs_isatty: (fd) => (fd < FIRST_FD && host.isatty(fd) ? 1 : 0),
     fs_mkdir: (p) => run(() => (fs.mkdirSync(at(p)), 0)),
     fs_rmdir: (p) => run(() => (fs.rmdirSync(at(p)), 0)),
     fs_unlink: (p) => run(() => (fs.unlinkSync(at(p)), 0)),
@@ -139,7 +218,22 @@ export function imports(memory, host) {
     args: (buf, cap) => put(buf, cap - 1, host.args),
     exit: (code) => host.exit(code),
     tone: (hz) => host.tone?.(hz),
-    voice: (n, p) => host.voice?.(n, u8().slice(p, p + VOICE_BYTES)),
+    voice: (n, p, count) => host.voice?.(n, u8().slice(p, p + VOICE_BYTES * count)),
+    ext_load: (p, n, name, len) => {
+      try {
+        return loadExt(memory, host.ex, u8().slice(p, p + n), new TextDecoder().decode(u8().slice(name, name + len)));
+      } catch (e) {
+        console.error(`native extension: ${e.message}`);
+        return 0;
+      }
+    },
+    audio_open: (render, out, stack, lock) => {
+      const ext = loaded.find((x) => render >= x.tableBase && render < x.tableBase + x.need.table);
+      if (!host.audio || !ext) return 0;
+      const { mod: module, memoryBase, tableBase, need } = ext;
+      host.audio({ module, memory, memoryBase, tableBase, size: tableBase + need.table + 1, render, out, stack, lock });
+      return AUDIO_RATE;
+    },
   };
   const math = { sin: Math.sin, cos: Math.cos, tan: Math.tan, atan: Math.atan, atan2: Math.atan2, exp: Math.exp,
     exp2: (x) => 2 ** x, log: Math.log, log2: Math.log2, log10: Math.log10, pow: Math.pow, fmod: (x, y) => x % y };

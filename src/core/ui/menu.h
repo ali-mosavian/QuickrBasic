@@ -63,6 +63,8 @@ enum : uint8_t {
     ACT_HCONT,
     ACT_HTOPIC,
     ACT_HUSING,
+    ACT_UNDO, /* Edit: Undo, Redo */
+    ACT_REDO,
 };
 static_assert(ACT_TH2 == 33 && ACT_NONE == 41);
 

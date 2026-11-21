@@ -17,7 +17,16 @@ See also [selecting text](selecting text), [completion](completion),
     Enter             split the line; indent follows the block
     Backspace         delete before the cursor
     Del               delete at the cursor
+    Ctrl+Backspace    delete to the word's start
+    Ctrl+Del          delete to the next word
     Ctrl+Y            delete the whole line
+    Alt+Up, Down      move the line, or the lines selected
+    Shift+Alt+Up, Down  copy them above, below
+    Ctrl+/, Ctrl+-    comment them out, or back in
+    Ctrl+]            to the matching bracket, or the block's next
+                      keyword (FOR, NEXT; IF, ELSE, END IF; ...)
+    Ctrl+Z            undo; Alt+Backspace too
+    Ctrl+Shift+Z      redo
     Ins               switch insert and overwrite
     Tab               complete the word, else indent
 
@@ -33,6 +42,15 @@ WordStar keys work as well:
 
 Leaving a line commits it: keywords are capitalised, trailing
 spaces dropped and, if checking is on, the syntax checked.
+
+No line moves past a SUB or FUNCTION line or its END.
+
+Typing ( or " puts in its closing one too, before a space, a ) or
+the line's end; typing the closing one steps over it. Backspace
+between ( ) or "" takes both. Not in a comment or in overtype.
+
+With the cursor on a bracket its partner is lit; on a block's
+keyword, the block's others are; on a name, its uses on screen.
 
 ## Example
     Type:   print "hi"   then press Down

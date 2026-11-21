@@ -494,6 +494,49 @@ static void blok_procstmt(BlokScan *const sc, const uint8_t *const s, const uint
     }
 }
 
+/* DECLARE SUB|FUNCTION n CDECL [ALIAS "x"] (params) at s in a native module's interface: its
+   procedure, its code the extension's (link binds it). No body, so its lines are none: it starts at
+   the DECLARE's line and ends before it, and blok_procof never finds it. */
+static void blok_native(BlokScan *const sc, const uint8_t *const s)
+{
+    if (!(prog_line(sc->pg, sc->line)->flags & LF_NATIVE) ||
+        (s[1] != TK_SUB && s[1] != TK_FUNCTION) || s[2] != M_VAR)
+        return;
+
+    const uint8_t *q = decl_item(s + 2);
+
+    if (q[0] != TK_X || q[1] != TK1_CDECL)
+        return;
+
+    q += 2;
+
+    if (q[0] == TK_X && q[1] == TK1_ALIAS && q[2] == '"')
+        q = decl_item(q + 2);
+
+    Proc *const p = blok_new(sc, &sc->b->procs);
+    *p = (Proc){
+        .at = (uint32_t)(s + 2 - at(sc->pg->base)),
+        .name = comp_nameof(s + 2),
+        .kind = s[1] == TK_SUB ? PK_SUB : PK_FUNC,
+        .flags = PF_NATIVE,
+        .entry = 0, /* none: its code is the extension's */
+        .first = sc->line,
+        .last = sc->line - 1,
+        .skip = UINT32_MAX,
+    };
+
+    if (*q != '(')
+        return;
+
+    q++;
+    p->npar = blok_params(sc, q, nullptr);
+
+    if (p->npar) {
+        p->params = blok_alloc(sc, p->npar * sizeof *p->params);
+        blok_params(sc, q, p->params);
+    }
+}
+
 /* LOOP, WEND, kind: back to the opener (open), which leaves past it, as its EXITs do. */
 static void blok_loopend(
     BlokScan *const sc,
@@ -674,6 +717,10 @@ static void blok_stmt(BlokScan *const sc, const uint8_t *s)
 
     case TK_SUB:
         blok_procstmt(sc, s, PK_SUB);
+        return;
+
+    case TK_DECLARE:
+        blok_native(sc, s);
         return;
 
     case TK_FUNCTION:

@@ -10,7 +10,7 @@
 enum {
     KEY_BYTES = 256,
     TONE_LOG = 4096,
-    VOICE_LOG = 65536, /* a long song's */
+    VOICE_LOG = 16384, /* a long song's */
     CTRL_Z = 26,
     DAY = 8640000,
     TICK_UNITS = 1000, /* a tick is 1000 units; a hundredth is 182 of them (18.2 ticks a second) */
@@ -156,13 +156,15 @@ void dev_voice(unsigned voice, const DevVoice *v)
 {
     if (voice_count < VOICE_LOG) {
         voice_log[voice_count].voice = voice;
-        voice_log[voice_count].v = *v;
+        memcpy(voice_log[voice_count].v, v, (1 + v->layers) * sizeof *v);
         voice_log[voice_count].tick = ticks_run;
         voice_count++;
     }
 }
 
 void dev_synth_open(void) {}
+
+void dev_audio_init(void) {}
 
 void dev_synth_close(void) {}
 
@@ -174,6 +176,11 @@ size_t headless_voice_count(void)
 HeadlessVoice headless_voice(size_t index)
 {
     return voice_log[index];
+}
+
+void headless_voice_forget(void)
+{
+    voice_count = 0;
 }
 
 size_t headless_tone_count(void)

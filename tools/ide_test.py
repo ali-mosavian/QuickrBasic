@@ -284,9 +284,10 @@ def play() -> None:
     press("tab", "enter")
     assert "SQ.BAS" in look()[1] and text()[:3] == ["FOR I = 1 TO 3", "  PRINT I * I", "NEXT"], look()
 
-    # Find selects the match; Change All.
+    # Find's bar selects the match as it is typed; Esc leaves it selected. Change All.
     press(f"0x{ALT_S:x}", "f")
-    keys("i * i\n")
+    keys("i * i")
+    press("esc")
     assert look()[24].endswith("00002:014"), look()[24]
     press(f"0x{ALT_S:x}", "c")
     keys("3")
@@ -317,32 +318,16 @@ def play() -> None:
     assert text()[0] == "FOR I = 1 TO 4" and not any("COMPLETE" in r for r in look()), look()
     # Ctrl+L repeats the find, as QBasic.
     press("0x77", f"0x{ALT_S:x}", "f")
-    keys("i\n")
+    keys("i")
+    press("esc")
     s.send({"cmd": "key", "scancode": 0x26, "ascii": 0x0C, "stop": True})
     s.run_to_key(3000)
     assert look()[24].endswith("00002:006"), look()[24]
-    # Find starts from the selection, else the word at the cursor.
+    # Find starts from the selection, else the word at the cursor, on the status row.
     press(f"0x{ALT_S:x}", "f")
-    scr = [r.ljust(80) for r in look("find")]
-    # QBasic's dlgSearchFind (uisearch.des), its places client-relative.
-    assert scr[9][12:22] == "FIND WHAT:" and scr[9][24:27] == "I  ", scr
-    assert (scr[16][19:25], scr[16][34:44], scr[16][52:60]) == ("< OK >", "< CANCEL >", "< HELP >"), scr[16]
-    # Its letters lit once Alt is down (COW dlgcore.c); Alt+M checks Match.
-    assert 0x7F not in attrs(9)[11:60], attrs(9)[11:60]
-    flags(0x08)
-    s.resume(100)
-    flags(0)
-    s.resume(100)
-    assert attrs(9)[12] == 0x7F and attrs(9)[13] == 0x70, attrs(9)[11:16]
-    flags(0x08)
-    press("0x32")  # Alt+M
-    flags(0)
-    assert "[X] MATCH UPPER/LOWERCASE" in look()[13], look()
-    flags(0x08)
-    press("0x32")  # once more: off
-    flags(0)
+    assert look()[24].startswith(" FIND: I "), look()[24]
     press("esc", "0x77", *["right"] * 10, f"0x{ALT_S:x}", "f")
-    scr = look(); assert scr[9].ljust(80)[24:27] == "TO ", scr
+    assert look()[24].startswith(" FIND: TO "), look()[24]
     press("esc")
 
     # Save As, then Exit to DOS.
@@ -770,7 +755,8 @@ def play() -> None:
         mouse(5, 49, True)
         mouse(5, 49, False)
         assert chars(1)[49] == 0xC2, chars(1)
-        assert locals_() == ["N% = 3", "T% = 30"], pane()  # the parameter first
+        # the parameter first, names as declared, then the module's the SUB sees
+        assert locals_() == ["n% = 3", "t% = 30", "\xc4\xc4\xc4 shared \xc4\xc4\xc4", "r& = 1", 's$ = "hi"'], pane()
 
         def typed(text: str) -> None:  # keys() has no shifted symbols
             raw = {"(": 0x0A, ")": 0x0B, "+": 0x0D, "*": 0x09, "/": 0x35, "%": 0x06}
@@ -789,15 +775,15 @@ def play() -> None:
 
         # The cursor on a variable, or the mouse over one: its value under it; a SHARED module
         # one's too. The stop put the cursor on r&.
-        assert b" R& = 1 " in chars(6), chars(6)
+        assert b" r& = 1 " in chars(6), chars(6)
         press("end", "left")
-        assert b" N% = 3 " in chars(6), chars(6)
+        assert b" n% = 3 " in chars(6), chars(6)
         mouse(3, 1, False)
-        assert b" T% = 30 " in chars(4), chars(4)
+        assert b" t% = 30 " in chars(4), chars(4)
         mouse(6, 8, False)
-        assert b' S$ = "hi" ' in chars(7), chars(7)
+        assert b' s$ = "hi" ' in chars(7), chars(7)
         mouse(0, 70, False)
-        assert b"T% = 30" not in chars(4), chars(4)
+        assert b"t% = 30" not in chars(4), chars(4)
         # Watch: Ins asks for an expression, evaluated in the stopped call's scope; an error is its
         # message, and the run goes on as it was; Del drops the selected one.
         press("0x40", "0x52")
@@ -808,15 +794,19 @@ def play() -> None:
         press("0x53")
         assert watches() == ["n% * 2 = 6"], pane()
         press("esc")
-        assert frames() == [["\x10Fact", "line", "4"], ["Fact", "line", "3"], ["module", "line", "6"]], pane()
+        assert frames() == [
+            ["\x10Fact", "(n%", "=", "3)", "line", "4"],
+            ["Fact", "(n%", "=", "4)", "line", "3"],
+            ["module", "line", "6"],
+        ], pane()
         assert lit()[0] == (3, "r& = r& * n%"), lit()
         # F6 to the pane, Tab to the call stack, the caller's frame: the cursor on its call
         press("0x40", "tab", "tab", "down", "enter")
         assert look()[24].endswith("00003:001"), look()[24]
         assert [f[0] for f in frames()] == ["Fact", "\x10Fact", "module"], pane()
-        assert locals_() == ["N% = 4", "T% = 40"], pane()  # the outer call's: saved by the inner
+        assert locals_() == ["n% = 4", "t% = 40", "\xc4\xc4\xc4 shared \xc4\xc4\xc4", "r& = 1", 's$ = "hi"'], pane()  # the outer call's
         press("down", "enter")
-        assert locals_() == ["R& = 1", 'S$ = "hi"', "D# = 2.5"], pane()
+        assert locals_() == ["r& = 1", 's$ = "hi"', "d# = 2.5"], pane()
         press(f"0x{F5:x}")  # the outer call's stop: two frames
         assert [f[0] for f in frames()] == ["\x10Fact", "module"], pane()
         assert watches() == ["n% * 2 = 8"], pane()
@@ -826,13 +816,13 @@ def play() -> None:
         assert "Watch" not in "".join(pane()), pane()
         assert look()[21].strip() == "IMMEDIATE", look()  # back, its height as it was
         press(f"0x{ALT_D:x}", "c")
-        # Locals: the last changed first. B, changed after the first stop, came after A.
+        # Locals: each row in its place; b changed at the second stop.
         (work / "CHG.BAS").write_bytes(b"a = 1: b = 2: STOP: b = 3: STOP: PRINT a\r\n")
         open_file("chg.bas")
         press(f"0x{F5:x}")
-        assert locals_() == ["A = 1", "B = 2"], pane()
+        assert locals_() == ["a = 1", "b = 2"], pane()
         press(f"0x{F5:x}")
-        assert locals_() == ["B = 3", "A = 1", "N% = 0"], pane()  # N%: the watch's, made by it
+        assert locals_() == ["a = 1", "b = 3", "N% = 0"], pane()  # N%: the watch's, made by it
         press(f"0x{F5:x}")
         press("space")
 

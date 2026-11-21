@@ -27,14 +27,16 @@ typedef struct HeadlessTone {
 } HeadlessTone;
 size_t headless_tone_count(void);
 HeadlessTone headless_tone(size_t index);
-/* The synthesizer: each dev_voice, in the order they came, with the count of headless_run's ticks. */
+/* The synthesizer: each dev_voice, its layers too, in the order they came, with the count of headless_run's ticks;
+   forgotten, for a test that logs more than the log holds. */
 typedef struct HeadlessVoice {
     unsigned voice;
-    DevVoice v;
+    DevVoice v[DEV_LAYERS];
     long tick;
 } HeadlessVoice;
 size_t headless_voice_count(void);
 HeadlessVoice headless_voice(size_t index);
+void headless_voice_forget(void);
 
 /* The clock, in hundredths of a second since midnight. `step` is added to it by each dev_clock call, so a wait
    loop ends; 0 stops it. */

@@ -11,6 +11,10 @@ void host_tick_set_thread(int yes);
 /* One tick now, if the tick is started and not held; whether it ran. */
 int host_tick_fire(void);
 
+/* The ticks due by the clock since the tick started, now, if it is not held: a program waiting on the music keeps
+   time however late the thread wakes. */
+void host_tick_due(void);
+
 /* A part of a tick now (music_fine_tick), from a synthesizer's own thread, if the tick is started and not held. */
 int host_tick_fine_fire(void);
 

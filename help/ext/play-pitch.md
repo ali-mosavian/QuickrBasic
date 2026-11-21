@@ -2,10 +2,11 @@
 keys: play pitch, U command, K command, vibrato, glide, portamento
 
 Syntax
-    U depth
-    K time [, over [, under]]
+    U depth [, rate [, tremolo [, wobble]]]
+    K time [, over [, under [, hundredths]]]
 
-Move a note's pitch: U wavers it, K slides into it.
+Move a note's pitch: U wavers it, K slides into it. U wavers its
+loudness and its cutoff too.
 
 See also [PLAY voices](play voices), [FM](play fm),
 [stereo, reverb and unison](play space)
@@ -16,7 +17,17 @@ The pitch wavers 6 times a second, once the note has sounded a fifth
 of a second: short notes stay steady, held ones sing. Each step is
 0.2 percent of the pitch each way; 15 is half a semitone.
 
-K time, over, under: glide (default 0,0,0)
+    rate      1 to 200 (default 60): tenths of a hertz a time round
+    tremolo   0 to 15 (default 0): the loudness wavers with it, so
+              many 16ths of itself each way
+    wobble    0 to 15 (default 0): the cutoff wavers with it, so many
+              tones each way
+
+They wait as the vibrato does; a number left off keeps its last
+value. Y1,800 U0,20,0,12 sweeps a filter from 200 to 3200 Hz and back
+twice a second.
+
+K time, over, under, hundredths: glide (default 0,0,0,0)
 Each note slides to its pitch in the time:
 
     time   0   1   2   3   4   5   6   7
@@ -28,6 +39,8 @@ Where the slide starts:
     over 0, under 0   from the last note's pitch
     over 1 to 15      from above: 1 + over/4 times the note's pitch
     under 1 to 24     from so many semitones below, whatever over is
+    hundredths 1-1600 from so many hundredths of the pitch, whatever
+                      over and under are: 140 falls as a tom does
 
 K1,8 on a plain sine (W4 Z1,0) is a kick drum. K8,0,2 scoops each note
 up two semitones, as a singer does. The glide stays set: put K0

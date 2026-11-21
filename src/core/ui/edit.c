@@ -3,11 +3,13 @@
  *
  * # How it works
  * The program window edits its line, uimn.ed.line, in uimn.edline and stores it when the cursor
- * leaves (edit_commit): spaces at its end cut, keywords capitalised, the syntax checked. A syntax
- * error is shown and the cursor stays.
+ * leaves (edit_commit): spaces at its end cut, keywords capitalised, the syntax checked. A line with
+ * a syntax error is stored as typed and the cursor goes on (errors.h shows it).
  *
  * A selection from (sel_line, sel_col) to the cursor is a piece of one line, or whole lines when it
  * spans several. The insert mode, uimn.ed.insert, is every line buffer's.
+ *
+ * A native module's view (a .qbx's interface) is not changed: each edit asks edit_refused first.
  *
  * The immediate window keeps its last lines (uimn.imm); edit_imm_up and edit_imm_down recall them
  * into uimn.immline.
@@ -51,8 +53,11 @@
 #include "io/console.h"
 #include "io/diag.h"
 #include "io/errmsg.h"
+#include "mem/module.h"
 #include "ui/dialog.h"
+#include "ui/helpdoc.h"
 #include "ui/linemap.h"
+#include "ui/search.h"
 #include "ui/text.h"
 #include "ui/uimain.h"
 #include "ui/view.h"
@@ -351,6 +356,11 @@ bool edit_canon(Session *const S, uint8_t *const text, const uint16_t len, uint3
     return true;
 }
 
+uint16_t edit_word(char *const out, const uint16_t max)
+{
+    return hdoc_word(uimn.edline.text, uimn.edline.len, uimn.edline.col, out, max);
+}
+
 static void what(Session *const S) { diag_what(&S->diag); }
 static void todo(Session *const S) { diag_todo(&S->diag); }
 static void shape(Session *const S) { diag_shape(&S->diag); }
@@ -424,6 +434,18 @@ void edit_load(Session *const S, const uint32_t line)
     uimn.edline.dirty = false;
 }
 
+bool edit_refused_in(Session *const S, const uint32_t v)
+{
+    if (!modu_mod(&S->modu, view_module(v))->native)
+        return false;
+
+    edit_load(S, uimn.ed.line);
+    dlog_ok(S, "A native module's lines can't be changed");
+    return true;
+}
+
+bool edit_refused(Session *const S) { return edit_refused_in(S, uimn.ed.view); }
+
 /* The lines entered next view v's: its file's names, its declarations its file's, its procedure's.
    The module entered before (repl.module). */
 static uint32_t enter_view(Session *const S, const uint32_t v)
@@ -468,6 +490,8 @@ bool edit_commit(Session *const S)
 
     if (!b->dirty)
         return true;
+    if (edit_refused(S))
+        return false;
 
     b->dirty = false;
 
@@ -475,34 +499,50 @@ bool edit_commit(Session *const S)
         b->len--;
 
     changed();
-    const uint32_t was = enter_view(S, uimn.ed.view);
-    uint32_t lexed;
-    const bool canon = edit_canon(S, b->text, b->len, &lexed);
-    S->repl.module = was;
 
-    if (!canon) { /* a syntax error: kept as typed */
-        uimn.text.asis = true;
-        text_repl(S, uimn.ed.line, b->text, b->len);
-        uimn_selword(uc.ecol); /* the error's word */
-        dlog_err(S, uimn.errmsg);
+    if (!edit_store(S, uimn.ed.line, b))
         return false;
-    }
 
-    uimn.text.asis = false;
-    b->len = (uint16_t)S->cons.sblen;
-    memcpy(edit_lb_need(S, b, b->len), S->cons.sbuf, S->cons.sblen);
-    text_repl(S, uimn.ed.line, b->text, b->len);
     view_commit(S);
     return true;
 }
 
-bool edit_goto(Session *const S, const uint32_t line)
+bool edit_store(Session *const S, const uint32_t line, LineBuf *const b)
 {
-    if (!edit_commit(S))
-        return false;
+    const uint32_t was = enter_view(S, uimn.ed.view);
+    uint32_t lexed;
+    const bool canon = edit_canon(S, b->text, b->len, &lexed);
+    S->repl.module = was;
+    uimn.text.asis = !canon; /* a syntax error: kept as typed */
 
+    if (canon) {
+        b->len = (uint16_t)S->cons.sblen;
+        memcpy(edit_lb_need(S, b, b->len), S->cons.sbuf, S->cons.sblen);
+    }
+
+    text_repl(S, line, b->text, b->len);
+    return canon;
+}
+
+void edit_goto(Session *const S, const uint32_t line)
+{
+    edit_commit(S);
     edit_load(S, line);
-    return true;
+}
+
+bool edit_error(Session *const S, const uint32_t line, uint16_t *const col)
+{
+    static LineBuf b = {.grows = true};
+
+    const uint32_t len = text_record(S, lmap_off(S, line), &b);
+    const uint32_t was = enter_view(S, view_of(line));
+    uint32_t lexed;
+    const bool canon = edit_canon(S, b.text, (uint16_t)len, &lexed);
+    S->repl.module = was;
+    enter_view(S, uimn.ed.view); /* the cursor's procedure's declarations again */
+    S->repl.module = was;
+    *col = uc.ecol;
+    return !canon;
 }
 
 void edit_up(Session *const S)
@@ -542,8 +582,8 @@ void edit_first(Session *const S)
 
 void edit_last(Session *const S)
 {
-    if (edit_goto(S, uimn.text.n - 1))
-        uimn.edline.col = uimn.edline.len;
+    edit_goto(S, uimn.text.n - 1);
+    uimn.edline.col = uimn.edline.len;
 }
 
 void edit_ensure(void)
@@ -617,6 +657,9 @@ static void reindent(LineBuf *const b, const uint16_t n)
 
 void edit_enter(Session *const S)
 {
+    if (edit_refused(S))
+        return;
+
     LineBuf *const b = &uimn.edline;
     const uint16_t lead = indent(b);
     uint16_t ind = lead > b->col ? b->col : lead;
@@ -644,6 +687,9 @@ void edit_enter(Session *const S)
 
 void edit_bs(Session *const S)
 {
+    if (edit_refused(S))
+        return;
+
     LineBuf *const b = &uimn.edline;
 
     if (b->col && indent(b) >= b->col) { /* in the indent: back to the step before */
@@ -677,8 +723,45 @@ void edit_bs(Session *const S)
     changed();
 }
 
+void edit_bs_word(Session *const S)
+{
+    if (edit_refused(S))
+        return;
+
+    LineBuf *const b = &uimn.edline;
+
+    if (!b->col) {
+        edit_bs(S);
+        return;
+    }
+
+    const uint16_t to = b->col;
+    edit_lb_wleft(b);
+    edit_lb_cut(b, b->col, to);
+}
+
+void edit_del_word(Session *const S)
+{
+    if (edit_refused(S))
+        return;
+
+    LineBuf *const b = &uimn.edline;
+
+    if (b->col >= b->len) {
+        edit_del(S);
+        return;
+    }
+
+    const uint16_t from = b->col;
+    edit_lb_wright(b);
+    edit_lb_cut(b, from, b->col);
+}
+
 void edit_del(Session *const S)
 {
+    if (edit_refused(S))
+        return;
+
     LineBuf *const b = &uimn.edline;
 
     if (edit_lb_del(b))
@@ -715,6 +798,9 @@ void edit_tab(void)
 
 void edit_ctrly(Session *const S)
 {
+    if (edit_refused(S))
+        return;
+
     LineBuf *const b = &uimn.edline;
 
     if (b->dirty) { /* kept as typed: no syntax check */
@@ -744,6 +830,36 @@ void edit_sel_mark(void)
     uimn.ed.sel_on = true;
     uimn.ed.sel_line = uimn.ed.line;
     uimn.ed.sel_col = uimn.edline.col;
+}
+
+void edit_sel_word(void)
+{
+    const LineBuf *const b = &uimn.edline;
+    uint16_t from = b->col, to = b->col;
+
+    while (from && from <= b->len && srch_wordc(b->text[from - 1]))
+        from--;
+    while (to < b->len && srch_wordc(b->text[to]))
+        to++;
+    if (from == to)
+        return;
+
+    uimn.ed.sel_line = uimn.ed.line;
+    uimn.ed.sel_col = from;
+    uimn.ed.sel_on = true;
+    uimn.edline.col = to;
+}
+
+void edit_sel_line(Session *const S)
+{
+    uimn.ed.sel_line = uimn.ed.line;
+    uimn.ed.sel_col = 0;
+    uimn.ed.sel_on = true;
+
+    if (uimn.ed.line + 1 < uimn.text.n) /* a lines' selection: to the next one's start */
+        edit_goto(S, uimn.ed.line + 1);
+
+    uimn.edline.col = uimn.ed.line == uimn.ed.sel_line ? uimn.edline.len : 0;
 }
 
 uint8_t edit_sel(void)
@@ -794,6 +910,9 @@ uint8_t edit_copy(Session *const S)
 
 void edit_clear(Session *const S)
 {
+    if (edit_sel() && edit_refused(S))
+        return;
+
     const uint8_t s = edit_sel();
     uimn.ed.sel_on = false;
 
@@ -837,6 +956,9 @@ static uint32_t clip_line(Session *const S, const uint8_t *const s, const uint32
 
 void edit_paste(Session *const S)
 {
+    if (edit_refused(S))
+        return;
+
     edit_clear(S);
     const uint16_t len = uimn.text.clip_len;
 

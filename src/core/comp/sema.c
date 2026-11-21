@@ -58,7 +58,7 @@ static void resolve(Comp *const C, Node *const n)
         if (n->mode == CALL_UNDEF) {
             own(C, n);
             n->par = comp_ispar(C, n->id);
-        } else
+        } else if (n->mode == CALL_PROC)
             n->jump = ctrl_jump(C, blok_proc(C->blok, n->num)->entry);
 
         break;

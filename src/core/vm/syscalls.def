@@ -52,5 +52,10 @@ SC(N1I, vgfx_n1i)       /* ( x y -- ): N1's, the coordinates INTs */
 SC(S1I, vgfx_s1i)       /* ( dx dy -- ): S1's */
 SC(N2I, vgfx_n2i)       /* ( x y -- ): N2's */
 SC(S2I, vgfx_s2i)       /* ( dx dy -- ): S2's */
+SC(INSTRUMENT, snd_instrument) /* ( n commands -- ): sound n set by PLAY's commands */
+SC(MUSIC, snd_music)    /* ( id element kind from -- ): the song of array id's events, again from tick `from` */
+SC(MUSICSTOP, snd_music_stop) /* ( ticks -- ): the song ends, or fades over ticks */
+SC(NOTE, snd_note)      /* ( sound pitch length loud -- ): a note struck now */
+SC(BEAT, snd_beat)      /* ( -- beats ): the song's quarters since it began */
 #undef SC
 #endif
