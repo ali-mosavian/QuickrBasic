@@ -581,3 +581,17 @@ DATA 5, "0...7...0...7...", "0...3...7...a...", "0...4...7...a...", "c...a...7..
 DATA 0
 DATA 5, "K...C...K...C...", "K.h.C.h.K.K.C.h.", "K.h.C.hhK.K.C.T.", "K.T.C.T.KTTSTTSS", "K...C.h.K...C.h."
 USE LanternBars
+
+' The level's end where the guitar is gone, Whistled: Caught Up with her guitar's part whistled, the wood's flute
+' in the string's place.
+Song Whistled:
+DATA "abcdefgh", "wwwwwwww", 8, 120, 2, 12, 11, 6, 0, 11, 6, 0, 0, 1, 0, 0
+DATA "W0Q42H1,4,10,1U5I4"
+DATA "W4Z1,6,3,3,2H0,5,5,1", "R2S12W1H5,4,12,5U3", "R2W1H5,4,12,5U3"
+DATA 1
+DATA "w", "R6W1H3,2,12,3U5", "W1H5,4,12,5U3", 0
+USE Drums
+DATA 2, "0-------7-------", "0---------------"
+DATA 0
+DATA 4, "................", "K.h.S.h.K.h.S.hh", "K.h.S.h.KSSTSTTS", "K..............."
+USE CaughtBars

@@ -155,7 +155,7 @@ end sub
 sub ResetWorld (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
     dim i as integer
     if wd.zn.stage <> wd.zn.nextUp then LoadLevel wd, wd.zn.nextUp
-    EndTune wd.lv, wd.mu
+    EndTune wd.lv, wd.zn, wd.mu
     wd.lv.glow = 0
     g.mode = TITLE
     g.modeT = 0

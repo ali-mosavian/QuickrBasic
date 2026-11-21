@@ -42,7 +42,7 @@ from barkley.assets.palette import CCLAY, CLINEN, CPOLE, CQINK, CSOOT
 from barkley.assets.store import BuildArt
 from barkley.assets.cast import BaronPic, FamPic
 from barkley.assets.tunes import CAUGHT, CAUGHTUP, EndBeat, LEFTBEHIND, LoadSongs, PACKING, PickSong, SCLANK, Sfx, SHURT
-from barkley.assets.tunes import KeepBeat, SJUMP, SMORTAR, SongFor, Sudden, ZoneTune, ZTUNE
+from barkley.assets.tunes import KeepBeat, SJUMP, SMORTAR, SongFor, Sudden, WHISTLED, ZoneTune, ZTUNE
 from barkley.world.terrain.ground import LoadTables, LOOPR, SegAt, Solid, Surf, WADE, WAVEL
 from barkley.world.terrain.track import MOVEW, WAVEA
 from barkley.world.layout import PITD
@@ -921,6 +921,14 @@ NextHalf wd.mu, wd.se.ticks
 was = was and wd.mu.slot = CAUGHT and wd.mu.bar = 0 and wd.mu.half = 1
 GoStage wd, 0, g, p, lo(), pt()
 if was and wd.mu.cHeld = CAUGHTUP + 1 and len(wd.mu.song(CAUGHT).order) = 8 then print "packing ok"
+' in the quarter the guitar is gone till its chase: the blue hour's end is the eight bars whistled, a flute where
+' her string was; the festival night's, after the chase, the twelve with her guitar. It was the guitar's eight
+GoStage wd, 10, g, p, lo(), pt()
+was = wd.mu.cHeld = WHISTLED + 1 and len(wd.mu.song(CAUGHT).order) = 8 and wd.mu.song(CAUGHT).voicing = "wwwwwwww"
+GoStage wd, 11, g, p, lo(), pt()
+was = was and wd.mu.cHeld = PACKING + 1 and wd.mu.song(CAUGHT).voicing <> "wwwwwwww"
+GoStage wd, 0, g, p, lo(), pt()
+if was and wd.mu.cHeld = CAUGHTUP + 1 then print "whistled ok"
 ' the last life lost, game over has its own tune in that slot, four bars at 80 that end, its first half bar played,
 ' and stays while it plays; then the title, the level's end back in its slot. Game over was five seconds of the
 ' zone's tune
@@ -4530,6 +4538,7 @@ def main() -> None:
         ("swing ok", "a swung song's off-beat eighths on the triplet's last, each half bar still half a bar long"),
         ("gold ok", "an act's three golden bones: found by a touch, kept in the save at once, a pip each on the HUD"),
         ("packing ok", "after a chase the level's end is the longer one, twelve bars; the eight elsewhere"),
+        ("whistled ok", "the quarter's blue hour ends whistled, the guitar gone; its festival night with the guitar"),
         ("over ok", "game over played by its own tune and held while it plays; then the title"),
         ("tally ok", "the level's end's bonus counted on its tune's beats, a step each, and all at once at a key"),
         ("bump ok", "between zones the van's bump on the next zone's road, to its own bars; then that zone"),

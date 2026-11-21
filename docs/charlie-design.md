@@ -291,7 +291,7 @@ tune.
 | Title | Charlie's theme, as now. |
 | Level's end | *Caught Up*, its own tune: the family tune as the big one plays it when Charlie arrives. Eight bars at 120, not looped. Two bars of guitar alone, four with the zone's lead and bass, a run and a held chord with his woof. The tally counts in time with it, a step a beat of the lead's four bars. It replaces Charlie's theme there. |
 | Level's end after a chase | *Sent Packing*, the same in twelve bars: first the Mob's motif tumbling downward, the cat running off. |
-| Level's end, Lantern Quarter act 1 | Whistled: the guitar is gone. It comes back after the chase. |
+| Level's end, Lantern Quarter act 1 (written) | Whistled: the guitar is gone, a flute in its place. It comes back after the chase. |
 | Chase | One tune, the Mob's motif at 160 over a driving bass, led by the zone's own lead instrument. Each bump sounds the first notes of Charlie's theme. |
 | The Baron | His own chase tune at 168, organ and bells. The third part is Charlie's theme outright. |
 | Between zones | *The Bump*, four bars: the stop-time hit, then the Mob's motif. |

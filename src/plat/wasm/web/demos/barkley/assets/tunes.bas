@@ -5,13 +5,13 @@ option explicit
 
 from barkley.engine.clock import STEPT
 from barkley.engine.audio import Deck, HushSong, LoadSong
-from barkley.model.level import Level, NONE
+from barkley.model.level import Level, NONE, Realm
 from barkley.model.game import CLEARED, Game, INTRO, OVER, Session, TITLE
 
 const SJUMP = 0, SBONE = 1, SHURT = 2, SSPRING = 3, SPOP = 4, SROLL = 5
 const SCHARGE = 6, SLAUNCH = 7, SCLEAR = 8, SDIE = 9, SMARK = 10, SBOOST = 11, SHISS = 12, SBARK = 13, SBUMP = 14
 const SSQUAWK = 15, SCRACK = 16, SCLANK = 17, SGOLD = 18, STWANG = 19, SSNATCH = 20, SMORTAR = 21
-const CAUGHTUP = 2, PACKING = 10, LEFTBEHIND = 11
+const CAUGHTUP = 2, PACKING = 10, LEFTBEHIND = 11, WHISTLED = 19
 const ZTUNE = 0
 private const THEME = 1
 const CAUGHT = 2
@@ -100,12 +100,15 @@ sub SceneTune (mu as Deck, id as integer)
     if mu.slot = CAUGHT then HushSong mu
 end sub
 
-' The level's end for the level there is: after a chase the longer one, the cat sent packing first.
-sub EndTune (lv as Level, mu as Deck)
-    if lv.chaseX = NONE then
-        SceneTune mu, CAUGHTUP
-    else
+' The level's end for the level there is: after a chase the longer one, the cat sent packing first; in the quarter
+' before its chase the whistled one, the guitar gone.
+sub EndTune (lv as Level, zn as Realm, mu as Deck)
+    if lv.chaseX <> NONE then
         SceneTune mu, PACKING
+    elseif zn.id = 5 then
+        SceneTune mu, WHISTLED
+    else
+        SceneTune mu, CAUGHTUP
     end if
 end sub
 
