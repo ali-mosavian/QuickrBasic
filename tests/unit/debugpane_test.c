@@ -175,13 +175,17 @@ static const char *const fact[] = {
     nullptr,
 };
 
-/* Locals: the stopped call's parameters first; Call stack: each frame's view and line, the
-   stopped one marked; an older frame chosen, its call's own values. */
+/* Locals: the stopped call's parameters first, then the module's variables it sees, SHARED (once
+   left out); Call stack: each frame's view and line, the stopped one marked; an older frame chosen,
+   its call's own values. */
 TEST(debug_pane_shows_frames_and_their_locals)
 {
     stopped_in(S, fact);
     CHECK(uimn.pane_on);
-    CHECK(rows_are("Locals", " n% = 3| t% = 30"));
+    CHECK(rows_are(
+        "Locals",
+        " n% = 3| t% = 30| \xC4\xC4\xC4 shared \xC4\xC4\xC4| r& = 1| s$ = \"hi\""
+    ));
     CHECK(rows_are(
         "Call stack",
         "\x10"
@@ -189,7 +193,10 @@ TEST(debug_pane_shows_frames_and_their_locals)
     ));
     pane_keys(S, 2, (const uint16_t[]){K_DOWN, K_ENTER, 0});
 
-    CHECK(rows_are("Locals", " n% = 4| t% = 40"));
+    CHECK(rows_are(
+        "Locals",
+        " n% = 4| t% = 40| \xC4\xC4\xC4 shared \xC4\xC4\xC4| r& = 1| s$ = \"hi\""
+    ));
     pane_keys(S, 2, (const uint16_t[]){K_DOWN, K_ENTER, 0});
 
     CHECK(rows_are("Locals", " r& = 1| s$ = \"hi\"| d# = 2.5"));

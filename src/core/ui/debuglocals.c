@@ -3,7 +3,8 @@
  * # How it works
  * The variables and their values are the run's (vm/inspect.h). A row is a variable's name as
  * declared (spelling.c), " = ", its value as the frame sees it. The rows run the parameters first,
- * then by id, the same at each stop.
+ * then by id, the same at each stop; a procedure's, then under a row of its own the module's
+ * variables it sees, SHARED.
  *
  * A record or an array is one row, closed (►) or open (▼): an open record's fields follow it, an
  * open array's elements, PAGE at a time, then a row for the rest. A row's path is its expression
@@ -27,8 +28,9 @@ enum {
 
 enum : uint8_t { GLYPH_OPEN = 0x1F, GLYPH_SHUT = 0x10, INDENT = 3 };
 
-/* A row: a value (a variable's, a field's, an element's), or the rest of an open array's. */
-typedef enum : uint8_t { LR_VALUE, LR_REST } RowKind;
+/* A row: a value (a variable's, a field's, an element's), the rest of an open array's, the line
+   over the shared variables. */
+typedef enum : uint8_t { LR_VALUE, LR_REST, LR_SHARED } RowKind;
 typedef struct {
     RowKind kind;
     uint8_t depth;
@@ -62,7 +64,6 @@ static struct {
     uint8_t nopen;
     Open open[NOPEN];
     char row[DTXT_ROW]; /* a row being made */
-    char tip[DP_TWMAX]; /* a module variable's row, dloc_find's */
     uint32_t stops;     /* the stops so far */
     uint32_t nseen;     /* seen so far */
     Seen seen[NSEEN];
@@ -329,6 +330,16 @@ void dloc_read(Session *const S, const uint8_t f)
 
     for (uint32_t i = 0; i < n; i++)
         var_rows(S, &vars[i]);
+
+    const uint32_t ns = insp_shared(S, f, vars, NROW);
+    char *d;
+    LocRow *const r = ns ? row_new(LR_SHARED, 0, &d) : nullptr;
+
+    if (r)
+        dtxt_cut(r->text, "\xC4\xC4\xC4 shared \xC4\xC4\xC4");
+
+    for (uint32_t i = 0; i < ns; i++)
+        var_rows(S, &vars[i]);
 }
 
 bool dloc_open(Session *const S, const uint8_t i)
@@ -355,7 +366,7 @@ uint8_t dloc_close(Session *const S, uint8_t i)
     if (i >= loc.n)
         return i;
 
-    if (loc.rows[i].kind == LR_REST || !opened(loc.rows[i].key)) { /* its parent, open */
+    if (loc.rows[i].kind != LR_VALUE || !opened(loc.rows[i].key)) { /* its parent, open */
         const uint8_t depth = loc.rows[i].depth;
 
         if (!depth)
@@ -375,24 +386,6 @@ const char *dloc_find(Session *const S, const uint8_t *const s, const uint32_t n
     for (uint8_t i = 0; i < loc.n; i++)
         if (loc.rows[i].top && insp_is(S, &loc.rows[i].var, s, n, sfx))
             return loc.rows[i].text;
-
-    InspVar shared[NROW];
-    const uint32_t ns = insp_shared(S, loc.frame, shared, NROW);
-
-    for (uint32_t i = 0; i < ns; i++) {
-        if (!insp_is(S, &shared[i], s, n, sfx))
-            continue;
-
-        const uint8_t at = loc.n;
-        var_rows(S, &shared[i]);
-
-        if (at == loc.n)
-            return nullptr;
-
-        dtxt_cut(loc.tip, loc.rows[at].text);
-        loc.n = at;
-        return loc.tip;
-    }
 
     return nullptr;
 }

@@ -5,8 +5,8 @@
 
 /* A new stop: a change seen from now on is this stop's. */
 void dloc_stop(void);
-/* Locals of the stop's frame f (debugstack.h's): its procedure's variables as it sees them, named
-   as declared, the records and arrays opened under theirs. */
+/* Locals of the stop's frame f (debugstack.h's): its procedure's variables as it sees them, then
+   the module's it sees, SHARED; named as declared, the records and arrays opened under theirs. */
 void dloc_read(Session *S, uint8_t f);
 /* The rows read; row i of them. */
 uint8_t dloc_count(void);
@@ -18,7 +18,6 @@ uint8_t dloc_changed(uint8_t i);
 bool dloc_open(Session *S, uint8_t i);
 /* Row i's record or array shut, else the one it is under; that row's index, i none. */
 uint8_t dloc_close(Session *S, uint8_t i);
-/* The row of the name s, n long, suffix sfx (0 none): a Locals variable of it, else a module one
-   the frame's procedure sees, SHARED; nullptr none. */
+/* The row of the variable named s, n long, suffix sfx (0 none); nullptr none. */
 const char *dloc_find(Session *S, const uint8_t *s, uint32_t n, uint8_t sfx);
 #endif
