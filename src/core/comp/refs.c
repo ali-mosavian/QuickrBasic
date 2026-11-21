@@ -985,6 +985,7 @@ Node *ref_call(
     Node *const n = ast_new(C->ast, N_CALL);
     n->num = idx;
     n->b = nullptr;
+    n->mode = pr->flags & PF_NATIVE ? CALL_NATIVE : CALL_PROC;
 
     if (pr->result)
         n->type = expr_ktype[symb_var(C->symb, pr->result)->info & (SK_DBL | VK_MASK)];

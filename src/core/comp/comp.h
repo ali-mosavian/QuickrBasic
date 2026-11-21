@@ -55,6 +55,7 @@ typedef struct Comp {
     Dbug *dbug;
     CompRun *run;
     struct Modu *modu;     /* each line's module, by its file; their tops again at link */
+    struct Natv *natv;     /* native modules' code, bound at link (io/native.h) */
     struct ImptFind *impt; /* the modules an IMPORT or FROM runs (comp/import.h) */
 
     /* the cursor and the code */

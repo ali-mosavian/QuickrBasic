@@ -67,7 +67,9 @@ void boot(Session *const S, const FrontEnd *const fe)
     S->comp.fault = &S->fault;
     S->comp.allo = &S->allo;
     modu_init(&S->modu, &S->fault);
+    natv_init(&S->natv, &S->fault);
     S->comp.modu = &S->modu;
+    S->comp.natv = &S->natv;
     S->comp.impt = &S->impt;
     S->comp.prog = &S->prog;
     S->comp.symb = &S->symb;
