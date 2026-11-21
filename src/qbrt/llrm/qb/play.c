@@ -316,20 +316,19 @@ static void side(Player *p)
     p->sound[0].pan = (unsigned char)within(p, 1, HIGHEST_NIBBLE);
 }
 
-/* J n[, pitch]: the commands after it set layer n, 0 the voice's own sound, up to the next J or the string's end. A
-   pitch, hundredths of the note's, sounds the layer with the voice; 0 silences it and those after it. Layers sound
-   from 1 up, none missed: J0,0 is the voice alone, at its note. */
+/* J n[, pitch]: the commands after it set layer n, 0 the voice's own sound, up to the next J or the string's end, and
+   it sounds with the voice. A pitch is hundredths of the note's, the last one given without; 0 silences the layer and
+   those after it. Layers sound from 1 up, none missed: J0,0 is the voice alone, at its note. */
 static void layer(Player *p)
 {
     const unsigned n = within(p, 0, DEV_LAYERS - 1);
     DevVoice *const voice = &p->sound[0];
 
     p->layer = (byte)n;
-    if (!comma(p))
-        return;
-    const unsigned pitch = within(p, 0, MOST_PITCH);
+    const int given = comma(p);
+    const unsigned pitch = given ? within(p, 0, MOST_PITCH) : 0;
 
-    if (!pitch) {
+    if (given && !pitch) {
         if (!n)
             voice->pitch = 0;
         if (voice->layers >= n)
@@ -338,7 +337,8 @@ static void layer(Player *p)
     }
     if (n > voice->layers + 1u)
         illegal();
-    p->sound[n].pitch = (unsigned short)pitch;
+    if (given)
+        p->sound[n].pitch = (unsigned short)pitch;
     if (n > voice->layers)
         voice->layers = (unsigned char)n;
 }

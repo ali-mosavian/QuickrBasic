@@ -995,6 +995,26 @@ TEST(play_sets_layers)
         CHECK(unit_run(S, wrong[i]) == E_USR);
 }
 
+/* J1 with no pitch set a layer that never sounded: a tom's noise layer was silent. */
+TEST(play_sounds_a_layer_named_alone)
+{
+    static const char *const lines[] = {"10 PLAY \"MF W4 Z1,0 J1 W3 V14 J0 C P64\"", nullptr};
+    static const char *const wrong[][2] = {{"10 PLAY \"J2 C\"", nullptr}};
+
+    qbrt_realtime(false);
+    music_clear();
+    const size_t first = headless_voice_count();
+    CHECK(unit_run(S, lines) == ST_OK);
+    qbrt_realtime(true);
+    HeadlessVoice on = {};
+    for (size_t i = first; i < headless_voice_count() && !on.v[0].gate; i++)
+        if (headless_voice(i).v[0].gate && headless_voice(i).v[0].hertz)
+            on = headless_voice(i);
+    const DevVoice *const v = on.v;
+    CHECK(v[0].layers == 1 && v[1].wave == DEV_NOISE && v[1].volume == 14 && !v[1].pitch);
+    CHECK(unit_run(S, wrong[0]) == E_USR);
+}
+
 /* Z's sixth number, the bend's start; Y's fourth and fifth, the cutoff's start and its time; K's fourth, the slide's
    start in hundredths. */
 TEST(play_sets_changes_within_a_note)

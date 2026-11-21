@@ -142,10 +142,11 @@ Where it starts:
 A voice sounds up to three layers with its own sound, each its own wave, envelope, filter, FM, glide
 and volume, at its own pitch: a drum's thump and its hiss, or sines at a bell's partials.
 
-- `J`n chooses the layer the commands after it set: 0 the voice's own sound, 1 to 3 its layers. It
-  holds until the next `J` or the end of the string.
+- `J`n chooses the layer the commands after it set, and sounds it: 0 the voice's own sound, 1 to 3 its
+  layers. It holds until the next `J` or the end of the string.
 - `J`n`,`p sounds layer n at p hundredths of the note's pitch: 100 the note, 200 an octave over, 159
-  a drum's second ring. Layers come on in order, 1 before 2.
+  a drum's second ring. Without p a layer keeps its last pitch, the note's at first. Layers come on in
+  order, 1 before 2.
 - p 0 silences layer n and those after it. `J0,0` is the voice alone again, at its note.
 - `U`, `I`, `R` and `S` are the voice's, whatever layer `J` chose.
 - Each note starts its layers together, every wave from its beginning, so every hit sounds the same.

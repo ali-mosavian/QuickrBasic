@@ -12,11 +12,13 @@ See also [PLAY voices](play voices), [FM](play fm),
 [envelopes](play envelope)
 
 ## Details
-    layer      0 to 3: the layer the commands after it set, 0 the
-               voice's own sound, until the next J or the string's end
-    pitch      0 to 1600: sounds the layer at so many hundredths of
-               the note's pitch. 100 the note, 200 an octave over, 159
-               a drum's second ring. 0 silences it and those after it
+    layer      0 to 3: the layer the commands after it set, and
+               sounds, 0 the voice's own sound, until the next J or
+               the string's end
+    pitch      0 to 1600: so many hundredths of the note's pitch. 100
+               the note, 200 an octave over, 159 a drum's second ring.
+               0 silences it and those after it. Left out: its last
+               pitch, the note's at first
 
 Layers come on in order, 1 before 2. J0,0 is the voice alone again.
 U, I, R and S are the voice's, whatever layer J chose.
