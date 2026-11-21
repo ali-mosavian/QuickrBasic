@@ -371,9 +371,9 @@ end sub
 
 ' A cat barked at from fromX stands startled STARTLED steps, then prowls away from there: its state's size is the
 ' steps left, its sign the way it will go.
-private sub Flinch (lv as Level, i as integer, fromX as integer)
+private sub Flinch (lv as Level, i as integer, from_x as integer)
     lv.things(i).state = STARTLED
-    if lv.things(i).at.x < fromX then lv.things(i).state = -STARTLED
+    if lv.things(i).at.x < from_x then lv.things(i).state = -STARTLED
 end sub
 
 ' Charlie barks: every cat the bark reaches flinches, every crab goes into its shell, every gull is scared, every

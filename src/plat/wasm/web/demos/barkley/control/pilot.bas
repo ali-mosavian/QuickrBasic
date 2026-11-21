@@ -26,15 +26,15 @@ private const RAMREACH = 120, OUTRUN = 140
 ' The game's own player: Right held, a jump where one is wanted, still where it must wait.
 sub Pilot (lv as Level, gr as Ground, zn as Realm, se as Session, p as Hero, k as Pad)
     static hold as integer
-    dim want as integer, hopNow as integer
+    dim want as integer, hop_now as integer
     k.right = -1
     k.left = 0
     k.down = 0
     if p.vine then
         ' hung from a vine: let go on the way up and forward, or where a small swing turns
-        hopNow = p.sway_v > 0 and p.sway > 0 and (p.sway > .5 or p.sway_v < 1)
+        hop_now = p.sway_v > 0 and p.sway > 0 and (p.sway > .5 or p.sway_v < 1)
     elseif p.swim then
-        hopNow = PilotSwim%(lv, zn, p, k)
+        hop_now = PilotSwim%(lv, zn, p, k)
     elseif p.ground and gr.pt(p.sg).kind = 3 then
         want = PilotRide%(lv, gr, se, p, k)
     elseif p.ground and gr.pt(p.sg).kind = 1 then
@@ -44,7 +44,7 @@ sub Pilot (lv as Level, gr as Ground, zn as Realm, se as Session, p as Hero, k a
     end if
     if lv.gale and p.ground then PilotGale lv, se, p, k, want
     ' afloat a hop is made though the last is still held
-    if hopNow or (want and hold = 0) then
+    if hop_now or (want and hold = 0) then
         k.hit = -1
         hold = 24
     end if

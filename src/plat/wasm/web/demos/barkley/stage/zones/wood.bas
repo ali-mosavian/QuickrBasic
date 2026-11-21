@@ -120,13 +120,13 @@ end sub
 ' A burrow's mound: crouched on it he digs in, for its other end; the mound he comes out of will not take him
 ' back till he has stepped off it.
 sub MeetMound (lv as Level, mu as Deck, se as Session, p as Hero, i as integer, pt() as Part)
-    dim onIt as integer
-    onIt = abs(lv.things(i).at.x - p.at.x) < MOUNDR
+    dim on_it as integer
+    on_it = abs(lv.things(i).at.x - p.at.x) < MOUNDR
     if p.dug = i + 1 then
-        if not onIt then p.dug = 0
+        if not on_it then p.dug = 0
         exit sub
     end if
-    if not (onIt and p.crouch and p.ground) or abs(lv.things(i).at.y - p.at.y) >= 8 or lv.things(i).state < 1 then exit sub
+    if not (on_it and p.crouch and p.ground) or abs(lv.things(i).at.y - p.at.y) >= 8 or lv.things(i).state < 1 then exit sub
     p.dig = lv.things(i).state
     p.ground = 0
     p.crouch = 0

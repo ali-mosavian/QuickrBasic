@@ -26,7 +26,7 @@ sub Tackle (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as i
 end sub
 
 ' Hit: the bones fly loose and Charlie is knocked back; with none, it is out.
-sub Hurt (mu as Deck, se as Session, g as Game, p as Hero, fromX as integer, lo() as Loose, snd as integer)
+sub Hurt (mu as Deck, se as Session, g as Game, p as Hero, from_x as integer, lo() as Loose, snd as integer)
     dim i as integer, n as integer, a as single, v as single
     if p.inv > 0 or p.dig then exit sub
     ' a snowball takes the hit for him
@@ -61,7 +61,7 @@ sub Hurt (mu as Deck, se as Session, g as Game, p as Hero, fromX as integer, lo(
     p.stun = -1
     p.inv = 2
     p.vel.y = -260
-    if p.at.x < fromX then
+    if p.at.x < from_x then
         p.vel.x = -140
     else
         p.vel.x = 140
