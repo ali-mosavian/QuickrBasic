@@ -101,17 +101,27 @@ Status insp_eval(Session *const S, const uint32_t f, const char *const expr, cha
     return session_eval(S, expr, frame(S, f).proc, out);
 }
 
+uint32_t insp_params(
+    const Session *const S,
+    const uint32_t f,
+    InspVar *const out,
+    const uint32_t max
+)
+{
+    const uint32_t proc = frame(S, f).proc;
+    const uint16_t npar = proc ? blok_proc(&S->blok, proc)->npar : 0;
+    uint32_t n = 0;
+
+    for (; n < npar && n < max; n++)
+        out[n] = var_of(S, blok_proc(&S->blok, proc)->params[n].var);
+
+    return n;
+}
+
 uint32_t insp_vars(const Session *const S, const uint32_t f, InspVar *const out, const uint32_t max)
 {
     const uint32_t proc = frame(S, f).proc;
-    uint32_t n = 0;
-
-    if (proc) {
-        const Proc *const p = blok_proc(&S->blok, proc);
-
-        for (uint16_t k = 0; k < p->npar && n < max; k++)
-            out[n++] = var_of(S, p->params[k].var);
-    }
+    uint32_t n = insp_params(S, f, out, max);
 
     for (uint32_t id = 1; id < S->symb.nvars && n < max; id++)
         if (symb_varx(&S->symb, id)->scope == proc && !hidden(S, id) && !is_param(S, proc, id))

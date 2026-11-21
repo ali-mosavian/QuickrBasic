@@ -17,4 +17,7 @@ void dstk_read(Session *S);
 /* The frames read; frame i of them. */
 uint8_t dstk_count(void);
 const StackFrame *dstk_at(uint8_t i);
+/* The rows: the frames', then past NDFRM of them one for how many more; row i's text. */
+uint8_t dstk_rows(void);
+const char *dstk_row(uint8_t i);
 #endif

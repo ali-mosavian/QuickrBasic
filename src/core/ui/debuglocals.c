@@ -301,12 +301,7 @@ static void value_rows(
 static void var_rows(Session *const S, const InspVar *const var)
 {
     char name[PATH];
-    char *d = spel_name(S, name, var->name, var->local ? SPEL_LOCAL : SPEL_MODULE);
-
-    if (var->sfx)
-        *d++ = var->sfx;
-
-    *d = 0;
+    *spel_var(S, name, var) = 0;
     const uint8_t at = loc.n;
     const InspValue v = insp_var(S, loc.frame, var);
     value_rows(S, &v, name, name, 0);

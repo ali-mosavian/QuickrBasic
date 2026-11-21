@@ -131,3 +131,13 @@ char *spel_name(const Session *const S, char *const d, const uint32_t name, cons
 
     return insp_name(S, d, name);
 }
+
+char *spel_var(const Session *const S, char *d, const InspVar *const var)
+{
+    d = spel_name(S, d, var->name, var->local ? SPEL_LOCAL : SPEL_MODULE);
+
+    if (var->sfx)
+        *d++ = var->sfx;
+
+    return d;
+}

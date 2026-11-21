@@ -29,6 +29,8 @@ uint32_t insp_frames(const Session *S);
 uint32_t insp_line(const Session *S, uint32_t f);
 /* Frame f is its procedure's newest call: its variables are its own, not saved by a newer one. */
 bool insp_newest(const Session *S, uint32_t f);
+/* Frame f's procedure's parameters, none at the module. To out, max at most; how many. */
+uint32_t insp_params(const Session *S, uint32_t f, InspVar *out, uint32_t max);
 /* Frame f's procedure's variables (the module's at the module): its parameters first, then its own
    by id; DEF FNs' and hidden ones left out. To out, max at most; how many. */
 uint32_t insp_vars(const Session *S, uint32_t f, InspVar *out, uint32_t max);

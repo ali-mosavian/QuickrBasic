@@ -9,6 +9,7 @@
 #include "session.h"
 #include "ui/draw.h"
 #include "ui/edit.h"
+#include "ui/mouse.h"
 #include "ui/screen.h"
 #include "ui/theme.h"
 #include "ui/uimain.h"
@@ -176,8 +177,8 @@ static const char *const fact[] = {
 };
 
 /* Locals: the stopped call's parameters first, then the module's variables it sees, SHARED (once
-   left out); Call stack: each frame's view and line, the stopped one marked; an older frame chosen,
-   its call's own values. */
+   left out); Call stack: each frame's view, its arguments (once left out) and line, the stopped one
+   marked; an older frame chosen, its call's own values. */
 TEST(debug_pane_shows_frames_and_their_locals)
 {
     stopped_in(S, fact);
@@ -189,7 +190,7 @@ TEST(debug_pane_shows_frames_and_their_locals)
     CHECK(rows_are(
         "Call stack",
         "\x10"
-        "fact            line 5| fact            line 4| module          line 6"
+        "fact (n% = 3)   line 5| fact (n% = 4)   line 4| module          line 6"
     ));
     pane_keys(S, 2, (const uint16_t[]){K_DOWN, K_ENTER, 0});
 
@@ -491,6 +492,54 @@ TEST(debug_pane_opens_a_field_of_one_record)
         " \x1F"
         "b as box|    \x1F.corner as pt|       .x = 1| \x1F"
         "c as box|    \x10.corner as pt"
+    ));
+    done(S);
+}
+
+/* Past 16 frames Call stack ended at the 16th, the rest unknown: a row says how many more, and
+   which is last. An argument's string is its first characters; an array's its name. */
+TEST(debug_pane_counts_frames_past_its_rows)
+{
+    stopped_in(
+        S,
+        (const char *const[]){
+            "declare sub deep (n%, s$, a())",
+            "dim a(2)",
+            "deep 20, \"a long string\", a()",
+            "sub deep (n%, s$, a())",
+            "if n% = 1 then stop",
+            "deep n% - 1, s$, a()",
+            "end sub",
+            nullptr,
+        }
+
+    );
+    uint16_t keys[17] = {0};
+
+    for (uint32_t i = 0; i < 16; i++)
+        keys[i] = K_DOWN;
+
+    uimn.dp_col = DP_COLMIN; /* the pane widened, its rows whole */
+    pane_keys(S, 2, keys);
+
+    CHECK(rows_are(
+        "Call stack",
+        " deep (n% = 13, s$ = \"a long str\", a()) line 3| deep (n% = 14, s$ = \"a long str\", "
+        "a()) line 3|"
+        " deep (n% = 15, s$ = \"a long str\", a()) line 3| deep (n% = 16, s$ = \"a long str\", "
+        "a()) line 3|"
+        " \x19 5 more, module last"
+    ));
+    const uint8_t more = (uint8_t)(title_row("Call stack") + 5);
+    uimn_rows(25); /* the windows where the mouse finds them */
+    uimn.mouse = (UiMouse){.event = MS_PRESS, .row = more, .col = (uint8_t)(uimn.dp_col + 2)};
+
+    uimn_key(S, KEY_MOUSE); /* a press on the row past the frames: no frame chosen */
+    shown(S);
+    CHECK(rows_are(
+        "Locals",
+        " n% = 1| s$ = \"a long string\"| \x10"
+        "a(0 to 2)"
     ));
     done(S);
 }

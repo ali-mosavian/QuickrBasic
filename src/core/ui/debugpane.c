@@ -62,12 +62,11 @@ typedef struct {
     uint8_t (*changed)(uint8_t i);
 } PaneList;
 
-static const char *frame_row(const uint8_t i) { return dstk_at(i)->text; }
 
 static const PaneList lists[NDP] = {
     [DP_WAT] = {"Watch", dwat_count, dwat_row, nullptr},
     [DP_LOC] = {"Locals", dloc_count, dloc_row, dloc_changed},
-    [DP_STK] = {"Call stack", dstk_count, frame_row, nullptr},
+    [DP_STK] = {"Call stack", dstk_rows, dstk_row, nullptr},
 };
 
 static struct {
@@ -402,7 +401,7 @@ static bool child_mouse(Widget *const x, Session *const S, const uint8_t row, co
 
     dp.sel[w] = i;
 
-    if (w == DP_STK)
+    if (w == DP_STK && i < dstk_count())
         go(S, i);
 
     return true;
