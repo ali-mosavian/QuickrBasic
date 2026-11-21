@@ -6,19 +6,21 @@
 #include "ui/linemap.h"
 #include "unit.h"
 
-enum { MAX_TESTS = 256 };
+enum { MAX_TESTS = 512 };
 
 static struct {
     const char *name;
     TestFn *fn;
 } tests[MAX_TESTS];
-static uint32_t ntests, failures;
+static uint32_t ntests, failures, unrun; /* unrun: registered past MAX_TESTS */
 static const char *current;
 
 void unit_register(const char *const name, TestFn *const fn)
 {
     if (ntests < MAX_TESTS)
         tests[ntests++] = (typeof(tests[0])){name, fn};
+    else
+        unrun++;
 }
 
 void unit_fail(const char *const file, const int line, const char *const what)
@@ -89,8 +91,10 @@ int main(void)
         tests[i].fn(S);
     }
 
+    if (unrun)
+        fprintf(stderr, "FAIL %u tests past MAX_TESTS not run\n", unrun);
     printf("%u tests, %u failures\n", ntests, failures);
-    return failures ? 1 : 0;
+    return failures || unrun ? 1 : 0;
 }
 
 Status unit_run_bytes(Session *const S, const char *const src, const size_t n)
