@@ -119,6 +119,28 @@ def charlie_think() -> None:
     assert want and got == str(want), f"think counted {got} of {want}"
 
 
+KIND_READS = """type Thing
+    kind as integer
+end type
+sub S (t as Thing)
+    dim k as integer, b as integer
+    k = t.kind
+    if t.kind = 3 then k = 1
+    b = t.kind = 4
+    t.kind = 2
+end sub
+"""
+
+
+def kind_compares() -> None:
+    """A kind read into a variable is not compared: counted as compared, the reads in DrawThings, Touch and
+    ResetWorld raised the Today table's comparisons by three."""
+    prog = bench.basic_src.Program({Path("k.bas"): KIND_READS})
+    mod = prog.modules[0]
+    got = [bench.kind_compares(prog, mod, st) for st in mod.stmts]
+    assert sum(got) == 2, f"{sum(got)} comparisons of a kind, of 2: {got}"
+
+
 # Instructions a pass on arm64 macOS, with room over what they measured; past one, a regression.
 # A string's allocation over a literal's store: strg_gc inlined into strg_alloc saved and set up
 # its registers on every allocation, 238 (217 out of line).
@@ -169,6 +191,7 @@ def main() -> int:
     each_reps()
     charlie_each()
     charlie_think()
+    kind_compares()
     profile_cycles()
     profile_stop()
     broken_counter()

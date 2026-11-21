@@ -755,6 +755,25 @@ def case_arms(prog: basic_src.Program, routine: str) -> list[tuple[list[str], li
     return arms
 
 
+def kind_compares(prog: basic_src.Program, mod: basic_src.Module, st: basic_src.Stmt) -> int:
+    """The comparisons of a thing's kind in a statement: not a kind assigned, nor one read into a variable."""
+    ops = ("=", "<>", "<", ">", "<=", ">=")
+    conditional = st.toks[0].low in ("if", "elseif", "while", "until", "do", "loop", "case")
+    assign = next((i for i, t in enumerate(st.toks) if t.text == "="), -1)
+    n = 0
+    for ref in prog.refs(mod, st):
+        if not ref.fields or ref.fields[-1][1:] not in (("kind", "thing"), ("k", "thing")):
+            continue
+        before = st.toks[ref.start - 1].text if ref.start > 0 else ""
+        after = st.toks[ref.end].text if ref.end < len(st.toks) else ""
+        target = ref.start in (0, 1) and after == "="
+        read = ref.start - 1 == assign and after not in ops
+        if not conditional and (target or read):
+            continue
+        n += before in ops or after in ops
+    return n
+
+
 def engine_measures() -> dict[str, str]:
     """docs/engine-design.md's Today table, measured on CHARLIE's source."""
     demos = CHARLIE.parent
@@ -785,18 +804,9 @@ def engine_measures() -> dict[str, str]:
             for part in basic_src.clauses(st.toks):
                 if part[0].low == "sfx" and not where(mod).startswith("assets/"):
                     sfx += 1
-            for ref in prog.refs(mod, st):
-                if switch or not ref.fields or ref.fields[-1][1:] not in (("kind", "thing"), ("k", "thing")):
-                    continue
-                near = [st.toks[i].text for i in (ref.start - 1, ref.end) if 0 <= i < len(st.toks)]
-                if any(t in ("=", "<>", "<", ">", "<=", ">=") for t in near) and not (
-                    ref.start in (0, 1)
-                    and ref.end < len(st.toks)
-                    and st.toks[ref.end].text == "="
-                    and st.toks[0].low != "if"
-                ):
-                    compares += 1
-                    compare_files.add(where(mod))
+            if not switch and (n := kind_compares(prog, mod, st)):
+                compares += n
+                compare_files.add(where(mod))
             for ref in basic_src.assigned(prog, mod, st):
                 if any(f[2] == "thing" for f in ref.fields):
                     thing_sets += 1
