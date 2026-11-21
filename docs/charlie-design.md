@@ -207,7 +207,7 @@ Progress is saved at each zone.
 
 - Built: its backdrop, ground, props and card at the blue hour and on the festival night; its two acts, to its
   tune and the festival's arrangement, three golden bones in each; clotheslines, lantern lines, awnings,
-  chimneys, trams, mortars; pouncers, rope-walkers, snatchers; its chase. To add: tippers; a street's own
+  chimneys, trams, mortars; pouncers, rope-walkers, snatchers, tippers; its chase. To add: a street's own
   paving, the market's stalls.
 - A clothesline (`line,N`) spans a street N columns wide, post to post. Come down on, it throws him up, his way
   kept: 60 pixels off the first, 107 off the second in a row, 167 off each after; the ground ends the row.
@@ -226,6 +226,10 @@ Progress is saved at each zone.
   stands it startled, as a cat.
 - A snatcher (`snatcher,0`) is a grey cat in a mask. It prowls as a cat; a loose bone within its beat it runs to
   at three times the pace and takes for good. Startled by a bark it takes none.
+- A tipper (`tipper,n`) is a cat at a high window of a house behind the way. On beat n of every four it tips a
+  flowerpot off the sill: the pot falls 70 to the paving and breaks, and hurts whom it comes down on. The sill
+  is bare for two beats; the beat before the next pot goes, the cat's paw is out. The pilot stops short of it
+  till a pot has broken, and does not go under with the next less than 0.8 seconds off.
 - A mortar (`mortar,n`) fires on beat n of every four of the zone's tune, its fuse alight the beat before. As it
   fires, who is in the air over its mouth goes up at 620, some 256 high; for a quarter beat its flash burns who
   stands beside it. Its shell bursts 96 up: the fireworks. The beat is the tune's own clock while it plays, the
@@ -246,8 +250,9 @@ Progress is saved at each zone.
 - Chase (built): a relay at the festival's end, down a street of five falls. The big one's guitar passes from
   Biscuit to Sprocket to Kipper to Frost to the twins: a bump each, and the bumped cat throws it on to the
   next. Biscuit goes steadily; Sprocket by the beat, three and a rest; Kipper a beat quick and a beat slow;
-  Frost quicker down a fall; the twins lob it on as he nears, out of reach while it flies, and not again for
-  2.4 seconds. The street is level: a roll only slows there, so the pilot hops out of one a cat has outrun.
+  Frost quicker down a fall; the twins lob it on as he nears, out of reach while it flies, not again for 2.4
+  seconds, and not at the street's end. A bump throws him back curled, and on the level street a roll only
+  slows: the pilot hops out of it once the cat is 140 ahead.
 - Look: fish-scale roof tiles over brick. Indigo, lantern orange, brick red. Stacked houses, lit windows, the
   moon; fireworks in act 2.
 - Music (written): a sly swing in A minor at 132. An accordion lead, plucked bass, brushed snare, a muted

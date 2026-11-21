@@ -6,7 +6,7 @@ from barkley.engine.clock import STEPT
 from barkley.engine.audio import Deck
 from barkley.model.hero import Hero, Pad
 from barkley.model.level import KBONE, KCAT, KCHIMNEY, KCRAB, KGOAT, KJELLY, KMOUND, KSQUIRREL, KSWEEP, KTHROW, KWALL
-from barkley.model.level import KMORTAR, KSNATCH, KWALKER, MH, NONE, NSTAGE, TS
+from barkley.model.level import KMORTAR, KSNATCH, KTIPPER, KWALKER, MH, NONE, NSTAGE, TS
 from barkley.model.game import CLEARED, Game, Loose, NLOOSE, NPART, OVER, Part, PLAYING, Session, TITLE
 from barkley.model.world import NLOB, NMOVE, World
 from barkley.assets.palette import Cycle, Shade, Shimmer
@@ -173,8 +173,9 @@ sub ResetWorld (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
     g.homeY = wd.lv.startY
     for i = 0 to wd.lv.nObj - 1
         wd.lv.ob(i).x = wd.lv.ob(i).a
-        ' a burrow's mound keeps its other end, and a chimney; a mortar its beat
+        ' a burrow's mound keeps its other end, and a chimney; a mortar its beat, and a tipper
         if wd.lv.ob(i).k = KMOUND or wd.lv.ob(i).k = KCHIMNEY or wd.lv.ob(i).k = KMORTAR then continue for
+        if wd.lv.ob(i).k = KTIPPER then continue for
         wd.lv.ob(i).s = 0
         if wd.lv.ob(i).k = KBONE then wd.lv.ob(i).s = 1
         if wd.lv.ob(i).k = KCAT or wd.lv.ob(i).k = KCRAB or wd.lv.ob(i).k = KSWEEP then wd.lv.ob(i).s = -1

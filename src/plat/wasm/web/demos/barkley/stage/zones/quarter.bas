@@ -5,12 +5,13 @@ option explicit
 from barkley.engine.video import Blit, Store, SW
 from barkley.engine.clock import STEPT
 from barkley.engine.audio import Deck
-from barkley.model.images import IBURST, ICAT, ICATF, IMORTAR, IPAPER, ISHIRT, ISNATCH, ISOCK, ITROUSERS
+from barkley.model.images import IBURST, ICAT, ICATF, IFLOWER, IMORTAR, IPAPER, ISHIRT, ISNATCH, ISOCK, ITALL
+from barkley.model.images import ITIPPER, ITROUSERS
 from barkley.model.hero import Hero
-from barkley.model.level import Level, NONE, Rope, TS
+from barkley.model.level import GRAV, KTIPPER, Level, NONE, Rope, TS
 from barkley.model.game import Game, Loose, NLOOSE, Part, PULSES, Session, TOONEW
-from barkley.assets.palette import CLANT, CLINEN, CPOLE, CQINK, CSOOT, CWHITE
-from barkley.assets.tunes import Sfx, SHURT, SMORTAR, SROLL, SSNATCH, SSPRING, STWANG
+from barkley.assets.palette import CCLAY, CLANT, CLINEN, CPOLE, CQINK, CSOOT, CWHITE
+from barkley.assets.tunes import Sfx, SHURT, SMORTAR, SPOP, SROLL, SSNATCH, SSPRING, STWANG
 from barkley.stage.fx.parts import Burst
 from barkley.stage.fx.damage import Beaten, Hurt, Tackle
 from barkley.stage.hero.modes import FLUEH
@@ -30,6 +31,13 @@ const WALKIN = 14
 
 ' A snatcher: the pixels a things' step it runs to a loose bone, and how near one it takes it.
 const SNATCHV = 3, SNATCHR = 8
+
+' A tipper's pot leaves its sill on its own beat of every MORTARBAR, the one its state names, as a mortar fires.
+' It falls SILLUP, POTX from the house's middle, and breaks on the paving; on its way it hurts whom it meets
+' within POTR. The sill is bare for two beats, and the beat before the next the cat's paw is out. For the pilot
+' the way under is clear once a pot has broken, while there are CROSST seconds till the next.
+const SILLUP = 70, POTX = 7, POTR = 10
+private const CROSST = .8
 
 ' A mortar fires on its own beat of every MORTARBAR, the one its state names; its flash burns FLASHP pulses, a
 ' quarter beat. Its mouth is MORTARH over the roof. Who is within MORTARW of its middle and less than MORTARREACH
@@ -230,6 +238,68 @@ function Fired& (lv as Level, se as Session, i as integer)
     if q < 0 then q = q + clng(MORTARBAR) * PULSES
     Fired& = q
 end function
+
+' How far tipper i's pot has fallen from its sill; NONE with none in the air.
+function PotFall% (lv as Level, se as Session, i as integer)
+    dim t as single, d as single
+    PotFall% = NONE
+    t = Fired&(lv, se, i) / (se.tempo * 60!)
+    d = GRAV / 2 * t * t
+    if d < SILLUP then PotFall% = cint(d)
+end function
+
+' Whether the way under tipper i is clear to set off through.
+function PotClear% (lv as Level, se as Session, i as integer)
+    dim q as long
+    q = Fired&(lv, se, i)
+    PotClear% = PotFall%(lv, se, i) = NONE and q < clng(MORTARBAR) * PULSES - clng(CROSST * 60 * se.tempo)
+end function
+
+' For the pilot at x: the nearest tipper whose pot's place he is under or coming to, NONE with none near.
+function TipperAhead% (lv as Level, x as integer)
+    dim i as integer, c as integer
+    TipperAhead% = NONE
+    c = (x - 64) \ TS
+    if c < 0 then c = 0
+    for i = lv.first(c) to lv.nObj - 1
+        if lv.ob(i).x > x + 200 then exit for
+        if lv.ob(i).k <> KTIPPER or lv.ob(i).x + POTX + POTR + 8 < x then continue for
+        TipperAhead% = i
+        exit for
+    next
+end function
+
+' A tipper's step: its pot breaks at the step it lands.
+sub Tipper (lv as Level, mu as Deck, se as Session, i as integer, pt() as Part)
+    dim q as long, land as long
+    q = Fired&(lv, se, i)
+    land = clng(sqr(2! * SILLUP / GRAV) * 60 * se.tempo)
+    if q < land or q >= land + se.tempo then exit sub
+    Burst se, pt(), lv.ob(i).x + POTX, lv.ob(i).y - 3, 8, 120, CCLAY
+    Sfx mu, se, SPOP
+end sub
+
+' Charlie at tipper i: its pot on its way down hurts whom it comes to.
+sub MeetTipper (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose)
+    dim d as integer, foot as integer
+    d = PotFall%(lv, se, i)
+    if d = NONE or abs(lv.ob(i).x + POTX - cint(p.x)) >= POTR then exit sub
+    foot = lv.ob(i).y - SILLUP + d
+    if foot > p.y - 28 and foot - 14 < p.y then Hurt mu, se, g, p, lv.ob(i).x + POTX, lo(), SHURT
+end sub
+
+' Tipper i, its house's middle at x and its foot at y on the screen: the house; its cat at the upper window, a paw
+' out the beat before its pot goes; the pot in the air, or on the sill from two beats after it went.
+sub DrawTipper (lv as Level, art as Store, se as Session, i as integer, x as integer, y as integer)
+    dim q as long, d as integer
+    q = Fired&(lv, se, i)
+    d = PotFall%(lv, se, i)
+    Blit art, x - 32, y - 126, ITALL, 64, 128
+    Blit art, x - 13, y - 83, ITIPPER - 2 * (q >= 3& * PULSES), 17, 13
+    if d = NONE and q < 2& * PULSES then exit sub
+    if d = NONE then d = 0
+    Blit art, x + 1, y - 85 + d, IFLOWER, 12, 16
+end sub
 
 ' A mortar's step: its thump at the step it fires.
 sub Mortar (lv as Level, mu as Deck, se as Session, i as integer)

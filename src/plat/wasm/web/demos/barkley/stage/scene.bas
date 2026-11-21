@@ -13,7 +13,8 @@ from barkley.model.level import KFAM, KFLOWER, KFLUME, KFRONT, KGOAL, KGOAT, KHE
 from barkley.model.level import KLEG, KLOAD, KLOOP, KMARK, KMOUND, KMOVE, KPIPE, KPLAT, KPOST, KPRESS, KROCK, KSAPLING
 from barkley.model.level import KSEAT, KSLED, KSPAN, KSPARK, KSPIN, KSPOUT, KSPRING, KSQUIRREL, KSWEEP, KTANK, KTHORN
 from barkley.model.level import KTHROW, KTREE, KVENT, KVINE, KWALL, KWAVE, Level, NONE, Realm, TS
-from barkley.model.level import KAWNING, KBIN, KCHIMNEY, KGOLD, KMORTAR, KPOUNCE, KSNATCH, KTRAM, KWALKER, NGOLD
+from barkley.model.level import KAWNING, KBIN, KCHIMNEY, KGOLD, KMORTAR, KPOUNCE, KSNATCH, KTIPPER, KTRAM, KWALKER
+from barkley.model.level import NGOLD
 from barkley.model.images import IAWNING, IBIN, ICHIMNEY, IGOLD, ITRAM
 from barkley.model.game import CLEARED, Found, Game, Loose, NLOOSE, NPART, OVER, Part, PLAYING, Session, TITLE
 from barkley.model.world import World
@@ -33,7 +34,7 @@ from barkley.stage.zones.works import DrawLeg, DrawPress, DrawSpark, SPINH, SPIN
 from barkley.stage.zones.sands import CrabPic, DrawGulls, DrawSea, DrawSpout, DrawSurf
 from barkley.stage.zones.wood import DrawBees, DrawFlies, DrawVine, SQAIM
 from barkley.stage.zones.pass import DrawAvalanche, DrawGale, DrawGoat, DrawLoad, DrawStray, Fallen, Risen, TREMBLE
-from barkley.stage.zones.quarter import DrawLines, DrawMortar, DrawPouncer, DrawSmoke, SnatchPic
+from barkley.stage.zones.quarter import DrawLines, DrawMortar, DrawPouncer, DrawSmoke, DrawTipper, SnatchPic
 from barkley.stage.hero.modes import FLUEH
 from barkley.stage.zones.chase import DrawChase
 from barkley.stage.hud import Banner, Hud, Num, Panel, Say, Txt
@@ -154,6 +155,7 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
         case KCAT, KWALKER: if lv.ob(i).s then Blit art, x - 10, y - 13, CatPic%(se, lv.ob(i).s), 20, 14
         case KPOUNCE: DrawPouncer lv, art, se, i, x, y
         case KMORTAR: DrawMortar lv, art, se, i, x, y
+        case KTIPPER: DrawTipper lv, art, se, i, x, y
         case KSNATCH: if lv.ob(i).s then Blit art, x - 10, y - 13, SnatchPic%(se, lv.ob(i).s), 20, 14
         case KBIN
             ' eyes under its lid while its cat, the thing after it, is in it

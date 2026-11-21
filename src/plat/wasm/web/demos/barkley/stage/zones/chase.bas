@@ -223,11 +223,11 @@ sub DrawChase (lv as Level, zn as Realm, art as Store, se as Session, cx as inte
     end select
 end sub
 
-' A lob's clock: begun as Charlie comes near who has the guitar, no sooner than LOBWAIT after the last. Only the
-' twins lob by it.
+' A lob's clock: begun as Charlie comes near who has the guitar, no sooner than LOBWAIT after the last, and not at
+' the street's end, where there is nowhere on to lob it. Only the twins lob by it.
 private sub Lob (lv as Level, p as Hero)
     if lv.box.t > 0 then lv.box.t = lv.box.t - STEPT
-    if lv.box.t > 0 or lv.cart.t > 0 then exit sub
+    if lv.box.t > 0 or lv.cart.t > 0 or lv.cart.x >= lv.chaseEnd then exit sub
     if lv.cart.x - p.x < LOBNEAR then lv.box.t = LOBWAIT
 end sub
 

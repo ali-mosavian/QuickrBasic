@@ -16,11 +16,12 @@ from barkley.stage.hero.moves import TOP
 from barkley.stage.hero.draw import LOGR
 from barkley.stage.zones.works import PressAhead, PRESSP, PressT
 from barkley.stage.zones.wood import MOUNDR
-from barkley.stage.zones.quarter import POUNCEGONE
+from barkley.stage.zones.quarter import PotClear, POTR, POTX, POUNCEGONE, TipperAhead
 from barkley.stage.zones.pass import GCHARGE, GoatNear
 
-' How near who flees is rolled into; how far ahead the relay's cat has outrun a roll.
-private const RAMREACH = 120, OUTRUN = 72
+' How near who flees is rolled into. A bump throws him back curled, and on the quarter's level street a roll only
+' slows: he hops out of it once its cat is OUTRUN ahead, further than a hop gains on one that stops.
+private const RAMREACH = 120, OUTRUN = 140
 
 ' The game's own player: Right held, a jump where one is wanted, still where it must wait.
 sub Pilot (lv as Level, gr as Ground, zn as Realm, se as Session, p as Hero, k as Pad)
@@ -140,9 +141,9 @@ private function PilotRun% (lv as Level, gr as Ground, zn as Realm, se as Sessio
         if d and lv.ob(i).x <= x + 34 + abs(cint(p.gsp)) \ 8 then want = -1
     next
     PilotPress lv, se, p, k, want
+    PilotTipper lv, se, p, k
     PilotGoat lv, p, k, want
     k.d = Rams%(lv, zn, p)
-    ' the quarter's street is level, and a roll there only slows: one its cat has outrun is jumped out of
     if zn.id = 5 and p.roll and lv.cart.st = 1 and lv.cart.x - p.x > OUTRUN then want = -1
     if zn.id = 4 then PilotCurl lv, p, k, want
     PilotGaps lv, se, p, k, want
@@ -150,7 +151,7 @@ private function PilotRun% (lv as Level, gr as Ground, zn as Realm, se as Sessio
     PilotRun% = want
 end function
 
-' Whether who flees is rolled into: on the ground, ahead within RAMREACH, and the speed there to roll.
+' Whether who flees is rolled into: ahead within RAMREACH, and the speed there to roll.
 private function Rams% (lv as Level, zn as Realm, p as Hero)
     dim d as integer
     Rams% = 0
@@ -224,6 +225,16 @@ private sub PilotPress (lv as Level, se as Session, p as Hero, k as Pad, want as
     if d < 60 then want = 0
     if d <= 0 or d >= 40 + cint(p.gsp) \ 5 then exit sub
     if (PressT%(lv, se, i) + 22) mod PRESSP > 52 then HoldBack p, k, 20
+end sub
+
+' A tipper ahead: to a stop short of where its pot comes down, on once one has broken and the next is not soon.
+private sub PilotTipper (lv as Level, se as Session, p as Hero, k as Pad)
+    dim i as integer, d as integer
+    i = TipperAhead%(lv, cint(p.x))
+    if i = NONE then exit sub
+    d = lv.ob(i).x + POTX - POTR - 8 - cint(p.x)
+    if d <= 0 or d >= 40 + cint(p.gsp) \ 5 then exit sub
+    if not PotClear%(lv, se, i) then HoldBack p, k, 20
 end sub
 
 ' A goat near: to a stand short of it, up as it charges, and down on its back.

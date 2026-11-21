@@ -34,11 +34,11 @@ from barkley.model.level import GRAV, Ground, KBONE, KBRAMBLE, KBUOY, KCAT, KCIS
 from barkley.model.level import KICICLE, KJELLY, KJET, KLEG, KLOAD, KLOG, KLOOP, KMOUND, KPIPE, KPRESS, KSAPLING, KSEAT
 from barkley.model.level import KSLED, KSPAN, KSPARK, KSPRING, KSQUIRREL, KSWEEP, KTHROW, KVINE, KWALL, KWAVE, Level, MH
 from barkley.model.level import KAWNING, KBIN, KCHIMNEY, KGOLD, KPOUNCE, KWALKER, NGOLD, NONE, NSTAGE, TS, ZONES
-from barkley.model.level import KMORTAR, KSNATCH
+from barkley.model.level import KMORTAR, KSNATCH, KTIPPER
 from barkley.model.game import CLEARED, Cue, Game, INTRO, Loose, NCUE, NLOOSE, NPART, OVER, Part, PLAYING, Session
 from barkley.model.game import Found, Gild, PULSES, TITLE
 from barkley.assets.palette import CBEE, CFLY, CGOLD, CINK, CNUT, CSEA, CVINE, CVINED, CWHITE, CYELLOW
-from barkley.assets.palette import CLINEN, CPOLE, CQINK, CSOOT
+from barkley.assets.palette import CCLAY, CLINEN, CPOLE, CQINK, CSOOT
 from barkley.assets.store import BuildArt
 from barkley.assets.cast import BaronPic, FamPic
 from barkley.assets.tunes import CAUGHT, CAUGHTUP, EndBeat, LEFTBEHIND, LoadSongs, PACKING, PickSong, SCLANK, Sfx, SHURT
@@ -60,7 +60,7 @@ from barkley.stage.zones.wood import SQRUN, SQV, SQWAIT
 from barkley.stage.zones.pass import Fallen, GCHARGE, HeapOf, HEAPR, LOADRUN, LOADSLIDE, SLEDV, Slid, THROWAT, THROWUP
 from barkley.stage.zones.pass import TREMBLE, WALLR
 from barkley.stage.zones.quarter import AWNT, AWNW, Leapt, LINESAG, LINET, LineY, POUNCEFAR, POUNCEGONE, POUNCEN
-from barkley.stage.zones.quarter import POUNCEOUT, POUNCER
+from barkley.stage.zones.quarter import PotClear, PotFall, POTR, POTX, POUNCEOUT, POUNCER, SILLUP
 from barkley.stage.zones.chase import BOLTS, CARTLEAD, CHASETUNE, NBUMP, PAWUP, PEDALMORE, PEDALUP, PEDALV, PEDALW
 from barkley.stage.zones.chase import LEGV, Lobbed, LOBWAIT, NLEG, RAILUP, TUMBLE, TwinPose
 from barkley.stage.camera import Camera, HEAD, Headroom, HEADUP
@@ -2184,6 +2184,117 @@ for j = 0 to 9
 next
 wd.mu.muted = colA(0)
 if was then print "mortar pilot ok"
+' a tipper sits at a high window of a house behind the way and drops a flowerpot on its beat of every four. The
+' pot falls 70 to the paving in 26 steps and breaks there. It hurts who stands under it, once it is down to his
+' head, and no one a step aside; under a bare sill no one is hurt. The way is clear for the pilot from the pot's
+' breaking till 0.8 seconds before the next
+GoStage wd, 11, g, p, lo(), pt()
+g.modeT = 20
+for c = 0 to wd.lv.nObj - 1
+    if wd.lv.ob(c).k = KTIPPER then exit for
+next
+was = c < wd.lv.nObj
+for i = 0 to wd.lv.nObj - 1
+    if wd.lv.ob(i).k = KPOUNCE then wd.lv.ob(i).s = POUNCEGONE
+next
+bx = wd.lv.ob(c).x + POTX
+m = wd.lv.ob(c).y
+colA(0) = wd.mu.muted
+wd.mu.muted = -1
+k.r = 0
+k.l = 0
+k.d = 0
+k.jump = 0
+k.hit = 0
+Stand wd.lv, wd.gr, p, bx - 100, 0
+do until wd.se.ticks mod 100 = 50
+    Tick wd, g, p, k, lo(), pt()
+loop
+was = was and PotFall%(wd.lv, wd.se, c) = 0 and not PotClear%(wd.lv, wd.se, c)
+Stand wd.lv, wd.gr, p, cint(bx), 0
+g.bones = 3
+do until wd.se.ticks mod 100 = 62
+    Tick wd, g, p, k, lo(), pt()
+loop
+was = was and PotFall%(wd.lv, wd.se, c) = 15
+' drawn: the house's wall; the pot in the air, its sill bare
+g.shake = 0
+g.camx = wd.lv.ob(c).x - 160
+g.camy = m - 150
+Render wd, g, p, lo(), pt()
+was = was and point(140, 70) >= 130 and point(140, 70) <= 132
+was = was and point(167, 92) = CCLAY and point(167, 77) <> CCLAY and point(161, 77) <> 140
+do until wd.se.ticks mod 100 = 68
+    Tick wd, g, p, k, lo(), pt()
+loop
+was = was and g.bones = 3 and p.inv <= 0
+do until wd.se.ticks mod 100 = 75
+    Tick wd, g, p, k, lo(), pt()
+loop
+was = was and g.bones = 0 and p.inv > 0 and PotFall%(wd.lv, wd.se, c) = 65
+v = 0
+for i = 0 to NPART - 1
+    if pt(i).t > 0 and pt(i).c = CCLAY then v = v + 1
+next
+Tick wd, g, p, k, lo(), pt()
+was = was and v = 0 and PotFall%(wd.lv, wd.se, c) = NONE
+for i = 0 to NPART - 1
+    if pt(i).t > 0 and pt(i).c = CCLAY then v = v + 1
+next
+was = was and v = 8
+' broken once: no more of it three steps on
+for i = 1 to 3
+    Tick wd, g, p, k, lo(), pt()
+next
+v = 0
+for i = 0 to NPART - 1
+    if pt(i).t > 0 and pt(i).c = CCLAY then v = v + 1
+next
+was = was and v <= 8
+' under the bare sill, then under the pot stood on it, the cat's paw out for the last beat: not hurt
+p.stun = 0
+p.inv = 0
+g.bones = 3
+Stand wd.lv, wd.gr, p, cint(bx), 0
+do until wd.se.ticks mod 100 = 49
+    Tick wd, g, p, k, lo(), pt()
+    j = wd.se.ticks mod 100
+    if j = 80 or j = 0 or j = 30 then was = was and PotClear%(wd.lv, wd.se, c) = (j = 80 or j = 0)
+    if j <> 90 and j <> 20 and j <> 40 then continue do
+    g.camx = wd.lv.ob(c).x - 160
+    g.camy = m - 150
+    Render wd, g, p, lo(), pt()
+    was = was and (point(167, 77) = CCLAY) = (j <> 90) and (point(161, 77) = 140) = (j = 40)
+loop
+was = was and g.bones = 3 and p.inv <= 0
+' and a step aside, a whole bar
+Stand wd.lv, wd.gr, p, bx - POTR - 2, 0
+for i = 1 to 100
+    Tick wd, g, p, k, lo(), pt()
+next
+if was and g.bones = 3 and p.inv <= 0 and SILLUP = 70 then print "tipper ok"
+' the pilot waits short of a tipper till its pot has broken, and does not go under with the next too near: come
+' at it at a run from 200 before, at each step of the bar, it is never hurt, and is past it
+was = c < wd.lv.nObj
+for j = 0 to 99
+    Stand wd.lv, wd.gr, p, bx - 200, 340
+    g.bones = 3
+    p.inv = 0
+    wd.se.ticks = j
+    for i = 1 to 600
+        Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k
+        Tick wd, g, p, k, lo(), pt()
+        if p.inv > 0 then was = 0
+        if p.x > bx + 60 then exit for
+    next
+    was = was and p.x > bx + 60
+next
+k.r = 0
+k.l = 0
+k.jump = 0
+k.hit = 0
+wd.mu.muted = colA(0)
+if was then print "tipper pilot ok"
 ' the quarter's golden bones can each be got. The festival night's second stood a tile too high over its balcony:
 ' no way of playing at it got it. Blue hour: a jump up; dropped on the long line, three bounces, then right; from
 ' the last balcony over the tram's way. Festival night: a jump beside the mortar as it fires; the awning to the
@@ -2315,7 +2426,8 @@ if was then print "golds ok"
 ' the festival night ends in a relay for the big one's guitar: five cats, a bump each, and the third bump no end
 ' of it. Each goes its own way, Charlie kept behind it: Biscuit steadily; Sprocket by the beat, with a rest;
 ' Kipper quick and slow in turn; Frost the quicker down a fall and never slower; the twins steadily till he
-' nears, then a lob: quick, out of a roll's reach while it flies, and no other till LOBWAIT is out. Rolled into,
+' nears, then a lob, but none at the street's end: quick, out of a roll's reach while it flies, and no other
+' till LOBWAIT is out. Rolled into,
 ' each takes its bump, throws the guitar on well ahead and is left there off its feet; the fifth leaves the
 ' guitar lying, the zone's tune back, and it is his to take
 dim relayOk as integer, slowest as single, quickest as single, lobs as integer, bar as integer
@@ -2356,6 +2468,15 @@ for m = 0 to NLEG - 1
         relayOk = relayOk and point(160 + 16, 150 - 38) = CYELLOW and point(160 + 24, 150 - 38) <> CYELLOW
     end if
     if m = NLEG - 1 then
+        ' at the street's end there is nowhere on to lob it
+        bx = wd.lv.cart.x
+        slowest = wd.lv.cart.v
+        wd.lv.cart.x = wd.lv.chaseEnd
+        Stand wd.lv, wd.gr, p, wd.lv.chaseEnd - 60, 0
+        Tick wd, g, p, k, lo(), pt()
+        relayOk = relayOk and not Lobbed%(wd.lv)
+        wd.lv.cart.x = bx
+        wd.lv.cart.v = slowest
         Stand wd.lv, wd.gr, p, cint(wd.lv.cart.x) - 60, 0
         Tick wd, g, p, k, lo(), pt()
         relayOk = relayOk and Lobbed%(wd.lv)
@@ -4446,6 +4567,8 @@ def main() -> None:
         ("snatcher ok", "a snatcher runs to a loose bone in its beat and takes it for good; startled it takes none"),
         ("mortar ok", "a mortar fires on its beat of the tune: it burns who is beside it and throws up who is over it"),
         ("mortar pilot ok", "the pilot jumps a mortar's flash: through the festival night it is never hurt"),
+        ("tipper ok", "a tipper's pot falls from its sill on its beat, hurts who is under it, breaks on the paving"),
+        ("tipper pilot ok", "the pilot waits short of a tipper till its pot has broken, and is never hurt"),
         ("quarter gold ok", "each of the Lantern Quarter's six golden bones can be got"),
         ("golds ok", "each of the first ten acts has three golden bones, and each can be got"),
         ("relay ok", "the quarter's relay: five cats, each its own pace, a bump each; the twins lob; the guitar taken"),

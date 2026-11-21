@@ -10,7 +10,7 @@ from barkley.model.level import GRAV, Ground, KBONE, KBOOST, KBRAMBLE, KBUMP, KB
 from barkley.model.level import KFLUME, KGOAL, KGOAT, KHEAP, KHOOP, KICICLE, KJELLY, KJET, KLOAD, KLOG, KMARK, KMOUND
 from barkley.model.level import KPRESS, KSAPLING, KSLED, KSPARK, KSPIN, KSPOUT, KSPRING, KSQUIRREL, KSWEEP, KTHORN
 from barkley.model.level import KAWNING, KCHIMNEY, KGOLD, KPOUNCE, KSNATCH, KTHROW, KVINE, KWALKER, KWALL, Level
-from barkley.model.level import KMORTAR, Realm, TS
+from barkley.model.level import KMORTAR, KTIPPER, Realm, TS
 from barkley.model.game import Game, Loose, NLOOSE, OVER, Part, Session, TOONEW
 from barkley.assets.tunes import LEFTBEHIND, SBONE, SceneTune, Sfx, SHURT
 from barkley.world.terrain.ground import SegAt
@@ -24,7 +24,7 @@ from barkley.stage.zones.wood import MeetBramble, MeetLog, MeetMound, MeetSaplin
 from barkley.stage.zones.pass import Graze, MeetDrift, MeetGoat, MeetHeap, MeetIcicle, MeetSled, MeetThrow, MeetWall
 from barkley.stage.zones.pass import TakeAim, Totter, Unload
 from barkley.stage.zones.quarter import Lines, MeetAwning, MeetChimney, MeetMortar, MeetPounce, Mortar, Pounce, Settle
-from barkley.stage.zones.quarter import Snatch
+from barkley.stage.zones.quarter import MeetTipper, Snatch, Tipper
 from barkley.stage.zones.chase import ResetChase
 from barkley.stage.camera import Camera
 
@@ -81,6 +81,7 @@ sub Touch (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as 
         case KCHIMNEY: MeetChimney lv, mu, se, p, i, pt()
         case KPOUNCE: MeetPounce lv, mu, se, g, p, i, lo(), pt()
         case KMORTAR: MeetMortar lv, mu, se, g, p, i, lo()
+        case KTIPPER: MeetTipper lv, mu, se, g, p, i, lo()
         case KVINE: MeetVine lv, mu, se, p, i
         case KBRAMBLE: MeetBramble lv, mu, se, g, p, i, lo()
         case KLOG: MeetLog lv, mu, se, p, i
@@ -144,6 +145,7 @@ sub Things (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() a
         case KPOUNCE: Pounce lv, i, p
         case KSNATCH: if lv.ob(i).s <> 0 then Snatch lv, mu, se, i, lo(), pt()
         case KMORTAR: Mortar lv, mu, se, i
+        case KTIPPER: Tipper lv, mu, se, i, pt()
         case KSPRING, KBUMP, KHOOP, KSAPLING, KAWNING: if lv.ob(i).s > 0 then lv.ob(i).s = lv.ob(i).s - 1
         case KBRAMBLE: Regrow lv, se, pt(), i
         case KVINE: if p.vine <> i + 1 then lv.ob(i).s = lv.ob(i).s * 7 \ 8

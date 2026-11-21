@@ -5060,11 +5060,12 @@ def flowerpot(f: int) -> Pic:
     return p.outline(QINK)
 
 
-def housefront() -> Pic:
+def housefront(storeys: int = 1, pot: bool = True) -> Pic:
     """Where the Downs have a tree: the gable of a house behind the way, a window alight in it, a pot on its sill,
-    a round one under its ridge."""
-    p = Pic(64, 80)
-    for y in range(24, 80):
+    a round one under its ridge. storeys: that many windows, one 48 under another; pot: the top one's pot."""
+    h = 32 + 48 * storeys
+    p = Pic(64, h)
+    for y in range(24, h):
         for x in range(8, 56):
             mortar = y % 8 == 7 or (x + 8 * (y // 8 % 2)) % 16 == 15
             p.put(x, y, QWALL[2] if x == 8 else QWALL[1] if mortar else QWALL[0])
@@ -5078,10 +5079,38 @@ def housefront() -> Pic:
     fill(p, oval(32, 15, 3, 3), LITPANE[1])
     for v in range(16):
         for u in range(28):
-            if casement(u, v):
-                p.put(18 + u, 42 + v, casement(u, v))
-    paste(p, flowerpot(0), 33, 41)
+            for y in range(42 + v, h, 48):
+                if casement(u, v):
+                    p.put(18 + u, y, casement(u, v))
+    if pot:
+        paste(p, flowerpot(0), 33, 41)
     return p.outline(QINK)
+
+
+TIPPER = (
+    "..E....E.......",
+    ".EeE..EeE......",
+    ".EEEEEEEE......",
+    "EEEEEEEEEE.....",
+    "EgkEEEEgkE.....",
+    "EEEEnnEEEE.....",
+    ".EEwwwwEE......",
+    "..EwwwwEdd.....",
+    ".dEEEEEEEEEE...",
+    "dEEEEEdEEEEEEww",
+    "dEEEEEdEEEEEEww",
+)
+
+
+def tipper(f: int) -> Pic:
+    """A cat sat at a window, looking out over its sill; f 1: a paw out to the pot it is about to tip."""
+    p = Pic(17, 13)
+    key = {"E": CATFUR[2], "e": PETAL[0], "d": CATFUR[0], "k": INK, "g": GRASS[4], "n": PETAL[0], "w": CLOUD[2]}
+    for y, r in enumerate(TIPPER):
+        for x, ch in enumerate(r if f or y < 8 else r[:10]):
+            if ch != ".":
+                p.put(x + 1, y + 1, key[ch])
+    return p.outline()
 
 
 def skylight() -> Pic:
@@ -5350,6 +5379,8 @@ def lanternq() -> list[tuple[int, Pic, bool, int]]:
         *[(z + 1330 + f * 2, burst(f, FIRE[2], FIRE[3]), True, -1) for f in range(3)],
         (z + 1336, keepguitar(), True, -1),
         *[(z + 1338 + (leg * 3 + f) * 2, relaycat(leg, f), True, -1) for leg in range(5) for f in range(3)],
+        (z + 1368, housefront(2, False), True, -1),
+        *[(z + 1370 + f * 2, tipper(f), True, -1) for f in range(2)],
     ]
     return out
 
