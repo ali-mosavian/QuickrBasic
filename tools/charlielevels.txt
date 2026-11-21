@@ -210,25 +210,39 @@ flat,8, burrow,4, flat,24, sapling,0, flat,12, wall,7, flat,6, burrow,4, flat,8,
 chase,44, flat,6, sapling,0, flat,14, oak,0, flat,11, spring,0, flat,13
 goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 
-' Lantern Quarter at the blue hour: a stand-in, until its lines, trams and cats are in.
+' Lantern Quarter at the blue hour. line: a street that wide under a clothesline; walker: a cat on the line just
+' hung, its home that many columns along. slide: a street under a lantern line, the roof past it four lower.
+' awning: one out from the wall that begins here, that many tiles up. chimney: the two of one number are a way in
+' and its way out. tram: a tram, its way the columns of street laid after it. pouncer, snatcher: one here.
 Level Lantern1
 tune,Lantern
-flat,4, dog,0, flat,4, flower,0, flat,4, bones,6, flat,8, tree,0, flat,4, line,6, flat,4, chimney,0, flat,6
-flat,4, line,7, walker,2, flat,6
-upg,2, flat,6, bones,6, flat,6, snatcher,0, flat,6, bush,0, flat,3, chimney,0, flat,5, slide,10, flat,4, bones,3, flat,6, pouncer,0, flat,8, awning,2, wall,4, flat,4, dng,2, flat,8, rock,0, flat,6
-up45,3, arc,9, pit,10, flat,14, flower,0, flat,8, tree,0, flat,6
-mark,0, flat,6, spring,0, flat,2, plat,608, hb,706, flat,16, bush,0, flat,6, awning,3, wall,7, flat,10, drop,7, flat,4
-dn45,2, flat,8, bones,8, flat,6, thorn,0, flat,8, flower,0, flat,4, up45,3, arc,10, pit,11, flat,8
-tree,0, flat,6, mover,8, flat,8, rock,0, flat,10, drop,5, tram,24, flat,24, awning,3, wall,5, flat,8
+flat,4, dog,0, flat,4, flower,0, flat,4, bones,6, flat,8, tree,0, gold,5, flat,6
+line,9, gold,10, flat,8, bush,0, flat,4, awning,2, wall,4, flat,4, bones,6, flat,8
+line,7, flat,5, line,6, flat,6, rock,0, flat,4
+mark,0, flat,6, chimney,0, flat,6, awning,3, wall,6, flat,8, chimney,0, flat,4, bones,6, flat,8
+slide,10, flat,6, pouncer,0, flat,8, flower,0, flat,4
+dng,2, flat,6, bones,4, flat,6, snatcher,0, flat,8, line,6, walker,1, flat,6, tree,0, flat,6
+mark,0, flat,6, drop,6, tram,30, flat,10, plat,406, hb,506, flat,12, plat,405, hb,505, flat,8, gold,7, flat,4
+awning,3, wall,6, flat,8, pouncer,0, flat,8, line,5, flat,4, line,5, flat,4, line,5, flat,8, bones,8, flat,14
+bush,0, flat,6, snatcher,0, flat,10, rock,0, flat,12, up45,3, arc,9, pit,10, flat,10
+mark,0, flat,6, slide,12, flat,6, line,7, walker,2, flat,6, awning,2, wall,4, flat,6, thorn,0, flat,8
+drop,7, tram,56, flat,8, plat,404, hb,504, flat,8, plat,404, flat,8, plat,404, hb,504, flat,8, plat,404
+flat,8, plat,404, hb,504, flat,8, plat,404, flat,8, awning,3, wall,6, flat,10
 goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 
-' Lantern Quarter on the festival night: a stand-in too.
+' Lantern Quarter on the festival night. mortar: one here, firing on that beat of every four.
 Level Lantern2
 tune,Festival
-flat,4, dog,0, flat,6, bones,6, flat,6, tree,0, flat,6, upg,2, flat,6, bush,0, flat,8
-up45,3, arc,9, pit,10, flat,14, rock,0, flat,6, dng,2, flat,6, bones,6, flat,10
-mark,0, flat,6, mover,7, flat,10, upg,3, flat,4, flower,0, flat,6, mortar,1, flat,5, mortar,3, flat,6, thorn,0, flat,8
-tree,0, flat,6, spring,0, flat,2, plat,608, hb,706, flat,16, dn45,3, flat,8
+flat,4, dog,0, flat,6, bones,6, flat,6, tree,0, flat,8, mortar,1, gold,14, flat,5, mortar,3, flat,6, thorn,0, flat,8
+bush,0, flat,6, cat,0, flat,5, cat,0, flat,6, bones,6, flat,8, line,7, flat,6, snatcher,0, flat,5, cat,0, flat,8
+awning,2, wall,4, plat,405, gold,6, flat,8, pouncer,0, flat,6, pouncer,0, flat,8
+mark,0, flat,6, slide,10, flat,6, cat,0, flat,4, cat,0, flat,4, cat,0, flat,8
+chimney,0, flat,6, mortar,0, flat,4, mortar,1, flat,2, gold,5, flat,2, mortar,2, flat,4, mortar,3, flat,6
+chimney,0, flat,6, bones,6, flat,8
+up45,3, arc,9, pit,10, flat,10, line,7, walker,2, flat,6, snatcher,0, flat,6, cat,0, flat,8
+mark,0, flat,8, mortar,2, plat,1107, hb,1207, flat,10, plat,1105, hb,1205, flat,8, cat,0, flat,6, cat,0, flat,8
+drop,5, tram,26, flat,8, cat,0, flat,8, cat,0, flat,10, awning,3, wall,5, flat,8
+mortar,0, flat,5, cat,0, flat,5, mortar,2, flat,5, pouncer,0, flat,6, mortar,1, flat,8
 goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 
 ' The intro's road: the Downs, flat, the way the van goes; a rock where it bumps.

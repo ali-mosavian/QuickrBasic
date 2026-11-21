@@ -2184,6 +2184,83 @@ for j = 0 to 9
 next
 wd.mu.muted = colA(0)
 if was then print "mortar pilot ok"
+' the quarter's golden bones can each be got. The festival night's second stood a tile too high over its balcony:
+' no way of playing at it got it. Blue hour: a jump up; dropped on the long line, three bounces, then right; from
+' the last balcony over the tram's way. Festival night: a jump beside the mortar as it fires; the awning to the
+' balcony, back to its end and up; a jump among the four mortars
+hid = wd.se.goldLo
+shown = wd.se.goldHi
+colA(0) = wd.mu.muted
+wd.mu.muted = -1
+was = -1
+for c = 0 to 5
+    GoStage wd, 10 + c \\ 3, g, p, lo(), pt()
+    g.modeT = 20
+    wd.se.goldLo = 0
+    wd.se.goldHi = 0
+    j = 0
+    for i = 0 to wd.lv.nObj - 1
+        if wd.lv.ob(i).k <> KGOLD then continue for
+        colB(j) = i
+        j = j + 1
+    next
+    m = colB(c mod 3)
+    bx = wd.lv.ob(m).x
+    p.inv = 9
+    ' v: the tick he jumps at, or on the line holds right from
+    select case c
+    case 0
+        Stand wd.lv, wd.gr, p, bx - 90, 200
+        v = 2
+    case 1, 2
+        p.ground = 0
+        p.roll = 0
+        p.vx = 0
+        p.vy = 0
+        p.x = wd.lv.ropes(0).x + 40
+        p.y = wd.lv.ropes(0).y - 30
+        v = 110
+        if c = 2 then p.x = bx - 50
+        if c = 2 then p.y = wd.lv.ob(m).y + 14 + 7 * TS - 82
+        if c = 2 then v = 18
+    case 3
+        Stand wd.lv, wd.gr, p, bx - 10, 0
+        wd.se.ticks = 1000
+        v = 9
+    case 4
+        Stand wd.lv, wd.gr, p, bx - 200, 100
+        v = 2
+    case 5
+        Stand wd.lv, wd.gr, p, bx - 60, 150
+        v = 8
+    end select
+    for i = 1 to 260
+        k.r = c <> 3 and (c <> 1 or i >= v)
+        k.l = 0
+        k.jump = c <> 1 and i >= v and i < v + 25
+        k.hit = c <> 1 and i = v
+        ' on the balcony: back to its end, and up
+        if c = 4 and p.ground and p.y < wd.lv.ob(m).y + 14 + 6 * TS - 70 then
+            k.r = 0
+            k.l = p.x > bx + 10
+            k.jump = not k.l
+            k.hit = not k.l
+        end if
+        Tick wd, g, p, k, lo(), pt()
+        if Found%(wd.se, 10 + c \\ 3, c mod 3) then exit for
+    next
+    was = was and Found%(wd.se, 10 + c \\ 3, c mod 3)
+next
+k.r = 0
+k.l = 0
+k.jump = 0
+k.hit = 0
+wd.se.goldLo = hid
+wd.se.goldHi = shown
+wd.se.unkept = -1
+Tick wd, g, p, k, lo(), pt()
+wd.mu.muted = colA(0)
+if was then print "quarter gold ok"
 ' Russet Wood is the fifth zone, by name and in its own colours: its litter's top the same picture at both hours,
 ' russet gold at a misty noon and not on the firefly night
 was = ZoneName$(4) = "RUSSET WOOD"
@@ -4207,6 +4284,7 @@ def main() -> None:
         ("snatcher ok", "a snatcher runs to a loose bone in its beat and takes it for good; startled it takes none"),
         ("mortar ok", "a mortar fires on its beat of the tune: it burns who is beside it and throws up who is over it"),
         ("mortar pilot ok", "the pilot jumps a mortar's flash: through the festival night it is never hurt"),
+        ("quarter gold ok", "each of the Lantern Quarter's six golden bones can be got"),
         ("firefly ok", "the wood's night dark but for a few fireflies; a bark wakes them and lights it for a while"),
         ("sapling ok", "a bowed sapling throws him who crosses its crown, higher the faster; sprung it throws no one"),
         ("vine ok", "a vine caught in the air swings him as a weight, lets go at a jump, and hangs straight again"),

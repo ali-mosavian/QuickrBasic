@@ -205,9 +205,10 @@ Progress is saved at each zone.
 
 ### 6. Lantern Quarter (its look and tune built)
 
-- Built: its backdrop, ground, props and card at the blue hour and on the festival night; two stand-in levels,
-  to its tune and the festival's arrangement; clotheslines, lantern lines, awnings, chimneys, trams, mortars;
-  pouncers, rope-walkers, snatchers. To add: tippers, its acts, its chase; a street's own paving.
+- Built: its backdrop, ground, props and card at the blue hour and on the festival night; its two acts, to its
+  tune and the festival's arrangement, three golden bones in each; clotheslines, lantern lines, awnings,
+  chimneys, trams, mortars; pouncers, rope-walkers, snatchers. To add: tippers, its chase; a street's own
+  paving, the market's stalls.
 - A clothesline (`line,N`) spans a street N columns wide, post to post. Come down on, it throws him up, his way
   kept: 60 pixels off the first, 107 off the second in a row, 167 off each after; the ground ends the row.
 - An awning (`awning,N`) stands out from the wall that begins there, N tiles up. Come down on, it throws him 135
@@ -235,9 +236,13 @@ Progress is saved at each zone.
 - Enemies: pouncers, eyes in a bin and a leap as he nears; rope-walkers, shaken off by bouncing their line;
   tippers, dropping flowerpots from sills in rhythm; snatchers, who run off with the bones he drops.
 - Act 1, blue hour: the roofs above, fast and gapped; the street below, safe, with trams. A tram ride through
-  the market.
+  the market, balconies over it. Its golden bones: a jump up; over a long clothesline's end, from the third
+  bounce; past the first tram's way, from its last balcony.
 - Act 2, festival night: mortars on the roofs fire on the tune's beat, a hazard from the side and a launcher
-  from above. Cats in crowds.
+  from above. Cats in crowds. Its golden bones: high over the first mortar, by a jump beside it as it fires;
+  over a balcony an awning throws him onto; in the middle of four mortars a chimney leads past.
+- A ramp to jump from stands 20 columns or more past what the pilot jumps: landed on from a jump it is too
+  steep to walk up, and a jump from it goes back.
 - Chase: a relay. The guitar passes from Biscuit to Sprocket to Kipper to Frost to the twins, each stretch in
   that cat's own style. The big one's guitar.
 - Look: fish-scale roof tiles over brick. Indigo, lantern orange, brick red. Stacked houses, lit windows, the
