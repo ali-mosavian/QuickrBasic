@@ -525,6 +525,14 @@ DATA 0
 DATA 5, "................", "C.C.C.......c.c.", "D.......C.C.C...", "D...c.c.....C.C.", "C.C.C..........."
 USE WoodBars
 
+' The quarter's drums, none of them noise: a kick, a hand drum and a tom, each a sine that falls, and a tick. Each
+' song adds its stick across the rim, a square through a band-pass.
+Part QuarterDrums:
+DATA "K", "W4Z1,0H0,4,3,3Y0K1,8", 12, 0, "O1C"
+DATA "S", "W4Z1,4,2,0H0,4,0,2Y0K1,3", 12, 0, "O3C"
+DATA "T", "W4Z1,0H0,5,0,3Y0K5,6", 11, 0, "O2G"
+DATA "h", "W1H0,2,0,1Y0K0", 4, 0, "O6G"
+
 ' The quarter's bars: both its acts play them. A chord is two notes on two and four, the string's over the
 ' clavinet's; a lead's eighth is written its whole length, the beat's first two sixteenths or its last two.
 Part LanternBars:
@@ -553,18 +561,19 @@ DATA 2, 3, 3, "....c-......c-..", "....i-......i-..", "u-------........", ".....
 ' two reeds that beat: a tiptoe up a third and a held note, said again a fifth down, then a run down the scale to
 ' its close; the second part falls a step a bar in C and climbs back. A muted trumpet answers where a phrase
 ' rests, and nowhere else. A plucked bass in two, walking under the answers and the second part; a string and a
-' clavinet pluck the chord on two and four. Brushes on two and four, a hat on the swung eighth after them. Four
-' bars in, the Mob's tune creeping in on the clavinet for two of them; then A twice, B, and A. No voice is FM:
-' saws and narrow pulses through filters, in the room. A pulse is band-passed: low-passed, its DC would get by.
+' clavinet pluck the chord on two and four. A stick across the rim on two and four, a tick on the swung eighth
+' after them. Four bars in, the Mob's tune creeping in on the clavinet for two of them; then A twice, B, and A.
+' No voice is FM, no drum noise: saws and narrow pulses through filters, in the room. A pulse is band-passed:
+' low-passed, its DC would get by.
 Song Lantern:
 DATA "abcdefghijklefghijklmnopqrstefghijkl", "ssssssssssssssssssss", 20, 132, 0, 8, 14, 11, 0, 11, 8, 0, 0, 0, 0, 1
 DATA "W2Y1,2800,3H2,3,12,3U2I7R6"
 DATA "W2Y1,480,4H0,8,3,4U0I0R2", "W2Y1,480,4H0,8,3,4U0I0R2", "S10R6W0Q9Y2,1800,5H2,3,11,3U6I0"
 DATA 1
 DATA "s", "S5R5W2Y1,1600,2H0,6,0,3U0I0", "S11R5W0Q12Y2,1100,1H0,5,2,2U0I0", 0
-DATA 7
-USE DrumSet
-DATA "w", "W3H0,6,0,2K0Y3,1800,0", 8, 0, "O6B"
+DATA 5
+USE QuarterDrums
+DATA "w", "W0Q50H0,2,0,1Y2,1700,6K0", 9, 0, "O4A"
 DATA 6, "0...7...0...7...", "0...3...7...a...", "0...4...7...a...", "c...a...7...3...", "0...4...7...9..."
 DATA "0---....7---...."
 DATA 0
@@ -572,16 +581,17 @@ DATA 5, "................", "K...w.h.K...w.h.", "K.h.w.h.K.h.w.h.", "K...w.h.K.S
 USE LanternBars
 
 ' The quarter on the festival night, Fuses: Back Alley at 144, two horns leading and an organ answering, a horn
-' and a clavinet on the chord; the bass on every beat, claps on two and four, toms rolled where a mortar is due.
+' and a clavinet on the chord; the bass on every beat, a rim shot on two and four, toms rolled where a mortar is
+' due.
 Song Festival:
 DATA "abcdefghijklefghijklmnopqrstefghijkl", "ssssssssssssssssssss", 20, 144, 0, 7, 12, 8, 0, 12, 9, 0, 0, 0, 0, 1
 DATA "W4Z1,8,3,11,4H0,4,12,1U11I2"
 DATA "W4Z1,12,4,4H0,8,0,3", "W4Z1,12,4,4H0,8,0,3", "S10R4W4Z1,4,3,13,4H0,4,11,1U9I0"
 DATA 1
 DATA "s", "S5R3W4Z1,8,3,11,4H0,4,10,1U9I2", "S11R3W4Z3,9,3,1,3H0,4,1,2U0I0", 0
-DATA 7
-USE DrumSet
-DATA "C", "W3H0,4,0,2K0Y3,1500,3", 12, 0, "O5G"
+DATA 5
+USE QuarterDrums
+DATA "C", "W0Q50H0,3,0,1Y2,2000,6K0", 12, 0, "O4A"
 DATA 6, "0...7...0...7...", "0...3...7...a...", "0...4...7...a...", "c...a...7...3...", "0...4...7...9..."
 DATA "0...0...7...7..."
 DATA 0

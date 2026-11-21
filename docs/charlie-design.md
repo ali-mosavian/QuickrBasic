@@ -256,8 +256,9 @@ Progress is saved at each zone.
 - Look: fish-scale roof tiles over brick. Indigo, lantern orange, brick red. Stacked houses, lit windows, the
   moon; fireworks in act 2.
 - Music (written): a sly swing in A minor at 132. An accordion sings it by step, a muted trumpet answers
-  where it rests; plucked bass in two, the chord on two and four, brushed snare, the Mob's motif in the four
-  bars before it. Festival (written): 144, full brass, toms for the fireworks, claps.
+  where it rests; plucked bass in two, the chord on two and four, a stick across the rim, the Mob's motif in
+  the four bars before it. No FM voice, no noise drum. Festival (written): 144, full brass, toms for the
+  fireworks, rim shots.
 
 ### 7. Clock Tower
 
