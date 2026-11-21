@@ -40,6 +40,7 @@ OWNERS = {
     "half": "engine/audio",
     "hero": "stage/hero",
     "pad": "control",
+    "autopilot": "control/pilot",
     "thing": "stage/things",
     "swarm": "stage/things",
     "bird": "stage/things",
@@ -525,7 +526,7 @@ if was = 0 and wd.lv.things(j).at.x > wd.lv.things(j).home then print "bark ok"
 was = 0
 StartGame wd, g, p, lo(), pt()
 for i = 1 to 9000
-    Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k
+    Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k, wd.pilot
     Tick wd, g, p, k, lo(), pt()
     j = 0
     if p.ground then j = wd.gr.pt(p.sg).dir.x < -.9
@@ -2293,7 +2294,7 @@ for j = 0 to 9
     p.inv = 0
     wd.se.ticks = j * 10
     for i = 1 to 600
-        Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k
+        Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k, wd.pilot
         Tick wd, g, p, k, lo(), pt()
         if p.stun then was = 0
         if p.at.x > bx + 250 then exit for
@@ -2400,7 +2401,7 @@ for j = 0 to 99
     p.inv = 0
     wd.se.ticks = j
     for i = 1 to 600
-        Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k
+        Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k, wd.pilot
         Tick wd, g, p, k, lo(), pt()
         if p.inv > 0 then was = 0
         if p.at.x > bx + 60 then exit for
@@ -2727,13 +2728,13 @@ dugOut = c < wd.lv.n_things and v > c
 if v < 0 then v = c
 Stand wd.lv, wd.gr, p, wd.lv.things(c).at.x - 150, 300
 for i = 1 to 200
-    Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k
+    Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k, wd.pilot
     Tick wd, g, p, k, lo(), pt()
     if p.ground and p.at.x > wd.lv.things(v).at.x + 40 then exit for
 next
 dugOut = dugOut and i < 200 and p.ground and abs(p.at.y - wd.lv.things(c).at.y + 6 * TS) < 2
 for i = 1 to 400
-    Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k
+    Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k, wd.pilot
     Tick wd, g, p, k, lo(), pt()
     dugOut = dugOut and p.dig = 0
     if p.at.x > wd.lv.things(v).at.x + 600 then exit for
@@ -3284,7 +3285,7 @@ p.stun = 0
 Stand wd.lv, wd.gr, p, wd.lv.things(c).home + 80, 250
 p.roll = -1
 for i = 1 to 65
-    Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k
+    Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k, wd.pilot
     Tick wd, g, p, k, lo(), pt()
 next
 k.left = 0
@@ -4281,7 +4282,7 @@ for m = 1 to NSTAGE - 1
     next
     rams = 0
     for i = 1 to 16000
-        Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k
+        Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k, wd.pilot
         v = wd.lv.cart.hits
         Tick wd, g, p, k, lo(), pt()
         if wd.lv.cart.hits > v and p.sled then rams = rams + 1

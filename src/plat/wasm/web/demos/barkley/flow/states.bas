@@ -86,7 +86,7 @@ private sub TitleStep (wd as World, g as Game, p as Hero, k as Pad, lo() as Loos
     elseif p.at.x >= wd.lv.goal_x then
         if Met%(wd, g, p, k, pt()) then ResetWorld wd, g, p, lo(), pt()
     else
-        Pilot wd.lv, wd.gr, wd.zn, wd.se, p, auto
+        Pilot wd.lv, wd.gr, wd.zn, wd.se, p, auto, wd.pilot
         MoveHero wd.lv, wd.gr, wd.mu, wd.se, p, auto, pt()
         Touch wd.lv, wd.zn, wd.mu, wd.se, g, p, lo(), pt()
         if p.at.y > MH * TS + 24 then Lose wd.mu, wd.se, p

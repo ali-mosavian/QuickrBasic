@@ -2,7 +2,7 @@
 defint A-Z
 option explicit
 
-from barkley.model.hero import Hero, HW, Pad
+from barkley.model.hero import Autopilot, Hero, HW, Pad
 from barkley.model.level import Ground, KBRAMBLE, KCAT, KCRAB, KJELLY, KLOG, KMOUND, KPOUNCE, KSPARK, KSWEEP, KTHORN
 from barkley.model.level import KMORTAR, KSNATCH
 from barkley.model.level import KTHROW
@@ -24,8 +24,7 @@ from barkley.stage.zones.pass import GCHARGE, GoatNear
 private const RAMREACH = 120, OUTRUN = 140
 
 ' The game's own player: Right held, a jump where one is wanted, still where it must wait.
-sub Pilot (lv as Level, gr as Ground, zn as Realm, se as Session, p as Hero, k as Pad)
-    static hold as integer
+sub Pilot (lv as Level, gr as Ground, zn as Realm, se as Session, p as Hero, k as Pad, ap as Autopilot)
     dim want as integer, hop_now as integer
     k.right = -1
     k.left = 0
@@ -44,12 +43,12 @@ sub Pilot (lv as Level, gr as Ground, zn as Realm, se as Session, p as Hero, k a
     end if
     if lv.gale and p.ground then PilotGale lv, se, p, k, want
     ' afloat a hop is made though the last is still held
-    if hop_now or (want and hold = 0) then
+    if hop_now or (want and ap.hold = 0) then
         k.hit = -1
-        hold = 24
+        ap.hold = 24
     end if
-    k.jump = hold > 0
-    if hold > 0 then hold = hold - 1
+    k.jump = ap.hold > 0
+    if ap.hold > 0 then ap.hold = ap.hold - 1
 end sub
 
 ' The pilot's keys: on to the right.

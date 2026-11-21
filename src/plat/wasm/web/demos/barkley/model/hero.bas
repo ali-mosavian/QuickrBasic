@@ -65,5 +65,10 @@ type Pad
     mute as integer
 end type
 
+' The game's own player: the steps it holds jump yet.
+type Autopilot
+    hold as integer
+end type
+
 const HW = 7, HH = 24
 private const MIDH = 80

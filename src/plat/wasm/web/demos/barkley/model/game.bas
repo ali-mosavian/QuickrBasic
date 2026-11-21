@@ -63,7 +63,7 @@ end type
 
 ' The game's steps; metT: the seconds Charlie has been with its family. The scene playing: the beat it ends at, the
 ' stage it leads to (0 the title), the zone its road is in. The furthest zone a game has reached, kept in
-' CHARLIE.SAV, and the zone picked on the title to start at.
+' CHARLIE.SAV, and the zone picked on the title to start at, and whether a pick's key is held.
 type Session
     ticks as long
     cheer as integer
@@ -76,6 +76,7 @@ type Session
     road as integer
     reached as integer
     pick as integer
+    pick_held as integer
     gold_lo as long
     gold_hi as long
     unkept as integer

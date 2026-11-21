@@ -6,6 +6,7 @@ from barkley.engine.video import Store
 from barkley.engine.input import Keys
 from barkley.engine.audio import Deck, NBAR, NDRUM, NSLOT, NVOICE
 from barkley.model.images import IMGSZ, NIMG
+from barkley.model.hero import Autopilot
 from barkley.model.level import Ground, Level, MH, MW, NSTAGE, Realm, TS, ZONES
 from barkley.model.game import Session, Tones
 
@@ -19,6 +20,7 @@ type World
     kb as Keys
     mu as Deck
     se as Session
+    pilot as Autopilot
 end type
 
 private const NPTS = 1600, NZONE = 47

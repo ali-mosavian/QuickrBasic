@@ -641,7 +641,7 @@ def cmd_fps(a: argparse.Namespace) -> int:
 
 CHARLIE = ROOT / "src/plat/wasm/web/demos/CHARLIE.BAS"
 # the game's own pilot playing from the start; each call for 2 s, a second of play between them
-CHARLIE_STEP = "Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k: Tick wd, g, p, k, lo(), pt()"
+CHARLIE_STEP = "Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k, wd.pilot: Tick wd, g, p, k, lo(), pt()"
 CHARLIE_EACH = (CHARLIE_STEP, "DrawBack wd.zn, wd.art, cx, cy",
                 "DrawThings wd.lv, wd.zn, wd.art, wd.se, cx, cy, -1", "DrawTiles wd.lv, wd.zn, wd.art, cx, cy",
                 "DrawThings wd.lv, wd.zn, wd.art, wd.se, cx, cy, 0", "DrawHero wd.gr, wd.art, wd.se, p, cx, cy",
