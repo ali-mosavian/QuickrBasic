@@ -62,6 +62,7 @@
 #include "ui/dialog.h"
 #include "ui/debugpane.h"
 #include "ui/draw.h"
+#include "ui/closers.h"
 #include "ui/edit.h"
 #include "ui/errors.h"
 #include "ui/findbar.h"
@@ -396,7 +397,7 @@ static bool edit_control(Session *const S, const uint8_t ch)
     case CH_BACKSPACE:
         if (edit_sel())
             edit_clear(S);
-        else
+        else if (!clos_bs(S))
             edit_bs(S);
 
         return true;
@@ -479,7 +480,9 @@ static bool edit_key(Widget *const w, Session *const S, const uint16_t key)
         edit_clear(S);
 
     uimn.ed.sel_on = false;
-    edit_lb_type(&uimn.edline, ch, LNMAX);
+
+    if (!clos_type(S, ch))
+        edit_lb_type(&uimn.edline, ch, LNMAX);
 #if AC
     cmpl_typed(S);
 #endif

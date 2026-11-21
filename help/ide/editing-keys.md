@@ -43,6 +43,10 @@ spaces dropped and, if checking is on, the syntax checked.
 
 No line moves past a SUB or FUNCTION line or its END.
 
+Typing ( or " puts in its closing one too, before a space, a ) or
+the line's end; typing the closing one steps over it. Backspace
+between ( ) or "" takes both. Not in a comment or in overtype.
+
 ## Example
     Type:   print "hi"   then press Down
     The line becomes  PRINT "hi"
