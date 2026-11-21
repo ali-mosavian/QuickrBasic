@@ -39,8 +39,7 @@ end type
 ' the keepsake lying, 3 the keepsake taken back. A crane's crate is one too: x, y its foot, v its fall, t the
 ' seconds to its next step. st: 0 on the hook once t is out, 1 held over Charlie, 2 falling.
 type Runner
-    x as single
-    y as single
+    at as Vec
     v as single
     t as single
     hits as integer

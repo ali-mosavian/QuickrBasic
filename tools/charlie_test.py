@@ -621,8 +621,8 @@ if p.ground and p.sg = c and abs(p.at.x - wd.gr.pt(c).x - 24) < 2 and v - was > 
 ' takes one and is dazed; dazed, it takes no other
 GoStage wd, 1, g, p, lo(), pt()
 wd.lv.cart.st = 1
-wd.lv.cart.x = wd.lv.chaseEnd
-wd.lv.cart.y = GroundAt%(wd.lv, wd.lv.chaseEnd)
+wd.lv.cart.at.x = wd.lv.chaseEnd
+wd.lv.cart.at.y = GroundAt%(wd.lv, wd.lv.chaseEnd)
 g.bones = 3
 k.r = -1
 Stand wd.lv, wd.gr, p, wd.lv.chaseEnd - 60, 200
@@ -664,11 +664,11 @@ for j = 0 to 1
         c = c + 8 - 6 * j
     loop
     wd.lv.cart.st = 3
-    wd.lv.cart.x = c
-    wd.lv.cart.y = GroundAt%(wd.lv, c)
+    wd.lv.cart.at.x = c
+    wd.lv.cart.at.y = GroundAt%(wd.lv, c)
     Stand wd.lv, wd.gr, p, c - 200, 0
     g.cam.x = c - 160
-    g.cam.y = wd.lv.cart.y - 124
+    g.cam.y = wd.lv.cart.at.y - 124
     Render wd, g, p, lo(), pt()
     KeepCol 147, colA()
     KeepCol 173, colB()
@@ -694,16 +694,16 @@ k.hit = -1
 k.jump = -1
 m = 0
 for i = 1 to 70
-    wd.lv.cart.x = p.at.x
+    wd.lv.cart.at.x = p.at.x
     Tick wd, g, p, k, lo(), pt()
     if not p.ground then m = -1
 next
 k.jump = 0
-v = cint(wd.lv.cart.y) - RAILUP - cint(g.cam.y)
+v = cint(wd.lv.cart.at.y) - RAILUP - cint(g.cam.y)
 was = wd.lv.cart.st = 1 and wd.mu.zHeld = CHASETUNE + 1 and m and p.ground and wd.lv.cart.hits = 0 and v >= 0 and v < 40
 wd.se.ticks = 180 - (c mod 180)
 Stand wd.lv, wd.gr, p, c, 0
-wd.lv.cart.x = c
+wd.lv.cart.at.x = c
 for i = 1 to 40
     Tick wd, g, p, k, lo(), pt()
     if wd.lv.cart.hits then exit for
@@ -714,7 +714,7 @@ for j = 0 to wd.lv.nObj - 1
     if wd.lv.ob(j).k = KHOOP and wd.lv.ob(j).x > wd.lv.chaseX then exit for
 next
 wd.lv.cart.t = 0
-wd.lv.cart.x = wd.lv.ob(j).x + 200
+wd.lv.cart.at.x = wd.lv.ob(j).x + 200
 wd.lv.box.t = 9
 p.at.x = wd.lv.ob(j).x - 12
 p.at.y = wd.lv.ob(j).y + 12
@@ -733,7 +733,7 @@ if was and m and wd.lv.cart.hits = 2 then print "crane ok"
 GoStage wd, 3, g, p, lo(), pt()
 Stand wd.lv, wd.gr, p, wd.lv.chaseX + 300, 0
 Tick wd, g, p, k, lo(), pt()
-wd.lv.cart.x = p.at.x
+wd.lv.cart.at.x = p.at.x
 wd.lv.box.t = 0
 g.bones = 3
 m = 0
@@ -747,7 +747,7 @@ p.inv = 0
 p.stun = 0
 g.bones = 3
 Stand wd.lv, wd.gr, p, wd.lv.chaseX + 300, 0
-wd.lv.cart.x = p.at.x
+wd.lv.cart.at.x = p.at.x
 wd.lv.cart.v = 0
 wd.lv.box.t = 0
 m = 0
@@ -767,7 +767,7 @@ wd.lv.cart.t = 0
 wd.lv.box.t = 9
 wd.se.ticks = 180 - (c mod 180)
 Stand wd.lv, wd.gr, p, c, 0
-wd.lv.cart.x = c
+wd.lv.cart.at.x = c
 hid = g.score
 for i = 1 to 40
     Tick wd, g, p, k, lo(), pt()
@@ -779,7 +779,7 @@ for i = 1 to 10
 next
 was = was and wd.lv.cart.st = 2
 for i = 1 to 60
-    Stand wd.lv, wd.gr, p, cint(wd.lv.cart.x), 0
+    Stand wd.lv, wd.gr, p, cint(wd.lv.cart.at.x), 0
     Tick wd, g, p, k, lo(), pt()
 next
 if was and wd.lv.cart.st = 3 and g.score = hid + 1500 then print "toolbox ok"
@@ -2549,12 +2549,12 @@ relayOk = wd.lv.cart.st = 1 and wd.lv.cart.hits = 0 and wd.mu.zHeld = CHASETUNE 
 bar = 4 * PULSES \\ wd.se.tempo + 1
 for m = 0 to NLEG - 1
     ' a bar of its pace, the street's second fall on its way
-    wd.lv.cart.x = wd.lv.chaseX + 70 * TS - 350
-    wd.lv.cart.y = GroundAt%(wd.lv, cint(wd.lv.cart.x))
+    wd.lv.cart.at.x = wd.lv.chaseX + 70 * TS - 350
+    wd.lv.cart.at.y = GroundAt%(wd.lv, cint(wd.lv.cart.at.x))
     slowest = 1000
     quickest = 0
     for i = 1 to 60 + bar
-        Stand wd.lv, wd.gr, p, cint(wd.lv.cart.x) - 150, 0
+        Stand wd.lv, wd.gr, p, cint(wd.lv.cart.at.x) - 150, 0
         Tick wd, g, p, k, lo(), pt()
         if i <= 60 then continue for
         if wd.lv.cart.v < slowest then slowest = wd.lv.cart.v
@@ -2569,8 +2569,8 @@ for m = 0 to NLEG - 1
     if m = 1 then
         ' drawn: the guitar's amber over Sprocket's back, his hard hat, a pip for each cat still to bump
         g.shake = 0
-        g.cam.x = wd.lv.cart.x - 160
-        g.cam.y = wd.lv.cart.y - 150
+        g.cam.x = wd.lv.cart.at.x - 160
+        g.cam.y = wd.lv.cart.at.y - 150
         Render wd, g, p, lo(), pt()
         relayOk = relayOk and point(160 - 6, 150 - 15) = CGOLD + 2 and point(160 + 5, 150 - 11) = CGOLD + 3
         relayOk = relayOk and point(160 - 16, 150 - 38) <> CYELLOW and point(160 - 8, 150 - 38) = CYELLOW
@@ -2578,20 +2578,20 @@ for m = 0 to NLEG - 1
     end if
     if m = NLEG - 1 then
         ' at the street's end there is nowhere on to lob it
-        bx = wd.lv.cart.x
+        bx = wd.lv.cart.at.x
         slowest = wd.lv.cart.v
-        wd.lv.cart.x = wd.lv.chaseEnd
+        wd.lv.cart.at.x = wd.lv.chaseEnd
         Stand wd.lv, wd.gr, p, wd.lv.chaseEnd - 60, 0
         Tick wd, g, p, k, lo(), pt()
         relayOk = relayOk and not Lobbed%(wd.lv)
-        wd.lv.cart.x = bx
+        wd.lv.cart.at.x = bx
         wd.lv.cart.v = slowest
-        Stand wd.lv, wd.gr, p, cint(wd.lv.cart.x) - 60, 0
+        Stand wd.lv, wd.gr, p, cint(wd.lv.cart.at.x) - 60, 0
         Tick wd, g, p, k, lo(), pt()
         relayOk = relayOk and Lobbed%(wd.lv)
         quickest = 0
         for i = 1 to 20
-            Stand wd.lv, wd.gr, p, cint(wd.lv.cart.x) - 10, 300
+            Stand wd.lv, wd.gr, p, cint(wd.lv.cart.at.x) - 10, 300
             p.roll = -1
             Tick wd, g, p, k, lo(), pt()
             if wd.lv.cart.v > quickest then quickest = wd.lv.cart.v
@@ -2601,51 +2601,51 @@ for m = 0 to NLEG - 1
         v = cint(LOBWAIT * 60)
         for i = 22 to v + 10
             bt = wd.lv.box.t
-            Stand wd.lv, wd.gr, p, cint(wd.lv.cart.x) - 60, 0
+            Stand wd.lv, wd.gr, p, cint(wd.lv.cart.at.x) - 60, 0
             Tick wd, g, p, k, lo(), pt()
             if wd.lv.box.t > bt then lobs = lobs + 1
             if i = v - 10 then relayOk = relayOk and lobs = 0 and not Lobbed%(wd.lv)
         next
         relayOk = relayOk and lobs = 1
         for i = 1 to 30
-            Stand wd.lv, wd.gr, p, cint(wd.lv.cart.x) - 150, 0
+            Stand wd.lv, wd.gr, p, cint(wd.lv.cart.at.x) - 150, 0
             Tick wd, g, p, k, lo(), pt()
         next
     end if
     hid = g.score
-    Stand wd.lv, wd.gr, p, cint(wd.lv.cart.x) - 30, 450
+    Stand wd.lv, wd.gr, p, cint(wd.lv.cart.at.x) - 30, 450
     p.roll = -1
     for i = 1 to 40
         Tick wd, g, p, k, lo(), pt()
         if wd.lv.cart.hits > m then exit for
     next
     relayOk = relayOk and wd.lv.cart.hits = m + 1 and g.score = hid + 500 and wd.lv.cart.t > BOLTS
-    relayOk = relayOk and abs(wd.lv.box.x - (wd.lv.cart.x - TUMBLE)) < 4
+    relayOk = relayOk and abs(wd.lv.box.at.x - (wd.lv.cart.at.x - TUMBLE)) < 4
     if m < NLEG - 1 then relayOk = relayOk and wd.lv.cart.st = 1
     if m = 1 then
         ' drawn, Charlie thrown back clear of him: Sprocket left there, his hat off his head
         for i = 1 to 20
             Tick wd, g, p, k, lo(), pt()
         next
-        g.cam.x = wd.lv.box.x - 160
-        g.cam.y = wd.lv.box.y - 150
+        g.cam.x = wd.lv.box.at.x - 160
+        g.cam.y = wd.lv.box.at.y - 150
         Render wd, g, p, lo(), pt()
         relayOk = relayOk and point(160 + 5, 150 - 15) = CGOLD + 3
     end if
-    bx = wd.lv.cart.x
+    bx = wd.lv.cart.at.x
     for i = 1 to 90
-        Stand wd.lv, wd.gr, p, cint(wd.lv.cart.x) - 150, 0
+        Stand wd.lv, wd.gr, p, cint(wd.lv.cart.at.x) - 150, 0
         Tick wd, g, p, k, lo(), pt()
     next
-    if m < NLEG - 1 then relayOk = relayOk and wd.lv.cart.x - bx > 350
+    if m < NLEG - 1 then relayOk = relayOk and wd.lv.cart.at.x - bx > 350
 next
 relayOk = relayOk and wd.lv.cart.st = 2 and wd.mu.zHeld = c
-g.cam.x = wd.lv.cart.x - 160
-g.cam.y = wd.lv.cart.y - 150
+g.cam.x = wd.lv.cart.at.x - 160
+g.cam.y = wd.lv.cart.at.y - 150
 Render wd, g, p, lo(), pt()
 relayOk = relayOk and point(160 + 3, 150 - 6) = CGOLD + 2
 hid = g.score
-Stand wd.lv, wd.gr, p, cint(wd.lv.cart.x), 0
+Stand wd.lv, wd.gr, p, cint(wd.lv.cart.at.x), 0
 Tick wd, g, p, k, lo(), pt()
 relayOk = relayOk and wd.lv.cart.st = 3 and g.score = hid + 1000
 if relayOk then print "relay ok"
@@ -2753,7 +2753,7 @@ Stand wd.lv, wd.gr, p, wd.lv.oakX - 20, 0
 Tick wd, g, p, k, lo(), pt()
 twinsOk = twinsOk and wd.lv.cart.st = 1 and wd.lv.box.st = 0 and Headroom%(wd.lv, wd.zn, p) = HEADUP
 twinsOk = twinsOk and wd.mu.zHeld = CHASETUNE + 1 and twTune <> CHASETUNE + 1
-twinsOk = twinsOk and wd.lv.cart.x = wd.lv.oakX - 64 and wd.lv.cart.y = wd.lv.oakY - 3 * TS - PAWUP
+twinsOk = twinsOk and wd.lv.cart.at.x = wd.lv.oakX - 64 and wd.lv.cart.at.y = wd.lv.oakY - 3 * TS - PAWUP
 for i = 1 to 120
     Tick wd, g, p, k, lo(), pt()
     if wd.lv.box.st = 1 then exit for
@@ -2762,13 +2762,13 @@ twinsOk = twinsOk and i < 120
 for i = 1 to 45
     Tick wd, g, p, k, lo(), pt()
 next
-twinsOk = twinsOk and abs(wd.lv.cart.x - wd.lv.oakX) < 3 and abs(wd.lv.cart.y - (wd.lv.oakY - 120)) < 2
+twinsOk = twinsOk and abs(wd.lv.cart.at.x - wd.lv.oakX) < 3 and abs(wd.lv.cart.at.y - (wd.lv.oakY - 120)) < 2
 twinsOk = twinsOk and TwinPose%(wd.lv, 0) = 0 and TwinPose%(wd.lv, 1) = 1
 for i = 1 to 47
     Tick wd, g, p, k, lo(), pt()
 next
-twinsOk = twinsOk and wd.lv.box.st = 2 and wd.lv.cart.x = wd.lv.oakX + 64
-twinsOk = twinsOk and wd.lv.cart.y = wd.lv.oakY - 4 * TS - PAWUP
+twinsOk = twinsOk and wd.lv.box.st = 2 and wd.lv.cart.at.x = wd.lv.oakX + 64
+twinsOk = twinsOk and wd.lv.cart.at.y = wd.lv.oakY - 4 * TS - PAWUP
 AtBall wd.lv, p
 Tick wd, g, p, k, lo(), pt()
 twinsOk = twinsOk and wd.lv.cart.hits = 0 and wd.lv.box.st = 2
@@ -2795,15 +2795,15 @@ for i = 1 to 60
     Tick wd, g, p, k, lo(), pt()
     if wd.lv.cart.t <= 0 then exit for
 next
-twinsOk = twinsOk and i < 60 and wd.lv.box.st = 0 and wd.lv.cart.x = wd.lv.oakX - 112
-twinsOk = twinsOk and wd.lv.cart.y = wd.lv.oakY - 6 * TS - PAWUP
+twinsOk = twinsOk and i < 60 and wd.lv.box.st = 0 and wd.lv.cart.at.x = wd.lv.oakX - 112
+twinsOk = twinsOk and wd.lv.cart.at.y = wd.lv.oakY - 6 * TS - PAWUP
 Stand wd.lv, wd.gr, p, wd.lv.oakX - 42, 0
 twinsOk = twinsOk and p.at.y = wd.lv.oakY - 9 * TS and p.sg >= wd.gr.platA
 for i = 1 to 200
     Tick wd, g, p, k, lo(), pt()
     if wd.lv.cart.hits = 2 then exit for
 next
-twinsOk = twinsOk and i < 200 and p.ground and p.at.y = wd.lv.oakY - 9 * TS and wd.lv.box.x > wd.lv.oakX - 62
+twinsOk = twinsOk and i < 200 and p.ground and p.at.y = wd.lv.oakY - 9 * TS and wd.lv.box.at.x > wd.lv.oakX - 62
 ' the third pair's lob is TWINHASTE * 2 the quicker: 66 steps
 for i = 1 to 200
     Tick wd, g, p, k, lo(), pt()
@@ -2813,7 +2813,7 @@ for j = 1 to 100
     Tick wd, g, p, k, lo(), pt()
     if wd.lv.box.st = 2 then exit for
 next
-twinsOk = twinsOk and i < 200 and abs(j - 66) < 2 and wd.lv.cart.hits = 2 and wd.lv.cart.x = wd.lv.oakX + 64
+twinsOk = twinsOk and i < 200 and abs(j - 66) < 2 and wd.lv.cart.hits = 2 and wd.lv.cart.at.x = wd.lv.oakX + 64
 for i = 1 to 60
     Tick wd, g, p, k, lo(), pt()
     if wd.lv.box.st = 3 then exit for
@@ -3854,7 +3854,7 @@ for i = 0 to wd.lv.nObj - 1
     if wd.lv.ob(i).k = KBUOY and wd.lv.ob(i).x > wd.lv.chaseX then wd.lv.ob(i).k = 0
 next
 Tick wd, g, p, k, lo(), pt()
-v = wd.lv.cart.st = 0 and wd.lv.cart.y = wd.lv.tide - PEDALUP
+v = wd.lv.cart.st = 0 and wd.lv.cart.at.y = wd.lv.tide - PEDALUP
 p.at.x = wd.lv.chaseX + 30
 p.at.y = wd.lv.tide + AFLOAT
 p.ground = 0
@@ -3863,17 +3863,17 @@ p.vel.x = 0
 for i = 1 to 10
     Tick wd, g, p, k, lo(), pt()
 next
-was = v and wd.lv.cart.st = 1 and wd.lv.cart.y = wd.lv.tide - PEDALUP
-was = was and wd.lv.cart.x > wd.lv.chaseX + CARTLEAD and wd.lv.cart.v = PEDALV
+was = v and wd.lv.cart.st = 1 and wd.lv.cart.at.y = wd.lv.tide - PEDALUP
+was = was and wd.lv.cart.at.x > wd.lv.chaseX + CARTLEAD and wd.lv.cart.v = PEDALV
 for i = 1 to 600
     Tick wd, g, p, k, lo(), pt()
     if wd.lv.cart.v < 0 then exit for
 next
 Tick wd, g, p, k, lo(), pt()
-was = was and wd.lv.cart.v = -PEDALV and abs(wd.lv.cart.x - (wd.lv.chaseEnd - PEDALW \\ 2)) < 8
+was = was and wd.lv.cart.v = -PEDALV and abs(wd.lv.cart.at.x - (wd.lv.chaseEnd - PEDALW \\ 2)) < 8
 ' a swimmer at its side is no bump; Charlie down on its deck out of the air is: it turns round, he goes up off
 ' it, and while it is dazed a second landing is none. Each bump makes it faster
-p.at.x = wd.lv.cart.x
+p.at.x = wd.lv.cart.at.x
 Tick wd, g, p, k, lo(), pt()
 was = was and wd.lv.cart.hits = 0 and p.inv <= 0
 hid = g.score
@@ -3881,8 +3881,8 @@ for j = 1 to 3
     for c = 0 to 1
         p.swim = 0
         p.ground = 0
-        p.at.x = wd.lv.cart.x
-        p.at.y = wd.lv.cart.y - 8
+        p.at.x = wd.lv.cart.at.x
+        p.at.y = wd.lv.cart.at.y - 8
         p.vel.x = 0
         p.vel.y = 100
         for i = 1 to 12
@@ -3903,11 +3903,11 @@ next
 ' swimmer to come to it
 was = was and wd.lv.cart.st = 3
 wd.lv.cart.st = 2
-wd.lv.cart.x = p.at.x + 60
+wd.lv.cart.at.x = p.at.x + 60
 Tick wd, g, p, k, lo(), pt()
-was = was and wd.lv.cart.st = 2 and wd.lv.cart.y = wd.lv.tide
+was = was and wd.lv.cart.st = 2 and wd.lv.cart.at.y = wd.lv.tide
 hid = g.score
-p.at.x = wd.lv.cart.x
+p.at.x = wd.lv.cart.at.x
 Tick wd, g, p, k, lo(), pt()
 if was and wd.lv.cart.st = 3 and g.score = hid + 1000 then print "pedalo ok"
 was = 0
@@ -4137,23 +4137,23 @@ for i = 1 to 150
 next
 was = wd.lv.cart.st = 1
 for j = 0 to 1
-    wd.lv.cart.x = wd.lv.chaseX + 230 - j * 118
-    wd.lv.cart.y = Surf%(wd.lv, cint(wd.lv.cart.x), cint(p.at.y) + 8)
+    wd.lv.cart.at.x = wd.lv.chaseX + 230 - j * 118
+    wd.lv.cart.at.y = Surf%(wd.lv, cint(wd.lv.cart.at.x), cint(p.at.y) + 8)
     g.shake = 0
     Render wd, g, p, lo(), pt()
     v = NONE
     c = NONE
-    for i = cint(wd.lv.cart.y) - 40 - int(g.cam.y) to cint(wd.lv.cart.y) + 20 - int(g.cam.y)
+    for i = cint(wd.lv.cart.at.y) - 40 - int(g.cam.y) to cint(wd.lv.cart.at.y) + 20 - int(g.cam.y)
         if i >= 0 and i < SH then
-            if point(cint(wd.lv.cart.x) - 10 - int(g.cam.x), i) = 59 then v = i
-            if point(cint(wd.lv.cart.x) + 8 - int(g.cam.x), i) = 59 then c = i
+            if point(cint(wd.lv.cart.at.x) - 10 - int(g.cam.x), i) = 59 then v = i
+            if point(cint(wd.lv.cart.at.x) + 8 - int(g.cam.x), i) = 59 then c = i
         end if
     next
     was = was and v <> NONE and c - v = j * 9
 next
 k.d = 0
-wd.lv.cart.x = p.at.x + 60
-wd.lv.cart.y = p.at.y
+wd.lv.cart.at.x = p.at.x + 60
+wd.lv.cart.at.y = p.at.y
 wd.lv.cart.v = 0
 p.sled = -1
 p.roll = -1
@@ -4167,7 +4167,7 @@ was = was and wd.lv.cart.hits = 1 and wd.lv.cart.t > BOLTS and p.sled and p.grou
 wd.lv.cart.hits = NBUMP - 1
 wd.lv.cart.t = 0
 wd.lv.cart.v = 0
-wd.lv.cart.x = p.at.x + 60
+wd.lv.cart.at.x = p.at.x + 60
 p.gsp = 300
 for i = 1 to 60
     Tick wd, g, p, k, lo(), pt()
@@ -4176,7 +4176,7 @@ next
 was = was and wd.lv.cart.st = 2 and wd.lv.cart.hits = NBUMP
 p.sled = 0
 p.roll = 0
-Stand wd.lv, wd.gr, p, cint(wd.lv.cart.x), 0
+Stand wd.lv, wd.gr, p, cint(wd.lv.cart.at.x), 0
 for i = 1 to 150
     Tick wd, g, p, k, lo(), pt()
     if wd.lv.cart.st = 3 then exit for
@@ -4269,7 +4269,7 @@ for m = 1 to NSTAGE - 1
         v = wd.lv.cart.hits
         Tick wd, g, p, k, lo(), pt()
         if wd.lv.cart.hits > v and p.sled then rams = rams + 1
-        if wd.lv.cart.st = 1 and wd.mu.zHeld = CHASETUNE + 1 and wd.lv.cart.x > wd.lv.chaseX + 600 then was = -1
+        if wd.lv.cart.st = 1 and wd.mu.zHeld = CHASETUNE + 1 and wd.lv.cart.at.x > wd.lv.chaseX + 600 then was = -1
         if g.mode <> PLAYING then exit for
     next
     ' the Downs' evening ends in a chase: the cart fled down the race to the chase's tune, was bumped till it broke,
@@ -4371,8 +4371,8 @@ end function
 
 ' Charlie in the air and still, his middle at the twins' ball.
 sub AtBall (lv as Level, p as Hero)
-    p.at.x = lv.cart.x
-    p.at.y = lv.cart.y + 5
+    p.at.x = lv.cart.at.x
+    p.at.y = lv.cart.at.y + 5
     p.ground = 0
     p.vel.x = 0
     p.vel.y = 0

@@ -72,8 +72,8 @@ sub ResetChase (lv as Level, mu as Deck)
     lv.cart.hits = 0
     lv.cart.v = 0
     lv.cart.t = 0
-    lv.cart.x = lv.chaseX + CARTLEAD
-    lv.cart.y = lv.top(cint(lv.cart.x) \ TS) * TS
+    lv.cart.at.x = lv.chaseX + CARTLEAD
+    lv.cart.at.y = lv.top(cint(lv.cart.at.x) \ TS) * TS
     lv.box.st = 0
     lv.box.t = RELOAD
     ZoneTune mu, mu.stageTune
@@ -86,7 +86,7 @@ sub Flee (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as H
     if lv.cart.t > 0 then lv.cart.t = lv.cart.t - STEPT
     select case lv.cart.st
     case 0
-        if zn.id = 2 then lv.cart.y = lv.tide - PEDALUP
+        if zn.id = 2 then lv.cart.at.y = lv.tide - PEDALUP
         if zn.id = 4 then BallAt lv
         if p.at.x >= lv.chaseX then StartChase lv, mu
     case 1
@@ -114,9 +114,9 @@ sub Flee (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as H
     case 2
         if zn.id = 1 and lv.cart.t > 2 - TOOLFALL then exit sub
         ' the sands' keepsake floats
-        if zn.id = 2 then lv.cart.y = lv.tide
+        if zn.id = 2 then lv.cart.at.y = lv.tide
         ' over it will do: he comes down off the last bump past it
-        if abs(p.at.x - lv.cart.x) < 16 and p.at.y > lv.cart.y - 90 and p.at.y < lv.cart.y + 8 then TakeKeep lv, mu, se, g, pt()
+        if abs(p.at.x - lv.cart.at.x) < 16 and p.at.y > lv.cart.at.y - 90 and p.at.y < lv.cart.at.y + 8 then TakeKeep lv, mu, se, g, pt()
     end select
 end sub
 
@@ -141,29 +141,29 @@ end function
 private sub MoveCart (lv as Level, p as Hero, pace as single, away as single)
     dim want as single, s as integer
     want = pace
-    if lv.cart.x - p.at.x > 240 then want = DAWDLE
+    if lv.cart.at.x - p.at.x > 240 then want = DAWDLE
     if lv.cart.t > 0 then want = away
     if lv.cart.t > BOLTS then want = 60
     lv.cart.v = lv.cart.v + (want - lv.cart.v) * 5 * STEPT
-    lv.cart.x = lv.cart.x + lv.cart.v * STEPT
-    if lv.cart.x >= lv.chaseEnd then
-        lv.cart.x = lv.chaseEnd
+    lv.cart.at.x = lv.cart.at.x + lv.cart.v * STEPT
+    if lv.cart.at.x >= lv.chaseEnd then
+        lv.cart.at.x = lv.chaseEnd
         lv.cart.v = 0
     end if
-    s = Surf%(lv, cint(lv.cart.x), cint(lv.cart.y))
-    if s <> NONE then lv.cart.y = s
+    s = Surf%(lv, cint(lv.cart.at.x), cint(lv.cart.at.y))
+    if s <> NONE then lv.cart.at.y = s
 end sub
 
 ' Charlie at the cart, once it is over its last bump: curled, he bumps it and is thrown back off it, or on a sled
 ' checked; else it hurts him. Its last bump breaks it.
 private sub MeetCart (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
     if lv.cart.t > BOLTS or p.dead then exit sub
-    if abs(p.at.x - lv.cart.x) > CARTR or p.at.y < lv.cart.y - 46 or p.at.y > lv.cart.y + 6 then exit sub
+    if abs(p.at.x - lv.cart.at.x) > CARTR or p.at.y < lv.cart.at.y - 46 or p.at.y > lv.cart.at.y + 6 then exit sub
     if not (p.roll or p.charging) then
-        Hurt mu, se, g, p, cint(lv.cart.x), lo(), SHISS
+        Hurt mu, se, g, p, cint(lv.cart.at.x), lo(), SHISS
         exit sub
     end if
-    Bumped lv, mu, se, g, pt(), lv.cart.y - 20
+    Bumped lv, mu, se, g, pt(), lv.cart.at.y - 20
     ' sled against sled he is checked, not thrown: a sled thrown back has no brake to stop it
     if p.sled and p.ground then p.gsp = SLEDV
     if p.sled and not p.ground then p.vel.x = SLEDV
@@ -186,7 +186,7 @@ private sub Bumped (lv as Level, mu as Deck, se as Session, g as Game, pt() as P
     lv.cart.t = DAZED
     g.score = g.score + 500
     g.shake = .2
-    Burst se, pt(), lv.cart.x + 0, y, 12, 150, CYELLOW
+    Burst se, pt(), lv.cart.at.x + 0, y, 12, 150, CYELLOW
     Sfx mu, se, SBUMP
 end sub
 
@@ -194,14 +194,14 @@ end sub
 private sub BreakCart (lv as Level, mu as Deck, se as Session, pt() as Part)
     lv.cart.st = 2
     lv.cart.t = 2
-    Burst se, pt(), lv.cart.x + 0, lv.cart.y - 12, 16, 200, CEARTH + 4
+    Burst se, pt(), lv.cart.at.x + 0, lv.cart.at.y - 12, 16, 200, CEARTH + 4
     ZoneTune mu, mu.stageTune
 end sub
 
 private sub TakeKeep (lv as Level, mu as Deck, se as Session, g as Game, pt() as Part)
     lv.cart.st = 3
     g.score = g.score + 1000
-    Burst se, pt(), lv.cart.x + 0, lv.cart.y - 8, 12, 120, CYELLOW
+    Burst se, pt(), lv.cart.at.x + 0, lv.cart.at.y - 8, 12, 120, CYELLOW
     Sfx mu, se, SMARK
 end sub
 
@@ -227,8 +227,8 @@ end sub
 ' the street's end, where there is nowhere on to lob it. Only the twins lob by it.
 private sub Lob (lv as Level, p as Hero)
     if lv.box.t > 0 then lv.box.t = lv.box.t - STEPT
-    if lv.box.t > 0 or lv.cart.t > 0 or lv.cart.x >= lv.chaseEnd then exit sub
-    if lv.cart.x - p.at.x < LOBNEAR then lv.box.t = LOBWAIT
+    if lv.box.t > 0 or lv.cart.t > 0 or lv.cart.at.x >= lv.chaseEnd then exit sub
+    if lv.cart.at.x - p.at.x < LOBNEAR then lv.box.t = LOBWAIT
 end sub
 
 ' Whether the guitar is in the air between the twins.
@@ -246,7 +246,7 @@ private function LegPace! (lv as Level, se as Session)
         LegPace! = LEGV + WOUND
         if beat = 3 then LegPace! = 0
     case 2: LegPace! = LEGV + BOB * (1 - 2 * (beat and 1))
-    case 3: if Lie%(lv, cint(lv.cart.x), cint(lv.cart.y)) < 0 then LegPace! = LEGV + SLIDE
+    case 3: if Lie%(lv, cint(lv.cart.at.x), cint(lv.cart.at.y)) < 0 then LegPace! = LEGV + SLIDE
     case 4: if Lobbed%(lv) then LegPace! = LOBV
     end select
 end function
@@ -259,8 +259,8 @@ private sub MeetRelay (lv as Level, mu as Deck, se as Session, g as Game, p as H
     was = lv.cart.hits
     MeetCart lv, mu, se, g, p, lo(), pt()
     if lv.cart.hits = was then exit sub
-    lv.box.x = lv.cart.x - TUMBLE
-    lv.box.y = lv.cart.y
+    lv.box.at.x = lv.cart.at.x - TUMBLE
+    lv.box.at.y = lv.cart.at.y
     lv.box.t = 0
 end sub
 
@@ -297,11 +297,11 @@ end function
 private sub DrawRelay (lv as Level, zn as Realm, art as Store, se as Session, cx as integer, cy as integer)
     dim x as integer, y as integer, leg as integer, k as integer, i as integer, a as integer, b as integer
     dim up as integer, q as single
-    x = cint(lv.cart.x) - cx
-    y = cint(lv.cart.y) - cy
+    x = cint(lv.cart.at.x) - cx
+    y = cint(lv.cart.at.y) - cy
     leg = lv.cart.hits
     if leg > 0 and lv.cart.t > 0 then
-        Blit art, cint(lv.box.x) - cx - 10, cint(lv.box.y) - cy - 17, IRELAY + (leg * 3 - 1) * 2, 20, 18
+        Blit art, cint(lv.box.at.x) - cx - 10, cint(lv.box.at.y) - cy - 17, IRELAY + (leg * 3 - 1) * 2, 20, 18
     end if
     if lv.cart.st = 2 then
         DrawKeep zn, art, x, y - ((se.ticks \ 16) and 1)
@@ -351,15 +351,15 @@ private sub BallAt (lv as Level)
     y = SeatY%(lv, n) - PAWUP
     if lv.cart.t > 0 then
         u = lv.cart.t / DAZED
-        x = x + (lv.box.x - x) * u
-        y = y + (lv.box.y - y) * u
+        x = x + (lv.box.at.x - x) * u
+        y = y + (lv.box.at.y - y) * u
     elseif lv.box.st and 1 then
         u = 1 - lv.box.t / LobTime!(lv)
         x = x + (SeatX%(lv, n xor 1) - x) * u
         y = y + (SeatY%(lv, n xor 1) - PAWUP - y) * u
     end if
-    lv.cart.x = x
-    lv.cart.y = y - LOBUP * 4 * u * (1 - u)
+    lv.cart.at.x = x
+    lv.cart.at.y = y - LOBUP * 4 * u * (1 - u)
 end sub
 
 ' The twins' game, a step: the ball held, then lobbed across, then held again; held too while a catch tells. At
@@ -374,12 +374,12 @@ private sub Juggle (lv as Level, mu as Deck, se as Session, g as Game, p as Hero
     end if
     BallAt lv
     if (lv.box.st and 1) = 0 or p.dead then exit sub
-    if abs(p.at.x - lv.cart.x) > CATCHR or abs(p.at.y - 12 - (lv.cart.y - 7)) > CATCHR then exit sub
-    lv.box.x = lv.cart.x
-    lv.box.y = lv.cart.y
+    if abs(p.at.x - lv.cart.at.x) > CATCHR or abs(p.at.y - 12 - (lv.cart.at.y - 7)) > CATCHR then exit sub
+    lv.box.at.x = lv.cart.at.x
+    lv.box.at.y = lv.cart.at.y
     lv.box.st = 0
     lv.box.t = TWINHOLD
-    Bumped lv, mu, se, g, pt(), lv.cart.y - 7
+    Bumped lv, mu, se, g, pt(), lv.cart.at.y - 7
 end sub
 
 ' The picture of the twin on side sd, 0 the left: 0 grinning, 1 reaching, 2 a paw out, 3 shocked, 4 sulking. The
@@ -458,8 +458,8 @@ private sub DrawTwins (lv as Level, zn as Realm, art as Store, cx as integer, cy
         Blit art, cint(x) - 15 - cx, cint(y) - 27 - cy, ITWIN + (sd * 5 + TwinPose%(lv, sd)) * 2, 31, 28
     next
     if lv.cart.st = 3 then exit sub
-    bx = cint(lv.cart.x) - cx
-    by = cint(lv.cart.y) - cy
+    bx = cint(lv.cart.at.x) - cx
+    by = cint(lv.cart.at.y) - cy
     DrawKeep zn, art, bx, by
     for i = lv.cart.hits to NBUMP - 1
         line (bx - 10 + i * 8, by - 22)-(bx - 6 + i * 8, by - 18), CYELLOW, BF
@@ -470,15 +470,15 @@ end sub
 ' her; knocked off it, she sits in deep snow, the camera lying by her.
 private sub DrawFrost (lv as Level, zn as Realm, art as Store, se as Session, cx as integer, cy as integer)
     dim x as integer, y as integer, i as integer
-    x = cint(lv.cart.x) - cx
-    y = cint(lv.cart.y) - cy
+    x = cint(lv.cart.at.x) - cx
+    y = cint(lv.cart.at.y) - cy
     if lv.cart.st = 2 then
         Blit art, x - 62, y - 21, IDUNKED, 56, 22
         DrawKeep zn, art, x, y - ((se.ticks \ 16) and 1)
         exit sub
     end if
     if lv.cart.t > BOLTS then x = x + ((se.ticks \ 2) and 1) * 2 - 1
-    Blit art, x - 17, y - 46, IFROST + (Lie%(lv, cint(lv.cart.x), cint(lv.cart.y)) + 2) * 2, 34, 65
+    Blit art, x - 17, y - 46, IFROST + (Lie%(lv, cint(lv.cart.at.x), cint(lv.cart.at.y)) + 2) * 2, 34, 65
     for i = lv.cart.hits to NBUMP - 1
         line (x - 10 + i * 8, y - 40)-(x - 6 + i * 8, y - 36), CYELLOW, BF
     next
@@ -487,20 +487,20 @@ end sub
 ' Kipper's pedal boat on the sea, from one end of its channel to the other and back: faster for each bump it has
 ' taken, and still a moment after one.
 private sub MovePedalo (lv as Level)
-    lv.cart.y = lv.tide - PEDALUP
+    lv.cart.at.y = lv.tide - PEDALUP
     if lv.cart.t > BOLTS then exit sub
     if lv.cart.v = 0 then lv.cart.v = 1
     lv.cart.v = sgn(lv.cart.v) * (PEDALV + lv.cart.hits * PEDALMORE)
-    lv.cart.x = lv.cart.x + lv.cart.v * STEPT
-    if lv.cart.x > lv.chaseEnd - PEDALW \ 2 then lv.cart.v = -1
-    if lv.cart.x < lv.chaseX + PEDALW \ 2 then lv.cart.v = 1
+    lv.cart.at.x = lv.cart.at.x + lv.cart.v * STEPT
+    if lv.cart.at.x > lv.chaseEnd - PEDALW \ 2 then lv.cart.v = -1
+    if lv.cart.at.x < lv.chaseX + PEDALW \ 2 then lv.cart.v = 1
 end sub
 
 ' Charlie down onto the pedal boat's deck, out of the air: a bump, it turns round and he goes up off it.
 private sub MeetPedalo (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, pt() as Part)
     if lv.cart.t > BOLTS or p.dead or p.ground or p.swim or p.vel.y <= 0 then exit sub
-    if abs(p.at.x - lv.cart.x) > PEDALW \ 2 or p.at.y < lv.cart.y - 6 or p.at.y > lv.cart.y + 14 then exit sub
-    Bumped lv, mu, se, g, pt(), lv.cart.y - 8
+    if abs(p.at.x - lv.cart.at.x) > PEDALW \ 2 or p.at.y < lv.cart.at.y - 6 or p.at.y > lv.cart.at.y + 14 then exit sub
+    Bumped lv, mu, se, g, pt(), lv.cart.at.y - 8
     lv.cart.v = -lv.cart.v
     p.vel.y = -BOUNCEV
     p.jumped = 0
@@ -510,8 +510,8 @@ end sub
 ' cat paddling off a while.
 private sub DrawPedalo (lv as Level, zn as Realm, art as Store, se as Session, cx as integer, cy as integer)
     dim x as integer, y as integer, i as integer
-    x = cint(lv.cart.x) - cx
-    y = cint(lv.cart.y) - cy
+    x = cint(lv.cart.at.x) - cx
+    y = cint(lv.cart.at.y) - cy
     if lv.cart.st = 2 then
         DrawKeep zn, art, x, y + 3 - ((se.ticks \ 16) and 1)
         DrawFled lv, art, se, x, y - 9, 120
@@ -533,8 +533,8 @@ end sub
 ' off a while.
 private sub DrawCart (lv as Level, zn as Realm, art as Store, se as Session, cx as integer, cy as integer)
     dim x as integer, y as integer, i as integer
-    x = cint(lv.cart.x) - cx
-    y = cint(lv.cart.y) - cy
+    x = cint(lv.cart.at.x) - cx
+    y = cint(lv.cart.at.y) - cy
     if lv.cart.st = 2 then
         DrawKeep zn, art, x, y - ((se.ticks \ 16) and 1)
         DrawFled lv, art, se, x, y - 13, 260
@@ -551,17 +551,17 @@ end sub
 ' or all of one's.
 private sub DrawWheels (lv as Level, art as Store, x as integer, cy as integer)
     dim ya as integer, yb as integer, lean as integer, k as integer
-    ya = Surf%(lv, cint(lv.cart.x) - WHEELS, cint(lv.cart.y))
-    yb = Surf%(lv, cint(lv.cart.x) + WHEELS, cint(lv.cart.y))
-    if ya = NONE then ya = cint(lv.cart.y)
-    if yb = NONE then yb = cint(lv.cart.y)
+    ya = Surf%(lv, cint(lv.cart.at.x) - WHEELS, cint(lv.cart.at.y))
+    yb = Surf%(lv, cint(lv.cart.at.x) + WHEELS, cint(lv.cart.at.y))
+    if ya = NONE then ya = cint(lv.cart.at.y)
+    if yb = NONE then yb = cint(lv.cart.at.y)
     lean = (yb - ya + 3) \ 7
     if lean < 0 then lean = 0
     if lean > 2 then lean = 2
     k = ICART + lean * 4
     if lv.cart.t > BOLTS then k = k + 2
     Blit art, x - CARTW \ 2, (ya + yb) \ 2 - cy - 41 - lean * CARTLEAN, k, CARTW, CARTH + lean * CARTLEAN * 2
-    k = ICARTW + ((cint(lv.cart.x) \ 8) and 1) * 2
+    k = ICARTW + ((cint(lv.cart.at.x) \ 8) and 1) * 2
     Blit art, x - WHEELS - 6, ya - cy - 12, k, 13, 13
     Blit art, x + WHEELS - 6, yb - cy - 12, k, 13, 13
 end sub
@@ -570,15 +570,15 @@ end sub
 ' it holds a crate over him; bumped, still a while, then off from him at speed.
 private sub MoveCrane (lv as Level, p as Hero)
     dim want as single, dir as integer
-    dir = sgn(p.at.x - lv.cart.x)
+    dir = sgn(p.at.x - lv.cart.at.x)
     want = dir * (CRANEV + CRANEUP * lv.cart.hits)
     if lv.box.st = 1 then want = 0
     if lv.cart.t > 0 then want = CRANEBOLT * (2 * (dir > 0) + 1)
     if lv.cart.t > BOLTS then want = 0
     lv.cart.v = lv.cart.v + (want - lv.cart.v) * 5 * STEPT
-    lv.cart.x = lv.cart.x + lv.cart.v * STEPT
-    if lv.cart.x < lv.chaseX + 40 then lv.cart.x = lv.chaseX + 40
-    if lv.cart.x > lv.chaseEnd - 40 then lv.cart.x = lv.chaseEnd - 40
+    lv.cart.at.x = lv.cart.at.x + lv.cart.v * STEPT
+    if lv.cart.at.x < lv.chaseX + 40 then lv.cart.at.x = lv.chaseX + 40
+    if lv.cart.at.x > lv.chaseEnd - 40 then lv.cart.at.x = lv.chaseEnd - 40
 end sub
 
 ' Charlie thrown up to the crane: in the air at its gondola he bumps it and is knocked aside, out of a jet's way,
@@ -586,11 +586,11 @@ end sub
 private sub MeetCrane (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, pt() as Part)
     dim foot as single
     if lv.cart.t > BOLTS or p.dead or p.ground then exit sub
-    foot = lv.cart.y - CRANEH
-    if abs(p.at.x - lv.cart.x) > CRANER or p.at.y - 26 > foot or p.at.y < foot - 24 then exit sub
+    foot = lv.cart.at.y - CRANEH
+    if abs(p.at.x - lv.cart.at.x) > CRANER or p.at.y - 26 > foot or p.at.y < foot - 24 then exit sub
     if lv.box.st > 0 or lv.box.t <= 0 then BreakBox lv, mu, se, pt()
     Bumped lv, mu, se, g, pt(), foot - 12
-    p.vel.x = 140 * (2 * (p.at.x <= lv.cart.x) + 1)
+    p.vel.x = 140 * (2 * (p.at.x <= lv.cart.at.x) + 1)
     p.vel.y = 160
     if p.at.y < foot - 14 then p.vel.y = -200
 end sub
@@ -601,9 +601,9 @@ private sub DropBox (lv as Level, mu as Deck, se as Session, g as Game, p as Her
     if lv.box.t > 0 then lv.box.t = lv.box.t - STEPT
     select case lv.box.st
     case 0
-        lv.box.x = lv.cart.x
-        lv.box.y = lv.cart.y - CRANEH + 16
-        if lv.box.t <= 0 and lv.cart.t <= 0 and abs(p.at.x - lv.cart.x) < 10 then
+        lv.box.at.x = lv.cart.at.x
+        lv.box.at.y = lv.cart.at.y - CRANEH + 16
+        if lv.box.t <= 0 and lv.cart.t <= 0 and abs(p.at.x - lv.cart.at.x) < 10 then
             lv.box.st = 1
             lv.box.t = POISE
         end if
@@ -614,11 +614,11 @@ private sub DropBox (lv as Level, mu as Deck, se as Session, g as Game, p as Her
         end if
     case 2
         lv.box.v = lv.box.v + GRAV * STEPT
-        lv.box.y = lv.box.y + lv.box.v * STEPT
-        if abs(p.at.x - lv.box.x) < 14 and p.at.y > lv.box.y - 16 and p.at.y - 26 < lv.box.y and not p.dead then
-            Hurt mu, se, g, p, cint(lv.box.x), lo(), SHISS
+        lv.box.at.y = lv.box.at.y + lv.box.v * STEPT
+        if abs(p.at.x - lv.box.at.x) < 14 and p.at.y > lv.box.at.y - 16 and p.at.y - 26 < lv.box.at.y and not p.dead then
+            Hurt mu, se, g, p, cint(lv.box.at.x), lo(), SHISS
             BreakBox lv, mu, se, pt()
-        elseif lv.box.y >= lv.cart.y then
+        elseif lv.box.at.y >= lv.cart.at.y then
             BreakBox lv, mu, se, pt()
         end if
     end select
@@ -626,7 +626,7 @@ end sub
 
 ' The crate in bits where it is, the next a while off: sooner for each bump the crane has had.
 private sub BreakBox (lv as Level, mu as Deck, se as Session, pt() as Part)
-    Burst se, pt(), lv.box.x + 0, lv.box.y - 8, 10, 140, CEARTH + 4
+    Burst se, pt(), lv.box.at.x + 0, lv.box.at.y - 8, 10, 140, CEARTH + 4
     Sfx mu, se, SPOP
     lv.box.st = 0
     lv.box.t = RELOAD - HASTE * lv.cart.hits
@@ -636,8 +636,8 @@ end sub
 ' or falling; broken, its lamp out and the toolbox fallen from it.
 private sub DrawCrane (lv as Level, zn as Realm, art as Store, se as Session, cx as integer, cy as integer)
     dim x as integer, y as integer, i as integer, fy as integer, a as integer, b as integer, jolt as integer
-    x = cint(lv.cart.x) - cx
-    fy = cint(lv.cart.y) - cy
+    x = cint(lv.cart.at.x) - cx
+    fy = cint(lv.cart.at.y) - cy
     y = fy - RAILUP
     a = (cx - lv.chaseX) \ 32
     if a < 0 then a = 0
@@ -658,5 +658,5 @@ private sub DrawCrane (lv as Level, zn as Realm, art as Store, se as Session, cx
     next
     if lv.box.st = 0 and lv.box.t > 0 then exit sub
     jolt = (lv.box.st = 1) * ((se.ticks \ 3) and 1)
-    Blit art, cint(lv.box.x) - cx - 8 + jolt, cint(lv.box.y) - cy - 16, IWBOX, 16, 16
+    Blit art, cint(lv.box.at.x) - cx - 8 + jolt, cint(lv.box.at.y) - cy - 16, IWBOX, 16, 16
 end sub

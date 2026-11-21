@@ -76,7 +76,7 @@ private function PilotSwim% (lv as Level, zn as Realm, p as Hero, k as Pad)
     ' Kipper's boat about: still, and a hop as it comes, to come down on its deck
     if zn.id <> 2 or lv.cart.st <> 1 then exit function
     k.r = 0
-    d = cint(lv.cart.x - p.at.x)
+    d = cint(lv.cart.at.x - p.at.x)
     want = lv.cart.t <= 0 and abs(d) < abs(lv.cart.v) * .55 + 12 and abs(d) > abs(lv.cart.v) * .45
     PilotSwim% = want and sgn(d) <> sgn(lv.cart.v)
 end function
@@ -144,7 +144,7 @@ private function PilotRun% (lv as Level, gr as Ground, zn as Realm, se as Sessio
     PilotTipper lv, se, p, k
     PilotGoat lv, p, k, want
     k.d = Rams%(lv, zn, p)
-    if zn.id = 5 and p.roll and lv.cart.st = 1 and lv.cart.x - p.at.x > OUTRUN then want = -1
+    if zn.id = 5 and p.roll and lv.cart.st = 1 and lv.cart.at.x - p.at.x > OUTRUN then want = -1
     if zn.id = 4 then PilotCurl lv, p, k, want
     PilotGaps lv, se, p, k, want
     if zn.id = 4 then PilotDig lv, p, k, want
@@ -156,7 +156,7 @@ private function Rams% (lv as Level, zn as Realm, p as Hero)
     dim d as integer
     Rams% = 0
     if lv.cart.st <> 1 or not (zn.id = 0 or zn.id = 3 or zn.id = 5) then exit function
-    d = cint(lv.cart.x - p.at.x)
+    d = cint(lv.cart.at.x - p.at.x)
     Rams% = d > 0 and d < RAMREACH and p.gsp > 150
 end function
 
