@@ -3,7 +3,7 @@
  * # How it works
  * A stored line keeps each name as typed (M_VAR's text); one name id may be spelled many ways. A
  * variable is spelled as the first line of its scope that names it: BASIC declares before it uses.
- * A field is spelled as its TYPE's line for it (its name, then AS), which no variable's spelling
+ * A field is spelled as its TYPE's line for it (its name, its subscripts, AS), which no variable's
  * comes from. spel_read walks a procedure's lines, then its file's module lines, once, keeping the
  * first spelling of each (name, kind) in a hash table, its text in a pool.
  */
@@ -67,6 +67,24 @@ static void seen(const uint8_t *const tok, const SpelKind kind)
     sp.used += len;
 }
 
+/* The line at p is a TYPE's field's: its name, its subscripts if any, then AS. */
+static bool field_line(const uint8_t *const p)
+{
+    if (*p != M_VAR)
+        return false;
+
+    const uint8_t *q = comp_skipname(p);
+
+    for (int32_t depth = 0; *q == '(' || depth; q = decl_item(q)) {
+        if (!*q)
+            return false;
+
+        depth += (*q == '(') - (*q == ')');
+    }
+
+    return *q == TK_AS;
+}
+
 /* View v's lines' names: each a variable's of kind, a TYPE's field line's a field's. */
 static void view_names(Session *const S, const uint32_t v, const SpelKind kind)
 {
@@ -76,7 +94,7 @@ static void view_names(Session *const S, const uint32_t v, const SpelKind kind)
         const uint8_t *p = S->comp.cbuf;
         prog_body(&S->prog, lmap_off(S, line), S->comp.cbuf);
 
-        if (*p == M_VAR && *comp_skipname(p) == TK_AS) {
+        if (field_line(p)) {
             seen(p, SPEL_FIELD);
             continue;
         }

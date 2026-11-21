@@ -6,9 +6,14 @@
  * found where the frame sees it (session_cell): a number's or string's cell, an array's header, a
  * record's header (a record is a one-element array of its TYPE, symb_is_record). Its text is by its
  * type: a variable's by its kind, as the run keeps it.
+ *
+ * A record's field is at its offset in it (decl's TypeDef): a fixed array field is its key's view,
+ * a dynamic one its cell's header. An array's elements are its view's (arry_view), each its
+ * element type's bytes, a STRING * n's n.
  */
 #include "vm/inspect.h"
 #include "comp/blocks.h"
+#include "comp/declare.h"
 #include "mem/array.h"
 #include "mem/scope.h"
 #include "mem/symbols.h"
@@ -32,11 +37,24 @@ static InspVar var_of(const Session *const S, const uint32_t id)
     };
 }
 
-/* A variable a debugger leaves out: a DEF FN's, a FOR loop's hidden limit or step. */
+/* A number, or an array of them, named as a record, or an array of them, of its scope: DIM r AS
+   t's look-up of r, before its AS. */
+static bool record_name(const Session *const S, const uint32_t id)
+{
+    const Var *const v = symb_var(&S->symb, id);
+    const uint32_t scope = symb_varx(&S->symb, id)->scope;
+    const uint32_t own = sc_is_proc(scope) ? blok_proc(&S->blok, scope)->name : scope;
+    const Binding *const b = v->type < ET_REC ? scop_get(&S->scop, own, v->name) : nullptr;
+    return b && b->rec[!!(v->info & VI_ARR)];
+}
+
+/* A variable a debugger leaves out: a DEF FN's, a FOR loop's hidden limit or step, a number of a
+   record's name. */
 static bool hidden(const Session *const S, const uint32_t id)
 {
     const Var *const v = symb_var(&S->symb, id);
-    return (v->info & (VI_ARR | VK_MASK)) == VK_FN || symb_text(&S->symb, v->name)[1] == LOOP_NAME;
+    return (v->info & (VI_ARR | VK_MASK)) == VK_FN ||
+           symb_text(&S->symb, v->name)[1] == LOOP_NAME || record_name(S, id);
 }
 
 /* id is a parameter of procedure proc. */
@@ -198,13 +216,15 @@ bool insp_is(
     return true;
 }
 
-/* n bytes of text s in quotes at d, room of them at most; past it. */
+/* n bytes of text s in quotes at d, room of them at most, a 0 a space; past it. */
 static char *quoted(char *d, const uint8_t *const s, const uint32_t n, const uint32_t room)
 {
     const uint32_t len = n > room ? room : n;
     *d++ = '"';
-    memcpy(d, s, len);
-    d += len;
+
+    for (uint32_t i = 0; i < len; i++)
+        *d++ = s[i] ? (char)s[i] : ' ';
+
     *d++ = '"';
     return d;
 }
@@ -257,4 +277,96 @@ char *insp_text(const Session *const S, const InspValue *const v, char *d, const
 
     memcpy(d, s, n);
     return d + n;
+}
+
+uint32_t insp_type(const Session *const S, const InspValue *const v)
+{
+    return decl_type(&S->decl, v->type - ET_REC)->name;
+}
+
+uint32_t insp_nfields(const Session *const S, const InspValue *const v)
+{
+    return decl_type(&S->decl, v->type - ET_REC)->nfld;
+}
+
+InspValue insp_field(
+    const Session *const S,
+    const InspValue *const v,
+    const uint32_t i,
+    uint32_t *const name
+)
+{
+    const uint32_t t = v->type - ET_REC;
+    const Field *const f = &decl_type(&S->decl, t)->fields[i];
+    const Addr place = v->at + f->off;
+    const uint32_t type = decl_fieldtype(f);
+    *name = f->name;
+
+    if (f->ndim)
+        return (InspValue){
+            .kind = IV_ARRAY,
+            .type = type,
+            .fix = f->fix,
+            .at = place,
+            .key = decl_fieldkey(t, i),
+        };
+
+    if (f->dyn)
+        return (InspValue){.kind = IV_ARRAY, .type = type, .at = ((const ArrSlot *)at(place))->hdr};
+
+    if (f->sub)
+        return (InspValue){.kind = IV_RECORD, .type = type, .at = place};
+
+    return (InspValue){
+        .kind = IV_SCALAR,
+        .type = type,
+        .fix = f->fix,
+        .at = place,
+    };
+}
+
+/* Array v's view; none made, no dimensions. */
+static ArrView view(const Session *const S, const InspValue *const v)
+{
+    if (v->key)
+        return arry_view_field(&S->arry, v->at, v->key);
+
+    return v->at ? arry_view(v->at) : (ArrView){};
+}
+
+uint8_t insp_dims(const Session *const S, const InspValue *const v) { return view(S, v).dims; }
+
+int32_t insp_lbound(const Session *const S, const InspValue *const v, const uint8_t i)
+{
+    const ArrView w = view(S, v);
+    return arry_view_lbound(&w, i);
+}
+
+uint32_t insp_count(const Session *const S, const InspValue *const v, const uint8_t i)
+{
+    const ArrView w = view(S, v);
+    return arry_view_count(&w, i);
+}
+
+uint32_t insp_elems(const Session *const S, const InspValue *const v)
+{
+    const ArrView w = view(S, v);
+    return w.dims ? arry_view_elems(&w) : 0;
+}
+
+InspValue insp_elem(const Session *const S, const InspValue *const v, const uint32_t i)
+{
+    const ArrView w = view(S, v);
+    const uint32_t size = v->fix ? v->fix : arry_et_size(&S->decl, w.et);
+    const Addr place = w.data + i * size;
+
+    if (w.et >= ET_REC)
+        return (InspValue){.kind = IV_RECORD, .type = w.et, .at = place};
+
+    return (InspValue){
+        .kind = IV_SCALAR,
+        .type = w.et,
+        .fix = v->fix,
+        .at = place,
+    };
 }

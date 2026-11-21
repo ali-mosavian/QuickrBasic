@@ -329,7 +329,12 @@ static bool scan_key(Session *const S, const uint8_t w, const uint8_t scan)
         watch_add(S);
     else if (w == DP_WAT && scan == SCAN_DEL)
         watch_del();
-    else if (scan == SCAN_UP || scan == SCAN_DOWN)
+    else if (w == DP_LOC && scan == SCAN_RIGHT)
+        dloc_open(S, dp.sel[w]);
+    else if (w == DP_LOC && scan == SCAN_LEFT) {
+        dp.sel[w] = dloc_close(S, dp.sel[w]);
+        visible(w);
+    } else if (scan == SCAN_UP || scan == SCAN_DOWN)
         sel_step(w, scan);
     else
         return false;
@@ -337,20 +342,21 @@ static bool scan_key(Session *const S, const uint8_t w, const uint8_t scan)
     return true;
 }
 
-/* Window x's keys: Up, Down a row; Enter a frame; Ins, Del in Watch a watch. */
+/* Window x's keys: Up, Down a row; Enter a frame; Ins, Del in Watch a watch; in Locals Enter or
+   Right a row opened, Left shut. */
 static bool child_key(Widget *const x, Session *const S, const uint16_t key)
 {
     const uint8_t w = tree_index(x);
     const uint8_t c = (uint8_t)key;
 
-    if (c == CH_ENTER) {
-        if (w == DP_STK && dp.sel[w] < dstk_count())
-            go(S, dp.sel[w]);
+    if (c == CH_ENTER && w == DP_LOC)
+        dloc_open(S, dp.sel[w]);
+    else if (c == CH_ENTER && w == DP_STK && dp.sel[w] < dstk_count())
+        go(S, dp.sel[w]);
+    else if (c != CH_ENTER)
+        return !c && key != KEY_SHIFT_TAB && scan_key(S, w, (uint8_t)(key >> 8));
 
-        return true;
-    }
-
-    return !c && key != KEY_SHIFT_TAB && scan_key(S, w, (uint8_t)(key >> 8));
+    return true;
 }
 
 /* The pane's: Tab, Shift+Tab its windows; Esc back to the edit window. */

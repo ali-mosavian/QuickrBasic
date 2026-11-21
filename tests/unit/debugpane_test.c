@@ -146,7 +146,15 @@ static void typed(const char *const text)
     host_key_push(0x1C0D);
 }
 
-enum : uint16_t { K_ENTER = 0x1C0D, K_DOWN = 0x5000, K_INS = 0x5200, K_DEL = 0x5300 };
+enum : uint16_t {
+    K_ENTER = 0x1C0D,
+    K_UP = 0x4800,
+    K_DOWN = 0x5000,
+    K_ARROW_LEFT = 0x4B00, /* K_LEFT is LEFT$'s */
+    K_ARROW_RIGHT = 0x4D00,
+    K_INS = 0x5200,
+    K_DEL = 0x5300,
+};
 
 static const char *const fact[] = {
     "declare sub fact (n%)",
@@ -277,5 +285,205 @@ TEST(debug_pane_names_variables_as_declared)
     pane_keys(S, 2, (const uint16_t[]){K_DOWN, K_ENTER, 0});
 
     CHECK(rows_are("Locals", " Total& = 5| myVar = 2| COUNT = 7| x = 1"));
+    done(S);
+}
+
+/* Locals showed a record or an array as "(record)", "(array)", its values out of reach, and a
+   record twice, once as a number 0 (DIM's look-up of its name before its AS): Right or Enter opens
+   one under it, Left closes it from any of its rows; an array a page at a time, a row for the
+   rest. */
+TEST(debug_pane_opens_records_and_arrays)
+{
+    stopped_in(
+        S,
+        (const char *const[]){
+            "type pt",
+            "x as integer",
+            "y as integer",
+            "end type",
+            "dim p as pt",
+            "dim a(1 to 12) as integer",
+            "p.x = 3",
+            "p.y = 4",
+            "for i = 1 to 12",
+            "a(i) = i * i",
+            "next",
+            "stop",
+            nullptr,
+        }
+
+    );
+    CHECK(rows_are(
+        "Locals",
+        " \x10"
+        "a%(1 to 12)| \x10p as pt| i = 13"
+    ));
+    pane_keys(S, 1, (const uint16_t[]){K_DOWN, K_ARROW_RIGHT, 0});
+
+    CHECK(rows_are(
+        "Locals",
+        " \x10"
+        "a%(1 to 12)| \x1Fp as pt|    .x = 3|    .y = 4| i = 13"
+    ));
+    pane_keys(S, 1, (const uint16_t[]){K_DOWN, K_ARROW_LEFT, K_UP, K_ENTER, 0});
+
+    CHECK(rows_are(
+        "Locals",
+        " \x1F"
+        "a%(1 to 12)|    (1) = 1|    (2) = 4|    (3) = 9|    (4) = 16|    (5) = 25|"
+        "    (6) = 36|    (7) = 49|    (8) = 64|    (9) = 81"
+    ));
+    uint16_t keys[12] = {0};
+
+    for (uint32_t i = 0; i < 11; i++)
+        keys[i] = K_DOWN;
+
+    pane_keys(S, 1, keys);
+
+    CHECK(rows_are(
+        "Locals",
+        "    (2) = 4|    (3) = 9|    (4) = 16|    (5) = 25|    (6) = 36|    (7) = 49|"
+        "    (8) = 64|    (9) = 81|    (10) = 100|    ... (11) to (12)"
+    ));
+    pane_keys(S, 1, (const uint16_t[]){K_ENTER, K_DOWN, K_DOWN, K_DOWN, 0});
+
+    CHECK(rows_are(
+        "Locals",
+        "    (5) = 25|    (6) = 36|    (7) = 49|    (8) = 64|    (9) = 81|    (10) = 100|"
+        "    (11) = 121|    (12) = 144| \x10p as pt| i = 13"
+    ));
+    pane_keys(S, 1, (const uint16_t[]){K_UP, K_UP, K_UP, K_UP, K_ARROW_LEFT, 0});
+
+    CHECK(rows_are(
+        "Locals",
+        " \x10"
+        "a%(1 to 12)| \x10p as pt| i = 13"
+    ));
+    done(S);
+}
+
+/* An open record's record field opens under it, deeper; an array's elements are in the run's
+   order, the first subscript the fastest; a fixed string's value is its bytes. */
+TEST(debug_pane_opens_nested_records_and_arrays)
+{
+    stopped_in(
+        S,
+        (const char *const[]){
+            "type pt",
+            "x as integer",
+            "y as integer",
+            "end type",
+            "type box",
+            "title as string * 4",
+            "corner as pt",
+            "end type",
+            "dim b as box",
+            "dim g(1, 1) as integer",
+            "b.title = \"ab\"",
+            "b.corner.x = 7",
+            "g(1, 0) = 5",
+            "stop",
+            nullptr,
+        }
+
+    );
+    pane_keys(S, 1, (const uint16_t[]){K_DOWN, K_ARROW_RIGHT, K_DOWN, K_DOWN, K_ARROW_RIGHT, 0});
+
+    CHECK(rows_are(
+        "Locals",
+        " \x10g%(0 to 1, 0 to 1)| \x1F"
+        "b as box|    .title = \"ab  \"|    \x1F.corner as pt|"
+        "       .x = 7|       .y = 0"
+    ));
+    pane_keys(S, 1, (const uint16_t[]){K_DOWN, K_ARROW_LEFT, K_ARROW_LEFT, K_UP, K_ARROW_RIGHT, 0});
+
+    CHECK(rows_are(
+        "Locals",
+        " \x1Fg%(0 to 1, 0 to 1)|    (0, 0) = 0|    (1, 0) = 5|    (0, 1) = 0|    (1, 1) = 0|"
+        " \x10"
+        "b as box"
+    ));
+    done(S);
+}
+
+/* An array of records' elements open as records; a record's array field opens as an array, a
+   STRING * n one's elements their n bytes each. */
+TEST(debug_pane_opens_record_arrays_and_array_fields)
+{
+    stopped_in(
+        S,
+        (const char *const[]){
+            "type pt",
+            "x as integer",
+            "y as integer",
+            "end type",
+            "type poly",
+            "tags(1) as string * 2",
+            "end type",
+            "dim ps(1) as pt",
+            "dim q as poly",
+            "ps(1).y = 6",
+            "q.tags(1) = \"hi\"",
+            "stop",
+            nullptr,
+        }
+
+    );
+    pane_keys(S, 1, (const uint16_t[]){K_ARROW_RIGHT, K_DOWN, K_DOWN, K_ARROW_RIGHT, 0});
+
+    CHECK(rows_are(
+        "Locals",
+        " \x1Fps(0 to 1)|    \x10(0) as pt|    \x1F(1) as pt|       .x = 0|       .y = 6|"
+        " \x10q as poly"
+    ));
+    pane_keys(
+        S,
+        1,
+        (const uint16_t[]){K_DOWN, K_DOWN, K_DOWN, K_ARROW_RIGHT, K_DOWN, K_ARROW_RIGHT, 0}
+
+    );
+
+    CHECK(rows_are(
+        "Locals",
+        " \x1Fps(0 to 1)|    \x10(0) as pt|    \x1F(1) as pt|       .x = 0|       .y = 6|"
+        " \x1Fq as poly|    \x1F.tags(0 to 1)|       (0) = \"  \"|       (1) = \"hi\""
+    ));
+    done(S);
+}
+
+/* A row is open by its expression: b.corner opened leaves c.corner, its field's name too, shut. */
+TEST(debug_pane_opens_a_field_of_one_record)
+{
+    stopped_in(
+        S,
+        (const char *const[]){
+            "type pt",
+            "x as integer",
+            "end type",
+            "type box",
+            "corner as pt",
+            "end type",
+            "dim b as box",
+            "dim c as box",
+            "b.corner.x = 1",
+            "c.corner.x = 2",
+            "stop",
+            nullptr,
+        }
+
+    );
+    pane_keys(
+        S,
+        1,
+        (const uint16_t[]){K_ARROW_RIGHT, K_DOWN, K_ARROW_RIGHT, K_DOWN, K_DOWN, K_ARROW_RIGHT, 0}
+
+    );
+
+    CHECK(rows_are(
+        "Locals",
+        " \x1F"
+        "b as box|    \x1F.corner as pt|       .x = 1| \x1F"
+        "c as box|    \x10.corner as pt"
+    ));
     done(S);
 }

@@ -47,6 +47,17 @@ char *insp_name(const Session *S, char *d, uint32_t name);
    any, its type's. */
 bool insp_is(const Session *S, const InspVar *var, const uint8_t *s, uint32_t n, uint8_t sfx);
 /* Scalar v as text at d, room characters of a string's at most: a number as PRINT's without its
-   sign's space, a string in quotes. Past it. */
+   sign's space, a string in quotes, its 0s spaces. Past it. */
 char *insp_text(const Session *S, const InspValue *v, char *d, uint32_t room);
+/* Record v's TYPE's name id; its fields; field i's value, its name id to *name. */
+uint32_t insp_type(const Session *S, const InspValue *v);
+uint32_t insp_nfields(const Session *S, const InspValue *v);
+InspValue insp_field(const Session *S, const InspValue *v, uint32_t i, uint32_t *name);
+/* Array v's dimensions, 0 not made; dimension i's lower bound, its count; its elements; element i,
+   the first subscript the fastest as the run lays them. */
+uint8_t insp_dims(const Session *S, const InspValue *v);
+int32_t insp_lbound(const Session *S, const InspValue *v, uint8_t i);
+uint32_t insp_count(const Session *S, const InspValue *v, uint8_t i);
+uint32_t insp_elems(const Session *S, const InspValue *v);
+InspValue insp_elem(const Session *S, const InspValue *v, uint32_t i);
 #endif
