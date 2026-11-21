@@ -16,7 +16,8 @@ type Store
     dat as DataFile
 end type
 
-const SW = 320, SH = 200
+const SW = 320
+const SH = 200
 
 sub OpenScreen
     screen 13, , 1, 0

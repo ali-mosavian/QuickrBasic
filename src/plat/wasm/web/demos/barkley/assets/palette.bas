@@ -6,25 +6,39 @@ from barkley.model.level import Realm
 from barkley.model.game import Session, Tones
 
 const CFLAKE = 118
-const CSNOW = 117, CICE = 123
+const CSNOW = 117
+const CICE = 123
 const CFLY = 163
-const CVINE = 147, CVINED = 156
+const CVINE = 147
+const CVINED = 156
 const CLEAF = 135
 const CLOAM = 124
 const CNUT = 130
-const CBEE = 116, CWING = 102
+const CBEE = 116
+const CWING = 102
 const CSEA = 141
 
 ' The quarter's: its ink, its linen from white, its poles lit to dark, its smoke.
-const CQINK = 133, CLANT = 141, CLINEN = 156, CPOLE = 161, CSOOT = 164, CCLAY = 191
+const CQINK = 133
+const CLANT = 141
+const CLINEN = 156
+const CPOLE = 161
+const CSOOT = 164
+const CCLAY = 191
 
 ' The palette's ramps, dark to light, as charlieart.py's.
-const CHUD = 0, CWHITE = 1, CINK = 2, CYELLOW = 3
+const CHUD = 0
+const CWHITE = 1
+const CINK = 2
+const CYELLOW = 3
 private const CRED = 4
 const CSCARF = 21
 private const CGRASS = 25
-const CEARTH = 30, CSTONE = 38, CGOLD = 42
-const CWATER = 144, CHEDGE = 245
+const CEARTH = 30
+const CSTONE = 38
+const CGOLD = 42
+const CWATER = 144
+const CHEDGE = 245
 private const CCHASE = 213
 
 ' Colour k is c, shown dusk sixteenths as bright.

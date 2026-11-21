@@ -12,8 +12,18 @@ from barkley.world.terrain.ground import SegAt, Slant, Twist, WAVEL
 from barkley.world.terrain.track import WAVEA
 from barkley.stage.hero.moves import BARKT, TOP
 
-private const FIDLE = 0, FBLINK = 1, FTAP = 2, FRUN = 4, FDASH = 10, FBALL = 12
-private const FSKID = 16, FCROUCH = 17, FHURT = 18, FUP = 19, FWIN = 20, FSHIVER = 22
+private const FIDLE = 0
+private const FBLINK = 1
+private const FTAP = 2
+private const FRUN = 4
+private const FDASH = 10
+private const FBALL = 12
+private const FSKID = 16
+private const FCROUCH = 17
+private const FHURT = 18
+private const FUP = 19
+private const FWIN = 20
+private const FSHIVER = 22
 private const SLEDH = 5
 private const GOATH = 14
 const WAVEH = WAVEA + 36

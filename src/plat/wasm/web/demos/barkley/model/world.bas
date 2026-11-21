@@ -25,7 +25,8 @@ type World
     dat as DataFile
 end type
 
-private const NPTS = 1600, NZONE = 47
+private const NPTS = 1600
+private const NZONE = 47
 
 ' The moving platforms there can be, and their width.
 const NMOVE = 23

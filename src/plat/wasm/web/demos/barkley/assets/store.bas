@@ -9,7 +9,8 @@ from barkley.model.level import NSTAGE, ZONES
 from barkley.model.game import Tones
 from barkley.assets.palette import CINK, CWHITE, CYELLOW, Tint
 
-const HUDW = 108, HUDH = 40
+const HUDW = 108
+const HUDH = 40
 
 ' The pictures every zone shows: CHARLIE.DAT's, then those built from them or drawn here on the hidden page. A
 ' zone's own come after them with its level.

@@ -22,36 +22,58 @@ from barkley.stage.zones.pass import SLEDV
 ' Biscuit's honey cart less its wheels, as it goes and bumped: level, then leaning half a gentle slope's fall and
 ' all of one's, CARTLEAN higher over and under each time; then its wheel at two turns. Its wheels are WHEELS
 ' either side of its middle.
-private const CARTW = 56, CARTH = 34, CARTLEAN = 7, WHEELS = 13
+private const CARTW = 56
+private const CARTH = 34
+private const CARTLEAN = 7
+private const WHEELS = 13
 
 ' The great oak, its foot at lv.oakX, lv.oakY: NLIMB limbs up it, left and right in turn, each a flat LIMBW long
 ' to stand on, LIMBRISE down its picture. The Bramble twins sit on a pair of them, and after each catch on the
 ' pair above: one holds the ball PAWUP over its limb TWINHOLD seconds, then lobs it to the other, TWINLOB seconds
 ' on its way and LOBUP over the straight line, TWINHASTE less for each catch. Within CATCHR of the ball on its
 ' way, he has caught it.
-private const LIMBRISE = 14, TWINHOLD = .6, TWINLOB = 1.5, TWINHASTE = .2, LOBUP = 40
+private const LIMBRISE = 14
+private const TWINHOLD = .6
+private const TWINLOB = 1.5
+private const TWINHASTE = .2
+private const LOBUP = 40
 const PAWUP = 24
 private const CATCHR = 18
 
 ' Kipper's pedal boat: its speed, what each bump adds to it, its length, and its deck over the sea.
-const PEDALV = 130!, PEDALMORE = 40!, PEDALW = 48, PEDALUP = 8
+const PEDALV = 130!
+const PEDALMORE = 40!
+const PEDALW = 48
+const PEDALUP = 8
 
 ' A chase: the cart's speed, when Charlie is far behind it, and away from a bump, a toboggan's less, for a sled to
 ' catch it again; how far ahead of the race's start it waits; how near touches it; the seconds a bump tells, the
 ' last of them bolting; the bumps that break it; its tune's number in CHARLIE.DAT.
-private const CRUISE = 330!, DAWDLE = 200!, BOLT = 560!, TOBOLT = 400!
+private const CRUISE = 330!
+private const DAWDLE = 200!
+private const BOLT = 560!
+private const TOBOLT = 400!
 const CARTLEAD = 260
 private const CARTR = 26
 private const DAZED = 1.4
-const BOLTS = 1!, NBUMP = 3, CHASETUNE = 5
+const BOLTS = 1!
+const NBUMP = 3
+const CHASETUNE = 5
 
 ' The works' crane: its speed after Charlie, what each bump adds, and away from one; how near touches it; its
 ' gondola's foot over the floor, out of a jump's reach, and its rail's top; the seconds to its next crate, what
 ' each bump takes off them, and the seconds one is held over Charlie; the view's height over him, by habit and
 ' under a crane; the seconds its keepsake falls.
-private const CRANEV = 90!, CRANEUP = 25!, CRANEBOLT = 260!, CRANER = 22, CRANEH = 120
+private const CRANEV = 90!
+private const CRANEUP = 25!
+private const CRANEBOLT = 260!
+private const CRANER = 22
+private const CRANEH = 120
 const RAILUP = 164
-private const RELOAD = 1.6, HASTE = .3, POISE = .6, TOOLFALL = .4
+private const RELOAD = 1.6
+private const HASTE = .3
+private const POISE = .6
+private const TOOLFALL = .4
 
 ' The quarter's relay, the guitar from cat to cat, NLEG of them and a bump each: bumped, a cat throws it on to the
 ' next, PASSV a second, and is left TUMBLE behind it. Each makes off its own way, LEGV about: Biscuit steadily;
@@ -59,10 +81,20 @@ private const RELOAD = 1.6, HASTE = .3, POISE = .6, TOOLFALL = .4
 ' HOPUP off the ground, a beat BOB the slower; Frost sliding, SLIDE the quicker down a fall; the twins lobbing it
 ' between them, LOBV for LOBT seconds and LOBUP2 high, as Charlie comes within LOBNEAR, and not again for
 ' LOBWAIT. The twin without it goes TWINGAP from the one with it.
-const NLEG = 5, LEGV = 250!, LOBWAIT = 2.4
+const NLEG = 5
+const LEGV = 250!
+const LOBWAIT = 2.4
 const TUMBLE = 20
-private const PASSV = 440!, WOUND = 60!, BOB = 110!, HOPUP = 10, SLIDE = 200!
-private const LOBNEAR = 70, LOBV = 420!, LOBT = .4, LOBUP2 = 20, TWINGAP = 40
+private const PASSV = 440!
+private const WOUND = 60!
+private const BOB = 110!
+private const HOPUP = 10
+private const SLIDE = 200!
+private const LOBNEAR = 70
+private const LOBV = 420!
+private const LOBT = .4
+private const LOBUP2 = 20
+private const TWINGAP = 40
 
 ' The chase as before Charlie came to it: who flees waiting a little way into the race, the zone's tune back. A
 ' keepsake taken stays taken.

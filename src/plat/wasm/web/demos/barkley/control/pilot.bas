@@ -21,7 +21,8 @@ from barkley.stage.zones.pass import GCHARGE, GoatNear
 
 ' How near who flees is rolled into. A bump throws him back curled, and on the quarter's level street a roll only
 ' slows: he hops out of it once its cat is OUTRUN ahead, further than a hop gains on one that stops.
-private const RAMREACH = 120, OUTRUN = 140
+private const RAMREACH = 120
+private const OUTRUN = 140
 
 ' The game's own player: Right held, a jump where one is wanted, still where it must wait.
 sub Pilot (lv as Level, gr as Ground, zn as Realm, se as Session, p as Hero, k as Pad, ap as Autopilot)

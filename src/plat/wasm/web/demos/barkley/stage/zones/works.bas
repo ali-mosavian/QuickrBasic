@@ -17,12 +17,20 @@ from barkley.stage.fx.damage import Beaten, BOUNCEV, Hurt
 ' along its rail, alight SPARKLIT steps of every SPARKP. A press hangs PRESSH over the floor, its head's foot
 ' PRESSUP over it when up; of its turn's PRESSP steps it is up till PRESSFALL, down by ten on, held till PRESSRISE,
 ' then rising; a press a step later for every PRESSLAG along, so a row's turns go along it with a run.
-const SPARKP = 150, SPARKLIT = 90
+const SPARKP = 150
+const SPARKLIT = 90
 
 private const PRESSH = 112
-const PRESSUP = 68, PRESSP = 180, PRESSFALL = 90, PRESSRISE = 130, PRESSLAG = 4
-private const JETV = 500!, BUMPV = 400!, HOOPV = 640!
-const SPINR = 30, SPINH = 70
+const PRESSUP = 68
+const PRESSP = 180
+const PRESSFALL = 90
+const PRESSRISE = 130
+const PRESSLAG = 4
+private const JETV = 500!
+private const BUMPV = 400!
+private const HOOPV = 640!
+const SPINR = 30
+const SPINH = 70
 
 ' A spark on its cable: lit, it stings.
 sub MeetSpark (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose)

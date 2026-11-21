@@ -16,7 +16,8 @@ from barkley.world.level import CABLED
 const FREEB = 7
 
 ' A span of the sands' old pier: the seconds it totters once trodden, and how far it falls.
-private const SPANT = .25, SPANDROP = 400
+private const SPANT = .25
+private const SPANDROP = 400
 
 ' A ski lift's chair, a platform that goes up its cable SEATV of the way a second while he stands on it; its
 ' frame stands SEATH over its seat.

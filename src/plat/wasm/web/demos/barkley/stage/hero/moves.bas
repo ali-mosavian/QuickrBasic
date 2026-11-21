@@ -17,12 +17,22 @@ from barkley.stage.hero.modes import Alight, Buffet, Hang, Paddle, Ride, Soak, T
 const JUMPV = 330!
 private const JUMPCUT = 160!
 const TOP = 360!
-private const RUNACC = 280!, DEC = 1800!, FRIC = 280!, AIRACC = 500!, SLOPE = 380!
-private const RFRIC = 60!, RDEC = 450!, RUPS = 300!, RDNS = 1100!, MAXV = 900!
+private const RUNACC = 280!
+private const DEC = 1800!
+private const FRIC = 280!
+private const AIRACC = 500!
+private const SLOPE = 380!
+private const RFRIC = 60!
+private const RDEC = 450!
+private const RUPS = 300!
+private const RDNS = 1100!
+private const MAXV = 900!
 
 ' On bare ice: what is left of the ground's braking and its friction, and of a run's push.
-private const ICEGRIP = .12, ICEPUSH = .4
-private const CHARGE0 = 480!, CHARGEMAX = 360!
+private const ICEGRIP = .12
+private const ICEPUSH = .4
+private const CHARGE0 = 480!
+private const CHARGEMAX = 360!
 
 ' A jump asked for this long before landing is made on it; one this long after running off an edge still is.
 private const JBUFFER = .1

@@ -8,10 +8,32 @@ from barkley.engine.audio import Deck, HushSong, LoadSong
 from barkley.model.level import Level, NONE, Realm
 from barkley.model.game import CLEARED, Game, INTRO, OVER, Session, TITLE
 
-const SJUMP = 0, SBONE = 1, SHURT = 2, SSPRING = 3, SPOP = 4, SROLL = 5
-const SCHARGE = 6, SLAUNCH = 7, SCLEAR = 8, SDIE = 9, SMARK = 10, SBOOST = 11, SHISS = 12, SBARK = 13, SBUMP = 14
-const SSQUAWK = 15, SCRACK = 16, SCLANK = 17, SGOLD = 18, STWANG = 19, SSNATCH = 20, SMORTAR = 21
-const CAUGHTUP = 2, PACKING = 10, LEFTBEHIND = 11, WHISTLED = 19
+const SJUMP = 0
+const SBONE = 1
+const SHURT = 2
+const SSPRING = 3
+const SPOP = 4
+const SROLL = 5
+const SCHARGE = 6
+const SLAUNCH = 7
+const SCLEAR = 8
+const SDIE = 9
+const SMARK = 10
+const SBOOST = 11
+const SHISS = 12
+const SBARK = 13
+const SBUMP = 14
+const SSQUAWK = 15
+const SCRACK = 16
+const SCLANK = 17
+const SGOLD = 18
+const STWANG = 19
+const SSNATCH = 20
+const SMORTAR = 21
+const CAUGHTUP = 2
+const PACKING = 10
+const LEFTBEHIND = 11
+const WHISTLED = 19
 const ZTUNE = 0
 private const THEME = 1
 const CAUGHT = 2

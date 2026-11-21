@@ -28,7 +28,8 @@ const TRAMH = 32
 
 ' A lantern line: its post over the roof it leaves, how far lower the roof it comes down to lies, and its end over
 ' that one.
-const LANTH = 40, LANTFALL = 64
+const LANTH = 40
+const LANTFALL = 64
 private const LANTEND = 8
 
 ' An awning's middle out from its wall.

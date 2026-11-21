@@ -11,7 +11,8 @@ from barkley.assets.palette import CGOLD, CHUD, CINK, CWHITE, CYELLOW
 from barkley.assets.store import HUDH, HUDW
 
 ' Where in the HUD the golden bones' pips begin.
-const PIPX = 84, PIPY = 22
+const PIPX = 84
+const PIPY = 22
 
 ' The score, time, bones and lives, top left over the scene: a picture
 ' and its mask, put together from the characters when a number moves.

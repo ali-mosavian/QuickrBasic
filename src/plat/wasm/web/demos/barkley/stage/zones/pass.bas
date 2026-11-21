@@ -27,8 +27,10 @@ private const SNOWV = 100!
 ' A snow-thrower, a cat behind a wall of snow, its state's sign the way it faces: its turn is THROWC of the
 ' things' steps, ducked till THROWUP are left, then up and open; with THROWAT left it throws, if Charlie is
 ' within THROWR, a snowball LOBT in the air, and ducks. NLOB of them fly at once.
-const THROWUP = 30, THROWAT = 10
-private const THROWR = 180, LOBT = .9
+const THROWUP = 30
+const THROWAT = 10
+private const THROWR = 180
+private const LOBT = .9
 
 ' An icicle: its state 0 hung, the things' steps since it was loosed, or -1 broken. It trembles TREMBLE of
 ' them, then falls.
@@ -39,16 +41,21 @@ const TREMBLE = 10
 ' GOATRUN from home, and stands dazed GOATDAZE steps; 0 while it is ridden or on its way home. Its lowered horns
 ' hurt. Come down on, it bolts on along the road, to the right, at GOATV, he astride GOATH up, till he is off the
 ' ground, stopped or GOATRIDE seconds on; then it runs home at STRAYV.
-private const GOATSEE = 72, GOATWIND = 12
+private const GOATSEE = 72
+private const GOATWIND = 12
 const GCHARGE = 100
-private const GOATDAZE = 30, GOATSTEP = 8, GOATRUN = 64
+private const GOATDAZE = 30
+private const GOATSTEP = 8
+private const GOATRUN = 64
 private const STRAYV = 300!
 
 private const GUSTTELL = 24
 
 ' The avalanche: let go as he passes lv.avalX, its front comes on from AVALLEAD behind at AVALV, the snow AVALH deep
 ' behind it, and takes him where it reaches him.
-private const AVALV = 300!, AVALLEAD = 220, AVALH = 70
+private const AVALV = 300!
+private const AVALLEAD = 220
+private const AVALH = 70
 
 ' An ice wall, WALLH tall, stops him WALLR from its middle: only a goat ridden breaks it.
 private const WALLH = 80
@@ -58,7 +65,8 @@ const WALLR = 15
 ' TREMBLE of them, slides LOADRUN along its ledge in LOADSLIDE more, gathering way, then falls at the speed it left
 ' with, to its heap's place LOADFAR on: there cats and snow-throwers are beaten. Its heap: its state 1 once it lies
 ' there, HEAPH tall and HEAPR either way at its foot; it stops him.
-const LOADRUN = 40, LOADSLIDE = 20
+const LOADRUN = 40
+const LOADSLIDE = 20
 private const HEAPH = 30
 const HEAPR = 24
 

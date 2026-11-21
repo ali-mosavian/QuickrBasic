@@ -11,7 +11,8 @@ private const COYOTE = .1
 
 ' The ground's line: its most points, a loop's and a quarter pipe's stretches, the curves there can be; under STALL
 ' Charlie cannot stay on a wall or a roof.
-const LOOPN = 48, STALL = 150!
+const LOOPN = 48
+const STALL = 150!
 
 const WAVEL = 192
 const WADE = 10

@@ -10,7 +10,8 @@ const PIPER = 48
 private const PIPEN = 12
 const MOVEW = 48
 const WAVEA = 96
-const NLIMB = 6, LIMBW = 48
+const NLIMB = 6
+const LIMBW = 48
 
 ' The ground's line from the columns' tops, left to right, broken where they do not meet; a loop spliced in where
 ' it stands, a quarter pipe and its wall over the three columns before the wall; then the platforms' tops.

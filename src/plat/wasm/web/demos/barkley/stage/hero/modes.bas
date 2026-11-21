@@ -19,12 +19,17 @@ private const GOATRIDE = 2!
 ' before it does. On his feet it bears him back, WINDG a second each second on the ground and WINDA in the air,
 ' curled or not, till he goes with it at WINDV; curled or crouched on the ground, or mounted, it passes over him.
 const GUSTP = 192
-private const GUSTON = 72, WINDG = 600!, WINDA = 900!, WINDV = 200!
+private const GUSTON = 72
+private const WINDG = 600!
+private const WINDA = 900!
+private const WINDV = 200!
 
 ' A vine: its length; how far under its end his feet hang; the hop up as he lets go, and the seconds before he
 ' may catch one again; its two colours.
-const VINELEN = 56, VINEGRIP = 14
-private const VINEHOP = 150!, VINEWAIT = .4
+const VINELEN = 56
+const VINEGRIP = 14
+private const VINEHOP = 150!
+private const VINEWAIT = .4
 
 const DIGV = 400!
 private const DIGPOP = 260!
@@ -33,7 +38,9 @@ private const DIGPOP = 260!
 const FLUEH = 30
 private const FLUEPOP = 420!
 const AFLOAT = 6
-private const PADV = 80!, PADACC = 260!, HOPV = 250!
+private const PADV = 80!
+private const PADACC = 260!
+private const HOPV = 250!
 const DRYT = .35
 
 ' Off the sled, which is no more: a puff of colour c where it was.

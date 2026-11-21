@@ -22,17 +22,27 @@ from barkley.control.keys import MuteKey, Spent
 ' each zone's tune, its number in CHARLIE.DAT: a digit a zone
 ' The intro: BEATS a second, ILEN of them, the ground HORIZON down the screen between two bars BARH high. Its
 ' cues' kinds, in QNAMES' order, six letters a name.
-const BEATS = 2!, ILEN = 112, HORIZON = 150
+const BEATS = 2!
+const ILEN = 112
+const HORIZON = 150
 private const BARH = 14
 
 ' Between zones the bump again: its cues' first beat and how many, its song's number in CHARLIE.DAT.
 const BUMP0 = 120
 private const BUMPLEN = 16
 const BETWEEN = 12
-private const QCAM = 1, QHOUSE = 2, QBOXES = 3, QCRATE = 4, QHEDGE = 5, QFAM = 6
+private const QCAM = 1
+private const QHOUSE = 2
+private const QBOXES = 3
+private const QCRATE = 4
+private const QHEDGE = 5
+private const QFAM = 6
 const QVAN = 7
 private const QFLOAT = 8
-private const QBARON = 9, QCAT = 10, QBASKET = 11, QEYES = 12
+private const QBARON = 9
+private const QCAT = 10
+private const QBASKET = 11
+private const QEYES = 12
 const QHERO = 13
 private const QWOOF = 14
 const QSND = 15

@@ -194,31 +194,67 @@ end type
 
 ' The world: MW by MH tiles of TS pixels; lv.w columns used. A tile's kind
 ' is its profile, lv.prof: each column's solid height from its bottom.
-const TS = 16, MW = 800, MH = 30, NONE = 30000
+const TS = 16
+const MW = 800
+const MH = 30
+const NONE = 30000
 const PI = 3.141593
 const GRAV = 750!
 
 ' What stands in the level, by x. From KLOOP on: scenery, drawn behind
 ' the ground.
-const KBONE = 1, KCAT = 2, KSPRING = 3, KMARK = 4, KBOOST = 5, KGOAL = 6, KPLAT = 7
-const KLOOP = 8, KTREE = 9, KBUSH = 10, KFLOWER = 11, KROCK = 12, KTHORN = 13, KLAMP = 14, KFAM = 15, KPIPE = 16
-const KMOVE = 17, KPOST = 18, KTANK = 19, KVENT = 20, KJET = 21, KBUMP = 22, KSPIN = 23, KHOOP = 24
-const KBUTTON = 27, KCRAB = 28, KJELLY = 29, KBUOY = 30
+const KBONE = 1
+const KCAT = 2
+const KSPRING = 3
+const KMARK = 4
+const KBOOST = 5
+const KGOAL = 6
+const KPLAT = 7
+const KLOOP = 8
+const KTREE = 9
+const KBUSH = 10
+const KFLOWER = 11
+const KROCK = 12
+const KTHORN = 13
+const KLAMP = 14
+const KFAM = 15
+const KPIPE = 16
+const KMOVE = 17
+const KPOST = 18
+const KTANK = 19
+const KVENT = 20
+const KJET = 21
+const KBUMP = 22
+const KSPIN = 23
+const KHOOP = 24
+const KBUTTON = 27
+const KCRAB = 28
+const KJELLY = 29
+const KBUOY = 30
 
 const KSPAN = 31
-const KPRESS = 32, KLEG = 33, KSWEEP = 43, KSPARK = 44
-const KDRIFT = 34, KSLED = 45
+const KPRESS = 32
+const KLEG = 33
+const KSWEEP = 43
+const KSPARK = 44
+const KDRIFT = 34
+const KSLED = 45
 const KTHROW = 46
 const KICICLE = 35
 const KSEAT = 36
 const KGOAT = 47
 const KWALL = 37
-const KLOAD = 48, KHEAP = 49
+const KLOAD = 48
+const KHEAP = 49
 
 ' From KFRONT on: drawn over the ground. The sands' flume: a column of its fall, its level end, the tank at its
 ' head; the speed its water carries Charlie at.
-const KFRONT = 40, KFLUME = 40, KSPOUT = 41, KCISTERN = 42
-const KWAVE = 25, KWAVE2 = 26
+const KFRONT = 40
+const KFLUME = 40
+const KSPOUT = 41
+const KCISTERN = 42
+const KWAVE = 25
+const KWAVE2 = 26
 
 const KSAPLING = 38
 const KVINE = 39
@@ -227,7 +263,16 @@ const KLOG = 51
 const KMOUND = 52
 const KSQUIRREL = 53
 ' A golden bone: an act has NGOLD of them, each kept once found.
-const KGOLD = 54, NGOLD = 3
-const KAWNING = 55, KCHIMNEY = 56, KTRAM = 57, KBIN = 58, KPOUNCE = 59, KWALKER = 60, KSNATCH = 61, KMORTAR = 62
+const KGOLD = 54
+const NGOLD = 3
+const KAWNING = 55
+const KCHIMNEY = 56
+const KTRAM = 57
+const KBIN = 58
+const KPOUNCE = 59
+const KWALKER = 60
+const KSNATCH = 61
+const KMORTAR = 62
 const KTIPPER = 63
-const ZONES = 6, NSTAGE = ZONES * 2
+const ZONES = 6
+const NSTAGE = ZONES * 2

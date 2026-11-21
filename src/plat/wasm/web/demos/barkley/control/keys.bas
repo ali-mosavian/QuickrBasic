@@ -6,7 +6,12 @@ from barkley.engine.input import Held2, Keys, Poll
 from barkley.engine.audio import CutVoices, Deck
 from barkley.model.hero import Pad
 
-private const SCLEFT = 75, SCRIGHT = 77, SCUP = 72, SCDOWN = 80, SCSPACE = 57, SCZ = 44
+private const SCLEFT = 75
+private const SCRIGHT = 77
+private const SCUP = 72
+private const SCDOWN = 80
+private const SCSPACE = 57
+private const SCZ = 44
 
 sub ReadPad (kb as Keys, mu as Deck, k as Pad)
     dim c as string, t as single

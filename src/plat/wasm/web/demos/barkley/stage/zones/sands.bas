@@ -21,8 +21,14 @@ const STEPV = 430!
 ' How fast Charlie goes up off a jellyfish's bell, and how far under the sea's top its arms' ends float.
 const JELLYV = 480!
 
-private const GULLSEE = 100, DIVEV = 210!, CLIMBV = 90!, GULLREST = 2.5, GULLTAKE = 5
-const GHOVER = 1, GDIVE = 2, GCLIMB = 3
+private const GULLSEE = 100
+private const DIVEV = 210!
+private const CLIMBV = 90!
+private const GULLREST = 2.5
+private const GULLTAKE = 5
+const GHOVER = 1
+const GDIVE = 2
+const GCLIMB = 3
 
 ' The tide: the steps of its turn; how deep Charlie floats, and how deep he wades before he does; his paddling
 ' speed and its gain; his hop out of the water; the seconds of rolling that shake him dry, and his top speed

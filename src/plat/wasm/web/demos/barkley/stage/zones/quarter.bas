@@ -21,7 +21,9 @@ from barkley.stage.zones.downs import BEAT, CatPic, Paced, Prowl
 ' more in a row adds, and the row that adds no more; how far it gives under him, and the things' steps it swings;
 ' how far apart its washing is pegged.
 const LINESAG = 5
-const LINEV = 300!, LINEMORE = 100!, LINEROW = 3
+const LINEV = 300!
+const LINEMORE = 100!
+const LINEROW = 3
 private const LINEGIVE = 8
 const LINET = 30
 private const WASH = 22
@@ -30,13 +32,16 @@ private const WASH = 22
 const WALKIN = 14
 
 ' A snatcher: the pixels a things' step it runs to a loose bone, and how near one it takes it.
-const SNATCHV = 3, SNATCHR = 8
+const SNATCHV = 3
+const SNATCHR = 8
 
 ' A tipper's pot leaves its sill on its own beat of every MORTARBAR, the one its state names, as a mortar fires.
 ' It falls SILLUP, POTX from the house's middle, and breaks on the paving; on its way it hurts whom it meets
 ' within POTR. The sill is bare for two beats, and the beat before the next the cat's paw is out. For the pilot
 ' the way under is clear once a pot has broken, while there are CROSST seconds till the next.
-const SILLUP = 70, POTX = 7, POTR = 10
+const SILLUP = 70
+const POTX = 7
+const POTR = 10
 private const CROSST = .8
 
 ' A mortar fires on its own beat of every MORTARBAR, the one its state names; its flash burns FLASHP pulses, a
@@ -45,7 +50,8 @@ private const CROSST = .8
 const MORTARBAR = 4
 const FLASHP = 900
 const MORTARH = 14
-const MORTARW = 12, MORTARREACH = 48
+const MORTARW = 12
+const MORTARREACH = 48
 const MORTARV = 620!
 const BLASTW = 18
 const SHELLUP = 96
@@ -65,9 +71,12 @@ const FLUER = 8
 
 ' A pouncer: how near its bin he comes before it leaps; its leap's reach, a cat's beat's, its height and things'
 ' steps; its state landed, and beaten.
-const POUNCER = 56, POUNCEFAR = 40, POUNCEN = 20
+const POUNCER = 56
+const POUNCEFAR = 40
+const POUNCEN = 20
 private const POUNCEUP = 26
-const POUNCEOUT = 100, POUNCEGONE = 30000
+const POUNCEOUT = 100
+const POUNCEGONE = 30000
 
 ' Line r's height u along it: hung, and once trodden given where it was, swinging less each step. A lantern
 ' line is taut from end to end.

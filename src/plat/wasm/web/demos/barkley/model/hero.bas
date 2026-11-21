@@ -70,5 +70,6 @@ type Autopilot
     hold as integer
 end type
 
-const HW = 7, HH = 24
+const HW = 7
+const HH = 24
 private const MIDH = 80

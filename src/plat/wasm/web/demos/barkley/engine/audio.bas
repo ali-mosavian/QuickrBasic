@@ -74,7 +74,9 @@ end type
 ' The songs held at once, each in its slot: the zone's tune, Charlie's theme, the level's end. A song's most bars,
 ' voicings and drums.
 const NSLOT = 3
-const NBAR = 30, NVOICE = 4, NDRUM = 8
+const NBAR = 30
+const NVOICE = 4
+const NDRUM = 8
 
 ' Every voice a song plays on cut short, a rest to each.
 sub CutVoices ()

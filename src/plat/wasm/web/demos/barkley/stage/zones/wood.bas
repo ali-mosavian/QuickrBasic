@@ -26,14 +26,17 @@ const FLYREST = 5
 ' A sapling: its crown that far from its foot; its throw, what each of his speed adds to it, and at the most;
 ' the things' steps it stands sprung.
 const SAPREACH = 38
-private const SAPV = 280!, SAPGAIN = .8, SAPMAX = 700!
+private const SAPV = 280!
+private const SAPGAIN = .8
+private const SAPMAX = 700!
 const SAPT = 30
 
 ' Bramble: how near hurts; the things' steps till it has grown back; its leaves' colour.
 private const BRAMBLER = 16
 const BRAMBLET = 90
 
-const LOGH = 30, LOGV = 520!
+const LOGH = 30
+const LOGV = 520!
 
 ' A burrow's mound: how near he digs in; his speed under the ground, and up out of the other end; the loam's
 ' colour.
@@ -44,10 +47,16 @@ const MOUNDR = 12
 ' and how near under it he must be for it to fall; the steps a bark keeps it cowed; an acorn's colour.
 const SQRUN = 48
 private const SQSEE = 100
-const SQV = 3, SQWAIT = 60, SQAIM = 15, SQNEAR = 24
+const SQV = 3
+const SQWAIT = 60
+const SQAIM = 15
+const SQNEAR = 24
 
 const NBEE = 9
-private const BEESEE = 60, BEEV = 170!, BEER = 12, BEELOSE = 160
+private const BEESEE = 60
+private const BEEV = 170!
+private const BEER = 12
+private const BEELOSE = 160
 
 ' The wood's night: a bark's light counted down, and the zone's own colours as bright as it leaves them, the
 ' fireflies' always.

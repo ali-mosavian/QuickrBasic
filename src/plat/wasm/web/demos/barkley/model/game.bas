@@ -88,8 +88,13 @@ end type
 ' its tempo.
 const PULSES = 3600
 
-const NLOOSE = 24, NPART = 48
-const TITLE = 0, PLAYING = 1, CLEARED = 2, OVER = 3, INTRO = 4
+const NLOOSE = 24
+const NPART = 48
+const TITLE = 0
+const PLAYING = 1
+const CLEARED = 2
+const OVER = 3
+const INTRO = 4
 const NCUE = 112
 
 ' The golden bones found are a bit each, three a stage, ten stages to a LONG: goldLo's the first ten, goldHi's the
