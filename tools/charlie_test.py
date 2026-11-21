@@ -124,17 +124,17 @@ LoadSongs wd.mu
 for j = 0 to NSLOT - 1
     wd.mu.coming = j
     StartSong wd.mu, wd.se.ticks
-    play Beat$(wd.mu, j, wd.mu.song(j).half(0).kit, 3)
+    play Beat$(wd.mu, j, wd.mu.song(j).half(0).kit, 3, 0)
     for i = 0 to NVOICE - 1
         play , , wd.mu.song(j).voOne(i) + "V1", , , wd.mu.song(j).voTwo(i) + "V1"
     next
 next
-play "T255", "T255", "T255", , "T255", "T255", "T255", "T255"
+play "T255", "T255", "T255", , "T255", "T255", "T255", "T255", "T255"
 dim hf as Half
 for j = 0 to NSLOT - 1
     for i = 0 to NBAR * 2 - 1
         hf = wd.mu.song(j).half(i)
-        play hf.drums, hf.bass, hf.one, , hf.lead, hf.two, hf.under, hf.third
+        play hf.drums, hf.bass, hf.one, , hf.lead, hf.two, hf.under, hf.third, hf.strike
     next
 next
 for j = SJUMP to SMORTAR
@@ -876,6 +876,19 @@ ZoneTune wd.mu, 0
 if sungOk and near > 3 * far then print "sung ok"
 if kitOk then print "kit ok"
 if drums_ok then print "drums ok"
+' The quarter's snare is two notes at once on two voices,
+' a thump under its hiss. One voice gave the thump or the
+' hiss's swell, never both: a snare with no crack.
+dim layers_ok as integer
+ZoneTune wd.mu, 17
+hf = wd.mu.song(ZTUNE).half(23)
+layers_ok = instr(hf.strike, "O") > 0
+layers_ok = layers_ok and HalfLen%(hf.strike) = 24
+hf = wd.mu.song(ZTUNE).half(16)
+layers_ok = layers_ok and instr(hf.strike, "O") = 0
+layers_ok = layers_ok and HalfLen%(hf.strike) = 24
+ZoneTune wd.mu, 0
+if layers_ok then print "layers ok"
 ' the Downs' first act has three golden bones, none found. The first is over the first tree, five tiles up, drawn
 ' in gold, and a full jump from the ground under it finds it: a thousand points, and it is in the save a step on,
 ' twelve bytes of it. Found, it is not drawn, and not found twice; its pip on the HUD is lit and the next dark.
@@ -4602,7 +4615,8 @@ def main() -> None:
         ("swing ok", "a swung song's off-beat eighths on the triplet's last, each half bar still half a bar long"),
         ("sung ok", "the quarter's tune sung: its notes held, by step, the trumpet and the clavinet out of its way"),
         ("kit ok", "the quarter's voices no FM, its drums no noise: saws and pulses, filtered, in the room, no DC"),
-        ("drums ok", "the quarter's drums FM, each fitted to a recorded drum and chosen by ear, none a plain wave"),
+        ("drums ok", "the quarter's drums FM, each fitted to a recorded drum and chosen by ear, none drawn by hand"),
+        ("layers ok", "the quarter's snare two notes at once on two voices, a thump under its hiss"),
         ("gold ok", "an act's three golden bones: found by a touch, kept in the save at once, a pip each on the HUD"),
         ("packing ok", "after a chase the level's end is the longer one, twelve bars; the eight elsewhere"),
         ("whistled ok", "the quarter's blue hour ends whistled, the guitar gone; its festival night with the guitar"),

@@ -6,8 +6,10 @@ from barkley.engine.datafile import Chars, OpenData, Word
 
 ' Half a bar as PLAY strings: its drums and their letters, the bass, the two chord voices, the lead, the first
 ' voice an octave down, and the third voice.
+' strike: the drums' second sounds, on their own voice.
 type Half
     drums as string
+    strike as string
     kit as string
     bass as string
     one as string
@@ -44,6 +46,7 @@ type Song
     drNote() as string
     drVol() as integer
     drUp() as integer
+    layered as integer
 end type
 
 ' The music: the slot playing, its bar and half; ended: it has ended and nothing plays. zHeld: the song in the
@@ -71,6 +74,12 @@ end type
 ' voicings and drums.
 const NSLOT = 3
 const NBAR = 30, NVOICE = 4, NDRUM = 8
+
+' Every voice a song plays on cut short, a rest to each.
+sub CutVoices ()
+    play "P64", "P64", "P64", , "P64", "P64", "P64", _
+        "P64", "P64"
+end sub
 
 ' The song playing dropped where it is: the next picked starts at once.
 sub HushSong (mu as Deck)
@@ -134,7 +143,24 @@ private sub ReadKit (mu as Deck, s as integer)
         mu.song(s).drUp(i) = Word&
         mu.song(s).drNote(i) = Chars$
     next
+    mu.song(s).layered = Doubled%(mu.song(s).drLet)
 end sub
+
+' Where the letter at place n of a comes again, or -1.
+private function Again% (a as string, n as integer)
+    Again% = instr(n + 2, a, mid$(a, n + 1, 1)) - 1
+end function
+
+' Whether any of a's letters comes twice: a drum given
+' twice is two sounds at once, the second its strike.
+private function Doubled% (a as string)
+    dim i as integer
+
+    Doubled% = 0
+    for i = 0 to len(a) - 2
+        if Again%(a, i) >= 0 then Doubled% = -1
+    next
+end function
 
 ' CHARLIE.DAT's next list of strings, after its count.
 private sub ReadList (a() as string)
@@ -170,7 +196,13 @@ private sub ReadBar (mu as Deck, s as integer, n as integer, bas() as string, hi
     for j = 0 to 1
         h = n * 2 + j
         mu.song(s).half(h).kit = mid$(pat(nd), j * 8 + 1, 8)
-        mu.song(s).half(h).drums = Beat$(mu, s, mu.song(s).half(h).kit, 8)
+        mu.song(s).half(h).drums = _
+            Beat$(mu, s, mu.song(s).half(h).kit, 8, 0)
+        mu.song(s).half(h).strike = ""
+        if mu.song(s).layered then
+            mu.song(s).half(h).strike = _
+                Beat$(mu, s, mu.song(s).half(h).kit, 8, 1)
+        end if
         mu.song(s).half(h).bass = Riff$(bas(nb - 1), j, 15 + root, mu.song(s).swing)
         mu.song(s).half(h).one = Riff$(br, j, 27, mu.song(s).swing)
         mu.song(s).half(h).lead = Riff$(sol, j, lead, mu.song(s).swing)
@@ -180,11 +212,20 @@ private sub ReadBar (mu as Deck, s as integer, n as integer, bas() as string, hi
     next
 end sub
 
-' Half a bar of slot s's drums, `loud` eighths as loud: each of x's letters its drum, any other a rest.
-function Beat$ (mu as Deck, s as integer, x as string, loud as integer)
+' Half a bar of slot s's drums, `loud` eighths as loud:
+' each of x's letters its drum, any other a rest. layer 1:
+' the drums' second sounds, a rest where a drum has none.
+function Beat$ ( _
+    mu as Deck, _
+    s as integer, _
+    x as string, _
+    loud as integer, _
+    layer as integer _
+)
     dim q as integer, n as integer, d as string, ln as string
     for q = 1 to 8
         n = instr(mu.song(s).drLet, mid$(x, q, 1)) - 1
+        if layer and n >= 0 then n = Again%(mu.song(s).drLet, n)
         ' a swung song's sixteenths: a beat's first two a twelfth each, its last two a twenty-fourth
         ln = "16"
         if mu.song(s).swing then ln = Triplet$(Swung%(q, q))
@@ -350,14 +391,20 @@ sub NextHalf (mu as Deck, ticks as long)
 end sub
 
 ' Song sg's bar b, the half the deck is at, to PLAY, `loud` eighths as loud: its voices each their own string.
+' The drums' strikes are the ninth.
 private sub PlayHalf (mu as Deck, sg as Song, b as integer, loud as integer)
     dim v as integer, h as integer
     dim t as string, d as string, bass as string, under as string
     dim one as string, two as string, solo as string, midv as string
+    dim strike as string
     t = "T" + ltrim$(str$(sg.tempo))
     h = b * 2 + mu.half
     d = sg.half(h).drums
-    if loud < 8 then d = Beat$(mu, mu.slot, sg.half(h).kit, loud)
+    strike = sg.half(h).strike
+    if loud < 8 then d = Beat$(mu, mu.slot, sg.half(h).kit, loud, 0)
+    if loud < 8 and sg.layered then
+        strike = Beat$(mu, mu.slot, sg.half(h).kit, loud, 1)
+    end if
     ' the bass waits its bars; the low double plays under the voicings that have it
     bass = Vol$(sg.lvl(4), loud, 0) + sg.half(h).bass
     if mu.bar < sg.bassIn then bass = "P2"
@@ -368,7 +415,8 @@ private sub PlayHalf (mu as Deck, sg as Song, b as integer, loud as integer)
     solo = t + sg.leadP + Vol$(sg.lvl(1), loud, 7) + sg.half(h).lead
     two = t + sg.voTwo(v) + Vol$(sg.lvl(2), loud, 0) + sg.half(h).two
     midv = t + Vol$(sg.lvl(5), loud, 0) + sg.half(h).third
-    play t + d, t + bass, one, , solo, two, t + under, midv
+    play t + d, t + bass, one, , solo, two, t + under, midv, _
+        t + strike
 end sub
 
 ' The song that was coming begins: its kit to the voices that keep theirs. In stereo: the first chord voice to the
@@ -390,5 +438,7 @@ end sub
 private sub Patch (sg as Song)
     dim t as string
     t = "T" + ltrim$(str$(sg.tempo))
-    play "MB" + t + "Z1,0L16", t + sg.bassP, t + "R2S4", , t + "R2" + sg.leadP, t + "R2S12", t + sg.underP, t + sg.midP
+    play "MB" + t + "Z1,0L16", t + sg.bassP, t + "R2S4", , _
+        t + "R2" + sg.leadP, t + "R2S12", t + sg.underP, _
+        t + sg.midP, t + "L16"
 end sub

@@ -258,6 +258,7 @@ Progress is saved at each zone.
 - Music (written): a sly swing in A minor at 132. An accordion sings it by step, a muted trumpet answers
   where it rests; plucked bass in two, the chord on two and four, a stick across the rim, the Mob's motif in
   the four bars before it. No FM voice. The drums are FM, each fitted to a recorded drum and chosen by ear.
+  The snare is two notes at once on two voices, a thump under its hiss.
   Festival (written): 144, full brass, toms for the fireworks, claps.
 
 ### 7. Clock Tower

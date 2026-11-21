@@ -3,7 +3,7 @@ defint A-Z
 option explicit
 
 from barkley.engine.input import Held2, Keys, Poll
-from barkley.engine.audio import Deck
+from barkley.engine.audio import CutVoices, Deck
 from barkley.model.hero import Pad
 
 private const SCLEFT = 75, SCRIGHT = 77, SCUP = 72, SCDOWN = 80, SCSPACE = 57, SCZ = 44
@@ -19,7 +19,7 @@ sub ReadPad (kb as Keys, mu as Deck, k as Pad)
         case "m", "M": k.mute = -1
         case "n", "N"
             mu.tune = not mu.tune
-            if not mu.tune then play "P64", "P64", "P64", , "P64", "P64", "P64", "P64"
+            if not mu.tune then CutVoices
         case chr$(13): k.start = -1
         case " "
             k.start = -1
@@ -45,7 +45,7 @@ sub MuteKey (mu as Deck, k as Pad)
     if k.mute = 0 then exit sub
     mu.muted = not mu.muted
     k.mute = 0
-    if mu.muted then play "P64", "P64", "P64", , "P64", "P64", "P64", "P64"
+    if mu.muted then CutVoices
 end sub
 
 ' The presses a step has seen are spent.
