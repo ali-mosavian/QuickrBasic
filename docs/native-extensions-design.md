@@ -5,7 +5,9 @@ and it works on DOS, the Mac, Linux and the browser, in the IDE and in `basic32`
 one file, `synth.qbx`: a BASIC interface and one slice of code for each platform. The synthesizer is
 the first one; it leaves the language.
 
-Status: a design for review. `tools/extproto/run.sh` is the prototype that settled the loaders.
+Status: the extensions themselves (steps 1 to 3) are built, and checked on the Mac, Linux, DOS, node and
+the browser. The synthesizer's move (steps 4 and 5) is a design. `tools/extproto/run.sh` is the
+prototype that settled the loaders.
 
 ## What the program sees
 
