@@ -60,42 +60,78 @@ sub Touch (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as 
         if x > px + 80 then exit do
         dx = abs(x - px)
         select case lv.things(i).kind
-        case KBONE: MeetBone lv, mu, se, g, p, i, pt()
-        case KGOLD: MeetGold lv, zn, mu, se, g, p, i, pt()
-        case KCAT, KSQUIRREL, KWALKER, KSNATCH: MeetCat lv, mu, se, g, p, i, lo(), pt()
-        case KCRAB: MeetCrab lv, mu, se, g, p, i, lo(), pt()
-        case KSWEEP: MeetSweep lv, mu, se, g, p, i, lo(), pt()
-        case KTHROW: MeetThrow lv, mu, se, g, p, i, lo(), pt()
-        case KGOAT: MeetGoat lv, mu, se, g, p, i, lo()
-        case KWALL: MeetWall lv, mu, se, g, p, i, pt()
-        case KHEAP: MeetHeap lv, p, i
-        case KICICLE: MeetIcicle lv, mu, se, g, p, i, lo(), pt()
-        case KSLED: MeetSled lv, mu, se, p, i
-        case KDRIFT: MeetDrift lv, mu, se, p, i, pt()
-        case KSPARK: MeetSpark lv, mu, se, g, p, i, lo()
-        case KPRESS: MeetPress lv, mu, se, g, p, i, lo()
-        case KJELLY: MeetJelly lv, mu, se, g, p, i, lo(), pt()
-        case KSPRING: MeetSpring lv, mu, se, p, i
-        case KSAPLING: MeetSapling lv, mu, se, p, i
-        case KAWNING: MeetAwning lv, mu, se, p, i
-        case KCHIMNEY: MeetChimney lv, mu, se, p, i, pt()
-        case KPOUNCE: MeetPounce lv, mu, se, g, p, i, lo(), pt()
-        case KMORTAR: MeetMortar lv, mu, se, g, p, i, lo()
-        case KTIPPER: MeetTipper lv, mu, se, g, p, i, lo()
-        case KVINE: MeetVine lv, mu, se, p, i
-        case KBRAMBLE: MeetBramble lv, mu, se, g, p, i, lo()
-        case KLOG: MeetLog lv, mu, se, p, i
-        case KMOUND: MeetMound lv, mu, se, p, i, pt()
-        case KBOOST: MeetBoost lv, mu, se, g, p, i, pt()
-        case KFLUME, KSPOUT: MeetFlume lv, mu, se, p, i
-        case KMARK: MeetMark lv, mu, se, g, p, i, pt()
-        case KGOAL: if px >= x then lv.things(i).state = 1
-        case KTHORN: if dx < 12 and abs(py - lv.things(i).at.y) < 8 then Hurt mu, se, g, p, x, lo(), SHURT
-        case KBUTTON: MeetButton lv, mu, se, p, i, pt()
-        case KJET: MeetJet lv, mu, se, p, i
-        case KBUMP, KBUOY: MeetBump lv, mu, se, g, p, i, pt()
-        case KSPIN: MeetSpin lv, mu, se, g, p, i, lo()
-        case KHOOP: MeetHoop lv, mu, se, p, i, pt()
+        case KBONE
+            MeetBone lv, mu, se, g, p, i, pt()
+        case KGOLD
+            MeetGold lv, zn, mu, se, g, p, i, pt()
+        case KCAT, KSQUIRREL, KWALKER, KSNATCH
+            MeetCat lv, mu, se, g, p, i, lo(), pt()
+        case KCRAB
+            MeetCrab lv, mu, se, g, p, i, lo(), pt()
+        case KSWEEP
+            MeetSweep lv, mu, se, g, p, i, lo(), pt()
+        case KTHROW
+            MeetThrow lv, mu, se, g, p, i, lo(), pt()
+        case KGOAT
+            MeetGoat lv, mu, se, g, p, i, lo()
+        case KWALL
+            MeetWall lv, mu, se, g, p, i, pt()
+        case KHEAP
+            MeetHeap lv, p, i
+        case KICICLE
+            MeetIcicle lv, mu, se, g, p, i, lo(), pt()
+        case KSLED
+            MeetSled lv, mu, se, p, i
+        case KDRIFT
+            MeetDrift lv, mu, se, p, i, pt()
+        case KSPARK
+            MeetSpark lv, mu, se, g, p, i, lo()
+        case KPRESS
+            MeetPress lv, mu, se, g, p, i, lo()
+        case KJELLY
+            MeetJelly lv, mu, se, g, p, i, lo(), pt()
+        case KSPRING
+            MeetSpring lv, mu, se, p, i
+        case KSAPLING
+            MeetSapling lv, mu, se, p, i
+        case KAWNING
+            MeetAwning lv, mu, se, p, i
+        case KCHIMNEY
+            MeetChimney lv, mu, se, p, i, pt()
+        case KPOUNCE
+            MeetPounce lv, mu, se, g, p, i, lo(), pt()
+        case KMORTAR
+            MeetMortar lv, mu, se, g, p, i, lo()
+        case KTIPPER
+            MeetTipper lv, mu, se, g, p, i, lo()
+        case KVINE
+            MeetVine lv, mu, se, p, i
+        case KBRAMBLE
+            MeetBramble lv, mu, se, g, p, i, lo()
+        case KLOG
+            MeetLog lv, mu, se, p, i
+        case KMOUND
+            MeetMound lv, mu, se, p, i, pt()
+        case KBOOST
+            MeetBoost lv, mu, se, g, p, i, pt()
+        case KFLUME, KSPOUT
+            MeetFlume lv, mu, se, p, i
+        case KMARK
+            MeetMark lv, mu, se, g, p, i, pt()
+        case KGOAL
+            if px >= x then lv.things(i).state = 1
+        case KTHORN
+            if dx < 12 and abs(py - lv.things(i).at.y) < 8 then Hurt mu, se, g, p, x, lo(), SHURT
+        case KBUTTON
+            MeetButton lv, mu, se, p, i, pt()
+        case KJET
+            MeetJet lv, mu, se, p, i
+        case KBUMP, KBUOY
+            MeetBump lv, mu, se, g, p, i, pt()
+        case KSPIN
+            MeetSpin lv, mu, se, g, p, i, lo()
+        case KHOOP
+            MeetHoop lv, mu, se, p, i, pt()
         end select
         i = i + 1
     loop
@@ -135,20 +171,34 @@ sub Things (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() a
     for i = lv.first(c) to lv.n_things - 1
         if lv.things(i).home > g.cam.x + SW + 100 then exit for
         select case lv.things(i).kind
-        case KCAT, KCRAB, KSWEEP: if lv.things(i).state <> 0 then Prowl lv, i
-        case KSPARK: lv.things(i).at.x = lv.things(i).home + cint(SPARKR * sin((se.ticks + lv.things(i).home) * .03))
-        case KICICLE: Totter lv, mu, se, g, pt(), i
-        case KLOAD: Unload lv, mu, se, g, p, lo(), pt(), i
-        case KGOAT: if lv.things(i).state <> 0 then Graze lv, se, i, p
-        case KTHROW: TakeAim lv, i, p
-        case KSQUIRREL: if lv.things(i).state <> 0 then Scamper lv, i, p
-        case KPOUNCE: Pounce lv, i, p
-        case KSNATCH: if lv.things(i).state <> 0 then Snatch lv, mu, se, i, lo(), pt()
-        case KMORTAR: Mortar lv, mu, se, i
-        case KTIPPER: Tipper lv, mu, se, i, pt()
-        case KSPRING, KBUMP, KHOOP, KSAPLING, KAWNING: if lv.things(i).state > 0 then lv.things(i).state = lv.things(i).state - 1
-        case KBRAMBLE: Regrow lv, se, pt(), i
-        case KVINE: if p.vine <> i + 1 then lv.things(i).state = lv.things(i).state * 7 \ 8
+        case KCAT, KCRAB, KSWEEP
+            if lv.things(i).state <> 0 then Prowl lv, i
+        case KSPARK
+            lv.things(i).at.x = lv.things(i).home + cint(SPARKR * sin((se.ticks + lv.things(i).home) * .03))
+        case KICICLE
+            Totter lv, mu, se, g, pt(), i
+        case KLOAD
+            Unload lv, mu, se, g, p, lo(), pt(), i
+        case KGOAT
+            if lv.things(i).state <> 0 then Graze lv, se, i, p
+        case KTHROW
+            TakeAim lv, i, p
+        case KSQUIRREL
+            if lv.things(i).state <> 0 then Scamper lv, i, p
+        case KPOUNCE
+            Pounce lv, i, p
+        case KSNATCH
+            if lv.things(i).state <> 0 then Snatch lv, mu, se, i, lo(), pt()
+        case KMORTAR
+            Mortar lv, mu, se, i
+        case KTIPPER
+            Tipper lv, mu, se, i, pt()
+        case KSPRING, KBUMP, KHOOP, KSAPLING, KAWNING
+            if lv.things(i).state > 0 then lv.things(i).state = lv.things(i).state - 1
+        case KBRAMBLE
+            Regrow lv, se, pt(), i
+        case KVINE
+            if p.vine <> i + 1 then lv.things(i).state = lv.things(i).state * 7 \ 8
         case KBUOY
             lv.things(i).at.y = Bob%(lv, lv.things(i).at.x, -4, 9)
             if lv.things(i).state > 0 then lv.things(i).state = lv.things(i).state - 1

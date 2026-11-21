@@ -21,23 +21,35 @@ sub Sfx (mu as Deck, se as Session, id as integer)
     dim s as string
     if mu.muted then exit sub
     select case id
-    case SJUMP: s = "L64O4CEGO5C"
+    case SJUMP
+        s = "L64O4CEGO5C"
     case SBONE
         ' a bark: a low woof slid up into, two voices beating, through a mouth; one at a time
         if abs(se.ticks - mu.bark_at) < 8 then exit sub
         mu.bark_at = se.ticks
         s = "W2I15Y2,1000,6H0,6,2,3K4,0,6L8O3D"
-    case SHURT: s = "L32O3GECO2G"
-    case SSPRING: s = "L64O3CGO4EO5CG"
-    case SPOP: s = "L64O5GO4CO5E"
-    case SROLL: s = "L64O3CFA"
-    case SCHARGE: s = "L64O4CDEFG"
-    case SLAUNCH: s = "L64O3GO4CGO5CG"
-    case SCLEAR: s = "L16O5CEGO6CL8E"
-    case SDIE: s = "L16O4CO3BAGL8F"
-    case SMARK: s = "L32O5CEGO6C"
-    case SBOOST: s = "L64O4CEGO5CEGO6C"
-    case SHISS: s = "W3Y3,3500,0H3,8,0,3L4O6B"
+    case SHURT
+        s = "L32O3GECO2G"
+    case SSPRING
+        s = "L64O3CGO4EO5CG"
+    case SPOP
+        s = "L64O5GO4CO5E"
+    case SROLL
+        s = "L64O3CFA"
+    case SCHARGE
+        s = "L64O4CDEFG"
+    case SLAUNCH
+        s = "L64O3GO4CGO5CG"
+    case SCLEAR
+        s = "L16O5CEGO6CL8E"
+    case SDIE
+        s = "L16O4CO3BAGL8F"
+    case SMARK
+        s = "L32O5CEGO6C"
+    case SBOOST
+        s = "L64O4CEGO5CEGO6C"
+    case SHISS
+        s = "W3Y3,3500,0H3,8,0,3L4O6B"
     case SBARK
         ' two woofs, the second lower, through a mouth
         s = "W2I15Y2,1300,6H0,5,3,3K3,0,7L16O3FP32L8O3D"
@@ -133,9 +145,12 @@ end sub
 ' tune.
 function SongFor% (g as Game)
     select case g.mode
-    case TITLE: SongFor% = THEME
-    case CLEARED, OVER: SongFor% = CAUGHT
-    case else: SongFor% = ZTUNE
+    case TITLE
+        SongFor% = THEME
+    case CLEARED, OVER
+        SongFor% = CAUGHT
+    case else
+        SongFor% = ZTUNE
     end select
 end function
 

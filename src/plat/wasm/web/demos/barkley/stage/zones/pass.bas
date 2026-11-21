@@ -247,7 +247,8 @@ sub Graze (lv as Level, se as Session, i as integer, p as Hero)
             x = abs(p.at.x - lv.things(i).at.x) < GOATSEE and abs(p.at.y - lv.things(i).at.y) < 30
             if x and p.goat = 0 and (not lv.gale or Lull%(lv, se) > GUSTP \ 2) then s = GOATWIND + 1
         end if
-    case 2: s = GCHARGE
+    case 2
+        s = GCHARGE
     case GCHARGE
         x = lv.things(i).at.x + f * GOATSTEP
         if (p.at.x - x) * f < 0 or abs(x - lv.things(i).home) > GOATRUN or Surf%(lv, x + f * 12, lv.things(i).at.y) <> lv.things(i).at.y then

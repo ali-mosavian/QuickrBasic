@@ -66,9 +66,12 @@ sub Tick (wd as World, g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Pa
     if wd.se.unkept then Keep wd.se
     MuteKey wd.mu, k
     select case g.mode
-    case TITLE: TitleStep wd, g, p, k, lo(), pt()
-    case PLAYING: PlayStep wd, g, p, k, lo(), pt()
-    case CLEARED: ClearedStep wd, g, p, k, lo(), pt()
+    case TITLE
+        TitleStep wd, g, p, k, lo(), pt()
+    case PLAYING
+        PlayStep wd, g, p, k, lo(), pt()
+    case CLEARED
+        ClearedStep wd, g, p, k, lo(), pt()
     case OVER
         if g.mode_t > OVERT or (g.mode_t > 1.5 and (k.hit or k.start)) or k.quit then ResetWorld wd, g, p, lo(), pt()
     end select

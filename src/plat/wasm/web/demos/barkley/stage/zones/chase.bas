@@ -102,7 +102,8 @@ sub Flee (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as H
         case 2
             MovePedalo lv
             MeetPedalo lv, mu, se, g, p, pt()
-        case 4: Juggle lv, mu, se, g, p, pt()
+        case 4
+            Juggle lv, mu, se, g, p, pt()
         case 5
             Lob lv, p
             MoveCart lv, p, LegPace!(lv, se), PASSV
@@ -215,11 +216,16 @@ sub DrawChase (lv as Level, zn as Realm, art as Store, se as Session, cx as inte
     end if
     if lv.cart.st = 3 then exit sub
     select case zn.id
-    case 0: DrawCart lv, zn, art, se, cx, cy
-    case 1: DrawCrane lv, zn, art, se, cx, cy
-    case 2: DrawPedalo lv, zn, art, se, cx, cy
-    case 3: DrawFrost lv, zn, art, se, cx, cy
-    case 5: DrawRelay lv, zn, art, se, cx, cy
+    case 0
+        DrawCart lv, zn, art, se, cx, cy
+    case 1
+        DrawCrane lv, zn, art, se, cx, cy
+    case 2
+        DrawPedalo lv, zn, art, se, cx, cy
+    case 3
+        DrawFrost lv, zn, art, se, cx, cy
+    case 5
+        DrawRelay lv, zn, art, se, cx, cy
     end select
 end sub
 
@@ -245,9 +251,12 @@ private function LegPace! (lv as Level, se as Session)
     case 1
         LegPace! = LEGV + WOUND
         if beat = 3 then LegPace! = 0
-    case 2: LegPace! = LEGV + BOB * (1 - 2 * (beat and 1))
-    case 3: if Lie%(lv, cint(lv.cart.at.x), cint(lv.cart.at.y)) < 0 then LegPace! = LEGV + SLIDE
-    case 4: if Lobbed%(lv) then LegPace! = LOBV
+    case 2
+        LegPace! = LEGV + BOB * (1 - 2 * (beat and 1))
+    case 3
+        if Lie%(lv, cint(lv.cart.at.x), cint(lv.cart.at.y)) < 0 then LegPace! = LEGV + SLIDE
+    case 4
+        if Lobbed%(lv) then LegPace! = LOBV
     end select
 end function
 

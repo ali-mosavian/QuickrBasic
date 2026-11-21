@@ -259,14 +259,22 @@ end function
 ' PLAY's length for n twenty-fourths of a bar, of those one length says.
 private function Triplet$ (n as integer)
     select case n
-    case 1: Triplet$ = "24"
-    case 2: Triplet$ = "12"
-    case 3: Triplet$ = "8"
-    case 4: Triplet$ = "6"
-    case 6: Triplet$ = "4"
-    case 8: Triplet$ = "3"
-    case 9: Triplet$ = "4."
-    case else: Triplet$ = "2"
+    case 1
+        Triplet$ = "24"
+    case 2
+        Triplet$ = "12"
+    case 3
+        Triplet$ = "8"
+    case 4
+        Triplet$ = "6"
+    case 6
+        Triplet$ = "4"
+    case 8
+        Triplet$ = "3"
+    case 9
+        Triplet$ = "4."
+    case else
+        Triplet$ = "2"
     end select
 end function
 
@@ -275,8 +283,10 @@ end function
 private function Shuffle$ (note as integer, slid as integer, n as integer)
     dim cut as integer, ln as string, dot as string
     select case n
-    case 5, 7, 10: cut = 1
-    case 11: cut = 2
+    case 5, 7, 10
+        cut = 1
+    case 11
+        cut = 2
     end select
     ln = Triplet$(n - cut)
     if right$(ln, 1) = "." then
@@ -336,10 +346,14 @@ private function Riff$ (p as string, h as integer, low as integer, swing as inte
             j = 1
         end if
         select case r
-        case 1: ln = "16"
-        case 2, 3: ln = "8"
-        case 4, 6: ln = "4"
-        case else: ln = "2"
+        case 1
+            ln = "16"
+        case 2, 3
+            ln = "8"
+        case 4, 6
+            ln = "4"
+        case else
+            ln = "2"
         end select
         if note then
             ln = "L" + ln + "N" + ltrim$(str$(note))

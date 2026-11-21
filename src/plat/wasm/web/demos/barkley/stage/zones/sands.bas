@@ -120,7 +120,8 @@ private sub Gull (mu as Deck, se as Session, b as Bird, n as integer, g as Game,
             b.st = GDIVE
             Sfx mu, se, SSQUAWK
         end if
-    case GDIVE: if Glide%(b, b.aim.x, b.aim.y, DIVEV) then b.st = GCLIMB
+    case GDIVE
+        if Glide%(b, b.aim.x, b.aim.y, DIVEV) then b.st = GCLIMB
     case GCLIMB
         if Glide%(b, x, y, CLIMBV) then
             b.st = GHOVER

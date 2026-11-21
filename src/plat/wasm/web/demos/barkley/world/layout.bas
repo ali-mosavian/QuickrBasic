@@ -12,10 +12,14 @@ const PITD = 5
 ' A moving platform, its middle's left end at x, y; reach a, kind k; e the edge before it.
 sub AddMover (lv as Level, x as integer, y as integer, a as integer, k as integer, e as integer)
     select case k
-    case 6: AddObj lv, KSPAN, x, y
-    case 7: AddObj lv, KSEAT, x, y
-    case 8: AddObj lv, KTRAM, x, y
-    case else: AddObj lv, KMOVE, x, y
+    case 6
+        AddObj lv, KSPAN, x, y
+    case 7
+        AddObj lv, KSEAT, x, y
+    case 8
+        AddObj lv, KTRAM, x, y
+    case else
+        AddObj lv, KMOVE, x, y
     end select
     lv.movers(lv.n_movers).at.x = x
     lv.movers(lv.n_movers).at.y = y
@@ -45,16 +49,22 @@ sub Scatter (lv as Level, zn as Realm, c as integer, s as integer)
     if zn.decked then
         ' lamp posts, tanks and valve stacks along the decks
         select case (c * 37 + 11) mod 23
-        case 0, 12: AddObj lv, KPOST, c * TS + 8, s
-        case 5: AddObj lv, KTANK, c * TS + 8, s
-        case 17: AddObj lv, KVENT, c * TS + 8, s
+        case 0, 12
+            AddObj lv, KPOST, c * TS + 8, s
+        case 5
+            AddObj lv, KTANK, c * TS + 8, s
+        case 17
+            AddObj lv, KVENT, c * TS + 8, s
         end select
         exit sub
     end if
     select case (c * 37 + 11) mod 19
-    case 0, 7: AddObj lv, KFLOWER, c * TS + 8, s
-    case 3: AddObj lv, KBUSH, c * TS + 8, s
-    case 11: AddObj lv, KLAMP, c * TS + 8, s
+    case 0, 7
+        AddObj lv, KFLOWER, c * TS + 8, s
+    case 3
+        AddObj lv, KBUSH, c * TS + 8, s
+    case 11
+        AddObj lv, KLAMP, c * TS + 8, s
     end select
 end sub
 

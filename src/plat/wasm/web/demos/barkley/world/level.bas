@@ -67,10 +67,14 @@ end sub
 ' there, and no rock lies.
 private function Plated% (k as integer)
     select case k
-    case KTREE: Plated% = KTANK
-    case KBUSH: Plated% = KVENT
-    case KFLOWER, KROCK: Plated% = 0
-    case else: Plated% = k
+    case KTREE
+        Plated% = KTANK
+    case KBUSH
+        Plated% = KVENT
+    case KFLOWER, KROCK
+        Plated% = 0
+    case else
+        Plated% = k
     end select
 end function
 
@@ -189,11 +193,13 @@ sub LoadLevel (wd as World, st as integer)
                 Column wd.lv, c + 1, g, 7
                 c = c + 2
             next
-        case "gap": c = c + n
+        case "gap"
+            c = c + n
         case "ice"
             ' the ground from here bare ice, or with 0 under snow again
             wd.lv.icing = n <> 0
-        case "wall": g = g + n
+        case "wall"
+            g = g + n
         case "pit"
             ' not a fall to nothing: a floor PITD down, a spring at its far wall
             Pit wd.lv, c, g, n
@@ -210,8 +216,10 @@ sub LoadLevel (wd as World, st as integer)
             k = 0
             Pit wd.lv, c, g, n * 24
             c = c + n * 24
-        case "bump": AddObj wd.lv, KBUMP, c * TS + 8, s - n * TS
-        case "hoop": AddObj wd.lv, KHOOP, c * TS + 8, s - n * TS
+        case "bump"
+            AddObj wd.lv, KBUMP, c * TS + 8, s - n * TS
+        case "hoop"
+            AddObj wd.lv, KHOOP, c * TS + 8, s - n * TS
         case "pipe"
             ' a wall with a quarter pipe up to it, over the three columns before: nothing grows there
             for i = 0 to wd.lv.n_things - 1
@@ -225,7 +233,8 @@ sub LoadLevel (wd as World, st as integer)
                 wd.lv.vis(c - 3) = 0
             end if
             g = g + n
-        case "drop": g = g - n
+        case "drop"
+            g = g - n
         case "mover"
             ' at each end of its way it lies 8 over the ground
             AddMover wd.lv, c * TS + (n * TS - MOVEW) \ 2, s, (n * TS - MOVEW) \ 2 + 8, 0, c * TS
@@ -297,15 +306,24 @@ sub LoadLevel (wd as World, st as integer)
             for i = 1 to n mod 100
                 AddObj wd.lv, KBONE, (c + i) * TS + 8, s - (n \ 100) * TS - 14
             next
-        case "cat": k = KCAT
-        case "snatcher": k = KSNATCH
-        case "crab": k = KCRAB
-        case "sweeper": k = KSWEEP
-        case "sled": k = KSLED
-        case "thrower": k = KTHROW
-        case "gale": wd.lv.gale = -1
-        case "night": wd.lv.murk = -1
-        case "avalanche": wd.lv.aval_x = c * TS + 8
+        case "cat"
+            k = KCAT
+        case "snatcher"
+            k = KSNATCH
+        case "crab"
+            k = KCRAB
+        case "sweeper"
+            k = KSWEEP
+        case "sled"
+            k = KSLED
+        case "thrower"
+            k = KTHROW
+        case "gale"
+            wd.lv.gale = -1
+        case "night"
+            wd.lv.murk = -1
+        case "avalanche"
+            wd.lv.aval_x = c * TS + 8
         case "goat"
             Clearing wd.lv, c
             k = KGOAT
@@ -321,8 +339,10 @@ sub LoadLevel (wd as World, st as integer)
             Shelf wd.lv, c, g, s, n, 4
             AddObj wd.lv, KLOAD, c * TS + 32, s - (n + 1) * TS
             AddObj wd.lv, KHEAP, c * TS + 32 + LOADFAR, s
-        case "drift": k = KDRIFT
-        case "spark": k = KSPARK
+        case "drift"
+            k = KDRIFT
+        case "spark"
+            k = KSPARK
         case "press"
             ' n presses on a gantry over level ground, four columns each, a leg at either end
             AddObj wd.lv, KLEG, c * TS, s
@@ -335,7 +355,8 @@ sub LoadLevel (wd as World, st as integer)
         case "jelly"
             ' a jellyfish n columns on, a buoy: afloat where the sea is over the ground there, aground where not
             AddObj wd.lv, KJELLY, (c + n) * TS + 8, s
-        case "buoy": AddObj wd.lv, KBUOY, (c + n) * TS + 8, s
+        case "buoy"
+            AddObj wd.lv, KBUOY, (c + n) * TS + 8, s
         case "gull"
             ' a gull, its home n tiles over the ground here
             wd.lv.gulls(wd.lv.n_gulls).home.x = c * TS + 8
@@ -387,12 +408,18 @@ sub LoadLevel (wd as World, st as integer)
             Clearing wd.lv, c
             AddObj wd.lv, KBIN, c * TS + 8, s
             k = KPOUNCE
-        case "spring": k = KSPRING
-        case "sapling": k = KSAPLING
-        case "bramble": k = KBRAMBLE
-        case "log": k = KLOG
-        case "vine": AddObj wd.lv, KVINE, c * TS + 8, s - n * TS
-        case "squirrel": AddObj wd.lv, KSQUIRREL, c * TS + 8, s - n * TS
+        case "spring"
+            k = KSPRING
+        case "sapling"
+            k = KSAPLING
+        case "bramble"
+            k = KBRAMBLE
+        case "log"
+            k = KLOG
+        case "vine"
+            AddObj wd.lv, KVINE, c * TS + 8, s - n * TS
+        case "squirrel"
+            AddObj wd.lv, KSQUIRREL, c * TS + 8, s - n * TS
         case "bees"
             ' a swarm, its home n tiles over the ground here
             wd.lv.swarms(wd.lv.n_swarms).home.x = c * TS + 8
@@ -407,18 +434,27 @@ sub LoadLevel (wd as World, st as integer)
             wd.lv.oak.x = c * TS + 8
             wd.lv.oak.y = s
             Limbs wd.lv, g
-        case "mark": k = KMARK
-        case "boost": k = KBOOST
-        case "loop": k = KLOOP
-        case "tree": k = KTREE
-        case "bush": k = KBUSH
-        case "flower": k = KFLOWER
-        case "rock": k = KROCK
-        case "thorn": k = KTHORN
+        case "mark"
+            k = KMARK
+        case "boost"
+            k = KBOOST
+        case "loop"
+            k = KLOOP
+        case "tree"
+            k = KTREE
+        case "bush"
+            k = KBUSH
+        case "flower"
+            k = KFLOWER
+        case "rock"
+            k = KROCK
+        case "thorn"
+            k = KTHORN
         case "jet"
             Clearing wd.lv, c
             k = KJET
-        case "spin": k = KSPIN
+        case "spin"
+            k = KSPIN
         case "goal"
             k = KGOAL
             wd.lv.goal_x = c * TS + 8
@@ -434,7 +470,8 @@ sub LoadLevel (wd as World, st as integer)
             wd.lv.tide_hi = (MH - n mod 100) * TS
             wd.lv.tide = wd.lv.tide_lo
             wd.lv.tide_at = wd.se.ticks
-        case "tune": wd.mu.stage_tune = n
+        case "tune"
+            wd.mu.stage_tune = n
         case "dog"
             wd.lv.start.x = c * TS + 8
             wd.lv.start.y = s

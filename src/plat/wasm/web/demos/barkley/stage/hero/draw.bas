@@ -33,13 +33,20 @@ sub Pose (lv as Level, gr as Ground, se as Session, p as Hero, x as integer, y a
     p.anim = se.ticks / 4!
     if west or (a and 16) then p.face = 1
     select case a and 15
-    case 1: p.gsp = 200 * (1 - 2 * p.face)
-    case 2: p.gsp = 450 * (1 - 2 * p.face)
-    case 3: p.roll = -1
-    case 4: p.crouch = -1
-    case 5: p.stun = -1
-    case 6: p.win = -1
-    case 7: p.charging = -1
+    case 1
+        p.gsp = 200 * (1 - 2 * p.face)
+    case 2
+        p.gsp = 450 * (1 - 2 * p.face)
+    case 3
+        p.roll = -1
+    case 4
+        p.crouch = -1
+    case 5
+        p.stun = -1
+    case 6
+        p.win = -1
+    case 7
+        p.charging = -1
     end select
 end sub
 

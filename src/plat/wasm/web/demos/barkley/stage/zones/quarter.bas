@@ -471,9 +471,12 @@ private sub Washing (r as Rope, art as Store, cx as integer, cy as integer)
         x = r.at.x + u - cx
         y = LineY%(r, u) - cy - 1
         select case (r.at.x \ TS + (u \ WASH) * 3) mod 5
-        case 0: Blit art, x - 9, y, ISHIRT, 18, 15
-        case 2: Blit art, x - 6, y, ITROUSERS, 13, 17
-        case 3: Blit art, x - 4, y, ISOCK, 8, 11
+        case 0
+            Blit art, x - 9, y, ISHIRT, 18, 15
+        case 2
+            Blit art, x - 6, y, ITROUSERS, 13, 17
+        case 3
+            Blit art, x - 4, y, ISOCK, 8, 11
         end select
     next
 end sub

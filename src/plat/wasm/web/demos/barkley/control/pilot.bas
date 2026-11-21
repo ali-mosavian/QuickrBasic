@@ -277,12 +277,15 @@ end sub
 ' Whether moving platform m is at its gap's edge and staying, to be stepped onto.
 private function Ready% (lv as Level, se as Session, m as integer)
     select case lv.movers(m).kind
-    case 0: Ready% = Swing!(lv, se, m, 0) < -.85 and Swing!(lv, se, m, 1) < 0
+    case 0
+        Ready% = Swing!(lv, se, m, 0) < -.85 and Swing!(lv, se, m, 1) < 0
     case 5
         ' a boat aground is no way over: down into its pool
         Ready% = not Adrift%(lv, m) or (Swing!(lv, se, m, 0) < -.85 and Swing!(lv, se, m, 1) < 0)
-    case 1: Ready% = Swing!(lv, se, m, 0) >= 1 and Swing!(lv, se, m, 1) > .2
-    case 2, 3, 7: Ready% = lv.movers(m).t = 0
+    case 1
+        Ready% = Swing!(lv, se, m, 0) >= 1 and Swing!(lv, se, m, 1) > .2
+    case 2, 3, 7
+        Ready% = lv.movers(m).t = 0
     end select
 end function
 

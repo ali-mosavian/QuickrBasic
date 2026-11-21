@@ -15,12 +15,18 @@ private const FAMSTEP = 36
 ' camera, the ball.
 sub DrawKeep (zn as Realm, art as Store, x as integer, y as integer)
     select case zn.id
-    case 0: Blit art, x - 9, y - 14, IBASKET, 18, 15
-    case 1: Blit art, x - 10, y - 13, ITOOLS, 20, 14
-    case 2: Blit art, x - 7, y - 15, ITEDDY, 14, 16
-    case 3: Blit art, x - 9, y - 13, ICAMERA, 18, 14
-    case 4: Blit art, x - 7, y - 13, IBALL, 14, 14
-    case 5: Blit art, x - 13, y - 12, IGUITAR, 26, 13
+    case 0
+        Blit art, x - 9, y - 14, IBASKET, 18, 15
+    case 1
+        Blit art, x - 10, y - 13, ITOOLS, 20, 14
+    case 2
+        Blit art, x - 7, y - 15, ITEDDY, 14, 16
+    case 3
+        Blit art, x - 9, y - 13, ICAMERA, 18, 14
+    case 4
+        Blit art, x - 7, y - 13, IBALL, 14, 14
+    case 5
+        Blit art, x - 13, y - 12, IGUITAR, 26, 13
     end select
 end sub
 

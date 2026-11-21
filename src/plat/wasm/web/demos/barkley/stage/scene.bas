@@ -147,20 +147,27 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
         if (k >= KLOOP and k < KFRONT) <> back then continue for
         y = lv.things(i).at.y - cy
         select case k
-        case KBONE: if lv.things(i).state then Blit art, x - 5, y - 5, IBONE + ((se.ticks \ 6) and 3) * 2, 10, 10
+        case KBONE
+            if lv.things(i).state then Blit art, x - 5, y - 5, IBONE + ((se.ticks \ 6) and 3) * 2, 10, 10
         case KGOLD
             ' a golden bone, till it is found
             if Found%(se, zn.stage, GoldNo%(lv, i)) then continue for
             Blit art, x - 5, y - 5, IGOLD + ((se.ticks \ 6) and 3) * 2, 10, 10
-        case KCAT, KWALKER: if lv.things(i).state then Blit art, x - 10, y - 13, CatPic%(se, lv.things(i).state), 20, 14
-        case KPOUNCE: DrawPouncer lv, art, se, i, x, y
-        case KMORTAR: DrawMortar lv, art, se, i, x, y
-        case KTIPPER: DrawTipper lv, art, se, i, x, y
-        case KSNATCH: if lv.things(i).state then Blit art, x - 10, y - 13, SnatchPic%(se, lv.things(i).state), 20, 14
+        case KCAT, KWALKER
+            if lv.things(i).state then Blit art, x - 10, y - 13, CatPic%(se, lv.things(i).state), 20, 14
+        case KPOUNCE
+            DrawPouncer lv, art, se, i, x, y
+        case KMORTAR
+            DrawMortar lv, art, se, i, x, y
+        case KTIPPER
+            DrawTipper lv, art, se, i, x, y
+        case KSNATCH
+            if lv.things(i).state then Blit art, x - 10, y - 13, SnatchPic%(se, lv.things(i).state), 20, 14
         case KBIN
             ' eyes under its lid while its cat, the thing after it, is in it
             Blit art, x - 9, y - 24, IBIN - 2 * (lv.things(i + 1).state <> 0), 18, 25
-        case KCRAB: if lv.things(i).state then Blit art, x - 12, y - 15, CrabPic%(se, lv.things(i).state), 24, 15
+        case KCRAB
+            if lv.things(i).state then Blit art, x - 12, y - 15, CrabPic%(se, lv.things(i).state), 24, 15
         case KSPRING
             ' the sands' is a deck chair, the wood's a toadstool
             if zn.id = 2 then
@@ -170,21 +177,28 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
             else
                 Blit art, x - 8, y - 15, ISPRING - 2 * (lv.things(i).state > 0), 16, 16
             end if
-        case KSAPLING: Blit art, x - 6, y - 49, ISAPLING - 2 * (lv.things(i).state > 0), 60, 50
-        case KAWNING: Blit art, x - 23, y - 3, IAWNING - 2 * (lv.things(i).state > 0), 46, 22
+        case KSAPLING
+            Blit art, x - 6, y - 49, ISAPLING - 2 * (lv.things(i).state > 0), 60, 50
+        case KAWNING
+            Blit art, x - 23, y - 3, IAWNING - 2 * (lv.things(i).state > 0), 46, 22
         case KCHIMNEY
             ' the way out smokes
             Blit art, x - 9, y - 31, ICHIMNEY, 18, 32
             if lv.things(i).state = 0 then DrawSmoke se, x, y - FLUEH
-        case KVINE: DrawVine x, y, lv.things(i).state / 100
-        case KBOOST: Blit art, x - 12, y - 9, IBOOST + ((se.ticks \ 4) and 1) * 2, 24, 10
-        case KMARK: Blit art, x - 6, y - 31, IMARK + 2 * lv.things(i).state, 12, 32
+        case KVINE
+            DrawVine x, y, lv.things(i).state / 100
+        case KBOOST
+            Blit art, x - 12, y - 9, IBOOST + ((se.ticks \ 4) and 1) * 2, 24, 10
+        case KMARK
+            Blit art, x - 6, y - 31, IMARK + 2 * lv.things(i).state, 12, 32
         case KGOAL
             f = 0
             if lv.things(i).state then f = (se.ticks \ 4) and 3
             Blit art, x - 12, y - 47, IGOAL + f * 2, 24, 48
-        case KPLAT: Blit art, x, y, zn.tile + 18, TS, TS
-        case KLOOP: Blit art, x - LD \ 2, y - LOOPR - LD \ 2, zn.ring, LD, LD
+        case KPLAT
+            Blit art, x, y, zn.tile + 18, TS, TS
+        case KLOOP
+            Blit art, x - LD \ 2, y - LOOPR - LD \ 2, zn.ring, LD, LD
         case KPIPE
             if zn.decked then
                 Blit art, x - PIPER, y - PIPER, zn.pipe, PIPER, PIPER
@@ -192,10 +206,12 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
                 k = IAP + (((lv.things(i).at.x \ TS + 1) and 3) * 3 + (lv.things(i).at.y \ TS) mod 3) * 2
                 Blit art, x - PIPER, y - PIPER, k, PIPER, PIPER + TS
             end if
-        case KSLED: if lv.things(i).state = 0 then Blit art, x - 15, y - 25, ISLED + 4, 30, 42
+        case KSLED
+            if lv.things(i).state = 0 then Blit art, x - 15, y - 25, ISLED + 4, 30, 42
         case KTHROW
             if lv.things(i).state then Blit art, x - 14, y - 25, IFORT - 2 * Risen%(lv, i) - 4 * (lv.things(i).state < 0), 28, 26
-        case KDRIFT: Blit art, x - 28, y - 11, IDRIFT, 56, 12
+        case KDRIFT
+            Blit art, x - 28, y - 11, IDRIFT, 56, 12
         case KICICLE
             ' loosed, it trembles
             k = lv.things(i).state > 0 and lv.things(i).state <= TREMBLE and (se.ticks and 2) <> 0
@@ -203,22 +219,32 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
         case KSWEEP
             k = ISWEEP + ((se.ticks \ 6) and 1) * 2 - 4 * (lv.things(i).state > 0)
             if lv.things(i).state then Blit art, x - 15, y - 19, k, 30, 20
-        case KSPARK: DrawSpark lv, art, se, i, x, y, cx
-        case KPRESS: DrawPress lv, art, se, i, x, y
-        case KLEG: DrawLeg art, x, y
-        case KFLUME: Blit art, x, y - 8, IFLUME + ((se.ticks \ 3) and 3) * 2, TS, 29
-        case KSPOUT: DrawSpout lv, art, se, x, y, lv.things(i).at.x \ TS, cy
-        case KCISTERN: Blit art, x - 30, y - 25, ICISTERN, 30, 30
-        case KSEAT: Blit art, x, y - SEATH, ISEAT, MOVEW, SEATH + 8
+        case KSPARK
+            DrawSpark lv, art, se, i, x, y, cx
+        case KPRESS
+            DrawPress lv, art, se, i, x, y
+        case KLEG
+            DrawLeg art, x, y
+        case KFLUME
+            Blit art, x, y - 8, IFLUME + ((se.ticks \ 3) and 3) * 2, TS, 29
+        case KSPOUT
+            DrawSpout lv, art, se, x, y, lv.things(i).at.x \ TS, cy
+        case KCISTERN
+            Blit art, x - 30, y - 25, ICISTERN, 30, 30
+        case KSEAT
+            Blit art, x, y - SEATH, ISEAT, MOVEW, SEATH + 8
         case KWALL
             if lv.things(i).state then
                 Blit art, x - 9, y - 81, IWALL, 18, 82
             else
                 Blit art, x - 9, y - 21, IWALL + 2, 18, 22
             end if
-        case KGOAT: DrawGoat lv, art, se, i, x, y
-        case KLOAD: DrawLoad lv, art, se, i, x, y
-        case KHEAP: if lv.things(i).state then Blit art, x - 30, y - 33, IHEAP, 60, 34
+        case KGOAT
+            DrawGoat lv, art, se, i, x, y
+        case KLOAD
+            DrawLoad lv, art, se, i, x, y
+        case KHEAP
+            if lv.things(i).state then Blit art, x - 30, y - 33, IHEAP, 60, 34
         case KSPAN
             ' three planks; tottering, it shakes
             if lv.things(i).state then y = y + ((se.ticks \ 2) and 1)
@@ -231,17 +257,28 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
             else
                 Blit art, x, y, IAM, MOVEW, 12
             end if
-        case KTRAM: Blit art, x - 9, y - 1, ITRAM, 66, 33
-        case KPOST: Blit art, x - 7, y - 47, IPOST, 16, 48
-        case KTANK: Blit art, x - 16, y - 39, ITANK, 32, 40
-        case KVENT: Blit art, x - 8, y - 27, IVENT, 16, 28
-        case KTREE: Blit art, x - 32, y - 78, ITREE, 64, 80
-        case KBUSH: Blit art, x - 20, y - 18, IBUSH, 40, 20
-        case KFLOWER: Blit art, x - 6, y - 14, IFLOWER + ((se.ticks \ 30 + i) and 1) * 2, 12, 16
-        case KROCK: Blit art, x - 10, y - 10, IROCK, 20, 12
-        case KTHORN: Blit art, x - 8, y - 10, ITHORN, 16, 12
-        case KBRAMBLE: Blit art, x - 19, y - 25, IBRAMBLE - 2 * (lv.things(i).state > 0), 38, 26
-        case KMOUND: Blit art, x - 17, y - 12, IMOUND, 34, 14
+        case KTRAM
+            Blit art, x - 9, y - 1, ITRAM, 66, 33
+        case KPOST
+            Blit art, x - 7, y - 47, IPOST, 16, 48
+        case KTANK
+            Blit art, x - 16, y - 39, ITANK, 32, 40
+        case KVENT
+            Blit art, x - 8, y - 27, IVENT, 16, 28
+        case KTREE
+            Blit art, x - 32, y - 78, ITREE, 64, 80
+        case KBUSH
+            Blit art, x - 20, y - 18, IBUSH, 40, 20
+        case KFLOWER
+            Blit art, x - 6, y - 14, IFLOWER + ((se.ticks \ 30 + i) and 1) * 2, 12, 16
+        case KROCK
+            Blit art, x - 10, y - 10, IROCK, 20, 12
+        case KTHORN
+            Blit art, x - 8, y - 10, ITHORN, 16, 12
+        case KBRAMBLE
+            Blit art, x - 19, y - 25, IBRAMBLE - 2 * (lv.things(i).state > 0), 38, 26
+        case KMOUND
+            Blit art, x - 17, y - 12, IMOUND, 34, 14
         case KSQUIRREL
             ' an acorn held out, it is about to drop it
             k = ISQUIRREL - 2 * (abs(lv.things(i).state) <= SQAIM) - 4 * (lv.things(i).state > 0)
@@ -249,7 +286,8 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
         case KFAM
             ' who meets Charlie: they cheer once it has come to them
             DrawFamily art, se, x, y, se.cheer
-        case KLAMP: Blit art, x - 10, y - 42, ILAMP, 20, 44
+        case KLAMP
+            Blit art, x - 10, y - 42, ILAMP, 20, 44
         case KJET
             ' in the pass a geyser
             k = IJET
@@ -257,9 +295,12 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
             Blit art, x - 8, y - 6, k, 16, 6
             f = k + 2 + ((se.ticks \ 3) and 1) * 2
             if (se.ticks + lv.things(i).at.x) mod 180 < 80 then Blit art, x - 6, y - 70, f, 12, 64
-        case KBUMP: Blit art, x - 12, y - 12, IBUMP - 2 * (lv.things(i).state > 0), 24, 24
-        case KBUOY: Blit art, x - 9, y - 9, IBUOY - 2 * (lv.things(i).state > 0), 18, 18
-        case KJELLY: Blit art, x - 8, y - 18 + ((se.ticks \ 20) and 1), IJELLY - 2 * (lv.things(i).state > 1), 16, 18
+        case KBUMP
+            Blit art, x - 12, y - 12, IBUMP - 2 * (lv.things(i).state > 0), 24, 24
+        case KBUOY
+            Blit art, x - 9, y - 9, IBUOY - 2 * (lv.things(i).state > 0), 18, 18
+        case KJELLY
+            Blit art, x - 8, y - 18 + ((se.ticks \ 20) and 1), IJELLY - 2 * (lv.things(i).state > 1), 16, 18
         case KSPIN
             line (x - 1, y - SPINH)-(x, y - 1), CINK, BF
             a = se.ticks * .06 + lv.things(i).at.x
@@ -268,11 +309,13 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
             next
             Blit art, x - 4, y - SPINH - 4, ISPIN + 2, 8, 8
             Blit art, x + cint(SPINR * cos(a)) - 8, y - SPINH + cint(SPINR * sin(a)) - 8, ISPIN, 16, 16
-        case KBUTTON: Blit art, x - 8, y - 8, IBTN + 2 * lv.things(i).state, 16, 8
+        case KBUTTON
+            Blit art, x - 8, y - 8, IBTN + 2 * lv.things(i).state, 16, 8
         case KWAVE
             ' a twist's far half; its near one is drawn over Charlie
             Blit art, x, y - WAVEA - 22, zn.wave, WAVEL, WAVEH
-        case KHOOP: Blit art, x - 6, y - 16, IHOOP - 2 * (lv.things(i).state > 0), 12, 32
+        case KHOOP
+            Blit art, x - 6, y - 16, IHOOP - 2 * (lv.things(i).state > 0), 12, 32
         end select
     next
 end sub

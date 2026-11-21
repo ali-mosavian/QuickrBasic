@@ -15,21 +15,30 @@ sub ReadPad (kb as Keys, mu as Deck, k as Pad)
     do
         c = inkey$
         select case c
-        case chr$(27): k.quit = -1
-        case "m", "M": k.mute = -1
+        case chr$(27)
+            k.quit = -1
+        case "m", "M"
+            k.mute = -1
         case "n", "N"
             mu.tune = not mu.tune
             if not mu.tune then CutVoices
-        case chr$(13): k.start = -1
+        case chr$(13)
+            k.start = -1
         case " "
             k.start = -1
             kb.since(SCSPACE) = t
-        case "x", "X": k.bark = -1
-        case "z", "Z": kb.since(SCZ) = t
-        case chr$(0) + "K": kb.since(SCLEFT) = t
-        case chr$(0) + "M": kb.since(SCRIGHT) = t
-        case chr$(0) + "H": kb.since(SCUP) = t
-        case chr$(0) + "P": kb.since(SCDOWN) = t
+        case "x", "X"
+            k.bark = -1
+        case "z", "Z"
+            kb.since(SCZ) = t
+        case chr$(0) + "K"
+            kb.since(SCLEFT) = t
+        case chr$(0) + "M"
+            kb.since(SCRIGHT) = t
+        case chr$(0) + "H"
+            kb.since(SCUP) = t
+        case chr$(0) + "P"
+            kb.since(SCDOWN) = t
         end select
     loop while len(c)
     k.left = Held2%(kb, SCLEFT, t)

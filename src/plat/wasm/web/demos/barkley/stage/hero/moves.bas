@@ -401,9 +401,12 @@ private sub Bark (lv as Level, mu as Deck, se as Session, p as Hero)
         if early then lv.things(i).state = 1 + 2 * (p.at.x < lv.things(i).at.x)
         if lv.things(i).state = 0 or dx > BARKR or dy >= 40 then continue for
         select case lv.things(i).kind
-        case KCAT, KWALKER, KSNATCH: Flinch lv, i, cint(p.at.x)
-        case KCRAB: lv.things(i).state = sgn(lv.things(i).state) * SHELLT
-        case KTHROW: lv.things(i).state = sgn(lv.things(i).state) * THROWC
+        case KCAT, KWALKER, KSNATCH
+            Flinch lv, i, cint(p.at.x)
+        case KCRAB
+            lv.things(i).state = sgn(lv.things(i).state) * SHELLT
+        case KTHROW
+            lv.things(i).state = sgn(lv.things(i).state) * THROWC
         end select
     next
     for i = 0 to lv.n_gulls - 1

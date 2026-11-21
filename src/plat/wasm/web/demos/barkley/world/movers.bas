@@ -66,14 +66,16 @@ sub Movers (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero)
         x = lv.movers(m).at.x
         y = lv.movers(m).at.y
         select case lv.movers(m).kind
-        case 0: x = x + lv.movers(m).reach * Swing!(lv, se, m, 0)
+        case 0
+            x = x + lv.movers(m).reach * Swing!(lv, se, m, 0)
         case 5
             if Adrift%(lv, m) then
                 lv.movers(m).t = lv.movers(m).t + STEPT
                 y = lv.tide - FREEB
             end if
             x = x + lv.movers(m).reach * Swing!(lv, se, m, 0)
-        case 1: y = y + lv.movers(m).reach * Swing!(lv, se, m, 0)
+        case 1
+            y = y + lv.movers(m).reach * Swing!(lv, se, m, 0)
         case 6
             ' a pier's span: trodden, it totters a moment, then falls from under who is on it, and stays fallen
             if lv.movers(m).t > 0 or (p.ground and p.sg = s) then lv.movers(m).t = lv.movers(m).t + STEPT

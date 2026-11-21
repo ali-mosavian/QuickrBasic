@@ -216,7 +216,8 @@ function IntroOver% (wd as World, g as Game, k as Pad, cu() as Cue)
             case QCAM
                 CueAt wd.lv, cu(), i, now, x, y
                 g.cam.x = x
-            case QSND: if was < cu(i).t0 then Sfx wd.mu, wd.se, cu(i).own
+            case QSND
+                if was < cu(i).t0 then Sfx wd.mu, wd.se, cu(i).own
             end select
         end if
         i = i + 1
@@ -267,17 +268,28 @@ private sub DrawCue (wd as World, cu() as Cue, i as integer, now as single, p as
     y = wy - cy
     a = cu(i).own
     select case cu(i).kind
-    case QHOUSE: Blit wd.art, x - 66, y - 123, IHOUSE, 132, 124
-    case QBOXES: Blit wd.art, x - 22, y - 39, IBOXES, 44, 40
-    case QCRATE: Blit wd.art, x - 10, y - 15, ICRATE, 20, 16
-    case QHEDGE: Blit wd.art, x - 80, y - 51, IHEDGE, 160, 52
-    case QFAM: DrawFamily wd.art, wd.se, x, y, a
-    case QVAN: DrawVan wd.art, x, y, wx, a
-    case QFLOAT: DrawFloat wd.art, wd.se, x, y, wx, a
-    case QBARON: Blit wd.art, x - 20, y - 43, BaronPic%(wd.se, a), 40, 44
-    case QCAT: DrawCat wd.zn, wd.art, wd.se, x, y, a, cu(i).finish.x < cu(i).start.x
-    case QBASKET: DrawKeep wd.zn, wd.art, x, y
-    case QEYES: DrawEyes wd.se, x, y, a
+    case QHOUSE
+        Blit wd.art, x - 66, y - 123, IHOUSE, 132, 124
+    case QBOXES
+        Blit wd.art, x - 22, y - 39, IBOXES, 44, 40
+    case QCRATE
+        Blit wd.art, x - 10, y - 15, ICRATE, 20, 16
+    case QHEDGE
+        Blit wd.art, x - 80, y - 51, IHEDGE, 160, 52
+    case QFAM
+        DrawFamily wd.art, wd.se, x, y, a
+    case QVAN
+        DrawVan wd.art, x, y, wx, a
+    case QFLOAT
+        DrawFloat wd.art, wd.se, x, y, wx, a
+    case QBARON
+        Blit wd.art, x - 20, y - 43, BaronPic%(wd.se, a), 40, 44
+    case QCAT
+        DrawCat wd.zn, wd.art, wd.se, x, y, a, cu(i).finish.x < cu(i).start.x
+    case QBASKET
+        DrawKeep wd.zn, wd.art, x, y
+    case QEYES
+        DrawEyes wd.se, x, y, a
     case QHERO
         Pose wd.lv, wd.gr, wd.se, p, wx, wy, a, cu(i).finish.x < cu(i).start.x
         DrawHero wd.gr, wd.art, wd.se, p, cx, cy
