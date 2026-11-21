@@ -232,6 +232,8 @@ static void sound(const Synth *const s, SynthOsc *const o, const DevVoice *const
     o->attack = step_of(s, attack_ms[v->envelope >> 12 & HIGHEST_NIBBLE]);
     falling(s, o->decay, decay_ms[v->envelope >> 8 & HIGHEST_NIBBLE]);
     falling(s, o->release, decay_ms[v->envelope & HIGHEST_NIBBLE]);
+    if (v->fade)
+        falling(s, o->fade, decay_ms[(v->fade - 1) & HIGHEST_NIBBLE]);
     o->gain = (int32_t)(v->volume * (uint32_t)VOICE_LOUD * 32768u / (HIGHEST_NIBBLE * 32767u));
 
     /* twice a sample: up to a sixth of the rate */
@@ -327,7 +329,8 @@ static int32_t fall(const SynthOsc *const o, const int32_t *const steps)
             o->level -= fall(o, o->decay);
             if (o->level < sustain)
                 o->level = sustain;
-        }
+        } else if (o->set.fade)
+            o->level -= fall(o, o->fade);
         break;
     case STAGE_RELEASE:
         o->level -= fall(o, o->release);
@@ -364,12 +367,17 @@ static int envelope_run(const Synth *const s, const SynthOsc *const o, const int
         k = (FULL - 1 - level) / o->attack; /* each stays under FULL */
         return k < left ? (int)k : left;
     case STAGE_DECAY:
-        if (level <= sustain) {
+        if (level > sustain) {
+            step = fall(o, o->decay);
+            floor = sustain;
+            break;
+        }
+        if (!o->set.fade) {
             *delta = 0;
             return left;
         }
-        step = fall(o, o->decay);
-        floor = sustain;
+        step = fall(o, o->fade);
+        floor = 0;
         break;
     case STAGE_RELEASE:
         step = fall(o, o->release);

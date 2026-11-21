@@ -40,6 +40,8 @@ typedef struct DevVoice {
     unsigned char swept;     /* how long the cutoff takes from `sweep` to `cutoff`: the decay's scale, 0 to 15 */
     unsigned short sweep;    /* the cutoff a note starts at, Hz; 0 none */
     unsigned short over;     /* a glide starts at so many hundredths of the pitch, 1 to 1600; 0 by `from` and `under` */
+    unsigned char fade;      /* the level falls on from the sustain while the note is held: 1 + the decay's scale (0 to
+                                15); 0 holds it */
 } DevVoice;
 
 #endif

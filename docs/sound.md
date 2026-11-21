@@ -29,7 +29,7 @@ may be `=var;` as in QBasic's commands. A number out of range is Illegal functio
 | `V`n | volume | 0–15 | 8 |
 | `W`n | wave: 0 pulse, 1 triangle, 2 sawtooth, 3 noise, 4 FM | 0–4 | 0 |
 | `Q`n | pulse width, percent high (wave 0 only) | 1–99 | 50 |
-| `H`a`,`d`,`s`,`r | envelope: attack, decay, sustain level, release; all four are needed | 0–15 each | `H0,0,15,0` |
+| `H`a`,`d`,`s`,`r[`,`f] | envelope: attack, decay, sustain level, release, all four needed; fade (below) | 0–15 each | `H0,0,15,0` |
 | `Y`m[`,`f[`,`r[`,`s[`,`t]]]] | filter: 0 off, 1 low-pass, 2 band-pass, 3 high-pass; cutoff in Hz; resonance; sweep (below) | m 0–3, f 30–12000, r t 0–15, s 0 or 30–12000 | off, 1000, 0, 0, 0 |
 | `Z`r[`,`d[`,`f[`,`l[`,`b[`,`s]]]]] | FM's modulator: ratio, depth, fall, level, feedback, start (below) | r 0.01–15.99, d f l s 0–15, b 0–7 | `Z1,8,0,15,0,15` |
 | `U`n | vibrato depth | 0–15 | 0 |
@@ -64,6 +64,10 @@ note's sounding part ends, then fades in the release.
 The decay and release times are from full to silence; a fall to a sustain of 8 takes less. Sustain
 0 is silent, 15 full. With sustain 0 the note is a pluck: it dies in the decay however long it is
 held.
+
+A fifth number lets the level fall on from the sustain while the note is held, at the decay scale's
+f: `H0,4,1,7,10` falls to a sustain of 1, then on, slower as it gets quieter, as a drum's ring. Left
+off, the level holds.
 
 ### Filter: `Y`
 

@@ -20,7 +20,7 @@ typedef struct SynthOsc {
     int32_t level;        /* the envelope, 0 to 2^24 */
     uint8_t stage;
     /* worked out when the voice is set: the envelope's steps a sample, the gain (2^15 is 1) */
-    int32_t attack, decay[SYNTH_CURVE], release[SYNTH_CURVE], gain;
+    int32_t attack, decay[SYNTH_CURVE], release[SYNTH_CURVE], fade[SYNTH_CURVE], gain;
     uint32_t ratio, depth; /* FM: the modulator's phase steps a carrier's, the phase a full modulator bends it */
     /* FM: the modulator's level (0 to 2^24), its step down a sample and where it stops; its last two samples and what
        their sum bends its own phase by */

@@ -458,6 +458,22 @@ TEST(synth_filter_passes_its_band)
     CHECK(got[0] < 1000 && got[1] > 4000);
 }
 
+/* H's fifth number: from the sustain the level falls on while the note is held, at a second slope. One decay to a
+   sustain of 16 even steps rang 23.5 dB under the peak at the quietest: the snare falls 20 dB in 100 ms, then rings
+   35 to 47 dB under till 400 ms. */
+TEST(synth_envelope_falls_on_from_its_sustain)
+{
+    Synth s;
+    DevVoice v = note(1000, DEV_SAW, 0x0280); /* 48 ms to a sustain of 8 */
+    sound(&s, v, RATE / 2);
+    const int held = peak(buf + RATE / 2 - RATE / 100, RATE / 100);
+    v.fade = 1 + 9; /* 750 ms from full to nothing */
+    sound(&s, v, RATE / 2);
+    const int at = peak(buf + RATE / 10 - RATE / 100, RATE / 100), later = peak(buf + RATE / 2 - RATE / 100, RATE / 100);
+    /* SID's curve: under 93 of 255 the fall halves, under 54 it quarters: a third of the sustain at 450 ms */
+    CHECK(at < held && at > held * 3 / 4 && later > held * 3 / 10 && later < held * 4 / 10);
+}
+
 /* How bright a stretch is: the power of its steps against its own. */
 static double brightness(const int16_t *const x, const int n)
 {
@@ -944,6 +960,26 @@ TEST(play_sets_changes_within_a_note)
     CHECK(on[0].over == 140 && on[0].glide == 4 && on[1].sweep == 0 && on[1].swept == 4);
     for (int i = 0; i < 4; i++)
         CHECK(unit_run(S, wrong[i]) == E_USR);
+}
+
+/* H's fifth number is the fall on from the sustain; four alone hold it. */
+TEST(play_sets_a_second_decay)
+{
+    static const char *const lines[] = {"10 PLAY \"MF H0,4,8,3,9 C H0,4,8,3 C P64\"", nullptr};
+    static const char *const wrong[] = {"10 PLAY \"H0,4,8,3,16 C\"", nullptr};
+
+    qbrt_realtime(false);
+    music_clear();
+    const size_t first = headless_voice_count();
+    CHECK(unit_run(S, lines) == ST_OK);
+    qbrt_realtime(true);
+    DevVoice on[2];
+    unsigned n = 0;
+    for (size_t i = first; i < headless_voice_count() && n < 2; i++)
+        if (headless_voice(i).v[0].gate && headless_voice(i).v[0].hertz)
+            on[n++] = headless_voice(i).v[0];
+    CHECK(n == 2 && on[0].envelope == 0x0483 && on[0].fade == 10 && on[1].fade == 0);
+    CHECK(unit_run(S, wrong) == E_USR);
 }
 
 TEST(play_voice_out_of_range)

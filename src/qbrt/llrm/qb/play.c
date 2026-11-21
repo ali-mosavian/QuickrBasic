@@ -179,9 +179,10 @@ static void style(Player *p)
     }
 }
 
-/* H attack, decay, sustain, release: SID's 0 to 15 each. */
+/* H attack, decay, sustain, release[, fade]: SID's 0 to 15 each; the fall on from the sustain, on the decay's scale. */
 static void envelope(Player *p)
 {
+    DevVoice *const v = layer_of(p);
     unsigned value = 0;
     int i;
 
@@ -190,7 +191,8 @@ static void envelope(Player *p)
             illegal();
         value = value << 4 | within(p, 0, HIGHEST_NIBBLE);
     }
-    layer_of(p)->envelope = (unsigned short)value;
+    v->envelope = (unsigned short)value;
+    v->fade = (unsigned char)(comma(p) ? within(p, 0, HIGHEST_NIBBLE) + 1 : 0);
 }
 
 /* Y mode[, cutoff[, resonance[, from[, time]]]]: the filter off (0), low-pass, band-pass, high-pass; the cutoff a note
