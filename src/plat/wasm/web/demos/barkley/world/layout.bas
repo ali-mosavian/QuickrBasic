@@ -2,7 +2,7 @@
 defint A-Z
 option explicit
 
-from barkley.model.level import KBONE, KBUSH, KFLOWER, KLAMP, KMOUND, KMOVE, KPLAT, KPOST, KSEAT, KSPAN, KSPRING, KTANK
+from barkley.model.level import KBONE, KBUSH, KFLOWER, KLAMP, KMOVE, KPLAT, KPOST, KSEAT, KSPAN, KSPRING, KTANK
 from barkley.model.level import KTREE, KVENT, Level, MH, MW, Realm, TS
 from barkley.world.terrain.ground import Sunk
 from barkley.world.terrain.track import LimbUp, LIMBW, LimbX, NLIMB
@@ -119,15 +119,17 @@ function Rooted% (lv as Level, i as integer, lo as integer)
     Rooted% = (lv.ob(i).k >= lo and lv.ob(i).k <= KLAMP) or lv.ob(i).k >= KPOST
 end function
 
-' Each burrow's two mounds told each other: a mound's state its other end, counted from 1.
-sub Burrows (lv as Level)
+' The things of kind k told each other in pairs: a thing's state its other end, counted from 1. With no way
+' back the second's is 0: a way out that takes no one in.
+sub Pair (lv as Level, k as integer, back as integer)
     dim i as integer, j as integer
     for i = 0 to lv.nObj - 1
-        if lv.ob(i).k <> KMOUND or lv.ob(i).s > 0 then continue for
+        if lv.ob(i).k <> k or lv.ob(i).s >= 0 then continue for
         for j = i + 1 to lv.nObj - 1
-            if lv.ob(j).k <> KMOUND or lv.ob(j).s <> lv.ob(i).s then continue for
+            if lv.ob(j).k <> k or lv.ob(j).s <> lv.ob(i).s then continue for
             lv.ob(i).s = j + 1
-            lv.ob(j).s = i + 1
+            lv.ob(j).s = 0
+            if back then lv.ob(j).s = i + 1
             exit for
         next
     next

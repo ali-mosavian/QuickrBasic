@@ -13,8 +13,8 @@ from barkley.model.level import KFAM, KFLOWER, KFLUME, KFRONT, KGOAL, KGOAT, KHE
 from barkley.model.level import KLEG, KLOAD, KLOOP, KMARK, KMOUND, KMOVE, KPIPE, KPLAT, KPOST, KPRESS, KROCK, KSAPLING
 from barkley.model.level import KSEAT, KSLED, KSPAN, KSPARK, KSPIN, KSPOUT, KSPRING, KSQUIRREL, KSWEEP, KTANK, KTHORN
 from barkley.model.level import KTHROW, KTREE, KVENT, KVINE, KWALL, KWAVE, Level, NONE, Realm, TS
-from barkley.model.level import KAWNING, KGOLD, NGOLD
-from barkley.model.images import IAWNING, IGOLD
+from barkley.model.level import KAWNING, KCHIMNEY, KGOLD, NGOLD
+from barkley.model.images import IAWNING, ICHIMNEY, IGOLD
 from barkley.model.game import CLEARED, Found, Game, Loose, NLOOSE, NPART, OVER, Part, PLAYING, Session, TITLE
 from barkley.model.world import World
 from barkley.assets.palette import CGOLD, CINK, CSCARF, CWHITE, CYELLOW
@@ -33,7 +33,8 @@ from barkley.stage.zones.works import DrawLeg, DrawPress, DrawSpark, SPINH, SPIN
 from barkley.stage.zones.sands import CrabPic, DrawGulls, DrawSea, DrawSpout, DrawSurf
 from barkley.stage.zones.wood import DrawBees, DrawFlies, DrawVine, SQAIM
 from barkley.stage.zones.pass import DrawAvalanche, DrawGale, DrawGoat, DrawLoad, DrawStray, Fallen, Risen, TREMBLE
-from barkley.stage.zones.quarter import DrawLines
+from barkley.stage.zones.quarter import DrawLines, DrawSmoke
+from barkley.stage.hero.modes import FLUEH
 from barkley.stage.zones.chase import DrawChase
 from barkley.stage.hud import Banner, Hud, Num, Panel, Say, Txt
 
@@ -163,6 +164,10 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
             end if
         case KSAPLING: Blit art, x - 6, y - 49, ISAPLING - 2 * (lv.ob(i).s > 0), 60, 50
         case KAWNING: Blit art, x - 23, y - 3, IAWNING - 2 * (lv.ob(i).s > 0), 46, 22
+        case KCHIMNEY
+            ' the way out smokes
+            Blit art, x - 9, y - 31, ICHIMNEY, 18, 32
+            if lv.ob(i).s = 0 then DrawSmoke se, x, y - FLUEH
         case KVINE: DrawVine x, y, lv.ob(i).s / 100
         case KBOOST: Blit art, x - 12, y - 9, IBOOST + ((se.ticks \ 4) and 1) * 2, 24, 10
         case KMARK: Blit art, x - 6, y - 31, IMARK + 2 * lv.ob(i).s, 12, 32

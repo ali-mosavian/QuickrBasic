@@ -5154,6 +5154,22 @@ def awning(trodden: bool) -> Pic:
     return p.outline(QINK)
 
 
+def chimney() -> Pic:
+    """A chimney stack on a roof: brick up to its cap, a clay pot on it."""
+    p = Pic(18, 32)
+    for y in range(9, 32):
+        for x in range(2, 16):
+            joint = y % 4 == 3 or (x + 4 * (y // 4 % 2)) % 8 == 7
+            p.put(x, y, QBRICK[3] if joint else QBRICK[0] if x < 4 else QBRICK[1] if x < 12 else QBRICK[2])
+    p.box(1, 7, 16, 7, EAVE[0])
+    p.box(1, 8, 16, 8, EAVE[1])
+    p.box(5, 2, 12, 6, CLAY[1])
+    p.box(5, 2, 6, 6, CLAY[0])
+    p.box(4, 1, 13, 2, CLAY[0])
+    p.box(11, 1, 13, 2, CLAY[1])
+    return p.outline(QINK)
+
+
 def lanternq() -> list[tuple[int, Pic, bool, int]]:
     """The Lantern Quarter's own pictures, at the indices the Downs' own have."""
     k, z = 126, 625
@@ -5175,6 +5191,7 @@ def lanternq() -> list[tuple[int, Pic, bool, int]]:
         *[(z + 1290 + f * 2, washing(f), True, -1) for f in range(3)],
         (z + 1296, awning(False), True, -1),
         (z + 1298, awning(True), True, -1),
+        (z + 1300, chimney(), True, -1),
     ]
     return out
 

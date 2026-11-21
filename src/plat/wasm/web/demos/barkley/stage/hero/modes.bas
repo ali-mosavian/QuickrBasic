@@ -5,9 +5,9 @@ option explicit
 from barkley.engine.clock import STEPT
 from barkley.engine.audio import Deck
 from barkley.model.hero import Hero
-from barkley.model.level import GRAV, Ground, Level, NONE
+from barkley.model.level import GRAV, Ground, KCHIMNEY, KMOUND, Level, NONE
 from barkley.model.game import Part, Session
-from barkley.assets.palette import CLOAM, CSEA
+from barkley.assets.palette import CLOAM, CSEA, CSOOT
 from barkley.assets.tunes import Sfx, SJUMP, SPOP
 from barkley.world.terrain.ground import Land, Slow, WADE, Wall
 from barkley.stage.fx.parts import Burst, Emit
@@ -28,6 +28,10 @@ private const VINEHOP = 150!, VINEWAIT = .4
 
 const DIGV = 400!
 private const DIGPOP = 260!
+
+' A chimney: its pot's top over the roof, and his speed up out of one.
+const FLUEH = 30
+private const FLUEPOP = 420!
 const AFLOAT = 6
 private const PADV = 80!, PADACC = 260!, HOPV = 250!
 const DRYT = .35
@@ -62,28 +66,34 @@ sub Hang (lv as Level, mu as Deck, se as Session, p as Hero, hit as integer)
 end sub
 
 ' Under the ground to the mound he digs for: straight there at DIGV, unseen, the loam stirred over him; there,
-' thrown up out of it.
+' thrown up out of it. Down a chimney the same, through the houses: up out of the other's pot, in its soot.
 sub Tunnel (lv as Level, mu as Deck, se as Session, p as Hero, pt() as Part)
-    dim i as integer, dx as single
+    dim i as integer, dx as single, c as integer
     i = p.dig - 1
     dx = lv.ob(i).x - p.x
     if abs(dx) > DIGV * STEPT then
         p.vx = sgn(dx) * DIGV
         p.x = p.x + p.vx * STEPT
         p.y = p.y + (lv.ob(i).y - p.y) * DIGV * STEPT / abs(dx)
-        if (se.ticks and 3) = 0 then Burst se, pt(), p.x, p.y, 2, 50, CLOAM
+        if lv.ob(i).k = KMOUND and (se.ticks and 3) = 0 then Burst se, pt(), p.x, p.y, 2, 50, CLOAM
         exit sub
     end if
     p.x = lv.ob(i).x
     p.y = lv.ob(i).y
     p.vx = 0
     p.vy = -DIGPOP
+    c = CLOAM
+    if lv.ob(i).k = KCHIMNEY then
+        p.y = p.y - FLUEH
+        p.vy = -FLUEPOP
+        c = CSOOT
+    end if
     p.dig = 0
     p.dug = i + 1
     p.roll = 0
     p.jumped = 0
     p.sprung = -1
-    Burst se, pt(), p.x, p.y - 4, 10, 140, CLOAM
+    Burst se, pt(), p.x, p.y - 4, 10, 140, c
     Sfx mu, se, SPOP
 end sub
 

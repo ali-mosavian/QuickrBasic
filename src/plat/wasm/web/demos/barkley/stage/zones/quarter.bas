@@ -1,4 +1,4 @@
-' Lantern Quarter: clotheslines and awnings.
+' Lantern Quarter: clotheslines, awnings and chimneys.
 defint A-Z
 option explicit
 
@@ -8,9 +8,11 @@ from barkley.engine.audio import Deck
 from barkley.model.images import ISHIRT, ISOCK, ITROUSERS
 from barkley.model.hero import Hero
 from barkley.model.level import Level, Rope, TS
-from barkley.model.game import Session
-from barkley.assets.palette import CLINEN, CPOLE, CQINK
-from barkley.assets.tunes import Sfx, SSPRING, STWANG
+from barkley.model.game import Part, Session
+from barkley.assets.palette import CLINEN, CPOLE, CQINK, CSOOT
+from barkley.assets.tunes import Sfx, SROLL, SSPRING, STWANG
+from barkley.stage.fx.parts import Burst
+from barkley.stage.hero.modes import FLUEH
 
 ' A clothesline: how far its middle hangs under its ends; his speed up off the first he comes down on, what each
 ' more in a row adds, and the row that adds no more; how far it gives under him, and the things' steps it swings;
@@ -25,6 +27,9 @@ private const WASH = 22
 const AWNW = 22
 const AWNV = 450!
 const AWNT = 8
+
+' A chimney's pot: how near its middle he must come down to go in.
+const FLUER = 8
 
 ' Line r's height u along it: hung, and once trodden given where it was, swinging less each step.
 function LineY% (r as Rope, u as integer)
@@ -83,6 +88,31 @@ sub MeetAwning (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
     Toss p, lv.ob(i).y, AWNV
     lv.ob(i).s = AWNT
     Sfx mu, se, SSPRING
+end sub
+
+' A chimney that leads on: come down into its pot, he goes down it for the one it leads to. A way out takes no
+' one in.
+sub MeetChimney (lv as Level, mu as Deck, se as Session, p as Hero, i as integer, pt() as Part)
+    if lv.ob(i).s < 1 or p.dead or abs(lv.ob(i).x - p.x) >= FLUER then exit sub
+    if not Trodden%(p, lv.ob(i).y - FLUEH) then exit sub
+    p.dig = lv.ob(i).s
+    p.vy = 0
+    Burst se, pt(), csng(lv.ob(i).x), csng(lv.ob(i).y - FLUEH), 8, 90, CSOOT
+    Sfx mu, se, SROLL
+end sub
+
+' A way out's smoke, from its pot's top at x, y on the screen: three puffs, each rising, drifting and growing in
+' its turn.
+sub DrawSmoke (se as Session, x as integer, y as integer)
+    dim f as integer, t as integer, r as integer, px as integer, py as integer
+    for f = 0 to 2
+        t = (se.ticks \ 4 + f * 11) and 31
+        r = 1 + t \ 12
+        px = x + t \ 4
+        py = y - 3 - t
+        line (px - r, py - r + 1)-(px + r, py + r - 1), CSOOT, BF
+        line (px - r + 1, py - r)-(px + r - 1, py + r), CSOOT, BF
+    next
 end sub
 
 ' The lines' step: one that swings, a step nearer rest.

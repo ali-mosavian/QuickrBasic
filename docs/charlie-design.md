@@ -206,12 +206,14 @@ Progress is saved at each zone.
 ### 6. Lantern Quarter (its look and tune built)
 
 - Built: its backdrop, ground, props and card at the blue hour and on the festival night; two stand-in levels,
-  to its tune and the festival's arrangement; clotheslines, awnings. To add: its other gadgets, its cats, its
-  acts, its chase, the fireworks.
+  to its tune and the festival's arrangement; clotheslines, awnings, chimneys. To add: trams, lantern lines, its
+  cats, its acts, its chase, the fireworks.
 - A clothesline (`line,N`) spans a street N columns wide, post to post. Come down on, it throws him up, his way
   kept: 60 pixels off the first, 107 off the second in a row, 167 off each after; the ground ends the row.
 - An awning (`awning,N`) stands out from the wall that begins there, N tiles up. Come down on, it throws him 135
   up: run at the wall and jump, and it carries him over a wall of ten tiles.
+- Chimneys (`chimney,n`) come in pairs of one n: the first is the way in, the second, which smokes, the way out.
+  Come down into the first's pot, he goes through the houses and is thrown 118 up out of the second's.
 - Rule: footing. The ground is narrow, springy or moving: lines, awnings, tram roofs.
 - Gadgets: clotheslines, each landing higher than the last; awnings; chimneys, in one and out another;
   trams; lantern lines to slide.

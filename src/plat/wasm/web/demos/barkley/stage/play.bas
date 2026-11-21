@@ -9,7 +9,7 @@ from barkley.model.hero import Hero
 from barkley.model.level import GRAV, Ground, KBONE, KBOOST, KBRAMBLE, KBUMP, KBUOY, KBUTTON, KCAT, KCRAB, KDRIFT
 from barkley.model.level import KFLUME, KGOAL, KGOAT, KHEAP, KHOOP, KICICLE, KJELLY, KJET, KLOAD, KLOG, KMARK, KMOUND
 from barkley.model.level import KPRESS, KSAPLING, KSLED, KSPARK, KSPIN, KSPOUT, KSPRING, KSQUIRREL, KSWEEP, KTHORN
-from barkley.model.level import KAWNING, KGOLD, KTHROW, KVINE, KWALL, Level, Realm, TS
+from barkley.model.level import KAWNING, KCHIMNEY, KGOLD, KTHROW, KVINE, KWALL, Level, Realm, TS
 from barkley.model.game import Game, Loose, NLOOSE, OVER, Part, Session
 from barkley.assets.tunes import LEFTBEHIND, SBONE, SceneTune, Sfx, SHURT
 from barkley.world.terrain.ground import SegAt
@@ -22,7 +22,7 @@ from barkley.stage.zones.sands import Bob, MeetCrab, MeetFlume, MeetJelly
 from barkley.stage.zones.wood import MeetBramble, MeetLog, MeetMound, MeetSapling, MeetVine, Regrow, Scamper
 from barkley.stage.zones.pass import Graze, MeetDrift, MeetGoat, MeetHeap, MeetIcicle, MeetSled, MeetThrow, MeetWall
 from barkley.stage.zones.pass import TakeAim, Totter, Unload
-from barkley.stage.zones.quarter import Lines, MeetAwning, Settle
+from barkley.stage.zones.quarter import Lines, MeetAwning, MeetChimney, Settle
 from barkley.stage.zones.chase import ResetChase
 from barkley.stage.camera import Camera
 
@@ -76,6 +76,7 @@ sub Touch (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as 
         case KSPRING: MeetSpring lv, mu, se, p, i
         case KSAPLING: MeetSapling lv, mu, se, p, i
         case KAWNING: MeetAwning lv, mu, se, p, i
+        case KCHIMNEY: MeetChimney lv, mu, se, p, i, pt()
         case KVINE: MeetVine lv, mu, se, p, i
         case KBRAMBLE: MeetBramble lv, mu, se, g, p, i, lo()
         case KLOG: MeetLog lv, mu, se, p, i

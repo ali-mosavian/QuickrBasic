@@ -33,11 +33,11 @@ from barkley.model.hero import Hero, Pad
 from barkley.model.level import GRAV, Ground, KBONE, KBRAMBLE, KBUOY, KCAT, KCISTERN, KCRAB, KDRIFT, KGOAT, KHOOP
 from barkley.model.level import KICICLE, KJELLY, KJET, KLEG, KLOAD, KLOG, KLOOP, KMOUND, KPIPE, KPRESS, KSAPLING, KSEAT
 from barkley.model.level import KSLED, KSPAN, KSPARK, KSPRING, KSQUIRREL, KSWEEP, KTHROW, KVINE, KWALL, KWAVE, Level, MH
-from barkley.model.level import KAWNING, KGOLD, NGOLD, NONE, NSTAGE, TS, ZONES
+from barkley.model.level import KAWNING, KCHIMNEY, KGOLD, NGOLD, NONE, NSTAGE, TS, ZONES
 from barkley.model.game import CLEARED, Cue, Game, INTRO, Loose, NCUE, NLOOSE, NPART, OVER, Part, PLAYING, Session
 from barkley.model.game import Found, Gild, TITLE
 from barkley.assets.palette import CBEE, CFLY, CGOLD, CINK, CNUT, CSEA, CVINE, CVINED, CWHITE, CYELLOW
-from barkley.assets.palette import CLINEN, CPOLE
+from barkley.assets.palette import CLINEN, CPOLE, CSOOT
 from barkley.assets.store import BuildArt
 from barkley.assets.cast import BaronPic, FamPic
 from barkley.assets.tunes import CAUGHT, CAUGHTUP, EndBeat, LEFTBEHIND, LoadSongs, PACKING, PickSong, SCLANK, Sfx, SHURT
@@ -49,7 +49,7 @@ from barkley.world.level import CABLED, GoldNo, LoadLevel, Mend, SINTRO, ZoneNam
 from barkley.world.movers import FREEB
 from barkley.stage.fx.parts import Burst
 from barkley.stage.fx.damage import BOUNCEV, Hurt, Lose
-from barkley.stage.hero.modes import AFLOAT, DIGV, DRYT, Lull, VINEGRIP, VINELEN
+from barkley.stage.hero.modes import AFLOAT, DIGV, DRYT, FLUEH, Lull, VINEGRIP, VINELEN
 from barkley.stage.hero.moves import GLOWT, JUMPV, MoveHero, SHELLT, THROWC, TOP, WETTOP
 from barkley.stage.hero.draw import LOGR
 from barkley.stage.zones.works import PRESSFALL, PRESSLAG, PRESSP, PRESSRISE, PressT, PRESSUP, SPARKLIT, SPARKP, Stroke
@@ -1581,6 +1581,82 @@ for i = 1 to 12
 next
 was = was and p.y > m + 10 and wd.lv.ob(c).s = 0
 if was then print "awning ok"
+' a chimney that leads on takes him who comes down into its pot: unseen, through the houses to its other at DIGV,
+' and up out of that one's pot 118 over it, 420 squared over twice GRAV; the way out takes no one in, and it
+' alone smokes; past a pot's edge he falls by it, and on the roof he walks by it
+for c = 0 to wd.lv.nObj - 1
+    if wd.lv.ob(c).k = KCHIMNEY then exit for
+next
+was = c < wd.lv.nObj
+m = wd.lv.ob(c).s - 1
+was = was and m > c and wd.lv.ob(m).k = KCHIMNEY and wd.lv.ob(m).s = 0
+for j = 0 to 2
+    ' into the way in; onto the way out; a step past the way in's edge
+    v = c
+    if j = 1 then v = m
+    p.ground = 0
+    p.x = wd.lv.ob(v).x - 9 * (j = 2)
+    p.y = wd.lv.ob(v).y - FLUEH - 20
+    p.vx = 0
+    p.vy = 0
+    for i = 1 to 40
+        Tick wd, g, p, k, lo(), pt()
+        if p.dig or p.ground then exit for
+    next
+    colA(j) = p.dig
+next
+was = was and colA(0) = m + 1 and colA(1) = 0 and colA(2) = 0
+' nor is it gone into from the roof it stands on
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).x, 0
+for i = 1 to 3
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and p.dig = 0 and p.ground
+p.ground = 0
+p.x = wd.lv.ob(c).x
+p.y = wd.lv.ob(c).y - FLUEH - 20
+p.vy = 0
+for i = 1 to 40
+    Tick wd, g, p, k, lo(), pt()
+    if p.dig then exit for
+next
+bx = p.x
+for i = 1 to 15
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and p.dig = m + 1 and abs(p.x - bx - 15 * DIGV / 60) < 1
+g.shake = 0
+Render wd, g, p, lo(), pt()
+was = was and Fur%(cint(p.x) - int(g.camx), 14, cint(p.y) - 26 - int(g.camy), cint(p.y) - int(g.camy)) = 0
+for i = 1 to 600
+    Tick wd, g, p, k, lo(), pt()
+    if p.dig = 0 then exit for
+next
+was = was and abs(p.x - wd.lv.ob(m).x) < 1 and abs(p.y - (wd.lv.ob(m).y - FLUEH)) < 8 and p.vy < 0
+for i = 1 to 200
+    Tick wd, g, p, k, lo(), pt()
+    if p.vy >= 0 then exit for
+next
+was = was and abs(wd.lv.ob(m).y - FLUEH - p.y - 118) < 8
+' the stack's brick at each, and smoke over the way out's pot only, counted over a puff's rise
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 60, 0
+for j = 0 to 1
+    v = c
+    if j = 1 then v = m
+    colB(j) = 0
+    g.camx = wd.lv.ob(v).x - 160
+    g.camy = wd.lv.ob(v).y - 150
+    for i = 0 to 7
+        wd.se.ticks = wd.se.ticks + 16
+        g.shake = 0
+        Render wd, g, p, lo(), pt()
+        for hid = 90 to 116
+            if point(162, hid) = CSOOT or point(166, hid) = CSOOT then colB(j) = colB(j) + 1
+        next
+    next
+    was = was and point(160, 140) >= 122 and point(160, 140) <= 125
+next
+if was and colB(0) = 0 and colB(1) > 8 then print "chimney ok"
 ' Russet Wood is the fifth zone, by name and in its own colours: its litter's top the same picture at both hours,
 ' russet gold at a misty noon and not on the firefly night
 was = ZoneName$(4) = "RUSSET WOOD"
@@ -3595,6 +3671,7 @@ def main() -> None:
         ("quarter ok", "Lantern Quarter, the sixth zone: its roofs lit indigo at the blue hour, its tune swung"),
         ("line ok", "a clothesline throws him up, higher each time in a row; passed through from under; drawn"),
         ("awning ok", "an awning throws him up the same each time; passed through from under, and by past its edge"),
+        ("chimney ok", "a chimney takes him down its pot and up out of its other; the way out takes no one in"),
         ("firefly ok", "the wood's night dark but for a few fireflies; a bark wakes them and lights it for a while"),
         ("sapling ok", "a bowed sapling throws him who crosses its crown, higher the faster; sprung it throws no one"),
         ("vine ok", "a vine caught in the air swings him as a weight, lets go at a jump, and hangs straight again"),
