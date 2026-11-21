@@ -17,7 +17,9 @@ Menu commands are in [menus](menus).
    ([syntax checking](syntax checking)).
  - [Completion](completion): Tab lists what fits at the cursor.
  - [Debug pane](debug pane): at a stop, Watch, Locals and Call stack
-   beside the code.
+   beside the code. Records and arrays open in Locals, values can be
+   set, and Break When (Ctrl+F9) stops the run when an expression
+   turns true or changes.
  - Debug, Step Out (Shift+F8) runs on until the current procedure
    returns, then stops at the next statement in its caller. Step (F8)
    and Step Over (F7) run one statement, into calls or over them
