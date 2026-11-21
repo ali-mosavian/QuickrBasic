@@ -162,11 +162,11 @@ private sub TrackMovers (lv as Level, gr as Ground)
         if lv.ob(i).kind <> KMOVE and lv.ob(i).kind <> KSPAN and lv.ob(i).kind <> KSEAT and lv.ob(i).kind <> KTRAM then continue for
         Knot gr, csng(lv.ob(i).at.x), csng(lv.ob(i).at.y), 0
         Knot gr, csng(lv.ob(i).at.x + MOVEW), csng(lv.ob(i).at.y), 3
-        lv.mv(k).o = i
-        lv.mv(k).s = gr.n - 2
-        lv.mv(k).z = gr.nz
+        lv.mv(k).thing = i
+        lv.mv(k).sg = gr.n - 2
+        lv.mv(k).cv = gr.nz
         lv.mv(k).t = 0
-        if lv.mv(k).k = 4 then lv.mv(k).b = ButtonAt%(lv, lv.mv(k).b)
+        if lv.mv(k).kind = 4 then lv.mv(k).button = ButtonAt%(lv, lv.mv(k).button)
         gr.cv(gr.nz).a = gr.n - 2
         gr.cv(gr.nz).b = gr.n - 2
         gr.cv(gr.nz).m = -1

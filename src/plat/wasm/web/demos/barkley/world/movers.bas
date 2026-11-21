@@ -29,27 +29,27 @@ const TRAMV = 240!
 ' is level.
 function Dip% (lv as Level, m as integer)
     Dip% = CABLED
-    if lv.mv(m).k = 7 then Dip% = -CABLED
-    if lv.mv(m).k = 8 then Dip% = 0
+    if lv.mv(m).kind = 7 then Dip% = -CABLED
+    if lv.mv(m).kind = 8 then Dip% = 0
 end function
 
 ' Boat m is off the floor of its pool.
 function Adrift% (lv as Level, m as integer)
-    Adrift% = lv.tide - FREEB < lv.mv(m).y
+    Adrift% = lv.tide - FREEB < lv.mv(m).at.y
 end function
 
 ' Platform m's swing now, -1 to 1, held a while at each end when it goes up and down; quarter: a quarter of its
 ' way on, which tells where it is going.
 function Swing! (lv as Level, se as Session, m as integer, quarter as integer)
     dim q as single, v as single
-    if lv.mv(m).k = 5 then
+    if lv.mv(m).kind = 5 then
         ' a boat by its own clock, which stops while it is aground
         q = lv.mv(m).t + m + quarter * PI / 2
     else
-        q = se.ticks * STEPT * (1.1 - .2 * lv.mv(m).k) + m + quarter * PI / 2
+        q = se.ticks * STEPT * (1.1 - .2 * lv.mv(m).kind) + m + quarter * PI / 2
     end if
     v = sin(q)
-    if lv.mv(m).k = 1 then
+    if lv.mv(m).kind = 1 then
         v = v * 1.3
         if v > 1 then v = 1
         if v < -1 then v = -1
@@ -62,29 +62,29 @@ end function
 sub Movers (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero)
     dim m as integer, s as integer, o as integer, x as single, y as single, dx as single, dy as single
     for m = 0 to lv.nMv - 1
-        s = lv.mv(m).s
-        x = lv.mv(m).x
-        y = lv.mv(m).y
-        select case lv.mv(m).k
-        case 0: x = x + lv.mv(m).a * Swing!(lv, se, m, 0)
+        s = lv.mv(m).sg
+        x = lv.mv(m).at.x
+        y = lv.mv(m).at.y
+        select case lv.mv(m).kind
+        case 0: x = x + lv.mv(m).reach * Swing!(lv, se, m, 0)
         case 5
             if Adrift%(lv, m) then
                 lv.mv(m).t = lv.mv(m).t + STEPT
                 y = lv.tide - FREEB
             end if
-            x = x + lv.mv(m).a * Swing!(lv, se, m, 0)
-        case 1: y = y + lv.mv(m).a * Swing!(lv, se, m, 0)
+            x = x + lv.mv(m).reach * Swing!(lv, se, m, 0)
+        case 1: y = y + lv.mv(m).reach * Swing!(lv, se, m, 0)
         case 6
             ' a pier's span: trodden, it totters a moment, then falls from under who is on it, and stays fallen
             if lv.mv(m).t > 0 or (p.ground and p.sg = s) then lv.mv(m).t = lv.mv(m).t + STEPT
             if lv.mv(m).t > SPANT + 2 then lv.mv(m).t = SPANT + 2
-            lv.ob(lv.mv(m).o).state = lv.mv(m).t > 0 and lv.mv(m).t < SPANT
+            lv.ob(lv.mv(m).thing).state = lv.mv(m).t > 0 and lv.mv(m).t < SPANT
             if lv.mv(m).t >= SPANT then
                 if lv.mv(m).t - STEPT < SPANT then Sfx mu, se, SCRACK
                 if p.ground and p.sg = s then Drop gr, p
                 dy = lv.mv(m).t - SPANT
                 y = y + 80 * dy + GRAV * dy * dy
-                if y > lv.mv(m).y + SPANDROP then y = lv.mv(m).y + SPANDROP
+                if y > lv.mv(m).at.y + SPANDROP then y = lv.mv(m).at.y + SPANDROP
             end if
         case 2
             if p.ground and p.sg = s then
@@ -93,27 +93,27 @@ sub Movers (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero)
                 lv.mv(m).t = lv.mv(m).t - 60 * STEPT
             end if
             if lv.mv(m).t < 0 then lv.mv(m).t = 0
-            if lv.mv(m).t > lv.mv(m).a then lv.mv(m).t = lv.mv(m).a
+            if lv.mv(m).t > lv.mv(m).reach then lv.mv(m).t = lv.mv(m).reach
             y = y - lv.mv(m).t
         case 4
-            if lv.ob(lv.mv(m).b).state then lv.mv(m).t = lv.mv(m).t + 200 * STEPT
-            if lv.mv(m).t > lv.mv(m).a then lv.mv(m).t = lv.mv(m).a
+            if lv.ob(lv.mv(m).button).state then lv.mv(m).t = lv.mv(m).t + 200 * STEPT
+            if lv.mv(m).t > lv.mv(m).reach then lv.mv(m).t = lv.mv(m).reach
             y = y - lv.mv(m).t
         case 3, 7, 8
             ' while stood on: a basket down its cable, faster as it goes, a chair up its own steadily, a tram along
             ' its street at TRAMV; back when left
             if not p.ground or p.sg <> s then
                 lv.mv(m).t = lv.mv(m).t - .4 * STEPT
-            elseif lv.mv(m).k = 3 then
+            elseif lv.mv(m).kind = 3 then
                 lv.mv(m).t = lv.mv(m).t + (.25 + lv.mv(m).t) * .6 * STEPT
-            elseif lv.mv(m).k = 7 then
+            elseif lv.mv(m).kind = 7 then
                 lv.mv(m).t = lv.mv(m).t + SEATV * STEPT
             else
-                lv.mv(m).t = lv.mv(m).t + TRAMV * STEPT / lv.mv(m).a
+                lv.mv(m).t = lv.mv(m).t + TRAMV * STEPT / lv.mv(m).reach
             end if
             if lv.mv(m).t < 0 then lv.mv(m).t = 0
             if lv.mv(m).t > 1 then lv.mv(m).t = 1
-            x = x + lv.mv(m).a * lv.mv(m).t
+            x = x + lv.mv(m).reach * lv.mv(m).t
             y = y + Dip%(lv, m) * lv.mv(m).t
         end select
         dx = x - gr.pt(s).x
@@ -123,9 +123,9 @@ sub Movers (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero)
         gr.pt(s + 1).x = x + MOVEW
         gr.pt(s).y = y
         gr.pt(s + 1).y = y
-        gr.cv(lv.mv(m).z).l = int(x)
-        gr.cv(lv.mv(m).z).r = int(x) + MOVEW + 1
-        o = lv.mv(m).o
+        gr.cv(lv.mv(m).cv).l = int(x)
+        gr.cv(lv.mv(m).cv).r = int(x) + MOVEW + 1
+        o = lv.mv(m).thing
         lv.ob(o).at.x = cint(x)
         lv.ob(o).at.y = cint(y)
         if not p.ground or p.sg <> s then continue for

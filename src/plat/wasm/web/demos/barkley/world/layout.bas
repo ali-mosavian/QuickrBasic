@@ -17,11 +17,11 @@ sub AddMover (lv as Level, x as integer, y as integer, a as integer, k as intege
     case 8: AddObj lv, KTRAM, x, y
     case else: AddObj lv, KMOVE, x, y
     end select
-    lv.mv(lv.nMv).x = x
-    lv.mv(lv.nMv).y = y
-    lv.mv(lv.nMv).a = a
-    lv.mv(lv.nMv).k = k
-    lv.mv(lv.nMv).e = e
+    lv.mv(lv.nMv).at.x = x
+    lv.mv(lv.nMv).at.y = y
+    lv.mv(lv.nMv).reach = a
+    lv.mv(lv.nMv).kind = k
+    lv.mv(lv.nMv).edge = e
     lv.nMv = lv.nMv + 1
 end sub
 

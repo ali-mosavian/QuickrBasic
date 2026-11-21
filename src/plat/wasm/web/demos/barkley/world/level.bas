@@ -260,7 +260,7 @@ sub LoadLevel (wd as World, st as integer)
             ' a pit n wide, platforms lying on its floor that rise to bridge it once the last button is trodden
             for i = 0 to n \ 3 - 1
                 AddMover wd.lv, (c + i * 3) * TS, s + PITD * TS - 6, PITD * TS - 6, 4, c * TS
-                wd.lv.mv(wd.lv.nMv - 1).b = bx
+                wd.lv.mv(wd.lv.nMv - 1).button = bx
             next
             Pit wd.lv, c, g, n
             c = c + n
@@ -493,7 +493,7 @@ sub Mend (lv as Level)
         lv.swarms(m).st = 0
     next
     for m = 0 to lv.nMv - 1
-        if lv.mv(m).k = 6 then lv.mv(m).t = 0
+        if lv.mv(m).kind = 6 then lv.mv(m).t = 0
     next
     for m = 0 to lv.nObj - 1
         if lv.ob(m).kind = KSLED then lv.ob(m).state = 0

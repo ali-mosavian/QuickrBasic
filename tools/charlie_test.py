@@ -601,9 +601,9 @@ next
 if wd.mu.slot = ZTUNE and wd.mu.zHeld = 5 and wd.mu.song(ZTUNE).tempo = 132 then print "works tune ok"
 ' a platform carries who stands on it, to and fro
 for m = 0 to wd.lv.nMv - 1
-    if wd.lv.mv(m).k = 0 then exit for
+    if wd.lv.mv(m).kind = 0 then exit for
 next
-c = wd.lv.mv(m).s
+c = wd.lv.mv(m).sg
 p.at.x = wd.gr.pt(c).x + 24
 p.at.y = wd.gr.pt(c).y
 p.sg = c
@@ -1278,15 +1278,15 @@ if zp then print "reach ok"
 ' Charlie aboard goes up with it
 GoStage wd, 4, g, p, lo(), pt()
 for m = 0 to wd.lv.nMv - 1
-    if wd.lv.mv(m).k = 5 then exit for
+    if wd.lv.mv(m).kind = 5 then exit for
 next
-c = wd.lv.mv(m).s
+c = wd.lv.mv(m).sg
 for i = 1 to 30
     Tick wd, g, p, k, lo(), pt()
 next
-was = m < wd.lv.nMv and wd.gr.pt(c).y = wd.lv.mv(m).y and wd.gr.pt(c).x = wd.lv.mv(m).x
-was = was and wd.lv.tide - FREEB > wd.lv.mv(m).y
-wd.lv.tideLo = wd.lv.mv(m).y - 20
+was = m < wd.lv.nMv and wd.gr.pt(c).y = wd.lv.mv(m).at.y and wd.gr.pt(c).x = wd.lv.mv(m).at.x
+was = was and wd.lv.tide - FREEB > wd.lv.mv(m).at.y
+wd.lv.tideLo = wd.lv.mv(m).at.y - 20
 wd.lv.tideHi = wd.lv.tideLo
 p.at.x = wd.gr.pt(c).x + 20
 p.at.y = wd.gr.pt(c).y
@@ -1296,7 +1296,7 @@ p.gsp = 0
 for i = 1 to 30
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and wd.gr.pt(c).y = wd.lv.tide - FREEB and wd.gr.pt(c).x <> wd.lv.mv(m).x
+was = was and wd.gr.pt(c).y = wd.lv.tide - FREEB and wd.gr.pt(c).x <> wd.lv.mv(m).at.x
 was = was and p.ground and p.sg = c and abs(p.at.y - wd.gr.pt(c).y) < 1
 if was then print "boat ok"
 ' the sands' old pier: a span stays while no one is on it, totters under Charlie stood on it, then falls from under
@@ -1306,18 +1306,18 @@ if was then print "boat ok"
 GoStage wd, 0, g, p, lo(), pt()
 GoStage wd, 4, g, p, lo(), pt()
 for m = 0 to wd.lv.nMv - 1
-    if wd.lv.mv(m).k = 6 then exit for
+    if wd.lv.mv(m).kind = 6 then exit for
 next
-c = wd.lv.mv(m).s
+c = wd.lv.mv(m).sg
 spans = 0
 for i = m to wd.lv.nMv - 1
-    if wd.lv.mv(i).k = 6 then spans = spans + 1
+    if wd.lv.mv(i).kind = 6 then spans = spans + 1
 next
 for i = 1 to 60
     Tick wd, g, p, k, lo(), pt()
 next
-was = m < wd.lv.nMv and spans > 5 and wd.gr.pt(c).y = wd.lv.mv(m).y
-was = was and wd.lv.mv(m).t = 0 and wd.lv.ob(wd.lv.mv(m).o).kind = KSPAN
+was = m < wd.lv.nMv and spans > 5 and wd.gr.pt(c).y = wd.lv.mv(m).at.y
+was = was and wd.lv.mv(m).t = 0 and wd.lv.ob(wd.lv.mv(m).thing).kind = KSPAN
 p.at.x = wd.gr.pt(c).x + 24
 p.at.y = wd.gr.pt(c).y
 p.sg = c
@@ -1326,33 +1326,33 @@ p.gsp = 0
 for i = 1 to 12
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and wd.gr.pt(c).y = wd.lv.mv(m).y and p.ground and p.sg = c and wd.lv.ob(wd.lv.mv(m).o).state <> 0
+was = was and wd.gr.pt(c).y = wd.lv.mv(m).at.y and p.ground and p.sg = c and wd.lv.ob(wd.lv.mv(m).thing).state <> 0
 for i = 1 to 60
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and wd.gr.pt(c).y > wd.lv.mv(m).y + 200 and wd.lv.ob(wd.lv.mv(m).o).at.y > wd.lv.mv(m).y + 200
+was = was and wd.gr.pt(c).y > wd.lv.mv(m).at.y + 200 and wd.lv.ob(wd.lv.mv(m).thing).at.y > wd.lv.mv(m).at.y + 200
 was = was and not (p.ground and p.sg = c)
 ' down on the pool's dry floor, not through it
-was = was and not p.dead and p.ground and abs(p.at.y - (wd.lv.mv(m).y + PITD * TS)) < 2
+was = was and not p.dead and p.ground and abs(p.at.y - (wd.lv.mv(m).at.y + PITD * TS)) < 2
 Spawn wd.lv, wd.gr, wd.zn, wd.mu, g, p
 Tick wd, g, p, k, lo(), pt()
-was = was and wd.gr.pt(c).y = wd.lv.mv(m).y and wd.lv.mv(m).t = 0 and wd.lv.ob(wd.lv.mv(m).o).state = 0
-Stand wd.lv, wd.gr, p, wd.lv.mv(m).e - 40, 300
+was = was and wd.gr.pt(c).y = wd.lv.mv(m).at.y and wd.lv.mv(m).t = 0 and wd.lv.ob(wd.lv.mv(m).thing).state = 0
+Stand wd.lv, wd.gr, p, wd.lv.mv(m).edge - 40, 300
 k.r = -1
 v = 0
 for i = 1 to 200
     Tick wd, g, p, k, lo(), pt()
-    if p.swim or p.at.y > wd.lv.mv(m).y + 8 then v = -1
-    if p.at.x > wd.lv.mv(m).e + spans * MOVEW + 30 then exit for
+    if p.swim or p.at.y > wd.lv.mv(m).at.y + 8 then v = -1
+    if p.at.x > wd.lv.mv(m).edge + spans * MOVEW + 30 then exit for
 next
 k.r = 0
-was = was and i < 200 and v = 0 and p.ground and abs(p.at.y - wd.lv.mv(m).y) < 2
+was = was and i < 200 and v = 0 and p.ground and abs(p.at.y - wd.lv.mv(m).at.y) < 2
 for i = 1 to 90
     Tick wd, g, p, k, lo(), pt()
 next
 j = 0
 for i = m to wd.lv.nMv - 1
-    if wd.lv.mv(i).k = 6 and wd.gr.pt(wd.lv.mv(i).s).y > wd.lv.mv(i).y + 200 then j = j + 1
+    if wd.lv.mv(i).kind = 6 and wd.gr.pt(wd.lv.mv(i).sg).y > wd.lv.mv(i).at.y + 200 then j = j + 1
 next
 if was and j = spans then print "pier ok"
 ' the sands' flume: walked onto, Charlie is swept down it curled, no slower than its water runs, and thrown from
@@ -1771,34 +1771,34 @@ if was and colB(0) = 0 and colB(1) > 8 then print "chimney ok"
 ' a tram waits at its street's near end while no one rides it; ridden, it goes along at 240 a second, he with it,
 ' to its way's end and no further, level all the way; left, it comes back; drawn in its red
 for m = 0 to wd.lv.nMv - 1
-    if wd.lv.mv(m).k = 8 then exit for
+    if wd.lv.mv(m).kind = 8 then exit for
 next
 was = m < wd.lv.nMv
-c = wd.lv.mv(m).o
-Stand wd.lv, wd.gr, p, wd.lv.mv(m).e - 40, 0
+c = wd.lv.mv(m).thing
+Stand wd.lv, wd.gr, p, wd.lv.mv(m).edge - 40, 0
 for i = 1 to 30
     Tick wd, g, p, k, lo(), pt()
 next
 bx = wd.lv.ob(c).at.x
-was = was and bx = wd.lv.mv(m).x and wd.lv.mv(m).t = 0
+was = was and bx = wd.lv.mv(m).at.x and wd.lv.mv(m).t = 0
 p.at.x = bx + MOVEW \\ 2
-p.at.y = wd.lv.mv(m).y
-p.sg = wd.lv.mv(m).s
+p.at.y = wd.lv.mv(m).at.y
+p.sg = wd.lv.mv(m).sg
 p.ang = 0
 for i = 1 to 60
     Tick wd, g, p, k, lo(), pt()
 next
 was = was and abs(wd.lv.ob(c).at.x - bx - 240) < 6 and abs(p.at.x - wd.lv.ob(c).at.x - MOVEW \\ 2) < 2 and p.ground
-was = was and p.sg = wd.lv.mv(m).s
+was = was and p.sg = wd.lv.mv(m).sg
 g.shake = 0
 Render wd, g, p, lo(), pt()
 was = was and point(wd.lv.ob(c).at.x + 20 - int(g.cam.x), wd.lv.ob(c).at.y + 23 - int(g.cam.y)) = 187
 for i = 1 to 600
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and wd.lv.mv(m).t = 1 and wd.lv.ob(c).at.x = bx + wd.lv.mv(m).a and p.ground and p.sg = wd.lv.mv(m).s
-was = was and wd.lv.ob(c).at.y = wd.lv.mv(m).y
-Stand wd.lv, wd.gr, p, wd.lv.mv(m).e - 40, 0
+was = was and wd.lv.mv(m).t = 1 and wd.lv.ob(c).at.x = bx + wd.lv.mv(m).reach and p.ground and p.sg = wd.lv.mv(m).sg
+was = was and wd.lv.ob(c).at.y = wd.lv.mv(m).at.y
+Stand wd.lv, wd.gr, p, wd.lv.mv(m).edge - 40, 0
 for i = 1 to 200
     Tick wd, g, p, k, lo(), pt()
 next
@@ -3918,9 +3918,9 @@ was = 0
 ' a lift goes up under Charlie to the ground above, and back down once it is left
 GoStage wd, 2, g, p, lo(), pt()
 for m = 0 to wd.lv.nMv - 1
-    if wd.lv.mv(m).k = 2 then exit for
+    if wd.lv.mv(m).kind = 2 then exit for
 next
-c = wd.lv.mv(m).s
+c = wd.lv.mv(m).sg
 p.at.x = wd.gr.pt(c).x + 20
 p.at.y = wd.gr.pt(c).y
 p.sg = c
@@ -3929,13 +3929,13 @@ p.gsp = 0
 for i = 1 to 200
     Tick wd, g, p, k, lo(), pt()
 next
-was = wd.lv.mv(m).t = wd.lv.mv(m).a and p.ground and abs(p.at.y - (wd.lv.mv(m).y - wd.lv.mv(m).a)) < 2
+was = wd.lv.mv(m).t = wd.lv.mv(m).reach and p.ground and abs(p.at.y - (wd.lv.mv(m).at.y - wd.lv.mv(m).reach)) < 2
 k.r = -1
 for i = 1 to 60
     Tick wd, g, p, k, lo(), pt()
 next
 k.r = 0
-was = was and p.ground and wd.gr.pt(p.sg).k = 1 and p.at.x > wd.lv.mv(m).x + MOVEW
+was = was and p.ground and wd.gr.pt(p.sg).k = 1 and p.at.x > wd.lv.mv(m).at.x + MOVEW
 for i = 1 to 200
     Tick wd, g, p, k, lo(), pt()
 next
@@ -3943,9 +3943,9 @@ if was and wd.lv.mv(m).t = 0 then print "lift ok"
 ' a basket goes down its cable under Charlie, to the ground past the pit
 GoStage wd, 2, g, p, lo(), pt()
 for m = 0 to wd.lv.nMv - 1
-    if wd.lv.mv(m).k = 3 then exit for
+    if wd.lv.mv(m).kind = 3 then exit for
 next
-c = wd.lv.mv(m).s
+c = wd.lv.mv(m).sg
 p.at.x = wd.gr.pt(c).x + 24
 p.at.y = wd.gr.pt(c).y
 p.sg = c
@@ -3954,8 +3954,8 @@ p.gsp = 0
 for i = 1 to 300
     Tick wd, g, p, k, lo(), pt()
 next
-was = p.ground and p.sg = c and abs(p.at.x - (wd.lv.mv(m).x + wd.lv.mv(m).a + 24)) < 2
-if was and abs(p.at.y - (wd.lv.mv(m).y + CABLED)) < 2 then print "cable ok"
+was = p.ground and p.sg = c and abs(p.at.x - (wd.lv.mv(m).at.x + wd.lv.mv(m).reach + 24)) < 2
+if was and abs(p.at.y - (wd.lv.mv(m).at.y + CABLED)) < 2 then print "cable ok"
 ' the pass's goat and ice wall: the wall stops him on foot. The goat grazes with him 92 off, further than it sees;
 ' with him 50 off it lowers its head 24 ticks where it stands, then charges 8 a step of two ticks and hurts him
 ' where he stood, 36 to 38 ticks on. Jumped as it charges, it stops under him; he comes down on its back and it
@@ -4193,10 +4193,10 @@ wd.lv.cart.st = 0
 ' have him off it
 GoStage wd, 7, g, p, lo(), pt()
 for m = 0 to wd.lv.nMv - 1
-    if wd.lv.mv(m).k = 7 then exit for
+    if wd.lv.mv(m).kind = 7 then exit for
 next
 was = m < wd.lv.nMv
-c = wd.lv.mv(m).s
+c = wd.lv.mv(m).sg
 p.at.x = wd.gr.pt(c).x + 24
 p.at.y = wd.gr.pt(c).y
 p.sg = c
@@ -4205,11 +4205,12 @@ p.gsp = 0
 k.d = -1
 for i = 1 to 400
     Tick wd, g, p, k, lo(), pt()
-    if i = 86 then was = was and abs(p.at.y - (wd.lv.mv(m).y - CABLED \\ 2)) < 3
+    if i = 86 then was = was and abs(p.at.y - (wd.lv.mv(m).at.y - CABLED \\ 2)) < 3
     if wd.lv.mv(m).t = 1 then exit for
 next
-was = was and i >= 171 and i <= 174 and p.ground and p.sg = c and abs(p.at.x - (wd.lv.mv(m).x + wd.lv.mv(m).a + 24)) < 2
-was = was and abs(p.at.y - (wd.lv.mv(m).y - CABLED)) < 2 and wd.lv.ob(wd.lv.mv(m).o).kind = KSEAT
+was = was and i >= 171 and i <= 174 and p.ground and p.sg = c _
+    and abs(p.at.x - (wd.lv.mv(m).at.x + wd.lv.mv(m).reach + 24)) < 2
+was = was and abs(p.at.y - (wd.lv.mv(m).at.y - CABLED)) < 2 and wd.lv.ob(wd.lv.mv(m).thing).kind = KSEAT
 k.d = 0
 k.r = -1
 wd.se.ticks = 1920
@@ -4218,8 +4219,8 @@ for i = 1 to 40
 next
 k.r = 0
 k.d = -1
-was = was and p.ground and wd.gr.pt(p.sg).k = 1 and abs(p.at.y - (wd.lv.mv(m).y - CABLED)) < 2
-was = was and p.at.x > wd.lv.mv(m).x + wd.lv.mv(m).a + MOVEW
+was = was and p.ground and wd.gr.pt(p.sg).k = 1 and abs(p.at.y - (wd.lv.mv(m).at.y - CABLED)) < 2
+was = was and p.at.x > wd.lv.mv(m).at.x + wd.lv.mv(m).reach + MOVEW
 for i = 1 to 200
     Tick wd, g, p, k, lo(), pt()
 next
@@ -4228,10 +4229,10 @@ if was and wd.lv.mv(m).t = 0 then print "chair ok"
 ' a button trodden raises its bridge out of the pit, and the bridge carries
 GoStage wd, 2, g, p, lo(), pt()
 for m = 0 to wd.lv.nMv - 1
-    if wd.lv.mv(m).k = 4 then exit for
+    if wd.lv.mv(m).kind = 4 then exit for
 next
-j = wd.lv.mv(m).b
-c = wd.lv.mv(m).s
+j = wd.lv.mv(m).button
+c = wd.lv.mv(m).sg
 for i = 1 to 60
     Tick wd, g, p, k, lo(), pt()
 next
@@ -4254,8 +4255,8 @@ p.gsp = 0
 for i = 1 to 30
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and wd.lv.mv(m).t = wd.lv.mv(m).a and p.ground and p.sg = c
-if was and abs(p.at.y - (wd.lv.mv(m).y - wd.lv.mv(m).a)) < 2 then print "bridge ok"
+was = was and wd.lv.mv(m).t = wd.lv.mv(m).reach and p.ground and p.sg = c
+if was and abs(p.at.y - (wd.lv.mv(m).at.y - wd.lv.mv(m).reach)) < 2 then print "bridge ok"
 ' the Amber Downs at evening played through by the pilot on one life; after its family and its fade the Chrome
 ' Works, their platforms and lifts ridden, the works by night, then Saltwick Sands at noon and at sunset: each
 ' cleared on that life

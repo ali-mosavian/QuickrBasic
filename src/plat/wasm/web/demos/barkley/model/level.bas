@@ -67,23 +67,22 @@ type Thing
     home as integer
 end type
 
-' A moving platform: its thing o, its stretch s and curve z; its middle x, y and reach a; k 0 to and fro, 1 up and
-' down, 2 a lift, t how far up it is; e the edge before it; b a bridge's button. 3 a basket down a cable, 7 a chair
+' A moving platform: its thing, its stretch sg and curve cv; its middle at, its reach; kind 0 to and fro, 1 up and
+' down, 2 a lift, t how far up it is; the edge before it; a bridge's button. 3 a basket down a cable, 7 a chair
 ' up one, 8 a tram along a street: t how far along.
 type Mover
-    o as integer
-    s as integer
-    z as integer
-    x as integer
-    y as integer
-    a as integer
-    k as integer
-    e as integer
-    b as integer
+    thing as integer
+    sg as integer
+    cv as integer
+    at as Spot
+    reach as integer
+    kind as integer
+    edge as integer
+    button as integer
     t as single
 end type
 
-' The goat out of its place, i: st 1 ridden, 2 on its way home from x, y, 0 none.
+' The goat out of its place: st 1 ridden, 2 on its way home from at, 0 none.
 type Rover
     x as single
     y as single

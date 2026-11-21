@@ -92,8 +92,8 @@ private function PilotRide% (lv as Level, gr as Ground, se as Session, p as Hero
         want = -1
     end if
     for m = 0 to lv.nMv - 1
-        if lv.mv(m).s <> p.sg then continue for
-        select case lv.mv(m).k
+        if lv.mv(m).sg <> p.sg then continue for
+        select case lv.mv(m).kind
         case 4, 6
             ' a bridge is run over, and a pier
             PressOn k
@@ -259,10 +259,10 @@ private sub PilotGaps (lv as Level, se as Session, p as Hero, k as Pad, want as 
     x = cint(p.at.x)
     y = cint(p.at.y)
     for m = 0 to lv.nMv - 1
-        d = lv.mv(m).e - x
+        d = lv.mv(m).edge - x
         ' a bridge and a pier are run over; a tram's street is run along
-        if lv.mv(m).k = 4 or lv.mv(m).k = 6 or lv.mv(m).k = 8 then d = NONE
-        if d <= -4 or d >= 300 or abs(lv.mv(m).y + lv.mv(m).a * (lv.mv(m).k = 1) - y) >= 200 then continue for
+        if lv.mv(m).kind = 4 or lv.mv(m).kind = 6 or lv.mv(m).kind = 8 then d = NONE
+        if d <= -4 or d >= 300 or abs(lv.mv(m).at.y + lv.mv(m).reach * (lv.mv(m).kind = 1) - y) >= 200 then continue for
         if d < 50 then want = 0
         if p.gsp > 30 + d then k.r = 0
         if p.gsp > 70 + d then k.l = -1
@@ -277,7 +277,7 @@ end sub
 
 ' Whether moving platform m is at its gap's edge and staying, to be stepped onto.
 private function Ready% (lv as Level, se as Session, m as integer)
-    select case lv.mv(m).k
+    select case lv.mv(m).kind
     case 0: Ready% = Swing!(lv, se, m, 0) < -.85 and Swing!(lv, se, m, 1) < 0
     case 5
         ' a boat aground is no way over: down into its pool
@@ -294,9 +294,9 @@ private sub PilotFall (lv as Level, zn as Realm, p as Hero, k as Pad)
     if zn.id = 2 and lv.cart.st = 1 then k.r = 0
     if GoatNear%(lv, cint(p.at.x)) <> NONE then k.r = 0
     for m = 0 to lv.nMv - 1
-        d = lv.mv(m).e - cint(p.at.x)
-        if lv.mv(m).k = 4 or lv.mv(m).k = 6 or lv.mv(m).k = 8 then d = NONE
-        if d <= -40 or d >= 260 or p.coyote > 0 or p.vel.x <= d \ 3 or p.sg = lv.mv(m).s then continue for
+        d = lv.mv(m).edge - cint(p.at.x)
+        if lv.mv(m).kind = 4 or lv.mv(m).kind = 6 or lv.mv(m).kind = 8 then d = NONE
+        if d <= -40 or d >= 260 or p.coyote > 0 or p.vel.x <= d \ 3 or p.sg = lv.mv(m).sg then continue for
         k.r = 0
         k.l = -1
     next

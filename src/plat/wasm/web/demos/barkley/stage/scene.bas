@@ -282,19 +282,19 @@ private sub DrawCables (lv as Level, cx as integer, cy as integer)
     dim m as integer, x as integer, y as integer, x1 as integer, bx as integer, by as integer, i as integer
     dim d as integer
     for m = 0 to lv.nMv - 1
-        if lv.mv(m).k <> 3 and lv.mv(m).k <> 7 then continue for
-        x = lv.mv(m).e - 8 - cx
-        y = lv.mv(m).y - CABLEH - cy
-        x1 = x + lv.mv(m).a + MOVEW
+        if lv.mv(m).kind <> 3 and lv.mv(m).kind <> 7 then continue for
+        x = lv.mv(m).edge - 8 - cx
+        y = lv.mv(m).at.y - CABLEH - cy
+        x1 = x + lv.mv(m).reach + MOVEW
         d = Dip%(lv, m)
         if x >= SW or x1 < 0 then continue for
         line (x, y)-(x1, y + d), CINK
         line (x, y + 1)-(x1, y + d + 1), CYELLOW
         line (x - 1, y - 2)-(x, y + CABLEH), CINK, BF
         line (x1, y + d - 2)-(x1 + 1, y + d + CABLEH), CINK, BF
-        bx = lv.ob(lv.mv(m).o).at.x - cx
-        by = lv.ob(lv.mv(m).o).at.y - cy
-        if lv.mv(m).k = 3 then
+        bx = lv.ob(lv.mv(m).thing).at.x - cx
+        by = lv.ob(lv.mv(m).thing).at.y - cy
+        if lv.mv(m).kind = 3 then
             for i = 4 to MOVEW - 4 step MOVEW - 8
                 line (bx + i, by)-(bx + i, y + 1 + clng(bx + i - x) * d \ (x1 - x)), CINK
             next
