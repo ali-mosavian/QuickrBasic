@@ -190,10 +190,10 @@ sub MeetSweep ( _
         - lv.things(i).at.x) <> sgn(lv.things(i).state)
 
     if not p.ground and p.vel.y > 0 and p.at.y < y - 8 then
-        Beaten lv, ev, g, i, 8
+        Beaten lv, ev, i, 8
         p.vel.y = -BOUNCEV
     elseif behind and (p.roll or p.charging) then
-        Beaten lv, ev, g, i, 8
+        Beaten lv, ev, i, 8
     else
         Hurt ev, se, g, p, lv.things(i).at.x, lo(), SHURT
     end if

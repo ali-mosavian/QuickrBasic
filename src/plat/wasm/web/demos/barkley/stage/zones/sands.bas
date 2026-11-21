@@ -107,7 +107,7 @@ sub MeetCrab ( _
     elseif abs(lv.things(i).state) = 1 then
         Hurt ev, se, g, p, lv.things(i).at.x, lo(), SHURT
     elseif p.roll or p.charging then
-        Beaten lv, ev, g, i, 6
+        Beaten lv, ev, i, 6
     end if
 end sub
 

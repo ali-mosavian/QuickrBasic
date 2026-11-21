@@ -11,8 +11,8 @@ from barkley.model.hero import Hero
 from barkley.model.level import GRAV, KCAT, KGOAT, KHEAP, KTHROW
 from barkley.model.level import Level, NONE, TS
 from barkley.model.game import Game, Loose, Session
-from barkley.model.events import EVBURST, EVSCORE, EVSOUND, Tell
-from barkley.model.events import TellAt
+from barkley.model.events import EVBURST, EVSCORE, EVSHAKE, EVSOUND
+from barkley.model.events import Tell, TellAt
 from barkley.assets.palette import CFLAKE, CICE, CSNOW, CWHITE
 from barkley.assets.tunes import SBUMP, SCRACK, SHURT, SROLL
 from barkley.world.terrain.ground import Balk, Lie, Solid, Surf
@@ -251,14 +251,14 @@ sub Avalanche ( _
 
         lv.aval.st = 1
         lv.aval.x = lv.aval_x - AVALLEAD
-        g.shake = .5
+        Tell ev, EVSHAKE, 50
         Tell ev, EVSOUND, SCRACK
     end if
 
     lv.aval.x = lv.aval.x + AVALV * STEPT
 
     if (se.ticks and 15) = 0 and lv.aval.x > g.cam.x - 40 then
-        g.shake = .12
+        Tell ev, EVSHAKE, 12
     end if
 
     if lv.aval.x > p.at.x - 6 then Lose ev, se, p
@@ -478,13 +478,7 @@ end sub
 
 ' An ice wall across the road: he is stopped at it; a goat
 ' ridden goes through, and leaves its stump.
-sub MeetWall ( _
-    lv as Level, _
-    ev as Events, _
-    g as Game, _
-    p as Hero, _
-    i as integer _
-)
+sub MeetWall (lv as Level, ev as Events, p as Hero, i as integer)
     if lv.things(i).state = 0 _
         or abs(lv.things(i).at.x - p.at.x) >= WALLR then exit sub
     if p.at.y <= lv.things(i).at.y - WALLH _
@@ -493,7 +487,7 @@ sub MeetWall ( _
     if p.goat then
         lv.things(i).state = 0
         Tell ev, EVSCORE, 100
-        g.shake = .2
+        Tell ev, EVSHAKE, 20
         TellAt ev, EVBURST, csng(lv.things(i).at.x), _
             csng(lv.things(i).at.y - WALLH \ 2), PWALL
         Tell ev, EVSOUND, SCRACK
@@ -617,12 +611,7 @@ end sub
 
 ' Icicle i falling: it breaks on the cat or the snow-thrower
 ' under it, which is beaten, or on the ground.
-private sub Plunge ( _
-    lv as Level, _
-    ev as Events, _
-    g as Game, _
-    i as integer _
-)
+private sub Plunge (lv as Level, ev as Events, i as integer)
     dim j as integer, y as integer, d as integer
 
     y = lv.things(i).at.y + Fallen%(lv, i) + 16
@@ -637,7 +626,7 @@ private sub Plunge ( _
             or abs(lv.things(j).at.x - lv.things(i).at.x) >= 14 _
             or y <= lv.things(j).at.y - 16 then continue for
 
-        Beaten lv, ev, g, j, 8
+        Beaten lv, ev, j, 8
         Shatter lv, ev, i
     next
 
@@ -704,11 +693,11 @@ sub MeetThrow ( _
 end sub
 
 ' Icicle i, loosed: it trembles a while, then falls.
-sub Totter (lv as Level, ev as Events, g as Game, i as integer)
+sub Totter (lv as Level, ev as Events, i as integer)
     if lv.things(i).state <= 0 then exit sub
 
     lv.things(i).state = lv.things(i).state + 1
-    if lv.things(i).state > TREMBLE then Plunge lv, ev, g, i
+    if lv.things(i).state > TREMBLE then Plunge lv, ev, i
 end sub
 
 ' Load i of snow, set off: a step of its trembling, its
@@ -736,7 +725,7 @@ sub Unload ( _
 
     lv.things(i).state = -1
     lv.things(h).state = 1
-    Bury lv, ev, g, h
+    Bury lv, ev, h
     if abs(p.at.x - lv.things(h).at.x) >= HEAPR _
         or abs(p.at.y - lv.things(h).at.y) >= HEAPH then exit sub
 
@@ -745,7 +734,7 @@ end sub
 
 ' Heap h, come down: the cats and snow-throwers under it are
 ' beaten.
-private sub Bury (lv as Level, ev as Events, g as Game, h as integer)
+private sub Bury (lv as Level, ev as Events, h as integer)
     dim j as integer, foe as integer
 
     for j = h - 6 to h + 6
@@ -760,10 +749,10 @@ private sub Bury (lv as Level, ev as Events, g as Game, h as integer)
         if abs(lv.things(j).at.y _
             - lv.things(h).at.y) >= 24 then continue for
 
-        Beaten lv, ev, g, j, 8
+        Beaten lv, ev, j, 8
     next
 
-    g.shake = .3
+    Tell ev, EVSHAKE, 30
     TellAt ev, EVBURST, csng(lv.things(h).at.x), _
         csng(lv.things(h).at.y - 12), PBURY
     Tell ev, EVSOUND, SCRACK

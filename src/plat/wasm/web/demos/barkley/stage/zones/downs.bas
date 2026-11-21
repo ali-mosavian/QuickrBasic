@@ -8,8 +8,8 @@ from barkley.model.images import ICAT, ICATF
 from barkley.model.hero import Hero
 from barkley.model.level import Level, Realm
 from barkley.model.game import Found, Game, Gild, Loose, Session
-from barkley.model.events import EVBURST, EVSCORE, EVSOUND, Tell
-from barkley.model.events import TellAt
+from barkley.model.events import EVBURST, EVSCORE, EVSHAKE, EVSOUND
+from barkley.model.events import Tell, TellAt
 from barkley.assets.tunes import SBONE, SBOOST, SGOLD, SMARK, SSPRING
 from barkley.world.terrain.ground import Solid, Surf
 from barkley.world.level import GoldNo
@@ -116,20 +116,14 @@ end sub
 
 ' A boost pad: run over slower than it sends, he is sent the
 ' way he faces.
-sub MeetBoost ( _
-    lv as Level, _
-    ev as Events, _
-    g as Game, _
-    p as Hero, _
-    i as integer _
-)
+sub MeetBoost (lv as Level, ev as Events, p as Hero, i as integer)
     if not p.ground _
         or abs(lv.things(i).at.x - cint(p.at.x)) >= 12 then exit sub
     if abs(cint(p.at.y) - lv.things(i).at.y) >= 4 _
         or abs(p.gsp) >= BOOSTV then exit sub
 
     p.gsp = BOOSTV * (1 - 2 * p.face)
-    g.shake = .2
+    Tell ev, EVSHAKE, 20
     TellAt ev, EVBURST, p.at.x, p.at.y - 4, PBOOST
     Tell ev, EVSOUND, SBOOST
 end sub

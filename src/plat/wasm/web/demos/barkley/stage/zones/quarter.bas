@@ -125,13 +125,7 @@ end function
 ' each in a row harder than the last, up to LINEROW; on the
 ' ground the row is over. From under, he goes through it. On
 ' a lantern line he slides.
-sub Lines ( _
-    lv as Level, _
-    ev as Events, _
-    se as Session, _
-    g as Game, _
-    p as Hero _
-)
+sub Lines (lv as Level, ev as Events, se as Session, p as Hero)
     dim i as integer, u as integer, y as integer
 
     if p.ground or p.swim or p.vine then p.hops = 0
@@ -152,7 +146,7 @@ sub Lines ( _
 
         ' the cat walking it is shaken off
         if lv.ropes(i).cat then
-            Shaken lv, ev, g, lv.ropes(i).cat - 1
+            Shaken lv, ev, lv.ropes(i).cat - 1
         end if
 
         exit sub
@@ -614,13 +608,8 @@ function SnatchPic% (se as Session, s as integer)
 end function
 
 ' Rope-walker i shaken off its line: beaten, where it was.
-private sub Shaken ( _
-    lv as Level, _
-    ev as Events, _
-    g as Game, _
-    i as integer _
-)
-    if lv.things(i).state then Beaten lv, ev, g, i, 6
+private sub Shaken (lv as Level, ev as Events, i as integer)
+    if lv.things(i).state then Beaten lv, ev, i, 6
 end sub
 
 ' The lines' step: one that swings, a step nearer rest; the

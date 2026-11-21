@@ -7,8 +7,8 @@ from engine.events import Events
 from barkley.model.hero import Hero
 from barkley.model.level import Level, PI
 from barkley.model.game import Game, Loose, NLOOSE, Session
-from barkley.model.events import EVBURST, EVSCORE, EVSOUND, Tell
-from barkley.model.events import TellAt
+from barkley.model.events import EVBURST, EVSCORE, EVSHAKE, EVSOUND
+from barkley.model.events import Tell, TellAt
 from barkley.assets.tunes import SDIE, SHISS, SHURT, SPOP
 from barkley.stage.fx.parts import PBEATEN
 
@@ -35,7 +35,7 @@ sub Tackle ( _
         exit sub
     end if
 
-    Beaten lv, ev, g, i, dy
+    Beaten lv, ev, i, dy
     if not p.ground and p.vel.y > 0 then p.vel.y = -BOUNCEV
 end sub
 
@@ -98,7 +98,7 @@ sub Hurt ( _
         p.vel.x = 140
     end if
 
-    g.shake = .25
+    Tell ev, EVSHAKE, 25
     if snd = SHURT then Tell ev, EVSOUND, snd
 end sub
 
@@ -114,16 +114,10 @@ end sub
 
 ' Thing i beaten: gone, its points, a shake and a puff dy
 ' over its foot.
-sub Beaten ( _
-    lv as Level, _
-    ev as Events, _
-    g as Game, _
-    i as integer, _
-    dy as integer _
-)
+sub Beaten (lv as Level, ev as Events, i as integer, dy as integer)
     lv.things(i).state = 0
     Tell ev, EVSCORE, 100
-    g.shake = .15
+    Tell ev, EVSHAKE, 15
     TellAt ev, EVBURST, csng(lv.things(i).at.x), _
         csng(lv.things(i).at.y - dy), PBEATEN
     Tell ev, EVSOUND, SPOP

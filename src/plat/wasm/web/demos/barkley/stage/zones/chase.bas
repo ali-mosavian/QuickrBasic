@@ -14,7 +14,8 @@ from barkley.model.hero import Hero
 from barkley.model.level import GRAV, Level, NONE, Realm, TS
 from barkley.model.game import Game, Loose, PULSES, Session
 from barkley.model.events import EVBURST, EVCHASETUNE, EVSCORE
-from barkley.model.events import EVSOUND, EVTUNE, Tell, TellAt
+from barkley.model.events import EVSHAKE, EVSOUND, EVTUNE, Tell
+from barkley.model.events import TellAt
 from barkley.assets.palette import CYELLOW
 from barkley.assets.cast import DrawKeep
 from barkley.assets.tunes import SBUMP, SHISS, SMARK, SPOP
@@ -164,13 +165,13 @@ sub Flee ( _
             MeetCart lv, ev, se, g, p, lo()
         case 1
             MoveCrane lv, p
-            MeetCrane lv, ev, g, p
+            MeetCrane lv, ev, p
             DropBox lv, ev, se, g, p, lo()
         case 2
             MovePedalo lv
-            MeetPedalo lv, ev, g, p
+            MeetPedalo lv, ev, p
         case 4
-            Juggle lv, ev, g, p
+            Juggle lv, ev, p
         case 5
             Lob lv, p
             MoveCart lv, p, LegPace!(lv, se), PASSV
@@ -260,7 +261,7 @@ private sub MeetCart ( _
         exit sub
     end if
 
-    Bumped lv, ev, g, lv.cart.at.y - 20
+    Bumped lv, ev, lv.cart.at.y - 20
     ' sled against sled he is checked, not thrown: a sled
     ' thrown back has no brake to stop it
     if p.sled and p.ground then p.gsp = SLEDV
@@ -281,11 +282,11 @@ private function Bumps% (zn as Realm)
 end function
 
 ' A bump told, its sparks at height y: who flees is dazed.
-private sub Bumped (lv as Level, ev as Events, g as Game, y as single)
+private sub Bumped (lv as Level, ev as Events, y as single)
     lv.cart.hits = lv.cart.hits + 1
     lv.cart.t = DAZED
     Tell ev, EVSCORE, 500
-    g.shake = .2
+    Tell ev, EVSHAKE, 20
     TellAt ev, EVBURST, lv.cart.at.x + 0, y, PCARTBUMP
     Tell ev, EVSOUND, SBUMP
 end sub
@@ -546,7 +547,7 @@ end sub
 ' the ball on its way he has caught it: a bump, the twins
 ' off to the pair above and the ball tossed up after them.
 ' The third catch, and the ball is his.
-private sub Juggle (lv as Level, ev as Events, g as Game, p as Hero)
+private sub Juggle (lv as Level, ev as Events, p as Hero)
     if lv.cart.t <= 0 then lv.box.t = lv.box.t - STEPT
 
     if lv.box.t <= 0 then
@@ -565,7 +566,7 @@ private sub Juggle (lv as Level, ev as Events, g as Game, p as Hero)
     lv.box.at.y = lv.cart.at.y
     lv.box.st = 0
     lv.box.t = TWINHOLD
-    Bumped lv, ev, g, lv.cart.at.y - 7
+    Bumped lv, ev, lv.cart.at.y - 7
 end sub
 
 ' The picture of the twin on side sd, 0 the left: 0
@@ -748,19 +749,14 @@ end sub
 
 ' Charlie down onto the pedal boat's deck, out of the air: a
 ' bump, it turns round and he goes up off it.
-private sub MeetPedalo ( _
-    lv as Level, _
-    ev as Events, _
-    g as Game, _
-    p as Hero _
-)
+private sub MeetPedalo (lv as Level, ev as Events, p as Hero)
     if lv.cart.t > BOLTS or p.dead or p.ground or p.swim _
         or p.vel.y <= 0 then exit sub
     if abs(p.at.x - lv.cart.at.x) > PEDALW \ 2 _
         or p.at.y < lv.cart.at.y - 6 _
         or p.at.y > lv.cart.at.y + 14 then exit sub
 
-    Bumped lv, ev, g, lv.cart.at.y - 8
+    Bumped lv, ev, lv.cart.at.y - 8
     lv.cart.v = -lv.cart.v
     p.vel.y = -BOUNCEV
     p.jumped = 0
@@ -900,12 +896,7 @@ end sub
 ' he bumps it and is knocked aside, out of a jet's way, and
 ' down, or up off it if he came down on it; its crate is
 ' lost.
-private sub MeetCrane ( _
-    lv as Level, _
-    ev as Events, _
-    g as Game, _
-    p as Hero _
-)
+private sub MeetCrane (lv as Level, ev as Events, p as Hero)
     dim foot as single
 
     if lv.cart.t > BOLTS or p.dead or p.ground then exit sub
@@ -915,7 +906,7 @@ private sub MeetCrane ( _
         or p.at.y < foot - 24 then exit sub
 
     if lv.box.st > 0 or lv.box.t <= 0 then BreakBox lv, ev
-    Bumped lv, ev, g, foot - 12
+    Bumped lv, ev, foot - 12
     p.vel.x = 140 * (2 * (p.at.x <= lv.cart.at.x) + 1)
     p.vel.y = 160
     if p.at.y < foot - 14 then p.vel.y = -200

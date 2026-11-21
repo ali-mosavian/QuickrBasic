@@ -88,7 +88,7 @@ sub Touch ( _
     ' under the ground nothing is met
     if p.dig then exit sub
 
-    if lv.n_ropes then Lines lv, ev, se, g, p
+    if lv.n_ropes then Lines lv, ev, se, p
     px = cint(p.at.x)
     py = cint(p.at.y)
     c = (px - 80) \ TS
@@ -117,7 +117,7 @@ sub Touch ( _
         case KGOAT
             MeetGoat lv, ev, se, g, p, i, lo()
         case KWALL
-            MeetWall lv, ev, g, p, i
+            MeetWall lv, ev, p, i
         case KHEAP
             MeetHeap lv, p, i
         case KICICLE
@@ -155,7 +155,7 @@ sub Touch ( _
         case KMOUND
             MeetMound lv, ev, p, i
         case KBOOST
-            MeetBoost lv, ev, g, p, i
+            MeetBoost lv, ev, p, i
         case KFLUME, KSPOUT
             MeetFlume lv, ev, se, p, i
         case KMARK
@@ -248,7 +248,7 @@ sub Things ( _
                 + cint(SPARKR _
                 * sin((se.ticks + lv.things(i).home) * .03))
         case KICICLE
-            Totter lv, ev, g, i
+            Totter lv, ev, i
         case KLOAD
             Unload lv, ev, se, g, p, lo(), i
         case KGOAT

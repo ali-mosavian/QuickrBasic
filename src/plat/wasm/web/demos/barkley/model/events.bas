@@ -1,4 +1,5 @@
-' What play tells the game: a sound, a song, points, a puff.
+' What play tells the game: a sound, a song, points, a puff,
+' a shake.
 defint A-Z
 option explicit
 
@@ -22,6 +23,10 @@ const EVSCORE = 5
 
 ' A puff of sparks at its place, its id the amount.
 const EVBURST = 6
+
+' The screen shaken, for the amount's hundredths of a
+' second.
+const EVSHAKE = 7
 
 ' An event that happened at no place.
 sub Tell (ev as Events, what as integer, amount as integer)
