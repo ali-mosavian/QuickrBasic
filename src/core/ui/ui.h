@@ -123,6 +123,7 @@ enum : uint8_t {
     SCAN_CTRL_HOME = 0x77,
     SCAN_CTRL_PGUP = 0x84,
     SCAN_ESC = 0x01,
+    SCAN_BACKSPACE = 0x0E,
     SCAN_ENTER = 0x1C,
     SCAN_L = 0x26,
     SCAN_B = 0x30,
@@ -215,6 +216,11 @@ typedef struct {
     void (*hook)(uint32_t line, int32_t delta); /* tx_hook: text line added (1), removed (-1) */
     void (*marks)(uint32_t nth, int32_t delta); /* the nth marked line's mark added (1), removed
                                                    (-1), TEXT_MARKS all of them */
+    void (*edits)(
+        Session *S,
+        uint32_t line,
+        uint8_t e
+    );                 /* text line line's change: TE_* (text.h) */
     bool changed;      /* tx_mod: since the program was entered (a run enters it again) */
     bool unsaved;      /* tx_chg: a file since it was saved (text_unsaved) */
     bool check;        /* syn_on: Options, Syntax Checking */

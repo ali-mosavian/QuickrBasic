@@ -70,6 +70,7 @@
 #include "ui/highlight.h"
 #include "ui/text.h"
 #include "ui/theme.h"
+#include "ui/undo.h"
 #include "ui/debugui.h"
 #include "ui/definition.h"
 #include "ui/view.h"
@@ -336,6 +337,8 @@ static bool edit_scan(Session *const S, const uint8_t scan)
             uimn.ed.insert = !uimn.ed.insert;
     } else if (scan == SCAN_CTRL_INS) {
         edit_copy(S);
+    } else if (scan == SCAN_BACKSPACE && uimn.keyflags & PKEY_ALT) { /* QBasic's Undo */
+        undo_undo(S);
     } else if (scan == SCAN_B && uimn.keyflags & PKEY_CTRL) { /* Ctrl+Alt+B, ours */
         defn_goto(S, true);
     } else
@@ -399,6 +402,14 @@ static bool edit_control(Session *const S, const uint8_t ch)
 
     case CTRL('B'): /* Go to Definition, ours */
         defn_goto(S, false);
+        return true;
+
+    case CTRL('Z'): /* Undo; with Shift, Redo */
+        if (uimn.keyflags & PKEY_SHIFT)
+            undo_redo(S);
+        else
+            undo_undo(S);
+
         return true;
 
     case CH_ESC:
@@ -701,16 +712,6 @@ bool uimn_save(Session *const S)
     return write_file(S);
 }
 
-static bool same_name(const char *const a, const char *const b)
-{
-    for (uint32_t i = 0;; i++) {
-        if (upcase((uint8_t)a[i]) != upcase((uint8_t)b[i]))
-            return false;
-        if (!a[i])
-            return true;
-    }
-}
-
 /* ui_saveas: File, Save As. false: not saved. */
 static bool save_as(Session *const S)
 {
@@ -719,7 +720,7 @@ static bool save_as(Session *const S)
     for (;;) {
         if (!dlog_saveas(S))
             return false;
-        if (same_name(uimn.chosen, uimn.file))
+        if (same_caseless(uimn.chosen, uimn.file))
             break;
 
         uint8_t attr;
@@ -782,6 +783,7 @@ static void file_new(Session *const S)
     uimn.file[0] = 0;
     named(S);
     reset(S);
+    undo_clear();
 }
 
 /* fn, a load (repl_open, repl_relink), under its own boundary: the modules it read shown
@@ -813,6 +815,7 @@ static void load(Session *const S)
     const Status st = loaded(S, repl_open, &read);
     edit_recheck(S);
     text_clean(S);
+    undo_clear();
     fault_check(&S->fault, st);
 }
 
@@ -1093,6 +1096,14 @@ void uimn_act(Session *const S, const uint8_t action)
 
     case ACT_EXIT:
         file_exit(S);
+        break;
+
+    case ACT_UNDO:
+        undo_undo(S);
+        break;
+
+    case ACT_REDO:
+        undo_redo(S);
         break;
 
     case ACT_CUT:
@@ -1390,12 +1401,19 @@ static void loop(Session *const S)
         if (key != KEY_MOUSE)
             uimn.tip_mouse = false; /* a key: the tooltip by the cursor */
 
-        ui.key = key;
-        const Status st = repl_call(S, take_key);
-
-        if (st != ST_OK)
-            erred(S, (uint8_t)st);
+        uimn_command(S, key);
     }
+}
+
+void uimn_command(Session *const S, const uint16_t key)
+{
+    undo_begin(S);
+    ui.key = key;
+    const Status st = repl_call(S, take_key);
+    undo_end(S);
+
+    if (st != ST_OK)
+        erred(S, (uint8_t)st);
 }
 
 /* ---- the start */
@@ -1475,6 +1493,7 @@ void uimn_init(Session *const S)
     S->repl.keep_pre = true; /* a module's lines shown as typed */
     uimn.rows = 25; /* till uimn_rows */
     build_tree();
+    undo_init();
     uimn.on = true;
     LineBuf *const lines[] = {&uimn.edline, &uimn.line, &uimn.build};
 

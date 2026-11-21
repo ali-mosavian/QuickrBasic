@@ -13,6 +13,8 @@ Menu commands are in [menus](menus).
  - Highlighting: keywords, numbers, strings, comments and names in
    their own colours ([Syntax Highlighting](syntax highlighting)).
    It comes from the compiler's lexer, so it never disagrees with it.
+ - [Undo](Undo Command) and [Redo](Redo Command): Ctrl+Z and
+   Ctrl+Shift+Z, back to when the program was opened.
  - Each line is checked as it is entered
    ([syntax checking](syntax checking)).
  - [Completion](completion): Tab lists what fits at the cursor.

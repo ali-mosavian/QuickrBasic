@@ -60,6 +60,10 @@ static struct {
     uint32_t *order; /* the SUBs list's views: each file's module, then its procedures by name */
     uint32_t order_cap;
     uint32_t epoch, drops; /* the modules' (Modu's) when the views were made */
+    View *was;             /* view_rebuild's: the views before, their names */
+    uint32_t was_cap;
+    char *was_names;
+    uint32_t was_ncap;
 } vw = {.new_line = {.grows = true}};
 
 static LineBuf name_field = {.text = vw.name_text, .cap = DLBUF}; /* vw_fld: New SUB's name */
@@ -363,6 +367,47 @@ void view_reset(Session *const S)
     }
 
     windows_on_module();
+    view_apply();
+}
+
+/* The view now that is old view v of the views and names was: its file's procedure of its name,
+   else its file's module. */
+static uint32_t now_of(const View *const was, const char *const names, const uint32_t v)
+{
+    const View *const w = &was[v];
+    uint32_t module = view_of_module(w->module);
+
+    for (uint32_t i = module + 1; w->kind && i < vw.n && vw.tab[i].kind; i++)
+        if (vw.tab[i].kind == w->kind && same_caseless(view_name(i), names + w->name))
+            return i;
+
+    return module;
+}
+
+void view_rebuild(Session *const S)
+{
+    const uint32_t n = vw.n, nlen = vw.nlen;
+
+    if (!GROW(vw.was, vw.was_cap, n) || !GROW(vw.was_names, vw.was_ncap, nlen)) {
+        scan(S);
+        windows_on_module();
+        view_apply();
+        return;
+    }
+
+    memcpy(vw.was, vw.tab, n * sizeof *vw.tab);
+    memcpy(vw.was_names, vw.names, nlen);
+    scan(S);
+
+    for (uint32_t v = 0; v < n; v++) /* the places kept */
+        keep_place(&vw.tab[now_of(vw.was, vw.was_names, v)], &vw.was[v]);
+
+    uint32_t *const views[] =
+        {&uimn.ed.view, &uimn.win.win[W_ED1].ed.view, &uimn.win.win[W_ED2].ed.view};
+
+    for (uint32_t i = 0; i < countof(views); i++)
+        *views[i] = *views[i] < n ? now_of(vw.was, vw.was_names, *views[i]) : 0;
+
     view_apply();
 }
 

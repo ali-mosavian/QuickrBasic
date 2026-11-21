@@ -3,6 +3,23 @@
 #define EDFIX_H
 #include "session.h"
 
+/* Keys: their scan code and character. */
+enum : uint16_t {
+    FX_ENTER = 0x1C0D,
+    FX_ESC = 0x011B,
+    FX_TAB = 0x0F09,
+    FX_BACKSPACE = 0x0E08,
+    FX_UP = 0x4800,
+    FX_DOWN = 0x5000,
+    FX_LEFT = 0x4B00,
+    FX_RIGHT = 0x4D00,
+    FX_HOME = 0x4700,
+    FX_END = 0x4F00,
+    FX_DEL = 0x5300,
+    FX_CTRL_Y = 0x1519,
+    FX_CTRL_Z = 0x2C1A,
+};
+
 /* The test folder's file name: its path. */
 const char *fx_path_of(const char *name);
 void fx_write_file(const char *name, const char *text);
@@ -23,4 +40,9 @@ uint16_t fx_col_of(const char *text, const char *word);
 /* The cursor on the first `word` of the text line spelled `text`; at it. */
 void fx_cursor_on(Session *S, const char *text, const char *word);
 bool fx_cursor_at(Session *S, const char *text, const char *word);
+/* key run as the key loop runs it, the shift flags flags (PKEY_*); each character of text. */
+void fx_key(Session *S, uint16_t key, uint8_t flags);
+void fx_type(Session *S, const char *text);
+/* The cursor's line as edited, 0-ended. */
+const char *fx_line(void);
 #endif

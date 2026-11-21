@@ -4,6 +4,8 @@ Saves current file
 Saves current file with specified name
 Prints specified text
 Exits editor and returns to DOS
+Undoes the last change to the program
+Makes again the change last undone
 Deletes selected text and copies it to buffer
 Copies selected text to buffer
 Inserts buffer contents at current location

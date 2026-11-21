@@ -18,6 +18,8 @@ See also [selecting text](selecting text), [completion](completion),
     Backspace         delete before the cursor
     Del               delete at the cursor
     Ctrl+Y            delete the whole line
+    Ctrl+Z            undo; Alt+Backspace too
+    Ctrl+Shift+Z      redo
     Ins               switch insert and overwrite
     Tab               complete the word, else indent
 

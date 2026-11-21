@@ -19,6 +19,9 @@ typedef struct {
 /* vw_reset: a new or loaded text: each file's module's lines first, the views, both windows on
    the main's module, uimn.text.hook set. */
 void view_reset(Session *S);
+/* The views made again from the text, as a change outside the views left it (an undo): each
+   window, and each place kept, on the view of the same procedure, else of its file's module. */
+void view_rebuild(Session *S);
 /* vw_apply: the active window's view (uimn.ed.view, 0 when past the views) the text's. */
 void view_apply(void);
 /* vw_goline: text line line in the active window, its view shown (the cursor where that view

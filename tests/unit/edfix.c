@@ -1,4 +1,5 @@
-/* The editor's tests' fixture: a program of files opened, its lines found. */
+/* The editor's tests' fixture: a program of files opened, its lines found, keys run as the key
+   loop runs them. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -129,4 +130,26 @@ bool fx_cursor_at(Session *const S, const char *const text, const char *const wo
 {
     return uimn.text.first + uimn.ed.line == fx_line_of(S, text) &&
            uimn.edline.col == fx_col_of(text, word);
+}
+
+void fx_key(Session *const S, const uint16_t key, const uint8_t flags)
+{
+    uimn.keyflags = flags;
+    uimn_command(S, key);
+    uimn.keyflags = 0;
+}
+
+void fx_type(Session *const S, const char *const text)
+{
+    for (size_t i = 0; text[i]; i++)
+        fx_key(S, (uint8_t)text[i], 0);
+}
+
+const char *fx_line(void)
+{
+    static char line[256];
+    const uint16_t n = uimn.edline.len < sizeof line ? uimn.edline.len : sizeof line - 1;
+    memcpy(line, uimn.edline.text, n);
+    line[n] = 0;
+    return line;
 }
