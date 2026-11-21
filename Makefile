@@ -233,7 +233,9 @@ HOST_OS := $(shell uname -s)
 HOST_DL := $(if $(filter Linux,$(HOST_OS)),-ldl)
 # this machine's slice in a .qbx, and how a slice is linked: the Mac's needs libSystem, though it uses none of it
 HOST_TAG := $(if $(filter Darwin,$(HOST_OS)),macos,linux-x86_64)
-HOST_SLICE := -shared -fPIC -ffreestanding -fvisibility=hidden $(if $(filter Linux,$(HOST_OS)),-nostdlib)
+# the Mac's slice universal, as the app is: its x86-64 half (Rosetta, an Intel Mac) loads it too
+HOST_SLICE := -shared -fPIC -ffreestanding -fvisibility=hidden $(if $(filter Linux,$(HOST_OS)),-nostdlib) \
+	$(if $(filter Darwin,$(HOST_OS)),-arch arm64 -arch x86_64 -mmacosx-version-min=13.0)
 
 host: build/host/basic
 build/host/basic: $(build/host_OBJ) build/host/obj/app/basic32.o build/host/obj/plat/host/app/term.o
@@ -280,9 +282,13 @@ $(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(MAC)/QuickrBasic $(HELP) $
 mac-zip: mac
 	cd $(MAC) && ditto -c -k --keepParent QuickrBasic.app QuickrBasic-mac.zip
 # each architecture's half (x86-64's under Rosetta, where there is one)
-mac-test: mac
-	$(PY) tools/mac_test.py $(APP)/Contents/MacOS/QuickrBasic arm64
-	if arch -x86_64 /usr/bin/true 2>/dev/null; then $(PY) tools/mac_test.py $(APP)/Contents/MacOS/QuickrBasic x86_64; fi
+mac-test: mac $(MAC)/ext/qxtest.qbx
+	$(PY) tools/mac_test.py $(APP)/Contents/MacOS/QuickrBasic arm64 $(MAC)/ext/qxtest.qbx
+	if arch -x86_64 /usr/bin/true 2>/dev/null; then \
+		$(PY) tools/mac_test.py $(APP)/Contents/MacOS/QuickrBasic x86_64 $(MAC)/ext/qxtest.qbx; fi
+$(MAC)/ext/qxtest.qbx: tests/ext/qxtest.bas build/host/ext/qxtest.so tools/qbx.py
+	@mkdir -p $(@D)
+	$(PY) tools/qbx.py pack $@ $< macos=build/host/ext/qxtest.so
 
 # The tutorial's pictures of the synthesizer, drawn from its own samples (docs/play-tutorial.md)
 build/host/synthdump: tools/diagrams/synthdump.c src/plat/synth/synth.c src/plat/synth/synth.h
