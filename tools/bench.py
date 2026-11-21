@@ -724,7 +724,7 @@ def cmd_charlie(a: argparse.Namespace) -> int:
 
 
 # The switches on a thing's kind: drawing, touch and each step's rule, by the routine each is in.
-SWITCHES = {"draw": "drawthings", "touch": "touch", "think": "things"}
+SWITCHES = {"draw": "drawthings", "touch": "touch", "think": "think"}
 
 
 def case_arms(prog: basic_src.Program, routine: str) -> list[tuple[list[str], list[list[str]]]]:

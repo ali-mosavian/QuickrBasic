@@ -109,6 +109,16 @@ def charlie_each() -> None:
         assert len(rows) == 1 + len(bench.CHARLIE_EACH), rows[:3]
 
 
+def charlie_think() -> None:
+    """The think count is the cases of the things' own rules' switch on a kind. Once the things' pass switched on
+    their kind's mind it still read the pass, and counted 0 of 14."""
+    think = bench.CHARLIE.with_name("barkley") / "stage/things/think.bas"
+    body = think.read_text().split("private sub Think (")[1].split("\nend sub")[0]
+    want = len(re.findall(r"(?m)^    case K", body))
+    got = bench.engine_measures()["`case` branches that name a kind: draw, touch, think"].split(", ")[2]
+    assert want and got == str(want), f"think counted {got} of {want}"
+
+
 # Instructions a pass on arm64 macOS, with room over what they measured; past one, a regression.
 # A string's allocation over a literal's store: strg_gc inlined into strg_alloc saved and set up
 # its registers on every allocation, 238 (217 out of line).
@@ -158,6 +168,7 @@ def costs(b: bench.Build) -> None:
 def main() -> int:
     each_reps()
     charlie_each()
+    charlie_think()
     profile_cycles()
     profile_stop()
     broken_counter()
