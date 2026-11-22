@@ -12,10 +12,10 @@
 #include "util/heap.h"
 #include <string.h>
 
-enum { ALIGN = alignof(max_align_t) };
+enum { ALIGN = 16 }; /* the arena's blocks, the stack's segments */
 
 typedef struct {
-    alignas(max_align_t) uint32_t size; /* the block's bytes, its header's too */
+    alignas(ALIGN) uint32_t size; /* the block's bytes, its header's too */
     bool used;
 } Block;
 

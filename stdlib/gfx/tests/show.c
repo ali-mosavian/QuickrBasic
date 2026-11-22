@@ -8,10 +8,9 @@ int qb_main(void)
 {
     static CharlieCut cuts[CHARLIE_CUTS];
     int32_t views[16];
-    Addr lo, hi;
     Natv n;
 
-    if (!pmem_init(0, 0, &lo, &hi) || !charlie_cuts(CHARLIE_SHEET, cuts, CHARLIE_CUTS))
+    if (!pmem_init() || !charlie_cuts(CHARLIE_SHEET, cuts, CHARLIE_CUTS))
         return 1;
 
     natv_init(&n, nullptr);

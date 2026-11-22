@@ -181,11 +181,12 @@ static bool arry_arena(const Addr h) { return arry_hdr_at(h)->owner == OWN_ARENA
 
 bool arry_fixed(const Arry *const ay, const Addr h) { return !arry_heap(ay, h) && !arry_arena(h); }
 
-/* A field cell, after its header: the cell, the stack its call's arguments lie above, the next
-   older one's header. */
+/* A field cell, after its header: the cell, the stack its call's arguments lie above and its
+   segment, the next older one's header. */
 typedef struct {
     ArrSlot slot;
     Addr sp;
+    uint32_t seg;
     Addr older;
 } FieldCell;
 
@@ -194,22 +195,21 @@ static FieldCell *arry_fcell_of(const Addr h)
     return (FieldCell *)at(h + arry_frame_hdr(arry_hdr_at(h)->dims));
 }
 
+/* A block's bytes: the header, then size bytes of data. */
+static uint64_t arry_block_of(const uint8_t n, const uint64_t size)
+{
+    return arry_frame_hdr(n) + ((size + BLOCK_ALIGN - 1) & ~(uint64_t)(BLOCK_ALIGN - 1));
+}
+
 static uint32_t arry_fcell_size(const uint8_t dims)
 {
-    static_assert(sizeof(FieldCell) % BLOCK_ALIGN == 0);
-    return arry_frame_hdr(dims) + sizeof(FieldCell);
+    return (uint32_t)arry_block_of(dims, sizeof(FieldCell));
 }
 
 /* Header h is a field cell's. */
 static bool arry_fcell(const Arry *const ay, const Addr h)
 {
     return arry_in_heap(ay, h) && *arry_kind(h) == BLOCK_FCELL;
-}
-
-/* A block's bytes: the header, then size bytes of data. */
-static uint64_t arry_block_of(const uint8_t n, const uint64_t size)
-{
-    return arry_frame_hdr(n) + ((size + BLOCK_ALIGN - 1) & ~(uint64_t)(BLOCK_ALIGN - 1));
 }
 
 static uint32_t arry_block(const Arry *const ay, const Addr h)
@@ -223,13 +223,17 @@ static uint32_t arry_heap_block(const Arry *const ay, const Addr h)
     return *arry_kind(h) == BLOCK_FCELL ? arry_fcell_size(arry_hdr_at(h)->dims) : arry_block(ay, h);
 }
 
-/* The field cells of the calls over dead: their stack under vm.sp. The heap's last block's room
-   given back; the others' left to arry_sweep. */
+/* Is field cell c's call over: its stack at or under vm.sp, or in a segment past sp's? */
+static bool arry_fcell_over(const Vm *const vm, const FieldCell *const c)
+{
+    return c->seg > vm->stak.cur || (c->seg == vm->stak.cur && c->sp <= addr_of(vm->sp));
+}
+
+/* The field cells of the calls over dead. The heap's last block's room given back; the others'
+   left to arry_sweep. */
 static void arry_fcells_drop(Arry *const ay)
 {
-    const Addr sp = addr_of(ay->vm->sp);
-
-    while (ay->fcells && arry_fcell_of(ay->fcells)->sp <= sp) {
+    while (ay->fcells && arry_fcell_over(ay->vm, arry_fcell_of(ay->fcells))) {
         const Addr h = ay->fcells;
         const uint32_t size = arry_fcell_size(arry_hdr_at(h)->dims);
         ay->fcells = arry_fcell_of(h)->older;
@@ -358,14 +362,15 @@ void arry_empty(Arry *const ay, const uint32_t id, const bool keep)
 static void arry_own_call(const Arry *const ay, const Addr s)
 {
     Vm *const vm = ay->vm;
+    const uint32_t seg = stack_seg_of(vm, s);
 
-    if (s < ay->allo->top) /* the variables and the heap: no call's */
+    if (seg == vm->stak.n) /* the variables and the heap: no call's */
         return;
 
     for (uint32_t i = vm_nframes(vm); i-- > 0;) { /* its locals under its fp, above its callees' */
         Frame *const f = &vm->frames[i];
 
-        if (!frame_is_call(f) || s >= f->call.fp)
+        if (!frame_is_call(f) || stack_seg_of(vm, f->call.fp) != seg || s >= f->call.fp)
             continue;
         if (f->kind == FRAME_CALL)
             f->call.back = nullptr; /* the inline PCALL left it */
@@ -382,12 +387,8 @@ static Addr arry_heap_take(Arry *const ay, const uint8_t n, const uint64_t size,
 {
     arry_fcells_drop(ay); /* their room first */
 
-    if (ay->allo->strings - ay->allo->arrays < size) {
-        strg_gc(ay->strg);
-
-        if (ay->allo->strings - ay->allo->arrays < size)
-            fault_error(ay->fault, E_OM);
-    }
+    if (size > UINT32_MAX || !strg_room(ay->strg, (uint32_t)size))
+        fault_error(ay->fault, E_OM);
 
     const Addr h = ay->allo->arrays;
     ay->allo->arrays = h + (uint32_t)size;
@@ -704,7 +705,7 @@ ArrSlot *arry_field_cell(Arry *const ay, const Addr data, const uint32_t key)
     }
 
     arry_fill(ay, h, data, decl_fieldtype(f), f->ndim, addr_of(&c->slot));
-    *c = (FieldCell){{h, false}, addr_of(ay->vm->sp), ay->fcells};
+    *c = (FieldCell){{h, false}, addr_of(ay->vm->sp), ay->vm->stak.cur, ay->fcells};
 
     ay->fcells = h;
 

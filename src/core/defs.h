@@ -316,7 +316,7 @@ enum {
     HSIZE = 1024,      /* the symbols' hash chains */
     DCODE = 0x0100,    /* the direct line's stream */
     CACHE0 = DCODE + 1536,
-    HMIN = 0x40000,            /* the heap at least */
+    HEAP_FIRST = 0x10000,      /* the BASIC heap at first; it grows */
     STKSZ = 0x10000,           /* the data stack */
     STKROOM = 0x8000,          /* its room for the run */
     STKEVAL = STKSZ - STKROOM, /* under vm.stklim: a statement's own values */

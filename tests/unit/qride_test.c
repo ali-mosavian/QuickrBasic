@@ -5,6 +5,7 @@
 
 #include "plat/host/host.h"
 #include "plat/pkey.h"
+#include "plat/pmem.h"
 #include "session.h"
 #include "comp/suggest.h"
 #include "qr/qr.h"
@@ -491,7 +492,7 @@ static bool offers(Session *const S, const char *const text, const char *const w
         for (uint16_t i = 0; i < out.n; i++)
             found |= !strcmp((const char *)out.list[i].text, want);
 
-    free(out.list);
+    pmem_free(out.list);
     return found;
 }
 
@@ -576,7 +577,7 @@ static bool offered(
         for (uint16_t i = 0; i < out.n; i++)
             found |= !strcmp((const char *)out.list[i].text, want);
 
-    free(out.list);
+    pmem_free(out.list);
     return found;
 }
 
@@ -594,7 +595,7 @@ static const char *first(Session *const S, const char *const at, const char *con
     if (sugg_find(S, (const uint8_t *)text, n, n, text_rec(S, fx_line_of(S, at)), &out))
         strcpy(g, (const char *)out.list[0].text);
 
-    free(out.list);
+    pmem_free(out.list);
     return g;
 }
 
@@ -610,7 +611,7 @@ static void take(Session *const S, const char *const at, const char *const text,
             if (!strcmp((const char *)out.list[i].text, want))
                 sugg_used(&out.list[i]);
 
-    free(out.list);
+    pmem_free(out.list);
 }
 
 static const char blocks[] = DIALECT "function f(x as int) as int\n"

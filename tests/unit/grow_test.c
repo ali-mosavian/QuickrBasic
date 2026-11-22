@@ -65,7 +65,7 @@ TEST(frames_grow_as_calls_nest)
 }
 
 /* The frames' room and the data stack's segments a deep call grew stayed taken from the heap:
-   each deep run left less for the next. */
+   each deep run left less for the next. The frames shrunk in place cut 3.9 MB off FRE. */
 TEST(deep_calls_give_their_memory_back)
 {
     static const char *const deep[] = {
@@ -79,11 +79,43 @@ TEST(deep_calls_give_their_memory_back)
     static const char *const next[] = {"10 PRINT 1", nullptr};
 
     CHECK(unit_run(S, next) == ST_OK);
-    const Addr top = S->allo.top;
+    const uint32_t free = allo_free(&S->allo);
     CHECK(unit_run(S, deep) == ST_OK);
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 20000 \r");
     CHECK(unit_run(S, next) == ST_OK);
-    CHECK(S->allo.top == top);
+    CHECK(allo_free(&S->allo) == free);
+}
+
+/* Strings past the BASIC heap's first bytes grow it in place, FRE its room less theirs. Fixed at
+   HMIN, 256 KB of strings was Out of memory. */
+TEST(strings_grow_the_heap)
+{
+    static const char *const lines[] = {
+        "10 DIM a$(40)",
+        "20 f& = FRE(\"\")",
+        "30 FOR i% = 1 TO 40: a$(i%) = STRING$(30000, 120): NEXT",
+        "40 PRINT LEN(a$(40)); f& - FRE(\"\") >= 1200000",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 30000 -1 \r");
+    CHECK(S->allo.top - S->allo.bot > 1200000);
+}
+
+/* A dynamic array past the free bytes grows the heap, the strings slid up over the room. */
+TEST(arrays_grow_the_heap)
+{
+    static const char *const lines[] = {
+        "10 s$ = STRING$(100, 120) + \"\"",
+        "20 REDIM a&(200000)",
+        "30 a&(200000) = 7",
+        "40 PRINT a&(200000); LEN(s$)",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 7  100 \r");
 }
 
 TEST(endless_calls_end_out_of_stack_space)
