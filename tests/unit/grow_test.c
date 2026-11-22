@@ -1,5 +1,9 @@
 /* Buffers that grow on demand: util/heap, and the session's past their first bytes. */
 #include <stdio.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include "mem/table.h"
+#include "plat/pmem.h"
 #include "session.h"
 #include "unit.h"
 #include "util/heap.h"
@@ -21,6 +25,49 @@ TEST(heap_grows_in_place_moves_and_reuses)
     CHECK(a[0] == 7 && heap_resize(&h, a, 50) == a); /* kept, and smaller in place */
     heap_free(&h, b);
     CHECK(heap_resize(&h, a, 4000) == a); /* b's bytes free again */
+}
+
+/* Table t grown from ROWS to MORE rows, in place in a fresh pmem: are its second array's first
+   rows kept? */
+static bool table_spreads(Fault *const f)
+{
+    enum : uint32_t { ROWS = 8192, MORE = ROWS + ROWS / 2 };
+    Allo al = {.fault = f};
+    Table t = {.narr = 2, .size = {4, 4}, .max = MORE};
+
+    if (!pmem_init())
+        return false;
+
+    void *const after = pmem_resize(nullptr, ROWS * 8); /* blocks go downwards: t's under it */
+    tabl_new(&al, &t, ROWS);
+    pmem_free(after);
+    const Addr base = t.base;
+    ((uint32_t *)at(t.at[1]))[0] = 11;
+    ((uint32_t *)at(t.at[1]))[1] = 12;
+
+    if (!tabl_room(&t, MORE) || t.base != base) /* in place: the heap's next bytes free */
+        return false;
+
+    for (uint32_t i = 0; i < MORE; i++)
+        ((uint32_t *)at(t.at[0]))[i] = i;
+
+    return ((uint32_t *)at(t.at[1]))[0] == 11 && ((uint32_t *)at(t.at[1]))[1] == 12;
+}
+
+/* A table grown in place spreads its arrays to the new size, as a moved one does. Its owner was
+   told only of a move: the second array stayed where the first now ran, and 5000 variables'
+   names crashed the compiler. In a child process: a fresh pmem, no other test's holes. */
+TEST(table_grown_in_place_spreads_its_arrays)
+{
+    fflush(stdout);
+    const pid_t pid = fork();
+
+    if (!pid)
+        _exit(table_spreads(&S->fault) ? 0 : 1);
+
+    int status = 0;
+    waitpid(pid, &status, 0);
+    CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 }
 
 /* Regions in the order added: a block goes to the first with room, at its top; the bottom's

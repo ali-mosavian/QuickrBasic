@@ -100,13 +100,12 @@ bool allo_grow(Allo *const al, const uint32_t h, const uint32_t size)
         return false;
 
     memset(p + b->cap, 0, cap - b->cap);
-    const bool moved = addr_of(p) != b->base;
     b->base = addr_of(p);
     b->cap = cap;
 
     if (h == HCACHE)
         al->cache = b->base;
-    if (moved && b->owner)
+    if (b->owner) /* in place too: a table spreads its arrays to the new size */
         b->owner->moved(b->owner);
 
     return true;
