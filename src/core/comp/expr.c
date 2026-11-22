@@ -158,9 +158,15 @@ static Node *parse(Comp *const C, const uint8_t p)
 
     Node *left = parse_unary(C);
     uint8_t op;
+    uint32_t ops = 0; /* the tree's depth from here: the code generator walks it recursively */
 
     while (operator_of(comp_cur(C), &op) && p < prectab[op]) {
         uint8_t rel = op;
+
+        if (++C->depth > COMP_MAXDEPTH)
+            fault_error(C->fault, E_OM);
+
+        ops++;
 
         if (op >= OP_GT && op <= OP_LT)
             rel = relation(C, op);
@@ -181,7 +187,7 @@ static Node *parse(Comp *const C, const uint8_t p)
         left = n;
     }
 
-    C->depth--;
+    C->depth -= 1 + ops;
     return left;
 }
 
