@@ -56,7 +56,7 @@ static void scop_fail(const Scop *const sc, const uint8_t code)
 
 void scop_init(Scop *const sc, Fault *const f)
 {
-    arena_init(&sc->arena, 0x4000);
+    arena_init(&sc->arena, 0x2000);
     sc->fault = f;
     scop_reset(sc);
 }

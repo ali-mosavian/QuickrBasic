@@ -138,6 +138,22 @@ TEST(arrays_grow_the_heap)
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 7  100 \r");
 }
 
+/* Each level of a string recursion holds a temporary: 3000 deep fit. With the temporaries tied to
+   a 16 KB first stack segment, String formula too complex. */
+TEST(deep_string_recursion_has_its_temporaries)
+{
+    static const char *const lines[] = {
+        "10 PRINT LEN(g$(3000))",
+        "20 FUNCTION g$ (n%)",
+        "30 IF n% = 0 THEN g$ = \"\" ELSE g$ = \"x\" + g$(n% - 1)",
+        "40 END FUNCTION",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 3000 \r");
+}
+
 TEST(endless_calls_end_out_of_stack_space)
 {
     static const char *const lines[] = {

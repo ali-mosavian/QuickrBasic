@@ -2,7 +2,7 @@
  *
  * # How it works
  * An entry's id is its block's number shifted left BTAB_SHIFT bits, ORed with its place in the
- * block: 1024 entries a block, 2^22 blocks. A full table takes another block and never moves an
+ * block: 64 entries a block, 2^26 blocks. A full table takes another block and never moves an
  * entry, so a pointer to one stays good until the arena is reset; only the blocks' list grows,
  * doubling. Dropping the last entries (n lowered) keeps their room for the next adds.
  */
