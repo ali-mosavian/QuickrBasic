@@ -1587,7 +1587,6 @@ static void regions(Session *const S)
 {
     S->lexr.cols = true;
     lmap_init(S); /* HLMAP: the third block */
-    upag_init(S);
 }
 
 const FrontEnd uimn_front_end = {

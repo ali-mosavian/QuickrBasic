@@ -43,7 +43,7 @@ bool qbrt_printer_ready(void);
 bool qbrt_graphics(void);
 void qbrt_text(void);
 /* The program's graphics screen, kept while a front end shows its own in text mode: the bytes it
-   takes at most; taken (its visible page, palette and display start); shown again, its mode set
+   takes in the mode on; taken (its visible page, palette and display start); shown again, its mode set
    without clearing and the runtime's state as the program left it; dropped, by a new run's text
    mode. DOS32's (qbrt_dos.c). */
 uint32_t qbrt_shot_size(void);
