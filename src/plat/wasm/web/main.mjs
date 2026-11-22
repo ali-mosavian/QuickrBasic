@@ -156,7 +156,7 @@ function point(e) {
   const clamp = (v, n) => Math.max(0, Math.min(n - 1, Math.floor(v)));
   const x = clamp((e.clientX - r.left - (r.width - canvas.width * scale) / 2) / scale, canvas.width);
   const y = clamp((e.clientY - r.top - (r.height - canvas.height * scale) / 2) / scale, canvas.height);
-  const cellW = cell ? canvas.width / 80 : 8;
+  const cellW = cell ? 9 : 8; // a text cell is 9 dots wide (view.h)
   const cellH = cell || (canvas.height >= 480 ? 16 : canvas.height >= 350 ? 14 : 8);
   const row = Math.floor(y / cellH), col = Math.floor(x / cellW);
   irq.mouse(row, col, cell ? col * 8 : x, cell ? row * 8 : y, buttons);

@@ -292,8 +292,8 @@ static void cmpl_place(void)
     const uint16_t c = ac.s.start > uimn.ed.left ? ac.s.start - uimn.ed.left : 0;
     uint8_t col = (uint8_t)c;
 
-    if ((uint8_t)(col + bw) > PSCR_COLS)
-        col = PSCR_COLS - bw;
+    if ((uint8_t)(col + bw) > uimn.cols)
+        col = uimn.cols - bw;
 
     ac.at_row = row;
     ac.at_col = col;

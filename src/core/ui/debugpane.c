@@ -160,7 +160,7 @@ static Widget *win(const uint8_t w) { return uimn.tree.pane.children[w]; }
 
 /* The pane's columns, from the line it shares with the edit windows, and a row's characters
    within its borders. */
-static uint8_t width(void) { return (uint8_t)(PSCR_COLS - uimn.dp_col + 1); }
+static uint8_t width(void) { return (uint8_t)(uimn.cols - uimn.dp_col + 1); }
 static uint8_t text_width(void) { return (uint8_t)(width() - 2); }
 
 /* dp_geo: each window's title row and rows: the edit windows' rows, three tenths to Watch and to
@@ -228,7 +228,7 @@ static void line1(const uint8_t w, const uint8_t r)
             scrn_attr(row, col + hi - 1, n - (hi - 1), SL_CHG);
     }
 
-    scrn_fill(row, PSCR_COLS - 1, SL_ED, GLYPH_V, 1);
+    scrn_fill(row, uimn.cols - 1, SL_ED, GLYPH_V, 1);
 }
 
 /* dp_draw: window x, its title and rows. */

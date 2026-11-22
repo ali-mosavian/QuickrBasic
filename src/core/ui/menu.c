@@ -17,7 +17,7 @@
  * | mn_run | menu_run | MIRROR |
  * | mn_alt | menu_alt | MIRROR; D1 |
  * | mn_altl | menu_altchar | MIRROR |
- * | mn_x, mn_tt | menu_x, menu_title | MIRROR |
+ * | mn_x, mn_tt | menu_col, menu_title | MIRROR |
  * | ui_upper | upcase (base.h); is_letter, is_digit, is_blank beside it | MOVED |
  * | mn_skip, mn_help, mn_off, mn_item, mn_size, mn_drop, mn_box, mn_move, mn_unalt, mn_swap, mn_find, mn_chk | statics | MIRROR |
  * | mn_flags, mn_scan, mn_alta, mn_it, t_*, m_*, g_ui.mn.*, bf.ui_hbuf | statics | MIRROR |
@@ -123,12 +123,8 @@ static const Item m_theme[] = {
     {ACT_TH2 + 6, MF_CHK, "JetBrains Ligh&t", ""},
     {},
 };
-static const Item m_size[] = {
-    {ACT_ROWS25, MF_CHK, "&25 Lines", ""},
-    {ACT_ROWS43, MF_CHK, "&43 Lines", ""},
-    {ACT_ROWS50, MF_CHK, "&50 Lines", ""},
-    {},
-};
+static char size_text[PSCR_SIZES_MAX][sizeof "&8 132 x 60"];
+static Item m_size[PSCR_SIZES_MAX + 1]; /* menu_sizes' */
 static const Item m_help[] = {
     {ACT_HINDEX, 0, "&Index", ""},
     {ACT_HCONT, 0, "&Contents", ""},
@@ -144,7 +140,7 @@ static_assert(ACT_TH2 + 6 == ACT_SOUT - 1);
 static const Item *const menus[] =
     {m_file, m_edit, m_view, m_srch, m_run, m_dbg, m_opt, m_help, m_theme, m_size};
 
-const uint8_t menu_x[NMENU] = {3, 9, 15, 21, 29, 34, 41, 74}; /* QBasic's (uirsrcc.c) */
+static const uint8_t menu_x[NMENU] = {3, 9, 15, 21, 29, 34, 41, 74}; /* QBasic's (uirsrcc.c) */
 const char *const menu_title[NMENU] =
     {"&File", "&Edit", "&View", "&Search", "&Run", "&Debug", "&Options", "&Help"};
 /* Each title's letter's scan code. */
@@ -183,7 +179,7 @@ static struct {
 } mn;
 
 enum { HELP_MAX = 76 };           /* a help line's characters at most */
-static char help_line[PSCR_COLS]; /* bf.ui_hbuf */
+static char help_line[PSCR_COLS_MAX]; /* bf.ui_hbuf */
 
 static const Item *item(const uint8_t i) { return &menus[mn.box.m][i]; }
 
@@ -230,30 +226,53 @@ static bool checked(Session *const S, const Item *const it)
         return them.cur == 1;
     if (a >= ACT_TH2 && a < ACT_TH2 + NTHEME - 2)
         return them.cur == a - ACT_TH2 + 2;
-    if (a >= ACT_ROWS25 && a <= ACT_ROWS50)
-        return uimn.rows == rows_of(a);
+    if (a >= ACT_SIZE && a < ACT_SIZE + uimn.nsizes) {
+        const PscrSize s = uimn.sizes[a - ACT_SIZE];
+        return s.cols == uimn.cols && s.rows == uimn.rows;
+    }
 
     return false;
 }
 
 void menu_letters(const bool on) { mn.alt = on; }
 
+uint8_t menu_col(const uint8_t b)
+{
+    return b == NMENU - 1 ? (uint8_t)(uimn.cols - (80 - menu_x[b])) : menu_x[b];
+}
+
+void menu_sizes(void)
+{
+    for (uint8_t i = 0; i < uimn.nsizes; i++) {
+        char *d = size_text[i];
+        *d++ = '&';
+        *d++ = (char)('1' + i);
+        *d++ = ' ';
+        d = uimn_dec(d, uimn.sizes[i].cols);
+        memcpy(d, " x ", 3);
+        *uimn_dec(d + 3, uimn.sizes[i].rows) = 0;
+        m_size[i] = (Item){(uint8_t)(ACT_SIZE + i), MF_CHK, size_text[i], ""};
+    }
+
+    m_size[uimn.nsizes] = (Item){};
+}
+
 /* The bar: its letters lit only while Alt is held or the bar is browsed, its open box's title's
    not (COW's HiliteMenuMnem, OpenMenuCur). */
 void menu_bar(void)
 {
-    scrn_fill(0, 0, SL_BAR, ' ', PSCR_COLS);
+    scrn_fill(0, 0, SL_BAR, ' ', uimn.cols);
     const bool browsed = mn.w.visible && !mn.open;
     const uint8_t hot = browsed || mn.alt ? SL_HOT : SL_BAR;
 
     for (uint8_t b = 0; b < NMENU; b++) {
         if (mn.w.visible && b == mn.c) {
-            const uint8_t title = scrn_fill(0, menu_x[b] - 1, SL_MSEL, ' ', 1);
+            const uint8_t title = scrn_fill(0, menu_col(b) - 1, SL_MSEL, ' ', 1);
             const uint8_t after =
                 scrn_str(0, title, menu_title[b], SL_MSEL, mn.open ? SL_MSEL : SL_MHOT);
             scrn_fill(0, after, SL_MSEL, ' ', 1);
         } else {
-            scrn_str(0, menu_x[b], menu_title[b], SL_BAR, hot);
+            scrn_str(0, menu_col(b), menu_title[b], SL_BAR, hot);
         }
     }
 }
@@ -270,7 +289,8 @@ static uint32_t help_lines(const Item *const items, const uint32_t n)
     return lines;
 }
 
-/* Item i's line in BASIC.HLP: the lines in item order over all the menus. */
+/* Item i's line in BASIC.HLP: the lines in item order over all the menus; Display Size's items
+   share one. */
 static uint32_t help_line_index(const uint8_t i)
 {
     uint32_t line = 0;
@@ -278,7 +298,7 @@ static uint32_t help_line_index(const uint8_t i)
     for (uint8_t m = 0; m < mn.box.m; m++)
         line += help_lines(menus[m], UINT32_MAX);
 
-    return line + help_lines(menus[mn.box.m], i);
+    return line + (menus[mn.box.m] == m_size ? 0 : help_lines(menus[mn.box.m], i));
 }
 
 /* mn_help: item i's help on the status bar. */
@@ -397,10 +417,10 @@ static void box(Session *const S)
 static void drop(Session *const S)
 {
     size();
-    uint8_t l = menu_x[mn.c] - 2;
+    uint8_t l = menu_col(mn.c) - 2;
 
-    if ((uint8_t)(l + mn.box.w) > (PSCR_COLS - 1))
-        l = (PSCR_COLS - 1) - mn.box.w;
+    if ((uint8_t)(l + mn.box.w) > (uimn.cols - 1))
+        l = (uimn.cols - 1) - mn.box.w;
 
     mn.box.l = l;
     mn.box.top = 1;
@@ -513,7 +533,7 @@ static void sub_open(const Item *const it)
     mn.box.top = mn.saved.i + mn.saved.top;
     uint8_t l = mn.saved.l + mn.saved.w;
 
-    if ((uint8_t)(l + mn.box.w) > (PSCR_COLS - 1))
+    if ((uint8_t)(l + mn.box.w) > (uimn.cols - 1))
         l = mn.saved.l - mn.box.w;
 
     mn.box.l = l;

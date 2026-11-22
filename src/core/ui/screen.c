@@ -5,7 +5,7 @@
  * slot (SL_*), made the theme's attribute (them_attr) as it is drawn.
  *
  * A string's '&' marks its hotkey, drawn in slot hot; a plain one has hot == slot. A run goes on
- * into the next row past column 79.
+ * into the next row past the screen's last column.
  *
  * # asm structure (retired/asm32/ui/scr.asm)
  * | asm | here | |
@@ -20,15 +20,15 @@
 #include "ui/theme.h"
 #include "plat/pscr.h"
 
-static PscrCell cells[PSCR_ROWS_MAX * PSCR_COLS]; /* the screen as drawn, then shown */
-static uint8_t rows = 25;                         /* the screen's (scrn_size) */
+static PscrCell cells[PSCR_ROWS_MAX * PSCR_COLS_MAX]; /* the screen as drawn, then shown */
+static PscrSize size = PSCR_80X25;                    /* the screen's (scrn_size) */
 
 enum { SHADOW_COLS = 2 }; /* a shadow's columns right of a box */
 enum { LIGHT_GRAY = 0x07, DARK_GRAY = 0x08 };
 
 static PscrCell *cell(const uint8_t row, const uint8_t col)
 {
-    return &cells[row * PSCR_COLS + col];
+    return &cells[row * size.cols + col];
 }
 static PscrCell make(const uint8_t ch, const uint8_t attr) { return (PscrCell)(attr << 8 | ch); }
 
@@ -181,7 +181,7 @@ void scrn_shadow(const uint8_t row, const uint8_t col, const uint8_t h, const ui
 {
     const uint16_t right = (uint16_t)(col + w), below = (uint16_t)(row + h);
 
-    if (right + SHADOW_COLS > PSCR_COLS || below >= rows || h < 2 || w < SHADOW_COLS)
+    if (right + SHADOW_COLS > size.cols || below >= size.rows || h < 2 || w < SHADOW_COLS)
         return;
 
     for (uint16_t r = row + 1u; r < below; r++)
@@ -194,10 +194,10 @@ void scrn_cursor(const uint8_t row, const uint8_t col) { pscr_cursor(0, row, col
 
 void scrn_shape(const uint16_t lines) { pscr_shape(lines); }
 
-void scrn_size(const uint8_t n) { rows = n; }
+void scrn_size(const PscrSize s) { size = s; }
 
 void scrn_flip(void)
 {
     pscr_retrace();
-    pscr_put(0, 0, 0, cells, rows * PSCR_COLS);
+    pscr_put(0, 0, 0, cells, size.rows * size.cols);
 }

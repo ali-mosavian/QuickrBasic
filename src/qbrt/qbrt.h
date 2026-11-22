@@ -57,6 +57,8 @@ void qbrt_console_reset(void);
 void qbrt_pages_show(void);
 void qbrt_where(uint8_t *row, uint8_t *col);
 void qbrt_move(uint8_t row, uint8_t col);
+/* The output screen's rows: the mode's, not the front end's. */
+uint8_t qbrt_rows(void);
 void cn_putc(char c);
 void cn_write(const char *s, unsigned n);
 void cn_crlf(void);

@@ -48,6 +48,4 @@ Shows the editor in Gruvbox Dark Soft's colors
 Shows the editor in Gruvbox Light's colors
 Shows the editor in JetBrains Dark's colors
 Shows the editor in JetBrains Light's colors
-Shows 25 lines
-Shows 43 lines (EGA, VGA)
-Shows 50 lines (VGA)
+Shows that many columns and lines; past 80 x 50, the card's VESA modes

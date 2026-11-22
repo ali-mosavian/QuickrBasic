@@ -16,7 +16,7 @@ static void opened(Session *const S)
         S,
         "sub hi\r\ntotal = 1\r\nprint total\r\nend sub\r\nsub lo\r\nprint total + 1\r\nend sub\r\n"
     );
-    uimn_rows(25);
+    uimn_size(PSCR_80X25);
     them_qbasic();
     fx_cursor_on(S, "gfx.hi", "gfx");
     uimn_act(S, ACT_FIND);

@@ -23,7 +23,7 @@
  * | MS_KEY | KEY_MOUSE | MIRROR |
  * | IMN, IMW, ED_COLS, DLBUF, FLDMAX, TXMAX, LNMAX, LNBUF, HLPSZ | same | MIRROR |
  * | NWIN, W_HELP, W_ED1, W_ED2, W_IMM, W_DBG | same | MIRROR |
- * | DP_COL, DP_W, DP_TW | same | MIRROR |
+ * | DP_COL, DP_W, DP_TW | wind_pane_col (a quarter of the screen), DP_TWMAX | CHANGED |
  * | g_clpb | uimn.text.clip, clip_cap (CLIPSZ at most) | MIRROR; grown |
  *
  * - D1. Zeroed, so out of the image's data: uimn_start sets what needs a value. The dialog line
@@ -46,7 +46,7 @@ enum {
     TXMAX = 0xFF00,        /* the text's bytes at most */
     LNMAX = TXMAX - 0x100, /* an editor line's characters at most */
     LNBUF = LNMAX + 4,     /* an editor line buffer's text */
-    ED_COLS = 78,          /* the immediate window's text columns */
+    ED_COLS = 78,          /* the immediate line's characters at most, and one */
     IMN = 10,              /* the immediate window's lines kept */
     IMW = 80,              /* each: its length, its text */
     CLIPSZ = 0x10000,      /* the clipboard's bytes (the asm's g_clpb) */
@@ -189,14 +189,15 @@ enum : uint8_t { FOC_EDIT = 0, FOC_IMM = 1, FOC_PANE = 2, FOC_HELP = 3 };
 /* The windows, top down (window.h); the debug pane is beside them, not in uimn.win.win[]. */
 enum : uint8_t { W_HELP = 0, W_ED1 = 1, W_ED2 = 2, W_IMM = 3, NWIN = 4, W_DBG = NWIN };
 
-/* The debug pane's columns (debugpane.h): the edit windows have uimn.dp_col, DP_COL at first, the
-   pane the rest, their last one the line between them; a drag of it moves it within DP_COLMIN ..
-   DP_COLMAX. A row of the pane holds DP_TWMAX characters at most. */
+/* The debug pane's columns (debugpane.h): the edit windows have uimn.dp_col, the pane the rest,
+   their last one the line between them. The pane is a quarter of the screen's columns, DP_LEAST
+   at least (wind_pane_col); a drag of the line moves it within DP_COLMIN .. the screen's columns
+   less DP_PANEMIN. A row of the pane holds DP_TWMAX characters at most. */
 enum {
-    DP_COL = 50,
+    DP_LEAST = 30,
     DP_COLMIN = 20,
-    DP_COLMAX = PSCR_COLS - 20,
-    DP_TWMAX = PSCR_COLS - DP_COLMIN - 1,
+    DP_PANEMIN = 20,
+    DP_TWMAX = PSCR_COLS_MAX - DP_COLMIN - 1,
 };
 
 /* A line being edited (TLBUF, TEDBUF): its text where text points, cap bytes: DLBUF for a dialog
@@ -276,7 +277,7 @@ typedef struct {
 
 typedef struct {
     UiWin win[NWIN];
-    uint8_t cols;     /* wcols: the edit windows' columns: 80, DP_COL with the pane */
+    uint8_t cols;     /* wcols: the edit windows' columns: the screen's, dp_col with the pane */
     bool maxed;       /* wmax: Ctrl+F10's; saved the heights before */
     bool vert;        /* wvert: ED2 beside ED1, in ED1's rows */
     bool vert_saved;  /* wvsav: vert before Ctrl+F10 */
@@ -310,7 +311,10 @@ typedef struct {
     bool on;          /* lp.ideon: the editor runs (the core's ui_on) */
     uint8_t keyflags; /* lp.ui_kf: the shift flags at the last key (pkey_shift) */
     const char *help; /* lp.ui_help: the status bar's help line, nullptr the keys */
-    uint8_t rows;     /* the screen's: 25, 43 or 50 (uimn_rows) */
+    uint8_t rows;     /* the screen's (uimn_size) */
+    uint8_t cols;
+    uint8_t nsizes; /* the card's sizes (pscr_sizes): Display Size's items */
+    PscrSize sizes[PSCR_SIZES_MAX];
     bool pane_on;     /* dp.dp_on: the debug pane shown (a stop) */
     uint8_t dp_col;   /* the debug pane's first column */
     bool tip_mouse;   /* dp.tt_ms: the tooltip by the mouse, else by the cursor */
@@ -360,6 +364,10 @@ extern Uimn uimn;
 /* The status bar's row; the windows' rows, the screen's less the menu and status bars. */
 static inline uint8_t status_row(void) { return (uint8_t)(uimn.rows - 1); }
 static inline uint8_t win_rows(void) { return (uint8_t)(uimn.rows - 2); }
+/* The screen's size. */
+static inline PscrSize ui_size(void) { return (PscrSize){uimn.cols, uimn.rows}; }
+/* A box's column on the screen: col on an 80-column one, the box kept central on a wider. */
+static inline uint8_t mid_col(const uint8_t col) { return (uint8_t)(col + (uimn.cols - 80) / 2); }
 static_assert(offsetof(Uimn, change_to) + sizeof(LineBuf) <= 0x10000);
 
 /* c in capitals, a to z only (ui_upper, menu.asm's). */
