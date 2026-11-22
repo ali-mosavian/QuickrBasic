@@ -3,6 +3,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include "boot.h"
+#include "mem/table.h"
+#include "plat/pmem.h"
 #include "session.h"
 #include "ui/linemap.h"
 #include "unit.h"
@@ -25,6 +27,32 @@ TEST(heap_grows_in_place_moves_and_reuses)
     CHECK(a[0] == 7 && heap_resize(&h, a, 50) == a); /* kept, and smaller in place */
     heap_free(&h, b);
     CHECK(heap_resize(&h, a, 4000) == a); /* b's bytes free again */
+}
+
+/* A table grown in place spreads its arrays to the new size, as a moved one does. Its owner was
+   told only of a move: the second array stayed where the first now ran, and 5000 variables'
+   names crashed the compiler. */
+TEST(table_grown_in_place_spreads_its_arrays)
+{
+    Allo al = {.fault = &S->fault};
+
+    Table t = {.narr = 2, .size = {4, 4}, .max = 64};
+
+    void *const after = pmem_resize(nullptr, 1024); /* blocks are taken downwards: t's under it */
+    tabl_new(&al, &t, 2);
+    pmem_free(after);
+    const Addr base = t.base;
+    ((uint32_t *)at(t.at[1]))[0] = 11;
+    ((uint32_t *)at(t.at[1]))[1] = 12;
+
+    CHECK(tabl_room(&t, 40) && t.base == base); /* in place: the heap's next bytes free */
+    CHECK(t.cap >= 40);
+
+    for (uint32_t i = 0; i < 40; i++)
+        ((uint32_t *)at(t.at[0]))[i] = i;
+
+    CHECK(((uint32_t *)at(t.at[1]))[0] == 11 && ((uint32_t *)at(t.at[1]))[1] == 12);
+    pmem_free(at(t.base));
 }
 
 /* Regions in the order added: a block goes to the first with room, at its top; the bottom's
