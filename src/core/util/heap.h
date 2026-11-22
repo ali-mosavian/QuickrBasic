@@ -13,6 +13,7 @@ typedef struct {
 typedef struct {
     HeapRegion region[HEAP_REGIONS]; /* in the order added: the first with room takes a block */
     uint32_t n;
+    uint32_t grow; /* heap_bottom's block's region; n: none */
 } Heap;
 
 /* Where regions come from: the platform's memory (DOS's, DPMI's). */
@@ -32,7 +33,8 @@ bool heap_add(Heap *h, void *mem, size_t size);
    meanwhile and given back after. */
 void heap_take_all(Heap *h, const HeapSource *s);
 /* p (from h, or null) as size bytes, its first bytes kept, aligned for any object: in place, or
-   moved to the top of the first region with room; 16-aligned. Null: no room, p kept. */
+   moved to the top of the first region with room, heap_bottom's last; 16-aligned. Null: no room,
+   p kept. */
 void *heap_resize(Heap *h, void *p, size_t size);
 void heap_free(Heap *h, void *p); /* p from h, or null */
 /* size bytes at the bottom of the largest free room, to grow in place; null none. */

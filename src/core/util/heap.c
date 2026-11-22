@@ -6,8 +6,8 @@
  * and its payload. Free blocks join the free ones after them as a walk passes them; a block
  * resized grows into the free ones after it before it moves.
  *
- * A new block goes to the top of the first region with room, so the bottom of the largest stays
- * free for heap_bottom's block (the BASIC heap), which grows up into it in place.
+ * A new block goes to the top of the first region with room, heap_bottom's block's (the BASIC
+ * heap's) last: that block grows up into its region in place, and what the others hold is left it.
  */
 #include "util/heap.h"
 #include <string.h>
@@ -44,7 +44,7 @@ static void split(Block *const b, const size_t size)
     b->size = (uint32_t)size;
 }
 
-void heap_init(Heap *const h) { *h = (Heap){0}; }
+void heap_init(Heap *const h) { *h = (Heap){.grow = HEAP_REGIONS}; }
 
 bool heap_add(Heap *const h, void *const mem, const size_t size)
 {
@@ -131,13 +131,13 @@ static void *take_high(const HeapRegion *const r, const size_t need)
 static void *take(const Heap *const h, const size_t need)
 {
     for (uint32_t i = 0; i < h->n; i++) {
-        void *const p = take_high(&h->region[i], need);
+        void *const p = i == h->grow ? nullptr : take_high(&h->region[i], need);
 
         if (p)
             return p;
     }
 
-    return nullptr;
+    return h->grow < h->n ? take_high(&h->region[h->grow], need) : nullptr;
 }
 
 bool heap_extend(Heap *const h, void *const p, const size_t size)
@@ -196,8 +196,10 @@ void *heap_bottom(Heap *const h, const size_t size)
 
             join(r, b);
 
-            if (b->size >= need && (!best || b->size > best->size))
+            if (b->size >= need && (!best || b->size > best->size)) {
                 best = b;
+                h->grow = i;
+            }
         }
     }
 

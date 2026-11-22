@@ -82,7 +82,6 @@ static void *fake_take(const size_t size, uint32_t *const handle)
             spans[nspans++] = (Span){s->at + size, s->size - size, false};
 
         *s = (Span){s->at, size, true};
-
         *handle = i;
         return s->at;
     }
@@ -97,16 +96,11 @@ static void fake_give(const uint32_t handle) { spans[handle].taken = false; }
 TEST(heap_takes_every_block)
 {
     enum : size_t { K = 1024 };
-
     static const HeapSource src = {fake_largest, fake_take, fake_give, 16 * K, 4 * K};
-
     spans[0] = (Span){fake_mem, 40 * K, false};
-
     spans[1] = (Span){fake_mem + 40 * K, 2 * K, true}; /* another program's */
     spans[2] = (Span){fake_mem + 42 * K, 20 * K, false};
-
     spans[3] = (Span){fake_mem + 62 * K, 2 * K, false};
-
     nspans = 4;
     Heap h;
     heap_init(&h);
@@ -116,6 +110,26 @@ TEST(heap_takes_every_block)
     CHECK(h.region[1].lo == fake_mem + 42 * K && h.region[1].hi == fake_mem + 62 * K);
     CHECK(!spans[0].taken && spans[0].size == 16 * K); /* the kept block, given back */
     CHECK(!spans[3].taken);
+}
+
+/* The bottom's block in the first region: a block goes to the others while they have room. Taken
+   from the first region's top, the IDE's blocks ate the BASIC heap's room at 2 MB, and FRE was
+   74 KB with DPMI's block half free. */
+TEST(heap_blocks_leave_the_bottoms_region)
+{
+    static alignas(max_align_t) uint8_t first[8192], second[600];
+    Heap h;
+    heap_init(&h);
+    heap_add(&h, first, sizeof first);
+    heap_add(&h, second, sizeof second);
+    uint8_t *const low = heap_bottom(&h, 1000);
+    CHECK(low > first && low < first + 64);
+    const size_t room = heap_after(&h, low);
+    uint8_t *const c = heap_resize(&h, nullptr, 500);
+    CHECK(c > second && c + 500 <= second + sizeof second);
+    CHECK(heap_after(&h, low) == room);
+    uint8_t *const d = heap_resize(&h, nullptr, 500); /* the second is full: the first's top */
+    CHECK(d > low + 1000 && d + 500 <= first + sizeof first);
 }
 
 /* Calls nest past the frames' first room: each frame kept as more grow. */
