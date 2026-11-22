@@ -51,7 +51,7 @@ static uint32_t f_usr(Session *const S, const uint32_t)
 static uint32_t f_fre(Session *const S, const uint32_t)
 {
     strg_gc(&S->strg);
-    return fmth_from_i32((int32_t)(S->allo.strings - S->allo.arrays));
+    return fmth_from_i32((int32_t)allo_free(&S->allo));
 }
 
 static uint32_t f_pos(Session *const S, const uint32_t) { return S->cons.col + 1u; } /* from 1 */

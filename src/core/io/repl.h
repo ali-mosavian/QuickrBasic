@@ -22,11 +22,7 @@ typedef struct {
     void (*start)(Session *S);   /* under repl_call, before the READY loop */
     void (*chain)(Session *S);   /* CHAIN begins: may raise */
     void (*warn)(Session *S, const char *text, uint32_t len); /* a load warning, its CR LF too */
-    uint32_t
-        heap; /* the C side's heap's bytes on DOS, 0 C_HEAP: what statics held, the arena keeps */
 } FrontEnd;
-
-enum { C_HEAP = 0x60000 }; /* the batch's C side: the compiler's and the run's buffers */
 
 typedef struct {
     const FrontEnd *fe; /* boot's */

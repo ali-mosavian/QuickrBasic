@@ -1,14 +1,15 @@
-/* The arena's layout and the allocator: fixed regions and blocks packed from the heap's start.
+/* The arena: fixed regions, blocks and the BASIC heap, all pmem's.
  *
  * # How it works
- * The arena, [lo, hi) from pmem_init, is carved at start: first the fixed regions (allo_carve: the
- * arrays' headers and the control stack, the POKE memory, and any other module's region a stored
- * Addr can reach), then the blocks (allo_new: the code cache, the program store, the editor's line
- * map, the symbol tables), then the BASIC heap, bot to top: arrays up from bot (allo.arrays), strings
- * down from top (allo.strings).
+ * The BASIC heap is a block at the bottom of pmem's largest room: arrays up from bot (allo.arrays),
+ * strings down from top (allo.strings). It grows up in place into the room after it, the strings
+ * slid up into what it gained (mem/string.c): nothing else in it moves, and a statement may hold
+ * an array's Addr. Empty (session_clear), it shrinks back to HEAP_FIRST bytes.
  *
- * A block is reached by its handle, never by a stored Addr: it moves when one before it grows.
- * allo_grow moves the blocks after it up and tells each one's moved routine.
+ * A fixed region (allo_carve: the arrays' headers and the control stack, the POKE memory, and any
+ * other module's region a stored Addr can reach) is a pmem block that never moves. A block (allo_new:
+ * the code cache, the program store, the editor's line map, the symbol tables) is one that may:
+ * it is reached by its handle, never by a stored Addr, and allo_grow tells its owner when it moves.
  *
  * # asm structure (retired/asm32/mem/alloc.asm, retired/asm32/regions.asm)
  * | asm | here | |
@@ -21,7 +22,7 @@
  * | alloc_new (ECX, EBX -> EAX, EDX) | allo_new(size, moved); base: allo_base(h) | MIRROR; D1 |
  * | alloc_grow (EAX, ECX; CF) | allo_grow(h, size) | MIRROR; D2 |
  * | alloc_sel, sel_set, mm.peekseg | | D1 |
- * | plt_heap's hbot/htop | pmem_init, then allo_init(lo, hi) | MIRROR |
+ * | plt_heap's hbot/htop | pmem_init, then allo_init | MIRROR |
  * | g_dsb+0BC00h HDRBASE, HDRLIM | Allo.hdr_base, Allo.hdr_base + HDRSZ | MIRROR |
  * | CSLIM, CSTOP | Allo.cs_lim, Allo.cs_top | MIRROR |
  * | g_pokeb | Allo.poke (POKESZ) | MIRROR |
@@ -34,70 +35,53 @@
  *   (always 0) is dropped.
  * - D2. allo_grow returns true when grown, where the asm's CF is clear.
  * - D3. New: allo_init sets the heap and carves the fixed regions; allo_carve is for any other
- *   module's.
+ *   module's. Each is pmem's (plat/pmem.h), as the heap is.
  */
 #include "mem/alloc.h"
+#include "plat/pmem.h"
 
 /* The control stack's region keeps the asm's tail above CSTOP (g_dsb+FC00h .. 10000h). */
 enum { CSTAIL = 0x400, ALIGN = 16 };
 
-static Addr allo_align(const Addr a) { return (a + ALIGN - 1) & ~(Addr)(ALIGN - 1); }
+static uint32_t allo_align(const uint32_t n) { return (n + ALIGN - 1) & ~(uint32_t)(ALIGN - 1); }
 
-/* Do size more bytes fit at a, HMIN left after them? */
-static bool allo_fits(const Allo *const al, const Addr a, const uint32_t size)
-{
-    return (uint64_t)a + size + HMIN <= al->top;
-}
-
-void allo_init(Allo *const al, Fault *const f, const Addr lo, const Addr hi)
+void allo_init(Allo *const al, Fault *const f)
 {
     al->fault = f;
-    al->bot = lo;
-    al->top = hi;
+    uint8_t *const heap = pmem_bottom(HEAP_FIRST);
+
+    if (!heap)
+        fault_error(f, E_OM);
+
+    al->bot = al->arrays = addr_of(heap);
+    al->top = al->strings = al->bot + HEAP_FIRST;
     al->hdr_base = allo_carve(al, HDRSZ + CSSZ + CSTAIL);
     al->cs_lim = al->hdr_base + HDRSZ;
     al->cs_top = al->cs_lim + CSSZ;
     al->poke = allo_carve(al, POKESZ);
 }
 
-/* The heap's bottom aligned to 16, with size bytes after it and HMIN left; 0 no room. */
-static Addr allo_room(const Allo *const al, const uint32_t size)
-{
-    const Addr a = allo_align(al->bot);
-    return allo_fits(al, a, size) ? a : 0;
-}
-
 Addr allo_carve(Allo *const al, const uint32_t size)
 {
-    const Addr a = allo_room(al, size);
+    void *const p = pmem_resize(nullptr, size);
 
-    if (!a)
+    if (!p)
         fault_error(al->fault, E_OM);
 
-    memset(at(a), 0, size);
-    al->bot = a + size;
-    return a;
+    memset(p, 0, size);
+    return addr_of(p);
 }
 
 uint32_t allo_new(Allo *const al, const uint32_t size, AlloOwner *const owner)
 {
     const uint32_t h = al->nblocks;
-    const Addr a = allo_room(al, size);
 
-    if (h >= NBLKH || !a)
+    if (h >= NBLKH)
         fault_error(al->fault, E_OM);
 
-    al->block[h] = (AlloBlock){.base = a, .cap = size, .owner = owner};
-
+    al->block[h] = (AlloBlock){.base = allo_carve(al, size), .cap = size, .owner = owner};
     al->nblocks++;
-    al->bot = a + size;
     return h;
-}
-
-static void allo_tell(const AlloBlock *const b)
-{
-    if (b->owner)
-        b->owner->moved(b->owner);
 }
 
 bool allo_grow(Allo *const al, const uint32_t h, const uint32_t size)
@@ -109,26 +93,47 @@ bool allo_grow(Allo *const al, const uint32_t h, const uint32_t size)
 
     const uint32_t half_again = b->cap + b->cap / 2;
     const uint32_t cap = allo_align(half_again < size ? size : half_again);
+    uint8_t *const p = pmem_resize(at(b->base), cap);
 
-    if (al->arrays != al->bot || al->strings != al->top) /* the heap not empty */
+    if (!p)
         return false;
 
-    const uint32_t grow = cap - b->cap;
-
-    if (!allo_fits(al, al->bot, grow))
-        return false;
-
-    const Addr end = b->base + b->cap;
+    memset(p + b->cap, 0, cap - b->cap);
+    const bool moved = addr_of(p) != b->base;
+    b->base = addr_of(p);
     b->cap = cap;
-    memmove(at(end + grow), at(end), al->bot - end);
-    al->bot += grow;
-    al->arrays = al->bot;
-    allo_tell(b);
 
-    for (uint32_t i = h + 1; i < al->nblocks; i++) {
-        al->block[i].base += grow;
-        allo_tell(&al->block[i]);
-    }
+    if (h == HCACHE)
+        al->cache = b->base;
+    if (moved && b->owner)
+        b->owner->moved(b->owner);
 
     return true;
+}
+
+static uint32_t allo_more(const Allo *const al) { return (uint32_t)pmem_after(at(al->bot)); }
+
+uint32_t allo_free(const Allo *const al) { return al->strings - al->arrays + allo_more(al); }
+
+uint32_t allo_extend(Allo *const al, const uint32_t need)
+{
+    const uint32_t more = allo_more(al), want = allo_align(need);
+
+    if (more < want)
+        return 0;
+
+    const uint32_t quarter = allo_align((al->top - al->bot) / 4);
+    const uint32_t add = want < quarter ? (quarter < more ? quarter : more) : want;
+
+    if (!pmem_extend(at(al->bot), al->top - al->bot + add))
+        return 0;
+
+    return add;
+}
+
+void allo_shrink(Allo *const al)
+{
+    pmem_extend(at(al->bot), HEAP_FIRST); /* smaller: in place */
+    al->arrays = al->bot;
+    al->top = al->strings = al->bot + HEAP_FIRST;
 }

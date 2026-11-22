@@ -20,7 +20,7 @@ void heap_init(Heap *h);
 /* All of [mem, mem + size) free, a region after the others; false: HEAP_REGIONS already. */
 bool heap_add(Heap *h, void *mem, size_t size);
 /* p (from h, or null) as size bytes, its first bytes kept, aligned for any object: in place, or
-   moved to the top of the first region with room. Null: no room, p kept. */
+   moved to the top of the first region with room; 16-aligned. Null: no room, p kept. */
 void *heap_resize(Heap *h, void *p, size_t size);
 void heap_free(Heap *h, void *p); /* p from h, or null */
 /* size bytes at the bottom of the largest free room, to grow in place; null none. */

@@ -49,9 +49,8 @@ void boot(Session *const S, const FrontEnd *const fe)
     S->impt.find = repl_runs;
     lexr_init(&S->lexr, &S->fault, &S->names);
     stmt_usng_init(S);
-    Addr lo, hi;
 
-    if (!pmem_init(HMIN, fe->heap ? fe->heap : C_HEAP, &lo, &hi))
+    if (!pmem_init())
         out_of_memory();
 
     Catch c;
@@ -62,12 +61,7 @@ void boot(Session *const S, const FrontEnd *const fe)
 
     scop_init(&S->scop, &S->fault); /* its arena's first block from the C side's heap */
 
-    allo_init(
-        &S->allo,
-        &S->fault,
-        lo,
-        hi
-    ); /* the arrays' headers, the control stack, the POKE memory */
+    allo_init(&S->allo, &S->fault); /* the arrays' headers, the control stack, the POKE memory */
     qbrt_init(&S->fault, &S->vm.stop, at(allo_carve(&S->allo, QBRT_HEAP)), QBRT_HEAP);
     strg_init(&S->strg, &S->allo, &S->fault, &S->prog);
     arry_init(&S->arry, &S->allo, &S->fault, &S->symb, &S->decl, &S->strg, &S->vm);

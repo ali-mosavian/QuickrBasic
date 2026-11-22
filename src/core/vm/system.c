@@ -410,12 +410,12 @@ void syst_envset(Session *const S)
 
 /* ---- the rest ------------------------------------------------------------------------------- */
 
-/* SETMEM ( n -- n ): the free bytes; the heap is fixed. */
+/* SETMEM ( n -- n ): the free bytes; the heap grows by itself. */
 void syst_setmem(Session *const S)
 {
     S->vm.sp++;
     strg_gc(&S->strg);
-    exec_pushi(&S->vm, (int32_t)(S->allo.strings - S->allo.arrays));
+    exec_pushi(&S->vm, (int32_t)allo_free(&S->allo));
 }
 
 /* ERDEV, ERDEV$: no device error is kept. */
