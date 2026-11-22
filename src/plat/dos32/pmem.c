@@ -40,7 +40,8 @@ bool pmem_init(const uint32_t least, const uint32_t heap, Addr *const lo, Addr *
     const uint32_t linear = pdos_pair(r.ebx, r.ecx);
     *lo = linear - pdos_ds_base();
     *hi = *lo + size - c_side;
-    heap_init(&c_heap, at(*hi), c_side);
+    heap_init(&c_heap);
+    heap_add(&c_heap, at(*hi), c_side);
     return true;
 }
 

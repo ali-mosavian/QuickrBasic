@@ -4,24 +4,49 @@
 #include "unit.h"
 #include "util/heap.h"
 
-/* In place into the free bytes after it; else moved, its bytes kept; freed bytes taken again. */
+/* In place into the free bytes after it, its bytes kept; no room, kept; freed bytes taken again. */
 TEST(heap_grows_in_place_moves_and_reuses)
 {
     static alignas(max_align_t) uint8_t mem[4096];
     Heap h;
-    heap_init(&h, mem, sizeof mem);
-    uint8_t *const a = heap_resize(&h, nullptr, 100);
-    CHECK(a);
+    heap_init(&h);
+    heap_add(&h, mem, sizeof mem);
+    uint8_t *const a = heap_bottom(&h, 100);
+    CHECK(a > mem && a < mem + 64); /* the bottom, past its header */
     memset(a, 7, 100);
     CHECK(heap_resize(&h, a, 1000) == a); /* the rest is free */
     uint8_t *const b = heap_resize(&h, nullptr, 100);
-    CHECK(b && b > a);
-    uint8_t *const c = heap_resize(&h, a, 2000); /* b after it: moved */
-    CHECK(c && c != a && c[0] == 7 && c[99] == 7);
-    CHECK(heap_resize(&h, nullptr, 900) == a);     /* a's bytes free again */
-    CHECK(!heap_resize(&h, b, 8000) && b[0] == 0); /* no room: b kept */
-    heap_free(&h, c);
-    CHECK(heap_resize(&h, b, 2500) == b); /* into c's freed bytes */
+    CHECK(b && b > a + 1000);
+    CHECK(!heap_resize(&h, a, 4000));                /* no room anywhere */
+    CHECK(a[0] == 7 && heap_resize(&h, a, 50) == a); /* kept, and smaller in place */
+    heap_free(&h, b);
+    CHECK(heap_resize(&h, a, 4000) == a); /* b's bytes free again */
+}
+
+/* Regions in the order added: a block goes to the first with room, at its top; the bottom's
+   block grows into the room after it and no further, and says how much there is. */
+TEST(heap_regions_low_and_high)
+{
+    static alignas(max_align_t) uint8_t first[600], second[8192];
+    Heap h;
+    heap_init(&h);
+    heap_add(&h, first, sizeof first);
+    heap_add(&h, second, sizeof second);
+    uint8_t *const low = heap_bottom(&h, 1000); /* the largest room's bottom */
+    CHECK(low > second && low < second + 64);
+    uint8_t *const c = heap_resize(&h, nullptr, 500);
+    CHECK(c > first && c + 500 <= first + sizeof first); /* the first region's */
+    uint8_t *const d = heap_resize(&h, nullptr, 500);
+    CHECK(
+        d > low + 1000 && d + 500 <= second + sizeof second && d + 564 > second + sizeof second
+    ); /* its top */
+    const size_t room = heap_after(&h, low);
+    CHECK(room > 6000 && room < 7000);
+    CHECK(!heap_extend(&h, low, 1000 + room + 16));
+    CHECK(heap_after(&h, low) == room);
+    CHECK(heap_extend(&h, low, 1000 + room));
+    CHECK(heap_after(&h, low) == 0);
+    CHECK(!heap_resize(&h, nullptr, 500)); /* full */
 }
 
 /* Calls nest past the frames' first room: each frame kept as more grow. */
