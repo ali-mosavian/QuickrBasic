@@ -28,28 +28,33 @@ typedef struct {
     Fault *fault; /* Out of memory */
     uint32_t nblocks;
     AlloBlock block[NBLKH]; /* by handle */
-    Addr bot, top;          /* the heap (mm.hbot, mm.htop) */
+    Addr bot, top;          /* the BASIC heap (mm.hbot, mm.htop): a block of pmem's, grown up */
     Addr arrays;            /* the arrays' data from bot up to here (mm.aend) */
     Addr strings;           /* the strings' from here up to top (mm.sfr) */
-    Addr cache;             /* the code cache's block, which never moves (mm.cachebase) */
+    Addr cache;             /* the code cache's block, moved as it grows (mm.cachebase) */
     Addr hdr_base;          /* the arrays' headers, to hdr_base + HDRSZ (HDRBASE, HDRLIM) */
     Addr cs_lim;            /* the control stack's floor (CSLIM) */
     Addr cs_top;            /* its top, frames down from it (CSTOP) */
-    Addr poke;              /* the POKE memory, POKESZ bytes (g_pokeb) */
+    Addr poke;              /* the POKE memory, POKESZ bytes (g_pokeb); 0 till the first SYS */
 } Allo;
 
-/* The arena [lo, hi): the heap all of it; then carves the headers, the control stack and the
-   POKE memory. */
-void allo_init(Allo *al, Fault *f, Addr lo, Addr hi);
-/* A fixed region of size bytes, zeroed, 16-aligned, from the heap's bottom. Only before the
-   first allo_new. Out of memory past HMIN left. */
+/* The BASIC heap, HEAP_FIRST bytes at the bottom of pmem's largest room; then carves the
+   headers and the control stack. Out of memory. */
+void allo_init(Allo *al, Fault *f);
+/* A fixed region of size bytes, zeroed, 16-aligned: it never moves. Out of memory. */
 Addr allo_carve(Allo *al, uint32_t size);
-/* A block of size bytes after the last, the heap smaller by it; only while the heap is empty.
-   Returns its handle. Out of memory: no room for it and HMIN, or NBLKH made. */
+/* A block of size bytes, zeroed. Returns its handle. Out of memory: no room, or NBLKH made. */
 uint32_t allo_new(Allo *al, uint32_t size, AlloOwner *owner);
-/* Block h to size bytes at least, half as many again: the blocks after it move up and each from
-   it on is told. false: not grown, the heap not empty or without room. */
+/* Block h to size bytes at least, half as many again where there is room: in place or moved, its
+   owner told. false: no room. */
 bool allo_grow(Allo *al, uint32_t h, uint32_t size);
+/* The BASIC heap's top raised by need bytes at least, a quarter of it more where there is room:
+   the bytes added, past top; 0 no room. The caller moves top. */
+uint32_t allo_extend(Allo *al, uint32_t need);
+/* The BASIC heap's free bytes: between the arrays and the strings, and what it can still add. */
+uint32_t allo_free(const Allo *al);
+/* The BASIC heap, empty, back to HEAP_FIRST bytes: the rest to pmem. */
+void allo_shrink(Allo *al);
 
 static inline Addr allo_base(const Allo *const al, uint32_t h) { return al->block[h].base; }
 static inline uint32_t allo_cap(const Allo *const al, uint32_t h) { return al->block[h].cap; }

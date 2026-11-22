@@ -84,6 +84,22 @@ def profile_stop() -> None:
     assert bench.stopped(bench.dosrun.Result("prog", "", "exit", 0, 0)) == ""
 
 
+def dos_crash() -> None:
+    """A DOS build that does not start is not measured. main's crashed at boot in 4 MB, DOS/32A's
+    exception 0Dh for every program, the empty one's too: cmp read each program as -2 instructions."""
+    crash = bench.dosrun.Result("", "DOS/32A run-time (6001): exception 0Dh", "exit", 3642223, 0)
+    run = bench.dosrun.run
+    bench.dosrun.run = lambda jobs, *a, **k: dict.fromkeys(jobs, crash)
+    try:
+        bench.run_dos(bench.Build(bench.ROOT), {"x": "PRINT 1"})
+    except SystemExit as e:
+        assert "exception 0Dh" in str(e), e
+        return
+    finally:
+        bench.dosrun.run = run
+    raise AssertionError("bench measured a build that crashed at boot")
+
+
 def each_reps() -> None:
     """fps --each reads TIMER once per EACH_REPS calls. Read once a call, its millisecond on DOS rounded each
     call's cost: DrawMoth read 0 ms, the rest whole ms."""
@@ -194,6 +210,7 @@ def main() -> int:
     kind_compares()
     profile_cycles()
     profile_stop()
+    dos_crash()
     broken_counter()
     fps_start_up()
     b = bench.build(".", False)  # the tree's own instruments: copying them onto themselves raised

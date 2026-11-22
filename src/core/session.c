@@ -208,8 +208,7 @@ const char *session_errtext(const Session *const S, const uint8_t code)
 void session_clear(Session *const S)
 {
     symb_clear(&S->symb);
-    S->allo.arrays = S->allo.bot;
-    S->allo.strings = S->allo.top;
+    allo_shrink(&S->allo);
     arry_clear_heap(&S->arry);
     S->strg.tmp_used = 0;
     S->strg.tmp_floor = 0;

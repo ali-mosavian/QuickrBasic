@@ -10,15 +10,16 @@ typedef struct {
     Strg *strg;       /* names' and records' strings */
     Cons *cons;       /* FILES' listing; sbuf a record's string's scratch */
     Fault *fault;     /* the QBasic errors */
+    Allo *allo;       /* the records' */
     uint8_t mode;     /* OPEN's mode, FM_* */
     uint32_t reclen;  /* OPEN's LEN */
-    Addr recs;        /* NCH * RECMAX: each channel's record */
+    Addr recs;        /* NCH * RECMAX: each channel's record; 0 till the first record used */
     Chan *field_chan; /* FIELD's channel */
     char name2[128];  /* NAME's new name; FILES's directory */
     char bname[264];  /* BSAVE's, BLOAD's name, .BAS added */
 } File;
 
-/* The records' region carved from al; the links set. */
+/* The links set; the records' region is carved from al at its first use. */
 void file_init(File *fi, Allo *al, Chnl *cl, Strg *sg, Cons *co, Fault *f);
 
 void file_opendef(Session *S);   /* OPEN's defaults: RANDOM, 128-byte records */

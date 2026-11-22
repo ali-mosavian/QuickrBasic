@@ -726,6 +726,9 @@ void stmt_out(Session *const S)
 /* SYS ( addr -- ): a call into the POKE memory; nothing poked there: a no-op. */
 void stmt_sys(Session *const S)
 {
+    if (!S->allo.poke)
+        S->allo.poke = allo_carve(&S->allo, POKESZ);
+
     const Addr a = S->allo.poke + (uint16_t)exec_pop(&S->vm).u;
 
     if (rd8(a))

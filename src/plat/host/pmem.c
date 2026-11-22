@@ -1,35 +1,35 @@
-/* The arena on the host.
+/* The platform's memory on the host.
  *
  * # How it works
- * One zeroed block. Addr 0 stays unused, as on DOS32. The C side's heap is libc's, from pmem_init
- * on.
+ * One zeroed block, the heap's one region. Addr 0 stays unused, as on DOS32.
  */
 #include <stdlib.h>
 #include "plat/pmem.h"
+#include "util/heap.h"
 
-enum : uint32_t { ARENA_SIZE = 16u << 20, ARENA_LOW = 0x1000 };
+enum : uint32_t { SIZE = 64u << 20, LOW = 0x1000 };
 
 uint8_t *mem_base;
+static Heap heap;
 
-bool pmem_init(const uint32_t least, const uint32_t heap, Addr *const lo, Addr *const hi)
+bool pmem_init(void)
 {
-    if (ARENA_SIZE - ARENA_LOW < least)
-        return false;
-
-    mem_base = calloc(1, ARENA_SIZE);
+    mem_base = calloc(1, SIZE);
 
     if (!mem_base)
         return false;
 
-    *lo = ARENA_LOW;
-    *hi = ARENA_SIZE;
-    return true;
+    heap_init(&heap);
+    return heap_add(&heap, mem_base + LOW, SIZE - LOW);
 }
 
-/* Null before pmem_init, as DOS32's heap is. */
-void *pmem_resize(void *const p, const size_t size)
-{
-    return mem_base ? realloc(p, size ? size : 1) : nullptr;
-}
+/* Null before pmem_init, as DOS32's. */
+void *pmem_resize(void *const p, const size_t size) { return mem_base ? heap_resize(&heap, p, size) : nullptr; }
 
-void pmem_free(void *const p) { free(p); }
+void pmem_free(void *const p) { heap_free(&heap, p); }
+
+void *pmem_bottom(const size_t size) { return heap_bottom(&heap, size); }
+
+bool pmem_extend(void *const p, const size_t size) { return heap_extend(&heap, p, size); }
+
+size_t pmem_after(const void *const p) { return heap_after(&heap, p); }

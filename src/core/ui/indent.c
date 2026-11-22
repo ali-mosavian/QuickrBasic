@@ -237,11 +237,11 @@ static uint16_t indt_lead(const uint8_t *const text, const uint16_t n)
 /* The indent of the start of the block of kind k that line's lead ends, up from line; -1 none. */
 static int32_t indt_start(IndtGet *const get, void *const ctx, const uint32_t line, const Kind k)
 {
-    uint8_t text[LNBUF];
     uint32_t depth = 0;
 
     for (uint32_t i = line; i--;) {
-        const uint16_t len = get(ctx, i, text);
+        uint16_t len;
+        const uint8_t *const text = get(ctx, i, &len);
         Ev ev[NEV];
 
         for (uint32_t e = indt_events(text, len, ev); e--;) {

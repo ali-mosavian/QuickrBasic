@@ -51,7 +51,7 @@ static uint32_t f_usr(Session *const S, const uint32_t)
 static uint32_t f_fre(Session *const S, const uint32_t)
 {
     strg_gc(&S->strg);
-    return fmth_from_i32((int32_t)(S->allo.strings - S->allo.arrays));
+    return fmth_from_i32((int32_t)allo_free(&S->allo));
 }
 
 static uint32_t f_pos(Session *const S, const uint32_t) { return S->cons.col + 1u; } /* from 1 */
@@ -195,7 +195,7 @@ void func_instr(Session *const S)
    length kept. Illegal function call: i under 1. */
 void func_mids(Session *const S)
 {
-    const Desc v = strg_peek(exec_popa(&S->vm));
+    const Addr va = exec_popa(&S->vm);
     const uint32_t n = exec_pop(&S->vm).u;
     const int32_t i = exec_popi(&S->vm);
 
@@ -203,7 +203,7 @@ void func_mids(Session *const S)
         repl_error(S, E_IQ);
 
     const Addr r = strg_sub(&S->strg, exec_popa(&S->vm), 0, SMAX);
-    const Desc dst = strg_peek(r);
+    const Desc dst = strg_peek(r), v = strg_peek(va); /* v after: the copy may collect, move it */
     const int32_t room = dst.len - (i - 1);
 
     if (room > 0) {

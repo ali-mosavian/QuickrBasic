@@ -1,5 +1,7 @@
 /* Expressions' function and element nodes: what they evaluate to. */
+#include <stdio.h>
 #include "session.h"
+#include "comp/comp.h"
 #include "comp/lexer.h"
 #include "vm/flow.h"
 #include "unit.h"
@@ -100,4 +102,29 @@ TEST(function_result_passes_the_line_check)
         op += flow_opsize(op);
 
     CHECK(*op == O_EOL);
+}
+
+/* n terms of 1 + 1 + ... in text. */
+static char *chain(char *const text, const uint32_t n)
+{
+    char *d = text;
+    *d++ = '1';
+
+    for (uint32_t i = 1; i < n; i++)
+        d += sprintf(d, "+1");
+
+    *d = 0;
+    return text;
+}
+
+/* A chain of operators deepens the tree as nesting does: it counts toward COMP_MAXDEPTH. 3000 terms
+   of 1 + 1 overflowed DOS's 128 KB C stack in the code generator's walk, and the IDE hung. */
+TEST(long_operator_chains_are_out_of_memory)
+{
+    static char text[2 * COMP_MAXDEPTH + 64];
+    char out[80];
+    char want[16];
+    snprintf(want, sizeof want, " %u ", COMP_MAXDEPTH / 2);
+    eval_is(S, chain(text, COMP_MAXDEPTH / 2), want);
+    CHECK(session_eval(S, chain(text, COMP_MAXDEPTH + 8), 0, out) != ST_OK);
 }

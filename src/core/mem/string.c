@@ -7,7 +7,8 @@
  *
  * The heap's strings run down from allo.top to low; a block is the chars, then a StrTail (len,
  * owner: the Desc's Addr), live while that Desc points at the chars. At most SMAX chars. When the
- * heap is full strg_gc slides the live blocks up and their owners follow.
+ * heap is full strg_gc slides the live blocks up and their owners follow; still full, the heap
+ * grows (mem/alloc.c) and the strings slide up to its new top.
  *
  * # asm structure (retired/asm32/mem/str.asm)
  * | asm | here | |
@@ -33,7 +34,7 @@
  * - D1. The routines' register and global inputs and outputs are a Desc (.len, .ptr), return values
  *   and parameters.
  * - D2. Returns the Desc; empty is `.len == 0`.
- * - D3. FRE is `allo.strings - allo.arrays` after it.
+ * - D3. FRE is `allo.strings - allo.arrays` after it, and what the heap can still add.
  * - D4. Length min(s.len, 255).
  * - D5. The position is an Addr in `*pos`; strg_span's start is `*p` before the call.
  */
@@ -95,43 +96,24 @@ Addr strg_new(Strg *const sg, const Addr chars, const uint16_t len)
     return strg_push(sg, (Desc){.len = len, .ptr = chars});
 }
 
-/* A block of len chars under low fits above the arrays: its chars, else 0. */
-static Addr strg_fit(const Strg *const sg, const uint16_t len)
-{
-    const Addr c = sg->allo->strings - len - BHDR;
-    return sg->allo->arrays < c ? c : 0;
-}
-
 Addr strg_alloc(Strg *const sg, const uint16_t len)
 {
-    Addr c = strg_fit(sg, len);
+    if (sg->allo->strings - sg->allo->arrays <= (uint32_t)len + BHDR && !strg_room(sg, len + BHDR + 1u))
+        fault_error(sg->fault, E_OM);
 
-    if (!c) {
-        strg_gc(sg);
-        c = strg_fit(sg, len);
-
-        if (!c)
-            fault_error(sg->fault, E_OM);
-    }
-
+    const Addr c = sg->allo->strings - len - BHDR;
     sg->allo->strings = c;
     *strg_tail_of(c, len) = (StrTail){.len = len, .owner = 0};
 
     return c;
 }
 
-/* Is the block at chars live: its owner a Desc still pointing at them? */
-/* Is d a Desc popped off the data stack: from the strings up to sp, the frames and the segments
-   past sp's between them (vm/stack.c)? */
-static bool strg_is_popped_frame(const Strg *const sg, const Addr d)
-{
-    return d >= sg->allo->strings && d < addr_of(*sg->sp);
-}
-
+/* Is the block at chars live: its owner a Desc still pointing at them? A dead block's owner
+   mostly points elsewhere: that test first, the data stack asked only then. */
 static bool strg_is_live(const Strg *const sg, const Addr chars, const Addr owner)
 {
-    return owner && !strg_is_popped_tmp(sg, owner) && !strg_is_popped_frame(sg, owner) &&
-           strg_peek(owner).ptr == chars;
+    return owner && strg_peek(owner).ptr == chars && !strg_is_popped_tmp(sg, owner) &&
+           !(sg->popped && sg->popped(sg->vm, owner));
 }
 
 /* Out of line: inlined into strg_alloc, every allocation saved and set up its registers. */
@@ -170,21 +152,26 @@ static void strg_slide(Strg *const sg, const int32_t delta)
     }
 }
 
-bool strg_take_top(Strg *const sg, const uint32_t size)
+bool strg_room(Strg *const sg, const uint32_t size)
 {
-    strg_gc(sg);
+    Allo *const al = sg->allo;
 
-    if (sg->allo->strings - sg->allo->arrays < size)
+    if (al->strings - al->arrays >= size)
+        return true;
+
+    strg_gc(sg);
+    const uint32_t free = al->strings - al->arrays;
+
+    if (free >= size)
+        return true;
+
+    const uint32_t add = allo_extend(al, size - free);
+
+    if (!add)
         return false;
 
-    strg_slide(sg, -(int32_t)size);
+    strg_slide(sg, (int32_t)add);
     return true;
-}
-
-void strg_give_top(Strg *const sg, const uint32_t size)
-{
-    strg_gc(sg);
-    strg_slide(sg, (int32_t)size);
 }
 
 /* Are s's chars in the program's text? */

@@ -5,11 +5,10 @@
 
 static const char *const *lines; /* the lines above */
 
-static uint16_t get(void *const ctx, const uint32_t i, uint8_t *const dst)
+static const uint8_t *get(void *const ctx, const uint32_t i, uint16_t *const n)
 {
-    const uint16_t n = (uint16_t)strlen(lines[i]);
-    memcpy(dst, lines[i], n);
-    return n;
+    *n = (uint16_t)strlen(lines[i]);
+    return (const uint8_t *)lines[i];
 }
 
 /* Enter at the end of text, typed below the n lines above: the line's indent and the next's. */

@@ -8,7 +8,8 @@
  * modes' 16K at B800h, else each plane's page (read map select), with the DAC, the attribute
  * palette and the CRTC's display start. It is shown again through the BIOS's mode set with bit 7
  * (memory kept), each plane written in write mode 0, then the controller left as the runtime
- * keeps it: write mode 2, function 0, bit mask FFh, all planes.
+ * keeps it: write mode 2, function 0, bit mask FFh, all planes. Pages in VBE's mode are past the
+ * video memory a text mode uses: the shot is the DAC alone, and VBE's mode set keeping memory.
  */
 #include "qbrt/qbrt.h"
 #include "device.h"
@@ -28,12 +29,16 @@ void llrm_os_exit(const unsigned char code) { psys_exit(code); }
 
 unsigned char llrm_os_console_key_ready(void) { return pkey_ready(); }
 
-/* The environment's string `index` (NAME=value) in data, max bytes at most; its length, -1 past the last. */
+enum { ENV_MOST = 0x8000 }; /* DOS's */
+
+/* The environment's string `index` (NAME=value) in data, max bytes at most; its length, -1 past the last. Its copy
+   is taken for the call. */
 int llrm_os_environment(const unsigned index, unsigned char *const data, const unsigned max)
 {
-    static char env[0x8000]; /* DOS's most */
-    const uint32_t n = psys_environ(env, sizeof env);
+    char *const env = dev_take(ENV_MOST);
+    const uint32_t n = psys_environ(env, ENV_MOST);
     uint32_t at = 0;
+    int found = -1;
 
     for (unsigned i = 0; at < n && env[at]; i++) {
         uint32_t length = 0;
@@ -44,11 +49,15 @@ int llrm_os_environment(const unsigned index, unsigned char *const data, const u
             const uint32_t put = length < max ? length : max;
             for (uint32_t k = 0; k < put; k++)
                 data[k] = (unsigned char)env[at + k];
-            return (int)put;
+
+            found = (int)put;
+            break;
         }
         at += length + 1;
     }
-    return -1;
+
+    dev_give(env);
+    return found;
 }
 
 unsigned char llrm_os_console_read_key(void) { return (unsigned char)pkey_wait(); }
@@ -104,7 +113,6 @@ typedef struct {
     uint8_t pixels[];       /* the page, plane by plane */
 } Shot;
 
-uint32_t qbrt_shot_size(void) { return sizeof(Shot) + PLANES * PLANE_MOST; }
 
 static void reg(const unsigned port, const unsigned index, const unsigned value)
 {
@@ -139,6 +147,12 @@ static uint32_t page_bytes(const Layout l)
     return l == LAYOUT_CGA ? CGA_BYTES : gfx_current->width / 8 * gfx_current->height;
 }
 
+uint32_t qbrt_shot_size(void)
+{
+    const Layout l = layout();
+    return sizeof(Shot) + (gd_vbe() ? 0 : (l == LAYOUT_PLANAR ? PLANES : 1u) * page_bytes(l));
+}
+
 static uint8_t *video(const Layout l, const uint16_t start)
 {
     return (uint8_t *)(l == LAYOUT_CGA ? 0xB8000 : 0xA0000) + start;
@@ -148,14 +162,18 @@ void qbrt_shot_take(void *const p)
 {
     Shot *const shot = p;
     const Layout l = layout();
-    shot->start =
-        l == LAYOUT_PLANAR
-            ? (uint16_t)(reg_in(CRTC, CRTC_START_HIGH) << 8 | reg_in(CRTC, CRTC_START_LOW))
-            : 0;
     dev_outb(DAC_READ, 0);
 
     for (uint32_t i = 0; i < DAC_BYTES; i++)
         shot->dac[i] = (uint8_t)dev_inb(DAC_DATA);
+
+    if (gd_vbe())
+        return;
+
+    shot->start =
+        l == LAYOUT_PLANAR
+            ? (uint16_t)(reg_in(CRTC, CRTC_START_HIGH) << 8 | reg_in(CRTC, CRTC_START_LOW))
+            : 0;
 
     for (unsigned i = 0; i < ATTRS; i++) {
         Regs r = {.rax = BIOS_GET_ATTR, .rbx = i};
@@ -182,11 +200,25 @@ void qbrt_shot_take(void *const p)
 
 void qbrt_shot_drop(void) {}
 
+static void dac_write(const Shot *const shot)
+{
+    dev_outb(DAC_WRITE, 0);
+
+    for (uint32_t i = 0; i < DAC_BYTES; i++)
+        dev_outb(DAC_DATA, shot->dac[i]);
+}
+
 void qbrt_shot_show(const void *const p)
 {
     const Shot *const shot = p;
     const Layout l = layout();
     Regs r = {.rax = gfx_current->bios | KEEP_MEMORY};
+
+    if (gd_vbe()) {
+        gd_vbe_show();
+        dac_write(shot);
+        return;
+    }
 
     dev_int10(&r);
 
@@ -196,10 +228,7 @@ void qbrt_shot_show(const void *const p)
         dev_int10(&a);
     }
 
-    dev_outb(DAC_WRITE, 0);
-
-    for (uint32_t i = 0; i < DAC_BYTES; i++)
-        dev_outb(DAC_DATA, shot->dac[i]);
+    dac_write(shot);
 
     const uint32_t n = page_bytes(l);
     uint8_t *const to = video(l, shot->start);

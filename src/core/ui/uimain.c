@@ -1591,11 +1591,9 @@ static void regions(Session *const S)
 {
     S->lexr.cols = true;
     lmap_init(S); /* HLMAP: the third block */
-    upag_init(S);
 }
 
 const FrontEnd uimn_front_end = {
-    .heap = 0xE0000, /* C_HEAP and the editor's buffers */
     .regions = regions,
     .start = uimn_start,
     .chain = fe_chain,

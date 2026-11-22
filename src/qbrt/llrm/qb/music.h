@@ -35,7 +35,7 @@ void music_align(unsigned voice);
 unsigned music_waiting(void);
 /* What is queued is not played, and the speaker and the voices are quiet. */
 void music_clear(void);
-/* The program has ended: music_clear, and the tick stops. */
+/* The program has ended: music_clear, the tick stops, and the queues and songs' tables are given back. */
 void music_halt(void);
 /* The synthesizer open and the tick running, for notes that are not queued (song.c). */
 void music_start(void);

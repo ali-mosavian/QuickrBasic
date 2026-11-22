@@ -1,6 +1,8 @@
 /* The music queues (music.h): a ring for each voice that the clock tick
    empties: the program writes `head` and the tick writes `tail`, so neither
-   needs the other to stop.  SOUND (QB rt B$SOND) queues in the first. */
+   needs the other to stop.  SOUND (QB rt B$SOND) queues in the first.  A
+   voice's queue is taken at its first note and given back when the program
+   ends. */
 #include <string.h>
 
 #include "music.h"
@@ -34,7 +36,7 @@ typedef struct Voice {
     DevVoice now[DEV_LAYERS];
 } Voice;
 
-static Voice voices[DEV_VOICES];
+static Voice *voices[DEV_VOICES]; /* none until its first note */
 static volatile unsigned long music_ticks;
 static byte tick_started;
 static volatile byte fine_live; /* clock ticks the synthesizer's ticking is trusted for */
@@ -109,7 +111,8 @@ static void part_tick(void)
 
     music_ticks++;
     for (i = 0; i < DEV_VOICES; i++)
-        voice_tick(&voices[i], i);
+        if (voices[i])
+            voice_tick(voices[i], i);
     song_tick();
 }
 
@@ -135,7 +138,9 @@ void music_fine_tick(void)
 /* The notes waiting: PLAY(n) and ON PLAY (events.c).  The first voice's, whatever n is: QB's n is a dummy. */
 unsigned music_waiting(void)
 {
-    return (voices[0].head + QUEUE - voices[0].tail) % QUEUE;
+    const Voice *const v = voices[0];
+
+    return v ? (v->head + QUEUE - v->tail) % QUEUE : 0;
 }
 
 /* What a wait for the tick does between looks at the queue: nothing where the tick runs by itself (a timer interrupt, a
@@ -171,14 +176,14 @@ static unsigned long queue_end(const Voice *v)
 
 unsigned long music_end(unsigned voice)
 {
-    return queue_end(&voices[voice]);
+    return voices[voice] ? queue_end(voices[voice]) : music_ticks;
 }
 
 void music_align(unsigned voice)
 {
-    Voice *const v = &voices[voice];
+    Voice *const v = voices[voice];
 
-    if (v->tail == v->head && !v->sound_left && !v->quiet_left)
+    if (v && v->tail == v->head && !v->sound_left && !v->quiet_left)
         v->owed_sound = v->owed_quiet = 0;
 }
 
@@ -201,9 +206,11 @@ static unsigned parts_of(long thousandths, long *owed)
 
 void music_queue(unsigned voice, byte synth, const DevVoice *v, long sound, long quiet)
 {
-    Voice *const at = &voices[voice];
+    Voice *at = voices[voice];
     Note *n;
 
+    if (!at)
+        at = voices[voice] = dev_take(sizeof *at);
     if (synth)
         dev_synth_open();
     wait_for_turn(at);
@@ -235,8 +242,10 @@ void music_clear(void)
     unsigned i;
 
     for (i = 0; i < DEV_VOICES; i++) {
-        Voice *const v = &voices[i];
+        Voice *const v = voices[i];
 
+        if (!v)
+            continue;
         v->tail = v->head;
         v->sound_left = v->quiet_left = 0;
         v->end = 0; /* what was queued ends now: a voice cleared is not behind the others */
@@ -261,9 +270,9 @@ void music_start(void)
 
 int music_idle(unsigned voice)
 {
-    const Voice *const v = &voices[voice];
+    const Voice *const v = voices[voice];
 
-    return v->tail == v->head && !v->sound_left && !v->quiet_left && !v->gated;
+    return !v || v->tail == v->head && !v->sound_left && !v->quiet_left && !v->gated;
 }
 
 /* B$SOND: SOUND frequency, duration in clock ticks (18.2 a second).  In
@@ -292,8 +301,15 @@ void B_SOND(short hertz, float duration)
 
 void music_halt(void)
 {
+    unsigned i;
+
     music_clear();
     dev_synth_close();
     if (tick_started)
         dev_tick_stop();
+    for (i = 0; i < DEV_VOICES; i++) {
+        dev_give(voices[i]);
+        voices[i] = 0;
+    }
+    song_give();
 }

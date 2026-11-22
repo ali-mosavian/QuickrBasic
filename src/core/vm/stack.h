@@ -3,8 +3,8 @@
 #define CORE_VM_STACK_H
 #include "session.h"
 
-/* The frames' first room and the data stack's first segment, from the heap's top (empty: at boot).
-   Out of memory. */
+/* The frames' first room and the data stack's first segment, the strings told which Descs are
+   popped. Out of memory. */
 void stack_init(Session *S);
 /* Room for n frames: the frames grown. false: no memory. */
 bool stack_frames(Session *S, uint32_t n);
@@ -15,6 +15,10 @@ bool stack_call(Session *S, uint16_t npar, uint32_t n);
 void stack_reset(Session *S);
 /* vm.sp back in segment cur: vm.stklim its; the segments past it back to the heap, but spare. */
 void stack_back(Session *S, uint32_t cur, uint32_t spare);
+/* The segment a lies in; vm.stak.n: none. */
+uint32_t stack_seg_of(const Vm *vm, Addr a);
+/* Is Desc d popped: in segment cur under sp, or in a segment past cur? vm a Vm (mem/string.h). */
+bool stack_popped(const void *vm, Addr d);
 /* size bytes on the running call's arena for cell s, its local's: their Addr, vm.sp and its frame's
    stack below them. 0: s not its local's, its frame not the top one, a statement's values on the
    stack, or no room above vm.stklim. */

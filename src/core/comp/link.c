@@ -157,6 +157,26 @@ static void uncache(Comp *const C)
         prog_line(C->prog, l)->code = 0;
 }
 
+/* The cache moved: end to code follow it. */
+static void link_moved(AlloOwner *const o)
+{
+    Link *const k = container_of(o, Link, owner);
+    Addr *const places[] = {&k->end, &k->lim, &k->eol, &k->inbeg, &k->map, &k->code};
+
+    for (uint32_t i = 0; i < sizeof places / sizeof *places; i++)
+        if (*places[i]) /* 0: none */
+            *places[i] += k->allo->cache - k->base;
+
+    k->base = k->allo->cache;
+}
+
+AlloOwner *link_owner(Link *const k, const Allo *const al)
+{
+    k->allo = al;
+    k->owner.moved = link_moved;
+    return &k->owner;
+}
+
 /* Line compiled into the cache at link.end, the cache grown should it not fit. Out of memory. */
 static void link_line(Comp *const C, const uint32_t line)
 {
@@ -172,9 +192,11 @@ static void link_line(Comp *const C, const uint32_t line)
             return;
         }
 
+        /* half as much again, else room for the longest line's code */
         const uint32_t need = C->link->end - C->allo->cache + XLIM + XSLK;
 
-        if (!allo_grow(C->allo, HCACHE, need))
+        if (!allo_grow(C->allo, HCACHE, allo_cap(C->allo, HCACHE) + 1) &&
+            !allo_grow(C->allo, HCACHE, need))
             fault_error(C->fault, E_OM);
     }
 }
@@ -851,7 +873,7 @@ static void build(Comp *const C)
     /* room for the code first, by the store's size (a large program's code is about 0.9 of it):
        grown as it compiled, the store moved and every line compiled twice. Short, or no room: the
        loop's. A file's load reserved it already (io/repl.c) */
-    const uint32_t guess = CACHE0 + (C->prog->end - PROGBASE) + XLIM + XSLK;
+    const uint32_t guess = CACHE0 + (C->prog->end - PROGBASE) + XSLK;
 
     if (allo_cap(C->allo, HCACHE) < guess)
         allo_grow(C->allo, HCACHE, guess);

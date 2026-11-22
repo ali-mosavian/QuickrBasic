@@ -108,6 +108,9 @@ $(B)/obj/qbrt/%.obj: src/qbrt/%.c $(NAMES)
 $(B)/obj/core/ui/%.obj: src/core/ui/%.c
 	@mkdir -p $(@D)
 	$(call compile,$(CFLAGS) -DAC=$(AC))
+# The editor, the compiler and the I/O for size: the DOS image leaves the heap the rest of a 2 MB machine
+SIZE_OBJ := $(B)/obj/core/ui/%.obj $(B)/obj/core/comp/%.obj $(B)/obj/core/io/%.obj
+$(SIZE_OBJ): CFLAGS := $(filter-out -O2,$(CFLAGS)) -Os
 $(B)/obj/%.obj: src/%.c
 	@mkdir -p $(@D)
 	$(call compile,$(CFLAGS))
@@ -150,6 +153,7 @@ test: $(DOS_EXE) | $(DOSBOX_BIN)
 	BASIC_EXE=$(B)/basic32.exe $(PY) tools/cost_test.py $(B)/basic32.exe
 	BASIC_EXE=$(B)/basic32.exe $(PY) tools/gfx_test.py
 	IDE_EXE=$(B)/ide32.exe $(PY) tools/ide_test.py
+	IDE_EXE=$(B)/ide32.exe $(PY) tools/lowmem_test.py
 
 # the native ABI's test extension (tests/ext): its glue, then a slice for each platform; native.sh packs them
 build/ext/qxtest_qx.c: tests/ext/qxtest.bas tools/qbx.py
@@ -176,8 +180,12 @@ $(B)/ext/qxtest.dll: $(QXTEST) src/qx/qx.h
 	$(DOS_SLICE_CC) -c tests/ext/qxtest.c -o $(@D)/qxtest.obj
 	$(DOS_SLICE_CC) -c build/ext/qxtest_qx.c -o $(@D)/qxtest_qx.obj
 	$(LLD_LINK) /dll /noentry /nodefaultlib /out:$@ $(@D)/qxtest.obj $(@D)/qxtest_qx.obj
-host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/hostperf/basic build/host/ext/qxtest.so
+host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/hostperf/basic build/host/ext/qxtest.so $(NAMES)
 	for t in $(TOOLS_TEST); do $(PY) $$t || exit 1; done
+	CLANG=$(CLANG) $(PY) tools/rtstatic_test.py $(NAMES) $(addprefix $(QBRT)/,$(QBRT_DOS_C)) src/qbrt/qbrt.c src/qbrt/qbrt_dos.c
+	CLANG=$(CLANG) $(PY) tools/rtstatic_test.py --objects $(QBRT_HOST_C:%.c=build/host/qbrt/%.o) \
+		build/host/obj/qbrt/qbrt.o build/host/obj/qbrt/qbrt_host.o \
+		build/host/obj/core/ui/debuglocals.o build/host/obj/core/ui/spelling.o
 	build/host/unit_tests
 	sh tests/host/longpath.sh build/host/basic
 	sh tests/host/dosname.sh build/host/basic

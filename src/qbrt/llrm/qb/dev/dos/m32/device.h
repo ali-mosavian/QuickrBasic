@@ -10,6 +10,7 @@
 /* The registers of a software interrupt, in and out (intrin.asm). */
 typedef struct Regs {
     unsigned rax, rbx, rcx, rdx, rbp, res, rflags;
+    unsigned rsi, rdi; /* in: interrupt 31h's; rdi, with res, real-mode interrupt 10h's */
 } Regs;
 
 typedef struct BlockOp {
@@ -107,6 +108,11 @@ typedef struct FillOct {
     void QB_FAR *base;
     unsigned row[4], col[4], mask[4], color;
 } FillOct;
+
+/* The VBE mode 13h's or 12h's pages are in (gfxdev.c), 0 none; and that mode set again, video memory
+   kept and the shown page shown (the IDE's way back from its text screen). */
+unsigned gd_vbe(void);
+void gd_vbe_show(void);
 
 #pragma aux dev_int10 "B$INT10"
 #pragma aux dev_int10r "B$INT10R"

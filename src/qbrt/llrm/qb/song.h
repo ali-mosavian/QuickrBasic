@@ -23,9 +23,11 @@ void song_note(int sound, int pitch, long length, int loud);
 /* beat(): quarters since the song began, 0 with none. */
 float song_beat(void);
 
-/* The music's (music.c): a part of a tick has passed; PLAY took `voice`; everything stops. */
+/* The music's (music.c): a part of a tick has passed; PLAY took `voice`; everything stops; the tables given back,
+   with nothing playing (the program's end). */
 void song_tick(void);
 void song_taken(unsigned voice);
 void song_clear(void);
+void song_give(void);
 
 #endif

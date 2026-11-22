@@ -27,6 +27,9 @@ CASES = {
     "print_char": ('PRINT "abcdefghijklmnopqrstuvwx";', 'PRINT "a";', 23, 40, ("", "")),
     # A parameter was set aside and back as a local too, its own cell unused by reference: 182.
     "sub_arg": ("A i%, i%", "Z", 2, 150, SUBS),
+    # A dead string, made and collected: the collector asked the data stack whether each block's
+    # owner was popped before it looked whether the owner still pointed at it: 227.9.
+    "str_dead": (": ".join(["s$ = STRING$(2, 65)"] * 8), 's$ = ""', 8, 220, ("", "")),
 }
 
 

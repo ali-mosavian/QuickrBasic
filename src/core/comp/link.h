@@ -3,6 +3,7 @@
 #define COMP_LINK_H
 #include "defs.h"
 #include "fault.h"
+#include "mem/alloc.h"
 typedef struct Comp Comp;
 
 /* A target link_resolve could not find: its error, at its statement's body offset at in line. */
@@ -20,6 +21,9 @@ typedef struct {
 enum { LINK_EMPTIES = 32 }; /* kept; more are not */
 
 typedef struct Link {
+    AlloOwner owner; /* the code cache's: end to code follow it when it moves */
+    const Allo *allo;
+    Addr base;                  /* the cache's first byte, end to code's */
     Addr end;                   /* cend: the cache's next byte */
     Addr lim;                   /* elim: link_xlate's limit */
     Addr eol;                   /* eeol: the stream's EOL */
@@ -38,6 +42,8 @@ typedef struct Link {
 } Link;
 
 void link_start(Comp *C); /* cm_link: before a run: blocks paired, every line compiled */
+/* k as the code cache's owner, al's; k->base set once the cache is made. */
+AlloOwner *link_owner(Link *k, const Allo *al);
 typedef void LinkEach(void *ctx, const Failure *f);
 /* link_start's work, unlinked: each compile error, then each label not found, to each, raising none
    (a block's pairing still raises its first); how many. */

@@ -24,9 +24,11 @@ static unsigned char keys[KEY_BYTES];
 static size_t key_head, key_tail;
 static int scan_pending, end_of_input;
 
-static HeadlessTone tones[TONE_LOG];
+/* The sounds' logs, taken at the first record; the tick's thread records too, so no Out of memory: a log not taken
+   is full. */
+static HeadlessTone *tones;
 static size_t tone_count;
-static HeadlessVoice voice_log[VOICE_LOG];
+static HeadlessVoice *voice_log;
 static size_t voice_count;
 
 static long clock_now, clock_step;
@@ -144,7 +146,9 @@ void dev_key_discard(void)
 
 void dev_tone(unsigned hertz)
 {
-    if (tone_count < TONE_LOG) {
+    if (!tones)
+        tones = dev_try(TONE_LOG * sizeof *tones);
+    if (tones && tone_count < TONE_LOG) {
         tones[tone_count].hertz = hertz;
         tones[tone_count].clock = clock_now;
         tones[tone_count].tick = ticks_run;
@@ -154,7 +158,9 @@ void dev_tone(unsigned hertz)
 
 void dev_voice(unsigned voice, const DevVoice *v)
 {
-    if (voice_count < VOICE_LOG) {
+    if (!voice_log)
+        voice_log = dev_try(VOICE_LOG * sizeof *voice_log);
+    if (voice_log && voice_count < VOICE_LOG) {
         voice_log[voice_count].voice = voice;
         memcpy(voice_log[voice_count].v, v, (1 + v->layers) * sizeof *v);
         voice_log[voice_count].tick = ticks_run;

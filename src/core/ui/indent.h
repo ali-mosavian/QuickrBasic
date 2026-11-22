@@ -22,8 +22,8 @@ enum { INDT_NEV = 32 };
 /* The block keywords of the line's n characters of text, in order, to ev (INDT_NEV at most);
    their count. A NEXT closing two FORs is two. */
 uint32_t indt_events(const uint8_t *text, uint16_t n, IndtEv *ev);
-/* Line i's text to dst, its length; the lines from 0. */
-typedef uint16_t IndtGet(void *ctx, uint32_t i, uint8_t *dst);
+/* Line i's text, *n its length, till the next call; the lines from 0. */
+typedef const uint8_t *IndtGet(void *ctx, uint32_t i, uint16_t *n);
 
 /* Enter at the end of line's n characters of text: the indent the line takes (*self, its own
    when no closer starts it) and the new line's after it (*next). The lines above through get. */
