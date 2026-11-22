@@ -285,7 +285,7 @@ intptr_t llrm_os_rmdir(const char *name)
 typedef char EntryName[ENTRY_NAME_MAX + 1];
 static EntryName *matches;
 static size_t match_count;
-static char match_directory[PATH_MAX];
+static char *match_directory;
 
 static int by_name(const void *one, const void *other)
 {
@@ -330,13 +330,16 @@ intptr_t llrm_os_find_first(const char *pattern, size_t attrs, unsigned char *en
     name = slash ? slash + 1 : path;
     if (slash)
         *slash = 0;
-    snprintf(match_directory, sizeof match_directory, "%s", slash ? (slash == path ? "/" : path) : ".");
     /* DOS's *.* is every name, with an extension or not */
     if (strcmp(name, "*.*") == 0)
         name = "*";
     free(matches);
     matches = 0;
     match_count = 0;
+    free(match_directory);
+    match_directory = strdup(slash ? (slash == path ? "/" : path) : ".");
+    if (!match_directory)
+        return -ENOMEM;
     directory = opendir(match_directory);
     if (!directory)
         return failure();
