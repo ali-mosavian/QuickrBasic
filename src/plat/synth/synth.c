@@ -30,7 +30,9 @@ enum {
     NOISE_START = 0x7FFFF8,
     PITCH_ONE = 100,      /* a DevVoice's pitch: hundredths */
     OCTAVE = 1 << 20,     /* a swept cutoff's place: octaves over 1 Hz */
-    SWEEP_RUN = 16,       /* samples a swept cutoff holds */
+    SWEEP_RUN = 16,       /* samples a swept cutoff holds, on the note's age */
+    PITCH_RUN = 64,       /* samples a glide's and a vibrato's pitch holds, on the note's age */
+    AGE_WRAP = 1 << 30,   /* a note's age goes back half this here: a multiple of both runs, past the vibrato's wait */
     LOWEST_CUTOFF = 30,
     FM_DEPTH = 10431,     /* a depth's half radian of phase, for each of a modulator's 32767: 2^32 / (4 pi 32767) */
 };
@@ -529,29 +531,37 @@ static int envelope_run(const Synth *const s, const SynthOsc *const o, const int
     }
 }
 
-/* The pitch for the next `run` samples, in o->step: the slide moved on towards `target`, the vibrato added, and its
-   wobble in o->sway for the loudness and the cutoff. They step once a run, not a sample: a run is 64 samples at most. */
-[[gnu::always_inline]] static inline int pitch_run(SynthOsc *const o, const uint32_t rate, const uint32_t target,
-                                                  const int run)
+/* The pitch until the note's age is a PITCH_RUN further on, in o->step: the slide moved on towards `target`, the
+   vibrato added, and its wobble in o->sway for the loudness and the cutoff. They step on the note's own samples, not
+   a run's: the clock cuts runs a sample earlier or later from note to note. */
+[[gnu::always_inline]] static inline void pitch_run(SynthOsc *const o, const uint32_t rate, const uint32_t target)
 {
-    if (o->at != target) {
-        const int64_t next = (int64_t)o->at + (int64_t)o->slide * run;
+    const uint32_t wait = rate / VIBRATO_WAITS, into = o->age % PITCH_RUN;
+    const bool wavers = o->set.vibrato || o->set.tremolo || o->set.wobble;
+
+    if (!into && wavers && o->age >= wait + PITCH_RUN) /* the last PITCH_RUN wavered */
+        o->lfo += o->lfo_step * PITCH_RUN;
+    if (o->at != target && (!o->slide || !into)) {
+        const int64_t next = (int64_t)o->at + (int64_t)o->slide * PITCH_RUN;
 
         o->at = !o->slide || (o->slide > 0 ? next >= target : next <= target) ? target : (uint32_t)next;
     }
     o->step = o->at;
     o->sway = 0;
-    if ((o->set.vibrato || o->set.tremolo || o->set.wobble) && o->age >= rate / VIBRATO_WAITS) {
+    if (wavers && o->age - into >= wait) {
         const int32_t x = (int32_t)(o->lfo >> 16);
         const int32_t sway = x < 16384 ? x * 2 : x < 49152 ? 65535 - x * 2 : x * 2 - 131071; /* a triangle from 0 */
 
         o->step += (uint32_t)(int32_t)((int64_t)o->at * (o->set.vibrato * sway) >> VIBRATO_SHIFT);
-        o->lfo += o->lfo_step * (uint32_t)run;
         o->sway = sway;
-    } else
-        o->age += (uint32_t)run;
+    }
     o->step2 = o->step + ((o->step >> 10) + (o->step >> 13)) * o->set.spread; /* 0.11% is 2 cents */
-    return run;
+}
+
+/* The samples a swept cutoff holds from the start of its SWEEP_RUN of the note's age. */
+static int32_t sweep_run(const SynthOsc *const o)
+{
+    return o->cut_left < SWEEP_RUN ? (int32_t)o->cut_left : SWEEP_RUN;
 }
 
 /* How many of the next `run` samples FM's modulator moves by one step, o->slope, and stays on its side of its floor:
@@ -580,21 +590,22 @@ static int envelope_run(const Synth *const s, const SynthOsc *const o, const int
     return left < run ? (int)left : run;
 }
 
-/* The filter's f for the next `run` samples: a sweeping cutoff's at the run's middle, the wobble added; else the
-   cutoff's own. A sweeping run is SWEEP_RUN samples at most (voice_run). */
+/* The filter's f for the next `run` samples: a sweeping cutoff's at the middle of its SWEEP_RUN, the wobble added;
+   else the cutoff's own. The sweep moves on at its SWEEP_RUN's end. */
 [[gnu::always_inline]] static inline void filter_run(const Synth *const s, SynthOsc *const o, const int run)
 {
     if (!o->cut_left && !o->set.wobble) {
         o->f = o->f_end;
         return;
     }
-    const int32_t at = (o->cut_left ? o->cut_at + o->cut_step * run / 2 : o->cut_home) +
+    const int32_t held = sweep_run(o);
+    const int32_t at = (o->cut_left ? o->cut_at + o->cut_step * held / 2 : o->cut_home) +
                        (int32_t)((int64_t)o->set.wobble * (OCTAVE / 6) * o->sway >> 15);
 
     o->f = swept_f(s, sixteenths_at(at > 0 ? at : 0));
-    if (o->cut_left) {
-        o->cut_at += o->cut_step * run;
-        o->cut_left -= (uint32_t)run;
+    if (o->cut_left && (int32_t)(o->age % SWEEP_RUN) + run == held) {
+        o->cut_at += o->cut_step * held;
+        o->cut_left -= (uint32_t)held;
     }
 }
 
@@ -652,15 +663,19 @@ void synth_run(SynthRun *r);
             delta = 0;
         } else
             o.level += delta;
-        if (filter != DEV_UNFILTERED && o.cut_left) {
-            run = run < SWEEP_RUN ? run : SWEEP_RUN;
-            run = (uint32_t)run < o.cut_left ? run : (int)o.cut_left;
-        }
-        run = pitch_run(&o, s->rate, into->step, run);
+        const int pitched = PITCH_RUN - (int)(o.age % PITCH_RUN);
+        const int swept = filter != DEV_UNFILTERED && o.cut_left ? sweep_run(&o) - (int)(o.age % SWEEP_RUN) : run;
+
+        run = run < pitched ? run : pitched;
+        run = run < swept ? run : swept;
         if (wave_kind == DEV_FM || wave_kind == SYNTH_FM_FINE)
             run = bend_run(&o, run);
+        pitch_run(&o, s->rate, into->step);
         if (filter != DEV_UNFILTERED)
             filter_run(s, &o, run);
+        o.age += (uint32_t)run;
+        if (o.age >= AGE_WRAP)
+            o.age -= AGE_WRAP / 2;
         /* the tremolo: under 2^7 times 2^15 */
         const int32_t gain = o.set.tremolo ? o.gain + ((o.gain * o.set.tremolo >> 4) * o.sway >> 15) : o.gain;
         if (wave_kind == SYNTH_FM_FINE) {
