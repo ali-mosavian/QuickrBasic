@@ -21,7 +21,7 @@ static void opened(Session *const S)
         "print n\r\n"
         "end sub\r\n"
     );
-    uimn_rows(25);
+    uimn_size(PSCR_80X25);
     them_qbasic();
 }
 

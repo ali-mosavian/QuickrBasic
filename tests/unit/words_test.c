@@ -12,7 +12,7 @@ static const char *const files[] = {"main.bas", "gfx.bas", nullptr};
 static void opened(Session *const S)
 {
     fx_open_program(S, "sub hi\r\nprint total\r\nprint 2\r\nend sub\r\n");
-    uimn_rows(25);
+    uimn_size(PSCR_80X25);
 }
 
 /* Ctrl+Backspace typed a 7Fh character; it deletes back to the word's start, then the spaces

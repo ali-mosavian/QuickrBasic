@@ -2,15 +2,62 @@
  *
  * # How it works
  * Colour text memory at B8000h, INT 10h, the DAC's ports.
+ *
+ * Sizes past VGA's are the card's VESA text modes, listed once: VBE's mode list (INT 10h AX=4F00h),
+ * each mode's attributes and size (4F01h), copied out of a DOS block before the next call reuses
+ * it. A size is set by 4F02h. A mode without its size given is VBE 1.2's own (108h .. 10Ch).
  */
 #include "dos.h"
 #include "plat/pscr.h"
 #include "plat/psys.h"
+#include <string.h>
 
-enum : uint32_t { VIDEO = 0xB8000, BIOS_PAGESZ = 0x44C, BIOS_ROWS = 0x484 };
+enum : uint32_t { VIDEO = 0xB8000, BIOS_COLS = 0x44A, BIOS_PAGESZ = 0x44C, BIOS_ROWS = 0x484 };
 enum : uint8_t { FONT_8X8 = 0x12, ALT_LINES = 0x30, LINES_350 = 1, LINES_400 = 2, ROWS_STD = 25 };
 enum : uint16_t { DAC_INDEX = 0x3C8, DAC_DATA = 0x3C9, INPUT_STATUS = 0x3DA };
-enum { RETRACE = 8, CH_BEL = 7 };
+enum { RETRACE = 8, CH_BEL = 7, PAGE_MEMORY = 0x8000 };
+enum : uint16_t {
+    VBE_INFO = 0x4F00,
+    VBE_MODE_INFO = 0x4F01,
+    VBE_SET = 0x4F02,
+    VBE_OK = 0x004F,
+    VBE_END = 0xFFFF,
+    VBE_SUPPORTED = 1, /* a mode's attributes */
+    VBE_SIZED = 2,     /* its size given */
+    VBE_GRAPHICS = 0x10,
+    VBE_MODES_MAX = 128,
+    VBE_BLOCK = 512,
+};
+
+/* VBE's controller information (4F00h): what is read of it. */
+typedef struct __attribute__((packed)) {
+    char sig[4];
+    uint16_t version;
+    uint32_t oem;
+    uint32_t caps;
+    uint16_t modes_off, modes_seg;
+} VbeInfo;
+static_assert(offsetof(VbeInfo, modes_off) == 0x0E);
+
+/* A mode's information (4F01h): what is read of it; a text mode's size in characters. */
+typedef struct __attribute__((packed)) {
+    uint16_t attributes;
+    uint8_t windows[14];
+    uint16_t pitch, cols, rows;
+} VbeMode;
+static_assert(offsetof(VbeMode, cols) == 0x12);
+
+/* VBE 1.2's text modes, 108h on: their sizes. */
+static const PscrSize vbe12[] = {{80, 60}, {132, 25}, {132, 43}, {132, 50}, {132, 60}};
+enum : uint16_t { VBE12_FIRST = 0x108 };
+
+/* The sizes, VGA's first, and each one's VESA mode, 0 VGA's. */
+static struct {
+    bool listed;
+    uint8_t n;
+    PscrSize size[PSCR_SIZES_MAX];
+    uint16_t mode[PSCR_SIZES_MAX];
+} sizes = {.n = 3, .size = {{80, 25}, {80, 43}, {80, 50}}};
 
 /* The attribute controller's palette as the BIOS sets it: colour n's DAC register. */
 static const uint8_t acpal[16] = {0, 1, 2, 3, 4, 5, 20, 7, 56, 57, 58, 59, 60, 61, 62, 63};
@@ -18,7 +65,8 @@ static const uint8_t acpal[16] = {0, 1, 2, 3, 4, 5, 20, 7, 56, 57, 58, 59, 60, 6
 static volatile uint16_t *cell(const uint8_t page, const uint8_t row, const uint8_t col)
 {
     const uint32_t size = *(volatile uint16_t *)pdos_lin(BIOS_PAGESZ); /* the BIOS's page's bytes */
-    return (volatile uint16_t *)pdos_lin(VIDEO + page * size + (row * PSCR_COLS + col) * 2u);
+    const uint32_t cols = *(volatile uint16_t *)pdos_lin(BIOS_COLS);
+    return (volatile uint16_t *)pdos_lin(VIDEO + page * size + (row * cols + col) * 2u);
 }
 
 /* INT 10h function fn, al, with BX, CX, DX. */
@@ -40,21 +88,136 @@ static void int10(
     pdos_int(INT_VIDEO, &r);
 }
 
-uint8_t pscr_text(const uint8_t rows)
+/* VESA mode's size, if a text one the editor can use: its page and the output's fit text
+   memory. */
+static bool vbe_size(const uint16_t mode, const PdosBlock *const b, PscrSize *const s)
 {
+    PdosRmRegs rm = {.eax = VBE_MODE_INFO, .ecx = mode, .es = b->seg};
+
+    if (!pdos_rm_int(INT_VIDEO, &rm) || (uint16_t)rm.eax != VBE_OK)
+        return false;
+
+    const VbeMode m = *(const VbeMode *)b->at;
+
+    if (!(m.attributes & VBE_SUPPORTED) || m.attributes & VBE_GRAPHICS)
+        return false;
+
+    if (m.attributes & VBE_SIZED) {
+        if (m.cols > PSCR_COLS_MAX || m.rows > PSCR_ROWS_MAX)
+            return false;
+
+        *s = (PscrSize){(uint8_t)m.cols, (uint8_t)m.rows};
+    } else if (mode >= VBE12_FIRST && mode < VBE12_FIRST + countof(vbe12)) {
+        *s = vbe12[mode - VBE12_FIRST];
+    } else {
+        return false;
+    }
+
+    return s->cols * s->rows * sizeof(PscrCell) * 2 <= PAGE_MEMORY;
+}
+
+/* Size s to the list, by columns then rows, unless it is there. */
+static void add(const PscrSize s, const uint16_t mode)
+{
+    uint8_t at = 0;
+
+    for (; at < sizes.n; at++) {
+        const PscrSize t = sizes.size[at];
+
+        if (t.cols == s.cols && t.rows == s.rows)
+            return;
+        if (t.cols > s.cols || (t.cols == s.cols && t.rows > s.rows))
+            break;
+    }
+
+    if (sizes.n == PSCR_SIZES_MAX)
+        return;
+
+    memmove(&sizes.size[at + 1], &sizes.size[at], (sizes.n - at) * sizeof sizes.size[0]);
+    memmove(&sizes.mode[at + 1], &sizes.mode[at], (sizes.n - at) * sizeof sizes.mode[0]);
+    sizes.size[at] = s;
+    sizes.mode[at] = mode;
+    sizes.n++;
+}
+
+/* The card's VESA text modes added to VGA's sizes. */
+static void list(void)
+{
+    sizes.listed = true;
+    PdosBlock b;
+
+    if (!pdos_alloc(VBE_BLOCK, &b))
+        return;
+
+    memcpy(b.at, "VBE2", 4);
+    PdosRmRegs rm = {.eax = VBE_INFO, .es = b.seg};
+
+    uint16_t modes[VBE_MODES_MAX];
+    uint32_t n = 0;
+
+    if (pdos_rm_int(INT_VIDEO, &rm) && (uint16_t)rm.eax == VBE_OK && !memcmp(b.at, "VESA", 4)) {
+        const VbeInfo *const info = (const VbeInfo *)b.at;
+        const volatile uint16_t *const ids =
+            (const volatile uint16_t *)pdos_lin(info->modes_seg * 16u + info->modes_off);
+
+        for (; n < VBE_MODES_MAX && ids[n] != VBE_END; n++)
+            modes[n] = ids[n];
+    }
+
+    for (uint32_t i = 0; i < n; i++) {
+        PscrSize s;
+
+        if (vbe_size(modes[i], &b, &s))
+            add(s, modes[i]);
+    }
+
+    pdos_free(&b);
+}
+
+uint8_t pscr_sizes(PscrSize out[PSCR_SIZES_MAX])
+{
+    if (!sizes.listed)
+        list();
+
+    memcpy(out, sizes.size, sizes.n * sizeof sizes.size[0]);
+    return sizes.n;
+}
+
+/* VESA mode's text: whether the card set it. */
+static bool vbe_set(const uint16_t mode)
+{
+    PdosRmRegs rm = {.eax = VBE_SET, .ebx = mode};
+
+    return pdos_rm_int(INT_VIDEO, &rm) && (uint16_t)rm.eax == VBE_OK;
+}
+
+PscrSize pscr_text(const PscrSize want)
+{
+    if (!sizes.listed)
+        list();
+
+    uint8_t i = 0;
+
+    while (i < sizes.n && (sizes.size[i].cols != want.cols || sizes.size[i].rows != want.rows))
+        i++;
+
+    if (i < sizes.n && sizes.mode[i] && vbe_set(sizes.mode[i]))
+        return pscr_size();
+
+    const uint8_t rows = i < sizes.n && !sizes.mode[i] ? want.rows : ROWS_STD;
     int10(VID_ALT, rows == 43 ? LINES_350 : LINES_400, ALT_LINES, 0, 0); /* an EGA: no change */
     int10(VID_MODE, 3, 0, 0, 0);
 
     if (rows > ROWS_STD)
         int10(VID_FONT, FONT_8X8, 0, 0, 0);
 
-    return pscr_rows();
+    return pscr_size();
 }
 
-uint8_t pscr_rows(void)
+PscrSize pscr_size(void)
 {
     const uint8_t last = *pdos_lin(BIOS_ROWS);
-    return last ? last + 1 : ROWS_STD;
+    return (PscrSize){*pdos_lin(BIOS_COLS), last ? last + 1 : ROWS_STD};
 }
 
 void pscr_page(const uint8_t page) { int10(VID_PAGE, page, 0, 0, 0); }

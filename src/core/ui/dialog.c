@@ -434,9 +434,9 @@ static void draw_text(
 static void draw_ctl(const Dlog *const d, const DlogCtl *const c)
 {
     if (c->label)
-        scrn_str(d->row + c->lrow, d->col + c->lcol, c->label, SL_DLG, hotslot(SL_DLG));
+        scrn_str(d->row + c->lrow, mid_col(d->col) + c->lcol, c->label, SL_DLG, hotslot(SL_DLG));
 
-    const uint8_t row = d->row + c->row, col = d->col + c->col;
+    const uint8_t row = d->row + c->row, col = mid_col(d->col) + c->col;
 
     switch (c->kind) {
     case CT_FLD:
@@ -502,7 +502,7 @@ static const char *hot_text(const DlogCtl *const c)
 /* dl_hit's: control c's cells, the box at d. */
 static Rect ctl_rect(const Dlog *const d, const DlogCtl *const c)
 {
-    Rect r = {.row = d->row + c->row, .col = d->col + c->col};
+    Rect r = {.row = d->row + c->row, .col = mid_col(d->col) + c->col};
 
     switch (c->kind) {
     case CT_FLD:
@@ -933,11 +933,11 @@ static bool dl_mouse(Widget *const w, Session *const S, const uint8_t row, const
 static void dl_draw(Widget *const w, Session *const S)
 {
     const Dlog *const d = dl.d;
-    scrn_box(d->row, d->col, d->rows, d->cols, SL_DLG, d->title);
-    scrn_shadow(d->row, d->col, d->rows, d->cols);
+    scrn_box(d->row, mid_col(d->col), d->rows, d->cols, SL_DLG, d->title);
+    scrn_shadow(d->row, mid_col(d->col), d->rows, d->cols);
 
     if (d->sep)
-        scrn_sep(d->row + d->sep, d->col, d->cols, SL_DLG);
+        scrn_sep(d->row + d->sep, mid_col(d->col), d->cols, SL_DLG);
 
     dl.cur = PSCR_HIDDEN;
 }
@@ -1019,7 +1019,7 @@ static const WidgetOps txt_ops = {.draw = ctl_draw};
 static void bind(const Dlog *const d)
 {
     static_assert(NMSGCTL <= TREE_MAX_CHILDREN);
-    dl.w.rect = (Rect){d->row, d->col, d->rows, d->cols};
+    dl.w.rect = (Rect){d->row, mid_col(d->col), d->rows, d->cols};
 
     dl.w.nchildren = 0;
     dl.w.focus = d->focus;
@@ -1197,7 +1197,7 @@ uint8_t dlog_msg(Session *const S, const char *const text, const MsgButton *cons
     const uint16_t cols = (widest >= bw ? widest : bw) + MSG_PAD; /* the wider (msgbox.c) */
     Dlog *const m = &msg_dlog;
     m->cols = (uint8_t)cols;
-    m->col = (uint8_t)(PSCR_COLS - m->cols) >> 1;
+    m->col = (uint8_t)(80 - m->cols) >> 1;
     m->rows = MSG_TOP + nl + 4;
     m->row = msg_row(m->rows);
     m->title = dl.title;

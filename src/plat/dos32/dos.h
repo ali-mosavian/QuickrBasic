@@ -103,6 +103,17 @@ static_assert(sizeof(PdosRmRegs) == 0x32);
 /* Interrupt `vector` with r's registers, which it returns; the flags returned too. */
 CDECL uint32_t pdos_int(int vector, PdosRegs *r);
 
+/* A DOS memory block: its real-mode segment, its selector, its DS address. */
+typedef struct {
+    uint16_t seg, sel;
+    uint8_t *at;
+} PdosBlock;
+/* A block of size bytes below 1 MB (dosmem.c): whether there was room. */
+bool pdos_alloc(uint32_t size, PdosBlock *b);
+void pdos_free(const PdosBlock *b);
+/* Real-mode interrupt `vector` with rm's registers, which it returns: whether DPMI ran it. */
+bool pdos_rm_int(uint8_t vector, PdosRmRegs *rm);
+
 /* The environment block (index 0) copied to buf, at most cap bytes; its length. */
 CDECL uint32_t pdos_environ(uint32_t index, uint8_t *buf, uint32_t cap);
 

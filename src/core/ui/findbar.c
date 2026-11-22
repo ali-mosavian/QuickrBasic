@@ -194,7 +194,7 @@ static void fb_draw(Widget *const w, Session *const S)
     const uint8_t row = status_row();
     const LineBuf *const f = &uimn.find_what;
     const uint16_t left = field_left(), shown = f->len > left ? f->len - left : 0;
-    scrn_fill(row, 0, SL_STAT, ' ', PSCR_COLS);
+    scrn_fill(row, 0, SL_STAT, ' ', uimn.cols);
     scrn_str(row, 1, s_find, SL_STAT, SL_STAT);
     scrn_fill(row, FB_FIELD, SL_ED, ' ', FB_WIDTH);
     scrn_strn(
@@ -228,7 +228,7 @@ static const WidgetOps fb_ops = {
 
 void fbar_build(Widget *const screen)
 {
-    fb.w = (Widget){.ops = &fb_ops, .rect = {0, 0, 1, PSCR_COLS}, .modal = true};
+    fb.w = (Widget){.ops = &fb_ops, .rect = {0, 0, 1, 80}, .modal = true};
 
     tree_add(screen, &fb.w);
 }
@@ -244,6 +244,7 @@ void fbar_open(Session *const S)
     uimn.find_what.col = uimn.find_what.len;
     fb.fresh = uimn.find_what.len > 0;
     fb.w.rect.row = status_row();
+    fb.w.rect.cols = uimn.cols;
     fb.w.visible = true;
     find(S);
 }

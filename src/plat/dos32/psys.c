@@ -97,35 +97,9 @@ typedef struct __attribute__((packed)) {
     uint8_t fcb[2][16];
 } ExecBlock;
 
-/* A DOS memory block: its real-mode segment, its selector, its DS address. */
-typedef struct {
-    uint16_t seg, sel;
-    uint8_t *at;
-} DosBlock;
-
-static bool dos_alloc(const uint32_t size, DosBlock *const b)
-{
-    PdosRegs r = {.eax = DPMI_DOS_ALLOC, .ebx = (size + 15) >> 4};
-
-    if (pdos_int(INT_DPMI, &r) & PDOS_CF)
-        return false;
-
-    b->seg = (uint16_t)r.eax;
-    b->sel = (uint16_t)r.edx;
-    b->at = (uint8_t *)(uintptr_t)((uint32_t)b->seg * 16 - pdos_ds_base());
-    return true;
-}
-
-static void dos_free(const DosBlock *const b)
-{
-    PdosRegs r = {.eax = DPMI_DOS_FREE, .edx = b->sel};
-
-    pdos_int(INT_DPMI, &r);
-}
-
 /* The environment at the block's start, the EXEC block at xenv. */
 static void fill(
-    const DosBlock *const b,
+    const PdosBlock *const b,
     const uint32_t xenv,
     const char *const path,
     const char *const tail,
@@ -163,7 +137,7 @@ static void fill(
 }
 
 /* DOS's EXEC of the block at xenv, INT 22h kept (EXEC takes it): whether it ran. */
-static bool exec(const DosBlock *const b, const uint32_t xenv)
+static bool exec(const PdosBlock *const b, const uint32_t xenv)
 {
     static PdosRmRegs rm;
     rm = (PdosRmRegs){
@@ -177,9 +151,7 @@ static bool exec(const DosBlock *const b, const uint32_t xenv)
     PdosRegs v22 = {.eax = DPMI_GET_RM_VECTOR, .ebx = INT_TERMINATE};
 
     pdos_int(INT_DPMI, &v22);
-    PdosRegs r = {.eax = DPMI_RM_INT, .ebx = INT_DOS, .edi = (uint32_t)(uintptr_t)&rm};
-
-    const bool ran = !(pdos_int(INT_DPMI, &r) & PDOS_CF) && !(rm.flags & PDOS_CF);
+    const bool ran = pdos_rm_int(INT_DOS, &rm) && !(rm.flags & PDOS_CF);
     v22.eax = DPMI_SET_RM_VECTOR;
     v22.ebx = INT_TERMINATE;
     pdos_int(INT_DPMI, &v22);
@@ -195,13 +167,13 @@ bool psys_exec(
 )
 {
     const uint32_t xenv = (envlen + 16) & ~15u; /* the environment and a 0, on a paragraph */
-    DosBlock b;
+    PdosBlock b;
 
-    if (!dos_alloc(xenv + sizeof(ExecBlock), &b))
+    if (!pdos_alloc(xenv + sizeof(ExecBlock), &b))
         return false;
 
     fill(&b, xenv, path, tail, len, env, envlen);
     const bool ran = exec(&b, xenv);
-    dos_free(&b);
+    pdos_free(&b);
     return ran;
 }

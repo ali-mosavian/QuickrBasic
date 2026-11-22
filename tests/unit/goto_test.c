@@ -18,7 +18,7 @@ static void opened(Session *const S)
         "sub drawwave\r\nprint 2\r\nend sub\r\n"
         "sub hi\r\nprint 3\r\nend sub\r\n"
     );
-    uimn_rows(25);
+    uimn_size(PSCR_80X25);
     fx_cursor_on(S, "gfx.hi", "hi");
 }
 

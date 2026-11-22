@@ -13,7 +13,7 @@ static const char *const files[] = {"main.bas", "gfx.bas", nullptr};
 static void typed_error(Session *const S)
 {
     fx_open_program(S, "sub hi\r\nprint 1\r\nprint 2\r\nend sub\r\n");
-    uimn_rows(25);
+    uimn_size(PSCR_80X25);
     them_qbasic();
     fx_cursor_on(S, "print 1", "print");
     fx_key(S, FX_END, 0);
