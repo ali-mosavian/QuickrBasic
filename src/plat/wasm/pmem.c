@@ -24,7 +24,8 @@ bool pmem_init(const uint32_t least, const uint32_t heap, Addr *const lo, Addr *
         return false;
 
     mem_base = (uint8_t *)(first * PAGE);
-    heap_init(&c_heap, mem_base + ARENA_SIZE, C_HEAP);
+    heap_init(&c_heap);
+    heap_add(&c_heap, mem_base + ARENA_SIZE, C_HEAP);
     *lo = ARENA_LOW;
     *hi = ARENA_SIZE;
     return true;
