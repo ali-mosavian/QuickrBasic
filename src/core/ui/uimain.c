@@ -908,7 +908,7 @@ static void exec_line(Session *const S)
 /* The prompt on the output's last row through the console, in any mode; or its place blanked. */
 static void status_prompt(Session *const S, const bool blank)
 {
-    qbrt_move(status_row(), 0);
+    qbrt_move((uint8_t)(qbrt_rows() - 1), 0);
 
     for (uint32_t i = 0; s_anykey[i]; i++)
         cons_putc(&S->cons, blank ? ' ' : (uint8_t)s_anykey[i]);

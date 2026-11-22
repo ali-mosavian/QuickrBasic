@@ -8,6 +8,9 @@
 
 enum : uint16_t { ALT_O = 0x1800, KEY_Z = 0x2C7A, KEY_1 = 0x0231, KEY_7 = 0x0837 };
 
+/* llrm's headless device (dev/headless/headless.h). */
+void headless_set_stdout_is_screen(int yes);
+
 static const char *const files[] = {"main.bas", "gfx.bas", nullptr};
 
 /* Options, Display Size, the item key chooses, as the keys choose it; the screen shown. */
@@ -58,5 +61,23 @@ TEST(display_size_sets_132_columns)
 
     choose(S, KEY_1);
     CHECK(host_screen().cols == 80 && host_screen().rows == 25 && host_cell(0, 1, 79) == corner);
+    fx_done(S, files);
+}
+
+/* A run ending in SCREEN 13 under the IDE's 80 x 50: Press any key on the output's last row,
+   the 25th, and the editor back. It was put on the IDE's 50th: Illegal function call on DOS, a
+   crash here. */
+TEST(press_any_key_on_the_outputs_last_row)
+{
+    fx_open_program(S, "sub hi\r\nscreen 13\r\nend sub\r\n");
+    uimn_size((PscrSize){80, 50});
+
+    host_key_push(' ');
+    headless_set_stdout_is_screen(1);
+    uimn_run(S);
+    headless_set_stdout_is_screen(0);
+    fx_shown(S);
+    CHECK(host_screen().rows == 50 && strstr(fx_row(49), "<F5=Run>"));
+    uimn_size(PSCR_80X25);
     fx_done(S, files);
 }
