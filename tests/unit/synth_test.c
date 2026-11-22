@@ -739,25 +739,25 @@ static void old_speaker(OldSpeaker *const o, const uint32_t want, int16_t *const
 }
 
 /* One string of QB's commands on the speaker: the tones at the ticks worked out by hand (a whole note 4 * 1092390 /
-   tempo thousandths of a tick, sounding 7, 8 or 6 eighths of it, whole ticks with the rest owed to the next; in the
-   foreground a note after no quiet starts a tick late), no voice, and the same samples as the old speaker's. Its
-   ticks were those of a run after other tests: their MB, the time they left owed, and a clock they had started. */
+   tempo thousandths of a tick, sounding 7, 8 or 6 eighths of it, whole ticks with the rest owed to the next, each note
+   on from the last), no voice, and the same samples as the old speaker's. Its ticks were those of a run after other
+   tests: their MB, the time they left owed, a clock they had started; an ML before it made its notes 3 ticks. */
 TEST(play_of_one_string_sounds_as_before)
 {
-    static const char *const settle[] = {"10 PLAY \"MF P64\"", nullptr};
+    static const char *const settle[] = {"10 PLAY \"MF MN P64\"", nullptr};
     static const char *const lines[] = {
         "10 PLAY \"T180 L8 O3 C D# E- MS F G. ML A B > C P8 MN N40 MB L16 GFE\": SOUND 300, 3", nullptr};
     static const struct {
         unsigned hertz;
         long tick;
-    } before[] = {{262, 0},  {0, 2},  {311, 3},  {0, 6},  {311, 7},  {0, 9},  {349, 10}, {0, 13}, {392, 14},
-                  {0, 17},   {440, 19}, {0, 22}, {494, 23}, {0, 26}, {524, 27}, {0, 30}, {0, 34},  {311, 35},
-                  {0, 38},   {784, 38}, {0, 39}, {698, 39}, {0, 41}, {660, 41}, {0, 42}, {300, 42}, {0, 45}};
+    } before[] = {{262, 0},  {0, 2},  {311, 2},  {0, 5},  {311, 5},  {0, 7},  {349, 8},  {0, 11}, {392, 11},
+                  {0, 14},   {440, 16}, {0, 19}, {494, 19}, {0, 22}, {524, 22}, {0, 25}, {0, 28},  {311, 28},
+                  {0, 31},   {784, 31}, {0, 32}, {698, 32}, {0, 34}, {660, 34}, {0, 35}, {300, 35}, {0, 38}};
     enum { TONES = sizeof before / sizeof before[0] };
 
     qbrt_realtime(false);
     music_clear();                       /* an earlier test's music */
-    CHECK(unit_run(S, settle) == ST_OK); /* the music's clock started */
+    CHECK(unit_run(S, settle) == ST_OK); /* the music's clock started; MF and MN, as a test before may not leave */
     headless_run(20);                    /* and no longer an earlier synthesizer's to tick */
     const size_t first = headless_tone_count(), voices = headless_voice_count();
     CHECK(unit_run(S, lines) == ST_OK);
@@ -1261,29 +1261,36 @@ TEST(headless_logs_a_long_songs_voices)
 }
 
 /* A legato note run into its own pitch is held, not struck again: each was a new attack, so a length that is no one
- * note's (nine sixteenths) could not be written, and a held chord was let go a sixteenth early. */
+ * note's (nine sixteenths) could not be written, and a held chord was let go a sixteenth early. In the foreground too:
+ * there each note waited for the one before to stop, so never ran into it. */
 TEST(play_legato_ties_a_pitch_to_itself)
 {
-    static const char *const lines[] = {"10 PLAY \"MB O3 W0 ML L4 C C D\"", nullptr}; /* MB, O3: a test's before */
+    static const char *const strings[] = {"MB O3 W0 ML L4 C C D", "MF O3 W0 ML L4 C C D"};
 
-    qbrt_realtime(false);
-    music_clear();
-    const size_t first = headless_voice_count();
-    CHECK(unit_run(S, lines) == ST_OK);
-    headless_run(400);
-    qbrt_realtime(true);
-    int struck = 0, last = -1;
-    unsigned hertz = 0;
-    for (size_t i = first; i < headless_voice_count(); i++) {
-        const DevVoice v = headless_voice(i).v[0];
+    for (int k = 0; k < 2; k++) {
+        char line[64];
+        const char *const lines[] = {line, nullptr};
 
-        if (v.gate && v.trigger != last) {
-            struck++;
-            last = v.trigger;
-            hertz = v.hertz;
+        snprintf(line, sizeof line, "10 PLAY \"%s\"", strings[k]);
+        qbrt_realtime(false);
+        music_clear();
+        const size_t first = headless_voice_count();
+        CHECK(unit_run(S, lines) == ST_OK);
+        headless_run(400);
+        qbrt_realtime(true);
+        int struck = 0, last = -1;
+        unsigned hertz = 0;
+        for (size_t i = first; i < headless_voice_count(); i++) {
+            const DevVoice v = headless_voice(i).v[0];
+
+            if (v.gate && v.trigger != last) {
+                struck++;
+                last = v.trigger;
+                hertz = v.hertz;
+            }
         }
+        CHECK(struck == 2 && hertz == 294);
     }
-    CHECK(struck == 2 && hertz == 294);
 }
 
 /* PLAY's voices as the Mac plays them: the synthesizer's clock ticks the music, and each voice a tick sets goes to it
