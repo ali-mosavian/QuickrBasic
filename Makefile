@@ -108,6 +108,9 @@ $(B)/obj/qbrt/%.obj: src/qbrt/%.c $(NAMES)
 $(B)/obj/core/ui/%.obj: src/core/ui/%.c
 	@mkdir -p $(@D)
 	$(call compile,$(CFLAGS) -DAC=$(AC))
+# The editor, the compiler and the I/O for size: the DOS image leaves the heap the rest of a 2 MB machine
+SIZE_OBJ := $(B)/obj/core/ui/%.obj $(B)/obj/core/comp/%.obj $(B)/obj/core/io/%.obj
+$(SIZE_OBJ): CFLAGS := $(filter-out -O2,$(CFLAGS)) -Os
 $(B)/obj/%.obj: src/%.c
 	@mkdir -p $(@D)
 	$(call compile,$(CFLAGS))

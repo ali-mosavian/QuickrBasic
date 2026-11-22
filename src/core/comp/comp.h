@@ -132,9 +132,9 @@ typedef struct Comp {
 /* TVAR.info's ET_* to its kind: 0 FLOAT, 1 INT, 2 STRING, SK_DBL DOUBLE. */
 extern const uint8_t comp_etkind[8];
 
-/* cplim's CPROOM bytes of the asm's stack as nesting levels of expr's prec (24 bytes a
-   parenthesis); to be calibrated against the asm build. */
-enum { COMP_MAXDEPTH = CPROOM / 24 };
+/* cplim: expression nesting, parentheses and operator chains, at most. A level is 96 bytes of the
+   DOS build's C stack (STACK_BYTES, tools/doslink.py): 255 fit 48 KB with room to spare. */
+enum { COMP_MAXDEPTH = 255 };
 
 /* A body's tokens: M_INT n:4; M_VAR len text id:4 (the text with its suffix, if any). */
 enum { INT_TOKEN_SIZE = 5 };

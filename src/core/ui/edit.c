@@ -627,11 +627,10 @@ static uint16_t split(Session *const S, LineBuf *const b, const uint16_t ind)
 }
 
 /* indt_enter's: line i of the program window's text. */
-static uint16_t text_line(void *const S, const uint32_t i, uint8_t *const dst)
+static const uint8_t *text_line(void *const S, const uint32_t i, uint16_t *const n)
 {
-    const uint32_t n = text_get(S, i, &uimn.line);
-    memcpy(dst, uimn.line.text, n);
-    return (uint16_t)n;
+    *n = (uint16_t)text_get(S, i, &uimn.line);
+    return uimn.line.text;
 }
 
 /* The line's indent made n spaces, the cursor kept on its character. */
