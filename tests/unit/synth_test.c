@@ -869,6 +869,57 @@ TEST(synth_clock_ticks_by_its_samples)
     CHECK(first >= 99 * 1514 / 10 - 4 && first <= 99 * 1514 / 10 + 4);
 }
 
+/* A note struck at a tick of the clock sounds the same at every tick. Ticks cut the blocks a voice renders in, 151.38
+   samples apart, so from tick to tick they fall a sample early or late on a note's samples. A glide and a swept cutoff
+   stepped once a run: one gliding hit came out 6 dB of residual apart from tick to tick, and a rimshot whose two
+   layers share a partial 2.8 dB apart in a band. */
+static int phase_calls, phase_at;
+static Synth *phase_synth;
+static DevVoice phase_voice[2];
+static void phase_tick(void)
+{
+    if (phase_calls++ == phase_at)
+        synth_voice(phase_synth, 0, phase_voice);
+}
+
+TEST(synth_note_sounds_alike_at_every_tick)
+{
+    enum { N = RATE / 4, TICKS = 4 };
+    static const int ticks[TICKS] = {3, 2, 5, 8};
+    static int16_t first[N], out[RATE];
+    Synth s;
+    phase_voice[0] = note(880, DEV_FM, 0x2025);
+    phase_voice[0].depth = 3;
+    phase_voice[0].glide = 2;
+    phase_voice[0].from = 8;
+    phase_voice[0].layers = 1;
+    phase_voice[1] = note(880, DEV_NOISE, 0x0303);
+    phase_voice[1].filter = DEV_BAND_PASS;
+    phase_voice[1].resonance = 12;
+    phase_voice[1].cutoff = 3000;
+    phase_voice[1].sweep = 6000;
+    phase_voice[1].swept = 9;
+    for (int layer = 0; layer < 2; layer++) {
+        phase_voice[!layer].volume = 0;
+        phase_voice[layer].volume = 15;
+        for (int k = 0; k < TICKS; k++) {
+            synth_init(&s, RATE);
+            synth_clock(&s, phase_tick, 4661);
+            phase_synth = &s;
+            phase_calls = 0;
+            phase_at = ticks[k];
+            for (int at = 0; at < RATE; at += 1000)
+                synth_render(&s, out + at, RATE - at < 1000 ? RATE - at : 1000);
+            const int on = (int)((uint64_t)ticks[k] * s.tick_step >> 16);
+            if (!k)
+                memcpy(first, out + on, sizeof first);
+            else
+                CHECK(!memcmp(out + on, first, sizeof first));
+        }
+        CHECK(peak(first, N) > 1000);
+    }
+}
+
 /* A synthesizer's notes count in 16ths of a clock tick: sixteenths at T140 start 31 parts apart (1.95 ticks), where
    the clock tick alone put them 1 or 2 ticks apart. */
 void music_fine_tick(void);
@@ -1281,71 +1332,71 @@ TEST(synth_patches_render_as_before)
         const char *play;
         uint32_t hash;
     } patches[] = {
-        {"R2S12W1H5,4,12,5U3 T150 L8 O3 C E G > C P8 < G", 1906866798u},
-        {"R2S12W4Z1,4,3,13,4H0,4,11,1U9 T150 L8 O3 C E G > C P8 < G", 4115387966u},
-        {"R2W1H5,4,12,5U3 T150 L8 O3 C E G > C P8 < G", 3887838304u},
-        {"R2W4Z1,4,3,13,4H0,4,11,1U9 T150 L8 O3 C E G > C P8 < G", 4272284038u},
+        {"R2S12W1H5,4,12,5U3 T150 L8 O3 C E G > C P8 < G", 18737190u},
+        {"R2S12W4Z1,4,3,13,4H0,4,11,1U9 T150 L8 O3 C E G > C P8 < G", 1240837066u},
+        {"R2W1H5,4,12,5U3 T150 L8 O3 C E G > C P8 < G", 3260815604u},
+        {"R2W4Z1,4,3,13,4H0,4,11,1U9 T150 L8 O3 C E G > C P8 < G", 117421718u},
         {"R3W4Z7,6,7,0H0,6,0,4 T150 L8 O3 C E G > C P8 < G", 2182949812u},
         {"R5W4Z3,9,3,1,3H0,4,1,2U0I0 T150 L8 O3 C E G > C P8 < G", 73426630u},
-        {"R6W1H3,2,12,3U5 T150 L8 O3 C E G > C P8 < G", 2766664652u},
+        {"R6W1H3,2,12,3U5 T150 L8 O3 C E G > C P8 < G", 1927075284u},
         {"R8W3H10,0,15,10Y2,800,8 T150 L8 O3 C E G > C P8 < G", 3084041042u},
         {"R8W4Z7,6,7,0H0,6,0,4 T150 L8 O3 C E G > C P8 < G", 3385123968u},
-        {"S10R3W4Z1,4,3,13,5H3,4,11,3U5 T150 L8 O3 C E G > C P8 < G", 929588130u},
-        {"S10R4W4Z1,4,3,13,4H0,4,11,1U9I0 T150 L8 O3 C E G > C P8 < G", 109058254u},
-        {"S10R5W1H3,2,12,3U5 T150 L8 O3 C E G > C P8 < G", 523322242u},
-        {"S10R6W0Q9Y2,1800,5H2,3,11,3U6I0 T150 L8 O3 C E G > C P8 < G", 1112452072u},
+        {"S10R3W4Z1,4,3,13,5H3,4,11,3U5 T150 L8 O3 C E G > C P8 < G", 3381832690u},
+        {"S10R4W4Z1,4,3,13,4H0,4,11,1U9I0 T150 L8 O3 C E G > C P8 < G", 2119237410u},
+        {"S10R5W1H3,2,12,3U5 T150 L8 O3 C E G > C P8 < G", 3202633678u},
+        {"S10R6W0Q9Y2,1800,5H2,3,11,3U6I0 T150 L8 O3 C E G > C P8 < G", 4142194326u},
         {"S10W4Z2,8,5,3,1H0,9,5,6R5 T150 L8 O3 C E G > C P8 < G", 2660588456u},
         {"S11R3W2Y1,900,2H4,3,10,4 T150 L8 O3 C E G > C P8 < G", 3155893406u},
-        {"S11R3W4Z1,4,3,13,5H3,4,11,3U5 T150 L8 O3 C E G > C P8 < G", 433967630u},
+        {"S11R3W4Z1,4,3,13,5H3,4,11,3U5 T150 L8 O3 C E G > C P8 < G", 2364244522u},
         {"S11R3W4Z3,9,3,1,3H0,4,1,2U0I0 T150 L8 O3 C E G > C P8 < G", 3725591924u},
         {"S11R5W0Q12Y2,1100,1H0,5,2,2U0I0 T150 L8 O3 C E G > C P8 < G", 1453110220u},
         {"S11R5W1H5,3,9,5 T150 L8 O3 C E G > C P8 < G", 3342871916u},
         {"S11W4Z4,7,2,0H0,6,0,3R4 T150 L8 O3 C E G > C P8 < G", 2282810188u},
         {"S5R3W0Q30H0,3,7,1 T150 L8 O3 C E G > C P8 < G", 1999196896u},
-        {"S5R3W4Z1,8,3,11,4H0,4,10,1U9I2 T150 L8 O3 C E G > C P8 < G", 537238086u},
+        {"S5R3W4Z1,8,3,11,4H0,4,10,1U9I2 T150 L8 O3 C E G > C P8 < G", 3559326748u},
         {"S5R3W4Z2,6,3,2H0,6,0,2 T150 L8 O3 C E G > C P8 < G", 422268202u},
         {"S5R4W4Z2,5,3,1H0,5,0,2 T150 L8 O3 C E G > C P8 < G", 2941180200u},
         {"S5R5W2Y1,1600,2H0,6,0,3U0I0 T150 L8 O3 C E G > C P8 < G", 956661358u},
         {"S5W4Z4,7,2,0H0,6,0,3R4 T150 L8 O3 C E G > C P8 < G", 693556558u},
-        {"S6R6W2Y1,1400,2H4,3,10,3U4 T150 L8 O3 C E G > C P8 < G", 903813282u},
+        {"S6R6W2Y1,1400,2H4,3,10,3U4 T150 L8 O3 C E G > C P8 < G", 486943916u},
         {"W0Q12H0,1,0,1 T150 L8 O3 C E G > C P8 < G", 3195572472u},
         {"W0Q25Y1,900,4H0,3,9,1 T150 L8 O3 C E G > C P8 < G", 794323188u},
-        {"W0Q42H1,4,10,1U5I4 T150 L8 O3 C E G > C P8 < G", 2665004114u},
+        {"W0Q42H1,4,10,1U5I4 T150 L8 O3 C E G > C P8 < G", 2916690864u},
         {"W1H0,2,0,1 T150 L8 O3 C E G > C P8 < G", 3986419288u},
         {"W1H0,6,10,2 T150 L8 O3 C E G > C P8 < G", 3568144724u},
-        {"W1H5,4,12,5U3 T150 L8 O3 C E G > C P8 < G", 3301799982u},
-        {"W2Y1,1800,5H0,4,11,2U3I6R7 T150 L8 O3 C E G > C P8 < G", 1736106996u},
-        {"W2Y1,2400,5H0,4,11,2U3I6 T150 L8 O3 C E G > C P8 < G", 4122338080u},
-        {"W2Y1,2600,3H2,3,12,2U6K1,0,1R4 T150 L8 O3 C E G > C P8 < G", 557759802u},
-        {"W2Y1,2800,3H2,3,12,3U2I7R6 T150 L8 O3 C E G > C P8 < G", 4118765744u},
+        {"W1H5,4,12,5U3 T150 L8 O3 C E G > C P8 < G", 36225168u},
+        {"W2Y1,1800,5H0,4,11,2U3I6R7 T150 L8 O3 C E G > C P8 < G", 880983514u},
+        {"W2Y1,2400,5H0,4,11,2U3I6 T150 L8 O3 C E G > C P8 < G", 2824015990u},
+        {"W2Y1,2600,3H2,3,12,2U6K1,0,1R4 T150 L8 O3 C E G > C P8 < G", 2813553332u},
+        {"W2Y1,2800,3H2,3,12,3U2I7R6 T150 L8 O3 C E G > C P8 < G", 4012849492u},
         {"W2Y1,480,4H0,8,3,4U0I0R2 T150 L8 O3 C E G > C P8 < G", 99104454u},
         {"W3H0,2,0,1K0Y3,2500,0 T150 L8 O3 C E G > C P8 < G", 1065396974u},
         {"W3H0,3,0,1K0Y3,2500,0 T150 L8 O3 C E G > C P8 < G", 3324732178u},
         {"W3H0,3,0,2K0Y3,7000,5 T150 L8 O3 C E G > C P8 < G", 3079588002u},
         {"W3H0,5,0,1K0Y0 T150 L8 O3 C E G > C P8 < G", 2932172628u},
         {"W3H0,7,0,4K0Y3,2500,0 T150 L8 O3 C E G > C P8 < G", 2176226330u},
-        {"W4H0,4,3,3Y0K1,8 T150 L8 O3 C E G > C P8 < G", 1968822198u},
-        {"W4H0,5,0,3Y0K5,6 T150 L8 O3 C E G > C P8 < G", 1698602628u},
-        {"W4H0,6,4,5Y0K2,10 T150 L8 O3 C E G > C P8 < G", 897676258u},
-        {"W4Z1,0,0,0,0H0,1,0,1Y0K1,4 T150 L8 O3 C E G > C P8 < G", 1458034192u},
+        {"W4H0,4,3,3Y0K1,8 T150 L8 O3 C E G > C P8 < G", 620391470u},
+        {"W4H0,5,0,3Y0K5,6 T150 L8 O3 C E G > C P8 < G", 1317876532u},
+        {"W4H0,6,4,5Y0K2,10 T150 L8 O3 C E G > C P8 < G", 1672919712u},
+        {"W4Z1,0,0,0,0H0,1,0,1Y0K1,4 T150 L8 O3 C E G > C P8 < G", 2442432910u},
         {"W4Z1,10,4,2H0,9,0,6 T150 L8 O3 C E G > C P8 < G", 1451935662u},
         {"W4Z1,12,4,4H0,8,0,3 T150 L8 O3 C E G > C P8 < G", 1465416028u},
-        {"W4Z1,2,13,0,7H3,3,1,7Y1,4775,6K3,7 T150 L8 O3 C E G > C P8 < G", 4205082258u},
-        {"W4Z1,4,2,0H0,3,0,1K1,2 T150 L8 O3 C E G > C P8 < G", 1637005312u},
-        {"W4Z1,4,2,0H0,4,0,2K1,3 T150 L8 O3 C E G > C P8 < G", 192907674u},
-        {"W4Z1,4,3,13,4H0,4,11,1U9I0 T150 L8 O3 C E G > C P8 < G", 2415661750u},
-        {"W4Z1,4,3,13,5H1,4,11,2U9I7 T150 L8 O3 C E G > C P8 < G", 888429518u},
+        {"W4Z1,2,13,0,7H3,3,1,7Y1,4775,6K3,7 T150 L8 O3 C E G > C P8 < G", 3327044712u},
+        {"W4Z1,4,2,0H0,3,0,1K1,2 T150 L8 O3 C E G > C P8 < G", 4123036896u},
+        {"W4Z1,4,2,0H0,4,0,2K1,3 T150 L8 O3 C E G > C P8 < G", 2175005518u},
+        {"W4Z1,4,3,13,4H0,4,11,1U9I0 T150 L8 O3 C E G > C P8 < G", 2964392220u},
+        {"W4Z1,4,3,13,5H1,4,11,2U9I7 T150 L8 O3 C E G > C P8 < G", 1747047824u},
         {"W4Z1,6,3,3,2H0,5,5,1 T150 L8 O3 C E G > C P8 < G", 41468220u},
-        {"W4Z1,8,3,11,4H0,4,12,1U11I2 T150 L8 O3 C E G > C P8 < G", 62548178u},
-        {"W4Z1,9,3,15,3H5,4,10,1U5I4 T150 L8 O3 C E G > C P8 < G", 3152434724u},
-        {"W4Z13,3,15,13,6H0,3,0,3Y1,3793,12K1,5 T150 L8 O3 C E G > C P8 < G", 505984544u},
-        {"W4Z2,15,13,14,6H1,3,0,3Y3,301,11K3,12 T150 L8 O3 C E G > C P8 < G", 1761601360u},
+        {"W4Z1,8,3,11,4H0,4,12,1U11I2 T150 L8 O3 C E G > C P8 < G", 3010954500u},
+        {"W4Z1,9,3,15,3H5,4,10,1U5I4 T150 L8 O3 C E G > C P8 < G", 163524940u},
+        {"W4Z13,3,15,13,6H0,3,0,3Y1,3793,12K1,5 T150 L8 O3 C E G > C P8 < G", 2170657178u},
+        {"W4Z2,15,13,14,6H1,3,0,3Y3,301,11K3,12 T150 L8 O3 C E G > C P8 < G", 1133031270u},
         {"W4Z2,8,5,3,1H0,9,5,6R5I4 T150 L8 O3 C E G > C P8 < G", 407046338u},
         {"W4Z3,9,3,1,3H0,4,1,2U0I0 T150 L8 O3 C E G > C P8 < G", 498534286u},
-        {"W4Z4,2,10,9,7H0,5,0,5Y1,756,7K4,9 T150 L8 O3 C E G > C P8 < G", 2924770046u},
+        {"W4Z4,2,10,9,7H0,5,0,5Y1,756,7K4,9 T150 L8 O3 C E G > C P8 < G", 1270799098u},
         {"W4Z4,6,2,0H0,6,0,3R3 T150 L8 O3 C E G > C P8 < G", 837727202u},
-        {"W4Z6,3,12,0,7H3,3,0,3Y2,1900,10K3,7 T150 L8 O3 C E G > C P8 < G", 211492142u},
-        {"W4Z7,6,11,14,7H0,5,0,5Y1,190,6K9,4 T150 L8 O3 C E G > C P8 < G", 1746701288u},
+        {"W4Z6,3,12,0,7H3,3,0,3Y2,1900,10K3,7 T150 L8 O3 C E G > C P8 < G", 4927834u},
+        {"W4Z7,6,11,14,7H0,5,0,5Y1,190,6K9,4 T150 L8 O3 C E G > C P8 < G", 3591793460u},
         {"W4Z7,6,3,0H0,8,0,6R6 T150 L8 O3 C E G > C P8 < G", 1629027160u},
         {"H0,1,0,1 Y3,6000 O6 C T150 L8 O3 C E G > C P8 < G", 3665949718u},
         {"H0,4,0,3 Y1,300,4 O1 C T150 L8 O3 C E G > C P8 < G", 2132247590u},
@@ -1367,15 +1418,15 @@ TEST(synth_patches_render_as_before)
         {"MSW0Q40Y1,1600,4H0,3,6,2V15 T150 L8 O3 C E G > C P8 < G", 567463366u},
         {"T100 O2 L2 W4 H0,6,6,3 Z1,12,0,15 C Z1,12,4,4 C Z1,12,7,0 C T150 L8 O3 C E G > C P8 < G", 3513797790u},
         {"T100 O3 L2 W4 H0,0,15,2 Z1,6,0,15,0 C Z1,6,0,15,3 C Z1,6,0,15,5 C T150 L8 O3 C E G > C P8 < G", 140180448u},
-        {"T100 O4 L4 W0 Q30 H1,4,10,2 K0 E G A2 K8,0,2 E G A2 T150 L8 O3 C E G > C P8 < G", 226080516u},
+        {"T100 O4 L4 W0 Q30 H1,4,10,2 K0 E G A2 K8,0,2 E G A2 T150 L8 O3 C E G > C P8 < G", 3081822414u},
         {"T100 O4 L4 W4 Z1,9,3,11,4 H0,4,12,1 R0 C E G P4 R6 C E G P4 R12 C E G P2 T150 L8 O3 C E G > C P8 < G", 1154081732u},
         {"T100 O4 W4 Z1,9,3,11,4 H0,4,12,2 L8 C D E F U0 G1 U6 G1 U12 G1 T150 L8 O3 C E G > C P8 < G", 1723135158u},
-        {"T120 L4 W4 Z1,0 H0,4,3,3 K1,8 V12 O1 C C C C T150 L8 O3 C E G > C P8 < G", 3271896250u},
+        {"T120 L4 W4 Z1,0 H0,4,3,3 K1,8 V12 O1 C C C C T150 L8 O3 C E G > C P8 < G", 2461929754u},
         {"T120 O2 L4 W2 Y1,3000 C Y1,1200 C Y1,500 C Y1,200 C T150 L8 O3 C E G > C P8 < G", 3285793354u},
         {"T120 O3 L2 W4 H0,0,15,2 Z1,0 C Z1,4 C Z1,8 C Z1,12 C T150 L8 O3 C E G > C P8 < G", 1116666174u},
         {"T120 O3 L2 W4 H0,0,15,2 Z1,8 C Z2,8 C Z3,8 C Z7,8 C T150 L8 O3 C E G > C P8 < G", 981803054u},
         {"T120 O3 L4 W0 C E G P4 W1 C E G P4 W2 C E G P4 W3 C E G", 2304395852u},
-        {"T120 O3 L4 W2 Y1,2000,4 H0,4,12,2 K0 C G > C < G K8 C G > C < G T150 L8 O3 C E G > C P8 < G", 386042140u},
+        {"T120 O3 L4 W2 Y1,2000,4 H0,4,12,2 K0 C G > C < G K8 C G > C < G T150 L8 O3 C E G > C P8 < G", 3281222732u},
         {"T120 O4 L4 W0 Q30 H0,4,9,2 S1 C S4 E S8 G S12 > C S15 E T150 L8 O3 C E G > C P8 < G", 1029942890u},
         {"T120MLW1H2,6,11,5V12 T150 L8 O3 C E G > C P8 < G", 237704018u},
         {"T120MNW2Y1,500,6H0,7,8,4V8 T150 L8 O3 C E G > C P8 < G", 1629317448u},
@@ -1389,9 +1440,9 @@ TEST(synth_patches_render_as_before)
         {"T130 O2 L2 W1 H0,8,10,4 V11 C C O1 A A O2 F F G G T150 L8 O3 C E G > C P8 < G", 691032668u},
         {"T130 O2 L2 W1 V10 C C T150 L8 O3 C E G > C P8 < G", 659046806u},
         {"T130 O4 L8 W2 H0,5,9,3 V8 E G > C < G E G E C T150 L8 O3 C E G > C P8 < G", 2697988030u},
-        {"T140 L8 W4 Z1,0 H0,4,3,3 K1,8 V12 O1 C W3 K0 H0,3,0,1 Y3,2500 O6 B W4 Y0 H0,4,3,3 K1,8 O1 C W3 K0 H0,3,0,1 Y3,2500 O6 B T150 L8 O3 C E G > C P8 < G", 844128392u},
+        {"T140 L8 W4 Z1,0 H0,4,3,3 K1,8 V12 O1 C W3 K0 H0,3,0,1 Y3,2500 O6 B W4 Y0 H0,4,3,3 K1,8 O1 C W3 K0 H0,3,0,1 Y3,2500 O6 B T150 L8 O3 C E G > C P8 < G", 4075026464u},
         {"T140 W4 Z1,12,4,4 H0,5,5,1 V11 L4 O2 C G C G T150 L8 O3 C E G > C P8 < G", 196505004u},
-        {"T140 W4 Z1,9,3,11,4 H0,4,12,1 U8 S10 R4 V11 L8 O4 C E G > C < G E C4 T150 L8 O3 C E G > C P8 < G", 3195479784u},
+        {"T140 W4 Z1,9,3,11,4 H0,4,12,1 U8 S10 R4 V11 L8 O4 C E G > C < G E C4 T150 L8 O3 C E G > C P8 < G", 3547163854u},
         {"T140MLW2Y1,2600,3H1,6,11,5V11 T150 L8 O3 C E G > C P8 < G", 2775734516u},
         {"T140MNW0Q30H0,4,6,3V6 T150 L8 O3 C E G > C P8 < G", 1894971010u},
         {"T140MNW1V12L16O4CO3GECL8EGL4O4C T150 L8 O3 C E G > C P8 < G", 1050245326u},
@@ -1435,8 +1486,8 @@ TEST(synth_patches_render_as_before)
         {"W0Q50H0,6,0,4V14O1G32C32P16W0Q50H0,6,0,4V14O1G32C32P16 T150 L8 O3 C E G > C P8 < G", 2618006094u},
         {"W0Q50H0,6,0,4V14O1G32C32P16W3H0,1,0,1V5O6C32P32P16 T150 L8 O3 C E G > C P8 < G", 495555150u},
         {"W2H0,2,0,2V7L64O6CB T150 L8 O3 C E G > C P8 < G", 945833432u},
-        {"W2I15Y2,1000,6H0,6,2,3K4,0,6L8O3D T150 L8 O3 C E G > C P8 < G", 3947070608u},
-        {"W2I15Y2,1300,6H0,5,3,3K3,0,7L16O3FP32L8O3D T150 L8 O3 C E G > C P8 < G", 2072763832u},
+        {"W2I15Y2,1000,6H0,6,2,3K4,0,6L8O3D T150 L8 O3 C E G > C P8 < G", 3482711774u},
+        {"W2I15Y2,1300,6H0,5,3,3K3,0,7L16O3FP32L8O3D T150 L8 O3 C E G > C P8 < G", 1483936890u},
         {"W2L32O6ECP32EC T150 L8 O3 C E G > C P8 < G", 619277550u},
         {"W3H0,1,0,1V5L64O6C T150 L8 O3 C E G > C P8 < G", 4105853194u},
         {"W3H0,3,0,1Y3,2500K0O6B T150 L8 O3 C E G > C P8 < G", 383347482u},
@@ -1452,18 +1503,18 @@ TEST(synth_patches_render_as_before)
         {"W4 Z1,12,4,4 H0,5,5,1 T150 L8 O3 C E G > C P8 < G", 1061079860u},
         {"W4 Z1,12,4,4 H0,5,5,1 V11 MN L8 T150 L8 O3 C E G > C P8 < G", 344504618u},
         {"W4 Z1,4,3,13,4 H0,4,11,1 T150 L8 O3 C E G > C P8 < G", 2150017718u},
-        {"W4 Z1,4,3,13,4 H0,4,11,1 U9 R2 V7 MS L8 T150 L8 O3 C E G > C P8 < G", 1682123826u},
+        {"W4 Z1,4,3,13,4 H0,4,11,1 U9 R2 V7 MS L8 T150 L8 O3 C E G > C P8 < G", 3954742518u},
         {"W4 Z1,9,3,11,4 H0,4,12,1 T150 L8 O3 C E G > C P8 < G", 270129488u},
-        {"W4 Z1,9,3,11,4 H0,4,12,1 U8 R4 S8 V11 ML L8 T150 L8 O3 C E G > C P8 < G", 3392519178u},
+        {"W4 Z1,9,3,11,4 H0,4,12,1 U8 R4 S8 V11 ML L8 T150 L8 O3 C E G > C P8 < G", 3421732136u},
         {"W4 Z7,6,7,0 H0,9,0,9 T150 L8 O3 C E G > C P8 < G", 1551889634u},
-        {"W4Z1,0H0,4,3,3Y0K1,8O1C T150 L8 O3 C E G > C P8 < G", 2568337190u},
-        {"W4Z1,0H0,5,0,3Y0K5,6O2G T150 L8 O3 C E G > C P8 < G", 3176789556u},
+        {"W4Z1,0H0,4,3,3Y0K1,8O1C T150 L8 O3 C E G > C P8 < G", 226355348u},
+        {"W4Z1,0H0,5,0,3Y0K5,6O2G T150 L8 O3 C E G > C P8 < G", 1323477446u},
         {"Y1,800,0 C Y1,800,8 C Y1,800,15 C Y0 V15 C V7 C V3 C T150 L8 O3 C E G > C P8 < G", 682781819u},
         {"Z1,0L16 T150 L8 O3 C E G > C P8 < G", 1956616212u},
         /* docs/sound.md's example: three voices, placed and in the room */
         {"T140 W4 Z1,9,3,11,4 H0,4,12,1 U8 S10 R4 V11 L8 O4 C E G > C < G E C4\", "
          "\"T140 W4 Z1,12,4,4 H0,5,5,1 V11 L4 O2 C G C G\", \"T140 L8 W4 Z1,0 H0,4,3,3 K1,8 V12 O1 C W3 K0 H0,3,0,1 "
-         "Y3,2500 O6 B W4 Y0 H0,4,3,3 K1,8 O1 C W3 K0 H0,3,0,1 Y3,2500 O6 B", 343417320u},
+         "Y3,2500 O6 B W4 Y0 H0,4,3,3 K1,8 O1 C W3 K0 H0,3,0,1 Y3,2500 O6 B", 3340370174u},
     };
 
     qbrt_realtime(false);
