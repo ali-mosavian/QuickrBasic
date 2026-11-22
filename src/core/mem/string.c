@@ -108,12 +108,12 @@ Addr strg_alloc(Strg *const sg, const uint16_t len)
     return c;
 }
 
-/* Is the block at chars live: its owner a Desc still pointing at them? */
-
+/* Is the block at chars live: its owner a Desc still pointing at them? A dead block's owner
+   mostly points elsewhere: that test first, the data stack asked only then. */
 static bool strg_is_live(const Strg *const sg, const Addr chars, const Addr owner)
 {
-    return owner && !strg_is_popped_tmp(sg, owner) && !(sg->popped && sg->popped(sg->vm, owner)) &&
-           strg_peek(owner).ptr == chars;
+    return owner && strg_peek(owner).ptr == chars && !strg_is_popped_tmp(sg, owner) &&
+           !(sg->popped && sg->popped(sg->vm, owner));
 }
 
 /* Out of line: inlined into strg_alloc, every allocation saved and set up its registers. */
