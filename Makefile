@@ -250,7 +250,8 @@ host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/h
 	for t in $(TOOLS_TEST); do $(PY) $$t || exit 1; done
 	CLANG=$(CLANG) $(PY) tools/rtstatic_test.py $(NAMES) $(addprefix $(QBRT)/,$(QBRT_DOS_C)) src/qbrt/qbrt.c src/qbrt/qbrt_dos.c
 	CLANG=$(CLANG) $(PY) tools/rtstatic_test.py --objects $(QBRT_HOST_C:%.c=build/host/qbrt/%.o) \
-		build/host/obj/qbrt/qbrt.o build/host/obj/qbrt/qbrt_host.o
+		build/host/obj/qbrt/qbrt.o build/host/obj/qbrt/qbrt_host.o \
+		build/host/obj/core/ui/debuglocals.o build/host/obj/core/ui/spelling.o
 	build/host/unit_tests
 	sh tests/host/longpath.sh build/host/basic
 	sh tests/host/dosname.sh build/host/basic

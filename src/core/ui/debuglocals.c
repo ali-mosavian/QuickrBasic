@@ -17,6 +17,8 @@
 #include "ui/debugtext.h"
 #include "ui/spelling.h"
 #include "util/hash.h"
+#include "plat/pmem.h"
+#include <string.h>
 
 enum {
     NROW = 160,  /* the rows at most */
@@ -58,7 +60,7 @@ typedef struct {
     uint32_t stop;
 } Seen;
 
-static struct {
+typedef struct {
     uint8_t frame;
     uint32_t view; /* the frame's: the keys' scope */
     bool newest;   /* the frame is its procedure's newest, whose values a change is seen in */
@@ -70,24 +72,30 @@ static struct {
     uint32_t stops;     /* the stops so far */
     uint32_t nseen;     /* seen so far */
     Seen seen[NSEEN];
-} loc;
+} Locals;
 
-void dloc_stop(void) { loc.stops++; }
+static Locals *loc; /* taken at the first dloc_read */
 
-uint8_t dloc_count(void) { return loc.n; }
+void dloc_stop(void)
+{
+    if (loc)
+        loc->stops++;
+}
 
-const char *dloc_row(const uint8_t i) { return loc.rows[i].text; }
+uint8_t dloc_count(void) { return loc ? loc->n : 0; }
 
-uint8_t dloc_changed(const uint8_t i) { return loc.rows[i].hi; }
+const char *dloc_row(const uint8_t i) { return loc->rows[i].text; }
+
+uint8_t dloc_changed(const uint8_t i) { return loc->rows[i].hi; }
 
 const InspValue *dloc_value(const uint8_t i)
 {
-    return i < loc.n && loc.rows[i].kind == LR_VALUE ? &loc.rows[i].value : nullptr;
+    return i < dloc_count() && loc->rows[i].kind == LR_VALUE ? &loc->rows[i].value : nullptr;
 }
 
-const char *dloc_path(const uint8_t i) { return loc.rows[i].path; }
+const char *dloc_path(const uint8_t i) { return loc->rows[i].path; }
 
-uint16_t dloc_width(const uint8_t i) { return loc.rows[i].width; }
+uint16_t dloc_width(const uint8_t i) { return loc->rows[i].width; }
 
 /* Text s's hash from h, letters' case aside when nocase. */
 static uint32_t hash(uint32_t h, const char *s, const bool nocase)
@@ -99,14 +107,14 @@ static uint32_t hash(uint32_t h, const char *s, const bool nocase)
 }
 
 /* Path path's key: a name's case aside, in the frame's view. */
-static uint32_t key_of(const char *const path) { return hash(FNV_SEED ^ loc.view, path, true); }
+static uint32_t key_of(const char *const path) { return hash(FNV_SEED ^ loc->view, path, true); }
 
 /* key's entry in the open ones; nullptr shut. */
 static Open *opened(const uint32_t key)
 {
-    for (uint8_t i = 0; i < loc.nopen; i++)
-        if (loc.open[i].key == key)
-            return &loc.open[i];
+    for (uint8_t i = 0; i < loc->nopen; i++)
+        if (loc->open[i].key == key)
+            return &loc->open[i];
 
     return nullptr;
 }
@@ -114,23 +122,23 @@ static Open *opened(const uint32_t key)
 /* Value text s of key is unlike at the stop before: newest frames' only, a first one not. */
 static bool changed(const uint32_t key, const char *const s)
 {
-    if (!loc.newest)
+    if (!loc->newest)
         return false;
 
     const uint32_t h = hash(FNV_SEED, s, false);
 
-    for (uint32_t i = 0; i < loc.nseen && i < NSEEN; i++) {
-        Seen *const e = &loc.seen[i];
+    for (uint32_t i = 0; i < loc->nseen && i < NSEEN; i++) {
+        Seen *const e = &loc->seen[i];
 
         if (e->key != key)
             continue;
         if (e->hash != h)
-            *e = (Seen){.key = key, .hash = h, .stop = loc.stops};
+            *e = (Seen){.key = key, .hash = h, .stop = loc->stops};
 
-        return e->stop == loc.stops;
+        return e->stop == loc->stops;
     }
 
-    loc.seen[loc.nseen++ % NSEEN] = (Seen){.key = key, .hash = h}; /* full: the oldest's place */
+    loc->seen[loc->nseen++ % NSEEN] = (Seen){.key = key, .hash = h}; /* full: the oldest's place */
     return false;
 }
 
@@ -190,17 +198,17 @@ static bool openable(const Session *const S, const InspValue *const v)
     return insp_kind(v) == IV_RECORD || (insp_kind(v) == IV_ARRAY && insp_elems(S, v));
 }
 
-/* A new row of kind at depth, nullptr no room; loc.row its indent, past it. */
+/* A new row of kind at depth, nullptr no room; loc->row its indent, past it. */
 static LocRow *row_new(const RowKind kind, const uint8_t depth, char **const d)
 {
-    if (loc.n >= NROW)
+    if (loc->n >= NROW)
         return nullptr;
 
-    LocRow *const r = &loc.rows[loc.n++];
+    LocRow *const r = &loc->rows[loc->n++];
     *r = (LocRow){.kind = kind, .depth = depth};
 
-    memset(loc.row, ' ', depth * INDENT);
-    *d = loc.row + depth * INDENT;
+    memset(loc->row, ' ', depth * INDENT);
+    *d = loc->row + depth * INDENT;
     return r;
 }
 
@@ -260,7 +268,7 @@ static void elements(
     *subscripts(S, dtxt_cpy(d, " to "), v, n - 1) = 0;
     r->value = *v;
     r->key = key;
-    dtxt_cut(r->text, loc.row);
+    dtxt_cut(r->text, loc->row);
 }
 
 /* Value v's row, label its name ("p", ".x", "(3)"), path its expression; an open one's under it. */
@@ -296,14 +304,14 @@ static void value_rows(
         d = bounds(S, d, v);
     } else if (kind == IV_SCALAR) {
         d = dtxt_cpy(d, " = ");
-        const uint8_t col = (uint8_t)(d - loc.row);
+        const uint8_t col = (uint8_t)(d - loc->row);
         *(d = insp_text(S, v, d, DP_TWMAX)) = 0;
-        r->hi = changed(r->key, loc.row + col) && col < DP_TWMAX - 1 ? col + 1 : 0;
+        r->hi = changed(r->key, loc->row + col) && col < DP_TWMAX - 1 ? col + 1 : 0;
     }
 
     *d = 0;
-    r->width = (uint16_t)(d - loc.row);
-    dtxt_cut(r->text, loc.row);
+    r->width = (uint16_t)(d - loc->row);
+    dtxt_cut(r->text, loc->row);
 
     if (open && kind == IV_RECORD)
         fields(S, v, path, depth);
@@ -316,24 +324,31 @@ static void var_rows(Session *const S, const InspVar *const var)
 {
     char name[PATH];
     *spel_var(S, name, var) = 0;
-    const uint8_t at = loc.n;
-    const InspValue v = insp_var(S, loc.frame, var);
+    const uint8_t at = loc->n;
+    const InspValue v = insp_var(S, loc->frame, var);
     value_rows(S, &v, name, name, 0);
 
-    if (at < loc.n) {
-        loc.rows[at].top = true;
-        loc.rows[at].var = *var;
+    if (at < loc->n) {
+        loc->rows[at].top = true;
+        loc->rows[at].var = *var;
     }
 }
 
 void dloc_read(Session *const S, const uint8_t f)
 {
+    if (!loc) {
+        if (!(loc = pmem_resize(nullptr, sizeof *loc)))
+            return; /* no rows */
+
+        memset(loc, 0, sizeof *loc);
+    }
+
     const uint32_t view = dstk_at(f)->view;
-    loc.frame = f;
-    loc.view = view == DSTK_NOVIEW ? 0 : view;
-    loc.newest = insp_newest(S, f);
-    loc.n = 0;
-    spel_read(S, loc.view);
+    loc->frame = f;
+    loc->view = view == DSTK_NOVIEW ? 0 : view;
+    loc->newest = insp_newest(S, f);
+    loc->n = 0;
+    spel_read(S, loc->view);
     InspVar vars[NROW];
     const uint32_t n = insp_vars(S, f, vars, NROW);
 
@@ -353,10 +368,10 @@ void dloc_read(Session *const S, const uint8_t f)
 
 bool dloc_open(Session *const S, const uint8_t i)
 {
-    if (i >= loc.n)
+    if (i >= dloc_count())
         return false;
 
-    const LocRow *const r = &loc.rows[i];
+    const LocRow *const r = &loc->rows[i];
     Open *const o = opened(r->key);
 
     if (r->kind == LR_REST)
@@ -364,36 +379,36 @@ bool dloc_open(Session *const S, const uint8_t i)
     else if (o || !openable(S, &r->value) || r->depth >= DEPTH)
         return false;
     else
-        loc.open[loc.nopen < NOPEN ? loc.nopen++ : 0] = (Open){.key = r->key, .shown = PAGE};
+        loc->open[loc->nopen < NOPEN ? loc->nopen++ : 0] = (Open){.key = r->key, .shown = PAGE};
 
-    dloc_read(S, loc.frame);
+    dloc_read(S, loc->frame);
     return true;
 }
 
 uint8_t dloc_close(Session *const S, uint8_t i)
 {
-    if (i >= loc.n)
+    if (i >= dloc_count())
         return i;
 
-    if (loc.rows[i].kind != LR_VALUE || !opened(loc.rows[i].key)) { /* its parent, open */
-        const uint8_t depth = loc.rows[i].depth;
+    if (loc->rows[i].kind != LR_VALUE || !opened(loc->rows[i].key)) { /* its parent, open */
+        const uint8_t depth = loc->rows[i].depth;
 
         if (!depth)
             return i;
 
-        while (loc.rows[i].depth >= depth)
+        while (loc->rows[i].depth >= depth)
             i--;
     }
 
-    *opened(loc.rows[i].key) = loc.open[--loc.nopen];
-    dloc_read(S, loc.frame);
+    *opened(loc->rows[i].key) = loc->open[--loc->nopen];
+    dloc_read(S, loc->frame);
     return i;
 }
 
 uint8_t dloc_find(Session *const S, const uint8_t *const s, const uint32_t n, const uint8_t sfx)
 {
-    for (uint8_t i = 0; i < loc.n; i++)
-        if (loc.rows[i].top && insp_is(S, &loc.rows[i].var, s, n, sfx))
+    for (uint8_t i = 0; i < dloc_count(); i++)
+        if (loc->rows[i].top && insp_is(S, &loc->rows[i].var, s, n, sfx))
             return i;
 
     return DLOC_NONE;
