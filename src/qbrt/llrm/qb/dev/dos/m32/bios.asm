@@ -23,11 +23,13 @@ Regs            struc
                 rbp             dword   ?
                 res             dword   ?
                 rflags          dword   ?
+                rsi             dword   ?
+                rdi             dword   ?
 Regs            ends
 
 .code
-;; CALLINT - software interrupt, with the registers of the Regs at esi.
-CALLINT         macro   vector:req
+;; CALLINT - software interrupt, with the registers of the Regs at esi; `pointers`: esi and edi too.
+CALLINT         macro   vector:req, pointers
 
                 pushad
                 push    es
@@ -37,6 +39,10 @@ CALLINT         macro   vector:req
                 mov     ebx, [esi].Regs.rbx
                 mov     ecx, [esi].Regs.rcx
                 mov     edx, [esi].Regs.rdx
+        ifnb <pointers>
+                mov     edi, [esi].Regs.rdi
+                mov     esi, [esi].Regs.rsi
+        endif
                 int     vector
                 pop     esi
                 ;; an interrupt returns 16-bit registers: the rest is not its
@@ -80,10 +86,11 @@ B$INT10         endp
 ;; B$INT10R - call BIOS interrupt 10h in real mode (DPMI 0300h).
 ;;
 ;; For the functions that return a real-mode segment:offset (the font's, 1130h),
-;; which a protected-mode call would not give as the BIOS made it.
+;; which a protected-mode call would not give as the BIOS made it, and VBE's,
+;; which take one in es:di.
 ;;
 ;; Args:
-;;     regs (eax): ptr to a Regs.
+;;     regs (eax): ptr to a Regs; res and rdi the real-mode es and di.
 ;;
 ;; Returns:
 ;;     regs: the registers and the flags as the interrupt left them; res and rbp
@@ -114,6 +121,10 @@ B$INT10R        proc
                 mov     [edi+14h], eax
                 mov     eax, [esi].Regs.rbp
                 mov     [edi+08h], eax
+                mov     eax, [esi].Regs.rdi
+                mov     [edi+00h], eax
+                mov     eax, [esi].Regs.res
+                mov     [edi+22h], ax
                 mov     eax, 0300h
                 ;; interrupt 10h, no flags to reset
                 mov     ebx, 0010h
@@ -195,7 +206,7 @@ B$INT21         endp
 
 ;; B$INT31 - call the DPMI host (interrupt 31h).
 ;;
-;; Loads eax ebx ecx edx from `regs`, runs interrupt 31h, and stores ax bx cx dx
+;; Loads eax ebx ecx edx esi edi from `regs`, runs interrupt 31h, and stores ax bx cx dx
 ;; ebp es and the flags back as the host left them.
 ;;
 ;; Args:
@@ -208,6 +219,6 @@ B$INT21         endp
 ;; Clobbers: flags
 B$INT31         proc
 
-                CALLINT 31h
+                CALLINT 31h, pointers
 B$INT31         endp
                 end

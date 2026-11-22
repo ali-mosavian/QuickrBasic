@@ -8,7 +8,8 @@
  * modes' 16K at B800h, else each plane's page (read map select), with the DAC, the attribute
  * palette and the CRTC's display start. It is shown again through the BIOS's mode set with bit 7
  * (memory kept), each plane written in write mode 0, then the controller left as the runtime
- * keeps it: write mode 2, function 0, bit mask FFh, all planes.
+ * keeps it: write mode 2, function 0, bit mask FFh, all planes. Pages in VBE's mode are past the
+ * video memory a text mode uses: the shot is the DAC alone, and VBE's mode set keeping memory.
  */
 #include "qbrt/qbrt.h"
 #include "device.h"
@@ -149,7 +150,7 @@ static uint32_t page_bytes(const Layout l)
 uint32_t qbrt_shot_size(void)
 {
     const Layout l = layout();
-    return sizeof(Shot) + (l == LAYOUT_PLANAR ? PLANES : 1u) * page_bytes(l);
+    return sizeof(Shot) + (gd_vbe() ? 0 : (l == LAYOUT_PLANAR ? PLANES : 1u) * page_bytes(l));
 }
 
 static uint8_t *video(const Layout l, const uint16_t start)
@@ -161,14 +162,18 @@ void qbrt_shot_take(void *const p)
 {
     Shot *const shot = p;
     const Layout l = layout();
-    shot->start =
-        l == LAYOUT_PLANAR
-            ? (uint16_t)(reg_in(CRTC, CRTC_START_HIGH) << 8 | reg_in(CRTC, CRTC_START_LOW))
-            : 0;
     dev_outb(DAC_READ, 0);
 
     for (uint32_t i = 0; i < DAC_BYTES; i++)
         shot->dac[i] = (uint8_t)dev_inb(DAC_DATA);
+
+    if (gd_vbe())
+        return;
+
+    shot->start =
+        l == LAYOUT_PLANAR
+            ? (uint16_t)(reg_in(CRTC, CRTC_START_HIGH) << 8 | reg_in(CRTC, CRTC_START_LOW))
+            : 0;
 
     for (unsigned i = 0; i < ATTRS; i++) {
         Regs r = {.rax = BIOS_GET_ATTR, .rbx = i};
@@ -195,11 +200,25 @@ void qbrt_shot_take(void *const p)
 
 void qbrt_shot_drop(void) {}
 
+static void dac_write(const Shot *const shot)
+{
+    dev_outb(DAC_WRITE, 0);
+
+    for (uint32_t i = 0; i < DAC_BYTES; i++)
+        dev_outb(DAC_DATA, shot->dac[i]);
+}
+
 void qbrt_shot_show(const void *const p)
 {
     const Shot *const shot = p;
     const Layout l = layout();
     Regs r = {.rax = gfx_current->bios | KEEP_MEMORY};
+
+    if (gd_vbe()) {
+        gd_vbe_show();
+        dac_write(shot);
+        return;
+    }
 
     dev_int10(&r);
 
@@ -209,10 +228,7 @@ void qbrt_shot_show(const void *const p)
         dev_int10(&a);
     }
 
-    dev_outb(DAC_WRITE, 0);
-
-    for (uint32_t i = 0; i < DAC_BYTES; i++)
-        dev_outb(DAC_DATA, shot->dac[i]);
+    dac_write(shot);
 
     const uint32_t n = page_bytes(l);
     uint8_t *const to = video(l, shot->start);

@@ -16,7 +16,15 @@
    PCOPY copies one over the other. In 04h, 06h and 13h a copy of the visible
    page is kept while nothing draws on it: a swap copies the hidden page out
    and takes the copy as the hidden one. The two are taken when a program first
-   uses its second page, and given back at the next mode set. */
+   uses its second page, and given back at the next mode set.
+
+   With VBE 2.0, 13h and 12h move to VBE's mode of their size instead, a byte a
+   pixel in the linear frame buffer, when a program first uses its second page:
+   both pages are in video memory past the first 256 KB (a text mode's planes,
+   so the IDE's text screen leaves them), the display start shows one, and the
+   A000h window is the shown one's, as the adapter's page is. 12h's colours
+   keep to 4 bits there, and GET and PUT to its planes' layout (pixmem.c). A
+   program on one page keeps the BIOS's mode. */
 #include <string.h>
 
 #include "device.h"
@@ -64,7 +72,11 @@ enum {
     GET_FONT = 0x1130,
     FONT_14 = 0x0200,
     FONT_8 = 0x0300,
-    FONT_16 = 0x0600
+    FONT_16 = 0x0600,
+    GET_ATTRIBUTE = 0x1007,
+    ATTRIBUTES = 16,
+    DAC_READ_INDEX = 0x3C7,
+    DAC_BYTES = 256 * 3
 };
 
 /* Volatile: a read loads the latches, which the bits a mask leaves alone come
@@ -82,6 +94,15 @@ static int shown_ok;
 static unsigned soft_mode;                     /* the mode's: 0, or 04h, 06h, 12h or 13h */
 static unsigned shown;                         /* the page on the adapter, where soft_mode */
 static int in_memory;                          /* drawing goes to `hidden` through pixmem.c (12h) */
+
+static struct {
+    u8 *lfb;              /* the frame buffer, mapped once */
+    unsigned long base;   /* its physical address */
+    unsigned mode;        /* VBE's, while the pages are in it; else 0 */
+    unsigned long stride; /* from a page to the next */
+    unsigned granule;     /* the A000h window's step, bytes; 0: no window */
+    int nibbles;          /* 12h's: a pixel's colour 4 bits */
+} vbe;
 
 static void controller(unsigned index, unsigned value)
 {
@@ -138,6 +159,8 @@ int gd_set_mode(unsigned mode)
         page_count = SOFT_PAGES;
     shown = 0;
     in_memory = 0;
+    vbe.mode = 0;
+    vbe.nibbles = 0;
     dev_give(soft_block);
     soft_block = hidden = shown_copy = 0;
     shown_ok = 0;
@@ -207,19 +230,6 @@ static void planar_row_out(unsigned y, const u8 *pixels)
     controller(GC_MODE, WRITE_MODE_2);
 }
 
-/* The hidden page and the shown one's copy, taken once a mode's second page is used. */
-static void soft_take(void)
-{
-    if (soft_block)
-        return;
-    if (soft_mode == MODE_640_480) {
-        soft_block = hidden = dev_take(PLANAR_WIDTH * PLANAR_HEIGHT);
-        return;
-    }
-    soft_block = hidden = dev_take(2UL * soft_bytes());
-    shown_copy = hidden + soft_bytes();
-}
-
 static void move(void *to, const void *from, unsigned count)
 {
     BlockOp op;
@@ -229,6 +239,318 @@ static void move(void *to, const void *from, unsigned count)
     op.count = count;
     op.value = 0;
     dev_move(&op);
+}
+
+enum {
+    VBE_INFO = 0x4F00,
+    VBE_MODE_INFO = 0x4F01,
+    VBE_SET = 0x4F02,
+    VBE_WINDOW = 0x4F05,
+    VBE_START = 0x4F07,
+    VBE_OK = 0x004F,
+    VBE_LINEAR = 0x4000,
+    VBE_KEEP = 0x8000,
+    VBE_VERSION_2 = 0x200,
+    VBE_MODES = 256,  /* of the list, at most */
+    VBE_NEEDS = 0x99, /* a mode's attributes: supported, colour, graphics, linear frame buffer */
+    VBE_NO_WINDOW = 0x40, /* the attribute: no A000h window */
+    VBE_WINDOW_RW = 7,    /* the window's attributes: there, readable, writable */
+    VBE_PACKED = 4,       /* the memory model: a byte a pixel */
+    VBE_MODE_AT = 0x200,  /* the buffer: the info block (512 bytes), then a mode's */
+    VBE_BUFFER = 0x300,
+    VBE_PAGE0 = 0x40000, /* past a text mode's planes */
+    VBE_ALIGN = 0x10000, /* a page's start: a step of any window */
+    DPMI_SEGMENT_BASE = 0x0006,
+    DPMI_DOS_ALLOC = 0x0100,
+    DPMI_DOS_FREE = 0x0101,
+    DPMI_MAP = 0x0800,
+    PARAGRAPH = 16,
+    CARRY = 1
+};
+
+static unsigned word_at(const u8 *p) { return p[0] | p[1] << 8; }
+
+static unsigned long ds_base(void)
+{
+    Regs r = {0};
+
+    r.rax = DPMI_SEGMENT_BASE;
+    r.rbx = dev_ds_selector();
+    dev_int31(&r);
+    return (unsigned long)r.rcx << 16 | (r.rdx & 0xFFFF);
+}
+
+/* VBE 2.0's mode of `width` by `height`, a byte a pixel and a row `width` bytes in a linear frame
+   buffer with room for 2 pages past VBE_PAGE0: its number, vbe's base, stride and granule set; 0
+   none. */
+static unsigned vbe_find(unsigned width, unsigned height)
+{
+    Regs r = {0};
+
+    unsigned short modes[VBE_MODES];
+    unsigned n = 0, at, found = 0, segment, selector;
+    unsigned long base = ds_base(),
+                  stride = ((unsigned long)width * height + VBE_ALIGN - 1) & ~(VBE_ALIGN - 1UL);
+    u8 *block, *info;
+
+    r.rax = DPMI_DOS_ALLOC;
+    r.rbx = VBE_BUFFER / PARAGRAPH;
+    dev_int31(&r);
+
+    if (r.rflags & CARRY)
+        return 0;
+
+    segment = r.rax & 0xFFFF;
+    selector = r.rdx & 0xFFFF;
+    block = (u8 *)((unsigned long)segment * PARAGRAPH - base);
+    info = block + VBE_MODE_AT;
+    memcpy(block, "VBE2", 4);
+    r = (Regs){0};
+
+    r.rax = VBE_INFO;
+    r.res = segment;
+    dev_int10r(&r);
+
+    if ((r.rax & 0xFFFF) == VBE_OK && !memcmp(block, "VESA", 4) &&
+        word_at(block + 4) >= VBE_VERSION_2 &&
+        VBE_PAGE0 + 2 * stride <= word_at(block + 0x12) * 0x10000UL) {
+        const u8 *list = (const u8 *)(word_at(block + 0x10) * 16UL + word_at(block + 0x0E) - base);
+
+        while (n < VBE_MODES && word_at(list + 2 * n) != 0xFFFF) {
+            modes[n] = (unsigned short)word_at(list + 2 * n);
+            n++;
+        }
+
+        for (at = 0; at < n && !found; at++) {
+            unsigned attributes;
+
+            r = (Regs){0};
+
+            r.rax = VBE_MODE_INFO;
+            r.rcx = modes[at];
+            r.res = segment;
+            r.rdi = VBE_MODE_AT;
+            dev_int10r(&r);
+            attributes = word_at(info);
+
+            if ((r.rax & 0xFFFF) != VBE_OK || (attributes & VBE_NEEDS) != VBE_NEEDS ||
+                word_at(info + 0x12) != width || word_at(info + 0x14) != height ||
+                word_at(info + 0x10) != width || info[0x19] != 8 || info[0x1B] != VBE_PACKED)
+                continue;
+
+            found = modes[at];
+            vbe.base = word_at(info + 0x28) | (unsigned long)word_at(info + 0x2A) << 16;
+            vbe.stride = stride;
+            vbe.granule = !(attributes & VBE_NO_WINDOW) &&
+                                  (info[2] & VBE_WINDOW_RW) == VBE_WINDOW_RW &&
+                                  word_at(info + 8) == 0xA000
+                              ? word_at(info + 4) * 1024u
+                              : 0;
+        }
+    }
+
+    r = (Regs){0};
+
+    r.rax = DPMI_DOS_FREE;
+    r.rdx = selector;
+    dev_int31(&r);
+    return found;
+}
+
+/* The frame buffer mapped (DPMI's, kept: a host's mappings are few); 0 when the host will not. */
+static int vbe_map(void)
+{
+    static unsigned long mapped;
+    Regs r = {0};
+
+    const unsigned long size = VBE_PAGE0 + 2 * vbe.stride;
+
+    if (vbe.lfb && mapped == vbe.base)
+        return 1;
+
+    r.rax = DPMI_MAP;
+    r.rbx = vbe.base >> 16;
+    r.rcx = vbe.base & 0xFFFF;
+    r.rsi = size >> 16;
+    r.rdi = size & 0xFFFF;
+    dev_int31(&r);
+
+    if (r.rflags & CARRY)
+        return 0;
+
+    vbe.lfb = (u8 *)(((unsigned long)(r.rbx & 0xFFFF) << 16 | (r.rcx & 0xFFFF)) - ds_base());
+    mapped = vbe.base;
+    return 1;
+}
+
+static u8 *vbe_page(unsigned page) { return vbe.lfb + VBE_PAGE0 + page * vbe.stride; }
+
+/* Page `page` shown, and the A000h window its. */
+static void vbe_show(unsigned page)
+{
+    const unsigned long at = VBE_PAGE0 + page * vbe.stride;
+    Regs r = {0};
+
+    r.rax = VBE_START;
+    r.rcx = at % pitch;
+    r.rdx = at / pitch;
+    dev_int10(&r);
+
+    if (!vbe.granule)
+        return;
+
+    r = (Regs){0};
+
+    r.rax = VBE_WINDOW;
+    r.rdx = at / vbe.granule;
+    dev_int10(&r);
+}
+
+static void dac_read(u8 *dac)
+{
+    unsigned at;
+
+    dev_outb(DAC_READ_INDEX, 0);
+
+    for (at = 0; at < DAC_BYTES; at++)
+        dac[at] = (u8)dev_inb(DAC_DATA);
+}
+
+/* 13h or 12h (soft_mode) into VBE's mode of its size, the screen and its colours kept: 0 when there
+   is no such mode, the frame buffer cannot be mapped or the screen kept meanwhile. */
+static int vbe_on(void)
+{
+    const int planar = soft_mode == MODE_640_480;
+    const unsigned width = planar ? PLANAR_WIDTH : 320, height = planar ? PLANAR_HEIGHT : 200;
+    const unsigned long bytes =
+        planar ? (unsigned long)PLANES * PLANAR_ROW * PLANAR_HEIGHT : LINEAR_BYTES;
+    const unsigned mode = vbe_find(width, height);
+    u8 dac[DAC_BYTES], attributes[ATTRIBUTES], *kept;
+    unsigned at, plane, x, y;
+    Regs r;
+
+    if (!mode || !vbe_map() || !(kept = dev_try(bytes)))
+        return 0;
+
+    dac_read(dac);
+
+    for (at = 0; at < ATTRIBUTES; at++) {
+        r = (Regs){0};
+
+        r.rax = GET_ATTRIBUTE;
+        r.rbx = at;
+        dev_int10(&r);
+        attributes[at] = (u8)(r.rbx >> 8);
+    }
+
+    if (planar) {
+        for (plane = 0; plane < PLANES; plane++) {
+            controller(GC_READ_MAP, plane);
+            move(
+                kept + plane * PLANAR_ROW * PLANAR_HEIGHT,
+                (const void *)adapter,
+                PLANAR_ROW * PLANAR_HEIGHT
+            );
+        }
+
+        controller(GC_READ_MAP, 0);
+    } else {
+        move(kept, (const void *)adapter, LINEAR_BYTES);
+    }
+
+    r = (Regs){0};
+
+    r.rax = VBE_SET;
+    r.rbx = mode | VBE_LINEAR;
+    dev_int10(&r);
+
+    if ((r.rax & 0xFFFF) != VBE_OK) {
+        dev_give(kept);
+        return 0;
+    }
+
+    vbe.mode = mode;
+    vbe.nibbles = planar;
+    kind = KIND_LINEAR;
+    ops = &linear_ops;
+    pitch = width;
+    memset(vbe_page(1), 0, (size_t)width * height);
+
+    if (planar) {
+        for (y = 0; y < height; y++) {
+            u8 *const row = vbe_page(0) + y * width;
+
+            for (x = 0; x < width; x++) {
+                unsigned pixel = 0;
+
+                for (plane = 0; plane < PLANES; plane++)
+                    pixel |= (kept[plane * PLANAR_ROW * PLANAR_HEIGHT + y * PLANAR_ROW + x / 8] >>
+                                  (7 - x % 8) &
+                              1u)
+                             << plane;
+
+                row[x] = (u8)pixel;
+            }
+        }
+    } else {
+        move(vbe_page(0), kept, LINEAR_BYTES);
+    }
+
+    dev_give(kept);
+    dev_outb(DAC_WRITE_INDEX, 0);
+
+    for (at = 0; at < (planar ? ATTRIBUTES : 256u); at++) {
+        const u8 *const color = dac + 3 * (planar ? attributes[at] : at);
+
+        dev_outb(DAC_DATA, color[0]);
+        dev_outb(DAC_DATA, color[1]);
+        dev_outb(DAC_DATA, color[2]);
+    }
+
+    screen = vbe_page(0);
+    vbe_show(0);
+    return 1;
+}
+
+unsigned gd_vbe(void) { return vbe.mode; }
+
+void gd_vbe_show(void)
+{
+    Regs r = {0};
+
+    r.rax = VBE_SET;
+    r.rbx = vbe.mode | VBE_LINEAR | VBE_KEEP;
+    dev_int10(&r);
+    vbe_show(shown);
+}
+
+/* A colour as 12h keeps it in VBE's mode: 4 bits. */
+static unsigned ink(unsigned color) { return vbe.nibbles ? color & 0x0F : color; }
+
+/* GET and PUT of 12h in VBE's mode: pixmem.c's, over the page drawn on. */
+static int vbe_planes(void)
+{
+    if (vbe.nibbles)
+        pm_use((u8 *)screen, PLANAR_WIDTH, PLANAR_HEIGHT, PM_PLANAR, no_touch);
+
+    return vbe.nibbles;
+}
+
+/* The hidden page and the shown one's copy, taken once a mode's second page is used: VBE's pages
+   where there are. */
+static void soft_take(void)
+{
+    if (soft_block || vbe.mode)
+        return;
+    if ((soft_mode == MODE_LINEAR || soft_mode == MODE_640_480) && vbe_on())
+        return;
+    if (soft_mode == MODE_640_480) {
+        soft_block = hidden = dev_take(PLANAR_WIDTH * PLANAR_HEIGHT);
+        return;
+    }
+
+    soft_block = hidden = dev_take(2UL * soft_bytes());
+    shown_copy = hidden + soft_bytes();
 }
 
 /* The adapter's page and the hidden one change places. */
@@ -300,6 +622,15 @@ int gd_set_pages(unsigned active, unsigned visible)
     if (soft_mode) {
         if (active | visible | shown)
             soft_take();
+        if (vbe.mode) {
+            screen = vbe_page(active);
+
+            if (visible != shown)
+                vbe_show(visible);
+
+            shown = visible;
+            return 1;
+        }
         if (visible != shown) {
             soft_swap();
             shown = visible;
@@ -325,7 +656,11 @@ int gd_copy_page(unsigned from, unsigned to)
         return 1;
     if (soft_mode) {
         soft_take();
-        soft_copy(to != shown);
+
+        if (vbe.mode)
+            move(vbe_page(to), vbe_page(from), pitch * (vbe.nibbles ? PLANAR_HEIGHT : 200));
+        else
+            soft_copy(to != shown);
         return 1;
     }
     src = (Video *)QB_VIDEO_MEMORY(0xA000 + from * page_paragraphs);
@@ -337,9 +672,20 @@ int gd_copy_page(unsigned from, unsigned to)
     return 1;
 }
 
+/* One of red, green and blue of an EGA colour (rgbRGB): 2/3 for its bit, 1/3 for the other's. */
+static unsigned ega_level(unsigned color, unsigned bit)
+{
+    return (color >> bit & 1) * 0x2A + (color >> (bit + 3) & 1) * 0x15;
+}
+
 void gd_palette(unsigned index, unsigned color)
 {
     Regs r;
+
+    if (vbe.nibbles) { /* no attribute palette: the colour register's */
+        gd_palette_mix(index, ega_level(color, 2), ega_level(color, 1), ega_level(color, 0));
+        return;
+    }
 
     r.rax = SET_PALETTE;
     r.rbx = color << 8 | index;
@@ -466,7 +812,7 @@ static void planar_glyph(unsigned x, unsigned y, const u8 QB_FAR *bits, unsigned
 
 const u8 QB_FAR *gd_font(unsigned height)
 {
-    Regs r;
+    Regs r = {0};
 
     r.rax = GET_FONT;
     r.rbx = height == 14 ? FONT_14 : height == 16 ? FONT_16 : FONT_8;
@@ -474,7 +820,7 @@ const u8 QB_FAR *gd_font(unsigned height)
     return (const u8 QB_FAR *)QB_REAL_POINTER(r.res, r.rbp);
 }
 
-/* The 256-colour mode: a byte a pixel, rows of 320. */
+/* The 256-colour modes: a byte a pixel, rows of `pitch`. */
 static Video *pixel_at(unsigned x, unsigned y)
 {
     return screen + (unsigned long)y * pitch + x;
@@ -549,7 +895,7 @@ static void linear_glyph(unsigned x, unsigned y, const u8 QB_FAR *bits, unsigned
 
         at[0] = nibble_bytes[row >> 4] & ink;
         at[1] = nibble_bytes[row & 15] & ink;
-        at += 320 / 4;
+        at += pitch / 4;
     }
 }
 
@@ -561,6 +907,7 @@ static const GdOps planar_ops = {planar_plot, planar_read, planar_search, planar
 
 void gd_plot(unsigned x, unsigned y, unsigned color, unsigned operation)
 {
+    color = ink(color);
     if (in_memory)
         pm_plot(x, y, color, operation);
     else
@@ -574,6 +921,8 @@ unsigned gd_read(unsigned x, unsigned y)
 
 int gd_search(int x, int last, unsigned y, unsigned c1, unsigned c2, int match)
 {
+    c1 = ink(c1);
+    c2 = ink(c2);
     return in_memory ? pm_search(x, last, y, c1, c2, match) : ops->search(x, last, y, c1, c2, match);
 }
 
@@ -587,6 +936,7 @@ void gd_move_rows(unsigned to, unsigned from, unsigned count)
 
 void gd_glyph(unsigned x, unsigned y, const u8 QB_FAR *bits, unsigned height, unsigned foreground)
 {
+    foreground = ink(foreground);
     if (in_memory)
         pm_glyph(x, y, bits, height, foreground);
     else
@@ -655,6 +1005,8 @@ int gd_run(int x, int last, unsigned y, unsigned edge, unsigned paint, int limit
     FillScan scan;
     int open, l, r;
 
+    edge = ink(edge);
+    paint = ink(paint);
     if (in_memory)
         return pm_run(x, last, y, edge, paint, limit, left, right);
     if (kind == KIND_PACKED4 || kind == KIND_PACKED2) {
@@ -1146,7 +1498,10 @@ void gd_dots_end(const GdFill *fill)
 
 void gd_fill_select(GdFill *fill, unsigned color, unsigned operation)
 {
-    unsigned byte = color & 0xFF;
+    unsigned byte;
+
+    color = ink(color);
+    byte = color & 0xFF;
 
     if (in_memory) {
         pm_fill_select(fill, color, operation);
@@ -1210,7 +1565,7 @@ int gd_solid_box(unsigned x, unsigned y, unsigned count, unsigned rows, unsigned
     box.count = count;
     box.rows = rows;
     box.dstep = (int)pitch;
-    box.color = color;
+    box.color = ink(color);
     dev_solid(&box);
     return 1;
 }
@@ -1219,7 +1574,7 @@ void gd_get(unsigned x, unsigned y, unsigned width, unsigned rows, u8 QB_FAR *ou
 {
     unsigned row;
 
-    if (in_memory) {
+    if (in_memory || vbe_planes()) {
         pm_get(x, y, width, rows, out);
         return;
     }
@@ -1259,7 +1614,7 @@ void gd_get(unsigned x, unsigned y, unsigned width, unsigned rows, u8 QB_FAR *ou
 int gd_put_step(unsigned x, unsigned y, unsigned width, unsigned rows, const u8 QB_FAR *in, unsigned step,
                 unsigned operation, unsigned invert)
 {
-    if (kind != KIND_LINEAR || in_memory)
+    if (kind != KIND_LINEAR || in_memory || vbe.nibbles)
         return 0;
 
     linear_blit((void *)pixel_at(x, y), in, width, rows, (int)pitch, (int)step, invert ? LINEAR_NOT : operation);
@@ -1271,7 +1626,7 @@ void gd_put(unsigned x, unsigned y, unsigned width, unsigned rows, const u8 QB_F
 {
     unsigned row;
 
-    if (in_memory) {
+    if (in_memory || vbe_planes()) {
         pm_put(x, y, width, rows, in, operation, invert);
         return;
     }

@@ -78,12 +78,14 @@ def job_file(work: Path, i: int, name: str, prog: str, files: dict[str, bytes]) 
 
 def run(jobs: dict[str, str | tuple], work: Path, limit_ms: int = 60000, file: bool = False,
         files: dict[str, bytes] | None = None, mem: int = 4, screen: bool = False,
-        before: tuple[str, ...] = (), keyboard: bool = False, profile: bool = False) -> dict[str, Result]:
+        before: tuple[str, ...] = (), keyboard: bool = False, profile: bool = False, machine: str = "svga_s3",
+        ems: bool = True) -> dict[str, Result]:
     """Run each program text as stdin of BASIC.COM, or with file as the file BASIC.COM runs, its
     stdin a job's (program, input[, arguments]) second, the arguments after the file's name; files
     are put beside them. One DOSBox, one job per program. screen: standard output not redirected,
     the screen's path run; out is then empty. before: DOS commands ahead of each job's; keyboard: standard input not redirected
-    either (the IDE's own run). profile: each function's calls counted, by the map beside COM."""
+    either (the IDE's own run). profile: each function's calls counted, by the map beside COM. machine:
+    DOSBox's adapter (vgaonly: no VBE); ems: EMS's memory there."""
     if work.exists():
         shutil.rmtree(work)
     work.mkdir(parents=True)
@@ -108,7 +110,8 @@ def run(jobs: dict[str, str | tuple], work: Path, limit_ms: int = 60000, file: b
         lines += [":profile"] * profile + [f":ms {limit_ms}", f"mount c {work}", "c:", *before, run if screen else f"{run} > J{i}.TXT", "."]
     fpu = "" if os.environ.get("DOS_FPU", "1") == "1" else "fpu=false\n"
     # mem: DOSBox's MB. DOS/32A's start costs about 0.35 s a MB, the heap takes what is free
-    (work / "job.conf").write_text(CONF.format(mem=mem).replace("[dos]", f"{fpu}[dos]"))
+    conf = CONF.format(mem=mem).replace("[dos]", f"{fpu}[dos]").replace("[dosbox]", f"[dosbox]\nmachine={machine}")
+    (work / "job.conf").write_text(conf if ems else conf.replace("ems=true", "ems=false"))
     (work / "jobs.txt").write_text("\n".join(lines) + "\n")
     with open(work / "events.txt", "wb") as ev, open(work / "jobs.txt", "rb") as jin:
         env = dict(os.environ, SDL_VIDEODRIVER="dummy", DOSRUN_FD=str(ev.fileno()))

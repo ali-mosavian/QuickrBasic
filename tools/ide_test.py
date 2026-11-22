@@ -917,6 +917,17 @@ def play() -> None:
     press(f"0x{F4:x}")
     assert peek(0x449) == 0x13 and [peek(0xA0000 + 320 + x) for x in (1, 2)] == [4, 5], look()
     press("space", f"0x{ALT_D:x}", "t")
+    # Two pages, stepped: in VBE's mode they stay in video memory past the text mode's, and F4 shows
+    # the page shown again, the A000h window its.
+    (work / "PG.BAS").write_bytes(b"SCREEN 13, , 1, 0\r\nPSET (1, 1), 4\r\nSCREEN , , 1, 1\r\nEND\r\n")
+    open_file("pg.bas")
+    for want in [(0, "SCREEN 13,, 1, 0"), (1, "PSET (1, 1), 4"), (2, "SCREEN,, 1, 1"), (3, "END")]:
+        step(F8, want)
+    press(f"0x{F4:x}")
+    assert peek(0xA0000 + 321) == 4, peek(0xA0000 + 321)
+    press("space")
+    press(f"0x{F5:x}")
+    press("space")
     # READ past indented lines (GORILLAS.BAS): the editor keeps a line's indent after its 0, and the
     # scan took it for the next line's record. Out of DATA, or 0.
     (work / "DAT.BAS").write_bytes(b"RESTORE L2\r\nREAD a, b\r\nPRINT a; b\r\nEND\r\nL1:\r\n  DATA 1\r\n"
