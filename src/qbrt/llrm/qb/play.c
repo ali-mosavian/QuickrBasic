@@ -510,6 +510,7 @@ void B_SPLY(SD *commands)
 {
     macro_begin(&players[0].m, commands);
     players[0].layer = 0;
+    music_align(0);
     while (step(&players[0], 0))
         ;
     str_free_if_tmp(commands);

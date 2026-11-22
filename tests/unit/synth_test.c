@@ -738,25 +738,30 @@ static void old_speaker(OldSpeaker *const o, const uint32_t want, int16_t *const
     }
 }
 
-/* One string of QB's commands, as before the voices: the same tones at the same ticks (the log of the speaker before
-   them), no voice, and the same samples as the old speaker's. */
+/* One string of QB's commands on the speaker: the tones at the ticks worked out by hand (a whole note 4 * 1092390 /
+   tempo thousandths of a tick, sounding 7, 8 or 6 eighths of it, whole ticks with the rest owed to the next; in the
+   foreground a note after no quiet starts a tick late), no voice, and the same samples as the old speaker's. Its
+   ticks were those of a run after other tests: their MB, the time they left owed, and a clock they had started. */
 TEST(play_of_one_string_sounds_as_before)
 {
+    static const char *const settle[] = {"10 PLAY \"MF P64\"", nullptr};
     static const char *const lines[] = {
         "10 PLAY \"T180 L8 O3 C D# E- MS F G. ML A B > C P8 MN N40 MB L16 GFE\": SOUND 300, 3", nullptr};
     static const struct {
         unsigned hertz;
         long tick;
-    } before[] = {{262, 0}, {0, 3},  {311, 3},  {0, 5},  {311, 5},  {0, 8},  {349, 9},  {0, 11}, {392, 11},
-                  {0, 15},  {440, 17}, {0, 20}, {494, 20}, {0, 23}, {524, 23}, {0, 26}, {0, 29}, {311, 29},
-                  {0, 32},  {784, 32}, {0, 33}, {698, 33}, {0, 34}, {660, 34}, {0, 35}};
+    } before[] = {{262, 0},  {0, 2},  {311, 3},  {0, 6},  {311, 7},  {0, 9},  {349, 10}, {0, 13}, {392, 14},
+                  {0, 17},   {440, 19}, {0, 22}, {494, 23}, {0, 26}, {524, 27}, {0, 30}, {0, 34},  {311, 35},
+                  {0, 38},   {784, 38}, {0, 39}, {698, 39}, {0, 41}, {660, 41}, {0, 42}, {300, 42}, {0, 45}};
     enum { TONES = sizeof before / sizeof before[0] };
 
     qbrt_realtime(false);
-    music_clear(); /* an earlier test's music */
+    music_clear();                       /* an earlier test's music */
+    CHECK(unit_run(S, settle) == ST_OK); /* the music's clock started */
+    headless_run(20);                    /* and no longer an earlier synthesizer's to tick */
     const size_t first = headless_tone_count(), voices = headless_voice_count();
     CHECK(unit_run(S, lines) == ST_OK);
-    headless_run(200);
+    headless_run(300);
     CHECK(headless_voice_count() == voices);
     CHECK(headless_tone_count() - first == TONES);
     for (size_t i = 0; i < TONES && first + i < headless_tone_count(); i++) {
@@ -1259,7 +1264,7 @@ TEST(headless_logs_a_long_songs_voices)
  * note's (nine sixteenths) could not be written, and a held chord was let go a sixteenth early. */
 TEST(play_legato_ties_a_pitch_to_itself)
 {
-    static const char *const lines[] = {"10 PLAY \"W0 ML L4 C C D\"", nullptr};
+    static const char *const lines[] = {"10 PLAY \"MB O3 W0 ML L4 C C D\"", nullptr}; /* MB, O3: a test's before */
 
     qbrt_realtime(false);
     music_clear();
@@ -1295,6 +1300,23 @@ static void play_tick(void)
 }
 
 /* PLAY's `strings` rendered for 2.5 s at `rate`, `sides` 2 stereo: the samples' hash. */
+/* `strings` played in the background, each voice from PLAY's defaults: what a test before set (an octave, a length,
+   ML) stays set from one program to the next. */
+static void played_line(char *const line, const size_t size, const char *const strings)
+{
+    static const char start[] = "MB MN T120 O4 L4 ";
+    size_t n = (size_t)snprintf(line, size, "10 PLAY \"%s", start);
+
+    for (const char *c = strings; *c && n + sizeof start + 2 < size; c++) {
+        line[n++] = *c;
+        if (c[0] == ' ' && c > strings + 1 && c[-1] == ',' && c[-2] == '"' && c[1] == '"') {
+            line[n++] = *++c;
+            n += (size_t)snprintf(line + n, size - n, "%s", start);
+        }
+    }
+    snprintf(line + n, size - n, "\"");
+}
+
 static uint32_t played_hash(Session *const S, const char *const strings, const uint32_t rate, const int sides)
 {
     static Synth s;
@@ -1302,7 +1324,7 @@ static uint32_t played_hash(Session *const S, const char *const strings, const u
     char line[600];
     const char *const lines[] = {line, nullptr};
 
-    snprintf(line, sizeof line, "10 PLAY \"MB\": PLAY \"%s\"", strings);
+    played_line(line, sizeof line, strings);
     music_clear();
     headless_voice_forget();
     played_from = 0;
@@ -1325,196 +1347,197 @@ static uint32_t played_hash(Session *const S, const char *const strings, const u
 }
 
 /* Every patch of CHARLIE's songs (tools/charliesong.txt, alim/feat/charlie-lantern) and the demos' and docs' PLAY
-   strings render the samples they did before layers, at the Mac's rate in stereo and at DOS's in mono. */
+   strings render the samples they did before layers, at the Mac's rate in stereo and at DOS's in mono. Each from
+   PLAY's defaults: alone it failed 178 of 180, its hashes holding what the tests before it left set. */
 TEST(synth_patches_render_as_before)
 {
     static const struct {
         const char *play;
         uint32_t hash;
     } patches[] = {
-        {"R2S12W1H5,4,12,5U3 T150 L8 O3 C E G > C P8 < G", 18737190u},
-        {"R2S12W4Z1,4,3,13,4H0,4,11,1U9 T150 L8 O3 C E G > C P8 < G", 1240837066u},
-        {"R2W1H5,4,12,5U3 T150 L8 O3 C E G > C P8 < G", 3260815604u},
-        {"R2W4Z1,4,3,13,4H0,4,11,1U9 T150 L8 O3 C E G > C P8 < G", 117421718u},
-        {"R3W4Z7,6,7,0H0,6,0,4 T150 L8 O3 C E G > C P8 < G", 2182949812u},
-        {"R5W4Z3,9,3,1,3H0,4,1,2U0I0 T150 L8 O3 C E G > C P8 < G", 73426630u},
-        {"R6W1H3,2,12,3U5 T150 L8 O3 C E G > C P8 < G", 1927075284u},
-        {"R8W3H10,0,15,10Y2,800,8 T150 L8 O3 C E G > C P8 < G", 3084041042u},
-        {"R8W4Z7,6,7,0H0,6,0,4 T150 L8 O3 C E G > C P8 < G", 3385123968u},
-        {"S10R3W4Z1,4,3,13,5H3,4,11,3U5 T150 L8 O3 C E G > C P8 < G", 3381832690u},
-        {"S10R4W4Z1,4,3,13,4H0,4,11,1U9I0 T150 L8 O3 C E G > C P8 < G", 2119237410u},
-        {"S10R5W1H3,2,12,3U5 T150 L8 O3 C E G > C P8 < G", 3202633678u},
-        {"S10R6W0Q9Y2,1800,5H2,3,11,3U6I0 T150 L8 O3 C E G > C P8 < G", 4142194326u},
-        {"S10W4Z2,8,5,3,1H0,9,5,6R5 T150 L8 O3 C E G > C P8 < G", 2660588456u},
-        {"S11R3W2Y1,900,2H4,3,10,4 T150 L8 O3 C E G > C P8 < G", 3155893406u},
-        {"S11R3W4Z1,4,3,13,5H3,4,11,3U5 T150 L8 O3 C E G > C P8 < G", 2364244522u},
-        {"S11R3W4Z3,9,3,1,3H0,4,1,2U0I0 T150 L8 O3 C E G > C P8 < G", 3725591924u},
-        {"S11R5W0Q12Y2,1100,1H0,5,2,2U0I0 T150 L8 O3 C E G > C P8 < G", 1453110220u},
-        {"S11R5W1H5,3,9,5 T150 L8 O3 C E G > C P8 < G", 3342871916u},
-        {"S11W4Z4,7,2,0H0,6,0,3R4 T150 L8 O3 C E G > C P8 < G", 2282810188u},
-        {"S5R3W0Q30H0,3,7,1 T150 L8 O3 C E G > C P8 < G", 1999196896u},
-        {"S5R3W4Z1,8,3,11,4H0,4,10,1U9I2 T150 L8 O3 C E G > C P8 < G", 3559326748u},
-        {"S5R3W4Z2,6,3,2H0,6,0,2 T150 L8 O3 C E G > C P8 < G", 422268202u},
-        {"S5R4W4Z2,5,3,1H0,5,0,2 T150 L8 O3 C E G > C P8 < G", 2941180200u},
-        {"S5R5W2Y1,1600,2H0,6,0,3U0I0 T150 L8 O3 C E G > C P8 < G", 956661358u},
-        {"S5W4Z4,7,2,0H0,6,0,3R4 T150 L8 O3 C E G > C P8 < G", 693556558u},
-        {"S6R6W2Y1,1400,2H4,3,10,3U4 T150 L8 O3 C E G > C P8 < G", 486943916u},
-        {"W0Q12H0,1,0,1 T150 L8 O3 C E G > C P8 < G", 3195572472u},
-        {"W0Q25Y1,900,4H0,3,9,1 T150 L8 O3 C E G > C P8 < G", 794323188u},
-        {"W0Q42H1,4,10,1U5I4 T150 L8 O3 C E G > C P8 < G", 2916690864u},
-        {"W1H0,2,0,1 T150 L8 O3 C E G > C P8 < G", 3986419288u},
-        {"W1H0,6,10,2 T150 L8 O3 C E G > C P8 < G", 3568144724u},
-        {"W1H5,4,12,5U3 T150 L8 O3 C E G > C P8 < G", 36225168u},
-        {"W2Y1,1800,5H0,4,11,2U3I6R7 T150 L8 O3 C E G > C P8 < G", 880983514u},
-        {"W2Y1,2400,5H0,4,11,2U3I6 T150 L8 O3 C E G > C P8 < G", 2824015990u},
-        {"W2Y1,2600,3H2,3,12,2U6K1,0,1R4 T150 L8 O3 C E G > C P8 < G", 2813553332u},
-        {"W2Y1,2800,3H2,3,12,3U2I7R6 T150 L8 O3 C E G > C P8 < G", 4012849492u},
-        {"W2Y1,480,4H0,8,3,4U0I0R2 T150 L8 O3 C E G > C P8 < G", 99104454u},
-        {"W3H0,2,0,1K0Y3,2500,0 T150 L8 O3 C E G > C P8 < G", 1065396974u},
-        {"W3H0,3,0,1K0Y3,2500,0 T150 L8 O3 C E G > C P8 < G", 3324732178u},
-        {"W3H0,3,0,2K0Y3,7000,5 T150 L8 O3 C E G > C P8 < G", 3079588002u},
-        {"W3H0,5,0,1K0Y0 T150 L8 O3 C E G > C P8 < G", 2932172628u},
-        {"W3H0,7,0,4K0Y3,2500,0 T150 L8 O3 C E G > C P8 < G", 2176226330u},
-        {"W4H0,4,3,3Y0K1,8 T150 L8 O3 C E G > C P8 < G", 620391470u},
-        {"W4H0,5,0,3Y0K5,6 T150 L8 O3 C E G > C P8 < G", 1317876532u},
-        {"W4H0,6,4,5Y0K2,10 T150 L8 O3 C E G > C P8 < G", 1672919712u},
-        {"W4Z1,0,0,0,0H0,1,0,1Y0K1,4 T150 L8 O3 C E G > C P8 < G", 2442432910u},
-        {"W4Z1,10,4,2H0,9,0,6 T150 L8 O3 C E G > C P8 < G", 1451935662u},
-        {"W4Z1,12,4,4H0,8,0,3 T150 L8 O3 C E G > C P8 < G", 1465416028u},
-        {"W4Z1,2,13,0,7H3,3,1,7Y1,4775,6K3,7 T150 L8 O3 C E G > C P8 < G", 3327044712u},
-        {"W4Z1,4,2,0H0,3,0,1K1,2 T150 L8 O3 C E G > C P8 < G", 4123036896u},
-        {"W4Z1,4,2,0H0,4,0,2K1,3 T150 L8 O3 C E G > C P8 < G", 2175005518u},
-        {"W4Z1,4,3,13,4H0,4,11,1U9I0 T150 L8 O3 C E G > C P8 < G", 2964392220u},
-        {"W4Z1,4,3,13,5H1,4,11,2U9I7 T150 L8 O3 C E G > C P8 < G", 1747047824u},
-        {"W4Z1,6,3,3,2H0,5,5,1 T150 L8 O3 C E G > C P8 < G", 41468220u},
-        {"W4Z1,8,3,11,4H0,4,12,1U11I2 T150 L8 O3 C E G > C P8 < G", 3010954500u},
-        {"W4Z1,9,3,15,3H5,4,10,1U5I4 T150 L8 O3 C E G > C P8 < G", 163524940u},
-        {"W4Z13,3,15,13,6H0,3,0,3Y1,3793,12K1,5 T150 L8 O3 C E G > C P8 < G", 2170657178u},
-        {"W4Z2,15,13,14,6H1,3,0,3Y3,301,11K3,12 T150 L8 O3 C E G > C P8 < G", 1133031270u},
-        {"W4Z2,8,5,3,1H0,9,5,6R5I4 T150 L8 O3 C E G > C P8 < G", 407046338u},
-        {"W4Z3,9,3,1,3H0,4,1,2U0I0 T150 L8 O3 C E G > C P8 < G", 498534286u},
-        {"W4Z4,2,10,9,7H0,5,0,5Y1,756,7K4,9 T150 L8 O3 C E G > C P8 < G", 1270799098u},
-        {"W4Z4,6,2,0H0,6,0,3R3 T150 L8 O3 C E G > C P8 < G", 837727202u},
-        {"W4Z6,3,12,0,7H3,3,0,3Y2,1900,10K3,7 T150 L8 O3 C E G > C P8 < G", 4927834u},
-        {"W4Z7,6,11,14,7H0,5,0,5Y1,190,6K9,4 T150 L8 O3 C E G > C P8 < G", 3591793460u},
-        {"W4Z7,6,3,0H0,8,0,6R6 T150 L8 O3 C E G > C P8 < G", 1629027160u},
-        {"H0,1,0,1 Y3,6000 O6 C T150 L8 O3 C E G > C P8 < G", 3665949718u},
-        {"H0,4,0,3 Y1,300,4 O1 C T150 L8 O3 C E G > C P8 < G", 2132247590u},
-        {"H0,4,0,4 Y0 O4 C T150 L8 O3 C E G > C P8 < G", 3965026862u},
-        {"L1 W1 V5 O3 C T150 L8 O3 C E G > C P8 < G", 4275349822u},
-        {"L1 W1 V5 O3 E T150 L8 O3 C E G > C P8 < G", 2360239720u},
-        {"L1 W1 V5 O3 G T150 L8 O3 C E G > C P8 < G", 2328548122u},
-        {"L1 W1 V5 O4 C T150 L8 O3 C E G > C P8 < G", 391680122u},
-        {"L1 W1 V5 O4 E T150 L8 O3 C E G > C P8 < G", 4006162978u},
-        {"L1 W1 V5 O4 G T150 L8 O3 C E G > C P8 < G", 1873518386u},
-        {"MLW0Q30Y1,2400,6H6,6,10,8V7 T150 L8 O3 C E G > C P8 < G", 3585786712u},
-        {"MLW1H11,8,11,10V9 T150 L8 O3 C E G > C P8 < G", 2124528212u},
-        {"MLW2Y1,900,6H9,6,10,9V8 T150 L8 O3 C E G > C P8 < G", 3909036162u},
-        {"MNW0Q25H0,3,6,2V6 T150 L8 O3 C E G > C P8 < G", 1195926152u},
-        {"MNW1H0,2,10,3V15 T150 L8 O3 C E G > C P8 < G", 1127799112u},
-        {"MNW1H0,5,8,4V7 T150 L8 O3 C E G > C P8 < G", 2434927984u},
-        {"MNW1Y1,1800,4H0,6,6,6V7 T150 L8 O3 C E G > C P8 < G", 2914438046u},
-        {"MNW2Y1,1400,6H0,4,7,3V6 T150 L8 O3 C E G > C P8 < G", 2481431642u},
-        {"MSW0Q40Y1,1600,4H0,3,6,2V15 T150 L8 O3 C E G > C P8 < G", 567463366u},
-        {"T100 O2 L2 W4 H0,6,6,3 Z1,12,0,15 C Z1,12,4,4 C Z1,12,7,0 C T150 L8 O3 C E G > C P8 < G", 3513797790u},
-        {"T100 O3 L2 W4 H0,0,15,2 Z1,6,0,15,0 C Z1,6,0,15,3 C Z1,6,0,15,5 C T150 L8 O3 C E G > C P8 < G", 140180448u},
-        {"T100 O4 L4 W0 Q30 H1,4,10,2 K0 E G A2 K8,0,2 E G A2 T150 L8 O3 C E G > C P8 < G", 3081822414u},
-        {"T100 O4 L4 W4 Z1,9,3,11,4 H0,4,12,1 R0 C E G P4 R6 C E G P4 R12 C E G P2 T150 L8 O3 C E G > C P8 < G", 1154081732u},
-        {"T100 O4 W4 Z1,9,3,11,4 H0,4,12,2 L8 C D E F U0 G1 U6 G1 U12 G1 T150 L8 O3 C E G > C P8 < G", 1723135158u},
-        {"T120 L4 W4 Z1,0 H0,4,3,3 K1,8 V12 O1 C C C C T150 L8 O3 C E G > C P8 < G", 2461929754u},
-        {"T120 O2 L4 W2 Y1,3000 C Y1,1200 C Y1,500 C Y1,200 C T150 L8 O3 C E G > C P8 < G", 3285793354u},
-        {"T120 O3 L2 W4 H0,0,15,2 Z1,0 C Z1,4 C Z1,8 C Z1,12 C T150 L8 O3 C E G > C P8 < G", 1116666174u},
-        {"T120 O3 L2 W4 H0,0,15,2 Z1,8 C Z2,8 C Z3,8 C Z7,8 C T150 L8 O3 C E G > C P8 < G", 981803054u},
-        {"T120 O3 L4 W0 C E G P4 W1 C E G P4 W2 C E G P4 W3 C E G", 2304395852u},
-        {"T120 O3 L4 W2 Y1,2000,4 H0,4,12,2 K0 C G > C < G K8 C G > C < G T150 L8 O3 C E G > C P8 < G", 3281222732u},
-        {"T120 O4 L4 W0 Q30 H0,4,9,2 S1 C S4 E S8 G S12 > C S15 E T150 L8 O3 C E G > C P8 < G", 1029942890u},
-        {"T120MLW1H2,6,11,5V12 T150 L8 O3 C E G > C P8 < G", 237704018u},
-        {"T120MNW2Y1,500,6H0,7,8,4V8 T150 L8 O3 C E G > C P8 < G", 1629317448u},
-        {"T120MSW0Q30Y0H0,4,5,3V5 T150 L8 O3 C E G > C P8 < G", 1646805084u},
-        {"T130 L1 W0 Q30 H4,0,12,6 V7 O3 E E F G T150 L8 O3 C E G > C P8 < G", 2408830968u},
-        {"T130 L1 W0 Q30 H4,0,12,6 V7 O3 G A A B T150 L8 O3 C E G > C P8 < G", 86963572u},
-        {"T130 L1 W0 Q30 H4,0,12,6 V7 O4 C C C D T150 L8 O3 C E G > C P8 < G", 788372870u},
-        {"T130 L16 W0 Q20 H0,2,8,1 V6 O3 C E G > C < G E C E G > C < G E C E G E", 670218450u},
-        {"T130 L8 W3 V7 T150 L8 O3 C E G > C P8 < G", 2544206864u},
-        {"T130 L8 W3 V8 T150 L8 O3 C E G > C P8 < G", 2103306738u},
-        {"T130 O2 L2 W1 H0,8,10,4 V11 C C O1 A A O2 F F G G T150 L8 O3 C E G > C P8 < G", 691032668u},
-        {"T130 O2 L2 W1 V10 C C T150 L8 O3 C E G > C P8 < G", 659046806u},
-        {"T130 O4 L8 W2 H0,5,9,3 V8 E G > C < G E G E C T150 L8 O3 C E G > C P8 < G", 2697988030u},
-        {"T140 L8 W4 Z1,0 H0,4,3,3 K1,8 V12 O1 C W3 K0 H0,3,0,1 Y3,2500 O6 B W4 Y0 H0,4,3,3 K1,8 O1 C W3 K0 H0,3,0,1 Y3,2500 O6 B T150 L8 O3 C E G > C P8 < G", 4075026464u},
-        {"T140 W4 Z1,12,4,4 H0,5,5,1 V11 L4 O2 C G C G T150 L8 O3 C E G > C P8 < G", 196505004u},
-        {"T140 W4 Z1,9,3,11,4 H0,4,12,1 U8 S10 R4 V11 L8 O4 C E G > C < G E C4 T150 L8 O3 C E G > C P8 < G", 3547163854u},
-        {"T140MLW2Y1,2600,3H1,6,11,5V11 T150 L8 O3 C E G > C P8 < G", 2775734516u},
-        {"T140MNW0Q30H0,4,6,3V6 T150 L8 O3 C E G > C P8 < G", 1894971010u},
-        {"T140MNW1V12L16O4CO3GECL8EGL4O4C T150 L8 O3 C E G > C P8 < G", 1050245326u},
-        {"T140MNW2V9L4O2CO1GO2C T150 L8 O3 C E G > C P8 < G", 1409339754u},
-        {"T140MNW2Y1,700,5H0,8,9,5V13 T150 L8 O3 C E G > C P8 < G", 1250991570u},
-        {"T150MLW1H1,5,10,4V12 T150 L8 O3 C E G > C P8 < G", 3602581064u},
-        {"T150MLW2V12L32O2CO1GECL8O0G T150 L8 O3 C E G > C P8 < G", 354779788u},
-        {"T150MNW2Y1,700,6H0,6,8,3V9 T150 L8 O3 C E G > C P8 < G", 1490281248u},
-        {"T150MSW0Q30H0,3,5,2V5 T150 L8 O3 C E G > C P8 < G", 3166724424u},
-        {"T150W3H0,9,0,8V12L4O1C T150 L8 O3 C E G > C P8 < G", 2219896380u},
-        {"T160MNW0Q25H0,6,10,3V11 T150 L8 O3 C E G > C P8 < G", 3485589524u},
-        {"T160MNW0Q25V12L16O4CEGO5L8CO4L16GO5L4C T150 L8 O3 C E G > C P8 < G", 2133084668u},
-        {"T160MNW1H0,3,8,4V11L64O5CEGO6CL16E T150 L8 O3 C E G > C P8 < G", 566410512u},
-        {"T160MNW2V9L4O2CL8GL4O3C T150 L8 O3 C E G > C P8 < G", 3245553662u},
-        {"T160MNW2Y1,900,9H0,3,9,2V7 T150 L8 O3 C E G > C P8 < G", 486388916u},
-        {"T160MNW3Y0H0,2,0,1 T150 L8 O3 C E G > C P8 < G", 3230823732u},
-        {"T180W0Q50V9L16O4AO3AO4AO3A T150 L8 O3 C E G > C P8 < G", 4083084726u},
-        {"T200W0Q50V6L64O5G T150 L8 O3 C E G > C P8 < G", 2342643192u},
-        {"T200W0Q50V7L32O4CEGO5C T150 L8 O3 C E G > C P8 < G", 1770335506u},
-        {"T200W0Q50V8L16O2CO1G T150 L8 O3 C E G > C P8 < G", 514368088u},
-        {"T200W1V7L64O6A# T150 L8 O3 C E G > C P8 < G", 1758798740u},
-        {"T200W3Y2,2500,10H0,5,0,4V8L16O4C T150 L8 O3 C E G > C P8 < G", 1541662938u},
-        {"T255 L16 W0 Q25 H0,3,0,1 V10 O3 C E G > C E T150 L8 O3 C E G > C P8 < G", 91377756u},
-        {"T255 L16 W1 H0,2,12,2 V11 O3 C E G > C E G > C E G T150 L8 O3 C E G > C P8 < G", 3344549866u},
-        {"T255 L16 W2 H0,3,0,1 V10 N76 N70 N64 N58 N52 N46 T150 L8 O3 C E G > C P8 < G", 1579637200u},
-        {"T255 W0 Q50 H0,6,0,6 V10 O5 L16 B > E4 T150 L8 O3 C E G > C P8 < G", 1347151172u},
-        {"T255 W3 H0,10,0,10 V15 Y1,900,6 O1 C4 P4 T150 L8 O3 C E G > C P8 < G", 1706538650u},
-        {"T255 W3 H0,3,0,2 V12 O4 C16 P8 T150 L8 O3 C E G > C P8 < G", 1302225380u},
-        {"T255W1V13Y0K0I0H0,0,15,0 T150 L8 O3 C E G > C P8 < G", 1094925068u},
-        {"T255W3Y3,3000,4H0,2,0,2V6L32O5C T150 L8 O3 C E G > C P8 < G", 489726166u},
-        {"T80MLW1H3,8,9,6V11 T150 L8 O3 C E G > C P8 < G", 654820112u},
-        {"T80MNW2Y1,400,8H0,8,8,5V9 T150 L8 O3 C E G > C P8 < G", 1729135488u},
-        {"T80MSW0Q25H0,5,4,4V4 T150 L8 O3 C E G > C P8 < G", 3520270662u},
-        {"T90 O3 L1 W2 Y1,2400,4 H3,5,11,4 I0 C I4 C I8 C T150 L8 O3 C E G > C P8 < G", 1666710152u},
-        {"T90 O3 L2 W2 H0,0,15,0 C H0,6,0,4 C H10,0,15,8 C W1 H0,9,0,9 > C T150 L8 O3 C E G > C P8 < G", 1681422000u},
-        {"T90 W0 Q30 H2,6,8,8 V10 O3 L8 G F# F E2 T150 L8 O3 C E G > C P8 < G", 3161249698u},
-        {"T96MLW1H2,6,11,5V11 T150 L8 O3 C E G > C P8 < G", 353704050u},
-        {"T96MNW2Y1,500,6H0,7,8,4V9 T150 L8 O3 C E G > C P8 < G", 1555659666u},
-        {"T96MSW0Q30H0,4,5,3V4 T150 L8 O3 C E G > C P8 < G", 784933188u},
-        {"W0 L8 Q50 C C Q25 C C Q10 C C Q5 C C T150 L8 O3 C E G > C P8 < G", 2027069648u},
-        {"W0Q50H0,6,0,4V14O1G32C32P16W0Q50H0,6,0,4V14O1G32C32P16 T150 L8 O3 C E G > C P8 < G", 2618006094u},
-        {"W0Q50H0,6,0,4V14O1G32C32P16W3H0,1,0,1V5O6C32P32P16 T150 L8 O3 C E G > C P8 < G", 495555150u},
-        {"W2H0,2,0,2V7L64O6CB T150 L8 O3 C E G > C P8 < G", 945833432u},
-        {"W2I15Y2,1000,6H0,6,2,3K4,0,6L8O3D T150 L8 O3 C E G > C P8 < G", 3482711774u},
-        {"W2I15Y2,1300,6H0,5,3,3K3,0,7L16O3FP32L8O3D T150 L8 O3 C E G > C P8 < G", 1483936890u},
-        {"W2L32O6ECP32EC T150 L8 O3 C E G > C P8 < G", 619277550u},
-        {"W3H0,1,0,1V5L64O6C T150 L8 O3 C E G > C P8 < G", 4105853194u},
-        {"W3H0,3,0,1Y3,2500K0O6B T150 L8 O3 C E G > C P8 < G", 383347482u},
-        {"W3H0,4,0,3V9L32O3C T150 L8 O3 C E G > C P8 < G", 4161414372u},
-        {"W3H0,5,0,1Y0K0O6C T150 L8 O3 C E G > C P8 < G", 1212410784u},
-        {"W3H0,5,0,4V12O4C16P16W3H0,1,0,1V5O6C32P32P16 T150 L8 O3 C E G > C P8 < G", 1891521500u},
-        {"W3H0,5,0,4V12O4C16W3H0,5,0,4V9O4C16W3H0,5,0,4V12O4C16W3H0,5,0,4V9O4C16 T150 L8 O3 C E G > C P8 < G", 529220428u},
-        {"W3H0,7,0,4Y3,2500K0O6B T150 L8 O3 C E G > C P8 < G", 2588635310u},
-        {"W3H0,9,0,8V12L8O2C T150 L8 O3 C E G > C P8 < G", 2242777880u},
-        {"W3L32O2CL16O1C T150 L8 O3 C E G > C P8 < G", 1677692026u},
-        {"W3L32O5CO3GL16O2C T150 L8 O3 C E G > C P8 < G", 3718372590u},
-        {"W3Y3,3500,0H3,8,0,3L4O6B T150 L8 O3 C E G > C P8 < G", 1978461094u},
-        {"W4 Z1,12,4,4 H0,5,5,1 T150 L8 O3 C E G > C P8 < G", 1061079860u},
-        {"W4 Z1,12,4,4 H0,5,5,1 V11 MN L8 T150 L8 O3 C E G > C P8 < G", 344504618u},
-        {"W4 Z1,4,3,13,4 H0,4,11,1 T150 L8 O3 C E G > C P8 < G", 2150017718u},
-        {"W4 Z1,4,3,13,4 H0,4,11,1 U9 R2 V7 MS L8 T150 L8 O3 C E G > C P8 < G", 3954742518u},
-        {"W4 Z1,9,3,11,4 H0,4,12,1 T150 L8 O3 C E G > C P8 < G", 270129488u},
-        {"W4 Z1,9,3,11,4 H0,4,12,1 U8 R4 S8 V11 ML L8 T150 L8 O3 C E G > C P8 < G", 3421732136u},
-        {"W4 Z7,6,7,0 H0,9,0,9 T150 L8 O3 C E G > C P8 < G", 1551889634u},
-        {"W4Z1,0H0,4,3,3Y0K1,8O1C T150 L8 O3 C E G > C P8 < G", 226355348u},
-        {"W4Z1,0H0,5,0,3Y0K5,6O2G T150 L8 O3 C E G > C P8 < G", 1323477446u},
-        {"Y1,800,0 C Y1,800,8 C Y1,800,15 C Y0 V15 C V7 C V3 C T150 L8 O3 C E G > C P8 < G", 682781819u},
-        {"Z1,0L16 T150 L8 O3 C E G > C P8 < G", 1956616212u},
+        {"R2S12W1H5,4,12,5U3 T150 L8 O3 C E G > C P8 < G", 2445915404u},
+        {"R2S12W4Z1,4,3,13,4H0,4,11,1U9 T150 L8 O3 C E G > C P8 < G", 2897585944u},
+        {"R2W1H5,4,12,5U3 T150 L8 O3 C E G > C P8 < G", 3151367836u},
+        {"R2W4Z1,4,3,13,4H0,4,11,1U9 T150 L8 O3 C E G > C P8 < G", 3537640818u},
+        {"R3W4Z7,6,7,0H0,6,0,4 T150 L8 O3 C E G > C P8 < G", 4165414676u},
+        {"R5W4Z3,9,3,1,3H0,4,1,2U0I0 T150 L8 O3 C E G > C P8 < G", 3460592802u},
+        {"R6W1H3,2,12,3U5 T150 L8 O3 C E G > C P8 < G", 250683556u},
+        {"R8W3H10,0,15,10Y2,800,8 T150 L8 O3 C E G > C P8 < G", 2794130942u},
+        {"R8W4Z7,6,7,0H0,6,0,4 T150 L8 O3 C E G > C P8 < G", 3069561290u},
+        {"S10R3W4Z1,4,3,13,5H3,4,11,3U5 T150 L8 O3 C E G > C P8 < G", 3153755646u},
+        {"S10R4W4Z1,4,3,13,4H0,4,11,1U9I0 T150 L8 O3 C E G > C P8 < G", 4057279668u},
+        {"S10R5W1H3,2,12,3U5 T150 L8 O3 C E G > C P8 < G", 923141680u},
+        {"S10R6W0Q9Y2,1800,5H2,3,11,3U6I0 T150 L8 O3 C E G > C P8 < G", 1559889814u},
+        {"S10W4Z2,8,5,3,1H0,9,5,6R5 T150 L8 O3 C E G > C P8 < G", 4054310728u},
+        {"S11R3W2Y1,900,2H4,3,10,4 T150 L8 O3 C E G > C P8 < G", 2369225182u},
+        {"S11R3W4Z1,4,3,13,5H3,4,11,3U5 T150 L8 O3 C E G > C P8 < G", 3497990158u},
+        {"S11R3W4Z3,9,3,1,3H0,4,1,2U0I0 T150 L8 O3 C E G > C P8 < G", 3136453014u},
+        {"S11R5W0Q12Y2,1100,1H0,5,2,2U0I0 T150 L8 O3 C E G > C P8 < G", 2340050090u},
+        {"S11R5W1H5,3,9,5 T150 L8 O3 C E G > C P8 < G", 1795250964u},
+        {"S11W4Z4,7,2,0H0,6,0,3R4 T150 L8 O3 C E G > C P8 < G", 2593049118u},
+        {"S5R3W0Q30H0,3,7,1 T150 L8 O3 C E G > C P8 < G", 1422865736u},
+        {"S5R3W4Z1,8,3,11,4H0,4,10,1U9I2 T150 L8 O3 C E G > C P8 < G", 3573729678u},
+        {"S5R3W4Z2,6,3,2H0,6,0,2 T150 L8 O3 C E G > C P8 < G", 3863082520u},
+        {"S5R4W4Z2,5,3,1H0,5,0,2 T150 L8 O3 C E G > C P8 < G", 2368463384u},
+        {"S5R5W2Y1,1600,2H0,6,0,3U0I0 T150 L8 O3 C E G > C P8 < G", 3062271130u},
+        {"S5W4Z4,7,2,0H0,6,0,3R4 T150 L8 O3 C E G > C P8 < G", 2378243406u},
+        {"S6R6W2Y1,1400,2H4,3,10,3U4 T150 L8 O3 C E G > C P8 < G", 1081024340u},
+        {"W0Q12H0,1,0,1 T150 L8 O3 C E G > C P8 < G", 1092468374u},
+        {"W0Q25Y1,900,4H0,3,9,1 T150 L8 O3 C E G > C P8 < G", 1971391758u},
+        {"W0Q42H1,4,10,1U5I4 T150 L8 O3 C E G > C P8 < G", 930264958u},
+        {"W1H0,2,0,1 T150 L8 O3 C E G > C P8 < G", 2378169714u},
+        {"W1H0,6,10,2 T150 L8 O3 C E G > C P8 < G", 152625194u},
+        {"W1H5,4,12,5U3 T150 L8 O3 C E G > C P8 < G", 3258360626u},
+        {"W2Y1,1800,5H0,4,11,2U3I6R7 T150 L8 O3 C E G > C P8 < G", 607835874u},
+        {"W2Y1,2400,5H0,4,11,2U3I6 T150 L8 O3 C E G > C P8 < G", 2324021140u},
+        {"W2Y1,2600,3H2,3,12,2U6K1,0,1R4 T150 L8 O3 C E G > C P8 < G", 2119007738u},
+        {"W2Y1,2800,3H2,3,12,3U2I7R6 T150 L8 O3 C E G > C P8 < G", 1903950338u},
+        {"W2Y1,480,4H0,8,3,4U0I0R2 T150 L8 O3 C E G > C P8 < G", 2664214958u},
+        {"W3H0,2,0,1K0Y3,2500,0 T150 L8 O3 C E G > C P8 < G", 40748514u},
+        {"W3H0,3,0,1K0Y3,2500,0 T150 L8 O3 C E G > C P8 < G", 1344071520u},
+        {"W3H0,3,0,2K0Y3,7000,5 T150 L8 O3 C E G > C P8 < G", 4206207766u},
+        {"W3H0,5,0,1K0Y0 T150 L8 O3 C E G > C P8 < G", 1221475768u},
+        {"W3H0,7,0,4K0Y3,2500,0 T150 L8 O3 C E G > C P8 < G", 462904822u},
+        {"W4H0,4,3,3Y0K1,8 T150 L8 O3 C E G > C P8 < G", 2449926472u},
+        {"W4H0,5,0,3Y0K5,6 T150 L8 O3 C E G > C P8 < G", 726448542u},
+        {"W4H0,6,4,5Y0K2,10 T150 L8 O3 C E G > C P8 < G", 2988636366u},
+        {"W4Z1,0,0,0,0H0,1,0,1Y0K1,4 T150 L8 O3 C E G > C P8 < G", 2534701298u},
+        {"W4Z1,10,4,2H0,9,0,6 T150 L8 O3 C E G > C P8 < G", 2487721610u},
+        {"W4Z1,12,4,4H0,8,0,3 T150 L8 O3 C E G > C P8 < G", 1187220324u},
+        {"W4Z1,2,13,0,7H3,3,1,7Y1,4775,6K3,7 T150 L8 O3 C E G > C P8 < G", 1554903548u},
+        {"W4Z1,4,2,0H0,3,0,1K1,2 T150 L8 O3 C E G > C P8 < G", 1965933870u},
+        {"W4Z1,4,2,0H0,4,0,2K1,3 T150 L8 O3 C E G > C P8 < G", 2518168238u},
+        {"W4Z1,4,3,13,4H0,4,11,1U9I0 T150 L8 O3 C E G > C P8 < G", 887282460u},
+        {"W4Z1,4,3,13,5H1,4,11,2U9I7 T150 L8 O3 C E G > C P8 < G", 3358767682u},
+        {"W4Z1,6,3,3,2H0,5,5,1 T150 L8 O3 C E G > C P8 < G", 1233716036u},
+        {"W4Z1,8,3,11,4H0,4,12,1U11I2 T150 L8 O3 C E G > C P8 < G", 4027628242u},
+        {"W4Z1,9,3,15,3H5,4,10,1U5I4 T150 L8 O3 C E G > C P8 < G", 4229419684u},
+        {"W4Z13,3,15,13,6H0,3,0,3Y1,3793,12K1,5 T150 L8 O3 C E G > C P8 < G", 2735275418u},
+        {"W4Z2,15,13,14,6H1,3,0,3Y3,301,11K3,12 T150 L8 O3 C E G > C P8 < G", 3129197670u},
+        {"W4Z2,8,5,3,1H0,9,5,6R5I4 T150 L8 O3 C E G > C P8 < G", 3650489198u},
+        {"W4Z3,9,3,1,3H0,4,1,2U0I0 T150 L8 O3 C E G > C P8 < G", 981764792u},
+        {"W4Z4,2,10,9,7H0,5,0,5Y1,756,7K4,9 T150 L8 O3 C E G > C P8 < G", 335729960u},
+        {"W4Z4,6,2,0H0,6,0,3R3 T150 L8 O3 C E G > C P8 < G", 2606280156u},
+        {"W4Z6,3,12,0,7H3,3,0,3Y2,1900,10K3,7 T150 L8 O3 C E G > C P8 < G", 294300200u},
+        {"W4Z7,6,11,14,7H0,5,0,5Y1,190,6K9,4 T150 L8 O3 C E G > C P8 < G", 3709578604u},
+        {"W4Z7,6,3,0H0,8,0,6R6 T150 L8 O3 C E G > C P8 < G", 3646235002u},
+        {"H0,1,0,1 Y3,6000 O6 C T150 L8 O3 C E G > C P8 < G", 819068060u},
+        {"H0,4,0,3 Y1,300,4 O1 C T150 L8 O3 C E G > C P8 < G", 2624802524u},
+        {"H0,4,0,4 Y0 O4 C T150 L8 O3 C E G > C P8 < G", 217995810u},
+        {"L1 W1 V5 O3 C T150 L8 O3 C E G > C P8 < G", 3048930874u},
+        {"L1 W1 V5 O3 E T150 L8 O3 C E G > C P8 < G", 1341332518u},
+        {"L1 W1 V5 O3 G T150 L8 O3 C E G > C P8 < G", 1660739366u},
+        {"L1 W1 V5 O4 C T150 L8 O3 C E G > C P8 < G", 3377679794u},
+        {"L1 W1 V5 O4 E T150 L8 O3 C E G > C P8 < G", 3730412582u},
+        {"L1 W1 V5 O4 G T150 L8 O3 C E G > C P8 < G", 2213435606u},
+        {"MLW0Q30Y1,2400,6H6,6,10,8V7 T150 L8 O3 C E G > C P8 < G", 318763272u},
+        {"MLW1H11,8,11,10V9 T150 L8 O3 C E G > C P8 < G", 999296106u},
+        {"MLW2Y1,900,6H9,6,10,9V8 T150 L8 O3 C E G > C P8 < G", 2042704194u},
+        {"MNW0Q25H0,3,6,2V6 T150 L8 O3 C E G > C P8 < G", 3030881224u},
+        {"MNW1H0,2,10,3V15 T150 L8 O3 C E G > C P8 < G", 3834641480u},
+        {"MNW1H0,5,8,4V7 T150 L8 O3 C E G > C P8 < G", 1593726504u},
+        {"MNW1Y1,1800,4H0,6,6,6V7 T150 L8 O3 C E G > C P8 < G", 2420478584u},
+        {"MNW2Y1,1400,6H0,4,7,3V6 T150 L8 O3 C E G > C P8 < G", 2793236136u},
+        {"MSW0Q40Y1,1600,4H0,3,6,2V15 T150 L8 O3 C E G > C P8 < G", 1697715134u},
+        {"T100 O2 L2 W4 H0,6,6,3 Z1,12,0,15 C Z1,12,4,4 C Z1,12,7,0 C T150 L8 O3 C E G > C P8 < G", 2903385646u},
+        {"T100 O3 L2 W4 H0,0,15,2 Z1,6,0,15,0 C Z1,6,0,15,3 C Z1,6,0,15,5 C T150 L8 O3 C E G > C P8 < G", 326768408u},
+        {"T100 O4 L4 W0 Q30 H1,4,10,2 K0 E G A2 K8,0,2 E G A2 T150 L8 O3 C E G > C P8 < G", 232952612u},
+        {"T100 O4 L4 W4 Z1,9,3,11,4 H0,4,12,1 R0 C E G P4 R6 C E G P4 R12 C E G P2 T150 L8 O3 C E G > C P8 < G", 1758754066u},
+        {"T100 O4 W4 Z1,9,3,11,4 H0,4,12,2 L8 C D E F U0 G1 U6 G1 U12 G1 T150 L8 O3 C E G > C P8 < G", 1729344732u},
+        {"T120 L4 W4 Z1,0 H0,4,3,3 K1,8 V12 O1 C C C C T150 L8 O3 C E G > C P8 < G", 2189197384u},
+        {"T120 O2 L4 W2 Y1,3000 C Y1,1200 C Y1,500 C Y1,200 C T150 L8 O3 C E G > C P8 < G", 3405345152u},
+        {"T120 O3 L2 W4 H0,0,15,2 Z1,0 C Z1,4 C Z1,8 C Z1,12 C T150 L8 O3 C E G > C P8 < G", 1242074734u},
+        {"T120 O3 L2 W4 H0,0,15,2 Z1,8 C Z2,8 C Z3,8 C Z7,8 C T150 L8 O3 C E G > C P8 < G", 1002403636u},
+        {"T120 O3 L4 W0 C E G P4 W1 C E G P4 W2 C E G P4 W3 C E G", 1188450104u},
+        {"T120 O3 L4 W2 Y1,2000,4 H0,4,12,2 K0 C G > C < G K8 C G > C < G T150 L8 O3 C E G > C P8 < G", 1020260424u},
+        {"T120 O4 L4 W0 Q30 H0,4,9,2 S1 C S4 E S8 G S12 > C S15 E T150 L8 O3 C E G > C P8 < G", 1449100110u},
+        {"T120MLW1H2,6,11,5V12 T150 L8 O3 C E G > C P8 < G", 1731528832u},
+        {"T120MNW2Y1,500,6H0,7,8,4V8 T150 L8 O3 C E G > C P8 < G", 3658050918u},
+        {"T120MSW0Q30Y0H0,4,5,3V5 T150 L8 O3 C E G > C P8 < G", 608002298u},
+        {"T130 L1 W0 Q30 H4,0,12,6 V7 O3 E E F G T150 L8 O3 C E G > C P8 < G", 2245051346u},
+        {"T130 L1 W0 Q30 H4,0,12,6 V7 O3 G A A B T150 L8 O3 C E G > C P8 < G", 1411438574u},
+        {"T130 L1 W0 Q30 H4,0,12,6 V7 O4 C C C D T150 L8 O3 C E G > C P8 < G", 2276782890u},
+        {"T130 L16 W0 Q20 H0,2,8,1 V6 O3 C E G > C < G E C E G > C < G E C E G E", 4213688210u},
+        {"T130 L8 W3 V7 T150 L8 O3 C E G > C P8 < G", 3639540820u},
+        {"T130 L8 W3 V8 T150 L8 O3 C E G > C P8 < G", 3463912516u},
+        {"T130 O2 L2 W1 H0,8,10,4 V11 C C O1 A A O2 F F G G T150 L8 O3 C E G > C P8 < G", 3044286752u},
+        {"T130 O2 L2 W1 V10 C C T150 L8 O3 C E G > C P8 < G", 2584191280u},
+        {"T130 O4 L8 W2 H0,5,9,3 V8 E G > C < G E G E C T150 L8 O3 C E G > C P8 < G", 2893678950u},
+        {"T140 L8 W4 Z1,0 H0,4,3,3 K1,8 V12 O1 C W3 K0 H0,3,0,1 Y3,2500 O6 B W4 Y0 H0,4,3,3 K1,8 O1 C W3 K0 H0,3,0,1 Y3,2500 O6 B T150 L8 O3 C E G > C P8 < G", 674161296u},
+        {"T140 W4 Z1,12,4,4 H0,5,5,1 V11 L4 O2 C G C G T150 L8 O3 C E G > C P8 < G", 275033852u},
+        {"T140 W4 Z1,9,3,11,4 H0,4,12,1 U8 S10 R4 V11 L8 O4 C E G > C < G E C4 T150 L8 O3 C E G > C P8 < G", 3819697898u},
+        {"T140MLW2Y1,2600,3H1,6,11,5V11 T150 L8 O3 C E G > C P8 < G", 3108989946u},
+        {"T140MNW0Q30H0,4,6,3V6 T150 L8 O3 C E G > C P8 < G", 3387793708u},
+        {"T140MNW1V12L16O4CO3GECL8EGL4O4C T150 L8 O3 C E G > C P8 < G", 3820247598u},
+        {"T140MNW2V9L4O2CO1GO2C T150 L8 O3 C E G > C P8 < G", 2030857304u},
+        {"T140MNW2Y1,700,5H0,8,9,5V13 T150 L8 O3 C E G > C P8 < G", 3121464852u},
+        {"T150MLW1H1,5,10,4V12 T150 L8 O3 C E G > C P8 < G", 2434091988u},
+        {"T150MLW2V12L32O2CO1GECL8O0G T150 L8 O3 C E G > C P8 < G", 2685428272u},
+        {"T150MNW2Y1,700,6H0,6,8,3V9 T150 L8 O3 C E G > C P8 < G", 872597856u},
+        {"T150MSW0Q30H0,3,5,2V5 T150 L8 O3 C E G > C P8 < G", 1821633416u},
+        {"T150W3H0,9,0,8V12L4O1C T150 L8 O3 C E G > C P8 < G", 2355509724u},
+        {"T160MNW0Q25H0,6,10,3V11 T150 L8 O3 C E G > C P8 < G", 3469354828u},
+        {"T160MNW0Q25V12L16O4CEGO5L8CO4L16GO5L4C T150 L8 O3 C E G > C P8 < G", 2556307974u},
+        {"T160MNW1H0,3,8,4V11L64O5CEGO6CL16E T150 L8 O3 C E G > C P8 < G", 1098801360u},
+        {"T160MNW2V9L4O2CL8GL4O3C T150 L8 O3 C E G > C P8 < G", 3605946168u},
+        {"T160MNW2Y1,900,9H0,3,9,2V7 T150 L8 O3 C E G > C P8 < G", 2847269752u},
+        {"T160MNW3Y0H0,2,0,1 T150 L8 O3 C E G > C P8 < G", 1003880308u},
+        {"T180W0Q50V9L16O4AO3AO4AO3A T150 L8 O3 C E G > C P8 < G", 896423874u},
+        {"T200W0Q50V6L64O5G T150 L8 O3 C E G > C P8 < G", 1450461126u},
+        {"T200W0Q50V7L32O4CEGO5C T150 L8 O3 C E G > C P8 < G", 4179009894u},
+        {"T200W0Q50V8L16O2CO1G T150 L8 O3 C E G > C P8 < G", 1923907660u},
+        {"T200W1V7L64O6A# T150 L8 O3 C E G > C P8 < G", 3010949724u},
+        {"T200W3Y2,2500,10H0,5,0,4V8L16O4C T150 L8 O3 C E G > C P8 < G", 2409500646u},
+        {"T255 L16 W0 Q25 H0,3,0,1 V10 O3 C E G > C E T150 L8 O3 C E G > C P8 < G", 1672462356u},
+        {"T255 L16 W1 H0,2,12,2 V11 O3 C E G > C E G > C E G T150 L8 O3 C E G > C P8 < G", 70106924u},
+        {"T255 L16 W2 H0,3,0,1 V10 N76 N70 N64 N58 N52 N46 T150 L8 O3 C E G > C P8 < G", 1269050176u},
+        {"T255 W0 Q50 H0,6,0,6 V10 O5 L16 B > E4 T150 L8 O3 C E G > C P8 < G", 2675266838u},
+        {"T255 W3 H0,10,0,10 V15 Y1,900,6 O1 C4 P4 T150 L8 O3 C E G > C P8 < G", 1080270988u},
+        {"T255 W3 H0,3,0,2 V12 O4 C16 P8 T150 L8 O3 C E G > C P8 < G", 3574508492u},
+        {"T255W1V13Y0K0I0H0,0,15,0 T150 L8 O3 C E G > C P8 < G", 1490745712u},
+        {"T255W3Y3,3000,4H0,2,0,2V6L32O5C T150 L8 O3 C E G > C P8 < G", 985992688u},
+        {"T80MLW1H3,8,9,6V11 T150 L8 O3 C E G > C P8 < G", 1590902130u},
+        {"T80MNW2Y1,400,8H0,8,8,5V9 T150 L8 O3 C E G > C P8 < G", 2762519022u},
+        {"T80MSW0Q25H0,5,4,4V4 T150 L8 O3 C E G > C P8 < G", 1831922476u},
+        {"T90 O3 L1 W2 Y1,2400,4 H3,5,11,4 I0 C I4 C I8 C T150 L8 O3 C E G > C P8 < G", 1585185710u},
+        {"T90 O3 L2 W2 H0,0,15,0 C H0,6,0,4 C H10,0,15,8 C W1 H0,9,0,9 > C T150 L8 O3 C E G > C P8 < G", 733109068u},
+        {"T90 W0 Q30 H2,6,8,8 V10 O3 L8 G F# F E2 T150 L8 O3 C E G > C P8 < G", 2457743250u},
+        {"T96MLW1H2,6,11,5V11 T150 L8 O3 C E G > C P8 < G", 4202572414u},
+        {"T96MNW2Y1,500,6H0,7,8,4V9 T150 L8 O3 C E G > C P8 < G", 1748432730u},
+        {"T96MSW0Q30H0,4,5,3V4 T150 L8 O3 C E G > C P8 < G", 1057654062u},
+        {"W0 L8 Q50 C C Q25 C C Q10 C C Q5 C C T150 L8 O3 C E G > C P8 < G", 801332970u},
+        {"W0Q50H0,6,0,4V14O1G32C32P16W0Q50H0,6,0,4V14O1G32C32P16 T150 L8 O3 C E G > C P8 < G", 3463082668u},
+        {"W0Q50H0,6,0,4V14O1G32C32P16W3H0,1,0,1V5O6C32P32P16 T150 L8 O3 C E G > C P8 < G", 925629758u},
+        {"W2H0,2,0,2V7L64O6CB T150 L8 O3 C E G > C P8 < G", 462216282u},
+        {"W2I15Y2,1000,6H0,6,2,3K4,0,6L8O3D T150 L8 O3 C E G > C P8 < G", 3877990178u},
+        {"W2I15Y2,1300,6H0,5,3,3K3,0,7L16O3FP32L8O3D T150 L8 O3 C E G > C P8 < G", 436895196u},
+        {"W2L32O6ECP32EC T150 L8 O3 C E G > C P8 < G", 3370766146u},
+        {"W3H0,1,0,1V5L64O6C T150 L8 O3 C E G > C P8 < G", 2289585880u},
+        {"W3H0,3,0,1Y3,2500K0O6B T150 L8 O3 C E G > C P8 < G", 2860520384u},
+        {"W3H0,4,0,3V9L32O3C T150 L8 O3 C E G > C P8 < G", 3747825702u},
+        {"W3H0,5,0,1Y0K0O6C T150 L8 O3 C E G > C P8 < G", 5077024u},
+        {"W3H0,5,0,4V12O4C16P16W3H0,1,0,1V5O6C32P32P16 T150 L8 O3 C E G > C P8 < G", 3105432204u},
+        {"W3H0,5,0,4V12O4C16W3H0,5,0,4V9O4C16W3H0,5,0,4V12O4C16W3H0,5,0,4V9O4C16 T150 L8 O3 C E G > C P8 < G", 2205880060u},
+        {"W3H0,7,0,4Y3,2500K0O6B T150 L8 O3 C E G > C P8 < G", 2976423282u},
+        {"W3H0,9,0,8V12L8O2C T150 L8 O3 C E G > C P8 < G", 3499647370u},
+        {"W3L32O2CL16O1C T150 L8 O3 C E G > C P8 < G", 3097590712u},
+        {"W3L32O5CO3GL16O2C T150 L8 O3 C E G > C P8 < G", 1877637450u},
+        {"W3Y3,3500,0H3,8,0,3L4O6B T150 L8 O3 C E G > C P8 < G", 4179747742u},
+        {"W4 Z1,12,4,4 H0,5,5,1 T150 L8 O3 C E G > C P8 < G", 2721923770u},
+        {"W4 Z1,12,4,4 H0,5,5,1 V11 MN L8 T150 L8 O3 C E G > C P8 < G", 3571510640u},
+        {"W4 Z1,4,3,13,4 H0,4,11,1 T150 L8 O3 C E G > C P8 < G", 4020184416u},
+        {"W4 Z1,4,3,13,4 H0,4,11,1 U9 R2 V7 MS L8 T150 L8 O3 C E G > C P8 < G", 1764463758u},
+        {"W4 Z1,9,3,11,4 H0,4,12,1 T150 L8 O3 C E G > C P8 < G", 4071644508u},
+        {"W4 Z1,9,3,11,4 H0,4,12,1 U8 R4 S8 V11 ML L8 T150 L8 O3 C E G > C P8 < G", 1242717262u},
+        {"W4 Z7,6,7,0 H0,9,0,9 T150 L8 O3 C E G > C P8 < G", 1121128638u},
+        {"W4Z1,0H0,4,3,3Y0K1,8O1C T150 L8 O3 C E G > C P8 < G", 2859543928u},
+        {"W4Z1,0H0,5,0,3Y0K5,6O2G T150 L8 O3 C E G > C P8 < G", 2457476726u},
+        {"Y1,800,0 C Y1,800,8 C Y1,800,15 C Y0 V15 C V7 C V3 C T150 L8 O3 C E G > C P8 < G", 3821013656u},
+        {"Z1,0L16 T150 L8 O3 C E G > C P8 < G", 2681363096u},
         /* docs/sound.md's example: three voices, placed and in the room */
         {"T140 W4 Z1,9,3,11,4 H0,4,12,1 U8 S10 R4 V11 L8 O4 C E G > C < G E C4\", "
          "\"T140 W4 Z1,12,4,4 H0,5,5,1 V11 L4 O2 C G C G\", \"T140 L8 W4 Z1,0 H0,4,3,3 K1,8 V12 O1 C W3 K0 H0,3,0,1 "
-         "Y3,2500 O6 B W4 Y0 H0,4,3,3 K1,8 O1 C W3 K0 H0,3,0,1 Y3,2500 O6 B", 3340370174u},
+         "Y3,2500 O6 B W4 Y0 H0,4,3,3 K1,8 O1 C W3 K0 H0,3,0,1 Y3,2500 O6 B", 4188569946u},
     };
 
     qbrt_realtime(false);
