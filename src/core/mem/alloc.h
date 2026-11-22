@@ -31,7 +31,7 @@ typedef struct {
     Addr bot, top;          /* the BASIC heap (mm.hbot, mm.htop): a block of pmem's, grown up */
     Addr arrays;            /* the arrays' data from bot up to here (mm.aend) */
     Addr strings;           /* the strings' from here up to top (mm.sfr) */
-    Addr cache;             /* the code cache's block, which never moves (mm.cachebase) */
+    Addr cache;             /* the code cache's block, moved as it grows (mm.cachebase) */
     Addr hdr_base;          /* the arrays' headers, to hdr_base + HDRSZ (HDRBASE, HDRLIM) */
     Addr cs_lim;            /* the control stack's floor (CSLIM) */
     Addr cs_top;            /* its top, frames down from it (CSTOP) */

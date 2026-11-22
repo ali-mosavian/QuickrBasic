@@ -1,6 +1,10 @@
 /* Buffers that grow on demand: util/heap, and the session's past their first bytes. */
 #include <stdio.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include "boot.h"
 #include "session.h"
+#include "ui/linemap.h"
 #include "unit.h"
 #include "util/heap.h"
 
@@ -223,4 +227,39 @@ TEST(environ_grows)
     CHECK(unit_run(S, lines) == ST_OK);
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 200 \r");
     CHECK(S->syst.envcap > 200);
+}
+
+/* The code cache moved as a link grew it: the link's places in it stayed in the old block, and
+   each pass grew the cache again. 100 lines from a file, in a session of their own: Out of memory
+   with 37 MB of cache. */
+TEST(code_cache_moves_while_linking)
+{
+    static Session child;
+    static const FrontEnd fe = {.regions = lmap_init};
+
+    static char src[100 * 64 + 32];
+
+    size_t n = 0;
+
+    for (uint32_t i = 0; i < 100; i++)
+        n += (size_t)snprintf(
+            src + n,
+            sizeof src - n,
+            "IF a THEN PRINT LEN(b$); TAB(5); ELSE LOCATE 1, 1: COLOR 7\r\n"
+        );
+
+    n += (size_t)snprintf(src + n, sizeof src - n, "PRINT \"fine\"\r\n");
+    fflush(stdout);
+    const pid_t pid = fork();
+
+    if (!pid) {
+        boot(&child, &fe);
+        const bool fine = unit_run_bytes(&child, src, n) == ST_OK && child.cons.sblen == 5 &&
+                          !memcmp(child.cons.sbuf, "fine\r", 5);
+        _exit(fine ? 0 : 1);
+    }
+
+    int status = 0;
+    waitpid(pid, &status, 0);
+    CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 }

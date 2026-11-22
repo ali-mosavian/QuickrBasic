@@ -157,6 +157,26 @@ static void uncache(Comp *const C)
         prog_line(C->prog, l)->code = 0;
 }
 
+/* The cache moved: end to code follow it. */
+static void link_moved(AlloOwner *const o)
+{
+    Link *const k = container_of(o, Link, owner);
+    Addr *const places[] = {&k->end, &k->lim, &k->eol, &k->inbeg, &k->map, &k->code};
+
+    for (uint32_t i = 0; i < sizeof places / sizeof *places; i++)
+        if (*places[i]) /* 0: none */
+            *places[i] += k->allo->cache - k->base;
+
+    k->base = k->allo->cache;
+}
+
+AlloOwner *link_owner(Link *const k, const Allo *const al)
+{
+    k->allo = al;
+    k->owner.moved = link_moved;
+    return &k->owner;
+}
+
 /* Line compiled into the cache at link.end, the cache grown should it not fit. Out of memory. */
 static void link_line(Comp *const C, const uint32_t line)
 {
