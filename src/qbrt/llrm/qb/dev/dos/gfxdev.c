@@ -165,44 +165,66 @@ static void seq_map(unsigned planes)
     dev_outw(SEQ_PORT, SEQ_MAP_MASK | planes << 8);
 }
 
-/* 12h's row y between the adapter and pixels, a byte a pixel. */
+/* The 4 bits of a nibble as 4 bytes, each 0xFF where its bit is set, the high bit first. */
+static const u32 nibble_bytes[16] = {0x00000000UL, 0xFF000000UL, 0x00FF0000UL, 0xFFFF0000UL,
+                                     0x0000FF00UL, 0xFF00FF00UL, 0x00FFFF00UL, 0xFFFFFF00UL,
+                                     0x000000FFUL, 0xFF0000FFUL, 0x00FF00FFUL, 0xFFFF00FFUL,
+                                     0x0000FFFFUL, 0xFF00FFFFUL, 0x00FFFFFFUL, 0xFFFFFFFFUL};
+
+/* 12h's row between the adapter and pixels, a byte a pixel, eight pixels in a word: byte m holds pixel m in its
+   high nibble and pixel m + 4 in its low. A swap converts every row twice, so a plane's byte of a word is a table
+   or a product, not a loop over its bits. */
+
+/* A plane's byte as bit 0 of each nibble of a word. */
+static u32 plane_bits(unsigned byte)
+{
+    return (nibble_bytes[byte >> 4] & 0x10101010) | (nibble_bytes[byte & 0x0F] & 0x01010101);
+}
+
+/* Bit 0 of each nibble of a word as a plane's byte: the product moves byte m's to bits 31 - m and 27 - m, and
+   the other terms land above bit 31 or below bit 24. */
+static unsigned plane_byte(u32 bits)
+{
+    return (unsigned)((bits & 0x11111111) * 0x08040201u >> 24);
+}
+
 static void planar_row_in(unsigned y, u8 *pixels)
 {
-    unsigned plane, at, bit;
+    u32 eights[PLANAR_ROW] = {0}, words[PLANAR_WIDTH / 4];
+    unsigned plane, at;
 
-    memset(pixels, 0, PLANAR_WIDTH);
     for (plane = 0; plane < PLANES; plane++) {
-        Video *from = adapter + y * PLANAR_ROW;
+        Video *const from = adapter + y * PLANAR_ROW;
 
         controller(GC_READ_MAP, plane);
-        for (at = 0; at < PLANAR_ROW; at++) {
-            unsigned bits = from[at];
-
-            for (bit = 0; bit < 8; bit++)
-                pixels[at * 8 + bit] |= (u8)((bits >> (7 - bit) & 1) << plane);
-        }
+        for (at = 0; at < PLANAR_ROW; at++)
+            eights[at] |= plane_bits(from[at]) << plane;
     }
     controller(GC_READ_MAP, 0);
+    for (at = 0; at < PLANAR_ROW; at++) {
+        words[2 * at] = eights[at] >> 4 & 0x0F0F0F0F;
+        words[2 * at + 1] = eights[at] & 0x0F0F0F0F;
+    }
+    memcpy(pixels, words, PLANAR_WIDTH);
 }
 
 /* Write mode 0, a plane at a time; the controller back as it rests after. */
 static void planar_row_out(unsigned y, const u8 *pixels)
 {
-    unsigned plane, at, bit;
+    u32 eights[PLANAR_ROW], words[PLANAR_WIDTH / 4];
+    unsigned plane, at;
 
+    memcpy(words, pixels, PLANAR_WIDTH);
+    for (at = 0; at < PLANAR_ROW; at++)
+        eights[at] = words[2 * at] << 4 | words[2 * at + 1];
     controller(GC_MODE, WRITE_MODE_0);
     controller(GC_SET_RESET_ENABLE, 0);
     for (plane = 0; plane < PLANES; plane++) {
-        Video *to = adapter + y * PLANAR_ROW;
+        Video *const to = adapter + y * PLANAR_ROW;
 
         seq_map(1u << plane);
-        for (at = 0; at < PLANAR_ROW; at++) {
-            unsigned bits = 0;
-
-            for (bit = 0; bit < 8; bit++)
-                bits |= (pixels[at * 8 + bit] >> plane & 1u) << (7 - bit);
-            to[at] = (u8)bits;
-        }
+        for (at = 0; at < PLANAR_ROW; at++)
+            to[at] = (u8)plane_byte(eights[at] >> plane);
     }
     seq_map(ALL_PLANES);
     controller(GC_MODE, WRITE_MODE_2);
@@ -526,13 +548,6 @@ static void linear_move_rows(unsigned to, unsigned from, unsigned count)
     op.value = 0;
     dev_move(&op);
 }
-
-/* A glyph row of 8 pixels, a nibble at a time: the 4 pixels of a nibble as 4
- * bytes, each 0xFF where the pixel is set. */
-static const u32 nibble_bytes[16] = {0x00000000UL, 0xFF000000UL, 0x00FF0000UL, 0xFFFF0000UL,
-                                     0x0000FF00UL, 0xFF00FF00UL, 0x00FFFF00UL, 0xFFFFFF00UL,
-                                     0x000000FFUL, 0xFF0000FFUL, 0x00FF00FFUL, 0xFFFF00FFUL,
-                                     0x0000FFFFUL, 0xFF00FFFFUL, 0x00FFFFFFUL, 0xFFFFFFFFUL};
 
 static void linear_glyph(unsigned x, unsigned y, const u8 QB_FAR *bits, unsigned height,
                          unsigned foreground)
