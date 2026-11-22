@@ -7,7 +7,8 @@ A DOS source is compiled as DOS32's, to ELF for its symbols' sizes. A Mach-O sym
 to the next symbol in its section, less the padding that symbol's alignment may need (a 256-byte array measured 260).
 A variable over LIMIT bytes a 4-byte pointer (twice that at 8) in a writable data section fails. The graphics back
 buffers (371 KB) and the sound tables (270 KB) were static once, and the DOS IDE did not start with 4 MB; the host's
-graphics pages and sound logs were 5.6 MB."""
+graphics pages and sound logs were 5.6 MB. The IDE's Locals pane and spelling tables (67 KB) are checked too: they were
+in the DOS image, out of the heap, at 2 MB."""
 
 import os
 import sys

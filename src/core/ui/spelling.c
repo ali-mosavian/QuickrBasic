@@ -5,7 +5,8 @@
  * variable is spelled as the first line of its scope that names it: BASIC declares before it uses.
  * A field is spelled as its TYPE's line for it (its name, its subscripts, AS), which no variable's
  * comes from. spel_read walks a procedure's lines, then its file's module lines, once, keeping the
- * first spelling of each (name, kind) in a hash table, its text in a pool.
+ * first spelling of each (name, kind) in a hash table, its text in a pool. The table is taken at
+ * the first spel_read; without it, names are spelled as stored.
  */
 #include "ui/spelling.h"
 #include "session.h"
@@ -15,6 +16,8 @@
 #include "ui/linemap.h"
 #include "vm/inspect.h"
 #include "ui/view.h"
+#include "plat/pmem.h"
+#include <string.h>
 
 enum {
     NSPELL = 1024, /* spellings kept at most: a power of two */
@@ -28,11 +31,13 @@ typedef struct {
     uint16_t off;
 } Spelling;
 
-static struct {
+typedef struct {
     Spelling e[NSPELL];
     uint32_t used; /* the pool's */
     char pool[POOL];
-} sp;
+} Spellings;
+
+static Spellings *sp; /* taken at the first spel_read; none: names as stored */
 
 static uint32_t key_of(const uint32_t name, const SpelKind kind) { return name << 2 | (kind + 1u); }
 
@@ -41,8 +46,11 @@ static Spelling *slot(const uint32_t key)
 {
     uint32_t h = key * 2654435761u;
 
+    if (!sp)
+        return nullptr;
+
     for (uint32_t i = 0; i < NSPELL; i++, h++) {
-        Spelling *const e = &sp.e[h & (NSPELL - 1)];
+        Spelling *const e = &sp->e[h & (NSPELL - 1)];
 
         if (!e->key || e->key == key)
             return e;
@@ -58,13 +66,13 @@ static void seen(const uint8_t *const tok, const SpelKind kind)
     Spelling *const e = slot(key);
     const uint8_t len = (uint8_t)(tok[1] - !!comp_suffixof(tok));
 
-    if (!e || e->key || sp.used + len > POOL)
+    if (!e || e->key || sp->used + len > POOL)
         return;
 
-    *e = (Spelling){.key = key, .len = len, .off = (uint16_t)sp.used};
+    *e = (Spelling){.key = key, .len = len, .off = (uint16_t)sp->used};
 
-    memcpy(sp.pool + sp.used, tok + 2, len);
-    sp.used += len;
+    memcpy(sp->pool + sp->used, tok + 2, len);
+    sp->used += len;
 }
 
 /* The line at p is a TYPE's field's: its name, its subscripts if any, then AS. */
@@ -107,8 +115,11 @@ static void view_names(Session *const S, const uint32_t v, const SpelKind kind)
 
 void spel_read(Session *const S, const uint32_t view)
 {
-    memset(sp.e, 0, sizeof sp.e);
-    sp.used = 0;
+    if (!sp && !(sp = pmem_resize(nullptr, sizeof *sp)))
+        return;
+
+    memset(sp->e, 0, sizeof sp->e);
+    sp->used = 0;
     const uint32_t module = view_of_module(view_module(view));
 
     if (view != module)
@@ -125,7 +136,7 @@ char *spel_name(const Session *const S, char *const d, const uint32_t name, cons
         e = slot(key_of(name, SPEL_MODULE));
 
     if (e && e->key) {
-        memcpy(d, sp.pool + e->off, e->len);
+        memcpy(d, sp->pool + e->off, e->len);
         return d + e->len;
     }
 
