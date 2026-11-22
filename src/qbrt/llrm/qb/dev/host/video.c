@@ -34,12 +34,13 @@ _Atomic uint8_t host_dirty[HOST_MAX_HEIGHT];
 /* A weak no-op, not a weak undefined reference: Mach-O's linker rejects the latter. */
 __attribute__((weak)) void host_video_mode_changed(void) {}
 
-/* The pages SCREEN can name (mode 0Dh has eight): drawing goes to `pixels`, the page being drawn, and the presenter
-   reads `shown`. */
-enum { MAX_PAGES = 8, TEXT_PAGES = 8 };
-static uint8_t page_store[MAX_PAGES][HOST_MAX_WIDTH * HOST_MAX_HEIGHT];
-static uint8_t *pixels = page_store[0];
-static _Atomic(const uint8_t *) shown = page_store[0];
+/* The pages SCREEN can name (mode 0Dh has eight), each taken when first used and kept: the presenter may still read
+   one. Drawing goes to `pixels`, the page being drawn, and the presenter reads `shown`. A page is taken before the
+   state lock, as dev_take may raise Out of memory. */
+enum { MAX_PAGES = 8, TEXT_PAGES = 8, PAGE_BYTES = HOST_MAX_WIDTH * HOST_MAX_HEIGHT };
+static uint8_t *page_store[MAX_PAGES];
+static uint8_t *pixels;
+static _Atomic(const uint8_t *) shown;
 static unsigned page_count = 1;
 static unsigned width = HOST_TEXT_COLUMNS * HOST_CELL_WIDTH, height = HOST_TEXT_ROWS * HOST_CELL_HEIGHT;
 static unsigned mode = HOST_MODE_TEXT, kind = KIND_TEXT, serial;
@@ -57,15 +58,18 @@ void host_state_unlock(void)
     pthread_mutex_unlock(&state_lock);
 }
 
-/* The text pages: the program writes to `cells`, page text_active; text_shown is drawn. */
-static uint16_t text_store[TEXT_PAGES][HOST_TEXT_ROWS][HOST_TEXT_COLUMNS];
-static uint16_t (*cells)[HOST_TEXT_COLUMNS] = text_store[0];
+/* The text pages, each taken when first used: the program writes to `cells`, page text_active; text_shown is drawn. */
+typedef uint16_t TextRow[HOST_TEXT_COLUMNS];
+static TextRow *text_store[TEXT_PAGES];
+static TextRow *cells;
 static unsigned text_active, text_shown;
 static unsigned cursor_row, cursor_column;
 static int cursor_visible = 1;
 
-/* The DAC (6 bits a channel), the attribute controller's palette registers, and the CGA colour select. */
-static uint8_t dac[256][3];
+/* The DAC (6 bits a channel; taken with the first mode), the attribute controller's palette registers, and the CGA
+   colour select. */
+enum { DAC_COLORS = 256 };
+static uint8_t (*dac)[3];
 static uint8_t attributes[PALETTE_REGISTERS];
 static unsigned cga_background, cga_palette = 1;
 
@@ -84,6 +88,33 @@ static void touch(unsigned top, unsigned count)
 static void touch_all(void)
 {
     touch(0, height);
+}
+
+static uint8_t *page(unsigned number)
+{
+    if (!page_store[number])
+        page_store[number] = dev_take(PAGE_BYTES);
+    return page_store[number];
+}
+
+static void text_blank(TextRow *rows)
+{
+    unsigned row, column;
+
+    for (row = 0; row < HOST_TEXT_ROWS; row++)
+        for (column = 0; column < HOST_TEXT_COLUMNS; column++)
+            rows[row][column] = 0x0700 | ' ';
+}
+
+static TextRow *text_page(unsigned number)
+{
+    if (!text_store[number]) {
+        TextRow *const rows = dev_take(HOST_TEXT_ROWS * sizeof *rows);
+
+        text_blank(rows);
+        text_store[number] = rows;
+    }
+    return text_store[number];
 }
 
 static uint8_t *pixel_at(unsigned x, unsigned y)
@@ -165,7 +196,7 @@ void host_colors(uint8_t rgb[256][3])
 /* The state a mode starts with. */
 static void reset_palette(void)
 {
-    memcpy(dac, qb_vga_palette, sizeof dac);
+    memcpy(dac, qb_vga_palette, DAC_COLORS * sizeof *dac);
     if (kind != KIND_LINEAR)
         memcpy(dac, qb_ega_palette, sizeof qb_ega_palette);
     memcpy(attributes, default_attributes, sizeof attributes);
@@ -219,7 +250,8 @@ void host_video_reset(void)
 int gd_set_mode(unsigned requested)
 {
     unsigned number = requested & ~(unsigned)MODE_BIT_KEEP_SCREEN;
-    unsigned new_kind, new_width, new_height, page, row, column;
+    unsigned new_kind, new_width, new_height, at;
+    uint8_t (*palette)[3];
 
     switch (number) {
     case HOST_MODE_TEXT:
@@ -250,25 +282,31 @@ int gd_set_mode(unsigned requested)
     default:
         return 0;
     }
+    palette = dac ? dac : dev_take(DAC_COLORS * sizeof *dac);
+    page(0);
+    text_page(0);
     host_state_lock();
+    dac = palette;
     mode = number;
     kind = new_kind;
     width = new_width;
     height = new_height;
     reset_palette();
-    memset(page_store, 0, sizeof page_store);
+    for (at = 0; at < MAX_PAGES; at++)
+        if (page_store[at])
+            memset(page_store[at], 0, (size_t)width * height);
     page_count = number == MODE_320 ? 8 : number == MODE_640 ? 4 : 2;
     draw_on(0);
     atomic_store_explicit(&shown, page_store[0], memory_order_release);
     if (kind == KIND_TEXT) {
-        for (page = 0; page < TEXT_PAGES; page++)
-            for (row = 0; row < HOST_TEXT_ROWS; row++)
-                for (column = 0; column < HOST_TEXT_COLUMNS; column++)
-                    text_store[page][row][column] = 0x0700 | ' ';
-        cells = text_store[text_active = text_shown = 0];
+        for (at = 0; at < TEXT_PAGES; at++)
+            if (text_store[at])
+                text_blank(text_store[at]);
+        text_active = text_shown = 0;
         cursor_row = cursor_column = 0;
         cursor_visible = 1;
     }
+    cells = text_store[text_active];
     serial++;
     touch_all();
     host_state_unlock();
@@ -285,6 +323,8 @@ int gd_set_pages(unsigned active, unsigned visible)
 {
     if (active >= page_count || visible >= page_count)
         return 0;
+    page(active);
+    page(visible);
     host_state_lock();
     draw_on(active);
     atomic_store_explicit(&shown, page_store[visible], memory_order_release);
@@ -297,7 +337,7 @@ int gd_copy_page(unsigned from, unsigned to)
 {
     if (from >= page_count || to >= page_count)
         return 0;
-    memcpy(page_store[to], page_store[from], (size_t)width * height);
+    memcpy(page(to), page(from), (size_t)width * height);
     touch_all();
     return 1;
 }
@@ -469,7 +509,8 @@ int dev_text_pages(unsigned active, unsigned visible)
 {
     if (active >= TEXT_PAGES || visible >= TEXT_PAGES)
         return 0;
-    cells = text_store[text_active = active];
+    text_page(visible);
+    cells = text_page(text_active = active);
     if (visible != text_shown) {
         text_shown = visible;
         if (kind == KIND_TEXT)
@@ -482,7 +523,7 @@ int dev_text_copy(unsigned from, unsigned to)
 {
     if (from >= TEXT_PAGES || to >= TEXT_PAGES)
         return 0;
-    memcpy(text_store[to], text_store[from], sizeof text_store[0]);
+    memcpy(text_page(to), text_page(from), HOST_TEXT_ROWS * sizeof *cells);
     if (to == text_shown && kind == KIND_TEXT)
         draw_rows(0, HOST_TEXT_ROWS - 1);
     return 1;

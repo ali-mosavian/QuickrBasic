@@ -16,7 +16,7 @@
  * # asm structure
  * | asm | here | |
  * |---|---|---|
- * | (none) | qbrt_init, module_*, md_*, qbrt_land, qbrt_palette_using, qbrt_get, qbrt_put, qbrt_screen, dev_take, dev_give, qbrt_idle, qbrt_done, qbrt_varptr | NEW |
+ * | (none) | qbrt_init, module_*, md_*, qbrt_land, qbrt_palette_using, qbrt_get, qbrt_put, qbrt_screen, dev_take, dev_try, dev_give, qbrt_idle, qbrt_done, qbrt_varptr | NEW |
  */
 #include "qbrt/qbrt.h"
 #include "ad.h"
@@ -185,14 +185,21 @@ void *qb_paint_queue_open(unsigned long *const bytes)
 
 void qb_paint_queue_close(void) { qbrt_lend(nullptr, 0); }
 
-void *dev_take(const unsigned long bytes)
+void *dev_try(const unsigned long bytes)
 {
     void *const p = pmem_resize(nullptr, bytes);
+
+    return p ? memset(p, 0, bytes) : nullptr;
+}
+
+void *dev_take(const unsigned long bytes)
+{
+    void *const p = dev_try(bytes);
 
     if (!p)
         qb_error(BE_MEMORY);
 
-    return memset(p, 0, bytes);
+    return p;
 }
 
 void dev_give(void *const block) { pmem_free(block); }

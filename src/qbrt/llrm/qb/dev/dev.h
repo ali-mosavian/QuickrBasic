@@ -55,6 +55,8 @@ void dev_audio_init(void);
    when there is none. Given back (null: nothing). Not from an interrupt. */
 void *dev_take(unsigned long bytes);
 void dev_give(void *block);
+/* The same, null when there is none: from any thread (the host's tick). */
+void *dev_try(unsigned long bytes);
 
 /* The clock. */
 long dev_clock(void); /* the time of day in hundredths of a second since midnight */
