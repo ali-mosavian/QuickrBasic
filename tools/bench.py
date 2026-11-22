@@ -2,7 +2,7 @@
 
     bench.py run FILE.bas | -e CODE [--dos]      one program: its output and cost
     bench.py iter -e BODY [--setup CODE] [--dos] one loop iteration's cost
-    bench.py cmp [REV...] [-e CODE] [--file F] [--dos]  the suite, or these programs, per build (HEAD .)
+    bench.py cmp [REV...] [-e CODE] [--file F] [--dos [--mem MB]]  the suite, or these, per build (HEAD .)
     bench.py size [REV] [--functions]            the DOS executables' loaded bytes, REV's (default HEAD) and ours
     bench.py gate [--save]                       the suite and sizes against tools/bench/baseline.json
     bench.py qbasic [--json F]                   qbasic/BENCH.BAS in QBasic 1.1 and our IDE under DOSBox
@@ -159,7 +159,8 @@ def run_native(b: Build, progs: Programs, runs: int = RUNS) -> dict[str, Cost]:
     return run_natives([b], progs, runs)[0]
 
 
-def run_dos(b: Build, progs: Programs) -> dict[str, Cost]:
+def run_dos(b: Build, progs: Programs, mem: int = 4) -> dict[str, Cost]:
+    """The empty program prints nothing: a build that prints there did not start."""
     dosrun.COM = b.dos
     with tempfile.TemporaryDirectory() as d:
         r = dosrun.run(
@@ -167,7 +168,10 @@ def run_dos(b: Build, progs: Programs) -> dict[str, Cost]:
             Path(d) / "w",
             limit_ms=600000,
             file=True,
+            mem=mem,
         )
+    if r[""].out.strip():
+        sys.exit(f"{b.root}: did not start in {mem} MB: {r[''].out.strip()[:200]}")
     for k, v in r.items():
         if v.reason != "exit":
             sys.exit(f"{k or 'empty'}: {v.reason} under DOS")
@@ -226,7 +230,7 @@ def cmd_cmp(a: argparse.Namespace) -> int:
     names: list[str] = a.revs or ["HEAD", "."]
     progs = {f"e{i}": e for i, e in enumerate(a.e)} | {Path(f).stem: Path(f).read_text() for f in a.file} or suite()
     builds = [build(r, a.dos) for r in names]
-    res = [run_dos(b, progs) for b in builds] if a.dos else run_natives(builds, progs)
+    res = [run_dos(b, progs, a.mem) for b in builds] if a.dos else run_natives(builds, progs)
     heads = ["tree" if n == "." else n for n in names]
     print(f"{'':10}" + "".join(f"{n:>14}" for n in heads) + "".join(f"{n:>8}" for n in heads[1:]))
     for k in res[0]:
@@ -867,6 +871,7 @@ def main() -> int:
     p.add_argument("-e", action="append", default=[], help="a program instead of the suite")
     p.add_argument("--file", action="append", default=[], help="a .bas file instead of the suite")
     p.add_argument("--dos", action="store_true")
+    p.add_argument("--mem", type=int, default=4, help="--dos: DOSBox's MB")
     p = sub.add_parser("size")
     p.add_argument("rev", nargs="?", default="HEAD")
     p.add_argument("--functions", action="store_true", help="each function whose bytes changed")
