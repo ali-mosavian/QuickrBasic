@@ -263,3 +263,20 @@ TEST(code_cache_moves_while_linking)
     waitpid(pid, &status, 0);
     CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 }
+
+/* The MID$ statement's replacement read after the copy of its target was made: the collection that
+   copy started moved the replacement up past a dead block, the target's chars into its old place,
+   and those were copied in: "AA", not "YY". */
+TEST(mid_statement_replacement_moved)
+{
+    static const char *const lines[] = {
+        "10 g$ = STRING$(40, 46): g$ = \"\": b$ = STRING$(2, 89): a$ = STRING$(100, 65)",
+        "20 h$ = STRING$(200, 46): h$ = \"\"",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    S->allo.arrays = S->allo.strings - 64; /* the heap full: the copy collects */
+    CHECK(unit_typed(S, "MID$(a$, 1) = b$: PRINT LEFT$(a$, 3)") == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, "YYA\r");
+}
