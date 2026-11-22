@@ -316,6 +316,8 @@ enum {
     HSIZE = 1024,      /* the symbols' hash chains */
     DCODE = 0x0100,    /* the direct line's stream */
     CACHE0 = DCODE + 1536,
+    CACHE_FIRST = CACHE0 + 0x1000,  /* the code cache at first; it grows */
+    PROG_FIRST = PROGBASE + 0x1000, /* the store at first; it grows */
     HEAP_FIRST = 0x10000,      /* the BASIC heap at first; it grows */
     STKSZ = 0x10000,           /* the data stack */
     STKROOM = 0x8000,          /* its room for the run */

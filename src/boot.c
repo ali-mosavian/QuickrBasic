@@ -96,7 +96,8 @@ void boot(Session *const S, const FrontEnd *const fe)
     comp_init(&S->comp);
     flow_init(S);
     stmt_init(S);
-    S->allo.cache = allo_base(&S->allo, allo_new(&S->allo, 0x10000, nullptr)); /* then the store */
+    S->allo.cache =
+        allo_base(&S->allo, allo_new(&S->allo, CACHE_FIRST, nullptr)); /* then the store */
     prog_new(&S->prog, &S->allo, &S->fault, session_prog_user(S));
 
     if (fe->regions)

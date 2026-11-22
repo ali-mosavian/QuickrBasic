@@ -916,7 +916,7 @@ uint8_t repl_enter(Session *const S, const uint32_t len)
    (comp/link.c, the store's size) within twice it. Short, or no room: they grow as they fill. */
 static void reserve(Session *const S, const uint32_t len)
 {
-    allo_grow(&S->allo, HCACHE, CACHE0 + len * 2 + XLIM + XSLK);
+    allo_grow(&S->allo, HCACHE, CACHE0 + len * 2 + XSLK);
     allo_grow(&S->allo, HPROG, PROGBASE + len / 4 * 7);
 }
 

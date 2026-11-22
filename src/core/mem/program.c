@@ -226,7 +226,7 @@ void prog_new(Prog *const pg, Allo *const al, Fault *const f, ProgUser *const us
     pg->allo = al;
     pg->fault = f;
     pg->user = user;
-    allo_new(al, 0x10000, &pg->owner);
+    allo_new(al, PROG_FIRST, &pg->owner);
     prog_moved(&pg->owner);
 }
 
