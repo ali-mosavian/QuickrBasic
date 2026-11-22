@@ -5,7 +5,8 @@
 #include <stdint.h>
 #include "util/arena.h"
 
-enum { BTAB_SHIFT = 10, BTAB_N = 1 << BTAB_SHIFT, BTAB_MASK = BTAB_N - 1 };
+/* 64 entries a block: 1024 took 56 KB for a program's first procedure. */
+enum { BTAB_SHIFT = 6, BTAB_N = 1 << BTAB_SHIFT, BTAB_MASK = BTAB_N - 1 };
 
 typedef struct {
     uint8_t **blocks; /* by block, BTAB_N entries each */

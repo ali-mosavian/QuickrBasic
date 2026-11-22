@@ -46,7 +46,7 @@
 #include "comp/dfa.h"
 #include "io/msg.h"
 
-enum { BLOK_CHUNK = 0x4000 };
+enum { BLOK_CHUNK = 0x1000 };
 
 /* An open block: its kind, its opener, its last clause (elsed: an ELSE, no false test after it),
    its chain's head. */
