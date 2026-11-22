@@ -5,6 +5,7 @@
 #include "boot.h"
 #include "mem/alloc.h"
 #include "session.h"
+#include "ui/linemap.h"
 #include "unit.h"
 
 /* Regions no arena holds. */
@@ -39,3 +40,33 @@ TEST(boot_short_of_arena_says_out_of_memory)
     CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 1);
     CHECK(n > 0 && strstr(text, "Out of memory"));
 }
+
+/* What boot keeps from BASIC, in a child of its own: the heap's bytes FRE does not count. */
+static uint32_t boot_keeps(void)
+{
+    static Session child;
+    static const FrontEnd fe = {.regions = lmap_init};
+
+    int out[2];
+    CHECK(pipe(out) == 0);
+    fflush(stdout);
+    const pid_t pid = fork();
+
+    if (!pid) {
+        boot(&child, &fe);
+        const uint32_t keeps = (64u << 20) - 0x1000 - allo_free(&child.allo);
+        CHECK(write(out[1], &keeps, sizeof keeps) == sizeof keeps);
+        _exit(0);
+    }
+
+    close(out[1]);
+    uint32_t keeps = 0;
+    CHECK(read(out[0], &keeps, sizeof keeps) == sizeof keeps);
+    close(out[0]);
+    waitpid(pid, nullptr, 0);
+    return keeps;
+}
+
+/* Boot keeps from BASIC what it needs at first, at most the bytes below: on DOS the rest of a 2 MB
+   machine is BASIC's. The code cache and the program store were 64 KB each at first: 587 KB kept. */
+TEST(boot_keeps_little) { CHECK(boot_keeps() <= 470000); }

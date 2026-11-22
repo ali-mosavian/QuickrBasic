@@ -45,8 +45,8 @@ void allo_init(Allo *al, Fault *f);
 Addr allo_carve(Allo *al, uint32_t size);
 /* A block of size bytes, zeroed. Returns its handle. Out of memory: no room, or NBLKH made. */
 uint32_t allo_new(Allo *al, uint32_t size, AlloOwner *owner);
-/* Block h to size bytes at least, half as many again: in place or moved, its owner told. false:
-   no room. */
+/* Block h to size bytes at least, half as many again where there is room: in place or moved, its
+   owner told. false: no room. */
 bool allo_grow(Allo *al, uint32_t h, uint32_t size);
 /* The BASIC heap's top raised by need bytes at least, a quarter of it more where there is room:
    the bytes added, past top; 0 no room. The caller moves top. */

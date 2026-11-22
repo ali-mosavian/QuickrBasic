@@ -91,9 +91,11 @@ bool allo_grow(Allo *const al, const uint32_t h, const uint32_t size)
         return true;
 
     const uint32_t half_again = b->cap + b->cap / 2;
-    const uint32_t cap = allo_align(half_again < size ? size : half_again);
-    uint8_t *const p = pmem_resize(at(b->base), cap);
+    uint32_t cap = allo_align(half_again < size ? size : half_again);
+    uint8_t *p = pmem_resize(at(b->base), cap);
 
+    if (!p && cap > allo_align(size)) /* short of memory: what was asked */
+        p = pmem_resize(at(b->base), cap = allo_align(size));
     if (!p)
         return false;
 
