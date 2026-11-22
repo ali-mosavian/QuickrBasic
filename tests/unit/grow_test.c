@@ -49,6 +49,26 @@ TEST(heap_regions_low_and_high)
     CHECK(!heap_resize(&h, nullptr, 500)); /* full */
 }
 
+/* The bottom's block in the first region: a block goes to the others while they have room. Taken
+   from the first region's top, the IDE's blocks ate the BASIC heap's room at 2 MB, and FRE was
+   74 KB with DPMI's block half free. */
+TEST(heap_blocks_leave_the_bottoms_region)
+{
+    static alignas(max_align_t) uint8_t first[8192], second[600];
+    Heap h;
+    heap_init(&h);
+    heap_add(&h, first, sizeof first);
+    heap_add(&h, second, sizeof second);
+    uint8_t *const low = heap_bottom(&h, 1000);
+    CHECK(low > first && low < first + 64);
+    const size_t room = heap_after(&h, low);
+    uint8_t *const c = heap_resize(&h, nullptr, 500);
+    CHECK(c > second && c + 500 <= second + sizeof second);
+    CHECK(heap_after(&h, low) == room);
+    uint8_t *const d = heap_resize(&h, nullptr, 500); /* the second is full: the first's top */
+    CHECK(d > low + 1000 && d + 500 <= first + sizeof first);
+}
+
 /* Calls nest past the frames' first room: each frame kept as more grow. */
 TEST(frames_grow_as_calls_nest)
 {
