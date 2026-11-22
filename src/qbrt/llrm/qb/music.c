@@ -150,8 +150,8 @@ static void wait_for_room(const Voice *v)
         QB_IDLE();
 }
 
-/* In the foreground a note waits for the queue ahead of it and for the note sounding to end, not for the silence that
-   follows it; a rest counts as sound. */
+/* In the foreground a note waits for the queue ahead of it, so it follows the note sounding with no tick lost: waiting
+   for that note to end too, one with no quiet after it (ML) started a tick late. */
 static void wait_for_turn(const Voice *v)
 {
     if (!tick_started) {
@@ -159,9 +159,18 @@ static void wait_for_turn(const Voice *v)
         tick_started = 1;
     }
     if (music_foreground)
-        while (v->tail != v->head || v->sound_left)
+        while (v->tail != v->head)
             QB_IDLE();
     wait_for_room(v);
+}
+
+void music_begun(unsigned voice)
+{
+    const Voice *const v = &voices[voice];
+
+    if (music_foreground)
+        while (v->tail != v->head)
+            QB_IDLE();
 }
 
 static unsigned long queue_end(const Voice *v)
@@ -287,6 +296,9 @@ void B_SOND(short hertz, float duration)
     if (hertz < 37)
         qb_error(BE_ILLFUN);
     v.hertz = (unsigned)hertz;
+    if (music_foreground)
+        while (voices[0].tail != voices[0].head || voices[0].sound_left)
+            QB_IDLE();
     music_queue(0, 0, &v, ticks * 1000, 0);
 }
 
