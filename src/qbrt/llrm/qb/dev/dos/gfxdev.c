@@ -24,7 +24,9 @@
    so the IDE's text screen leaves them), the display start shows one, and the
    A000h window is the shown one's, as the adapter's page is. 12h's colours
    keep to 4 bits there, and GET and PUT to its planes' layout (pixmem.c). A
-   program on one page keeps the BIOS's mode. */
+   program on one page keeps the BIOS's mode. Without a frame buffer (VBE
+   1.2), 13h's pages are there too, each in one step of the A000h window: the
+   window is the page drawn on. */
 #include <string.h>
 
 #include "device.h"
@@ -102,6 +104,8 @@ static struct {
     unsigned long stride; /* from a page to the next */
     unsigned granule;     /* the A000h window's step, bytes; 0: no window */
     int nibbles;          /* 12h's: a pixel's colour 4 bits */
+    int banked;           /* no frame buffer: drawn through the window */
+    unsigned drawn;       /* the page drawn on */
 } vbe;
 
 static void controller(unsigned index, unsigned value)
@@ -161,6 +165,7 @@ int gd_set_mode(unsigned mode)
     in_memory = 0;
     vbe.mode = 0;
     vbe.nibbles = 0;
+    vbe.banked = 0;
     dev_give(soft_block);
     soft_block = hidden = shown_copy = 0;
     shown_ok = 0;
@@ -251,8 +256,10 @@ enum {
     VBE_LINEAR = 0x4000,
     VBE_KEEP = 0x8000,
     VBE_VERSION_2 = 0x200,
-    VBE_MODES = 256,  /* of the list, at most */
-    VBE_NEEDS = 0x99, /* a mode's attributes: supported, colour, graphics, linear frame buffer */
+    VBE_VERSION_12 = 0x102,
+    VBE_MODES = 256,      /* of the list, at most */
+    VBE_NEEDS = 0x1B,     /* a mode's attributes: supported, its size given, colour, graphics */
+    VBE_FRAME = 0x80,     /* the attribute: a linear frame buffer */
     VBE_NO_WINDOW = 0x40, /* the attribute: no A000h window */
     VBE_WINDOW_RW = 7,    /* the window's attributes: there, readable, writable */
     VBE_PACKED = 4,       /* the memory model: a byte a pixel */
@@ -280,9 +287,9 @@ static unsigned long ds_base(void)
     return (unsigned long)r.rcx << 16 | (r.rdx & 0xFFFF);
 }
 
-/* VBE 2.0's mode of `width` by `height`, a byte a pixel and a row `width` bytes in a linear frame
-   buffer with room for 2 pages past VBE_PAGE0: its number, vbe's base, stride and granule set; 0
-   none. */
+/* VBE's mode of `width` by `height`, a byte a pixel and a row `width` bytes, with room for 2 pages
+   past VBE_PAGE0, in a linear frame buffer (2.0) or else each page in a step of the A000h window: its
+   number, vbe's base, stride, granule and banked set; 0 none. */
 static unsigned vbe_find(unsigned width, unsigned height)
 {
     Regs r = {0};
@@ -312,7 +319,7 @@ static unsigned vbe_find(unsigned width, unsigned height)
     dev_int10r(&r);
 
     if ((r.rax & 0xFFFF) == VBE_OK && !memcmp(block, "VESA", 4) &&
-        word_at(block + 4) >= VBE_VERSION_2 &&
+        word_at(block + 4) >= VBE_VERSION_12 &&
         VBE_PAGE0 + 2 * stride <= word_at(block + 0x12) * 0x10000UL) {
         const u8 *list = (const u8 *)(word_at(block + 0x10) * 16UL + word_at(block + 0x0E) - base);
 
@@ -322,7 +329,8 @@ static unsigned vbe_find(unsigned width, unsigned height)
         }
 
         for (at = 0; at < n && !found; at++) {
-            unsigned attributes;
+            unsigned attributes, granule;
+            int frame;
 
             r = (Regs){0};
 
@@ -338,14 +346,21 @@ static unsigned vbe_find(unsigned width, unsigned height)
                 word_at(info + 0x10) != width || info[0x19] != 8 || info[0x1B] != VBE_PACKED)
                 continue;
 
+            frame = word_at(block + 4) >= VBE_VERSION_2 && attributes & VBE_FRAME;
+            granule = !(attributes & VBE_NO_WINDOW) && (info[2] & VBE_WINDOW_RW) == VBE_WINDOW_RW &&
+                              word_at(info + 8) == 0xA000
+                          ? word_at(info + 4) * 1024u
+                          : 0;
+
+            if (!frame && (!granule || VBE_ALIGN % granule ||
+                           word_at(info + 6) * 1024UL < (unsigned long)width * height))
+                continue;
+
             found = modes[at];
             vbe.base = word_at(info + 0x28) | (unsigned long)word_at(info + 0x2A) << 16;
             vbe.stride = stride;
-            vbe.granule = !(attributes & VBE_NO_WINDOW) &&
-                                  (info[2] & VBE_WINDOW_RW) == VBE_WINDOW_RW &&
-                                  word_at(info + 8) == 0xA000
-                              ? word_at(info + 4) * 1024u
-                              : 0;
+            vbe.granule = granule;
+            vbe.banked = !frame;
         }
     }
 
@@ -365,7 +380,7 @@ static int vbe_map(void)
 
     const unsigned long size = VBE_PAGE0 + 2 * vbe.stride;
 
-    if (vbe.lfb && mapped == vbe.base)
+    if (vbe.banked || (vbe.lfb && mapped == vbe.base))
         return 1;
 
     r.rax = DPMI_MAP;
@@ -385,7 +400,17 @@ static int vbe_map(void)
 
 static u8 *vbe_page(unsigned page) { return vbe.lfb + VBE_PAGE0 + page * vbe.stride; }
 
-/* Page `page` shown, and the A000h window its. */
+/* The A000h window on page `page`. */
+static void vbe_window(unsigned page)
+{
+    Regs r = {0};
+
+    r.rax = VBE_WINDOW;
+    r.rdx = (VBE_PAGE0 + page * vbe.stride) / vbe.granule;
+    dev_int10(&r);
+}
+
+/* Page `page` shown, and the A000h window its unless drawing needs it. */
 static void vbe_show(unsigned page)
 {
     const unsigned long at = VBE_PAGE0 + page * vbe.stride;
@@ -396,14 +421,43 @@ static void vbe_show(unsigned page)
     r.rdx = at / pitch;
     dev_int10(&r);
 
-    if (!vbe.granule)
+    if (vbe.granule && !vbe.banked)
+        vbe_window(page);
+}
+
+static void vbe_draw_on(unsigned page)
+{
+    vbe.drawn = page;
+
+    if (!vbe.banked) {
+        screen = vbe_page(page);
         return;
+    }
 
-    r = (Regs){0};
+    vbe_window(page);
+    screen = adapter;
+}
 
-    r.rax = VBE_WINDOW;
-    r.rdx = at / vbe.granule;
-    dev_int10(&r);
+/* `bytes` of page `from` copied over page `to`'s, through the window when banked. */
+static void vbe_copy(unsigned from, unsigned to, unsigned bytes)
+{
+    u8 chunk[0x1000];
+    unsigned at, n;
+
+    if (!vbe.banked) {
+        move(vbe_page(to), vbe_page(from), bytes);
+        return;
+    }
+
+    for (at = 0; at < bytes; at += n) {
+        n = bytes - at < sizeof chunk ? bytes - at : sizeof chunk;
+        vbe_window(from);
+        move(chunk, (const u8 *)adapter + at, n);
+        vbe_window(to);
+        move((u8 *)adapter + at, chunk, n);
+    }
+
+    vbe_window(vbe.drawn);
 }
 
 static void dac_read(u8 *dac)
@@ -461,7 +515,7 @@ static int vbe_on(void)
     r = (Regs){0};
 
     r.rax = VBE_SET;
-    r.rbx = mode | VBE_LINEAR;
+    r.rbx = mode | (vbe.banked ? 0 : VBE_LINEAR);
     dev_int10(&r);
 
     if ((r.rax & 0xFFFF) != VBE_OK) {
@@ -474,9 +528,15 @@ static int vbe_on(void)
     kind = KIND_LINEAR;
     ops = &linear_ops;
     pitch = width;
-    memset(vbe_page(1), 0, (size_t)width * height);
 
-    if (planar) {
+    if (vbe.banked) { /* 13h's alone */
+        vbe_window(1);
+        memset((void *)adapter, 0, LINEAR_BYTES);
+        vbe_window(0);
+        move((void *)adapter, kept, LINEAR_BYTES);
+    } else if (planar) {
+        memset(vbe_page(1), 0, (size_t)width * height);
+
         for (y = 0; y < height; y++) {
             u8 *const row = vbe_page(0) + y * width;
 
@@ -493,6 +553,7 @@ static int vbe_on(void)
             }
         }
     } else {
+        memset(vbe_page(1), 0, LINEAR_BYTES);
         move(vbe_page(0), kept, LINEAR_BYTES);
     }
 
@@ -507,7 +568,7 @@ static int vbe_on(void)
         dev_outb(DAC_DATA, color[2]);
     }
 
-    screen = vbe_page(0);
+    vbe_draw_on(0);
     vbe_show(0);
     return 1;
 }
@@ -519,9 +580,12 @@ void gd_vbe_show(void)
     Regs r = {0};
 
     r.rax = VBE_SET;
-    r.rbx = vbe.mode | VBE_LINEAR | VBE_KEEP;
+    r.rbx = vbe.mode | (vbe.banked ? 0 : VBE_LINEAR) | VBE_KEEP;
     dev_int10(&r);
     vbe_show(shown);
+
+    if (vbe.banked)
+        vbe_window(vbe.drawn);
 }
 
 /* A colour as 12h keeps it in VBE's mode: 4 bits. */
@@ -623,7 +687,7 @@ int gd_set_pages(unsigned active, unsigned visible)
         if (active | visible | shown)
             soft_take();
         if (vbe.mode) {
-            screen = vbe_page(active);
+            vbe_draw_on(active);
 
             if (visible != shown)
                 vbe_show(visible);
@@ -658,7 +722,7 @@ int gd_copy_page(unsigned from, unsigned to)
         soft_take();
 
         if (vbe.mode)
-            move(vbe_page(to), vbe_page(from), pitch * (vbe.nibbles ? PLANAR_HEIGHT : 200));
+            vbe_copy(from, to, pitch * (vbe.nibbles ? PLANAR_HEIGHT : 200));
         else
             soft_copy(to != shown);
         return 1;

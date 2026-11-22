@@ -53,10 +53,12 @@ def pages(mode: int, dot: str, shown: int, hidden: int, sees: int) -> str:
     ])
 
 
+# Without a frame buffer the window is the page drawn on, not the one shown (pages13banked).
 # mode, the dot, the page shown's byte, the hidden page's (the adapter's, or the shown one's where it is in
 # memory), the byte seen after the flip; then the bytes PRINTed
 PAGES = {
     "pages13": (pages(13, "PSET (5, 0), 9", 0xA0005, 0xA0005, 0xA0005), " 0  0  9  0  9 "),
+    "pages13banked": (pages(13, "PSET (5, 0), 9", 0xA0005, 0xA0005, 0xA0005), " 9  9  9  0  9 "),
     "pages12": (pages(12, "PSET (0, 0), 1", 0xA0000, 0xA0000, 0xA0000), " 0  0  128  0  128 "),
     "pages12vbe": (pages(12, "PSET (0, 0), 1", 0xA0000, 0xA0000, 0xA0000), " 0  0  1  0  1 "),
     "pages1": (pages(1, "PSET (0, 0), 3", 0xB8000, 0xB8000, 0xB8000), " 0  0  192  0  192 "),
@@ -65,7 +67,7 @@ PAGES = {
 }
 
 # A second page in a 2 MB machine without EMS, FRE(-1) less: 128 KB for 13's and 307 KB for 12's,
-# of the 482 KB there, before VBE's pages.
+# of the 482 KB there, before VBE's pages; 13's without a frame buffer too.
 SECOND = {
     f"second{m}": "\r\n".join([f"SCREEN {m}", "a = FRE(-1)", f"SCREEN {m}, , 1, 0", "b = FRE(-1)", "SCREEN 0",
                                 "PRINT a - b", ""])
@@ -98,17 +100,22 @@ if __name__ == "__main__":
         out = dosrun.run({name: program}, Path(tempfile.mkdtemp()) / "w", 60000, mem=4)[name].out
         assert want in out and "Out of memory" not in out, (name, out[-400:])
     svga = not dosrun.is_host(dosrun.COM)
-    for machine in ("svga_s3", "vgaonly") if svga else ("svga_s3",):
-        vbe = machine == "svga_s3" and svga
-        run = {k: v for k, v in PAGES.items() if k != ("pages12" if vbe else "pages12vbe")}
+    skip = {"svga_s3": {"pages12", "pages13banked"}, "vgaonly": {"pages12vbe", "pages13banked"},
+            "vesa_nolfb": set(PAGES) - {"pages13banked", "pages12"}}
+    if not svga:
+        skip = {"svga_s3": {"pages12vbe", "pages13banked"}}
+    for machine, skips in skip.items():
+        run = {k: v for k, v in PAGES.items() if k not in skips}
         got = dosrun.run({k: v[0] for k, v in run.items()}, Path(tempfile.mkdtemp()) / "w", 60000, mem=4,
                          machine=machine)
         for name, (_, want) in run.items():
             assert want in got[name].out, (machine, name, got[name].out[-400:])
     if svga:
-        got = dosrun.run(SECOND, Path(tempfile.mkdtemp()) / "w", 60000, mem=2, ems=False)
-        for name in SECOND:
-            assert got[name].out.split()[-2:] == ["0", "READY."], (name, got[name].out[-200:])
+        for machine, names in (("svga_s3", SECOND), ("vesa_nolfb", ["second13"])):
+            got = dosrun.run({k: SECOND[k] for k in names}, Path(tempfile.mkdtemp()) / "w", 60000, mem=2,
+                             ems=False, machine=machine)
+            for name in names:
+                assert got[name].out.split()[-2:] == ["0", "READY."], (machine, name, got[name].out[-200:])
     work = Path(tempfile.mkdtemp()) / "w"
     dosrun.run({"text": TEXT}, work, 60000, mem=4, screen=True)
     text = (work / "R.TXT").read_text() if (work / "R.TXT").exists() else "(none)"
