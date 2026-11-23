@@ -233,6 +233,22 @@ with which material. Tests assert on that, and pass on every backend.
 5. 3D: meshes, materials, models, from qcport.
 6. Vertex procedures, and the program's own shaders.
 
+## Prior art
+
+| | What `gfx` takes from it |
+|---|---|
+| µGL, qgl | views; a set of span fillers for each depth; the scanner, clipper and surface cache |
+| Allegro 4 | sub-bitmaps; `polygon3d`'s types, affine or perspective, masked, lit, translucent; light and translucency tables; mode lists; `scene_polygon3d`'s sorted spans |
+| Allegro 5 | the same library moved to GPUs: `al_draw_prim`'s vertices, shaders, held drawing batched, display modes |
+| Quake 2's refresh | one game, a software and a GL renderer behind one scene-level interface, so each keeps its own way of hiding surfaces |
+| Glide, Direct3D 7's stages, the GameCube's TEV | fixed combine stages that hardware and software both run: the pixel stages |
+| sokol_gfx | resources, pipelines and passes over GL, WebGL2, Metal and D3D11; one shader source compiled for each |
+| bgfx | a sort key on each draw, for batching; a backend that draws nothing, for tests |
+| raylib | `Camera2D`; `DrawTexturePro`'s source, origin and rotation; batching over GL 1.1 to ES3 |
+| LÖVE | `Quad`, `Canvas`, `SpriteBatch`, `Mesh`, `Shader` and the fullscreen modes, behind a scripting language |
+| PICO-8, TIC-80 | palette swaps, `camera`, `clip`, flipped sprites, `tline` for turned and mode-7 drawing |
+| TinyGL | an OpenGL subset in software, small and in C, at 8, 16, 24 and 32 bits: the C backend's size |
+
 ## Open questions
 
 1. `SCREEN`'s page and a `gfx` canvas: two layers (as above), or one canvas both draw into?
@@ -240,3 +256,5 @@ with which material. Tests assert on that, and pass on every backend.
 3. Depth in software: a 16-bit z, or 1/z as Quake's?
 4. 15 bits: worth its fillers, or 16 alone?
 5. Vertex procedures: on the CPU everywhere (as above), or translated to vertex shaders on a GPU?
+6. 3D worlds: a scene-level call as Quake 2's, so software keeps its own way of hiding surfaces, or
+   triangles with `gfx.order FRONT` alone?
