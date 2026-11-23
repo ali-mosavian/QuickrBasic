@@ -275,18 +275,21 @@ build's 32-bit flat memory.
 QuickrBasic runs BASIC as bytecode, so a shader written in BASIC would be interpreted at every pixel:
 too slow in software. Shaders come in three kinds, by where they can run.
 
-- **Vertex procedures, everywhere.** A BASIC `SUB` given a mesh's vertices and the frame's values, run
-  on the CPU before the mesh is drawn: a wave, a wobble, a bend. A 486 affords it for hundreds of
-  vertices a frame. The built-in vertex work, transform, keyframe blend and billboards, is the
-  backend's: a vertex shader on a GPU.
-- **Pixel stages, everywhere.** A material is a short list of stages, each a step every backend has:
-  read a texture, its u and v warped or not; read the light table; read the palette; multiply or add a
-  second texture or a colour; key; blend. A GPU backend joins a material's stages into one shader.
-  Software has a hand-written span filler for each built-in material's list, and a slower general
-  one that steps through any other.
-- **The program's own shaders, on a GPU only.** GLSL ES 3.0, as WebGL2 takes it; for SDL_GPU, compiled
-  to SPIR-V by glslang and crossed to MSL and DXIL by SDL_shadercross. A program that uses one also
-  gives a material of stages, drawn where there are none.
+- **Vertex procedures, everywhere.** A BASIC `SUB` given a mesh's vertices and the frame's values:
+  a wave, a wobble, a bend. In software the interpreter runs it before the mesh is drawn, and a 486
+  affords it for hundreds of vertices a frame. On a GPU it is translated to a vertex shader, so it
+  is written in the BASIC that translates: arithmetic and the built-in functions on its own
+  arguments. The built-in vertex work, transform, keyframe blend and billboards, is the backend's.
+- **Pixel stages, everywhere.** A draw's stages are bits, each a step every backend has: read a
+  texture, its u and v warped or not, nearest or smooth; through a palette row; through the light;
+  times a tint, or the tint alone; times a second texture; key; blend or add. A kind of material is
+  a fixed set of them. Software picks a filler by the bits ([The core](#the-core)). On a GPU the
+  bits ride in the vertices beside the light, tint and palette row, and the host has one shader a
+  backend that reads them: nothing compiles as the program runs, and a batch ends only at another
+  blend, page or target.
+- **The program's own shaders, on a GPU only.** GLSL ES 3.0 as it is, as WebGL2 takes it; an SDL
+  host crosses it to SPIR-V, MSL and DXIL (glslang, SDL_shadercross). A program that uses one also
+  names a kind, drawn where there are no shaders.
 
 `display.caps` says what the backend has: a GPU, the program's own shaders, smooth sampling.
 `scene.cost` gives a cost for each kind of material, so the program picks its own detail.
@@ -314,8 +317,7 @@ On a GPU an indexed texture is an 8-bit texture read exactly (`texelFetch` on We
 looks it up in the light table and the palette, both textures. The canvas at 8 bits is an 8-bit
 target, shown through the palette by a last pass.
 
-The shaders are built for each backend (MSL, SPIR-V, DXIL, GLSL ES 3.0) and kept in the `.qbx` beside
-its code.
+The one shader is built with each host: MSL, SPIR-V and DXIL for SDL_GPU, GLSL ES 3.0 in the page.
 
 ## The host's side
 
@@ -373,6 +375,58 @@ source, over one slice a platform: the modules share the surfaces, the pen and t
   `gfx_scene_vertex`. It joins a DECLARE's `_` lines, and no C name can meet the C library's.
 - The file format's version becomes 2. A version 1 file is one unnamed interface.
 
+## The core
+
+C, in `src/ext/gfx`, the same on every platform. `gfx.c` alone holds the state; each module under it
+takes its own part. Memory is the host's (`alloc`), taken when first used: nothing is static.
+
+| Module | Owns |
+|---|---|
+| `gfx.c` | the entries the glue calls: arguments checked, errors raised |
+| `handle` | handles: slots and generations |
+| `surface` | surfaces, views and anchors; the pages images are packed in |
+| `image` | a file's bytes to pixels and a palette: BMP, then PNG |
+| `colour` | palette rows, the light table, the blend tables, the nearest index |
+| `pen` | the pen |
+| `command` | a draw call to a command, the camera applied; the frame's log |
+| `shape` | a command to vertices: quads and fans |
+| `soft/scan` | a convex polygon to spans, clipped |
+| `soft/fill8`, `fill16`, `fill32` | spans and rows to pixels: a table for each depth |
+| `soft/soft` | the software backend: a command drawn at once |
+| `gpu/batch` | vertices to batches |
+| `gpu/list` | the list the host plays |
+
+### From a call to pixels
+
+1. A draw call becomes a command: its kind, target, source and flags, the pen's numbers, and its
+   place after the camera. The frame's commands are logged, and `display.drawn` reads the log: the
+   same on every backend.
+2. `shape` makes its vertices: a place, u and v, light, tint, palette row and stage bits. In
+   software an upright sprite at 1:1 skips this: its rows are copied.
+3. Software scans and fills at once. For a GPU, `batch` adds the vertices to the frame's store; a
+   batch is a run with one target, page, blend and clip.
+4. At `display.flip` software calls `gfx_show`. A GPU's frame becomes a list, and `gfx_play` plays
+   it.
+
+The list is words, an op and its size each: make a texture, upload rows of one, the palette rows, a
+pass (its target, a clear), a clip, the vertices, a draw (first vertex, count, page, blend, depth),
+the end. What it points at stays till `gfx_play` returns.
+
+### Scanner and fillers
+
+- **One scanner**, in C, that knows no depth: two edge chains walked down from the top vertex, a
+  span a row. Two walks, as qgl's `drawA` and `drawP`: affine, u and v 16.16; and perspective, u/z
+  and v/z floats, corrected every 16 pixels.
+- **A table for each depth**, as µGL's `CFMT`. It holds fused fillers for the hot mixes: a row
+  copied, keyed, keyed and flipped; a span flat, textured, textured and keyed, lit. And it holds the
+  steps of µGL's `tfx` row pipeline for every other mix: unpack, colour, mask, blend, pack.
+- **Picked once** for each sprite or polygon, from its stage bits, as qgl's `b8_span`: the fused
+  filler when there is one, else the pipeline. Nothing below tests a mode.
+- **15 and 16 bits are one template**, built twice with other masks; 8 and 32 have their own.
+- **On DOS** assembly fills the same table's slots, 8 bits first; a slot with none keeps C's.
+- **Depth is 1/z in 16 bits**, as µGL's `uglZ`: larger is nearer, 0 is far, scaled from the
+  camera's near plane. It is linear along a span, so no pixel divides.
+
 ## Tests
 
 `display.draws` counts the frame's commands and `display.drawn` gives each after every transform: what
@@ -383,13 +437,36 @@ pixels run on the software backend.
 
 ## Order
 
-1. The core: canvas, displays and modes, colour, drawing and batching, textured triangles, pixel
-   stages; the software backend in C at 8 and 32 bits.
-2. 2D: sprites, tiles, strips; CHARLIE moves onto them.
-3. The SDL_GPU and WebGL2 backends.
-4. DOS: span fillers in assembly, VBE modes.
-5. 3D: meshes, materials, models, from qcport.
-6. Vertex procedures, and the program's own shaders.
+1. The first slice, below.
+2. BASIC's binding: the package's loader, once QuickrBasic's dialect reads the interfaces. CHARLIE
+   moves onto `gfx`.
+3. The rest of 2D and the pen: turned sprites, quads, strips, light, tint, blend, recolor; 16 and 32
+   bits; PNG.
+4. The hosts' players, SDL_GPU and WebGL2, and the list.
+5. DOS: VBE's pages, fillers in assembly.
+6. 3D: `scene`, from qcport.
+7. Vertex procedures, and the program's own shaders.
+
+### The first slice
+
+8 bits, in software, seen in the Mac's window.
+
+- **`tools/qbx.py`**: a package's interfaces in one `.qbx`; a DECLARE's `_` lines; C names with
+  their module.
+- **`QxHost`, minor 1**: `gfx_open`, `gfx_close`, `gfx_page`, `gfx_show`, `clock_us`, `file_read`.
+  The terminal's host lends memory and shows nothing. The Mac's lends the page its window shows.
+- **The core at 8 bits**: `handle`, `surface` (`new`, `load` of a BMP, `view`, `grid`, `anchor`,
+  `free`, `point`, `read`), `colour` (`palette`, `palette_of`), `pen` (`target`, `clip`, `reset`),
+  `command`, `soft` (`scan`, `fill8`), `draw` (`clear`, `pset`, `line`, `rect`, `sprite` with
+  `FLIPX`, `FLIPY` and `OPAQUE`, `tiles`, `text` in the built-in font), `display` (`open`, `close`,
+  `flip`, `clock`, `draws`, `drawn`).
+- **CHARLIE**: `tools/charlieart.py` writes `CHARLIE.BMP` and the BASIC that cuts its views.
+- **Tests, native**: C unit tests, the slice linked in. Each rule by its commands drawn and by its
+  pixels read: the top and left edges, clipping, the key, flips, anchors, views, stale handles, a
+  BMP. A frame of CHARLIE both ways. A C harness draws that frame in the Mac's window, and
+  `QB_SHOT` takes it.
+- **Not in it**: BASIC calling `gfx`. The interfaces name `open` and `line`, which QuickrBasic's
+  dialect must first read.
 
 ## Prior art
 
@@ -407,12 +484,23 @@ pixels run on the software backend.
 | PICO-8, TIC-80 | palette swaps, `camera`, `clip`, flipped sprites, `tline` for turned and mode-7 drawing |
 | TinyGL | an OpenGL subset in software, small and in C, at 8, 16, 24 and 32 bits: the C backend's size |
 
-## Open questions
+## Decisions
 
-1. Decided: `SCREEN`'s page is QB's dialect's alone, so there is nothing to layer.
-2. The program's own shaders: GLSL ES as it is, or a BASIC subset translated to it?
-3. Depth in software: a 16-bit z, or 1/z as Quake's?
-4. 15 bits: worth its fillers, or 16 alone?
-5. Vertex procedures: on the CPU everywhere (as above), or translated to vertex shaders on a GPU?
-6. 3D worlds: a scene-level call as Quake 2's, so software keeps its own way of hiding surfaces, or
-   triangles with `ORDERED` alone?
+| Question | Decided |
+|---|---|
+| `SCREEN`'s page and a `gfx` canvas | `SCREEN` is QB's dialect's alone: one canvas, nothing layered |
+| The program's own shaders | GLSL ES 3.0 as it is |
+| Depth in software | 1/z in 16 bits |
+| 15 bits | one template with 16 |
+| Vertex procedures | the interpreter in software; translated to a vertex shader on a GPU |
+| 3D worlds | meshes drawn nearest first with `ORDERED`; a scene-level call is weighed again at step 6 |
+| Names that are QB's keywords | QuickrBasic's dialect has none of them: they are plain names |
+| Where the GPU backends live | in the host, playing a list the extension records |
+| A sprite's arguments | `sprite` and `sprite_turned`, as µGL's pairs |
+| Effects | flags on each draw call; the pen holds their numbers |
+| What is drawn | everything is a surface; an atlas is an image and views over it |
+| The package | five modules, `display`, `surface`, `pen`, `draw`, `scene`, in one `gfx.qbx` |
+| Software's frame | drawn in memory the host lends |
+| Images | BMP first, PNG next |
+| Software's pixels | fused fillers for the hot mixes, µGL's `tfx` rows for the rest |
+| Stages on a GPU | one shader a backend, the stages bits in the vertices |

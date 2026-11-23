@@ -46,6 +46,9 @@ print synth.beat()
 | Slices | a tag, an offset and a size each |
 | Help (later) | pages for F1, in the help's Markdown |
 
+A package's `.qbx` will hold a table of interfaces, a module each, over the same slices: a design, in
+[gfx-extension-design.md](gfx-extension-design.md#one-file-five-interfaces).
+
 | Slice | Holds | Loaded by |
 |---|---|---|
 | `dos-i386` | a flat image, its relocations' offsets and its entry's offset, made from an `lld-link` DLL by `tools/qbx.py` | our loader: a heap block, the relocations added, the entry called |
