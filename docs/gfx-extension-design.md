@@ -323,8 +323,8 @@ reading an 8-bit canvas gives each pixel's nearest index.
 
 The one shader is written once, in Vulkan GLSL (`stdlib/gfx/gpu/shaders`), its vertex stage built
 twice: for plain vertices and, with `DISC`, for a circle's. `make shaders` crosses it with glslang
-and SPIRV-Cross, pinned in `tools/deps.sh`, to MSL for SDL_GPU and ESSL 3.00 for WebGL2
-(`gpu/shaders.h`), committed so a build needs neither. `display.open` names the languages it brings,
+and SPIRV-Cross, pinned in `tools/deps.sh`, to SPIR-V for SDL_GPU's Vulkan, MSL for its Metal and
+ESSL 3.00 for WebGL2 (`gpu/shaders.h`), committed so a build needs neither. `display.open` names the languages it brings,
 and the host answers with the one it takes.
 
 ## The host's side
@@ -578,6 +578,10 @@ Step 4, in parts:
   a closed window ends the run unless the program has polled since `display.open`, which then
   gets `QUIT`, and a second close ends it. On the Mac, SDL's full screen in a Space of its own
   needs the app active.
+- **Vulkan** (`make linux-app`): the player takes SPIR-V where SDL_GPU has no Metal. On a Linux box
+  with no X11 or Wayland, `SDL_HEADLESS=1 tools/deps.sh sdl` builds SDL with the offscreen driver
+  only: NVIDIA's Vulkan cannot present to its windows, Mesa's lavapipe can, and there bench's
+  frames are software's pixels.
 - **The page's display** (`plat/wasm/display.c`): one monitor, its one mode the screen's in
   device pixels; full screen by the Fullscreen API at the next click or key, its rule. The page
   reports the canvas's shown size and its focus.

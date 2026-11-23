@@ -1,8 +1,9 @@
 #!/bin/sh
 # deps.sh [build|dosbox|capture|sdl|shaders]: the pinned tools the build and the tests need, built from source
 # into build/deps/bin. build: jwasm and jwlink (make runs this). dosbox: the headless DOSBox-X the tests
-# run on. capture: the same with the debug socket's video_start (tools/demo.py). sdl: SDL 3 for the Mac's
-# app, static and universal (arm64 and x86-64, macOS 13 on), into build/deps/sdl3. shaders: glslang and
+# run on. capture: the same with the debug socket's video_start (tools/demo.py). sdl: SDL 3 for the window's
+# app, static, into build/deps/sdl3: the Mac's universal (arm64 and x86-64, macOS 13 on); SDL_HEADLESS=1, with
+# no window but the offscreen driver's (a Linux box with no X11 or Wayland to build against). shaders: glslang and
 # spirv-cross, which make shaders runs (tools/shaders.py).
 # DEPS_CACHE keeps the clones and builds across checkouts (default build/deps/src).
 # jwasm and jwlink are C89: their own bool is a C23 keyword, so CC builds them as gnu17;
@@ -61,8 +62,8 @@ sdl)
     clone SDL $SDL "$CACHE/SDL-$SDL" libsdl-org
     built "$CACHE/SDL-$SDL" sh -c 'cmake -S . -B out -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
         -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TEST_LIBRARY=OFF \
-        -DCMAKE_INSTALL_PREFIX="$1" >/dev/null && cmake --build out -j4 >/dev/null && cmake --install out >/dev/null' \
-        - "$ROOT/build/deps/sdl3"
+        -DSDL_UNIX_CONSOLE_BUILD="$2" -DCMAKE_INSTALL_PREFIX="$1" >/dev/null && cmake --build out -j4 >/dev/null && cmake --install out >/dev/null' \
+        - "$ROOT/build/deps/sdl3" "$([ -n "${SDL_HEADLESS:-}" ] && echo ON || echo OFF)"
     ;;
 shaders)
     clone glslang $GLSLANG "$CACHE/glslang-$GLSLANG" KhronosGroup

@@ -88,19 +88,24 @@ static const uint8_t *texels(
 
 /* A language's code: each kind's vertex stage, the fragment stage. */
 typedef struct {
-    const char *vertex[KINDS], *fragment;
+    const void *vertex[KINDS], *fragment;
     uint32_t vertex_bytes[KINDS], fragment_bytes;
 } Code;
 
-#define CODE(language)                                                                             \
+/* A language's code, its text's NUL left out (text 1) or its bytes whole (0). */
+#define CODE(language, text)                                                                       \
     {                                                                                              \
         {draw_vert_##language, disc_vert_##language},                                              \
         draw_frag_##language,                                                                      \
-        {sizeof draw_vert_##language - 1, sizeof disc_vert_##language - 1},                        \
-        sizeof draw_frag_##language - 1,                                                           \
+        {sizeof draw_vert_##language - (text), sizeof disc_vert_##language - (text)},              \
+        sizeof draw_frag_##language - (text),                                                      \
     }
 
-static const Code codes[] = {[QX_SHADER_MSL] = CODE(msl), [QX_SHADER_ESSL] = CODE(essl)};
+static const Code codes[] = {
+    [QX_SHADER_MSL] = CODE(msl, 1),
+    [QX_SHADER_ESSL] = CODE(essl, 1),
+    [QX_SHADER_SPIRV] = CODE(spirv, 0),
+};
 
 /* The pipelines, a kind of vertex and blend each, the shader's attributes and its code in c. */
 static bool pipelines(GpuList *const l, const Code *const c)

@@ -340,8 +340,10 @@ int sdl_main(void)
        has neither window nor renderer; its shots need none. */
     const char *const gfx = getenv("QB_GFX");
     SDL_Renderer *const gpu =
-        (gfx && !strcmp(gfx, "soft")) ||
-                !SDL_GPUSupportsShaderFormats(SDL_GPU_SHADERFORMAT_MSL, nullptr)
+        (gfx && !strcmp(gfx, "soft")) || !SDL_GPUSupportsShaderFormats(
+                                             SDL_GPU_SHADERFORMAT_MSL | SDL_GPU_SHADERFORMAT_SPIRV,
+                                             nullptr
+                                         )
             ? nullptr
             : SDL_CreateGPURenderer(nullptr, w);
     const bool played = gpu && sdl_player_init(SDL_GetGPURendererDevice(gpu));

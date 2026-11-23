@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """shaders.py: gfx's one shader (stdlib/gfx/gpu/shaders) in each language a host takes, its vertex
-stage twice: for plain vertices and, with DISC, for discs. glslang makes SPIR-V, and spirv-cross MSL
-for SDL_GPU's Metal and ESSL for the page's WebGL2. The header it writes is committed, so a build
+stage twice: for plain vertices and, with DISC, for discs. glslang makes SPIR-V, for SDL_GPU's Vulkan,
+and spirv-cross MSL for its Metal and ESSL for the page's WebGL2. The header it writes is committed, so a build
 needs neither tool: run `make shaders` after an edit (tools/deps.sh shaders builds them)."""
 
 import subprocess
@@ -37,6 +37,11 @@ def c_string(name: str, text: str) -> str:
     return f"static const char {name}[] =\n{lines};\n"
 
 
+def c_bytes(name: str, data: bytes) -> str:
+    rows = (", ".join(f"0x{b:02x}" for b in data[i : i + 16]) for i in range(0, len(data), 16))
+    return f"static const uint8_t {name}[] = {{\n" + "".join(f"    {row},\n" for row in rows) + "};\n"
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         spvs = {name: spirv(name, Path(tmp)) for name in SHADERS}
@@ -45,10 +50,12 @@ def main() -> None:
             for language, flags in LANGUAGES.items()
             for name in SHADERS
         }
+        binary = {f"{name}_spirv": spv.read_bytes() for name, spv in spvs.items()}
 
     OUT.write_text(
-        f"/* {NOTE} */\n#ifndef GFX_GPU_SHADERS_H\n#define GFX_GPU_SHADERS_H\n"
+        f"/* {NOTE} */\n#ifndef GFX_GPU_SHADERS_H\n#define GFX_GPU_SHADERS_H\n#include <stdint.h>\n"
         + "".join(c_string(name, text) for name, text in code.items())
+        + "".join(c_bytes(name, data) for name, data in binary.items())
         + "#endif\n"
     )
 

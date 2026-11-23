@@ -1,7 +1,8 @@
 /* GPU lists (qx/qxlist.h) played with SDL_GPU, and the texture they show drawn in the window.
  *
  * # How it works
- * The window's renderer is SDL's GPU renderer; the player shares its device. A list plays on the
+ * The window's renderer is SDL's GPU renderer; the player shares its device, and takes MSL where it
+ * runs on Metal, else SPIR-V (Vulkan). A list plays on the
  * calling thread, the interpreter's, as one command buffer submitted without a wait: a play waits
  * only for the frame FLIGHT back, a read for its own. The list's writes and uploads are first
  * copied into one staging buffer kept between frames, cycled while a frame behind still reads it,
@@ -70,6 +71,7 @@ typedef struct {
 
 static struct {
     SDL_GPUDevice *dev;
+    SDL_GPUShaderFormat format; /* MSL or SPIR-V */
     SDL_GPUSampler *nearest;
     Table textures, buffers, pipelines;
     SDL_GPUTransferBuffer *staging;
@@ -371,8 +373,8 @@ static SDL_GPUShader *shader(
         &(SDL_GPUShaderCreateInfo){
             .code_size = code[0],
             .code = pointer(code + 1),
-            .entrypoint = "main0",
-            .format = SDL_GPU_SHADERFORMAT_MSL,
+            .entrypoint = p.format == SDL_GPU_SHADERFORMAT_MSL ? "main0" : "main",
+            .format = p.format,
             .stage = stage,
             .num_samplers = samplers,
             .num_uniform_buffers = uniforms,
@@ -760,7 +762,7 @@ static void player_close(void)
 
 bool sdl_player_init(SDL_GPUDevice *const dev)
 {
-    static const PgfxPlayer player = {
+    static const PgfxPlayer msl = {
         .shaders = 1 << QX_SHADER_MSL,
         .y_down = false,
         .open = player_open,
@@ -769,12 +771,26 @@ bool sdl_player_init(SDL_GPUDevice *const dev)
         .read = player_read,
     };
 
+    static const PgfxPlayer spirv = {
+        .shaders = 1 << QX_SHADER_SPIRV,
+        .y_down = false,
+        .open = player_open,
+        .close = player_close,
+        .play = player_play,
+        .read = player_read,
+    };
+
+    const SDL_GPUShaderFormat formats = SDL_GetGPUShaderFormats(dev);
+
     p.dev = dev;
     p.textures.size = sizeof(Texture);
     p.buffers.size = sizeof(Buffer);
     p.pipelines.size = sizeof(Pipeline);
+    p.format = formats & SDL_GPU_SHADERFORMAT_MSL     ? SDL_GPU_SHADERFORMAT_MSL
+               : formats & SDL_GPU_SHADERFORMAT_SPIRV ? SDL_GPU_SHADERFORMAT_SPIRV
+                                                      : SDL_GPU_SHADERFORMAT_INVALID;
 
-    if (!(SDL_GetGPUShaderFormats(dev) & SDL_GPU_SHADERFORMAT_MSL))
+    if (!p.format)
         return false;
 
     p.lock = SDL_CreateMutex();
@@ -783,7 +799,7 @@ bool sdl_player_init(SDL_GPUDevice *const dev)
     if (!p.lock || !p.nearest)
         return false;
 
-    pgfx_set_player(&player);
+    pgfx_set_player(p.format == SDL_GPU_SHADERFORMAT_MSL ? &msl : &spirv);
     return true;
 }
 

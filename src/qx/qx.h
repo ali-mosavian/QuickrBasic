@@ -65,8 +65,9 @@ typedef struct {
     void(QX_CALL *render)(int16_t *out, int32_t frames);
 } QxAudio;
 
-/* A shading language a GPU's host takes (qxlist.h's PIPELINE): MSL 2.0, ESSL 3.00 (WebGL2's). */
-typedef enum : uint8_t { QX_SHADER_MSL = 1, QX_SHADER_ESSL } QxShader;
+/* A shading language a GPU's host takes (qxlist.h's PIPELINE): MSL 2.0, ESSL 3.00 (WebGL2's),
+   SPIR-V 1.0 (Vulkan's). */
+typedef enum : uint8_t { QX_SHADER_MSL = 1, QX_SHADER_ESSL, QX_SHADER_SPIRV } QxShader;
 
 /* A screen's flag the host reads: gfx_show and a list's SHOW wait for the display's refresh. */
 enum { QX_SCREEN_VSYNC = 1 };

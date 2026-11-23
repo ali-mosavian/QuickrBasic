@@ -863,10 +863,11 @@ def gfx_rate(app: Path, work: str, depth: int, seconds: float, how: str, vsync: 
 
 
 def cmd_gfx(a: argparse.Namespace) -> int:
-    """Each GFX_WORK frame's rate in pages and on the GPU, in the app's window; with --vsync, each flip waiting for the
-    refresh."""
-    subprocess.run(["make", "-j8", "mac"], cwd=ROOT, check=True, capture_output=True)
-    app = ROOT / "build/mac/QuickrBasic.app/Contents/MacOS/QuickrBasic"
+    """Each GFX_WORK frame's rate in pages and on the GPU, in the app's window (the Mac's, or Linux's); with --vsync,
+    each flip waiting for the refresh."""
+    mac = sys.platform == "darwin"
+    subprocess.run(["make", "-j8", "mac" if mac else "linux-app"], cwd=ROOT, check=True, capture_output=True)
+    app = ROOT / ("build/mac/QuickrBasic.app/Contents/MacOS/QuickrBasic" if mac else "build/linux/app/QuickrBasic")
     print(f"640x480 at {a.depth} bits, frames a second")
     print(f"{'':10}{'pages':>10}{'GPU':>10}{'GPU/pages':>11}{'batches':>9}{'refresh':>9}")
     for work in a.work or GFX_WORK:

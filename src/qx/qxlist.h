@@ -20,7 +20,8 @@
  *   it draws. Code is three words, its bytes then a pointer, in the language gfx_open gave
  *   (QxScreen.shader); the vertex code's uniform block is binding 0, the fragment code's
  *   samplers bindings 0 up, nearest. MSL's entry is main0. ESSL has no bindings: its one
- *   uniform block is 0, the sampler at binding n named sn. A vertex is stride bytes, each
+ *   uniform block is 0, the sampler at binding n named sn. SPIR-V's entry is main, its uniform
+ *   block in set 1 and its samplers in set 2, as SDL_GPU's. A vertex is stride bytes, each
  *   attribute three words: its location, format and offset. Drawn, a pixel's colour c goes in as c
  *   (QX_BLEND_NONE), c times the draw's alpha over the rest (MIX), or c times alpha added (ADD).
  *   A pixel drawn is opaque.

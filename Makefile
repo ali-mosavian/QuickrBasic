@@ -26,7 +26,7 @@ DOSBOX_BIN ?= $(DEPS)/dosbox-x
 DOS32A ?= third_party/dos32a
 export JWASM JWLINK DOSBOX_BIN DOS32A
 
-.PHONY: all test host host-test wasm wasm-test web mac mac-zip mac-test dos-zip lto format clean shaders
+.PHONY: all test host host-test wasm wasm-test web mac mac-zip mac-test linux-app dos-zip lto format clean shaders
 all:
 
 # one run builds both: two would clone into the same directory at once under -j
@@ -301,40 +301,41 @@ build/host/basic: $(build/host_OBJ) build/host/obj/app/basic32.o build/host/obj/
 build/hostperf/basic: $(build/hostperf_OBJ) build/hostperf/obj/app/basic32.o build/hostperf/obj/plat/host/app/insns.o | build/hostperf/lib/.stdlib
 	$(HOST_CC) $^ -lm $(HOST_DL) -o $@
 
-# ---- The Mac's: the IDE in a window, build/mac/QuickrBasic.app, universal (arm64 and x86-64, macOS 13 on); mac-zip,
-# the app zipped. SDL 3 is linked in, built by tools/deps.sh sdl. The display is plat/view's, as the browser's; wrap.h
-# is ld's --wrap ----
+# ---- The window's: the IDE in a window. The Mac's build/mac/QuickrBasic.app, universal (arm64 and x86-64, macOS 13
+# on); mac-zip, the app zipped. Linux's build/linux/app (linux-app): QuickrBasic with its help, gfx and demos beside
+# it. SDL 3 is linked in, built by tools/deps.sh sdl. The display is plat/view's, as the browser's; wrap.h is ld's
+# --wrap ----
 
 SDL_DIR := build/deps/sdl3
 SDL_LIB := $(SDL_DIR)/lib/libSDL3.a
 $(SDL_LIB): tools/deps.sh
 	sh tools/deps.sh sdl
 SDL_LIBS = $(SDL_LIB) $(shell PKG_CONFIG_PATH=$(SDL_DIR)/lib/pkgconfig pkg-config --static --libs-only-other sdl3 2>/dev/null)
-MAC := build/mac
-MAC_ARCH := -arch arm64 -arch x86_64 -mmacosx-version-min=13.0
-MAC_CFLAGS := $(filter-out -O1 -DEXEC_COUNT,$(HOST_CFLAGS)) -O2 -DAC=$(AC) $(MAC_ARCH)
-$(eval $(call host_rules,$(MAC),$(MAC_CFLAGS),$(MAC_ARCH) -include src/plat/view/wrap.h -DQBRT_SCREEN=1))
-$(MAC)/qbrt/qb/dev/host/video.o: VIEW_REAL := -DVIEW_REAL_TEXT
-$(MAC)/qbrt/qb/dev/headless/headless.o: VIEW_REAL := -DVIEW_REAL_TONE
-$(MAC)/obj/plat/sdl/%.o: APP_FLAGS := -isystem $(SDL_DIR)/include
-$(patsubst src/%.c,$(MAC)/obj/%.o,$(wildcard src/plat/sdl/*.c src/plat/sdl/app/*.c)): | $(SDL_LIB)
-$(MAC)/obj/app/ide32.o: APP_FLAGS := -Dmain=qb_main
-MAC_OBJ := $($(MAC)_OBJ) $(patsubst src/%.c,$(MAC)/obj/%.o,$(filter-out src/core/ui/tree.c src/core/ui/indent.c,\
-	$(wildcard src/core/ui/*.c)) $(wildcard src/plat/view/*.c) $(wildcard src/plat/sdl/*.c)) $(MAC)/obj/app/ide32.o
+GUI := build/$(if $(filter Darwin,$(HOST_OS)),mac,linux)
+GUI_ARCH := $(if $(filter Darwin,$(HOST_OS)),-arch arm64 -arch x86_64 -mmacosx-version-min=13.0)
+GUI_CFLAGS := $(filter-out -O1 -DEXEC_COUNT,$(HOST_CFLAGS)) -O2 -DAC=$(AC) $(GUI_ARCH)
+$(eval $(call host_rules,$(GUI),$(GUI_CFLAGS),$(GUI_ARCH) -include src/plat/view/wrap.h -DQBRT_SCREEN=1))
+$(GUI)/qbrt/qb/dev/host/video.o: VIEW_REAL := -DVIEW_REAL_TEXT
+$(GUI)/qbrt/qb/dev/headless/headless.o: VIEW_REAL := -DVIEW_REAL_TONE
+$(GUI)/obj/plat/sdl/%.o: APP_FLAGS := -isystem $(SDL_DIR)/include
+$(patsubst src/%.c,$(GUI)/obj/%.o,$(wildcard src/plat/sdl/*.c src/plat/sdl/app/*.c)): | $(SDL_LIB)
+$(GUI)/obj/app/ide32.o: APP_FLAGS := -Dmain=qb_main
+GUI_OBJ := $($(GUI)_OBJ) $(patsubst src/%.c,$(GUI)/obj/%.o,$(filter-out src/core/ui/tree.c src/core/ui/indent.c,\
+	$(wildcard src/core/ui/*.c)) $(wildcard src/plat/view/*.c) $(wildcard src/plat/sdl/*.c)) $(GUI)/obj/app/ide32.o
 
-APP := $(MAC)/QuickrBasic.app
+APP := $(GUI)/QuickrBasic.app
 DEMOS := $(shell find src/plat/wasm/web/demos -type f)
 
 mac: $(APP)/Contents/Info.plist
-$(MAC)/QuickrBasic: $(MAC_OBJ) $(MAC)/obj/plat/sdl/app/main.o $(SDL_LIB)
-	$(HOST_CC) $(MAC_ARCH) $(filter %.o,$^) $(SDL_LIBS) -lm -o $@
+$(GUI)/QuickrBasic: $(GUI_OBJ) $(GUI)/obj/plat/sdl/app/main.o $(SDL_LIB)
+	$(HOST_CC) $(GUI_ARCH) $(filter %.o,$^) $(SDL_LIBS) -lm -o $@
 # the bundle, signed ad hoc (Apple silicon runs nothing unsigned)
 # Quickr's library in Resources/lib: psys_self puts the app there, and codesign takes only code in MacOS
 GFX_DEMO := stdlib/gfx/demo/GFXDEMO.BAS
-$(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(MAC)/QuickrBasic $(HELP) $(DEMOS) $(STDLIB) build/host/lib/gfx.qbx $(GFX_DEMO)
+$(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(GUI)/QuickrBasic $(HELP) $(DEMOS) $(STDLIB) build/host/lib/gfx.qbx $(GFX_DEMO)
 	rm -rf $(APP)/Contents/Resources/demos $(APP)/Contents/Resources/lib
 	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources/demos $(APP)/Contents/Resources/lib
-	cp $(MAC)/QuickrBasic $(APP)/Contents/MacOS/
+	cp $(GUI)/QuickrBasic $(APP)/Contents/MacOS/
 	cp build/host/lib/gfx.qbx $(APP)/Contents/Resources/lib/
 	cp $(HELP) $(APP)/Contents/Resources/BASIC.HLP
 	cp -R src/plat/wasm/web/demos/. $(GFX_DEMO) $(APP)/Contents/Resources/demos/
@@ -343,30 +344,39 @@ $(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(MAC)/QuickrBasic $(HELP) $
 	codesign --force -s - $(APP)
 # gfx's first slice in the Mac's window: stdlib/gfx/tests/show.c draws CHARLIE's frame in the IDE's place,
 # the core linked in beside the runtime's font (vgadata.c); gfx-shot runs it from here, QB_SHOT takes it
-GFX_MAC_OBJ := $(GFX_C:stdlib/gfx/%.c=$(MAC)/gfx/%.o) $(MAC)/gfx/gfx_qx.o $(MAC)/gfx/test/charlie.o \
-	$(MAC)/gfx/test/show.o
-$(MAC)/gfx/%.o: stdlib/gfx/%.c | build/ext/gfx_qx.c
+GFX_GUI_OBJ := $(GFX_C:stdlib/gfx/%.c=$(GUI)/gfx/%.o) $(GUI)/gfx/gfx_qx.o $(GUI)/gfx/test/charlie.o \
+	$(GUI)/gfx/test/show.o
+$(GUI)/gfx/%.o: stdlib/gfx/%.c | build/ext/gfx_qx.c
 	@mkdir -p $(@D)
-	$(HOST_CC) $(MAC_ARCH) $(QX_CFLAGS) $(GFX_INC) $(DEPFLAGS) -c $< -o $@
-$(MAC)/gfx/gfx_qx.o: build/ext/gfx_qx.c
+	$(HOST_CC) $(GUI_ARCH) $(QX_CFLAGS) $(GFX_INC) $(DEPFLAGS) -c $< -o $@
+$(GUI)/gfx/gfx_qx.o: build/ext/gfx_qx.c
 	@mkdir -p $(@D)
-	$(HOST_CC) $(MAC_ARCH) $(QX_CFLAGS) $(DEPFLAGS) -c $< -o $@
-$(MAC)/gfx/test/%.o: stdlib/gfx/tests/%.c | build/ext/gfx_qx.c
+	$(HOST_CC) $(GUI_ARCH) $(QX_CFLAGS) $(DEPFLAGS) -c $< -o $@
+$(GUI)/gfx/test/%.o: stdlib/gfx/tests/%.c | build/ext/gfx_qx.c
 	@mkdir -p $(@D)
-	$(HOST_CC) $(MAC_CFLAGS) -Isrc/qx -Ibuild/ext $(GFX_INC) $(DEPFLAGS) -c $< -o $@
-$(MAC)/gfxshow: $(filter-out $(MAC)/obj/app/ide32.o,$(MAC_OBJ)) $(GFX_MAC_OBJ) $(MAC)/obj/plat/sdl/app/main.o $(SDL_LIB)
-	$(HOST_CC) $(MAC_ARCH) $(filter %.o,$^) $(SDL_LIBS) -lm -o $@
-gfx-shot: $(MAC)/gfxshow
-	QB_SHOT=$(MAC)/charlie.ppm@30 $<
+	$(HOST_CC) $(GUI_CFLAGS) -Isrc/qx -Ibuild/ext $(GFX_INC) $(DEPFLAGS) -c $< -o $@
+$(GUI)/gfxshow: $(filter-out $(GUI)/obj/app/ide32.o,$(GUI_OBJ)) $(GFX_GUI_OBJ) $(GUI)/obj/plat/sdl/app/main.o $(SDL_LIB)
+	$(HOST_CC) $(GUI_ARCH) $(filter %.o,$^) $(SDL_LIBS) -lm -o $@
+gfx-shot: $(GUI)/gfxshow
+	QB_SHOT=$(GUI)/charlie.ppm@30 $<
+
+linux-app: $(GUI)/app/QuickrBasic
+$(GUI)/app/QuickrBasic: $(GUI)/QuickrBasic $(HELP) $(DEMOS) build/host/lib/gfx.qbx $(GFX_DEMO)
+	rm -rf $(@D)
+	mkdir -p $(@D)/demos $(@D)/lib
+	cp build/host/lib/gfx.qbx $(@D)/lib/
+	cp $(HELP) $(@D)/BASIC.HLP
+	cp -R src/plat/wasm/web/demos/. $(GFX_DEMO) $(@D)/demos/
+	cp $< $@
 
 mac-zip: mac
-	cd $(MAC) && ditto -c -k --keepParent QuickrBasic.app QuickrBasic-mac.zip
+	cd $(GUI) && ditto -c -k --keepParent QuickrBasic.app QuickrBasic-mac.zip
 # each architecture's half (x86-64's under Rosetta, where there is one)
-mac-test: mac $(MAC)/ext/qxtest.qbx
-	$(PY) tools/mac_test.py $(APP)/Contents/MacOS/QuickrBasic arm64 $(MAC)/ext/qxtest.qbx
+mac-test: mac $(GUI)/ext/qxtest.qbx
+	$(PY) tools/mac_test.py $(APP)/Contents/MacOS/QuickrBasic arm64 $(GUI)/ext/qxtest.qbx
 	if arch -x86_64 /usr/bin/true 2>/dev/null; then \
-		$(PY) tools/mac_test.py $(APP)/Contents/MacOS/QuickrBasic x86_64 $(MAC)/ext/qxtest.qbx; fi
-$(MAC)/ext/qxtest.qbx: tests/ext/qxtest.bas build/host/ext/qxtest.so tools/qbx.py
+		$(PY) tools/mac_test.py $(APP)/Contents/MacOS/QuickrBasic x86_64 $(GUI)/ext/qxtest.qbx; fi
+$(GUI)/ext/qxtest.qbx: tests/ext/qxtest.bas build/host/ext/qxtest.so tools/qbx.py
 	@mkdir -p $(@D)
 	$(PY) tools/qbx.py pack $@ $< macos=build/host/ext/qxtest.so
 
