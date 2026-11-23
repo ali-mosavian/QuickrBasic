@@ -56,11 +56,13 @@ export class GpuLink {
 
   close() { this.post({ gpu: null }); }
 
+  // The list posted: true when it shows a texture.
   play(list, words) {
     const w = new Uint32Array(this.memory.buffer, list, words);
     const blocks = [];
-    let bytes = words * 4;
+    let bytes = words * 4, showed = false;
     for (let at = 0, size; at < words && (size = w[at] >>> SIZE); at += size) {
+      showed ||= (w[at] & 0xff) === OP.SHOW;
       for (const [word, n] of pointers(w[at] & 0xff, w, at + 1)) {
         blocks.push([word, n, bytes]);
         bytes += (n + 3) & ~3;
@@ -76,6 +78,7 @@ export class GpuLink {
     }
     this.post({ list: buf }, [buf]);
     behind(this.sync, PLAYED, ++this.sent, FLIGHT);
+    return showed;
   }
 
   read(id, x, y, w, h, out) {

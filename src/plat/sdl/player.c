@@ -560,12 +560,14 @@ static void show(Pass *const s, const uint32_t id)
     SDL_UnlockMutex(p.lock);
 }
 
-static void player_play(const uint32_t *const list, const uint32_t words)
+static bool player_play(const uint32_t *const list, const uint32_t words)
 {
     Pass s = {.cb = SDL_AcquireGPUCommandBuffer(p.dev)};
 
+    bool showed = false;
+
     if (!s.cb)
-        return;
+        return false;
 
     s.data = staging(list, words);
 
@@ -628,6 +630,7 @@ static void player_play(const uint32_t *const list, const uint32_t words)
 
         case QX_LIST_SHOW:
             show(&s, a[0]);
+            showed = true;
             break;
 
         case QX_LIST_END:
@@ -642,6 +645,7 @@ static void player_play(const uint32_t *const list, const uint32_t words)
     SDL_GPUFence **const behind = &p.fences[p.frame++ % FLIGHT];
     waited(behind);
     *behind = SDL_SubmitGPUCommandBufferAndAcquireFence(s.cb);
+    return showed;
 }
 
 /* w by h at x, y of t into out, RGBA. */

@@ -15,11 +15,16 @@ typedef struct {
     _Atomic uint32_t pushed, read;
 } HostScans;
 HostScans *host_scans(void);
-/* A frame has been shown, by a window's thread or a page: port 3DAh's vertical retrace, read as begun once for
-   each. The count, for a page to add to as host_frame_shown does; while it is 0 no display shows frames, and the
-   retrace begins and ends at each look. */
+/* What a display shows, written by a window's thread or a page: the frames shown, port 3DAh's vertical retrace
+   read as begun once for each (while 0 no display shows frames, and the retrace begins and ends at each look);
+   its refresh in thousandths of a Hz, 0 unknown. A page adds a frame as host_frame_shown does, and notifies. */
+typedef struct {
+    _Atomic uint32_t frames, millihz;
+} HostDisplay;
+HostDisplay *host_display(void);
 void host_frame_shown(void);
-_Atomic uint32_t *host_frames(void);
+/* Back once frames passes seen, or after us: at once while it is 0. */
+void host_frame_wait(uint32_t seen, uint32_t us);
 /* Page's cell at row, col. */
 PscrCell host_cell(uint8_t page, uint8_t row, uint8_t col);
 

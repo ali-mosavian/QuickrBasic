@@ -9,6 +9,9 @@
  *
  * A display with a GPU sets a player before the program runs (plat/sdl/player.c): a screen it opens
  * plays the extension's GPU lists (qx/qxlist.h) instead, and shows what they show.
+ *
+ * A screen opened with vsync, as it shows a frame, waits for the display to show one after: at
+ * most a tenth of a second, as a hidden window shows none.
  */
 #ifndef PLAT_PGFX_H
 #define PLAT_PGFX_H
@@ -24,29 +27,34 @@ typedef struct {
 
 /* A GPU's screen: the shading languages it takes (1 << QxShader each), and whether clip space's y
    runs down a texture's rows; opened w by h, closed; a list played; w by h pixels at x, y of a
-   texture read, bytes R, G, B and A. Called from the interpreter's thread. */
+   texture read, bytes R, G, B and A; play true when the list showed one. Called from the
+   interpreter's thread. */
 typedef struct {
     uint8_t shaders;
     bool y_down;
     bool (*open)(uint16_t w, uint16_t h);
     void (*close)(void);
-    void (*play)(const uint32_t *list, uint32_t words);
+    bool (*play)(const uint32_t *list, uint32_t words);
     void (*read)(uint32_t texture, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t *out);
 } PgfxPlayer;
 
 void pgfx_set_player(const PgfxPlayer *p);
 /* A screen w by h the player plays, in the runtime's place, when it takes one of shaders: the
    player; null, none, or it could not. Open, a screen is closed first. */
-const PgfxPlayer *pgfx_open_played(uint16_t w, uint16_t h, uint8_t shaders);
+const PgfxPlayer *pgfx_open_played(uint16_t w, uint16_t h, uint8_t shaders, bool vsync);
 /* The open screen's player: null, none or pages. */
 const PgfxPlayer *pgfx_playing(void);
 /* A screen w by h, depth bits a pixel, in the runtime's place: false, none of that depth, or no
    memory. Open, it is closed first. */
-bool pgfx_open(uint16_t w, uint16_t h, uint8_t depth);
+bool pgfx_open(uint16_t w, uint16_t h, uint8_t depth, bool vsync);
 void pgfx_close(void);
 /* The page to draw in, *pitch bytes a row: null, no screen open. */
 uint8_t *pgfx_page(uint32_t *pitch);
 void pgfx_show(const uint32_t *palette);
+/* The list played on the open screen's player. */
+void pgfx_play(const uint32_t *list, uint32_t words);
+/* The display's refresh in Hz: 0, unknown or none. */
+float pgfx_hz(void);
 /* The frame shown last, while the screen is open: false, none. */
 bool pgfx_shown(PgfxFrame *f);
 #endif

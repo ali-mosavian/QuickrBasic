@@ -229,7 +229,7 @@ export function imports(memory, host) {
     },
     gpu_open: (w, h) => (host.gpu?.open(w, h) ? 1 : 0),
     gpu_close: () => host.gpu?.close(),
-    gpu_play: (list, words) => host.gpu?.play(list, words),
+    gpu_play: (list, words) => (host.gpu?.play(list, words) ? 1 : 0),
     gpu_read: (id, x, y, w, h, out) => host.gpu?.read(id, x, y, w, h, out),
     audio_open: (render, out, stack, lock) => {
       const ext = loaded.find((x) => render >= x.tableBase && render < x.tableBase + x.need.table);
@@ -270,21 +270,36 @@ export function sidecar(module, memory, tone, voice) {
 }
 
 // The module's memory: shared, so the page's thread can write irq's block while it runs.
+const REFRESH_GAPS = 31;
+
 export const memory = () => new WebAssembly.Memory({ initial: 512, maximum: 16384, shared: true });
 
-// The shared block (wasm.h's WasmIrq) at the address irq() returns, and port 60h's bytes (host.h's
-// HostScans) at the one scans() returns, the count of frames shown (host_frames) at the one frames() does.
+// The shared block (wasm.h's WasmIrq) at the address irq() returns, port 60h's bytes (host.h's
+// HostScans) at the one scans() returns, and what the page shows (HostDisplay) at the one display() does.
 export class Irq {
-  constructor(memory, at, scans = 0, frames = 0) {
+  constructor(memory, at, scans = 0, display = 0) {
     this.memory = memory;
     this.at = at;
     this.scans = scans;
-    this.frames = frames;
+    this.display = display;
+    this.gaps = []; // between the last frames drawn, in ms
+    this.last = 0;
   }
 
-  // A frame is on the screen: port 3DAh's vertical retrace, once.
-  frame() {
-    if (this.frames) Atomics.add(this.i32, this.frames >> 2, 1);
+  // A frame is on the screen: port 3DAh's vertical retrace, once. Drawn at now (a refresh's time), the
+  // refresh is the median gap of each REFRESH_GAPS.
+  frame(now) {
+    if (!this.display) return;
+    const i32 = this.i32, frames = this.display >> 2;
+    Atomics.add(i32, frames, 1);
+    Atomics.notify(i32, frames);
+    if (now === undefined) return;
+    if (this.last) this.gaps.push(now - this.last);
+    this.last = now;
+    if (this.gaps.length < REFRESH_GAPS) return;
+    const gap = this.gaps.sort((a, b) => a - b)[REFRESH_GAPS >> 1];
+    this.gaps = [];
+    if (gap > 0) Atomics.store(i32, frames + 1, Math.round(1e6 / gap));
   }
 
   // A byte to port 60h: a key's scan code as it goes down, with 80h as it comes up.

@@ -25,7 +25,7 @@ onmessage = ({ data: { module, memory, args, files, gpu } }) => {
   };
   const ex = (host.ex = new WebAssembly.Instance(module, imports(memory, host)).exports);
   new Irq(memory, ex.irq()).keyboard = true; // before main: the runtime's console is the screen
-  postMessage({ irq: ex.irq(), scans: ex.scans(), frames: ex.frames() });
+  postMessage({ irq: ex.irq(), scans: ex.scans(), display: ex.display() });
   let code = 0;
   try {
     ex.__wasm_call_ctors();

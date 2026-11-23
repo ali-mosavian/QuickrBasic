@@ -1,5 +1,5 @@
-' gfx's first slice: boxes bouncing at 8 bits, drawn in
-' software. A key stops it.
+' gfx's first slice: boxes bouncing at 8 bits, a frame each
+' refresh. A key stops it.
 import gfx.display, gfx.draw
 
 const W = 320
@@ -26,7 +26,7 @@ for i = 1 to BOXES
     start fleet(i), i
 next
 
-gfx.display.open W, H, 8, 0
+gfx.display.open W, H, 8, gfx.display.VSYNC
 was# = gfx.display.clock
 
 do

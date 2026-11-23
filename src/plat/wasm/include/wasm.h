@@ -44,7 +44,7 @@ IMPORT(ext_load) uint32_t js_ext_load(const void *slice, uint32_t bytes, const c
    a list played; pixels read. */
 IMPORT(gpu_open) int js_gpu_open(uint32_t w, uint32_t h);
 IMPORT(gpu_close) void js_gpu_close(void);
-IMPORT(gpu_play) void js_gpu_play(const uint32_t *list, uint32_t words);
+IMPORT(gpu_play) bool js_gpu_play(const uint32_t *list, uint32_t words);
 IMPORT(gpu_read)
 void js_gpu_read(uint32_t texture, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t *out);
 /* An extension's render (its table index) played on the device's thread, its stereo frames written

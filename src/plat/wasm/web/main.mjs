@@ -122,11 +122,11 @@ let irq, display;
 
 worker.onmessage = ({ data }) => {
   if ('irq' in data) {
-    irq = new Irq(memory, data.irq, data.scans, data.frames);
+    irq = new Irq(memory, data.irq, data.scans, data.display);
     // a hidden page draws nothing: its retraces from a timer, so a program waiting for one goes on
     setInterval(() => document.hidden && irq.frame(), 1000 / 60);
     display = sidecar(module, memory, tone, voice);
-    window.quickr = { display, irq, memory }; // for a look from the console, and the tests
+    window.quickr = { display, irq, memory, gpu }; // for a look from the console, and the tests
     setInterval(ticker(irq, display), 1000 / MUSIC_HZ);
     requestAnimationFrame(draw);
     status.textContent = '';
@@ -212,7 +212,7 @@ function draw(now) {
     ctx.putImageData(image, 0, 0);
   }
   onGpu = played;
-  irq.frame();
+  irq.frame(now);
   requestAnimationFrame(draw);
 }
 

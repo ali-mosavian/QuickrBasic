@@ -68,10 +68,13 @@ typedef struct {
 /* A shading language a GPU's host takes (qxlist.h's PIPELINE): MSL 2.0, ESSL 3.00 (WebGL2's). */
 typedef enum : uint8_t { QX_SHADER_MSL = 1, QX_SHADER_ESSL } QxShader;
 
+/* A screen's flag the host reads: gfx_show and a list's SHOW wait for the display's refresh. */
+enum { QX_SCREEN_VSYNC = 1 };
+
 /* A screen asked for (gfx_open), then what the host gives. */
 typedef struct {
     uint16_t w, h;         /* the canvas */
-    uint8_t depth, flags;  /* 8 bits a pixel; gfx.display's flags */
+    uint8_t depth, flags;  /* 8 bits a pixel; gfx.display's flags, QX_SCREEN_VSYNC among them */
     uint8_t shaders;       /* the languages the extension brings, 1 << QxShader each */
     bool gpu;              /* given: the host plays GPU lists (qxlist.h), else it lends pages */
     QxShader shader;       /* given with gpu: the language its pipelines are in */

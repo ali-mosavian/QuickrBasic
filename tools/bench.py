@@ -798,7 +798,7 @@ GFX_WORK = {
 GFX_PROGRAM = """import gfx.display, gfx.draw, gfx.surface, gfx.pen
 from gfx.display import FrameStats
 dim st as FrameStats
-gfx.display.open 640, 480, {depth}, 0
+gfx.display.open 640, 480, {depth}, {flags}
 s& = gfx.surface.new(32, 32)
 gfx.pen.target s&
 gfx.draw.clear 0
@@ -833,20 +833,20 @@ for y = 0 to 479 step 16
     next
 next
 open "GFX.TXT" for output as #1
-print #1, rate#; sum&; st.batches
+print #1, rate#; sum&; st.batches; gfx.display.refresh
 close #1
 do
 loop
 """
 
 
-def gfx_rate(app: Path, work: str, depth: int, seconds: float, how: str) -> tuple[float, int, int]:
+def gfx_rate(app: Path, work: str, depth: int, seconds: float, how: str, vsync: bool) -> tuple[float, int, int, float]:
     """Frames a second after 30 warming up, a checksum of frame 0's pixels drawn after (equal for both ways, or one of
-    them drew something else), and the last timed frame's batches."""
+    them drew something else), the last timed frame's batches, and the display's refresh."""
     with tempfile.TemporaryDirectory() as tmp:
         prog, out = Path(tmp) / "GFX.BAS", Path(tmp) / "GFX.TXT"
         body = "\n".join("    " + line for line in GFX_WORK[work].splitlines())
-        prog.write_text(GFX_PROGRAM.format(depth=depth, work=body, seconds=seconds))
+        prog.write_text(GFX_PROGRAM.format(depth=depth, work=body, seconds=seconds, flags=int(vsync)))
         env = os.environ | {"QB_GFX": how, "QB_KEYS": "3F00", "SDL_AUDIO_DRIVER": "dummy"}
         p = subprocess.Popen([str(app), prog.name], env=env, cwd=tmp)
         try:
@@ -858,21 +858,22 @@ def gfx_rate(app: Path, work: str, depth: int, seconds: float, how: str) -> tupl
         finally:
             p.kill()
             p.wait()
-        rate, total, batches = out.read_text().split()
-        return float(rate), int(total), int(batches)
+        rate, total, batches, hz = out.read_text().split()
+        return float(rate), int(total), int(batches), float(hz)
 
 
 def cmd_gfx(a: argparse.Namespace) -> int:
-    """Each GFX_WORK frame's rate in pages and on the GPU, in the app's window, neither waiting for the refresh."""
+    """Each GFX_WORK frame's rate in pages and on the GPU, in the app's window; with --vsync, each flip waiting for the
+    refresh."""
     subprocess.run(["make", "-j8", "mac"], cwd=ROOT, check=True, capture_output=True)
     app = ROOT / "build/mac/QuickrBasic.app/Contents/MacOS/QuickrBasic"
     print(f"640x480 at {a.depth} bits, frames a second")
-    print(f"{'':10}{'pages':>10}{'GPU':>10}{'GPU/pages':>11}{'batches':>9}")
+    print(f"{'':10}{'pages':>10}{'GPU':>10}{'GPU/pages':>11}{'batches':>9}{'refresh':>9}")
     for work in a.work or GFX_WORK:
-        runs = (gfx_rate(app, work, a.depth, a.seconds, how) for how in ("soft", "gpu"))
-        (soft, ssum, _), (gpu, gsum, batches) = runs
+        runs = (gfx_rate(app, work, a.depth, a.seconds, how, a.vsync) for how in ("soft", "gpu"))
+        (soft, ssum, _, _), (gpu, gsum, batches, hz) = runs
         same = "" if ssum == gsum else "  frames differ"
-        print(f"{work:10}{soft:10.0f}{gpu:10.0f}{gpu / soft:10.1f}x{batches:9}{same}")
+        print(f"{work:10}{soft:10.0f}{gpu:10.0f}{gpu / soft:10.1f}x{batches:9}{hz:9.2f}{same}")
     return 0
 
 
@@ -1095,6 +1096,7 @@ def main() -> int:
     p.add_argument("--depth", type=int, default=32)
     p.add_argument("--seconds", type=float, default=3)
     p.add_argument("--work", action="append", choices=list(GFX_WORK), help="a frame to time; all when none")
+    p.add_argument("--vsync", action="store_true", help="each flip waits for the refresh")
     sub.add_parser("charlie")
     sub.add_parser("engine")
     a = ap.parse_args()

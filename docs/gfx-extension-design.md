@@ -565,7 +565,13 @@ Step 4, in parts:
   bitmap from the module's thread cost 0.5 ms a frame. ESSL has no bindings: a sampler is named by
   its binding (`s0`), and the uniform block is the program's one. `?gfx=soft` draws in pages; so
   does a browser without WebGL2. 640 by 480 at 32 bits, in Chrome on an M-series Mac, the GPU
-  draws bench's frames 1.3 (flip) to 8.8 (lines) times software's rate, the same pixels.- **Circles and arcs as shader coverage**: each is one box, its four vertices `GpuDisc`s in a
+  draws bench's frames 1.3 (flip) to 8.8 (lines) times software's rate, the same pixels.
+- **`VSYNC`**: `gfx_show`, and a list with a `SHOW`, wait for the display to show a frame after:
+  the window's thread counts one at each present, the page at each `requestAnimationFrame`
+  (`plat/host/host.h`). At most a tenth of a second, as a hidden window shows none.
+  `display.refresh` is SDL's display mode's, or the page's median gap over 31 frames. On the Mac
+  and in Chrome at 60 Hz, 60 flips a second.
+- **Circles and arcs as shader coverage**: each is one box, its four vertices `GpuDisc`s in a
   buffer of their own, so a plain vertex stays 32 bytes; the fragment shader keeps the pixels
   `disc.h`'s rule covers, centres within the radius by squared distance, every product and sum
   rounded once (`precise`). Software's rows end where the same rule says, so both draw the same

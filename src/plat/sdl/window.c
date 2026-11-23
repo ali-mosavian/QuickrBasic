@@ -17,6 +17,7 @@
 #include <dirent.h>
 #include <pthread.h>
 #include <signal.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -44,7 +45,21 @@ enum {
     KEY_STOP = 0xFFFF,
 };
 
+/* A loop's pace where vsync sets none (an occluded window, no display): a little under the
+   refresh's, so vsync's sets it where there is one. */
+static constexpr float PACE_NS = 0.95e9F, DEFAULT_HZ = 60, MILLI = 1000;
+
 static void *run(void *const arg) { exit(qb_main()); }
+
+/* The refresh of w's display, for gfx (host.h): the loop's pace. */
+static uint64_t refresh(SDL_Window *const w)
+{
+    const SDL_DisplayMode *const m = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(w));
+    const float hz = m ? m->refresh_rate : 0;
+
+    atomic_store(&host_display()->millihz, (uint32_t)(hz * MILLI + 0.5F));
+    return (uint64_t)(PACE_NS / (hz > 0 ? hz : DEFAULT_HZ));
+}
 
 static int keys_out = -1;
 
@@ -353,12 +368,14 @@ int sdl_main(void)
     uint32_t shown_w = 0, shown_h = 0;
     uint64_t alt_up = 0; /* when a released Alt's flags are due, 0 none */
 
-    for (uint64_t next = SDL_GetTicks();; next += FRAME_MS) {
-        SDL_Event e;
-        const uint64_t now = SDL_GetTicks();
+    uint64_t pace = refresh(w);
 
-        if (now < next) /* vsync's pace where there is none: an occluded window, no display */
-            SDL_Delay((uint32_t)(next - now));
+    for (uint64_t next = SDL_GetTicksNS();; next += pace) {
+        SDL_Event e;
+        const uint64_t now = SDL_GetTicksNS();
+
+        if (now < next)
+            SDL_DelayNS(next - now);
         else
             next = now;
 
@@ -398,6 +415,11 @@ int sdl_main(void)
 
             case SDL_EVENT_WINDOW_FOCUS_LOST:
                 host_term_set_shift(0);
+                break;
+
+            case SDL_EVENT_WINDOW_DISPLAY_CHANGED:
+            case SDL_EVENT_DISPLAY_CURRENT_MODE_CHANGED:
+                pace = refresh(w);
                 break;
 
             case SDL_EVENT_MOUSE_MOTION:

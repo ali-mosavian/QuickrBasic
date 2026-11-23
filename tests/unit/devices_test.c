@@ -202,7 +202,7 @@ TEST(port_3dah_retrace_is_once_a_frame_shown)
     host_frame_shown();
     CHECK(unit_run(S, lines) == ST_OK);
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 8  0  0 ");
-    *host_frames() = 0; /* no display again, for the tests after */
+    host_display()->frames = 0; /* no display again, for the tests after */
     CHECK(unit_run(S, lines) == ST_OK);
     CHECK(S->cons.sbuf[1] != S->cons.sbuf[4]);
 }
