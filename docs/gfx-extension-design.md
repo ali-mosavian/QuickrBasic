@@ -440,11 +440,13 @@ pixels run on the software backend.
 
 1. The first slice, below.
 2. BASIC's binding: the package's loader; the interfaces read in QuickrBasic's dialect (`OPTION
-   DIALECT`). CHARLIE moves onto `gfx`, cutting its views with `barkley/assets/sheet.bas`.
+   DIALECT`). Done: `gfx.qbx` in `lib/` beside `basic` and in the Mac's app, `demo/GFXDEMO.BAS`
+   its program, `tests/host/gfx.sh` its test.
 3. The rest of 2D and the pen: turned sprites, quads, strips, light, tint, blend, recolor; 16 and 32
    bits; PNG.
 4. The hosts' players, SDL_GPU and WebGL2, and the list.
-5. DOS: VBE's pages, fillers in assembly.
+5. DOS: VBE's pages, fillers in assembly. CHARLIE moves onto `gfx`, cutting its views with
+   `barkley/assets/sheet.bas`.
 6. 3D: `scene`, from qcport.
 7. Vertex procedures, and the program's own shaders.
 

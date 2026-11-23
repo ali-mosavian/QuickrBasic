@@ -164,6 +164,14 @@ if __name__ == "__main__":
     except qbx.QbxError:
         pass
 
+    # pack --minor: the host's minor the .qbx needs, in its header (gfx.qbx's 1, as the Makefile packs it)
+    with tempfile.TemporaryDirectory() as tmp:
+        face, out = Path(tmp) / "t.bas", Path(tmp) / "t.qbx"
+        face.write_text("declare sub s cdecl ()\n")
+        qbx.main(["qbx.py", "pack", str(out), "--minor", "1", str(face), f"macos={face}"])
+        if qbx.HEAD.unpack_from(out.read_bytes())[3] != 1 or qbx.unpack(out.read_bytes())[0] != {"": face.read_bytes()}:
+            bad.append("pack --minor 1 wrote another minor, or took the flag for an interface")
+
     # a DOS slice is the DLL as an image at 0 (util/image.c): its sections where they lie, its words rebased
     img = qbx.image(dll())
     magic, stored, size, entry, nrelocs = qbx.IMAGE.unpack_from(img)

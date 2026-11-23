@@ -1,4 +1,4 @@
-/* A .qbx's parts: its own interface and this build's slice.
+/* A .qbx's parts: its interfaces, by name, and this build's slice.
  *
  * # How it works
  * tools/qbx.py pack writes it, little-endian: "QBX" 1Ah; the format's version, the ABI's major and
@@ -27,8 +27,8 @@ bool qbxf_is(const char *const path)
            upcase((uint8_t)path[n - 2]) == 'B' && upcase((uint8_t)path[n - 1]) == 'X';
 }
 
-/* The entry named name among the table's n, at offset table: its bytes, *bytes of them; null none,
-   or one outside the file. */
+/* The entry named name, without case, among the table's n at offset table: its bytes, *bytes of
+   them; null none, or one outside the file. */
 static const uint8_t *entry(
     const uint8_t *const data,
     const uint32_t size,
@@ -43,14 +43,41 @@ static const uint8_t *entry(
     for (uint32_t i = 0; i < n && len < NAME; i++) {
         const uint8_t *const e = data + table + i * ENTRY;
         const uint32_t at = load32(e + NAME), got = load32(e + NAME + 4);
+        uint32_t k = 0;
 
-        if (!memcmp(e, name, len + 1) && inside(size, at, got)) {
+        while (k < len && upcase(e[k]) == upcase((uint8_t)name[k]))
+            k++;
+
+        if (k == len && !e[len] && inside(size, at, got)) {
             *bytes = got;
             return data + at;
         }
     }
 
     return nullptr;
+}
+
+/* data's tables, a .qbx's: the slices' at *slices, n of them; the parts' at *parts, n of them.
+   false: not one, or a table outside it. */
+static bool tables(
+    const uint8_t *const data,
+    const uint32_t size,
+    uint32_t *const slices,
+    uint32_t *const nslices,
+    uint32_t *const parts,
+    uint32_t *const nparts
+)
+{
+    if (size < HEAD || memcmp(data, "QBX\x1a", 4))
+        return false;
+
+    const uint16_t format = load16(data + 4);
+    *slices = format == 1 ? HEAD1 : HEAD;
+    *nslices = load16(data + 10);
+    *nparts = format == 1 ? 0 : load16(data + 12);
+    *parts = *slices + *nslices * ENTRY;
+    return (format == 1 || format == QBXF_FORMAT) &&
+           inside(size, *slices, (*nslices + *nparts) * ENTRY);
 }
 
 bool qbxf_read(
@@ -60,33 +87,39 @@ bool qbxf_read(
     QbxFile *const out
 )
 {
-    if (size < HEAD || memcmp(data, "QBX\x1a", 4))
-        return false;
+    uint32_t slices, nslices, parts, nparts;
 
-    const uint16_t format = load16(data + 4);
-    const uint32_t nslices = load16(data + 10);
-    const uint32_t table = format == 1 ? HEAD1 : HEAD;
-    const uint32_t nparts = format == 1 ? 0 : load16(data + 12);
-
-    if ((format != 1 && format != QBXF_FORMAT) || !inside(size, table, (nslices + nparts) * ENTRY))
+    if (!tables(data, size, &slices, &nslices, &parts, &nparts))
         return false;
 
     *out = (QbxFile){.abi = load16(data + 6), .minor = load16(data + 8)};
 
-    if (format == 1) {
-        const uint32_t at = load32(data + 12), n = load32(data + 16);
-
-        if (!inside(size, at, n))
-            return false;
-
-        out->interface = data + at;
-        out->ninterface = n;
-    } else {
-        out->interface = entry(data, size, table + nslices * ENTRY, nparts, "", &out->ninterface);
-    }
-
     if (*tag)
-        out->slice = entry(data, size, table, nslices, tag, &out->nslice);
+        out->slice = entry(data, size, slices, nslices, tag, &out->nslice);
 
     return true;
+}
+
+const uint8_t *qbxf_part(
+    const uint8_t *const data,
+    const uint32_t size,
+    const char *const name,
+    uint32_t *const bytes
+)
+{
+    uint32_t slices, nslices, parts, nparts;
+
+    if (!tables(data, size, &slices, &nslices, &parts, &nparts))
+        return nullptr;
+
+    if (load16(data + 4) != 1)
+        return entry(data, size, parts, nparts, name, bytes);
+
+    const uint32_t at = load32(data + 12), n = load32(data + 16); /* version 1: its own alone */
+
+    if (*name || !inside(size, at, n))
+        return nullptr;
+
+    *bytes = n;
+    return data + at;
 }

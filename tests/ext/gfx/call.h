@@ -19,7 +19,7 @@ static inline Called gfx_call(
 )
 {
     const QxModule *const m = qx_init_gfx(host);
-    const QxEntry *const e = natv_entry(m, name, (uint32_t)strlen(name));
+    const QxEntry *const e = natv_entry(m, "", name, (uint32_t)strlen(name));
     QxCall c = {.host = host, .arg = args};
 
     if (!e)

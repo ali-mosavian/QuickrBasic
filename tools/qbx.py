@@ -2,7 +2,8 @@
 """qbx.py: native extensions' files (docs/native-extensions-design.md).
 
   qbx.py glue NAME OUTDIR INTERFACE...          the glue, from the BASIC interfaces
-  qbx.py pack OUT INTERFACE... [TAG=SLICE]...  the .qbx: the interfaces and each platform's slice
+  qbx.py pack OUT [--minor N] INTERFACE... [TAG=SLICE]...  the .qbx: the interfaces and each
+                                                          platform's slice; the host's minor it needs
 
 One interface is the module's own. Several are a package's parts, each named by its file: gfx's
 display.bas is gfx.display.
@@ -535,9 +536,9 @@ def image(dll: bytes) -> bytes:
     )
 
 
-def pack(parts: dict[str, bytes], slices: dict[str, bytes]) -> bytes:
-    """The .qbx of its parts ("" the module's own interface) and its slices, by tag. A DOS slice
-    given as its DLL is made its image."""
+def pack(parts: dict[str, bytes], slices: dict[str, bytes], minor: int = MINOR) -> bytes:
+    """The .qbx of its parts ("" the module's own interface) and its slices, by tag, needing the
+    host's minor. A DOS slice given as its DLL is made its image."""
     for tag in slices:
         if tag not in TAGS:
             raise QbxError(f"no platform {tag}: one of {', '.join(sorted(TAGS))}")
@@ -555,7 +556,7 @@ def pack(parts: dict[str, bytes], slices: dict[str, bytes]) -> bytes:
     for name, text in parts.items():
         table.append(ENTRY.pack(name.encode(), at + len(body), len(text)))
         body.extend(text + EOF_MARK)
-    head = HEAD.pack(MAGIC, FORMAT, ABI, MINOR, len(slices), len(parts)) + b"".join(table)
+    head = HEAD.pack(MAGIC, FORMAT, ABI, minor, len(slices), len(parts)) + b"".join(table)
     return head + bytes(at - len(head)) + bytes(body)
 
 
@@ -577,11 +578,12 @@ def main(argv: list[str]) -> int:
             glue(argv[2], Path(argv[3]), [Path(one) for one in argv[4:]])
             return 0
         if len(argv) >= 4 and argv[1] == "pack":
-            faces = [Path(one) for one in argv[3:] if "=" not in one]
+            minor, rest = (int(argv[4]), argv[5:]) if argv[3] == "--minor" else (MINOR, argv[3:])
+            faces = [Path(one) for one in rest if "=" not in one]
             parts = {name: face.read_bytes() for name, face in zip(part_names(faces), faces, strict=True)}
-            pairs = [one.split("=", 1) for one in argv[3:] if "=" in one]
+            pairs = [one.split("=", 1) for one in rest if "=" in one]
             slices = {tag: Path(file).read_bytes() for tag, file in pairs}
-            Path(argv[2]).write_bytes(pack(parts, slices))
+            Path(argv[2]).write_bytes(pack(parts, slices, minor))
             return 0
     except QbxError as e:
         print(f"qbx.py {argv[1]}: {e}", file=sys.stderr)

@@ -1,5 +1,5 @@
-/* io/qbxfile.c: a .qbx's own interface and this build's slice found, and a part outside the file
-   refused rather than read past its end. */
+/* io/qbxfile.c: a .qbx's interfaces by name and this build's slice found, and a part outside the
+   file refused rather than read past its end. */
 #include "io/qbxfile.h"
 #include "unit.h"
 #include <string.h>
@@ -36,18 +36,20 @@ TEST(qbxfile_finds_interface_and_slice)
     (void)S;
     uint8_t f[112];
     QbxFile q;
+    uint32_t n;
     CHECK(qbxf_read(f, make(f, "macos", 5, ""), "macos", &q));
     CHECK(q.abi == 1 && q.minor == 0);
-    CHECK(q.ninterface == 5 && !memcmp(q.interface, "IFACE", 5));
     CHECK(q.nslice == 5 && q.slice && !memcmp(q.slice, "SLICE", 5));
+    CHECK(qbxf_part(f, 112, "", &n) == f + 96 && n == 5);
 
     CHECK(qbxf_read(f, make(f, "macos", 5, ""), "wasm32", &q)); /* another platform's alone */
     CHECK(!q.slice);
     CHECK(qbxf_read(f, make(f, "mac", 5, ""), "macos", &q)); /* a tag's prefix is not it */
     CHECK(!q.slice);
-    /* a package's part: not its own interface */
-    CHECK(qbxf_read(f, make(f, "macos", 5, "draw"), "macos", &q));
-    CHECK(!q.interface && q.slice);
+    /* a package's part, by its name in any case: not its own interface */
+    make(f, "macos", 5, "draw");
+    CHECK(qbxf_part(f, 112, "DRAW", &n) == f + 96 && !qbxf_part(f, 112, "", &n));
+    CHECK(!qbxf_part(f, 112, "dra", &n) && !qbxf_part(f, 112, "drawn", &n));
 }
 
 /* Version 1, before parts: the interface's offset and bytes in the head, the interface last. */
@@ -66,8 +68,9 @@ TEST(qbxfile_reads_version_1)
     memcpy(f + 64, "SLICE", 5);
     memcpy(f + 80, "IFACE", 5);
     QbxFile q;
+    uint32_t n;
     CHECK(qbxf_read(f, 96, "macos", &q));
-    CHECK(q.ninterface == 5 && !memcmp(q.interface, "IFACE", 5));
+    CHECK(qbxf_part(f, 96, "", &n) == f + 80 && n == 5 && !qbxf_part(f, 96, "draw", &n));
     CHECK(q.nslice == 5 && !memcmp(q.slice, "SLICE", 5));
 }
 
@@ -76,13 +79,13 @@ TEST(qbxfile_refuses_parts_outside_it)
     (void)S;
     uint8_t f[112];
     QbxFile q;
+    uint32_t n;
     CHECK(qbxf_read(f, make(f, "macos", 33, ""), "macos", &q)); /* past the end: no slice */
-    CHECK(!q.slice && q.interface);
+    CHECK(!q.slice && qbxf_part(f, 112, "", &n));
 
     make(f, "macos", 5, "");
     store32(f + 60, 0xFFFFFFF0u); /* the interface past the end, wrapping */
-    CHECK(qbxf_read(f, 112, "macos", &q));
-    CHECK(!q.interface);
+    CHECK(qbxf_read(f, 112, "macos", &q) && !qbxf_part(f, 112, "", &n));
 
     make(f, "macos", 5, "");
     store16(f + 10, 4); /* more slices than the file holds */

@@ -48,8 +48,10 @@ print synth.beat()
 | Help (later) | pages for F1, in the help's Markdown |
 
 A package's `.qbx` holds its modules' interfaces over the same slices, as
-[gfx-extension-design.md](gfx-extension-design.md#one-file-five-interfaces) has it. Loading one is
-gfx's next step. Version 1 held one interface, last.
+[gfx-extension-design.md](gfx-extension-design.md#one-file-five-interfaces) has it. Its modules are
+named as a folder's: `gfx.draw` is the part `draw` of `gfx.qbx`, whose path `locate.c` gives as
+`gfx.qbx/draw`, as Python's zipimport names a module in a zip. Its DECLAREs bind to the entries
+named `draw.NAME`. Version 1 held one interface, last.
 
 | Slice | Holds | Loaded by |
 |---|---|---|
@@ -272,7 +274,8 @@ stops it, and the process's end closes them all.
 
 ## Finding one
 
-- `locate.c` looks for `name.bas`, then `name.qbx`, under each root. A `.bas` at the same root wins.
+- `locate.c` looks for `name.bas`, then `name.qbx`, then a package's part, under each root. A `.bas`
+  at the same root wins.
 - A FROM package's folder may hold `.qbx` modules as it holds `.bas` ones.
 - `lib/` beside the interpreter: `LIB\SYNTH.QBX` beside `IDE32.EXE`; in the app,
   `Contents/Resources/lib` (locate's root moves there in a bundle); `C:\LIB\` in the page's file

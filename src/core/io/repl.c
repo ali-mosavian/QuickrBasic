@@ -939,12 +939,43 @@ static void import(Session *const S, const char *const path)
 
     if (d->text)
         modu_mod(&S->modu, m)->dialect = d;
-    if (qbxf_is(path)) {
-        natv_open(&S->natv, path);
+    if (natv_is(path)) {
+        const char *file;
+        natv_open(&S->natv, path, &file);
         modu_mod(&S->modu, m)->native = true;
     }
 
     modu_import(&S->modu, S->repl.module, m);
+}
+
+/* FROM's module n to path: a package's folder, or a .qbx of parts alone, sets in_package. false:
+   not found. */
+static bool from_module(Imports *const im, const ImptName *const n, char path[static PFIL_PATH])
+{
+    const bool found = locate(&im->where, n, path, &im->in_package);
+    im->in_package = im->in_package || (found && natv_package(&im->S->natv, path));
+    return found;
+}
+
+/* A module of FROM's package, name n, to path: a folder's file, or a .qbx's part. false: none. */
+static bool member(const Imports *const im, const ImptName *const n, char path[static PFIL_PATH])
+{
+    if (!natv_is(im->package))
+        return locate_in(im->package, n, nullptr, path);
+
+    const uint32_t len = (uint32_t)strlen(im->package);
+
+    if (len + 1 + n->len >= PFIL_PATH)
+        return false;
+
+    memcpy(path, im->package, len);
+    path[len] = '/';
+
+    for (uint32_t i = 0; i < n->len; i++)
+        path[len + 1 + i] = (char)downcase(n->text[i]);
+
+    path[len + 1 + n->len] = 0;
+    return true;
 }
 
 /* One name the line gives: a module's file added to those to load, once. */
@@ -963,7 +994,7 @@ static void imported(void *const ctx, const ImptKind kind, const ImptName *const
         return;
 
     case IMPT_FROM:
-        if (!locate(&im->where, n, path, &im->in_package))
+        if (!from_module(im, n, path))
             not_found(im->S);
         else if (im->in_package)
             strcpy(im->package, path);
@@ -975,7 +1006,7 @@ static void imported(void *const ctx, const ImptKind kind, const ImptName *const
     case IMPT_NAME: /* a module's export: its file is there already */
         if (!im->in_package)
             return;
-        if (!n->sfx && locate_in(im->package, n, nullptr, path))
+        if (!n->sfx && member(im, n, path))
             import(im->S, path);
         else
             not_found(im->S);
@@ -1024,7 +1055,7 @@ static void bound(void *const ctx, const ImptKind kind, const ImptName *const n)
         return;
 
     case IMPT_FROM:
-        locate(&im->where, n, path, &im->in_package);
+        from_module(im, n, path);
 
         if (im->in_package)
             strcpy(im->package, path);
@@ -1039,7 +1070,7 @@ static void bound(void *const ctx, const ImptKind kind, const ImptName *const n)
             return;
         }
 
-        locate_in(im->package, n, nullptr, path);
+        member(im, n, path);
         clashed(S, modu_module(&S->modu, path));
         bind_module(&S->scop, &S->symb, &S->fault, m, n, modu_module(&S->modu, path));
         return;
@@ -1076,10 +1107,12 @@ static void find_imports(Session *const S, const char *const path)
     impt_line(body, imported, &im);
 }
 
-/* Enter the lines of file name from offset from on, read as file number num; an include's on the
-   number below, in place. Then the console's again. */
+/* Enter the lines of the file at disk from offset from on as the lines of name (a package's part
+   names its module, not its .qbx), read as file number num; an include's on the number below, in
+   place. Then the console's again. */
 static void read_file(
     Session *const S,
+    const char *const disk,
     const char *const name,
     const int32_t num,
     const uint32_t from
@@ -1087,7 +1120,7 @@ static void read_file(
 {
     Chnl *const cl = &S->chnl;
     Chan *c;
-    fault_check(&S->fault, chnl_open(cl, num, name, FM_IN, RECLEN_DEFAULT, &c));
+    fault_check(&S->fault, chnl_open(cl, num, disk, FM_IN, RECLEN_DEFAULT, &c));
 
     if (from)
         fault_check(&S->fault, chnl_seek(c, from));
@@ -1123,7 +1156,8 @@ static void read_file(
 
         if (inc) { /* its lines next */
             char path[PFIL_PATH];
-            read_file(S, include_path(name, S->repl.incl, path), num - 1, 0);
+            include_path(name, S->repl.incl, path);
+            read_file(S, path, path, num - 1, 0);
             fault_check(&S->fault, chnl_find(cl, num, &c));
             fault_check(&S->fault, chnl_in(cl, c));
         }
@@ -1192,13 +1226,15 @@ static void read_modules(Session *const S, const uint32_t from, const uint32_t l
         S->repl.module = m;
 
         if (!modu_mod(&S->modu, m)->native) {
-            read_file(S, path, SOURCE_FILENO, 0);
+            read_file(S, path, path, SOURCE_FILENO, 0);
             continue;
         }
 
-        const uint8_t flags = S->prog.add_flags; /* a .qbx: its interface, its last part */
+        const uint8_t flags = S->prog.add_flags; /* a .qbx: the module's interface in it */
+        const char *file;
+        const uint32_t at = natv_open(&S->natv, path, &file);
         S->prog.add_flags = flags | LF_NATIVE;
-        read_file(S, path, SOURCE_FILENO, natv_open(&S->natv, path));
+        read_file(S, file, path, SOURCE_FILENO, at);
         S->prog.add_flags = flags;
     }
 
@@ -1392,7 +1428,7 @@ void repl_load(Session *const S)
     S->repl.nfile = 0;
     S->repl.module = 0;
     modu_clear(&S->modu, S->repl.file);
-    read_file(S, S->repl.file, SOURCE_FILENO, 0);
+    read_file(S, S->repl.file, S->repl.file, SOURCE_FILENO, 0);
     read_modules(S, 1, 0);
     declare_program(S, false, false);
     S->repl.loading = false;
@@ -1437,7 +1473,7 @@ static void read_guest(Session *const S, const uint32_t m, uint32_t *const last)
     module_end(S, (uint16_t)m);
     S->repl.module = m;
     S->repl.nfile = (uint16_t)m;
-    read_file(S, path, SOURCE_FILENO, 0);
+    read_file(S, path, path, SOURCE_FILENO, 0);
 }
 
 /* repl_guests_found's: each stored QBasic line's imports found, each LF_TOP its module's; the last
@@ -1623,7 +1659,8 @@ static void walk(Session *const S, const bool lenient)
         S->prog.add_flags = LF_INC;
         char path[PFIL_PATH];
         const char *const from = modu_module_path(&S->modu, S->repl.module);
-        read_file(S, include_path(from, S->repl.incl, path), SOURCE_FILENO - 1, 0);
+        include_path(from, S->repl.incl, path);
+        read_file(S, path, path, SOURCE_FILENO - 1, 0);
         line = S->prog.add_at;
         S->prog.add_at = 0;
         S->prog.add_flags = 0;

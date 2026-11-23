@@ -196,7 +196,18 @@ build/host/gfx/test/%.o: tests/ext/gfx/%.c | build/ext/gfx_qx.c
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) -Isrc/qx -Ibuild/ext $(GFX_INC) -Itests/unit $(DEPFLAGS) -c $< -o $@
 
-host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/hostperf/basic build/host/ext/qxtest.so
+# gfx.qbx for this machine, in lib/ beside basic: its slice the core, its glue and its own font; it
+# needs the host's minor 1
+GFX_SLICE_C := $(GFX_C) build/ext/gfx_qx.c $(QBRT)/qb/dev/host/vgadata.c
+build/host/ext/gfx.so: $(GFX_SLICE_C) $(shell find src/ext/gfx -name '*.h') src/qx/qx.h
+	@mkdir -p $(@D)
+	$(HOST_CC) $(QX_CFLAGS) $(HOST_SLICE) $(GFX_INC) $(GFX_SLICE_C) -o $@
+build/host/lib/gfx.qbx: $(GFX_PARTS) build/host/ext/gfx.so tools/qbx.py
+	@mkdir -p $(@D)
+	$(PY) tools/qbx.py pack $@ --minor 1 $(GFX_PARTS) $(HOST_TAG)=build/host/ext/gfx.so
+
+host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/hostperf/basic build/host/ext/qxtest.so \
+		build/host/lib/gfx.qbx
 	for t in $(TOOLS_TEST); do $(PY) $$t || exit 1; done
 	build/host/unit_tests
 	sh tests/host/longpath.sh build/host/basic
@@ -204,6 +215,7 @@ host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/h
 	sh tests/host/check.sh build/host/basic
 	sh tests/host/import.sh build/host/basic
 	PY=$(PY) sh tests/host/native.sh build/host/basic build/host/ext/qxtest.so $(HOST_TAG)
+	sh tests/host/gfx.sh build/host/basic
 	$(PY) tools/golden.py
 	BASIC_EXE=build/host/basic $(PY) tools/regress_test.py build/host/basic
 	BASIC_EXE=build/host/basic $(PY) tools/conformance.py
@@ -264,7 +276,7 @@ STDLIB := $(wildcard stdlib/*.bas)
 build/%/lib/.stdlib: $(STDLIB)
 	mkdir -p $(@D) && $(if $^,cp $^ $(@D) &&) touch $@
 
-host: build/host/basic
+host: build/host/basic build/host/lib/gfx.qbx
 build/host/basic: $(build/host_OBJ) build/host/obj/app/basic32.o build/host/obj/plat/host/app/term.o | build/host/lib/.stdlib
 	$(HOST_CC) $^ -lm $(HOST_DL) -o $@
 build/hostperf/basic: $(build/hostperf_OBJ) build/hostperf/obj/app/basic32.o build/hostperf/obj/plat/host/app/insns.o | build/hostperf/lib/.stdlib
@@ -299,12 +311,14 @@ $(MAC)/QuickrBasic: $(MAC_OBJ) $(MAC)/obj/plat/sdl/app/main.o $(SDL_LIB)
 	$(HOST_CC) $(MAC_ARCH) $(filter %.o,$^) $(SDL_LIBS) -lm -o $@
 # the bundle, signed ad hoc (Apple silicon runs nothing unsigned)
 # Quickr's library in Resources/lib: psys_self puts the app there, and codesign takes only code in MacOS
-$(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(MAC)/QuickrBasic $(HELP) $(DEMOS) $(STDLIB)
+GFX_DEMO := src/ext/gfx/demo/GFXDEMO.BAS
+$(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(MAC)/QuickrBasic $(HELP) $(DEMOS) $(STDLIB) build/host/lib/gfx.qbx $(GFX_DEMO)
 	rm -rf $(APP)/Contents/Resources/demos $(APP)/Contents/Resources/lib
 	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources/demos $(APP)/Contents/Resources/lib
 	cp $(MAC)/QuickrBasic $(APP)/Contents/MacOS/
+	cp build/host/lib/gfx.qbx $(APP)/Contents/Resources/lib/
 	cp $(HELP) $(APP)/Contents/Resources/BASIC.HLP
-	cp -R src/plat/wasm/web/demos/. $(APP)/Contents/Resources/demos/
+	cp -R src/plat/wasm/web/demos/. $(GFX_DEMO) $(APP)/Contents/Resources/demos/
 	cp $(STDLIB) $(APP)/Contents/Resources/lib/
 	cp $< $@
 	codesign --force -s - $(APP)
