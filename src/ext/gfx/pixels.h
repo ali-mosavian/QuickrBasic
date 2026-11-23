@@ -14,6 +14,11 @@ typedef struct {
     int32_t x, y, w, h;
 } Rect;
 
+/* A point; a coordinate names a pixel's centre. */
+typedef struct {
+    float x, y;
+} Vec;
+
 static inline int32_t rect_max(const int32_t a, const int32_t b) { return a > b ? a : b; }
 
 static inline int32_t rect_min(const int32_t a, const int32_t b) { return a < b ? a : b; }

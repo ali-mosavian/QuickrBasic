@@ -156,7 +156,7 @@ build/ext/qxtest_qx.c: tests/ext/qxtest.bas tools/qbx.py
 	@mkdir -p $(@D)
 	$(PY) tools/qbx.py glue qxtest $(@D) $<
 QXTEST := tests/ext/qxtest.c build/ext/qxtest_qx.c
-QX_CFLAGS := -std=c23 -O2 -Wall -Wextra -ffreestanding -Isrc/qx -Ibuild/ext
+QX_CFLAGS := -std=c23 -O2 -Wall -Wextra -ffreestanding -fno-math-errno -Isrc/qx -Ibuild/ext
 build/host/ext/qxtest.so: $(QXTEST) src/qx/qx.h
 	@mkdir -p $(@D)
 	$(HOST_CC) $(QX_CFLAGS) $(HOST_SLICE) $(QXTEST) -o $@

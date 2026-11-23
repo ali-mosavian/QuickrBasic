@@ -29,8 +29,10 @@ typedef struct {
     Palette palette;
     Pen pen;
     Camera camera;
-    CmdLog log; /* since the last flip */
-    bool open;  /* the screen */
+    CmdLog log;  /* since the last flip */
+    Vec *points; /* a call's points placed */
+    uint32_t npoints;
+    bool open; /* the screen */
     float hz;
 } Gx;
 
@@ -42,7 +44,11 @@ bool gx_fail(uint8_t code);
 Surface *gx_surface(Gx *g, uint32_t h);
 /* a's elements, elem bytes each, at least need of them: false, raised. */
 bool gx_array(const QxArray *a, uint32_t elem, uint32_t need);
-/* A draw call begun: its flags (those of allowed) and colour checked, c placed (cmd_place) and
-   logged, the pen's target resolved into t: false, raised. */
-bool gx_draw(Gx *g, Command *c, int32_t allowed, SoftTarget *t);
+/* a's n elements of elem bytes from BASIC's index first: null, raised. */
+const void *gx_elements(const QxArray *a, uint32_t elem, int32_t first, int32_t n);
+/* Room for n points placed: null, raised. */
+Vec *gx_points(Gx *g, uint32_t n);
+/* A draw call begun: its flags (those of allowed) and colour checked, the pen's target resolved
+   into t and the camera over it into *where, c placed (cmd_place) and logged: false, raised. */
+bool gx_draw(Gx *g, Command *c, int32_t allowed, SoftTarget *t, Place *where);
 #endif

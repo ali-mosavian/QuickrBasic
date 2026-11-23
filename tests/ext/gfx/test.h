@@ -16,4 +16,22 @@ static inline const QxModule *gfx_fresh(Session *const S)
 #define CALL(name, ...) CALL_ON(&S->natv.host, name __VA_OPT__(, ) __VA_ARGS__)
 /* An index of the canvas. */
 #define PX(x, y) CALL("surface.point", I(GFX_SURFACE_CANVAS), I(x), I(y)).result.i
+
+/* A w by h canvas at 8 bits, cleared to 1. */
+#define CANVAS(w, h)                                                                               \
+    do {                                                                                           \
+        gfx_fresh(S);                                                                              \
+        CHECK(!CALL("display.open", I(w), I(h), I(8), I(0)).error);                                \
+        CHECK(!CALL("draw.clear", I(1)).error);                                                    \
+    } while (0)
+
+/* The canvas's row y from x 0 as want's characters, '0' and the index. */
+#define ROW(y, want)                                                                               \
+    do {                                                                                           \
+        char got_[64];                                                                             \
+        const int32_t n_ = (int32_t)strlen(want);                                                  \
+        for (int32_t x_ = 0; x_ < n_; x_++)                                                        \
+            got_[x_] = (char)('0' + PX(x_, y));                                                    \
+        CHECK_TEXT(got_, n_, want);                                                                \
+    } while (0)
 #endif

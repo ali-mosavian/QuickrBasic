@@ -3,15 +3,12 @@
  * # How it works
  * A coordinate names a pixel's centre. A row's span runs between its edges at the row's centre,
  * and a pixel is drawn when its centre is inside, or on the top or left edge: rows and columns are
- * half open, [first, last). A row's edges are those crossing it, the polygon being convex.
+ * half open, [first, last). A row's edges are those crossing it, the polygon being convex. An
+ * edge is walked from its top end, so two polygons sharing it meet without a gap or a pixel twice.
  */
 #ifndef GFX_SCAN_H
 #define GFX_SCAN_H
 #include "pixels.h"
-
-typedef struct {
-    float x, y;
-} ScanPoint;
 
 /* Row y's pixels x0 up to x1, inside the clip. */
 typedef void ScanSpan(void *ctx, int32_t y, int32_t x0, int32_t x1);
@@ -28,5 +25,5 @@ static inline int32_t scan_first(const float v)
 /* The pixel whose square holds x. */
 static inline int32_t scan_pixel(const float x) { return scan_first(x - 0.5f); }
 
-void scan_convex(const ScanPoint *p, uint32_t n, Rect clip, ScanSpan *span, void *ctx);
+void scan_convex(const Vec *p, uint32_t n, Rect clip, ScanSpan *span, void *ctx);
 #endif

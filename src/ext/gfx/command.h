@@ -15,18 +15,43 @@ typedef struct {
     int32_t alpha, recolor;
 } Command;
 
-/* draw.camera's: the world's point at the target's top left. */
+/* draw.camera's: the world's point at the target's top left; or camera_turned's, centred: the
+   world's point at its centre, the view turned by angle and zoomed. Zeroed, the world as it is. */
 typedef struct {
-    float x, y;
+    float x, y, angle, zoom;
+    bool centred;
 } Camera;
+
+/* The camera over one target: a world point p lands at m p + move; a command turns by angle more
+   and scales by zoom. */
+typedef struct {
+    float m11, m12, m21, m22;
+    Vec move;
+    float angle, zoom;
+} Place;
 
 typedef struct {
     Command *items;
     uint32_t n, cap;
 } CmdLog;
 
-/* A draw call's command placed: its points moved by the camera, the pen's target and numbers. */
-void cmd_place(Command *c, const Pen *pen, const Camera *camera);
+/* The camera over a target w by h. */
+Place cmd_where(const Camera *camera, int32_t w, int32_t h);
+
+static inline Vec cmd_at(const Place *const p, const Vec v)
+{
+    return (Vec){
+        p->m11 * v.x + p->m12 * v.y + p->move.x,
+        p->m21 * v.x + p->m22 * v.y + p->move.y,
+    };
+}
+
+/* Neither turned nor zoomed: a shape stays upright and its size. */
+static inline bool cmd_upright(const Place *const p) { return p->angle == 0 && p->zoom == 1; }
+
+/* A draw call's command placed: its points by the camera, its angle and scale with it; the pen's
+   target and numbers. */
+void cmd_place(Command *c, const Pen *pen, const Place *where);
 /* c logged: false, no memory. */
 bool cmd_log(CmdLog *log, const Command *c);
 /* A frame begins. */

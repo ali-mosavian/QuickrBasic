@@ -20,7 +20,17 @@ typedef struct {
 void soft_clear(const SoftTarget *t, uint32_t colour);
 void soft_pset(const SoftTarget *t, float x, float y, uint32_t colour);
 /* Both ends drawn. */
-void soft_line(const SoftTarget *t, float x1, float y1, float x2, float y2, uint32_t colour);
+void soft_line(const SoftTarget *t, Vec a, Vec b, uint32_t colour);
+/* A closed outline through n points, each pixel once. */
+void soft_outline(const SoftTarget *t, const Vec *p, uint32_t n, uint32_t colour);
+/* A convex polygon of n points, filled. */
+void soft_poly(const SoftTarget *t, const Vec *p, uint32_t n, uint32_t colour);
+/* The circle about c of radius r: filled, the pixels whose centres lie within r and a half; else
+   its outline, those from r less a half. */
+void soft_circle(const SoftTarget *t, Vec c, float r, uint32_t colour, bool fill);
+/* The outline's pixels from the angle start clockwise on the screen to finish, radians; a whole
+   turn or more, all of it. */
+void soft_arc(const SoftTarget *t, Vec c, float r, float start, float finish, uint32_t colour);
 /* Corners x1, y1 and x2, y2 drawn, in any order; filled or outlined. */
 void soft_rect(
     const SoftTarget *t,

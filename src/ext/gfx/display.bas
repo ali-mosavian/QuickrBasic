@@ -58,8 +58,9 @@ type FrameStats
     waits as long
 end type
 
-' One draw call, after the camera: x, y its anchor or first
-' end, x2, y2 its other end.
+' One draw call, after the camera: x, y its anchor, centre or
+' first point; x2, y2 its other end, last point, or a point
+' on its edge (an arc's start, angle its start's angle).
 type Command
     kind as integer
     target as long

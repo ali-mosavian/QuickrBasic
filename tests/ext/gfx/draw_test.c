@@ -3,28 +3,7 @@
 #include "test.h"
 
 /* An 8 by 4 canvas cleared to 1. */
-static void canvas(Session *const S)
-{
-    gfx_fresh(S);
-    CHECK(!CALL("display.open", I(8), I(4), I(8), I(0)).error);
-    CHECK(!CALL("draw.clear", I(1)).error);
-}
-
-/* The canvas's row y as digits, 0-9. */
-static void row(Session *const S, const int32_t y, char *const out)
-{
-    for (int32_t x = 0; x < 8; x++)
-        out[x] = (char)('0' + PX(x, y));
-
-    out[8] = 0;
-}
-
-#define ROW(y, want)                                                                               \
-    do {                                                                                           \
-        char got[9];                                                                               \
-        row(S, y, got);                                                                            \
-        CHECK_TEXT(got, 8, want);                                                                  \
-    } while (0)
+static void canvas(Session *const S) { CANVAS(8, 4); }
 
 /* Corners name pixel centres: a rect's edges lie half a pixel out, and a pixel whose centre is on
    the top or left edge is drawn, on the bottom or right one not. */
@@ -141,6 +120,5 @@ TEST(gfx_flags_a_call_refuses)
     CHECK(CALL("draw.sprite", I(s), F(0), F(0), I(GFX_DRAW_FILL)).error == 5);
     CHECK(CALL("draw.rect", F(0), F(0), F(1), F(1), I(1), I(GFX_PEN_BLEND)).error == 73);
     CHECK(CALL("draw.rect", F(0), F(0), F(1), F(1), I(256), I(0)).error == 5);
-    CHECK(CALL("draw.circle", F(0), F(0), F(1), I(1), I(0)).error == 73);
     CHECK(PX(0, 0) == 1);
 }

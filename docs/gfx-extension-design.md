@@ -471,6 +471,16 @@ pixels run on the software backend.
   pixels read. A frame of CHARLIE's pictures by its commands, and against its steps pasted by hand.
   `make gfx-shot` draws that frame in the Mac's window, and `QB_SHOT` takes it.
 
+### The rest of 2D
+
+Step 3, in parts:
+
+- **Shapes and the turned camera**: `circle`, `arc` and `poly`, outlined or filled;
+  `camera_turned`. A circle covers the centres within its radius and a half, its outline those
+  from the radius less a half, so radius 0 is a pixel. An arc runs clockwise on the screen from
+  its start to its finish. An outline draws each pixel once. Under a turned or zoomed camera a
+  rect is a polygon; a picture there is not yet drawn (Advanced feature unavailable).
+
 ## Prior art
 
 | | What `gfx` takes from it |

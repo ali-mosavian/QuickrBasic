@@ -1,48 +1,87 @@
 /* gfx.draw's entries: 2D into the pen's target (draw.bas). Each call is a command logged, then
    drawn at once by the software backend. */
 #include "gfx.h"
+#include "gmath.h"
 #include "qbrt/llrm/qb/dev/host/vgadata.h"
 #include "soft/scan.h"
 
 enum {
     SPRITE_FLAGS = GFX_DRAW_FLIPX | GFX_DRAW_FLIPY | GFX_PEN_OPAQUE,
     GLYPH = 8, /* the built-in font's cells, 8 by 8 */
+    POLY_LEAST = 3,
 };
+
+/* A draw call's command: a to b, upright at its size. */
+static Command drawn(
+    const int32_t kind,
+    const Vec a,
+    const Vec b,
+    const int32_t colour,
+    const int32_t flags
+)
+{
+    return (Command){
+        .kind = kind,
+        .x = a.x,
+        .y = a.y,
+        .x2 = b.x,
+        .y2 = b.y,
+        .scale = 1,
+        .colour = colour,
+        .flags = flags,
+    };
+}
 
 void gfx_draw_camera(const float x, const float y)
 {
     Gx *const g = gx_get();
 
     if (g)
-        g->camera = (Camera){x, y};
+        g->camera = (Camera){.x = x, .y = y};
+}
+
+void gfx_draw_camera_turned(const float x, const float y, const float angle, const float zoom)
+{
+    Gx *const g = gx_get();
+
+    if (!g)
+        return;
+
+    if (!(zoom > 0)) {
+        gx_fail(ERR_ILLEGAL);
+        return;
+    }
+
+    g->camera = (Camera){
+        .x = x,
+        .y = y,
+        .angle = angle,
+        .zoom = zoom,
+        .centred = true,
+    };
 }
 
 void gfx_draw_clear(const int32_t colour)
 {
     Gx *const g = gx_get();
-    Command c = {.kind = GFX_DISPLAY_DREW_CLEAR, .colour = colour};
+    Command c = drawn(GFX_DISPLAY_DREW_CLEAR, (Vec){}, (Vec){}, colour, 0);
 
     SoftTarget t;
+    Place where;
 
-    if (g && gx_draw(g, &c, 0, &t))
+    if (g && gx_draw(g, &c, 0, &t, &where))
         soft_clear(&t, (uint32_t)colour);
 }
 
 void gfx_draw_pset(const float x, const float y, const int32_t colour)
 {
     Gx *const g = gx_get();
-    Command c = {
-        .kind = GFX_DISPLAY_DREW_PSET,
-        .x = x,
-        .y = y,
-        .x2 = x,
-        .y2 = y,
-        .colour = colour,
-    };
+    Command c = drawn(GFX_DISPLAY_DREW_PSET, (Vec){x, y}, (Vec){x, y}, colour, 0);
 
     SoftTarget t;
+    Place where;
 
-    if (g && gx_draw(g, &c, 0, &t))
+    if (g && gx_draw(g, &c, 0, &t, &where))
         soft_pset(&t, c.x, c.y, (uint32_t)colour);
 }
 
@@ -55,19 +94,42 @@ void gfx_draw_line(
 )
 {
     Gx *const g = gx_get();
-    Command c = {
-        .kind = GFX_DISPLAY_DREW_LINE,
-        .x = x1,
-        .y = y1,
-        .x2 = x2,
-        .y2 = y2,
-        .colour = colour,
-    };
+    Command c = drawn(GFX_DISPLAY_DREW_LINE, (Vec){x1, y1}, (Vec){x2, y2}, colour, 0);
 
     SoftTarget t;
+    Place where;
 
-    if (g && gx_draw(g, &c, 0, &t))
-        soft_line(&t, c.x, c.y, c.x2, c.y2, (uint32_t)colour);
+    if (g && gx_draw(g, &c, 0, &t, &where))
+        soft_line(&t, (Vec){c.x, c.y}, (Vec){c.x2, c.y2}, (uint32_t)colour);
+}
+
+/* A rect turned or zoomed: a polygon of its edges, half a pixel out of its corners, or the
+   outline through its corners. */
+static void turned_rect(
+    const SoftTarget *const t,
+    const Place *const where,
+    const float x1,
+    const float y1,
+    const float x2,
+    const float y2,
+    const uint32_t colour,
+    const bool fill
+)
+{
+    const float half = fill ? 0.5f : 0;
+    const float l = (x1 < x2 ? x1 : x2) - half, r = (x1 < x2 ? x2 : x1) + half;
+    const float top = (y1 < y2 ? y1 : y2) - half, bottom = (y1 < y2 ? y2 : y1) + half;
+    const Vec corners[] = {
+        cmd_at(where, (Vec){l, top}),
+        cmd_at(where, (Vec){r, top}),
+        cmd_at(where, (Vec){r, bottom}),
+        cmd_at(where, (Vec){l, bottom}),
+    };
+
+    if (fill)
+        soft_poly(t, corners, 4, colour);
+    else
+        soft_outline(t, corners, 4, colour);
 }
 
 void gfx_draw_rect(
@@ -80,39 +142,152 @@ void gfx_draw_rect(
 )
 {
     Gx *const g = gx_get();
-    Command c = {
-        .kind = GFX_DISPLAY_DREW_RECT,
-        .x = x1,
-        .y = y1,
-        .x2 = x2,
-        .y2 = y2,
-        .colour = colour,
-        .flags = flags,
-    };
+    Command c = drawn(GFX_DISPLAY_DREW_RECT, (Vec){x1, y1}, (Vec){x2, y2}, colour, flags);
 
     SoftTarget t;
+    Place where;
 
-    if (g && gx_draw(g, &c, GFX_DRAW_FILL, &t))
-        soft_rect(&t, c.x, c.y, c.x2, c.y2, (uint32_t)colour, flags & GFX_DRAW_FILL);
+    if (!g || !gx_draw(g, &c, GFX_DRAW_FILL, &t, &where))
+        return;
+
+    const bool fill = flags & GFX_DRAW_FILL;
+
+    if (cmd_upright(&where))
+        soft_rect(&t, c.x, c.y, c.x2, c.y2, (uint32_t)colour, fill);
+    else
+        turned_rect(&t, &where, x1, y1, x2, y2, (uint32_t)colour, fill);
+}
+
+void gfx_draw_circle(
+    const float x,
+    const float y,
+    const float r,
+    const int32_t colour,
+    const int32_t flags
+)
+{
+    Gx *const g = gx_get();
+    Command c = drawn(GFX_DISPLAY_DREW_CIRCLE, (Vec){x, y}, (Vec){x + r, y}, colour, flags);
+
+    SoftTarget t;
+    Place where;
+
+    if (!g)
+        return;
+
+    if (!(r >= 0)) {
+        gx_fail(ERR_ILLEGAL);
+        return;
+    }
+
+    if (gx_draw(g, &c, GFX_DRAW_FILL, &t, &where))
+        soft_circle(&t, (Vec){c.x, c.y}, r * where.zoom, (uint32_t)colour, flags & GFX_DRAW_FILL);
+}
+
+/* x2, y2 the start's point; angle the start, after the camera. */
+void gfx_draw_arc(
+    const float x,
+    const float y,
+    const float r,
+    const float start,
+    const float finish,
+    const int32_t colour
+)
+{
+    Gx *const g = gx_get();
+
+    if (!g)
+        return;
+
+    if (!(r >= 0)) {
+        gx_fail(ERR_ILLEGAL);
+        return;
+    }
+
+    float s, co;
+    gm_sincos(start, &s, &co);
+    Command c = drawn(GFX_DISPLAY_DREW_ARC, (Vec){x, y}, (Vec){x + r * co, y + r * s}, colour, 0);
+
+    c.angle = start;
+    SoftTarget t;
+    Place where;
+
+    if (gx_draw(g, &c, 0, &t, &where))
+        soft_arc(
+            &t,
+            (Vec){c.x, c.y},
+            r * where.zoom,
+            c.angle,
+            finish + where.angle,
+            (uint32_t)colour
+        );
+}
+
+/* x, y the first point, x2, y2 the last, after the camera. */
+void gfx_draw_poly(
+    const QxArray *const points,
+    const int32_t first,
+    const int32_t n,
+    const int32_t colour,
+    const int32_t flags
+)
+{
+    Gx *const g = gx_get();
+
+    if (!g)
+        return;
+
+    if (n < POLY_LEAST) {
+        gx_fail(ERR_ILLEGAL);
+        return;
+    }
+
+    const gfx_draw_vec2 *const p = gx_elements(points, sizeof *p, first, n);
+    Vec *const placed = p ? gx_points(g, (uint32_t)n) : nullptr;
+
+    if (!placed)
+        return;
+
+    Command c = drawn(
+        GFX_DISPLAY_DREW_POLY,
+        (Vec){p[0].x, p[0].y},
+        (Vec){p[n - 1].x, p[n - 1].y},
+        colour,
+        flags
+    );
+
+    SoftTarget t;
+    Place where;
+
+    if (!gx_draw(g, &c, GFX_DRAW_FILL, &t, &where))
+        return;
+
+    for (int32_t i = 0; i < n; i++)
+        placed[i] = cmd_at(&where, (Vec){p[i].x, p[i].y});
+
+    if (flags & GFX_DRAW_FILL)
+        soft_poly(&t, placed, (uint32_t)n, (uint32_t)colour);
+    else
+        soft_outline(&t, placed, (uint32_t)n, (uint32_t)colour);
+}
+
+/* Not yet: a picture under a turned camera is drawn turned, with the rest of 2D. Raised: true. */
+static bool upright_only(const Gx *const g)
+{
+    return g->camera.centred && !gx_fail(ERR_UNAVAILABLE);
 }
 
 void gfx_draw_sprite(const int32_t s_, const float x, const float y, const int32_t flags)
 {
     Gx *const g = gx_get();
     const Surface *const s = g ? gx_surface(g, (uint32_t)s_) : nullptr;
-    Command c = {
-        .kind = GFX_DISPLAY_DREW_SPRITE,
-        .source = (uint32_t)s_,
-        .x = x,
-        .y = y,
-        .x2 = x,
-        .y2 = y,
-        .flags = flags,
-    };
+    Command c = drawn(GFX_DISPLAY_DREW_SPRITE, (Vec){x, y}, (Vec){x, y}, 0, flags);
 
+    c.source = (uint32_t)s_;
     SoftTarget t;
+    Place where;
 
-    if (!s || !gx_draw(g, &c, SPRITE_FLAGS, &t))
+    if (!s || upright_only(g) || !gx_draw(g, &c, SPRITE_FLAGS, &t, &where))
         return;
 
     const Pixels px = surf_pixels(&g->surfaces, s);
@@ -156,18 +331,14 @@ void gfx_draw_tiles(
     }
 
     const int32_t rows = (int32_t)map->count / columns;
-    Command c = {
-        .kind = GFX_DISPLAY_DREW_TILES,
-        .x = x,
-        .y = y,
-        .x2 = x + (float)(columns * w),
-        .y2 = y + (float)(rows * h),
-        .flags = flags,
-    };
+    const Vec end = {x + (float)(columns * w), y + (float)(rows * h)};
+
+    Command c = drawn(GFX_DISPLAY_DREW_TILES, (Vec){x, y}, end, 0, flags);
 
     SoftTarget t;
+    Place where;
 
-    if (!gx_draw(g, &c, SPRITE_FLAGS, &t))
+    if (upright_only(g) || !gx_draw(g, &c, SPRITE_FLAGS, &t, &where))
         return;
 
     const int32_t left = scan_pixel(c.x), top = scan_pixel(c.y);
@@ -194,18 +365,12 @@ void gfx_draw_tiles(
 void gfx_draw_text(const float x, const float y, const QxStr s, const int32_t colour)
 {
     Gx *const g = gx_get();
-    Command c = {
-        .kind = GFX_DISPLAY_DREW_TEXT,
-        .x = x,
-        .y = y,
-        .x2 = x,
-        .y2 = y,
-        .colour = colour,
-    };
+    Command c = drawn(GFX_DISPLAY_DREW_TEXT, (Vec){x, y}, (Vec){x, y}, colour, 0);
 
     SoftTarget t;
+    Place where;
 
-    if (!g || !gx_draw(g, &c, 0, &t))
+    if (!g || upright_only(g) || !gx_draw(g, &c, 0, &t, &where))
         return;
 
     for (uint32_t i = 0; i < s.len; i++) {
@@ -224,49 +389,6 @@ void gfx_draw_text(const float x, const float y, const QxStr s, const int32_t co
 int32_t gfx_draw_text_width(const QxStr s) { return gx_get() ? (int32_t)(s.len * GLYPH) : 0; }
 
 /* Not yet: turned and textured shapes come with the rest of 2D. */
-void gfx_draw_camera_turned(const float x, const float y, const float angle, const float zoom)
-{
-    (void)x, (void)y, (void)angle, (void)zoom;
-    gx_fail(ERR_UNAVAILABLE);
-}
-
-void gfx_draw_circle(
-    const float x,
-    const float y,
-    const float r,
-    const int32_t colour,
-    const int32_t flags
-)
-{
-    (void)x, (void)y, (void)r, (void)colour, (void)flags;
-    gx_fail(ERR_UNAVAILABLE);
-}
-
-void gfx_draw_arc(
-    const float x,
-    const float y,
-    const float r,
-    const float start,
-    const float finish,
-    const int32_t colour
-)
-{
-    (void)x, (void)y, (void)r, (void)start, (void)finish, (void)colour;
-    gx_fail(ERR_UNAVAILABLE);
-}
-
-void gfx_draw_poly(
-    const QxArray *const points,
-    const int32_t first,
-    const int32_t n,
-    const int32_t colour,
-    const int32_t flags
-)
-{
-    (void)points, (void)first, (void)n, (void)colour, (void)flags;
-    gx_fail(ERR_UNAVAILABLE);
-}
-
 void gfx_draw_sprite_turned(
     const int32_t s,
     const float x,

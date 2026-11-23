@@ -2,7 +2,7 @@
 #include "soft/scan.h"
 
 void scan_convex(
-    const ScanPoint *const p,
+    const Vec *const p,
     const uint32_t n,
     const Rect clip,
     ScanSpan *const span,
@@ -24,10 +24,12 @@ void scan_convex(
         bool crossed = false;
 
         for (uint32_t i = 0; i < n; i++) {
-            const ScanPoint a = p[i], b = p[(i + 1) % n];
+            const Vec e = p[i], f = p[(i + 1) % n];
 
-            if ((a.y <= (float)y) == (b.y <= (float)y))
+            if ((e.y <= (float)y) == (f.y <= (float)y))
                 continue;
+
+            const Vec a = e.y < f.y ? e : f, b = e.y < f.y ? f : e;
 
             const float x = a.x + ((float)y - a.y) * (b.x - a.x) / (b.y - a.y);
             left = !crossed || x < left ? x : left;

@@ -1,6 +1,7 @@
 /* The software backend (soft.h). */
 #include "soft/soft.h"
 #include "gfx_qx.h"
+#include "gmath.h"
 #include "soft/scan.h"
 
 enum { GLYPH_W = 8 };
@@ -55,7 +56,7 @@ void soft_pset(const SoftTarget *const t, const float x, const float y, const ui
 
 /* The part of the line from a to b inside r widened by a pixel, Liang and Barsky's, in doubles: a
    float's 24 bits lose a far end's place. False: none. */
-static bool cut(ScanPoint *const a, ScanPoint *const b, const Rect r)
+static bool cut(Vec *const a, Vec *const b, const Rect r)
 {
     const double ax = a->x, ay = a->y, dx = (double)b->x - ax, dy = (double)b->y - ay;
     const double p[] = {-dx, dx, -dy, dy};
@@ -74,28 +75,20 @@ static bool cut(ScanPoint *const a, ScanPoint *const b, const Rect r)
             to = q[i] / p[i] < to ? q[i] / p[i] : to;
     }
 
-    *a = (ScanPoint){(float)(ax + from * dx), (float)(ay + from * dy)};
+    *a = (Vec){(float)(ax + from * dx), (float)(ay + from * dy)};
 
-    *b = (ScanPoint){(float)(ax + to * dx), (float)(ay + to * dy)};
+    *b = (Vec){(float)(ax + to * dx), (float)(ay + to * dy)};
 
     return from <= to;
 }
 
-/* Bresenham's, from pixel to pixel. A line longer than LONG is cut to the clip first: its pixels
-   in it may then fall a rounding apart. */
-void soft_line(
-    const SoftTarget *const t,
-    const float x1,
-    const float y1,
-    const float x2,
-    const float y2,
-    const uint32_t colour
-)
+/* Bresenham's, from pixel to pixel, the end drawn when last. A line longer than LONG is cut to the
+   clip first: its pixels in it may then fall a rounding apart. */
+static void walk(const SoftTarget *const t, Vec a, Vec b, const uint32_t colour, const bool last)
 {
     const float LONG = 1 << 15;
-    ScanPoint a = {x1, y1}, b = {x2, y2};
 
-    if ((x2 - x1 > LONG || x1 - x2 > LONG || y2 - y1 > LONG || y1 - y2 > LONG) &&
+    if ((b.x - a.x > LONG || a.x - b.x > LONG || b.y - a.y > LONG || a.y - b.y > LONG) &&
         !cut(&a, &b, t->clip))
         return;
 
@@ -105,10 +98,12 @@ void soft_line(
     const int32_t sx = x < to_x ? 1 : -1, sy = y < to_y ? 1 : -1;
 
     for (int32_t err = dx + dy;;) {
-        if (inside(t->clip, x, y))
+        const bool end = x == to_x && y == to_y;
+
+        if ((!end || last) && inside(t->clip, x, y))
             t->fill->span(at(t, x, y), 1, colour);
 
-        if (x == to_x && y == to_y)
+        if (end)
             return;
 
         const int32_t e2 = 2 * err;
@@ -125,6 +120,160 @@ void soft_line(
     }
 }
 
+void soft_line(const SoftTarget *const t, const Vec a, const Vec b, const uint32_t colour)
+{
+    walk(t, a, b, colour, true);
+}
+
+void soft_outline(
+    const SoftTarget *const t,
+    const Vec *const p,
+    const uint32_t n,
+    const uint32_t colour
+)
+{
+    for (uint32_t i = 0; i < n; i++)
+        walk(t, p[i], p[(i + 1) % n], colour, false);
+}
+
+void soft_poly(
+    const SoftTarget *const t,
+    const Vec *const p,
+    const uint32_t n,
+    const uint32_t colour
+)
+{
+    scan_convex(p, n, t->clip, flat, &(Flat){t, colour});
+}
+
+/* Row y's pixels whose centres lie within rr of c, [*x0, *x1): false, none. */
+static bool chord(
+    const Vec c,
+    const float rr,
+    const int32_t y,
+    int32_t *const x0,
+    int32_t *const x1
+)
+{
+    const float dy = (float)y - c.y, h2 = rr * rr - dy * dy;
+
+    if (rr <= 0 || h2 < 0)
+        return false;
+
+    const float h = gm_sqrt(h2);
+    *x0 = scan_first(c.x - h);
+    *x1 = scan_first(c.x + h);
+    return *x0 < *x1;
+}
+
+/* A part of a circle's row, x0 up to x1. */
+typedef void Piece(const SoftTarget *t, int32_t y, int32_t x0, int32_t x1, const void *ctx);
+
+/* The circle about c of radius r, its rows' parts to piece: filled, the pixels within r and a
+   half; else the outline, those from r less a half. */
+static void ring(
+    const SoftTarget *const t,
+    const Vec c,
+    const float r,
+    const bool fill,
+    Piece *const piece,
+    const void *const ctx
+)
+{
+    const float outer = r + 0.5f, inner = fill ? 0 : r - 0.5f;
+    const int32_t y0 = rect_max(scan_first(c.y - outer), t->clip.y);
+    const int32_t y1 = rect_min(scan_first(c.y + outer), t->clip.y + t->clip.h);
+
+    for (int32_t y = y0; y < y1; y++) {
+        int32_t a0, a1, b0, b1;
+
+        if (!chord(c, outer, y, &a0, &a1))
+            continue;
+
+        if (!chord(c, inner, y, &b0, &b1)) {
+            piece(t, y, a0, a1, ctx);
+            continue;
+        }
+
+        piece(t, y, a0, b0, ctx);
+        piece(t, y, b1, a1, ctx);
+    }
+}
+
+static void ring_span(
+    const SoftTarget *const t,
+    const int32_t y,
+    const int32_t x0,
+    const int32_t x1,
+    const void *const ctx
+)
+{
+    span(t, y, x0, x1, *(const uint32_t *)ctx);
+}
+
+void soft_circle(
+    const SoftTarget *const t,
+    const Vec c,
+    const float r,
+    const uint32_t colour,
+    const bool fill
+)
+{
+    ring(t, c, r, fill, ring_span, &colour);
+}
+
+/* An arc's sweep: from direction s clockwise to f; wide, past half a turn. */
+typedef struct {
+    Vec c, s, f;
+    bool wide, whole;
+    uint32_t colour;
+} Sweep;
+
+/* d, from the centre, lies in the sweep: within half a turn, clockwise of s and anticlockwise of
+   f; past it, not strictly in the rest. */
+static bool swept(const Sweep *const w, const float dx, const float dy)
+{
+    const float from = w->s.x * dy - w->s.y * dx, to = dx * w->f.y - dy * w->f.x;
+    return w->whole || (w->wide ? !(from < 0 && to < 0) : from >= 0 && to >= 0);
+}
+
+static void arc_piece(
+    const SoftTarget *const t,
+    const int32_t y,
+    const int32_t x0,
+    const int32_t x1,
+    const void *const ctx
+)
+{
+    const Sweep *const w = ctx;
+
+    for (int32_t x = x0; x < x1; x++)
+        if (swept(w, (float)x - w->c.x, (float)y - w->c.y))
+            span(t, y, x, x + 1, w->colour);
+}
+
+void soft_arc(
+    const SoftTarget *const t,
+    const Vec c,
+    const float r,
+    const float start,
+    const float finish,
+    const uint32_t colour
+)
+{
+    const float turn = 2 * GM_PI, sweep = finish - start;
+    Sweep w = {
+        .c = c,
+        .wide = sweep - (float)gm_floor(sweep / turn) * turn > GM_PI,
+        .whole = sweep >= turn,
+        .colour = colour,
+    };
+
+    gm_sincos(start, &w.s.y, &w.s.x);
+    gm_sincos(finish, &w.f.y, &w.f.x);
+    ring(t, c, r, false, arc_piece, &w);
+}
+
 void soft_rect(
     const SoftTarget *const t,
     const float x1,
@@ -139,10 +288,9 @@ void soft_rect(
     const float top = (y1 < y2 ? y1 : y2) - 0.5f, bottom = (y1 < y2 ? y2 : y1) + 0.5f;
 
     if (fill) {
-        const ScanPoint corners[] = {{l, top}, {r, top}, {r, bottom}, {l, bottom}};
+        const Vec corners[] = {{l, top}, {r, top}, {r, bottom}, {l, bottom}};
 
-        scan_convex(corners, 4, t->clip, flat, &(Flat){t, colour});
-
+        soft_poly(t, corners, 4, colour);
         return;
     }
 
