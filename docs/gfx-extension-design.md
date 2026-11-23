@@ -331,11 +331,9 @@ typedef struct {            /* asked, then what the host gives */
     uint16_t out_w, out_h;  /* given: the pixels a NATIVE canvas is drawn at */
     float hz;               /* given: the refresh, 0 unknown */
 } QxScreen;
-typedef struct { void *pixels; uint32_t pitch; } QxPage;
-
 bool (*gfx_open)(QxScreen *s);
 void (*gfx_close)(void);
-QxPage (*gfx_page)(void);                     /* the page to draw the next frame in */
+void *(*gfx_page)(uint32_t *pitch);           /* the page to draw the next frame in */
 void (*gfx_show)(const uint32_t *palette);    /* it is shown; at 8 bits, with these 256 colours */
 void (*gfx_play)(const void *list, uint32_t bytes);
 void (*gfx_read)(uint32_t texture, QxRect r, void *out);
@@ -347,8 +345,8 @@ void *(*file_read)(const char *path, uint32_t len, uint32_t *bytes);
 ```
 
 - **Software draws in memory the host lends.** `gfx_page` is the page to draw in; `gfx_show` shows
-  it and the next `gfx_page` is another. The host picks what is best: video memory's back page, or
-  its own memory, copied.
+  it. Today's hosts copy the page shown and lend it again, its pixels kept; VBE's two pages, on DOS,
+  will revisit that. No struct crosses by value: i386's conventions for one differ.
 - **A GPU's host plays lists.** `gfx_play` returns when the host is done with the list's bytes;
   `gfx_read` waits for what was played.
 - **Calls come from the interpreter's thread.** `gfx_show` and `gfx_play` hand the frame to the
@@ -373,7 +371,7 @@ source, over one slice a platform: the modules share the surfaces, the pen and t
 - One `qx_init_gfx`. An entry is named with its module, `draw.sprite`, and so is a type.
 - The glue reads every interface of the package: C functions `gfx_draw_sprite`, records
   `gfx_scene_vertex`. It joins a DECLARE's `_` lines, and no C name can meet the C library's.
-- The file format's version becomes 2. A version 1 file is one unnamed interface.
+- The file format's version is 2. A version 1 file is one unnamed interface.
 
 ## The core
 
@@ -382,7 +380,9 @@ takes its own part. Memory is the host's (`alloc`), taken when first used: nothi
 
 | Module | Owns |
 |---|---|
-| `gfx.c` | the entries the glue calls: arguments checked, errors raised |
+| `gfx.c` | the state; what the entries share: errors raised, handles and the pen's target resolved |
+| `entry_display`, `entry_surface`, `entry_pen`, `entry_draw` | the entries the glue calls, a part each: arguments checked |
+| `mem` | the host's memory, and copies without a C library |
 | `handle` | handles: slots and generations |
 | `surface` | surfaces, views and anchors; the pages images are packed in |
 | `image` | a file's bytes to pixels and a palette: BMP, then PNG |
@@ -391,7 +391,7 @@ takes its own part. Memory is the host's (`alloc`), taken when first used: nothi
 | `command` | a draw call to a command, the camera applied; the frame's log |
 | `shape` | a command to vertices: quads and fans |
 | `soft/scan` | a convex polygon to spans, clipped |
-| `soft/fill8`, `fill16`, `fill32` | spans and rows to pixels: a table for each depth |
+| `soft/fill`, `fill8`, `fill16`, `fill32` | spans and rows to pixels: a table for each colour format |
 | `soft/soft` | the software backend: a command drawn at once |
 | `gpu/batch` | vertices to batches |
 | `gpu/list` | the list the host plays |
@@ -417,9 +417,10 @@ the end. What it points at stays till `gfx_play` returns.
 - **One scanner**, in C, that knows no depth: two edge chains walked down from the top vertex, a
   span a row. Two walks, as qgl's `drawA` and `drawP`: affine, u and v 16.16; and perspective, u/z
   and v/z floats, corrected every 16 pixels.
-- **A table for each depth**, as µGL's `CFMT`. It holds fused fillers for the hot mixes: a row
-  copied, keyed, keyed and flipped; a span flat, textured, textured and keyed, lit. And it holds the
-  steps of µGL's `tfx` row pipeline for every other mix: unpack, colour, mask, blend, pack.
+- **A table for each colour format**, as µGL's `CFMT`, `fill_formats` by format. It holds fused
+  fillers for the hot mixes, a row filler for each variant of the flags, indexed by them: copied,
+  keyed, flipped, both; a span flat, textured, textured and keyed, lit. And it holds the steps of
+  µGL's `tfx` row pipeline for every other mix: unpack, colour, mask, blend, pack.
 - **Picked once** for each sprite or polygon, from its stage bits, as qgl's `b8_span`: the fused
   filler when there is one, else the pipeline. Nothing below tests a mode.
 - **15 and 16 bits are one template**, built twice with other masks; 8 and 32 have their own.
@@ -438,8 +439,8 @@ pixels run on the software backend.
 ## Order
 
 1. The first slice, below.
-2. BASIC's binding: the package's loader, once QuickrBasic's dialect reads the interfaces. CHARLIE
-   moves onto `gfx`.
+2. BASIC's binding: the package's loader; the interfaces read in QuickrBasic's dialect (`OPTION
+   DIALECT`). CHARLIE moves onto `gfx`, cutting its views with `barkley/assets/sheet.bas`.
 3. The rest of 2D and the pen: turned sprites, quads, strips, light, tint, blend, recolor; 16 and 32
    bits; PNG.
 4. The hosts' players, SDL_GPU and WebGL2, and the list.
@@ -449,24 +450,24 @@ pixels run on the software backend.
 
 ### The first slice
 
-8 bits, in software, seen in the Mac's window.
+8 bits, in software, seen in the Mac's window. Done.
 
 - **`tools/qbx.py`**: a package's interfaces in one `.qbx`; a DECLARE's `_` lines; C names with
-  their module.
-- **`QxHost`, minor 1**: `gfx_open`, `gfx_close`, `gfx_page`, `gfx_show`, `clock_us`, `file_read`.
-  The terminal's host lends memory and shows nothing. The Mac's lends the page its window shows.
-- **The core at 8 bits**: `handle`, `surface` (`new`, `load` of a BMP, `view`, `grid`, `anchor`,
-  `free`, `point`, `read`), `colour` (`palette`, `palette_of`), `pen` (`target`, `clip`, `reset`),
-  `command`, `soft` (`scan`, `fill8`), `draw` (`clear`, `pset`, `line`, `rect`, `sprite` with
-  `FLIPX`, `FLIPY` and `OPAQUE`, `tiles`, `text` in the built-in font), `display` (`open`, `close`,
-  `flip`, `clock`, `draws`, `drawn`).
-- **CHARLIE**: `tools/charlieart.py` writes `CHARLIE.BMP` and the BASIC that cuts its views.
-- **Tests, native**: C unit tests, the slice linked in. Each rule by its commands drawn and by its
-  pixels read: the top and left edges, clipping, the key, flips, anchors, views, stale handles, a
-  BMP. A frame of CHARLIE both ways. A C harness draws that frame in the Mac's window, and
-  `QB_SHOT` takes it.
-- **Not in it**: BASIC calling `gfx`. The interfaces name `open` and `line`, which QuickrBasic's
-  dialect must first read.
+  their module; numeric CONSTs as C's.
+- **`QxHost`, minor 1**: `gfx_open`, `gfx_close`, `gfx_page`, `gfx_show`, `clock_us`, `file_read`,
+  over `plat/pgfx.h`. The terminal's host lends memory and shows nothing; the Mac's and the
+  browser's show the page in the runtime's place; DOS has none yet.
+- **The core at 8 bits**: `handle`, `surface` (`new`, `load` of a BMP, `view`, `grid`, `aim`,
+  `anchor`, `free`, `point`, `read`, `write`), `colour` (`palette`, `palette_of`, `rgb`), `pen`
+  (`target`, `clip`, `reset`), `command`, `soft` (`scan`, `fill8`), `draw` (`clear`, `pset`,
+  `line`, `rect`, `sprite` with `FLIPX`, `FLIPY` and `OPAQUE`, `tiles`, `text` in the built-in
+  font), `display` (`open`, `close`, `flip`, `clock`, `draws`, `drawn`). The rest raises Advanced
+  feature unavailable. `scene` is not glued yet.
+- **CHARLIE**: `tools/charlieart.py` writes `CHARLIE.BMP` and `barkley/assets/sheet.bas`, which cuts
+  its views.
+- **Tests, native** (`tests/ext/gfx`, in the unit tests): each rule by its commands drawn and its
+  pixels read. A frame of CHARLIE's pictures by its commands, and against its steps pasted by hand.
+  `make gfx-shot` draws that frame in the Mac's window, and `QB_SHOT` takes it.
 
 ## Prior art
 

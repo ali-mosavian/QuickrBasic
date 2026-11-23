@@ -41,13 +41,15 @@ print synth.beat()
 
 | Part | Holds |
 |---|---|
-| Header | `QBX` and 1Ah, the file format's version, the ABI's major and the minor it needs |
-| Interface | the module's BASIC source: TYPEs, CONSTs, native DECLAREs, procedures in BASIC |
+| Header | `QBX` and 1Ah, the file format's version (2), the ABI's major and the minor it needs |
 | Slices | a tag, an offset and a size each |
+| Parts | a name, an offset and a size each: the module's own interface, named "", or a package's modules |
+| Interfaces | BASIC source: TYPEs, CONSTs, native DECLAREs, procedures in BASIC; each followed by 1Ah |
 | Help (later) | pages for F1, in the help's Markdown |
 
-A package's `.qbx` will hold a table of interfaces, a module each, over the same slices: a design, in
-[gfx-extension-design.md](gfx-extension-design.md#one-file-five-interfaces).
+A package's `.qbx` holds its modules' interfaces over the same slices, as
+[gfx-extension-design.md](gfx-extension-design.md#one-file-five-interfaces) has it. Loading one is
+gfx's next step. Version 1 held one interface, last.
 
 | Slice | Holds | Loaded by |
 |---|---|---|
@@ -176,21 +178,23 @@ Elsewhere CDECL changes nothing.
 ## Writing one: plain C
 
 ```c
-#include "synth_qx.h" /* tools/qbx.py glue synth.bas synth OUTDIR */
+#include "synth_qx.h" /* tools/qbx.py glue synth OUTDIR synth.bas */
 
 void synth_init(void) { qx_host->audio_open(&audio); }
 void synth_start(void) { ... }
 void synth_stop(void) { ... }
 
-void note(int32_t n, int32_t pitch, int32_t length, int32_t loud) { ... }
-void music(const QxArray *events, int32_t loop_from) { const synth_event *e = events->data; ... }
-float beat(void) { ... }
+void synth_note(int32_t n, int32_t pitch, int32_t length, int32_t loud) { ... }
+void synth_music(const QxArray *events, int32_t loop_from) { const synth_event *e = events->data; ... }
+float synth_beat(void) { ... }
 ```
 
 `tools/qbx.py glue` reads the interface and writes two files:
 
-- `NAME_qx.h`: each TYPE as a packed struct, its size asserted as BASIC lays it out; each native
-  DECLARE as a C prototype. A function that does not match its DECLARE is a compile error.
+- `NAME_qx.h`: each numeric CONST as C's; each TYPE as a packed struct, its size asserted as BASIC
+  lays it out; each native DECLARE as a C prototype, named with the module (and a package's part:
+  gfx's `draw.sprite` is `gfx_draw_sprite`), or as its ALIAS. A function that does not match its
+  DECLARE is a compile error. A DECLARE's `_` lines are one.
 - `NAME_qx.c`: a wrapper for each, which lays out the `QxCall`'s arguments for the function; the
   entry table with its kinds; `qx_init_NAME`, which calls `NAME_init`.
 
@@ -316,12 +320,13 @@ the page to the AudioWorklet (`synth.mjs`), or in node to `tools/wasm/device.mjs
 That thread instantiates the same module, without relocations or constructors (`wasm.mjs`'s
 `stream`), and calls `render` each quantum.
 
-**Unit tests** link an extension in, through the inittab: its tests need no loader.
+**Unit tests** link an extension in and call its `qx_init_NAME`, as gfx's do (`tests/ext/gfx`): its
+tests need no loader.
 
 ## Building one
 
 `tools/qbx.py glue` writes the glue, each slice is built with it, and `tools/qbx.py pack` puts the
-interface and the slices in a `.qbx`. The flags, as the prototype used them:
+interfaces and the slices in a `.qbx`. The flags, as the prototype used them:
 
 | Slice | Compile | Link |
 |---|---|---|
