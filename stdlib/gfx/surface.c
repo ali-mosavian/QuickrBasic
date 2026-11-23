@@ -84,6 +84,7 @@ uint32_t surf_new(
         .own = pixels,
         .palette = palette,
         .version = own != nullptr,
+        .bottom = own ? h : 0,
     };
 
     const uint32_t handle = pixels ? hold(ss, s, false) : 0;
@@ -121,7 +122,7 @@ Surface *surf_get(const Surfaces *const ss, const uint32_t h) { return hdl_item(
 
 Picture surf_picture(const Surfaces *const ss, const uint32_t h)
 {
-    const Surface *const s = surf_get(ss, h);
+    Surface *const s = surf_get(ss, h);
     const Rect all = {0, 0, s->w, s->h};
 
     if (s->own)
@@ -130,13 +131,16 @@ Picture surf_picture(const Surfaces *const ss, const uint32_t h)
             all,
             h,
             s->version,
+            s,
         };
 
     if (!s->parent)
-        return (Picture){ss->canvas, all, h, s->version};
+        return (Picture){ss->canvas, all, h, s->version, s};
 
-    const Picture p = surf_picture(ss, s->parent);
-    return (Picture){p.root, {p.at.x + s->x, p.at.y + s->y, s->w, s->h}, p.texture, p.version};
+    Picture p = surf_picture(ss, s->parent);
+    p.at = (Rect){p.at.x + s->x, p.at.y + s->y, s->w, s->h};
+
+    return p;
 }
 
 Pixels surf_pixels(const Surfaces *const ss, const Surface *const s)
@@ -161,10 +165,19 @@ Surface *surf_root(const Surfaces *const ss, Surface *s, uint32_t *const h)
     return s;
 }
 
-void surf_wrote(const Surfaces *const ss, Surface *const s)
+void surf_wrote(const Surfaces *const ss, Surface *s, const Rect r)
 {
-    uint32_t h = 0;
-    surf_root(ss, s, &h)->version++;
+    int32_t top = r.y;
+
+    for (; s->parent; s = surf_get(ss, s->parent))
+        top += s->y;
+
+    const int32_t bottom = top + r.h;
+    const bool none = s->top >= s->bottom;
+
+    s->version++;
+    s->top = none || top < s->top ? top : s->top;
+    s->bottom = none || bottom > s->bottom ? bottom : s->bottom;
 }
 
 void surf_free(Surfaces *const ss, const uint32_t h) { drop(ss, h); }

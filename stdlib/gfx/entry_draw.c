@@ -576,6 +576,7 @@ static const Font *pen_font(Gx *const g, Picture *const sheet)
 
             sheet->texture = PIC_FONT;
             sheet->version = 1;
+            sheet->surface = nullptr;
             return f;
         }
 
@@ -621,6 +622,7 @@ void gfx_draw_text(const float x, const float y, const QxStr s, const int32_t co
             {sheet.at.x + cell.x, sheet.at.y + cell.y, cell.w, cell.h},
             sheet.texture,
             sheet.version,
+            sheet.surface,
         };
 
         picture(g, &t, &where, &glyph, (Vec){}, (Vec){x + dx, y}, (Vec){c.x + dx, c.y}, 0, 1, 0);

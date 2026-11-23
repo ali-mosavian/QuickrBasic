@@ -550,7 +550,8 @@ Step 4, in parts:
   batch of shapes takes the next picture's texture. A root drawn from, half a page or smaller, is
   packed into a 1024 by 1024 atlas page of its format (indices or RGBA), rows of places, a place
   freed with its root and a page empty again started over; drawn into, a root has a texture of
-  its own. So separate pictures draw as one batch once sent. `display.stats` gives the frame
+  its own. So separate pictures draw as one batch once sent. A root keeps the rows written since
+  the GPU took it, and only those are sent again. `display.stats` gives the frame
   shown last's draws, batches, uploads and reads waited for. On the Mac, 300 sprites and 300
   rects interleaved went from 601 batches to 1 (1764 to 2891 frames a second); 1000 sprites from
   16 pictures from 1000 batches to 1 (1371 to 1996).

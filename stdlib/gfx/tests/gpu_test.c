@@ -447,6 +447,34 @@ TEST(gfx_gpu_packs_pictures_into_pages)
     CHECK(arg(QX_LIST_UPLOAD, 3, 4) == 4 && arg(QX_LIST_DRAW, 1, 7) == GPU_PAGE_FIRST + 1);
 }
 
+/* A picture written sends only the rows written since it was last sent, through a view as well;
+   a new place sends it whole. */
+TEST(gfx_gpu_sends_the_rows_written)
+{
+    screen(S, 8, 8, 8);
+    const int32_t s = GPU_CALL("surface.new", I(4), I(6)).result.i;
+    const int32_t v = GPU_CALL("surface.view", I(s), I(1), I(2), I(2), I(3)).result.i;
+    uint8_t texels[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+
+    QxArray a = gfx_array(texels, 8, 1);
+
+    GPU_CALL("draw.sprite", I(s), F(0), F(0), I(0));
+    GPU_CALL("display.flip");
+    CHECK(arg(QX_LIST_UPLOAD, 2, 3) == 0 && arg(QX_LIST_UPLOAD, 2, 5) == 6);
+
+    GPU_CALL("surface.write", I(s), I(0), I(4), I(4), I(1), ARRAY(&a));
+    GPU_CALL("surface.write", I(v), I(0), I(0), I(2), I(1), ARRAY(&a));
+    GPU_CALL("draw.sprite", I(s), F(0), F(0), I(0));
+    GPU_CALL("display.flip");
+    CHECK(ops(HEAD "PNCUDSE") && arg(QX_LIST_UPLOAD, 0, 1) == GPU_PAGE_FIRST + 1);
+    CHECK(arg(QX_LIST_UPLOAD, 0, 3) == 2 && arg(QX_LIST_UPLOAD, 0, 4) == 4);
+    CHECK(arg(QX_LIST_UPLOAD, 0, 5) == 3 && arg(QX_LIST_UPLOAD, 0, 6) == 4);
+
+    GPU_CALL("draw.sprite", I(s), F(0), F(0), I(0));
+    GPU_CALL("display.flip");
+    CHECK(ops(HEAD "PNCDSE"));
+}
+
 /* An 8-bit picture goes into an index page, sent once and again when written; its place freed
    with it. */
 TEST(gfx_gpu_sends_a_picture_once)

@@ -119,7 +119,8 @@ static bool begin(Gx *const g, Surface *const s, const Command *const c, Target 
 {
     const Pen *const pen = &g->pen;
     const Picture p = surf_picture(&g->surfaces, pen->target);
-    const Picture white = {{(uint8_t *)&g->gpu.white, 4, 1, 1, PX_32}, {0, 0, 1, 1}, PIC_WHITE, 1};
+    const Picture white =
+        {{(uint8_t *)&g->gpu.white, 4, 1, 1, PX_32}, {0, 0, 1, 1}, PIC_WHITE, 1, nullptr};
 
     const Rect clip = {p.at.x + t->clip.x, p.at.y + t->clip.y, t->clip.w, t->clip.h};
 

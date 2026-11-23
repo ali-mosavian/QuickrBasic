@@ -211,7 +211,7 @@ static Pixels region(
         return (Pixels){};
 
     if (writes)
-        surf_wrote(&g->surfaces, s);
+        surf_wrote(&g->surfaces, s, (Rect){x, y, w, h});
 
     const Pixels all = surf_pixels(&g->surfaces, s);
     return px_cut(&all, (Rect){x, y, w, h});

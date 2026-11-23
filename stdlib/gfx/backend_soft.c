@@ -66,7 +66,8 @@ static void forget(Gx *const g, const uint32_t h) { (void)g, (void)h; }
 static bool begin(Gx *const g, Surface *const s, const Command *const c, Target *const t)
 {
     const Pixels px = surf_pixels(&g->surfaces, s);
-    surf_wrote(&g->surfaces, s);
+    surf_wrote(&g->surfaces, s, (Rect){0, 0, s->w, s->h});
+
     t->soft = (SoftTarget){
         .px = px,
         .clip = t->clip,

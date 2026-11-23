@@ -296,10 +296,17 @@ bool gpu_texture(
 
     const uint32_t id = e->page ? e->page : name;
 
-    if (e->version != p->version) {
-        uint32_t pitch, args[8] = {id, e->x, e->y, (uint32_t)px->w, (uint32_t)px->h};
+    Surface *const r = p->surface;
+    /* the GPU has all but the rows written since it took them */
+    const bool rows = r && e->version == r->taken;
+    const int32_t top = rows ? r->top : 0, h = rows ? r->bottom - r->top : px->h;
 
-        const uint8_t *const bytes = texels(&g->list, pal, px, e->format, &pitch);
+    if (e->version != p->version && h > 0) {
+        const Pixels cut = px_cut(px, (Rect){0, top, px->w, h});
+
+        uint32_t pitch, args[8] = {id, e->x, e->y + (uint32_t)top, (uint32_t)px->w, (uint32_t)h};
+
+        const uint8_t *const bytes = texels(&g->list, pal, &cut, e->format, &pitch);
 
         if (!bytes)
             return false;
@@ -309,9 +316,14 @@ bool gpu_texture(
 
         if (!list_op(&g->list, QX_LIST_UPLOAD, args, 8))
             return false;
-
-        e->version = p->version;
     }
+
+    if (e->version != p->version && r) {
+        r->taken = p->version;
+        r->top = r->bottom = 0;
+    }
+
+    e->version = p->version;
 
     *out = (GpuSource){id, e->x, e->y, e->format == QX_TEXTURE_INDEX};
 
