@@ -1,6 +1,7 @@
 /* gfx.draw's circles, arcs and polygons at 8 bits, and the turned camera, by their pixels read.
    Each expectation is worked by hand from the rules: a pixel is drawn when its centre is inside,
    or on the top or left edge. */
+#include "disc.h"
 #include "gmath.h"
 #include "test.h"
 
@@ -113,4 +114,63 @@ TEST(gfx_camera_turned_turns_and_zooms)
     CALL("display.drawn", I(2), REF(&c));
     CHECK(c.scale == 2);
     CHECK(CALL("draw.camera_turned", F(0), F(0), F(0), F(0)).error == 5);
+}
+
+/* Each pixel of a 64 by 64 canvas is the colour where disc.h's rule covers it, else the clear. */
+static bool follows(Session *const S, const Disc *const k, const Sweep *const w)
+{
+    for (int32_t y = 0; y < 64; y++)
+        for (int32_t x = 0; x < 64; x++) {
+            const float dx = (float)x - k->c.x, dy = (float)y - k->c.y;
+
+            if ((PX(x, y) == 5) != (disc_covers(k, dx, dy) && swept(w, dx, dy)))
+                return false;
+        }
+
+    return true;
+}
+
+/* Circles and arcs off the pixel grid cover disc.h's pixels, as a GPU's shader does. The first
+   three once drew a pixel outside: the square root's end rounded onto its centre, (25, 22),
+   (9, 48) and (17, 33). */
+TEST(gfx_circles_follow_the_disc_rule)
+{
+    static const float edge[][3] =
+        {{30, 21.9976349f, 4.5f}, {12.5f, 48.0012474f, 3}, {30.5f, 32.9968262f, 13}};
+
+    const Sweep whole = {.whole = true};
+
+    uint32_t seed = 7;
+
+    for (uint32_t i = 0; i < 3; i++) {
+        const Disc k = disc_of((Vec){edge[i][0], edge[i][1]}, edge[i][2], true);
+
+        CANVAS(64, 64);
+        CALL("draw.circle", F(k.c.x), F(k.c.y), F(edge[i][2]), I(5), I(GFX_DRAW_FILL));
+        CHECK(follows(S, &k, &whole));
+    }
+
+    for (uint32_t i = 0; i < 12; i++) {
+        float f[5];
+
+        for (uint32_t j = 0; j < 5; j++) {
+            seed = seed * 1664525u + 1013904223u;
+            f[j] = (float)(seed >> 8) / (1 << 24);
+        }
+
+        const Vec c = {16 + f[0] * 32, 16 + f[1] * 32};
+
+        const float r = f[2] * 20, start = f[3] * 7, finish = start + f[4] * 7;
+        const Disc k = disc_of(c, r, i % 3 == 0);
+        const Sweep w = i % 3 == 2 ? sweep_of(start, finish) : whole;
+
+        CANVAS(64, 64);
+
+        if (i % 3 == 2)
+            CALL("draw.arc", F(c.x), F(c.y), F(r), F(start), F(finish), I(5));
+        else
+            CALL("draw.circle", F(c.x), F(c.y), F(r), I(5), I(i % 3 == 0 ? GFX_DRAW_FILL : 0));
+
+        CHECK(follows(S, &k, &w));
+    }
 }

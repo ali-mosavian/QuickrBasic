@@ -6,15 +6,19 @@
  * 8 bits), times the pen's tint. A picture's vertices carry its texels, its rectangle and its
  * stages. Pixels are squares about whole numbers, so a shape's edges lie half a pixel round the
  * centres it covers, as software's. A line covers software's pixels, one a step along its longer
- * side; circles and arcs are polygons of a segment every two pixels or so.
+ * side. A circle or an arc is one box, the shader keeping the pixels disc.h's rule covers.
  */
+#include "disc.h"
 #include "gfx.h"
 #include "gmath.h"
 #include "mem.h"
 #include "soft/scan.h"
 
-enum { SEGMENTS_LEAST = 8, SEGMENTS_MOST = 256, ALPHA = 255 };
+enum { ALPHA = 255 };
 
+enum { QUAD = 4 };
+
+/* n vertices, four a quad. */
 static void emit(const Target *const t, const QxVertex *const v, const uint32_t n)
 {
     if (!gpu_draw(t->gpu.gpu, &t->gpu, v, n))
@@ -39,7 +43,7 @@ static QxVertex vertex(
     return out;
 }
 
-/* Corners a, b, c, d round, as two triangles; uv their texels, or null the white texel's. */
+/* Corners a, b, c, d round; uv their texels, or null the white texel's. */
 static void quad(
     const Target *const t,
     const QxVertex *const ink,
@@ -48,12 +52,36 @@ static void quad(
 )
 {
     const GpuTarget *const g = &t->gpu;
-    QxVertex v[4];
+    QxVertex v[QUAD];
 
-    for (uint32_t i = 0; i < 4; i++)
+    for (uint32_t i = 0; i < QUAD; i++)
         v[i] = vertex(g, ink, p[i].x, p[i].y, uv ? uv[i].x : ink->u, uv ? uv[i].y : ink->v);
 
-    emit(t, (const QxVertex[]){v[0], v[1], v[2], v[0], v[2], v[3]}, 6);
+    emit(t, v, QUAD);
+}
+
+/* A fan's corner i, from ctx. */
+typedef QxVertex Corner(const Target *t, const void *ctx, uint32_t i);
+
+/* The fan from corner 0 of n as quads: two of its triangles each, the last alone a quad with its
+   third corner twice, its second triangle empty. */
+static void fan(
+    const Target *const t,
+    Corner *const corner,
+    const void *const ctx,
+    const uint32_t n
+)
+{
+    for (uint32_t i = 1; i + 1 < n; i += 2) {
+        const QxVertex v[QUAD] = {
+            corner(t, ctx, 0),
+            corner(t, ctx, i),
+            corner(t, ctx, i + 1),
+            corner(t, ctx, i + 2 < n ? i + 2 : i + 1),
+        };
+
+        emit(t, v, QUAD);
+    }
 }
 
 /* The box from x0, y0 to x1, y1 in a shape's ink. */
@@ -222,65 +250,72 @@ static void outline(
         segment(t, &ink, p[i], p[(i + 1) % n], false);
 }
 
-/* A fan from p[0], in ink. */
-static void fan(
-    const Target *const t,
-    const QxVertex *const ink,
-    const Vec *const p,
-    const uint32_t n
-)
-{
-    for (uint32_t i = 1; i + 1 < n; i++) {
-        const QxVertex v[] = {
-            vertex(&t->gpu, ink, p[0].x, p[0].y, ink->u, ink->v),
-            vertex(&t->gpu, ink, p[i].x, p[i].y, ink->u, ink->v),
-            vertex(&t->gpu, ink, p[i + 1].x, p[i + 1].y, ink->u, ink->v),
-        };
+/* A polygon's: its ink and points. */
+typedef struct {
+    QxVertex ink;
+    const Vec *p;
+} Shape;
 
-        emit(t, v, 3);
-    }
+static QxVertex shape_corner(const Target *const t, const void *const ctx, const uint32_t i)
+{
+    const Shape *const s = ctx;
+    return vertex(&t->gpu, &s->ink, s->p[i].x, s->p[i].y, s->ink.u, s->ink.v);
 }
 
 static void poly(const Target *const t, const Vec *const p, const uint32_t n, const uint32_t colour)
 {
-    const QxVertex ink = shape(&t->gpu, colour);
-    fan(t, &ink, p, n);
+    const Shape s = {shape(&t->gpu, colour), p};
+
+    fan(t, shape_corner, &s, n);
 }
 
-/* The segments of a turn by sweep at radius r: one every two pixels or so. */
-static uint32_t segments(const float r, const float sweep)
-{
-    const float n = sweep * (r + 1) / 2;
-    return n < SEGMENTS_LEAST ? SEGMENTS_LEAST : n > SEGMENTS_MOST ? SEGMENTS_MOST : (uint32_t)n;
-}
-
-static Vec on(const Vec c, const float r, const float a)
-{
-    float s, co;
-    gm_sincos(a, &s, &co);
-    return (Vec){c.x + r * co, c.y + r * s};
-}
-
-/* The band between radii in and out from start by sweep, clockwise on the screen. */
-static void ring(
+/* k's pixels, in sweep w unless null: a box past its outer edge, of which the shader keeps those
+   k covers (disc.h). Its centre is the root's: in a view, exact when on a whole or half pixel. */
+static void disc(
     const Target *const t,
-    const QxVertex *const ink,
-    const Vec c,
-    const float in,
-    const float out,
-    const float start,
-    const float sweep
+    const uint32_t colour,
+    const Disc *const k,
+    const Sweep *const w
 )
 {
-    const uint32_t n = segments(out, sweep);
+    const GpuTarget *const g = &t->gpu;
+    const float e = k->outer + 1;
+    const bool part = w && !w->whole;
+    QxDisc d = {.v = shape(g, colour)};
 
-    for (uint32_t i = 0; i < n; i++) {
-        const float a = start + sweep * (float)i / (float)n,
-                    b = start + sweep * (float)(i + 1) / (float)n;
-        const Vec p[] = {on(c, in, a), on(c, out, a), on(c, out, b), on(c, in, b)};
+    if (!(k->outer > 0))
+        return;
 
-        quad(t, ink, p, nullptr);
+    d.v.stages = (uint8_t)(QX_STAGE_DISC | (part ? QX_STAGE_SWEEP : 0) |
+                           (part && w->wide ? QX_STAGE_WIDE : 0));
+    d.disc[0] = k->c.x + g->at.x;
+    d.disc[1] = k->c.y + g->at.y;
+    d.disc[2] = k->outer;
+    d.disc[3] = k->inner;
+
+    if (part) {
+        d.sweep[0] = w->s.x;
+        d.sweep[1] = w->s.y;
+        d.sweep[2] = w->f.x;
+        d.sweep[3] = w->f.y;
     }
+
+    const Vec p[QUAD] = {
+        {k->c.x - e, k->c.y - e},
+        {k->c.x + e, k->c.y - e},
+        {k->c.x + e, k->c.y + e},
+        {k->c.x - e, k->c.y + e},
+    };
+
+    QxDisc v[QUAD];
+
+    for (uint32_t i = 0; i < QUAD; i++) {
+        v[i] = d;
+        v[i].v = vertex(g, &d.v, p[i].x, p[i].y, d.v.u, d.v.v);
+    }
+
+    if (!gpu_discs(g->gpu, g, v, QUAD))
+        gx_fail(ERR_MEMORY);
 }
 
 static void circle(
@@ -291,25 +326,8 @@ static void circle(
     const bool fill
 )
 {
-    const QxVertex ink = shape(&t->gpu, colour);
-    const float out = r + 0.5f, in = r > 0.5f ? r - 0.5f : 0;
-
-    if (!fill) {
-        ring(t, &ink, c, in, out, 0, 2 * GM_PI);
-        return;
-    }
-
-    const uint32_t n = segments(out, 2 * GM_PI);
-
-    for (uint32_t i = 0; i < n; i++) {
-        const Vec p[] = {
-            c,
-            on(c, out, 2 * GM_PI * (float)i / (float)n),
-            on(c, out, 2 * GM_PI * (float)(i + 1) / (float)n)
-        };
-
-        fan(t, &ink, p, 3);
-    }
+    const Disc k = disc_of(c, r, fill);
+    disc(t, colour, &k, nullptr);
 }
 
 static void arc(
@@ -321,16 +339,9 @@ static void arc(
     const uint32_t colour
 )
 {
-    const QxVertex ink = shape(&t->gpu, colour);
-    const float turn = 2 * GM_PI;
-    float sweep = finish - start;
-
-    if (sweep >= turn)
-        sweep = turn;
-    else
-        sweep -= turn * (float)gm_floor(sweep / turn);
-
-    ring(t, &ink, c, r > 0.5f ? r - 0.5f : 0, r + 0.5f, start, sweep);
+    const Disc k = disc_of(c, r, false);
+    const Sweep w = sweep_of(start, finish);
+    disc(t, colour, &k, &w);
 }
 
 static void rect(
@@ -383,6 +394,18 @@ static void sprite(const Target *const t, const Picture *const p, const Vec at, 
     quad(t, &t->gpu.ink, corners, uv);
 }
 
+/* A textured polygon's: its ink and vertices. */
+typedef struct {
+    QxVertex ink;
+    const Vertex *v;
+} Textured;
+
+static QxVertex textured_corner(const Target *const t, const void *const ctx, const uint32_t i)
+{
+    const Textured *const s = ctx;
+    return vertex(&t->gpu, &s->ink, s->v[i].x, s->v[i].y, s->v[i].u, s->v[i].v);
+}
+
 static void texture(
     const Target *const t,
     const Picture *const p,
@@ -392,19 +415,11 @@ static void texture(
     const bool wrap
 )
 {
-    QxVertex ink = t->gpu.ink;
+    Textured s = {t->gpu.ink, v};
+
     (void)p, (void)flags;
-    ink.stages |= wrap ? QX_STAGE_WRAP : 0;
-
-    for (uint32_t i = 1; i + 1 < n; i++) {
-        const QxVertex tri[] = {
-            vertex(&t->gpu, &ink, v[0].x, v[0].y, v[0].u, v[0].v),
-            vertex(&t->gpu, &ink, v[i].x, v[i].y, v[i].u, v[i].v),
-            vertex(&t->gpu, &ink, v[i + 1].x, v[i + 1].y, v[i + 1].u, v[i + 1].v),
-        };
-
-        emit(t, tri, 3);
-    }
+    s.ink.stages |= wrap ? QX_STAGE_WRAP : 0;
+    fan(t, textured_corner, &s, n);
 }
 
 static bool screen_open(Gx *const g, const QxScreen *const s, const PxFormat f)

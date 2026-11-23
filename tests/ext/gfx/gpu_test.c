@@ -1,5 +1,6 @@
 /* The GPU's list, on a host that records what it is given to play and reads back pixels it is
    told: each frame's ops in order, its batches and vertices, worked by hand. */
+#include "disc.h"
 #include "qxlist.h"
 #include "soft/scan.h"
 #include "surface.h"
@@ -7,10 +8,12 @@
 
 enum { MOST_WORDS = 1024, MOST_VERTICES = 64, MOST_PIXELS = 64 };
 
-/* The host: the last list played, its vertices, the plays counted; the pixels a read gives. */
+/* The host: the last list played, its vertices and discs, the plays counted; the pixels a read
+   gives. */
 static QxHost fake;
 static uint32_t words[MOST_WORDS], nwords, plays;
 static QxVertex vertices[MOST_VERTICES];
+static QxDisc discs[MOST_VERTICES];
 static uint8_t pixels[MOST_PIXELS * 4];
 
 static bool QX_CALL fake_open(QxScreen *const s)
@@ -23,13 +26,22 @@ static bool QX_CALL fake_open(QxScreen *const s)
 
 static void QX_CALL fake_close(void) {}
 
+/* The array of op, its count and pointer, into out of size a element. */
+static void copy(void *const out, const uint32_t *const op, const size_t size)
+{
+    const void *const p = (const void *)(uintptr_t)((uint64_t)op[3] << 32 | op[2]);
+
+    if (op[1])
+        memcpy(out, p, (op[1] < MOST_VERTICES ? op[1] : MOST_VERTICES) * size);
+}
+
+/* VERTICES at word 0, DISCS at 4. */
 static void QX_CALL fake_play(const uint32_t *const list, const uint32_t n)
 {
-    const QxVertex *const v = (const QxVertex *)(uintptr_t)((uint64_t)list[3] << 32 | list[2]);
-
     nwords = n < MOST_WORDS ? n : MOST_WORDS;
     memcpy(words, list, nwords * sizeof *words);
-    memcpy(vertices, v, (list[1] < MOST_VERTICES ? list[1] : MOST_VERTICES) * sizeof *v);
+    copy(vertices, &list[0], sizeof *vertices);
+    copy(discs, &list[4], sizeof *discs);
     plays++;
 }
 
@@ -65,10 +77,10 @@ static void screen(Session *const S, const int32_t w, const int32_t h, const int
 }
 
 /* The last list's ops, a letter each: Vertices, Texture, Free, Upload, paLette, Pass, Clip, Draw,
-   Show, End. */
+   Show, End; discs O and their draw Q. */
 static bool ops(const char *const want)
 {
-    static const char letters[] = "EVTFULPCDS";
+    static const char letters[] = "EVTFULPCDSOQ";
     char got[64];
     uint32_t n = 0;
 
@@ -100,36 +112,77 @@ static bool placed(const QxVertex *const v, const float x, const float y)
     return v->x == x && v->y == y;
 }
 
-/* The pixels of the last list's triangles, as a GPU covers them (centres inside, top and left
-   edges in): '#' a pixel covered once, '2' more. */
-static void cover(void *const ctx, const int32_t y, const int32_t x0, const int32_t x1)
-{
-    char (*const rows)[9] = ctx;
+/* The rows drawn, and the disc of the triangle's quad, or null. */
+typedef struct {
+    char rows[8][9];
+    const QxDisc *d;
+} Cover;
 
-    for (int32_t x = x0; x < x1; x++)
-        rows[y][x] = rows[y][x] == '.' ? '#' : '2';
+/* The shader keeps x, y of d's quad: with DISC, where disc.h's rule covers it. */
+static bool kept(const QxDisc *const d, const int32_t x, const int32_t y)
+{
+    if (!d || !(d->v.stages & QX_STAGE_DISC))
+        return true;
+
+    const Disc k = {{d->disc[0], d->disc[1]}, d->disc[2], d->disc[3]};
+
+    const Sweep w = {
+        {d->sweep[0], d->sweep[1]},
+        {d->sweep[2], d->sweep[3]},
+        d->v.stages & QX_STAGE_WIDE,
+        !(d->v.stages & QX_STAGE_SWEEP),
+    };
+
+    const float dx = (float)x - k.c.x, dy = (float)y - k.c.y;
+
+    return disc_covers(&k, dx, dy) && swept(&w, dx, dy);
 }
 
-static bool covered(const uint32_t first, const uint32_t n, const char *const want[8])
+/* The pixels of the last list's triangles, as a GPU covers them (centres inside, top and left
+   edges in) and its shader keeps: '#' a pixel covered once, '2' more. */
+static void cover(void *const ctx, const int32_t y, const int32_t x0, const int32_t x1)
 {
-    char rows[8][9];
-    memset(rows, '.', sizeof rows);
+    Cover *const c = ctx;
+
+    for (int32_t x = x0; x < x1; x++)
+        if (kept(c->d, x, y))
+            c->rows[y][x] = c->rows[y][x] == '.' ? '#' : '2';
+}
+
+/* n vertices from first of the last list's VERTICES, or its DISCS, cover want's pixels. */
+static bool covered(
+    const uint32_t first,
+    const uint32_t n,
+    const bool round,
+    const char *const want[8]
+)
+{
+    static const uint8_t triangles[2][3] = {{0, 1, 2}, {0, 2, 3}};
+
+    Cover c;
+    memset(c.rows, '.', sizeof c.rows);
 
     for (uint32_t i = 0; i < 8; i++)
-        rows[i][8] = 0;
+        c.rows[i][8] = 0;
 
-    for (uint32_t i = first; i + 2 < first + n; i += 3) {
-        const Vec p[] = {
-            {vertices[i].x, vertices[i].y},
-            {vertices[i + 1].x, vertices[i + 1].y},
-            {vertices[i + 2].x, vertices[i + 2].y},
-        };
+    for (uint32_t q = first; q + 3 < first + n; q += 4) {
+        c.d = round ? &discs[q] : nullptr;
 
-        scan_convex(p, 3, (Rect){0, 0, 8, 8}, cover, rows);
+        for (uint32_t k = 0; k < 2; k++) {
+            Vec p[3];
+
+            for (uint32_t i = 0; i < 3; i++) {
+                const QxVertex *const v =
+                    round ? &discs[q + triangles[k][i]].v : &vertices[q + triangles[k][i]];
+                p[i] = (Vec){v->x, v->y};
+            }
+
+            scan_convex(p, 3, (Rect){0, 0, 8, 8}, cover, &c);
+        }
     }
 
     for (uint32_t i = 0; i < 8; i++)
-        if (strcmp(rows[i], want[i]))
+        if (strcmp(c.rows[i], want[i]))
             return false;
 
     return true;
@@ -169,12 +222,53 @@ TEST(gfx_gpu_lines_cover_softwares_pixels)
     screen(S, 8, 8, 32);
     GPU_CALL("draw.line", F(0), F(7), F(7), F(2), I(0xFFFFFF));
     GPU_CALL("display.flip");
-    CHECK(covered(0, arg(QX_LIST_DRAW, 0, 2), line));
+    CHECK(covered(0, arg(QX_LIST_DRAW, 0, 2), false, line));
 
     screen(S, 8, 8, 32);
     GPU_CALL("draw.poly", ARRAY(&a), I(0), I(3), I(0xFFFFFF), I(0));
     GPU_CALL("display.flip");
-    CHECK(covered(0, arg(QX_LIST_DRAW, 0, 2), outline));
+    CHECK(covered(0, arg(QX_LIST_DRAW, 0, 2), false, outline));
+}
+
+/* A circle and an arc are a box each, the shader keeping software's pixels (shape_test's): once
+   polygons, a segment every two pixels, each a draw of its own. */
+TEST(gfx_gpu_draws_a_circle_as_one_box)
+{
+    static const char *const disc[8] = {
+        "........",
+        "..###...",
+        ".#####..",
+        ".#####..",
+        ".#####..",
+        "..###...",
+        "........",
+        "........",
+    };
+
+    static const char *const arc[8] = {
+        "........",
+        "........",
+        "........",
+        ".....#..",
+        ".....#..",
+        "...##...",
+        "........",
+        "........",
+    };
+
+    screen(S, 8, 8, 32);
+    GPU_CALL("draw.circle", F(3), F(3), F(2), I(0xFFFFFF), I(GFX_DRAW_FILL));
+    GPU_CALL("display.flip");
+    CHECK(ops("VOTUPCLQSE") && arg(QX_LIST_DRAW_DISCS, 0, 2) == 4);
+    CHECK(discs[0].v.stages == QX_STAGE_DISC && discs[0].disc[2] == 2.5f && discs[0].disc[3] == 0);
+    CHECK(covered(0, 4, true, disc));
+
+    screen(S, 8, 8, 32);
+    GPU_CALL("draw.arc", F(3), F(3), F(2), F(0), F(GM_PI / 2), I(0xFFFFFF));
+    GPU_CALL("display.flip");
+    CHECK(arg(QX_LIST_DRAW_DISCS, 0, 2) == 4);
+    CHECK(discs[0].v.stages == (QX_STAGE_DISC | QX_STAGE_SWEEP));
+    CHECK(covered(0, 4, true, arc));
 }
 
 /* A clear and a rect are one batch from the white texel, its colour in the vertices. */
@@ -185,18 +279,18 @@ TEST(gfx_gpu_draws_shapes_in_one_batch)
     GPU_CALL("draw.rect", F(1), F(1), F(2), F(2), I(0xFF0000), I(GFX_DRAW_FILL));
     CHECK(!plays);
     GPU_CALL("display.flip");
-    CHECK(plays == 1 && ops("VTUPCLDSE"));
+    CHECK(plays == 1 && ops("VOTUPCLDSE"));
     CHECK(arg(QX_LIST_TEXTURE, 0, 1) == PIC_WHITE && arg(QX_LIST_TEXTURE, 0, 4) == QX_TEXTURE_RGBA);
     CHECK(arg(QX_LIST_PASS, 0, 1) == QX_CANVAS && arg(QX_LIST_CLIP, 0, 3) == 8);
-    CHECK(arg(QX_LIST_DRAW, 0, 1) == 0 && arg(QX_LIST_DRAW, 0, 2) == 12);
+    CHECK(arg(QX_LIST_DRAW, 0, 1) == 0 && arg(QX_LIST_DRAW, 0, 2) == 8);
     CHECK(arg(QX_LIST_DRAW, 0, 3) == PIC_WHITE && arg(QX_LIST_DRAW, 0, 4) == QX_BLEND_NONE);
     CHECK(placed(&vertices[0], -0.5f, -0.5f) && placed(&vertices[2], 7.5f, 7.5f));
     CHECK(vertices[0].r == 0x10 && vertices[0].g == 0x20 && vertices[0].b == 0x30);
     CHECK(
-        placed(&vertices[6], 0.5f, 0.5f) && placed(&vertices[8], 2.5f, 2.5f) &&
-        vertices[6].r == 0xFF
+        placed(&vertices[4], 0.5f, 0.5f) && placed(&vertices[6], 2.5f, 2.5f) &&
+        vertices[4].r == 0xFF
     );
-    CHECK(vertices[6].u == 0.5f && vertices[6].rw == 1 && vertices[6].light == 63);
+    CHECK(vertices[4].u == 0.5f && vertices[4].rw == 1 && vertices[4].light == 63);
 }
 
 /* BLEND at alpha 32 is its own batch, alpha 32 of 63 as 129 of 255. */
@@ -207,7 +301,7 @@ TEST(gfx_gpu_splits_batches_at_a_blend)
     GPU_CALL("pen.alpha", I(32));
     GPU_CALL("draw.rect", F(0), F(0), F(1), F(1), I(1), I(GFX_DRAW_FILL | GFX_PEN_BLEND));
     GPU_CALL("display.flip");
-    CHECK(ops("VTUPCLDDSE"));
+    CHECK(ops("VOTUPCLDDSE"));
     CHECK(arg(QX_LIST_DRAW, 1, 4) == QX_BLEND_MIX && arg(QX_LIST_DRAW, 1, 5) == 129);
 }
 
@@ -223,7 +317,7 @@ TEST(gfx_gpu_sends_a_picture_once)
 
     GPU_CALL("draw.sprite", I(s), F(1), F(1), I(GFX_DRAW_FLIPX));
     GPU_CALL("display.flip");
-    CHECK(ops("VTUPCLTUDSE"));
+    CHECK(ops("VOTUPCLTUDSE"));
     CHECK(
         arg(QX_LIST_TEXTURE, 1, 1) == (uint32_t)s && arg(QX_LIST_TEXTURE, 1, 4) == QX_TEXTURE_INDEX
     );
@@ -233,16 +327,16 @@ TEST(gfx_gpu_sends_a_picture_once)
 
     GPU_CALL("draw.sprite", I(s), F(1), F(1), I(0));
     GPU_CALL("display.flip");
-    CHECK(ops("VPCDSE"));
+    CHECK(ops("VOPCDSE"));
 
     GPU_CALL("surface.write", I(s), I(0), I(0), I(2), I(2), ARRAY(&a));
     GPU_CALL("draw.sprite", I(s), F(1), F(1), I(0));
     GPU_CALL("display.flip");
-    CHECK(ops("VPCUDSE"));
+    CHECK(ops("VOPCUDSE"));
 
     GPU_CALL("surface.free", I(s));
     GPU_CALL("display.flip");
-    CHECK(ops("VFSE") && arg(QX_LIST_FREE, 0, 1) == (uint32_t)s);
+    CHECK(ops("VOFSE") && arg(QX_LIST_FREE, 0, 1) == (uint32_t)s);
 }
 
 /* A surface drawn into is an RGBA target, drawn from as it is; an 8-bit one drawn from first is
@@ -257,10 +351,10 @@ TEST(gfx_gpu_draws_into_surfaces)
     GPU_CALL("pen.target", I(GFX_SURFACE_CANVAS));
     GPU_CALL("draw.sprite", I(s), F(0), F(0), I(0));
     GPU_CALL("display.flip");
-    CHECK(ops("VTUPCLTDFTUPCDPCDSE"));
+    CHECK(ops("VOTUPCLTDFTUPCDPCDSE"));
     CHECK(arg(QX_LIST_TEXTURE, 2, 4) == QX_TEXTURE_RGBA && arg(QX_LIST_PASS, 1, 1) == (uint32_t)s);
-    CHECK(arg(QX_LIST_CLIP, 1, 3) == 2 && vertices[12].stages == QX_STAGE_KEYED);
-    CHECK(vertices[6].r == 0xAA && vertices[6].g == 0 && vertices[6].b == 0); /* index 4 */
+    CHECK(arg(QX_LIST_CLIP, 1, 3) == 2 && vertices[8].stages == QX_STAGE_KEYED);
+    CHECK(vertices[4].r == 0xAA && vertices[4].g == 0 && vertices[4].b == 0); /* index 4 */
 }
 
 /* A read plays what was drawn and reads it back: 32 bits as they are; 8 bits the nearest index,
@@ -272,7 +366,7 @@ TEST(gfx_gpu_reads_back)
     memcpy(pixels, (const uint8_t[]){0x12, 0x34, 0x56, 0xFF}, 4);
 
     CHECK(GPU_CALL("surface.point", I(GFX_SURFACE_CANVAS), I(0), I(0)).result.i == 0x123456);
-    CHECK(plays == 1 && ops("VTUPCLDE"));
+    CHECK(plays == 1 && ops("VOTUPCLDE"));
     CHECK(GPU_CALL("surface.point", I(GFX_SURFACE_CANVAS), I(1), I(0)).result.i == 0);
     CHECK(plays == 1);
 

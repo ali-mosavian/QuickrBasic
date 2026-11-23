@@ -223,6 +223,11 @@ bool gpu_draw(Gpu *const g, const GpuTarget *const t, const QxVertex *const v, c
     return list_draw(&g->list, v, n, t->texture, t->blend, t->alpha);
 }
 
+bool gpu_discs(Gpu *const g, const GpuTarget *const t, const QxDisc *const v, const uint32_t n)
+{
+    return list_discs(&g->list, v, n, t->texture, t->blend, t->alpha);
+}
+
 void gpu_play(Gpu *const g, const bool show)
 {
     uint32_t n;

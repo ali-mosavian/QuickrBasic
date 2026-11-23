@@ -64,8 +64,10 @@ bool gpu_texture(
 bool gpu_target(Gpu *g, uint32_t id, Rect clip);
 /* The palette sent, if it changed: false, no memory. */
 bool gpu_palette(Gpu *g, const Palette *pal);
-/* n vertices, three a triangle, drawn as t's call: false, no memory. */
+/* n vertices, four a quad, drawn as t's call: false, no memory. */
 bool gpu_draw(Gpu *g, const GpuTarget *t, const QxVertex *v, uint32_t n);
+/* n disc vertices, four a quad, drawn as t's call: false, no memory. */
+bool gpu_discs(Gpu *g, const GpuTarget *t, const QxDisc *v, uint32_t n);
 /* The list played, the canvas shown after it when show. */
 void gpu_play(Gpu *g, bool show);
 /* The root at h, which holds root, read back if a GPU drew in it: false, no memory. */

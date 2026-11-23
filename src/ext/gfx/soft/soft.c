@@ -1,6 +1,7 @@
 /* The software backend (soft.h). */
 #include "soft/soft.h"
 #include "gfx_qx.h"
+#include "disc.h"
 #include "gmath.h"
 #include "soft/scan.h"
 
@@ -210,51 +211,60 @@ void soft_poly(
     scan_convex(p, n, t->clip, flat, &(Flat){t, colour});
 }
 
-/* Row y's pixels whose centres lie within rr of c, [*x0, *x1): false, none. */
-static bool chord(
-    const Vec c,
-    const float rr,
-    const int32_t y,
-    int32_t *const x0,
-    int32_t *const x1
-)
+/* Row y's pixels within r of c (disc.h), [*x0, *x1): false, none. The square root's ends are the
+   rule's unless one rounds near a pixel's centre: near bounds its rounding sixteen times over
+   where the row reaches r / 8 each side of c; there, and on narrower rows, disc_within settles
+   them. */
+static bool chord(const Vec c, const float r, const int32_t y, int32_t *const x0, int32_t *const x1)
 {
-    const float dy = (float)y - c.y, h2 = rr * rr - dy * dy;
-
-    if (rr <= 0 || h2 < 0)
+    if (!(r > 0))
         return false;
 
-    const float h = gm_sqrt(h2);
-    *x0 = scan_first(c.x - h);
-    *x1 = scan_first(c.x + h);
-    return *x0 < *x1;
+    const float dy = (float)y - c.y, h2 = r * r - dy * dy, h = h2 > 0 ? gm_sqrt(h2) : 0;
+    const float near = 0x1p-18f * (9 * r + (c.x < 0 ? -c.x : c.x) + 1);
+    int32_t a = scan_first(c.x - h), b = scan_first(c.x + h);
+    const float left = (float)a - (c.x - h), right = (float)b - (c.x + h);
+
+    if (!(h >= r / 8 && left > near && left < 1 - near && right > near && right < 1 - near)) {
+        while (disc_within((float)(a - 1) - c.x, dy, r))
+            a--;
+
+        while (a < b && !disc_within((float)a - c.x, dy, r))
+            a++;
+
+        while (disc_within((float)b - c.x, dy, r))
+            b++;
+
+        while (b > a && !disc_within((float)(b - 1) - c.x, dy, r))
+            b--;
+    }
+
+    *x0 = a;
+    *x1 = b;
+    return a < b;
 }
 
 /* A part of a circle's row, x0 up to x1. */
 typedef void Piece(const SoftTarget *t, int32_t y, int32_t x0, int32_t x1, const void *ctx);
 
-/* The circle about c of radius r, its rows' parts to piece: filled, the pixels within r and a
-   half; else the outline, those from r less a half. */
+/* The pixels k covers, its rows' parts to piece. */
 static void ring(
     const SoftTarget *const t,
-    const Vec c,
-    const float r,
-    const bool fill,
+    const Disc *const k,
     Piece *const piece,
     const void *const ctx
 )
 {
-    const float outer = r + 0.5f, inner = fill ? 0 : r - 0.5f;
-    const int32_t y0 = rect_max(scan_first(c.y - outer), t->clip.y);
-    const int32_t y1 = rect_min(scan_first(c.y + outer), t->clip.y + t->clip.h);
+    const int32_t y0 = rect_max(scan_first(k->c.y - k->outer) - 1, t->clip.y);
+    const int32_t y1 = rect_min(scan_first(k->c.y + k->outer) + 1, t->clip.y + t->clip.h);
 
     for (int32_t y = y0; y < y1; y++) {
         int32_t a0, a1, b0, b1;
 
-        if (!chord(c, outer, y, &a0, &a1))
+        if (!chord(k->c, k->outer, y, &a0, &a1))
             continue;
 
-        if (!chord(c, inner, y, &b0, &b1)) {
+        if (!chord(k->c, k->inner, y, &b0, &b1)) {
             piece(t, y, a0, a1, ctx);
             continue;
         }
@@ -283,23 +293,16 @@ void soft_circle(
     const bool fill
 )
 {
-    ring(t, c, r, fill, ring_span, &colour);
+    const Disc k = disc_of(c, r, fill);
+    ring(t, &k, ring_span, &colour);
 }
 
-/* An arc's sweep: from direction s clockwise to f; wide, past half a turn. */
+/* An arc's: its disc, sweep and colour. */
 typedef struct {
-    Vec c, s, f;
-    bool wide, whole;
+    Disc k;
+    Sweep w;
     uint32_t colour;
-} Sweep;
-
-/* d, from the centre, lies in the sweep: within half a turn, clockwise of s and anticlockwise of
-   f; past it, not strictly in the rest. */
-static bool swept(const Sweep *const w, const float dx, const float dy)
-{
-    const float from = w->s.x * dy - w->s.y * dx, to = dx * w->f.y - dy * w->f.x;
-    return w->whole || (w->wide ? !(from < 0 && to < 0) : from >= 0 && to >= 0);
-}
+} Arc;
 
 static void arc_piece(
     const SoftTarget *const t,
@@ -309,11 +312,11 @@ static void arc_piece(
     const void *const ctx
 )
 {
-    const Sweep *const w = ctx;
+    const Arc *const a = ctx;
 
     for (int32_t x = x0; x < x1; x++)
-        if (swept(w, (float)x - w->c.x, (float)y - w->c.y))
-            span(t, y, x, x + 1, w->colour);
+        if (swept(&a->w, (float)x - a->k.c.x, (float)y - a->k.c.y))
+            span(t, y, x, x + 1, a->colour);
 }
 
 void soft_arc(
@@ -325,17 +328,9 @@ void soft_arc(
     const uint32_t colour
 )
 {
-    const float turn = 2 * GM_PI, sweep = finish - start;
-    Sweep w = {
-        .c = c,
-        .wide = sweep - (float)gm_floor(sweep / turn) * turn > GM_PI,
-        .whole = sweep >= turn,
-        .colour = colour,
-    };
+    const Arc a = {disc_of(c, r, false), sweep_of(start, finish), colour};
 
-    gm_sincos(start, &w.s.y, &w.s.x);
-    gm_sincos(finish, &w.f.y, &w.f.x);
-    ring(t, c, r, false, arc_piece, &w);
+    ring(t, &a.k, arc_piece, &a);
 }
 
 void soft_rect(
