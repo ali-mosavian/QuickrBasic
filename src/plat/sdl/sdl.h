@@ -17,6 +17,11 @@ uint8_t sdl_shift(SDL_Keymod mod);
 /* audio.c: the speaker and the synthesizer's voices (plat/synth). */
 void sdl_audio_open(void);
 
+/* display.c: the window's monitors and modes, set as pgfx's display. */
+void sdl_display_open(SDL_Window *w);
+/* e given gfx's program: false, a closed window it did not take, and the run ends. */
+bool sdl_display_saw(const SDL_Event *e);
+
 /* player.c: gfx's lists played on the renderer's GPU device, set as pgfx's player: false, none. */
 bool sdl_player_init(SDL_GPUDevice *dev);
 /* The gfx canvas shown is w by h: false, none. */

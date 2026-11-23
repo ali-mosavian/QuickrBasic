@@ -23,8 +23,11 @@ static void close_screen(Gx *const g)
 /* The host plays a GPU's lists: it gave one, and knows minor 2. */
 static bool plays(const QxScreen *const s)
 {
-    return s->gpu && qx_host->minor >= 2 && qx_host->size >= sizeof(QxHost);
+    return s->gpu && qx_host->minor >= 2 && qx_host->size >= offsetof(QxHost, gfx_monitors);
 }
+
+/* The host knows monitors, modes and events: minor 3. */
+static bool displays(void) { return qx_host->minor >= 3 && qx_host->size >= sizeof(QxHost); }
 
 /* A depth's format: false, none. */
 static bool format_of(const int32_t depth, PxFormat *const f)
@@ -133,11 +136,23 @@ int32_t gfx_display_caps(void)
     return g && g->backend == &backend_gpu ? GFX_DISPLAY_HAS_GPU | GFX_DISPLAY_HAS_SMOOTH : 0;
 }
 
-/* No events reach software's host yet. */
 int32_t gfx_display_poll(gfx_display_hostevent *const e)
 {
-    (void)e;
-    return 0;
+    const Gx *const g = gx_get();
+    QxEvent h;
+
+    if (!g || !g->open || !displays() || !qx_host->gfx_event(&h))
+        return 0;
+
+    *e = (gfx_display_hostevent){
+        .kind = h.kind,
+        .w = h.w,
+        .h = h.h,
+        .monitor = h.monitor,
+        .focused = h.focused ? -1 : 0,
+    };
+
+    return h.kind;
 }
 
 void gfx_display_palette(const int32_t row, const QxArray *const colours)
@@ -232,21 +247,95 @@ void gfx_display_drawn(const int32_t n, gfx_display_command *const d)
     };
 }
 
-/* Not yet: the monitors and their modes come with the hosts' players. */
-int32_t gfx_display_count(void) { return gx_fail(ERR_UNAVAILABLE); }
+int32_t gfx_display_count(void)
+{
+    return gx_get() && displays() ? (int32_t)qx_host->gfx_monitors() : 0;
+}
 
-int32_t gfx_display_modes(const int32_t monitor) { return (void)monitor, gx_fail(ERR_UNAVAILABLE); }
+/* monitor's modes: false, not one of the host's (an error raised). */
+static bool monitor_modes(const int32_t monitor, uint32_t *const n)
+{
+    if (monitor < 1 || monitor > gfx_display_count()) {
+        gx_fail(ERR_ILLEGAL);
+        return false;
+    }
+
+    *n = qx_host->gfx_modes((uint32_t)monitor, nullptr, 0);
+    return true;
+}
+
+int32_t gfx_display_modes(const int32_t monitor)
+{
+    uint32_t n = 0;
+    return gx_get() && monitor_modes(monitor, &n) ? (int32_t)n : 0;
+}
 
 void gfx_display_mode(const int32_t monitor, const int32_t n, gfx_display_screenmode *const m)
 {
-    (void)monitor, (void)n, (void)m;
-    gx_fail(ERR_UNAVAILABLE);
+    uint32_t modes;
+
+    if (!gx_get() || !monitor_modes(monitor, &modes))
+        return;
+
+    if (n < 1 || (uint32_t)n > modes) {
+        gx_fail(ERR_SUBSCRIPT);
+        return;
+    }
+
+    QxMode *const all = mem_alloc((uint32_t)n * sizeof *all);
+
+    if (!all) {
+        gx_fail(ERR_MEMORY);
+        return;
+    }
+
+    const bool got = qx_host->gfx_modes((uint32_t)monitor, all, (uint32_t)n) >= (uint32_t)n;
+    const QxMode o = all[n - 1];
+    mem_free(all);
+
+    if (!got) { /* the monitor went since */
+        gx_fail(ERR_UNAVAILABLE);
+        return;
+    }
+
+    *m = (gfx_display_screenmode){
+        .w = o.w,
+        .h = o.h,
+        .bits = o.bits,
+        .hz = (int32_t)(o.hz + 0.5F),
+    };
+}
+
+/* The open screen on monitor, n as gfx_mode's. */
+static void shown_on(const uint32_t monitor, const uint32_t n)
+{
+    const Gx *const g = gx_get();
+
+    if (!g)
+        return;
+
+    if (!g->open) {
+        gx_fail(ERR_ILLEGAL);
+        return;
+    }
+
+    if (!displays() || !qx_host->gfx_mode(monitor, n))
+        gx_fail(ERR_UNAVAILABLE);
 }
 
 void gfx_display_fullscreen(const int32_t monitor, const int32_t n)
 {
-    (void)monitor, (void)n;
-    gx_fail(ERR_UNAVAILABLE);
+    uint32_t modes;
+
+    if (!gx_get() || !monitor_modes(monitor, &modes))
+        return;
+
+    if (n < 0 || (uint32_t)n > modes) {
+        gx_fail(ERR_ILLEGAL);
+        return;
+    }
+
+    shown_on((uint32_t)monitor, (uint32_t)n);
 }
 
-void gfx_display_windowed(void) { gx_fail(ERR_UNAVAILABLE); }
+void gfx_display_windowed(void) { shown_on(0, 0); }

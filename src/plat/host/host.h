@@ -3,6 +3,7 @@
 #define PLAT_HOST_H
 #include "base.h"
 #include "plat/pscr.h"
+#include "qx/qx.h"
 
 /* A key for pkey_read and pkey_wait: scan code << 8 | character. */
 void host_key_push(uint16_t key);
@@ -25,6 +26,18 @@ HostDisplay *host_display(void);
 void host_frame_shown(void);
 /* Back once frames passes seen, or after us: at once while it is 0. */
 void host_frame_wait(uint32_t seen, uint32_t us);
+/* What a display saw, for gfx's poll (plat/pgfx.h): a window's thread or the page pushes, the
+   program's pops; asked, the program has popped since its screen opened. A page writes it as
+   host_event_push does. */
+enum { HOST_EVENTS = 16 };
+typedef struct {
+    QxEvent items[HOST_EVENTS];
+    _Atomic uint32_t pushed, read;
+    _Atomic bool asked;
+} HostEvents;
+HostEvents *host_events(void);
+/* e for the program, dropped while HOST_EVENTS wait; a QUIT only when it asked: false, not pushed. */
+bool host_event_push(const QxEvent *e);
 /* Page's cell at row, col. */
 PscrCell host_cell(uint8_t page, uint8_t row, uint8_t col);
 

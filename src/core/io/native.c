@@ -97,6 +97,21 @@ static void QX_CALL host_gfx_show(const uint32_t *const palette) { pgfx_show(pal
 
 static uint64_t QX_CALL host_clock_us(void) { return pclk_us(); }
 
+static uint32_t QX_CALL host_gfx_monitors(void) { return pgfx_monitors(); }
+
+static uint32_t QX_CALL
+host_gfx_modes(const uint32_t monitor, QxMode *const out, const uint32_t most)
+{
+    return pgfx_modes(monitor, out, most);
+}
+
+static bool QX_CALL host_gfx_mode(const uint32_t monitor, const uint32_t n)
+{
+    return pgfx_mode(monitor, n);
+}
+
+static bool QX_CALL host_gfx_event(QxEvent *const e) { return pgfx_event(e); }
+
 /* The file at path whole, into the C heap: its bytes, *size; null when it cannot be read. */
 static uint8_t *slurp(const char *const path, uint32_t *const size)
 {
@@ -157,6 +172,10 @@ void natv_init(Natv *const n, Fault *const f)
             .file_read = host_file_read,
             .gpu_play = host_gpu_play,
             .gpu_read = host_gpu_read,
+            .gfx_monitors = host_gfx_monitors,
+            .gfx_modes = host_gfx_modes,
+            .gfx_mode = host_gfx_mode,
+            .gfx_event = host_gfx_event,
         },
     };
 }

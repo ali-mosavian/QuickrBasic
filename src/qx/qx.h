@@ -30,7 +30,7 @@
 #define QX_EXPORT __attribute__((visibility("default")))
 #endif
 
-enum { QX_ABI = 1, QX_MINOR = 2 };
+enum { QX_ABI = 1, QX_MINOR = 3 };
 
 typedef struct QxCall QxCall;
 typedef void QX_CALL QxFn(QxCall *c);
@@ -83,6 +83,30 @@ typedef struct {
     float hz;              /* given: the refresh, 0 unknown */
 } QxScreen;
 
+/* A monitor's full-screen mode: w by h pixels, bits a pixel, its refresh (0 unknown). */
+typedef struct {
+    uint16_t w, h;
+    uint8_t bits;
+    float hz;
+} QxMode;
+
+/* What the host saw: the canvas shown at w by h pixels; the window moved to monitor; focused or
+   not; the GPU's textures lost, to be sent again; the window closed. */
+typedef enum : uint8_t {
+    QX_EVENT_RESIZED = 1,
+    QX_EVENT_MOVED,
+    QX_EVENT_FOCUS,
+    QX_EVENT_LOST,
+    QX_EVENT_QUIT,
+} QxEventKind;
+
+typedef struct {
+    QxEventKind kind;
+    uint8_t monitor;
+    bool focused;
+    uint16_t w, h;
+} QxEvent;
+
 typedef struct QxHost {
     uint32_t size, abi, minor;
     /* Memory the extension keeps: zeroed, null when none is left. */
@@ -117,6 +141,16 @@ typedef struct QxHost {
        top first. */
     void(QX_CALL
              *gpu_read)(uint32_t texture, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t *out);
+    /* Minor 3. The monitors, numbered from 1. */
+    uint32_t(QX_CALL *gfx_monitors)(void);
+    /* A monitor's full-screen modes, numbered from 1, the first most into out: their count. */
+    uint32_t(QX_CALL *gfx_modes)(uint32_t monitor, QxMode *out, uint32_t most);
+    /* The screen full screen on monitor, n 0 in the desktop's mode, else in its nth; monitor 0, in
+       a window again: false, it could not. Back in a window when the screen closes. */
+    bool(QX_CALL *gfx_mode)(uint32_t monitor, uint32_t n);
+    /* The next thing the host saw since gfx_open: false, none. A window closed ends the run, unless
+       the extension has asked since gfx_open: then it is QUIT. */
+    bool(QX_CALL *gfx_event)(QxEvent *e);
 } QxHost;
 
 /* One call: its arguments; a FUNCTION's result; an error raised at the calling line once the

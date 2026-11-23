@@ -345,6 +345,7 @@ int sdl_main(void)
             ? nullptr
             : SDL_CreateGPURenderer(nullptr, w);
     const bool played = gpu && sdl_player_init(SDL_GetGPURendererDevice(gpu));
+    sdl_display_open(w);
     SDL_Renderer *const r = gpu ? gpu : SDL_CreateRenderer(w, nullptr);
 
     if (gfx && !strcmp(gfx, "gpu") && !played)
@@ -379,11 +380,11 @@ int sdl_main(void)
         else
             next = now;
 
-        while (SDL_PollEvent(&e))
-            switch (e.type) {
-            case SDL_EVENT_QUIT:
+        while (SDL_PollEvent(&e)) {
+            if (!sdl_display_saw(&e))
                 exit(0);
 
+            switch (e.type) {
             case SDL_EVENT_KEY_DOWN: {
                 host_term_set_shift(sdl_shift(e.key.mod));
                 scan(e.key.scancode, false);
@@ -432,6 +433,7 @@ int sdl_main(void)
             default:
                 break;
             }
+        }
 
         if (alt_up && SDL_GetTicks() >= alt_up) {
             alt_up = 0;

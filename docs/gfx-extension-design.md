@@ -348,8 +348,9 @@ void *(*gfx_page)(uint32_t *pitch);           /* the page to draw the next frame
 void (*gfx_show)(const uint32_t *palette);    /* it is shown; at 8 bits, with these 256 colours */
 void (*gpu_play)(const uint32_t *list, uint32_t words);
 void (*gpu_read)(uint32_t texture, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t *out);
+uint32_t (*gfx_monitors)(void);              /* minor 3: monitors and modes from 1 */
 uint32_t (*gfx_modes)(uint32_t monitor, QxMode *out, uint32_t most);
-bool (*gfx_mode)(uint32_t monitor, uint32_t n);
+bool (*gfx_mode)(uint32_t monitor, uint32_t n); /* n 0 the desktop's; monitor 0 a window */
 bool (*gfx_event)(QxEvent *e);
 uint64_t (*clock_us)(void);
 void *(*file_read)(const char *path, uint32_t len, uint32_t *bytes);
@@ -571,6 +572,12 @@ Step 4, in parts:
   (`plat/host/host.h`). At most a tenth of a second, as a hidden window shows none.
   `display.refresh` is SDL's display mode's, or the page's median gap over 31 frames. On the Mac
   and in Chrome at 60 Hz, 60 flips a second.
+- **Monitors and modes** (`plat/sdl/display.c`): SDL's displays and their full-screen modes,
+  asked of the window's thread by `SDL_RunOnMainThread`. A screen full screen is in a window
+  again when it closes. The window's resizes, moves and focus wait in a ring for `display.poll`;
+  a closed window ends the run unless the program has polled since `display.open`, which then
+  gets `QUIT`, and a second close ends it. On the Mac, SDL's full screen in a Space of its own
+  needs the app active.
 - **Circles and arcs as shader coverage**: each is one box, its four vertices `GpuDisc`s in a
   buffer of their own, so a plain vertex stays 32 bytes; the fragment shader keeps the pixels
   `disc.h`'s rule covers, centres within the radius by squared distance, every product and sum

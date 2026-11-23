@@ -1,4 +1,5 @@
 /* gfx.display: the canvas opened at the depth asked, the frame's commands as drawn, the flip. */
+#include "plat/host/host.h"
 #include "test.h"
 
 TEST(gfx_open_gives_the_depth_asked)
@@ -9,7 +10,75 @@ TEST(gfx_open_gives_the_depth_asked)
     CHECK(CALL("surface.width", I(GFX_SURFACE_CANVAS)).result.i == 320);
     CHECK(CALL("display.open", I(320), I(200), I(24), I(0)).error == 5);
     CHECK(CALL("display.open", I(0), I(200), I(8), I(0)).error == 5);
-    CHECK(CALL("display.count").error == 73);
+    CHECK(!CALL("display.count").result.i); /* no display */
+}
+
+static uint32_t asked_monitor, asked_n;
+static bool refuses;
+
+static uint32_t two_monitors(void) { return 2; }
+
+/* Monitor 1's two modes; 2 has none. */
+static uint32_t modes_of(const uint32_t monitor, QxMode *const out, const uint32_t most)
+{
+    static const QxMode modes[] = {{640, 480, 32, 60}, {1920, 1080, 32, 59.94F}};
+
+    const uint32_t n = monitor == 1 ? 2 : 0;
+
+    for (uint32_t i = 0; i < n && i < most; i++)
+        out[i] = modes[i];
+
+    return n;
+}
+
+static bool set_mode(const uint32_t monitor, const uint32_t n)
+{
+    asked_monitor = monitor;
+    asked_n = n;
+    return !refuses;
+}
+
+static const PgfxDisplay two = {.monitors = two_monitors, .modes = modes_of, .mode = set_mode};
+
+/* The display's monitors and modes from 1; full screen and a window again only with a screen open,
+   the mode one of the monitor's or 0 (the desktop's); what the display saw, polled. */
+TEST(gfx_lists_modes_and_goes_full_screen)
+{
+    gfx_fresh(S);
+    pgfx_set_display(&two);
+    gfx_display_screenmode m;
+
+    CHECK(CALL("display.count").result.i == 2);
+    CHECK(CALL("display.modes", I(1)).result.i == 2 && !CALL("display.modes", I(2)).result.i);
+    CHECK(CALL("display.modes", I(3)).error == 5 && CALL("display.modes", I(0)).error == 5);
+    CHECK(!CALL("display.mode", I(1), I(2), REF(&m)).error);
+    CHECK(m.w == 1920 && m.h == 1080 && m.bits == 32 && m.hz == 60);
+    CHECK(CALL("display.mode", I(1), I(3), REF(&m)).error == 9);
+    CHECK(CALL("display.fullscreen", I(1), I(0)).error == 5); /* no screen */
+
+    CHECK(!CALL("display.open", I(320), I(200), I(8), I(0)).error);
+    CHECK(!CALL("display.fullscreen", I(1), I(2)).error && asked_monitor == 1 && asked_n == 2);
+    CHECK(CALL("display.fullscreen", I(1), I(3)).error == 5);
+    CHECK(CALL("display.fullscreen", I(2), I(1)).error == 5);
+    CHECK(!CALL("display.windowed").error && !asked_monitor && !asked_n);
+    refuses = true;
+    CHECK(CALL("display.fullscreen", I(1), I(0)).error == 73);
+    refuses = false;
+
+    gfx_display_hostevent e;
+    CHECK(!CALL("display.poll", REF(&e)).result.i);
+    CHECK(host_event_push(&(QxEvent){.kind = QX_EVENT_RESIZED, .w = 800, .h = 600}));
+
+    CHECK(host_event_push(&(QxEvent){.kind = QX_EVENT_FOCUS, .focused = true}));
+
+    CHECK(CALL("display.poll", REF(&e)).result.i == GFX_DISPLAY_RESIZED);
+    CHECK(e.kind == GFX_DISPLAY_RESIZED && e.w == 800 && e.h == 600);
+    CHECK(CALL("display.poll", REF(&e)).result.i == GFX_DISPLAY_FOCUS && e.focused == -1);
+    CHECK(!CALL("display.poll", REF(&e)).result.i);
+
+    CHECK(!CALL("display.fullscreen", I(1), I(0)).error);
+    CHECK(!CALL("display.close").error && !asked_monitor); /* a window again */
+    pgfx_set_display(nullptr);
 }
 
 /* Each call is logged after the camera, with the pen's numbers, until the flip. */

@@ -172,6 +172,39 @@ TEST(pgfx_gives_the_refresh)
     S->natv.host.gfx_close();
 }
 
+/* What the display saw since the screen opened waits for the program; a closed window's QUIT only
+   once it has asked, else the window ends the run. */
+TEST(pgfx_events_wait_for_the_program)
+{
+    const QxHost *const h = &S->natv.host;
+    QxScreen s = {.w = 2, .h = 2, .depth = 8};
+
+    QxEvent e;
+
+    CHECK(host_event_push(&(QxEvent){.kind = QX_EVENT_FOCUS}));
+
+    CHECK(h->gfx_open(&s) && !h->gfx_event(&e)); /* before it opened */
+
+    h->gfx_close();
+    CHECK(h->gfx_open(&s));
+    CHECK(!host_event_push(&(QxEvent){.kind = QX_EVENT_QUIT}));
+
+    CHECK(!h->gfx_event(&e));
+    CHECK(host_event_push(&(QxEvent){.kind = QX_EVENT_QUIT}));
+
+    CHECK(h->gfx_event(&e) && e.kind == QX_EVENT_QUIT);
+
+    for (uint32_t i = 0; i < HOST_EVENTS; i++)
+        CHECK(host_event_push(&(QxEvent){.kind = QX_EVENT_MOVED, .monitor = (uint8_t)i}));
+
+    CHECK(!host_event_push(&(QxEvent){.kind = QX_EVENT_MOVED}));
+
+    CHECK(h->gfx_event(&e) && e.kind == QX_EVENT_MOVED && !e.monitor);
+    h->gfx_close();
+    CHECK(!host_event_push(&(QxEvent){.kind = QX_EVENT_QUIT})); /* closed: no longer asked */
+    CHECK(!h->gfx_monitors() && !h->gfx_mode(1, 0));            /* no display */
+}
+
 TEST(pgfx_clock_and_file)
 {
     const QxHost *const h = &S->natv.host;

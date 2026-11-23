@@ -12,10 +12,14 @@
  *
  * A screen opened with vsync, as it shows a frame, waits for the display to show one after: at
  * most a tenth of a second, as a hidden window shows none.
+ *
+ * A display also sets its monitors and their modes; a screen it shows full screen is in a window
+ * again when it closes. What the display saw waits for the program (plat/host/host.h's events).
  */
 #ifndef PLAT_PGFX_H
 #define PLAT_PGFX_H
 #include "base.h"
+#include "qx/qx.h"
 
 /* A frame shown: w by h pixels of depth bits, w a row; at 8 bits its 256 colours, &HRRGGBB. */
 typedef struct {
@@ -38,7 +42,16 @@ typedef struct {
     void (*read)(uint32_t texture, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t *out);
 } PgfxPlayer;
 
+/* A display's monitors and modes, as QxHost's gfx_monitors, gfx_modes and gfx_mode. Called from the
+   interpreter's thread. */
+typedef struct {
+    uint32_t (*monitors)(void);
+    uint32_t (*modes)(uint32_t monitor, QxMode *out, uint32_t most);
+    bool (*mode)(uint32_t monitor, uint32_t n);
+} PgfxDisplay;
+
 void pgfx_set_player(const PgfxPlayer *p);
+void pgfx_set_display(const PgfxDisplay *d);
 /* A screen w by h the player plays, in the runtime's place, when it takes one of shaders: the
    player; null, none, or it could not. Open, a screen is closed first. */
 const PgfxPlayer *pgfx_open_played(uint16_t w, uint16_t h, uint8_t shaders, bool vsync);
@@ -57,4 +70,11 @@ void pgfx_play(const uint32_t *list, uint32_t words);
 float pgfx_hz(void);
 /* The frame shown last, while the screen is open: false, none. */
 bool pgfx_shown(PgfxFrame *f);
+/* The display's monitors: 0, none. */
+uint32_t pgfx_monitors(void);
+uint32_t pgfx_modes(uint32_t monitor, QxMode *out, uint32_t most);
+/* As gfx_mode, while a screen is open: false, none open, no display, or it could not. */
+bool pgfx_mode(uint32_t monitor, uint32_t n);
+/* The next thing the display saw since the screen opened: false, none. */
+bool pgfx_event(QxEvent *e);
 #endif

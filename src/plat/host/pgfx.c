@@ -9,12 +9,39 @@ enum { WAIT_US = 100000, MILLI = 1000 };
 
 static struct {
     const PgfxPlayer *player, *playing; /* the display's; the open screen's */
-    uint8_t *page, *shown;              /* w by h each, null none open */
+    const PgfxDisplay *display;
+    uint8_t *page, *shown; /* w by h each, null none open */
     uint16_t w, h;
     uint8_t depth, bytes; /* bytes a pixel */
     bool showing, vsync;
+    bool full; /* shown full screen */
     uint32_t palette[256];
 } screen;
+
+static HostEvents events;
+
+HostEvents *host_events(void) { return &events; }
+
+bool host_event_push(const QxEvent *const e)
+{
+    const uint32_t at = atomic_load(&events.pushed);
+
+    if (at - atomic_load(&events.read) == HOST_EVENTS ||
+        (e->kind == QX_EVENT_QUIT && !atomic_load(&events.asked)))
+        return false;
+
+    events.items[at % HOST_EVENTS] = *e;
+    atomic_store(&events.pushed, at + 1);
+    return true;
+}
+
+/* A screen opened: what the display saw before is not its. */
+static void opened(const bool vsync)
+{
+    screen.vsync = vsync;
+    atomic_store(&events.asked, false);
+    atomic_store(&events.read, atomic_load(&events.pushed));
+}
 
 /* A depth's bytes a pixel: 0, none shown. */
 static uint8_t bytes_of(const uint8_t depth)
@@ -31,6 +58,8 @@ static void synced(void)
 
 void pgfx_set_player(const PgfxPlayer *const p) { screen.player = p; }
 
+void pgfx_set_display(const PgfxDisplay *const d) { screen.display = d; }
+
 const PgfxPlayer *pgfx_open_played(
     const uint16_t w,
     const uint16_t h,
@@ -42,7 +71,7 @@ const PgfxPlayer *pgfx_open_played(
 
     if (screen.player && screen.player->shaders & shaders && screen.player->open(w, h)) {
         screen.playing = screen.player;
-        screen.vsync = vsync;
+        opened(vsync);
     }
 
     return screen.playing;
@@ -73,12 +102,18 @@ bool pgfx_open(const uint16_t w, const uint16_t h, const uint8_t depth, const bo
     screen.h = h;
     screen.depth = depth;
     screen.bytes = bytes_of(depth);
-    screen.vsync = vsync;
+    opened(vsync);
     return true;
 }
 
 void pgfx_close(void)
 {
+    if (screen.full)
+        screen.display->mode(0, 0);
+
+    screen.full = false;
+    atomic_store(&events.asked, false);
+
     if (screen.playing)
         screen.playing->close();
 
@@ -121,5 +156,34 @@ bool pgfx_shown(PgfxFrame *const f)
 
     *f = (PgfxFrame){screen.shown, screen.w, screen.h, screen.depth, screen.palette};
 
+    return true;
+}
+
+uint32_t pgfx_monitors(void) { return screen.display ? screen.display->monitors() : 0; }
+
+uint32_t pgfx_modes(const uint32_t monitor, QxMode *const out, const uint32_t most)
+{
+    return screen.display ? screen.display->modes(monitor, out, most) : 0;
+}
+
+bool pgfx_mode(const uint32_t monitor, const uint32_t n)
+{
+    if (!screen.display || !(screen.page || screen.playing) || !screen.display->mode(monitor, n))
+        return false;
+
+    screen.full = monitor != 0;
+    return true;
+}
+
+bool pgfx_event(QxEvent *const e)
+{
+    atomic_store(&events.asked, true);
+    const uint32_t at = atomic_load(&events.read);
+
+    if (at == atomic_load(&events.pushed))
+        return false;
+
+    *e = events.items[at % HOST_EVENTS];
+    atomic_store(&events.read, at + 1);
     return true;
 }

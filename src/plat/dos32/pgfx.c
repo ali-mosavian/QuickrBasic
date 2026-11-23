@@ -41,3 +41,25 @@ bool pgfx_shown(PgfxFrame *const f)
     (void)f;
     return false;
 }
+
+void pgfx_set_display(const PgfxDisplay *const d) { (void)d; }
+
+uint32_t pgfx_monitors(void) { return 0; }
+
+uint32_t pgfx_modes(const uint32_t monitor, QxMode *const out, const uint32_t most)
+{
+    (void)monitor, (void)out, (void)most;
+    return 0;
+}
+
+bool pgfx_mode(const uint32_t monitor, const uint32_t n)
+{
+    (void)monitor, (void)n;
+    return false;
+}
+
+bool pgfx_event(QxEvent *const e)
+{
+    (void)e;
+    return false;
+}
