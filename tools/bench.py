@@ -17,6 +17,8 @@
     bench.py fps [--real] [--profile | --parts]  MOTHLITE.BAS played by an autopilot on a 486 at 10k cycles/ms
                                                  with the Sound Blaster: its frame rate in each mode;
                                                  --parts: each step of its loop's ms a frame
+    bench.py gfx [--depth D] [--seconds S]       gfx's frames a second in the Mac app, drawn in pages against
+                                                 played on the GPU, for each of GFX_WORK's frames
 
 Native (the default) runs build/hostperf/basic for retired instructions, the least of RUNS runs less
 an empty program's, builds compared run interleaved; and build/host/basic for the ops dispatched,
@@ -758,6 +760,101 @@ OPEN "EACH.TXT" FOR OUTPUT AS #1
 """
 
 
+# A frame's draws besides its clear, on a 640 by 480 canvas; f the frame, s& a 32 by 32 picture. calls: the shapes'
+# loop with three calls that draw nothing, the interpreter's share.
+GFX_WORK = {
+    "flip": "",
+    "calls": "for i = 0 to 299\n"
+    "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
+    "    gfx.pen.light 63\n    gfx.pen.light 63\n    gfx.pen.light 63\n"
+    "next",
+    "fill": "for i = 0 to 9\n    gfx.draw.rect i, i, 629 + i, 469 + i, i * 4099, gfx.draw.FILL\nnext",
+    "rects": "for i = 0 to 299\n"
+    "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
+    "    gfx.draw.rect x, y, x + 39, y + 39, i * 4099, gfx.draw.FILL\n"
+    "next",
+    "lines": "for i = 0 to 299\n"
+    "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
+    "    gfx.draw.line x, y, 639 - x, 479 - y, i * 977\n"
+    "next",
+    "circles": "for i = 0 to 299\n"
+    "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
+    "    gfx.draw.circle 639 - x, y, 12, i * 131, gfx.draw.FILL\n"
+    "next",
+    "arcs": "for i = 0 to 299\n"
+    "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
+    "    gfx.draw.arc 639 - x, y, 20, 0.3, 4, i * 131\n"
+    "next",
+    "sprites": "for i = 0 to 999\n    gfx.draw.sprite s&, (i * 37 + f) mod 608, (i * 53 + f) mod 448, 0\nnext",
+}
+GFX_PROGRAM = """import gfx.display, gfx.draw, gfx.surface, gfx.pen
+gfx.display.open 640, 480, {depth}, 0
+s& = gfx.surface.new(32, 32)
+gfx.pen.target s&
+gfx.draw.clear 0
+gfx.draw.circle 15, 15, 14, 2, gfx.draw.FILL
+gfx.pen.target gfx.surface.CANVAS
+do
+    if f = 30 then t# = gfx.display.clock
+    gfx.draw.clear 1
+{work}
+    gfx.display.flip
+    f = f + 1
+loop until f > 30 and gfx.display.clock - t# >= {seconds}
+t# = gfx.display.clock - t#
+rate# = (f - 30) / t#
+f = 0
+gfx.draw.clear 1
+{work}
+gfx.display.flip
+for y = 0 to 479 step 16
+    for x = 0 to 639 step 16
+        sum& = (sum& * 31 + gfx.surface.point(gfx.surface.CANVAS, x, y)) and &HFFFFF
+    next
+next
+open "GFX.TXT" for output as #1
+print #1, rate#; sum&
+close #1
+do
+loop
+"""
+
+
+def gfx_rate(app: Path, work: str, depth: int, seconds: float, how: str) -> tuple[float, int]:
+    """Frames a second after 30 warming up, and a checksum of frame 0's pixels drawn after: equal for both ways, or
+    one of them drew something else."""
+    with tempfile.TemporaryDirectory() as tmp:
+        prog, out = Path(tmp) / "GFX.BAS", Path(tmp) / "GFX.TXT"
+        body = "\n".join("    " + line for line in GFX_WORK[work].splitlines())
+        prog.write_text(GFX_PROGRAM.format(depth=depth, work=body, seconds=seconds))
+        env = os.environ | {"QB_GFX": how, "QB_KEYS": "3F00", "SDL_AUDIO_DRIVER": "dummy"}
+        p = subprocess.Popen([str(app), prog.name], env=env, cwd=tmp)
+        try:
+            until = time.monotonic() + seconds + 60
+            while not out.exists() or not out.read_text().endswith("\n"):
+                if time.monotonic() > until or p.poll() is not None:
+                    raise SystemExit(f"gfx {work} {how}: no GFX.TXT")
+                time.sleep(0.2)
+        finally:
+            p.kill()
+            p.wait()
+        rate, total = out.read_text().split()
+        return float(rate), int(total)
+
+
+def cmd_gfx(a: argparse.Namespace) -> int:
+    """Each GFX_WORK frame's rate in pages and on the GPU, in the app's window, neither waiting for the refresh."""
+    subprocess.run(["make", "-j8", "mac"], cwd=ROOT, check=True, capture_output=True)
+    app = ROOT / "build/mac/QuickrBasic.app/Contents/MacOS/QuickrBasic"
+    print(f"640x480 at {a.depth} bits, frames a second")
+    print(f"{'':10}{'pages':>10}{'GPU':>10}{'GPU/pages':>11}")
+    for work in GFX_WORK:
+        (soft, ssum), (gpu, gsum) = (gfx_rate(app, work, a.depth, a.seconds, how) for how in ("soft", "gpu"))
+        same = "" if ssum == gsum else "  frames differ"
+        print(f"{work:10}{soft:10.0f}{gpu:10.0f}{gpu / soft:10.1f}x{same}")
+    return 0
+
+
 def charlie_modules() -> dict[str, bytes]:
     """The game's package and the engine by the path each module sits at beside CHARLIE.BAS."""
     return {
@@ -973,6 +1070,9 @@ def main() -> int:
     p.add_argument("--each", action="store_true", help="each FPS_EACH call's ms on its own")
     p.add_argument("--nosb", action="store_true", help="no Sound Blaster: the PC speaker's music")
     p.add_argument("-n", type=int, default=30)
+    p = sub.add_parser("gfx")
+    p.add_argument("--depth", type=int, default=32)
+    p.add_argument("--seconds", type=float, default=3)
     sub.add_parser("charlie")
     sub.add_parser("engine")
     a = ap.parse_args()
@@ -987,6 +1087,7 @@ def main() -> int:
         "ops": cmd_ops,
         "profile": cmd_profile,
         "fps": cmd_fps,
+        "gfx": cmd_gfx,
         "charlie": cmd_charlie,
         "engine": cmd_engine,
     }[a.cmd](a)
