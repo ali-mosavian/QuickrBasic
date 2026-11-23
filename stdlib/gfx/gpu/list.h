@@ -6,7 +6,9 @@
  * The vertices, the discs and the indices are a buffer each, made and written by the list's first
  * ops, which are filled in when it ends. A quad is four vertices, its indices 0 1 2 0 2 3; they
  * are written only when a list draws more quads than they cover. A draw with the open draw's
- * pipeline, buffer, textures and alpha, no op between, adds to it: a batch.
+ * pipeline, buffer, textures and alpha, no op between, adds to it: a batch. A draw whose first
+ * texture does not matter (any) adds to it whatever its first texture; an open draw made of such
+ * takes the next one's.
  */
 #ifndef GFX_GPU_LIST_H
 #define GFX_GPU_LIST_H
@@ -27,6 +29,7 @@ typedef struct {
     void **kept;
     uint32_t nkept, capkept;
     uint32_t draw;    /* the open draw's first word; 0 none */
+    bool any;         /* its first texture does not matter */
     uint32_t batches; /* its DRAWs */
     uint32_t uploads; /* its UPLOADs */
 } GpuList;
@@ -40,14 +43,16 @@ bool list_op(GpuList *l, QxListOp op, const uint32_t *args, uint32_t n);
 void list_pointer(uint32_t *args, const void *p);
 /* bytes kept until the list is played: null, no memory. */
 void *list_keep(GpuList *l, uint32_t bytes);
-/* n vertices drawn, four a quad, through pipeline from textures: false, no memory. */
+/* n vertices drawn, four a quad, through pipeline from textures, the first mattering not when
+   any: false, no memory. */
 bool list_draw(
     GpuList *l,
     const GpuVertex *v,
     uint32_t n,
     uint32_t pipeline,
     const uint32_t textures[LIST_TEXTURES],
-    uint8_t alpha
+    uint8_t alpha,
+    bool any
 );
 /* n disc vertices drawn, as list_draw's. */
 bool list_discs(
@@ -56,7 +61,8 @@ bool list_discs(
     uint32_t n,
     uint32_t pipeline,
     const uint32_t textures[LIST_TEXTURES],
-    uint8_t alpha
+    uint8_t alpha,
+    bool any
 );
 /* END appended, the buffers' ops filled in: the words to play, *n of them; null, no memory. */
 const uint32_t *list_end(GpuList *l, uint32_t *n);

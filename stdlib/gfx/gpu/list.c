@@ -117,7 +117,8 @@ static bool draw(
     const uint32_t n,
     const uint32_t pipeline,
     const uint32_t *const textures,
-    const uint8_t alpha
+    const uint8_t alpha,
+    const bool any
 )
 {
     if (!mem_grow(array, cap, *count + n, size))
@@ -130,11 +131,16 @@ static bool draw(
     *count += n;
     drawn(want, pipeline, buffer, 0, 0, textures, alpha);
 
-    const uint32_t *const d = l->words + l->draw;
+    uint32_t *const d = l->words + l->draw;
+    const bool open = l->draw && l->draw + DRAW_WORDS == l->n && d[1] == want[0] &&
+                      d[2] == want[1] && d[6] == want[5] && d[8] == want[7];
 
-    if (l->draw && l->draw + DRAW_WORDS == l->n && d[1] == want[0] && d[2] == want[1] &&
-        d[6] == want[5] && d[7] == want[6] && d[8] == want[7]) {
-        l->words[l->draw + COUNT] += n / QUAD * QUAD_INDICES;
+    if (open && (d[7] == want[6] || any || l->any)) {
+        if (!any)
+            d[7] = want[6];
+
+        l->any = l->any && any;
+        d[COUNT] += n / QUAD * QUAD_INDICES;
         return true;
     }
 
@@ -148,6 +154,7 @@ static bool draw(
     }
 
     l->draw = at;
+    l->any = any;
     return true;
 }
 
@@ -157,7 +164,8 @@ bool list_draw(
     const uint32_t n,
     const uint32_t pipeline,
     const uint32_t textures[LIST_TEXTURES],
-    const uint8_t alpha
+    const uint8_t alpha,
+    const bool any
 )
 {
     return draw(
@@ -171,7 +179,8 @@ bool list_draw(
         n,
         pipeline,
         textures,
-        alpha
+        alpha,
+        any
     );
 }
 
@@ -181,7 +190,8 @@ bool list_discs(
     const uint32_t n,
     const uint32_t pipeline,
     const uint32_t textures[LIST_TEXTURES],
-    const uint8_t alpha
+    const uint8_t alpha,
+    const bool any
 )
 {
     return draw(
@@ -195,7 +205,8 @@ bool list_discs(
         n,
         pipeline,
         textures,
-        alpha
+        alpha,
+        any
     );
 }
 
@@ -276,6 +287,7 @@ void list_reset(GpuList *const l)
     l->nvertices = 0;
     l->ndiscs = 0;
     l->draw = 0;
+    l->any = false;
     l->n = 0;
     l->batches = 0;
     l->uploads = 0;

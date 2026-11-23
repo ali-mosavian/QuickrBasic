@@ -312,18 +312,28 @@ bool gpu_palette(Gpu *const g, const Palette *const pal)
     return list_op(&g->list, QX_LIST_UPLOAD, args, 8);
 }
 
+/* v's colour is the tint's alone, never keyed: its texel does not matter. */
+static bool any(const GpuVertex *const v)
+{
+    return (v->stages & (GPU_STAGE_SOLID | GPU_STAGE_KEYED)) == GPU_STAGE_SOLID;
+}
+
 bool gpu_draw(Gpu *const g, const GpuTarget *const t, const GpuVertex *const v, const uint32_t n)
 {
     const uint32_t textures[LIST_TEXTURES] = {t->texture, PALETTE};
 
-    return list_draw(&g->list, v, n, pipeline_of(PLAIN, t->blend), textures, t->alpha);
+    const uint32_t pipeline = pipeline_of(PLAIN, t->blend);
+
+    return list_draw(&g->list, v, n, pipeline, textures, t->alpha, any(v));
 }
 
 bool gpu_discs(Gpu *const g, const GpuTarget *const t, const GpuDisc *const v, const uint32_t n)
 {
     const uint32_t textures[LIST_TEXTURES] = {t->texture, PALETTE};
 
-    return list_discs(&g->list, v, n, pipeline_of(ROUND, t->blend), textures, t->alpha);
+    const uint32_t pipeline = pipeline_of(ROUND, t->blend);
+
+    return list_discs(&g->list, v, n, pipeline, textures, t->alpha, any(&v->v));
 }
 
 void gpu_play(Gpu *const g, const bool show)

@@ -2,8 +2,9 @@
  * (gpu/gpu.h), the pen in their vertices.
  *
  * # How it works
- * A shape draws from the white texel, its colour in the vertices (an index through the pen's row at
- * 8 bits), times the pen's tint. A picture's vertices carry its texels, its rectangle and its
+ * A shape is SOLID, its colour in the vertices (an index through the pen's row at 8 bits) times
+ * the pen's tint, so its texel does not matter and it joins any batch; alone it draws from the
+ * white texel. A picture's vertices carry its texels, its rectangle and its
  * stages. Pixels are squares about whole numbers, so a shape's edges lie half a pixel round the
  * centres it covers, as software's. A line covers software's pixels, one a step along its longer
  * side. A circle or an arc is one box, the shader keeping the pixels disc.h's rule covers.
@@ -110,6 +111,7 @@ static GpuVertex shape(const GpuTarget *const t, const uint32_t colour)
         .g = (uint8_t)(rgb >> 8),
         .b = (uint8_t)rgb,
         .light = t->ink.light,
+        .stages = GPU_STAGE_SOLID,
     };
 }
 
@@ -286,7 +288,7 @@ static void disc(
     if (!(k->outer > 0))
         return;
 
-    d.v.stages = (uint8_t)(GPU_STAGE_DISC | (part ? GPU_STAGE_SWEEP : 0) |
+    d.v.stages = (uint8_t)(GPU_STAGE_SOLID | GPU_STAGE_DISC | (part ? GPU_STAGE_SWEEP : 0) |
                            (part && w->wide ? GPU_STAGE_WIDE : 0));
     d.disc[0] = k->c.x + g->at.x;
     d.disc[1] = k->c.y + g->at.y;

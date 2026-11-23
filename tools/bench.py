@@ -786,8 +786,15 @@ GFX_WORK = {
     "    gfx.draw.arc 639 - x, y, 20, 0.3, 4, i * 131\n"
     "next",
     "sprites": "for i = 0 to 999\n    gfx.draw.sprite s&, (i * 37 + f) mod 608, (i * 53 + f) mod 448, 0\nnext",
+    "mixed": "for i = 0 to 299\n"
+    "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
+    "    gfx.draw.sprite s&, x, y, 0\n"
+    "    gfx.draw.rect x, y, x + 7, y + 7, i * 4099, gfx.draw.FILL\n"
+    "next",
 }
 GFX_PROGRAM = """import gfx.display, gfx.draw, gfx.surface, gfx.pen
+from gfx.display import FrameStats
+dim st as FrameStats
 gfx.display.open 640, 480, {depth}, 0
 s& = gfx.surface.new(32, 32)
 gfx.pen.target s&
@@ -803,6 +810,7 @@ do
 loop until f > 30 and gfx.display.clock - t# >= {seconds}
 t# = gfx.display.clock - t#
 rate# = (f - 30) / t#
+gfx.display.stats st
 f = 0
 gfx.draw.clear 1
 {work}
@@ -813,16 +821,16 @@ for y = 0 to 479 step 16
     next
 next
 open "GFX.TXT" for output as #1
-print #1, rate#; sum&
+print #1, rate#; sum&; st.batches
 close #1
 do
 loop
 """
 
 
-def gfx_rate(app: Path, work: str, depth: int, seconds: float, how: str) -> tuple[float, int]:
-    """Frames a second after 30 warming up, and a checksum of frame 0's pixels drawn after: equal for both ways, or
-    one of them drew something else."""
+def gfx_rate(app: Path, work: str, depth: int, seconds: float, how: str) -> tuple[float, int, int]:
+    """Frames a second after 30 warming up, a checksum of frame 0's pixels drawn after (equal for both ways, or one of
+    them drew something else), and the last timed frame's batches."""
     with tempfile.TemporaryDirectory() as tmp:
         prog, out = Path(tmp) / "GFX.BAS", Path(tmp) / "GFX.TXT"
         body = "\n".join("    " + line for line in GFX_WORK[work].splitlines())
@@ -838,8 +846,8 @@ def gfx_rate(app: Path, work: str, depth: int, seconds: float, how: str) -> tupl
         finally:
             p.kill()
             p.wait()
-        rate, total = out.read_text().split()
-        return float(rate), int(total)
+        rate, total, batches = out.read_text().split()
+        return float(rate), int(total), int(batches)
 
 
 def cmd_gfx(a: argparse.Namespace) -> int:
@@ -847,11 +855,12 @@ def cmd_gfx(a: argparse.Namespace) -> int:
     subprocess.run(["make", "-j8", "mac"], cwd=ROOT, check=True, capture_output=True)
     app = ROOT / "build/mac/QuickrBasic.app/Contents/MacOS/QuickrBasic"
     print(f"640x480 at {a.depth} bits, frames a second")
-    print(f"{'':10}{'pages':>10}{'GPU':>10}{'GPU/pages':>11}")
-    for work in GFX_WORK:
-        (soft, ssum), (gpu, gsum) = (gfx_rate(app, work, a.depth, a.seconds, how) for how in ("soft", "gpu"))
+    print(f"{'':10}{'pages':>10}{'GPU':>10}{'GPU/pages':>11}{'batches':>9}")
+    for work in a.work or GFX_WORK:
+        runs = (gfx_rate(app, work, a.depth, a.seconds, how) for how in ("soft", "gpu"))
+        (soft, ssum, _), (gpu, gsum, batches) = runs
         same = "" if ssum == gsum else "  frames differ"
-        print(f"{work:10}{soft:10.0f}{gpu:10.0f}{gpu / soft:10.1f}x{same}")
+        print(f"{work:10}{soft:10.0f}{gpu:10.0f}{gpu / soft:10.1f}x{batches:9}{same}")
     return 0
 
 
@@ -1073,6 +1082,7 @@ def main() -> int:
     p = sub.add_parser("gfx")
     p.add_argument("--depth", type=int, default=32)
     p.add_argument("--seconds", type=float, default=3)
+    p.add_argument("--work", action="append", choices=list(GFX_WORK), help="a frame to time; all when none")
     sub.add_parser("charlie")
     sub.add_parser("engine")
     a = ap.parse_args()

@@ -294,7 +294,7 @@ TEST(gfx_gpu_draws_a_circle_as_one_box)
     GPU_CALL("draw.circle", F(3), F(3), F(2), I(0xFFFFFF), I(GFX_DRAW_FILL));
     GPU_CALL("display.flip");
     CHECK(ops(FIRST "TUPNCUDSE") && arg(QX_LIST_DRAW, 0, 2) == LIST_DISCS);
-    CHECK(arg(QX_LIST_DRAW, 0, 5) == 6 && discs[0].v.stages == GPU_STAGE_DISC);
+    CHECK(arg(QX_LIST_DRAW, 0, 5) == 6 && discs[0].v.stages == (GPU_STAGE_SOLID | GPU_STAGE_DISC));
     CHECK(discs[0].disc[2] == 2.5f && discs[0].disc[3] == 0);
     CHECK(covered(0, disc));
 
@@ -302,7 +302,7 @@ TEST(gfx_gpu_draws_a_circle_as_one_box)
     GPU_CALL("draw.arc", F(3), F(3), F(2), F(0), F(GM_PI / 2), I(0xFFFFFF));
     GPU_CALL("display.flip");
     CHECK(arg(QX_LIST_DRAW, 0, 5) == 6);
-    CHECK(discs[0].v.stages == (GPU_STAGE_DISC | GPU_STAGE_SWEEP));
+    CHECK(discs[0].v.stages == (GPU_STAGE_SOLID | GPU_STAGE_DISC | GPU_STAGE_SWEEP));
     CHECK(covered(0, arc));
 }
 
@@ -381,6 +381,28 @@ TEST(gfx_gpu_splits_batches_at_a_blend)
     GPU_CALL("display.flip");
     CHECK(ops(FIRST "TUPNCUDDSE"));
     CHECK(arg(QX_LIST_DRAW, 1, 1) == 1 + QX_BLEND_MIX && arg(QX_LIST_DRAW, 1, 6) == 129);
+}
+
+/* A shape's texel does not matter: it joins a picture's batch, before or after it, and a circle
+   one of circles whatever their texture. */
+TEST(gfx_gpu_draws_shapes_and_pictures_in_one_batch)
+{
+    screen(S, 8, 8, 8);
+    const int32_t s = GPU_CALL("surface.new", I(2), I(2)).result.i;
+
+    GPU_CALL("draw.sprite", I(s), F(0), F(0), I(0));
+    GPU_CALL("display.flip");
+    GPU_CALL("draw.rect", F(0), F(0), F(1), F(1), I(1), I(GFX_DRAW_FILL));
+    GPU_CALL("draw.sprite", I(s), F(0), F(0), I(0));
+    GPU_CALL("draw.line", F(0), F(0), F(5), F(2), I(2));
+    GPU_CALL("draw.sprite", I(s), F(4), F(4), I(0));
+    GPU_CALL("draw.circle", F(4), F(4), F(2), I(3), I(GFX_DRAW_FILL));
+    GPU_CALL("draw.circle", F(4), F(4), F(3), I(3), I(0));
+    GPU_CALL("display.flip");
+    CHECK(ops(HEAD "PNCDDSE"));
+    CHECK(arg(QX_LIST_DRAW, 0, 7) == (uint32_t)s && arg(QX_LIST_DRAW, 0, 5) == 4 * 6);
+    CHECK(arg(QX_LIST_DRAW, 1, 2) == LIST_DISCS && arg(QX_LIST_DRAW, 1, 5) == 2 * 6);
+    CHECK(vertices[0].stages == GPU_STAGE_SOLID && vertices[4].stages == GPU_STAGE_KEYED + 1);
 }
 
 /* An 8-bit picture is an index texture, sent once and again when written; freed with it. */
