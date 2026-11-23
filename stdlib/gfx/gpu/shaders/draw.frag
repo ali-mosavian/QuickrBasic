@@ -12,8 +12,11 @@ const uint DISC = 16u;
 const uint SWEEP = 32u;
 const uint WIDE = 64u;
 
-layout(set = 2, binding = 0) uniform sampler2D source;
-layout(set = 2, binding = 1) uniform sampler2D palette;
+// ESSL's samplers are named by binding (qx/qxlist.h).
+layout(set = 2, binding = 0) uniform sampler2D s0;
+layout(set = 2, binding = 1) uniform sampler2D s1;
+#define source s0
+#define palette s1
 
 layout(location = 0) in vec2 v_texel;
 layout(location = 1) flat in uvec4 v_rect;

@@ -323,9 +323,9 @@ reading an 8-bit canvas gives each pixel's nearest index.
 
 The one shader is written once, in Vulkan GLSL (`stdlib/gfx/gpu/shaders`), its vertex stage built
 twice: for plain vertices and, with `DISC`, for a circle's. `make shaders` crosses it with glslang
-and SPIRV-Cross, pinned in `tools/deps.sh`, to MSL for SDL_GPU (`gpu/shaders.h`), committed so a
-build needs neither; GLSL ES 3.0 comes with the page's player. `display.open` names the languages it
-brings, and the host answers with the one it takes.
+and SPIRV-Cross, pinned in `tools/deps.sh`, to MSL for SDL_GPU and ESSL 3.00 for WebGL2
+(`gpu/shaders.h`), committed so a build needs neither. `display.open` names the languages it brings,
+and the host answers with the one it takes.
 
 ## The host's side
 
@@ -370,7 +370,7 @@ void *(*file_read)(const char *path, uint32_t len, uint32_t *bytes);
 |---|---|---|---|
 | DOS | pages: a VBE 2.0 linear mode's two in video memory; else memory | 4F07h's flip at the retrace; else a copy, linear or bank by bank; mode 13h a copy | the PIT's count |
 | Mac, Linux, Windows | a GPU, lists played by SDL_GPU on the interpreter's thread; with no device, pages | the texture `SHOW` names, copied to one SDL's GPU renderer draws; a page as today's frame | `SDL_GetTicksNS` |
-| The browser | a GPU, lists played by the page with WebGL2 from the shared memory; else pages | `requestAnimationFrame` | `performance.now` |
+| The browser | a GPU, lists copied to the page and played there with WebGL2; else pages | `requestAnimationFrame` | `performance.now` |
 | `basic` in a terminal, unit tests | pages | nothing: `surface.read` is the tests' eye | `pclk` |
 
 ### One file, five interfaces
@@ -546,7 +546,14 @@ Step 4, in parts:
   two frames behind, and a read waits for its own. `SHOW` copies a texture to one the window
   draws, cycled so the copy never waits on the frame drawing the last. `QB_GFX=soft` draws in
   pages; the offscreen driver has no GPU and does too.
-- **Circles and arcs as shader coverage**: each is one box, its four vertices `GpuDisc`s in a
+- **The page's player** (`plat/wasm/player.c`, `web/gpu.mjs`): the module's thread copies each
+  list and the memory it points at to the page, going on while the page is at most three behind;
+  a read waits for the page. The page plays it with WebGL2 on its own thread: one with an event
+  loop, so each refresh draws the latest `SHOW`, the last one included. Sending each frame as a
+  bitmap from the module's thread cost 0.5 ms a frame. ESSL has no bindings: a sampler is named by
+  its binding (`s0`), and the uniform block is the program's one. `?gfx=soft` draws in pages; so
+  does a browser without WebGL2. 640 by 480 at 32 bits, in Chrome on an M-series Mac, the GPU
+  draws bench's frames 1.3 (flip) to 8.8 (lines) times software's rate, the same pixels.- **Circles and arcs as shader coverage**: each is one box, its four vertices `GpuDisc`s in a
   buffer of their own, so a plain vertex stays 32 bytes; the fragment shader keeps the pixels
   `disc.h`'s rule covers, centres within the radius by squared distance, every product and sum
   rounded once (`precise`). Software's rows end where the same rule says, so both draw the same

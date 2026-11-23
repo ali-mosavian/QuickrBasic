@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """shaders.py: gfx's one shader (stdlib/gfx/gpu/shaders) in each language a host takes, its vertex
 stage twice: for plain vertices and, with DISC, for discs. glslang makes SPIR-V, and spirv-cross MSL
-for SDL_GPU's Metal. The header it writes is committed, so a build needs neither tool: run `make
-shaders` after an edit (tools/deps.sh shaders builds them)."""
+for SDL_GPU's Metal and ESSL for the page's WebGL2. The header it writes is committed, so a build
+needs neither tool: run `make shaders` after an edit (tools/deps.sh shaders builds them)."""
 
 import subprocess
 import sys
@@ -17,6 +17,7 @@ SHADERS = {"draw_vert": ("draw.vert", ()), "disc_vert": ("draw.vert", ("-DDISC",
 OUT = ROOT / "stdlib" / "gfx" / "gpu" / "shaders.h"
 # SDL_GPU's Metal names a resource by its binding, as SDL_shadercross does
 MSL = ["--msl", "--msl-version", "20000", "--msl-decoration-binding"]
+LANGUAGES = {"msl": MSL, "essl": ["--es", "--version", "300"]}
 NOTE = "Made by tools/shaders.py from gpu/shaders: run make shaders, never edit."
 
 
@@ -38,11 +39,16 @@ def c_string(name: str, text: str) -> str:
 
 def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        msl = {name: run(BIN / "spirv-cross", spirv(name, Path(tmp)), *MSL) for name in SHADERS}
+        spvs = {name: spirv(name, Path(tmp)) for name in SHADERS}
+        code = {
+            f"{name}_{language}": run(BIN / "spirv-cross", spvs[name], *flags)
+            for language, flags in LANGUAGES.items()
+            for name in SHADERS
+        }
 
     OUT.write_text(
         f"/* {NOTE} */\n#ifndef GFX_GPU_SHADERS_H\n#define GFX_GPU_SHADERS_H\n"
-        + "".join(c_string(f"{name}_msl", msl[name]) for name in SHADERS)
+        + "".join(c_string(name, text) for name, text in code.items())
         + "#endif\n"
     )
 

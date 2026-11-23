@@ -16,11 +16,14 @@ static GpuVertex vertices[MOST_VERTICES];
 static GpuDisc discs[MOST_VERTICES];
 static float uniforms[4]; /* the last UNIFORMS' */
 static uint8_t pixels[MOST_PIXELS * 4];
+static QxShader language; /* the one the host takes */
+static bool down;         /* its clip space's y runs down */
 
 static bool QX_CALL fake_open(QxScreen *const s)
 {
     s->gpu = true;
-    s->shader = QX_SHADER_MSL;
+    s->shader = language;
+    s->y_down = down;
     s->out_w = s->w;
     s->out_h = s->h;
     return true;
@@ -74,9 +77,18 @@ static void QX_CALL fake_read(
 
 #define GPU_CALL(name, ...) CALL_ON(&fake, name __VA_OPT__(, ) __VA_ARGS__)
 
-/* A w by h screen of depth on the fake host, the state fresh. */
-static void screen(Session *const S, const int32_t w, const int32_t h, const int32_t depth)
+/* A w by h screen of depth on a fake host taking shader, y down or not, the state fresh. */
+static void screen_in(
+    Session *const S,
+    const int32_t w,
+    const int32_t h,
+    const int32_t depth,
+    const QxShader shader,
+    const bool y_down
+)
 {
+    language = shader;
+    down = y_down;
     fake = S->natv.host;
     fake.minor = 2;
     fake.gfx_open = fake_open;
@@ -88,6 +100,12 @@ static void screen(Session *const S, const int32_t w, const int32_t h, const int
     memset(pixels, 0, sizeof pixels);
     CHECK(!GPU_CALL("display.open", I(w), I(h), I(depth), I(0)).error);
     CHECK(GPU_CALL("display.caps").result.i == GFX_DISPLAY_HAS_GPU);
+}
+
+/* A w by h screen of depth on a fake Metal. */
+static void screen(Session *const S, const int32_t w, const int32_t h, const int32_t depth)
+{
+    screen_in(S, w, h, depth, QX_SHADER_MSL, false);
 }
 
 /* A list's buffers' ops; the first's after them, the canvas, the palette and the pipelines. */
@@ -313,6 +331,25 @@ TEST(gfx_gpu_draws_shapes_in_one_batch)
         vertices[4].r == 0xFF
     );
     CHECK(vertices[4].u == 0.5f && vertices[4].rw == 1 && vertices[4].light == 63);
+}
+
+/* A WebGL2 host gets ESSL, its y down the rows: the shader is told 1. */
+TEST(gfx_gpu_speaks_the_hosts_language)
+{
+    screen_in(S, 8, 8, 32, QX_SHADER_ESSL, true);
+    GPU_CALL("draw.clear", I(0));
+    GPU_CALL("display.flip");
+
+    for (uint32_t k = 0; k < 6; k++) {
+        const uint32_t vertex[] = {arg(QX_LIST_PIPELINE, k, 6), arg(QX_LIST_PIPELINE, k, 7)};
+
+        const uint32_t fragment[] = {arg(QX_LIST_PIPELINE, k, 9), arg(QX_LIST_PIPELINE, k, 10)};
+
+        CHECK(!memcmp(pointer(vertex), "#version 300 es", 15));
+        CHECK(!memcmp(pointer(fragment), "#version 300 es", 15));
+    }
+
+    CHECK(uniforms[2] == 1);
 }
 
 /* BLEND at alpha 32 is its own batch, alpha 32 of 63 as 129 of 255. */

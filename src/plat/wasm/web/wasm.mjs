@@ -227,6 +227,10 @@ export function imports(memory, host) {
         return 0;
       }
     },
+    gpu_open: (w, h) => (host.gpu?.open(w, h) ? 1 : 0),
+    gpu_close: () => host.gpu?.close(),
+    gpu_play: (list, words) => host.gpu?.play(list, words),
+    gpu_read: (id, x, y, w, h, out) => host.gpu?.read(id, x, y, w, h, out),
     audio_open: (render, out, stack, lock) => {
       const ext = loaded.find((x) => render >= x.tableBase && render < x.tableBase + x.need.table);
       if (!host.audio || !ext) return 0;

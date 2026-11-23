@@ -18,9 +18,10 @@
  *   each, into it.
  * - PIPELINE id, blend, stride, samplers, vertex code, fragment code, attributes: how a DRAW with
  *   it draws. Code is three words, its bytes then a pointer, in the language gfx_open gave
- *   (QxScreen.shader), its entry main0; the vertex code's uniform block is binding 0, the
- *   fragment code's samplers bindings 0 up, nearest. A vertex is stride bytes, each attribute
- *   three words: its location, format and offset. Drawn, a pixel's colour c goes in as c
+ *   (QxScreen.shader); the vertex code's uniform block is binding 0, the fragment code's
+ *   samplers bindings 0 up, nearest. MSL's entry is main0. ESSL has no bindings: its one
+ *   uniform block is 0, the sampler at binding n named sn. A vertex is stride bytes, each
+ *   attribute three words: its location, format and offset. Drawn, a pixel's colour c goes in as c
  *   (QX_BLEND_NONE), c times the draw's alpha over the rest (MIX), or c times alpha added (ADD).
  *   A pixel drawn is opaque.
  * - PASS id: the RGBA texture the draws after go into, its pixels kept.

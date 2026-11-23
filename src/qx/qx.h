@@ -65,8 +65,8 @@ typedef struct {
     void(QX_CALL *render)(int16_t *out, int32_t frames);
 } QxAudio;
 
-/* A shading language a GPU's host takes (qxlist.h's PIPELINE). */
-typedef enum : uint8_t { QX_SHADER_MSL = 1 } QxShader;
+/* A shading language a GPU's host takes (qxlist.h's PIPELINE): MSL 2.0, ESSL 3.00 (WebGL2's). */
+typedef enum : uint8_t { QX_SHADER_MSL = 1, QX_SHADER_ESSL } QxShader;
 
 /* A screen asked for (gfx_open), then what the host gives. */
 typedef struct {

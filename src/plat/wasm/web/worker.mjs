@@ -1,12 +1,14 @@
 // The module's thread: the IDE on an in-memory file system. The page gives it the module, the shared
-// memory, the command line and the files; it tells the page the irq block's address, each file
-// written (to keep), each tone and voice, each audio stream opened, and the exit.
+// memory, the command line, the files and its GPU's counters, if it has one; it tells the page the irq
+// block's address, each file written (to keep), each tone and voice, each audio stream opened, each
+// GPU screen, list and read (gpu.mjs), and the exit.
+import { GpuLink } from './gpu.mjs';
 import { MemFs } from './memfs.mjs';
 import { imports, Irq } from './wasm.mjs';
 
 class Exit extends Error {}
 
-onmessage = ({ data: { module, memory, args, files } }) => {
+onmessage = ({ data: { module, memory, args, files, gpu } }) => {
   const fs = new MemFs((path, bytes) => postMessage({ file: path, bytes }));
   for (const [path, bytes] of files) fs.put(path, bytes);
   const host = {
@@ -19,6 +21,7 @@ onmessage = ({ data: { module, memory, args, files } }) => {
     tone: (hz) => postMessage({ tone: hz, at: performance.now() }),
     voice: (n, bytes) => postMessage({ voice: n, bytes }),
     audio: (spec) => postMessage({ audio: spec }),
+    gpu: gpu ? new GpuLink(memory, gpu, (m, moved) => postMessage(m, moved)) : null,
   };
   const ex = (host.ex = new WebAssembly.Instance(module, imports(memory, host)).exports);
   new Irq(memory, ex.irq()).keyboard = true; // before main: the runtime's console is the screen

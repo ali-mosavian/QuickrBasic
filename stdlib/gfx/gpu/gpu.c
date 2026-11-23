@@ -87,8 +87,24 @@ static const uint8_t *texels(
     return out;
 }
 
-/* The pipelines, a kind of vertex and blend each, the shader's attributes and code in MSL. */
-static bool pipelines(GpuList *const l)
+/* A language's code: each kind's vertex stage, the fragment stage. */
+typedef struct {
+    const char *vertex[KINDS], *fragment;
+    uint32_t vertex_bytes[KINDS], fragment_bytes;
+} Code;
+
+#define CODE(language)                                                                             \
+    {                                                                                              \
+        {draw_vert_##language, disc_vert_##language},                                              \
+        draw_frag_##language,                                                                      \
+        {sizeof draw_vert_##language - 1, sizeof disc_vert_##language - 1},                        \
+        sizeof draw_frag_##language - 1,                                                           \
+    }
+
+static const Code codes[] = {[QX_SHADER_MSL] = CODE(msl), [QX_SHADER_ESSL] = CODE(essl)};
+
+/* The pipelines, a kind of vertex and blend each, the shader's attributes and its code in c. */
+static bool pipelines(GpuList *const l, const Code *const c)
 {
     /* PIPELINE's words: its code's, its first attribute's, an attribute's */
     enum { VERTEX_CODE = 4, FRAGMENT_CODE = 7, HEAD = 10, ATTRIBUTE = 3 };
@@ -104,11 +120,10 @@ static bool pipelines(GpuList *const l)
     };
 
     static const struct {
-        const char *code;
-        uint32_t bytes, stride, attributes;
+        uint32_t stride, attributes;
     } kinds[KINDS] = {
-        {draw_vert_msl, sizeof draw_vert_msl - 1, sizeof(GpuVertex), PLAIN_ATTRIBUTES},
-        {disc_vert_msl, sizeof disc_vert_msl - 1, sizeof(GpuDisc), DISC_ATTRIBUTES},
+        {sizeof(GpuVertex), PLAIN_ATTRIBUTES},
+        {sizeof(GpuDisc), DISC_ATTRIBUTES},
     };
 
     for (Kind k = 0; k < KINDS; k++)
@@ -120,10 +135,10 @@ static bool pipelines(GpuList *const l)
                 LIST_TEXTURES,
             };
 
-            args[VERTEX_CODE] = kinds[k].bytes;
-            args[FRAGMENT_CODE] = sizeof draw_frag_msl - 1;
-            list_pointer(args + VERTEX_CODE + 1, kinds[k].code);
-            list_pointer(args + FRAGMENT_CODE + 1, draw_frag_msl);
+            args[VERTEX_CODE] = c->vertex_bytes[k];
+            args[FRAGMENT_CODE] = c->fragment_bytes;
+            list_pointer(args + VERTEX_CODE + 1, c->vertex[k]);
+            list_pointer(args + FRAGMENT_CODE + 1, c->fragment);
             mem_copy(args + HEAD, attributes, kinds[k].attributes * sizeof *attributes);
 
             if (!list_op(l, QX_LIST_PIPELINE, args, HEAD + kinds[k].attributes * ATTRIBUTE))
@@ -151,9 +166,11 @@ bool gpu_open(Gpu *const g, const QxScreen *const s)
         {PALETTE, PAL_COLOURS, PAL_ROWS, QX_TEXTURE_RGBA},
     };
 
-    if (!canvas || s->shader != QX_SHADER_MSL || !list_init(&g->list) ||
+    const Code *const code = s->shader < sizeof codes / sizeof *codes ? &codes[s->shader] : nullptr;
+
+    if (!canvas || !code || !code->fragment || !list_init(&g->list) ||
         !list_op(&g->list, QX_LIST_TEXTURE, made[0], 4) ||
-        !list_op(&g->list, QX_LIST_TEXTURE, made[1], 4) || !pipelines(&g->list))
+        !list_op(&g->list, QX_LIST_TEXTURE, made[1], 4) || !pipelines(&g->list, code))
         return false;
 
     *canvas = (GpuTexture){.handle = GFX_SURFACE_CANVAS, .format = QX_TEXTURE_RGBA};

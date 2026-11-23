@@ -212,6 +212,18 @@ build/host/ext/gfx.so: $(GFX_SLICE_C) $(shell find stdlib/gfx -name '*.h' -not -
 build/host/lib/gfx.qbx: $(GFX_PARTS) build/host/ext/gfx.so tools/qbx.py
 	@mkdir -p $(@D)
 	$(PY) tools/qbx.py pack $@ --minor 1 $(GFX_PARTS) $(HOST_TAG)=build/host/ext/gfx.so
+# and for the page, in its lib/: its slice a wasm side module
+GFX_WASM_OBJ := $(GFX_SLICE_C:%.c=build/wasm/gfx/%.o)
+build/wasm/gfx/%.o: %.c | build/ext/gfx_qx.c
+	@mkdir -p $(@D)
+	$(CLANG) --target=wasm32-unknown-unknown -matomics -mbulk-memory -fPIC -fvisibility=hidden $(QX_CFLAGS) \
+		$(GFX_INC) $(DEPFLAGS) -c $< -o $@
+build/wasm/ext/gfx.wasm: $(GFX_WASM_OBJ)
+	@mkdir -p $(@D)
+	$(WASM_LD) -shared --experimental-pic --shared-memory --features=$(WASM_FEATURES) -o $@ $^
+build/web/lib/gfx.qbx: $(GFX_PARTS) build/wasm/ext/gfx.wasm tools/qbx.py
+	@mkdir -p $(@D)
+	$(PY) tools/qbx.py pack $@ --minor 1 $(GFX_PARTS) wasm32=build/wasm/ext/gfx.wasm
 
 host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/hostperf/basic build/host/ext/qxtest.so \
 		build/host/lib/gfx.qbx
@@ -439,12 +451,15 @@ build/wasm/basic: build/wasm/basic.wasm
 WEB_SRC := $(wildcard src/plat/wasm/web/*.mjs src/plat/wasm/web/*.js src/plat/wasm/web/*.html) \
 	$(shell find src/plat/wasm/web/demos -type f)
 web: build/web/ide.wasm build/web/synth.wasm build/web/BASIC.HLP build/web/demos/MODULES build/web/lib/MODULES \
-	$(WEB_SRC:src/plat/wasm/web/%=build/web/%)
+	$(WEB_SRC:src/plat/wasm/web/%=build/web/%) build/web/lib/gfx.qbx build/web/demos/GFXDEMO.BAS
 # Quickr's library, fetched to /lib beside C:\BASIC.EXE, where a module is looked for last; one name a line
 build/web/lib/MODULES: $(STDLIB)
 	@mkdir -p $(@D)
 	cp $^ $(@D)
 	cd stdlib && ls *.bas > $(CURDIR)/$@
+build/web/demos/GFXDEMO.BAS: $(GFX_DEMO)
+	@mkdir -p $(@D)
+	cp $< $@
 # the demos' modules, one path a line: the page fetches them from here, as the folders cannot be listed
 build/web/demos/MODULES: $(shell find src/plat/wasm/web/demos -mindepth 2 -name '*.bas')
 	@mkdir -p $(@D)
