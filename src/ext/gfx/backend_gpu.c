@@ -5,8 +5,8 @@
  * A shape draws from the white texel, its colour in the vertices (an index through the pen's row at
  * 8 bits), times the pen's tint. A picture's vertices carry its texels, its rectangle and its
  * stages. Pixels are squares about whole numbers, so a shape's edges lie half a pixel round the
- * centres it covers, as software's. Lines are quads a pixel wide; circles and arcs are polygons of
- * a segment every two pixels or so.
+ * centres it covers, as software's. A line covers software's pixels, one a step along its longer
+ * side; circles and arcs are polygons of a segment every two pixels or so.
  */
 #include "gfx.h"
 #include "gmath.h"
@@ -176,25 +176,37 @@ static void pset(const Target *const t, const Vec p, const uint32_t colour)
     box(t, &ink, x - 0.5f, y - 0.5f, x + 0.5f, y + 0.5f);
 }
 
-/* A pixel wide, half a pixel past each end. */
-static void segment(const Target *const t, const QxVertex *const ink, const Vec a, const Vec b)
+/* Software's line (Bresenham's) from a's pixel to b's, b's only when last: a parallelogram a pixel
+   across the longer side, about the line between the pixels' centres, so each step along that
+   side covers the one pixel nearest the line. */
+static void segment(
+    const Target *const t,
+    const QxVertex *const ink,
+    const Vec a,
+    const Vec b,
+    const bool last
+)
 {
-    const float dx = b.x - a.x, dy = b.y - a.y, len = gm_sqrt(dx * dx + dy * dy);
-    const float ux = len > 0 ? dx / len * 0.5f : 0.5f, uy = len > 0 ? dy / len * 0.5f : 0;
+    const float x = (float)scan_pixel(a.x), y = (float)scan_pixel(a.y);
+    const float dx = (float)scan_pixel(b.x) - x, dy = (float)scan_pixel(b.y) - y;
+    const bool wide = (dx < 0 ? -dx : dx) >= (dy < 0 ? -dy : dy);
+    const float run = wide ? dx : dy, slope = run != 0 ? (wide ? dy : dx) / run : 0;
+    const float half = run < 0 ? -0.5f : 0.5f, from = -half, to = run + (last ? half : -half);
     const Vec p[] = {
-        {a.x - ux - uy, a.y - uy + ux},
-        {b.x + ux - uy, b.y + uy + ux},
-        {b.x + ux + uy, b.y + uy - ux},
-        {a.x - ux + uy, a.y - uy - ux},
+        wide ? (Vec){x + from, y + from * slope - 0.5f} : (Vec){x + from * slope - 0.5f, y + from},
+        wide ? (Vec){x + to, y + to * slope - 0.5f} : (Vec){x + to * slope - 0.5f, y + to},
+        wide ? (Vec){x + to, y + to * slope + 0.5f} : (Vec){x + to * slope + 0.5f, y + to},
+        wide ? (Vec){x + from, y + from * slope + 0.5f} : (Vec){x + from * slope + 0.5f, y + from},
     };
 
-    quad(t, ink, p, nullptr);
+    if (from != to)
+        quad(t, ink, p, nullptr);
 }
 
 static void line(const Target *const t, const Vec a, const Vec b, const uint32_t colour)
 {
     const QxVertex ink = shape(&t->gpu, colour);
-    segment(t, &ink, a, b);
+    segment(t, &ink, a, b, true);
 }
 
 static void outline(
@@ -207,7 +219,7 @@ static void outline(
     const QxVertex ink = shape(&t->gpu, colour);
 
     for (uint32_t i = 0; i < n; i++)
-        segment(t, &ink, p[i], p[(i + 1) % n]);
+        segment(t, &ink, p[i], p[(i + 1) % n], false);
 }
 
 /* A fan from p[0], in ink. */

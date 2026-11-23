@@ -1,6 +1,7 @@
 /* The GPU's list, on a host that records what it is given to play and reads back pixels it is
    told: each frame's ops in order, its batches and vertices, worked by hand. */
 #include "qxlist.h"
+#include "soft/scan.h"
 #include "surface.h"
 #include "test.h"
 
@@ -97,6 +98,83 @@ static uint32_t arg(const QxListOp op, const uint32_t k, const uint32_t i)
 static bool placed(const QxVertex *const v, const float x, const float y)
 {
     return v->x == x && v->y == y;
+}
+
+/* The pixels of the last list's triangles, as a GPU covers them (centres inside, top and left
+   edges in): '#' a pixel covered once, '2' more. */
+static void cover(void *const ctx, const int32_t y, const int32_t x0, const int32_t x1)
+{
+    char (*const rows)[9] = ctx;
+
+    for (int32_t x = x0; x < x1; x++)
+        rows[y][x] = rows[y][x] == '.' ? '#' : '2';
+}
+
+static bool covered(const uint32_t first, const uint32_t n, const char *const want[8])
+{
+    char rows[8][9];
+    memset(rows, '.', sizeof rows);
+
+    for (uint32_t i = 0; i < 8; i++)
+        rows[i][8] = 0;
+
+    for (uint32_t i = first; i + 2 < first + n; i += 3) {
+        const Vec p[] = {
+            {vertices[i].x, vertices[i].y},
+            {vertices[i + 1].x, vertices[i + 1].y},
+            {vertices[i + 2].x, vertices[i + 2].y},
+        };
+
+        scan_convex(p, 3, (Rect){0, 0, 8, 8}, cover, rows);
+    }
+
+    for (uint32_t i = 0; i < 8; i++)
+        if (strcmp(rows[i], want[i]))
+            return false;
+
+    return true;
+}
+
+/* A line covers software's pixels, one a step along its longer side: a quad a pixel wide across
+   it once covered two at each step of a diagonal. An outline's edge leaves its end to the next,
+   each corner covered once: the quads once overlapped there, drawn twice where blended. */
+TEST(gfx_gpu_lines_cover_softwares_pixels)
+{
+    static const char *const line[8] = {
+        "........",
+        "........",
+        ".......#",
+        ".....##.",
+        "....#...",
+        "...#....",
+        ".##.....",
+        "#.......",
+    };
+
+    static const char *const outline[8] = {
+        "........",
+        ".######.",
+        ".#...#..",
+        ".#..#...",
+        ".#.#....",
+        ".##.....",
+        ".#......",
+        "........",
+    };
+
+    gfx_draw_vec2 tri[] = {{1, 1}, {6, 1}, {1, 6}};
+
+    QxArray a = gfx_array(tri, 3, sizeof *tri);
+
+    screen(S, 8, 8, 32);
+    GPU_CALL("draw.line", F(0), F(7), F(7), F(2), I(0xFFFFFF));
+    GPU_CALL("display.flip");
+    CHECK(covered(0, arg(QX_LIST_DRAW, 0, 2), line));
+
+    screen(S, 8, 8, 32);
+    GPU_CALL("draw.poly", ARRAY(&a), I(0), I(3), I(0xFFFFFF), I(0));
+    GPU_CALL("display.flip");
+    CHECK(covered(0, arg(QX_LIST_DRAW, 0, 2), outline));
 }
 
 /* A clear and a rect are one batch from the white texel, its colour in the vertices. */
