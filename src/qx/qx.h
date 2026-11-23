@@ -30,7 +30,7 @@
 #define QX_EXPORT __attribute__((visibility("default")))
 #endif
 
-enum { QX_ABI = 1, QX_MINOR = 0 };
+enum { QX_ABI = 1, QX_MINOR = 1 };
 
 typedef struct QxCall QxCall;
 typedef void QX_CALL QxFn(QxCall *c);
@@ -65,6 +65,15 @@ typedef struct {
     void(QX_CALL *render)(int16_t *out, int32_t frames);
 } QxAudio;
 
+/* A screen asked for (gfx_open), then what the host gives. */
+typedef struct {
+    uint16_t w, h;         /* the canvas */
+    uint8_t depth, flags;  /* 8 bits a pixel; gfx.display's flags */
+    bool gpu;              /* given: the host plays lists, else it lends pages */
+    uint16_t out_w, out_h; /* given: the pixels the canvas is shown at */
+    float hz;              /* given: the refresh, 0 unknown */
+} QxScreen;
+
 typedef struct QxHost {
     uint32_t size, abi, minor;
     /* Memory the extension keeps: zeroed, null when none is left. */
@@ -80,6 +89,18 @@ typedef struct QxHost {
     /* render held off while what it reads changes, till audio_unlock with the token: nests. */
     uint32_t(QX_CALL *audio_lock)(void);
     void(QX_CALL *audio_unlock)(uint32_t token);
+    /* Minor 1. A screen shown in the runtime's place until gfx_close or the run's end: false,
+       none of that depth. */
+    bool(QX_CALL *gfx_open)(QxScreen *s);
+    void(QX_CALL *gfx_close)(void);
+    /* The page to draw the next frame in, pitch bytes a row; the last frame's pixels still in it. */
+    void *(QX_CALL *gfx_page)(uint32_t *pitch);
+    /* The page is shown: at 8 bits with these 256 colours, &HRRGGBB. */
+    void(QX_CALL *gfx_show)(const uint32_t *palette);
+    /* Microseconds, only ever forward. */
+    uint64_t(QX_CALL *clock_us)(void);
+    /* The file at path (len bytes) whole, in alloc's memory, *bytes of it: null, none. */
+    void *(QX_CALL *file_read)(const char *path, uint32_t len, uint32_t *bytes);
 } QxHost;
 
 /* One call: its arguments; a FUNCTION's result; an error raised at the calling line once the

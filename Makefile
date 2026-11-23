@@ -338,7 +338,7 @@ WASM_CFLAGS := $(WASM_TARGET) -std=c23 -O2 -g -Wall -Wextra -Wno-unused-paramete
 	-DPFIL_PATH=1024 -DAC=$(AC) -isystem src/plat/wasm/include -isystem src/lib/include -Isrc -Isrc/core
 # -MD, not -MMD: the shim's headers are -isystem, and -MMD leaves those out of the dependencies
 WASM_DEPFLAGS = -MD -MP -MF $@.d -MT $@
-WASM_C := $(filter-out src/plat/host/% src/plat/synth/% src/plat/audio/%,$(HOST_C)) $(addprefix src/plat/host/,pclk.c pfil.c pfpu.c pkey.c pscr.c ports.c) $(wildcard src/plat/wasm/*.c) \
+WASM_C := $(filter-out src/plat/host/% src/plat/synth/% src/plat/audio/%,$(HOST_C)) $(addprefix src/plat/host/,pclk.c pfil.c pfpu.c pgfx.c pkey.c pscr.c ports.c) $(wildcard src/plat/wasm/*.c) \
 	$(wildcard src/plat/view/*.c)
 WASM_QBRT_C := $(filter-out shared/posix/os.c,$(QBRT_HOST_C))
 WASM_OBJ := $(WASM_C:src/%.c=build/wasm/obj/%.o) $(WASM_QBRT_C:%.c=build/wasm/qbrt/%.o) build/wasm/obj/qbrt/qbrt.o \

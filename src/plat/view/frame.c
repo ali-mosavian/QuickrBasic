@@ -11,6 +11,7 @@
  */
 #include "plat/view/view.h"
 #include "plat/host/host.h"
+#include "plat/pgfx.h"
 #include "qbrt/qbrt.h"
 
 /* A text cell is the VGA's 9 dots wide: the font's 8, the 9th the 8th again for C0h..DFh (lines that
@@ -38,6 +39,24 @@ static uint32_t rgba(const uint8_t r, const uint8_t g, const uint8_t b)
 
 static uint8_t eight(const uint8_t six) { return (uint8_t)(six << 2 | six >> 4); }
 
+/* w by h pixels, a byte each, through colours, into out. */
+static void indexed(
+    const uint8_t *const px,
+    const uint32_t w,
+    const uint32_t h,
+    const uint32_t *const colours
+)
+{
+    out.width = w < VIEW_MAX_W ? w : VIEW_MAX_W;
+    out.height = h < VIEW_MAX_H ? h : VIEW_MAX_H;
+    out.cell_h = 0;
+
+    for (uint32_t y = 0; y < out.height; y++)
+        for (uint32_t x = 0; x < out.width; x++)
+            out.rgba[y * out.width + x] = colours[px[y * w + x]];
+}
+
+/* The runtime's graphics mode. */
 static void graphics(void)
 {
     uint8_t rgb[256][3];
@@ -47,13 +66,22 @@ static void graphics(void)
     for (uint32_t i = 0; i < 256; i++)
         colours[i] = rgba(rgb[i][0], rgb[i][1], rgb[i][2]);
 
-    const uint8_t *const px = host_pixels();
-    out.width = host_width();
-    out.height = host_height();
-    out.cell_h = 0;
+    indexed(host_pixels(), host_width(), host_height(), colours);
+}
 
-    for (uint32_t i = 0; i < out.width * out.height; i++)
-        out.rgba[i] = colours[px[i]];
+/* gfx's frame: its colours &HRRGGBB. */
+static void gfx(const PgfxFrame *const f)
+{
+    uint32_t colours[256];
+
+    for (uint32_t i = 0; i < 256; i++)
+        colours[i] = rgba(
+            (uint8_t)(f->palette[i] >> 16),
+            (uint8_t)(f->palette[i] >> 8),
+            (uint8_t)f->palette[i]
+        );
+
+    indexed(f->pixels, f->w, f->h, colours);
 }
 
 /* A CGA cursor line, 0-7, in a VGA cell. */
@@ -107,7 +135,11 @@ static void text(const bool blink, const ViewPointer pointer)
 
 const ViewFrame *view_frame(const bool blink, const ViewPointer pointer)
 {
-    if (qbrt_graphics() && !view_text_shown)
+    PgfxFrame f;
+
+    if (!view_text_shown && pgfx_shown(&f))
+        gfx(&f);
+    else if (qbrt_graphics() && !view_text_shown)
         graphics();
     else
         text(blink, pointer);

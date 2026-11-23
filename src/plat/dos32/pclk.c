@@ -84,3 +84,6 @@ static uint32_t jiffies(void)
 uint32_t pclk_jiffies(void) { return (jiffies() + toff) % JDAY; }
 
 void pclk_set_jiffies(const uint32_t j) { toff = j - jiffies() + JDAY; }
+
+/* The BIOS's ticks, 54925 us each, until the PIT's count is read: forward until midnight. */
+uint64_t pclk_us(void) { return (uint64_t)pclk_ticks() * 54925; }

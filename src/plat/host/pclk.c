@@ -87,3 +87,10 @@ static uint32_t jiffies(void)
 
 uint32_t pclk_jiffies(void) { return (jiffies() + toff) % JDAY; }
 void pclk_set_jiffies(const uint32_t j) { toff = j - jiffies() + JDAY; }
+
+uint64_t pclk_us(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000000 + (uint64_t)ts.tv_nsec / 1000;
+}

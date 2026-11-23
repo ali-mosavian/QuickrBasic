@@ -10,8 +10,10 @@
  */
 #include "io/native.h"
 #include "plat/paud.h"
+#include "plat/pclk.h"
 #include "plat/pext.h"
 #include "plat/pfil.h"
+#include "plat/pgfx.h"
 #include "util/grow.h"
 
 static void *QX_CALL host_alloc(const uint32_t bytes)
@@ -46,33 +48,23 @@ static bool QX_CALL host_stopped(QxCall *const c)
     return *container_of(c, NatvCall, c)->stop & SF_BRK;
 }
 
-void natv_init(Natv *const n, Fault *const f)
+/* Pages in memory, the platform's: no GPU's lists yet. */
+static bool QX_CALL host_gfx_open(QxScreen *const s)
 {
-    *n = (Natv){
-        .fault = f,
-        .host = {
-            .size = sizeof(QxHost),
-            .abi = QX_ABI,
-            .minor = QX_MINOR,
-            .alloc = host_alloc,
-            .free = host_free,
-            .result_str = host_result_str,
-            .stopped = host_stopped,
-            .audio_open = host_audio,
-            .audio_lock = host_lock,
-            .audio_unlock = host_unlock,
-        },
-    };
+    s->gpu = false;
+    s->out_w = s->w;
+    s->out_h = s->h;
+    s->hz = 0;
+    return pgfx_open(s->w, s->h, s->depth);
 }
 
-static NatvFile *find(Natv *const n, const char *const path)
-{
-    for (uint32_t i = 0; i < n->nfiles; i++)
-        if (!strcmp(n->files[i].path, path))
-            return &n->files[i];
+static void QX_CALL host_gfx_close(void) { pgfx_close(); }
 
-    return nullptr;
-}
+static void *QX_CALL host_gfx_page(uint32_t *const pitch) { return pgfx_page(pitch); }
+
+static void QX_CALL host_gfx_show(const uint32_t *const palette) { pgfx_show(palette); }
+
+static uint64_t QX_CALL host_clock_us(void) { return pclk_us(); }
 
 /* The file at path whole, into the C heap: its bytes, *size; null when it cannot be read. */
 static uint8_t *slurp(const char *const path, uint32_t *const size)
@@ -95,6 +87,53 @@ static uint8_t *slurp(const char *const path, uint32_t *const size)
 
     pfil_close(h);
     pmem_free(data);
+    return nullptr;
+}
+
+static void *QX_CALL
+host_file_read(const char *const path, const uint32_t len, uint32_t *const bytes)
+{
+    char name[PFIL_PATH];
+
+    if (len >= sizeof name)
+        return nullptr;
+
+    memcpy(name, path, len);
+    name[len] = 0;
+    return slurp(name, bytes);
+}
+
+void natv_init(Natv *const n, Fault *const f)
+{
+    *n = (Natv){
+        .fault = f,
+        .host = {
+            .size = sizeof(QxHost),
+            .abi = QX_ABI,
+            .minor = QX_MINOR,
+            .alloc = host_alloc,
+            .free = host_free,
+            .result_str = host_result_str,
+            .stopped = host_stopped,
+            .audio_open = host_audio,
+            .audio_lock = host_lock,
+            .audio_unlock = host_unlock,
+            .gfx_open = host_gfx_open,
+            .gfx_close = host_gfx_close,
+            .gfx_page = host_gfx_page,
+            .gfx_show = host_gfx_show,
+            .clock_us = host_clock_us,
+            .file_read = host_file_read,
+        },
+    };
+}
+
+static NatvFile *find(Natv *const n, const char *const path)
+{
+    for (uint32_t i = 0; i < n->nfiles; i++)
+        if (!strcmp(n->files[i].path, path))
+            return &n->files[i];
+
     return nullptr;
 }
 
@@ -192,6 +231,8 @@ void natv_stop(Natv *const n)
     for (uint32_t i = 0; i < n->nfiles; i++)
         if (n->files[i].module && n->files[i].module->stop)
             n->files[i].module->stop();
+
+    pgfx_close(); /* a screen an extension left open ends with the run */
 }
 
 static bool same(const char *const a, const char *const b, const uint32_t len)

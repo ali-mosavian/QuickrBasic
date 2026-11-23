@@ -40,7 +40,7 @@ uint32_t natv_open(Natv *n, const char *path);
 const QxModule *natv_module(Natv *n, const char *path);
 /* A run starts: each loaded module's stop, if it ran, then its start. */
 void natv_start(Natv *n);
-/* A run ends: each loaded module's stop, once. */
+/* A run ends: each loaded module's stop, once; gfx's screen closed. */
 void natv_stop(Natv *n);
 /* Module m's entry of that name, compared without case: null none. */
 const QxEntry *natv_entry(const QxModule *m, const char *name, uint32_t len);
