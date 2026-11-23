@@ -46,13 +46,13 @@ int32_t gfx_surface_load(const QxStr file)
         return gx_fail(ERR_NOT_FOUND);
 
     Image img;
-    const ImgStatus status = img_bmp(data, n, &img);
+    const ImgStatus status = img_load(data, n, &img);
     mem_free(data);
 
     if (status != IMG_OK)
         return gx_fail(status == IMG_NO_MEMORY ? ERR_MEMORY : ERR_ILLEGAL);
 
-    return (int32_t)made(surf_new(&g->surfaces, img.w, img.h, PX_8, img.pixels, img.palette));
+    return (int32_t)made(surf_new(&g->surfaces, img.w, img.h, img.format, img.pixels, img.palette));
 }
 
 int32_t gfx_surface_view(

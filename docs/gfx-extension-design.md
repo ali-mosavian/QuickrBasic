@@ -385,7 +385,7 @@ takes its own part. Memory is the host's (`alloc`), taken when first used: nothi
 | `mem` | the host's memory, and copies without a C library |
 | `handle` | handles: slots and generations |
 | `surface` | surfaces, views and anchors; the pages images are packed in |
-| `image` | a file's bytes to pixels and a palette: BMP, then PNG |
+| `image`, `bmp`, `png`, `inflate` | a file's bytes to pixels: BMP or PNG, by their first bytes; PNG's zlib streams |
 | `colour` | palette rows, the light table, the blend tables, the nearest index |
 | `pen` | the pen |
 | `command` | a draw call to a command, the camera applied; the frame's log |
@@ -501,6 +501,10 @@ Step 3, in parts:
   texel 0 is the key, as an index 0 is; a 32-bit one's alpha under a half. What is drawn into a
   32-bit surface is opaque, so a new one is clear until drawn on. `surface.point` gives
   `&HRRGGBB`; `read` and `write` the pixels' bytes.
+- **PNG**: `surface.load` reads a PNG of any type and depth, not interlaced. An indexed one with at
+  most one transparent colour stays 8 bits, that colour swapped with index 0, the key's; the rest
+  load at 32 bits, alpha the file's or tRNS's. `inflate.c` reads the zlib stream as zlib's `puff`
+  does, a code a bit at a time: small, and fast enough for a game's pictures.
 
 ## Prior art
 
@@ -535,6 +539,6 @@ Step 3, in parts:
 | What is drawn | everything is a surface; an atlas is an image and views over it |
 | The package | five modules, `display`, `surface`, `pen`, `draw`, `scene`, in one `gfx.qbx` |
 | Software's frame | drawn in memory the host lends |
-| Images | BMP first, PNG next |
+| Images | BMP and PNG |
 | Software's pixels | fused fillers for the hot mixes, µGL's `tfx` rows for the rest |
 | Stages on a GPU | one shader a backend, the stages bits in the vertices |
