@@ -83,6 +83,7 @@ uint32_t surf_new(
         .format = format,
         .own = pixels,
         .palette = palette,
+        .version = own != nullptr,
     };
 
     const uint32_t handle = pixels ? hold(ss, s, false) : 0;
@@ -118,27 +119,52 @@ uint32_t surf_view(
 
 Surface *surf_get(const Surfaces *const ss, const uint32_t h) { return hdl_item(&ss->t, h); }
 
-Picture surf_picture(const Surfaces *const ss, const Surface *const s)
+Picture surf_picture(const Surfaces *const ss, const uint32_t h)
 {
+    const Surface *const s = surf_get(ss, h);
     const Rect all = {0, 0, s->w, s->h};
 
     if (s->own)
         return (Picture){
             {s->own, (uint32_t)s->w * px_bytes(s->format), s->w, s->h, s->format},
             all,
+            h,
+            s->version,
         };
 
     if (!s->parent)
-        return (Picture){ss->canvas, all};
+        return (Picture){ss->canvas, all, h, s->version};
 
-    const Picture p = surf_picture(ss, surf_get(ss, s->parent));
-    return (Picture){p.root, {p.at.x + s->x, p.at.y + s->y, s->w, s->h}};
+    const Picture p = surf_picture(ss, s->parent);
+    return (Picture){p.root, {p.at.x + s->x, p.at.y + s->y, s->w, s->h}, p.texture, p.version};
 }
 
 Pixels surf_pixels(const Surfaces *const ss, const Surface *const s)
 {
-    const Picture p = surf_picture(ss, s);
-    return pic_pixels(&p);
+    if (s->own)
+        return (Pixels){s->own, (uint32_t)s->w * px_bytes(s->format), s->w, s->h, s->format};
+
+    if (!s->parent)
+        return ss->canvas;
+
+    const Pixels p = surf_pixels(ss, surf_get(ss, s->parent));
+    return px_cut(&p, (Rect){s->x, s->y, s->w, s->h});
+}
+
+Surface *surf_root(const Surfaces *const ss, Surface *s, uint32_t *const h)
+{
+    while (s->parent) {
+        *h = s->parent;
+        s = surf_get(ss, s->parent);
+    }
+
+    return s;
+}
+
+void surf_wrote(const Surfaces *const ss, Surface *const s)
+{
+    uint32_t h = 0;
+    surf_root(ss, s, &h)->version++;
 }
 
 void surf_free(Surfaces *const ss, const uint32_t h) { drop(ss, h); }

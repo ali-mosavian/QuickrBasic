@@ -37,9 +37,36 @@ static bool ink(Gx *const g, const int32_t flags, const PxFormat format, Ink *co
     return true;
 }
 
+static bool screen_open(Gx *const g, const QxScreen *const s, const PxFormat f)
+{
+    uint32_t pitch;
+    uint8_t *const page = qx_host->gfx_page(&pitch);
+    return surf_open(&g->surfaces, (Pixels){page, pitch, s->w, s->h, f}) || gx_fail(ERR_MEMORY);
+}
+
+/* The page shown; the next one lent, the last frame's pixels in it. */
+static void screen_flip(Gx *const g)
+{
+    qx_host->gfx_show(g->palette.rows[0]);
+    Pixels canvas = g->surfaces.canvas;
+    canvas.p = qx_host->gfx_page(&canvas.pitch);
+    surf_page(&g->surfaces, canvas);
+}
+
+static void screen_close(Gx *const g) { (void)g; }
+
+static bool sync(Gx *const g, const uint32_t h)
+{
+    (void)g, (void)h;
+    return true;
+}
+
+static void forget(Gx *const g, const uint32_t h) { (void)g, (void)h; }
+
 static bool begin(Gx *const g, Surface *const s, const Command *const c, Target *const t)
 {
     const Pixels px = surf_pixels(&g->surfaces, s);
+    surf_wrote(&g->surfaces, s);
     t->soft = (SoftTarget){
         .px = px,
         .clip = t->clip,
@@ -158,6 +185,11 @@ static void texture(
 }
 
 const Backend backend_soft = {
+    .open = screen_open,
+    .flip = screen_flip,
+    .close = screen_close,
+    .sync = sync,
+    .forget = forget,
     .begin = begin,
     .source = source,
     .solid = solid,

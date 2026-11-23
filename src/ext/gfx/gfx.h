@@ -30,6 +30,7 @@ typedef struct Gx {
     const Backend *backend; /* the screen's */
     Surfaces surfaces;
     Fonts fonts;
+    Gpu gpu; /* a GPU screen's recorder */
     Palette palette;
     Pen pen;
     Camera camera;

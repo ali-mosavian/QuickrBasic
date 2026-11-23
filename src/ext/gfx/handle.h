@@ -10,7 +10,7 @@
 #define GFX_HANDLE_H
 #include <stdint.h>
 
-enum { HDL_SURFACE = 1, HDL_FONT = 2 };
+enum { HDL_SURFACE = 1, HDL_FONT = 2, HDL_SLOTS = 1 << 20 };
 
 typedef struct {
     uint8_t kind;
@@ -31,4 +31,6 @@ void *hdl_item(const HdlTable *t, uint32_t h);
 /* The handle of the item in slot, for walking the table: 0 none there. */
 uint32_t hdl_at(const HdlTable *t, uint32_t slot);
 void hdl_drop(HdlTable *t, uint32_t h);
+
+static inline uint32_t hdl_slot(const uint32_t h) { return h & (HDL_SLOTS - 1); }
 #endif

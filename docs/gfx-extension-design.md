@@ -314,9 +314,10 @@ passes and draws, already batched. At `display.flip` the host's display thread p
 with WebGL2 from the page's JavaScript. The list's format is part of the ABI. Software stays in the
 extension, and draws in memory the host lends.
 
-On a GPU an indexed texture is an 8-bit texture read exactly (`texelFetch` on WebGL2); the shader
-looks it up in the light table and the palette, both textures. The canvas at 8 bits is an 8-bit
-target, shown through the palette by a last pass.
+On a GPU an indexed texture is an 8-bit texture read exactly (`texelFetch`); the shader looks it up
+in the palette, a texture, and multiplies by the light and tint. Every target is RGBA, the canvas at
+8 bits too, so a GPU blends in hardware: a palette set later colours only what is drawn after, and
+reading an 8-bit canvas gives each pixel's nearest index.
 
 The one shader is built with each host: MSL, SPIR-V and DXIL for SDL_GPU, GLSL ES 3.0 in the page.
 
@@ -336,8 +337,8 @@ bool (*gfx_open)(QxScreen *s);
 void (*gfx_close)(void);
 void *(*gfx_page)(uint32_t *pitch);           /* the page to draw the next frame in */
 void (*gfx_show)(const uint32_t *palette);    /* it is shown; at 8 bits, with these 256 colours */
-void (*gfx_play)(const void *list, uint32_t bytes);
-void (*gfx_read)(uint32_t texture, QxRect r, void *out);
+void (*gfx_play)(const uint32_t *list, uint32_t words);
+void (*gfx_read)(uint32_t texture, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t *out);
 uint32_t (*gfx_modes)(uint32_t monitor, QxMode *out, uint32_t most);
 bool (*gfx_mode)(uint32_t monitor, uint32_t n);
 bool (*gfx_event)(QxEvent *e);
@@ -396,8 +397,9 @@ takes its own part. Memory is the host's (`alloc`), taken when first used: nothi
 | `soft/scan` | a convex polygon to spans, clipped |
 | `soft/fill`, `fill8`, `fill16`, `fill32` | spans and rows to pixels: a table for each colour format |
 | `soft/soft` | the software backend: a command drawn at once |
-| `gpu/batch` | vertices to batches |
-| `gpu/list` | the list the host plays |
+| `backend_gpu` | a GPU's backend: shapes and pictures as triangles, the pen in their vertices |
+| `gpu/gpu` | the GPU's recorder: textures made and sent, passes, clips, reads back |
+| `gpu/list` | the list the host plays: its words, vertices and batches |
 
 ### From a call to pixels
 
@@ -406,14 +408,15 @@ takes its own part. Memory is the host's (`alloc`), taken when first used: nothi
    same on every backend.
 2. `shape` makes its vertices: a place, u and v, light, tint, palette row and stage bits. In
    software an upright sprite at 1:1 skips this: its rows are copied.
-3. Software scans and fills at once. For a GPU, `batch` adds the vertices to the frame's store; a
-   batch is a run with one target, page, blend and clip.
+3. Software scans and fills at once. For a GPU, `list` adds the vertices to the frame's store; a
+   batch is a run with one target, texture, blend, alpha and clip.
 4. At `display.flip` software calls `gfx_show`. A GPU's frame becomes a list, and `gfx_play` plays
    it.
 
-The list is words, an op and its size each: make a texture, upload rows of one, the palette rows, a
-pass (its target, a clear), a clip, the vertices, a draw (first vertex, count, page, blend, depth),
-the end. What it points at stays till `gfx_play` returns.
+The list is words, an op and its size each: the vertices, make a texture, free one, upload rows of
+one, the palette rows, a pass (its target), a clip, a draw (first vertex, count, texture, blend,
+alpha), show, the end (`src/qx/qxlist.h`). What it points at stays till `gfx_play` returns. A
+vertex carries its texel's rectangle, so sprites of one atlas page batch.
 
 ### Scanner and fillers
 
@@ -512,6 +515,17 @@ Step 3, in parts:
   picks one, 0 the built-in. The built-in is the runtime's 8 by 8 drawn into a sheet of its own on
   first use. Each glyph is drawn as a picture, so text turns and zooms with the camera; in a colour
   it is `SOLID`, that colour through the pen as a shape's.
+
+### The GPU's players
+
+Step 4, in parts:
+
+- **The list**: QxHost's minor 2, `gfx_play` and `gfx_read`. A screen the host gives a GPU draws
+  through `backend_gpu`: each call's triangles into the frame's list, played at `display.flip`
+  and before a read. A texture is named by its root surface's handle, made and sent when first
+  drawn from or into, and sent again when the CPU wrote its pixels since (the root's version). A
+  root drawn into is ahead on the GPU until a read brings it back. Shapes draw from a white
+  texel. Tests run on a host that records the lists.
 
 ## Prior art
 

@@ -9,6 +9,8 @@
 #ifndef GFX_BACKEND_H
 #define GFX_BACKEND_H
 #include "command.h"
+#include "gpu/gpu.h"
+#include "gfx_qx.h"
 #include "soft/soft.h"
 #include "surface.h"
 
@@ -18,9 +20,20 @@ typedef struct Gx Gx;
 typedef struct {
     Rect clip;
     SoftTarget soft;
+    GpuTarget gpu;
 } Target;
 
 typedef struct {
+    /* The screen the host gave, its canvas of format: false, raised. */
+    bool (*open)(Gx *g, const QxScreen *s, PxFormat f);
+    /* The frame shown; the canvas's pixels kept. */
+    void (*flip)(Gx *g);
+    /* Before the screen closes. */
+    void (*close)(Gx *g);
+    /* h's pixels current for the CPU: false, raised. */
+    bool (*sync)(Gx *g, uint32_t h);
+    /* h, a surface, freed. */
+    void (*forget)(Gx *g, uint32_t h);
     /* t readied for c's call into s, the pen's target: false, raised. */
     bool (*begin)(Gx *g, Surface *s, const Command *c, Target *t);
     /* t readied for p's texels: false, raised. */
@@ -53,5 +66,5 @@ typedef struct {
     );
 } Backend;
 
-extern const Backend backend_soft;
+extern const Backend backend_soft, backend_gpu;
 #endif

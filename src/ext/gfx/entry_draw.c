@@ -330,7 +330,7 @@ static void sprite(
 
     const Vec anchor = {(float)s->ax, (float)s->ay};
 
-    const Picture p = surf_picture(&g->surfaces, s);
+    const Picture p = surf_picture(&g->surfaces, (uint32_t)s_);
 
     picture(g, &t, &where, &p, anchor, (Vec){x, y}, (Vec){c.x, c.y}, angle, scale, flags);
 }
@@ -377,7 +377,7 @@ void gfx_draw_quad(
     if (!gx_draw(g, &c, SPRITE_FLAGS, &t, &where))
         return;
 
-    const Picture pic = surf_picture(&g->surfaces, s);
+    const Picture pic = surf_picture(&g->surfaces, (uint32_t)s_);
     const Backend *const b = g->backend;
     Vertex v[4];
 
@@ -430,7 +430,7 @@ void gfx_draw_strip(
     if (!gx_draw(g, &c, SPRITE_FLAGS, &t, &where))
         return;
 
-    const Picture pic = surf_picture(&g->surfaces, s);
+    const Picture pic = surf_picture(&g->surfaces, (uint32_t)s_);
 
     if (!g->backend->source(g, &t, &pic))
         return;
@@ -547,7 +547,7 @@ void gfx_draw_tiles(
 
             const Vec dx = {(float)(col * w), (float)(row * h)};
 
-            const Picture p = s ? surf_picture(&g->surfaces, s) : (Picture){};
+            const Picture p = s ? surf_picture(&g->surfaces, (uint32_t)cell) : (Picture){};
 
             if (s)
                 picture(
@@ -574,6 +574,8 @@ static const Font *pen_font(Gx *const g, Picture *const sheet)
         if (font_builtin(&g->fonts, &sheet->root)) {
             sheet->at = (Rect){0, 0, sheet->root.w, sheet->root.h};
 
+            sheet->texture = PIC_FONT;
+            sheet->version = 1;
             return f;
         }
 
@@ -584,7 +586,7 @@ static const Font *pen_font(Gx *const g, Picture *const sheet)
     const Surface *const s = gx_surface(g, f->sheet);
 
     if (s)
-        *sheet = surf_picture(&g->surfaces, s);
+        *sheet = surf_picture(&g->surfaces, f->sheet);
 
     return s ? f : nullptr;
 }
@@ -617,6 +619,8 @@ void gfx_draw_text(const float x, const float y, const QxStr s, const int32_t co
         const Picture glyph = {
             sheet.root,
             {sheet.at.x + cell.x, sheet.at.y + cell.y, cell.w, cell.h},
+            sheet.texture,
+            sheet.version,
         };
 
         picture(g, &t, &where, &glyph, (Vec){}, (Vec){x + dx, y}, (Vec){c.x + dx, c.y}, 0, 1, 0);

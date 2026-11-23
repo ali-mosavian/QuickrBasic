@@ -7,6 +7,9 @@
  * frame to frame and aim moves it without allocating. Freeing a surface frees its views, and
  * theirs; their handles are then stale. A surface has a format: a view its parent's, the canvas
  * the screen's.
+ *
+ * A root, the surface with the pixels, counts the writes to them (version), so a GPU's copy knows
+ * when it is behind; drawn says the GPU's copy is ahead, until read back.
  */
 #ifndef GFX_SURFACE_H
 #define GFX_SURFACE_H
@@ -21,13 +24,19 @@ typedef struct {
     PxFormat format;
     uint8_t *own;      /* its own pixels, w a row; null a view's or the canvas's */
     uint32_t *palette; /* an image's 256 colours, &HRRGGBB; null none */
+    uint32_t version;  /* a root's: its pixels written, counted; 0 never */
+    bool drawn;        /* a root's: a GPU drew in it since the pixels were read back */
 } Surface;
 
-/* A surface's pixels as drawn from: its root's (the surface with memory, or the canvas's page)
-   and its rectangle in them. */
+/* A picture's own texture, with no surface: a handle is never so small. */
+enum { PIC_WHITE = 1, PIC_FONT = 2 };
+
+/* A surface's pixels as drawn from: its root's (the surface with memory, or the canvas's page),
+   its rectangle in them; the root's handle, or a PIC_ texture's, and the root's version. */
 typedef struct {
     Pixels root;
     Rect at;
+    uint32_t texture, version;
 } Picture;
 
 static inline Pixels pic_pixels(const Picture *const p) { return px_cut(&p->root, p->at); }
@@ -60,7 +69,12 @@ uint32_t surf_new(
 uint32_t surf_view(Surfaces *ss, uint32_t parent, int32_t x, int32_t y, int32_t w, int32_t h);
 /* h's surface: null, none (freed, or not a surface). */
 Surface *surf_get(const Surfaces *ss, uint32_t h);
-Picture surf_picture(const Surfaces *ss, const Surface *s);
+/* h's picture, h a surface. */
+Picture surf_picture(const Surfaces *ss, uint32_t h);
+/* s's root; *h, s's handle, becomes the root's. */
+Surface *surf_root(const Surfaces *ss, Surface *s, uint32_t *h);
+/* s's pixels written: its root's version counted. */
+void surf_wrote(const Surfaces *ss, Surface *s);
 Pixels surf_pixels(const Surfaces *ss, const Surface *s);
 /* h and its views freed. */
 void surf_free(Surfaces *ss, uint32_t h);

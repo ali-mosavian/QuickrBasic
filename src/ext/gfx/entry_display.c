@@ -12,9 +12,17 @@ static void close_screen(Gx *const g)
     if (!g->open)
         return;
 
+    g->backend->close(g);
     surf_close(&g->surfaces);
     qx_host->gfx_close();
     g->open = false;
+    g->backend = &backend_soft;
+}
+
+/* The host plays a GPU's lists: it gave one, and knows minor 2. */
+static bool plays(const QxScreen *const s)
+{
+    return s->gpu && qx_host->minor >= 2 && qx_host->size >= sizeof(QxHost);
 }
 
 /* A depth's format: false, none. */
@@ -57,12 +65,11 @@ void gfx_display_open(const int32_t w, const int32_t h, const int32_t depth, con
         return;
     }
 
-    uint32_t pitch;
-    uint8_t *const page = qx_host->gfx_page(&pitch);
+    g->backend = plays(&s) ? &backend_gpu : &backend_soft;
 
-    if (!surf_open(&g->surfaces, (Pixels){page, pitch, w, h, format})) {
+    if (!g->backend->open(g, &s, format)) {
+        g->backend = &backend_soft;
         qx_host->gfx_close();
-        gx_fail(ERR_MEMORY);
         return;
     }
 
@@ -94,14 +101,7 @@ void gfx_display_flip(void)
         return;
     }
 
-    qx_host->gfx_show(g->palette.rows[0]);
-    uint32_t pitch;
-    uint8_t *const page = qx_host->gfx_page(&pitch);
-    Pixels canvas = g->surfaces.canvas;
-    canvas.p = page;
-    canvas.pitch = pitch;
-    surf_page(&g->surfaces, canvas);
-
+    g->backend->flip(g);
     cmd_clear(&g->log);
 }
 
@@ -113,8 +113,12 @@ float gfx_display_refresh(void)
     return g ? g->hz : 0;
 }
 
-/* Software: no GPU, no shaders, no smoothing. */
-int32_t gfx_display_caps(void) { return 0; }
+/* No shaders or smoothing yet. */
+int32_t gfx_display_caps(void)
+{
+    const Gx *const g = gx_get();
+    return g && g->backend == &backend_gpu ? GFX_DISPLAY_HAS_GPU : 0;
+}
 
 /* No events reach software's host yet. */
 int32_t gfx_display_poll(gfx_display_hostevent *const e)

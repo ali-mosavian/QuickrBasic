@@ -101,6 +101,13 @@ typedef struct QxHost {
     uint64_t(QX_CALL *clock_us)(void);
     /* The file at path (len bytes) whole, in alloc's memory, *bytes of it: null, none. */
     void *(QX_CALL *file_read)(const char *path, uint32_t len, uint32_t *bytes);
+    /* Minor 2, for a screen gfx_open gave a GPU. The list played (qxlist.h): it returns when the
+       host is done with the list's memory. */
+    void(QX_CALL *gfx_play)(const uint32_t *list, uint32_t words);
+    /* w by h pixels at x, y of a texture, as played so far, into out: bytes R, G, B and A, rows
+       top first. */
+    void(QX_CALL
+             *gfx_read)(uint32_t texture, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t *out);
 } QxHost;
 
 /* One call: its arguments; a FUNCTION's result; an error raised at the calling line once the

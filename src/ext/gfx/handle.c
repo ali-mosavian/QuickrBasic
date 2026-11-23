@@ -2,7 +2,7 @@
 #include "handle.h"
 #include "mem.h"
 
-enum { SLOT_BITS = 20, GEN_SHIFT = 20, KIND_SHIFT = 28, SLOTS = 1 << SLOT_BITS };
+enum { GEN_SHIFT = 20, KIND_SHIFT = 28, SLOTS = HDL_SLOTS };
 
 void hdl_init(HdlTable *const t, const uint8_t kind) { *t = (HdlTable){.kind = kind}; }
 
@@ -58,7 +58,7 @@ bool hdl_own(HdlTable *const t, void *const item)
 
 void *hdl_item(const HdlTable *const t, const uint32_t h)
 {
-    const uint32_t slot = h & (SLOTS - 1);
+    const uint32_t slot = hdl_slot(h);
     return slot < t->n && h == handle(t, slot) ? t->items[slot] : nullptr;
 }
 
@@ -72,7 +72,7 @@ void hdl_drop(HdlTable *const t, const uint32_t h)
     if (!hdl_item(t, h))
         return;
 
-    const uint32_t slot = h & (SLOTS - 1);
+    const uint32_t slot = hdl_slot(h);
     t->items[slot] = nullptr;
 
     if (slot)

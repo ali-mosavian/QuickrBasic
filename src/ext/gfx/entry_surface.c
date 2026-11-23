@@ -179,22 +179,24 @@ void gfx_surface_free(const int32_t s)
         return;
     }
 
+    g->backend->forget(g, (uint32_t)s);
     surf_free(&g->surfaces, (uint32_t)s);
 }
 
-/* s's pixels w by h at x, y, and pixels() holding their bytes, checked: s's pixels, p null
-   raised. */
+/* s's pixels w by h at x, y, and pixels() holding their bytes, checked, current for the CPU and
+   counted written when writes: s's pixels, p null raised. */
 static Pixels region(
     const int32_t s_,
     const int32_t x,
     const int32_t y,
     const int32_t w,
     const int32_t h,
-    const QxArray *const pixels
+    const QxArray *const pixels,
+    const bool writes
 )
 {
     Gx *const g = gx_get();
-    const Surface *const s = g ? gx_surface(g, (uint32_t)s_) : nullptr;
+    Surface *const s = g ? gx_surface(g, (uint32_t)s_) : nullptr;
 
     if (!s)
         return (Pixels){};
@@ -205,14 +207,20 @@ static Pixels region(
     if (pixels && !gx_array(pixels, 1, (uint32_t)(w * h) * px_bytes(s->format)))
         return (Pixels){};
 
+    if (!g->backend->sync(g, (uint32_t)s_))
+        return (Pixels){};
+
+    if (writes)
+        surf_wrote(&g->surfaces, s);
+
     const Pixels all = surf_pixels(&g->surfaces, s);
-    return (Pixels){all.p + y * all.pitch + x * px_bytes(s->format), all.pitch, w, h, s->format};
+    return px_cut(&all, (Rect){x, y, w, h});
 }
 
 /* An index at 8 bits, else the colour &HRRGGBB. */
 int32_t gfx_surface_point(const int32_t s, const int32_t x, const int32_t y)
 {
-    const Pixels p = region(s, x, y, 1, 1, nullptr);
+    const Pixels p = region(s, x, y, 1, 1, nullptr, false);
     uint32_t v = 0;
 
     if (!p.p)
@@ -232,7 +240,7 @@ void gfx_surface_read(
     const QxArray *const pixels
 )
 {
-    const Pixels p = region(s, x, y, w, h, pixels);
+    const Pixels p = region(s, x, y, w, h, pixels, false);
     const uint32_t row = (uint32_t)w * px_bytes(p.format);
 
     for (int32_t r = 0; p.p && r < h; r++)
@@ -248,7 +256,7 @@ void gfx_surface_write(
     const QxArray *const pixels
 )
 {
-    const Pixels p = region(s, x, y, w, h, pixels);
+    const Pixels p = region(s, x, y, w, h, pixels, true);
     const uint32_t row = (uint32_t)w * px_bytes(p.format);
 
     for (int32_t r = 0; p.p && r < h; r++)
