@@ -19,6 +19,11 @@ typedef struct {
     float x, y;
 } Vec;
 
+/* A shape's corner on the target, and the texel there: u and v in texels from the top left. */
+typedef struct {
+    float x, y, u, v;
+} Vertex;
+
 static inline int32_t rect_max(const int32_t a, const int32_t b) { return a > b ? a : b; }
 
 static inline int32_t rect_min(const int32_t a, const int32_t b) { return a < b ? a : b; }

@@ -340,6 +340,116 @@ void soft_sprite(
     }
 }
 
+/* The texels' map over a polygon: at a pixel's centre (x, y), u = ux x + uy y + u0, v likewise. */
+typedef struct {
+    float ux, uy, u0, vx, vy, v0;
+} Map;
+
+/* The map through three corners: false, they lie on a line. */
+static bool map_of(const Vertex *const p, Map *const m)
+{
+    const float dx1 = p[1].x - p[0].x, dy1 = p[1].y - p[0].y;
+    const float dx2 = p[2].x - p[0].x, dy2 = p[2].y - p[0].y;
+    const float det = dx1 * dy2 - dx2 * dy1;
+
+    if (det > -1e-6f && det < 1e-6f)
+        return false;
+
+    const float du1 = p[1].u - p[0].u, du2 = p[2].u - p[0].u;
+    const float dv1 = p[1].v - p[0].v, dv2 = p[2].v - p[0].v;
+    m->ux = (du1 * dy2 - du2 * dy1) / det;
+    m->uy = (du2 * dx1 - du1 * dx2) / det;
+    m->vx = (dv1 * dy2 - dv2 * dy1) / det;
+    m->vy = (dv2 * dx1 - dv1 * dx2) / det;
+    m->u0 = p[0].u - m->ux * p[0].x - m->uy * p[0].y;
+    m->v0 = p[0].v - m->vx * p[0].x - m->vy * p[0].y;
+
+    return true;
+}
+
+typedef struct {
+    const SoftTarget *t;
+    const Pixels *s;
+    Map m;
+    FillStep *step;
+    bool wrap;
+} Textured;
+
+static int32_t fixed(const float f) { return (int32_t)(f * 65536); }
+
+/* f in 16.16, inside [0, most). */
+static int32_t fixed_in(const float f, const int32_t most)
+{
+    const int32_t top = (most << 16) - 1;
+    return f <= 0 ? 0 : f * 65536 >= (float)top ? top : fixed(f);
+}
+
+/* The walk over n pixels from the first, its texels inside the surface: its ends held in, so
+   every texel between is too. */
+static Steps inside_steps(
+    const float u,
+    const float v,
+    const float du,
+    const float dv,
+    const Pixels *const s,
+    const int32_t n
+)
+{
+    const int32_t u0 = fixed_in(u, s->w), v0 = fixed_in(v, s->h);
+    const int32_t u1 = fixed_in(u + du * (float)(n - 1), s->w);
+    const int32_t v1 = fixed_in(v + dv * (float)(n - 1), s->h);
+
+    return n > 1 ? (Steps){u0, v0, (u1 - u0) / (n - 1), (v1 - v0) / (n - 1), 0}
+
+                 : (Steps){u0, v0, 0, 0, 0};
+}
+
+static void textured(void *const ctx, const int32_t y, const int32_t x0, const int32_t x1)
+{
+    const Textured *const x = ctx;
+    const Map *const m = &x->m;
+    const float u = m->ux * (float)x0 + m->uy * (float)y + m->u0;
+    const float v = m->vx * (float)x0 + m->vy * (float)y + m->v0;
+    const int32_t n = x1 - x0;
+    Steps st = inside_steps(u, v, m->ux, m->vx, x->s, n);
+
+    if (x->wrap) {
+        const float w = (float)x->s->w;
+        st.wrap = x->s->w << 16;
+        st.u = fill_wrap(fixed(u - (float)gm_floor(u / w) * w), st.wrap);
+        st.du = fixed(m->ux);
+    }
+
+    x->step(at(x->t, x0, y), x->s, st, n);
+}
+
+void soft_texture(
+    const SoftTarget *const t,
+    const Pixels *const s,
+    const Vertex *const v,
+    const uint32_t n,
+    const int32_t flags,
+    const bool wrap
+)
+{
+    Textured x = {
+        .t = t,
+        .s = s,
+        .step = t->fill->step[flags & GFX_PEN_OPAQUE ? STEP_OPAQUE : 0],
+        .wrap = wrap,
+    };
+
+    if (!map_of(v, &x.m))
+        return;
+
+    Vec p[4];
+
+    for (uint32_t i = 0; i < n; i++)
+        p[i] = (Vec){v[i].x, v[i].y};
+
+    scan_convex(p, n, t->clip, textured, &x);
+}
+
 void soft_glyph(
     const SoftTarget *const t,
     const uint8_t *const rows,

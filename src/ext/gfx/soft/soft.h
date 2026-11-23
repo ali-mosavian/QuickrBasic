@@ -43,6 +43,17 @@ void soft_rect(
 );
 /* s with its top left texel at x, y; flags draw.FLIPX, draw.FLIPY, pen.OPAQUE. */
 void soft_sprite(const SoftTarget *t, const Pixels *s, float x, float y, int32_t flags);
+/* A convex polygon of n corners, n 3 or 4, whose texels are affine over it (a triangle, or a
+   parallelogram's corners): each pixel takes s's texel at its centre, keyed unless OPAQUE; u
+   repeats when wrap, else u and v stay inside s. */
+void soft_texture(
+    const SoftTarget *t,
+    const Pixels *s,
+    const Vertex *v,
+    uint32_t n,
+    int32_t flags,
+    bool wrap
+);
 /* An 8 by h glyph, a byte a row, the leftmost pixel the high bit, its top left at x, y. */
 void soft_glyph(
     const SoftTarget *t,

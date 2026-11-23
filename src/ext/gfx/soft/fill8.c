@@ -32,12 +32,43 @@ static void opaque_flipped(uint8_t *const d, const uint8_t *const s, const int32
         d[i] = s[-i];
 }
 
+/* The texel at the walk's place, the walk a pixel on. */
+static inline uint8_t next(const Pixels *const s, Steps *const st)
+{
+    const uint8_t texel = s->p[(st->v >> 16) * (int32_t)s->pitch + (st->u >> 16)];
+    st->u += st->du;
+    st->v += st->dv;
+
+    if (st->wrap)
+        st->u = fill_wrap(st->u, st->wrap);
+
+    return texel;
+}
+
+static void stepped_keyed(uint8_t *const d, const Pixels *const s, Steps st, const int32_t n)
+{
+    for (int32_t i = 0; i < n; i++) {
+        const uint8_t texel = next(s, &st);
+
+        if (texel)
+            d[i] = texel;
+    }
+}
+
+static void stepped_opaque(uint8_t *const d, const Pixels *const s, Steps st, const int32_t n)
+{
+    for (int32_t i = 0; i < n; i++)
+        d[i] = next(s, &st);
+}
+
 const Fill fill8 = {
     .span = span,
-    .row = {
-        [0] = keyed,
-        [ROW_FLIPX] = keyed_flipped,
-        [ROW_OPAQUE] = opaque,
-        [ROW_OPAQUE | ROW_FLIPX] = opaque_flipped,
-    },
+    .row =
+        {
+            [0] = keyed,
+            [ROW_FLIPX] = keyed_flipped,
+            [ROW_OPAQUE] = opaque,
+            [ROW_OPAQUE | ROW_FLIPX] = opaque_flipped,
+        },
+    .step = {[0] = stepped_keyed, [STEP_OPAQUE] = stepped_opaque},
 };

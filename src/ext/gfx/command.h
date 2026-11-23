@@ -46,6 +46,14 @@ static inline Vec cmd_at(const Place *const p, const Vec v)
     };
 }
 
+/* The world's point that lands at v. */
+static inline Vec cmd_back(const Place *const p, const Vec v)
+{
+    const float x = v.x - p->move.x, y = v.y - p->move.y;
+    const float det = p->m11 * p->m22 - p->m12 * p->m21;
+    return (Vec){(p->m22 * x - p->m12 * y) / det, (p->m11 * y - p->m21 * x) / det};
+}
+
 /* Neither turned nor zoomed: a shape stays upright and its size. */
 static inline bool cmd_upright(const Place *const p) { return p->angle == 0 && p->zoom == 1; }
 

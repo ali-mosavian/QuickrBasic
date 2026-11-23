@@ -479,7 +479,12 @@ Step 3, in parts:
   `camera_turned`. A circle covers the centres within its radius and a half, its outline those
   from the radius less a half, so radius 0 is a pixel. An arc runs clockwise on the screen from
   its start to its finish. An outline draws each pixel once. Under a turned or zoomed camera a
-  rect is a polygon; a picture there is not yet drawn (Advanced feature unavailable).
+  rect is a polygon.
+- **Turned pictures**: `sprite_turned`, `quad` and `strip`, and sprites and tiles under a turned
+  camera. `shape` gives a picture's corners with their texels; software fills the polygon, each
+  pixel taking the texel at its centre through the affine map three corners give. A quad is two
+  triangles, as a GPU draws it. A strip's points are its top edge, its texels upright below,
+  repeating along x. Text under a turned camera waits for fonts as pictures.
 
 ## Prior art
 

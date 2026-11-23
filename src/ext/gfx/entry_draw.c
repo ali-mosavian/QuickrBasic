@@ -2,6 +2,7 @@
    drawn at once by the software backend. */
 #include "gfx.h"
 #include "gmath.h"
+#include "shape.h"
 #include "qbrt/llrm/qb/dev/host/vgadata.h"
 #include "soft/scan.h"
 
@@ -271,27 +272,165 @@ void gfx_draw_poly(
         soft_outline(&t, placed, (uint32_t)n, (uint32_t)colour);
 }
 
-/* Not yet: a picture under a turned camera is drawn turned, with the rest of 2D. Raised: true. */
+/* Not yet: text under a turned camera is drawn turned, with fonts as pictures. Raised: true. */
 static bool upright_only(const Gx *const g)
 {
     return g->camera.centred && !gx_fail(ERR_UNAVAILABLE);
 }
 
-void gfx_draw_sprite(const int32_t s_, const float x, const float y, const int32_t flags)
+/* s's picture, its anchor at a in the world (placed: at), turned by angle and scaled: upright at
+   its size its rows are copied, else it is filled through its corners. */
+static void picture(
+    const Gx *const g,
+    const SoftTarget *const t,
+    const Place *const where,
+    const Surface *const s,
+    const Vec anchor,
+    const Vec a,
+    const Vec at,
+    const float angle,
+    const float scale,
+    const int32_t flags
+)
+{
+    const Pixels px = surf_pixels(&g->surfaces, s);
+
+    if (cmd_upright(where) && angle == 0 && scale == 1) {
+        soft_sprite(t, &px, at.x - anchor.x, at.y - anchor.y, flags);
+        return;
+    }
+
+    Vertex v[4];
+    shape_sprite(s->w, s->h, anchor, a, angle, scale, flags, where, v);
+    soft_texture(t, &px, v, 4, flags, false);
+}
+
+static void sprite(
+    const int32_t s_,
+    const float x,
+    const float y,
+    const float angle,
+    const float scale,
+    const int32_t flags
+)
 {
     Gx *const g = gx_get();
     const Surface *const s = g ? gx_surface(g, (uint32_t)s_) : nullptr;
     Command c = drawn(GFX_DISPLAY_DREW_SPRITE, (Vec){x, y}, (Vec){x, y}, 0, flags);
 
     c.source = (uint32_t)s_;
+    c.angle = angle;
+    c.scale = scale;
     SoftTarget t;
     Place where;
 
-    if (!s || upright_only(g) || !gx_draw(g, &c, SPRITE_FLAGS, &t, &where))
+    if (!s || !gx_draw(g, &c, SPRITE_FLAGS, &t, &where))
+        return;
+
+    const Vec anchor = {(float)s->ax, (float)s->ay};
+
+    picture(g, &t, &where, s, anchor, (Vec){x, y}, (Vec){c.x, c.y}, angle, scale, flags);
+}
+
+void gfx_draw_sprite(const int32_t s, const float x, const float y, const int32_t flags)
+{
+    sprite(s, x, y, 0, 1, flags);
+}
+
+void gfx_draw_sprite_turned(
+    const int32_t s,
+    const float x,
+    const float y,
+    const float angle,
+    const float scale,
+    const int32_t flags
+)
+{
+    sprite(s, x, y, angle, scale, flags);
+}
+
+/* x, y the first corner, x2, y2 the third, after the camera. Two triangles, as a GPU draws it. */
+void gfx_draw_quad(
+    const int32_t s_,
+    const QxArray *const corners,
+    const int32_t first,
+    const int32_t flags
+)
+{
+    Gx *const g = gx_get();
+    const Surface *const s = g ? gx_surface(g, (uint32_t)s_) : nullptr;
+    const gfx_draw_vec2 *const p = s ? gx_elements(corners, sizeof *p, first, 4) : nullptr;
+
+    if (!p)
+        return;
+
+    const Vec world[] = {{p[0].x, p[0].y}, {p[1].x, p[1].y}, {p[2].x, p[2].y}, {p[3].x, p[3].y}};
+
+    Command c = drawn(GFX_DISPLAY_DREW_QUAD, world[0], world[2], 0, flags);
+    c.source = (uint32_t)s_;
+    SoftTarget t;
+    Place where;
+
+    if (!gx_draw(g, &c, SPRITE_FLAGS, &t, &where))
         return;
 
     const Pixels px = surf_pixels(&g->surfaces, s);
-    soft_sprite(&t, &px, c.x - (float)s->ax, c.y - (float)s->ay, flags);
+    Vertex v[4];
+    shape_quad(s->w, s->h, world, flags, &where, v);
+    soft_texture(&t, &px, v, 3, flags, false);
+    soft_texture(&t, &px, (const Vertex[]){v[0], v[2], v[3]}, 3, flags, false);
+}
+
+/* x, y the first point, x2, y2 the last, after the camera. The picture repeats along the points,
+   their line its top edge, its texels upright: u runs with x from the first point. */
+void gfx_draw_strip(
+    const int32_t s_,
+    const QxArray *const points,
+    const int32_t first,
+    const int32_t n,
+    const int32_t flags
+)
+{
+    Gx *const g = gx_get();
+    const Surface *const s = g ? gx_surface(g, (uint32_t)s_) : nullptr;
+
+    if (!s)
+        return;
+
+    if (n < 2) {
+        gx_fail(ERR_ILLEGAL);
+        return;
+    }
+
+    const gfx_draw_vec2 *const p = gx_elements(points, sizeof *p, first, n);
+
+    if (!p)
+        return;
+
+    Command c = drawn(
+        GFX_DISPLAY_DREW_STRIP,
+        (Vec){p[0].x, p[0].y},
+        (Vec){p[n - 1].x, p[n - 1].y},
+        0,
+        flags
+    );
+
+    c.source = (uint32_t)s_;
+    SoftTarget t;
+    Place where;
+
+    if (!gx_draw(g, &c, SPRITE_FLAGS, &t, &where))
+        return;
+
+    const Pixels px = surf_pixels(&g->surfaces, s);
+
+    for (int32_t i = 0; i + 1 < n; i++) {
+        Vertex v[4];
+        const Vec a = {p[i].x, p[i].y}, b = {p[i + 1].x, p[i + 1].y};
+
+        shape_segment(s->w, s->h, a, b, p[i].x - p[0].x, flags, &where, v);
+        soft_texture(&t, &px, v, 4, flags, true);
+    }
 }
 
 /* The cells, of size pixels from first, that meet [lo, hi): from *from up to *to, of n. */
@@ -308,6 +447,40 @@ static void visible(
     const int32_t a = lo - first, b = hi - first;
     *from = rect_max(a >= 0 ? a / size : -((size - 1 - a) / size), 0);
     *to = rect_min(b > 0 ? (b + size - 1) / size : 0, n);
+}
+
+/* The cells a turned camera may show: those under the clip's corners taken back into the world,
+   a cell round them. */
+static void visible_turned(
+    const Place *const where,
+    const Rect clip,
+    const Vec origin,
+    const int32_t w,
+    const int32_t h,
+    const int32_t columns,
+    const int32_t rows,
+    Rect *const cells
+)
+{
+    const float l = (float)clip.x - 0.5f, r = l + (float)clip.w;
+    const float top = (float)clip.y - 0.5f, bottom = top + (float)clip.h;
+    const Vec corner[] = {{l, top}, {r, top}, {r, bottom}, {l, bottom}};
+
+    float x0 = 0, x1 = 0, y0 = 0, y1 = 0;
+
+    for (uint32_t i = 0; i < 4; i++) {
+        const Vec p = cmd_back(where, corner[i]);
+        x0 = !i || p.x < x0 ? p.x : x0;
+        x1 = !i || p.x > x1 ? p.x : x1;
+        y0 = !i || p.y < y0 ? p.y : y0;
+        y1 = !i || p.y > y1 ? p.y : y1;
+    }
+
+    const int32_t c0 = rect_max(gm_floor((x0 - origin.x) / (float)w) - 1, 0);
+    const int32_t r0 = rect_max(gm_floor((y0 - origin.y) / (float)h) - 1, 0);
+    const int32_t c1 = rect_min(gm_floor((x1 - origin.x) / (float)w) + 2, columns);
+    const int32_t r1 = rect_min(gm_floor((y1 - origin.y) / (float)h) + 2, rows);
+    *cells = (Rect){c0, r0, c1 - c0, r1 - r0};
 }
 
 void gfx_draw_tiles(
@@ -338,27 +511,44 @@ void gfx_draw_tiles(
     SoftTarget t;
     Place where;
 
-    if (upright_only(g) || !gx_draw(g, &c, SPRITE_FLAGS, &t, &where))
+    if (!gx_draw(g, &c, SPRITE_FLAGS, &t, &where))
         return;
 
-    const int32_t left = scan_pixel(c.x), top = scan_pixel(c.y);
-    const int32_t *const cells = map->data;
-    int32_t c0, c1, r0, r1;
-    visible(left, w, t.clip.x, t.clip.x + t.clip.w, columns, &c0, &c1);
-    visible(top, h, t.clip.y, t.clip.y + t.clip.h, rows, &r0, &r1);
+    Rect cells;
 
-    for (int32_t row = r0; row < r1; row++)
-        for (int32_t col = c0; col < c1; col++) {
-            const int32_t cell = cells[row * columns + col];
+    if (cmd_upright(&where)) {
+        int32_t c0, c1, r0, r1;
+        visible(scan_pixel(c.x), w, t.clip.x, t.clip.x + t.clip.w, columns, &c0, &c1);
+        visible(scan_pixel(c.y), h, t.clip.y, t.clip.y + t.clip.h, rows, &r0, &r1);
+        cells = (Rect){c0, r0, c1 - c0, r1 - r0};
+    } else
+        visible_turned(&where, t.clip, (Vec){x, y}, w, h, columns, rows, &cells);
+
+    const int32_t *const map_cells = map->data;
+
+    for (int32_t row = cells.y; row < cells.y + cells.h; row++)
+        for (int32_t col = cells.x; col < cells.x + cells.w; col++) {
+            const int32_t cell = map_cells[row * columns + col];
             const Surface *const s = cell ? gx_surface(g, (uint32_t)cell) : nullptr;
 
             if (cell && !s)
                 return;
 
-            if (s) {
-                const Pixels px = surf_pixels(&g->surfaces, s);
-                soft_sprite(&t, &px, c.x + (float)(col * w), c.y + (float)(row * h), flags);
-            }
+            const Vec dx = {(float)(col * w), (float)(row * h)};
+
+            if (s)
+                picture(
+                    g,
+                    &t,
+                    &where,
+                    s,
+                    (Vec){},
+                    (Vec){x + dx.x, y + dx.y},
+                    (Vec){c.x + dx.x, c.y + dx.y},
+                    0,
+                    1,
+                    flags
+                );
         }
 }
 
@@ -387,43 +577,6 @@ void gfx_draw_text(const float x, const float y, const QxStr s, const int32_t co
 }
 
 int32_t gfx_draw_text_width(const QxStr s) { return gx_get() ? (int32_t)(s.len * GLYPH) : 0; }
-
-/* Not yet: turned and textured shapes come with the rest of 2D. */
-void gfx_draw_sprite_turned(
-    const int32_t s,
-    const float x,
-    const float y,
-    const float angle,
-    const float scale,
-    const int32_t flags
-)
-{
-    (void)s, (void)x, (void)y, (void)angle, (void)scale, (void)flags;
-    gx_fail(ERR_UNAVAILABLE);
-}
-
-void gfx_draw_quad(
-    const int32_t s,
-    const QxArray *const corners,
-    const int32_t first,
-    const int32_t flags
-)
-{
-    (void)s, (void)corners, (void)first, (void)flags;
-    gx_fail(ERR_UNAVAILABLE);
-}
-
-void gfx_draw_strip(
-    const int32_t s,
-    const QxArray *const points,
-    const int32_t first,
-    const int32_t n,
-    const int32_t flags
-)
-{
-    (void)s, (void)points, (void)first, (void)n, (void)flags;
-    gx_fail(ERR_UNAVAILABLE);
-}
 
 int32_t gfx_draw_new_font(const int32_t sheet, const int32_t w, const int32_t h)
 {
