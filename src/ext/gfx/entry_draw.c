@@ -68,11 +68,11 @@ void gfx_draw_clear(const int32_t colour)
     Gx *const g = gx_get();
     Command c = drawn(GFX_DISPLAY_DREW_CLEAR, (Vec){}, (Vec){}, colour, 0);
 
-    SoftTarget t;
+    Target t;
     Place where;
 
     if (g && gx_draw(g, &c, 0, &t, &where))
-        soft_clear(&t, (uint32_t)colour);
+        g->backend->clear(&t, (uint32_t)colour);
 }
 
 void gfx_draw_pset(const float x, const float y, const int32_t colour)
@@ -80,11 +80,11 @@ void gfx_draw_pset(const float x, const float y, const int32_t colour)
     Gx *const g = gx_get();
     Command c = drawn(GFX_DISPLAY_DREW_PSET, (Vec){x, y}, (Vec){x, y}, colour, 0);
 
-    SoftTarget t;
+    Target t;
     Place where;
 
     if (g && gx_draw(g, &c, 0, &t, &where))
-        soft_pset(&t, c.x, c.y, (uint32_t)colour);
+        g->backend->pset(&t, (Vec){c.x, c.y}, (uint32_t)colour);
 }
 
 void gfx_draw_line(
@@ -98,17 +98,18 @@ void gfx_draw_line(
     Gx *const g = gx_get();
     Command c = drawn(GFX_DISPLAY_DREW_LINE, (Vec){x1, y1}, (Vec){x2, y2}, colour, 0);
 
-    SoftTarget t;
+    Target t;
     Place where;
 
     if (g && gx_draw(g, &c, 0, &t, &where))
-        soft_line(&t, (Vec){c.x, c.y}, (Vec){c.x2, c.y2}, (uint32_t)colour);
+        g->backend->line(&t, (Vec){c.x, c.y}, (Vec){c.x2, c.y2}, (uint32_t)colour);
 }
 
 /* A rect turned or zoomed: a polygon of its edges, half a pixel out of its corners, or the
    outline through its corners. */
 static void turned_rect(
-    const SoftTarget *const t,
+    const Backend *const b,
+    const Target *const t,
     const Place *const where,
     const float x1,
     const float y1,
@@ -129,9 +130,9 @@ static void turned_rect(
     };
 
     if (fill)
-        soft_poly(t, corners, 4, colour);
+        b->poly(t, corners, 4, colour);
     else
-        soft_outline(t, corners, 4, colour);
+        b->outline(t, corners, 4, colour);
 }
 
 void gfx_draw_rect(
@@ -146,7 +147,7 @@ void gfx_draw_rect(
     Gx *const g = gx_get();
     Command c = drawn(GFX_DISPLAY_DREW_RECT, (Vec){x1, y1}, (Vec){x2, y2}, colour, flags);
 
-    SoftTarget t;
+    Target t;
     Place where;
 
     if (!g || !gx_draw(g, &c, SHAPE_FLAGS, &t, &where))
@@ -155,9 +156,9 @@ void gfx_draw_rect(
     const bool fill = flags & GFX_DRAW_FILL;
 
     if (cmd_upright(&where))
-        soft_rect(&t, c.x, c.y, c.x2, c.y2, (uint32_t)colour, fill);
+        g->backend->rect(&t, (Vec){c.x, c.y}, (Vec){c.x2, c.y2}, (uint32_t)colour, fill);
     else
-        turned_rect(&t, &where, x1, y1, x2, y2, (uint32_t)colour, fill);
+        turned_rect(g->backend, &t, &where, x1, y1, x2, y2, (uint32_t)colour, fill);
 }
 
 void gfx_draw_circle(
@@ -171,7 +172,7 @@ void gfx_draw_circle(
     Gx *const g = gx_get();
     Command c = drawn(GFX_DISPLAY_DREW_CIRCLE, (Vec){x, y}, (Vec){x + r, y}, colour, flags);
 
-    SoftTarget t;
+    Target t;
     Place where;
 
     if (!g)
@@ -183,7 +184,8 @@ void gfx_draw_circle(
     }
 
     if (gx_draw(g, &c, SHAPE_FLAGS, &t, &where))
-        soft_circle(&t, (Vec){c.x, c.y}, r * where.zoom, (uint32_t)colour, flags & GFX_DRAW_FILL);
+        g->backend
+            ->circle(&t, (Vec){c.x, c.y}, r * where.zoom, (uint32_t)colour, flags & GFX_DRAW_FILL);
 }
 
 /* x2, y2 the start's point; angle the start, after the camera. */
@@ -211,11 +213,11 @@ void gfx_draw_arc(
     Command c = drawn(GFX_DISPLAY_DREW_ARC, (Vec){x, y}, (Vec){x + r * co, y + r * s}, colour, 0);
 
     c.angle = start;
-    SoftTarget t;
+    Target t;
     Place where;
 
     if (gx_draw(g, &c, 0, &t, &where))
-        soft_arc(
+        g->backend->arc(
             &t,
             (Vec){c.x, c.y},
             r * where.zoom,
@@ -258,7 +260,7 @@ void gfx_draw_poly(
         flags
     );
 
-    SoftTarget t;
+    Target t;
     Place where;
 
     if (!gx_draw(g, &c, SHAPE_FLAGS, &t, &where))
@@ -268,18 +270,18 @@ void gfx_draw_poly(
         placed[i] = cmd_at(&where, (Vec){p[i].x, p[i].y});
 
     if (flags & GFX_DRAW_FILL)
-        soft_poly(&t, placed, (uint32_t)n, (uint32_t)colour);
+        g->backend->poly(&t, placed, (uint32_t)n, (uint32_t)colour);
     else
-        soft_outline(&t, placed, (uint32_t)n, (uint32_t)colour);
+        g->backend->outline(&t, placed, (uint32_t)n, (uint32_t)colour);
 }
 
-/* px's picture, its anchor at a in the world (placed: at), turned by angle and scaled: upright at
-   its size its rows are copied, else it is filled through its corners. */
+/* p's picture, its anchor at a in the world (placed: at), turned by angle and scaled: upright at
+   its size, a sprite; else filled through its corners. */
 static void picture(
     Gx *const g,
-    SoftTarget *const t,
+    Target *const t,
     const Place *const where,
-    const Pixels *const px,
+    const Picture *const p,
     const Vec anchor,
     const Vec a,
     const Vec at,
@@ -288,17 +290,20 @@ static void picture(
     const int32_t flags
 )
 {
-    if (!gx_source(g, t, px->format))
+    const Backend *const b = g->backend;
+
+    if (!b->source(g, t, p))
         return;
 
     if (cmd_upright(where) && angle == 0 && scale == 1) {
-        soft_sprite(t, px, at.x - anchor.x, at.y - anchor.y, flags);
+        b->sprite(t, p, (Vec){at.x - anchor.x, at.y - anchor.y}, flags);
+
         return;
     }
 
     Vertex v[4];
-    shape_sprite(px->w, px->h, anchor, a, angle, scale, flags, where, v);
-    soft_texture(t, px, v, 4, flags, false);
+    shape_sprite(p->at.w, p->at.h, anchor, a, angle, scale, flags, where, v);
+    b->texture(t, p, v, 4, flags, false);
 }
 
 static void sprite(
@@ -317,7 +322,7 @@ static void sprite(
     c.source = (uint32_t)s_;
     c.angle = angle;
     c.scale = scale;
-    SoftTarget t;
+    Target t;
     Place where;
 
     if (!s || !gx_draw(g, &c, SPRITE_FLAGS, &t, &where))
@@ -325,9 +330,9 @@ static void sprite(
 
     const Vec anchor = {(float)s->ax, (float)s->ay};
 
-    const Pixels px = surf_pixels(&g->surfaces, s);
+    const Picture p = surf_picture(&g->surfaces, s);
 
-    picture(g, &t, &where, &px, anchor, (Vec){x, y}, (Vec){c.x, c.y}, angle, scale, flags);
+    picture(g, &t, &where, &p, anchor, (Vec){x, y}, (Vec){c.x, c.y}, angle, scale, flags);
 }
 
 void gfx_draw_sprite(const int32_t s, const float x, const float y, const int32_t flags)
@@ -366,21 +371,22 @@ void gfx_draw_quad(
 
     Command c = drawn(GFX_DISPLAY_DREW_QUAD, world[0], world[2], 0, flags);
     c.source = (uint32_t)s_;
-    SoftTarget t;
+    Target t;
     Place where;
 
     if (!gx_draw(g, &c, SPRITE_FLAGS, &t, &where))
         return;
 
-    const Pixels px = surf_pixels(&g->surfaces, s);
+    const Picture pic = surf_picture(&g->surfaces, s);
+    const Backend *const b = g->backend;
     Vertex v[4];
 
-    if (!gx_source(g, &t, px.format))
+    if (!b->source(g, &t, &pic))
         return;
 
     shape_quad(s->w, s->h, world, flags, &where, v);
-    soft_texture(&t, &px, v, 3, flags, false);
-    soft_texture(&t, &px, (const Vertex[]){v[0], v[2], v[3]}, 3, flags, false);
+    b->texture(&t, &pic, v, 3, flags, false);
+    b->texture(&t, &pic, (const Vertex[]){v[0], v[2], v[3]}, 3, flags, false);
 }
 
 /* x, y the first point, x2, y2 the last, after the camera. The picture repeats along the points,
@@ -418,15 +424,15 @@ void gfx_draw_strip(
     );
 
     c.source = (uint32_t)s_;
-    SoftTarget t;
+    Target t;
     Place where;
 
     if (!gx_draw(g, &c, SPRITE_FLAGS, &t, &where))
         return;
 
-    const Pixels px = surf_pixels(&g->surfaces, s);
+    const Picture pic = surf_picture(&g->surfaces, s);
 
-    if (!gx_source(g, &t, px.format))
+    if (!g->backend->source(g, &t, &pic))
         return;
 
     for (int32_t i = 0; i + 1 < n; i++) {
@@ -434,7 +440,7 @@ void gfx_draw_strip(
         const Vec a = {p[i].x, p[i].y}, b = {p[i + 1].x, p[i + 1].y};
 
         shape_segment(s->w, s->h, a, b, p[i].x - p[0].x, flags, &where, v);
-        soft_texture(&t, &px, v, 4, flags, true);
+        g->backend->texture(&t, &pic, v, 4, flags, true);
     }
 }
 
@@ -513,7 +519,7 @@ void gfx_draw_tiles(
 
     Command c = drawn(GFX_DISPLAY_DREW_TILES, (Vec){x, y}, end, 0, flags);
 
-    SoftTarget t;
+    Target t;
     Place where;
 
     if (!gx_draw(g, &c, SPRITE_FLAGS, &t, &where))
@@ -541,14 +547,14 @@ void gfx_draw_tiles(
 
             const Vec dx = {(float)(col * w), (float)(row * h)};
 
-            const Pixels px = s ? surf_pixels(&g->surfaces, s) : (Pixels){};
+            const Picture p = s ? surf_picture(&g->surfaces, s) : (Picture){};
 
             if (s)
                 picture(
                     g,
                     &t,
                     &where,
-                    &px,
+                    &p,
                     (Vec){},
                     (Vec){x + dx.x, y + dx.y},
                     (Vec){c.x + dx.x, c.y + dx.y},
@@ -560,13 +566,16 @@ void gfx_draw_tiles(
 }
 
 /* The pen's font and its sheet: null, raised (its sheet freed, or no memory). */
-static const Font *pen_font(Gx *const g, Pixels *const sheet)
+static const Font *pen_font(Gx *const g, Picture *const sheet)
 {
     const Font *const f = font_get(&g->fonts, g->pen.font);
 
     if (!f->sheet) {
-        if (font_builtin(&g->fonts, sheet))
+        if (font_builtin(&g->fonts, &sheet->root)) {
+            sheet->at = (Rect){0, 0, sheet->root.w, sheet->root.h};
+
             return f;
+        }
 
         gx_fail(ERR_MEMORY);
         return nullptr;
@@ -575,7 +584,7 @@ static const Font *pen_font(Gx *const g, Pixels *const sheet)
     const Surface *const s = gx_surface(g, f->sheet);
 
     if (s)
-        *sheet = surf_pixels(&g->surfaces, s);
+        *sheet = surf_picture(&g->surfaces, s);
 
     return s ? f : nullptr;
 }
@@ -587,16 +596,16 @@ void gfx_draw_text(const float x, const float y, const QxStr s, const int32_t co
     const bool own = colour == GFX_DRAW_AS_DRAWN;
     Command c = drawn(GFX_DISPLAY_DREW_TEXT, (Vec){x, y}, (Vec){x, y}, own ? 0 : colour, 0);
 
-    Pixels sheet;
+    Picture sheet;
     const Font *const f = g ? pen_font(g, &sheet) : nullptr;
-    SoftTarget t;
+    Target t;
     Place where;
 
     if (!f || !gx_draw(g, &c, 0, &t, &where))
         return;
 
     if (!own)
-        gx_solid(g, &t, (uint32_t)colour);
+        g->backend->solid(g, &t, (uint32_t)colour);
 
     for (uint32_t i = 0; i < s.len; i++) {
         const float dx = (float)((int32_t)i * f->w);
@@ -605,7 +614,11 @@ void gfx_draw_text(const float x, const float y, const QxStr s, const int32_t co
         if (!font_glyph(f, (uint8_t)s.ptr[i], &cell))
             continue;
 
-        const Pixels glyph = px_cut(&sheet, cell);
+        const Picture glyph = {
+            sheet.root,
+            {sheet.at.x + cell.x, sheet.at.y + cell.y, cell.w, cell.h},
+        };
+
         picture(g, &t, &where, &glyph, (Vec){}, (Vec){x + dx, y}, (Vec){c.x + dx, c.y}, 0, 1, 0);
     }
 }

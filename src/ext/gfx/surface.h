@@ -23,6 +23,15 @@ typedef struct {
     uint32_t *palette; /* an image's 256 colours, &HRRGGBB; null none */
 } Surface;
 
+/* A surface's pixels as drawn from: its root's (the surface with memory, or the canvas's page)
+   and its rectangle in them. */
+typedef struct {
+    Pixels root;
+    Rect at;
+} Picture;
+
+static inline Pixels pic_pixels(const Picture *const p) { return px_cut(&p->root, p->at); }
+
 typedef struct {
     HdlTable t;
     Pixels canvas; /* the page; p null, no screen */
@@ -51,6 +60,7 @@ uint32_t surf_new(
 uint32_t surf_view(Surfaces *ss, uint32_t parent, int32_t x, int32_t y, int32_t w, int32_t h);
 /* h's surface: null, none (freed, or not a surface). */
 Surface *surf_get(const Surfaces *ss, uint32_t h);
+Picture surf_picture(const Surfaces *ss, const Surface *s);
 Pixels surf_pixels(const Surfaces *ss, const Surface *s);
 /* h and its views freed. */
 void surf_free(Surfaces *ss, uint32_t h);

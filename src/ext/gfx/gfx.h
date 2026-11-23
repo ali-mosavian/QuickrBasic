@@ -8,6 +8,7 @@
  */
 #ifndef GFX_GFX_H
 #define GFX_GFX_H
+#include "backend.h"
 #include "colour.h"
 #include "command.h"
 #include "font.h"
@@ -25,7 +26,8 @@ enum : uint8_t {
 
 enum { GX_MOST = 1 << 14 }; /* pixels a side */
 
-typedef struct {
+typedef struct Gx {
+    const Backend *backend; /* the screen's */
     Surfaces surfaces;
     Fonts fonts;
     Palette palette;
@@ -50,13 +52,8 @@ bool gx_array(const QxArray *a, uint32_t elem, uint32_t need);
 const void *gx_elements(const QxArray *a, uint32_t elem, int32_t first, int32_t n);
 /* Room for n points placed: null, raised. */
 Vec *gx_points(Gx *g, uint32_t n);
-/* A draw call begun: its flags (those of allowed, BLEND or ADD) and colour checked, the pen's
-   target resolved into t and the camera over it into *where, c placed (cmd_place) and logged, the
-   ink of its flags and the pen made: false, raised. */
-bool gx_draw(Gx *g, Command *c, int32_t allowed, SoftTarget *t, Place *where);
-/* t's ink set for texels of source, the tables it needs made: false, raised. */
-bool gx_source(Gx *g, SoftTarget *t, PxFormat source);
-/* t's ink drawing every texel in colour, through the pen as a shape's colour is: SOLID's, with a
-   colour of the call's. */
-void gx_solid(const Gx *g, SoftTarget *t, uint32_t colour);
+/* A draw call begun: its flags (those of allowed, BLEND or ADD) and colour checked, the camera
+   over the pen's target into *where, c placed (cmd_place) and logged, t readied by the backend:
+   false, raised. */
+bool gx_draw(Gx *g, Command *c, int32_t allowed, Target *t, Place *where);
 #endif

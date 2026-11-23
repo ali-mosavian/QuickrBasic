@@ -118,16 +118,27 @@ uint32_t surf_view(
 
 Surface *surf_get(const Surfaces *const ss, const uint32_t h) { return hdl_item(&ss->t, h); }
 
-Pixels surf_pixels(const Surfaces *const ss, const Surface *const s)
+Picture surf_picture(const Surfaces *const ss, const Surface *const s)
 {
+    const Rect all = {0, 0, s->w, s->h};
+
     if (s->own)
-        return (Pixels){s->own, (uint32_t)s->w * px_bytes(s->format), s->w, s->h, s->format};
+        return (Picture){
+            {s->own, (uint32_t)s->w * px_bytes(s->format), s->w, s->h, s->format},
+            all,
+        };
 
     if (!s->parent)
-        return ss->canvas;
+        return (Picture){ss->canvas, all};
 
-    const Pixels p = surf_pixels(ss, surf_get(ss, s->parent));
-    return px_cut(&p, (Rect){s->x, s->y, s->w, s->h});
+    const Picture p = surf_picture(ss, surf_get(ss, s->parent));
+    return (Picture){p.root, {p.at.x + s->x, p.at.y + s->y, s->w, s->h}};
+}
+
+Pixels surf_pixels(const Surfaces *const ss, const Surface *const s)
+{
+    const Picture p = surf_picture(ss, s);
+    return pic_pixels(&p);
 }
 
 void surf_free(Surfaces *const ss, const uint32_t h) { drop(ss, h); }

@@ -391,6 +391,7 @@ takes its own part. Memory is the host's (`alloc`), taken when first used: nothi
 | `pen` | the pen |
 | `font` | fonts: sheets cut into glyphs, and the built-in 8 by 8 as one |
 | `command` | a draw call to a command, the camera applied; the frame's log |
+| `backend`, `backend_soft` | a backend's table, which the state holds for the open screen: an entry draws through it; software's |
 | `shape` | a command to vertices: quads and fans |
 | `soft/scan` | a convex polygon to spans, clipped |
 | `soft/fill`, `fill8`, `fill16`, `fill32` | spans and rows to pixels: a table for each colour format |
