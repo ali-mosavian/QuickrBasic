@@ -510,8 +510,10 @@ void B_SPLY(SD *commands)
 {
     macro_begin(&players[0].m, commands);
     players[0].layer = 0;
+    music_align(0);
     while (step(&players[0], 0))
         ;
+    music_begun(0);
     str_free_if_tmp(commands);
 }
 
@@ -542,8 +544,10 @@ void B_SPLYV(SD *const *commands, unsigned count)
         more[next] = (byte)step(&players[next], next);
     }
     for (i = 0; i < count; i++)
-        if (commands[i])
+        if (commands[i]) {
+            music_begun(i);
             str_free_if_tmp(commands[i]);
+        }
 }
 
 void play_sound(SD *commands, DevVoice sound[DEV_LAYERS])

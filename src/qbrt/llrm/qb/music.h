@@ -20,13 +20,15 @@
 /* A part of a tick has passed, by the synthesizer's count of its samples: the clock tick leaves the queues to it. */
 void music_fine_tick(void);
 
-/* music in the foreground (MF, the default): each note waits for the one sounding to end */
+/* music in the foreground (MF, the default): PLAY waits for its notes to begin, SOUND for the one sounding to end */
 extern byte music_foreground;
 
 /* Queues in `voice` a note of `v` and its v->layers layers after it (v->hertz 0 a rest), through the synthesizer if
    `synth`, `sound` and then `quiet` thousandths of a tick long; the parts of a tick are carried to the voice's next
    note. */
 void music_queue(unsigned voice, byte synth, const DevVoice *v, long sound, long quiet);
+/* In the foreground, until `voice`'s last note has begun: PLAY's end. */
+void music_begun(unsigned voice);
 /* The tick `voice`'s queue ends at, now if it is empty. */
 unsigned long music_end(unsigned voice);
 /* A voice with nothing queued carries no parts of a tick: voices that start together stay together. */

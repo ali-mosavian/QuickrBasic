@@ -24,6 +24,40 @@ static size_t tones(const size_t first, unsigned *const hertz, const size_t max)
     return n;
 }
 
+/* A PLAY on a quiet voice starts its time afresh. The part of a tick its last note left over carried into the next
+   program: after PLAY "T200 L32 C" the same eighth at T180 lasted 3 ticks, not its 2 (2655 thousandths). */
+TEST(play_starts_its_time_afresh)
+{
+    static const char *const before[] = {"10 PLAY \"MF T200 L32 C\"", nullptr};
+    static const char *const lines[] = {"10 PLAY \"MF T180 L8 O3 C D\"", nullptr};
+
+    qbrt_realtime(false);
+    CHECK(unit_run(S, before) == ST_OK);
+    headless_run(100);
+    const size_t first = headless_tone_count();
+    CHECK(unit_run(S, lines) == ST_OK);
+    headless_run(100);
+    qbrt_realtime(true);
+    CHECK(headless_tone_count() - first >= 2 && headless_tone(first).hertz == 262 && !headless_tone(first + 1).hertz);
+    CHECK(headless_tone(first + 1).tick - headless_tone(first).tick == 2);
+}
+
+/* Foreground notes follow each other as background ones do. Each waited for the one before to stop sounding, so one
+   with no quiet after it (ML) started a tick late: 55 ms of silence where legato joins. */
+TEST(play_foreground_notes_join)
+{
+    static const char *const lines[] = {"10 PLAY \"MF T180 ML L8 O3 A B\"", nullptr};
+
+    qbrt_realtime(false);
+    const size_t first = headless_tone_count();
+    CHECK(unit_run(S, lines) == ST_OK);
+    headless_run(100);
+    qbrt_realtime(true);
+    CHECK(headless_tone_count() - first == 4 && headless_tone(first).hertz == 440);
+    CHECK(headless_tone(first + 2).hertz == 494);
+    CHECK(headless_tone(first + 2).tick == headless_tone(first + 1).tick);
+}
+
 /* A foreground SOUND waits for the one sounding; each sounds, then the speaker is quiet. */
 TEST(sound_plays_in_turn)
 {
