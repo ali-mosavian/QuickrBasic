@@ -4,7 +4,7 @@
 import { gpu as newGpu } from './gpu.mjs';
 import { biosKey, scanCode, shiftFlags } from './keys.mjs';
 import { uploadAs } from './upload.mjs';
-import { memory as newMemory, Irq, sidecar, ticker, MUSIC_HZ, AUDIO_RATE } from './wasm.mjs';
+import { memory as newMemory, Irq, sidecar, ticker, EVENT, MUSIC_HZ, AUDIO_RATE } from './wasm.mjs';
 
 const BLINK_MS = 267;
 const DEMOS = ['WELCOME.BAS', 'GORILLA.BAS', 'NIBBLES.BAS', 'MOTHLITE.BAS', 'RUSTLINE.BAS', 'CHARLIE.BAS',
@@ -122,7 +122,8 @@ let irq, display;
 
 worker.onmessage = ({ data }) => {
   if ('irq' in data) {
-    irq = new Irq(memory, data.irq, data.scans, data.display);
+    irq = new Irq(memory, data.irq, data.scans, data.display, data.events);
+    resized();
     // a hidden page draws nothing: its retraces from a timer, so a program waiting for one goes on
     setInterval(() => document.hidden && irq.frame(), 1000 / 60);
     display = sidecar(module, memory, tone, voice);
@@ -137,6 +138,8 @@ worker.onmessage = ({ data }) => {
   } else if ('gpu' in data) {
     if (data.gpu) gpu.open(data.gpu.w, data.gpu.h);
     else gpu.close();
+  } else if ('fullscreen' in data) {
+    fullscreen(data.fullscreen);
   } else if ('file' in data) {
     keep(data.file, data.bytes);
   } else if ('tone' in data) {
@@ -216,6 +219,29 @@ function draw(now) {
   requestAnimationFrame(draw);
 }
 
+// Full screen as gfx asks: the Fullscreen API's, which takes a click or a key, so at the next.
+let fullAsked = false;
+function fullscreen(on) {
+  fullAsked = on;
+  if (!on && document.fullscreenElement) document.exitFullscreen();
+}
+function gesture() {
+  if (fullAsked && !document.fullscreenElement) canvas.requestFullscreen().catch(() => {});
+  fullAsked = false;
+}
+
+// The screen's pixels, gfx's one mode, and the canvas's as shown: a RESIZED for gfx's poll.
+function resized() {
+  if (!irq) return;
+  const dpr = devicePixelRatio, r = canvas.getBoundingClientRect();
+  const scale = Math.min(r.width / canvas.width, r.height / canvas.height) * dpr;
+  irq.screen(Math.round(screen.width * dpr), Math.round(screen.height * dpr));
+  irq.event(EVENT.RESIZED, { w: Math.round(canvas.width * scale), h: Math.round(canvas.height * scale) });
+}
+addEventListener('resize', resized);
+document.addEventListener('fullscreenchange', resized);
+addEventListener('focus', () => irq?.event(EVENT.FOCUS, { focused: true }));
+
 // ?run='s program, started at the first key or click: true as it starts.
 function begin() {
   if (begun) return false;
@@ -251,6 +277,7 @@ function release(code) {
 }
 addEventListener('keydown', (e) => {
   wake();
+  gesture();
   if (!irq || e.metaKey) return;
   if (begin()) return e.preventDefault();
   irq.shift = shiftFlags(e);
@@ -272,11 +299,13 @@ addEventListener('keyup', (e) => {
 });
 addEventListener('blur', () => {
   if (!irq) return;
+  irq.event(EVENT.FOCUS, { focused: false });
   irq.shift = 0;
   for (const code of [...held]) release(code); // no key comes up for a page that lost the keyboard
 });
 addEventListener('pointerdown', () => {
   wake();
+  gesture();
   if (irq) begin();
 });
 

@@ -47,6 +47,8 @@ IMPORT(gpu_close) void js_gpu_close(void);
 IMPORT(gpu_play) bool js_gpu_play(const uint32_t *list, uint32_t words);
 IMPORT(gpu_read)
 void js_gpu_read(uint32_t texture, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t *out);
+/* gfx's screen full screen, on the page's next click or key (the Fullscreen API's rule), or not. */
+IMPORT(fullscreen) void js_fullscreen(int on);
 /* An extension's render (its table index) played on the device's thread, its stereo frames written
    at out, on its own stack (its top), under the lock word at lock: the rate, 0 no device. */
 IMPORT(audio_open) uint32_t js_audio_open(uint32_t render, void *out, void *stack, volatile int32_t *lock);

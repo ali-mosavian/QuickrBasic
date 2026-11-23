@@ -578,6 +578,9 @@ Step 4, in parts:
   a closed window ends the run unless the program has polled since `display.open`, which then
   gets `QUIT`, and a second close ends it. On the Mac, SDL's full screen in a Space of its own
   needs the app active.
+- **The page's display** (`plat/wasm/display.c`): one monitor, its one mode the screen's in
+  device pixels; full screen by the Fullscreen API at the next click or key, its rule. The page
+  reports the canvas's shown size and its focus.
 - **Circles and arcs as shader coverage**: each is one box, its four vertices `GpuDisc`s in a
   buffer of their own, so a plain vertex stays 32 bytes; the fragment shader keeps the pixels
   `disc.h`'s rule covers, centres within the radius by squared distance, every product and sum

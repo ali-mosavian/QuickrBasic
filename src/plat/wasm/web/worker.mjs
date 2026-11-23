@@ -22,10 +22,11 @@ onmessage = ({ data: { module, memory, args, files, gpu } }) => {
     voice: (n, bytes) => postMessage({ voice: n, bytes }),
     audio: (spec) => postMessage({ audio: spec }),
     gpu: gpu ? new GpuLink(memory, gpu, (m, moved) => postMessage(m, moved)) : null,
+    fullscreen: (on) => postMessage({ fullscreen: on }),
   };
   const ex = (host.ex = new WebAssembly.Instance(module, imports(memory, host)).exports);
   new Irq(memory, ex.irq()).keyboard = true; // before main: the runtime's console is the screen
-  postMessage({ irq: ex.irq(), scans: ex.scans(), display: ex.display() });
+  postMessage({ irq: ex.irq(), scans: ex.scans(), display: ex.display(), events: ex.events() });
   let code = 0;
   try {
     ex.__wasm_call_ctors();

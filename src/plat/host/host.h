@@ -18,9 +18,10 @@ typedef struct {
 HostScans *host_scans(void);
 /* What a display shows, written by a window's thread or a page: the frames shown, port 3DAh's vertical retrace
    read as begun once for each (while 0 no display shows frames, and the retrace begins and ends at each look);
-   its refresh in thousandths of a Hz, 0 unknown. A page adds a frame as host_frame_shown does, and notifies. */
+   its refresh in thousandths of a Hz, 0 unknown; a page's screen, w by h pixels. A page adds a frame as
+   host_frame_shown does, and notifies. */
 typedef struct {
-    _Atomic uint32_t frames, millihz;
+    _Atomic uint32_t frames, millihz, w, h;
 } HostDisplay;
 HostDisplay *host_display(void);
 void host_frame_shown(void);
