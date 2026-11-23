@@ -1,5 +1,5 @@
 /* gfx.surface: views over their parents' pixels, grids, aim, stale handles, a BMP loaded. */
-#include "call.h"
+#include "test.h"
 #include <stdio.h>
 
 TEST(gfx_views_draw_into_their_parents)

@@ -308,6 +308,24 @@ $(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(MAC)/QuickrBasic $(HELP) $
 	cp $(STDLIB) $(APP)/Contents/Resources/lib/
 	cp $< $@
 	codesign --force -s - $(APP)
+# gfx's first slice in the Mac's window: tests/ext/gfx/show.c draws CHARLIE's frame in the IDE's place,
+# the core linked in beside the runtime's font (vgadata.c); gfx-shot runs it from here, QB_SHOT takes it
+GFX_MAC_OBJ := $(GFX_C:src/ext/gfx/%.c=$(MAC)/gfx/%.o) $(MAC)/gfx/gfx_qx.o $(MAC)/gfx/test/charlie.o \
+	$(MAC)/gfx/test/show.o
+$(MAC)/gfx/%.o: src/ext/gfx/%.c | build/ext/gfx_qx.c
+	@mkdir -p $(@D)
+	$(HOST_CC) $(MAC_ARCH) $(QX_CFLAGS) $(GFX_INC) $(DEPFLAGS) -c $< -o $@
+$(MAC)/gfx/gfx_qx.o: build/ext/gfx_qx.c
+	@mkdir -p $(@D)
+	$(HOST_CC) $(MAC_ARCH) $(QX_CFLAGS) $(DEPFLAGS) -c $< -o $@
+$(MAC)/gfx/test/%.o: tests/ext/gfx/%.c | build/ext/gfx_qx.c
+	@mkdir -p $(@D)
+	$(HOST_CC) $(MAC_CFLAGS) -Isrc/qx -Ibuild/ext $(GFX_INC) $(DEPFLAGS) -c $< -o $@
+$(MAC)/gfxshow: $(filter-out $(MAC)/obj/app/ide32.o,$(MAC_OBJ)) $(GFX_MAC_OBJ) $(MAC)/obj/plat/sdl/app/main.o $(SDL_LIB)
+	$(HOST_CC) $(MAC_ARCH) $(filter %.o,$^) $(SDL_LIBS) -lm -o $@
+gfx-shot: $(MAC)/gfxshow
+	QB_SHOT=$(MAC)/charlie.ppm@30 $<
+
 mac-zip: mac
 	cd $(MAC) && ditto -c -k --keepParent QuickrBasic.app QuickrBasic-mac.zip
 # each architecture's half (x86-64's under Rosetta, where there is one)

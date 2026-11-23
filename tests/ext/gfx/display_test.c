@@ -1,5 +1,5 @@
 /* gfx.display: the canvas opened at software's 8 bits, the frame's commands as drawn, the flip. */
-#include "call.h"
+#include "test.h"
 
 TEST(gfx_open_gives_8_bits)
 {
