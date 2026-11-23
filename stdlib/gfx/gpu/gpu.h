@@ -3,11 +3,14 @@
  *
  * # How it works
  * The first list makes the canvas, the palette's texture and the shader's pipelines (gpu/shaders),
- * one a kind of vertex and blend. A texture is named by its root surface's handle or by a PIC_
- * name (surface.h). It is made, and the root's pixels sent, when first drawn from or into; sent
- * again when the CPU wrote them since (the root's version). An 8-bit root drawn from is an index
- * texture; drawn into, RGBA through palette row 0, as is the canvas. A root drawn into is ahead on
- * the GPU (drawn) until gpu_sync reads it back. A draw reads its picture and the palette.
+ * one a kind of vertex and blend. A root surface's pixels, or a PIC_ picture's (surface.h), are
+ * sent when first drawn from or into, and again when the CPU wrote them since (the root's
+ * version). A root drawn from, half a page or smaller, is packed into an atlas page of its format,
+ * so pictures share a texture and their sprites a batch: pages are packed in rows, a place freed
+ * with its root, a page empty again started over. Drawn into, a root has a texture of its own,
+ * named by its handle; packed, it leaves its page. An 8-bit root drawn from is indices; drawn
+ * into, RGBA through palette row 0, as is the canvas. A root drawn into is ahead on the GPU
+ * (drawn) until gpu_sync reads it back. A draw reads its picture and the palette.
  */
 #ifndef GFX_GPU_GPU_H
 #define GFX_GPU_GPU_H
@@ -16,10 +19,29 @@
 #include "gpu/list.h"
 #include "surface.h"
 
+/* The palette's texture, the first atlas page's, a page's side. */
+enum { GPU_PALETTE = PIC_FONT + 1, GPU_PAGE_FIRST, GPU_PAGE = 1024 };
+
 typedef struct {
     uint32_t handle, version;
     QxTextureFormat format; /* 0, none made */
+    uint32_t page;          /* its page's texture; 0 its own */
+    uint16_t x, y;          /* its place in the page */
 } GpuTexture;
+
+/* An atlas page: the next place, x along the row at y, row the row's height so far. */
+typedef struct {
+    QxTextureFormat format;
+    uint32_t live; /* the roots in it */
+    uint16_t x, y, row;
+} GpuPage;
+
+/* Where a picture's root is: its texture, its place in it, and whether it holds indices. */
+typedef struct {
+    uint32_t id;
+    uint16_t x, y;
+    bool indexed;
+} GpuSource;
 
 /* What the GPU was asked: draws (batches), texture uploads, and reads waited for. */
 typedef struct {
@@ -31,6 +53,8 @@ typedef struct {
     GpuTexture own[PIC_FONT + 1]; /* the PIC_ textures */
     GpuTexture *textures;         /* by a root's slot */
     uint32_t ntextures;
+    GpuPage *pages; /* the first's texture PAGE_FIRST */
+    uint32_t npages, cappages;
     bool passing;  /* a pass since the list began */
     uint32_t pass; /* its texture */
     Rect clip;
@@ -59,16 +83,8 @@ typedef struct {
 /* The canvas, s's size, the palette and the pipelines, in the language s gave: false, no memory. */
 bool gpu_open(Gpu *g, const QxScreen *s);
 void gpu_close(Gpu *g);
-/* p's texture, made and sent as the GPU needs it, RGBA when drawn into: its name into *id, and
-   whether it holds indices into *indexed. false, no memory. */
-bool gpu_texture(
-    Gpu *g,
-    const Palette *pal,
-    const Picture *p,
-    bool into,
-    uint32_t *id,
-    bool *indexed
-);
+/* p's root on the GPU, made and sent as it needs it, RGBA when drawn into: false, no memory. */
+bool gpu_texture(Gpu *g, const Palette *pal, const Picture *p, bool into, GpuSource *out);
 /* The draws after go into id, w by h, within clip: false, no memory. */
 bool gpu_target(Gpu *g, uint32_t id, int32_t w, int32_t h, Rect clip);
 /* The palette sent, if it changed: false, no memory. */

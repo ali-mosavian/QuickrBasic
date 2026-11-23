@@ -1,7 +1,7 @@
 /* The GPU's list, on a host that records what it is given to play and reads back pixels it is
    told: each frame's ops in order, its batches and vertices, worked by hand. */
 #include "disc.h"
-#include "gpu/list.h"
+#include "gpu/gpu.h"
 #include "soft/scan.h"
 #include "surface.h"
 #include "test.h"
@@ -317,13 +317,17 @@ TEST(gfx_gpu_draws_shapes_in_one_batch)
     GPU_CALL("display.flip");
     CHECK(plays == 1 && ops(FIRST "TUPNCUDSE"));
     CHECK(arg(QX_LIST_TEXTURE, 0, 1) == GFX_SURFACE_CANVAS && arg(QX_LIST_TEXTURE, 0, 2) == 8);
-    CHECK(arg(QX_LIST_TEXTURE, 2, 1) == PIC_WHITE && arg(QX_LIST_TEXTURE, 2, 4) == QX_TEXTURE_RGBA);
+    CHECK(
+        arg(QX_LIST_TEXTURE, 2, 1) == GPU_PAGE_FIRST &&
+        arg(QX_LIST_TEXTURE, 2, 4) == QX_TEXTURE_RGBA
+    );
+    CHECK(arg(QX_LIST_TEXTURE, 2, 2) == GPU_PAGE && arg(QX_LIST_UPLOAD, 0, 1) == GPU_PAGE_FIRST);
     CHECK(arg(QX_LIST_PIPELINE, 0, 3) == sizeof(GpuVertex));
     CHECK(arg(QX_LIST_PIPELINE, 5, 3) == sizeof(GpuDisc));
     CHECK(arg(QX_LIST_PASS, 0, 1) == GFX_SURFACE_CANVAS && arg(QX_LIST_CLIP, 0, 3) == 8);
     CHECK(uniforms[0] == 8 && uniforms[1] == 8 && uniforms[2] == -1);
     CHECK(arg(QX_LIST_DRAW, 0, 4) == 0 && arg(QX_LIST_DRAW, 0, 5) == 12);
-    CHECK(arg(QX_LIST_DRAW, 0, 7) == PIC_WHITE && arg(QX_LIST_DRAW, 0, 1) == 1);
+    CHECK(arg(QX_LIST_DRAW, 0, 7) == GPU_PAGE_FIRST && arg(QX_LIST_DRAW, 0, 1) == 1);
     CHECK(placed(&vertices[0], -0.5f, -0.5f) && placed(&vertices[2], 7.5f, 7.5f));
     CHECK(vertices[0].r == 0x10 && vertices[0].g == 0x20 && vertices[0].b == 0x30);
     CHECK(
@@ -400,12 +404,51 @@ TEST(gfx_gpu_draws_shapes_and_pictures_in_one_batch)
     GPU_CALL("draw.circle", F(4), F(4), F(3), I(3), I(0));
     GPU_CALL("display.flip");
     CHECK(ops(HEAD "PNCDDSE"));
-    CHECK(arg(QX_LIST_DRAW, 0, 7) == (uint32_t)s && arg(QX_LIST_DRAW, 0, 5) == 4 * 6);
+    CHECK(arg(QX_LIST_DRAW, 0, 7) == GPU_PAGE_FIRST + 1 && arg(QX_LIST_DRAW, 0, 5) == 4 * 6);
     CHECK(arg(QX_LIST_DRAW, 1, 2) == LIST_DISCS && arg(QX_LIST_DRAW, 1, 5) == 2 * 6);
     CHECK(vertices[0].stages == GPU_STAGE_SOLID && vertices[4].stages == GPU_STAGE_KEYED + 1);
 }
 
-/* An 8-bit picture is an index texture, sent once and again when written; freed with it. */
+/* Pictures drawn from share a page, side by side in a row, and so a batch once sent; one larger
+   than half a page has a texture of its own. A page empty again starts over. */
+TEST(gfx_gpu_packs_pictures_into_pages)
+{
+    screen(S, 8, 8, 32);
+    const int32_t a = GPU_CALL("surface.new", I(2), I(2)).result.i;
+    const int32_t b = GPU_CALL("surface.new", I(3), I(1)).result.i;
+    const int32_t big = GPU_CALL("surface.new", I(GPU_PAGE / 2 + 1), I(1)).result.i;
+
+    for (uint32_t frame = 0; frame < 2; frame++) {
+        GPU_CALL("draw.sprite", I(a), F(0), F(0), I(0));
+        GPU_CALL("draw.sprite", I(b), F(4), F(4), I(0));
+        GPU_CALL("draw.sprite", I(big), F(0), F(6), I(0));
+        GPU_CALL("display.flip");
+
+        if (!frame) {
+            CHECK(ops(FIRST "TUPNCUUDUDTDSE"));
+            CHECK(arg(QX_LIST_UPLOAD, 2, 1) == GPU_PAGE_FIRST && arg(QX_LIST_UPLOAD, 2, 2) == 1);
+            CHECK(arg(QX_LIST_UPLOAD, 3, 2) == 3 && arg(QX_LIST_UPLOAD, 3, 3) == 0);
+            CHECK(arg(QX_LIST_TEXTURE, 3, 1) == (uint32_t)big);
+        }
+    }
+
+    CHECK(ops(HEAD "PNCDDSE") && arg(QX_LIST_DRAW, 1, 7) == (uint32_t)big);
+    CHECK(arg(QX_LIST_DRAW, 0, 7) == GPU_PAGE_FIRST && arg(QX_LIST_DRAW, 0, 5) == 2 * 6);
+    CHECK(vertices[0].rx == 1 && vertices[4].rx == 3 && vertices[4].ry == 0);
+
+    screen(S, 8, 8, 8);
+    const int32_t c = GPU_CALL("surface.new", I(2), I(2)).result.i;
+    GPU_CALL("draw.sprite", I(c), F(0), F(0), I(0));
+    GPU_CALL("surface.free", I(c));
+    const int32_t d = GPU_CALL("surface.new", I(4), I(4)).result.i;
+    GPU_CALL("draw.sprite", I(d), F(0), F(0), I(0));
+    GPU_CALL("display.flip");
+    CHECK(arg(QX_LIST_UPLOAD, 3, 1) == GPU_PAGE_FIRST + 1 && arg(QX_LIST_UPLOAD, 3, 2) == 0);
+    CHECK(arg(QX_LIST_UPLOAD, 3, 4) == 4 && arg(QX_LIST_DRAW, 1, 7) == GPU_PAGE_FIRST + 1);
+}
+
+/* An 8-bit picture goes into an index page, sent once and again when written; its place freed
+   with it. */
 TEST(gfx_gpu_sends_a_picture_once)
 {
     screen(S, 8, 8, 8);
@@ -419,9 +462,10 @@ TEST(gfx_gpu_sends_a_picture_once)
     GPU_CALL("display.flip");
     CHECK(ops(FIRST "TUPNCUTUDSE"));
     CHECK(
-        arg(QX_LIST_TEXTURE, 3, 1) == (uint32_t)s && arg(QX_LIST_TEXTURE, 3, 4) == QX_TEXTURE_INDEX
+        arg(QX_LIST_TEXTURE, 3, 1) == GPU_PAGE_FIRST + 1 &&
+        arg(QX_LIST_TEXTURE, 3, 4) == QX_TEXTURE_INDEX
     );
-    CHECK(arg(QX_LIST_DRAW, 0, 7) == (uint32_t)s);
+    CHECK(arg(QX_LIST_DRAW, 0, 7) == GPU_PAGE_FIRST + 1);
     CHECK(placed(&vertices[0], 0.5f, 0.5f) && vertices[0].u == 2 && vertices[1].u == 0);
     CHECK(vertices[0].stages == (GPU_STAGE_INDEXED | GPU_STAGE_KEYED) && vertices[0].rw == 2);
 
@@ -436,11 +480,11 @@ TEST(gfx_gpu_sends_a_picture_once)
 
     GPU_CALL("surface.free", I(s));
     GPU_CALL("display.flip");
-    CHECK(ops(HEAD "FSE") && arg(QX_LIST_FREE, 0, 1) == (uint32_t)s);
+    CHECK(ops(HEAD "SE"));
 }
 
-/* A surface drawn into is an RGBA target, drawn from as it is; an 8-bit one drawn from first is
-   made again as RGBA, its texels sent through row 0. */
+/* A surface drawn into is an RGBA target of its own, drawn from as it is; an 8-bit one drawn from
+   first leaves its page. */
 TEST(gfx_gpu_draws_into_surfaces)
 {
     screen(S, 8, 8, 8);
@@ -451,8 +495,11 @@ TEST(gfx_gpu_draws_into_surfaces)
     GPU_CALL("pen.target", I(GFX_SURFACE_CANVAS));
     GPU_CALL("draw.sprite", I(s), F(0), F(0), I(0));
     GPU_CALL("display.flip");
-    CHECK(ops(FIRST "TUPNCUTDFTUPNCDPNCDSE"));
-    CHECK(arg(QX_LIST_TEXTURE, 4, 4) == QX_TEXTURE_RGBA && arg(QX_LIST_PASS, 1, 1) == (uint32_t)s);
+    CHECK(ops(FIRST "TUPNCUTUDTPNCDPNCDSE"));
+    CHECK(
+        arg(QX_LIST_TEXTURE, 4, 1) == (uint32_t)s && arg(QX_LIST_TEXTURE, 4, 4) == QX_TEXTURE_RGBA
+    );
+    CHECK(arg(QX_LIST_PASS, 1, 1) == (uint32_t)s && arg(QX_LIST_DRAW, 2, 7) == (uint32_t)s);
     CHECK(arg(QX_LIST_CLIP, 1, 3) == 2 && vertices[8].stages == GPU_STAGE_KEYED);
     CHECK(vertices[4].r == 0xAA && vertices[4].g == 0 && vertices[4].b == 0); /* index 4 */
 }

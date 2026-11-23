@@ -126,12 +126,13 @@ static bool begin(Gx *const g, Surface *const s, const Command *const c, Target 
     const QxBlend blend = c->flags & GFX_PEN_ADD     ? QX_BLEND_ADD
                           : c->flags & GFX_PEN_BLEND ? QX_BLEND_MIX
                                                      : QX_BLEND_NONE;
-    uint32_t h = pen->target, id, white_id;
-    bool indexed;
+    uint32_t h = pen->target;
+    GpuSource into, blank;
 
-    if (!gpu_texture(&g->gpu, &g->palette, &p, true, &id, &indexed) ||
-        !gpu_texture(&g->gpu, &g->palette, &white, false, &white_id, &indexed) ||
-        !gpu_target(&g->gpu, id, p.root.w, p.root.h, clip) || !gpu_palette(&g->gpu, &g->palette))
+    if (!gpu_texture(&g->gpu, &g->palette, &p, true, &into) ||
+        !gpu_texture(&g->gpu, &g->palette, &white, false, &blank) ||
+        !gpu_target(&g->gpu, into.id, p.root.w, p.root.h, clip) ||
+        !gpu_palette(&g->gpu, &g->palette))
         return gx_fail(ERR_MEMORY);
 
     surf_root(&g->surfaces, s, &h)->drawn = true;
@@ -144,7 +145,7 @@ static bool begin(Gx *const g, Surface *const s, const Command *const c, Target 
                 .row = (uint8_t)pen->recolor,
                 .stages = c->flags & GFX_PEN_OPAQUE ? 0 : GPU_STAGE_KEYED,
             },
-        .texture = white_id,
+        .texture = blank.id,
         .blend = blend,
         .alpha = blend ? (uint8_t)(pen->alpha * ALPHA / PAL_FULL) : ALPHA,
         .eight = s->format == PX_8,
@@ -160,14 +161,16 @@ static bool begin(Gx *const g, Surface *const s, const Command *const c, Target 
 static bool source(Gx *const g, Target *const t, const Picture *const p)
 {
     GpuTarget *const gt = &t->gpu;
-    bool indexed;
+    GpuSource from;
 
-    if (!gpu_texture(&g->gpu, &g->palette, p, false, &gt->texture, &indexed))
+    if (!gpu_texture(&g->gpu, &g->palette, p, false, &from))
         return gx_fail(ERR_MEMORY);
 
+    const bool indexed = from.indexed;
     GpuVertex *const k = &gt->ink;
-    k->rx = (uint16_t)p->at.x;
-    k->ry = (uint16_t)p->at.y;
+    gt->texture = from.id;
+    k->rx = (uint16_t)(from.x + p->at.x);
+    k->ry = (uint16_t)(from.y + p->at.y);
     k->rw = (uint16_t)p->at.w;
     k->rh = (uint16_t)p->at.h;
     k->r = (uint8_t)(gt->paint >> 16);

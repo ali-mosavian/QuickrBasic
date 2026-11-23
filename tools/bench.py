@@ -760,8 +760,8 @@ OPEN "EACH.TXT" FOR OUTPUT AS #1
 """
 
 
-# A frame's draws besides its clear, on a 640 by 480 canvas; f the frame, s& a 32 by 32 picture. calls: the shapes'
-# loop with three calls that draw nothing, the interpreter's share.
+# A frame's draws besides its clear, on a 640 by 480 canvas; f the frame, s& a 32 by 32 picture drawn, pic&() 16
+# written. calls: the shapes' loop with three calls that draw nothing, the interpreter's share.
 GFX_WORK = {
     "flip": "",
     "calls": "for i = 0 to 299\n"
@@ -786,6 +786,9 @@ GFX_WORK = {
     "    gfx.draw.arc 639 - x, y, 20, 0.3, 4, i * 131\n"
     "next",
     "sprites": "for i = 0 to 999\n    gfx.draw.sprite s&, (i * 37 + f) mod 608, (i * 53 + f) mod 448, 0\nnext",
+    "pictures": "for i = 0 to 999\n"
+    "    gfx.draw.sprite pic&(i mod 16), (i * 37 + f) mod 608, (i * 53 + f) mod 448, 0\n"
+    "next",
     "mixed": "for i = 0 to 299\n"
     "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
     "    gfx.draw.sprite s&, x, y, 0\n"
@@ -801,6 +804,15 @@ gfx.pen.target s&
 gfx.draw.clear 0
 gfx.draw.circle 15, 15, 14, 2, gfx.draw.FILL
 gfx.pen.target gfx.surface.CANVAS
+dim px(32 * 32 * 4 - 1) as byte
+dim pic&(15)
+for k = 0 to 15
+    for i = 0 to 32 * 32 * 4 - 1
+        px(i) = (i * 7 + k * 40) and 255
+    next
+    pic&(k) = gfx.surface.new(32, 32)
+    gfx.surface.write pic&(k), 0, 0, 32, 32, px()
+next
 do
     if f = 30 then t# = gfx.display.clock
     gfx.draw.clear 1

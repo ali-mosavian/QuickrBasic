@@ -8,7 +8,6 @@ enum {
     RGBA = 4,
     HALF = 0x80,
     OPAQUE = 0xFF,
-    PALETTE = PIC_FONT + 1, /* the palette's texture */
     BLENDS = 3,
     PLAIN_ATTRIBUTES = 5,
     DISC_ATTRIBUTES = 7,
@@ -155,6 +154,8 @@ bool gpu_open(Gpu *const g, const QxScreen *const s)
     for (uint32_t i = 0; i <= PIC_FONT; i++)
         g->own[i] = (GpuTexture){};
 
+    g->npages = 0;
+
     g->passing = false;
     g->palette = 0;
     g->white = 0xFFFFFFFF;
@@ -164,7 +165,7 @@ bool gpu_open(Gpu *const g, const QxScreen *const s)
     GpuTexture *const canvas = entry(g, GFX_SURFACE_CANVAS);
     const uint32_t made[][4] = {
         {GFX_SURFACE_CANVAS, s->w, s->h, QX_TEXTURE_RGBA},
-        {PALETTE, PAL_COLOURS, PAL_ROWS, QX_TEXTURE_RGBA},
+        {GPU_PALETTE, PAL_COLOURS, PAL_ROWS, QX_TEXTURE_RGBA},
     };
 
     const Code *const code = s->shader < sizeof codes / sizeof *codes ? &codes[s->shader] : nullptr;
@@ -183,8 +184,70 @@ void gpu_close(Gpu *const g)
 {
     list_done(&g->list);
     mem_free(g->textures);
+    mem_free(g->pages);
     g->textures = nullptr;
     g->ntextures = 0;
+    g->pages = nullptr;
+    g->npages = g->cappages = 0;
+}
+
+/* e at the page's next place, a row begun when it would not fit the last: false, no room. */
+static bool fit(GpuPage *const page, GpuTexture *const e, const uint16_t w, const uint16_t h)
+{
+    if (page->x + w > GPU_PAGE) {
+        page->x = 0;
+        page->y += page->row;
+        page->row = 0;
+    }
+
+    if (page->y + h > GPU_PAGE)
+        return false;
+
+    e->x = page->x;
+    e->y = page->y;
+    page->x += w;
+    page->row = h > page->row ? h : page->row;
+    page->live++;
+    return true;
+}
+
+/* e, w by h, packed into a page of format, one made when none has room: false, no memory. */
+static bool pack(
+    Gpu *const g,
+    GpuTexture *const e,
+    const QxTextureFormat format,
+    const uint16_t w,
+    const uint16_t h
+)
+{
+    for (uint32_t i = 0; i < g->npages; i++)
+        if (g->pages[i].format == format && fit(&g->pages[i], e, w, h)) {
+            e->page = GPU_PAGE_FIRST + i;
+            return true;
+        }
+
+    const uint32_t made[] = {GPU_PAGE_FIRST + g->npages, GPU_PAGE, GPU_PAGE, format};
+
+    if (!mem_grow((void **)&g->pages, &g->cappages, g->npages + 1, sizeof *g->pages) ||
+        !list_op(&g->list, QX_LIST_TEXTURE, made, 4))
+        return false;
+
+    GpuPage *const page = &g->pages[g->npages++];
+    *page = (GpuPage){.format = format};
+
+    e->page = made[0];
+    return fit(page, e, w, h);
+}
+
+/* e out of its page, which starts over when it empties. */
+static void unpack(Gpu *const g, GpuTexture *const e)
+{
+    GpuPage *const page = &g->pages[e->page - GPU_PAGE_FIRST];
+
+    if (!--page->live)
+        *page = (GpuPage){.format = page->format};
+
+    e->page = 0;
 }
 
 bool gpu_texture(
@@ -192,8 +255,7 @@ bool gpu_texture(
     const Palette *const pal,
     const Picture *const p,
     const bool into,
-    uint32_t *const id,
-    bool *const indexed
+    GpuSource *const out
 )
 {
     GpuTexture *const e = entry(g, p->texture);
@@ -207,7 +269,18 @@ bool gpu_texture(
     if (e->handle != p->texture)
         *e = (GpuTexture){.handle = p->texture};
 
-    if (!e->format || (want == QX_TEXTURE_RGBA && e->format == QX_TEXTURE_INDEX)) {
+    if (e->page && into) {
+        unpack(g, e);
+        e->format = 0;
+    }
+
+    if (!e->format && !into && px->w <= GPU_PAGE / 2 && px->h <= GPU_PAGE / 2) {
+        if (!pack(g, e, want, (uint16_t)px->w, (uint16_t)px->h))
+            return false;
+
+        e->format = want;
+        e->version = ~p->version; /* the place may hold another's */
+    } else if (!e->format || (want == QX_TEXTURE_RGBA && e->format == QX_TEXTURE_INDEX)) {
         const bool had = e->format;
         const uint32_t args[] = {name, (uint32_t)px->w, (uint32_t)px->h, want};
 
@@ -221,8 +294,10 @@ bool gpu_texture(
         e->version = had ? ~p->version : 0;
     }
 
+    const uint32_t id = e->page ? e->page : name;
+
     if (e->version != p->version) {
-        uint32_t pitch, args[8] = {name, 0, 0, (uint32_t)px->w, (uint32_t)px->h};
+        uint32_t pitch, args[8] = {id, e->x, e->y, (uint32_t)px->w, (uint32_t)px->h};
 
         const uint8_t *const bytes = texels(&g->list, pal, px, e->format, &pitch);
 
@@ -238,8 +313,8 @@ bool gpu_texture(
         e->version = p->version;
     }
 
-    *id = name;
-    *indexed = e->format == QX_TEXTURE_INDEX;
+    *out = (GpuSource){id, e->x, e->y, e->format == QX_TEXTURE_INDEX};
+
     return true;
 }
 
@@ -292,7 +367,7 @@ bool gpu_palette(Gpu *const g, const Palette *const pal)
         return true;
 
     uint8_t *const rows = list_keep(&g->list, PAL_ROWS * PAL_COLOURS * RGBA);
-    uint32_t args[8] = {PALETTE, 0, 0, PAL_COLOURS, PAL_ROWS, PAL_COLOURS * RGBA};
+    uint32_t args[8] = {GPU_PALETTE, 0, 0, PAL_COLOURS, PAL_ROWS, PAL_COLOURS * RGBA};
 
     if (!rows)
         return false;
@@ -320,7 +395,7 @@ static bool any(const GpuVertex *const v)
 
 bool gpu_draw(Gpu *const g, const GpuTarget *const t, const GpuVertex *const v, const uint32_t n)
 {
-    const uint32_t textures[LIST_TEXTURES] = {t->texture, PALETTE};
+    const uint32_t textures[LIST_TEXTURES] = {t->texture, GPU_PALETTE};
 
     const uint32_t pipeline = pipeline_of(PLAIN, t->blend);
 
@@ -329,7 +404,7 @@ bool gpu_draw(Gpu *const g, const GpuTarget *const t, const GpuVertex *const v, 
 
 bool gpu_discs(Gpu *const g, const GpuTarget *const t, const GpuDisc *const v, const uint32_t n)
 {
-    const uint32_t textures[LIST_TEXTURES] = {t->texture, PALETTE};
+    const uint32_t textures[LIST_TEXTURES] = {t->texture, GPU_PALETTE};
 
     const uint32_t pipeline = pipeline_of(ROUND, t->blend);
 
@@ -408,7 +483,9 @@ void gpu_forget(Gpu *const g, const uint32_t h)
     const uint32_t slot = hdl_slot(h);
     GpuTexture *const e = slot < g->ntextures ? &g->textures[slot] : nullptr;
 
-    if (e && e->handle == h && e->format)
+    if (e && e->handle == h && e->page)
+        unpack(g, e);
+    else if (e && e->handle == h && e->format)
         list_op(&g->list, QX_LIST_FREE, &h, 1);
 
     if (e && e->handle == h)

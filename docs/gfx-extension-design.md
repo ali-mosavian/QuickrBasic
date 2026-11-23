@@ -546,6 +546,14 @@ Step 4, in parts:
   two frames behind, and a read waits for its own. `SHOW` copies a texture to one the window
   draws, cycled so the copy never waits on the frame drawing the last. `QB_GFX=soft` draws in
   pages; the offscreen driver has no GPU and does too.
+- **Batches**: a shape is `SOLID`, its texel unread, so it joins whatever batch is open, and a
+  batch of shapes takes the next picture's texture. A root drawn from, half a page or smaller, is
+  packed into a 1024 by 1024 atlas page of its format (indices or RGBA), rows of places, a place
+  freed with its root and a page empty again started over; drawn into, a root has a texture of
+  its own. So separate pictures draw as one batch once sent. `display.stats` gives the frame
+  shown last's draws, batches, uploads and reads waited for. On the Mac, 300 sprites and 300
+  rects interleaved went from 601 batches to 1 (1764 to 2891 frames a second); 1000 sprites from
+  16 pictures from 1000 batches to 1 (1371 to 1996).
 - **The page's player** (`plat/wasm/player.c`, `web/gpu.mjs`): the module's thread copies each
   list and the memory it points at to the page, going on while the page is at most three behind;
   a read waits for the page. The page plays it with WebGL2 on its own thread: one with an event
