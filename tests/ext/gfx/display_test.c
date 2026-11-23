@@ -1,11 +1,11 @@
-/* gfx.display: the canvas opened at software's 8 bits, the frame's commands as drawn, the flip. */
+/* gfx.display: the canvas opened at the depth asked, the frame's commands as drawn, the flip. */
 #include "test.h"
 
-TEST(gfx_open_gives_8_bits)
+TEST(gfx_open_gives_the_depth_asked)
 {
     gfx_fresh(S);
     CHECK(CALL("display.open", I(320), I(200), I(32), I(GFX_DISPLAY_VSYNC)).error == 0);
-    CHECK(CALL("surface.bits", I(GFX_SURFACE_CANVAS)).result.i == 8);
+    CHECK(CALL("surface.bits", I(GFX_SURFACE_CANVAS)).result.i == 32);
     CHECK(CALL("surface.width", I(GFX_SURFACE_CANVAS)).result.i == 320);
     CHECK(CALL("display.open", I(320), I(200), I(24), I(0)).error == 5);
     CHECK(CALL("display.open", I(0), I(200), I(8), I(0)).error == 5);

@@ -8,8 +8,16 @@ enum { GLYPH_W = 8 };
 
 static uint8_t *at(const SoftTarget *const t, const int32_t x, const int32_t y)
 {
-    return t->px.p + y * t->px.pitch + x;
+    return t->px.p + y * t->px.pitch + x * px_bytes(t->px.format);
 }
+
+/* The ink has nothing to do with s's texels: the fused fillers draw them. */
+static bool fused(const SoftTarget *const t, const Pixels *const s)
+{
+    return !t->ink.effects && s->format == t->px.format;
+}
+
+static bool blends(const Ink *const k) { return k->blend || k->mode; }
 
 /* The walk n texels on. */
 static Steps advanced(Steps st, const int32_t n)
@@ -35,18 +43,20 @@ static void inked(
     uint32_t texels[FILL_CHUNK];
     Ink k = t->ink;
     k.keyed = k.keyed && s;
+    k.source = s ? s->format : k.source;
+    const uint32_t bytes = px_bytes(t->px.format);
 
     for (int32_t done = 0; done < n; done += FILL_CHUNK) {
         const int32_t m = rect_min(n - done, FILL_CHUNK);
 
         if (s) {
-            t->fill->fetch(texels, s, st, m);
+            fill_formats[s->format]->fetch(texels, s, st, m);
             st = advanced(st, m);
         } else
             for (int32_t i = 0; i < m; i++)
                 texels[i] = colour;
 
-        t->fill->ink(at(t, x + done, y), texels, m, &k);
+        t->fill->ink(at(t, x, y) + done * bytes, texels, m, &k);
     }
 }
 
@@ -64,10 +74,10 @@ static void span(
     if (y < t->clip.y || y >= t->clip.y + t->clip.h || from >= to)
         return;
 
-    if (t->ink.blend)
+    if (blends(&t->ink))
         inked(t, from, y, to - from, nullptr, (Steps){}, colour);
     else
-        t->fill->span(at(t, from, y), to - from, t->ink.lut ? t->ink.lut[colour] : colour);
+        t->fill->span(at(t, from, y), to - from, t->fill->paint(colour, &t->ink));
 }
 
 /* s's texels along the walk into n pixels from x, y: the fused filler, or through the ink. */
@@ -78,11 +88,11 @@ static void texels(
     const int32_t n,
     const Pixels *const s,
     const Steps st,
-    FillStep *const fused
+    FillStep *const fill
 )
 {
-    if (fill_plain(&t->ink))
-        fused(at(t, x, y), s, st, n);
+    if (fused(t, s))
+        fill(at(t, x, y), s, st, n);
     else
         inked(t, x, y, n, s, st, 0);
 }
@@ -389,14 +399,14 @@ void soft_sprite(
     FillRow *const row = t->fill->row[variant(flags)];
     const bool flip_x = flags & GFX_DRAW_FLIPX, flip_y = flags & GFX_DRAW_FLIPY;
     const int32_t u = flip_x ? s->w - 1 - (drawn.x - left) : drawn.x - left;
-    const bool plain = fill_plain(&t->ink);
+    const bool plain = fused(t, s);
 
     for (int32_t y_ = drawn.y; y_ < drawn.y + drawn.h; y_++) {
         const int32_t v = flip_y ? s->h - 1 - (y_ - top) : y_ - top;
         const Steps st = {u << 16, v << 16, flip_x ? -65536 : 65536, 0, 0};
 
         if (plain)
-            row(at(t, drawn.x, y_), s->p + v * s->pitch + u, drawn.w);
+            row(at(t, drawn.x, y_), s->p + v * s->pitch + u * px_bytes(s->format), drawn.w);
         else
             inked(t, drawn.x, y_, drawn.w, s, st, 0);
     }

@@ -4,6 +4,7 @@
 
 const CANVAS = &H10000000
 
+' In the canvas's format; 8 bits before a screen opens.
 declare function new cdecl ( _
     byval w as integer, _
     byval h as integer _
@@ -43,7 +44,9 @@ declare function bits cdecl (byval s as long) as integer
 declare sub free cdecl (byval s as long)
 
 ' Pixels read and written: a GPU waits. The canvas read
-' after a flip is the frame shown.
+' after a flip is the frame shown. point is an index at 8
+' bits, else &HRRGGBB; pixels() holds the pixels' bytes, 1,
+' 2 or 4 each, little-endian.
 declare function point cdecl ( _
     byval s as long, _
     byval x as integer, _

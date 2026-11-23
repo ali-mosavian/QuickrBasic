@@ -69,19 +69,48 @@ static void graphics(void)
     indexed(host_pixels(), host_width(), host_height(), colours);
 }
 
-/* gfx's frame: its colours &HRRGGBB. */
+static uint32_t rgb_rgba(const uint32_t c)
+{
+    return rgba((uint8_t)(c >> 16), (uint8_t)(c >> 8), (uint8_t)c);
+}
+
+/* A channel of bits widened to 8. */
+static uint8_t widen(const uint32_t v, const uint32_t bits)
+{
+    return (uint8_t)(v << (8 - bits) | v >> (2 * bits - 8));
+}
+
+/* A direct pixel of depth bits as RGBA. */
+static uint32_t direct(const uint8_t *const p, const uint8_t depth)
+{
+    if (depth == 32)
+        return rgb_rgba((uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16);
+
+    const uint32_t v = (uint32_t)p[0] | (uint32_t)p[1] << 8, g = depth == 16 ? 6 : 5;
+    return rgba(widen(v >> (5 + g) & 31, 5), widen(v >> 5 & ((1u << g) - 1), g), widen(v & 31, 5));
+}
+
+/* gfx's frame: an index through its colours, &HRRGGBB; or a pixel of 15, 16 or 32 bits. */
 static void gfx(const PgfxFrame *const f)
 {
-    uint32_t colours[256];
+    if (f->depth == 8) {
+        uint32_t colours[256];
 
-    for (uint32_t i = 0; i < 256; i++)
-        colours[i] = rgba(
-            (uint8_t)(f->palette[i] >> 16),
-            (uint8_t)(f->palette[i] >> 8),
-            (uint8_t)f->palette[i]
-        );
+        for (uint32_t i = 0; i < 256; i++)
+            colours[i] = rgb_rgba(f->palette[i]);
 
-    indexed(f->pixels, f->w, f->h, colours);
+        indexed(f->pixels, f->w, f->h, colours);
+        return;
+    }
+
+    const uint32_t bytes = f->depth == 32 ? 4 : 2;
+    out.width = f->w < VIEW_MAX_W ? f->w : VIEW_MAX_W;
+    out.height = f->h < VIEW_MAX_H ? f->h : VIEW_MAX_H;
+    out.cell_h = 0;
+
+    for (uint32_t y = 0; y < out.height; y++)
+        for (uint32_t x = 0; x < out.width; x++)
+            out.rgba[y * out.width + x] = direct(f->pixels + (y * f->w + x) * bytes, f->depth);
 }
 
 /* A CGA cursor line, 0-7, in a VGA cell. */

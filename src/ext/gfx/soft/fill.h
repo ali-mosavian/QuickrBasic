@@ -14,8 +14,6 @@
 #define GFX_FILL_H
 #include "pixels.h"
 
-typedef enum : uint8_t { FILL_8, FILL_FORMATS } FillFormat;
-
 enum { ROW_FLIPX = 1, ROW_OPAQUE = 2, ROW_VARIANTS = 4 };
 enum { STEP_OPAQUE = 1, STEP_VARIANTS = 2 };
 
@@ -40,18 +38,30 @@ static inline int32_t fill_wrap(int32_t u, const int32_t w)
 enum { FILL_CHUNK = 256 }; /* pixels the ink takes at once */
 
 /* What a draw call's pixels go through, picked once for the call (gfx.c); a null table does
-   nothing. keyed: a texel 0 is not drawn. solid: every texel drawn is colour. */
+ * nothing. Its texels are source's (an index, or a pixel of 15, 16 or 32 bits); a shape's colour
+ * is one texel, an index at 8 bits, else 32 bits' &HRRGGBB.
+ * - effects: something to do but change format; none, and source the target's format, the fused
+ *   fillers draw it.
+ * - keyed: a texel 0, or 32 bits' alpha under a half, is not drawn.
+ * - solid: every texel drawn is colour, the target's index or &HFFRRGGBB.
+ * - An 8-bit target: lut, the index each index draws as; map, 5 bits a channel to the nearest
+ *   index; blend, 256 rows by the index drawn and 256 by the one there.
+ * - Another: argb, the colour each index draws as.
+ * - shade: light and tint multiplied into a direct texel (&HFFFFFF none); mode and alpha, the
+ *   blend of a direct target.
+ */
 typedef struct {
-    const uint8_t *lut;   /* the index each texel draws as */
-    const uint8_t *blend; /* 256 rows by the index drawn, 256 by the one there */
-    bool keyed, solid;
+    PxFormat source;
+    bool effects, keyed, solid;
     uint32_t colour;
+    const uint8_t *lut, *map, *blend;
+    const uint32_t *argb;
+    uint32_t shade;
+    BlendMode mode;
+    uint8_t alpha;
 } Ink;
 
-/* Nothing to go through: the fused fillers draw it. */
-static inline bool fill_plain(const Ink *const k) { return !k->lut && !k->blend && !k->solid; }
-
-/* n pixels of colour. */
+/* n pixels of a colour of this format. */
 typedef void FillSpan(uint8_t *d, int32_t n, uint32_t colour);
 /* n texels from s, its first read; FLIPX variants step back from it. */
 typedef void FillRow(uint8_t *d, const uint8_t *s, int32_t n);
@@ -61,16 +71,27 @@ typedef void FillStep(uint8_t *d, const Pixels *s, Steps st, int32_t n);
 typedef void FillFetch(uint32_t *out, const Pixels *s, Steps st, int32_t n);
 /* n texels through the ink into d, of this format: the steps of uGL's tfx row pipeline. */
 typedef void FillInk(uint8_t *d, const uint32_t *texels, int32_t n, const Ink *k);
+/* One texel through the ink but its blend: this format's colour. */
+typedef uint32_t FillPaint(uint32_t texel, const Ink *k);
 
+/* A format's: drawn into (span, row, step, ink, paint) and drawn from (fetch). The fused row and
+   step fillers read texels of this format. */
 typedef struct {
     FillSpan *span;
     FillRow *row[ROW_VARIANTS];
     FillStep *step[STEP_VARIANTS];
     FillFetch *fetch;
     FillInk *ink;
+    FillPaint *paint;
 } Fill;
 
-/* By format: null, none yet. */
-extern const Fill *const fill_formats[FILL_FORMATS];
-extern const Fill fill8;
+/* By format. */
+extern const Fill *const fill_formats[PX_FORMATS];
+extern const Fill fill8, fill15, fill16, fill32;
+
+/* The ARGB of n texels through the ink but its blend, and which are drawn: a direct target's
+   first steps. */
+void fill_argb(uint32_t *argb, bool *drawn, const uint32_t *texels, int32_t n, const Ink *k);
+/* s drawn over d, both ARGB, by the ink's mode and alpha. */
+uint32_t fill_blend(uint32_t s, uint32_t d, const Ink *k);
 #endif

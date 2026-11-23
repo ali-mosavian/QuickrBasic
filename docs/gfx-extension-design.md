@@ -147,15 +147,15 @@ A texture is indexed (8 bits and a palette) or direct (16 or 32 bits).
 | | 8-bit canvas | 15, 16 or 32-bit canvas |
 |---|---|---|
 | indexed texture | its index through the light table; stays an index | index, light table, then the palette, as it is drawn |
-| direct texture | matched to the palette once, as it is loaded | its colour, multiplied by the light |
+| direct texture | matched to the palette as it is drawn, through a 32 KB map | its colour, multiplied by the light |
 
 - Light is a level from 0 to 63. On an 8-bit canvas it reads a light table, 64 rows of 256 indices:
   Quake's colormap. On the others it multiplies.
 - `display.palette row, colours()` sets a palette row, and `display.palette_of` takes an image's: row 0
   is the canvas's, and `pen.recolor row` draws what follows through another, as PICO-8's `pal`. On DOS
   at 8 bits the VGA's palette changes the whole screen at once; the program does not rely on that.
-- Index 0 of an indexed texture, and alpha under one half of a direct one, are not drawn; `OPAQUE`
-  draws them.
+- Index 0 of an indexed texture, 0 of a 15 or 16-bit one, and alpha under one half of a 32-bit
+  one, are not drawn; `OPAQUE` draws them.
 - `display.rgb(r, g, b)` is a colour in the canvas's own terms: the nearest index at 8 bits.
 - `SOLID` draws a surface's shape in the pen's tint: a hit's flash, a shadow, a one-colour font.
 
@@ -492,6 +492,15 @@ Step 3, in parts:
   and row mix into 256 indices. With nothing to do the fused fillers draw; else the ink does,
   `FILL_CHUNK` texels at a time: fetched, coloured, keyed, blended, stored. Software ignores
   `SMOOTH`.
+- **15, 16 and 32 bits**: the canvas at the depth asked, and the hosts' pages and frames too. A
+  surface has a format: `surface.new` the canvas's (8 bits before a screen), a view its parent's.
+  `fill16.c` is the 15 and 16-bit template, built twice; `fill32.c` its own. The fused fillers copy
+  a picture of the target's format; any other goes through the ink: an index through a palette
+  row, lit and tinted (`pal_argb`), a direct texel multiplied, then the blend in arithmetic. On an
+  8-bit canvas a direct picture is matched to row 0 through the map as it is drawn. A 15 or 16-bit
+  texel 0 is the key, as an index 0 is; a 32-bit one's alpha under a half. What is drawn into a
+  32-bit surface is opaque, so a new one is clear until drawn on. `surface.point` gives
+  `&HRRGGBB`; `read` and `write` the pixels' bytes.
 
 ## Prior art
 

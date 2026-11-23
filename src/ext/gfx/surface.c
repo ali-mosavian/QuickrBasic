@@ -56,7 +56,7 @@ bool surf_open(Surfaces *const ss, const Pixels page)
 {
     surf_close(ss);
     ss->canvas = page;
-    return hold(ss, (Surface){.w = page.w, .h = page.h}, true);
+    return hold(ss, (Surface){.w = page.w, .h = page.h, .format = page.format}, true);
 }
 
 void surf_page(Surfaces *const ss, const Pixels page) { ss->canvas = page; }
@@ -71,29 +71,28 @@ uint32_t surf_new(
     Surfaces *const ss,
     const int32_t w,
     const int32_t h,
+    const PxFormat format,
     uint8_t *const own,
     uint32_t *const palette
 )
 {
-    uint8_t *const pixels = own ? own : mem_alloc((uint32_t)(w * h));
-    const uint32_t s = pixels ? hold(
-                                    ss,
-                                    (Surface){
-                                        .w = w,
-                                        .h = h,
-                                        .own = pixels,
-                                        .palette = palette,
-                                    },
-                                    false
-                                )
-                              : 0;
+    uint8_t *const pixels = own ? own : mem_alloc((uint32_t)(w * h) * px_bytes(format));
+    const Surface s = {
+        .w = w,
+        .h = h,
+        .format = format,
+        .own = pixels,
+        .palette = palette,
+    };
 
-    if (!s) {
+    const uint32_t handle = pixels ? hold(ss, s, false) : 0;
+
+    if (!handle) {
         mem_free(pixels);
         mem_free(palette);
     }
 
-    return s;
+    return handle;
 }
 
 uint32_t surf_view(
@@ -105,31 +104,32 @@ uint32_t surf_view(
     const int32_t h
 )
 {
-    return hold(
-        ss,
-        (Surface){
-            .parent = parent,
-            .x = x,
-            .y = y,
-            .w = w,
-            .h = h,
-        },
-        false
-    );
+    const Surface s = {
+        .parent = parent,
+        .x = x,
+        .y = y,
+        .w = w,
+        .h = h,
+        .format = surf_get(ss, parent)->format,
+    };
+
+    return hold(ss, s, false);
 }
 
 Surface *surf_get(const Surfaces *const ss, const uint32_t h) { return hdl_item(&ss->t, h); }
 
 Pixels surf_pixels(const Surfaces *const ss, const Surface *const s)
 {
+    const uint32_t bytes = px_bytes(s->format);
+
     if (s->own)
-        return (Pixels){s->own, (uint32_t)s->w, s->w, s->h};
+        return (Pixels){s->own, (uint32_t)s->w * bytes, s->w, s->h, s->format};
 
     if (!s->parent)
         return ss->canvas;
 
     const Pixels p = surf_pixels(ss, surf_get(ss, s->parent));
-    return (Pixels){p.p + s->y * p.pitch + s->x, p.pitch, s->w, s->h};
+    return (Pixels){p.p + s->y * p.pitch + s->x * bytes, p.pitch, s->w, s->h, s->format};
 }
 
 void surf_free(Surfaces *const ss, const uint32_t h) { drop(ss, h); }

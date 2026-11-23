@@ -29,7 +29,8 @@ them too: a fixed list of files once left CHARLIE.BAS without its barkley packag
 50 rows are drawn in the 16-line font, 720x800: once in the 8-line one, 720x400, its strokes doubled
 and its rows touching. 132 x 50 is 1188x800: the frame was 80 columns wide once.
 QBX, tests/ext's qxtest packed for macos: a program imports it and draws if its add%(2, 3) is 5. Its slice
-was arm64's alone once, and the x86-64 half stopped at the IMPORT.
+was arm64's alone once, and the x86-64 half stopped at the IMPORT. gfx's canvas at 16 and 32 bits
+is shown in its colours: the frame once read each pixel as an index.
 A Quickr program imports text, Quickr's library in the app's Resources/lib: once the app shipped
 none, and F5 stopped at the import unless BASICLIB was set.
 """
@@ -52,6 +53,12 @@ HIDDEN = {
 LOOP = "DO\nLOOP\n"
 QUICKR = "' OPTION DIALECT QUICKR\nimport text\nprint text.upper(\"ok\")\nwhile true\nwend\n"
 NATIVE = "from qxtest import *\nSCREEN 9\nIF add%(2, 3) = 5 THEN LINE (0, 0)-(100, 100), 4, BF\n" + LOOP
+GFX = (
+    "import gfx.display, gfx.draw\ngfx.display.open 64, 48, {depth}, 0\ngfx.draw.clear &H123456\n"
+    "gfx.draw.rect 0, 0, 31, 47, &HFF8000, gfx.draw.FILL\ngfx.display.flip\n" + LOOP
+)
+# its halves at 32 bits, and at 16 (565: each channel's top bits repeated below)
+GFX_SHOWN = {32: ((0xFF, 0x80, 0), (0x12, 0x34, 0x56)), 16: ((0xFF, 0x82, 0), (0x10, 0x34, 0x52))}
 HELP = "60:3B00"  # F1
 HELP_ESC = "60:3B00 70:011B"  # F1, Esc
 HELP_BACK = "60:3B00 70:0F09 80:1C0D 90:6800"  # F1, Tab, Enter (Index), Alt+F1
@@ -210,6 +217,11 @@ def main() -> None:
         quickr = Path(tmp) / "QUICKR.BAS"
         quickr.write_text(QUICKR)
         qw, _, imported = frame(run, quickr, "3F00")
+        gfx = {}
+        for depth in GFX_SHOWN:
+            (Path(tmp) / "GFX.BAS").write_text(GFX.format(depth=depth))
+            gw, _, px = frame(run, Path(tmp) / "GFX.BAS", "3F00")
+            gfx[depth] = (pixel(gw, px, 10, 10), pixel(gw, px, 50, 10))
         w, h, pixels = frame(run, program)
         _, _, menu = frame(run, program, "2100")
         box = Path(tmp) / "BOX.BAS"
@@ -341,6 +353,7 @@ def main() -> None:
         "a native module runs": native is not False,
         "50 rows in the 16-line font": rows50 == (720, 800),
         "132 x 50 in the 16-line font": cols132 == (1188, 800),
+        "gfx's 16 and 32-bit frames in their colours": gfx == GFX_SHOWN,
     }
     failed = [name for name, ok in checks.items() if not ok]
     print(f"mac {sys.argv[2] if len(sys.argv) > 2 else ''} " + ("ok" if not failed else "FAIL " + ", ".join(failed)))

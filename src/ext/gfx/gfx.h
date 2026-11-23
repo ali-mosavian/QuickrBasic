@@ -52,4 +52,6 @@ Vec *gx_points(Gx *g, uint32_t n);
    target resolved into t and the camera over it into *where, c placed (cmd_place) and logged, the
    ink of its flags and the pen made: false, raised. */
 bool gx_draw(Gx *g, Command *c, int32_t allowed, SoftTarget *t, Place *where);
+/* t's ink set for texels of source, the tables it needs made: false, raised. */
+bool gx_source(Gx *g, SoftTarget *t, PxFormat source);
 #endif

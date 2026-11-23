@@ -29,8 +29,31 @@ TEST(pgfx_lends_a_page_and_shows_a_copy)
 
     h->gfx_close();
     CHECK(!pgfx_shown(&f) && !h->gfx_page(&pitch));
-    s.depth = 16;
+    s.depth = 24;
     CHECK(!h->gfx_open(&s));
+}
+
+/* 16 bits: two bytes a pixel, the page's pitch and the frame shown its depth's. */
+TEST(pgfx_lends_pages_of_each_depth)
+{
+    const QxHost *const h = &S->natv.host;
+    QxScreen s = {.w = 3, .h = 2, .depth = 16};
+
+    uint32_t pitch;
+    PgfxFrame f;
+
+    CHECK(h->gfx_open(&s));
+    uint8_t *const page = h->gfx_page(&pitch);
+    CHECK(pitch == 6);
+    page[11] = 0xF8;
+    h->gfx_show((const uint32_t[256]){});
+
+    CHECK(pgfx_shown(&f) && f.depth == 16 && f.pixels[11] == 0xF8);
+    h->gfx_close();
+
+    s.depth = 32;
+    CHECK(h->gfx_open(&s) && h->gfx_page(&pitch) && pitch == 12);
+    h->gfx_close();
 }
 
 /* A screen left open by an extension is the runtime's again once the run ends. */

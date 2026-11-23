@@ -4,7 +4,6 @@
 
 enum {
     OPEN_FLAGS = GFX_DISPLAY_VSYNC | GFX_DISPLAY_NATIVE | GFX_DISPLAY_FIT | GFX_DISPLAY_STRETCH,
-    SOFT_DEPTH = 8, /* software's, whatever is asked */
     RGB_MOST = 255,
 };
 
@@ -18,7 +17,17 @@ static void close_screen(Gx *const g)
     g->open = false;
 }
 
-static bool depth_known(const int32_t d) { return d == 8 || d == 15 || d == 16 || d == 32; }
+/* A depth's format: false, none. */
+static bool format_of(const int32_t depth, PxFormat *const f)
+{
+    for (PxFormat i = 0; i < PX_FORMATS; i++)
+        if (px_bits(i) == (uint32_t)depth) {
+            *f = i;
+            return true;
+        }
+
+    return false;
+}
 
 void gfx_display_open(const int32_t w, const int32_t h, const int32_t depth, const int32_t flags)
 {
@@ -27,7 +36,9 @@ void gfx_display_open(const int32_t w, const int32_t h, const int32_t depth, con
     if (!g)
         return;
 
-    if (w < 1 || h < 1 || w > GX_MOST || h > GX_MOST || !depth_known(depth) ||
+    PxFormat format;
+
+    if (w < 1 || h < 1 || w > GX_MOST || h > GX_MOST || !format_of(depth, &format) ||
         flags & ~OPEN_FLAGS) {
         gx_fail(ERR_ILLEGAL);
         return;
@@ -37,11 +48,11 @@ void gfx_display_open(const int32_t w, const int32_t h, const int32_t depth, con
     QxScreen s = {
         .w = (uint16_t)w,
         .h = (uint16_t)h,
-        .depth = SOFT_DEPTH,
+        .depth = (uint8_t)depth,
         .flags = (uint8_t)flags,
     };
 
-    if (!qx_host->gfx_open(&s)) {
+    if (!qx_host->gfx_open(&s) || !format_of(s.depth, &format)) {
         gx_fail(ERR_UNAVAILABLE);
         return;
     }
@@ -49,7 +60,7 @@ void gfx_display_open(const int32_t w, const int32_t h, const int32_t depth, con
     uint32_t pitch;
     uint8_t *const page = qx_host->gfx_page(&pitch);
 
-    if (!surf_open(&g->surfaces, (Pixels){page, pitch, w, h})) {
+    if (!surf_open(&g->surfaces, (Pixels){page, pitch, w, h, format})) {
         qx_host->gfx_close();
         gx_fail(ERR_MEMORY);
         return;
@@ -86,7 +97,10 @@ void gfx_display_flip(void)
     qx_host->gfx_show(g->palette.rows[0]);
     uint32_t pitch;
     uint8_t *const page = qx_host->gfx_page(&pitch);
-    surf_page(&g->surfaces, (Pixels){page, pitch, g->surfaces.canvas.w, g->surfaces.canvas.h});
+    Pixels canvas = g->surfaces.canvas;
+    canvas.p = page;
+    canvas.pitch = pitch;
+    surf_page(&g->surfaces, canvas);
 
     cmd_clear(&g->log);
 }
@@ -151,7 +165,8 @@ int32_t gfx_display_rgb(const int32_t r, const int32_t g_, const int32_t b)
     if (r < 0 || g_ < 0 || b < 0 || r > RGB_MOST || g_ > RGB_MOST || b > RGB_MOST)
         return gx_fail(ERR_ILLEGAL);
 
-    return pal_nearest(g->palette.rows[0], (uint32_t)(r << 16 | g_ << 8 | b));
+    const uint32_t rgb = (uint32_t)(r << 16 | g_ << 8 | b);
+    return g->surfaces.canvas.format == PX_8 ? pal_nearest(g->palette.rows[0], rgb) : (int32_t)rgb;
 }
 
 void gfx_display_stats(gfx_display_framestats *const s)

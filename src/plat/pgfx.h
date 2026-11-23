@@ -4,16 +4,18 @@
  * # How it works
  * The page is memory the host lends. pgfx_show copies it to the frame shown, so a display's thread
  * reads a whole frame while the next is drawn, and the page keeps its pixels. A terminal shows
- * nothing: unit tests read the page. 8 bits a pixel so far.
+ * nothing: unit tests read the page. A pixel is an index (8 bits, the frame's palette its colours),
+ * x555 (15), 565 (16) or &HAARRGGBB (32), little-endian, its alpha unshown.
  */
 #ifndef PLAT_PGFX_H
 #define PLAT_PGFX_H
 #include "base.h"
 
-/* A frame shown: w by h pixels, a byte each, and its 256 colours, &HRRGGBB. */
+/* A frame shown: w by h pixels of depth bits, w a row; at 8 bits its 256 colours, &HRRGGBB. */
 typedef struct {
     const uint8_t *pixels;
     uint16_t w, h;
+    uint8_t depth;
     const uint32_t *palette;
 } PgfxFrame;
 

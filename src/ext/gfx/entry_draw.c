@@ -284,8 +284,8 @@ static bool upright_only(const Gx *const g)
 /* s's picture, its anchor at a in the world (placed: at), turned by angle and scaled: upright at
    its size its rows are copied, else it is filled through its corners. */
 static void picture(
-    const Gx *const g,
-    const SoftTarget *const t,
+    Gx *const g,
+    SoftTarget *const t,
     const Place *const where,
     const Surface *const s,
     const Vec anchor,
@@ -297,6 +297,9 @@ static void picture(
 )
 {
     const Pixels px = surf_pixels(&g->surfaces, s);
+
+    if (!gx_source(g, t, px.format))
+        return;
 
     if (cmd_upright(where) && angle == 0 && scale == 1) {
         soft_sprite(t, &px, at.x - anchor.x, at.y - anchor.y, flags);
@@ -379,6 +382,10 @@ void gfx_draw_quad(
 
     const Pixels px = surf_pixels(&g->surfaces, s);
     Vertex v[4];
+
+    if (!gx_source(g, &t, px.format))
+        return;
+
     shape_quad(s->w, s->h, world, flags, &where, v);
     soft_texture(&t, &px, v, 3, flags, false);
     soft_texture(&t, &px, (const Vertex[]){v[0], v[2], v[3]}, 3, flags, false);
@@ -426,6 +433,9 @@ void gfx_draw_strip(
         return;
 
     const Pixels px = surf_pixels(&g->surfaces, s);
+
+    if (!gx_source(g, &t, px.format))
+        return;
 
     for (int32_t i = 0; i + 1 < n; i++) {
         Vertex v[4];

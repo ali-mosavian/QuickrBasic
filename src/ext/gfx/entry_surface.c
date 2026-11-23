@@ -3,8 +3,6 @@
 #include "image.h"
 #include "mem.h"
 
-enum { BITS = 8 };
-
 /* w by h at x, y lies inside s. */
 static bool inside(
     const Surface *const s,
@@ -30,7 +28,8 @@ int32_t gfx_surface_new(const int32_t w, const int32_t h)
     if (w < 1 || h < 1 || w > GX_MOST || h > GX_MOST)
         return gx_fail(ERR_ILLEGAL);
 
-    return (int32_t)made(surf_new(&g->surfaces, w, h, nullptr, nullptr));
+    const PxFormat f = g->open ? g->surfaces.canvas.format : PX_8;
+    return (int32_t)made(surf_new(&g->surfaces, w, h, f, nullptr, nullptr));
 }
 
 int32_t gfx_surface_load(const QxStr file)
@@ -53,7 +52,7 @@ int32_t gfx_surface_load(const QxStr file)
     if (status != IMG_OK)
         return gx_fail(status == IMG_NO_MEMORY ? ERR_MEMORY : ERR_ILLEGAL);
 
-    return (int32_t)made(surf_new(&g->surfaces, img.w, img.h, img.pixels, img.palette));
+    return (int32_t)made(surf_new(&g->surfaces, img.w, img.h, PX_8, img.pixels, img.palette));
 }
 
 int32_t gfx_surface_view(
@@ -161,7 +160,11 @@ int32_t gfx_surface_height(const int32_t s_)
     return s ? s->h : 0;
 }
 
-int32_t gfx_surface_bits(const int32_t s_) { return any(s_) ? BITS : 0; }
+int32_t gfx_surface_bits(const int32_t s_)
+{
+    const Surface *const s = any(s_);
+    return s ? (int32_t)px_bits(s->format) : 0;
+}
 
 /* The canvas goes with display.close. */
 void gfx_surface_free(const int32_t s)
@@ -179,7 +182,8 @@ void gfx_surface_free(const int32_t s)
     surf_free(&g->surfaces, (uint32_t)s);
 }
 
-/* s's pixels w by h at x, y, and pixels() holding them, checked: s's pixels, p null raised. */
+/* s's pixels w by h at x, y, and pixels() holding their bytes, checked: s's pixels, p null
+   raised. */
 static Pixels region(
     const int32_t s_,
     const int32_t x,
@@ -198,19 +202,27 @@ static Pixels region(
     if (!inside(s, x, y, w, h))
         return gx_fail(ERR_ILLEGAL), (Pixels){};
 
-    if (pixels && !gx_array(pixels, 1, (uint32_t)(w * h)))
+    if (pixels && !gx_array(pixels, 1, (uint32_t)(w * h) * px_bytes(s->format)))
         return (Pixels){};
 
     const Pixels all = surf_pixels(&g->surfaces, s);
-    return (Pixels){all.p + y * all.pitch + x, all.pitch, w, h};
+    return (Pixels){all.p + y * all.pitch + x * px_bytes(s->format), all.pitch, w, h, s->format};
 }
 
+/* An index at 8 bits, else the colour &HRRGGBB. */
 int32_t gfx_surface_point(const int32_t s, const int32_t x, const int32_t y)
 {
     const Pixels p = region(s, x, y, 1, 1, nullptr);
-    return p.p ? *p.p : 0;
+    uint32_t v = 0;
+
+    if (!p.p)
+        return 0;
+
+    __builtin_memcpy(&v, p.p, px_bytes(p.format));
+    return p.format == PX_8 ? (int32_t)v : (int32_t)(px_argb(p.format, v) & PX_WHITE);
 }
 
+/* Rows w pixels apart, in s's bytes. */
 void gfx_surface_read(
     const int32_t s,
     const int32_t x,
@@ -221,9 +233,10 @@ void gfx_surface_read(
 )
 {
     const Pixels p = region(s, x, y, w, h, pixels);
+    const uint32_t row = (uint32_t)w * px_bytes(p.format);
 
-    for (int32_t row = 0; p.p && row < h; row++)
-        mem_copy((uint8_t *)pixels->data + row * w, p.p + row * p.pitch, (size_t)w);
+    for (int32_t r = 0; p.p && r < h; r++)
+        mem_copy((uint8_t *)pixels->data + r * row, p.p + r * p.pitch, row);
 }
 
 void gfx_surface_write(
@@ -236,7 +249,8 @@ void gfx_surface_write(
 )
 {
     const Pixels p = region(s, x, y, w, h, pixels);
+    const uint32_t row = (uint32_t)w * px_bytes(p.format);
 
-    for (int32_t row = 0; p.p && row < h; row++)
-        mem_copy(p.p + row * p.pitch, (const uint8_t *)pixels->data + row * w, (size_t)w);
+    for (int32_t r = 0; p.p && r < h; r++)
+        mem_copy(p.p + r * p.pitch, (const uint8_t *)pixels->data + r * row, row);
 }

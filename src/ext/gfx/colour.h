@@ -15,11 +15,15 @@
  */
 #ifndef GFX_COLOUR_H
 #define GFX_COLOUR_H
-#include <stdint.h>
+#include "pixels.h"
 
-enum { PAL_ROWS = 16, PAL_COLOURS = 256, PAL_FULL = 63, PAL_WHITE = 0xFFFFFF, PAL_BLENDS = 4 };
+enum { PAL_ROWS = 16, PAL_COLOURS = 256, PAL_FULL = PX_FULL, PAL_WHITE = PX_WHITE, PAL_BLENDS = 4 };
 
-typedef enum : uint8_t { BLEND_MIX, BLEND_ADD } BlendMode;
+/* What a mix of a row was made from. */
+typedef struct {
+    int32_t row, light;
+    uint32_t tint, changed[2]; /* row 0's changes and row's */
+} PalKey;
 
 typedef struct {
     uint8_t *table;
@@ -33,9 +37,10 @@ typedef struct {
     uint32_t changed[PAL_ROWS]; /* each row's changes, counted */
     uint8_t *map, *light;       /* null, not made since row 0 changed */
     PalBlend blends[PAL_BLENDS];
-    uint8_t *lut; /* the last mix asked for: its row, light, tint and their rows' changes */
-    int32_t lut_row, lut_light;
-    uint32_t lut_tint, lut_changed[2], asked;
+    uint8_t *lut;   /* the last mix asked for: its row, light, tint and their rows' changes */
+    uint32_t *argb; /* the last colours asked for, likewise */
+    PalKey lut_key, argb_key;
+    uint32_t asked;
 } Palette;
 
 void pal_default(Palette *p);
@@ -53,4 +58,9 @@ bool pal_lut(Palette *p, int32_t row, int32_t light, uint32_t tint, const uint8_
 const uint8_t *pal_blend(Palette *p, BlendMode mode, int32_t alpha);
 /* rgb lit by light and multiplied by tint. */
 uint32_t pal_shade(uint32_t rgb, int32_t light, uint32_t tint);
+/* The map of row 0: null, no memory. */
+const uint8_t *pal_map(Palette *p);
+/* The colours each index of row draws as, &HFFRRGGBB, lit by light and multiplied by tint: null,
+   no memory. */
+const uint32_t *pal_argb(Palette *p, int32_t row, int32_t light, uint32_t tint);
 #endif

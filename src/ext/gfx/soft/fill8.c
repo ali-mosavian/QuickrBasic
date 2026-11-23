@@ -67,16 +67,27 @@ static void fetch(uint32_t *const out, const Pixels *const s, Steps st, const in
         out[i] = next(s, &st);
 }
 
+/* A texel's index: SOLID's, its own through the lut, or a direct one's colour shaded and
+   matched. */
+static uint32_t paint(const uint32_t texel, const Ink *const k)
+{
+    if (k->solid)
+        return k->colour;
+
+    if (k->source == PX_8)
+        return k->lut ? k->lut[texel] : texel;
+
+    return k->map[px_cell(px_shade(px_argb(k->source, texel), k->shade))];
+}
+
 static void ink(uint8_t *const d, const uint32_t *const texels, const int32_t n, const Ink *const k)
 {
     for (int32_t i = 0; i < n; i++) {
-        const uint8_t texel = (uint8_t)texels[i];
-
-        if (k->keyed && !texel)
+        if (k->keyed && px_key(k->source, texels[i]))
             continue;
 
-        const uint8_t c = k->solid ? (uint8_t)k->colour : k->lut ? k->lut[texel] : texel;
-        d[i] = k->blend ? k->blend[c << 8 | d[i]] : c;
+        const uint32_t c = paint(texels[i], k);
+        d[i] = k->blend ? k->blend[c << 8 | d[i]] : (uint8_t)c;
     }
 }
 
@@ -92,4 +103,5 @@ const Fill fill8 = {
     .step = {[0] = stepped_keyed, [STEP_OPAQUE] = stepped_opaque},
     .fetch = fetch,
     .ink = ink,
+    .paint = paint,
 };

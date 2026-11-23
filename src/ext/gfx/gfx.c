@@ -75,24 +75,56 @@ Vec *gx_points(Gx *const g, const uint32_t n)
     return g->points;
 }
 
-/* The ink of a call's flags and the pen, over an 8-bit target: false, raised. */
-static bool ink(Gx *const g, const int32_t flags, Ink *const k)
+/* The ink of a call's flags and the pen over a target of format, its texels a shape's colours:
+   false, raised. */
+static bool ink(Gx *const g, const int32_t flags, const PxFormat format, Ink *const k)
 {
     const Pen *const p = &g->pen;
-    const BlendMode mode = flags & GFX_PEN_ADD ? BLEND_ADD : BLEND_MIX;
-    uint8_t solid = 0;
-    *k = (Ink){.keyed = !(flags & GFX_PEN_OPAQUE), .solid = flags & GFX_PEN_SOLID};
+    Palette *const pal = &g->palette;
+    const bool eight = format == PX_8;
+    const BlendMode mode = flags & GFX_PEN_ADD     ? BLEND_ADD
+                           : flags & GFX_PEN_BLEND ? BLEND_MIX
+                                                   : BLEND_NONE;
+    const uint32_t solid = pal_shade(p->tint, p->light, PAL_WHITE);
+    uint8_t index = 0;
+    *k = (Ink){
+        .source = eight ? PX_8 : PX_32,
+        .keyed = !(flags & GFX_PEN_OPAQUE),
+        .solid = flags & GFX_PEN_SOLID,
+        .colour = PX_OPAQUE | solid,
+        .shade = pal_shade(PAL_WHITE, p->light, p->tint),
+        .mode = eight ? BLEND_NONE : mode,
+        .alpha = (uint8_t)p->alpha,
+    };
 
-    if (!pal_lut(&g->palette, p->recolor, p->light, p->tint, &k->lut))
+    if (eight && !pal_lut(pal, p->recolor, p->light, p->tint, &k->lut))
         return gx_fail(ERR_MEMORY);
 
-    if (k->solid && !pal_index(&g->palette, pal_shade(p->tint, p->light, PAL_WHITE), &solid))
+    if (eight && k->solid && !pal_index(pal, solid, &index))
         return gx_fail(ERR_MEMORY);
 
-    if (flags & BLENDS && !(k->blend = pal_blend(&g->palette, mode, p->alpha)))
+    if (eight && mode && !(k->blend = pal_blend(pal, mode, p->alpha)))
         return gx_fail(ERR_MEMORY);
 
-    k->colour = solid;
+    k->colour = eight ? index : k->colour;
+    k->effects = k->solid || mode || (eight ? k->lut != nullptr : k->shade != PAL_WHITE);
+    return true;
+}
+
+bool gx_source(Gx *const g, SoftTarget *const t, const PxFormat source)
+{
+    Ink *const k = &t->ink;
+    const Pen *const p = &g->pen;
+    const bool eight = t->px.format == PX_8;
+    k->source = source;
+
+    if (eight && source != PX_8 && !k->map && !(k->map = pal_map(&g->palette)))
+        return gx_fail(ERR_MEMORY);
+
+    if (!eight && source == PX_8 && !k->argb &&
+        !(k->argb = pal_argb(&g->palette, p->recolor, p->light, p->tint)))
+        return gx_fail(ERR_MEMORY);
+
     return true;
 }
 
@@ -104,16 +136,18 @@ bool gx_draw(
     Place *const where
 )
 {
-    if (c->flags & ~allowed || (c->flags & BLENDS) == BLENDS || c->colour < 0 ||
-        c->colour >= COLOURS)
-        return gx_fail(ERR_ILLEGAL);
-
     const Surface *const s = gx_surface(g, g->pen.target);
 
     if (!s)
         return false;
 
     const Pixels px = surf_pixels(&g->surfaces, s);
+    const uint32_t most = px.format == PX_8 ? COLOURS - 1 : PAL_WHITE;
+
+    if (c->flags & ~allowed || (c->flags & BLENDS) == BLENDS || c->colour < 0 ||
+        (uint32_t)c->colour > most)
+        return gx_fail(ERR_ILLEGAL);
+
     *where = cmd_where(&g->camera, px.w, px.h);
     cmd_place(c, &g->pen, where);
 
@@ -123,10 +157,10 @@ bool gx_draw(
     *t = (SoftTarget){
         .px = px,
         .clip = pen_clip(&g->pen, px.w, px.h),
-        .fill = fill_formats[FILL_8],
+        .fill = fill_formats[px.format],
     };
 
-    return ink(g, c->flags, &t->ink);
+    return ink(g, c->flags, px.format, &t->ink);
 }
 
 void gfx_init(void) {}
