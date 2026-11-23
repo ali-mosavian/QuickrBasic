@@ -109,6 +109,6 @@ TEST(gfx_load_a_bmp)
     CHECK(CALL("display.rgb", I(0), I(200), I(9)).result.i == 2);
 
     CHECK(CALL("surface.load", STR("build/host/gfx/none.bmp")).error == 53);
-    CHECK(CALL("surface.load", STR("tests/ext/gfx/call.h")).error == 5);
+    CHECK(CALL("surface.load", STR("stdlib/gfx/tests/call.h")).error == 5);
     remove(path);
 }

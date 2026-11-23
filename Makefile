@@ -183,30 +183,30 @@ $(B)/ext/qxtest.dll: $(QXTEST) src/qx/qx.h
 	$(DOS_SLICE_CC) -c tests/ext/qxtest.c -o $(@D)/qxtest.obj
 	$(DOS_SLICE_CC) -c build/ext/qxtest_qx.c -o $(@D)/qxtest_qx.obj
 	$(LLD_LINK) /dll /noentry /nodefaultlib /out:$@ $(@D)/qxtest.obj $(@D)/qxtest_qx.obj
-# gfx (src/ext/gfx): its glue from its parts' interfaces, scene's to come with 3D. Its core is linked
-# into the unit tests with tests/ext/gfx; the runtime's font and palette (vgadata.c) are already there
-GFX_PARTS := $(addprefix src/ext/gfx/,display.bas surface.bas pen.bas draw.bas)
-GFX_C := $(shell find src/ext/gfx -name '*.c')
-GFX_INC := -Isrc/ext/gfx -Isrc
+# gfx (stdlib/gfx): its glue from its parts' interfaces, scene's to come with 3D. Its core is linked
+# into the unit tests with its tests; the runtime's font and palette (vgadata.c) are already there
+GFX_PARTS := $(addprefix stdlib/gfx/,display.bas surface.bas pen.bas draw.bas)
+GFX_C := $(shell find stdlib/gfx -name '*.c' -not -path 'stdlib/gfx/tests/*')
+GFX_INC := -Istdlib/gfx -Isrc
 build/ext/gfx_qx.c: $(GFX_PARTS) tools/qbx.py
 	@mkdir -p $(@D)
 	$(PY) tools/qbx.py glue gfx $(@D) $(GFX_PARTS)
-GFX_UNIT_OBJ := $(GFX_C:src/ext/gfx/%.c=build/host/gfx/%.o) build/host/gfx/gfx_qx.o \
-	$(patsubst tests/ext/gfx/%.c,build/host/gfx/test/%.o,$(wildcard tests/ext/gfx/*.c))
-build/host/gfx/%.o: src/ext/gfx/%.c | build/ext/gfx_qx.c
+GFX_UNIT_OBJ := $(GFX_C:stdlib/gfx/%.c=build/host/gfx/%.o) build/host/gfx/gfx_qx.o \
+	$(patsubst stdlib/gfx/tests/%.c,build/host/gfx/test/%.o,$(wildcard stdlib/gfx/tests/*.c))
+build/host/gfx/%.o: stdlib/gfx/%.c | build/ext/gfx_qx.c
 	@mkdir -p $(@D)
 	$(HOST_CC) $(QX_CFLAGS) -g $(GFX_INC) $(DEPFLAGS) -c $< -o $@
 build/host/gfx/gfx_qx.o: build/ext/gfx_qx.c
 	@mkdir -p $(@D)
 	$(HOST_CC) $(QX_CFLAGS) -g $(DEPFLAGS) -c $< -o $@
-build/host/gfx/test/%.o: tests/ext/gfx/%.c | build/ext/gfx_qx.c
+build/host/gfx/test/%.o: stdlib/gfx/tests/%.c | build/ext/gfx_qx.c
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) -Isrc/qx -Ibuild/ext $(GFX_INC) -Itests/unit $(DEPFLAGS) -c $< -o $@
 
 # gfx.qbx for this machine, in lib/ beside basic: its slice the core, its glue and its own font; it
 # needs the host's minor 1
 GFX_SLICE_C := $(GFX_C) build/ext/gfx_qx.c $(QBRT)/qb/dev/host/vgadata.c
-build/host/ext/gfx.so: $(GFX_SLICE_C) $(shell find src/ext/gfx -name '*.h') src/qx/qx.h
+build/host/ext/gfx.so: $(GFX_SLICE_C) $(shell find stdlib/gfx -name '*.h' -not -path 'stdlib/gfx/tests/*') src/qx/qx.h
 	@mkdir -p $(@D)
 	$(HOST_CC) $(QX_CFLAGS) $(HOST_SLICE) $(GFX_INC) $(GFX_SLICE_C) -o $@
 build/host/lib/gfx.qbx: $(GFX_PARTS) build/host/ext/gfx.so tools/qbx.py
@@ -318,7 +318,7 @@ $(MAC)/QuickrBasic: $(MAC_OBJ) $(MAC)/obj/plat/sdl/app/main.o $(SDL_LIB)
 	$(HOST_CC) $(MAC_ARCH) $(filter %.o,$^) $(SDL_LIBS) -lm -o $@
 # the bundle, signed ad hoc (Apple silicon runs nothing unsigned)
 # Quickr's library in Resources/lib: psys_self puts the app there, and codesign takes only code in MacOS
-GFX_DEMO := src/ext/gfx/demo/GFXDEMO.BAS
+GFX_DEMO := stdlib/gfx/demo/GFXDEMO.BAS
 $(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(MAC)/QuickrBasic $(HELP) $(DEMOS) $(STDLIB) build/host/lib/gfx.qbx $(GFX_DEMO)
 	rm -rf $(APP)/Contents/Resources/demos $(APP)/Contents/Resources/lib
 	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources/demos $(APP)/Contents/Resources/lib
@@ -329,17 +329,17 @@ $(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(MAC)/QuickrBasic $(HELP) $
 	cp $(STDLIB) $(APP)/Contents/Resources/lib/
 	cp $< $@
 	codesign --force -s - $(APP)
-# gfx's first slice in the Mac's window: tests/ext/gfx/show.c draws CHARLIE's frame in the IDE's place,
+# gfx's first slice in the Mac's window: stdlib/gfx/tests/show.c draws CHARLIE's frame in the IDE's place,
 # the core linked in beside the runtime's font (vgadata.c); gfx-shot runs it from here, QB_SHOT takes it
-GFX_MAC_OBJ := $(GFX_C:src/ext/gfx/%.c=$(MAC)/gfx/%.o) $(MAC)/gfx/gfx_qx.o $(MAC)/gfx/test/charlie.o \
+GFX_MAC_OBJ := $(GFX_C:stdlib/gfx/%.c=$(MAC)/gfx/%.o) $(MAC)/gfx/gfx_qx.o $(MAC)/gfx/test/charlie.o \
 	$(MAC)/gfx/test/show.o
-$(MAC)/gfx/%.o: src/ext/gfx/%.c | build/ext/gfx_qx.c
+$(MAC)/gfx/%.o: stdlib/gfx/%.c | build/ext/gfx_qx.c
 	@mkdir -p $(@D)
 	$(HOST_CC) $(MAC_ARCH) $(QX_CFLAGS) $(GFX_INC) $(DEPFLAGS) -c $< -o $@
 $(MAC)/gfx/gfx_qx.o: build/ext/gfx_qx.c
 	@mkdir -p $(@D)
 	$(HOST_CC) $(MAC_ARCH) $(QX_CFLAGS) $(DEPFLAGS) -c $< -o $@
-$(MAC)/gfx/test/%.o: tests/ext/gfx/%.c | build/ext/gfx_qx.c
+$(MAC)/gfx/test/%.o: stdlib/gfx/tests/%.c | build/ext/gfx_qx.c
 	@mkdir -p $(@D)
 	$(HOST_CC) $(MAC_CFLAGS) -Isrc/qx -Ibuild/ext $(GFX_INC) $(DEPFLAGS) -c $< -o $@
 $(MAC)/gfxshow: $(filter-out $(MAC)/obj/app/ide32.o,$(MAC_OBJ)) $(GFX_MAC_OBJ) $(MAC)/obj/plat/sdl/app/main.o $(SDL_LIB)

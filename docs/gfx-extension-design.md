@@ -5,7 +5,7 @@
 where there is one, spans in software on DOS. The pixels are not the same everywhere, and are not
 meant to be: the rules below are.
 
-Status: a design. The interface is drafted in [src/ext/gfx](../src/ext/gfx); nothing is built.
+Status: a design. The interface is drafted in [stdlib/gfx](../stdlib/gfx); nothing is built.
 
 ## What the program sees
 
@@ -34,7 +34,7 @@ loop
 
 ## The interface
 
-`gfx` is a package of five modules, each an interface file in [src/ext/gfx](../src/ext/gfx): every
+`gfx` is a package of five modules, each an interface file in [stdlib/gfx](../stdlib/gfx): every
 procedure, record and constant.
 
 | Module | Holds |
@@ -380,7 +380,7 @@ source, over one slice a platform: the modules share the surfaces, the pen and t
 
 ## The core
 
-C, in `src/ext/gfx`, the same on every platform. `gfx.c` alone holds the state; each module under it
+C, in `stdlib/gfx`, the same on every platform. `gfx.c` alone holds the state; each module under it
 takes its own part. Memory is the host's (`alloc`), taken when first used: nothing is static.
 
 | Module | Owns |
@@ -476,7 +476,7 @@ pixels run on the software backend.
   feature unavailable. `scene` is not glued yet.
 - **CHARLIE**: `tools/charlieart.py` writes `CHARLIE.BMP` and `barkley/assets/sheet.bas`, which cuts
   its views.
-- **Tests, native** (`tests/ext/gfx`, in the unit tests): each rule by its commands drawn and its
+- **Tests, native** (`stdlib/gfx/tests`, in the unit tests): each rule by its commands drawn and its
   pixels read. A frame of CHARLIE's pictures by its commands, and against its steps pasted by hand.
   `make gfx-shot` draws that frame in the Mac's window, and `QB_SHOT` takes it.
 

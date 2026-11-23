@@ -323,7 +323,7 @@ the page to the AudioWorklet (`synth.mjs`), or in node to `tools/wasm/device.mjs
 That thread instantiates the same module, without relocations or constructors (`wasm.mjs`'s
 `stream`), and calls `render` each quantum.
 
-**Unit tests** link an extension in and call its `qx_init_NAME`, as gfx's do (`tests/ext/gfx`): its
+**Unit tests** link an extension in and call its `qx_init_NAME`, as gfx's do (`stdlib/gfx/tests`): its
 tests need no loader.
 
 ## Building one

@@ -1,4 +1,4 @@
-// gfx's one shader, its pixels: with DISC, only those src/ext/gfx/disc.h's rule covers, worked
+// gfx's one shader, its pixels: with DISC, only those stdlib/gfx/disc.h's rule covers, worked
 // as it works them; the texel at the pixel's centre, kept in its rectangle (u repeating with
 // WRAP); an index through the palette's row; keyed, or the tint alone (SOLID); times the tint and
 // the light. Blending is the pipeline's.
