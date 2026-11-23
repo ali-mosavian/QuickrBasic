@@ -7,12 +7,12 @@
 One interface is the module's own. Several are a package's parts, each named by its file: gfx's
 display.bas is gfx.display.
 
-glue: the TYPEs become packed C structs, and each native DECLARE (one with CDECL, as the host binds
-it) a C prototype and a wrapper that lays out QxCall's arguments for it. The author writes plain C
-functions, named with the module and part: gfx's draw.sprite is gfx_draw_sprite, its TYPE
-scene.vertex gfx_scene_vertex; an ALIAS is the name as it is. NAME_qx.h declares them and NAME_qx.c
-holds the wrappers, the entry table and qx_init_NAME. An entry is named as BASIC calls it:
-draw.sprite, or sprite in a module's own interface.
+glue: numeric CONSTs become C's, GFX_DRAW_FLIPX; the TYPEs packed C structs; each native DECLARE
+(one with CDECL, as the host binds it) a C prototype and a wrapper that lays out QxCall's arguments
+for it. The author writes plain C functions, named with the module and part: gfx's draw.sprite is
+gfx_draw_sprite, its TYPE scene.vertex gfx_scene_vertex; an ALIAS is the name as it is.
+NAME_qx.h declares them and NAME_qx.c holds the wrappers, the entry table and qx_init_NAME. An
+entry is named as BASIC calls it: draw.sprite, or sprite in a module's own interface.
 
 pack: a .qbx is little-endian: "QBX" 1Ah; the format's version, the ABI's major and the minor it
 needs, the slices' and the parts' counts (u16 each), 2 bytes 0; then a slice each, its tag (16
@@ -145,6 +145,7 @@ class Native:
 class Interface:
     records: tuple[Record, ...]
     natives: tuple[Native, ...]
+    consts: tuple[tuple[str, int], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -168,6 +169,9 @@ class Part:
     def record(self, name: str) -> str:
         return f"{self.prefix}_{name}"
 
+    def const(self, name: str) -> str:
+        return f"{self.prefix}_{name}".upper()
+
 
 NAME = r"[a-z][a-z0-9_.]*"
 DECLARE = re.compile(
@@ -178,6 +182,7 @@ DECLARE = re.compile(
 PARAM = re.compile(rf"(byval\s+)?({NAME})([%&!#$]?)\s*(\(\s*\))?\s*(?:as\s+({NAME}))?$", re.IGNORECASE)
 FIELD = re.compile(rf"({NAME})\s+as\s+({NAME})(?:\s*\*\s*(\d+))?$", re.IGNORECASE)
 DEFINED = re.compile(rf"(?:private\s+)?(?:sub|function)\s+({NAME})", re.IGNORECASE)
+CONST = re.compile(rf"const\s+({NAME})\s*=\s*(-?)(?:&h([0-9a-f]+)|(\d+))[%&]?$", re.IGNORECASE)
 
 
 def code(line: str) -> str:
@@ -271,6 +276,7 @@ def read(text: str) -> Interface:
     defined = {m.group(1).lower() for _, line in lines if (m := DEFINED.match(line))}
     records: dict[str, Record] = {}
     natives: list[Native] = []
+    consts: list[tuple[str, int]] = []
     open_type: tuple[str, list[Field]] | None = None
 
     for at, line in lines:
@@ -280,6 +286,10 @@ def read(text: str) -> Interface:
                 open_type = None
             elif line:
                 open_type[1].append(field(at, line, records))
+        elif m := CONST.match(line):
+            sign, hexa, decimal = m.group(2), m.group(3), m.group(4)
+            value = int(hexa, 16) if hexa else int(decimal)
+            consts.append((m.group(1).lower(), -value if sign else value))
         elif m := re.fullmatch(rf"type\s+({NAME})", line, re.IGNORECASE):
             open_type = (m.group(1).lower(), [])
         elif m := DECLARE.match(line):
@@ -303,7 +313,7 @@ def read(text: str) -> Interface:
 
     if open_type:
         raise QbxError(f"TYPE {open_type[0]} without END TYPE")
-    return Interface(tuple(records.values()), tuple(natives))
+    return Interface(tuple(records.values()), tuple(natives), tuple(consts))
 
 
 def c_param(part: Part, p: Param) -> str:
@@ -357,6 +367,8 @@ def header(module: str, parts: list[Part]) -> str:
         f"void {module}_stop(void);",
     ]
     for part in parts:
+        if part.face.consts:
+            out += ["", "enum {", *(f"    {part.const(n)} = {v}," for n, v in part.face.consts), "};"]
         for r in part.face.records:
             out += ["", "typedef struct __attribute__((packed)) {"]
             for f in r.fields:

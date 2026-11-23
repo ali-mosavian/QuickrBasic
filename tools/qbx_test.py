@@ -291,7 +291,8 @@ if __name__ == "__main__":
 
     # a package's parts: entries named as BASIC calls them, C names with the module and the part, so
     # open and free meet no C library's; a DECLARE's _ lines are one
-    draw = "type vec2\n    x as single\n    y as single\nend type\n"
+    draw = 'const FLIPX = 1\nconst CANVAS = &H10000000\nconst LOW = -3\nconst NAME = "x"\n'
+    draw += "type vec2\n    x as single\n    y as single\nend type\n"
     draw += "declare sub sprite cdecl (byval s&, _\n    byval x%, _ ' where\n    byval y%)\n"
     draw += "declare function open% cdecl (p as vec2)\n"
     pkg = [
@@ -306,6 +307,7 @@ if __name__ == "__main__":
         '{"draw.sprite", "III", qx_entry_0}',
         '{"surface.free", "I", qx_entry_2}',
         '{"draw.vec2", sizeof(gfx_draw_vec2)}',
+        "    GFX_DRAW_FLIPX = 1,\n    GFX_DRAW_CANVAS = 268435456,\n    GFX_DRAW_LOW = -3,\n};",
     ):
         if want not in c + h:
             bad.append(f"a package's names wrong: {want}")
