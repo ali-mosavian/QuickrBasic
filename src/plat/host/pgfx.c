@@ -4,7 +4,8 @@
 #include <string.h>
 
 static struct {
-    uint8_t *page, *shown; /* w by h each, null none open */
+    const PgfxPlayer *player, *playing; /* the display's; the open screen's */
+    uint8_t *page, *shown;              /* w by h each, null none open */
     uint16_t w, h;
     uint8_t depth, bytes; /* bytes a pixel */
     bool showing;
@@ -16,6 +17,21 @@ static uint8_t bytes_of(const uint8_t depth)
 {
     return depth == 8 ? 1 : depth == 15 || depth == 16 ? 2 : depth == 32 ? 4 : 0;
 }
+
+void pgfx_set_player(const PgfxPlayer *const p) { screen.player = p; }
+
+bool pgfx_open_played(const uint16_t w, const uint16_t h)
+{
+    pgfx_close();
+
+    if (!screen.player || !screen.player->open(w, h))
+        return false;
+
+    screen.playing = screen.player;
+    return true;
+}
+
+const PgfxPlayer *pgfx_playing(void) { return screen.playing; }
 
 bool pgfx_open(const uint16_t w, const uint16_t h, const uint8_t depth)
 {
@@ -45,6 +61,10 @@ bool pgfx_open(const uint16_t w, const uint16_t h, const uint8_t depth)
 
 void pgfx_close(void)
 {
+    if (screen.playing)
+        screen.playing->close();
+
+    screen.playing = nullptr;
     pmem_free(screen.page);
     pmem_free(screen.shown);
     screen.page = screen.shown = nullptr;

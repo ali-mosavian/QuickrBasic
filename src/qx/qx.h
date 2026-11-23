@@ -30,7 +30,7 @@
 #define QX_EXPORT __attribute__((visibility("default")))
 #endif
 
-enum { QX_ABI = 1, QX_MINOR = 1 };
+enum { QX_ABI = 1, QX_MINOR = 2 };
 
 typedef struct QxCall QxCall;
 typedef void QX_CALL QxFn(QxCall *c);

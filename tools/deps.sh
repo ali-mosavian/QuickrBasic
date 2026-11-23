@@ -1,8 +1,9 @@
 #!/bin/sh
-# deps.sh [build|dosbox|capture|sdl]: the pinned tools the build and the tests need, built from source into
-# build/deps/bin. build: jwasm and jwlink (make runs this). dosbox: the headless DOSBox-X the tests
+# deps.sh [build|dosbox|capture|sdl|shaders]: the pinned tools the build and the tests need, built from source
+# into build/deps/bin. build: jwasm and jwlink (make runs this). dosbox: the headless DOSBox-X the tests
 # run on. capture: the same with the debug socket's video_start (tools/demo.py). sdl: SDL 3 for the Mac's
-# app, static and universal (arm64 and x86-64, macOS 13 on), into build/deps/sdl3.
+# app, static and universal (arm64 and x86-64, macOS 13 on), into build/deps/sdl3. shaders: glslang and
+# spirv-cross, which make shaders runs (tools/shaders.py).
 # DEPS_CACHE keeps the clones and builds across checkouts (default build/deps/src).
 # jwasm and jwlink are C89: their own bool is a C23 keyword, so CC builds them as gnu17;
 # gcc 14 also rejects jwlink's mismatched pointers.
@@ -16,6 +17,8 @@ JWLINK=4dfdd7896c39b9567f4ea9bfbb7eda601277311e
 DOSBOX=eea2b2da0203d37ff51e34a8f714af8110fe0162
 DOSBOX_CAPTURE=f9e03d0574ac0a1157c3e84e850fdc37adc669b1
 SDL=f00dc919ca35b9756316e86c4777392de442f9b2 # release-3.4.20
+GLSLANG=a57276bf558f5cf94d3a9854ebdf5a2236849a5a # 16.0.0
+SPIRV_CROSS=7affe74d77f93a622bb5002789d5332d32e512ee # vulkan-sdk-1.4.328.1
 
 # clone REPO COMMIT DIR [OWNER]: the repository at COMMIT in DIR, once.
 clone() {
@@ -61,8 +64,17 @@ sdl)
         -DCMAKE_INSTALL_PREFIX="$1" >/dev/null && cmake --build out -j4 >/dev/null && cmake --install out >/dev/null' \
         - "$ROOT/build/deps/sdl3"
     ;;
+shaders)
+    clone glslang $GLSLANG "$CACHE/glslang-$GLSLANG" KhronosGroup
+    built "$CACHE/glslang-$GLSLANG" sh -c 'cmake -S . -B out -DCMAKE_BUILD_TYPE=Release -DENABLE_OPT=OFF \
+        -DGLSLANG_TESTS=OFF -DENABLE_HLSL=OFF >/dev/null && cmake --build out -j4 --target glslang-standalone >/dev/null'
+    clone SPIRV-Cross $SPIRV_CROSS "$CACHE/SPIRV-Cross-$SPIRV_CROSS" KhronosGroup
+    built "$CACHE/SPIRV-Cross-$SPIRV_CROSS" sh -c 'cmake -S . -B out -DCMAKE_BUILD_TYPE=Release \
+        -DSPIRV_CROSS_ENABLE_TESTS=OFF -DSPIRV_CROSS_SHARED=OFF >/dev/null && cmake --build out -j4 --target spirv-cross >/dev/null'
+    cp "$CACHE/glslang-$GLSLANG/out/StandAlone/glslang" "$CACHE/SPIRV-Cross-$SPIRV_CROSS/out/spirv-cross" "$BIN/"
+    ;;
 *)
-    echo "deps.sh [build|dosbox|capture|sdl]" >&2
+    echo "deps.sh [build|dosbox|capture|sdl|shaders]" >&2
     exit 1
     ;;
 esac

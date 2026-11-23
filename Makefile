@@ -26,7 +26,7 @@ DOSBOX_BIN ?= $(DEPS)/dosbox-x
 DOS32A ?= third_party/dos32a
 export JWASM JWLINK DOSBOX_BIN DOS32A
 
-.PHONY: all test host host-test wasm wasm-test web mac mac-zip mac-test dos-zip lto format clean
+.PHONY: all test host host-test wasm wasm-test web mac mac-zip mac-test dos-zip lto format clean shaders
 all:
 
 # one run builds both: two would clone into the same directory at once under -j
@@ -35,6 +35,13 @@ $(DEPS)/jwasm: tools/deps.sh
 $(DEPS)/jwlink: $(DEPS)/jwasm
 $(DEPS)/dosbox-x: tools/deps.sh
 	sh tools/deps.sh dosbox
+$(DEPS)/glslang: tools/deps.sh
+	sh tools/deps.sh shaders
+$(DEPS)/spirv-cross: $(DEPS)/glslang
+
+# gfx's shader for each host's GPU, committed: run after an edit of src/plat/gpu/draw.*
+shaders: $(DEPS)/spirv-cross
+	python3 tools/shaders.py
 
 # ---- The DOS build: clang for i386 (COFF), the start-up and OS layer by jwasm, linked by jwlink ----
 

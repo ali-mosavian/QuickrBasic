@@ -6,6 +6,9 @@
  * reads a whole frame while the next is drawn, and the page keeps its pixels. A terminal shows
  * nothing: unit tests read the page. A pixel is an index (8 bits, the frame's palette its colours),
  * x555 (15), 565 (16) or &HAARRGGBB (32), little-endian, its alpha unshown.
+ *
+ * A display with a GPU sets a player before the program runs (plat/sdl/player.c): a screen it opens
+ * plays the extension's lists (qx/qxlist.h) instead, and shows the canvas itself.
  */
 #ifndef PLAT_PGFX_H
 #define PLAT_PGFX_H
@@ -19,6 +22,21 @@ typedef struct {
     const uint32_t *palette;
 } PgfxFrame;
 
+/* A GPU's screen: opened w by h, closed; a list played; w by h pixels at x, y of a texture read,
+   bytes R, G, B and A. Called from the interpreter's thread. */
+typedef struct {
+    bool (*open)(uint16_t w, uint16_t h);
+    void (*close)(void);
+    void (*play)(const uint32_t *list, uint32_t words);
+    void (*read)(uint32_t texture, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t *out);
+} PgfxPlayer;
+
+void pgfx_set_player(const PgfxPlayer *p);
+/* A screen w by h the player plays, in the runtime's place: false, no player, or it could not. Open,
+   a screen is closed first. */
+bool pgfx_open_played(uint16_t w, uint16_t h);
+/* The open screen's player: null, none or pages. */
+const PgfxPlayer *pgfx_playing(void);
 /* A screen w by h, depth bits a pixel, in the runtime's place: false, none of that depth, or no
    memory. Open, it is closed first. */
 bool pgfx_open(uint16_t w, uint16_t h, uint8_t depth);

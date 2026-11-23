@@ -310,8 +310,8 @@ SDL_GPU, and one backend serves both.
 The GPU backends are the host's. A slice imports nothing, so it cannot call SDL_GPU or WebGL2, and
 both hosts show the screen from another thread: SDL's main thread, and the page's, which reads the
 shared memory (`frame()`). So the extension records a frame as a list in its own memory: uploads,
-passes and draws, already batched. At `display.flip` the host's display thread plays it with SDL_GPU, or
-with WebGL2 from the page's JavaScript. The list's format is part of the ABI. Software stays in the
+passes and draws, already batched. At `display.flip` the host plays it with SDL_GPU on the
+interpreter's thread, or with WebGL2 from the page's JavaScript. The list's format is part of the ABI. Software stays in the
 extension, and draws in memory the host lends.
 
 On a GPU an indexed texture is an 8-bit texture read exactly (`texelFetch`); the shader looks it up
@@ -319,7 +319,10 @@ in the palette, a texture, and multiplies by the light and tint. Every target is
 8 bits too, so a GPU blends in hardware: a palette set later colours only what is drawn after, and
 reading an 8-bit canvas gives each pixel's nearest index.
 
-The one shader is built with each host: MSL, SPIR-V and DXIL for SDL_GPU, GLSL ES 3.0 in the page.
+The one shader is written once, in Vulkan GLSL (`src/plat/gpu`), its vertex stage built twice: for
+plain vertices and, with `DISC`, for a circle's. `make shaders` crosses it with glslang and
+SPIRV-Cross, pinned in `tools/deps.sh`, to MSL for SDL_GPU and GLSL ES 3.0 for the page; the results
+are committed, so a build needs neither.
 
 ## The host's side
 
@@ -360,7 +363,7 @@ void *(*file_read)(const char *path, uint32_t len, uint32_t *bytes);
 | | Gives | Shows by | Clock |
 |---|---|---|---|
 | DOS | pages: a VBE 2.0 linear mode's two in video memory; else memory | 4F07h's flip at the retrace; else a copy, linear or bank by bank; mode 13h a copy | the PIT's count |
-| Mac, Linux, Windows | a GPU, lists played on SDL's main thread; with no device, pages | the swapchain; a page as today's frame, a texture | `SDL_GetTicksNS` |
+| Mac, Linux, Windows | a GPU, lists played by SDL_GPU on the interpreter's thread; with no device, pages | the canvas, copied at `SHOW` to a texture SDL's GPU renderer draws; a page as today's frame | `SDL_GetTicksNS` |
 | The browser | a GPU, lists played by the page with WebGL2 from the shared memory; else pages | `requestAnimationFrame` | `performance.now` |
 | `basic` in a terminal, unit tests | pages | nothing: `surface.read` is the tests' eye | `pclk` |
 
@@ -526,6 +529,18 @@ Step 4, in parts:
   drawn from or into, and sent again when the CPU wrote its pixels since (the root's version). A
   root drawn into is ahead on the GPU until a read brings it back. Shapes draw from a white
   texel. Tests run on a host that records the lists.
+- **The Mac's player** (`plat/sdl/player.c`): SDL's GPU renderer draws the window, and the player
+  shares its device. A list's data goes into one staging buffer kept between frames, so its memory
+  is free when `gfx_play` returns; its command buffer is not waited for, the GPU up to two frames
+  behind, and a read waits for its own. A quad is four vertices through a shared index buffer.
+  `SHOW` copies the canvas to a texture the window draws, cycled so the copy never waits on the
+  frame drawing the last. `QB_GFX=soft` draws in pages; the offscreen driver has no GPU and does
+  too.
+- **Circles and arcs as shader coverage**: each is one box, its four vertices `QxDisc`s in the
+  list's second array, so a plain vertex stays 32 bytes; the fragment shader keeps the pixels
+  `disc.h`'s rule covers, centres within the radius by squared distance, every product and sum
+  rounded once (`precise`). Software's rows end where the same rule says, so both draw the same
+  pixels.
 
 ## Prior art
 

@@ -30,7 +30,9 @@ them too: a fixed list of files once left CHARLIE.BAS without its barkley packag
 and its rows touching. 132 x 50 is 1188x800: the frame was 80 columns wide once.
 QBX, tests/ext's qxtest packed for macos: a program imports it and draws if its add%(2, 3) is 5. Its slice
 was arm64's alone once, and the x86-64 half stopped at the IMPORT. gfx's canvas at 16 and 32 bits
-is shown in its colours: the frame once read each pixel as an index.
+is shown in its colours: the frame once read each pixel as an index. Played on the GPU (a window of
+its own: the offscreen driver has none), an 8-bit scene is software's pixel for pixel: a diagonal
+line once covered two pixels a step.
 A Quickr program imports text, Quickr's library in the app's Resources/lib: once the app shipped
 none, and F5 stopped at the import unless BASICLIB was set.
 """
@@ -59,6 +61,16 @@ GFX = (
 )
 # its halves at 32 bits, and at 16 (565: each channel's top bits repeated below)
 GFX_SHOWN = {32: ((0xFF, 0x80, 0), (0x12, 0x34, 0x56)), 16: ((0xFF, 0x82, 0), (0x10, 0x34, 0x52))}
+# shapes, a surface drawn into and drawn, text: indexed textures, the palette, passes; circles off the pixel grid
+GFX_SCENE = (
+    "import gfx.display, gfx.draw, gfx.surface, gfx.pen\ngfx.display.open 160, 120, 8, 0\n"
+    "gfx.draw.clear 1\ngfx.draw.rect 4, 4, 60, 40, 4, gfx.draw.FILL\ngfx.draw.line 0, 119, 159, 0, 14\n"
+    "gfx.draw.circle 100, 60, 20, 2, gfx.draw.FILL\ns& = gfx.surface.new(16, 16)\ngfx.pen.target s&\n"
+    "gfx.draw.clear 9\ngfx.draw.rect 0, 0, 7, 7, 12, gfx.draw.FILL\ngfx.pen.target gfx.surface.CANVAS\n"
+    'gfx.draw.sprite s&, 120, 90, 0\ngfx.draw.text 4, 100, "GPU", 15\ngfx.draw.circle 40, 80, 15.3, 10, 0\n'
+    "gfx.draw.arc 130.5, 30, 18, 0.5, 4, 13\ngfx.draw.circle 70.25, 70.5, 6.5, 11, gfx.draw.FILL\n"
+    "gfx.display.flip\n" + LOOP
+)
 HELP = "60:3B00"  # F1
 HELP_ESC = "60:3B00 70:011B"  # F1, Esc
 HELP_BACK = "60:3B00 70:0F09 80:1C0D 90:6800"  # F1, Tab, Enter (Index), Alt+F1
@@ -82,19 +94,28 @@ COLS132 = "60:1800 80:2C7A 100:0837"  # 7 (132 x 50)
 
 
 def frames(
-    run: list[str], program: Path, keys: str = "", at: tuple[str, ...] = ("",), mouse: str = ""
+    run: list[str],
+    program: Path,
+    keys: str = "",
+    at: tuple[str, ...] = ("",),
+    mouse: str = "",
+    more: dict[str, str] | None = None,
 ) -> list[tuple[int, int, bytes]]:
     """A shot at each of at's times ("" the default), one run."""
     with tempfile.TemporaryDirectory() as tmp:
         shots = [Path(tmp) / f"shot{i}.ppm" for i in range(len(at))]
         # by its name: the editor's file field takes a DOS-length path, not a temporary one
-        env = os.environ | {
-            "QB_SHOT": ",".join(f"{shot}@{t}" if t else str(shot) for shot, t in zip(shots, at)),
-            "QB_KEYS": keys,
-            "QB_MOUSE": mouse,
-            "SDL_VIDEO_DRIVER": "offscreen",
-            "SDL_AUDIO_DRIVER": "dummy",
-        }
+        env = (
+            os.environ
+            | {
+                "QB_SHOT": ",".join(f"{shot}@{t}" if t else str(shot) for shot, t in zip(shots, at)),
+                "QB_KEYS": keys,
+                "QB_MOUSE": mouse,
+                "SDL_VIDEO_DRIVER": "offscreen",
+                "SDL_AUDIO_DRIVER": "dummy",
+            }
+            | (more or {})
+        )
         subprocess.run([*run, program.name], env=env, timeout=30, check=True, cwd=program.parent)
         data = [shot.read_bytes() for shot in shots]
     out = []
@@ -105,8 +126,8 @@ def frames(
     return out
 
 
-def frame(run: list[str], program: Path, keys: str = "") -> tuple[int, int, bytes]:
-    return frames(run, program, keys)[0]
+def frame(run: list[str], program: Path, keys: str = "", more: dict[str, str] | None = None) -> tuple[int, int, bytes]:
+    return frames(run, program, keys, more=more)[0]
 
 
 def blue_cells(w: int, pixels: bytes) -> int:
@@ -222,6 +243,9 @@ def main() -> None:
             (Path(tmp) / "GFX.BAS").write_text(GFX.format(depth=depth))
             gw, _, px = frame(run, Path(tmp) / "GFX.BAS", "3F00")
             gfx[depth] = (pixel(gw, px, 10, 10), pixel(gw, px, 50, 10))
+        (Path(tmp) / "SCENE.BAS").write_text(GFX_SCENE)
+        soft = frame(run, Path(tmp) / "SCENE.BAS", "3F00")
+        gpu = frame(run, Path(tmp) / "SCENE.BAS", "3F00", {"SDL_VIDEO_DRIVER": "cocoa", "QB_GFX": "gpu"})
         w, h, pixels = frame(run, program)
         _, _, menu = frame(run, program, "2100")
         box = Path(tmp) / "BOX.BAS"
@@ -354,6 +378,7 @@ def main() -> None:
         "50 rows in the 16-line font": rows50 == (720, 800),
         "132 x 50 in the 16-line font": cols132 == (1188, 800),
         "gfx's 16 and 32-bit frames in their colours": gfx == GFX_SHOWN,
+        "gfx's scene played on the GPU is software's": gpu == soft and soft[:2] == (160, 120),
     }
     failed = [name for name, ok in checks.items() if not ok]
     print(f"mac {sys.argv[2] if len(sys.argv) > 2 else ''} " + ("ok" if not failed else "FAIL " + ", ".join(failed)))
