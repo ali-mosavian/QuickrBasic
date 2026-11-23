@@ -15,7 +15,7 @@ gfx.open 320, 200, 8
 atlas = gfx.pictures("CHARLIE.DAT", 1)
 do
     gfx.begin
-    gfx.view eye, look, 60
+    gfx.perspective eye, look, 60
     gfx.mesh level_mesh, LIGHTMAPPED
     gfx.model dog, frame, lerp, at
     gfx.ortho
@@ -85,8 +85,30 @@ and state and submits once; software draws them in order. `gfx.end` shows the fr
 Textures, meshes and canvases are uploaded once and named by a handle. A canvas is a texture that can be
 drawn into: a parallax layer, a HUD kept between frames, a mirror.
 
-One frame may hold a 3D pass and then a 2D pass. `gfx.view` and `gfx.ortho` set the projection;
+One frame may hold a 3D pass and then a 2D pass. `gfx.perspective` and `gfx.ortho` set the projection;
 `gfx.camera`, `gfx.turn` and `gfx.scale` set a 2D transform, applied as commands are recorded.
+
+## Views
+
+A view is a surface over another surface's pixels, as µGL's `uglNewView` and qgl's `qglNewView`: its
+own shape and clipping, no memory of its own, nothing copied.
+
+- A picture is a view of its atlas, with an anchor.
+- Drawing into a view of a canvas draws into its rectangle, clipped to it: a split screen, a minimap,
+  the HUD's strip.
+- A cache, `gfx.cache(w, h, n)`, holds n surfaces of one size. `gfx.aim view, slot` moves a view to
+  another slot without allocating: one view for each size, aimed at each surface in turn, as qgl's
+  surface cache does.
+- Wrapping repeats a view, not its parent, so a tile in an atlas tiles.
+- A surface with views alive cannot be freed: `gfx.free` raises an error rather than leaving them
+  pointing at nothing.
+
+On a GPU a view of a texture is a rectangle of texture coordinates, and drawing into one sets the
+viewport and scissor to it; a wrapping view is repeated in the shader, within its rectangle. In software
+a view is an offset and a stride, as µGL's.
+
+A cache's views own their stride: in software its surfaces are packed end to end, with no gaps. A GPU
+cannot read a texture at another stride, so there a cache is a texture array and a slot is a layer.
 
 ## 2D
 
