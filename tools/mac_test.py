@@ -26,6 +26,8 @@ to the topic, Shift+F1 opens Using Help), F1 off a keyword only beeps, and F1 in
 dialog shows help over it: the help system was once "Help is not available".
 Started in / as from Finder, the app copies its demos into ~/Documents/QuickrBasic, the folders beside
 them too: a fixed list of files once left CHARLIE.BAS without its barkley package.
+50 rows are drawn in the 16-line font, 720x800: once in the 8-line one, 720x400, its strokes doubled
+and its rows touching. 132 x 50 is 1188x800: the frame was 80 columns wide once.
 QBX, tests/ext's qxtest packed for macos: a program imports it and draws if its add%(2, 3) is 5. Its slice
 was arm64's alone once, and the x86-64 half stopped at the IMPORT.
 """
@@ -65,6 +67,8 @@ OPEN_FIRST = "60:2100 70:1800 80:0F09 90:5000 100:4800 110:1C0D"  # Open, Tab, D
 SORTED = "PRINT 1\nSUB Bbbbbb\nEND SUB\nSUB a\nEND SUB\n"
 LONG_NAME = "N" * 60
 LONG = f"PRINT 1\nSUB {LONG_NAME}\nEND SUB\n"
+ROWS50 = "60:1800 80:2C7A 100:0433"  # Alt+O, z (Display Size), 3 (80 x 50)
+COLS132 = "60:1800 80:2C7A 100:0837"  # 7 (132 x 50)
 
 
 def frames(
@@ -265,6 +269,8 @@ def main() -> None:
         long = Path(tmp) / "LONG.BAS"
         long.write_text(LONG)
         lw, _, long_title = frames(run, long, "60:5500", ("2s",))[0]  # Shift+F2
+        rows50 = frames(run, program, ROWS50, ("2s",))[0][:2]
+        cols132 = frames(run, program, COLS132, ("2s",))[0][:2]
     status = {pixel(w, menu, x, 392) for x in range(9 * 30, 9 * 60)}
 
     def status_row(shot: bytes) -> list[tuple[int, ...]]:
@@ -326,6 +332,8 @@ def main() -> None:
         "a long name's title whole": title_cells(lw, long_title) == len(f"LONG.BAS:{LONG_NAME}") + 3,
         "a Finder start copies the demos, their folders too": copied,
         "a native module runs": native is not False,
+        "50 rows in the 16-line font": rows50 == (720, 800),
+        "132 x 50 in the 16-line font": cols132 == (1188, 800),
     }
     failed = [name for name, ok in checks.items() if not ok]
     print(f"mac {sys.argv[2] if len(sys.argv) > 2 else ''} " + ("ok" if not failed else "FAIL " + ", ".join(failed)))

@@ -45,13 +45,17 @@
 
 /* The 0-ended s to d, its 0 too. */
 
+/* The status bar's right, its columns from the screen's right edge. */
 enum : uint8_t {
-    STATUS_BAR_COL = 62, /* the bar before ^Q, the locks, the position */
-    STATUS_PREFIX_COL = 64,
-    STATUS_CAPS_COL = 67,
-    STATUS_NUM_COL = 68,
-    STATUS_POS_COL = 70,
+    STATUS_BAR = 18, /* the bar before ^Q, the locks, the position */
+    STATUS_PREFIX = 16,
+    STATUS_CAPS = 13,
+    STATUS_NUM = 12,
+    STATUS_POS = 10,
+    STATUS_HELP_BAR = 8, /* where the bar is while the help window has the focus */
 };
+
+static uint8_t from_right(const uint8_t back) { return (uint8_t)(uimn.cols - back); }
 
 static const char u_imm[] = "Immediate";
 static const char u_f1[] = "F1=Help \xB3 ", u_f1s[] = "F1=Help   ";
@@ -341,7 +345,7 @@ void draw_imm(void)
     draw_title(
         (uint8_t)(im->row0 - 1),
         0,
-        PSCR_COLS,
+        uimn.cols,
         GLYPH_V_RIGHT,
         GLYPH_V_LEFT,
         u_imm,
@@ -361,9 +365,9 @@ void draw_imm(void)
         scrn_fill(row, 0, SL_ED, GLYPH_V, 1);
         uint16_t all;
         const uint8_t *const src = imm_line(im->top + r, &all);
-        const uint16_t len = all < ED_COLS ? all : ED_COLS;
+        const uint16_t width = uimn.cols - 2u, len = all < width ? all : width;
         uint8_t c = scrn_strn(row, 1, src, len, SL_ED);
-        c = scrn_fill(row, c, SL_ED, ' ', ED_COLS - len);
+        c = scrn_fill(row, c, SL_ED, ' ', width - len);
         scrn_fill(row, c, SL_ED, GLYPH_V, 1);
     } while (++r < im->rows);
 }
@@ -400,7 +404,7 @@ static void status_errors(Session *const S, const uint8_t c)
     *d++ = '(';
     d = uimn_dec(d, (uint16_t)(n < UINT16_MAX ? n : UINT16_MAX));
     memcpy(d, n == 1 ? " error)" : " errors)", n == 1 ? 8 : 9);
-    const uint8_t at = (uint8_t)(STATUS_BAR_COL - 1 - strlen(text));
+    const uint8_t at = (uint8_t)(from_right(STATUS_BAR) - 1 - strlen(text));
 
     if (at > c)
         scrn_str(status_row(), at, text, SL_SMSG, SL_SMSG);
@@ -420,27 +424,39 @@ static bool status_left(Session *const S)
             return true;
         }
 
-        const uint32_t n = strlen(err), most = STATUS_BAR_COL - 2;
+        const uint32_t n = strlen(err), most = from_right(STATUS_BAR) - 2u;
         scrn_strn(status_row(), 1, (const uint8_t *)err, (uint16_t)(n < most ? n : most), SL_SMSG);
         return true;
     }
 
     const char *const f1 = help == uimn_menu_help || help == uimn_dlog_help ? u_f1s : u_f1;
     const uint8_t c = scrn_str(status_row(), 1, f1, SL_SMSG, SL_SMSG); /* F1=Help and a bar */
-    return scrn_str(status_row(), c, help, SL_SMSG, SL_SMSG) <= STATUS_BAR_COL;
+    return scrn_str(status_row(), c, help, SL_SMSG, SL_SMSG) <= from_right(STATUS_BAR);
 }
 
 /* ^Q pending, Caps Lock, Num Lock. */
 static void status_flags(void)
 {
     if (uimn.ed.prefix) {
-        scrn_fill(status_row(), STATUS_PREFIX_COL, SL_STAT, '^', 1);
-        scrn_fill(status_row(), STATUS_PREFIX_COL + 1, SL_STAT, 'Q', 1);
+        scrn_fill(status_row(), from_right(STATUS_PREFIX), SL_STAT, '^', 1);
+        scrn_fill(status_row(), from_right(STATUS_PREFIX) + 1, SL_STAT, 'Q', 1);
     } else
-        scrn_fill(status_row(), STATUS_PREFIX_COL, SL_STAT, ' ', 2);
+        scrn_fill(status_row(), from_right(STATUS_PREFIX), SL_STAT, ' ', 2);
 
-    scrn_fill(status_row(), STATUS_CAPS_COL, SL_STAT, uimn.keyflags & PKEY_CAPS ? 'C' : ' ', 1);
-    scrn_fill(status_row(), STATUS_NUM_COL, SL_STAT, uimn.keyflags & PKEY_NUM ? 'N' : ' ', 1);
+    scrn_fill(
+        status_row(),
+        from_right(STATUS_CAPS),
+        SL_STAT,
+        uimn.keyflags & PKEY_CAPS ? 'C' : ' ',
+        1
+    );
+    scrn_fill(
+        status_row(),
+        from_right(STATUS_NUM),
+        SL_STAT,
+        uimn.keyflags & PKEY_NUM ? 'N' : ' ',
+        1
+    );
 }
 
 /* The cursor's line:column. */
@@ -452,25 +468,23 @@ static void status_pos(void)
     const uint32_t col = uimn.edline.col + 1u;
     const bool wide = (uint16_t)col >= 1000; /* past 999: 5 digits, 2 columns left */
     *decimal(p + 1, col, wide ? 5 : 3) = 0;
-    scrn_str(status_row(), wide ? STATUS_POS_COL - 2 : STATUS_POS_COL, pos, SL_STAT, SL_STAT);
+    scrn_str(status_row(), from_right(wide ? STATUS_POS + 2 : STATUS_POS), pos, SL_STAT, SL_STAT);
 }
-
-enum : uint8_t { STATUS_HELP_BAR_COL = 72 }; /* where the bar is while the help window has the focus */
 
 void draw_status(Session *const S)
 {
-    scrn_fill(status_row(), 0, SL_STAT, ' ', PSCR_COLS);
+    scrn_fill(status_row(), 0, SL_STAT, ' ', uimn.cols);
 
     if (uimn.tree.workspace.focus == FOC_HELP && !uimn.help) { /* QBasic's: the longer keys, the bar moved, no position */
         scrn_str(status_row(), 1, draw_keys()->text, SL_SMSG, SL_SMSG);
-        scrn_fill(status_row(), STATUS_HELP_BAR_COL, SL_STAT, GLYPH_V, 1);
+        scrn_fill(status_row(), from_right(STATUS_HELP_BAR), SL_STAT, GLYPH_V, 1);
         return;
     }
 
     if (!status_left(S))
         return;
 
-    scrn_fill(status_row(), STATUS_BAR_COL, SL_STAT, GLYPH_V, 1);
+    scrn_fill(status_row(), from_right(STATUS_BAR), SL_STAT, GLYPH_V, 1);
     status_flags();
     status_pos();
 }

@@ -68,10 +68,10 @@ static void done(Session *const S)
 /* Screen row row from column c0 to the pane's right border, trailing spaces cut. */
 static const char *screen_text(const uint8_t row, const uint8_t c0)
 {
-    static char s[PSCR_COLS + 1];
+    static char s[PSCR_COLS_MAX + 1];
     uint8_t n = 0;
 
-    for (uint8_t c = c0; c < PSCR_COLS - 1; c++)
+    for (uint8_t c = c0; c < uimn.cols - 1; c++)
         s[n++] = (char)host_cell(0, row, c);
 
     while (n && s[n - 1] == ' ')
@@ -233,6 +233,32 @@ TEST(debug_pane_shows_frames_and_their_locals)
     pane_keys(S, 2, (const uint16_t[]){K_DOWN, K_ENTER, 0});
 
     CHECK(rows_are("Locals", " r& = 1| s$ = \"hi\"| d# = 2.5"));
+    done(S);
+}
+
+/* The column of the line between the edit windows and the pane, on the first text row. */
+static uint8_t seam(void)
+{
+    for (uint8_t c = 1; c < uimn.cols; c++)
+        if ((uint8_t)host_cell(0, 2, c) == GLYPH_V)
+            return c;
+
+    return 0;
+}
+
+/* The pane is a quarter of the screen's columns, 30 at least, after a change of size too: 31 with
+   its line at 80 columns, 34 at 132. At 132 it kept 80's column 50: 83 columns wide. */
+TEST(debug_pane_is_a_quarter_of_the_screen)
+{
+    stopped_in(S, fact);
+    CHECK(seam() == 49);
+    uimn_size((PscrSize){132, 50});
+
+    shown(S);
+    CHECK(seam() == 98);
+    uimn_size(PSCR_80X25);
+    shown(S);
+    CHECK(seam() == 49);
     done(S);
 }
 
@@ -563,7 +589,7 @@ TEST(debug_pane_counts_frames_past_its_rows)
         " \x19 5 more, module last"
     ));
     const uint8_t more = (uint8_t)(title_row("Call stack") + 5);
-    uimn_rows(25); /* the windows where the mouse finds them */
+    uimn_size(PSCR_80X25); /* the windows where the mouse finds them */
     uimn.mouse = (UiMouse){.event = MS_PRESS, .row = more, .col = (uint8_t)(uimn.dp_col + 2)};
 
     uimn_key(S, KEY_MOUSE); /* a press on the row past the frames: no frame chosen */
@@ -872,7 +898,7 @@ static uint8_t row_of_line(const uint32_t line)
 /* The edit window's text on its line line, inside its borders, trailing spaces cut. */
 static const char *window_line(const uint32_t line)
 {
-    static char s[PSCR_COLS + 1];
+    static char s[PSCR_COLS_MAX + 1];
     uint8_t n = 0;
 
     for (uint8_t c = 0; c < uimn.ed.width; c++)

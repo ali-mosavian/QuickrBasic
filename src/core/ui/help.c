@@ -332,7 +332,7 @@ static uint8_t cell_slot(const uint8_t kind, const uint8_t ch)
    the link chosen lit. */
 static void draw_line(const HView *const v, const uint8_t y, const uint8_t x0, const uint8_t width, const uint16_t line)
 {
-    uint8_t ch[PSCR_COLS], kind[PSCR_COLS];
+    uint8_t ch[PSCR_COLS_MAX], kind[PSCR_COLS_MAX];
     const HelpDoc *const d = &v->doc;
     const uint16_t n = hdoc_row(d, line, ch, kind, width);
     uint8_t c = x0;
@@ -500,7 +500,7 @@ static void box_rect(Rect *const r)
     r->rows = BOX_ROWS;
     r->cols = BOX_COLS;
     r->row = (uint8_t)((uimn.rows - BOX_ROWS) / 2);
-    r->col = (uint8_t)((PSCR_COLS - BOX_COLS) / 2);
+    r->col = (uint8_t)((uimn.cols - BOX_COLS) / 2);
 }
 
 static void box_draw(Widget *const w, Session *const S)

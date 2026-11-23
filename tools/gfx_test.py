@@ -66,6 +66,40 @@ TEXT = pages(0, "COLOR 7, 1: CLS", 0xB8001, 0xB9001, 0x462).replace(
     "PRINT a; h; b; c; d", 'OPEN "R.TXT" FOR OUTPUT AS 1: PRINT #1, a; h; b; c; d: CLOSE')
 
 
+def flip12(flips: int) -> str:
+    """A circle on SCREEN 12's page 1 and a row of every colour, the pages swapped `flips` times; then the circle's
+    top and bottom rows read from the adapter, and the row's pixels wrong once page 1 is back in memory."""
+    return "\r\n".join([
+        "SCREEN 12, , 1, 0",
+        "CIRCLE (320, 240), 100, 15",
+        "FOR x = 0 TO 639: PSET (x, 5), (x * 7 + x \\ 16) MOD 16: NEXT",
+        f"FOR i = 1 TO {flips}: SCREEN , , 1, i MOD 2: NEXT",
+        "a = PEEK(&HA0000 + 140 * 80 + 40): b = PEEK(&HA0000 + 340 * 80 + 40)",
+        "SCREEN , , 1, 0",
+        "wrong = 0",
+        "FOR x = 0 TO 639",
+        "IF POINT(x, 5) <> (x * 7 + x \\ 16) MOD 16 THEN wrong = wrong + 1",
+        "NEXT",
+        "SCREEN 0",
+        "PRINT a; b; wrong",
+        "",
+    ])
+
+
+# A hand count of a swap: 480 rows, each converted both ways, 320 plane bytes at about 12 instructions.
+SWAP_MOST = 5_000_000
+
+
+def flip_cost() -> float:
+    """Instructions a SCREEN 12 swap takes. It converted a pixel's bit at a time, 13.1M instructions (650 ms at
+    the suites' 20 MIPS); a look while one ran saw only the top of a circle, as if the rest were not drawn."""
+    jobs = {"one": (flip12(1), ""), "many": (flip12(21), "")}
+    got = dosrun.run(jobs, Path(tempfile.mkdtemp()) / "w", 120000, file=True, mem=8)
+    for name, result in got.items():
+        assert " 255  255  0 " in result.out, (name, result.out[-400:])
+    return (got["many"].instructions - got["one"].instructions) / 20
+
+
 def screen_error() -> str:
     """An error in a graphics mode, standard output the screen: its message was printed on the
     graphics screen, which the exit's text mode cleared (GORILLAS.BAS left without a word)."""
@@ -94,6 +128,8 @@ if __name__ == "__main__":
     text = (work / "R.TXT").read_text() if (work / "R.TXT").exists() else "(none)"
     assert " 7  23  1  7  23 " in text, text
     if not dosrun.is_host(dosrun.COM):
+        cost = flip_cost()
+        assert cost < SWAP_MOST, cost
         shown = screen_error()
         assert "Illegal function call" in shown, shown
     print("ok")

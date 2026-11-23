@@ -21,9 +21,9 @@ bool uimn_save(Session *S);
 /* ui_sync: a run's first step: the program entered again when the text changed. Errors: as
    repl_relink, at its line. */
 void uimn_sync(Session *S);
-/* The screen rows rows (25, 43, 50), as many as the card has: the text mode set, the windows
-   fitted to it. */
-void uimn_rows(uint8_t rows);
+/* The screen of size, one of uimn.sizes (80x25 if not): the text mode set, the windows fitted
+   to it. */
+void uimn_size(PscrSize size);
 
 /* ui_getkey: a key (scan << 8 | char, KEY_ALT, KEY_MOUSE), the screen shown and the mouse polled
    while none waits; uimn.keyflags the shift flags then. An Alt already down at the call (after

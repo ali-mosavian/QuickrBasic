@@ -33,9 +33,9 @@ void upag_in(Session *const S)
     if (qbrt_graphics() && !pg.kept) {
         qbrt_shot_take(at(allo_base(&S->allo, pg.block)));
         pg.kept = true;
-        pscr_text(uimn.rows);
-    } else if (pscr_rows() != uimn.rows) { /* the program's WIDTH, or its SCREEN 0 */
-        pscr_text(uimn.rows);
+        pscr_text(ui_size());
+    } else if (pscr_size().rows != uimn.rows || pscr_size().cols != uimn.cols) {
+        pscr_text(ui_size()); /* the program's WIDTH, or its SCREEN 0 */
     }
 
     pscr_page(PAGE_EDIT);
@@ -64,7 +64,7 @@ void upag_clear(Session *const S)
 
     if (qbrt_graphics()) {
         qbrt_text();
-        pscr_text(uimn.rows);
+        pscr_text(ui_size());
     }
 
     them_out();

@@ -6,7 +6,7 @@
 #include "plat/host/host.h"
 #include "plat/pscr.h"
 
-enum { MODE_TEXT = 3, MODE_KEEP = 0x80, SHAPE = 0x0607, PAGES = 8, PAGES_TALL = 4 };
+enum { MODE_TEXT = 3, MODE_KEEP = 0x80, SHAPE = 0x0607, PAGES = 8, PAGE_MEMORY = 0x8000 };
 
 static struct {
     bool known;                    /* base read */
@@ -15,8 +15,14 @@ static struct {
 
 void __wrap_dev_text_pages_reset(void);
 
-/* The program's pages: 8 of 25 rows, 4 of 43 or 50 (QB 4.5's). */
-static uint8_t count(void) { return pscr_rows() == 25 ? PAGES : PAGES_TALL; }
+/* The program's pages: as many as text memory holds, 8 at most: 8 of 80x25, 4 of 80x43 or 80x50
+   (QB 4.5's). */
+static uint8_t count(void)
+{
+    const PscrSize s = pscr_size();
+    const uint32_t n = PAGE_MEMORY / (s.cols * s.rows * sizeof(PscrCell));
+    return (uint8_t)(n < PAGES ? n : PAGES);
+}
 
 static uint8_t pscr_of(const unsigned p)
 {
@@ -51,11 +57,12 @@ int __wrap_dev_text_copy(const unsigned from, const unsigned to)
     if (from >= count() || to >= count())
         return 0;
 
-    PscrCell row[PSCR_COLS];
+    const PscrSize s = pscr_size();
+    PscrCell row[PSCR_COLS_MAX];
 
-    for (uint8_t r = 0; r < pscr_rows(); r++) {
-        pscr_get(pscr_of(from), r, 0, row, PSCR_COLS);
-        pscr_put(pscr_of(to), r, 0, row, PSCR_COLS);
+    for (uint8_t r = 0; r < s.rows; r++) {
+        pscr_get(pscr_of(from), r, 0, row, s.cols);
+        pscr_put(pscr_of(to), r, 0, row, s.cols);
     }
 
     return 1;
@@ -68,14 +75,18 @@ int __wrap_gd_set_mode(const unsigned mode)
     const int ok = __real_gd_set_mode(mode);
 
     if (ok && mode == MODE_TEXT) {
-        pscr_text(25);
+        pscr_text(PSCR_80X25);
         __wrap_dev_text_pages_reset();
     }
 
     return ok;
 }
 
-unsigned __wrap_dev_text_size(void) { return (unsigned)pscr_rows() << 8 | PSCR_COLS; }
+unsigned __wrap_dev_text_size(void)
+{
+    const PscrSize s = pscr_size();
+    return (unsigned)s.rows << 8 | s.cols;
+}
 
 unsigned __wrap_dev_text_cursor(void)
 {
@@ -86,11 +97,11 @@ unsigned __wrap_dev_text_cursor(void)
 
 void __wrap_dev_text_move(const unsigned row, const unsigned column)
 {
-    const unsigned rows = pscr_rows();
+    const PscrSize s = pscr_size();
     pscr_cursor(
         page(),
-        (uint8_t)(row < rows ? row : rows - 1),
-        (uint8_t)(column < PSCR_COLS ? column : PSCR_COLS - 1)
+        (uint8_t)(row < s.rows ? row : s.rows - 1u),
+        (uint8_t)(column < s.cols ? column : s.cols - 1u)
     );
 }
 
@@ -98,7 +109,9 @@ void __wrap_dev_text_cursor_show(const int visible) { pscr_shape(visible ? SHAPE
 
 unsigned __wrap_dev_text_get(const unsigned row, const unsigned column)
 {
-    if (row >= pscr_rows() || column >= PSCR_COLS)
+    const PscrSize s = pscr_size();
+
+    if (row >= s.rows || column >= s.cols)
         return 0;
 
     PscrCell c;
@@ -113,7 +126,9 @@ void __wrap_dev_text_put(
     const unsigned attribute
 )
 {
-    if (row < pscr_rows() && column < PSCR_COLS)
+    const PscrSize s = pscr_size();
+
+    if (row < s.rows && column < s.cols)
         pscr_fill(
             page(),
             (uint8_t)row,
@@ -144,18 +159,13 @@ void __wrap_dev_text_scroll(
 {
     const unsigned rows = bottom - top + 1;
     const unsigned by = lines && lines < rows ? lines : rows;
-    PscrCell row[PSCR_COLS];
+    const uint8_t cols = pscr_size().cols;
+    PscrCell row[PSCR_COLS_MAX];
 
     for (unsigned r = top; r + by <= bottom; r++) {
-        pscr_get(page(), (uint8_t)(r + by), 0, row, PSCR_COLS);
-        pscr_put(page(), (uint8_t)r, 0, row, PSCR_COLS);
+        pscr_get(page(), (uint8_t)(r + by), 0, row, cols);
+        pscr_put(page(), (uint8_t)r, 0, row, cols);
     }
 
-    pscr_fill(
-        page(),
-        (uint8_t)(bottom + 1 - by),
-        0,
-        (PscrCell)(attribute << 8 | ' '),
-        by * PSCR_COLS
-    );
+    pscr_fill(page(), (uint8_t)(bottom + 1 - by), 0, (PscrCell)(attribute << 8 | ' '), by * cols);
 }

@@ -175,10 +175,10 @@ void fx_shown(Session *const S)
 
 const char *fx_row(const uint8_t row)
 {
-    static char s[PSCR_COLS + 1];
+    static char s[PSCR_COLS_MAX + 1];
     uint8_t n = 0;
 
-    for (uint8_t c = 0; c < PSCR_COLS; c++)
+    for (uint8_t c = 0; c < uimn.cols; c++)
         s[n++] = (char)host_cell(0, row, c);
 
     while (n && s[n - 1] == ' ')

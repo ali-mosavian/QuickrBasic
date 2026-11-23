@@ -135,6 +135,12 @@ void qbrt_pages_show(void) { gfx_pages_show(); }
 
 bool qbrt_graphics(void) { return gfx_current && gfx_current->number; }
 
+uint8_t qbrt_rows(void)
+{
+    return qbrt_graphics() ? (uint8_t)(gfx_current->height / gfx_current->cell_height)
+                           : (uint8_t)(dev_text_size() >> 8);
+}
+
 void qbrt_text(void)
 {
     if (qbrt_graphics())

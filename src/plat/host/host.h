@@ -27,7 +27,7 @@ PscrCell host_cell(uint8_t page, uint8_t row, uint8_t col);
    (6 bits a channel, as pscr_palette's). */
 typedef struct {
     const PscrCell *cells;
-    uint8_t page, rows, row, col;
+    uint8_t page, cols, rows, row, col;
     uint16_t shape;
     uint8_t palette[48];
 } HostScreen;
