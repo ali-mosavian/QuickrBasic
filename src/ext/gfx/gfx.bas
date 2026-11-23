@@ -1,42 +1,38 @@
 ' gfx: 2D and 3D drawing (docs/gfx-extension-design.md).
-' Native dialect: line, circle, open are names here.
-' A handle is a long; 0 is none. Coordinates name a
-' pixel's centre; angles are radians.
+' QuickrBasic's dialect: line, circle, open are names here.
+' A handle is a long; 0 is none. Everything drawn from or
+' into is a surface. Coordinates name a pixel's centre;
+' angles are radians. A colour is the canvas's: an index at
+' 8 bits, &HRRGGBB at 15, 16 and 32.
 
 const CANVAS = &H10000000
 
 ' open's flags
 const VSYNC = 1
 const NATIVE = 2
-const SMOOTH = 4
+const FIT = 4
+const STRETCH = 8
 
-' sprite's flags
+' a draw call's flags
 const FLIPX = 1
 const FLIPY = 2
+const OPAQUE = 4
+const BLEND = 8
+const ADD = 16
+const SOLID = 32
+const SMOOTH = 64
+const FILL = 128
+const ORDERED = 256
+const NO_ZWRITE = 512
+const NO_ZTEST = 1024
 
-' blend's modes
-const OPAQUE = 0
-const KEYED = 1
-const TRANSLUCENT = 2
-const ADDITIVE = 3
-
-' an atlas's pixels
-const INDEXED = 8
-const DIRECT = 32
-
-' depth's modes, as uglZMode's
-const Z_OFF = 0
-const Z_WRITE = 1
-const Z_TEST = 2
-
-' order's
-const ANY_ORDER = 0
-const FRONT_FIRST = 1
-
-' load_matrix's
-const MODEL_MATRIX = 0
-const VIEW_MATRIX = 1
-const PROJECTION_MATRIX = 2
+' new_material's kinds
+const FLAT = 1
+const TEXTURED = 2
+const VERTEX_LIT = 3
+const LIGHTMAPPED = 4
+const WARPED = 5
+const SKY = 6
 
 ' caps' bits
 const HAS_GPU = 1
@@ -51,35 +47,21 @@ const LOST = 4
 const QUIT = 5
 
 ' Command.kind
-const DREW_SPRITE = 1
-const DREW_TILE = 2
-const DREW_STRIP = 3
-const DREW_POLY = 4
-const DREW_LINE = 5
-const DREW_RECT = 6
-const DREW_CIRCLE = 7
-const DREW_TEXT = 8
-const DREW_MESH = 9
-const DREW_MODEL = 10
-const DREW_CLEAR = 11
-
-' the built-in materials
-const FLAT = &H60000001
-const TEXTURED = &H60000002
-const VERTEX_LIT = &H60000003
-const LIGHTMAPPED = &H60000004
-const WARPED = &H60000005
-const SKY = &H60000006
-
-' Stage.op
-const READ_TEXTURE = 1
-const READ_WARPED = 2
-const READ_LIGHT = 3
-const READ_PALETTE = 4
-const MUL_TEXTURE = 5
-const MUL_COLOUR = 6
-const ADD_COLOUR = 7
-const KEY = 8
+const DREW_CLEAR = 1
+const DREW_PSET = 2
+const DREW_LINE = 3
+const DREW_RECT = 4
+const DREW_CIRCLE = 5
+const DREW_ARC = 6
+const DREW_POLY = 7
+const DREW_SPRITE = 8
+const DREW_QUAD = 9
+const DREW_TILES = 10
+const DREW_STRIP = 11
+const DREW_TEXT = 12
+const DREW_MESH = 13
+const DREW_MODEL = 14
+const DREW_BILLBOARD = 15
 
 type Vec2
     x as single
@@ -92,14 +74,16 @@ type Vec3
     z as single
 end type
 
-' u and v in texels; light 0 to 63, 63 the texel's own;
-' tint &HRRGGBB, multiplied.
+' u, v the texture's texels, u2, v2 the lightmap's; light 0
+' to 63, 63 the texel's own; tint multiplied.
 type Vertex
     x as single
     y as single
     z as single
     u as single
     v as single
+    u2 as single
+    v2 as single
     light as single
     tint as long
 end type
@@ -124,18 +108,10 @@ type Matrix
     m44 as single
 end type
 
-' anchor: the point a sprite's x, y names.
-type PicInfo
-    w as integer
-    h as integer
-    anchor_x as integer
-    anchor_y as integer
-end type
-
 type ScreenMode
     w as integer
     h as integer
-    depth as integer
+    bits as integer
     hz as integer
 end type
 
@@ -154,13 +130,12 @@ type FrameStats
     waits as long
 end type
 
-' One command, after the camera: x, y its anchor or first
+' One draw call, after the camera: x, y its anchor or first
 ' end, x2, y2 its other end.
 type Command
     kind as integer
     target as long
     source as long
-    pic as integer
     x as single
     y as single
     x2 as single
@@ -168,32 +143,22 @@ type Command
     angle as single
     scale as single
     flags as integer
+    colour as long
     light as integer
     tint as long
-    blend as integer
     alpha as integer
     recolor as integer
 end type
 
-' A pixel stage: source a surface, colour &HRRGGBB.
-type Stage
-    op as integer
-    source as long
-    colour as long
-end type
-
-' --- the canvas and the display ---
+' --- the display ---
 
 declare sub open cdecl ( _
     byval w as integer, _
     byval h as integer, _
-    byval bits as integer, _
-    byval flags as long _
+    byval depth as integer, _
+    byval flags as integer _
 )
 declare sub close cdecl ()
-declare function width cdecl () as integer
-declare function height cdecl () as integer
-declare function depth cdecl () as integer
 declare function displays cdecl () as integer
 declare function modes cdecl (byval display as integer) as integer
 declare sub mode cdecl ( _
@@ -201,7 +166,7 @@ declare sub mode cdecl ( _
     byval n as integer, _
     m as ScreenMode _
 )
-' mode 0 is the desktop's own, 1 on the list's.
+' n 0 is the desktop's own mode, 1 on the list's.
 declare sub fullscreen cdecl ( _
     byval display as integer, _
     byval n as integer _
@@ -214,155 +179,17 @@ declare function poll cdecl (e as HostEvent) as integer
 declare function clock cdecl () as double
 declare function refresh cdecl () as single
 
-' --- colour ---
-
-' Row 0 is the canvas's; colours are &HRRGGBB.
-declare sub palette cdecl ( _
-    byval row as integer, _
-    colours() as long _
-)
-declare function rgb cdecl ( _
-    byval r as integer, _
-    byval g as integer, _
-    byval b as integer _
-) as long
-' 64 rows of 256 indices; built from row 0 when not given.
-declare sub light_table cdecl (map() as byte)
-
-' --- the pen: for what is drawn after ---
-
-declare sub target cdecl (byval surface as long)
-declare sub clip cdecl ( _
-    byval x as integer, _
-    byval y as integer, _
-    byval w as integer, _
-    byval h as integer _
-)
-declare sub unclip cdecl ()
-declare sub light cdecl (byval level as integer)
-declare sub tint cdecl (byval colour as long)
-declare sub blend cdecl (byval how as integer)
-declare sub alpha cdecl (byval level as integer)
-declare sub recolor cdecl (byval row as integer)
-' x, y the world's point at the canvas's top left.
-declare sub camera cdecl (byval x as single, byval y as single)
-' x, y the world's point at the canvas's centre.
-declare sub camera_turned cdecl ( _
-    byval x as single, _
-    byval y as single, _
-    byval angle as single, _
-    byval zoom as single _
-)
-declare sub reset cdecl ()
-
-' --- 2D ---
-
-declare sub clear cdecl (byval colour as long)
-declare sub pset cdecl ( _
-    byval x as single, _
-    byval y as single, _
-    byval colour as long _
-)
-declare sub line cdecl ( _
-    byval x1 as single, _
-    byval y1 as single, _
-    byval x2 as single, _
-    byval y2 as single, _
-    byval colour as long _
-)
-declare sub rect cdecl ( _
-    byval x1 as single, _
-    byval y1 as single, _
-    byval x2 as single, _
-    byval y2 as single, _
-    byval colour as long _
-)
-declare sub rect_fill cdecl ( _
-    byval x1 as single, _
-    byval y1 as single, _
-    byval x2 as single, _
-    byval y2 as single, _
-    byval colour as long _
-)
-declare sub circle cdecl ( _
-    byval x as single, _
-    byval y as single, _
-    byval r as single, _
-    byval colour as long _
-)
-declare sub circle_fill cdecl ( _
-    byval x as single, _
-    byval y as single, _
-    byval r as single, _
-    byval colour as long _
-)
-declare sub arc cdecl ( _
-    byval x as single, _
-    byval y as single, _
-    byval r as single, _
-    byval start as single, _
-    byval finish as single, _
-    byval colour as long _
-)
-' pic 0 is the whole surface: a canvas drawn as a sprite.
-declare sub sprite cdecl ( _
-    byval source as long, _
-    byval pic as integer, _
-    byval x as single, _
-    byval y as single, _
-    byval flags as integer _
-)
-declare sub sprite_turned cdecl ( _
-    byval source as long, _
-    byval pic as integer, _
-    byval x as single, _
-    byval y as single, _
-    byval angle as single, _
-    byval scale as single, _
-    byval flags as integer _
-)
-' A cell a picture, 0 empty; columns a row; w by h cells.
-declare sub tiles cdecl ( _
-    byval atlas as long, _
-    map() as integer, _
-    byval columns as integer, _
-    byval x as single, _
-    byval y as single, _
-    byval w as integer, _
-    byval h as integer _
-)
-' The picture repeated along the points, hanging below.
-declare sub strip cdecl ( _
-    byval atlas as long, _
-    byval pic as integer, _
-    points() as Vec2, _
-    byval first as integer, _
-    byval n as integer _
-)
-' Convex; atlas 0 flat, in each vertex's tint.
-declare sub poly cdecl ( _
-    byval atlas as long, _
-    byval pic as integer, _
-    v() as Vertex, _
-    byval first as integer, _
-    byval n as integer _
-)
-declare sub text cdecl ( _
-    byval font as long, _
-    byval x as single, _
-    byval y as single, _
-    byval s as string _
-)
-declare function text_width cdecl ( _
-    byval font as long, _
-    byval s as string _
-) as integer
-
-' --- surfaces, views and atlases ---
+' --- surfaces ---
 
 declare function new_surface cdecl ( _
     byval w as integer, _
     byval h as integer _
+) as long
+declare function load_surface cdecl (byval file as string) as long
+' The file's sheet, and views() filled with its pictures.
+declare function load_atlas cdecl ( _
+    byval file as string, _
+    views() as long _
 ) as long
 declare function new_view cdecl ( _
     byval parent as long, _
@@ -376,52 +203,19 @@ declare sub aim cdecl ( _
     byval x as integer, _
     byval y as integer _
 )
-' n slots of w by h, one above the next: a slot's view is
-' aimed at y = slot * h.
-declare function new_cache cdecl ( _
-    byval w as integer, _
-    byval h as integer, _
-    byval n as integer _
-) as long
-declare function load_atlas cdecl (byval file as string) as long
-declare function new_atlas cdecl (byval pixels as integer) as long
-' Pixels a byte an index, or 4 a pixel, R G B A; the new
-' picture's number.
-declare function add cdecl ( _
-    byval atlas as long, _
-    byval w as integer, _
-    byval h as integer, _
-    byval anchor_x as integer, _
-    byval anchor_y as integer, _
-    pixels() as byte _
-) as integer
-declare function grab cdecl ( _
-    byval atlas as long, _
-    byval source as long, _
+' The point a sprite's x, y names.
+declare sub anchor cdecl ( _
+    byval surface as long, _
     byval x as integer, _
-    byval y as integer, _
-    byval w as integer, _
-    byval h as integer _
-) as integer
-declare function pictures cdecl (byval atlas as long) as integer
-' A view over one picture, to draw into.
-declare function picture cdecl ( _
-    byval atlas as long, _
-    byval pic as integer _
-) as long
-declare sub measure cdecl ( _
-    byval atlas as long, _
-    byval pic as integer, _
-    p as PicInfo _
+    byval y as integer _
 )
-' Glyphs 32 to 126 from picture first on.
-declare function new_font cdecl ( _
-    byval atlas as long, _
-    byval first as integer _
-) as long
+declare function width cdecl (byval surface as long) as integer
+declare function height cdecl (byval surface as long) as integer
+declare function bits cdecl (byval surface as long) as integer
+' A surface's views go with it.
 declare sub free cdecl (byval handle as long)
 
-' --- reading and writing pixels: a GPU waits ---
+' --- pixels read and written: a GPU waits ---
 
 declare function point cdecl ( _
     byval surface as long, _
@@ -446,64 +240,212 @@ declare sub write cdecl ( _
     pixels() as byte _
 )
 
-' --- what the frame cost, and what it drew ---
+' --- colour ---
 
-declare sub stats cdecl (s as FrameStats)
-declare function caps cdecl () as long
-declare function cost cdecl (byval material as long) as integer
-declare function draws cdecl () as integer
-declare sub drawn cdecl (byval n as integer, d as Command)
+' Row 0 is the canvas's; colours are &HRRGGBB.
+declare sub palette cdecl ( _
+    byval row as integer, _
+    colours() as long _
+)
+declare function rgb cdecl ( _
+    byval r as integer, _
+    byval g as integer, _
+    byval b as integer _
+) as long
 
-' --- 3D ---
+' --- the pen: for what is drawn after ---
 
-declare sub depth_mode cdecl (byval how as integer)
-declare sub clear_depth cdecl ()
-declare sub order cdecl (byval first as integer)
-declare sub perspective cdecl ( _
-    byval fov as single, _
+declare sub target cdecl (byval surface as long)
+declare sub clip cdecl ( _
+    byval x as integer, _
+    byval y as integer, _
+    byval w as integer, _
+    byval h as integer _
+)
+declare sub unclip cdecl ()
+' 0 to 63, 63 a texel's own.
+declare sub light cdecl (byval level as integer)
+' Multiplied; SOLID's colour.
+declare sub tint cdecl (byval colour as long)
+' BLEND's and ADD's: 0 to 63.
+declare sub alpha cdecl (byval level as integer)
+' A palette row to draw through; 0 none.
+declare sub recolor cdecl (byval row as integer)
+' text's; 0 the built-in 8 by 8.
+declare sub font cdecl (byval handle as long)
+' x, y the world's point at the target's top left.
+declare sub camera cdecl (byval x as single, byval y as single)
+' x, y the world's point at the target's centre.
+declare sub camera_turned cdecl ( _
+    byval x as single, _
+    byval y as single, _
+    byval angle as single, _
+    byval zoom as single _
+)
+declare sub camera_3d cdecl ( _
+    eye as Vec3, _
+    at as Vec3, _
+    up as Vec3, _
+    byval fov as single _
+)
+' camera_3d's planes: 1 and 4096 till set.
+declare sub depth_range cdecl ( _
     byval near as single, _
     byval far as single _
 )
-declare sub look cdecl (eye as Vec3, at as Vec3, up as Vec3)
-declare sub ortho cdecl ()
-declare sub load_matrix cdecl ( _
-    byval which as integer, _
-    m as Matrix _
+declare sub reset cdecl ()
+
+' --- 2D ---
+
+declare sub clear cdecl (byval colour as long)
+declare sub pset cdecl ( _
+    byval x as single, _
+    byval y as single, _
+    byval colour as long _
 )
+declare sub line cdecl ( _
+    byval x1 as single, _
+    byval y1 as single, _
+    byval x2 as single, _
+    byval y2 as single, _
+    byval colour as long _
+)
+declare sub rect cdecl ( _
+    byval x1 as single, _
+    byval y1 as single, _
+    byval x2 as single, _
+    byval y2 as single, _
+    byval colour as long, _
+    byval flags as integer _
+)
+declare sub circle cdecl ( _
+    byval x as single, _
+    byval y as single, _
+    byval r as single, _
+    byval colour as long, _
+    byval flags as integer _
+)
+declare sub arc cdecl ( _
+    byval x as single, _
+    byval y as single, _
+    byval r as single, _
+    byval start as single, _
+    byval finish as single, _
+    byval colour as long _
+)
+' Convex.
+declare sub poly cdecl ( _
+    points() as Vec2, _
+    byval first as integer, _
+    byval n as integer, _
+    byval colour as long, _
+    byval flags as integer _
+)
+declare sub sprite cdecl ( _
+    byval surface as long, _
+    byval x as single, _
+    byval y as single, _
+    byval flags as integer _
+)
+declare sub sprite_turned cdecl ( _
+    byval surface as long, _
+    byval x as single, _
+    byval y as single, _
+    byval angle as single, _
+    byval scale as single, _
+    byval flags as integer _
+)
+' The surface onto four corners, from its top left round.
+declare sub quad cdecl ( _
+    byval surface as long, _
+    corners() as Vec2, _
+    byval first as integer, _
+    byval flags as integer _
+)
+' A cell a surface, 0 empty; columns a row; w by h a cell.
+declare sub tiles cdecl ( _
+    map() as long, _
+    byval columns as integer, _
+    byval x as single, _
+    byval y as single, _
+    byval w as integer, _
+    byval h as integer, _
+    byval flags as integer _
+)
+' The surface repeated along the points, hanging below.
+declare sub strip cdecl ( _
+    byval surface as long, _
+    points() as Vec2, _
+    byval first as integer, _
+    byval n as integer, _
+    byval flags as integer _
+)
+' A sheet of glyphs w by h, from 32 on, row by row.
+declare function new_font cdecl ( _
+    byval sheet as long, _
+    byval w as integer, _
+    byval h as integer _
+) as long
+declare sub text cdecl ( _
+    byval x as single, _
+    byval y as single, _
+    byval s as string, _
+    byval colour as long _
+)
+declare function text_width cdecl (byval s as string) as integer
+
+' --- 3D: depth tested and written unless a flag says ---
+
 ' tris: three vertex numbers a triangle, from 0.
 declare function new_mesh cdecl ( _
     v() as Vertex, _
     tris() as integer _
 ) as long
-declare sub mesh_update cdecl ( _
-    byval handle as long, _
-    v() as Vertex, _
-    byval first as integer _
-)
-declare sub mesh cdecl ( _
-    byval handle as long, _
-    byval material as long, _
-    byval texture as long, _
-    byval texture2 as long _
-)
 ' v: frames of vertices end to end.
 declare function new_model cdecl ( _
     v() as Vertex, _
     tris() as integer, _
     byval frames as integer _
 ) as long
+declare function new_material cdecl ( _
+    byval kind as integer, _
+    byval texture as long, _
+    byval lightmap as long _
+) as long
+declare sub mesh cdecl ( _
+    byval handle as long, _
+    byval material as long, _
+    byval flags as integer _
+)
+' frame 3.25: a quarter of the way from 3 to 4.
 declare sub model cdecl ( _
     byval handle as long, _
     byval material as long, _
-    byval texture as long, _
-    byval frame as integer, _
-    byval lerp as single, _
-    at as Matrix _
+    byval frame as single, _
+    where as Matrix, _
+    byval flags as integer _
 )
 declare sub billboard cdecl ( _
-    byval atlas as long, _
-    byval pic as integer, _
+    byval surface as long, _
     at as Vec3, _
+    byval scale as single, _
+    byval flags as integer _
+)
+' m from a position, its yaw, pitch and roll, and a scale.
+declare sub place cdecl ( _
+    m as Matrix, _
+    at as Vec3, _
+    turn as Vec3, _
     byval scale as single _
 )
-declare function new_material cdecl (stages() as Stage) as long
+' m = a then b.
+declare sub join cdecl (m as Matrix, a as Matrix, b as Matrix)
+declare sub clear_depth cdecl ()
+
+' --- what the frame cost, and what it drew ---
+
+declare sub stats cdecl (s as FrameStats)
+declare function caps cdecl () as long
+declare function cost cdecl (byval kind as integer) as integer
+declare function draws cdecl () as integer
+declare sub drawn cdecl (byval n as integer, d as Command)

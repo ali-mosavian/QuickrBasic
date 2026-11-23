@@ -13,16 +13,18 @@ is built.
 ```basic
 import gfx
 gfx.open 320, 200, 8, gfx.VSYNC
-atlas = gfx.load_atlas("CHARLIE.GFX")
+sheet = gfx.load_atlas("CHARLIE.GFX", pic())
+walls = gfx.new_material(gfx.LIGHTMAPPED, stone, lightmap)
 do
-    gfx.perspective 60, 1, 4096
-    gfx.look eye, at, up
-    gfx.mesh level, gfx.LIGHTMAPPED, walls, lightmaps
-    gfx.model dog, gfx.TEXTURED, fur, frame, lerp, place
-    gfx.ortho
+    gfx.camera_3d eye, at, up, 1.05
+    gfx.mesh level, walls, gfx.ORDERED
+    gfx.place m, dog.at, dog.turn, 1
+    gfx.model dog.shape, fur, dog.frame, m, 0
     gfx.camera cam.x, cam.y
-    gfx.tiles atlas, lv.map(), lv.w, 0, 0, TS, TS
-    gfx.sprite_turned atlas, IHERO + f, p.at.x, p.at.y, p.ang, 1, flip
+    gfx.tiles lv.map(), lv.w, 0, 0, TS, TS, 0
+    gfx.sprite pic(IHERO + f), p.at.x, p.at.y, gfx.FLIPX * p.face
+    gfx.rect 0, 0, 319, 9, CINK, gfx.FILL
+    gfx.text 4, 1, "SCORE" + str$(score), CWHITE
     gfx.flip
 loop
 ```
@@ -32,35 +34,41 @@ loop
 [src/ext/gfx/gfx.bas](../src/ext/gfx/gfx.bas) is the `.qbx`'s interface: every procedure, record and
 constant.
 
-- **The native dialect.** QuickrBasic's own dialect has no `LINE`, `CIRCLE`, `PSET`, `OPEN` or
-  `CLOSE` statements: they are the standard library's extensions. So `gfx.line`, `gfx.open` and
-  `gfx.palette` are plain names, and the interface is read in that dialect. QB's dialect keeps its
-  keywords; a program in it reaches them qualified, as `gfx.line` already lexes as one name.
+- **QuickrBasic's dialect.** It has no `SCREEN`, `PRINT`, `LINE`, `CIRCLE`, `PSET`, `OPEN` or
+  `CLOSE` statements: those are QB's dialect's, and here the standard library's extensions. So
+  `gfx.line`, `gfx.open` and `gfx.palette` are plain names, and the interface is read in this dialect.
+- **Neither too low nor too high.** A call is a thing a game draws: a sprite, a tile layer, a mesh
+  with its material. Stages, matrices set by hand, depth modes and the surface cache stay inside.
+- **Everything is a surface**: the canvas (`gfx.CANVAS`), a loaded picture, a sheet of them, a view
+  over part of any of these. A sprite, a tile, a glyph sheet and a texture are surfaces; an atlas is
+  a sheet and its views.
 - **Handles** are longs: a kind (4 bits), a generation (8) and a slot (20), so a freed or wrong
-  handle is an error, never a stray pointer. 0 is none; `gfx.CANVAS` is the canvas.
+  handle is an error, never a stray pointer. 0 is none.
 - **Constructors** are `new_*` and `load_*`, as µGL's `uglNew*`. `gfx.free` frees any handle.
+- **Flags pick the effect, the pen holds its numbers**, as µGL's `tfxBlit` and `tfxSet*`. One set of
+  flags for every draw call: `FILL`, `FLIPX`, `FLIPY`, `OPAQUE`, `BLEND`, `ADD`, `SOLID`, `SMOOTH`;
+  for 3D `ORDERED`, `NO_ZWRITE`, `NO_ZTEST`. The pen is `target`, `clip`, `light`, `tint`, `alpha`,
+  `recolor`, `font` and the cameras; `reset` sets it back. Its numbers land in the vertices, so a
+  change does not end a batch.
 - **No optional arguments**, so the common case is its own call, as µGL's `uglPut` and
   `uglPutRotScl`: `sprite` and `sprite_turned`, `camera` and `camera_turned`.
-- **The pen**: `target`, `clip`, `light`, `tint`, `blend`, `alpha`, `recolor` and `camera` hold for
-  what is drawn after, as µGL's `tfxSet*`. `reset` sets them back. Each lands in the vertices, so a
-  change does not end a batch.
-- **Pictures** are numbered from 1 in their atlas; 0 is the whole surface, so a canvas is drawn with
-  `sprite` too, and 0 is an empty tile.
+- **A colour is the canvas's**: an index at 8 bits, `&HRRGGBB` at 15, 16 and 32. `gfx.rgb` gives one
+  from red, green and blue.
 - **Records** cross as the ABI has them: by reference, valid for the call, laid out as BASIC lays
-  them (the glue asserts each size). An array of them (`Vertex`, `Vec2`, `Stage`) is read during the
+  them (the glue asserts each size). An array (`Vec2`, `Vertex`, a map's handles) is read during the
   call, or copied when kept (a mesh). `Matrix` is qgl's `Mat4`: row vectors, the move in `m41` to
-  `m43`. A list (modes, commands drawn) is a count and a call for each: `modes` then `mode`, `draws`
-  then `drawn`.
-- **Names do not collide.** A type is never named as a procedure (`ScreenMode`, not `Mode`, beside
-  `mode`), and a parameter never as a procedure or a constant.
+  `m43`; `gfx.place` and `gfx.join` make them. A list (modes, commands drawn) is a count and a call
+  for each: `modes` then `mode`, `draws` then `drawn`.
+- **Names do not collide.** A type is never named as a procedure (`ScreenMode` beside `mode`), and
+  a parameter never as a procedure or a constant.
 
 | Error | When |
 |---|---|
-| 5 Illegal function call | a handle freed or of another kind; an argument out of its range; drawing before `open`; a surface freed with views alive; a view outside its parent; an atlas file not one |
+| 5 Illegal function call | a handle freed or of another kind; an argument out of its range; drawing before `open`; a view outside its parent; a file not a picture's |
 | 7 Out of memory | the host has none left |
-| 9 Subscript out of range | a picture past its atlas's; `first` and `n` past an array; a mode past the list |
-| 53 File not found | `load_atlas` |
-| 73 Advanced feature unavailable | no display (a terminal); the program's own shaders on software |
+| 9 Subscript out of range | `first` and `n` past an array; `views()` shorter than the atlas; a mode past the list |
+| 53 File not found | `load_surface`, `load_atlas` |
+| 73 Advanced feature unavailable | the program's own shaders on software |
 
 ## The rules every backend keeps
 
@@ -78,13 +86,14 @@ drawn at.
 
 ## The canvas: any resolution and depth
 
-`gfx.open w, h, bits, flags` asks for a canvas; the backend gives the nearest it has, and `gfx.width`,
-`gfx.height` and `gfx.depth` say what it gave. Depth is 8 (indexed), 15, 16 or 32 bits.
+`gfx.open w, h, depth, flags` asks for a canvas; the backend gives the nearest it has, and
+`gfx.width`, `gfx.height` and `gfx.bits` of `gfx.CANVAS` say what it gave. Depth is 8 (indexed), 15,
+16 or 32 bits.
 
 The canvas is what the program draws in; the window is the host's. The host scales the canvas to the
-window: by whole multiples, to fit, or stretched. With `GFX_NATIVE` a GPU backend draws at the
-window's resolution instead: the same commands, more pixels, and sprites turn smoothly rather than a
-canvas pixel at a time. Software ignores it.
+window: by whole multiples, to fit (`gfx.FIT`), or stretched (`gfx.STRETCH`). With `gfx.NATIVE` a GPU
+backend draws at the window's resolution instead: the same commands, more pixels, and sprites turn
+smoothly rather than a canvas pixel at a time. Software ignores it.
 
 On DOS, 320×200 at 8 bits is VGA's mode 13h; the rest are VBE 2.0 modes through a linear framebuffer,
 with banked modes for VBE 1.2 cards. The DOS platform has neither yet.
@@ -130,12 +139,14 @@ A texture is indexed (8 bits and a palette) or direct (16 or 32 bits).
 - `gfx.palette row, colours()` sets a palette row: row 0 is the canvas's, and `gfx.recolor row`
   draws what follows through another, as PICO-8's `pal`. On DOS at 8 bits the VGA's palette changes
   the whole screen at once; the program does not rely on that.
-- Index 0 of an indexed texture, and alpha under one half of a direct one, are not drawn.
+- Index 0 of an indexed texture, and alpha under one half of a direct one, are not drawn; `OPAQUE`
+  draws them.
 - `gfx.rgb(r, g, b)` is a colour in the canvas's own terms: the nearest index at 8 bits.
+- `SOLID` draws a surface's shape in the pen's tint: a hit's flash, a shadow, a one-colour font.
 
-Blending is one of opaque, keyed (as above), translucent and additive. A GPU blends in hardware; software
-at 8 bits reads a 64 KB table for each mode, index by index; at 15, 16 and 32 bits it adds and
-multiplies.
+Blending is keyed (as above), opaque, translucent (`BLEND`) or additive (`ADD`), by the pen's alpha. A
+GPU blends in hardware; software at 8 bits reads a 64 KB table for each mode, index by index; at 15, 16
+and 32 bits it adds and multiplies.
 
 ## Drawing
 
@@ -146,8 +157,8 @@ extension records them, and the host plays them at the flip, or when a surface d
 Textures, meshes and canvases are uploaded once and named by a handle. A canvas is a texture that can be
 drawn into: a parallax layer, a HUD kept between frames, a mirror.
 
-One frame may hold a 3D pass and then a 2D pass. `gfx.perspective` and `gfx.ortho` set the projection;
-`gfx.camera`, `gfx.turn` and `gfx.scale` set a 2D transform, applied as commands are recorded.
+One frame may hold a 3D pass and then a 2D pass: 3D calls take the 3D camera, the rest the 2D one
+(`gfx.camera`, `gfx.camera_turned`), applied as commands are recorded.
 
 ## Friendly, and kind to a GPU
 
@@ -182,55 +193,63 @@ operations. They stay on `SCREEN`'s page.
 A view is a surface over another surface's pixels, as µGL's `uglNewView` and qgl's `qglNewView`: its
 own shape and clipping, no memory of its own, nothing copied.
 
-- A picture is a view of its atlas, with an anchor.
+- A picture is a view of its sheet, with an anchor. `gfx.load_atlas` loads a sheet and fills an array
+  with its views; `gfx.new_view` makes one by hand.
 - Drawing into a view of a canvas draws into its rectangle, clipped to it: a split screen, a minimap,
   the HUD's strip.
-- A cache, `gfx.new_cache(w, h, n)`, holds n surfaces of one size, one above the next. `gfx.aim v,
-  0, slot * h` moves a view to another slot without allocating: one view for each size, aimed at each
-  surface in turn, as qgl's surface cache does. A view of a cache stays within one slot.
+- `gfx.aim` moves a view within its parent without allocating. The backend's surface cache is
+  built on it, as qgl's: n surfaces of one size, and one view aimed at each in turn.
 - Wrapping repeats a view, not its parent, so a tile in an atlas tiles.
-- A surface with views alive cannot be freed: `gfx.free` raises an error rather than leaving them
-  pointing at nothing.
+- A surface's views are freed with it. A handle to one is then stale, and using it is an error.
 
 On a GPU a view of a texture is a rectangle of texture coordinates, and drawing into one sets the
 viewport and scissor to it; a wrapping view is repeated in the shader, within its rectangle. In software
 a view is an offset and a stride, as µGL's.
 
-A cache's views own their stride: in software its surfaces are packed end to end, with no gaps. A GPU
-cannot read a texture at another stride, so there a cache is a texture array and a slot is a layer.
+The cache's views own their stride: in software its surfaces are packed end to end, with no gaps.
+On a GPU a lightmapped surface is two textures multiplied, so there is no cache.
 
 ## 2D
 
 Everything 2D is a textured quad or a strip of them, so the backends have one primitive.
 
-- `gfx.sprite atlas, pic, x, y, flags`: a picture of the atlas, its size and anchor stored with it.
-  `gfx.sprite_turned` adds an angle and a scale, about the anchor. `FLIPX` and `FLIPY` swap its u or
-  v.
-- `gfx.tiles`: a tile layer, drawn a row of quads at a time; only the cells in view are visited.
+- `gfx.sprite surface, x, y, flags`: a surface at its anchor. `gfx.sprite_turned` adds an angle and
+  a scale, about the anchor. `FLIPX` and `FLIPY` swap its u or v.
+- `gfx.quad`: a surface onto any four corners.
+- `gfx.tiles`: a tile layer, a cell a surface, drawn a row of quads at a time; only the cells in
+  view are visited.
 - `gfx.strip`: a textured strip along a line of points: the ground under a platformer's feet, drawn
   from the same points its physics walks, at any slope.
-- `gfx.poly`: a convex polygon, flat or textured.
+- `gfx.pset`, `gfx.line`, `gfx.arc`; `gfx.rect`, `gfx.circle` and `gfx.poly`, outlined or with
+  `FILL`.
+- `gfx.text x, y, s$, colour` in the pen's font: a sheet of glyphs (`gfx.new_font`), or the built-in
+  8 by 8.
 
 The software backend picks fast paths itself: an upright sprite at 1:1 is a keyed row copy, a tile row
 a tight loop. The program never chooses.
 
-An atlas's pictures, their sizes and anchors come from the tool that builds them, which also writes the
-BASIC constants naming them.
+An atlas's pictures, their sizes and anchors come from the tool that builds it, which also writes the
+BASIC constants numbering them: `pic(IHERO + f)`.
 
 ## 3D
 
-- **Meshes**: positions, u and v, and a shade or normal for each vertex; triangles by index.
-- **Matrices**: model, view and projection, 4 by 4. The near plane is clipped by the GPU, and in
-  software by clipping each polygon before it is scanned.
-- **Depth**: off, written, or tested and written. `gfx.order gfx.FRONT_FIRST` says commands come nearest first:
-  a GPU rejects hidden pixels early; software keeps a coverage buffer and skips spans already drawn,
-  which on a 486 replaces testing each pixel's depth.
-- **Materials**, lists of pixel stages ([Shaders](#shaders)), the same on every backend: flat, textured,
-  vertex-lit, lightmapped, keyed, translucent, warped (water) and sky. A lightmapped surface is two
+- **Meshes**: a position, the texture's u and v, the lightmap's, a light and a tint for each
+  vertex; triangles by index.
+- **Cameras**: `gfx.camera_3d eye, at, up, fov` for `mesh`, `model` and `billboard`; the 2D camera
+  for the rest. So one frame holds both with no switch between. `gfx.place` makes a model's matrix
+  from its position and angles. The near plane is clipped by the GPU, and in software by clipping
+  each polygon before it is scanned.
+- **Depth** is tested and written by every 3D call. `NO_ZTEST` and `NO_ZWRITE` leave one out.
+  `ORDERED` says the calls come nearest first: a GPU rejects hidden pixels early; software keeps a
+  coverage buffer and skips spans already drawn, which on a 486 replaces testing each pixel's depth.
+- **Materials**: a kind and its textures, made once (`gfx.new_material`). The kinds are lists of
+  pixel stages ([Shaders](#shaders)), the same on every backend: flat, textured, vertex-lit,
+  lightmapped, warped (water) and sky; keyed and translucent are flags. A lightmapped surface is two
   textures multiplied on a GPU, and a cache of surfaces lit once in software, as Quake's.
 - **Mip levels**: built when a texture is loaded; a GPU picks one for each pixel, software for each
   polygon.
-- **Models**: keyframes, blended between two: in the vertex shader on a GPU, on the CPU in software.
+- **Models**: keyframes, blended between two by a fractional frame: in the vertex shader on a GPU,
+  on the CPU in software.
 - **Billboards and particles**: quads facing the camera, with depth.
 
 The software side of all of this is qcport's: its scanner (`qglRsPoly`), clipper (`qglClPoly`),
@@ -289,8 +308,9 @@ its code.
 `QxHost` gains `gfx_open`, as it has `audio_open`: the host keeps the window, the GPU device and the
 frame's timing, and hands the backend what it needs to draw and show. No GPU: the software backend.
 
-The runtime's own screen, `SCREEN`'s page with `PSET`, `LINE` and `PRINT`, is a layer the frame draws
-over or under.
+`SCREEN`'s page, with `PSET`, `LINE` and `PRINT`, is QB's dialect's alone. A program in
+QuickrBasic's dialect has `gfx` instead, so there is one canvas and nothing to layer: `gfx` has the
+display from `open` to `close`.
 
 ## Tests
 
@@ -328,11 +348,10 @@ run on the software backend.
 
 ## Open questions
 
-1. `SCREEN`'s page and a `gfx` canvas: two layers (as above), or one canvas both draw into? In the
-   native dialect `SCREEN`'s statements are extensions too.
+1. Decided: `SCREEN`'s page is QB's dialect's alone, so there is nothing to layer.
 2. The program's own shaders: GLSL ES as it is, or a BASIC subset translated to it?
 3. Depth in software: a 16-bit z, or 1/z as Quake's?
 4. 15 bits: worth its fillers, or 16 alone?
 5. Vertex procedures: on the CPU everywhere (as above), or translated to vertex shaders on a GPU?
 6. 3D worlds: a scene-level call as Quake 2's, so software keeps its own way of hiding surfaces, or
-   triangles with `gfx.order FRONT` alone?
+   triangles with `ORDERED` alone?
