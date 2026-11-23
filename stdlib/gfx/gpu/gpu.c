@@ -159,6 +159,7 @@ bool gpu_open(Gpu *const g, const QxScreen *const s)
     g->palette = 0;
     g->white = 0xFFFFFFFF;
     g->down = s->y_down ? 1 : -1;
+    g->count = (GpuCount){};
 
     GpuTexture *const canvas = entry(g, GFX_SURFACE_CANVAS);
     const uint32_t made[][4] = {
@@ -335,6 +336,9 @@ void gpu_play(Gpu *const g, const bool show)
     if (words)
         qx_host->gpu_play(words, n);
 
+    g->count.batches += g->list.batches;
+    g->count.uploads += g->list.uploads;
+
     list_reset(&g->list);
     g->passing = false;
 }
@@ -357,6 +361,7 @@ bool gpu_sync(
         return false;
 
     qx_host->gpu_read(h, 0, 0, px.w, px.h, rgba);
+    g->count.waits++;
     uint32_t last = ~0u, index = 0; /* no colour is ~0 */
 
     for (int32_t y = 0; y < px.h; y++)
@@ -378,6 +383,14 @@ bool gpu_sync(
     mem_free(rgba);
     root->drawn = false;
     return true;
+}
+
+GpuCount gpu_counted(Gpu *const g)
+{
+    const GpuCount c = g->count;
+    g->count = (GpuCount){};
+
+    return c;
 }
 
 void gpu_forget(Gpu *const g, const uint32_t h)

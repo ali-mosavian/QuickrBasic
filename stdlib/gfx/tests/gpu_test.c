@@ -333,6 +333,25 @@ TEST(gfx_gpu_draws_shapes_in_one_batch)
     CHECK(vertices[4].u == 0.5f && vertices[4].rw == 1 && vertices[4].light == 63);
 }
 
+/* stats: the frame shown last's draws, its batches, its uploads (the white texel, the palette) and
+   the reads that waited for the GPU, which count towards the next. */
+TEST(gfx_gpu_counts_the_frame)
+{
+    gfx_display_framestats s = {};
+
+    screen(S, 8, 8, 32);
+    GPU_CALL("draw.clear", I(0));
+    GPU_CALL("draw.rect", F(1), F(1), F(2), F(2), I(0xFF0000), I(GFX_DRAW_FILL));
+    GPU_CALL("display.flip");
+    GPU_CALL("display.stats", REF(&s));
+    CHECK(s.draws == 2 && s.batches == 1 && s.uploads == 2 && s.waits == 0);
+
+    GPU_CALL("surface.point", I(GFX_SURFACE_CANVAS), I(1), I(1));
+    GPU_CALL("display.flip");
+    GPU_CALL("display.stats", REF(&s));
+    CHECK(s.draws == 0 && s.batches == 0 && s.uploads == 0 && s.waits == 1);
+}
+
 /* A WebGL2 host gets ESSL, its y down the rows: the shader is told 1. */
 TEST(gfx_gpu_speaks_the_hosts_language)
 {

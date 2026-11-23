@@ -76,6 +76,8 @@ void gfx_display_open(const int32_t w, const int32_t h, const int32_t depth, con
 
     g->open = true;
     g->hz = s.hz;
+    g->cost = (gfx_display_framestats){};
+
     g->camera = (Camera){};
 
     pen_reset(&g->pen, GFX_SURFACE_CANVAS);
@@ -103,6 +105,15 @@ void gfx_display_flip(void)
     }
 
     g->backend->flip(g);
+
+    const GpuCount gpu = gpu_counted(&g->gpu);
+    g->cost = (gfx_display_framestats){
+        .draws = (int32_t)g->log.n,
+        .batches = (int32_t)gpu.batches,
+        .uploads = (int32_t)gpu.uploads,
+        .waits = (int32_t)gpu.waits,
+    };
+
     cmd_clear(&g->log);
 }
 
@@ -179,7 +190,7 @@ void gfx_display_stats(gfx_display_framestats *const s)
     const Gx *const g = gx_get();
 
     if (g)
-        *s = (gfx_display_framestats){.draws = (int32_t)g->log.n};
+        *s = g->cost;
 }
 
 int32_t gfx_display_draws(void)

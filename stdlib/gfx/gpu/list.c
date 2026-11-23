@@ -51,6 +51,8 @@ bool list_op(GpuList *const l, const QxListOp op, const uint32_t *const args, co
         return false;
 
     l->words[l->n++] = head(op, 1 + n);
+    l->batches += op == QX_LIST_DRAW;
+    l->uploads += op == QX_LIST_UPLOAD;
 
     for (uint32_t i = 0; i < n; i++)
         l->words[l->n++] = args[i];
@@ -275,6 +277,8 @@ void list_reset(GpuList *const l)
     l->ndiscs = 0;
     l->draw = 0;
     l->n = 0;
+    l->batches = 0;
+    l->uploads = 0;
 
     if (l->words)
         arrays(l);

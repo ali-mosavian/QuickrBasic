@@ -26,7 +26,9 @@ typedef struct {
     uint32_t quads; /* the quads the indices cover */
     void **kept;
     uint32_t nkept, capkept;
-    uint32_t draw; /* the open draw's first word; 0 none */
+    uint32_t draw;    /* the open draw's first word; 0 none */
+    uint32_t batches; /* its DRAWs */
+    uint32_t uploads; /* its UPLOADs */
 } GpuList;
 
 /* An empty list, its buffers none yet: false, no memory. */

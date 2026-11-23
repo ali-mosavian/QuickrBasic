@@ -34,8 +34,9 @@ typedef struct Gx {
     Palette palette;
     Pen pen;
     Camera camera;
-    CmdLog log;  /* since the last flip */
-    Vec *points; /* a call's points placed */
+    CmdLog log;                  /* since the last flip */
+    gfx_display_framestats cost; /* the frame shown last's */
+    Vec *points;                 /* a call's points placed */
     uint32_t npoints;
     bool open; /* the screen */
     float hz;

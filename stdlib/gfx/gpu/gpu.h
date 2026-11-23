@@ -21,6 +21,11 @@ typedef struct {
     QxTextureFormat format; /* 0, none made */
 } GpuTexture;
 
+/* What the GPU was asked: draws (batches), texture uploads, and reads waited for. */
+typedef struct {
+    uint32_t batches, uploads, waits;
+} GpuCount;
+
 typedef struct {
     GpuList list;
     GpuTexture own[PIC_FONT + 1]; /* the PIC_ textures */
@@ -33,6 +38,7 @@ typedef struct {
     float down;       /* the shader's: 1 where clip space's y runs down a texture's rows, else -1 */
     uint32_t white;   /* the white texel shapes draw from */
     uint8_t *page;    /* the canvas's pixels, read back */
+    GpuCount count;   /* since gpu_counted */
 } Gpu;
 
 /* What a call's vertices share. */
@@ -77,4 +83,6 @@ void gpu_play(Gpu *g, bool show);
 bool gpu_sync(Gpu *g, Palette *pal, Surface *root, Pixels px, uint32_t h);
 /* h, a root, freed: its texture with it. */
 void gpu_forget(Gpu *g, uint32_t h);
+/* The count since the last call, zeroed. */
+GpuCount gpu_counted(Gpu *g);
 #endif
