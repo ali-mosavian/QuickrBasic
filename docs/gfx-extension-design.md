@@ -14,7 +14,6 @@ import gfx
 gfx.open 320, 200, 8
 atlas = gfx.pictures("CHARLIE.DAT", 1)
 do
-    gfx.begin
     gfx.perspective eye, look, 60
     gfx.mesh level_mesh, LIGHTMAPPED
     gfx.model dog, frame, lerp, at
@@ -22,7 +21,7 @@ do
     gfx.camera cam.x, cam.y
     gfx.tiles ground, lv
     gfx.sprite atlas, IHERO + f, p.at.x, p.at.y, p.ang, FLIPX * p.face
-    gfx.end
+    gfx.flip
 loop
 ```
 
@@ -66,7 +65,7 @@ shown in any mode.
   refresh.
 - `gfx.open` takes `GFX_WINDOW` (the default), `GFX_FULL` (the desktop's own mode, the canvas scaled
   into it) or `GFX_MODE` with a mode from the list, switched to.
-- With `GFX_VSYNC`, `gfx.end` waits for the display's refresh.
+- With `GFX_VSYNC`, `gfx.flip` waits for the display's refresh.
 - `gfx.event` reports what the host saw: the window resized, the display changed, focus lost, the GPU
   lost and back. The extension holds every texture, mesh and canvas, so it uploads them again itself.
 
@@ -98,16 +97,45 @@ Blending is one of opaque, keyed (as above), translucent and additive. A GPU ble
 at 8 bits reads a 64 KB table for each mode, index by index; at 15, 16 and 32 bits it adds and
 multiplies.
 
-## Frames and commands
+## Drawing
 
-Between `gfx.begin` and `gfx.end` the program records commands. A GPU backend batches them by texture
-and state and submits once; software draws them in order. `gfx.end` shows the frame.
+The program draws as with µGL or Allegro: any call, at any time, into the screen or any surface, in the
+order written. `gfx.flip` shows the frame. Software draws each call as it comes; a GPU backend records
+them and submits at the flip, or when a surface drawn into is drawn from or read.
 
 Textures, meshes and canvases are uploaded once and named by a handle. A canvas is a texture that can be
 drawn into: a parallax layer, a HUD kept between frames, a mirror.
 
 One frame may hold a 3D pass and then a 2D pass. `gfx.perspective` and `gfx.ortho` set the projection;
 `gfx.camera`, `gfx.turn` and `gfx.scale` set a 2D transform, applied as commands are recorded.
+
+## Friendly, and kind to a GPU
+
+Each convenience of µGL and Allegro is kept, and given a shape a GPU draws in few batches.
+
+| The program writes | The backend does |
+|---|---|
+| a picture loaded on its own | packs it into an atlas page as it loads: the handle is a view, and sprites of one page draw as one batch |
+| `gfx.pset`, `gfx.line`, `gfx.box`, `gfx.circle` | draws them as triangles from a white texel kept in every page, so they join the sprites' batch |
+| a light, tint, palette or flip for one sprite | puts it in the sprite's vertices; a palette is a row of the palette texture, so a swap does not split the batch |
+| a surface made or freed mid-frame | takes it from a pool of views in pages; nothing is allocated on the GPU in the frame |
+| pixels written one by one into a surface | keeps that surface in memory and uploads its changed rows once, when it is next drawn from |
+
+A batch ends at another page, material, blend, target or clip. Order is kept, so the batches are the
+program's to shape, and `gfx.stats` counts them.
+
+What would make a GPU wait is a call of its own, never a side effect of drawing:
+
+- `gfx.point` and `gfx.lock` for reading, on a surface the GPU drew, wait for it to finish.
+- `gfx.capture` waits for the frame.
+- `gfx.stats` counts the frame's draws, batches, uploads and waits, so a slow frame says why.
+
+Allegro 5's traps are the reverse of these: a memory bitmap drawn to the screen was uploaded at every
+draw, unseen, and its sprites batched only when held. Here where a surface lives is the backend's
+choice, and batching is always on.
+
+`PUT`'s `XOR`, `AND` and `OR` are not offered on a `gfx` surface: Metal and WebGL2 have no logic
+operations. They stay on `SCREEN`'s page.
 
 ## Views
 
@@ -225,8 +253,8 @@ with which material. Tests assert on that, and pass on every backend.
 
 ## Order
 
-1. The core: canvas, displays and modes, colour, frames, textured triangles, pixel stages; the
-   software backend in C at 8 and 32 bits.
+1. The core: canvas, displays and modes, colour, drawing and batching, textured triangles, pixel
+   stages; the software backend in C at 8 and 32 bits.
 2. 2D: sprites, tiles, strips; CHARLIE moves onto them.
 3. The SDL_GPU and WebGL2 backends.
 4. DOS: span fillers in assembly, VBE modes.
@@ -239,7 +267,7 @@ with which material. Tests assert on that, and pass on every backend.
 |---|---|
 | µGL, qgl | views; a set of span fillers for each depth; the scanner, clipper and surface cache |
 | Allegro 4 | sub-bitmaps; `polygon3d`'s types, affine or perspective, masked, lit, translucent; light and translucency tables; mode lists; `scene_polygon3d`'s sorted spans |
-| Allegro 5 | the same library moved to GPUs: `al_draw_prim`'s vertices, shaders, held drawing batched, display modes |
+| Allegro 5 | the same library moved to GPUs: `al_draw_prim`'s vertices, shaders, display modes; and its traps, above |
 | Quake 2's refresh | one game, a software and a GL renderer behind one scene-level interface, so each keeps its own way of hiding surfaces |
 | Glide, Direct3D 7's stages, the GameCube's TEV | fixed combine stages that hardware and software both run: the pixel stages |
 | sokol_gfx | resources, pipelines and passes over GL, WebGL2, Metal and D3D11; one shader source compiled for each |
