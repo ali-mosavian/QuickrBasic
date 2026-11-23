@@ -1,0 +1,28 @@
+/* Pixels and rectangles: what a surface gives the software backend to draw in or from. */
+#ifndef GFX_PIXELS_H
+#define GFX_PIXELS_H
+#include <stdint.h>
+
+/* w by h pixels, a byte each at 8 bits; p the top left, pitch bytes a row. */
+typedef struct {
+    uint8_t *p;
+    uint32_t pitch;
+    int32_t w, h;
+} Pixels;
+
+typedef struct {
+    int32_t x, y, w, h;
+} Rect;
+
+static inline int32_t rect_max(const int32_t a, const int32_t b) { return a > b ? a : b; }
+
+static inline int32_t rect_min(const int32_t a, const int32_t b) { return a < b ? a : b; }
+
+/* Where a and b overlap: w or h 0, nowhere. */
+static inline Rect rect_meet(const Rect a, const Rect b)
+{
+    const int32_t x = rect_max(a.x, b.x), y = rect_max(a.y, b.y);
+    const int32_t r = rect_min(a.x + a.w, b.x + b.w), d = rect_min(a.y + a.h, b.y + b.h);
+    return (Rect){x, y, rect_max(r - x, 0), rect_max(d - y, 0)};
+}
+#endif

@@ -365,6 +365,8 @@ def header(module: str, parts: list[Part]) -> str:
         f"void {module}_init(void);",
         f"void {module}_start(void);",
         f"void {module}_stop(void);",
+        "/* The host's call at load: the module. */",
+        f"QX_EXPORT const QxModule *QX_CALL qx_init_{module}(const QxHost *host);",
     ]
     for part in parts:
         if part.face.consts:

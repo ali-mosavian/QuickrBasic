@@ -176,6 +176,26 @@ $(B)/ext/qxtest.dll: $(QXTEST) src/qx/qx.h
 	$(DOS_SLICE_CC) -c tests/ext/qxtest.c -o $(@D)/qxtest.obj
 	$(DOS_SLICE_CC) -c build/ext/qxtest_qx.c -o $(@D)/qxtest_qx.obj
 	$(LLD_LINK) /dll /noentry /nodefaultlib /out:$@ $(@D)/qxtest.obj $(@D)/qxtest_qx.obj
+# gfx (src/ext/gfx): its glue from its parts' interfaces, scene's to come with 3D. Its core is linked
+# into the unit tests with tests/ext/gfx; the runtime's font and palette (vgadata.c) are already there
+GFX_PARTS := $(addprefix src/ext/gfx/,display.bas surface.bas pen.bas draw.bas)
+GFX_C := $(shell find src/ext/gfx -name '*.c')
+GFX_INC := -Isrc/ext/gfx -Isrc
+build/ext/gfx_qx.c: $(GFX_PARTS) tools/qbx.py
+	@mkdir -p $(@D)
+	$(PY) tools/qbx.py glue gfx $(@D) $(GFX_PARTS)
+GFX_UNIT_OBJ := $(GFX_C:src/ext/gfx/%.c=build/host/gfx/%.o) build/host/gfx/gfx_qx.o \
+	$(patsubst tests/ext/gfx/%.c,build/host/gfx/test/%.o,$(wildcard tests/ext/gfx/*.c))
+build/host/gfx/%.o: src/ext/gfx/%.c | build/ext/gfx_qx.c
+	@mkdir -p $(@D)
+	$(HOST_CC) $(QX_CFLAGS) -g $(GFX_INC) $(DEPFLAGS) -c $< -o $@
+build/host/gfx/gfx_qx.o: build/ext/gfx_qx.c
+	@mkdir -p $(@D)
+	$(HOST_CC) $(QX_CFLAGS) -g $(DEPFLAGS) -c $< -o $@
+build/host/gfx/test/%.o: tests/ext/gfx/%.c | build/ext/gfx_qx.c
+	@mkdir -p $(@D)
+	$(HOST_CC) $(HOST_CFLAGS) -Isrc/qx -Ibuild/ext $(GFX_INC) -Itests/unit $(DEPFLAGS) -c $< -o $@
+
 host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/hostperf/basic build/host/ext/qxtest.so
 	for t in $(TOOLS_TEST); do $(PY) $$t || exit 1; done
 	build/host/unit_tests
@@ -318,7 +338,8 @@ build/host/unit/%.o: tests/unit/%.c
 	$(HOST_CC) $(HOST_CFLAGS) $(DEPFLAGS) -c $< -o $@
 build/host/test.hlp: tools/mkhelp.py $(wildcard tests/help/*)
 	$(PY) tools/mkhelp.py tests/help -o $@
-build/host/unit_tests: $(build/host_OBJ) $(UNIT_UI_OBJ) $(UNIT_OBJ) build/host/obj/lib/div64.o build/host/test.hlp
+build/host/unit_tests: $(build/host_OBJ) $(UNIT_UI_OBJ) $(UNIT_OBJ) $(GFX_UNIT_OBJ) build/host/obj/lib/div64.o \
+	build/host/test.hlp
 	$(HOST_CC) $(filter-out %.hlp,$^) -lm $(HOST_DL) -o $@
 build/host/golden/dump.o: tests/golden/dump.c
 	@mkdir -p $(@D)

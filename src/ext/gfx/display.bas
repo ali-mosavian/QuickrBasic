@@ -123,7 +123,8 @@ declare function rgb cdecl ( _
     byval b as integer _
 ) as long
 
-' What the frame cost, and what it drew.
+' What the frame cost, and what it drew since the last
+' flip: drawn's n from 1 to draws.
 declare sub stats cdecl (s as FrameStats)
 declare function draws cdecl () as integer
 declare sub drawn cdecl (byval n as integer, d as Command)
