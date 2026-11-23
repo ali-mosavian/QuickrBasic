@@ -135,4 +135,11 @@ static inline Rect rect_meet(const Rect a, const Rect b)
     const int32_t r = rect_min(a.x + a.w, b.x + b.w), d = rect_min(a.y + a.h, b.y + b.h);
     return (Rect){x, y, rect_max(r - x, 0), rect_max(d - y, 0)};
 }
+
+/* r's pixels of p, r inside it. */
+static inline Pixels px_cut(const Pixels *const p, const Rect r)
+{
+    const uint32_t at = (uint32_t)r.y * p->pitch + (uint32_t)r.x * px_bytes(p->format);
+    return (Pixels){p->p + at, p->pitch, r.w, r.h, p->format};
+}
 #endif

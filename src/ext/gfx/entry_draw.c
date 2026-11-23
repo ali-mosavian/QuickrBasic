@@ -3,7 +3,6 @@
 #include "gfx.h"
 #include "gmath.h"
 #include "shape.h"
-#include "qbrt/llrm/qb/dev/host/vgadata.h"
 #include "soft/scan.h"
 
 enum {
@@ -11,7 +10,6 @@ enum {
     SHAPE_FLAGS = GFX_DRAW_FILL | BLENDS,
     SPRITE_FLAGS =
         GFX_DRAW_FLIPX | GFX_DRAW_FLIPY | GFX_PEN_OPAQUE | BLENDS | GFX_PEN_SOLID | GFX_PEN_SMOOTH,
-    GLYPH = 8, /* the built-in font's cells, 8 by 8 */
     POLY_LEAST = 3,
 };
 
@@ -275,19 +273,13 @@ void gfx_draw_poly(
         soft_outline(&t, placed, (uint32_t)n, (uint32_t)colour);
 }
 
-/* Not yet: text under a turned camera is drawn turned, with fonts as pictures. Raised: true. */
-static bool upright_only(const Gx *const g)
-{
-    return g->camera.centred && !gx_fail(ERR_UNAVAILABLE);
-}
-
-/* s's picture, its anchor at a in the world (placed: at), turned by angle and scaled: upright at
+/* px's picture, its anchor at a in the world (placed: at), turned by angle and scaled: upright at
    its size its rows are copied, else it is filled through its corners. */
 static void picture(
     Gx *const g,
     SoftTarget *const t,
     const Place *const where,
-    const Surface *const s,
+    const Pixels *const px,
     const Vec anchor,
     const Vec a,
     const Vec at,
@@ -296,19 +288,17 @@ static void picture(
     const int32_t flags
 )
 {
-    const Pixels px = surf_pixels(&g->surfaces, s);
-
-    if (!gx_source(g, t, px.format))
+    if (!gx_source(g, t, px->format))
         return;
 
     if (cmd_upright(where) && angle == 0 && scale == 1) {
-        soft_sprite(t, &px, at.x - anchor.x, at.y - anchor.y, flags);
+        soft_sprite(t, px, at.x - anchor.x, at.y - anchor.y, flags);
         return;
     }
 
     Vertex v[4];
-    shape_sprite(s->w, s->h, anchor, a, angle, scale, flags, where, v);
-    soft_texture(t, &px, v, 4, flags, false);
+    shape_sprite(px->w, px->h, anchor, a, angle, scale, flags, where, v);
+    soft_texture(t, px, v, 4, flags, false);
 }
 
 static void sprite(
@@ -335,7 +325,9 @@ static void sprite(
 
     const Vec anchor = {(float)s->ax, (float)s->ay};
 
-    picture(g, &t, &where, s, anchor, (Vec){x, y}, (Vec){c.x, c.y}, angle, scale, flags);
+    const Pixels px = surf_pixels(&g->surfaces, s);
+
+    picture(g, &t, &where, &px, anchor, (Vec){x, y}, (Vec){c.x, c.y}, angle, scale, flags);
 }
 
 void gfx_draw_sprite(const int32_t s, const float x, const float y, const int32_t flags)
@@ -549,12 +541,14 @@ void gfx_draw_tiles(
 
             const Vec dx = {(float)(col * w), (float)(row * h)};
 
+            const Pixels px = s ? surf_pixels(&g->surfaces, s) : (Pixels){};
+
             if (s)
                 picture(
                     g,
                     &t,
                     &where,
-                    s,
+                    &px,
                     (Vec){},
                     (Vec){x + dx.x, y + dx.y},
                     (Vec){c.x + dx.x, c.y + dx.y},
@@ -565,34 +559,75 @@ void gfx_draw_tiles(
         }
 }
 
+/* The pen's font and its sheet: null, raised (its sheet freed, or no memory). */
+static const Font *pen_font(Gx *const g, Pixels *const sheet)
+{
+    const Font *const f = font_get(&g->fonts, g->pen.font);
+
+    if (!f->sheet) {
+        if (font_builtin(&g->fonts, sheet))
+            return f;
+
+        gx_fail(ERR_MEMORY);
+        return nullptr;
+    }
+
+    const Surface *const s = gx_surface(g, f->sheet);
+
+    if (s)
+        *sheet = surf_pixels(&g->surfaces, s);
+
+    return s ? f : nullptr;
+}
+
+/* Each glyph a picture, in colour (SOLID's), or draw.AS_DRAWN its own texels. */
 void gfx_draw_text(const float x, const float y, const QxStr s, const int32_t colour)
 {
     Gx *const g = gx_get();
-    Command c = drawn(GFX_DISPLAY_DREW_TEXT, (Vec){x, y}, (Vec){x, y}, colour, 0);
+    const bool own = colour == GFX_DRAW_AS_DRAWN;
+    Command c = drawn(GFX_DISPLAY_DREW_TEXT, (Vec){x, y}, (Vec){x, y}, own ? 0 : colour, 0);
 
+    Pixels sheet;
+    const Font *const f = g ? pen_font(g, &sheet) : nullptr;
     SoftTarget t;
     Place where;
 
-    if (!g || upright_only(g) || !gx_draw(g, &c, 0, &t, &where))
+    if (!f || !gx_draw(g, &c, 0, &t, &where))
         return;
 
+    if (!own)
+        gx_solid(g, &t, (uint32_t)colour);
+
     for (uint32_t i = 0; i < s.len; i++) {
-        const uint8_t code = (uint8_t)s.ptr[i];
-        soft_glyph(
-            &t,
-            qb_vga_font_8 + code * GLYPH,
-            GLYPH,
-            c.x + (float)(i * GLYPH),
-            c.y,
-            (uint32_t)colour
-        );
+        const float dx = (float)((int32_t)i * f->w);
+        Rect cell;
+
+        if (!font_glyph(f, (uint8_t)s.ptr[i], &cell))
+            continue;
+
+        const Pixels glyph = px_cut(&sheet, cell);
+        picture(g, &t, &where, &glyph, (Vec){}, (Vec){x + dx, y}, (Vec){c.x + dx, c.y}, 0, 1, 0);
     }
 }
 
-int32_t gfx_draw_text_width(const QxStr s) { return gx_get() ? (int32_t)(s.len * GLYPH) : 0; }
+int32_t gfx_draw_text_width(const QxStr s)
+{
+    Gx *const g = gx_get();
+    return g ? (int32_t)s.len * font_get(&g->fonts, g->pen.font)->w : 0;
+}
 
+/* Its cells from the sheet's top left; those past 255 dropped. */
 int32_t gfx_draw_new_font(const int32_t sheet, const int32_t w, const int32_t h)
 {
-    (void)sheet, (void)w, (void)h;
-    return gx_fail(ERR_UNAVAILABLE);
+    Gx *const g = gx_get();
+    const Surface *const s = g ? gx_surface(g, (uint32_t)sheet) : nullptr;
+
+    if (!s)
+        return 0;
+
+    if (w < 1 || h < 1 || w > s->w || h > s->h)
+        return gx_fail(ERR_ILLEGAL);
+
+    const uint32_t f = font_new(&g->fonts, (uint32_t)sheet, s->w, s->h, w, h);
+    return f ? (int32_t)f : gx_fail(ERR_MEMORY);
 }

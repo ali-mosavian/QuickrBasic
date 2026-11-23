@@ -15,6 +15,7 @@ Gx *gx_get(void)
 
     if (!state && (state = mem_alloc(sizeof *state))) {
         surf_init(&state->surfaces);
+        font_init(&state->fonts);
         pal_default(&state->palette);
         pen_reset(&state->pen, GFX_SURFACE_CANVAS);
     }
@@ -128,6 +129,16 @@ bool gx_source(Gx *const g, SoftTarget *const t, const PxFormat source)
     return true;
 }
 
+void gx_solid(const Gx *const g, SoftTarget *const t, const uint32_t colour)
+{
+    Ink *const k = &t->ink;
+    const Pen *const p = &g->pen;
+    const bool eight = t->px.format == PX_8;
+    k->solid = k->effects = true;
+    k->colour = eight ? (k->lut ? k->lut[colour] : colour)
+                      : PX_OPAQUE | pal_shade(colour, p->light, p->tint);
+}
+
 bool gx_draw(
     Gx *const g,
     Command *const c,
@@ -176,6 +187,7 @@ void gfx_stop(void)
         qx_host->gfx_close();
 
     surf_done(&state->surfaces);
+    font_done(&state->fonts);
     cmd_done(&state->log);
     pal_done(&state->palette);
     mem_free(state->points);

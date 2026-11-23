@@ -56,13 +56,4 @@ void soft_texture(
     int32_t flags,
     bool wrap
 );
-/* An 8 by h glyph, a byte a row, the leftmost pixel the high bit, its top left at x, y. */
-void soft_glyph(
-    const SoftTarget *t,
-    const uint8_t *rows,
-    int32_t h,
-    float x,
-    float y,
-    uint32_t colour
-);
 #endif

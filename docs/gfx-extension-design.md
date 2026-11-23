@@ -237,7 +237,8 @@ Everything 2D is a textured quad or a strip of them, so the backends have one pr
   from the same points its physics walks, at any slope.
 - `draw.pset`, `line` and `arc`; `rect`, `circle` and `poly`, outlined or with `FILL`.
 - `draw.text x, y, s$, colour` in the pen's font: a sheet of glyphs (`draw.new_font`), or the
-  built-in 8 by 8.
+  built-in 8 by 8. Its glyphs are pictures, in `colour`, or as the sheet has them with
+  `draw.AS_DRAWN`.
 
 The software backend picks fast paths itself: an upright sprite at 1:1 is a keyed row copy, a tile row
 a tight loop. The program never chooses.
@@ -388,6 +389,7 @@ takes its own part. Memory is the host's (`alloc`), taken when first used: nothi
 | `image`, `bmp`, `png`, `inflate` | a file's bytes to pixels: BMP or PNG, by their first bytes; PNG's zlib streams |
 | `colour` | palette rows, the light table, the blend tables, the nearest index |
 | `pen` | the pen |
+| `font` | fonts: sheets cut into glyphs, and the built-in 8 by 8 as one |
 | `command` | a draw call to a command, the camera applied; the frame's log |
 | `shape` | a command to vertices: quads and fans |
 | `soft/scan` | a convex polygon to spans, clipped |
@@ -443,7 +445,7 @@ pixels run on the software backend.
    DIALECT`). Done: `gfx.qbx` in `lib/` beside `basic` and in the Mac's app, `demo/GFXDEMO.BAS`
    its program, `tests/host/gfx.sh` its test.
 3. The rest of 2D and the pen: turned sprites, quads, strips, light, tint, blend, recolor; 16 and 32
-   bits; PNG.
+   bits; PNG; fonts. Done.
 4. The hosts' players, SDL_GPU and WebGL2, and the list.
 5. DOS: VBE's pages, fillers in assembly. CHARLIE moves onto `gfx`, cutting its views with
    `barkley/assets/sheet.bas`.
@@ -484,7 +486,7 @@ Step 3, in parts:
   camera. `shape` gives a picture's corners with their texels; software fills the polygon, each
   pixel taking the texel at its centre through the affine map three corners give. A quad is two
   triangles, as a GPU draws it. A strip's points are its top edge, its texels upright below,
-  repeating along x. Text under a turned camera waits for fonts as pictures.
+  repeating along x.
 - **The pen at 8 bits**: `light`, `tint`, `alpha` with `BLEND` and `ADD`, `SOLID`, `recolor`; a
   shape's colour goes through them too. The tint is `&HRRGGBB` at every depth. Row 0 gives the
   tables when first needed: a 32 KB map from 5 bits a channel to the nearest index, the light
@@ -505,6 +507,10 @@ Step 3, in parts:
   most one transparent colour stays 8 bits, that colour swapped with index 0, the key's; the rest
   load at 32 bits, alpha the file's or tRNS's. `inflate.c` reads the zlib stream as zlib's `puff`
   does, a code a bit at a time: small, and fast enough for a game's pictures.
+- **Fonts**: `draw.new_font` cuts a sheet into w by h glyphs from code 32, row by row; `pen.font`
+  picks one, 0 the built-in. The built-in is the runtime's 8 by 8 drawn into a sheet of its own on
+  first use. Each glyph is drawn as a picture, so text turns and zooms with the camera; in a colour
+  it is `SOLID`, that colour through the pen as a shape's.
 
 ## Prior art
 

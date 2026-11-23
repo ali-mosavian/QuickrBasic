@@ -58,6 +58,16 @@ TEST(gfx_depths_blend_and_light)
     CHECK(POINT(0, 0) == 0x84007B);
 }
 
+/* Text's colour goes through the pen as a shape's: lit, as the pset above. */
+TEST(gfx_depths_light_text)
+{
+    gfx_fresh(S);
+    canvas(S, 8, 32);
+    CALL("pen.light", I(31));
+    CHECK(!CALL("draw.text", F(0), F(0), STR("\xdb"), I(0xFF8000)).error); /* a full cell */
+    CHECK(POINT(0, 0) == 0x7D3E00 && POINT(7, 0) == 0x7D3E00);
+}
+
 /* An 8-bit picture, made before the screen, drawn through row 0 (the VGA's: 1 &H0000AA, 4
    &HAA0000), lit: &HAA times 31/63 is &H53. */
 TEST(gfx_depths_draw_8_bit_pictures)

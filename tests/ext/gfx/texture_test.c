@@ -110,3 +110,52 @@ TEST(gfx_sprite_under_a_turned_camera)
     ROW(5, "11112111");
     ROW(6, "11111111");
 }
+
+/* The sheet as a font of one glyph, ' ': in a colour, its texels' shape; AS_DRAWN, the texels. A
+   character with no glyph takes its width. */
+TEST(gfx_text_in_a_sheet_font)
+{
+    CANVAS(8, 8);
+    const int32_t s = sheet(S);
+    const int32_t f = CALL("draw.new_font", I(s), I(3), I(2)).result.i;
+    CHECK(f && !CALL("pen.font", I(f)).error);
+    CHECK(CALL("draw.text_width", STR("ab")).result.i == 6);
+    CHECK(!CALL("draw.text", F(1), F(0), STR("! "), I(4)).error);
+    ROW(0, "11111441");
+    ROW(1, "11114141");
+    CALL("draw.text", F(1), F(2), STR(" "), I(GFX_DRAW_AS_DRAWN));
+    ROW(2, "11791111");
+    ROW(3, "12131111");
+
+    CALL("pen.font", I(0));
+    CHECK(CALL("draw.text_width", STR("ab")).result.i == 16);
+}
+
+/* Under gfx_sprite_under_a_turned_camera's quarter turn, text lands where the sprite does. */
+TEST(gfx_text_turns_with_the_camera)
+{
+    CANVAS(8, 8);
+    const int32_t s = sheet(S);
+    CALL("pen.font", I(CALL("draw.new_font", I(s), I(3), I(2)).result.i));
+    CALL("draw.camera_turned", F(0.3), F(0.2), F(GM_PI / 2), F(1));
+    CHECK(!CALL("draw.text", F(-1.2), F(-0.3), STR(" "), I(4)).error);
+    ROW(3, "11144111");
+    ROW(4, "11141111");
+    ROW(5, "11114111");
+}
+
+TEST(gfx_fonts_refuse)
+{
+    CANVAS(8, 8);
+    const int32_t s = sheet(S);
+    CHECK(CALL("draw.new_font", I(s), I(0), I(1)).error == 5);
+    CHECK(CALL("draw.new_font", I(s), I(4), I(1)).error == 5);
+    CHECK(CALL("draw.new_font", I(0x10000077), I(1), I(1)).error == 5);
+    CHECK(CALL("pen.font", I(0x20000077)).error == 5);
+    CHECK(CALL("pen.font", I(s)).error == 5);
+
+    CALL("pen.font", I(CALL("draw.new_font", I(s), I(1), I(1)).result.i));
+    CALL("surface.free", I(s));
+    CHECK(CALL("draw.text", F(0), F(0), STR("!"), I(4)).error == 5);
+    CHECK(PX(0, 0) == 1);
+}

@@ -4,8 +4,6 @@
 #include "gmath.h"
 #include "soft/scan.h"
 
-enum { GLYPH_W = 8 };
-
 static uint8_t *at(const SoftTarget *const t, const int32_t x, const int32_t y)
 {
     return t->px.p + y * t->px.pitch + x * px_bytes(t->px.format);
@@ -520,21 +518,4 @@ void soft_texture(
         p[i] = (Vec){v[i].x, v[i].y};
 
     scan_convex(p, n, t->clip, textured, &x);
-}
-
-void soft_glyph(
-    const SoftTarget *const t,
-    const uint8_t *const rows,
-    const int32_t h,
-    const float x,
-    const float y,
-    const uint32_t colour
-)
-{
-    const int32_t left = scan_pixel(x), top = scan_pixel(y);
-
-    for (int32_t r = 0; r < h; r++)
-        for (int32_t c = 0; c < GLYPH_W; c++)
-            if (rows[r] & 0x80 >> c)
-                span(t, top + r, left + c, left + c + 1, colour);
 }

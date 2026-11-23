@@ -10,6 +10,7 @@
 #define GFX_GFX_H
 #include "colour.h"
 #include "command.h"
+#include "font.h"
 #include "gfx_qx.h"
 #include "soft/soft.h"
 #include "surface.h"
@@ -26,6 +27,7 @@ enum { GX_MOST = 1 << 14 }; /* pixels a side */
 
 typedef struct {
     Surfaces surfaces;
+    Fonts fonts;
     Palette palette;
     Pen pen;
     Camera camera;
@@ -54,4 +56,7 @@ Vec *gx_points(Gx *g, uint32_t n);
 bool gx_draw(Gx *g, Command *c, int32_t allowed, SoftTarget *t, Place *where);
 /* t's ink set for texels of source, the tables it needs made: false, raised. */
 bool gx_source(Gx *g, SoftTarget *t, PxFormat source);
+/* t's ink drawing every texel in colour, through the pen as a shape's colour is: SOLID's, with a
+   colour of the call's. */
+void gx_solid(const Gx *g, SoftTarget *t, uint32_t colour);
 #endif

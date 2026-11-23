@@ -42,13 +42,19 @@ void gfx_pen_reset(void)
         pen_reset(&g->pen, GFX_SURFACE_CANVAS);
 }
 
-/* 0, the built-in 8 by 8: draw.new_font's sheets come later. */
 void gfx_pen_font(const int32_t handle)
 {
     Gx *const g = gx_get();
 
-    if (g && handle)
-        gx_fail(ERR_UNAVAILABLE);
+    if (!g)
+        return;
+
+    if (!font_get(&g->fonts, (uint32_t)handle)) {
+        gx_fail(ERR_ILLEGAL);
+        return;
+    }
+
+    g->pen.font = (uint32_t)handle;
 }
 
 /* The pen to set: null, raised (no state, or v outside lo to hi). */

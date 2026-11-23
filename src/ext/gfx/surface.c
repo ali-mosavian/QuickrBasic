@@ -120,16 +120,14 @@ Surface *surf_get(const Surfaces *const ss, const uint32_t h) { return hdl_item(
 
 Pixels surf_pixels(const Surfaces *const ss, const Surface *const s)
 {
-    const uint32_t bytes = px_bytes(s->format);
-
     if (s->own)
-        return (Pixels){s->own, (uint32_t)s->w * bytes, s->w, s->h, s->format};
+        return (Pixels){s->own, (uint32_t)s->w * px_bytes(s->format), s->w, s->h, s->format};
 
     if (!s->parent)
         return ss->canvas;
 
     const Pixels p = surf_pixels(ss, surf_get(ss, s->parent));
-    return (Pixels){p.p + s->y * p.pitch + s->x * bytes, p.pitch, s->w, s->h, s->format};
+    return px_cut(&p, (Rect){s->x, s->y, s->w, s->h});
 }
 
 void surf_free(Surfaces *const ss, const uint32_t h) { drop(ss, h); }

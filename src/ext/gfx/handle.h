@@ -10,7 +10,7 @@
 #define GFX_HANDLE_H
 #include <stdint.h>
 
-enum { HDL_SURFACE = 1 };
+enum { HDL_SURFACE = 1, HDL_FONT = 2 };
 
 typedef struct {
     uint8_t kind;

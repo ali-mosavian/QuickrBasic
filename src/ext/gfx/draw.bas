@@ -6,6 +6,8 @@
 const FLIPX = 1
 const FLIPY = 2
 const FILL = 4
+' text's colour: the glyphs' own texels.
+const AS_DRAWN = -1
 
 type Vec2
     x as single
@@ -107,13 +109,15 @@ declare sub strip cdecl ( _
     byval flags as integer _
 )
 
-' A sheet of glyphs w by h, from 32 on, row by row.
+' A sheet of glyphs w by h, from 32 on, row by row. A
+' character without one draws nothing, but takes its width.
 declare function new_font cdecl ( _
     byval sheet as long, _
     byval w as integer, _
     byval h as integer _
 ) as long
-' In the pen's font.
+' In the pen's font, glyphs drawn as pictures: in colour,
+' or AS_DRAWN.
 declare sub text cdecl ( _
     byval x as single, _
     byval y as single, _
