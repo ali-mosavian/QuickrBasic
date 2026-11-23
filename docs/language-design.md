@@ -117,6 +117,7 @@ end while
 | `V[K]` | a map from `K` to `V` |
 | `(T, U)` | a tuple: a function's results, as in llrm |
 | `T?` | a `T` or `none` |
+| `T!` | a `T` or an `Error` |
 | `fn(T) as U` | a function value |
 | `type` | a record: a value |
 | `enum` | named values, each with or without data |
@@ -461,24 +462,32 @@ let n = ages.get("bo") ?? 0
 
 ### Errors
 
-**Open:** which of these two models to use.
-
-1. **`try` / `catch`.** Every runtime error raises an `Error` (code, message, file, line), and
-   `raise` raises one. In the VM a handler is an address range fixed at compile time, so code
-   that raises nothing pays nothing. In llrm's native code it needs unwinding, or a cost at each
-   `try`.
-2. **Results, as in Nib.** A function that can fail returns `(T, Error)`, and `?` passes the
-   error up. Nothing unwinds and every path is visible.
-
-Proposed: results, with `?`. Then the VM and native code share one cheap model, and llrm's Nib
-already has it. Either way, an error nobody handles stops the program at its line, as today.
+Errors are values, as in Nib: nothing unwinds, in the VM or in native code.
 
 ```basic
-fn load(path as string) as (string, Error)
-    let text = fs.read_text(path)?
-    return text, ok
+fn load(path as string) as string!
+    let text = fs.read_text(path)?    ' an error returns from load
+    if len(text) = 0 then return Error(EMPTY, f"{path} is empty")
+    return text
 end fn
+
+let r = load("save.dat")
+if r is Error then
+    print(r.message)
+    return
+end if
+print(r)                              ' a string from here on
 ```
+
+- `T!` holds a `T` or an `Error`: a code, a message, a file and a line. Like `T?`, it is inline,
+  a tag beside the value.
+- `return` gives either one: `return text` or `return Error(code, message)`.
+- `x?` gives the value, or returns the error from the function it is in. That function's result
+  must be a `!` type too.
+- After a guard such as `if r is Error then return`, `r` is a `T`.
+- A runtime error in the language itself, such as an index out of range or a division by zero,
+  stops the program at its line, as today. A program handles only the errors a function
+  returns as `T!`.
 
 ### Modules
 
@@ -525,7 +534,7 @@ The rule: anything that costs is visible in the source, and anything that reads 
 | A string is built in one allocation | an f-string sizes its result first; loops use `text.Builder` |
 | Owned values free deterministically | lists, maps and records free with their owner; only strings are collected |
 | `for x in a` checks no bounds | the loop owns the range; `a[i]` checks |
-| Errors are values | no unwinding, in the VM or in native code |
+| Errors are values | `T!` is a tag and a value; no unwinding, in the VM or in native code |
 | Heavily used library calls are ops | `math.sqrt` compiles to the VM's sqrt op, not a call |
 | Small functions inline | `Vec` arithmetic costs what the field arithmetic costs |
 | `const` folds | constants, and expressions of them, fold before codegen |
@@ -536,7 +545,7 @@ The rule: anything that costs is visible in the source, and anything that reads 
 
 ## The standard library
 
-The core has no built-in functions except the type conversions, `len` and `copy`.
+The core has no built-in functions except `print`, the type conversions, `len` and `copy`.
 Everything else is in a module.
 
 | Module | Has | Replaces |
@@ -553,8 +562,8 @@ Everything else is in a module.
 | `synth` | instruments and songs (`docs/native-extensions-design.md`) | PLAY, SOUND, BEEP |
 | `os` | `args`, `env`, `exit`, `run` | COMMAND$, ENVIRON$, SHELL, END |
 
-- **Open:** whether `print` needs an import. Proposed: yes, so a program starts with
-  `from io import print` and nothing is special.
+- `print` needs no import: it is the one library function every module sees. The rest of `io` is
+  imported.
 - A module is written in Quickr where possible. Its machine-level parts are native entries in the
   table built into the interpreter (the extensions' inittab), so DOS loads nothing extra.
 - A library call is a direct call, or an op where the entry is marked as one. Moving a statement
