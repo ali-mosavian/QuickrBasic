@@ -3,8 +3,9 @@
  *
  * # How it works
  * A frame's variables are its procedure's (symb's scope), its parameters first (blok). A value is
- * found where the frame sees it (session_cell): a number's or string's cell, an array's header, a
- * record's header (a record is a one-element array of its TYPE, symb_is_record). Its text is by its
+ * found where the frame sees it (session_cell): a number's or string's cell, an array's header in
+ * its cell, a record's bytes: a record variable's are its header's (a one-element array of its
+ * TYPE, symb_is_record), a record parameter's where its ref points (P.REF). Its text is by its
  * type: a variable's by its kind, as the run keeps it.
  *
  * A record's field is at its offset in it (decl's TypeDef): a fixed array field is its key's view,
@@ -211,19 +212,29 @@ static uint32_t cell_type(const Var *const v)
     }
 }
 
+/* The header an array's or a record variable's cell holds. */
+static Addr header(const Addr cell) { return ((const ArrSlot *)at(cell))->hdr; }
+
 InspValue insp_var(const Session *const S, const uint32_t f, const InspVar *const var)
 {
     const Var *const v = symb_var(&S->symb, var->id);
-    const DebugFrame at = frame(S, f);
-    const Addr cell = session_cell(S, &at, var->id, -1);
+    const DebugFrame fr = frame(S, f);
+    const Addr cell = session_cell(S, &fr, var->id, -1);
 
-    if (symb_is_record(&S->symb, var->id))
-        return cell ? (InspValue){.kind = IV_RECORD, .type = v->type, .at = arry_view(cell).data}
+    if (symb_is_record(&S->symb, var->id)) {
+        const bool ref = symb_is_ref(&S->symb, var->id);
+        const Addr h = ref ? 0 : header(cell);
+        const Addr bytes = ref ? cell : h ? arry_view(h).data : 0;
 
-                    : (InspValue){.kind = IV_NONE};
+        return bytes ? (InspValue){.kind = IV_RECORD, .type = v->type, .at = bytes}
+
+                     : (InspValue){.kind = IV_NONE};
+    }
 
     if (v->info & VI_ARR)
-        return (InspValue){.kind = IV_ARRAY, .type = arry_var_et(&S->symb, var->id), .at = cell};
+        return (InspValue){.kind = IV_ARRAY,
+                           .type = arry_var_et(&S->symb, var->id),
+                           .at = header(cell)};
 
     return (InspValue){.kind = IV_SCALAR, .type = cell_type(v), .at = cell};
 }

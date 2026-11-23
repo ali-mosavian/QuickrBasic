@@ -1019,3 +1019,36 @@ TEST(debug_pane_values_in_the_frame_s_view_only)
     CHECK(line_is(4, "r& = 1"));
     done(S);
 }
+
+/* A record parameter's fields are the argument's, a record or an array's element: its ref, to the
+   record's bytes, was read as a header, its fields shown 0, and a SINGLE first field crashed the
+   IDE at a step (the call stack's arguments). */
+TEST(debug_pane_shows_a_record_parameter_s_fields)
+{
+    static const char *const lines[] = {
+        "type pt",
+        "x as single",
+        "y as integer",
+        "end type",
+        "declare sub show (q as pt)",
+        "dim p as pt, a(3) as pt",
+        "p.x = 161.5",
+        "p.y = 4",
+        "a(2) = p",
+        "show p",
+        "show a(2)",
+        "sub show (q as pt)",
+        "stop",
+        "end sub",
+        nullptr,
+    };
+
+    stopped_in(S, lines);
+    pane_keys(S, 1, (const uint16_t[]){K_ARROW_RIGHT, 0});
+    CHECK(rows_are("Locals", " \x1Fq as pt|    .x = 161.5|    .y = 4"));
+    uimn_key(S, 0x3F00); /* F5 */
+    shown(S);
+    CHECK(rows_are("Locals", " \x1Fq as pt|    .x = 161.5|    .y = 4"));
+    CHECK(rows_are("Call stack", "\x10show (q)        line 2| module          line 11"));
+    done(S);
+}
