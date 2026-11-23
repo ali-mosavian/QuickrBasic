@@ -65,11 +65,17 @@ typedef struct {
     void(QX_CALL *render)(int16_t *out, int32_t frames);
 } QxAudio;
 
+/* A shading language a GPU's host takes (qxlist.h's PIPELINE). */
+typedef enum : uint8_t { QX_SHADER_MSL = 1 } QxShader;
+
 /* A screen asked for (gfx_open), then what the host gives. */
 typedef struct {
     uint16_t w, h;         /* the canvas */
     uint8_t depth, flags;  /* 8 bits a pixel; gfx.display's flags */
-    bool gpu;              /* given: the host plays lists, else it lends pages */
+    uint8_t shaders;       /* the languages the extension brings, 1 << QxShader each */
+    bool gpu;              /* given: the host plays GPU lists (qxlist.h), else it lends pages */
+    QxShader shader;       /* given with gpu: the language its pipelines are in */
+    bool y_down;           /* given with gpu: clip space's y runs down a texture's rows, else up */
     uint16_t out_w, out_h; /* given: the pixels the canvas is shown at */
     float hz;              /* given: the refresh, 0 unknown */
 } QxScreen;
@@ -103,11 +109,11 @@ typedef struct QxHost {
     void *(QX_CALL *file_read)(const char *path, uint32_t len, uint32_t *bytes);
     /* Minor 2, for a screen gfx_open gave a GPU. The list played (qxlist.h): it returns when the
        host is done with the list's memory. */
-    void(QX_CALL *gfx_play)(const uint32_t *list, uint32_t words);
+    void(QX_CALL *gpu_play)(const uint32_t *list, uint32_t words);
     /* w by h pixels at x, y of a texture, as played so far, into out: bytes R, G, B and A, rows
        top first. */
     void(QX_CALL
-             *gfx_read)(uint32_t texture, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t *out);
+             *gpu_read)(uint32_t texture, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t *out);
 } QxHost;
 
 /* One call: its arguments; a FUNCTION's result; an error raised at the calling line once the

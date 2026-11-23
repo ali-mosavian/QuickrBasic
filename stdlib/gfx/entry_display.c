@@ -58,6 +58,7 @@ void gfx_display_open(const int32_t w, const int32_t h, const int32_t depth, con
         .h = (uint16_t)h,
         .depth = (uint8_t)depth,
         .flags = (uint8_t)flags,
+        .shaders = 1 << QX_SHADER_MSL,
     };
 
     if (!qx_host->gfx_open(&s) || !format_of(s.depth, &format)) {

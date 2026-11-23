@@ -3,10 +3,10 @@
 
 void pgfx_set_player(const PgfxPlayer *const p) { (void)p; }
 
-bool pgfx_open_played(const uint16_t w, const uint16_t h)
+const PgfxPlayer *pgfx_open_played(const uint16_t w, const uint16_t h, const uint8_t shaders)
 {
-    (void)w, (void)h;
-    return false;
+    (void)w, (void)h, (void)shaders;
+    return nullptr;
 }
 
 const PgfxPlayer *pgfx_playing(void) { return nullptr; }

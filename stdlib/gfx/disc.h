@@ -1,5 +1,5 @@
 /* Which pixels a circle, its outline and an arc cover: one rule for software (soft/soft.c) and for
- * a GPU (qxlist.h's DISC stage, src/plat/gpu/draw.frag).
+ * a GPU (gpu/vertex.h's DISC stage, gpu/shaders/draw.frag).
  *
  * # How it works
  * A pixel is within r of c when its centre p is: |p - c|^2 < r^2, or equal with p left of c (a

@@ -53,14 +53,22 @@ static bool QX_CALL host_stopped(QxCall *const c)
 /* The display's player's, else pages in memory. */
 static bool QX_CALL host_gfx_open(QxScreen *const s)
 {
+    const PgfxPlayer *const p = pgfx_open_played(s->w, s->h, s->shaders);
+
     s->out_w = s->w;
     s->out_h = s->h;
     s->hz = 0;
-    s->gpu = pgfx_open_played(s->w, s->h);
+    s->gpu = p;
+
+    if (p) {
+        s->shader = (QxShader)__builtin_ctz(s->shaders & p->shaders);
+        s->y_down = p->y_down;
+    }
+
     return s->gpu || pgfx_open(s->w, s->h, s->depth);
 }
 
-static void QX_CALL host_gfx_play(const uint32_t *const list, const uint32_t words)
+static void QX_CALL host_gpu_play(const uint32_t *const list, const uint32_t words)
 {
     const PgfxPlayer *const p = pgfx_playing();
 
@@ -68,7 +76,7 @@ static void QX_CALL host_gfx_play(const uint32_t *const list, const uint32_t wor
         p->play(list, words);
 }
 
-static void QX_CALL host_gfx_read(
+static void QX_CALL host_gpu_read(
     const uint32_t texture,
     const int32_t x,
     const int32_t y,
@@ -149,8 +157,8 @@ void natv_init(Natv *const n, Fault *const f)
             .gfx_show = host_gfx_show,
             .clock_us = host_clock_us,
             .file_read = host_file_read,
-            .gfx_play = host_gfx_play,
-            .gfx_read = host_gfx_read,
+            .gpu_play = host_gpu_play,
+            .gpu_read = host_gpu_read,
         },
     };
 }

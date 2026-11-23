@@ -1,15 +1,26 @@
 /* A GPU's recorder (gpu/gpu.h). */
 #include "gpu/gpu.h"
 #include "gfx_qx.h"
+#include "gpu/shaders.h"
 #include "mem.h"
 
-enum { RGBA = 4, HALF = 0x80, OPAQUE = 0xFF };
+enum {
+    RGBA = 4,
+    HALF = 0x80,
+    OPAQUE = 0xFF,
+    PALETTE = PIC_FONT + 1, /* the palette's texture */
+    BLENDS = 3,
+    PLAIN_ATTRIBUTES = 5,
+    DISC_ATTRIBUTES = 7,
+};
 
-/* The list's name of a picture's texture. */
-static uint32_t name_of(const uint32_t texture)
-{
-    return texture == GFX_SURFACE_CANVAS ? QX_CANVAS : texture;
-}
+/* The vertices of list_draw and of list_discs. */
+typedef enum { PLAIN, ROUND, KINDS } Kind;
+
+static_assert(offsetof(GpuDisc, v) == 0, "a disc's vertex is a plain one's attributes");
+
+/* The pipeline for vertices of kind k with blend. */
+static uint32_t pipeline_of(const Kind k, const QxBlend blend) { return 1 + k * BLENDS + blend; }
 
 /* texture's entry: null, no memory. */
 static GpuTexture *entry(Gpu *const g, const uint32_t texture)
@@ -50,7 +61,7 @@ static uint32_t argb(const Palette *const pal, const PxFormat f, const uint32_t 
 
 /* px's texels in format, in the list's kept memory, *pitch bytes a row: null, no memory. */
 static const uint8_t *texels(
-    List *const l,
+    GpuList *const l,
     const Palette *const pal,
     const Pixels *const px,
     const QxTextureFormat format,
@@ -76,7 +87,53 @@ static const uint8_t *texels(
     return out;
 }
 
-bool gpu_open(Gpu *const g)
+/* The pipelines, a kind of vertex and blend each, the shader's attributes and code in MSL. */
+static bool pipelines(GpuList *const l)
+{
+    /* PIPELINE's words: its code's, its first attribute's, an attribute's */
+    enum { VERTEX_CODE = 4, FRAGMENT_CODE = 7, HEAD = 10, ATTRIBUTE = 3 };
+
+    static const uint32_t attributes[DISC_ATTRIBUTES][ATTRIBUTE] = {
+        {0, QX_ATTRIBUTE_FLOAT2, offsetof(GpuVertex, x)},
+        {1, QX_ATTRIBUTE_FLOAT2, offsetof(GpuVertex, u)},
+        {2, QX_ATTRIBUTE_USHORT4, offsetof(GpuVertex, rx)},
+        {3, QX_ATTRIBUTE_UBYTE4, offsetof(GpuVertex, r)},
+        {4, QX_ATTRIBUTE_UBYTE4, offsetof(GpuVertex, row)},
+        {5, QX_ATTRIBUTE_FLOAT4, offsetof(GpuDisc, disc)},
+        {6, QX_ATTRIBUTE_FLOAT4, offsetof(GpuDisc, sweep)},
+    };
+
+    static const struct {
+        const char *code;
+        uint32_t bytes, stride, attributes;
+    } kinds[KINDS] = {
+        {draw_vert_msl, sizeof draw_vert_msl - 1, sizeof(GpuVertex), PLAIN_ATTRIBUTES},
+        {disc_vert_msl, sizeof disc_vert_msl - 1, sizeof(GpuDisc), DISC_ATTRIBUTES},
+    };
+
+    for (Kind k = 0; k < KINDS; k++)
+        for (QxBlend b = 0; b < BLENDS; b++) {
+            uint32_t args[HEAD + sizeof attributes / sizeof(uint32_t)] = {
+                pipeline_of(k, b),
+                b,
+                kinds[k].stride,
+                LIST_TEXTURES,
+            };
+
+            args[VERTEX_CODE] = kinds[k].bytes;
+            args[FRAGMENT_CODE] = sizeof draw_frag_msl - 1;
+            list_pointer(args + VERTEX_CODE + 1, kinds[k].code);
+            list_pointer(args + FRAGMENT_CODE + 1, draw_frag_msl);
+            mem_copy(args + HEAD, attributes, kinds[k].attributes * sizeof *attributes);
+
+            if (!list_op(l, QX_LIST_PIPELINE, args, HEAD + kinds[k].attributes * ATTRIBUTE))
+                return false;
+        }
+
+    return true;
+}
+
+bool gpu_open(Gpu *const g, const QxScreen *const s)
 {
     mem_fill(g->textures, 0, g->ntextures * sizeof *g->textures);
 
@@ -86,10 +143,17 @@ bool gpu_open(Gpu *const g)
     g->passing = false;
     g->palette = 0;
     g->white = 0xFFFFFFFF;
+    g->down = s->y_down ? 1 : -1;
 
     GpuTexture *const canvas = entry(g, GFX_SURFACE_CANVAS);
+    const uint32_t made[][4] = {
+        {GFX_SURFACE_CANVAS, s->w, s->h, QX_TEXTURE_RGBA},
+        {PALETTE, PAL_COLOURS, PAL_ROWS, QX_TEXTURE_RGBA},
+    };
 
-    if (!canvas || !list_init(&g->list))
+    if (!canvas || s->shader != QX_SHADER_MSL || !list_init(&g->list) ||
+        !list_op(&g->list, QX_LIST_TEXTURE, made[0], 4) ||
+        !list_op(&g->list, QX_LIST_TEXTURE, made[1], 4) || !pipelines(&g->list))
         return false;
 
     *canvas = (GpuTexture){.handle = GFX_SURFACE_CANVAS, .format = QX_TEXTURE_RGBA};
@@ -115,7 +179,7 @@ bool gpu_texture(
 )
 {
     GpuTexture *const e = entry(g, p->texture);
-    const uint32_t name = name_of(p->texture);
+    const uint32_t name = p->texture;
     const Pixels *const px = &p->root;
     const QxTextureFormat want = into || px->format != PX_8 ? QX_TEXTURE_RGBA : QX_TEXTURE_INDEX;
 
@@ -166,10 +230,22 @@ static bool same(const Rect a, const Rect b)
     return a.x == b.x && a.y == b.y && a.w == b.w && a.h == b.h;
 }
 
-bool gpu_target(Gpu *const g, const uint32_t id, const Rect clip)
+bool gpu_target(Gpu *const g, const uint32_t id, const int32_t w, const int32_t h, const Rect clip)
 {
     if (!g->passing || g->pass != id) {
-        if (!list_op(&g->list, QX_LIST_PASS, &id, 1))
+        float *const size = list_keep(&g->list, 4 * sizeof(float));
+        uint32_t args[3] = {4 * sizeof(float)};
+
+        if (!size || !list_op(&g->list, QX_LIST_PASS, &id, 1))
+            return false;
+
+        size[0] = (float)w;
+        size[1] = (float)h;
+        size[2] = g->down;
+        size[3] = 0;
+        list_pointer(args + 1, size);
+
+        if (!list_op(&g->list, QX_LIST_UNIFORMS, args, 3))
             return false;
 
         g->passing = true;
@@ -198,7 +274,7 @@ bool gpu_palette(Gpu *const g, const Palette *const pal)
         return true;
 
     uint8_t *const rows = list_keep(&g->list, PAL_ROWS * PAL_COLOURS * RGBA);
-    uint32_t args[2];
+    uint32_t args[8] = {PALETTE, 0, 0, PAL_COLOURS, PAL_ROWS, PAL_COLOURS * RGBA};
 
     if (!rows)
         return false;
@@ -213,29 +289,34 @@ bool gpu_palette(Gpu *const g, const Palette *const pal)
             );
         }
 
-    list_pointer(args, rows);
+    list_pointer(args + 6, rows);
     g->palette = changes;
-    return list_op(&g->list, QX_LIST_PALETTE, args, 2);
+    return list_op(&g->list, QX_LIST_UPLOAD, args, 8);
 }
 
-bool gpu_draw(Gpu *const g, const GpuTarget *const t, const QxVertex *const v, const uint32_t n)
+bool gpu_draw(Gpu *const g, const GpuTarget *const t, const GpuVertex *const v, const uint32_t n)
 {
-    return list_draw(&g->list, v, n, t->texture, t->blend, t->alpha);
+    const uint32_t textures[LIST_TEXTURES] = {t->texture, PALETTE};
+
+    return list_draw(&g->list, v, n, pipeline_of(PLAIN, t->blend), textures, t->alpha);
 }
 
-bool gpu_discs(Gpu *const g, const GpuTarget *const t, const QxDisc *const v, const uint32_t n)
+bool gpu_discs(Gpu *const g, const GpuTarget *const t, const GpuDisc *const v, const uint32_t n)
 {
-    return list_discs(&g->list, v, n, t->texture, t->blend, t->alpha);
+    const uint32_t textures[LIST_TEXTURES] = {t->texture, PALETTE};
+
+    return list_discs(&g->list, v, n, pipeline_of(ROUND, t->blend), textures, t->alpha);
 }
 
 void gpu_play(Gpu *const g, const bool show)
 {
+    const uint32_t canvas = GFX_SURFACE_CANVAS;
     uint32_t n;
     const uint32_t *const words =
-        !show || list_op(&g->list, QX_LIST_SHOW, nullptr, 0) ? list_end(&g->list, &n) : nullptr;
+        !show || list_op(&g->list, QX_LIST_SHOW, &canvas, 1) ? list_end(&g->list, &n) : nullptr;
 
     if (words)
-        qx_host->gfx_play(words, n);
+        qx_host->gpu_play(words, n);
 
     list_reset(&g->list);
     g->passing = false;
@@ -258,7 +339,7 @@ bool gpu_sync(
     if (!rgba)
         return false;
 
-    qx_host->gfx_read(name_of(h), 0, 0, px.w, px.h, rgba);
+    qx_host->gpu_read(h, 0, 0, px.w, px.h, rgba);
     uint32_t last = ~0u, index = 0; /* no colour is ~0 */
 
     for (int32_t y = 0; y < px.h; y++)

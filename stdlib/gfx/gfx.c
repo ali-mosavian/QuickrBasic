@@ -8,7 +8,7 @@ static Gx *state;
 
 Gx *gx_get(void)
 {
-    if (qx_host->minor < 1 || qx_host->size < offsetof(QxHost, gfx_play)) {
+    if (qx_host->minor < 1 || qx_host->size < offsetof(QxHost, gpu_play)) {
         gx_fail(ERR_UNAVAILABLE);
         return nullptr;
     }

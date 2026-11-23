@@ -307,22 +307,25 @@ too slow in software. Shaders come in three kinds, by where they can run.
 SDL's 2D renderer is not enough: `SDL_RenderGeometry` has no depth and no vertex shader, so 3D needs
 SDL_GPU, and one backend serves both.
 
-The GPU backends are the host's. A slice imports nothing, so it cannot call SDL_GPU or WebGL2, and
-both hosts show the screen from another thread: SDL's main thread, and the page's, which reads the
-shared memory (`frame()`). So the extension records a frame as a list in its own memory: uploads,
-passes and draws, already batched. At `display.flip` the host plays it with SDL_GPU on the
-interpreter's thread, or with WebGL2 from the page's JavaScript. The list's format is part of the ABI. Software stays in the
-extension, and draws in memory the host lends.
+The GPU backends are the extension's; the host lends a GPU, knowing nothing of gfx. A slice imports
+nothing, so it cannot call SDL_GPU or WebGL2, and both hosts show the screen from another thread:
+SDL's main thread, and the page's, which reads the shared memory (`frame()`). So the extension
+records a frame as a GPU list in its own memory: buffers and textures made and written, pipelines
+from its own shaders, passes and draws, already batched. At `display.flip` the host plays it with
+SDL_GPU on the interpreter's thread, or with WebGL2 from the page's JavaScript. The list's format is
+part of the ABI (`src/qx/qxlist.h`) and generic: another extension could draw through it. Software
+stays in the extension, and draws in memory the host lends.
 
 On a GPU an indexed texture is an 8-bit texture read exactly (`texelFetch`); the shader looks it up
 in the palette, a texture, and multiplies by the light and tint. Every target is RGBA, the canvas at
 8 bits too, so a GPU blends in hardware: a palette set later colours only what is drawn after, and
 reading an 8-bit canvas gives each pixel's nearest index.
 
-The one shader is written once, in Vulkan GLSL (`src/plat/gpu`), its vertex stage built twice: for
-plain vertices and, with `DISC`, for a circle's. `make shaders` crosses it with glslang and
-SPIRV-Cross, pinned in `tools/deps.sh`, to MSL for SDL_GPU and GLSL ES 3.0 for the page; the results
-are committed, so a build needs neither.
+The one shader is written once, in Vulkan GLSL (`stdlib/gfx/gpu/shaders`), its vertex stage built
+twice: for plain vertices and, with `DISC`, for a circle's. `make shaders` crosses it with glslang
+and SPIRV-Cross, pinned in `tools/deps.sh`, to MSL for SDL_GPU (`gpu/shaders.h`), committed so a
+build needs neither; GLSL ES 3.0 comes with the page's player. `display.open` names the languages it
+brings, and the host answers with the one it takes.
 
 ## The host's side
 
@@ -332,7 +335,10 @@ are committed, so a build needs neither.
 typedef struct {            /* asked, then what the host gives */
     uint16_t w, h;          /* the canvas */
     uint8_t depth, flags;   /* 8, 15, 16 or 32; display's flags */
-    bool gpu;               /* given: the host plays lists, else it lends pages */
+    uint8_t shaders;        /* the shading languages the extension brings */
+    bool gpu;               /* given: the host plays GPU lists, else it lends pages */
+    QxShader shader;        /* given with gpu: the language it takes */
+    bool y_down;            /* given with gpu: clip space's y runs down a texture's rows */
     uint16_t out_w, out_h;  /* given: the pixels a NATIVE canvas is drawn at */
     float hz;               /* given: the refresh, 0 unknown */
 } QxScreen;
@@ -340,8 +346,8 @@ bool (*gfx_open)(QxScreen *s);
 void (*gfx_close)(void);
 void *(*gfx_page)(uint32_t *pitch);           /* the page to draw the next frame in */
 void (*gfx_show)(const uint32_t *palette);    /* it is shown; at 8 bits, with these 256 colours */
-void (*gfx_play)(const uint32_t *list, uint32_t words);
-void (*gfx_read)(uint32_t texture, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t *out);
+void (*gpu_play)(const uint32_t *list, uint32_t words);
+void (*gpu_read)(uint32_t texture, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t *out);
 uint32_t (*gfx_modes)(uint32_t monitor, QxMode *out, uint32_t most);
 bool (*gfx_mode)(uint32_t monitor, uint32_t n);
 bool (*gfx_event)(QxEvent *e);
@@ -352,9 +358,9 @@ void *(*file_read)(const char *path, uint32_t len, uint32_t *bytes);
 - **Software draws in memory the host lends.** `gfx_page` is the page to draw in; `gfx_show` shows
   it. Today's hosts copy the page shown and lend it again, its pixels kept; VBE's two pages, on DOS,
   will revisit that. No struct crosses by value: i386's conventions for one differ.
-- **A GPU's host plays lists.** `gfx_play` returns when the host is done with the list's bytes;
-  `gfx_read` waits for what was played.
-- **Calls come from the interpreter's thread.** `gfx_show` and `gfx_play` hand the frame to the
+- **A GPU's host plays lists.** `gpu_play` returns when the host is done with the list's bytes;
+  `gpu_read` waits for what was played.
+- **Calls come from the interpreter's thread.** `gfx_show` and `gpu_play` hand the frame to the
   display's thread and wait for it: with `VSYNC`, until the refresh.
 - **The host shows one screen**: the runtime's (the editor, a QB program's `SCREEN`) or `gfx`'s,
   from `display.open` to `display.close` or the run's end.
@@ -363,7 +369,7 @@ void *(*file_read)(const char *path, uint32_t len, uint32_t *bytes);
 | | Gives | Shows by | Clock |
 |---|---|---|---|
 | DOS | pages: a VBE 2.0 linear mode's two in video memory; else memory | 4F07h's flip at the retrace; else a copy, linear or bank by bank; mode 13h a copy | the PIT's count |
-| Mac, Linux, Windows | a GPU, lists played by SDL_GPU on the interpreter's thread; with no device, pages | the canvas, copied at `SHOW` to a texture SDL's GPU renderer draws; a page as today's frame | `SDL_GetTicksNS` |
+| Mac, Linux, Windows | a GPU, lists played by SDL_GPU on the interpreter's thread; with no device, pages | the texture `SHOW` names, copied to one SDL's GPU renderer draws; a page as today's frame | `SDL_GetTicksNS` |
 | The browser | a GPU, lists played by the page with WebGL2 from the shared memory; else pages | `requestAnimationFrame` | `performance.now` |
 | `basic` in a terminal, unit tests | pages | nothing: `surface.read` is the tests' eye | `pclk` |
 
@@ -401,8 +407,9 @@ takes its own part. Memory is the host's (`alloc`), taken when first used: nothi
 | `soft/fill`, `fill8`, `fill16`, `fill32` | spans and rows to pixels: a table for each colour format |
 | `soft/soft` | the software backend: a command drawn at once |
 | `backend_gpu` | a GPU's backend: shapes and pictures as triangles, the pen in their vertices |
-| `gpu/gpu` | the GPU's recorder: textures made and sent, passes, clips, reads back |
-| `gpu/list` | the list the host plays: its words, vertices and batches |
+| `gpu/gpu` | the GPU's recorder: textures and pipelines made, pixels sent, passes, clips, reads back |
+| `gpu/list` | the list the host plays: its words, vertices, indices and batches |
+| `gpu/shaders` | the one shader, and `shaders.h` made from it |
 
 ### From a call to pixels
 
@@ -413,13 +420,16 @@ takes its own part. Memory is the host's (`alloc`), taken when first used: nothi
    software an upright sprite at 1:1 skips this: its rows are copied.
 3. Software scans and fills at once. For a GPU, `list` adds the vertices to the frame's store; a
    batch is a run with one target, texture, blend, alpha and clip.
-4. At `display.flip` software calls `gfx_show`. A GPU's frame becomes a list, and `gfx_play` plays
+4. At `display.flip` software calls `gfx_show`. A GPU's frame becomes a list, and `gpu_play` plays
    it.
 
-The list is words, an op and its size each: the vertices, make a texture, free one, upload rows of
-one, the palette rows, a pass (its target), a clip, a draw (first vertex, count, texture, blend,
-alpha), show, the end (`src/qx/qxlist.h`). What it points at stays till `gfx_play` returns. A
-vertex carries its texel's rectangle, so sprites of one atlas page batch.
+The list is words, an op and its size each (`src/qx/qxlist.h`): make or write a buffer, make, free
+or upload to a texture, make a pipeline (its code, vertex layout and blend), a pass (its target), a
+clip, uniforms, a draw (pipeline, buffers, first index, count, alpha, textures), show, the end. What
+it points at stays till `gpu_play` returns. gfx's first list makes the canvas, the palette's
+texture and six pipelines, a kind of vertex and blend each; each list writes its vertices, its
+discs, and its indices when they grow. A vertex carries its texel's rectangle, so sprites of one
+atlas page batch.
 
 ### Scanner and fillers
 
@@ -523,21 +533,21 @@ Step 3, in parts:
 
 Step 4, in parts:
 
-- **The list**: QxHost's minor 2, `gfx_play` and `gfx_read`. A screen the host gives a GPU draws
+- **The list**: QxHost's minor 2, `gpu_play` and `gpu_read`. A screen the host gives a GPU draws
   through `backend_gpu`: each call's triangles into the frame's list, played at `display.flip`
   and before a read. A texture is named by its root surface's handle, made and sent when first
   drawn from or into, and sent again when the CPU wrote its pixels since (the root's version). A
   root drawn into is ahead on the GPU until a read brings it back. Shapes draw from a white
   texel. Tests run on a host that records the lists.
 - **The Mac's player** (`plat/sdl/player.c`): SDL's GPU renderer draws the window, and the player
-  shares its device. A list's data goes into one staging buffer kept between frames, so its memory
-  is free when `gfx_play` returns; its command buffer is not waited for, the GPU up to two frames
-  behind, and a read waits for its own. A quad is four vertices through a shared index buffer.
-  `SHOW` copies the canvas to a texture the window draws, cycled so the copy never waits on the
-  frame drawing the last. `QB_GFX=soft` draws in pages; the offscreen driver has no GPU and does
-  too.
-- **Circles and arcs as shader coverage**: each is one box, its four vertices `QxDisc`s in the
-  list's second array, so a plain vertex stays 32 bytes; the fragment shader keeps the pixels
+  shares its device. It plays any GPU list: it knows buffers, textures and pipelines by the list's
+  numbers, and nothing of gfx. A list's writes go into one staging buffer kept between frames, so
+  its memory is free when `gpu_play` returns; its command buffer is not waited for, the GPU up to
+  two frames behind, and a read waits for its own. `SHOW` copies a texture to one the window
+  draws, cycled so the copy never waits on the frame drawing the last. `QB_GFX=soft` draws in
+  pages; the offscreen driver has no GPU and does too.
+- **Circles and arcs as shader coverage**: each is one box, its four vertices `GpuDisc`s in a
+  buffer of their own, so a plain vertex stays 32 bytes; the fragment shader keeps the pixels
   `disc.h`'s rule covers, centres within the radius by squared distance, every product and sum
   rounded once (`precise`). Software's rows end where the same rule says, so both draw the same
   pixels.
@@ -569,7 +579,7 @@ Step 4, in parts:
 | Vertex procedures | the interpreter in software; translated to a vertex shader on a GPU |
 | 3D worlds | meshes drawn nearest first with `ORDERED`; a scene-level call is weighed again at step 6 |
 | Names that are QB's keywords | QuickrBasic's dialect has none of them: they are plain names |
-| Where the GPU backends live | in the host, playing a list the extension records |
+| Where the GPU backends live | in the extension, its list played by the host's generic GPU |
 | A sprite's arguments | `sprite` and `sprite_turned`, as µGL's pairs |
 | Effects | flags on each draw call; the pen holds their numbers |
 | What is drawn | everything is a surface; an atlas is an image and views over it |

@@ -1,6 +1,6 @@
-/* Made by tools/shaders.py from src/plat/gpu/draw.*: run make shaders, never edit. */
-#ifndef PLAT_SDL_SHADERS_H
-#define PLAT_SDL_SHADERS_H
+/* Made by tools/shaders.py from gpu/shaders: run make shaders, never edit. */
+#ifndef GFX_GPU_SHADERS_H
+#define GFX_GPU_SHADERS_H
 static const char draw_vert_msl[] =
     "#include <metal_stdlib>\n"
     "#include <simd/simd.h>\n"

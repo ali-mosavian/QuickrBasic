@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""shaders.py: gfx's one shader (src/plat/gpu) as each host takes it, its vertex stage twice: for
-plain vertices and, with DISC, for discs. glslang makes SPIR-V, and spirv-cross MSL for the Mac's
-SDL_GPU and GLSL ES 3.0 for the page's WebGL2. The files it writes are committed, so a build needs
-neither tool: run `make shaders` after an edit (tools/deps.sh shaders builds them)."""
+"""shaders.py: gfx's one shader (stdlib/gfx/gpu/shaders) in each language a host takes, its vertex
+stage twice: for plain vertices and, with DISC, for discs. glslang makes SPIR-V, and spirv-cross MSL
+for SDL_GPU's Metal. The header it writes is committed, so a build needs neither tool: run `make
+shaders` after an edit (tools/deps.sh shaders builds them)."""
 
 import subprocess
 import sys
@@ -11,15 +11,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 BIN = ROOT / "build" / "deps" / "bin"
-SOURCE = ROOT / "src" / "plat" / "gpu"
+SOURCE = ROOT / "stdlib" / "gfx" / "gpu" / "shaders"
 # name: source, defines
 SHADERS = {"draw_vert": ("draw.vert", ()), "disc_vert": ("draw.vert", ("-DDISC",)), "draw_frag": ("draw.frag", ())}
-MSL_OUT = ROOT / "src" / "plat" / "sdl" / "shaders.h"
-ESSL_OUT = ROOT / "src" / "plat" / "wasm" / "web" / "shaders.mjs"
+OUT = ROOT / "stdlib" / "gfx" / "gpu" / "shaders.h"
 # SDL_GPU's Metal names a resource by its binding, as SDL_shadercross does
 MSL = ["--msl", "--msl-version", "20000", "--msl-decoration-binding"]
-ESSL = ["--es", "--version", "300", "--glsl-emit-ubo-as-plain-uniforms"]
-NOTE = "Made by tools/shaders.py from src/plat/gpu/draw.*: run make shaders, never edit."
+NOTE = "Made by tools/shaders.py from gpu/shaders: run make shaders, never edit."
 
 
 def run(*args: str | Path) -> str:
@@ -40,16 +38,13 @@ def c_string(name: str, text: str) -> str:
 
 def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        spv = {name: spirv(name, Path(tmp)) for name in SHADERS}
-        msl = {name: run(BIN / "spirv-cross", spv[name], *MSL) for name in SHADERS}
-        essl = {name: run(BIN / "spirv-cross", spv[name], *ESSL) for name in SHADERS}
+        msl = {name: run(BIN / "spirv-cross", spirv(name, Path(tmp)), *MSL) for name in SHADERS}
 
-    MSL_OUT.write_text(
-        f"/* {NOTE} */\n#ifndef PLAT_SDL_SHADERS_H\n#define PLAT_SDL_SHADERS_H\n"
+    OUT.write_text(
+        f"/* {NOTE} */\n#ifndef GFX_GPU_SHADERS_H\n#define GFX_GPU_SHADERS_H\n"
         + "".join(c_string(f"{name}_msl", msl[name]) for name in SHADERS)
         + "#endif\n"
     )
-    ESSL_OUT.write_text(f"// {NOTE}\n" + "".join(f"export const {n.upper()} = `{essl[n]}`;\n" for n in SHADERS))
 
 
 if __name__ == "__main__":

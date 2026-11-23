@@ -20,15 +20,14 @@ static uint8_t bytes_of(const uint8_t depth)
 
 void pgfx_set_player(const PgfxPlayer *const p) { screen.player = p; }
 
-bool pgfx_open_played(const uint16_t w, const uint16_t h)
+const PgfxPlayer *pgfx_open_played(const uint16_t w, const uint16_t h, const uint8_t shaders)
 {
     pgfx_close();
 
-    if (!screen.player || !screen.player->open(w, h))
-        return false;
+    if (screen.player && screen.player->shaders & shaders && screen.player->open(w, h))
+        screen.playing = screen.player;
 
-    screen.playing = screen.player;
-    return true;
+    return screen.playing;
 }
 
 const PgfxPlayer *pgfx_playing(void) { return screen.playing; }

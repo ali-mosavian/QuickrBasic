@@ -206,7 +206,7 @@ build/host/gfx/test/%.o: stdlib/gfx/tests/%.c | build/ext/gfx_qx.c
 # gfx.qbx for this machine, in lib/ beside basic: its slice the core, its glue and its own font; it
 # needs the host's minor 1
 GFX_SLICE_C := $(GFX_C) build/ext/gfx_qx.c $(QBRT)/qb/dev/host/vgadata.c
-build/host/ext/gfx.so: $(GFX_SLICE_C) $(shell find stdlib/gfx -name '*.h' -not -path 'stdlib/gfx/tests/*') src/qx/qx.h
+build/host/ext/gfx.so: $(GFX_SLICE_C) $(shell find stdlib/gfx -name '*.h' -not -path 'stdlib/gfx/tests/*') src/qx/qx.h src/qx/qxlist.h
 	@mkdir -p $(@D)
 	$(HOST_CC) $(QX_CFLAGS) $(HOST_SLICE) $(GFX_INC) $(GFX_SLICE_C) -o $@
 build/host/lib/gfx.qbx: $(GFX_PARTS) build/host/ext/gfx.so tools/qbx.py

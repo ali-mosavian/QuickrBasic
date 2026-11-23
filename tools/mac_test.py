@@ -32,7 +32,8 @@ QBX, tests/ext's qxtest packed for macos: a program imports it and draws if its 
 was arm64's alone once, and the x86-64 half stopped at the IMPORT. gfx's canvas at 16 and 32 bits
 is shown in its colours: the frame once read each pixel as an index. Played on the GPU (a window of
 its own: the offscreen driver has none), an 8-bit scene is software's pixel for pixel: a diagonal
-line once covered two pixels a step.
+line once covered two pixels a step. Each run ends unless drawn by the backend it asks for: a GPU
+fallen back to pages matched software unseen.
 A Quickr program imports text, Quickr's library in the app's Resources/lib: once the app shipped
 none, and F5 stopped at the import unless BASICLIB was set.
 """
@@ -64,6 +65,7 @@ GFX_SHOWN = {32: ((0xFF, 0x80, 0), (0x12, 0x34, 0x56)), 16: ((0xFF, 0x82, 0), (0
 # shapes, a surface drawn into and drawn, text: indexed textures, the palette, passes; circles off the pixel grid
 GFX_SCENE = (
     "import gfx.display, gfx.draw, gfx.surface, gfx.pen\ngfx.display.open 160, 120, 8, 0\n"
+    "if (gfx.display.caps and gfx.display.HAS_GPU) <> {gpu} then end\n"
     "gfx.draw.clear 1\ngfx.draw.rect 4, 4, 60, 40, 4, gfx.draw.FILL\ngfx.draw.line 0, 119, 159, 0, 14\n"
     "gfx.draw.circle 100, 60, 20, 2, gfx.draw.FILL\ns& = gfx.surface.new(16, 16)\ngfx.pen.target s&\n"
     "gfx.draw.clear 9\ngfx.draw.rect 0, 0, 7, 7, 12, gfx.draw.FILL\ngfx.pen.target gfx.surface.CANVAS\n"
@@ -243,8 +245,9 @@ def main() -> None:
             (Path(tmp) / "GFX.BAS").write_text(GFX.format(depth=depth))
             gw, _, px = frame(run, Path(tmp) / "GFX.BAS", "3F00")
             gfx[depth] = (pixel(gw, px, 10, 10), pixel(gw, px, 50, 10))
-        (Path(tmp) / "SCENE.BAS").write_text(GFX_SCENE)
+        (Path(tmp) / "SCENE.BAS").write_text(GFX_SCENE.format(gpu=0))
         soft = frame(run, Path(tmp) / "SCENE.BAS", "3F00")
+        (Path(tmp) / "SCENE.BAS").write_text(GFX_SCENE.format(gpu=1))
         gpu = frame(run, Path(tmp) / "SCENE.BAS", "3F00", {"SDL_VIDEO_DRIVER": "cocoa", "QB_GFX": "gpu"})
         w, h, pixels = frame(run, program)
         _, _, menu = frame(run, program, "2100")

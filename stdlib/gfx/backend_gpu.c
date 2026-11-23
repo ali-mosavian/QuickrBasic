@@ -19,23 +19,23 @@ enum { ALPHA = 255 };
 enum { QUAD = 4 };
 
 /* n vertices, four a quad. */
-static void emit(const Target *const t, const QxVertex *const v, const uint32_t n)
+static void emit(const Target *const t, const GpuVertex *const v, const uint32_t n)
 {
     if (!gpu_draw(t->gpu.gpu, &t->gpu, v, n))
         gx_fail(ERR_MEMORY);
 }
 
 /* A vertex of the call at x, y in the target, the texel u, v in its picture. */
-static QxVertex vertex(
+static GpuVertex vertex(
     const GpuTarget *const t,
-    const QxVertex *const ink,
+    const GpuVertex *const ink,
     const float x,
     const float y,
     const float u,
     const float v
 )
 {
-    QxVertex out = *ink;
+    GpuVertex out = *ink;
     out.x = x + t->at.x;
     out.y = y + t->at.y;
     out.u = u + ink->rx;
@@ -46,13 +46,13 @@ static QxVertex vertex(
 /* Corners a, b, c, d round; uv their texels, or null the white texel's. */
 static void quad(
     const Target *const t,
-    const QxVertex *const ink,
+    const GpuVertex *const ink,
     const Vec *const p,
     const Vec *const uv
 )
 {
     const GpuTarget *const g = &t->gpu;
-    QxVertex v[QUAD];
+    GpuVertex v[QUAD];
 
     for (uint32_t i = 0; i < QUAD; i++)
         v[i] = vertex(g, ink, p[i].x, p[i].y, uv ? uv[i].x : ink->u, uv ? uv[i].y : ink->v);
@@ -61,7 +61,7 @@ static void quad(
 }
 
 /* A fan's corner i, from ctx. */
-typedef QxVertex Corner(const Target *t, const void *ctx, uint32_t i);
+typedef GpuVertex Corner(const Target *t, const void *ctx, uint32_t i);
 
 /* The fan from corner 0 of n as quads: two of its triangles each, the last alone a quad with its
    third corner twice, its second triangle empty. */
@@ -73,7 +73,7 @@ static void fan(
 )
 {
     for (uint32_t i = 1; i + 1 < n; i += 2) {
-        const QxVertex v[QUAD] = {
+        const GpuVertex v[QUAD] = {
             corner(t, ctx, 0),
             corner(t, ctx, i),
             corner(t, ctx, i + 1),
@@ -87,7 +87,7 @@ static void fan(
 /* The box from x0, y0 to x1, y1 in a shape's ink. */
 static void box(
     const Target *const t,
-    const QxVertex *const ink,
+    const GpuVertex *const ink,
     const float x0,
     const float y0,
     const float x1,
@@ -98,10 +98,10 @@ static void box(
 }
 
 /* A shape's ink: its colour, an index through the row at 8 bits, times the tint. */
-static QxVertex shape(const GpuTarget *const t, const uint32_t colour)
+static GpuVertex shape(const GpuTarget *const t, const uint32_t colour)
 {
     const uint32_t rgb = pal_shade(t->eight ? t->row[colour] : colour, PAL_FULL, t->tint);
-    return (QxVertex){
+    return (GpuVertex){
         .u = 0.5f,
         .v = 0.5f,
         .rw = 1,
@@ -129,7 +129,7 @@ static bool begin(Gx *const g, Surface *const s, const Command *const c, Target 
 
     if (!gpu_texture(&g->gpu, &g->palette, &p, true, &id, &indexed) ||
         !gpu_texture(&g->gpu, &g->palette, &white, false, &white_id, &indexed) ||
-        !gpu_target(&g->gpu, id, clip) || !gpu_palette(&g->gpu, &g->palette))
+        !gpu_target(&g->gpu, id, p.root.w, p.root.h, clip) || !gpu_palette(&g->gpu, &g->palette))
         return gx_fail(ERR_MEMORY);
 
     surf_root(&g->surfaces, s, &h)->drawn = true;
@@ -140,7 +140,7 @@ static bool begin(Gx *const g, Surface *const s, const Command *const c, Target 
             {
                 .light = (uint8_t)pen->light,
                 .row = (uint8_t)pen->recolor,
-                .stages = c->flags & GFX_PEN_OPAQUE ? 0 : QX_STAGE_KEYED,
+                .stages = c->flags & GFX_PEN_OPAQUE ? 0 : GPU_STAGE_KEYED,
             },
         .texture = white_id,
         .blend = blend,
@@ -163,7 +163,7 @@ static bool source(Gx *const g, Target *const t, const Picture *const p)
     if (!gpu_texture(&g->gpu, &g->palette, p, false, &gt->texture, &indexed))
         return gx_fail(ERR_MEMORY);
 
-    QxVertex *const k = &gt->ink;
+    GpuVertex *const k = &gt->ink;
     k->rx = (uint16_t)p->at.x;
     k->ry = (uint16_t)p->at.y;
     k->rw = (uint16_t)p->at.w;
@@ -171,15 +171,15 @@ static bool source(Gx *const g, Target *const t, const Picture *const p)
     k->r = (uint8_t)(gt->paint >> 16);
     k->g = (uint8_t)(gt->paint >> 8);
     k->b = (uint8_t)gt->paint;
-    k->stages = (uint8_t)((k->stages & QX_STAGE_KEYED) | (indexed ? QX_STAGE_INDEXED : 0) |
-                          (gt->solid ? QX_STAGE_SOLID : 0));
+    k->stages = (uint8_t)((k->stages & GPU_STAGE_KEYED) | (indexed ? GPU_STAGE_INDEXED : 0) |
+                          (gt->solid ? GPU_STAGE_SOLID : 0));
     return true;
 }
 
 static void solid(const Gx *const g, Target *const t, const uint32_t colour)
 {
     GpuTarget *const gt = &t->gpu;
-    const QxVertex ink = shape(gt, colour);
+    const GpuVertex ink = shape(gt, colour);
     (void)g;
     gt->solid = true;
     gt->paint = (uint32_t)ink.r << 16 | (uint32_t)ink.g << 8 | ink.b;
@@ -187,7 +187,7 @@ static void solid(const Gx *const g, Target *const t, const uint32_t colour)
 
 static void clear(const Target *const t, const uint32_t colour)
 {
-    const QxVertex ink = shape(&t->gpu, colour);
+    const GpuVertex ink = shape(&t->gpu, colour);
     const Rect c = t->clip;
     box(t,
         &ink,
@@ -199,7 +199,7 @@ static void clear(const Target *const t, const uint32_t colour)
 
 static void pset(const Target *const t, const Vec p, const uint32_t colour)
 {
-    const QxVertex ink = shape(&t->gpu, colour);
+    const GpuVertex ink = shape(&t->gpu, colour);
     const float x = (float)scan_pixel(p.x), y = (float)scan_pixel(p.y);
     box(t, &ink, x - 0.5f, y - 0.5f, x + 0.5f, y + 0.5f);
 }
@@ -209,7 +209,7 @@ static void pset(const Target *const t, const Vec p, const uint32_t colour)
    side covers the one pixel nearest the line. */
 static void segment(
     const Target *const t,
-    const QxVertex *const ink,
+    const GpuVertex *const ink,
     const Vec a,
     const Vec b,
     const bool last
@@ -233,7 +233,7 @@ static void segment(
 
 static void line(const Target *const t, const Vec a, const Vec b, const uint32_t colour)
 {
-    const QxVertex ink = shape(&t->gpu, colour);
+    const GpuVertex ink = shape(&t->gpu, colour);
     segment(t, &ink, a, b, true);
 }
 
@@ -244,7 +244,7 @@ static void outline(
     const uint32_t colour
 )
 {
-    const QxVertex ink = shape(&t->gpu, colour);
+    const GpuVertex ink = shape(&t->gpu, colour);
 
     for (uint32_t i = 0; i < n; i++)
         segment(t, &ink, p[i], p[(i + 1) % n], false);
@@ -252,11 +252,11 @@ static void outline(
 
 /* A polygon's: its ink and points. */
 typedef struct {
-    QxVertex ink;
+    GpuVertex ink;
     const Vec *p;
 } Shape;
 
-static QxVertex shape_corner(const Target *const t, const void *const ctx, const uint32_t i)
+static GpuVertex shape_corner(const Target *const t, const void *const ctx, const uint32_t i)
 {
     const Shape *const s = ctx;
     return vertex(&t->gpu, &s->ink, s->p[i].x, s->p[i].y, s->ink.u, s->ink.v);
@@ -281,13 +281,13 @@ static void disc(
     const GpuTarget *const g = &t->gpu;
     const float e = k->outer + 1;
     const bool part = w && !w->whole;
-    QxDisc d = {.v = shape(g, colour)};
+    GpuDisc d = {.v = shape(g, colour)};
 
     if (!(k->outer > 0))
         return;
 
-    d.v.stages = (uint8_t)(QX_STAGE_DISC | (part ? QX_STAGE_SWEEP : 0) |
-                           (part && w->wide ? QX_STAGE_WIDE : 0));
+    d.v.stages = (uint8_t)(GPU_STAGE_DISC | (part ? GPU_STAGE_SWEEP : 0) |
+                           (part && w->wide ? GPU_STAGE_WIDE : 0));
     d.disc[0] = k->c.x + g->at.x;
     d.disc[1] = k->c.y + g->at.y;
     d.disc[2] = k->outer;
@@ -307,7 +307,7 @@ static void disc(
         {k->c.x - e, k->c.y + e},
     };
 
-    QxDisc v[QUAD];
+    GpuDisc v[QUAD];
 
     for (uint32_t i = 0; i < QUAD; i++) {
         v[i] = d;
@@ -352,7 +352,7 @@ static void rect(
     const bool fill
 )
 {
-    const QxVertex ink = shape(&t->gpu, colour);
+    const GpuVertex ink = shape(&t->gpu, colour);
     const float l = (a.x < b.x ? a.x : b.x) - 0.5f, r = (a.x < b.x ? b.x : a.x) + 0.5f;
     const float top = (a.y < b.y ? a.y : b.y) - 0.5f, bottom = (a.y < b.y ? b.y : a.y) + 0.5f;
 
@@ -396,11 +396,11 @@ static void sprite(const Target *const t, const Picture *const p, const Vec at, 
 
 /* A textured polygon's: its ink and vertices. */
 typedef struct {
-    QxVertex ink;
+    GpuVertex ink;
     const Vertex *v;
 } Textured;
 
-static QxVertex textured_corner(const Target *const t, const void *const ctx, const uint32_t i)
+static GpuVertex textured_corner(const Target *const t, const void *const ctx, const uint32_t i)
 {
     const Textured *const s = ctx;
     return vertex(&t->gpu, &s->ink, s->v[i].x, s->v[i].y, s->v[i].u, s->v[i].v);
@@ -418,7 +418,7 @@ static void texture(
     Textured s = {t->gpu.ink, v};
 
     (void)p, (void)flags;
-    s.ink.stages |= wrap ? QX_STAGE_WRAP : 0;
+    s.ink.stages |= wrap ? GPU_STAGE_WRAP : 0;
     fan(t, textured_corner, &s, n);
 }
 
@@ -427,7 +427,7 @@ static bool screen_open(Gx *const g, const QxScreen *const s, const PxFormat f)
     const uint32_t pitch = s->w * px_bytes(f);
     uint8_t *const page = mem_alloc(pitch * s->h);
 
-    if (!page || !gpu_open(&g->gpu) ||
+    if (!page || !gpu_open(&g->gpu, s) ||
         !surf_open(&g->surfaces, (Pixels){page, pitch, s->w, s->h, f})) {
         mem_free(page);
         gpu_close(&g->gpu);

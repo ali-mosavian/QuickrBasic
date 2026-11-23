@@ -1,6 +1,6 @@
-// gfx's one shader, its vertices (qxlist.h's QxVertex; with DISC, QxDisc): a pixel's centre at
-// whole numbers to the target's clip space; the texel, its rectangle, tint, light, row, stages,
-// disc and sweep passed on, and the position for the disc's test.
+// gfx's one shader, its vertices (gpu/vertex.h's GpuVertex; with DISC, GpuDisc): a pixel's
+// centre at whole numbers to the target's clip space; the texel, its rectangle, tint, light, row,
+// stages, disc and sweep passed on, and the position for the disc's test.
 // tools/shaders.py makes each host's from it.
 #version 450
 
