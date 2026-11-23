@@ -89,22 +89,22 @@ def refused(text: str, why: str) -> str | None:
 
 if __name__ == "__main__":
     bad = []
-    face = qbx.read(FACE)
-    h, c = qbx.header("t", face), qbx.source("t", face)
+    own = [qbx.Part("t", "", qbx.read(FACE))]
+    h, c = qbx.header("t", own), qbx.source("t", own)
 
     # each kind reaches the C function as its own type: a SHORT or BYTE cast from the cell's INT
     for want in (
-        "qx_c->result.i = add(qx_c->arg[0].i, qx_c->arg[1].i);",
-        "kinds((int16_t)qx_c->arg[0].i, (uint8_t)qx_c->arg[1].i, qx_c->arg[2].f, qx_c->arg[3].d, qx_c->arg[4].s);",
-        "void kinds(int16_t s, uint8_t u, float f, double d, QxStr t);",
+        "qx_c->result.i = t_add(qx_c->arg[0].i, qx_c->arg[1].i);",
+        "t_kinds((int16_t)qx_c->arg[0].i, (uint8_t)qx_c->arg[1].i, qx_c->arg[2].f, qx_c->arg[3].d, qx_c->arg[4].s);",
+        "void t_kinds(int16_t s, uint8_t u, float f, double d, QxStr t);",
     ):
         if want not in c + h:
             bad.append(f"a value's kind not passed as its type: {want}")
 
     # by reference: a number's pointer, a record's struct, an array's QxArray; a string stays read-only
     for want in (
-        "refs((int32_t *)qx_c->arg[0].ref, (float *)qx_c->arg[1].ref, (t_box *)qx_c->arg[2].ref, qx_c->arg[3].a);",
-        "void refs(int32_t *n, float *f, t_box *b, const QxArray *all);",
+        "t_refs((int32_t *)qx_c->arg[0].ref, (float *)qx_c->arg[1].ref, (t_box *)qx_c->arg[2].ref, qx_c->arg[3].a);",
+        "void t_refs(int32_t *n, float *f, t_box *b, const QxArray *all);",
         "QxStr shout_text(QxStr s);",
     ):
         if want not in c + h:
@@ -147,18 +147,19 @@ if __name__ == "__main__":
         if why := refused(text, why):
             bad.append(f"{text!r}: {why}")
 
-    # a .qbx gives back its interface and slices, each slice at a multiple of 16 (the loaders' alignment)
-    data = qbx.pack(b"declare sub s cdecl ()\n", {"macos": b"\xcf\xfa" * 9, "wasm32": b"\0asm"})
-    face_back, slices = qbx.unpack(data)
-    offsets = [qbx.SLICE.unpack_from(data, qbx.HEAD.size + i * qbx.SLICE.size)[1] for i in range(2)]
-    if face_back != b"declare sub s cdecl ()\n" or slices != {"macos": b"\xcf\xfa" * 9, "wasm32": b"\0asm"}:
-        bad.append("a .qbx did not give back its interface and slices")
-    if not data.endswith(b"declare sub s cdecl ()\n"):
-        bad.append("the interface is not last: the loader reads it from its offset to the end")
-    if any(at % 16 for at in offsets) or data[:4] != b"QBX\x1a":
-        bad.append(f"a slice not at a multiple of 16, or no magic: {offsets}")
+    # a .qbx gives back its parts and slices, each slice at a multiple of 16 (the loaders' alignment)
+    faces = {"draw": b"declare sub s cdecl ()\n", "pen": b"declare sub t cdecl ()\n"}
+    data = qbx.pack(faces, {"macos": b"\xcf\xfa" * 9, "wasm32": b"\0asm"})
+    faces_back, slices = qbx.unpack(data)
+    table = [qbx.ENTRY.unpack_from(data, qbx.HEAD.size + i * qbx.ENTRY.size) for i in range(4)]
+    if faces_back != faces or slices != {"macos": b"\xcf\xfa" * 9, "wasm32": b"\0asm"}:
+        bad.append("a .qbx did not give back its parts and slices")
+    if any(data[at + n : at + n + 1] != b"\x1a" for _, at, n in table[2:]):
+        bad.append("a part not followed by 1Ah: the loader reads it from its offset to the next part")
+    if any(at % 16 for _, at, _ in table[:2]) or data[:4] != b"QBX\x1a":
+        bad.append(f"a slice not at a multiple of 16, or no magic: {table[:2]}")
     try:
-        qbx.pack(b"", {"amiga": b""})
+        qbx.pack({}, {"amiga": b""})
         bad.append("a slice for no platform was packed")
     except qbx.QbxError:
         pass
@@ -175,7 +176,7 @@ if __name__ == "__main__":
         bad.append("a DLL's image not rebased to 0, or its code not where it lies")
     if stored > 0x1300 or len(img) != qbx.IMAGE.size + padded + 4 * nrelocs:
         bad.append(f"a DLL's image stored its zeros: {stored} bytes")
-    if qbx.unpack(qbx.pack(b"", {"dos-i386": dll()}))[1]["dos-i386"] != img:
+    if qbx.unpack(qbx.pack({}, {"dos-i386": dll()}))[1]["dos-i386"] != img:
         bad.append("pack kept a DOS slice's DLL, not its image")
     for why, data in (("imports", dll(imports=0x1250)), ("x86-64", dll(machine=0x8664)), ("not a DLL", b"MZ")):
         try:
@@ -184,15 +185,13 @@ if __name__ == "__main__":
         except qbx.QbxError:
             pass
 
-    # natives named as the glue's own names compile: a SUB fail clashed with qx_fail, stop with the stop hook
-    clash = "".join(
-        f"declare sub {n} cdecl ()\n" for n in ("fail", "stop", "start", "module", "now", "entries", "host")
-    )
+    # natives named as the glue's own names compile: a SUB fail clashed with qx_fail
+    clash = "".join(f"declare sub {n} cdecl ()\n" for n in ("fail", "module", "now", "entries", "host", "qx_init_c"))
     if (cc := shutil.which("clang") or shutil.which("cc")) is not None:
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
             (out / "c.bas").write_text(clash, encoding="utf-8")
-            qbx.glue(out / "c.bas", "c", out)
+            qbx.glue("c", out, [out / "c.bas"])
             qx = Path(__file__).parents[1] / "src/qx"
             done = subprocess.run(
                 [cc, "-std=c23", "-fsyntax-only", f"-I{qx}", f"-I{out}", str(out / "c_qx.c")],
@@ -209,10 +208,10 @@ if __name__ == "__main__":
             (out / "f.bas").write_text("declare function half# cdecl (byval d#)\n", encoding="utf-8")
             (out / "f.c").write_text(
                 '#include "f_qx.h"\nvoid f_init(void) {}\nvoid f_start(void) {}\nvoid f_stop(void) {}\n'
-                "double half(const double d) { return d / 2; }\n",
+                "double f_half(const double d) { return d / 2; }\n",
                 encoding="utf-8",
             )
-            qbx.glue(out / "f.bas", "f", out)
+            qbx.glue("f", out, [out / "f.bas"])
             qx = Path(__file__).parents[1] / "src/qx"
             defined, needed = set(), set()
             for c in ("f.c", "f_qx.c"):
@@ -280,8 +279,39 @@ if __name__ == "__main__":
             if done.returncode or code[0] != code[1]:
                 bad.append(f"QX_CALL changed with -mregparm: {code[0]} against {code[1]}")
 
-    if refused("declare sub qx_init_x cdecl ()", "qx_"):
-        bad.append("a native named qx_... was accepted: the glue's names start so")
+    if refused('declare sub x cdecl alias "qx_init_x" ()', "qx_"):
+        bad.append("a native aliased qx_... was accepted: the glue's names start so")
+
+    # a native named as a hook is the hook's C name: refused, not a duplicate definition
+    try:
+        qbx.header("t", [qbx.Part("t", "", qbx.read("declare sub start cdecl ()"))])
+        bad.append("a native named start glued: its C name t_start is the start hook's")
+    except qbx.QbxError:
+        pass
+
+    # a package's parts: entries named as BASIC calls them, C names with the module and the part, so
+    # open and free meet no C library's; a DECLARE's _ lines are one
+    draw = "type vec2\n    x as single\n    y as single\nend type\n"
+    draw += "declare sub sprite cdecl (byval s&, _\n    byval x%, _ ' where\n    byval y%)\n"
+    draw += "declare function open% cdecl (p as vec2)\n"
+    pkg = [
+        qbx.Part("gfx", "draw", qbx.read(draw)),
+        qbx.Part("gfx", "surface", qbx.read("declare sub free cdecl (byval s&)")),
+    ]
+    h, c = qbx.header("gfx", pkg), qbx.source("gfx", pkg)
+    for want in (
+        "void gfx_draw_sprite(int32_t s, int32_t x, int32_t y);",
+        "int32_t gfx_draw_open(gfx_draw_vec2 *p);",
+        "void gfx_surface_free(int32_t s);",
+        '{"draw.sprite", "III", qx_entry_0}',
+        '{"surface.free", "I", qx_entry_2}',
+        '{"draw.vec2", sizeof(gfx_draw_vec2)}',
+    ):
+        if want not in c + h:
+            bad.append(f"a package's names wrong: {want}")
+    own_name = qbx.part_names([Path("gfx/draw.bas")])
+    if own_name != [""] or qbx.part_names([Path("a/Draw.bas"), Path("pen.bas")]) != ["draw", "pen"]:
+        bad.append("one interface is not the module's own, or several not named by their files")
 
     if bad:
         sys.exit("FAIL " + "\nFAIL ".join(bad))

@@ -154,7 +154,7 @@ test: $(DOS_EXE) | $(DOSBOX_BIN)
 # the native ABI's test extension (tests/ext): its glue, then a slice for each platform; native.sh packs them
 build/ext/qxtest_qx.c: tests/ext/qxtest.bas tools/qbx.py
 	@mkdir -p $(@D)
-	$(PY) tools/qbx.py glue $< qxtest $(@D)
+	$(PY) tools/qbx.py glue qxtest $(@D) $<
 QXTEST := tests/ext/qxtest.c build/ext/qxtest_qx.c
 QX_CFLAGS := -std=c23 -O2 -Wall -Wextra -ffreestanding -Isrc/qx -Ibuild/ext
 build/host/ext/qxtest.so: $(QXTEST) src/qx/qx.h

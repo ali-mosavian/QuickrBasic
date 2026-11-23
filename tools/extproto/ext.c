@@ -25,23 +25,24 @@ void ext_start(void) {}
 
 void ext_stop(void) {}
 
-int32_t add(const int32_t a, const int32_t b) { return a + b; }
+int32_t ext_add(const int32_t a, const int32_t b) { return a + b; }
 
-void hello(void)
+void ext_hello(void)
 {
     static const char text[] = "hello from the extension";
     qx_host->say(text, sizeof text - 1);
 }
 
-void loud(const int32_t n, ext_level *const l)
+void ext_loud(const int32_t n, ext_level *const l)
 {
     *level = (int16_t)n;
     l->now = (int16_t)n;
+
     if (n > l->peak)
         l->peak = (int16_t)n;
 }
 
-void bump(int32_t *const n) { ++*n; }
+void ext_bump(int32_t *const n) { ++*n; }
 
 QxStr shout_text(const QxStr s)
 {

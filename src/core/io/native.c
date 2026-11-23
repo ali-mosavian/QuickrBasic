@@ -2,7 +2,7 @@
  *
  * # How it works
  * IMPORT finds foo.qbx (io/locate.c) and the loader reads it whole (natv_open): the header is
- * checked, and the interface, its last part, is read as the module's lines from its offset
+ * checked, and its own interface is read as the module's lines from its offset
  * (io/repl.c). Its code is loaded only when the program links (natv_module): this build's slice
  * goes to the platform (plat/pext.h), whose qx_init_foo is called with the host's table. A file
  * stays read and its code loaded for the process, as Python keeps an extension: CHAIN and RUN

@@ -3,10 +3,11 @@
 #define CORE_IO_QBXFILE_H
 #include "base.h"
 
-enum { QBXF_FORMAT = 1 };
+enum { QBXF_FORMAT = 2 };
 
-/* A .qbx's ABI (its major, the minor it needs), its interface's BASIC text, and the slice of the
-   tag asked for (null: none for it). Each points into the file's bytes. */
+/* A .qbx's ABI (its major, the minor it needs), its own interface's BASIC text (null: a package's
+   parts alone), and the slice of the tag asked for (null: none for it). Each points into the
+   file's bytes. */
 typedef struct {
     uint16_t abi, minor;
     const uint8_t *interface;
