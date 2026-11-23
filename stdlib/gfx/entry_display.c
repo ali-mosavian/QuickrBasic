@@ -125,11 +125,11 @@ float gfx_display_refresh(void)
     return g ? g->hz : 0;
 }
 
-/* No shaders or smoothing yet. */
+/* No shaders yet. */
 int32_t gfx_display_caps(void)
 {
     const Gx *const g = gx_get();
-    return g && g->backend == &backend_gpu ? GFX_DISPLAY_HAS_GPU : 0;
+    return g && g->backend == &backend_gpu ? GFX_DISPLAY_HAS_GPU | GFX_DISPLAY_HAS_SMOOTH : 0;
 }
 
 /* No events reach software's host yet. */

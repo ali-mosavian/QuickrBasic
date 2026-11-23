@@ -99,7 +99,7 @@ static void screen_in(
     nwords = plays = 0;
     memset(pixels, 0, sizeof pixels);
     CHECK(!GPU_CALL("display.open", I(w), I(h), I(depth), I(0)).error);
-    CHECK(GPU_CALL("display.caps").result.i == GFX_DISPLAY_HAS_GPU);
+    CHECK(GPU_CALL("display.caps").result.i == (GFX_DISPLAY_HAS_GPU | GFX_DISPLAY_HAS_SMOOTH));
 }
 
 /* A w by h screen of depth on a fake Metal. */
@@ -473,6 +473,19 @@ TEST(gfx_gpu_sends_the_rows_written)
     GPU_CALL("draw.sprite", I(s), F(0), F(0), I(0));
     GPU_CALL("display.flip");
     CHECK(ops(HEAD "PNCDSE"));
+}
+
+/* SMOOTH asks the shader to mix a picture's texels. */
+TEST(gfx_gpu_smooths_pictures)
+{
+    screen(S, 8, 8, 8);
+    const int32_t s = GPU_CALL("surface.new", I(2), I(2)).result.i;
+
+    GPU_CALL("draw.sprite", I(s), F(0), F(0), I(GFX_PEN_SMOOTH));
+    GPU_CALL("draw.sprite", I(s), F(0), F(0), I(0));
+    GPU_CALL("display.flip");
+    CHECK(vertices[0].stages == (GPU_STAGE_INDEXED | GPU_STAGE_KEYED | GPU_STAGE_SMOOTH));
+    CHECK(vertices[4].stages == (GPU_STAGE_INDEXED | GPU_STAGE_KEYED));
 }
 
 /* An 8-bit picture goes into an index page, sent once and again when written; its place freed

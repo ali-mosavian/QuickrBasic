@@ -5,13 +5,14 @@
 
 /* A vertex's stages: what its pixels do. */
 enum {
-    GPU_STAGE_INDEXED = 1, /* the texel is an index, through the palette's row */
-    GPU_STAGE_KEYED = 2,   /* index 0, or alpha under a half, is not drawn */
-    GPU_STAGE_SOLID = 4,   /* the colour is the tint alone, where a texel is drawn */
-    GPU_STAGE_WRAP = 8,    /* u repeats across the rectangle */
-    GPU_STAGE_DISC = 16,   /* drawn only in the disc's band */
-    GPU_STAGE_SWEEP = 32,  /* and in the sweep */
-    GPU_STAGE_WIDE = 64,   /* the sweep is past half a turn */
+    GPU_STAGE_INDEXED = 1,  /* the texel is an index, through the palette's row */
+    GPU_STAGE_KEYED = 2,    /* index 0, or alpha under a half, is not drawn */
+    GPU_STAGE_SOLID = 4,    /* the colour is the tint alone, where a texel is drawn */
+    GPU_STAGE_WRAP = 8,     /* u repeats across the rectangle */
+    GPU_STAGE_DISC = 16,    /* drawn only in the disc's band */
+    GPU_STAGE_SWEEP = 32,   /* and in the sweep */
+    GPU_STAGE_WIDE = 64,    /* the sweep is past half a turn */
+    GPU_STAGE_SMOOTH = 128, /* the four texels round the centre mixed */
 };
 
 /* x, y a pixel's centre at whole numbers; u, v texels, the one at a pixel's centre drawn, kept

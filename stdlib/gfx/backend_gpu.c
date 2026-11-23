@@ -144,7 +144,8 @@ static bool begin(Gx *const g, Surface *const s, const Command *const c, Target 
             {
                 .light = (uint8_t)pen->light,
                 .row = (uint8_t)pen->recolor,
-                .stages = c->flags & GFX_PEN_OPAQUE ? 0 : GPU_STAGE_KEYED,
+                .stages = (uint8_t)((c->flags & GFX_PEN_OPAQUE ? 0 : GPU_STAGE_KEYED) |
+                                    (c->flags & GFX_PEN_SMOOTH ? GPU_STAGE_SMOOTH : 0)),
             },
         .texture = blank.id,
         .blend = blend,
@@ -177,8 +178,8 @@ static bool source(Gx *const g, Target *const t, const Picture *const p)
     k->r = (uint8_t)(gt->paint >> 16);
     k->g = (uint8_t)(gt->paint >> 8);
     k->b = (uint8_t)gt->paint;
-    k->stages = (uint8_t)((k->stages & GPU_STAGE_KEYED) | (indexed ? GPU_STAGE_INDEXED : 0) |
-                          (gt->solid ? GPU_STAGE_SOLID : 0));
+    k->stages = (uint8_t)((k->stages & (GPU_STAGE_KEYED | GPU_STAGE_SMOOTH)) |
+                          (indexed ? GPU_STAGE_INDEXED : 0) | (gt->solid ? GPU_STAGE_SOLID : 0));
     return true;
 }
 

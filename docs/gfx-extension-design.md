@@ -555,6 +555,9 @@ Step 4, in parts:
   shown last's draws, batches, uploads and reads waited for. On the Mac, 300 sprites and 300
   rects interleaved went from 601 batches to 1 (1764 to 2891 frames a second); 1000 sprites from
   16 pictures from 1000 batches to 1 (1371 to 1996).
+- **`SMOOTH`**: the shader mixes the four texels round a pixel's centre, each kept in the
+  picture's rectangle, so a page's neighbours never bleed in; a keyed texel adds nothing, and a
+  pixel mostly keyed is not drawn. `display.caps` gives `HAS_SMOOTH` on a GPU.
 - **The page's player** (`plat/wasm/player.c`, `web/gpu.mjs`): the module's thread copies each
   list and the memory it points at to the page, going on while the page is at most three behind;
   a read waits for the page. The page plays it with WebGL2 on its own thread: one with an event

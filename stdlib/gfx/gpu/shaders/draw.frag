@@ -1,7 +1,8 @@
 // gfx's one shader, its pixels: with DISC, only those stdlib/gfx/disc.h's rule covers, worked
 // as it works them; the texel at the pixel's centre, kept in its rectangle (u repeating with
 // WRAP); an index through the palette's row; keyed, or the tint alone (SOLID); times the tint and
-// the light. Blending is the pipeline's.
+// the light. SMOOTH mixes the four texels round the centre instead, a keyed one adding nothing,
+// and draws where they are mostly kept. Blending is the pipeline's.
 #version 450
 
 const uint INDEXED = 1u;
@@ -11,6 +12,7 @@ const uint WRAP = 8u;
 const uint DISC = 16u;
 const uint SWEEP = 32u;
 const uint WIDE = 64u;
+const uint SMOOTH = 128u;
 
 // ESSL's samplers are named by binding (qx/qxlist.h).
 layout(set = 2, binding = 0) uniform sampler2D s0;
@@ -54,14 +56,10 @@ bool covered(uint stages)
     return (stages & WIDE) != 0u ? !(from < 0.0 && to < 0.0) : from >= 0.0 && to >= 0.0;
 }
 
-void main()
+// The texel at t, kept in the rectangle: its colour, alpha 1; 0 keyed.
+vec4 texel(ivec2 t, uint stages)
 {
-    uint stages = v_more.y;
-
-    if ((stages & DISC) != 0u && !covered(stages))
-        discard;
     ivec2 from = ivec2(v_rect.xy), size = ivec2(v_rect.zw);
-    ivec2 t = ivec2(floor(v_texel));
 
     if ((stages & WRAP) != 0u)
         t.x = from.x + int(mod(float(t.x - from.x), float(size.x)));
@@ -73,11 +71,41 @@ void main()
         int index = int(c.r * 255.0 + 0.5);
 
         if ((stages & KEYED) != 0u && index == 0)
+            return vec4(0.0);
+
+        return vec4(texelFetch(palette, ivec2(index, int(v_more.x)), 0).rgb, 1.0);
+    }
+
+    return (stages & KEYED) != 0u && c.a < 0.5 ? vec4(0.0) : vec4(c.rgb, 1.0);
+}
+
+void main()
+{
+    uint stages = v_more.y;
+
+    if ((stages & DISC) != 0u && !covered(stages))
+        discard;
+
+    vec4 c;
+
+    if ((stages & SMOOTH) != 0u) {
+        vec2 p = v_texel - 0.5;
+        vec2 f = fract(p);
+        ivec2 t = ivec2(floor(p));
+        vec4 top = mix(texel(t, stages), texel(t + ivec2(1, 0), stages), f.x);
+        vec4 under = mix(texel(t + ivec2(0, 1), stages), texel(t + ivec2(1, 1), stages), f.x);
+        c = mix(top, under, f.y);
+
+        if (c.a < 0.5)
             discard;
 
-        c = texelFetch(palette, ivec2(index, int(v_more.x)), 0);
-    } else if ((stages & KEYED) != 0u && c.a < 0.5)
-        discard;
+        c.rgb /= c.a;
+    } else {
+        c = texel(ivec2(floor(v_texel)), stages);
+
+        if (c.a == 0.0)
+            discard;
+    }
 
     if ((stages & SOLID) != 0u)
         c.rgb = vec3(1.0);
