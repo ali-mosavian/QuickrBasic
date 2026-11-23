@@ -57,6 +57,27 @@ In software the polygon scanner knows nothing of pixels and a filler knows nothi
 of span fillers for each depth, as µGL's `cfmt/b8`, `b15`, `b16` and `b32`. A new depth is a new set of
 fillers, never a flag in the scanner.
 
+## Displays and modes
+
+A display mode is what the screen shows; the canvas is shown in it, scaled. So a 320×200 canvas can be
+shown in any mode.
+
+- `gfx.displays` counts the displays; `gfx.modes(display)` lists each mode's width, height, depth and
+  refresh.
+- `gfx.open` takes `GFX_WINDOW` (the default), `GFX_FULL` (the desktop's own mode, the canvas scaled
+  into it) or `GFX_MODE` with a mode from the list, switched to.
+- With `GFX_VSYNC`, `gfx.end` waits for the display's refresh.
+- `gfx.event` reports what the host saw: the window resized, the display changed, focus lost, the GPU
+  lost and back. The extension holds every texture, mesh and canvas, so it uploads them again itself.
+
+| | Modes listed | Set by |
+|---|---|---|
+| DOS | mode 13h, and VBE's list (4F00h, 4F01h) | 4F02h; pages flipped by 4F07h at the retrace |
+| Mac, Linux, Windows | `SDL_GetFullscreenDisplayModes` | `SDL_SetWindowFullscreenMode`, or a window |
+| The browser | one, the page's | none; full screen by the Fullscreen API, after a click or a key |
+
+On DOS a mode is the whole screen and the one display.
+
 ## Colour
 
 A texture is indexed (8 bits and a palette) or direct (16 or 32 bits).
@@ -135,9 +156,9 @@ BASIC constants naming them.
 - **Depth**: off, written, or tested and written. `gfx.order FRONT` says commands come nearest first:
   a GPU rejects hidden pixels early; software keeps a coverage buffer and skips spans already drawn,
   which on a 486 replaces testing each pixel's depth.
-- **Materials**, a fixed set every backend has: flat, textured, vertex-lit, lightmapped, keyed,
-  translucent, warped (water) and sky. A lightmapped surface is two textures multiplied on a GPU, and a
-  cache of surfaces lit once in software, as Quake's.
+- **Materials**, lists of pixel stages ([Shaders](#shaders)), the same on every backend: flat, textured,
+  vertex-lit, lightmapped, keyed, translucent, warped (water) and sky. A lightmapped surface is two
+  textures multiplied on a GPU, and a cache of surfaces lit once in software, as Quake's.
 - **Mip levels**: built when a texture is loaded; a GPU picks one for each pixel, software for each
   polygon.
 - **Models**: keyframes, blended between two: in the vertex shader on a GPU, on the CPU in software.
@@ -146,6 +167,27 @@ BASIC constants naming them.
 The software side of all of this is qcport's: its scanner (`qglRsPoly`), clipper (`qglClPoly`),
 surface builder (`qglSbBuild`), coverage and depth. It moves from 16-bit real mode with EMS to the DOS
 build's 32-bit flat memory.
+
+## Shaders
+
+QuickrBasic runs BASIC as bytecode, so a shader written in BASIC would be interpreted at every pixel:
+too slow in software. Shaders come in three kinds, by where they can run.
+
+- **Vertex procedures, everywhere.** A BASIC `SUB` given a mesh's vertices and the frame's values, run
+  on the CPU before the mesh is drawn: a wave, a wobble, a bend. A 486 affords it for hundreds of
+  vertices a frame. The built-in vertex work, transform, keyframe blend and billboards, is the
+  backend's: a vertex shader on a GPU.
+- **Pixel stages, everywhere.** A material is a short list of stages, each a step every backend has:
+  read a texture, its u and v warped or not; read the light table; read the palette; multiply or add a
+  second texture or a colour; key; blend. A GPU backend joins a material's stages into one shader.
+  Software has a hand-written span filler for each built-in material's list, and a slower general
+  one that steps through any other.
+- **The program's own shaders, on a GPU only.** GLSL ES 3.0, as WebGL2 takes it; for SDL_GPU, compiled
+  to SPIR-V by glslang and crossed to MSL and DXIL by SDL_shadercross. A program that uses one also
+  gives a material of stages, drawn where there are none.
+
+`gfx.caps` says what the backend has: a GPU, the program's own shaders, smooth sampling, and a cost for
+each material, so the program picks its own detail.
 
 ## Backends
 
@@ -183,15 +225,18 @@ with which material. Tests assert on that, and pass on every backend.
 
 ## Order
 
-1. The core: canvas, colour, frames, textured triangles; the software backend in C at 8 and 32 bits.
+1. The core: canvas, displays and modes, colour, frames, textured triangles, pixel stages; the
+   software backend in C at 8 and 32 bits.
 2. 2D: sprites, tiles, strips; CHARLIE moves onto them.
 3. The SDL_GPU and WebGL2 backends.
 4. DOS: span fillers in assembly, VBE modes.
 5. 3D: meshes, materials, models, from qcport.
+6. Vertex procedures, and the program's own shaders.
 
 ## Open questions
 
 1. `SCREEN`'s page and a `gfx` canvas: two layers (as above), or one canvas both draw into?
-2. Shaders of the program's own on GPU backends: offered, marked as not portable, or never?
+2. The program's own shaders: GLSL ES as it is, or a BASIC subset translated to it?
 3. Depth in software: a 16-bit z, or 1/z as Quake's?
 4. 15 bits: worth its fillers, or 16 alone?
+5. Vertex procedures: on the CPU everywhere (as above), or translated to vertex shaders on a GPU?
