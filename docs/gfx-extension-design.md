@@ -485,6 +485,13 @@ Step 3, in parts:
   pixel taking the texel at its centre through the affine map three corners give. A quad is two
   triangles, as a GPU draws it. A strip's points are its top edge, its texels upright below,
   repeating along x. Text under a turned camera waits for fonts as pictures.
+- **The pen at 8 bits**: `light`, `tint`, `alpha` with `BLEND` and `ADD`, `SOLID`, `recolor`; a
+  shape's colour goes through them too. The tint is `&HRRGGBB` at every depth. Row 0 gives the
+  tables when first needed: a 32 KB map from 5 bits a channel to the nearest index, the light
+  table, and a 64 KB blend table for each mode and alpha, the last four kept. A call's light, tint
+  and row mix into 256 indices. With nothing to do the fused fillers draw; else the ink does,
+  `FILL_CHUNK` texels at a time: fetched, coloured, keyed, blended, stored. Software ignores
+  `SMOOTH`.
 
 ## Prior art
 

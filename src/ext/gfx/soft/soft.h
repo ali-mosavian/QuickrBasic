@@ -3,18 +3,20 @@
  * # How it works
  * Shapes go through the scanner (scan.h) to the target's fillers (fill.h). An upright sprite at
  * 1:1 skips the scanner: its rows are copied, keyed unless OPAQUE, read backward for FLIPX. Points
- * are pixel centres, as the scanner's.
+ * are pixel centres, as the scanner's. A call with an ink to go through (fill.h) draws its rows
+ * through it instead of the fused fillers.
  */
 #ifndef GFX_SOFT_H
 #define GFX_SOFT_H
 #include "pixels.h"
 #include "soft/fill.h"
 
-/* What is drawn into: its pixels, the clip in them, its depth's fillers. */
+/* What is drawn into: its pixels, the clip in them, its depth's fillers; the call's ink. */
 typedef struct {
     Pixels px;
     Rect clip;
     const Fill *fill;
+    Ink ink;
 } SoftTarget;
 
 void soft_clear(const SoftTarget *t, uint32_t colour);

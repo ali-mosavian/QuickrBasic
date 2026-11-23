@@ -2,11 +2,7 @@
 #include "gfx.h"
 #include "mem.h"
 
-enum {
-    /* the flags a later step draws: not yet */
-    LATER = GFX_PEN_BLEND | GFX_PEN_ADD | GFX_PEN_SOLID | GFX_PEN_SMOOTH,
-    COLOURS = 256,
-};
+enum { COLOURS = 256, BLENDS = GFX_PEN_BLEND | GFX_PEN_ADD };
 
 static Gx *state;
 
@@ -79,6 +75,27 @@ Vec *gx_points(Gx *const g, const uint32_t n)
     return g->points;
 }
 
+/* The ink of a call's flags and the pen, over an 8-bit target: false, raised. */
+static bool ink(Gx *const g, const int32_t flags, Ink *const k)
+{
+    const Pen *const p = &g->pen;
+    const BlendMode mode = flags & GFX_PEN_ADD ? BLEND_ADD : BLEND_MIX;
+    uint8_t solid = 0;
+    *k = (Ink){.keyed = !(flags & GFX_PEN_OPAQUE), .solid = flags & GFX_PEN_SOLID};
+
+    if (!pal_lut(&g->palette, p->recolor, p->light, p->tint, &k->lut))
+        return gx_fail(ERR_MEMORY);
+
+    if (k->solid && !pal_index(&g->palette, pal_shade(p->tint, p->light, PAL_WHITE), &solid))
+        return gx_fail(ERR_MEMORY);
+
+    if (flags & BLENDS && !(k->blend = pal_blend(&g->palette, mode, p->alpha)))
+        return gx_fail(ERR_MEMORY);
+
+    k->colour = solid;
+    return true;
+}
+
 bool gx_draw(
     Gx *const g,
     Command *const c,
@@ -87,12 +104,8 @@ bool gx_draw(
     Place *const where
 )
 {
-    const int32_t refused = c->flags & ~allowed;
-
-    if (refused)
-        return gx_fail(refused & ~LATER ? ERR_ILLEGAL : ERR_UNAVAILABLE);
-
-    if (c->colour < 0 || c->colour >= COLOURS)
+    if (c->flags & ~allowed || (c->flags & BLENDS) == BLENDS || c->colour < 0 ||
+        c->colour >= COLOURS)
         return gx_fail(ERR_ILLEGAL);
 
     const Surface *const s = gx_surface(g, g->pen.target);
@@ -107,9 +120,13 @@ bool gx_draw(
     if (!cmd_log(&g->log, c))
         return gx_fail(ERR_MEMORY);
 
-    *t = (SoftTarget){px, pen_clip(&g->pen, px.w, px.h), fill_formats[FILL_8]};
+    *t = (SoftTarget){
+        .px = px,
+        .clip = pen_clip(&g->pen, px.w, px.h),
+        .fill = fill_formats[FILL_8],
+    };
 
-    return true;
+    return ink(g, c->flags, &t->ink);
 }
 
 void gfx_init(void) {}
@@ -126,6 +143,7 @@ void gfx_stop(void)
 
     surf_done(&state->surfaces);
     cmd_done(&state->log);
+    pal_done(&state->palette);
     mem_free(state->points);
     mem_free(state);
     state = nullptr;

@@ -112,13 +112,14 @@ TEST(gfx_tiles_and_text)
     CHECK(CALL("draw.tiles", ARRAY(&map), I(2), F(0), F(0), I(1), I(1), I(0)).error == 5);
 }
 
-/* Each call takes its own flags: another's is illegal, one drawn later not yet available. */
+/* Each call takes its own flags: another's is illegal, and BLEND with ADD. */
 TEST(gfx_flags_a_call_refuses)
 {
     canvas(S);
     const int32_t s = sheet(S);
     CHECK(CALL("draw.sprite", I(s), F(0), F(0), I(GFX_DRAW_FILL)).error == 5);
-    CHECK(CALL("draw.rect", F(0), F(0), F(1), F(1), I(1), I(GFX_PEN_BLEND)).error == 73);
+    CHECK(CALL("draw.rect", F(0), F(0), F(1), F(1), I(1), I(GFX_PEN_OPAQUE)).error == 5);
+    CHECK(CALL("draw.sprite", I(s), F(0), F(0), I(GFX_PEN_BLEND | GFX_PEN_ADD)).error == 5);
     CHECK(CALL("draw.rect", F(0), F(0), F(1), F(1), I(256), I(0)).error == 5);
     CHECK(PX(0, 0) == 1);
 }

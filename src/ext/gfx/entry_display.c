@@ -122,7 +122,7 @@ void gfx_display_palette(const int32_t row, const QxArray *const colours)
     }
 
     const uint32_t n = colours->count < PAL_COLOURS ? colours->count : PAL_COLOURS;
-    mem_copy(g->palette.rows[row], colours->data, n * sizeof(uint32_t));
+    pal_set(&g->palette, row, colours->data, n);
 }
 
 void gfx_display_palette_of(const int32_t row, const int32_t source)
@@ -138,7 +138,7 @@ void gfx_display_palette_of(const int32_t row, const int32_t source)
         return;
     }
 
-    mem_copy(g->palette.rows[row], s->palette, sizeof g->palette.rows[row]);
+    pal_set(&g->palette, row, s->palette, PAL_COLOURS);
 }
 
 int32_t gfx_display_rgb(const int32_t r, const int32_t g_, const int32_t b)

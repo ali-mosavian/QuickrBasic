@@ -51,11 +51,45 @@ void gfx_pen_font(const int32_t handle)
         gx_fail(ERR_UNAVAILABLE);
 }
 
-/* Not yet: light, tint, blending and palette rows come with the rest of 2D. */
-void gfx_pen_light(const int32_t level) { (void)level, gx_fail(ERR_UNAVAILABLE); }
+/* The pen to set: null, raised (no state, or v outside lo to hi). */
+static Pen *pen_for(const int32_t v, const int32_t lo, const int32_t hi)
+{
+    Gx *const g = gx_get();
 
-void gfx_pen_tint(const int32_t colour) { (void)colour, gx_fail(ERR_UNAVAILABLE); }
+    if (g && (v < lo || v > hi))
+        gx_fail(ERR_ILLEGAL);
 
-void gfx_pen_alpha(const int32_t level) { (void)level, gx_fail(ERR_UNAVAILABLE); }
+    return g && v >= lo && v <= hi ? &g->pen : nullptr;
+}
 
-void gfx_pen_recolor(const int32_t row) { (void)row, gx_fail(ERR_UNAVAILABLE); }
+void gfx_pen_light(const int32_t level)
+{
+    Pen *const p = pen_for(level, 0, PAL_FULL);
+
+    if (p)
+        p->light = level;
+}
+
+void gfx_pen_tint(const int32_t colour)
+{
+    Pen *const p = pen_for(colour, 0, PAL_WHITE);
+
+    if (p)
+        p->tint = (uint32_t)colour;
+}
+
+void gfx_pen_alpha(const int32_t level)
+{
+    Pen *const p = pen_for(level, 0, PAL_FULL);
+
+    if (p)
+        p->alpha = level;
+}
+
+void gfx_pen_recolor(const int32_t row)
+{
+    Pen *const p = pen_for(row, 0, PAL_ROWS - 1);
+
+    if (p)
+        p->recolor = row;
+}

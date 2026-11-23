@@ -7,7 +7,10 @@
 #include "soft/scan.h"
 
 enum {
-    SPRITE_FLAGS = GFX_DRAW_FLIPX | GFX_DRAW_FLIPY | GFX_PEN_OPAQUE,
+    BLENDS = GFX_PEN_BLEND | GFX_PEN_ADD,
+    SHAPE_FLAGS = GFX_DRAW_FILL | BLENDS,
+    SPRITE_FLAGS =
+        GFX_DRAW_FLIPX | GFX_DRAW_FLIPY | GFX_PEN_OPAQUE | BLENDS | GFX_PEN_SOLID | GFX_PEN_SMOOTH,
     GLYPH = 8, /* the built-in font's cells, 8 by 8 */
     POLY_LEAST = 3,
 };
@@ -148,7 +151,7 @@ void gfx_draw_rect(
     SoftTarget t;
     Place where;
 
-    if (!g || !gx_draw(g, &c, GFX_DRAW_FILL, &t, &where))
+    if (!g || !gx_draw(g, &c, SHAPE_FLAGS, &t, &where))
         return;
 
     const bool fill = flags & GFX_DRAW_FILL;
@@ -181,7 +184,7 @@ void gfx_draw_circle(
         return;
     }
 
-    if (gx_draw(g, &c, GFX_DRAW_FILL, &t, &where))
+    if (gx_draw(g, &c, SHAPE_FLAGS, &t, &where))
         soft_circle(&t, (Vec){c.x, c.y}, r * where.zoom, (uint32_t)colour, flags & GFX_DRAW_FILL);
 }
 
@@ -260,7 +263,7 @@ void gfx_draw_poly(
     SoftTarget t;
     Place where;
 
-    if (!gx_draw(g, &c, GFX_DRAW_FILL, &t, &where))
+    if (!gx_draw(g, &c, SHAPE_FLAGS, &t, &where))
         return;
 
     for (int32_t i = 0; i < n; i++)

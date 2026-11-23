@@ -19,7 +19,7 @@ declare sub clip cdecl ( _
 declare sub unclip cdecl ()
 ' 0 to 63, 63 a texel's own.
 declare sub light cdecl (byval level as integer)
-' Multiplied; SOLID's colour.
+' &HRRGGBB at every depth: multiplied; SOLID's colour.
 declare sub tint cdecl (byval colour as long)
 ' BLEND's and ADD's: 0 to 63.
 declare sub alpha cdecl (byval level as integer)

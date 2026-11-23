@@ -11,9 +11,43 @@ static uint8_t *at(const SoftTarget *const t, const int32_t x, const int32_t y)
     return t->px.p + y * t->px.pitch + x;
 }
 
-static bool inside(const Rect r, const int32_t x, const int32_t y)
+/* The walk n texels on. */
+static Steps advanced(Steps st, const int32_t n)
 {
-    return x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h;
+    const int64_t u = st.u + (int64_t)st.du * n;
+    st.u = st.wrap ? fill_wrap((int32_t)(u % st.wrap), st.wrap) : (int32_t)u;
+    st.v = (int32_t)(st.v + (int64_t)st.dv * n);
+    return st;
+}
+
+/* n pixels from x, y through the call's ink: s's texels along the walk, or colour when s is null
+   (drawn even when 0). */
+static void inked(
+    const SoftTarget *const t,
+    const int32_t x,
+    const int32_t y,
+    const int32_t n,
+    const Pixels *const s,
+    Steps st,
+    const uint32_t colour
+)
+{
+    uint32_t texels[FILL_CHUNK];
+    Ink k = t->ink;
+    k.keyed = k.keyed && s;
+
+    for (int32_t done = 0; done < n; done += FILL_CHUNK) {
+        const int32_t m = rect_min(n - done, FILL_CHUNK);
+
+        if (s) {
+            t->fill->fetch(texels, s, st, m);
+            st = advanced(st, m);
+        } else
+            for (int32_t i = 0; i < m; i++)
+                texels[i] = colour;
+
+        t->fill->ink(at(t, x + done, y), texels, m, &k);
+    }
 }
 
 /* Row y from x0 up to x1 in colour, clipped. */
@@ -27,8 +61,30 @@ static void span(
 {
     const int32_t from = rect_max(x0, t->clip.x), to = rect_min(x1, t->clip.x + t->clip.w);
 
-    if (y >= t->clip.y && y < t->clip.y + t->clip.h && from < to)
-        t->fill->span(at(t, from, y), to - from, colour);
+    if (y < t->clip.y || y >= t->clip.y + t->clip.h || from >= to)
+        return;
+
+    if (t->ink.blend)
+        inked(t, from, y, to - from, nullptr, (Steps){}, colour);
+    else
+        t->fill->span(at(t, from, y), to - from, t->ink.lut ? t->ink.lut[colour] : colour);
+}
+
+/* s's texels along the walk into n pixels from x, y: the fused filler, or through the ink. */
+static void texels(
+    const SoftTarget *const t,
+    const int32_t x,
+    const int32_t y,
+    const int32_t n,
+    const Pixels *const s,
+    const Steps st,
+    FillStep *const fused
+)
+{
+    if (fill_plain(&t->ink))
+        fused(at(t, x, y), s, st, n);
+    else
+        inked(t, x, y, n, s, st, 0);
 }
 
 typedef struct {
@@ -100,8 +156,8 @@ static void walk(const SoftTarget *const t, Vec a, Vec b, const uint32_t colour,
     for (int32_t err = dx + dy;;) {
         const bool end = x == to_x && y == to_y;
 
-        if ((!end || last) && inside(t->clip, x, y))
-            t->fill->span(at(t, x, y), 1, colour);
+        if (!end || last)
+            span(t, y, x, x + 1, colour);
 
         if (end)
             return;
@@ -333,10 +389,16 @@ void soft_sprite(
     FillRow *const row = t->fill->row[variant(flags)];
     const bool flip_x = flags & GFX_DRAW_FLIPX, flip_y = flags & GFX_DRAW_FLIPY;
     const int32_t u = flip_x ? s->w - 1 - (drawn.x - left) : drawn.x - left;
+    const bool plain = fill_plain(&t->ink);
 
     for (int32_t y_ = drawn.y; y_ < drawn.y + drawn.h; y_++) {
         const int32_t v = flip_y ? s->h - 1 - (y_ - top) : y_ - top;
-        row(at(t, drawn.x, y_), s->p + v * s->pitch + u, drawn.w);
+        const Steps st = {u << 16, v << 16, flip_x ? -65536 : 65536, 0, 0};
+
+        if (plain)
+            row(at(t, drawn.x, y_), s->p + v * s->pitch + u, drawn.w);
+        else
+            inked(t, drawn.x, y_, drawn.w, s, st, 0);
     }
 }
 
@@ -420,7 +482,7 @@ static void textured(void *const ctx, const int32_t y, const int32_t x0, const i
         st.du = fixed(m->ux);
     }
 
-    x->step(at(x->t, x0, y), x->s, st, n);
+    texels(x->t, x0, y, n, x->s, st, x->step);
 }
 
 void soft_texture(
@@ -463,6 +525,6 @@ void soft_glyph(
 
     for (int32_t r = 0; r < h; r++)
         for (int32_t c = 0; c < GLYPH_W; c++)
-            if (rows[r] & 0x80 >> c && inside(t->clip, left + c, top + r))
-                t->fill->span(at(t, left + c, top + r), 1, colour);
+            if (rows[r] & 0x80 >> c)
+                span(t, top + r, left + c, left + c + 1, colour);
 }

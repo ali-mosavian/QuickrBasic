@@ -61,6 +61,25 @@ static void stepped_opaque(uint8_t *const d, const Pixels *const s, Steps st, co
         d[i] = next(s, &st);
 }
 
+static void fetch(uint32_t *const out, const Pixels *const s, Steps st, const int32_t n)
+{
+    for (int32_t i = 0; i < n; i++)
+        out[i] = next(s, &st);
+}
+
+static void ink(uint8_t *const d, const uint32_t *const texels, const int32_t n, const Ink *const k)
+{
+    for (int32_t i = 0; i < n; i++) {
+        const uint8_t texel = (uint8_t)texels[i];
+
+        if (k->keyed && !texel)
+            continue;
+
+        const uint8_t c = k->solid ? (uint8_t)k->colour : k->lut ? k->lut[texel] : texel;
+        d[i] = k->blend ? k->blend[c << 8 | d[i]] : c;
+    }
+}
+
 const Fill fill8 = {
     .span = span,
     .row =
@@ -71,4 +90,6 @@ const Fill fill8 = {
             [ROW_OPAQUE | ROW_FLIPX] = opaque_flipped,
         },
     .step = {[0] = stepped_keyed, [STEP_OPAQUE] = stepped_opaque},
+    .fetch = fetch,
+    .ink = ink,
 };
