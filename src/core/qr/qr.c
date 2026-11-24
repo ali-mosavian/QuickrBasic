@@ -304,6 +304,25 @@ static void qr_say(Session *const S, const QProg *const p, const QErr *const e)
         qr_mark(co, ln->text, ln->len, e->col);
 }
 
+/* The program's end's line, a copy of its first owner's: the modules' owners dropped. */
+static void qr_atend(Session *const S, QProg *const p, QMem *const m, uint32_t *const cap)
+{
+    const QLine ln = p->src.lines[p->atend->tok->line];
+    p->src.lines = qast_room(m, p->src.lines, p->src.nlines, cap, sizeof *p->src.lines);
+    p->atend->line = p->src.nlines;
+    p->src.lines[p->src.nlines++] = (QLine){
+        .at = prog_at(&S->prog),
+        .text = ln.text,
+        .len = ln.len,
+        .src = ln.src,
+        .mod = ln.mod,
+    };
+
+    S->prog.add_src = ln.src;
+    S->prog.add_file = ln.mod;
+    prog_add(&S->prog, NONUM, (const uint8_t *)ln.text, ln.len + 1);
+}
+
 /* Each instance's lines, copies of its generic's at the store's end, its statements on them; each
    block lambda's so too, its lines in the store a procedure's own. One code block a line, each copy
    keeping its source's number and text. */
@@ -343,6 +362,9 @@ static void qr_instances(Session *const S, QProg *const p, QMem *const m)
                 break;
         }
     }
+
+    if (p->atend) /* last: the run ends there, past every procedure */
+        qr_atend(S, p, m, &cap);
 
     S->prog.add_flags = 0;
     S->prog.add_src = 0;

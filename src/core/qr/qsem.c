@@ -154,6 +154,8 @@ static bool qsem_isconst(const QExpr *e);
 static bool qsem_byplace(const QSem *S, QType t);
 static QVar *qsem_root(const QExpr *e);
 static QExpr *qsem_addressed(QSem *S, QExpr *e);
+static QExpr *qsem_held(QSem *S, QExpr *e);
+static void qsem_dropix(QSem *S, QType t);
 static bool qsem_changes(QSem *S, const QExpr *e, const QTok *at);
 static QExpr *qsem_get(QSem *S, QExpr *e);
 static void qsem_signature(QSem *S, QFn *f);
@@ -653,9 +655,10 @@ static QType qsem_scalar(const QTok *const t)
     return QY_VOID;
 }
 
+/* Is a value of t moved, never copied by itself: it holds a list, or one with drop? */
 static bool qsem_owns(const QSem *const S, const QType t)
 {
-    return qast_compound(t) && qast_ty(S->prog, t)->owns;
+    return qast_compound(t) && (qast_ty(S->prog, t)->owns || qast_drops(S->prog, t));
 }
 
 static QType qsem_newty(QSem *const S, const QTyKind kind)
@@ -2956,6 +2959,12 @@ static uint32_t qsem_at(const QSem *const S, const QTok *const t)
    later), leaving its fn when it returns; any other place is copied, which copy() writes out. */
 static QExpr *qsem_owned(QSem *const S, QExpr *const e, const bool returned)
 {
+    if (e->kind == QE_COND) { /* the arm taken moves */
+        e->a = qsem_owned(S, e->a, returned);
+        e->b = qsem_owned(S, e->b, returned);
+        return e;
+    }
+
     if (!qsem_owns(S, e->type) || !qast_place(e))
         return e;
 
@@ -2966,6 +2975,8 @@ static QExpr *qsem_owned(QSem *const S, QExpr *const e, const bool returned)
         e->type = QY_ERROR;
         return e;
     }
+
+    e->move = v->live != nullptr;
 
     if (returned && v->fn)
         return e;
@@ -3113,13 +3124,26 @@ static QExpr *qsem_intoplace(QSem *const S, const QExpr *const t, QExpr *const e
     return qsem_into(S, qsem_root(t), e);
 }
 
-/* A record or list that is no place, where its address is wanted: built in a temporary. */
-static QExpr *qsem_addressed(QSem *const S, QExpr *const e)
+/* A record or list that is no place, where its address is wanted: built in a temporary, which
+   its user empties or drops. */
+static QExpr *qsem_held(QSem *const S, QExpr *const e)
 {
     if (qsem_byplace(S, e->type) && qast_fresh(e) && !e->var)
         e->var = qsem_var(S, e->tok, e->type, QV_TEMP);
 
     return e;
+}
+
+/* qsem_held's, read in place: a value with drop must have an owner. */
+static QExpr *qsem_addressed(QSem *const S, QExpr *const e)
+{
+    if (qast_fresh(e) && e->type != QY_ERROR && qast_drops(S->prog, e->type)) {
+        qsem_say(S, e->tok, qsem_aname(S, e->type), " has drop: keep it in a let first", nullptr);
+        e->type = QY_ERROR;
+        return e;
+    }
+
+    return qsem_held(S, e);
 }
 
 /* A T? or T! of type t built: its flag and its value, null the rest's zero. */
@@ -3142,6 +3166,8 @@ static QExpr *qsem_wrapped(
 }
 
 static QExpr *qsem_owned(QSem *S, QExpr *e, bool returned);
+static void qsem_owner(QSem *S, QVar *v);
+static void qsem_dropin(QSem *S, QType t, const QTok *name);
 
 /* v, a T, as a T? or a T! of type to: has it, or no error. */
 static QExpr *qsem_wrap(QSem *const S, const QType to, QExpr *const v)
@@ -3479,7 +3505,9 @@ static QExpr *qsem_listop(QSem *const S, QExpr *const e, const QBuiltin op)
     }
 
     if (op == QB_PUSH || op == QB_INSERT)
-        e->argv[n - 1] = qsem_addressed(S, qsem_value(S, x->e, elem));
+        e->argv[n - 1] = qsem_held(S, qsem_value(S, x->e, elem));
+    else
+        qsem_dropix(S, elem); /* remove's, a pop's dropped when not kept */
 
     e->type = op == QB_POP ? elem : QY_VOID;
     return e;
@@ -3583,6 +3611,11 @@ static QExpr *qsem_copy(QSem *const S, QExpr *const e)
 
     if (!qsem_byplace(S, a->type))
         return a;
+
+    if (qast_drops(S->prog, a->type)) {
+        qsem_say(S, e->tok, qsem_aname(S, a->type), " has drop: it can't be copied", nullptr);
+        return e;
+    }
 
     e->builtin = QB_COPY;
     e->a = qsem_addressed(S, a);
@@ -4393,7 +4426,7 @@ static QExpr *qsem_isnone(QSem *const S, QExpr *const e)
 /* a ?? b: a's T, or b when a is none or an Error. */
 static QExpr *qsem_coalesce(QSem *const S, QExpr *const e)
 {
-    QExpr *const a = qsem_addressed(S, qsem_expr(S, e->a, QY_VOID));
+    QExpr *const a = qsem_held(S, qsem_expr(S, e->a, QY_VOID));
     e->type = QY_ERROR;
 
     if (a->type == QY_ERROR) {
@@ -4428,7 +4461,7 @@ static QExpr *qsem_coalesce(QSem *const S, QExpr *const e)
 /* x?: x's T, or its error returned from the fn, whose result is a T! too. */
 static QExpr *qsem_try(QSem *const S, QExpr *const e)
 {
-    QExpr *const a = e->a = qsem_addressed(S, qsem_expr(S, e->a, QY_VOID));
+    QExpr *const a = e->a = qsem_held(S, qsem_expr(S, e->a, QY_VOID));
     e->type = QY_ERROR;
 
     if (a->type == QY_ERROR)
@@ -4569,6 +4602,48 @@ static QExpr *qsem_expr(QSem *const S, QExpr *const e, const QType hint)
 
 /* ---- statements */
 
+/* The frame checked's owners: its fn's, or the modules'. */
+static QOwners *qsem_frame(QSem *const S) { return S->fn ? &S->fn->own : &S->prog->own; }
+
+/* Room in the frame checked for the loops dropping a value of type t. */
+static void qsem_dropix(QSem *const S, const QType t)
+{
+    QOwners *const o = qsem_frame(S);
+    const uint32_t n = qast_dropdepth(S->prog, t);
+
+    if (n <= o->nix)
+        return;
+
+    QVar **const ix = qast_alloc(S->mem, n * sizeof *ix);
+
+    for (uint32_t k = 0; k < n; k++)
+        ix[k] = k < o->nix ? o->ix[k] : qsem_var(S, &S->prog->src.toks[0], QY_INT, QV_TEMP);
+
+    o->ix = ix;
+    o->nix = n;
+}
+
+/* Let or var v of a type with drop: an owner of its frame, its live flag set when it gets a
+   value. */
+static void qsem_owner(QSem *const S, QVar *const v)
+{
+    qsem_dropin(S, v->type, v->name);
+
+    if (!qast_drops(S->prog, v->type))
+        return;
+
+    if (S->fn && (S->fn->ytx || qast_inline(S->fn))) {
+        qsem_say(S, v->name, "a generator can't own ", qsem_aname(S, v->type), nullptr);
+        return;
+    }
+
+    QOwners *const o = qsem_frame(S);
+    v->live = qsem_var(S, v->name, QY_INT, QV_TEMP);
+    o->owned = qast_room(S->mem, o->owned, o->nowned, &o->capowned, sizeof *o->owned);
+    o->owned[o->nowned++] = v;
+    qsem_dropix(S, v->type);
+}
+
 /* One declaration of let, var or const. */
 static void qsem_decl(QSem *const S, QDecl *const d, const QKind kw)
 {
@@ -4625,8 +4700,10 @@ static void qsem_decl(QSem *const S, QDecl *const d, const QKind kw)
             c->type = QY_ERROR;
 
         d->var = c;
-    } else
+    } else {
         d->var = qsem_var(S, d->name, type, kw == QK_LET ? QV_LET : QV_VAR);
+        qsem_owner(S, d->var);
+    }
 
     if (v && kw != QK_CONST)
         d->value = qsem_into(S, d->var, v);
@@ -4659,13 +4736,14 @@ static void qsem_destructure(QSem *const S, QStmt *const s)
         );
 
     if (fits)
-        qsem_addressed(S, v);
+        qsem_held(S, v);
 
     uint32_t k = 0;
 
     for (QDecl *d = s->decls; d; d = d->next, k++) {
         const QType t = fits ? qast_ty(S->prog, v->type)->fields[k].type : QY_ERROR;
         d->var = qsem_var(S, d->name, t, s->op == QK_LET ? QV_LET : QV_VAR);
+        qsem_owner(S, d->var);
         qsem_bind(S, d->name, d->var, nullptr);
     }
 }
@@ -4730,6 +4808,9 @@ static void qsem_parallel(QSem *const S, QStmt *const s)
     for (uint32_t k = 0; k < to->n; k++) {
         to->items[k] = qsem_target(S, to->items[k], s->tok);
         names &= to->items[k]->kind == QE_NAME && !qsem_byplace(S, to->items[k]->type);
+
+        if (qast_drops(S->prog, to->items[k]->type))
+            qsem_say(S, to->items[k]->tok, "a, b = of values with drop: assign each", nullptr);
     }
 
     if (s->op != QK_EQ) {
@@ -4749,7 +4830,7 @@ static void qsem_parallel(QSem *const S, QStmt *const s)
             qsem_say(S, v->tok, qsem_aname(S, v->type), " doesn't fit these places", nullptr);
 
         if (fits)
-            qsem_addressed(S, v);
+            qsem_held(S, v);
 
         return;
     }
@@ -4844,6 +4925,9 @@ static void qsem_mapset(QSem *const S, QStmt *const s, QExpr *const t)
     qsem_hoist(S, s, t);
 }
 
+static void qsem_replaced(QSem *S, QExpr *e);
+static void qsem_compound(QSem *S, QStmt *s, QExpr *t);
+
 static void qsem_assign(QSem *const S, QStmt *const s)
 {
     if (s->target->kind == QE_TUPLE) {
@@ -4863,11 +4947,28 @@ static void qsem_assign(QSem *const S, QStmt *const s)
         return;
     }
 
-    if (s->op == QK_EQ) {
+    if (s->op == QK_EQ)
         s->e = qsem_intoplace(S, t, qsem_value(S, s->e, t->type));
-        return;
-    }
+    else
+        qsem_compound(S, s, t);
 
+    if (qast_drops(S->prog, t->type)) /* the new value first, then the old one dropped */
+        qsem_replaced(S, s->e);
+}
+
+/* Value e replacing a value with drop: in a temporary, unless an owner's moved; room to drop the
+   old. */
+static void qsem_replaced(QSem *const S, QExpr *const e)
+{
+    if (qast_fresh(e) && !e->var)
+        e->var = qsem_var(S, e->tok, e->type, QV_TEMP);
+
+    qsem_dropix(S, e->type);
+}
+
+/* t op= v: t = t op v. */
+static void qsem_compound(QSem *const S, QStmt *const s, QExpr *const t)
+{
     if (qsem_byplace(S, t->type) && !qsem_isrec(S, t->type)) {
         qsem_say(S, s->tok, qast_spelling(s->op), " takes numbers or a record's operator", nullptr);
         return;
@@ -6184,8 +6285,9 @@ static void qsem_simple(QSem *const S, QStmt *const s)
         qsem_assign(S, s);
         return;
 
-    case QS_CALL:
-        s->e = qsem_addressed(S, qsem_expr(S, s->e, QY_VOID));
+    case QS_CALL: /* a value with drop dropped */
+        s->e = qsem_held(S, qsem_expr(S, s->e, QY_VOID));
+        qsem_dropix(S, s->e->type);
         return;
 
     case QS_RETURN:
@@ -6276,6 +6378,8 @@ static const QStmt *qsem_ifof(const QStmt *const s)
 
 static void qsem_stmt(QSem *const S, QStmt *const s)
 {
+    s->own = qsem_frame(S);
+
     switch (s->kind) {
     case QS_IF:
         qsem_cond_of(S, s);
@@ -6671,6 +6775,107 @@ static void qsem_operdef(QSem *const S, QFn *const f)
     }
 }
 
+/* Is f a fn drop: named drop? */
+static bool qsem_isdrop(const QFn *const f)
+{
+    return !f->lamof && !f->of && qsem_is(f->name, "drop");
+}
+
+/* fn drop(mut x as T): T's, a record declared in its module. */
+static void qsem_dropdef(QSem *const S, QFn *const f)
+{
+    if (f->ntp || f->ytx || f->npar != 1 || !f->params[0].mut || f->rtype || f->native) {
+        qsem_say(S, f->name, "drop takes one mut record and gives nothing", nullptr);
+        return;
+    }
+
+    const QType t = f->params[0].var->type;
+
+    if (t == QY_ERROR)
+        return;
+
+    QTy *const y = qsem_isrec(S, t) ? qast_ty(S->prog, t) : nullptr;
+
+    if (!y)
+        qsem_say(S, f->name, "drop takes one mut record, not ", qsem_aname(S, t), nullptr);
+    else if (qsem_modof(S, y->name) != qsem_modof(S, f->name))
+        qsem_say(S, f->name, qsem_aname(S, t), "'s drop goes in its module", nullptr);
+    else if (y->drop)
+        qsem_say(S, f->name, qsem_aname(S, t), " has a drop already", nullptr);
+    else
+        y->drop = f;
+}
+
+/* Does a value of type t hold one of type of: a field's, an element's, T?'s value? */
+static bool qsem_holds_ty(QSem *const S, const QType t, const QType of)
+{
+    if (!qast_compound(t))
+        return false;
+
+    QTy *const y = qast_ty(S->prog, t);
+
+    if (y->seen)
+        return false;
+
+    const bool list = y->kind == QT_LIST || y->kind == QT_ARRAY;
+    const bool wrap = y->kind == QT_OPT || y->kind == QT_RES;
+    const uint32_t n = list || wrap ? 1 : y->kind == QT_REC || y->kind == QT_TUPLE ? y->nfields : 0;
+    bool any = false;
+    y->seen = true;
+
+    for (uint32_t k = 0; !any && k < n; k++) {
+        const QType p = list ? y->elem : wrap ? y->fields[QF_VAL].type : y->fields[k].type;
+        any = p == of || qsem_holds_ty(S, p, of);
+    }
+
+    y->seen = false;
+    return any;
+}
+
+/* Can a place of type t, named at name, hold a value with drop: not as a map's value, nor in a
+   list of lists? */
+static void qsem_dropin(QSem *const S, const QType t, const QTok *const name)
+{
+    if (!qast_compound(t) || !qast_drops(S->prog, qast_ty(S->prog, t)->elem))
+        return;
+
+    if (qsem_ismap(S, t))
+        qsem_say(S, name, "a map's values can't have drop", nullptr);
+    else if (qast_array(S->prog, t) && qast_array(S->prog, qast_ty(S->prog, t)->elem))
+        qsem_say(S, name, "a list of lists can't hold a value with drop", nullptr);
+}
+
+/* Each type with drop: no record holding itself; no enum's datum, map's value, list of lists. */
+static void qsem_dropok(QSem *const S)
+{
+    for (uint32_t i = 0; i < S->prog->tys.n; i++) {
+        const QType t = QY_FIRST + i;
+        const QTy *const y = &S->prog->tys.at[i];
+
+        if (y->kind == QT_REC && qast_drops(S->prog, t) && qsem_holds_ty(S, t, t))
+            qsem_say(S, y->name, qsem_aname(S, t), " has drop: it can't hold itself", nullptr);
+
+        for (uint32_t k = 0; y->kind == QT_ENUM && k < y->nfields; k++)
+            if (qast_drops(S->prog, y->fields[k].type))
+                qsem_say(S, y->fields[k].name, "an enum's data can't have drop", nullptr);
+
+        for (uint32_t k = 0; y->kind == QT_REC && k < y->nfields; k++)
+            qsem_dropin(S, y->fields[k].type, y->fields[k].name);
+    }
+}
+
+/* The program's end, when a module var owns a value with drop: each dropped there. */
+static void qsem_atend(QSem *const S)
+{
+    if (!S->prog->own.nowned)
+        return;
+
+    QStmt *const s = S->prog->atend = qast_alloc(S->mem, sizeof *s);
+    s->kind = QS_ATEND;
+    s->tok = S->prog->own.owned[0]->name;
+    s->own = &S->prog->own;
+}
+
 /* A number, a bool or a string: a native's argument and result. */
 static bool qsem_nativeok(const QType t)
 {
@@ -6873,7 +7078,7 @@ void qsem_program(QProg *const p, QMem *const m)
     qsem_scopes(&S);
 
     for (QFn *f = p->fns; f; f = f->next)
-        if (!f->lamof && !f->op) {
+        if (!f->lamof && !f->op && !qsem_isdrop(f)) {
             S.pub = f->pub;
             qsem_bind(&S, f->name, nullptr, f);
             S.pub = false;
@@ -6896,6 +7101,12 @@ void qsem_program(QProg *const p, QMem *const m)
             qsem_say(&S, f->name, "an operator is not generic and yields nothing", nullptr);
         else if (f->op)
             qsem_operdef(&S, f);
+        else if (qsem_isdrop(f) && f->sig)
+            qsem_dropdef(&S, f);
+        else if (qsem_isdrop(f))
+            qsem_say(&S, f->name, "drop takes one mut record and gives nothing", nullptr);
+
+    qsem_dropok(&S);
 
     for (uint32_t i = 0; i < p->nmods; i++) {
         qsem_module(&S, p->order[i]);
@@ -6909,4 +7120,5 @@ void qsem_program(QProg *const p, QMem *const m)
 
     qsem_exports(&S);
     qsem_moved(&S);
+    qsem_atend(&S);
 }

@@ -998,6 +998,8 @@ static void qcg_offset(QCg *const g, const uint32_t off)
 }
 
 static void qcg_into(QCg *g, const QExpr *dst, const QExpr *e);
+static void qcg_place(QCg *g, const QExpr *dst, const QExpr *e);
+static void qcg_dropall(QCg *g, const QOwners *o);
 static void qcg_build(QCg *g, const QExpr *dst, const QExpr *e);
 static uint32_t qcg_addr(QCg *g, const QExpr *e);
 
@@ -1285,6 +1287,7 @@ static QExpr qcg_tried(QCg *const g, const QExpr *const e)
         qcg_set(g, &to, &from);
     }
 
+    qcg_dropall(g, &e->fn->own);
     code_op(g->c, O_PRET);
     code_dword(g->c, e->fn->proc);
     code_dword(g->c, 0);
@@ -1532,6 +1535,17 @@ static void qcg_native(QCg *const g, const QExpr *const e)
     g->strings -= held;
 }
 
+/* Fn f called, its arguments pushed. */
+static void qcg_pcall(QCg *const g, const QFn *const f)
+{
+    Code *const c = g->c;
+    code_op(c, O_PCALL); /* the procedure, its locals' cells, its parameters (link's), its body */
+    code_dword(c, f->proc);
+    code_dword(c, 0);
+    code_word(c, 0);
+    qcg_target(g, f->def, 0, PAST_JMP);
+}
+
 /* A fn's call: each argument by reference where it has a place, else a value cell and its ref;
    a record's or list's result's place, dst, last. A parameter bound to a lambda takes none. */
 static void qcg_call(QCg *const g, const QExpr *const e, const QExpr *const dst)
@@ -1546,7 +1560,6 @@ static void qcg_call(QCg *const g, const QExpr *const e, const QExpr *const dst)
         return;
     }
 
-    Code *const c = g->c;
     const QFn *const f = e->fn;
     uint32_t held = 0;
 
@@ -1574,11 +1587,7 @@ static void qcg_call(QCg *const g, const QExpr *const e, const QExpr *const dst)
         qcg_ref(g, dst);
 
     g->strings -= held;
-    code_op(c, O_PCALL); /* the procedure, its locals' cells, its parameters (link's), its body */
-    code_dword(c, f->proc);
-    code_dword(c, 0);
-    code_word(c, 0);
-    qcg_target(g, f->def, 0, PAST_JMP);
+    qcg_pcall(g, f);
 }
 
 /* Lambda application e's arguments, each stored to its parameter's temporary; those read where
@@ -1597,6 +1606,174 @@ static void qcg_x(Code *const c, const QrtX op)
 {
     code_int(c, op);
     code_call(c, K_QX);
+}
+
+/* ---- drop */
+
+/* List place a's last element: a[len(a) - 1]'s parts, in len, one, last, at. */
+typedef struct {
+    QExpr len, one, last, at;
+} QCgLast;
+
+static void qcg_lastof(QCgLast *const l, const QExpr *const a, const QType elem)
+{
+    l->len = (QExpr){
+        .kind = QE_CALL,
+        .builtin = QB_LEN,
+        .a = (QExpr *)a,
+        .type = QY_INT,
+    };
+
+    l->one = (QExpr){.kind = QE_CONST, .type = QY_INT, .val.i = 1};
+
+    l->last = (QExpr){
+        .kind = QE_BINARY,
+        .op = QK_MINUS,
+        .a = &l->len,
+        .b = &l->one,
+        .type = QY_INT,
+        .work = QY_INT,
+    };
+
+    l->at = (QExpr){
+        .kind = QE_INDEX,
+        .a = (QExpr *)a,
+        .b = &l->last,
+        .type = elem,
+    };
+}
+
+static void qcg_bump(Code *c, QVar *v, uint32_t by);
+static uint32_t qcg_top(QCg *g);
+static void qcg_back(QCg *g, QrtWhen when, uint32_t top);
+
+static void qcg_drop(QCg *g, const QExpr *p, uint32_t depth);
+
+static bool qcg_drops(const QCg *const g, const QType t) { return qast_drops(g->env->prog, t); }
+
+/* List or array place p's elements dropped in turn, by the frame's index at depth. */
+static void qcg_dropeach(QCg *const g, const QExpr *const p, const uint32_t depth)
+{
+    Code *const c = g->c;
+    const QTy *const y = qcg_ty(g, p->type);
+    QVar *const i = g->own->ix[depth];
+    const QExpr at = qcg_named(i);
+    const QExpr elem = {
+        .kind = QE_INDEX,
+        .a = (QExpr *)p,
+        .b = (QExpr *)&at,
+        .type = y->elem,
+    };
+
+    code_int(c, 0);
+    qcg_store(c, i);
+    const uint32_t top = qcg_top(g);
+    qcg_load(c, i);
+    uint8_t *const right = c->out;
+
+    if (y->kind == QT_ARRAY)
+        code_int(c, y->count);
+    else {
+        qcg_cell(g, p);
+        qcg_x(c, QX_LEN);
+    }
+
+    qcg_compare(c, QY_INT, QK_LT, right);
+    const QCgHop out = qcg_hop(g, QJ_FALSE);
+    qcg_drop(g, &elem, depth + 1);
+    qcg_bump(c, i, 1);
+    qcg_back(g, QJ_ALWAYS, top);
+    qcg_land(g, out);
+}
+
+/* The value with drop in place p dropped: a record's fn drop, then its fields'; a list's
+   elements'; T?'s value when it has one, T!'s when no error. */
+static void qcg_drop(QCg *const g, const QExpr *const p, const uint32_t depth)
+{
+    const QTy *const y = qcg_ty(g, p->type);
+
+    switch (y->kind) {
+    case QT_REC:
+    case QT_TUPLE:
+        if (y->drop) {
+            qcg_ref(g, p);
+            qcg_pcall(g, y->drop);
+        }
+
+        for (uint32_t k = 0; k < y->nfields; k++)
+            if (qcg_drops(g, y->fields[k].type)) {
+                const QExpr f = qcg_fieldof(g, p, k);
+                qcg_drop(g, &f, depth);
+            }
+
+        return;
+
+    case QT_OPT:
+    case QT_RES: {
+        const QExpr flag = qcg_fieldof(g, p, QF_FLAG);
+        const QExpr v = qcg_fieldof(g, p, QF_VAL);
+        qcg_loadat(g, &flag);
+        const QCgHop none = qcg_hop(g, y->kind == QT_OPT ? QJ_FALSE : QJ_TRUE);
+        qcg_drop(g, &v, depth);
+        qcg_land(g, none);
+        return;
+    }
+
+    default:
+        qcg_dropeach(g, p, depth);
+    }
+}
+
+/* Owner v's live flag set to on. */
+static void qcg_live(QCg *const g, const QVar *const v, const bool on)
+{
+    code_int(g->c, on ? 1 : 0);
+    qcg_store(g->c, v->live);
+}
+
+/* Owner v's value dropped if it holds one. */
+static void qcg_dropvar(QCg *const g, QVar *const v)
+{
+    const QExpr p = qcg_named(v);
+    qcg_load(g->c, v->live);
+    const QCgHop none = qcg_hop(g, QJ_FALSE);
+    qcg_drop(g, &p, 0);
+    qcg_land(g, none);
+}
+
+/* The frame's owners' values dropped, the last declared first: its fn returns, the program
+   ends. */
+static void qcg_dropall(QCg *const g, const QOwners *const o)
+{
+    for (uint32_t k = o->nowned; k-- > 0;)
+        qcg_dropvar(g, o->owned[k]);
+}
+
+/* The value with drop in place p dropped before p takes another: an owner's if it holds one. */
+static void qcg_dropold(QCg *const g, const QExpr *const p)
+{
+    if (p->kind == QE_NAME && p->var->live)
+        qcg_dropvar(g, p->var);
+    else
+        qcg_drop(g, p, 0);
+}
+
+/* List place a's last element dropped, if its type has drop. */
+static void qcg_droplast(QCg *const g, const QExpr *const a, const QType elem)
+{
+    if (!qcg_drops(g, elem))
+        return;
+
+    QCgLast l;
+    qcg_lastof(&l, a, elem);
+    qcg_drop(g, &l.at, 0);
+}
+
+/* Value e taken from its owner: its live flag cleared. */
+static void qcg_moved(QCg *const g, const QExpr *const e)
+{
+    if (e->kind == QE_NAME && e->move)
+        qcg_live(g, e->var, false);
 }
 
 /* A list's method; a record's pop copied to dst. */
@@ -1629,32 +1806,9 @@ static void qcg_listop(QCg *const g, const QExpr *const e, const QExpr *const ds
 
         if (e->a->kind == QE_FIELD) { /* the push may move its record: found again */
             code_op(c, O_DROP);
-            const QExpr len = {
-                .kind = QE_CALL,
-                .builtin = QB_LEN,
-                .a = e->a,
-                .type = QY_INT,
-            };
-
-            const QExpr one = {.kind = QE_CONST, .type = QY_INT, .val.i = 1};
-
-            const QExpr last = {
-                .kind = QE_BINARY,
-                .op = QK_MINUS,
-                .a = (QExpr *)&len,
-                .b = (QExpr *)&one,
-                .type = QY_INT,
-                .work = QY_INT,
-            };
-
-            const QExpr at = {
-                .kind = QE_INDEX,
-                .a = e->a,
-                .b = (QExpr *)&last,
-                .type = elem,
-            };
-
-            qcg_set(g, &at, v);
+            QCgLast l;
+            qcg_lastof(&l, e->a, elem);
+            qcg_set(g, &l.at, v);
         } else if (qcg_rec(g, elem)) {
             code_opid(c, O_RA_ADDR, qcg_listvar(g, e->a)->id, false);
             code_byte(c, 1);
@@ -1664,6 +1818,8 @@ static void qcg_listop(QCg *const g, const QExpr *const e, const QExpr *const ds
             qcg_as(g, v, elem);
             qcg_storeat(g, qcg_listvar(g, e->a), elem);
         }
+
+        qcg_moved(g, e->argv[e->nargv - 1]);
 
         if (e->builtin == QB_PUSH)
             return;
@@ -1681,7 +1837,8 @@ static void qcg_listop(QCg *const g, const QExpr *const e, const QExpr *const ds
             qcg_cell(g, e->a);
             qcg_x(c, QX_LAST);
             qcg_recop(g, elem);
-        }
+        } else
+            qcg_droplast(g, e->a, elem);
 
         qcg_cell(g, e->a);
         code_int(c, et);
@@ -1693,6 +1850,7 @@ static void qcg_listop(QCg *const g, const QExpr *const e, const QExpr *const ds
         code_int(c, et);
         qcg_expr(g, e->argv[0]);
         qcg_x(c, QX_RAISE);
+        qcg_droplast(g, e->a, elem);
         qcg_cell(g, e->a);
         code_int(c, et);
         qcg_x(c, QX_DROP);
@@ -1835,6 +1993,13 @@ static void qcg_build(QCg *const g, const QExpr *const dst, const QExpr *const e
 /* Record or list value e to place dst: built there, or in its temporary first; a place's
    copied, a list variable's moved (sema saw it is not used again). */
 static void qcg_into(QCg *const g, const QExpr *const dst, const QExpr *const e)
+{
+    qcg_place(g, dst, e);
+    qcg_moved(g, e);
+}
+
+/* qcg_into's value e to place dst. */
+static void qcg_place(QCg *const g, const QExpr *const dst, const QExpr *const e)
 {
     if (qast_fresh(e) && e->var) {
         const QExpr t = qcg_settle(g, e);
@@ -2666,7 +2831,14 @@ static void qcg_destructure(QCg *const g, const QStmt *const s)
     for (const QDecl *d = s->decls; d; d = d->next, k++) {
         const QExpr to = qcg_named(d->var);
         const QExpr f = qcg_fieldof(g, &t, k);
+
+        if (d->var->live)
+            qcg_dropvar(g, d->var);
+
         qcg_set(g, &to, &f);
+
+        if (d->var->live)
+            qcg_live(g, d->var, true);
     }
 }
 
@@ -2713,6 +2885,18 @@ static void qcg_parallel(QCg *const g, const QStmt *const s)
     }
 }
 
+/* Place p, holding a value with drop, given v: v made first, p's old value dropped, then v moved
+   in. */
+static void qcg_replace(QCg *const g, const QExpr *const p, const QExpr *const v)
+{
+    const QExpr t = qast_fresh(v) ? qcg_settle(g, v) : *v;
+    qcg_dropold(g, p);
+    qcg_into(g, p, &t);
+
+    if (p->kind == QE_NAME && p->var->live)
+        qcg_live(g, p->var, true);
+}
+
 /* A statement a one-line if may take, or one that is no block's. */
 static void qcg_simple(QCg *const g, const QStmt *const s)
 {
@@ -2731,12 +2915,18 @@ static void qcg_simple(QCg *const g, const QStmt *const s)
         for (const QDecl *d = s->decls; d; d = d->next) {
             const QExpr to = qcg_named(d->var);
 
+            if (d->var->live) /* a loop's declaration run again */
+                qcg_dropvar(g, d->var);
+
             if (qcg_isgen(g, d->var->type))
                 qcg_keptinit(g, d->var, d->value);
             else if (d->value)
                 qcg_set(g, &to, d->value);
             else
                 qcg_fresh(g, d->var);
+
+            if (d->var->live)
+                qcg_live(g, d->var, true);
         }
 
         return;
@@ -2747,6 +2937,8 @@ static void qcg_simple(QCg *const g, const QStmt *const s)
 
         if (s->target->kind == QE_TUPLE)
             qcg_parallel(g, s);
+        else if (qcg_drops(g, s->target->type))
+            qcg_replace(g, s->target, s->e);
         else
             qcg_set(g, s->target, s->e);
 
@@ -2754,7 +2946,11 @@ static void qcg_simple(QCg *const g, const QStmt *const s)
 
     case QS_CALL:
         if (qcg_byplace(g, s->e->type) && s->e->var) {
-            qcg_settle(g, s->e);
+            const QExpr t = qcg_settle(g, s->e);
+
+            if (qcg_drops(g, t.type))
+                qcg_drop(g, &t, 0);
+
             return;
         }
 
@@ -2802,6 +2998,7 @@ static void qcg_simple(QCg *const g, const QStmt *const s)
             qcg_set(g, &res, s->e);
         }
 
+        qcg_dropall(g, &s->fn->own);
         code_op(c, O_PRET);
         code_dword(c, s->fn->proc);
         code_dword(c, 0);
@@ -3047,9 +3244,14 @@ static void qcg_body(QCg *const g, const QStmt *const s)
             return;
         }
 
+        qcg_dropall(g, &s->fn->own);
         code_op(c, O_PRET);
         code_dword(c, s->fn->proc);
         code_dword(c, 0);
+        return;
+
+    case QS_ATEND:
+        qcg_dropall(g, s->own);
         return;
 
     default:
@@ -3061,6 +3263,7 @@ void qcg_stmt(QCg *const g, const QStmt *const s)
 {
     g->seg = g->c->out;
     g->nlabels = g->hops = g->strings = 0;
+    g->own = s->own;
 
     if (g->env->dbg && qcg_stops(s))
         code_op(g->c, O_DBG);

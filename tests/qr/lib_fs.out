@@ -4,5 +4,7 @@ true 53 missing.txt: File not found
 false
 false
 cde f 6
-2 LIBFS.TXT
+true written, closed by its drop
+true closed twice
+3 LIBFS.TXT
 x.txt: Bad file mode

@@ -165,6 +165,20 @@ end while
   - Only a whole `let` or `var` moves. A field, an element or a parameter takes `copy()`.
 - A type with an `fn drop(mut x as T)` has it run when an owner of a `T` ends, at a known point:
   a `File` closes itself. There are no finalizers and no collector pauses.
+  - `drop` goes in `T`'s module and is never called by name.
+  - A local ends when its fn returns, by any `return` or `?`, or when its declaration runs again
+    in a loop. A module's `var` or `let` ends when the program does. A record's fields end after
+    its own `drop`, a list's elements with the list, or when `remove` or an unkept `pop` takes
+    them. A place assigned drops its old value after the new one is made.
+  - A value holding one with drop moves and is never copied: `copy()` of it is an error, and so
+    is reading a fresh one in place, `make().name`: keep it in a `let` first. A statement's
+    value that nobody keeps is dropped.
+  - A map's values, an enum's data, a list of lists and a generator's locals can't hold one, nor
+    can a type hold itself.
+  - A runtime error or `os.exit()` runs no `drop`.
+  - **In the VM**, each owner has a hidden flag, set when it takes a value and cleared when the
+    value moves out; the fn's returns drop each owner whose flag is set. A list's elements are
+    dropped by a loop in the line. A fn with no owner runs nothing more.
 - There are no pointers: an element is referred to by its index. **Open:** whether a reference
   type is needed for graphs of objects. Proposed: not in the first version.
 
@@ -719,9 +733,9 @@ Everything else is in a module.
 
 - `math`'s `abs`, `min`, `max` and `clamp` are generic Quickr fns. `Vec` has `+`, `-` and `=`,
   `*` and `/` by a `double`, `dot` and `length`.
-- A `File` stays open until `close()`: there is no `drop` yet. A file's error is a value, its
-  `code` QBasic's ERR. `read_text` reads at most 32767 bytes, a string's most. `fs.list` gives
-  the platform's DOS names, upper case on the host.
+- A `File` closes itself when it ends; `close(mut f)` closes it sooner. A file's error is a
+  value, its `code` QBasic's ERR. `read_text` reads at most 32767 bytes, a string's most.
+  `fs.list` gives the platform's DOS names, upper case on the host.
 - `os.args()` is COMMAND$'s words, so upper case; `os.exit()` has no exit code, as END has none.
 - `io.read_line` echoes the line's end, as LINE INPUT does. `io.color(fg)` sets the background 0.
 - The platforms report key presses and repeats, never releases: `keys.down(k)` is true for

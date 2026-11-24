@@ -202,6 +202,15 @@ typedef struct QExpr QExpr;
 typedef struct QStmt QStmt;
 typedef struct QIter QIter;
 
+/* A frame's owners of values with drop, a fn's or the modules': its lets and vars, in order, each
+   dropped when it ends (QVar.live); a drop loop's index variable for each depth of lists. */
+typedef struct {
+    QVar **owned;
+    uint32_t nowned, capowned;
+    QVar **ix;
+    uint32_t nix;
+} QOwners;
+
 /* A type as written: a name, T[], T[n], (T, U), T?, T!, fn(T) as U. */
 typedef enum : uint8_t { QX_NAME, QX_LIST, QX_ARRAY, QX_TUPLE, QX_OPT, QX_RES, QX_FN } QTypeExKind;
 typedef struct QTypeEx QTypeEx;
@@ -272,6 +281,8 @@ typedef struct {
     uint32_t size; /* its TYPE's bytes, qlink's */
     QFn *gen;      /* QT_GEN's instance */
     QFn *opers;    /* a record's fn operators, by QFn.opnext */
+    QFn *drop;     /* a record's fn drop */
+    bool seen;     /* qast_drops' guard against a type holding itself */
 } QTy;
 
 typedef struct {
@@ -310,6 +321,7 @@ struct QVar {
     QCap *cap;     /* a lambda's hidden parameter: the name it stands for, by reference */
     QLam *lam;     /* an instance's parameter bound to this lambda: no value */
     bool byref;    /* a resumable generator's: kept by its holder, a parameter by reference */
+    QVar *live;    /* an owner of a value with drop: 1 while it holds one */
 };
 
 typedef struct {
@@ -363,6 +375,7 @@ struct QFn {
     QFn *opnext;      /* its first parameter's type's next operator */
     const QTok *lone; /* an operator's body one return: its value's first token */
     bool inlining;    /* its lone value being checked where it is used */
+    QOwners own;
 };
 
 /* A name a lambda uses from outside it, as its site bound it. A fn's storage (frame) is reached
@@ -470,6 +483,7 @@ struct QExpr {
     bool insert;  /* QE_INDEX of a map, assigned: its key added when not there */
     bool done;    /* checked already: a generic call's argument, its T read from it */
     bool wrap;    /* QE_BINARY, QE_UNARY, QE_CONV in wrap(..): integers wrap, not Overflow */
+    bool move;    /* QE_NAME: an owner's value moved out, its live flag cleared */
     QBuiltin builtin;
     const QTok *tok; /* its first token; a binary's, its operator */
     QExpr *a, *b, *c;
@@ -598,6 +612,7 @@ typedef enum : uint8_t {
     QS_YIELD,  /* e; link: the statement on its line (itself, or its one-line if) */
     QS_IMPORT, /* import a.b [as n], ..: imps */
     QS_FROM,   /* from a.b import X [as Y], ..: imps the module, names what it gives */
+    QS_ATEND,  /* the program's end: each module owner dropped; a line of its own */
 } QStmtKind;
 
 /* A module named by import or from: its dotted name, the folders its leading dots go up (0 the
@@ -661,6 +676,7 @@ struct QStmt {
     bool pub;       /* public: a module's fn, type, enum, const, var or let */
     QImport *imps;  /* QS_IMPORT's modules; QS_FROM's module */
     QImport *names; /* QS_FROM's */
+    QOwners *own;   /* its frame's: a fn's, or the modules' */
 };
 
 /* A file: a module. Its path as found, its lines (from first), its tokens (base: the first's
@@ -683,9 +699,17 @@ typedef struct {
     QVar *vars;
     QTys tys;
     QErrs errs;
+    QOwners own;  /* the modules' */
+    QStmt *atend; /* QS_ATEND, when a module owns a value with drop */
 } QProg;
 
 /* ---- helpers */
+
+/* Does a value of type t hold one with drop: a record with fn drop, or a record, tuple, list,
+   array, T? or T! holding one? */
+bool qast_drops(const QProg *p, QType t);
+/* How deep in lists a value of type t holds one with drop: its drop's loops' nesting. */
+uint32_t qast_dropdepth(const QProg *p, QType t);
 
 void *qast_alloc(QMem *m, size_t size); /* zeroed */
 /* *at, n entries of size, room for one more: grown by half. */

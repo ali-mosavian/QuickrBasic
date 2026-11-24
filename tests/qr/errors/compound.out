@@ -61,3 +61,6 @@ compound.qr:57:14: q is no format for an int
 compound.qr:60:13: ss moves in a loop it is declared outside: write copy(ss)
       var t = ss
               ^
+compound.qr:64:10: l1 is used after it moves here: write copy(l1)
+  var l3 = l1 if len(l2) > 0 else l2
+           ^

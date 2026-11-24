@@ -224,3 +224,74 @@ void qast_sort(QErrs *const e)
 
     e->n = n;
 }
+
+/* Type t's parts that may hold a value with drop: a record's or a tuple's fields, a list's or an
+   array's element, T?'s or T!'s value. */
+static uint32_t qast_parts(const QTy *const y)
+{
+    switch (y->kind) {
+    case QT_REC:
+    case QT_TUPLE:
+        return y->nfields;
+
+    case QT_LIST:
+    case QT_ARRAY:
+    case QT_OPT:
+    case QT_RES:
+        return 1;
+
+    default:
+        return 0;
+    }
+}
+
+static QType qast_part(const QTy *const y, const uint32_t k)
+{
+    return y->kind == QT_LIST || y->kind == QT_ARRAY ? y->elem
+           : y->kind == QT_OPT || y->kind == QT_RES  ? y->fields[QF_VAL].type
+                                                     : y->fields[k].type;
+}
+
+bool qast_drops(const QProg *const p, const QType t)
+{
+    if (!qast_compound(t))
+        return false;
+
+    QTy *const y = qast_ty(p, t);
+
+    if (y->drop)
+        return true;
+    if (y->seen)
+        return false;
+
+    y->seen = true;
+    bool any = false;
+
+    for (uint32_t k = 0; !any && k < qast_parts(y); k++)
+        any = qast_drops(p, qast_part(y, k));
+
+    y->seen = false;
+    return any;
+}
+
+uint32_t qast_dropdepth(const QProg *const p, const QType t)
+{
+    if (!qast_drops(p, t))
+        return 0;
+
+    QTy *const y = qast_ty(p, t);
+
+    if (y->seen)
+        return 0;
+
+    y->seen = true;
+    uint32_t most = 0;
+
+    for (uint32_t k = 0; k < qast_parts(y); k++) {
+        const uint32_t d = qast_dropdepth(p, qast_part(y, k));
+        most = d > most ? d : most;
+    }
+
+    y->seen = false;
+    return most + (y->kind == QT_LIST || y->kind == QT_ARRAY);
+}

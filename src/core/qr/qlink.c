@@ -416,6 +416,9 @@ void qlink_program(Comp *const C, QProg *const p, QMem *const m, const bool dbg)
         for (const QStmt *s = f->lamof && f->sig ? f->def : nullptr; s; s = s->next)
             of[s->line] = s;
 
+    if (p->atend)
+        of[p->atend->line] = p->atend;
+
     qlink_lines(C, p, m, of, dbg);
 
     for (uint32_t i = 1; i < C->blok->procs.n; i++)

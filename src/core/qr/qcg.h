@@ -33,6 +33,7 @@ typedef struct {
     uint32_t nlabels, caplabels;
     uint32_t hops;    /* the jumps within the line so far: their labels' bodies */
     uint32_t strings; /* strings on the stack under the value being made */
+    const QOwners *own; /* the statement's frame's */
 } QCg;
 
 /* Scalar type t's ET_* in a record or a list: a byte's ET_SH, as a short's; a ushort's, a

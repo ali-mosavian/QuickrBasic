@@ -1,4 +1,4 @@
-' fs: files, each error a value. A File stays open until close(): there is no drop yet.
+' fs: files, each error a value. A File closes itself when it ends, or at close().
 import text
 
 native fn file_open(path as string, mode as string) as int
@@ -10,10 +10,14 @@ native fn file_close(n as int)
 native fn file_list(pattern as string) as string
 native fn error_text(err as int) as string
 
-' an open file: its number, as OPEN's
+' an open file: its number, as OPEN's; 0 closed
 public type File
     n as int
 end type
+
+fn drop(mut f as File)
+    close(mut f)
+end fn
 
 ' path opened: mode "r" to read, "w" to write it anew, "a" to add to its end, "rw" both
 public fn open(path as string, mode as string = "r") as File!
@@ -44,22 +48,21 @@ public fn size(f as File) as int
     return file_size(f.n)
 end fn
 
-public fn close(f as File)
-    file_close(f.n)
+public fn close(mut f as File)
+    if f.n > 0 then file_close(f.n)
+    f.n = 0
 end fn
 
 ' the whole file as a string
 public fn read_text(path as string) as string!
     let f = open(path)?
-    let s = read(f, size(f))
-    close(f)
-    return s
+    return read(f, size(f))
 end fn
 
 public fn write_text(path as string, s as string) as bool!
-    let f = open(path, "w")?
+    var f = open(path, "w")?
     let st = file_write(f.n, s)
-    close(f)
+    f.close()
     if st < 0 then return Error(-st, f"{path}: {error_text(-st)}")
     return true
 end fn
