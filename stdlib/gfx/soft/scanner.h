@@ -50,20 +50,30 @@ typedef struct {
 
 typedef void ScanFill(void *ctx, const ScanSpan *span);
 
-/* qgl's fistp: the nearest integer, ties to even; out of range, 80000000h. llrint is a fistp on
-   an x87, whose 64-bit mantissa a double's magic-number round does not round. */
+/* x to the nearest integer, ties to even. llrint is a fistp on an x87, whose 64-bit mantissa a
+   double's magic-number round does not round; wasm has no llrint, but rint is f64.nearest. */
+static inline int64_t scan_rint(const double x)
+{
+#ifdef __wasm__
+    return (int64_t)__builtin_rint(x);
+#else
+    return __builtin_llrint(x);
+#endif
+}
+
+/* qgl's fistp: the nearest integer, ties to even; out of range, 80000000h. */
 static inline int32_t scan_fistp(const double x)
 {
     if (!(x > -2147483648.5 && x < 2147483647.5))
         return INT32_MIN;
 
-    return (int32_t)__builtin_llrint(x);
+    return (int32_t)scan_rint(x);
 }
 
 /* x as qgl's fistp into a qword, its low dword: a span's depth, which runs to 65535 in 16.16. */
 static inline int32_t scan_fistp_low(const double x)
 {
-    return (int32_t)(uint32_t)(uint64_t)__builtin_llrint(x);
+    return (int32_t)(uint32_t)(uint64_t)scan_rint(x);
 }
 
 /* n vertices (3 up to SCAN_MAXV, either winding) of mode, clipped to clip, a span to fill each
