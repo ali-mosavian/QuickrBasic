@@ -1,0 +1,3 @@
+2
+calc.qr:3: Division by zero
+      return a div b

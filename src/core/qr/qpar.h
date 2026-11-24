@@ -3,8 +3,9 @@
 #define QR_QPAR_H
 #include "qr/qast.h"
 
-/* p's tokens (p->src) to its statements and fns; each error to p->errs. */
-void qpar_program(QProg *p, QMem *m);
+/* Module mod's tokens to statements and fns, after p's: mod->head .. mod->tail; each error to
+   p->errs. */
+void qpar_program(QProg *p, QMem *m, QMod *mod);
 /* Fn f's tokens parsed again, a fresh tree: its statements at the program's end, the fn last of
    its fns. A generic's instance starts so. */
 QFn *qpar_again(QProg *p, QMem *m, const QFn *f);

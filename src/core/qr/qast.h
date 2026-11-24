@@ -14,12 +14,14 @@ typedef struct {
 
 /* ---- the source */
 
-/* A source line: its record in the program store, its text (the arena's copy), its number. */
+/* A source line: its record in the program store, its text (the arena's copy), its number, its
+   module (QProg.mods). */
 typedef struct {
     uint32_t at;
     const char *text;
     uint32_t len;
     uint16_t src;
+    uint16_t mod;
 } QLine;
 
 typedef enum : uint8_t {
@@ -69,6 +71,9 @@ typedef enum : uint8_t {
     QK_XOR,
     QK_YIELD,
     QK_YIELDS,
+    QK_FROM,
+    QK_IMPORT,
+    QK_PUBLIC,
     QK_LATER, /* a keyword of a later milestone: type, match, import .. */
     /* punctuation */
     QK_LPAREN,
@@ -120,7 +125,7 @@ typedef struct {
     double d;
 } QTok;
 
-/* The source: its lines, their tokens, the last QK_EOF. */
+/* The source: every module's lines; the tokens of the lines lexed last, a QK_EOF after them. */
 typedef struct {
     QLine *lines;
     uint32_t nlines;
@@ -196,6 +201,8 @@ struct QTypeEx {
     QExpr *count;    /* an array's */
     QTypeEx **items; /* a tuple's; a fn's parameters' */
     uint32_t n;
+    const QTok **quals; /* a name's modules before it: gfx.Window's gfx */
+    uint32_t nquals;
 };
 
 /* A record's field, a tuple's member (no name), an enum value's datum. */
@@ -306,6 +313,7 @@ typedef struct {
 
 struct QFn {
     const QTok *name;
+    bool pub;
     QParam *params;
     uint32_t npar;
     QTypeEx *rtype; /* its as type, null none */
@@ -568,8 +576,27 @@ typedef enum : uint8_t {
     QS_MATCH, /* match e: its cases' lines follow, each linked to the next */
     QS_CASE,  /* pats, or case else (none) */
     QS_ENDMATCH,
-    QS_YIELD, /* e; link: the statement on its line (itself, or its one-line if) */
+    QS_YIELD,  /* e; link: the statement on its line (itself, or its one-line if) */
+    QS_IMPORT, /* import a.b [as n], ..: imps */
+    QS_FROM,   /* from a.b import X [as Y], ..: imps the module, names what it gives */
 } QStmtKind;
+
+/* A module named by import or from: its dotted name, the folders its leading dots go up (0 the
+   search path's, 1 the importing file's folder), its as; the module found (qr.c), QMOD_NONE not
+   found. A name from gives: path its one token; mod its module when from's is a package's
+   folder. */
+enum : uint32_t { QMOD_NONE = UINT32_MAX };
+typedef struct QImport QImport;
+struct QImport {
+    const QTok *tok; /* its first */
+    const QTok **path;
+    uint32_t npath;
+    uint32_t up;
+    const QTok *as;
+    uint32_t mod;
+    bool folder; /* from's module a package's folder */
+    QImport *next;
+};
 
 /* A declaration's name [as type] [= value]. */
 typedef struct QDecl QDecl;
@@ -605,17 +632,33 @@ struct QStmt {
     QVar *index; /* QS_FOR over a list: its index (i in for i, x in a), else the compiler's */
     QVar *temp;  /* QS_MATCH: its value's; QS_ASSIGN of a tuple: each value's in temps */
     QVar **temps;
-    int32_t by;   /* QS_FOR: its step when constant, else 0; QS_YIELD: its number */
-    bool each;    /* QS_FOR over a list or an array, e */
-    bool mut;     /* for mut x in a */
-    QPat *pats;   /* QS_CASE's; none: case else; its match its body */
-    QType ty;     /* QS_TYPE, QS_ENUM: its type; QS_MATCH: its value's */
-    QExpr *place; /* QS_MATCH of an enum with data: its value's place, its data read there */
-    bool full;    /* QS_MATCH: every value has its case */
+    int32_t by;     /* QS_FOR: its step when constant, else 0; QS_YIELD: its number */
+    bool each;      /* QS_FOR over a list or an array, e */
+    bool mut;       /* for mut x in a */
+    QPat *pats;     /* QS_CASE's; none: case else; its match its body */
+    QType ty;       /* QS_TYPE, QS_ENUM: its type; QS_MATCH: its value's */
+    QExpr *place;   /* QS_MATCH of an enum with data: its value's place, its data read there */
+    bool full;      /* QS_MATCH: every value has its case */
+    bool pub;       /* public: a module's fn, type, enum, const, var or let */
+    QImport *imps;  /* QS_IMPORT's modules; QS_FROM's module */
+    QImport *names; /* QS_FROM's */
 };
+
+/* A file: a module. Its path as found, its lines (from first), its tokens (base: the first's
+   number across modules), its statements; the modules it imports, by its import statements. */
+typedef struct {
+    const char *path;
+    uint32_t first, nlines;
+    QTok *toks;
+    uint32_t ntoks, base;
+    QStmt *head, *tail;
+} QMod;
 
 typedef struct {
     QSrc src;
+    QMod *mods; /* [0] the main program */
+    uint32_t nmods, capmods;
+    uint32_t *order; /* the modules in the order their vars start: each after those it imports */
     QStmt *first;
     QFn *fns;
     QVar *vars;

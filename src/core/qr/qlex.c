@@ -59,16 +59,14 @@ static const char *const qlex_words[] = {
     [QK_TRUE - QK_AND] = "true",     [QK_TYPE - QK_AND] = "type",
     [QK_VAR - QK_AND] = "var",       [QK_WHILE - QK_AND] = "while",
     [QK_XOR - QK_AND] = "xor",       [QK_YIELD - QK_AND] = "yield",
-    [QK_YIELDS - QK_AND] = "yields",
+    [QK_YIELDS - QK_AND] = "yields", [QK_FROM - QK_AND] = "from",
+    [QK_IMPORT - QK_AND] = "import", [QK_PUBLIC - QK_AND] = "public",
 };
 
 /* The design's keywords this milestone does not take yet. */
 static const char *const qlex_later[] = {
-    "import",
-    "from",
     "test",
     "assert",
-    "public",
     "operator",
 };
 
@@ -633,13 +631,19 @@ static void qlex_line(QLex *const L, const uint32_t i)
     }
 }
 
-void qlex_source(QSrc *const src, QMem *const m, QErrs *const e)
+void qlex_source(QSrc *const src, const uint32_t first, QMem *const m, QErrs *const e)
 {
-    QLex L = {.src = src, .mem = m, .errs = e};
+    QLex L = {
+        .src = src,
+        .mem = m,
+        .errs = e,
+        .line = first,
+    };
 
+    src->toks = nullptr;
     src->ntoks = 0;
 
-    for (uint32_t i = 0; i < src->nlines; i++)
+    for (uint32_t i = first; i < src->nlines; i++)
         qlex_line(&L, i);
 
     if (src->ntoks && src->toks[src->ntoks - 1].kind != QK_NL) /* a bracket left open */

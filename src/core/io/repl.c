@@ -913,7 +913,7 @@ static void imported(void *const ctx, const ImptKind kind, const ImptName *const
     case IMPT_NAME: /* a module's export: its file is there already */
         if (!im->in_package)
             return;
-        if (!n->sfx && locate_in(im->package, n, path))
+        if (!n->sfx && locate_in(im->package, n, nullptr, path))
             import(im->S, path);
         else
             not_found(im->S);
@@ -955,7 +955,7 @@ static void bound(void *const ctx, const ImptKind kind, const ImptName *const n)
             return;
         }
 
-        locate_in(im->package, n, path);
+        locate_in(im->package, n, nullptr, path);
         bind_module(&S->scop, &S->symb, &S->fault, m, n, modu_module(&S->modu, path));
         return;
 
@@ -982,7 +982,10 @@ static void find_imports(Session *const S, const char *const path)
     if (comp_peek(&body) == M_INT) /* past its number */
         body += INT_TOKEN_SIZE;
 
-    Imports im = {.S = S, .where = {S->repl.file, syst_env(&S->syst, "BASICLIB"), im.from}};
+    Imports im = {
+        .S = S,
+        .where = {S->repl.file, syst_env(&S->syst, "BASICLIB"), im.from, nullptr}
+    };
 
     strcpy(im.from, path);
     impt_line(body, imported, &im);
@@ -1152,7 +1155,7 @@ static void runs_name(void *const ctx, const ImptKind kind, const ImptName *cons
         return;
 
     case IMPT_NAME:
-        if (im->in_package && locate_in(im->package, n, path))
+        if (im->in_package && locate_in(im->package, n, nullptr, path))
             runs_one(r, path);
 
         return;
@@ -1171,7 +1174,9 @@ void repl_runs(
 )
 {
     Session *const S = container_of(f, Session, impt);
-    Runs r = {.im = {.S = S, .where = {S->repl.file, syst_env(&S->syst, "BASICLIB"), r.im.from}}};
+    Runs r = {
+        .im = {.S = S, .where = {S->repl.file, syst_env(&S->syst, "BASICLIB"), r.im.from, nullptr}}
+    };
 
     r.each = each;
     r.ctx = ctx;
@@ -1187,7 +1192,10 @@ static void bind_imports(Session *const S, const uint32_t line, const uint8_t *c
     if (S->decl.proc)
         return;
 
-    Imports im = {.S = S, .where = {S->repl.file, syst_env(&S->syst, "BASICLIB"), im.from}};
+    Imports im = {
+        .S = S,
+        .where = {S->repl.file, syst_env(&S->syst, "BASICLIB"), im.from, nullptr}
+    };
 
     strcpy(im.from, source_name(S, prog_line(&S->prog, line)->file));
     impt_line(body, bound, &im);

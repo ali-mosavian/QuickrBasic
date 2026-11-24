@@ -2,12 +2,18 @@
  * folded.
  *
  * # How it works
- * Names live on a stack of bindings, a block's scope a mark into it. The passes:
- *   1. each fn's and type's name; then the module's consts, in order; then each type's fields
- *      and each fn's signature, their defaults folded with those consts in sight;
- *   2. the module's statements, fn bodies skipped: a var or let is seen from its line on;
- *   3. each fn's body, the module's names (its fns, consts, vars and lets) below it;
- *   4. each move checked against the uses after it.
+ * Names live on a stack of bindings, a block's scope a mark into it. A module's own names and
+ * those its imports bind are its scope's: a name not on the stack is looked up in the scope of
+ * the module its token is written in, so a generic's or a lambda's body sees its own module's
+ * wherever it is checked. m.x is x of m's scope, if public; from m import X binds an alias, X
+ * found in m's scope when used. The passes:
+ *   1. each module's imports; each fn's and type's name; then each module's consts, in order;
+ *      then each type's fields and each fn's signature, their defaults folded with those consts
+ *      in sight;
+ *   2. each module's statements, a module after those it imports, fn bodies skipped: a var or
+ *      let is seen from its line on;
+ *   3. each fn's body, its module's names (its fns, consts, vars and lets) in sight;
+ *   4. each from's names checked public, each move against the uses after it.
  *
  * A compound type is an entry of QProg.tys; lists, arrays and tuples are interned, so a type is
  * the same as another when its number is. A record, tuple or list lives in a place: a value of
@@ -38,12 +44,26 @@ enum { QSEM_SAY = 160 }; /* an error's text at most */
 
 static const double QSEM_FLT_MAX = 3.4028234663852886e38;
 
+/* A name: a variable's, a fn's, a type's, or a module's (scope its QScope + 1); from m import X's
+   alias, X found in m's scope when used. */
 typedef struct {
     const QTok *name;
     QVar *var;
     QFn *fn;
     QType ty; /* a type's name */
+    uint32_t scope;
+    const QTok *alias;
+    bool pub;
 } QBind;
+
+/* A module's names, or a package folder's modules (mod QMOD_NONE); ready once its statements are
+   checked, its vars bound. */
+typedef struct {
+    QBind *at;
+    uint32_t n, cap;
+    uint32_t mod;
+    bool ready;
+} QScope;
 
 /* A for over a list: the list's variable, borrowed till its end for. */
 typedef struct {
@@ -99,6 +119,9 @@ typedef struct {
     bool passing; /* an argument for a fn parameter checked: a lambda bound may pass on */
     QStmt *genfor; /* the next generator instance: for x in g(..)'s, inline in this for */
     bool genkept;  /* the next generator instance: var it = g(..)'s, resumable */
+    QScope *scopes; /* each module's, by number, then the package folders' */
+    uint32_t nscopes, capscopes;
+    bool pub; /* a public statement's names bound */
 } QSem;
 
 static QExpr *qsem_expr(QSem *S, QExpr *e, QType hint);
@@ -132,6 +155,8 @@ static void qsem_signature(QSem *S, QFn *f);
 static QExpr *qsem_nameof(QSem *S, QVar *v, const QTok *tok);
 static QExpr *qsem_icall(QSem *S, QExpr *e, QExpr *f);
 static bool qsem_isrec(const QSem *S, QType t);
+static QExpr *qsem_name(QSem *S, QExpr *e);
+static QExpr *qsem_called(QSem *S, QExpr *e, const QBind *b);
 
 /* ---- errors */
 
@@ -311,25 +336,135 @@ static void qsem_pop(QSem *const S)
         S->nbinds = S->marks[--S->nmarks];
 }
 
-/* name bound in the innermost scope; an error if it already is. */
-static void qsem_bind(QSem *const S, const QTok *const name, QVar *const var, QFn *const fn)
+/* The module token t is written in. */
+static uint32_t qsem_modof(const QSem *const S, const QTok *const t)
 {
-    const uint32_t from = S->nmarks ? S->marks[S->nmarks - 1] : 0;
+    return t->line < S->prog->src.nlines ? S->prog->src.lines[t->line].mod : 0;
+}
 
-    for (uint32_t i = from; i < S->nbinds; i++)
-        if (qsem_same(S->binds[i].name, name)) {
-            qsem_say(S, name, qsem_text(S, name), " is already declared", nullptr);
-            return;
+/* b bound in scope sc; an error if its name already is. */
+static QBind *qsem_scoped(QSem *const S, QScope *const sc, const QBind b)
+{
+    for (uint32_t i = 0; i < sc->n; i++)
+        if (qsem_same(sc->at[i].name, b.name)) {
+            qsem_say(S, b.name, qsem_text(S, b.name), " is already declared", nullptr);
+            return nullptr;
+        }
+
+    sc->at = qast_room(S->mem, sc->at, sc->n, &sc->cap, sizeof *sc->at);
+    sc->at[sc->n] = b;
+    return &sc->at[sc->n++];
+}
+
+/* b bound in the innermost scope, a module's own outside blocks and fns (a public statement's
+   exported); an error if its name already is. */
+static QBind *qsem_bound_as(QSem *const S, QBind b)
+{
+    if (!S->nmarks) {
+        b.pub = S->pub;
+        return qsem_scoped(S, &S->scopes[qsem_modof(S, b.name)], b);
+    }
+
+    for (uint32_t i = S->marks[S->nmarks - 1]; i < S->nbinds; i++)
+        if (qsem_same(S->binds[i].name, b.name)) {
+            qsem_say(S, b.name, qsem_text(S, b.name), " is already declared", nullptr);
+            return nullptr;
         }
 
     S->binds = qast_room(S->mem, S->binds, S->nbinds, &S->capbinds, sizeof *S->binds);
-    S->binds[S->nbinds++] = (QBind){.name = name, .var = var, .fn = fn};
+    S->binds[S->nbinds] = b;
+    return &S->binds[S->nbinds++];
+}
+
+static void qsem_bind(QSem *const S, const QTok *const name, QVar *const var, QFn *const fn)
+{
+    qsem_bound_as(S, (QBind){.name = name, .var = var, .fn = fn});
 }
 
 /* The bindings every scope sees: the module's own, below its first block's or fn's. */
 static uint32_t qsem_floor(const QSem *const S) { return S->nmarks ? S->marks[0] : S->nbinds; }
 
 static const QBind *qsem_capture(QSem *S, QLamAt *c, uint32_t i, const QTok *use);
+
+/* What names nothing, said already. */
+static const QBind qsem_spoilt = {.ty = QY_ERROR};
+
+static const QBind *qsem_member(QSem *S, const QBind *m, const QTok *name);
+static const QBind *qsem_exported(const QSem *S, uint32_t k, const QTok *name);
+
+/* name in module k's scope, an alias followed; null none. */
+static const QBind *qsem_global(QSem *const S, const uint32_t k, const QTok *const name)
+{
+    const QScope *const sc = &S->scopes[k];
+
+    for (uint32_t i = sc->n; i-- > 0;) {
+        const QBind *const b = &sc->at[i];
+
+        if (!qsem_same(b->name, name))
+            continue;
+        if (!b->alias)
+            return b;
+
+        const QBind *const x = qsem_exported(S, b->scope - 1, b->alias);
+
+        if (x && x->pub)
+            return x;
+        if (!x && !S->scopes[b->scope - 1].ready)
+            qsem_say(
+                S,
+                name,
+                qsem_text(S, name),
+                " is not there yet: its module's vars start after this one's",
+                nullptr
+            );
+
+        return &qsem_spoilt; /* else said at its import */
+    }
+
+    return nullptr;
+}
+
+/* name among scope k's own, not its imports; null none. A package folder's are its modules,
+   public each. */
+static const QBind *qsem_exported(const QSem *const S, const uint32_t k, const QTok *const name)
+{
+    const QScope *const sc = &S->scopes[k];
+
+    for (uint32_t i = 0; i < sc->n; i++)
+        if (qsem_same(sc->at[i].name, name) && !sc->at[i].alias)
+            return &sc->at[i];
+
+    return nullptr;
+}
+
+/* name in module m (a module's binding): its public binding, else an error said. In a module
+   whose statements are not checked yet, a var is not there. */
+static const QBind *qsem_member(QSem *const S, const QBind *const m, const QTok *const name)
+{
+    const QBind *const b = qsem_exported(S, m->scope - 1, name);
+    const QScope *const sc = &S->scopes[m->scope - 1];
+
+    if (b && (b->pub || sc->mod == QMOD_NONE))
+        return b;
+
+    if (b) {
+        qsem_say(S, name, qsem_text(S, name), " is not public in ", qsem_text(S, m->name), nullptr);
+        return &qsem_spoilt;
+    }
+
+    if (sc->ready || sc->mod == QMOD_NONE)
+        qsem_say(S, name, qsem_text(S, m->name), " has no ", qsem_text(S, name), nullptr);
+    else
+        qsem_say(
+            S,
+            name,
+            qsem_text(S, name),
+            " is not there yet: its module's vars start after this one's",
+            nullptr
+        );
+
+    return &qsem_spoilt;
+}
 
 static const QBind *qsem_find(QSem *const S, const QTok *const name)
 {
@@ -343,13 +478,38 @@ static const QBind *qsem_find(QSem *const S, const QTok *const name)
             return qsem_capture(S, c, i, name);
         }
 
-    return nullptr;
+    return qsem_global(S, qsem_modof(S, name), name);
+}
+
+/* Unchecked e as a name: a name's binding, or m.x's, m a module or a package's: a.b.x. Null
+   when e is neither, or names nothing. */
+static const QBind *qsem_qual(QSem *const S, const QExpr *const e)
+{
+    if (e->kind == QE_NAME && !e->a)
+        return qsem_find(S, e->tok);
+    if (e->kind != QE_FIELD && e->kind != QE_NAME)
+        return nullptr;
+
+    const QBind *const m = qsem_qual(S, e->a);
+    return m && m->scope && !m->alias ? qsem_member(S, m, e->tok) : nullptr;
+}
+
+/* Is unchecked e a module's name, or a package's? */
+static bool qsem_ismod(QSem *const S, const QExpr *const e)
+{
+    const QBind *const b = e->kind == QE_NAME || e->kind == QE_FIELD ? qsem_qual(S, e) : nullptr;
+    return b && b->scope && !b->alias;
+}
+
+/* What unchecked name e binds: a name's, m.x's (e->a m) once qsem_field made it a name. */
+static const QBind *qsem_lookup(QSem *const S, const QExpr *const e)
+{
+    return e->kind == QE_NAME ? qsem_qual(S, e) : nullptr;
 }
 
 static void qsem_bindty(QSem *const S, const QTok *const name, const QType t)
 {
-    qsem_bind(S, name, nullptr, nullptr);
-    S->binds[S->nbinds - 1].ty = t;
+    qsem_bound_as(S, (QBind){.name = name, .ty = t});
 }
 
 static QVar *qsem_var(QSem *const S, const QTok *const name, const QType type, const QVarKind kind)
@@ -684,9 +844,64 @@ static QType qsem_typename(QSem *const S, const QTok *const t)
     return QY_ERROR;
 }
 
+/* A type's name, m.T or a.b.T: T in the module its qualifiers name. */
+static QType qsem_qualtype(
+    QSem *const S,
+    const QTok *const *const quals,
+    const uint32_t n,
+    const QTok *const t
+)
+{
+    if (!n)
+        return qsem_typename(S, t);
+
+    const QBind *m = qsem_find(S, quals[0]);
+
+    for (uint32_t i = 1; m && m->scope && !m->alias && i < n; i++)
+        m = qsem_member(S, m, quals[i]);
+
+    if (!m || !m->scope || m->alias) {
+        if (!m)
+            qsem_say(S, quals[0], "unknown module ", qsem_text(S, quals[0]), nullptr);
+        else if (m->ty != QY_ERROR)
+            qsem_say(S, quals[n - 1], qsem_text(S, quals[n - 1]), " is not a module", nullptr);
+
+        return QY_ERROR;
+    }
+
+    const QBind *const b = qsem_member(S, m, t);
+
+    if (b->ty)
+        return b->ty;
+
+    qsem_say(S, t, qsem_text(S, t), " is not a type", nullptr);
+    return QY_ERROR;
+}
+
+/* Unchecked name e's type, a map's key's: T, or m.T. */
+static QType qsem_nametype(QSem *const S, const QExpr *const e)
+{
+    if (e->kind == QE_NAME)
+        return qsem_typename(S, e->tok);
+
+    const QBind *const b = qsem_qual(S, e);
+
+    if (b && b->ty)
+        return b->ty;
+    if (!b || b->ty != QY_ERROR)
+        qsem_say(S, e->tok, "unknown type ", qsem_text(S, e->tok), nullptr);
+
+    return QY_ERROR;
+}
+
 /* Does T[e] name a map's key type, e a type's name? */
 static bool qsem_keyed(QSem *const S, const QExpr *const e)
 {
+    if (e->kind == QE_FIELD && qsem_ismod(S, e->a)) {
+        const QBind *const b = qsem_qual(S, e);
+        return b && b->ty;
+    }
+
     if (e->kind != QE_NAME)
         return false;
 
@@ -698,7 +913,7 @@ static bool qsem_keyed(QSem *const S, const QExpr *const e)
 /* V[K]: a map, K an int, a string or a plain enum. */
 static QType qsem_maptype(QSem *const S, const QTypeEx *const x, const QType val)
 {
-    const QType key = qsem_typename(S, x->count->tok);
+    const QType key = qsem_nametype(S, x->count);
 
     if (key == QY_ERROR)
         return QY_ERROR;
@@ -731,7 +946,7 @@ static uint32_t qsem_count(QSem *const S, QExpr *const e)
 static QType qsem_type(QSem *const S, const QTypeEx *const x)
 {
     if (x->kind == QX_NAME)
-        return qsem_typename(S, x->tok);
+        return qsem_qualtype(S, x->quals, x->nquals, x->tok);
 
     if (x->kind == QX_TUPLE || x->kind == QX_FN) {
         QType *const items = qast_alloc(S->mem, (x->n ? x->n : 1) * sizeof *items);
@@ -2515,7 +2730,7 @@ static QVar *qsem_rawroot(QSem *const S, const QExpr *e)
     while (e->kind == QE_FIELD || e->kind == QE_INDEX)
         e = e->a;
 
-    const QBind *const b = e->kind == QE_NAME ? qsem_find(S, e->tok) : nullptr;
+    const QBind *const b = qsem_lookup(S, e);
     return b ? b->var : nullptr;
 }
 
@@ -2586,7 +2801,8 @@ static bool qsem_changes(QSem *const S, const QExpr *const e, const QTok *const 
 
 static uint32_t qsem_at(const QSem *const S, const QTok *const t)
 {
-    return (uint32_t)(t - S->prog->src.toks);
+    const QMod *const m = &S->prog->mods[qsem_modof(S, t)];
+    return m->base + (uint32_t)(t - m->toks);
 }
 
 /* Value e of a type that owns a list, taken whole: a local's name moves (qsem_moved checks it
@@ -2838,8 +3054,18 @@ static bool qsem_isrec(const QSem *const S, const QType t)
 /* a.f: a record's field; Name.v, an enum's value. */
 static QExpr *qsem_field(QSem *const S, QExpr *const e)
 {
-    if (e->a->kind == QE_NAME) {
-        const QBind *const b = qsem_find(S, e->a->tok);
+    if (qsem_ismod(S, e->a)) { /* m.x: x of module m, a name */
+        e->kind = QE_NAME;
+        return qsem_name(S, e);
+    }
+
+    if (e->a->kind == QE_NAME || e->a->kind == QE_FIELD) {
+        const QBind *const b = qsem_qual(S, e->a);
+
+        if (b && b->ty == QY_ERROR) {
+            e->type = QY_ERROR;
+            return e;
+        }
 
         if (b && b->ty)
             return qsem_variant(S, e, b->ty, false);
@@ -3162,6 +3388,23 @@ static QExpr *qsem_copy(QSem *const S, QExpr *const e)
 }
 
 /* a.f(b): a list's method, an enum's value with data, else f(a, b) with mut implied. */
+/* a.f(..)'s f, not in sight: the public fn f of the module type t is declared in; null none. */
+static const QBind *qsem_typefn(QSem *const S, const QType t, const QTok *const name)
+{
+    const QTy *const y = qast_compound(t) ? qast_ty(S->prog, t) : nullptr;
+
+    if (!y || !y->def)
+        return nullptr;
+
+    const QScope *const sc = &S->scopes[qsem_modof(S, y->def->tok)];
+
+    for (uint32_t i = 0; i < sc->n; i++)
+        if (qsem_same(sc->at[i].name, name) && sc->at[i].fn && sc->at[i].pub)
+            return &sc->at[i];
+
+    return nullptr;
+}
+
 static QExpr *qsem_method(QSem *const S, QExpr *const e)
 {
     static const struct {
@@ -3169,8 +3412,19 @@ static QExpr *qsem_method(QSem *const S, QExpr *const e)
         QBuiltin op;
     } lists[] = {{"push", QB_PUSH}, {"pop", QB_POP}, {"insert", QB_INSERT}, {"remove", QB_REMOVE}};
 
-    if (e->a->kind == QE_NAME) {
-        const QBind *const b = qsem_find(S, e->a->tok);
+    if (qsem_ismod(S, e->a)) { /* m.f(..): f of module m */
+        QExpr name = {.kind = QE_NAME, .tok = e->tok, .a = e->a};
+
+        return qsem_called(S, e, qsem_qual(S, &name));
+    }
+
+    if (e->a->kind == QE_NAME || e->a->kind == QE_FIELD) {
+        const QBind *const b = qsem_qual(S, e->a);
+
+        if (b && b->ty == QY_ERROR) {
+            e->type = QY_ERROR;
+            return e;
+        }
 
         if (b && b->ty)
             return qsem_variant(S, e, b->ty, true);
@@ -3201,7 +3455,7 @@ static QExpr *qsem_method(QSem *const S, QExpr *const e)
             return qsem_next(S, e, b->var);
     }
 
-    const QBind *const b = qsem_find(S, e->tok);
+    const QBind *b = qsem_find(S, e->tok);
 
     if (!b || !b->fn) {
         for (uint32_t i = 0; i < countof(lists); i++)
@@ -3227,9 +3481,18 @@ static QExpr *qsem_method(QSem *const S, QExpr *const e)
                 return qsem_icall(S, e, f);
             }
 
-        qsem_say(S, e->tok, "unknown fn ", qsem_text(S, e->tok), nullptr);
-        e->type = QY_ERROR;
-        return e;
+        b = qsem_typefn(S, r->type, e->tok);
+
+        if (!b) {
+            if (r->type != QY_ERROR)
+                qsem_say(S, e->tok, "unknown fn ", qsem_text(S, e->tok), nullptr);
+
+            e->type = QY_ERROR;
+            return e;
+        }
+
+        r->done = true;
+        e->a = r;
     }
 
     QArg *const self = qast_alloc(S->mem, sizeof *self);
@@ -3588,8 +3851,12 @@ static QExpr *qsem_call(QSem *const S, QExpr *const e)
     if (e->a)
         return qsem_method(S, e);
 
-    const QBind *const b = qsem_find(S, e->tok);
+    return qsem_called(S, e, qsem_find(S, e->tok));
+}
 
+/* Call e of what its name binds, b: a fn, a fn value, a record's type; none: a built-in. */
+static QExpr *qsem_called(QSem *const S, QExpr *const e, const QBind *const b)
+{
     if (b && b->ty == QY_ERROR) {
         e->type = QY_ERROR;
         return e;
@@ -3611,7 +3878,7 @@ static QExpr *qsem_call(QSem *const S, QExpr *const e)
         return e;
     }
 
-    if (b) {
+    if (b || e->a) {
         qsem_say(S, e->tok, qsem_text(S, e->tok), " is not a fn", nullptr);
         e->type = QY_ERROR;
         return e;
@@ -3653,7 +3920,7 @@ static QExpr *qsem_call(QSem *const S, QExpr *const e)
 
 static QExpr *qsem_name(QSem *const S, QExpr *const e)
 {
-    const QBind *const b = qsem_find(S, e->tok);
+    const QBind *const b = qsem_lookup(S, e);
     e->type = QY_ERROR;
 
     if (!b) {
@@ -3672,6 +3939,11 @@ static QExpr *qsem_name(QSem *const S, QExpr *const e)
     if (b->fn)
         return qsem_fnref(S, e, b->fn);
 
+    if (b->scope) {
+        qsem_say(S, e->tok, qsem_text(S, e->tok), " is a module: name one of its own", nullptr);
+        return e;
+    }
+
     if (b->ty) {
         qsem_say(S, e->tok, qsem_text(S, e->tok), " is a type", nullptr);
         return e;
@@ -3683,6 +3955,7 @@ static QExpr *qsem_name(QSem *const S, QExpr *const e)
     const uint32_t at = qsem_at(S, e->tok);
     root->last = at > root->last ? at : root->last;
     root->shared |= S->fn && !root->fn && root->kind != QV_CONST;
+    root->shared |= !root->fn && qsem_modof(S, root->name) != qsem_modof(S, e->tok);
 
     if (v->place) { /* a for's element, a case's datum: the place it names */
         QExpr *const p = qast_alloc(S->mem, sizeof *p);
@@ -3763,7 +4036,8 @@ static QExpr *qsem_error(QSem *const S, QExpr *const e, const QType hint)
     QExpr *const w = qsem_wrapped(S, e->tok, hint, true, nullptr);
     w->argv[QF_CODE] = qsem_coerce(S, qsem_expr(S, e->args->e, QY_INT), QY_INT);
     w->argv[QF_MESSAGE] = qsem_coerce(S, qsem_expr(S, e->args->next->e, QY_STRING), QY_STRING);
-    w->argv[QF_LINE] = qsem_const(S, e->tok, QY_INT, (QVal){.i = e->tok->line});
+    w->argv[QF_LINE] =
+        qsem_const(S, e->tok, QY_INT, (QVal){.i = S->prog->src.lines[e->tok->line].src});
 
     return w->argv[QF_CODE]->type == QY_ERROR || w->argv[QF_MESSAGE]->type == QY_ERROR ? e : w;
 }
@@ -4091,7 +4365,7 @@ static void qsem_decls(QSem *const S, QStmt *const s)
 /* Unchecked place e, changed: checked, QY_ERROR when it can't change. */
 static QExpr *qsem_target(QSem *const S, QExpr *const e, const QTok *const at)
 {
-    const QBind *const b = e->kind == QE_NAME ? qsem_find(S, e->tok) : nullptr;
+    const QBind *const b = qsem_lookup(S, e);
 
     if (b && b->fn) {
         qsem_say(S, e->tok, qsem_text(S, e->tok), " is a fn: call it", nullptr);
@@ -4406,7 +4680,7 @@ static void qsem_genfor(QSem *S, QStmt *s, QFn *g);
 /* Is unchecked e a kept generator's name? */
 static bool qsem_kepton(QSem *const S, const QExpr *const e)
 {
-    const QBind *const b = e->kind == QE_NAME ? qsem_find(S, e->tok) : nullptr;
+    const QBind *const b = qsem_lookup(S, e);
     return b && b->var && qsem_isgen(S, b->var->type);
 }
 
@@ -4506,7 +4780,7 @@ static bool qsem_method_of(
     uint32_t *const k
 )
 {
-    if (e->kind != QE_CALL || !e->a || e->done)
+    if (e->kind != QE_CALL || !e->a || e->done || qsem_ismod(S, e->a))
         return false;
 
     const QBind *const b = qsem_find(S, e->tok);
@@ -4635,7 +4909,7 @@ static bool qsem_source(QSem *const S, QIter *const it, QExpr *const c)
 {
     it->parts = qast_alloc(S->mem, 4 * sizeof *it->parts);
     QFn *const g = qsem_genof(S, c);
-    const QBind *const b = c->kind == QE_NAME ? qsem_find(S, c->tok) : nullptr;
+    const QBind *const b = qsem_lookup(S, c);
 
     if (g) {
         it->start = c;
@@ -5109,10 +5383,12 @@ static void qsem_fnbody(QSem *const S, QFn *const f)
 /* The generator unchecked call e calls, g(..); null none. */
 static QFn *qsem_genof(QSem *const S, const QExpr *const e)
 {
-    if (e->kind != QE_CALL || e->a)
+    if (e->kind != QE_CALL || (e->a && !qsem_ismod(S, e->a)))
         return nullptr;
 
-    const QBind *const b = qsem_find(S, e->tok);
+    QExpr name = {.kind = QE_NAME, .tok = e->tok, .a = e->a};
+
+    const QBind *const b = qsem_qual(S, &name);
     return b && b->fn && b->fn->ytx ? b->fn : nullptr;
 }
 
@@ -5766,21 +6042,28 @@ static void qsem_stmt(QSem *const S, QStmt *const s)
     }
 }
 
-/* Past fn statement s's body: its end fn's next; the program's end when it has none. */
-static QStmt *qsem_past(const QStmt *const s) { return s->fn->end ? s->fn->end->next : nullptr; }
 
 /* ---- the passes */
 
-/* The module's consts, outside blocks and fns, in order. */
-static void qsem_consts(QSem *const S)
+/* Module m's statement after s, past a fn's: null after its last. */
+static QStmt *qsem_nextin(const QMod *const m, QStmt *s)
+{
+    if (s->kind == QS_FN && !s->fn->end)
+        return nullptr;
+    if (s->kind == QS_FN)
+        s = s->fn->end;
+
+    return s == m->tail ? nullptr : s->next;
+}
+
+/* Module m's consts, outside blocks and fns, in order. */
+static void qsem_consts(QSem *const S, const QMod *const m)
 {
     uint32_t depth = 0;
 
-    for (QStmt *s = S->prog->first; s;) {
-        if (s->kind == QS_FN) {
-            s = qsem_past(s);
+    for (QStmt *s = m->head; s; s = qsem_nextin(m, s)) {
+        if (s->kind == QS_FN)
             continue;
-        }
 
         const bool opens = (s->kind == QS_IF && !s->oneline) || s->kind == QS_WHILE ||
                            s->kind == QS_DO || s->kind == QS_FOR || s->kind == QS_MATCH;
@@ -5792,11 +6075,10 @@ static void qsem_consts(QSem *const S)
 
         if (!depth && s->kind == QS_DECL && s->op == QK_CONST) {
             s->early = S->early = true;
+            S->pub = s->pub;
             qsem_decls(S, s);
-            S->early = false;
+            S->early = S->pub = false;
         }
-
-        s = s->next;
     }
 }
 
@@ -5850,7 +6132,9 @@ static void qsem_types(QSem *const S)
         y->name = s->decls->name;
         y->def = s;
         y->state = 0;
+        S->pub = s->pub;
         qsem_bindty(S, s->decls->name, t);
+        S->pub = false;
 
         for (QStmt *m = s->next; m && m->kind != QS_ENDTYPE && m->kind != QS_ENDENUM; m = m->next)
             if (m->kind == QS_FIELD)
@@ -6015,19 +6299,157 @@ static void qsem_signature(QSem *const S, QFn *const f)
     S->fn = nullptr;
 }
 
-/* The module's statements, fn bodies and early consts skipped. */
-static void qsem_module(QSem *const S)
+/* May module k's top level have s: the main's anything, another's declarations alone? */
+static bool qsem_declares(const uint32_t k, const QStmt *const s)
 {
-    for (QStmt *s = S->prog->first; s;) {
-        if (s->kind == QS_FN) {
-            s = qsem_past(s);
+    switch (s->kind) {
+    case QS_DECL:
+    case QS_TYPE:
+    case QS_FIELD:
+    case QS_ENDTYPE:
+    case QS_ENUM:
+    case QS_VARIANT:
+    case QS_ENDENUM:
+    case QS_IMPORT:
+    case QS_FROM:
+    case QS_FN:
+        return true;
+
+    default:
+        return !k;
+    }
+}
+
+/* Module k's statements, fn bodies and early consts skipped; then its vars are all there. */
+static void qsem_module(QSem *const S, const uint32_t k)
+{
+    const QMod *const m = &S->prog->mods[k];
+
+    for (QStmt *s = m->head; s; s = qsem_nextin(m, s)) {
+        if (s->kind == QS_FN || s->early)
+            continue;
+
+        if (!qsem_declares(k, s)) {
+            qsem_say(
+                S,
+                s->tok,
+                "a module runs nothing: its top level has fn, type, enum, const, var, let and "
+                "import",
+                nullptr
+            );
             continue;
         }
 
-        if (!s->early)
-            qsem_stmt(S, s);
+        S->pub = s->pub && !S->nmarks;
+        qsem_stmt(S, s);
+        S->pub = false;
+    }
 
-        s = s->next;
+    S->scopes[k].ready = true;
+}
+
+/* A new scope, a package folder's when mod is QMOD_NONE: its number + 1, a binding's scope. */
+static uint32_t qsem_newscope(QSem *const S, const uint32_t mod)
+{
+    S->scopes = qast_room(S->mem, S->scopes, S->nscopes, &S->capscopes, sizeof *S->scopes);
+    S->scopes[S->nscopes] = (QScope){.mod = mod};
+
+    return ++S->nscopes;
+}
+
+/* In scope k, the package folder name names, made the first time: its scope + 1. */
+static uint32_t qsem_package(QSem *const S, const uint32_t k, const QTok *const name)
+{
+    const QBind *const b = qsem_exported(S, k, name);
+
+    if (b && b->scope && S->scopes[b->scope - 1].mod == QMOD_NONE)
+        return b->scope;
+
+    const uint32_t sc = qsem_newscope(S, QMOD_NONE);
+    qsem_scoped(S, &S->scopes[k], (QBind){.name = name, .scope = sc});
+
+    return sc;
+}
+
+/* import im in module k: its name bound to it, a.b's a a package's folder holding b. */
+static void qsem_import(QSem *const S, const uint32_t k, const QImport *const im)
+{
+    const QBind spoilt = {.name = im->as ? im->as : im->path[0], .ty = QY_ERROR};
+
+    const QBind b = {.name = im->as ? im->as : im->path[im->npath - 1], .scope = im->mod + 1};
+
+    if (im->mod == QMOD_NONE) { /* the loader said */
+        qsem_scoped(S, &S->scopes[k], spoilt);
+        return;
+    }
+
+    if (im->as || im->npath == 1) {
+        qsem_scoped(S, &S->scopes[k], b);
+        return;
+    }
+
+    uint32_t in = k;
+
+    for (uint32_t i = 0; i + 1 < im->npath; i++)
+        in = qsem_package(S, in, im->path[i]) - 1;
+
+    if (!qsem_exported(S, in, b.name))
+        qsem_scoped(S, &S->scopes[in], b);
+}
+
+/* from m import X [as Y], ..: each Y an alias of m's X, found when used; a package folder's
+   names its modules. */
+static void qsem_from(QSem *const S, const uint32_t k, const QStmt *const s)
+{
+    for (const QImport *im = s->names; im; im = im->next) {
+        const QTok *const name = im->as ? im->as : im->tok;
+        QBind b = {.name = name, .ty = QY_ERROR};
+
+        if (s->imps->folder && im->mod != QMOD_NONE)
+            b = (QBind){.name = name, .scope = im->mod + 1};
+        else if (!s->imps->folder && s->imps->mod != QMOD_NONE)
+            b = (QBind){.name = name, .scope = s->imps->mod + 1, .alias = im->tok};
+
+        qsem_scoped(S, &S->scopes[k], b);
+    }
+}
+
+/* Each module's scope, its imports bound. */
+static void qsem_scopes(QSem *const S)
+{
+    for (uint32_t k = 0; k < S->prog->nmods; k++)
+        qsem_newscope(S, k);
+
+    for (uint32_t k = 0; k < S->prog->nmods; k++) {
+        const QMod *const m = &S->prog->mods[k];
+
+        for (QStmt *s = m->head; s; s = qsem_nextin(m, s)) {
+            for (const QImport *im = s->kind == QS_IMPORT ? s->imps : nullptr; im; im = im->next)
+                qsem_import(S, k, im);
+
+            if (s->kind == QS_FROM)
+                qsem_from(S, k, s);
+        }
+    }
+}
+
+/* Each from's names: an error where one its module does not export is. */
+static void qsem_exports(QSem *const S)
+{
+    for (uint32_t k = 0; k < S->prog->nmods; k++) {
+        const QMod *const m = &S->prog->mods[k];
+
+        for (QStmt *s = m->head; s; s = qsem_nextin(m, s)) {
+            const QImport *const from = s->kind == QS_FROM ? s->imps : nullptr;
+
+            if (!from || from->folder || from->mod == QMOD_NONE)
+                continue;
+
+            const QBind mod = {.name = from->path[from->npath - 1], .scope = from->mod + 1};
+
+            for (const QImport *im = s->names; im; im = im->next)
+                qsem_member(S, &mod, im->tok);
+        }
     }
 }
 
@@ -6049,12 +6471,19 @@ void qsem_program(QProg *const p, QMem *const m)
 {
     QSem S = {.prog = p, .mem = m};
 
+    qsem_scopes(&S);
+
     for (QFn *f = p->fns; f; f = f->next)
-        if (!f->lamof)
+        if (!f->lamof) {
+            S.pub = f->pub;
             qsem_bind(&S, f->name, nullptr, f);
+            S.pub = false;
+        }
 
     qsem_types(&S);
-    qsem_consts(&S);
+
+    for (uint32_t i = 0; i < p->nmods; i++)
+        qsem_consts(&S, &p->mods[p->order[i]]);
 
     for (uint32_t i = 0; i < p->tys.n; i++)
         qsem_typed(&S, QY_FIRST + i);
@@ -6063,13 +6492,16 @@ void qsem_program(QProg *const p, QMem *const m)
         if (!f->ntp && !f->lamof)
             qsem_signature(&S, f);
 
-    qsem_module(&S);
+    for (uint32_t i = 0; i < p->nmods; i++) {
+        qsem_module(&S, p->order[i]);
 
-    while (S.nmarks)
-        qsem_pop(&S);
+        while (S.nmarks)
+            qsem_pop(&S);
+    }
 
     for (QFn *f = p->fns; f; f = f->next)
         qsem_body(&S, f);
 
+    qsem_exports(&S);
     qsem_moved(&S);
 }

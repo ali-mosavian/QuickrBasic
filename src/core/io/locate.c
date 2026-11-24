@@ -5,6 +5,7 @@
  * FROM the package folder `lib/gfx/`, under the first root that has it: the main program's folder,
  * each of BASICLIB's folders (';'-separated), then `lib/` beside the interpreter. FROM's leading
  * dots name one root instead: the importing file's folder, a folder up for each dot past the first.
+ * A Quickr module is a `.qr` alone.
  */
 #include "io/locate.h"
 #include "io/path.h"
@@ -55,18 +56,22 @@ static bool folder(char *const out)
     return true;
 }
 
-/* Name n under the root's n bytes: its file, a .bas then a .qbx, else (dir not null) its folder. */
+/* Name n under the root's n bytes: its file, of extension ext, else a .bas then a .qbx; else (dir
+   not null) its folder. */
 static bool under(
     const char *const root,
     const uint32_t n,
     const ImptName *const m,
+    const char *const ext,
     char *const out,
     bool *const dir
 )
 {
-    if (m->len && place(out, root, n, m, ".bas") && path_exists(out))
+    if (ext && m->len && place(out, root, n, m, ext) && path_exists(out))
         return true;
-    if (m->len && place(out, root, n, m, ".qbx") && path_exists(out))
+    if (!ext && m->len && place(out, root, n, m, ".bas") && path_exists(out))
+        return true;
+    if (!ext && m->len && place(out, root, n, m, ".qbx") && path_exists(out))
         return true;
 
     return dir && place(out, root, n, m, "") && (*dir = folder(out));
@@ -86,7 +91,7 @@ static bool dotted(const Locate *const l, const ImptName *const m, char *const o
     for (uint32_t i = 1; i < m->up; i++, n += 3)
         memcpy(root + n, "../", 3);
 
-    return under(root, n, m, out, dir);
+    return under(root, n, m, l->ext, out, dir);
 }
 
 bool locate(
@@ -100,7 +105,7 @@ bool locate(
         *dir = false;
     if (m->up)
         return dotted(l, m, out, dir);
-    if (under(l->main, path_dir(l->main), m, out, dir))
+    if (under(l->main, path_dir(l->main), m, l->ext, out, dir))
         return true;
 
     for (const char *p = l->lib; p && *p;) { /* BASICLIB's folders */
@@ -112,7 +117,7 @@ bool locate(
             memcpy(root, p, n);
             root[n] = '/';
 
-            if (under(root, n + (root[n - 1] != '/' && root[n - 1] != '\\'), m, out, dir))
+            if (under(root, n + (root[n - 1] != '/' && root[n - 1] != '\\'), m, l->ext, out, dir))
                 return true;
         }
 
@@ -130,10 +135,15 @@ bool locate(
         return false;
 
     memcpy(self + n, "lib/", 5);
-    return under(self, n + 4, m, out, dir);
+    return under(self, n + 4, m, l->ext, out, dir);
 }
 
-bool locate_in(const char *const dir, const ImptName *const m, char out[static PFIL_PATH])
+bool locate_in(
+    const char *const dir,
+    const ImptName *const m,
+    const char *const ext,
+    char out[static PFIL_PATH]
+)
 {
-    return under(dir, (uint32_t)strlen(dir), m, out, nullptr);
+    return under(dir, (uint32_t)strlen(dir), m, ext, out, nullptr);
 }

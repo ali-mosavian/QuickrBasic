@@ -3,7 +3,7 @@
 #define QR_QLEX_H
 #include "qr/qast.h"
 
-/* src's lines (lines, nlines) to its tokens, a QK_NL ending each statement and a QK_EOF the last;
-   each error to e. */
-void qlex_source(QSrc *src, QMem *m, QErrs *e);
+/* src's lines from first on to new tokens, src->toks: a QK_NL ending each statement and a QK_EOF
+   the last; each error to e. */
+void qlex_source(QSrc *src, uint32_t first, QMem *m, QErrs *e);
 #endif

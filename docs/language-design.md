@@ -579,19 +579,33 @@ print(r)                              ' a string from here on
   must be a `!` type too.
 - After a guard such as `if r is Error then return`, `r` is a `T`.
 - `r.code`, `r.message` and `r.line` read a `T!`'s error; they are 0 and "" when there is none.
-  `a ?? b` takes a `T!` too. Until modules, an error has no file.
+  `a ?? b` takes a `T!` too. `r.line` is the line in its module's file; an error has no file yet.
 - A runtime error in the language itself, such as an index out of range or a division by zero,
   stops the program at its line, as today. A program handles only the errors a function
   returns as `T!`.
 
 ### Modules
 
-- A file is a module and a folder is a package, as `IMPORT` works today: `import gfx`,
-  `from barkley.model.hero import Hero`, and relative `from .feet import Land`.
-- **Open:** what is exported by default. Proposed: nothing; exports are marked `public`, the
-  opposite of llrm's `PRIVATE`.
-- Only the main file runs top-level statements. A module holds declarations, `var`s included,
-  and runs nothing when imported.
+- A file is a module and a folder is a package, found as QBasic's `IMPORT` finds one (the main
+  file's folder, each folder of `BASICLIB`, then `lib/` beside the interpreter), as a `.qr`.
+- `import gfx`, `import m as n`, `import a.b` (then `a.b.f()`), `from a.b import X, Y as Z`,
+  `from pkg import m` (a package's module) and relative `from .feet import Land`: `.` is the
+  importing file's folder, `..` its parent.
+- Nothing is exported unless marked `public`: a `fn`, `type`, `enum`, `const`, `var` or `let`. A
+  name a module imports is not exported again.
+- `a.f(b)` takes the `f` in sight, else the public `f` of the module declaring `a`'s type:
+  `clock.tick()` needs only `import time`.
+- Only the main file runs top-level statements. A module's top level holds declarations, imports
+  and `var`s; anything else is a compile error.
+- A module's `var`s and `let`s start once, before the main file's first line: each module after
+  those it imports, in the order its imports are written, the first met first in a cycle. Reading
+  the var of a module that starts later, at another's top level, is a compile error.
+- Across a cycle, declarations refer to each other freely: every fn, type and const is known
+  before any body is checked.
+- An error, at compile time or run time, names the module's own file and line.
+- A `.qr` importing a `.bas` is not supported.
+- **In the VM**, each module's lines are the program store's, a module's before the modules that
+  import it and the main's last, so the vars start by running the lines in order.
 
 ### Tests
 

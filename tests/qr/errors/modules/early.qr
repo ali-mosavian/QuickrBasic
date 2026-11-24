@@ -1,0 +1,2 @@
+import lib
+public let first = lib.late

@@ -47,6 +47,8 @@ static void qpar_statement(QPar *P);
 static void qpar_end(QPar *P);
 static void qpar_push(QPar *P, QStmt *s);
 static QStmt *qpar_new(QPar *P, QStmtKind kind, const QTok *tok);
+static void qpar_import(QPar *P);
+static void qpar_public(QPar *P);
 
 /* ---- tokens */
 
@@ -720,11 +722,16 @@ static QTypeEx *qpar_type(QPar *const P)
         } while (qpar_take(P, QK_COMMA));
 
         qpar_need(P, QK_RPAREN, ")");
-    } else
+    } else {
         x = qpar_typex(P, QX_NAME, qpar_need(P, QK_NAME, "a type"));
+        uint32_t cap = 0;
 
-    if (qpar_is(P, QK_DOT))
-        qpar_later(P, P->t, "imported types are");
+        while (qpar_take(P, QK_DOT)) { /* a module's: gfx.Window */
+            x->quals = qast_room(P->mem, x->quals, x->nquals, &cap, sizeof *x->quals);
+            x->quals[x->nquals++] = x->tok;
+            x->tok = qpar_need(P, QK_NAME, "a type");
+        }
+    }
 
     while (qpar_is(P, QK_LBRACK)) {
         const QTok *const at = qpar_next(P);
@@ -1315,12 +1322,102 @@ static void qpar_statement(QPar *const P)
         qpar_fn(P);
         return;
 
+    case QK_IMPORT:
+    case QK_FROM:
+        qpar_import(P);
+        return;
+
+    case QK_PUBLIC:
+        qpar_public(P);
+        return;
+
     case QK_LATER:
         qpar_later(P, t, "{} is");
 
     default:
         qpar_append(P, qpar_simple(P));
     }
+}
+
+/* A module's dotted name; from's (dots) may start with dots, each a folder up, or be dots alone. */
+static QImport *qpar_modname(QPar *const P, const bool dots)
+{
+    QImport *const m = qast_alloc(P->mem, sizeof *m);
+    m->tok = P->t;
+    m->mod = QMOD_NONE;
+
+    while (dots && (qpar_is(P, QK_DOT) || qpar_is(P, QK_DOTDOT)))
+        m->up += qpar_next(P)->kind == QK_DOT ? 1 : 2;
+
+    if (m->up && !qpar_is(P, QK_NAME))
+        return m;
+
+    uint32_t cap = 0;
+
+    do {
+        m->path = qast_room(P->mem, m->path, m->npath, &cap, sizeof *m->path);
+        m->path[m->npath++] = qpar_need(P, QK_NAME, "a module's name");
+    } while (qpar_take(P, QK_DOT));
+
+    return m;
+}
+
+/* A name an import or a from binds instead: as name. */
+static void qpar_as(QPar *const P, QImport *const m)
+{
+    if (qpar_take(P, QK_AS))
+        m->as = qpar_need(P, QK_NAME, "a name after as");
+}
+
+/* import a.b [as n], ..; from [.]a.b import X [as Y], ..: at the top level. */
+static void qpar_import(QPar *const P)
+{
+    const bool from = qpar_is(P, QK_FROM);
+    QStmt *const s = qpar_new(P, from ? QS_FROM : QS_IMPORT, qpar_next(P));
+    qpar_append(P, s);
+
+    if (P->nopen)
+        qpar_fail(P, s->tok, "{} goes at the top level, not in a block");
+
+    QImport **last = from ? &s->names : &s->imps;
+
+    if (from) {
+        s->imps = qpar_modname(P, true);
+        qpar_need(P, QK_IMPORT, "import");
+    }
+
+    do {
+        QImport *const m = from ? qast_alloc(P->mem, sizeof *m) : qpar_modname(P, false);
+
+        if (from) {
+            m->tok = qpar_need(P, QK_NAME, "a name");
+            m->mod = QMOD_NONE;
+            m->path = &m->tok;
+            m->npath = 1;
+        }
+
+        qpar_as(P, m);
+        *last = m;
+        last = &m->next;
+    } while (qpar_take(P, QK_COMMA));
+}
+
+/* public before a module's fn, type, enum, const, var or let. */
+static void qpar_public(QPar *const P)
+{
+    const QTok *const t = qpar_next(P);
+    const QKind k = P->t->kind;
+
+    if (P->nopen)
+        qpar_fail(P, t, "public goes at the top level, not in a block");
+    if (k != QK_FN && k != QK_TYPE && k != QK_ENUM && k != QK_CONST && k != QK_VAR && k != QK_LET)
+        qpar_fail(P, t, "public goes before fn, type, enum, const, var or let");
+
+    qpar_statement(P);
+    P->last->pub = true;
+
+    if (P->last->kind == QS_FN)
+        P->last->fn->pub = true;
 }
 
 /* Each block left open: its error at its opener. */
@@ -1343,9 +1440,22 @@ static void qpar_unclosed(QPar *const P)
     }
 }
 
-void qpar_program(QProg *const p, QMem *const m)
+void qpar_program(QProg *const p, QMem *const m, QMod *const mod)
 {
-    QPar P = {.prog = p, .mem = m, .t = p->src.toks};
+    QPar P = {
+        .prog = p,
+        .mem = m,
+        .t = mod->toks,
+        .last = p->first,
+        .lastfn = p->fns,
+    };
+
+    while (P.last && P.last->next)
+        P.last = P.last->next;
+    while (P.lastfn && P.lastfn->next)
+        P.lastfn = P.lastfn->next;
+
+    const QStmt *const before = P.last;
 
     while (P.t->kind != QK_EOF) {
         if (!setjmp(P.fail)) {
@@ -1362,6 +1472,8 @@ void qpar_program(QProg *const p, QMem *const m)
     }
 
     qpar_unclosed(&P);
+    mod->head = before ? before->next : p->first;
+    mod->tail = mod->head ? P.last : nullptr;
 }
 
 /* A parser at token t, appending to p's statements and fns. */
