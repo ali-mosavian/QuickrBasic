@@ -83,7 +83,7 @@ function poll()
     while len(s) > 0
         var c = int(s[0])
         if len(s) = 2 then c = 256 + int(s[1])
-        if c >= 65 and c <= 90 then c += 32
+        if c >= "A"[0] and c <= "Z"[0] then c += 32
         waiting.push(c)
         seen[c] = time.ticks()
         fresh[c] = true

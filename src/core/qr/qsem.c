@@ -3696,12 +3696,44 @@ static QExpr *qsem_slice(QSem *const S, QExpr *const e)
     return e;
 }
 
+/* String constant s's byte i, its escapes read; -1 past its end. */
+static int32_t qsem_byteof(const QPiece *s, int64_t i)
+{
+    for (; s; s = s->next) {
+        const QTok *const t = s->lit;
+
+        for (uint32_t k = 0; k < t->len; k++, i--) {
+            char c = t->text[k];
+
+            if (c == '\\') {
+                c = t->text[++k];
+                c = c == 'n' ? '\n' : c == 't' ? '\t' : c;
+            }
+
+            if (!i)
+                return (uint8_t)c;
+        }
+    }
+
+    return -1;
+}
+
 static QExpr *qsem_index(QSem *const S, QExpr *const e)
 {
     const QExpr *const a = e->a = qsem_addressed(S, qsem_expr(S, e->a, QY_VOID));
 
     if (a->type == QY_STRING) { /* a byte, read only */
         e->b = qsem_coerce(S, qsem_expr(S, e->b, QY_INT), QY_INT);
+
+        if (a->kind == QE_CONST && e->b->kind == QE_CONST) { /* a character constant */
+            const int32_t c = e->b->val.i < 0 ? -1 : qsem_byteof(a->val.s, e->b->val.i);
+
+            if (c < 0)
+                qsem_say(S, e->b->tok, "the index is past the elements", nullptr);
+
+            return qsem_const(S, e->tok, c < 0 ? QY_ERROR : QY_UBYTE, (QVal){.i = c});
+        }
+
         e->kind = QE_CALL;
         e->builtin = QB_BYTE;
         e->type = e->b->type == QY_ERROR ? QY_ERROR : QY_UBYTE;

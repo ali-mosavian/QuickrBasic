@@ -92,8 +92,9 @@ that is not a loop.
   spec by Python's format-spec rules. A value without a spec is spelled as `print` spells it. A
   bool, and a value `print` spells as text (an enum, a record with `text`, a `T or none`), takes a
   string's spec: `f"{ok:>5}"`.
-- A character constant is a string literal indexed by a constant: `"0"[0]` is the `ubyte` 48,
-  folded at compile time. **Not yet:** it is read when run.
+- A character constant is a string constant indexed by a constant: `"0"[0]` is the `ubyte` 48,
+  folded at compile time, so a `const` or a `case` takes it. An index outside the string is a
+  compile error.
 
 ### Types
 

@@ -18,7 +18,8 @@ Declarations: name [as type] [= value].
 
 Types: bool, byte short int long, ubyte ushort uint ulong, single
 double, string; T[] a list, T[n] an array, dict[K, V] a map, (T, U)
-a tuple, T or none, T or Error, function(T) as U.
+a tuple, T or none, T or Error, function(T) as U. s[i] is a ubyte;
+"0"[0] is the constant 48.
 
 Control:
     if c then ... elseif c then ... else ... end if   (else if = elseif)
