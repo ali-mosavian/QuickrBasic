@@ -246,15 +246,17 @@ static void qlink_types(Comp *const C, const QProg *const p, QMem *const m)
             p->tys.at[i].td =
                 decl_newtype(C->decl, C->symb, qlink_name(C->symb, p->tys.at[i].name));
 
-    for (uint32_t i = 0; i < p->tys.n; i++) { /* each list an element: boxed in a TYPE */
-        const QTy *const y = &p->tys.at[i];
+    for (uint32_t i = 0; i < p->tys.n; i++) { /* each fixed array and list element: a TYPE */
+        QTy *const y = &p->tys.at[i];
         QTy *const in =
             qast_array(p, QY_FIRST + i) && qast_array(p, y->elem) ? qast_ty(p, y->elem) : nullptr;
+        QTy *const boxes[] = {y->kind == QT_ARRAY ? y : nullptr, in};
 
-        if (in && !in->boxed) {
-            in->boxed = true;
-            in->td = decl_newtype(C->decl, C->symb, 0);
-        }
+        for (uint32_t k = 0; k < countof(boxes); k++)
+            if (boxes[k] && !boxes[k]->boxed) {
+                boxes[k]->boxed = true;
+                boxes[k]->td = decl_newtype(C->decl, C->symb, 0);
+            }
     }
 
     for (uint32_t i = 0; i < p->tys.n; i++)

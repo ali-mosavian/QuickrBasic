@@ -32,6 +32,7 @@
  */
 #include "qr/qcg.h"
 #include "comp/codegen.h"
+#include "comp/declare.h"
 #include "comp/fuse.h"
 #include "num/double.h"
 #include "qr/qnat.h"
@@ -1075,13 +1076,13 @@ uint32_t qcg_scalar_et(const QType t)
     }
 }
 
-/* Is t kept in a TYPE: a record, or a list that is an element (qr/qlink.c)? */
+/* Is t kept in a TYPE: a record, a fixed array, or a list that is an element (qr/qlink.c)? */
 static bool qcg_typed(const QCg *const g, const QType t)
 {
     return qcg_rec(g, t) || (qcg_list(g, t) && qcg_ty(g, t)->boxed);
 }
 
-/* Type t's ET_*: a record's or a boxed list's ET_REC + its TYPE, a scalar's qcg_scalar_et. */
+/* Type t's ET_*: a record's or a boxed array's ET_REC + its TYPE, a scalar's qcg_scalar_et. */
 static uint32_t qcg_et(const QCg *const g, const QType t)
 {
     return qcg_typed(g, t) ? ET_REC + qcg_ty(g, t)->td : qcg_scalar_et(t);
@@ -1646,7 +1647,21 @@ static void qcg_ends(QCg *const g, const QExpr *const e)
         code_int(g->c, INT32_MAX);
 }
 
-/* List place src's elements to list place dst: moved (src left empty), or copied. */
+/* Fixed array place e's first element's address pushed: inline, or a variable's array's. */
+static void qcg_fixedat(QCg *const g, const QExpr *const e)
+{
+    if (qcg_held(g, e)) {
+        qcg_offset(g, qcg_heldat(g, e));
+        return;
+    }
+
+    code_int(g->c, 0);
+    code_opid(g->c, O_RA_ADDR, qcg_listvar(g, e)->id, false);
+    code_byte(g->c, 1);
+}
+
+/* List place src's elements to list place dst: moved (src left empty), or copied. A fixed array
+   inline either side is copied as its TYPE (qr/qlink.c). */
 static void qcg_listto(
     QCg *const g,
     const QExpr *const dst,
@@ -1654,6 +1669,13 @@ static void qcg_listto(
     const bool move
 )
 {
+    if (qcg_ty(g, dst->type)->kind == QT_ARRAY && (qcg_held(g, dst) || qcg_held(g, src))) {
+        qcg_fixedat(g, dst);
+        qcg_fixedat(g, src);
+        qcg_recop(g, dst->type);
+        return;
+    }
+
     qcg_cell(g, src);
     qcg_cell(g, dst);
     code_call(g->c, move ? K_AMOVE : K_ACOPY);
@@ -1747,6 +1769,12 @@ static void qcg_ref(QCg *const g, const QExpr *const a)
     if (qcg_list(g, a->type)) {
         code_int(c, 0);
         qcg_cell(g, a);
+
+        if (qcg_held(g, a) && qcg_ty(g, a->type)->kind == QT_ARRAY) { /* inline: a cell made */
+            code_int(c, (int32_t)(ARR_FIELD | decl_fieldkey(qcg_ty(g, a->type)->td, 0)));
+            code_call(c, K_FCELL);
+        }
+
         return;
     }
 
