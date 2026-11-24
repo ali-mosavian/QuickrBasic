@@ -28,6 +28,8 @@ IMPORT(fs_readdir) int js_fs_readdir(const char *path, uint32_t index, char *buf
 
 /* The time in ms since 1970, and the local time's offset from it then, in minutes. */
 IMPORT(now) double js_now(void);
+/* A steady clock in ms, finer than one, the same on every thread. */
+IMPORT(clock) double js_clock(void);
 IMPORT(tz) double js_tz(double ms);
 /* The process: its arguments (space separated, cap bytes), its exit. */
 IMPORT(args) int js_args(char *buf, size_t cap);

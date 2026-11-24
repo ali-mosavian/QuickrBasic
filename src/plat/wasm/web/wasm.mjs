@@ -214,6 +214,7 @@ export function imports(memory, host) {
       return index < names.length ? put(buf, cap, names[index]) : -1;
     }),
     now: () => Date.now(),
+    clock: () => performance.timeOrigin + performance.now(),
     tz: (ms) => -new Date(ms).getTimezoneOffset(),
     args: (buf, cap) => put(buf, cap - 1, host.args),
     exit: (code) => host.exit(code),

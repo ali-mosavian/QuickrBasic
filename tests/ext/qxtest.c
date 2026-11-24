@@ -72,3 +72,6 @@ int32_t qxtest_played(void)
     qx_host->audio_unlock(token);
     return n;
 }
+
+/* The clock's microseconds past its millisecond. */
+int32_t qxtest_fraction(void) { return (int32_t)(qx_host->clock_us() % 1000); }
