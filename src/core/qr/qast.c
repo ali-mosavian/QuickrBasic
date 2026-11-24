@@ -136,7 +136,7 @@ const char *qast_spelling(const QKind k)
         [QK_DOT] = ".",
         [QK_DOTDOT] = "..",
         [QK_QUEST] = "?",
-        [QK_QQ] = "??",
+        [QK_ORELSE] = "or else",
         [QK_BANG] = "!",
         [QK_PLUS] = "+",
         [QK_MINUS] = "-",

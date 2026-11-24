@@ -138,8 +138,9 @@ that is not a loop.
   `ubyte(300)`. `wrap(x)` asks for wrapping, keeping each operation and conversion in `x` to its
   type's bits: `h = wrap((h xor c) * 16777619)`.
 - `-` of an unsigned value is a compile error outside `wrap`.
-- **Not yet:** `T or none` is written `T?`, `T or Error` is `T!`, and `dict[K, V]` is `V[K]`.
-  Generic records, lists of lists, and a list or record as a dict's value are not there.
+- `T?`, `T!`, `V[K]` and `??` are errors that name `T or none`, `T or Error`, `dict[K, V]` and
+  `or else`.
+- **Not yet:** generic records, lists of lists, and a list or record as a dict's value.
 - **In the VM**, an integer to 16 bits and an `int` live in an int cell and compute with the int
   ops, a result's range then checked. A `uint`'s bits are in an int cell too, with ops of its own.
   A `long` and a `ulong` are 8-byte cells loaded and stored by the double ops, with ops of their
@@ -209,7 +210,6 @@ Lowest first. Each row binds tighter than the one above.
   `b`.
 - Compound assignment: `+= -= *= /=`. The target's subscripts are evaluated once. `/=` takes a
   `single` or `double` target.
-- **Not yet:** `or else` is `??`, which binds tighter than a comparison.
 
 ### print
 

@@ -16,7 +16,7 @@ end type
 
 type Pool
     items as Res[]
-    first as Res?
+    first as Res or none
 end type
 
 function make(name as string) as Res
@@ -36,12 +36,12 @@ function kept() as Res
     return k
 end function
 
-function check(fail as bool) as int!
+function check(fail as bool) as int or Error
     if fail then return Error(1, "no")
     return 5
 end function
 
-function tried(fail as bool) as int!
+function tried(fail as bool) as int or Error
     let t = Res("t")
     let v = check(fail)?
     let u = Res("u")
@@ -95,7 +95,7 @@ print early(false)
 let got = kept()
 print "got"; " "; got.name
 print tried(true) is Error
-print tried(false) ?? 0
+print tried(false) or else 0
 in_loop()
 maybe_move(true)
 maybe_move(false)

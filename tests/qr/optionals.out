@@ -17,3 +17,6 @@ again 4
 block 3
 bad 1
 odd
+-1 4
+4 -1
+true

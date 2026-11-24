@@ -35,12 +35,12 @@ next
 print a.sum(); " "; a.count(); " "; a.filter(fn(x) x mod 2 = 0).sum()
 print a.map(fn(x) x * x).filter(fn(v) v > 10).sum()
 print (0..5).sum(); " "; (0..5).rev().collect()[0]; " "; len(a.collect())
-print a.any(fn(x) x > 8); " "; a.all(fn(x) x < 5); " "; a.find(fn(x) x > 3) ?? -1
-print a.min() ?? -1; " "; a.max() ?? -1; " "; a.filter(fn(x) x > 100).max() ?? -1
+print a.any(fn(x) x > 8); " "; a.all(fn(x) x < 5); " "; a.find(fn(x) x > 3) or else -1
+print a.min() or else -1; " "; a.max() or else -1; " "; a.filter(fn(x) x > 100).max() or else -1
 print a.take(3).sum(); " "; a.skip(7).sum(); " "; a.skip(2).take(2).sum()
 print a.fold(100, fn(acc, x) acc - x)
 let s = "hello"
-print s.count(); " "; s.filter(fn(b) b = 108).count(); " "; s.max() ?? 0
+print s.count(); " "; s.filter(fn(b) b = 108).count(); " "; s.max() or else 0
 for i in (0..4).rev()
     print i
 next
@@ -57,20 +57,20 @@ print len(sq); " "; sq[9]
 var names as string[]
 names.push("bo")
 names.push("ann")
-print names.min() ?? ""; " "; names.max() ?? ""; " "; names.map(fn(n) n + "!").collect()[1]
+print names.min() or else ""; " "; names.max() or else ""; " "; names.map(fn(n) n + "!").collect()[1]
 var g = upto(5)
 print g.map(fn(x) x + 1).sum()
-print g.next() ?? -1
+print g.next() or else -1
 print upto(4).map(twice).collect()[3]; " "; upto(6).filter(fn(x) x > 2).count()
 for x in upto(10).filter(fn(x) x mod 4 = 0)
     print x
 next
 var ch = chained(6)
-print ch.next() ?? -1; " "; ch.next() ?? -1
+print ch.next() or else -1; " "; ch.next() or else -1
 for x in chained(4)
     print x
 next
-var m as int[string]
+var m as dict[string, int]
 m["a"] = 1
 m["bb"] = 2
 print m.map(fn(k) len(k)).sum(); " "; m.filter(fn(k) m[k] > 1).collect()[0]
@@ -85,22 +85,22 @@ var xs as int[]
 for i in 0..5
     xs.push(i)
 next
-print f"{xs.filter(fn(x) x > k).sum()} and {xs.map(fn(x) x * k).max() ?? 0}"
+print f"{xs.filter(fn(x) x > k).sum()} and {xs.map(fn(x) x * k).max() or else 0}"
 print "n=" + string(xs.sum()); " "; xs.map(fn(x) xs.filter(fn(y) y < x).count()).sum()
 print total(xs, fn(x) x + k); " "; total(xs, twice)
 var words as string[]
 words.push("x")
 words.push("yy")
-print "w: " + (words.map(fn(w) w + w).max() ?? "") + "!"
+print "w: " + (words.map(fn(w) w + w).max() or else "") + "!"
 var a3 as int[]
 for i in 0..7
     a3.push(i)
 next
 var g3 = evens(copy(a3))
-print g3.next() ?? -1; " "; g3.next() ?? -1; " "; g3.next() ?? -1; " "; g3.next() ?? -1; " "; g3.next() ?? -1
+print g3.next() or else -1; " "; g3.next() or else -1; " "; g3.next() or else -1; " "; g3.next() or else -1; " "; g3.next() or else -1
 for x in evens(a3)
     print x
 next
 var sm = sums(5)
-print sm.collect()[3]; " "; sm.next() ?? -1
+print sm.collect()[3]; " "; sm.next() or else -1
 print sums(4).fold("", fn(t, v) t + string(v) + ",")

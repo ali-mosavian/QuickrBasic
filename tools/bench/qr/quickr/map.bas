@@ -1,5 +1,5 @@
 ' OPTION DIALECT QUICKR
-var m as int[int]
+var m as dict[int, int]
 for i in 0..4000
     m[i * 7919] = i
 next

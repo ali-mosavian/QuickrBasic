@@ -21,7 +21,7 @@ function drop(mut f as File)
 end function
 
 ' path opened: mode "r" to read, "w" to write it anew, "a" to add to its end, "rw" both
-public function open(path as string, mode as string = "r") as File!
+public function open(path as string, mode as string = "r") as File or Error
     let n = file_open(path, mode)
     if n < 0 then return Error(-n, f"{path}: {error_text(-n)}")
     return File(n)
@@ -32,14 +32,14 @@ public function read(f as File, count as int) as string
     return file_read(f.n, count)
 end function
 
-public function write(f as File, s as string) as bool!
+public function write(f as File, s as string) as bool or Error
     let st = file_write(f.n, s)
     if st < 0 then return Error(-st, f"write: {error_text(-st)}")
     return true
 end function
 
 ' f's place to byte at, from 0
-public function seek(f as File, at as int) as bool!
+public function seek(f as File, at as int) as bool or Error
     let st = file_seek(f.n, at)
     if st < 0 then return Error(-st, f"seek: {error_text(-st)}")
     return true
@@ -55,12 +55,12 @@ public function close(mut f as File)
 end function
 
 ' the whole file as a string
-public function read_text(path as string) as string!
+public function read_text(path as string) as string or Error
     let f = open(path)?
     return read(f, size(f))
 end function
 
-public function write_text(path as string, s as string) as bool!
+public function write_text(path as string, s as string) as bool or Error
     var f = open(path, "w")?
     let st = file_write(f.n, s)
     f.close()

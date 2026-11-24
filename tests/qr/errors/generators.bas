@@ -28,7 +28,7 @@ end function
 let a = upto(3)
 var b = upto(3)
 print b
-var m = b.next() ?? 0
+var m = b.next() or else 0
 var c = changes(mut m)
 print b.size()
 let s = upto(4)
@@ -48,5 +48,5 @@ let f = upto
 for x in changes(mut m)
     print x
 next
-print b.next(1) ?? 0
+print b.next(1) or else 0
 upto(3)

@@ -292,9 +292,9 @@ static const char *qsem_tyname(QSem *const S, const QType t)
     case QT_MAP:
         return qsem_join(
             S,
-            qsem_join(S, qsem_tyname(S, y->elem), "[", qsem_tyname(S, y->key)),
-            "]",
-            ""
+            qsem_join(S, "dict[", qsem_tyname(S, y->key), ", "),
+            qsem_tyname(S, y->elem),
+            "]"
         );
 
     case QT_OPT:
@@ -302,7 +302,7 @@ static const char *qsem_tyname(QSem *const S, const QType t)
         return qsem_join(
             S,
             qsem_tyname(S, y->fields[QF_VAL].type),
-            y->kind == QT_OPT ? "?" : "!",
+            y->kind == QT_OPT ? " or none" : " or Error",
             ""
         );
 
@@ -934,23 +934,7 @@ static QType qsem_qualtype(
     return QY_ERROR;
 }
 
-/* Unchecked name e's type, a map's key's: T, or m.T. */
-static QType qsem_nametype(QSem *const S, const QExpr *const e)
-{
-    if (e->kind == QE_NAME)
-        return qsem_typename(S, e->tok);
-
-    const QBind *const b = qsem_qual(S, e);
-
-    if (b && b->ty)
-        return b->ty;
-    if (!b || b->ty != QY_ERROR)
-        qsem_say(S, e->tok, "unknown type ", qsem_text(S, e->tok), nullptr);
-
-    return QY_ERROR;
-}
-
-/* Does T[e] name a map's key type, e a type's name? */
+/* Does T[e] name a type, the old spelling of dict[e, T]? */
 static bool qsem_keyed(QSem *const S, const QExpr *const e)
 {
     if (e->kind == QE_FIELD && qsem_ismod(S, e->a)) {
@@ -965,16 +949,18 @@ static bool qsem_keyed(QSem *const S, const QExpr *const e)
     return (b && b->ty) || qsem_scalar(e->tok) != QY_VOID;
 }
 
-/* V[K]: a map, K an int, a string or a plain enum. */
+static QType qsem_type(QSem *S, const QTypeEx *x);
+
+/* dict[K, V]: K an int, a string or a plain enum. */
 static QType qsem_maptype(QSem *const S, const QTypeEx *const x, const QType val)
 {
-    const QType key = qsem_nametype(S, x->count);
+    const QType key = qsem_type(S, x->items[0]);
 
     if (key == QY_ERROR)
         return QY_ERROR;
 
     if (key != QY_INT && key != QY_STRING && !qast_tag(S->prog, key)) {
-        qsem_say(S, x->count->tok, "a map's key is an int, a string or an enum", nullptr);
+        qsem_say(S, x->items[0]->tok, "a dict's key is an int, a string or an enum", nullptr);
         return QY_ERROR;
     }
 
@@ -1024,7 +1010,7 @@ static QType qsem_type(QSem *const S, const QTypeEx *const x)
 
     if (x->kind == QX_OPT || x->kind == QX_RES) {
         if (qsem_wraps(S, elem, QT_REC)) {
-            qsem_say(S, x->tok, "a T? or T!'s T is neither", nullptr);
+            qsem_say(S, x->tok, "T or none and T or Error take a T that is neither", nullptr);
             return QY_ERROR;
         }
 
@@ -1032,15 +1018,25 @@ static QType qsem_type(QSem *const S, const QTypeEx *const x)
     }
 
     if (qast_array(S->prog, elem)) {
-        qsem_say(S, x->tok, "lists of lists are not supported yet", nullptr);
+        qsem_say(
+            S,
+            x->tok,
+            x->kind == QX_DICT ? "a list as a dict's value is not supported yet"
+                               : "lists of lists are not supported yet",
+            nullptr
+        );
         return QY_ERROR;
     }
 
+    if (x->kind == QX_DICT)
+        return qsem_maptype(S, x, elem);
     if (x->kind == QX_LIST)
         return qsem_listof(S, elem, 0);
 
-    if (qsem_keyed(S, x->count))
-        return qsem_maptype(S, x, elem);
+    if (qsem_keyed(S, x->count)) {
+        qsem_say(S, x->tok, "V[K] is written dict[K, V]", nullptr);
+        return QY_ERROR;
+    }
 
     const uint32_t n = qsem_count(S, x->count);
     return n ? qsem_listof(S, elem, n) : QY_ERROR;
@@ -3898,7 +3894,7 @@ static QExpr *qsem_keys(QSem *const S, QExpr *const e)
         qsem_say(
             S,
             e->tok,
-            qsem_ismap(S, m->type) ? "keys() takes no values" : "only a map has keys()",
+            qsem_ismap(S, m->type) ? "keys() takes no values" : "only a dict has keys()",
             nullptr
         );
         return e;
@@ -3942,7 +3938,7 @@ static QExpr *qsem_len(QSem *const S, QExpr *const e, QExpr *const recv)
         qsem_say(
             S,
             a->tok,
-            "len() takes a list, a map, a string or an array, not ",
+            "len() takes a list, a dict, a string or an array, not ",
             qsem_aname(S, a->type),
             nullptr
         );
@@ -4133,7 +4129,7 @@ static QExpr *qsem_has(QSem *const S, QExpr *const e)
         qsem_say(
             S,
             e->tok,
-            "in takes a range a..b, a list or a map, not ",
+            "in takes a range a..b, a list or a dict, not ",
             qsem_aname(S, a->type),
             nullptr
         );
@@ -4761,7 +4757,7 @@ static QExpr *qsem_error(QSem *const S, QExpr *const e, const QType hint)
         qsem_say(
             S,
             e->tok,
-            "Error(code, message) needs a T! place, as a function's result",
+            "Error(code, message) needs a T or Error place, as a function's result",
             nullptr
         );
         return e;
@@ -4792,7 +4788,8 @@ static QExpr *qsem_isnone(QSem *const S, QExpr *const e)
         return e;
 
     if (!qsem_wraps(S, a->type, none ? QT_OPT : QT_RES)) {
-        const char *const say = none ? "is none takes a T?, not " : "is Error takes a T!, not ";
+        const char *const say =
+            none ? "is none takes a T or none, not " : "is Error takes a T or Error, not ";
         qsem_say(S, e->tok, say, qsem_aname(S, a->type), nullptr);
         return e;
     }
@@ -4801,7 +4798,7 @@ static QExpr *qsem_isnone(QSem *const S, QExpr *const e)
     return e;
 }
 
-/* a ?? b: a's T, or b when a is none or an Error. */
+/* a or else b: a's T, or b when a is none or an Error. */
 static QExpr *qsem_coalesce(QSem *const S, QExpr *const e)
 {
     QExpr *const a = qsem_held(S, qsem_expr(S, e->a, QY_VOID));
@@ -4813,7 +4810,13 @@ static QExpr *qsem_coalesce(QSem *const S, QExpr *const e)
     }
 
     if (!qsem_wraps(S, a->type, QT_REC)) {
-        qsem_say(S, e->tok, "?? takes a T? or a T!, not ", qsem_aname(S, a->type), nullptr);
+        qsem_say(
+            S,
+            e->tok,
+            "or else takes a T or none or a T or Error, not ",
+            qsem_aname(S, a->type),
+            nullptr
+        );
         return e;
     }
 
@@ -4846,7 +4849,7 @@ static QExpr *qsem_try(QSem *const S, QExpr *const e)
         return e;
 
     if (!qsem_wraps(S, a->type, QT_RES)) {
-        qsem_say(S, e->tok, "x? takes a T!, not ", qsem_aname(S, a->type), nullptr);
+        qsem_say(S, e->tok, "x? takes a T or Error, not ", qsem_aname(S, a->type), nullptr);
         return e;
     }
 
@@ -4854,7 +4857,7 @@ static QExpr *qsem_try(QSem *const S, QExpr *const e)
         qsem_say(
             S,
             e->tok,
-            "x? returns its error: only in a function whose result is a T!",
+            "x? returns its error: only in a function whose result is a T or Error",
             nullptr
         );
         return e;
@@ -4876,14 +4879,14 @@ static QExpr *qsem_get(QSem *const S, QExpr *const e)
 
     if (!qsem_ismap(S, m->type) || !qsem_plain(S, e, 1)) {
         const bool map = qsem_ismap(S, m->type);
-        qsem_say(S, e->tok, map ? "get() takes a key" : "only a map has get()", nullptr);
+        qsem_say(S, e->tok, map ? "get() takes a key" : "only a dict has get()", nullptr);
         return e;
     }
 
     const QTy *const y = qast_ty(S->prog, m->type);
 
     if (qsem_byplace(S, y->elem)) {
-        qsem_say(S, e->tok, "get() takes a map of numbers, strings and bools: use m[k]", nullptr);
+        qsem_say(S, e->tok, "get() takes a dict of numbers, strings and bools: use d[k]", nullptr);
         return e;
     }
 
@@ -4938,7 +4941,7 @@ static QExpr *qsem_expr(QSem *const S, QExpr *const e, const QType hint)
         return qsem_unary(S, e);
 
     case QE_BINARY:
-        return e->op == QK_QQ ? qsem_coalesce(S, e) : qsem_binary(S, e);
+        return e->op == QK_ORELSE ? qsem_coalesce(S, e) : qsem_binary(S, e);
 
     case QE_CHAIN:
         return qsem_chain(S, e);
@@ -4963,7 +4966,12 @@ static QExpr *qsem_expr(QSem *const S, QExpr *const e, const QType hint)
         if (qsem_wraps(S, hint, QT_OPT))
             return qsem_wrapped(S, e->tok, hint, false, nullptr);
 
-        qsem_say(S, e->tok, "none needs a T? place: write var x as T? = none", nullptr);
+        qsem_say(
+            S,
+            e->tok,
+            "none needs a T or none place: write var x as T or none = none",
+            nullptr
+        );
         e->type = QY_ERROR;
         return e;
 
@@ -5421,7 +5429,7 @@ static void qsem_eachkey(QSem *const S, QStmt *const s, const QVar *const root)
     QExpr *const m = qast_fresh(a) && a->var ? qsem_nameof(S, a->var, a->tok) : a;
 
     if (s->mut)
-        qsem_say(S, s->tok, "a map's keys don't change: assign m[k] for its values", nullptr);
+        qsem_say(S, s->tok, "a dict's keys don't change: assign d[k] for its values", nullptr);
 
     s->by = 1;
     s->stp = qsem_var(S, s->tok, QY_INT, QV_TEMP);
@@ -5717,7 +5725,7 @@ static QExpr *qsem_over(QSem *const S, QExpr *const c, QExpr **const src, QVar *
             S,
             a->tok,
             qsem_aname(S, a->type),
-            " has no chain: a list, an array, a map, a string, a range or a generator has",
+            " has no chain: a list, an array, a dict, a string, a range or a generator has",
             nullptr
         );
         return nullptr;
@@ -7379,7 +7387,7 @@ static void qsem_dropin(QSem *const S, const QType t, const QTok *const name)
         return;
 
     if (qsem_ismap(S, t))
-        qsem_say(S, name, "a map's values can't have drop", nullptr);
+        qsem_say(S, name, "a dict's values can't have drop", nullptr);
     else if (qast_array(S->prog, t) && qast_array(S->prog, qast_ty(S->prog, t)->elem))
         qsem_say(S, name, "a list of lists can't hold a value with drop", nullptr);
 }

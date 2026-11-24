@@ -31,7 +31,7 @@ chains.bas:18:9: sum() takes numbers, not a string
 chains.bas:19:16: sum() takes one value: map the pair to one
   print a.zip(a).sum()
                  ^
-chains.bas:20:7: an int has no chain: a list, an array, a map, a string, a range or a generator has
+chains.bas:20:7: an int has no chain: a list, an array, a dict, a string, a range or a generator has
   print 5.sum()
         ^
 chains.bas:21:1: a chain's elements don't change: for mut takes a list

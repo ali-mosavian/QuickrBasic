@@ -1,16 +1,16 @@
-maps.bas:3:14: a map's key is an int, a string or an enum
-  var a as int[double]
-               ^
-maps.bas:4:15: lists of lists are not supported yet
-  var b as int[][string]
+maps.bas:3:15: a dict's key is an int, a string or an enum
+  var a as dict[double, int]
                 ^
+maps.bas:4:10: a list as a dict's value is not supported yet
+  var b as dict[string, int[]]
+           ^
 maps.bas:6:3: an int is not a string: write string(x)
   m[3] = 1
     ^
 maps.bas:7:14: + joins two strings: write string(x)
   print m["x"] + "y"
                ^
-maps.bas:8:1: a map's keys don't change: assign m[k] for its values
+maps.bas:8:1: a dict's keys don't change: assign d[k] for its values
   for mut k in m
   ^
 maps.bas:11:5: m is borrowed by the for over it: it can't change here
@@ -29,14 +29,14 @@ maps.bas:16:9: m is used after it moves here: write copy(m)
   let n = m
           ^
 maps.bas:17:5: a let needs a value
-  let o as int[string]
+  let o as dict[string, int]
       ^
 maps.bas:18:2: o is a let: it can't change
   o["a"] = 1
    ^
-maps.bas:20:9: only a map has keys()
+maps.bas:20:9: only a dict has keys()
   print l.keys()
           ^
-maps.bas:21:7: print takes numbers, strings and bools, not an int[string]
+maps.bas:21:7: print takes numbers, strings and bools, not a dict[string, int]
   print m
         ^

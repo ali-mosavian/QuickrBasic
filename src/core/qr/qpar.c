@@ -2,7 +2,7 @@
  *
  * # How it works
  * Recursive descent, one function a precedence level, lowest first: a if c else b, or, xor, and,
- * not, comparisons (chained, and in a..b), shl shr, + -, * / div mod, unary -, ^; then
+ * a or else b, not, comparisons (chained, and in a..b), shl shr, + -, * / div mod, unary -, ^; then
  * a.f, a.f(args) and a[i] after a primary. A line starting with a name is tried as places then
  * =, else parsed as a call. A statement is parsed to its QK_NL; an error longjmps to the statement's start, which skips to
  * the QK_NL, so one bad statement makes one error.
@@ -564,18 +564,6 @@ static QExpr *qpar_in(QPar *const P, QExpr *const a)
     return e;
 }
 
-/* Comparisons, a < b <= c one chain; or a in b..c. */
-/* a ?? b, binding tighter than a comparison; right to left. */
-static QExpr *qpar_coalesce(QPar *const P)
-{
-    QExpr *const a = qpar_shift(P);
-
-    if (!qpar_is(P, QK_QQ))
-        return a;
-
-    const QTok *const op = qpar_next(P);
-    return qpar_binary(P, op, a, qpar_coalesce(P));
-}
 
 /* a is [not] none, a is [not] Error. */
 static QExpr *qpar_test(QPar *const P, QExpr *const a)
@@ -596,7 +584,7 @@ static QExpr *qpar_test(QPar *const P, QExpr *const a)
 
 static QExpr *qpar_compare(QPar *const P)
 {
-    QExpr *const a = qpar_coalesce(P);
+    QExpr *const a = qpar_shift(P);
 
     if (qpar_is(P, QK_IS))
         return qpar_test(P, a);
@@ -615,7 +603,7 @@ static QExpr *qpar_compare(QPar *const P)
         e->ops = qast_room(P->mem, e->ops, e->n - 1, &capops, sizeof *e->ops);
         e->ops[e->n - 1] = qpar_next(P)->kind;
         e->items = qast_room(P->mem, e->items, e->n, &cap, sizeof *e->items);
-        e->items[e->n++] = qpar_coalesce(P);
+        e->items[e->n++] = qpar_shift(P);
     }
 
     return e;
@@ -643,7 +631,7 @@ static QExpr *qpar_logic(
 {
     QExpr *e = next(P);
 
-    while (qpar_is(P, op)) {
+    while (qpar_is(P, op) && !(op == QK_OR && P->t[1].kind == QK_ELSE)) {
         QExpr *const x = qast_expr(P->mem, kind, qpar_next(P));
         x->a = e;
         x->b = next(P);
@@ -664,17 +652,33 @@ static QExpr *qpar_xor(QPar *const P)
 
 static QExpr *qpar_or(QPar *const P) { return qpar_logic(P, qpar_xor, QK_OR, QE_OR); }
 
+/* a or else b: right to left. */
+static QExpr *qpar_orelse(QPar *const P)
+{
+    QExpr *const a = qpar_or(P);
+
+    if (!qpar_is(P, QK_OR))
+        return a;
+
+    QExpr *const e = qast_expr(P->mem, QE_BINARY, qpar_next(P));
+    qpar_next(P); /* else */
+    e->op = QK_ORELSE;
+    e->a = a;
+    e->b = qpar_orelse(P);
+    return e;
+}
+
 /* a if c else b. */
 static QExpr *qpar_expr(QPar *const P)
 {
-    QExpr *const a = qpar_or(P);
+    QExpr *const a = qpar_orelse(P);
 
     if (!qpar_is(P, QK_IF))
         return a;
 
     QExpr *const e = qast_expr(P->mem, QE_COND, qpar_next(P));
     e->a = a;
-    e->c = qpar_or(P);
+    e->c = qpar_orelse(P);
     qpar_need(P, QK_ELSE, "else");
     e->b = qpar_expr(P);
     return e;
@@ -690,8 +694,50 @@ static QTypeEx *qpar_typex(QPar *const P, const QTypeExKind kind, const QTok *co
     return x;
 }
 
-/* A type after as: a name, (T, U) or function(T, ..) [as U], then [] or [n] any times. */
+static bool qpar_named(const QTok *const t, const char *const name)
+{
+    const uint32_t n = (uint32_t)strlen(name);
+    return t->kind == QK_NAME && t->len == n && !memcmp(t->text, name, n);
+}
+
+static QTypeEx *qpar_base(QPar *P);
+
+/* A type after as: a name, (T, U), (T), dict[K, V] or function(T, ..) [as U], then [] or [n] any
+   times; then or none or or Error, once. */
 static QTypeEx *qpar_type(QPar *const P)
+{
+    QTypeEx *const x = qpar_base(P);
+
+    if (qpar_is(P, QK_QUEST) || qpar_is(P, QK_BANG)) { /* said, and taken as the new spelling */
+        const bool opt = qpar_is(P, QK_QUEST);
+        const char *const msg = opt ? "T? is written T or none" : "T! is written T or Error";
+        qast_error(&P->prog->errs, P->t, msg, nullptr, 0);
+        QTypeEx *const y = qpar_typex(P, opt ? QX_OPT : QX_RES, qpar_next(P));
+        y->elem = x;
+        return y;
+    }
+
+    if (!qpar_is(P, QK_OR))
+        return x;
+
+    QTypeEx *const y = qpar_typex(P, QX_OPT, qpar_next(P));
+    y->elem = x;
+
+    if (qpar_named(P->t, "Error"))
+        y->kind = QX_RES;
+    else if (!qpar_is(P, QK_NONE))
+        qpar_expected(P, "none or Error after or");
+
+    qpar_next(P);
+
+    if (qpar_is(P, QK_OR))
+        qpar_fail(P, P->t, "a type has one or");
+
+    return y;
+}
+
+/* A type but its or. */
+static QTypeEx *qpar_base(QPar *const P)
 {
     QTypeEx *x;
 
@@ -723,7 +769,7 @@ static QTypeEx *qpar_type(QPar *const P)
         return x;
     }
 
-    if (qpar_is(P, QK_LPAREN)) {
+    if (qpar_is(P, QK_LPAREN)) { /* (T, U); (T) is T */
         x = qpar_typex(P, QX_TUPLE, qpar_next(P));
         uint32_t cap = 0;
 
@@ -733,6 +779,17 @@ static QTypeEx *qpar_type(QPar *const P)
         } while (qpar_take(P, QK_COMMA));
 
         qpar_need(P, QK_RPAREN, ")");
+
+        if (x->n == 1)
+            x = x->items[0];
+    } else if (qpar_named(P->t, "dict") && P->t[1].kind == QK_LBRACK) {
+        x = qpar_typex(P, QX_DICT, qpar_next(P));
+        qpar_next(P);
+        x->items = qast_alloc(P->mem, sizeof *x->items);
+        x->items[x->n++] = qpar_type(P);
+        qpar_need(P, QK_COMMA, ",");
+        x->elem = qpar_type(P);
+        qpar_need(P, QK_RBRACK, "]");
     } else {
         x = qpar_typex(P, QX_NAME, qpar_need(P, QK_NAME, "a type"));
         uint32_t cap = 0;
@@ -756,12 +813,6 @@ static QTypeEx *qpar_type(QPar *const P)
 
         qpar_need(P, QK_RBRACK, "]");
         x = y;
-    }
-
-    if (qpar_is(P, QK_QUEST) || qpar_is(P, QK_BANG)) {
-        QTypeEx *const y = qpar_typex(P, qpar_is(P, QK_QUEST) ? QX_OPT : QX_RES, qpar_next(P));
-        y->elem = x;
-        return y;
     }
 
     return x;
@@ -1557,8 +1608,14 @@ static void qpar_statement(QPar *const P)
         qpar_native(P);
         return;
 
-    default:
-        qpar_append(P, qpar_simple(P));
+    default: {
+        QStmt *const s = qpar_simple(P);
+
+        if (qpar_is(P, QK_BAD)) /* the lexer said why */
+            longjmp(P->fail, 1);
+
+        qpar_append(P, s);
+    }
     }
 }
 

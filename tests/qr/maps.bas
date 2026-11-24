@@ -1,6 +1,6 @@
 ' OPTION DIALECT QUICKR
 ' maps: set, read, in, remove, len, keys, for; records, enums, copies
-var ages as int[string]
+var ages as dict[string, int]
 ages["ada"] = 36
 ages["bob"] = 7
 ages["cy"] = 12
@@ -18,7 +18,7 @@ for k in ages
 next
 let ks = ages.keys()
 print len(ks); " "; ks[0]
-var sq as int[int]
+var sq as dict[int, int]
 for i in 0..1000
     sq[i * 7] = i * i
 next
@@ -37,7 +37,7 @@ for i in 0..1000
     ok = ok and ((i * 7 in sq) = (i mod 3 = 0))
 next
 print len(sq); " "; ok
-var names as string[int]
+var names as dict[int, string]
 for i in 0..200
     names[i] = f"n{i}"
 next
@@ -48,15 +48,15 @@ type Pet
     tags as string[]
 end type
 type Zoo
-    pets as Pet[string]
+    pets as dict[string, Pet]
     count as int
 end type
 enum Color
     red
     green
 end enum
-function census(z as Zoo) as int[string]
-    var out as int[string]
+function census(z as Zoo) as dict[string, int]
+    var out as dict[string, int]
     for k, p in z.pets
         out[k] = p.legs
     next
@@ -80,11 +80,11 @@ var z2 = copy(zoo)
 z2.pets["rex"].legs = 3
 z2.pets.remove("nemo")
 print zoo.pets["rex"].legs; " "; z2.pets["rex"].legs; " "; len(zoo.pets); " "; len(z2.pets)
-var paint as string[Color]
+var paint as dict[Color, string]
 paint[Color.green] = "grass"
 paint[Color.red] = "rose"
 print paint[Color.red]; " "; len(paint)
-var big as Pet[int]
+var big as dict[int, Pet]
 for i in 0..60
     big[i] = Pet(f"p{i}", i)
     big[i].tags.push("t")
@@ -102,14 +102,14 @@ print len(big); " "; total; " "; big[59].name
 var moved = big
 print len(moved)
 function build(n as int) as int
-    var m as string[int]
+    var m as dict[int, string]
     for i in 0..n
         m[i] = f"v{i}"
     next
     return len(m)
 end function
-function made(n as int) as int[int]
-    var m as int[int]
+function made(n as int) as dict[int, int]
+    var m as dict[int, int]
     for i in 0..n
         m[i] = i
     next

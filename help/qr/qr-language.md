@@ -1,5 +1,5 @@
 # The Quickr Language
-keys: ~quickr language, ~quickr and, ~quickr as, ~quickr break, ~quickr case, ~quickr const, ~quickr continue, ~quickr div, ~quickr do, ~quickr else, ~quickr elseif, ~quickr end, ~quickr enum, ~quickr false, ~quickr fn, ~quickr function, ~quickr for, ~quickr if, ~quickr in, ~quickr is, ~quickr let, ~quickr select, ~quickr mod, ~quickr mut, ~quickr none, ~quickr not, ~quickr or, ~quickr return, ~quickr step, ~quickr then, ~quickr true, ~quickr type, ~quickr var, ~quickr while, ~quickr xor, ~quickr yield, ~quickr yields, ~quickr from, ~quickr import, ~quickr public, ~quickr native, ~quickr operator, ~quickr test, ~quickr assert, ~quickr shl, ~quickr shr, ~quickr to, ~quickr next, ~quickr wend, ~quickr loop, ~quickr until, ~quickr print, ~quickr len, ~quickr copy, ~quickr wrap, ~quickr Error, ~quickr bool, ~quickr byte, ~quickr short, ~quickr int, ~quickr long, ~quickr ubyte, ~quickr ushort, ~quickr uint, ~quickr ulong, ~quickr single, ~quickr double, ~quickr string
+keys: ~quickr language, ~quickr and, ~quickr as, ~quickr break, ~quickr case, ~quickr const, ~quickr continue, ~quickr div, ~quickr do, ~quickr else, ~quickr elseif, ~quickr end, ~quickr enum, ~quickr false, ~quickr fn, ~quickr function, ~quickr for, ~quickr if, ~quickr in, ~quickr is, ~quickr let, ~quickr select, ~quickr mod, ~quickr mut, ~quickr none, ~quickr not, ~quickr or, ~quickr return, ~quickr step, ~quickr then, ~quickr true, ~quickr type, ~quickr var, ~quickr while, ~quickr xor, ~quickr yield, ~quickr yields, ~quickr from, ~quickr import, ~quickr public, ~quickr native, ~quickr operator, ~quickr test, ~quickr assert, ~quickr shl, ~quickr shr, ~quickr to, ~quickr next, ~quickr wend, ~quickr loop, ~quickr until, ~quickr print, ~quickr len, ~quickr copy, ~quickr wrap, ~quickr Error, ~quickr bool, ~quickr byte, ~quickr short, ~quickr int, ~quickr long, ~quickr ubyte, ~quickr ushort, ~quickr uint, ~quickr ulong, ~quickr single, ~quickr double, ~quickr string, ~quickr dict
 
 Names are case-sensitive; keywords are lower case. A line ends a
 statement, except inside ( [ or {. A comment starts with '.
@@ -16,8 +16,8 @@ Declarations: name [as type] [= value].
     enum Mode ... end enum
 
 Types: bool, byte short int long, ubyte ushort uint ulong, single
-double, string; T[] a list, T[n] an array, V[K] a map, (T, U) a
-tuple, T? a T or none, T! a T or an Error, function(T) as U.
+double, string; T[] a list, T[n] an array, dict[K, V] a map, (T, U)
+a tuple, T or none, T or Error, function(T) as U.
 
 Control:
     if c then ... elseif c then ... else ... end if   (else if = elseif)
@@ -29,8 +29,8 @@ Control:
     / end select
 
 Operators: + - * / div mod ^, = <> < <= > >=, and or not xor
-(integers: bitwise), shl shr, a if c else b, ?? (a none's or an
-Error's other value), x? (an error returned), += -= *= /=.
+(integers: bitwise), shl shr, a if c else b, a or else b (b when a
+holds none or an Error), x? (an error returned), += -= *= /=.
 
 a.f(b) calls f(a, b). A parameter is read-only; mut makes it
 writable, the caller writing mut too. Records, lists and maps have

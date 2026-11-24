@@ -29,7 +29,7 @@ var a = Res("a")
 var b = Res("b")
 let c = copy(a)
 print make().name
-var m as Res[string]
+var m as dict[string, Res]
 a, b = b, a
 for x in gen()
     print x

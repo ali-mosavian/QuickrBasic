@@ -67,17 +67,17 @@ function zipped(n as int) yields int
         let x = a.next()
         if x is none then return
         yield x
-        yield b.next() ?? -1
+        yield b.next() or else -1
     wend
 end function
 function deep(n as int) as int
     if n = 0 then return 0
     var g = upto(n)
-    let first = g.next() ?? 0
+    let first = g.next() or else 0
     let r = deep(n - 1)
-    return first + (g.next() ?? 0) * 10 + r * 100
+    return first + (g.next() or else 0) * 10 + r * 100
 end function
-function big(m as int[string]) yields string
+function big(m as dict[string, int]) yields string
     for k in m
         if m[k] > 1 then yield k
     next
@@ -97,7 +97,7 @@ function run(k as int)
         print p.x; " "; p.y
     wend
     var sq = mapped(4, fn(x) x * x + k)
-    print sq.next() ?? -1; " "; sq.next() ?? -1
+    print sq.next() or else -1; " "; sq.next() or else -1
     for v in mapped(3, fn(x) x + k)
         print v
     next
@@ -106,7 +106,7 @@ function run(k as int)
     names.push("bo")
     var nm = evens(copy(names))
     names.push("cy")
-    print nm.next() ?? "?"; " "; nm.next() ?? "?"; " "; len(names)
+    print nm.next() or else "?"; " "; nm.next() or else "?"; " "; len(names)
 end function
 for x in once()
     print x + 1
@@ -140,12 +140,12 @@ for w in words("the quick  brown fox ")
     print w
 next
 var ws = words("ab cd")
-print ws.next() ?? "-"; " "; ws.next() ?? "-"; " "; ws.next() ?? "-"
+print ws.next() or else "-"; " "; ws.next() or else "-"; " "; ws.next() or else "-"
 for v in zipped(3)
     print v
 next
 print deep(3)
-var m as int[string]
+var m as dict[string, int]
 m["a"] = 1
 m["b"] = 2
 m["c"] = 3

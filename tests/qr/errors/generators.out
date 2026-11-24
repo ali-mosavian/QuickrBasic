@@ -35,7 +35,7 @@ generators.bas:47:9: upto is no value: it is a generator
   let f = upto
           ^
 generators.bas:51:14: next() takes no values
-  print b.next(1) ?? 0
+  print b.next(1) or else 0
                ^
 generators.bas:52:1: upto is a generator: loop over it with for, or keep it in a var
   upto(3)

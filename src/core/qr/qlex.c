@@ -75,11 +75,11 @@ static const struct {
     QKind kind;
 } qlex_puncts[] = {
     {"..", QK_DOTDOT}, {"<>", QK_NE},    {"<=", QK_LE},    {">=", QK_GE},    {"+=", QK_ADDEQ},
-    {"-=", QK_SUBEQ},  {"*=", QK_MULEQ}, {"/=", QK_DIVEQ}, {"??", QK_QQ},    {"(", QK_LPAREN},
-    {")", QK_RPAREN},  {"[", QK_LBRACK}, {"]", QK_RBRACK}, {"{", QK_LBRACE}, {"}", QK_RBRACE},
-    {",", QK_COMMA},   {":", QK_COLON},  {";", QK_SEMI},   {".", QK_DOT},    {"?", QK_QUEST},
-    {"!", QK_BANG},    {"+", QK_PLUS},   {"-", QK_MINUS},  {"*", QK_STAR},   {"/", QK_SLASH},
-    {"=", QK_EQ},      {"<", QK_LT},     {">", QK_GT},     {"^", QK_POW},
+    {"-=", QK_SUBEQ},  {"*=", QK_MULEQ}, {"/=", QK_DIVEQ}, {"(", QK_LPAREN}, {")", QK_RPAREN},
+    {"[", QK_LBRACK},  {"]", QK_RBRACK}, {"{", QK_LBRACE}, {"}", QK_RBRACE}, {",", QK_COMMA},
+    {":", QK_COLON},   {";", QK_SEMI},   {".", QK_DOT},    {"?", QK_QUEST},  {"!", QK_BANG},
+    {"+", QK_PLUS},    {"-", QK_MINUS},  {"*", QK_STAR},   {"/", QK_SLASH},  {"=", QK_EQ},
+    {"<", QK_LT},      {">", QK_GT},     {"^", QK_POW},
 };
 
 /* Operators spelled as another language spells them, each an error naming Quickr's. */
@@ -87,6 +87,7 @@ static const struct {
     char text[3];
     const char *msg;
 } qlex_olds[] = {
+    {"??", "?? is written or else"},
     {"**", "** is written ^"},
     {"<<", "<< is written shl"},
     {">>", ">> is written shr"},
@@ -552,8 +553,8 @@ static void qlex_fstring(QLex *const L, const uint32_t from)
 static bool qlex_typetok(const QKind k, const int32_t d)
 {
     return k == QK_NAME || k == QK_LBRACK || k == QK_RBRACK || k == QK_INT || k == QK_QUEST ||
-           k == QK_BANG || k == QK_LPAREN || k == QK_RPAREN || k == QK_FUNCTION || k == QK_AS ||
-           (k == QK_COMMA && d > 0);
+           k == QK_BANG || k == QK_OR || k == QK_NONE || k == QK_LPAREN || k == QK_RPAREN ||
+           k == QK_FUNCTION || k == QK_AS || (k == QK_COMMA && d > 0);
 }
 
 /* Do the tokens from first to the last end in a lambda's header: fn(..) [as T], its fn not a

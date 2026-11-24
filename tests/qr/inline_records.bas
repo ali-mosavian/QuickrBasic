@@ -48,10 +48,10 @@ for i in 0..4
     s += a + b
 next
 print s
-var m as int? = none
-print m ?? -1
+var m as int or none = none
+print m or else -1
 m = 6
-print m ?? -1
+print m or else -1
 
 type Odd
     b as byte

@@ -53,7 +53,7 @@ function pick(a as bool) as int
     if a then return 1 else return 2
 end function
 print pick(true); " "; pick(false)
-function shown(v as int?) as string
+function shown(v as int or none) as string
     if v is none then return "none" else return f"{v + 1}"
 end function
 print shown(none); " "; shown(41)

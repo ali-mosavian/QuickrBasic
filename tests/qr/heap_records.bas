@@ -40,7 +40,7 @@ function grow(mut b as Bag, depth as int)
     grow(mut b, depth - 1)
 end function
 
-function parse(s as string) as int!
+function parse(s as string) as int or Error
     if len(s) = 0 then return Error(1, "empty")
     return len(s)
 end function
@@ -60,7 +60,7 @@ print len(y.tags); " "; y.tags[4]; " "; y.name
 let r = parse("")
 if r is Error then print r.message; " "; r.code
 let q = parse("four")
-print q ?? 0
+print q or else 0
 var all as Bag[]
 for i in 0..6
     all.push(make(i))

@@ -101,7 +101,7 @@ typedef enum : uint8_t {
     QK_DOT,
     QK_DOTDOT,
     QK_QUEST,
-    QK_QQ, /* ?? */
+    QK_ORELSE, /* a or else b: the parser's, no token */
     QK_BANG,
     QK_PLUS,
     QK_MINUS,
@@ -224,15 +224,25 @@ typedef struct {
     uint32_t nix;
 } QOwners;
 
-/* A type as written: a name, T[], T[n], (T, U), T?, T!, function(T) as U. */
-typedef enum : uint8_t { QX_NAME, QX_LIST, QX_ARRAY, QX_TUPLE, QX_OPT, QX_RES, QX_FN } QTypeExKind;
+/* A type as written: a name, T[], T[n], (T, U), T or none, T or Error, function(T) as U,
+   dict[K, V]. */
+typedef enum : uint8_t {
+    QX_NAME,
+    QX_LIST,
+    QX_ARRAY,
+    QX_TUPLE,
+    QX_OPT,
+    QX_RES,
+    QX_FN,
+    QX_DICT
+} QTypeExKind;
 typedef struct QTypeEx QTypeEx;
 struct QTypeEx {
     QTypeExKind kind;
     const QTok *tok; /* its first token: a name's its name */
-    QTypeEx *elem;   /* a list's, an array's, T? and T!'s T; a fn's result, null none */
+    QTypeEx *elem;   /* a list's, an array's, an or's T, a dict's V; a fn's result, null none */
     QExpr *count;    /* an array's */
-    QTypeEx **items; /* a tuple's; a fn's parameters' */
+    QTypeEx **items; /* a tuple's; a fn's parameters'; a dict's K */
     uint32_t n;
     const QTok **quals; /* a name's modules before it: gfx.Window's gfx */
     uint32_t nquals;

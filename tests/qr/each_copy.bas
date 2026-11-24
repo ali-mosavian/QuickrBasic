@@ -72,4 +72,4 @@ w.push(5)
 w.push(6)
 w.push(7)
 var kept = doubled(w)
-print kept.next() ?? -1; " "; kept.next() ?? -1; " "; kept.next() ?? -1; " "; kept.next() ?? -1
+print kept.next() or else -1; " "; kept.next() or else -1; " "; kept.next() or else -1; " "; kept.next() or else -1
