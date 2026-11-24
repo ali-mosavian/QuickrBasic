@@ -120,6 +120,11 @@ static inline uint8_t decl_base(const Decl *const d, const uint32_t module)
 void decl_defevents(Decl *d, Scop *sc, Symb *sy, const Prog *pg);
 /* dc_deft: the DEFtypes (sy->deft) line sees. */
 void decl_deftype(const Decl *d, Symb *sy, uint32_t line);
+/* Ours, for a front end of its own (qr/qlink.c): a new TYPE of name (a symbol table name), its
+   number; then its fields in order, each of ET_* or ET_REC + t et, count elements (0 one), dyn a
+   dynamic array's cell. Out of memory. */
+uint32_t decl_newtype(Decl *d, Symb *sy, uint32_t name);
+void decl_newfield(Decl *d, uint32_t t, uint32_t name, uint32_t et, uint32_t count, bool dyn);
 /* TYPE t. */
 static inline const TypeDef *decl_type(const Decl *const d, const uint32_t t)
 {

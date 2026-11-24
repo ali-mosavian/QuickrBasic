@@ -931,6 +931,60 @@ static void decl_field(DeclScan *const ds)
     td->size += size * elems;
 }
 
+uint32_t decl_newtype(Decl *const d, Symb *const sy, const uint32_t name)
+{
+    const DeclScan ds = {.d = d, .sy = sy};
+
+    if (!d->types.n && !btab_add(&d->types, &d->arena))
+        decl_fail(&ds, E_OM);
+
+    TypeDef *const td = btab_add(&d->types, &d->arena);
+
+    if (!td)
+        decl_fail(&ds, E_OM);
+
+    *td = (TypeDef){.name = name};
+
+    return ++d->ntypes;
+}
+
+void decl_newfield(
+    Decl *const d,
+    const uint32_t t,
+    const uint32_t name,
+    const uint32_t et,
+    const uint32_t count,
+    const bool dyn
+)
+{
+    DeclScan ds = {.d = d};
+
+    TypeDef *const td = btab_at(&d->types, t);
+    decl_room(&ds, (void **)&td->fields, td->nfld, &td->cap, sizeof *td->fields);
+    Field *const f = &td->fields[td->nfld++];
+    *f = (Field){
+        .name = name,
+        .et = et >= ET_REC ? 0 : et,
+        .sub = et >= ET_REC ? et - ET_REC : 0,
+        .off = td->size,
+        .dyn = dyn,
+    };
+
+    const FieldDim dim = {.count = count};
+
+    const uint32_t elems = count ? decl_fielddims(&ds, f, &dim, 1, nullptr) : 1;
+    const uint32_t size = dyn              ? sizeof(ArrSlot)
+                          : f->sub         ? decl_type(d, f->sub)->size
+                          : f->et == ET_SD ? DSZ
+                                           : decl_etsize[f->et];
+
+    if (td->size + (uint64_t)size * elems > TYPE_MAX)
+        decl_fail(&ds, E_OM);
+
+    decl_fielddeep(&ds, td, f, elems, size);
+    td->size += size * elems;
+}
+
 /* The module being entered's DO_* (its file's), room made for it. */
 static uint8_t *decl_opt(DeclScan *const ds)
 {
