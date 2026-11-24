@@ -375,6 +375,43 @@ TEST(qride_immediate_runs_quickr_at_the_stop)
     fx_done(S, files);
 }
 
+static const char shadows[] =
+    DIALECT "type V\n    x as int\n    y as int\nend type\n"
+            "fn len2(v as V) as int\n    return v.x * v.x + v.y * v.y\nend fn\n"
+            "fn f(n as int) as int\n    let v = V(3, 4)\n    var x = n\n"
+            "    if n > 0 then\n        let x = 10\n        print(x)\n"
+            "    end if\n    return x + v.len2()\nend fn\n"
+            "print(f(1))\n";
+
+/* Watch's x the stopped line's, v.len2() a method's call: once read as QBasic's, x the first x
+   declared, v.len2() a Syntax error; Locals spelled the inner x X'1, v as its type V. */
+TEST(qride_watches_quickr_at_the_stopped_line)
+{
+    fx_open_program(S, "");
+    fx_write_file("main.bas", shadows);
+    uimn_open(S, fx_path_of("main.bas"));
+    edit_load(S, view_goline(S, fx_line_of(S, "        print(x)")));
+    udbg_bp(S);
+    edit_load(S, view_goline(S, fx_line_of(S, "    return x + v.len2()")));
+    udbg_bp(S);
+    captured(S, uimn_run);
+    CHECK(dwat_add((const uint8_t *)"x", 1));
+    CHECK(dwat_add((const uint8_t *)"v.len2() + n", 12));
+    dwat_eval(S);
+    CHECK(!strcmp(dwat_row(0), "x = 10"));
+    CHECK(!strcmp(dwat_row(1), "v.len2() + n = 26"));
+    dloc_read(S, 0);
+    CHECK(
+        dloc_count() == 4 && !strcmp(dloc_row(1), "\x10v as V") && !strcmp(dloc_row(3), "x = 10")
+    );
+    captured(S, uimn_cont);
+    dwat_eval(S);
+    CHECK(!strcmp(dwat_row(0), "x = 1"));
+    dwat_del(S, 1);
+    dwat_del(S, 0);
+    fx_done(S, files);
+}
+
 /* A run-time error in a generic fn: the cursor at the program's last line. */
 TEST(qride_runtime_error_at_its_line)
 {

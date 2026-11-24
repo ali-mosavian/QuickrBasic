@@ -143,7 +143,8 @@ Addr session_cell(const Session *S, const DebugFrame *f, uint32_t id, int32_t pa
 bool session_in_direct(const Session *S);
 /* PRINT expr in procedure proc's scope to out (dbug_eval): its error, else ST_OK. */
 Status session_eval(Session *S, const char *expr, uint32_t proc, char out[static 80]);
-/* Statement stmt run so (dbug_exec). */
+/* Statement stmt run so (dbug_exec). In a Quickr program both are Quickr's, at the stopped
+   statement when the scope is its procedure's. */
 Status session_exec(Session *S, const char *stmt, uint32_t proc, char out[static 80]);
 /* cons.inbuf's Quickr line as the direct line's code, at the stopped statement, else after the
    modules' last line (qr_direct_code). */

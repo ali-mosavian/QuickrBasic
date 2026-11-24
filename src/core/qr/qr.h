@@ -29,6 +29,10 @@ typedef struct {
     char said[80]; /* the last probe's error */
 } QrKeep;
 void qr_forget(QrKeep *k);
+enum { QR_SPELL = 40 }; /* a name spelled: its bytes at most, as QBasic's */
+/* Variable id's name as typed at d, QR_SPELL bytes at most (a block's over an outer one's,
+   X'1's, too); its length, 0 not one of the kept program's. */
+uint32_t qr_spell(const QrKeep *k, uint32_t id, char *d);
 /* cons.inbuf's Quickr line as the direct line's code (comp's), its names as at program line rec's
    statement (0 or DLINE: the modules', after their last line); a value alone print()ed. The
    program linked (qr_link). An error: Syntax error raised, its message to qr.said. */

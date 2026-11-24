@@ -187,6 +187,14 @@ static DebugFrame session_top(const Session *const S)
     return f;
 }
 
+/* A probe's Quickr line as the direct line's code, at the stopped statement when it is in the
+   probe's procedure, else after the modules' last line. */
+static void session_quickr_code(Session *const S)
+{
+    const DebugFrame f = session_top(S);
+    qr_direct_code(S, f.proc == S->comp.dlproc ? f.line : 0);
+}
+
 void session_quickr_line(Session *const S) { qr_direct_code(S, session_top(S).line); }
 
 Status session_eval(
@@ -196,7 +204,21 @@ Status session_eval(
     char out[static 80]
 )
 {
-    return dbug_eval(S, expr, proc, out);
+    if (!prog_quickr(&S->prog))
+        return dbug_eval(S, expr, proc, out);
+
+    enum { TEXT = 256 };
+
+    char text[TEXT];
+    const size_t n = strlen(expr);
+
+    if (n + 8 > TEXT)
+        return E_LS;
+
+    memcpy(text, "print(", 6);
+    memcpy(text + 6, expr, n);
+    memcpy(text + 6 + n, ")", 2);
+    return dbug_probe(S, session_quickr_code, text, proc, out);
 }
 
 Status session_exec(
@@ -206,7 +228,8 @@ Status session_exec(
     char out[static 80]
 )
 {
-    return dbug_exec(S, stmt, proc, out);
+    return prog_quickr(&S->prog) ? dbug_probe(S, session_quickr_code, stmt, proc, out)
+                                 : dbug_exec(S, stmt, proc, out);
 }
 
 const char *session_errtext(const Session *const S, const uint8_t code)

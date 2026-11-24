@@ -166,7 +166,9 @@ QBasic's otherwise, and a program is one or the other.
   its line, an assert's message Quickr's.
 - Locals, Call stack and Watch spell names as typed, without suffixes; a fn's frame shows its name.
   A record in cells opens to its fields as a box does; Quickr's hidden variables are not shown.
-  A watch is evaluated as QBasic's, each name given its variable's suffix first.
+  A name a block declares again over an outer one's shows as typed.
+- A watch is a Quickr expression, printed as `print` would: its names the stopped statement's, a
+  block's over an outer one's, `v.length()` a call. A value set in Locals is a Quickr assignment.
 - The immediate window runs a Quickr line: a call or an assignment, a value alone printed. Stopped,
   its names are the stopped statement's; else the modules', after their last line, the program
   linked first. It runs on the checked program the link keeps (`qr.c`'s `QrKeep`), each statement's

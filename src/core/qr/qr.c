@@ -854,6 +854,21 @@ uint32_t qr_link(Session *const S, QrErr *const e)
     return 0;
 }
 
+uint32_t qr_spell(const QrKeep *const k, const uint32_t id, char *const d)
+{
+    const QVar *v = k->prog ? k->prog->vars : nullptr;
+
+    while (v && (v->id != id || !v->name))
+        v = v->next;
+
+    if (!v)
+        return 0;
+
+    const uint32_t n = v->name->len < QR_SPELL ? v->name->len : QR_SPELL;
+    memcpy(d, v->name->text, n);
+    return n;
+}
+
 /* The names in sight at program line rec's statement; null the modules' alone. */
 static const QScopeAt *qr_sight(const QProg *const p, const uint32_t rec)
 {

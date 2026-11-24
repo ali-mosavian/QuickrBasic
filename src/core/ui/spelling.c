@@ -186,6 +186,11 @@ char *spel_name(const Session *const S, char *const d, const uint32_t name, cons
 
 char *spel_var(const Session *const S, char *d, const InspVar *const var)
 {
+    const uint32_t typed = text_quickr(S) ? qr_spell(&S->qr, var->id, d) : 0;
+
+    if (typed)
+        return d + typed;
+
     d = spel_name(S, d, var->name, var->local ? SPEL_LOCAL : SPEL_MODULE);
 
     if (var->sfx && !text_quickr(S)) /* Quickr's types show no suffix */
