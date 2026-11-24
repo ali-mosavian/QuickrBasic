@@ -28,9 +28,6 @@ parse.qr:10:3: expected the fn's name, not the line's end
 parse.qr:11:1: a value alone is not a statement: assign it or call a fn
   x + 1
   ^
-parse.qr:12:12: slices are not supported yet
-  let a = b[1..2]
-             ^
 parse.qr:13:9: lists are not supported yet
   var s = [1, 2]
           ^

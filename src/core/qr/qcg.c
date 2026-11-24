@@ -891,6 +891,20 @@ static void qcg_copyrec(QCg *const g, const QExpr *const dst, const QExpr *const
     qcg_recop(g, dst->type);
 }
 
+/* A slice's two ends pushed: 0 and the most an int holds for those left out. */
+static void qcg_ends(QCg *const g, const QExpr *const e)
+{
+    if (e->b)
+        qcg_expr(g, e->b);
+    else
+        code_int(g->c, 0);
+
+    if (e->c)
+        qcg_expr(g, e->c);
+    else
+        code_int(g->c, INT32_MAX);
+}
+
 /* List place src's elements to list place dst: moved (src left empty), or copied. */
 static void qcg_listto(
     QCg *const g,
@@ -1248,6 +1262,14 @@ static void qcg_build(QCg *const g, const QExpr *const dst, const QExpr *const e
     }
 
     default: /* a call's */
+        if (e->builtin == QB_SLICE) { /* the ends first: they may move the heap */
+            qcg_ends(g, e);
+            qcg_cell(g, e->a);
+            qcg_cell(g, dst);
+            qcg_x(g->c, QX_LSLICE);
+            return;
+        }
+
         if (e->builtin == QB_COPY) {
             if (qcg_list(g, e->type))
                 qcg_listto(g, dst, e->a, false);
@@ -1324,9 +1346,29 @@ static void qcg_expr(QCg *const g, const QExpr *const e)
         return;
 
     case QE_CALL:
+        if (e->builtin == QB_LEN && e->a->type == QY_STRING) {
+            qcg_expr(g, e->a);
+            code_call(g->c, K_FN_LEN);
+            return;
+        }
+
         if (e->builtin == QB_LEN) {
             qcg_cell(g, e->a);
             qcg_x(g->c, QX_LEN);
+            return;
+        }
+
+        if (e->builtin == QB_BYTE) {
+            qcg_expr(g, e->a);
+            qcg_expr(g, e->b);
+            qcg_x(g->c, QX_BYTE);
+            return;
+        }
+
+        if (e->builtin == QB_SLICE && e->type == QY_STRING) {
+            qcg_expr(g, e->a);
+            qcg_ends(g, e);
+            qcg_x(g->c, QX_SLICE);
             return;
         }
 

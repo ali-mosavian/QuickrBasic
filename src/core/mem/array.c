@@ -730,6 +730,31 @@ void arry_copy_rec(Arry *const ay, const Addr dst, const Addr src, const TypeDef
     }
 }
 
+/* size bytes of header h's elements from from copied to to: each string, and each record's
+   strings and arrays, its own. */
+static void arry_copy_elems(
+    Arry *const ay,
+    const Addr to,
+    const Addr from,
+    const uint32_t size,
+    const Addr h
+)
+{
+    const TypeDef *const td = arry_deeptype(ay, h);
+
+    if (arry_hdr_at(h)->et == ET_SD) {
+        for (uint32_t k = 0; k < size; k += DSZ)
+            strg_set(ay->strg, from + k, to + k);
+
+        return;
+    }
+
+    copy_mem(to, from, size);
+
+    for (uint32_t k = 0; td && k < size; k += td->size)
+        arry_copy_rec(ay, to + k, from + k, td);
+}
+
 /* arry_copy_into's copy; arena: on the running call's arena if it can be. */
 static void arry_copy_on(Arry *const ay, ArrSlot *const d, const ArrSlot *const s, const bool arena)
 {
@@ -748,21 +773,7 @@ static void arry_copy_on(Arry *const ay, ArrSlot *const d, const ArrSlot *const 
 
     const ArrayHdr *const b = arry_hdr_at(s->hdr);
     arry_hdr_at(d->hdr)->fast = b->fast; /* a list's length */
-    const Addr from = b->data, to = arry_hdr_at(d->hdr)->data;
-    const uint32_t size = arry_size(ay, s->hdr);
-    const TypeDef *const td = arry_deeptype(ay, s->hdr);
-
-    if (b->et == ET_SD) {
-        for (uint32_t k = 0; k < size; k += DSZ) /* each string its own copy */
-            strg_set(ay->strg, from + k, to + k);
-
-        return;
-    }
-
-    copy_mem(to, from, size);
-
-    for (uint32_t k = 0; td && k < size; k += td->size) /* a record's STRINGs and arrays its own */
-        arry_copy_rec(ay, to + k, from + k, td);
+    arry_copy_elems(ay, arry_hdr_at(d->hdr)->data, b->data, arry_size(ay, s->hdr), s->hdr);
 }
 
 void arry_copy_into(Arry *const ay, ArrSlot *const d, const ArrSlot *const s)
@@ -779,6 +790,39 @@ void arry_copy(Arry *const ay, Vm *const vm, ArrSlot *const d, const ArrSlot *co
     *d = (ArrSlot){0, 1};
 
     arry_copy_into(ay, d, s);
+    arry_kill(ay, old);
+    arry_sweep(ay, vm);
+}
+
+void arry_copy_part(
+    Arry *const ay,
+    Vm *const vm,
+    ArrSlot *const d,
+    const ArrSlot *const s,
+    const uint32_t from,
+    const uint32_t n
+)
+{
+    const Addr h = s->hdr; /* before d's goes: d may be s */
+    const Addr old = arry_assigned(ay, d);
+    *d = (ArrSlot){0, 1};
+
+    if (n) {
+        const uint32_t et = arry_hdr_at(h)->et;
+        const uint32_t esize = arry_et_size(ay->decl, et);
+        ay->counts[0] = n;
+        ay->lbounds[0] = 0;
+        arry_make(ay, d, et, 1, true);
+        arry_hdr_at(d->hdr)->fast = n;
+        arry_copy_elems(
+            ay,
+            arry_hdr_at(d->hdr)->data,
+            arry_hdr_at(h)->data + from * esize,
+            n * esize,
+            h
+        );
+    }
+
     arry_kill(ay, old);
     arry_sweep(ay, vm);
 }

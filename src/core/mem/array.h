@@ -115,6 +115,9 @@ void arry_empty(Arry *ay, uint32_t id, bool keep);
 /* a(:) = b(:), ours: cell d gets s's bounds and a copy of its elements, a dynamic array after, its
    old one freed. Duplicate definition: d a DIM's with elements. Out of memory. */
 void arry_copy(Arry *ay, Vm *vm, ArrSlot *d, const ArrSlot *s);
+/* Cell d's array, ours, a list of n copies of s's elements from from: d's old one freed, which
+   may be s's. */
+void arry_copy_part(Arry *ay, Vm *vm, ArrSlot *d, const ArrSlot *s, uint32_t from, uint32_t n);
 /* arry_copy's copy into the empty cell d, ours: made at the heap's end, nothing moves. */
 void arry_copy_into(Arry *ay, ArrSlot *d, const ArrSlot *s);
 /* A record of TYPE td copied from src to dst, ours: dst's STRINGs and arrays made its own (its old

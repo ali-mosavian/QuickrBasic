@@ -289,14 +289,12 @@ static QExpr *qpar_postfix(QPar *const P)
         if (qpar_is(P, QK_LBRACK)) {
             QExpr *const x = qast_expr(P->mem, QE_INDEX, qpar_next(P));
             x->a = e;
+            x->b = qpar_is(P, QK_DOTDOT) ? nullptr : qpar_expr(P);
 
-            if (qpar_is(P, QK_DOTDOT) || qpar_is(P, QK_RBRACK))
-                qpar_later(P, P->t, "slices are");
-
-            x->b = qpar_expr(P);
-
-            if (qpar_is(P, QK_DOTDOT))
-                qpar_later(P, P->t, "slices are");
+            if (qpar_take(P, QK_DOTDOT)) {
+                x->kind = QE_SLICE;
+                x->c = qpar_is(P, QK_RBRACK) ? nullptr : qpar_expr(P);
+            }
 
             qpar_need(P, QK_RBRACK, "]");
             e = x;

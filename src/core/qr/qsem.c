@@ -1905,9 +1905,53 @@ static QExpr *qsem_field(QSem *const S, QExpr *const e)
 }
 
 /* a[i]: a list's or an array's element; a constant i past an array's, an error. */
+/* A slice's end, an int; null left out. */
+static QExpr *qsem_end(QSem *const S, QExpr *const e)
+{
+    return e ? qsem_coerce(S, qsem_expr(S, e, QY_INT), QY_INT) : nullptr;
+}
+
+/* s[a..b], a[a..b]: a new string, or a new list of copies, of the elements from a up to b, each
+   end clamped to them; a left out is 0, b the length. */
+static QExpr *qsem_slice(QSem *const S, QExpr *const e)
+{
+    QExpr *const a = e->a = qsem_addressed(S, qsem_expr(S, e->a, QY_VOID));
+    e->b = qsem_end(S, e->b);
+    e->c = qsem_end(S, e->c);
+    e->kind = QE_CALL;
+    e->builtin = QB_SLICE;
+    e->type = QY_ERROR;
+
+    if (a->type == QY_ERROR || (e->b && e->b->type == QY_ERROR) || (e->c && e->c->type == QY_ERROR))
+        return e;
+
+    if (a->type != QY_STRING &&
+        (!qast_compound(a->type) || qast_ty(S->prog, a->type)->kind != QT_LIST)) {
+        qsem_say(
+            S,
+            e->tok,
+            "a slice takes a string or a list, not ",
+            qsem_aname(S, a->type),
+            nullptr
+        );
+        return e;
+    }
+
+    e->type = a->type == QY_STRING ? QY_STRING : qsem_listof(S, qast_ty(S->prog, a->type)->elem, 0);
+    return e;
+}
+
 static QExpr *qsem_index(QSem *const S, QExpr *const e)
 {
     const QExpr *const a = e->a = qsem_addressed(S, qsem_expr(S, e->a, QY_VOID));
+
+    if (a->type == QY_STRING) { /* a byte, read only */
+        e->b = qsem_coerce(S, qsem_expr(S, e->b, QY_INT), QY_INT);
+        e->kind = QE_CALL;
+        e->builtin = QB_BYTE;
+        e->type = e->b->type == QY_ERROR ? QY_ERROR : QY_INT;
+        return e;
+    }
 
     if (qsem_ismap(S, a->type)) {
         const QTy *const y = qast_ty(S->prog, a->type);
@@ -2072,7 +2116,7 @@ static QExpr *qsem_keys(QSem *const S, QExpr *const e)
     return e;
 }
 
-/* len(a): a list's elements, a map's, an array's its size. */
+/* len(a): a list's elements, a map's, a string's bytes, an array's its size. */
 static QExpr *qsem_len(QSem *const S, QExpr *const e, QExpr *const recv)
 {
     e->type = QY_ERROR;
@@ -2092,11 +2136,19 @@ static QExpr *qsem_len(QSem *const S, QExpr *const e, QExpr *const recv)
     if (qsem_ismap(S, a->type))
         a = qsem_keysof(S, a);
 
+    if (a->type == QY_STRING) {
+        e->kind = QE_CALL;
+        e->builtin = QB_LEN;
+        e->a = a;
+        e->type = QY_INT;
+        return e;
+    }
+
     if (!qast_array(S->prog, a->type)) {
         qsem_say(
             S,
             a->tok,
-            "len() takes a list or an array, not ",
+            "len() takes a list, a map, a string or an array, not ",
             qsem_aname(S, a->type),
             nullptr
         );
@@ -2450,6 +2502,9 @@ static QExpr *qsem_expr(QSem *const S, QExpr *const e, const QType hint)
     case QE_INDEX:
         return qsem_index(S, e);
 
+    case QE_SLICE:
+        return qsem_slice(S, e);
+
     case QE_TUPLE:
         return qsem_tuple(S, e, hint);
 
@@ -2604,6 +2659,11 @@ static QExpr *qsem_target(QSem *const S, QExpr *const e, const QTok *const at)
 {
     const bool ok = qsem_changes(S, e, at);
     QExpr *const t = qsem_expr(S, e, QY_VOID);
+
+    if (ok && t->type != QY_ERROR && t->builtin == QB_BYTE) {
+        qsem_say(S, t->tok, "a string doesn't change: build a new one", nullptr);
+        t->type = QY_ERROR;
+    }
 
     if (ok && t->type != QY_ERROR && !qast_place(t)) {
         qsem_say(S, t->tok, "only a variable, its fields and its elements change", nullptr);

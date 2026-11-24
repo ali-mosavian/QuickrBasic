@@ -3,5 +3,4 @@ var a as byte
 var b as short
 var c as long
 var u as uint
-let s = "abc"[1..2]
 let p = none

@@ -31,6 +31,9 @@ typedef enum : uint8_t {
     QX_FMT,   /* ( v spec kind -- s ): v of kind formatted by spec, Python's format spec */
     QX_MAPAT,  /* ( key ket vet map how -- addr ): key's value in the map record at map, by how */
     QX_MAPDEL, /* ( key ket vet map -- ): key's entry, if there, removed */
+    QX_BYTE,   /* ( s i -- n ): s's byte i */
+    QX_SLICE,  /* ( s a b -- t ): s's bytes from a up to b, each clamped to s */
+    QX_LSLICE, /* ( a b src dst -- ): dst a new list, src's elements from a up to b, clamped */
 } QrtX;
 
 /* QX_MAPAT's how when the key is not there: Subscript out of range, made with an empty value, or

@@ -742,6 +742,14 @@ uint32_t qrt_format(
     return o;
 }
 
+/* ---- slices */
+
+/* A slice's end i within 0 .. n. */
+static uint32_t qrt_clamp(const int32_t i, const uint32_t n)
+{
+    return i < 0 ? 0 : (uint32_t)i > n ? n : (uint32_t)i;
+}
+
 /* ---- maps */
 
 enum { QM_KEYS, QM_VALS, QM_SLOTS, QM_FIRST = 8 };
@@ -1086,6 +1094,41 @@ void qrt_x(Session *const S)
         const uint32_t vet = exec_pop(vm).u;
         const uint32_t ket = exec_pop(vm).u;
         qrt_mapdel(S, map, ket, vet, exec_pop(vm));
+        return;
+    }
+
+    case QX_BYTE: {
+        const int32_t i = exec_popi(vm);
+        const Desc s = strg_get(&S->strg, exec_popa(vm));
+
+        if ((uint32_t)i >= s.len)
+            arry_bad_sub(&S->arry);
+
+        exec_pushi(vm, ((const uint8_t *)at(s.ptr))[i]);
+        return;
+    }
+
+    case QX_SLICE: {
+        const int32_t b = exec_popi(vm);
+        const int32_t a = exec_popi(vm);
+        const Addr s = exec_popa(vm);
+        const uint32_t from = qrt_clamp(a, strg_len(s)), to = qrt_clamp(b, strg_len(s));
+        exec_pusha(
+            vm,
+            strg_sub(&S->strg, s, (uint16_t)from, (uint16_t)(to > from ? to - from : 0))
+        );
+        return;
+    }
+
+    case QX_LSLICE: {
+        ArrSlot *const d = (ArrSlot *)at(exec_popa(vm));
+        const Addr src = exec_popa(vm);
+        const int32_t b = exec_popi(vm);
+        const int32_t a = exec_popi(vm);
+        Addr data;
+        const uint32_t n = qrt_len(src, &data);
+        const uint32_t from = qrt_clamp(a, n), to = qrt_clamp(b, n);
+        arry_copy_part(&S->arry, vm, d, (const ArrSlot *)at(src), from, to > from ? to - from : 0);
         return;
     }
 

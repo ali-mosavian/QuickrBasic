@@ -311,6 +311,7 @@ typedef enum : uint8_t {
     QE_FSTR,  /* f"..": items its parts, a string's or a value's, specs each value's */
     QE_LIST,  /* a list's built-in: builtin, a the list, argv */
     QE_HAS,   /* a in b, b a list; not in when neg */
+    QE_SLICE, /* a[b..c], b or c null when left out */
 } QExprKind;
 
 /* A built-in: print, a conversion, len, copy, a list's methods. */
@@ -327,6 +328,8 @@ typedef enum : uint8_t {
     QB_POP,
     QB_INSERT,
     QB_REMOVE,
+    QB_BYTE,  /* s[i]: a, b */
+    QB_SLICE, /* a[b..c] of a string or a list: b, c null for its ends */
 } QBuiltin;
 
 /* A call's argument as written: its name (null positional), mut. */

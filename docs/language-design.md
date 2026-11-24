@@ -438,6 +438,9 @@ if key in ("q", "x") then break
 - `break` and `continue` act on the innermost loop, as in llrm.
 - `a..b` is a range: from `a` up to, not including, `b`. The same syntax is a loop's, a slice's
   (`s[1..3]`, `a[..n]`, `a[n..]`) and `in`'s: `if x in 0..w then`.
+- A slice is a new value: a string's a new string, a list's a new list of copies. Its ends are
+  clamped to the elements, so `s[..100]` of a shorter `s` is all of it. `s[i]` past the end is
+  Subscript out of range. Until `ubyte` exists, `s[i]` is an `int` from 0 to 255.
 - `match` also takes `case 3 to 5` and `case is > 7`, as SELECT CASE does.
 - A `for` over a range counts in `int`s. Its counter can't be assigned, and a constant step of 0
   is a compile error.

@@ -10,9 +10,6 @@ unsupported.qr:4:10: long is not supported yet
 unsupported.qr:5:10: uint is not supported yet
   var u as uint
            ^
-unsupported.qr:6:16: slices are not supported yet
-  let s = "abc"[1..2]
-                 ^
-unsupported.qr:7:9: none is not supported yet
+unsupported.qr:6:9: none is not supported yet
   let p = none
           ^
