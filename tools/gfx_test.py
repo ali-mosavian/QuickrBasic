@@ -143,7 +143,7 @@ def extension_row() -> str:
 
 # Each of the renderer's paths at a depth: spans of each length, rows keyed and opaque, flipped or
 # not, clipped; walks turned and scaled, and wrapped along a strip; polygons flat, affine and in
-# perspective, with depth tested and set, their planes crossing.
+# perspective, with depth tested and set, their planes crossing; arcs, circles and lines.
 # The picture's bytes make keyed holes at each depth: a 0, or at 32 bits an alpha under a half.
 SAME_PIXELS = """import gfx.display, gfx.draw, gfx.surface
 from gfx.draw import Vec2, Vertex
@@ -225,6 +225,13 @@ for i = 0 to 23
     case else
         gfx.draw.poly canvas&, q(), 0, 4, t&, 0, f% + gfx.draw.PERSPECTIVE
     end select
+next
+for i = 0 to 23
+    x = 7.3 + i * 13.4: y = 12.6 + (i mod 4) * 11.3: r = 3 + i * 1.7
+    c& = ((120 + i) * {spread}) and &HFFFFFF
+    gfx.draw.arc canvas&, x, y, r, i * 0.7 - 2, i * 0.7 + 0.4 + (i mod 5) * 1.3, c&
+    gfx.draw.circle canvas&, x, y + 140, 1 + (i mod 7) * 2.3, c&, (i and 1) * gfx.draw.FILL
+    gfx.draw.line canvas&, x - 9.5, y + 80, x + i * 3.1, y + 97 - i, c&
 next
 dim px(320& * 200 * {bytes} - 1) as byte
 gfx.surface.read canvas&, 0, 0, 320, 200, px()

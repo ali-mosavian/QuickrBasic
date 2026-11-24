@@ -191,6 +191,7 @@ typedef struct {
     uint32_t colour;
 } Arc;
 
+/* The piece's runs in the sweep, a span each. */
 static void arc_piece(
     const SoftTarget *const t,
     const int32_t y,
@@ -200,10 +201,19 @@ static void arc_piece(
 )
 {
     const Arc *const a = ctx;
+    const float dy = (float)y - a->k.c.y;
 
-    for (int32_t x = x0; x < x1; x++)
-        if (swept(&a->w, (float)x - a->k.c.x, (float)y - a->k.c.y))
-            span_flat(t, y, x, x + 1, a->colour);
+    for (int32_t x = x0; x < x1;) {
+        while (x < x1 && !swept(&a->w, (float)x - a->k.c.x, dy))
+            x++;
+
+        const int32_t from = x;
+
+        while (x < x1 && swept(&a->w, (float)x - a->k.c.x, dy))
+            x++;
+
+        span_flat(t, y, from, x, a->colour);
+    }
 }
 
 void soft_arc(
