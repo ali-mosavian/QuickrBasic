@@ -49,22 +49,30 @@ public fn lerp(a as double, b as double, t as double) as double
     return a + (b - a) * t
 end fn
 
-' a 2-d vector; its arithmetic is plain fns: there is no fn operator
+' a 2-d vector
 public type Vec
     x as double
     y as double
 end type
 
-public fn add(a as Vec, b as Vec) as Vec
+public fn operator +(a as Vec, b as Vec) as Vec
     return Vec(a.x + b.x, a.y + b.y)
 end fn
 
-public fn sub(a as Vec, b as Vec) as Vec
+public fn operator -(a as Vec, b as Vec) as Vec
     return Vec(a.x - b.x, a.y - b.y)
 end fn
 
-public fn scale(a as Vec, k as double) as Vec
+public fn operator *(a as Vec, k as double) as Vec
     return Vec(a.x * k, a.y * k)
+end fn
+
+public fn operator /(a as Vec, k as double) as Vec
+    return Vec(a.x / k, a.y / k)
+end fn
+
+public fn operator =(a as Vec, b as Vec) as bool
+    return a.x = b.x and a.y = b.y
 end fn
 
 public fn dot(a as Vec, b as Vec) as double

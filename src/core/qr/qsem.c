@@ -138,6 +138,10 @@ static QExpr *qsem_iter(QSem *S, QExpr *e, uint32_t k, QStmt *loop);
 static void qsem_chainfor(QSem *S, QStmt *s);
 static QVar *qsem_keptas(QSem *S, QExpr *e, QFn *g, const QTok *name);
 static bool qsem_step(QSem *S, const QExpr *e, uint32_t *k);
+static QExpr *qsem_operator(QSem *S, QExpr *e, QKind op, QExpr *a, QExpr *b);
+static QExpr *qsem_relation(QSem *S, QExpr *e, QKind op, QExpr *a, QExpr *b);
+static bool qsem_hasrel(const QSem *S, QKind op, const QExpr *a, const QExpr *b);
+static bool qsem_isrec(const QSem *S, QType t);
 static bool qsem_method_of(
     QSem *S,
     const QExpr *e,
@@ -1544,6 +1548,8 @@ static QExpr *qsem_binary(QSem *const S, QExpr *const e)
         return e;
     }
 
+    if (qsem_isrec(S, a->type) && qsem_arith(e->op))
+        return qsem_operator(S, e, e->op, a, b);
     if (e->op == QK_PLUS && a->type == QY_STRING && b->type == QY_STRING)
         return qsem_strcat(S, e);
     if (e->op == QK_XOR)
@@ -1736,6 +1742,16 @@ static QExpr *qsem_chain(QSem *const S, QExpr *const e)
         e->items[i] = qsem_expr(S, e->items[i], QY_VOID);
         consts &= qsem_isconst(e->items[i]);
     }
+
+    if (e->n == 2 && qsem_hasrel(S, e->ops[0], e->items[0], e->items[1]))
+        return qsem_relation(S, e, e->ops[0], e->items[0], e->items[1]);
+
+    for (uint32_t i = 0; e->n > 2 && i < e->n; i++)
+        if (qsem_isrec(S, e->items[i]->type)) {
+            qsem_say(S, e->tok, "a chain of comparisons takes numbers or strings", nullptr);
+            e->type = QY_ERROR;
+            return e;
+        }
 
     for (uint32_t k = 0; k + 1 < e->n; k++) {
         e->works[k] = qsem_cmptype(S, e->items[k], e->items[k + 1], e->ops[k], e->tok);
@@ -3041,6 +3057,62 @@ static QExpr *qsem_into(QSem *const S, const QVar *const v, QExpr *const e)
     return e;
 }
 
+/* Does e read variable v, but for its fields from field on, or call a fn (v a module's: the fn
+   may see it)? */
+static bool qsem_reads(const QExpr *const e, const QVar *const v, const uint32_t field)
+{
+    if (!e)
+        return false;
+    if (e->kind == QE_FIELD && e->a->kind == QE_NAME && e->a->var == v)
+        return e->field < field;
+    if (qsem_names(e, v) || (!v->fn && qsem_calls(e, v)))
+        return true;
+    if (qsem_reads(e->a, v, field) || qsem_reads(e->b, v, field) || qsem_reads(e->c, v, field))
+        return true;
+
+    for (uint32_t k = 0; k < e->nargv; k++)
+        if (qsem_reads(e->argv[k], v, field))
+            return true;
+
+    for (uint32_t k = 0; e->kind != QE_NEW && k < e->n; k++)
+        if (qsem_reads(e->items[k], v, field))
+            return true;
+
+    return false;
+}
+
+/* Can record value e be built field by field straight into variable v though it reads v: does
+   each field's value read none of v's fields written before it? An inline operator's arguments
+   are read before. */
+static bool qsem_fieldwise(QSem *const S, const QVar *const v, const QExpr *const e)
+{
+    const QExpr *const r = e->kind == QE_APPLY ? e->a : e;
+
+    if (r->kind != QE_NEW || !qsem_isrec(S, r->type) || r->var)
+        return false;
+
+    const QTy *const y = qast_ty(S->prog, r->type);
+
+    for (uint32_t k = 0; k < r->nargv; k++) {
+        const bool deep = qsem_byplace(S, y->fields[k].type);
+
+        if ((!r->argv[k] && deep) || qsem_reads(r->argv[k], v, k + deep))
+            return false;
+    }
+
+    return true;
+}
+
+/* A record's or list's value e for place t: qsem_into's, but built field by field into a
+   variable whose fields it reads only before writing them. */
+static QExpr *qsem_intoplace(QSem *const S, const QExpr *const t, QExpr *const e)
+{
+    if (t->kind == QE_NAME && t->var && qsem_fieldwise(S, t->var, e))
+        return e;
+
+    return qsem_into(S, qsem_root(t), e);
+}
+
 /* A record or list that is no place, where its address is wanted: built in a temporary. */
 static QExpr *qsem_addressed(QSem *const S, QExpr *const e)
 {
@@ -3875,6 +3947,145 @@ static QExpr *qsem_apply(QSem *const S, QExpr *const e, const QLam *const l, con
     return e;
 }
 
+/* Operator fn f's call e of argv, inlined: f's one return's value checked again here, each
+   parameter read where its argument is when cheap, else stored first. Its own module's names in
+   sight, not the caller's. */
+static QExpr *qsem_inline(QSem *const S, QExpr *const e, QFn *const f, QExpr **const argv)
+{
+    const uint32_t lo = S->hidelo, hi = S->hidehi;
+    QLamAt *const at = S->lamat;
+    S->hidelo = qsem_floor(S);
+    S->hidehi = S->nbinds;
+    S->lamat = nullptr;
+    qsem_push(S);
+    e->temps = qast_alloc(S->mem, f->npar * sizeof *e->temps);
+
+    for (uint32_t k = 0; k < f->npar; k++) {
+        QVar *const v = qsem_var(S, f->params[k].name, argv[k]->type, QV_PARAM);
+
+        if (qsem_cheap(argv[k]))
+            v->place = argv[k];
+        else
+            e->temps[k] = v;
+
+        qsem_bind(S, f->params[k].name, v, nullptr);
+    }
+
+    f->inlining = true;
+    QExpr *const body = qpar_reexpr(S->prog, S->mem, f->lone);
+    QExpr *const v = body ? qsem_expr(S, body, f->result) : nullptr;
+    f->inlining = false;
+    qsem_pop(S);
+    S->hidelo = lo;
+    S->hidehi = hi;
+    S->lamat = at;
+    e->type = QY_ERROR;
+
+    if (!v)
+        return e;
+
+    e->kind = QE_APPLY;
+    e->a = qsem_coerce(S, v, f->result);
+    e->b = e->c = nullptr;
+    e->fn = f;
+    e->argv = argv;
+    e->nargv = f->npar;
+    e->type = e->a->type == QY_ERROR ? QY_ERROR : f->result;
+    return e;
+}
+
+/* Record type t's fn operator op, null none. */
+static QFn *qsem_operof(const QSem *const S, const QType t, const QKind op)
+{
+    for (QFn *f = qsem_isrec(S, t) ? qast_ty(S->prog, t)->opers : nullptr; f; f = f->opnext)
+        if (f->op == op)
+            return f;
+
+    return nullptr;
+}
+
+/* a op b, a a record: its type's fn operator op, inlined when its body is one return, else
+   called. */
+static QExpr *qsem_operator(QSem *const S, QExpr *const e, const QKind op, QExpr *a, QExpr *b)
+{
+    QFn *const f = qsem_operof(S, a->type, op);
+    e->type = QY_ERROR;
+
+    if (!f) {
+        qsem_say(
+            S,
+            e->tok,
+            qsem_aname(S, a->type),
+            " has no operator ",
+            qast_spelling(op),
+            nullptr
+        );
+        return e;
+    }
+
+    if (!f->pub && qsem_modof(S, f->name) != qsem_modof(S, e->tok)) {
+        const char *const ty = qsem_text(S, qast_ty(S->prog, a->type)->name);
+        qsem_say(S, e->tok, ty, "'s operator ", qast_spelling(op), " is not public", nullptr);
+        return e;
+    }
+
+    QExpr **const argv = qast_alloc(S->mem, 2 * sizeof *argv);
+    argv[0] = qsem_coerce(S, a, f->params[0].var->type);
+    argv[1] = qsem_coerce(S, b, f->params[1].var->type);
+
+    if (argv[0]->type == QY_ERROR || argv[1]->type == QY_ERROR)
+        return e;
+    if (f->lone && !f->inlining) /* a fresh argument built in its parameter's temporary */
+        return qsem_inline(S, e, f, argv);
+
+    argv[0] = qsem_addressed(S, argv[0]);
+    argv[1] = qsem_addressed(S, argv[1]);
+
+    e->kind = QE_CALL;
+    e->fn = f;
+    e->argv = argv;
+    e->nargv = 2;
+    e->a = e->b = nullptr;
+    e->done = true;
+    e->type = f->result;
+    return e;
+}
+
+/* Does a op b compare records by a fn operator? */
+static bool qsem_hasrel(
+    const QSem *const S,
+    const QKind op,
+    const QExpr *const a,
+    const QExpr *const b
+)
+{
+    const bool swap = op == QK_GT || op == QK_LE;
+    return qsem_operof(S, (swap ? b : a)->type, op == QK_EQ || op == QK_NE ? QK_EQ : QK_LT);
+}
+
+/* a op b, a a record: = and < its operators; <> and >= not = and <; > and <= < the other way. */
+static QExpr *qsem_relation(QSem *const S, QExpr *const e, const QKind op, QExpr *a, QExpr *b)
+{
+    const bool swap = op == QK_GT || op == QK_LE;
+    const bool neg = op == QK_NE || op == QK_LE || op == QK_GE;
+    QExpr *const x = qsem_operator(
+        S,
+        qast_expr(S->mem, QE_BINARY, e->tok),
+        op == QK_EQ || op == QK_NE ? QK_EQ : QK_LT,
+        swap ? b : a,
+        swap ? a : b
+    );
+
+    if (!neg || x->type == QY_ERROR)
+        return x;
+
+    QExpr *const n = qast_expr(S->mem, QE_UNARY, e->tok);
+    n->op = QK_NOT;
+    n->a = x;
+    n->type = QY_BOOL;
+    return n;
+}
+
 /* f(x), f the fn checked's parameter p, bound to block lambda l: a call of its procedure, its
    captures the fn's hidden parameters for them. */
 static QExpr *qsem_blockcall(
@@ -4653,12 +4864,12 @@ static void qsem_assign(QSem *const S, QStmt *const s)
     }
 
     if (s->op == QK_EQ) {
-        s->e = qsem_into(S, qsem_root(t), qsem_value(S, s->e, t->type));
+        s->e = qsem_intoplace(S, t, qsem_value(S, s->e, t->type));
         return;
     }
 
-    if (qsem_byplace(S, t->type)) {
-        qsem_say(S, s->tok, qast_spelling(s->op), " takes numbers", nullptr);
+    if (qsem_byplace(S, t->type) && !qsem_isrec(S, t->type)) {
+        qsem_say(S, s->tok, qast_spelling(s->op), " takes numbers or a record's operator", nullptr);
         return;
     }
 
@@ -4671,6 +4882,9 @@ static void qsem_assign(QSem *const S, QStmt *const s)
     x->a = t;
     x->b = s->e;
     s->e = qsem_coerce(S, qsem_expr(S, x, t->type), t->type);
+
+    if (qsem_byplace(S, t->type))
+        s->e = qsem_intoplace(S, t, s->e);
 }
 
 static void qsem_cond_of(QSem *const S, QStmt *const s)
@@ -6426,6 +6640,37 @@ static void qsem_signature(QSem *const S, QFn *const f)
     S->fn = nullptr;
 }
 
+/* Operator fn f checked and kept by its first parameter's type, a record. */
+static void qsem_operdef(QSem *const S, QFn *const f)
+{
+    const char *const op = qast_spelling(f->op);
+    const QType t = f->npar ? f->params[0].var->type : QY_ERROR;
+    const QType r = f->op == QK_EQ || f->op == QK_LT ? QY_BOOL : f->result;
+
+    if (f->npar != 2 || f->params[0].mut || f->params[1].mut || f->params[1].def)
+        qsem_say(S, f->name, "an operator takes two plain values", nullptr);
+    else if (t == QY_ERROR || f->result == QY_ERROR)
+        return;
+    else if (!qsem_isrec(S, t))
+        qsem_say(S, f->name, "an operator's first value is a record's", nullptr);
+    else if (f->result != r || r == QY_VOID)
+        qsem_say(
+            S,
+            f->name,
+            "operator ",
+            op,
+            r == QY_BOOL ? " gives a bool" : " gives a value",
+            nullptr
+        );
+    else if (qsem_operof(S, t, f->op))
+        qsem_say(S, f->name, qsem_aname(S, t), " has an operator ", op, " already", nullptr);
+    else {
+        QTy *const y = qast_ty(S->prog, t);
+        f->opnext = y->opers;
+        y->opers = f;
+    }
+}
+
 /* A number, a bool or a string: a native's argument and result. */
 static bool qsem_nativeok(const QType t)
 {
@@ -6628,7 +6873,7 @@ void qsem_program(QProg *const p, QMem *const m)
     qsem_scopes(&S);
 
     for (QFn *f = p->fns; f; f = f->next)
-        if (!f->lamof) {
+        if (!f->lamof && !f->op) {
             S.pub = f->pub;
             qsem_bind(&S, f->name, nullptr, f);
             S.pub = false;
@@ -6645,6 +6890,12 @@ void qsem_program(QProg *const p, QMem *const m)
     for (QFn *f = p->fns; f; f = f->next) /* a generator's too, its instances' model */
         if (!f->ntp && !f->lamof)
             qsem_signature(&S, f);
+
+    for (QFn *f = p->fns; f; f = f->next)
+        if (f->op && (f->ntp || f->ytx))
+            qsem_say(&S, f->name, "an operator is not generic and yields nothing", nullptr);
+        else if (f->op)
+            qsem_operdef(&S, f);
 
     for (uint32_t i = 0; i < p->nmods; i++) {
         qsem_module(&S, p->order[i]);

@@ -256,6 +256,13 @@ end fn
 - An enum is stored inline: a tag and room for its largest value. Nothing is allocated.
 - A record may define `+ - * / = <` with `fn operator`. Such a function is inlined like any
   small one. `<>`, `>`, `<=` and `>=` follow from `=` and `<`.
+  - The left value's type picks the operator, its first parameter's; the right value converts
+    to its second: `fn operator *(a as Vec, k as double)`. `=` and `<` give a `bool`.
+  - Another module uses an operator only if it is `public`, as a fn.
+  - A comparison chain of records, `a < b < c`, is an error.
+  - **In the VM**, an operator whose body is one `return` is inlined, its parameters read where
+    its arguments are; any other is called. A record built from its own fields, `p = p + v`, is
+    built in place when no field is read after it is written, so it costs the field arithmetic.
 
 ### Functions
 
@@ -710,8 +717,8 @@ Everything else is in a module.
 | `os.env`, `exit`; `args` over COMMAND$ | ENVIRON$, END, COMMAND$ |
 | `keys.next`, `pressed`, `down` over INKEY$; `mouse`, `clicked` | INKEY$, PEN |
 
-- `math`'s `abs`, `min`, `max` and `clamp` are generic Quickr fns; `Vec`'s arithmetic is plain fns
-  (`v.add(w)`), as there is no `fn operator`.
+- `math`'s `abs`, `min`, `max` and `clamp` are generic Quickr fns. `Vec` has `+`, `-` and `=`,
+  `*` and `/` by a `double`, `dot` and `length`.
 - A `File` stays open until `close()`: there is no `drop` yet. A file's error is a value, its
   `code` QBasic's ERR. `read_text` reads at most 32767 bytes, a string's most. `fs.list` gives
   the platform's DOS names, upper case on the host.

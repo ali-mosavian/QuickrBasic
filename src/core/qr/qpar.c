@@ -1024,6 +1024,20 @@ static void qpar_for(QPar *const P)
 }
 
 /* fn name(params) [as type]. */
+/* fn operator +: its operator, + - * / = or <, its name. */
+static const QTok *qpar_operator(QPar *const P, QFn *const f)
+{
+    static const QKind ops[] = {QK_PLUS, QK_MINUS, QK_STAR, QK_SLASH, QK_EQ, QK_LT};
+
+    for (uint32_t k = 0; k < countof(ops); k++)
+        if (qpar_is(P, ops[k])) {
+            f->op = ops[k];
+            return qpar_next(P);
+        }
+
+    qpar_expected(P, "+, -, *, /, = or < after operator");
+}
+
 static void qpar_fn(QPar *const P)
 {
     QStmt *const s = qpar_new(P, QS_FN, qpar_next(P));
@@ -1033,7 +1047,8 @@ static void qpar_fn(QPar *const P)
     f->def = s;
     qpar_append(P, s);
     qpar_push(P, s);
-    f->name = qpar_need(P, QK_NAME, "the fn's name");
+    f->name =
+        qpar_take(P, QK_OPERATOR) ? qpar_operator(P, f) : qpar_need(P, QK_NAME, "the fn's name");
 
     if (nested)
         qpar_fail(P, s->tok, "a fn goes at the top level, not in a block");
@@ -1133,8 +1148,12 @@ static void qpar_end(QPar *const P)
     s->link = open;
 
     if (s->kind == QS_ENDFN) {
+        const QStmt *const r = open->next;
         s->fn = open->fn;
         open->fn->end = s;
+
+        if (open->fn->op && r->kind == QS_RETURN && r->next == s && r->e && r->e->kind != QE_TUPLE)
+            open->fn->lone = r->tok + 1;
     }
 
     P->nopen--;

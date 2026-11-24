@@ -75,6 +75,7 @@ typedef enum : uint8_t {
     QK_IMPORT,
     QK_PUBLIC,
     QK_NATIVE,
+    QK_OPERATOR,
     QK_LATER, /* a keyword of a later milestone: type, match, import .. */
     /* punctuation */
     QK_LPAREN,
@@ -270,6 +271,7 @@ typedef struct {
     uint32_t td;   /* its TYPE (comp/declare.h), qlink's */
     uint32_t size; /* its TYPE's bytes, qlink's */
     QFn *gen;      /* QT_GEN's instance */
+    QFn *opers;    /* a record's fn operators, by QFn.opnext */
 } QTy;
 
 typedef struct {
@@ -352,11 +354,15 @@ struct QFn {
     QType ytype;
     QStmt **yields; /* an instance's yields, numbered from 1 */
     uint32_t nyields, capyields;
-    QStmt *loop;    /* for x in g(..)'s instance: that for, its code in its host's frame */
-    QFn *host;      /* an inline or resumable instance's fn holding its state, null the module */
-    bool resumable; /* var it = g(..)'s instance: a procedure, its state its host's */
-    QVar *resume;   /* the yield to go on from: 0 the start, -1 done */
-    QExpr **keep;   /* resumable: what each parameter is passed, its host's variable or place */
+    QStmt *loop;      /* for x in g(..)'s instance: that for, its code in its host's frame */
+    QFn *host;        /* an inline or resumable instance's fn holding its state, null the module */
+    bool resumable;   /* var it = g(..)'s instance: a procedure, its state its host's */
+    QVar *resume;     /* the yield to go on from: 0 the start, -1 done */
+    QExpr **keep;     /* resumable: what each parameter is passed, its host's variable or place */
+    QKind op;         /* fn operator +: its operator, its name its token */
+    QFn *opnext;      /* its first parameter's type's next operator */
+    const QTok *lone; /* an operator's body one return: its value's first token */
+    bool inlining;    /* its lone value being checked where it is used */
 };
 
 /* A name a lambda uses from outside it, as its site bound it. A fn's storage (frame) is reached

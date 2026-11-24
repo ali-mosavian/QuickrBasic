@@ -121,6 +121,7 @@ const char *qast_spelling(const QKind k)
         [QK_IMPORT] = "import",
         [QK_PUBLIC] = "public",
         [QK_NATIVE] = "native",
+        [QK_OPERATOR] = "operator",
         [QK_LATER] = "a keyword",
         [QK_LPAREN] = "(",
         [QK_RPAREN] = ")",

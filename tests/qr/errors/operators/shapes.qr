@@ -1,0 +1,17 @@
+' a module's operators: public ones used where its type is
+public type Size
+    w as int
+    h as int
+end type
+
+public fn operator +(a as Size, b as Size) as Size
+    return Size(a.w + b.w, a.h + b.h)
+end fn
+
+fn operator -(a as Size, b as Size) as Size
+    return Size(a.w - b.w, a.h - b.h)
+end fn
+
+public fn shrink(a as Size) as Size
+    return a - Size(1, 1)
+end fn
