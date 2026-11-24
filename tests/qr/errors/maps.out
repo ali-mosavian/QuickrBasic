@@ -8,7 +8,7 @@ maps.bas:6:3: an int is not a string: write string(x)
   m[3] = 1
     ^
 maps.bas:7:14: + joins two strings: write string(x)
-  print(m["x"] + "y")
+  print m["x"] + "y"
                ^
 maps.bas:8:1: a map's keys don't change: assign m[k] for its values
   for mut k in m
@@ -23,7 +23,7 @@ maps.bas:14:3: only a list has push()
   m.push(1)
     ^
 maps.bas:15:9: keys() takes no values
-  print(m.keys(1))
+  print m.keys(1)
           ^
 maps.bas:16:9: m is used after it moves here: write copy(m)
   let n = m
@@ -35,8 +35,8 @@ maps.bas:18:2: o is a let: it can't change
   o["a"] = 1
    ^
 maps.bas:20:9: only a map has keys()
-  print(l.keys())
+  print l.keys()
           ^
 maps.bas:21:7: print takes numbers, strings and bools, not an int[string]
-  print(m)
+  print m
         ^

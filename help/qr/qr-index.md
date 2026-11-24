@@ -29,4 +29,4 @@ needs no import.
 ## Example
     ' OPTION DIALECT QUICKR
     import text
-    print(text.upper("hello"))
+    print text.upper("hello")

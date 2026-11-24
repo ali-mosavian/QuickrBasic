@@ -5,7 +5,7 @@ type Res
 end type
 
 function drop(mut r as Res)
-    print("drop", r.name)
+    print "drop"; " "; r.name
 end function
 
 type Pair
@@ -52,16 +52,16 @@ function in_loop()
     for i in 0..3
         let r = Res(f"loop{i}")
     next
-    print("loop done")
+    print "loop done"
 end function
 
 function maybe_move(go as bool)
     let a = Res(f"moved {go}")
     if go then
         let b = a
-        print("in", b.name)
+        print "in"; " "; b.name
     end if
-    print("out")
+    print "out"
 end function
 
 function pool() as int
@@ -87,19 +87,19 @@ function either(c as bool)
     let a = Res("a")
     let b = Res("b")
     let g = a if c else b
-    print("g", g.name)
+    print "g"; " "; g.name
 end function
 
-print(early(true))
-print(early(false))
+print early(true)
+print early(false)
 let got = kept()
-print("got", got.name)
-print(tried(true) is Error)
-print(tried(false) ?? 0)
+print "got"; " "; got.name
+print tried(true) is Error
+print tried(false) ?? 0
 in_loop()
 maybe_move(true)
 maybe_move(false)
-print(pool())
+print pool()
 pairs()
 either(true)
 either(false)
@@ -113,4 +113,4 @@ list.push(moved)
 for i in 0..2
     let each = Res(f"top{i}")
 next
-print("end")
+print "end"

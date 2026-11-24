@@ -8,4 +8,4 @@ for r in 0..20000
         end if
     next
 next
-print(n, s[4..9])
+print n; " "; s[4..9]

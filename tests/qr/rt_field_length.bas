@@ -7,5 +7,5 @@ var bag as Bag
 for i in 0..5
     bag.items.push(i)
 next
-print(bag.items.pop(), len(bag.items))
-print(bag.items[4])
+print bag.items.pop(); " "; len(bag.items)
+print bag.items[4]

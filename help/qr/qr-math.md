@@ -22,5 +22,5 @@ a.length() is length(a).
     ' OPTION DIALECT QUICKR
     import math
     let v = math.Vec(3, 4)
-    print(v.length())
-    print(math.clamp(12, 0, 10))
+    print v.length()
+    print math.clamp(12, 0, 10)

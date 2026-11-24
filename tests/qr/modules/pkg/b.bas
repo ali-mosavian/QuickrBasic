@@ -4,6 +4,6 @@ public function twice(n as int) as int
 end function
 public let order = say()
 function say() as string
-    print("init b")
+    print "init b"
     return "b"
 end function

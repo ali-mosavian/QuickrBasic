@@ -34,46 +34,46 @@ function bump(mut a as int[])
 end function
 
 let s = squares(5)
-print(len(s), s[0], s[4], total(s))
+print len(s); " "; s[0]; " "; s[4]; " "; total(s)
 var a = squares(3)
 a.push(10)
 bump(mut a)
 for i, x in a
-    print(i, x)
+    print i; " "; x
 next
-print(a.pop(), len(a))
+print a.pop(); " "; len(a)
 a.insert(0, 99)
 a.remove(2)
 for x in a
-    print(x)
+    print x
 next
-print(5 in a, 99 in a, 7 not in a)
+print 5 in a; " "; 99 in a; " "; 7 not in a
 var balls as Ball[]
 balls.push(Ball(1, "a"))
 balls.push(Ball(2, "b"))
 balls[1].r = 20
 for b in balls
-    print(b.r, b.name)
+    print b.r; " "; b.name
 next
 let last = balls.pop()
-print(last.name, len(balls))
+print last.name; " "; len(balls)
 var f as int[3]
 f[1] = 7
-print(len(f), f[0], f[1])
+print len(f); " "; f[0]; " "; f[1]
 var bag as Bag
 bag.items.push(4)
 bag.items.push(5)
 bag.corners[2] = 1.5
-print(len(bag.items), bag.items[1], bag.corners[2])
+print len(bag.items); " "; bag.items[1]; " "; bag.corners[2]
 var names as string[]
 names.push("x")
 names.push("y")
 names.insert(1, "m")
 for n in names
-    print(n)
+    print n
 next
 let c = copy(a)
-print(len(c))
+print len(c)
 function three() as string[]
     var r as string[]
     r.push("a")
@@ -82,9 +82,9 @@ function three() as string[]
     return r
 end function
 for s in three()
-    print(s)
+    print s
 next
 var l = three()
-print("bb" in l, "z" in l, l.pop(), len(l))
+print "bb" in l; " "; "z" in l; " "; l.pop(); " "; len(l)
 let t = three()[1]
-print(t)
+print t

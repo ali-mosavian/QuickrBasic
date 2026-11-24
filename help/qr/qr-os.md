@@ -20,6 +20,6 @@ call.
     ' OPTION DIALECT QUICKR
     import os
     for a in os.args()
-        print(a)
+        print a
     next
-    print(os.env("PATH"))
+    print os.env("PATH")

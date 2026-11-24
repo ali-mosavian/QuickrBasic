@@ -6,14 +6,14 @@ type Res
 end type
 
 function drop(mut r as Res)
-    print("drop", r.name)
+    print "drop"; " "; r.name
 end function
 
 var count = 10
-print("main runs")
+print "main runs"
 count = 20
 assert count = 20
-print(helper.twice(count))
+print helper.twice(count)
 
 test "sums"
     var total = 0
@@ -26,7 +26,7 @@ end test
 test "a failing assert"
     let r = Res("held")
     assert count = 20
-    print("not reached")
+    print "not reached"
 end test
 
 test "deep assert"
@@ -35,7 +35,7 @@ end test
 
 test "division"
     let z = count - 10
-    print(100 div z)
+    print 100 div z
 end test
 
 test "returns early"

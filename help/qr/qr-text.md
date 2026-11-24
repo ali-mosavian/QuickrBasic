@@ -24,5 +24,5 @@ takes the whole. split of a string without sep gives one part, s.
     ' OPTION DIALECT QUICKR
     import text
     let words = text.split("a,b,c", ",")
-    print(text.join(words, " "))
-    print(text.upper("quickr"))
+    print text.join(words, " ")
+    print text.upper("quickr")

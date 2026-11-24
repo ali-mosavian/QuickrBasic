@@ -232,8 +232,8 @@ print                       ' an empty line
   by it (see [Methods](#methods)). A `T or none` is `none` or its `T`.
 - Any other value is a compile error: a list, a dict, a tuple, a `T or Error`, a record without
   `text`.
-- **Not yet:** `print` is a function, `print(a, b)`, its values one space apart with a newline
-  always after. It takes numbers, strings and bools; a plain enum prints as its number.
+- **Not yet:** a plain enum prints as its number, and a `T or none` or a record with `text` is a
+  compile error.
 
 ### Control flow
 

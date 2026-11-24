@@ -1,3 +1,3 @@
 70000
 rt_convert.bas:5: Overflow
-  print(ushort(n))
+  print ushort(n)

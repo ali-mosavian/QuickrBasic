@@ -46,21 +46,21 @@ function parse(s as string) as int!
 end function
 
 var x = make(1)
-print(x.n, len(x.tags), x.name, x.pair.key)
+print x.n; " "; len(x.tags); " "; x.name; " "; x.pair.key
 x = make(3)
 churn()
-print(x.n, len(x.tags), x.tags[2], x.name, x.pair.key)
+print x.n; " "; len(x.tags); " "; x.tags[2]; " "; x.name; " "; x.pair.key
 var y = copy(x)
 y.tags[0] = 99
 y.pair.key += "!"
 churn()
-print(x.tags[0], y.tags[0], x.pair.key, y.pair.key)
+print x.tags[0]; " "; y.tags[0]; " "; x.pair.key; " "; y.pair.key
 grow(mut y, 3)
-print(len(y.tags), y.tags[4], y.name)
+print len(y.tags); " "; y.tags[4]; " "; y.name
 let r = parse("")
-if r is Error then print(r.message, r.code)
+if r is Error then print r.message; " "; r.code
 let q = parse("four")
-print(q ?? 0)
+print q ?? 0
 var all as Bag[]
 for i in 0..6
     all.push(make(i))
@@ -70,7 +70,7 @@ var sum = 0
 for b in all
     sum += b.n + len(b.tags) + len(b.name) + b.pair.n
 next
-print(sum)
+print sum
 
 type Big
     a as int
@@ -94,12 +94,12 @@ var big = fill(4)
 big.b += 1
 let c = copy(big)
 big.d *= 2.0
-print(big.a, big.b, big.d, big.pad[69], big.s)
-print(weigh(big), c.d)
+print big.a; " "; big.b; " "; big.d; " "; big.pad[69]; " "; big.s
+print weigh(big); " "; c.d
 
 function deep(n as int) as int
     if n = 0 then return 0
     let x = fill(n)
     return weigh(x) + deep(n - 1)
 end function
-print(deep(50))
+print deep(50)

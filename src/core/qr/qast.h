@@ -85,6 +85,7 @@ typedef enum : uint8_t {
     QK_LOOP,
     QK_UNTIL,
     QK_SELECT,
+    QK_PRINT,
     QK_FUNCTION,
     QK_MATCH, /* not a keyword: an error naming select case */
     /* punctuation */
@@ -96,6 +97,7 @@ typedef enum : uint8_t {
     QK_RBRACE,
     QK_COMMA,
     QK_COLON,
+    QK_SEMI,
     QK_DOT,
     QK_DOTDOT,
     QK_QUEST,
@@ -500,6 +502,7 @@ struct QArg {
     QExpr *e;
     const QTok *name;
     const QTok *mut;
+    QKind sep; /* print's: ; or , after it; QK_EOF none */
     QArg *next;
 };
 
@@ -525,7 +528,7 @@ struct QExpr {
     QExpr **argv; /* QE_CALL: by parameter, or print's in order */
     uint32_t nargv;
     QExpr **items; /* QE_CHAIN */
-    QKind *ops;
+    QKind *ops;    /* QE_CHAIN's; print's: each value's separator after it, QK_EOF none */
     QType *works;
     QVar **temps; /* each middle item's */
     const QTok **specs; /* QE_FSTR: each value's format spec, null none */

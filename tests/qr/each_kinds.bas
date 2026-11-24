@@ -43,12 +43,12 @@ var u = 0
 for w in us
     u += w - 60000
 next
-print(t, u)
+print t; " "; u
 var ds as Dir[]
 ds.push(Dir.south)
 ds.push(Dir.north)
 for d in ds
-    print(d = Dir.south)
+    print d = Dir.south
 next
 var ps as Pt[]
 var twos as Two[]
@@ -64,7 +64,7 @@ var n = 0
 for tw in twos
     n += tw.a.x + tw.n + tw.a.tag
 next
-print(s, n)
+print s; " "; n
 var ls as long[]
 ls.push(long(5))
 ls.push(long(7))
@@ -78,4 +78,4 @@ var pt = 0
 for v in pi
     pt += v
 next
-print(lt, pt)
+print lt; " "; pt

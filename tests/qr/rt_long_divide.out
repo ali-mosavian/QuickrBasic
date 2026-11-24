@@ -1,3 +1,3 @@
 2
 rt_long_divide.bas:6: Division by zero
-  print(a div z)
+  print a div z

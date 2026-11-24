@@ -18,4 +18,4 @@ var a as Pt[]
 for i in 0..1000
     a.push(Pt(i mod 500, i mod 7))
 next
-print(total(a))
+print total(a)

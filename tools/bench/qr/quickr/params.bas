@@ -13,4 +13,4 @@ end function
 
 var a = Acc(0, 0)
 walk(mut a)
-print(a.n, a.s)
+print a.n; " "; a.s

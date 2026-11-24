@@ -2,14 +2,14 @@ slices.bas:4:2: a string doesn't change: build a new one
   s[0] = 65
    ^
 slices.bas:6:8: a slice takes a string or a list, not an int
-  print(n[1..2])
+  print n[1..2]
          ^
 slices.bas:7:9: a string is not an int
-  print(s["x"])
+  print s["x"]
           ^
 slices.bas:9:8: a slice takes a string or a list, not an int[4]
-  print(a[1..2])
+  print a[1..2]
          ^
 slices.bas:10:9: a double is not an int: write int(x)
-  print(s[1.5..2])
+  print s[1.5..2]
           ^

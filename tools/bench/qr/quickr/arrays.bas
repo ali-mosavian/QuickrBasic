@@ -9,4 +9,4 @@ for k in 0..3000
         s += x mod 7
     next
 next
-print(s)
+print s

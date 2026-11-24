@@ -14,4 +14,4 @@ function walk() as int
     return p.x + p.y
 end function
 
-print(walk())
+print walk()

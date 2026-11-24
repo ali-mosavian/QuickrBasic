@@ -6,6 +6,6 @@ public function ping(n as int) as int
 end function
 public var first = start("ping")
 function start(s as string) as string
-    print("init", s, pong.second)
+    print "init"; " "; s; " "; pong.second
     return s
 end function

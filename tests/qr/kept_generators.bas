@@ -42,19 +42,19 @@ function apply(f as function(int) as int) as int
     return f(1)
 end function
 var a = upto(3)
-print(a.next() ?? -1)
+print a.next() ?? -1
 var b = a
-print(a.next() ?? -1, b.next() ?? -1, b.next() ?? -1)
-print(drain(mut a))
+print a.next() ?? -1; " "; b.next() ?? -1; " "; b.next() ?? -1
+print drain(mut a)
 var m = make(2)
-print(m.next() ?? -1, m.next() ?? -1, m.next() ?? -1, m.next() ?? -1)
+print m.next() ?? -1; " "; m.next() ?? -1; " "; m.next() ?? -1; " "; m.next() ?? -1
 var w = words("xx yx")
 var w2 = w
-print(w.next() ?? "-", w2.next() ?? "-", w.next() ?? "-", w.next() ?? "-")
+print w.next() ?? "-"; " "; w2.next() ?? "-"; " "; w.next() ?? "-"; " "; w.next() ?? "-"
 var c = upto(5)
-print(apply(fn(k) k + (c.next() ?? 0)), apply(fn(k) k + (c.next() ?? 0)))
+print apply(fn(k) k + (c.next() ?? 0)); " "; apply(fn(k) k + (c.next() ?? 0))
 var v = 5
 for x in bump(mut v)
-    print(x, v)
+    print x; " "; v
 next
-print(v)
+print v

@@ -20,4 +20,4 @@ move things by the time that passed, past midnight too.
     var c as time.Clock
     c.tick()
     time.sleep(0.5)
-    print(c.tick())
+    print c.tick()

@@ -1729,7 +1729,15 @@ static void qcg_ref(QCg *const g, const QExpr *const a)
     code_word(c, (uint16_t)off);
 }
 
-/* print(a, b): each spelled, a space between, a new line. */
+/* Is e the string " "? */
+static bool qcg_space(const QExpr *const e)
+{
+    const QPiece *const s = e->kind == QE_CONST && e->type == QY_STRING ? e->val.s : nullptr;
+    return s && !s->next && s->lit->len == 1 && s->lit->text[0] == ' ';
+}
+
+/* print a; b, c: each spelled, a , to the next zone; a new line unless a separator ends it. A
+   " " is QPR's space, as cheap as print(a, b)'s was. */
 static void qcg_print(QCg *const g, const QExpr *const e)
 {
     Code *const c = g->c;
@@ -1737,17 +1745,21 @@ static void qcg_print(QCg *const g, const QExpr *const e)
     for (uint32_t i = 0; i < e->nargv; i++) {
         const QExpr *const a = e->argv[i];
 
-        if (i) {
+        if (qcg_space(a))
             code_int(c, QRT_SPACE);
-            code_call(c, K_QPR);
+        else {
+            qcg_expr(g, a);
+            code_int(c, qcg_kind(a->type));
         }
 
-        qcg_expr(g, a);
-        code_int(c, qcg_kind(a->type));
         code_call(c, K_QPR);
+
+        if (e->ops[i] == QK_COMMA)
+            code_call(c, K_PZONE);
     }
 
-    code_call(c, K_PNL);
+    if (!e->nargv || e->ops[e->nargv - 1] == QK_EOF)
+        code_call(c, K_PNL);
 }
 
 /* Argument a for a parameter of type t: by reference where it has a place, else a value cell and

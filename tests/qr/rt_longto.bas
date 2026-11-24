@@ -3,6 +3,6 @@
 var t as long = 9_223_372_036_854_775_806
 var i = 1
 t += i
-print(t)
+print t
 t += i
-print(t)
+print t

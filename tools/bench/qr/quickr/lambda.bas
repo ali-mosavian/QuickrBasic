@@ -15,4 +15,4 @@ let lim = 500
 for r in 0..300
     t += sum_where(a, fn(x) x > lim)
 next
-print(t)
+print t

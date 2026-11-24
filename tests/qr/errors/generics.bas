@@ -19,6 +19,6 @@ function none_of[T]() as int
     return 0
 end function
 var vs as Vec[]
-print(largest(vs).x)
-print(pair(1, "a"))
-print(none_of())
+print largest(vs).x
+print pair(1, "a")
+print none_of()

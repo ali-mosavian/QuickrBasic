@@ -8,13 +8,13 @@ compound.bas:18:13: Vec has no field z
   let w = Vec(z: 1)
               ^
 compound.bas:19:9: Vec has no field z
-  print(v.z)
+  print v.z
           ^
 compound.bas:20:3: v is a let: it can't change
   v.x = 2
     ^
 compound.bas:21:7: print takes numbers, strings and bools, not a Vec
-  print(v)
+  print v
         ^
 compound.bas:23:9: a is used after it moves here: write copy(a)
   var b = a
@@ -29,11 +29,11 @@ compound.bas:31:5: c is borrowed by the for mut over it: reach it through x
       c.remove(0)
       ^
 compound.bas:32:15: c is borrowed by the for mut over it: reach it through x
-      print(len(c), c[0])
+      print len(c); " "; c[0]
                 ^
-compound.bas:32:19: c is borrowed by the for mut over it: reach it through x
-      print(len(c), c[0])
-                    ^
+compound.bas:32:24: c is borrowed by the for mut over it: reach it through x
+      print len(c); " "; c[0]
+                         ^
 compound.bas:35:12: bag is used after it moves here: write copy(bag)
   var bag2 = bag
              ^
@@ -47,7 +47,7 @@ compound.bas:51:3: an array's size is fixed
   n.push(1)
     ^
 compound.bas:52:9: the index is past the elements
-  print(n[4])
+  print n[4]
           ^
 compound.bas:56:9: mut v is a Vec, not a single
   g(mut u.x)

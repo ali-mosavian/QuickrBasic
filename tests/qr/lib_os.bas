@@ -2,7 +2,7 @@
 ' os: args() from the command line (COMMAND$'s, upper case), env, exit
 import os
 let a = os.args()
-print(len(a), a[0], a[1])
-print(os.env("PATH") <> "", os.env("NO_SUCH_VARIABLE") = "")
+print len(a); " "; a[0]; " "; a[1]
+print os.env("PATH") <> ""; " "; os.env("NO_SUCH_VARIABLE") = ""
 os.exit()
-print("never")
+print "never"

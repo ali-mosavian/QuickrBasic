@@ -57,7 +57,7 @@ function through(f as function(int) as int) as int
 end function
 function run()
     var k = 10
-    print(apply(fn(v) v + k, 5), twice(fn(v) v * k, 3), apply(double_it, 21))
+    print apply(fn(v) v + k, 5); " "; twice(fn(v) v * k, 3); " "; apply(double_it, 21)
     var xs as int[]
     for i in 0..5
         xs.push(i)
@@ -68,34 +68,34 @@ function run()
         sum += x
         k -= 1
     end fn)
-    print(sum, k)
+    print sum; " "; k
     let base = 100
-    print(total(xs, fn(v)
+    print total(xs, fn(v)
         let w = v * 2
         return w + base
-    end fn))
+    end fn)
     let names = map_all(xs, fn(x) f"n{x}")
-    print(names[0], names[4], len(names), map_all(xs, fn(x) x / 2)[3])
+    print names[0]; " "; names[4]; " "; len(names); " "; map_all(xs, fn(x) x / 2)[3]
     for y in xs
-        if y > 2 then print(apply(fn(v) v * y, 10))
+        if y > 2 then print apply(fn(v) v * y, 10)
     next
-    print(pass_on(fn(v) v - xs[1], 10), apply(fn(a) apply(fn(b) a * b + xs[4], 2), 3))
+    print pass_on(fn(v) v - xs[1], 10); " "; apply(fn(a) apply(fn(b) a * b + xs[4], 2), 3)
     let w = vmap(Vec(1, 2), fn(p) Vec(p.y + xs[3], p.x))
-    print(w.x, w.y)
+    print w.x; " "; w.y
     var words as string[]
     words.push("a")
     words.push("bc")
-    print(join(words, fn(s) s + s), join(words, shout))
+    print join(words, fn(s) s + s); " "; join(words, shout)
 end function
 run()
 let g as function(int) as int = double_it
-print(g(4), apply(g, 6), through(g))
+print g(4); " "; apply(g, 6); " "; through(g)
 let sh = shout
-print(sh("hey") + sh("x"))
+print sh("hey") + sh("x")
 var b = Button("go", double_it)
-print(b.label, b.on(5))
+print b.label; " "; b.on(5)
 var zs as int[]
 zs.push(7)
 for z in zs
-    print(apply(fn(v) v + z, 1))
+    print apply(fn(v) v + z, 1)
 next

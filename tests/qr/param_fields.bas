@@ -30,4 +30,4 @@ end function
 
 var a = Rec(b: 3, n: 1, inr: Inner(k: 2, d: 1.0), l: 5, u: 7)
 bump(mut a, 4)
-print(sum(a), a.b, a.n, a.inr.k, a.inr.d, a.l, a.u)
+print sum(a); " "; a.b; " "; a.n; " "; a.inr.k; " "; a.inr.d; " "; a.l; " "; a.u

@@ -8,7 +8,7 @@ function hidden() as int
 end function
 var count = 0
 public var late = 2
-print("a module runs nothing")
+print "a module runs nothing"
 public function bad() as int
     return "no"
 end function

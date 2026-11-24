@@ -48,6 +48,6 @@ var other = 0
 function other_bump(n as int)
     other += n
 end function
-print(read(count), count + 1)
+print read(count); " "; count + 1
 other_bump(count)
 bump(count + 1)

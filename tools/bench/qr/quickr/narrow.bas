@@ -13,4 +13,4 @@ function walk() as int
     return int(p.s) + int(p.t)
 end function
 
-print(walk())
+print walk()

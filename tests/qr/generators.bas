@@ -94,25 +94,25 @@ function run(k as int)
     while true
         let p = g.next()
         if p is none then break
-        print(p.x, p.y)
+        print p.x; " "; p.y
     wend
     var sq = mapped(4, fn(x) x * x + k)
-    print(sq.next() ?? -1, sq.next() ?? -1)
+    print sq.next() ?? -1; " "; sq.next() ?? -1
     for v in mapped(3, fn(x) x + k)
-        print(v)
+        print v
     next
     var names as string[]
     names.push("ann")
     names.push("bo")
     var nm = evens(copy(names))
     names.push("cy")
-    print(nm.next() ?? "?", nm.next() ?? "?", len(names))
+    print nm.next() ?? "?"; " "; nm.next() ?? "?"; " "; len(names)
 end function
 for x in once()
-    print(x + 1)
+    print x + 1
 next
 for s in three()
-    print(s)
+    print s
 next
 var nums as int[]
 nums.push(5)
@@ -120,44 +120,44 @@ nums.push(6)
 nums.push(-7)
 nums.push(8)
 for v in evens(nums)
-    print(v)
+    print v
 next
 for x in until_neg(nums)
-    print(x)
+    print x
 next
 for x in squares(4)
     if x = 4 then continue
     if x = 9 then break
-    print(x)
+    print x
 next
-print(sum_to(10))
+print sum_to(10)
 var n = 3
 for x in upto(n)
     n += 1
-    print(x, n)
+    print x; " "; n
 next
 for w in words("the quick  brown fox ")
-    print(w)
+    print w
 next
 var ws = words("ab cd")
-print(ws.next() ?? "-", ws.next() ?? "-", ws.next() ?? "-")
+print ws.next() ?? "-"; " "; ws.next() ?? "-"; " "; ws.next() ?? "-"
 for v in zipped(3)
-    print(v)
+    print v
 next
-print(deep(3))
+print deep(3)
 var m as int[string]
 m["a"] = 1
 m["b"] = 2
 m["c"] = 3
 for k in big(m)
-    print(k)
+    print k
 next
 for x in upto(3, 1)
     for y in upto(x)
-        print(x, y)
+        print x; " "; y
     next
 next
 run(100)
 for p in grid(2)
-    print(p.x + p.y)
+    print p.x + p.y
 next

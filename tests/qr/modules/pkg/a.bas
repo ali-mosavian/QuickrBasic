@@ -5,6 +5,6 @@ public function quad(n as int) as int
 end function
 public var order = log("a")
 function log(s as string) as string
-    print("init", s)
+    print "init"; " "; s
     return s
 end function

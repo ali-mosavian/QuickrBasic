@@ -8,7 +8,7 @@
  * any stage finds is reported, in the source's order, before anything runs:
  *
  *   prog.bas:3:7: unknown name y
- *     print(y)
+ *     print y
  *           ^
  *
  * Each import loads its module's file once (found by io/locate.c, a .bas whose first line is qr_dialect): its lines, its own
@@ -914,18 +914,17 @@ static bool qr_alone(const QProg *const p)
     return e && e->len >= sizeof alone - 1 && !memcmp(e->text, alone, sizeof alone - 1);
 }
 
-/* cons.inbuf's text as print(text). */
+/* cons.inbuf's text as print text. */
 static void qr_printed(Session *const S)
 {
-    static const char pre[] = "print(";
+    static const char pre[] = "print ";
     uint8_t *const b = S->cons.inbuf;
     const size_t n = strlen((const char *)b);
     const size_t room = INMAX - (sizeof pre - 1) - 1;
     const size_t k = n < room ? n : room;
     memmove(b + sizeof pre - 1, b, k);
     memcpy(b, pre, sizeof pre - 1);
-    b[sizeof pre - 1 + k] = ')';
-    b[sizeof pre + k] = 0;
+    b[sizeof pre - 1 + k] = 0;
 }
 
 void qr_direct_code(Session *const S, const uint32_t rec)

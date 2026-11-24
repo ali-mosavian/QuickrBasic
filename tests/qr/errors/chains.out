@@ -2,37 +2,37 @@ chains.bas:6:12: a chain is used up where it is made: by collect(), a reducing m
   let it = a.map(fn(x) x * 2)
              ^
 chains.bas:7:22: sum() takes no values
-  print(a.map(fn(x) x).sum(1))
+  print a.map(fn(x) x).sum(1)
                        ^
 chains.bas:8:22: an int is not a bool
-  print(a.filter(fn(x) x).count())
+  print a.filter(fn(x) x).count()
                        ^
 chains.bas:9:13: the lambda takes one value here
-  print(a.map(fn(x, y) x).sum())
+  print a.map(fn(x, y) x).sum()
               ^
 chains.bas:10:37: rev() can't follow a filter's take, skip or zip: collect() first
-  print(a.filter(fn(x) x > 0).take(2).rev().sum())
+  print a.filter(fn(x) x > 0).take(2).rev().sum()
                                       ^
 chains.bas:11:31: rev() after take, skip or zip counts down once
-  print(a.take(2).rev().skip(1).rev().sum())
+  print a.take(2).rev().skip(1).rev().sum()
                                 ^
 chains.bas:12:13: can't tell the lambda's result: write fn(..) as T
-  print(a.map(fn(x)
+  print a.map(fn(x)
               ^
 chains.bas:15:11: a range goes in a for, or before a chain's method
   let r = (0..3)
             ^
 chains.bas:16:21: a is borrowed by the chain over it: it can't change here
-  print(a.map(fn(x) a.pop()).sum())
+  print a.map(fn(x) a.pop()).sum()
                       ^
 chains.bas:18:9: sum() takes numbers, not a string
-  print(s.sum())
+  print s.sum()
           ^
 chains.bas:19:16: sum() takes one value: map the pair to one
-  print(a.zip(a).sum())
+  print a.zip(a).sum()
                  ^
 chains.bas:20:7: an int has no chain: a list, an array, a map, a string, a range or a generator has
-  print(5.sum())
+  print 5.sum()
         ^
 chains.bas:21:1: a chain's elements don't change: for mut takes a list
   for mut x in a.filter(fn(x) x > 0)
@@ -41,8 +41,8 @@ chains.bas:24:1: for over a chain takes one name, or one for each of a zip's
   for i, x in a.map(fn(x) x)
   ^
 chains.bas:27:9: fold() takes a first value and a lambda, fn(acc, x)
-  print(a.fold(0))
+  print a.fold(0)
           ^
 chains.bas:28:16: x is an int here, not a string
-  print(a.map(fn(x as string) x).sum())
+  print a.map(fn(x as string) x).sum()
                  ^

@@ -50,7 +50,7 @@ HIDDEN = {
     "text": "SCREEN 0, , 1, 0\nCOLOR 4, 4\nCLS\n",
 }
 LOOP = "DO\nLOOP\n"
-QUICKR = "' OPTION DIALECT QUICKR\nimport text\nprint(text.upper(\"ok\"))\nwhile true\nwend\n"
+QUICKR = "' OPTION DIALECT QUICKR\nimport text\nprint text.upper(\"ok\")\nwhile true\nwend\n"
 NATIVE = "from qxtest import *\nSCREEN 9\nIF add%(2, 3) = 5 THEN LINE (0, 0)-(100, 100), 4, BF\n" + LOOP
 HELP = "60:3B00"  # F1
 HELP_ESC = "60:3B00 70:011B"  # F1, Esc

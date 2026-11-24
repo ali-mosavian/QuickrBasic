@@ -39,7 +39,10 @@ one owner: copy(a) copies one.
 Modules: import m, import m as n, from m import a, b. Only public
 names are seen outside their file.
 
-Built-ins: print(x, ...), len(a), copy(a), wrap(x) (integers wrap),
+print a; b, c: ; joins, , to the next 14-column zone, a separator
+last holds the line; print alone, an empty line.
+
+Built-ins: len(a), copy(a), wrap(x) (integers wrap),
 int(x) single(x) double(x) string(x) and the other types' names.
 
 Tests: test "name" ... end test; assert c. basic --test FILE.BAS runs
@@ -58,5 +61,5 @@ them.
 
     let p = P(x: 2, y: 3)
     for i in 0..3
-        print(f"{i}: {p.sum() * i}")
+        print f"{i}: {p.sum() * i}"
     next

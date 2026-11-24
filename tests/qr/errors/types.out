@@ -11,43 +11,43 @@ types.bas:7:16: a double is not an int: write int(x)
   var n as int = d
                  ^
 types.bas:8:9: + joins two strings: write string(x)
-  print(1 + "x")
+  print 1 + "x"
           ^
 types.bas:9:11: - takes numbers, not a string
-  print("x" - "y")
+  print "x" - "y"
             ^
 types.bas:10:11: div takes integers, not a double
-  print(1.5 div 2)
+  print 1.5 div 2
             ^
 types.bas:11:11: shl takes integers, not a double
-  print(1.5 shl 1)
+  print 1.5 shl 1
             ^
 types.bas:12:12: + takes numbers, not a bool
-  print(true + 1)
+  print true + 1
              ^
 types.bas:13:4: an int is not a bool
-  if 1 then print(1)
+  if 1 then print 1
      ^
 types.bas:14:7: a string is not a bool
   while "s"
         ^
 types.bas:16:12: and takes two bools or two integers, not a bool and an int
-  print(true and 1)
+  print true and 1
              ^
 types.bas:17:11: a double is not a bool
-  print(not 1.5)
+  print not 1.5
             ^
 types.bas:18:9: the arms are an int and a string
-  print(1 if true else "x")
+  print 1 if true else "x"
           ^
 types.bas:19:7: int() takes a number, not a bool
-  print(int(true))
+  print int(true)
         ^
 types.bas:20:7: string() takes one value
-  print(string())
+  print string()
         ^
 types.bas:21:7: int() takes one value
-  print(int(1, 2))
+  print int(1, 2)
         ^
 types.bas:22:18: 3000000000 doesn't fit an int
   var big as int = 3000000000
@@ -56,7 +56,7 @@ types.bas:23:19: 1e300 doesn't fit a single
   let r as single = 1e300
                     ^
 types.bas:24:9: can't compare an int with a string
-  print(1 < "a")
+  print 1 < "a"
           ^
 types.bas:25:10: a double is not an int: write int(x)
   for k in 0.5..2

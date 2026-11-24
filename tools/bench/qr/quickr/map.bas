@@ -9,4 +9,4 @@ for r in 0..5
         sum += m[i * 7919]
     next
 next
-print(len(m), sum)
+print len(m); " "; sum

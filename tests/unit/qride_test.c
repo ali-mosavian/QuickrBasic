@@ -33,7 +33,7 @@ static const char *const files[] = {"main.bas", "gfx.bas", "util.bas", nullptr};
 static void open_quickr(Session *const S)
 {
     fx_open_program(S, "");
-    fx_write_file("main.bas", DIALECT "import util\nlet n = util.twice(2)\nprint(n)\n");
+    fx_write_file("main.bas", DIALECT "import util\nlet n = util.twice(2)\nprint n\n");
     fx_write_file(
         "util.bas",
         DIALECT "public function twice(x as int) as int\n    return x * 2\nend function\n"
@@ -83,12 +83,12 @@ TEST(qride_lists_files_and_fns)
 TEST(qride_keeps_a_line_as_typed)
 {
     open_quickr(S);
-    fx_retype(S, fx_line_of(S, "print(n)"), "print(n + 1)");
-    CHECK(fx_line_of(S, "print(n + 1)") != ~0u);
+    fx_retype(S, fx_line_of(S, "print n"), "print n + 1");
+    CHECK(fx_line_of(S, "print n + 1") != ~0u);
     CHECK(uimn_save(S));
     CHECK(!strcmp(
         fx_file_text("main.bas"),
-        "' OPTION DIALECT QUICKR\r\nimport util\r\nlet n = util.twice(2)\r\nprint(n + 1)\r\n"
+        "' OPTION DIALECT QUICKR\r\nimport util\r\nlet n = util.twice(2)\r\nprint n + 1\r\n"
     ));
     fx_done(S, files);
 }
@@ -116,7 +116,7 @@ TEST(qride_keeps_the_dialect_line)
 TEST(qride_checks_a_line_as_typed)
 {
     open_quickr(S);
-    const uint32_t line = fx_line_of(S, "print(n)");
+    const uint32_t line = fx_line_of(S, "print n");
     CHECK(!fx_typed_over(S, line, "let = 3"));
     uint16_t col = 0;
     CHECK(errs_at(S, line, &col) && col == 4);
@@ -130,10 +130,10 @@ TEST(qride_checks_a_line_as_typed)
 TEST(qride_checks_a_line_in_its_block)
 {
     fx_open_program(S, "");
-    fx_write_file("main.bas", DIALECT "type P\n    y as int\nend type\nprint(1)\n");
+    fx_write_file("main.bas", DIALECT "type P\n    y as int\nend type\nprint 1\n");
     uimn_open(S, fx_path_of("main.bas"));
     CHECK(fx_typed_over(S, fx_line_of(S, "    y as int"), "    x as int"));
-    CHECK(!fx_typed_over(S, fx_line_of(S, "print(1)"), "x as int"));
+    CHECK(!fx_typed_over(S, fx_line_of(S, "print 1"), "x as int"));
     fx_done(S, files);
 }
 
@@ -154,10 +154,10 @@ static void captured(Session *const S, void (*const fn)(Session *S))
 TEST(qride_runs_modules_first)
 {
     fx_open_program(S, "");
-    fx_write_file("main.bas", DIALECT "import util\nprint(util.twice(2))\n");
+    fx_write_file("main.bas", DIALECT "import util\nprint util.twice(2)\n");
     fx_write_file(
         "util.bas",
-        DIALECT "function hello() as int\n    print(\"util\")\n    return 1\nend function\nlet u = "
+        DIALECT "function hello() as int\n    print \"util\"\n    return 1\nend function\nlet u = "
                 "hello()\n"
                 "public function twice(x as int) as int\n    return x * 2\nend function\n"
     );
@@ -175,7 +175,7 @@ TEST(qride_runs_modules_first)
 TEST(qride_run_stops_at_a_type_error)
 {
     open_quickr(S);
-    fx_retype(S, fx_line_of(S, "print(n)"), "let s as string = n");
+    fx_retype(S, fx_line_of(S, "print n"), "let s as string = n");
     edit_load(S, view_goline(S, 0));
     captured(S, uimn_run);
     CHECK(uimn.text.first + uimn.ed.line == fx_line_of(S, "let s as string = n"));
@@ -214,8 +214,8 @@ static const char generic[] = DIALECT "function at[T](a as T[], i as int) as T\n
                                       "end function\n"
                                       "var xs as int[]\n"
                                       "xs.push(1)\n"
-                                      "print(at(xs, %d))\n"
-                                      "print(2)\n";
+                                      "print at(xs, %d)\n"
+                                      "print 2\n";
 
 static void open_generic(Session *const S, const int i)
 {
@@ -236,16 +236,16 @@ TEST(qride_steps_by_line)
     captured(S, uimn_run);
     CHECK(uimn.stopped && cursor_line() == fx_line_of(S, "xs.push(1)"));
     captured(S, udbg_step);
-    CHECK(uimn.stopped && cursor_line() == fx_line_of(S, "print(at(xs, 0))"));
+    CHECK(uimn.stopped && cursor_line() == fx_line_of(S, "print at(xs, 0)"));
     captured(S, udbg_step);
     CHECK(uimn.stopped && cursor_line() == fx_line_of(S, "    return a[i]"));
     captured(S, udbg_sout);
-    CHECK(uimn.stopped && cursor_line() == fx_line_of(S, "print(2)"));
+    CHECK(uimn.stopped && cursor_line() == fx_line_of(S, "print 2"));
     captured(S, udbg_restart);
     captured(S, uimn_cont);
     captured(S, udbg_step);
     captured(S, udbg_pstep);
-    CHECK(uimn.stopped && cursor_line() == fx_line_of(S, "print(2)"));
+    CHECK(uimn.stopped && cursor_line() == fx_line_of(S, "print 2"));
     fx_done(S, files);
 }
 
@@ -271,7 +271,7 @@ TEST(qride_pane_spells_names_as_typed)
         "main.bas",
         DIALECT
         "function twice(myX as int) as int\n    let y = myX * 2\n    return y\nend function\n"
-        "print(twice(1))\n"
+        "print twice(1)\n"
     );
     uimn_open(S, fx_path_of("main.bas"));
     edit_load(S, view_goline(S, fx_line_of(S, "    return y")));
@@ -296,7 +296,7 @@ TEST(qride_shows_an_inline_record_by_its_fields)
         "type Pt\n    x as int\n    y as single\nend type\n"
         "var g = Pt(3, 0.5)\n"
         "function f(n as int) as int\n    var p = Pt(n, 2.5)\n    return p.x\nend function\n"
-        "print(f(1))\n"
+        "print f(1)\n"
     );
     uimn_open(S, fx_path_of("main.bas"));
     edit_load(S, view_goline(S, fx_line_of(S, "    return p.x")));
@@ -328,7 +328,7 @@ TEST(qride_watches_names_as_typed)
         "main.bas",
         DIALECT
         "function twice(myX as int) as int\n    let y = myX * 2\n    return y\nend function\n"
-        "print(twice(3))\n"
+        "print twice(3)\n"
     );
     uimn_open(S, fx_path_of("main.bas"));
     edit_load(S, view_goline(S, fx_line_of(S, "    return y")));
@@ -359,7 +359,7 @@ static const char *immediate(Session *const S, const char *const text)
     return (const char *)S->cons.sbuf;
 }
 
-/* The immediate window ran a Quickr program's line as QBasic's, at the module: print(myX) a
+/* The immediate window ran a Quickr program's line as QBasic's, at the module: print myX a
    Syntax error. */
 TEST(qride_immediate_runs_quickr_at_the_stop)
 {
@@ -369,18 +369,18 @@ TEST(qride_immediate_runs_quickr_at_the_stop)
         DIALECT
         "var total = 5\n"
         "function twice(myX as int) as int\n    let y = myX * 2\n    return y\nend function\n"
-        "print(twice(3))\n"
+        "print twice(3)\n"
     );
     uimn_open(S, fx_path_of("main.bas"));
-    CHECK(strchr(immediate(S, "print(total + 1)"), '1'));
+    CHECK(strchr(immediate(S, "print total + 1"), '1'));
     wind_focus(S, W_ED1);
     edit_load(S, view_goline(S, fx_line_of(S, "    return y")));
     udbg_bp(S);
     captured(S, uimn_run);
-    CHECK(strstr(immediate(S, "print(myX, y, total, \"s\")"), "3 6 5 s"));
+    CHECK(strstr(immediate(S, "print myX; \" \"; y; \" \"; total; \" \"; \"s\""), "3 6 5 s"));
     immediate(S, "total = myX + y");
     CHECK(strchr(immediate(S, "total"), '9'));
-    immediate(S, "print(nope)");
+    immediate(S, "print nope");
     CHECK(!strcmp(uimn.errmsg, "unknown name nope"));
     CHECK(uimn.stopped);
     captured(S, uimn_cont);
@@ -392,9 +392,9 @@ static const char shadows[] =
     DIALECT "type V\n    x as int\n    y as int\nend type\n"
             "function len2(v as V) as int\n    return v.x * v.x + v.y * v.y\nend function\n"
             "function f(n as int) as int\n    let v = V(3, 4)\n    var x = n\n"
-            "    if n > 0 then\n        let x = 10\n        print(x)\n"
+            "    if n > 0 then\n        let x = 10\n        print x\n"
             "    end if\n    return x + v.len2()\nend function\n"
-            "print(f(1))\n";
+            "print f(1)\n";
 
 /* Watch's x the stopped line's, v.len2() a method's call: once read as QBasic's, x the first x
    declared, v.len2() a Syntax error; Locals spelled the inner x X'1, v as its type V. */
@@ -403,7 +403,7 @@ TEST(qride_watches_quickr_at_the_stopped_line)
     fx_open_program(S, "");
     fx_write_file("main.bas", shadows);
     uimn_open(S, fx_path_of("main.bas"));
-    edit_load(S, view_goline(S, fx_line_of(S, "        print(x)")));
+    edit_load(S, view_goline(S, fx_line_of(S, "        print x")));
     udbg_bp(S);
     edit_load(S, view_goline(S, fx_line_of(S, "    return x + v.len2()")));
     udbg_bp(S);
@@ -476,7 +476,7 @@ static bool offers(Session *const S, const char *const text, const char *const w
     Suggs out = {};
 
     const uint16_t n = (uint16_t)strlen(text);
-    const uint32_t rec = text_rec(S, fx_line_of(S, "print(total)"));
+    const uint32_t rec = text_rec(S, fx_line_of(S, "print total"));
     bool found = false;
 
     if (sugg_find(S, (const uint8_t *)text, n, n, rec, &out))
@@ -495,7 +495,7 @@ TEST(qride_completes_quickr_words)
         "main.bas",
         DIALECT "import util\ntype P\n    x as int\n    y as int\nend type\n"
                 "function norm(p as P) as int\n    return p.x + p.y\nend function\n"
-                "var q as P\nlet total = norm(q)\nprint(total)\n"
+                "var q as P\nlet total = norm(q)\nprint total\n"
     );
     fx_write_file(
         "util.bas",
@@ -504,7 +504,7 @@ TEST(qride_completes_quickr_words)
     uimn_open(S, fx_path_of("main.bas"));
     CHECK(offers(S, "re", "return"));
     CHECK(!offers(S, "re", "RETURN"));
-    CHECK(offers(S, "print(to", "total"));
+    CHECK(offers(S, "print to", "total"));
     CHECK(offers(S, "let a = util.t", "twice"));
     CHECK(offers(S, "let a = q.", "x"));
     CHECK(offers(S, "let a = q.", "y"));

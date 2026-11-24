@@ -24,7 +24,7 @@ raised: test it with is Error, or pass it on with ?.
     import fs
     let r = fs.read_text("notes.txt")
     if r is Error then
-        print(r.message)
+        print r.message
     else
-        print(r)
+        print r
     end if

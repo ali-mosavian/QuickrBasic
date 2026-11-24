@@ -20,6 +20,6 @@ does.
     io.clear()
     io.at(5, 10)
     io.color(14)
-    print("Your name?")
+    print "Your name?"
     let name = io.read_line()
-    print(f"Hello, {name}")
+    print f"Hello, {name}"

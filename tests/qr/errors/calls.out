@@ -1,20 +1,20 @@
 calls.bas:6:7: f needs a value for a
-  print(f())
+  print f()
         ^
 calls.bas:7:15: too many values for f
-  print(f(1, 2, 3))
+  print f(1, 2, 3)
                 ^
 calls.bas:8:7: f needs a value for a
-  print(f(b: 1))
+  print f(b: 1)
         ^
 calls.bas:9:12: f has no parameter c
-  print(f(1, c: 2))
+  print f(1, c: 2)
              ^
 calls.bas:10:15: a value by position after one by name
-  print(f(a: 1, 2))
+  print f(a: 1, 2)
                 ^
 calls.bas:11:12: a given twice
-  print(f(1, a: 2))
+  print f(1, a: 2)
              ^
 calls.bas:12:19: b needs a default: one before it has one
   function g(a = 1, b as int)

@@ -13,4 +13,4 @@ var a as int[]
 for i in 0..1000
     a.push(i mod 500)
 next
-print(total(a))
+print total(a)

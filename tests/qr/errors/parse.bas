@@ -1,9 +1,9 @@
 ' OPTION DIALECT QUICKR
 ' the parser's errors, each line's first
 let = 3
-print(1 +)
+print 1 +
 if x then
-print(1)) 
+print 1) 
 for i 0..3
 next
 wend

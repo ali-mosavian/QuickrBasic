@@ -13,15 +13,15 @@ function len2(s as string) as int
 end function
 
 let q, r = divmod(17, 5)
-print(q, r)
+print q; " "; r
 var a = 1
 var b = 2
 a, b = b, a
-print(a, b)
+print a; " "; b
 a, b = divmod(29, 4)
-print(a, b)
+print a; " "; b
 let s, n = pair("hi")
-print(s, n)
+print s; " "; n
 var t = divmod(7, 2)
 let x, y = t
-print(x, y)
+print x; " "; y

@@ -1,8 +1,8 @@
 ints.bas:8:11: a ubyte is not a byte: write byte(x)
-  print(b + ub)
+  print b + ub
             ^
 ints.bas:9:11: an int is not a uint: write uint(x)
-  print(u + i)
+  print u + i
             ^
 ints.bas:10:21: 200 doesn't fit a byte
   let small as byte = 200
@@ -17,5 +17,5 @@ ints.bas:13:19: a uint is not an int: write int(x)
   let back as int = u
                     ^
 ints.bas:14:7: - takes a signed number, not a uint
-  print(-u)
+  print -u
         ^

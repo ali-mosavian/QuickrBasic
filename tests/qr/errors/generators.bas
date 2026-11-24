@@ -27,26 +27,26 @@ function changes(mut n as int) yields int
 end function
 let a = upto(3)
 var b = upto(3)
-print(b)
+print b
 var m = b.next() ?? 0
 var c = changes(mut m)
-print(b.size())
+print b.size()
 let s = upto(4)
 for x in upto(2)
     x = 5
 next
 for i, x in upto(2)
-    print(x)
+    print x
 next
 for x in bad(1)
-    print(x)
+    print x
 next
 for x in loops(1)
-    print(x)
+    print x
 next
 let f = upto
 for x in changes(mut m)
-    print(x)
+    print x
 next
-print(b.next(1) ?? 0)
+print b.next(1) ?? 0
 upto(3)

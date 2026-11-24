@@ -9,4 +9,4 @@ native function floor(p as P) as P
 native function find[T](s as T) as int
 native type Q
 native function upper(s as string) as string
-print(upper("ok"))
+print upper("ok")

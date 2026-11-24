@@ -12,4 +12,4 @@ for i in 0..3000000
             s += 4
     end select
 next
-print(s)
+print s

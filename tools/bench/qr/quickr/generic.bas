@@ -14,4 +14,4 @@ var t = 0
 for r in 0..300
     t += largest(a)
 next
-print(t)
+print t

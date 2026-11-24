@@ -1,2 +1,2 @@
 rt_shift.bas:4: Illegal function call
-  print(1 shl n)
+  print 1 shl n

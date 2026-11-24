@@ -51,6 +51,7 @@ static const char *const qlex_words[] = {
     [QK_FOR - QK_AND] = "for",       [QK_IF - QK_AND] = "if",
     [QK_IN - QK_AND] = "in",         [QK_IS - QK_AND] = "is",
     [QK_LET - QK_AND] = "let",       [QK_SELECT - QK_AND] = "select",
+    [QK_PRINT - QK_AND] = "print",
     [QK_MOD - QK_AND] = "mod",       [QK_MUT - QK_AND] = "mut",
     [QK_NONE - QK_AND] = "none",     [QK_NOT - QK_AND] = "not",
     [QK_OR - QK_AND] = "or",         [QK_RETURN - QK_AND] = "return",
@@ -76,9 +77,9 @@ static const struct {
     {"..", QK_DOTDOT}, {"<>", QK_NE},    {"<=", QK_LE},    {">=", QK_GE},    {"+=", QK_ADDEQ},
     {"-=", QK_SUBEQ},  {"*=", QK_MULEQ}, {"/=", QK_DIVEQ}, {"??", QK_QQ},    {"(", QK_LPAREN},
     {")", QK_RPAREN},  {"[", QK_LBRACK}, {"]", QK_RBRACK}, {"{", QK_LBRACE}, {"}", QK_RBRACE},
-    {",", QK_COMMA},   {":", QK_COLON},  {".", QK_DOT},    {"?", QK_QUEST},  {"!", QK_BANG},
-    {"+", QK_PLUS},    {"-", QK_MINUS},  {"*", QK_STAR},   {"/", QK_SLASH},  {"=", QK_EQ},
-    {"<", QK_LT},      {">", QK_GT},     {"^", QK_POW},
+    {",", QK_COMMA},   {":", QK_COLON},  {";", QK_SEMI},   {".", QK_DOT},    {"?", QK_QUEST},
+    {"!", QK_BANG},    {"+", QK_PLUS},   {"-", QK_MINUS},  {"*", QK_STAR},   {"/", QK_SLASH},
+    {"=", QK_EQ},      {"<", QK_LT},     {">", QK_GT},     {"^", QK_POW},
 };
 
 /* Operators spelled as another language spells them, each an error naming Quickr's. */

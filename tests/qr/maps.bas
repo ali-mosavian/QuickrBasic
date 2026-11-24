@@ -4,20 +4,20 @@ var ages as int[string]
 ages["ada"] = 36
 ages["bob"] = 7
 ages["cy"] = 12
-print(len(ages), ages["bob"])
+print len(ages); " "; ages["bob"]
 ages["bob"] += 1
-print(ages["bob"], "ada" in ages, "zed" in ages, "zed" not in ages)
+print ages["bob"]; " "; "ada" in ages; " "; "zed" in ages; " "; "zed" not in ages
 for k, v in ages
-    print(k, v)
+    print k; " "; v
 next
 ages.remove("ada")
 ages.remove("nope")
-print(len(ages))
+print len(ages)
 for k in ages
-    print(k)
+    print k
 next
 let ks = ages.keys()
-print(len(ks), ks[0])
+print len(ks); " "; ks[0]
 var sq as int[int]
 for i in 0..1000
     sq[i * 7] = i * i
@@ -26,7 +26,7 @@ var sum = 0
 for i in 0..1000
     sum += sq[i * 7]
 next
-print(len(sq), sum, sq[700])
+print len(sq); " "; sum; " "; sq[700]
 for i in 0..1000
     if i mod 3 <> 0 then
         sq.remove(i * 7)
@@ -36,12 +36,12 @@ var ok = true
 for i in 0..1000
     ok = ok and ((i * 7 in sq) = (i mod 3 = 0))
 next
-print(len(sq), ok)
+print len(sq); " "; ok
 var names as string[int]
 for i in 0..200
     names[i] = f"n{i}"
 next
-print(names[150], len(names))
+print names[150]; " "; len(names)
 type Pet
     name as string
     legs as int
@@ -71,19 +71,19 @@ var zoo as Zoo
 add(mut zoo, "rex", 4)
 add(mut zoo, "tweety", 2)
 add(mut zoo, "nemo", 0)
-print(zoo.count, len(zoo.pets), zoo.pets["tweety"].tags[0])
+print zoo.count; " "; len(zoo.pets); " "; zoo.pets["tweety"].tags[0]
 let c = census(zoo)
 for k, v in c
-    print(k, v)
+    print k; " "; v
 next
 var z2 = copy(zoo)
 z2.pets["rex"].legs = 3
 z2.pets.remove("nemo")
-print(zoo.pets["rex"].legs, z2.pets["rex"].legs, len(zoo.pets), len(z2.pets))
+print zoo.pets["rex"].legs; " "; z2.pets["rex"].legs; " "; len(zoo.pets); " "; len(z2.pets)
 var paint as string[Color]
 paint[Color.green] = "grass"
 paint[Color.red] = "rose"
-print(paint[Color.red], len(paint))
+print paint[Color.red]; " "; len(paint)
 var big as Pet[int]
 for i in 0..60
     big[i] = Pet(f"p{i}", i)
@@ -98,9 +98,9 @@ var total = 0
 for k, p in big
     total += p.legs + len(p.tags)
 next
-print(len(big), total, big[59].name)
+print len(big); " "; total; " "; big[59].name
 var moved = big
-print(len(moved))
+print len(moved)
 function build(n as int) as int
     var m as string[int]
     for i in 0..n
@@ -121,8 +121,8 @@ for r in 0..300
     let q = made(50)
     t += len(q)
 next
-print(t)
+print t
 for k, v in made(5)
-    print(k, v)
+    print k; " "; v
 next
-print(len(made(9).keys()))
+print len(made(9).keys())

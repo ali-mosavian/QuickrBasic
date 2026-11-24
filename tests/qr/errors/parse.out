@@ -1,8 +1,8 @@
 parse.bas:3:5: expected a name, not =
   let = 3
       ^
-parse.bas:4:10: expected a value, not )
-  print(1 +)
+parse.bas:4:10: expected a value, not the line's end
+  print 1 +
            ^
 parse.bas:5:1: if without end if
   if x then
@@ -10,9 +10,9 @@ parse.bas:5:1: if without end if
 parse.bas:5:4: unknown name x
   if x then
      ^
-parse.bas:6:9: expected the line's end, not )
-  print(1)) 
-          ^
+parse.bas:6:8: expected the line's end, not )
+  print 1) 
+         ^
 parse.bas:7:7: expected in, not 0
   for i 0..3
         ^

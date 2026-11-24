@@ -14,4 +14,4 @@ for i in 0..2000000
     p = p + v
     p.x = p.x mod 1000
 next
-print(p.x, p.y)
+print p.x; " "; p.y

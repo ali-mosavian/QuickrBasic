@@ -22,10 +22,10 @@ end function
 function run()
     let k = 1
     var xs as int[]
-    print(apply(fn(a, b) a, 1))
-    print(apply(fn(v) v + "s", 1))
-    print(apply(twoargs, 1))
-    print(apply(bump, 1))
+    print apply(fn(a, b) a, 1)
+    print apply(fn(v) v + "s", 1)
+    print apply(twoargs, 1)
+    print apply(bump, 1)
     let f = fn(v) v
     each(xs, fn(x as int)
         k += x
@@ -33,9 +33,9 @@ function run()
     each(xs, fn(x as int)
         xs.push(x)
     end fn)
-    print(apply(fn(v as string) 1, 1))
-    print(apply(fn(v) v, "no"))
-    print(keep(fn(v) v))
+    print apply(fn(v as string) 1, 1)
+    print apply(fn(v) v, "no")
+    print keep(fn(v) v)
     for x in xs
         each(xs, fn(y as int)
             xs.push(y)

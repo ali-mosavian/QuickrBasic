@@ -25,24 +25,24 @@ function flip(v as Vec) as Vec
 end function
 
 let v = Vec(3, 4)
-print(v.x, v.y, length2(v))
+print v.x; " "; v.y; " "; length2(v)
 var b = Ball(r: 2, at: v)
-print(b.r, b.name, b.at.x, b.at.y)
+print b.r; " "; b.name; " "; b.at.x; " "; b.at.y
 b.name = "red"
 b.at.x = 10
-print(b.name, b.at.x, v.x)
+print b.name; " "; b.at.x; " "; v.x
 var c = b
 c.name = "blue"
-print(b.name, c.name)
+print b.name; " "; c.name
 scale(mut b.at, 2)
-print(b.at.x, b.at.y)
+print b.at.x; " "; b.at.y
 b.at.scale(0.5)
-print(b.at.x, b.at.y, b.at.length2())
+print b.at.x; " "; b.at.y; " "; b.at.length2()
 var w as Vec
-print(w.x, w.y)
+print w.x; " "; w.y
 w = flip(b.at)
-print(w.x, w.y)
+print w.x; " "; w.y
 w = flip(w)
-print(w.x, w.y)
+print w.x; " "; w.y
 var d as Ball
-print(d.r, d.at.y)
+print d.r; " "; d.at.y

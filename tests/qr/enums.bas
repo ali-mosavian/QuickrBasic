@@ -32,28 +32,28 @@ function name(m as Mode) as string
     end select
 end function
 
-print(area(Shape.circle(2)), area(Shape.rect(3, 4)), area(Shape.dot))
-print(name(Mode.walk), name(Mode.roll))
+print area(Shape.circle(2)); " "; area(Shape.rect(3, 4)); " "; area(Shape.dot)
+print name(Mode.walk); " "; name(Mode.roll)
 var m = Mode.jump
-print(m = Mode.jump, m <> Mode.jump, int(m))
+print m = Mode.jump; " "; m <> Mode.jump; " "; int(m)
 for i in 0..10
     select case i
         case 1, 2
-            print(i, "small")
+            print i; " "; "small"
         case 3 to 5
-            print(i, "mid")
+            print i; " "; "mid"
         case is > 7
-            print(i, "big")
+            print i; " "; "big"
         case else
-            print(i, "other")
+            print i; " "; "other"
     end select
 next
 let k = "b"
 select case k
     case "a"
-        print("A")
+        print "A"
     case "b"
-        print("B")
+        print "B"
     case else
-        print("?")
+        print "?"
 end select

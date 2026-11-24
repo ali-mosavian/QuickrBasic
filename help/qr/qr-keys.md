@@ -21,5 +21,5 @@ release: down(k) holds for held_for seconds (0.55) after k's last.
     ' OPTION DIALECT QUICKR
     import keys
     while not keys.pressed(keys.Key.escape)
-        if keys.down(keys.Key.left) then print("left")
+        if keys.down(keys.Key.left) then print "left"
     wend

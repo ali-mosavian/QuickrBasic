@@ -13,7 +13,7 @@ public enum Shade
 end enum
 public function plot(x as int, y as int)
     plotted += 1
-    print("plot", clip(x), y)
+    print "plot"; " "; clip(x); " "; y
 end function
 function clip(x as int) as int
     return MAXW if x > MAXW else x

@@ -16,9 +16,9 @@ enum Mode
 end enum
 let v = Vec(1, 2, 3)
 let w = Vec(z: 1)
-print(v.z)
+print v.z
 v.x = 2
-print(v)
+print v
 var a as int[]
 var b = a
 a.push(1)
@@ -29,15 +29,15 @@ for x in c
 next
 for mut x in c
     c.remove(0)
-    print(len(c), c[0])
+    print len(c); " "; c[0]
 next
 var bag as Bag
 var bag2 = bag
-print(bag.items[0])
+print bag.items[0]
 var bag3 = bag.items
 select case Mode.walk
     case Mode.walk
-        print(1)
+        print 1
 end select
 function f(m as Mode) as int
     select case m
@@ -49,7 +49,7 @@ function f(m as Mode) as int
 end function
 var n as int[4]
 n.push(1)
-print(n[4])
+print n[4]
 function g(mut v as Vec)
 end function
 var u = Vec(1, 2)
@@ -63,4 +63,4 @@ next
 var l1 as int[]
 var l2 as int[]
 var l3 = l1 if len(l2) > 0 else l2
-print(len(l1))
+print len(l1)

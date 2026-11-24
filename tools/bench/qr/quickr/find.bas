@@ -5,4 +5,4 @@ var n = 0
 for r in 0..50000
     if text.find(s, "lazy") >= 0 then n += 1
 next
-print(n)
+print n

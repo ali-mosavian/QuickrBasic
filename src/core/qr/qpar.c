@@ -887,12 +887,45 @@ static QStmt *qpar_yield(QPar *const P)
     return s;
 }
 
+/* print [v {; v | , v} [; | ,]]: a call of print, each value's separator after it. */
+static QStmt *qpar_print(QPar *const P)
+{
+    const QTok *const t = qpar_next(P);
+    QStmt *const s = qpar_new(P, QS_CALL, t);
+    QExpr *const e = s->e = qast_expr(P->mem, QE_CALL, t);
+    const bool paren = qpar_is(P, QK_LPAREN);
+    QArg **last = &e->args;
+
+    if (paren && P->t[1].kind == QK_RPAREN)
+        qpar_fail(P, t, "print() is written print");
+
+    while (!qpar_is(P, QK_NL) && !qpar_is(P, QK_ELSE)) {
+        QArg *const a = qast_alloc(P->mem, sizeof *a);
+        a->e = qpar_expr(P);
+        a->sep = qpar_is(P, QK_SEMI) || qpar_is(P, QK_COMMA) ? qpar_next(P)->kind : QK_EOF;
+
+        if (paren && !e->args && a->e->kind == QE_TUPLE)
+            qpar_fail(P, t, "print(a, b) is written print a, b");
+
+        *last = a;
+        last = &a->next;
+
+        if (a->sep == QK_EOF)
+            break;
+    }
+
+    return s;
+}
+
 /* An assignment or a call. */
 static QStmt *qpar_simple(QPar *const P)
 {
     const QTok *const t = P->t;
 
     switch (t->kind) {
+    case QK_PRINT:
+        return qpar_print(P);
+
     case QK_BREAK:
         return qpar_jump(P, QS_BREAK);
 

@@ -33,11 +33,11 @@ var n = 0
 for x in none_
     n += 1
 next
-print(n)
+print n
 var ls as long[]
 ls.push(3_000_000_000)
 ls.push(-4)
-print(total(ls), gsum())
+print total(ls); " "; gsum()
 var bs as bool[]
 bs.push(true)
 bs.push(false)
@@ -47,17 +47,17 @@ for i, b in bs
     if not b then continue
     t += i + apply(fn(k) k * 10, i)
 next
-print(t)
+print t
 var fs as single[]
 fs.push(0.5)
 fs.push(0.25)
 var u as uint[]
 u.push(4_000_000_000)
 for x in u
-    print(x)
+    print x
 next
 for i, x in fs
-    print(i, x, fs[i])
+    print i; " "; x; " "; fs[i]
     if i = 0 then break
 next
 
@@ -72,4 +72,4 @@ w.push(5)
 w.push(6)
 w.push(7)
 var kept = doubled(w)
-print(kept.next() ?? -1, kept.next() ?? -1, kept.next() ?? -1, kept.next() ?? -1)
+print kept.next() ?? -1; " "; kept.next() ?? -1; " "; kept.next() ?? -1; " "; kept.next() ?? -1

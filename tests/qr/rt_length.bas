@@ -6,5 +6,5 @@ a.push(2)
 a.push(3)
 a.push(4)
 a.push(5)
-print(a.pop(), len(a))
-print(a[4])
+print a.pop(); " "; len(a)
+print a[4]

@@ -58,30 +58,30 @@ end type
 var p = Vec(1, 2)
 let v = Vec(3, 4)
 p = p + v
-print(p.x, p.y)
+print p.x; " "; p.y
 p = Vec(p.y, p.x)
-print(p.x, p.y)
+print p.x; " "; p.y
 p = Vec(p.y, p.x) - v * 2
-print(p.x, p.y)
+print p.x; " "; p.y
 p += v
 p *= 3
-print(p.x, p.y)
+print p.x; " "; p.y
 let q = (p + v) * 3 + p
-print(q.x, q.y, (q - p).x, (q / 2).y)
-print(p = p, p <> v, p < v, p > v, p <= p, p >= v)
+print q.x; " "; q.y; " "; (q - p).x; " "; (q / 2).y
+print p = p; " "; p <> v; " "; p < v; " "; p > v; " "; p <= p; " "; p >= v
 var vs as Vec[]
 vs.push(Vec(1, 9))
 vs.push(Vec(4, 0))
 vs.push(Vec(4, 2))
 let big = largest(vs)
-print(big.x, big.y)
+print big.x; " "; big.y
 vs[1] += Vec(10, 10)
-print(vs[1].x, vs[1].y)
+print vs[1].x; " "; vs[1].y
 var b = Box(at: Vec(1, 1), size: Vec(2, 3))
 b.at = b.at + b.size
 b.size = b.at - b.size
-print(b.at.x, b.at.y, b.size.x, b.size.y)
+print b.at.x; " "; b.at.y; " "; b.size.x; " "; b.size.y
 let n = Name("a", "b") + Name("c", "d")
-print(n.first, n.last)
+print n.first; " "; n.last
 let s = Size(5, 6) + Size(1, 2)
-print(s.w, s.h, shapes.shrink(s).w)
+print s.w; " "; s.h; " "; shapes.shrink(s).w

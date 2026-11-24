@@ -5,5 +5,5 @@ function at[T](a as T[], i as int) as T
 end function
 var xs as int[]
 xs.push(1)
-print(at(xs, 0))
-print(at(xs, 5))
+print at(xs, 0)
+print at(xs, 5)

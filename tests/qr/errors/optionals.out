@@ -11,13 +11,13 @@ optionals.bas:17:9: Error(code, message) needs a T! place, as a function's resul
   let e = Error(1, "x")
           ^
 optionals.bas:19:9: + takes numbers, not an int?
-  print(w + 1)
+  print w + 1
           ^
 optionals.bas:20:6: is Error takes a T!, not an int?
-  if w is Error then print(1)
+  if w is Error then print 1
        ^
 optionals.bas:21:9: ?? takes a T? or a T!, not an int
-  print(3 ?? 4)
+  print 3 ?? 4
           ^
 optionals.bas:22:10: x? takes a T!, not an int
   let u = 5?
@@ -32,5 +32,5 @@ optionals.bas:25:23: an int is not a string: write string(x)
       return Error("x", 2)
                         ^
 optionals.bas:28:13: an int is not a string: write string(x)
-  print(m.get(1))
+  print m.get(1)
               ^

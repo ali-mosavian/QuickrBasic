@@ -16,4 +16,4 @@ for s in 1..3000
         t += v mod 7
     next
 next
-print(t)
+print t

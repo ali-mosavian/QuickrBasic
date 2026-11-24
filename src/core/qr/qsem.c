@@ -2021,10 +2021,12 @@ static QExpr *qsem_print(QSem *const S, QExpr *const e)
         n++;
 
     e->argv = qast_alloc(S->mem, (n ? n : 1) * sizeof *e->argv);
+    e->ops = qast_alloc(S->mem, (n ? n : 1) * sizeof *e->ops);
     e->nargv = n;
     uint32_t i = 0;
 
     for (const QArg *a = e->args; a; a = a->next, i++) {
+        e->ops[i] = a->sep;
         QExpr *const v = qsem_settle(S, qsem_expr(S, a->e, QY_VOID));
 
         if (v->type == QY_VOID)
@@ -4635,7 +4637,7 @@ static QExpr *qsem_called(QSem *const S, QExpr *const e, const QBind *const b)
         return e;
     }
 
-    if (qsem_is(e->tok, "print"))
+    if (e->tok->kind == QK_PRINT)
         return qsem_print(S, e);
 
     const QType to = qsem_scalar(e->tok);

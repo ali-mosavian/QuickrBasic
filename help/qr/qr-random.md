@@ -19,4 +19,4 @@ time.ticks() for a different sequence each run.
     import random
     import time
     random.seed(time.ticks())
-    print(random.int(1, 6))
+    print random.int(1, 6)

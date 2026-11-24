@@ -10,26 +10,26 @@ modules.bas:5:32: lib has no missing
 modules.bas:6:10: lib is already declared
   function lib()
            ^
-modules.bas:8:24: hidden is not public in lib
-  print(lib.shown(), lib.hidden(), lib.count, lib.nothing)
-                         ^
-modules.bas:8:38: count is not public in lib
-  print(lib.shown(), lib.hidden(), lib.count, lib.nothing)
-                                       ^
-modules.bas:8:49: lib has no nothing
-  print(lib.shown(), lib.hidden(), lib.count, lib.nothing)
-                                                  ^
+modules.bas:8:29: hidden is not public in lib
+  print lib.shown(); " "; lib.hidden(); " "; lib.count; " "; lib.nothing
+                              ^
+modules.bas:8:48: count is not public in lib
+  print lib.shown(); " "; lib.hidden(); " "; lib.count; " "; lib.nothing
+                                                 ^
+modules.bas:8:64: lib has no nothing
+  print lib.shown(); " "; lib.hidden(); " "; lib.count; " "; lib.nothing
+                                                                 ^
 modules.bas:9:14: lib has no Nope
   var x as lib.Nope
                ^
 modules.bas:11:1: public goes before function, native, type, enum, const, var or let
-  public print(1)
+  public print 1
   ^
 modules.bas:13:5: import goes at the top level, not in a block
       import lib
       ^
 lib.bas:11:1: a module runs nothing: its top level has function, type, enum, const, var, let and import
-  print("a module runs nothing")
+  print "a module runs nothing"
   ^
 lib.bas:13:12: a string is not an int
       return "no"

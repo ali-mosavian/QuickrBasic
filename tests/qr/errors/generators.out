@@ -14,13 +14,13 @@ generators.bas:28:5: a generator changes as it runs: keep it in a var
   let a = upto(3)
       ^
 generators.bas:30:7: print takes numbers, strings and bools, not an upto
-  print(b)
+  print b
         ^
 generators.bas:32:21: a kept generator owns its arguments: no mut
   var c = changes(mut m)
                       ^
 generators.bas:33:9: a generator has next() alone
-  print(b.size())
+  print b.size()
           ^
 generators.bas:34:5: a generator changes as it runs: keep it in a var
   let s = upto(4)
@@ -35,7 +35,7 @@ generators.bas:47:9: upto is no value: it is a generator
   let f = upto
           ^
 generators.bas:51:14: next() takes no values
-  print(b.next(1) ?? 0)
+  print b.next(1) ?? 0
                ^
 generators.bas:52:1: upto is a generator: loop over it with for, or keep it in a var
   upto(3)

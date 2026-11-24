@@ -35,9 +35,9 @@ bump(mut g)
 var h = g
 h.inr.d += 1
 g.inr.b = 100
-print(g.tag, g.k, g.inr.b, g.inr.n, g.inr.d, g.u)
-print(h.tag, h.k, h.inr.b, h.inr.n, h.inr.d, h.u)
-print(deep(3))
+print g.tag; " "; g.k; " "; g.inr.b; " "; g.inr.n; " "; g.inr.d; " "; g.u
+print h.tag; " "; h.k; " "; h.inr.b; " "; h.inr.n; " "; h.inr.d; " "; h.u
+print deep(3)
 function halves(n as int) as (int, double)
     return (n, n / 2)
 end function
@@ -47,11 +47,11 @@ for i in 0..4
     let a, b = halves(i)
     s += a + b
 next
-print(s)
+print s
 var m as int? = none
-print(m ?? -1)
+print m ?? -1
 m = 6
-print(m ?? -1)
+print m ?? -1
 
 type Odd
     b as byte
@@ -81,9 +81,9 @@ var od = Odd(b: 1, n: 2, s: 3, d: 4.5, l: 6)
 od.n += 40
 od.l -= long(1)
 let nm = Names(a: "x", b: "y")
-print(walk(10))
-print(od.b, od.n, od.s, od.d, od.l)
-print(nm.a + nm.b)
+print walk(10)
+print od.b; " "; od.n; " "; od.s; " "; od.d; " "; od.l
+print nm.a + nm.b
 
 type Narrow
     b as byte
@@ -106,4 +106,4 @@ end function
 var nw = Narrow(b: 1, u: 2, s: 3, w: 4, n: 0)
 nw.s -= 10
 nw.u += 250
-print(narrow(10), nw.b, nw.u, nw.s, nw.w)
+print narrow(10); " "; nw.b; " "; nw.u; " "; nw.s; " "; nw.w
