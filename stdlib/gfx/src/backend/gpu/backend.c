@@ -22,7 +22,8 @@
    pictures. */
 enum {
     ALPHA = 255,
-    SHAPE_STAGES = GPU_STAGE_ADD | GPU_STAGE_MIX | GPU_STAGE_EIGHT,
+    SHAPE_STAGES =
+        GPU_STAGE_ADD | GPU_STAGE_MIX | GPU_STAGE_EIGHT | GPU_STAGE_FIFTEEN | GPU_STAGE_SIXTEEN,
     CALL_STAGES = GPU_STAGE_KEYED | GPU_STAGE_SMOOTH | SHAPE_STAGES,
 };
 
@@ -177,8 +178,11 @@ static bool aim(
 static bool begin(Gx *const g, const Command *const c, const Picture *const into, const Rect clip)
 {
     const Style *const style = &g->style;
-    const bool eight = into->root.format == PX_8;
+    const PxFormat f = into->root.format;
+    const bool eight = f == PX_8;
     const bool add = c->flags & GFX_DRAW_ADD, mix = !add && c->flags & GFX_DRAW_BLEND;
+    /* the pipeline's blend is not narrowed after */
+    const bool kept = !add && !mix;
     const uint8_t depth = (c->flags & GFX_DRAW_DEPTH_TEST ? QX_DEPTH_TEST : 0) |
                           (c->flags & GFX_DRAW_DEPTH_WRITE ? QX_DEPTH_WRITE : 0);
     const uint32_t paint = pal_shade(style->tint, style->light, PAL_WHITE);
@@ -207,7 +211,9 @@ static bool begin(Gx *const g, const Command *const c, const Picture *const into
                     (uint16_t)((c->flags & GFX_DRAW_OPAQUE ? 0 : GPU_STAGE_KEYED) |
                                (c->flags & GFX_DRAW_SMOOTH ? GPU_STAGE_SMOOTH : 0) |
                                (add ? GPU_STAGE_ADD : 0) | (mix && eight ? GPU_STAGE_MIX : 0) |
-                               (eight ? GPU_STAGE_EIGHT : 0)),
+                               (eight ? GPU_STAGE_EIGHT : 0) |
+                               (kept && f == PX_15 ? GPU_STAGE_FIFTEEN : 0) |
+                               (kept && f == PX_16 ? GPU_STAGE_SIXTEEN : 0)),
             },
         .texture = blank.id,
         .blend = eight ? QX_BLEND_NONE

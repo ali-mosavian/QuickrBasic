@@ -6,7 +6,7 @@
 #include "backend/gpu/gpu.h"
 
 /* Plain vertices (list_draw's), discs' (list_discs'), and plain vertices of a simple draw: one
-   drawing SOLID's colour or index, or texels unlit, as they are into a 32-bit target, indices
+   drawing SOLID's colour or index, or texels unlit, as they are into a direct target, indices
    through row 0 into an 8-bit one. The shader for simple draws is the rest's first branch alone:
    the whole one's size cost plain draws a tenth. */
 typedef enum { PIPELINE_PLAIN, PIPELINE_ROUND, PIPELINE_SIMPLE, PIPELINE_KINDS } PipelineKind;

@@ -491,6 +491,26 @@ TEST(gfx_gpu_blends_32_bits_in_the_pipeline)
     CHECK(arg(QX_LIST_DRAW, 1, 5) == 2 * 6 && vertices[4].stages == GPU_STAGE_SOLID);
 }
 
+/* At 15 and 16 bits a draw keeps a channel's top bits, as software's pixel; a blend, the pipeline's,
+   is not narrowed after. The target kept all 8: every colour up to 7 off software's. */
+TEST(gfx_gpu_narrows_15_and_16_bits)
+{
+    const int32_t fill = GFX_DRAW_FILL;
+
+    screen(S, 8, 8, 16);
+    GPU_CALL("draw.rect", I(SURF_SCREEN), F(0), F(0), F(1), F(1), I(1), I(fill));
+    GPU_CALL("draw.rect", I(SURF_SCREEN), F(2), F(0), F(3), F(1), I(1), I(fill | GFX_DRAW_BLEND));
+    GPU_CALL("display.flip");
+    CHECK(vertices[0].stages == (GPU_STAGE_SOLID | GPU_STAGE_SIXTEEN));
+    CHECK(vertices[4].stages == GPU_STAGE_SOLID);
+    CHECK(arg(QX_LIST_DRAW, 0, 1) == pipeline_id(PIPELINE_SIMPLE, QX_BLEND_NONE, 0));
+
+    screen(S, 8, 8, 15);
+    GPU_CALL("draw.rect", I(SURF_SCREEN), F(0), F(0), F(1), F(1), I(1), I(fill));
+    GPU_CALL("display.flip");
+    CHECK(vertices[0].stages == (GPU_STAGE_SOLID | GPU_STAGE_FIFTEEN));
+}
+
 /* BLEND at 8 bits mixes in the shader with a copy of what is behind, made first: the rect before
    it covers its pixels. One beside it reads that copy, in its batch; one over it, a copy made
    again of the two drawn since alone. */

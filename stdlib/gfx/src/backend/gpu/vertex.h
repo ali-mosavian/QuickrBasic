@@ -17,6 +17,8 @@ enum {
     GPU_STAGE_MIX = 512,    /* at 8 bits, mixed by alpha with what is behind (GPU_BEHIND's copy) */
     GPU_STAGE_EIGHT = 1024, /* into an 8-bit target: an index drawn, r, g and b SOLID's */
     GPU_STAGE_ALPHA = 2048, /* an index texel's in alpha (an RGBA texture), not red */
+    GPU_STAGE_FIFTEEN = 4096, /* into a 15-bit target: 5 bits a channel kept */
+    GPU_STAGE_SIXTEEN = 8192, /* into a 16-bit target: 5 bits a channel kept, green's 6 */
 };
 
 /* x, y a pixel's centre at whole numbers; z its depth, 1/z of a corner's z (0 far, as gfx's

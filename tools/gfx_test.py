@@ -9,7 +9,8 @@ DOS slice draws the host's pixels: SAME_PIXELS's checksum is the same from both 
 renderer, the x87's arithmetic and the host's. --gpu [DEPTH...]: GPU_SCENE in the Mac app, drawn by the GPU
 against pages, cell by cell: 32 bits' lights, tints, SOLID and ADD were the GPU's floats, a level or three off;
 BLEND, the blend constant's, a level off. At 8 bits every cell but shapes, sprites and text differed: the target
-held colours, read back as the nearest index, and lights, tints, rows and blends were worked as colours."""
+held colours, read back as the nearest index, and lights, tints, rows and blends were worked as colours. At 15 and
+16 bits every cell was up to 7 off: the target kept 8 bits a channel."""
 
 import os
 import subprocess
@@ -261,8 +262,8 @@ GPU_CELLS = (
 # Cells whose texels the GPU picks by its own interpolation, not software's 16.16 walk: told, not failed.
 GPU_LOOSE = ("turned", "polys", "depth", "smooth")
 # Cells the GPU's own blending draws, by depth: the most a channel may be off. 32 bits: the blend constant's float
-# mix, a level.
-GPU_NEAR = {("blend", 32): 1}
+# mix, a level. 15 and 16 bits: the mix is not narrowed after, each layer up to a 5-bit step off: told, not failed.
+GPU_NEAR = {("blend", 32): 1} | {(name, depth): 255 for name in ("blend", "add") for depth in (15, 16)}
 GPU_SCENE = """import gfx.display, gfx.draw, gfx.surface
 from gfx.draw import Vec2, Vertex
 canvas& = gfx.display.open(640, 480, {depth}, 0)
@@ -500,7 +501,7 @@ def gfx_lib() -> dict[str, bytes]:
 if __name__ == "__main__":
     if sys.argv[1:2] == ["--gpu"]:
         wrong = []
-        for depth in [int(d) for d in sys.argv[2:]] or [8, 32]:
+        for depth in [int(d) for d in sys.argv[2:]] or [8, 15, 16, 32]:
             print(f"{depth} bits: pixels the GPU drew other than pages, the most a channel was off")
             for name, n, most in gpu_parity(depth):
                 print(f"  {name:12}{n:7}{most:5}")
