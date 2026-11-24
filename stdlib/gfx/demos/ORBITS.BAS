@@ -6,6 +6,7 @@
 ' -) change the speed, S smooths the comet. Esc stops it.
 import gfx.display, gfx.surface, gfx.draw
 from stage import Stage, measure, label
+from meter import Meter, KEPT, count_frame, rate_text$
 
 const W = 640
 const H = 480
@@ -104,12 +105,15 @@ declare sub show_help ( _
     byval speed as single, _
     byval smooth as integer _
 )
+declare sub show_rate (byval dst as long, st as Stage, m as Meter)
 
 canvas& = gfx.display.open(W, H, 32, gfx.display.VSYNC)
 randomize timer
 dim st as Stage
 dim sky(STARS - 1) as Star
 dim worlds(PLANETS - 1) as Planet
+dim fps as Meter
+dim rates(KEPT - 1) as single
 scatter sky()
 make_planet worlds(0), 36, 1.6, 3, gfx.display.rgb(200, 160, 120)
 make_planet worlds(1), 58, 1.1, 5, gfx.display.rgb(90, 170, 255)
@@ -121,12 +125,14 @@ smooth% = gfx.draw.SMOOTH
 speed! = 1
 t! = 0
 was# = gfx.display.clock
+fps.since = was#
 
 do
     now# = gfx.display.clock
     dt! = (now# - was#) * speed!
     was# = now#
     t! = t! + dt!
+    count_frame fps, rates(), now#
     measure canvas&, st
     gfx.draw.clear canvas&, 0
     draw_sky canvas&, st, sky(), t!
@@ -140,6 +146,7 @@ do
     draw_moon canvas&, st, worlds(2), t!
     draw_comet canvas&, st, comet&, t!, smooth%
     show_help canvas&, st, speed!, smooth%
+    show_rate canvas&, st, fps
     gfx.display.flip
     k$ = ucase$(inkey$)
 
@@ -346,4 +353,12 @@ sub show_help ( _
     end if
 
     label dst, edge%, edge%, t$, grey&, st.zoom
+end sub
+
+' The frame rate along dst's foot.
+sub show_rate (byval dst as long, st as Stage, m as Meter)
+    grey& = gfx.display.rgb(200, 200, 200)
+    edge% = MARGIN * st.zoom
+    foot% = st.h - edge% - st.text_h
+    label dst, edge%, foot%, rate_text$(m), grey&, st.zoom
 end sub
