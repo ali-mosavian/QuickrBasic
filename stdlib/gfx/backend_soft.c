@@ -41,6 +41,7 @@ static bool screen_open(Gx *const g, const QxScreen *const s, const PxFormat f)
 {
     uint32_t pitch;
     uint8_t *const page = qx_host->gfx_page(&pitch);
+
     return surf_open(&g->surfaces, (Pixels){page, pitch, s->w, s->h, f}) || gx_fail(ERR_MEMORY);
 }
 
@@ -74,7 +75,25 @@ static bool begin(Gx *const g, Surface *const s, const Command *const c, Target 
         .fill = fill_formats[px.format],
     };
 
+    if (c->flags & (GFX_DRAW_ZTEST | GFX_DRAW_ZSET) &&
+        !(t->soft.depth = surf_depth(&g->surfaces, s)).p)
+        return gx_fail(ERR_MEMORY);
+
     return ink(g, c->flags, px.format, &t->soft.ink);
+}
+
+static bool clear_depth(Gx *const g, Surface *const s)
+{
+    const Depth d = surf_depth(&g->surfaces, s);
+
+    if (!d.p)
+        return gx_fail(ERR_MEMORY);
+
+    for (int32_t y = 0; y < s->h; y++)
+        for (int32_t x = 0; x < s->w; x++)
+            d.p[y * d.row + x] = 0;
+
+    return true;
 }
 
 static bool source(Gx *const g, Target *const t, const Picture *const p)
@@ -127,9 +146,18 @@ static void outline(
     soft_outline(&t->soft, p, n, colour);
 }
 
-static void poly(const Target *const t, const Vec *const p, const uint32_t n, const uint32_t colour)
+static void poly(
+    const Target *const t,
+    const Picture *const p,
+    const Corner *const c,
+    const uint32_t n,
+    const uint32_t colour,
+    const int32_t flags
+)
 {
-    soft_poly(&t->soft, p, n, colour);
+    const Pixels px = p ? pic_pixels(p) : (Pixels){};
+
+    soft_poly(&t->soft, p ? &px : nullptr, c, n, colour, flags);
 }
 
 static void circle(
@@ -199,6 +227,7 @@ const Backend backend_soft = {
     .line = line,
     .outline = outline,
     .poly = poly,
+    .clear_depth = clear_depth,
     .circle = circle,
     .arc = arc,
     .rect = rect,

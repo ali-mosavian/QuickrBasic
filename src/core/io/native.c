@@ -58,7 +58,6 @@ static bool QX_CALL host_gfx_open(QxScreen *const s)
 
     s->out_w = s->w;
     s->out_h = s->h;
-    s->hz = pgfx_hz();
     s->gpu = p;
 
     if (p) {
@@ -66,7 +65,9 @@ static bool QX_CALL host_gfx_open(QxScreen *const s)
         s->y_down = p->y_down;
     }
 
-    return s->gpu || pgfx_open(s->w, s->h, s->depth, vsync);
+    const bool opened = s->gpu || pgfx_open(s->w, s->h, s->depth, vsync);
+    s->hz = pgfx_hz(); /* DOS's, timed as its mode is set */
+    return opened;
 }
 
 static void QX_CALL host_gpu_play(const uint32_t *const list, const uint32_t words)

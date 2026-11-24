@@ -174,6 +174,53 @@ static bool kept(const GpuDisc *const d, const int32_t x, const int32_t y)
     return disc_covers(&k, dx, dy) && swept(&w, dx, dy);
 }
 
+typedef void ScanSpan(void *ctx, int32_t y, int32_t x0, int32_t x1);
+
+/* A GPU's rule, kept here as the oracle: a convex polygon's pixels whose centres are inside, a
+   top or left edge's in, clipped, one span a row. */
+static void scan_convex(
+    const Vec *const p,
+    const uint32_t n,
+    const Rect clip,
+    ScanSpan *const span,
+    void *const ctx
+)
+{
+    float top = p[0].y, bottom = p[0].y;
+
+    for (uint32_t i = 1; i < n; i++) {
+        top = p[i].y < top ? p[i].y : top;
+        bottom = p[i].y > bottom ? p[i].y : bottom;
+    }
+
+    const int32_t y0 = rect_max(scan_first(top), clip.y);
+    const int32_t y1 = rect_min(scan_first(bottom), clip.y + clip.h);
+
+    for (int32_t y = y0; y < y1; y++) {
+        float left = 0, right = 0;
+        bool crossed = false;
+
+        for (uint32_t i = 0; i < n; i++) {
+            const Vec e = p[i], f = p[(i + 1) % n];
+
+            if ((e.y <= (float)y) == (f.y <= (float)y))
+                continue;
+
+            const Vec a = e.y < f.y ? e : f, b = e.y < f.y ? f : e;
+            const float x = a.x + ((float)y - a.y) * (b.x - a.x) / (b.y - a.y);
+            left = !crossed || x < left ? x : left;
+            right = !crossed || x > right ? x : right;
+            crossed = true;
+        }
+
+        const int32_t x0 = rect_max(scan_first(left), clip.x);
+        const int32_t x1 = rect_min(scan_first(right), clip.x + clip.w);
+
+        if (crossed && x0 < x1)
+            span(ctx, y, x0, x1);
+    }
+}
+
 /* The pixels of the last list's triangles, as a GPU covers them (centres inside, top and left
    edges in) and its shader keeps: '#' a pixel covered once, '2' more. */
 static void cover(void *const ctx, const int32_t y, const int32_t x0, const int32_t x1)
@@ -249,7 +296,7 @@ TEST(gfx_gpu_lines_cover_softwares_pixels)
         "........",
     };
 
-    gfx_draw_vec2 tri[] = {{1, 1}, {6, 1}, {1, 6}};
+    gfx_draw_vertex tri[] = {{1, 1, 1, 0, 0}, {6, 1, 1, 0, 0}, {1, 6, 1, 0, 0}};
 
     QxArray a = gfx_array(tri, 3, sizeof *tri);
 
@@ -259,9 +306,50 @@ TEST(gfx_gpu_lines_cover_softwares_pixels)
     CHECK(covered(0, line));
 
     screen(S, 8, 8, 32);
-    GPU_CALL("draw.poly", ARRAY(&a), I(0), I(3), I(0xFFFFFF), I(0));
+    GPU_CALL("draw.poly", I(0), ARRAY(&a), I(0), I(3), I(0xFFFFFF), I(0));
     GPU_CALL("display.flip");
     CHECK(covered(0, outline));
+}
+
+enum { RULE_W = 56, RULE_H = 48 };
+
+static void rule_mark(void *const ctx, const int32_t y, const int32_t x0, const int32_t x1)
+{
+    bool (*const in)[RULE_W] = ctx;
+
+    for (int32_t x = x0; x < x1; x++)
+        in[y][x] = true;
+}
+
+/* Software's filled polygons cover the GPU's pixels, ties on a centre included: bench's
+   triangle at whole pixels, and moved by fractions. The scanner once took a unit's nudge up as
+   its rows' y: an edge steeper than a pixel a row took the centres on it, 8 a triangle. */
+TEST(gfx_soft_polys_cover_a_gpus_pixels)
+{
+    static const float at[][2] = {{3, 2}, {3.5f, 2.5f}, {3.25f, 2.75f}, {4.7f, 1.1f}};
+
+    for (uint32_t k = 0; k < sizeof at / sizeof *at; k++) {
+        const float x = at[k][0], y = at[k][1];
+        gfx_draw_vertex tri[] =
+            {{x, y, 1, 0, 0}, {x + 40, y + 8, 1, 0, 0}, {x + 12, y + 40, 1, 0, 0}};
+
+        const Vec p[] = {{x, y}, {x + 40, y + 8}, {x + 12, y + 40}};
+
+        QxArray a = gfx_array(tri, 3, sizeof *tri);
+        bool in[RULE_H][RULE_W] = {};
+
+        CANVAS(RULE_W, RULE_H);
+        CHECK(!CALL("draw.poly", I(0), ARRAY(&a), I(0), I(3), I(2), I(GFX_DRAW_FILL)).error);
+        scan_convex(p, 3, (Rect){0, 0, RULE_W, RULE_H}, rule_mark, in);
+
+        int32_t wrong = 0;
+
+        for (int32_t j = 0; j < RULE_H; j++)
+            for (int32_t i = 0; i < RULE_W; i++)
+                wrong += (PX(i, j) == 2) != in[j][i];
+
+        CHECK(wrong == 0);
+    }
 }
 
 /* A circle and an arc are a box each, the shader keeping software's pixels (shape_test's): once

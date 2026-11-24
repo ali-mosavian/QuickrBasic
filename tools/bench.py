@@ -17,8 +17,9 @@
     bench.py fps [--real] [--profile | --parts]  MOTHLITE.BAS played by an autopilot on a 486 at 10k cycles/ms
                                                  with the Sound Blaster: its frame rate in each mode;
                                                  --parts: each step of its loop's ms a frame
-    bench.py gfx [--depth D] [--seconds S]       gfx's frames a second in the Mac app, drawn in pages against
-                                                 played on the GPU, for each of GFX_WORK's frames
+    bench.py gfx [--depth D] [--seconds S] [--dos]  gfx's frames a second in the Mac app, drawn in pages
+                                                 against played on the GPU, for each of GFX_WORK's frames;
+                                                 --dos: in pages on DOS
 
 Native (the default) runs build/hostperf/basic for retired instructions, the least of RUNS runs less
 an empty program's, builds compared run interleaved; and build/host/basic for the ops dispatched,
@@ -761,44 +762,92 @@ OPEN "EACH.TXT" FOR OUTPUT AS #1
 
 
 # A frame's draws besides its clear, on a 640 by 480 canvas; f the frame, s& a 32 by 32 picture drawn, pic&() 16
-# written. calls: the shapes' loop with three calls that draw nothing, the interpreter's share.
+# written, m& a colour's mask: 255 at 8 bits; p() a polygon's points, their texels s&'s corners, ox() and oy() an
+# octagon's. calls: the shapes' loop with three calls that draw nothing, the interpreter's share.
 GFX_WORK = {
     "flip": "",
     "calls": "for i = 0 to 299\n"
     "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
     "    gfx.pen.light 63\n    gfx.pen.light 63\n    gfx.pen.light 63\n"
     "next",
-    "fill": "for i = 0 to 9\n    gfx.draw.rect i, i, 629 + i, 469 + i, i * 4099, gfx.draw.FILL\nnext",
+    "fill": "for i = 0 to 9\n    gfx.draw.rect i, i, 629 + i, 469 + i, (i * 4099) and m&, gfx.draw.FILL\nnext",
     "rects": "for i = 0 to 299\n"
     "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
-    "    gfx.draw.rect x, y, x + 39, y + 39, i * 4099, gfx.draw.FILL\n"
+    "    gfx.draw.rect x, y, x + 39, y + 39, (i * 4099) and m&, gfx.draw.FILL\n"
     "next",
     "lines": "for i = 0 to 299\n"
     "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
-    "    gfx.draw.line x, y, 639 - x, 479 - y, i * 977\n"
+    "    gfx.draw.line x, y, 639 - x, 479 - y, (i * 977) and m&\n"
     "next",
     "circles": "for i = 0 to 299\n"
     "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
-    "    gfx.draw.circle 639 - x, y, 12, i * 131, gfx.draw.FILL\n"
+    "    gfx.draw.circle 639 - x, y, 12, (i * 131) and m&, gfx.draw.FILL\n"
     "next",
     "arcs": "for i = 0 to 299\n"
     "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
-    "    gfx.draw.arc 639 - x, y, 20, 0.3, 4, i * 131\n"
+    "    gfx.draw.arc 639 - x, y, 20, 0.3, 4, (i * 131) and m&\n"
     "next",
     "sprites": "for i = 0 to 999\n    gfx.draw.sprite s&, (i * 37 + f) mod 608, (i * 53 + f) mod 448, 0\nnext",
     "pictures": "for i = 0 to 999\n"
     "    gfx.draw.sprite pic&(i mod 16), (i * 37 + f) mod 608, (i * 53 + f) mod 448, 0\n"
     "next",
+    "turned": "for i = 0 to 99\n"
+    "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
+    "    gfx.draw.sprite_turned s&, x + 16, y + 16, (i + f) * 0.05, 2, 0\n"
+    "next",
+    "tris": "for i = 0 to 299\n"
+    "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
+    "    p(0).x = x: p(0).y = y: p(1).x = x + 40: p(1).y = y + 8: p(2).x = x + 12: p(2).y = y + 40\n"
+    "    gfx.draw.poly 0, p(), 0, 3, (i * 4099) and m&, gfx.draw.FILL\n"
+    "next",
+    "octagons": "for i = 0 to 299\n"
+    "    x = (i * 37 + f) mod 600 + 20: y = (i * 53) mod 440 + 20\n"
+    "    for k = 0 to 7: p(k).x = x + ox(k): p(k).y = y + oy(k): next\n"
+    "    gfx.draw.poly 0, p(), 0, 8, (i * 4099) and m&, gfx.draw.FILL\n"
+    "next",
     "mixed": "for i = 0 to 299\n"
     "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
     "    gfx.draw.sprite s&, x, y, 0\n"
-    "    gfx.draw.rect x, y, x + 7, y + 7, i * 4099, gfx.draw.FILL\n"
+    "    gfx.draw.rect x, y, x + 7, y + 7, (i * 4099) and m&, gfx.draw.FILL\n"
     "next",
 }
+# draw.poly's modes: 300 squares turned, 40 pixels across, their far edge twice as far; flat, or s&'s texels affine
+# or in perspective; with no depth, depth set, or tested and set, at five depths; or blended, or added, at half
+# alpha. poly_loop: their loop, no poly, the interpreter's share.
+POLY_LOOP = (
+    "for i = 0 to 299\n"
+    "    x = (i * 37 + f) mod 600 + 20: y = (i * 53) mod 440 + 20: zb = 1 + i mod 5\n"
+    "    cs = cos((i + f) * 0.05) * 20: sn = sin((i + f) * 0.05) * 20\n"
+    "    p(0).x = x + cs: p(0).y = y + sn: p(1).x = x - sn: p(1).y = y + cs\n"
+    "    p(2).x = x - cs: p(2).y = y - sn: p(3).x = x + sn: p(3).y = y - cs\n"
+    "    p(0).z = zb: p(1).z = zb: p(2).z = zb * 2: p(3).z = zb * 2\n"
+    "{draw}"
+    "next"
+)
+GFX_WORK["poly_loop"] = POLY_LOOP.format(draw="")
+for kind, s_, how in (("flat", "0", "gfx.draw.FILL"), ("affine", "s&", "0"), ("persp", "s&", "gfx.draw.PERSP")):
+    for mode, z in (
+        ("", ""),
+        ("_zset", " + gfx.draw.ZSET"),
+        ("_ztest", " + gfx.draw.ZTEST + gfx.draw.ZSET"),
+        ("_blend", " + gfx.pen.BLEND"),
+        ("_add", " + gfx.pen.ADD"),
+    ):
+        draw = f"    gfx.draw.poly {s_}, p(), 0, 4, (i * 4099) and m&, {how}{z}\n"
+        first = "gfx.draw.clear_depth\n" if "ZSET" in z else "gfx.pen.alpha 32\n" if "pen" in z else ""
+        GFX_WORK[f"poly_{kind}{mode}"] = first + POLY_LOOP.format(draw=draw)
 GFX_PROGRAM = """import gfx.display, gfx.draw, gfx.surface, gfx.pen
 from gfx.display import FrameStats
+from gfx.draw import Vertex
 dim st as FrameStats
+dim p(7) as Vertex
+dim ox(7), oy(7)
+for k = 0 to 7
+    ox(k) = cos(k * 0.7853982) * 20: oy(k) = sin(k * 0.7853982) * 20: p(k).z = 1
+next
+p(1).u = 32: p(2).u = 32: p(2).v = 32: p(3).v = 32
 gfx.display.open 640, 480, {depth}, {flags}
+m& = {mask}
 s& = gfx.surface.new(32, 32)
 gfx.pen.target s&
 gfx.draw.clear 0
@@ -814,14 +863,14 @@ for k = 0 to 15
     gfx.surface.write pic&(k), 0, 0, 32, 32, px()
 next
 do
-    if f = 30 then t# = gfx.display.clock
+    if f = {warm} then t# = gfx.display.clock
     gfx.draw.clear 1
 {work}
     gfx.display.flip
     f = f + 1
-loop until f > 30 and gfx.display.clock - t# >= {seconds}
+loop until f > {warm} and gfx.display.clock - t# >= {seconds}
 t# = gfx.display.clock - t#
-rate# = (f - 30) / t#
+rate# = (f - {warm}) / t#
 gfx.display.stats st
 f = 0
 gfx.draw.clear 1
@@ -832,12 +881,18 @@ for y = 0 to 479 step 16
         sum& = (sum& * 31 + gfx.surface.point(gfx.surface.CANVAS, x, y)) and &HFFFFF
     next
 next
-open "GFX.TXT" for output as #1
-print #1, rate#; sum&; st.batches; gfx.display.refresh
-close #1
-do
-loop
+{report}
 """
+# the app's: a file it is killed after; DOS's: standard output, and the program ends
+GFX_REPORT = 'open "GFX.TXT" for output as #1\nprint #1, {line}\nclose #1\ndo\nloop'
+GFX_REPORT_DOS = "gfx.display.close\nprint {line}"
+GFX_LINE = "rate#; sum&; st.batches; gfx.display.refresh"
+
+
+def gfx_program(work: str, depth: int, seconds: float, vsync: bool, report: str, warm: int = 30) -> str:
+    body = "\n".join("    " + line for line in GFX_WORK[work].splitlines())
+    return GFX_PROGRAM.format(depth=depth, work=body, seconds=seconds, flags=int(vsync), warm=warm,
+                              mask=255 if depth == 8 else "&HFFFFFF", report=report.format(line=GFX_LINE))
 
 
 def gfx_rate(app: Path, work: str, depth: int, seconds: float, how: str, vsync: bool) -> tuple[float, int, int, float]:
@@ -845,8 +900,7 @@ def gfx_rate(app: Path, work: str, depth: int, seconds: float, how: str, vsync: 
     them drew something else), the last timed frame's batches, and the display's refresh."""
     with tempfile.TemporaryDirectory() as tmp:
         prog, out = Path(tmp) / "GFX.BAS", Path(tmp) / "GFX.TXT"
-        body = "\n".join("    " + line for line in GFX_WORK[work].splitlines())
-        prog.write_text(GFX_PROGRAM.format(depth=depth, work=body, seconds=seconds, flags=int(vsync)))
+        prog.write_text(gfx_program(work, depth, seconds, vsync, GFX_REPORT))
         env = os.environ | {"QB_GFX": how, "QB_KEYS": "3F00", "SDL_AUDIO_DRIVER": "dummy"}
         p = subprocess.Popen([str(app), prog.name], env=env, cwd=tmp)
         try:
@@ -862,9 +916,39 @@ def gfx_rate(app: Path, work: str, depth: int, seconds: float, how: str, vsync: 
         return float(rate), int(total), int(batches), float(hz)
 
 
+def cmd_gfx_dos(a: argparse.Namespace) -> int:
+    """Each GFX_WORK frame's rate in pages on DOS, --cpu (a 486) at 10k cycles/ms (as fps's) with an S3's VBE, after 3
+    frames, a DOSBox a frame."""
+    if not a.as_built:
+        build(".", True)
+    qbx = (dosrun.COM.parent / "lib/gfx.qbx").read_bytes()
+    conf = dosrun.CONF
+    dosrun.CONF = conf.replace("core=normal\ncputype=pentium\nvirtual time=true\nvirtual time rate=20000\n",
+                               FPS_CPU.replace("cputype=486", f"cputype={a.cpu}"))
+    assert dosrun.CONF != conf
+    print(f"640x480 at {a.depth} bits on DOS ({a.cpu}), frames a second")
+    print(f"{'':18}{'fps':>8}{'refresh':>9}")
+    try:
+        for work in a.work or GFX_WORK:
+            job = (gfx_program(work, a.depth, a.seconds, a.vsync, GFX_REPORT_DOS, warm=3),)
+            with tempfile.TemporaryDirectory() as d:
+                r = dosrun.run({work: job}, Path(d) / "w", limit_ms=600000, file=True, mem=16,
+                               files={"lib/gfx.qbx": qbx})[work]
+            fields = r.out.split()
+            if len(fields) == 4:
+                print(f"{work:18}{float(fields[0]):8.1f}{float(fields[3]):9.2f}", flush=True)
+            else:
+                print(f"{work:18}  {r.out.strip().splitlines()[-1] if r.out.strip() else r.reason}", flush=True)
+    finally:
+        dosrun.CONF = conf
+    return 0
+
+
 def cmd_gfx(a: argparse.Namespace) -> int:
     """Each GFX_WORK frame's rate in pages and on the GPU, in the app's window (the Mac's, or Linux's); with --vsync,
-    each flip waiting for the refresh."""
+    each flip waiting for the refresh. --dos: in pages on DOS."""
+    if a.dos:
+        return cmd_gfx_dos(a)
     mac = sys.platform == "darwin"
     subprocess.run(["make", "-j8", "mac" if mac else "linux-app"], cwd=ROOT, check=True, capture_output=True)
     app = ROOT / ("build/mac/QuickrBasic.app/Contents/MacOS/QuickrBasic" if mac else "build/linux/app/QuickrBasic")
@@ -1098,6 +1182,9 @@ def main() -> int:
     p.add_argument("--seconds", type=float, default=3)
     p.add_argument("--work", action="append", choices=list(GFX_WORK), help="a frame to time; all when none")
     p.add_argument("--vsync", action="store_true", help="each flip waits for the refresh")
+    p.add_argument("--dos", action="store_true", help="pages under DOSBox-X")
+    p.add_argument("--cpu", default="486", help="--dos: DOSBox's cputype")
+    p.add_argument("--as-built", action="store_true", help="--dos: BASIC_EXE's build as it is, not made first")
     sub.add_parser("charlie")
     sub.add_parser("engine")
     a = ap.parse_args()

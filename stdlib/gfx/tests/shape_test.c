@@ -54,13 +54,15 @@ TEST(gfx_arc_sweeps_clockwise)
 
 TEST(gfx_poly_filled_and_outlined)
 {
-    gfx_draw_vec2 tri[] = {{9, 9}, {1, 1}, {6, 1}, {1, 6}};
+    gfx_draw_vertex tri[] = {{9, 9, 1, 0, 0}, {1, 1, 1, 0, 0}, {6, 1, 1, 0, 0}, {1, 6, 1, 0, 0}};
 
     QxArray a = gfx_array(tri, 4, sizeof *tri);
     a.lbound = -1; /* points(-1 to 2): the triangle from index 0 */
 
     CANVAS(8, 8);
-    CHECK(!CALL("draw.poly", ARRAY(&a), I(0), I(3), I(3), I(GFX_DRAW_FILL)).error);
+    CHECK(!CALL("draw.poly", I(0), ARRAY(&a), I(0), I(3), I(3), I(GFX_DRAW_FILL)).error);
+    /* the centres with x + y < 7, the hypotenuse's own out. qgl's truncated reciprocal once made
+       its slope -65535: from row 3 it kept the centre it passes */
     ROW(0, "11111111");
     ROW(1, "13333311");
     ROW(2, "13333111");
@@ -71,7 +73,7 @@ TEST(gfx_poly_filled_and_outlined)
 
     /* each edge without its end, the next one's start: each corner once */
     CANVAS(8, 8);
-    CALL("draw.poly", ARRAY(&a), I(0), I(3), I(4), I(0));
+    CALL("draw.poly", I(0), ARRAY(&a), I(0), I(3), I(4), I(0));
     ROW(1, "14444441");
     ROW(2, "14111411");
     ROW(3, "14114111");
@@ -79,9 +81,9 @@ TEST(gfx_poly_filled_and_outlined)
     ROW(5, "14411111");
     ROW(6, "14111111");
 
-    CHECK(CALL("draw.poly", ARRAY(&a), I(0), I(2), I(4), I(0)).error == 5);
-    CHECK(CALL("draw.poly", ARRAY(&a), I(1), I(3), I(4), I(0)).error == 9);
-    CHECK(CALL("draw.poly", ARRAY(&a), I(-2), I(3), I(4), I(0)).error == 9);
+    CHECK(CALL("draw.poly", I(0), ARRAY(&a), I(0), I(2), I(4), I(0)).error == 5);
+    CHECK(CALL("draw.poly", I(0), ARRAY(&a), I(1), I(3), I(4), I(0)).error == 9);
+    CHECK(CALL("draw.poly", I(0), ARRAY(&a), I(-2), I(3), I(4), I(0)).error == 9);
 }
 
 /* The camera's point at the target's centre (3.5, 3.5), the view a quarter turn clockwise: the

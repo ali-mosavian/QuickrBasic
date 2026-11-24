@@ -3,6 +3,8 @@
 #include "gfx_qx.h"
 #include "disc.h"
 #include "gmath.h"
+#include "soft/persp.h"
+#include "soft/rs.h"
 #include "soft/scan.h"
 
 static uint8_t *at(const SoftTarget *const t, const int32_t x, const int32_t y)
@@ -94,17 +96,6 @@ static void texels(
         fill(at(t, x, y), s, st, n);
     else
         inked(t, x, y, n, s, st, 0);
-}
-
-typedef struct {
-    const SoftTarget *t;
-    uint32_t colour;
-} Flat;
-
-static void flat(void *const ctx, const int32_t y, const int32_t x0, const int32_t x1)
-{
-    const Flat *const f = ctx;
-    span(f->t, y, x0, x1, f->colour);
 }
 
 void soft_clear(const SoftTarget *const t, const uint32_t colour)
@@ -201,14 +192,11 @@ void soft_outline(
         walk(t, p[i], p[(i + 1) % n], colour, false);
 }
 
-void soft_poly(
-    const SoftTarget *const t,
-    const Vec *const p,
-    const uint32_t n,
-    const uint32_t colour
-)
+/* gfx's corner as qgl's: qgl's pixel i spans [i, i + 1) and its texel j is centred on j, where
+   gfx centres pixel i on i and texel j on j + 0.5. */
+static RsVert qgl_corner(const float x, const float y, const float u, const float v)
 {
-    scan_convex(p, n, t->clip, flat, &(Flat){t, colour});
+    return (RsVert){x + 0.5f, y + 0.5f, 1, u - 0.5f, v - 0.5f};
 }
 
 /* Row y's pixels within r of c (disc.h), [*x0, *x1): false, none. The square root's ends are the
@@ -346,15 +334,16 @@ void soft_rect(
     const float l = (x1 < x2 ? x1 : x2) - 0.5f, r = (x1 < x2 ? x2 : x1) + 0.5f;
     const float top = (y1 < y2 ? y1 : y2) - 0.5f, bottom = (y1 < y2 ? y2 : y1) + 0.5f;
 
-    if (fill) {
-        const Vec corners[] = {{l, top}, {r, top}, {r, bottom}, {l, bottom}};
-
-        soft_poly(t, corners, 4, colour);
-        return;
-    }
-
     const int32_t x0 = scan_first(l), x1_ = scan_first(r), y0 = scan_first(top),
                   y1_ = scan_first(bottom);
+
+    /* rs_poly's pixels for these corners, without its edges at every row */
+    if (fill) {
+        for (int32_t y = rect_max(y0, t->clip.y); y < rect_min(y1_, t->clip.y + t->clip.h); y++)
+            span(t, y, x0, x1_, colour);
+
+        return;
+    }
 
     if (x0 >= x1_ || y0 >= y1_)
         return;
@@ -405,87 +394,209 @@ void soft_sprite(
     }
 }
 
-/* The texels' map over a polygon: at a pixel's centre (x, y), u = ux x + uy y + u0, v likewise. */
-typedef struct {
-    float ux, uy, u0, vx, vy, v0;
-} Map;
-
-/* The map through three corners: false, they lie on a line. */
-static bool map_of(const Vertex *const p, Map *const m)
-{
-    const float dx1 = p[1].x - p[0].x, dy1 = p[1].y - p[0].y;
-    const float dx2 = p[2].x - p[0].x, dy2 = p[2].y - p[0].y;
-    const float det = dx1 * dy2 - dx2 * dy1;
-
-    if (det > -1e-6f && det < 1e-6f)
-        return false;
-
-    const float du1 = p[1].u - p[0].u, du2 = p[2].u - p[0].u;
-    const float dv1 = p[1].v - p[0].v, dv2 = p[2].v - p[0].v;
-    m->ux = (du1 * dy2 - du2 * dy1) / det;
-    m->uy = (du2 * dx1 - du1 * dx2) / det;
-    m->vx = (dv1 * dy2 - dv2 * dy1) / det;
-    m->vy = (dv2 * dx1 - dv1 * dx2) / det;
-    m->u0 = p[0].u - m->ux * p[0].x - m->uy * p[0].y;
-    m->v0 = p[0].v - m->vx * p[0].x - m->vy * p[0].y;
-
-    return true;
-}
-
 typedef struct {
     const SoftTarget *t;
     const Pixels *s;
-    Map m;
     FillStep *step;
-    bool wrap;
+    bool wrap, opaque;
+    RsMode mode;
+    bool test, set;
 } Textured;
 
-static int32_t fixed(const float f) { return (int32_t)(f * 65536); }
-
-/* f in 16.16, inside [0, most). */
-static int32_t fixed_in(const float f, const int32_t most)
+/* f held inside [0, most) texels, 16.16 */
+static int32_t held(const int64_t f, const int32_t most)
 {
     const int32_t top = (most << 16) - 1;
-    return f <= 0 ? 0 : f * 65536 >= (float)top ? top : fixed(f);
+    return f <= 0 ? 0 : f >= top ? top : (int32_t)f;
 }
 
 /* The walk over n pixels from the first, its texels inside the surface: its ends held in, so
    every texel between is too. */
 static Steps inside_steps(
-    const float u,
-    const float v,
-    const float du,
-    const float dv,
+    const int32_t u,
+    const int32_t v,
+    const int32_t du,
+    const int32_t dv,
     const Pixels *const s,
     const int32_t n
 )
 {
-    const int32_t u0 = fixed_in(u, s->w), v0 = fixed_in(v, s->h);
-    const int32_t u1 = fixed_in(u + du * (float)(n - 1), s->w);
-    const int32_t v1 = fixed_in(v + dv * (float)(n - 1), s->h);
+    const int32_t u0 = held(u, s->w), v0 = held(v, s->h);
+    const int32_t u1 = held(u + (int64_t)du * (n - 1), s->w);
+    const int32_t v1 = held(v + (int64_t)dv * (n - 1), s->h);
 
     return n > 1 ? (Steps){u0, v0, (u1 - u0) / (n - 1), (v1 - v0) / (n - 1), 0}
 
                  : (Steps){u0, v0, 0, 0, 0};
 }
 
-static void textured(void *const ctx, const int32_t y, const int32_t x0, const int32_t x1)
+/* A span of the polygon, held in the clip: its first pixel, and how many it lost before it. */
+static bool held_span(
+    const SoftTarget *const t,
+    const RsSpan *const sp,
+    int32_t *const x0,
+    int32_t *const x1
+)
 {
-    const Textured *const x = ctx;
-    const Map *const m = &x->m;
-    const float u = m->ux * (float)x0 + m->uy * (float)y + m->u0;
-    const float v = m->vx * (float)x0 + m->vy * (float)y + m->v0;
-    const int32_t n = x1 - x0;
-    Steps st = inside_steps(u, v, m->ux, m->vx, x->s, n);
+    *x0 = rect_max(sp->x0, t->clip.x);
+    *x1 = rect_min(sp->x1, t->clip.x + t->clip.w);
+
+    return sp->y >= t->clip.y && sp->y < t->clip.y + t->clip.h && *x0 < *x1;
+}
+
+/* n pixels' walk along u, v and their steps (16.16): wrapping in u, or inside s. */
+static Steps walk_of(
+    const Textured *const x,
+    const int32_t n,
+    const int32_t u,
+    const int32_t v,
+    const int32_t du,
+    const int32_t dv
+)
+{
+    Steps st = inside_steps(u, v, du, dv, x->s, n);
 
     if (x->wrap) {
-        const float w = (float)x->s->w;
-        st.wrap = x->s->w << 16;
-        st.u = fill_wrap(fixed(u - (float)gm_floor(u / w) * w), st.wrap);
-        st.du = fixed(m->ux);
+        const int64_t wrap = (int64_t)x->s->w << 16;
+        st.wrap = (int32_t)wrap;
+        st.u = (int32_t)(((int64_t)u % wrap + wrap) % wrap);
+        st.du = du;
     }
 
-    texels(x->t, x0, y, n, x->s, st, x->step);
+    return st;
+}
+
+/* n pixels from x0, y of the span's texels, as textured() walks them, each shown over the depth
+   there and its depth set as asked: a keyed texel draws nothing. */
+static void deep(
+    const Textured *const x,
+    const int32_t x0,
+    const int32_t y,
+    const int32_t n,
+    int32_t u,
+    int32_t v,
+    const RsSpan *const sp,
+    int32_t z
+)
+{
+    const SoftTarget *const t = x->t;
+    const Pixels *const s = x->s;
+    const uint32_t bytes = px_bytes(s->format);
+    const bool plain = fused(t, s);
+    uint16_t *const d = t->depth.p + y * t->depth.row + x0;
+    Steps st = walk_of(x, n, u, v, sp->du, sp->dv);
+    Ink k = t->ink;
+    k.keyed = false;
+    k.source = s->format;
+
+    for (int32_t i = 0; i < n; i++, z = depth_on(z, sp->dz, 1)) {
+        uint32_t texel;
+        const uint16_t here = depth_of(z);
+        uint8_t *const out = at(t, x0 + i, y);
+
+        fill_formats[s->format]->fetch(&texel, s, st, 1);
+        st = advanced(st, 1);
+
+        if (x->test && !depth_shows(d[i], here))
+            continue;
+
+        if (!x->opaque && px_key(s->format, texel))
+            continue;
+
+        if (plain)
+            px_store(out, texel, bytes);
+        else
+            t->fill->ink(out, &texel, 1, &k);
+
+        if (x->set)
+            d[i] = here;
+    }
+}
+
+static void textured(void *const ctx, const RsSpan *const sp)
+{
+    const Textured *const x = ctx;
+    int32_t x0, x1;
+
+    if (!held_span(x->t, sp, &x0, &x1))
+        return;
+
+    const int64_t lost = x0 - sp->x0;
+    const int32_t u = (int32_t)(sp->u + lost * sp->du), v = (int32_t)(sp->v + lost * sp->dv);
+    const int32_t n = x1 - x0;
+
+    if (x->t->depth.p)
+        deep(x, x0, sp->y, n, u, v, sp, depth_on(sp->z, sp->dz, (int32_t)lost));
+    else
+        texels(x->t, x0, sp->y, n, x->s, walk_of(x, n, u, v, sp->du, sp->dv), x->step);
+}
+
+/* a perspective span: persp.h walks it */
+static void perspective(void *const ctx, const RsSpan *const sp)
+{
+    const Textured *const x = ctx;
+    const SoftTarget *const t = x->t;
+    RsSpan c = *sp;
+    int32_t x0, x1;
+
+    if (!held_span(t, sp, &x0, &x1))
+        return;
+
+    const double lost = x0 - sp->x0;
+    c.x0 = x0;
+    c.x1 = x1;
+    c.pu += sp->dpu * lost;
+    c.pv += sp->dpv * lost;
+    c.pz += sp->dpz * lost;
+    c.z = depth_on(sp->z, sp->dz, x0 - sp->x0);
+
+    Ink k = t->ink;
+    k.keyed = false;
+    k.source = x->s->format;
+
+    persp_span(
+        &(PerspDraw){
+            .d = at(t, x0, sp->y),
+            .bytes = px_bytes(t->px.format),
+            .s = *x->s,
+            .opaque = x->opaque,
+            .wrap = x->wrap,
+            .whole = x->mode == RS_ATEX,
+            .ink = fused(t, x->s) ? nullptr : &k,
+            .put = t->fill->ink,
+            .depth = t->depth.p ? t->depth.p + sp->y * t->depth.row + x0 : nullptr,
+            .test = x->test,
+            .set = x->set,
+        },
+        &c
+    );
+}
+
+static void texture(
+    const SoftTarget *const t,
+    const Pixels *const s,
+    const RsVert *const v,
+    const uint32_t n,
+    const int32_t flags,
+    const bool wrap,
+    const RsMode mode,
+    const bool gfx
+)
+{
+    const bool persp = mode == RS_PTEX || mode == RS_ATEX;
+    const bool opaque = flags & GFX_PEN_OPAQUE;
+    Textured x = {
+        .t = t,
+        .s = s,
+        .step = t->fill->step[opaque ? STEP_OPAQUE : 0],
+        .wrap = wrap,
+        .opaque = opaque,
+        .mode = mode,
+        .test = flags & GFX_DRAW_ZTEST,
+        .set = flags & GFX_DRAW_ZSET,
+    };
+
+    rs_poly(v, n, mode, t->clip, gfx, persp ? perspective : textured, &x);
 }
 
 void soft_texture(
@@ -497,20 +608,99 @@ void soft_texture(
     const bool wrap
 )
 {
-    Textured x = {
-        .t = t,
-        .s = s,
-        .step = t->fill->step[flags & GFX_PEN_OPAQUE ? STEP_OPAQUE : 0],
-        .wrap = wrap,
-    };
+    RsVert p[4];
 
-    if (!map_of(v, &x.m))
+    if (n > 4)
         return;
 
-    Vec p[4];
+    for (uint32_t i = 0; i < n; i++)
+        p[i] = qgl_corner(v[i].x, v[i].y, v[i].u, v[i].v);
+
+    texture(t, s, p, n, flags, wrap, RS_TEX, true);
+}
+
+void soft_texture_persp(
+    const SoftTarget *const t,
+    const Pixels *const s,
+    const RsVert *const v,
+    const uint32_t n,
+    const int32_t flags,
+    const bool wrap,
+    const RsMode mode
+)
+{
+    texture(t, s, v, n, flags, wrap, mode, false);
+}
+
+typedef struct {
+    const SoftTarget *t;
+    uint32_t colour;
+    bool test, set;
+} Flat;
+
+/* a flat span: the runs of it shown over the depth there, their depth set as asked */
+static void flat(void *const ctx, const RsSpan *const sp)
+{
+    const Flat *const f = ctx;
+    const SoftTarget *const t = f->t;
+    int32_t x0, x1;
+
+    if (!t->depth.p) {
+        span(t, sp->y, sp->x0, sp->x1, f->colour);
+        return;
+    }
+
+    if (!held_span(t, sp, &x0, &x1))
+        return;
+
+    uint16_t *const d = t->depth.p + sp->y * t->depth.row;
+    int32_t z = depth_on(sp->z, sp->dz, x0 - sp->x0), from = x0;
+
+    for (int32_t x = x0; x < x1; x++, z = depth_on(z, sp->dz, 1)) {
+        const uint16_t here = depth_of(z);
+
+        if (f->test && !depth_shows(d[x], here)) {
+            span(t, sp->y, from, x, f->colour);
+            from = x + 1;
+        } else if (f->set)
+            d[x] = here;
+    }
+
+    span(t, sp->y, from, x1, f->colour);
+}
+
+/* c as qgl's vertex (qgl_corner), 1/z its z; in perspective u and v by 1/z. */
+static RsVert poly_corner(const Corner *const c, const bool persp)
+{
+    const float r = 1 / c->z;
+    const RsVert q = qgl_corner(c->x, c->y, c->u, c->v);
+
+    return persp ? (RsVert){q.x, q.y, r, q.u * r, q.v * r} : (RsVert){q.x, q.y, r, q.u, q.v};
+}
+
+void soft_poly(
+    const SoftTarget *const t,
+    const Pixels *const s,
+    const Corner *const c,
+    const uint32_t n,
+    const uint32_t colour,
+    const int32_t flags
+)
+{
+    RsVert v[RS_MAXV];
+    const bool persp = s && flags & GFX_DRAW_PERSP;
+
+    if (n > RS_MAXV)
+        return;
 
     for (uint32_t i = 0; i < n; i++)
-        p[i] = (Vec){v[i].x, v[i].y};
+        v[i] = poly_corner(&c[i], persp);
 
-    scan_convex(p, n, t->clip, textured, &x);
+    if (s)
+        texture(t, s, v, n, flags, false, persp ? RS_PTEX : RS_TEX, true);
+    else {
+        const Flat f = {t, colour, flags & GFX_DRAW_ZTEST, flags & GFX_DRAW_ZSET};
+
+        rs_poly(v, n, RS_FLAT, t->clip, true, flat, (void *)&f);
+    }
 }

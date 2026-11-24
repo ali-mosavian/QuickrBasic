@@ -17,27 +17,13 @@ enum : uint8_t { FONT_8X8 = 0x12, ALT_LINES = 0x30, LINES_350 = 1, LINES_400 = 2
 enum : uint16_t { DAC_INDEX = 0x3C8, DAC_DATA = 0x3C9, INPUT_STATUS = 0x3DA };
 enum { RETRACE = 8, CH_BEL = 7, PAGE_MEMORY = 0x8000 };
 enum : uint16_t {
-    VBE_INFO = 0x4F00,
-    VBE_MODE_INFO = 0x4F01,
     VBE_SET = 0x4F02,
     VBE_OK = 0x004F,
-    VBE_END = 0xFFFF,
     VBE_SUPPORTED = 1, /* a mode's attributes */
     VBE_SIZED = 2,     /* its size given */
     VBE_GRAPHICS = 0x10,
     VBE_MODES_MAX = 128,
-    VBE_BLOCK = 512,
 };
-
-/* VBE's controller information (4F00h): what is read of it. */
-typedef struct __attribute__((packed)) {
-    char sig[4];
-    uint16_t version;
-    uint32_t oem;
-    uint32_t caps;
-    uint16_t modes_off, modes_seg;
-} VbeInfo;
-static_assert(offsetof(VbeInfo, modes_off) == 0x0E);
 
 /* A mode's information (4F01h): what is read of it; a text mode's size in characters. */
 typedef struct __attribute__((packed)) {
@@ -92,9 +78,7 @@ static void int10(
    memory. */
 static bool vbe_size(const uint16_t mode, const PdosBlock *const b, PscrSize *const s)
 {
-    PdosRmRegs rm = {.eax = VBE_MODE_INFO, .ecx = mode, .es = b->seg};
-
-    if (!pdos_rm_int(INT_VIDEO, &rm) || (uint16_t)rm.eax != VBE_OK)
+    if (!pdos_vbe_mode(b, mode))
         return false;
 
     const VbeMode m = *(const VbeMode *)b->at;
@@ -146,23 +130,12 @@ static void list(void)
     sizes.listed = true;
     PdosBlock b;
 
-    if (!pdos_alloc(VBE_BLOCK, &b))
+    if (!pdos_alloc(PDOS_VBE_BLOCK, &b))
         return;
 
-    memcpy(b.at, "VBE2", 4);
-    PdosRmRegs rm = {.eax = VBE_INFO, .es = b.seg};
-
     uint16_t modes[VBE_MODES_MAX];
-    uint32_t n = 0;
-
-    if (pdos_rm_int(INT_VIDEO, &rm) && (uint16_t)rm.eax == VBE_OK && !memcmp(b.at, "VESA", 4)) {
-        const VbeInfo *const info = (const VbeInfo *)b.at;
-        const volatile uint16_t *const ids =
-            (const volatile uint16_t *)pdos_lin(info->modes_seg * 16u + info->modes_off);
-
-        for (; n < VBE_MODES_MAX && ids[n] != VBE_END; n++)
-            modes[n] = ids[n];
-    }
+    PdosVbe card;
+    const uint32_t n = pdos_vbe_modes(&b, &card, modes, VBE_MODES_MAX);
 
     for (uint32_t i = 0; i < n; i++) {
         PscrSize s;

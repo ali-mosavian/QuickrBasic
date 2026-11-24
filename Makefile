@@ -89,7 +89,7 @@ CORE_OBJ := $(CORE_C:src/%.c=$(B)/obj/%.obj) $(QBRT_DOS_C:%.c=$(B)/qbrt/%.obj) $
 	$(B)/obj/qbrt/qbrt_dos.obj $(ASM_OBJ)
 BASIC_OBJ := $(CORE_OBJ) $(B)/obj/app/basic32.obj
 IDE_OBJ := $(CORE_OBJ) $(UI_C:src/%.c=$(B)/obj/%.obj) $(B)/obj/app/ide32.obj
-DOS_EXE := $(B)/basic32.exe $(B)/ide32.exe $(B)/DOS32A.EXE $(B)/BASIC.HLP
+DOS_EXE := $(B)/basic32.exe $(B)/ide32.exe $(B)/DOS32A.EXE $(B)/BASIC.HLP $(B)/lib/gfx.qbx
 # the release: the programs by their DOS names, with the games (src/plat/wasm/web/demos)
 DOS_GAMES := $(addprefix src/plat/wasm/web/demos/,GORILLA.BAS NIBBLES.BAS MOTHLITE.BAS RUSTLINE.BAS CHARLIE.BAS CHARLIE.DAT)
 # CHARLIE.BAS imports its package and the engine, the barkley and engine folders beside it
@@ -134,11 +134,13 @@ dos-zip: $(DOS_EXE) $(DOS_GAMES) $(DOS_MODULES)
 	mkdir -p $(B)/release
 	cp $(B)/ide32.exe $(B)/release/IDE32.EXE
 	cp $(B)/basic32.exe $(B)/release/BASIC32.EXE
-	cp $(B)/DOS32A.EXE $(B)/BASIC.HLP $(DOS_GAMES) $(B)/release/
-	rm -rf $(B)/release/barkley $(B)/release/engine
+	cp $(B)/DOS32A.EXE $(B)/BASIC.HLP $(DOS_GAMES) $(GFX_DEMO) $(B)/release/
+	rm -rf $(B)/release/barkley $(B)/release/engine $(B)/release/lib
+	mkdir -p $(B)/release/lib
+	cp $(B)/lib/gfx.qbx $(B)/release/lib/
 	cp -R src/plat/wasm/web/demos/barkley $(B)/release/barkley
 	cp -R src/plat/wasm/web/demos/engine $(B)/release/engine
-	cd $(B)/release && zip -q -X -r ../QuickrBasic-dos.zip IDE32.EXE BASIC32.EXE DOS32A.EXE BASIC.HLP GORILLA.BAS NIBBLES.BAS MOTHLITE.BAS RUSTLINE.BAS CHARLIE.BAS CHARLIE.DAT barkley engine
+	cd $(B)/release && zip -q -X -r ../QuickrBasic-dos.zip IDE32.EXE BASIC32.EXE DOS32A.EXE BASIC.HLP GORILLA.BAS NIBBLES.BAS MOTHLITE.BAS RUSTLINE.BAS CHARLIE.BAS CHARLIE.DAT GFXDEMO.BAS barkley engine lib
 
 -include $(shell find $(B) -name '*.d' 2>/dev/null)
 
@@ -177,7 +179,8 @@ build/wasm/ext/qxtest.wasm: $(QXTEST) src/qx/qx.h
 		-c build/ext/qxtest_qx.c -o $(@D)/qxtest_qx.o
 	$(WASM_LD) -shared --experimental-pic --shared-memory --features=$(WASM_FEATURES) -o $@ $(@D)/qxtest.o $(@D)/qxtest_qx.o
 LLD_LINK ?= $(firstword $(wildcard /opt/homebrew/opt/lld/bin/lld-link) lld-link)
-DOS_SLICE_CC = $(CLANG) --target=i386-pc-win32 -march=i386 -fno-asynchronous-unwind-tables $(QX_CFLAGS)
+# no stack probes: __chkstk is the C library's, and a slice has none
+DOS_SLICE_CC = $(CLANG) --target=i386-pc-win32 -march=i386 -fno-asynchronous-unwind-tables -mno-stack-arg-probe $(QX_CFLAGS)
 $(B)/ext/qxtest.dll: $(QXTEST) src/qx/qx.h
 	@mkdir -p $(@D)
 	$(DOS_SLICE_CC) -c tests/ext/qxtest.c -o $(@D)/qxtest.obj
@@ -186,7 +189,7 @@ $(B)/ext/qxtest.dll: $(QXTEST) src/qx/qx.h
 # gfx (stdlib/gfx): its glue from its parts' interfaces, scene's to come with 3D. Its core is linked
 # into the unit tests with its tests; the runtime's font and palette (vgadata.c) are already there
 GFX_PARTS := $(addprefix stdlib/gfx/,display.bas surface.bas pen.bas draw.bas)
-GFX_C := $(shell find stdlib/gfx -name '*.c' -not -path 'stdlib/gfx/tests/*')
+GFX_C := $(shell find stdlib/gfx -name '*.c' -not -path 'stdlib/gfx/tests/*' -not -path 'stdlib/gfx/dos/*')
 GFX_INC := -Istdlib/gfx -Isrc
 build/ext/gfx_qx.c: $(GFX_PARTS) tools/qbx.py
 	@mkdir -p $(@D)
@@ -224,6 +227,19 @@ build/wasm/ext/gfx.wasm: $(GFX_WASM_OBJ)
 build/web/lib/gfx.qbx: $(GFX_PARTS) build/wasm/ext/gfx.wasm tools/qbx.py
 	@mkdir -p $(@D)
 	$(PY) tools/qbx.py pack $@ --minor 1 $(GFX_PARTS) wasm32=build/wasm/ext/gfx.wasm
+# and for DOS, in lib/ beside basic32.exe: its slice an i386 DLL, which imports nothing, so it brings
+# its own copies and fills and the runtime's 64-bit division
+GFX_DOS_OBJ := $(patsubst %.c,$(B)/gfx/%.obj,$(GFX_SLICE_C) stdlib/gfx/dos/crt.c src/lib/lldiv.c src/lib/div64.c)
+$(B)/gfx/%.obj: %.c | build/ext/gfx_qx.c
+	@mkdir -p $(@D)
+	$(DOS_SLICE_CC) $(GFX_INC) $(DEPFLAGS) -c $< -o $@
+$(B)/ext/gfx.dll: $(GFX_DOS_OBJ)
+	@mkdir -p $(@D)
+	$(LLD_LINK) /dll /noentry /nodefaultlib /safeseh:no /out:$@ $^
+$(B)/lib/gfx.qbx: $(GFX_PARTS) $(B)/ext/gfx.dll tools/qbx.py
+	@mkdir -p $(@D)
+	$(PY) tools/qbx.py pack $@ --minor 1 $(GFX_PARTS) dos-i386=$(B)/ext/gfx.dll
+-include $(GFX_DOS_OBJ:%=%.d)
 
 host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/hostperf/basic build/host/ext/qxtest.so \
 		build/host/lib/gfx.qbx
@@ -399,7 +415,7 @@ build/host/unit/%.o: tests/unit/%.c
 	$(HOST_CC) $(HOST_CFLAGS) $(DEPFLAGS) -c $< -o $@
 build/host/test.hlp: tools/mkhelp.py $(wildcard tests/help/*)
 	$(PY) tools/mkhelp.py tests/help -o $@
-build/host/unit_tests: $(build/host_OBJ) $(UNIT_UI_OBJ) $(UNIT_OBJ) $(GFX_UNIT_OBJ) build/host/obj/lib/div64.o \
+build/host/unit_tests: $(build/host_OBJ) $(UNIT_UI_OBJ) $(UNIT_OBJ) $(GFX_UNIT_OBJ) build/host/obj/lib/div64.o build/host/obj/plat/dos32/vbe.o \
 	build/host/test.hlp
 	$(HOST_CC) $(filter-out %.hlp,$^) -lm $(HOST_DL) -o $@
 build/host/golden/dump.o: tests/golden/dump.c

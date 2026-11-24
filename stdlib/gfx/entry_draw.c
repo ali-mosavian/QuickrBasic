@@ -11,6 +11,10 @@ enum {
     SPRITE_FLAGS =
         GFX_DRAW_FLIPX | GFX_DRAW_FLIPY | GFX_PEN_OPAQUE | BLENDS | GFX_PEN_SOLID | GFX_PEN_SMOOTH,
     POLY_LEAST = 3,
+    POLY_MOST = 32, /* the scanner's RS_MAXV, less what a clip adds */
+    DEPTHS = GFX_DRAW_ZTEST | GFX_DRAW_ZSET,
+    POLY_FLAGS =
+        SHAPE_FLAGS | DEPTHS | GFX_DRAW_PERSP | GFX_PEN_OPAQUE | GFX_PEN_SOLID | GFX_PEN_SMOOTH,
 };
 
 /* A draw call's command: a to b, upright at its size. */
@@ -129,10 +133,17 @@ static void turned_rect(
         cmd_at(where, (Vec){l, bottom}),
     };
 
-    if (fill)
-        b->poly(t, corners, 4, colour);
-    else
+    if (!fill) {
         b->outline(t, corners, 4, colour);
+        return;
+    }
+
+    Corner c[4];
+
+    for (uint32_t i = 0; i < 4; i++)
+        c[i] = (Corner){corners[i].x, corners[i].y, 1, 0, 0};
+
+    b->poly(t, nullptr, c, 4, colour, 0);
 }
 
 void gfx_draw_rect(
@@ -227,8 +238,10 @@ void gfx_draw_arc(
         );
 }
 
-/* x, y the first point, x2, y2 the last, after the camera. */
+/* x, y the first point, x2, y2 the last, after the camera; source s. A point's z counts only
+   with PERSP or a depth flag, and must then be 1 or more. */
 void gfx_draw_poly(
+    const int32_t s_,
     const QxArray *const points,
     const int32_t first,
     const int32_t n,
@@ -241,16 +254,21 @@ void gfx_draw_poly(
     if (!g)
         return;
 
-    if (n < POLY_LEAST) {
+    const gfx_draw_vertex *const p = gx_elements(points, sizeof *p, first, n);
+
+    if (!p || (s_ && !gx_surface(g, (uint32_t)s_)))
+        return;
+
+    const bool deep = flags & (DEPTHS | GFX_DRAW_PERSP);
+    bool near = true;
+
+    for (int32_t i = 0; i < n && n <= POLY_MOST; i++)
+        near = near && (!deep || p[i].z >= 1);
+
+    if (n < POLY_LEAST || n > POLY_MOST || !near) {
         gx_fail(ERR_ILLEGAL);
         return;
     }
-
-    const gfx_draw_vec2 *const p = gx_elements(points, sizeof *p, first, n);
-    Vec *const placed = p ? gx_points(g, (uint32_t)n) : nullptr;
-
-    if (!placed)
-        return;
 
     Command c = drawn(
         GFX_DISPLAY_DREW_POLY,
@@ -260,19 +278,52 @@ void gfx_draw_poly(
         flags
     );
 
+    c.source = (uint32_t)s_;
     Target t;
     Place where;
 
-    if (!gx_draw(g, &c, SHAPE_FLAGS, &t, &where))
+    if (!gx_draw(g, &c, POLY_FLAGS, &t, &where))
         return;
 
-    for (int32_t i = 0; i < n; i++)
-        placed[i] = cmd_at(&where, (Vec){p[i].x, p[i].y});
+    const Backend *const b = g->backend;
+    Corner placed[POLY_MOST];
 
-    if (flags & GFX_DRAW_FILL)
-        g->backend->poly(&t, placed, (uint32_t)n, (uint32_t)colour);
-    else
-        g->backend->outline(&t, placed, (uint32_t)n, (uint32_t)colour);
+    for (int32_t i = 0; i < n; i++) {
+        const Vec at = cmd_at(&where, (Vec){p[i].x, p[i].y});
+
+        placed[i] = (Corner){at.x, at.y, deep ? p[i].z : 1, p[i].u, p[i].v};
+    }
+
+    if (s_) {
+        const Picture pic = surf_picture(&g->surfaces, (uint32_t)s_);
+
+        if (b->source(g, &t, &pic))
+            b->poly(&t, &pic, placed, (uint32_t)n, (uint32_t)colour, flags);
+
+        return;
+    }
+
+    if (flags & GFX_DRAW_FILL) {
+        b->poly(&t, nullptr, placed, (uint32_t)n, (uint32_t)colour, flags);
+        return;
+    }
+
+    Vec *const edges = gx_points(g, (uint32_t)n);
+
+    for (int32_t i = 0; edges && i < n; i++)
+        edges[i] = (Vec){placed[i].x, placed[i].y};
+
+    if (edges)
+        b->outline(&t, edges, (uint32_t)n, (uint32_t)colour);
+}
+
+void gfx_draw_clear_depth(void)
+{
+    Gx *const g = gx_get();
+    Surface *const s = g ? gx_surface(g, g->pen.target) : nullptr;
+
+    if (s)
+        g->backend->clear_depth(g, s);
 }
 
 /* p's picture, its anchor at a in the world (placed: at), turned by angle and scaled: upright at

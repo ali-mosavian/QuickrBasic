@@ -111,7 +111,9 @@ def run(jobs: dict[str, str | tuple], work: Path, limit_ms: int = 60000, file: b
     (work / "job.conf").write_text(CONF.format(mem=mem).replace("[dos]", f"{fpu}[dos]"))
     (work / "jobs.txt").write_text("\n".join(lines) + "\n")
     with open(work / "events.txt", "wb") as ev, open(work / "jobs.txt", "rb") as jin:
-        env = dict(os.environ, SDL_VIDEODRIVER="dummy", DOSRUN_FD=str(ev.fileno()))
+        env = dict(os.environ, DOSRUN_FD=str(ev.fileno()))
+        if os.environ.get("DOSRUN_SHOW") != "1":  # DOSRUN_SHOW=1: DOSBox's window shown
+            env["SDL_VIDEODRIVER"] = "dummy"
         subprocess.run(
             [str(DOSBOX), "-nolog", "-conf", str(work / "job.conf")],
             stdin=jin,

@@ -60,9 +60,10 @@ No module imports another. `draw` and `scene` sit over `pen`, and everything ove
 - **Handles** are longs: a kind (4 bits), a generation (8) and a slot (20), so a freed or wrong
   handle is an error, never a stray pointer. 0 is none.
 - **Flags pick the effect, the pen holds its numbers**, as µGL's `tfxBlit` and `tfxSet*`. Every
-  draw call takes flags from one set: `draw`'s `FILL`, `FLIPX`, `FLIPY`; `pen`'s `OPAQUE`, `BLEND`,
-  `ADD`, `SOLID`, `SMOOTH`; `scene`'s `ORDERED`, `NO_ZWRITE`, `NO_ZTEST`. The pen's numbers land in
-  the vertices, so a change does not end a batch; `pen.reset` sets it back.
+  draw call takes flags from one set: `draw`'s `FILL`, `FLIPX`, `FLIPY`, `PERSP`, `ZTEST`, `ZSET`;
+  `pen`'s `OPAQUE`, `BLEND`, `ADD`, `SOLID`, `SMOOTH`; `scene`'s `ORDERED`, `NO_ZWRITE`,
+  `NO_ZTEST`. The pen's numbers land in the vertices, so a change does not end a batch; `pen.reset`
+  sets it back.
 - **No optional arguments**, so the common case is its own call, as µGL's `uglPut` and
   `uglPutRotScl`: `sprite` and `sprite_turned`, `camera` and `camera_turned`, `mesh` and
   `mesh_placed`.
@@ -111,7 +112,8 @@ backend draws at the window's resolution instead: the same commands, more pixels
 smoothly rather than a canvas pixel at a time. Software ignores it.
 
 On DOS, 320×200 at 8 bits is VGA's mode 13h; the rest are VBE 2.0 modes through a linear framebuffer,
-with banked modes for VBE 1.2 cards. The DOS platform has neither yet.
+with banked modes for VBE 1.2 cards. A canvas shows in the mode of its depth it fills most, by whole
+multiples, centred.
 
 In software the polygon scanner knows nothing of pixels and a filler knows nothing of polygons: one set
 of span fillers for each depth, as µGL's `cfmt/b8`, `b15`, `b16` and `b32`. A new depth is a new set of
@@ -236,6 +238,11 @@ Everything 2D is a textured quad or a strip of them, so the backends have one pr
 - `draw.strip`: a textured strip along a line of points: the ground under a platformer's feet, drawn
   from the same points its physics walks, at any slope.
 - `draw.pset`, `line` and `arc`; `rect`, `circle` and `poly`, outlined or with `FILL`.
+- `draw.poly s, points(), first, n, colour, flags`: a convex polygon of up to 32 `Vertex`es, each
+  x, y, z (its distance, 1 or more) and u, v. `s` 0 draws in colour, else `s`'s texels, affine or
+  with `PERSP` in perspective. `ZTEST` draws only what is nearer than the target's depth there and
+  `ZSET` writes it; a keyed texel writes none. `draw.clear_depth` makes the pen's target's depth all
+  far. Software only so far: a GPU draws them affine, with no depth.
 - `draw.text x, y, s$, colour` in the pen's font: a sheet of glyphs (`draw.new_font`), or the
   built-in 8 by 8. Its glyphs are pictures, in `colour`, or as the sheet has them with
   `draw.AS_DRAWN`.
@@ -299,7 +306,7 @@ too slow in software. Shaders come in three kinds, by where they can run.
 
 | Platform | Backend |
 |---|---|
-| DOS | software, span fillers in assembly, VGA and VBE |
+| DOS | software, VGA and VBE |
 | Mac, Linux, Windows | SDL_GPU: Metal, Vulkan, Direct3D 12 |
 | The browser | WebGL2 |
 | Tests, and a machine with no GPU | software in C, drawing into a texture the host shows |
@@ -357,8 +364,8 @@ void *(*file_read)(const char *path, uint32_t len, uint32_t *bytes);
 ```
 
 - **Software draws in memory the host lends.** `gfx_page` is the page to draw in; `gfx_show` shows
-  it. Today's hosts copy the page shown and lend it again, its pixels kept; VBE's two pages, on DOS,
-  will revisit that. No struct crosses by value: i386's conventions for one differ.
+  it. The hosts copy the page shown and lend it again, its pixels kept; DOS's copy goes to video
+  memory. No struct crosses by value: i386's conventions for one differ.
 - **A GPU's host plays lists.** `gpu_play` returns when the host is done with the list's bytes;
   `gpu_read` waits for what was played.
 - **Calls come from the interpreter's thread.** `gfx_show` and `gpu_play` hand the frame to the
@@ -369,7 +376,7 @@ void *(*file_read)(const char *path, uint32_t len, uint32_t *bytes);
 
 | | Gives | Shows by | Clock |
 |---|---|---|---|
-| DOS | pages: a VBE 2.0 linear mode's two in video memory; else memory | 4F07h's flip at the retrace; else a copy, linear or bank by bank; mode 13h a copy | the PIT's count |
+| DOS | pages in memory | a copy to the VBE page not shown, which 4F07h shows at the retrace; else to the one shown, linear or bank by bank; mode 13h's at the retrace | the PIT's count |
 | Mac, Linux, Windows | a GPU, lists played by SDL_GPU on the interpreter's thread; with no device, pages | the texture `SHOW` names, copied to one SDL's GPU renderer draws; a page as today's frame | `SDL_GetTicksNS` |
 | The browser | a GPU, lists copied to the page and played there with WebGL2; else pages | `requestAnimationFrame` | `performance.now` |
 | `basic` in a terminal, unit tests | pages | nothing: `surface.read` is the tests' eye | `pclk` |
@@ -444,9 +451,9 @@ atlas page batch.
 - **Picked once** for each sprite or polygon, from its stage bits, as qgl's `b8_span`: the fused
   filler when there is one, else the pipeline. Nothing below tests a mode.
 - **15 and 16 bits are one template**, built twice with other masks; 8 and 32 have their own.
-- **On DOS** assembly fills the same table's slots, 8 bits first; a slot with none keeps C's.
-- **Depth is 1/z in 16 bits**, as µGL's `uglZ`: larger is nearer, 0 is far, scaled from the
-  camera's near plane. It is linear along a span, so no pixel divides.
+- **Depth is 1/z in 16 bits**, as qgl's and µGL's `uglZ`: 65535 / z, larger nearer, 0 far; a
+  scene's scaled from the camera's near plane. It is linear along a span, so no pixel divides. A
+  test hides a pixel whose depth there is as near or nearer, as qgl's.
 
 ## Tests
 
@@ -465,7 +472,7 @@ pixels run on the software backend.
 3. The rest of 2D and the pen: turned sprites, quads, strips, light, tint, blend, recolor; 16 and 32
    bits; PNG; fonts. Done.
 4. The hosts' players, SDL_GPU and WebGL2, and the list.
-5. DOS: VBE's pages, fillers in assembly. CHARLIE moves onto `gfx`, cutting its views with
+5. DOS: VBE's pages. CHARLIE moves onto `gfx`, cutting its views with
    `barkley/assets/sheet.bas`.
 6. 3D: `scene`, from qcport.
 7. Vertex procedures, and the program's own shaders.
@@ -590,6 +597,22 @@ Step 4, in parts:
   `disc.h`'s rule covers, centres within the radius by squared distance, every product and sum
   rounded once (`precise`). Software's rows end where the same rule says, so both draw the same
   pixels.
+
+### DOS
+
+Step 5, in parts:
+
+- **The screen** (`plat/dos32/pgfx.c`, `vbe.c`): mode 13h and the card's VBE modes of gfx's
+  depths, listed once; `vbe.c`, which the unit tests run, reads a mode's information, picks the
+  mode and places the canvas. A linear frame buffer is mapped once (DPMI 0800h) and kept. The text
+  screen's memory, size and colours are kept while gfx's is open; a program's graphics `SCREEN` is
+  not. The refresh is timed over four retraces as a mode is set.
+- **The slice**: an i386 DLL, its own `memcpy` and `memset` and the runtime's `lib/lldiv.c`, as a
+  slice imports nothing. Native code lives in the C side's heap, a quarter of DOS's memory where
+  that is more than the front end's ask: 16 MB gives a 640×480 canvas at 32 bits.
+- **The clock**: the BIOS's ticks and the timer chip's count within one, read back with its status.
+- **The renderer** is the one C renderer every platform draws with: `tools/gfx_test.py`'s
+  `same_pixels` holds the DOS slice's pixels, the x87's arithmetic, to the host build's.
 
 ## Prior art
 

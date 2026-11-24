@@ -62,13 +62,13 @@ static void quad(
 }
 
 /* A fan's corner i, from ctx. */
-typedef GpuVertex Corner(const Target *t, const void *ctx, uint32_t i);
+typedef GpuVertex CornerAt(const Target *t, const void *ctx, uint32_t i);
 
 /* The fan from corner 0 of n as quads: two of its triangles each, the last alone a quad with its
    third corner twice, its second triangle empty. */
 static void fan(
     const Target *const t,
-    Corner *const corner,
+    CornerAt *const corner,
     const void *const ctx,
     const uint32_t n
 )
@@ -257,23 +257,47 @@ static void outline(
         segment(t, &ink, p[i], p[(i + 1) % n], false);
 }
 
-/* A polygon's: its ink and points. */
+/* A polygon's: its ink and corners; flat, the ink's texel. */
 typedef struct {
     GpuVertex ink;
-    const Vec *p;
+    const Corner *c;
+    bool flat;
 } Shape;
 
 static GpuVertex shape_corner(const Target *const t, const void *const ctx, const uint32_t i)
 {
     const Shape *const s = ctx;
-    return vertex(&t->gpu, &s->ink, s->p[i].x, s->p[i].y, s->ink.u, s->ink.v);
+    const Corner *const c = &s->c[i];
+    return vertex(
+        &t->gpu,
+        &s->ink,
+        c->x,
+        c->y,
+        s->flat ? s->ink.u : c->u,
+        s->flat ? s->ink.v : c->v
+    );
 }
 
-static void poly(const Target *const t, const Vec *const p, const uint32_t n, const uint32_t colour)
+/* Affine, with no depth: perspective and depth are software's alone so far. */
+static void poly(
+    const Target *const t,
+    const Picture *const p,
+    const Corner *const c,
+    const uint32_t n,
+    const uint32_t colour,
+    const int32_t flags
+)
 {
-    const Shape s = {shape(&t->gpu, colour), p};
+    const Shape s = {p ? t->gpu.ink : shape(&t->gpu, colour), c, !p};
 
+    (void)flags;
     fan(t, shape_corner, &s, n);
+}
+
+static bool clear_depth(Gx *const g, Surface *const s)
+{
+    (void)g, (void)s;
+    return true;
 }
 
 /* k's pixels, in sweep w unless null: a box past its outer edge, of which the shader keeps those
@@ -493,6 +517,7 @@ const Backend backend_gpu = {
     .line = line,
     .outline = outline,
     .poly = poly,
+    .clear_depth = clear_depth,
     .circle = circle,
     .arc = arc,
     .rect = rect,

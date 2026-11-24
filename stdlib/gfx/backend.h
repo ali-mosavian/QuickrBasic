@@ -47,8 +47,18 @@ typedef struct {
     void (*line)(const Target *t, Vec a, Vec b, uint32_t colour);
     /* Closed, each pixel once. */
     void (*outline)(const Target *t, const Vec *p, uint32_t n, uint32_t colour);
-    /* Convex, filled. */
-    void (*poly)(const Target *t, const Vec *p, uint32_t n, uint32_t colour);
+    /* Convex, filled, n corners 3 up to POLY_MOST: p's texels, colour when p is null (soft.h's
+       soft_poly); its depth tested and set by flags into the target's, begin's. */
+    void (*poly)(
+        const Target *t,
+        const Picture *p,
+        const Corner *c,
+        uint32_t n,
+        uint32_t colour,
+        int32_t flags
+    );
+    /* s's depth, all far: false, raised. */
+    bool (*clear_depth)(Gx *g, Surface *s);
     void (*circle)(const Target *t, Vec c, float r, uint32_t colour, bool fill);
     void (*arc)(const Target *t, Vec c, float r, float start, float finish, uint32_t colour);
     /* Upright, corners a and b drawn. */

@@ -28,7 +28,8 @@ typedef struct {
     uint32_t version;  /* a root's: its pixels written, counted; 0 never */
     uint32_t taken;    /* a root's: the version a GPU took, rows top to bottom written since */
     int32_t top, bottom;
-    bool drawn; /* a root's: a GPU drew in it since the pixels were read back */
+    bool drawn;      /* a root's: a GPU drew in it since the pixels were read back */
+    uint16_t *depth; /* a root's: w by h, 1/z by DEPTH_NEAR, 0 far; null none asked yet */
 } Surface;
 
 /* A picture's own texture, with no surface: a handle is never so small. */
@@ -81,6 +82,8 @@ Surface *surf_root(const Surfaces *ss, Surface *s, uint32_t *h);
 /* r of s's pixels written: its root's version counted, its rows kept. */
 void surf_wrote(const Surfaces *ss, Surface *s, Rect r);
 Pixels surf_pixels(const Surfaces *ss, const Surface *s);
+/* s's depth, its root's made all far on first ask: p null, no memory. */
+Depth surf_depth(const Surfaces *ss, Surface *s);
 /* h and its views freed. */
 void surf_free(Surfaces *ss, uint32_t h);
 #endif

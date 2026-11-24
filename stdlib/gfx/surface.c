@@ -21,6 +21,7 @@ static void drop(Surfaces *const ss, const uint32_t h)
 
     mem_free(s->own);
     mem_free(s->palette);
+    mem_free(s->depth);
     mem_free(s);
     hdl_drop(&ss->t, h);
 }
@@ -153,6 +154,20 @@ Pixels surf_pixels(const Surfaces *const ss, const Surface *const s)
 
     const Pixels p = surf_pixels(ss, surf_get(ss, s->parent));
     return px_cut(&p, (Rect){s->x, s->y, s->w, s->h});
+}
+
+Depth surf_depth(const Surfaces *const ss, Surface *s)
+{
+    int32_t x = 0, y = 0;
+
+    for (; s->parent; s = surf_get(ss, s->parent))
+        x += s->x, y += s->y;
+
+    if (!s->depth)
+        s->depth = mem_alloc((uint32_t)(s->w * s->h) * sizeof *s->depth);
+
+    const uint32_t row = (uint32_t)s->w;
+    return (Depth){s->depth ? s->depth + y * row + x : nullptr, row};
 }
 
 Surface *surf_root(const Surfaces *const ss, Surface *s, uint32_t *const h)

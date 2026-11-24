@@ -65,6 +65,23 @@ static inline uint32_t px_pack(const PxFormat f, const uint32_t c)
 }
 
 /* A texel a keyed draw skips: 0, or 32 bits' alpha under a half. */
+/* The pixel of bytes at p. */
+static inline uint32_t px_load(const uint8_t *const p, const uint32_t bytes)
+{
+    uint32_t v = 0;
+
+    for (uint32_t i = 0; i < bytes; i++)
+        v |= (uint32_t)p[i] << (8 * i);
+
+    return v;
+}
+
+static inline void px_store(uint8_t *const p, const uint32_t v, const uint32_t bytes)
+{
+    for (uint32_t i = 0; i < bytes; i++)
+        p[i] = (uint8_t)(v >> (8 * i));
+}
+
 static inline bool px_key(const PxFormat f, const uint32_t v)
 {
     return f == PX_32 ? v < 0x80000000u : !v;
@@ -123,6 +140,32 @@ typedef struct {
 typedef struct {
     float x, y, u, v;
 } Vertex;
+
+/* A polygon's corner on the target: z its distance, 1 or more; u, v its texel. */
+typedef struct {
+    float x, y, z, u, v;
+} Corner;
+
+/* Depth is 1/z by DEPTH_NEAR, as qgl's: nearer is larger, 0 is far. */
+enum { DEPTH_NEAR = 65535 };
+
+/* A target's depth: its first, and a row's step in depths. */
+typedef struct {
+    uint16_t *p;
+    uint32_t row;
+} Depth;
+
+/* The depth at z, 16.16 (qgl's zacc): its integer half. */
+static inline uint16_t depth_of(const int32_t z) { return (uint16_t)((uint32_t)z >> 16); }
+
+/* z, n pixels on by dz, wrapping as qgl's adds. */
+static inline int32_t depth_on(const int32_t z, const int32_t dz, const int32_t n)
+{
+    return (int32_t)((uint32_t)z + (uint32_t)dz * (uint32_t)n);
+}
+
+/* Whether depth z shows over there: qgl's test, which a depth there z or nearer fails. */
+static inline bool depth_shows(const uint16_t there, const uint16_t z) { return there < z; }
 
 static inline int32_t rect_max(const int32_t a, const int32_t b) { return a > b ? a : b; }
 

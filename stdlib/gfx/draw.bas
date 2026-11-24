@@ -6,12 +6,27 @@
 const FLIPX = 1
 const FLIPY = 2
 const FILL = 4
+' poly's: texels in perspective; draw only what is nearer
+' than the depth there; set the depth drawn.
+const PERSP = 2048
+const ZTEST = 4096
+const ZSET = 8192
 ' text's colour: the glyphs' own texels.
 const AS_DRAWN = -1
 
 type Vec2
     x as single
     y as single
+end type
+
+' A polygon's point: z its distance, 1 or more; u, v its
+' texel.
+type Vertex
+    x as single
+    y as single
+    z as single
+    u as single
+    v as single
 end type
 
 ' x, y the world's point at the target's top left.
@@ -60,14 +75,18 @@ declare sub arc cdecl ( _
     byval finish as single, _
     byval colour as long _
 )
-' Convex.
+' Convex. s 0: in colour, filled with FILL, else its edges;
+' else s's texels, affine unless PERSP.
 declare sub poly cdecl ( _
-    points() as Vec2, _
+    byval s as long, _
+    points() as Vertex, _
     byval first as integer, _
     byval n as integer, _
     byval colour as long, _
     byval flags as integer _
 )
+' The pen's target's depth, all far.
+declare sub clear_depth cdecl ()
 
 declare sub sprite cdecl ( _
     byval s as long, _

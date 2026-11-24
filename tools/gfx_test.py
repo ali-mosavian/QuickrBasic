@@ -2,7 +2,11 @@
 """gfx_test.py: the DOS32 build's graphics and sound through llrm's runtime, read back from video
 memory (PEEK at A0000h), not through the runtime that drew it. A PAINT once filled part of the
 shape, then said Out of memory: its queue (half a screen's pixels, 8 bytes each) did not fit the
-pool; it is now the BASIC heap's free part, lent for the fill."""
+pool; it is now the BASIC heap's free part, lent for the fill. gfx.qbx's DOS slice loads: a file
+over 64 KB read whole was File not found, as a read's count kept its low 16 bits. Its screen closed,
+the cursor is where it was: the mode's set had put it top left, where the next PRINT went. The
+DOS slice draws the host's pixels: SAME_PIXELS's checksum is the same from both builds of the one C
+renderer, the x87's arithmetic and the host's."""
 
 import sys
 import tempfile
@@ -116,6 +120,152 @@ def screen_error() -> str:
     return s.screen()
 
 
+def extension() -> str:
+    """gfx.qbx, from lib/ beside the interpreter: its monitor, and more than mode 13h."""
+    program = "import gfx.display\r\nprint gfx.display.count; gfx.display.modes(1) > 1\r\n"
+    return dosrun.run({"gfx": program}, Path(tempfile.mkdtemp()) / "w", 60000, file=True, files=gfx_lib(),
+                      mem=16)["gfx"].out
+
+
+def extension_row() -> str:
+    """The text cursor's row after gfx's screen opened and closed, the program's first output after."""
+    program = "\r\n".join([
+        "import gfx.display",
+        "gfx.display.open 320, 200, 8, 0",
+        "gfx.display.close",
+        'r = CSRLIN: OPEN "R.TXT" FOR OUTPUT AS 1: PRINT #1, r: CLOSE',
+        "",
+    ])
+    work = Path(tempfile.mkdtemp()) / "w"
+    dosrun.run({"row": program}, work, 60000, file=True, files=gfx_lib(), mem=16, screen=True)
+    return (work / "R.TXT").read_text() if (work / "R.TXT").exists() else "(none)"
+
+
+# Each of the renderer's paths at a depth: spans of each length, rows keyed and opaque, flipped or
+# not, clipped; walks turned and scaled, and wrapped along a strip; polygons flat, affine and in
+# perspective, with depth tested and set, their planes crossing.
+# The picture's bytes make keyed holes at each depth: a 0, or at 32 bits an alpha under a half.
+SAME_PIXELS = """import gfx.display, gfx.draw, gfx.surface, gfx.pen
+from gfx.draw import Vec2, Vertex
+gfx.display.open 320, 200, {depth}, 0
+s& = gfx.surface.new(37, 23)
+dim pic(37 * 23 * {bytes} - 1) as byte
+for i = 0 to 37 * 23 * {bytes} - 1
+    pic(i) = ((i * 7 + i \\ 37) mod 9) * 29
+next
+gfx.surface.write s&, 0, 0, 37, 23, pic()
+gfx.draw.clear 3
+dim w(3) as Vertex
+w(1).x = 319: w(2).x = 319: w(2).y = 199: w(3).y = 199
+w(0).z = 1: w(1).z = 1.5: w(2).z = 7: w(3).z = 5
+w(1).u = 37: w(2).u = 37: w(2).v = 23: w(3).v = 23
+gfx.draw.poly s&, w(), 0, 4, 0, gfx.draw.PERSP
+for i = 0 to 40
+    x = (i * 7) mod 300 + i mod 5
+    gfx.draw.rect x, i * 3, x + i, i * 3 + 1, ((16 + i) * {spread}) and &HFFFFFF, gfx.draw.FILL
+next
+for i = 0 to 15
+    f% = (i and 1) * gfx.draw.FLIPX + (i and 2) * 4
+    gfx.draw.sprite s&, -10 + i * 21, 130 + (i mod 3) * 9, f%
+next
+t& = gfx.surface.new(32, 8)
+dim tile(32 * 8 * {bytes} - 1) as byte
+for i = 0 to 32 * 8 * {bytes} - 1
+    tile(i) = pic(i)
+next
+gfx.surface.write t&, 0, 0, 32, 8, tile()
+for i = 0 to 31
+    f% = (i \\ 4 and 1) * gfx.draw.FLIPX + (i \\ 8 and 1) * 8
+    gfx.draw.sprite t&, -i, 40 + i * 3, f%
+next
+for i = 0 to 11
+    gfx.draw.sprite_turned s&, 20 + i * 26, 172, i * 0.5, 0.6 + i * 0.15, (i and 1) * 8
+next
+dim pts(2) as Vec2
+pts(0).x = 10: pts(0).y = 150: pts(1).x = 150: pts(1).y = 140: pts(2).x = 300: pts(2).y = 160
+gfx.draw.strip s&, pts(), 0, 3, 0
+for i = 0 to 11
+    gfx.draw.sprite_turned t&, 20 + i * 26, 100, i * 0.5 + 0.2, 0.8 + i * 0.2, (i and 1) * 8
+next
+for i = 0 to 2
+    pts(i).y = pts(i).y - 60
+next
+gfx.draw.strip t&, pts(), 0, 3, 0
+dim q(3) as Vertex
+q(1).u = 32: q(2).u = 32: q(2).v = 8: q(3).v = 8
+gfx.draw.clear_depth
+for i = 0 to 17
+    x = 20 + i * 16: y = 30 + (i mod 2) * 6: z = 1 + (i * 5) mod 4
+    q(0).x = x: q(0).y = y: q(1).x = x + 30: q(1).y = y + 4
+    q(2).x = x + 26: q(2).y = y + 30: q(3).x = x - 3: q(3).y = y + 26
+    q(0).z = z: q(1).z = z: q(2).z = z * 3: q(3).z = z * 3
+    f% = ((i mod 3) and 1) * gfx.draw.ZSET + ((i mod 3) \\ 2) * (gfx.draw.ZTEST + gfx.draw.ZSET)
+    select case i \\ 6
+    case 0
+        gfx.draw.poly 0, q(), 0, 4, ((50 + i) * {spread}) and &HFFFFFF, f% + gfx.draw.FILL
+    case 1
+        gfx.draw.poly t&, q(), 0, 4, 0, f% + (i and 1) * 8
+    case else
+        gfx.draw.poly s&, q(), 0, 4, 0, f% + gfx.draw.PERSP
+    end select
+next
+for i = 0 to 23
+    x = 6 + i * 13.3: y = 70 + (i mod 3) * 7.7: z = 1 + (i mod 4) * 0.37
+    q(0).x = x: q(0).y = y: q(1).x = x + 21.6: q(1).y = y + 2.2
+    q(2).x = x + 19.1: q(2).y = y + 24.9: q(3).x = x - 1.4: q(3).y = y + 22.3
+    q(0).z = z: q(1).z = z * 2.9: q(2).z = z * 2.9: q(3).z = z
+    gfx.draw.poly s&, q(), 0, 4, 0, gfx.draw.PERSP + gfx.draw.ZTEST + gfx.draw.ZSET
+    q(0).z = z * 2.9: q(1).z = z: q(2).z = z: q(3).z = z * 2.9
+    f% = gfx.draw.ZTEST + gfx.draw.ZSET
+    select case i mod 3
+    case 0
+        gfx.draw.poly 0, q(), 0, 4, ((90 + i) * {spread}) and &HFFFFFF, f% + gfx.draw.FILL
+    case 1
+        gfx.draw.poly t&, q(), 0, 4, 0, f%
+    case else
+        gfx.draw.poly t&, q(), 0, 4, 0, f% + gfx.draw.PERSP
+    end select
+next
+dim px(320& * 200 * {bytes} - 1) as byte
+gfx.surface.read gfx.surface.CANVAS, 0, 0, 320, 200, px()
+for i& = 0 to 320& * 200 * {bytes} - 1
+    sum& = (sum& * 31 + px(i&)) and &HFFFFF
+next
+gfx.display.close
+print sum&
+"""
+
+
+DEPTHS = (8, 15, 16, 32)
+
+
+def same_pixels(depths: tuple[int, ...] = DEPTHS) -> dict[tuple[int, str], str]:
+    """SAME_PIXELS's output at each depth by (depth, build): "dos", the DOS slice in one DOSBox, and
+    "host", the host build's, natively."""
+    def jobs(name: str, qbx: Path) -> dict[str, tuple]:
+        data = qbx.read_bytes()
+        return {
+            f"{name}{d}": (SAME_PIXELS.format(depth=d, bytes=(d + 7) // 8, spread=1 if d == 8 else 40503), "", "",
+                           {"gfx.qbx": data})
+            for d in depths
+        }
+
+    dos = dosrun.run(jobs("dos", dosrun.COM.parent / "lib/gfx.qbx"), Path(tempfile.mkdtemp()) / "w", 120000,
+                     file=True, mem=16)
+    com = dosrun.COM
+    dosrun.COM = dosrun.ROOT / "build/host/basic"
+    try:
+        host = dosrun.run(jobs("host", dosrun.ROOT / "build/host/lib/gfx.qbx"), Path(tempfile.mkdtemp()) / "w",
+                          120000, file=True)
+    finally:
+        dosrun.COM = com
+    return {(d, name): got[f"{name}{d}"].out for d in depths for name, got in (("dos", dos), ("host", host))}
+
+
+def gfx_lib() -> dict[str, bytes]:
+    return {"lib/gfx.qbx": (dosrun.COM.parent / "lib/gfx.qbx").read_bytes()}
+
+
 if __name__ == "__main__":
     for name, program, want in (("gfx", PROGRAM, " 9  9  12  1  14 "), ("whole", WHOLE, " 2  2 ")):
         out = dosrun.run({name: program}, Path(tempfile.mkdtemp()) / "w", 60000, mem=4)[name].out
@@ -123,6 +273,14 @@ if __name__ == "__main__":
     got = dosrun.run({k: v[0] for k, v in PAGES.items()}, Path(tempfile.mkdtemp()) / "w", 60000, mem=4)
     for name, (_, want) in PAGES.items():
         assert want in got[name].out, (name, got[name].out[-400:])
+    out = extension()
+    assert " 1 -1 " in out, out[-400:]
+    row = extension_row()
+    assert row.split() and int(row.split()[0]) > 1, row
+    got = same_pixels()
+    for depth in DEPTHS:
+        dos, host = got[depth, "dos"], got[depth, "host"]
+        assert dos.split() and dos == host, (depth, dos[-300:], host[-300:])
     work = Path(tempfile.mkdtemp()) / "w"
     dosrun.run({"text": TEXT}, work, 60000, mem=4, screen=True)
     text = (work / "R.TXT").read_text() if (work / "R.TXT").exists() else "(none)"

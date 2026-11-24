@@ -100,7 +100,11 @@ const Fill fill8 = {
             [ROW_OPAQUE] = opaque,
             [ROW_OPAQUE | ROW_FLIPX] = opaque_flipped,
         },
-    .step = {[0] = stepped_keyed, [STEP_OPAQUE] = stepped_opaque},
+    .step =
+        {
+            [0] = stepped_keyed,
+            [STEP_OPAQUE] = stepped_opaque,
+        },
     .fetch = fetch,
     .ink = ink,
     .paint = paint,

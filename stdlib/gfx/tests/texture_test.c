@@ -2,6 +2,7 @@
    the texel at its centre; the expectations are worked by hand, with no sample on a texel's edge
    (where backends may round either way). */
 #include "gmath.h"
+#include "soft/soft.h"
 #include "test.h"
 
 /* A 3 by 2 sheet: 0 7 9 above 2 0 3. */
@@ -158,4 +159,46 @@ TEST(gfx_fonts_refuse)
     CALL("surface.free", I(s));
     CHECK(CALL("draw.text", F(0), F(0), STR("!"), I(4)).error == 5);
     CHECK(PX(0, 0) == 1);
+}
+
+/* qgl's perspective scan of a trapezoid, (2, 0) (6, 0) (8, 4) (0, 4) with 1/z 1 down to 2 and
+   u/z, v/z linear (u 0 to 8 across, v 0 to 4 down), over an 8 by 4 picture whose texel (u, v) is
+   10 + 8v + u. Worked from qgl's rule: edges evaluated a row below the vertex (x at rows 0 to 3:
+   1.5..6.5, 1..7, 0.5..7.5, 0..8, so spans of 5, 6, 7 and 8 pixels), u/z and v/z at the first
+   pixel, u = (u/z) / (1/z) in 16.16 rounded, plus half a texel, and the far end a whole run (16
+   pixels) on, unclamped; the steps are the difference over 16, and each texel is held inside the
+   picture. Row 1: u 1.83 stepping 1.33, v 3.17, texels 35 37 38 39 41 and 41 (8.5 held to 7).
+   It once clamped the far end to the picture, as qgl's bound mode: a short span's step bent,
+   row 0 read 27 27 28 28 28 where u runs 1.3 to 7.7. */
+TEST(gfx_soft_perspective_trapezoid)
+{
+    uint8_t tex[32], dst[16 * 8];
+
+    for (uint32_t i = 0; i < 32; i++)
+        tex[i] = (uint8_t)(10 + i);
+
+    memset(dst, 1, sizeof dst);
+
+    const SoftTarget t = {
+        .px = {dst, 16, 16, 8, PX_8},
+        .clip = {0, 0, 16, 8},
+        .fill = &fill8,
+    };
+
+    const Pixels s = {tex, 8, 8, 4, PX_8};
+
+    const RsVert v[] = {{2, 0, 1, 0, 0}, {6, 0, 1, 8, 0}, {8, 4, 2, 16, 8}, {0, 4, 2, 0, 8}};
+
+    soft_texture_persp(&t, &s, v, 4, GFX_PEN_OPAQUE, false, RS_PTEX);
+
+    static const uint8_t want[8][16] = {
+        {1, 27, 28, 30, 32, 33, 1, 1},
+        {1, 35, 37, 38, 39, 41, 41, 1},
+        {35, 36, 37, 38, 39, 40, 41, 1},
+        {35, 36, 37, 38, 39, 40, 41, 41},
+    };
+
+    for (uint32_t y = 0; y < 8; y++)
+        for (uint32_t x = 0; x < 16; x++)
+            CHECK(dst[y * 16 + x] == (y < 4 && x < 8 ? want[y][x] : 1));
 }

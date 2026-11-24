@@ -12,7 +12,7 @@ static inline uint16_t load(const uint8_t *const p)
 
 static inline void store(uint8_t *const p, const uint16_t v) { __builtin_memcpy(p, &v, 2); }
 
-static inline void span(uint8_t *const d, const int32_t n, const uint32_t colour)
+static void span(uint8_t *const d, const int32_t n, const uint32_t colour)
 {
     for (int32_t i = 0; i < n; i++)
         store(d + 2 * i, (uint16_t)colour);
@@ -93,6 +93,7 @@ static void stepped_opaque(uint8_t *const d, const Pixels *const s, const Steps 
     stepped(d, s, st, n, false);
 }
 
+/* hLineT's walk, what dos/plxt16.asm must draw: t read here, patched into the assembly. */
 static void fetch(uint32_t *const out, const Pixels *const s, Steps st, const int32_t n)
 {
     for (int32_t i = 0; i < n; i++)
