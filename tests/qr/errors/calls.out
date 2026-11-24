@@ -1,0 +1,45 @@
+calls.qr:5:7: f needs a value for a
+  print(f())
+        ^
+calls.qr:6:15: too many values for f
+  print(f(1, 2, 3))
+                ^
+calls.qr:7:7: f needs a value for a
+  print(f(b: 1))
+        ^
+calls.qr:8:12: f has no parameter c
+  print(f(1, c: 2))
+             ^
+calls.qr:9:15: a value by position after one by name
+  print(f(a: 1, 2))
+                ^
+calls.qr:10:12: a given twice
+  print(f(1, a: 2))
+             ^
+calls.qr:11:13: b needs a default: one before it has one
+  fn g(a = 1, b as int)
+              ^
+calls.qr:13:17: a string is not an int
+  fn h(a as int = "x")
+                  ^
+calls.qr:15:17: a default is a constant
+  fn k(a as int = f(1))
+                  ^
+calls.qr:17:10: a mut parameter has no default
+  fn m(mut a = 1)
+           ^
+calls.qr:19:9: the call returns nothing
+  let v = g(1, 2)
+          ^
+calls.qr:22:1: r can end without returning an int
+  end fn
+  ^
+calls.qr:25:1: q can end without returning an int
+  end fn
+  ^
+calls.qr:27:12: w returns nothing: it has no as type
+      return 1
+             ^
+calls.qr:30:5: return needs an int
+      return
+      ^

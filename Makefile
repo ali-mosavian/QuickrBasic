@@ -187,6 +187,7 @@ host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/h
 	$(PY) tools/golden.py
 	BASIC_EXE=build/host/basic $(PY) tools/regress_test.py build/host/basic
 	BASIC_EXE=build/host/basic $(PY) tools/conformance.py
+	BASIC_EXE=build/host/basic $(PY) tools/qr_test.py
 	$(PY) tools/fold_test.py build/host/basic
 	$(PY) tools/mothlite_test.py build/host/basic
 	$(PY) tools/charlie_test.py build/host/basic

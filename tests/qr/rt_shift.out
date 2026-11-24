@@ -1,0 +1,2 @@
+rt_shift.qr:3: Illegal function call
+  print(1 << n)

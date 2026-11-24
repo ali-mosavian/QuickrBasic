@@ -1,0 +1,53 @@
+' while, for over a range (to b, not including it), do; break and continue
+var i = 0
+while i < 3
+    print("w", i)
+    i += 1
+end while
+for k in 0..3
+    print("f", k)
+end for
+for k in 1..10 step 4
+    print("s", k)
+end for
+for k in 5..0 step -2
+    print("d", k)
+end for
+for k in 3..3
+    print("never")
+end for
+var n = 0
+do
+    n += 1
+    if n = 2 then continue
+    if n > 4 then break
+    print("do", n)
+end do
+for k in 0..10
+    if k mod 2 = 1 then continue
+    if k > 6 then break
+    print("e", k)
+end for
+var j = 0
+while true
+    j += 1
+    if j < 3 then continue
+    break
+end while
+print(j)
+let lo = 2
+let hi = 5
+for k in lo..hi
+    for m in 0..k
+        if m = 2 then break
+        print(k, m)
+    end for
+end for
+fn sum_to(n as int) as int
+    var t = 0
+    for k in 0..n + 1
+        t += k
+    end for
+    return t
+end fn
+print(sum_to(100))

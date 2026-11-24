@@ -1,0 +1,24 @@
+blocks.qr:4:1: end while without while
+  end while
+  ^
+blocks.qr:6:1: break outside a loop
+  break
+  ^
+blocks.qr:7:1: continue outside a loop
+  continue
+  ^
+blocks.qr:8:1: return outside a fn
+  return
+  ^
+blocks.qr:10:5: a fn goes at the top level, not in a block
+      fn g()
+      ^
+blocks.qr:13:1: while without end while
+  while true
+  ^
+blocks.qr:15:1: end fn without fn
+  end fn
+  ^
+blocks.qr:16:1: do without end do
+  do
+  ^

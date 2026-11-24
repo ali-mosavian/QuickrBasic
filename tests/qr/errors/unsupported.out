@@ -1,0 +1,21 @@
+unsupported.qr:2:10: byte is not supported yet
+  var a as byte
+           ^
+unsupported.qr:3:10: short is not supported yet
+  var b as short
+           ^
+unsupported.qr:4:10: long is not supported yet
+  var c as long
+           ^
+unsupported.qr:5:10: uint is not supported yet
+  var u as uint
+           ^
+unsupported.qr:6:7: len() is not supported yet
+  print(len("x"))
+        ^
+unsupported.qr:7:1: type is not supported yet
+  type Point
+  ^
+unsupported.qr:8:9: none is not supported yet
+  let p = none
+          ^

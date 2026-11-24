@@ -1,0 +1,18 @@
+lex.qr:2:7: bad number 0x
+  print(0x)
+        ^
+lex.qr:3:7: bad number 0b102
+  print(0b102)
+        ^
+lex.qr:4:7: number 99999999999999999999 too large
+  print(99999999999999999999)
+        ^
+lex.qr:5:7: string not closed
+  print("open)
+        ^
+lex.qr:6:12: unknown escape \q
+  print("bad \q escape")
+             ^
+lex.qr:7:9: unexpected character #
+  print(1 # 2)
+          ^

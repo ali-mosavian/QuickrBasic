@@ -1,0 +1,3 @@
+before
+rt_divide.qr:4: Division by zero
+  print(10 div zero)

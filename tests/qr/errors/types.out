@@ -1,0 +1,69 @@
+types.qr:2:16: a double is not an int: write int(x)
+  var i as int = 2.5
+                 ^
+types.qr:3:19: an int is not a string: write string(x)
+  var s as string = 1
+                    ^
+types.qr:4:17: an int is not a bool
+  var b as bool = 1
+                  ^
+types.qr:6:16: a double is not an int: write int(x)
+  var n as int = d
+                 ^
+types.qr:7:9: + joins two strings: write string(x)
+  print(1 + "x")
+          ^
+types.qr:8:11: - takes numbers, not a string
+  print("x" - "y")
+            ^
+types.qr:9:11: div takes ints, not a double
+  print(1.5 div 2)
+            ^
+types.qr:10:11: & takes ints, not a double
+  print(1.5 & 1)
+            ^
+types.qr:11:12: + takes numbers, not a bool
+  print(true + 1)
+             ^
+types.qr:12:4: an int is not a bool
+  if 1 then print(1)
+     ^
+types.qr:13:7: a string is not a bool
+  while "s"
+        ^
+types.qr:15:16: an int is not a bool
+  print(true and 1)
+                 ^
+types.qr:16:11: an int is not a bool
+  print(not 1)
+            ^
+types.qr:17:9: the arms are an int and a string
+  print(1 if true else "x")
+          ^
+types.qr:18:7: int() takes a number, not a bool
+  print(int(true))
+        ^
+types.qr:19:7: string() takes one value
+  print(string())
+        ^
+types.qr:20:7: int() takes one value
+  print(int(1, 2))
+        ^
+types.qr:21:18: 3000000000 doesn't fit an int
+  var big as int = 3000000000
+                   ^
+types.qr:22:19: 1e300 doesn't fit a single
+  let r as single = 1e300
+                    ^
+types.qr:23:9: can't compare an int with a string
+  print(1 < "a")
+          ^
+types.qr:24:10: a double is not an int: write int(x)
+  for k in 0.5..2
+           ^
+types.qr:26:20: a step of 0 never ends
+  for k in 0..2 step 0
+                     ^
+types.qr:28:10: unknown type text
+  var t as text
+           ^

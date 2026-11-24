@@ -1,0 +1,30 @@
+mutability.qr:3:1: a is a let: it can't change
+  a = 2
+  ^
+mutability.qr:5:1: C is a const: it can't change
+  C += 1
+  ^
+mutability.qr:7:5: n is a parameter: make it mut to change it
+      n = 1
+      ^
+mutability.qr:10:5: i is the loop's counter: it can't change
+      i = 5
+      ^
+mutability.qr:15:3: n is mut: write mut before it
+  g(v)
+    ^
+mutability.qr:16:7: mut takes a var
+  g(mut a)
+        ^
+mutability.qr:17:7: mut takes a var
+  g(mut 1 + 2)
+        ^
+mutability.qr:18:3: n is not mut
+  f(mut v)
+    ^
+mutability.qr:21:10: v is lent mut in this call
+  h(mut v, v)
+           ^
+mutability.qr:23:7: mut n is an int, not a double
+  g(mut d)
+        ^
