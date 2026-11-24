@@ -30,7 +30,8 @@ TEST(quickr_narrow_fields_take_their_size)
         "type P\n    a as byte\n    b as ubyte\n    c as short\n    d as ushort\n"
         "    xs as byte[2]\n    ys as ushort[2]\nend type\nvar p = P()\n"
     ));
-    CHECK(S->decl.ntypes == 1);
+    /* P first, its fixed arrays' boxes after */
+    CHECK(S->decl.ntypes == 3 && decl_type(&S->decl, 1)->nfld == 6);
     CHECK(decl_type(&S->decl, 1)->size == 12);
 }
 
