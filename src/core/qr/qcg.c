@@ -1274,7 +1274,7 @@ static void qcg_fieldop(QCg *const g, const bool store, const uint32_t off, cons
     Code *const c = g->c;
 
     if (t == QY_STRING) {
-        code_op(c, store ? O_SF_ST : O_SF_LD);
+        code_xop(c, store ? X_SF_ST : X_SF_LD);
         code_word(c, (uint16_t)off);
         code_word(c, 0); /* a variable string's Desc */
         return;
@@ -1285,12 +1285,11 @@ static void qcg_fieldop(QCg *const g, const bool store, const uint32_t off, cons
     code_byte(c, (uint8_t)qcg_et(g, t));
 }
 
-/* Field place e as its word's variable, *w, when its record is inline (qr/qlink.c) and it is 4
-   bytes or 8 in its first QAST_WORDS. */
+/* Field place e as its word's variable, *w, when its record is inline (qr/qlink.c) and it is a
+   number in its first QAST_WORDS bytes. */
 static bool qcg_word(const QCg *const g, const QExpr *const e, QVar *const w)
 {
-    if (e->kind != QE_FIELD || qcg_byplace(g, e->type) || e->type == QY_STRING ||
-        qcg_short(g, e->type))
+    if (e->kind != QE_FIELD || qcg_byplace(g, e->type) || e->type == QY_STRING)
         return false;
 
     uint32_t off = 0;
@@ -1313,6 +1312,18 @@ static bool qcg_word(const QCg *const g, const QExpr *const e, QVar *const w)
     return true;
 }
 
+/* Word w's load or store: a narrow field's by N.LD.V or N.ST.V, its ET. */
+static void qcg_wordop(const QCg *const g, const bool store, const QVar *const w)
+{
+    if (!qcg_short(g, w->type)) {
+        (store ? qcg_store : qcg_load)(g->c, w);
+        return;
+    }
+
+    code_opid(g->c, store ? O_N_ST_V : O_N_LD_V, w->id, false);
+    code_byte(g->c, (uint8_t)qcg_et(g, w->type));
+}
+
 /* Is element place e a variable's list's, loaded and stored by I.LD.A1 and its kin? */
 static bool qcg_byindex(const QCg *const g, const QExpr *const e)
 {
@@ -1326,8 +1337,13 @@ static void qcg_loadat(QCg *const g, const QExpr *const e)
 
     QVar w;
 
-    if (e->kind == QE_NAME || qcg_word(g, e, &w)) {
-        qcg_load(c, e->kind == QE_NAME ? e->var : &w);
+    if (e->kind == QE_NAME) {
+        qcg_load(c, e->var);
+        return;
+    }
+
+    if (qcg_word(g, e, &w)) {
+        qcg_wordop(g, false, &w);
         return;
     }
 
@@ -1406,9 +1422,12 @@ static void qcg_put(QCg *const g, const QExpr *const e, const QCgPut p)
         qcg_fieldop(g, true, p.off, e->type);
     else if (p.list)
         qcg_storeat(g, p.list, e->type);
+    else if (e->kind == QE_NAME)
+        qcg_store(g->c, e->var);
     else {
         QVar w;
-        qcg_store(g->c, qcg_word(g, e, &w) ? &w : e->var);
+        qcg_word(g, e, &w);
+        qcg_wordop(g, true, &w);
     }
 }
 
@@ -3093,7 +3112,7 @@ static void qcg_past(QCg *const g, const QStmt *const s, const bool entered)
 
     qcg_load(c, s->lim);
     qcg_load(c, s->stp);
-    code_op(c, O_I_PAST);
+    code_xop(c, X_I_PAST);
 
     if (entered)
         return;

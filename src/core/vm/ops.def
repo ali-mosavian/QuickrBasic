@@ -35,7 +35,8 @@
  * | FX, FV, FB | FX, FV, FB (exec.h) | MIRROR |
  *
  * - D1. I.EQV, I.IMP, D.POW, P.REFN, F.TOB, F.TOA, D.NZ, S.IF, D.PAST, ONEV, ONERR, ONLERR, RESUME,
- *   RESTORE.L, RUN.L, R.COPY and MODEND are X ops; F.LD.PI, never made, is gone.
+ *   RESTORE.L, RUN.L, R.COPY, MODEND, I.PAST, F.PAST, SF.LD and SF.ST are X ops; F.LD.PI, never
+ *   made, is gone.
  */
 
 #if defined(OP) || defined(FRAME)
@@ -153,8 +154,8 @@ TWIN(L_SUB_V, L_SUB_L, oper_l_sub_v, oper_l_sub_l, 1 + VCELL, FX, FV)
 OP(ON, flow_on, 0, 0)
 OP(RETURN, flow_return, 1, 0)
 TWIN(I_STEP_V, I_STEP_L, oper_i_step_v, oper_i_step_l, 1 + VCELL, FX, FV)
-OP(I_PAST, flow_i_past, 1, FX)
-OP(F_PAST, flow_f_past, 1, FX)
+/* a narrow field of a record in cells, a variable of its own (qr/qlink.c): cell et */
+TWIN(N_LD_V, N_LD_L, exec_n_ld_v, exec_n_ld_l, 2 + VCELL, FX, FV)
 OP(ERR, flow_err, sizeof(ErrOp), 0)
 OP(JMP, flow_jmp, JSIZE, 0)
 OP(I_JF, flow_i_jf, JSIZE, 0)
@@ -171,8 +172,7 @@ OP(R_ADDR, exec_r_addr, 1 + VID + VCELL, FA)
 OP(RA_ADDR, exec_ra_addr, 2 + VID + VCELL, FA)
 OP(FL_LD, exec_fl_ld, 4, 0)
 OP(FL_ST, exec_fl_st, 4, 0)
-OP(SF_LD, exec_sf_ld, 5, 0)
-OP(SF_ST, exec_sf_st, 5, 0)
+TWIN(N_ST_V, N_ST_L, exec_n_st_v, exec_n_st_l, 2 + VCELL, 0, FV)
 OP(L_TO_L, oper_l_to_l, 2 + VCELL, 0)
 FRAME(L_TO_V, L_TO_L)
 TWIN(L_JFC_V, L_JFC_L, flow_l_jfc_v, flow_l_jfc_l, 2 + VCELL + sizeof(Jump), 0, FV)
@@ -330,6 +330,10 @@ XOP(IW_NEG, oper_iw_neg, 2, FX + FK)
 XOP(N_CONV, qrt_conv, 4, FX + FK) /* any integer or float as another: from, to and wrap (qr/qrt.h) */
 XOP(S_JOIN, exec_s_join, 3, FX)     /* n strings joined, one allocation: n */
 XOP(IMPORT, flow_import, 10, 0)   /* ours: a module's code run, once (comp/import.c): module:4 line:4 */
+XOP(I_PAST, flow_i_past, 2, FX)
+XOP(F_PAST, flow_f_past, 2, FX)
+XOP(SF_LD, exec_sf_ld, 6, 0)
+XOP(SF_ST, exec_sf_st, 6, 0)
 #undef XOP
 #endif
 

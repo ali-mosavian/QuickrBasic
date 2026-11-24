@@ -913,7 +913,8 @@ static void cg_field(Code *const c, const Node *const n)
     const uint16_t off = field_off(c, rec->off);
 
     if (rec->et == ET_SD) {
-        code_opw(c, O_SF_LD, off);
+        code_xop(c, X_SF_LD);
+        code_word(c, off);
         code_word(c, (uint16_t)rec->fix);
     } else {
         code_opw(c, O_FL_LD, off);

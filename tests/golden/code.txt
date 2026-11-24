@@ -3069,11 +3069,11 @@ bcg/13_bounce.bas 25 e5a28fe0f2da
 bcg/13_bounce.bas 26 7c5f0854e42d
 bcg/13_bounce.bas 27 017d80af730e
 bcg/13_bounce.bas 28 a2be6c458304
-bcg/13_bounce.bas 29 39f733c194b6
+bcg/13_bounce.bas 29 0714ab310130
 bcg/13_bounce.bas 30 0aa01e2c84e4
 bcg/13_bounce.bas 31 575ad857430b
 bcg/13_bounce.bas 32 aa06c82bedc6
-bcg/13_bounce.bas 33 ca1bf34c5473
+bcg/13_bounce.bas 33 07a22372d3f7
 bcg/13_bounce.bas 34 0ac43bd55f8f
 bcg/13_bounce.bas 35 5d07c190c594
 bcg/13_bounce.bas 36 8e46c16aff46
@@ -3117,34 +3117,34 @@ bcg/13_bounce.bas L 20 5271a140ce32
 bcg/13_bounce.bas L 21 b7d866b9766c
 bcg/13_bounce.bas L 22 197fc6b0bde8
 bcg/13_bounce.bas L 23 5a43264ef174
-bcg/13_bounce.bas L 24 b6319bf131e3
+bcg/13_bounce.bas L 24 1920dedb757e
 bcg/13_bounce.bas L 25 7a6925ceebb5
 bcg/13_bounce.bas L 26 b1fe1c720435
 bcg/13_bounce.bas L 27 69ebfe1ebdf3
-bcg/13_bounce.bas L 28 f8d34e14f680
-bcg/13_bounce.bas L 29 7a5bbabae2eb
-bcg/13_bounce.bas L 30 61dcefac2205
-bcg/13_bounce.bas L 31 2ced6a0aee32
-bcg/13_bounce.bas L 32 88a96fb6fbeb
-bcg/13_bounce.bas L 33 7f1ddad2b68c
-bcg/13_bounce.bas L 34 27b78fe52018
-bcg/13_bounce.bas L 35 80681d387083
-bcg/13_bounce.bas L 36 fb96e4411ab7
-bcg/13_bounce.bas L 37 c5d98cee6a52
-bcg/13_bounce.bas L 38 f68802a6bba1
-bcg/13_bounce.bas L 39 bc373c1c82d1
-bcg/13_bounce.bas L 40 bedbd79801d1
-bcg/13_bounce.bas L 41 701990b7f9b4
-bcg/13_bounce.bas L 42 7f3d3722e9fd
-bcg/13_bounce.bas L 43 71d45d81c0e3
-bcg/13_bounce.bas L 44 1705fb2d8eb6
-bcg/13_bounce.bas L 45 bb2958e46a3a
-bcg/13_bounce.bas L 46 e97216addfc3
-bcg/13_bounce.bas L 47 acc1cc7470f1
-bcg/13_bounce.bas L 48 efa92a65abdc
-bcg/13_bounce.bas L 49 57a5ec4201d7
-bcg/13_bounce.bas L 50 7e94d325d58c
-bcg/13_bounce.bas L 51 d577438182ca
+bcg/13_bounce.bas L 28 eca71b7d3192
+bcg/13_bounce.bas L 29 7f808800f8be
+bcg/13_bounce.bas L 30 3c64e02906e4
+bcg/13_bounce.bas L 31 7037a8910454
+bcg/13_bounce.bas L 32 ca31e2e9ca37
+bcg/13_bounce.bas L 33 338a931aedbd
+bcg/13_bounce.bas L 34 d6e2bcda5b52
+bcg/13_bounce.bas L 35 7a5d64d84948
+bcg/13_bounce.bas L 36 a0510227ca26
+bcg/13_bounce.bas L 37 1b372d52eb87
+bcg/13_bounce.bas L 38 ec01c8a5c170
+bcg/13_bounce.bas L 39 625b1ce47b27
+bcg/13_bounce.bas L 40 9b2ce9a4b3e0
+bcg/13_bounce.bas L 41 aceb186de665
+bcg/13_bounce.bas L 42 d9693c59d2a8
+bcg/13_bounce.bas L 43 2651e85fafe4
+bcg/13_bounce.bas L 44 560564bf7929
+bcg/13_bounce.bas L 45 e8d5e6d58834
+bcg/13_bounce.bas L 46 d887d530d306
+bcg/13_bounce.bas L 47 c6cb80a01001
+bcg/13_bounce.bas L 48 607c235175c6
+bcg/13_bounce.bas L 49 1c4d3f9f0880
+bcg/13_bounce.bas L 50 dd5b18567bde
+bcg/13_bounce.bas L 51 9e3d225f5857
 bcg/13_bounce.bas L 52 374c712e14f9
 bcg/14_bowling.bas 0 e6af897e6e16
 bcg/14_bowling.bas 1 c5ed1de67878
@@ -7130,7 +7130,7 @@ bcg/32_diamond.bas 4 1da1d99e1c48
 bcg/32_diamond.bas 5 ebd2ef449b3b
 bcg/32_diamond.bas 6 f430ddda4188
 bcg/32_diamond.bas 7 249cbb3b6939
-bcg/32_diamond.bas 8 1d29ebf73319
+bcg/32_diamond.bas 8 d945df06d3f3
 bcg/32_diamond.bas 9 536c536c0108
 bcg/32_diamond.bas 10 d6c7950188b5
 bcg/32_diamond.bas 11 9f28ad4c12dc
@@ -7143,7 +7143,7 @@ bcg/32_diamond.bas 17 00041c9e5e63
 bcg/32_diamond.bas 18 6e9578c7aa50
 bcg/32_diamond.bas 19 6955a68274ed
 bcg/32_diamond.bas 20 36dd093fed99
-bcg/32_diamond.bas 21 67150306dcab
+bcg/32_diamond.bas 21 fc7550741671
 bcg/32_diamond.bas 22 fa53fa1761a4
 bcg/32_diamond.bas 23 d935caa2d9f2
 bcg/32_diamond.bas 24 d0b0cdb621ea
@@ -7155,26 +7155,26 @@ bcg/32_diamond.bas L 2 2cb1387f68e7
 bcg/32_diamond.bas L 3 a5dc8edb4265
 bcg/32_diamond.bas L 4 cdaef51ec606
 bcg/32_diamond.bas L 5 d63fffe77324
-bcg/32_diamond.bas L 6 a40f75e14afb
+bcg/32_diamond.bas L 6 cf807237aea5
 bcg/32_diamond.bas L 7 f54310dd75bf
-bcg/32_diamond.bas L 8 a0e65133bf4e
-bcg/32_diamond.bas L 9 34770b90c573
-bcg/32_diamond.bas L 10 a094fd262cf0
-bcg/32_diamond.bas L 11 3d95825d37a1
-bcg/32_diamond.bas L 12 ce149106aaff
-bcg/32_diamond.bas L 13 1678832689ae
-bcg/32_diamond.bas L 14 be51dcb68ee0
-bcg/32_diamond.bas L 15 4110587fcc52
-bcg/32_diamond.bas L 16 b9822a0979af
-bcg/32_diamond.bas L 17 e1afaf73eb1d
-bcg/32_diamond.bas L 18 548e3bdeb8bb
-bcg/32_diamond.bas L 19 531c2f191990
-bcg/32_diamond.bas L 20 e6fef91fb4e8
-bcg/32_diamond.bas L 21 36a755d5d3aa
-bcg/32_diamond.bas L 22 992394bbd931
-bcg/32_diamond.bas L 23 323dc0143c7e
-bcg/32_diamond.bas L 24 99361531bf60
-bcg/32_diamond.bas L 25 3882a0474d0c
+bcg/32_diamond.bas L 8 ff552a4fa662
+bcg/32_diamond.bas L 9 5b05378c6117
+bcg/32_diamond.bas L 10 fd5db41a028e
+bcg/32_diamond.bas L 11 bafe3fea9d3c
+bcg/32_diamond.bas L 12 cfab94474d6f
+bcg/32_diamond.bas L 13 89c901c4feda
+bcg/32_diamond.bas L 14 673110ab09a7
+bcg/32_diamond.bas L 15 27ee88577037
+bcg/32_diamond.bas L 16 fb1d8f5a7c54
+bcg/32_diamond.bas L 17 df7650e1fc79
+bcg/32_diamond.bas L 18 2aa5a841f93d
+bcg/32_diamond.bas L 19 a84abff0f26a
+bcg/32_diamond.bas L 20 98d38e353f2a
+bcg/32_diamond.bas L 21 b3fc3eb0a538
+bcg/32_diamond.bas L 22 d4067b1d1a8b
+bcg/32_diamond.bas L 23 ee765d85b717
+bcg/32_diamond.bas L 24 469be36dc98a
+bcg/32_diamond.bas L 25 95fdde84e4d3
 bcg/32_diamond.bas L 26 374c712e14f9
 bcg/33_dice.bas 0 e6af897e6e16
 bcg/33_dice.bas 1 c5ed1de67878
@@ -18938,19 +18938,19 @@ bcg/81_splat.bas 49 1664f5841c35
 bcg/81_splat.bas 50 36dd093fed99
 bcg/81_splat.bas 51 7a57eb21184c
 bcg/81_splat.bas 52 6ee6331662d1
-bcg/81_splat.bas 53 d4fec2d0dbdc
+bcg/81_splat.bas 53 e154feb1e503
 bcg/81_splat.bas 54 b1e82dc3edfd
 bcg/81_splat.bas 55 28ddf4b35a4a
 bcg/81_splat.bas 56 14d499240ed6
 bcg/81_splat.bas 57 1655befac680
-bcg/81_splat.bas 58 90bdd16c8d69
+bcg/81_splat.bas 58 c041ae57425d
 bcg/81_splat.bas 59 5fdd41a565e0
 bcg/81_splat.bas 60 f704582a9258
-bcg/81_splat.bas 61 5e1c5bf25b83
+bcg/81_splat.bas 61 83104576e4ea
 bcg/81_splat.bas 62 9326f869f326
 bcg/81_splat.bas 63 f76febd5b0d8
 bcg/81_splat.bas 64 1655befac680
-bcg/81_splat.bas 65 c0c78f28c4c6
+bcg/81_splat.bas 65 ff7ca05dd891
 bcg/81_splat.bas 66 ef06a2937c34
 bcg/81_splat.bas 67 1feae6540808
 bcg/81_splat.bas 68 97b02cd07689
@@ -19067,80 +19067,80 @@ bcg/81_splat.bas L 49 e013fa88c2c3
 bcg/81_splat.bas L 50 7d9e4e146de9
 bcg/81_splat.bas L 51 7ac41458e3d9
 bcg/81_splat.bas L 52 2fb875217201
-bcg/81_splat.bas L 53 d17e5641b9c3
-bcg/81_splat.bas L 54 2e35f3c5fceb
-bcg/81_splat.bas L 55 4fef447b2fa3
-bcg/81_splat.bas L 56 4198fe3d7141
-bcg/81_splat.bas L 57 09e0f6e50904
-bcg/81_splat.bas L 58 93a5bb34f9ac
-bcg/81_splat.bas L 59 7d9496855960
-bcg/81_splat.bas L 60 e6f6a89875b8
-bcg/81_splat.bas L 61 403ed3e1f469
-bcg/81_splat.bas L 62 e4f7ab4c332a
-bcg/81_splat.bas L 63 83fe85a664f6
-bcg/81_splat.bas L 64 ebc6c01f95a0
-bcg/81_splat.bas L 65 e86c52e3154e
-bcg/81_splat.bas L 66 fa315f7e5cb1
-bcg/81_splat.bas L 67 13edced6bcfc
-bcg/81_splat.bas L 68 90dba022d600
-bcg/81_splat.bas L 69 4bf62ff7003b
-bcg/81_splat.bas L 70 b0ee10d6aa64
-bcg/81_splat.bas L 71 11ce81527451
-bcg/81_splat.bas L 72 6209aa96b5b4
-bcg/81_splat.bas L 73 393c02513043
-bcg/81_splat.bas L 74 78dbfc59653d
-bcg/81_splat.bas L 75 864d6b6a5d8f
-bcg/81_splat.bas L 76 c9c7cacc4d13
-bcg/81_splat.bas L 77 38471dd5d099
-bcg/81_splat.bas L 78 fca73523f760
-bcg/81_splat.bas L 79 bbe770130d6f
-bcg/81_splat.bas L 80 0bbc864a8f7b
-bcg/81_splat.bas L 81 7a43b5ace8d8
-bcg/81_splat.bas L 82 f3c8cac632b3
-bcg/81_splat.bas L 83 e2ba9c9c986c
-bcg/81_splat.bas L 84 ec3d23672a98
-bcg/81_splat.bas L 85 1e32145e926b
-bcg/81_splat.bas L 86 b448327321f1
-bcg/81_splat.bas L 87 d5f0a42b25ba
-bcg/81_splat.bas L 88 3c552e0c89d7
-bcg/81_splat.bas L 89 0823d04f739a
-bcg/81_splat.bas L 90 6b47d139f5fa
-bcg/81_splat.bas L 91 9b6c925e72fd
-bcg/81_splat.bas L 92 a25fa4b86009
-bcg/81_splat.bas L 93 5a90cba42f0a
-bcg/81_splat.bas L 94 0f1ac41e41d5
-bcg/81_splat.bas L 95 e9d527f45918
-bcg/81_splat.bas L 96 686e75d02643
-bcg/81_splat.bas L 97 d984f346ce26
-bcg/81_splat.bas L 98 9a8a9159fc8c
-bcg/81_splat.bas L 99 1785746c2446
-bcg/81_splat.bas L 100 53b3ebd37f9a
-bcg/81_splat.bas L 101 795b309e04bc
-bcg/81_splat.bas L 102 259169a611bc
-bcg/81_splat.bas L 103 990443edb7ff
-bcg/81_splat.bas L 104 08a552936b2b
-bcg/81_splat.bas L 105 f58efeb4c9df
-bcg/81_splat.bas L 106 9787fff53879
-bcg/81_splat.bas L 107 9b9b9c9800c7
-bcg/81_splat.bas L 108 9461f94e081c
-bcg/81_splat.bas L 109 6ae0e411c6e3
-bcg/81_splat.bas L 110 4f0ebf7724fe
-bcg/81_splat.bas L 111 ef35530a2e69
-bcg/81_splat.bas L 112 c9917ee6f450
-bcg/81_splat.bas L 113 8a929784ef32
-bcg/81_splat.bas L 114 ec0141c98ac7
-bcg/81_splat.bas L 115 48a0009b5154
-bcg/81_splat.bas L 116 33d7d44db06b
-bcg/81_splat.bas L 117 6cc01d442719
-bcg/81_splat.bas L 118 8e12516ceeec
-bcg/81_splat.bas L 119 e971b8535442
-bcg/81_splat.bas L 120 b931e61313f9
-bcg/81_splat.bas L 121 38dbad24d0a5
-bcg/81_splat.bas L 122 b198f3afacfe
-bcg/81_splat.bas L 123 94b2077b8448
-bcg/81_splat.bas L 124 b548e8dd1042
-bcg/81_splat.bas L 125 f1364ae0f75d
-bcg/81_splat.bas L 126 e780e6b16d7f
+bcg/81_splat.bas L 53 4d561e1c745c
+bcg/81_splat.bas L 54 d1bc7c240b86
+bcg/81_splat.bas L 55 1dad386a3a5c
+bcg/81_splat.bas L 56 efde85f1fbbc
+bcg/81_splat.bas L 57 0b4096b11f2c
+bcg/81_splat.bas L 58 ac148506bb6f
+bcg/81_splat.bas L 59 3f5ab722eb9e
+bcg/81_splat.bas L 60 d11225ac5652
+bcg/81_splat.bas L 61 336b55e37917
+bcg/81_splat.bas L 62 d5be893e7dca
+bcg/81_splat.bas L 63 c4fa7cac7900
+bcg/81_splat.bas L 64 456646343397
+bcg/81_splat.bas L 65 a1923adf298f
+bcg/81_splat.bas L 66 0fa823e695e0
+bcg/81_splat.bas L 67 b53f9aff362c
+bcg/81_splat.bas L 68 190e70232894
+bcg/81_splat.bas L 69 bc303c97f4e4
+bcg/81_splat.bas L 70 f7c91f527be0
+bcg/81_splat.bas L 71 d1ac91e127cd
+bcg/81_splat.bas L 72 8c700caaa8f2
+bcg/81_splat.bas L 73 a485812549b7
+bcg/81_splat.bas L 74 f8b3195d597f
+bcg/81_splat.bas L 75 8d31d08bc214
+bcg/81_splat.bas L 76 96789a87bc82
+bcg/81_splat.bas L 77 5457e5975119
+bcg/81_splat.bas L 78 079ab61576c8
+bcg/81_splat.bas L 79 da3dfd88b4f7
+bcg/81_splat.bas L 80 23af9dc37f43
+bcg/81_splat.bas L 81 f92842d8740f
+bcg/81_splat.bas L 82 36991f54001b
+bcg/81_splat.bas L 83 9dd3b43ced2a
+bcg/81_splat.bas L 84 dd9fb3e8c180
+bcg/81_splat.bas L 85 337741bec19f
+bcg/81_splat.bas L 86 272abde70124
+bcg/81_splat.bas L 87 13bc9ba58216
+bcg/81_splat.bas L 88 f84571c38cb3
+bcg/81_splat.bas L 89 3dff5bfe9b18
+bcg/81_splat.bas L 90 53742a98fecb
+bcg/81_splat.bas L 91 b7abe6132e7c
+bcg/81_splat.bas L 92 4c5c16ee58c7
+bcg/81_splat.bas L 93 e3fded6fb94f
+bcg/81_splat.bas L 94 d9ee32bd7938
+bcg/81_splat.bas L 95 a707e1dddde2
+bcg/81_splat.bas L 96 62f8ca8150e7
+bcg/81_splat.bas L 97 ee001c8e14d8
+bcg/81_splat.bas L 98 2c95f7a616cd
+bcg/81_splat.bas L 99 b61980002b3c
+bcg/81_splat.bas L 100 bc56e9e98f89
+bcg/81_splat.bas L 101 4c1164bd7be9
+bcg/81_splat.bas L 102 3d7cbd70cc20
+bcg/81_splat.bas L 103 2ad490b4b302
+bcg/81_splat.bas L 104 7adf11ed46e5
+bcg/81_splat.bas L 105 e18e74eb2d9a
+bcg/81_splat.bas L 106 6b59b4918481
+bcg/81_splat.bas L 107 5ec6f595cd90
+bcg/81_splat.bas L 108 49d4517280ff
+bcg/81_splat.bas L 109 40b06646068d
+bcg/81_splat.bas L 110 0e35218553ee
+bcg/81_splat.bas L 111 73ef49090ea4
+bcg/81_splat.bas L 112 af0ae764e40c
+bcg/81_splat.bas L 113 88cdb77a28b0
+bcg/81_splat.bas L 114 e8f0f5f25301
+bcg/81_splat.bas L 115 b64555bc41f7
+bcg/81_splat.bas L 116 066aebcc8b58
+bcg/81_splat.bas L 117 c01711a2dbd1
+bcg/81_splat.bas L 118 8dcff1749586
+bcg/81_splat.bas L 119 8a3caea7430d
+bcg/81_splat.bas L 120 76b12b9897b4
+bcg/81_splat.bas L 121 118417f86f24
+bcg/81_splat.bas L 122 ee2fbfe8f9c0
+bcg/81_splat.bas L 123 a03953275e2b
+bcg/81_splat.bas L 124 ee3c3ddeb338
+bcg/81_splat.bas L 125 60d05cabc7d6
+bcg/81_splat.bas L 126 27a91aa47f49
 bcg/81_splat.bas L 127 374c712e14f9
 bcg/82_stars.bas 0 5bb9699fbe69
 bcg/82_stars.bas 1 432c0833205a
@@ -21304,9 +21304,9 @@ bcg/88_qubit.bas 236 2375e6647f8e
 bcg/88_qubit.bas 237 87303d69acf5
 bcg/88_qubit.bas 238 328ed7fe3fd6
 bcg/88_qubit.bas 239 58e560e8299d
-bcg/88_qubit.bas 240 3ee3a3a1d47a
+bcg/88_qubit.bas 240 17a734fb7dcf
 bcg/88_qubit.bas 241 d429713eb82e
-bcg/88_qubit.bas 242 ffe2a59c8e6a
+bcg/88_qubit.bas 242 4a0552fe4cab
 bcg/88_qubit.bas 243 4a9815327686
 bcg/88_qubit.bas 244 d8c9d726dd10
 bcg/88_qubit.bas 245 b11dae9afa08
@@ -21585,46 +21585,46 @@ bcg/88_qubit.bas L 236 96f6409a711d
 bcg/88_qubit.bas L 237 def4b90d2905
 bcg/88_qubit.bas L 238 d9e2073c70b9
 bcg/88_qubit.bas L 239 f5e5740c92f4
-bcg/88_qubit.bas L 240 28735927ae49
-bcg/88_qubit.bas L 241 3bddfeed599f
-bcg/88_qubit.bas L 242 6c5eb98a018a
-bcg/88_qubit.bas L 243 023e6a313741
-bcg/88_qubit.bas L 244 3356d1951cf9
-bcg/88_qubit.bas L 245 8f26662cfe43
-bcg/88_qubit.bas L 246 ca05b29a60d9
-bcg/88_qubit.bas L 247 9d0c382c746e
-bcg/88_qubit.bas L 248 3e4fdcf47328
-bcg/88_qubit.bas L 249 182fc228da95
-bcg/88_qubit.bas L 250 3cead0e487a6
-bcg/88_qubit.bas L 251 9bfbb261ba8e
-bcg/88_qubit.bas L 252 49a3a03e3590
-bcg/88_qubit.bas L 253 d24b2cd6fc21
-bcg/88_qubit.bas L 254 66557aad046f
-bcg/88_qubit.bas L 255 f0813ef6920e
-bcg/88_qubit.bas L 256 1b08e35a4234
-bcg/88_qubit.bas L 257 52df4f119c09
-bcg/88_qubit.bas L 258 2c4bdfe6a6e7
-bcg/88_qubit.bas L 259 78a356a44cc5
-bcg/88_qubit.bas L 260 5e7fd8a9efa5
-bcg/88_qubit.bas L 261 6f155753c3dc
-bcg/88_qubit.bas L 262 928c839f4deb
-bcg/88_qubit.bas L 263 93b5f2dab833
-bcg/88_qubit.bas L 264 3dd3ad3d91cc
-bcg/88_qubit.bas L 265 a5f34d1d5361
-bcg/88_qubit.bas L 266 db3f50b0b11c
-bcg/88_qubit.bas L 267 3b67a209c3a4
-bcg/88_qubit.bas L 268 8a66223f0bf6
-bcg/88_qubit.bas L 269 819ca4336c61
-bcg/88_qubit.bas L 270 b32a9f8fb8b6
-bcg/88_qubit.bas L 271 888d666c5495
-bcg/88_qubit.bas L 272 78b7991cb8d4
-bcg/88_qubit.bas L 273 b798bade111a
-bcg/88_qubit.bas L 274 0ed240b69834
-bcg/88_qubit.bas L 275 cb80a2f25c4b
-bcg/88_qubit.bas L 276 b51168c6535c
-bcg/88_qubit.bas L 277 0eafeb9b567e
-bcg/88_qubit.bas L 278 ca5d4e3955b9
-bcg/88_qubit.bas L 279 22b4e8589b3e
+bcg/88_qubit.bas L 240 d3da649d7d05
+bcg/88_qubit.bas L 241 6066ae83fb9b
+bcg/88_qubit.bas L 242 8f0499ccad91
+bcg/88_qubit.bas L 243 5e570d07ff37
+bcg/88_qubit.bas L 244 57ee5e5ebe9c
+bcg/88_qubit.bas L 245 b31f9e564cb9
+bcg/88_qubit.bas L 246 2ca16025daea
+bcg/88_qubit.bas L 247 30ce414cdbb8
+bcg/88_qubit.bas L 248 955fb0fe4b01
+bcg/88_qubit.bas L 249 9f53f564badc
+bcg/88_qubit.bas L 250 37eeda2f6a3c
+bcg/88_qubit.bas L 251 b4fb18303935
+bcg/88_qubit.bas L 252 ec4b08f39f98
+bcg/88_qubit.bas L 253 fd388968eec9
+bcg/88_qubit.bas L 254 2db3cb35701e
+bcg/88_qubit.bas L 255 73f9d81f3e92
+bcg/88_qubit.bas L 256 6021136129f3
+bcg/88_qubit.bas L 257 9f748b72238f
+bcg/88_qubit.bas L 258 b0fc0c045532
+bcg/88_qubit.bas L 259 cf58b34906aa
+bcg/88_qubit.bas L 260 87f1cb42eeeb
+bcg/88_qubit.bas L 261 59dfea8f8cc3
+bcg/88_qubit.bas L 262 7baf66ee7646
+bcg/88_qubit.bas L 263 2b9718b6bc82
+bcg/88_qubit.bas L 264 7ff90e70b7ca
+bcg/88_qubit.bas L 265 8a44578e4668
+bcg/88_qubit.bas L 266 53a9c3959c20
+bcg/88_qubit.bas L 267 64fd5ac3d0b8
+bcg/88_qubit.bas L 268 898a834ce4b4
+bcg/88_qubit.bas L 269 2b47361e9b08
+bcg/88_qubit.bas L 270 abaaae4b87e1
+bcg/88_qubit.bas L 271 a3f6b08e209f
+bcg/88_qubit.bas L 272 de1f422d3133
+bcg/88_qubit.bas L 273 74d3a1518998
+bcg/88_qubit.bas L 274 3d2c60d4ed1d
+bcg/88_qubit.bas L 275 ce7975f05820
+bcg/88_qubit.bas L 276 d04405bc524c
+bcg/88_qubit.bas L 277 ae2b4422b3a4
+bcg/88_qubit.bas L 278 cf8a35f2e9f1
+bcg/88_qubit.bas L 279 fa0b2635632b
 bcg/88_qubit.bas L 280 374c712e14f9
 bcg/89_tictactoe1.bas 0 7a30cd32decc
 bcg/89_tictactoe1.bas 1 7cddcc2b36af
@@ -26884,16 +26884,16 @@ qb/nestud.bas 14 fb96549631c8
 qb/nestud.bas 15 fb96549631c8
 qb/nestud.bas 16 a23c5fff806f
 qb/nestud.bas 17 72ca4d16b115
-qb/nestud.bas 18 a4fb15e2be13
+qb/nestud.bas 18 f32abfeda436
 qb/nestud.bas 19 79c2d523baec
-qb/nestud.bas 20 6225a3a7571e
+qb/nestud.bas 20 c2a62a40ded7
 qb/nestud.bas 21 c78dc02a8f99
-qb/nestud.bas 22 83e4a65067cc
+qb/nestud.bas 22 18709f53701c
 qb/nestud.bas 23 e8b95b3c70c6
-qb/nestud.bas 24 3d62d51ba7ec
+qb/nestud.bas 24 7b28e5a7445f
 qb/nestud.bas 25 8ac8ef528b0a
-qb/nestud.bas 26 0696ff22c785
-qb/nestud.bas 27 71a8ea2a9b00
+qb/nestud.bas 26 3399407b867e
+qb/nestud.bas 27 019bbe1f5aa3
 qb/nestud.bas 28 707824e60d06
 qb/nestud.bas 29 fb96549631c8
 qb/nestud.bas 30 d473b0e51058
@@ -26903,16 +26903,16 @@ qb/nestud.bas 33 73d2552bdfc9
 qb/nestud.bas 34 fb96549631c8
 qb/nestud.bas 35 5f6f08df2403
 qb/nestud.bas 36 0b0ee26526e1
-qb/nestud.bas 37 6e7c55da668d
+qb/nestud.bas 37 ae21a1ca0b4d
 qb/nestud.bas 38 f152115dad96
-qb/nestud.bas 39 f34702d547b2
+qb/nestud.bas 39 e2d68f6d3216
 qb/nestud.bas 40 ed0e466b4b6e
-qb/nestud.bas 41 0f68d9ad7c17
+qb/nestud.bas 41 9418941eb4ea
 qb/nestud.bas 42 752a2c3265a3
-qb/nestud.bas 43 58e1435209d3
+qb/nestud.bas 43 912ea0a27ff8
 qb/nestud.bas 44 73b3c6b8340a
-qb/nestud.bas 45 3ec1918c2090
-qb/nestud.bas 46 afb6de391c73
+qb/nestud.bas 45 530bc6b73032
+qb/nestud.bas 46 377fb0c09c99
 qb/nestud.bas 47 647994ba53e8
 qb/nestud.bas L 0 6ea7999a3370
 qb/nestud.bas L 1 9f71730e59b0
@@ -26932,35 +26932,35 @@ qb/nestud.bas L 14 7fbfe71c3887
 qb/nestud.bas L 15 b035929c91f7
 qb/nestud.bas L 16 1088efa2b916
 qb/nestud.bas L 17 300571774aac
-qb/nestud.bas L 18 802e7d9eb6bf
-qb/nestud.bas L 19 fa8bd162f727
-qb/nestud.bas L 20 d99dd4abc1c7
-qb/nestud.bas L 21 ec4941869ecc
-qb/nestud.bas L 22 b891d6eee54b
-qb/nestud.bas L 23 7e3a846e2495
-qb/nestud.bas L 24 ce5cc26ab9d3
-qb/nestud.bas L 25 cd89ccb47d5b
-qb/nestud.bas L 26 37a76362d4ae
-qb/nestud.bas L 27 01bd6ab0a94d
-qb/nestud.bas L 28 ee15bbccbff0
-qb/nestud.bas L 29 0f7c92ea8aaa
-qb/nestud.bas L 30 168d2e13083a
-qb/nestud.bas L 31 e8ea2d4f67d0
-qb/nestud.bas L 32 a2e80658876e
-qb/nestud.bas L 33 d50dd3f35491
-qb/nestud.bas L 34 3555e10345d4
-qb/nestud.bas L 35 9cc7945ca985
-qb/nestud.bas L 36 6c3f08303855
-qb/nestud.bas L 37 4e954850b29f
-qb/nestud.bas L 38 26f4afa305e6
-qb/nestud.bas L 39 ea83bb9bbe2c
-qb/nestud.bas L 40 c3995e32a17c
-qb/nestud.bas L 41 c2bc0d7d2663
-qb/nestud.bas L 42 fd4f20c0e004
-qb/nestud.bas L 43 4307e9255a48
-qb/nestud.bas L 44 ca2cf779964b
-qb/nestud.bas L 45 f00a47094601
-qb/nestud.bas L 46 e018fa839492
+qb/nestud.bas L 18 7d05cf8c7166
+qb/nestud.bas L 19 26e46fc45175
+qb/nestud.bas L 20 7157b0c84748
+qb/nestud.bas L 21 007be423e67d
+qb/nestud.bas L 22 7c9c96894536
+qb/nestud.bas L 23 4e1853148432
+qb/nestud.bas L 24 9691d98f2745
+qb/nestud.bas L 25 6717ba12ee5b
+qb/nestud.bas L 26 c882a6d67382
+qb/nestud.bas L 27 478b1884f69c
+qb/nestud.bas L 28 651b18d40527
+qb/nestud.bas L 29 8e1a0d778343
+qb/nestud.bas L 30 a840deac8988
+qb/nestud.bas L 31 29e814b472aa
+qb/nestud.bas L 32 466ea8cd8d5f
+qb/nestud.bas L 33 361729570567
+qb/nestud.bas L 34 dc07b5ff9845
+qb/nestud.bas L 35 811a9380a4e4
+qb/nestud.bas L 36 96ceb07000a2
+qb/nestud.bas L 37 0724228f3792
+qb/nestud.bas L 38 4c1028f2407f
+qb/nestud.bas L 39 ffb62abfdc37
+qb/nestud.bas L 40 10abef8b13d6
+qb/nestud.bas L 41 610bb7904f7d
+qb/nestud.bas L 42 fc02bf3f97d6
+qb/nestud.bas L 43 521a0fce0fb7
+qb/nestud.bas L 44 3d3b56b1802a
+qb/nestud.bas L 45 2c3c807f0e82
+qb/nestud.bas L 46 28185f70ceeb
 qb/nestud.bas L 47 ba9704144144
 qb/nots.bas 0 fb96549631c8
 qb/nots.bas 1 fb96549631c8
@@ -30016,7 +30016,7 @@ stmts/s157.bas 3 fb96549631c8
 stmts/s157.bas 4 fb96549631c8
 stmts/s157.bas 5 fb96549631c8
 stmts/s157.bas 6 a04b2e6e6204
-stmts/s157.bas 7 8f9348f609ac
+stmts/s157.bas 7 49805bafda32
 stmts/s157.bas 8 e4f38f379b69
 stmts/s157.bas 9 f2ad7e92b16e
 stmts/s157.bas 10 20f20cbc6388
@@ -30024,7 +30024,7 @@ stmts/s157.bas 11 05b6a246fda6
 stmts/s157.bas 12 c957b4458604
 stmts/s157.bas 13 33d609d9a6db
 stmts/s157.bas 14 317b7327162c
-stmts/s157.bas 15 0af24cc594a6
+stmts/s157.bas 15 510d468d143a
 stmts/s157.bas L error 17ba0791499d
 stmts/s157.bas L 0 5678334b99cf
 stmts/s157.bas L 1 e1e54147b71e
@@ -30033,15 +30033,15 @@ stmts/s157.bas L 3 98fa7e16f9b6
 stmts/s157.bas L 4 161e4875b4c4
 stmts/s157.bas L 5 18dc7ff28c6f
 stmts/s157.bas L 6 ced4964bb5ff
-stmts/s157.bas L 7 b178af439264
-stmts/s157.bas L 8 605f675f558c
-stmts/s157.bas L 9 af7131f94944
-stmts/s157.bas L 10 7f5b5a946b65
-stmts/s157.bas L 11 f44e7172c772
-stmts/s157.bas L 12 77f29bade143
-stmts/s157.bas L 13 7dcd3e9d6adf
-stmts/s157.bas L 14 a23b37683fb8
-stmts/s157.bas L 15 2f4868a75b0f
+stmts/s157.bas L 7 0725862fbbbf
+stmts/s157.bas L 8 3f4c4e653d48
+stmts/s157.bas L 9 fb12f8a0578b
+stmts/s157.bas L 10 c4d1a6475034
+stmts/s157.bas L 11 47f17d76ce78
+stmts/s157.bas L 12 063b9640a44f
+stmts/s157.bas L 13 9885500fc429
+stmts/s157.bas L 14 badee61ff408
+stmts/s157.bas L 15 333ed247451b
 stmts/s158.bas 0 fb96549631c8
 stmts/s158.bas 1 875a2f1adcaa
 stmts/s158.bas 2 c3e49b7f0ba2

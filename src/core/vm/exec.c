@@ -266,32 +266,6 @@ static inline bool ra_addr1(Regs *const r, const Arry *const ar)
     return true;
 }
 
-/* Does x fit narrow type's range? */
-static inline bool narrow_fits(const uint8_t type, const Cell x)
-{
-    switch (type) {
-    case ET_SH:
-        return x.i == (int16_t)x.i;
-
-    case ET_US:
-        return x.u <= UINT16_MAX;
-
-    case ET_SB:
-        return x.i == (int8_t)x.i;
-
-    default:
-        return x.u <= UINT8_MAX;
-    }
-}
-
-static inline void narrow_wr(const Addr a, const uint8_t type, const Cell x)
-{
-    if (type == ET_SH || type == ET_US)
-        wr16(a, (uint16_t)x.u);
-    else
-        wr8(a, (uint8_t)x.u);
-}
-
 /* FL.LD ( a -- x ) and FL.ST ( a x -- ) of a field not a DOUBLE, a store in range; false: the
    handler's. */
 static inline bool fl_ld(Regs *const r)
@@ -427,6 +401,13 @@ static inline bool r_addr(Regs *const r)
     X(l_to_v, oper_l_to_v, 2 + VCELL)                                                              \
     X(l_to_l, oper_l_to_l, 2 + VCELL)
 
+/* The ops on a narrow field of a record in cells, a store's may fail: name, handler, size. */
+#define HOT_NARROWS(X)                                                                             \
+    X(n_ld_v, exec_n_ld_v, 2 + VCELL)                                                              \
+    X(n_ld_l, exec_n_ld_l, 2 + VCELL)                                                              \
+    X(n_st_v, exec_n_st_v, 2 + VCELL)                                                              \
+    X(n_st_l, exec_n_st_l, 2 + VCELL)
+
 /* f_ld_f32's and f_st_v's run as i_ld_i32's and i_st_v's. */
 static inline Status hot_f_st_v(Regs *const r) { return hot_i_st_v(r); }
 static inline Status hot_f_st_l(Regs *const r) { return hot_i_st_l(r); }
@@ -451,7 +432,8 @@ static inline Status hot_f_ld_f32(Regs *const r) { return hot_i_ld_i32(r); }
     HOT_INT_STS(HOT_INT_ST_EACH)                                                                   \
     HOT_FAILS(HOT_FAIL_EACH)                                                                       \
     HOT_LONGS(HOT_LONG_EACH)                                                                       \
-    HOT_LTOS(HOT_EACH)
+    HOT_LTOS(HOT_EACH)                                                                             \
+    HOT_NARROWS(HOT_EACH)
 
 /* A CMPIF, an IF: true, on; false, the line ends (flow_nextln) unless it is the program's last or
    the direct line: then the op's handler, which nothing here has changed. */
@@ -1352,6 +1334,11 @@ void exec_fl_st(Session *const S)
     else
         wr32(a, x.u);
 }
+
+void exec_n_ld_v(Session *const S) { hot_op(S, hot_n_ld_v); }
+void exec_n_ld_l(Session *const S) { hot_op(S, hot_n_ld_l); }
+void exec_n_st_v(Session *const S) { hot_op(S, hot_n_st_v); }
+void exec_n_st_l(Session *const S) { hot_op(S, hot_n_st_l); }
 
 /* N.LD.A id cell n et: a narrow array's element. */
 void exec_n_ld_a(Session *const S)

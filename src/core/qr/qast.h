@@ -282,8 +282,8 @@ typedef struct {
     bool deep;     /* qlink's: its TYPE holds strings or lists (comp/declare.h decl_dynamic) */
     uint32_t td;   /* its TYPE (comp/declare.h), qlink's */
     uint32_t size; /* its TYPE's bytes, qlink's */
-    uint8_t *word; /* qlink's: by offset in its first QAST_WORDS bytes, the number + 1 of the field
-                      of 4 or 8 bytes there, a held record's too (a word); 0 none */
+    uint8_t *word; /* qlink's: by offset in its first QAST_WORDS bytes, the number + 1 of the
+                      number field there, a held record's too (a word); 0 none */
     uint32_t nwords;
     QFn *gen;      /* a kept generator's state's: its resumable instance */
     QFn *opers;    /* a record's fn operators, by QFn.opnext */

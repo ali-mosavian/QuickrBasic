@@ -555,6 +555,58 @@ static inline int32_t narrow_ld(const Addr a, const uint8_t type)
     }
 }
 
+/* Does x fit narrow type's range? */
+static inline bool narrow_fits(const uint8_t type, const Cell x)
+{
+    switch (type) {
+    case ET_SH:
+        return x.i == (int16_t)x.i;
+
+    case ET_US:
+        return x.u <= UINT16_MAX;
+
+    case ET_SB:
+        return x.i == (int8_t)x.i;
+
+    default:
+        return x.u <= UINT8_MAX;
+    }
+}
+
+static inline void narrow_wr(const Addr a, const uint8_t type, const Cell x)
+{
+    if (type == ET_SH || type == ET_US)
+        wr16(a, (uint16_t)x.u);
+    else
+        wr8(a, (uint8_t)x.u);
+}
+
+/* N.LD ( -- x ) and N.ST ( x -- ) cell et: a narrow field of a record in cells. Overflow: x past
+   its range, nothing stored. */
+static inline Status hot_n_ld(Regs *const r, const bool local)
+{
+    const Addr cell = hot_cell(r, local);
+    (--r->sp)->i = narrow_ld(cell, hot_u8(r));
+    return ST_OK;
+}
+
+static inline Status hot_n_st(Regs *const r, const bool local)
+{
+    const Addr cell = hot_cell(r, local);
+    const uint8_t type = hot_u8(r);
+
+    if (!narrow_fits(type, *r->sp))
+        return E_OV;
+
+    narrow_wr(cell, type, *r->sp++);
+    return ST_OK;
+}
+
+static inline Status hot_n_ld_v(Regs *const r) { return hot_n_ld(r, false); }
+static inline Status hot_n_ld_l(Regs *const r) { return hot_n_ld(r, true); }
+static inline Status hot_n_st_v(Regs *const r) { return hot_n_st(r, false); }
+static inline Status hot_n_st_l(Regs *const r) { return hot_n_st(r, true); }
+
 /* E.NEXT's other x: i's and x's Locs both a resumable's refs or neither; x a number's cell, a
    narrow one's widened, or a record's size bytes. */
 [[gnu::noinline]]

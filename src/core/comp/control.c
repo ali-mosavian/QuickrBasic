@@ -329,11 +329,11 @@ static void past(Comp *const C, const Loop *const l)
     comp_opid(C, loadop(l), l->step);
 
     if (l->kind == VK_INT)
-        comp_op(C, O_I_PAST);
+        comp_xop(C, X_I_PAST);
     else if (l->kind & SK_DBL)
         comp_xop(C, X_D_PAST);
     else
-        comp_op(C, O_F_PAST);
+        comp_xop(C, X_F_PAST);
 
     comp_value(C, T_INT);
 }
@@ -729,7 +729,7 @@ void ctrl_recstore(Comp *const C)
 
     if (et == ET_SD) {
         comp_tostring(C);
-        Node *const n = comp_op(C, O_SF_ST);
+        Node *const n = comp_xop(C, X_SF_ST);
         comp_word(n, (uint16_t)C->tgt); /* the field's offset */
         comp_word(n, C->ctrl->fieldfix);
         return;

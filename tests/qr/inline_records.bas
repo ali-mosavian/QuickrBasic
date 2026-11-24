@@ -1,7 +1,8 @@
 ' OPTION DIALECT QUICKR
 ' records in cells: a frame's own in each call, a module's, fields
 ' at every offset, copies and borrows by address; fields after a
-' narrow one; a record whose fields are all strings
+' narrow one; a record whose fields are all strings; narrow fields
+' signed and not, a frame's and a module's
 type Inner
     n as int
     b as byte
@@ -83,3 +84,26 @@ let nm = Names(a: "x", b: "y")
 print(walk(10))
 print(od.b, od.n, od.s, od.d, od.l)
 print(nm.a + nm.b)
+
+type Narrow
+    b as byte
+    u as ubyte
+    s as short
+    w as ushort
+    n as int
+end type
+
+fn narrow(k as int) as int
+    var p = Narrow(b: -1, u: 200, s: -300, w: 60000, n: 5)
+    for i in 0..k
+        p.s += 1
+        p.b = -p.b
+        p.n += p.u + p.w
+    end for
+    return p.n + p.s + p.b
+end fn
+
+var nw = Narrow(b: 1, u: 2, s: 3, w: 4, n: 0)
+nw.s -= 10
+nw.u += 250
+print(narrow(10), nw.b, nw.u, nw.s, nw.w)

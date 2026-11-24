@@ -186,7 +186,8 @@ static void qlink_lay(Comp *const C, const QProg *const p, const QType t)
     y->deep = decl_dynamic(td);
 }
 
-/* Record y's words from record of's fields, base bytes into y: each field of 4 or 8 bytes. */
+/* Record y's words from record of's fields, base bytes into y: each number's, while their count
+   fits a byte. */
 static void qlink_wordsof(
     const QProg *const p,
     QTy *const y,
@@ -197,8 +198,6 @@ static void qlink_wordsof(
     for (uint32_t k = 0; k < of->nfields; k++) {
         const QType t = of->fields[k].type;
         const uint32_t off = base + of->fields[k].off;
-        uint32_t et;
-        uint8_t kind;
 
         if (off >= QAST_WORDS || qast_array(p, t) || t == QY_STRING)
             continue;
@@ -209,9 +208,7 @@ static void qlink_wordsof(
             continue;
         }
 
-        qlink_kind(p, t, &et, &kind);
-
-        if (!et_narrow(qast_integer(t) ? qcg_scalar_et(t) : et))
+        if (y->nwords < UINT8_MAX)
             y->word[off] = (uint8_t)++y->nwords;
     }
 }
