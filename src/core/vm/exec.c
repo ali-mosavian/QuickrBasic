@@ -64,6 +64,8 @@
 
 #define OP(name, h, size, fl) void h(Session *S);
 #include "vm/ops.def"
+#define XOP(name, h, size, fl) void h(Session *S);
+#include "vm/ops.def"
 #define K(name, h) void h(Session *S);
 #include "vm/ops.def"
 
@@ -79,12 +81,30 @@ static const uint8_t flags[O_NOPS] = {
 #include "vm/ops.def"
 };
 
+static Handler *const xops[X_NOPS] = {
+#define XOP(name, h, size, fl) h,
+#include "vm/ops.def"
+};
+
+static const uint8_t xflags[X_NOPS] = {
+#define XOP(name, h, size, fl) fl,
+#include "vm/ops.def"
+};
+
 static Handler *const calls[K_N] = {
 #define K(name, h) h,
 #include "vm/ops.def"
 };
 
 uint8_t exec_flags(const uint8_t op) { return flags[op]; }
+
+uint8_t exec_opflags(const uint8_t *const op)
+{
+    return op[0] == O_X ? xflags[op[1]] : flags[op[0]];
+}
+
+/* X: the X op its byte names. */
+void exec_x(Session *const S) { xops[exec_u8(&S->vm)](S); }
 
 void exec_until(Session *const S, const uint8_t *const end)
 {
@@ -386,7 +406,6 @@ static inline bool r_addr(Regs *const r)
     X(i_cmp_u8, oper_i_cmp_u8)                                                                     \
     X(f_ld_u8, oper_f_ld_u8)                                                                       \
     X(f_ld_vi, oper_f_ld_vi)                                                                       \
-    X(f_ld_pi, oper_f_ld_pi)                                                                       \
     X(f_neg, oper_f_neg)                                                                           \
     X(i_not, oper_i_not)                                                                           \
     X(drop, oper_drop)                                                                             \
@@ -406,7 +425,6 @@ static inline bool r_addr(Regs *const r)
     X(d_ld_k, dubl_ldk)                                                                            \
     X(d_neg, dubl_neg)                                                                             \
     X(d_cmp, dubl_cmp)                                                                             \
-    X(d_nz, dubl_nz)                                                                               \
     X(i_tod, dubl_itod)                                                                            \
     X(f_tod, dubl_ftod)                                                                            \
     X(d_tof, dubl_tof)                                                                             \
@@ -418,7 +436,14 @@ static inline bool r_addr(Regs *const r)
     X(f_cmp_l, oper_f_cmp_l)                                                                       \
     X(f_cmp_li, oper_f_cmp_li)                                                                     \
     X(d_ld_l, oper_d_ld_l)                                                                         \
-    X(d_st_l, oper_d_st_l)
+    X(d_st_l, oper_d_st_l)                                                                         \
+    X(i_tol, oper_i_tol)                                                                           \
+    X(l_cmp, oper_l_cmp)
+
+/* The fused LONG stores, which may fail: name, handler, size. */
+#define HOT_LTOS(X)                                                                                \
+    X(l_to_v, oper_l_to_v, 2 + VCELL)                                                              \
+    X(l_to_l, oper_l_to_l, 2 + VCELL)
 
 /* f_ld_f32's and f_st_v's run as i_ld_i32's and i_st_v's. */
 static inline Status hot_f_st_v(Regs *const r) { return hot_i_st_v(r); }
@@ -436,12 +461,15 @@ static inline Status hot_f_ld_f32(Regs *const r) { return hot_i_ld_i32(r); }
 #define HOT_FLT_EACH(name, src, op) HOT_EACH(name, oper_##name, hot_fsize(src))
 #define HOT_INT_ST_EACH(NAME, name, src, op)                                                       \
     HOT_EACH(name##_st, oper_##name##_st, hot_size(src) + 2 * VCELL)
+#define HOT_LONG_EACH(name, src, op) HOT_EACH(name, oper_##name, hot_lsize(src))
 #define HOT_ALL()                                                                                  \
     HOT_OPS(HOT_OP_EACH)                                                                           \
     HOT_INTS(HOT_INT_EACH)                                                                         \
     HOT_FLTS(HOT_FLT_EACH)                                                                         \
     HOT_INT_STS(HOT_INT_ST_EACH)                                                                   \
-    HOT_FAILS(HOT_FAIL_EACH)
+    HOT_FAILS(HOT_FAIL_EACH)                                                                       \
+    HOT_LONGS(HOT_LONG_EACH)                                                                       \
+    HOT_LTOS(HOT_EACH)
 
 /* A CMPIF, an IF: true, on; false, the line ends (flow_nextln) unless it is the program's last or
    the direct line: then the op's handler, which nothing here has changed. */
@@ -465,13 +493,13 @@ static inline Status hot_f_ld_f32(Regs *const r) { return hot_i_ld_i32(r); }
     }                                                                                              \
     goto next;
 
-/* An INT compare-and-branch: its compare true, past it; else JF's jump, a stop and a jump not
-   resolved its handler's. */
-#define JFC_RUN(name, src)                                                                         \
+/* A compare-and-branch: its compare, yes on t, true, past it; else JF's jump, a stop and a jump
+   not resolved its handler's. */
+#define JFC_RUN(name, yes)                                                                         \
     name: {                                                                                        \
         Regs t = {r.ip + 1, r.sp, r.fp};                                                           \
                                                                                                    \
-        if (hot_jfc(&t, src)) {                                                                    \
+        if (yes) {                                                                                 \
             r = (Regs){t.ip + sizeof(Jump), t.sp, t.fp};                                           \
             goto next;                                                                             \
         }                                                                                          \
@@ -495,7 +523,8 @@ typedef struct {
 } HotAt;
 
 /* Each op's label, by its handler's entry in hot (to the null handler's, cold's); EOL.TO's eol_to.
-   A hash of the handlers: comparing each op's against each entry ran 190K instructions a run. */
+   A hash of the handlers: comparing each op's against each entry ran 190K instructions a run. An
+   X op's is cold's: a label of its own, dispatching by its byte, cost QBasic's loops 2 to 5%. */
 static void label_ops(void *at_op[static 256], const HotAt *const hot, void *const eol_to)
 {
     enum { SLOTS = 512 };
@@ -543,7 +572,7 @@ static void exec_loop(Session *const S)
 #define HOT_EACH(name, handler, size) {handler, &&hot_##name},
 #define CMPIF_EACH(name, handler, src, rel) {handler, &&cmpif_##name},
 #define JFC_EACH(name, src) {flow_##name, &&name},
-                HOT_ALL() HOT_CMPIFS(CMPIF_EACH) HOT_JFCS(JFC_EACH)
+                HOT_ALL() HOT_CMPIFS(CMPIF_EACH) HOT_JFCS(JFC_EACH) HOT_LJFCS(JFC_EACH)
 #undef HOT_EACH
 #undef CMPIF_EACH
 #undef JFC_EACH
@@ -867,7 +896,12 @@ i_next_up_l:
 i_next_dn_l:
     NEXT_RUN(r.fp, false)
 
-    HOT_JFCS(JFC_RUN)
+#define JFC_I(name, src) JFC_RUN(name, hot_jfc(&t, src))
+#define JFC_L(name, src) JFC_RUN(name, hot_ljfc(&t, src))
+    HOT_JFCS(JFC_I)
+    HOT_LJFCS(JFC_L)
+#undef JFC_I
+#undef JFC_L
 
 dbg: /* a statement's start, where nothing could stop; else dbug_dbg's */
     if (v->line != DLINE && dbug_may_stop(&S->dbug, prog_line(&S->prog, v->line)->flags))

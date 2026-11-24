@@ -1,5 +1,5 @@
-/* The instruction set, for the compiler and the VM. Include it after defining OP, K or FRAME; each
- * is undefined at the end.
+/* The instruction set, for the compiler and the VM. Include it after defining OP, XOP, K or FRAME;
+ * each is undefined at the end.
  *
  * OP(name, handler, size, flags): op O_name, its handler, its bytes with the op (0 varies: ON,
  * S.LD.TXT, see flow_opsize), FX an expression's op, FV a variable's VCELL after the op (exec.h), FV2
@@ -13,6 +13,14 @@
  * the place flag (FV, FA) and O_twin its form on a variable in the frame (comp/select.c): its
  * operand an offset from the frame, not a cell. FRAME(name, twin) gets each pair.
  *
+ * An op's number is the golden code's: a new op takes the slot of one moved behind X.
+ *
+ * XOP(name, handler, size, flags): X op X_name, O_X then its byte, size counting both: the less hot
+ * ops. None names a variable (FV, FA, FP) or reads its op (FB).
+ *
+ * L ops: a LONG, the cell's 8 bytes signed; UL a ULONG's; U a UINT's 32 bits; LW and IW wrap a
+ * LONG's or an INT's bits. A LONG's loads and stores are a DOUBLE's.
+ *
  * K(name, handler): the CALL op's routine K_name. The statements' first, from K_IPOW an
  * expression's; K_FN_SGN .. K_FN_CHRS are SGN .. CHR$ by token (TK_SGN ..), all func_fn1.
  *
@@ -22,9 +30,12 @@
  * # asm structure (retired/asm32/vm/isa.inc)
  * | asm | here | |
  * |---|---|---|
- * | oplist, O_*, O_NOPS | OP(...), O_*, O_NOPS (exec.h) | MIRROR |
+ * | oplist, O_*, O_NOPS | OP(...), O_*, O_NOPS (exec.h) | MIRROR; D1 |
  * | qbklist, K_*, K_N, K_FN, K_LEFT, K_MID2 | K(...), K_*, K_N, K_FN (= K_FN_SGN), K_LEFT, K_MID2 (exec.h) | MIRROR |
  * | FX, FV, FB | FX, FV, FB (exec.h) | MIRROR |
+ *
+ * - D1. I.EQV, I.IMP, D.POW, P.REFN, F.TOB, F.TOA, D.NZ, S.IF, D.PAST, ONEV, ONERR, ONLERR, RESUME,
+ *   RESTORE.L, RUN.L, R.COPY and MODEND are X ops; F.LD.PI, never made, is gone.
  */
 
 #if defined(OP) || defined(FRAME)
@@ -56,7 +67,7 @@ TWIN(S_LD_V, S_LD_L, oper_s_ld_v, oper_s_ld_l, 1 + VCELL, FX, FV)
 OP(S_LD_TXT, exec_s_ld_txt, 6, FX)
 TWIN(S_LD_A1, S_LD_A1F, exec_s_ld_a1, exec_s_ld_a1f, 1 + VID + VCELL, FX, FA)
 OP(S_LD_A, exec_s_ld_a, 2 + VID + VCELL, FX + FA)
-OP(F_LD_PI, oper_f_ld_pi, 1, FX + FK)
+OP(L_TO_V, oper_l_to_v, 2 + VCELL, FV) /* LONG x op= the popped value: x k (exec.h LTO_*) */
 TWIN(I_ST_V, I_ST_L, oper_i_st_v, oper_i_st_l, 1 + VCELL, 0, FV)
 TWIN(F_ST_V, F_ST_L, oper_f_st_v, oper_f_st_l, 1 + VCELL, 0, FV)
 TWIN(S_ST_V, S_ST_L, exec_s_st_v, exec_s_st_l, 1 + VCELL, 0, FV)
@@ -127,20 +138,18 @@ OP(F_CMPIF_F32, oper_f_cmpif_f32, 6, FB)
 OP(S_CMPIF, exec_s_cmp, 2, FB)
 OP(I_IF, oper_i_if, 1, 0)
 OP(F_IF, oper_f_if, 1, 0)
-OP(S_IF, exec_s_if, 1, 0)
+OP(I_TOL, oper_i_tol, 1, FX + FK) /* an INT as a LONG */
 OP(S_CAT, exec_s_cat, 1, FX)
 OP(I_TOF, oper_i_tof, 1, FX + FK)
 OP(F_TOI, oper_f_toi, 1, FX + FK)
-OP(F_TOB, oper_f_tob, 1, FX + FK)
-OP(F_TOA, oper_f_toa, 1, FX + FK)
+TWIN(L_MUL_V, L_MUL_L, oper_l_mul_v, oper_l_mul_l, 1 + VCELL, FX, FV)
 OP(I_TOB, oper_i_tob, 1, FX + FK)
 OP(I_TOA, oper_i_toa, 1, FX + FK)
 OP(DROP, oper_drop, 1, FX)
 OP(CALL, exec_call, 2, 0)
 OP(GOTO, flow_goto, 1 + sizeof(LineRef), 0)
 OP(GOSUB, flow_gosub, 1 + sizeof(LineRef), 0)
-OP(RESTORE_L, stmt_resl, 1 + sizeof(LineRef), 0)
-OP(RUN_L, stmt_runl, 1 + sizeof(LineRef), 0)
+TWIN(L_SUB_V, L_SUB_L, oper_l_sub_v, oper_l_sub_l, 1 + VCELL, FX, FV)
 OP(ON, flow_on, 0, 0)
 OP(RETURN, flow_return, 1, 0)
 TWIN(I_STEP_V, I_STEP_L, oper_i_step_v, oper_i_step_l, 1 + VCELL, FX, FV)
@@ -157,20 +166,19 @@ OP(PCALL, flow_pcall, PCALL_SIZE, 0) /* proc, its locals' cells and parameters (
 OP(PRET, flow_pret, 5 + VCELL, 0) /* proc; link's: a FUNCTION's result's cell, or PRET.X */
 OP(I_MOD, oper_i_mod, 1, FX + FK)
 OP(I_XOR, oper_i_xor, 1, FX + FK)
-OP(I_EQV, oper_i_eqv, 1, FX + FK)
-OP(I_IMP, oper_i_imp, 1, FX + FK)
+TWIN(L_ADD_V, L_ADD_L, oper_l_add_v, oper_l_add_l, 1 + VCELL, FX, FV)
 OP(R_ADDR, exec_r_addr, 1 + VID + VCELL, FA)
 OP(RA_ADDR, exec_ra_addr, 2 + VID + VCELL, FA)
 OP(FL_LD, exec_fl_ld, 4, 0)
 OP(FL_ST, exec_fl_st, 4, 0)
 OP(SF_LD, exec_sf_ld, 5, 0)
 OP(SF_ST, exec_sf_st, 5, 0)
-OP(R_COPY, exec_r_copy, 3, 0)
-OP(ONERR, flow_onerr, 1 + sizeof(LineRef), 0)
-OP(ONLERR, flow_onlerr, 1 + sizeof(LineRef), 0)
-OP(ONEV, evnt_onev, 2 + sizeof(LineRef), 0)
+OP(L_TO_L, oper_l_to_l, 2 + VCELL, 0)
+FRAME(L_TO_V, L_TO_L)
+TWIN(L_JFC_V, L_JFC_L, flow_l_jfc_v, flow_l_jfc_l, 2 + VCELL + sizeof(Jump), 0, FV)
+OP(L_JFC, flow_l_jfc, 2 + sizeof(Jump), 0)
 OP(I_CHK16, exec_i_chk16, 1, FX + FK)
-OP(RESUME, flow_resume, 2 + sizeof(LineRef), 0)
+OP(L_CMP, oper_l_cmp, 2, FX + FK)
 TWIN(D_LD_V, D_LD_L, dubl_ldv, oper_d_ld_l, 1 + VCELL, FX, FV)
 TWIN(D_ST_V, D_ST_L, dubl_stv, oper_d_st_l, 1 + VCELL, 0, FV)
 OP(D_LD_K, dubl_ldk, 9, FX + FK)
@@ -184,13 +192,13 @@ OP(D_MUL, dubl_mul, 1, FX + FK)
 OP(D_DIV, dubl_div, 1, FX + FK)
 OP(D_NEG, dubl_neg, 1, FX + FK)
 OP(D_CMP, dubl_cmp, 2, FX + FK)
-OP(D_NZ, dubl_nz, 1, FX + FK)
+OP(L_MUL, oper_l_mul, 1, FX + FK)
 OP(I_TOD, dubl_itod, 1, FX + FK)
 OP(F_TOD, dubl_ftod, 1, FX + FK)
 OP(D_TOF, dubl_tof, 1, FX + FK)
 OP(D_TOI, dubl_toi, 1, FX + FK)
 OP(D_FN, dubl_fn, 2, FX)
-OP(D_POW, dubl_pow, 1, FX)
+OP(L_ADD, oper_l_add, 1, FX + FK)
 OP(DBG, dbug_dbg, 1, 0)
 OP(P_REF, exec_p_ref, 3, 0)
 OP(V_ADDR, exec_v_addr, 1 + VID, FP)
@@ -198,7 +206,7 @@ TWIN(V_CELL, L_CELL, oper_s_ld_v, oper_s_ld_l, 1 + VCELL, FX, FV) /* a scalar's 
 OP(V_LD, exec_v_ld, 2 + VID, FX + FP)
 OP(V_ST, exec_v_st, 2 + VID, FP)
 OP(SYSCALL, sysc_call, 2, 0) /* the runtime's service n (vm/syscalls.def) */
-OP(D_PAST, flow_d_past, 1, FX)
+OP(L_ADD_U8, oper_l_add_u8, 2, FX + FK)
 /* fused (comp/fuse.c), no asm counterpart */
 OP(I_NEXT_UP, flow_i_next_up, NEXT_SIZE, FV + FV2 + FV3)
 OP(I_NEXT_DN, flow_i_next_dn, NEXT_SIZE, FV + FV2 + FV3)
@@ -253,15 +261,74 @@ OP(I_NEXT_DN_L, flow_i_next_dn_l, NEXT_SIZE, 0)
 FRAME(I_NEXT_DN, I_NEXT_DN_L)
 OP(N_LD_A, exec_n_ld_a, 3 + VID + VCELL, FX + FA) /* a SHORT or BYTE array's element: id cell n et */
 OP(N_ST_A, exec_n_st_a, 3 + VID + VCELL, FA)
-OP(P_REFN, exec_p_refn, 2, 0) /* such an element by reference: et */
+OP(L_SUB, oper_l_sub, 1, FX + FK)
 OP(V_REF, exec_v_ref, 1 + VID, FP)  /* a parameter's ref, passed on */
 OP(FE_ADDR, exec_fe_addr, 10, 0)    /* a record's array field's element ( a s.. -- e ): off:4 n esize:4 */
 OP(FX_IDX, exec_fx_idx, 13, 0)      /* a fixed array field's element ( a s -- e ): lb count stride */
 OP(IMPORT, flow_import, 9, 0)       /* ours: a module's code run, once (comp/import.c): module:4 line:4 */
-OP(MODEND, flow_modend, 1, 0)       /* ours: the END past a module's lines: back to its IMPORT, else END */
+OP(L_SUB_U8, oper_l_sub_u8, 2, FX + FK)
+OP(X, exec_x, 0, 0) /* an X op: its byte next (XOP) */
 #undef TWIN
 #undef FRAME
 #undef OP
+#endif
+
+#ifdef XOP
+XOP(I_EQV, oper_i_eqv, 2, FX + FK)
+XOP(I_IMP, oper_i_imp, 2, FX + FK)
+XOP(D_POW, dubl_pow, 2, FX)
+XOP(P_REFN, exec_p_refn, 3, 0) /* a SHORT or BYTE element by reference: et */
+XOP(F_TOB, oper_f_tob, 2, FX + FK)
+XOP(F_TOA, oper_f_toa, 2, FX + FK)
+XOP(D_NZ, dubl_nz, 2, FX + FK)
+XOP(S_IF, exec_s_if, 2, 0)
+XOP(D_PAST, flow_d_past, 2, FX)
+XOP(ONEV, evnt_onev, 3 + sizeof(LineRef), 0)
+XOP(ONERR, flow_onerr, 2 + sizeof(LineRef), 0)
+XOP(ONLERR, flow_onlerr, 2 + sizeof(LineRef), 0)
+XOP(RESUME, flow_resume, 3 + sizeof(LineRef), 0)
+XOP(RESTORE_L, stmt_resl, 2 + sizeof(LineRef), 0)
+XOP(RUN_L, stmt_runl, 2 + sizeof(LineRef), 0)
+XOP(R_COPY, exec_r_copy, 4, 0)
+XOP(MODEND, flow_modend, 2, 0) /* ours: the END past a module's lines: back to its IMPORT, else END */
+/* ours, Quickr's integers */
+XOP(L_DIV, oper_l_div, 2, FX + FK)
+XOP(L_MOD, oper_l_mod, 2, FX + FK)
+XOP(L_NEG, oper_l_neg, 2, FX + FK)
+XOP(L_AND, oper_l_and, 2, FX + FK)
+XOP(L_OR, oper_l_or, 2, FX + FK)
+XOP(L_XOR, oper_l_xor, 2, FX + FK)
+XOP(L_NOT, oper_l_not, 2, FX + FK)
+XOP(L_SHL, oper_l_shl, 2, FX + FK) /* ( x n -- x' ): n an INT, 0 .. 63 */
+XOP(L_SHR, oper_l_shr, 2, FX + FK)
+XOP(L_TOI, oper_l_toi, 2, FX + FK)
+XOP(L_TOD, oper_l_tod, 2, FX + FK)
+XOP(D_TOL, oper_d_tol, 2, FX + FK) /* toward 0 */
+XOP(U_TOL, oper_u_tol, 2, FX + FK)
+XOP(LW_ADD, oper_lw_add, 2, FX + FK)
+XOP(LW_SUB, oper_lw_sub, 2, FX + FK)
+XOP(LW_MUL, oper_lw_mul, 2, FX + FK)
+XOP(LW_NEG, oper_lw_neg, 2, FX + FK)
+XOP(UL_ADD, oper_ul_add, 2, FX + FK)
+XOP(UL_SUB, oper_ul_sub, 2, FX + FK)
+XOP(UL_MUL, oper_ul_mul, 2, FX + FK)
+XOP(UL_DIV, oper_ul_div, 2, FX + FK)
+XOP(UL_MOD, oper_ul_mod, 2, FX + FK)
+XOP(UL_CMP, oper_ul_cmp, 3, FX + FK)
+XOP(UL_SHR, oper_ul_shr, 2, FX + FK)
+XOP(U_ADD, oper_u_add, 2, FX + FK)
+XOP(U_SUB, oper_u_sub, 2, FX + FK)
+XOP(U_MUL, oper_u_mul, 2, FX + FK)
+XOP(U_DIV, oper_u_div, 2, FX + FK)
+XOP(U_MOD, oper_u_mod, 2, FX + FK)
+XOP(U_CMP, oper_u_cmp, 3, FX + FK)
+XOP(U_SHR, oper_u_shr, 2, FX + FK) /* ( x n -- x' ): n 0 .. 31 */
+XOP(IW_ADD, oper_iw_add, 2, FX + FK)
+XOP(IW_SUB, oper_iw_sub, 2, FX + FK)
+XOP(IW_MUL, oper_iw_mul, 2, FX + FK)
+XOP(IW_NEG, oper_iw_neg, 2, FX + FK)
+XOP(N_CONV, qrt_conv, 4, FX + FK) /* any integer or float as another: from, to and wrap (qr/qrt.h) */
+#undef XOP
 #endif
 
 #ifdef K

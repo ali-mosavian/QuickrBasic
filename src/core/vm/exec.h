@@ -77,6 +77,8 @@ enum { VCELL = 4 };
 enum { VID = 4 };
 /* I.NEXT.UP, I.NEXT.DN: counter, step, limit cells, the Jump back */
 enum { NEXT_SIZE = 1 + 3 * VCELL + sizeof(Jump) };
+/* L.TO.V x k's k: x's operator; with LTO_INT the value popped an INT's. */
+enum : uint8_t { LTO_ADD, LTO_SUB, LTO_MUL, LTO_INT = 4 };
 /* EOL.TO: the next line, its code's offset in the cache */
 enum { EOL_TO_SIZE = 1 + 2 * sizeof(uint32_t) };
 
@@ -106,7 +108,18 @@ enum : uint8_t { FX = 1, FV = 2, FB = 4, FK = 8, FV2 = 16, FV3 = 32, FP = 64, FA
 enum : uint8_t {
 #define OP(name, h, size, fl) O_##name,
 #include "vm/ops.def"
-    O_NOPS
+};
+
+enum { /* 256 at most */
+       O_NOPS = 0
+#define OP(name, h, size, fl) +1
+#include "vm/ops.def"
+};
+
+enum : uint8_t {
+#define XOP(name, h, size, fl) X_##name,
+#include "vm/ops.def"
+    X_NOPS
 };
 
 enum : uint8_t {
@@ -265,6 +278,8 @@ void exec_run(Session *S);
 void exec_until(Session *S, const uint8_t *end);
 /* Op op's flags: FX, FV, FB, FK. */
 uint8_t exec_flags(uint8_t op);
+/* The flags of the op at op, an X op's its own. */
+uint8_t exec_opflags(const uint8_t *op);
 /* ex_brk: the STOP check found vm.stop or the platform's flags set. true: the op is not to run,
    vm.ip moved (an event's GOSUB, or the IDE's step back at the op); false: go on. BREAK raises. */
 bool exec_brk(Session *S);

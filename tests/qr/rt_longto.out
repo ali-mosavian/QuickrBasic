@@ -1,0 +1,3 @@
+9223372036854775807
+rt_longto.bas:7: Overflow
+  t += i

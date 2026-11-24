@@ -327,7 +327,14 @@ static void past(Comp *const C, const Loop *const l)
     comp_opid(C, loadop(l), l->counter);
     comp_opid(C, loadop(l), l->limit);
     comp_opid(C, loadop(l), l->step);
-    comp_op(C, l->kind == VK_INT ? O_I_PAST : l->kind & SK_DBL ? O_D_PAST : O_F_PAST);
+
+    if (l->kind == VK_INT)
+        comp_op(C, O_I_PAST);
+    else if (l->kind & SK_DBL)
+        comp_xop(C, X_D_PAST);
+    else
+        comp_op(C, O_F_PAST);
+
     comp_value(C, T_INT);
 }
 
@@ -774,7 +781,7 @@ static bool reccopy(Comp *const C)
         return true;
     }
 
-    comp_word(comp_op(C, O_R_COPY), (uint16_t)rec.fix);
+    comp_word(comp_xop(C, X_R_COPY), (uint16_t)rec.fix);
     return true;
 }
 
@@ -1328,11 +1335,11 @@ static bool onerror(Comp *const C)
         C->p++;
         C->modlabel = true; /* an event's handler: the module's */
         comp_lnum(C);
-        comp_byte(comp_jump(C, O_ONEV), kind);
+        comp_byte(comp_xjump(C, X_ONEV), kind);
         return true;
     }
 
-    uint8_t op = O_ONERR;
+    uint8_t x = X_ONERR;
 
     if (C->p[1] == TK1_LOCAL) { /* PDS's ON LOCAL ERROR */
         C->p += 2;
@@ -1340,7 +1347,7 @@ static bool onerror(Comp *const C)
         if (comp_cur(C) != TK_X)
             synerr(C);
 
-        op = O_ONLERR;
+        x = X_ONLERR;
     }
 
     if (C->p[1] != TK1_ERROR) {
@@ -1356,9 +1363,9 @@ static bool onerror(Comp *const C)
     }
 
     C->p++;
-    C->modlabel = op == O_ONERR; /* ON ERROR's handler: the module's */
+    C->modlabel = x == X_ONERR; /* ON ERROR's handler: the module's */
     comp_lnum(C);
-    comp_jump(C, op);
+    comp_xjump(C, x);
     return true;
 }
 
@@ -1486,7 +1493,7 @@ static void resume(Comp *const C)
             mode = RESUME_LINE;
     }
 
-    comp_byte(comp_jump(C, O_RESUME), mode);
+    comp_byte(comp_xjump(C, X_RESUME), mode);
 }
 
 /* IOCTL [#]n, s$: CALL IOCTL. */
@@ -1735,7 +1742,7 @@ bool ctrl_stmt(Comp *const C)
     case TK_END:
         if (C->line != DLINE && prog_line(C->prog, C->line)->flags & LF_TOP) { /* past a module's */
             C->p++;
-            comp_op(C, O_MODEND);
+            comp_xop(C, X_MODEND);
             return true;
         }
         if (n == TK_IF || n == TK_SELECT || n == TK_TYPE) { /* no code */

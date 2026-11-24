@@ -43,7 +43,7 @@ static bool pure(const uint8_t *s, const uint8_t *const end, const uint32_t leas
     uint32_t n = 0;
 
     for (; s < end; s += flow_opsize(s), n++)
-        if (!(exec_flags(*s) & FK))
+        if (!(exec_opflags(s) & FK))
             return false;
 
     return n >= least;
@@ -127,7 +127,6 @@ bool fold_isliteral(const uint8_t op)
     case O_I_LD_I32:
     case O_F_LD_F32:
     case O_F_LD_U8:
-    case O_F_LD_PI:
     case O_D_LD_K:
         return true;
 
@@ -167,7 +166,6 @@ uint8_t fold_littype(const uint8_t op)
 
     case O_F_LD_F32:
     case O_F_LD_U8:
-    case O_F_LD_PI:
         return T_FLT;
 
     default:

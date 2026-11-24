@@ -38,6 +38,8 @@ void code_opb(Code *const c, const uint8_t op, const uint8_t b)
     code_byte(c, b);
 }
 
+void code_xop(Code *const c, const uint8_t x) { code_opb(c, O_X, x); }
+
 void code_word(Code *const c, const uint16_t w)
 {
     if (c->lim - c->out >= 2) {
@@ -218,11 +220,11 @@ void code_dtest(Code *const c)
         return;
 
     c->type = T_INT;
-    code_op(c, O_D_NZ);
+    code_xop(c, X_D_NZ);
 }
 
-/* A byte or an address: a U8 load needs nothing. */
-static void tonarrow(Code *const c, const uint8_t fop, const uint8_t iop)
+/* A byte or an address: a U8 load needs nothing; a SINGLE's, X op fx. */
+static void tonarrow(Code *const c, const uint8_t fx, const uint8_t iop)
 {
     if (c->type == T_DBL)
         code_toint(c);
@@ -237,11 +239,15 @@ static void tonarrow(Code *const c, const uint8_t fop, const uint8_t iop)
     }
 
     c->type = T_INT;
-    code_op(c, is_int ? iop : fop);
+
+    if (is_int)
+        code_op(c, iop);
+    else
+        code_xop(c, fx);
 }
 
-void code_tobyte(Code *const c) { tonarrow(c, O_F_TOB, O_I_TOB); }
-void code_toaddr(Code *const c) { tonarrow(c, O_F_TOA, O_I_TOA); }
+void code_tobyte(Code *const c) { tonarrow(c, X_F_TOB, O_I_TOB); }
+void code_toaddr(Code *const c) { tonarrow(c, X_F_TOA, O_I_TOA); }
 
 void code_tofloat(Code *const c)
 {

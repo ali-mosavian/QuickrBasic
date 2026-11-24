@@ -47,6 +47,10 @@ static const char *const op_names[] = {
 #define OP(name, h, size, flags) #name,
 #include "vm/ops.def"
 };
+static const char *const x_names[] = {
+#define XOP(name, h, size, flags) #name,
+#include "vm/ops.def"
+};
 static const char *const k_names[] = {
 #define K(name, h) #name,
 #include "vm/ops.def"
@@ -57,12 +61,13 @@ static bool named; /* -d */
 /* The op at b, of size bytes: its name (a CALL's routine's too), then its operands. */
 static void dump_op(const uint8_t *const b, const uint32_t size)
 {
-    printf(" |%s", op_names[*b]);
+    const bool second = *b == O_CALL || *b == O_X; /* its routine or X op */
+    printf(" |%s", *b == O_X ? x_names[b[1]] : op_names[*b]);
 
     if (*b == O_CALL && b[1] < countof(k_names))
         printf(" %s", k_names[b[1]]);
 
-    for (uint32_t i = 1 + (*b == O_CALL); i < size; i++)
+    for (uint32_t i = 1 + second; i < size; i++)
         printf(" %02x", b[i]);
 }
 

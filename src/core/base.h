@@ -99,13 +99,14 @@ static inline uint32_t count_byte(const uint8_t *p, uint32_t n, const uint8_t b)
 }
 
 /* A data stack cell: an INT, a FLOAT, or an Addr (a string's Desc) in its low dword; a DOUBLE
-   fills it. */
+   or a LONG fills it. */
 typedef union {
     int32_t i;
     uint32_t u;
     float f;
     Addr a;
     double d;
+    int64_t l;
     uint64_t raw;
 } Cell;
 static_assert(sizeof(Cell) == 8);

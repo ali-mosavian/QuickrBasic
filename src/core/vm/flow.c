@@ -83,6 +83,11 @@ const uint8_t flow_op_sizes[O_NOPS] = {
 #include "vm/ops.def"
 };
 
+const uint8_t flow_xop_sizes[X_NOPS] = {
+#define XOP(name, h, size, fl) size,
+#include "vm/ops.def"
+};
+
 enum {
     DCODE_SIZE = CACHE0 - DCODE, /* the direct line's room in the cache */
 };
@@ -431,6 +436,22 @@ void flow_i_next_dn_l(Session *const S) { next(S, S->vm.fp, false); }
         branch(S, !yes);                                                                           \
     }
 HOT_JFCS(X)
+#undef X
+
+/* L.JFC ...: I.JFC's of LONGs. */
+#define X(name, src)                                                                               \
+    void flow_##name(Session *const S)                                                             \
+    {                                                                                              \
+        if (exec_stopchk(S))                                                                       \
+            return;                                                                                \
+                                                                                                   \
+        Regs r = {S->vm.ip, S->vm.sp, S->vm.fp};                                                   \
+        const bool yes = hot_ljfc(&r, src);                                                        \
+        S->vm.ip = r.ip;                                                                           \
+        S->vm.sp = r.sp;                                                                           \
+        branch(S, !yes);                                                                           \
+    }
+HOT_LJFCS(X)
 #undef X
 
 /* Is x past limit, counting by step: INTs, or SINGLEs' bits? */

@@ -147,11 +147,11 @@ end while
   dropping those shifted out; its count is 0 up to the type's bits, else Illegal function call.
 - `sum()` of a list of bytes or shorts adds them in an `int`.
 - **In the VM**, an integer to 16 bits and an `int` live in an int cell and compute with the int
-  ops, a result's range then checked. A `uint`'s bits are in an int cell too, its arithmetic by
-  CALL QX. A `long` and a `ulong` are 8-byte cells loaded and stored by the double ops, raw;
-  their arithmetic, compares and conversions are CALL QX, two ops each. An `int` added to a
-  `long` is widened inside that call. The longs bench runs QBasic's ops and 2.1x its native
-  instructions, a double's sum of the same values.
+  ops, a result's range then checked. A `uint`'s bits are in an int cell too, with ops of its own.
+  A `long` and a `ulong` are 8-byte cells loaded and stored by the double ops, with ops of their
+  own: a `long`'s `+ - *`, compare-and-branch and `x += e` one op each. A power, and `div` in
+  `wrap`, are CALL QX. The longs bench runs 0.94x the instructions of QBasic's double sum; `t += i`
+  of an `int` costs 1.4x the same loop on ints, one op more.
 
 ### Ownership
 

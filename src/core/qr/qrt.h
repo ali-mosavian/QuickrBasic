@@ -20,7 +20,7 @@ typedef enum : uint8_t {
     QRT_ULONG,
 } QrtKind;
 
-/* A number as QX.INT and QX.CONV take it: an integer's bits and sign, in an int cell to 32 bits
+/* A number as QX.INT and N.CONV take it: an integer's bits and sign, in an int cell to 32 bits
    (a uint's bits as they are), in 8 bytes for 64; a float's. */
 typedef enum : uint8_t {
     QN_I8,
@@ -35,29 +35,17 @@ typedef enum : uint8_t {
     QN_F64,
 } QrtNum;
 
-/* QX.INT's operator: ( a b -- r ), ( a -- r ) for NEG and NOT; CMP's r a flag of its relation, a
-   shift's b an int. */
+enum : uint8_t { QN_WRAP = 0x80 }; /* N.CONV's to with it: wrapped to its bits */
+
+/* QX.INT's operator ( a b -- r ): what the integer ops leave to it. */
 typedef enum : uint8_t {
-    QI_ADD,
-    QI_SUB,
-    QI_MUL,
-    QI_DIV,
-    QI_MOD,
+    QI_DIV, /* wrapped: -2^31 div -1 */
     QI_POW,
-    QI_AND,
-    QI_OR,
-    QI_XOR,
-    QI_SHL,
-    QI_SHR,
-    QI_NEG,
-    QI_NOT,
-    QI_CMP,
 } QrtIop;
 
-/* QX's operand: its routine in the low byte, then a routine's own: QX.INT's operator, number,
-   wrap, relation (num/double.h's DC_* mask) and which operands are int cells, widened there;
-   QX.CONV's from, to and wrap. */
-enum { QX_OP = 8, QX_NUM = 12, QX_WRAP = 16, QX_REL = 17, QX_ICA = 20, QX_ICB = 21, QX_TO = 12 };
+/* QX's operand: its routine in the low byte, then a routine's own: QX.INT's operator, number and
+   wrap. */
+enum { QX_OP = 8, QX_NUM = 12, QX_WRAP = 16 };
 
 /* CALL QX's routines, its operand on top ( args.. op -- results ): a list's, by its cell and its
    elements' ET_* (cell et); an f-string's value by its spec. Each takes the cell again after
@@ -78,8 +66,7 @@ typedef enum : uint8_t {
     QX_SLICE,   /* ( s a b -- t ): s's bytes from a up to b, each clamped to s */
     QX_LSLICE,  /* ( a b src dst -- ): dst a new list, src's elements from a up to b, clamped */
     QX_FNCALL,  /* ( args.. proc -- ): a call of procedure proc, as PCALL's */
-    QX_INT,     /* an integer's operator (QrtIop) the int ops don't have: Overflow past its range */
-    QX_CONV,    /* ( v -- w ): a number converted: Overflow when it doesn't fit, unless wrapped */
+    QX_INT,     /* an integer's operator (QrtIop) no op has: Overflow past its range */
     QX_FIND,    /* ( s t [from] -- i ): where t is in s from from (QX_FROM), else 0; -1 none */
     QX_FOPEN,   /* ( name mode -- n ): file number n open, mode r w a or rw; -ERR an error */
     QX_FREAD,   /* ( n count -- s ): count bytes at most, fewer at the end */

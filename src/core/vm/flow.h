@@ -106,13 +106,16 @@ void flow_setcont(Vm *vm, const Allo *al);
 void flow_end(Session *S);
 /* Illegal direct when running the direct line. */
 void flow_nodir(Session *S);
-/* Each op's size, 0 one that says its own */
+/* Each op's size, 0 one that says its own; each X op's, its O_X too */
 extern const uint8_t flow_op_sizes[O_NOPS];
+extern const uint8_t flow_xop_sizes[X_NOPS];
 /* The size of the op at op, with its operands. */
 static inline uint32_t flow_opsize(const uint8_t *const op)
 {
     if (flow_op_sizes[op[0]])
         return flow_op_sizes[op[0]];
+    if (op[0] == O_X)
+        return flow_xop_sizes[op[1]];
     if (op[0] == O_ON)
         return (op[1] & ON_COUNT) * sizeof(LineRef) + 2;
 

@@ -29,6 +29,7 @@ static inline void code_byte(Code *const c, const uint8_t b)
 }
 static inline void code_op(Code *const c, const uint8_t op) { code_byte(c, op); }
 void code_opb(Code *c, uint8_t op, uint8_t b);  /* op, a byte */
+void code_xop(Code *c, uint8_t x);              /* X op x: O_X, x */
 void code_opw(Code *c, uint8_t op, uint16_t w); /* op, a word */
 /* op, variable id (an FV op's VCELL, an FA op's id and cell); a parameter's (par) X.LD.V, X.ST.V
    as V.LD, V.ST id kind */

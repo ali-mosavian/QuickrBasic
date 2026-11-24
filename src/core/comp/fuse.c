@@ -12,6 +12,7 @@
  *   MOD k    I.LD.U8 k, I.MOD                                                  I.MOD.U8 k
  *   op k     I.LD.I16 k, I.ADD .. I.MOD | I.CMP m                              I.ADD.I16 .. k [m]
  *   branch   I.CMP[.V|.U8|.I16] [x] m, I.JF|I.JT j                             I.JFC[...] [x] m j
+ *   LONG's   [D.LD.V x,] L.CMP m, I.JF|I.JT j                                  L.JFC[.V] [x] m j
  *   x = a op b   I.LD.V a, I.ADD.V b .. I.MOD.I16 k, I.ST.V x                  I.ADD.V.ST x a b ..
  *   x = k, x = a I.LD.U8|I16|I32 k or I.LD.V a, I.ST.V x                       I.SET.U8 .. x k, I.MOV x a
  *
@@ -169,6 +170,31 @@ static uint8_t *branch(Tail *const t)
     return nullptr;
 }
 
+/* A LONG compare, its right operand a variable's load or not, and the JF or JT after it: one
+   compare-and-branch. */
+static uint8_t *lbranch(Tail *const t)
+{
+    if (t->n < 2)
+        return nullptr;
+
+    const uint8_t *const cmp = back(t, 1), *const j = back(t, 0);
+
+    if (*cmp != O_L_CMP || (*j != O_I_JF && *j != O_I_JT))
+        return nullptr;
+
+    const bool var = t->n >= 3 && *back(t, 2) == O_D_LD_V;
+    const uint32_t n = var ? VCELL : 0;
+    uint8_t op[2 + VCELL + sizeof(Jump)];
+    op[0] = var ? O_L_JFC_V : O_L_JFC;
+
+    if (var)
+        memcpy(op + 1, back(t, 2) + 1, VCELL);
+
+    op[1 + n] = *j == O_I_JF ? cmp[1] : ~cmp[1] & (DC_GT | DC_EQ | DC_LT);
+    memcpy(op + 2 + n, j + 1, sizeof(Jump));
+    return replace(t, 2 + var, op, 2 + n + sizeof(Jump));
+}
+
 /* A store after an INT op on a load, or after a load alone: one op that stores. */
 static uint8_t *store(Tail *const t)
 {
@@ -194,7 +220,7 @@ static uint8_t *store(Tail *const t)
     if (*st == O_I_ST_V && t->n >= 3 && *back(t, 2) == O_I_LD_V)
         for (uint32_t i = 0; i < countof(with); i++)
             if (*prev == with[i].op) {
-                if (!global(t, back(t, 2) + 1) || (exec_flags(*prev) & FV && !global(t, prev + 1)))
+                if (!global(t, back(t, 2) + 1) || (exec_opflags(prev) & FV && !global(t, prev + 1)))
                     return nullptr;
 
                 const uint32_t n = flow_opsize(prev) - 1; /* its operand */
@@ -262,7 +288,8 @@ uint8_t *fuse_code(const Symb *const sy, uint8_t *const start, uint8_t *const en
 
         for (uint8_t *e;
 
-             (e = next(&t)) || (e = literal(&t)) || (e = branch(&t)) || (e = store(&t));)
+             (e = next(&t)) || (e = literal(&t)) || (e = branch(&t)) || (e = lbranch(&t)) ||
+             (e = store(&t));)
             out = e;
     }
 

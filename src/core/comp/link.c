@@ -515,8 +515,36 @@ Jump *link_jump(uint8_t *const op)
     case O_I_JFC_L:
     case O_I_JFC:
     case O_I_JFC_U8:
-    case O_I_JFC_I16: /* the Jump ends the op */
+    case O_I_JFC_I16:
+    case O_L_JFC:
+    case O_L_JFC_V:
+    case O_L_JFC_L: /* the Jump ends the op */
         return (Jump *)(op + flow_opsize(op) - sizeof(Jump));
+
+    default:
+        return nullptr;
+    }
+}
+
+/* An X op's line, a LineRef; null none. */
+static LineRef *xref(uint8_t *const op)
+{
+    LineRef *const ref = (LineRef *)(op + 2), *const after = (LineRef *)(op + 3);
+
+    switch (op[1]) {
+    case X_RESTORE_L:
+    case X_RUN_L:
+        return ref;
+
+    case X_ONERR:
+    case X_ONLERR:
+        return ref->num ? ref : nullptr; /* GOTO 0: none */
+
+    case X_ONEV:
+        return after->num ? after : nullptr;
+
+    case X_RESUME:
+        return op[2] == RESUME_LINE ? after : nullptr;
 
     default:
         return nullptr;
@@ -552,27 +580,19 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
     case O_I_JFC:
     case O_I_JFC_U8:
     case O_I_JFC_I16:
+    case O_L_JFC:
+    case O_L_JFC_V:
+    case O_L_JFC_L:
         j = link_jump(op);
         break;
 
     case O_GOTO:
     case O_GOSUB:
-    case O_RESTORE_L:
-    case O_RUN_L:
         refs = (LineRef *)(op + 1);
         break;
 
-    case O_ONERR:
-    case O_ONLERR:
-        refs = ((LineRef *)(op + 1))->num ? (LineRef *)(op + 1) : nullptr; /* GOTO 0: none */
-        break;
-
-    case O_ONEV:
-        refs = ((LineRef *)(op + 2))->num ? (LineRef *)(op + 2) : nullptr;
-        break;
-
-    case O_RESUME:
-        refs = op[1] == RESUME_LINE ? (LineRef *)(op + 2) : nullptr;
+    case O_X:
+        refs = xref(op);
         break;
 
     case O_ON:

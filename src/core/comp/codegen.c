@@ -37,7 +37,7 @@
 #include "num/fpmath.h"
 #include "vm/flow.h"
 
-static const uint8_t xop[] = {O_I_DIV, O_I_MOD, O_I_XOR, O_I_EQV, O_I_IMP}; /* from OP_IDIV */
+static const uint8_t xop[] = {O_I_DIV, O_I_MOD, O_I_XOR}; /* from OP_IDIV; EQV, IMP X ops */
 static const uint8_t fcmpk[4] = {O_F_CMP_V, O_F_CMP_VI, O_F_CMP_U8, O_F_CMP_F32};
 /* The binary ops with a right operand folded in, by its form (V, U8; SINGLE's V, VI, U8, F32) and
    the operator, OP_ADD .. OP_OR. */
@@ -421,7 +421,7 @@ static void cg_binary(Code *const c, const Node *const n)
         c->iload = c->iloadend = nullptr;
 
         if (rel == OP_POW)
-            code_op(c, O_D_POW);
+            code_xop(c, X_D_POW);
         else if (ast_isrel(rel)) {
             code_opb(c, O_D_CMP, rel & REL_MASK);
             c->type = T_INT;
@@ -441,7 +441,12 @@ static void cg_binary(Code *const c, const Node *const n)
         if (ast_isxop(rel)) {
             cg_as(c, n->b, T_INT, false);
             rsh = code_shclass(c);
-            code_op(c, xop[rel - OP_IDIV]);
+
+            if (rel == OP_EQV || rel == OP_IMP)
+                code_xop(c, rel == OP_EQV ? X_I_EQV : X_I_IMP);
+            else
+                code_op(c, xop[rel - OP_IDIV]);
+
             c->type = T_INT;
         } else {
             numeric(
@@ -969,7 +974,8 @@ static void cg_arg(Code *const c, const Node *const n)
 
     case PA_NREF:
         gen(c, n->a);
-        code_opb(c, O_P_REFN, (uint8_t)n->a->vtype);
+        code_xop(c, X_P_REFN);
+        code_byte(c, (uint8_t)n->a->vtype);
         break;
 
     case PA_FIELD:
@@ -1174,8 +1180,10 @@ static void cg_if(Code *const c)
 
     if (c->out == c->cmpend)
         *c->cmp = cmpif(*c->cmp);
+    else if (c->type == T_STR)
+        code_xop(c, X_S_IF);
     else /* code_dtest made a DOUBLE an INT */
-        code_op(c, code_pick(c->type, O_I_IF, O_F_IF, O_I_IF, O_S_IF));
+        code_op(c, c->type == T_FLT ? O_F_IF : O_I_IF);
 }
 
 /* ON's byte made: ON kind + n, then its n lines. */

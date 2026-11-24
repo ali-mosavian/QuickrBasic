@@ -54,6 +54,12 @@ static const uint8_t qcg_fops[3][4] = {
     {O_F_ADD_F32, O_F_SUB_F32, O_F_MUL_F32, O_F_DIV_F32},
 };
 static const uint8_t qcg_dops[4] = {O_D_ADD, O_D_SUB, O_D_MUL, O_D_DIV};
+/* A LONG's + - *: by form (plain, a variable's load, a literal byte's), then operator. */
+static const uint8_t qcg_lops[3][3] = {
+    {O_L_ADD, O_L_SUB, O_L_MUL},
+    {O_L_ADD_V, O_L_SUB_V, O_L_MUL_V},
+    {O_L_ADD_U8, O_L_SUB_U8, 0},
+};
 
 /* A relation's D.CMP mask (num/double.h's DC_*). */
 static uint8_t qcg_mask(const QKind op)
@@ -202,32 +208,22 @@ static QrtNum qcg_num(const QType t)
     }
 }
 
-/* CALL QX.INT: operator op of type t, wrapped or not; more: a compare's relation, QX_ICA/ICB. */
-static void qcg_xint(
-    Code *const c,
-    const QrtIop op,
-    const QType t,
-    const bool wrap,
-    const uint32_t more
-)
+/* CALL QX.INT: operator op (a power, an int's wrapped division) of type t, wrapped or not. */
+static void qcg_xint(Code *const c, const QrtIop op, const QType t, const bool wrap)
 {
     code_int(
         c,
-        QX_INT | (uint32_t)op << QX_OP | (uint32_t)qcg_num(t) << QX_NUM |
-            (uint32_t)wrap << QX_WRAP | more
+        QX_INT | (uint32_t)op << QX_OP | (uint32_t)qcg_num(t) << QX_NUM | (uint32_t)wrap << QX_WRAP
     );
     code_call(c, K_QX);
 }
 
-/* CALL QX.CONV: a from as a to, wrapped or not. */
-static void qcg_xconv(Code *const c, const QType from, const QType to, const bool wrap)
+/* X N.CONV: a from as a to, wrapped or not. */
+static void qcg_nconv(Code *const c, const QType from, const QType to, const bool wrap)
 {
-    code_int(
-        c,
-        QX_CONV | (uint32_t)qcg_num(from) << QX_OP | (uint32_t)qcg_num(to) << QX_TO |
-            (uint32_t)wrap << QX_WRAP
-    );
-    code_call(c, K_QX);
+    code_xop(c, X_N_CONV);
+    code_byte(c, qcg_num(from));
+    code_byte(c, qcg_num(to) | (wrap ? QN_WRAP : 0));
 }
 
 /* Is t's value an int cell's int, compared and computed by the int ops: an integer to 16 bits,
@@ -239,9 +235,12 @@ static void qcg_compare(Code *const c, const QType w, const QKind op, uint8_t *c
 {
     const uint8_t m = qcg_mask(op);
 
-    if (qast_integer(w) && !qcg_icell(w))
-        qcg_xint(c, QI_CMP, w, false, (uint32_t)m << QX_REL);
-    else if (w == QY_SINGLE)
+    if (w == QY_LONG)
+        code_opb(c, O_L_CMP, m);
+    else if (w == QY_ULONG || w == QY_UINT) {
+        code_xop(c, w == QY_UINT ? X_U_CMP : X_UL_CMP);
+        code_byte(c, m);
+    } else if (w == QY_SINGLE)
         cg_fcmp(c, m, right);
     else if (w == QY_DOUBLE || w == QY_STRING)
         code_opb(c, w == QY_DOUBLE ? O_D_CMP : O_S_CMP, m);
@@ -475,18 +474,40 @@ static bool qcg_within(const QType a, const QType b)
     return qast_bits(a) <= qast_bits(b);
 }
 
-/* An int cell's int of type from (qcg_icell's) as integer type to: Overflow past to's range, by
-   I.CHK8 or I.CHK16 where they check it; wrap keeps to's bits instead. */
+/* An integer of type from as integer type to, both in an int cell, an int's or a uint's bits:
+   Overflow past to's range, by I.CHK8 or I.CHK16 where they check it; wrap keeps to's bits
+   instead. */
 static void qcg_narrow(Code *const c, const QType from, const QType to, const bool wrap)
 {
-    if (!wrap && qcg_within(from, to) && qcg_icell(to))
+    if (wrap ? qast_bits(to) == 32 : qcg_within(from, to))
         return;
     if (!wrap && to == QY_UBYTE)
         code_op(c, O_I_CHK8);
     else if (!wrap && to == QY_SHORT)
         code_op(c, O_I_CHK16);
     else
-        qcg_xconv(c, from, to, wrap);
+        qcg_nconv(c, from, to, wrap);
+}
+
+/* An integer of type from as integer type to, one of them a long or a ulong: an int cell's
+   widened, a long's to an int checked; the rest by N.CONV. */
+static void qcg_widen(Code *const c, const QType from, const QType to, const bool wrap)
+{
+    const bool fits = wrap || qcg_within(from, to);
+
+    if (qast_wide(from) && qast_wide(to)) { /* the same bits */
+        if (!fits)
+            qcg_nconv(c, from, to, false);
+    } else if (qast_wide(to) && !fits)
+        qcg_nconv(c, from, to, false);
+    else if (from == QY_UINT && qast_wide(to))
+        code_xop(c, X_U_TOL);
+    else if (qast_wide(to))
+        code_op(c, O_I_TOL);
+    else if (from == QY_LONG && to == QY_INT && !wrap)
+        code_xop(c, X_L_TOI);
+    else
+        qcg_nconv(c, from, to, wrap);
 }
 
 /* The value on top, of type from, as type to: a float to an integer toward 0, an integer to a
@@ -503,21 +524,38 @@ static void qcg_conv(Code *const c, const QType from, const QType to, const bool
     }
 
     if (qast_integer(from) && qast_integer(to)) {
-        if (qcg_icell(from))
+        if (qast_wide(from) || qast_wide(to))
+            qcg_widen(c, from, to, wrap);
+        else
             qcg_narrow(c, from, to, wrap);
-        else if (wrap || !qcg_within(from, to) || qast_wide(to) != qast_wide(from))
-            qcg_xconv(c, from, to, wrap);
 
         return;
     }
 
-    if (qast_integer(from) && !qcg_icell(from)) { /* a uint, a long or a ulong to a float */
-        qcg_xconv(c, from, to, false);
+    if (from == QY_LONG) { /* to a float */
+        code_xop(c, X_L_TOD);
+
+        if (to == QY_SINGLE)
+            code_op(c, O_D_TOF);
+
+        return;
+    }
+
+    if (qast_integer(from) && !qcg_icell(from)) { /* a uint or a ulong to a float */
+        qcg_nconv(c, from, to, false);
+        return;
+    }
+
+    if (qast_float(from) && to == QY_LONG && !wrap) {
+        if (from == QY_SINGLE)
+            code_op(c, O_F_TOD);
+
+        code_xop(c, X_D_TOL);
         return;
     }
 
     if (qast_float(from) && qast_integer(to) && (to != QY_INT || wrap)) {
-        qcg_xconv(c, from, to, wrap);
+        qcg_nconv(c, from, to, wrap);
         return;
     }
 
@@ -560,69 +598,162 @@ static void qcg_hold(QCg *const g, const QType t, const int32_t by)
         g->strings += (uint32_t)by;
 }
 
-/* An integer operator's QX.INT operator. */
-static QrtIop qcg_iop(const QKind op)
+/* A long's + - * (QA_ADD .. QA_MUL), the right operand's load at right folded in when a
+   variable's or a byte's. */
+static void qcg_larith(Code *const c, uint8_t *const right, const uint32_t k)
 {
+    const bool byte = k != QA_MUL && qcg_right(c, right, O_D_LD_K, 1 + sizeof(Cell)) &&
+                      load32(right + 1) <= UINT8_MAX && !load32(right + 5);
+    const uint32_t form = qcg_right(c, right, O_D_LD_V, 1 + VCELL) ? 1 : byte ? 2 : 0;
+
+    if (!form) {
+        code_op(c, qcg_lops[0][k]);
+        return;
+    }
+
+    right[0] = qcg_lops[form][k];
+
+    if (byte)
+        c->out = right + 2; /* its low byte kept */
+}
+
+/* Operator op of a long or a ulong, w, its operands pushed. A shift's count is an int. */
+static void qcg_warith(
+    Code *const c,
+    uint8_t *const right,
+    const QType w,
+    const QKind op,
+    const bool wrap
+)
+{
+    const bool uns = w == QY_ULONG;
+    const uint32_t k = op == QK_PLUS ? QA_ADD : op == QK_MINUS ? QA_SUB : QA_MUL;
+
     switch (op) {
     case QK_PLUS:
-        return QI_ADD;
-
     case QK_MINUS:
-        return QI_SUB;
-
     case QK_STAR:
-        return QI_MUL;
+        if (wrap) {
+            static const uint8_t xs[] =
+                {[QA_ADD] = X_LW_ADD, [QA_SUB] = X_LW_SUB, [QA_MUL] = X_LW_MUL};
+
+            code_xop(c, xs[k]);
+        } else if (uns) {
+            static const uint8_t xs[] =
+                {[QA_ADD] = X_UL_ADD, [QA_SUB] = X_UL_SUB, [QA_MUL] = X_UL_MUL};
+
+            code_xop(c, xs[k]);
+        } else
+            qcg_larith(c, right, k);
+
+        return;
 
     case QK_DIV:
-        return QI_DIV;
+        if (wrap && !uns)
+            qcg_xint(c, QI_DIV, w, true);
+        else
+            code_xop(c, uns ? X_UL_DIV : X_L_DIV);
+
+        return;
 
     case QK_MOD:
-        return QI_MOD;
+        code_xop(c, uns ? X_UL_MOD : X_L_MOD);
+        return;
 
     case QK_POW:
-        return QI_POW;
+        qcg_xint(c, QI_POW, w, wrap);
+        return;
 
     case QK_AMP:
-        return QI_AND;
+        code_xop(c, X_L_AND);
+        return;
 
     case QK_BAR:
-        return QI_OR;
+        code_xop(c, X_L_OR);
+        return;
 
     case QK_SHL:
-        return QI_SHL;
+        code_xop(c, X_L_SHL);
+        return;
 
     case QK_SHR:
-        return QI_SHR;
+        code_xop(c, uns ? X_UL_SHR : X_L_SHR);
+        return;
 
-    default:
-        return QI_XOR;
+    default: /* ^, xor */
+        code_xop(c, X_L_XOR);
     }
 }
 
-/* Operator op of integer type w other than an int's, or in wrap(..), its operands pushed: an int
-   cell's by the int ops, then its range checked (qcg_narrow), the rest by QX.INT. A shift keeps
-   w's bits; & | ^ stay in w's range. */
+/* Operator op of a uint, its operands pushed: & | ^ and << by the int ops. */
+static void qcg_uarith(Code *const c, uint8_t *const right, const QKind op, const bool wrap)
+{
+    switch (op) {
+    case QK_PLUS:
+        code_xop(c, wrap ? X_IW_ADD : X_U_ADD);
+        return;
+
+    case QK_MINUS:
+        code_xop(c, wrap ? X_IW_SUB : X_U_SUB);
+        return;
+
+    case QK_STAR:
+        code_xop(c, wrap ? X_IW_MUL : X_U_MUL);
+        return;
+
+    case QK_DIV:
+        code_xop(c, X_U_DIV);
+        return;
+
+    case QK_MOD:
+        code_xop(c, X_U_MOD);
+        return;
+
+    case QK_POW:
+        qcg_xint(c, QI_POW, QY_UINT, wrap);
+        return;
+
+    case QK_AMP:
+        qcg_arith(c, right, QY_INT, QA_AND);
+        return;
+
+    case QK_BAR:
+        qcg_arith(c, right, QY_INT, QA_OR);
+        return;
+
+    case QK_SHL:
+        code_call(c, K_QSHL);
+        return;
+
+    case QK_SHR:
+        code_xop(c, X_U_SHR);
+        return;
+
+    default:
+        code_op(c, O_I_XOR);
+    }
+}
+
+/* Operator op of integer type w other than an int's, or in wrap(..), its operands pushed: a long's,
+   a ulong's, a uint's by their ops; an int cell's by the int ops, wrapped by IW's, then its range
+   checked or its bits kept (qcg_narrow). A shift keeps w's bits; & | ^ stay in w's range. */
 static void qcg_iarith(
     QCg *const g,
     uint8_t *const right,
     const QType w,
     const QKind op,
-    const bool wrap,
-    const uint32_t cells
+    const bool wrap
 )
 {
     Code *const c = g->c;
-    const bool bits = op == QK_AMP || op == QK_BAR || op == QK_CARET || op == QK_XOR;
-    const bool checked =
-        op == QK_PLUS || op == QK_MINUS || op == QK_STAR || op == QK_DIV || op == QK_POW;
 
-    if (!qcg_icell(w) && !(bits && w == QY_UINT) && !(op == QK_SHL && w == QY_UINT)) {
-        qcg_xint(c, qcg_iop(op), w, wrap, cells);
+    if (qast_wide(w)) {
+        qcg_warith(c, right, w, op, wrap);
         return;
     }
 
-    if (wrap && checked) {
-        qcg_xint(c, qcg_iop(op), w, true, 0);
+    if (w == QY_UINT) {
+        qcg_uarith(c, right, op, wrap);
         return;
     }
 
@@ -635,16 +766,36 @@ static void qcg_iarith(
         [QK_BAR] = QA_OR
     };
 
+    static const uint8_t iw[] = {[QA_ADD] = X_IW_ADD, [QA_SUB] = X_IW_SUB, [QA_MUL] = X_IW_MUL};
+
     switch (op) {
     case QK_PLUS:
     case QK_MINUS:
     case QK_STAR:
+        if (wrap)
+            code_xop(c, iw[qa[op]]);
+        else
+            qcg_arith(c, right, QY_INT, qa[op]);
+
+        qcg_narrow(c, QY_INT, w, wrap);
+        return;
+
     case QK_DIV:
-        qcg_arith(c, right, QY_INT, qa[op]);
-        qcg_narrow(c, QY_INT, w, false);
+        if (wrap && w == QY_INT) { /* -2^31 div -1 */
+            qcg_xint(c, QI_DIV, w, true);
+            return;
+        }
+
+        qcg_arith(c, right, QY_INT, QA_DIV);
+        qcg_narrow(c, QY_INT, w, wrap);
         return;
 
     case QK_POW:
+        if (wrap) {
+            qcg_xint(c, QI_POW, w, true);
+            return;
+        }
+
         code_call(c, K_IPOW);
         qcg_narrow(c, QY_INT, w, false);
         return;
@@ -661,7 +812,7 @@ static void qcg_iarith(
     case QK_SHL:
         code_call(c, K_QSHL);
 
-        if (w != QY_INT && w != QY_UINT)
+        if (w != QY_INT)
             qcg_narrow(c, QY_INT, w, true);
 
         return;
@@ -675,51 +826,19 @@ static void qcg_iarith(
     }
 }
 
-/* An operand of long or ulong w that is an int cell's integer, maybe converted: pushed as that
-   cell, QX.INT widens it. Saves QX.CONV's two ops. */
-static const QExpr *qcg_bycell(const QExpr *e, const QType w)
-{
-    if (e->kind == QE_CONV && !e->wrap && qast_integer(e->a->type))
-        e = e->a;
-
-    return qast_wide(w) && qast_integer(e->type) && qcg_icell(e->type) &&
-                   (w == QY_LONG || qast_unsigned(e->type))
-               ? e
-               : nullptr;
-}
-
-/* Operand e of the binary as w: as its int cell when that saves ops (qcg_bycell). */
-static uint32_t qcg_operand(QCg *const g, const QExpr *const e, const QType w, const uint32_t flag)
-{
-    const QExpr *const cell = e->kind == QE_CONST ? nullptr : qcg_bycell(e, w);
-
-    if (!cell) {
-        qcg_as(g, e, w);
-        return 0;
-    }
-
-    qcg_expr(g, cell);
-    return flag;
-}
-
 static void qcg_binary(QCg *const g, const QExpr *const e)
 {
     Code *const c = g->c;
     const QType w = e->work;
     const bool shift = e->op == QK_SHL || e->op == QK_SHR;
-    uint32_t cells = qcg_operand(g, e->a, w, 1u << QX_ICA);
+    qcg_as(g, e->a, w);
     qcg_hold(g, w, 1);
     uint8_t *const right = c->out;
-
-    if (shift)
-        qcg_as(g, e->b, QY_INT);
-    else
-        cells |= qcg_operand(g, e->b, w, 1u << QX_ICB);
-
+    qcg_as(g, e->b, shift ? QY_INT : w);
     qcg_hold(g, w, -1);
 
     if (qast_integer(w) && (w != QY_INT || e->wrap) && e->op != QK_SLASH) {
-        qcg_iarith(g, right, w, e->op, e->wrap, cells);
+        qcg_iarith(g, right, w, e->op, e->wrap);
         return;
     }
 
@@ -746,7 +865,7 @@ static void qcg_binary(QCg *const g, const QExpr *const e)
 
     case QK_POW:
         if (w == QY_DOUBLE)
-            code_op(c, O_D_POW);
+            code_xop(c, X_D_POW);
         else
             code_call(c, w == QY_INT ? K_IPOW : K_FPOW);
 
@@ -781,22 +900,36 @@ static void qcg_binary(QCg *const g, const QExpr *const e)
     }
 }
 
+/* - or ~ of integer type t: all but an int cell's - outside wrap(..). */
+static void qcg_iunary(Code *const c, const QType t, const QKind op, const bool wrap)
+{
+    if (op == QK_MINUS && qast_wide(t))
+        code_xop(c, wrap ? X_LW_NEG : X_L_NEG);
+    else if (op == QK_MINUS) { /* wrapped, as a uint's always is */
+        code_xop(c, X_IW_NEG);
+        qcg_narrow(c, QY_INT, t, true);
+    } else if (qast_wide(t))
+        code_xop(c, X_L_NOT);
+    else if (qast_unsigned(t) && t != QY_UINT) { /* ~ of a ubyte or a ushort: its bits flipped */
+        code_int(c, (1u << qast_bits(t)) - 1);
+        code_op(c, O_I_XOR);
+    } else
+        code_op(c, O_I_NOT);
+}
+
 static void qcg_unary(QCg *const g, const QExpr *const e)
 {
     Code *const c = g->c;
     const QType t = e->type;
     qcg_expr(g, e->a);
 
-    if (qast_integer(t) && (!qcg_icell(t) || (e->wrap && e->op == QK_MINUS)))
-        qcg_xint(c, e->op == QK_MINUS ? QI_NEG : QI_NOT, t, e->wrap, 0);
+    if (qast_integer(t) && (!qcg_icell(t) || e->wrap || e->op != QK_MINUS))
+        qcg_iunary(c, t, e->op, e->wrap);
     else if (e->op == QK_MINUS) {
         code_op(c, qcg_pick(t, O_I_NEG, O_F_NEG, O_D_NEG, 0));
 
         if (qast_integer(t))
             qcg_narrow(c, QY_INT, t, false);
-    } else if (qast_unsigned(t)) { /* ~ of a ubyte or a ushort: its bits flipped */
-        code_int(c, (1u << qast_bits(t)) - 1);
-        code_op(c, O_I_XOR);
     } else
         code_op(c, O_I_NOT);
 }
@@ -1262,7 +1395,7 @@ static void qcg_recop(QCg *const g, const QType t)
         return;
     }
 
-    code_op(g->c, O_R_COPY);
+    code_xop(g->c, X_R_COPY);
     code_word(g->c, (uint16_t)y->size);
 }
 
@@ -1359,6 +1492,34 @@ static void qcg_listto(
     code_call(g->c, move ? K_AMOVE : K_ACOPY);
 }
 
+/* p = p + e, p - e or p * e of a long variable p in one op, L.TO.V: e's value, an int cell's as it
+   is. False: not one. */
+static bool qcg_longto(QCg *const g, const QExpr *const p, const QExpr *const v)
+{
+    static const uint8_t ks[] = {[QK_PLUS] = LTO_ADD, [QK_MINUS] = LTO_SUB, [QK_STAR] = LTO_MUL};
+
+    if (p->kind != QE_NAME || p->type != QY_LONG || qcg_par(p->var) || v->kind != QE_BINARY ||
+        v->wrap || v->work != QY_LONG || v->a->kind != QE_NAME || v->a->var != p->var ||
+        (v->op != QK_PLUS && v->op != QK_MINUS && v->op != QK_STAR))
+        return false;
+
+    const QExpr *b = v->b;
+
+    if (b->kind == QE_CONV && !b->wrap && qast_integer(b->a->type))
+        b = b->a;
+
+    const bool cell = b->kind != QE_CONST && qast_integer(b->type) && qcg_icell(b->type);
+
+    if (cell)
+        qcg_expr(g, b);
+    else
+        qcg_as(g, v->b, QY_LONG);
+
+    code_opid(g->c, O_L_TO_V, p->var->id, false);
+    code_byte(g->c, ks[v->op] | (cell ? LTO_INT : 0));
+    return true;
+}
+
 /* Scalar or compound value v stored in place p. */
 static void qcg_set(QCg *const g, const QExpr *const p, const QExpr *const v)
 {
@@ -1366,6 +1527,9 @@ static void qcg_set(QCg *const g, const QExpr *const p, const QExpr *const v)
         qcg_into(g, p, v);
         return;
     }
+
+    if (qcg_longto(g, p, v))
+        return;
 
     const QCgPut put = qcg_before(g, p);
     qcg_as(g, v, p->type);
@@ -1429,7 +1593,8 @@ static void qcg_ref(QCg *const g, const QExpr *const a)
 
     if (qcg_short(g, a->type)) { /* its ref tagged: read and written as 2 bytes or 1 */
         qcg_offset(g, off);
-        code_opb(c, O_P_REFN, (uint8_t)qcg_et(g, a->type));
+        code_xop(c, X_P_REFN);
+        code_byte(c, (uint8_t)qcg_et(g, a->type));
         return;
     }
 
@@ -2442,7 +2607,7 @@ static void qcg_used(QCg *const g, const QIter *const it, QCgExits *const x)
         qcg_as(g, v, t);
 
         if (qast_integer(t) && t != QY_INT)
-            qcg_iarith(g, right, t, QK_PLUS, false, 0);
+            qcg_iarith(g, right, t, QK_PLUS, false);
         else
             qcg_arith(c, right, t, QA_ADD);
 
@@ -2903,12 +3068,12 @@ static void qcg_replace(QCg *const g, const QExpr *const p, const QExpr *const v
 
 /* ---- --test */
 
-/* A LineRef to statement s's line: ON LOCAL ERROR's handler, RESUME's line. */
-static void qcg_lineref(QCg *const g, const uint8_t op, const QStmt *const s)
+/* X op x's LineRef to statement s's line: ON LOCAL ERROR's handler, RESUME's line. */
+static void qcg_lineref(QCg *const g, const uint8_t x, const QStmt *const s)
 {
-    code_op(g->c, op);
+    code_xop(g->c, x);
 
-    if (op == O_RESUME)
+    if (x == X_RESUME)
         code_byte(g->c, RESUME_LINE);
 
     code_word(g->c, NONUM);
@@ -2944,7 +3109,7 @@ static void qcg_testfail(QCg *const g, const QStmt *const s)
     qcg_bump(g->c, p->fails, 1);
     qcg_string(g, &name);
     qcg_x(g->c, QX_FAILED);
-    qcg_lineref(g, O_RESUME, s->fn->end);
+    qcg_lineref(g, X_RESUME, s->fn->end);
 }
 
 /* A statement a one-line if may take, or one that is no block's. */
@@ -3285,7 +3450,7 @@ static void qcg_body(QCg *const g, const QStmt *const s)
         if (s->fn->resumable) /* a call's entry, past the JMP */
             qcg_resume(g, s->fn);
         if (s->fn->onfail)
-            qcg_lineref(g, O_ONLERR, s->fn->onfail);
+            qcg_lineref(g, X_ONLERR, s->fn->onfail);
 
         return;
 

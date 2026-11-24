@@ -1137,140 +1137,45 @@ static uint64_t qrt_ipow(const QrtNum n, const uint64_t a, const uint64_t b, boo
     return r;
 }
 
-/* a op b of number n, by 64-bit arithmetic: true when it overflows 64 bits. */
-static bool qrt_arith(
-    Session *const S,
-    const QrtIop op,
-    const QrtNum n,
-    const uint64_t a,
-    const uint64_t b,
-    uint64_t *const r
-)
-{
-    const bool sign = !qrt_unsigned(n);
-    const int64_t sa = (int64_t)a, sb = (int64_t)b;
-    int64_t sr = 0;
-    bool over = false;
-
-    switch (op) {
-    case QI_ADD:
-        over = sign ? __builtin_add_overflow(sa, sb, &sr) : __builtin_add_overflow(a, b, r);
-        break;
-
-    case QI_SUB:
-        over = sign ? __builtin_sub_overflow(sa, sb, &sr) : __builtin_sub_overflow(a, b, r);
-        break;
-
-    case QI_MUL:
-        over = sign ? __builtin_mul_overflow(sa, sb, &sr) : __builtin_mul_overflow(a, b, r);
-        break;
-
-    case QI_DIV:
-    case QI_MOD:
-        if (!b)
-            fault_error(&S->fault, E_DZ);
-        if (sign && sb == -1) { /* INT64_MIN / -1 */
-            over = op == QI_DIV && sa == INT64_MIN;
-            sr = op == QI_DIV ? (int64_t)(0 - a) : 0;
-        } else if (sign)
-            sr = op == QI_DIV ? sa / sb : sa % sb;
-        else
-            *r = op == QI_DIV ? a / b : a % b;
-
-        break;
-
-    case QI_POW:
-        *r = qrt_ipow(n, a, b, &over);
-        return over;
-
-    case QI_NEG:
-        over = sign ? __builtin_sub_overflow((int64_t)0, sa, &sr) : a != 0;
-        sr = (int64_t)(0 - a);
-        break;
-
-    default:
-        break;
-    }
-
-    if (sign)
-        *r = (uint64_t)sr;
-
-    return over;
-}
-
-/* QX.INT ( a [b] word -- r ): integer operator op of number n; wrap keeps n's bits, else Overflow
-   past n's range. A shift's count past n's bits is Illegal function call. */
+/* QX.INT ( a b word -- r ): operator op of number n, its power or its division by 64-bit
+   arithmetic; wrap keeps n's bits, else Overflow past n's range. */
 static void qrt_int(Session *const S, const uint32_t word)
 {
     Vm *const vm = &S->vm;
     const QrtIop op = (QrtIop)(word >> QX_OP & 15);
     const QrtNum n = (QrtNum)(word >> QX_NUM & 15);
-    const bool wrap = word >> QX_WRAP & 1;
-    const bool unary = op == QI_NEG || op == QI_NOT;
-    const bool shift = op == QI_SHL || op == QI_SHR;
-    const Cell cb = unary ? (Cell){} : exec_pop(vm);
+    const bool wrap = word >> QX_WRAP & 1, sign = !qrt_unsigned(n);
+    const uint64_t b = qrt_get(n, exec_pop(vm));
+    const uint64_t a = qrt_get(n, exec_pop(vm));
+    bool over = false;
+    uint64_t r;
 
-    const uint64_t b = shift || word >> QX_ICB & 1 ? (uint64_t)(int64_t)cb.i : qrt_get(n, cb);
-    const Cell ca = exec_pop(vm);
-    const uint64_t a = word >> QX_ICA & 1 ? (uint64_t)(int64_t)ca.i : qrt_get(n, ca);
-    const uint32_t bits = qrt_bits(n);
-    const bool sign = !qrt_unsigned(n);
-    uint64_t r = 0;
+    if (op == QI_POW)
+        r = qrt_ipow(n, a, b, &over);
+    else if (!b)
+        fault_error(&S->fault, E_DZ);
+    else if (sign && (int64_t)b == -1) /* -2^63 div -1 */
+        r = 0 - a, over = (int64_t)a == INT64_MIN;
+    else
+        r = sign ? (uint64_t)((int64_t)a / (int64_t)b) : a / b;
 
-    switch (op) {
-    case QI_AND:
-        r = a & b;
-        break;
-
-    case QI_OR:
-        r = a | b;
-        break;
-
-    case QI_XOR:
-        r = a ^ b;
-        break;
-
-    case QI_NOT:
-        r = qrt_keep(n, ~a);
-        break;
-
-    case QI_SHL:
-    case QI_SHR:
-        if (b >= bits)
-            fault_error(&S->fault, E_IQ);
-
-        r = op == QI_SHL ? qrt_keep(n, a << b)
-            : sign       ? (uint64_t)((int64_t)a < 0 ? ~(~(int64_t)a >> b) : (int64_t)a >> b)
-                         : a >> b;
-        break;
-
-    case QI_CMP: {
-        const bool lt = sign ? (int64_t)a < (int64_t)b : a < b;
-        const uint32_t o = a == b ? DC_EQ : lt ? DC_LT : DC_GT;
-        exec_pushi(vm, word >> QX_REL & o ? -1 : 0);
-        return;
-    }
-
-    default: {
-        const bool over = qrt_arith(S, op, n, a, b, &r);
-
-        if (wrap)
-            r = qrt_keep(n, r);
-        else if (over || !qrt_fits(n, r, sign))
-            fault_error(&S->fault, E_OV);
-    }
-    }
+    if (wrap)
+        r = qrt_keep(n, r);
+    else if (over || !qrt_fits(n, r, sign))
+        fault_error(&S->fault, E_OV);
 
     exec_push(vm, qrt_cell(n, r));
 }
 
-/* QX.CONV ( v word -- w ): v of number from as number to: a float truncated toward 0; Overflow when
-   it doesn't fit, unless wrap keeps to's bits. */
-static void qrt_conv(Session *const S, const uint32_t word)
+/* X N.CONV from to ( v -- w ): v of number from as number to: a float truncated toward 0; Overflow
+   when it doesn't fit, unless to's QN_WRAP keeps its bits. */
+void qrt_conv(Session *const S)
 {
     Vm *const vm = &S->vm;
-    const QrtNum from = (QrtNum)(word >> QX_OP & 15), to = (QrtNum)(word >> QX_TO & 15);
-    const bool wrap = word >> QX_WRAP & 1;
+    const QrtNum from = (QrtNum)exec_u8(vm);
+    const uint8_t how = exec_u8(vm);
+    const QrtNum to = (QrtNum)(how & ~QN_WRAP);
+    const bool wrap = how & QN_WRAP;
     const Cell v = exec_pop(vm);
 
     if (to == QN_F32 || to == QN_F64) {
@@ -1550,10 +1455,6 @@ void qrt_x(Session *const S)
     switch (op) {
     case QX_INT:
         qrt_int(S, word);
-        return;
-
-    case QX_CONV:
-        qrt_conv(S, word);
         return;
 
     case QX_LEN: {

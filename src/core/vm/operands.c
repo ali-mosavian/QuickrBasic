@@ -37,7 +37,6 @@ void oper_i_ld_u8(Session *const S) { hot_op(S, hot_i_ld_u8); }
 void oper_f_ld_f32(Session *const S) { hot_op(S, hot_i_ld_i32); }
 void oper_f_ld_u8(Session *const S) { hot_op(S, hot_f_ld_u8); }
 void oper_f_ld_vi(Session *const S) { hot_op(S, hot_f_ld_vi); }
-void oper_f_ld_pi(Session *const S) { hot_op(S, hot_f_ld_pi); }
 /* A string variable: its descriptor. */
 void oper_s_ld_v(Session *const S) { exec_pusha(&S->vm, exec_cell(&S->vm)); }
 
@@ -58,6 +57,7 @@ void oper_s_ld_l(Session *const S) { exec_pusha(&S->vm, S->vm.fp + exec_cell(&S-
 #define X(name, src, op)                                                                           \
     void oper_##name(Session *const S) { hot_op(S, hot_##name); }
 HOT_INTS(X)
+HOT_XINTS(X)
 #undef X
 
 void oper_i_neg(Session *const S) { hot_op(S, hot_i_neg); }
@@ -133,3 +133,34 @@ void oper_i_tob(Session *const S) { hot_op(S, hot_i_tob); }
 void oper_i_toa(Session *const S) { hot_op(S, hot_i_toa); }
 
 void oper_drop(Session *const S) { hot_op(S, hot_drop); }
+
+/* ---- LONG, ULONG, UINT ---------------------------------------------------------------------- */
+
+#define X(name, src, op)                                                                           \
+    void oper_##name(Session *const S) { hot_op(S, hot_##name); }
+HOT_LONGS(X)
+#undef X
+#define X(name, op)                                                                                \
+    void oper_##name(Session *const S) { hot_op(S, hot_##name); }
+HOT_XLONGS(X)
+HOT_XUINTS(X)
+#undef X
+
+void oper_l_cmp(Session *const S) { hot_op(S, hot_l_cmp); }
+void oper_l_to_v(Session *const S) { hot_op(S, hot_l_to_v); }
+void oper_l_to_l(Session *const S) { hot_op(S, hot_l_to_l); }
+void oper_ul_cmp(Session *const S) { hot_op(S, hot_ul_cmp); }
+void oper_u_cmp(Session *const S) { hot_op(S, hot_u_cmp); }
+void oper_l_neg(Session *const S) { hot_op(S, hot_l_neg); }
+void oper_lw_neg(Session *const S) { hot_op(S, hot_lw_neg); }
+void oper_iw_neg(Session *const S) { hot_op(S, hot_iw_neg); }
+void oper_l_not(Session *const S) { hot_op(S, hot_l_not); }
+void oper_l_shl(Session *const S) { hot_op(S, hot_l_shl); }
+void oper_l_shr(Session *const S) { hot_op(S, hot_l_shr); }
+void oper_ul_shr(Session *const S) { hot_op(S, hot_ul_shr); }
+void oper_u_shr(Session *const S) { hot_op(S, hot_u_shr); }
+void oper_i_tol(Session *const S) { hot_op(S, hot_i_tol); }
+void oper_u_tol(Session *const S) { hot_op(S, hot_u_tol); }
+void oper_l_toi(Session *const S) { hot_op(S, hot_l_toi); }
+void oper_l_tod(Session *const S) { hot_op(S, hot_l_tod); }
+void oper_d_tol(Session *const S) { hot_op(S, hot_d_tol); }

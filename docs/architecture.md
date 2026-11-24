@@ -147,8 +147,9 @@ rather than five:
 | `_U8`, `_I16`, `_F32` | a literal | `I_ADD_U8 1` |
 | `_A1`, `_A` | an array element: one or n subscripts | `I_LD_A1 a%` |
 
-`I` ops work on INTs, `F` on SINGLEs, `D` on DOUBLEs and `S` on strings. `CALL k` runs one of 185
-routines (PRINT, INPUT, MID$ ...). `ops.def` defines all 244 ops.
+`I` ops work on INTs, `F` on SINGLEs, `D` on DOUBLEs, `L` on Quickr's longs and `S` on strings.
+`CALL k` runs one of 185 routines (PRINT, INPUT, MID$ ...). `ops.def` defines all 256 one-byte ops
+and 53 X ops: the less hot ones, `X` and a second byte, run through a second table.
 
 **Fusion.** After codegen, `fuse_code` turns common sequences into one op: a store of a literal is
 `I_SET_U8`, a loop's test and jump `I_JFC_V`, its step, test and jump `I_NEXT_UP`.
