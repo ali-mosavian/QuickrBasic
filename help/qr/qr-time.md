@@ -1,12 +1,12 @@
 # time Module
-keys: ~quickr time, ~quickr time.ticks, ~quickr time.now, ~quickr time.sleep, ~quickr time.Clock, ~quickr time.tick
+keys: ~quickr time, ~quickr time.ticks, ~quickr time.now, ~quickr time.sleep, ~quickr time.Clock
 
 The clock, TIMER's, and the date.
 
     ticks() as double              seconds since midnight
     now() as string                the date and time: 2026-11-24 09:30:00
     sleep(seconds as double)       waits
-    Clock, tick(mut c) as double   seconds since the clock's last tick
+    Clock, c.tick() as double      seconds since the clock's last tick
 
 See also [Quickr](quickr index), [keys](quickr keys)
 

@@ -27,25 +27,25 @@ end function
 public function join(parts as string[], sep as string) as string
     var b as Builder
     for i in 0..len(parts)
-        if i > 0 then add(mut b, sep)
-        add(mut b, parts[i])
+        if i > 0 then b.add(sep)
+        b.add(parts[i])
     next
-    return text(b)
+    return b.text()
 end function
 
 ' a string built in parts: add them, then take text()
 public type Builder
     parts as string[]
+
+    fn add(mut self, s as string)
+        self.parts.push(s)
+    end fn
+
+    fn text(self) as string
+        var s = ""
+        for p in self.parts
+            s = s + p
+        next
+        return s
+    end fn
 end type
-
-public function add(mut b as Builder, s as string)
-    b.parts.push(s)
-end function
-
-public function text(b as Builder) as string
-    var s = ""
-    for p in b.parts
-        s = s + p
-    next
-    return s
-end function

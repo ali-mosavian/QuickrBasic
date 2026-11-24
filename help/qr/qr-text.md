@@ -1,5 +1,5 @@
 # text Module
-keys: ~quickr text, ~quickr text.find, ~quickr text.find_from, ~quickr text.upper, ~quickr text.lower, ~quickr text.trim, ~quickr text.chr, ~quickr text.code, ~quickr text.hex, ~quickr text.number, ~quickr text.split, ~quickr text.join, ~quickr text.Builder, ~quickr text.add, ~quickr text.text
+keys: ~quickr text, ~quickr text.find, ~quickr text.find_from, ~quickr text.upper, ~quickr text.lower, ~quickr text.trim, ~quickr text.chr, ~quickr text.code, ~quickr text.hex, ~quickr text.number, ~quickr text.split, ~quickr text.join, ~quickr text.Builder
 
 Searching, cases, splitting and joining strings.
 
@@ -17,7 +17,7 @@ Searching, cases, splitting and joining strings.
 See also [Quickr](quickr index), [io](quickr io)
 
 ## Details
-A Builder builds a string in parts: add(mut b, s) each, then text(b)
+A Builder builds a string in parts: b.add(s) each, then b.text()
 takes the whole. split of a string without sep gives one part, s.
 
 ## Example

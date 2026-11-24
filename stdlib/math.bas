@@ -54,6 +54,18 @@ end function
 public type Vec
     x as double
     y as double
+
+    fn dot(self, b as Vec) as double
+        return self.x * b.x + self.y * b.y
+    end fn
+
+    fn length(self) as double
+        return sqrt(self.x * self.x + self.y * self.y)
+    end fn
+
+    fn text(self) as string
+        return f"({self.x}, {self.y})"
+    end fn
 end type
 
 public function operator +(a as Vec, b as Vec) as Vec
@@ -68,18 +80,18 @@ public function operator *(a as Vec, k as double) as Vec
     return Vec(a.x * k, a.y * k)
 end function
 
+public function operator *(k as double, a as Vec) as Vec
+    return Vec(a.x * k, a.y * k)
+end function
+
+public function operator -(a as Vec) as Vec
+    return Vec(-a.x, -a.y)
+end function
+
 public function operator /(a as Vec, k as double) as Vec
     return Vec(a.x / k, a.y / k)
 end function
 
 public function operator =(a as Vec, b as Vec) as bool
     return a.x = b.x and a.y = b.y
-end function
-
-public function dot(a as Vec, b as Vec) as double
-    return a.x * b.x + a.y * b.y
-end function
-
-public function length(a as Vec) as double
-    return sqrt(a.x * a.x + a.y * a.y)
 end function

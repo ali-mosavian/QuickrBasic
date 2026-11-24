@@ -8,6 +8,7 @@ print math.atan2(1, 1) * 4 = math.pi; " "; math.atan2(1, -1) > 2; " "; math.atan
 print math.abs(-3); " "; math.abs(-2.5); " "; math.min(3, 4); " "; math.max(2.5, 1.0)
 print math.clamp(15, 0, 10); " "; math.clamp(-0.5, 0.0, 1.0); " "; math.lerp(0, 10, 0.25)
 let v = Vec(3, 4)
-print math.length(v); " "; (v + v).x; " "; (v * 2).y; " "; math.dot(v, v); " "; (v - Vec(1, 1)).x; " "; (v / 2).x
+print v.length(); " "; (v + v).x; " "; (v * 2).y; " "; v.dot(v); " "; (v - Vec(1, 1)).x; " "; (v / 2).x
 print v = Vec(3, 4); " "; v <> v * 1; " "; v + v = v * 2
 print sqrt(2)
+print v; " "; f"{2 * v}"; " "; -v; " "; (-v).length()

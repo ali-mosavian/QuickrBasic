@@ -28,11 +28,11 @@ end function
 ' a frame clock: tick() gives the seconds since the last tick, 0 the first
 public type Clock
     last as double = -1
-end type
 
-public function tick(mut c as Clock) as double
-    var d = 0.0
-    if c.last >= 0 then d = since(c.last)
-    c.last = ticks()
-    return d
-end function
+    fn tick(mut self) as double
+        var d = 0.0
+        if self.last >= 0 then d = since(self.last)
+        self.last = ticks()
+        return d
+    end fn
+end type

@@ -1,5 +1,5 @@
 # math Module
-keys: ~quickr math, ~quickr math.pi, ~quickr math.sqrt, ~quickr math.sin, ~quickr math.cos, ~quickr math.tan, ~quickr math.atan, ~quickr math.exp, ~quickr math.log, ~quickr math.floor, ~quickr math.ceil, ~quickr math.round, ~quickr math.atan2, ~quickr math.abs, ~quickr math.min, ~quickr math.max, ~quickr math.clamp, ~quickr math.lerp, ~quickr math.Vec, ~quickr math.dot, ~quickr math.length
+keys: ~quickr math, ~quickr math.pi, ~quickr math.sqrt, ~quickr math.sin, ~quickr math.cos, ~quickr math.tan, ~quickr math.atan, ~quickr math.exp, ~quickr math.log, ~quickr math.floor, ~quickr math.ceil, ~quickr math.round, ~quickr math.atan2, ~quickr math.abs, ~quickr math.min, ~quickr math.max, ~quickr math.clamp, ~quickr math.lerp, ~quickr math.Vec
 
 Numbers' functions, and a 2-d vector.
 
@@ -15,8 +15,8 @@ See also [Quickr](quickr index), [random](quickr random)
 
 ## Details
 Vec has x and y, both double, and the operators + - (two Vecs),
-* / (a Vec and a number) and =. dot(a, b) and length(a) take Vecs:
-a.length() is length(a).
+* / (a Vec and a number), number * Vec, unary - and =. Its methods:
+a.dot(b), a.length(), and a.text(), which print spells it by.
 
 ## Example
     ' OPTION DIALECT QUICKR

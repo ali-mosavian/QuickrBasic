@@ -9,6 +9,6 @@ let parts = text.split("a,b,,c", ",")
 print len(parts); " "; parts[0]; " "; parts[2] = ""; " "; parts[3]
 print text.join(parts, "-"); " "; text.join(text.split("x", ","), "+")
 var b as text.Builder
-text.add(mut b, "ab")
-text.add(mut b, "cd")
-print text.text(b)
+b.add("ab")
+b.add("cd")
+print b.text(); " "; b

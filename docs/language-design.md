@@ -1019,10 +1019,7 @@ dicts and iterables. Everything else is in a module.
 - `io.read_line` echoes the line's end, as LINE INPUT does. `io.at(row, col)` counts from 1.
   `io.color(fg, bg = 0)`.
 
-**Not yet:** `text.to_int`. The types' functions are top-level, called with the value first:
-`fs.open`, `read`, `write`, `seek`, `size`, `close`; `time.tick`; `text.add` and `text.text`;
-`math.dot` and `math.length`; `keys.code`. `Vec` has no `double * Vec`, unary `-` or `text()`.
-`gfx` waits on the graphics extension; `synth` on `lib/synth.qbx`.
+**Not yet:** `text.to_int`. `gfx` waits on the graphics extension; `synth` on `lib/synth.qbx`.
 
 ## Building it
 

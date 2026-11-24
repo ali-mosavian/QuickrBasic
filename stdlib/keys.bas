@@ -45,33 +45,33 @@ public enum Key
     x
     y
     z
-end enum
 
-' a key's code as next() gives it: a character's, 256 + an extended key's scan code
-public function code(k as Key) as int
-    select case k
-        case Key.escape
-            return 27
-        case Key.enter
-            return 13
-        case Key.space
-            return 32
-        case Key.tab
-            return 9
-        case Key.backspace
-            return 8
-        case Key.up
-            return 256 + 72
-        case Key.down
-            return 256 + 80
-        case Key.left
-            return 256 + 75
-        case Key.right
-            return 256 + 77
-        case else
-            return 97 + int(k) - int(Key.a)
-    end select
-end function
+    ' a key's code as next() gives it: a character's, 256 + an extended key's scan code
+    fn code(self) as int
+        select case self
+            case Key.escape
+                return 27
+            case Key.enter
+                return 13
+            case Key.space
+                return 32
+            case Key.tab
+                return 9
+            case Key.backspace
+                return 8
+            case Key.up
+                return 256 + 72
+            case Key.down
+                return 256 + 80
+            case Key.left
+                return 256 + 75
+            case Key.right
+                return 256 + 77
+            case else
+                return 97 + int(self) - int(Key.a)
+        end select
+    end fn
+end enum
 
 var waiting as int[]
 var seen as double[512]
@@ -103,7 +103,7 @@ end function
 ' k pressed since the last pressed(k)
 public function pressed(k as Key) as bool
     poll()
-    let c = code(k)
+    let c = k.code()
     let was = fresh[c]
     fresh[c] = false
     return was
@@ -112,7 +112,7 @@ end function
 ' k held: pressed or repeated in the last held_for seconds
 public function down(k as Key) as bool
     poll()
-    let c = code(k)
+    let c = k.code()
     if seen[c] = 0 then return false
     var d = time.ticks() - seen[c]
     if d < 0 then d += 86400

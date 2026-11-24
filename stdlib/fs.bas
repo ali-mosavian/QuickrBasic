@@ -13,57 +13,57 @@ native function error_text(err as int) as string
 
 ' an open file: its number, as OPEN's; 0 closed
 public type File
-    n as int
+    private n as int
+
+    ' path opened: mode "r" to read, "w" to write it anew, "a" to add to its end, "rw" both
+    fn open(path as string, mode as string = "r") as File or Error
+        let n = file_open(path, mode)
+        if n < 0 then return Error(-n, f"{path}: {error_text(-n)}")
+        return File(n)
+    end fn
+
+    ' count bytes at most from the file's place, fewer at its end
+    fn read(self, count as int) as string
+        return file_read(self.n, count)
+    end fn
+
+    fn write(self, s as string) as bool or Error
+        let st = file_write(self.n, s)
+        if st < 0 then return Error(-st, f"write: {error_text(-st)}")
+        return true
+    end fn
+
+    ' the file's place to byte at, from 0
+    fn seek(self, at as int) as bool or Error
+        let st = file_seek(self.n, at)
+        if st < 0 then return Error(-st, f"seek: {error_text(-st)}")
+        return true
+    end fn
+
+    fn size(self) as int
+        return file_size(self.n)
+    end fn
+
+    fn close(mut self)
+        if self.n > 0 then file_close(self.n)
+        self.n = 0
+    end fn
 
     fn drop(mut self)
-        close(mut self)
+        self.close()
     end fn
 end type
 
-' path opened: mode "r" to read, "w" to write it anew, "a" to add to its end, "rw" both
-public function open(path as string, mode as string = "r") as File or Error
-    let n = file_open(path, mode)
-    if n < 0 then return Error(-n, f"{path}: {error_text(-n)}")
-    return File(n)
-end function
-
-' count bytes at most from f's place, fewer at its end
-public function read(f as File, count as int) as string
-    return file_read(f.n, count)
-end function
-
-public function write(f as File, s as string) as bool or Error
-    let st = file_write(f.n, s)
-    if st < 0 then return Error(-st, f"write: {error_text(-st)}")
-    return true
-end function
-
-' f's place to byte at, from 0
-public function seek(f as File, at as int) as bool or Error
-    let st = file_seek(f.n, at)
-    if st < 0 then return Error(-st, f"seek: {error_text(-st)}")
-    return true
-end function
-
-public function size(f as File) as int
-    return file_size(f.n)
-end function
-
-public function close(mut f as File)
-    if f.n > 0 then file_close(f.n)
-    f.n = 0
-end function
-
 ' the whole file as a string
 public function read_text(path as string) as string or Error
-    let f = open(path)?
-    return read(f, size(f))
+    let f = File.open(path)?
+    return f.read(f.size())
 end function
 
 public function write_text(path as string, s as string) as bool or Error
-    var f = open(path, "w")?
+    var f = File.open(path, "w")?
     let st = file_write(f.n, s)
-    close(mut f)
+    f.close()
     if st < 0 then return Error(-st, f"{path}: {error_text(-st)}")
     return true
 end function
