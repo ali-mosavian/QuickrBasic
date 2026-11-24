@@ -86,6 +86,9 @@ uint nearest(uvec3 c)
 // the tint times the light over 63, as px_shade.
 uvec3 lit(uvec3 c, bool index)
 {
+    if (v_tint == uvec4(255u, 255u, 255u, FULL))
+        return c;
+
     uvec3 tint = v_tint.rgb;
     uint light = v_tint.a;
 
@@ -104,25 +107,37 @@ uint looked_up(uint index)
     return nearest(lit(colour_of(v_more.x, index), true));
 }
 
-// The texel at t, kept in the rectangle, lit: as an index when indices, else a colour; *drawn
-// false where keyed.
-uvec3 texel(ivec2 t, uint stages, bool indices, out bool drawn)
+// The texel at t, kept in the rectangle (u repeating with WRAP).
+vec4 fetched(ivec2 t, uint stages)
 {
     ivec2 from = ivec2(v_rect.xy), size = ivec2(v_rect.zw);
 
     if ((stages & WRAP) != 0u)
         t.x = from.x + int(mod(float(t.x - from.x), float(size.x)));
 
-    t = clamp(t, from, from + size - 1);
-    vec4 c = texelFetch(source, t, 0);
+    return texelFetch(source, clamp(t, from, from + size - 1), 0);
+}
+
+// Texel c is drawn: not keyed.
+bool kept(vec4 c, uint stages)
+{
+    if ((stages & KEYED) == 0u)
+        return true;
+
+    return (stages & INDEXED) != 0u ? c.r >= 0.5 / 255.0 : c.a >= 0.5;
+}
+
+// The texel at t, lit: as an index when indices, else a colour; *drawn false where keyed.
+uvec3 texel(ivec2 t, uint stages, bool indices, out bool drawn)
+{
+    vec4 c = fetched(t, stages);
+    drawn = kept(c, stages);
 
     if ((stages & INDEXED) != 0u) {
         uint index = uint(c.r * 255.0 + 0.5);
-        drawn = (stages & KEYED) == 0u || index != 0u;
         return indices ? uvec3(looked_up(index)) : lit(colour_of(v_more.x, index), true);
     }
 
-    drawn = (stages & KEYED) == 0u || c.a >= 0.5;
     uvec3 rgb = lit(bytes(c.rgb), false);
     return indices ? uvec3(nearest(rgb)) : rgb;
 }
@@ -186,17 +201,19 @@ void main()
     if ((stages & DISC) != 0u && !covered(stages))
         discard;
 
-    bool drawn;
-    uvec3 c = (stages & SMOOTH) != 0u ? smoothed(stages, drawn)
-                                      : texel(ivec2(floor(v_texel)), stages, eight, drawn);
+    bool solid = (stages & SOLID) != 0u, drawn = true;
+    uvec3 c = v_tint.rgb;
+
+    if ((stages & SMOOTH) != 0u) {
+        uvec3 m = smoothed(stages, drawn);
+        c = solid ? c : eight ? uvec3(nearest(m)) : m;
+    } else if (!solid)
+        c = texel(ivec2(floor(v_texel)), stages, eight, drawn);
+    else if ((stages & KEYED) != 0u)
+        drawn = kept(fetched(ivec2(floor(v_texel)), stages), stages);
 
     if (!drawn)
         discard;
-
-    if ((stages & SOLID) != 0u)
-        c = v_tint.rgb;
-    else if (eight && (stages & SMOOTH) != 0u)
-        c = uvec3(nearest(c));
 
     if ((stages & (ADD | MIX)) != 0u)
         c = blended(c, stages);
