@@ -1,7 +1,6 @@
 ' OPTION DIALECT QUICKR
 ' maps: their errors
 var a as dict[double, int]
-var b as dict[string, int[]]
 var m as dict[string, int]
 m[3] = 1
 print m["x"] + "y"

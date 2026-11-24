@@ -142,7 +142,7 @@ that is not a loop.
 - `-` of an unsigned value is a compile error outside `wrap`.
 - `T?`, `T!`, `V[K]` and `??` are errors that name `T or none`, `T or Error`, `dict[K, V]` and
   `or else`.
-- **Not yet:** generic records, lists of lists, and a list as a dict's value.
+- **Not yet:** generic records.
 - **In the VM**, an integer to 16 bits and an `int` live in an int cell and compute with the int
   ops, a result's range then checked. A `uint`'s bits are in an int cell too, with ops of its own.
   A `long` and a `ulong` are 8-byte cells loaded and stored by the double ops, with ops of their
@@ -657,6 +657,8 @@ next
 - A key is an `int`, a `string` or a plain enum.
 - `for k, v in d` and `for k in d` go in the keys' order: as added, except that a remove moves
   the last key into the removed one's place.
+- **In the VM**, a list whose elements are lists is a list of one-field TYPEs, each holding its
+  element's cell, as a record holding a list does; a dict of lists keeps its values so.
 - **In the VM**, a dict is a record of three lists: its keys, its values and its hash slots, each
   an entry's index. A key is found by its hash and a probe, half the slots at most in use. A
   list's growth on the heap leaves its old array for a sweep, which walks every string block, so

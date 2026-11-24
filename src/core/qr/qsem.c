@@ -1022,17 +1022,6 @@ static QType qsem_type(QSem *const S, const QTypeEx *const x)
         return qsem_wrapof(S, x->kind == QX_OPT ? QT_OPT : QT_RES, elem);
     }
 
-    if (qast_array(S->prog, elem)) {
-        qsem_say(
-            S,
-            x->tok,
-            x->kind == QX_DICT ? "a list as a dict's value is not supported yet"
-                               : "lists of lists are not supported yet",
-            nullptr
-        );
-        return QY_ERROR;
-    }
-
     if (x->kind == QX_DICT)
         return qsem_maptype(S, x, elem);
     if (x->kind == QX_LIST)

@@ -1075,10 +1075,16 @@ uint32_t qcg_scalar_et(const QType t)
     }
 }
 
-/* Type t's ET_*: a record's ET_REC + its TYPE, a scalar's qcg_scalar_et. */
+/* Is t kept in a TYPE: a record, or a list that is an element (qr/qlink.c)? */
+static bool qcg_typed(const QCg *const g, const QType t)
+{
+    return qcg_rec(g, t) || (qcg_list(g, t) && qcg_ty(g, t)->boxed);
+}
+
+/* Type t's ET_*: a record's or a boxed list's ET_REC + its TYPE, a scalar's qcg_scalar_et. */
 static uint32_t qcg_et(const QCg *const g, const QType t)
 {
-    return qcg_rec(g, t) ? ET_REC + qcg_ty(g, t)->td : qcg_scalar_et(t);
+    return qcg_typed(g, t) ? ET_REC + qcg_ty(g, t)->td : qcg_scalar_et(t);
 }
 
 /* Is t kept in 2 bytes or 1 in a record or a list: N.LD.A, P.REFN? */
@@ -1103,7 +1109,7 @@ static uint32_t qcg_size(const QCg *const g, const QType t)
         return 1;
 
     default:
-        return qcg_rec(g, t) ? qcg_ty(g, t)->size : 4;
+        return qcg_typed(g, t) ? qcg_ty(g, t)->size : 4;
     }
 }
 
@@ -1179,6 +1185,24 @@ static QVar *qcg_listvar(QCg *const g, const QExpr *const a)
 }
 
 static void qcg_x(Code *c, QrtX op);
+static void qcg_elem(QCg *g, const QExpr *e);
+
+/* Is list place e held in a TYPE's bytes: a record's field, a list of lists' element, a dict's
+   value? */
+static bool qcg_held(const QCg *const g, const QExpr *const e)
+{
+    return e->kind == QE_FIELD || (e->kind == QE_INDEX && qcg_list(g, e->type));
+}
+
+/* Held list place e's TYPE's address pushed; the bytes returned still to add, a field's. */
+static uint32_t qcg_heldat(QCg *const g, const QExpr *const e)
+{
+    if (e->kind == QE_FIELD)
+        return qcg_fieldat(g, e);
+
+    qcg_elem(g, e);
+    return 0;
+}
 
 /* QX.MAPAT's and QX.MAPDEL's operands: map place m's key, its ETs, then its address, last: the
    key's evaluation may move the heap. */
@@ -1206,8 +1230,8 @@ static void qcg_elem(QCg *const g, const QExpr *const e)
         return;
     }
 
-    if (a->kind == QE_FIELD) {
-        const uint32_t off = qcg_fieldat(g, a);
+    if (qcg_held(g, a)) {
+        const uint32_t off = qcg_heldat(g, a);
 
         if (y->kind == QT_LIST) {
             qcg_expr(g, e->b);
@@ -1256,11 +1280,12 @@ static uint32_t qcg_addr(QCg *const g, const QExpr *const e)
     return 0;
 }
 
-/* List place e's cell's address pushed: a variable's, a parameter's through its ref, a field's. */
+/* List place e's cell's address pushed: a variable's, a parameter's through its ref, a held
+   one's. */
 static void qcg_cell(QCg *const g, const QExpr *const e)
 {
-    if (e->kind == QE_FIELD) {
-        qcg_offset(g, qcg_fieldat(g, e));
+    if (qcg_held(g, e)) {
+        qcg_offset(g, qcg_heldat(g, e));
         return;
     }
 
@@ -1362,7 +1387,7 @@ static void qcg_pfieldop(
 /* Is element place e a variable's list's, loaded and stored by I.LD.A1 and its kin? */
 static bool qcg_byindex(const QCg *const g, const QExpr *const e)
 {
-    return e->kind == QE_INDEX && e->a->kind != QE_FIELD && qcg_list(g, e->a->type);
+    return e->kind == QE_INDEX && !qcg_held(g, e->a) && qcg_list(g, e->a->type);
 }
 
 /* Scalar place e's value pushed. */
@@ -1593,6 +1618,10 @@ static void qcg_get(QCg *const g, const QExpr *const dst, const QExpr *const e)
         qcg_offset(g, qcg_addr(g, &val));
         qcg_load(c, at);
         qcg_recop(g, val.type);
+    } else if (qcg_list(g, val.type)) {
+        qcg_load(c, at);
+        qcg_cell(g, &val);
+        code_call(c, K_ACOPY);
     } else {
         const QCgPut put = qcg_before(g, &val);
         qcg_load(c, at);
@@ -2108,12 +2137,12 @@ static uint32_t qcg_elems(QCg *const g, const QExpr *const a)
 {
     const QTy *const y = qcg_ty(g, a->type);
 
-    if (a->kind != QE_FIELD || y->kind != QT_ARRAY) {
+    if (!qcg_held(g, a) || y->kind != QT_ARRAY) {
         qcg_cell(g, a);
         return 0;
     }
 
-    qcg_offset(g, qcg_fieldat(g, a));
+    qcg_offset(g, qcg_heldat(g, a));
     code_int(g->c, y->count);
     return QX_INLINE;
 }
@@ -2170,7 +2199,7 @@ static void qcg_listop(QCg *const g, const QExpr *const e, const QExpr *const ds
         const QExpr *v = e->argv[e->nargv - 1];
         QExpr held;
 
-        if (qcg_rec(g, elem) && qast_fresh(v)) { /* built first: the element's address stays */
+        if (qcg_byplace(g, elem) && qast_fresh(v)) { /* built first: the element's address stays */
             held = qcg_settle(g, v);
             v = &held;
         }
@@ -2179,7 +2208,8 @@ static void qcg_listop(QCg *const g, const QExpr *const e, const QExpr *const ds
         code_int(c, et);
         qcg_x(c, QX_PUSH);
 
-        if (e->a->kind == QE_FIELD) { /* the push may move its record: found again */
+        /* the push may move a held list's record, and a list goes in as a place: found again */
+        if (qcg_held(g, e->a) || qcg_list(g, elem)) {
             code_op(c, O_DROP);
             QCgLast l;
             qcg_lastof(&l, e->a, elem);
@@ -2207,7 +2237,12 @@ static void qcg_listop(QCg *const g, const QExpr *const e, const QExpr *const ds
     }
 
     case QB_POP:
-        if (dst) {
+        if (dst && qcg_list(g, elem)) { /* the last's list moved out */
+            qcg_cell(g, e->a);
+            qcg_x(c, QX_LAST);
+            qcg_cell(g, dst);
+            code_call(c, K_AMOVE);
+        } else if (dst) {
             qcg_offset(g, qcg_addr(g, dst));
             qcg_cell(g, e->a);
             qcg_x(c, QX_LAST);
@@ -2217,7 +2252,7 @@ static void qcg_listop(QCg *const g, const QExpr *const e, const QExpr *const ds
 
         qcg_cell(g, e->a);
         code_int(c, et);
-        qcg_x(c, dst || qcg_rec(g, elem) ? QX_DROP : QX_POP);
+        qcg_x(c, dst || qcg_typed(g, elem) ? QX_DROP : QX_POP);
         return;
 
     default: /* remove: moved last, then dropped */

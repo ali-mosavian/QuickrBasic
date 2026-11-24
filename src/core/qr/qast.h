@@ -302,6 +302,7 @@ typedef struct {
     bool owns;     /* holds a list: moved, never copied by itself */
     bool laid;     /* qlink's: its TYPE's fields made */
     bool deep;     /* qlink's: its TYPE holds strings or lists (comp/declare.h decl_dynamic) */
+    bool boxed;    /* qlink's: a list or array that is an element, its TYPE's one field */
     uint32_t td;   /* its TYPE (comp/declare.h), qlink's */
     uint32_t size; /* its TYPE's bytes, qlink's */
     uint8_t *word; /* qlink's: by offset in its first QAST_WORDS bytes, the number + 1 of the

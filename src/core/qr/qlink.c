@@ -35,11 +35,14 @@ static void qlink_kind(const QProg *const p, const QType t, uint32_t *const et, 
 {
     if (qast_array(p, t)) {
         const QType elem = qast_ty(p, t)->elem;
+        const bool boxed = qast_record(p, elem) || qast_array(p, elem);
         qlink_kind(p, elem, et, kind);
-        *kind = qast_record(p, elem) ? VI_ARR : *kind | VI_ARR;
+        *kind = boxed ? VI_ARR : *kind | VI_ARR;
 
         if (qast_integer(elem))
             *et = qcg_scalar_et(elem);
+        if (qast_array(p, elem))
+            *et = ET_REC + qast_ty(p, elem)->td;
 
         return;
     }
@@ -144,7 +147,45 @@ static uint32_t qlink_name(Symb *const sy, const QTok *const t)
     return t ? symb_find_name(sy, 0, (const uint8_t *)t->text, (uint8_t)t->len) : 0;
 }
 
-/* Record t's TYPE's fields, a record each holds by value laid first; each field's offset. */
+/* An element of type t's ET_*: a record's or a boxed list's ET_REC + its TYPE. */
+static uint32_t qlink_et(const QProg *const p, const QType t)
+{
+    uint32_t et;
+    uint8_t kind;
+    qlink_kind(p, t, &et, &kind);
+
+    if (qast_integer(t))
+        return qcg_scalar_et(t);
+
+    return qast_array(p, t) ? ET_REC + qast_ty(p, t)->td : et;
+}
+
+static void qlink_lay(Comp *C, const QProg *p, QType t);
+
+/* A field of type t added to TYPE td: a list's cell, a fixed array's elements inline, a record
+   by value laid out first. */
+static void qlink_field(Comp *const C, const QProg *const p, const uint32_t td, const QField *f)
+{
+    const QType t = f->type;
+    const bool list = qast_array(p, t);
+    const QType elem = list ? qast_ty(p, t)->elem : t;
+    const bool dyn = list && qast_ty(p, t)->kind == QT_LIST;
+
+    if ((qast_record(p, elem) || qast_array(p, elem)) && !dyn)
+        qlink_lay(C, p, elem);
+
+    decl_newfield(
+        C->decl,
+        td,
+        qlink_name(C->symb, f->name),
+        qlink_et(p, elem),
+        list && !dyn ? qast_ty(p, t)->count : 0,
+        dyn
+    );
+}
+
+/* Record t's TYPE's fields, a record each holds by value laid first; each field's offset. A boxed
+   list's TYPE, its one field the list. */
 static void qlink_lay(Comp *const C, const QProg *const p, const QType t)
 {
     QTy *const y = qast_ty(p, t);
@@ -154,31 +195,15 @@ static void qlink_lay(Comp *const C, const QProg *const p, const QType t)
 
     y->laid = true;
 
-    for (uint32_t k = 0; k < y->nfields; k++) {
-        QField *const f = &y->fields[k];
-        const bool list = qast_array(p, f->type);
-        const QType elem = list ? qast_ty(p, f->type)->elem : f->type;
-        const bool dyn = list && qast_ty(p, f->type)->kind == QT_LIST;
-        uint32_t et;
-        uint8_t kind;
+    if (y->boxed) {
+        const QField f = {.type = t};
 
-        if (qast_record(p, elem) && !dyn)
-            qlink_lay(C, p, elem);
+        qlink_field(C, p, y->td, &f);
+    }
 
-        qlink_kind(p, elem, &et, &kind);
-
-        if (qast_integer(elem))
-            et = qcg_scalar_et(elem);
-
-        decl_newfield(
-            C->decl,
-            y->td,
-            qlink_name(C->symb, f->name),
-            et,
-            list && !dyn ? qast_ty(p, f->type)->count : 0,
-            dyn
-        );
-        f->off = decl_type(C->decl, y->td)->fields[k].off;
+    for (uint32_t k = 0; !y->boxed && k < y->nfields; k++) {
+        qlink_field(C, p, y->td, &y->fields[k]);
+        y->fields[k].off = decl_type(C->decl, y->td)->fields[k].off;
     }
 
     const TypeDef *const td = decl_type(C->decl, y->td);
@@ -221,8 +246,19 @@ static void qlink_types(Comp *const C, const QProg *const p, QMem *const m)
             p->tys.at[i].td =
                 decl_newtype(C->decl, C->symb, qlink_name(C->symb, p->tys.at[i].name));
 
+    for (uint32_t i = 0; i < p->tys.n; i++) { /* each list an element: boxed in a TYPE */
+        const QTy *const y = &p->tys.at[i];
+        QTy *const in =
+            qast_array(p, QY_FIRST + i) && qast_array(p, y->elem) ? qast_ty(p, y->elem) : nullptr;
+
+        if (in && !in->boxed) {
+            in->boxed = true;
+            in->td = decl_newtype(C->decl, C->symb, 0);
+        }
+    }
+
     for (uint32_t i = 0; i < p->tys.n; i++)
-        if (qast_record(p, QY_FIRST + i))
+        if (qast_record(p, QY_FIRST + i) || p->tys.at[i].boxed)
             qlink_lay(C, p, QY_FIRST + i);
 
     for (uint32_t i = 0; i < p->tys.n; i++) {
