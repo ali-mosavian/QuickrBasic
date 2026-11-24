@@ -266,24 +266,6 @@ static inline bool ra_addr1(Regs *const r, const Arry *const ar)
     return true;
 }
 
-/* A narrow number's value at a: a record's field, an array's element, by its ET_*. */
-static inline int32_t narrow_ld(const Addr a, const uint8_t type)
-{
-    switch (type) {
-    case ET_SH:
-        return (int16_t)rd16(a);
-
-    case ET_US:
-        return rd16(a);
-
-    case ET_SB:
-        return (int8_t)rd8(a);
-
-    default:
-        return rd8(a);
-    }
-}
-
 /* Does x fit narrow type's range? */
 static inline bool narrow_fits(const uint8_t type, const Cell x)
 {
@@ -899,13 +881,13 @@ i_next_dn_l:
 
 e_next: /* for x in a's next: flow_e_next's */
 {
-    const Jump *const j = (const Jump *)(r.ip + NEXT_SIZE - sizeof(Jump));
+    const Jump *const j = (const Jump *)(r.ip + E_NEXT_SIZE - sizeof(Jump));
 
     if (v->stop || j->dest <= TO_NEXT_STMT)
         goto slow;
 
     if (!hot_e_next(r.ip, r.fp)) {
-        r.ip += NEXT_SIZE;
+        r.ip += E_NEXT_SIZE;
         goto next;
     }
 

@@ -1148,6 +1148,20 @@ static QExpr qcg_settle(QCg *const g, const QExpr *const e)
     return t;
 }
 
+/* The copy of a for's x that element place e names (qr/qsem.c qsem_each), its E.NEXT's: a number,
+   or a record in cells; a resumable's, by reference, a number of 4 bytes or 8. Null none. */
+static const QVar *qcg_copyat(const QCg *const g, const QExpr *const e)
+{
+    const QVar *const v = e->kind == QE_INDEX ? e->var : nullptr;
+
+    if (!v)
+        return nullptr;
+    if (qcg_rec(g, v->type))
+        return v->cells && !v->byref ? v : nullptr;
+
+    return !v->byref || !qcg_short(g, v->type) ? v : nullptr;
+}
+
 /* Record place a's field f's offset from a's address, pushed; f's own added. */
 static uint32_t qcg_fieldat(QCg *const g, const QExpr *const f)
 {
@@ -1227,18 +1241,19 @@ static uint32_t qcg_addr(QCg *const g, const QExpr *const e)
         return qcg_addr(g, &t);
     }
 
-    switch (e->kind) {
-    case QE_NAME:
-        code_opid(g->c, e->var->cells ? O_V_CELL : O_R_ADDR, e->var->id, false);
-        return 0;
+    const QVar *const v =
+        e->kind == QE_NAME ? e->var : (qcg_rec(g, e->type) ? qcg_copyat(g, e) : nullptr);
 
-    case QE_FIELD:
-        return qcg_fieldat(g, e);
-
-    default:
-        qcg_elem(g, e);
+    if (v) {
+        code_opid(g->c, v->cells ? O_V_CELL : O_R_ADDR, v->id, false);
         return 0;
     }
+
+    if (e->kind == QE_FIELD)
+        return qcg_fieldat(g, e);
+
+    qcg_elem(g, e);
+    return 0;
 }
 
 /* List place e's cell's address pushed: a variable's, a parameter's through its ref, a field's. */
@@ -1284,14 +1299,15 @@ static bool qcg_word(const QCg *const g, const QExpr *const e, QVar *const w)
     for (; r->kind == QE_FIELD; r = r->a)
         off += qcg_ty(g, r->a->type)->fields[r->field].off;
 
-    if (r->kind != QE_NAME || !r->var->cells || off >= QAST_WORDS ||
-        !qcg_ty(g, r->var->type)->word[off])
+    const QVar *const v = r->kind == QE_NAME ? r->var : qcg_copyat(g, r);
+
+    if (!v || !v->cells || off >= QAST_WORDS || !qcg_ty(g, v->type)->word[off])
         return false;
 
     *w = (QVar){
         .type = e->type,
         .kind = QV_VAR,
-        .id = r->var->words + qcg_ty(g, r->var->type)->word[off] - 1,
+        .id = v->words + qcg_ty(g, v->type)->word[off] - 1,
     };
 
     return true;
@@ -1315,8 +1331,8 @@ static void qcg_loadat(QCg *const g, const QExpr *const e)
         return;
     }
 
-    if (e->kind == QE_INDEX && e->var && !e->var->byref) { /* a for's x: its copy, E.NEXT's */
-        qcg_load(c, e->var);
+    if (qcg_copyat(g, e)) { /* a for's x: its copy, E.NEXT's */
+        qcg_load(c, qcg_copyat(g, e));
         return;
     }
 
@@ -1621,9 +1637,11 @@ static void qcg_ref(QCg *const g, const QExpr *const a)
         return;
     }
 
-    if (a->kind == QE_NAME && !qcg_rec(g, a->type)) {
+    const QVar *const v = a->kind == QE_NAME ? a->var : qcg_copyat(g, a);
+
+    if (v && !qcg_rec(g, a->type)) {
         code_int(c, 0);
-        code_opid(c, qcg_par(a->var) ? O_V_REF : O_V_CELL, a->var->id, false);
+        code_opid(c, qcg_par(v) ? O_V_REF : O_V_CELL, v->id, false);
         return;
     }
 
@@ -3110,12 +3128,17 @@ static void qcg_inclusive(QCg *const g, const QStmt *const s)
     qcg_store(c, s->lim);
 }
 
-/* For s's copy of x, which its E.NEXT loads (qr/qsem.c qsem_each); null none, or a resumable
-   generator's loop: its variables by reference. */
-static const QVar *qcg_copy(const QStmt *const s)
+/* Copy x's E.NEXT size operand: 0 a number of 4 bytes or 8 in its own cell, else its bytes. */
+static uint16_t qcg_each(const QCg *const g, const QVar *const x)
 {
-    const QVar *const v = s->each && s->var && s->var->place ? s->var->place->var : nullptr;
-    return v && !v->byref ? v : nullptr;
+    const uint32_t size = qcg_size(g, x->type);
+    return (uint16_t)(x->byref || qcg_rec(g, x->type) || size < 4 ? size : 0);
+}
+
+/* For s's copy of x, which its E.NEXT loads; null none. */
+static const QVar *qcg_copy(const QCg *const g, const QStmt *const s)
+{
+    return s->each && s->var && s->var->place ? qcg_copyat(g, s->var->place) : nullptr;
 }
 
 /* Variable v, declared with no value: 0, "", an empty list, an array's elements 0, a record's
@@ -3594,11 +3617,17 @@ static void qcg_body(QCg *const g, const QStmt *const s)
         qcg_to(g, O_I_JT, s->link, BOFF, TO_STMT);
         qcg_inclusive(g, s);
 
-        if (qcg_copy(s)) { /* x's first copy; E.NEXT the rest */
+        if (qcg_copy(g, s)) { /* x's first copy; E.NEXT the rest */
             QExpr at = *s->var->place;
             at.var = nullptr;
-            qcg_loadat(g, &at);
-            qcg_store(c, qcg_copy(s));
+            const QExpr x = qcg_named((QVar *)qcg_copy(g, s));
+
+            if (qcg_rec(g, x.type))
+                qcg_copyrec(g, &x, &at);
+            else {
+                qcg_loadat(g, &at);
+                qcg_store(c, x.var);
+            }
         }
 
         return;
@@ -3616,11 +3645,12 @@ static void qcg_body(QCg *const g, const QStmt *const s)
             return;
         }
 
-        if (qcg_copy(f)) {
+        if (qcg_copy(g, f)) {
             code_op(c, O_E_NEXT);
             code_dword(c, f->index->id);
             code_dword(c, f->e->var->id);
-            code_dword(c, qcg_copy(f)->id);
+            code_dword(c, qcg_copy(g, f)->id);
+            code_word(c, qcg_each(g, qcg_copy(g, f)));
             qcg_target(g, f, BOFF, TO_STMT);
             return;
         }

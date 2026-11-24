@@ -537,11 +537,67 @@ static inline Status hot_next(const uint8_t *const op, const Addr base, const bo
     return ST_OK;
 }
 
+/* A narrow number's value at a: a record's field, an array's element, by its ET_*. */
+static inline int32_t narrow_ld(const Addr a, const uint8_t type)
+{
+    switch (type) {
+    case ET_SH:
+        return (int16_t)rd16(a);
+
+    case ET_US:
+        return rd16(a);
+
+    case ET_SB:
+        return (int8_t)rd8(a);
+
+    default:
+        return rd8(a);
+    }
+}
+
+/* E.NEXT's other x: i's and x's Locs both a resumable's refs or neither; x a number's cell, a
+   narrow one's widened, or a record's size bytes. */
+[[gnu::noinline]]
+static bool hot_e_other(const uint8_t *const op, const Addr fp, const uint32_t size)
+{
+    const Addr i = loc_at((Loc){(int32_t)load32(op + 1)}, fp);
+
+    const Addr a = ((const ArrSlot *)at(loc_at((Loc){(int32_t)load32(op + 1 + VCELL)}, fp)))->hdr;
+
+    const uint32_t n = rd32(i) + 1;
+    wr32(i, n);
+
+    if (!a || n >= ((const ArrayHdr *)at(a))->fast)
+        return false;
+
+    const ArrayHdr *const h = (const ArrayHdr *)at(a);
+    const Addr x = loc_at((Loc){(int32_t)load32(op + 1 + 2 * VCELL)}, fp);
+
+    const Addr e = h->data + n * size;
+
+    if (size == 8)
+        store_cell(at(x), load_cell(at(e)));
+    else if (size == 4)
+        wr32(x, rd32(e));
+    else if (et_narrow(h->et))
+        wr32(x, narrow_ld(e, (uint8_t)h->et));
+    else
+        memcpy(at(x), at(e), size);
+
+    return true;
+}
+
 /* E.NEXT at op, for x in a's next: its index stepped; under a's count, x a's element there, true.
    Its cells are Locs (comp/select.c): i's and x's, the loop's own, both in the frame or neither;
-   a's a parameter's, a global's or a local's. */
+   a's a parameter's, a global's or a local's. Its size 0: x a number of 4 bytes or 8, else
+   hot_e_other's. */
 static inline bool hot_e_next(const uint8_t *const op, const Addr fp)
 {
+    const uint32_t size = load16(op + 1 + 3 * VCELL);
+
+    if (size)
+        return hot_e_other(op, fp, size);
+
     const int32_t iw = (int32_t)load32(op + 1);
     const Addr base = iw < 0 ? fp : 0;
     const Addr a = ((const ArrSlot *)at(loc_at((Loc){(int32_t)load32(op + 1 + VCELL)}, fp)))->hdr;

@@ -77,6 +77,8 @@ enum { VCELL = 4 };
 enum { VID = 4 };
 /* I.NEXT.UP, I.NEXT.DN: counter, step, limit cells, the Jump back */
 enum { NEXT_SIZE = 1 + 3 * VCELL + sizeof(Jump) };
+/* E.NEXT: i, a and x cells, x's bytes (2; 0 a number's of 4 or 8 in a cell), the Jump back */
+enum { E_NEXT_SIZE = NEXT_SIZE + 2 };
 /* L.TO.V x k's k: x's operator; with LTO_INT the value popped an INT's. */
 enum : uint8_t { LTO_ADD, LTO_SUB, LTO_MUL, LTO_INT = 4 };
 /* EOL.TO: the next line, its code's offset in the cache */

@@ -509,8 +509,10 @@ Jump *link_jump(uint8_t *const op)
     case O_I_NEXT_DN:
     case O_I_NEXT_UP_L:
     case O_I_NEXT_DN_L:
-    case O_E_NEXT:
         return (Jump *)(op + 1 + 3 * VCELL);
+
+    case O_E_NEXT:
+        return (Jump *)(op + E_NEXT_SIZE - sizeof(Jump));
 
     case O_I_JFC_V: /* a cell (FV), a mask, then the Jump */
     case O_I_JFC_L:

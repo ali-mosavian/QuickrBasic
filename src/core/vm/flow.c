@@ -425,7 +425,7 @@ void flow_e_next(Session *const S)
 
     const uint8_t *const op = S->vm.ip - 1;
     const bool back = hot_e_next(op, S->vm.fp);
-    S->vm.ip = (uint8_t *)op + NEXT_SIZE - sizeof(Jump);
+    S->vm.ip = (uint8_t *)op + E_NEXT_SIZE - sizeof(Jump);
     branch(S, back);
 }
 

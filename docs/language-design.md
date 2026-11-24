@@ -696,7 +696,7 @@ The rule: anything that costs is visible in the source, and anything that reads 
 | Allocation happens in few, known places | only a list growing past its room, a map insert, building a string, and `copy` allocate; a frame loop that does none of these allocates nothing. **In the VM:** a push past a list's room doubles it; a pop gives nothing back until the list is empty |
 | A string is built in one allocation | an f-string sizes its result first; loops use `text.Builder`. **In the VM:** up to 255 parts at a time |
 | Owned values free deterministically | lists, maps and records free with their owner; only strings are collected |
-| `for x in a` checks no bounds | the loop owns the range; `a[i]` checks. **In the VM:** a number's `x` is a copy its loop's next loads; any other `x` is `a(i)`, checked as QBasic's is, as is a `for mut` or a resumable generator's |
+| `for x in a` checks no bounds | the loop owns the range; `a[i]` checks. **In the VM:** `x` is a copy its loop's next loads, unchecked: a number, an enum, a record of them. A string, a record holding strings or lists, and a `for mut`'s `x` are `a(i)`, checked: a copy would allocate each step or outlive a move of the heap, and `for mut` writes through. A resumable generator's loop copies numbers of 4 or 8 bytes |
 | Errors are values | `T!` is a tag and a value; no unwinding, in the VM or in native code |
 | Heavily used library calls are ops | `math.sqrt` compiles to the VM's sqrt op, not a call |
 | Small functions inline | `Vec` arithmetic costs what the field arithmetic costs |

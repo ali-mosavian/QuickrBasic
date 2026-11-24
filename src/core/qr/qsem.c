@@ -5267,11 +5267,27 @@ static void qsem_eachkey(QSem *const S, QStmt *const s, const QVar *const root)
     qsem_lend(S, root, s);
 }
 
-/* Is a for's element of type t read from a copy its loop keeps: a number of 4 bytes or 8? */
-static bool qsem_copied(const QType t)
+/* Is a for's element of type t read from a copy its loop keeps: a number, an int cell, a record
+   of them (qr/qcg.c qcg_copyat)? */
+static bool qsem_copied(const QSem *const S, const QType t)
 {
-    return t == QY_INT || t == QY_SINGLE || t == QY_DOUBLE || t == QY_BOOL || t == QY_LONG ||
-           t == QY_UINT || t == QY_ULONG;
+    if (!qast_compound(t))
+        return t != QY_STRING && t != QY_VOID && t != QY_ERROR;
+
+    const QTy *const y = qast_ty(S->prog, t);
+
+    if (qast_cell(S->prog, t))
+        return true;
+    if (y->kind == QT_ARRAY)
+        return qsem_copied(S, y->elem);
+    if (!qast_record(S->prog, t) || y->kind == QT_MAP || y->kind == QT_RES)
+        return false;
+
+    for (uint32_t k = 0; k < y->nfields; k++)
+        if (!qsem_copied(S, y->fields[k].type))
+            return false;
+
+    return true;
 }
 
 /* for [i,] x in a, for mut x in a: a list or an array, borrowed by the loop; x names a[i], i
@@ -5327,7 +5343,7 @@ static void qsem_each(QSem *const S, QStmt *const s)
     qsem_bind(S, x->name, s->var, nullptr);
     qsem_lend(S, root, s);
 
-    if (!s->mut && a->kind == QE_NAME && qsem_copied(elem)) /* x read from its copy (qr/qcg.c) */
+    if (!s->mut && a->kind == QE_NAME && !qast_array(S->prog, elem) && qsem_copied(S, elem))
         at->var = qsem_var(S, x->name, elem, QV_TEMP);
 }
 
