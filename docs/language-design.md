@@ -97,7 +97,8 @@ end while
 - Comments start with `'`.
 - Number literals: `0xff`, `0b1010`, `1_000_000`, `2.5`.
 - Other literals: `true`, `false`, `"plain"`, and `f"x = {x:.2f}"`. An f-string uses Python's
-  format-spec rules, as in llrm.
+  format-spec rules, as in llrm. A value without a spec is spelled as `print` spells it; a bool
+  takes a string's spec: `f"{ok:>5}"`.
 
 ### Types
 
@@ -147,6 +148,9 @@ end while
 - `b = a` copies a record of plain fields with one block copy.
 - A list, a map, or a record holding one moves when `a` is not used again. Anywhere else,
   `b = a` is a compile error and you write `copy(a)`. A copy is never hidden.
+  - "Not used again" is read from the source: no use of `a` follows the move, `a` is no module
+    variable a function sees, and the move is not in a loop `a` is declared outside.
+  - Only a whole `let` or `var` moves. A field, an element or a parameter takes `copy()`.
 - A type with an `fn drop(mut x as T)` has it run when an owner of a `T` ends, at a known point:
   a `File` closes itself. There are no finalizers and no collector pauses.
 - There are no pointers: an element is referred to by its index. **Open:** whether a reference
@@ -162,6 +166,11 @@ end while
   grow.
 - A module `var` lives in the module's data, made once when the program starts.
 - A frame is allocated and freed by moving the stack pointer. Nothing else is touched.
+- **In the VM**, a record variable is QBasic's TYPE variable: a box on the heap, made when first
+  used, and each field access finds it by `R.ADDR`. A loop on two fields runs 2.3 times the
+  instructions of the same loop on two locals (16 ops to 9). A fixed array variable is a dynamic
+  array; as a field it is inline. An enum lays out each value's data after the tag, none
+  overlapping.
 
 ### Declarations
 
@@ -227,7 +236,11 @@ end fn
 ```
 
 - An enum's values may carry data, and `match` takes them apart. A `match` must cover every
-  value, or have `case else`.
+  value, or have `case else`: an enum's values, a bool's two; any other type's needs `case else`.
+- A record's fields left out of `Vec(..)` take their defaults, else zero. An enum value with data
+  takes all of it: `Shape.circle(2)`. A case names its data: `case circle(r)`, with or without
+  `Shape.`.
+- A plain enum's value is an int to `int(m)` and to `print`.
 - An enum is stored inline: a tag and room for its largest value. Nothing is allocated.
 - A record may define `+ - * / = <` with `fn operator`. Such a function is inlined like any
   small one. `<>`, `>`, `<=` and `>=` follow from `=` and `<`.
@@ -263,7 +276,10 @@ pos.scale(2)                ' before the dot, mut is implied
     sets: `draw(p, color: 4)`.
   - A `mut` parameter has no default.
 - `a.f(b)` calls `f(a, b)`. This gives methods without classes, and the compiler resolves it
-  like any other call.
+  like any other call. A function of the module named `push`, `pop`, `insert` or `remove` comes
+  before a list's own.
+- A list's own: `a.push(x)`, `a.pop()` (the last, taken), `a.insert(i, x)`, `a.remove(i)`, and
+  `len(a)`. `x in a` searches it.
 
 #### Results
 
@@ -286,7 +302,8 @@ fn divmod(a as int, b as int) as (int, int)
   `return` is a compile error.
 - Any type can be a result: a list, map, fixed array, record, tuple or optional.
 - A result is built in the caller's place, as llrm does. `return r` moves `r` there, so
-  `let s = squares(10)` copies nothing.
+  `let s = squares(10)` copies nothing. A place the arguments read, or a module variable the
+  function may see, gets the result in a temporary first, then a copy: QBasic's cost.
 - A result is never a borrow, so no borrow outlives its call (below).
 
 #### Generic functions
@@ -539,10 +556,10 @@ The rule: anything that costs is visible in the source, and anything that reads 
 | Locals live on the stack | a call's locals cost one stack-pointer move; only large arrays and growing containers reach the heap |
 | Results are built in place | a returned record or list is not copied, as in llrm |
 | Borrows can't alias | values stay in registers across calls and loops |
-| Allocation happens in few, known places | only a list growing past its room, a map insert, building a string, and `copy` allocate; a frame loop that does none of these allocates nothing |
-| A string is built in one allocation | an f-string sizes its result first; loops use `text.Builder` |
+| Allocation happens in few, known places | only a list growing past its room, a map insert, building a string, and `copy` allocate; a frame loop that does none of these allocates nothing. **In the VM:** a list grows by one element a push, REDIM PRESERVE's cost: its array has no spare room |
+| A string is built in one allocation | an f-string sizes its result first; loops use `text.Builder`. **In the VM:** its parts are joined one by one |
 | Owned values free deterministically | lists, maps and records free with their owner; only strings are collected |
-| `for x in a` checks no bounds | the loop owns the range; `a[i]` checks |
+| `for x in a` checks no bounds | the loop owns the range; `a[i]` checks. **In the VM:** `x` is `a(i)`, checked as QBasic's is |
 | Errors are values | `T!` is a tag and a value; no unwinding, in the VM or in native code |
 | Heavily used library calls are ops | `math.sqrt` compiles to the VM's sqrt op, not a call |
 | Small functions inline | `Vec` arithmetic costs what the field arithmetic costs |
