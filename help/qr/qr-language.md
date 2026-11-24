@@ -46,6 +46,8 @@ unless private. A type with a private field is built in its file.
 
 print a; b, c: ; joins, , to the next 14-column zone, a separator
 last holds the line; print alone, an empty line.
+An enum prints its value's name, a T or none none or its T, and a
+type with fn text(self) as string what it gives; f-strings too.
 
 Built-ins: len(a), copy(a), wrap(x) (integers wrap),
 int(x) single(x) double(x) string(x) and the other types' names.

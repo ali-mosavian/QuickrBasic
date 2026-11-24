@@ -195,6 +195,8 @@ static QExpr *qsem_called(QSem *S, QExpr *e, const QBind *b);
 static QFn *qsem_methodof(const QSem *S, QType t, const QTok *name);
 static bool qsem_named(QSem *S, const QFn *f, const QTok *t);
 static QExpr *qsem_fnref(QSem *S, QExpr *e, QFn *f);
+static QExpr *qsem_spell(QSem *S, QExpr *v, const char *who);
+static QExpr *qsem_dup(QSem *S, const QExpr *e);
 
 /* ---- errors */
 
@@ -2030,16 +2032,8 @@ static QExpr *qsem_print(QSem *const S, QExpr *const e)
 
         if (v->type == QY_VOID)
             qsem_mismatch(S, v, QY_STRING);
-        if (qast_compound(v->type) && !qast_tag(S->prog, v->type))
-            qsem_say(
-                S,
-                v->tok,
-                "print takes numbers, strings and bools, not ",
-                qsem_aname(S, v->type),
-                nullptr
-            );
 
-        e->argv[i] = v;
+        e->argv[i] = qsem_spell(S, v, "print");
     }
 
     return e;
@@ -4200,6 +4194,14 @@ static QExpr *qsem_valuecall(QSem *const S, QExpr *const e, QExpr *const r)
         return qsem_fncall(S, e, f);
     }
 
+    if (qast_tag(S->prog, r->type) && qsem_is(e->tok, "text")) { /* a plain enum's name */
+        if (!e->args)
+            return qsem_spell(S, r, "text()");
+
+        qsem_say(S, e->tok, "text() takes no values", nullptr);
+        return e;
+    }
+
     const QTy *const y = qsem_isrec(S, r->type) ? qast_ty(S->prog, r->type) : nullptr;
 
     for (uint32_t k = 0; y && k < y->nfields; k++) /* a record's fn value, called */
@@ -4386,7 +4388,8 @@ static QExpr *qsem_fstring(QSem *const S, QExpr *const e)
         if (e->items[k]->tok->kind == QK_FPART)
             continue;
 
-        QExpr *const v = e->items[k] = qsem_settle(S, qsem_expr(S, e->items[k], QY_VOID));
+        QExpr *const u = qsem_settle(S, qsem_expr(S, e->items[k], QY_VOID));
+        QExpr *const v = e->items[k] = u->type == QY_VOID ? u : qsem_spell(S, u, "an f-string");
         const QTok *const spec = e->specs[k];
 
         if (v->type == QY_ERROR) {
@@ -4394,14 +4397,8 @@ static QExpr *qsem_fstring(QSem *const S, QExpr *const e)
             continue;
         }
 
-        if (qast_compound(v->type) || v->type == QY_VOID) {
-            qsem_say(
-                S,
-                v->tok,
-                "an f-string takes numbers, strings and bools, not ",
-                qsem_aname(S, v->type),
-                nullptr
-            );
+        if (v->type == QY_VOID) {
+            qsem_mismatch(S, v, QY_STRING);
             e->type = QY_ERROR;
         } else if (spec && !qsem_specok(spec, v->type == QY_BOOL ? QY_STRING : v->type)) {
             qsem_say(
@@ -5041,6 +5038,152 @@ static QExpr *qsem_coalesce(QSem *const S, QExpr *const e)
 }
 
 /* x?: x's T, or its error returned from the fn, whose result is a T! too. */
+/* Is f a method text(self) as string? */
+static bool qsem_istext(const QFn *const f)
+{
+    return f->in && qsem_is(f->name, "text") && f->self && f->npar == 1 && !f->params[0].mut &&
+           f->result == QY_STRING && !f->ntp && !f->ytx;
+}
+
+/* Plain enum value v's name: each value's compared in turn, v held first unless a name. */
+static QExpr *qsem_enumname(QSem *const S, QExpr *const v)
+{
+    const QTy *const y = qast_ty(S->prog, v->type);
+    QExpr *apply = nullptr, *at = v;
+
+    if (qsem_isconst(v)) {
+        const uint32_t k = v->val.i >= 0 && v->val.i < y->nvars ? (uint32_t)v->val.i : 0;
+        QPiece *const s = qast_alloc(S->mem, sizeof *s);
+        s->lit = y->vars[k].name;
+        return qsem_const(S, v->tok, QY_STRING, (QVal){.s = s});
+    }
+
+    if (v->kind != QE_NAME) {
+        apply = qast_expr(S->mem, QE_APPLY, v->tok);
+        apply->argv = qast_alloc(S->mem, sizeof *apply->argv);
+        apply->temps = qast_alloc(S->mem, sizeof *apply->temps);
+        apply->argv[0] = v;
+        apply->temps[0] = qsem_var(S, v->tok, v->type, QV_TEMP);
+        apply->nargv = 1;
+        at = qsem_nameof(S, apply->temps[0], v->tok);
+    }
+
+    QExpr *r = nullptr;
+
+    for (uint32_t k = y->nvars; k-- > 0;) {
+        QPiece *const s = qast_alloc(S->mem, sizeof *s);
+        s->lit = y->vars[k].name;
+        QExpr *const name = qsem_const(S, v->tok, QY_STRING, (QVal){.s = s});
+
+        if (!r) {
+            r = name;
+            continue;
+        }
+
+        QExpr *const eq = qast_expr(S->mem, QE_CHAIN, v->tok);
+        eq->n = 2;
+        eq->items = qast_alloc(S->mem, 2 * sizeof *eq->items);
+        eq->ops = qast_alloc(S->mem, sizeof *eq->ops);
+        eq->items[0] = qsem_dup(S, at);
+        eq->items[1] = qsem_const(S, v->tok, v->type, (QVal){.i = k});
+
+        eq->ops[0] = QK_EQ;
+
+        QExpr *const c = qast_expr(S->mem, QE_COND, v->tok);
+        c->c = qsem_expr(S, eq, QY_VOID);
+        c->a = name;
+        c->b = r;
+        c->type = QY_STRING;
+        r = c;
+    }
+
+    if (!apply)
+        return r;
+
+    apply->a = r;
+    apply->type = QY_STRING;
+    return apply;
+}
+
+/* Checked v as print and an f-string spell it: a number, a string or a bool itself; a value of a
+   type with text() that call; a plain enum's name; a T or none's T so spelled, or none. Null when
+   it has no spelling. */
+static QExpr *qsem_spelled(QSem *const S, QExpr *const v)
+{
+    if (!qast_compound(v->type))
+        return v;
+
+    const QTy *const y = qast_ty(S->prog, v->type);
+
+    for (uint32_t k = 0; k < y->nmeths; k++)
+        if (qsem_istext(y->meths[k])) {
+            QExpr *const c = qast_expr(S->mem, QE_CALL, v->tok);
+            QArg *const self = qast_alloc(S->mem, sizeof *self);
+            v->done = true;
+            self->e = v;
+            c->args = self;
+            return qsem_fncall(S, c, y->meths[k]);
+        }
+
+    if (qast_tag(S->prog, v->type))
+        return qsem_enumname(S, v);
+    if (!qsem_wraps(S, v->type, QT_OPT))
+        return nullptr;
+
+    QExpr *const a = qsem_held(S, v);
+    QExpr *const flag = qsem_part(S, a, QF_FLAG); /* read first: settles a fresh a */
+    QExpr *in = qsem_spelled(S, qsem_part(S, qsem_again(S, a), QF_VAL));
+
+    if (!in)
+        return nullptr;
+
+    if (in->type != QY_STRING) {
+        QExpr *const s = qast_expr(S->mem, QE_CONV, in->tok);
+        s->a = in;
+        s->type = QY_STRING;
+        in = s;
+    }
+
+    QExpr *const none = qast_expr(S->mem, QE_CALL, v->tok);
+    none->builtin = QB_NONETEXT;
+    none->type = QY_STRING;
+
+    QExpr *const c = qast_expr(S->mem, QE_COND, v->tok);
+    c->c = flag;
+    c->a = in;
+    c->b = none;
+    c->type = QY_STRING;
+    return c;
+}
+
+/* v spelled for who, print or an f-string; an error when it has no spelling. */
+static QExpr *qsem_spell(QSem *const S, QExpr *const v, const char *const who)
+{
+    if (v->type == QY_ERROR)
+        return v;
+
+    QExpr *const s = qsem_spelled(S, v);
+
+    if (s)
+        return s;
+
+    if (qsem_owntype(S, v->type))
+        qsem_say(
+            S,
+            v->tok,
+            qsem_aname(S, v->type),
+            " has no text(): ",
+            who,
+            " can't spell it",
+            nullptr
+        );
+    else
+        qsem_say(S, v->tok, who, " can't spell ", qsem_aname(S, v->type), nullptr);
+
+    v->type = QY_ERROR;
+    return v;
+}
+
 static QExpr *qsem_try(QSem *const S, QExpr *const e)
 {
     QExpr *const a = e->a = qsem_held(S, qsem_expr(S, e->a, QY_VOID));
@@ -7933,6 +8076,8 @@ void qsem_program(QProg *const p, QMem *const m)
             qsem_operdef(&S, f);
         else if (qsem_isdrop(f))
             qsem_dropdef(&S, f);
+        else if (f->in && f->sig && qsem_is(f->name, "text") && !qsem_istext(f))
+            qsem_say(&S, f->name, "text takes self alone and gives a string", nullptr);
 
     qsem_dropok(&S);
 

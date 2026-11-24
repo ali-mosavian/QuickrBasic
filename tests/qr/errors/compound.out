@@ -13,7 +13,7 @@ compound.bas:19:9: Vec has no field z
 compound.bas:20:3: v is a let: it can't change
   v.x = 2
     ^
-compound.bas:21:7: print takes numbers, strings and bools, not a Vec
+compound.bas:21:7: a Vec has no text(): print can't spell it
   print v
         ^
 compound.bas:23:9: a is used after it moves here: write copy(a)
@@ -52,7 +52,7 @@ compound.bas:52:9: the index is past the elements
 compound.bas:56:9: mut v is a Vec, not a single
   g(mut u.x)
           ^
-compound.bas:57:12: an f-string takes numbers, strings and bools, not a Vec
+compound.bas:57:12: a Vec has no text(): an f-string can't spell it
   let k = f"{v}"
              ^
 compound.bas:58:14: q is no format for an int

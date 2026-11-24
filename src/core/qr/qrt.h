@@ -18,6 +18,7 @@ typedef enum : uint8_t {
     QRT_UINT,
     QRT_LONG,
     QRT_ULONG,
+    QRT_NONE, /* none's text, a T or none's: no value's */
 } QrtKind;
 
 /* A number as QX.INT and N.CONV take it: an integer's bits and sign, in an int cell to 32 bits

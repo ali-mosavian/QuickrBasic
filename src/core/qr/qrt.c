@@ -214,6 +214,9 @@ uint32_t qrt_text(const QrtKind kind, const Cell v, uint8_t out[static QRT_TXT])
     case QRT_BOOL:
         return qrt_put(out, v.i ? "true" : "false");
 
+    case QRT_NONE:
+        return qrt_put(out, "none");
+
     case QRT_SINGLE:
         return qrt_float((double)v.f, SNGL_DIGITS, out);
 

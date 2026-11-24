@@ -1,0 +1,21 @@
+spelling.bas:5:8: text takes self alone and gives a string
+      fn text(self, n as int) as string
+         ^
+spelling.bas:22:7: a Bare has no text(): print can't spell it
+  print Bare(1); " "; Shape.dot
+        ^
+spelling.bas:22:27: a Shape has no text(): print can't spell it
+  print Bare(1); " "; Shape.dot
+                            ^
+spelling.bas:23:10: a Bare has no text(): an f-string can't spell it
+  print f"{Bare(2)} {load()}"
+           ^
+spelling.bas:23:20: an f-string can't spell an int or Error
+  print f"{Bare(2)} {load()}"
+                     ^
+spelling.bas:24:1: print(a, b) is written print a, b
+  print (1, 2)
+  ^
+spelling.bas:25:17: text() takes no values
+  print Mode.walk.text(1)
+                  ^

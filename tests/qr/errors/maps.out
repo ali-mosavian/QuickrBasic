@@ -37,6 +37,6 @@ maps.bas:18:2: o is a let: it can't change
 maps.bas:20:9: only a dict has keys()
   print l.keys()
           ^
-maps.bas:21:7: print takes numbers, strings and bools, not a dict[string, int]
+maps.bas:21:7: print can't spell a dict[string, int]
   print m
         ^

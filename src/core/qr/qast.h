@@ -512,6 +512,7 @@ typedef enum : uint8_t {
     QB_ICALL, /* a(argv): a call through fn value a */
     QB_SWAP,  /* a.swap(i, j): argv */
     QB_SORT,  /* a.sort(): by value; a.sort(lam): argv[0] the lambda on a[temps[0]], a[temps[1]] */
+    QB_NONETEXT, /* "none", a T or none's text */
 } QBuiltin;
 
 /* A call's argument as written: its name (null positional), mut. */

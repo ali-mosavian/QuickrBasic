@@ -2427,6 +2427,13 @@ static void qcg_expr(QCg *const g, const QExpr *const e)
         return;
 
     case QE_CALL:
+        if (e->builtin == QB_NONETEXT) {
+            code_int(g->c, 0);
+            code_int(g->c, QRT_NONE);
+            code_call(g->c, K_QSTR);
+            return;
+        }
+
         if (e->builtin == QB_LEN && e->a->type == QY_STRING) {
             qcg_expr(g, e->a);
             code_call(g->c, K_FN_LEN);

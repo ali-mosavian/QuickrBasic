@@ -10,7 +10,7 @@ names.bas:8:10: f is already declared
 names.bas:10:1: f is a function: call it
   f = 3
   ^
-names.bas:11:7: print takes numbers, strings and bools, not a function()
+names.bas:11:7: print can't spell a function()
   print f
         ^
 names.bas:12:1: unknown function g

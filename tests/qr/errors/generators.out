@@ -13,7 +13,7 @@ generators.bas:23:5: yield outside a generator: write function g(..) yields T
 generators.bas:28:5: a generator changes as it runs: keep it in a var
   let a = upto(3)
       ^
-generators.bas:30:7: print takes numbers, strings and bools, not an upto
+generators.bas:30:7: print can't spell an upto
   print b
         ^
 generators.bas:32:21: a kept generator owns its arguments: no mut

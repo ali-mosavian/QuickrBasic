@@ -90,7 +90,8 @@ that is not a loop.
 - A string is `"plain"`. Its escapes are `\n`, `\t`, `\"` and `\\`; any other is a compile error.
 - `f"x = {x:.2f}"` is an f-string. A part in braces is an expression, then an optional `:` and a
   spec by Python's format-spec rules. A value without a spec is spelled as `print` spells it. A
-  bool takes a string's spec: `f"{ok:>5}"`.
+  bool, and a value `print` spells as text (an enum, a record with `text`, a `T or none`), takes a
+  string's spec: `f"{ok:>5}"`.
 - A character constant is a string literal indexed by a constant: `"0"[0]` is the `ubyte` 48,
   folded at compile time. **Not yet:** it is read when run.
 
@@ -232,8 +233,6 @@ print                       ' an empty line
   by it (see [Methods](#methods)). A `T or none` is `none` or its `T`.
 - Any other value is a compile error: a list, a dict, a tuple, a `T or Error`, a record without
   `text`.
-- **Not yet:** a plain enum prints as its number, and a `T or none` or a record with `text` is a
-  compile error.
 
 ### Control flow
 
@@ -423,7 +422,8 @@ print v.length(); " "; v                ' 2.0 (2.0, 0.0)
   Passed to a chain or `sort` by name, as `vs.map(Vec.length)`, it is called directly, as a
   function's name is.
 - Two names are reserved:
-  - `fn text(self) as string`: `print` and an f-string spell the value by it.
+  - `fn text(self) as string`: `print` and an f-string spell the value by it. A `text` with
+    another signature is a compile error.
   - `fn drop(mut self)`: runs when the value's owner ends (see [Ownership](#ownership)). It is
     never called by name, and only a `type` has one: a top-level `function drop` is a compile
     error.
@@ -434,7 +434,7 @@ print v.length(); " "; v                ' 2.0 (2.0, 0.0)
   no interface. A list of mixed shapes is an enum with data.
 - **In the VM**, a method is a procedure with `self` its first parameter, and a call of it is the
   call a function's is. A method whose body is one `return` is inlined.
-- **Not yet:** `text`. A method whose body is one `return` is called, as a function is.
+- **Not yet:** a method whose body is one `return` is called, as a function is.
 
 ### Operators on records
 
