@@ -1,18 +1,23 @@
 ' A cube turning in perspective at 32 bits, a picture on
 ' each face, nearer faces hiding farther ones by depth.
+' Sized by the screen (stage.bas): W and H may be any size.
 ' P turns perspective off and on, D depth, S smoothing.
 ' Esc stops it.
 import gfx.display, gfx.surface, gfx.draw
 from gfx.draw import Vertex
+from stage import Stage, measure, label
 
-const W = 320
-const H = 240
+const W = 640
+const H = 480
 const SIDE = 64
 const CELL = 8
 const FACES = 6
 const CORNERS = 8
-const LENS = 180
 const AWAY = 3.2
+' the eye's distance from the screen, in units
+const LENS = 180
+' text's distance from the edges, in its own pixels
+const MARGIN = 4
 const ESC = 27
 ' each face's four corners, in order round it
 const FACE_CORNERS = "013254674026157345102376"
@@ -39,6 +44,7 @@ declare function tone ( _
 declare sub turn (spun() as Vec3, byval angle as single)
 declare sub draw_face ( _
     byval dst as long, _
+    st as Stage, _
     byval n as integer, _
     byval src as long, _
     spun() as Vec3, _
@@ -48,6 +54,7 @@ declare function flags_of (o as Options) as integer
 declare sub toggle (o as Options, byval k as string)
 declare sub show_options ( _
     byval dst as long, _
+    st as Stage, _
     o as Options, _
     byval dt as single _
 )
@@ -62,6 +69,7 @@ for i = 0 to FACES - 1
 next
 
 dim spun(CORNERS - 1) as Vec3
+dim st as Stage
 dim o as Options
 o.perspective = -1
 o.depth = -1
@@ -73,16 +81,17 @@ do
     dt! = now# - was#
     was# = now#
     angle! = angle! + dt!
+    measure canvas&, st
     turn spun(), angle!
     gfx.draw.clear canvas&, back&
     gfx.surface.clear_depth canvas&
     flags% = flags_of(o)
 
     for i = 0 to FACES - 1
-        draw_face canvas&, i, pictures(i), spun(), flags%
+        draw_face canvas&, st, i, pictures(i), spun(), flags%
     next
 
-    show_options canvas&, o, dt!
+    show_options canvas&, st, o, dt!
     gfx.display.flip
     k$ = ucase$(inkey$)
 
@@ -148,21 +157,24 @@ sub turn (spun() as Vec3, byval angle as single)
     next
 end sub
 
-' Face n drawn from src, its corners projected onto dst.
+' Face n drawn from src, its corners projected onto dst
+' about its centre.
 sub draw_face ( _
     byval dst as long, _
+    st as Stage, _
     byval n as integer, _
     byval src as long, _
     spun() as Vec3, _
     byval flags as integer _
 )
     dim q(3) as Vertex
+    eye! = LENS * st.unit
 
     for k = 0 to 3
         c = val(mid$(FACE_CORNERS, n * 4 + k + 1, 1))
         z! = spun(c).z
-        q(k).x = W / 2 + LENS * spun(c).x / z!
-        q(k).y = H / 2 + LENS * spun(c).y / z!
+        q(k).x = st.cx + eye! * spun(c).x / z!
+        q(k).y = st.cy + eye! * spun(c).y / z!
         q(k).z = z!
         q(k).u = SIDE * ((k + 1) \ 2 mod 2)
         q(k).v = SIDE * (k \ 2)
@@ -198,19 +210,23 @@ end sub
 ' The options along dst's foot, the frame rate at its top.
 sub show_options ( _
     byval dst as long, _
+    st as Stage, _
     o as Options, _
     byval dt as single _
 )
     grey& = gfx.display.rgb(200, 200, 200)
+    z% = st.zoom
+    edge% = MARGIN * z%
     t$ = "P persp " + on_off$(o.perspective)
     t$ = t$ + "  D depth " + on_off$(o.depth)
     t$ = t$ + "  S smooth " + on_off$(o.smooth)
-    gfx.draw.text dst, 4, H - 12, t$, grey&
+    foot% = st.h - edge% - st.text_h
+    label dst, edge%, foot%, t$, grey&, z%
 
     if dt <= 0 then exit sub
 
     fps% = 1 / dt
-    gfx.draw.text dst, 4, 4, str$(fps%) + " fps", grey&
+    label dst, edge%, edge%, str$(fps%) + " fps", grey&, z%
 end sub
 
 function on_off$ (byval v as integer)

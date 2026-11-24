@@ -1,29 +1,46 @@
 ' A sun and its planets at 32 bits. The sun glows, each
 ' planet trails an arc of its orbit, a moon circles the
-' third, and a comet sweeps past turned to its heading.
-' Up and Down (or + and -) change the speed, S smooths the
-' comet. Esc stops it.
+' third, and a comet sweeps round, turned to its heading.
+' Sized by the screen (stage.bas): W and H may be any size,
+' and the sizes below are in units. Up and Down (or + and
+' -) change the speed, S smooths the comet. Esc stops it.
 import gfx.display, gfx.surface, gfx.draw
+from stage import Stage, measure, label
 
-const W = 320
-const H = 240
-const CX = 160
-const CY = 120
+const W = 640
+const H = 480
 const PLANETS = 4
 const STARS = 90
+const STAR_R = 0.6
 const TRAIL = 1.2
 const FULL = 63
 const GLOW = 10
+const SUN_R = 10
+const GLOW_R = 30
+const GLOW_STEP = 3
+const RING_IN = 3.5
+const RING_OUT = 5
+const MOON_ORBIT = 12
+const MOON_R = 2
 const ORBIT_COLOUR = &H1C2434
 const MOON_COLOUR = &HC8C8D0
+' the comet's picture, in its own pixels
 const COMET_W = 24
 const COMET_H = 7
-const COMET_A = 135
-const COMET_B = 95
-const COMET_SHIFT = 30
+' its ellipse, in shares of the screen's width and height:
+' half its width and height, and its centre right of the
+' sun's
+const COMET_A = 0.4
+const COMET_B = 0.4
+const COMET_SHIFT = 0.05
+const COMET_SCALE = 2
+' text's distance from the edges, in its own pixels
+const MARGIN = 4
 const PI = 3.14159265
 const ESC = 27
 
+' A planet: its orbit's radius and its own, in units; its
+' turn a second and its angle, in radians.
 type Planet
     orbit as single
     speed as single
@@ -33,9 +50,11 @@ type Planet
     angle as single
 end type
 
+' A star: its place, a share of the screen's width and
+' height, so it keeps it at any size.
 type Star
-    x as integer
-    y as integer
+    x as single
+    y as single
     shade as integer
 end type
 
@@ -50,18 +69,27 @@ declare sub make_planet ( _
 declare function new_comet () as long
 declare sub draw_sky ( _
     byval dst as long, _
+    st as Stage, _
     sky() as Star, _
     byval t as single _
 )
-declare sub draw_sun (byval dst as long)
-declare sub draw_planet (byval dst as long, p as Planet)
+declare sub draw_sun (byval dst as long, st as Stage)
+declare sub place ( _
+    st as Stage, _
+    p as Planet, _
+    x as single, _
+    y as single _
+)
+declare sub draw_planet (byval dst as long, st as Stage, p as Planet)
 declare sub draw_moon ( _
     byval dst as long, _
+    st as Stage, _
     p as Planet, _
     byval t as single _
 )
 declare sub draw_comet ( _
     byval dst as long, _
+    st as Stage, _
     byval src as long, _
     byval t as single, _
     byval flags as integer _
@@ -72,12 +100,14 @@ declare function heading ( _
 ) as single
 declare sub show_help ( _
     byval dst as long, _
+    st as Stage, _
     byval speed as single, _
     byval smooth as integer _
 )
 
 canvas& = gfx.display.open(W, H, 32, gfx.display.VSYNC)
 randomize timer
+dim st as Stage
 dim sky(STARS - 1) as Star
 dim worlds(PLANETS - 1) as Planet
 scatter sky()
@@ -97,18 +127,19 @@ do
     dt! = (now# - was#) * speed!
     was# = now#
     t! = t! + dt!
+    measure canvas&, st
     gfx.draw.clear canvas&, 0
-    draw_sky canvas&, sky(), t!
-    draw_sun canvas&
+    draw_sky canvas&, st, sky(), t!
+    draw_sun canvas&, st
 
     for i = 0 to PLANETS - 1
         worlds(i).angle = worlds(i).angle + worlds(i).speed * dt!
-        draw_planet canvas&, worlds(i)
+        draw_planet canvas&, st, worlds(i)
     next
 
-    draw_moon canvas&, worlds(2), t!
-    draw_comet canvas&, comet&, t!, smooth%
-    show_help canvas&, speed!, smooth%
+    draw_moon canvas&, st, worlds(2), t!
+    draw_comet canvas&, st, comet&, t!, smooth%
+    show_help canvas&, st, speed!, smooth%
     gfx.display.flip
     k$ = ucase$(inkey$)
 
@@ -129,13 +160,13 @@ gfx.display.close
 ' Stars anywhere on the screen, each its own brightness.
 sub scatter (sky() as Star)
     for i = 0 to STARS - 1
-        sky(i).x = int(rnd * W)
-        sky(i).y = int(rnd * H)
+        sky(i).x = rnd
+        sky(i).y = rnd
         sky(i).shade = 60 + int(rnd * 160)
     next
 end sub
 
-' Planet p, at the start of its orbit.
+' Planet p, somewhere on its orbit.
 sub make_planet ( _
     p as Planet, _
     byval orbit as single, _
@@ -170,74 +201,116 @@ function new_comet () as long
     new_comet = s&
 end function
 
-' The stars, each twinkling at its own pace.
-sub draw_sky (byval dst as long, sky() as Star, byval t as single)
+' The stars, each twinkling at its own pace, on whole
+' pixels so the smallest is one.
+sub draw_sky ( _
+    byval dst as long, _
+    st as Stage, _
+    sky() as Star, _
+    byval t as single _
+)
+    r! = STAR_R * st.unit
+
     for i = 0 to STARS - 1
         v% = sky(i).shade * (0.75 + 0.25 * sin(t * 3 + i))
         c& = gfx.display.rgb(v%, v%, v%)
-        gfx.draw.pset dst, sky(i).x, sky(i).y, c&
+        x% = int(sky(i).x * st.w)
+        y% = int(sky(i).y * st.h)
+        gfx.draw.circle dst, x%, y%, r!, c&, gfx.draw.FILL
     next
 end sub
 
 ' The sun: rings of orange added up into a glow round a
 ' bright core.
-sub draw_sun (byval dst as long)
+sub draw_sun (byval dst as long, st as Stage)
     orange& = gfx.display.rgb(255, 140, 40)
     core& = gfx.display.rgb(255, 235, 160)
     glowing% = gfx.draw.FILL + gfx.draw.ADD
     gfx.draw.set_alpha GLOW
 
-    for r = 30 to 12 step -3
-        gfx.draw.circle dst, CX, CY, r, orange&, glowing%
+    for r = GLOW_R to SUN_R + 2 step -GLOW_STEP
+        rr! = r * st.unit
+        gfx.draw.circle dst, st.cx, st.cy, rr!, orange&, glowing%
     next
 
     gfx.draw.set_alpha FULL
-    gfx.draw.circle dst, CX, CY, 10, core&, gfx.draw.FILL
+    sun! = SUN_R * st.unit
+    gfx.draw.circle dst, st.cx, st.cy, sun!, core&, gfx.draw.FILL
+end sub
+
+' Where planet p is on the screen.
+sub place ( _
+    st as Stage, _
+    p as Planet, _
+    x as single, _
+    y as single _
+)
+    x = st.cx + p.orbit * st.unit * cos(p.angle)
+    y = st.cy + p.orbit * st.unit * sin(p.angle)
 end sub
 
 ' Planet p: its orbit faint, an arc trailing it, then the
 ' planet, and a ring half seen through when it has one.
-sub draw_planet (byval dst as long, p as Planet)
-    x! = CX + p.orbit * cos(p.angle)
-    y! = CY + p.orbit * sin(p.angle)
-    gfx.draw.circle dst, CX, CY, p.orbit, ORBIT_COLOUR, 0
+sub draw_planet (byval dst as long, st as Stage, p as Planet)
+    u! = st.unit
+    orbit! = p.orbit * u!
     tail! = p.angle - TRAIL
-    gfx.draw.arc dst, CX, CY, p.orbit, tail!, p.angle, p.colour
-    gfx.draw.circle dst, x!, y!, p.size, p.colour, gfx.draw.FILL
+    place st, p, x!, y!
+    gfx.draw.circle dst, st.cx, st.cy, orbit!, ORBIT_COLOUR, 0
+    gfx.draw.arc dst, st.cx, st.cy, orbit!, tail!, p.angle, p.colour
+    gfx.draw.circle dst, x!, y!, p.size * u!, p.colour, gfx.draw.FILL
 
     if not p.ringed then exit sub
 
     gfx.draw.set_alpha FULL \ 2
-    gfx.draw.circle dst, x!, y!, p.size + 4, p.colour, gfx.draw.BLEND
-    gfx.draw.circle dst, x!, y!, p.size + 5, p.colour, gfx.draw.BLEND
+
+    for r! = (p.size + RING_IN) * u! to (p.size + RING_OUT) * u!
+        gfx.draw.circle dst, x!, y!, r!, p.colour, gfx.draw.BLEND
+    next
+
     gfx.draw.set_alpha FULL
 end sub
 
 ' A moon circling planet p.
-sub draw_moon (byval dst as long, p as Planet, byval t as single)
-    x! = CX + p.orbit * cos(p.angle) + 12 * cos(t * 4)
-    y! = CY + p.orbit * sin(p.angle) + 12 * sin(t * 4)
-    gfx.draw.circle dst, x!, y!, 2, MOON_COLOUR, gfx.draw.FILL
+sub draw_moon ( _
+    byval dst as long, _
+    st as Stage, _
+    p as Planet, _
+    byval t as single _
+)
+    u! = st.unit
+    place st, p, x!, y!
+    x! = x! + MOON_ORBIT * u! * cos(t * 4)
+    y! = y! + MOON_ORBIT * u! * sin(t * 4)
+    r! = MOON_R * u!
+    gfx.draw.circle dst, x!, y!, r!, MOON_COLOUR, gfx.draw.FILL
 end sub
 
-' The comet on an ellipse round the sun, turned to its
-' heading, added to what is under it.
+' The comet on an ellipse round the sun that fills the
+' screen, turned to its heading, added to what is under it.
 sub draw_comet ( _
     byval dst as long, _
+    st as Stage, _
     byval src as long, _
     byval t as single, _
     byval flags as integer _
 )
-    u! = t * 0.5
-    x! = CX + COMET_SHIFT + COMET_A * cos(u!)
-    y! = CY + COMET_B * sin(u!)
-    a! = heading(-COMET_A * sin(u!), COMET_B * cos(u!))
+    a! = COMET_A * st.w
+    b! = COMET_B * st.h
+    v! = t * 0.5
+    x! = st.cx + COMET_SHIFT * st.w + a! * cos(v!)
+    y! = st.cy + b! * sin(v!)
+    turned! = heading(-a! * sin(v!), b! * cos(v!))
     f% = flags + gfx.draw.ADD
-    gfx.draw.sprite_turned dst, x!, y!, a!, 2, src, f%
+    size! = COMET_SCALE * st.unit
+    gfx.draw.sprite_turned dst, x!, y!, turned!, size!, src, f%
 end sub
 
 ' The angle of dx, dy: 0 to the right, clockwise.
-function heading (byval dx as single, byval dy as single) as single
+function heading ( _
+    byval dx as single, _
+    byval dy as single _
+) as single
     heading = 0
 
     if dx = 0 and dy = 0 then exit function
@@ -257,10 +330,12 @@ end function
 ' The keys along dst's top.
 sub show_help ( _
     byval dst as long, _
+    st as Stage, _
     byval speed as single, _
     byval smooth as integer _
 )
     grey& = gfx.display.rgb(200, 200, 200)
+    edge% = MARGIN * st.zoom
     t$ = "UP/DN speed" + str$(int(speed * 100) / 100)
     t$ = t$ + "   S smooth "
 
@@ -270,5 +345,5 @@ sub show_help ( _
         t$ = t$ + "off"
     end if
 
-    gfx.draw.text dst, 4, 4, t$, grey&
+    label dst, edge%, edge%, t$, grey&, st.zoom
 end sub

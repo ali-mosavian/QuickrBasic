@@ -346,8 +346,9 @@ mac: $(APP)/Contents/Info.plist
 $(GUI)/QuickrBasic: $(GUI_OBJ) $(GUI)/obj/plat/sdl/app/main.o $(SDL_LIB)
 	$(HOST_CC) $(GUI_ARCH) $(filter %.o,$^) $(SDL_LIBS) -lm -o $@
 # the bundle, signed ad hoc (Apple silicon runs nothing unsigned)
+# gfx's demos, and the modules they import beside them
+GFX_DEMOS := $(wildcard stdlib/gfx/demos/*.BAS stdlib/gfx/demos/*.bas)
 # Quickr's library in Resources/lib: psys_self puts the app there, and codesign takes only code in MacOS
-GFX_DEMOS := $(wildcard stdlib/gfx/demos/*.BAS)
 $(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(GUI)/QuickrBasic $(HELP) $(DEMOS) $(STDLIB) build/host/lib/gfx.qbx $(GFX_DEMOS)
 	rm -rf $(APP)/Contents/Resources/demos $(APP)/Contents/Resources/lib
 	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources/demos $(APP)/Contents/Resources/lib
@@ -488,9 +489,10 @@ $(GFX_WEB_DEMOS): build/web/demos/%: stdlib/gfx/demos/%
 	@mkdir -p $(@D)
 	cp $< $@
 # the demos' modules, one path a line: the page fetches them from here, as the folders cannot be listed
-build/web/demos/MODULES: $(shell find src/plat/wasm/web/demos -mindepth 2 -name '*.bas')
+build/web/demos/MODULES: $(shell find src/plat/wasm/web/demos -mindepth 2 -name '*.bas') $(filter %.bas,$(GFX_DEMOS))
 	@mkdir -p $(@D)
-	cd src/plat/wasm/web/demos && find . -mindepth 2 -name '*.bas' | sed 's|^\./||' | sort > $(CURDIR)/$@
+	{ cd src/plat/wasm/web/demos && find . -mindepth 2 -name '*.bas' | sed 's|^\./||'; \
+		printf '%s\n' $(notdir $(filter %.bas,$(GFX_DEMOS))); } | sort > $(CURDIR)/$@
 # the synthesizer alone, for the page's AudioWorklet (web/synth.mjs)
 build/web/synth.wasm: src/plat/wasm/worklet/worklet.c src/plat/synth/synth.c src/plat/synth/synth.h
 	@mkdir -p $(@D)
