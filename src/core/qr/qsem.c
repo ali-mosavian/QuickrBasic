@@ -160,7 +160,10 @@ static QFn *qsem_genof(QSem *S, const QExpr *e);
 static QExpr *qsem_next(QSem *S, QExpr *e, QVar *v);
 static QExpr *qsem_iter(QSem *S, QExpr *e, uint32_t k, QStmt *loop);
 static void qsem_chainfor(QSem *S, QStmt *s);
-static QVar *qsem_keptas(QSem *S, QExpr *e, QFn *g, const QTok *name);
+static QExpr *qsem_state(QSem *S, QExpr *call, QFn *g);
+static QFn *qsem_instance(QSem *S, QExpr *e, QFn *g);
+static bool qsem_takesfn(const QFn *f);
+static QType qsem_gentype(QSem *S, QFn *g, const QTok *t);
 static bool qsem_step(QSem *S, const QExpr *e, uint32_t *k);
 static QExpr *qsem_operator(QSem *S, QExpr *e, QKind op, QExpr *a, QExpr *b);
 static QExpr *qsem_relation(QSem *S, QExpr *e, QKind op, QExpr *a, QExpr *b);
@@ -850,7 +853,7 @@ static QType qsem_inner(const QSem *const S, const QType t)
 
 static bool qsem_isgen(const QSem *const S, const QType t)
 {
-    return qast_compound(t) && qast_ty(S->prog, t)->kind == QT_GEN;
+    return qast_compound(t) && qast_ty(S->prog, t)->gen;
 }
 
 static bool qsem_ismap(const QSem *const S, const QType t)
@@ -870,9 +873,31 @@ static QType qsem_typename(QSem *const S, const QTok *const t)
 
     if (b && b->ty)
         return b->ty;
+    if (b && b->fn && b->fn->ytx)
+        return qsem_gentype(S, b->fn, t);
 
     qsem_say(S, t, "unknown type ", qsem_text(S, t), nullptr);
     return QY_ERROR;
+}
+
+/* Generator g's kept state's type, named at t: its resumable instance's, made if none yet. */
+static QType qsem_gentype(QSem *const S, QFn *const g, const QTok *const t)
+{
+    if (g->ntp || qsem_takesfn(g)) {
+        qsem_say(
+            S,
+            t,
+            qsem_text(S, t),
+            " is generic or takes a fn: its state has no name",
+            nullptr
+        );
+        return QY_ERROR;
+    }
+
+    S->genkept = true;
+    const QFn *const i = qsem_instance(S, qast_expr(S->mem, QE_CALL, t), g);
+    S->genkept = false;
+    return i ? i->gentype : QY_ERROR;
 }
 
 /* A type's name, m.T or a.b.T: T in the module its qualifiers name. */
@@ -2905,8 +2930,10 @@ static QFn *qsem_instance(QSem *const S, QExpr *const e, QFn *const g)
     if (!g->ntp && !bound && !g->ytx)
         return g;
 
-    for (QFn *i = g->insts; i && !g->ytx; i = i->sibling) /* a generator's: one a site */
-        if (qsem_keyed_as(i, targs, binds, g->ntp, g->npar))
+    for (QFn *i = g->insts; i && (!g->ytx || kept);
+
+         i = i->sibling) /* an inline generator's: one a for */
+        if (i->resumable == kept && qsem_keyed_as(i, targs, binds, g->ntp, g->npar))
             return i->sig ? i : nullptr;
 
     if (g->ninst == QSEM_INSTS) {
@@ -2928,6 +2955,12 @@ static QFn *qsem_instance(QSem *const S, QExpr *const e, QFn *const g)
     i->loop = loop;
     i->resumable = kept;
     i->host = S->fn;
+
+    if (kept) {
+        i->gentype = qsem_newty(S, QT_REC);
+        qast_ty(S->prog, i->gentype)->name = g->name;
+        qast_ty(S->prog, i->gentype)->gen = i;
+    }
     g->insts = i;
     g->ninst++;
 
@@ -2939,6 +2972,7 @@ static QFn *qsem_instance(QSem *const S, QExpr *const e, QFn *const g)
     qsem_bound(S, i, e);
     qsem_pop(S);
     S->fn = fn;
+    i->nown = i->npar;
     return i->sig ? i : nullptr;
 }
 
@@ -4519,11 +4553,6 @@ static QExpr *qsem_name(QSem *const S, QExpr *const e)
         return e;
     }
 
-    if (qsem_isgen(S, v->type)) {
-        qsem_say(S, e->tok, qsem_text(S, e->tok), " is a generator: call its next()", nullptr);
-        return e;
-    }
-
     if (v->lam && !S->passing) {
         qsem_say(S, e->tok, qsem_text(S, e->tok), " is a lambda: call it or pass it on", nullptr);
         return e;
@@ -4702,6 +4731,11 @@ static QExpr *qsem_expr(QSem *const S, QExpr *const e, const QType hint)
 
     if ((e->kind == QE_NAME || e->kind == QE_FIELD || e->kind == QE_INDEX) && e->type != QY_VOID)
         return e; /* a place checked already: a compound assignment's */
+
+    QFn *const g = qsem_isgen(S, hint) ? qsem_genof(S, e) : nullptr;
+
+    if (g) /* g(..) where its state goes: made */
+        return qsem_state(S, e, g);
 
     switch (e->kind) {
     case QE_CONST:
@@ -5360,11 +5394,10 @@ static void qsem_return(QSem *const S, QStmt *const s)
 {
     const QFn *const f = s->fn;
 
-    if (f->ytx) {
+    if (f->ytx) { /* return x: x the last yielded */
         if (s->e)
-            qsem_say(S, s->e->tok, "a generator's return takes no value: yield it", nullptr);
+            qsem_yield(S, s);
 
-        s->e = nullptr;
         return;
     }
 
@@ -5518,6 +5551,7 @@ static void qsem_fromgen(QSem *const S, QIter *const it, QVar *const v)
     QExpr *const call = qast_expr(S->mem, QE_CALL, it->tok);
     call->fn = (QFn *)r;
     call->type = r->result;
+    call->c = qsem_nameof(S, v, it->tok);
     it->from = QO_GEN;
     it->gen = v;
     it->got = qsem_var(S, it->tok, r->result, QV_TEMP);
@@ -5534,15 +5568,13 @@ static bool qsem_source(QSem *const S, QIter *const it, QExpr *const c)
     const QBind *const b = qsem_lookup(S, c);
 
     if (g) {
-        it->start = c;
-        qsem_fromgen(S, it, qsem_keptas(S, c, g, it->tok));
+        it->start = qsem_state(S, c, g);
+        qsem_fromgen(S, it, qsem_var(S, it->tok, it->start->type, QV_VAR));
         return it->nparts;
     }
 
     if (b && b->var && qsem_isgen(S, b->var->type)) {
-        if (b->var->kind != QV_VAR)
-            qsem_say(S, c->tok, "a generator is called in its own fn, not a lambda's", nullptr);
-        else
+        if (qsem_changes(S, c, c->tok))
             qsem_fromgen(S, it, b->var);
 
         return it->nparts;
@@ -6046,7 +6078,7 @@ static void qsem_genargs(QSem *const S, QStmt *const s, QFn *const i, QExpr *con
         if (i->params[k].lam)
             continue;
 
-        if (i->params[k].hidden)
+        if (i->params[k].hidden || i->params[k].mut) /* a mut's borrowed for the loop */
             v->place = a;
         else if (a->kind == QE_CONST) {
             v->constant = true;
@@ -6057,7 +6089,7 @@ static void qsem_genargs(QSem *const S, QStmt *const s, QFn *const i, QExpr *con
         } else
             e->argv[k] = qsem_into(S, v, qsem_owned(S, a, false));
 
-        v->kind = i->params[k].hidden ? v->kind : QV_LET;
+        v->kind = i->params[k].hidden || i->params[k].mut ? v->kind : QV_LET;
     }
 }
 
@@ -6148,49 +6180,45 @@ static void qsem_kept(QSem *const S, QDecl *const d, const QKind kw, QFn *const 
     if (d->type)
         qsem_say(S, d->type->tok, "a generator's type is its fn's: leave out as", nullptr);
 
-    d->var = qsem_keptas(S, d->value, g, d->name);
+    d->value = qsem_state(S, d->value, g);
+    d->var = qsem_var(S, d->name, d->value->type, QV_VAR);
     qsem_bind(S, d->name, d->var, nullptr);
 }
 
-/* Call e of generator g kept in a new variable named name, its resume index: e's arguments
-   each kept in a variable of this frame. */
-static QVar *qsem_keptas(QSem *const S, QExpr *const call, QFn *const g, const QTok *const name)
+/* Call e of generator g, kept: its state made, a record of g's resumable instance, each argument
+   moved or copied in. */
+static QExpr *qsem_state(QSem *const S, QExpr *const call, QFn *const g)
 {
     S->genkept = true;
     QExpr *const e = qsem_fncall(S, call, g);
     S->genkept = false;
     QFn *const r = e->type == QY_ERROR ? nullptr : e->fn;
-    QType t = QY_ERROR;
 
-    if (r) {
-        t = qsem_newty(S, QT_GEN);
-        qast_ty(S->prog, t)->gen = r;
-        r->keep = qast_alloc(S->mem, (r->npar + 1) * sizeof *r->keep);
+    if (!r)
+        return e;
 
-        for (uint32_t k = 0; k < r->npar; k++) {
-            const QParam *const p = &r->params[k];
+    QExpr *const made = qast_expr(S->mem, QE_NEW, e->tok);
+    made->type = r->gentype;
+    made->nargv = r->nown;
+    made->argv = qast_alloc(S->mem, (r->nown ? r->nown : 1) * sizeof *made->argv);
 
-            if (p->hidden || p->lam) {
-                r->keep[k] = e->argv[k];
-                continue;
-            }
+    for (uint32_t k = 0; k < r->nown; k++) {
+        const QParam *const p = &r->params[k];
 
-            QVar *const v = qsem_var(S, p->name, p->var->type, QV_VAR);
-            e->argv[k] = qsem_into(S, v, qsem_owned(S, e->argv[k], false));
-            r->keep[k] = qsem_nameof(S, v, e->tok);
-        }
+        if (p->mut && !p->hidden && !p->lam)
+            qsem_say(S, e->argv[k]->tok, "a kept generator owns its arguments: no mut", nullptr);
+        if (!p->hidden && !p->lam)
+            made->argv[k] = qsem_owned(S, e->argv[k], false);
     }
 
-    QVar *const v = qsem_var(S, name, t, QV_VAR);
-
-    if (r)
-        r->keep[r->npar] = qsem_nameof(S, v, name);
-
-    return v;
+    r->keep = e->argv; /* a lambda's captures: its site's places */
+    r->news = qast_room(S->mem, r->news, r->nnews, &r->capnews, sizeof *r->news);
+    r->news[r->nnews++] = made;
+    return made;
 }
 
-/* Resumable r, checked: its resume index and each of its variables kept by its host, each a
-   parameter by reference after its own, as r->keep names them. */
+/* Resumable r, checked: its resume index and each of its variables a parameter by reference
+   after its own; its state's fields each parameter's, the states made so far filled. */
 static void qsem_keep(QSem *const S, QFn *const r)
 {
     uint32_t n = r->npar + 1;
@@ -6200,30 +6228,22 @@ static void qsem_keep(QSem *const S, QFn *const r)
              v->kind != QV_RESULT && !v->constant && !v->place;
 
     QParam *const params = qast_alloc(S->mem, n * sizeof *params);
-    QExpr **const keep = qast_alloc(S->mem, n * sizeof *keep);
     memcpy(params, r->params, r->npar * sizeof *params);
-    memcpy(keep, r->keep, (r->npar + 1) * sizeof *keep);
     r->resume = qsem_var(S, r->name, QY_INT, QV_MUT);
-    const uint32_t own = r->npar;
-    QVar *const last = S->lastvar;
-    params[own] = (QParam){
+    const QVar *const last = S->lastvar;
+    params[r->npar++] = (QParam){
         .name = r->name,
         .mut = true,
         .hidden = true,
         .var = r->resume,
     };
 
-    r->npar++;
-
     for (QVar *v = S->prog->vars; v != last->next; v = v->next) {
         if (qast_home(v->fn) != r || v->kind == QV_PARAM || v->kind == QV_MUT ||
             v->kind == QV_RESULT || v->constant || v->place)
             continue;
 
-        QVar *const h = qsem_var(S, v->name, v->type, QV_TEMP);
-        h->fn = r->host;
         v->byref = true;
-        keep[r->npar] = qsem_nameof(S, h, v->name);
         params[r->npar++] = (QParam){
             .name = v->name,
             .mut = true,
@@ -6232,16 +6252,34 @@ static void qsem_keep(QSem *const S, QFn *const r)
         };
     }
 
-    r->nhidden += r->npar - own;
+    r->nhidden += r->npar - r->nown;
     r->params = params;
-    r->keep = keep;
+    QTy *const y = qast_ty(S->prog, r->gentype);
+    y->fields = qast_alloc(S->mem, r->npar * sizeof *y->fields);
+    y->nfields = y->capfields = r->npar;
+
+    for (uint32_t k = 0; k < r->npar; k++) {
+        const QParam *const p = &params[k];
+        const bool cell = p->lam || (k < r->nown && p->hidden); /* none of its own: an int */
+        y->fields[k] = (QField){.name = p->name, .type = cell ? QY_INT : p->var->type};
+
+        y->owns |= !cell && qsem_owns(S, p->var->type);
+    }
+
+    for (uint32_t i = 0; i < r->nnews; i++) {
+        QExpr *const made = r->news[i];
+        QExpr **const argv = qast_alloc(S->mem, r->npar * sizeof *argv);
+        memcpy(argv, made->argv, made->nargv * sizeof *argv);
+        made->argv = argv;
+        made->nargv = r->npar;
+    }
 }
 
-/* it.next(), it a var generator v: its instance called, its state passed by reference; what
-   it yields next, none when done. */
+/* it.next(), it e->a a generator's state in variable v: its instance called, the state's fields
+   by reference (e->c the state); what it yields next, none when done. */
 static QExpr *qsem_next(QSem *const S, QExpr *const e, QVar *const v)
 {
-    const QFn *const r = qast_compound(v->type) ? qast_ty(S->prog, v->type)->gen : nullptr;
+    QFn *const r = qast_compound(v->type) ? qast_ty(S->prog, v->type)->gen : nullptr;
     e->type = QY_ERROR;
 
     if (!qsem_is(e->tok, "next")) {
@@ -6251,16 +6289,21 @@ static QExpr *qsem_next(QSem *const S, QExpr *const e, QVar *const v)
 
     if (e->args)
         qsem_say(S, e->args->e->tok, "next() takes no values", nullptr);
-    if (r && v->kind != QV_VAR) {
-        qsem_say(S, e->tok, "a generator is called in its own fn, not a lambda's", nullptr);
+    if (!r || !qsem_changes(S, e->a, e->tok))
+        return e;
+    if (r->nhidden > r->npar - r->nown && S->fn != r->host) {
+        qsem_say(
+            S,
+            e->tok,
+            "its lambda borrows from where it was made: call next() there",
+            nullptr
+        );
         return e;
     }
 
-    if (!r)
-        return e;
-
+    e->c = qsem_expr(S, e->a, QY_VOID);
     e->a = nullptr;
-    e->fn = (QFn *)r;
+    e->fn = r;
     e->type = r->result;
     return e;
 }
@@ -6936,11 +6979,6 @@ static void qsem_signature(QSem *const S, QFn *const f)
         if (!p->type && !p->def) {
             qsem_say(S, p->name, qsem_text(S, p->name), " needs a type", nullptr);
             t = QY_ERROR;
-        }
-
-        if (p->mut && f->ytx) {
-            qsem_say(S, p->name, "a generator's parameters are not mut", nullptr);
-            p->mut = false;
         }
 
         p->var = qsem_var(S, p->name, t, p->mut ? QV_MUT : QV_PARAM);

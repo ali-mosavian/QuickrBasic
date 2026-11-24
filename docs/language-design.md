@@ -422,20 +422,24 @@ end for
 - A generator kept in a `var` is resumed a frame at a time with `next()`, which suits cutscenes
   and enemy behaviour. Kept that way, it owns its arguments: they are moved or copied in, never
   borrowed.
-- `it.next()` gives a `T?`: `none` once the generator ends. A kept generator is declared with
-  `var` and used only as `it.next()`, in the function that declared it. It can't be copied,
-  passed, returned, printed or used by a lambda, and `for x in it` is not supported.
-- A generator has no `as` type, its `return` takes no value, and its parameters are not `mut`.
-  A generator can't loop over itself.
+- `it.next()` gives a `T?`: `none` once the generator ends. A kept generator is a value: `var b
+  = it` copies its state, `for x in it` and a chain run it on, and a fn takes one by its
+  generator's name, `fn drain(mut it as upto)`, or returns one, `fn make() as upto`. `next()`
+  changes it, so it takes a `var` or a `mut` parameter. A lambda may use it; one whose lambda
+  borrows its site's variables calls `next()` in that fn alone. A generic generator's state, or
+  one taking a fn's, has no name to write.
+- `return x` in a generator yields `x` last, then ends; a bare `return` ends it. A generator has
+  no `as` type. A parameter may be `mut` for a `for`, which borrows it for the loop; a kept
+  generator owns its arguments, so not there. A generator can't loop over itself.
 - **In the VM**, each `for x in g(..)` gets its own copy of `g`, checked and compiled in the
   loop's frame. Its parameters and locals are the caller's locals. A constant argument is
   inlined, a record or list place is read where it is (borrowed for the loop), and the rest are
   stored when the loop starts. A `yield` stores `x` and jumps to the body; `end for` jumps back
   past the `yield`, on a resume index when there are several. When the only `yield` gives a
   variable or a constant, `x` names it and nothing is stored.
-- A kept generator is a procedure. Its resume index is the `var`; its arguments and locals are
-  hoisted into the declaring function's frame and passed by reference to each `next()`, whose
-  entry jumps to the `yield` the index names.
+- A kept generator is a procedure, one for each generator (and its types). Its state is a
+  record: its parameters, its resume index, its locals; each `next()` passes the state's fields by
+  reference, and its entry jumps to the `yield` the index names.
 - The link threads every jump and line end past what only passes control on: a line with no
   statement, a line that only jumps. A `yield` and its loop's `end for` cost no op.
 

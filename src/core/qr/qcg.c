@@ -1772,7 +1772,11 @@ static void qcg_call(QCg *const g, const QExpr *const e, const QExpr *const dst)
 
     for (uint32_t k = 0; k < f->npar; k++) {
         const QParam *const p = &f->params[k];
-        const QExpr *const a = f->keep ? f->keep[k] : e->argv[k];
+        const QExpr state = f->resumable ? qcg_fieldof(g, e->c, k) : (QExpr){};
+
+        const QExpr *const a = !f->resumable              ? e->argv[k]
+                               : k < f->nown && p->hidden ? f->keep[k] /* a lambda's capture */
+                                                          : &state;
 
         if (p->lam) /* bound to its lambda: no value */
             continue;
@@ -2465,7 +2469,6 @@ static void qcg_beyond(QCg *const g, const QIter *const it)
     qcg_compare(g->c, QY_INT, it->rev ? QK_LT : QK_GT, right);
 }
 
-static void qcg_keptinit(QCg *g, QVar *v, const QExpr *call);
 
 /* Chain it's start: its source held, its counter from its first, each step's and its end's
    state; on to its end when its source is empty. */
@@ -2479,8 +2482,10 @@ static void qcg_chainstart(QCg *const g, const QIter *const it, QCgExits *const 
     } else if (it->src)
         qcg_settle(g, it->src);
 
-    if (it->start)
-        qcg_keptinit(g, it->gen, it->start);
+    if (it->start) {
+        const QExpr state = qcg_named(it->gen);
+        qcg_set(g, &state, it->start);
+    }
 
     if (it->from != QO_GEN) { /* i from its first, lim its last, stp the way */
         for (uint32_t k = 0; k < 2; k++) {
@@ -2772,29 +2777,11 @@ static void qcg_chainfor(QCg *const g, const QStmt *const s)
 
 /* ---- generators */
 
-static bool qcg_isgen(const QCg *const g, const QType t)
-{
-    return qast_compound(t) && qcg_ty(g, t)->kind == QT_GEN;
-}
-
 static void qcg_pret(Code *const c, const QFn *const f)
 {
     code_op(c, O_PRET);
     code_dword(c, f->proc);
     code_dword(c, 0);
-}
-
-/* var v = g(..), call: each argument kept in its host's variable, v from the start. */
-static void qcg_keptinit(QCg *const g, QVar *const v, const QExpr *const call)
-{
-    const QFn *const r = qcg_ty(g, v->type)->gen;
-
-    for (uint32_t k = 0; k < call->nargv; k++)
-        if (!r->params[k].hidden && !r->params[k].lam)
-            qcg_set(g, r->keep[k], call->argv[k]);
-
-    code_int(g->c, 0);
-    qcg_store(g->c, v);
 }
 
 /* On from where generator f stopped: to the yield its resume index names (a sole yield's
@@ -2805,8 +2792,12 @@ static void qcg_resume(QCg *const g, const QFn *const f)
     const uint32_t n = f->nyields;
 
     for (uint32_t k = 0; k < n; k++) {
+        const QStmt *const y = f->yields[k];
+        const QStmt *const to = y->kind == QS_RETURN ? f->end : y->link;
+        const uint32_t body = y->kind == QS_RETURN ? 0 : BOFF;
+
         if (k + 1 == n && !f->resumable) {
-            qcg_to(g, O_JMP, f->yields[k]->link, BOFF, TO_STMT);
+            qcg_to(g, O_JMP, to, body, TO_STMT);
             return;
         }
 
@@ -2814,7 +2805,7 @@ static void qcg_resume(QCg *const g, const QFn *const f)
         uint8_t *const right = c->out;
         code_int(c, k + 1);
         qcg_compare(c, QY_INT, QK_NE, right);
-        qcg_to(g, O_I_JF, f->yields[k]->link, BOFF, TO_STMT);
+        qcg_to(g, O_I_JF, to, body, TO_STMT);
     }
 
     if (f->resumable) {
@@ -3179,9 +3170,7 @@ static void qcg_simple(QCg *const g, const QStmt *const s)
             if (d->var->live) /* a loop's declaration run again */
                 qcg_dropvar(g, d->var);
 
-            if (qcg_isgen(g, d->var->type))
-                qcg_keptinit(g, d->var, d->value);
-            else if (d->value)
+            if (d->value)
                 qcg_set(g, &to, d->value);
             else
                 qcg_fresh(g, d->var);
@@ -3257,10 +3246,13 @@ static void qcg_simple(QCg *const g, const QStmt *const s)
     }
 
     case QS_RETURN:
-        if (s->fn->ytx) {
+        if (s->fn->ytx && s->e) /* a last yield: resumed, it ends */
+            qcg_yield(g, s);
+        else if (s->fn->ytx)
             qcg_done(g, s->fn);
+
+        if (s->fn->ytx)
             return;
-        }
 
         if (s->e) {
             const QExpr res = qcg_named(s->fn->res);

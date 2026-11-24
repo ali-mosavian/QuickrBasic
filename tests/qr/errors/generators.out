@@ -1,9 +1,6 @@
 generators.bas:11:11: a string is not an int
       yield "x"
             ^
-generators.bas:12:12: a generator's return takes no value: yield it
-      return 5
-             ^
 generators.bas:15:14: loops loops over itself: its for is inlined
       for x in loops(n)
                ^
@@ -13,36 +10,33 @@ generators.bas:19:33: a generator yields its values: it has no as type
 generators.bas:23:5: yield outside a generator: write fn g(..) yields T
       yield 1
       ^
-generators.bas:25:16: a generator's parameters are not mut
-  fn changes(mut n as int) yields int
-                 ^
 generators.bas:28:5: a generator changes as it runs: keep it in a var
   let a = upto(3)
       ^
-generators.bas:30:7: b is a generator: call its next()
+generators.bas:30:7: print takes numbers, strings and bools, not an upto
   print(b)
         ^
-generators.bas:31:9: b is a generator: call its next()
-  var c = b
-          ^
-generators.bas:32:9: a generator has next() alone
+generators.bas:32:21: a kept generator owns its arguments: no mut
+  var c = changes(mut m)
+                      ^
+generators.bas:33:9: a generator has next() alone
   print(b.size())
           ^
-generators.bas:33:5: a generator changes as it runs: keep it in a var
+generators.bas:34:5: a generator changes as it runs: keep it in a var
   let s = upto(4)
       ^
-generators.bas:35:5: x is the loop's counter: it can't change
+generators.bas:36:5: x is the loop's counter: it can't change
       x = 5
       ^
-generators.bas:37:1: for over a generator takes one name, not mut
+generators.bas:38:1: for over a generator takes one name, not mut
   for i, x in upto(2)
   ^
-generators.bas:46:9: upto is no value: it is a generator
+generators.bas:47:9: upto is no value: it is a generator
   let f = upto
           ^
-generators.bas:50:14: next() takes no values
+generators.bas:51:14: next() takes no values
   print(b.next(1) ?? 0)
                ^
-generators.bas:51:1: upto is a generator: loop over it with for, or keep it in a var
+generators.bas:52:1: upto is a generator: loop over it with for, or keep it in a var
   upto(3)
   ^

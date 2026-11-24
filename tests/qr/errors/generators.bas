@@ -1,5 +1,5 @@
 ' OPTION DIALECT QUICKR
-' generators: yield's type, return's value, loops over itself, used as a value, let, next()
+' generators: yield's type, loops over itself, used as a value, let, next(), a kept one's mut
 fn upto(n as int) yields int
     var i = 0
     while i < n
@@ -28,7 +28,8 @@ end fn
 let a = upto(3)
 var b = upto(3)
 print(b)
-var c = b
+var m = b.next() ?? 0
+var c = changes(mut m)
 print(b.size())
 let s = upto(4)
 for x in upto(2)
@@ -44,7 +45,7 @@ for x in loops(1)
     print(x)
 end for
 let f = upto
-for x in changes(1)
+for x in changes(mut m)
     print(x)
 end for
 print(b.next(1) ?? 0)

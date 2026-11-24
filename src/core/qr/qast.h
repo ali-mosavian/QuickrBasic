@@ -255,16 +255,15 @@ typedef enum : uint8_t {
     QT_MAP,
     QT_OPT,
     QT_RES,
-    QT_FN,
-    QT_GEN
+    QT_FN
 } QTyKind;
 
 /* A compound type. A record, a tuple, an enum with data, a map, T? and T! are the VM's records
    (comp/declare.h): an enum's tag its field 0, then each value's data; a map's its keys, its values
    and its hash slots, three lists (qr/qrt.c); T?'s has and its T; T!'s err, its T, then its error's
    code, message and line (QF_*). A fn type's fields are its parameters', its elem its result's
-   (QY_VOID none): its value a procedure's number, an int. A generator kept in a var, gen, is its
-   resume index, an int. */
+   (QY_VOID none): its value a procedure's number, an int. A kept generator's state is a record,
+   gen its resumable instance: its parameters, its resume index, its locals. */
 typedef struct {
     QTyKind kind;
     const QTok *name; /* a record's, an enum's */
@@ -283,7 +282,7 @@ typedef struct {
     bool deep;     /* qlink's: its TYPE holds strings or lists (comp/declare.h decl_dynamic) */
     uint32_t td;   /* its TYPE (comp/declare.h), qlink's */
     uint32_t size; /* its TYPE's bytes, qlink's */
-    QFn *gen;      /* QT_GEN's instance */
+    QFn *gen;      /* a kept generator's state's: its resumable instance */
     QFn *opers;    /* a record's fn operators, by QFn.opnext */
     QFn *drop;     /* a record's fn drop */
     bool seen;     /* qast_drops' guard against a type holding itself */
@@ -371,11 +370,15 @@ struct QFn {
     QType ytype;
     QStmt **yields; /* an instance's yields, numbered from 1 */
     uint32_t nyields, capyields;
-    QStmt *loop;      /* for x in g(..)'s instance: that for, its code in its host's frame */
-    QFn *host;        /* an inline or resumable instance's fn holding its state, null the module */
-    bool resumable;   /* var it = g(..)'s instance: a procedure, its state its host's */
-    QVar *resume;     /* the yield to go on from: 0 the start, -1 done */
-    QExpr **keep;     /* resumable: what each parameter is passed, its host's variable or place */
+    QStmt *loop;    /* for x in g(..)'s instance: that for, its code in its host's frame */
+    QFn *host;      /* an inline or resumable instance's fn holding its state, null the module */
+    bool resumable; /* var it = g(..)'s instance: a procedure, its state a record (gentype) */
+    QVar *resume;   /* the yield to go on from: 0 the start, -1 done */
+    QExpr **keep;   /* resumable: a lambda's capture, what it is passed; null the rest */
+    QType gentype;  /* resumable: its state, a record of each parameter (QY_INT a lambda's) */
+    uint32_t nown;  /* resumable: its parameters as written, its state's after them */
+    QExpr **news; /* resumable: each state made, g(..), its fields after nown filled by qsem_keep */
+    uint32_t nnews, capnews;
     QKind op;         /* fn operator +: its operator, its name its token */
     QFn *opnext;      /* its first parameter's type's next operator */
     const QTok *lone; /* an operator's body one return: its value's first token */
