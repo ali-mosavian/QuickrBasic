@@ -1,0 +1,8 @@
+4 2 3 1
+z y x
+b 2 a 1
+7 0 5
+0 9
+zx
+rt_swap.bas:38: Subscript out of range
+  a.swap(0, 4)

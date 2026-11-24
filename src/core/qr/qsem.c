@@ -3721,6 +3721,40 @@ static QExpr *qsem_listop(QSem *const S, QExpr *const e, const QBuiltin op)
     return e;
 }
 
+/* a.swap(i, j): two elements of a mutable list or array exchanged, each index checked. */
+static QExpr *qsem_swap(QSem *const S, QExpr *const e)
+{
+    const bool ok = qsem_changes(S, e->a, e->tok);
+    QExpr *const a = e->a = qsem_expr(S, e->a, QY_VOID);
+    e->kind = QE_LIST;
+    e->builtin = QB_SWAP;
+    e->type = QY_ERROR;
+    uint32_t n = 0;
+
+    for (const QArg *x = e->args; x; x = x->next)
+        n++;
+
+    if (!ok || a->type == QY_ERROR)
+        return e;
+
+    if (!qast_array(S->prog, a->type)) {
+        qsem_say(S, e->tok, "only a list or an array has swap()", nullptr);
+        return e;
+    }
+
+    if (n != 2 || !qsem_plain(S, e, ~0u)) {
+        qsem_say(S, e->tok, "swap() takes two indexes", nullptr);
+        return e;
+    }
+
+    e->argv = qast_alloc(S->mem, 2 * sizeof *e->argv);
+    e->nargv = 2;
+    e->argv[0] = qsem_coerce(S, qsem_expr(S, e->args->e, QY_INT), QY_INT);
+    e->argv[1] = qsem_coerce(S, qsem_expr(S, e->args->next->e, QY_INT), QY_INT);
+    e->type = QY_VOID;
+    return e;
+}
+
 /* Map m's keys, the list its record's first field. */
 static QExpr *qsem_keysof(QSem *const S, QExpr *const m)
 {
@@ -3905,6 +3939,9 @@ static QExpr *qsem_method(QSem *const S, QExpr *const e)
         for (uint32_t i = 0; i < countof(lists); i++)
             if (qsem_is(e->tok, lists[i].name))
                 return qsem_listop(S, e, lists[i].op);
+
+        if (qsem_is(e->tok, "swap"))
+            return qsem_swap(S, e);
 
         if (qsem_is(e->tok, "len"))
             return qsem_len(S, e, e->a);

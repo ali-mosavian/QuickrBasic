@@ -483,6 +483,7 @@ typedef enum : uint8_t {
     QB_SLICE, /* a[b..c] of a string or a list: b, c null for its ends */
     QB_GET,   /* m.get(k): a, b; its value's address in temps[0] */
     QB_ICALL, /* a(argv): a call through fn value a */
+    QB_SWAP,  /* a.swap(i, j): argv */
 } QBuiltin;
 
 /* A call's argument as written: its name (null positional), mut. */

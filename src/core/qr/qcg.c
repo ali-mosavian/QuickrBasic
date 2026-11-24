@@ -2077,6 +2077,22 @@ static void qcg_moved(QCg *const g, const QExpr *const e)
 }
 
 /* A list's method; a record's pop copied to dst. */
+/* List or array place a's elements for QX.SWAP and QX.SORT: a list's or an array variable's cell;
+   a fixed array field's first element's address and count, QX_INLINE returned. */
+static uint32_t qcg_elems(QCg *const g, const QExpr *const a)
+{
+    const QTy *const y = qcg_ty(g, a->type);
+
+    if (a->kind != QE_FIELD || y->kind != QT_ARRAY) {
+        qcg_cell(g, a);
+        return 0;
+    }
+
+    qcg_offset(g, qcg_fieldat(g, a));
+    code_int(g->c, y->count);
+    return QX_INLINE;
+}
+
 static void qcg_listop(QCg *const g, const QExpr *const e, const QExpr *const dst)
 {
     Code *const c = g->c;
@@ -2090,6 +2106,16 @@ static void qcg_listop(QCg *const g, const QExpr *const e, const QExpr *const ds
     }
 
     switch (e->builtin) {
+    case QB_SWAP: {
+        const uint32_t how = qcg_elems(g, e->a);
+        code_int(c, et);
+        qcg_expr(g, e->argv[0]);
+        qcg_expr(g, e->argv[1]);
+        code_int(c, QX_SWAP | how);
+        code_call(c, K_QX);
+        return;
+    }
+
     case QB_PUSH:
     case QB_INSERT: { /* one more at the end, the value there; insert's moved to its place */
         const QExpr *v = e->argv[e->nargv - 1];

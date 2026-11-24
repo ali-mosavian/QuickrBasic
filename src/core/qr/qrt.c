@@ -374,6 +374,21 @@ static void qrt_bubble(
         qrt_swap(S, et, data + (uint32_t)k * size, data + (uint32_t)(k + step) * size);
 }
 
+/* The elements QX_INLINE in word says are on the stack (qrt.h): their count, *data the first's
+   address; *cell a list's cell, 0 an inline array's. */
+static uint32_t qrt_elems(Session *const S, const uint32_t word, Addr *const data, Addr *const cell)
+{
+    if (word & QX_INLINE) {
+        const uint32_t n = exec_pop(&S->vm).u;
+        *data = exec_popa(&S->vm);
+        *cell = 0;
+        return n;
+    }
+
+    *cell = exec_popa(&S->vm);
+    return qrt_len(*cell, data);
+}
+
 /* A number element of et at e: 8 bytes, 4, or a short's 2 or a byte's 1 as an int. */
 static Cell qrt_elem(const uint32_t et, const Addr e)
 {
@@ -1517,6 +1532,20 @@ void qrt_x(Session *const S)
             qrt_bubble(S, cell, et, last, i);
         else
             qrt_bubble(S, cell, et, i, last);
+
+        return;
+    }
+
+    case QX_SWAP: {
+        const uint32_t j = exec_pop(vm).u, i = exec_pop(vm).u, et = exec_pop(vm).u;
+        Addr data, cell;
+        const uint32_t n = qrt_elems(S, word, &data, &cell);
+        const uint32_t size = arry_et_size(&S->decl, et);
+
+        if (i >= n || j >= n)
+            arry_bad_sub(&S->arry);
+        if (i != j)
+            qrt_swap(S, et, data + i * size, data + j * size);
 
         return;
     }
