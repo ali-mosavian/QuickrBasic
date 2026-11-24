@@ -199,6 +199,18 @@ def quickr_ops(b: bench.Build) -> None:
         assert q.ops <= qb[k].ops * 1.001, f"{k}: Quickr's {q.ops:,} ops, QBasic's {qb[k].ops:,}"
 
 
+def quickr_push(b: bench.Build) -> None:
+    """A list's push is amortized O(1): each doubling of the pushes costs about twice the last. Grown by
+    one element a push (REDIM PRESERVE's way), it cost 4.0x. Differences, as the bench subtracts a
+    baseline of its own: raw counts at 8000 pushes read 2.45x, the offset not the growth. A run's count
+    swings by 1M, so n large enough to drown that."""
+    prog = "var a as int[]\nfor i in 0..{n}\n    a.push(i)\nend for\nprint(len(a))\n"
+    progs = {str(n): prog.format(n=n) for n in (32000, 64000, 128000)}
+    r = bench.run_natives([b], progs, runs=3, ext="QR")[0]
+    ratio = (r["128000"].insns - r["64000"].insns) / (r["64000"].insns - r["32000"].insns)
+    assert ratio < 2.3, f"doubling the pushes cost {ratio:.2f}x the last doubling"
+
+
 def main() -> int:
     each_reps()
     charlie_each()
@@ -221,6 +233,7 @@ def main() -> int:
     assert max(again) / min(again) < 1 + bench.INSNS_SLACK, f"one program's counts {again}"
     costs(b)
     quickr_ops(b)
+    quickr_push(b)
     exe = bench.ROOT / "build/c/basic32.exe"
     if exe.exists():  # the loaded bytes, not the file's: its fixups moved with layout
         assert bench.image(exe) > 100_000 and bench.image(exe) != exe.stat().st_size, bench.image(exe)

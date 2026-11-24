@@ -23,6 +23,9 @@
  * lie above its arguments' stack: given back once vm.sp is above them, their call over. Their data
  * follows its record as the heap moves.
  *
+ * A list (Quickr's) is a 1-D array from 0 with room to grow: its count its capacity, its fast its
+ * length, which bounds its subscripts. A QBasic array's fast is its count, so it is unchanged.
+ *
  * A heap header names its owner, the cell holding it (ours): a variable's by its id, else the
  * cell's Addr, which may be a record's in the heap; an arena's names OWN_ARENA. arry_kill marks an
  * array dead (owner 0), and the arrays its records hold; arry_sweep removes the dead: each one's
@@ -271,7 +274,7 @@ Addr arry_ref(Arry *const ay, ArrSlot *const s, const uint32_t id, const uint8_t
     for (uint32_t i = n; i-- > 0;) {
         const uint32_t r = (uint32_t)ay->subs[i] - (uint32_t)arry_lbound(a, i);
 
-        if (r >= arry_count(a, i))
+        if (r >= arry_count(a, i) || (a->fast && r >= a->fast))
             arry_bad_sub(ay);
 
         idx = idx * arry_count(a, i) + r;
@@ -716,6 +719,7 @@ static void arry_copy_on(Arry *const ay, ArrSlot *const d, const ArrSlot *const 
     arry_make_on(ay, d, a->et, n, true, arena); /* at the end: nothing moves */
 
     const ArrayHdr *const b = arry_hdr_at(s->hdr);
+    arry_hdr_at(d->hdr)->fast = b->fast; /* a list's length */
     const Addr from = b->data, to = arry_hdr_at(d->hdr)->data;
     const uint32_t size = arry_size(ay, s->hdr);
     const TypeDef *const td = arry_deeptype(ay, s->hdr);
@@ -934,12 +938,14 @@ static void arry_slide(Arry *const ay, ArrSlot *const s, const Addr old)
     stack_arena_give(ay->vm, h, delta);
 }
 
-void arry_redim(
+/* arry_redim, the new one's fast len when 1-D, else as made. */
+static void arry_resize(
     Arry *const ay,
     ArrSlot *const s,
     const uint32_t et,
     const uint8_t n,
-    const bool keep
+    const bool keep,
+    const uint32_t len
 )
 {
     const Addr old = s->hdr;
@@ -955,13 +961,45 @@ void arry_redim(
         s->hdr = 0;
         arry_drop(ay, old);
         arry_make(ay, s, et, n, true);
+
+        if (len != UINT32_MAX)
+            arry_hdr_at(s->hdr)->fast = len;
+
         arry_sweep(ay, ay->vm); /* last: s may be in the heap */
         return;
     }
 
     arry_make(ay, s, et, n, true);
+
+    if (len != UINT32_MAX)
+        arry_hdr_at(s->hdr)->fast = len;
+
     arry_keep(ay, old, s->hdr);
     arry_kill(ay, old);
     arry_slide(ay, s, old);
     arry_sweep(ay, ay->vm);
+}
+
+void arry_redim(
+    Arry *const ay,
+    ArrSlot *const s,
+    const uint32_t et,
+    const uint8_t n,
+    const bool keep
+)
+{
+    arry_resize(ay, s, et, n, keep, UINT32_MAX);
+}
+
+void arry_relen(
+    Arry *const ay,
+    ArrSlot *const s,
+    const uint32_t et,
+    const uint32_t cap,
+    const uint32_t len
+)
+{
+    ay->subs[0] = (int32_t)cap - 1;
+    ay->lbounds[0] = 0;
+    arry_resize(ay, s, et, 1, s->hdr != 0, len);
 }

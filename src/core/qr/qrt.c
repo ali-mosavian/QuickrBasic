@@ -8,8 +8,9 @@
  *
  * print and string() spell a value with qrt_text, no space before a number: 1 2.5 x true.
  *
- * QX is the rest, by its operand. A list grows and shrinks by REDIM PRESERVE (arry_redim), one
- * element at a time; insert and remove move an element by swaps, which keep its strings' and
+ * QX is the rest, by its operand. A list has room to grow (mem/array.c): a push past it doubles
+ * the room (arry_relen), so a push is amortized O(1); a pop frees nothing until the list is
+ * empty. Insert and remove move an element by swaps, which keep its strings' and
  * arrays' owners. Either may move the heap, the list's cell with it, so each routine takes the
  * cell afresh. An f-string's spec is parsed when it runs, as Python's format() does.
  *
@@ -218,7 +219,7 @@ void qrt_str(Session *const S)
 
 /* ---- lists */
 
-/* The list at cell: its elements' count; *data their first's address. */
+/* The list at cell: its elements' count, its array's fast; *data their first's address. */
 static uint32_t qrt_len(const Addr cell, Addr *const data)
 {
     const ArrSlot *const s = (const ArrSlot *)at(cell);
@@ -228,25 +229,47 @@ static uint32_t qrt_len(const Addr cell, Addr *const data)
         return 0;
     }
 
-    const ArrView v = arry_view(s->hdr);
-    *data = v.data;
-    return arry_view_count(&v, 0);
+    const ArrayHdr *const a = (const ArrayHdr *)at(s->hdr);
+    *data = a->data;
+    return a->fast;
 }
 
-/* The list at cell made n long, its elements kept (REDIM PRESERVE); none, freed. The cell may
-   move with the heap. */
-static void qrt_resize(Session *const S, const Addr cell, const uint32_t et, const uint32_t n)
+/* The list at cell one longer: within its room, else in twice the room, its elements kept. The
+   cell may move with the heap. */
+static void qrt_grow(Session *const S, const Addr cell, const uint32_t et)
 {
     ArrSlot *const s = (ArrSlot *)at(cell);
+    ArrayHdr *const a = s->hdr ? (ArrayHdr *)at(s->hdr) : nullptr;
 
-    if (!n) {
+    if (a && a->fast < a->count[0]) {
+        a->fast++;
+        return;
+    }
+
+    const uint32_t n = a ? a->fast : 0;
+    arry_relen(&S->arry, s, et, n ? 2 * n : 4, n + 1);
+}
+
+/* The list at cell one shorter: its last emptied, its strings let go, its records' arrays dead;
+   none left, freed. */
+static void qrt_shrink(Session *const S, const Addr cell, const uint32_t et)
+{
+    ArrSlot *const s = (ArrSlot *)at(cell);
+    ArrayHdr *const a = (ArrayHdr *)at(s->hdr);
+    const uint32_t size = arry_et_size(&S->decl, et);
+
+    if (a->fast == 1) {
         arry_free(&S->arry, &S->vm, s);
         return;
     }
 
-    S->arry.subs[0] = (int32_t)n - 1;
-    S->arry.lbounds[0] = 0;
-    arry_redim(&S->arry, s, et, 1, s->hdr != 0);
+    const Addr e = a->data + --a->fast * size;
+    const TypeDef *const td = et >= ET_REC ? decl_type(&S->decl, et - ET_REC) : nullptr;
+
+    for (uint32_t i = 0; td && i < td->nslot; i++)
+        arry_kill(&S->arry, ((const ArrSlot *)at(e + td->slots[i]))->hdr);
+
+    memset(at(e), 0, size);
 }
 
 /* Elements a and b of et swapped, a string's and a record's owners following. */
@@ -305,14 +328,14 @@ static void qrt_pop(Session *const S, const Addr cell, const uint32_t et)
     if (et != ET_SD) {
         const Cell v = et == ET_R8 ? load_cell(at(e)) : (Cell){.u = load32(at(e))};
 
-        qrt_resize(S, cell, et, n - 1);
+        qrt_shrink(S, cell, et);
         exec_push(&S->vm, v);
         return;
     }
 
     const Desc d = strg_peek(e);
     memcpy(S->cons.sbuf, at(d.ptr), d.len); /* copied out: the shrink frees its block */
-    qrt_resize(S, cell, et, n - 1);
+    qrt_shrink(S, cell, et);
     exec_pusha(&S->vm, strg_text(&S->strg, S->cons.sbuf, d.len));
 }
 
@@ -707,7 +730,7 @@ void qrt_x(Session *const S)
         const Addr cell = exec_popa(vm);
         Addr data;
         const uint32_t n = qrt_len(cell, &data);
-        qrt_resize(S, cell, et, n + 1);
+        qrt_grow(S, cell, et);
         exec_pushi(vm, (int32_t)n);
         return;
     }
@@ -740,7 +763,7 @@ void qrt_x(Session *const S)
         if (!n)
             arry_bad_sub(&S->arry);
 
-        qrt_resize(S, cell, et, n - 1);
+        qrt_shrink(S, cell, et);
         return;
     }
 

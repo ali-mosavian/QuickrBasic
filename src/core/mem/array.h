@@ -102,6 +102,9 @@ void arry_dim(Arry *ay, uint32_t id, uint8_t n);
    lower bounds arry.lbounds; keep: the old one's elements moved in. Duplicate definition: a fixed
    one. Subscript out of range: keep, n not its dimensions. Illegal function call, Out of memory. */
 void arry_redim(Arry *ay, ArrSlot *s, uint32_t et, uint8_t n, bool keep);
+/* A list's array, ours: cell s's made cap elements of et, its first len (fast) its elements, the
+   old ones kept. Out of memory. */
+void arry_relen(Arry *ay, ArrSlot *s, uint32_t et, uint32_t cap, uint32_t len);
 /* The array fields of the n records of TYPE td at data dynamic and empty, ours. */
 void arry_empty_cells(Addr data, uint32_t n, const TypeDef *td);
 /* DIM a(), ours: array id dynamic and empty until a REDIM, as ERASE leaves one; keep: a STATIC's

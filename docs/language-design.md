@@ -556,7 +556,7 @@ The rule: anything that costs is visible in the source, and anything that reads 
 | Locals live on the stack | a call's locals cost one stack-pointer move; only large arrays and growing containers reach the heap |
 | Results are built in place | a returned record or list is not copied, as in llrm |
 | Borrows can't alias | values stay in registers across calls and loops |
-| Allocation happens in few, known places | only a list growing past its room, a map insert, building a string, and `copy` allocate; a frame loop that does none of these allocates nothing. **In the VM:** a list grows by one element a push, REDIM PRESERVE's cost: its array has no spare room |
+| Allocation happens in few, known places | only a list growing past its room, a map insert, building a string, and `copy` allocate; a frame loop that does none of these allocates nothing. **In the VM:** a push past a list's room doubles it; a pop gives nothing back until the list is empty |
 | A string is built in one allocation | an f-string sizes its result first; loops use `text.Builder`. **In the VM:** its parts are joined one by one |
 | Owned values free deterministically | lists, maps and records free with their owner; only strings are collected |
 | `for x in a` checks no bounds | the loop owns the range; `a[i]` checks. **In the VM:** `x` is `a(i)`, checked as QBasic's is |

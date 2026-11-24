@@ -146,9 +146,9 @@ static inline bool elem_index(
     uint32_t *const idx
 )
 {
-    if (n == 1 && (uint32_t)sp->i < a->fast) { /* a 1-D from 0 */
+    if (n == 1 && a->fast) { /* a 1-D from 0: fast its count, a list's its length (mem/array.c) */
         *idx = sp->u;
-        return true;
+        return (uint32_t)sp->i < a->fast;
     }
 
     if (a->dims != n)
