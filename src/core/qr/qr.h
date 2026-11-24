@@ -35,6 +35,9 @@ void qr_open(Session *S);
 /* qr_open's, then checked and linked, ready to run (stmt_runfirst): its errors' count, the first
    to *e. */
 uint32_t qr_link(Session *S, QrErr *e);
+/* The program qr_link made run from its first line, under repl_call: as repl_run. */
+[[noreturn]]
+void qr_go(Session *S);
 /* Record rec's file's lines lexed and parsed, a block's lines unpaired no error: rec's first error
    to *e; false none. */
 bool qr_syntax(Session *S, uint32_t rec, QrErr *e);

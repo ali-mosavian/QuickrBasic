@@ -29,6 +29,7 @@
 #include "io/errmsg.h"
 #include "io/locate.h"
 #include "plat/pfil.h"
+#include "qbrt/qbrt.h"
 #include "qr/qast.h"
 #include "qr/qlex.h"
 #include "qr/qlink.h"
@@ -587,6 +588,14 @@ void qr_run(Session *const S)
     if (errors || S->repl.checking)
         cons_exit(&S->cons, errors ? 1 : 0);
 
+    stmt_runfirst(S);
+    exec_run(S);
+}
+
+void qr_go(Session *const S)
+{
+    S->vm.stop = 0; /* a key the editor kept */
+    music_reset();
     stmt_runfirst(S);
     exec_run(S);
 }

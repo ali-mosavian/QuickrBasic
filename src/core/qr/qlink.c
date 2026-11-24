@@ -403,46 +403,64 @@ static void qlink_thread(Comp *const C, const QProg *const p)
     }
 }
 
-/* Line's end (its EOL.TO) on to line to. */
-static void qlink_eol(Comp *const C, const uint32_t line, const uint32_t to)
+/* Line line, the line after module mod's last in the store, set as to in mod's code: each jump
+   past a line's end and each line's end that goes there. */
+static void qlink_retarget(
+    Comp *const C,
+    const QProg *const p,
+    const QMod *const mod,
+    const uint32_t line,
+    const uint32_t to
+)
 {
-    uint8_t *op = at(C->allo->cache + prog_line(C->prog, line)->code);
+    const uint32_t code = prog_line(C->prog, to)->code;
 
-    while (*op != O_EOL && *op != O_EOL_TO)
-        op += link_opsize(op);
+    for (uint32_t i = mod->first; i < mod->first + mod->nlines; i++) {
+        uint8_t *op = at(C->allo->cache + prog_line(C->prog, p->src.lines[i].at)->code);
 
-    if (*op != O_EOL_TO)
-        return;
+        for (; *op != O_EOL && *op != O_EOL_TO; op += link_opsize(op)) {
+            uint8_t *const j = (uint8_t *)link_jump(op);
 
-    store32(op + 1, to);
-    store32(op + 5, prog_line(C->prog, to)->code);
+            if (j && load32(j) == line) {
+                store32(j, to);
+                store32(j + 8, code);
+            }
+        }
+
+        if (*op == O_EOL_TO && (load32(op + 1) == line || !load32(op + 1))) {
+            store32(op + 1, to);
+            store32(op + 5, code);
+        }
+    }
 }
 
-/* The run in p->order, not the store's: each module's last line on to the next one's first, the
-   main's to p->end's when set; the run's first line the first module's. */
+/* The run in p->order, not the store's: what goes past each module's last line goes to the next
+   module's first, past the main's to p->end's when set; the run's first line the first module's. */
 static void qlink_chain(Comp *const C, const QProg *const p)
 {
-    uint32_t last = 0;
+    const QMod *last = nullptr;
     C->link->start = 0;
 
-    for (uint32_t i = 0; i < p->nmods; i++) {
-        const QMod *const mod = &p->mods[p->order[i]];
+    for (uint32_t i = 0; i <= p->nmods; i++) {
+        const QMod *const mod = i < p->nmods ? &p->mods[p->order[i]] : nullptr;
 
-        if (!mod->nlines)
+        if (mod && !mod->nlines)
             continue;
+        if (!mod && !p->end)
+            break;
 
-        const uint32_t first = p->src.lines[mod->first].at;
+        const uint32_t first = p->src.lines[mod ? mod->first : p->end - 1].at;
 
-        if (last)
-            qlink_eol(C, last, first);
-        else
+        if (!last)
             C->link->start = first;
 
-        last = p->src.lines[mod->first + mod->nlines - 1].at;
-    }
+        if (last) {
+            const uint32_t end = p->src.lines[last->first + last->nlines - 1].at;
+            qlink_retarget(C, p, last, end + prog_line(C->prog, end)->len, first);
+        }
 
-    if (last && p->end)
-        qlink_eol(C, last, p->src.lines[p->end - 1].at);
+        last = mod;
+    }
 }
 
 /* Does s open a block: its lines till its end its own? */

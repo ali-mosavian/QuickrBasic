@@ -153,6 +153,11 @@ and a program is one or the other.
 - The modules a Quickr program imports open as a QBasic program's do, each its own view after the
   main's. A Quickr file is one view: its fns stay where they are written, and F2 lists them under
   their file.
+- A line entered is lexed and parsed at once in its file, as the lines around it make it: a field's
+  line in a type, a line inside an open bracket. A block not closed yet is no error. A line with an
+  error is lit as a QBasic one is (`LF_ASIS`).
+- F5 checks the whole program first (types, borrows): the first error puts the cursor at its line and
+  column, its message in a box.
 - A run goes through the modules in import order, each module's last line on to the next one's first
   (`qr/qlink.c`), so the store keeps the order the files were read in.
 

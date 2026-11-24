@@ -852,12 +852,58 @@ void uimn_sync(Session *const S)
     uimn.text.changed = false;
 }
 
+/* The cursor at text line line's column col, in its view. */
+static void at_col(Session *const S, const uint32_t line, const uint16_t col)
+{
+    uimn.tree.workspace.focus = FOC_EDIT;
+    edit_load(S, view_goline(S, line));
+    uimn.edline.col = col;
+    uimn.ed.sel_on = false;
+    edit_ensure();
+}
+
+/* A Quickr program checked and linked for a run (qr_link), the modules it read shown: true; else
+   the cursor at its first error, its message in a box. */
+static bool built(Session *const S)
+{
+    edit_commit(S);
+    QrErr e = {.msg = uimn.errmsg, .cap = sizeof uimn.errmsg};
+
+    const uint32_t errors = qr_link(S, &e);
+    view_modules(S);
+
+    if (!errors) {
+        uimn.text.changed = false;
+        return true;
+    }
+
+    uint32_t line;
+
+    if (lmap_of(S, e.rec, &line))
+        at_col(S, line, (uint16_t)e.col);
+
+    dlog_err(S, uimn.errmsg);
+    return false;
+}
+
 void uimn_run(Session *const S)
 {
-    uimn_sync(S);
+    const bool quickr = text_quickr(S);
+
+    if (quickr && !built(S))
+        return;
+    if (!quickr)
+        uimn_sync(S);
+
     udbg_prep(S);
     upag_clear(S);
     ui.run_wait = true;
+
+    if (quickr) {
+        ran(S, repl_call(S, qr_go));
+        return;
+    }
+
     static const char cmd[] = "RUN";
     memcpy(S->cons.inbuf, cmd, sizeof cmd - 1);
     repl_enter(S, sizeof cmd - 1);

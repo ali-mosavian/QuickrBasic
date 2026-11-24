@@ -54,6 +54,7 @@
 #include "io/diag.h"
 #include "io/errmsg.h"
 #include "mem/module.h"
+#include "qr/qr.h"
 #include "ui/dialog.h"
 #include "ui/helpdoc.h"
 #include "ui/linemap.h"
@@ -459,6 +460,11 @@ static uint32_t enter_view(Session *const S, const uint32_t v)
 
 void edit_recheck(Session *const S)
 {
+    if (text_quickr(S)) {
+        qr_flag(S);
+        return;
+    }
+
     const uint32_t first = uimn.text.first, n = uimn.text.n;
     text_whole();
 
@@ -507,12 +513,26 @@ bool edit_commit(Session *const S)
     return true;
 }
 
-/* edit_store's of a Quickr program's line: as typed. */
+/* Text line line (the whole text's), a Quickr one, checked in its file (qr_syntax): false it
+   passes; else LF_ASIS, its error's column in uc.ecol, its message in uimn.errmsg. */
+static bool quickr_error(Session *const S, const uint32_t line)
+{
+    const uint32_t rec = lmap_off(S, line);
+    QrErr e = {.msg = uimn.errmsg, .cap = sizeof uimn.errmsg};
+
+    const bool err = qr_syntax(S, rec, &e);
+    Line *const l = prog_line(&S->prog, rec);
+    l->flags = (uint8_t)((l->flags & ~LF_ASIS) | (err ? LF_ASIS : 0));
+    uc.ecol = err ? (uint16_t)e.col : 0;
+    return err;
+}
+
+/* edit_store's of a Quickr program's line: as typed, then checked. */
 static bool store_quickr(Session *const S, const uint32_t line, LineBuf *const b)
 {
     uimn.text.asis = false;
     text_repl(S, line, b->text, b->len);
-    return true;
+    return !quickr_error(S, line + uimn.text.first);
 }
 
 bool edit_store(Session *const S, const uint32_t line, LineBuf *const b)
@@ -544,6 +564,12 @@ void edit_goto(Session *const S, const uint32_t line)
 bool edit_error(Session *const S, const uint32_t line, uint16_t *const col)
 {
     static LineBuf b = {.grows = true};
+
+    if (text_quickr(S)) {
+        const bool err = quickr_error(S, line);
+        *col = uc.ecol;
+        return err;
+    }
 
     const uint32_t len = text_record(S, lmap_off(S, line), &b);
     const uint32_t was = enter_view(S, view_of(line));
