@@ -37,6 +37,9 @@ static void open_quickr(Session *const S)
     fx_write_file(
         "util.bas",
         DIALECT "public function twice(x as int) as int\n    return x * 2\nend function\n"
+                "public type Box\n    w as int\n    private h as int\n"
+                "    private fn area(self) as int\n        return self.w * self.h\n    end fn\n"
+                "end type\n"
     );
     uimn_open(S, fx_path_of("main.bas"));
 }
@@ -503,11 +506,14 @@ TEST(qride_completes_quickr_words)
                 "    fn half(self) as int\n        return self.x div 2\n    end fn\n"
                 "    fn origin() as P\n        return P(0, 0)\n    end fn\nend type\n"
                 "function norm(p as P) as int\n    return p.x + p.y\nend function\n"
-                "var q as P\nlet total = norm(q)\nprint total\n"
+                "var q as P\nvar box as util.Box\nlet total = norm(q)\nprint total\n"
     );
     fx_write_file(
         "util.bas",
         DIALECT "public function twice(x as int) as int\n    return x * 2\nend function\n"
+                "public type Box\n    w as int\n    private h as int\n"
+                "    private fn area(self) as int\n        return self.w * self.h\n    end fn\n"
+                "end type\n"
     );
     uimn_open(S, fx_path_of("main.bas"));
     CHECK(offers(S, "re", "return"));
@@ -523,6 +529,9 @@ TEST(qride_completes_quickr_words)
     CHECK(offers(S, "let a = P.", "origin"));
     CHECK(!offers(S, "let a = P.", "half"));
     CHECK(!offers(S, "let a = P.", "x"));
+    CHECK(offers(S, "let a = box.", "w"));
+    CHECK(!offers(S, "let a = box.", "h"));
+    CHECK(!offers(S, "let a = box.", "area"));
     fx_done(S, files);
 }
 

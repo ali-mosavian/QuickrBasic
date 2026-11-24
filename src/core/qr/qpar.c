@@ -1512,18 +1512,29 @@ static void qpar_statement(QPar *const P)
 
     if (o && t->kind != QK_END) {
         const bool typed = o->open->kind == QS_TYPE || o->open->kind == QS_ENUM;
+        const bool priv = typed && qpar_is(P, QK_PRIVATE);
+        const QTok *const w = priv ? &t[1] : t;
 
-        if (typed && (t->kind == QK_FN || t->kind == QK_FUNCTION)) {
-            if (t->kind == QK_FUNCTION)
-                qpar_said(P, t, "a method is defined with fn, not function");
+        if (typed && (w->kind == QK_FN || w->kind == QK_FUNCTION)) {
+            if (w->kind == QK_FUNCTION)
+                qpar_said(P, w, "a method is defined with fn, not function");
 
+            P->t = w;
             qpar_fn(P, o->open);
+            P->last->fn->priv = priv;
             return;
         }
 
         if (o->open->kind == QS_TYPE) {
+            P->t = w;
             qpar_field(P);
+            P->last->priv = priv;
             return;
+        }
+
+        if (priv) { /* an enum's value: said, parsed on */
+            qpar_said(P, t, "private goes before a type's field or a method");
+            P->t = w;
         }
 
         if (o->open->kind == QS_ENUM) {
@@ -1642,6 +1653,14 @@ static void qpar_statement(QPar *const P)
     case QK_PUBLIC:
         qpar_public(P);
         return;
+
+    case QK_PRIVATE:
+        qpar_fail(
+            P,
+            t,
+            "private goes before a type's field or a method: a top-level name is public or its "
+            "module's"
+        );
 
     case QK_NATIVE:
         qpar_native(P);

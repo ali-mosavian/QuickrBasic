@@ -1,5 +1,5 @@
 # The Quickr Language
-keys: ~quickr language, ~quickr and, ~quickr as, ~quickr break, ~quickr case, ~quickr const, ~quickr continue, ~quickr div, ~quickr do, ~quickr else, ~quickr elseif, ~quickr end, ~quickr enum, ~quickr false, ~quickr fn, ~quickr function, ~quickr for, ~quickr if, ~quickr in, ~quickr is, ~quickr let, ~quickr select, ~quickr mod, ~quickr mut, ~quickr none, ~quickr not, ~quickr or, ~quickr return, ~quickr step, ~quickr then, ~quickr true, ~quickr type, ~quickr var, ~quickr while, ~quickr xor, ~quickr yield, ~quickr yields, ~quickr from, ~quickr import, ~quickr public, ~quickr native, ~quickr operator, ~quickr test, ~quickr assert, ~quickr shl, ~quickr shr, ~quickr to, ~quickr next, ~quickr wend, ~quickr loop, ~quickr until, ~quickr print, ~quickr self, ~quickr len, ~quickr copy, ~quickr wrap, ~quickr Error, ~quickr bool, ~quickr byte, ~quickr short, ~quickr int, ~quickr long, ~quickr ubyte, ~quickr ushort, ~quickr uint, ~quickr ulong, ~quickr single, ~quickr double, ~quickr string, ~quickr dict
+keys: ~quickr language, ~quickr and, ~quickr as, ~quickr break, ~quickr case, ~quickr const, ~quickr continue, ~quickr div, ~quickr do, ~quickr else, ~quickr elseif, ~quickr end, ~quickr enum, ~quickr false, ~quickr fn, ~quickr function, ~quickr for, ~quickr if, ~quickr in, ~quickr is, ~quickr let, ~quickr select, ~quickr mod, ~quickr mut, ~quickr none, ~quickr not, ~quickr or, ~quickr return, ~quickr step, ~quickr then, ~quickr true, ~quickr type, ~quickr var, ~quickr while, ~quickr xor, ~quickr yield, ~quickr yields, ~quickr from, ~quickr import, ~quickr public, ~quickr native, ~quickr operator, ~quickr test, ~quickr assert, ~quickr shl, ~quickr shr, ~quickr to, ~quickr next, ~quickr wend, ~quickr loop, ~quickr until, ~quickr print, ~quickr self, ~quickr private, ~quickr len, ~quickr copy, ~quickr wrap, ~quickr Error, ~quickr bool, ~quickr byte, ~quickr short, ~quickr int, ~quickr long, ~quickr ubyte, ~quickr ushort, ~quickr uint, ~quickr ulong, ~quickr single, ~quickr double, ~quickr string, ~quickr dict
 
 Names are case-sensitive; keywords are lower case. A line ends a
 statement, except inside ( [ or {. A comment starts with '.
@@ -41,7 +41,8 @@ mut too. Records, lists and maps have
 one owner: copy(a) copies one.
 
 Modules: import m, import m as n, from m import a, b. Only public
-names are seen outside their file.
+names are seen outside their file; a type's fields and methods are,
+unless private. A type with a private field is built in its file.
 
 print a; b, c: ; joins, , to the next 14-column zone, a separator
 last holds the line; print alone, an empty line.

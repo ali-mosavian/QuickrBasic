@@ -1231,7 +1231,7 @@ static void qr_members(const QrSugg *const g, const uint32_t k)
     }
 }
 
-/* Variable name's (n bytes) type as file declares it, x as T or let x = T(..): its name's token,
+/* Variable name's (n bytes) type as file declares it, x as [m.]T or let x = [m.]T(..): T's token,
    nullptr none. */
 static const QTok *qr_type_of(
     const QrSugg *const g,
@@ -1246,20 +1246,30 @@ static const QTok *qr_type_of(
         const QTok *toks;
         const uint32_t nt = qr_line_toks(g, rec, &toks);
 
-        for (uint32_t i = 0; i + 2 < nt; i++)
-            if (qr_named(&toks[i], name, n) &&
-                (toks[i + 1].kind == QK_AS || toks[i + 1].kind == QK_EQ) &&
-                toks[i + 2].kind == QK_NAME)
-                return &toks[i + 2];
+        for (uint32_t i = 0; i + 2 < nt; i++) {
+            if (!qr_named(&toks[i], name, n) ||
+                (toks[i + 1].kind != QK_AS && toks[i + 1].kind != QK_EQ) ||
+                toks[i + 2].kind != QK_NAME)
+                continue;
+
+            uint32_t t = i + 2; /* m.T's T */
+
+            while (t + 2 < nt && toks[t + 1].kind == QK_DOT && toks[t + 2].kind == QK_NAME)
+                t += 2;
+
+            return &toks[t];
+        }
     }
 
     return nullptr;
 }
 
-/* Type t's (tn bytes) members as any file declares them: on a value its fields and its methods
-   with self; on the type its methods without self and an enum's values. */
+/* Type t's (tn bytes) members as any file declares them, a private one in file alone: on a value
+   its fields and its methods with self; on the type its methods without self and an enum's
+   values. */
 static void qr_fields(
     const QrSugg *const g,
+    const uint32_t file,
     const char *const t,
     const uint32_t tn,
     const bool value
@@ -1272,10 +1282,16 @@ static void qr_fields(
         for (uint32_t rec = qr_next_line(&g->S->prog, k, 0); rec;
 
              rec = qr_next_line(&g->S->prog, k, rec)) {
-            const QTok *toks;
-            const uint32_t n = qr_line_toks(g, rec, &toks);
+            const QTok *all;
+            const uint32_t na = qr_line_toks(g, rec, &all);
+            const bool priv = na && all[0].kind == QK_PRIVATE;
+            const QTok *const toks = all + priv;
+            const uint32_t n = na - priv;
             const uint32_t i = qr_decl(toks, n);
             const bool end = n >= 2 && toks[0].kind == QK_END;
+
+            if (priv && k != file)
+                continue;
 
             if (in && end && (toks[1].kind == QK_TYPE || toks[1].kind == QK_ENUM))
                 in = false;
@@ -1364,9 +1380,9 @@ void qr_suggest(
         if (k < modu_count(&S->modu))
             qr_members(&g, k);
         else if (t)
-            qr_fields(&g, t->text, t->len, true);
+            qr_fields(&g, file, t->text, t->len, true);
         else
-            qr_fields(&g, text + b, n - 1 - b, false);
+            qr_fields(&g, file, text + b, n - 1 - b, false);
     }
 
     arena_reset(&m.arena);

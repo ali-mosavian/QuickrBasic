@@ -3535,6 +3535,32 @@ static bool qsem_isrec(const QSem *const S, const QType t)
     return qast_compound(t) && qast_ty(S->prog, t)->kind == QT_REC;
 }
 
+/* Is type t's member name, private when priv, out of sight at at, outside t's module: said. */
+static bool qsem_private(
+    QSem *const S,
+    const QType t,
+    const QTok *const name,
+    const bool priv,
+    const QTok *const at
+)
+{
+    const QTy *const y = qast_ty(S->prog, t);
+
+    if (!priv || qsem_modof(S, y->def->tok) == qsem_modof(S, at))
+        return false;
+
+    qsem_say(
+        S,
+        at,
+        qsem_text(S, name),
+        " is private to ",
+        qsem_text(S, y->name),
+        "'s module",
+        nullptr
+    );
+    return true;
+}
+
 /* a.f: a record's field; Name.v, an enum's value. */
 static QExpr *qsem_field(QSem *const S, QExpr *const e)
 {
@@ -3553,7 +3579,7 @@ static QExpr *qsem_field(QSem *const S, QExpr *const e)
 
         QFn *const f = b && b->ty ? qsem_methodof(S, b->ty, e->tok) : nullptr;
 
-        if (f && !qsem_named(S, f, e->tok)) {
+        if (f && (!qsem_named(S, f, e->tok) || qsem_private(S, b->ty, e->tok, f->priv, e->tok))) {
             e->type = QY_ERROR;
             return e;
         }
@@ -3589,6 +3615,9 @@ static QExpr *qsem_field(QSem *const S, QExpr *const e)
 
     for (uint32_t k = 0; k < y->nfields; k++)
         if (qsem_same(y->fields[k].name, e->tok)) {
+            if (qsem_private(S, a->type, e->tok, y->fields[k].priv, e->tok))
+                return e;
+
             e->field = k;
             e->type = y->fields[k].type;
             return e;
@@ -4113,7 +4142,7 @@ static QExpr *qsem_typecall(QSem *const S, QExpr *const e, const QType t)
 
     if (!f)
         return qsem_variant(S, e, t, true);
-    if (!qsem_named(S, f, e->tok))
+    if (!qsem_named(S, f, e->tok) || qsem_private(S, t, e->tok, f->priv, e->tok))
         return e;
 
     if (f->self) {
@@ -4141,7 +4170,7 @@ static QExpr *qsem_valuecall(QSem *const S, QExpr *const e, QExpr *const r)
 
     QFn *const f = qsem_methodof(S, r->type, e->tok);
 
-    if (f && !qsem_named(S, f, e->tok))
+    if (f && (!qsem_named(S, f, e->tok) || qsem_private(S, r->type, e->tok, f->priv, e->tok)))
         return e;
 
     if (f && !f->self) {
@@ -4175,6 +4204,9 @@ static QExpr *qsem_valuecall(QSem *const S, QExpr *const e, QExpr *const r)
 
     for (uint32_t k = 0; y && k < y->nfields; k++) /* a record's fn value, called */
         if (qsem_same(y->fields[k].name, e->tok) && qast_isfn(S->prog, y->fields[k].type)) {
+            if (qsem_private(S, r->type, e->tok, y->fields[k].priv, e->tok))
+                return e;
+
             QExpr *const fv = qast_expr(S->mem, QE_FIELD, e->tok);
             fv->a = qsem_addressed(S, r);
             fv->field = k;
@@ -4775,6 +4807,18 @@ static QExpr *qsem_called(QSem *const S, QExpr *const e, const QBind *const b)
 
     if (b && b->ty && qsem_isrec(S, b->ty)) {
         const QTy *const y = qast_ty(S->prog, b->ty);
+        bool priv = false;
+
+        for (uint32_t k = 0; k < y->nfields; k++)
+            priv |= y->fields[k].priv;
+
+        if (priv && qsem_modof(S, y->def->tok) != qsem_modof(S, e->tok)) {
+            const char *const ty = qsem_text(S, y->name);
+            qsem_say(S, e->tok, ty, " has a private field: only its module builds one", nullptr);
+            e->type = QY_ERROR;
+            return e;
+        }
+
         return qsem_build(S, e, b->ty, y->fields, y->nfields, y->name, false);
     }
 
@@ -7312,8 +7356,10 @@ static void qsem_types(QSem *const S)
 
         for (QStmt *m = s->next; m && m->kind != QS_ENDTYPE && m->kind != QS_ENDENUM; m = m->next)
             if (m->kind == QS_FIELD)
-                for (QDecl *d = m->decls; d; d = d->next)
+                for (QDecl *d = m->decls; d; d = d->next) {
                     qsem_addfield(S, t, d);
+                    qast_ty(S->prog, t)->fields[qast_ty(S->prog, t)->nfields - 1].priv = m->priv;
+                }
             else if (m->kind == QS_VARIANT)
                 qsem_addvariant(S, t, m->decls);
             else if (m->kind == QS_FN && m->fn->in == s) {

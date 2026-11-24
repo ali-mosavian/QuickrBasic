@@ -328,8 +328,10 @@ let b = Ball(at: v)         ' or by name; the rest take their defaults
 - A field's default is a constant expression.
 - A record can't hold itself; it holds a list of itself.
 - A field is seen wherever its type is, unless marked `private`: then only its module reads or
-  writes it. A type with a private field is built only in its module.
-- **Not yet:** `private`.
+  writes it. A type with a private field is built, `T(…)`, only in its module; elsewhere one comes
+  from its methods, or is declared `var x as T`, its fields their defaults.
+- `private` goes before a field or a method alone; a top-level name is its module's unless
+  `public`.
 
 ### Enums
 
@@ -432,8 +434,7 @@ print v.length(); " "; v                ' 2.0 (2.0, 0.0)
   no interface. A list of mixed shapes is an enum with data.
 - **In the VM**, a method is a procedure with `self` its first parameter, and a call of it is the
   call a function's is. A method whose body is one `return` is inlined.
-- **Not yet:** `text` and `private`. A method whose body is one `return` is called, as a
-  function is.
+- **Not yet:** `text`. A method whose body is one `return` is called, as a function is.
 
 ### Operators on records
 

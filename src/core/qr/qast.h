@@ -87,6 +87,7 @@ typedef enum : uint8_t {
     QK_SELECT,
     QK_PRINT,
     QK_SELF,
+    QK_PRIVATE,
     QK_FUNCTION,
     QK_MATCH, /* not a keyword: an error naming select case */
     /* punctuation */
@@ -256,6 +257,7 @@ typedef struct {
     QType type;
     QExpr *def;   /* its default, folded; null none */
     uint32_t off; /* its bytes into its record, qlink's */
+    bool priv;    /* private: its module's alone */
 } QField;
 
 /* An enum's value: its data, their place in the enum's record. */
@@ -372,6 +374,7 @@ struct QFn {
     bool pub;
     QStmt *in; /* a method's type or enum, its statement; null a function */
     bool self; /* a method on a value: its first parameter self */
+    bool priv; /* a private method: its module's alone */
     QParam *params;
     uint32_t npar;
     QTypeEx *rtype; /* its as type, null none */
@@ -731,6 +734,7 @@ struct QStmt {
     QExpr *place;       /* QS_SELECT of an enum with data: its value's place, its data read there */
     bool full;          /* QS_SELECT: every value has its case */
     bool pub;           /* public: a module's fn, type, enum, const, var or let */
+    bool priv;          /* QS_FIELD: private */
     QImport *imps;      /* QS_IMPORT's modules; QS_FROM's module */
     QImport *names;     /* QS_FROM's */
     QOwners *own;       /* its frame's: a fn's, or the modules' */
