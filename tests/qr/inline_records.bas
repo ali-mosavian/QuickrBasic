@@ -1,6 +1,7 @@
 ' OPTION DIALECT QUICKR
 ' records in cells: a frame's own in each call, a module's, fields
-' at every offset, copies and borrows by address
+' at every offset, copies and borrows by address; fields after a
+' narrow one; a record whose fields are all strings
 type Inner
     n as int
     b as byte
@@ -50,3 +51,35 @@ var m as int? = none
 print(m ?? -1)
 m = 6
 print(m ?? -1)
+
+type Odd
+    b as byte
+    n as int
+    s as short
+    d as double
+    l as long
+end type
+
+type Names
+    a as string
+    b as string
+end type
+
+fn walk(k as int) as int
+    var o = Odd(b: 1, n: 2, s: 3, d: 4.5, l: 6)
+    for i in 0..k
+        o.n += i
+        o.d *= 1.0
+        o.l += long(o.n)
+        o.b = 7
+    end for
+    return o.n + o.b + o.s + int(o.l)
+end fn
+
+var od = Odd(b: 1, n: 2, s: 3, d: 4.5, l: 6)
+od.n += 40
+od.l -= long(1)
+let nm = Names(a: "x", b: "y")
+print(walk(10))
+print(od.b, od.n, od.s, od.d, od.l)
+print(nm.a + nm.b)

@@ -186,8 +186,38 @@ static void qlink_lay(Comp *const C, const QProg *const p, const QType t)
     y->deep = decl_dynamic(td);
 }
 
-/* Each record, tuple and enum with data a TYPE: each numbered, then laid out. */
-static void qlink_types(Comp *const C, const QProg *const p)
+/* Record y's words from record of's fields, base bytes into y: each field of 4 or 8 bytes. */
+static void qlink_wordsof(
+    const QProg *const p,
+    QTy *const y,
+    const QTy *const of,
+    const uint32_t base
+)
+{
+    for (uint32_t k = 0; k < of->nfields; k++) {
+        const QType t = of->fields[k].type;
+        const uint32_t off = base + of->fields[k].off;
+        uint32_t et;
+        uint8_t kind;
+
+        if (off >= QAST_WORDS || qast_array(p, t) || t == QY_STRING)
+            continue;
+        if (qast_record(p, t)) {
+            if (qast_ty(p, t)->kind != QT_MAP)
+                qlink_wordsof(p, y, qast_ty(p, t), off);
+
+            continue;
+        }
+
+        qlink_kind(p, t, &et, &kind);
+
+        if (!et_narrow(qast_integer(t) ? qcg_scalar_et(t) : et))
+            y->word[off] = (uint8_t)++y->nwords;
+    }
+}
+
+/* Each record, tuple and enum with data a TYPE: each numbered, then laid out, its words found. */
+static void qlink_types(Comp *const C, const QProg *const p, QMem *const m)
 {
     for (uint32_t i = 0; i < p->tys.n; i++)
         if (qast_record(p, QY_FIRST + i))
@@ -197,6 +227,16 @@ static void qlink_types(Comp *const C, const QProg *const p)
     for (uint32_t i = 0; i < p->tys.n; i++)
         if (qast_record(p, QY_FIRST + i))
             qlink_lay(C, p, QY_FIRST + i);
+
+    for (uint32_t i = 0; i < p->tys.n; i++) {
+        QTy *const y = &p->tys.at[i];
+
+        if (!qast_record(p, QY_FIRST + i) || y->kind == QT_MAP)
+            continue;
+
+        y->word = qast_alloc(m, QAST_WORDS);
+        qlink_wordsof(p, y, y, 0);
+    }
 }
 
 /* Fn f's parameters a call passes: all but those bound to a lambda. */
@@ -263,10 +303,10 @@ static bool qlink_inline(const QProg *const p, const QVar *const v)
     return y->kind != QT_MAP && y->size <= INLINE_MAX;
 }
 
-/* Inline record v's 4-byte words: a field of 4 or 8 bytes at a multiple of 4 is one's variable. */
+/* Inline record v's words: each a variable. */
 static uint32_t qlink_nwords(const QProg *const p, const QVar *const v)
 {
-    return qast_nwords(qast_ty(p, v->type)->size);
+    return qast_ty(p, v->type)->nwords;
 }
 
 /* Record v inline in scope: its cells, v's the lowest, then its words. A frame's newest local is
@@ -293,10 +333,12 @@ static void qlink_record(
 
     /* an int's cells; the type is the debugger's (vm/inspect.c) */
     symb_var(sy, v->id)->type = ET_REC + qast_ty(p, v->type)->td;
-    v->words = qlink_word(sy, scope, k);
+    v->cells = true;
 
-    for (uint32_t i = 1; i < qlink_nwords(p, v); i++)
-        qlink_word(sy, scope, k);
+    for (uint32_t i = 0; i < qlink_nwords(p, v); i++) {
+        const uint32_t w = qlink_word(sy, scope, k);
+        v->words = i ? v->words : w;
+    }
 }
 
 /* Each inline record's words out of their frames' layout: no cells of their own. */
@@ -307,14 +349,21 @@ static void qlink_unplace(Symb *const sy, const QProg *const p)
             *symb_loc(sy, v->words + i) = (Loc){};
 }
 
-/* Each inline record's words placed in its cells, 4 bytes apart from its lowest. */
+/* Each inline record's words placed in its cells, at their offsets from its lowest. */
 static void qlink_words(Symb *const sy, const QProg *const p)
 {
-    for (const QVar *v = p->vars; v; v = v->next)
-        for (uint32_t i = 0; v->words && i < qlink_nwords(p, v); i++) {
-            *symb_loc(sy, v->words + i) = symb_placed(sy, v->id);
-            symb_var(sy, v->words + i)->word = (uint8_t)i;
+    for (const QVar *v = p->vars; v; v = v->next) {
+        const QTy *const y = v->cells ? qast_ty(p, v->type) : nullptr;
+
+        for (uint32_t off = 0; y && off < QAST_WORDS; off++) {
+            if (!y->word[off])
+                continue;
+
+            const uint32_t w = v->words + y->word[off] - 1;
+            *symb_loc(sy, w) = symb_placed(sy, v->id);
+            symb_var(sy, w)->word = (uint8_t)off;
         }
+    }
 }
 
 /* Each variable but a const's in the symbol table; a fn's parameters its ref cells. */
@@ -619,7 +668,7 @@ static void qlink_stmts(const QProg *const p, const QStmt **const of)
 void qlink_program(Comp *const C, QProg *const p, QMem *const m, const bool dbg)
 {
     blok_reset(C->blok, C->fault);
-    qlink_types(C, p);
+    qlink_types(C, p, m);
     qlink_procs(C, p);
     qlink_vars(C, p);
     symb_size(C->symb, 0);

@@ -282,11 +282,16 @@ typedef struct {
     bool deep;     /* qlink's: its TYPE holds strings or lists (comp/declare.h decl_dynamic) */
     uint32_t td;   /* its TYPE (comp/declare.h), qlink's */
     uint32_t size; /* its TYPE's bytes, qlink's */
+    uint8_t *word; /* qlink's: by offset in its first QAST_WORDS bytes, the number + 1 of the field
+                      of 4 or 8 bytes there, a held record's too (a word); 0 none */
+    uint32_t nwords;
     QFn *gen;      /* a kept generator's state's: its resumable instance */
     QFn *opers;    /* a record's fn operators, by QFn.opnext */
     QFn *drop;     /* a record's fn drop */
     bool seen;     /* qast_drops' guard against a type holding itself */
 } QTy;
+
+enum { QAST_WORDS = 256 }; /* a record in cells' bytes whose fields are variables (qr/qlink.c) */
 
 typedef struct {
     QTy *at;
@@ -320,7 +325,8 @@ struct QVar {
     uint32_t last;  /* its last use's token, sema's */
     QExpr *place;   /* QV_EACH, a case's datum: what it names, checked */
     uint32_t id;    /* its variable (mem/symbols.h), qlink's: an inline record's lowest cell */
-    uint32_t words; /* an inline record's: its first 4-byte word's variable, qlink's; 0 a box */
+    uint32_t words; /* an inline record's: its first word's variable, qlink's */
+    bool cells;     /* a record in cells, qlink's; else a box */
     QVar *next;    /* the program's next */
     QCap *cap;     /* a lambda's hidden parameter: the name it stands for, by reference */
     QLam *lam;     /* an instance's parameter bound to this lambda: no value */
@@ -821,11 +827,6 @@ static inline bool qast_unsigned(const QType t) { return t >= QY_UBYTE && t <= Q
 static inline bool qast_float(const QType t) { return t == QY_SINGLE || t == QY_DOUBLE; }
 static inline bool qast_numeric(const QType t) { return qast_integer(t) || qast_float(t); }
 /* An integer type's bits. */
-/* A record in cells' 4-byte words, each a variable: its first 256 bytes'. */
-static inline uint32_t qast_nwords(const uint32_t size)
-{
-    return size < 4 ? 1 : (size < 256 ? size : 256) / 4;
-}
 static inline uint32_t qast_bits(const QType t)
 {
     return t == QY_BYTE || t == QY_UBYTE     ? 8

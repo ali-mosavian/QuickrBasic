@@ -1229,7 +1229,7 @@ static uint32_t qcg_addr(QCg *const g, const QExpr *const e)
 
     switch (e->kind) {
     case QE_NAME:
-        code_opid(g->c, e->var->words ? O_V_CELL : O_R_ADDR, e->var->id, false);
+        code_opid(g->c, e->var->cells ? O_V_CELL : O_R_ADDR, e->var->id, false);
         return 0;
 
     case QE_FIELD:
@@ -1271,7 +1271,7 @@ static void qcg_fieldop(QCg *const g, const bool store, const uint32_t off, cons
 }
 
 /* Field place e as its word's variable, *w, when its record is inline (qr/qlink.c) and it is 4
-   bytes or 8 at a multiple of 4. */
+   bytes or 8 in its first QAST_WORDS. */
 static bool qcg_word(const QCg *const g, const QExpr *const e, QVar *const w)
 {
     if (e->kind != QE_FIELD || qcg_byplace(g, e->type) || e->type == QY_STRING ||
@@ -1284,11 +1284,15 @@ static bool qcg_word(const QCg *const g, const QExpr *const e, QVar *const w)
     for (; r->kind == QE_FIELD; r = r->a)
         off += qcg_ty(g, r->a->type)->fields[r->field].off;
 
-    if (r->kind != QE_NAME || !r->var->words || off % 4 ||
-        off / 4 >= qast_nwords(qcg_ty(g, r->var->type)->size))
+    if (r->kind != QE_NAME || !r->var->cells || off >= QAST_WORDS ||
+        !qcg_ty(g, r->var->type)->word[off])
         return false;
 
-    *w = (QVar){.type = e->type, .kind = QV_VAR, .id = r->var->words + off / 4};
+    *w = (QVar){
+        .type = e->type,
+        .kind = QV_VAR,
+        .id = r->var->words + qcg_ty(g, r->var->type)->word[off] - 1,
+    };
 
     return true;
 }

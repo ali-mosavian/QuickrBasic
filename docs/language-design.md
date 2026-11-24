@@ -194,8 +194,8 @@ end while
 - A frame is allocated and freed by moving the stack pointer. Nothing else is touched.
 - **In the VM**, a `let`'s, a `var`'s or a temporary's record up to 4 KB lives in cells, as a
   local's: its strings and lists owned as a QBasic TYPE's are, gone with its frame. A field of 4
-  or 8 bytes at a multiple of 4 in its first 256 bytes is a variable of its own; any other is read
-  through the record's address. A map and a larger record are boxes on the heap, a parameter a
+  or 8 bytes in its first 256, at any offset, is a variable of its own; a narrower one, or one
+  past them, is read through the record's address. A map and a larger record are boxes on the heap, a parameter a
   ref to its argument: each reached by `R.ADDR`. A fixed array variable is a
   dynamic array; as a field it is inline. An enum lays out each value's data after the tag, none
   overlapping.
