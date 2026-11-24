@@ -1,9 +1,9 @@
 /* The GPU's list, on a host that records what it is given to play and reads back pixels it is
    told: each frame's ops in order, its batches and vertices, worked by hand. */
-#include "disc.h"
+#include "base/disc.h"
 #include "gpu/gpu.h"
-#include "soft/scan.h"
-#include "surface.h"
+#include "base/cover.h"
+#include "core/surface.h"
 #include "test.h"
 
 enum { MOST_WORDS = 1024, MOST_VERTICES = 64, MOST_PIXELS = 64 };
@@ -193,8 +193,8 @@ static void scan_convex(
         bottom = p[i].y > bottom ? p[i].y : bottom;
     }
 
-    const int32_t y0 = rect_max(scan_first(top), clip.y);
-    const int32_t y1 = rect_min(scan_first(bottom), clip.y + clip.h);
+    const int32_t y0 = rect_max(cover_first(top), clip.y);
+    const int32_t y1 = rect_min(cover_first(bottom), clip.y + clip.h);
 
     for (int32_t y = y0; y < y1; y++) {
         float left = 0, right = 0;
@@ -213,8 +213,8 @@ static void scan_convex(
             crossed = true;
         }
 
-        const int32_t x0 = rect_max(scan_first(left), clip.x);
-        const int32_t x1 = rect_min(scan_first(right), clip.x + clip.w);
+        const int32_t x0 = rect_max(cover_first(left), clip.x);
+        const int32_t x1 = rect_min(cover_first(right), clip.x + clip.w);
 
         if (crossed && x0 < x1)
             span(ctx, y, x0, x1);

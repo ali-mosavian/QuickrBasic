@@ -11,8 +11,8 @@ static UV pdiv(const double u, const double v, const double z)
     const double zf = 65536.0 / z;
 
     return (UV){
-        (int32_t)((uint32_t)rs_fistp(zf * u) + 32768u),
-        (int32_t)((uint32_t)rs_fistp(zf * v) + 32768u),
+        (int32_t)((uint32_t)scan_fistp(zf * u) + 32768u),
+        (int32_t)((uint32_t)scan_fistp(zf * v) + 32768u),
     };
 }
 
@@ -30,7 +30,7 @@ static void walk(
     int32_t v,
     const int32_t du,
     const int32_t dv,
-    const RsSpan *const sp
+    const ScanSpan *const sp
 )
 {
     const uint32_t bytes = px_bytes(k->s.format);
@@ -70,13 +70,13 @@ static void walk(
     }
 }
 
-/* PMKSTEP: a run's step a pixel, its length RS_SUBDIVP */
+/* PMKSTEP: a run's step a pixel, its length SCAN_SUBDIVP */
 static int32_t step_of(const int32_t from, const int32_t to)
 {
-    return (int32_t)((uint32_t)to - (uint32_t)from) >> RS_SUBDIVS;
+    return (int32_t)((uint32_t)to - (uint32_t)from) >> SCAN_SUBDIVS;
 }
 
-void persp_span(const PerspDraw *const k, const RsSpan *const sp)
+void persp_span(const PerspDraw *const k, const ScanSpan *const sp)
 {
     const int32_t n = sp->x1 - sp->x0;
     double u = sp->pu, v = sp->pv, z = sp->pz;
@@ -106,8 +106,8 @@ void persp_span(const PerspDraw *const k, const RsSpan *const sp)
         return;
     }
 
-    for (int32_t done = 0; done < n; done += RS_SUBDIVP) {
-        const int32_t m = n - done < RS_SUBDIVP ? n - done : RS_SUBDIVP;
+    for (int32_t done = 0; done < n; done += SCAN_SUBDIVP) {
+        const int32_t m = n - done < SCAN_SUBDIVP ? n - done : SCAN_SUBDIVP;
 
         /* one whole run on, a short tail or not */
         u += sp->dpun;

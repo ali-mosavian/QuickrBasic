@@ -41,7 +41,7 @@ procedure, record and constant.
 |---|---|
 | `gfx.display` | the canvas and the screen: `open`, `flip`, modes, full screen, events, the clock, palettes; what a frame cost and drew |
 | `gfx.surface` | everything drawn from or into: `new`, `load`, `view`, `grid`, `free`; pixels read and written |
-| `gfx.pen` | where drawing goes and the numbers its flags use: `target`, `clip`, `light`, `tint`, `alpha`, `recolor`, `font` |
+| `gfx.pen` | where drawing goes and the numbers its flags use: `target`, `clip`, `light`, `tint`, `alpha`, `recolour`, `font` |
 | `gfx.draw` | 2D: shapes, sprites, tiles, strips, text, its camera |
 | `gfx.scene` | 3D: meshes, materials, billboards, its camera, matrices |
 
@@ -154,7 +154,7 @@ A texture is indexed (8 bits and a palette) or direct (16 or 32 bits).
 - Light is a level from 0 to 63. On an 8-bit canvas it reads a light table, 64 rows of 256 indices:
   Quake's colormap. On the others it multiplies.
 - `display.palette row, colours()` sets a palette row, and `display.palette_of` takes an image's: row 0
-  is the canvas's, and `pen.recolor row` draws what follows through another, as PICO-8's `pal`. On DOS
+  is the canvas's, and `pen.recolour row` draws what follows through another, as PICO-8's `pal`. On DOS
   at 8 bits the VGA's palette changes the whole screen at once; the program does not rely on that.
 - Index 0 of an indexed texture, 0 of a 15 or 16-bit one, and alpha under one half of a 32-bit
   one, are not drawn; `OPAQUE` draws them.
@@ -243,7 +243,7 @@ Everything 2D is a textured quad or a strip of them, so the backends have one pr
   with `PERSP` in perspective. `ZTEST` draws only what is nearer than the target's depth there and
   `ZSET` writes it; a keyed texel writes none. `draw.clear_depth` makes the pen's target's depth all
   far. Software only so far: a GPU draws them affine, with no depth.
-- `draw.text x, y, s$, colour` in the pen's font: a sheet of glyphs (`draw.new_font`), or the
+- `draw.text x, y, s$, colour` in the pen's font: a sheet of glyphs (`pen.new_font`), or the
   built-in 8 by 8. Its glyphs are pictures, in `colour`, or as the sheet has them with
   `draw.AS_DRAWN`.
 
@@ -394,27 +394,31 @@ source, over one slice a platform: the modules share the surfaces, the pen and t
 
 ## The core
 
-C, in `stdlib/gfx`, the same on every platform. `gfx.c` alone holds the state; each module under it
-takes its own part. Memory is the host's (`alloc`), taken when first used: nothing is static.
+C, in `stdlib/gfx`, the same on every platform. `core/gfx.c` alone holds the state; each module
+under it takes its own part. Memory is the host's (`alloc`), taken when first used: nothing is
+static.
 
 | Module | Owns |
 |---|---|
-| `gfx.c` | the state; what the entries share: errors raised, handles and the pen's target resolved |
-| `entry_display`, `entry_surface`, `entry_pen`, `entry_draw` | the entries the glue calls, a part each: arguments checked |
-| `mem` | the host's memory, and copies without a C library |
-| `handle` | handles: slots and generations |
-| `surface` | surfaces, views and anchors; the pages images are packed in |
-| `image`, `bmp`, `png`, `inflate` | a file's bytes to pixels: BMP or PNG, by their first bytes; PNG's zlib streams |
-| `colour` | palette rows, the light table, the blend tables, the nearest index |
-| `pen` | the pen |
-| `font` | fonts: sheets cut into glyphs, and the built-in 8 by 8 as one |
-| `command` | a draw call to a command, the camera applied; the frame's log |
-| `backend`, `backend_soft` | a backend's table, which the state holds for the open screen: an entry draws through it; software's |
-| `shape` | a command to vertices: quads and fans |
-| `soft/scan` | a convex polygon to spans, clipped |
+| `api/display`, `api/surface`, `api/pen`, `api/draw` | the entries the glue calls, a part each: arguments checked |
+| `core/gfx` | the state; what the entries share: errors raised, handles and the pen's target resolved |
+| `core/mem` | the host's memory, and copies without a C library |
+| `core/handle` | handles: slots and generations |
+| `core/surface` | surfaces, views and anchors; the pages images are packed in |
+| `core/palette` | palette rows, the light table, the blend tables, the nearest index |
+| `core/pen` | the pen |
+| `core/font` | fonts: sheets cut into glyphs, and the built-in 8 by 8 as one |
+| `core/command` | a draw call to a command, the camera applied; the frame's log |
+| `core/shape` | a command to vertices: quads and fans |
+| `core/backend` | a backend's table, which the state holds for the open screen: an entry draws through it |
+| `base/pixels`, `geom`, `depth` | colour formats and maths; rectangles and vertices; the depth buffer's values |
+| `base/cover` | which pixels a polygon covers: the rule both backends keep |
+| `image/image`, `bmp`, `png`, `inflate` | a file's bytes to pixels: BMP or PNG, by their first bytes; PNG's zlib streams |
+| `soft/backend` | the software backend's table: a draw call's ink and fillers picked |
+| `soft/soft`, `persp` | a command drawn at once |
+| `soft/scanner` | a convex polygon to spans, clipped |
 | `soft/fill`, `fill8`, `fill16`, `fill32` | spans and rows to pixels: a table for each colour format |
-| `soft/soft` | the software backend: a command drawn at once |
-| `backend_gpu` | a GPU's backend: shapes and pictures as triangles, the pen in their vertices |
+| `gpu/backend` | a GPU's backend: shapes and pictures as triangles, the pen in their vertices |
 | `gpu/gpu` | the GPU's recorder: textures and pipelines made, pixels sent, passes, clips, reads back |
 | `gpu/list` | the list the host plays: its words, vertices, indices and batches |
 | `gpu/shaders` | the one shader, and `shaders.h` made from it |
@@ -469,7 +473,7 @@ pixels run on the software backend.
 2. BASIC's binding: the package's loader; the interfaces read in QuickrBasic's dialect (`OPTION
    DIALECT`). Done: `gfx.qbx` in `lib/` beside `basic` and in the Mac's app, `demo/GFXDEMO.BAS`
    its program, `tests/host/gfx.sh` its test.
-3. The rest of 2D and the pen: turned sprites, quads, strips, light, tint, blend, recolor; 16 and 32
+3. The rest of 2D and the pen: turned sprites, quads, strips, light, tint, blend, recolour; 16 and 32
    bits; PNG; fonts. Done.
 4. The hosts' players, SDL_GPU and WebGL2, and the list.
 5. DOS: VBE's pages. CHARLIE moves onto `gfx`, cutting its views with
@@ -512,7 +516,7 @@ Step 3, in parts:
   pixel taking the texel at its centre through the affine map three corners give. A quad is two
   triangles, as a GPU draws it. A strip's points are its top edge, its texels upright below,
   repeating along x.
-- **The pen at 8 bits**: `light`, `tint`, `alpha` with `BLEND` and `ADD`, `SOLID`, `recolor`; a
+- **The pen at 8 bits**: `light`, `tint`, `alpha` with `BLEND` and `ADD`, `SOLID`, `recolour`; a
   shape's colour goes through them too. The tint is `&HRRGGBB` at every depth. Row 0 gives the
   tables when first needed: a 32 KB map from 5 bits a channel to the nearest index, the light
   table, and a 64 KB blend table for each mode and alpha, the last four kept. A call's light, tint
@@ -532,7 +536,7 @@ Step 3, in parts:
   most one transparent colour stays 8 bits, that colour swapped with index 0, the key's; the rest
   load at 32 bits, alpha the file's or tRNS's. `inflate.c` reads the zlib stream as zlib's `puff`
   does, a code a bit at a time: small, and fast enough for a game's pictures.
-- **Fonts**: `draw.new_font` cuts a sheet into w by h glyphs from code 32, row by row; `pen.font`
+- **Fonts**: `pen.new_font` cuts a sheet into w by h glyphs from code 32, row by row; `pen.font`
   picks one, 0 the built-in. The built-in is the runtime's 8 by 8 drawn into a sheet of its own on
   first use. Each glyph is drawn as a picture, so text turns and zooms with the camera; in a colour
   it is `SOLID`, that colour through the pen as a shape's.

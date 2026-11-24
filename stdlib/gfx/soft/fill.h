@@ -12,7 +12,7 @@
  */
 #ifndef GFX_FILL_H
 #define GFX_FILL_H
-#include "pixels.h"
+#include "base/pixels.h"
 
 enum { ROW_FLIPX = 1, ROW_OPAQUE = 2, ROW_VARIANTS = 4 };
 enum { STEP_OPAQUE = 1, STEP_VARIANTS = 2 };

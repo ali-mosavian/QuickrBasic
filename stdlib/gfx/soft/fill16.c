@@ -1,6 +1,6 @@
 /* 15 and 16 bits a pixel's fillers (fill.h): one template, built for each format's masks. A
    pixel 0 is the key. */
-#include "mem.h"
+#include "core/mem.h"
 #include "soft/fill.h"
 
 static inline uint16_t load(const uint8_t *const p)

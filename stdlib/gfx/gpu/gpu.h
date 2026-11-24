@@ -14,10 +14,10 @@
  */
 #ifndef GFX_GPU_GPU_H
 #define GFX_GPU_GPU_H
-#include "colour.h"
+#include "core/palette.h"
 #include "gfx_qx.h"
 #include "gpu/list.h"
-#include "surface.h"
+#include "core/surface.h"
 
 /* The palette's texture, the first atlas page's, a page's side. */
 enum { GPU_PALETTE = PIC_FONT + 1, GPU_PAGE_FIRST, GPU_PAGE = 1024 };

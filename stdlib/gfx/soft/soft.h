@@ -1,16 +1,17 @@
 /* The software backend: each command drawn as it comes, into memory.
  *
  * # How it works
- * Shapes go through the scanner (rs.h) to the target's fillers (fill.h). An upright sprite at
+ * Shapes go through the scanner (scanner.h) to the target's fillers (fill.h). An upright sprite at
  * 1:1 skips the scanner: its rows are copied, keyed unless OPAQUE, read backward for FLIPX. Points
  * are pixel centres, as the scanner's. A call with an ink to go through (fill.h) draws its rows
  * through it instead of the fused fillers.
  */
 #ifndef GFX_SOFT_H
 #define GFX_SOFT_H
-#include "pixels.h"
+#include "base/depth.h"
+#include "base/pixels.h"
 #include "soft/fill.h"
-#include "soft/rs.h"
+#include "soft/scanner.h"
 
 /* What is drawn into: its pixels, the clip in them, its depth's fillers; the call's ink. */
 typedef struct {
@@ -27,7 +28,7 @@ void soft_pset(const SoftTarget *t, float x, float y, uint32_t colour);
 void soft_line(const SoftTarget *t, Vec a, Vec b, uint32_t colour);
 /* A closed outline through n points, each pixel once. */
 void soft_outline(const SoftTarget *t, const Vec *p, uint32_t n, uint32_t colour);
-/* A convex polygon of n corners, 3 up to RS_MAXV: s's texels, affine or with draw.PERSP in
+/* A convex polygon of n corners, 3 up to SCAN_MAXV: s's texels, affine or with draw.PERSP in
    perspective, keyed unless OPAQUE; s null, colour. ZTEST draws a pixel only nearer than t's
    depth there, ZSET writes the depth of each drawn. */
 void soft_poly(
@@ -67,15 +68,15 @@ void soft_texture(
     int32_t flags,
     bool wrap
 );
-/* A perspective polygon (rs.h) of n up to RS_MAXV vertices, u/z, v/z and 1/z, in mode RS_PTEX or
-   RS_ATEX, drawn by persp.h: only into a target s is fused with (fill.h). */
+/* A perspective polygon (scanner.h) of n up to SCAN_MAXV vertices, u/z, v/z and 1/z, in mode SCAN_PTEX or
+   SCAN_ATEX, drawn by persp.h: only into a target s is fused with (fill.h). */
 void soft_texture_persp(
     const SoftTarget *t,
     const Pixels *s,
-    const RsVert *v,
+    const ScanVert *v,
     uint32_t n,
     int32_t flags,
     bool wrap,
-    RsMode mode
+    ScanMode mode
 );
 #endif

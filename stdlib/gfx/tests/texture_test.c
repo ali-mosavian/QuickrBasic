@@ -1,7 +1,7 @@
 /* gfx.draw's turned sprites, quads and strips at 8 bits, by their pixels read. Each pixel takes
    the texel at its centre; the expectations are worked by hand, with no sample on a texel's edge
    (where backends may round either way). */
-#include "gmath.h"
+#include "base/gmath.h"
 #include "soft/soft.h"
 #include "test.h"
 
@@ -118,7 +118,7 @@ TEST(gfx_text_in_a_sheet_font)
 {
     CANVAS(8, 8);
     const int32_t s = sheet(S);
-    const int32_t f = CALL("draw.new_font", I(s), I(3), I(2)).result.i;
+    const int32_t f = CALL("pen.new_font", I(s), I(3), I(2)).result.i;
     CHECK(f && !CALL("pen.font", I(f)).error);
     CHECK(CALL("draw.text_width", STR("ab")).result.i == 6);
     CHECK(!CALL("draw.text", F(1), F(0), STR("! "), I(4)).error);
@@ -137,7 +137,7 @@ TEST(gfx_text_turns_with_the_camera)
 {
     CANVAS(8, 8);
     const int32_t s = sheet(S);
-    CALL("pen.font", I(CALL("draw.new_font", I(s), I(3), I(2)).result.i));
+    CALL("pen.font", I(CALL("pen.new_font", I(s), I(3), I(2)).result.i));
     CALL("draw.camera_turned", F(0.3), F(0.2), F(GM_PI / 2), F(1));
     CHECK(!CALL("draw.text", F(-1.2), F(-0.3), STR(" "), I(4)).error);
     ROW(3, "11144111");
@@ -149,13 +149,13 @@ TEST(gfx_fonts_refuse)
 {
     CANVAS(8, 8);
     const int32_t s = sheet(S);
-    CHECK(CALL("draw.new_font", I(s), I(0), I(1)).error == 5);
-    CHECK(CALL("draw.new_font", I(s), I(4), I(1)).error == 5);
-    CHECK(CALL("draw.new_font", I(0x10000077), I(1), I(1)).error == 5);
+    CHECK(CALL("pen.new_font", I(s), I(0), I(1)).error == 5);
+    CHECK(CALL("pen.new_font", I(s), I(4), I(1)).error == 5);
+    CHECK(CALL("pen.new_font", I(0x10000077), I(1), I(1)).error == 5);
     CHECK(CALL("pen.font", I(0x20000077)).error == 5);
     CHECK(CALL("pen.font", I(s)).error == 5);
 
-    CALL("pen.font", I(CALL("draw.new_font", I(s), I(1), I(1)).result.i));
+    CALL("pen.font", I(CALL("pen.new_font", I(s), I(1), I(1)).result.i));
     CALL("surface.free", I(s));
     CHECK(CALL("draw.text", F(0), F(0), STR("!"), I(4)).error == 5);
     CHECK(PX(0, 0) == 1);
@@ -187,9 +187,9 @@ TEST(gfx_soft_perspective_trapezoid)
 
     const Pixels s = {tex, 8, 8, 4, PX_8};
 
-    const RsVert v[] = {{2, 0, 1, 0, 0}, {6, 0, 1, 8, 0}, {8, 4, 2, 16, 8}, {0, 4, 2, 0, 8}};
+    const ScanVert v[] = {{2, 0, 1, 0, 0}, {6, 0, 1, 8, 0}, {8, 4, 2, 16, 8}, {0, 4, 2, 0, 8}};
 
-    soft_texture_persp(&t, &s, v, 4, GFX_PEN_OPAQUE, false, RS_PTEX);
+    soft_texture_persp(&t, &s, v, 4, GFX_PEN_OPAQUE, false, SCAN_PTEX);
 
     static const uint8_t want[8][16] = {
         {1, 27, 28, 30, 32, 33, 1, 1},

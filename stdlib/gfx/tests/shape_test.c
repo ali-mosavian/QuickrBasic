@@ -1,8 +1,8 @@
 /* gfx.draw's circles, arcs and polygons at 8 bits, and the turned camera, by their pixels read.
    Each expectation is worked by hand from the rules: a pixel is drawn when its centre is inside,
    or on the top or left edge. */
-#include "disc.h"
-#include "gmath.h"
+#include "base/disc.h"
+#include "base/gmath.h"
 #include "test.h"
 
 /* Radius 2 about (3, 3): filled, the centres within 2.5; the outline, from 1.5. Radius 0 is one

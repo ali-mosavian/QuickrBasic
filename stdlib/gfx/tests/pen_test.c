@@ -55,20 +55,20 @@ TEST(gfx_pen_light_tint_and_solid)
     CHECK(CALL("pen.light", I(64)).error == 5);
     CHECK(CALL("pen.tint", I(0x1000000)).error == 5);
     CHECK(CALL("pen.alpha", I(-1)).error == 5);
-    CHECK(CALL("pen.recolor", I(16)).error == 5);
+    CHECK(CALL("pen.recolour", I(16)).error == 5);
 }
 
-/* pen.recolor 2 draws index 3 as row 2's colour 3, red; the canvas's own row is untouched. */
-TEST(gfx_pen_recolor_draws_through_a_row)
+/* pen.recolour 2 draws index 3 as row 2's colour 3, red; the canvas's own row is untouched. */
+TEST(gfx_pen_recolour_draws_through_a_row)
 {
     const int32_t s = canvas(S);
     int32_t row[256] = {[3] = 0xFF0000};
 
     QxArray a = gfx_array(row, 256, 4);
     CALL("display.palette", I(2), ARRAY(&a));
-    CHECK(!CALL("pen.recolor", I(2)).error);
+    CHECK(!CALL("pen.recolour", I(2)).error);
     CALL("draw.sprite", I(s), F(0), F(0), I(0));
-    CALL("pen.recolor", I(0));
+    CALL("pen.recolour", I(0));
     CALL("draw.sprite", I(s), F(4), F(0), I(0));
     ROW(0, "14411331");
 }

@@ -76,7 +76,7 @@ type Command
     light as integer
     tint as long
     alpha as integer
-    recolor as integer
+    recolour as integer
 end type
 
 declare sub open cdecl ( _

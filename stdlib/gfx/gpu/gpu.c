@@ -2,7 +2,7 @@
 #include "gpu/gpu.h"
 #include "gfx_qx.h"
 #include "gpu/shaders.h"
-#include "mem.h"
+#include "core/mem.h"
 
 enum {
     RGBA = 4,

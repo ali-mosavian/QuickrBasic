@@ -1,5 +1,5 @@
 /* 8 bits a pixel's fillers (fill.h): an index a pixel, 0 the key. */
-#include "mem.h"
+#include "core/mem.h"
 #include "soft/fill.h"
 
 static void span(uint8_t *const d, const int32_t n, const uint32_t colour)

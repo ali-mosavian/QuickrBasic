@@ -1,6 +1,6 @@
 /* The GPU's list (gpu/list.h). */
 #include "gpu/list.h"
-#include "mem.h"
+#include "core/mem.h"
 
 enum {
     BUFFER_WORDS = 4, /* BUFFER: the op, id, bytes, kind */

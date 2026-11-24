@@ -2,9 +2,9 @@
    Python's zlib's; the PNGs' pixels are given below them, so the expected values are by hand. */
 #include <stdio.h>
 
-#include "image.h"
-#include "inflate.h"
-#include "mem.h"
+#include "image/image.h"
+#include "image/inflate.h"
+#include "core/mem.h"
 #include "test.h"
 
 /* 100 bytes of a, b, c and d, skewed so zlib picks a dynamic code: by an LCG. */

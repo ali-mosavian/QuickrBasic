@@ -1,11 +1,11 @@
 /* The software backend (soft.h). */
 #include "soft/soft.h"
 #include "gfx_qx.h"
-#include "disc.h"
-#include "gmath.h"
+#include "base/disc.h"
+#include "base/gmath.h"
 #include "soft/persp.h"
-#include "soft/rs.h"
-#include "soft/scan.h"
+#include "soft/scanner.h"
+#include "base/cover.h"
 
 static uint8_t *at(const SoftTarget *const t, const int32_t x, const int32_t y)
 {
@@ -106,7 +106,7 @@ void soft_clear(const SoftTarget *const t, const uint32_t colour)
 
 void soft_pset(const SoftTarget *const t, const float x, const float y, const uint32_t colour)
 {
-    const int32_t px = scan_pixel(x), py = scan_pixel(y);
+    const int32_t px = cover_pixel(x), py = cover_pixel(y);
     span(t, py, px, px + 1, colour);
 }
 
@@ -148,8 +148,8 @@ static void walk(const SoftTarget *const t, Vec a, Vec b, const uint32_t colour,
         !cut(&a, &b, t->clip))
         return;
 
-    int32_t x = scan_pixel(a.x), y = scan_pixel(a.y);
-    const int32_t to_x = scan_pixel(b.x), to_y = scan_pixel(b.y);
+    int32_t x = cover_pixel(a.x), y = cover_pixel(a.y);
+    const int32_t to_x = cover_pixel(b.x), to_y = cover_pixel(b.y);
     const int32_t dx = to_x > x ? to_x - x : x - to_x, dy = -(to_y > y ? to_y - y : y - to_y);
     const int32_t sx = x < to_x ? 1 : -1, sy = y < to_y ? 1 : -1;
 
@@ -194,9 +194,9 @@ void soft_outline(
 
 /* gfx's corner as qgl's: qgl's pixel i spans [i, i + 1) and its texel j is centred on j, where
    gfx centres pixel i on i and texel j on j + 0.5. */
-static RsVert qgl_corner(const float x, const float y, const float u, const float v)
+static ScanVert qgl_corner(const float x, const float y, const float u, const float v)
 {
-    return (RsVert){x + 0.5f, y + 0.5f, 1, u - 0.5f, v - 0.5f};
+    return (ScanVert){x + 0.5f, y + 0.5f, 1, u - 0.5f, v - 0.5f};
 }
 
 /* Row y's pixels within r of c (disc.h), [*x0, *x1): false, none. The square root's ends are the
@@ -210,7 +210,7 @@ static bool chord(const Vec c, const float r, const int32_t y, int32_t *const x0
 
     const float dy = (float)y - c.y, h2 = r * r - dy * dy, h = h2 > 0 ? gm_sqrt(h2) : 0;
     const float near = 0x1p-18f * (9 * r + (c.x < 0 ? -c.x : c.x) + 1);
-    int32_t a = scan_first(c.x - h), b = scan_first(c.x + h);
+    int32_t a = cover_first(c.x - h), b = cover_first(c.x + h);
     const float left = (float)a - (c.x - h), right = (float)b - (c.x + h);
 
     if (!(h >= r / 8 && left > near && left < 1 - near && right > near && right < 1 - near)) {
@@ -243,8 +243,8 @@ static void ring(
     const void *const ctx
 )
 {
-    const int32_t y0 = rect_max(scan_first(k->c.y - k->outer) - 1, t->clip.y);
-    const int32_t y1 = rect_min(scan_first(k->c.y + k->outer) + 1, t->clip.y + t->clip.h);
+    const int32_t y0 = rect_max(cover_first(k->c.y - k->outer) - 1, t->clip.y);
+    const int32_t y1 = rect_min(cover_first(k->c.y + k->outer) + 1, t->clip.y + t->clip.h);
 
     for (int32_t y = y0; y < y1; y++) {
         int32_t a0, a1, b0, b1;
@@ -334,10 +334,10 @@ void soft_rect(
     const float l = (x1 < x2 ? x1 : x2) - 0.5f, r = (x1 < x2 ? x2 : x1) + 0.5f;
     const float top = (y1 < y2 ? y1 : y2) - 0.5f, bottom = (y1 < y2 ? y2 : y1) + 0.5f;
 
-    const int32_t x0 = scan_first(l), x1_ = scan_first(r), y0 = scan_first(top),
-                  y1_ = scan_first(bottom);
+    const int32_t x0 = cover_first(l), x1_ = cover_first(r), y0 = cover_first(top),
+                  y1_ = cover_first(bottom);
 
-    /* rs_poly's pixels for these corners, without its edges at every row */
+    /* scan_poly's pixels for these corners, without its edges at every row */
     if (fill) {
         for (int32_t y = rect_max(y0, t->clip.y); y < rect_min(y1_, t->clip.y + t->clip.h); y++)
             span(t, y, x0, x1_, colour);
@@ -375,7 +375,7 @@ void soft_sprite(
     const int32_t flags
 )
 {
-    const int32_t left = scan_pixel(x), top = scan_pixel(y);
+    const int32_t left = cover_pixel(x), top = cover_pixel(y);
     const Rect drawn = rect_meet((Rect){left, top, s->w, s->h}, t->clip);
 
     FillRow *const row = t->fill->row[variant(flags)];
@@ -399,7 +399,7 @@ typedef struct {
     const Pixels *s;
     FillStep *step;
     bool wrap, opaque;
-    RsMode mode;
+    ScanMode mode;
     bool test, set;
 } Textured;
 
@@ -433,7 +433,7 @@ static Steps inside_steps(
 /* A span of the polygon, held in the clip: its first pixel, and how many it lost before it. */
 static bool held_span(
     const SoftTarget *const t,
-    const RsSpan *const sp,
+    const ScanSpan *const sp,
     int32_t *const x0,
     int32_t *const x1
 )
@@ -475,7 +475,7 @@ static void deep(
     const int32_t n,
     int32_t u,
     int32_t v,
-    const RsSpan *const sp,
+    const ScanSpan *const sp,
     int32_t z
 )
 {
@@ -513,7 +513,7 @@ static void deep(
     }
 }
 
-static void textured(void *const ctx, const RsSpan *const sp)
+static void textured(void *const ctx, const ScanSpan *const sp)
 {
     const Textured *const x = ctx;
     int32_t x0, x1;
@@ -532,11 +532,11 @@ static void textured(void *const ctx, const RsSpan *const sp)
 }
 
 /* a perspective span: persp.h walks it */
-static void perspective(void *const ctx, const RsSpan *const sp)
+static void perspective(void *const ctx, const ScanSpan *const sp)
 {
     const Textured *const x = ctx;
     const SoftTarget *const t = x->t;
-    RsSpan c = *sp;
+    ScanSpan c = *sp;
     int32_t x0, x1;
 
     if (!held_span(t, sp, &x0, &x1))
@@ -561,7 +561,7 @@ static void perspective(void *const ctx, const RsSpan *const sp)
             .s = *x->s,
             .opaque = x->opaque,
             .wrap = x->wrap,
-            .whole = x->mode == RS_ATEX,
+            .whole = x->mode == SCAN_ATEX,
             .ink = fused(t, x->s) ? nullptr : &k,
             .put = t->fill->ink,
             .depth = t->depth.p ? t->depth.p + sp->y * t->depth.row + x0 : nullptr,
@@ -575,15 +575,15 @@ static void perspective(void *const ctx, const RsSpan *const sp)
 static void texture(
     const SoftTarget *const t,
     const Pixels *const s,
-    const RsVert *const v,
+    const ScanVert *const v,
     const uint32_t n,
     const int32_t flags,
     const bool wrap,
-    const RsMode mode,
+    const ScanMode mode,
     const bool gfx
 )
 {
-    const bool persp = mode == RS_PTEX || mode == RS_ATEX;
+    const bool persp = mode == SCAN_PTEX || mode == SCAN_ATEX;
     const bool opaque = flags & GFX_PEN_OPAQUE;
     Textured x = {
         .t = t,
@@ -596,7 +596,7 @@ static void texture(
         .set = flags & GFX_DRAW_ZSET,
     };
 
-    rs_poly(v, n, mode, t->clip, gfx, persp ? perspective : textured, &x);
+    scan_poly(v, n, mode, t->clip, gfx, persp ? perspective : textured, &x);
 }
 
 void soft_texture(
@@ -608,7 +608,7 @@ void soft_texture(
     const bool wrap
 )
 {
-    RsVert p[4];
+    ScanVert p[4];
 
     if (n > 4)
         return;
@@ -616,17 +616,17 @@ void soft_texture(
     for (uint32_t i = 0; i < n; i++)
         p[i] = qgl_corner(v[i].x, v[i].y, v[i].u, v[i].v);
 
-    texture(t, s, p, n, flags, wrap, RS_TEX, true);
+    texture(t, s, p, n, flags, wrap, SCAN_TEX, true);
 }
 
 void soft_texture_persp(
     const SoftTarget *const t,
     const Pixels *const s,
-    const RsVert *const v,
+    const ScanVert *const v,
     const uint32_t n,
     const int32_t flags,
     const bool wrap,
-    const RsMode mode
+    const ScanMode mode
 )
 {
     texture(t, s, v, n, flags, wrap, mode, false);
@@ -639,7 +639,7 @@ typedef struct {
 } Flat;
 
 /* a flat span: the runs of it shown over the depth there, their depth set as asked */
-static void flat(void *const ctx, const RsSpan *const sp)
+static void flat(void *const ctx, const ScanSpan *const sp)
 {
     const Flat *const f = ctx;
     const SoftTarget *const t = f->t;
@@ -670,12 +670,12 @@ static void flat(void *const ctx, const RsSpan *const sp)
 }
 
 /* c as qgl's vertex (qgl_corner), 1/z its z; in perspective u and v by 1/z. */
-static RsVert poly_corner(const Corner *const c, const bool persp)
+static ScanVert poly_corner(const Corner *const c, const bool persp)
 {
     const float r = 1 / c->z;
-    const RsVert q = qgl_corner(c->x, c->y, c->u, c->v);
+    const ScanVert q = qgl_corner(c->x, c->y, c->u, c->v);
 
-    return persp ? (RsVert){q.x, q.y, r, q.u * r, q.v * r} : (RsVert){q.x, q.y, r, q.u, q.v};
+    return persp ? (ScanVert){q.x, q.y, r, q.u * r, q.v * r} : (ScanVert){q.x, q.y, r, q.u, q.v};
 }
 
 void soft_poly(
@@ -687,20 +687,20 @@ void soft_poly(
     const int32_t flags
 )
 {
-    RsVert v[RS_MAXV];
+    ScanVert v[SCAN_MAXV];
     const bool persp = s && flags & GFX_DRAW_PERSP;
 
-    if (n > RS_MAXV)
+    if (n > SCAN_MAXV)
         return;
 
     for (uint32_t i = 0; i < n; i++)
         v[i] = poly_corner(&c[i], persp);
 
     if (s)
-        texture(t, s, v, n, flags, false, persp ? RS_PTEX : RS_TEX, true);
+        texture(t, s, v, n, flags, false, persp ? SCAN_PTEX : SCAN_TEX, true);
     else {
         const Flat f = {t, colour, flags & GFX_DRAW_ZTEST, flags & GFX_DRAW_ZSET};
 
-        rs_poly(v, n, RS_FLAT, t->clip, true, flat, (void *)&f);
+        scan_poly(v, n, SCAN_FLAT, t->clip, true, flat, (void *)&f);
     }
 }

@@ -24,7 +24,14 @@ declare sub tint cdecl (byval colour as long)
 ' BLEND's and ADD's: 0 to 63.
 declare sub alpha cdecl (byval level as integer)
 ' A palette row to draw through; 0 none.
-declare sub recolor cdecl (byval row as integer)
+declare sub recolour cdecl (byval row as integer)
+' A sheet of glyphs w by h, from 32 on, row by row. A
+' character without one draws nothing, but takes its width.
+declare function new_font cdecl ( _
+    byval sheet as long, _
+    byval w as integer, _
+    byval h as integer _
+) as long
 ' text's; 0 the built-in 8 by 8.
 declare sub font cdecl (byval handle as long)
 declare sub reset cdecl ()
