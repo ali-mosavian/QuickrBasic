@@ -89,6 +89,8 @@ backend keeps are in [design.md](design.md).
 ## GPU
 
 - `backend.c` turns shapes and pictures into triangles. A shape is `SOLID`, so it joins any batch.
+- A polygon's corners carry their depth, 1/z, and in perspective their z as w, so the GPU steps
+  texels and depth as the scanner does. A surface drawn with depth gets a 16-bit depth texture.
 - `gpu.c` records the frame: textures made and sent, rows the CPU wrote sent again, pipelines,
   passes, clips and reads back.
 - `list.c` writes the list the host plays (`src/qx/qxlist.h`): its words, vertices, indices and

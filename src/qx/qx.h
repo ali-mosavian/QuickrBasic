@@ -30,7 +30,8 @@
 #define QX_EXPORT __attribute__((visibility("default")))
 #endif
 
-enum { QX_ABI = 1, QX_MINOR = 3 };
+/* Minor 4 adds the GPU list's depth (qxlist.h). */
+enum { QX_ABI = 1, QX_MINOR = 4 };
 
 typedef struct QxCall QxCall;
 typedef void QX_CALL QxFn(QxCall *c);

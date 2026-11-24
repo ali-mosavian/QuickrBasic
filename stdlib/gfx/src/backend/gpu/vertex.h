@@ -15,10 +15,12 @@ enum {
     GPU_STAGE_SMOOTH = 128, /* the four texels round the centre mixed */
 };
 
-/* x, y a pixel's centre at whole numbers; u, v texels, the one at a pixel's centre drawn, kept
-   inside the rectangle rx, ry, rw by rh. Its colour is the texel's times r, g, b and light / 63. */
+/* x, y a pixel's centre at whole numbers; z its depth, 1/z of a corner's z (0 far, as gfx's
+   depth); w its z where texels go in perspective, else 1. u, v texels, the one at a pixel's centre
+   drawn, kept inside the rectangle rx, ry, rw by rh. Its colour is the texel's times r, g, b and
+   light / 63. */
 typedef struct {
-    float x, y, u, v;
+    float x, y, z, w, u, v;
     uint16_t rx, ry, rw, rh;
     uint8_t r, g, b, light;
     uint8_t row, stages, pad[2];

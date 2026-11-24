@@ -12,7 +12,8 @@
  * - BUFFER id, bytes, kind: at least bytes of vertices or of 32-bit indices; made, or made again,
  *   when there is none that large, its bytes then undefined.
  * - WRITE id, bytes, pointer: the buffer's first bytes; its others undefined after.
- * - TEXTURE id, w, h, format: made, every byte 0. An RGBA one can be drawn into.
+ * - TEXTURE id, w, h, format: made, every byte 0. An RGBA one can be drawn into; a DEPTH one is
+ *   a pass's depth target.
  * - FREE id: the texture.
  * - UPLOAD id, x, y, w, h, pitch, pointer: h rows of w texels of the texture's format, pitch bytes
  *   each, into it.
@@ -23,9 +24,12 @@
  *   uniform block is 0, the sampler at binding n named sn. SPIR-V's entry is main, its uniform
  *   block in set 1 and its samplers in set 2, as SDL_GPU's. A vertex is stride bytes, each
  *   attribute three words: its location, format and offset. Drawn, a pixel's colour c goes in as c
- *   (QX_BLEND_NONE), c times the draw's alpha over the rest (MIX), or c times alpha added (ADD).
- *   A pixel drawn is opaque.
- * - PASS id: the RGBA texture the draws after go into, its pixels kept.
+ *   (QX_BLEND_NONE), c times the draw's alpha over the rest (MIX), or c times alpha added (ADD);
+ *   KEEP writes no colour. A pixel drawn is opaque. Blend's second byte is its depth (QxDepth),
+ *   0 none: a pixel's depth is its z over w in clip space, 0 to 1. A pipeline with depth draws
+ *   only in a pass with a depth target; one without, in any.
+ * - PASS id, depth: the RGBA texture the draws after go into, its pixels kept; depth, if given and
+ *   not 0, the DEPTH texture of its size they test and set.
  * - CLIP x, y, w, h: the pass's pixels the draws after may touch.
  * - UNIFORMS bytes, pointer: the vertex code's uniform block, for the draws after.
  * - DRAW pipeline, vertices, indices, first, count, alpha, textures: count indices from first of
@@ -57,10 +61,15 @@ typedef enum : uint8_t {
 
 typedef enum : uint8_t { QX_BUFFER_VERTEX = 1, QX_BUFFER_INDEX } QxBuffer;
 
-/* INDEX a byte a texel; RGBA bytes R, G, B and A. */
-typedef enum : uint8_t { QX_TEXTURE_INDEX = 1, QX_TEXTURE_RGBA } QxTextureFormat;
+/* INDEX a byte a texel; RGBA bytes R, G, B and A; DEPTH (minor 4) 16 bits a texel. */
+typedef enum : uint8_t { QX_TEXTURE_INDEX = 1, QX_TEXTURE_RGBA, QX_TEXTURE_DEPTH } QxTextureFormat;
 
-typedef enum : uint8_t { QX_BLEND_NONE, QX_BLEND_MIX, QX_BLEND_ADD } QxBlend;
+/* KEEP: minor 4. */
+typedef enum : uint8_t { QX_BLEND_NONE, QX_BLEND_MIX, QX_BLEND_ADD, QX_BLEND_KEEP } QxBlend;
+
+/* A pipeline's depth, minor 4: TEST draws a pixel only where it is greater than the target's
+   depth, WRITE sets the target's depth where it draws (ALWAYS, without TEST). */
+typedef enum : uint8_t { QX_DEPTH_TEST = 1, QX_DEPTH_WRITE = 2 } QxDepth;
 
 /* An attribute's format: floats, or unsigned integers as they are. */
 typedef enum : uint8_t {

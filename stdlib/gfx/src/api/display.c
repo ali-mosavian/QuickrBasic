@@ -20,10 +20,10 @@ static void close_screen(Gx *const g)
     gx_use(g, &backend_soft);
 }
 
-/* The host plays a GPU's lists: it gave one, and knows minor 2. */
+/* The host plays a GPU's lists: it gave one, and knows minor 4, their depth. */
 static bool plays(const QxScreen *const s)
 {
-    return s->gpu && qx_host->minor >= 2 && qx_host->size >= offsetof(QxHost, gfx_monitors);
+    return s->gpu && qx_host->minor >= 4 && qx_host->size >= offsetof(QxHost, gfx_monitors);
 }
 
 /* The host knows monitors, modes and events: minor 3. */

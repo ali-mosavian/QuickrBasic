@@ -9,8 +9,9 @@
  * so the list's memory is free when play returns. Then each op in turn, a render pass held open
  * across draws and begun again after a copy. A buffer written is cycled; a texture written in part
  * is not, SDL ordering the write after the frames that read it. Every texture is RGBA8 or R8 and a
- * colour target, so TEXTURE clears it by a pass; a pipeline draws into RGBA8, the draw's alpha
- * its blend constant. SHOW copies a texture to the one the window's thread shows, cycling it: the
+ * colour target, or D16 and a depth target, so TEXTURE clears it by a pass; a pipeline draws into
+ * RGBA8, the draw's alpha its blend constant. SDL_GPU fixes a pipeline's depth target, so a
+ * pipeline without depth is made twice: for passes without a depth target and with one. SHOW copies a texture to the one the window's thread shows, cycling it: the
  * copy goes to a fresh one while a frame still samples the last. The window's thread wraps it for
  * its renderer and alone releases it; it binds it under the lock SHOW takes, so the cycle sees the
  * binding.
@@ -24,7 +25,7 @@
 
 enum {
     RGBA = 4,
-    BLENDS = 3,
+    BLENDS = 4,
     FLIGHT = 2,        /* frames the GPU may be behind */
     ALIGN = 16,        /* a staged block's offset */
     DRAW_TEXTURES = 6, /* a DRAW's first texture, its argument */
@@ -39,6 +40,7 @@ enum {
 typedef struct {
     uint32_t id, w, h, bpp;
     SDL_GPUTexture *t;
+    bool depth; /* a depth target */
 } Texture;
 
 typedef struct {
@@ -46,9 +48,10 @@ typedef struct {
     SDL_GPUBuffer *b;
 } Buffer;
 
+/* p for passes without a depth target, deep for those with one: null, none such. */
 typedef struct {
     uint32_t id, samplers;
-    SDL_GPUGraphicsPipeline *p;
+    SDL_GPUGraphicsPipeline *p, *deep;
 } Pipeline;
 
 typedef struct {
@@ -62,6 +65,7 @@ typedef struct {
     SDL_GPURenderPass *render;
     SDL_GPUCopyPass *copy;
     uint32_t target; /* the texture drawn into, while aimed */
+    uint32_t depth;  /* its depth target; 0 none */
     bool aimed;
     SDL_Rect clip;
     uint32_t pipeline, vertices, indices; /* bound; 0 none */
@@ -123,12 +127,15 @@ static Texture *texture(const uint32_t id) { return find(&p.textures, id); }
 
 static SDL_GPUTexture *make(const uint32_t w, const uint32_t h, const SDL_GPUTextureFormat f)
 {
+    const bool depth = f == SDL_GPU_TEXTUREFORMAT_D16_UNORM;
+
     return SDL_CreateGPUTexture(
         p.dev,
         &(SDL_GPUTextureCreateInfo){
             .type = SDL_GPU_TEXTURETYPE_2D,
             .format = f,
-            .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER | SDL_GPU_TEXTUREUSAGE_COLOR_TARGET,
+            .usage = depth ? SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET
+                           : SDL_GPU_TEXTUREUSAGE_SAMPLER | SDL_GPU_TEXTUREUSAGE_COLOR_TARGET,
             .width = w,
             .height = h,
             .layer_count_or_depth = 1,
@@ -186,18 +193,38 @@ static SDL_GPUCopyPass *copying(Pass *const s)
     return s->copy;
 }
 
-/* t cleared to 0 by a pass of its own. */
-static void cleared(Pass *const s, SDL_GPUTexture *const t)
+/* t, a depth target if depth, cleared to 0 by a pass of its own. */
+static void cleared(Pass *const s, SDL_GPUTexture *const t, const bool depth)
 {
+    const SDL_GPUColorTargetInfo colour = {
+        .texture = t,
+        .load_op = SDL_GPU_LOADOP_CLEAR,
+        .store_op = SDL_GPU_STOREOP_STORE,
+    };
+
+    const SDL_GPUDepthStencilTargetInfo deep = {
+        .texture = t,
+        .clear_depth = 0,
+        .load_op = SDL_GPU_LOADOP_CLEAR,
+        .store_op = SDL_GPU_STOREOP_STORE,
+        .stencil_load_op = SDL_GPU_LOADOP_DONT_CARE,
+        .stencil_store_op = SDL_GPU_STOREOP_DONT_CARE,
+    };
+
     end(s);
     SDL_EndGPURenderPass(SDL_BeginGPURenderPass(
         s->cb,
-        &(SDL_GPUColorTargetInfo){.texture = t,
-                                  .load_op = SDL_GPU_LOADOP_CLEAR,
-                                  .store_op = SDL_GPU_STOREOP_STORE},
-        1,
-        nullptr
+        depth ? nullptr : &colour,
+        depth ? 0 : 1,
+        depth ? &deep : nullptr
     ));
+}
+
+static SDL_GPUTextureFormat format_of(const uint32_t format)
+{
+    return format == QX_TEXTURE_INDEX   ? SDL_GPU_TEXTUREFORMAT_R8_UNORM
+           : format == QX_TEXTURE_DEPTH ? SDL_GPU_TEXTUREFORMAT_D16_UNORM
+                                        : SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
 }
 
 static void add(
@@ -208,9 +235,9 @@ static void add(
     const uint32_t format
 )
 {
-    const bool index = format == QX_TEXTURE_INDEX;
-    SDL_GPUTexture *const made =
-        make(w, h, index ? SDL_GPU_TEXTUREFORMAT_R8_UNORM : SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM);
+    const bool depth = format == QX_TEXTURE_DEPTH;
+    const uint32_t bpp = format == QX_TEXTURE_INDEX ? 1 : depth ? 2 : RGBA;
+    SDL_GPUTexture *const made = make(w, h, format_of(format));
     Texture *const t = made ? added(&p.textures, id) : nullptr;
 
     if (!t) {
@@ -218,9 +245,9 @@ static void add(
         return;
     }
 
-    *t = (Texture){id, w, h, index ? 1 : RGBA, made};
+    *t = (Texture){id, w, h, bpp, made, depth};
 
-    cleared(s, made);
+    cleared(s, made, depth);
 }
 
 static void drop(const uint32_t id)
@@ -383,7 +410,32 @@ static SDL_GPUShader *shader(
     );
 }
 
-/* PIPELINE's a, n words: id, blend, stride, samplers, its code and attributes. */
+/* pl released, if any. */
+static void released(SDL_GPUGraphicsPipeline *const pl)
+{
+    if (pl)
+        SDL_ReleaseGPUGraphicsPipeline(p.dev, pl);
+}
+
+/* info's pipeline with depth (QxDepth) and a depth target if deep: null, none. */
+static SDL_GPUGraphicsPipeline *pipeline_with(
+    SDL_GPUGraphicsPipelineCreateInfo info,
+    const uint32_t depth,
+    const bool deep
+)
+{
+    info.target_info.has_depth_stencil_target = deep;
+    info.target_info.depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D16_UNORM;
+    info.depth_stencil_state = (SDL_GPUDepthStencilState){
+        .compare_op = depth & QX_DEPTH_TEST ? SDL_GPU_COMPAREOP_GREATER : SDL_GPU_COMPAREOP_ALWAYS,
+        .enable_depth_test = depth != 0,
+        .enable_depth_write = depth & QX_DEPTH_WRITE,
+    };
+
+    return SDL_CreateGPUGraphicsPipeline(p.dev, &info);
+}
+
+/* PIPELINE's a, n words: id, blend and depth, stride, samplers, its code and attributes. */
 static void pipeline(const uint32_t *const a, const uint32_t n)
 {
     static const SDL_GPUVertexElementFormat formats[] = {
@@ -413,12 +465,14 @@ static void pipeline(const uint32_t *const a, const uint32_t n)
             .alpha_blend_op = SDL_GPU_BLENDOP_ADD,
             .enable_blend = true,
         },
+        {.enable_color_write_mask = true},
     };
 
     const uint32_t count = (n - PIPELINE_HEAD) / ATTRIBUTE_WORDS, samplers = a[3];
+    const uint32_t blend = a[1] & 0xFF, depth = a[1] >> 8 & 0xFF;
     SDL_GPUVertexAttribute attributes[MOST_ATTRIBUTES];
 
-    if (n < PIPELINE_HEAD || a[1] >= BLENDS || count > MOST_ATTRIBUTES ||
+    if (n < PIPELINE_HEAD || blend >= BLENDS || count > MOST_ATTRIBUTES ||
         samplers > MOST_SAMPLERS || find(&p.pipelines, a[0]))
         return;
 
@@ -430,51 +484,58 @@ static void pipeline(const uint32_t *const a, const uint32_t n)
 
     SDL_GPUShader *const vs = shader(a + 4, SDL_GPU_SHADERSTAGE_VERTEX, 0, 1);
     SDL_GPUShader *const fs = shader(a + 4 + CODE_WORDS, SDL_GPU_SHADERSTAGE_FRAGMENT, samplers, 0);
-    SDL_GPUGraphicsPipeline *const made =
-        vs && fs ? SDL_CreateGPUGraphicsPipeline(
-                       p.dev,
-                       &(SDL_GPUGraphicsPipelineCreateInfo){
-                           .vertex_shader = vs,
-                           .fragment_shader = fs,
-                           .vertex_input_state =
-                               {
-                                   .vertex_buffer_descriptions =
-                                       &(SDL_GPUVertexBufferDescription){.pitch = a[2]},
-                                   .num_vertex_buffers = 1,
-                                   .vertex_attributes = attributes,
-                                   .num_vertex_attributes = count,
-                               },
-                           .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
-                           .target_info =
-                               {
-                                   .color_target_descriptions =
-                                       &(SDL_GPUColorTargetDescription){
-                                           .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
-                                           .blend_state = blends[a[1]],
-                                       },
-                                   .num_color_targets = 1,
-                               },
-                       }
+    const SDL_GPUColorTargetDescription colour = {
+        .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
+        .blend_state = blends[blend],
+    };
 
-                   )
-                 : nullptr;
+    const SDL_GPUGraphicsPipelineCreateInfo info = {
+        .vertex_shader = vs,
+        .fragment_shader = fs,
+        .vertex_input_state =
+            {
+                .vertex_buffer_descriptions = &(SDL_GPUVertexBufferDescription){.pitch = a[2]},
+                .num_vertex_buffers = 1,
+                .vertex_attributes = attributes,
+                .num_vertex_attributes = count,
+            },
+        .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
+        .target_info = {.color_target_descriptions = &colour, .num_color_targets = 1},
+    };
+
+    SDL_GPUGraphicsPipeline *const made =
+        vs && fs && !depth ? pipeline_with(info, 0, false) : nullptr;
+    SDL_GPUGraphicsPipeline *const deep = vs && fs ? pipeline_with(info, depth, true) : nullptr;
 
     SDL_ReleaseGPUShader(p.dev, vs);
     SDL_ReleaseGPUShader(p.dev, fs);
 
-    Pipeline *const kept = made ? added(&p.pipelines, a[0]) : nullptr;
+    Pipeline *const kept = made || deep ? added(&p.pipelines, a[0]) : nullptr;
 
-    if (kept)
-        *kept = (Pipeline){a[0], samplers, made};
-    else
-        SDL_ReleaseGPUGraphicsPipeline(p.dev, made);
+    if (kept) {
+        *kept = (Pipeline){a[0], samplers, made, deep};
+
+        return;
+    }
+
+    released(made);
+    released(deep);
 }
 
-/* The render pass into t, the target, its pixels kept, begun if none is open. */
-static SDL_GPURenderPass *drawing(Pass *const s, const Texture *const t)
+/* The render pass into t, the target, and depth, its depth target unless null, their pixels
+   kept, begun if none is open. */
+static SDL_GPURenderPass *drawing(Pass *const s, const Texture *const t, const Texture *const depth)
 {
     if (s->render)
         return s->render;
+
+    const SDL_GPUDepthStencilTargetInfo deep = {
+        .texture = depth ? depth->t : nullptr,
+        .load_op = SDL_GPU_LOADOP_LOAD,
+        .store_op = SDL_GPU_STOREOP_STORE,
+        .stencil_load_op = SDL_GPU_LOADOP_DONT_CARE,
+        .stencil_store_op = SDL_GPU_STOREOP_DONT_CARE,
+    };
 
     end(s);
     s->render = SDL_BeginGPURenderPass(
@@ -483,7 +544,7 @@ static SDL_GPURenderPass *drawing(Pass *const s, const Texture *const t)
                                   .load_op = SDL_GPU_LOADOP_LOAD,
                                   .store_op = SDL_GPU_STOREOP_STORE},
         1,
-        nullptr
+        depth ? &deep : nullptr
     );
 
     SDL_SetGPUViewport(s->render, &(SDL_GPUViewport){0, 0, (float)t->w, (float)t->h, 0, 1});
@@ -499,9 +560,12 @@ static void draw(Pass *const s, const uint32_t *const a, const uint32_t n)
     const Buffer *const vb = find(&p.buffers, a[1]);
     const Buffer *const ib = find(&p.buffers, a[2]);
     const Texture *const target = s->aimed ? texture(s->target) : nullptr;
+    const Texture *const found = s->depth ? texture(s->depth) : nullptr;
+    const Texture *const depth = found && found->depth ? found : nullptr;
+    SDL_GPUGraphicsPipeline *const made = pl ? (depth ? pl->deep : pl->p) : nullptr;
     SDL_GPUTextureSamplerBinding samplers[MOST_SAMPLERS];
 
-    if (!pl || !vb || !vb->b || !ib || !ib->b || !target || n != DRAW_TEXTURES + pl->samplers ||
+    if (!made || !vb || !vb->b || !ib || !ib->b || !target || n != DRAW_TEXTURES + pl->samplers ||
         (uint64_t)(a[3] + a[4]) * sizeof(uint32_t) > ib->cap)
         return;
 
@@ -514,11 +578,11 @@ static void draw(Pass *const s, const uint32_t *const a, const uint32_t n)
         samplers[i] = (SDL_GPUTextureSamplerBinding){t->t, p.nearest};
     }
 
-    SDL_GPURenderPass *const r = drawing(s, target);
+    SDL_GPURenderPass *const r = drawing(s, target, depth);
     const float alpha = (float)a[5] / 255;
 
     if (s->pipeline != a[0])
-        SDL_BindGPUGraphicsPipeline(r, pl->p);
+        SDL_BindGPUGraphicsPipeline(r, made);
 
     if (s->vertices != a[1])
         SDL_BindGPUVertexBuffers(r, 0, &(SDL_GPUBufferBinding){.buffer = vb->b}, 1);
@@ -608,6 +672,7 @@ static bool player_play(const uint32_t *const list, const uint32_t words)
 
             end(&s);
             s.target = a[0];
+            s.depth = n > 1 ? a[1] : 0;
             s.aimed = t;
             s.clip = (SDL_Rect){0, 0, t ? (int)t->w : 0, t ? (int)t->h : 0};
 
@@ -726,7 +791,7 @@ static bool player_open(const uint16_t w, const uint16_t h)
 
     p.w = w;
     p.h = h;
-    cleared(&s, shown);
+    cleared(&s, shown, false);
     end(&s);
     finish(cb);
 
@@ -748,8 +813,10 @@ static void player_close(void)
     for (uint32_t i = 0; i < p.buffers.n; i++)
         SDL_ReleaseGPUBuffer(p.dev, ((const Buffer *)p.buffers.at)[i].b);
 
-    for (uint32_t i = 0; i < p.pipelines.n; i++)
-        SDL_ReleaseGPUGraphicsPipeline(p.dev, ((const Pipeline *)p.pipelines.at)[i].p);
+    for (uint32_t i = 0; i < p.pipelines.n; i++) {
+        released(((const Pipeline *)p.pipelines.at)[i].p);
+        released(((const Pipeline *)p.pipelines.at)[i].deep);
+    }
 
     p.buffers.n = p.pipelines.n = 0;
 

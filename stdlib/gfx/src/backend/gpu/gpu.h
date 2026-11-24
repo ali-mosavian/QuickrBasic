@@ -11,7 +11,9 @@
  * named by its handle; packed, it leaves its page. An 8-bit root drawn from is indices; drawn
  * into, RGBA through palette row 0, as is the canvas. A root drawn into is ahead on the GPU
  * (drawn) until gpu_sync reads it back. A draw reads its picture and the palette. A texture
- * keeps the rows the CPU wrote since it was sent (gpu_wrote), so it sends only those.
+ * keeps the rows the CPU wrote since it was sent (gpu_wrote), so it sends only those. A root drawn
+ * into with depth has a depth texture too (gpu_depth), made on that first draw, which every pass
+ * into it keeps after. A pipeline is made when first drawn with.
  */
 #ifndef GFX_GPU_GPU_H
 #define GFX_GPU_GPU_H
@@ -20,8 +22,9 @@
 #include "backend/gpu/list.h"
 #include "core/surface.h"
 
-/* The palette's texture, the first atlas page's, a page's side. */
-enum { GPU_PALETTE = PIC_FONT + 1, GPU_PAGE_FIRST, GPU_PAGE = 1024 };
+/* The palette's texture, the first atlas page's, a page's side; a root's depth texture is its
+   handle with GPU_DEPTH's kind. */
+enum { GPU_PALETTE = PIC_FONT + 1, GPU_PAGE_FIRST, GPU_PAGE = 1024, GPU_DEPTH = 8 };
 
 typedef struct {
     uint32_t handle, version;
@@ -30,6 +33,7 @@ typedef struct {
     uint16_t x, y;          /* its place in the page */
     int32_t top, bottom;    /* the rows the CPU wrote since version was sent */
     bool drawn;             /* the GPU drew in it since it was read back */
+    bool depth;             /* its depth texture made */
 } GpuTexture;
 
 /* An atlas page: the next place, x along the row at y, row the row's height so far. */
@@ -39,11 +43,13 @@ typedef struct {
     uint16_t x, y, row;
 } GpuPage;
 
-/* Where a picture's root is: its texture, its place in it, and whether it holds indices. */
+/* Where a picture's root is: its texture, its place in it, whether it holds indices, and its
+   depth texture (0 none). */
 typedef struct {
     uint32_t id;
     uint16_t x, y;
     bool indexed;
+    uint32_t depth;
 } GpuSource;
 
 /* What the GPU was asked: draws (batches), texture uploads, and reads waited for. */
@@ -58,13 +64,15 @@ typedef struct {
     uint32_t ntextures;
     GpuPage *pages; /* the first's texture PAGE_FIRST */
     uint32_t npages, cappages;
-    bool passing;  /* a pass since the list began */
-    uint32_t pass; /* its texture */
+    bool passing;        /* a pass since the list began */
+    uint32_t pass, deep; /* its texture and depth texture */
     Rect clip;
     uint32_t palette; /* the palette's changes when sent, and 1; 0 not yet */
     float down;       /* the shader's: 1 where clip space's y runs down a texture's rows, else -1 */
     uint32_t white;   /* the white texel shapes draw from */
     uint8_t *page;    /* the canvas's pixels, read back */
+    uint32_t shader;  /* the language (QxShader) */
+    uint32_t made;    /* the pipelines made, a bit each */
     GpuCount count;   /* since gpu_counted */
 } Gpu;
 
@@ -76,6 +84,8 @@ typedef struct {
     GpuVertex ink; /* the tint and light; a picture's rectangle, row and stages */
     uint32_t texture;
     QxBlend blend;
+    uint8_t depth; /* QxDepth */
+    bool perspective;
     uint8_t alpha;
     bool eight;          /* the target is 8 bits: a shape's colour is an index */
     const uint32_t *row; /* the palette row an index colours through */
@@ -90,10 +100,13 @@ void gpu_close(Gpu *g);
 /* p's root on the GPU, made and sent as it needs it; into, drawn into: RGBA, and ahead of the CPU
    till read back. False, no memory. */
 bool gpu_texture(Gpu *g, const Palette *pal, const Picture *p, bool into, GpuSource *out);
+/* p's root's depth texture, made, all 0, if it had none (*fresh then): false, no memory. */
+bool gpu_depth(Gpu *g, const Picture *p, uint32_t *id, bool *fresh);
 /* Rows top to bottom of the root h written by the CPU. */
 void gpu_wrote(Gpu *g, uint32_t h, int32_t top, int32_t bottom);
-/* The draws after go into id, w by h, within clip: false, no memory. */
-bool gpu_target(Gpu *g, uint32_t id, int32_t w, int32_t h, Rect clip);
+/* The draws after go into id, w by h, within clip, with depth texture deep (0 none): false, no
+   memory. */
+bool gpu_target(Gpu *g, uint32_t id, uint32_t deep, int32_t w, int32_t h, Rect clip);
 /* The palette sent, if it changed: false, no memory. */
 bool gpu_palette(Gpu *g, const Palette *pal);
 /* n vertices, four a quad, drawn as t's call: false, no memory. */

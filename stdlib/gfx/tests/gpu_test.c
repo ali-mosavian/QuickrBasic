@@ -1,5 +1,6 @@
 /* The GPU's list, on a host that records what it is given to play and reads back pixels it is
    told: each frame's ops in order, its batches and vertices, worked by hand. */
+#include <stdio.h>
 #include "base/disc.h"
 #include "backend/gpu/gpu.h"
 #include "base/cover.h"
@@ -90,7 +91,7 @@ static void screen_in(
     language = shader;
     down = y_down;
     fake = S->natv.host;
-    fake.minor = 2;
+    fake.minor = 4;
     fake.gfx_open = fake_open;
     fake.gfx_close = fake_close;
     fake.gpu_play = fake_play;
@@ -108,9 +109,10 @@ static void screen(Session *const S, const int32_t w, const int32_t h, const int
     screen_in(S, w, h, depth, QX_SHADER_MSL, false);
 }
 
-/* A list's buffers' ops; the first's after them, the canvas, the palette and the pipelines. */
+/* A list's buffers' ops; the first's after them, the canvas and the palette. A pipeline's op
+   comes before its first draw. */
 #define HEAD "BWBWBW"
-#define FIRST HEAD "TTLLLLLL"
+#define FIRST HEAD "TT"
 
 /* The last list's ops, a letter each: End, Buffer, Write, Texture, Free, Upload, pipeLine, Pass,
    Clip, uNiforms, Draw, Show. */
@@ -128,7 +130,12 @@ static bool ops(const char *const want)
             break;
     }
 
-    return n == strlen(want) && !memcmp(got, want, n);
+    const bool same = n == strlen(want) && !memcmp(got, want, n);
+
+    if (!same)
+        fprintf(stderr, "ops: %.*s, not %s\n", (int)n, got, want);
+
+    return same;
 }
 
 /* The k-th op of code op's word i. */
@@ -384,7 +391,8 @@ TEST(gfx_gpu_draws_a_circle_as_one_box)
     screen(S, 8, 8, 32);
     GPU_CALL("draw.circle", I(SURF_SCREEN), F(3), F(3), F(2), I(0xFFFFFF), I(GFX_DRAW_FILL));
     GPU_CALL("display.flip");
-    CHECK(ops(FIRST "TUPNCUDSE") && arg(QX_LIST_DRAW, 0, 2) == LIST_DISCS);
+    CHECK(ops(FIRST "TUPNCULDSE") && arg(QX_LIST_DRAW, 0, 2) == LIST_DISCS);
+    CHECK(arg(QX_LIST_PIPELINE, 0, 3) == sizeof(GpuDisc));
     CHECK(arg(QX_LIST_DRAW, 0, 5) == 6 && discs[0].v.stages == (GPU_STAGE_SOLID | GPU_STAGE_DISC));
     CHECK(discs[0].disc[2] == 2.5f && discs[0].disc[3] == 0);
     CHECK(covered(0, disc));
@@ -406,7 +414,7 @@ TEST(gfx_gpu_draws_shapes_in_one_batch)
     GPU_CALL("draw.rect", I(SURF_SCREEN), F(1), F(1), F(2), F(2), I(0xFF0000), I(GFX_DRAW_FILL));
     CHECK(!plays);
     GPU_CALL("display.flip");
-    CHECK(plays == 1 && ops(FIRST "TUPNCUDSE"));
+    CHECK(plays == 1 && ops(FIRST "TUPNCULDSE"));
     CHECK(arg(QX_LIST_TEXTURE, 0, 1) == SURF_SCREEN && arg(QX_LIST_TEXTURE, 0, 2) == 8);
     CHECK(
         arg(QX_LIST_TEXTURE, 2, 1) == GPU_PAGE_FIRST &&
@@ -414,7 +422,6 @@ TEST(gfx_gpu_draws_shapes_in_one_batch)
     );
     CHECK(arg(QX_LIST_TEXTURE, 2, 2) == GPU_PAGE && arg(QX_LIST_UPLOAD, 0, 1) == GPU_PAGE_FIRST);
     CHECK(arg(QX_LIST_PIPELINE, 0, 3) == sizeof(GpuVertex));
-    CHECK(arg(QX_LIST_PIPELINE, 5, 3) == sizeof(GpuDisc));
     CHECK(arg(QX_LIST_PASS, 0, 1) == SURF_SCREEN && arg(QX_LIST_CLIP, 0, 3) == 8);
     CHECK(uniforms[0] == 8 && uniforms[1] == 8 && uniforms[2] == -1);
     CHECK(arg(QX_LIST_DRAW, 0, 4) == 0 && arg(QX_LIST_DRAW, 0, 5) == 12);
@@ -454,14 +461,13 @@ TEST(gfx_gpu_speaks_the_hosts_language)
     GPU_CALL("draw.clear", I(SURF_SCREEN), I(0));
     GPU_CALL("display.flip");
 
-    for (uint32_t k = 0; k < 6; k++) {
-        const uint32_t vertex[] = {arg(QX_LIST_PIPELINE, k, 6), arg(QX_LIST_PIPELINE, k, 7)};
+    const uint32_t vertex[] = {arg(QX_LIST_PIPELINE, 0, 6), arg(QX_LIST_PIPELINE, 0, 7)};
 
-        const uint32_t fragment[] = {arg(QX_LIST_PIPELINE, k, 9), arg(QX_LIST_PIPELINE, k, 10)};
+    const uint32_t fragment[] = {arg(QX_LIST_PIPELINE, 0, 9), arg(QX_LIST_PIPELINE, 0, 10)};
 
-        CHECK(!memcmp(pointer(vertex), "#version 300 es", 15));
-        CHECK(!memcmp(pointer(fragment), "#version 300 es", 15));
-    }
+    CHECK(ops(FIRST "TUPNCULDSE"));
+    CHECK(!memcmp(pointer(vertex), "#version 300 es", 15));
+    CHECK(!memcmp(pointer(fragment), "#version 300 es", 15));
 
     CHECK(uniforms[2] == 1);
 }
@@ -483,8 +489,8 @@ TEST(gfx_gpu_splits_batches_at_a_blend)
         I(GFX_DRAW_FILL | GFX_DRAW_BLEND)
     );
     GPU_CALL("display.flip");
-    CHECK(ops(FIRST "TUPNCUDDSE"));
-    CHECK(arg(QX_LIST_DRAW, 1, 1) == 1 + QX_BLEND_MIX && arg(QX_LIST_DRAW, 1, 6) == 129);
+    CHECK(ops(FIRST "TUPNCULDLDSE") && arg(QX_LIST_PIPELINE, 1, 2) == QX_BLEND_MIX);
+    CHECK(arg(QX_LIST_DRAW, 1, 1) == arg(QX_LIST_PIPELINE, 1, 1) && arg(QX_LIST_DRAW, 1, 6) == 129);
 }
 
 /* A shape's texel does not matter: it joins a picture's batch, before or after it, and a circle
@@ -503,7 +509,7 @@ TEST(gfx_gpu_draws_shapes_and_pictures_in_one_batch)
     GPU_CALL("draw.circle", I(SURF_SCREEN), F(4), F(4), F(2), I(3), I(GFX_DRAW_FILL));
     GPU_CALL("draw.circle", I(SURF_SCREEN), F(4), F(4), F(3), I(3), I(0));
     GPU_CALL("display.flip");
-    CHECK(ops(HEAD "PNCDDSE"));
+    CHECK(ops(HEAD "PNCDLDSE"));
     CHECK(arg(QX_LIST_DRAW, 0, 7) == GPU_PAGE_FIRST + 1 && arg(QX_LIST_DRAW, 0, 5) == 4 * 6);
     CHECK(arg(QX_LIST_DRAW, 1, 2) == LIST_DISCS && arg(QX_LIST_DRAW, 1, 5) == 2 * 6);
     CHECK(vertices[0].stages == GPU_STAGE_SOLID && vertices[4].stages == GPU_STAGE_KEYED + 1);
@@ -525,7 +531,7 @@ TEST(gfx_gpu_packs_pictures_into_pages)
         GPU_CALL("display.flip");
 
         if (!frame) {
-            CHECK(ops(FIRST "TUPNCUUDUDTDSE"));
+            CHECK(ops(FIRST "TUPNCUULDUDTDSE"));
             CHECK(arg(QX_LIST_UPLOAD, 2, 1) == GPU_PAGE_FIRST && arg(QX_LIST_UPLOAD, 2, 2) == 1);
             CHECK(arg(QX_LIST_UPLOAD, 3, 2) == 3 && arg(QX_LIST_UPLOAD, 3, 3) == 0);
             CHECK(arg(QX_LIST_TEXTURE, 3, 1) == (uint32_t)big);
@@ -601,7 +607,7 @@ TEST(gfx_gpu_sends_a_picture_once)
 
     GPU_CALL("draw.sprite", I(SURF_SCREEN), F(1), F(1), I(s), I(GFX_DRAW_FLIP_X));
     GPU_CALL("display.flip");
-    CHECK(ops(FIRST "TUPNCUTUDSE"));
+    CHECK(ops(FIRST "TUPNCUTULDSE"));
     CHECK(
         arg(QX_LIST_TEXTURE, 3, 1) == GPU_PAGE_FIRST + 1 &&
         arg(QX_LIST_TEXTURE, 3, 4) == QX_TEXTURE_INDEX
@@ -634,7 +640,7 @@ TEST(gfx_gpu_draws_into_surfaces)
     GPU_CALL("draw.clear", I(s), I(4));
     GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(s), I(0));
     GPU_CALL("display.flip");
-    CHECK(ops(FIRST "TUPNCUTUDTPNCDPNCDSE"));
+    CHECK(ops(FIRST "TUPNCUTULDTPNCDPNCDSE"));
     CHECK(
         arg(QX_LIST_TEXTURE, 4, 1) == (uint32_t)s && arg(QX_LIST_TEXTURE, 4, 4) == QX_TEXTURE_RGBA
     );
@@ -652,7 +658,7 @@ TEST(gfx_gpu_reads_back)
     memcpy(pixels, (const uint8_t[]){0x12, 0x34, 0x56, 0xFF}, 4);
 
     CHECK(GPU_CALL("surface.point", I(SURF_SCREEN), I(0), I(0)).result.i == 0x123456);
-    CHECK(plays == 1 && ops(FIRST "TUPNCUDE"));
+    CHECK(plays == 1 && ops(FIRST "TUPNCULDE"));
     CHECK(GPU_CALL("surface.point", I(SURF_SCREEN), I(1), I(0)).result.i == 0);
     CHECK(plays == 1);
 
@@ -662,4 +668,56 @@ TEST(gfx_gpu_reads_back)
 
     CHECK(GPU_CALL("surface.point", I(SURF_SCREEN), I(0), I(0)).result.i == 4);
     CHECK(GPU_CALL("surface.point", I(SURF_SCREEN), I(1), I(0)).result.i == 0);
+}
+
+/* Root h's depth texture's id. */
+static uint32_t depth_of(const uint32_t h) { return h | (uint32_t)GPU_DEPTH << HDL_KIND_SHIFT; }
+
+/* A quad 1 near at its top, 4 at its foot, drawn from a 2 by 2 picture with flags. */
+static void deep_quad(Session *const S, const int32_t flags)
+{
+    const int32_t s = GPU_CALL("surface.new", I(2), I(2)).result.i;
+    gfx_draw_vertex p[4] = {{0, 0, 1, 0, 0}, {7, 0, 1, 2, 0}, {7, 7, 4, 2, 2}, {0, 7, 4, 0, 2}};
+
+    QxArray a = gfx_array(p, 4, sizeof *p);
+    GPU_CALL("draw.poly", I(SURF_SCREEN), ARRAY(&a), I(0), I(4), I(s), I(0), I(flags));
+    GPU_CALL("display.flip");
+}
+
+/* With depth, the target's depth texture is made and its pass draws into it, through a pipeline
+   testing and setting depth; a corner's depth is 1/z, and in perspective its w is z, so the GPU
+   steps texels and depth as software's scanner. The GPU drew polys affine and without depth: a
+   cube's far faces over its near ones, its textures bent along each triangle's edge. */
+TEST(gfx_gpu_draws_polys_in_perspective_by_depth)
+{
+    const uint32_t deep = depth_of(SURF_SCREEN);
+
+    screen(S, 8, 8, 32);
+    deep_quad(S, GFX_DRAW_PERSPECTIVE | GFX_DRAW_DEPTH_TEST | GFX_DRAW_DEPTH_WRITE);
+    CHECK(ops(FIRST "TTUPNCUULDSE"));
+    CHECK(arg(QX_LIST_TEXTURE, 2, 1) == deep && arg(QX_LIST_TEXTURE, 2, 4) == QX_TEXTURE_DEPTH);
+    CHECK(arg(QX_LIST_TEXTURE, 2, 2) == 8 && arg(QX_LIST_TEXTURE, 2, 3) == 8);
+    CHECK(arg(QX_LIST_PASS, 0, 1) == SURF_SCREEN && arg(QX_LIST_PASS, 0, 2) == deep);
+    CHECK(arg(QX_LIST_PIPELINE, 0, 2) == (QX_DEPTH_TEST | QX_DEPTH_WRITE) << 8);
+    CHECK(vertices[0].z == 1 && vertices[0].w == 1);
+    CHECK(vertices[2].z == 0.25f && vertices[2].w == 4);
+
+    screen(S, 8, 8, 32);
+    deep_quad(S, GFX_DRAW_DEPTH_TEST);
+    CHECK(arg(QX_LIST_PIPELINE, 0, 2) == QX_DEPTH_TEST << 8);
+    CHECK(vertices[2].z == 0.25f && vertices[2].w == 1); /* affine */
+}
+
+/* clear_depth on a depth texture just made draws nothing, it being all 0; again, a box over the
+   surface writing depth 0 and no colour. */
+TEST(gfx_gpu_clears_depth)
+{
+    screen(S, 8, 8, 32);
+    GPU_CALL("surface.clear_depth", I(SURF_SCREEN));
+    GPU_CALL("surface.clear_depth", I(SURF_SCREEN));
+    GPU_CALL("display.flip");
+    CHECK(ops(FIRST "TTUPNCULDSE") && arg(QX_LIST_TEXTURE, 2, 4) == QX_TEXTURE_DEPTH);
+    CHECK(arg(QX_LIST_PIPELINE, 0, 2) == (QX_BLEND_KEEP | QX_DEPTH_WRITE << 8));
+    CHECK(arg(QX_LIST_DRAW, 0, 5) == 6 && vertices[0].z == 0);
+    CHECK(placed(&vertices[0], -0.5f, -0.5f) && placed(&vertices[2], 7.5f, 7.5f));
 }

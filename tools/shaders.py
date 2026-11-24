@@ -17,7 +17,7 @@ SHADERS = {"draw_vert": ("draw.vert", ()), "disc_vert": ("draw.vert", ("-DDISC",
 OUT = ROOT / "stdlib" / "gfx" / "src" / "backend" / "gpu" / "shaders.h"
 # SDL_GPU's Metal names a resource by its binding, as SDL_shadercross does
 MSL = ["--msl", "--msl-version", "20000", "--msl-decoration-binding"]
-LANGUAGES = {"msl": MSL, "essl": ["--es", "--version", "300"]}
+LANGUAGES = {"msl": MSL, "essl": ["--es", "--version", "300", "--fixup-clipspace"]}
 NOTE = "Made by tools/shaders.py from gpu/shaders: run make shaders, never edit."
 
 

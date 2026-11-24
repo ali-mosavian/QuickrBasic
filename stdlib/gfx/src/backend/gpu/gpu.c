@@ -8,7 +8,8 @@ enum {
     RGBA = 4,
     HALF = 0x80,
     OPAQUE = 0xFF,
-    BLENDS = 3,
+    BLENDS = 4,
+    DEPTHS = (QX_DEPTH_TEST | QX_DEPTH_WRITE) + 1,
     PLAIN_ATTRIBUTES = 5,
     DISC_ATTRIBUTES = 7,
 };
@@ -18,8 +19,17 @@ typedef enum { PLAIN, ROUND, KINDS } Kind;
 
 static_assert(offsetof(GpuDisc, v) == 0, "a disc's vertex is a plain one's attributes");
 
-/* The pipeline for vertices of kind k with blend. */
-static uint32_t pipeline_of(const Kind k, const QxBlend blend) { return 1 + k * BLENDS + blend; }
+/* The pipeline for vertices of kind k with blend and depth (QxDepth): 1 up, a bit of Gpu.made
+   each. */
+static uint32_t pipeline_of(const Kind k, const QxBlend blend, const uint32_t depth)
+{
+    return 1 + (k * BLENDS + blend) * DEPTHS + depth;
+}
+
+static_assert(KINDS * BLENDS * DEPTHS <= 32, "a pipeline a bit of Gpu.made");
+
+/* Root h's depth texture. */
+static uint32_t depth_of(const uint32_t h) { return h | (uint32_t)GPU_DEPTH << HDL_KIND_SHIFT; }
 
 /* texture's entry: null, no memory. */
 static GpuTexture *entry(Gpu *const g, const uint32_t texture)
@@ -107,14 +117,14 @@ static const Code codes[] = {
     [QX_SHADER_SPIRV] = CODE(spirv, 0),
 };
 
-/* The pipelines, a kind of vertex and blend each, the shader's attributes and its code in c. */
-static bool pipelines(GpuList *const l, const Code *const c)
+/* The pipeline for vertices of kind k with blend and depth, made if not yet: false, no memory. */
+static bool pipeline(Gpu *const g, const Kind k, const QxBlend blend, const uint32_t depth)
 {
     /* PIPELINE's words: its code's, its first attribute's, an attribute's */
     enum { VERTEX_CODE = 4, FRAGMENT_CODE = 7, HEAD = 10, ATTRIBUTE = 3 };
 
     static const uint32_t attributes[DISC_ATTRIBUTES][ATTRIBUTE] = {
-        {0, QX_ATTRIBUTE_FLOAT2, offsetof(GpuVertex, x)},
+        {0, QX_ATTRIBUTE_FLOAT4, offsetof(GpuVertex, x)},
         {1, QX_ATTRIBUTE_FLOAT2, offsetof(GpuVertex, u)},
         {2, QX_ATTRIBUTE_USHORT4, offsetof(GpuVertex, rx)},
         {3, QX_ATTRIBUTE_UBYTE4, offsetof(GpuVertex, r)},
@@ -130,25 +140,28 @@ static bool pipelines(GpuList *const l, const Code *const c)
         {sizeof(GpuDisc), DISC_ATTRIBUTES},
     };
 
-    for (Kind k = 0; k < KINDS; k++)
-        for (QxBlend b = 0; b < BLENDS; b++) {
-            uint32_t args[HEAD + sizeof attributes / sizeof(uint32_t)] = {
-                pipeline_of(k, b),
-                b,
-                kinds[k].stride,
-                LIST_TEXTURES,
-            };
+    const uint32_t id = pipeline_of(k, blend, depth), bit = 1u << (id - 1);
+    const Code *const c = &codes[g->shader];
+    uint32_t args[HEAD + sizeof attributes / sizeof(uint32_t)] = {
+        id,
+        blend | depth << 8,
+        kinds[k].stride,
+        LIST_TEXTURES,
+    };
 
-            args[VERTEX_CODE] = c->vertex_bytes[k];
-            args[FRAGMENT_CODE] = c->fragment_bytes;
-            list_pointer(args + VERTEX_CODE + 1, c->vertex[k]);
-            list_pointer(args + FRAGMENT_CODE + 1, c->fragment);
-            mem_copy(args + HEAD, attributes, kinds[k].attributes * sizeof *attributes);
+    if (g->made & bit)
+        return true;
 
-            if (!list_op(l, QX_LIST_PIPELINE, args, HEAD + kinds[k].attributes * ATTRIBUTE))
-                return false;
-        }
+    args[VERTEX_CODE] = c->vertex_bytes[k];
+    args[FRAGMENT_CODE] = c->fragment_bytes;
+    list_pointer(args + VERTEX_CODE + 1, c->vertex[k]);
+    list_pointer(args + FRAGMENT_CODE + 1, c->fragment);
+    mem_copy(args + HEAD, attributes, kinds[k].attributes * sizeof *attributes);
 
+    if (!list_op(&g->list, QX_LIST_PIPELINE, args, HEAD + kinds[k].attributes * ATTRIBUTE))
+        return false;
+
+    g->made |= bit;
     return true;
 }
 
@@ -167,6 +180,9 @@ bool gpu_open(Gpu *const g, const QxScreen *const s)
     g->down = s->y_down ? 1 : -1;
     g->count = (GpuCount){};
 
+    g->shader = s->shader;
+    g->made = 0;
+
     GpuTexture *const canvas = entry(g, SURF_SCREEN);
     const uint32_t made[][4] = {
         {SURF_SCREEN, s->w, s->h, QX_TEXTURE_RGBA},
@@ -177,7 +193,7 @@ bool gpu_open(Gpu *const g, const QxScreen *const s)
 
     if (!canvas || !code || !code->fragment || !list_init(&g->list) ||
         !list_op(&g->list, QX_LIST_TEXTURE, made[0], 4) ||
-        !list_op(&g->list, QX_LIST_TEXTURE, made[1], 4) || !pipelines(&g->list, code))
+        !list_op(&g->list, QX_LIST_TEXTURE, made[1], 4))
         return false;
 
     *canvas = (GpuTexture){.handle = SURF_SCREEN, .format = QX_TEXTURE_RGBA};
@@ -329,9 +345,29 @@ bool gpu_texture(
     e->version = p->version;
     e->drawn = e->drawn || into;
 
-    *out = (GpuSource){id, e->x, e->y, e->format == QX_TEXTURE_INDEX};
+    *out =
+        (GpuSource){id, e->x, e->y, e->format == QX_TEXTURE_INDEX, e->depth ? depth_of(name) : 0};
 
     return true;
+}
+
+bool gpu_depth(Gpu *const g, const Picture *const p, uint32_t *const id, bool *const fresh)
+{
+    GpuTexture *const e = entry(g, p->texture);
+    const uint32_t made[] =
+        {depth_of(p->texture), (uint32_t)p->root.w, (uint32_t)p->root.h, QX_TEXTURE_DEPTH};
+
+    if (!e)
+        return false;
+
+    *id = made[0];
+    *fresh = !e->depth;
+
+    if (e->depth)
+        return true;
+
+    e->depth = list_op(&g->list, QX_LIST_TEXTURE, made, 4);
+    return e->depth;
 }
 
 static bool same(const Rect a, const Rect b)
@@ -339,13 +375,22 @@ static bool same(const Rect a, const Rect b)
     return a.x == b.x && a.y == b.y && a.w == b.w && a.h == b.h;
 }
 
-bool gpu_target(Gpu *const g, const uint32_t id, const int32_t w, const int32_t h, const Rect clip)
+bool gpu_target(
+    Gpu *const g,
+    const uint32_t id,
+    const uint32_t deep,
+    const int32_t w,
+    const int32_t h,
+    const Rect clip
+)
 {
-    if (!g->passing || g->pass != id) {
+    if (!g->passing || g->pass != id || g->deep != deep) {
         float *const size = list_keep(&g->list, 4 * sizeof(float));
+        const uint32_t pass[] = {id, deep};
+
         uint32_t args[3] = {4 * sizeof(float)};
 
-        if (!size || !list_op(&g->list, QX_LIST_PASS, &id, 1))
+        if (!size || !list_op(&g->list, QX_LIST_PASS, pass, deep ? 2 : 1))
             return false;
 
         size[0] = (float)w;
@@ -359,6 +404,7 @@ bool gpu_target(Gpu *const g, const uint32_t id, const int32_t w, const int32_t 
 
         g->passing = true;
         g->pass = id;
+        g->deep = deep;
         g->clip = (Rect){.w = -1};
     }
 
@@ -413,18 +459,30 @@ bool gpu_draw(Gpu *const g, const GpuTarget *const t, const GpuVertex *const v, 
 {
     const uint32_t textures[LIST_TEXTURES] = {t->texture, GPU_PALETTE};
 
-    const uint32_t pipeline = pipeline_of(PLAIN, t->blend);
-
-    return list_draw(&g->list, v, n, pipeline, textures, t->alpha, any(v));
+    return pipeline(g, PLAIN, t->blend, t->depth) && list_draw(
+                                                         &g->list,
+                                                         v,
+                                                         n,
+                                                         pipeline_of(PLAIN, t->blend, t->depth),
+                                                         textures,
+                                                         t->alpha,
+                                                         any(v)
+                                                     );
 }
 
 bool gpu_discs(Gpu *const g, const GpuTarget *const t, const GpuDisc *const v, const uint32_t n)
 {
     const uint32_t textures[LIST_TEXTURES] = {t->texture, GPU_PALETTE};
 
-    const uint32_t pipeline = pipeline_of(ROUND, t->blend);
-
-    return list_discs(&g->list, v, n, pipeline, textures, t->alpha, any(&v->v));
+    return pipeline(g, ROUND, t->blend, 0) && list_discs(
+                                                  &g->list,
+                                                  v,
+                                                  n,
+                                                  pipeline_of(ROUND, t->blend, 0),
+                                                  textures,
+                                                  t->alpha,
+                                                  any(&v->v)
+                                              );
 }
 
 void gpu_play(Gpu *const g, const bool show)
@@ -515,10 +573,15 @@ void gpu_forget(Gpu *const g, const uint32_t h)
 {
     GpuTexture *const e = made(g, h);
 
+    const uint32_t deep = depth_of(h);
+
     if (e && e->page)
         unpack(g, e);
     else if (e && e->format)
         list_op(&g->list, QX_LIST_FREE, &h, 1);
+
+    if (e && e->depth)
+        list_op(&g->list, QX_LIST_FREE, &deep, 1);
 
     if (e)
         *e = (GpuTexture){};

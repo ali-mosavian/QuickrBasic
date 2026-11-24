@@ -7,7 +7,9 @@
  * white texel. A picture's vertices carry its texels, its rectangle and its
  * stages. Pixels are squares about whole numbers, so a shape's edges lie half a pixel round the
  * centres it covers, as software's. A line covers software's pixels, one a step along its longer
- * side. A circle or an arc is one box, the shader keeping the pixels disc.h's rule covers.
+ * side. A circle or an arc is one box, the shader keeping the pixels disc.h's rule covers. A
+ * polygon's corners carry their depth, 1/z, and, in perspective, their z as w, so the GPU steps
+ * texels and depth as software's scanner does; clear_depth draws depth 0 and no colour.
  */
 #include "base/disc.h"
 #include "core/gfx.h"
@@ -109,6 +111,7 @@ static GpuVertex shape(const GpuTarget *const t, const uint32_t colour)
 {
     const uint32_t rgb = pal_shade(t->eight ? t->row[colour] : colour, PAL_FULL, t->tint);
     return (GpuVertex){
+        .w = 1,
         .u = 0.5f,
         .v = 0.5f,
         .rw = 1,
@@ -125,31 +128,52 @@ static Gpu *gpu(const Gx *const g) { return &((GpuState *)g->own)->gpu; }
 
 static GpuTarget *call(const Gx *const g) { return &((GpuState *)g->own)->call; }
 
-static bool begin(Gx *const g, const Command *const c, const Picture *const into, const Rect clip)
+/* The pass into into within clip, with its depth texture when deep (made if none, *fresh then),
+   and blank, the white texel: false, no memory. */
+static bool aim(
+    Gx *const g,
+    const Picture *const into,
+    const Rect clip,
+    const bool deep,
+    bool *const fresh,
+    GpuSource *const blank
+)
 {
-    const Style *const style = &g->style;
     Gpu *const gp = gpu(g);
     const Picture white = {{(uint8_t *)&gp->white, 4, 1, 1, PX_32}, {0, 0, 1, 1}, PIC_WHITE, 1};
 
     const Rect in_root = {into->at.x + clip.x, into->at.y + clip.y, clip.w, clip.h};
 
+    GpuSource target;
+
+    return gpu_texture(gp, &g->palette, into, true, &target) &&
+           (!deep || gpu_depth(gp, into, &target.depth, fresh)) &&
+           gpu_texture(gp, &g->palette, &white, false, blank) &&
+           gpu_target(gp, target.id, target.depth, into->root.w, into->root.h, in_root) &&
+           gpu_palette(gp, &g->palette);
+}
+
+static bool begin(Gx *const g, const Command *const c, const Picture *const into, const Rect clip)
+{
+    const Style *const style = &g->style;
     const QxBlend blend = c->flags & GFX_DRAW_ADD     ? QX_BLEND_ADD
                           : c->flags & GFX_DRAW_BLEND ? QX_BLEND_MIX
                                                       : QX_BLEND_NONE;
-    GpuSource target, blank;
+    const uint8_t depth = (c->flags & GFX_DRAW_DEPTH_TEST ? QX_DEPTH_TEST : 0) |
+                          (c->flags & GFX_DRAW_DEPTH_WRITE ? QX_DEPTH_WRITE : 0);
+    GpuSource blank;
+    bool fresh;
 
-    if (!gpu_texture(gp, &g->palette, into, true, &target) ||
-        !gpu_texture(gp, &g->palette, &white, false, &blank) ||
-        !gpu_target(gp, target.id, into->root.w, into->root.h, in_root) ||
-        !gpu_palette(gp, &g->palette))
+    if (!aim(g, into, clip, depth, &fresh, &blank))
         return gx_fail(ERR_MEMORY);
 
     *call(g) = (GpuTarget){
-        .gpu = gp,
+        .gpu = gpu(g),
         .at = {(float)into->at.x, (float)into->at.y},
         .clip = clip,
         .ink =
             {
+                .w = 1,
                 .light = (uint8_t)style->light,
                 .row = (uint8_t)style->palette_row,
                 .stages = (uint8_t)((c->flags & GFX_DRAW_OPAQUE ? 0 : GPU_STAGE_KEYED) |
@@ -157,6 +181,8 @@ static bool begin(Gx *const g, const Command *const c, const Picture *const into
             },
         .texture = blank.id,
         .blend = blend,
+        .depth = depth,
+        .perspective = c->flags & GFX_DRAW_PERSPECTIVE,
         .alpha = blend ? (uint8_t)(style->alpha * ALPHA / PAL_FULL) : ALPHA,
         .eight = into->root.format == PX_8,
         .row = g->palette.rows[style->palette_row],
@@ -263,21 +289,25 @@ static void outline(Gx *const g, const Vec *const p, const uint32_t n, const uin
         segment(t, &ink, p[i], p[(i + 1) % n], false);
 }
 
-/* A polygon's: its ink and corners; flat, the ink's texel. */
+/* A polygon's: its ink and corners; flat, the ink's texel; perspective, its texels by 1/z. */
 typedef struct {
     GpuVertex ink;
     const Corner *c;
-    bool flat;
+    bool flat, perspective;
 } Shape;
 
 static GpuVertex shape_corner(const GpuTarget *const t, const void *const ctx, const uint32_t i)
 {
     const Shape *const s = ctx;
     const Corner *const c = &s->c[i];
-    return vertex(t, &s->ink, c->x, c->y, s->flat ? s->ink.u : c->u, s->flat ? s->ink.v : c->v);
+    GpuVertex v =
+        vertex(t, &s->ink, c->x, c->y, s->flat ? s->ink.u : c->u, s->flat ? s->ink.v : c->v);
+
+    v.z = 1 / c->z;
+    v.w = s->perspective ? c->z : 1;
+    return v;
 }
 
-/* Affine, with no depth: perspective and depth are software's alone so far. */
 static void poly(
     Gx *const g,
     const Picture *const p,
@@ -288,15 +318,46 @@ static void poly(
 )
 {
     const GpuTarget *const t = call(g);
-    Shape s = {p ? t->ink : shape(t, colour), c, !p};
+    Shape s = {p ? t->ink : shape(t, colour), c, !p, p && t->perspective};
 
     s.ink.stages |= flags & POLY_WRAP ? GPU_STAGE_WRAP : 0;
     fan(t, shape_corner, &s, n);
 }
 
+/* A box over into writing depth 0 and no colour; none when its depth texture is new, all 0. */
 static bool clear_depth(Gx *const g, const Picture *const into)
 {
-    (void)g, (void)into;
+    const Rect all = {0, 0, into->at.w, into->at.h};
+
+    GpuSource blank;
+    bool fresh;
+
+    if (!aim(g, into, all, true, &fresh, &blank))
+        return gx_fail(ERR_MEMORY);
+
+    if (fresh)
+        return true;
+
+    const GpuTarget t = {
+        .gpu = gpu(g),
+        .at = {(float)into->at.x, (float)into->at.y},
+        .clip = all,
+        .ink =
+            {
+                .w = 1,
+                .u = 0.5f,
+                .v = 0.5f,
+                .rw = 1,
+                .rh = 1,
+                .stages = GPU_STAGE_SOLID,
+            },
+        .texture = blank.id,
+        .blend = QX_BLEND_KEEP,
+        .depth = QX_DEPTH_WRITE,
+        .alpha = ALPHA,
+    };
+
+    box(&t, &t.ink, -0.5f, -0.5f, (float)all.w - 0.5f, (float)all.h - 0.5f);
     return true;
 }
 

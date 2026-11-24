@@ -5,8 +5,9 @@
 // The module's thread (GpuLink) copies each list and the memory it points at into one buffer, its
 // pointers made offsets there, and posts it; it goes on while the page is at most FLIGHT lists behind,
 // and a read waits for the page. The page (Gpu) plays them on an OffscreenCanvas's context. Every
-// texture is R8 or RGBA8, zeros as WebGL makes it, an RGBA one with a framebuffer to draw in. A
-// pipeline is a program, its blend and its vertices' layout; a draw's alpha the blend colour. GL's
+// texture is R8, RGBA8 or DEPTH16, zeros as WebGL makes it, an RGBA one with a framebuffer to draw
+// in, a depth one attached to it by the first pass that names both. A pipeline is a program, its
+// blend, its depth and its vertices' layout; a draw's alpha the blend colour. GL's
 // row 0 is a texture's first, so clip space's y runs down its rows (y_down), and uploads, clips and
 // reads take rows as they are. SHOW copies the texture to the one shown; at each refresh the page
 // draws that, flipped to put row 0 on top (present).
@@ -15,8 +16,9 @@ const OP = { BUFFER: 1, WRITE: 2, TEXTURE: 3, FREE: 4, UPLOAD: 5, PIPELINE: 6, P
   DRAW: 10, SHOW: 11 };
 const SIZE = 8; // QX_LIST_SIZE
 const INDEX = 2; // QX_BUFFER_INDEX
-const RGBA = 2; // QX_TEXTURE_RGBA
-const MIX = 1, ADD = 2; // QX_BLEND_*
+const RGBA = 2, DEPTH = 3; // QX_TEXTURE_*
+const MIX = 1, ADD = 2, KEEP = 3; // QX_BLEND_*
+const TEST = 1, WRITE = 2; // QX_DEPTH_*
 const DRAW_TEXTURES = 6; // a DRAW's first texture, its argument
 const PIPELINE_HEAD = 10; // a PIPELINE's first attribute, its argument
 const FLIGHT = 3;
@@ -116,7 +118,7 @@ class Gpu {
     this.canvas.width = this.w = w;
     this.canvas.height = this.h = h;
     this.state();
-    this.shown = this.made(w, h, true);
+    this.shown = this.made(w, h, RGBA);
     this.showing = false;
   }
 
@@ -173,7 +175,7 @@ class Gpu {
         case OP.FREE: this.free(a[0]); break;
         case OP.UPLOAD: this.upload(a); break;
         case OP.PIPELINE: this.pipeline(a); break;
-        case OP.PASS: this.pass(a[0]); break;
+        case OP.PASS: this.pass(a[0], a.length > 1 ? a[1] : 0); break;
         case OP.CLIP: this.gl.scissor(a[0], a[1], a[2], a[3]); break;
         case OP.UNIFORMS: this.uniform(a[0], a[1]); break;
         case OP.DRAW: this.draw(a); break;
@@ -212,11 +214,12 @@ class Gpu {
     this.gl.bufferSubData(b.target, 0, this.bytes(at, bytes));
   }
 
-  // A texture w by h, RGBA with a framebuffer or R8.
-  made(w, h, rgba) {
-    const gl = this.gl, t = { t: gl.createTexture(), fb: null, w, h, rgba };
+  // A texture w by h of format (QX_TEXTURE_*), RGBA with a framebuffer.
+  made(w, h, format) {
+    const gl = this.gl, rgba = format === RGBA;
+    const t = { t: gl.createTexture(), fb: null, w, h, rgba, depth: null };
     gl.bindTexture(gl.TEXTURE_2D, t.t);
-    gl.texStorage2D(gl.TEXTURE_2D, 1, rgba ? gl.RGBA8 : gl.R8, w, h);
+    gl.texStorage2D(gl.TEXTURE_2D, 1, rgba ? gl.RGBA8 : format === DEPTH ? gl.DEPTH_COMPONENT16 : gl.R8, w, h);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     if (rgba) {
@@ -230,7 +233,7 @@ class Gpu {
 
   texture(id, w, h, format) {
     this.free(id);
-    this.textures.set(id, this.made(w, h, format === RGBA));
+    this.textures.set(id, this.made(w, h, format));
   }
 
   drop(t) {
@@ -268,7 +271,7 @@ class Gpu {
     return null;
   }
 
-  // PIPELINE id, blend, stride, samplers, vertex code, fragment code, attributes.
+  // PIPELINE id, blend and depth, stride, samplers, vertex code, fragment code, attributes.
   pipeline(a) {
     const gl = this.gl;
     const vs = this.shader(gl.VERTEX_SHADER, a[4], a[5]), fs = this.shader(gl.FRAGMENT_SHADER, a[7], a[8]);
@@ -293,13 +296,43 @@ class Gpu {
       attributes.push({ at: a[i], format: a[i + 1], offset: a[i + 2] });
     }
     if (this.pipelines.has(a[0])) gl.deleteProgram(this.pipelines.get(a[0]).p);
-    this.pipelines.set(a[0], { p, blend: a[1], stride: a[2], samplers: a[3], attributes });
+    this.pipelines.set(a[0], { p, blend: a[1] & 0xff, depth: a[1] >> 8 & 0xff, stride: a[2], samplers: a[3],
+      attributes });
   }
 
-  pass(id) {
-    const t = this.textures.get(id);
+  // The pass into texture id, with depth texture deep (0 none) attached to its framebuffer.
+  pass(id, deep) {
+    const gl = this.gl, t = this.textures.get(id), d = deep && this.textures.get(deep);
     this.target = t?.fb ? t : null;
-    if (this.target) this.gl.scissor(0, 0, t.w, t.h);
+    if (!this.target) return;
+    gl.scissor(0, 0, t.w, t.h);
+    if (!d || t.depth === d) return;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, t.fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, d.t, 0);
+    t.depth = d;
+    this.bound = undefined;
+  }
+
+  // The pipeline's blend and depth.
+  blend(pl) {
+    const gl = this.gl;
+    if (pl.blend === MIX || pl.blend === ADD) {
+      gl.enable(gl.BLEND);
+      gl.blendEquation(gl.FUNC_ADD);
+      const under = pl.blend === MIX ? gl.ONE_MINUS_CONSTANT_COLOR : gl.ONE;
+      gl.blendFuncSeparate(gl.CONSTANT_COLOR, under, gl.ONE, gl.ZERO);
+    } else {
+      gl.disable(gl.BLEND);
+    }
+    const colour = pl.blend !== KEEP;
+    gl.colorMask(colour, colour, colour, colour);
+    if (!pl.depth) {
+      gl.disable(gl.DEPTH_TEST);
+      return;
+    }
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(pl.depth & TEST ? gl.GREATER : gl.ALWAYS);
+    gl.depthMask((pl.depth & WRITE) !== 0);
   }
 
   uniform(bytes, at) {
@@ -345,14 +378,7 @@ class Gpu {
     }
     if (this.program !== pl) {
       gl.useProgram(pl.p);
-      if (pl.blend === MIX || pl.blend === ADD) {
-        gl.enable(gl.BLEND);
-        gl.blendEquation(gl.FUNC_ADD);
-        const under = pl.blend === MIX ? gl.ONE_MINUS_CONSTANT_COLOR : gl.ONE;
-        gl.blendFuncSeparate(gl.CONSTANT_COLOR, under, gl.ONE, gl.ZERO);
-      } else {
-        gl.disable(gl.BLEND);
-      }
+      this.blend(pl);
       this.program = pl;
     }
     if (this.layout?.pl !== pl || this.layout?.vb !== vb) {

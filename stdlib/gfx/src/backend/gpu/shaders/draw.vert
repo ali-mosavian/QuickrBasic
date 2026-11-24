@@ -1,10 +1,11 @@
 // gfx's one shader, its vertices (gpu/vertex.h's GpuVertex; with DISC, GpuDisc): a pixel's
-// centre at whole numbers to the target's clip space; the texel, its rectangle, tint, light, row,
+// centre at whole numbers to the target's clip space, its depth z and its w (perspective's, so
+// texels and depth are interpolated as software's); the texel, its rectangle, tint, light, row,
 // stages, disc and sweep passed on, and the position for the disc's test.
 // tools/shaders.py makes each host's from it.
 #version 450
 
-layout(location = 0) in vec2 at;
+layout(location = 0) in vec4 at; // x, y, z, w
 layout(location = 1) in vec2 texel;
 layout(location = 2) in uvec4 rect;
 layout(location = 3) in uvec4 tint;  // r, g, b, light
@@ -30,13 +31,13 @@ layout(location = 6) flat out vec4 v_sweep;
 
 void main()
 {
-    vec2 clip = (at + 0.5) / target.size * 2.0 - 1.0;
-    gl_Position = vec4(clip.x, clip.y * target.down, 0.0, 1.0);
+    vec2 clip = (at.xy + 0.5) / target.size * 2.0 - 1.0;
+    gl_Position = vec4(clip.x, clip.y * target.down, at.z, 1.0) * at.w;
     v_texel = texel;
     v_rect = rect;
     v_tint = vec4(vec3(tint.rgb) / 255.0, float(tint.a) / 63.0);
     v_more = more.xy;
-    v_at = at;
+    v_at = at.xy;
 #ifdef DISC
     v_disc = disc;
     v_sweep = sweep;
