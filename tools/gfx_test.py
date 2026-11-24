@@ -239,27 +239,29 @@ print sum&
 DEPTHS = (8, 15, 16, 32)
 
 
-def same_pixels(depths: tuple[int, ...] = DEPTHS) -> dict[tuple[int, str], str]:
-    """SAME_PIXELS's output at each depth by (depth, build): "dos", the DOS slice in one DOSBox, and
-    "host", the host build's, natively."""
-    def jobs(name: str, qbx: Path) -> dict[str, tuple]:
-        data = qbx.read_bytes()
-        return {
-            f"{name}{d}": (SAME_PIXELS.format(depth=d, bytes=(d + 7) // 8, spread=1 if d == 8 else 40503), "", "",
-                           {"gfx.qbx": data})
-            for d in depths
-        }
-
-    dos = dosrun.run(jobs("dos", dosrun.COM.parent / "lib/gfx.qbx"), Path(tempfile.mkdtemp()) / "w", 120000,
-                     file=True, mem=16)
+def pixel_sums(build: str, depths: tuple[int, ...] = DEPTHS, root: Path = dosrun.ROOT) -> dict[int, str]:
+    """SAME_PIXELS's output at each depth: build "dos", root's DOS slice in one DOSBox, or "host", root's host
+    build natively."""
+    qbx = (dosrun.COM.parent if build == "dos" else root / "build/host") / "lib/gfx.qbx"
+    data = qbx.read_bytes()
+    jobs = {
+        f"{build}{d}": (SAME_PIXELS.format(depth=d, bytes=(d + 7) // 8, spread=1 if d == 8 else 40503), "", "",
+                        {"gfx.qbx": data})
+        for d in depths
+    }
     com = dosrun.COM
-    dosrun.COM = dosrun.ROOT / "build/host/basic"
+    dosrun.COM = com if build == "dos" else root / "build/host/basic"
     try:
-        host = dosrun.run(jobs("host", dosrun.ROOT / "build/host/lib/gfx.qbx"), Path(tempfile.mkdtemp()) / "w",
-                          120000, file=True)
+        got = dosrun.run(jobs, Path(tempfile.mkdtemp()) / "w", 120000, file=True, mem=16)
     finally:
         dosrun.COM = com
-    return {(d, name): got[f"{name}{d}"].out for d in depths for name, got in (("dos", dos), ("host", host))}
+    return {d: got[f"{build}{d}"].out for d in depths}
+
+
+def same_pixels(depths: tuple[int, ...] = DEPTHS) -> dict[tuple[int, str], str]:
+    """SAME_PIXELS's output at each depth by (depth, build): the DOS slice's and the host build's."""
+    got = {name: pixel_sums(name, depths) for name in ("dos", "host")}
+    return {(d, name): got[name][d] for d in depths for name in got}
 
 
 def gfx_lib() -> dict[str, bytes]:
@@ -267,6 +269,11 @@ def gfx_lib() -> dict[str, bytes]:
 
 
 if __name__ == "__main__":
+    if sys.argv[1:2] == ["--sums"]:
+        root = Path(sys.argv[2]) if len(sys.argv) > 2 else dosrun.ROOT
+        for depth, out in pixel_sums("host", root=root).items():
+            print(depth, out.split()[-1] if out.split() else out)
+        sys.exit()
     for name, program, want in (("gfx", PROGRAM, " 9  9  12  1  14 "), ("whole", WHOLE, " 2  2 ")):
         out = dosrun.run({name: program}, Path(tempfile.mkdtemp()) / "w", 60000, mem=4)[name].out
         assert want in out and "Out of memory" not in out, (name, out[-400:])

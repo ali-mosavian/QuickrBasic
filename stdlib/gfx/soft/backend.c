@@ -1,4 +1,4 @@
-/* Software as a backend (backend.h): the pen made an ink (fill.h), and soft.h's drawing. Its own
+/* Software as a backend (backend.h): the pen made an ink (ink.h), and soft.h's drawing. Its own
    state holds the call readied and each root's depth. */
 #include "core/gfx.h"
 #include "core/mem.h"
@@ -16,42 +16,6 @@ typedef struct {
     SoftDepth *depths;
     uint32_t ndepths;
 } Soft;
-
-/* The ink of a call's flags and the pen over a target of format, its texels a shape's colours:
-   false, raised. */
-static bool ink(Gx *const g, const int32_t flags, const PxFormat format, Ink *const k)
-{
-    const Pen *const p = &g->pen;
-    Palette *const pal = &g->palette;
-    const bool eight = format == PX_8;
-    const BlendMode mode = flags & GFX_PEN_ADD     ? BLEND_ADD
-                           : flags & GFX_PEN_BLEND ? BLEND_MIX
-                                                   : BLEND_NONE;
-    const uint32_t solid = pal_shade(p->tint, p->light, PAL_WHITE);
-    uint8_t index = 0;
-    *k = (Ink){
-        .source = eight ? PX_8 : PX_32,
-        .keyed = !(flags & GFX_PEN_OPAQUE),
-        .solid = flags & GFX_PEN_SOLID,
-        .colour = PX_OPAQUE | solid,
-        .shade = pal_shade(PAL_WHITE, p->light, p->tint),
-        .mode = eight ? BLEND_NONE : mode,
-        .alpha = (uint8_t)p->alpha,
-    };
-
-    if (eight && !pal_lut(pal, p->recolour, p->light, p->tint, &k->lut))
-        return gx_fail(ERR_MEMORY);
-
-    if (eight && k->solid && !pal_index(pal, solid, &index))
-        return gx_fail(ERR_MEMORY);
-
-    if (eight && mode && !(k->blend = pal_blend(pal, mode, p->alpha)))
-        return gx_fail(ERR_MEMORY);
-
-    k->colour = eight ? index : k->colour;
-    k->effects = k->solid || mode || (eight ? k->lut != nullptr : k->shade != PAL_WHITE);
-    return true;
-}
 
 /* Software's own, made on first ask: null, raised. */
 static Soft *own(Gx *const g)
@@ -178,7 +142,8 @@ static bool begin(Gx *const g, const Command *const c, const Picture *const into
     if (c->flags & (GFX_DRAW_ZTEST | GFX_DRAW_ZSET) && !(o->call.depth = depth(o, into)).p)
         return false;
 
-    return ink(g, c->flags, px.format, &o->call.ink);
+    return ink_begin(&o->call.ink, &g->palette, &g->pen, c->flags, px.format) ||
+           gx_fail(ERR_MEMORY);
 }
 
 static bool clear_depth(Gx *const g, const Picture *const into)
@@ -197,32 +162,16 @@ static bool clear_depth(Gx *const g, const Picture *const into)
 
 static bool source(Gx *const g, const Picture *const p)
 {
-    Soft *const o = g->own;
-    Ink *const k = &o->call.ink;
-    const Pen *const pen = &g->pen;
-    const PxFormat from = p->root.format;
-    const bool eight = o->call.px.format == PX_8;
-    k->source = from;
+    SoftTarget *const t = &((Soft *)g->own)->call;
 
-    if (eight && from != PX_8 && !k->map && !(k->map = pal_map(&g->palette)))
-        return gx_fail(ERR_MEMORY);
-
-    if (!eight && from == PX_8 && !k->argb &&
-        !(k->argb = pal_argb(&g->palette, pen->recolour, pen->light, pen->tint)))
-        return gx_fail(ERR_MEMORY);
-
-    return true;
+    return ink_source(&t->ink, &g->palette, &g->pen, t->px.format, p->root.format) ||
+           gx_fail(ERR_MEMORY);
 }
 
 static void solid(Gx *const g, const uint32_t colour)
 {
-    Soft *const o = g->own;
-    Ink *const k = &o->call.ink;
-    const Pen *const p = &g->pen;
-    const bool eight = o->call.px.format == PX_8;
-    k->solid = k->effects = true;
-    k->colour = eight ? (k->lut ? k->lut[colour] : colour)
-                      : PX_OPAQUE | pal_shade(colour, p->light, p->tint);
+    SoftTarget *const t = &((Soft *)g->own)->call;
+    ink_solid(&t->ink, &g->pen, t->px.format, colour);
 }
 
 static void clear(Gx *const g, const uint32_t colour) { soft_clear(call(g), colour); }

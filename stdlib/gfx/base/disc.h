@@ -1,4 +1,4 @@
-/* Which pixels a circle, its outline and an arc cover: one rule for software (soft/soft.c) and for
+/* Which pixels a circle, its outline and an arc cover: one rule for software (soft/shapes.c) and for
  * a GPU (gpu/vertex.h's DISC stage, gpu/shaders/draw.frag).
  *
  * # How it works

@@ -57,14 +57,7 @@ static void opaque_flipped(uint8_t *const d, const uint8_t *const s, const int32
 
 static inline uint16_t next(const Pixels *const s, Steps *const st)
 {
-    const uint16_t v = load(s->p + (st->v >> 16) * (int32_t)s->pitch + 2 * (st->u >> 16));
-    st->u += st->du;
-    st->v += st->dv;
-
-    if (st->wrap)
-        st->u = fill_wrap(st->u, st->wrap);
-
-    return v;
+    return (uint16_t)steps_next(s, st, 2);
 }
 
 static void stepped(
@@ -93,7 +86,6 @@ static void stepped_opaque(uint8_t *const d, const Pixels *const s, const Steps 
     stepped(d, s, st, n, false);
 }
 
-/* hLineT's walk, what dos/plxt16.asm must draw: t read here, patched into the assembly. */
 static void fetch(uint32_t *const out, const Pixels *const s, Steps st, const int32_t n)
 {
     for (int32_t i = 0; i < n; i++)
@@ -159,11 +151,11 @@ static uint32_t paint16(const uint32_t texel, const Ink *const k) { return paint
         .row =                                                                                     \
             {                                                                                      \
                 [0] = keyed,                                                                       \
-                [ROW_FLIPX] = keyed_flipped,                                                       \
-                [ROW_OPAQUE] = opaque,                                                             \
-                [ROW_OPAQUE | ROW_FLIPX] = opaque_flipped,                                         \
+                [FILL_FLIPX] = keyed_flipped,                                                      \
+                [FILL_OPAQUE] = opaque,                                                            \
+                [FILL_OPAQUE | FILL_FLIPX] = opaque_flipped,                                       \
             },                                                                                     \
-        .step = {[0] = stepped_keyed, [STEP_OPAQUE] = stepped_opaque},                             \
+        .step = {[0] = stepped_keyed, [FILL_OPAQUE] = stepped_opaque},                             \
         .fetch = fetch,                                                                            \
         .ink = inked,                                                                              \
         .paint = painted,                                                                          \

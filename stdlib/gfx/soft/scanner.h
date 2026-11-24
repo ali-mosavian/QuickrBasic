@@ -14,7 +14,7 @@
  * u and v are in texels (qgl scales them by the texture's size: here the scale is 1). Affine
  * spans carry u and v 16.16 at x0 and their step a pixel; u, v and 1/z are taken at the pixel
  * centre as qgl$drawA does. Perspective spans carry u/z, v/z and 1/z at x0 and their steps, as
- * qgl$drawP does, for persp.h.
+ * qgl$drawP does, for span.h.
  *
  * Left out: depth, EMS and slots, profiling, lightmaps, the cover and bound helpers, WIRE. The
  * x87's extended arithmetic is done in doubles, and its stores to real4 as floats.
@@ -33,7 +33,6 @@ typedef enum {
     SCAN_FLAT = 1, /* no u, v */
     SCAN_TEX,      /* affine */
     SCAN_PTEX,     /* perspective, a divide every SCAN_SUBDIVP pixels */
-    SCAN_ATEX,     /* projective edges, affine a row */
 } ScanMode;
 
 enum { SCAN_MAXV = 41, SCAN_SUBDIVS = 4, SCAN_SUBDIVP = 16 };
@@ -42,7 +41,7 @@ enum { SCAN_MAXV = 41, SCAN_SUBDIVS = 4, SCAN_SUBDIVP = 16 };
 typedef struct {
     int32_t y, x0, x1;
     int32_t u, v, du, dv;   /* SCAN_TEX: 16.16 at x0, and a pixel's step */
-    double pu, pv, pz;      /* SCAN_PTEX, SCAN_ATEX: u/z, v/z, 1/z at x0 */
+    double pu, pv, pz;      /* SCAN_PTEX: u/z, v/z, 1/z at x0 */
     float dpu, dpv, dpz;    /* ... a pixel's step */
     float dpun, dpvn, dpzn; /* ... SCAN_SUBDIVP pixels' */
     int32_t z, dz;          /* depth, 16.16: at x0 (qgl's zacc), and a pixel's step */

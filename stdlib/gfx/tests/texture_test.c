@@ -189,7 +189,7 @@ TEST(gfx_soft_perspective_trapezoid)
 
     const ScanVert v[] = {{2, 0, 1, 0, 0}, {6, 0, 1, 8, 0}, {8, 4, 2, 16, 8}, {0, 4, 2, 0, 8}};
 
-    soft_texture_persp(&t, &s, v, 4, GFX_PEN_OPAQUE, false, SCAN_PTEX);
+    soft_texture_persp(&t, &s, v, 4, GFX_PEN_OPAQUE, false);
 
     static const uint8_t want[8][16] = {
         {1, 27, 28, 30, 32, 33, 1, 1},

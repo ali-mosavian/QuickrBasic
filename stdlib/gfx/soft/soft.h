@@ -1,10 +1,10 @@
-/* The software backend: each command drawn as it comes, into memory.
+/* The software renderer: each command drawn as it comes, into memory.
  *
  * # How it works
- * Shapes go through the scanner (scanner.h) to the target's fillers (fill.h). An upright sprite at
- * 1:1 skips the scanner: its rows are copied, keyed unless OPAQUE, read backward for FLIPX. Points
- * are pixel centres, as the scanner's. A call with an ink to go through (fill.h) draws its rows
- * through it instead of the fused fillers.
+ * Shapes are flat spans (shapes.c); polygons go through the scanner (scanner.h) to spans (span.h),
+ * flat or along a picture's texels (poly.c). An upright sprite at 1:1 skips the scanner: its rows
+ * are copied, keyed unless OPAQUE, read backward for FLIPX (sprite.c). Points are pixel centres,
+ * as the scanner's.
  */
 #ifndef GFX_SOFT_H
 #define GFX_SOFT_H
@@ -58,15 +58,14 @@ void soft_rect(
 );
 /* s with its top left texel at x, y; flags draw.FLIPX, draw.FLIPY, pen.OPAQUE. */
 void soft_sprite(const SoftTarget *t, const Pixels *s, float x, float y, int32_t flags);
-/* A perspective polygon (scanner.h) of n up to SCAN_MAXV vertices, u/z, v/z and 1/z, in mode SCAN_PTEX or
-   SCAN_ATEX, drawn by persp.h: only into a target s is fused with (fill.h). */
+/* A perspective polygon (scanner.h) of n up to SCAN_MAXV vertices, u/z, v/z and 1/z, by qgl's
+   pixel rule. */
 void soft_texture_persp(
     const SoftTarget *t,
     const Pixels *s,
     const ScanVert *v,
     uint32_t n,
     int32_t flags,
-    bool wrap,
-    ScanMode mode
+    bool wrap
 );
 #endif

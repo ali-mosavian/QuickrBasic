@@ -542,10 +542,10 @@ int32_t scan_poly(
     void *const ctx
 )
 {
-    if (n < 3 || n > SCAN_MAXV || mode < SCAN_FLAT || mode > SCAN_ATEX)
+    if (n < 3 || n > SCAN_MAXV || mode < SCAN_FLAT || mode > SCAN_PTEX)
         return -1;
 
-    const bool persp = mode == SCAN_PTEX || mode == SCAN_ATEX;
+    const bool persp = mode == SCAN_PTEX;
 
     /* the triple: the vertex furthest from v[0] (L1), then the furthest off that baseline */
     uint32_t b = 1, c = 2;

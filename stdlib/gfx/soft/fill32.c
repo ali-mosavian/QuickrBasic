@@ -54,17 +54,7 @@ static void opaque_flipped(uint8_t *const d, const uint8_t *const s, const int32
     row(d, s, n, -1, false);
 }
 
-static inline uint32_t next(const Pixels *const s, Steps *const st)
-{
-    const uint32_t v = load(s->p + (st->v >> 16) * (int32_t)s->pitch + 4 * (st->u >> 16));
-    st->u += st->du;
-    st->v += st->dv;
-
-    if (st->wrap)
-        st->u = fill_wrap(st->u, st->wrap);
-
-    return v;
-}
+static inline uint32_t next(const Pixels *const s, Steps *const st) { return steps_next(s, st, 4); }
 
 static void stepped(
     uint8_t *const d,
@@ -125,11 +115,11 @@ const Fill fill32 = {
     .row =
         {
             [0] = keyed,
-            [ROW_FLIPX] = keyed_flipped,
-            [ROW_OPAQUE] = opaque,
-            [ROW_OPAQUE | ROW_FLIPX] = opaque_flipped,
+            [FILL_FLIPX] = keyed_flipped,
+            [FILL_OPAQUE] = opaque,
+            [FILL_OPAQUE | FILL_FLIPX] = opaque_flipped,
         },
-    .step = {[0] = stepped_keyed, [STEP_OPAQUE] = stepped_opaque},
+    .step = {[0] = stepped_keyed, [FILL_OPAQUE] = stepped_opaque},
     .fetch = fetch,
     .ink = ink,
     .paint = paint,
