@@ -21,11 +21,24 @@ const MARGIN = 4
 const ESC = 27
 ' each face's four corners, in order round it
 const FACE_CORNERS = "013254674026157345102376"
+' seconds a frame rate is counted over
+const PERIOD = 0.25
+' the counted rates shown as their median
+const KEPT = 9
 
 type Vec3
     x as single
     y as single
     z as single
+end type
+
+' The frame rate: frames counted over each PERIOD, and the
+' median of the last KEPT counted, 0 until one is.
+type Meter
+    since as double
+    frames as long
+    taken as long
+    shown as single
 end type
 
 ' What the keys turn off and on.
@@ -50,13 +63,19 @@ declare sub draw_face ( _
     spun() as Vec3, _
     byval flags as integer _
 )
+declare sub count_frame ( _
+    m as Meter, _
+    rates() as single, _
+    byval now as double _
+)
+declare function median (rates() as single, byval n as long) as single
 declare function flags_of (o as Options) as integer
 declare sub toggle (o as Options, byval k as string)
 declare sub show_options ( _
     byval dst as long, _
     st as Stage, _
     o as Options, _
-    byval dt as single _
+    byval rate as single _
 )
 declare function on_off$ (byval v as integer)
 
@@ -71,16 +90,20 @@ next
 dim spun(CORNERS - 1) as Vec3
 dim st as Stage
 dim o as Options
+dim meter as Meter
+dim rates(KEPT - 1) as single
 o.perspective = -1
 o.depth = -1
 angle! = 0
 was# = gfx.display.clock
+meter.since = was#
 
 do
     now# = gfx.display.clock
     dt! = now# - was#
     was# = now#
     angle! = angle! + dt!
+    count_frame meter, rates(), now#
     measure canvas&, st
     turn spun(), angle!
     gfx.draw.clear canvas&, back&
@@ -91,7 +114,7 @@ do
         draw_face canvas&, st, i, pictures(i), spun(), flags%
     next
 
-    show_options canvas&, st, o, dt!
+    show_options canvas&, st, o, meter.shown
     gfx.display.flip
     k$ = ucase$(inkey$)
 
@@ -183,6 +206,50 @@ sub draw_face ( _
     gfx.draw.poly dst, q(), 0, 4, src, 0, flags
 end sub
 
+' A frame at now counted. A period over, its rate is kept
+' and the kept rates' median shown.
+sub count_frame ( _
+    m as Meter, _
+    rates() as single, _
+    byval now as double _
+)
+    m.frames = m.frames + 1
+    span# = now - m.since
+
+    if span# < PERIOD then exit sub
+
+    rates(m.taken mod KEPT) = m.frames / span#
+    m.taken = m.taken + 1
+    m.since = now
+    m.frames = 0
+    m.shown = median(rates(), m.taken)
+end sub
+
+' The median of the rates kept, n of them counted.
+function median (rates() as single, byval n as long) as single
+    held% = KEPT
+
+    if n < held% then held% = n
+
+    dim sorted(held% - 1) as single
+
+    for i = 0 to held% - 1
+        v! = rates(i)
+        j = i
+
+        do while j > 0
+            if sorted(j - 1) <= v! then exit do
+
+            sorted(j) = sorted(j - 1)
+            j = j - 1
+        loop
+
+        sorted(j) = v!
+    next
+
+    median = sorted(held% \ 2)
+end function
+
 ' The draw flags o asks for.
 function flags_of (o as Options) as integer
     f% = 0
@@ -212,7 +279,7 @@ sub show_options ( _
     byval dst as long, _
     st as Stage, _
     o as Options, _
-    byval dt as single _
+    byval rate as single _
 )
     grey& = gfx.display.rgb(200, 200, 200)
     z% = st.zoom
@@ -223,10 +290,10 @@ sub show_options ( _
     foot% = st.h - edge% - st.text_h
     label dst, edge%, foot%, t$, grey&, z%
 
-    if dt <= 0 then exit sub
+    if rate <= 0 then exit sub
 
-    fps% = 1 / dt
-    label dst, edge%, edge%, str$(fps%) + " fps", grey&, z%
+    fps& = int(rate + 0.5)
+    label dst, edge%, edge%, str$(fps&) + " fps", grey&, z%
 end sub
 
 function on_off$ (byval v as integer)
