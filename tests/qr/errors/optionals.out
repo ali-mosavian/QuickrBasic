@@ -49,3 +49,6 @@ optionals.bas:34:9: ?? is written or else
 optionals.bas:35:19: a bool is not an int
   print w or else 0 = 3
                     ^
+optionals.bas:37:13: unknown function nowhere
+      let r = nowhere()
+              ^

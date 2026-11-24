@@ -7320,7 +7320,8 @@ static void qsem_narrow(QSem *const S, const QExpr *const c, const bool proved)
 
     const QExpr *const a = c->a;
 
-    if (a->kind != QE_NAME || !a->var || (a->var->kind != QV_LET && a->var->kind != QV_PARAM))
+    if (a->kind != QE_NAME || !a->var || (a->var->kind != QV_LET && a->var->kind != QV_PARAM) ||
+        a->type == QY_ERROR)
         return;
 
     QVar *const v = a->var;

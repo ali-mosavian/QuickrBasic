@@ -33,3 +33,8 @@ end function
 var old_m as int[string]
 print w ?? 0
 print w or else 0 = 3
+function lost() as int
+    let r = nowhere()
+    if r is none then return 0
+    return r
+end function
