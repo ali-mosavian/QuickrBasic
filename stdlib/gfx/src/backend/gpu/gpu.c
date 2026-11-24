@@ -61,20 +61,22 @@ static void store(const Pixels *const px, const int32_t x, const int32_t y, cons
     mem_copy(px->p + y * px->pitch + x * px_bytes(px->format), &v, px_bytes(px->format));
 }
 
-/* A texel as ARGB, a keyed one's alpha 0: an index through row 0. */
-static uint32_t argb(const Palette *const pal, const PxFormat f, const uint32_t v)
+/* A texel as ARGB, a keyed one's alpha 0; an index, itself in every channel. */
+static uint32_t argb(const PxFormat f, const uint32_t v)
 {
+    if (f == PX_8)
+        return v * 0x01010101u;
+
     if (f == PX_32)
         return v;
 
-    const uint32_t c = f == PX_8 ? PX_OPAQUE | pal->rows[0][v] : px_argb(f, v);
+    const uint32_t c = px_argb(f, v);
     return px_key(f, v) ? c & PX_WHITE : c;
 }
 
 /* px's texels in format, in the list's kept memory, *pitch bytes a row: null, no memory. */
 static const uint8_t *texels(
     GpuList *const l,
-    const Palette *const pal,
     const Pixels *const px,
     const QxTextureFormat format,
     uint32_t *const pitch
@@ -88,7 +90,7 @@ static const uint8_t *texels(
         for (int32_t x = 0; x < px->w; x++) {
             uint8_t *const o = out + y * *pitch + x * (index ? 1 : RGBA);
             const uint32_t v = load(px, x, y);
-            const uint32_t c = argb(pal, px->format, v);
+            const uint32_t c = argb(px->format, v);
 
             if (index)
                 o[0] = (uint8_t)v;
@@ -168,7 +170,7 @@ static bool pipeline(Gpu *const g, const Kind k, const QxBlend blend, const uint
     return true;
 }
 
-bool gpu_open(Gpu *const g, const QxScreen *const s)
+bool gpu_open(Gpu *const g, const QxScreen *const s, const bool eight)
 {
     mem_fill(g->textures, 0, g->ntextures * sizeof *g->textures);
 
@@ -183,6 +185,10 @@ bool gpu_open(Gpu *const g, const QxScreen *const s)
     g->ndirty = 0;
     g->call = NONE;
     g->palette = 0;
+    g->mapped = 0;
+    g->eight = eight;
+    g->screen_w = (int32_t)s->w;
+    g->screen_h = (int32_t)s->h;
     g->white = 0xFFFFFFFF;
     g->down = s->y_down ? 1 : -1;
     g->count = (GpuCount){};
@@ -193,14 +199,16 @@ bool gpu_open(Gpu *const g, const QxScreen *const s)
     GpuTexture *const canvas = entry(g, SURF_SCREEN);
     const uint32_t made[][4] = {
         {SURF_SCREEN, s->w, s->h, QX_TEXTURE_RGBA},
-        {GPU_PALETTE, PAL_COLOURS, PAL_ROWS, QX_TEXTURE_RGBA},
+        {GPU_PALETTE, PAL_COLOURS, GPU_PALETTE_ROWS, QX_TEXTURE_RGBA},
+        {GPU_SHOWN, s->w, s->h, QX_TEXTURE_RGBA},
     };
 
     const Code *const code = s->shader < sizeof codes / sizeof *codes ? &codes[s->shader] : nullptr;
 
     if (!canvas || !code || !code->fragment || !list_init(&g->list) ||
         !list_op(&g->list, QX_LIST_TEXTURE, made[0], 4) ||
-        !list_op(&g->list, QX_LIST_TEXTURE, made[1], 4))
+        !list_op(&g->list, QX_LIST_TEXTURE, made[1], 4) ||
+        (eight && !list_op(&g->list, QX_LIST_TEXTURE, made[2], 4)))
         return false;
 
     *canvas = (GpuTexture){.handle = SURF_SCREEN, .format = QX_TEXTURE_RGBA};
@@ -278,13 +286,7 @@ static void unpack(Gpu *const g, GpuTexture *const e)
     e->page = 0;
 }
 
-bool gpu_texture(
-    Gpu *const g,
-    const Palette *const pal,
-    const Picture *const p,
-    const bool into,
-    GpuSource *const out
-)
+bool gpu_texture(Gpu *const g, const Picture *const p, const bool into, GpuSource *const out)
 {
     GpuTexture *const e = entry(g, p->texture);
     const uint32_t name = p->texture;
@@ -334,7 +336,7 @@ bool gpu_texture(
 
         uint32_t pitch, args[8] = {id, e->x, e->y + (uint32_t)top, (uint32_t)px->w, (uint32_t)h};
 
-        const uint8_t *const bytes = texels(&g->list, pal, &cut, e->format, &pitch);
+        const uint8_t *const bytes = texels(&g->list, &cut, e->format, &pitch);
 
         if (!bytes)
             return false;
@@ -354,8 +356,7 @@ bool gpu_texture(
     e->version = p->version;
     e->drawn = e->drawn || into;
 
-    *out =
-        (GpuSource){id, e->x, e->y, e->format == QX_TEXTURE_INDEX, e->depth ? depth_of(name) : 0};
+    *out = (GpuSource){id, e->x, e->y, px->format == PX_8, e->depth ? depth_of(name) : 0};
 
     return true;
 }
@@ -488,16 +489,9 @@ bool gpu_target(
     return aim(g, id, deep, w, h, clip);
 }
 
-bool gpu_palette(Gpu *const g, const Palette *const pal)
+/* The palette's rows sent: false, no memory. */
+static bool send_rows(Gpu *const g, const Palette *const pal)
 {
-    uint32_t changes = 1;
-
-    for (uint32_t r = 0; r < PAL_ROWS; r++)
-        changes += pal->changed[r];
-
-    if (changes == g->palette)
-        return true;
-
     uint8_t *const rows = list_keep(&g->list, PAL_ROWS * PAL_COLOURS * RGBA);
     uint32_t args[8] = {GPU_PALETTE, 0, 0, PAL_COLOURS, PAL_ROWS, PAL_COLOURS * RGBA};
 
@@ -515,8 +509,42 @@ bool gpu_palette(Gpu *const g, const Palette *const pal)
         }
 
     list_pointer(args + 6, rows);
-    g->palette = changes;
     return list_op(&g->list, QX_LIST_UPLOAD, args, 8);
+}
+
+/* Row 0's map sent, below the rows: false, no memory. */
+static bool send_map(Gpu *const g, Palette *const pal)
+{
+    const uint8_t *const map = pal_map(pal);
+    uint8_t *const cells = map ? list_keep(&g->list, PAL_CELLS) : nullptr;
+    uint32_t args[8] = {GPU_PALETTE, 0, PAL_ROWS, PAL_COLOURS, GPU_MAP_ROWS, PAL_COLOURS * RGBA};
+
+    if (!cells)
+        return false;
+
+    mem_copy(cells, map, PAL_CELLS);
+    list_pointer(args + 6, cells);
+    return list_op(&g->list, QX_LIST_UPLOAD, args, 8);
+}
+
+bool gpu_palette(Gpu *const g, Palette *const pal, const bool map)
+{
+    const uint32_t row0 = pal->changed[0] + 1;
+    uint32_t changes = 1;
+
+    for (uint32_t r = 0; r < PAL_ROWS; r++)
+        changes += pal->changed[r];
+
+    if (changes != g->palette && !send_rows(g, pal))
+        return false;
+
+    g->palette = changes;
+
+    if (!map || row0 == g->mapped)
+        return true;
+
+    g->mapped = send_map(g, pal) ? row0 : 0;
+    return g->mapped;
 }
 
 /* v's colour is the tint's alone, never keyed: its texel does not matter. */
@@ -541,13 +569,14 @@ static GpuBox box_of(const void *const v, const uint32_t stride, const uint32_t 
     return b;
 }
 
-/* The box b of texture id, w by h, drawn into GPU_BEHIND's pass: false, no memory. */
+/* The box b of texture id, w by h, drawn in the pass with stages: false, no memory. */
 static bool copy_box(
     Gpu *const g,
     const uint32_t id,
     const int32_t w,
     const int32_t h,
-    const GpuBox b
+    const GpuBox b,
+    const uint16_t stages
 )
 {
     const GpuVertex corner = {
@@ -558,6 +587,7 @@ static bool copy_box(
         .g = 255,
         .b = 255,
         .light = PAL_FULL,
+        .stages = stages,
     };
 
     const uint32_t textures[LIST_TEXTURES] = {id, GPU_PALETTE, GPU_PALETTE};
@@ -610,10 +640,10 @@ static bool copy_behind(Gpu *const g)
         return false;
 
     for (uint32_t i = 0; some && i < g->ndirty; i++)
-        if (!copy_box(g, id, w, h, g->dirty[i]))
+        if (!copy_box(g, id, w, h, g->dirty[i], 0))
             return false;
 
-    if (!some && !copy_box(g, id, w, h, all))
+    if (!some && !copy_box(g, id, w, h, all, 0))
         return false;
 
     g->passing = false;
@@ -667,14 +697,26 @@ bool gpu_discs(Gpu *const g, const GpuTarget *const t, const GpuDisc *const v, c
            );
 }
 
+/* An 8-bit canvas's indices through palette row 0 into GPU_SHOWN: false, no memory. */
+static bool present(Gpu *const g)
+{
+    const int32_t w = g->screen_w, h = g->screen_h;
+    const GpuBox all = {-0.5f, -0.5f, (float)w - 0.5f, (float)h - 0.5f};
+
+    return aim(g, GPU_SHOWN, 0, w, h, (Rect){0, 0, w, h}) && pipeline(g, PLAIN, QX_BLEND_NONE, 0) &&
+           copy_box(g, SURF_SCREEN, w, h, all, GPU_STAGE_INDEXED);
+}
+
 void gpu_play(Gpu *const g, const bool show)
 {
-    const uint32_t canvas = SURF_SCREEN;
+    const uint32_t shown = g->eight ? GPU_SHOWN : SURF_SCREEN;
     uint32_t n;
-    const uint32_t *const words =
-        !show || list_op(&g->list, QX_LIST_SHOW, &canvas, 1) ? list_end(&g->list, &n) : nullptr;
 
     called(g);
+
+    const bool ready =
+        !show || ((!g->eight || present(g)) && list_op(&g->list, QX_LIST_SHOW, &shown, 1));
+    const uint32_t *const words = ready ? list_end(&g->list, &n) : nullptr;
 
     if (words)
         qx_host->gpu_play(words, n);
@@ -707,7 +749,7 @@ void gpu_wrote(Gpu *const g, const uint32_t h, const int32_t top, const int32_t 
     e->bottom = none || bottom > e->bottom ? bottom : e->bottom;
 }
 
-bool gpu_sync(Gpu *const g, const Palette *const pal, const Pixels px, const uint32_t h)
+bool gpu_sync(Gpu *const g, const Pixels px, const uint32_t h)
 {
     GpuTexture *const e = made(g, h);
 
@@ -722,21 +764,16 @@ bool gpu_sync(Gpu *const g, const Palette *const pal, const Pixels px, const uin
 
     qx_host->gpu_read(h, 0, 0, px.w, px.h, rgba);
     g->count.waits++;
-    uint32_t last = ~0u, index = 0; /* no colour is ~0 */
 
     for (int32_t y = 0; y < px.h; y++)
         for (int32_t x = 0; x < px.w; x++) {
             const uint8_t *const c = rgba + (y * px.w + x) * RGBA;
             const uint32_t rgb = (uint32_t)c[0] << 16 | (uint32_t)c[1] << 8 | c[2];
-            const bool keyed = c[3] < HALF;
 
-            if (px.format == PX_8 && !keyed && rgb != last)
-                index = pal_nearest(pal->rows[0], last = rgb);
-
-            const uint32_t v = px.format == PX_32  ? (uint32_t)c[3] << 24 | rgb
-                               : keyed             ? 0
-                               : px.format == PX_8 ? index
-                                                   : px_pack(px.format, rgb);
+            const uint32_t v = px.format == PX_8    ? c[0]
+                               : px.format == PX_32 ? (uint32_t)c[3] << 24 | rgb
+                               : c[3] < HALF        ? 0
+                                                    : px_pack(px.format, rgb);
             store(&px, x, y, v);
         }
 

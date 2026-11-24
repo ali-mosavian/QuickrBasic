@@ -5,10 +5,12 @@
 
 enum {
     MAP_BITS = 5, /* px_cell's */
-    MAP_CELLS = 1 << (3 * MAP_BITS),
+    MAP_CELLS = PAL_CELLS,
     LIGHTS = PAL_FULL + 1,
     BLEND_CELLS = PAL_COLOURS * PAL_COLOURS,
 };
+
+static_assert(MAP_CELLS == 1 << (3 * MAP_BITS), "a cell of each 5-bit colour");
 
 /* A VGA DAC's 6 bits as 8. */
 static uint32_t eight(const uint8_t six) { return (uint32_t)(six << 2 | six >> 4); }

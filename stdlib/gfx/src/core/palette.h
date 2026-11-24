@@ -17,7 +17,15 @@
 #define GFX_PALETTE_H
 #include "base/pixels.h"
 
-enum { PAL_ROWS = 16, PAL_COLOURS = 256, PAL_FULL = PX_FULL, PAL_WHITE = PX_WHITE, PAL_BLENDS = 4 };
+/* PAL_CELLS: the map's, 5 bits a channel. */
+enum {
+    PAL_ROWS = 16,
+    PAL_COLOURS = 256,
+    PAL_FULL = PX_FULL,
+    PAL_WHITE = PX_WHITE,
+    PAL_BLENDS = 4,
+    PAL_CELLS = 1 << 15,
+};
 
 /* What a mix of a row was made from. */
 typedef struct {

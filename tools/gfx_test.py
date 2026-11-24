@@ -8,7 +8,8 @@ the cursor is where it was: the mode's set had put it top left, where the next P
 DOS slice draws the host's pixels: SAME_PIXELS's checksum is the same from both builds of the one C
 renderer, the x87's arithmetic and the host's. --gpu [DEPTH...]: GPU_SCENE in the Mac app, drawn by the GPU
 against pages, cell by cell: 32 bits' lights, tints, SOLID and ADD were the GPU's floats, a level or three off;
-BLEND, the blend constant's, a level off."""
+BLEND, the blend constant's, a level off. At 8 bits every cell but shapes, sprites and text differed: the target
+held colours, read back as the nearest index, and lights, tints, rows and blends were worked as colours."""
 
 import os
 import subprocess
@@ -496,7 +497,7 @@ def gfx_lib() -> dict[str, bytes]:
 if __name__ == "__main__":
     if sys.argv[1:2] == ["--gpu"]:
         wrong = []
-        for depth in [int(d) for d in sys.argv[2:]] or [32]:
+        for depth in [int(d) for d in sys.argv[2:]] or [8, 32]:
             print(f"{depth} bits: pixels the GPU drew other than pages, the most a channel was off")
             for name, n, most in gpu_parity(depth):
                 print(f"  {name:12}{n:7}{most:5}")

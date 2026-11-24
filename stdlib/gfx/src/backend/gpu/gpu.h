@@ -8,8 +8,10 @@
  * version). A root drawn from, half a page or smaller, is packed into an atlas page of its format,
  * so pictures share a texture and their sprites a batch: pages are packed in rows, a place freed
  * with its root, a page empty again started over. Drawn into, a root has a texture of its own,
- * named by its handle; packed, it leaves its page. An 8-bit root drawn from is indices; drawn
- * into, RGBA through palette row 0, as is the canvas. A root drawn into is ahead on the GPU
+ * named by its handle; packed, it leaves its page. An 8-bit root is indices: a byte a texel drawn
+ * from, RGBA drawn into, its index in every channel. An 8-bit canvas is shown through palette row 0
+ * by a pass into GPU_SHOWN at each flip. The palette's texture holds its rows, then row 0's map
+ * (palette.h), sent when a draw needs it. A root drawn into is ahead on the GPU
  * (drawn) until gpu_sync reads it back. A draw reads its picture and the palette. A texture
  * keeps the rows the CPU wrote since it was sent (gpu_wrote), so it sends only those. A root drawn
  * into with depth has a depth texture too (gpu_depth), made on that first draw, which every pass
@@ -27,9 +29,19 @@
 #include "backend/gpu/list.h"
 #include "core/surface.h"
 
-/* The palette's texture, the copy of what is behind, the first atlas page's, a page's side; a
-   root's depth texture is its handle with GPU_DEPTH's kind. */
-enum { GPU_PALETTE = PIC_FONT + 1, GPU_BEHIND, GPU_PAGE_FIRST, GPU_PAGE = 1024, GPU_DEPTH = 8 };
+/* The palette's texture, the copy of what is behind, an 8-bit canvas shown, the first atlas page's,
+   a page's side; a root's depth texture is its handle with GPU_DEPTH's kind. */
+enum {
+    GPU_PALETTE = PIC_FONT + 1,
+    GPU_BEHIND,
+    GPU_SHOWN,
+    GPU_PAGE_FIRST,
+    GPU_PAGE = 1024,
+    GPU_DEPTH = 8,
+};
+
+/* The palette's texture's rows: the palette's, then the map's, four cells a texel. */
+enum { GPU_MAP_ROWS = PAL_CELLS / 4 / PAL_COLOURS, GPU_PALETTE_ROWS = PAL_ROWS + GPU_MAP_ROWS };
 
 /* The boxes drawn in since the copy kept apart; past them, it is made again before the next read. */
 enum { GPU_DIRTY = 16 };
@@ -87,6 +99,9 @@ typedef struct {
     uint32_t ndirty;            /* past GPU_DIRTY, more */
     GpuBox call;                /* drawn in the pass by this call */
     uint32_t palette;           /* the palette's changes when sent, and 1; 0 not yet */
+    uint32_t mapped;            /* row 0's changes when the map was sent, and 1; 0 not yet */
+    bool eight;                 /* the canvas is 8 bits */
+    int32_t screen_w, screen_h; /* its size */
     float down;      /* the shader's: 1 where clip space's y runs down a texture's rows, else -1 */
     uint32_t white;  /* the white texel shapes draw from */
     uint8_t *page;   /* the canvas's pixels, read back */
@@ -106,20 +121,21 @@ typedef struct {
     uint8_t depth; /* QxDepth */
     bool perspective;
     uint8_t alpha;
-    bool eight;          /* the target is 8 bits: a shape's colour is an index */
-    const uint32_t *row; /* the palette row an index colours through */
+    bool eight;         /* the target is 8 bits: a shape's colour is an index */
+    const uint8_t *lut; /* at 8 bits, the index each draws as (pal_lut); null each itself */
     uint32_t tint;
     uint32_t paint; /* a picture's colour: the tint, or SOLID's */
     bool solid;
     bool behind; /* its pixels read what is behind them */
 } GpuTarget;
 
-/* The canvas, s's size, the palette and the pipelines, in the language s gave: false, no memory. */
-bool gpu_open(Gpu *g, const QxScreen *s);
+/* The canvas, s's size, 8 bits when eight, the palette and the pipelines, in the language s gave:
+   false, no memory. */
+bool gpu_open(Gpu *g, const QxScreen *s, bool eight);
 void gpu_close(Gpu *g);
 /* p's root on the GPU, made and sent as it needs it; into, drawn into: RGBA, and ahead of the CPU
    till read back. False, no memory. */
-bool gpu_texture(Gpu *g, const Palette *pal, const Picture *p, bool into, GpuSource *out);
+bool gpu_texture(Gpu *g, const Picture *p, bool into, GpuSource *out);
 /* p's root's depth texture, made, all 0, if it had none (*fresh then): false, no memory. */
 bool gpu_depth(Gpu *g, const Picture *p, uint32_t *id, bool *fresh);
 /* Rows top to bottom of the root h written by the CPU. */
@@ -127,8 +143,8 @@ void gpu_wrote(Gpu *g, uint32_t h, int32_t top, int32_t bottom);
 /* The draws after go into id, w by h, within clip, with depth texture deep (0 none): false, no
    memory. */
 bool gpu_target(Gpu *g, uint32_t id, uint32_t deep, int32_t w, int32_t h, Rect clip);
-/* The palette sent, if it changed: false, no memory. */
-bool gpu_palette(Gpu *g, const Palette *pal);
+/* The palette sent, if it changed, and row 0's map when map: false, no memory. */
+bool gpu_palette(Gpu *g, Palette *pal, bool map);
 /* n vertices, four a quad, drawn as t's call: false, no memory. */
 bool gpu_draw(Gpu *g, const GpuTarget *t, const GpuVertex *v, uint32_t n);
 /* n disc vertices, four a quad, drawn as t's call: false, no memory. */
@@ -136,7 +152,7 @@ bool gpu_discs(Gpu *g, const GpuTarget *t, const GpuDisc *v, uint32_t n);
 /* The list played, the canvas shown after it when show. */
 void gpu_play(Gpu *g, bool show);
 /* The root h, whose pixels are px, read back if the GPU drew in it: false, no memory. */
-bool gpu_sync(Gpu *g, const Palette *pal, Pixels px, uint32_t h);
+bool gpu_sync(Gpu *g, Pixels px, uint32_t h);
 /* h, a root, freed: its texture with it. */
 void gpu_forget(Gpu *g, uint32_t h);
 /* The count since the last call, zeroed. */

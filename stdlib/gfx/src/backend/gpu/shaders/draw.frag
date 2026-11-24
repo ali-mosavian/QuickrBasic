@@ -3,7 +3,10 @@
 // pixel's centre, kept in its rectangle (u repeating with WRAP); an index through the palette's
 // row; keyed; lit and tinted, or the vertex's colour alone (SOLID); with ADD, alpha's share of it,
 // which the pipeline adds; with MIX, mixed by alpha with the pixel behind, read from its copy, as
-// px_mix mixes. SMOOTH mixes the four texels round the centre, lit, as software's
+// px_mix mixes. Into an 8-bit target (EIGHT) it draws an index in every channel: a texel's index
+// through the row, lit and tinted, matched by the palette's map as pal_lut does; a colour, matched;
+// SOLID's, the vertex's red; a blend, of the two indices' colours in row 0, matched, as pal_blend's
+// table, ADD's too. SMOOTH mixes the four texels round the centre, lit, as software's
 // smooth span does, a keyed one adding nothing, and draws where they are mostly kept.
 #version 450
 
@@ -17,6 +20,7 @@ const uint WIDE = 64u;
 const uint SMOOTH = 128u;
 const uint ADD = 256u;
 const uint MIX = 512u;
+const uint EIGHT = 1024u;
 
 const uint FULL = 63u;
 
@@ -66,6 +70,18 @@ bool covered(uint stages)
 
 uvec3 bytes(vec3 c) { return uvec3(c * 255.0 + 0.5); }
 
+// Row row's colour index.
+uvec3 colour_of(uint row, uint index) { return bytes(texelFetch(palette, ivec2(index, row), 0).rgb); }
+
+// Row 0's index nearest c, through the map (palette.h): 5 bits a channel, four cells a texel of
+// the palette's rows from 16.
+uint nearest(uvec3 c)
+{
+    uint cell = (c.r >> 3) << 10 | (c.g >> 3) << 5 | c.b >> 3;
+    vec4 t = texelFetch(palette, ivec2(cell >> 2 & 255u, 16u + (cell >> 10)), 0);
+    return uint(t[cell & 3u] * 255.0 + 0.5);
+}
+
 // c lit and tinted: an index's colour as pal_shade, one divide; a direct texel's by its shade,
 // the tint times the light over 63, as px_shade.
 uvec3 lit(uvec3 c, bool index)
@@ -79,8 +95,18 @@ uvec3 lit(uvec3 c, bool index)
     return c * (tint * light / FULL) / 255u;
 }
 
-// The texel at t, kept in the rectangle, lit; *drawn false where keyed.
-uvec3 texel(ivec2 t, uint stages, out bool drawn)
+// The index index draws as through the row, lit and tinted, as pal_lut's.
+uint looked_up(uint index)
+{
+    if (v_more.x == 0u && v_tint == uvec4(255u, 255u, 255u, FULL))
+        return index;
+
+    return nearest(lit(colour_of(v_more.x, index), true));
+}
+
+// The texel at t, kept in the rectangle, lit: as an index when indices, else a colour; *drawn
+// false where keyed.
+uvec3 texel(ivec2 t, uint stages, bool indices, out bool drawn)
 {
     ivec2 from = ivec2(v_rect.xy), size = ivec2(v_rect.zw);
 
@@ -93,11 +119,12 @@ uvec3 texel(ivec2 t, uint stages, out bool drawn)
     if ((stages & INDEXED) != 0u) {
         uint index = uint(c.r * 255.0 + 0.5);
         drawn = (stages & KEYED) == 0u || index != 0u;
-        return lit(bytes(texelFetch(palette, ivec2(index, v_more.x), 0).rgb), true);
+        return indices ? uvec3(looked_up(index)) : lit(colour_of(v_more.x, index), true);
     }
 
     drawn = (stages & KEYED) == 0u || c.a >= 0.5;
-    return lit(bytes(c.rgb), false);
+    uvec3 rgb = lit(bytes(c.rgb), false);
+    return indices ? uvec3(nearest(rgb)) : rgb;
 }
 
 // A texel's share of a mix: its colour, 0 to 1, and its coverage.
@@ -122,10 +149,10 @@ uvec3 smoothed(uint stages, out bool drawn)
     vec2 f = fract(p);
     ivec2 t = ivec2(floor(p));
     bool k[4];
-    uvec3 c0 = texel(t, stages, k[0]);
-    uvec3 c1 = texel(t + ivec2(1, 0), stages, k[1]);
-    uvec3 c2 = texel(t + ivec2(0, 1), stages, k[2]);
-    uvec3 c3 = texel(t + ivec2(1, 1), stages, k[3]);
+    uvec3 c0 = texel(t, stages, false, k[0]);
+    uvec3 c1 = texel(t + ivec2(1, 0), stages, false, k[1]);
+    uvec3 c2 = texel(t + ivec2(0, 1), stages, false, k[2]);
+    uvec3 c3 = texel(t + ivec2(1, 1), stages, false, k[3]);
     vec4 top = between(share(c0, k[0]), share(c1, k[1]), f.x);
     vec4 under = between(share(c2, k[2]), share(c3, k[3]), f.x);
     vec4 m = between(top, under, f.y);
@@ -134,32 +161,45 @@ uvec3 smoothed(uint stages, out bool drawn)
     return uvec3(c);
 }
 
+// c, a colour, or an index into an 8-bit target, blended with the pixel behind by alpha.
+uvec3 blended(uvec3 c, uint stages)
+{
+    bool eight = (stages & EIGHT) != 0u;
+    uint alpha = v_more.y;
+
+    if (!eight && (stages & ADD) != 0u)
+        return c * alpha / FULL;
+
+    uvec3 d = bytes(texelFetch(behind, ivec2(gl_FragCoord.xy), 0).rgb);
+    uvec3 s = eight ? colour_of(0u, c.r) : c;
+    d = eight ? colour_of(0u, d.r) : d;
+    uvec3 m = (stages & ADD) != 0u ? min(d + s * alpha / FULL, uvec3(255u))
+                                   : (d * (FULL - alpha) + s * alpha) / FULL;
+    return eight ? uvec3(nearest(m)) : m;
+}
+
 void main()
 {
     uint stages = v_more.z;
+    bool eight = (stages & EIGHT) != 0u;
 
     if ((stages & DISC) != 0u && !covered(stages))
         discard;
 
     bool drawn;
     uvec3 c = (stages & SMOOTH) != 0u ? smoothed(stages, drawn)
-                                      : texel(ivec2(floor(v_texel)), stages, drawn);
+                                      : texel(ivec2(floor(v_texel)), stages, eight, drawn);
 
     if (!drawn)
         discard;
 
     if ((stages & SOLID) != 0u)
         c = v_tint.rgb;
+    else if (eight && (stages & SMOOTH) != 0u)
+        c = uvec3(nearest(c));
 
-    uint alpha = v_more.y;
+    if ((stages & (ADD | MIX)) != 0u)
+        c = blended(c, stages);
 
-    if ((stages & ADD) != 0u)
-        c = c * alpha / FULL;
-
-    if ((stages & MIX) != 0u) {
-        uvec3 d = bytes(texelFetch(behind, ivec2(gl_FragCoord.xy), 0).rgb);
-        c = (d * (FULL - alpha) + c * alpha) / FULL;
-    }
-
-    colour = vec4(vec3(c) / 255.0, 1.0);
+    colour = eight ? vec4(float(c.r) / 255.0) : vec4(vec3(c) / 255.0, 1.0);
 }

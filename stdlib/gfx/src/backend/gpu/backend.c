@@ -22,7 +22,8 @@
    pictures. */
 enum {
     ALPHA = 255,
-    CALL_STAGES = GPU_STAGE_KEYED | GPU_STAGE_SMOOTH | GPU_STAGE_ADD | GPU_STAGE_MIX,
+    SHAPE_STAGES = GPU_STAGE_ADD | GPU_STAGE_MIX | GPU_STAGE_EIGHT,
+    CALL_STAGES = GPU_STAGE_KEYED | GPU_STAGE_SMOOTH | SHAPE_STAGES,
 };
 
 /* The GPU's own (Gx.own): its recorder and the call readied. */
@@ -111,12 +112,15 @@ static void box(
     quad(t, ink, (const Vec[]){{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}}, nullptr);
 }
 
-/* A shape's ink: its colour, an index through the row at 8 bits, lit and tinted as software's ink
-   lights a texel of it. */
+/* An index as a vertex's r, g and b. */
+static uint32_t spread(const uint32_t index) { return (index & 0xFF) * 0x010101u; }
+
+/* A shape's ink: its colour lit and tinted as software's ink draws a texel of it; at 8 bits, an
+   index through the lut. */
 static GpuVertex shape(const GpuTarget *const t, const uint32_t colour)
 {
-    const uint32_t light = t->ink.light;
-    const uint32_t rgb = t->eight ? pal_shade(t->row[colour], (int32_t)light, t->tint)
+    const uint32_t light = t->ink.light, index = colour & 0xFF;
+    const uint32_t rgb = t->eight ? spread(t->lut ? t->lut[index] : index)
                                   : px_shade(colour, pal_shade(PAL_WHITE, (int32_t)light, t->tint));
     return (GpuVertex){
         .w = 1,
@@ -129,7 +133,7 @@ static GpuVertex shape(const GpuTarget *const t, const uint32_t colour)
         .b = (uint8_t)rgb,
         .light = (uint8_t)light,
         .alpha = t->ink.alpha,
-        .stages = (uint16_t)(GPU_STAGE_SOLID | (t->ink.stages & (GPU_STAGE_ADD | GPU_STAGE_MIX))),
+        .stages = (uint16_t)(GPU_STAGE_SOLID | (t->ink.stages & SHAPE_STAGES)),
     };
 }
 
@@ -138,12 +142,13 @@ static Gpu *gpu(const Gx *const g) { return &((GpuState *)g->own)->gpu; }
 static GpuTarget *call(const Gx *const g) { return &((GpuState *)g->own)->call; }
 
 /* The pass into into within clip, with its depth texture when deep (made if none, *fresh then),
-   and blank, the white texel: false, no memory. */
+   blank, the white texel, and the palette, its map too when map: false, no memory. */
 static bool aim(
     Gx *const g,
     const Picture *const into,
     const Rect clip,
     const bool deep,
+    const bool map,
     bool *const fresh,
     GpuSource *const blank
 )
@@ -155,23 +160,30 @@ static bool aim(
 
     GpuSource target;
 
-    return gpu_texture(gp, &g->palette, into, true, &target) &&
+    return gpu_texture(gp, into, true, &target) &&
            (!deep || gpu_depth(gp, into, &target.depth, fresh)) &&
-           gpu_texture(gp, &g->palette, &white, false, blank) &&
+           gpu_texture(gp, &white, false, blank) &&
            gpu_target(gp, target.id, target.depth, into->root.w, into->root.h, in_root) &&
-           gpu_palette(gp, &g->palette);
+           gpu_palette(gp, &g->palette, map);
 }
 
 static bool begin(Gx *const g, const Command *const c, const Picture *const into, const Rect clip)
 {
     const Style *const style = &g->style;
+    const bool eight = into->root.format == PX_8;
     const bool add = c->flags & GFX_DRAW_ADD, mix = !add && c->flags & GFX_DRAW_BLEND;
     const uint8_t depth = (c->flags & GFX_DRAW_DEPTH_TEST ? QX_DEPTH_TEST : 0) |
                           (c->flags & GFX_DRAW_DEPTH_WRITE ? QX_DEPTH_WRITE : 0);
+    const uint32_t paint = pal_shade(style->tint, style->light, PAL_WHITE);
+    const uint8_t *lut = nullptr;
+    uint8_t index = 0;
     GpuSource blank;
     bool fresh;
 
-    if (!aim(g, into, clip, depth, &fresh, &blank))
+    /* at 8 bits: the lut, SOLID's index, and the map for a blend or a lut */
+    if ((eight && !pal_lut(&g->palette, style->palette_row, style->light, style->tint, &lut)) ||
+        (eight && c->flags & GFX_DRAW_SOLID && !pal_index(&g->palette, paint, &index)) ||
+        !aim(g, into, clip, depth, eight && (add || mix || lut), &fresh, &blank))
         return gx_fail(ERR_MEMORY);
 
     *call(g) = (GpuTarget){
@@ -186,19 +198,20 @@ static bool begin(Gx *const g, const Command *const c, const Picture *const into
                 .alpha = (uint8_t)style->alpha,
                 .stages = (uint16_t)((c->flags & GFX_DRAW_OPAQUE ? 0 : GPU_STAGE_KEYED) |
                                      (c->flags & GFX_DRAW_SMOOTH ? GPU_STAGE_SMOOTH : 0) |
-                                     (add ? GPU_STAGE_ADD : 0) | (mix ? GPU_STAGE_MIX : 0)),
+                                     (add ? GPU_STAGE_ADD : 0) | (mix ? GPU_STAGE_MIX : 0) |
+                                     (eight ? GPU_STAGE_EIGHT : 0)),
             },
         .texture = blank.id,
-        .blend = add ? QX_BLEND_ADD : QX_BLEND_NONE,
+        .blend = add && !eight ? QX_BLEND_ADD : QX_BLEND_NONE,
         .depth = depth,
         .perspective = c->flags & GFX_DRAW_PERSPECTIVE,
         .alpha = ALPHA,
-        .eight = into->root.format == PX_8,
-        .row = g->palette.rows[style->palette_row],
+        .eight = eight,
+        .lut = lut,
         .tint = style->tint,
         .solid = c->flags & GFX_DRAW_SOLID,
-        .paint = pal_shade(style->tint, style->light, PAL_WHITE),
-        .behind = mix,
+        .paint = eight ? spread(index) : paint,
+        .behind = mix || (add && eight),
     };
 
     return true;
@@ -207,12 +220,15 @@ static bool begin(Gx *const g, const Command *const c, const Picture *const into
 static bool source(Gx *const g, const Picture *const p)
 {
     GpuTarget *const t = call(g);
+    GpuVertex *const k = &t->ink;
     GpuSource from;
 
-    if (!gpu_texture(gpu(g), &g->palette, p, false, &from))
+    /* at 8 bits, a colour drawn matched by the map */
+    if (!gpu_texture(gpu(g), p, false, &from) ||
+        (t->eight && (!from.indexed || k->stages & GPU_STAGE_SMOOTH) &&
+         !gpu_palette(gpu(g), &g->palette, true)))
         return gx_fail(ERR_MEMORY);
 
-    GpuVertex *const k = &t->ink;
     const uint32_t rgb = t->solid ? t->paint : t->tint;
     t->texture = from.id;
     k->rx = (uint16_t)(from.x + p->at.x);
@@ -227,13 +243,14 @@ static bool source(Gx *const g, const Picture *const p)
     return true;
 }
 
-/* Every texel drawn is colour lit and tinted, as ink_solid's. */
+/* Every texel drawn is colour lit and tinted, as ink_solid's: at 8 bits, through the lut. */
 static void solid(Gx *const g, const uint32_t colour)
 {
     GpuTarget *const t = call(g);
-    const int32_t light = t->ink.light;
+    const uint32_t index = colour & 0xFF;
     t->solid = true;
-    t->paint = pal_shade(t->eight ? t->row[colour] : colour, light, t->tint);
+    t->paint = t->eight ? spread(t->lut ? t->lut[index] : index)
+                        : pal_shade(colour, t->ink.light, t->tint);
 }
 
 static void clear(Gx *const g, const uint32_t colour)
@@ -343,7 +360,7 @@ static bool clear_depth(Gx *const g, const Picture *const into)
     GpuSource blank;
     bool fresh;
 
-    if (!aim(g, into, all, true, &fresh, &blank))
+    if (!aim(g, into, all, true, false, &fresh, &blank))
         return gx_fail(ERR_MEMORY);
 
     if (fresh)
@@ -494,7 +511,7 @@ static bool screen_open(Gx *const g, const QxScreen *const s, const PxFormat f)
 
     g->own = o;
 
-    if (!page || !o || !gpu_open(&o->gpu, s) ||
+    if (!page || !o || !gpu_open(&o->gpu, s, f == PX_8) ||
         !surf_open(&g->surfaces, (Pixels){page, pitch, s->w, s->h, f})) {
         if (o)
             gpu_close(&o->gpu);
@@ -511,7 +528,7 @@ static bool screen_open(Gx *const g, const QxScreen *const s, const PxFormat f)
 
 static void screen_flip(Gx *const g)
 {
-    if (!gpu_palette(gpu(g), &g->palette))
+    if (!gpu_palette(gpu(g), &g->palette, false))
         gx_fail(ERR_MEMORY);
 
     gpu_play(gpu(g), true);
@@ -522,7 +539,7 @@ static bool sync(Gx *const g, const uint32_t h)
     uint32_t root_h = h;
     const Surface *const root = surf_root(&g->surfaces, surf_get(&g->surfaces, h), &root_h);
     const Pixels px = surf_pixels(&g->surfaces, root);
-    return gpu_sync(gpu(g), &g->palette, px, root_h) || gx_fail(ERR_MEMORY);
+    return gpu_sync(gpu(g), px, root_h) || gx_fail(ERR_MEMORY);
 }
 
 static void stop(Gx *const g)

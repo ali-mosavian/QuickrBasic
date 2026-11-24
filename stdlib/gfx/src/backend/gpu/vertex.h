@@ -15,6 +15,7 @@ enum {
     GPU_STAGE_SMOOTH = 128, /* the four texels round the centre mixed */
     GPU_STAGE_ADD = 256,    /* alpha's share drawn, for the pipeline to add */
     GPU_STAGE_MIX = 512,    /* mixed by alpha with what is behind (GPU_BEHIND's copy) */
+    GPU_STAGE_EIGHT = 1024, /* into an 8-bit target: an index drawn, r, g and b SOLID's */
 };
 
 /* x, y a pixel's centre at whole numbers; z its depth, 1/z of a corner's z (0 far, as gfx's
