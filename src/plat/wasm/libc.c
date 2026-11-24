@@ -1,5 +1,5 @@
-/* The C library the core needs on wasm32: string.h's routines, and the runtime clang's
- * setjmp/longjmp lowering calls (as wasi-libc's).
+/* The C library the core needs on wasm32: string.h's routines, the runtime clang's
+ * setjmp/longjmp lowering calls (as wasi-libc's), and compiler-rt's 128-bit multiply.
  *
  * # How it works
  * A copy or a fill is one bulk-memory instruction. setjmp records the calling function's
@@ -102,6 +102,20 @@ void __wasm_longjmp(void *const env, const int value)
     (*jb)->env = env;
     (*jb)->value = value ? value : 1;
     __builtin_wasm_throw(C_LONGJMP, &(*jb)->env);
+}
+
+/* a * b's low 128 bits: what a 64-bit multiply checked for overflow calls. */
+__int128 __multi3(const __int128 a, const __int128 b)
+{
+    const unsigned __int128 ua = (unsigned __int128)a, ub = (unsigned __int128)b;
+    const uint64_t al = (uint64_t)ua, ah = (uint64_t)(ua >> 64);
+    const uint64_t bl = (uint64_t)ub, bh = (uint64_t)(ub >> 64);
+    const uint64_t a0 = al & UINT32_MAX, a1 = al >> 32, b0 = bl & UINT32_MAX, b1 = bl >> 32;
+    const uint64_t p00 = a0 * b0, p01 = a0 * b1, p10 = a1 * b0;
+    const uint64_t mid = (p00 >> 32) + (p01 & UINT32_MAX) + (p10 & UINT32_MAX);
+    const uint64_t lo = mid << 32 | (p00 & UINT32_MAX);
+    const uint64_t hi = a1 * b1 + (p01 >> 32) + (p10 >> 32) + (mid >> 32) + al * bh + ah * bl;
+    return (__int128)((unsigned __int128)hi << 64 | lo);
 }
 
 char *strrchr(const char *const s, const int c)
