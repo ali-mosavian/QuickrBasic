@@ -5604,6 +5604,49 @@ static bool qsem_source(QSem *const S, QIter *const it, QExpr *const c)
     return true;
 }
 
+/* Block lambda a applied to extra (n of them) then chain it's parts, for a place of type hint (a
+   filter's bool, else its as type): its procedure called, its captures as this site sees them. */
+static QExpr *qsem_chainblock(
+    QSem *const S,
+    const QIter *const it,
+    QExpr *const a,
+    QExpr *const *const extra,
+    const uint32_t n,
+    const QType hint
+)
+{
+    const uint32_t count = n + it->nparts;
+    QType *const items = qast_alloc(S->mem, (count ? count : 1) * sizeof *items);
+
+    for (uint32_t k = 0; k < count; k++)
+        items[k] = (k < n ? extra[k] : it->parts[k - n])->type;
+
+    const bool open = hint != QY_BOOL;
+    QType t = qsem_fnof(S, items, count, open ? QY_VOID : hint);
+
+    if (open && !a->lam->rtype) {
+        qsem_say(S, a->lam->tok, "can't tell the lambda's result: write fn(..) as T", nullptr);
+        return qsem_const(S, a->tok, QY_ERROR, (QVal){});
+    }
+
+    if (!qsem_lambda(S, a, &t, open))
+        return qsem_const(S, a->tok, QY_ERROR, (QVal){});
+
+    QFn *const f = a->lam->fn;
+    QExpr *const call = qast_expr(S->mem, QE_CALL, a->tok);
+    call->fn = f;
+    call->nargv = f->npar;
+    call->argv = qast_alloc(S->mem, (f->npar ? f->npar : 1) * sizeof *call->argv);
+
+    for (uint32_t k = 0; k < count; k++)
+        call->argv[k] = qsem_dup(S, k < n ? extra[k] : it->parts[k - n]);
+
+    qsem_hiddenargs(S, call, count, a->lam, a);
+    call->type = f->result;
+    qsem_callee(S, call);
+    return call;
+}
+
 /* Lambda or fn a applied to extra (n of them) then chain it's parts, checked for a place of type
    hint: a one-line lambda's body, its parameters naming them; a name's call. */
 static QExpr *qsem_applied(
@@ -5631,10 +5674,13 @@ static QExpr *qsem_applied(
         return qsem_call(S, call);
     }
 
-    if (a->kind != QE_LAMBDA || !a->lam->body) {
-        qsem_say(S, a->tok, "a chain takes a one-line lambda or a fn", nullptr);
+    if (a->kind != QE_LAMBDA) {
+        qsem_say(S, a->tok, "a chain takes a lambda or a fn", nullptr);
         return qsem_const(S, a->tok, QY_ERROR, (QVal){});
     }
+
+    if (!a->lam->body)
+        return qsem_chainblock(S, it, a, extra, n, hint);
 
     QLam *const l = a->lam;
 
@@ -5738,12 +5784,29 @@ static void qsem_stage(
     const bool last
 )
 {
-    if (k == QI_REV) {
-        for (uint32_t j = 0; j < it->n; j++)
-            if (it->stages[j].kind != QI_MAP && it->stages[j].kind != QI_FILTER) {
-                qsem_say(S, c->tok, "rev() goes before take, skip and zip", nullptr);
+    if (k == QI_REV) { /* a take, skip or zip before it: a window on the source, counted down */
+        bool filtered = false;
+
+        for (uint32_t j = 0; j < it->n; j++) {
+            QStage *const p = &it->stages[j];
+            filtered |= p->kind == QI_FILTER;
+
+            if (p->kind == QI_MAP || p->kind == QI_FILTER || p->win)
+                continue;
+
+            if (filtered || it->rev) {
+                qsem_say(
+                    S,
+                    c->tok,
+                    filtered ? "rev() can't follow a filter's take, skip or zip: collect() first"
+                             : "rev() after take, skip or zip counts down once",
+                    nullptr
+                );
                 return;
             }
+
+            p->win = true;
+        }
 
         if (c->args)
             qsem_say(S, c->tok, "rev() takes no values", nullptr);

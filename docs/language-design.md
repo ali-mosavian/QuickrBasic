@@ -540,12 +540,14 @@ end for
   `collect()`. It borrows its source only for that statement.
 - A string's elements are its bytes, `int`s as `s[i]` gives them; a map's are its keys. A range
   is written `(a..b)` before a method, and `zip(0..n)` takes one bare.
-- A step or a reducing method takes a one-line lambda, or a name to call: a function, a function
-  value, a lambda passed in. A block lambda is not inlined, so a chain does not take one.
+- A step or a reducing method takes a lambda, or a name to call: a function, a function value,
+  a lambda passed in. A one-line lambda is inlined; a block lambda is called, so it names its
+  result's type unless it's a `filter`'s.
 - `min()`, `max()` and `find(p)` give a `T?`. `count(p)` counts the elements `p` holds for.
   `fold(first, fn(acc, x) ..)` starts from `first`.
-- `rev()` goes before `take`, `skip` and `zip`, and not after a generator. On a range it counts
-  down.
+- `rev()` goes anywhere in a chain over a list, array, string or range, once. It can't follow a
+  generator, nor a `filter`'s `take`, `skip` or `zip`: one loop counting down can't know how many
+  the filter keeps. On a range it counts down.
 - `zip(b)` takes a variable's list or string, or a range. Its pair's parts are the next
   lambda's two parameters, `fn(x, y)`, or a `for`'s two names: `for a, b in xs.zip(ys)`. A
   second `zip` adds a third part. `sum`, `min`, `max`, `find` and `collect` take one value: map

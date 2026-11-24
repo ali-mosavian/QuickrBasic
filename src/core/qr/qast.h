@@ -522,7 +522,7 @@ struct QExpr {
 
 /* ---- chains: a.map(f).filter(p).sum(), one loop */
 
-/* A chain's step: map(f) and filter(p) take a one-line lambda or a fn, inlined; take(n),
+/* A chain's step: map(f) and filter(p) take a lambda or a fn, a one-line lambda inlined; take(n),
    skip(n) count; zip(b) adds b's element to each. */
 typedef enum : uint8_t { QI_MAP, QI_FILTER, QI_TAKE, QI_SKIP, QI_ZIP } QStageKind;
 typedef struct {
@@ -533,6 +533,8 @@ typedef struct {
     QExpr *of;   /* zip: b, a list's or a string's place, a range's start */
     QExpr *to;   /* zip: a range's end */
     bool str;    /* zip: b a string */
+    bool win;    /* take, skip, zip before a rev(): a window on the source's indices, set at its
+                    start; zip's k then b's index less the source's */
 } QStage;
 
 /* What a chain runs over: a list's or an array's elements (a map's keys), a range's ints, a

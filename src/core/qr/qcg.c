@@ -2470,6 +2470,114 @@ static void qcg_beyond(QCg *const g, const QIter *const it)
 }
 
 
+/* v - w to the stack. */
+static void qcg_span(Code *const c, QVar *const v, QVar *const w)
+{
+    qcg_load(c, v);
+    uint8_t *const right = c->out;
+    qcg_load(c, w);
+    qcg_arith(c, right, QY_INT, QA_SUB);
+}
+
+/* Window count t, the stack's top, clamped to 0 .. lim - i: what a step keeps of the window. */
+static void qcg_clamp(QCg *const g, const QIter *const it, QVar *const t)
+{
+    Code *const c = g->c;
+    qcg_store(c, t);
+
+    for (uint32_t k = 0; k < 2; k++) {
+        qcg_load(c, t);
+        uint8_t *const right = c->out;
+
+        if (k)
+            qcg_span(c, it->lim, it->i);
+        else
+            code_int(c, 0);
+
+        qcg_compare(c, QY_INT, k ? QK_GT : QK_LT, right);
+        const QCgHop in = qcg_hop(g, QJ_FALSE);
+
+        if (k)
+            qcg_span(c, it->lim, it->i);
+        else
+            code_int(c, 0);
+
+        qcg_store(c, t);
+        qcg_land(g, in);
+    }
+}
+
+/* Chain it's window, i to lim past its last, narrowed by each take, skip and zip before its
+   rev(); then i its last, lim its first, counted down. */
+static void qcg_windows(QCg *const g, const QIter *const it)
+{
+    Code *const c = g->c;
+    qcg_expr(g, it->lo);
+    qcg_store(c, it->i);
+    qcg_expr(g, it->hi);
+    qcg_store(c, it->lim);
+
+    for (uint32_t k = 0; k < it->n; k++) {
+        const QStage *const st = &it->stages[k];
+
+        if (!st->win)
+            continue;
+
+        if (st->kind == QI_ZIP) { /* b's count, then its first less i */
+            qcg_expr(g, st->to);
+
+            if (st->of->type == QY_INT) {
+                uint8_t *const right = c->out;
+                qcg_expr(g, st->of);
+                qcg_arith(c, right, QY_INT, QA_SUB);
+            }
+        } else
+            qcg_expr(g, st->e);
+
+        qcg_clamp(g, it, st->n);
+
+        if (st->kind == QI_ZIP) {
+            if (st->of->type == QY_INT)
+                qcg_expr(g, st->of);
+            else
+                code_int(c, 0);
+
+            uint8_t *const right = c->out;
+            qcg_load(c, it->i);
+            qcg_arith(c, right, QY_INT, QA_SUB);
+            qcg_store(c, st->k);
+        }
+
+        qcg_load(c, it->i);
+        uint8_t *const right = c->out;
+        qcg_load(c, st->n);
+        qcg_arith(c, right, QY_INT, QA_ADD);
+        qcg_store(c, st->kind == QI_SKIP ? it->i : it->lim);
+    }
+
+    qcg_load(c, it->i);
+    qcg_store(c, it->stp);
+    qcg_load(c, it->lim); /* the last */
+    uint8_t *const right = c->out;
+    code_int(c, 1);
+    qcg_arith(c, right, QY_INT, QA_SUB);
+    qcg_store(c, it->i);
+    qcg_load(c, it->stp);
+    qcg_store(c, it->lim);
+    code_int(c, (uint32_t)-1);
+    qcg_store(c, it->stp);
+}
+
+/* Does chain it count down over a window (QStage.win)? */
+static bool qcg_windowed(const QIter *const it)
+{
+    for (uint32_t k = 0; k < it->n; k++)
+        if (it->stages[k].win)
+            return true;
+
+    return false;
+}
+
 /* Chain it's start: its source held, its counter from its first, each step's and its end's
    state; on to its end when its source is empty. */
 static void qcg_chainstart(QCg *const g, const QIter *const it, QCgExits *const x)
@@ -2487,7 +2595,9 @@ static void qcg_chainstart(QCg *const g, const QIter *const it, QCgExits *const 
         qcg_set(g, &state, it->start);
     }
 
-    if (it->from != QO_GEN) { /* i from its first, lim its last, stp the way */
+    if (qcg_windowed(it))
+        qcg_windows(g, it);
+    else if (it->from != QO_GEN) { /* i from its first, lim its last, stp the way */
         for (uint32_t k = 0; k < 2; k++) {
             if ((k == 0) == it->rev) {
                 qcg_expr(g, it->hi);
@@ -2506,6 +2616,9 @@ static void qcg_chainstart(QCg *const g, const QIter *const it, QCgExits *const 
 
     for (uint32_t k = 0; k < it->n; k++) {
         const QStage *const st = &it->stages[k];
+
+        if (st->win)
+            continue;
 
         if (st->kind == QI_TAKE || st->kind == QI_SKIP) {
             qcg_expr(g, st->e);
@@ -2598,6 +2711,9 @@ static void qcg_element(QCg *const g, const QIter *const it, QCgExits *const x)
             break;
 
         case QI_TAKE: {
+            if (st->win)
+                break;
+
             qcg_load(c, st->k);
             uint8_t *const right = c->out;
             qcg_load(c, st->n);
@@ -2608,6 +2724,9 @@ static void qcg_element(QCg *const g, const QIter *const it, QCgExits *const x)
         }
 
         case QI_SKIP: {
+            if (st->win)
+                break;
+
             qcg_load(c, st->k);
             uint8_t *const right = c->out;
             qcg_load(c, st->n);
@@ -2620,6 +2739,17 @@ static void qcg_element(QCg *const g, const QIter *const it, QCgExits *const x)
         }
 
         case QI_ZIP: {
+            if (st->win) { /* b's index: i's in the window */
+                qcg_load(c, st->k);
+                uint8_t *const right = c->out;
+                qcg_load(c, it->i);
+                qcg_arith(c, right, QY_INT, QA_ADD);
+                qcg_store(c, st->n);
+                const QExpr v = qcg_named(st->x);
+                qcg_set(g, &v, st->e);
+                break;
+            }
+
             qcg_load(c, st->n);
             uint8_t *const right = c->out;
             qcg_load(c, st->k);
