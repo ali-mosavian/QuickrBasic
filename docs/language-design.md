@@ -497,8 +497,9 @@ let n = ages.get("bo") ?? 0
 - After `if x is none then return`, or any guard that leaves, `x` is a `T`. That fits the
   guard-first style.
 - `a ?? b` gives `b` when `a` is `none`.
-- The guard narrows a `let` or a parameter, which can't change after it. A `var` stays a `T?`:
-  read it with `??`, or bind a `let` to it first.
+- So does the branch a test proves: the `else` of `if x is none`, the `then` of `if x is not
+  none`, and the same of `is Error`. Narrowing takes a `let` or a parameter, which can't
+  change. A `var` stays a `T?`: read it with `??`, or bind a `let` to it first.
 - **In the VM**, a `T?` and a `T!` are records, as a tuple is: a box on the heap.
 
 ### Errors

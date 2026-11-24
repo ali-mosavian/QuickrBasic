@@ -3545,11 +3545,11 @@ static bool qsem_leaves(const QStmt *const s)
     return s && (s->kind == QS_RETURN || s->kind == QS_BREAK || s->kind == QS_CONTINUE);
 }
 
-/* After if x is none (or is Error) whose body last leaves, a let's or a parameter's x is its T
-   to the end of the block: an alias of its value, bound over x. */
-static void qsem_guard(QSem *const S, const QExpr *const c, const QStmt *const last)
+/* Where test c proves it, x is none or is Error false (proved: c's truth that does so), a let's
+   or a parameter's x is its T to the end of the scope: an alias of its value, bound over x. */
+static void qsem_narrow(QSem *const S, const QExpr *const c, const bool proved)
 {
-    if (c->kind != QE_IS || c->neg || !qsem_leaves(last))
+    if (c->kind != QE_IS || c->neg != proved)
         return;
 
     const QExpr *const a = c->a;
@@ -3565,17 +3565,37 @@ static void qsem_guard(QSem *const S, const QExpr *const c, const QStmt *const l
     S->binds[S->nbinds++] = (QBind){.name = v->name, .var = n};
 }
 
+/* if x is none whose body last leaves: x narrowed after it. */
+static void qsem_guard(QSem *const S, const QExpr *const c, const QStmt *const last)
+{
+    if (qsem_leaves(last))
+        qsem_narrow(S, c, false);
+}
+
+/* The if an else follows straight, no elseif between; null none. */
+static const QStmt *qsem_ifof(const QStmt *const s)
+{
+    for (const QStmt *p = s->prev; p; p = p->prev)
+        if (p->kind == QS_IF && !p->oneline && p->link == s)
+            return p;
+
+    return nullptr;
+}
+
 static void qsem_stmt(QSem *const S, QStmt *const s)
 {
     switch (s->kind) {
     case QS_IF:
         qsem_cond_of(S, s);
 
+        qsem_push(S);
+        qsem_narrow(S, s->e, true);
+
         if (s->oneline) {
             qsem_simple(S, s->body);
+            qsem_pop(S);
             qsem_guard(S, s->e, s->body);
-        } else
-            qsem_push(S);
+        }
 
         return;
 
@@ -3585,10 +3605,16 @@ static void qsem_stmt(QSem *const S, QStmt *const s)
         qsem_push(S);
         return;
 
-    case QS_ELSE:
+    case QS_ELSE: {
         qsem_pop(S);
         qsem_push(S);
+        const QStmt *const i = qsem_ifof(s);
+
+        if (i)
+            qsem_narrow(S, i->e, false);
+
         return;
+    }
 
     case QS_WHILE:
         qsem_loop(S, s);

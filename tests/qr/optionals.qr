@@ -63,3 +63,25 @@ var xs as string[]
 print(first(xs) ?? "nothing")
 xs.push("hi")
 print(first(xs) ?? "nothing")
+' the branch a test proves sees the T: else of is Error / is none,
+' the then of is not none; without, print(r) took an int! and failed
+fn branches(s as string, n as int)
+    let r = parse(s)
+    if r is Error then
+        print("bad", r.code)
+    else
+        print("good", r)
+    end if
+    let h = half(n)
+    if h is none then
+        print("odd")
+    else
+        print("half", h)
+    end if
+    if h is not none then print("again", h + 1)
+    if h is not none then
+        print("block", h)
+    end if
+end fn
+branches("ab", 6)
+branches("", 3)
