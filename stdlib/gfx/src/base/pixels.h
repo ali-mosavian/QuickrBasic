@@ -66,21 +66,34 @@ static inline uint32_t px_pack(const PxFormat f, const uint32_t c)
            px_channel(c, 0) >> 3;
 }
 
-/* The pixel of bytes at p. */
+/* The pixel of bytes, 1, 2 or 4, at p: one access, little-endian as every target is (a byte loop
+   is four on i386; a memcpy of a width known only at run time, a call). */
 static inline uint32_t px_load(const uint8_t *const p, const uint32_t bytes)
 {
-    uint32_t v = 0;
+    if (bytes == 4) {
+        uint32_t v;
+        __builtin_memcpy(&v, p, 4);
+        return v;
+    }
 
-    for (uint32_t i = 0; i < bytes; i++)
-        v |= (uint32_t)p[i] << (8 * i);
+    if (bytes == 2) {
+        uint16_t v;
+        __builtin_memcpy(&v, p, 2);
+        return v;
+    }
 
-    return v;
+    return *p;
 }
 
 static inline void px_store(uint8_t *const p, const uint32_t v, const uint32_t bytes)
 {
-    for (uint32_t i = 0; i < bytes; i++)
-        p[i] = (uint8_t)(v >> (8 * i));
+    if (bytes == 4)
+        __builtin_memcpy(p, &v, 4);
+    else if (bytes == 2) {
+        const uint16_t w = (uint16_t)v;
+        __builtin_memcpy(p, &w, 2);
+    } else
+        *p = (uint8_t)v;
 }
 
 /* A texel a keyed draw skips: 0, or 32 bits' alpha under a half. */
