@@ -10,6 +10,10 @@
  * or an exponent makes it a real. A string's escapes are \n \t \" and \\; its token keeps the
  * text as written, which codegen loads from the line itself.
  *
+ * An f"..." is QK_FSTR, then its parts in order: QK_FPART text, or a value's tokens between
+ * QK_LBRACE and QK_RBRACE, a QK_FSPEC after its top-level :; then QK_FEND. {{ and }} are one
+ * brace of text.
+ *
  * # Example
  *    let x = (1 +       let x = ( 1 +       no QK_NL: depth 1
  *             0x10)     0x10 ) QK_NL
@@ -33,41 +37,26 @@ typedef struct {
 } QLex;
 
 static const char *const qlex_words[] = {
-    [QK_AND - QK_AND] = "and",
-    [QK_AS - QK_AND] = "as",
-    [QK_BREAK - QK_AND] = "break",
-    [QK_CONST - QK_AND] = "const",
-    [QK_CONTINUE - QK_AND] = "continue",
-    [QK_DIV - QK_AND] = "div",
-    [QK_DO - QK_AND] = "do",
-    [QK_ELSE - QK_AND] = "else",
-    [QK_ELSEIF - QK_AND] = "elseif",
-    [QK_END - QK_AND] = "end",
-    [QK_FALSE - QK_AND] = "false",
-    [QK_FN - QK_AND] = "fn",
-    [QK_FOR - QK_AND] = "for",
-    [QK_IF - QK_AND] = "if",
-    [QK_IN - QK_AND] = "in",
-    [QK_LET - QK_AND] = "let",
-    [QK_MOD - QK_AND] = "mod",
-    [QK_MUT - QK_AND] = "mut",
-    [QK_NOT - QK_AND] = "not",
-    [QK_OR - QK_AND] = "or",
-    [QK_RETURN - QK_AND] = "return",
-    [QK_STEP - QK_AND] = "step",
-    [QK_THEN - QK_AND] = "then",
-    [QK_TRUE - QK_AND] = "true",
-    [QK_VAR - QK_AND] = "var",
-    [QK_WHILE - QK_AND] = "while",
-    [QK_XOR - QK_AND] = "xor",
+    [QK_AND - QK_AND] = "and",       [QK_AS - QK_AND] = "as",
+    [QK_BREAK - QK_AND] = "break",   [QK_CASE - QK_AND] = "case",
+    [QK_CONST - QK_AND] = "const",   [QK_CONTINUE - QK_AND] = "continue",
+    [QK_DIV - QK_AND] = "div",       [QK_DO - QK_AND] = "do",
+    [QK_ELSE - QK_AND] = "else",     [QK_ELSEIF - QK_AND] = "elseif",
+    [QK_END - QK_AND] = "end",       [QK_ENUM - QK_AND] = "enum",
+    [QK_FALSE - QK_AND] = "false",   [QK_FN - QK_AND] = "fn",
+    [QK_FOR - QK_AND] = "for",       [QK_IF - QK_AND] = "if",
+    [QK_IN - QK_AND] = "in",         [QK_IS - QK_AND] = "is",
+    [QK_LET - QK_AND] = "let",       [QK_MATCH - QK_AND] = "match",
+    [QK_MOD - QK_AND] = "mod",       [QK_MUT - QK_AND] = "mut",
+    [QK_NOT - QK_AND] = "not",       [QK_OR - QK_AND] = "or",
+    [QK_RETURN - QK_AND] = "return", [QK_STEP - QK_AND] = "step",
+    [QK_THEN - QK_AND] = "then",     [QK_TRUE - QK_AND] = "true",
+    [QK_TYPE - QK_AND] = "type",     [QK_VAR - QK_AND] = "var",
+    [QK_WHILE - QK_AND] = "while",   [QK_XOR - QK_AND] = "xor",
 };
 
 /* The design's keywords this milestone does not take yet. */
 static const char *const qlex_later[] = {
-    "type",
-    "enum",
-    "match",
-    "case",
     "import",
     "from",
     "yield",
@@ -75,7 +64,6 @@ static const char *const qlex_later[] = {
     "test",
     "assert",
     "none",
-    "is",
     "public",
     "operator",
 };
@@ -310,6 +298,19 @@ static void qlex_number(QLex *const L, const uint32_t from)
         qlex_bad(L, t, "number {} too large");
 }
 
+/* An escape at the cursor, \ then its letter, checked; L->at past it. */
+static void qlex_escape(QLex *const L, bool *const ok, uint32_t *const bad_at)
+{
+    const uint8_t e = qlex_peek(L, 1);
+
+    if (e != 'n' && e != 't' && e != '"' && e != '\\' && *ok) {
+        *ok = false;
+        *bad_at = L->at;
+    }
+
+    L->at += 1 + (L->at + 1 < L->len);
+}
+
 /* A string: its text between its quotes, its escapes checked. */
 static void qlex_string(QLex *const L, const uint32_t from)
 {
@@ -326,14 +327,7 @@ static void qlex_string(QLex *const L, const uint32_t from)
         }
 
         if (c == '\\') {
-            const uint8_t e = qlex_peek(L, 1);
-
-            if (e != 'n' && e != 't' && e != '"' && e != '\\' && escape_ok) {
-                escape_ok = false;
-                bad_at = L->at;
-            }
-
-            L->at += 1 + (L->at + 1 < L->len);
+            qlex_escape(L, &escape_ok, &bad_at);
             continue;
         }
 
@@ -385,6 +379,149 @@ static void qlex_punct(QLex *const L, const uint32_t from)
     qlex_bad(L, qlex_tok(L, QK_BAD, from), "unexpected character {}");
 }
 
+static void qlex_fstring(QLex *L, uint32_t from);
+
+/* The token at the cursor, a blank's none: false at a comment. */
+static bool qlex_one(QLex *const L)
+{
+    const uint8_t c = (uint8_t)L->text[L->at];
+    const uint32_t from = L->at;
+
+    if (is_blank(c)) {
+        L->at++;
+        return true;
+    }
+
+    if (c == '\'')
+        return false;
+
+    if (c == 'f' && qlex_peek(L, 1) == '"')
+        qlex_fstring(L, from);
+    else if (is_letter(c) || c == '_')
+        qlex_name(L, from);
+    else if (is_digit(c))
+        qlex_number(L, from);
+    else if (c == '"')
+        qlex_string(L, from);
+    else
+        qlex_punct(L, from);
+
+    return true;
+}
+
+/* An f-string's text up to a value, a brace or its end: a QK_FPART; {{ and }} one brace. */
+static void qlex_fpart(QLex *const L)
+{
+    const uint32_t from = L->at;
+    bool ok = true;
+    uint32_t bad_at = 0;
+
+    while (L->at < L->len) {
+        const uint8_t c = (uint8_t)L->text[L->at];
+
+        if (c == '\\') {
+            qlex_escape(L, &ok, &bad_at);
+            continue;
+        }
+
+        if (c == '"')
+            break;
+        if ((c == '{' || c == '}') &&
+            qlex_peek(L, 1) == c) { /* the first brace kept, the second skipped */
+            L->at++;
+            qlex_tok(L, QK_FPART, from);
+            L->at++;
+
+            if (!ok)
+                break;
+
+            qlex_fpart(L);
+            return;
+        }
+
+        if (c == '{' || c == '}')
+            break;
+
+        L->at++;
+    }
+
+    if (L->at > from)
+        qlex_tok(L, QK_FPART, from);
+
+    if (!ok) {
+        const QTok at = {.line = L->line, .col = bad_at};
+
+        qast_error(L->errs, &at, "unknown escape {}", L->text + bad_at, 2);
+    }
+}
+
+/* An f-string's {value[:spec]}: QK_LBRACE, the value's tokens, QK_FSPEC, QK_RBRACE. False: the
+   line ended first. */
+static bool qlex_fvalue(QLex *const L)
+{
+    L->at++;
+    qlex_tok(L, QK_LBRACE, L->at - 1);
+    const uint32_t depth = L->depth;
+
+    while (L->at < L->len) {
+        const uint8_t c = (uint8_t)L->text[L->at];
+
+        if (L->depth == depth && (c == '}' || c == ':')) {
+            if (c == ':') {
+                const uint32_t from = ++L->at;
+
+                while (L->at < L->len && L->text[L->at] != '}')
+                    L->at++;
+
+                qlex_tok(L, QK_FSPEC, from);
+                continue;
+            }
+
+            L->at++;
+            qlex_tok(L, QK_RBRACE, L->at - 1);
+            return true;
+        }
+
+        if (!qlex_one(L))
+            break;
+    }
+
+    return false;
+}
+
+/* f"..": QK_FSTR, its parts and values, QK_FEND. */
+static void qlex_fstring(QLex *const L, const uint32_t from)
+{
+    L->at += 2;
+    QTok *const start = qlex_tok(L, QK_FSTR, from);
+
+    for (;;) {
+        qlex_fpart(L);
+
+        if (L->at >= L->len)
+            break;
+
+        const uint8_t c = (uint8_t)L->text[L->at];
+
+        if (c == '"') {
+            L->at++;
+            qlex_tok(L, QK_FEND, L->at - 1);
+            return;
+        }
+
+        if (c == '}') {
+            L->at++;
+            qlex_bad(L, qlex_tok(L, QK_BAD, L->at - 1), "a } in an f-string is written }}");
+            continue;
+        }
+
+        if (!qlex_fvalue(L))
+            break;
+    }
+
+    qlex_bad(L, start, "string not closed");
+}
+
 /* Line i's tokens; QK_NL after them at depth 0. */
 static void qlex_line(QLex *const L, const uint32_t i)
 {
@@ -394,27 +531,8 @@ static void qlex_line(QLex *const L, const uint32_t i)
     L->len = ln->len;
     L->at = 0;
 
-    while (L->at < L->len) {
-        const uint8_t c = (uint8_t)L->text[L->at];
-        const uint32_t from = L->at;
-
-        if (is_blank(c)) {
-            L->at++;
-            continue;
-        }
-
-        if (c == '\'')
-            break;
-
-        if (is_letter(c) || c == '_')
-            qlex_name(L, from);
-        else if (is_digit(c))
-            qlex_number(L, from);
-        else if (c == '"')
-            qlex_string(L, from);
-        else
-            qlex_punct(L, from);
-    }
+    while (L->at < L->len && qlex_one(L))
+        ;
 
     const QSrc *const s = L->src;
     const bool open = s->ntoks && s->toks[s->ntoks - 1].kind != QK_NL;

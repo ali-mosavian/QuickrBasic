@@ -3,10 +3,18 @@
  *
  * # How it works
  * Names live on a stack of bindings, a block's scope a mark into it. The passes:
- *   1. each fn's name; then the module's consts, in order; then each fn's signature, its
- *      defaults folded with those consts in sight;
+ *   1. each fn's and type's name; then the module's consts, in order; then each type's fields
+ *      and each fn's signature, their defaults folded with those consts in sight;
  *   2. the module's statements, fn bodies skipped: a var or let is seen from its line on;
- *   3. each fn's body, the module's names (its fns, consts, vars and lets) below it.
+ *   3. each fn's body, the module's names (its fns, consts, vars and lets) below it;
+ *   4. each move checked against the uses after it.
+ *
+ * A compound type is an entry of QProg.tys; lists, arrays and tuples are interned, so a type is
+ * the same as another when its number is. A record, tuple or list lives in a place: a value of
+ * one is built straight into the place it goes to, or first in a temporary when it reads that
+ * place, or is no place's and its address is wanted. A for's element and a case's datum name
+ * the place they stand for (QVar.place), so they cost nothing. A for over a list borrows it till
+ * end for: no change to it but through its element.
  *
  * An expression gets its type bottom up. A literal is untyped until its place types it: a
  * binary operator's other side, a declaration's as, a parameter's type; alone, an int or a
@@ -24,6 +32,7 @@
  */
 #include "qr/qsem.h"
 #include <stdarg.h>
+#include <stdio.h>
 
 enum { QSEM_SAY = 160 }; /* an error's text at most */
 
@@ -33,7 +42,29 @@ typedef struct {
     const QTok *name;
     QVar *var;
     QFn *fn;
+    QType ty; /* a type's name */
 } QBind;
+
+/* A for over a list: the list's variable, borrowed till its end for. */
+typedef struct {
+    const QVar *root;
+    const QStmt *loop;
+} QLoan;
+
+/* A match open: its values seen, an enum's or a bool's. */
+typedef struct {
+    QStmt *s;
+    uint8_t *seen;
+    uint32_t nseen;
+    bool other; /* case else */
+} QOpenMatch;
+
+/* A variable moved: an error if it is used after, or in a loop it is declared outside. */
+typedef struct {
+    const QExpr *e;
+    QVar *var;
+    uint32_t at, loop; /* their tokens; loop UINT32_MAX none */
+} QMove;
 
 typedef struct {
     QProg *prog;
@@ -45,11 +76,25 @@ typedef struct {
     QFn *fn; /* the fn checked, null the module */
     QVar *lastvar;
     bool early; /* the module's consts checked, before its other names are bound */
+    QLoan *loans;
+    uint32_t nloans, caploans;
+    QOpenMatch *matches;
+    uint32_t nmatches, capmatches;
+    QMove *moves;
+    uint32_t nmoves, capmoves;
+    uint32_t *loops; /* the open loops' first tokens */
+    uint32_t nloops, caploops;
 } QSem;
 
 static QExpr *qsem_expr(QSem *S, QExpr *e, QType hint);
 static QExpr *qsem_coerce(QSem *S, QExpr *e, QType to);
 static void qsem_simple(QSem *S, QStmt *s);
+static const QBind *qsem_find(const QSem *S, const QTok *name);
+static bool qsem_isconst(const QExpr *e);
+static bool qsem_byplace(const QSem *S, QType t);
+static QVar *qsem_root(const QExpr *e);
+static QExpr *qsem_addressed(QSem *S, QExpr *e);
+static bool qsem_changes(QSem *S, const QExpr *e, const QTok *at);
 
 /* ---- errors */
 
@@ -82,8 +127,57 @@ static const char *qsem_text(QSem *const S, const QTok *const t)
 
 static const char *qsem_tname(const QType t) { return qast_typename(t); }
 
-/* A type's name with its article: an int, a single. */
-static const char *qsem_aname(const QType t)
+/* a, b and c joined, in the arena. */
+static const char *qsem_join(
+    QSem *const S,
+    const char *const a,
+    const char *const b,
+    const char *const c
+)
+{
+    const size_t na = strlen(a), nb = strlen(b), nc = strlen(c);
+    char *const s = qast_alloc(S->mem, na + nb + nc + 1);
+    memcpy(s, a, na);
+    memcpy(s + na, b, nb);
+    memcpy(s + na + nb, c, nc);
+    return s;
+}
+
+/* Type t's name as written: int, Vec, int[], Vec[4], (int, string). */
+static const char *qsem_tyname(QSem *const S, const QType t)
+{
+    if (!qast_compound(t))
+        return qast_typename(t);
+
+    const QTy *const y = qast_ty(S->prog, t);
+
+    switch (y->kind) {
+    case QT_REC:
+    case QT_ENUM:
+        return qsem_text(S, y->name);
+
+    case QT_LIST:
+        return qsem_join(S, qsem_tyname(S, y->elem), "[]", "");
+
+    case QT_ARRAY: {
+        char n[16];
+        snprintf(n, sizeof n, "[%u]", y->count);
+        return qsem_join(S, qsem_tyname(S, y->elem), n, "");
+    }
+
+    default: {
+        const char *s = "(";
+
+        for (uint32_t k = 0; k < y->nfields; k++)
+            s = qsem_join(S, s, k ? ", " : "", qsem_tyname(S, y->fields[k].type));
+
+        return qsem_join(S, s, ")", "");
+    }
+    }
+}
+
+/* A type's name with its article: an int, a single, a Vec. */
+static const char *qsem_aname(QSem *const S, const QType t)
 {
     static const char *const names[] = {
         [QY_VOID] = "nothing",
@@ -95,7 +189,11 @@ static const char *qsem_aname(const QType t)
         [QY_ERROR] = "an error",
     };
 
-    return names[t];
+    if (t < QY_FIRST)
+        return names[t];
+
+    const char *const n = qsem_tyname(S, t);
+    return qsem_join(S, strchr("AEIOUaeiou", n[0]) ? "an " : "a ", n, "");
 }
 
 /* ---- names */
@@ -146,6 +244,12 @@ static const QBind *qsem_find(const QSem *const S, const QTok *const name)
     return nullptr;
 }
 
+static void qsem_bindty(QSem *const S, const QTok *const name, const QType t)
+{
+    qsem_bind(S, name, nullptr, nullptr);
+    S->binds[S->nbinds - 1].ty = t;
+}
+
 static QVar *qsem_var(QSem *const S, const QTok *const name, const QType type, const QVarKind kind)
 {
     QVar *const v = qast_alloc(S->mem, sizeof *v);
@@ -165,8 +269,13 @@ static QVar *qsem_var(QSem *const S, const QTok *const name, const QType type, c
     return v;
 }
 
-/* A type's name: QY_ERROR after saying why when it is none. */
-static QType qsem_type(QSem *const S, const QTok *const t)
+/* ---- types */
+
+static const char *const qsem_later[] =
+    {"byte", "short", "long", "ubyte", "ushort", "uint", "ulong"};
+
+/* A scalar type's name's type, QY_VOID none; later: a later milestone's. */
+static QType qsem_scalar(const QTok *const t, bool *const later)
 {
     static const struct {
         const char *name;
@@ -179,21 +288,163 @@ static QType qsem_type(QSem *const S, const QTok *const t)
         {"bool", QY_BOOL},
     };
 
-    static const char *const later[] =
-        {"byte", "short", "long", "ubyte", "ushort", "uint", "ulong"};
+    *later = false;
 
     for (uint32_t i = 0; i < countof(types); i++)
         if (qsem_is(t, types[i].name))
             return types[i].type;
 
-    for (uint32_t i = 0; i < countof(later); i++)
-        if (qsem_is(t, later[i])) {
-            qsem_say(S, t, later[i], " is not supported yet", nullptr);
-            return QY_ERROR;
-        }
+    for (uint32_t i = 0; i < countof(qsem_later); i++)
+        *later |= qsem_is(t, qsem_later[i]);
+
+    return QY_VOID;
+}
+
+static bool qsem_owns(const QSem *const S, const QType t)
+{
+    return qast_compound(t) && qast_ty(S->prog, t)->owns;
+}
+
+static QType qsem_newty(QSem *const S, const QTyKind kind)
+{
+    QTys *const ts = &S->prog->tys;
+    ts->at = qast_room(S->mem, ts->at, ts->n, &ts->cap, sizeof *ts->at);
+    ts->at[ts->n] = (QTy){.kind = kind, .state = 2};
+
+    return QY_FIRST + ts->n++;
+}
+
+/* The list of elem (count 0), or its array of count; interned. */
+static QType qsem_listof(QSem *const S, const QType elem, const uint32_t count)
+{
+    const QTyKind kind = count ? QT_ARRAY : QT_LIST;
+    const QTys *const ts = &S->prog->tys;
+
+    for (uint32_t i = 0; i < ts->n; i++)
+        if (ts->at[i].kind == kind && ts->at[i].elem == elem && ts->at[i].count == count)
+            return QY_FIRST + i;
+
+    const bool owns = !count || qsem_owns(S, elem);
+    const QType t = qsem_newty(S, kind);
+    QTy *const y = qast_ty(S->prog, t);
+    y->elem = elem;
+    y->count = count;
+    y->owns = owns;
+    return t;
+}
+
+/* The tuple of n items' types; interned. */
+static QType qsem_tupleof(QSem *const S, const QType *const items, const uint32_t n)
+{
+    const QTys *const ts = &S->prog->tys;
+
+    for (uint32_t i = 0; i < ts->n; i++) {
+        const QTy *const y = &ts->at[i];
+        bool same = y->kind == QT_TUPLE && y->nfields == n;
+
+        for (uint32_t k = 0; same && k < n; k++)
+            same = y->fields[k].type == items[k];
+        if (same)
+            return QY_FIRST + i;
+    }
+
+    QField *const fields = qast_alloc(S->mem, n * sizeof *fields);
+    bool owns = false;
+
+    for (uint32_t k = 0; k < n; k++) {
+        fields[k] = (QField){.type = items[k]};
+
+        owns |= qsem_owns(S, items[k]);
+    }
+
+    const QType t = qsem_newty(S, QT_TUPLE);
+    QTy *const y = qast_ty(S->prog, t);
+    y->fields = fields;
+    y->nfields = y->capfields = n;
+    y->owns = owns;
+    return t;
+}
+
+/* A type's name: QY_ERROR after saying why when it is none. */
+static QType qsem_typename(QSem *const S, const QTok *const t)
+{
+    bool later;
+    const QType k = qsem_scalar(t, &later);
+
+    if (k != QY_VOID)
+        return k;
+
+    if (later) {
+        qsem_say(S, t, qsem_text(S, t), " is not supported yet", nullptr);
+        return QY_ERROR;
+    }
+
+    const QBind *const b = qsem_find(S, t);
+
+    if (b && b->ty)
+        return b->ty;
 
     qsem_say(S, t, "unknown type ", qsem_text(S, t), nullptr);
     return QY_ERROR;
+}
+
+/* T[n]'s n: a constant above 0; 0 after an error. T[K], K a type, is a map's. */
+static uint32_t qsem_count(QSem *const S, QExpr *const e)
+{
+    if (e->kind == QE_NAME) {
+        const QBind *const b = qsem_find(S, e->tok);
+        bool later;
+
+        if ((b && b->ty) || qsem_scalar(e->tok, &later) != QY_VOID || later) {
+            qsem_say(S, e->tok, "maps are not supported yet", nullptr);
+            return 0;
+        }
+    }
+
+    const QExpr *const n = qsem_coerce(S, qsem_expr(S, e, QY_INT), QY_INT);
+
+    if (n->type == QY_ERROR)
+        return 0;
+
+    if (!qsem_isconst(n) || n->val.i < 1) {
+        qsem_say(S, n->tok, "an array's size is a constant above 0", nullptr);
+        return 0;
+    }
+
+    return (uint32_t)n->val.i;
+}
+
+/* A type as written: QY_ERROR after saying why when it is none. */
+static QType qsem_type(QSem *const S, const QTypeEx *const x)
+{
+    if (x->kind == QX_NAME)
+        return qsem_typename(S, x->tok);
+
+    if (x->kind == QX_TUPLE) {
+        QType *const items = qast_alloc(S->mem, x->n * sizeof *items);
+
+        for (uint32_t k = 0; k < x->n; k++)
+            if ((items[k] = qsem_type(S, x->items[k])) == QY_ERROR)
+                return QY_ERROR;
+
+        return qsem_tupleof(S, items, x->n);
+    }
+
+    const QType elem = qsem_type(S, x->elem);
+
+    if (elem == QY_ERROR)
+        return QY_ERROR;
+
+    if (qast_array(S->prog, elem)) {
+        qsem_say(S, x->tok, "lists of lists are not supported yet", nullptr);
+        return QY_ERROR;
+    }
+
+    if (x->kind == QX_LIST)
+        return qsem_listof(S, elem, 0);
+
+    const uint32_t n = qsem_count(S, x->count);
+    return n ? qsem_listof(S, elem, n) : QY_ERROR;
 }
 
 /* ---- constants */
@@ -354,16 +605,16 @@ static void qsem_mismatch(QSem *const S, const QExpr *const e, const QType to)
         qsem_say(
             S,
             e->tok,
-            qsem_aname(from),
+            qsem_aname(S, from),
             " is not ",
-            qsem_aname(to),
+            qsem_aname(S, to),
             ": write ",
             qsem_tname(to),
             "(x)",
             nullptr
         );
     else
-        qsem_say(S, e->tok, qsem_aname(from), " is not ", qsem_aname(to), nullptr);
+        qsem_say(S, e->tok, qsem_aname(S, from), " is not ", qsem_aname(S, to), nullptr);
 }
 
 /* e as type to, by itself: an untyped constant typed, a widening made explicit. */
@@ -379,7 +630,7 @@ static QExpr *qsem_coerce(QSem *const S, QExpr *const e, const QType to)
         }
 
         if (qast_numeric(to) && (to != QY_INT || e->type == QY_INT)) {
-            qsem_say(S, e->tok, qsem_what(S, e), " doesn't fit ", qsem_aname(to), nullptr);
+            qsem_say(S, e->tok, qsem_what(S, e), " doesn't fit ", qsem_aname(S, to), nullptr);
             e->type = QY_ERROR;
             return e;
         }
@@ -622,7 +873,7 @@ static QExpr *qsem_intop(QSem *const S, QExpr *const e)
             e->tok,
             qast_spelling(e->op),
             " takes ints, not ",
-            qsem_aname(bad->type),
+            qsem_aname(S, bad->type),
             nullptr
         );
         e->type = QY_ERROR;
@@ -676,7 +927,7 @@ static QExpr *qsem_binary(QSem *const S, QExpr *const e)
         if (e->op == QK_PLUS && (a->type == QY_STRING || b->type == QY_STRING))
             qsem_say(S, e->tok, "+ joins two strings: write string(x)", nullptr);
         else
-            qsem_say(S, e->tok, op, " takes numbers, not ", qsem_aname(bad->type), nullptr);
+            qsem_say(S, e->tok, op, " takes numbers, not ", qsem_aname(S, bad->type), nullptr);
 
         e->type = QY_ERROR;
         return e;
@@ -736,7 +987,7 @@ static QExpr *qsem_unary(QSem *const S, QExpr *const e)
     }
 
     if (!qast_numeric(a->type)) {
-        qsem_say(S, e->tok, "- takes a number, not ", qsem_aname(a->type), nullptr);
+        qsem_say(S, e->tok, "- takes a number, not ", qsem_aname(S, a->type), nullptr);
         e->type = QY_ERROR;
         return e;
     }
@@ -773,15 +1024,30 @@ static QType qsem_cmptype(
     if (a->type == b->type && a->type == QY_STRING)
         return QY_STRING;
 
-    if (a->type == b->type && a->type == QY_BOOL) {
+    if (a->type == b->type && (a->type == QY_BOOL || qast_tag(S->prog, a->type))) {
         if (op == QK_EQ || op == QK_NE)
-            return QY_BOOL;
+            return a->type;
 
-        qsem_say(S, at, qast_spelling(op), " takes numbers or strings, not bools", nullptr);
+        qsem_say(
+            S,
+            at,
+            qast_spelling(op),
+            " takes numbers or strings, not ",
+            qsem_aname(S, a->type),
+            nullptr
+        );
         return QY_ERROR;
     }
 
-    qsem_say(S, at, "can't compare ", qsem_aname(a->type), " with ", qsem_aname(b->type), nullptr);
+    qsem_say(
+        S,
+        at,
+        "can't compare ",
+        qsem_aname(S, a->type),
+        " with ",
+        qsem_aname(S, b->type),
+        nullptr
+    );
     return QY_ERROR;
 }
 
@@ -890,9 +1156,9 @@ static QExpr *qsem_cond(QSem *const S, QExpr *const e, const QType hint)
             S,
             e->tok,
             "the arms are ",
-            qsem_aname(a->type),
+            qsem_aname(S, a->type),
             " and ",
-            qsem_aname(b->type),
+            qsem_aname(S, b->type),
             nullptr
         );
         e->type = QY_ERROR;
@@ -909,9 +1175,14 @@ static QExpr *qsem_cond(QSem *const S, QExpr *const e, const QType hint)
     return e;
 }
 
-/* x in a..b: a <= x < b, x once. */
+static QExpr *qsem_has(QSem *S, QExpr *e);
+
+/* x in a..b: a <= x < b, x once; x in a, a list. */
 static QExpr *qsem_in(QSem *const S, QExpr *const e)
 {
+    if (!e->c)
+        return qsem_has(S, e);
+
     QExpr *const x = e->a = qsem_expr(S, e->a, QY_VOID);
     QExpr *const lo = e->b = qsem_expr(S, e->b, QY_VOID);
     QExpr *const hi = e->c = qsem_expr(S, e->c, QY_VOID);
@@ -997,6 +1268,14 @@ static QExpr *qsem_print(QSem *const S, QExpr *const e)
 
         if (v->type == QY_VOID)
             qsem_mismatch(S, v, QY_STRING);
+        if (qsem_byplace(S, v->type))
+            qsem_say(
+                S,
+                v->tok,
+                "print takes numbers, strings and bools, not ",
+                qsem_aname(S, v->type),
+                nullptr
+            );
 
         e->argv[i] = v;
     }
@@ -1027,13 +1306,20 @@ static QExpr *qsem_convert(QSem *const S, QExpr *const e, const QType to)
         return v->type == QY_STRING ? v : qsem_conv(S, v, QY_STRING);
     }
 
+    if (qast_tag(S->prog, x->type) && to == QY_INT) { /* an enum's value's number */
+        QExpr *const n = qast_alloc(S->mem, sizeof *n);
+        *n = *x;
+        n->type = QY_INT;
+        return n;
+    }
+
     if (!qast_numeric(x->type)) {
         qsem_say(
             S,
             e->tok,
             qsem_tname(to),
             "() takes a number, not ",
-            qsem_aname(x->type),
+            qsem_aname(S, x->type),
             nullptr
         );
         return e;
@@ -1049,23 +1335,14 @@ static QExpr *qsem_convert(QSem *const S, QExpr *const e, const QType to)
     return c;
 }
 
-/* The argument named n among f's parameters: its index, npar none. */
-static uint32_t qsem_param(const QFn *const f, const QTok *const n)
-{
-    for (uint32_t k = 0; k < f->npar; k++)
-        if (qsem_same(f->params[k].name, n))
-            return k;
-
-    return f->npar;
-}
-
-/* A mut argument: a var of the parameter's type. */
+/* A mut argument: a var's place (qsem_changes said why not), of the parameter's type. */
 static QExpr *qsem_mutarg(QSem *const S, QExpr *const v, const QParam *const p)
 {
-    if (v->kind != QE_NAME || !v->var || (v->var->kind != QV_VAR && v->var->kind != QV_MUT)) {
-        if (v->type != QY_ERROR)
-            qsem_say(S, v->tok, "mut takes a var", nullptr);
+    if (v->type == QY_ERROR)
+        return v;
 
+    if (!qast_place(v)) {
+        qsem_say(S, v->tok, "mut takes a var", nullptr);
         v->type = QY_ERROR;
         return v;
     }
@@ -1077,9 +1354,9 @@ static QExpr *qsem_mutarg(QSem *const S, QExpr *const v, const QParam *const p)
             "mut ",
             qsem_text(S, p->name),
             " is ",
-            qsem_aname(p->var->type),
+            qsem_aname(S, p->var->type),
             ", not ",
-            qsem_aname(v->type),
+            qsem_aname(S, v->type),
             nullptr
         );
         v->type = QY_ERROR;
@@ -1093,20 +1370,70 @@ static void qsem_lent(QSem *const S, const QExpr *const e, const QFn *const f)
 {
     for (uint32_t k = 0; k < f->npar; k++) {
         const QExpr *const m = e->argv[k];
+        const QVar *const v = f->params[k].mut && m->type != QY_ERROR ? qsem_root(m) : nullptr;
 
-        if (!f->params[k].mut || m->kind != QE_NAME || !m->var)
-            continue;
-
-        for (uint32_t j = 0; j < f->npar; j++)
-            if (j != k && e->argv[j]->kind == QE_NAME && e->argv[j]->var == m->var)
+        for (uint32_t j = 0; v && j < f->npar; j++)
+            if (j != k && qsem_root(e->argv[j]) == v)
                 qsem_say(
                     S,
                     e->argv[j]->tok,
-                    qsem_text(S, m->tok),
+                    qsem_text(S, v->name),
                     " is lent mut in this call",
                     nullptr
                 );
     }
+}
+
+/* args matched to n names, by position then by name: each name's, null none. who's: "has no
+   parameter" or "has no field" (what). */
+static const QArg **qsem_given(
+    QSem *const S,
+    const QArg *const args,
+    const QTok *const *const names,
+    const uint32_t n,
+    const QTok *const who,
+    const char *const what
+)
+{
+    const QArg **const given = qast_alloc(S->mem, (n ? n : 1) * sizeof *given);
+    uint32_t pos = 0;
+    bool named = false;
+
+    for (const QArg *a = args; a; a = a->next) {
+        uint32_t k = pos;
+
+        if (a->name) {
+            named = true;
+            k = 0;
+
+            while (k < n && !qsem_same(names[k], a->name))
+                k++;
+
+            if (k == n) {
+                qsem_say(S, a->name, qsem_text(S, who), what, qsem_text(S, a->name), nullptr);
+                continue;
+            }
+        } else if (named) {
+            qsem_say(S, a->e->tok, "a value by position after one by name", nullptr);
+            continue;
+        } else if (pos++ >= n) {
+            qsem_say(S, a->e->tok, "too many values for ", qsem_text(S, who), nullptr);
+            break;
+        }
+
+        if (given[k])
+            qsem_say(
+                S,
+                a->name ? a->name : a->e->tok,
+                qsem_text(S, names[k]),
+                " given twice",
+                nullptr
+            );
+
+        given[k] = a;
+    }
+
+    return given;
 }
 
 /* A call of fn f: its arguments by parameter, defaults where left out. */
@@ -1116,47 +1443,13 @@ static QExpr *qsem_fncall(QSem *const S, QExpr *const e, QFn *const f)
     e->type = f->result;
     e->nargv = f->npar;
     e->argv = qast_alloc(S->mem, (f->npar ? f->npar : 1) * sizeof *e->argv);
-    const QArg **const given = qast_alloc(S->mem, (f->npar ? f->npar : 1) * sizeof *given);
-    uint32_t pos = 0;
-    bool named = false;
+    const QTok **const names = qast_alloc(S->mem, (f->npar ? f->npar : 1) * sizeof *names);
 
-    for (const QArg *a = e->args; a; a = a->next) {
-        uint32_t k = pos;
+    for (uint32_t k = 0; k < f->npar; k++)
+        names[k] = f->params[k].name;
 
-        if (a->name) {
-            named = true;
-            k = qsem_param(f, a->name);
-
-            if (k == f->npar) {
-                qsem_say(
-                    S,
-                    a->name,
-                    qsem_text(S, f->name),
-                    " has no parameter ",
-                    qsem_text(S, a->name),
-                    nullptr
-                );
-                continue;
-            }
-        } else if (named) {
-            qsem_say(S, a->e->tok, "a value by position after one by name", nullptr);
-            continue;
-        } else if (pos++ >= f->npar) {
-            qsem_say(S, a->e->tok, "too many values for ", qsem_text(S, f->name), nullptr);
-            break;
-        }
-
-        if (given[k])
-            qsem_say(
-                S,
-                a->name ? a->name : a->e->tok,
-                qsem_text(S, f->params[k].name),
-                " given twice",
-                nullptr
-            );
-
-        given[k] = a;
-    }
+    const QArg **const given =
+        qsem_given(S, e->args, names, f->npar, f->name, " has no parameter ");
 
     for (uint32_t k = 0; k < f->npar; k++) {
         const QParam *const p = &f->params[k];
@@ -1184,26 +1477,679 @@ static QExpr *qsem_fncall(QSem *const S, QExpr *const e, QFn *const f)
             continue;
         }
 
+        const bool lend = p->mut && a->mut && qsem_changes(S, a->e, a->e->tok);
         QExpr *const v = qsem_expr(S, a->e, p->var->type);
 
         if (p->mut && !a->mut)
             qsem_say(S, a->e->tok, qsem_text(S, p->name), " is mut: write mut before it", nullptr);
         if (!p->mut && a->mut)
             qsem_say(S, a->mut, qsem_text(S, p->name), " is not mut", nullptr);
+        if (p->mut && a->mut && !lend)
+            v->type = QY_ERROR;
 
-        e->argv[k] = p->mut ? qsem_mutarg(S, v, p) : qsem_coerce(S, v, p->var->type);
+        e->argv[k] =
+            p->mut ? qsem_mutarg(S, v, p) : qsem_addressed(S, qsem_coerce(S, v, p->var->type));
     }
 
     qsem_lent(S, e, f);
     return e;
 }
 
+/* ---- places, moves */
+
+/* A checked place's variable: its name's, its fields' and elements' base's; null none. */
+static QVar *qsem_root(const QExpr *e)
+{
+    while (e->kind == QE_FIELD || e->kind == QE_INDEX)
+        e = e->a;
+
+    return e->kind == QE_NAME ? e->var : nullptr;
+}
+
+/* An unchecked place's variable as bound: a for's element itself, not the list it names. */
+static QVar *qsem_rawroot(const QSem *const S, const QExpr *e)
+{
+    while (e->kind == QE_FIELD || e->kind == QE_INDEX)
+        e = e->a;
+
+    const QBind *const b = e->kind == QE_NAME ? qsem_find(S, e->tok) : nullptr;
+    return b ? b->var : nullptr;
+}
+
+/* Unchecked place e changed at at: its variable a var, a mut parameter or a for mut's element,
+   and no list a for borrows. False: an error said. */
+static bool qsem_changes(QSem *const S, const QExpr *const e, const QTok *const at)
+{
+    static const char *const why[] = {
+        [QV_LET] = " is a let: it can't change",
+        [QV_CONST] = " is a const: it can't change",
+        [QV_PARAM] = " is a parameter: make it mut to change it",
+        [QV_LOOP] = " is the loop's counter: it can't change",
+        [QV_TEMP] = " can't change",
+        [QV_RESULT] = " can't change",
+    };
+
+    const QVar *const v = qsem_rawroot(S, e);
+
+    if (!v)
+        return true; /* not a place: said where it is checked */
+
+    const char *const name = qsem_text(S, v->name);
+
+    if (v->kind == QV_EACH) {
+        if (!v->mut)
+            qsem_say(S, e->tok, name, " is the for's element: write for mut ", name, nullptr);
+
+        return v->mut;
+    }
+
+    if (v->kind != QV_VAR && v->kind != QV_MUT) {
+        qsem_say(S, e->tok, name, why[v->kind], nullptr);
+        return false;
+    }
+
+    for (uint32_t i = 0; i < S->nloans; i++)
+        if (S->loans[i].root == v) {
+            qsem_say(S, at, name, " is borrowed by the for over it: it can't change here", nullptr);
+            return false;
+        }
+
+    return true;
+}
+
+static uint32_t qsem_at(const QSem *const S, const QTok *const t)
+{
+    return (uint32_t)(t - S->prog->src.toks);
+}
+
+/* Value e of a type that owns a list, taken whole: a local's name moves (qsem_moved checks it
+   later), leaving its fn when it returns; any other place is copied, which copy() writes out. */
+static QExpr *qsem_owned(QSem *const S, QExpr *const e, const bool returned)
+{
+    if (!qsem_owns(S, e->type) || !qast_place(e))
+        return e;
+
+    QVar *const v = e->kind == QE_NAME ? e->var : nullptr;
+
+    if (!v || (v->kind != QV_LET && v->kind != QV_VAR)) {
+        qsem_say(S, e->tok, "only a whole let or var moves: write copy(..)", nullptr);
+        e->type = QY_ERROR;
+        return e;
+    }
+
+    if (returned && v->fn)
+        return e;
+
+    S->moves = qast_room(S->mem, S->moves, S->nmoves, &S->capmoves, sizeof *S->moves);
+    S->moves[S->nmoves++] = (QMove){
+        .e = e,
+        .var = v,
+        .at = qsem_at(S, e->tok),
+        .loop = S->nloops ? S->loops[S->nloops - 1] : UINT32_MAX,
+    };
+
+    return e;
+}
+
+/* Each move: its variable not used after it, nor moved in a loop it is declared outside. */
+static void qsem_moved(QSem *const S)
+{
+    for (uint32_t i = 0; i < S->nmoves; i++) {
+        const QMove *const m = &S->moves[i];
+        const char *const name = qsem_text(S, m->var->name);
+        const char *const why = m->var->last > m->at ? " is used after it moves here"
+                                : m->var->shared     ? " is seen by a fn: it can't move"
+                                : m->loop != UINT32_MAX && qsem_at(S, m->var->name) < m->loop
+                                    ? " moves in a loop it is declared outside"
+                                    : nullptr;
+
+        if (why)
+            qsem_say(S, m->e->tok, name, why, ": write copy(", name, ")", nullptr);
+    }
+}
+
+/* Is variable v read in e? */
+static bool qsem_mentions(const QExpr *const e, const QVar *const v)
+{
+    if (!e)
+        return false;
+    if (e->kind == QE_NAME && e->var == v)
+        return true;
+    if (qsem_mentions(e->a, v) || qsem_mentions(e->b, v) || qsem_mentions(e->c, v))
+        return true;
+
+    for (uint32_t k = 0; k < e->nargv; k++)
+        if (qsem_mentions(e->argv[k], v))
+            return true;
+
+    for (uint32_t k = 0; e->kind != QE_NEW && k < e->n; k++)
+        if (qsem_mentions(e->items[k], v))
+            return true;
+
+    return false;
+}
+
+static bool qsem_byplace(const QSem *const S, const QType t)
+{
+    return qast_compound(t) && !qast_tag(S->prog, t);
+}
+
+/* A record's or list's value e built straight into variable v's place, unless it reads v or calls
+   a fn that may see v (a module's): then in a temporary first. */
+static QExpr *qsem_into(QSem *const S, const QVar *const v, QExpr *const e)
+{
+    if (!qsem_byplace(S, e->type) || !qast_fresh(e) || e->var)
+        return e;
+
+    const bool call = e->kind == QE_CALL || e->kind == QE_LIST;
+
+    if (qsem_mentions(e, v) || (call && (!v || !v->fn)))
+        e->var = qsem_var(S, e->tok, e->type, QV_TEMP);
+
+    return e;
+}
+
+/* A record or list that is no place, where its address is wanted: built in a temporary. */
+static QExpr *qsem_addressed(QSem *const S, QExpr *const e)
+{
+    if (qsem_byplace(S, e->type) && qast_fresh(e) && !e->var)
+        e->var = qsem_var(S, e->tok, e->type, QV_TEMP);
+
+    return e;
+}
+
+/* A value for a place of type to: converted, a move noted. */
+static QExpr *qsem_value(QSem *const S, QExpr *const e, const QType to)
+{
+    return qsem_owned(S, qsem_coerce(S, qsem_expr(S, e, to), to), false);
+}
+
+/* ---- records, enums, tuples */
+
+/* e, a QE_CALL with args or a name alone, made a QE_NEW of type t: its n fields' values by
+   position or by name, a default or zero where left out; all: each needed. */
+static QExpr *qsem_build(
+    QSem *const S,
+    QExpr *const e,
+    const QType t,
+    const QField *const fields,
+    const uint32_t n,
+    const QTok *const who,
+    const bool all
+)
+{
+    const QArg *const args = e->kind == QE_CALL ? e->args : nullptr;
+    const QTok **const names = qast_alloc(S->mem, (n ? n : 1) * sizeof *names);
+
+    for (uint32_t k = 0; k < n; k++)
+        names[k] = fields[k].name;
+
+    const QArg **const given = qsem_given(S, args, names, n, who, " has no field ");
+    e->kind = QE_NEW;
+    e->type = t;
+    e->nargv = n;
+    e->argv = qast_alloc(S->mem, (n ? n : 1) * sizeof *e->argv);
+
+    for (const QArg *a = args; a; a = a->next)
+        if (a->mut)
+            qsem_say(S, a->mut, "a field takes a value, not mut", nullptr);
+
+    for (uint32_t k = 0; k < n; k++) {
+        if (given[k]) {
+            e->argv[k] = qsem_value(S, given[k]->e, fields[k].type);
+            continue;
+        }
+
+        if (all && !fields[k].def)
+            qsem_say(
+                S,
+                e->tok,
+                qsem_text(S, who),
+                " needs a value for ",
+                qsem_text(S, names[k]),
+                nullptr
+            );
+
+        e->argv[k] = fields[k].def; /* null: zero */
+    }
+
+    return e;
+}
+
+/* Enum t's value e->tok, call its data's: a plain enum's an int, one with data a QE_NEW. */
+static QExpr *qsem_variant(QSem *const S, QExpr *const e, const QType t, const bool call)
+{
+    const QTy *const y = qast_ty(S->prog, t);
+    const char *const name = qsem_text(S, y->name);
+    e->type = QY_ERROR;
+
+    if (y->kind != QT_ENUM) {
+        qsem_say(S, e->tok, name, " is a type: ", name, "(..) makes one", nullptr);
+        return e;
+    }
+
+    uint32_t k = 0;
+
+    while (k < y->nvars && !qsem_same(y->vars[k].name, e->tok))
+        k++;
+
+    if (k == y->nvars) {
+        qsem_say(S, e->tok, name, " has no value ", qsem_text(S, e->tok), nullptr);
+        return e;
+    }
+
+    const QVariant *const v = &y->vars[k];
+
+    if (call && !v->n) {
+        qsem_say(S, e->tok, qsem_text(S, e->tok), " carries no data", nullptr);
+        return e;
+    }
+
+    if (!y->data)
+        return qsem_const(S, e->tok, t, (QVal){.i = k});
+
+    if (v->n && !call) {
+        qsem_say(S, e->tok, qsem_text(S, e->tok), " carries data: give it in (..)", nullptr);
+        return e;
+    }
+
+    e->field = k;
+    return qsem_build(S, e, t, v->fields, v->n, v->name, true);
+}
+
+static bool qsem_isrec(const QSem *const S, const QType t)
+{
+    return qast_compound(t) && qast_ty(S->prog, t)->kind == QT_REC;
+}
+
+/* a.f: a record's field; Name.v, an enum's value. */
+static QExpr *qsem_field(QSem *const S, QExpr *const e)
+{
+    if (e->a->kind == QE_NAME) {
+        const QBind *const b = qsem_find(S, e->a->tok);
+
+        if (b && b->ty)
+            return qsem_variant(S, e, b->ty, false);
+    }
+
+    const QExpr *const a = e->a = qsem_addressed(S, qsem_expr(S, e->a, QY_VOID));
+    e->type = QY_ERROR;
+
+    if (a->type == QY_ERROR)
+        return e;
+
+    if (!qsem_isrec(S, a->type)) {
+        qsem_say(S, e->tok, qsem_aname(S, a->type), " has no fields", nullptr);
+        return e;
+    }
+
+    const QTy *const y = qast_ty(S->prog, a->type);
+
+    for (uint32_t k = 0; k < y->nfields; k++)
+        if (qsem_same(y->fields[k].name, e->tok)) {
+            e->field = k;
+            e->type = y->fields[k].type;
+            return e;
+        }
+
+    qsem_say(S, e->tok, qsem_text(S, y->name), " has no field ", qsem_text(S, e->tok), nullptr);
+    return e;
+}
+
+/* a[i]: a list's or an array's element; a constant i past an array's, an error. */
+static QExpr *qsem_index(QSem *const S, QExpr *const e)
+{
+    const QExpr *const a = e->a = qsem_addressed(S, qsem_expr(S, e->a, QY_VOID));
+    const QExpr *const i = e->b = qsem_coerce(S, qsem_expr(S, e->b, QY_INT), QY_INT);
+    e->type = QY_ERROR;
+
+    if (a->type == QY_ERROR || i->type == QY_ERROR)
+        return e;
+
+    if (!qast_array(S->prog, a->type)) {
+        qsem_say(S, e->tok, qsem_aname(S, a->type), " has no elements", nullptr);
+        return e;
+    }
+
+    const QTy *const y = qast_ty(S->prog, a->type);
+
+    if (qsem_isconst(i) && (i->val.i < 0 || (y->count && i->val.i >= y->count)))
+        qsem_say(S, i->tok, "the index is past the elements", nullptr);
+
+    e->type = y->elem;
+    return e;
+}
+
+/* (a, b) for a place of type hint, a tuple's: a QE_NEW of it; else of its items' types. */
+static QExpr *qsem_tuple(QSem *const S, QExpr *const e, const QType hint)
+{
+    const bool fits = qast_compound(hint) && qast_ty(S->prog, hint)->kind == QT_TUPLE &&
+                      qast_ty(S->prog, hint)->nfields == e->n;
+    const QField *const fields = fits ? qast_ty(S->prog, hint)->fields : nullptr;
+    QType *const items = qast_alloc(S->mem, e->n * sizeof *items);
+
+    for (uint32_t k = 0; k < e->n; k++) {
+        QExpr *const v =
+            fields ? qsem_value(S, e->items[k], fields[k].type)
+                   : qsem_owned(S, qsem_settle(S, qsem_expr(S, e->items[k], QY_VOID)), false);
+        e->items[k] = v;
+        items[k] = v->type;
+
+        if (v->type == QY_ERROR || v->type == QY_VOID) {
+            e->type = QY_ERROR;
+            return e;
+        }
+    }
+
+    e->type = fields ? hint : qsem_tupleof(S, items, e->n);
+    e->kind = QE_NEW;
+    e->argv = e->items;
+    e->nargv = e->n;
+    e->n = 0;
+    return e;
+}
+
+/* ---- lists */
+
+/* A list's method: a.push(x), a.pop(), a.insert(i, x), a.remove(i); a mutable list. */
+static QExpr *qsem_listop(QSem *const S, QExpr *const e, const QBuiltin op)
+{
+    static const uint32_t counts[] =
+        {[QB_PUSH] = 1, [QB_POP] = 0, [QB_INSERT] = 2, [QB_REMOVE] = 1};
+
+    static const char *const say[] = {
+        [QB_PUSH] = "push() takes a value",
+        [QB_POP] = "pop() takes no values",
+        [QB_INSERT] = "insert() takes an index and a value",
+        [QB_REMOVE] = "remove() takes an index",
+    };
+
+    const bool ok = qsem_changes(S, e->a, e->tok);
+    QExpr *const a = e->a = qsem_expr(S, e->a, QY_VOID);
+    e->kind = QE_LIST;
+    e->builtin = op;
+    e->type = QY_ERROR;
+    uint32_t n = 0;
+
+    for (const QArg *x = e->args; x; x = x->next)
+        n++;
+
+    if (!ok || a->type == QY_ERROR)
+        return e;
+
+    if (!qast_compound(a->type) || qast_ty(S->prog, a->type)->kind != QT_LIST) {
+        const bool array = qast_array(S->prog, a->type);
+        qsem_say(
+            S,
+            e->tok,
+            array ? "an array's size is fixed" : "only a list has ",
+            array ? "" : qsem_text(S, e->tok),
+            array ? "" : "()",
+            nullptr
+        );
+        return e;
+    }
+
+    if (n != counts[op] || !qsem_plain(S, e, ~0u)) {
+        qsem_say(S, e->tok, say[op], nullptr);
+        return e;
+    }
+
+    const QType elem = qast_ty(S->prog, a->type)->elem;
+    e->argv = qast_alloc(S->mem, 2 * sizeof *e->argv);
+    e->nargv = n;
+    const QArg *x = e->args;
+
+    if (op == QB_INSERT || op == QB_REMOVE) {
+        e->argv[0] = qsem_coerce(S, qsem_expr(S, x->e, QY_INT), QY_INT);
+        x = x->next;
+    }
+
+    if (op == QB_PUSH || op == QB_INSERT)
+        e->argv[n - 1] = qsem_addressed(S, qsem_value(S, x->e, elem));
+
+    e->type = op == QB_POP ? elem : QY_VOID;
+    return e;
+}
+
+/* len(a): a list's elements, an array's its size. */
+static QExpr *qsem_len(QSem *const S, QExpr *const e, QExpr *const recv)
+{
+    e->type = QY_ERROR;
+
+    if (!recv && !qsem_plain(S, e, 1))
+        return e;
+    if (recv && e->args) {
+        qsem_say(S, e->tok, "len() takes no values", nullptr);
+        return e;
+    }
+
+    QExpr *const a = qsem_addressed(S, qsem_expr(S, recv ? recv : e->args->e, QY_VOID));
+
+    if (a->type == QY_ERROR)
+        return e;
+
+    if (!qast_array(S->prog, a->type)) {
+        qsem_say(
+            S,
+            a->tok,
+            "len() takes a list or an array, not ",
+            qsem_aname(S, a->type),
+            nullptr
+        );
+        return e;
+    }
+
+    const QTy *const y = qast_ty(S->prog, a->type);
+
+    if (y->kind == QT_ARRAY)
+        return qsem_const(S, e->tok, QY_INT, (QVal){.i = y->count});
+
+    e->kind = QE_CALL;
+    e->builtin = QB_LEN;
+    e->a = a;
+    e->type = QY_INT;
+    return e;
+}
+
+/* copy(x): a copy of x, a record's or a list's made whole. */
+static QExpr *qsem_copy(QSem *const S, QExpr *const e)
+{
+    e->type = QY_ERROR;
+
+    if (!qsem_plain(S, e, 1))
+        return e;
+
+    QExpr *const a = qsem_settle(S, qsem_expr(S, e->args->e, QY_VOID));
+
+    if (!qsem_byplace(S, a->type))
+        return a;
+
+    e->builtin = QB_COPY;
+    e->a = qsem_addressed(S, a);
+    e->type = a->type;
+    return e;
+}
+
+/* a.f(b): a list's method, an enum's value with data, else f(a, b) with mut implied. */
+static QExpr *qsem_method(QSem *const S, QExpr *const e)
+{
+    static const struct {
+        const char *name;
+        QBuiltin op;
+    } lists[] = {{"push", QB_PUSH}, {"pop", QB_POP}, {"insert", QB_INSERT}, {"remove", QB_REMOVE}};
+
+    if (e->a->kind == QE_NAME) {
+        const QBind *const b = qsem_find(S, e->a->tok);
+
+        if (b && b->ty)
+            return qsem_variant(S, e, b->ty, true);
+    }
+
+    const QBind *const b = qsem_find(S, e->tok);
+
+    if (!b || !b->fn) {
+        for (uint32_t i = 0; i < countof(lists); i++)
+            if (qsem_is(e->tok, lists[i].name))
+                return qsem_listop(S, e, lists[i].op);
+
+        if (qsem_is(e->tok, "len"))
+            return qsem_len(S, e, e->a);
+
+        qsem_say(S, e->tok, "unknown fn ", qsem_text(S, e->tok), nullptr);
+        e->type = QY_ERROR;
+        return e;
+    }
+
+    QArg *const self = qast_alloc(S->mem, sizeof *self);
+    self->e = e->a;
+    self->next = e->args;
+
+    if (b->fn->npar && b->fn->params[0].mut)
+        self->mut = e->tok;
+
+    e->args = self;
+    e->a = nullptr;
+    return qsem_fncall(S, e, b->fn);
+}
+
+/* x in a, a list: a's element type. */
+static QExpr *qsem_has(QSem *const S, QExpr *const e)
+{
+    QExpr *const a = e->b = qsem_addressed(S, qsem_expr(S, e->b, QY_VOID));
+    e->kind = QE_HAS;
+    e->type = QY_ERROR;
+
+    if (a->type == QY_ERROR) {
+        qsem_expr(S, e->a, QY_VOID);
+        return e;
+    }
+
+    if (!qast_array(S->prog, a->type)) {
+        qsem_say(
+            S,
+            e->tok,
+            "in takes a range a..b or a list, not ",
+            qsem_aname(S, a->type),
+            nullptr
+        );
+        return e;
+    }
+
+    const QType elem = qast_ty(S->prog, a->type)->elem;
+
+    if (qsem_byplace(S, elem)) {
+        qsem_say(S, e->tok, "in takes a list of numbers, strings or bools", nullptr);
+        return e;
+    }
+
+    e->a = qsem_coerce(S, qsem_expr(S, e->a, elem), elem);
+    e->type = e->a->type == QY_ERROR ? QY_ERROR : QY_BOOL;
+    return e;
+}
+
+/* ---- f-strings */
+
+/* Is spec, a format spec, Python's for a value of type t? [[fill]align][sign][#][0][width]
+   [,|_][.precision][type]. */
+static bool qsem_specok(const QTok *const spec, const QType t)
+{
+    const char *p = spec->text, *const end = spec->text + spec->len;
+
+    if (end - p >= 2 && strchr("<>^=", p[1]))
+        p += 2;
+    else if (p < end && strchr("<>^=", *p))
+        p++;
+
+    if (p < end && strchr("+- ", *p))
+        p++;
+    if (p < end && *p == '#')
+        p++;
+    if (p < end && *p == '0')
+        p++;
+
+    while (p < end && *p >= '0' && *p <= '9')
+        p++;
+
+    if (p < end && (*p == ',' || *p == '_'))
+        p++;
+
+    if (p < end && *p == '.') {
+        const char *const digits = ++p;
+
+        while (p < end && *p >= '0' && *p <= '9')
+            p++;
+
+        if (p == digits)
+            return false;
+    }
+
+    const char *const types = t == QY_INT ? "bcdoxXneEfFgG%" : qast_float(t) ? "eEfFgGn%" : "s";
+    return p == end || (p + 1 == end && strchr(types, *p));
+}
+
+/* f"..": each value a number, a string or a bool, its spec one for its type. */
+static QExpr *qsem_fstring(QSem *const S, QExpr *const e)
+{
+    e->type = QY_STRING;
+
+    for (uint32_t k = 0; k < e->n; k++) {
+        if (e->items[k]->tok->kind == QK_FPART)
+            continue;
+
+        QExpr *const v = e->items[k] = qsem_settle(S, qsem_expr(S, e->items[k], QY_VOID));
+        const QTok *const spec = e->specs[k];
+
+        if (v->type == QY_ERROR) {
+            e->type = QY_ERROR;
+            continue;
+        }
+
+        if (qast_compound(v->type) || v->type == QY_VOID) {
+            qsem_say(
+                S,
+                v->tok,
+                "an f-string takes numbers, strings and bools, not ",
+                qsem_aname(S, v->type),
+                nullptr
+            );
+            e->type = QY_ERROR;
+        } else if (spec && !qsem_specok(spec, v->type == QY_BOOL ? QY_STRING : v->type)) {
+            qsem_say(
+                S,
+                spec,
+                qsem_text(S, spec),
+                " is no format for ",
+                qsem_aname(S, v->type),
+                nullptr
+            );
+            e->type = QY_ERROR;
+        }
+    }
+
+    return e;
+}
+
 static QExpr *qsem_call(QSem *const S, QExpr *const e)
 {
+    if (e->a)
+        return qsem_method(S, e);
+
     const QBind *const b = qsem_find(S, e->tok);
 
     if (b && b->fn)
         return qsem_fncall(S, e, b->fn);
+
+    if (b && b->ty && qsem_isrec(S, b->ty)) {
+        const QTy *const y = qast_ty(S->prog, b->ty);
+        return qsem_build(S, e, b->ty, y->fields, y->nfields, y->name, false);
+    }
+
+    if (b && b->ty) {
+        qsem_say(S, e->tok, "an enum's value is Name.value", nullptr);
+        e->type = QY_ERROR;
+        return e;
+    }
 
     if (b) {
         qsem_say(S, e->tok, qsem_text(S, e->tok), " is not a fn", nullptr);
@@ -1228,12 +2174,14 @@ static QExpr *qsem_call(QSem *const S, QExpr *const e)
         if (qsem_is(e->tok, convs[i].name))
             return qsem_convert(S, e, convs[i].to);
 
-    static const char *const later[] =
-        {"byte", "short", "long", "ubyte", "ushort", "uint", "ulong", "len", "copy"};
+    if (qsem_is(e->tok, "len"))
+        return qsem_len(S, e, nullptr);
+    if (qsem_is(e->tok, "copy"))
+        return qsem_copy(S, e);
 
-    for (uint32_t i = 0; i < countof(later); i++)
-        if (qsem_is(e->tok, later[i])) {
-            qsem_say(S, e->tok, later[i], "() is not supported yet", nullptr);
+    for (uint32_t i = 0; i < countof(qsem_later); i++)
+        if (qsem_is(e->tok, qsem_later[i])) {
+            qsem_say(S, e->tok, qsem_later[i], "() is not supported yet", nullptr);
             e->type = QY_ERROR;
             return e;
         }
@@ -1264,7 +2212,23 @@ static QExpr *qsem_name(QSem *const S, QExpr *const e)
         return e;
     }
 
+    if (b->ty) {
+        qsem_say(S, e->tok, qsem_text(S, e->tok), " is a type", nullptr);
+        return e;
+    }
+
     QVar *const v = b->var;
+    QVar *const root = v->place ? qsem_root(v->place) : v;
+    const uint32_t at = qsem_at(S, e->tok);
+    root->last = at > root->last ? at : root->last;
+    root->shared |= S->fn && !root->fn && root->kind != QV_CONST;
+
+    if (v->place) { /* a for's element, a case's datum: the place it names */
+        QExpr *const p = qast_alloc(S->mem, sizeof *p);
+        *p = *v->place;
+        p->tok = e->tok;
+        return p;
+    }
 
     if (v->constant) {
         QExpr *const k = qsem_const(S, e->tok, v->type, v->val);
@@ -1283,12 +2247,27 @@ static QExpr *qsem_expr(QSem *const S, QExpr *const e, const QType hint)
     if (!e)
         return qsem_const(S, &S->prog->src.toks[0], QY_ERROR, (QVal){});
 
+    if ((e->kind == QE_NAME || e->kind == QE_FIELD || e->kind == QE_INDEX) && e->type != QY_VOID)
+        return e; /* a place checked already: a compound assignment's */
+
     switch (e->kind) {
     case QE_CONST:
         return e;
 
     case QE_NAME:
         return qsem_name(S, e);
+
+    case QE_FIELD:
+        return qsem_field(S, e);
+
+    case QE_INDEX:
+        return qsem_index(S, e);
+
+    case QE_TUPLE:
+        return qsem_tuple(S, e, hint);
+
+    case QE_FSTR:
+        return qsem_fstring(S, e);
 
     case QE_UNARY:
         return qsem_unary(S, e);
@@ -1334,6 +2313,8 @@ static void qsem_decl(QSem *const S, QDecl *const d, const QKind kw)
         v = qsem_coerce(S, v, t);
     else if (v && !(kw == QK_CONST && v->untyped))
         v = qsem_settle(S, v);
+    if (v && kw != QK_CONST)
+        v = qsem_owned(S, v, false);
 
     if (v && v->type == QY_VOID) {
         qsem_mismatch(S, v, QY_INT);
@@ -1369,45 +2350,150 @@ static void qsem_decl(QSem *const S, QDecl *const d, const QKind kw)
     } else
         d->var = qsem_var(S, d->name, type, kw == QK_LET ? QV_LET : QV_VAR);
 
+    if (v && kw != QK_CONST)
+        d->value = qsem_into(S, d->var, v);
+
     qsem_bind(S, d->name, d->var, nullptr);
+}
+
+/* let q, r = f(): a tuple's items, each a name's; built in s->temp first. */
+static void qsem_destructure(QSem *const S, QStmt *const s)
+{
+    QDecl *last = s->decls;
+    uint32_t n = 1;
+
+    for (; last->next; last = last->next)
+        n++;
+
+    QExpr *const v = last->value = qsem_settle(S, qsem_expr(S, last->value, QY_VOID));
+    const QTy *const y = qast_compound(v->type) ? qast_ty(S->prog, v->type) : nullptr;
+    const bool fits = y && y->kind == QT_TUPLE && y->nfields == n;
+
+    if (v->type != QY_ERROR && !fits) {
+        char count[16];
+        snprintf(count, sizeof count, "%u", n);
+        qsem_say(S, v->tok, qsem_aname(S, v->type), " is not ", count, " values", nullptr);
+    }
+
+    if (fits)
+        qsem_addressed(S, v);
+
+    uint32_t k = 0;
+
+    for (QDecl *d = s->decls; d; d = d->next, k++) {
+        const QType t = fits ? qast_ty(S->prog, v->type)->fields[k].type : QY_ERROR;
+        d->var = qsem_var(S, d->name, t, s->op == QK_LET ? QV_LET : QV_VAR);
+        qsem_bind(S, d->name, d->var, nullptr);
+    }
 }
 
 static void qsem_decls(QSem *const S, QStmt *const s)
 {
-    for (QDecl *d = s->decls; d; d = d->next)
+    if (!s->decls) /* not parsed */
+        return;
+
+    bool bare = s->decls->next != nullptr && s->op != QK_CONST;
+    QDecl *d = s->decls;
+
+    for (; d->next; d = d->next)
+        bare &= !d->type && !d->value;
+
+    if (bare && d->value && !d->type) {
+        qsem_destructure(S, s);
+        return;
+    }
+
+    for (d = s->decls; d; d = d->next)
         qsem_decl(S, d, s->op);
+}
+
+/* Unchecked place e, changed: checked, QY_ERROR when it can't change. */
+static QExpr *qsem_target(QSem *const S, QExpr *const e, const QTok *const at)
+{
+    const bool ok = qsem_changes(S, e, at);
+    QExpr *const t = qsem_expr(S, e, QY_VOID);
+
+    if (ok && t->type != QY_ERROR && !qast_place(t)) {
+        qsem_say(S, t->tok, "only a variable, its fields and its elements change", nullptr);
+        t->type = QY_ERROR;
+    }
+
+    if (!ok)
+        t->type = QY_ERROR;
+
+    return t;
+}
+
+/* a, b = b, a; a, b = f(): the values first, each in a temporary unless every place is a
+   variable's (the stack holds them then). */
+static void qsem_parallel(QSem *const S, QStmt *const s)
+{
+    QExpr *const to = s->target;
+    bool names = true;
+
+    for (uint32_t k = 0; k < to->n; k++) {
+        to->items[k] = qsem_target(S, to->items[k], s->tok);
+        names &= to->items[k]->kind == QE_NAME && !qsem_byplace(S, to->items[k]->type);
+    }
+
+    if (s->op != QK_EQ) {
+        qsem_say(S, s->tok, "a, b = takes =", nullptr);
+        return;
+    }
+
+    if (s->e->kind != QE_TUPLE) {
+        QExpr *const v = s->e = qsem_settle(S, qsem_expr(S, s->e, QY_VOID));
+        const QTy *const y = qast_compound(v->type) ? qast_ty(S->prog, v->type) : nullptr;
+        bool fits = y && y->kind == QT_TUPLE && y->nfields == to->n;
+
+        for (uint32_t k = 0; fits && k < to->n; k++)
+            fits = to->items[k]->type == QY_ERROR || y->fields[k].type == to->items[k]->type;
+
+        if (v->type != QY_ERROR && !fits)
+            qsem_say(S, v->tok, qsem_aname(S, v->type), " doesn't fit these places", nullptr);
+
+        if (fits)
+            qsem_addressed(S, v);
+
+        return;
+    }
+
+    if (s->e->n != to->n) {
+        qsem_say(S, s->e->tok, "as many values as places", nullptr);
+        return;
+    }
+
+    s->temps = names ? nullptr : qast_alloc(S->mem, to->n * sizeof *s->temps);
+
+    for (uint32_t k = 0; k < to->n; k++) {
+        QExpr *const v = s->e->items[k] = qsem_value(S, s->e->items[k], to->items[k]->type);
+
+        if (s->temps)
+            s->temps[k] = qsem_var(S, v->tok, v->type, QV_TEMP);
+    }
 }
 
 static void qsem_assign(QSem *const S, QStmt *const s)
 {
-    QExpr *const t = s->target = qsem_name(S, s->target);
+    if (s->target->kind == QE_TUPLE) {
+        qsem_parallel(S, s);
+        return;
+    }
+
+    QExpr *const t = s->target = qsem_target(S, s->target, s->tok);
 
     if (t->type == QY_ERROR) {
         qsem_expr(S, s->e, QY_VOID);
         return;
     }
 
-    if (t->kind != QE_NAME) { /* a const's, folded */
-        qsem_say(S, t->tok, qsem_text(S, t->tok), " is a const: it can't change", nullptr);
-        return;
-    }
-
-    static const char *const why[] = {
-        [QV_LET] = " is a let: it can't change",
-        [QV_PARAM] = " is a parameter: make it mut to change it",
-        [QV_LOOP] = " is the loop's counter: it can't change",
-    };
-
-    const QVarKind k = t->var->kind;
-
-    if (k != QV_VAR && k != QV_MUT) {
-        qsem_say(S, t->tok, qsem_text(S, t->tok), why[k], nullptr);
-        qsem_expr(S, s->e, QY_VOID);
-        return;
-    }
-
     if (s->op == QK_EQ) {
-        s->e = qsem_coerce(S, qsem_expr(S, s->e, t->type), t->type);
+        s->e = qsem_into(S, qsem_root(t), qsem_value(S, s->e, t->type));
+        return;
+    }
+
+    if (qsem_byplace(S, t->type)) {
+        qsem_say(S, s->tok, qast_spelling(s->op), " takes numbers", nullptr);
         return;
     }
 
@@ -1415,7 +2501,7 @@ static void qsem_assign(QSem *const S, QStmt *const s)
 
     QExpr *const x = qast_expr(S->mem, QE_BINARY, s->tok);
     x->op = ops[s->op - QK_ADDEQ];
-    x->a = qast_expr(S->mem, QE_NAME, t->tok);
+    x->a = t;
     x->b = s->e;
     s->e = qsem_coerce(S, qsem_expr(S, x, t->type), t->type);
 }
@@ -1427,8 +2513,76 @@ static void qsem_cond_of(QSem *const S, QStmt *const s)
 
 /* for i in a..b [step s]: ints; a constant step not 0. Its limit and step are variables, as
    I.NEXT's (qr/qcg.c); by its step if constant, else 0. */
+static void qsem_loop(QSem *const S, const QStmt *const s)
+{
+    S->loops = qast_room(S->mem, S->loops, S->nloops, &S->caploops, sizeof *S->loops);
+    S->loops[S->nloops++] = qsem_at(S, s->tok);
+}
+
+static QExpr *qsem_nameof(QSem *const S, QVar *const v, const QTok *const tok)
+{
+    QExpr *const e = qast_expr(S->mem, QE_NAME, tok);
+    e->var = v;
+    e->type = v->type;
+    return e;
+}
+
+/* for [i,] x in a, for mut x in a: a list or an array, borrowed by the loop; x names a[i], i
+   counting as a range's for does. */
+static void qsem_each(QSem *const S, QStmt *const s)
+{
+    const QVar *const root = qsem_rawroot(S, s->e);
+    const bool ok = !s->mut || qsem_changes(S, s->e, s->tok);
+    QExpr *const a = s->e = qsem_addressed(S, qsem_expr(S, s->e, QY_VOID));
+    QType elem = QY_ERROR;
+
+    if (a->type != QY_ERROR && !qast_array(S->prog, a->type))
+        qsem_say(
+            S,
+            a->tok,
+            "for takes a range a..b or a list, not ",
+            qsem_aname(S, a->type),
+            nullptr
+        );
+    else if (a->type != QY_ERROR && ok)
+        elem = qast_ty(S->prog, a->type)->elem;
+
+    s->by = 1;
+    s->stp = qsem_var(S, s->tok, QY_INT, QV_TEMP);
+    s->lim = qsem_var(S, s->tok, QY_INT, QV_TEMP);
+    qsem_push(S);
+
+    const QDecl *const x = s->decls->next ? s->decls->next : s->decls;
+    s->index = s->decls->next ? qsem_var(S, s->decls->name, QY_INT, QV_LOOP)
+                              : qsem_var(S, s->tok, QY_INT, QV_TEMP);
+
+    if (s->decls->next)
+        qsem_bind(S, s->decls->name, s->index, nullptr);
+
+    QExpr *const at = qast_expr(S->mem, QE_INDEX, x->name);
+    at->a = qast_fresh(a) && a->var ? qsem_nameof(S, a->var, a->tok) : a;
+    at->b = qsem_nameof(S, s->index, x->name);
+    at->type = elem;
+    s->var = qsem_var(S, x->name, elem, QV_EACH);
+    s->var->mut = s->mut;
+    s->var->place = at;
+    qsem_bind(S, x->name, s->var, nullptr);
+
+    if (root) {
+        S->loans = qast_room(S->mem, S->loans, S->nloans, &S->caploans, sizeof *S->loans);
+        S->loans[S->nloans++] = (QLoan){.root = root, .loop = s};
+    }
+}
+
 static void qsem_for(QSem *const S, QStmt *const s)
 {
+    qsem_loop(S, s);
+
+    if (s->each) {
+        qsem_each(S, s);
+        return;
+    }
+
     s->e = qsem_coerce(S, qsem_expr(S, s->e, QY_INT), QY_INT);
     s->to = qsem_coerce(S, qsem_expr(S, s->to, QY_INT), QY_INT);
     s->by = 1;
@@ -1463,7 +2617,7 @@ static void qsem_return(QSem *const S, QStmt *const s)
 
     if (!s->e) {
         if (f->result != QY_VOID && f->result != QY_ERROR)
-            qsem_say(S, s->tok, "return needs ", qsem_aname(f->result), nullptr);
+            qsem_say(S, s->tok, "return needs ", qsem_aname(S, f->result), nullptr);
 
         return;
     }
@@ -1480,7 +2634,206 @@ static void qsem_return(QSem *const S, QStmt *const s)
         return;
     }
 
-    s->e = qsem_coerce(S, qsem_expr(S, s->e, f->result), f->result);
+    s->e = qsem_owned(S, qsem_coerce(S, qsem_expr(S, s->e, f->result), f->result), true);
+    s->e = qsem_into(S, f->res, s->e);
+}
+
+/* ---- match */
+
+static bool qsem_isdata(const QSem *const S, const QType t)
+{
+    return qast_compound(t) && qast_ty(S->prog, t)->kind == QT_ENUM && qast_ty(S->prog, t)->data;
+}
+
+/* match e: a number, a string, a bool or an enum's; a variable's read where it is, else held in
+   s->temp; an enum with data's tag held, its data read at its place. */
+static void qsem_match(QSem *const S, QStmt *const s)
+{
+    QExpr *const v = s->e = qsem_settle(S, qsem_expr(S, s->e, QY_VOID));
+    const QType t = s->ty = v->type;
+    S->matches = qast_room(S->mem, S->matches, S->nmatches, &S->capmatches, sizeof *S->matches);
+    QOpenMatch *const m = &S->matches[S->nmatches++];
+    const uint32_t n = qast_compound(t) && qast_ty(S->prog, t)->kind == QT_ENUM
+                           ? qast_ty(S->prog, t)->nvars
+                       : t == QY_BOOL ? 2
+                                      : 0;
+    *m = (QOpenMatch){.s = s, .seen = qast_alloc(S->mem, n + 1), .nseen = n};
+
+    qsem_push(S);
+
+    if (t == QY_ERROR || t == QY_VOID) {
+        if (t == QY_VOID)
+            qsem_mismatch(S, v, QY_INT);
+
+        s->ty = QY_ERROR;
+        return;
+    }
+
+    if (qsem_byplace(S, t) && !qsem_isdata(S, t)) {
+        qsem_say(
+            S,
+            v->tok,
+            "match takes a number, a string, a bool or an enum, not ",
+            qsem_aname(S, t),
+            nullptr
+        );
+        s->ty = QY_ERROR;
+        return;
+    }
+
+    if (qsem_isdata(S, t)) {
+        s->place = qast_fresh(qsem_addressed(S, v)) ? qsem_nameof(S, v->var, v->tok) : v;
+        s->temp = qsem_var(S, v->tok, QY_INT, QV_TEMP);
+        return;
+    }
+
+    if (v->kind != QE_NAME)
+        s->temp = qsem_var(S, v->tok, t, QV_TEMP);
+}
+
+/* A data enum's pattern: Name.v, v, Name.v(a, b), v(a, b): its value, its data's names bound to
+   its fields at the match's place. */
+static void qsem_varpat(QSem *const S, const QOpenMatch *const m, QPat *const pt, const bool alone)
+{
+    const QExpr *const a = pt->a;
+    const QTy *const y = qast_ty(S->prog, m->s->ty);
+    const bool named = (a->kind == QE_CALL && !a->a) || a->kind == QE_NAME;
+    const bool dotted = (a->kind == QE_CALL || a->kind == QE_FIELD) && a->a &&
+                        a->a->kind == QE_NAME && qsem_same(a->a->tok, y->name);
+
+    if (pt->kind != QP_VALUE || (!named && !dotted)) {
+        qsem_say(S, pt->tok, "a case of ", qsem_text(S, y->name), " is one of its values", nullptr);
+        return;
+    }
+
+    uint32_t k = 0;
+
+    while (k < y->nvars && !qsem_same(y->vars[k].name, a->tok))
+        k++;
+
+    if (k == y->nvars) {
+        qsem_say(S, a->tok, qsem_text(S, y->name), " has no value ", qsem_text(S, a->tok), nullptr);
+        return;
+    }
+
+    pt->kind = QP_VARIANT;
+    pt->variant = k;
+    m->seen[k] = 1;
+    const QVariant *const v = &y->vars[k];
+    uint32_t n = 0;
+
+    for (const QArg *x = a->kind == QE_CALL ? a->args : nullptr; x; x = x->next, n++) {
+        if (x->name || x->mut || x->e->kind != QE_NAME || n >= v->n) {
+            qsem_say(
+                S,
+                x->e->tok,
+                n >= v->n ? "more names than its data" : "a case takes its data's names",
+                nullptr
+            );
+            return;
+        }
+
+        if (!alone) {
+            qsem_say(S, x->e->tok, "a case that names data has one pattern", nullptr);
+            return;
+        }
+
+        QExpr *const f = qast_expr(S->mem, QE_FIELD, x->e->tok);
+        f->a = m->s->place;
+        f->field = v->first + n;
+        f->type = y->fields[f->field].type;
+        QVar *const d = qsem_var(S, x->e->tok, f->type, QV_LET);
+        d->place = f;
+        qsem_bind(S, x->e->tok, d, nullptr);
+    }
+
+    if (n && n != v->n)
+        qsem_say(S, a->tok, qsem_text(S, a->tok), " has more data: name each", nullptr);
+}
+
+/* A case's pattern for match m: a value of its type, a to b, is op v. */
+static void qsem_pat(QSem *const S, QOpenMatch *const m, QPat *const pt, const bool alone)
+{
+    const QType t = m->s->ty;
+
+    if (t == QY_ERROR)
+        return;
+
+    if (qsem_isdata(S, t)) {
+        qsem_varpat(S, m, pt, alone);
+        return;
+    }
+
+    pt->a = qsem_coerce(S, qsem_expr(S, pt->a, t), t);
+
+    if (pt->b)
+        pt->b = qsem_coerce(S, qsem_expr(S, pt->b, t), t);
+
+    const bool ordered = qast_numeric(t) || t == QY_STRING;
+
+    if (pt->kind == QP_RANGE && !ordered)
+        qsem_say(S, pt->tok, "to takes numbers or strings", nullptr);
+    if (pt->kind == QP_IS && !ordered && pt->op != QK_EQ && pt->op != QK_NE)
+        qsem_say(S, pt->tok, qast_spelling(pt->op), " takes numbers or strings", nullptr);
+
+    if (pt->kind == QP_VALUE && m->nseen && qsem_isconst(pt->a) && pt->a->val.i >= 0 &&
+        (uint64_t)pt->a->val.i < m->nseen)
+        m->seen[pt->a->val.i] = 1;
+}
+
+static void qsem_case(QSem *const S, QStmt *const s)
+{
+    qsem_pop(S);
+    qsem_push(S);
+
+    if (!S->nmatches)
+        return;
+
+    QOpenMatch *const m = &S->matches[S->nmatches - 1];
+    m->other |= !s->pats;
+
+    for (QPat *pt = s->pats; pt; pt = pt->next)
+        qsem_pat(S, m, pt, pt == s->pats && !pt->next);
+}
+
+/* end match: each value has its case, or there is a case else. */
+static void qsem_endmatch(QSem *const S, const QStmt *const s)
+{
+    qsem_pop(S);
+
+    if (!S->nmatches)
+        return;
+
+    QOpenMatch *const m = &S->matches[--S->nmatches];
+    bool all = m->nseen > 0;
+    uint32_t miss = 0;
+
+    for (uint32_t k = 0; k < m->nseen; k++)
+        if (!m->seen[k] && all) {
+            all = false;
+            miss = k;
+        }
+
+    m->s->full = m->other || all;
+
+    if (m->s->full || m->s->ty == QY_ERROR)
+        return;
+
+    const char *const what = m->s->ty == QY_BOOL ? (miss ? "true" : "false")
+                             : m->nseen ? qsem_text(S, qast_ty(S->prog, m->s->ty)->vars[miss].name)
+                                        : nullptr;
+
+    if (what)
+        qsem_say(
+            S,
+            s->tok,
+            "the match misses ",
+            what,
+            ": give it a case, or add case else",
+            nullptr
+        );
+    else
+        qsem_say(S, s->tok, "the match misses values: add case else", nullptr);
 }
 
 /* A statement a one-line if may take, or any not of a block. */
@@ -1496,7 +2849,7 @@ static void qsem_simple(QSem *const S, QStmt *const s)
         return;
 
     case QS_CALL:
-        s->e = qsem_expr(S, s->e, QY_VOID);
+        s->e = qsem_addressed(S, qsem_expr(S, s->e, QY_VOID));
         return;
 
     case QS_RETURN:
@@ -1515,6 +2868,15 @@ static bool qsem_returns(const QStmt *const last)
         return true;
     if (last->kind == QS_ENDDO)
         return !last->link->broken;
+
+    if (last->kind == QS_ENDMATCH) {
+        for (const QStmt *c = last->link->link; c != last; c = c->link)
+            if (!qsem_returns(c->link->prev))
+                return false;
+
+        return last->link->full;
+    }
+
     if (last->kind != QS_ENDIF)
         return false;
 
@@ -1555,11 +2917,13 @@ static void qsem_stmt(QSem *const S, QStmt *const s)
         return;
 
     case QS_WHILE:
+        qsem_loop(S, s);
         qsem_cond_of(S, s);
         qsem_push(S);
         return;
 
     case QS_DO:
+        qsem_loop(S, s);
         qsem_push(S);
         return;
 
@@ -1567,10 +2931,30 @@ static void qsem_stmt(QSem *const S, QStmt *const s)
         qsem_for(S, s);
         return;
 
-    case QS_ENDIF:
+    case QS_MATCH:
+        qsem_match(S, s);
+        return;
+
+    case QS_CASE:
+        qsem_case(S, s);
+        return;
+
+    case QS_ENDMATCH:
+        qsem_endmatch(S, s);
+        return;
+
+    case QS_ENDFOR:
+        if (S->nloans && S->loans[S->nloans - 1].loop == s->link)
+            S->nloans--;
+
+        [[fallthrough]];
+
     case QS_ENDWHILE:
     case QS_ENDDO:
-    case QS_ENDFOR:
+        S->nloops -= S->nloops > 0;
+        [[fallthrough]];
+
+    case QS_ENDIF:
         qsem_pop(S);
         return;
 
@@ -1583,7 +2967,7 @@ static void qsem_stmt(QSem *const S, QStmt *const s)
                 s->tok,
                 qsem_text(S, f->name),
                 " can end without returning ",
-                qsem_aname(f->result),
+                qsem_aname(S, f->result),
                 nullptr
             );
 
@@ -1612,9 +2996,9 @@ static void qsem_consts(QSem *const S)
         }
 
         const bool opens = (s->kind == QS_IF && !s->oneline) || s->kind == QS_WHILE ||
-                           s->kind == QS_DO || s->kind == QS_FOR;
+                           s->kind == QS_DO || s->kind == QS_FOR || s->kind == QS_MATCH;
         const bool closes = s->kind == QS_ENDIF || s->kind == QS_ENDWHILE || s->kind == QS_ENDDO ||
-                            s->kind == QS_ENDFOR;
+                            s->kind == QS_ENDFOR || s->kind == QS_ENDMATCH;
 
         depth += opens;
         depth -= closes && depth;
@@ -1627,6 +3011,161 @@ static void qsem_consts(QSem *const S)
 
         s = s->next;
     }
+}
+
+/* A field of type t declared: d's name, type and default. */
+static void qsem_addfield(QSem *const S, const QType t, QDecl *const d)
+{
+    QTy *const y = qast_ty(S->prog, t);
+
+    for (uint32_t k = 0; k < y->nfields; k++)
+        if (qsem_same(y->fields[k].name, d->name))
+            qsem_say(S, d->name, qsem_text(S, d->name), " is already a field", nullptr);
+
+    y->fields = qast_room(S->mem, y->fields, y->nfields, &y->capfields, sizeof *y->fields);
+    y->fields[y->nfields++] = (QField){.name = d->name, .tx = d->type, .def = d->value};
+}
+
+/* An enum's value: its name, then its data's fields. */
+static void qsem_addvariant(QSem *const S, const QType t, const QDecl *const d)
+{
+    QTy *const y = qast_ty(S->prog, t);
+
+    for (uint32_t k = 0; k < y->nvars; k++)
+        if (qsem_same(y->vars[k].name, d->name))
+            qsem_say(S, d->name, qsem_text(S, d->name), " is already a value", nullptr);
+
+    y->vars = qast_room(S->mem, y->vars, y->nvars, &y->capvars, sizeof *y->vars);
+    QVariant *const v = &y->vars[y->nvars++];
+    *v = (QVariant){.name = d->name};
+
+    for (const QDecl *x = d->next; x; x = x->next)
+        v->n++;
+
+    v->fields = qast_alloc(S->mem, (v->n ? v->n : 1) * sizeof *v->fields);
+    uint32_t k = 0;
+
+    for (const QDecl *x = d->next; x; x = x->next)
+        v->fields[k++] = (QField){.name = x->name, .tx = x->type, .def = x->value};
+
+    y->data |= v->n > 0;
+}
+
+/* Each type and enum: a type, its name bound, its fields and values declared. */
+static void qsem_types(QSem *const S)
+{
+    for (QStmt *s = S->prog->first; s; s = s->next) {
+        if (s->kind != QS_TYPE && s->kind != QS_ENUM)
+            continue;
+
+        const QType t = s->ty = qsem_newty(S, s->kind == QS_TYPE ? QT_REC : QT_ENUM);
+        QTy *const y = qast_ty(S->prog, t);
+        y->name = s->decls->name;
+        y->def = s;
+        y->state = 0;
+        qsem_bindty(S, s->decls->name, t);
+
+        for (QStmt *m = s->next; m && m->kind != QS_ENDTYPE && m->kind != QS_ENDENUM; m = m->next)
+            if (m->kind == QS_FIELD)
+                for (QDecl *d = m->decls; d; d = d->next)
+                    qsem_addfield(S, t, d);
+            else if (m->kind == QS_VARIANT)
+                qsem_addvariant(S, t, m->decls);
+
+        if (s->kind == QS_ENUM && !qast_ty(S->prog, t)->nvars)
+            qsem_say(S, s->tok, "an enum needs a value", nullptr);
+    }
+}
+
+static void qsem_typed(QSem *S, QType t);
+
+/* Field f of type t typed: its type, else its default's; a record by value typed first, never
+   t itself. */
+static void qsem_fieldtype(QSem *const S, const QType t, QField *const f)
+{
+    QType ft = f->tx ? qsem_type(S, f->tx) : QY_VOID;
+
+    if (f->def) {
+        QExpr *d = qsem_expr(S, f->def, ft);
+        d = f->tx ? qsem_coerce(S, d, ft) : qsem_settle(S, d);
+
+        if (!qsem_isconst(d) && d->type != QY_ERROR)
+            qsem_say(S, d->tok, "a default is a constant", nullptr);
+        if (!f->tx)
+            ft = d->type;
+
+        f->def = d;
+    }
+
+    if (!f->tx && !f->def) {
+        qsem_say(S, f->name, qsem_text(S, f->name), " needs a type", nullptr);
+        ft = QY_ERROR;
+    }
+
+    const QType inner = qast_compound(ft) && qast_ty(S->prog, ft)->kind == QT_ARRAY
+                            ? qast_ty(S->prog, ft)->elem
+                            : ft;
+
+    if (qast_record(S->prog, inner) &&
+        (!qast_compound(ft) || qast_ty(S->prog, ft)->kind != QT_LIST)) {
+        qsem_typed(S, inner);
+
+        if (qast_ty(S->prog, inner)->state == 1) {
+            qsem_say(
+                S,
+                f->name,
+                qsem_text(S, f->name),
+                " holds its own type: hold it in a list",
+                nullptr
+            );
+            ft = QY_ERROR;
+        }
+    }
+
+    f->type = ft;
+    qast_ty(S->prog, t)->owns |= qsem_owns(S, ft);
+}
+
+/* Type t's fields typed: an enum with data's its tag, then each value's data. */
+static void qsem_typed(QSem *const S, const QType t)
+{
+    QTy *const y = qast_ty(S->prog, t);
+
+    if (y->state)
+        return;
+
+    y->state = 1;
+
+    if (y->kind == QT_ENUM && y->data) {
+        uint32_t n = 1;
+
+        for (uint32_t k = 0; k < y->nvars; k++)
+            n += y->vars[k].n;
+
+        QField *const fields = qast_alloc(S->mem, n * sizeof *fields);
+        fields[0] = (QField){.name = y->name, .type = QY_INT};
+
+        n = 1;
+
+        for (uint32_t k = 0; k < y->nvars; k++) {
+            QVariant *const v = &y->vars[k];
+            v->first = n;
+
+            for (uint32_t i = 0; i < v->n; i++)
+                fields[n++] = v->fields[i];
+
+            v->fields = &fields[v->first];
+        }
+
+        y->fields = fields;
+        y->nfields = y->capfields = n;
+    }
+
+    for (uint32_t k = 0; k < qast_ty(S->prog, t)->nfields; k++)
+        if (k || qast_ty(S->prog, t)->kind == QT_REC)
+            qsem_fieldtype(S, t, &qast_ty(S->prog, t)->fields[k]);
+
+    qast_ty(S->prog, t)->state = 2;
 }
 
 /* Fn f's parameters' and result's types, its defaults folded. */
@@ -1670,6 +3209,7 @@ static void qsem_signature(QSem *const S, QFn *const f)
     }
 
     f->result = f->rtype ? qsem_type(S, f->rtype) : QY_VOID;
+    f->byarg = qsem_byplace(S, f->result);
 
     if (f->result != QY_VOID)
         f->res = qsem_var(S, f->name, f->result, QV_RESULT);
@@ -1725,7 +3265,11 @@ void qsem_program(QProg *const p, QMem *const m)
     for (QFn *f = p->fns; f; f = f->next)
         qsem_bind(&S, f->name, nullptr, f);
 
+    qsem_types(&S);
     qsem_consts(&S);
+
+    for (uint32_t i = 0; i < p->tys.n; i++)
+        qsem_typed(&S, QY_FIRST + i);
 
     for (QFn *f = p->fns; f; f = f->next)
         qsem_signature(&S, f);
@@ -1737,4 +3281,6 @@ void qsem_program(QProg *const p, QMem *const m)
 
     for (QFn *f = p->fns; f; f = f->next)
         qsem_body(&S, f);
+
+    qsem_moved(&S);
 }

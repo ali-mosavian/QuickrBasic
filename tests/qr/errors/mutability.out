@@ -13,7 +13,7 @@ mutability.qr:10:5: i is the loop's counter: it can't change
 mutability.qr:15:3: n is mut: write mut before it
   g(v)
     ^
-mutability.qr:16:7: mut takes a var
+mutability.qr:16:7: a is a let: it can't change
   g(mut a)
         ^
 mutability.qr:17:7: mut takes a var

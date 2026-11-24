@@ -1,0 +1,26 @@
+' tuples: results, let q, r = .., a, b = b, a
+fn divmod(a as int, b as int) as (int, int)
+    return a div b, a mod b
+end fn
+
+fn pair(s as string) as (string, int)
+    return s + "!", len2(s)
+end fn
+
+fn len2(s as string) as int
+    return 2
+end fn
+
+let q, r = divmod(17, 5)
+print(q, r)
+var a = 1
+var b = 2
+a, b = b, a
+print(a, b)
+a, b = divmod(29, 4)
+print(a, b)
+let s, n = pair("hi")
+print(s, n)
+var t = divmod(7, 2)
+let x, y = t
+print(x, y)

@@ -9,6 +9,6 @@ end while
 else
 fn
 x + 1
-let a = b.c
+let a = b[1..2]
 var s = [1, 2]
 while true

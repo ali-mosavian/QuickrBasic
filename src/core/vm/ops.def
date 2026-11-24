@@ -468,6 +468,7 @@ K(QSTR, qrt_str)
 K(QJ, qrt_jump)
 K(QSHL, qrt_shl)
 K(QSHR, qrt_shr)
+K(QX, qrt_x) /* the rest, by its operand (qr/qrt.h QrtX) */
 K(NCALL, ncal_call)    /* ( args proc -- [result] ): a native procedure's entry, ours (vm/ncall.c) */
 #undef K
 #endif

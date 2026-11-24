@@ -1,7 +1,9 @@
 /* Quickr's link: a checked program to what the VM runs, as link_start makes it for QBasic.
  *
  * # How it works
- * Each fn is a procedure (comp/blocks.h), numbered in source order. Each variable is one of the
+ * Each record, tuple and enum with data is a TYPE (comp/declare.h decl_newtype), one held by
+ * value laid out first. Each fn is a procedure (comp/blocks.h), numbered in source order; a
+ * record's or list's result is its last parameter. Each variable is one of the
  * symbol table's: a module's in its own cell, a fn's a local of its procedure's frame, a
  * parameter its ref cell. A name the table already has for that scope and type, another spelling
  * of it (x, X) or a shadowed one, gets a ' and a number: each variable its own cell.
@@ -15,6 +17,7 @@
  */
 #include "qr/qlink.h"
 #include "comp/blocks.h"
+#include "comp/declare.h"
 #include "comp/frame.h"
 #include "comp/link.h"
 #include "mem/alloc.h"
@@ -25,9 +28,23 @@
 
 enum { NAME_ROOM = 200 }; /* a name's bytes kept, its ' and number after */
 
-/* Type t's ET_* and its variables' kind (mem/symbols.h). */
-static void qlink_kind(const QType t, uint32_t *const et, uint8_t *const kind)
+/* Type t's ET_* and its variables' kind (mem/symbols.h): a record's ET_REC + its TYPE, a list's
+   or an array's its element's, VI_ARR. */
+static void qlink_kind(const QProg *const p, const QType t, uint32_t *const et, uint8_t *const kind)
 {
+    if (qast_array(p, t)) {
+        const QType elem = qast_ty(p, t)->elem;
+        qlink_kind(p, elem, et, kind);
+        *kind = qast_record(p, elem) ? VI_ARR : *kind | VI_ARR;
+        return;
+    }
+
+    if (qast_record(p, t)) {
+        *et = ET_REC + qast_ty(p, t)->td;
+        *kind = VI_RECARR;
+        return;
+    }
+
     switch (t) {
     case QY_SINGLE:
         *et = ET_R4;
@@ -53,6 +70,7 @@ static void qlink_kind(const QType t, uint32_t *const et, uint8_t *const kind)
 /* A new variable named text in scope, of type t: the name, then name'1, name'2 .. till new. */
 static uint32_t qlink_symb(
     Symb *const sy,
+    const QProg *const p,
     const QTok *const name,
     const QType t,
     const uint32_t scope
@@ -62,7 +80,7 @@ static uint32_t qlink_symb(
     const uint32_t n = name->len < NAME_ROOM ? name->len : NAME_ROOM;
     uint32_t et;
     uint8_t kind;
-    qlink_kind(t, &et, &kind);
+    qlink_kind(p, t, &et, &kind);
     memcpy(text, name->text, n);
 
     for (uint32_t k = 0;; k++) {
@@ -88,6 +106,62 @@ static uint32_t qlink_symb(
     }
 }
 
+static uint32_t qlink_name(Symb *const sy, const QTok *const t)
+{
+    return t ? symb_find_name(sy, 0, (const uint8_t *)t->text, (uint8_t)t->len) : 0;
+}
+
+/* Record t's TYPE's fields, a record each holds by value laid first; each field's offset. */
+static void qlink_lay(Comp *const C, const QProg *const p, const QType t)
+{
+    QTy *const y = qast_ty(p, t);
+
+    if (y->laid)
+        return;
+
+    y->laid = true;
+
+    for (uint32_t k = 0; k < y->nfields; k++) {
+        QField *const f = &y->fields[k];
+        const bool list = qast_array(p, f->type);
+        const QType elem = list ? qast_ty(p, f->type)->elem : f->type;
+        const bool dyn = list && qast_ty(p, f->type)->kind == QT_LIST;
+        uint32_t et;
+        uint8_t kind;
+
+        if (qast_record(p, elem) && !dyn)
+            qlink_lay(C, p, elem);
+
+        qlink_kind(p, elem, &et, &kind);
+        decl_newfield(
+            C->decl,
+            y->td,
+            qlink_name(C->symb, f->name),
+            et,
+            list && !dyn ? qast_ty(p, f->type)->count : 0,
+            dyn
+        );
+        f->off = decl_type(C->decl, y->td)->fields[k].off;
+    }
+
+    const TypeDef *const td = decl_type(C->decl, y->td);
+    y->size = td->size;
+    y->deep = decl_dynamic(td);
+}
+
+/* Each record, tuple and enum with data a TYPE: each numbered, then laid out. */
+static void qlink_types(Comp *const C, const QProg *const p)
+{
+    for (uint32_t i = 0; i < p->tys.n; i++)
+        if (qast_record(p, QY_FIRST + i))
+            p->tys.at[i].td =
+                decl_newtype(C->decl, C->symb, qlink_name(C->symb, p->tys.at[i].name));
+
+    for (uint32_t i = 0; i < p->tys.n; i++)
+        if (qast_record(p, QY_FIRST + i))
+            qlink_lay(C, p, QY_FIRST + i);
+}
+
 /* Each fn a procedure; its parameters and result linked in qlink_vars. */
 static void qlink_procs(Comp *const C, const QProg *const p)
 {
@@ -99,20 +173,20 @@ static void qlink_procs(Comp *const C, const QProg *const p)
         symb_name(C->symb, name)->proc = f->proc;
         *pr = (Proc){
             .name = name,
-            .kind = f->result == QY_VOID ? PK_SUB : PK_FUNC,
+            .kind = f->result == QY_VOID || f->byarg ? PK_SUB : PK_FUNC,
             .first = p->src.lines[f->def->tok->line].at,
             .last = p->src.lines[f->end->tok->line].at,
-            .npar = (uint16_t)f->npar,
+            .npar = (uint16_t)(f->npar + f->byarg),
         };
     }
 }
 
-/* Variable v's scope: its fn's procedure, else the module's. A result is the module's, as a
-   QBasic FUNCTION's (PRET.FV): return stores it right before PRET, so no call between can
-   overwrite it, and the frame is a cell smaller. */
+/* Variable v's scope: its fn's procedure, else the module's. A number's result is the module's,
+   as a QBasic FUNCTION's (PRET.FV): return stores it right before PRET, so no call between can
+   overwrite it, and the frame is a cell smaller. A record's or list's is its last parameter. */
 static uint32_t qlink_scope(const QVar *const v)
 {
-    return v->fn && v->kind != QV_RESULT ? v->fn->proc : 0;
+    return v->fn && (v->kind != QV_RESULT || v->fn->byarg) ? v->fn->proc : 0;
 }
 
 /* Each variable but a const's in the symbol table; a fn's parameters its ref cells. */
@@ -123,23 +197,25 @@ static void qlink_vars(Comp *const C, const QProg *const p)
     Symb *const sy = C->symb;
 
     for (QVar *v = p->vars; v; v = v->next)
-        if (!v->constant)
-            v->id = qlink_symb(sy, v->kind == QV_TEMP ? &hidden : v->name, v->type, qlink_scope(v));
+        if (!v->constant && !v->place)
+            v->id =
+                qlink_symb(sy, p, v->kind == QV_TEMP ? &hidden : v->name, v->type, qlink_scope(v));
 
     for (const QFn *f = p->fns; f; f = f->next) {
         Proc *const pr = btab_at(&C->blok->procs, f->proc);
-        pr->result = f->res ? f->res->id : 0;
-        pr->params = arena_alloc(&C->blok->arena, (f->npar ? f->npar : 1) * sizeof *pr->params);
+        const uint32_t n = pr->npar;
+        pr->result = f->res && !f->byarg ? f->res->id : 0;
+        pr->params = arena_alloc(&C->blok->arena, (n ? n : 1) * sizeof *pr->params);
 
         if (!pr->params)
             fault_error(C->fault, E_OM);
 
-        for (uint32_t k = 0; k < f->npar; k++) {
-            const uint32_t id = f->params[k].var->id;
+        for (uint32_t k = 0; k < n; k++) {
+            const uint32_t id = k < f->npar ? f->params[k].var->id : f->res->id;
             pr->params[k] = (Param){.var = id};
 
             symb_varx(sy, id)->par = 1;
-            *symb_loc(sy, id) = loc_ref((uint32_t)(2 * sizeof(Cell) * (f->npar - 1u - k)));
+            *symb_loc(sy, id) = loc_ref((uint32_t)(2 * sizeof(Cell) * (n - 1u - k)));
         }
     }
 }
@@ -207,6 +283,7 @@ static void qlink_lines(
     do {
         base = C->prog->base;
         const QCgEnv env = {
+            .prog = p,
             .base = base,
             .lines = p->src.lines,
             .sy = C->symb,
@@ -231,6 +308,7 @@ static void qlink_lines(
 void qlink_program(Comp *const C, QProg *const p, QMem *const m, const bool dbg)
 {
     blok_reset(C->blok, C->fault);
+    qlink_types(C, p);
     qlink_procs(C, p);
     qlink_vars(C, p);
     symb_size(C->symb, 0);

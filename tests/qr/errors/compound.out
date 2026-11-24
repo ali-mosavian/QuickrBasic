@@ -1,0 +1,57 @@
+compound.qr:10:5: me holds its own type: hold it in a list
+      me as Loop
+      ^
+compound.qr:16:19: too many values for Vec
+  let v = Vec(1, 2, 3)
+                    ^
+compound.qr:17:13: Vec has no field z
+  let w = Vec(z: 1)
+              ^
+compound.qr:18:9: Vec has no field z
+  print(v.z)
+          ^
+compound.qr:19:3: v is a let: it can't change
+  v.x = 2
+    ^
+compound.qr:20:7: print takes numbers, strings and bools, not a Vec
+  print(v)
+        ^
+compound.qr:22:9: a is used after it moves here: write copy(a)
+  var b = a
+          ^
+compound.qr:26:7: c is borrowed by the for over it: it can't change here
+      c.push(x)
+        ^
+compound.qr:27:5: x is the for's element: write for mut x
+      x = 2
+      ^
+compound.qr:30:7: c is borrowed by the for over it: it can't change here
+      c.remove(0)
+        ^
+compound.qr:33:12: bag is used after it moves here: write copy(bag)
+  var bag2 = bag
+             ^
+compound.qr:35:16: only a whole let or var moves: write copy(..)
+  var bag3 = bag.items
+                 ^
+compound.qr:39:1: the match misses jump: give it a case, or add case else
+  end match
+  ^
+compound.qr:49:3: an array's size is fixed
+  n.push(1)
+    ^
+compound.qr:50:9: the index is past the elements
+  print(n[4])
+          ^
+compound.qr:54:9: mut v is a Vec, not a single
+  g(mut u.x)
+          ^
+compound.qr:55:12: an f-string takes numbers, strings and bools, not a Vec
+  let k = f"{v}"
+             ^
+compound.qr:56:14: q is no format for an int
+  let j = f"{3:q}"
+               ^
+compound.qr:59:13: ss moves in a loop it is declared outside: write copy(ss)
+      var t = ss
+              ^

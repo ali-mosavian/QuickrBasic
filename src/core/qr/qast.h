@@ -29,10 +29,15 @@ typedef enum : uint8_t {
     QK_INT,
     QK_REAL,
     QK_STR,
+    QK_FSTR,  /* an f-string's start: f" */
+    QK_FPART, /* its text between values, escapes as written */
+    QK_FSPEC, /* a value's format spec, after its : */
+    QK_FEND,  /* its closing quote */
     /* keywords, in qlex.c's table's order */
     QK_AND,
     QK_AS,
     QK_BREAK,
+    QK_CASE,
     QK_CONST,
     QK_CONTINUE,
     QK_DIV,
@@ -40,12 +45,15 @@ typedef enum : uint8_t {
     QK_ELSE,
     QK_ELSEIF,
     QK_END,
+    QK_ENUM,
     QK_FALSE,
     QK_FN,
     QK_FOR,
     QK_IF,
     QK_IN,
+    QK_IS,
     QK_LET,
+    QK_MATCH,
     QK_MOD,
     QK_MUT,
     QK_NOT,
@@ -54,6 +62,7 @@ typedef enum : uint8_t {
     QK_STEP,
     QK_THEN,
     QK_TRUE,
+    QK_TYPE,
     QK_VAR,
     QK_WHILE,
     QK_XOR,
@@ -137,7 +146,10 @@ void qast_sort(QErrs *e);
 
 /* ---- types and values */
 
-typedef enum : uint8_t {
+/* A type: a scalar's QY_*, or from QY_FIRST a compound type's entry in QProg.tys. Lists, arrays
+   and tuples are interned, so two types are the same when their QTypes are. */
+typedef uint32_t QType;
+enum : QType {
     QY_VOID,
     QY_INT,
     QY_SINGLE,
@@ -145,7 +157,8 @@ typedef enum : uint8_t {
     QY_STRING,
     QY_BOOL,
     QY_ERROR, /* an error's: no further error about it */
-} QType;
+    QY_FIRST = 8,
+};
 
 /* A string constant's part: a literal's token. */
 typedef struct QPiece QPiece;
@@ -166,6 +179,63 @@ typedef struct QFn QFn;
 typedef struct QExpr QExpr;
 typedef struct QStmt QStmt;
 
+/* A type as written: a name, T[], T[n], (T, U). */
+typedef enum : uint8_t { QX_NAME, QX_LIST, QX_ARRAY, QX_TUPLE } QTypeExKind;
+typedef struct QTypeEx QTypeEx;
+struct QTypeEx {
+    QTypeExKind kind;
+    const QTok *tok; /* its first token: a name's its name */
+    QTypeEx *elem;   /* a list's, an array's */
+    QExpr *count;    /* an array's */
+    QTypeEx **items; /* a tuple's */
+    uint32_t n;
+};
+
+/* A record's field, a tuple's member (no name), an enum value's datum. */
+typedef struct {
+    const QTok *name;
+    QTypeEx *tx;
+    QType type;
+    QExpr *def;   /* its default, folded; null none */
+    uint32_t off; /* its bytes into its record, qlink's */
+} QField;
+
+/* An enum's value: its data, their place in the enum's record. */
+typedef struct {
+    const QTok *name;
+    QField *fields;
+    uint32_t n;
+    uint32_t first; /* its first datum's field in the enum's */
+} QVariant;
+
+typedef enum : uint8_t { QT_REC, QT_ENUM, QT_LIST, QT_ARRAY, QT_TUPLE } QTyKind;
+
+/* A compound type. A record, a tuple and an enum with data are the VM's records (comp/declare.h):
+   an enum's tag its field 0, then each value's data. */
+typedef struct {
+    QTyKind kind;
+    const QTok *name; /* a record's, an enum's */
+    QStmt *def;
+    QType elem;     /* a list's, an array's */
+    uint32_t count; /* an array's */
+    QField *fields; /* a record's, a tuple's; an enum's with data */
+    uint32_t nfields, capfields;
+    QVariant *vars; /* an enum's */
+    uint32_t nvars, capvars;
+    uint8_t state; /* a record's fields: 0 not typed, 1 being typed, 2 typed */
+    bool data;     /* an enum some of whose values carry data */
+    bool owns;     /* holds a list: moved, never copied by itself */
+    bool laid;     /* qlink's: its TYPE's fields made */
+    bool deep;     /* qlink's: its TYPE holds strings or lists (comp/declare.h decl_dynamic) */
+    uint32_t td;   /* its TYPE (comp/declare.h), qlink's */
+    uint32_t size; /* its TYPE's bytes, qlink's */
+} QTy;
+
+typedef struct {
+    QTy *at;
+    uint32_t n, cap;
+} QTys;
+
 /* ---- names */
 
 typedef enum : uint8_t {
@@ -176,7 +246,8 @@ typedef enum : uint8_t {
     QV_MUT,    /* a mut parameter */
     QV_LOOP,   /* a for's counter */
     QV_TEMP,   /* the compiler's: a chain's middle, a for's limit and step */
-    QV_RESULT, /* a fn's result */
+    QV_RESULT, /* a fn's result: a record's or a list's its last parameter */
+    QV_EACH,   /* for x in a's x: a's element, by its index */
 } QVarKind;
 
 struct QVar {
@@ -187,14 +258,18 @@ struct QVar {
     QVal val;      /* a const's */
     bool constant; /* a const: val, untyped as its value's */
     bool untyped;
-    uint32_t id; /* its variable (mem/symbols.h), qlink's */
+    bool mut;      /* QV_EACH: of a for mut */
+    bool shared;   /* a module's, used in a fn: never moved */
+    uint32_t last; /* its last use's token, sema's */
+    QExpr *place;  /* QV_EACH, a case's datum: what it names, checked */
+    uint32_t id;   /* its variable (mem/symbols.h), qlink's */
     QVar *next;  /* the program's next */
 };
 
 typedef struct {
     const QTok *name;
-    const QTok *type; /* its as type's name, null none */
-    QExpr *def;       /* its default, folded; null none */
+    QTypeEx *type; /* its as type, null none */
+    QExpr *def;    /* its default, folded; null none */
     bool mut;
     QVar *var;
 } QParam;
@@ -203,8 +278,9 @@ struct QFn {
     const QTok *name;
     QParam *params;
     uint32_t npar;
-    const QTok *rtype; /* its as type's name, null none */
+    QTypeEx *rtype; /* its as type, null none */
     QType result;
+    bool byarg; /* its result a record, tuple or list: written through its last parameter */
     bool sig;  /* its signature resolved */
     QVar *res; /* its result's variable, null none */
     QStmt *def, *end;
@@ -224,12 +300,32 @@ typedef enum : uint8_t {
     QE_OR,
     QE_COND, /* a if c else b */
     QE_IN,   /* a in b..c, not in when neg; work the three's type */
-    QE_CALL, /* tok's fn or built-in with args; argv by parameter once resolved */
-    QE_CONV, /* a converted to type */
+    QE_CALL,  /* tok's fn or built-in with args, a the receiver of a.f(args); argv by parameter */
+    QE_CONV,  /* a converted to type */
+    QE_FIELD, /* a.tok: field n of a record, tuple or enum */
+    QE_INDEX, /* a[b] */
+    QE_NEW,   /* a record, tuple or enum value of type: argv by field, null its default */
+    QE_TUPLE, /* (items) as written: return a, b */
+    QE_FSTR,  /* f"..": items its parts, a string's or a value's, specs each value's */
+    QE_LIST,  /* a list's built-in: builtin, a the list, argv */
+    QE_HAS,   /* a in b, b a list; not in when neg */
 } QExprKind;
 
-/* A built-in: print, a conversion. */
-typedef enum : uint8_t { QB_NONE, QB_PRINT, QB_INT, QB_SINGLE, QB_DOUBLE, QB_STRING } QBuiltin;
+/* A built-in: print, a conversion, len, copy, a list's methods. */
+typedef enum : uint8_t {
+    QB_NONE,
+    QB_PRINT,
+    QB_INT,
+    QB_SINGLE,
+    QB_DOUBLE,
+    QB_STRING,
+    QB_LEN,
+    QB_COPY,
+    QB_PUSH,
+    QB_POP,
+    QB_INSERT,
+    QB_REMOVE,
+} QBuiltin;
 
 /* A call's argument as written: its name (null positional), mut. */
 typedef struct QArg QArg;
@@ -252,7 +348,7 @@ struct QExpr {
     const QTok *tok; /* its first token; a binary's, its operator */
     QExpr *a, *b, *c;
     QVal val;
-    QVar *var;    /* QE_NAME's; QE_IN's temporary */
+    QVar *var;    /* QE_NAME's; QE_IN's temporary; a record's built there first */
     QFn *fn;      /* QE_CALL's */
     QArg *args;   /* QE_CALL as written */
     QExpr **argv; /* QE_CALL: by parameter, or print's in order */
@@ -261,7 +357,25 @@ struct QExpr {
     QKind *ops;
     QType *works;
     QVar **temps; /* each middle item's */
+    const QTok **specs; /* QE_FSTR: each value's format spec, null none */
     uint32_t n;
+    uint32_t field; /* QE_FIELD: its field's index; QE_NEW: an enum's value */
+};
+
+/* A match's case: one or more patterns, each a value, a to b, is op v, or an enum value with its
+   data's names; else alone. */
+typedef enum : uint8_t { QP_VALUE, QP_RANGE, QP_IS, QP_VARIANT } QPatKind;
+typedef struct QPat QPat;
+struct QPat {
+    QPatKind kind;
+    const QTok *tok;
+    QKind op;           /* QP_IS's */
+    QExpr *a, *b;       /* the value; a range's ends */
+    const QTok **binds; /* QP_VARIANT: its data's names */
+    uint32_t nbinds;
+    QVar **vars;
+    uint32_t variant; /* QP_VARIANT's, sema's */
+    QPat *next;
 };
 
 /* ---- statements: one a line, in a flat list; a block's clauses linked */
@@ -285,13 +399,22 @@ typedef enum : uint8_t {
     QS_RETURN,
     QS_FN,
     QS_ENDFN,
+    QS_TYPE, /* type Name: its fields' lines follow */
+    QS_FIELD,
+    QS_ENDTYPE,
+    QS_ENUM,
+    QS_VARIANT, /* an enum's value: decls its data */
+    QS_ENDENUM,
+    QS_MATCH, /* match e: its cases' lines follow, each linked to the next */
+    QS_CASE,  /* pats, or case else (none) */
+    QS_ENDMATCH,
 } QStmtKind;
 
 /* A declaration's name [as type] [= value]. */
 typedef struct QDecl QDecl;
 struct QDecl {
     const QTok *name;
-    const QTok *type;
+    QTypeEx *type;
     QExpr *value;
     QVar *var;
     QDecl *next;
@@ -311,12 +434,21 @@ struct QStmt {
     QStmt *body;
     QExpr *e;         /* a condition, a call, a value, a for's start */
     QExpr *to, *step; /* a for's */
-    QExpr *target;    /* QS_ASSIGN: a name */
+    QExpr *target;    /* QS_ASSIGN: a place, or the QE_TUPLE of a, b = .. */
     QDecl *decls;
     QFn *fn;   /* QS_FN, QS_ENDFN, QS_RETURN: its fn */
-    QVar *var; /* QS_FOR: its counter, its limit and its step (null: constant) */
+    QVar *var; /* QS_FOR: its counter, its limit and its step; over a list: its element */
     QVar *lim, *stp;
-    int32_t by; /* QS_FOR: its step when constant, else 0 */
+    QVar *index; /* QS_FOR over a list: its index (i in for i, x in a), else the compiler's */
+    QVar *temp;  /* QS_MATCH: its value's; QS_ASSIGN of a tuple: each value's in temps */
+    QVar **temps;
+    int32_t by;   /* QS_FOR: its step when constant, else 0 */
+    bool each;    /* QS_FOR over a list or an array, e */
+    bool mut;     /* for mut x in a */
+    QPat *pats;   /* QS_CASE's; none: case else; its match its body */
+    QType ty;     /* QS_TYPE, QS_ENUM: its type; QS_MATCH: its value's */
+    QExpr *place; /* QS_MATCH of an enum with data: its value's place, its data read there */
+    bool full;    /* QS_MATCH: every value has its case */
 };
 
 typedef struct {
@@ -324,6 +456,7 @@ typedef struct {
     QStmt *first;
     QFn *fns;
     QVar *vars;
+    QTys tys;
     QErrs errs;
 } QProg;
 
@@ -333,7 +466,43 @@ void *qast_alloc(QMem *m, size_t size); /* zeroed */
 /* *at, n entries of size, room for one more: grown by half. */
 void *qast_room(QMem *m, void *at, uint32_t n, uint32_t *cap, size_t size);
 QExpr *qast_expr(QMem *m, QExprKind kind, const QTok *tok);
+/* A scalar type's name. */
 const char *qast_typename(QType t);
+/* Compound type t's entry. */
+static inline QTy *qast_ty(const QProg *const p, const QType t) { return &p->tys.at[t - QY_FIRST]; }
+static inline bool qast_compound(const QType t) { return t >= QY_FIRST; }
+/* Is t the VM's record: a record, a tuple, an enum with data? */
+static inline bool qast_record(const QProg *const p, const QType t)
+{
+    if (!qast_compound(t))
+        return false;
+
+    const QTy *const y = qast_ty(p, t);
+    return y->kind == QT_REC || y->kind == QT_TUPLE || (y->kind == QT_ENUM && y->data);
+}
+/* Is t a list or a fixed array: the VM's array? */
+static inline bool qast_array(const QProg *const p, const QType t)
+{
+    return qast_compound(t) && (qast_ty(p, t)->kind == QT_LIST || qast_ty(p, t)->kind == QT_ARRAY);
+}
+/* Is t a plain enum: an int? */
+static inline bool qast_tag(const QProg *const p, const QType t)
+{
+    return qast_compound(t) && qast_ty(p, t)->kind == QT_ENUM && !qast_ty(p, t)->data;
+}
+/* Is e a variable's place: a name, its fields', its elements'? */
+static inline bool qast_place(const QExpr *e)
+{
+    while (e->kind == QE_FIELD || e->kind == QE_INDEX)
+        e = e->a;
+
+    return e->kind == QE_NAME && e->var;
+}
+/* Is e a value made fresh, no place's: a call's, a record's built? */
+static inline bool qast_fresh(const QExpr *const e)
+{
+    return e->kind != QE_NAME && e->kind != QE_FIELD && e->kind != QE_INDEX;
+}
 /* The text a keyword or punctuation is spelled, for an error. */
 const char *qast_spelling(QKind k);
 static inline bool qast_numeric(const QType t)

@@ -6,8 +6,10 @@
 #include "mem/symbols.h"
 
 /* What codegen needs besides the tree: where a line's text is in the arena (a string literal's
-   load points there), the symbols (fusion's), and whether a statement starts with DBG. */
+   load points there), the symbols (fusion's), the types (laid out), and whether a statement
+   starts with DBG. */
 typedef struct {
+    const QProg *prog;
     Addr base;          /* the program store's */
     const QLine *lines; /* QLine.at: a line's record */
     const Symb *sy;

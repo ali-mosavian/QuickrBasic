@@ -59,7 +59,7 @@ const char *qast_typename(const QType t)
         [QY_ERROR] = "an error",
     };
 
-    return names[t];
+    return t < countof(names) ? names[t] : "a type";
 }
 
 const char *qast_spelling(const QKind k)
@@ -71,9 +71,14 @@ const char *qast_spelling(const QKind k)
         [QK_INT] = "a number",
         [QK_REAL] = "a number",
         [QK_STR] = "a string",
+        [QK_FSTR] = "an f-string",
+        [QK_FPART] = "an f-string",
+        [QK_FSPEC] = "a format",
+        [QK_FEND] = "the f-string's end",
         [QK_AND] = "and",
         [QK_AS] = "as",
         [QK_BREAK] = "break",
+        [QK_CASE] = "case",
         [QK_CONST] = "const",
         [QK_CONTINUE] = "continue",
         [QK_DIV] = "div",
@@ -81,12 +86,15 @@ const char *qast_spelling(const QKind k)
         [QK_ELSE] = "else",
         [QK_ELSEIF] = "elseif",
         [QK_END] = "end",
+        [QK_ENUM] = "enum",
         [QK_FALSE] = "false",
         [QK_FN] = "fn",
         [QK_FOR] = "for",
         [QK_IF] = "if",
         [QK_IN] = "in",
+        [QK_IS] = "is",
         [QK_LET] = "let",
+        [QK_MATCH] = "match",
         [QK_MOD] = "mod",
         [QK_MUT] = "mut",
         [QK_NOT] = "not",
@@ -95,6 +103,7 @@ const char *qast_spelling(const QKind k)
         [QK_STEP] = "step",
         [QK_THEN] = "then",
         [QK_TRUE] = "true",
+        [QK_TYPE] = "type",
         [QK_VAR] = "var",
         [QK_WHILE] = "while",
         [QK_XOR] = "xor",

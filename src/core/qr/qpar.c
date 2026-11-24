@@ -2,14 +2,16 @@
  *
  * # How it works
  * Recursive descent, one function a precedence level, lowest first: a if c else b, or, xor, and,
- * not, comparisons (chained, and in a..b), | ^ & << >>, + -, * / div mod, unary - ~, **. A
- * statement is parsed to its QK_NL; an error longjmps to the statement's start, which skips to
+ * not, comparisons (chained, and in a..b), | ^ & << >>, + -, * / div mod, unary - ~, **; then
+ * a.f, a.f(args) and a[i] after a primary. A line starting with a name is tried as places then
+ * =, else parsed as a call. A statement is parsed to its QK_NL; an error longjmps to the statement's start, which skips to
  * the QK_NL, so one bad statement makes one error.
  *
  * Statements form one flat list in source order. A stack of the open blocks links each clause to
  * the next (if, elseif, else, end if), each loop to its end and back, each break and continue to
- * its loop. A block's opener is linked before its condition is parsed, so a bad condition still
- * pairs with its end.
+ * its loop, each case to the next (and to its match, by body). A block's opener is linked before
+ * its condition is parsed, so a bad condition still pairs with its end. In a type or an enum each
+ * line is a field or a value.
  *
  * # Example
  *    if x < 0 then        QS_IF.link = the else
@@ -136,6 +138,57 @@ static QExpr *qpar_call(QPar *const P, const QTok *const name)
     return e;
 }
 
+/* (a, b ..) after its first item a, the next a comma: a QE_TUPLE. */
+static QExpr *qpar_tuple(QPar *const P, QExpr *const a)
+{
+    QExpr *const e = qast_expr(P->mem, QE_TUPLE, a->tok);
+    uint32_t cap = 0;
+    e->items = qast_room(P->mem, e->items, 0, &cap, sizeof *e->items);
+    e->items[e->n++] = a;
+
+    while (qpar_take(P, QK_COMMA)) {
+        e->items = qast_room(P->mem, e->items, e->n, &cap, sizeof *e->items);
+        e->items[e->n++] = qpar_expr(P);
+    }
+
+    return e;
+}
+
+/* f"..": its parts, each a string's (a QE_CONST) or a value's with its spec. */
+static QExpr *qpar_fstring(QPar *const P)
+{
+    QExpr *const e = qast_expr(P->mem, QE_FSTR, qpar_next(P));
+    uint32_t cap = 0, capspec = 0;
+
+    while (!qpar_take(P, QK_FEND)) {
+        QExpr *part;
+        const QTok *spec = nullptr;
+
+        if (qpar_is(P, QK_FPART)) {
+            part = qast_expr(P->mem, QE_CONST, P->t);
+            QPiece *const s = qast_alloc(P->mem, sizeof *s);
+            s->lit = qpar_next(P);
+            part->type = QY_STRING;
+            part->val.s = s;
+        } else {
+            qpar_need(P, QK_LBRACE, "{");
+            part = qpar_expr(P);
+
+            if (qpar_is(P, QK_FSPEC))
+                spec = qpar_next(P);
+
+            qpar_need(P, QK_RBRACE, "}");
+        }
+
+        e->items = qast_room(P->mem, e->items, e->n, &cap, sizeof *e->items);
+        e->specs = qast_room(P->mem, e->specs, e->n, &capspec, sizeof *e->specs);
+        e->specs[e->n] = spec;
+        e->items[e->n++] = part;
+    }
+
+    return e;
+}
+
 static QExpr *qpar_primary(QPar *const P)
 {
     const QTok *const t = P->t;
@@ -180,16 +233,22 @@ static QExpr *qpar_primary(QPar *const P)
         qpar_next(P);
 
         if (qpar_is(P, QK_RPAREN))
-            qpar_later(P, t, "tuples are");
+            qpar_expected(P, "a value");
 
         QExpr *const e = qpar_expr(P);
 
-        if (qpar_is(P, QK_COMMA))
-            qpar_later(P, P->t, "tuples are");
+        if (qpar_is(P, QK_COMMA)) {
+            QExpr *const tu = qpar_tuple(P, e);
+            qpar_need(P, QK_RPAREN, ")");
+            return tu;
+        }
 
         qpar_need(P, QK_RPAREN, ")");
         return e;
     }
+
+    case QK_FSTR:
+        return qpar_fstring(P);
 
     case QK_LBRACK:
         qpar_later(P, t, "lists are");
@@ -205,19 +264,50 @@ static QExpr *qpar_primary(QPar *const P)
     }
 }
 
-/* A primary, then what may follow it. */
+/* A primary, then its fields, methods and elements: a.f, a.f(args), a[i]. */
 static QExpr *qpar_postfix(QPar *const P)
 {
-    QExpr *const e = qpar_primary(P);
+    QExpr *e = qpar_primary(P);
 
-    if (qpar_is(P, QK_DOT))
-        qpar_later(P, P->t, "fields and methods are");
-    if (qpar_is(P, QK_LBRACK))
-        qpar_later(P, P->t, "indexing is");
-    if (qpar_is(P, QK_QUEST) || qpar_is(P, QK_BANG))
-        qpar_later(P, P->t, "{} is");
+    for (;;) {
+        if (qpar_take(P, QK_DOT)) {
+            const QTok *const name = qpar_need(P, QK_NAME, "a field's name");
 
-    return e;
+            if (qpar_is(P, QK_LPAREN)) {
+                QExpr *const call = qpar_call(P, name);
+                call->a = e;
+                e = call;
+                continue;
+            }
+
+            QExpr *const f = qast_expr(P->mem, QE_FIELD, name);
+            f->a = e;
+            e = f;
+            continue;
+        }
+
+        if (qpar_is(P, QK_LBRACK)) {
+            QExpr *const x = qast_expr(P->mem, QE_INDEX, qpar_next(P));
+            x->a = e;
+
+            if (qpar_is(P, QK_DOTDOT) || qpar_is(P, QK_RBRACK))
+                qpar_later(P, P->t, "slices are");
+
+            x->b = qpar_expr(P);
+
+            if (qpar_is(P, QK_DOTDOT))
+                qpar_later(P, P->t, "slices are");
+
+            qpar_need(P, QK_RBRACK, "]");
+            e = x;
+            continue;
+        }
+
+        if (qpar_is(P, QK_QUEST) || qpar_is(P, QK_BANG))
+            qpar_later(P, P->t, "{} is");
+
+        return e;
+    }
 }
 
 static QExpr *qpar_unary(QPar *P);
@@ -327,8 +417,10 @@ static QExpr *qpar_in(QPar *const P, QExpr *const a)
     e->neg = neg;
     e->a = a;
     e->b = qpar_bor(P);
-    qpar_need(P, QK_DOTDOT, "..");
-    e->c = qpar_bor(P);
+
+    if (qpar_take(P, QK_DOTDOT))
+        e->c = qpar_bor(P);
+
     return e;
 }
 
@@ -418,26 +510,58 @@ static QExpr *qpar_expr(QPar *const P)
 
 /* ---- statements */
 
-/* A type after as: a name, nothing of a later milestone after it. */
-static const QTok *qpar_type(QPar *const P)
+static QTypeEx *qpar_typex(QPar *const P, const QTypeExKind kind, const QTok *const tok)
 {
-    if (qpar_is(P, QK_LPAREN))
-        qpar_later(P, P->t, "tuples are");
+    QTypeEx *const x = qast_alloc(P->mem, sizeof *x);
+    x->kind = kind;
+    x->tok = tok;
+    return x;
+}
+
+/* A type after as: a name, (T, U), then [] or [n] any times. */
+static QTypeEx *qpar_type(QPar *const P)
+{
     if (qpar_is(P, QK_FN))
         qpar_later(P, P->t, "fn types are");
 
-    const QTok *const t = qpar_need(P, QK_NAME, "a type");
+    QTypeEx *x;
 
-    if (qpar_is(P, QK_LBRACK))
-        qpar_later(P, P->t, "lists, maps and arrays are");
+    if (qpar_is(P, QK_LPAREN)) {
+        x = qpar_typex(P, QX_TUPLE, qpar_next(P));
+        uint32_t cap = 0;
+
+        do {
+            x->items = qast_room(P->mem, x->items, x->n, &cap, sizeof *x->items);
+            x->items[x->n++] = qpar_type(P);
+        } while (qpar_take(P, QK_COMMA));
+
+        qpar_need(P, QK_RPAREN, ")");
+    } else
+        x = qpar_typex(P, QX_NAME, qpar_need(P, QK_NAME, "a type"));
+
+    if (qpar_is(P, QK_DOT))
+        qpar_later(P, P->t, "imported types are");
+
+    while (qpar_is(P, QK_LBRACK)) {
+        const QTok *const at = qpar_next(P);
+        QTypeEx *const y = qpar_typex(P, QX_LIST, at);
+        y->elem = x;
+
+        if (!qpar_is(P, QK_RBRACK)) {
+            y->kind = QX_ARRAY;
+            y->count = qpar_expr(P);
+        }
+
+        qpar_need(P, QK_RBRACK, "]");
+        x = y;
+    }
+
     if (qpar_is(P, QK_QUEST))
         qpar_later(P, P->t, "optional types are");
     if (qpar_is(P, QK_BANG))
         qpar_later(P, P->t, "error types are");
-    if (qpar_is(P, QK_DOT))
-        qpar_later(P, P->t, "imported types are");
 
-    return t;
+    return x;
 }
 
 static QStmt *qpar_new(QPar *const P, const QStmtKind kind, const QTok *const tok)
@@ -505,6 +629,13 @@ static QDecl *qpar_decls(QPar *const P)
     return first;
 }
 
+/* A value, or a, b ..: a QE_TUPLE. */
+static QExpr *qpar_values(QPar *const P)
+{
+    QExpr *const e = qpar_expr(P);
+    return qpar_is(P, QK_COMMA) ? qpar_tuple(P, e) : e;
+}
+
 /* break, continue: its loop's. */
 static QStmt *qpar_jump(QPar *const P, const QStmtKind kind)
 {
@@ -530,7 +661,7 @@ static QStmt *qpar_return(QPar *const P)
     if (!s->fn)
         qpar_fail(P, s->tok, "return outside a fn");
     if (!qpar_is(P, QK_NL))
-        s->e = qpar_expr(P);
+        s->e = qpar_values(P);
 
     return s;
 }
@@ -554,15 +685,34 @@ static QStmt *qpar_simple(QPar *const P)
         break;
     }
 
-    const QKind op = t[1].kind;
+    if (t->kind == QK_NAME) { /* places, then = : an assignment */
+        QExpr *to = qpar_postfix(P);
 
-    if (t->kind == QK_NAME &&
-        (op == QK_EQ || op == QK_ADDEQ || op == QK_SUBEQ || op == QK_MULEQ || op == QK_DIVEQ)) {
-        QStmt *const s = qpar_new(P, QS_ASSIGN, t);
-        s->target = qast_expr(P->mem, QE_NAME, qpar_next(P));
-        s->op = qpar_next(P)->kind;
-        s->e = qpar_expr(P);
-        return s;
+        if (qpar_is(P, QK_COMMA)) {
+            QExpr *const tu = qast_expr(P->mem, QE_TUPLE, t);
+            uint32_t cap = 0;
+            tu->items = qast_room(P->mem, tu->items, 0, &cap, sizeof *tu->items);
+            tu->items[tu->n++] = to;
+
+            while (qpar_take(P, QK_COMMA)) {
+                tu->items = qast_room(P->mem, tu->items, tu->n, &cap, sizeof *tu->items);
+                tu->items[tu->n++] = qpar_postfix(P);
+            }
+
+            to = tu;
+        }
+
+        const QKind op = P->t->kind;
+
+        if (op == QK_EQ || op == QK_ADDEQ || op == QK_SUBEQ || op == QK_MULEQ || op == QK_DIVEQ) {
+            QStmt *const s = qpar_new(P, QS_ASSIGN, t);
+            s->target = to;
+            s->op = qpar_next(P)->kind;
+            s->e = to->kind == QE_TUPLE ? qpar_values(P) : qpar_expr(P);
+            return s;
+        }
+
+        P->t = t;
     }
 
     QExpr *const e = qpar_expr(P);
@@ -593,7 +743,7 @@ static void qpar_if(QPar *const P)
     const QKind k = P->t->kind;
 
     if (k == QK_LET || k == QK_VAR || k == QK_CONST || k == QK_IF || k == QK_WHILE || k == QK_FOR ||
-        k == QK_DO || k == QK_FN)
+        k == QK_DO || k == QK_FN || k == QK_TYPE || k == QK_ENUM || k == QK_MATCH || k == QK_CASE)
         qpar_fail(P, P->t, "a one-line if takes one simple statement, not {}");
 
     s->body = qpar_simple(P);
@@ -627,21 +777,26 @@ static void qpar_for(QPar *const P)
     qpar_append(P, s);
     qpar_push(P, s);
 
-    if (qpar_is(P, QK_MUT))
-        qpar_later(P, P->t, "for mut is");
-
+    s->mut = qpar_take(P, QK_MUT);
     QDecl *const d = qast_alloc(P->mem, sizeof *d);
     d->name = qpar_need(P, QK_NAME, "a name");
     s->decls = d;
 
-    if (qpar_is(P, QK_COMMA))
-        qpar_later(P, P->t, "an index with its element is");
+    if (qpar_take(P, QK_COMMA)) { /* i, x: the index first */
+        d->next = qast_alloc(P->mem, sizeof *d);
+        d->next->name = qpar_need(P, QK_NAME, "a name");
+    }
 
     qpar_need(P, QK_IN, "in");
     s->e = qpar_bor(P);
 
-    if (!qpar_is(P, QK_DOTDOT))
-        qpar_later(P, P->t, "for over lists, maps and strings is");
+    if (!qpar_is(P, QK_DOTDOT)) {
+        s->each = true;
+        return;
+    }
+
+    if (s->mut || d->next)
+        qpar_fail(P, P->t, "a range's for takes one name, not mut");
 
     qpar_next(P);
     s->to = qpar_bor(P);
@@ -714,6 +869,9 @@ static const struct {
     {QK_FOR, QS_FOR, QS_ENDFOR},
     {QK_DO, QS_DO, QS_ENDDO},
     {QK_FN, QS_FN, QS_ENDFN},
+    {QK_TYPE, QS_TYPE, QS_ENDTYPE},
+    {QK_ENUM, QS_ENUM, QS_ENDENUM},
+    {QK_MATCH, QS_MATCH, QS_ENDMATCH},
 };
 
 /* end if, end while, end for, end do, end fn: its block closed. */
@@ -725,10 +883,13 @@ static void qpar_end(QPar *const P)
     while (k < countof(qpar_ends) && !qpar_is(P, qpar_ends[k].word))
         k++;
     if (k == countof(qpar_ends))
-        qpar_expected(P, "if, while, for, do or fn after end");
+        qpar_expected(P, "if, while, for, do, fn, type, enum or match after end");
 
     const QTok *const word = qpar_next(P);
     QOpen *const o = qpar_top(P);
+
+    if (o && o->open->kind == QS_MATCH && o->clause == o->open)
+        qpar_fail(P, t, "a match needs a case");
 
     if (!o || o->open->kind != qpar_ends[k].open) {
         char msg[32];
@@ -754,11 +915,141 @@ static void qpar_end(QPar *const P)
     P->nopen--;
 }
 
+/* type Name, enum Name, match e: a block whose lines are its own. */
+static void qpar_block(QPar *const P, const QStmtKind kind)
+{
+    QStmt *const s = qpar_new(P, kind, qpar_next(P));
+    qpar_append(P, s);
+    qpar_push(P, s);
+
+    if (kind == QS_MATCH)
+        s->e = qpar_expr(P);
+    else
+        s->decls = qpar_decls(P); /* its name alone */
+
+    if (kind != QS_MATCH && (s->decls->type || s->decls->value || s->decls->next))
+        qpar_fail(P, s->tok, "{} takes a name alone");
+    if (kind == QS_TYPE && P->nopen > 1)
+        qpar_fail(P, s->tok, "a type goes at the top level, not in a block");
+    if (kind == QS_ENUM && P->nopen > 1)
+        qpar_fail(P, s->tok, "an enum goes at the top level, not in a block");
+}
+
+/* A line in a type: name as type [= default]. */
+static void qpar_field(QPar *const P)
+{
+    QStmt *const s = qpar_new(P, QS_FIELD, P->t);
+    qpar_append(P, s);
+    s->decls = qpar_decls(P);
+}
+
+/* A line in an enum: name, or name(field, ..) with data. */
+static void qpar_variant(QPar *const P)
+{
+    QStmt *const s = qpar_new(P, QS_VARIANT, P->t);
+    qpar_append(P, s);
+    QDecl *const d = qast_alloc(P->mem, sizeof *d);
+    d->name = qpar_need(P, QK_NAME, "a value's name");
+    s->decls = d;
+
+    if (!qpar_take(P, QK_LPAREN))
+        return;
+
+    d->next = qpar_decls(P);
+    qpar_need(P, QK_RPAREN, ")");
+}
+
+/* One pattern of a case: is op v, a to b, a value. */
+static QPat *qpar_pat(QPar *const P)
+{
+    QPat *const pt = qast_alloc(P->mem, sizeof *pt);
+    pt->tok = P->t;
+
+    if (qpar_take(P, QK_IS)) {
+        if (!qpar_relop(P->t->kind))
+            qpar_expected(P, "a comparison after is");
+
+        pt->kind = QP_IS;
+        pt->op = qpar_next(P)->kind;
+        pt->a = qpar_bor(P);
+        return pt;
+    }
+
+    pt->a = qpar_bor(P);
+
+    if (qpar_is(P, QK_NAME) && P->t->len == 2 && !memcmp(P->t->text, "to", 2)) {
+        qpar_next(P);
+        pt->kind = QP_RANGE;
+        pt->b = qpar_bor(P);
+    }
+
+    return pt;
+}
+
+/* case pattern, ..; case else: the match's next clause. */
+static void qpar_case(QPar *const P)
+{
+    QStmt *const s = qpar_new(P, QS_CASE, qpar_next(P));
+    QOpen *const o = qpar_top(P);
+
+    if (!o || o->open->kind != QS_MATCH)
+        qpar_fail(P, s->tok, "case outside a match");
+    if (o->clause->kind == QS_CASE && !o->clause->pats)
+        qpar_fail(P, s->tok, "case after case else");
+
+    qpar_append(P, s);
+    o->clause->link = s;
+    o->clause = s;
+    s->body = o->open;
+
+    if (qpar_take(P, QK_ELSE))
+        return;
+
+    QPat **last = &s->pats;
+
+    do {
+        *last = qpar_pat(P);
+        last = &(*last)->next;
+    } while (qpar_take(P, QK_COMMA));
+}
+
 static void qpar_statement(QPar *const P)
 {
     const QTok *const t = P->t;
+    const QOpen *const o = qpar_top(P);
+
+    if (o && t->kind != QK_END) {
+        if (o->open->kind == QS_TYPE) {
+            qpar_field(P);
+            return;
+        }
+
+        if (o->open->kind == QS_ENUM) {
+            qpar_variant(P);
+            return;
+        }
+
+        if (o->open->kind == QS_MATCH && o->clause == o->open && t->kind != QK_CASE)
+            qpar_fail(P, t, "a match's first line is a case");
+    }
 
     switch (t->kind) {
+    case QK_TYPE:
+        qpar_block(P, QS_TYPE);
+        return;
+
+    case QK_ENUM:
+        qpar_block(P, QS_ENUM);
+        return;
+
+    case QK_MATCH:
+        qpar_block(P, QS_MATCH);
+        return;
+
+    case QK_CASE:
+        qpar_case(P);
+        return;
+
     case QK_LET:
     case QK_VAR:
     case QK_CONST: {
@@ -825,6 +1116,9 @@ static void qpar_unclosed(QPar *const P)
         [QS_FOR] = "for without end for",
         [QS_DO] = "do without end do",
         [QS_FN] = "fn without end fn",
+        [QS_TYPE] = "type without end type",
+        [QS_ENUM] = "enum without end enum",
+        [QS_MATCH] = "match without end match",
     };
 
     for (uint32_t i = 0; i < P->nopen; i++) {

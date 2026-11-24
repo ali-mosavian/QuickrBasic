@@ -10,12 +10,12 @@ unsupported.qr:4:10: long is not supported yet
 unsupported.qr:5:10: uint is not supported yet
   var u as uint
            ^
-unsupported.qr:6:7: len() is not supported yet
-  print(len("x"))
-        ^
-unsupported.qr:7:1: type is not supported yet
-  type Point
-  ^
+unsupported.qr:6:14: maps are not supported yet
+  var m as int[string]
+               ^
+unsupported.qr:7:16: slices are not supported yet
+  let s = "abc"[1..2]
+                 ^
 unsupported.qr:8:9: none is not supported yet
   let p = none
           ^

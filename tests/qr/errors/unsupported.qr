@@ -3,6 +3,6 @@ var a as byte
 var b as short
 var c as long
 var u as uint
-print(len("x"))
-type Point
+var m as int[string]
+let s = "abc"[1..2]
 let p = none

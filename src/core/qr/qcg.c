@@ -19,6 +19,13 @@
  * A string literal loads from its line's text in the program store; an escape is CHR$ of its
  * byte, joined on.
  *
+ * A record is QBasic's TYPE: a variable's a box R.ADDR finds, a field FL.LD and FL.ST at its
+ * offset, a nested one's offsets added at compile time. A list is a dynamic array: an element
+ * I.LD.A1 and its kin, a record's RA.ADDR, a field's list's FE.ADDR, a fixed array field's
+ * FX.IDX; its methods and an f-string's specs are CALL QX (qr/qrt.c). A record or list result is
+ * written through a last parameter, the caller's place. A match is SELECT CASE: its value held,
+ * each case's line its tests, past the case before's JMP to end match.
+ *
  * # Example
  *    while i < n          I.LD.V i, I.JFC.V n < (end while's line, BOFF)
  *    end while            JMP (while's line, 0)
@@ -95,7 +102,11 @@ static uint8_t qcg_pick(
     }
 }
 
-static bool qcg_par(const QVar *const v) { return v->kind == QV_PARAM || v->kind == QV_MUT; }
+/* A parameter's ref: a fn's own, and a record's or list's result. */
+static bool qcg_par(const QVar *const v)
+{
+    return v->kind == QV_PARAM || v->kind == QV_MUT || (v->kind == QV_RESULT && v->fn->byarg);
+}
 
 static void qcg_load(Code *const c, const QVar *const v)
 {
@@ -571,6 +582,379 @@ static void qcg_in(QCg *const g, const QExpr *const e)
         code_op(c, O_I_NOT);
 }
 
+/* ---- places: records and lists */
+
+static const QTy *qcg_ty(const QCg *const g, const QType t) { return qast_ty(g->env->prog, t); }
+static bool qcg_rec(const QCg *const g, const QType t) { return qast_record(g->env->prog, t); }
+static bool qcg_list(const QCg *const g, const QType t) { return qast_array(g->env->prog, t); }
+
+/* Is t's value kept in a place, a record's or a list's, not on the stack? */
+static bool qcg_byplace(const QCg *const g, const QType t)
+{
+    return qcg_rec(g, t) || qcg_list(g, t);
+}
+
+/* Type t's ET_*: a record's ET_REC + its TYPE; a bool's and an enum's ET_I4. */
+static uint32_t qcg_et(const QCg *const g, const QType t)
+{
+    if (qcg_rec(g, t))
+        return ET_REC + qcg_ty(g, t)->td;
+
+    return t == QY_SINGLE ? ET_R4 : t == QY_DOUBLE ? ET_R8 : t == QY_STRING ? ET_SD : ET_I4;
+}
+
+/* A value of type t's bytes in a record or an array. */
+static uint32_t qcg_size(const QCg *const g, const QType t)
+{
+    return qcg_rec(g, t) ? qcg_ty(g, t)->size : t == QY_DOUBLE ? 8 : t == QY_STRING ? DSZ : 4;
+}
+
+static QExpr qcg_named(QVar *const v)
+{
+    return (QExpr){.kind = QE_NAME, .var = v, .type = v->type};
+}
+
+/* Place a's field k. */
+static QExpr qcg_fieldof(const QCg *const g, const QExpr *const a, const uint32_t k)
+{
+    return (QExpr){
+        .kind = QE_FIELD,
+        .a = (QExpr *)a,
+        .field = k,
+        .type = qcg_ty(g, a->type)->fields[k].type,
+    };
+}
+
+/* The address on top moved on by off bytes. */
+static void qcg_offset(QCg *const g, const uint32_t off)
+{
+    if (!off)
+        return;
+
+    uint8_t *const right = g->c->out;
+    code_int(g->c, off);
+    qcg_arith(g->c, right, QY_INT, QA_ADD);
+}
+
+static void qcg_into(QCg *g, const QExpr *dst, const QExpr *e);
+static void qcg_build(QCg *g, const QExpr *dst, const QExpr *e);
+static uint32_t qcg_addr(QCg *g, const QExpr *e);
+
+/* A fresh record or list built in its temporary (sema's): that temporary's place. */
+static QExpr qcg_settle(QCg *const g, const QExpr *const e)
+{
+    const QExpr t = qcg_named(e->var);
+    qcg_build(g, &t, e);
+    return t;
+}
+
+/* Record place a's field f's offset from a's address, pushed; f's own added. */
+static uint32_t qcg_fieldat(QCg *const g, const QExpr *const f)
+{
+    return qcg_addr(g, f->a) + qcg_ty(g, f->a->type)->fields[f->field].off;
+}
+
+/* The variable a list or array place names: its own, or the temporary a fresh one is built in. */
+static QVar *qcg_listvar(QCg *const g, const QExpr *const a)
+{
+    if (a->kind == QE_NAME)
+        return a->var;
+
+    qcg_settle(g, a);
+    return a->var;
+}
+
+/* Element place e, a[i]: its address pushed. A field's list's by FE.ADDR, its fixed array's by
+   FX.IDX; a variable's by RA.ADDR. */
+static void qcg_elem(QCg *const g, const QExpr *const e)
+{
+    Code *const c = g->c;
+    const QExpr *const a = e->a;
+    const QTy *const y = qcg_ty(g, a->type);
+
+    if (a->kind == QE_FIELD) {
+        const uint32_t off = qcg_fieldat(g, a);
+
+        if (y->kind == QT_LIST) {
+            qcg_expr(g, e->b);
+            code_op(c, O_FE_ADDR);
+            code_dword(c, off);
+            code_byte(c, 1);
+            code_dword(c, qcg_size(g, y->elem));
+            return;
+        }
+
+        qcg_offset(g, off);
+        qcg_expr(g, e->b);
+        code_op(c, O_FX_IDX);
+        code_dword(c, 0);
+        code_dword(c, y->count);
+        code_dword(c, qcg_size(g, y->elem));
+        return;
+    }
+
+    const QVar *const v = qcg_listvar(g, a);
+    qcg_expr(g, e->b);
+    code_opid(c, O_RA_ADDR, v->id, false);
+    code_byte(c, 1);
+}
+
+/* Record place e's address pushed; the bytes returned still to add, a field's. */
+static uint32_t qcg_addr(QCg *const g, const QExpr *const e)
+{
+    if (qast_fresh(e)) {
+        const QExpr t = qcg_settle(g, e);
+        return qcg_addr(g, &t);
+    }
+
+    switch (e->kind) {
+    case QE_NAME:
+        code_opid(g->c, O_R_ADDR, e->var->id, false);
+        return 0;
+
+    case QE_FIELD:
+        return qcg_fieldat(g, e);
+
+    default:
+        qcg_elem(g, e);
+        return 0;
+    }
+}
+
+/* List place e's cell's address pushed: a variable's, a parameter's through its ref, a field's. */
+static void qcg_cell(QCg *const g, const QExpr *const e)
+{
+    if (e->kind == QE_FIELD) {
+        qcg_offset(g, qcg_fieldat(g, e));
+        return;
+    }
+
+    const QVar *const v = qcg_listvar(g, e);
+    code_opid(g->c, qcg_par(v) ? O_V_REF : O_V_CELL, v->id, false);
+}
+
+/* A field's load or store of type t, off bytes past the address under it. */
+static void qcg_fieldop(QCg *const g, const bool store, const uint32_t off, const QType t)
+{
+    Code *const c = g->c;
+
+    if (t == QY_STRING) {
+        code_op(c, store ? O_SF_ST : O_SF_LD);
+        code_word(c, (uint16_t)off);
+        code_word(c, 0); /* a variable string's Desc */
+        return;
+    }
+
+    code_op(c, store ? O_FL_ST : O_FL_LD);
+    code_word(c, (uint16_t)off);
+    code_byte(c, (uint8_t)qcg_et(g, t));
+}
+
+/* Is element place e a variable's list's, loaded and stored by I.LD.A1 and its kin? */
+static bool qcg_byindex(const QExpr *const e)
+{
+    return e->kind == QE_INDEX && e->a->kind != QE_FIELD;
+}
+
+/* Scalar place e's value pushed. */
+static void qcg_loadat(QCg *const g, const QExpr *const e)
+{
+    Code *const c = g->c;
+
+    if (e->kind == QE_NAME) {
+        qcg_load(c, e->var);
+        return;
+    }
+
+    if (e->kind == QE_FIELD) {
+        qcg_fieldop(g, false, qcg_fieldat(g, e), e->type);
+        return;
+    }
+
+    if (qcg_byindex(e)) {
+        const QVar *const v = qcg_listvar(g, e->a);
+        qcg_expr(g, e->b);
+        code_opid(c, qcg_pick(e->type, O_I_LD_A1, O_F_LD_A1, O_D_LD_A1, O_S_LD_A1), v->id, false);
+        return;
+    }
+
+    qcg_elem(g, e);
+    qcg_fieldop(g, false, 0, e->type);
+}
+
+/* A scalar place's store: what goes before the value (an address, an index), then its op. */
+typedef struct {
+    uint32_t off;
+    const QVar *list; /* by I.ST.A1 and its kin */
+    bool at;          /* by FL.ST or SF.ST, the address under the value */
+} QCgPut;
+
+static QCgPut qcg_before(QCg *const g, const QExpr *const e)
+{
+    if (e->kind == QE_NAME)
+        return (QCgPut){};
+
+    if (e->kind == QE_FIELD)
+        return (QCgPut){.off = qcg_fieldat(g, e), .at = true};
+
+    if (qcg_byindex(e)) {
+        const QVar *const v = qcg_listvar(g, e->a);
+        qcg_expr(g, e->b);
+        return (QCgPut){.list = v};
+    }
+
+    qcg_elem(g, e);
+    return (QCgPut){.at = true};
+}
+
+static void qcg_put(QCg *const g, const QExpr *const e, const QCgPut p)
+{
+    if (p.at)
+        qcg_fieldop(g, true, p.off, e->type);
+    else if (p.list)
+        code_opid(
+            g->c,
+            qcg_pick(e->type, O_I_ST_A1, O_F_ST_A1, O_D_ST_A1, O_S_ST_A1),
+            p.list->id,
+            false
+        );
+    else
+        qcg_store(g->c, e->var);
+}
+
+/* Record place p emptied: its strings "", its lists empty, the rest 0. */
+static void qcg_clear(QCg *const g, const QExpr *const p)
+{
+    qcg_offset(g, qcg_addr(g, p));
+    code_int(g->c, qcg_ty(g, p->type)->td);
+    code_call(g->c, K_RCLR);
+}
+
+static void qcg_set(QCg *g, const QExpr *place, const QExpr *v);
+
+/* Record place p, emptied, given its fields' defaults, its records' too. */
+static void qcg_defaults(QCg *const g, const QExpr *const p)
+{
+    const QTy *const y = qcg_ty(g, p->type);
+
+    for (uint32_t k = 0; y->kind == QT_REC && k < y->nfields; k++) {
+        const QExpr f = qcg_fieldof(g, p, k);
+
+        if (y->fields[k].def)
+            qcg_set(g, &f, y->fields[k].def);
+        else if (qcg_rec(g, f.type))
+            qcg_defaults(g, &f);
+    }
+}
+
+/* A record of type t copied, its destination's and its source's addresses on the stack: R.COPY,
+   or RCOPY when it holds strings or lists. */
+static void qcg_recop(QCg *const g, const QType t)
+{
+    const QTy *const y = qcg_ty(g, t);
+
+    if (y->deep) {
+        code_int(g->c, y->td);
+        code_call(g->c, K_RCOPY);
+        return;
+    }
+
+    code_op(g->c, O_R_COPY);
+    code_word(g->c, (uint16_t)y->size);
+}
+
+/* Record place src's value copied to record place dst. */
+static void qcg_copyrec(QCg *const g, const QExpr *const dst, const QExpr *const src)
+{
+    qcg_offset(g, qcg_addr(g, dst));
+    qcg_offset(g, qcg_addr(g, src));
+    qcg_recop(g, dst->type);
+}
+
+/* List place src's elements to list place dst: moved (src left empty), or copied. */
+static void qcg_listto(
+    QCg *const g,
+    const QExpr *const dst,
+    const QExpr *const src,
+    const bool move
+)
+{
+    qcg_cell(g, src);
+    qcg_cell(g, dst);
+    code_call(g->c, move ? K_AMOVE : K_ACOPY);
+}
+
+/* Scalar or compound value v stored in place p. */
+static void qcg_set(QCg *const g, const QExpr *const p, const QExpr *const v)
+{
+    if (qcg_byplace(g, p->type)) {
+        qcg_into(g, p, v);
+        return;
+    }
+
+    const QCgPut put = qcg_before(g, p);
+    qcg_as(g, v, p->type);
+    qcg_put(g, p, put);
+}
+
+/* Record, tuple or enum value e (QE_NEW) built in place dst, field by field: emptied first when
+   a field left out is no number. */
+static void qcg_new(QCg *const g, const QExpr *const dst, const QExpr *const e)
+{
+    const QTy *const y = qcg_ty(g, e->type);
+    const bool en = y->kind == QT_ENUM;
+    const uint32_t first = en ? y->vars[e->field].first : 0;
+    bool clear = false;
+
+    for (uint32_t k = 0; k < e->nargv; k++)
+        clear |= !e->argv[k] && qcg_byplace(g, y->fields[first + k].type);
+
+    if (clear)
+        qcg_clear(g, dst);
+
+    if (en) {
+        const QExpr tag = qcg_fieldof(g, dst, 0);
+        const QExpr v = {.kind = QE_CONST, .type = QY_INT, .val.i = e->field};
+
+        qcg_set(g, &tag, &v);
+    }
+
+    for (uint32_t k = 0; k < e->nargv; k++) {
+        const QExpr f = qcg_fieldof(g, dst, first + k);
+        const QExpr zero = {.kind = QE_CONST, .type = f.type};
+
+        if (e->argv[k])
+            qcg_set(g, &f, e->argv[k]);
+        else if (qcg_rec(g, f.type))
+            qcg_defaults(g, &f);
+        else if (!clear || !qcg_byplace(g, f.type))
+            qcg_set(g, &f, &zero);
+    }
+}
+
+/* A by-reference argument, a 0 and an address: a variable's cell, a field's, an element's, a
+   list's cell. */
+static void qcg_ref(QCg *const g, const QExpr *const a)
+{
+    Code *const c = g->c;
+
+    if (qcg_list(g, a->type)) {
+        code_int(c, 0);
+        qcg_cell(g, a);
+        return;
+    }
+
+    if (a->kind == QE_NAME && !qcg_rec(g, a->type)) {
+        code_int(c, 0);
+        code_opid(c, qcg_par(a->var) ? O_V_REF : O_V_CELL, a->var->id, false);
+        return;
+    }
+
+    const uint32_t off = qcg_addr(g, a);
+    code_op(c, O_P_REF);
+    code_word(c, (uint16_t)off);
+}
+
 /* print(a, b): each spelled, a space between, a new line. */
 static void qcg_print(QCg *const g, const QExpr *const e)
 {
@@ -588,11 +972,11 @@ static void qcg_print(QCg *const g, const QExpr *const e)
         const QType t = a->type;
         code_int(
             c,
-            t == QY_INT      ? QRT_INT
-            : t == QY_SINGLE ? QRT_SINGLE
+            t == QY_SINGLE   ? QRT_SINGLE
             : t == QY_DOUBLE ? QRT_DOUBLE
             : t == QY_BOOL   ? QRT_BOOL
-                             : QRT_STRING
+            : t == QY_STRING ? QRT_STRING
+                             : QRT_INT
         );
         code_call(c, K_QPR);
     }
@@ -600,8 +984,9 @@ static void qcg_print(QCg *const g, const QExpr *const e)
     code_call(c, K_PNL);
 }
 
-/* A fn's call: each argument a value cell and its ref; a var by its own cell. */
-static void qcg_call(QCg *const g, const QExpr *const e)
+/* A fn's call: each argument by reference where it has a place, else a value cell and its ref;
+   a record's or list's result's place, dst, last. */
+static void qcg_call(QCg *const g, const QExpr *const e, const QExpr *const dst)
 {
     if (e->builtin == QB_PRINT) {
         qcg_print(g, e);
@@ -615,11 +1000,9 @@ static void qcg_call(QCg *const g, const QExpr *const e)
     for (uint32_t k = 0; k < f->npar; k++) {
         const QParam *const p = &f->params[k];
         const QExpr *const a = e->argv[k];
-        const bool cell = a->kind == QE_NAME && a->type == p->var->type;
 
-        if (p->mut || cell) {
-            code_int(c, 0);
-            code_opid(c, qcg_par(a->var) ? O_V_REF : O_V_CELL, a->var->id, false);
+        if (p->mut || qcg_byplace(g, p->var->type) || (!qast_fresh(a) && a->type == p->var->type)) {
+            qcg_ref(g, a);
             continue;
         }
 
@@ -629,12 +1012,243 @@ static void qcg_call(QCg *const g, const QExpr *const e)
         qcg_hold(g, a->type, 1);
     }
 
+    if (f->byarg)
+        qcg_ref(g, dst);
+
     g->strings -= held;
     code_op(c, O_PCALL); /* the procedure, its locals' cells, its parameters (link's), its body */
     code_dword(c, f->proc);
     code_dword(c, 0);
     code_word(c, 0);
     qcg_target(g, f->def, 0, PAST_JMP);
+}
+
+/* CALL QX op. */
+static void qcg_x(Code *const c, const QrtX op)
+{
+    code_int(c, op);
+    code_call(c, K_QX);
+}
+
+/* A list's method; a record's pop copied to dst. */
+static void qcg_listop(QCg *const g, const QExpr *const e, const QExpr *const dst)
+{
+    Code *const c = g->c;
+    const QType elem = qcg_ty(g, e->a->type)->elem;
+    const uint32_t et = qcg_et(g, elem);
+
+    switch (e->builtin) {
+    case QB_PUSH:
+    case QB_INSERT: { /* one more at the end, the value there; insert's moved to its place */
+        const QExpr *v = e->argv[e->nargv - 1];
+        QExpr held;
+
+        if (qcg_rec(g, elem) && qast_fresh(v)) { /* built first: the element's address stays */
+            held = qcg_settle(g, v);
+            v = &held;
+        }
+
+        qcg_cell(g, e->a);
+        code_int(c, et);
+        qcg_x(c, QX_PUSH);
+
+        if (e->a->kind == QE_FIELD) { /* the push may move its record: found again */
+            code_op(c, O_DROP);
+            const QExpr len = {
+                .kind = QE_CALL,
+                .builtin = QB_LEN,
+                .a = e->a,
+                .type = QY_INT,
+            };
+
+            const QExpr one = {.kind = QE_CONST, .type = QY_INT, .val.i = 1};
+
+            const QExpr last = {
+                .kind = QE_BINARY,
+                .op = QK_MINUS,
+                .a = (QExpr *)&len,
+                .b = (QExpr *)&one,
+                .type = QY_INT,
+                .work = QY_INT,
+            };
+
+            const QExpr at = {
+                .kind = QE_INDEX,
+                .a = e->a,
+                .b = (QExpr *)&last,
+                .type = elem,
+            };
+
+            qcg_set(g, &at, v);
+        } else if (qcg_rec(g, elem)) {
+            code_opid(c, O_RA_ADDR, qcg_listvar(g, e->a)->id, false);
+            code_byte(c, 1);
+            qcg_offset(g, qcg_addr(g, v));
+            qcg_recop(g, elem);
+        } else {
+            qcg_as(g, v, elem);
+            code_opid(
+                c,
+                qcg_pick(elem, O_I_ST_A1, O_F_ST_A1, O_D_ST_A1, O_S_ST_A1),
+                qcg_listvar(g, e->a)->id,
+                false
+            );
+        }
+
+        if (e->builtin == QB_PUSH)
+            return;
+
+        qcg_cell(g, e->a);
+        code_int(c, et);
+        qcg_expr(g, e->argv[0]);
+        qcg_x(c, QX_SINK);
+        return;
+    }
+
+    case QB_POP:
+        if (dst) {
+            qcg_offset(g, qcg_addr(g, dst));
+            qcg_cell(g, e->a);
+            qcg_x(c, QX_LAST);
+            qcg_recop(g, elem);
+        }
+
+        qcg_cell(g, e->a);
+        code_int(c, et);
+        qcg_x(c, dst || qcg_rec(g, elem) ? QX_DROP : QX_POP);
+        return;
+
+    default: /* remove: moved last, then dropped */
+        qcg_cell(g, e->a);
+        code_int(c, et);
+        qcg_expr(g, e->argv[0]);
+        qcg_x(c, QX_RAISE);
+        qcg_cell(g, e->a);
+        code_int(c, et);
+        qcg_x(c, QX_DROP);
+    }
+}
+
+/* x in a, a list: QX.HAS. */
+static void qcg_has(QCg *const g, const QExpr *const e)
+{
+    const QType elem = qcg_ty(g, e->b->type)->elem;
+    qcg_cell(g, e->b);
+    code_int(g->c, qcg_et(g, elem));
+    qcg_as(g, e->a, elem);
+    qcg_x(g->c, QX_HAS);
+
+    if (e->neg)
+        code_op(g->c, O_I_NOT);
+}
+
+/* QrtKind of a value of type t: an enum's an int. */
+static QrtKind qcg_kind(const QType t)
+{
+    return t == QY_SINGLE   ? QRT_SINGLE
+           : t == QY_DOUBLE ? QRT_DOUBLE
+           : t == QY_BOOL   ? QRT_BOOL
+           : t == QY_STRING ? QRT_STRING
+                            : QRT_INT;
+}
+
+/* f"..": its parts joined, each a literal's text, a value's string() or its spec's QX.FMT. */
+static void qcg_fstring(QCg *const g, const QExpr *const e)
+{
+    Code *const c = g->c;
+
+    if (!e->n)
+        qcg_string(g, nullptr);
+
+    for (uint32_t k = 0; k < e->n; k++) {
+        const QExpr *const v = e->items[k];
+
+        if (v->tok->kind == QK_FPART)
+            qcg_string(g, v->val.s);
+        else if (!e->specs[k]) {
+            qcg_expr(g, v);
+            qcg_convert(c, qcg_kind(v->type) == QRT_INT ? QY_INT : v->type, QY_STRING);
+        } else {
+            const QPiece spec = {.lit = e->specs[k]};
+
+            qcg_expr(g, v);
+            qcg_hold(g, v->type, 1);
+            qcg_string(g, &spec);
+            code_int(c, qcg_kind(v->type));
+            qcg_x(c, QX_FMT);
+            qcg_hold(g, v->type, -1);
+        }
+
+        if (k)
+            code_op(c, O_S_CAT);
+
+        qcg_hold(g, QY_STRING, k ? 0 : 1);
+    }
+
+    qcg_hold(g, QY_STRING, e->n ? -1 : 0);
+}
+
+/* Fresh record or list e built straight in place dst. */
+static void qcg_build(QCg *const g, const QExpr *const dst, const QExpr *const e)
+{
+    switch (e->kind) {
+    case QE_NEW:
+        qcg_new(g, dst, e);
+        return;
+
+    case QE_LIST:
+        qcg_listop(g, e, dst);
+        return;
+
+    case QE_COND: {
+        qcg_expr(g, e->c);
+        const QCgHop other = qcg_hop(g, QJ_FALSE);
+        qcg_into(g, dst, e->a);
+        const QCgHop over = qcg_hop(g, QJ_ALWAYS);
+        qcg_land(g, other);
+        qcg_into(g, dst, e->b);
+        qcg_land(g, over);
+        return;
+    }
+
+    default: /* a call's */
+        if (e->builtin == QB_COPY) {
+            if (qcg_list(g, e->type))
+                qcg_listto(g, dst, e->a, false);
+            else
+                qcg_copyrec(g, dst, e->a);
+
+            return;
+        }
+
+        qcg_call(g, e, dst);
+    }
+}
+
+/* Record or list value e to place dst: built there, or in its temporary first; a place's
+   copied, a list variable's moved (sema saw it is not used again). */
+static void qcg_into(QCg *const g, const QExpr *const dst, const QExpr *const e)
+{
+    if (qast_fresh(e) && e->var) {
+        const QExpr t = qcg_settle(g, e);
+
+        if (qcg_list(g, e->type))
+            qcg_listto(g, dst, &t, true);
+        else
+            qcg_copyrec(g, dst, &t);
+
+        return;
+    }
+
+    if (qast_fresh(e)) {
+        qcg_build(g, dst, e);
+        return;
+    }
+
+    if (qcg_list(g, e->type))
+        qcg_listto(g, dst, e, e->kind == QE_NAME && qcg_ty(g, e->type)->owns);
+    else
+        qcg_copyrec(g, dst, e);
 }
 
 static void qcg_expr(QCg *const g, const QExpr *const e)
@@ -674,12 +1288,38 @@ static void qcg_expr(QCg *const g, const QExpr *const e)
         return;
 
     case QE_CALL:
-        qcg_call(g, e);
+        if (e->builtin == QB_LEN) {
+            qcg_cell(g, e->a);
+            qcg_x(g->c, QX_LEN);
+            return;
+        }
+
+        qcg_call(g, e, nullptr);
         return;
 
     case QE_CONV:
         qcg_expr(g, e->a);
         qcg_convert(g->c, e->a->type, e->type);
+        return;
+
+    case QE_FIELD:
+    case QE_INDEX:
+        qcg_loadat(g, e);
+        return;
+
+    case QE_LIST:
+        qcg_listop(g, e, nullptr);
+        return;
+
+    case QE_HAS:
+        qcg_has(g, e);
+        return;
+
+    case QE_FSTR:
+        qcg_fstring(g, e);
+        return;
+
+    default: /* a record's, a tuple's: built where it is wanted */
         return;
     }
 }
@@ -697,7 +1337,7 @@ static void qcg_zero(QCg *const g, const QType t)
 /* A clause's target from the one before it: past an elseif's or else's JMP, or the end if. */
 static void qcg_clause(QCg *const g, const uint8_t op, const QStmt *const next)
 {
-    const JumpMode mode = next->kind == QS_ENDIF ? TO_STMT : PAST_JMP;
+    const JumpMode mode = next->kind == QS_ENDIF || next->kind == QS_ENDMATCH ? TO_STMT : PAST_JMP;
     qcg_to(g, op, next, 0, mode);
 }
 
@@ -710,12 +1350,15 @@ static const QStmt *qcg_endif(const QStmt *s)
     return s;
 }
 
+/* For s's counter: a range's, a list's index. */
+static QVar *qcg_counter(const QStmt *const s) { return s->each ? s->index : s->var; }
+
 /* The flag of for s's counter past its limit, its step's sign known (by) or not (I.PAST).
    entered: the limit inclusive, as end for makes it; else the range's end, past when reached. */
 static void qcg_past(QCg *const g, const QStmt *const s, const bool entered)
 {
     Code *const c = g->c;
-    qcg_load(c, s->var);
+    qcg_load(c, qcg_counter(s));
 
     if (s->by) {
         uint8_t *const right = c->out;
@@ -736,7 +1379,7 @@ static void qcg_past(QCg *const g, const QStmt *const s, const bool entered)
     if (entered)
         return;
 
-    qcg_load(c, s->var);
+    qcg_load(c, qcg_counter(s));
     uint8_t *const right = c->out;
     qcg_load(c, s->lim);
     qcg_compare(c, QY_INT, QK_EQ, right);
@@ -766,6 +1409,107 @@ static void qcg_inclusive(QCg *const g, const QStmt *const s)
     qcg_store(c, s->lim);
 }
 
+/* Variable v, declared with no value: 0, "", an empty list, an array's elements 0, a record's
+   fields their defaults. */
+static void qcg_fresh(QCg *const g, QVar *const v)
+{
+    Code *const c = g->c;
+    const QExpr p = qcg_named(v);
+
+    if (qcg_rec(g, v->type)) {
+        qcg_clear(g, &p);
+        qcg_defaults(g, &p);
+        return;
+    }
+
+    if (!qcg_list(g, v->type)) {
+        qcg_zero(g, v->type);
+        qcg_store(c, v);
+        return;
+    }
+
+    const QTy *const y = qcg_ty(g, v->type);
+
+    if (y->kind == QT_ARRAY) { /* REDIM v(0 TO count - 1): DIM's ( lo hi mlo mhi id flags ) */
+        code_int(c, 0);
+        code_int(c, y->count - 1);
+        code_int(c, 0);
+        code_int(c, 0);
+        code_int(c, v->id);
+        code_int(c, DIM_REDIM | 1);
+        code_call(c, K_DIM);
+        return;
+    }
+
+    qcg_cell(g, &p); /* its old elements freed, then empty */
+    code_call(c, K_ERASE);
+    code_int(c, v->id);
+    code_int(c, 0);
+    code_call(c, K_AEMPTY);
+}
+
+/* let q, r = v: v's fields to the names. */
+static void qcg_destructure(QCg *const g, const QStmt *const s)
+{
+    const QDecl *last = s->decls;
+
+    while (last->next)
+        last = last->next;
+
+    const QExpr *const v = last->value;
+    const QExpr t = qast_fresh(v) ? qcg_settle(g, v) : *v;
+    uint32_t k = 0;
+
+    for (const QDecl *d = s->decls; d; d = d->next, k++) {
+        const QExpr to = qcg_named(d->var);
+        const QExpr f = qcg_fieldof(g, &t, k);
+        qcg_set(g, &to, &f);
+    }
+}
+
+/* a, b = x, y: the values on the stack, stored in turn from the last; or each in its temporary
+   first. a, b = f(): its fields in turn. */
+static void qcg_parallel(QCg *const g, const QStmt *const s)
+{
+    const QExpr *const to = s->target;
+    const QExpr *const v = s->e;
+
+    if (v->kind != QE_TUPLE) {
+        const QExpr t = qast_fresh(v) ? qcg_settle(g, v) : *v;
+
+        for (uint32_t k = 0; k < to->n; k++) {
+            const QExpr f = qcg_fieldof(g, &t, k);
+            qcg_set(g, to->items[k], &f);
+        }
+
+        return;
+    }
+
+    if (!s->temps) {
+        for (uint32_t k = 0; k < to->n; k++) {
+            qcg_as(g, v->items[k], to->items[k]->type);
+            qcg_hold(g, to->items[k]->type, 1);
+        }
+
+        for (uint32_t k = to->n; k-- > 0;) {
+            qcg_hold(g, to->items[k]->type, -1);
+            qcg_store(g->c, to->items[k]->var);
+        }
+
+        return;
+    }
+
+    for (uint32_t k = 0; k < to->n; k++) {
+        const QExpr t = qcg_named(s->temps[k]);
+        qcg_set(g, &t, v->items[k]);
+    }
+
+    for (uint32_t k = 0; k < to->n; k++) {
+        const QExpr t = qcg_named(s->temps[k]);
+        qcg_set(g, to->items[k], &t);
+    }
+}
+
 /* A statement a one-line if may take, or one that is no block's. */
 static void qcg_simple(QCg *const g, const QStmt *const s)
 {
@@ -776,23 +1520,41 @@ static void qcg_simple(QCg *const g, const QStmt *const s)
         if (s->op == QK_CONST)
             return;
 
-        for (const QDecl *d = s->decls; d; d = d->next) {
-            if (d->value)
-                qcg_expr(g, d->value);
-            else
-                qcg_zero(g, d->var->type);
+        if (s->decls->next && !s->decls->value && !s->decls->type) {
+            qcg_destructure(g, s);
+            return;
+        }
 
-            qcg_store(c, d->var);
+        for (const QDecl *d = s->decls; d; d = d->next) {
+            const QExpr to = qcg_named(d->var);
+
+            if (d->value)
+                qcg_set(g, &to, d->value);
+            else
+                qcg_fresh(g, d->var);
         }
 
         return;
 
     case QS_ASSIGN:
-        qcg_expr(g, s->e);
-        qcg_store(c, s->target->var);
+        if (s->target->kind == QE_TUPLE)
+            qcg_parallel(g, s);
+        else
+            qcg_set(g, s->target, s->e);
+
         return;
 
     case QS_CALL:
+        if (qcg_byplace(g, s->e->type) && s->e->var) {
+            qcg_settle(g, s->e);
+            return;
+        }
+
+        if (s->e->kind == QE_LIST && s->e->builtin == QB_POP && qcg_byplace(g, s->e->type)) {
+            qcg_listop(g, s->e, nullptr);
+            return;
+        }
+
         qcg_expr(g, s->e);
 
         if (s->e->type != QY_VOID)
@@ -819,8 +1581,8 @@ static void qcg_simple(QCg *const g, const QStmt *const s)
 
     case QS_RETURN:
         if (s->e) {
-            qcg_expr(g, s->e);
-            qcg_store(c, s->fn->res);
+            const QExpr res = qcg_named(s->fn->res);
+            qcg_set(g, &res, s->e);
         }
 
         code_op(c, O_PRET);
@@ -845,6 +1607,8 @@ static bool qcg_stops(const QStmt *const s)
     case QS_IF:
     case QS_WHILE:
     case QS_FOR:
+    case QS_MATCH:
+    case QS_CASE:
     case QS_ENDFOR:
     case QS_BREAK:
     case QS_CONTINUE:
@@ -854,6 +1618,87 @@ static bool qcg_stops(const QStmt *const s)
     default:
         return false;
     }
+}
+
+/* Match m's value, as its cases compare it: its variable's, its temporary's, its tag. */
+static void qcg_subject(QCg *const g, const QStmt *const m)
+{
+    if (m->temp)
+        qcg_load(g->c, m->temp);
+    else
+        qcg_expr(g, m->e);
+}
+
+/* match e: its value held, then to its first case's tests, past that line's JMP. */
+static void qcg_match(QCg *const g, const QStmt *const s)
+{
+    if (s->place) {
+        if (qast_fresh(s->e))
+            qcg_settle(g, s->e);
+
+        const QExpr tag = qcg_fieldof(g, s->place, 0);
+        qcg_loadat(g, &tag);
+        qcg_store(g->c, s->temp);
+    } else if (s->temp) {
+        qcg_expr(g, s->e);
+        qcg_store(g->c, s->temp);
+    }
+
+    qcg_to(g, O_JMP, s->link, 0, PAST_JMP);
+}
+
+/* One pattern's flag: the value equal, in a to b, is op v; an enum's tag the value's. */
+static void qcg_pattern(QCg *const g, const QStmt *const m, const QPat *const pt)
+{
+    Code *const c = g->c;
+    const QType w = m->place ? QY_INT : m->ty;
+
+    if (pt->kind == QP_VARIANT) {
+        qcg_subject(g, m);
+        uint8_t *const right = c->out;
+        code_int(c, pt->variant);
+        qcg_compare(c, QY_INT, QK_EQ, right);
+        return;
+    }
+
+    for (uint32_t side = 0; side < (pt->kind == QP_RANGE ? 2u : 1u); side++) {
+        qcg_subject(g, m);
+        qcg_hold(g, w, 1);
+        uint8_t *const right = c->out;
+        qcg_as(g, side ? pt->b : pt->a, w);
+        qcg_hold(g, w, -1);
+        const QKind op = pt->kind == QP_IS      ? pt->op
+                         : pt->kind == QP_RANGE ? (side ? QK_LE : QK_GE)
+                                                : QK_EQ;
+        qcg_compare(c, w, op, right);
+    }
+
+    if (pt->kind == QP_RANGE)
+        code_op(c, O_I_AND);
+}
+
+/* case: the case before it done, to end match; then its patterns, any of them, else to the
+   next case. */
+static void qcg_case(QCg *const g, const QStmt *const s)
+{
+    const QStmt *end = s;
+
+    while (end->kind != QS_ENDMATCH)
+        end = end->link;
+
+    qcg_to(g, O_JMP, end, BOFF, TO_STMT);
+
+    if (!s->pats)
+        return;
+
+    for (const QPat *pt = s->pats; pt; pt = pt->next) {
+        qcg_pattern(g, s->body, pt);
+
+        if (pt != s->pats)
+            code_op(g->c, O_I_OR);
+    }
+
+    qcg_clause(g, O_I_JF, s->link);
 }
 
 /* Statement s's code, unfused. */
@@ -897,9 +1742,25 @@ static void qcg_body(QCg *const g, const QStmt *const s)
         return;
 
     case QS_FOR:
-        qcg_expr(g, s->e);
-        qcg_store(c, s->var);
-        qcg_expr(g, s->to);
+        if (s->each) { /* the index from 0, the limit the list's length */
+            if (qast_fresh(s->e))
+                qcg_settle(g, s->e);
+
+            code_int(c, 0);
+            qcg_store(c, s->index);
+
+            if (qcg_ty(g, s->e->type)->kind == QT_ARRAY)
+                code_int(c, qcg_ty(g, s->e->type)->count);
+            else {
+                qcg_cell(g, s->var->place->a);
+                qcg_x(c, QX_LEN);
+            }
+        } else {
+            qcg_expr(g, s->e);
+            qcg_store(c, s->var);
+            qcg_expr(g, s->to);
+        }
+
         qcg_store(c, s->lim);
 
         if (s->by)
@@ -915,9 +1776,9 @@ static void qcg_body(QCg *const g, const QStmt *const s)
 
     case QS_ENDFOR: { /* NEXT's six ops (comp/fuse.c): I.NEXT.UP or I.NEXT.DN */
         const QStmt *const f = s->link;
-        qcg_load(c, f->var);
+        qcg_load(c, qcg_counter(f));
         code_opid(c, O_I_STEP_V, f->stp->id, false);
-        qcg_store(c, f->var);
+        qcg_store(c, qcg_counter(f));
         qcg_past(g, f, true);
         qcg_to(g, O_I_JF, f, BOFF, TO_STMT);
         return;
@@ -925,6 +1786,14 @@ static void qcg_body(QCg *const g, const QStmt *const s)
 
     case QS_FN:
         qcg_to(g, O_JMP, s->fn->end, BOFF, TO_STMT);
+        return;
+
+    case QS_MATCH:
+        qcg_match(g, s);
+        return;
+
+    case QS_CASE:
+        qcg_case(g, s);
         return;
 
     case QS_ENDFN:
