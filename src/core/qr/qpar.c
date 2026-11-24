@@ -955,7 +955,25 @@ static QStmt *qpar_simple(QPar *const P)
     return s;
 }
 
-/* if c then: a block; if c then s: one line. */
+/* A one-line if's statement after then or else, of if s. */
+static QStmt *qpar_oneline(QPar *const P, QStmt *const s)
+{
+    const QKind k = P->t->kind;
+
+    if (k == QK_LET || k == QK_VAR || k == QK_CONST || k == QK_IF || k == QK_WHILE || k == QK_FOR ||
+        k == QK_DO || k == QK_NEXT || k == QK_WEND || k == QK_LOOP || k == QK_FUNCTION ||
+        k == QK_TYPE || k == QK_ENUM || k == QK_SELECT || k == QK_CASE || k == QK_ELSE)
+        qpar_fail(P, P->t, "a one-line if takes one simple statement, not {}");
+
+    QStmt *const body = qpar_simple(P);
+
+    if (body->kind == QS_YIELD)
+        body->link = s;
+
+    return body;
+}
+
+/* if c then: a block; if c then s [else s]: one line. */
 static void qpar_if(QPar *const P)
 {
     QStmt *const s = qpar_new(P, QS_IF, qpar_next(P));
@@ -970,23 +988,20 @@ static void qpar_if(QPar *const P)
     }
 
     s->oneline = true;
-    const QKind k = P->t->kind;
+    s->body = qpar_oneline(P, s);
 
-    if (k == QK_LET || k == QK_VAR || k == QK_CONST || k == QK_IF || k == QK_WHILE || k == QK_FOR ||
-        k == QK_DO || k == QK_NEXT || k == QK_WEND || k == QK_LOOP || k == QK_FUNCTION ||
-        k == QK_TYPE || k == QK_ENUM || k == QK_SELECT || k == QK_CASE)
-        qpar_fail(P, P->t, "a one-line if takes one simple statement, not {}");
-
-    s->body = qpar_simple(P);
-
-    if (s->body->kind == QS_YIELD)
-        s->body->link = s;
+    if (qpar_take(P, QK_ELSE))
+        s->other = qpar_oneline(P, s);
 }
 
-/* elseif c then, else: the if's next clause. */
+/* elseif c then, else if c then, else: the if's next clause. */
 static void qpar_clause(QPar *const P, const QStmtKind kind)
 {
     QStmt *const s = qpar_new(P, kind, qpar_next(P));
+
+    if (kind == QS_ELSEIF && s->tok->kind == QK_ELSE)
+        qpar_next(P); /* else if's if */
+
     QOpen *const o = qpar_top(P);
 
     if (!o || o->open->kind != QS_IF)
@@ -1436,7 +1451,7 @@ static void qpar_statement(QPar *const P)
         return;
 
     case QK_ELSE:
-        qpar_clause(P, QS_ELSE);
+        qpar_clause(P, P->t[1].kind == QK_IF ? QS_ELSEIF : QS_ELSE);
         return;
 
     case QK_END:

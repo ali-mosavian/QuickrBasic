@@ -302,8 +302,7 @@ let sign = 1 if x >= 0 else -1
 - A slice is a new value: a string's a new string, a list's a new list of copies. Its ends are
   clamped to the elements, so `s[..100]` of a shorter `s` is all of it. `s[i]` past the end is a
   runtime error, Subscript out of range.
-- **Not yet:** a `for` stepping past an `int`'s last value stops with Overflow. A one-line `if`
-  has no `else`, and `else if` is rejected.
+- **Not yet:** a `for` stepping past an `int`'s last value stops with Overflow.
 
 ### Records
 

@@ -3668,7 +3668,14 @@ static void qcg_body(QCg *const g, const QStmt *const s)
     case QS_IF:
         qcg_expr(g, s->e);
 
-        if (s->oneline) {
+        if (s->oneline && s->other) {
+            const QCgHop no = qcg_hop(g, QJ_FALSE);
+            qcg_simple(g, s->body);
+            const QCgHop over = qcg_hop(g, QJ_ALWAYS);
+            qcg_land(g, no);
+            qcg_simple(g, s->other);
+            qcg_land(g, over);
+        } else if (s->oneline) {
             qcg_to(g, O_I_JF, s, BOFF, TO_STMT);
             qcg_simple(g, s->body);
         } else

@@ -6814,6 +6814,8 @@ static bool qsem_returns(const QStmt *const last)
         return true;
     if (last->kind == QS_ENDDO)
         return !last->e && !last->link->broken;
+    if (last->kind == QS_IF && last->oneline)
+        return last->other && qsem_returns(last->body) && qsem_returns(last->other);
 
     if (last->kind == QS_ENDSELECT) {
         for (const QStmt *c = last->link->link; c != last; c = c->link)
@@ -6921,6 +6923,14 @@ static void qsem_stmt(QSem *const S, QStmt *const s)
             if (s->body) /* null: it failed to parse */
                 qsem_simple(S, s->body);
             qsem_pop(S);
+
+            if (s->other) {
+                qsem_push(S);
+                qsem_narrow(S, s->e, false);
+                qsem_simple(S, s->other);
+                qsem_pop(S);
+            }
+
             qsem_guard(S, s->e, s->body);
         }
 

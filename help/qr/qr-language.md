@@ -20,7 +20,8 @@ double, string; T[] a list, T[n] an array, V[K] a map, (T, U) a
 tuple, T? a T or none, T! a T or an Error, function(T) as U.
 
 Control:
-    if c then ... elseif c then ... else ... end if
+    if c then ... elseif c then ... else ... end if   (else if = elseif)
+    if c then s else s    one line
     for i = a to b [step s] ... next     for x in xs   for i, x in xs
     for i in 0..n (n not counted)   while c ... wend
     do ... loop [while c | until c]   break   continue

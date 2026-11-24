@@ -692,6 +692,7 @@ struct QStmt {
        its opener; break, continue: the loop's opener */
     QStmt *link;
     QStmt *body;
+    QStmt *other;     /* QS_IF, one line: its else's statement, null none */
     QExpr *e;         /* a condition, a call, a value, a for's start */
     QExpr *to, *step; /* a for's */
     QExpr *target;    /* QS_ASSIGN: a place, or the QE_TUPLE of a, b = .. */
