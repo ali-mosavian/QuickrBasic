@@ -142,7 +142,7 @@ that is not a loop.
 - `-` of an unsigned value is a compile error outside `wrap`.
 - `T?`, `T!`, `V[K]` and `??` are errors that name `T or none`, `T or Error`, `dict[K, V]` and
   `or else`.
-- **Not yet:** generic records, lists of lists, and a list or record as a dict's value.
+- **Not yet:** generic records, lists of lists, and a list as a dict's value.
 - **In the VM**, an integer to 16 bits and an `int` live in an int cell and compute with the int
   ops, a result's range then checked. A `uint`'s bits are in an int cell too, with ops of its own.
   A `long` and a `ulong` are 8-byte cells loaded and stored by the double ops, with ops of their
@@ -649,13 +649,14 @@ next
 - A fixed array has `swap` and `sort`; its size never changes.
 - `a.sort(fn(x, y) …)` orders by a "less than" lambda and is stable. `a.sort()` orders numbers
   and strings by value.
-- A dict's methods: `d.get(k)` gives a `V or none`, `d.remove(k)` does nothing when `k` is not
-  there, and `d.keys()` gives a new list. `d[k] = v` adds `k` or changes its value. `d[k]` reads
-  it, a runtime error, Subscript out of range, when `k` is not there. `k in d`, `len(d)`.
+- A dict's methods: `d.get(k)` gives a `V or none`, a copy of the value; when `V` is a `T or
+  none` it gives that, `none` too when `k` is not there. A dict of `T or Error` has no `get`.
+  `d.remove(k)` does nothing when `k` is not there, and `d.keys()` gives a new list. `d[k] = v`
+  adds `k` or changes its value. `d[k]` reads it, a runtime error, Subscript out of range, when
+  `k` is not there. `k in d`, `len(d)`.
 - A key is an `int`, a `string` or a plain enum.
 - `for k, v in d` and `for k in d` go in the keys' order: as added, except that a remove moves
   the last key into the removed one's place.
-- **Not yet:** `d.get(k)` takes a `V` that is a number, a string or a bool.
 - **In the VM**, a dict is a record of three lists: its keys, its values and its hash slots, each
   an entry's index. A key is found by its hash and a probe, half the slots at most in use. A
   list's growth on the heap leaves its old array for a sweep, which walks every string block, so

@@ -18,3 +18,5 @@ o["a"] = 1
 var l as int[]
 print l.keys()
 print m
+var r as dict[string, int or Error]
+print r.get("a") is none

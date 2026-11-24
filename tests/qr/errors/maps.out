@@ -37,3 +37,6 @@ maps.bas:19:9: only a dict has keys()
 maps.bas:20:7: print can't spell a dict[string, int]
   print m
         ^
+maps.bas:22:9: get() of a dict of T or Error: test k in d, then read d[k]
+  print r.get("a") is none
+          ^

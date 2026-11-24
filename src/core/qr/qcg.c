@@ -1557,7 +1557,8 @@ static QExpr qcg_tried(QCg *const g, const QExpr *const e)
     return t;
 }
 
-/* m.get(k) built in dst: has whether k's value's address is not 0, then the value from it. */
+/* m.get(k) built in dst: has whether k's value's address is not 0, then the value from it, a
+   record's copied; a T or none value's copied whole, its own flag over has. */
 static void qcg_get(QCg *const g, const QExpr *const dst, const QExpr *const e)
 {
     Code *const c = g->c;
@@ -1583,10 +1584,22 @@ static void qcg_get(QCg *const g, const QExpr *const dst, const QExpr *const e)
     }
 
     const QCgHop none = qcg_hop(g, QJ_FALSE);
-    const QCgPut put = qcg_before(g, &val);
-    qcg_load(c, at);
-    qcg_fieldop(g, false, 0, val.type);
-    qcg_put(g, &val, put);
+
+    if (dst->type == qcg_ty(g, e->a->type)->elem) { /* a T or none's: whole, its flag too */
+        qcg_offset(g, qcg_addr(g, dst));
+        qcg_load(c, at);
+        qcg_recop(g, dst->type);
+    } else if (qcg_rec(g, val.type)) {
+        qcg_offset(g, qcg_addr(g, &val));
+        qcg_load(c, at);
+        qcg_recop(g, val.type);
+    } else {
+        const QCgPut put = qcg_before(g, &val);
+        qcg_load(c, at);
+        qcg_fieldop(g, false, 0, val.type);
+        qcg_put(g, &val, put);
+    }
+
     qcg_land(g, none);
 }
 

@@ -5328,8 +5328,8 @@ static QExpr *qsem_get(QSem *const S, QExpr *const e)
 
     const QTy *const y = qast_ty(S->prog, m->type);
 
-    if (qsem_byplace(S, y->elem)) {
-        qsem_say(S, e->tok, "get() takes a dict of numbers, strings and bools: use d[k]", nullptr);
+    if (qsem_wraps(S, y->elem, QT_RES)) {
+        qsem_say(S, e->tok, "get() of a dict of T or Error: test k in d, then read d[k]", nullptr);
         return e;
     }
 
@@ -5337,7 +5337,9 @@ static QExpr *qsem_get(QSem *const S, QExpr *const e)
     e->b = qsem_coerce(S, qsem_expr(S, e->args->e, y->key), y->key);
     e->temps = qast_alloc(S->mem, sizeof *e->temps);
     e->temps[0] = qsem_var(S, e->tok, QY_INT, QV_TEMP);
-    e->type = e->b->type == QY_ERROR ? QY_ERROR : qsem_wrapof(S, QT_OPT, y->elem);
+    e->type = e->b->type == QY_ERROR           ? QY_ERROR
+              : qsem_wraps(S, y->elem, QT_OPT) ? y->elem /* none too when its value is */
+                                               : qsem_wrapof(S, QT_OPT, y->elem);
     return e;
 }
 
