@@ -130,14 +130,15 @@ end while
   - an unsigned integer to a wider signed one;
   - an integer to `double`;
   - `single` to `double`.
+- `int` and `single` together give a `double`, the type both widen to.
 - Signed and unsigned never mix by themselves, so C's `-1 < 0u` trap can't happen. Every other
   conversion is written out: `int(x)`, `ushort(n)`, `single(d)`, `string(n)`.
 - A literal takes the type its place needs: `r as single = 6` stores a `single`. A literal that
   doesn't fit is a compile error. Alone, `2.5` is a `double` and `7` is an `int`.
 - Every size is the same on every target, so a record laid out for a file reads the same
   everywhere.
-- **Open:** integer overflow. Proposed: an error, which costs one `jo` an op. `wrap(a + b)`
-  asks for wrapping where it is wanted, such as in hashes and random numbers.
+- Integer overflow is a runtime error, Overflow. **Open:** `wrap(a + b)` to ask for wrapping
+  where it is wanted, such as in hashes and random numbers.
 
 ### Ownership
 
@@ -186,6 +187,8 @@ end fn
 - `let` binds an immutable value: it can't be assigned, nor its fields or elements changed.
 - `var` declares a mutable variable; at module level, every function of the module sees it.
 - `mut` is a borrow: see [Borrowing](#borrowing).
+- A module's `const`s and `fn`s are visible in the whole file. Its `var`s and `let`s are visible
+  from their line on, and in every `fn`.
 
 ### Records and enums
 
@@ -279,7 +282,8 @@ fn find(names as string[], s as string) as int?
 fn divmod(a as int, b as int) as (int, int)
 ```
 
-- A function without `as` returns nothing.
+- A function without `as` returns nothing. One with `as` that can reach `end fn` without a
+  `return` is a compile error.
 - Any type can be a result: a list, map, fixed array, record, tuple or optional.
 - A result is built in the caller's place, as llrm does. `return r` moves `r` there, so
   `let s = squares(10)` copies nothing.
@@ -409,6 +413,8 @@ if key in ("q", "x") then break
 - `a..b` is a range: from `a` up to, not including, `b`. The same syntax is a loop's, a slice's
   (`s[1..3]`, `a[..n]`, `a[n..]`) and `in`'s: `if x in 0..w then`.
 - `match` also takes `case 3 to 5` and `case is > 7`, as SELECT CASE does.
+- A `for` over a range counts in `int`s. Its counter can't be assigned, and a constant step of 0
+  is a compile error.
 
 ### Iteration
 
@@ -444,6 +450,9 @@ end for
 | Strings | `+` |
 | Conditional | `a if c else b`, evaluating one arm |
 | Compound | `+= -= *= /=`; the target's subscripts are evaluated once |
+
+- `div`, `mod` and `int(x)` truncate toward zero: `-7 div 2` is -3, `-7 mod 2` is -1.
+- `int ** int` is an `int`. A shift count outside 0 to 31 is a runtime error.
 
 ### Optional values
 
@@ -565,7 +574,8 @@ Everything else is in a module.
 - `print` needs no import: it is the one library function every module sees. The rest of `io` is
   imported.
 - `print` writes its values separated by one space, then a newline: `print(1, 2.5, "x", true)`
-  gives `1 2.5 x true`.
+  gives `1 2.5 x true`. A `single` shows 7 significant digits and a `double` 15, as `%g` does,
+  and a whole number keeps its `.0`: `print(2.0, 1e20)` gives `2.0 1e+20`.
 - A module is written in Quickr where possible. Its machine-level parts are native entries in the
   table built into the interpreter (the extensions' inittab), so DOS loads nothing extra.
 - A library call is a direct call, or an op where the entry is marked as one. Moving a statement
