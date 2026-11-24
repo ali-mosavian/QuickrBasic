@@ -34,6 +34,7 @@
 #include "comp/codegen.h"
 #include "comp/fuse.h"
 #include "num/double.h"
+#include "qr/qnat.h"
 #include "qr/qrt.h"
 #include "vm/exec.h"
 
@@ -1483,6 +1484,54 @@ static void qcg_icall(QCg *const g, const QExpr *const e, const QExpr *const dst
     qcg_x(g->c, QX_FNCALL);
 }
 
+/* Native fn call e: its entry's steps, each argument as its parameter's type. */
+static void qcg_native(QCg *const g, const QExpr *const e)
+{
+    Code *const c = g->c;
+    const QNat *const nat = e->fn->nat;
+    uint32_t held = 0;
+
+    for (uint32_t i = 0; i < nat->n; i++) {
+        const QNatStep st = nat->steps[i];
+
+        switch (st.kind) {
+        case QN_ARG: {
+            const QType t = e->fn->params[st.n].var->type;
+            qcg_as(g, e->argv[st.n], t);
+            qcg_hold(g, t, 1);
+            held += t == QY_STRING;
+            break;
+        }
+
+        case QN_OP:
+            code_op(c, st.op);
+            break;
+
+        case QN_OPB:
+            code_opb(c, st.op, (uint8_t)st.n);
+            break;
+
+        case QN_INT:
+            code_int(c, (uint32_t)st.n);
+            break;
+
+        case QN_CALL:
+            code_call(c, st.op);
+            break;
+
+        case QN_SYS:
+            code_opb(c, O_SYSCALL, st.op);
+            break;
+
+        case QN_X:
+            code_int(c, (uint32_t)st.n);
+            code_call(c, K_QX);
+        }
+    }
+
+    g->strings -= held;
+}
+
 /* A fn's call: each argument by reference where it has a place, else a value cell and its ref;
    a record's or list's result's place, dst, last. A parameter bound to a lambda takes none. */
 static void qcg_call(QCg *const g, const QExpr *const e, const QExpr *const dst)
@@ -1500,6 +1549,11 @@ static void qcg_call(QCg *const g, const QExpr *const e, const QExpr *const dst)
     Code *const c = g->c;
     const QFn *const f = e->fn;
     uint32_t held = 0;
+
+    if (f->native) {
+        qcg_native(g, e);
+        return;
+    }
 
     for (uint32_t k = 0; k < f->npar; k++) {
         const QParam *const p = &f->params[k];
@@ -2968,6 +3022,9 @@ static void qcg_body(QCg *const g, const QStmt *const s)
     }
 
     case QS_FN:
+        if (s->fn->native)
+            return;
+
         qcg_to(g, O_JMP, s->fn->end, BOFF, TO_STMT);
 
         if (s->fn->resumable) /* a call's entry, past the JMP */

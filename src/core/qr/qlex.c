@@ -60,6 +60,7 @@ static const char *const qlex_words[] = {
     [QK_XOR - QK_AND] = "xor",       [QK_YIELD - QK_AND] = "yield",
     [QK_YIELDS - QK_AND] = "yields", [QK_FROM - QK_AND] = "from",
     [QK_IMPORT - QK_AND] = "import", [QK_PUBLIC - QK_AND] = "public",
+    [QK_NATIVE - QK_AND] = "native",
 };
 
 /* The design's keywords this milestone does not take yet. */

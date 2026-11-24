@@ -239,10 +239,15 @@ HOST_TAG := $(if $(filter Darwin,$(HOST_OS)),macos,linux-x86_64)
 HOST_SLICE := -shared -fPIC -ffreestanding -fvisibility=hidden $(if $(filter Linux,$(HOST_OS)),-nostdlib) \
 	$(if $(filter Darwin,$(HOST_OS)),-arch arm64 -arch x86_64 -mmacosx-version-min=13.0)
 
+# Quickr's standard library, stdlib/*.qr, in lib/ beside each interpreter: where a module is looked for last
+STDLIB := $(wildcard stdlib/*.qr)
+build/%/lib/.stdlib: $(STDLIB)
+	mkdir -p $(@D) && cp $^ $(@D) && touch $@
+
 host: build/host/basic
-build/host/basic: $(build/host_OBJ) build/host/obj/app/basic32.o build/host/obj/plat/host/app/term.o
+build/host/basic: $(build/host_OBJ) build/host/obj/app/basic32.o build/host/obj/plat/host/app/term.o | build/host/lib/.stdlib
 	$(HOST_CC) $^ -lm $(HOST_DL) -o $@
-build/hostperf/basic: $(build/hostperf_OBJ) build/hostperf/obj/app/basic32.o build/hostperf/obj/plat/host/app/insns.o
+build/hostperf/basic: $(build/hostperf_OBJ) build/hostperf/obj/app/basic32.o build/hostperf/obj/plat/host/app/insns.o | build/hostperf/lib/.stdlib
 	$(HOST_CC) $^ -lm $(HOST_DL) -o $@
 
 # ---- The Mac's: the IDE in a window, build/mac/QuickrBasic.app, universal (arm64 and x86-64, macOS 13 on); mac-zip,

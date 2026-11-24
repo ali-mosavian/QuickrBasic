@@ -22,7 +22,7 @@ modules.qr:7:49: lib has no nothing
 modules.qr:8:14: lib has no Nope
   var x as lib.Nope
                ^
-modules.qr:10:1: public goes before fn, type, enum, const, var or let
+modules.qr:10:1: public goes before fn, native, type, enum, const, var or let
   public print(1)
   ^
 modules.qr:12:5: import goes at the top level, not in a block

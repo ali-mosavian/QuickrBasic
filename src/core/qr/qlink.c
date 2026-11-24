@@ -193,7 +193,7 @@ static uint32_t qlink_npar(const QFn *const f)
 static void qlink_procs(Comp *const C, const QProg *const p)
 {
     for (QFn *f = p->fns; f; f = f->next) {
-        if (!f->sig || qast_inline(f) || qast_generic(f))
+        if (!f->sig || f->native || qast_inline(f) || qast_generic(f))
             continue;
 
         Proc *const pr = blok_add_proc(C->blok, C->fault);
@@ -229,12 +229,13 @@ static void qlink_vars(Comp *const C, const QProg *const p)
     Symb *const sy = C->symb;
 
     for (QVar *v = p->vars; v; v = v->next)
-        if (!v->constant && !v->place && !(v->fn && (v->fn->inl || qast_generic(v->fn))))
+        if (!v->constant && !v->place &&
+            !(v->fn && (v->fn->inl || v->fn->native || qast_generic(v->fn))))
             v->id =
                 qlink_symb(sy, p, v->kind == QV_TEMP ? &hidden : v->name, v->type, qlink_scope(v));
 
     for (const QFn *f = p->fns; f; f = f->next) {
-        if (!f->sig || qast_inline(f) || qast_generic(f))
+        if (!f->sig || f->native || qast_inline(f) || qast_generic(f))
             continue;
 
         Proc *const pr = btab_at(&C->blok->procs, f->proc);

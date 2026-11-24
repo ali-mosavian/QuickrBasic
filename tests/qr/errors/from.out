@@ -1,0 +1,3 @@
+from.qr:2:6: expected a module's name, not =
+  from = 3
+       ^

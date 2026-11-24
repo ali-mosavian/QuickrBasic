@@ -49,6 +49,7 @@ static void qpar_push(QPar *P, QStmt *s);
 static QStmt *qpar_new(QPar *P, QStmtKind kind, const QTok *tok);
 static void qpar_import(QPar *P);
 static void qpar_public(QPar *P);
+static void qpar_native(QPar *P);
 
 /* ---- tokens */
 
@@ -1332,6 +1333,10 @@ static void qpar_statement(QPar *const P)
         qpar_public(P);
         return;
 
+    case QK_NATIVE:
+        qpar_native(P);
+        return;
+
     case QK_LATER:
         qpar_later(P, t, "{} is");
 
@@ -1375,7 +1380,6 @@ static void qpar_import(QPar *const P)
 {
     const bool from = qpar_is(P, QK_FROM);
     QStmt *const s = qpar_new(P, from ? QS_FROM : QS_IMPORT, qpar_next(P));
-    qpar_append(P, s);
 
     if (P->nopen)
         qpar_fail(P, s->tok, "{} goes at the top level, not in a block");
@@ -1401,6 +1405,26 @@ static void qpar_import(QPar *const P)
         *last = m;
         last = &m->next;
     } while (qpar_take(P, QK_COMMA));
+
+    qpar_append(P, s); /* whole: a line that fails imports nothing */
+}
+
+/* native fn name(params) [as type]: one line, its code the native entry's. */
+static void qpar_native(QPar *const P)
+{
+    const QTok *const t = qpar_next(P);
+
+    if (!qpar_is(P, QK_FN))
+        qpar_fail(P, P->t, "native goes before fn");
+
+    qpar_fn(P);
+    P->nopen--;
+    QFn *const f = P->last->fn;
+    f->native = true;
+    f->end = f->def;
+
+    if (f->ntp || f->ytx)
+        qpar_fail(P, t, "a native fn is not generic and yields nothing");
 }
 
 /* public before a module's fn, type, enum, const, var or let. */
@@ -1411,8 +1435,9 @@ static void qpar_public(QPar *const P)
 
     if (P->nopen)
         qpar_fail(P, t, "public goes at the top level, not in a block");
-    if (k != QK_FN && k != QK_TYPE && k != QK_ENUM && k != QK_CONST && k != QK_VAR && k != QK_LET)
-        qpar_fail(P, t, "public goes before fn, type, enum, const, var or let");
+    if (k != QK_FN && k != QK_NATIVE && k != QK_TYPE && k != QK_ENUM && k != QK_CONST &&
+        k != QK_VAR && k != QK_LET)
+        qpar_fail(P, t, "public goes before fn, native, type, enum, const, var or let");
 
     qpar_statement(P);
     P->last->pub = true;

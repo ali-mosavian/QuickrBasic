@@ -74,6 +74,7 @@ typedef enum : uint8_t {
     QK_FROM,
     QK_IMPORT,
     QK_PUBLIC,
+    QK_NATIVE,
     QK_LATER, /* a keyword of a later milestone: type, match, import .. */
     /* punctuation */
     QK_LPAREN,
@@ -331,8 +332,10 @@ struct QFn {
     bool sig;  /* its signature resolved */
     QVar *res; /* its result's variable, null none */
     QStmt *def, *end;
-    uint32_t proc; /* its procedure (comp/blocks.h), qlink's */
-    QFn *next;     /* the program's next */
+    uint32_t proc;          /* its procedure (comp/blocks.h), qlink's */
+    QFn *next;              /* the program's next */
+    bool native;            /* native fn: no body, its calls the entry's code */
+    const struct QNat *nat; /* a native's entry (qnat.h) */
     const QTok **tparams; /* fn f[T, U]: its type parameters */
     uint32_t ntp;
     QType *targs;  /* an instance's types for them */

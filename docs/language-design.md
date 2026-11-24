@@ -688,10 +688,39 @@ Everything else is in a module.
 - `print` writes its values separated by one space, then a newline: `print(1, 2.5, "x", true)`
   gives `1 2.5 x true`. A `single` shows 7 significant digits and a `double` 15, as `%g` does,
   and a whole number keeps its `.0`: `print(2.0, 1e20)` gives `2.0 1e+20`.
-- A module is written in Quickr where possible. Its machine-level parts are native entries in the
-  table built into the interpreter (the extensions' inittab), so DOS loads nothing extra.
-- A library call is a direct call, or an op where the entry is marked as one. Moving a statement
-  out of the language costs nothing at run time.
+- A module is written in Quickr where possible, in `stdlib/`; the build puts it in `lib/` beside
+  the interpreter, where a module is looked for last.
+- Its machine-level parts are `native fn` declarations: `public native fn sqrt(x as double) as
+  double`. A native fn has no body; its entry, by its name, is in `src/core/qr/qnat.c`, the VM's
+  services and no module's. A call compiles to the entry's code, which is what QBasic's statement
+  compiles to, so a library call costs what the built-in does. A native takes and gives numbers,
+  bools and strings, by value.
+- `math.sqrt` against `SQR`, and `text.find` against `INSTR`, run the same ops as QBasic (benches
+  sqrt and find); host instructions are 4% and 5% more.
+
+| Entry | Replaces |
+|---|---|
+| `io.read_line`, `at`, `color`, `clear` | LINE INPUT, LOCATE r, c, COLOR f, b, CLS |
+| `text.find`, `find_from` | INSTR, from 0, -1 none (CALL QX) |
+| `text.upper`, `lower`, `trim`, `chr`, `code`, `hex`, `number` | UCASE$, LCASE$, LTRIM$(RTRIM$()), CHR$, ASC, HEX$, VAL |
+| `math.sqrt`, `sin`, `cos`, `tan`, `atan`, `exp`, `log`, `floor`, `ceil` | SQR, SIN, COS, TAN, ATN, EXP, LOG, INT, -INT(-x) |
+| `random.seed`; `int`, `real`, `pick` over RND | RANDOMIZE, RND |
+| `time.ticks`; `now`, `sleep`, `Clock` over it | TIMER; DATE$ and TIME$ |
+| `fs.open`, `read`, `write`, `seek`, `size`, `close`, `list` | OPEN, GET, PUT, SEEK, LOF, CLOSE, FILES (CALL QX) |
+| `os.env`, `exit`; `args` over COMMAND$ | ENVIRON$, END, COMMAND$ |
+| `keys.next`, `pressed`, `down` over INKEY$; `mouse`, `clicked` | INKEY$, PEN |
+
+- `math`'s `abs`, `min`, `max` and `clamp` are generic Quickr fns; `Vec`'s arithmetic is plain fns
+  (`v.add(w)`), as there is no `fn operator`.
+- A `File` stays open until `close()`: there is no `drop` yet. A file's error is a value, its
+  `code` QBasic's ERR. `read_text` reads at most 32767 bytes, a string's most. `fs.list` gives
+  the platform's DOS names, upper case on the host.
+- `os.args()` is COMMAND$'s words, so upper case; `os.exit()` has no exit code, as END has none.
+- `io.read_line` echoes the line's end, as LINE INPUT does. `io.color(fg)` sets the background 0.
+- The platforms report key presses and repeats, never releases: `keys.down(k)` is true for
+  `keys.held_for` (0.55 s) after k's last press or repeat. `time.sleep` waits on `ticks()`.
+- `gfx` waits on the graphics extension being designed; `synth` on `lib/synth.qbx`, which is not
+  on this branch. Neither is in M4.
 
 ## Building it
 

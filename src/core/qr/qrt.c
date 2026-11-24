@@ -33,6 +33,12 @@
 #include "mem/array.h"
 #include "num/double.h"
 #include "vm/flow.h"
+#include "vm/funcs.h"
+#include "io/channel.h"
+#include "io/errmsg.h"
+#include "mem/string.h"
+#include "plat/pfil.h"
+#include "plat/pmem.h"
 
 enum { SNGL_DIGITS = 7, DBL_DIGITS = 15, EXP_FROM = -4 };
 
@@ -1292,6 +1298,169 @@ static void qrt_conv(Session *const S, const uint32_t word)
     exec_push(vm, qrt_cell(to, x));
 }
 
+/* ---- files, for the fs module: each error a value, its ERR negated */
+
+/* Status st's ERR, negated; 0 none. */
+static int32_t qrt_failed(const Status st)
+{
+    if (st == ST_OK)
+        return 0;
+
+    return -(int32_t)((uint8_t)st == E_USR ? st >> 8 : emsg_errnum[(uint8_t)st]);
+}
+
+/* File number n's channel. Bad file name or number: not open. */
+static Chan *qrt_chan(Session *const S, const int32_t n)
+{
+    Chan *c;
+    fault_check(&S->fault, chnl_find(&S->chnl, n, &c));
+    return c;
+}
+
+/* A new string of the n bytes at p, host memory. */
+static Addr qrt_string(Session *const S, const void *const p, const uint32_t n)
+{
+    const uint16_t len = (uint16_t)(n < SMAX ? n : SMAX);
+    const Addr chars = strg_alloc(&S->strg, len);
+
+    if (len)
+        memcpy(at(chars), p, len);
+
+    return strg_new(&S->strg, chars, len);
+}
+
+/* QX.FOPEN ( name mode -- n ). */
+static void qrt_fopen(Session *const S)
+{
+    const Desc m = strg_get(&S->strg, exec_popa(&S->vm));
+    const Desc d = strg_get(&S->strg, exec_popa(&S->vm));
+    const char *const how = (const char *)strg_near(&S->strg, m);
+    const uint8_t mode = !strcmp(how, "r")    ? FM_IN
+                         : !strcmp(how, "w")  ? FM_OUT
+                         : !strcmp(how, "a")  ? FM_APP
+                         : !strcmp(how, "rw") ? FM_BIN
+                                              : 0;
+    int32_t n = 1;
+
+    while (n <= FILENO_MAX && chnl_look(&S->chnl, n))
+        n++;
+
+    if (!mode || !d.len || n > FILENO_MAX) {
+        exec_pushi(
+            &S->vm,
+            -(!mode    ? QB_BAD_FILE_MODE
+              : !d.len ? QB_BAD_FILE_NAME
+                       : QB_TOO_MANY_FILES)
+        );
+        return;
+    }
+
+    Chan *c;
+    const Status st = chnl_open(&S->chnl, n, (const char *)strg_near(&S->strg, d), mode, 1, &c);
+    exec_pushi(&S->vm, st == ST_OK ? n : qrt_failed(st));
+}
+
+/* QX.FREAD ( n count -- s ). */
+static void qrt_fread(Session *const S)
+{
+    const int32_t count = exec_popi(&S->vm);
+    Chan *const c = qrt_chan(S, exec_popi(&S->vm));
+
+    if (count < 0)
+        fault_error(&S->fault, E_IQ);
+
+    const uint32_t want = count < SMAX ? (uint32_t)count : SMAX;
+    const Addr chars = strg_alloc(&S->strg, (uint16_t)want);
+    uint32_t got = 0;
+    fault_check(&S->fault, chnl_read(c, at(chars), want, &got));
+    exec_pusha(&S->vm, strg_new(&S->strg, chars, (uint16_t)got));
+}
+
+/* QX.FWRITE ( n s -- st ). */
+static void qrt_fwrite(Session *const S)
+{
+    const Desc s = strg_get(&S->strg, exec_popa(&S->vm));
+    Chan *const c = qrt_chan(S, exec_popi(&S->vm));
+    uint32_t put = 0;
+    exec_pushi(&S->vm, qrt_failed(chnl_write(c, at(s.ptr), s.len, &put)));
+}
+
+/* QX.FLIST ( pattern -- names ). */
+static void qrt_flist(Session *const S)
+{
+    const Desc d = strg_get(&S->strg, exec_popa(&S->vm));
+    const char *const pattern = d.len ? (const char *)strg_near(&S->strg, d) : "*.*";
+    uint8_t *names = nullptr;
+    uint32_t len = 0;
+    PfilFind f;
+
+    for (uint16_t e = pfil_first(pattern, 0, &f); !e && len < SMAX; e = pfil_next(&f)) {
+        const uint32_t n = (uint32_t)strlen(f.name);
+        uint8_t *const more = pmem_resize(names, len + n + 1);
+
+        if (!more) {
+            pmem_free(names);
+            fault_error(&S->fault, E_OM);
+        }
+
+        names = more;
+        memcpy(names + len, f.name, n);
+        names[len + n] = '\n';
+        len += n + 1;
+    }
+
+    const Addr s = qrt_string(S, names, len);
+    pmem_free(names);
+    exec_pusha(&S->vm, s);
+}
+
+/* The fs module's routines, QX.FOPEN .. QX.ERRTEXT. */
+static void qrt_file(Session *const S, const QrtX op)
+{
+    Vm *const vm = &S->vm;
+
+    switch (op) {
+    case QX_FOPEN:
+        qrt_fopen(S);
+        return;
+
+    case QX_FREAD:
+        qrt_fread(S);
+        return;
+
+    case QX_FWRITE:
+        qrt_fwrite(S);
+        return;
+
+    case QX_FSEEK: {
+        const int32_t to = exec_popi(vm);
+        Chan *const c = qrt_chan(S, exec_popi(vm));
+        exec_pushi(vm, to < 0 ? -QB_BAD_RECORD_NUMBER : qrt_failed(chnl_seek(c, (uint32_t)to)));
+        return;
+    }
+
+    case QX_FSIZE: {
+        uint32_t len = 0;
+        fault_check(&S->fault, chnl_lof(qrt_chan(S, exec_popi(vm)), &len));
+        exec_pushi(vm, (int32_t)len);
+        return;
+    }
+
+    case QX_FCLOSE:
+        fault_check(&S->fault, chnl_close(&S->chnl, qrt_chan(S, exec_popi(vm))));
+        return;
+
+    case QX_FLIST:
+        qrt_flist(S);
+        return;
+
+    default: {
+        const char *const text = emsg_text((uint16_t)exec_popi(vm), E_USR);
+        exec_pusha(vm, qrt_string(S, text, (uint32_t)strlen(text)));
+    }
+    }
+}
+
 /* QX ( args.. word -- results ): the routine its low byte names (qr/qrt.h QrtX). */
 void qrt_x(Session *const S)
 {
@@ -1445,6 +1614,29 @@ void qrt_x(Session *const S)
         flow_call(S, proc, line, code + JSIZE);
         return;
     }
+
+    case QX_FIND: {
+        const int32_t from = word & QX_FROM ? exec_popi(vm) : 0;
+        const Desc t = strg_get(&S->strg, exec_popa(vm));
+        const Desc s = strg_get(&S->strg, exec_popa(vm));
+
+        if (from < 0)
+            fault_error(&S->fault, E_IQ);
+
+        exec_pushi(vm, func_find(s, t, from + 1) - 1);
+        return;
+    }
+
+    case QX_FOPEN:
+    case QX_FREAD:
+    case QX_FWRITE:
+    case QX_FSEEK:
+    case QX_FSIZE:
+    case QX_FCLOSE:
+    case QX_FLIST:
+    case QX_ERRTEXT:
+        qrt_file(S, op);
+        return;
 
     case QX_FMT: {
         const QrtKind kind = (QrtKind)exec_popi(vm);

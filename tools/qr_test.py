@@ -2,7 +2,8 @@
 """qr_test.py [-v] [NAME...]: Quickr's cases on the host build (BASIC_EXE, build/host/basic).
 
 tests/qr/NAME.qr must print NAME.out; tests/qr/errors/NAME.qr its compile errors, NAME.out, and run
-nothing. A folder NAME/ beside a case holds the modules it imports, put beside it. --check must
+nothing. A folder NAME/ beside a case holds the modules it imports, put beside it; NAME.in is its
+standard input, NAME.args its command line. --check must
 list the same errors, exit 1 on them and 0 on a clean program. NAME picks cases; -v prints a
 failure's output."""
 
@@ -41,6 +42,12 @@ def modules(prog: Path) -> dict[str, bytes]:
     return {str(f.relative_to(folder)): f.read_bytes() for f in found if f.is_file()}
 
 
+def beside(prog: Path, ext: str) -> str:
+    """The file beside prog with extension ext, "" none."""
+    f = prog.with_suffix(ext)
+    return f.read_text() if f.exists() else ""
+
+
 def check(name: str, prog: Path) -> str:
     """--check of prog, its modules beside it: "" if its output and exit status are right, else why."""
     work = Path(tempfile.mkdtemp())
@@ -60,7 +67,7 @@ def check(name: str, prog: Path) -> str:
 def main() -> None:
     args = [a for a in sys.argv[1:] if a != "-v"]
     pick = {k: v for k, v in cases().items() if not args or k in args}
-    jobs = {k: (v.read_text(), "", "", modules(v)) for k, v in pick.items()}
+    jobs = {k: (v.read_text(), beside(v, ".in"), beside(v, ".args").strip(), modules(v)) for k, v in pick.items()}
     res = dosrun.run_host(jobs, Path(tempfile.mkdtemp()), 10000, True, "QR")
     ok = 0
     for k, prog in pick.items():

@@ -63,24 +63,36 @@ enum { QX_OP = 8, QX_NUM = 12, QX_WRAP = 16, QX_REL = 17, QX_ICA = 20, QX_ICB = 
    elements' ET_* (cell et); an f-string's value by its spec. Each takes the cell again after
    another's: one that grows or shrinks the list may move it. */
 typedef enum : uint8_t {
-    QX_LEN,   /* ( cell -- n ) */
-    QX_PUSH,  /* ( cell et -- i ): one more, empty, at i */
-    QX_POP,   /* ( cell et -- v ): the last, a number or a string, taken */
-    QX_LAST,  /* ( cell -- addr ): the last's address */
-    QX_DROP,  /* ( cell et -- ): the last dropped */
-    QX_SINK,  /* ( cell et i -- ): the last moved to i, those from i up one */
-    QX_RAISE, /* ( cell et i -- ): i moved last, those past it down one */
-    QX_HAS,   /* ( cell et v -- flag ): v among the elements, a number or a string */
-    QX_FMT,   /* ( v spec kind -- s ): v of kind formatted by spec, Python's format spec */
-    QX_MAPAT,  /* ( key ket vet map how -- addr ): key's value in the map record at map, by how */
-    QX_MAPDEL, /* ( key ket vet map -- ): key's entry, if there, removed */
-    QX_BYTE,   /* ( s i -- n ): s's byte i */
-    QX_SLICE,  /* ( s a b -- t ): s's bytes from a up to b, each clamped to s */
-    QX_LSLICE, /* ( a b src dst -- ): dst a new list, src's elements from a up to b, clamped */
-    QX_FNCALL, /* ( args.. proc -- ): a call of procedure proc, as PCALL's */
-    QX_INT,    /* an integer's operator (QrtIop) the int ops don't have: Overflow past its range */
-    QX_CONV,   /* ( v -- w ): a number converted: Overflow when it doesn't fit, unless wrapped */
+    QX_LEN,     /* ( cell -- n ) */
+    QX_PUSH,    /* ( cell et -- i ): one more, empty, at i */
+    QX_POP,     /* ( cell et -- v ): the last, a number or a string, taken */
+    QX_LAST,    /* ( cell -- addr ): the last's address */
+    QX_DROP,    /* ( cell et -- ): the last dropped */
+    QX_SINK,    /* ( cell et i -- ): the last moved to i, those from i up one */
+    QX_RAISE,   /* ( cell et i -- ): i moved last, those past it down one */
+    QX_HAS,     /* ( cell et v -- flag ): v among the elements, a number or a string */
+    QX_FMT,     /* ( v spec kind -- s ): v of kind formatted by spec, Python's format spec */
+    QX_MAPAT,   /* ( key ket vet map how -- addr ): key's value in the map record at map, by how */
+    QX_MAPDEL,  /* ( key ket vet map -- ): key's entry, if there, removed */
+    QX_BYTE,    /* ( s i -- n ): s's byte i */
+    QX_SLICE,   /* ( s a b -- t ): s's bytes from a up to b, each clamped to s */
+    QX_LSLICE,  /* ( a b src dst -- ): dst a new list, src's elements from a up to b, clamped */
+    QX_FNCALL,  /* ( args.. proc -- ): a call of procedure proc, as PCALL's */
+    QX_INT,     /* an integer's operator (QrtIop) the int ops don't have: Overflow past its range */
+    QX_CONV,    /* ( v -- w ): a number converted: Overflow when it doesn't fit, unless wrapped */
+    QX_FIND,    /* ( s t [from] -- i ): where t is in s from from (QX_FROM), else 0; -1 none */
+    QX_FOPEN,   /* ( name mode -- n ): file number n open, mode r w a or rw; -ERR an error */
+    QX_FREAD,   /* ( n count -- s ): count bytes at most, fewer at the end */
+    QX_FWRITE,  /* ( n s -- st ): s written; 0, or -ERR */
+    QX_FSEEK,   /* ( n at -- st ): to byte at; 0, or -ERR */
+    QX_FSIZE,   /* ( n -- bytes ) */
+    QX_FCLOSE,  /* ( n -- ) */
+    QX_FLIST,   /* ( pattern -- names ): the files matching, each ended by a newline */
+    QX_ERRTEXT, /* ( err -- s ): ERR err's message */
 } QrtX;
+
+/* QX.FIND's operand with it: a from on the stack. */
+enum { QX_FROM = 0x100 };
 
 /* QX.HAS's et with it: elements compared by their 8 bytes, a long's. */
 enum { QRT_RAW = 0x1000 };

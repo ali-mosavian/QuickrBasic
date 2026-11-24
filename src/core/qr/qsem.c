@@ -37,6 +37,7 @@
  *    let h = 7 / 2           3.5: an untyped double, a double by the let
  */
 #include "qr/qsem.h"
+#include "qr/qnat.h"
 #include "qr/qpar.h"
 #include <stdarg.h>
 
@@ -152,6 +153,7 @@ static QExpr *qsem_addressed(QSem *S, QExpr *e);
 static bool qsem_changes(QSem *S, const QExpr *e, const QTok *at);
 static QExpr *qsem_get(QSem *S, QExpr *e);
 static void qsem_signature(QSem *S, QFn *f);
+static void qsem_native(QSem *S, QFn *f);
 static QExpr *qsem_nameof(QSem *S, QVar *v, const QTok *tok);
 static QExpr *qsem_icall(QSem *S, QExpr *e, QExpr *f);
 static bool qsem_isrec(const QSem *S, QType t);
@@ -6414,11 +6416,41 @@ static void qsem_signature(QSem *const S, QFn *const f)
 
     f->byarg = qsem_byplace(S, f->result);
 
+    if (f->native)
+        qsem_native(S, f);
+
     if (f->result != QY_VOID)
         f->res = qsem_var(S, f->name, f->result, QV_RESULT);
 
     f->sig = true;
     S->fn = nullptr;
+}
+
+/* A number, a bool or a string: a native's argument and result. */
+static bool qsem_nativeok(const QType t)
+{
+    return qast_numeric(t) || t == QY_BOOL || t == QY_STRING || t == QY_ERROR;
+}
+
+/* Native fn f's entry, and its types: numbers, bools and strings, by value. */
+static void qsem_native(QSem *const S, QFn *const f)
+{
+    f->nat = qnat_find(f->name->text, f->name->len);
+
+    if (!f->nat)
+        qsem_say(S, f->name, "no native entry is named ", qsem_text(S, f->name), nullptr);
+
+    const bool plain = f->result == QY_VOID || f->result == QY_ERROR || qsem_nativeok(f->result);
+
+    for (uint32_t k = 0; k < f->npar; k++) {
+        const QParam *const p = &f->params[k];
+
+        if (p->mut || !qsem_nativeok(p->var->type))
+            qsem_say(S, p->name, "a native fn takes numbers, bools and strings, not mut", nullptr);
+    }
+
+    if (!plain)
+        qsem_say(S, f->rtype->tok, "a native fn gives a number, a bool or a string", nullptr);
 }
 
 /* May module k's top level have s: the main's anything, another's declarations alone? */
@@ -6578,7 +6610,7 @@ static void qsem_exports(QSem *const S)
 /* Fn f's body, its parameters in its scope. */
 static void qsem_body(QSem *const S, QFn *const f)
 {
-    if (!f->end || !f->sig || qast_generic(f) || f->lamof || qast_inline(f))
+    if (!f->end || !f->sig || f->native || qast_generic(f) || f->lamof || qast_inline(f))
         return;
 
     qsem_fnbody(S, f);
