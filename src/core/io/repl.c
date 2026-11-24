@@ -67,6 +67,7 @@
 #include "plat/pfil.h"
 #include "plat/psys.h"
 #include "qbrt/qbrt.h"
+#include "qr/qr.h"
 #include "util/grow.h"
 #include "vm/debug.h"
 #include "vm/exec.h"
@@ -302,6 +303,12 @@ static void report(Session *const S, const uint8_t code)
 
     flow_drop_calls(S);
     S->vm.cont.line = 0;
+
+    if (line != DLINE && prog_line(&S->prog, line)->flags & LF_QR) {
+        qr_report(S, code);
+        return;
+    }
+
     uint16_t file;
     const uint16_t src = source_line(S, &file);
     const bool compiled = compile_error(S), lead = S->repl.batch && compiled && src;
@@ -552,6 +559,11 @@ static void run_file(Session *const S)
 
     if (!n)
         return;
+
+    if (qr_is_file(S->repl.file)) {
+        qr_run(S);
+        return;
+    }
 
     repl_load(S);
     session_drop(S);

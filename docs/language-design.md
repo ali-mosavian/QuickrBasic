@@ -564,6 +564,8 @@ Everything else is in a module.
 
 - `print` needs no import: it is the one library function every module sees. The rest of `io` is
   imported.
+- `print` writes its values separated by one space, then a newline: `print(1, 2.5, "x", true)`
+  gives `1 2.5 x true`.
 - A module is written in Quickr where possible. Its machine-level parts are native entries in the
   table built into the interpreter (the extensions' inittab), so DOS loads nothing extra.
 - A library call is a direct call, or an op where the entry is marked as one. Moving a statement

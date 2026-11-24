@@ -806,13 +806,32 @@ static void blok_scanline(BlokScan *const sc, const uint8_t *const b)
     }
 }
 
-void blok_pair(Blok *const b, const Prog *const pg, const Symb *const sy, Fault *const f)
+Proc *blok_add_proc(Blok *const b, Fault *const f)
+{
+    Proc *const p = btab_add(&b->procs, &b->arena);
+
+    if (!p)
+        fault_error(f, E_OM);
+
+    return p;
+}
+
+void blok_reset(Blok *const b, Fault *const f)
 {
     if (!b->arena.chunk)
         arena_init(&b->arena, BLOK_CHUNK);
 
     arena_reset(&b->arena);
     *b = (Blok){.arena = b->arena};
+
+    btab_init(&b->blocks, sizeof(BlockEnt));
+    btab_init(&b->procs, sizeof(Proc));
+    blok_add_proc(b, f); /* 0, the module */
+}
+
+void blok_pair(Blok *const b, const Prog *const pg, const Symb *const sy, Fault *const f)
+{
+    blok_reset(b, f);
 
     BlokScan sc = {
         .b = b,
@@ -821,10 +840,7 @@ void blok_pair(Blok *const b, const Prog *const pg, const Symb *const sy, Fault 
         .f = f,
     };
 
-    btab_init(&b->blocks, sizeof(BlockEnt));
-    btab_init(&b->procs, sizeof(Proc));
     btab_init(&sc.open, sizeof(BlokOpen));
-    blok_new(&sc, &b->procs); /* 0, the module */
 
     for (uint32_t ln = PROGBASE; prog_line(pg, ln)->len; ln += prog_line(pg, ln)->len) {
         sc.line = ln;

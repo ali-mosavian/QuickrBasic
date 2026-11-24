@@ -461,6 +461,13 @@ K(ARESET, stmt_areset) /* an array result's start, ours */
 K(RCOPY, exec_r_copys) /* a = b of records with STRINGs, ours */
 K(RSWAP, exec_r_swap)  /* SWAP a, b of records, ours */
 K(FCELL, stmt_fcell)   /* a fixed array field's cell for an array parameter, ours */
+/* Quickr's (qr/qrt.c): print and string() of a value of kind ( [v] kind -- ), ( v kind -- s );
+   a jump within a line's code ( [flag] how -- ); an int's shifts ( x n -- x' ) */
+K(QPR, qrt_print)
+K(QSTR, qrt_str)
+K(QJ, qrt_jump)
+K(QSHL, qrt_shl)
+K(QSHR, qrt_shr)
 K(NCALL, ncal_call)    /* ( args proc -- [result] ): a native procedure's entry, ours (vm/ncall.c) */
 #undef K
 #endif

@@ -157,11 +157,8 @@ static void uncache(Comp *const C)
         prog_line(C->prog, l)->code = 0;
 }
 
-/* Line compiled into the cache at link.end, the cache grown should it not fit. Out of memory. */
-static void link_line(Comp *const C, const uint32_t line)
+void link_place(Comp *const C, const uint32_t line)
 {
-    link_compile(C, line);
-
     for (;;) {
         Addr a = C->link->end;
         C->link->lim = C->allo->cache + allo_cap(C->allo, HCACHE);
@@ -177,6 +174,13 @@ static void link_line(Comp *const C, const uint32_t line)
         if (!allo_grow(C->allo, HCACHE, need))
             fault_error(C->fault, E_OM);
     }
+}
+
+/* Line compiled into the cache at link.end. */
+static void link_line(Comp *const C, const uint32_t line)
+{
+    link_compile(C, line);
+    link_place(C, line);
 }
 
 /* cx_mapstmt: the map entries of the statements whose code starts at s; a the stream's place. */

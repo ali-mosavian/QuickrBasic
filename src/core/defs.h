@@ -124,8 +124,17 @@ static_assert(sizeof(Line) == 20);
 enum { HDR = sizeof(Line) };
 /* LF_NODEF: decl_line found no DEFtype in it, decl_defevents passes it. LF_TOP: the END before an
    imported module's lines, where its file's settings start, and past the last module's.
-   LF_NATIVE: a native module's interface (a .qbx's): its DECLARE CDECLs name its code's entries. */
-enum : uint8_t { LF_ASIS = 1, LF_BP = 2, LF_INC = 4, LF_NODEF = 8, LF_TOP = 32, LF_NATIVE = 64 };
+   LF_NATIVE: a native module's interface (a .qbx's): its DECLARE CDECLs name its code's entries.
+   LF_QR: a Quickr line (qr/qr.h), its body its source text. */
+enum : uint8_t {
+    LF_ASIS = 1,
+    LF_BP = 2,
+    LF_INC = 4,
+    LF_NODEF = 8,
+    LF_QR = 16,
+    LF_TOP = 32,
+    LF_NATIVE = 64
+};
 enum : uint32_t {
     NONUM = 0xFFFF,
     LMAX = 0x17000,    /* a line's body at most: 0xFEE0 with 2-byte name ids, times 7/5 */

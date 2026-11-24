@@ -43,6 +43,9 @@ typedef void LinkEach(void *ctx, const Failure *f);
    (a block's pairing still raises its first); how many. */
 uint32_t link_report(Comp *C, LinkEach *each, void *ctx);
 void link_compile(Comp *C, uint32_t line); /* cm_comp: line compiled to comp_xbuf */
+/* comp_xbuf's code (comp.line's) placed at link.end as line's stream, the cache grown should it
+   not fit. Out of memory. */
+void link_place(Comp *C, uint32_t line);
 bool link_xlate(Comp *C, Addr *at); /* comp_xbuf as a stream at *at, to its end; link.code its code;
                                     false: past link.lim */
 /* The jumps and line references in line's stream at code (an offset in the cache) set to their
