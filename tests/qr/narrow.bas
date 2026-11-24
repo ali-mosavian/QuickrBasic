@@ -26,12 +26,12 @@ n.bs[0] = -128
 n.bs[2] = 127
 n.uss[1] = 65535
 print n.bs[0]; " "; n.bs[1]; " "; n.bs[2]; " "; n.uss[0]; " "; n.uss[1]
-up(mut n.b)
-high(mut n.us)
+up(n.b)
+high(n.us)
 print n.b; " "; n.us
-low(mut n.bs[2])
+low(n.bs[2])
 n.uss[1] = 0
-high(mut n.uss[0])
+high(n.uss[0])
 print n.bs[2]; " "; n.uss[0]; " "; n.uss[1]
 var bs as byte[]
 var uss as ushort[]
@@ -40,7 +40,7 @@ bs.push(127)
 uss.push(65535)
 uss.push(1)
 print bs[0]; " "; bs[1]; " "; uss[0]; " "; uss[1]; " "; -128 in bs; " "; 65535 in uss
-up(mut bs[0])
-high(mut uss[1])
+up(bs[0])
+high(uss[1])
 print bs[0]; " "; uss[1]; " "; bs.sum(); " "; uss.sum()
 print bs.pop(); " "; uss.pop(); " "; len(bs); " "; len(uss)

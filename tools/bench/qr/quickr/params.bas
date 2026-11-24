@@ -12,5 +12,5 @@ function walk(mut a as Acc)
 end function
 
 var a = Acc(0, 0)
-walk(mut a)
+walk(a)
 print a.n; " "; a.s

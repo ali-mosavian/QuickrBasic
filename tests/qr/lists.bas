@@ -37,7 +37,7 @@ let s = squares(5)
 print len(s); " "; s[0]; " "; s[4]; " "; total(s)
 var a = squares(3)
 a.push(10)
-bump(mut a)
+bump(a)
 for i, x in a
     print i; " "; x
 next

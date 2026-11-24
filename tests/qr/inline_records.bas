@@ -26,12 +26,12 @@ function deep(n as int) as long
     if n > 0 then
         o.k = deep(n - 1)
     end if
-    bump(mut o)
+    bump(o)
     return o.k + o.inr.n + o.tag + o.inr.b + o.u
 end function
 
 var g = Outer(tag: -3, k: 5_000_000_000, inr: Inner(b: -1, n: 9, d: 1.25), u: 4)
-bump(mut g)
+bump(g)
 var h = g
 h.inr.d += 1
 g.inr.b = 100

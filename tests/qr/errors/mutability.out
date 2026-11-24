@@ -1,30 +1,27 @@
-mutability.bas:4:1: a is a let: it can't change
+mutability.bas:5:1: a is a let: it can't change
   a = 2
   ^
-mutability.bas:6:1: C is a const: it can't change
+mutability.bas:7:1: C is a const: it can't change
   C += 1
   ^
-mutability.bas:8:5: n is a parameter: make it mut to change it
+mutability.bas:9:5: n is a parameter: make it mut to change it
       n = 1
       ^
-mutability.bas:11:5: i is the loop's counter: it can't change
+mutability.bas:12:5: i is the loop's counter: it can't change
       i = 5
       ^
-mutability.bas:16:3: n is mut: write mut before it
-  g(v)
+mutability.bas:18:3: a is a let: it can't change
+  g(a)
     ^
-mutability.bas:17:7: a is a let: it can't change
-  g(mut a)
-        ^
-mutability.bas:18:7: mut takes a var
-  g(mut 1 + 2)
-        ^
-mutability.bas:19:3: n is not mut
-  f(mut v)
+mutability.bas:19:3: mut takes a var
+  g(1 + 2)
     ^
-mutability.bas:22:10: v is lent mut in this call
-  h(mut v, v)
-           ^
-mutability.bas:24:7: mut n is an int, not a double
-  g(mut d)
-        ^
+mutability.bas:23:6: v is lent mut in this call
+  h(v, v)
+       ^
+mutability.bas:25:3: mut n is an int, not a double
+  g(d)
+    ^
+mutability.bas:26:3: mut is written on the parameter only: pass v as it is
+  g(mut v)
+    ^

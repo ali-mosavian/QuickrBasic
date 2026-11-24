@@ -61,7 +61,7 @@ TEST(quickr_parameter_fields_by_ref)
         "type R\n    b as byte\n    n as int\n    i as In\nend type\n"
         "function bump(mut r as R)\n    r.n += int(r.b)\n    r.i.k += 1\n    r.i.d *= 2.0\nend "
         "function\n"
-        "var a = R(b: 1, n: 2, i: In(k: 3, d: 4.0))\nbump(mut a)\nprint a.n; \" \"; a.i.k; \" \"; "
+        "var a = R(b: 1, n: 2, i: In(k: 3, d: 4.0))\nbump(a)\nprint a.n; \" \"; a.i.k; \" \"; "
         "a.i.d\n"
     ));
     CHECK(!unit_ops(S, O_R_ADDR) && !unit_ops(S, O_FL_LD) && !unit_ops(S, O_FL_ST));

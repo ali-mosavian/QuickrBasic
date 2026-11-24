@@ -16,9 +16,9 @@ generators.bas:28:5: a generator changes as it runs: keep it in a var
 generators.bas:30:7: print can't spell an upto
   print b
         ^
-generators.bas:32:21: a kept generator owns its arguments: no mut
-  var c = changes(mut m)
-                      ^
+generators.bas:32:17: a kept generator owns its arguments: no mut
+  var c = changes(m)
+                  ^
 generators.bas:33:9: a generator has next() alone
   print b.size()
           ^

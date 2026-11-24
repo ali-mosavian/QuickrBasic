@@ -520,7 +520,6 @@ typedef struct QArg QArg;
 struct QArg {
     QExpr *e;
     const QTok *name;
-    const QTok *mut;
     QKind sep; /* print's: ; or , after it; QK_EOF none */
     QArg *next;
 };

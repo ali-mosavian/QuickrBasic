@@ -27,25 +27,25 @@ function swap(mut a as int, mut b as int)
 end function
 var x = 1
 var y = 2
-swap(mut x, mut y)
+swap(x, y)
 print x; " "; y
 function add_to(mut total as double, n as int, times = 1)
     total += n * times
 end function
 var acc as double = 0.5
-add_to(mut acc, 2)
-add_to(mut acc, 3, times: 10)
-add_to(mut acc, times: 2, n: 1)
+add_to(acc, 2)
+add_to(acc, 3, times: 10)
+add_to(acc, times: 2, n: 1)
 print acc
 function label(text as string, left = "[", right = "]") as string
     return left + text + right
 end function
 print label("a"); " "; label("b", "<"); " "; label("c", right: ")")
 function pass_on(mut n as int)
-    swap(mut n, mut y)
+    swap(n, y)
 end function
 var z = 9
-pass_on(mut z)
+pass_on(z)
 print z; " "; y
 function half(v as double) as double
     return v / 2

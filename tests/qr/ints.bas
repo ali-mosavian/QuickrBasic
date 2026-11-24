@@ -70,8 +70,8 @@ function twice(mut x as ubyte)
     x *= 2
 end function
 bs.push(3)
-twice(mut px.g)
-twice(mut bs[1])
+twice(px.g)
+twice(bs[1])
 print px.g; " "; bs[1]
 function big(x as long) as long
     return x * 1000

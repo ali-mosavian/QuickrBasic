@@ -20,7 +20,7 @@ function add(xs as int[])
 end function
 bump(count)
 outer(count)
-grow(mut pt)
+grow(pt)
 add(items)
 let f = bump
 f(count)

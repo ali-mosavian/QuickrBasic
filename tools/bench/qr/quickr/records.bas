@@ -12,7 +12,7 @@ end function
 var p = Vec(0, 0)
 let v = Vec(3, 1)
 for i in 0..2000000
-    advance(mut p, v)
+    advance(p, v)
     p.x = p.x mod 1000
 next
 print p.x; " "; p.y

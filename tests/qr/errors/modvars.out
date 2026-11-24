@@ -4,9 +4,9 @@ modvars.bas:21:6: count is written by bump: this call can't borrow it
 modvars.bas:22:7: count is written by bump: this call can't borrow it
   outer(count)
         ^
-modvars.bas:23:10: pt is written by grow: this call can't borrow it
-  grow(mut pt)
-           ^
+modvars.bas:23:6: pt is written by grow: this call can't borrow it
+  grow(pt)
+       ^
 modvars.bas:24:5: items is written by add: this call can't borrow it
   add(items)
       ^

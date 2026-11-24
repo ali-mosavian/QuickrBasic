@@ -43,7 +43,7 @@ print b.name; " "; b.at.x; " "; v.x
 var c = b
 c.name = "blue"
 print b.name; " "; c.name
-scale(mut b.at, 2)
+scale(b.at, 2)
 print b.at.x; " "; b.at.y
 b.at.scale(0.5)
 print b.at.x; " "; b.at.y; " "; b.at.length2()

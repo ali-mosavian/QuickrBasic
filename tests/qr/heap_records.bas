@@ -37,7 +37,7 @@ function grow(mut b as Bag, depth as int)
     churn()
     b.tags.push(len(local.tags))
     b.name += local.name
-    grow(mut b, depth - 1)
+    grow(b, depth - 1)
 end function
 
 function parse(s as string) as int or Error
@@ -55,7 +55,7 @@ y.tags[0] = 99
 y.pair.key += "!"
 churn()
 print x.tags[0]; " "; y.tags[0]; " "; x.pair.key; " "; y.pair.key
-grow(mut y, 3)
+grow(y, 3)
 print len(y.tags); " "; y.tags[4]; " "; y.name
 let r = parse("")
 if r is Error then print r.message; " "; r.code

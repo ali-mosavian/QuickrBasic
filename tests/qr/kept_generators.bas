@@ -45,7 +45,7 @@ var a = upto(3)
 print a.next() or else -1
 var b = a
 print a.next() or else -1; " "; b.next() or else -1; " "; b.next() or else -1
-print drain(mut a)
+print drain(a)
 var m = make(2)
 print m.next() or else -1; " "; m.next() or else -1; " "; m.next() or else -1; " "; m.next() or else -1
 var w = words("xx yx")
@@ -54,7 +54,7 @@ print w.next() or else "-"; " "; w2.next() or else "-"; " "; w.next() or else "-
 var c = upto(5)
 print apply(fn(k) k + (c.next() or else 0)); " "; apply(fn(k) k + (c.next() or else 0))
 var v = 5
-for x in bump(mut v)
+for x in bump(v)
     print x; " "; v
 next
 print v

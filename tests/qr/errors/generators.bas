@@ -29,7 +29,7 @@ let a = upto(3)
 var b = upto(3)
 print b
 var m = b.next() or else 0
-var c = changes(mut m)
+var c = changes(m)
 print b.size()
 let s = upto(4)
 for x in upto(2)
@@ -45,7 +45,7 @@ for x in loops(1)
     print x
 next
 let f = upto
-for x in changes(mut m)
+for x in changes(m)
     print x
 next
 print b.next(1) or else 0

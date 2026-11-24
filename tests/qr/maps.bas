@@ -68,9 +68,9 @@ function add(mut z as Zoo, name as string, legs as int)
     z.count += 1
 end function
 var zoo as Zoo
-add(mut zoo, "rex", 4)
-add(mut zoo, "tweety", 2)
-add(mut zoo, "nemo", 0)
+add(zoo, "rex", 4)
+add(zoo, "tweety", 2)
+add(zoo, "nemo", 0)
 print zoo.count; " "; len(zoo.pets); " "; zoo.pets["tweety"].tags[0]
 let c = census(zoo)
 for k, v in c

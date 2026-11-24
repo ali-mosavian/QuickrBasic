@@ -149,7 +149,23 @@ static QExpr *qpar_binary(QPar *const P, const QTok *const op, QExpr *const a, Q
     return e;
 }
 
-/* name(args): each [name:] [mut] value, or a range. */
+/* An argument's mut, the argument parsed after it: said, naming the argument alone. */
+static void qpar_unmut(QPar *const P, const QTok *const mut)
+{
+    const QTok *const first = mut + 1;
+    const QTok *const last = P->t - 1;
+    const uint32_t len =
+        last->line == first->line ? (uint32_t)(last->text + last->len - first->text) : first->len;
+    qast_error(
+        &P->prog->errs,
+        mut,
+        "mut is written on the parameter only: pass {} as it is",
+        first->text,
+        len
+    );
+}
+
+/* name(args): each [name:] value, or a range. */
 static QExpr *qpar_call(QPar *const P, const QTok *const name)
 {
     QExpr *const e = qast_expr(P->mem, QE_CALL, name);
@@ -164,10 +180,11 @@ static QExpr *qpar_call(QPar *const P, const QTok *const name)
             qpar_next(P);
         }
 
-        if (qpar_is(P, QK_MUT))
-            a->mut = qpar_next(P);
-
+        const QTok *const mut = qpar_is(P, QK_MUT) ? qpar_next(P) : nullptr;
         a->e = qpar_expr(P);
+
+        if (mut)
+            qpar_unmut(P, mut);
 
         if (qpar_is(P, QK_DOTDOT)) { /* zip(0..n) */
             QExpr *const r = qast_expr(P->mem, QE_RANGE, qpar_next(P));

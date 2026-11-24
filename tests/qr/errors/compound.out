@@ -49,9 +49,9 @@ compound.bas:51:3: an array's size is fixed
 compound.bas:52:9: the index is past the elements
   print n[4]
           ^
-compound.bas:56:9: mut v is a Vec, not a single
-  g(mut u.x)
-          ^
+compound.bas:56:5: mut v is a Vec, not a single
+  g(u.x)
+      ^
 compound.bas:57:12: a Vec has no text(): an f-string can't spell it
   let k = f"{v}"
              ^

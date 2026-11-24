@@ -53,7 +53,7 @@ print n[4]
 function g(mut v as Vec)
 end function
 var u = Vec(1, 2)
-g(mut u.x)
+g(u.x)
 let k = f"{v}"
 let j = f"{3:q}"
 var ss as int[]

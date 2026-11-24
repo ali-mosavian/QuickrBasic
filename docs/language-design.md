@@ -539,8 +539,8 @@ grow(pos, k: 3)
 - `function` is the word for a top-level definition and for a function's type. `fn` is the word
   for a method and a lambda. One where the other belongs is a compile error that names the right
   word.
-- **Not yet:** the caller writes `mut` too, `grow(mut pos)`, except before a method's dot. Every
-  parameter passes by address.
+- `grow(mut pos)` is a compile error: the call passes `pos` as it is.
+- **Not yet:** every parameter passes by address.
 - **In the VM**, a parameter by address is a ref to its argument, its number fields read and
   written through it by `P.FL.LD` and `P.FL.ST`.
 

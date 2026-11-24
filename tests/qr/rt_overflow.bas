@@ -4,4 +4,4 @@ var n = 2147483647
 function grow(mut v as int)
     v += 1
 end function
-grow(mut n)
+grow(n)

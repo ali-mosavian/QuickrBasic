@@ -1986,20 +1986,14 @@ static QExpr *qsem_in(QSem *const S, QExpr *const e)
 
 /* ---- calls */
 
-/* A built-in's arguments: no names, no mut; count of them, ~0 any. */
+/* A built-in's arguments: no names; count of them, ~0 any. */
 static bool qsem_plain(QSem *const S, const QExpr *const e, const uint32_t count)
 {
     uint32_t n = 0;
 
     for (const QArg *a = e->args; a; a = a->next, n++)
-        if (a->name || a->mut) {
-            qsem_say(
-                S,
-                a->name ? a->name : a->mut,
-                qsem_text(S, e->tok),
-                "() takes plain values",
-                nullptr
-            );
+        if (a->name) {
+            qsem_say(S, a->name, qsem_text(S, e->tok), "() takes plain values", nullptr);
             return false;
         }
 
@@ -3095,14 +3089,10 @@ static QExpr *qsem_fncall(QSem *const S, QExpr *const e, QFn *f)
             continue;
         }
 
-        const bool lend = p->mut && a->mut && qsem_changes(S, a->e, a->e->tok);
+        const bool lend = p->mut && qsem_changes(S, a->e, a->e->tok);
         QExpr *const v = qsem_expr(S, a->e, p->var->type);
 
-        if (p->mut && !a->mut)
-            qsem_say(S, a->e->tok, qsem_text(S, p->name), " is mut: write mut before it", nullptr);
-        if (!p->mut && a->mut)
-            qsem_say(S, a->mut, qsem_text(S, p->name), " is not mut", nullptr);
-        if (p->mut && a->mut && !lend)
+        if (p->mut && !lend)
             v->type = QY_ERROR;
 
         e->argv[k] =
@@ -3459,10 +3449,6 @@ static QExpr *qsem_build(
     e->type = t;
     e->nargv = n;
     e->argv = qast_alloc(S->mem, (n ? n : 1) * sizeof *e->argv);
-
-    for (const QArg *a = args; a; a = a->next)
-        if (a->mut)
-            qsem_say(S, a->mut, "a field takes a value, not mut", nullptr);
 
     for (uint32_t k = 0; k < n; k++) {
         if (given[k]) {
@@ -4191,7 +4177,6 @@ static QExpr *qsem_valuecall(QSem *const S, QExpr *const e, QExpr *const r)
         r->done = true;
         self->e = r;
         self->next = e->args;
-        self->mut = f->params[0].mut ? e->tok : nullptr;
         e->args = self;
         e->a = nullptr;
         return qsem_fncall(S, e, f);
@@ -4433,8 +4418,8 @@ static QExpr **qsem_plainargs(
     uint32_t k = 0;
 
     for (const QArg *a = e->args; a; a = a->next, k++) {
-        if (a->name || a->mut) {
-            qsem_say(S, a->name ? a->name : a->mut, "a function value takes plain values", nullptr);
+        if (a->name) {
+            qsem_say(S, a->name, "a function value takes plain values", nullptr);
             return nullptr;
         }
 
@@ -7065,7 +7050,7 @@ static void qsem_varpat(QSem *const S, const QOpenMatch *const m, QPat *const pt
     uint32_t n = 0;
 
     for (const QArg *x = a->kind == QE_CALL ? a->args : nullptr; x; x = x->next, n++) {
-        if (x->name || x->mut || x->e->kind != QE_NAME || n >= v->n) {
+        if (x->name || x->e->kind != QE_NAME || n >= v->n) {
             qsem_say(
                 S,
                 x->e->tok,
