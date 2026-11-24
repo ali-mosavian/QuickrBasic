@@ -8,7 +8,7 @@ import { memory as newMemory, Irq, sidecar, ticker, EVENT, MUSIC_HZ, AUDIO_RATE 
 
 const BLINK_MS = 267;
 const DEMOS = ['WELCOME.BAS', 'GORILLA.BAS', 'NIBBLES.BAS', 'MOTHLITE.BAS', 'RUSTLINE.BAS', 'CHARLIE.BAS',
-  'GFXDEMO.BAS'];
+  'GFXDEMO.BAS', 'CUBE.BAS', 'ORBITS.BAS'];
 // F1's help file and a game's pictures, beside the programs, as on DOS
 const SUPPORT = ['BASIC.HLP', 'demos/CHARLIE.DAT'];
 // the native modules that ship, in lib/ beside the interpreter (C:\)
