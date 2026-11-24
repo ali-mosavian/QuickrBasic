@@ -83,9 +83,9 @@ static uint32_t qrt_put(uint8_t *const out, const char *const s)
 }
 
 /* u's decimal digits at out; their count. */
-static uint32_t qrt_decimal(uint32_t u, uint8_t *const out)
+static uint32_t qrt_decimal(uint64_t u, uint8_t *const out)
 {
-    uint8_t rev[10];
+    uint8_t rev[20];
     uint32_t n = 0;
 
     do {
@@ -176,13 +176,32 @@ static uint32_t qrt_float(const double v, const uint32_t ndig, uint8_t *const ou
     return n + qrt_real((Cell){.raw = mag}.d, ndig, out + n);
 }
 
+/* An integer of kind in v: is it below 0; *mag its magnitude. */
+static bool qrt_magnitude(const QrtKind kind, const Cell v, uint64_t *const mag)
+{
+    const int64_t s = kind == QRT_INT ? v.i : (int64_t)v.raw;
+    const bool neg = (kind == QRT_INT || kind == QRT_LONG) && s < 0;
+    *mag = kind == QRT_UINT ? v.u : kind == QRT_ULONG || !neg ? (uint64_t)s : 0 - (uint64_t)s;
+    return neg;
+}
+
+/* Is kind an integer's? */
+static bool qrt_integer(const QrtKind kind)
+{
+    return kind == QRT_INT || kind == QRT_UINT || kind == QRT_LONG || kind == QRT_ULONG;
+}
+
 uint32_t qrt_text(const QrtKind kind, const Cell v, uint8_t out[static QRT_TXT])
 {
     switch (kind) {
-    case QRT_INT: {
-        const uint32_t neg = v.i < 0;
+    case QRT_INT:
+    case QRT_UINT:
+    case QRT_LONG:
+    case QRT_ULONG: {
+        uint64_t mag;
+        const uint32_t neg = qrt_magnitude(kind, v, &mag);
         out[0] = '-';
-        return neg + qrt_decimal(neg ? 0u - v.u : v.u, out + neg);
+        return neg + qrt_decimal(mag, out + neg);
     }
 
     case QRT_BOOL:
@@ -349,6 +368,24 @@ static void qrt_bubble(
         qrt_swap(S, et, data + (uint32_t)k * size, data + (uint32_t)(k + step) * size);
 }
 
+/* A number element of et at e: 8 bytes, 4, or a short's 2 or a byte's 1 as an int. */
+static Cell qrt_elem(const uint32_t et, const Addr e)
+{
+    switch (et) {
+    case ET_R8:
+        return load_cell(at(e));
+
+    case ET_SH:
+        return (Cell){.i = (int16_t)load16(at(e))};
+
+    case ET_BY:
+        return (Cell){.u = *(const uint8_t *)at(e)};
+
+    default:
+        return (Cell){.u = load32(at(e))};
+    }
+}
+
 /* A list's last element's value pushed: a number, or a new string of its text. */
 static void qrt_pop(Session *const S, const Addr cell, const uint32_t et)
 {
@@ -361,7 +398,7 @@ static void qrt_pop(Session *const S, const Addr cell, const uint32_t et)
     const Addr e = data + (n - 1) * arry_et_size(&S->decl, et);
 
     if (et != ET_SD) {
-        const Cell v = et == ET_R8 ? load_cell(at(e)) : (Cell){.u = load32(at(e))};
+        const Cell v = qrt_elem(et, e);
 
         qrt_shrink(S, cell, et);
         exec_push(&S->vm, v);
@@ -374,11 +411,12 @@ static void qrt_pop(Session *const S, const Addr cell, const uint32_t et)
     exec_pusha(&S->vm, strg_text(&S->strg, S->cons.sbuf, d.len));
 }
 
-/* Is v among the list's elements of et? */
+/* Is v among the list's elements of et? raw: 8 bytes compared as they are. */
 static bool qrt_has(
     Session *const S,
     const Addr cell,
     const uint32_t et,
+    const bool raw,
     const Cell v,
     const Desc str
 )
@@ -394,12 +432,14 @@ static bool qrt_has(
         if (et == ET_SD) {
             const Desc d = strg_peek(e);
             same = d.len == str.len && !memcmp(at(d.ptr), at(str.ptr), d.len);
-        } else if (et == ET_R8)
+        } else if (raw)
+            same = load_cell(at(e)).raw == v.raw;
+        else if (et == ET_R8)
             same = load_cell(at(e)).d == v.d;
         else if (et == ET_R4)
             same = (Cell){.u = load32(at(e))}.f == v.f;
         else
-            same = load32(at(e)) == v.u;
+            same = qrt_elem(et, e).u == v.u;
 
         if (same)
             return true;
@@ -489,10 +529,10 @@ static uint32_t qrt_group(char *const b, const uint32_t n, const char g)
 }
 
 /* u in base 2, 8, 10 or 16 to out; its length. */
-static uint32_t qrt_radix(uint32_t u, const uint32_t base, const bool upper, char *const out)
+static uint32_t qrt_radix(uint64_t u, const uint32_t base, const bool upper, char *const out)
 {
     const char *const digits = upper ? "0123456789ABCDEF" : "0123456789abcdef";
-    char rev[32];
+    char rev[64];
     uint32_t n = 0;
 
     do {
@@ -632,9 +672,10 @@ static uint32_t qrt_digits(
 {
     const char t = f->type;
 
-    if (kind == QRT_INT && (!t || strchr("bcdoxXn", t))) {
-        const uint32_t u = v.i < 0 ? 0u - v.u : v.u;
+    uint64_t u = 0;
+    const bool neg = qrt_integer(kind) && qrt_magnitude(kind, v, &u);
 
+    if (qrt_integer(kind) && (!t || strchr("bcdoxXn", t))) {
         if (t == 'c') {
             body[0] = (char)u;
             return 1;
@@ -644,7 +685,9 @@ static uint32_t qrt_digits(
         return qrt_radix(u, base, t == 'X', body);
     }
 
-    const double d = kind == QRT_INT ? (double)v.i : kind == QRT_SINGLE ? (double)v.f : v.d;
+    const double d = qrt_integer(kind)    ? (neg ? -(double)u : (double)u)
+                     : kind == QRT_SINGLE ? (double)v.f
+                                          : v.d;
     const double m = d < 0 ? -d : d;
     const bool upper = t && t != '%' && t != 'n' && !(t & 0x20);
 
@@ -698,14 +741,15 @@ uint32_t qrt_format(
         return len + pad;
     }
 
-    neg = kind == QRT_INT ? v.i < 0 : kind == QRT_SINGLE ? v.f < 0 : v.d < 0;
+    uint64_t mag;
+    neg = qrt_integer(kind) ? qrt_magnitude(kind, v, &mag) : kind == QRT_SINGLE ? v.f < 0 : v.d < 0;
     len = qrt_digits(&f, kind, v, body);
 
     if (f.type == '%')
         body[len++] = '%';
     if (f.group)
         len = qrt_group(body, len, f.group);
-    if (f.alt && kind == QRT_INT && f.type && strchr("boxX", f.type))
+    if (f.alt && qrt_integer(kind) && f.type && strchr("boxX", f.type))
         pre = f.type == 'b' ? "0b" : f.type == 'o' ? "0o" : f.type == 'x' ? "0x" : "0X";
 
     char sign[4] = {0};
@@ -1004,13 +1048,266 @@ static void qrt_mapdel(
         qrt_mremove(S, map, ket, vet, p);
 }
 
-/* QX ( args.. op -- results ): the routine op names (qr/qrt.h QrtX). */
+/* ---- integers past the int ops: byte .. ulong */
+
+/* Number n's bits; is it unsigned, a float? */
+static uint32_t qrt_bits(const QrtNum n) { return 8u << (n & 3); }
+static bool qrt_unsigned(const QrtNum n) { return n >= QN_U8 && n <= QN_U64; }
+
+/* An integer of n in cell v, its bits as a uint64: a signed one's sign extended. */
+static uint64_t qrt_get(const QrtNum n, const Cell v)
+{
+    switch (n) {
+    case QN_I64:
+    case QN_U64:
+        return v.raw;
+
+    case QN_U8:
+    case QN_U16:
+    case QN_U32:
+        return v.u;
+
+    default:
+        return (uint64_t)(int64_t)v.i;
+    }
+}
+
+static Cell qrt_cell(const QrtNum n, const uint64_t x)
+{
+    return qrt_bits(n) == 64 ? (Cell){.raw = x} : (Cell){.u = (uint32_t)x};
+}
+
+/* x, signed when sign, as n: does it fit? */
+static bool qrt_fits(const QrtNum n, const uint64_t x, const bool sign)
+{
+    const uint32_t b = qrt_bits(n);
+    const bool neg = sign && (int64_t)x < 0;
+
+    if (qrt_unsigned(n))
+        return !neg && (b == 64 || x < (uint64_t)1 << b);
+    if (neg)
+        return b == 64 || (int64_t)x >= -((int64_t)1 << (b - 1));
+
+    return x <= (b == 64 ? (uint64_t)INT64_MAX : ((uint64_t)1 << (b - 1)) - 1);
+}
+
+/* x kept to n's bits: a signed one's sign extended. */
+static uint64_t qrt_keep(const QrtNum n, const uint64_t x)
+{
+    const uint32_t b = qrt_bits(n);
+
+    if (b == 64)
+        return x;
+
+    const uint64_t m = ((uint64_t)1 << b) - 1, k = x & m;
+    return !qrt_unsigned(n) && k >> (b - 1) ? k | ~m : k;
+}
+
+/* a ** b of n: the VM's, 0 for a negative power but of 1 and -1; *over past 64 bits. */
+static uint64_t qrt_ipow(const QrtNum n, const uint64_t a, const uint64_t b, bool *const over)
+{
+    const bool sign = !qrt_unsigned(n);
+    const int64_t sa = (int64_t)a, sb = (int64_t)b;
+
+    if (a == 1 || !b)
+        return 1;
+    if (sign && sa == -1)
+        return b & 1 ? a : 1;
+    if (!a || (sign && sb < 0))
+        return 0;
+
+    uint64_t r = 1;
+
+    for (uint64_t i = 0; i < b && !*over; i++) /* |a| > 1: past 64 bits within 64 */
+        *over = sign ? __builtin_mul_overflow((int64_t)r, sa, (int64_t *)&r)
+                     : __builtin_mul_overflow(r, a, &r);
+
+    return r;
+}
+
+/* a op b of number n, by 64-bit arithmetic: true when it overflows 64 bits. */
+static bool qrt_arith(
+    Session *const S,
+    const QrtIop op,
+    const QrtNum n,
+    const uint64_t a,
+    const uint64_t b,
+    uint64_t *const r
+)
+{
+    const bool sign = !qrt_unsigned(n);
+    const int64_t sa = (int64_t)a, sb = (int64_t)b;
+    int64_t sr = 0;
+    bool over = false;
+
+    switch (op) {
+    case QI_ADD:
+        over = sign ? __builtin_add_overflow(sa, sb, &sr) : __builtin_add_overflow(a, b, r);
+        break;
+
+    case QI_SUB:
+        over = sign ? __builtin_sub_overflow(sa, sb, &sr) : __builtin_sub_overflow(a, b, r);
+        break;
+
+    case QI_MUL:
+        over = sign ? __builtin_mul_overflow(sa, sb, &sr) : __builtin_mul_overflow(a, b, r);
+        break;
+
+    case QI_DIV:
+    case QI_MOD:
+        if (!b)
+            fault_error(&S->fault, E_DZ);
+        if (sign && sb == -1) { /* INT64_MIN / -1 */
+            over = op == QI_DIV && sa == INT64_MIN;
+            sr = op == QI_DIV ? (int64_t)(0 - a) : 0;
+        } else if (sign)
+            sr = op == QI_DIV ? sa / sb : sa % sb;
+        else
+            *r = op == QI_DIV ? a / b : a % b;
+
+        break;
+
+    case QI_POW:
+        *r = qrt_ipow(n, a, b, &over);
+        return over;
+
+    case QI_NEG:
+        over = sign ? __builtin_sub_overflow((int64_t)0, sa, &sr) : a != 0;
+        sr = (int64_t)(0 - a);
+        break;
+
+    default:
+        break;
+    }
+
+    if (sign)
+        *r = (uint64_t)sr;
+
+    return over;
+}
+
+/* QX.INT ( a [b] word -- r ): integer operator op of number n; wrap keeps n's bits, else Overflow
+   past n's range. A shift's count past n's bits is Illegal function call. */
+static void qrt_int(Session *const S, const uint32_t word)
+{
+    Vm *const vm = &S->vm;
+    const QrtIop op = (QrtIop)(word >> QX_OP & 15);
+    const QrtNum n = (QrtNum)(word >> QX_NUM & 15);
+    const bool wrap = word >> QX_WRAP & 1;
+    const bool unary = op == QI_NEG || op == QI_NOT;
+    const bool shift = op == QI_SHL || op == QI_SHR;
+    const Cell cb = unary ? (Cell){} : exec_pop(vm);
+
+    const uint64_t b = shift || word >> QX_ICB & 1 ? (uint64_t)(int64_t)cb.i : qrt_get(n, cb);
+    const Cell ca = exec_pop(vm);
+    const uint64_t a = word >> QX_ICA & 1 ? (uint64_t)(int64_t)ca.i : qrt_get(n, ca);
+    const uint32_t bits = qrt_bits(n);
+    const bool sign = !qrt_unsigned(n);
+    uint64_t r = 0;
+
+    switch (op) {
+    case QI_AND:
+        r = a & b;
+        break;
+
+    case QI_OR:
+        r = a | b;
+        break;
+
+    case QI_XOR:
+        r = a ^ b;
+        break;
+
+    case QI_NOT:
+        r = qrt_keep(n, ~a);
+        break;
+
+    case QI_SHL:
+    case QI_SHR:
+        if (b >= bits)
+            fault_error(&S->fault, E_IQ);
+
+        r = op == QI_SHL ? qrt_keep(n, a << b)
+            : sign       ? (uint64_t)((int64_t)a < 0 ? ~(~(int64_t)a >> b) : (int64_t)a >> b)
+                         : a >> b;
+        break;
+
+    case QI_CMP: {
+        const bool lt = sign ? (int64_t)a < (int64_t)b : a < b;
+        const uint32_t o = a == b ? DC_EQ : lt ? DC_LT : DC_GT;
+        exec_pushi(vm, word >> QX_REL & o ? -1 : 0);
+        return;
+    }
+
+    default: {
+        const bool over = qrt_arith(S, op, n, a, b, &r);
+
+        if (wrap)
+            r = qrt_keep(n, r);
+        else if (over || !qrt_fits(n, r, sign))
+            fault_error(&S->fault, E_OV);
+    }
+    }
+
+    exec_push(vm, qrt_cell(n, r));
+}
+
+/* QX.CONV ( v word -- w ): v of number from as number to: a float truncated toward 0; Overflow when
+   it doesn't fit, unless wrap keeps to's bits. */
+static void qrt_conv(Session *const S, const uint32_t word)
+{
+    Vm *const vm = &S->vm;
+    const QrtNum from = (QrtNum)(word >> QX_OP & 15), to = (QrtNum)(word >> QX_TO & 15);
+    const bool wrap = word >> QX_WRAP & 1;
+    const Cell v = exec_pop(vm);
+
+    if (to == QN_F32 || to == QN_F64) {
+        const uint64_t x = qrt_get(from, v);
+        const double d = qrt_unsigned(from) ? (double)x : (double)(int64_t)x;
+        exec_push(vm, to == QN_F32 ? (Cell){.f = (float)d} : (Cell){.d = d});
+
+        return;
+    }
+
+    uint64_t x;
+    bool sign = !qrt_unsigned(from);
+
+    if (from == QN_F32 || from == QN_F64) {
+        const double d = from == QN_F32 ? (double)v.f : v.d, top = 9223372036854775808.0;
+
+        if (d >= top && d < 2 * top)
+            x = (uint64_t)d, sign = false;
+        else if (d >= -top && d < top)
+            x = (uint64_t)(int64_t)d, sign = true;
+        else
+            fault_error(&S->fault, E_OV);
+    } else
+        x = qrt_get(from, v);
+
+    if (wrap)
+        x = qrt_keep(to, x);
+    else if (!qrt_fits(to, x, sign))
+        fault_error(&S->fault, E_OV);
+
+    exec_push(vm, qrt_cell(to, x));
+}
+
+/* QX ( args.. word -- results ): the routine its low byte names (qr/qrt.h QrtX). */
 void qrt_x(Session *const S)
 {
-    const QrtX op = (QrtX)exec_popi(&S->vm);
+    const uint32_t word = exec_pop(&S->vm).u;
+    const QrtX op = (QrtX)(word & 0xFF);
     Vm *const vm = &S->vm;
 
     switch (op) {
+    case QX_INT:
+        qrt_int(S, word);
+        return;
+
+    case QX_CONV:
+        qrt_conv(S, word);
+        return;
+
     case QX_LEN: {
         Addr data;
         exec_pushi(vm, (int32_t)qrt_len(exec_popa(vm), &data));
@@ -1077,11 +1374,11 @@ void qrt_x(Session *const S)
 
     case QX_HAS: {
         const Cell v = exec_pop(vm);
-        const uint32_t et = exec_pop(vm).u;
+        const uint32_t how = exec_pop(vm).u, et = how & ~QRT_RAW;
         const Addr cell = exec_popa(vm);
         const Desc str = et == ET_SD ? strg_get(&S->strg, v.u) : (Desc){};
 
-        exec_pushi(vm, qrt_has(S, cell, et, v, str) ? -1 : 0);
+        exec_pushi(vm, qrt_has(S, cell, et, how & QRT_RAW, v, str) ? -1 : 0);
         return;
     }
 

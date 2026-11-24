@@ -1,12 +1,6 @@
-unsupported.qr:2:10: byte is not supported yet
-  var a as byte
-           ^
-unsupported.qr:3:10: short is not supported yet
-  var b as short
-           ^
-unsupported.qr:4:10: long is not supported yet
-  var c as long
-           ^
-unsupported.qr:5:10: uint is not supported yet
-  var u as uint
-           ^
+unsupported.qr:2:1: test is not supported yet
+  test "sums"
+  ^
+unsupported.qr:3:1: assert is not supported yet
+  assert 1 = 1
+  ^

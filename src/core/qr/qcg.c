@@ -92,6 +92,8 @@ static uint8_t qcg_pick(
         return f;
 
     case QY_DOUBLE:
+    case QY_LONG: /* its 8 bytes moved as a double's */
+    case QY_ULONG:
         return d;
 
     case QY_STRING:
@@ -163,12 +165,82 @@ static void qcg_arith(Code *const c, uint8_t *const right, const QType w, const 
     c->iload = c->iloadend = nullptr; /* no longer a load */
 }
 
+/* Integer type t as QX.INT and QX.CONV take it; a float's. */
+static QrtNum qcg_num(const QType t)
+{
+    switch (t) {
+    case QY_BYTE:
+        return QN_I8;
+
+    case QY_SHORT:
+        return QN_I16;
+
+    case QY_LONG:
+        return QN_I64;
+
+    case QY_UBYTE:
+        return QN_U8;
+
+    case QY_USHORT:
+        return QN_U16;
+
+    case QY_UINT:
+        return QN_U32;
+
+    case QY_ULONG:
+        return QN_U64;
+
+    case QY_SINGLE:
+        return QN_F32;
+
+    case QY_DOUBLE:
+        return QN_F64;
+
+    default:
+        return QN_I32;
+    }
+}
+
+/* CALL QX.INT: operator op of type t, wrapped or not; more: a compare's relation, QX_ICA/ICB. */
+static void qcg_xint(
+    Code *const c,
+    const QrtIop op,
+    const QType t,
+    const bool wrap,
+    const uint32_t more
+)
+{
+    code_int(
+        c,
+        QX_INT | (uint32_t)op << QX_OP | (uint32_t)qcg_num(t) << QX_NUM |
+            (uint32_t)wrap << QX_WRAP | more
+    );
+    code_call(c, K_QX);
+}
+
+/* CALL QX.CONV: a from as a to, wrapped or not. */
+static void qcg_xconv(Code *const c, const QType from, const QType to, const bool wrap)
+{
+    code_int(
+        c,
+        QX_CONV | (uint32_t)qcg_num(from) << QX_OP | (uint32_t)qcg_num(to) << QX_TO |
+            (uint32_t)wrap << QX_WRAP
+    );
+    code_call(c, K_QX);
+}
+
+/* Is t's value an int cell's int, compared and computed by the int ops: an integer to 16 bits,
+   an int, a bool, an enum? A uint's bits are no int. */
+static bool qcg_icell(const QType t) { return !qast_wide(t) && t != QY_UINT; }
+
 /* A compare of two values of type w, the right one's load at right (folded when it can be). */
 static void qcg_compare(Code *const c, const QType w, const QKind op, uint8_t *const right)
 {
     const uint8_t m = qcg_mask(op);
 
-    if (w == QY_SINGLE)
+    if (qast_integer(w) && !qcg_icell(w))
+        qcg_xint(c, QI_CMP, w, false, (uint32_t)m << QX_REL);
+    else if (w == QY_SINGLE)
         cg_fcmp(c, m, right);
     else if (w == QY_DOUBLE || w == QY_STRING)
         code_opb(c, w == QY_DOUBLE ? O_D_CMP : O_S_CMP, m);
@@ -328,7 +400,9 @@ static void qcg_string(QCg *const g, const QPiece *s)
 static void qcg_const(QCg *const g, const QExpr *const e, const QType as)
 {
     Code *const c = g->c;
-    const double d = e->type == QY_INT ? (double)e->val.i : e->val.d;
+    const double d = e->type == QY_ULONG     ? (double)(uint64_t)e->val.i
+                     : qast_integer(e->type) ? (double)e->val.i
+                                             : e->val.d;
 
     switch (as) {
     case QY_SINGLE:
@@ -337,8 +411,10 @@ static void qcg_const(QCg *const g, const QExpr *const e, const QType as)
 
         return;
 
-    case QY_DOUBLE: {
-        const uint64_t raw = (Cell){.d = d}.raw;
+    case QY_DOUBLE:
+    case QY_LONG:
+    case QY_ULONG: {
+        const uint64_t raw = as == QY_DOUBLE ? (Cell){.d = d}.raw : (uint64_t)e->val.i;
 
         code_op(c, O_D_LD_K);
         code_dword(c, (uint32_t)raw);
@@ -359,19 +435,88 @@ static void qcg_const(QCg *const g, const QExpr *const e, const QType as)
     }
 }
 
-/* The value on top, of type from, as type to; trunc: a float to an int toward 0. */
-static void qcg_convert(Code *const c, const QType from, const QType to)
+/* QrtKind of a value of type t: an enum's an int. */
+static QrtKind qcg_kind(const QType t)
+{
+    switch (t) {
+    case QY_SINGLE:
+        return QRT_SINGLE;
+
+    case QY_DOUBLE:
+        return QRT_DOUBLE;
+
+    case QY_BOOL:
+        return QRT_BOOL;
+
+    case QY_STRING:
+        return QRT_STRING;
+
+    case QY_UINT:
+        return QRT_UINT;
+
+    case QY_LONG:
+        return QRT_LONG;
+
+    case QY_ULONG:
+        return QRT_ULONG;
+
+    default:
+        return QRT_INT;
+    }
+}
+
+/* Is every value of integer type a one of integer type b? */
+static bool qcg_within(const QType a, const QType b)
+{
+    if (qast_unsigned(a) != qast_unsigned(b))
+        return qast_unsigned(a) && qast_bits(a) < qast_bits(b);
+
+    return qast_bits(a) <= qast_bits(b);
+}
+
+/* An int cell's int of type from (qcg_icell's) as integer type to: Overflow past to's range, by
+   I.CHK8 or I.CHK16 where they check it; wrap keeps to's bits instead. */
+static void qcg_narrow(Code *const c, const QType from, const QType to, const bool wrap)
+{
+    if (!wrap && qcg_within(from, to) && qcg_icell(to))
+        return;
+    if (!wrap && to == QY_UBYTE)
+        code_op(c, O_I_CHK8);
+    else if (!wrap && to == QY_SHORT)
+        code_op(c, O_I_CHK16);
+    else
+        qcg_xconv(c, from, to, wrap);
+}
+
+/* The value on top, of type from, as type to: a float to an integer toward 0, an integer to a
+   narrower one checked, or wrapped in wrap(..). */
+static void qcg_conv(Code *const c, const QType from, const QType to, const bool wrap)
 {
     if (from == to)
         return;
 
     if (to == QY_STRING) {
-        const QrtKind k = from == QY_INT      ? QRT_INT
-                          : from == QY_SINGLE ? QRT_SINGLE
-                          : from == QY_DOUBLE ? QRT_DOUBLE
-                                              : QRT_BOOL;
-        code_int(c, k);
+        code_int(c, qcg_kind(from));
         code_call(c, K_QSTR);
+        return;
+    }
+
+    if (qast_integer(from) && qast_integer(to)) {
+        if (qcg_icell(from))
+            qcg_narrow(c, from, to, wrap);
+        else if (wrap || !qcg_within(from, to) || qast_wide(to) != qast_wide(from))
+            qcg_xconv(c, from, to, wrap);
+
+        return;
+    }
+
+    if (qast_integer(from) && !qcg_icell(from)) { /* a uint, a long or a ulong to a float */
+        qcg_xconv(c, from, to, false);
+        return;
+    }
+
+    if (qast_float(from) && qast_integer(to) && (to != QY_INT || wrap)) {
+        qcg_xconv(c, from, to, wrap);
         return;
     }
 
@@ -385,9 +530,14 @@ static void qcg_convert(Code *const c, const QType from, const QType to)
     }
 
     if (to == QY_SINGLE)
-        code_op(c, from == QY_INT ? O_I_TOF : O_D_TOF);
+        code_op(c, qast_integer(from) ? O_I_TOF : O_D_TOF);
     else
-        code_op(c, from == QY_INT ? O_I_TOD : O_F_TOD);
+        code_op(c, qast_integer(from) ? O_I_TOD : O_F_TOD);
+}
+
+static void qcg_convert(Code *const c, const QType from, const QType to)
+{
+    qcg_conv(c, from, to, false);
 }
 
 /* e's value as type w: a constant made so, else converted. */
@@ -409,15 +559,168 @@ static void qcg_hold(QCg *const g, const QType t, const int32_t by)
         g->strings += (uint32_t)by;
 }
 
+/* An integer operator's QX.INT operator. */
+static QrtIop qcg_iop(const QKind op)
+{
+    switch (op) {
+    case QK_PLUS:
+        return QI_ADD;
+
+    case QK_MINUS:
+        return QI_SUB;
+
+    case QK_STAR:
+        return QI_MUL;
+
+    case QK_DIV:
+        return QI_DIV;
+
+    case QK_MOD:
+        return QI_MOD;
+
+    case QK_POW:
+        return QI_POW;
+
+    case QK_AMP:
+        return QI_AND;
+
+    case QK_BAR:
+        return QI_OR;
+
+    case QK_SHL:
+        return QI_SHL;
+
+    case QK_SHR:
+        return QI_SHR;
+
+    default:
+        return QI_XOR;
+    }
+}
+
+/* Operator op of integer type w other than an int's, or in wrap(..), its operands pushed: an int
+   cell's by the int ops, then its range checked (qcg_narrow), the rest by QX.INT. A shift keeps
+   w's bits; & | ^ stay in w's range. */
+static void qcg_iarith(
+    QCg *const g,
+    uint8_t *const right,
+    const QType w,
+    const QKind op,
+    const bool wrap,
+    const uint32_t cells
+)
+{
+    Code *const c = g->c;
+    const bool bits = op == QK_AMP || op == QK_BAR || op == QK_CARET || op == QK_XOR;
+    const bool checked =
+        op == QK_PLUS || op == QK_MINUS || op == QK_STAR || op == QK_DIV || op == QK_POW;
+
+    if (!qcg_icell(w) && !(bits && w == QY_UINT) && !(op == QK_SHL && w == QY_UINT)) {
+        qcg_xint(c, qcg_iop(op), w, wrap, cells);
+        return;
+    }
+
+    if (wrap && checked) {
+        qcg_xint(c, qcg_iop(op), w, true, 0);
+        return;
+    }
+
+    static const uint8_t qa[] = {
+        [QK_PLUS] = QA_ADD,
+        [QK_MINUS] = QA_SUB,
+        [QK_STAR] = QA_MUL,
+        [QK_DIV] = QA_DIV,
+        [QK_AMP] = QA_AND,
+        [QK_BAR] = QA_OR
+    };
+
+    switch (op) {
+    case QK_PLUS:
+    case QK_MINUS:
+    case QK_STAR:
+    case QK_DIV:
+        qcg_arith(c, right, QY_INT, qa[op]);
+        qcg_narrow(c, QY_INT, w, false);
+        return;
+
+    case QK_POW:
+        code_call(c, K_IPOW);
+        qcg_narrow(c, QY_INT, w, false);
+        return;
+
+    case QK_MOD:
+        code_op(c, O_I_MOD);
+        return;
+
+    case QK_AMP:
+    case QK_BAR:
+        qcg_arith(c, right, QY_INT, qa[op]);
+        return;
+
+    case QK_SHL:
+        code_call(c, K_QSHL);
+
+        if (w != QY_INT && w != QY_UINT)
+            qcg_narrow(c, QY_INT, w, true);
+
+        return;
+
+    case QK_SHR:
+        code_call(c, K_QSHR);
+        return;
+
+    default:
+        code_op(c, O_I_XOR);
+    }
+}
+
+/* An operand of long or ulong w that is an int cell's integer, maybe converted: pushed as that
+   cell, QX.INT widens it. Saves QX.CONV's two ops. */
+static const QExpr *qcg_bycell(const QExpr *e, const QType w)
+{
+    if (e->kind == QE_CONV && !e->wrap && qast_integer(e->a->type))
+        e = e->a;
+
+    return qast_wide(w) && qast_integer(e->type) && qcg_icell(e->type) &&
+                   (w == QY_LONG || qast_unsigned(e->type))
+               ? e
+               : nullptr;
+}
+
+/* Operand e of the binary as w: as its int cell when that saves ops (qcg_bycell). */
+static uint32_t qcg_operand(QCg *const g, const QExpr *const e, const QType w, const uint32_t flag)
+{
+    const QExpr *const cell = e->kind == QE_CONST ? nullptr : qcg_bycell(e, w);
+
+    if (!cell) {
+        qcg_as(g, e, w);
+        return 0;
+    }
+
+    qcg_expr(g, cell);
+    return flag;
+}
+
 static void qcg_binary(QCg *const g, const QExpr *const e)
 {
     Code *const c = g->c;
     const QType w = e->work;
-    qcg_as(g, e->a, w);
+    const bool shift = e->op == QK_SHL || e->op == QK_SHR;
+    uint32_t cells = qcg_operand(g, e->a, w, 1u << QX_ICA);
     qcg_hold(g, w, 1);
     uint8_t *const right = c->out;
-    qcg_as(g, e->b, w);
+
+    if (shift)
+        qcg_as(g, e->b, QY_INT);
+    else
+        cells |= qcg_operand(g, e->b, w, 1u << QX_ICB);
+
     qcg_hold(g, w, -1);
+
+    if (qast_integer(w) && (w != QY_INT || e->wrap) && e->op != QK_SLASH) {
+        qcg_iarith(g, right, w, e->op, e->wrap, cells);
+        return;
+    }
 
     switch (e->op) {
     case QK_PLUS:
@@ -479,12 +782,22 @@ static void qcg_binary(QCg *const g, const QExpr *const e)
 
 static void qcg_unary(QCg *const g, const QExpr *const e)
 {
+    Code *const c = g->c;
+    const QType t = e->type;
     qcg_expr(g, e->a);
 
-    if (e->op == QK_MINUS)
-        code_op(g->c, qcg_pick(e->type, O_I_NEG, O_F_NEG, O_D_NEG, 0));
-    else
-        code_op(g->c, O_I_NOT);
+    if (qast_integer(t) && (!qcg_icell(t) || (e->wrap && e->op == QK_MINUS)))
+        qcg_xint(c, e->op == QK_MINUS ? QI_NEG : QI_NOT, t, e->wrap, 0);
+    else if (e->op == QK_MINUS) {
+        code_op(c, qcg_pick(t, O_I_NEG, O_F_NEG, O_D_NEG, 0));
+
+        if (qast_integer(t))
+            qcg_narrow(c, QY_INT, t, false);
+    } else if (qast_unsigned(t)) { /* ~ of a ubyte or a ushort: its bits flipped */
+        code_int(c, (1u << qast_bits(t)) - 1);
+        code_op(c, O_I_XOR);
+    } else
+        code_op(c, O_I_NOT);
 }
 
 /* Chain item k as the pair's type w: a middle's from its temporary. */
@@ -597,19 +910,63 @@ static bool qcg_byplace(const QCg *const g, const QType t)
     return qcg_rec(g, t) || qcg_list(g, t);
 }
 
-/* Type t's ET_*: a record's ET_REC + its TYPE; a bool's and an enum's ET_I4. */
+uint32_t qcg_scalar_et(const QType t)
+{
+    switch (t) {
+    case QY_SINGLE:
+        return ET_R4;
+
+    case QY_DOUBLE:
+    case QY_LONG:
+    case QY_ULONG:
+        return ET_R8;
+
+    case QY_STRING:
+        return ET_SD;
+
+    case QY_BYTE:
+    case QY_SHORT:
+        return ET_SH;
+
+    case QY_UBYTE:
+        return ET_BY;
+
+    default:
+        return ET_I4;
+    }
+}
+
+/* Type t's ET_*: a record's ET_REC + its TYPE, a scalar's qcg_scalar_et. */
 static uint32_t qcg_et(const QCg *const g, const QType t)
 {
-    if (qcg_rec(g, t))
-        return ET_REC + qcg_ty(g, t)->td;
+    return qcg_rec(g, t) ? ET_REC + qcg_ty(g, t)->td : qcg_scalar_et(t);
+}
 
-    return t == QY_SINGLE ? ET_R4 : t == QY_DOUBLE ? ET_R8 : t == QY_STRING ? ET_SD : ET_I4;
+/* Is t kept in 2 bytes or 1 in a record or a list: N.LD.A, P.REFN? */
+static bool qcg_short(const QCg *const g, const QType t)
+{
+    return qcg_et(g, t) == ET_SH || qcg_et(g, t) == ET_BY;
 }
 
 /* A value of type t's bytes in a record or an array. */
 static uint32_t qcg_size(const QCg *const g, const QType t)
 {
-    return qcg_rec(g, t) ? qcg_ty(g, t)->size : t == QY_DOUBLE ? 8 : t == QY_STRING ? DSZ : 4;
+    switch (qcg_et(g, t)) {
+    case ET_R8:
+        return 8;
+
+    case ET_SD:
+        return DSZ;
+
+    case ET_SH:
+        return 2;
+
+    case ET_BY:
+        return 1;
+
+    default:
+        return qcg_rec(g, t) ? qcg_ty(g, t)->size : 4;
+    }
 }
 
 static QExpr qcg_named(QVar *const v)
@@ -797,12 +1154,33 @@ static void qcg_loadat(QCg *const g, const QExpr *const e)
     if (qcg_byindex(g, e)) {
         const QVar *const v = qcg_listvar(g, e->a);
         qcg_expr(g, e->b);
+
+        if (qcg_short(g, e->type)) {
+            code_opid(c, O_N_LD_A, v->id, false);
+            code_byte(c, 1);
+            code_byte(c, (uint8_t)qcg_et(g, e->type));
+            return;
+        }
+
         code_opid(c, qcg_pick(e->type, O_I_LD_A1, O_F_LD_A1, O_D_LD_A1, O_S_LD_A1), v->id, false);
         return;
     }
 
     qcg_elem(g, e);
     qcg_fieldop(g, false, 0, e->type);
+}
+
+/* A list element's store, the index under the value. */
+static void qcg_storeat(QCg *const g, const QVar *const list, const QType type)
+{
+    if (qcg_short(g, type)) {
+        code_opid(g->c, O_N_ST_A, list->id, false);
+        code_byte(g->c, 1);
+        code_byte(g->c, (uint8_t)qcg_et(g, type));
+        return;
+    }
+
+    code_opid(g->c, qcg_pick(type, O_I_ST_A1, O_F_ST_A1, O_D_ST_A1, O_S_ST_A1), list->id, false);
 }
 
 /* A scalar place's store: what goes before the value (an address, an index), then its op. */
@@ -835,12 +1213,7 @@ static void qcg_put(QCg *const g, const QExpr *const e, const QCgPut p)
     if (p.at)
         qcg_fieldop(g, true, p.off, e->type);
     else if (p.list)
-        code_opid(
-            g->c,
-            qcg_pick(e->type, O_I_ST_A1, O_F_ST_A1, O_D_ST_A1, O_S_ST_A1),
-            p.list->id,
-            false
-        );
+        qcg_storeat(g, p.list, e->type);
     else
         qcg_store(g->c, e->var);
 }
@@ -1045,6 +1418,13 @@ static void qcg_ref(QCg *const g, const QExpr *const a)
     }
 
     const uint32_t off = qcg_addr(g, a);
+
+    if (qcg_short(g, a->type)) { /* its ref tagged: read and written as 2 bytes or 1 */
+        qcg_offset(g, off);
+        code_opb(c, O_P_REFN, (uint8_t)qcg_et(g, a->type));
+        return;
+    }
+
     code_op(c, O_P_REF);
     code_word(c, (uint16_t)off);
 }
@@ -1063,15 +1443,7 @@ static void qcg_print(QCg *const g, const QExpr *const e)
         }
 
         qcg_expr(g, a);
-        const QType t = a->type;
-        code_int(
-            c,
-            t == QY_SINGLE   ? QRT_SINGLE
-            : t == QY_DOUBLE ? QRT_DOUBLE
-            : t == QY_BOOL   ? QRT_BOOL
-            : t == QY_STRING ? QRT_STRING
-                             : QRT_INT
-        );
+        code_int(c, qcg_kind(a->type));
         code_call(c, K_QPR);
     }
 
@@ -1236,12 +1608,7 @@ static void qcg_listop(QCg *const g, const QExpr *const e, const QExpr *const ds
             qcg_recop(g, elem);
         } else {
             qcg_as(g, v, elem);
-            code_opid(
-                c,
-                qcg_pick(elem, O_I_ST_A1, O_F_ST_A1, O_D_ST_A1, O_S_ST_A1),
-                qcg_listvar(g, e->a)->id,
-                false
-            );
+            qcg_storeat(g, qcg_listvar(g, e->a), elem);
         }
 
         if (e->builtin == QB_PUSH)
@@ -1293,22 +1660,12 @@ static void qcg_has(QCg *const g, const QExpr *const e)
 
     const QType elem = qcg_ty(g, e->b->type)->elem;
     qcg_cell(g, e->b);
-    code_int(g->c, qcg_et(g, elem));
+    code_int(g->c, qcg_et(g, elem) | (qast_wide(elem) ? QRT_RAW : 0));
     qcg_as(g, e->a, elem);
     qcg_x(g->c, QX_HAS);
 
     if (e->neg)
         code_op(g->c, O_I_NOT);
-}
-
-/* QrtKind of a value of type t: an enum's an int. */
-static QrtKind qcg_kind(const QType t)
-{
-    return t == QY_SINGLE   ? QRT_SINGLE
-           : t == QY_DOUBLE ? QRT_DOUBLE
-           : t == QY_BOOL   ? QRT_BOOL
-           : t == QY_STRING ? QRT_STRING
-                            : QRT_INT;
 }
 
 /* f"..": its parts joined, each a literal's text, a value's string() or its spec's QX.FMT. */
@@ -1326,7 +1683,7 @@ static void qcg_fstring(QCg *const g, const QExpr *const e)
             qcg_string(g, v->val.s);
         else if (!e->specs[k]) {
             qcg_expr(g, v);
-            qcg_convert(c, qcg_kind(v->type) == QRT_INT ? QY_INT : v->type, QY_STRING);
+            qcg_convert(c, v->type, QY_STRING);
         } else {
             const QPiece spec = {.lit = e->specs[k]};
 
@@ -1515,7 +1872,7 @@ static void qcg_expr(QCg *const g, const QExpr *const e)
 
     case QE_CONV:
         qcg_expr(g, e->a);
-        qcg_convert(g->c, e->a->type, e->type);
+        qcg_conv(g->c, e->a->type, e->type, e->wrap);
         return;
 
     case QE_FIELD:
@@ -1856,10 +2213,16 @@ static void qcg_used(QCg *const g, const QIter *const it, QCgExits *const x)
 
     switch (it->sink) {
     case QZ_SUM: {
+        const QType t = it->acc->type;
         qcg_load(c, it->acc);
         uint8_t *const right = c->out;
-        qcg_as(g, v, it->acc->type);
-        qcg_arith(c, right, it->acc->type, QA_ADD);
+        qcg_as(g, v, t);
+
+        if (qast_integer(t) && t != QY_INT)
+            qcg_iarith(g, right, t, QK_PLUS, false, 0);
+        else
+            qcg_arith(c, right, t, QA_ADD);
+
         qcg_store(c, it->acc);
         return;
     }

@@ -29,13 +29,24 @@
 enum { NAME_ROOM = 200 }; /* a name's bytes kept, its ' and number after */
 
 /* Type t's ET_* and its variables' kind (mem/symbols.h): a record's ET_REC + its TYPE, a list's
-   or an array's its element's, VI_ARR. */
+   or an array's its element's (a short's ET_SH ..), VI_ARR. A scalar variable is a whole cell: a
+   long's 8 bytes, a double's kind; a byte's, a short's .. an int's. */
 static void qlink_kind(const QProg *const p, const QType t, uint32_t *const et, uint8_t *const kind)
 {
     if (qast_array(p, t)) {
         const QType elem = qast_ty(p, t)->elem;
         qlink_kind(p, elem, et, kind);
         *kind = qast_record(p, elem) ? VI_ARR : *kind | VI_ARR;
+
+        if (qast_integer(elem))
+            *et = qcg_scalar_et(elem);
+
+        return;
+    }
+
+    if (qast_wide(t)) {
+        *et = ET_R8;
+        *kind = VK_FLT | SK_DBL;
         return;
     }
 
@@ -133,6 +144,10 @@ static void qlink_lay(Comp *const C, const QProg *const p, const QType t)
             qlink_lay(C, p, elem);
 
         qlink_kind(p, elem, &et, &kind);
+
+        if (qast_integer(elem))
+            et = qcg_scalar_et(elem);
+
         decl_newfield(
             C->decl,
             y->td,

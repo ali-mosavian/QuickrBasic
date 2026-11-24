@@ -16,10 +16,10 @@ types.qr:7:9: + joins two strings: write string(x)
 types.qr:8:11: - takes numbers, not a string
   print("x" - "y")
             ^
-types.qr:9:11: div takes ints, not a double
+types.qr:9:11: div takes integers, not a double
   print(1.5 div 2)
             ^
-types.qr:10:11: & takes ints, not a double
+types.qr:10:11: & takes integers, not a double
   print(1.5 & 1)
             ^
 types.qr:11:12: + takes numbers, not a bool

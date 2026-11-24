@@ -35,6 +35,9 @@ typedef struct {
     uint32_t strings; /* strings on the stack under the value being made */
 } QCg;
 
+/* Scalar type t's ET_* in a record or a list: a byte's ET_SH, as a short's; a ushort's, a
+   uint's ET_I4; a long's, a ulong's ET_R8. */
+uint32_t qcg_scalar_et(QType t);
 /* Statement s's code to g->c, fused, its labels in g->labels: a checked statement (qr/qsem.h),
    its variables and procedures linked. */
 void qcg_stmt(QCg *g, const QStmt *s);

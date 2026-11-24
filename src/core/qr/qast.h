@@ -123,6 +123,7 @@ typedef struct {
     const char *text;
     int64_t i;
     double d;
+    bool big; /* QK_INT past INT64_MAX: i its bits, a ulong's */
 } QTok;
 
 /* The source: every module's lines; the tokens of the lines lexed last, a QK_EOF after them. */
@@ -166,7 +167,14 @@ enum : QType {
     QY_STRING,
     QY_BOOL,
     QY_ERROR, /* an error's: no further error about it */
-    QY_FIRST = 8,
+    QY_BYTE,
+    QY_SHORT,
+    QY_LONG,
+    QY_UBYTE,
+    QY_USHORT,
+    QY_UINT,
+    QY_ULONG,
+    QY_FIRST = 16,
 };
 
 /* A string constant's part: a literal's token. */
@@ -181,6 +189,7 @@ typedef struct {
     int64_t i;
     double d;
     const QPiece *s;
+    bool big; /* an untyped integer past INT64_MAX: i its bits, a ulong's */
 } QVal;
 
 typedef struct QVar QVar;
@@ -451,6 +460,7 @@ struct QExpr {
     bool trunc;   /* QE_CONV: int(x) of a float, toward 0 */
     bool insert;  /* QE_INDEX of a map, assigned: its key added when not there */
     bool done;    /* checked already: a generic call's argument, its T read from it */
+    bool wrap;    /* QE_BINARY, QE_UNARY, QE_CONV in wrap(..): integers wrap, not Overflow */
     QBuiltin builtin;
     const QTok *tok; /* its first token; a binary's, its operator */
     QExpr *a, *b, *c;
@@ -734,9 +744,21 @@ static inline bool qast_fresh(const QExpr *const e)
 }
 /* The text a keyword or punctuation is spelled, for an error. */
 const char *qast_spelling(QKind k);
-static inline bool qast_numeric(const QType t)
+static inline bool qast_integer(const QType t)
 {
-    return t == QY_INT || t == QY_SINGLE || t == QY_DOUBLE;
+    return t == QY_INT || (t >= QY_BYTE && t <= QY_ULONG);
 }
+static inline bool qast_unsigned(const QType t) { return t >= QY_UBYTE && t <= QY_ULONG; }
 static inline bool qast_float(const QType t) { return t == QY_SINGLE || t == QY_DOUBLE; }
+static inline bool qast_numeric(const QType t) { return qast_integer(t) || qast_float(t); }
+/* An integer type's bits. */
+static inline uint32_t qast_bits(const QType t)
+{
+    return t == QY_BYTE || t == QY_UBYTE     ? 8
+           : t == QY_SHORT || t == QY_USHORT ? 16
+           : t == QY_LONG || t == QY_ULONG   ? 64
+                                             : 32;
+}
+/* Is t a long or a ulong: an 8-byte cell, its arithmetic CALL QX's? */
+static inline bool qast_wide(const QType t) { return t == QY_LONG || t == QY_ULONG; }
 #endif

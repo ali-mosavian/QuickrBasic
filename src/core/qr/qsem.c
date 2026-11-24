@@ -303,6 +303,13 @@ static const char *qsem_aname(QSem *const S, const QType t)
         [QY_STRING] = "a string",
         [QY_BOOL] = "a bool",
         [QY_ERROR] = "an error",
+        [QY_BYTE] = "a byte",
+        [QY_SHORT] = "a short",
+        [QY_LONG] = "a long",
+        [QY_UBYTE] = "a ubyte",
+        [QY_USHORT] = "a ushort",
+        [QY_UINT] = "a uint",
+        [QY_ULONG] = "a ulong",
     };
 
     if (t < QY_FIRST)
@@ -614,31 +621,28 @@ static const QBind *qsem_capture(
 
 /* ---- types */
 
-static const char *const qsem_later[] =
-    {"byte", "short", "long", "ubyte", "ushort", "uint", "ulong"};
+/* The scalar types a name may give, and the numbers' conversions. */
+static const QType qsem_scalars[] = {
+    QY_INT,
+    QY_SINGLE,
+    QY_DOUBLE,
+    QY_STRING,
+    QY_BOOL,
+    QY_BYTE,
+    QY_SHORT,
+    QY_LONG,
+    QY_UBYTE,
+    QY_USHORT,
+    QY_UINT,
+    QY_ULONG,
+};
 
-/* A scalar type's name's type, QY_VOID none; later: a later milestone's. */
-static QType qsem_scalar(const QTok *const t, bool *const later)
+/* A scalar type's name's type, QY_VOID none. */
+static QType qsem_scalar(const QTok *const t)
 {
-    static const struct {
-        const char *name;
-        QType type;
-    } types[] = {
-        {"int", QY_INT},
-        {"single", QY_SINGLE},
-        {"double", QY_DOUBLE},
-        {"string", QY_STRING},
-        {"bool", QY_BOOL},
-    };
-
-    *later = false;
-
-    for (uint32_t i = 0; i < countof(types); i++)
-        if (qsem_is(t, types[i].name))
-            return types[i].type;
-
-    for (uint32_t i = 0; i < countof(qsem_later); i++)
-        *later |= qsem_is(t, qsem_later[i]);
+    for (uint32_t i = 0; i < countof(qsem_scalars); i++)
+        if (qsem_is(t, qast_typename(qsem_scalars[i])))
+            return qsem_scalars[i];
 
     return QY_VOID;
 }
@@ -824,16 +828,10 @@ static bool qsem_ismap(const QSem *const S, const QType t)
 /* A type's name: QY_ERROR after saying why when it is none. */
 static QType qsem_typename(QSem *const S, const QTok *const t)
 {
-    bool later;
-    const QType k = qsem_scalar(t, &later);
+    const QType k = qsem_scalar(t);
 
     if (k != QY_VOID)
         return k;
-
-    if (later) {
-        qsem_say(S, t, qsem_text(S, t), " is not supported yet", nullptr);
-        return QY_ERROR;
-    }
 
     const QBind *const b = qsem_find(S, t);
 
@@ -906,8 +904,7 @@ static bool qsem_keyed(QSem *const S, const QExpr *const e)
         return false;
 
     const QBind *const b = qsem_find(S, e->tok);
-    bool later;
-    return (b && b->ty) || qsem_scalar(e->tok, &later) != QY_VOID || later;
+    return (b && b->ty) || qsem_scalar(e->tok) != QY_VOID;
 }
 
 /* V[K]: a map, K an int, a string or a plain enum. */
@@ -1010,10 +1007,38 @@ static bool qsem_isconst(const QExpr *const e) { return e->kind == QE_CONST; }
 
 static bool qsem_fits_int(const int64_t v) { return v >= INT32_MIN && v <= INT32_MAX; }
 
+/* Does integer v, a ulong's bits when t's or from's (unsigned 64), fit integer type t? */
+static bool qsem_inrange(const int64_t v, const bool big, const QType t)
+{
+    const uint32_t bits = qast_bits(t);
+
+    if (big && (uint64_t)v > INT64_MAX)
+        return t == QY_ULONG;
+    if (qast_unsigned(t))
+        return v >= 0 && (bits == 64 || v < (int64_t)1 << bits);
+
+    return bits == 64 || (v >= -((int64_t)1 << (bits - 1)) && v < (int64_t)1 << (bits - 1));
+}
+
+/* Integer v kept to integer type t's bits, its sign extended: wrap(..)'s. */
+static int64_t qsem_trunc(const int64_t v, const QType t)
+{
+    const uint32_t bits = qast_bits(t);
+
+    if (bits == 64)
+        return v;
+
+    const uint64_t m = ((uint64_t)1 << bits) - 1, u = (uint64_t)v & m;
+    return qast_unsigned(t) || !(u >> (bits - 1)) ? (int64_t)u : (int64_t)(u | ~m);
+}
+
 /* A numeric constant's value as a double. */
 static double qsem_num(const QExpr *const e)
 {
-    return e->type == QY_INT ? (double)e->val.i : e->val.d;
+    if (e->type == QY_ULONG || e->val.big)
+        return (double)(uint64_t)e->val.i;
+
+    return qast_integer(e->type) ? (double)e->val.i : e->val.d;
 }
 
 /* e, constant, its literal's text if it is one, for an error. */
@@ -1037,43 +1062,59 @@ static const QPiece *qsem_cat(QSem *const S, const QPiece *const a, const QPiece
 
 /* ---- types meeting */
 
-/* Can a value of from become a to by itself? */
+/* Can a value of from become a to by itself, losing nothing: a narrower integer to a wider of its
+   sign, an unsigned to a wider signed, an integer to a double, a single to a double? */
 static bool qsem_widens(const QType from, const QType to)
 {
-    return from == to || (to == QY_DOUBLE && (from == QY_INT || from == QY_SINGLE));
+    if (from == to)
+        return true;
+    if (to == QY_DOUBLE)
+        return qast_integer(from) || from == QY_SINGLE;
+    if (!qast_integer(from) || !qast_integer(to) || qast_bits(from) >= qast_bits(to))
+        return false;
+
+    return qast_unsigned(from) == qast_unsigned(to) || qast_unsigned(from);
 }
 
 /* Does untyped constant e fit type to? */
 static bool qsem_fits(const QExpr *const e, const QType to)
 {
     if (e->type == QY_INT)
-        return to == QY_INT ? qsem_fits_int(e->val.i) : qast_numeric(to);
+        return qast_integer(to) ? qsem_inrange(e->val.i, e->val.big, to) : qast_numeric(to);
     if (to == QY_SINGLE)
         return e->val.d <= QSEM_FLT_MAX && e->val.d >= -QSEM_FLT_MAX;
 
     return to == QY_DOUBLE;
 }
 
-/* The type two numeric values meet in; an untyped constant takes the other's type if it fits. */
+/* The type two numeric values meet in: one's when the other widens to it; an untyped constant
+   takes the other's type, an integer's even when it doesn't fit (an error then). Floats meet in
+   double, int and single too; integers neither of which widens keep a's, b's mismatch said. */
 static QType qsem_meet(const QExpr *const a, const QExpr *const b)
 {
     if (a->untyped && b->untyped)
         return a->type == QY_DOUBLE || b->type == QY_DOUBLE ? QY_DOUBLE : QY_INT;
-    if (a->untyped)
-        return qsem_fits(a, b->type) ? b->type : QY_DOUBLE;
-    if (b->untyped)
-        return qsem_fits(b, a->type) ? a->type : QY_DOUBLE;
-    if (a->type == b->type)
+    if (a->untyped && (qsem_fits(a, b->type) || (a->type == QY_INT && qast_integer(b->type))))
+        return b->type;
+    if (b->untyped && (qsem_fits(b, a->type) || (b->type == QY_INT && qast_integer(a->type))))
+        return a->type;
+    if (a->untyped || b->untyped)
+        return QY_DOUBLE;
+    if (qsem_widens(a->type, b->type))
+        return b->type;
+    if (qsem_widens(b->type, a->type))
+        return a->type;
+    if (qast_integer(a->type) && qast_integer(b->type))
         return a->type;
 
-    return QY_DOUBLE; /* int and single meet there too */
+    return QY_DOUBLE;
 }
 
 /* An untyped constant as type to: its value converted. */
 static void qsem_retype(QExpr *const e, const QType to)
 {
-    if (e->type == QY_INT && to != QY_INT)
-        e->val.d = (double)e->val.i;
+    if (e->type == QY_INT && !qast_integer(to))
+        e->val.d = qsem_num(e);
     if (to == QY_SINGLE)
         e->val.d = (double)(float)e->val.d;
 
@@ -1081,26 +1122,35 @@ static void qsem_retype(QExpr *const e, const QType to)
     e->untyped = false;
 }
 
-/* Numeric constant e converted to to, folded: int by truncation, with its range checked. */
+/* Numeric constant e converted to to, folded: an integer by truncation, its range checked, or
+   kept to to's bits in wrap(..). */
 static QExpr *qsem_fold_conv(QSem *const S, QExpr *const e, const QType to)
 {
-    if (to == QY_INT && e->type == QY_INT && !qsem_fits_int(e->val.i)) {
-        qsem_say(S, e->tok, qsem_what(S, e), " doesn't fit an int", nullptr);
+    const bool big = e->type == QY_ULONG || e->val.big;
+
+    if (qast_integer(to) && qast_integer(e->type) && e->wrap)
+        e->val.i = qsem_trunc(e->val.i, to);
+
+    if (qast_integer(to) && qast_integer(e->type) && !qsem_inrange(e->val.i, big, to)) {
+        qsem_say(S, e->tok, qsem_what(S, e), " doesn't fit ", qsem_aname(S, to), nullptr);
         e->type = QY_ERROR;
         return e;
     }
 
-    if (to == QY_INT && e->type != QY_INT) {
-        const double d = e->val.d;
+    if (qast_integer(to) && !qast_integer(e->type)) {
+        const double d = e->val.d, top = 9223372036854775808.0; /* 2^63 */
+        const bool high = to == QY_ULONG && d >= top && d < 2 * top;
+        const bool ok = high || (d >= -top && d < top);
+        const int64_t v = high ? (int64_t)(uint64_t)d : ok ? (int64_t)d : 0;
 
-        if (!(d > -2147483649.0 && d < 2147483648.0)) {
-            qsem_say(S, e->tok, qsem_what(S, e), " doesn't fit an int", nullptr);
+        if (!ok || !qsem_inrange(v, high, to)) {
+            qsem_say(S, e->tok, qsem_what(S, e), " doesn't fit ", qsem_aname(S, to), nullptr);
             e->type = QY_ERROR;
             return e;
         }
 
-        e->val.i = (int64_t)d;
-    } else if (to != QY_INT) {
+        e->val.i = v;
+    } else if (!qast_integer(to)) {
         e->val.d = qsem_num(e);
 
         if (to == QY_SINGLE)
@@ -1118,7 +1168,7 @@ static QExpr *qsem_settle(QSem *const S, QExpr *const e)
     if (!e->untyped)
         return e;
 
-    if (e->type == QY_INT && !qsem_fits_int(e->val.i)) {
+    if (e->type == QY_INT && (e->val.big || !qsem_fits_int(e->val.i))) {
         qsem_say(S, e->tok, qsem_what(S, e), " doesn't fit an int", nullptr);
         e->type = QY_ERROR;
     }
@@ -1180,7 +1230,7 @@ static QExpr *qsem_coerce(QSem *const S, QExpr *const e, const QType to)
             return e;
         }
 
-        if (qast_numeric(to) && (to != QY_INT || e->type == QY_INT)) {
+        if (qast_numeric(to) && (!qast_integer(to) || e->type == QY_INT)) {
             qsem_say(S, e->tok, qsem_what(S, e), " doesn't fit ", qsem_aname(S, to), nullptr);
             e->type = QY_ERROR;
             return e;
@@ -1200,6 +1250,9 @@ static QExpr *qsem_coerce(QSem *const S, QExpr *const e, const QType to)
     return e;
 }
 
+/* A sum of t's: an integer narrower than an int's an int, as it widens to. */
+static QType qsem_sumof(const QType t) { return qast_integer(t) && qast_bits(t) < 32 ? QY_INT : t; }
+
 /* ---- operators */
 
 static bool qsem_arith(const QKind op)
@@ -1207,16 +1260,21 @@ static bool qsem_arith(const QKind op)
     return op == QK_PLUS || op == QK_MINUS || op == QK_STAR || op == QK_SLASH || op == QK_POW;
 }
 
-/* An int operator's (div, mod, bits) constant result, as the VM's; false: an error said. */
+/* An integer operator's (div, mod, bits) constant result in type w, as the VM's; false: an error
+   said. */
 static bool qsem_ifold(
     QSem *const S,
     const QExpr *const e,
     const int64_t a,
     const int64_t b,
+    const QType w,
     int64_t *const r
 )
 {
-    const uint32_t ua = (uint32_t)a;
+    const uint32_t bits = qast_bits(w);
+    const uint64_t ua = qast_unsigned(w) ? (uint64_t)a
+                                         : (uint64_t)qsem_trunc(a, w) &
+                                               (bits == 64 ? ~0ull : ((uint64_t)1 << bits) - 1);
 
     switch (e->op) {
     case QK_DIV:
@@ -1226,8 +1284,13 @@ static bool qsem_ifold(
             return false;
         }
 
-        if (a == INT32_MIN && b == -1) {
-            qsem_say(S, e->tok, "the value doesn't fit an int", nullptr);
+        if (w == QY_ULONG) {
+            *r = (int64_t)(e->op == QK_DIV ? (uint64_t)a / (uint64_t)b : (uint64_t)a % (uint64_t)b);
+            return true;
+        }
+
+        if (a == INT64_MIN && b == -1) {
+            qsem_say(S, e->tok, "the value doesn't fit ", qsem_aname(S, w), nullptr);
             return false;
         }
 
@@ -1246,67 +1309,79 @@ static bool qsem_ifold(
         *r = a ^ b;
         return true;
 
-    default: /* << >> */
-        if (b < 0 || b > 31) {
-            qsem_say(S, e->tok, "a shift's count is 0 to 31", nullptr);
+    default: /* << >>: the bits shifted out dropped */
+        if (b < 0 || b >= bits) {
+            qsem_say(S, e->tok, "a shift's count is 0 to ", qsem_uint(S, bits - 1), nullptr);
             return false;
         }
 
-        *r = e->op == QK_SHL ? (int32_t)(ua << b) : (int32_t)(a < 0 ? ~(~ua >> b) : ua >> b);
+        if (e->op == QK_SHL)
+            *r = qsem_trunc((int64_t)(ua << b), w);
+        else
+            *r = qast_unsigned(w) || a >= 0 ? (int64_t)((uint64_t)a >> b) : ~(~a >> b);
+
         return true;
     }
 }
 
-/* |v| under 2^bits. */
-static bool qsem_small(const int64_t v, const uint32_t bits)
-{
-    const int64_t lim = (int64_t)1 << bits;
-    return v > -lim && v < lim;
-}
-
-/* + - * ** of int constants, exact; false: too large, said. */
+/* + - * ** of integer constants of type w (QY_INT for untyped ones), exact; in wrap(..), w's bits
+   kept. false: too large, said. */
 static bool qsem_iarith(
     QSem *const S,
     const QExpr *const e,
     const int64_t a,
     const int64_t b,
+    const QType w,
     int64_t *const r
 )
 {
-    bool ok = qsem_small(a, 32) && qsem_small(b, 32);
+    const bool u = w == QY_ULONG;
+    bool over = false;
+    uint64_t ur = 0;
 
     switch (e->op) {
     case QK_PLUS:
-        *r = a + b;
+        over = u ? __builtin_add_overflow((uint64_t)a, (uint64_t)b, &ur)
+                 : __builtin_add_overflow(a, b, r);
         break;
 
     case QK_MINUS:
-        *r = a - b;
+        over = u ? __builtin_sub_overflow((uint64_t)a, (uint64_t)b, &ur)
+                 : __builtin_sub_overflow(a, b, r);
         break;
 
     case QK_STAR:
-        *r = a * b;
+        over = u ? __builtin_mul_overflow((uint64_t)a, (uint64_t)b, &ur)
+                 : __builtin_mul_overflow(a, b, r);
         break;
 
     default: { /* **: the VM's, 0 for a negative power but of 1 and -1 */
-        int64_t p = 1;
+        uint64_t p = 1;
+        const bool small = a == 0 || a == 1 || (!u && a == -1) || (!u && b < 0);
 
-        if (b < 0)
-            p = a == 1 ? 1 : a == -1 ? (b & 1 ? -1 : 1) : 0;
+        if (small) /* |a| > 1 else: past 64 bits within 64 */
+            p = (uint64_t)(a == 1 || !b ? 1 : a == -1 ? (b & 1 ? -1 : 1) : 0);
 
-        for (int64_t i = 0; i < b && ok; i++) {
-            ok = qsem_small(p, 32);
-            p *= a;
-        }
+        for (uint64_t i = 0; !small && i < (uint64_t)b && !over; i++)
+            over = u ? __builtin_mul_overflow(p, (uint64_t)a, &p)
+                     : __builtin_mul_overflow((int64_t)p, a, (int64_t *)&p);
 
-        *r = p;
+        ur = p;
+        *r = (int64_t)p;
     }
     }
 
-    if (!ok)
+    if (u || e->op == QK_POW)
+        *r = (int64_t)ur;
+    if (e->wrap) {
+        *r = qsem_trunc(*r, w);
+        return true;
+    }
+
+    if (over)
         qsem_say(S, e->tok, "the value is too large", nullptr);
 
-    return ok;
+    return !over;
 }
 
 /* + - * / ** of float constants in type t. */
@@ -1362,7 +1437,7 @@ static QExpr *qsem_afold(
         return e;
     }
 
-    if (e->op == QK_POW && w != QY_INT && qsem_num(b) != (double)(int64_t)qsem_num(b)) {
+    if (e->op == QK_POW && !qast_integer(w) && qsem_num(b) != (double)(int64_t)qsem_num(b)) {
         e->a = qsem_coerce(S, a, w); /* a fractional power: the VM's */
         e->b = qsem_coerce(S, b, w);
         e->type = e->work = w;
@@ -1371,14 +1446,14 @@ static QExpr *qsem_afold(
 
     QVal v = {};
 
-    if (w == QY_INT) {
-        if (!qsem_iarith(S, e, a->val.i, b->val.i, &v.i)) {
+    if (qast_integer(w)) {
+        if (!qsem_iarith(S, e, a->val.i, b->val.i, w, &v.i)) {
             e->type = QY_ERROR;
             return e;
         }
 
-        if (!untyped && !qsem_fits_int(v.i)) {
-            qsem_say(S, e->tok, "the value doesn't fit an int", nullptr);
+        if (!untyped && !qsem_inrange(v.i, w == QY_ULONG, w)) {
+            qsem_say(S, e->tok, "the value doesn't fit ", qsem_aname(S, w), nullptr);
             e->type = QY_ERROR;
             return e;
         }
@@ -1414,16 +1489,17 @@ static QExpr *qsem_xor(QSem *const S, QExpr *const e)
     return e;
 }
 
-/* e's operands as ints: div, mod and the bit operators. */
+/* e's operands as integers of one type: div, mod and the bit operators; a shift's count an
+   int. */
 static QExpr *qsem_intop(QSem *const S, QExpr *const e)
 {
-    if (e->a->type != QY_INT || e->b->type != QY_INT) {
-        const QExpr *const bad = e->a->type != QY_INT ? e->a : e->b;
+    if (!qast_integer(e->a->type) || !qast_integer(e->b->type)) {
+        const QExpr *const bad = !qast_integer(e->a->type) ? e->a : e->b;
         qsem_say(
             S,
             e->tok,
             qast_spelling(e->op),
-            " takes ints, not ",
+            " takes integers, not ",
             qsem_aname(S, bad->type),
             nullptr
         );
@@ -1431,9 +1507,11 @@ static QExpr *qsem_intop(QSem *const S, QExpr *const e)
         return e;
     }
 
-    e->a = qsem_coerce(S, e->a, QY_INT);
-    e->b = qsem_coerce(S, e->b, QY_INT);
-    e->type = e->work = QY_INT;
+    const bool shift = e->op == QK_SHL || e->op == QK_SHR;
+    const QType w = shift ? (e->a->untyped ? QY_INT : e->a->type) : qsem_meet(e->a, e->b);
+    e->a = qsem_coerce(S, e->a, w);
+    e->b = qsem_coerce(S, e->b, shift ? QY_INT : w);
+    e->type = e->work = w;
 
     if (e->a->type == QY_ERROR || e->b->type == QY_ERROR) {
         e->type = QY_ERROR;
@@ -1445,12 +1523,12 @@ static QExpr *qsem_intop(QSem *const S, QExpr *const e)
 
     int64_t r;
 
-    if (!qsem_ifold(S, e, e->a->val.i, e->b->val.i, &r)) {
+    if (!qsem_ifold(S, e, e->a->val.i, e->b->val.i, w, &r)) {
         e->type = QY_ERROR;
         return e;
     }
 
-    return qsem_const(S, e->a->tok, QY_INT, (QVal){.i = r});
+    return qsem_const(S, e->a->tok, w, (QVal){.i = r});
 }
 
 static QExpr *qsem_binary(QSem *const S, QExpr *const e)
@@ -1486,7 +1564,7 @@ static QExpr *qsem_binary(QSem *const S, QExpr *const e)
 
     QType w = qsem_meet(a, b);
 
-    if (e->op == QK_SLASH && w == QY_INT)
+    if (e->op == QK_SLASH && qast_integer(w))
         w = QY_DOUBLE;
 
     if (qsem_isconst(a) && qsem_isconst(b)) {
@@ -1528,11 +1606,12 @@ static QExpr *qsem_unary(QSem *const S, QExpr *const e)
     }
 
     if (e->op == QK_TILDE) {
-        e->a = qsem_coerce(S, a, QY_INT);
-        e->type = e->a->type == QY_ERROR ? QY_ERROR : QY_INT;
+        const QType t = qast_integer(a->type) && !a->untyped ? a->type : QY_INT;
+        e->a = qsem_coerce(S, a, t);
+        e->type = e->a->type == QY_ERROR ? QY_ERROR : t;
 
-        if (qsem_isconst(e->a) && e->type == QY_INT)
-            return qsem_const(S, e->tok, QY_INT, (QVal){.i = ~e->a->val.i});
+        if (qsem_isconst(e->a) && e->type == t)
+            return qsem_const(S, e->tok, t, (QVal){.i = qsem_trunc(~e->a->val.i, t)});
 
         return e;
     }
@@ -1543,18 +1622,33 @@ static QExpr *qsem_unary(QSem *const S, QExpr *const e)
         return e;
     }
 
+    if (qast_unsigned(a->type) && !e->wrap) {
+        qsem_say(S, e->tok, "- takes a signed number, not ", qsem_aname(S, a->type), nullptr);
+        e->type = QY_ERROR;
+        return e;
+    }
+
     if (!qsem_isconst(a))
         return e;
 
     a->tok = e->tok;
 
-    if (a->type == QY_INT && !a->untyped && a->val.i == INT32_MIN) {
-        qsem_say(S, e->tok, "the value doesn't fit an int", nullptr);
+    if (a->val.big) {
+        qsem_say(S, e->tok, "the value doesn't fit a long", nullptr);
+        a->type = QY_ERROR;
+        return a;
+    }
+
+    a->val.i = qast_integer(a->type) ? (int64_t)(0 - (uint64_t)a->val.i) : a->val.i;
+    a->val.d = -a->val.d;
+
+    if (qast_integer(a->type) && e->wrap)
+        a->val.i = qsem_trunc(a->val.i, a->type);
+    else if (qast_integer(a->type) && !a->untyped && !qsem_inrange(a->val.i, false, a->type)) {
+        qsem_say(S, e->tok, "the value doesn't fit ", qsem_aname(S, a->type), nullptr);
         a->type = QY_ERROR;
     }
 
-    a->val.i = -a->val.i;
-    a->val.d = -a->val.d;
     return a;
 }
 
@@ -1876,14 +1970,49 @@ static QExpr *qsem_convert(QSem *const S, QExpr *const e, const QType to)
         return e;
     }
 
+    x->wrap |= e->wrap;
+
     if (qsem_isconst(x))
         return qsem_fold_conv(S, x, to);
     if (x->type == to)
         return x;
 
     QExpr *const c = qsem_conv(S, x, to);
-    c->trunc = to == QY_INT;
+    c->trunc = qast_integer(to);
+    c->wrap = e->wrap;
     return c;
+}
+
+/* Unchecked e and what is in it, lambdas aside, marked to wrap. */
+static void qsem_wrapall(QExpr *const e)
+{
+    if (!e || e->kind == QE_LAMBDA)
+        return;
+
+    e->wrap = true;
+    qsem_wrapall(e->a);
+    qsem_wrapall(e->b);
+    qsem_wrapall(e->c);
+
+    for (QArg *a = e->kind == QE_CALL ? e->args : nullptr; a; a = a->next)
+        qsem_wrapall(a->e);
+
+    const bool items = e->kind == QE_CHAIN || e->kind == QE_TUPLE || e->kind == QE_FSTR;
+
+    for (uint32_t k = 0; items && k < e->n; k++)
+        qsem_wrapall(e->items[k]);
+}
+
+/* wrap(e): e's integer arithmetic and conversions keep their type's bits, never Overflow. */
+static QExpr *qsem_wrapped_ops(QSem *const S, QExpr *const e)
+{
+    if (!qsem_plain(S, e, 1)) {
+        e->type = QY_ERROR;
+        return e;
+    }
+
+    qsem_wrapall(e->args->e);
+    return qsem_expr(S, e->args->e, QY_VOID);
 }
 
 /* A mut argument: a var's place (qsem_changes said why not), of the parameter's type. */
@@ -3150,7 +3279,7 @@ static QExpr *qsem_index(QSem *const S, QExpr *const e)
         e->b = qsem_coerce(S, qsem_expr(S, e->b, QY_INT), QY_INT);
         e->kind = QE_CALL;
         e->builtin = QB_BYTE;
-        e->type = e->b->type == QY_ERROR ? QY_ERROR : QY_INT;
+        e->type = e->b->type == QY_ERROR ? QY_ERROR : QY_UBYTE;
         return e;
     }
 
@@ -3585,7 +3714,7 @@ static bool qsem_specok(const QTok *const spec, const QType t)
             return false;
     }
 
-    const char *const types = t == QY_INT ? "bcdoxXneEfFgG%" : qast_float(t) ? "eEfFgGn%" : "s";
+    const char *const types = qast_integer(t) ? "bcdoxXneEfFgG%" : qast_float(t) ? "eEfFgGn%" : "s";
     return p == end || (p + 1 == end && strchr(types, *p));
 }
 
@@ -3884,34 +4013,20 @@ static QExpr *qsem_called(QSem *const S, QExpr *const e, const QBind *const b)
         return e;
     }
 
-    static const struct {
-        const char *name;
-        QType to;
-    } convs[] = {
-        {"int", QY_INT},
-        {"single", QY_SINGLE},
-        {"double", QY_DOUBLE},
-        {"string", QY_STRING},
-    };
-
     if (qsem_is(e->tok, "print"))
         return qsem_print(S, e);
 
-    for (uint32_t i = 0; i < countof(convs); i++)
-        if (qsem_is(e->tok, convs[i].name))
-            return qsem_convert(S, e, convs[i].to);
+    const QType to = qsem_scalar(e->tok);
+
+    if (to != QY_VOID && to != QY_BOOL)
+        return qsem_convert(S, e, to);
 
     if (qsem_is(e->tok, "len"))
         return qsem_len(S, e, nullptr);
     if (qsem_is(e->tok, "copy"))
         return qsem_copy(S, e);
-
-    for (uint32_t i = 0; i < countof(qsem_later); i++)
-        if (qsem_is(e->tok, qsem_later[i])) {
-            qsem_say(S, e->tok, qsem_later[i], "() is not supported yet", nullptr);
-            e->type = QY_ERROR;
-            return e;
-        }
+    if (qsem_is(e->tok, "wrap"))
+        return qsem_wrapped_ops(S, e);
 
     qsem_say(S, e->tok, "unknown fn ", qsem_text(S, e->tok), nullptr);
     e->type = QY_ERROR;
@@ -4842,7 +4957,7 @@ static QExpr *qsem_at_index(QSem *const S, QExpr *const a, QVar *const i)
     e->builtin = a->type == QY_STRING ? QB_BYTE : QB_NONE;
     e->a = a;
     e->b = qsem_nameof(S, i, a->tok);
-    e->type = a->type == QY_STRING ? QY_INT : qast_ty(S->prog, a->type)->elem;
+    e->type = a->type == QY_STRING ? QY_UBYTE : qast_ty(S->prog, a->type)->elem;
     return e;
 }
 
@@ -5210,7 +5325,14 @@ static QType qsem_sink(QSem *const S, QIter *const it, QExpr *const c, QExpr *co
     case QZ_COUNT:
     case QZ_ANY:
     case QZ_ALL:
-        it->acc = qsem_var(S, c->tok, k == QZ_SUM ? t : k == QZ_COUNT ? QY_INT : QY_BOOL, QV_TEMP);
+        it->acc = qsem_var(
+            S,
+            c->tok,
+            k == QZ_SUM     ? qsem_sumof(t)
+            : k == QZ_COUNT ? QY_INT
+                            : QY_BOOL,
+            QV_TEMP
+        );
         it->result = qsem_nameof(S, it->acc, c->tok);
         return it->acc->type;
 

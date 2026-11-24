@@ -321,6 +321,7 @@ static QExpr *qpar_primary(QPar *const P)
         e->type = t->kind == QK_INT ? QY_INT : QY_DOUBLE;
         e->val.i = t->i;
         e->val.d = t->d;
+        e->val.big = t->big;
         return e;
     }
 

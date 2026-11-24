@@ -6,7 +6,8 @@
 
 enum { QRT_TXT = 32 }; /* qrt_text's text at most */
 
-/* A value's kind as CALL QPR prints it and QSTR spells it; QRT_SPACE: a space, no value. */
+/* A value's kind as CALL QPR prints it and QSTR spells it; QRT_SPACE: a space, no value. An int
+   cell's integer is QRT_INT's, but a uint's; a long's and a ulong's are 8 bytes. */
 typedef enum : uint8_t {
     QRT_INT,
     QRT_SINGLE,
@@ -14,7 +15,49 @@ typedef enum : uint8_t {
     QRT_BOOL,
     QRT_STRING,
     QRT_SPACE,
+    QRT_UINT,
+    QRT_LONG,
+    QRT_ULONG,
 } QrtKind;
+
+/* A number as QX.INT and QX.CONV take it: an integer's bits and sign, in an int cell to 32 bits
+   (a uint's bits as they are), in 8 bytes for 64; a float's. */
+typedef enum : uint8_t {
+    QN_I8,
+    QN_I16,
+    QN_I32,
+    QN_I64,
+    QN_U8,
+    QN_U16,
+    QN_U32,
+    QN_U64,
+    QN_F32,
+    QN_F64,
+} QrtNum;
+
+/* QX.INT's operator: ( a b -- r ), ( a -- r ) for NEG and NOT; CMP's r a flag of its relation, a
+   shift's b an int. */
+typedef enum : uint8_t {
+    QI_ADD,
+    QI_SUB,
+    QI_MUL,
+    QI_DIV,
+    QI_MOD,
+    QI_POW,
+    QI_AND,
+    QI_OR,
+    QI_XOR,
+    QI_SHL,
+    QI_SHR,
+    QI_NEG,
+    QI_NOT,
+    QI_CMP,
+} QrtIop;
+
+/* QX's operand: its routine in the low byte, then a routine's own: QX.INT's operator, number,
+   wrap, relation (num/double.h's DC_* mask) and which operands are int cells, widened there;
+   QX.CONV's from, to and wrap. */
+enum { QX_OP = 8, QX_NUM = 12, QX_WRAP = 16, QX_REL = 17, QX_ICA = 20, QX_ICB = 21, QX_TO = 12 };
 
 /* CALL QX's routines, its operand on top ( args.. op -- results ): a list's, by its cell and its
    elements' ET_* (cell et); an f-string's value by its spec. Each takes the cell again after
@@ -35,7 +78,12 @@ typedef enum : uint8_t {
     QX_SLICE,  /* ( s a b -- t ): s's bytes from a up to b, each clamped to s */
     QX_LSLICE, /* ( a b src dst -- ): dst a new list, src's elements from a up to b, clamped */
     QX_FNCALL, /* ( args.. proc -- ): a call of procedure proc, as PCALL's */
+    QX_INT,    /* an integer's operator (QrtIop) the int ops don't have: Overflow past its range */
+    QX_CONV,   /* ( v -- w ): a number converted: Overflow when it doesn't fit, unless wrapped */
 } QrtX;
+
+/* QX.HAS's et with it: elements compared by their 8 bytes, a long's. */
+enum { QRT_RAW = 0x1000 };
 
 /* QX_MAPAT's how when the key is not there: Subscript out of range, made with an empty value, or
    the address 0. */

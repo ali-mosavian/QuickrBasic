@@ -112,7 +112,7 @@ end while
 | `ubyte` `ushort` `uint` `ulong` | the same widths, unsigned |
 | `single` | 32-bit floating point |
 | `double` | 64-bit floating point |
-| `string` | bytes, immutable; `s[i]` is a byte, `s[1..3]` a slice |
+| `string` | bytes, immutable; `s[i]` is a `ubyte`, `s[1..3]` a slice |
 | `T[]` | a list: grows, zero-based |
 | `T[n]` | a fixed array of `n`, inline in its record |
 | `V[K]` | a map from `K` to `V` |
@@ -138,8 +138,20 @@ end while
   doesn't fit is a compile error. Alone, `2.5` is a `double` and `7` is an `int`.
 - Every size is the same on every target, so a record laid out for a file reads the same
   everywhere.
-- Integer overflow is a runtime error, Overflow. **Open:** `wrap(a + b)` to ask for wrapping
-  where it is wanted, such as in hashes and random numbers.
+- Integer overflow is a runtime error, Overflow, and so is a conversion that loses the value:
+  `ubyte(300)`. `wrap(x)` asks for wrapping, keeping each operation and conversion in `x` to its
+  type's bits, for hashes and random numbers: `h = wrap((h ^ c) * 16777619)`.
+- `-` of an unsigned value is a compile error outside `wrap`. A shift keeps its type's bits,
+  dropping those shifted out; its count is 0 up to the type's bits, else Illegal function call.
+- `sum()` of a list of bytes or shorts adds them in an `int`.
+- **In the VM**, an integer to 16 bits and an `int` live in an int cell and compute with the int
+  ops, a result's range then checked. A `uint`'s bits are in an int cell too, its arithmetic by
+  CALL QX. A `long` and a `ulong` are 8-byte cells loaded and stored by the double ops, raw;
+  their arithmetic, compares and conversions are CALL QX, two ops each. An `int` added to a
+  `long` is widened inside that call. The longs bench runs QBasic's ops and 2.1x its native
+  instructions, a double's sum of the same values.
+- **In the VM**, a record's or a list's `byte` takes 2 bytes and a `ushort` 4, as the VM has no
+  signed 8-bit or unsigned 16-bit element; a file layout with them is read field by field.
 
 ### Ownership
 
@@ -474,7 +486,7 @@ if key in ("q", "x") then break
   (`s[1..3]`, `a[..n]`, `a[n..]`) and `in`'s: `if x in 0..w then`.
 - A slice is a new value: a string's a new string, a list's a new list of copies. Its ends are
   clamped to the elements, so `s[..100]` of a shorter `s` is all of it. `s[i]` past the end is
-  Subscript out of range. Until `ubyte` exists, `s[i]` is an `int` from 0 to 255.
+  Subscript out of range. `s[i]` is a `ubyte`.
 - `match` also takes `case 3 to 5` and `case is > 7`, as SELECT CASE does.
 - A `for` over a range counts in `int`s. Its counter can't be assigned, and a constant step of 0
   is a compile error.

@@ -24,8 +24,7 @@
 #include "qr/qlex.h"
 #include "plat/pfpu.h"
 
-enum : uint64_t { I64_TENTH = 922337203685477580ull }; /* INT64_MAX / 10 */
-enum { MANT_DIGITS = 19 };                             /* a real's digits kept, past them dropped */
+enum { MANT_DIGITS = 19 }; /* a real's digits kept, past them dropped */
 
 typedef struct {
     QSrc *src;
@@ -173,9 +172,7 @@ static uint32_t qlex_digits(
         if (d == base)
             return n;
 
-        const uint64_t lim = base == 10 ? I64_TENTH : (uint64_t)INT64_MAX / base;
-
-        if (*v > lim || *v * base > (uint64_t)INT64_MAX - d)
+        if (*v > UINT64_MAX / base || *v * base > UINT64_MAX - d)
             *over = true;
         else
             *v = *v * base + d;
@@ -293,8 +290,10 @@ static void qlex_number(QLex *const L, const uint32_t from)
 
     if (kind == QK_REAL)
         t->d = qlex_real(L, from, &over);
-    else
+    else {
         t->i = (int64_t)v;
+        t->big = v > INT64_MAX;
+    }
 
     if (over)
         qlex_bad(L, t, "number {} too large");

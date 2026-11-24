@@ -1,0 +1,21 @@
+ints.qr:7:11: a ubyte is not a byte: write byte(x)
+  print(b + ub)
+            ^
+ints.qr:8:11: an int is not a uint: write uint(x)
+  print(u + i)
+            ^
+ints.qr:9:21: 200 doesn't fit a byte
+  let small as byte = 200
+                      ^
+ints.qr:10:19: the value doesn't fit a uint
+  let neg as uint = -1
+                    ^
+ints.qr:11:23: an int is not a short: write short(x)
+  let narrow as short = i
+                        ^
+ints.qr:12:19: a uint is not an int: write int(x)
+  let back as int = u
+                    ^
+ints.qr:13:7: - takes a signed number, not a uint
+  print(-u)
+        ^

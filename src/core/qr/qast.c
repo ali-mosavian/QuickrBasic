@@ -57,6 +57,13 @@ const char *qast_typename(const QType t)
         [QY_STRING] = "string",
         [QY_BOOL] = "bool",
         [QY_ERROR] = "an error",
+        [QY_BYTE] = "byte",
+        [QY_SHORT] = "short",
+        [QY_LONG] = "long",
+        [QY_UBYTE] = "ubyte",
+        [QY_USHORT] = "ushort",
+        [QY_UINT] = "uint",
+        [QY_ULONG] = "ulong",
     };
 
     return t < countof(names) ? names[t] : "a type";

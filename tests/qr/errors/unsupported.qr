@@ -1,5 +1,3 @@
 ' later milestones' features: a clear error each
-var a as byte
-var b as short
-var c as long
-var u as uint
+test "sums"
+assert 1 = 1
