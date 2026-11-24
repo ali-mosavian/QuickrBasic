@@ -134,7 +134,20 @@ typedef struct {
     QFn **values; /* fns named as values: what a call through one may run */
     uint32_t nvalues, capvalues;
     uint32_t walks; /* qsem_writer's searches */
+    QScopeAt *at;   /* the last statement's names in sight, QProg.keep */
 } QSem;
+
+/* The names in sight at a statement: its fn's, a block's, the modules' (QSemKeep's). */
+struct QScopeAt {
+    QFn *fn;
+    QBind *binds;
+    uint32_t n;
+};
+
+struct QSemKeep {
+    QScope *scopes;
+    uint32_t nscopes;
+};
 
 static QExpr *qsem_expr(QSem *S, QExpr *e, QType hint);
 static QExpr *qsem_coerce(QSem *S, QExpr *e, QType to);
@@ -6557,9 +6570,35 @@ static const QStmt *qsem_ifof(const QStmt *const s)
     return nullptr;
 }
 
+/* The bindings in sight now, the last statement's kept when they are the same. */
+static QScopeAt *qsem_sight(QSem *const S)
+{
+    const uint32_t lo = S->hidelo < S->hidehi ? S->hidelo : S->nbinds;
+    const uint32_t hi = S->hidelo < S->hidehi ? S->hidehi : S->nbinds;
+    const uint32_t n = S->nbinds - (hi - lo);
+    QScopeAt *const was = S->at;
+
+    if (was && was->fn == S->fn && was->n == n &&
+        !memcmp(was->binds, S->binds, lo * sizeof *S->binds) &&
+        !memcmp(was->binds + lo, S->binds + hi, (n - lo) * sizeof *S->binds))
+        return was;
+
+    QScopeAt *const at = qast_alloc(S->mem, sizeof *at);
+    *at = (QScopeAt){.fn = S->fn,
+                     .n = n,
+                     .binds = qast_alloc(S->mem, (n ? n : 1) * sizeof *S->binds)};
+
+    memcpy(at->binds, S->binds, lo * sizeof *S->binds);
+    memcpy(at->binds + lo, S->binds + hi, (n - lo) * sizeof *S->binds);
+    return S->at = at;
+}
+
 static void qsem_stmt(QSem *const S, QStmt *const s)
 {
     s->own = qsem_frame(S);
+
+    if (S->prog->keep)
+        s->at = qsem_sight(S);
 
     switch (s->kind) {
     case QS_IF:
@@ -7346,4 +7385,41 @@ void qsem_program(QProg *const p, QMem *const m)
     qsem_moved(&S);
     qsem_atend(&S);
     qsem_tests(&S);
+
+    if (!p->keep)
+        return;
+
+    p->sem = qast_alloc(m, sizeof *p->sem);
+    *p->sem = (QSemKeep){.scopes = S.scopes, .nscopes = S.nscopes};
+}
+
+bool qsem_probe(QProg *const p, QMem *const m, const QScopeAt *const at, QStmt *const s)
+{
+    const uint32_t errs = p->errs.n;
+    QSem S = {
+        .prog = p,
+        .mem = m,
+        .scopes = p->sem->scopes,
+        .nscopes = p->sem->nscopes,
+    };
+
+    for (S.lastvar = p->vars; S.lastvar && S.lastvar->next; S.lastvar = S.lastvar->next)
+        ;
+
+    qsem_push(&S);
+
+    if (at) { /* as they were: a block's name over an outer one's */
+        S.binds = at->binds;
+        S.nbinds = S.capbinds = at->n;
+    }
+
+    S.fn = at ? at->fn : nullptr;
+    qsem_push(&S);
+
+    if (s->kind == QS_CALL || s->kind == QS_ASSIGN)
+        qsem_stmt(&S, s);
+    else
+        qsem_say(&S, s->tok, "only a call or an assignment runs here", nullptr);
+
+    return p->errs.n == errs;
 }

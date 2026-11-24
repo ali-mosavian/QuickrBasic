@@ -201,6 +201,9 @@ typedef struct QLam QLam;
 typedef struct QCap QCap;
 typedef struct QExpr QExpr;
 typedef struct QStmt QStmt;
+/* The names in sight at a statement, and qsem's own kept past its pass: the debugger's (qsem.c). */
+typedef struct QScopeAt QScopeAt;
+typedef struct QSemKeep QSemKeep;
 typedef struct QIter QIter;
 
 /* A frame's owners of values with drop, a fn's or the modules': its lets and vars, in order, each
@@ -691,6 +694,7 @@ struct QStmt {
     QImport *imps;  /* QS_IMPORT's modules; QS_FROM's module */
     QImport *names; /* QS_FROM's */
     QOwners *own;   /* its frame's: a fn's, or the modules' */
+    const QScopeAt *at; /* the names in sight at it, QProg.keep */
 };
 
 /* A file: a module. Its path as found, its lines (from first), its tokens (base: the first's
@@ -722,6 +726,8 @@ typedef struct {
     uint32_t nruns, capruns;
     QStmt *testend;
     QVar *failed, *passes, *fails; /* the test running's; the tally */
+    bool keep;                     /* the debugger's: each statement's names in sight kept */
+    QSemKeep *sem;
 } QProg;
 
 /* ---- helpers */

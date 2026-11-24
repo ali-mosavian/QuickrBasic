@@ -193,9 +193,21 @@ static void restore(Session *const S, const Saved *const s)
     S->chnl.out = s->out;
 }
 
-/* Run pre then text as the direct line, its output to cons.sbuf, under its own catch: its error,
-   else ST_OK. */
-static Status run_probe(Session *const S, const char *const pre, const char *const text)
+/* The direct line's code from cons.inbuf's QBasic statement. */
+static void comp_code(Session *const S)
+{
+    lexr_line(&S->lexr, S->cons.inbuf, S->comp.cbuf);
+    comp_line(&S->comp);
+}
+
+/* Run pre then text as the direct line, code's, its output to cons.sbuf, under its own catch: its
+   error, else ST_OK. */
+static Status run_probe(
+    Session *const S,
+    DbugCode *const code,
+    const char *const pre,
+    const char *const text
+)
 {
     const size_t n = strlen(pre);
     memcpy(S->cons.inbuf, pre, n);
@@ -206,8 +218,7 @@ static Status run_probe(Session *const S, const char *const pre, const char *con
 
     if (!setjmp(c.jb)) {
         S->dbug.probing = true;
-        lexr_line(&S->lexr, S->cons.inbuf, S->comp.cbuf);
-        comp_line(&S->comp);
+        code(S);
         S->vm.ip = flow_dcode(S);
         S->vm.rsp = S->vm.sp;
         S->vm.running = false;
@@ -221,6 +232,7 @@ static Status run_probe(Session *const S, const char *const pre, const char *con
 /* pre then text run as the probe's line in procedure proc's scope: dbug_eval's, dbug_exec's. */
 static Status probe(
     Session *const S,
+    DbugCode *const code,
     const char *const pre,
     const char *const text,
     const uint32_t proc,
@@ -236,7 +248,7 @@ static Status probe(
     S->evnt.on = false;
     S->cons.capture = CAP_SBUF;
     S->cons.sblen = 0;
-    const Status st = run_probe(S, pre, text);
+    const Status st = run_probe(S, code, pre, text);
     const uint32_t n = S->cons.sblen < PROBE_OUT_MAX ? S->cons.sblen : PROBE_OUT_MAX;
     memcpy(out, S->cons.sbuf, n);
     out[n] = 0;
@@ -248,12 +260,23 @@ static Status probe(
 
 Status dbug_eval(Session *const S, const char *const expr, const uint32_t proc, char out[static 80])
 {
-    return probe(S, "PRINT ", expr, proc, out);
+    return probe(S, comp_code, "PRINT ", expr, proc, out);
 }
 
 Status dbug_exec(Session *const S, const char *const stmt, const uint32_t proc, char out[static 80])
 {
-    return probe(S, "", stmt, proc, out);
+    return probe(S, comp_code, "", stmt, proc, out);
+}
+
+Status dbug_probe(
+    Session *const S,
+    DbugCode *const code,
+    const char *const text,
+    const uint32_t proc,
+    char out[static 80]
+)
+{
+    return probe(S, code, "", text, proc, out);
 }
 
 void dbug_done(Session *const S) { fault_throw(&S->fault, ST_OK); }

@@ -943,6 +943,38 @@ void uimn_cont(Session *const S)
 }
 
 /* ui_exec: Enter in the immediate window: its line run on the output page. */
+/* A Quickr program's immediate line, len bytes in cons.inbuf: run as Quickr at the stopped
+   statement, else after the program's last line, linked first; an error said in a box, the stop
+   kept. */
+static void quickr_line(Session *const S, const uint16_t len)
+{
+    char line[INMAX + 1];
+    memcpy(line, S->cons.inbuf, len);
+    line[len] = 0;
+
+    if (!(uimn_stopped() && S->qr.prog) && !built(S))
+        return;
+
+    memcpy(S->cons.inbuf, line, len + 1u);
+    S->vm.line = DLINE;
+    const Status st = repl_call(S, session_quickr_line);
+
+    if (st != ST_OK) {
+        const char *const why = session_errtext(S, (uint8_t)st);
+        const size_t n =
+            strlen(why) < sizeof uimn.errmsg - 1 ? strlen(why) : sizeof uimn.errmsg - 1;
+        memcpy(uimn.errmsg, why, n);
+        uimn.errmsg[n] = 0;
+        dlog_err(S, uimn.errmsg);
+        return;
+    }
+
+    upag_out(S);
+    qbrt_where(&ui.crow, &ui.ccol);
+    ui.run_wait = false;
+    ran(S, repl_call(S, repl_direct));
+}
+
 static void exec_line(Session *const S)
 {
     uimn_sync(S);
@@ -950,6 +982,11 @@ static void exec_line(Session *const S)
 
     if (!len)
         return;
+
+    if (text_quickr(S)) {
+        quickr_line(S, len);
+        return;
+    }
 
     upag_out(S);
     qbrt_where(&ui.crow, &ui.ccol);

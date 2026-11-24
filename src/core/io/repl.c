@@ -376,8 +376,13 @@ static void quit(Session *const S)
 
 void repl_run(Session *const S)
 {
-    S->vm.stop = 0; /* a key the editor or READY kept */
     comp_line(&S->comp);
+    repl_direct(S);
+}
+
+void repl_direct(Session *const S)
+{
+    S->vm.stop = 0; /* a key the editor or READY kept */
     flow_dcode(S);
     const uint32_t eol = S->link.eol - S->allo.cache; /* an older direct line's frames: its EOL */
     for (uint32_t i = 0; i < vm_nframes(&S->vm); i++)

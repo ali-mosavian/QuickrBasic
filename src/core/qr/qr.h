@@ -22,6 +22,18 @@ void qr_report(Session *S, uint8_t code);
 /* Runtime error code's message, a Quickr line's: assert's its own. */
 const char *qr_message(const Session *S, uint8_t code);
 
+/* A linked program's checked tree, kept for the debugger's probes till the next link or edit. */
+typedef struct {
+    QMem mem;
+    QProg *prog;
+    char said[80]; /* the last probe's error */
+} QrKeep;
+void qr_forget(QrKeep *k);
+/* cons.inbuf's Quickr line as the direct line's code (comp's), its names as at program line rec's
+   statement (0 or DLINE: the modules', after their last line); a value alone print()ed. The
+   program linked (qr_link). An error: Syntax error raised, its message to qr.said. */
+void qr_direct_code(Session *S, uint32_t rec);
+
 /* The editor's: a Quickr program's lines in the store (LF_QR), each its file's, the main's 0 and
    a module's its module's number (mem/module.h). */
 

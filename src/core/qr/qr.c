@@ -817,29 +817,159 @@ static void qr_end(Session *const S, QProg *const p, QMem *const m)
     p->end = qr_copy(S, p, m, &cap, (QLine){.text = ""}) + 1;
 }
 
+void qr_forget(QrKeep *const k)
+{
+    arena_reset(&k->mem.arena);
+    k->prog = nullptr;
+    k->said[0] = 0;
+}
+
 uint32_t qr_link(Session *const S, QrErr *const e)
 {
-    QMem m = {.fault = &S->fault};
+    QrKeep *const k = &S->qr;
+    qr_forget(k);
+    k->mem = (QMem){.fault = &S->fault};
 
-    arena_init(&m.arena, QR_CHUNK);
-    QProg p = {.errs = {.mem = &m}};
+    arena_init(&k->mem.arena, QR_CHUNK);
+    QMem *const m = &k->mem;
+    QProg *const p = qast_alloc(m, sizeof *p);
+    *p = (QProg){.errs = {.mem = m}, .keep = true};
 
-    qr_enter(&(QrLoad){S, &p, &m, true});
+    qr_enter(&(QrLoad){S, p, m, true});
 
     session_drop(S);
-    qsem_program(&p, &m);
-    qast_sort(&p.errs);
+    qsem_program(p, m);
+    qast_sort(&p->errs);
 
-    if (p.errs.n) {
-        qr_said(&p, &p.errs.at[0], e);
-    } else {
-        qr_end(S, &p, &m);
-        qr_instances(S, &p, &m);
-        qlink_program(&S->comp, &p, &m, S->dbug.emit);
+    if (p->errs.n) {
+        qr_said(p, &p->errs.at[0], e);
+        qr_forget(k);
+        return p->errs.n;
     }
 
+    qr_end(S, p, m);
+    qr_instances(S, p, m);
+    qlink_program(&S->comp, p, m, S->dbug.emit);
+    k->prog = p;
+    return 0;
+}
+
+/* The names in sight at program line rec's statement; null the modules' alone. */
+static const QScopeAt *qr_sight(const QProg *const p, const uint32_t rec)
+{
+    for (const QStmt *s = p->first; rec && rec != DLINE && s; s = s->next)
+        if (p->src.lines[s->line].at == rec && s->at)
+            return s->at;
+
+    return nullptr;
+}
+
+/* The probe's line, cons.inbuf's text: lexed as p's last line, in module mod; its first token. */
+static const QTok *qr_probe_line(
+    Session *const S,
+    QProg *const p,
+    QMem *const m,
+    const uint16_t mod
+)
+{
+    const char *const text = (const char *)S->cons.inbuf;
+    uint32_t cap = p->src.nlines;
+    qr_addline(
+        p,
+        m,
+        &cap,
+        (QLine){
+            .at = DLINE,
+            .text = text,
+            .len = (uint32_t)strlen(text),
+            .mod = mod,
+        }
+
+    );
+    qlex_source(&p->src, p->src.nlines - 1, m, &p->errs);
+    return p->src.toks;
+}
+
+/* Is p's last error a value written alone? */
+static bool qr_alone(const QProg *const p)
+{
+    static const char alone[] = "a value alone";
+    const QErr *const e = p->errs.n ? &p->errs.at[p->errs.n - 1] : nullptr;
+    return e && e->len >= sizeof alone - 1 && !memcmp(e->text, alone, sizeof alone - 1);
+}
+
+/* cons.inbuf's text as print(text). */
+static void qr_printed(Session *const S)
+{
+    static const char pre[] = "print(";
+    uint8_t *const b = S->cons.inbuf;
+    const size_t n = strlen((const char *)b);
+    const size_t room = INMAX - (sizeof pre - 1) - 1;
+    const size_t k = n < room ? n : room;
+    memmove(b + sizeof pre - 1, b, k);
+    memcpy(b, pre, sizeof pre - 1);
+    b[sizeof pre - 1 + k] = ')';
+    b[sizeof pre + k] = 0;
+}
+
+void qr_direct_code(Session *const S, const uint32_t rec)
+{
+    QrKeep *const k = &S->qr;
+    QProg *const p = k->prog;
+    k->said[0] = 0;
+
+    if (!p) {
+        strcpy(k->said, "the program is not linked: run it first");
+        fault_error(&S->fault, E_SN);
+    }
+
+    QMem m = {.fault = &S->fault}; /* the probe's own: dropped after, p as it was */
+    arena_init(&m.arena, QR_CHUNK);
+    const QSrc src = p->src;
+    const QTys tys = p->tys;
+    const QErrs errs = p->errs;
+    QVar *last = p->vars;
+
+    while (last && last->next)
+        last = last->next;
+
+    p->errs.mem = &m;
+    const QScopeAt *const at = qr_sight(p, rec);
+    const uint16_t mod = at && rec && rec != DLINE ? prog_line(&S->prog, rec)->file : 0;
+    QStmt *s = qpar_line(p, &m, qr_probe_line(S, p, &m, mod));
+
+    if (!s && qr_alone(p)) {
+        p->errs.n = errs.n;
+        p->src = src;
+        qr_printed(S);
+        s = qpar_line(p, &m, qr_probe_line(S, p, &m, mod));
+    }
+
+    const bool ok =
+        s && qsem_probe(p, &m, at, s) && p->tys.n == tys.n &&
+        qlink_direct(&S->comp, p, &m, last ? last->next : p->vars, s, addr_of(S->cons.inbuf));
+
+    if (!ok && p->errs.n > errs.n) {
+        const QErr *const e = &p->errs.at[errs.n];
+        const uint32_t n = e->len < sizeof k->said - 1 ? e->len : sizeof k->said - 1;
+        memcpy(k->said, e->text, n);
+        k->said[n] = 0;
+    } else if (!ok) {
+        strcpy(k->said, "this can't run here");
+    }
+
+    if (last)
+        last->next = nullptr;
+    else
+        p->vars = nullptr;
+
+    p->src = src;
+    p->tys = tys;
+    p->errs = errs;
     arena_reset(&m.arena);
-    return p.errs.n;
+
+    if (!ok)
+        fault_error(&S->fault, E_SN);
 }
 
 /* File file's lines, p's only module: lexed and parsed (p->loose), the errors sorted. */

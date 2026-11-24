@@ -79,6 +79,9 @@ void repl_ready(Session *S);
 /* Run the direct line repl_enter left in comp_cbuf: under repl_call, which it ends. */
 [[noreturn]]
 void repl_run(Session *S);
+/* Run the direct line's code, made (comp's buffer): as repl_run. */
+[[noreturn]]
+void repl_direct(Session *S);
 /* CONT from the editor: as repl_run. */
 [[noreturn]]
 void repl_cont(Session *S);

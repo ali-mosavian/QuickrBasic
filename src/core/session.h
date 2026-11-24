@@ -33,6 +33,7 @@
 #include "mem/string.h"
 #include "mem/symbols.h"
 #include "num/random.h"
+#include "qr/qr.h"
 #include "vm/chain.h"
 #include "vm/debug.h"
 #include "vm/devices.h"
@@ -73,6 +74,7 @@ struct Session {
     Natv natv;
     Prog prog;
     ProgUser prog_user;
+    QrKeep qr;
     CompRun comp_run;
     Repl repl;
     Rndm rndm;
@@ -143,6 +145,9 @@ bool session_in_direct(const Session *S);
 Status session_eval(Session *S, const char *expr, uint32_t proc, char out[static 80]);
 /* Statement stmt run so (dbug_exec). */
 Status session_exec(Session *S, const char *stmt, uint32_t proc, char out[static 80]);
+/* cons.inbuf's Quickr line as the direct line's code, at the stopped statement, else after the
+   modules' last line (qr_direct_code). */
+void session_quickr_line(Session *S);
 /* Error code's message, the program's own ON ERROR texts' too. */
 const char *session_errtext(const Session *S, uint8_t code);
 #endif

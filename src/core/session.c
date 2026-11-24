@@ -178,6 +178,17 @@ bool session_in_direct(const Session *const S)
     return false;
 }
 
+/* The stopped run's newest frame, its line 0 none. */
+static DebugFrame session_top(const Session *const S)
+{
+    DebugFrame f = {};
+
+    session_frame(S, 0, &f);
+    return f;
+}
+
+void session_quickr_line(Session *const S) { qr_direct_code(S, session_top(S).line); }
+
 Status session_eval(
     Session *const S,
     const char *const expr,
@@ -200,7 +211,7 @@ Status session_exec(
 
 const char *session_errtext(const Session *const S, const uint8_t code)
 {
-    return emsg_text(S->vm.err.user, code);
+    return code == E_SN && S->qr.said[0] ? S->qr.said : emsg_text(S->vm.err.user, code);
 }
 
 void session_clear(Session *const S)
@@ -229,13 +240,19 @@ void session_drop(Session *const S)
 
 void session_new(Session *const S)
 {
+    qr_forget(&S->qr);
     S->prog.end = PROGBASE;
     symb_reset(&S->symb);
     decl_reset(&S->decl, &S->scop, &S->symb);
     session_drop(S);
 }
 
-static void session_edited(ProgUser *const u) { session_drop(container_of(u, Session, prog_user)); }
+static void session_edited(ProgUser *const u)
+{
+    Session *const S = container_of(u, Session, prog_user);
+    qr_forget(&S->qr);
+    session_drop(S);
+}
 static void session_growing(ProgUser *const u)
 {
     session_clear(container_of(u, Session, prog_user));

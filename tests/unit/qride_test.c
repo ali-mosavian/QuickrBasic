@@ -8,6 +8,7 @@
 #include "session.h"
 #include "comp/suggest.h"
 #include "ui/debuglocals.h"
+#include "ui/debugpane.h"
 #include "ui/debugui.h"
 #include "ui/debugwatch.h"
 #include "ui/edit.h"
@@ -18,6 +19,7 @@
 #include "ui/text.h"
 #include "ui/uimain.h"
 #include "ui/view.h"
+#include "ui/window.h"
 #include "edfix.h"
 #include "unit.h"
 
@@ -324,6 +326,52 @@ TEST(qride_watches_names_as_typed)
     dwat_eval(S);
     CHECK(!strcmp(dwat_row(0), "myX * 2 + y = 12"));
     dwat_del(S, 0);
+    fx_done(S, files);
+}
+
+/* text typed in the immediate window and run; its output in S->cons.sbuf, 0-ended. */
+static const char *immediate(Session *const S, const char *const text)
+{
+    dpan_close(); /* it hides the immediate window */
+    wind_focus(S, W_IMM);
+    fx_type(S, text);
+    S->cons.capture = CAP_SBUF;
+    S->cons.sblen = 0;
+    host_key_push(FX_ENTER);
+    headless_set_stdout_is_screen(1);
+    fx_key(S, FX_ENTER, 0);
+    headless_set_stdout_is_screen(0);
+    pkey_flush();
+    S->cons.capture = 0;
+    S->cons.sbuf[S->cons.sblen] = 0;
+    return (const char *)S->cons.sbuf;
+}
+
+/* The immediate window ran a Quickr program's line as QBasic's, at the module: print(myX) a
+   Syntax error. */
+TEST(qride_immediate_runs_quickr_at_the_stop)
+{
+    fx_open_program(S, "");
+    fx_write_file(
+        "main.bas",
+        DIALECT "var total = 5\n"
+                "fn twice(myX as int) as int\n    let y = myX * 2\n    return y\nend fn\n"
+                "print(twice(3))\n"
+    );
+    uimn_open(S, fx_path_of("main.bas"));
+    CHECK(strchr(immediate(S, "print(total + 1)"), '1'));
+    wind_focus(S, W_ED1);
+    edit_load(S, view_goline(S, fx_line_of(S, "    return y")));
+    udbg_bp(S);
+    captured(S, uimn_run);
+    CHECK(strstr(immediate(S, "print(myX, y, total, \"s\")"), "3 6 5 s"));
+    immediate(S, "total = myX + y");
+    CHECK(strchr(immediate(S, "total"), '9'));
+    immediate(S, "print(nope)");
+    CHECK(!strcmp(uimn.errmsg, "unknown name nope"));
+    CHECK(uimn.stopped);
+    captured(S, uimn_cont);
+    CHECK(!uimn.stopped);
     fx_done(S, files);
 }
 

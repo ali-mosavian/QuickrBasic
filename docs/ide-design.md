@@ -167,6 +167,11 @@ QBasic's otherwise, and a program is one or the other.
 - Locals, Call stack and Watch spell names as typed, without suffixes; a fn's frame shows its name.
   A record in cells opens to its fields as a box does; Quickr's hidden variables are not shown.
   A watch is evaluated as QBasic's, each name given its variable's suffix first.
+- The immediate window runs a Quickr line: a call or an assignment, a value alone printed. Stopped,
+  its names are the stopped statement's; else the modules', after their last line, the program
+  linked first. It runs on the checked program the link keeps (`qr.c`'s `QrKeep`), each statement's
+  names in sight kept by the check; a line needing a list, a record or a generic's new instance of
+  its own can't run there.
 - A run goes through the modules in import order, each module's last line on to the next one's first
   (`qr/qlink.c`), so the store keeps the order the files were read in.
 

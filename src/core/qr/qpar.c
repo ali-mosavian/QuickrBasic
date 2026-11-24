@@ -1610,3 +1610,29 @@ QExpr *qpar_reexpr(QProg *const p, QMem *const m, const QTok *const t)
 
     return qpar_expr(&P);
 }
+
+QStmt *qpar_line(QProg *const p, QMem *const m, const QTok *const t)
+{
+    QPar P = {
+        .prog = p,
+        .mem = m,
+        .t = t,
+        .last = p->first,
+        .lastfn = p->fns,
+    };
+
+    while (P.last && P.last->next)
+        P.last = P.last->next;
+    while (P.lastfn && P.lastfn->next)
+        P.lastfn = P.lastfn->next;
+
+    if (setjmp(P.fail))
+        return nullptr;
+
+    QStmt *const s = qpar_simple(&P);
+
+    if (!qpar_is(&P, QK_NL))
+        qpar_expected(&P, "the line's end");
+
+    return s;
+}

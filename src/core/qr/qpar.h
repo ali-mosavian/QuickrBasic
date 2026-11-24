@@ -12,4 +12,7 @@ QFn *qpar_again(QProg *p, QMem *m, const QFn *f);
 /* The expression at token t parsed again, a fresh tree: a one-line lambda's body where it is
    inlined. Null after an error, which the first parse said. */
 QExpr *qpar_reexpr(QProg *p, QMem *m, const QTok *t);
+/* The line at token t as one simple statement (a call, an assignment ..), on no list. Null after
+   an error, to p->errs. */
+QStmt *qpar_line(QProg *p, QMem *m, const QTok *t);
 #endif

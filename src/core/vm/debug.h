@@ -50,6 +50,10 @@ DebugPos dbug_pos(Session *S, uint32_t line, const uint8_t *code);
 Status dbug_eval(Session *S, const char *expr, uint32_t proc, char out[static 80]);
 /* Statement stmt run as dbug_eval runs its PRINT. */
 Status dbug_exec(Session *S, const char *stmt, uint32_t proc, char out[static 80]);
+/* The direct line's code made from cons.inbuf's text (comp's), errors raised. */
+typedef void DbugCode(Session *S);
+/* Line text, as code makes it, run as dbug_exec runs its statement. */
+Status dbug_probe(Session *S, DbugCode *code, const char *text, uint32_t proc, char out[static 80]);
 /* dbg_evx: the probe's line ended (sc_end, ex_end): back to dbug_eval, ST_OK. An error comes
    back through its catch (dbg_ever). */
 [[noreturn]]

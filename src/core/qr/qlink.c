@@ -666,3 +666,44 @@ void qlink_program(Comp *const C, QProg *const p, QMem *const m, const bool dbg)
     link_check(C);
     C->link->linked = true;
 }
+
+bool qlink_direct(
+    Comp *const C,
+    QProg *const p,
+    QMem *const m,
+    QVar *const from,
+    const QStmt *const s,
+    const Addr text
+)
+{
+    uint32_t k = 0;
+
+    for (QVar *v = from; v; v = v->next, k++) {
+        if (qast_record(p, v->type) || qast_array(p, v->type))
+            return false;
+
+        uint8_t name[12] = "~q"; /* ~q0, ~q1 ..: the next probe's again */
+        uint32_t n = 2;
+        uint32_t et;
+        uint8_t kind;
+
+        for (uint32_t d = k; n == 2 || d; d /= 10)
+            name[n++] = (uint8_t)('0' + d % 10);
+
+        qlink_kind(p, v->type, &et, &kind);
+        const uint32_t id = symb_find_name(C->symb, 0, name, (uint8_t)n);
+        v->id = symb_find_var(C->symb, id, et, kind, 0, false);
+    }
+
+    const QCgEnv env = {
+        .prog = p,
+        .base = text - DLINE - HDR, /* s's line's at is DLINE: its literals at text */
+        .lines = p->src.lines,
+        .sy = C->symb,
+    };
+
+    QCg g = {.env = &env, .mem = m};
+
+    qlink_compile(C, &g, DLINE, s);
+    return true;
+}
