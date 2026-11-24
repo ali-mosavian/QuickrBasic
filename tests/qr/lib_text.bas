@@ -12,3 +12,11 @@ var b as text.Builder
 b.add("ab")
 b.add("cd")
 print b.text(); " "; b
+function read(s as string) as string
+    let r = text.to_int(s)
+    if r is Error then return f"E{r.code}"
+    return f"{r}"
+end function
+print read("42"); " "; read("-17"); " "; read("007"); " "; read("-0")
+print read("2147483647"); " "; read("-2147483648"); " "; read("2147483648"); " "; read("-2147483649"); " "; read("99999999999999999999")
+print read(""); " "; read("-"); " "; read("12a"); " "; read(" 1"); " "; read("1 "); " "; read("+1"); " "; read("1.5")

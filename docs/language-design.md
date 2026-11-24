@@ -977,8 +977,9 @@ dicts and iterables. Everything else is in a module.
 
 - `find(s, sub)` and `find_from(s, sub, start)` give an index from 0, -1 when not there.
 - `number(s) as double` reads as VAL does: what it can't read is 0.
-- `to_int(s) as int or Error` reads a whole decimal number with an optional `-`; anything else,
-  or a number past an `int`, is an error.
+- `to_int(s) as int or Error` reads a whole decimal number with an optional `-`. Anything else,
+  a space or nothing at all too, is an error of code 5, Illegal function call; a number past an
+  `int`, of code 6, Overflow. `text.trim` cuts the spaces first.
 - `Builder` builds a string in parts: `b.add(s)`, then `b.text()`.
 
 `math`:
@@ -1020,7 +1021,7 @@ dicts and iterables. Everything else is in a module.
 - `io.read_line` echoes the line's end, as LINE INPUT does. `io.at(row, col)` counts from 1.
   `io.color(fg, bg = 0)`.
 
-**Not yet:** `text.to_int`. `gfx` waits on the graphics extension; `synth` on `lib/synth.qbx`.
+**Not yet:** `gfx` waits on the graphics extension; `synth` on `lib/synth.qbx`.
 
 ## Building it
 

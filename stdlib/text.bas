@@ -10,6 +10,26 @@ public native function code(s as string) as int
 public native function hex(n as int) as string
 public native function number(s as string) as double
 
+' s as a whole decimal int, an optional - first; anything
+' else an Error, Illegal function call (5); past an int,
+' Overflow (6)
+public function to_int(s as string) as int or Error
+    let first = 1 if len(s) > 0 and s[0] = "-"[0] else 0
+    if len(s) = first then return Error(5, f"no number: {s}")
+    var n as long = 0
+    for i in first..len(s)
+        let c = s[i]
+        if c < "0"[0] or c > "9"[0] then
+            return Error(5, f"no number: {s}")
+        end if
+        n = n * 10 + (c - "0"[0])
+        if n > 2147483648 then return Error(6, f"past an int: {s}")
+    next
+    if first = 1 then return int(-n)
+    if n > 2147483647 then return Error(6, f"past an int: {s}")
+    return int(n)
+end function
+
 ' s's parts between seps; one part, s, when sep is not there
 public function split(s as string, sep as string) as string[]
     var parts as string[]

@@ -1,5 +1,5 @@
 # text Module
-keys: ~quickr text, ~quickr text.find, ~quickr text.find_from, ~quickr text.upper, ~quickr text.lower, ~quickr text.trim, ~quickr text.chr, ~quickr text.code, ~quickr text.hex, ~quickr text.number, ~quickr text.split, ~quickr text.join, ~quickr text.Builder
+keys: ~quickr text, ~quickr text.find, ~quickr text.find_from, ~quickr text.upper, ~quickr text.lower, ~quickr text.trim, ~quickr text.chr, ~quickr text.code, ~quickr text.hex, ~quickr text.number, ~quickr text.to_int, ~quickr text.split, ~quickr text.join, ~quickr text.Builder
 
 Searching, cases, splitting and joining strings.
 
@@ -11,6 +11,7 @@ Searching, cases, splitting and joining strings.
     code(s) as int                 its first character's code
     hex(n) as string               n in hexadecimal
     number(s) as double            the number s spells
+    to_int(s) as int or Error      s as a whole int, else an Error
     split(s, sep) as string[]      the parts between seps
     join(parts, sep) as string     the parts, sep between them
 
@@ -19,6 +20,8 @@ See also [Quickr](quickr index), [io](quickr io)
 ## Details
 A Builder builds a string in parts: b.add(s) each, then b.text()
 takes the whole. split of a string without sep gives one part, s.
+to_int reads digits with an optional - first; anything else, spaces
+too, is Error 5, and a number past an int Error 6.
 
 ## Example
     ' OPTION DIALECT QUICKR
