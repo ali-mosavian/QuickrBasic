@@ -300,10 +300,18 @@ TEST(qride_shows_an_inline_record_by_its_fields)
     udbg_bp(S);
     captured(S, uimn_run);
     dloc_read(S, 0);
+
+    if (dloc_count() == 4) /* Locals keeps a name opened in an earlier test open */
+        dloc_close(S, 1);
+
     CHECK(dloc_count() == 2 && !strcmp(dloc_row(1), "\x10p as Pt"));
     CHECK(dloc_open(S, 1) && dloc_count() == 4);
     CHECK(!strcmp(dloc_row(2), "   .x = 1") && !strcmp(dloc_row(3), "   .y = 2.5"));
     dloc_read(S, 1);
+
+    if (dloc_count() > 1)
+        dloc_close(S, 0);
+
     CHECK(dloc_open(S, 0) && !strcmp(dloc_row(0), "\x1Fg as Pt"));
     CHECK(!strcmp(dloc_row(1), "   .x = 3") && !strcmp(dloc_row(2), "   .y = .5"));
     fx_done(S, files);
