@@ -227,7 +227,7 @@ typedef struct {
 } QOwners;
 
 /* A type as written: a name, T[], T[n], (T, U), T or none, T or Error, function(T) as U,
-   dict[K, V]. */
+   dict[K, V], Name[T, U] (a generic record's, or Name[N] an array's when Name is not generic). */
 typedef enum : uint8_t {
     QX_NAME,
     QX_LIST,
@@ -236,15 +236,17 @@ typedef enum : uint8_t {
     QX_OPT,
     QX_RES,
     QX_FN,
-    QX_DICT
+    QX_DICT,
+    QX_GEN
 } QTypeExKind;
 typedef struct QTypeEx QTypeEx;
 struct QTypeEx {
     QTypeExKind kind;
     const QTok *tok; /* its first token: a name's its name */
-    QTypeEx *elem;   /* a list's, an array's, an or's T, a dict's V; a fn's result, null none */
+    QTypeEx *elem;   /* a list's, an array's, an or's T, a dict's V; a fn's result, null none; a
+                        generic's name */
     QExpr *count;    /* an array's */
-    QTypeEx **items; /* a tuple's; a fn's parameters'; a dict's K */
+    QTypeEx **items; /* a tuple's; a fn's parameters'; a dict's K; a generic's types */
     uint32_t n;
     const QTok **quals; /* a name's modules before it: gfx.Window's gfx */
     uint32_t nquals;
@@ -314,7 +316,11 @@ typedef struct {
     QFn *drop;   /* a record's fn drop */
     QFn **meths; /* a record's or an enum's methods */
     uint32_t nmeths, capmeths;
-    bool seen;     /* qast_drops' guard against a type holding itself */
+    bool seen;            /* qast_drops' guard against a type holding itself */
+    const QTok **tparams; /* type Name[T, U]'s, its instances' too: no fields, none typed */
+    uint32_t ntp;
+    QType of;     /* an instance's generic */
+    QType *targs; /* an instance's types for its tparams */
 } QTy;
 
 enum { QAST_WORDS = 256 }; /* a record in cells' bytes whose fields are variables (qr/qlink.c) */
@@ -426,6 +432,8 @@ struct QFn {
     uint32_t ncallees, capcallees;
     bool icalls;   /* it calls through a fn value */
     uint32_t walk; /* the last search of its callees' writes it was in, sema's */
+    bool idle;     /* a generic record instance's method not called: unchecked, no code */
+    bool checked;  /* its body checked, sema's */
 };
 
 /* A name a lambda uses from outside it, as its site bound it. A fn's storage (frame) is reached
@@ -557,6 +565,8 @@ struct QExpr {
     uint32_t field; /* QE_FIELD: its field's index; QE_NEW: an enum's value */
     QLam *lam;      /* QE_LAMBDA's, QE_APPLY's */
     QIter *iter;    /* QE_ITER's */
+    QTypeEx *tx;    /* Name[T](..)'s generic record, a QE_CALL's; Name[T].f's, a QE_INDEX's when it
+                       names one */
 };
 
 /* ---- chains: a.map(f).filter(p).sum(), one loop */
@@ -742,6 +752,8 @@ struct QStmt {
     QImport *names;     /* QS_FROM's */
     QOwners *own;       /* its frame's: a fn's, or the modules' */
     const QScopeAt *at; /* the names in sight at it, QProg.keep */
+    const QTok **tparams; /* QS_TYPE: type Name[T, U]'s; an instance's none (ntp 0) */
+    uint32_t ntp;
 };
 
 /* A file: a module. Its path as found, its lines (from first), its tokens (base: the first's
@@ -837,8 +849,12 @@ static inline bool qast_place(const QExpr *e)
 
     return e->kind == QE_NAME && e->var;
 }
-/* Is f a generic's or a generator's definition: no code, each instance checked and compiled? */
-static inline bool qast_generic(const QFn *const f) { return (f->ntp || f->ytx) && !f->of; }
+/* Is f a generic's or a generator's definition, or a generic record's method: no code, each
+   instance checked and compiled? */
+static inline bool qast_generic(const QFn *const f)
+{
+    return ((f->ntp || f->ytx) && !f->of) || (f->in && f->in->ntp);
+}
 /* Is f for x in g(..)'s instance: no procedure, its code its host's? */
 static inline bool qast_inline(const QFn *const f) { return f->loop != nullptr; }
 /* The fn whose frame holds f's variables: f, or an inline instance's host's; null the module. */

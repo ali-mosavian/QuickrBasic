@@ -14,6 +14,7 @@ Declarations: name [as type] [= value].
     function f(a as int, mut b as P) as int ... end function
     type P ... end type   a record: x as int, one field a line,
                           then its methods: fn f(self) ... end fn
+    type Stack[T] ...     generic: Stack[int](), Pair(1, "a")
     enum Mode ... end enum
 
 Types: bool, byte short int long, ubyte ushort uint ulong, single

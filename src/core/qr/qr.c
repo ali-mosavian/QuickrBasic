@@ -591,12 +591,29 @@ static void qr_own(Session *const S, QProg *const p, QMem *const m, uint32_t *co
     s->line = qr_copy(S, p, m, cap, p->src.lines[s->tok->line]);
 }
 
-/* Each instance's lines, copies of its generic's at the store's end, its statements on them; each
-   block lambda's so too, its lines in the store a procedure's own. One code block a line, each copy
-   keeping its source's number and text. */
+/* Each instance's lines, a generic record's and a generic fn's, copies of its generic's at the
+   store's end, its statements on them; each block lambda's so too, its lines in the store a
+   procedure's own. One code block a line, each copy keeping its source's number and text. */
 static void qr_instances(Session *const S, QProg *const p, QMem *const m)
 {
     uint32_t cap = p->src.nlines;
+
+    for (uint32_t i = 0; i < p->tys.n; i++) { /* first: a lambda's, a generic method's own after */
+        const QTy *const y = &p->tys.at[i];
+
+        if (!y->of)
+            continue;
+
+        const QStmt *const from = qast_ty(p, y->of)->def;
+        const uint32_t base = p->src.nlines;
+        const uint32_t first = from->tok->line;
+
+        for (uint32_t k = first; k <= from->link->tok->line; k++)
+            qr_copy(S, p, m, &cap, p->src.lines[k]);
+
+        for (QStmt *s = y->def; s && s != y->def->link->next; s = s->next)
+            s->line = base + s->tok->line - first;
+    }
 
     for (const QFn *f = p->fns; f; f = f->next) {
         if (!f->of && !(f->lamof && f->sig))
@@ -1373,23 +1390,32 @@ void qr_suggest(
     const QrSugg g = {S, &m, fn, ctx};
 
     const uint32_t file = prog_line(&S->prog, rec)->len ? prog_line(&S->prog, rec)->file : 0;
-    uint32_t b = n ? n - 1 : 0; /* the name before a '.' at n - 1 */
+    /* the name's end before a '.' at n - 1, past its [..]: Stack[int]. */
+    uint32_t e = n ? n - 1 : 0;
+
+    for (uint32_t depth = 0; e && (depth || text[e - 1] == ']');) {
+        depth += text[e - 1] == ']';
+        depth -= text[e - 1] == '[';
+        e--;
+    }
+
+    uint32_t b = e;
 
     while (b && qr_namec(text[b - 1]))
         b--;
 
     if (!n || text[n - 1] != '.')
         qr_scope(&g, file);
-    else if (b < n - 1 && !is_digit((uint8_t)text[b]) && (!b || text[b - 1] != '.')) {
-        const uint32_t k = qr_module_named(S, text + b, n - 1 - b);
-        const QTok *const t = qr_type_of(&g, file, text + b, n - 1 - b);
+    else if (b < e && !is_digit((uint8_t)text[b]) && (!b || text[b - 1] != '.')) {
+        const uint32_t k = qr_module_named(S, text + b, e - b);
+        const QTok *const t = qr_type_of(&g, file, text + b, e - b);
 
-        if (k < modu_count(&S->modu))
+        if (k < modu_count(&S->modu) && e == n - 1)
             qr_members(&g, k);
         else if (t)
             qr_fields(&g, file, t->text, t->len, true);
         else
-            qr_fields(&g, file, text + b, n - 1 - b, false);
+            qr_fields(&g, file, text + b, e - b, false);
     }
 
     arena_reset(&m.arena);

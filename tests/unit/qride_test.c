@@ -535,6 +535,28 @@ TEST(qride_completes_quickr_words)
     fx_done(S, files);
 }
 
+/* Completion offered nothing after a generic record's type, Stack[int].: its brackets hid its
+   name. */
+TEST(qride_completes_generic_records)
+{
+    fx_open_program(S, "");
+    fx_write_file(
+        "main.bas",
+        DIALECT "type Stack[T]\n    items as T[]\n"
+                "    fn push(mut self, x as T)\n        self.items.push(x)\n    end fn\n"
+                "    fn empty() as Stack[T]\n        var s as Stack[T]\n        return s\n"
+                "    end fn\nend type\n"
+                "var st as Stack[int]\nlet total = len(st.items)\nprint total\n"
+    );
+    uimn_open(S, fx_path_of("main.bas"));
+    CHECK(offers(S, "let a = st.", "items"));
+    CHECK(offers(S, "let a = st.", "push"));
+    CHECK(!offers(S, "let a = st.", "empty"));
+    CHECK(offers(S, "let a = Stack[int].", "empty"));
+    CHECK(!offers(S, "let a = Stack[int].", "push"));
+    fx_done(S, files);
+}
+
 /* The cursor at col of line text's line. */
 static void cursor_at(Session *const S, const char *const text, const uint16_t col)
 {

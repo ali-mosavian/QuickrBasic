@@ -135,6 +135,7 @@ typedef struct {
     uint32_t nvalues, capvalues;
     uint32_t walks; /* qsem_writer's searches */
     QScopeAt *at;   /* the last statement's names in sight, QProg.keep */
+    QType inst;     /* a generic record's instance being made, its errors named for it */
 } QSem;
 
 /* The names in sight at a statement: its fn's, a block's, the modules' (QSemKeep's). */
@@ -197,10 +198,15 @@ static bool qsem_named(QSem *S, const QFn *f, const QTok *t);
 static QExpr *qsem_fnref(QSem *S, QExpr *e, QFn *f);
 static QExpr *qsem_spell(QSem *S, QExpr *v, const char *who);
 static QExpr *qsem_dup(QSem *S, const QExpr *e);
+static QType qsem_typeinst(QSem *S, QType g, const QType *targs, const QTok *at);
+static QType qsem_given_types(QSem *S, QType g, QTypeEx *const *items, uint32_t n, const QTok *at);
+static QType qsem_typeat(QSem *S, const QExpr *e);
 
 /* ---- errors */
 
 static const char *qsem_instname(QSem *S, const QFn *f);
+static const char *qsem_tyname(QSem *S, QType t);
+static const char *qsem_join(QSem *S, const char *a, const char *b, const char *c);
 
 /* An error at t: the parts, to a null, joined; in an instance, its name after them. */
 static void qsem_say(QSem *const S, const QTok *const t, ...)
@@ -218,7 +224,12 @@ static void qsem_say(QSem *const S, const QTok *const t, ...)
     }
 
     va_end(ap);
-    const char *const in = S->fn && S->fn->of ? qsem_instname(S, S->fn) : "";
+    const QFn *const f = S->fn;
+    const QType ty = f && f->in && f->in->kind == QS_TYPE ? f->in->ty : S->inst;
+    const bool inst = ty && qast_ty(S->prog, ty)->of;
+    const char *const in = f && f->of ? qsem_instname(S, f)
+                           : inst     ? qsem_join(S, " in ", qsem_tyname(S, ty), "")
+                                      : "";
     const uint32_t k = (uint32_t)strlen(in);
     const uint32_t room = k < QSEM_SAY - 1 - n ? k : QSEM_SAY - 1 - n;
     memcpy(text + n, in, room);
@@ -280,8 +291,14 @@ static const char *qsem_tyname(QSem *const S, const QType t)
 
     switch (y->kind) {
     case QT_REC:
-    case QT_ENUM:
-        return qsem_text(S, y->name);
+    case QT_ENUM: {
+        const char *n = qsem_text(S, y->name);
+
+        for (uint32_t j = 0; y->of && j < y->ntp; j++) /* an instance's: Stack[int] */
+            n = qsem_join(S, n, j ? ", " : "[", qsem_tyname(S, y->targs[j]));
+
+        return y->of ? qsem_join(S, n, "]", "") : n;
+    }
 
     case QT_LIST:
         return qsem_join(S, qsem_tyname(S, y->elem), "[]", "");
@@ -861,6 +878,12 @@ static bool qsem_isgen(const QSem *const S, const QType t)
     return qast_compound(t) && qast_ty(S->prog, t)->gen;
 }
 
+/* Is t a generic record as declared: no fields, each instance its own type? */
+static bool qsem_model(const QSem *const S, const QType t)
+{
+    return qast_compound(t) && qast_ty(S->prog, t)->ntp && !qast_ty(S->prog, t)->of;
+}
+
 static bool qsem_ismap(const QSem *const S, const QType t)
 {
     return qast_compound(t) && qast_ty(S->prog, t)->kind == QT_MAP;
@@ -988,11 +1011,64 @@ static uint32_t qsem_count(QSem *const S, QExpr *const e)
     return (uint32_t)n->val.i;
 }
 
+/* T[n], count n as written, at at. */
+static QType qsem_arrayof(QSem *const S, const QTok *const at, const QType elem, QExpr *const count)
+{
+    if (qsem_keyed(S, count)) {
+        qsem_say(S, at, "V[K] is written dict[K, V]", nullptr);
+        return QY_ERROR;
+    }
+
+    const uint32_t n = qsem_count(S, count);
+    return n ? qsem_listof(S, elem, n) : QY_ERROR;
+}
+
+/* Name[x]'s x, a name, as the value it names: an array's count. */
+static QExpr *qsem_countof(QSem *const S, const QTypeEx *const x)
+{
+    QExpr *e = qast_expr(S->mem, QE_NAME, x->nquals ? x->quals[0] : x->tok);
+
+    for (uint32_t k = 1; k <= x->nquals; k++) {
+        QExpr *const f = qast_expr(S->mem, QE_FIELD, k < x->nquals ? x->quals[k] : x->tok);
+        f->a = e;
+        e = f;
+    }
+
+    return e;
+}
+
+/* Name[T, U] as written: a generic record's instance; Name[N] an array, when Name is not
+   generic. */
+static QType qsem_gentyped(QSem *const S, const QTypeEx *const x)
+{
+    const QTypeEx *const n = x->elem;
+    const QType t = qsem_qualtype(S, n->quals, n->nquals, n->tok);
+
+    if (t == QY_ERROR || qsem_model(S, t))
+        return t == QY_ERROR ? t : qsem_given_types(S, t, x->items, x->n, n->tok);
+    if (x->n == 1 && x->items[0]->kind == QX_NAME)
+        return qsem_arrayof(S, x->tok, t, qsem_countof(S, x->items[0]));
+
+    qsem_say(S, n->tok, qsem_text(S, n->tok), " is not generic: it takes no types", nullptr);
+    return QY_ERROR;
+}
+
 /* A type as written: QY_ERROR after saying why when it is none. */
 static QType qsem_type(QSem *const S, const QTypeEx *const x)
 {
-    if (x->kind == QX_NAME)
-        return qsem_qualtype(S, x->quals, x->nquals, x->tok);
+    if (x->kind == QX_NAME) {
+        const QType t = qsem_qualtype(S, x->quals, x->nquals, x->tok);
+
+        if (!qsem_model(S, t))
+            return t;
+
+        const char *const name = qsem_text(S, x->tok);
+        qsem_say(S, x->tok, name, " is generic: give its types, ", name, "[T]", nullptr);
+        return QY_ERROR;
+    }
+
+    if (x->kind == QX_GEN)
+        return qsem_gentyped(S, x);
 
     if (x->kind == QX_TUPLE || x->kind == QX_FN) {
         QType *const items = qast_alloc(S->mem, (x->n ? x->n : 1) * sizeof *items);
@@ -1027,13 +1103,7 @@ static QType qsem_type(QSem *const S, const QTypeEx *const x)
     if (x->kind == QX_LIST)
         return qsem_listof(S, elem, 0);
 
-    if (qsem_keyed(S, x->count)) {
-        qsem_say(S, x->tok, "V[K] is written dict[K, V]", nullptr);
-        return QY_ERROR;
-    }
-
-    const uint32_t n = qsem_count(S, x->count);
-    return n ? qsem_listof(S, elem, n) : QY_ERROR;
+    return qsem_arrayof(S, x->tok, elem, x->count);
 }
 
 /* ---- constants */
@@ -2389,9 +2459,20 @@ static const QArg **qsem_given(
 
 enum { QSEM_INSTS = 64 }; /* a generic's instances at most: past it, one calls itself growing */
 
-/* Instance f's type parameters bound to its types, in the scope open. */
+/* Generic record instance y's type parameters bound to its types, in the scope open. */
+static void qsem_bindtypes(QSem *const S, const QTy *const y)
+{
+    for (uint32_t j = 0; y->of && j < y->ntp; j++)
+        qsem_bindty(S, y->tparams[j], y->targs[j]);
+}
+
+/* Instance f's type parameters bound to its types, in the scope open; a generic record's
+   method's, its type's. */
 static void qsem_typeargs(QSem *const S, const QFn *const f)
 {
+    if (f->in && f->in->kind == QS_TYPE)
+        qsem_bindtypes(S, qast_ty(S->prog, f->in->ty));
+
     for (uint32_t j = 0; f->of && j < f->ntp; j++)
         qsem_bindty(S, f->tparams[j], f->targs[j]);
 }
@@ -2411,11 +2492,12 @@ static const char *qsem_instname(QSem *const S, const QFn *const f)
     return qsem_join(S, s, "]", "");
 }
 
-/* Type as written x matched to type t: each type parameter of g it names found, into targs; false
-   when one is found twice, two ways. */
+/* Type as written x matched to type t: each of the ntp type parameters tp it names found, into
+   targs; false when one is found twice, two ways. */
 static bool qsem_unify(
     QSem *const S,
-    const QFn *const g,
+    const QTok *const *const tp,
+    const uint32_t ntp,
     const QTypeEx *const x,
     const QType t,
     QType *const targs
@@ -2425,8 +2507,8 @@ static bool qsem_unify(
         return true;
 
     if (x->kind == QX_NAME) {
-        for (uint32_t j = 0; j < g->ntp; j++)
-            if (qsem_same(g->tparams[j], x->tok)) {
+        for (uint32_t j = 0; j < ntp; j++)
+            if (qsem_same(tp[j], x->tok)) {
                 const bool fits = !targs[j] || targs[j] == t;
                 targs[j] = targs[j] ? targs[j] : t;
                 return fits;
@@ -2441,11 +2523,28 @@ static bool qsem_unify(
     case QX_LIST:
     case QX_ARRAY:
         return !y || (y->kind != QT_LIST && y->kind != QT_ARRAY) ||
-               qsem_unify(S, g, x->elem, y->elem, targs);
+               qsem_unify(S, tp, ntp, x->elem, y->elem, targs);
 
     case QX_OPT:
     case QX_RES: /* a T for a T? too */
-        return qsem_unify(S, g, x->elem, qsem_wraps(S, t, QT_REC) ? qsem_inner(S, t) : t, targs);
+        return qsem_unify(
+            S,
+            tp,
+            ntp,
+            x->elem,
+            qsem_wraps(S, t, QT_REC) ? qsem_inner(S, t) : t,
+            targs
+        );
+
+    case QX_GEN: { /* Name[T] for an instance of Name */
+        bool fits = true;
+        const bool same = y && y->of && qsem_same(qast_ty(S->prog, y->of)->name, x->elem->tok);
+
+        for (uint32_t k = 0; same && k < x->n && k < y->ntp; k++)
+            fits &= qsem_unify(S, tp, ntp, x->items[k], y->targs[k], targs);
+
+        return fits;
+    }
 
     case QX_TUPLE:
     case QX_FN: {
@@ -2453,10 +2552,10 @@ static bool qsem_unify(
         bool fits = true;
 
         for (uint32_t k = 0; y && y->kind == kind && k < x->n && k < y->nfields; k++)
-            fits &= qsem_unify(S, g, x->items[k], y->fields[k].type, targs);
+            fits &= qsem_unify(S, tp, ntp, x->items[k], y->fields[k].type, targs);
 
         if (y && y->kind == QT_FN && x->elem)
-            fits &= qsem_unify(S, g, x->elem, y->elem, targs);
+            fits &= qsem_unify(S, tp, ntp, x->elem, y->elem, targs);
 
         return fits;
     }
@@ -2466,22 +2565,23 @@ static bool qsem_unify(
     }
 }
 
-/* Literal a given for parameter type x of generic g: each type parameter x names that is still
+/* Literal a given for type as written x: each of the ntp type parameters tp x names that is still
    open, or was typed by literals only, takes a's type (1 and 2.5 meet in double); false when one a
    typed value bound doesn't take a. */
 static bool qsem_literal(
     QSem *const S,
-    const QFn *const g,
+    const QTok *const *const tp,
+    const uint32_t ntp,
     const QTypeEx *const x,
     const QExpr *const a,
     QType *const targs,
     bool *const bylit
 )
 {
-    QType *const lit = qast_alloc(S->mem, g->ntp * sizeof *lit);
-    qsem_unify(S, g, x, a->type, lit);
+    QType *const lit = qast_alloc(S->mem, ntp * sizeof *lit);
+    qsem_unify(S, tp, ntp, x, a->type, lit);
 
-    for (uint32_t j = 0; j < g->ntp; j++) {
+    for (uint32_t j = 0; j < ntp; j++) {
         if (lit[j] && targs[j] && !bylit[j] && !qsem_fits(a, targs[j]))
             return false;
 
@@ -2750,6 +2850,9 @@ static QType qsem_lamtype(
     *open = qsem_open(g, x->elem, targs);
     qsem_push(S);
 
+    if (g->in && g->in->kind == QS_TYPE)
+        qsem_bindtypes(S, qast_ty(S->prog, g->in->ty));
+
     for (uint32_t j = 0; j < g->ntp; j++)
         if (targs[j])
             qsem_bindty(S, g->tparams[j], targs[j]);
@@ -2923,7 +3026,7 @@ static QFn *qsem_instance(QSem *const S, QExpr *const e, QFn *const g)
 
                 if (t == QY_ERROR || !qsem_lambda(S, a->e, &t, open))
                     return nullptr;
-                if (open && !qsem_unify(S, g, g->params[at].type, t, targs))
+                if (open && !qsem_unify(S, g->tparams, g->ntp, g->params[at].type, t, targs))
                     return nullptr;
 
                 a->e->done = true;
@@ -2950,8 +3053,9 @@ static QFn *qsem_instance(QSem *const S, QExpr *const e, QFn *const g)
             if (a->e->untyped != (pass == 1))
                 continue;
 
-            const bool fits = pass ? qsem_literal(S, g, g->params[at].type, a->e, targs, bylit)
-                                   : qsem_unify(S, g, g->params[at].type, a->e->type, targs);
+            const QTypeEx *const x = g->params[at].type;
+            const bool fits = pass ? qsem_literal(S, g->tparams, g->ntp, x, a->e, targs, bylit)
+                                   : qsem_unify(S, g->tparams, g->ntp, x, a->e->type, targs);
 
             if (!fits) {
                 qsem_say(S, a->e->tok, qsem_text(S, g->name), "'s types don't agree here", nullptr);
@@ -3036,6 +3140,8 @@ static void qsem_lent(QSem *S, const QExpr *e, const QFn *f);
 
 static QExpr *qsem_fncall(QSem *const S, QExpr *const e, QFn *f)
 {
+    f->idle = false;
+
     if (f->ytx && !S->genfor && !S->genkept) {
         qsem_say(
             S,
@@ -3586,8 +3692,11 @@ static QExpr *qsem_field(QSem *const S, QExpr *const e)
         return qsem_name(S, e);
     }
 
-    if (e->a->kind == QE_NAME || e->a->kind == QE_FIELD) {
-        const QBind *const b = qsem_qual(S, e->a);
+    const QType at = qsem_typeat(S, e->a);
+    const QBind tb = {.name = e->a->tok, .ty = at};
+
+    if (at || e->a->kind == QE_NAME || e->a->kind == QE_FIELD) {
+        const QBind *const b = at ? &tb : qsem_qual(S, e->a);
 
         if (b && b->ty == QY_ERROR) {
             e->type = QY_ERROR;
@@ -3709,6 +3818,14 @@ static int32_t qsem_byteof(const QPiece *s, int64_t i)
 
 static QExpr *qsem_index(QSem *const S, QExpr *const e)
 {
+    const QBind *const b = e->a->kind == QE_NAME ? qsem_find(S, e->a->tok) : nullptr;
+
+    if ((e->tx && !e->b) || (b && qsem_model(S, b->ty))) { /* Name[T] alone: a type */
+        qsem_say(S, e->tok, "a type is no value: build one with (..)", nullptr);
+        e->type = QY_ERROR;
+        return e;
+    }
+
     const QExpr *const a = e->a = qsem_addressed(S, qsem_expr(S, e->a, QY_VOID));
 
     if (a->type == QY_STRING) { /* a byte, read only */
@@ -4161,6 +4278,21 @@ static QType qsem_peek(QSem *const S, const QExpr *const e)
     }
 }
 
+/* Unchecked e as a generic record's instance, Name[T] before a '.': its type; QY_VOID when it
+   is none, QY_ERROR after an error. */
+static QType qsem_typeat(QSem *const S, const QExpr *const e)
+{
+    if (e->kind != QE_INDEX || !e->tx || e->a->kind != QE_NAME)
+        return QY_VOID;
+
+    const QBind *const b = qsem_find(S, e->a->tok);
+
+    if (!b || !qsem_model(S, b->ty))
+        return QY_VOID;
+
+    return qsem_given_types(S, b->ty, e->tx->items, e->tx->n, e->a->tok);
+}
+
 /* T.f(..): T's method f without self, else an enum's value with data. */
 static QExpr *qsem_typecall(QSem *const S, QExpr *const e, const QType t)
 {
@@ -4271,6 +4403,13 @@ static QExpr *qsem_method(QSem *const S, QExpr *const e)
         QExpr name = {.kind = QE_NAME, .tok = e->tok, .a = e->a};
 
         return qsem_called(S, e, qsem_qual(S, &name));
+    }
+
+    const QType at = qsem_typeat(S, e->a);
+
+    if (at) { /* Name[T].f(..) */
+        e->type = QY_ERROR;
+        return at == QY_ERROR ? e : qsem_typecall(S, e, at);
     }
 
     if (e->a->kind == QE_NAME || e->a->kind == QE_FIELD) {
@@ -4833,6 +4972,7 @@ static QExpr *qsem_fnvar(QSem *const S, QExpr *const e, QVar *const v)
 static QExpr *qsem_fnref(QSem *const S, QExpr *const e, QFn *const f)
 {
     e->type = QY_ERROR;
+    f->idle = false;
 
     if (f->ytx) {
         qsem_say(S, e->tok, qsem_text(S, f->name), " is no value: it is a generator", nullptr);
@@ -4877,10 +5017,102 @@ static QExpr *qsem_call(QSem *const S, QExpr *const e)
     return qsem_called(S, e, qsem_find(S, e->tok));
 }
 
+/* Generic record g built by call e without its types: each read from the value given for a
+   field of it, typed values first, then literals; its instance, QY_ERROR after an error. */
+static QType qsem_inferred(QSem *const S, QExpr *const e, const QType g)
+{
+    const QTy m = *qast_ty(S->prog, g); /* a copy: a value checked may add types */
+    QType *const targs = qast_alloc(S->mem, m.ntp * sizeof *targs);
+    bool *const bylit = qast_alloc(S->mem, m.ntp * sizeof *bylit);
+
+    for (uint32_t pass = 0; pass < 2; pass++) {
+        uint32_t k = 0;
+
+        for (QArg *a = e->args; a; a = a->next, k++) {
+            const QTypeEx *x = nullptr;
+            uint32_t at = 0;
+
+            for (const QStmt *f = m.def->next; f && f->kind != QS_ENDTYPE; f = f->next) {
+                for (const QDecl *d = f->kind == QS_FIELD ? f->decls : nullptr; d;
+
+                     d = d->next, at++)
+                    if (a->name ? qsem_same(d->name, a->name) : at == k)
+                        x = d->type;
+
+                f = f->kind == QS_FN && f->fn->end ? f->fn->end : f;
+            }
+
+            if (!pass) {
+                a->e = qsem_expr(S, a->e, QY_VOID);
+                a->e->done = true;
+            }
+
+            if (!x || a->e->untyped != (pass == 1) || a->e->type == QY_ERROR)
+                continue;
+
+            const bool fits = pass ? qsem_literal(S, m.tparams, m.ntp, x, a->e, targs, bylit)
+                                   : qsem_unify(S, m.tparams, m.ntp, x, a->e->type, targs);
+
+            if (!fits) {
+                qsem_say(S, a->e->tok, qsem_text(S, m.name), "'s types don't agree here", nullptr);
+                return QY_ERROR;
+            }
+        }
+    }
+
+    for (uint32_t j = 0; j < m.ntp; j++)
+        if (!targs[j]) {
+            const char *types = "";
+
+            for (uint32_t i = 0; i < m.ntp; i++)
+                types = qsem_join(S, types, i ? ", " : "", qsem_text(S, m.tparams[i]));
+
+            qsem_say(
+                S,
+                e->tok,
+                "can't tell ",
+                qsem_text(S, m.tparams[j]),
+                " from the values given: write ",
+                qsem_join(S, qsem_text(S, m.name), "[", types),
+                "](..)",
+                nullptr
+            );
+            return QY_ERROR;
+        }
+
+    return qsem_typeinst(S, g, targs, e->tok);
+}
+
 /* Call e of what its name binds, b: a fn, a fn value, a record's type; none: a built-in. */
 static QExpr *qsem_called(QSem *const S, QExpr *const e, const QBind *const b)
 {
     if (b && b->ty == QY_ERROR) {
+        e->type = QY_ERROR;
+        return e;
+    }
+
+    if (b && qsem_model(S, b->ty)) { /* Name[T](..), Name(..): an instance's */
+        QTypeEx *const x = e->tx;
+        e->tx = nullptr;
+        const QType t =
+            x ? qsem_given_types(S, b->ty, x->items, x->n, e->tok) : qsem_inferred(S, e, b->ty);
+
+        if (t == QY_ERROR) {
+            e->type = QY_ERROR;
+            return e;
+        }
+
+        return qsem_called(S, e, &(QBind){.name = b->name, .ty = t});
+    }
+
+    if (e->tx) {
+        qsem_say(
+            S,
+            e->tok,
+            qsem_text(S, e->tok),
+            " is not a generic type: it takes no types",
+            nullptr
+        );
         e->type = QY_ERROR;
         return e;
     }
@@ -7572,7 +7804,31 @@ static void qsem_addvariant(QSem *const S, const QType t, const QDecl *const d)
     y->data |= v->n > 0;
 }
 
-/* Each type and enum: a type, its name bound, its fields and values declared. */
+/* Type or enum statement s's members, type t's: its fields or values, then its methods. */
+static void qsem_members(QSem *const S, QStmt *const s, const QType t)
+{
+    for (QStmt *m = s->next; m && m->kind != QS_ENDTYPE && m->kind != QS_ENDENUM; m = m->next)
+        if (m->kind == QS_FIELD)
+            for (QDecl *d = m->decls; d; d = d->next) {
+                qsem_addfield(S, t, d);
+                qast_ty(S->prog, t)->fields[qast_ty(S->prog, t)->nfields - 1].priv = m->priv;
+            }
+        else if (m->kind == QS_VARIANT)
+            qsem_addvariant(S, t, m->decls);
+        else if (m->kind == QS_FN && m->fn->in == s) {
+            QTy *const y = qast_ty(S->prog, t);
+
+            if (!qsem_taken(S, y, m->fn->name)) {
+                y->meths = qast_room(S->mem, y->meths, y->nmeths, &y->capmeths, sizeof *y->meths);
+                y->meths[y->nmeths++] = m->fn;
+            }
+
+            m = m->fn->end ? m->fn->end : m;
+        }
+}
+
+/* Each type and enum: a type, its name bound, its fields and values declared; a generic record's
+   at each instance. */
 static void qsem_types(QSem *const S)
 {
     for (QStmt *s = S->prog->first; s; s = s->next) {
@@ -7584,29 +7840,14 @@ static void qsem_types(QSem *const S)
         y->name = s->decls->name;
         y->def = s;
         y->state = 0;
+        y->tparams = s->tparams;
+        y->ntp = s->kind == QS_TYPE ? s->ntp : 0; /* an enum's, said */
         S->pub = s->pub;
         qsem_bindty(S, s->decls->name, t);
         S->pub = false;
 
-        for (QStmt *m = s->next; m && m->kind != QS_ENDTYPE && m->kind != QS_ENDENUM; m = m->next)
-            if (m->kind == QS_FIELD)
-                for (QDecl *d = m->decls; d; d = d->next) {
-                    qsem_addfield(S, t, d);
-                    qast_ty(S->prog, t)->fields[qast_ty(S->prog, t)->nfields - 1].priv = m->priv;
-                }
-            else if (m->kind == QS_VARIANT)
-                qsem_addvariant(S, t, m->decls);
-            else if (m->kind == QS_FN && m->fn->in == s) {
-                QTy *const y = qast_ty(S->prog, t);
-
-                if (!qsem_taken(S, y, m->fn->name)) {
-                    y->meths =
-                        qast_room(S->mem, y->meths, y->nmeths, &y->capmeths, sizeof *y->meths);
-                    y->meths[y->nmeths++] = m->fn;
-                }
-
-                m = m->fn->end ? m->fn->end : m;
-            }
+        if (!qast_ty(S->prog, t)->ntp)
+            qsem_members(S, s, t);
 
         if (s->kind == QS_ENUM && !qast_ty(S->prog, t)->nvars)
             qsem_say(S, s->tok, "an enum needs a value", nullptr);
@@ -7898,23 +8139,171 @@ static void qsem_dropin(QSem *const S, const QType t, const QTok *const name)
         qsem_say(S, name, "a list of lists can't hold a value with drop", nullptr);
 }
 
-/* Each type with drop: no record holding itself; no enum's datum, map's value, list of lists. */
-static void qsem_dropok(QSem *const S)
+/* Type t with drop: no record holding itself; no enum's datum, map's value, list of lists. */
+static void qsem_dropok(QSem *const S, const QType t)
 {
+    const QTy *const y = qast_ty(S->prog, t);
+
+    if (y->kind == QT_REC && qast_drops(S->prog, t) && qsem_holds_ty(S, t, t))
+        qsem_say(S, y->name, qsem_aname(S, t), " has drop: it can't hold itself", nullptr);
+
+    for (uint32_t k = 0; y->kind == QT_ENUM && k < y->nfields; k++)
+        if (qast_drops(S->prog, y->fields[k].type))
+            qsem_say(S, y->fields[k].name, "an enum's data can't have drop", nullptr);
+
+    for (uint32_t k = 0; y->kind == QT_REC && k < y->nfields; k++)
+        qsem_dropin(S, y->fields[k].type, y->fields[k].name);
+}
+
+/* Fn f, its signature made, as what it is: an operator, a drop, a text. */
+static void qsem_fndef(QSem *const S, QFn *const f)
+{
+    if (f->op && (f->ntp || f->ytx))
+        qsem_say(S, f->name, "an operator is not generic and yields nothing", nullptr);
+    else if (f->op)
+        qsem_operdef(S, f);
+    else if (qsem_isdrop(f))
+        qsem_dropdef(S, f);
+    else if (f->in && f->sig && qsem_is(f->name, "text") && !qsem_istext(f))
+        qsem_say(S, f->name, "text takes self alone and gives a string", nullptr);
+}
+
+/* Is f a generic record's method, its model's or an instance's: made with its instance? */
+static bool qsem_inmodel(const QSem *const S, const QFn *const f)
+{
+    return f->in && f->in->kind == QS_TYPE && (f->in->ntp || qast_ty(S->prog, f->in->ty)->of);
+}
+
+/* What hides the names in sight where an instance is named, so its types see their own module's
+   alone: put back by qsem_unhide. */
+typedef struct {
+    uint32_t lo, hi;
+    QFn *fn;
+    QType inst;
+} QHide;
+
+static QHide qsem_hide(QSem *const S, const QType inst)
+{
+    const QHide h = {S->hidelo, S->hidehi, S->fn, S->inst};
+
+    S->hidelo = 0;
+    S->hidehi = S->nbinds;
+    S->fn = nullptr;
+    S->inst = inst;
+    qsem_push(S);
+    return h;
+}
+
+static void qsem_unhide(QSem *const S, const QHide h)
+{
+    qsem_pop(S);
+    S->hidelo = h.lo;
+    S->hidehi = h.hi;
+    S->fn = h.fn;
+    S->inst = h.inst;
+}
+
+/* Generic record g's instance of types targs, made the first time (named at at): its type block
+   parsed again, its fields typed and its methods' signatures made with g's type parameters bound
+   to targs. Its methods' bodies are checked as every fn's. QY_ERROR past QSEM_INSTS. */
+static QType qsem_typeinst(QSem *const S, const QType g, const QType *const targs, const QTok *at)
+{
+    const uint32_t ntp = qast_ty(S->prog, g)->ntp;
+    uint32_t made = 0;
+
     for (uint32_t i = 0; i < S->prog->tys.n; i++) {
-        const QType t = QY_FIRST + i;
         const QTy *const y = &S->prog->tys.at[i];
 
-        if (y->kind == QT_REC && qast_drops(S->prog, t) && qsem_holds_ty(S, t, t))
-            qsem_say(S, y->name, qsem_aname(S, t), " has drop: it can't hold itself", nullptr);
+        if (y->of == g && !memcmp(y->targs, targs, ntp * sizeof *targs))
+            return QY_FIRST + i;
 
-        for (uint32_t k = 0; y->kind == QT_ENUM && k < y->nfields; k++)
-            if (qast_drops(S->prog, y->fields[k].type))
-                qsem_say(S, y->fields[k].name, "an enum's data can't have drop", nullptr);
-
-        for (uint32_t k = 0; y->kind == QT_REC && k < y->nfields; k++)
-            qsem_dropin(S, y->fields[k].type, y->fields[k].name);
+        made += y->of == g;
     }
+
+    if (made == QSEM_INSTS) {
+        S->inst = QY_VOID; /* its instance's name past reading */
+        qsem_say(
+            S,
+            at,
+            qsem_text(S, qast_ty(S->prog, g)->name),
+            " has too many instances: does it hold itself with ever new types?",
+            nullptr
+        );
+        return QY_ERROR;
+    }
+
+    QType *const keep = qast_alloc(S->mem, ntp * sizeof *keep);
+    memcpy(keep, targs, ntp * sizeof *keep);
+    QStmt *const s = qpar_typeagain(S->prog, S->mem, qast_ty(S->prog, g)->def);
+    const QType t = s->ty = qsem_newty(S, QT_REC);
+    const QTy *const m = qast_ty(S->prog, g);
+    QTy *const y = qast_ty(S->prog, t);
+    y->name = m->name;
+    y->def = s;
+    y->state = 0;
+    y->tparams = m->tparams;
+    y->ntp = ntp;
+    y->of = g;
+    y->targs = keep;
+    s->ntp = 0;
+    s->pub = m->def->pub;
+    qsem_members(S, s, t);
+
+    const QHide h = qsem_hide(S, t);
+    qsem_bindtypes(S, qast_ty(S->prog, t));
+    qsem_typed(S, t);
+
+    for (uint32_t k = 0; k < qast_ty(S->prog, t)->nmeths; k++) {
+        QFn *const f = qast_ty(S->prog, t)->meths[k];
+        f->idle = true;
+
+        if (!f->ntp)
+            qsem_signature(S, f);
+
+        S->fn = nullptr;
+    }
+
+    for (uint32_t k = 0; k < qast_ty(S->prog, t)->nmeths; k++)
+        qsem_fndef(S, qast_ty(S->prog, t)->meths[k]);
+
+    if (qast_ty(S->prog, t)->drop) /* called when an owner ends */
+        qast_ty(S->prog, t)->drop->idle = false;
+
+    qsem_dropok(S, t);
+    qsem_unhide(S, h);
+    return t;
+}
+
+/* Generic record g given the types as written items, n of them: its instance; QY_ERROR after an
+   error. */
+static QType qsem_given_types(
+    QSem *const S,
+    const QType g,
+    QTypeEx *const *const items,
+    const uint32_t n,
+    const QTok *const at
+)
+{
+    const uint32_t ntp = qast_ty(S->prog, g)->ntp;
+
+    if (n != ntp) {
+        qsem_say(
+            S,
+            at,
+            qsem_text(S, qast_ty(S->prog, g)->name),
+            ntp == 1 ? " takes 1 type" : qsem_join(S, " takes ", qsem_uint(S, ntp), " types"),
+            nullptr
+        );
+        return QY_ERROR;
+    }
+
+    QType *const targs = qast_alloc(S->mem, ntp * sizeof *targs);
+
+    for (uint32_t k = 0; k < n; k++)
+        if ((targs[k] = qsem_type(S, items[k])) == QY_ERROR)
+            return QY_ERROR;
+
+    return qsem_typeinst(S, g, targs, at);
 }
 
 /* A statement of kind of the run's own, at tok. */
@@ -8157,11 +8546,14 @@ static void qsem_exports(QSem *const S)
     }
 }
 
-/* Fn f's body, its parameters in its scope. */
+/* Fn f's body, its parameters in its scope: once, and a generic record's method once called. */
 static void qsem_body(QSem *const S, QFn *const f)
 {
-    if (!f->end || !f->sig || f->native || qast_generic(f) || f->lamof || qast_inline(f))
+    if (f->checked || f->idle || !f->end || !f->sig || f->native || qast_generic(f) || f->lamof ||
+        qast_inline(f))
         return;
+
+    f->checked = true;
 
     qsem_fnbody(S, f);
 
@@ -8193,20 +8585,15 @@ void qsem_program(QProg *const p, QMem *const m)
         qsem_typed(&S, QY_FIRST + i);
 
     for (QFn *f = p->fns; f; f = f->next) /* a generator's too, its instances' model */
-        if (!f->ntp && !f->lamof)
+        if (!f->ntp && !f->lamof && !qsem_inmodel(&S, f))
             qsem_signature(&S, f);
 
     for (QFn *f = p->fns; f; f = f->next)
-        if (f->op && (f->ntp || f->ytx))
-            qsem_say(&S, f->name, "an operator is not generic and yields nothing", nullptr);
-        else if (f->op)
-            qsem_operdef(&S, f);
-        else if (qsem_isdrop(f))
-            qsem_dropdef(&S, f);
-        else if (f->in && f->sig && qsem_is(f->name, "text") && !qsem_istext(f))
-            qsem_say(&S, f->name, "text takes self alone and gives a string", nullptr);
+        if (!qsem_inmodel(&S, f))
+            qsem_fndef(&S, f);
 
-    qsem_dropok(&S);
+    for (uint32_t i = 0; i < p->tys.n; i++)
+        qsem_dropok(&S, QY_FIRST + i);
 
     for (uint32_t i = 0; i < p->nmods; i++) {
         qsem_module(&S, p->order[i]);
@@ -8215,8 +8602,15 @@ void qsem_program(QProg *const p, QMem *const m)
             qsem_pop(&S);
     }
 
-    for (QFn *f = p->fns; f; f = f->next)
-        qsem_body(&S, f);
+    for (uint32_t checked = 1; checked;) { /* again while a body calls a method not checked */
+        checked = 0;
+
+        for (QFn *f = p->fns; f; f = f->next) {
+            const bool was = f->checked;
+            qsem_body(&S, f);
+            checked += f->checked && !was;
+        }
+    }
 
     qsem_lends(&S);
 

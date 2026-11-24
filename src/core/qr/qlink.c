@@ -288,7 +288,8 @@ static uint32_t qlink_npar(const QFn *const f)
 /* Does fn f run nowhere: unchecked, native, inline, a generic's model, a test without --test? */
 static bool qlink_none(const QProg *const p, const QFn *const f)
 {
-    return !f->sig || f->native || qast_inline(f) || qast_generic(f) || (f->test && !p->testing);
+    return !f->sig || f->idle || f->native || qast_inline(f) || qast_generic(f) ||
+           (f->test && !p->testing);
 }
 
 /* Each fn checked a procedure, a generic's instances but not it; its parameters and result
@@ -411,8 +412,8 @@ static void qlink_vars(Comp *const C, const QProg *const p)
 
     for (QVar *v = p->vars; v; v = v->next) {
         if (v->constant || v->place ||
-            (v->fn &&
-             (v->fn->inl || v->fn->native || qast_generic(v->fn) || (v->fn->test && !p->testing))))
+            (v->fn && (v->fn->inl || v->fn->idle || v->fn->native || qast_generic(v->fn) ||
+                       (v->fn->test && !p->testing))))
             continue;
 
         const QTok *const name = v->kind == QV_TEMP || v->kind == QV_RESULT ? &hidden : v->name;
@@ -678,7 +679,7 @@ static void qlink_stmts(const QProg *const p, const QStmt **const of)
 
     for (const QStmt *s = p->first; s; s = s->next) {
         if (s->kind == QS_FN &&
-            (!s->fn->sig || qast_generic(s->fn) || (s->fn->test && !p->testing))) {
+            (!s->fn->sig || s->fn->idle || qast_generic(s->fn) || (s->fn->test && !p->testing))) {
             s = s->fn->end;
             continue;
         }

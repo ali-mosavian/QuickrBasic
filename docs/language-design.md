@@ -142,7 +142,6 @@ that is not a loop.
 - `-` of an unsigned value is a compile error outside `wrap`.
 - `T?`, `T!`, `V[K]` and `??` are errors that name `T or none`, `T or Error`, `dict[K, V]` and
   `or else`.
-- **Not yet:** generic records.
 - **In the VM**, an integer to 16 bits and an `int` live in an int cell and compute with the int
   ops, a result's range then checked. A `uint`'s bits are in an int cell too, with ops of its own.
   A `long` and a `ulong` are 8-byte cells loaded and stored by the double ops, with ops of their
@@ -491,11 +490,20 @@ var s as Stack[int]
 s.push(3)
 ```
 
-- `[T]` after a type's name makes it generic; `[T, U]` takes two.
-- Its type is written out where it is declared: `Stack[int]`. `Stack[int]()` builds one. Built
-  with values, its types are read from them: `Pair(1, "a")`.
-- The compiler makes one copy of the type and its methods for each type used.
-- **Not yet:** all of it.
+- `[T]` after a type's name makes it generic; `[T, U]` takes two. An enum is not generic.
+- Its type is written out where it is declared: `Stack[int]`; `Stack` alone is an error.
+  `Stack[int]()` builds one. Built with values, its types are read from them: `Pair(1, "a")`; one
+  no value tells is an error that names `Pair[A, B](..)`. A method without `self` is called on
+  the type given its types: `Stack[int].empty()`.
+- The compiler makes one copy of the type for each list of types used, `Stack[int]` the same type
+  wherever it is written. A copy's method is checked and compiled when it is first called, so a
+  `Stack[Vec]` holds even if `sorted()` needs `<` of a `Vec`, until it is called. An error in a
+  copy is named for it: `can't compare a Vec with a Vec in Box[Vec]`.
+- A type that holds itself with ever new types, `more as Grow[T[]][]`, is an error past 64
+  copies.
+- **In the VM**, each copy is the type's block parsed again with `T` bound, its methods compiled
+  onto copies of its lines, as a generic function's are. A `Stack[int]`'s fields and methods
+  compile to the ops a hand-written `IntStack`'s do.
 
 ### Functions
 

@@ -44,6 +44,8 @@ typedef struct {
 
 static QExpr *qpar_expr(QPar *P);
 static QTypeEx *qpar_type(QPar *P);
+static QTypeEx *qpar_typex(QPar *P, QTypeExKind kind, const QTok *tok);
+static QTypeEx *qpar_typeargs(QPar *P, QTypeEx *name, QKind next);
 static void qpar_statement(QPar *P);
 static void qpar_end(QPar *P);
 static void qpar_push(QPar *P, QStmt *s);
@@ -393,13 +395,20 @@ static QExpr *qpar_primary(QPar *const P)
         return e;
     }
 
-    case QK_NAME:
+    case QK_NAME: {
         qpar_next(P);
+        QTypeEx *const g = qpar_is(P, QK_LBRACK)
+                               ? qpar_typeargs(P, qpar_typex(P, QX_NAME, t), QK_LPAREN)
+                               : nullptr;
 
-        if (qpar_is(P, QK_LPAREN))
-            return qpar_call(P, t);
+        if (qpar_is(P, QK_LPAREN)) {
+            QExpr *const e = qpar_call(P, t);
+            e->tx = g;
+            return e;
+        }
 
         return qast_expr(P->mem, QE_NAME, t);
+    }
 
     case QK_SELF:
         return qast_expr(P->mem, QE_NAME, qpar_next(P));
@@ -455,10 +464,14 @@ static QExpr *qpar_postfix(QPar *const P)
     for (;;) {
         if (qpar_take(P, QK_DOT)) {
             const QTok *const name = qpar_need(P, QK_NAME, "a field's name");
+            QTypeEx *const g = qpar_is(P, QK_LBRACK)
+                                   ? qpar_typeargs(P, qpar_typex(P, QX_NAME, name), QK_LPAREN)
+                                   : nullptr;
 
             if (qpar_is(P, QK_LPAREN)) {
                 QExpr *const call = qpar_call(P, name);
                 call->a = e;
+                call->tx = g;
                 e = call;
                 continue;
             }
@@ -470,8 +483,26 @@ static QExpr *qpar_postfix(QPar *const P)
         }
 
         if (qpar_is(P, QK_LBRACK)) {
+            const QTok *const at = P->t;
+            QTypeEx *const g = e->kind == QE_NAME ? qpar_typeargs(P, nullptr, QK_DOT) : nullptr;
+
+            if (g && (g->n > 1 || g->items[0]->kind != QX_NAME)) { /* no index: Name[T].f */
+                QExpr *const x = qast_expr(P->mem, QE_INDEX, at);
+                x->a = e;
+                x->tx = g;
+                g->elem = qpar_typex(P, QX_NAME, e->tok);
+                e = x;
+                continue;
+            }
+
+            P->t = at;
             QExpr *const x = qast_expr(P->mem, QE_INDEX, qpar_next(P));
             x->a = e;
+            x->tx = g;
+
+            if (g)
+                g->elem = qpar_typex(P, QX_NAME, e->tok);
+
             x->b = qpar_is(P, QK_DOTDOT) ? nullptr : qpar_expr(P);
 
             if (qpar_take(P, QK_DOTDOT)) {
@@ -729,6 +760,44 @@ static bool qpar_named(const QTok *const t, const char *const name)
 
 static QTypeEx *qpar_base(QPar *P);
 
+/* At name's [: its types, Name[T, U], when the brackets hold types and next (QK_EOF: any) follows
+   them; else null, nothing taken and no error kept. */
+static QTypeEx *qpar_typeargs(QPar *const P, QTypeEx *const name, const QKind next)
+{
+    const QTok *const at = P->t;
+    const uint32_t errs = P->prog->errs.n;
+    jmp_buf outer;
+    memcpy(outer, P->fail, sizeof outer);
+    QTypeEx *x = nullptr;
+
+    if (!setjmp(P->fail)) {
+        x = qpar_typex(P, QX_GEN, qpar_next(P));
+        x->elem = name;
+        uint32_t cap = 0;
+
+        do {
+            x->items = qast_room(P->mem, x->items, x->n, &cap, sizeof *x->items);
+            x->items[x->n++] = qpar_type(P);
+        } while (qpar_take(P, QK_COMMA));
+
+        qpar_need(P, QK_RBRACK, "]");
+
+        if (next != QK_EOF && !qpar_is(P, next))
+            x = nullptr;
+    } else
+        x = nullptr;
+
+    memcpy(P->fail, outer, sizeof outer);
+
+    if (!x || P->prog->errs.n != errs) {
+        P->t = at;
+        P->prog->errs.n = errs;
+        return nullptr;
+    }
+
+    return x;
+}
+
 /* A type after as: a name, (T, U), (T), dict[K, V] or function(T, ..) [as U], then [] or [n] any
    times; then or none or or Error, once. */
 static QTypeEx *qpar_type(QPar *const P)
@@ -826,6 +895,9 @@ static QTypeEx *qpar_base(QPar *const P)
             x->quals[x->nquals++] = x->tok;
             x->tok = qpar_need(P, QK_NAME, "a type");
         }
+
+        QTypeEx *const g = qpar_is(P, QK_LBRACK) ? qpar_typeargs(P, x, QK_EOF) : nullptr;
+        x = g ? g : x;
     }
 
     while (qpar_is(P, QK_LBRACK)) {
@@ -1437,6 +1509,20 @@ static void qpar_block(QPar *const P, const QStmtKind kind)
     else
         s->decls = qpar_decls(P); /* its name alone */
 
+    if (kind != QS_SELECT && qpar_take(P, QK_LBRACK)) { /* type Name[T, U] */
+        uint32_t cap = 0;
+
+        do {
+            s->tparams = qast_room(P->mem, s->tparams, s->ntp, &cap, sizeof *s->tparams);
+            s->tparams[s->ntp++] = qpar_need(P, QK_NAME, "a type parameter's name");
+        } while (qpar_take(P, QK_COMMA));
+
+        qpar_need(P, QK_RBRACK, "]");
+
+        if (kind == QS_ENUM)
+            qpar_said(P, s->tok, "an enum is not generic: a type is");
+    }
+
     if (kind != QS_SELECT && (s->decls->type || s->decls->value || s->decls->next))
         qpar_fail(P, s->tok, "{} takes a name alone");
     if (kind == QS_TYPE && P->nopen > 1)
@@ -1899,6 +1985,24 @@ QFn *qpar_again(QProg *const p, QMem *const m, const QFn *const f)
     } while (P.nopen && P.t->kind != QK_EOF);
 
     return before->next->fn;
+}
+
+QStmt *qpar_typeagain(QProg *const p, QMem *const m, const QStmt *const s)
+{
+    QPar P = qpar_at(p, m, s->tok);
+    const QStmt *const before = P.last;
+
+    do {
+        if (!setjmp(P.fail))
+            qpar_statement(&P);
+
+        while (P.t->kind != QK_NL && P.t->kind != QK_EOF)
+            P.t++;
+
+        qpar_take(&P, QK_NL);
+    } while (P.nopen && P.t->kind != QK_EOF);
+
+    return before->next;
 }
 
 QExpr *qpar_reexpr(QProg *const p, QMem *const m, const QTok *const t)

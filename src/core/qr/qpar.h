@@ -9,6 +9,9 @@ void qpar_program(QProg *p, QMem *m, QMod *mod);
 /* Fn f's tokens parsed again, a fresh tree: its statements at the program's end, the fn last of
    its fns. A generic's instance starts so. */
 QFn *qpar_again(QProg *p, QMem *m, const QFn *f);
+/* Type block s's tokens parsed again, a fresh tree: its statements and methods at the program's
+   end, its type statement returned. A generic record's instance starts so. */
+QStmt *qpar_typeagain(QProg *p, QMem *m, const QStmt *s);
 /* The expression at token t parsed again, a fresh tree: a one-line lambda's body where it is
    inlined. Null after an error, which the first parse said. */
 QExpr *qpar_reexpr(QProg *p, QMem *m, const QTok *t);
