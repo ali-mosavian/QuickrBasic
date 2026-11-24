@@ -57,3 +57,5 @@ select case k
     case else
         print "?"
 end select
+' two different constant enum values compare unequal
+print Mode.jump = Mode.walk; " "; Mode.jump <> Mode.walk; " "; Mode.roll = Mode.roll

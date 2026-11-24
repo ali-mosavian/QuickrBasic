@@ -1858,11 +1858,11 @@ static QType qsem_cmptype(
     return QY_ERROR;
 }
 
-/* A relation's truth of constants of type w. */
+/* A relation's truth of constants of type w; a bool or a tag by its val.i. */
 static bool qsem_holds(const QKind op, const QExpr *const a, const QExpr *const b)
 {
-    const double x = a->type == QY_BOOL ? (double)a->val.i : qsem_num(a);
-    const double y = b->type == QY_BOOL ? (double)b->val.i : qsem_num(b);
+    const double x = qast_numeric(a->type) ? qsem_num(a) : (double)a->val.i;
+    const double y = qast_numeric(b->type) ? qsem_num(b) : (double)b->val.i;
 
     switch (op) {
     case QK_EQ:
