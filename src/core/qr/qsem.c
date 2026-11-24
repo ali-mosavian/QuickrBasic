@@ -1355,19 +1355,19 @@ static bool qsem_ifold(
         *r = e->op == QK_DIV ? a / b : a % b;
         return true;
 
-    case QK_AMP:
+    case QK_BAND:
         *r = a & b;
         return true;
 
-    case QK_BAR:
+    case QK_BOR:
         *r = a | b;
         return true;
 
-    case QK_CARET:
+    case QK_BXOR:
         *r = a ^ b;
         return true;
 
-    default: /* << >>: the bits shifted out dropped */
+    default: /* shl shr: the bits shifted out dropped */
         if (b < 0 || b >= bits) {
             qsem_say(S, e->tok, "a shift's count is 0 to ", qsem_uint(S, bits - 1), nullptr);
             return false;
@@ -1382,7 +1382,7 @@ static bool qsem_ifold(
     }
 }
 
-/* + - * ** of integer constants of type w (QY_INT for untyped ones), exact; in wrap(..), w's bits
+/* + - * ^ of integer constants of type w (QY_INT for untyped ones), exact; in wrap(..), w's bits
    kept. false: too large, said. */
 static bool qsem_iarith(
     QSem *const S,
@@ -1413,7 +1413,7 @@ static bool qsem_iarith(
                  : __builtin_mul_overflow(a, b, r);
         break;
 
-    default: { /* **: the VM's, 0 for a negative power but of 1 and -1 */
+    default: { /* ^: the VM's, 0 for a negative power but of 1 and -1 */
         uint64_t p = 1;
         const bool small = a == 0 || a == 1 || (!u && a == -1) || (!u && b < 0);
 
@@ -1442,7 +1442,7 @@ static bool qsem_iarith(
     return !over;
 }
 
-/* + - * / ** of float constants in type t. */
+/* + - * / ^ of float constants in type t. */
 static double qsem_ffold(const QKind op, const double a, const double b, const QType t)
 {
     double r;
@@ -1464,7 +1464,7 @@ static double qsem_ffold(const QKind op, const double a, const double b, const Q
         r = a / b;
         break;
 
-    default: { /* ** of a whole power; a fractional one is not folded */
+    default: { /* ^ of a whole power; a fractional one is not folded */
         r = 1;
         const int64_t n = (int64_t)(b < 0 ? -b : b);
 
@@ -1534,9 +1534,45 @@ static QExpr *qsem_strcat(QSem *const S, QExpr *const e)
     return qsem_const(S, e->a->tok, QY_STRING, (QVal){.s = qsem_cat(S, e->a->val.s, e->b->val.s)});
 }
 
-/* a xor b: bools. */
+static QExpr *qsem_intop(QSem *S, QExpr *e);
+
+/* a and b, a or b, a xor b, its operands checked, of two integers: bitwise, as op; of a bool and
+   an integer, an error. Null: neither an integer, a logic operator's. */
+static QExpr *qsem_bits(QSem *const S, QExpr *const e, const QKind op)
+{
+    const QType a = e->a->type, b = e->b->type;
+
+    if (qast_integer(a) && qast_integer(b)) {
+        e->kind = QE_BINARY;
+        e->op = op;
+        return qsem_intop(S, e);
+    }
+
+    if (!(qast_integer(a) && b == QY_BOOL) && !(a == QY_BOOL && qast_integer(b)))
+        return nullptr;
+
+    qsem_say(
+        S,
+        e->tok,
+        qast_spelling(op),
+        " takes two bools or two integers, not ",
+        qsem_aname(S, a),
+        " and ",
+        qsem_aname(S, b),
+        nullptr
+    );
+    e->type = QY_ERROR;
+    return e;
+}
+
+/* a xor b: bools, or integers' bits. */
 static QExpr *qsem_xor(QSem *const S, QExpr *const e)
 {
+    QExpr *const bits = qsem_bits(S, e, QK_BXOR);
+
+    if (bits)
+        return bits;
+
     e->a = qsem_coerce(S, e->a, QY_BOOL);
     e->b = qsem_coerce(S, e->b, QY_BOOL);
     e->type = e->work = e->a->type == QY_ERROR || e->b->type == QY_ERROR ? QY_ERROR : QY_BOOL;
@@ -1655,6 +1691,9 @@ static QExpr *qsem_unary(QSem *const S, QExpr *const e)
     if (a->type == QY_ERROR)
         return e;
 
+    if (e->op == QK_NOT && qast_integer(a->type))
+        e->op = QK_BNOT;
+
     if (e->op == QK_NOT) {
         e->a = qsem_coerce(S, a, QY_BOOL);
         e->type = QY_BOOL;
@@ -1665,7 +1704,7 @@ static QExpr *qsem_unary(QSem *const S, QExpr *const e)
         return e;
     }
 
-    if (e->op == QK_TILDE) {
+    if (e->op == QK_BNOT) {
         const QType t = qast_integer(a->type) && !a->untyped ? a->type : QY_INT;
         e->a = qsem_coerce(S, a, t);
         e->type = e->a->type == QY_ERROR ? QY_ERROR : t;
@@ -1830,11 +1869,18 @@ static QExpr *qsem_chain(QSem *const S, QExpr *const e)
     return qsem_bool(S, e->tok, all);
 }
 
-/* a and b, a or b: bools, short-circuit; folded when a is a constant. */
+/* a and b, a or b: bools, short-circuit, folded when a is a constant; or integers' bits. */
 static QExpr *qsem_logic(QSem *const S, QExpr *const e)
 {
-    e->a = qsem_coerce(S, qsem_expr(S, e->a, QY_VOID), QY_BOOL);
-    e->b = qsem_coerce(S, qsem_expr(S, e->b, QY_VOID), QY_BOOL);
+    e->a = qsem_expr(S, e->a, QY_VOID);
+    e->b = qsem_expr(S, e->b, QY_VOID);
+    QExpr *const bits = qsem_bits(S, e, e->kind == QE_AND ? QK_BAND : QK_BOR);
+
+    if (bits)
+        return bits;
+
+    e->a = qsem_coerce(S, e->a, QY_BOOL);
+    e->b = qsem_coerce(S, e->b, QY_BOOL);
     e->type = e->a->type == QY_ERROR || e->b->type == QY_ERROR ? QY_ERROR : QY_BOOL;
 
     if (e->type == QY_ERROR || !qsem_isconst(e->a))

@@ -8,13 +8,13 @@ var n as int = d
 print(1 + "x")
 print("x" - "y")
 print(1.5 div 2)
-print(1.5 & 1)
+print(1.5 shl 1)
 print(true + 1)
 if 1 then print(1)
 while "s"
 end while
 print(true and 1)
-print(not 1)
+print(not 1.5)
 print(1 if true else "x")
 print(int(true))
 print(string())

@@ -2,16 +2,18 @@
 ' operators
 var a = 7
 var b = 2
-print(a + b, a - b, a * b, a / b, a div b, a mod b, a ** b)
-print(-a div b, -a mod b, a div -b, 2 ** 10, 2.0 ** 0.5)
-print(1 + 2 * 3, (1 + 2) * 3, 2 ** 3 ** 2, -2 ** 2)
+print(a + b, a - b, a * b, a / b, a div b, a mod b, a ^ b)
+print(-a div b, -a mod b, a div -b, 2 ^ 10, 2.0 ^ 0.5)
+print(1 + 2 * 3, (1 + 2) * 3, 2 ^ 3 ^ 2, -2 ^ 2)
 print(a = 7, a <> 7, a < b, a <= 7, a > b, a >= 8)
 print(1 < 2 < 3, 1 < 3 < 2, 1 <= 1 < 2 <= 2)
 print("a" < "b", "ab" = "ab", "b" > "abc", "x" <> "y")
 print(a in 0..8, a in 0..7, a not in 0..7, -1 in 0..7)
 print(true and true, true and false, false or true, false or false)
 print(not true, true xor false, true xor true, not (a > b))
-print(6 & 3, 6 | 3, 6 ^ 3, ~5, 1 << 31, -8 >> 1, 255 >> 4)
+print(6 and 3, 6 or 3, 6 xor 3, not 5, 1 shl 31, -8 shr 1, 255 shr 4)
+' bits: shl below +, and below not, or below xor
+print(1 shl 2 + 1, 5 and 3 or 8, 12 xor 10 and 6, not 0 and 1, (6 and 3) = 2)
 print("con" + "cat", "x" if a > b else "y", 1 if a < b else 2)
 var calls = 0
 function tick(v as bool) as bool
@@ -28,4 +30,4 @@ print(0 < mid() < 10, calls)
 print(mid() in 0..3, calls)
 print(tick(true) if a > b else tick(false), calls)
 let v as single = 2.5
-print(v * 2, v / 2, v + 0.25, v ** 2)
+print(v * 2, v / 2, v + 0.25, v ^ 2)

@@ -209,8 +209,7 @@ Lowest first. Each row binds tighter than the one above.
   `b`.
 - Compound assignment: `+= -= *= /=`. The target's subscripts are evaluated once. `/=` takes a
   `single` or `double` target.
-- **Not yet:** `^` is xor and power is `**`. Integers' bit operators are `& | ^ ~ << >>`, which
-  bind tighter than a comparison; `and or xor not` take bools only. `or else` is `??`.
+- **Not yet:** `or else` is `??`, which binds tighter than a comparison.
 
 ### print
 

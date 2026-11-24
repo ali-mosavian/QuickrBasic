@@ -2,7 +2,7 @@
  *
  * # How it works
  * Recursive descent, one function a precedence level, lowest first: a if c else b, or, xor, and,
- * not, comparisons (chained, and in a..b), | ^ & << >>, + -, * / div mod, unary - ~, **; then
+ * not, comparisons (chained, and in a..b), shl shr, + -, * / div mod, unary -, ^; then
  * a.f, a.f(args) and a[i] after a primary. A line starting with a name is tried as places then
  * =, else parsed as a call. A statement is parsed to its QK_NL; an error longjmps to the statement's start, which skips to
  * the QK_NL, so one bad statement makes one error.
@@ -473,7 +473,7 @@ static QExpr *qpar_postfix(QPar *const P)
 
 static QExpr *qpar_unary(QPar *P);
 
-/* a ** b: right to left, tighter than a unary minus on its left. */
+/* a ^ b: right to left, tighter than a unary minus on its left. */
 static QExpr *qpar_power(QPar *const P)
 {
     QExpr *const a = qpar_postfix(P);
@@ -487,7 +487,7 @@ static QExpr *qpar_power(QPar *const P)
 
 static QExpr *qpar_unary(QPar *const P)
 {
-    if (!qpar_is(P, QK_MINUS) && !qpar_is(P, QK_TILDE))
+    if (!qpar_is(P, QK_MINUS))
         return qpar_power(P);
 
     const QTok *const op = qpar_next(P);
@@ -542,27 +542,6 @@ static QExpr *qpar_shift(QPar *const P)
     return qpar_level(P, qpar_sum, ops, countof(ops));
 }
 
-static QExpr *qpar_band(QPar *const P)
-{
-    static const QKind ops[] = {QK_AMP};
-
-    return qpar_level(P, qpar_shift, ops, countof(ops));
-}
-
-static QExpr *qpar_bxor(QPar *const P)
-{
-    static const QKind ops[] = {QK_CARET};
-
-    return qpar_level(P, qpar_band, ops, countof(ops));
-}
-
-static QExpr *qpar_bor(QPar *const P)
-{
-    static const QKind ops[] = {QK_BAR};
-
-    return qpar_level(P, qpar_bxor, ops, countof(ops));
-}
-
 static bool qpar_relop(const QKind k)
 {
     return k == QK_EQ || k == QK_NE || k == QK_LT || k == QK_LE || k == QK_GT || k == QK_GE;
@@ -577,10 +556,10 @@ static QExpr *qpar_in(QPar *const P, QExpr *const a)
     QExpr *const e = qast_expr(P->mem, QE_IN, t);
     e->neg = neg;
     e->a = a;
-    e->b = qpar_bor(P);
+    e->b = qpar_shift(P);
 
     if (qpar_take(P, QK_DOTDOT))
-        e->c = qpar_bor(P);
+        e->c = qpar_shift(P);
 
     return e;
 }
@@ -589,7 +568,7 @@ static QExpr *qpar_in(QPar *const P, QExpr *const a)
 /* a ?? b, binding tighter than a comparison; right to left. */
 static QExpr *qpar_coalesce(QPar *const P)
 {
-    QExpr *const a = qpar_bor(P);
+    QExpr *const a = qpar_shift(P);
 
     if (!qpar_is(P, QK_QQ))
         return a;
@@ -1043,7 +1022,7 @@ static void qpar_for(QPar *const P)
     }
 
     qpar_need(P, QK_IN, "in");
-    s->e = qpar_bor(P);
+    s->e = qpar_shift(P);
 
     if (!qpar_is(P, QK_DOTDOT)) {
         s->each = true;
@@ -1054,7 +1033,7 @@ static void qpar_for(QPar *const P)
         qpar_fail(P, P->t, "a range's for takes one name, not mut");
 
     qpar_next(P);
-    s->to = qpar_bor(P);
+    s->to = qpar_shift(P);
 
     if (qpar_take(P, QK_STEP))
         s->step = qpar_expr(P);
@@ -1291,16 +1270,16 @@ static QPat *qpar_pat(QPar *const P)
 
         pt->kind = QP_IS;
         pt->op = qpar_next(P)->kind;
-        pt->a = qpar_bor(P);
+        pt->a = qpar_shift(P);
         return pt;
     }
 
-    pt->a = qpar_bor(P);
+    pt->a = qpar_shift(P);
 
     if (qpar_is(P, QK_NAME) && P->t->len == 2 && !memcmp(P->t->text, "to", 2)) {
         qpar_next(P);
         pt->kind = QP_RANGE;
-        pt->b = qpar_bor(P);
+        pt->b = qpar_shift(P);
     }
 
     return pt;

@@ -16,8 +16,8 @@ operators.bas:22:19: a Vec has an operator + already
 operators.bas:25:19: an operator is not generic and yields nothing
   function operator +[T](a as T, b as T) as T
                     ^
-operators.bas:28:19: expected +, -, *, /, = or < after operator, not **
-  function operator ** (a as Vec, b as Vec) as Vec
+operators.bas:28:19: expected +, -, *, /, = or < after operator, not ^
+  function operator ^ (a as Vec, b as Vec) as Vec
                     ^
 operators.bas:31:11: a Vec has no operator /
   let w = v / v

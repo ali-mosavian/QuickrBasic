@@ -41,27 +41,50 @@ typedef struct {
 } QLex;
 
 static const char *const qlex_words[] = {
-    [QK_AND - QK_AND] = "and",       [QK_AS - QK_AND] = "as",
-    [QK_BREAK - QK_AND] = "break",   [QK_CASE - QK_AND] = "case",
-    [QK_CONST - QK_AND] = "const",   [QK_CONTINUE - QK_AND] = "continue",
-    [QK_DIV - QK_AND] = "div",       [QK_DO - QK_AND] = "do",
-    [QK_ELSE - QK_AND] = "else",     [QK_ELSEIF - QK_AND] = "elseif",
-    [QK_END - QK_AND] = "end",       [QK_ENUM - QK_AND] = "enum",
-    [QK_FALSE - QK_AND] = "false",   [QK_FN - QK_AND] = "fn",
-    [QK_FOR - QK_AND] = "for",       [QK_IF - QK_AND] = "if",
-    [QK_IN - QK_AND] = "in",         [QK_IS - QK_AND] = "is",
-    [QK_LET - QK_AND] = "let",       [QK_MATCH - QK_AND] = "match",
-    [QK_MOD - QK_AND] = "mod",       [QK_MUT - QK_AND] = "mut",
-    [QK_NONE - QK_AND] = "none",     [QK_NOT - QK_AND] = "not",
-    [QK_OR - QK_AND] = "or",         [QK_RETURN - QK_AND] = "return",
-    [QK_STEP - QK_AND] = "step",     [QK_THEN - QK_AND] = "then",
-    [QK_TRUE - QK_AND] = "true",     [QK_TYPE - QK_AND] = "type",
-    [QK_VAR - QK_AND] = "var",       [QK_WHILE - QK_AND] = "while",
-    [QK_XOR - QK_AND] = "xor",       [QK_YIELD - QK_AND] = "yield",
-    [QK_YIELDS - QK_AND] = "yields", [QK_FROM - QK_AND] = "from",
-    [QK_IMPORT - QK_AND] = "import", [QK_PUBLIC - QK_AND] = "public",
-    [QK_NATIVE - QK_AND] = "native", [QK_OPERATOR - QK_AND] = "operator",
-    [QK_TEST - QK_AND] = "test",     [QK_ASSERT - QK_AND] = "assert",
+    [QK_AND - QK_AND] = "and",
+    [QK_AS - QK_AND] = "as",
+    [QK_BREAK - QK_AND] = "break",
+    [QK_CASE - QK_AND] = "case",
+    [QK_CONST - QK_AND] = "const",
+    [QK_CONTINUE - QK_AND] = "continue",
+    [QK_DIV - QK_AND] = "div",
+    [QK_DO - QK_AND] = "do",
+    [QK_ELSE - QK_AND] = "else",
+    [QK_ELSEIF - QK_AND] = "elseif",
+    [QK_END - QK_AND] = "end",
+    [QK_ENUM - QK_AND] = "enum",
+    [QK_FALSE - QK_AND] = "false",
+    [QK_FN - QK_AND] = "fn",
+    [QK_FOR - QK_AND] = "for",
+    [QK_IF - QK_AND] = "if",
+    [QK_IN - QK_AND] = "in",
+    [QK_IS - QK_AND] = "is",
+    [QK_LET - QK_AND] = "let",
+    [QK_MATCH - QK_AND] = "match",
+    [QK_MOD - QK_AND] = "mod",
+    [QK_MUT - QK_AND] = "mut",
+    [QK_NONE - QK_AND] = "none",
+    [QK_NOT - QK_AND] = "not",
+    [QK_OR - QK_AND] = "or",
+    [QK_RETURN - QK_AND] = "return",
+    [QK_STEP - QK_AND] = "step",
+    [QK_THEN - QK_AND] = "then",
+    [QK_TRUE - QK_AND] = "true",
+    [QK_TYPE - QK_AND] = "type",
+    [QK_VAR - QK_AND] = "var",
+    [QK_WHILE - QK_AND] = "while",
+    [QK_XOR - QK_AND] = "xor",
+    [QK_YIELD - QK_AND] = "yield",
+    [QK_YIELDS - QK_AND] = "yields",
+    [QK_FROM - QK_AND] = "from",
+    [QK_IMPORT - QK_AND] = "import",
+    [QK_PUBLIC - QK_AND] = "public",
+    [QK_NATIVE - QK_AND] = "native",
+    [QK_OPERATOR - QK_AND] = "operator",
+    [QK_TEST - QK_AND] = "test",
+    [QK_ASSERT - QK_AND] = "assert",
+    [QK_SHL - QK_AND] = "shl",
+    [QK_SHR - QK_AND] = "shr",
     [QK_FUNCTION - QK_AND] = "function",
 };
 
@@ -70,13 +93,25 @@ static const struct {
     char text[3];
     QKind kind;
 } qlex_puncts[] = {
-    {"**", QK_POW},   {"..", QK_DOTDOT}, {"<>", QK_NE},    {"<=", QK_LE},    {"<<", QK_SHL},
-    {">=", QK_GE},    {">>", QK_SHR},    {"+=", QK_ADDEQ}, {"-=", QK_SUBEQ}, {"*=", QK_MULEQ},
-    {"/=", QK_DIVEQ}, {"??", QK_QQ},     {"(", QK_LPAREN}, {")", QK_RPAREN}, {"[", QK_LBRACK},
-    {"]", QK_RBRACK}, {"{", QK_LBRACE},  {"}", QK_RBRACE}, {",", QK_COMMA},  {":", QK_COLON},
-    {".", QK_DOT},    {"?", QK_QUEST},   {"!", QK_BANG},   {"+", QK_PLUS},   {"-", QK_MINUS},
-    {"*", QK_STAR},   {"/", QK_SLASH},   {"=", QK_EQ},     {"<", QK_LT},     {">", QK_GT},
-    {"&", QK_AMP},    {"|", QK_BAR},     {"^", QK_CARET},  {"~", QK_TILDE},
+    {"..", QK_DOTDOT}, {"<>", QK_NE},    {"<=", QK_LE},    {">=", QK_GE},    {"+=", QK_ADDEQ},
+    {"-=", QK_SUBEQ},  {"*=", QK_MULEQ}, {"/=", QK_DIVEQ}, {"??", QK_QQ},    {"(", QK_LPAREN},
+    {")", QK_RPAREN},  {"[", QK_LBRACK}, {"]", QK_RBRACK}, {"{", QK_LBRACE}, {"}", QK_RBRACE},
+    {",", QK_COMMA},   {":", QK_COLON},  {".", QK_DOT},    {"?", QK_QUEST},  {"!", QK_BANG},
+    {"+", QK_PLUS},    {"-", QK_MINUS},  {"*", QK_STAR},   {"/", QK_SLASH},  {"=", QK_EQ},
+    {"<", QK_LT},      {">", QK_GT},     {"^", QK_POW},
+};
+
+/* Operators spelled as another language spells them, each an error naming Quickr's. */
+static const struct {
+    char text[3];
+    const char *msg;
+} qlex_olds[] = {
+    {"**", "** is written ^"},
+    {"<<", "<< is written shl"},
+    {">>", ">> is written shr"},
+    {"&", "& is written and"},
+    {"|", "| is written or"},
+    {"~", "~ is written not"},
 };
 
 static bool qlex_word_char(const uint8_t c) { return is_word_char(c); }
@@ -350,6 +385,16 @@ static void qlex_string(QLex *const L, const uint32_t from)
 /* Punctuation at the cursor; a byte that is none is an error. */
 static void qlex_punct(QLex *const L, const uint32_t from)
 {
+    for (uint32_t k = 0; k < countof(qlex_olds); k++) {
+        const uint32_t n = qlex_olds[k].text[1] ? 2 : 1;
+
+        if (L->at + n <= L->len && !memcmp(qlex_olds[k].text, L->text + L->at, n)) {
+            L->at += n;
+            qlex_bad(L, qlex_tok(L, QK_BAD, from), qlex_olds[k].msg);
+            return;
+        }
+    }
+
     for (uint32_t k = 0; k < countof(qlex_puncts); k++) {
         const uint32_t n = qlex_puncts[k].text[1] ? 2 : 1;
 

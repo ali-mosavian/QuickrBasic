@@ -32,13 +32,13 @@ print(string(u), string(l), f"{u:,} {l:>14,} {ul:x} {ub:08b} {b:+d}")
 print(wrap(ubyte(300)), wrap(ub + ub), wrap(b - 100), wrap(u * u), wrap(l * l))
 var h as uint = 2166136261
 for c in "abc"
-    h = wrap((h ^ c) * 16777619)
+    h = wrap((h xor c) * 16777619)
 end for
 print(h)
 print(wrap(int(2147483647) + 1), wrap(-l * 1_000_000_000_000))
-' bits: & | ^ ~ << >>
-print(ub & 15, ub | 256 - 1, ~ub, ~b, ~us, ~u, ~l)
-print(ub << 1, ub >> 4, u >> 31, l << 2, -l >> 1, ul >> 60, b >> 2)
+' bits: and or not shl shr
+print(ub and 15, ub or 256 - 1, not ub, not b, not us, not u, not l)
+print(ub shl 1, ub shr 4, u shr 31, l shl 2, -l shr 1, ul shr 60, b shr 2)
 ' a string's bytes are ubytes
 let t = "Hi!"
 print(t[0], t[0] + t[1], int(t[2]) * 1000)

@@ -25,7 +25,7 @@ end function
 function operator +[T](a as T, b as T) as T
     return a
 end function
-function operator ** (a as Vec, b as Vec) as Vec
+function operator ^ (a as Vec, b as Vec) as Vec
 end function
 let v = Vec(1)
 let w = v / v

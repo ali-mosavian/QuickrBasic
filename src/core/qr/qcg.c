@@ -664,11 +664,11 @@ static void qcg_warith(
         qcg_xint(c, QI_POW, w, wrap);
         return;
 
-    case QK_AMP:
+    case QK_BAND:
         code_xop(c, X_L_AND);
         return;
 
-    case QK_BAR:
+    case QK_BOR:
         code_xop(c, X_L_OR);
         return;
 
@@ -680,12 +680,12 @@ static void qcg_warith(
         code_xop(c, uns ? X_UL_SHR : X_L_SHR);
         return;
 
-    default: /* ^, xor */
+    default: /* xor */
         code_xop(c, X_L_XOR);
     }
 }
 
-/* Operator op of a uint, its operands pushed: & | ^ and << by the int ops. */
+/* Operator op of a uint, its operands pushed: and, or, xor and shl by the int ops. */
 static void qcg_uarith(Code *const c, uint8_t *const right, const QKind op, const bool wrap)
 {
     switch (op) {
@@ -713,11 +713,11 @@ static void qcg_uarith(Code *const c, uint8_t *const right, const QKind op, cons
         qcg_xint(c, QI_POW, QY_UINT, wrap);
         return;
 
-    case QK_AMP:
+    case QK_BAND:
         qcg_arith(c, right, QY_INT, QA_AND);
         return;
 
-    case QK_BAR:
+    case QK_BOR:
         qcg_arith(c, right, QY_INT, QA_OR);
         return;
 
@@ -736,7 +736,7 @@ static void qcg_uarith(Code *const c, uint8_t *const right, const QKind op, cons
 
 /* Operator op of integer type w other than an int's, or in wrap(..), its operands pushed: a long's,
    a ulong's, a uint's by their ops; an int cell's by the int ops, wrapped by IW's, then its range
-   checked or its bits kept (qcg_narrow). A shift keeps w's bits; & | ^ stay in w's range. */
+   checked or its bits kept (qcg_narrow). A shift keeps w's bits; and, or, xor stay in w's range. */
 static void qcg_iarith(
     QCg *const g,
     uint8_t *const right,
@@ -762,8 +762,8 @@ static void qcg_iarith(
         [QK_MINUS] = QA_SUB,
         [QK_STAR] = QA_MUL,
         [QK_DIV] = QA_DIV,
-        [QK_AMP] = QA_AND,
-        [QK_BAR] = QA_OR
+        [QK_BAND] = QA_AND,
+        [QK_BOR] = QA_OR
     };
 
     static const uint8_t iw[] = {[QA_ADD] = X_IW_ADD, [QA_SUB] = X_IW_SUB, [QA_MUL] = X_IW_MUL};
@@ -804,8 +804,8 @@ static void qcg_iarith(
         code_op(c, O_I_MOD);
         return;
 
-    case QK_AMP:
-    case QK_BAR:
+    case QK_BAND:
+    case QK_BOR:
         qcg_arith(c, right, QY_INT, qa[op]);
         return;
 
@@ -879,11 +879,11 @@ static void qcg_binary(QCg *const g, const QExpr *const e)
         code_op(c, O_I_MOD);
         return;
 
-    case QK_AMP:
+    case QK_BAND:
         qcg_arith(c, right, QY_INT, QA_AND);
         return;
 
-    case QK_BAR:
+    case QK_BOR:
         qcg_arith(c, right, QY_INT, QA_OR);
         return;
 
@@ -895,7 +895,7 @@ static void qcg_binary(QCg *const g, const QExpr *const e)
         code_call(c, K_QSHR);
         return;
 
-    default: /* ^, xor */
+    default: /* xor */
         code_op(c, O_I_XOR);
     }
 }
