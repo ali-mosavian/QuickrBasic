@@ -97,3 +97,49 @@ sub label ( _
     gfx.draw.sprite_turned dst, x + half!, y + half!, 0, zoom, s&, 0
     gfx.surface.free s&
 end sub
+
+' :::::::::::
+' Draws text over its shadow, so it reads on any picture.
+'
+'     Args:
+'       dst:
+'         The surface drawn into.
+'       x, y:
+'         The text's top left.
+'       t:
+'         The text.
+'       colour:
+'         Its colour.
+'       shade:
+'         Its shadow's, a pixel of zoom down and right.
+'       zoom:
+'         Its scale, whole.
+' :::::::::::
+sub label_shaded ( _
+    byval dst as long, _
+    byval x as single, _
+    byval y as single, _
+    byval t as string, _
+    byval colour as long, _
+    byval shade as long, _
+    byval zoom as integer _
+)
+    label dst, x + zoom, y + zoom, t, shade, zoom
+    label dst, x, y, t, colour, zoom
+end sub
+
+' :::::::::::
+' Names a setting's state.
+'
+'     Args:
+'       v:
+'         The setting: 0 off, else on.
+'
+'     Returns:
+'       "on" or "off".
+' :::::::::::
+function on_off$ (byval v as integer)
+    on_off$ = "off"
+
+    if v then on_off$ = "on"
+end function

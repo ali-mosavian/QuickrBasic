@@ -5,7 +5,7 @@
 ' and the sizes below are in units. Up and Down (or + and
 ' -) change the speed, S smooths the comet. Esc stops it.
 import gfx.display, gfx.surface, gfx.draw
-from stage import Stage, measure, label
+from stage import Stage, measure, label, on_off$
 from meter import Meter, KEPT, count_frame, rate_text$
 
 const W = 640
@@ -344,13 +344,7 @@ sub show_help ( _
     grey& = gfx.display.rgb(200, 200, 200)
     edge% = MARGIN * st.zoom
     t$ = "UP/DN speed" + str$(int(speed * 100) / 100)
-    t$ = t$ + "   S smooth "
-
-    if smooth then
-        t$ = t$ + "on"
-    else
-        t$ = t$ + "off"
-    end if
+    t$ = t$ + "   S smooth " + on_off$(smooth)
 
     label dst, edge%, edge%, t$, grey&, st.zoom
 end sub

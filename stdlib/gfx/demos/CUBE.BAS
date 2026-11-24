@@ -5,7 +5,7 @@
 ' Esc stops it.
 import gfx.display, gfx.surface, gfx.draw
 from gfx.draw import Vertex
-from stage import Stage, measure, label
+from stage import Stage, measure, label, on_off$
 from meter import Meter, KEPT, count_frame, rate_text$
 
 const W = 640
@@ -59,7 +59,6 @@ declare sub show_options ( _
     o as Options, _
     m as Meter _
 )
-declare function on_off$ (byval v as integer)
 
 canvas& = gfx.display.open(W, H, 32, gfx.display.VSYNC)
 back& = gfx.display.rgb(16, 16, 40)
@@ -229,9 +228,3 @@ sub show_options ( _
     label dst, edge%, foot%, t$, grey&, z%
     label dst, edge%, edge%, rate_text$(m), grey&, z%
 end sub
-
-function on_off$ (byval v as integer)
-    on_off$ = "off"
-
-    if v then on_off$ = "on"
-end function
