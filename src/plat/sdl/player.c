@@ -26,12 +26,8 @@
 enum {
     RGBA = 4,
     BLENDS = 4,
-    FLIGHT = 2,        /* frames the GPU may be behind */
-    ALIGN = 16,        /* a staged block's offset */
-    DRAW_TEXTURES = 6, /* a DRAW's first texture, its argument */
-    CODE_WORDS = 3,
-    ATTRIBUTE_WORDS = 3,
-    PIPELINE_HEAD = 4 + 2 * CODE_WORDS, /* a PIPELINE's first attribute, its word, the op's after */
+    FLIGHT = 2, /* frames the GPU may be behind */
+    ALIGN = 16, /* a staged block's offset */
     MOST_ATTRIBUTES = 16,
     MOST_SAMPLERS = 8,
 };
@@ -468,22 +464,23 @@ static void pipeline(const uint32_t *const a, const uint32_t n)
         {.enable_color_write_mask = true},
     };
 
-    const uint32_t count = (n - PIPELINE_HEAD) / ATTRIBUTE_WORDS, samplers = a[3];
+    const uint32_t count = (n - QX_PIPELINE_ATTRIBUTES) / QX_ATTRIBUTE_WORDS, samplers = a[3];
     const uint32_t blend = a[1] & 0xFF, depth = a[1] >> 8 & 0xFF;
     SDL_GPUVertexAttribute attributes[MOST_ATTRIBUTES];
 
-    if (n < PIPELINE_HEAD || blend >= BLENDS || count > MOST_ATTRIBUTES ||
+    if (n < QX_PIPELINE_ATTRIBUTES || blend >= BLENDS || count > MOST_ATTRIBUTES ||
         samplers > MOST_SAMPLERS || find(&p.pipelines, a[0]))
         return;
 
     for (uint32_t i = 0; i < count; i++) {
-        const uint32_t *const t = a + PIPELINE_HEAD + i * ATTRIBUTE_WORDS;
+        const uint32_t *const t = a + QX_PIPELINE_ATTRIBUTES + i * QX_ATTRIBUTE_WORDS;
         const uint32_t format = t[1] < sizeof formats / sizeof *formats ? t[1] : 0;
         attributes[i] = (SDL_GPUVertexAttribute){t[0], 0, formats[format], t[2]};
     }
 
-    SDL_GPUShader *const vs = shader(a + 4, SDL_GPU_SHADERSTAGE_VERTEX, 0, 1);
-    SDL_GPUShader *const fs = shader(a + 4 + CODE_WORDS, SDL_GPU_SHADERSTAGE_FRAGMENT, samplers, 0);
+    SDL_GPUShader *const vs = shader(a + QX_PIPELINE_CODE, SDL_GPU_SHADERSTAGE_VERTEX, 0, 1);
+    SDL_GPUShader *const fs =
+        shader(a + QX_PIPELINE_CODE + QX_CODE_WORDS, SDL_GPU_SHADERSTAGE_FRAGMENT, samplers, 0);
     const SDL_GPUColorTargetDescription colour = {
         .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
         .blend_state = blends[blend],
@@ -565,12 +562,13 @@ static void draw(Pass *const s, const uint32_t *const a, const uint32_t n)
     SDL_GPUGraphicsPipeline *const made = pl ? (depth ? pl->deep : pl->p) : nullptr;
     SDL_GPUTextureSamplerBinding samplers[MOST_SAMPLERS];
 
-    if (!made || !vb || !vb->b || !ib || !ib->b || !target || n != DRAW_TEXTURES + pl->samplers ||
+    if (!made || !vb || !vb->b || !ib || !ib->b || !target ||
+        n != QX_DRAW_TEXTURES + pl->samplers ||
         (uint64_t)(a[3] + a[4]) * sizeof(uint32_t) > ib->cap)
         return;
 
     for (uint32_t i = 0; i < pl->samplers; i++) {
-        const Texture *const t = texture(a[DRAW_TEXTURES + i]);
+        const Texture *const t = texture(a[QX_DRAW_TEXTURES + i]);
 
         if (!t)
             return;

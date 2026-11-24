@@ -6,8 +6,8 @@ enum {
     BUFFER_WORDS = 4, /* BUFFER: the op, id, bytes, kind */
     WRITE_WORDS = 5,  /* WRITE: the op, id, bytes, pointer */
     ARRAY_WORDS = BUFFER_WORDS + WRITE_WORDS,
-    DRAW_WORDS = 7 + LIST_TEXTURES, /* the op, pipeline, vertices, indices, first, count, alpha */
-    COUNT = 5,                      /* a draw's count, its word */
+    DRAW_WORDS = 1 + QX_DRAW_TEXTURES + LIST_TEXTURES, /* the op, its arguments */
+    COUNT = 1 + QX_DRAW_COUNT,                         /* a draw's count, its word */
     QUAD = 4,
     QUAD_INDICES = 6,
 };
@@ -119,7 +119,7 @@ static bool draw(
     const uint32_t pipeline,
     const uint32_t *const textures,
     const uint8_t alpha,
-    const bool any
+    const bool shared
 )
 {
     if (!mem_grow(array, cap, *count + n, size))
@@ -136,11 +136,11 @@ static bool draw(
     const bool open = l->draw && l->draw + DRAW_WORDS == l->n && d[1] == want[0] &&
                       d[2] == want[1] && d[6] == want[5] && d[8] == want[7] && d[9] == want[8];
 
-    if (open && (d[7] == want[6] || any || l->any)) {
-        if (!any)
+    if (open && (d[7] == want[6] || shared || l->shared)) {
+        if (!shared)
             d[7] = want[6];
 
-        l->any = l->any && any;
+        l->shared = l->shared && shared;
         d[COUNT] += n / QUAD * QUAD_INDICES;
         return true;
     }
@@ -155,7 +155,7 @@ static bool draw(
     }
 
     l->draw = at;
-    l->any = any;
+    l->shared = shared;
     return true;
 }
 
@@ -166,7 +166,7 @@ bool list_draw(
     const uint32_t pipeline,
     const uint32_t textures[LIST_TEXTURES],
     const uint8_t alpha,
-    const bool any
+    const bool shared
 )
 {
     return draw(
@@ -181,7 +181,7 @@ bool list_draw(
         pipeline,
         textures,
         alpha,
-        any
+        shared
     );
 }
 
@@ -192,7 +192,7 @@ bool list_discs(
     const uint32_t pipeline,
     const uint32_t textures[LIST_TEXTURES],
     const uint8_t alpha,
-    const bool any
+    const bool shared
 )
 {
     return draw(
@@ -207,7 +207,7 @@ bool list_discs(
         pipeline,
         textures,
         alpha,
-        any
+        shared
     );
 }
 
@@ -288,7 +288,7 @@ void list_reset(GpuList *const l)
     l->nvertices = 0;
     l->ndiscs = 0;
     l->draw = 0;
-    l->any = false;
+    l->shared = false;
     l->n = 0;
     l->batches = 0;
     l->uploads = 0;

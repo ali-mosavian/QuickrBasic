@@ -29,13 +29,13 @@ enum {
 /* The GPU's own (Gx.own): its recorder and the call readied. */
 typedef struct {
     Gpu gpu;
-    GpuTarget call;
+    GpuCall call;
 } GpuState;
 
 enum { QUAD = 4 };
 
 /* n vertices, four a quad. */
-static void emit(const GpuTarget *const t, const GpuVertex *const v, const uint32_t n)
+static void emit(const GpuCall *const t, const GpuVertex *const v, const uint32_t n)
 {
     if (!gpu_draw(t->gpu, t, v, n))
         gx_fail(ERR_MEMORY);
@@ -43,26 +43,26 @@ static void emit(const GpuTarget *const t, const GpuVertex *const v, const uint3
 
 /* A vertex of the call at x, y in the target, the texel u, v in its picture. */
 static GpuVertex vertex(
-    const GpuTarget *const t,
-    const GpuVertex *const ink,
+    const GpuCall *const t,
+    const GpuVertex *const template,
     const float x,
     const float y,
     const float u,
     const float v
 )
 {
-    GpuVertex out = *ink;
+    GpuVertex out = *template;
     out.x = x + t->at.x;
     out.y = y + t->at.y;
-    out.u = u + ink->rx;
-    out.v = v + ink->ry;
+    out.u = u + template->rx;
+    out.v = v + template->ry;
     return out;
 }
 
 /* Corners a, b, c, d round; uv their texels, or null the white texel's. */
 static void quad(
-    const GpuTarget *const t,
-    const GpuVertex *const ink,
+    const GpuCall *const t,
+    const GpuVertex *const template,
     const Vec *const p,
     const Vec *const uv
 )
@@ -70,18 +70,25 @@ static void quad(
     GpuVertex v[QUAD];
 
     for (uint32_t i = 0; i < QUAD; i++)
-        v[i] = vertex(t, ink, p[i].x, p[i].y, uv ? uv[i].x : ink->u, uv ? uv[i].y : ink->v);
+        v[i] = vertex(
+            t,
+            template,
+            p[i].x,
+            p[i].y,
+            uv ? uv[i].x : template->u,
+            uv ? uv[i].y : template->v
+        );
 
     emit(t, v, QUAD);
 }
 
 /* A fan's corner i, from ctx. */
-typedef GpuVertex CornerAt(const GpuTarget *t, const void *ctx, uint32_t i);
+typedef GpuVertex CornerAt(const GpuCall *t, const void *ctx, uint32_t i);
 
 /* The fan from corner 0 of n as quads: two of its triangles each, the last alone a quad with its
    third corner twice, its second triangle empty. */
 static void fan(
-    const GpuTarget *const t,
+    const GpuCall *const t,
     CornerAt *const corner,
     const void *const ctx,
     const uint32_t n
@@ -99,27 +106,27 @@ static void fan(
     }
 }
 
-/* The box from x0, y0 to x1, y1 in a shape's ink. */
+/* The box from x0, y0 to x1, y1 in a shape's template. */
 static void box(
-    const GpuTarget *const t,
-    const GpuVertex *const ink,
+    const GpuCall *const t,
+    const GpuVertex *const template,
     const float x0,
     const float y0,
     const float x1,
     const float y1
 )
 {
-    quad(t, ink, (const Vec[]){{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}}, nullptr);
+    quad(t, template, (const Vec[]){{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}}, nullptr);
 }
 
 /* An index as a vertex's r, g and b. */
 static uint32_t spread(const uint32_t index) { return (index & 0xFF) * 0x010101u; }
 
-/* A shape's ink: its colour lit and tinted as software's ink draws a texel of it; at 8 bits, an
+/* A shape's template: its colour lit and tinted as software's ink draws a texel of it; at 8 bits, an
    index through the lut. */
-static GpuVertex shape(const GpuTarget *const t, const uint32_t colour)
+static GpuVertex shape(const GpuCall *const t, const uint32_t colour)
 {
-    const uint32_t light = t->ink.light, index = colour & 0xFF;
+    const uint32_t light = t->template.light, index = colour & 0xFF;
     const uint32_t rgb = t->eight ? spread(t->lut ? t->lut[index] : index)
                                   : px_shade(colour, pal_shade(PAL_WHITE, (int32_t)light, t->tint));
     return (GpuVertex){
@@ -132,14 +139,14 @@ static GpuVertex shape(const GpuTarget *const t, const uint32_t colour)
         .g = (uint8_t)(rgb >> 8),
         .b = (uint8_t)rgb,
         .light = (uint8_t)light,
-        .alpha = t->ink.alpha,
-        .stages = (uint16_t)(GPU_STAGE_SOLID | (t->ink.stages & SHAPE_STAGES)),
+        .alpha = t->template.alpha,
+        .stages = (uint16_t)(GPU_STAGE_SOLID | (t->template.stages & SHAPE_STAGES)),
     };
 }
 
 static Gpu *gpu(const Gx *const g) { return &((GpuState *)g->own)->gpu; }
 
-static GpuTarget *call(const Gx *const g) { return &((GpuState *)g->own)->call; }
+static GpuCall *call(const Gx *const g) { return &((GpuState *)g->own)->call; }
 
 /* The pass into into within clip, with its depth texture when deep (made if none, *fresh then),
    blank, the white texel, and the palette, its map too when map: false, no memory. */
@@ -186,11 +193,11 @@ static bool begin(Gx *const g, const Command *const c, const Picture *const into
         !aim(g, into, clip, depth, eight && (add || mix || lut), &fresh, &blank))
         return gx_fail(ERR_MEMORY);
 
-    *call(g) = (GpuTarget){
+    *call(g) = (GpuCall){
         .gpu = gpu(g),
         .at = {(float)into->at.x, (float)into->at.y},
         .clip = clip,
-        .ink =
+        .template =
             {
                 .w = 1,
                 .light = (uint8_t)style->light,
@@ -219,8 +226,8 @@ static bool begin(Gx *const g, const Command *const c, const Picture *const into
 
 static bool source(Gx *const g, const Picture *const p)
 {
-    GpuTarget *const t = call(g);
-    GpuVertex *const k = &t->ink;
+    GpuCall *const t = call(g);
+    GpuVertex *const k = &t->template;
     GpuSource from;
 
     /* at 8 bits, a colour drawn matched by the map */
@@ -246,20 +253,20 @@ static bool source(Gx *const g, const Picture *const p)
 /* Every texel drawn is colour lit and tinted, as ink_solid's: at 8 bits, through the lut. */
 static void solid(Gx *const g, const uint32_t colour)
 {
-    GpuTarget *const t = call(g);
+    GpuCall *const t = call(g);
     const uint32_t index = colour & 0xFF;
     t->solid = true;
     t->paint = t->eight ? spread(t->lut ? t->lut[index] : index)
-                        : pal_shade(colour, t->ink.light, t->tint);
+                        : pal_shade(colour, t->template.light, t->tint);
 }
 
 static void clear(Gx *const g, const uint32_t colour)
 {
-    const GpuTarget *const t = call(g);
-    const GpuVertex ink = shape(t, colour);
+    const GpuCall *const t = call(g);
+    const GpuVertex template = shape(t, colour);
     const Rect c = t->clip;
     box(t,
-        &ink,
+        &template,
         (float)c.x - 0.5f,
         (float)c.y - 0.5f,
         (float)(c.x + c.w) - 0.5f,
@@ -268,18 +275,18 @@ static void clear(Gx *const g, const uint32_t colour)
 
 static void pset(Gx *const g, const Vec p, const uint32_t colour)
 {
-    const GpuTarget *const t = call(g);
-    const GpuVertex ink = shape(t, colour);
+    const GpuCall *const t = call(g);
+    const GpuVertex template = shape(t, colour);
     const float x = (float)cover_pixel(p.x), y = (float)cover_pixel(p.y);
-    box(t, &ink, x - 0.5f, y - 0.5f, x + 0.5f, y + 0.5f);
+    box(t, &template, x - 0.5f, y - 0.5f, x + 0.5f, y + 0.5f);
 }
 
 /* Software's line (Bresenham's) from a's pixel to b's, b's only when last: a parallelogram a pixel
    across the longer side, about the line between the pixels' centres, so each step along that
    side covers the one pixel nearest the line. */
 static void segment(
-    const GpuTarget *const t,
-    const GpuVertex *const ink,
+    const GpuCall *const t,
+    const GpuVertex *const template,
     const Vec a,
     const Vec b,
     const bool last
@@ -298,38 +305,44 @@ static void segment(
     };
 
     if (from != to)
-        quad(t, ink, p, nullptr);
+        quad(t, template, p, nullptr);
 }
 
 static void line(Gx *const g, const Vec a, const Vec b, const uint32_t colour)
 {
-    const GpuTarget *const t = call(g);
-    const GpuVertex ink = shape(t, colour);
-    segment(t, &ink, a, b, true);
+    const GpuCall *const t = call(g);
+    const GpuVertex template = shape(t, colour);
+    segment(t, &template, a, b, true);
 }
 
 static void outline(Gx *const g, const Vec *const p, const uint32_t n, const uint32_t colour)
 {
-    const GpuTarget *const t = call(g);
-    const GpuVertex ink = shape(t, colour);
+    const GpuCall *const t = call(g);
+    const GpuVertex template = shape(t, colour);
 
     for (uint32_t i = 0; i < n; i++)
-        segment(t, &ink, p[i], p[(i + 1) % n], false);
+        segment(t, &template, p[i], p[(i + 1) % n], false);
 }
 
-/* A polygon's: its ink and corners; flat, the ink's texel; perspective, its texels by 1/z. */
+/* A polygon's: its template and corners; flat, the template's texel; perspective, its texels by 1/z. */
 typedef struct {
-    GpuVertex ink;
+    GpuVertex template;
     const Corner *c;
     bool flat, perspective;
 } Shape;
 
-static GpuVertex shape_corner(const GpuTarget *const t, const void *const ctx, const uint32_t i)
+static GpuVertex shape_corner(const GpuCall *const t, const void *const ctx, const uint32_t i)
 {
     const Shape *const s = ctx;
     const Corner *const c = &s->c[i];
-    GpuVertex v =
-        vertex(t, &s->ink, c->x, c->y, s->flat ? s->ink.u : c->u, s->flat ? s->ink.v : c->v);
+    GpuVertex v = vertex(
+        t,
+        &s->template,
+        c->x,
+        c->y,
+        s->flat ? s->template.u : c->u,
+        s->flat ? s->template.v : c->v
+    );
 
     v.z = 1 / c->z;
     v.w = s->perspective ? c->z : 1;
@@ -345,10 +358,10 @@ static void poly(
     const int32_t flags
 )
 {
-    const GpuTarget *const t = call(g);
-    Shape s = {p ? t->ink : shape(t, colour), c, !p, p && t->perspective};
+    const GpuCall *const t = call(g);
+    Shape s = {p ? t->template : shape(t, colour), c, !p, p && t->perspective};
 
-    s.ink.stages |= flags & POLY_WRAP ? GPU_STAGE_WRAP : 0;
+    s.template.stages |= flags & POLY_WRAP ? GPU_STAGE_WRAP : 0;
     fan(t, shape_corner, &s, n);
 }
 
@@ -366,11 +379,11 @@ static bool clear_depth(Gx *const g, const Picture *const into)
     if (fresh)
         return true;
 
-    const GpuTarget t = {
+    const GpuCall t = {
         .gpu = gpu(g),
         .at = {(float)into->at.x, (float)into->at.y},
         .clip = all,
-        .ink =
+        .template =
             {
                 .w = 1,
                 .u = 0.5f,
@@ -385,14 +398,14 @@ static bool clear_depth(Gx *const g, const Picture *const into)
         .alpha = ALPHA,
     };
 
-    box(&t, &t.ink, -0.5f, -0.5f, (float)all.w - 0.5f, (float)all.h - 0.5f);
+    box(&t, &t.template, -0.5f, -0.5f, (float)all.w - 0.5f, (float)all.h - 0.5f);
     return true;
 }
 
 /* k's pixels, in sweep w unless null: a box past its outer edge, of which the shader keeps those
    k covers (disc.h). Its centre is the root's: in a view, exact when on a whole or half pixel. */
 static void disc(
-    const GpuTarget *const t,
+    const GpuCall *const t,
     const uint32_t colour,
     const Disc *const k,
     const Sweep *const w
@@ -459,13 +472,13 @@ static void arc(
 
 static void rect(Gx *const g, const Vec a, const Vec b, const uint32_t colour, const bool fill)
 {
-    const GpuTarget *const t = call(g);
-    const GpuVertex ink = shape(t, colour);
+    const GpuCall *const t = call(g);
+    const GpuVertex template = shape(t, colour);
     const float l = (a.x < b.x ? a.x : b.x) - 0.5f, r = (a.x < b.x ? b.x : a.x) + 0.5f;
     const float top = (a.y < b.y ? a.y : b.y) - 0.5f, bottom = (a.y < b.y ? b.y : a.y) + 0.5f;
 
     if (fill) {
-        box(t, &ink, l, top, r, bottom);
+        box(t, &template, l, top, r, bottom);
         return;
     }
 
@@ -476,22 +489,22 @@ static void rect(Gx *const g, const Vec a, const Vec b, const uint32_t colour, c
     if (x0 >= x1 || y0 >= y1)
         return;
 
-    box(t, &ink, x0, y0, x1, y0 + 1);
+    box(t, &template, x0, y0, x1, y0 + 1);
 
     if (y1 - 1 > y0)
-        box(t, &ink, x0, y1 - 1, x1, y1);
+        box(t, &template, x0, y1 - 1, x1, y1);
 
     if (y1 - y0 > 2) {
-        box(t, &ink, x0, y0 + 1, x0 + 1, y1 - 1);
+        box(t, &template, x0, y0 + 1, x0 + 1, y1 - 1);
 
         if (x1 - 1 > x0)
-            box(t, &ink, x1 - 1, y0 + 1, x1, y1 - 1);
+            box(t, &template, x1 - 1, y0 + 1, x1, y1 - 1);
     }
 }
 
 static void sprite(Gx *const g, const Picture *const p, const Vec at, const int32_t flags)
 {
-    const GpuTarget *const t = call(g);
+    const GpuCall *const t = call(g);
     const float w = (float)p->at.w, h = (float)p->at.h;
     const float x0 = at.x - 0.5f, y0 = at.y - 0.5f;
     const float u0 = flags & GFX_DRAW_FLIP_X ? w : 0, v0 = flags & GFX_DRAW_FLIP_Y ? h : 0;
@@ -500,7 +513,7 @@ static void sprite(Gx *const g, const Picture *const p, const Vec at, const int3
 
     const Vec uv[] = {{u0, v0}, {u1, v0}, {u1, v1}, {u0, v1}};
 
-    quad(t, &t->ink, corners, uv);
+    quad(t, &t->template, corners, uv);
 }
 
 static bool screen_open(Gx *const g, const QxScreen *const s, const PxFormat f)

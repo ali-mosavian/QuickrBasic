@@ -44,6 +44,17 @@
 
 enum { QX_LIST_SIZE = 8 };
 
+/* Arguments' places, from an op's first: a DRAW's count and first texture; a PIPELINE's vertex
+   code and first attribute; a code's words and an attribute's. */
+enum {
+    QX_DRAW_COUNT = 4,
+    QX_DRAW_TEXTURES = 6,
+    QX_CODE_WORDS = 3,
+    QX_ATTRIBUTE_WORDS = 3,
+    QX_PIPELINE_CODE = 4,
+    QX_PIPELINE_ATTRIBUTES = QX_PIPELINE_CODE + 2 * QX_CODE_WORDS,
+};
+
 typedef enum : uint8_t {
     QX_LIST_END,
     QX_LIST_BUFFER,

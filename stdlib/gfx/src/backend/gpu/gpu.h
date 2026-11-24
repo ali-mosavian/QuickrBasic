@@ -2,22 +2,20 @@
  * pipelines the list names, and the surfaces' pixels kept in step with them.
  *
  * # How it works
- * The first list makes the canvas, the palette's texture and the shader's pipelines (backend/gpu/shaders),
- * one a kind of vertex and blend. A root surface's pixels, or a PIC_ picture's (surface.h), are
- * sent when first drawn from or into, and again when the CPU wrote them since (the root's
- * version). A root drawn from, half a page or smaller, is packed into an atlas page of its format,
- * so pictures share a texture and their sprites a batch: pages are packed in rows, a place freed
- * with its root, a page empty again started over. Drawn into, a root has a texture of its own,
- * named by its handle; packed, it leaves its page. An 8-bit root is indices: a byte a texel drawn
- * from, RGBA drawn into, its index in every channel. An 8-bit canvas is shown through palette row 0
- * by a pass into GPU_SHOWN at each flip. The palette's texture holds its rows, then row 0's map
- * (palette.h), sent when a draw needs it. A root drawn into is ahead on the GPU
- * (drawn) until gpu_sync reads it back. A draw reads its picture and the palette. A texture
+ * The first list makes the canvas and the palette's texture; a pipeline is made when first drawn
+ * with (pipelines.h). A root surface's pixels, or a PIC_ picture's (surface.h), are sent when first
+ * drawn from or into, and again when the CPU wrote them since (the root's version). A root drawn
+ * from, half a page or smaller, is packed into an atlas page (atlas.h). Drawn into, a root has a
+ * texture of its own, named by its handle; packed, it leaves its page. An 8-bit root is indices: a
+ * byte a texel drawn from, RGBA drawn into, its index in every channel. An 8-bit canvas is shown
+ * through palette row 0 by a pass into GPU_SHOWN at each flip. The palette's texture holds its
+ * rows, then row 0's map (palette.h), sent when a draw needs it. A root drawn into is ahead on the
+ * GPU (drawn) until gpu_sync reads it back. A draw reads its picture and the palette. A texture
  * keeps the rows the CPU wrote since it was sent (gpu_wrote), so it sends only those. A root drawn
  * into with depth has a depth texture too (gpu_depth), made on that first draw, which every pass
- * into it keeps after. A pipeline is made when first drawn with.
+ * into it keeps after.
  *
- * A draw that reads what is behind its pixels (GpuTarget.behind) reads a copy of its target, made
+ * A draw that reads what is behind its pixels (GpuCall.behind) reads a copy of its target, made
  * before it when the target changed under it since the last: drawn in, by a call before this one,
  * over the draw's box, or written by the CPU. A call's own draws never overlap. The copy is made
  * again only where the target was drawn in since, when it is of the same target.
@@ -113,9 +111,9 @@ typedef struct {
 /* What a call's vertices share. */
 typedef struct {
     Gpu *gpu;
-    Vec at;        /* the target's place in its texture: a view's */
-    Rect clip;     /* the target's */
-    GpuVertex ink; /* the tint and light; a picture's rectangle, row and stages */
+    Vec at;             /* the target's place in its texture: a view's */
+    Rect clip;          /* the target's */
+    GpuVertex template; /* its vertices': tint and light; a picture's rectangle, row and stages */
     uint32_t texture;
     QxBlend blend;
     uint8_t depth; /* QxDepth */
@@ -127,7 +125,7 @@ typedef struct {
     uint32_t paint; /* a picture's colour: the tint, or SOLID's */
     bool solid;
     bool behind; /* its pixels read what is behind them */
-} GpuTarget;
+} GpuCall;
 
 /* The canvas, s's size, 8 bits when eight, the palette and the pipelines, in the language s gave:
    false, no memory. */
@@ -146,11 +144,13 @@ bool gpu_target(Gpu *g, uint32_t id, uint32_t deep, int32_t w, int32_t h, Rect c
 /* The palette sent, if it changed, and row 0's map when map: false, no memory. */
 bool gpu_palette(Gpu *g, Palette *pal, bool map);
 /* n vertices, four a quad, drawn as t's call: false, no memory. */
-bool gpu_draw(Gpu *g, const GpuTarget *t, const GpuVertex *v, uint32_t n);
+bool gpu_draw(Gpu *g, const GpuCall *t, const GpuVertex *v, uint32_t n);
 /* n disc vertices, four a quad, drawn as t's call: false, no memory. */
-bool gpu_discs(Gpu *g, const GpuTarget *t, const GpuDisc *v, uint32_t n);
+bool gpu_discs(Gpu *g, const GpuCall *t, const GpuDisc *v, uint32_t n);
 /* The list played, the canvas shown after it when show. */
 void gpu_play(Gpu *g, bool show);
+/* h's texture: null, none made. */
+GpuTexture *gpu_made(Gpu *g, uint32_t h);
 /* The root h, whose pixels are px, read back if the GPU drew in it: false, no memory. */
 bool gpu_sync(Gpu *g, Pixels px, uint32_t h);
 /* h, a root, freed: its texture with it. */
