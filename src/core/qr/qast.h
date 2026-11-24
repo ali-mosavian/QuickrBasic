@@ -313,11 +313,12 @@ struct QVar {
     QVal val;      /* a const's */
     bool constant; /* a const: val, untyped as its value's */
     bool untyped;
-    bool mut;      /* QV_EACH: of a for mut */
-    bool shared;   /* a module's, used in a fn: never moved */
-    uint32_t last; /* its last use's token, sema's */
-    QExpr *place;  /* QV_EACH, a case's datum: what it names, checked */
-    uint32_t id;   /* its variable (mem/symbols.h), qlink's */
+    bool mut;       /* QV_EACH: of a for mut */
+    bool shared;    /* a module's, used in a fn: never moved */
+    uint32_t last;  /* its last use's token, sema's */
+    QExpr *place;   /* QV_EACH, a case's datum: what it names, checked */
+    uint32_t id;    /* its variable (mem/symbols.h), qlink's: an inline record's lowest cell */
+    uint32_t words; /* an inline record's: its first 4-byte word's variable, qlink's; 0 a box */
     QVar *next;    /* the program's next */
     QCap *cap;     /* a lambda's hidden parameter: the name it stands for, by reference */
     QLam *lam;     /* an instance's parameter bound to this lambda: no value */

@@ -20,7 +20,8 @@ typedef struct PACKED {
     uint32_t name;
     uint8_t info; /* VI_ARR, SK_DBL, the kind */
     bool cmn;     /* a COMMON named it this run (vm/chain.c) */
-    uint8_t pad[2];
+    uint8_t word; /* an inline record's 4-byte word: 4 * word bytes past its Loc (qr/qlink.c) */
+    uint8_t pad;
 } Var;            /* TVAR */
 typedef struct PACKED {
     uint32_t next;  /* its hash chain's next */
@@ -91,6 +92,17 @@ static inline Loc symb_placed(const Symb *const sy, const uint32_t id)
 {
     const Loc p = *symb_loc(sy, id);
     return p.w ? p : loc_cell(symb_cell(sy, id));
+}
+/* A global's cell: its own, or a module record's word (qr/qlink.c). */
+static inline Addr symb_global(const Symb *const sy, const uint32_t id)
+{
+    const Loc p = *symb_loc(sy, id);
+    return p.w > 0 ? (Addr)p.w + 4u * symb_var(sy, id)->word : symb_cell(sy, id);
+}
+/* An in-frame variable's offset from the frame: its cell's, its ref cell's, a record's word's. */
+static inline int32_t symb_off(const Symb *const sy, const uint32_t id)
+{
+    return loc_off(*symb_loc(sy, id)) + 4 * symb_var(sy, id)->word;
 }
 /* Variable id's cell, in the frame at fp. */
 static inline Addr symb_at(const Symb *const sy, const Addr fp, const uint32_t id)

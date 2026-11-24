@@ -31,7 +31,7 @@ static bool local_op(const Symb *const sy, uint8_t *const op, const uint32_t n)
 
     for (uint32_t i = 0; i < n; i++) {
         uint8_t *const cell = op + 1 + i * VCELL;
-        store32(cell, (uint32_t)loc_off(*symb_loc(sy, load32(cell))));
+        store32(cell, (uint32_t)symb_off(sy, load32(cell)));
     }
 
     op[0] = t;
@@ -80,7 +80,7 @@ void select_op(const Symb *const sy, const Blok *const b, uint8_t *const op)
         ;
     else
         for (uint32_t i = 0; i < countof(cells) && fl & cells[i]; i++)
-            store32(op + 1 + i * VCELL, symb_cell(sy, load32(op + 1 + i * VCELL)));
+            store32(op + 1 + i * VCELL, symb_global(sy, load32(op + 1 + i * VCELL)));
 
     if (fl & FA && !frame_op(sy, op)) /* an array's or a record's cell */
         store32(op + 1 + VID, (uint32_t)symb_placed(sy, load32(op + 1)).w);

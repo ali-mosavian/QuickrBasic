@@ -1229,7 +1229,7 @@ static uint32_t qcg_addr(QCg *const g, const QExpr *const e)
 
     switch (e->kind) {
     case QE_NAME:
-        code_opid(g->c, O_R_ADDR, e->var->id, false);
+        code_opid(g->c, e->var->words ? O_V_CELL : O_R_ADDR, e->var->id, false);
         return 0;
 
     case QE_FIELD:
@@ -1270,6 +1270,28 @@ static void qcg_fieldop(QCg *const g, const bool store, const uint32_t off, cons
     code_byte(c, (uint8_t)qcg_et(g, t));
 }
 
+/* Field place e as its word's variable, *w, when its record is inline (qr/qlink.c) and it is 4
+   bytes or 8 at a multiple of 4. */
+static bool qcg_word(const QCg *const g, const QExpr *const e, QVar *const w)
+{
+    if (e->kind != QE_FIELD || qcg_byplace(g, e->type) || e->type == QY_STRING ||
+        qcg_short(g, e->type))
+        return false;
+
+    uint32_t off = 0;
+    const QExpr *r = e;
+
+    for (; r->kind == QE_FIELD; r = r->a)
+        off += qcg_ty(g, r->a->type)->fields[r->field].off;
+
+    if (r->kind != QE_NAME || !r->var->words || off % 4)
+        return false;
+
+    *w = (QVar){.type = e->type, .kind = QV_VAR, .id = r->var->words + off / 4};
+
+    return true;
+}
+
 /* Is element place e a variable's list's, loaded and stored by I.LD.A1 and its kin? */
 static bool qcg_byindex(const QCg *const g, const QExpr *const e)
 {
@@ -1281,8 +1303,10 @@ static void qcg_loadat(QCg *const g, const QExpr *const e)
 {
     Code *const c = g->c;
 
-    if (e->kind == QE_NAME) {
-        qcg_load(c, e->var);
+    QVar w;
+
+    if (e->kind == QE_NAME || qcg_word(g, e, &w)) {
+        qcg_load(c, e->kind == QE_NAME ? e->var : &w);
         return;
     }
 
@@ -1332,7 +1356,9 @@ typedef struct {
 
 static QCgPut qcg_before(QCg *const g, const QExpr *const e)
 {
-    if (e->kind == QE_NAME)
+    QVar w;
+
+    if (e->kind == QE_NAME || qcg_word(g, e, &w))
         return (QCgPut){};
 
     if (e->kind == QE_FIELD)
@@ -1354,8 +1380,10 @@ static void qcg_put(QCg *const g, const QExpr *const e, const QCgPut p)
         qcg_fieldop(g, true, p.off, e->type);
     else if (p.list)
         qcg_storeat(g, p.list, e->type);
-    else
-        qcg_store(g->c, e->var);
+    else {
+        QVar w;
+        qcg_store(g->c, qcg_word(g, e, &w) ? &w : e->var);
+    }
 }
 
 /* Record place p emptied: its strings "", its lists empty, the rest 0. */

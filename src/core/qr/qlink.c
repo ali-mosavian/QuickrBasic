@@ -78,31 +78,27 @@ static void qlink_kind(const QProg *const p, const QType t, uint32_t *const et, 
     }
 }
 
-/* A new variable named text in scope, of type t: the name, then name'1, name'2 .. till new. */
-static uint32_t qlink_symb(
+/* A new variable named text's n bytes in scope: text, then text'k, text'k+1 .. till new, *k the
+   next suffix tried. text has room for 12 bytes more. */
+static uint32_t qlink_new(
     Symb *const sy,
-    const QProg *const p,
-    const QTok *const name,
-    const QType t,
-    const uint32_t scope
+    uint8_t *const text,
+    const uint32_t n,
+    const uint32_t et,
+    const uint8_t kind,
+    const uint32_t scope,
+    uint32_t *const k
 )
 {
-    uint8_t text[NAME_ROOM + 12];
-    const uint32_t n = name->len < NAME_ROOM ? name->len : NAME_ROOM;
-    uint32_t et;
-    uint8_t kind;
-    qlink_kind(p, t, &et, &kind);
-    memcpy(text, name->text, n);
-
-    for (uint32_t k = 0;; k++) {
+    for (;; ++*k) {
         uint32_t m = n;
 
-        if (k) {
+        if (*k) {
             text[m++] = '\'';
             uint8_t rev[10];
             uint32_t d = 0;
 
-            for (uint32_t v = k; v; v /= 10)
+            for (uint32_t v = *k; v; v /= 10)
                 rev[d++] = (uint8_t)('0' + v % 10);
             while (d)
                 text[m++] = rev[--d];
@@ -115,6 +111,32 @@ static uint32_t qlink_symb(
         if (sy->nvars != before)
             return id;
     }
+}
+
+/* A new variable named name in scope, of type t: the name, then name'1, name'2 .. till new. */
+static uint32_t qlink_symb(
+    Symb *const sy,
+    const QProg *const p,
+    const QTok *const name,
+    const QType t,
+    const uint32_t scope
+)
+{
+    uint8_t text[NAME_ROOM + 12];
+    const uint32_t n = name->len < NAME_ROOM ? name->len : NAME_ROOM;
+    uint32_t et;
+    uint8_t kind;
+    uint32_t k = 0;
+    qlink_kind(p, t, &et, &kind);
+    memcpy(text, name->text, n);
+    return qlink_new(sy, text, n, et, kind, scope, &k);
+}
+
+/* An inline record's hidden cell or word in scope, *k the next suffix. */
+static uint32_t qlink_word(Symb *const sy, const uint32_t scope, uint32_t *const k)
+{
+    uint8_t text[2 + 12] = "~r";
+    return qlink_new(sy, text, 2, ET_I4, VK_INT, scope, k);
 }
 
 static uint32_t qlink_name(Symb *const sy, const QTok *const t)
@@ -227,19 +249,94 @@ static uint32_t qlink_scope(const QVar *const v)
     return f && (v->kind != QV_RESULT || f->byarg) ? f->proc : 0;
 }
 
+enum { INLINE_MAX = 256 }; /* an inline record's bytes at most: a variable for each 4 */
+
+/* Does record variable v live inline, in cells: a let's, a var's or a temporary's record without
+   strings or lists? */
+static bool qlink_inline(const QProg *const p, const QVar *const v)
+{
+    if (!qast_record(p, v->type) || v->byref || v->cap ||
+        (v->kind != QV_LET && v->kind != QV_VAR && v->kind != QV_TEMP))
+        return false;
+
+    const QTy *const y = qast_ty(p, v->type);
+    return y->kind != QT_MAP && !y->deep && y->size <= INLINE_MAX;
+}
+
+/* Inline record v's 4-byte words: a field of 4 or 8 bytes at a multiple of 4 is one's variable. */
+static uint32_t qlink_nwords(const QProg *const p, const QVar *const v)
+{
+    const uint32_t size = qast_ty(p, v->type)->size;
+    return size < 4 ? 1 : size / 4;
+}
+
+/* Record v inline in scope: its cells, v's the lowest, then its words. A frame's newest local is
+   its deepest (comp/frame.c), so there v's cell is made last. */
+static void qlink_record(
+    Symb *const sy,
+    const QProg *const p,
+    QVar *const v,
+    const QTok *const name,
+    const uint32_t scope,
+    uint32_t *const k
+)
+{
+    const uint32_t cells = (qast_ty(p, v->type)->size + sizeof(Cell) - 1) / sizeof(Cell);
+
+    if (!scope)
+        v->id = qlink_symb(sy, p, name, QY_INT, scope);
+
+    for (uint32_t i = 1; i < cells; i++)
+        qlink_word(sy, scope, k);
+
+    if (scope)
+        v->id = qlink_symb(sy, p, name, QY_INT, scope);
+
+    v->words = qlink_word(sy, scope, k);
+
+    for (uint32_t i = 1; i < qlink_nwords(p, v); i++)
+        qlink_word(sy, scope, k);
+}
+
+/* Each inline record's words out of their frames' layout: no cells of their own. */
+static void qlink_unplace(Symb *const sy, const QProg *const p)
+{
+    for (const QVar *v = p->vars; v; v = v->next)
+        for (uint32_t i = 0; v->words && i < qlink_nwords(p, v); i++)
+            *symb_loc(sy, v->words + i) = (Loc){};
+}
+
+/* Each inline record's words placed in its cells, 4 bytes apart from its lowest. */
+static void qlink_words(Symb *const sy, const QProg *const p)
+{
+    for (const QVar *v = p->vars; v; v = v->next)
+        for (uint32_t i = 0; v->words && i < qlink_nwords(p, v); i++) {
+            *symb_loc(sy, v->words + i) = symb_placed(sy, v->id);
+            symb_var(sy, v->words + i)->word = (uint8_t)i;
+        }
+}
+
 /* Each variable but a const's in the symbol table; a fn's parameters its ref cells. */
 static void qlink_vars(Comp *const C, const QProg *const p)
 {
     static const QTok hidden = {.text = "~", .len = 1};
 
     Symb *const sy = C->symb;
+    uint32_t k = 0;
 
-    for (QVar *v = p->vars; v; v = v->next)
-        if (!v->constant && !v->place &&
-            !(v->fn &&
-              (v->fn->inl || v->fn->native || qast_generic(v->fn) || (v->fn->test && !p->testing))))
-            v->id =
-                qlink_symb(sy, p, v->kind == QV_TEMP ? &hidden : v->name, v->type, qlink_scope(v));
+    for (QVar *v = p->vars; v; v = v->next) {
+        if (v->constant || v->place ||
+            (v->fn &&
+             (v->fn->inl || v->fn->native || qast_generic(v->fn) || (v->fn->test && !p->testing))))
+            continue;
+
+        const QTok *const name = v->kind == QV_TEMP ? &hidden : v->name;
+
+        if (qlink_inline(p, v))
+            qlink_record(sy, p, v, name, qlink_scope(v), &k);
+        else
+            v->id = qlink_symb(sy, p, name, v->type, qlink_scope(v));
+    }
 
     for (const QFn *f = p->fns; f; f = f->next) {
         if (qlink_none(p, f))
@@ -547,8 +644,12 @@ void qlink_program(Comp *const C, QProg *const p, QMem *const m, const bool dbg)
 
     qlink_lines(C, p, m, of, dbg);
 
+    qlink_unplace(C->symb, p);
+
     for (uint32_t i = 1; i < C->blok->procs.n; i++)
         frame_layout(C->symb, C->decl, btab_at(&C->blok->procs, i), i);
+
+    qlink_words(C->symb, p);
 
     C->link->nmiss = 0;
 
