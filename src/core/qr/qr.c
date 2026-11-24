@@ -129,7 +129,7 @@ static void qr_say(Session *const S, const QProg *const p, const QErr *const e)
         qr_mark(co, ln->text, ln->len, e->col);
 }
 
-void qr_run(Session *const S)
+uint32_t qr_build(Session *const S)
 {
     QMem m = {.fault = &S->fault};
 
@@ -147,13 +147,20 @@ void qr_run(Session *const S)
     for (uint32_t i = 0; i < p.errs.n; i++)
         qr_say(S, &p, &p.errs.at[i]);
 
-    if (p.errs.n || S->repl.checking) {
-        arena_reset(&m.arena);
-        cons_exit(&S->cons, p.errs.n ? 1 : 0);
-    }
+    if (!p.errs.n)
+        qlink_program(&S->comp, &p, &m, S->dbug.emit);
 
-    qlink_program(&S->comp, &p, &m, S->dbug.emit);
     arena_reset(&m.arena);
+    return p.errs.n;
+}
+
+void qr_run(Session *const S)
+{
+    const uint32_t errors = qr_build(S);
+
+    if (errors || S->repl.checking)
+        cons_exit(&S->cons, errors ? 1 : 0);
+
     stmt_runfirst(S);
     exec_run(S);
 }

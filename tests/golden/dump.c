@@ -1,11 +1,12 @@
 /* codegen's golden dump: the file argv[1] loaded and linked, each stored line compiled; per line,
    its index and its code's bytes in hex. A load error: "error n". -f FILE: the code fused, as run;
-   -l FILE: as linked, its cells and frames resolved. */
+   -l FILE: as linked, its cells and frames resolved; a .qr only so. */
 #include <stdio.h>
 #include <string.h>
 #include "boot.h"
 #include "session.h"
 #include "comp/link.h"
+#include "qr/qr.h"
 #include "vm/flow.h"
 
 static Session session;
@@ -17,6 +18,13 @@ static void load(Session *const S)
 }
 
 static void link(Session *const S) { link_start(&S->comp); }
+
+/* A .qr loaded and linked; a compile error, back to the caller. */
+static void build(Session *const S)
+{
+    if (qr_build(S))
+        repl_ready(S);
+}
 
 /* Each stored line compiled: its index, its code's bytes. */
 static void dump(Session *const S)
@@ -68,6 +76,10 @@ int main(const int argc, char **const argv)
     boot(S, &none);
     S->comp.nofuse = !fused && !linked; /* else the asm's code, byte for byte */
     snprintf(S->repl.file, sizeof S->repl.file, "%s", argv[argc - 1]);
+
+    if (qr_is_file(S->repl.file))
+        return !linked ? 2 : repl_call(S, build) != ST_OK || repl_call(S, dump_linked) != ST_OK;
+
     Status st = repl_call(S, load);
 
     if (st != ST_OK) {
