@@ -249,7 +249,7 @@ static uint32_t qlink_scope(const QVar *const v)
     return f && (v->kind != QV_RESULT || f->byarg) ? f->proc : 0;
 }
 
-enum { INLINE_MAX = 256 }; /* an inline record's bytes at most: a variable for each 4 */
+enum { INLINE_MAX = 4096 }; /* an inline record's bytes at most, as a fixed array's on the stack */
 
 /* Does record variable v live inline, in cells: a let's, a var's or a temporary's record without
    strings or lists? */
@@ -260,14 +260,13 @@ static bool qlink_inline(const QProg *const p, const QVar *const v)
         return false;
 
     const QTy *const y = qast_ty(p, v->type);
-    return y->kind != QT_MAP && !y->deep && y->size <= INLINE_MAX;
+    return y->kind != QT_MAP && y->size <= INLINE_MAX;
 }
 
 /* Inline record v's 4-byte words: a field of 4 or 8 bytes at a multiple of 4 is one's variable. */
 static uint32_t qlink_nwords(const QProg *const p, const QVar *const v)
 {
-    const uint32_t size = qast_ty(p, v->type)->size;
-    return size < 4 ? 1 : size / 4;
+    return qast_nwords(qast_ty(p, v->type)->size);
 }
 
 /* Record v inline in scope: its cells, v's the lowest, then its words. A frame's newest local is

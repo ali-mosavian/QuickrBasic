@@ -91,8 +91,8 @@ ArrSlot *arry_slot(const Arry *const ay, const uint32_t id)
     return (ArrSlot *)at(symb_at(ay->symb, ay->vm->fp, id));
 }
 
-/* A header's owner, ours: a variable's own cell by its id (the cells move as the table grows), else
-   its cell's Addr; an arena's ARENA. */
+/* A header's owner, ours: in the variables' cells by its offset there (the cells move as the table
+   grows; a record's slot may lie mid-cell), else its cell's Addr; an arena's ARENA. */
 enum : Addr { OWN_VAR = 0x80000000u, OWN_ARENA = 1 };
 
 static Addr arry_owner(const Arry *const ay, const ArrSlot *const s)
@@ -100,14 +100,14 @@ static Addr arry_owner(const Arry *const ay, const ArrSlot *const s)
     const Addr a = addr_of(s), cells = symb_cell(ay->symb, 0);
 
     if (a >= cells && a < symb_cell(ay->symb, ay->symb->nvars))
-        return OWN_VAR | (a - cells) / (uint32_t)sizeof(Cell);
+        return OWN_VAR | (a - cells);
 
     return a;
 }
 
 static ArrSlot *arry_owner_slot(const Arry *const ay, const Addr owner)
 {
-    return (ArrSlot *)at(owner & OWN_VAR ? symb_cell(ay->symb, owner & ~OWN_VAR) : owner);
+    return (ArrSlot *)at(owner & OWN_VAR ? symb_cell(ay->symb, 0) + (owner & ~OWN_VAR) : owner);
 }
 
 /* A header's bytes: the fixed part, then a count and a lower bound a dimension. */

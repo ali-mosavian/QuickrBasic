@@ -821,6 +821,11 @@ static inline bool qast_unsigned(const QType t) { return t >= QY_UBYTE && t <= Q
 static inline bool qast_float(const QType t) { return t == QY_SINGLE || t == QY_DOUBLE; }
 static inline bool qast_numeric(const QType t) { return qast_integer(t) || qast_float(t); }
 /* An integer type's bits. */
+/* A record in cells' 4-byte words, each a variable: its first 256 bytes'. */
+static inline uint32_t qast_nwords(const uint32_t size)
+{
+    return size < 4 ? 1 : (size < 256 ? size : 256) / 4;
+}
 static inline uint32_t qast_bits(const QType t)
 {
     return t == QY_BYTE || t == QY_UBYTE     ? 8

@@ -1284,7 +1284,8 @@ static bool qcg_word(const QCg *const g, const QExpr *const e, QVar *const w)
     for (; r->kind == QE_FIELD; r = r->a)
         off += qcg_ty(g, r->a->type)->fields[r->field].off;
 
-    if (r->kind != QE_NAME || !r->var->words || off % 4)
+    if (r->kind != QE_NAME || !r->var->words || off % 4 ||
+        off / 4 >= qast_nwords(qcg_ty(g, r->var->type)->size))
         return false;
 
     *w = (QVar){.type = e->type, .kind = QV_VAR, .id = r->var->words + off / 4};

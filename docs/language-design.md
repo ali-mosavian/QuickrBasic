@@ -192,9 +192,11 @@ end while
   grow.
 - A module `var` lives in the module's data, made once when the program starts.
 - A frame is allocated and freed by moving the stack pointer. Nothing else is touched.
-- **In the VM**, a record holding strings or lists, or over 256 bytes, is QBasic's TYPE variable:
-  a box on the heap, each field access finding it by `R.ADDR`. A field of 1 or 2 bytes, or at an
-  offset not a multiple of 4, is read through the record's address. A fixed array variable is a
+- **In the VM**, a `let`'s, a `var`'s or a temporary's record up to 4 KB lives in cells, as a
+  local's: its strings and lists owned as a QBasic TYPE's are, gone with its frame. A field of 4
+  or 8 bytes at a multiple of 4 in its first 256 bytes is a variable of its own; any other is read
+  through the record's address. A map and a larger record are boxes on the heap, a parameter a
+  ref to its argument: each reached by `R.ADDR`. A fixed array variable is a
   dynamic array; as a field it is inline. An enum lays out each value's data after the tag, none
   overlapping.
 
@@ -591,8 +593,7 @@ let n = ages.get("bo") ?? 0
 - So does the branch a test proves: the `else` of `if x is none`, the `then` of `if x is not
   none`, and the same of `is Error`. Narrowing takes a `let` or a parameter, which can't
   change. A `var` stays a `T?`: read it with `??`, or bind a `let` to it first.
-- **In the VM**, a `T!` holds its message's string, so it is a box on the heap, as a `T?` is when
-  `T` holds strings or lists (see Where values live).
+- **In the VM**, a `T?` and a `T!` live in cells as a record does (see Where values live).
 
 ### Errors
 
