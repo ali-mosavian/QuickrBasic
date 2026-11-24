@@ -4,10 +4,10 @@ type Vec
     y as int
 end type
 
-fn advance(mut p as Vec, v as Vec)
+function advance(mut p as Vec, v as Vec)
     p.x += v.x
     p.y += v.y
-end fn
+end function
 
 var p = Vec(0, 0)
 let v = Vec(3, 1)

@@ -36,7 +36,7 @@ static void open_quickr(Session *const S)
     fx_write_file("main.bas", DIALECT "import util\nlet n = util.twice(2)\nprint(n)\n");
     fx_write_file(
         "util.bas",
-        DIALECT "public fn twice(x as int) as int\n    return x * 2\nend fn\n"
+        DIALECT "public function twice(x as int) as int\n    return x * 2\nend function\n"
     );
     uimn_open(S, fx_path_of("main.bas"));
 }
@@ -157,8 +157,9 @@ TEST(qride_runs_modules_first)
     fx_write_file("main.bas", DIALECT "import util\nprint(util.twice(2))\n");
     fx_write_file(
         "util.bas",
-        DIALECT "fn hello() as int\n    print(\"util\")\n    return 1\nend fn\nlet u = hello()\n"
-        "public fn twice(x as int) as int\n    return x * 2\nend fn\n"
+        DIALECT "function hello() as int\n    print(\"util\")\n    return 1\nend function\nlet u = "
+                "hello()\n"
+                "public function twice(x as int) as int\n    return x * 2\nend function\n"
     );
     uimn_open(S, fx_path_of("main.bas"));
     captured(S, uimn_run);
@@ -208,9 +209,9 @@ TEST(qride_new_asks_the_dialect)
 /* The cursor's text line. */
 static uint32_t cursor_line(void) { return uimn.text.first + uimn.ed.line; }
 
-static const char generic[] = DIALECT "fn at[T](a as T[], i as int) as T\n"
+static const char generic[] = DIALECT "function at[T](a as T[], i as int) as T\n"
                                       "    return a[i]\n"
-                                      "end fn\n"
+                                      "end function\n"
                                       "var xs as int[]\n"
                                       "xs.push(1)\n"
                                       "print(at(xs, %d))\n"
@@ -225,7 +226,7 @@ static void open_generic(Session *const S, const int i)
     uimn_open(S, fx_path_of("main.bas"));
 }
 
-/* F9, F5, F8, Shift+F8, F10 in a Quickr program: stopped at each line; in a generic fn, at its
+/* F9, F5, F8, Shift+F8, F10 in a Quickr program: stopped at each line; in a generic function, at its
    last line. */
 TEST(qride_steps_by_line)
 {
@@ -248,7 +249,7 @@ TEST(qride_steps_by_line)
     fx_done(S, files);
 }
 
-/* F9 at a generic fn's line while stopped: F5 ran past it. */
+/* F9 at a generic function's line while stopped: F5 ran past it. */
 TEST(qride_breaks_in_a_generic_set_while_stopped)
 {
     open_generic(S, 0);
@@ -262,14 +263,15 @@ TEST(qride_breaks_in_a_generic_set_while_stopped)
     fx_done(S, files);
 }
 
-/* Locals and Call stack spelled a Quickr fn's names QBasic's: "X& = 1", "module (X& = 1)". */
+/* Locals and Call stack spelled a Quickr function's names QBasic's: "X& = 1", "module (X& = 1)". */
 TEST(qride_pane_spells_names_as_typed)
 {
     fx_open_program(S, "");
     fx_write_file(
         "main.bas",
-        DIALECT "fn twice(myX as int) as int\n    let y = myX * 2\n    return y\nend fn\n"
-                "print(twice(1))\n"
+        DIALECT
+        "function twice(myX as int) as int\n    let y = myX * 2\n    return y\nend function\n"
+        "print(twice(1))\n"
     );
     uimn_open(S, fx_path_of("main.bas"));
     edit_load(S, view_goline(S, fx_line_of(S, "    return y")));
@@ -290,10 +292,11 @@ TEST(qride_shows_an_inline_record_by_its_fields)
     fx_open_program(S, "");
     fx_write_file(
         "main.bas",
-        DIALECT "type Pt\n    x as int\n    y as single\nend type\n"
-                "var g = Pt(3, 0.5)\n"
-                "fn f(n as int) as int\n    var p = Pt(n, 2.5)\n    return p.x\nend fn\n"
-                "print(f(1))\n"
+        DIALECT
+        "type Pt\n    x as int\n    y as single\nend type\n"
+        "var g = Pt(3, 0.5)\n"
+        "function f(n as int) as int\n    var p = Pt(n, 2.5)\n    return p.x\nend function\n"
+        "print(f(1))\n"
     );
     uimn_open(S, fx_path_of("main.bas"));
     edit_load(S, view_goline(S, fx_line_of(S, "    return p.x")));
@@ -317,14 +320,15 @@ TEST(qride_shows_an_inline_record_by_its_fields)
     fx_done(S, files);
 }
 
-/* A watch on a Quickr fn's names read QBasic's MYX!, a new variable: "myX * 2 = 0". */
+/* A watch on a Quickr function's names read QBasic's MYX!, a new variable: "myX * 2 = 0". */
 TEST(qride_watches_names_as_typed)
 {
     fx_open_program(S, "");
     fx_write_file(
         "main.bas",
-        DIALECT "fn twice(myX as int) as int\n    let y = myX * 2\n    return y\nend fn\n"
-                "print(twice(3))\n"
+        DIALECT
+        "function twice(myX as int) as int\n    let y = myX * 2\n    return y\nend function\n"
+        "print(twice(3))\n"
     );
     uimn_open(S, fx_path_of("main.bas"));
     edit_load(S, view_goline(S, fx_line_of(S, "    return y")));
@@ -362,9 +366,10 @@ TEST(qride_immediate_runs_quickr_at_the_stop)
     fx_open_program(S, "");
     fx_write_file(
         "main.bas",
-        DIALECT "var total = 5\n"
-                "fn twice(myX as int) as int\n    let y = myX * 2\n    return y\nend fn\n"
-                "print(twice(3))\n"
+        DIALECT
+        "var total = 5\n"
+        "function twice(myX as int) as int\n    let y = myX * 2\n    return y\nend function\n"
+        "print(twice(3))\n"
     );
     uimn_open(S, fx_path_of("main.bas"));
     CHECK(strchr(immediate(S, "print(total + 1)"), '1'));
@@ -385,10 +390,10 @@ TEST(qride_immediate_runs_quickr_at_the_stop)
 
 static const char shadows[] =
     DIALECT "type V\n    x as int\n    y as int\nend type\n"
-            "fn len2(v as V) as int\n    return v.x * v.x + v.y * v.y\nend fn\n"
-            "fn f(n as int) as int\n    let v = V(3, 4)\n    var x = n\n"
+            "function len2(v as V) as int\n    return v.x * v.x + v.y * v.y\nend function\n"
+            "function f(n as int) as int\n    let v = V(3, 4)\n    var x = n\n"
             "    if n > 0 then\n        let x = 10\n        print(x)\n"
-            "    end if\n    return x + v.len2()\nend fn\n"
+            "    end if\n    return x + v.len2()\nend function\n"
             "print(f(1))\n";
 
 /* Watch's x the stopped line's, v.len2() a method's call: once read as QBasic's, x the first x
@@ -420,7 +425,7 @@ TEST(qride_watches_quickr_at_the_stopped_line)
     fx_done(S, files);
 }
 
-/* A run-time error in a generic fn: the cursor at the program's last line. */
+/* A run-time error in a generic function: the cursor at the program's last line. */
 TEST(qride_runtime_error_at_its_line)
 {
     open_generic(S, 5);
@@ -450,13 +455,13 @@ static const uint8_t *slots(Session *const S, const char *const text)
     return cols;
 }
 
-/* A Quickr line coloured by QBasic's lexer: fn's name a variable's, match a name, '{' a string's. */
+/* A Quickr line coloured by QBasic's lexer: function's name a variable's, match a name, '{' a string's. */
 TEST(qride_colours_by_quickrs_lexer)
 {
     open_quickr(S);
-    const uint8_t *c = slots(S, "fn twice(x as int) as int ' doubled");
-    CHECK(c[0] == SL_KW && c[3] == SL_FNM && c[9] == SL_PAR && c[14] == SL_TYP);
-    CHECK(c[22] == SL_TYP && c[26] == SL_COM && c[34] == SL_COM);
+    const uint8_t *c = slots(S, "function twice(x as int) as int ' doubled");
+    CHECK(c[0] == SL_KW && c[9] == SL_FNM && c[15] == SL_PAR && c[20] == SL_TYP);
+    CHECK(c[28] == SL_TYP && c[32] == SL_COM && c[40] == SL_COM);
     c = slots(S, "match n");
     CHECK(c[0] == SL_KW && c[6] == SL_NAM);
     c = slots(S, "let s = f\"{n} it's\" + 'x'");
@@ -489,12 +494,12 @@ TEST(qride_completes_quickr_words)
     fx_write_file(
         "main.bas",
         DIALECT "import util\ntype P\n    x as int\n    y as int\nend type\n"
-                "fn norm(p as P) as int\n    return p.x + p.y\nend fn\n"
+                "function norm(p as P) as int\n    return p.x + p.y\nend function\n"
                 "var q as P\nlet total = norm(q)\nprint(total)\n"
     );
     fx_write_file(
         "util.bas",
-        DIALECT "public fn twice(x as int) as int\n    return x * 2\nend fn\n"
+        DIALECT "public function twice(x as int) as int\n    return x * 2\nend function\n"
     );
     uimn_open(S, fx_path_of("main.bas"));
     CHECK(offers(S, "re", "return"));
@@ -515,17 +520,17 @@ static void cursor_at(Session *const S, const char *const text, const uint16_t c
     uimn.edline.col = col;
 }
 
-/* F1 in a Quickr program found QBasic's topics: none for fn, none for text.upper, a beep for s. */
+/* F1 in a Quickr program found QBasic's topics: none for function, none for text.upper, a beep for s. */
 TEST(qride_f1_finds_quickr_topics)
 {
     fx_open_program(S, "");
     fx_write_file(
         "main.bas",
-        DIALECT "fn up(s as string) as string\n    return text.upper(s)\nend fn\n"
+        DIALECT "function up(s as string) as string\n    return text.upper(s)\nend function\n"
     );
     uimn_open(S, fx_path_of("main.bas"));
     CHECK(help_open("build/host/test.hlp"));
-    cursor_at(S, "fn up(s as string) as string", 1);
+    cursor_at(S, "function up(s as string) as string", 1);
     CHECK(help_topic_exists(S));
     cursor_at(S, "    return text.upper(s)", 17);
     CHECK(help_topic_exists(S));

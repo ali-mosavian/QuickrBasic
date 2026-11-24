@@ -7,14 +7,14 @@ blocks.bas:7:1: break outside a loop
 blocks.bas:8:1: continue outside a loop
   continue
   ^
-blocks.bas:9:1: return outside a fn
+blocks.bas:9:1: return outside a function
   return
   ^
-blocks.bas:10:14: return outside a fn
+blocks.bas:10:14: return outside a function
   if true then return
                ^
-blocks.bas:12:5: a fn goes at the top level, not in a block
-      fn g()
+blocks.bas:12:5: a function goes at the top level, not in a block
+      function g()
       ^
 blocks.bas:15:1: while without end while
   while true

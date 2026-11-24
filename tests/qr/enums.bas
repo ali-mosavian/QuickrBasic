@@ -12,7 +12,7 @@ enum Shape
     dot
 end enum
 
-fn area(s as Shape) as single
+function area(s as Shape) as single
     match s
         case circle(r)
             return 3 * r * r
@@ -21,16 +21,16 @@ fn area(s as Shape) as single
         case dot
             return 0
     end match
-end fn
+end function
 
-fn name(m as Mode) as string
+function name(m as Mode) as string
     match m
         case Mode.walk
             return "walk"
         case Mode.jump, Mode.roll
             return "air"
     end match
-end fn
+end function
 
 print(area(Shape.circle(2)), area(Shape.rect(3, 4)), area(Shape.dot))
 print(name(Mode.walk), name(Mode.roll))

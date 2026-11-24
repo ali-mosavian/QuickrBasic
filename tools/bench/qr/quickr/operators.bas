@@ -4,9 +4,9 @@ type Vec
     y as int
 end type
 
-fn operator +(a as Vec, b as Vec) as Vec
+function operator +(a as Vec, b as Vec) as Vec
     return Vec(a.x + b.x, a.y + b.y)
-end fn
+end function
 
 var p = Vec(0, 0)
 let v = Vec(3, 1)

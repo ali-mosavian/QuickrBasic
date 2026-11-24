@@ -3,7 +3,7 @@
 type Vec
     x as int
 end type
-fn largest[T](a as T[]) as T
+function largest[T](a as T[]) as T
     var best = a[0]
     for x in a
         if x > best then
@@ -11,13 +11,13 @@ fn largest[T](a as T[]) as T
         end if
     end for
     return best
-end fn
-fn pair[T](a as T, b as T) as int
+end function
+function pair[T](a as T, b as T) as int
     return 0
-end fn
-fn none_of[T]() as int
+end function
+function none_of[T]() as int
     return 0
-end fn
+end function
 var vs as Vec[]
 print(largest(vs).x)
 print(pair(1, "a"))

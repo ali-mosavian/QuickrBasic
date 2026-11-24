@@ -78,6 +78,7 @@ typedef enum : uint8_t {
     QK_OPERATOR,
     QK_TEST,
     QK_ASSERT,
+    QK_FUNCTION,
     /* punctuation */
     QK_LPAREN,
     QK_RPAREN,
@@ -215,7 +216,7 @@ typedef struct {
     uint32_t nix;
 } QOwners;
 
-/* A type as written: a name, T[], T[n], (T, U), T?, T!, fn(T) as U. */
+/* A type as written: a name, T[], T[n], (T, U), T?, T!, function(T) as U. */
 typedef enum : uint8_t { QX_NAME, QX_LIST, QX_ARRAY, QX_TUPLE, QX_OPT, QX_RES, QX_FN } QTypeExKind;
 typedef struct QTypeEx QTypeEx;
 struct QTypeEx {
@@ -372,7 +373,7 @@ struct QFn {
     QLam *lamof;      /* a block lambda's procedure */
     QLam *aslam;      /* it passed as a lambda, named */
     bool inl;         /* a one-line lambda's, for its site's check: no code, no variables */
-    QTypeEx *ytx;     /* fn g(..) yields T: a generator */
+    QTypeEx *ytx;     /* function g(..) yields T: a generator */
     QType ytype;
     QStmt **yields; /* an instance's yields, numbered from 1 */
     uint32_t nyields, capyields;

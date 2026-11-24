@@ -1,10 +1,10 @@
 ' OPTION DIALECT QUICKR
 from .b import twice
-public fn quad(n as int) as int
+public function quad(n as int) as int
     return twice(twice(n))
-end fn
+end function
 public var order = log("a")
-fn log(s as string) as string
+function log(s as string) as string
     print("init", s)
     return s
-end fn
+end function

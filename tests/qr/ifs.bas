@@ -1,6 +1,6 @@
 ' OPTION DIALECT QUICKR
 ' one-line if and block if / elseif / else
-fn grade(n as int) as string
+function grade(n as int) as string
     if n >= 90 then
         return "a"
     elseif n >= 80 then
@@ -10,7 +10,7 @@ fn grade(n as int) as string
     else
         return "f"
     end if
-end fn
+end function
 print(grade(95), grade(85), grade(75), grade(10))
 var x = 3
 if x > 2 then print("big")

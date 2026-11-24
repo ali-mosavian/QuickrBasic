@@ -1,38 +1,38 @@
 ' OPTION DIALECT QUICKR
 ' time: the clock, TIMER's, and the date
 ' seconds since midnight
-public native fn ticks() as double
-native fn date_text() as string
-native fn time_text() as string
+public native function ticks() as double
+native function date_text() as string
+native function time_text() as string
 
 ' the date and time now: 2026-11-24 09:30:00
-public fn now() as string
+public function now() as string
     let d = date_text()
     return f"{d[6..]}-{d[..5]} {time_text()}"
-end fn
+end function
 
 ' waits seconds, ticks() watched
-public fn sleep(seconds as double)
+public function sleep(seconds as double)
     let start = ticks()
     while since(start) < seconds
     end while
-end fn
+end function
 
 ' seconds since start, a ticks(); past midnight too
-fn since(start as double) as double
+function since(start as double) as double
     let d = ticks() - start
     if d < 0 then return d + 86400
     return d
-end fn
+end function
 
 ' a frame clock: tick() gives the seconds since the last tick, 0 the first
 public type Clock
     last as double = -1
 end type
 
-public fn tick(mut c as Clock) as double
+public function tick(mut c as Clock) as double
     var d = 0.0
     if c.last >= 0 then d = since(c.last)
     c.last = ticks()
     return d
-end fn
+end function

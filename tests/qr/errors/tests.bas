@@ -9,9 +9,9 @@ test "asserts"
     assert 1
 end test
 assert "yes"
-fn f()
+function f()
     test "inside"
     end test
-end fn
+end function
 test "ends wrong"
 end fn

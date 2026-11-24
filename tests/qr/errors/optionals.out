@@ -4,10 +4,10 @@ optionals.bas:8:9: none needs a T? place: write var x as T? = none
 optionals.bas:9:16: none needs a T? place: write var x as T? = none
   var q as int = none
                  ^
-optionals.bas:11:22: x? returns its error: only in a fn whose result is a T!
+optionals.bas:11:22: x? returns its error: only in a function whose result is a T!
       let r = parse("")?
                        ^
-optionals.bas:17:9: Error(code, message) needs a T! place, as a fn's result
+optionals.bas:17:9: Error(code, message) needs a T! place, as a function's result
   let e = Error(1, "x")
           ^
 optionals.bas:19:9: + takes numbers, not an int?

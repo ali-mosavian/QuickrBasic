@@ -60,6 +60,18 @@ static void qpar_fail(QPar *const P, const QTok *const t, const char *const msg)
     longjmp(P->fail, 1);
 }
 
+/* A named function's fn, at t: said, the function parsed on. */
+static void qpar_fnword(QPar *const P, const QTok *const t)
+{
+    qast_error(
+        &P->prog->errs,
+        t,
+        "a function is defined with function, not fn: fn is a lambda's",
+        t->text,
+        t->len
+    );
+}
+
 /* A block's lines not paired, msg at t: an error, but none in the editor's line check (QProg.loose),
    where the rest of the block may be typed yet. */
 [[noreturn]]
@@ -400,6 +412,9 @@ static QExpr *qpar_primary(QPar *const P)
     case QK_FN:
         return qpar_lambda(P);
 
+    case QK_FUNCTION:
+        qpar_fail(P, t, "a lambda is written fn(x) .., not function");
+
     default:
         qpar_expected(P, "a value");
     }
@@ -696,12 +711,19 @@ static QTypeEx *qpar_typex(QPar *const P, const QTypeExKind kind, const QTok *co
     return x;
 }
 
-/* A type after as: a name, (T, U), then [] or [n] any times. */
+/* A type after as: a name, (T, U) or function(T, ..) [as U], then [] or [n] any times. */
 static QTypeEx *qpar_type(QPar *const P)
 {
     QTypeEx *x;
 
-    if (qpar_is(P, QK_FN)) { /* fn(T, ..) [as U] */
+    if (qpar_is(P, QK_FN))
+        qpar_fail(
+            P,
+            P->t,
+            "a function's type is written function(T, ..), not fn: fn is a lambda's"
+        );
+
+    if (qpar_is(P, QK_FUNCTION)) { /* function(T, ..) [as U] */
         x = qpar_typex(P, QX_FN, qpar_next(P));
         qpar_need(P, QK_LPAREN, "(");
         uint32_t cap = 0;
@@ -862,7 +884,7 @@ static QStmt *qpar_return(QPar *const P)
             s->fn = P->open[i].open->fn;
 
     if (!s->fn)
-        qpar_fail(P, s->tok, "return outside a fn");
+        qpar_fail(P, s->tok, "return outside a function");
     if (!qpar_is(P, QK_NL))
         s->e = qpar_values(P);
 
@@ -880,7 +902,7 @@ static QStmt *qpar_yield(QPar *const P)
             s->fn = P->open[i].open->fn;
 
     if (!s->fn || !s->fn->ytx)
-        qpar_fail(P, s->tok, "yield outside a generator: write fn g(..) yields T");
+        qpar_fail(P, s->tok, "yield outside a generator: write function g(..) yields T");
 
     s->e = qpar_expr(P);
     return s;
@@ -947,7 +969,7 @@ static QStmt *qpar_simple(QPar *const P)
     QExpr *const e = qpar_expr(P);
 
     if (e->kind != QE_CALL)
-        qpar_fail(P, t, "a value alone is not a statement: assign it or call a fn");
+        qpar_fail(P, t, "a value alone is not a statement: assign it or call a function");
 
     QStmt *const s = qpar_new(P, QS_CALL, t);
     s->e = e;
@@ -972,7 +994,8 @@ static void qpar_if(QPar *const P)
     const QKind k = P->t->kind;
 
     if (k == QK_LET || k == QK_VAR || k == QK_CONST || k == QK_IF || k == QK_WHILE || k == QK_FOR ||
-        k == QK_DO || k == QK_FN || k == QK_TYPE || k == QK_ENUM || k == QK_MATCH || k == QK_CASE)
+        k == QK_DO || k == QK_FUNCTION || k == QK_TYPE || k == QK_ENUM || k == QK_MATCH ||
+        k == QK_CASE)
         qpar_fail(P, P->t, "a one-line if takes one simple statement, not {}");
 
     s->body = qpar_simple(P);
@@ -1037,8 +1060,7 @@ static void qpar_for(QPar *const P)
         s->step = qpar_expr(P);
 }
 
-/* fn name(params) [as type]. */
-/* fn operator +: its operator, + - * / = or <, its name. */
+/* function operator +: its operator, + - * / = or <, its name. */
 static const QTok *qpar_operator(QPar *const P, QFn *const f)
 {
     static const QKind ops[] = {QK_PLUS, QK_MINUS, QK_STAR, QK_SLASH, QK_EQ, QK_LT};
@@ -1052,6 +1074,7 @@ static const QTok *qpar_operator(QPar *const P, QFn *const f)
     qpar_expected(P, "+, -, *, /, = or < after operator");
 }
 
+/* function name[T, ..](params) [as type | yields type]. */
 static void qpar_fn(QPar *const P)
 {
     QStmt *const s = qpar_new(P, QS_FN, qpar_next(P));
@@ -1061,11 +1084,11 @@ static void qpar_fn(QPar *const P)
     f->def = s;
     qpar_append(P, s);
     qpar_push(P, s);
-    f->name =
-        qpar_take(P, QK_OPERATOR) ? qpar_operator(P, f) : qpar_need(P, QK_NAME, "the fn's name");
+    f->name = qpar_take(P, QK_OPERATOR) ? qpar_operator(P, f)
+                                        : qpar_need(P, QK_NAME, "the function's name");
 
     if (nested)
-        qpar_unpaired(P, s->tok, "a fn goes at the top level, not in a block");
+        qpar_unpaired(P, s->tok, "a function goes at the top level, not in a block");
 
     qpar_addfn(P, f);
 
@@ -1111,7 +1134,7 @@ static void qpar_fn(QPar *const P)
         qpar_fail(P, f->ytx->tok, "a generator yields its values: it has no as type");
 }
 
-/* test "name": a block run by --test alone, a fn of no parameters named by its string. */
+/* test "name": a block run by --test alone, a function of no parameters named by its string. */
 static void qpar_testblock(QPar *const P)
 {
     QStmt *const s = qpar_new(P, QS_FN, qpar_next(P));
@@ -1138,6 +1161,7 @@ static const struct {
     {QK_WHILE, QS_WHILE, QS_ENDWHILE},
     {QK_FOR, QS_FOR, QS_ENDFOR},
     {QK_DO, QS_DO, QS_ENDDO},
+    {QK_FUNCTION, QS_FN, QS_ENDFN},
     {QK_FN, QS_FN, QS_ENDFN},
     {QK_TEST, QS_FN, QS_ENDFN},
     {QK_TYPE, QS_TYPE, QS_ENDTYPE},
@@ -1145,7 +1169,7 @@ static const struct {
     {QK_MATCH, QS_MATCH, QS_ENDMATCH},
 };
 
-/* end if, end while, end for, end do, end fn: its block closed. */
+/* end if, end while, end for, end do, end function, end fn: its block closed. */
 static void qpar_end(QPar *const P)
 {
     const QTok *const t = qpar_next(P);
@@ -1154,7 +1178,7 @@ static void qpar_end(QPar *const P)
     while (k < countof(qpar_ends) && !qpar_is(P, qpar_ends[k].word))
         k++;
     if (k == countof(qpar_ends))
-        qpar_expected(P, "if, while, for, do, fn, test, type, enum or match after end");
+        qpar_expected(P, "if, while, for, do, function, fn, test, type, enum or match after end");
 
     const QTok *const word = qpar_next(P);
     QOpen *const o = qpar_top(P);
@@ -1162,8 +1186,25 @@ static void qpar_end(QPar *const P)
     if (o && o->open->kind == QS_MATCH && o->clause == o->open)
         qpar_unpaired(P, t, "a match needs a case");
 
-    if (!o || o->open->kind != qpar_ends[k].open ||
-        (o->open->kind == QS_FN && o->open->fn->test != (word->kind == QK_TEST))) {
+    const bool named = o && o->open->kind == QS_FN && !o->open->fn->test && !o->open->fn->lamof;
+
+    if (named && word->kind == QK_FN && o->open->tok->kind == QK_FUNCTION)
+        qast_error(
+            &P->prog->errs,
+            word,
+            "a function ends with end function; end fn ends a lambda",
+            word->text,
+            word->len
+        );
+
+    QKind want = word->kind; /* a function's end fn said above, the function closed */
+
+    if (o && o->open->kind == QS_FN && !named)
+        want = o->open->fn->test ? QK_TEST : QK_FN;
+    else if (named && word->kind != QK_FN)
+        want = QK_FUNCTION;
+
+    if (!o || o->open->kind != qpar_ends[k].open || word->kind != want) {
         char msg[32];
         memcpy(msg, "end {} without ", 15);
         const uint32_t n = word->len;
@@ -1374,7 +1415,17 @@ static void qpar_statement(QPar *const P)
         qpar_for(P);
         return;
 
-    case QK_FN:
+    case QK_FUNCTION:
+        qpar_fn(P);
+        return;
+
+    case QK_FN: /* a function's, mistaken */
+        if (P->t[1].kind != QK_NAME && P->t[1].kind != QK_OPERATOR) {
+            qpar_append(P, qpar_simple(P));
+            return;
+        }
+
+        qpar_fnword(P, P->t);
         qpar_fn(P);
         return;
 
@@ -1464,13 +1515,15 @@ static void qpar_import(QPar *const P)
     qpar_append(P, s); /* whole: a line that fails imports nothing */
 }
 
-/* native fn name(params) [as type]: one line, its code the native entry's. */
+/* native function name(params) [as type]: one line, its code the native entry's. */
 static void qpar_native(QPar *const P)
 {
     const QTok *const t = qpar_next(P);
 
-    if (!qpar_is(P, QK_FN))
-        qpar_fail(P, P->t, "native goes before fn");
+    if (qpar_is(P, QK_FN))
+        qpar_fnword(P, P->t);
+    else if (!qpar_is(P, QK_FUNCTION))
+        qpar_fail(P, P->t, "native goes before function");
 
     qpar_fn(P);
     P->nopen--;
@@ -1479,10 +1532,10 @@ static void qpar_native(QPar *const P)
     f->end = f->def;
 
     if (f->ntp || f->ytx)
-        qpar_fail(P, t, "a native fn is not generic and yields nothing");
+        qpar_fail(P, t, "a native function is not generic and yields nothing");
 }
 
-/* public before a module's fn, type, enum, const, var or let. */
+/* public before a module's function, type, enum, const, var or let. */
 static void qpar_public(QPar *const P)
 {
     const QTok *const t = qpar_next(P);
@@ -1490,9 +1543,9 @@ static void qpar_public(QPar *const P)
 
     if (P->nopen)
         qpar_unpaired(P, t, "public goes at the top level, not in a block");
-    if (k != QK_FN && k != QK_NATIVE && k != QK_TYPE && k != QK_ENUM && k != QK_CONST &&
-        k != QK_VAR && k != QK_LET)
-        qpar_fail(P, t, "public goes before fn, native, type, enum, const, var or let");
+    if (k != QK_FUNCTION && k != QK_FN && k != QK_NATIVE && k != QK_TYPE && k != QK_ENUM &&
+        k != QK_CONST && k != QK_VAR && k != QK_LET)
+        qpar_fail(P, t, "public goes before function, native, type, enum, const, var or let");
 
     qpar_statement(P);
     P->last->pub = true;
@@ -1509,7 +1562,7 @@ static void qpar_unclosed(QPar *const P)
         [QS_WHILE] = "while without end while",
         [QS_FOR] = "for without end for",
         [QS_DO] = "do without end do",
-        [QS_FN] = "fn without end fn",
+        [QS_FN] = "function without end function",
         [QS_TYPE] = "type without end type",
         [QS_ENUM] = "enum without end enum",
         [QS_MATCH] = "match without end match",

@@ -37,12 +37,12 @@ type Ball
     r as single = 6
 end type
 
-fn step(mut b as Ball, dt as single, size as Vec)
+function step(mut b as Ball, dt as single, size as Vec)
     b.at.x += b.vel.x * dt
     b.at.y += b.vel.y * dt
     if not b.r <= b.at.x <= size.x - b.r then b.vel.x = -b.vel.x
     if not b.r <= b.at.y <= size.y - b.r then b.vel.y = -b.vel.y
-end fn
+end function
 
 var win = Window(320, 200)
 var balls as Ball[]
@@ -81,7 +81,7 @@ end while
 | Line numbers, labels, GOTO, GOSUB, ON...GOTO | unstructured | blocks, `break`, `continue`, `return` |
 | `%` `&` `!` `#` `$` suffixes, DEFINT... | the type hides in the name | `as type`, or inferred |
 | Implicit variables | a typo makes a new variable | every variable is declared, as llrm's `quickr` requires |
-| SUB vs FUNCTION, CALL, assigning to the function's name | two ways to call | one `fn`, called as `f(x)`, with `return` |
+| SUB vs FUNCTION, CALL, assigning to the function's name | two ways to call | one `function`, called as `f(x)`, with `return` |
 | OPTION BASE, `lower TO upper` | off-by-one | zero-based, as llrm's `quickr` has it |
 | ON ERROR, RESUME | global jumps | see [Errors](#errors) |
 | `:` chains, `_` continuation, REM | dense lines | one statement a line; an open bracket continues the line |
@@ -121,7 +121,7 @@ end while
 | `(T, U)` | a tuple: a function's results, as in llrm |
 | `T?` | a `T` or `none` |
 | `T!` | a `T` or an `Error` |
-| `fn(T) as U` | a function value |
+| `function(T) as U` | a function value |
 | `type` | a record: a value |
 | `enum` | named values, each with or without data |
 
@@ -163,12 +163,12 @@ end while
   - "Not used again" is read from the source: no use of `a` follows the move, `a` is no module
     variable a function sees, and the move is not in a loop `a` is declared outside.
   - Only a whole `let` or `var` moves. A field, an element or a parameter takes `copy()`.
-- A type with an `fn drop(mut x as T)` has it run when an owner of a `T` ends, at a known point:
-  a `File` closes itself. There are no finalizers and no collector pauses.
+- A type with a `function drop(mut x as T)` has it run when an owner of a `T` ends, at a known
+  point: a `File` closes itself. There are no finalizers and no collector pauses.
   - `drop` goes in `T`'s module and is never called by name.
-  - A local ends when its fn returns, by any `return` or `?`, or when its declaration runs again
-    in a loop. A module's `var` or `let` ends when the program does. A record's fields end after
-    its own `drop`, a list's elements with the list, or when `remove` or an unkept `pop` takes
+  - A local ends when its function returns, by any `return` or `?`, or when its declaration runs
+    again in a loop. A module's `var` or `let` ends when the program does. A record's fields end
+    after its own `drop`, a list's elements with the list, or when `remove` or an unkept `pop` takes
     them. A place assigned drops its old value after the new one is made.
   - A value holding one with drop moves and is never copied: `copy()` of it is an error, and so
     is reading a fresh one in place, `make().name`: keep it in a `let` first. A statement's
@@ -177,8 +177,8 @@ end while
     can a type hold itself.
   - A runtime error or `os.exit()` runs no `drop`.
   - **In the VM**, each owner has a hidden flag, set when it takes a value and cleared when the
-    value moves out; the fn's returns drop each owner whose flag is set. A list's elements are
-    dropped by a loop in the line. A fn with no owner runs nothing more.
+    value moves out; the function's returns drop each owner whose flag is set. A list's elements are
+    dropped by a loop in the line. A function with no owner runs nothing more.
 - There are no pointers: an element is referred to by its index. **Open:** whether a reference
   type is needed for graphs of objects. Proposed: not in the first version.
 
@@ -207,7 +207,7 @@ end while
 const SPEED = 120.0         ' folded at compile time
 var frames = 0              ' at module level: every function here sees it
 
-fn run()
+function run()
     let name = "Ada"        ' immutable
     var count = 0           ' mutable; int, from its value
     var pos as Vec          ' zeroed; a field takes its default if it has one
@@ -215,7 +215,7 @@ fn run()
     var speed as single = 6 ' both: the type wins; 6 is a single
     let q, r = divmod(17, 5)
     count += 1
-end fn
+end function
 ```
 
 - Every declaration has one shape, `name [as type] [= value]`: `let`, `var`, a parameter, a
@@ -225,8 +225,8 @@ end fn
 - `let` binds an immutable value: it can't be assigned, nor its fields or elements changed.
 - `var` declares a mutable variable; at module level, every function of the module sees it.
 - `mut` is a borrow: see [Borrowing](#borrowing).
-- A module's `const`s and `fn`s are visible in the whole file. Its `var`s and `let`s are visible
-  from their line on, and in every `fn`.
+- A module's `const`s and `function`s are visible in the whole file. Its `var`s and `let`s are
+  visible from their line on, and in every `function`.
 
 ### Records and enums
 
@@ -250,18 +250,18 @@ enum Shape
     rect(w as single, h as single)
 end enum
 
-fn area(s as Shape) as single
+function area(s as Shape) as single
     match s
         case circle(r)
             return math.pi * r * r
         case rect(w, h)
             return w * h
     end match
-end fn
+end function
 
-fn operator +(a as Vec, b as Vec) as Vec
+function operator +(a as Vec, b as Vec) as Vec
     return Vec(a.x + b.x, a.y + b.y)
-end fn
+end function
 ```
 
 - An enum's values may carry data, and `match` takes them apart. A `match` must cover every
@@ -271,11 +271,11 @@ end fn
   `Shape.`.
 - A plain enum's value is an int to `int(m)` and to `print`.
 - An enum is stored inline: a tag and room for its largest value. Nothing is allocated.
-- A record may define `+ - * / = <` with `fn operator`. Such a function is inlined like any
+- A record may define `+ - * / = <` with `function operator`. Such a function is inlined like any
   small one. `<>`, `>`, `<=` and `>=` follow from `=` and `<`.
   - The left value's type picks the operator, its first parameter's; the right value converts
-    to its second: `fn operator *(a as Vec, k as double)`. `=` and `<` give a `bool`.
-  - Another module uses an operator only if it is `public`, as a fn.
+    to its second: `function operator *(a as Vec, k as double)`. `=` and `<` give a `bool`.
+  - Another module uses an operator only if it is `public`, as a function is.
   - A comparison chain of records, `a < b < c`, is an error.
   - **In the VM**, an operator whose body is one `return` is inlined, its parameters read where
     its arguments are; any other is called. A record built from its own fields, `p = p + v`, is
@@ -284,18 +284,18 @@ end fn
 ### Functions
 
 ```basic
-fn length(v as Vec) as single
+function length(v as Vec) as single
     return math.sqrt(v.x * v.x + v.y * v.y)
-end fn
+end function
 
-fn scale(mut v as Vec, k as single)
+function scale(mut v as Vec, k as single)
     v.x *= k
     v.y *= k
-end fn
+end function
 
-fn divmod(a as int, b as int) as (int, int)
+function divmod(a as int, b as int) as (int, int)
     return a div b, a mod b
-end fn
+end function
 
 scale(mut pos, 2)           ' the caller writes mut too
 print(pos.length())         ' a.f(b) is f(a, b)
@@ -329,21 +329,21 @@ pos.scale(2)                ' before the dot, mut is implied
 #### Results
 
 ```basic
-fn squares(n as int) as int[]          ' a list
+function squares(n as int) as int[]          ' a list
     var r as int[]
     for i in 0..n
         r.push(i * i)
     end for
     return r
-end fn
+end function
 
 ' signatures only:
-fn corners(b as Box) as Vec[4]        ' a fixed array, by value
-fn find(names as string[], s as string) as int?
-fn divmod(a as int, b as int) as (int, int)
+function corners(b as Box) as Vec[4]        ' a fixed array, by value
+function find(names as string[], s as string) as int?
+function divmod(a as int, b as int) as (int, int)
 ```
 
-- A function without `as` returns nothing. One with `as` that can reach `end fn` without a
+- A function without `as` returns nothing. One with `as` that can reach `end function` without a
   `return` is a compile error.
 - Any type can be a result: a list, map, fixed array, record, tuple or optional.
 - A result is built in the caller's place, as llrm does. `return r` moves `r` there, so
@@ -354,13 +354,13 @@ fn divmod(a as int, b as int) as (int, int)
 #### Generic functions
 
 ```basic
-fn largest[T](a as T[]) as T
+function largest[T](a as T[]) as T
     var best = a[0]
     for x in a
         if x > best then best = x
     end for
     return best
-end fn
+end function
 ```
 
 - `[T]` after the name makes a function generic. The compiler makes one copy of it for each type
@@ -376,7 +376,7 @@ end fn
 ```basic
 let hot = temps.filter(fn(t) t > 30).collect()
 balls.sort(fn(a, b) a.at.y < b.at.y)
-let on_hit as fn(int) = flash        ' a named function as a value
+let on_hit as function(int) = flash        ' a named function as a value
 
 let near = balls.filter(fn(b as Ball)
     let dx = b.at.x - hero.at.x
@@ -387,11 +387,15 @@ end fn).collect()
 
 - `fn(x) expr` is a one-line lambda. `fn(x as T) … end fn` is a longer one. Parameter types
   come from where the lambda is used.
+- `fn` is a lambda's word alone. A named function is `function … end function`, and a
+  function's type is `function(T) as U`: the long word for what has a name or a type, the short
+  one for what is written inline. `fn` where `function` belongs, or the other way round, is a
+  compile error that names the right word.
 - A lambda passed to a call may use the caller's variables: it borrows them for that call. It is
   inlined, and nothing is allocated.
 - A function value kept in a variable or a record captures nothing: it is a code address.
-- `fn(int) as int` is a function's type; `fn(string)` returns nothing. `b.on(5)` calls a record's
-  function value.
+- `function(int) as int` is a function's type; `function(string)` returns nothing. `b.on(5)` calls a
+  record's function value.
 - A lambda is only an argument for a function's parameter: `let f = fn(x) x` is an error. A
   function value is a named function that takes no `mut`, no types and no functions.
 - A function taking functions is compiled once for each lambda or named function passed to it,
@@ -418,11 +422,11 @@ end fn).collect()
 #### Generators
 
 ```basic
-fn evens(n as int) yields int
+function evens(n as int) yields int
     for i in 0..n step 2
         yield i
     end for
-end fn
+end function
 
 for x in evens(10)
     print(x)
@@ -434,12 +438,12 @@ end for
 - A generator kept in a `var` is resumed a frame at a time with `next()`, which suits cutscenes
   and enemy behaviour. Kept that way, it owns its arguments: they are moved or copied in, never
   borrowed.
-- `it.next()` gives a `T?`: `none` once the generator ends. A kept generator is a value: `var b
-  = it` copies its state, `for x in it` and a chain run it on, and a fn takes one by its
-  generator's name, `fn drain(mut it as upto)`, or returns one, `fn make() as upto`. `next()`
-  changes it, so it takes a `var` or a `mut` parameter. A lambda may use it; one whose lambda
-  borrows its site's variables calls `next()` in that fn alone. A generic generator's state, or
-  one taking a fn's, has no name to write.
+- `it.next()` gives a `T?`: `none` once the generator ends. A kept generator is a value: `var b =
+  it` copies its state, `for x in it` and a chain run it on, and a function takes one by its
+  generator's name, `function drain(mut it as upto)`, or returns one, `function make() as upto`.
+  `next()` changes it, so it takes a `var` or a `mut` parameter. A lambda may use it; one whose
+  lambda borrows its site's variables calls `next()` in that function alone. A generic generator's
+  state, or one taking a function, has no name to write.
 - `return x` in a generator yields `x` last, then ends; a bare `return` ends it. A generator has
   no `as` type. A parameter may be `mut` for a `for`, which borrows it for the loop; a kept
   generator owns its arguments, so not there. A generator can't loop over itself.
@@ -478,7 +482,7 @@ at compile time.
 8. **A generator borrows its arguments** until its loop ends.
 9. **Module `var`s count too.** A call can't borrow a module variable that the callee, or
    anything it calls, writes. The compiler knows which ones each function writes. A call
-   through a fn value may reach any fn used as a value, and a drop counts as a call.
+   through a function value may reach any function used as a value, and a drop counts as a call.
 10. **A moved value is gone.** Using it before it is assigned again is an error.
 
 What this buys:
@@ -610,11 +614,11 @@ let n = ages.get("bo") ?? 0
 Errors are values, as in Nib: nothing unwinds, in the VM or in native code.
 
 ```basic
-fn load(path as string) as string!
+function load(path as string) as string!
     let text = fs.read_text(path)?    ' an error returns from load
     if len(text) = 0 then return Error(EMPTY, f"{path} is empty")
     return text
-end fn
+end function
 
 let r = load("save.dat")
 if r is Error then
@@ -644,8 +648,8 @@ print(r)                              ' a string from here on
 - `import gfx`, `import m as n`, `import a.b` (then `a.b.f()`), `from a.b import X, Y as Z`,
   `from pkg import m` (a package's module) and relative `from .feet import Land`: `.` is the
   importing file's folder, `..` its parent.
-- Nothing is exported unless marked `public`: a `fn`, `type`, `enum`, `const`, `var` or `let`. A
-  name a module imports is not exported again.
+- Nothing is exported unless marked `public`: a `function`, `type`, `enum`, `const`, `var` or `let`.
+  A name a module imports is not exported again.
 - `a.f(b)` takes the `f` in sight, else the public `f` of the module declaring `a`'s type:
   `clock.tick()` needs only `import time`.
 - Only the main file runs top-level statements. A module's top level holds declarations, imports
@@ -653,7 +657,7 @@ print(r)                              ' a string from here on
 - A module's `var`s and `let`s start once, before the main file's first line: each module after
   those it imports, in the order its imports are written, the first met first in a cycle. Reading
   the var of a module that starts later, at another's top level, is a compile error.
-- Across a cycle, declarations refer to each other freely: every fn, type and const is known
+- Across a cycle, declarations refer to each other freely: every function, type and const is known
   before any body is checked.
 - An error, at compile time or run time, names the module's own file and line.
 - A Quickr file importing a QBasic module is an error at the import.
@@ -672,7 +676,7 @@ end test
 
 - `test` blocks sit in any module. `basic --test` runs them; a program's build leaves them out.
 - `assert c` stops with the file, the line and the condition's text when `c` is false.
-- A test goes at a module's top level and runs as a fn of no parameters: `return` ends it.
+- A test goes at a module's top level and runs as a function of no parameters: `return` ends it.
 - `basic --test FILE.bas` runs the tests of the file and of each module it imports, a module's
   after those it imports, each in source order. Each prints `pass name`, or `FAIL name:
   file:line: why`, an assert's why its condition's text; then `3 passed, 1 failed`, the exit 1
@@ -743,11 +747,11 @@ Everything else is in a module.
 - A module is written in Quickr where possible, in `stdlib/`; the build puts it in `lib/` beside
   the interpreter, where a module is looked for last: the Mac app's in `Contents/Resources/lib`
   (the app's files are its Resources'), the web page's in `/lib`.
-- Its machine-level parts are `native fn` declarations: `public native fn sqrt(x as double) as
-  double`. A native fn has no body; its entry, by its name, is in `src/core/qr/qnat.c`, the VM's
-  services and no module's. A call compiles to the entry's code, which is what QBasic's statement
-  compiles to, so a library call costs what the built-in does. A native takes and gives numbers,
-  bools and strings, by value.
+- Its machine-level parts are `native function` declarations: `public native function sqrt(x as
+  double) as double`. A native function has no body; its entry, by its name, is in
+  `src/core/qr/qnat.c`, the VM's services and no module's. A call compiles to the entry's code,
+  which is what QBasic's statement compiles to, so a library call costs what the built-in does. A
+  native takes and gives numbers, bools and strings, by value.
 - `math.sqrt` against `SQR`, and `text.find` against `INSTR`, run the same ops as QBasic (benches
   sqrt and find); host instructions are 4% and 5% more.
 
@@ -763,7 +767,7 @@ Everything else is in a module.
 | `os.env`, `exit`, `run`; `args` over COMMAND$ | ENVIRON$, END, SHELL, COMMAND$ |
 | `keys.next`, `pressed`, `down` over INKEY$; `mouse`, `clicked` | INKEY$, PEN |
 
-- `math`'s `abs`, `min`, `max` and `clamp` are generic Quickr fns. `Vec` has `+`, `-` and `=`,
+- `math`'s `abs`, `min`, `max` and `clamp` are generic Quickr functions. `Vec` has `+`, `-` and `=`,
   `*` and `/` by a `double`, `dot` and `length`.
 - `os.run(cmd)` runs `cmd` as SHELL does: `/bin/sh -c` on the host, `COMSPEC /C` on DOS. It
   returns nothing, as SHELL gives no exit code; a command that can't start is Illegal function

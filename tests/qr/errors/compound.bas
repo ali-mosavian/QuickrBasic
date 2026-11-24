@@ -39,19 +39,19 @@ match Mode.walk
     case Mode.walk
         print(1)
 end match
-fn f(m as Mode) as int
+function f(m as Mode) as int
     match m
         case Mode.walk
             return 1
         case Mode.jump
             return 2
     end match
-end fn
+end function
 var n as int[4]
 n.push(1)
 print(n[4])
-fn g(mut v as Vec)
-end fn
+function g(mut v as Vec)
+end function
 var u = Vec(1, 2)
 g(mut u.x)
 let k = f"{v}"

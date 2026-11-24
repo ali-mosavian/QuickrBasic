@@ -1,7 +1,7 @@
 ' OPTION DIALECT QUICKR
 ' an int's overflow is an error, not a wrap
 var n = 2147483647
-fn grow(mut v as int)
+function grow(mut v as int)
     v += 1
-end fn
+end function
 grow(mut n)

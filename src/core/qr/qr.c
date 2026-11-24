@@ -1069,12 +1069,12 @@ bool qr_fn_at(const char *const text, const uint32_t len, uint32_t *const at, ui
     qr_word(text, len, &i, "public");
     qr_word(text, len, &i, "native");
 
-    if (!qr_word(text, len, &i, "fn"))
+    if (!qr_word(text, len, &i, "function"))
         return false;
 
     uint32_t end = i;
 
-    if (qr_word(text, len, &end, "operator")) /* its operator too: fn operator + */
+    if (qr_word(text, len, &end, "operator")) /* its operator too: function operator + */
         while (end < len && text[end] != ' ' && text[end] != '(')
             end++;
     else
@@ -1227,7 +1227,7 @@ static void qr_members(const QrSugg *const g, const uint32_t k)
         if (!i || toks[0].kind != QK_PUBLIC || i + 1 >= n || toks[i + 1].kind != QK_NAME)
             continue;
 
-        const bool fn = toks[i].kind == QK_FN;
+        const bool fn = toks[i].kind == QK_FUNCTION;
         g->fn(g->ctx, toks[i + 1].text, toks[i + 1].len, fn ? QRS_FN : QRS_NAME, rec);
     }
 }
@@ -1276,7 +1276,7 @@ static void qr_fields(const QrSugg *const g, const QTok *const t)
                 g->fn(g->ctx, toks[0].text, toks[0].len, QRS_NAME, rec);
             else if (i + 1 < n && toks[i].kind == QK_TYPE)
                 in = qr_named(&toks[i + 1], t->text, t->len);
-            else if (i + 5 < n && toks[i].kind == QK_FN && toks[i + 1].kind == QK_NAME &&
+            else if (i + 5 < n && toks[i].kind == QK_FUNCTION && toks[i + 1].kind == QK_NAME &&
                      toks[i + 2].kind == QK_LPAREN && toks[i + 4].kind == QK_AS &&
                      qr_named(&toks[i + 5], t->text, t->len))
                 g->fn(g->ctx, toks[i + 1].text, toks[i + 1].len, QRS_FN, rec);
@@ -1287,7 +1287,7 @@ static void qr_fields(const QrSugg *const g, const QTok *const t)
 /* The keywords; file's names, not a field's after '.'. */
 static void qr_scope(const QrSugg *const g, const uint32_t file)
 {
-    for (QKind k = QK_AND; k <= QK_ASSERT; k++)
+    for (QKind k = QK_AND; k <= QK_FUNCTION; k++)
         g->fn(g->ctx, qlex_keyword(k), (uint32_t)strlen(qlex_keyword(k)), QRS_KW, 0);
 
     for (uint32_t rec = qr_next_line(&g->S->prog, file, 0); rec;
@@ -1302,7 +1302,7 @@ static void qr_scope(const QrSugg *const g, const uint32_t file)
                     g->ctx,
                     toks[i].text,
                     toks[i].len,
-                    i && toks[i - 1].kind == QK_FN ? QRS_FN : QRS_NAME,
+                    i && toks[i - 1].kind == QK_FUNCTION ? QRS_FN : QRS_NAME,
                     rec
                 );
     }

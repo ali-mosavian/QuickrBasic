@@ -218,11 +218,11 @@ static uint8_t quickr_slot(const QTok *const t, const QKind prev)
         hl.state = prev == QK_END ? 0 : HS_AS;
         return SL_KW;
 
-    case QK_FN:
+    case QK_FUNCTION:
         hl.state = prev == QK_END ? 0 : HS_DEF;
         return SL_KW;
 
-    case QK_LBRACK: /* a generic's parameters: fn at[T] */
+    case QK_LBRACK: /* a generic's parameters: function at[T] */
         hl.generic = state & HS_NAME;
         hl.state = state;
         return SL_ED;
@@ -254,7 +254,7 @@ static uint8_t quickr_slot(const QTok *const t, const QKind prev)
         break;
     }
 
-    if (t->kind >= QK_AND && t->kind <= QK_ASSERT)
+    if (t->kind >= QK_AND && t->kind <= QK_FUNCTION)
         return SL_KW;
     if (t->kind >= QK_QUEST && t->kind < QK_BAD)
         return SL_OP;

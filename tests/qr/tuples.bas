@@ -1,16 +1,16 @@
 ' OPTION DIALECT QUICKR
 ' tuples: results, let q, r = .., a, b = b, a
-fn divmod(a as int, b as int) as (int, int)
+function divmod(a as int, b as int) as (int, int)
     return a div b, a mod b
-end fn
+end function
 
-fn pair(s as string) as (string, int)
+function pair(s as string) as (string, int)
     return s + "!", len2(s)
-end fn
+end function
 
-fn len2(s as string) as int
+function len2(s as string) as int
     return 2
-end fn
+end function
 
 let q, r = divmod(17, 5)
 print(q, r)

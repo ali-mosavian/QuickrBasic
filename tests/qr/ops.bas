@@ -14,16 +14,16 @@ print(not true, true xor false, true xor true, not (a > b))
 print(6 & 3, 6 | 3, 6 ^ 3, ~5, 1 << 31, -8 >> 1, 255 >> 4)
 print("con" + "cat", "x" if a > b else "y", 1 if a < b else 2)
 var calls = 0
-fn tick(v as bool) as bool
+function tick(v as bool) as bool
     calls += 1
     return v
-end fn
+end function
 print(false and tick(true), true or tick(true), calls)
 print(true and tick(true), false or tick(false), calls)
-fn mid() as int
+function mid() as int
     calls += 1
     return 5
-end fn
+end function
 print(0 < mid() < 10, calls)
 print(mid() in 0..3, calls)
 print(tick(true) if a > b else tick(false), calls)

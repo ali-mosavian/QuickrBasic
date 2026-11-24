@@ -1,12 +1,12 @@
-drop.bas:8:4: a Res has a drop already
-  fn drop(mut r as Res)
-     ^
-drop.bas:10:4: drop takes one mut record and gives nothing
-  fn drop(r as int)
-     ^
-drop.bas:12:4: drop takes one mut record, not an int
-  fn drop(mut n as int)
-     ^
+drop.bas:8:10: a Res has a drop already
+  function drop(mut r as Res)
+           ^
+drop.bas:10:10: drop takes one mut record and gives nothing
+  function drop(r as int)
+           ^
+drop.bas:12:10: drop takes one mut record, not an int
+  function drop(mut n as int)
+           ^
 drop.bas:14:6: a Node has drop: it can't hold itself
   type Node
        ^

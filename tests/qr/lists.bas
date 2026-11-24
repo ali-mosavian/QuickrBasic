@@ -11,27 +11,27 @@ type Bag
     corners as single[4]
 end type
 
-fn squares(n as int) as int[]
+function squares(n as int) as int[]
     var r as int[]
     for i in 0..n
         r.push(i * i)
     end for
     return r
-end fn
+end function
 
-fn total(a as int[]) as int
+function total(a as int[]) as int
     var t = 0
     for x in a
         t += x
     end for
     return t
-end fn
+end function
 
-fn bump(mut a as int[])
+function bump(mut a as int[])
     for mut x in a
         x += 1
     end for
-end fn
+end function
 
 let s = squares(5)
 print(len(s), s[0], s[4], total(s))
@@ -74,13 +74,13 @@ for n in names
 end for
 let c = copy(a)
 print(len(c))
-fn three() as string[]
+function three() as string[]
     var r as string[]
     r.push("a")
     r.push("bb")
     r.push("c")
     return r
-end fn
+end function
 for s in three()
     print(s)
 end for

@@ -1,5 +1,5 @@
 # The Quickr Language
-keys: ~quickr language, ~quickr and, ~quickr as, ~quickr break, ~quickr case, ~quickr const, ~quickr continue, ~quickr div, ~quickr do, ~quickr else, ~quickr elseif, ~quickr end, ~quickr enum, ~quickr false, ~quickr fn, ~quickr for, ~quickr if, ~quickr in, ~quickr is, ~quickr let, ~quickr match, ~quickr mod, ~quickr mut, ~quickr none, ~quickr not, ~quickr or, ~quickr return, ~quickr step, ~quickr then, ~quickr true, ~quickr type, ~quickr var, ~quickr while, ~quickr xor, ~quickr yield, ~quickr yields, ~quickr from, ~quickr import, ~quickr public, ~quickr native, ~quickr operator, ~quickr test, ~quickr assert, ~quickr print, ~quickr len, ~quickr copy, ~quickr wrap, ~quickr Error, ~quickr bool, ~quickr byte, ~quickr short, ~quickr int, ~quickr long, ~quickr ubyte, ~quickr ushort, ~quickr uint, ~quickr ulong, ~quickr single, ~quickr double, ~quickr string
+keys: ~quickr language, ~quickr and, ~quickr as, ~quickr break, ~quickr case, ~quickr const, ~quickr continue, ~quickr div, ~quickr do, ~quickr else, ~quickr elseif, ~quickr end, ~quickr enum, ~quickr false, ~quickr fn, ~quickr function, ~quickr for, ~quickr if, ~quickr in, ~quickr is, ~quickr let, ~quickr match, ~quickr mod, ~quickr mut, ~quickr none, ~quickr not, ~quickr or, ~quickr return, ~quickr step, ~quickr then, ~quickr true, ~quickr type, ~quickr var, ~quickr while, ~quickr xor, ~quickr yield, ~quickr yields, ~quickr from, ~quickr import, ~quickr public, ~quickr native, ~quickr operator, ~quickr test, ~quickr assert, ~quickr print, ~quickr len, ~quickr copy, ~quickr wrap, ~quickr Error, ~quickr bool, ~quickr byte, ~quickr short, ~quickr int, ~quickr long, ~quickr ubyte, ~quickr ushort, ~quickr uint, ~quickr ulong, ~quickr single, ~quickr double, ~quickr string
 
 Names are case-sensitive; keywords are lower case. A line ends a
 statement, except inside ( [ or {. A comment starts with '.
@@ -11,13 +11,13 @@ Declarations: name [as type] [= value].
     const N = 10          folded when compiled
     let x = 1             immutable
     var n as int          mutable; zero
-    fn f(a as int, mut b as P) as int ... end fn
+    function f(a as int, mut b as P) as int ... end function
     type P ... end type   a record: x as int, one field a line
     enum Mode ... end enum
 
 Types: bool, byte short int long, ubyte ushort uint ulong, single
 double, string; T[] a list, T[n] an array, V[K] a map, (T, U) a
-tuple, T? a T or none, T! a T or an Error, fn(T) as U.
+tuple, T? a T or none, T! a T or an Error, function(T) as U.
 
 Control:
     if c then ... elseif c then ... else ... end if
@@ -49,9 +49,9 @@ them.
         y as int
     end type
 
-    fn sum(p as P) as int
+    function sum(p as P) as int
         return p.x + p.y
-    end fn
+    end function
 
     let p = P(x: 2, y: 3)
     for i in 0..3

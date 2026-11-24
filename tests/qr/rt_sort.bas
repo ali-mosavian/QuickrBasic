@@ -1,15 +1,15 @@
 ' OPTION DIALECT QUICKR
 ' a.sort(less): records by a field, stable, by a block lambda
-' and a fn; a.sort() by value: ints, uints, longs, doubles,
+' and a function; a.sort() by value: ints, uints, longs, doubles,
 ' strings, a fixed array field; a compare's error raised
 type P
     name as string
     v as int
     fx as short[4]
 end type
-fn shorter(x as string, y as string) as bool
+function shorter(x as string, y as string) as bool
     return len(x) < len(y)
-end fn
+end function
 var ps as P[]
 ps.push(P(name: "c", v: 1))
 ps.push(P(name: "a", v: 2))

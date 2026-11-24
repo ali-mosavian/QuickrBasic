@@ -8,15 +8,15 @@ type Narrow
     bs as byte[3]
     uss as ushort[2]
 end type
-fn low(mut b as byte)
+function low(mut b as byte)
     b = -128
-end fn
-fn high(mut us as ushort)
+end function
+function high(mut us as ushort)
     us = 65535
-end fn
-fn up(mut b as byte)
+end function
+function up(mut b as byte)
     b = 127
-end fn
+end function
 var n = Narrow(b: -128, ub: 255, s: -32768, us: 65535)
 print(n.b, n.ub, n.s, n.us)
 n.b += 127

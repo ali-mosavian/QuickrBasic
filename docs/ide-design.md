@@ -153,20 +153,20 @@ QBasic's otherwise, and a program is one or the other.
   program's dialect before its bar, when the errors' count leaves room.
 - A Quickr line is stored as typed, its text the record's body (`LF_QR`), and saved as typed.
 - The modules a Quickr program imports open as a QBasic program's do, each its own view after the
-  main's. A Quickr file is one view: its fns stay where they are written, and F2 lists them under
-  their file.
+  main's. A Quickr file is one view: its functions stay where they are written, and F2 lists them
+  under their file.
 - A line entered is lexed and parsed at once in its file, as the lines around it make it: a field's
   line in a type, a line inside an open bracket. A block not closed yet is no error. A line with an
   error is lit as a QBasic one is (`LF_ASIS`).
 - F5 checks the whole program first (types, borrows): the first error puts the cursor at its line and
   column, its message in a box.
-- Run, Break, the steps and breakpoints work by line. A generic fn's instance runs on copies of its
-  lines (`LF_INC`), each mapped back to its line by file and source line (`qr_origin`); a breakpoint
-  toggled while stopped is set on the copies too (`qr_marks`). A run-time error puts the cursor at
-  its line, an assert's message Quickr's.
-- Locals, Call stack and Watch spell names as typed, without suffixes; a fn's frame shows its name.
-  A record in cells opens to its fields as a box does; Quickr's hidden variables are not shown.
-  A name a block declares again over an outer one's shows as typed.
+- Run, Break, the steps and breakpoints work by line. A generic function's instance runs on copies
+  of its lines (`LF_INC`), each mapped back to its line by file and source line (`qr_origin`); a
+  breakpoint toggled while stopped is set on the copies too (`qr_marks`). A run-time error puts the
+  cursor at its line, an assert's message Quickr's.
+- Locals, Call stack and Watch spell names as typed, without suffixes; a function's frame shows its
+  name. A record in cells opens to its fields as a box does; Quickr's hidden variables are not
+  shown. A name a block declares again over an outer one's shows as typed.
 - A watch is a Quickr expression, printed as `print` would: its names the stopped statement's, a
   block's over an outer one's, `v.length()` a call. A value set in Locals is a Quickr assignment.
 - The immediate window runs a Quickr line: a call or an assignment, a value alone printed. Stopped,
@@ -177,11 +177,11 @@ QBasic's otherwise, and a program is one or the other.
 - A run goes through the modules in import order, each module's last line on to the next one's first
   (`qr/qlink.c`), so the store keeps the order the files were read in.
 
-- Highlighting lexes a Quickr line with Quickr's lexer (`qr_tokens`): its keywords, a fn's name and
-  parameters, types after `as`, strings and f-strings, the comment past the last token.
+- Highlighting lexes a Quickr line with Quickr's lexer (`qr_tokens`): its keywords, a function's
+  name and parameters, types after `as`, strings and f-strings, the comment past the last token.
 - Completion offers Quickr's keywords and the names in the file; after `m.` an imported module's
-  public names; after `v.` the fields of `v`'s record type (as declared, `v as T`) and the fns whose
-  first parameter is one (`qr_suggest`).
+  public names; after `v.` the fields of `v`'s record type (as declared, `v as T`) and the functions
+  whose first parameter is one (`qr_suggest`).
 
 - F1 in a Quickr program looks up `quickr WORD` (`help/qr/`): a keyword, a module, a module's
   `m.name`, else the module before the dot; no topic opens the Quickr index. QBasic's topics are

@@ -13,11 +13,11 @@ type Rec
     u as ushort
 end type
 
-fn sum(r as Rec) as int
+function sum(r as Rec) as int
     return r.b + r.n + r.inr.k + int(r.inr.d) + int(r.l) + r.u
-end fn
+end function
 
-fn bump(mut r as Rec, k as int)
+function bump(mut r as Rec, k as int)
     for i in 0..k
         r.n += i
         r.inr.k += 1
@@ -26,7 +26,7 @@ fn bump(mut r as Rec, k as int)
         r.u = ushort(r.u + 3)
         r.b = -r.b
     end for
-end fn
+end function
 
 var a = Rec(b: 3, n: 1, inr: Inner(k: 2, d: 1.0), l: 5, u: 7)
 bump(mut a, 4)

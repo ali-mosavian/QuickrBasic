@@ -17,17 +17,17 @@ type Two
     n as short
 end type
 
-fn of(xs as long[]) yields long
+function of(xs as long[]) yields long
     for x in xs
         yield x * long(2)
     end for
-end fn
+end function
 
-fn points(ps as Pt[]) yields int
+function points(ps as Pt[]) yields int
     for p in ps
         yield p.x + p.tag
     end for
-end fn
+end function
 
 var bs as byte[]
 var us as ushort[]

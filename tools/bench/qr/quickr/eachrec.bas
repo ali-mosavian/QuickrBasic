@@ -4,7 +4,7 @@ type Pt
     y as int
 end type
 
-fn total(a as Pt[]) as int
+function total(a as Pt[]) as int
     var s = 0
     for k in 0..4000
         for p in a
@@ -12,7 +12,7 @@ fn total(a as Pt[]) as int
         end for
     end for
     return s
-end fn
+end function
 
 var a as Pt[]
 for i in 0..1000

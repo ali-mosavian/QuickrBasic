@@ -307,7 +307,7 @@ static const char *qsem_tyname(QSem *const S, const QType t)
         );
 
     case QT_FN: {
-        const char *s = "fn(";
+        const char *s = "function(";
 
         for (uint32_t k = 0; k < y->nfields; k++)
             s = qsem_join(S, s, k ? ", " : "", qsem_tyname(S, y->fields[k].type));
@@ -888,7 +888,7 @@ static QType qsem_gentype(QSem *const S, QFn *const g, const QTok *const t)
             S,
             t,
             qsem_text(S, t),
-            " is generic or takes a fn: its state has no name",
+            " is generic or takes a function: its state has no name",
             nullptr
         );
         return QY_ERROR;
@@ -2688,7 +2688,7 @@ static QType qsem_lamtype(
     *open = false;
 
     if (!x || x->kind != QX_FN) {
-        qsem_say(S, g->params[at].name, "a lambda goes to a fn's parameter", nullptr);
+        qsem_say(S, g->params[at].name, "a lambda goes to a function's parameter", nullptr);
         return QY_ERROR;
     }
 
@@ -3207,7 +3207,7 @@ static void qsem_moved(QSem *const S)
         const QMove *const m = &S->moves[i];
         const char *const name = qsem_text(S, m->var->name);
         const char *const why = m->var->last > m->at ? " is used after it moves here"
-                                : m->var->shared     ? " is seen by a fn: it can't move"
+                                : m->var->shared     ? " is seen by a function: it can't move"
                                 : m->loop != UINT32_MAX && qsem_at(S, m->var->name) < m->loop
                                     ? " moves in a loop it is declared outside"
                                     : nullptr;
@@ -4040,7 +4040,7 @@ static QExpr *qsem_method(QSem *const S, QExpr *const e)
 
         if (!b) {
             if (r->type != QY_ERROR)
-                qsem_say(S, e->tok, "unknown fn ", qsem_text(S, e->tok), nullptr);
+                qsem_say(S, e->tok, "unknown function ", qsem_text(S, e->tok), nullptr);
 
             e->type = QY_ERROR;
             return e;
@@ -4201,7 +4201,7 @@ static QExpr **qsem_plainargs(
 
     for (const QArg *a = e->args; a; a = a->next, k++) {
         if (a->name || a->mut) {
-            qsem_say(S, a->name ? a->name : a->mut, "a fn value takes plain values", nullptr);
+            qsem_say(S, a->name ? a->name : a->mut, "a function value takes plain values", nullptr);
             return nullptr;
         }
 
@@ -4522,7 +4522,13 @@ static QExpr *qsem_fnref(QSem *const S, QExpr *const e, QFn *const f)
     }
 
     if (qast_generic(f) || qsem_takesfn(f)) {
-        qsem_say(S, e->tok, qsem_text(S, f->name), " is no value: it takes types or fns", nullptr);
+        qsem_say(
+            S,
+            e->tok,
+            qsem_text(S, f->name),
+            " is no value: it takes types or functions",
+            nullptr
+        );
         return e;
     }
 
@@ -4578,7 +4584,7 @@ static QExpr *qsem_called(QSem *const S, QExpr *const e, const QBind *const b)
     }
 
     if (b || e->a) {
-        qsem_say(S, e->tok, qsem_text(S, e->tok), " is not a fn", nullptr);
+        qsem_say(S, e->tok, qsem_text(S, e->tok), " is not a function", nullptr);
         e->type = QY_ERROR;
         return e;
     }
@@ -4598,7 +4604,7 @@ static QExpr *qsem_called(QSem *const S, QExpr *const e, const QBind *const b)
     if (qsem_is(e->tok, "wrap"))
         return qsem_wrapped_ops(S, e);
 
-    qsem_say(S, e->tok, "unknown fn ", qsem_text(S, e->tok), nullptr);
+    qsem_say(S, e->tok, "unknown function ", qsem_text(S, e->tok), nullptr);
     e->type = QY_ERROR;
     return e;
 }
@@ -4704,7 +4710,12 @@ static QExpr *qsem_error(QSem *const S, QExpr *const e, const QType hint)
     e->type = QY_ERROR;
 
     if (!qsem_wraps(S, hint, QT_RES)) {
-        qsem_say(S, e->tok, "Error(code, message) needs a T! place, as a fn's result", nullptr);
+        qsem_say(
+            S,
+            e->tok,
+            "Error(code, message) needs a T! place, as a function's result",
+            nullptr
+        );
         return e;
     }
 
@@ -4792,7 +4803,12 @@ static QExpr *qsem_try(QSem *const S, QExpr *const e)
     }
 
     if (!S->fn || !qsem_wraps(S, S->fn->result, QT_RES)) {
-        qsem_say(S, e->tok, "x? returns its error: only in a fn whose result is a T!", nullptr);
+        qsem_say(
+            S,
+            e->tok,
+            "x? returns its error: only in a function whose result is a T!",
+            nullptr
+        );
         return e;
     }
 
@@ -4910,7 +4926,7 @@ static QExpr *qsem_expr(QSem *const S, QExpr *const e, const QType hint)
         return qsem_try(S, e);
 
     case QE_LAMBDA:
-        qsem_say(S, e->tok, "a lambda is passed to a fn's parameter", nullptr);
+        qsem_say(S, e->tok, "a lambda is passed to a function's parameter", nullptr);
         e->type = QY_ERROR;
         return e;
 
@@ -5099,7 +5115,7 @@ static QExpr *qsem_target(QSem *const S, QExpr *const e, const QTok *const at)
     const QBind *const b = qsem_lookup(S, e);
 
     if (b && b->fn) {
-        qsem_say(S, e->tok, qsem_text(S, e->tok), " is a fn: call it", nullptr);
+        qsem_say(S, e->tok, qsem_text(S, e->tok), " is a function: call it", nullptr);
         e->type = QY_ERROR;
         return e;
     }
@@ -5802,7 +5818,7 @@ static QExpr *qsem_applied(
     }
 
     if (a->kind != QE_LAMBDA) {
-        qsem_say(S, a->tok, "a chain takes a lambda or a fn", nullptr);
+        qsem_say(S, a->tok, "a chain takes a lambda or a function", nullptr);
         return qsem_const(S, a->tok, QY_ERROR, (QVal){});
     }
 
@@ -6088,7 +6104,7 @@ static QType qsem_sink(QSem *const S, QIter *const it, QExpr *const c, QExpr *co
 
     case QZ_FOLD: {
         if (!a || !c->args->next || c->args->next->next) {
-            qsem_say(S, c->tok, "fold() takes a first value and a fn(acc, x)", nullptr);
+            qsem_say(S, c->tok, "fold() takes a first value and a lambda, fn(acc, x)", nullptr);
             return QY_ERROR;
         }
 
@@ -6368,7 +6384,7 @@ static void qsem_kept(QSem *const S, QDecl *const d, const QKind kw, QFn *const 
     if (kw != QK_VAR)
         qsem_say(S, d->name, "a generator changes as it runs: keep it in a var", nullptr);
     if (d->type)
-        qsem_say(S, d->type->tok, "a generator's type is its fn's: leave out as", nullptr);
+        qsem_say(S, d->type->tok, "a generator's type is its function's: leave out as", nullptr);
 
     d->value = qsem_state(S, d->value, g);
     d->var = qsem_var(S, d->name, d->value->type, QV_VAR);
@@ -7229,7 +7245,7 @@ static bool qsem_isdrop(const QFn *const f)
     return !f->lamof && !f->of && !f->test && qsem_is(f->name, "drop");
 }
 
-/* fn drop(mut x as T): T's, a record declared in its module. */
+/* function drop(mut x as T): T's, a record declared in its module. */
 static void qsem_dropdef(QSem *const S, QFn *const f)
 {
     if (f->ntp || f->ytx || f->npar != 1 || !f->params[0].mut || f->rtype || f->native) {
@@ -7385,11 +7401,16 @@ static void qsem_native(QSem *const S, QFn *const f)
         const QParam *const p = &f->params[k];
 
         if (p->mut || !qsem_nativeok(p->var->type))
-            qsem_say(S, p->name, "a native fn takes numbers, bools and strings, not mut", nullptr);
+            qsem_say(
+                S,
+                p->name,
+                "a native function takes numbers, bools and strings, not mut",
+                nullptr
+            );
     }
 
     if (!plain)
-        qsem_say(S, f->rtype->tok, "a native fn gives a number, a bool or a string", nullptr);
+        qsem_say(S, f->rtype->tok, "a native function gives a number, a bool or a string", nullptr);
 }
 
 /* May module k's top level have s: the main's anything, another's declarations alone? */
@@ -7426,7 +7447,8 @@ static void qsem_module(QSem *const S, const uint32_t k)
             qsem_say(
                 S,
                 s->tok,
-                "a module runs nothing: its top level has fn, type, enum, const, var, let and "
+                "a module runs nothing: its top level has function, type, enum, const, var, let "
+                "and "
                 "import",
                 nullptr
             );

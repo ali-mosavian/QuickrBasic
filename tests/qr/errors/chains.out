@@ -40,7 +40,7 @@ chains.bas:21:1: a chain's elements don't change: for mut takes a list
 chains.bas:24:1: for over a chain takes one name, or one for each of a zip's
   for i, x in a.map(fn(x) x)
   ^
-chains.bas:27:9: fold() takes a first value and a fn(acc, x)
+chains.bas:27:9: fold() takes a first value and a lambda, fn(acc, x)
   print(a.fold(0))
           ^
 chains.bas:28:16: x is an int here, not a string

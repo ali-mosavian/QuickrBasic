@@ -16,19 +16,19 @@ type Outer
     tag as short
 end type
 
-fn bump(mut o as Outer)
+function bump(mut o as Outer)
     o.k += 1
     o.inr.n *= 2
-end fn
+end function
 
-fn deep(n as int) as long
+function deep(n as int) as long
     var o = Outer(tag: 1, k: 0, inr: Inner(b: 2, n: n, d: 0.5), u: 7)
     if n > 0 then
         o.k = deep(n - 1)
     end if
     bump(mut o)
     return o.k + o.inr.n + o.tag + o.inr.b + o.u
-end fn
+end function
 
 var g = Outer(tag: -3, k: 5_000_000_000, inr: Inner(b: -1, n: 9, d: 1.25), u: 4)
 bump(mut g)
@@ -38,9 +38,9 @@ g.inr.b = 100
 print(g.tag, g.k, g.inr.b, g.inr.n, g.inr.d, g.u)
 print(h.tag, h.k, h.inr.b, h.inr.n, h.inr.d, h.u)
 print(deep(3))
-fn halves(n as int) as (int, double)
+function halves(n as int) as (int, double)
     return (n, n / 2)
-end fn
+end function
 
 var s = 0.0
 for i in 0..4
@@ -66,7 +66,7 @@ type Names
     b as string
 end type
 
-fn walk(k as int) as int
+function walk(k as int) as int
     var o = Odd(b: 1, n: 2, s: 3, d: 4.5, l: 6)
     for i in 0..k
         o.n += i
@@ -75,7 +75,7 @@ fn walk(k as int) as int
         o.b = 7
     end for
     return o.n + o.b + o.s + int(o.l)
-end fn
+end function
 
 var od = Odd(b: 1, n: 2, s: 3, d: 4.5, l: 6)
 od.n += 40
@@ -93,7 +93,7 @@ type Narrow
     n as int
 end type
 
-fn narrow(k as int) as int
+function narrow(k as int) as int
     var p = Narrow(b: -1, u: 200, s: -300, w: 60000, n: 5)
     for i in 0..k
         p.s += 1
@@ -101,7 +101,7 @@ fn narrow(k as int) as int
         p.n += p.u + p.w
     end for
     return p.n + p.s + p.b
-end fn
+end function
 
 var nw = Narrow(b: 1, u: 2, s: 3, w: 4, n: 0)
 nw.s -= 10

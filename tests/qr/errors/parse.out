@@ -19,13 +19,13 @@ parse.bas:7:7: expected in, not 0
 parse.bas:9:1: end while without while
   end while
   ^
-parse.bas:11:1: fn without end fn
-  fn
+parse.bas:11:1: function without end function
+  function
   ^
-parse.bas:11:3: expected the fn's name, not the line's end
-  fn
-    ^
-parse.bas:12:1: a value alone is not a statement: assign it or call a fn
+parse.bas:11:9: expected the function's name, not the line's end
+  function
+          ^
+parse.bas:12:1: a value alone is not a statement: assign it or call a function
   x + 1
   ^
 parse.bas:14:9: lists are not supported yet

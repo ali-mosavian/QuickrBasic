@@ -66,14 +66,14 @@ var ss as short[]
 ss.push(-30000)
 print(bs[0], bs[1], ls[0], ls[1], ss[0], len(bs), l in ls, 255 in bs)
 print(bs.pop(), ls.pop(), ss.pop(), bs.sum(), ls.sum())
-fn twice(mut x as ubyte)
+function twice(mut x as ubyte)
     x *= 2
-end fn
+end function
 bs.push(3)
 twice(mut px.g)
 twice(mut bs[1])
 print(px.g, bs[1])
-fn big(x as long) as long
+function big(x as long) as long
     return x * 1000
-end fn
+end function
 print(big(l), big(5))

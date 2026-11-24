@@ -1,32 +1,32 @@
 ' OPTION DIALECT QUICKR
-' fn operator: its errors
+' function operator: its errors
 from shapes import Size
 type Vec
     x as int
 end type
-fn operator +(a as int, b as int) as int
+function operator +(a as int, b as int) as int
     return a + b
-end fn
-fn operator *(a as Vec) as Vec
+end function
+function operator *(a as Vec) as Vec
     return a
-end fn
-fn operator =(a as Vec, b as Vec) as int
+end function
+function operator =(a as Vec, b as Vec) as int
     return 0
-end fn
-fn operator -(mut a as Vec, b as Vec) as Vec
+end function
+function operator -(mut a as Vec, b as Vec) as Vec
     return a
-end fn
-fn operator +(a as Vec, b as Vec) as Vec
+end function
+function operator +(a as Vec, b as Vec) as Vec
     return Vec(a.x + b.x)
-end fn
-fn operator +(a as Vec, b as Vec) as Vec
+end function
+function operator +(a as Vec, b as Vec) as Vec
     return a
-end fn
-fn operator +[T](a as T, b as T) as T
+end function
+function operator +[T](a as T, b as T) as T
     return a
-end fn
-fn operator ** (a as Vec, b as Vec) as Vec
-end fn
+end function
+function operator ** (a as Vec, b as Vec) as Vec
+end function
 let v = Vec(1)
 let w = v / v
 let c = v < v

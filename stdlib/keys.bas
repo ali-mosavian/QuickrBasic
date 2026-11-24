@@ -4,8 +4,8 @@
 ' held_for seconds after k's last press or repeat.
 import time
 
-native fn inkey() as string
-native fn pen(n as int) as int
+native function inkey() as string
+native function pen(n as int) as int
 
 public const held_for = 0.55
 
@@ -48,7 +48,7 @@ public enum Key
 end enum
 
 ' a key's code as next() gives it: a character's, 256 + an extended key's scan code
-public fn code(k as Key) as int
+public function code(k as Key) as int
     match k
         case Key.escape
             return 27
@@ -71,14 +71,14 @@ public fn code(k as Key) as int
         case else
             return 97 + int(k) - int(Key.a)
     end match
-end fn
+end function
 
 var waiting as int[]
 var seen as double[512]
 var fresh as bool[512]
 
 ' the keys typed since the last look, taken
-fn poll()
+function poll()
     var s = inkey()
     while len(s) > 0
         var c = int(s[0])
@@ -89,35 +89,35 @@ fn poll()
         fresh[c] = true
         s = inkey()
     end while
-end fn
+end function
 
 ' the next key's code, 0 none waiting
-public fn next() as int
+public function next() as int
     poll()
     if len(waiting) = 0 then return 0
     let c = waiting[0]
     waiting.remove(0)
     return c
-end fn
+end function
 
 ' k pressed since the last pressed(k)
-public fn pressed(k as Key) as bool
+public function pressed(k as Key) as bool
     poll()
     let c = code(k)
     let was = fresh[c]
     fresh[c] = false
     return was
-end fn
+end function
 
 ' k held: pressed or repeated in the last held_for seconds
-public fn down(k as Key) as bool
+public function down(k as Key) as bool
     poll()
     let c = code(k)
     if seen[c] = 0 then return false
     var d = time.ticks() - seen[c]
     if d < 0 then d += 86400
     return d < held_for
-end fn
+end function
 
 ' the mouse: its pixel, its buttons down now
 public type Mouse
@@ -127,12 +127,12 @@ public type Mouse
     right as bool
 end type
 
-public fn mouse() as Mouse
+public function mouse() as Mouse
     return Mouse(x: pen(4), y: pen(5), left: pen(3) <> 0, right: pen(13) <> 0)
-end fn
+end function
 
 ' the left button, or the right, pressed since the last clicked() of it
-public fn clicked(right as bool = false) as bool
+public function clicked(right as bool = false) as bool
     if right then return pen(10) <> 0
     return pen(0) <> 0
-end fn
+end function

@@ -4,50 +4,50 @@ type P
     x as int
     y as int
 end type
-fn upto(n as int, start as int = 0) yields int
+function upto(n as int, start as int = 0) yields int
     var i = start
     while i < n
         yield i
         i += 1
     end while
-end fn
-fn once() yields int
+end function
+function once() yields int
     yield 7
-end fn
-fn three() yields string
+end function
+function three() yields string
     yield "one"
     yield "two"
     yield "three"
-end fn
-fn evens[T](a as T[]) yields T
+end function
+function evens[T](a as T[]) yields T
     for i, x in a
         if i mod 2 = 0 then yield x
     end for
-end fn
-fn grid(n as int) yields P
+end function
+function grid(n as int) yields P
     for i in upto(n)
         for j in 0..n
             yield P(i, j)
         end for
     end for
-end fn
-fn until_neg(a as int[]) yields int
+end function
+function until_neg(a as int[]) yields int
     for x in a
         if x < 0 then return
         yield x * 10
     end for
-end fn
-fn squares(n as int) yields int
+end function
+function squares(n as int) yields int
     for x in upto(n)
         yield x * x
     end for
-end fn
-fn mapped(n as int, f as fn(int) as int) yields int
+end function
+function mapped(n as int, f as function(int) as int) yields int
     for x in upto(n)
         yield f(x)
     end for
-end fn
-fn words(s as string) yields string
+end function
+function words(s as string) yields string
     var w = ""
     for i in 0..len(s)
         let ch = s[i..i + 1]
@@ -59,8 +59,8 @@ fn words(s as string) yields string
         end if
     end for
     if len(w) > 0 then yield w
-end fn
-fn zipped(n as int) yields int
+end function
+function zipped(n as int) yields int
     var a = upto(n, 1)
     var b = upto(n, 10)
     while true
@@ -69,27 +69,27 @@ fn zipped(n as int) yields int
         yield x
         yield b.next() ?? -1
     end while
-end fn
-fn deep(n as int) as int
+end function
+function deep(n as int) as int
     if n = 0 then return 0
     var g = upto(n)
     let first = g.next() ?? 0
     let r = deep(n - 1)
     return first + (g.next() ?? 0) * 10 + r * 100
-end fn
-fn big(m as int[string]) yields string
+end function
+function big(m as int[string]) yields string
     for k in m
         if m[k] > 1 then yield k
     end for
-end fn
-fn sum_to(n as int) as int
+end function
+function sum_to(n as int) as int
     var t = 0
     for x in upto(n)
         t += x
     end for
     return t
-end fn
-fn run(k as int)
+end function
+function run(k as int)
     var g = grid(2)
     while true
         let p = g.next()
@@ -107,7 +107,7 @@ fn run(k as int)
     var nm = evens(copy(names))
     names.push("cy")
     print(nm.next() ?? "?", nm.next() ?? "?", len(names))
-end fn
+end function
 for x in once()
     print(x + 1)
 end for

@@ -1,33 +1,33 @@
 ' OPTION DIALECT QUICKR
 ' chains: map, filter, take, skip, zip, rev; sum .. collect; one loop each, a for's too
-fn upto(n as int) yields int
+function upto(n as int) yields int
     var i = 0
     while i < n
         yield i
         i += 1
     end while
-end fn
-fn chained(n as int) yields int
+end function
+function chained(n as int) yields int
     for x in (0..n).filter(fn(x) x mod 2 = 1)
         yield x * 100
     end for
-end fn
-fn twice(x as int) as int
+end function
+function twice(x as int) as int
     return x * 2
-end fn
-fn total(a as int[], f as fn(int) as int) as int
+end function
+function total(a as int[], f as function(int) as int) as int
     return a.map(f).sum()
-end fn
-fn evens(a as int[]) yields int
+end function
+function evens(a as int[]) yields int
     for x in a.filter(fn(x) x mod 2 = 0).rev()
         yield x
     end for
-end fn
-fn sums(n as int) yields int
+end function
+function sums(n as int) yields int
     for i in 1..n
         yield (0..i).sum()
     end for
-end fn
+end function
 var a as int[]
 for i in 0..10
     a.push(i)

@@ -1,9 +1,9 @@
 ' OPTION DIALECT QUICKR
-public fn twice(n as int) as int
+public function twice(n as int) as int
     return n * 2
-end fn
+end function
 public let order = say()
-fn say() as string
+function say() as string
     print("init b")
     return "b"
-end fn
+end function

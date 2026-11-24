@@ -5,13 +5,13 @@ type Named
     y as int
 end type
 
-fn walk() as int
+function walk() as int
     var p = Named(x: 0, label: "p", y: 0)
     for i in 0..10000000
         p.x += 3
         p.y = (p.y + p.x) mod 997
     end for
     return p.x + p.y
-end fn
+end function
 
 print(walk())

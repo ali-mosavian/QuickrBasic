@@ -1,8 +1,8 @@
 ' OPTION DIALECT QUICKR
-fn fib(n as int) as int
+function fib(n as int) as int
     if n < 2 then return n
     return fib(n - 1) + fib(n - 2)
-end fn
+end function
 var s = 0
 for i in 0..30000000
     s += i mod 7

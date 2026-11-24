@@ -1,30 +1,30 @@
 ' OPTION DIALECT QUICKR
 ' generators: yield's type, loops over itself, used as a value, let, next(), a kept one's mut
-fn upto(n as int) yields int
+function upto(n as int) yields int
     var i = 0
     while i < n
         yield i
         i += 1
     end while
-end fn
-fn bad(n as int) yields int
+end function
+function bad(n as int) yields int
     yield "x"
     return 5
-end fn
-fn loops(n as int) yields int
+end function
+function loops(n as int) yields int
     for x in loops(n)
         yield x
     end for
-end fn
-fn both(n as int) as int yields int
+end function
+function both(n as int) as int yields int
     return 1
-end fn
-fn plain()
+end function
+function plain()
     yield 1
-end fn
-fn changes(mut n as int) yields int
+end function
+function changes(mut n as int) yields int
     yield n
-end fn
+end function
 let a = upto(3)
 var b = upto(3)
 print(b)

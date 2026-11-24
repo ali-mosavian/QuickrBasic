@@ -1,25 +1,25 @@
 ' OPTION DIALECT QUICKR
-' lambdas and fn values: their errors
-fn apply(f as fn(int) as int, x as int) as int
+' lambdas and function values: their errors
+function apply(f as function(int) as int, x as int) as int
     return f(x)
-end fn
-fn each(a as int[], f as fn(int))
+end function
+function each(a as int[], f as function(int))
     for x in a
         f(x)
     end for
-end fn
-fn twoargs(a as int, b as int) as int
+end function
+function twoargs(a as int, b as int) as int
     return a + b
-end fn
-fn bump(mut n as int) as int
+end function
+function bump(mut n as int) as int
     n += 1
     return n
-end fn
-fn keep(f as fn(int) as int) as int
+end function
+function keep(f as function(int) as int) as int
     let g = f
     return apply(fn(v) f(v), 2)
-end fn
-fn run()
+end function
+function run()
     let k = 1
     var xs as int[]
     print(apply(fn(a, b) a, 1))
@@ -41,5 +41,5 @@ fn run()
             xs.push(y)
         end fn)
     end for
-end fn
+end function
 run()

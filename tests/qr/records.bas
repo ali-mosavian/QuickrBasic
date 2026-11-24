@@ -11,18 +11,18 @@ type Ball
     at as Vec
 end type
 
-fn length2(v as Vec) as single
+function length2(v as Vec) as single
     return v.x * v.x + v.y * v.y
-end fn
+end function
 
-fn scale(mut v as Vec, k as single)
+function scale(mut v as Vec, k as single)
     v.x *= k
     v.y *= k
-end fn
+end function
 
-fn flip(v as Vec) as Vec
+function flip(v as Vec) as Vec
     return Vec(v.y, v.x)
-end fn
+end function
 
 let v = Vec(3, 4)
 print(v.x, v.y, length2(v))

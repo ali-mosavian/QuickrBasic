@@ -5,14 +5,14 @@ public type Size
     h as int
 end type
 
-public fn operator +(a as Size, b as Size) as Size
+public function operator +(a as Size, b as Size) as Size
     return Size(a.w + b.w, a.h + b.h)
-end fn
+end function
 
-fn operator -(a as Size, b as Size) as Size
+function operator -(a as Size, b as Size) as Size
     return Size(a.w - b.w, a.h - b.h)
-end fn
+end function
 
-public fn shrink(a as Size) as Size
+public function shrink(a as Size) as Size
     return a - Size(1, 1)
-end fn
+end function

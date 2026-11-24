@@ -6,15 +6,15 @@ g.push(1.5)
 g.push(-2.25)
 g.push(4.0)
 
-fn total(a as long[]) as long
+function total(a as long[]) as long
     var s as long = 0
     for x in a
         s += x * x
     end for
     return s
-end fn
+end function
 
-fn gsum() as double
+function gsum() as double
     var s = 0.0
     for x in g
         for y in g
@@ -22,11 +22,11 @@ fn gsum() as double
         end for
     end for
     return s
-end fn
+end function
 
-fn apply(f as fn(int) as int, x as int) as int
+function apply(f as function(int) as int, x as int) as int
     return f(x)
-end fn
+end function
 
 var none_ as int[]
 var n = 0
@@ -61,11 +61,11 @@ for i, x in fs
     if i = 0 then break
 end for
 
-fn doubled(a as int[]) yields int
+function doubled(a as int[]) yields int
     for x in a
         yield x * 2
     end for
-end fn
+end function
 
 var w as int[]
 w.push(5)

@@ -1,11 +1,11 @@
-/* Quickr's native entries: the code a call of a native fn compiles to.
+/* Quickr's native entries: the code a call of a native function compiles to.
  *
  * # How it works
- * `native fn sqrt(x as double) as double` in a module names an entry here; its calls compile to the
- * entry's steps, the arguments pushed where its steps say, already of the declared types. Each is
- * the code QBasic's statement or function compiles to, so a library call costs what the built-in
- * costs. The rest are CALL QX routines (qrt.h). An entry is the VM's service, no module's: the
- * name is the fn's, wherever it is declared.
+ * `native function sqrt(x as double) as double` in a module names an entry here; its calls
+ * compile to the entry's steps, the arguments pushed where its steps say, already of the declared
+ * types. Each is the code QBasic's statement or function compiles to, so a library call costs
+ * what the built-in costs. The rest are CALL QX routines (qrt.h). An entry is the VM's service, no
+ * module's: the name is the function's, wherever it is declared.
  */
 #include "qr/qnat.h"
 #include "comp/codegen.h"

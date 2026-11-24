@@ -1,5 +1,5 @@
-# Quickr fn
-keys: ~quickr fn
+# Quickr function
+keys: ~quickr function
 
 A Quickr keyword's topic.
 

@@ -4,10 +4,10 @@ generators.bas:11:11: a string is not an int
 generators.bas:15:14: loops loops over itself: its for is inlined
       for x in loops(n)
                ^
-generators.bas:19:33: a generator yields its values: it has no as type
-  fn both(n as int) as int yields int
-                                  ^
-generators.bas:23:5: yield outside a generator: write fn g(..) yields T
+generators.bas:19:39: a generator yields its values: it has no as type
+  function both(n as int) as int yields int
+                                        ^
+generators.bas:23:5: yield outside a generator: write function g(..) yields T
       yield 1
       ^
 generators.bas:28:5: a generator changes as it runs: keep it in a var

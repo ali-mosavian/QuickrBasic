@@ -1,11 +1,11 @@
 ' OPTION DIALECT QUICKR
-fn largest[T](a as T[1000]) as T
+function largest[T](a as T[1000]) as T
     var best = a[0]
     for x in a
         if x > best then best = x
     end for
     return best
-end fn
+end function
 var a as int[1000]
 for i in 0..1000
     a[i] = (i * 7919) mod 1000

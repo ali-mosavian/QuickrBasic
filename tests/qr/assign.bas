@@ -24,17 +24,17 @@ print(b)
 ' a compound's target's subscripts evaluated once: once read
 ' twice, a[next()] += 10 added a[1] + 10 into a[2]
 var calls = 0
-fn next() as int
+function next() as int
     calls += 1
     return calls
-end fn
+end function
 var c as int[4]
 c[next()] += 10
 print(c[1], c[2], calls)
 var i = 0
-fn bump() as int
+function bump() as int
     i += 1
     return 5
-end fn
+end function
 c[i] += bump()
 print(c[0], c[1], i)

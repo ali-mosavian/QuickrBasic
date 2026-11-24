@@ -1,5 +1,5 @@
 ' OPTION DIALECT QUICKR
-' blocks closed wrongly; break and continue outside a loop; return outside a fn, one-line too
+' blocks closed wrongly; break and continue outside a loop; return outside a function, one-line too
 if true then
     print(1)
 end while
@@ -8,10 +8,10 @@ break
 continue
 return
 if true then return
-fn f()
-    fn g()
-    end fn
-end fn
+function f()
+    function g()
+    end function
+end function
 while true
     print(1)
 end fn

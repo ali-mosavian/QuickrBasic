@@ -1,20 +1,20 @@
 ' OPTION DIALECT QUICKR
 ' random: numbers from one seeded sequence, RND's
-public native fn seed(n as double)
-native fn unit() as double
+public native function seed(n as double)
+native function unit() as double
 ' a whole number from 0 up to n
-native fn below(n as int) as int
+native function below(n as int) as int
 
 ' a whole number from a to b, both included
-public fn int(a as int, b as int) as int
+public function int(a as int, b as int) as int
     return a + below(b - a + 1)
-end fn
+end function
 
 ' a number from a up to b
-public fn real(a as double, b as double) as double
+public function real(a as double, b as double) as double
     return a + (b - a) * unit()
-end fn
+end function
 
-public fn pick[T](xs as T[]) as T
+public function pick[T](xs as T[]) as T
     return xs[below(len(xs))]
-end fn
+end function

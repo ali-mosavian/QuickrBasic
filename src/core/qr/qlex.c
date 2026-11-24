@@ -62,6 +62,7 @@ static const char *const qlex_words[] = {
     [QK_IMPORT - QK_AND] = "import", [QK_PUBLIC - QK_AND] = "public",
     [QK_NATIVE - QK_AND] = "native", [QK_OPERATOR - QK_AND] = "operator",
     [QK_TEST - QK_AND] = "test",     [QK_ASSERT - QK_AND] = "assert",
+    [QK_FUNCTION - QK_AND] = "function",
 };
 
 /* Punctuation, longest first where one starts another. */
@@ -518,7 +519,7 @@ static void qlex_fstring(QLex *const L, const uint32_t from)
 static bool qlex_typetok(const QKind k, const int32_t d)
 {
     return k == QK_NAME || k == QK_LBRACK || k == QK_RBRACK || k == QK_INT || k == QK_QUEST ||
-           k == QK_BANG || k == QK_LPAREN || k == QK_RPAREN || k == QK_FN || k == QK_AS ||
+           k == QK_BANG || k == QK_LPAREN || k == QK_RPAREN || k == QK_FUNCTION || k == QK_AS ||
            (k == QK_COMMA && d > 0);
 }
 
@@ -645,5 +646,5 @@ void qlex_source(QSrc *const src, const uint32_t first, QMem *const m, QErrs *co
 
 const char *qlex_keyword(const QKind k)
 {
-    return k >= QK_AND && k <= QK_ASSERT ? qlex_words[k - QK_AND] : nullptr;
+    return k >= QK_AND && k <= QK_FUNCTION ? qlex_words[k - QK_AND] : nullptr;
 }

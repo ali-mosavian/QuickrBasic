@@ -1,13 +1,13 @@
 ' OPTION DIALECT QUICKR
 ' kept generators as values: copied, passed mut, returned, used by a
 ' lambda, looped; return x the last yield; an inline one's mut
-fn upto(n as int) yields int
+function upto(n as int) yields int
     for i in 0..n
         yield i
     end for
     return 100 + n
-end fn
-fn words(s as string) yields string
+end function
+function words(s as string) yields string
     var w = ""
     for c in s
         if c = 32 then
@@ -18,29 +18,29 @@ fn words(s as string) yields string
         end if
     end for
     yield w
-end fn
-fn text_of(c as int) as string
+end function
+function text_of(c as int) as string
     return "x" if c = 120 else "y"
-end fn
-fn drain(mut it as upto) as int
+end function
+function drain(mut it as upto) as int
     var t = 0
     for x in it
         t += x
     end for
     return t
-end fn
-fn make(n as int) as upto
+end function
+function make(n as int) as upto
     return upto(n)
-end fn
-fn bump(mut a as int) yields int
+end function
+function bump(mut a as int) yields int
     a += 1
     yield a
     a += 10
     yield a
-end fn
-fn apply(f as fn(int) as int) as int
+end function
+function apply(f as function(int) as int) as int
     return f(1)
-end fn
+end function
 var a = upto(3)
 print(a.next() ?? -1)
 var b = a

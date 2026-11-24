@@ -8,7 +8,7 @@ for i 0..3
 end for
 end while
 else
-fn
+function
 x + 1
 let a = b[1..2]
 var s = [1, 2]

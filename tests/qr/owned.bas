@@ -5,30 +5,30 @@ type Bag
     items as int[]
 end type
 
-fn make(n as int) as Bag
+function make(n as int) as Bag
     var b as Bag
     b.name = "bag" + string(n)
     for i in 0..n
         b.items.push(i)
     end for
     return b
-end fn
+end function
 
-fn sum(a as int[]) as int
+function sum(a as int[]) as int
     var t = 0
     for x in a
         t += x
     end for
     return t
-end fn
+end function
 
-fn count(n as int) as int
+function count(n as int) as int
     var l as int[]
     for i in 0..n
         l.push(i)
     end for
     return len(l)
-end fn
+end function
 
 print(count(3), count(5))
 let b = make(4)
@@ -44,13 +44,13 @@ bags[0].items.push(7)
 print(sum(bags[0].items))
 bags.remove(0)
 print(len(bags), bags[0].name)
-fn rev(a as int[]) as int[]
+function rev(a as int[]) as int[]
     var r as int[]
     for i in 0..len(a)
         r.push(a[len(a) - 1 - i])
     end for
     return r
-end fn
+end function
 let r = rev(rev(b.items))
 print(r[0], r[3])
 var e as Bag

@@ -70,7 +70,7 @@ void qr_flag(Session *S);
 uint32_t qr_origin(const Prog *pg, uint32_t rec);
 /* The run's copies of the line at rec breakpoints as it is (LF_BP). */
 void qr_marks(Prog *pg, uint32_t rec);
-/* Is the line text, len bytes, a fn's first: its name's column and length (an operator's with its
+/* Is the line text, len bytes, a function's first: its name's column and length (an operator's with its
    sign) to *at, *n. */
 bool qr_fn_at(const char *text, uint32_t len, uint32_t *at, uint32_t *n);
 /* The line text, len bytes, lexed alone: each token to fn with ctx, in order. Its comment's

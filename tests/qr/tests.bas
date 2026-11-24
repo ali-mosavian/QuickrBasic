@@ -5,9 +5,9 @@ type Res
     name as string
 end type
 
-fn drop(mut r as Res)
+function drop(mut r as Res)
     print("drop", r.name)
-end fn
+end function
 
 var count = 10
 print("main runs")

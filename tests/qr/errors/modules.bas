@@ -3,8 +3,8 @@
 import lib
 import nope
 from lib import hidden, shown, missing
-fn lib()
-end fn
+function lib()
+end function
 print(lib.shown(), lib.hidden(), lib.count, lib.nothing)
 var x as lib.Nope
 print(hidden())

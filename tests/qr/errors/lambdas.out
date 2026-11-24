@@ -10,13 +10,13 @@ lambdas.bas:25:17: the lambda takes one value here
 lambdas.bas:26:25: + joins two strings: write string(x)
       print(apply(fn(v) v + "s", 1))
                           ^
-lambdas.bas:27:17: a fn(int, int) as int is not a fn(int) as int
+lambdas.bas:27:17: a function(int, int) as int is not a function(int) as int
       print(apply(twoargs, 1))
                   ^
 lambdas.bas:28:17: bump is no value: it takes mut
       print(apply(bump, 1))
                   ^
-lambdas.bas:29:13: a lambda is passed to a fn's parameter
+lambdas.bas:29:13: a lambda is passed to a function's parameter
       let f = fn(v) v
               ^
 lambdas.bas:31:9: k is a let: it can't change

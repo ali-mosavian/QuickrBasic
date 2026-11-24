@@ -13,17 +13,17 @@ if f is not Error then
     print(f.seek(2) is Error)
     print(f.read(3), f.read(10), f.size())
 end if
-fn unclosed(path as string) as bool!
+function unclosed(path as string) as bool!
     let f = fs.open(path, "w")?
     return f.write("written, closed by its drop")?
-end fn
-fn closed(path as string) as bool!
+end function
+function closed(path as string) as bool!
     var f = fs.open(path, "w")?
     let ok = f.write("closed twice")?
     f.close()
     f.close()
     return ok
-end fn
+end function
 print(unclosed("libfs.drp") ?? false, fs.read_text("libfs.drp") ?? "")
 print(closed("libfs.drp") ?? false, fs.read_text("libfs.drp") ?? "")
 let names = fs.list("libfs.*")

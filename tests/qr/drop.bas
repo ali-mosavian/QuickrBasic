@@ -4,9 +4,9 @@ type Res
     name as string
 end type
 
-fn drop(mut r as Res)
+function drop(mut r as Res)
     print("drop", r.name)
-end fn
+end function
 
 type Pair
     a as Res
@@ -19,52 +19,52 @@ type Pool
     first as Res?
 end type
 
-fn make(name as string) as Res
+function make(name as string) as Res
     return Res(name)
-end fn
+end function
 
-fn early(stop as bool) as int
+function early(stop as bool) as int
     let x = Res("x")
     if stop then return 1
     let y = Res("y")
     return 2
-end fn
+end function
 
-fn kept() as Res
+function kept() as Res
     let k = Res("k")
     let tmp = Res("tmp")
     return k
-end fn
+end function
 
-fn check(fail as bool) as int!
+function check(fail as bool) as int!
     if fail then return Error(1, "no")
     return 5
-end fn
+end function
 
-fn tried(fail as bool) as int!
+function tried(fail as bool) as int!
     let t = Res("t")
     let v = check(fail)?
     let u = Res("u")
     return v
-end fn
+end function
 
-fn loop()
+function loop()
     for i in 0..3
         let r = Res(f"loop{i}")
     end for
     print("loop done")
-end fn
+end function
 
-fn maybe_move(go as bool)
+function maybe_move(go as bool)
     let a = Res(f"moved {go}")
     if go then
         let b = a
         print("in", b.name)
     end if
     print("out")
-end fn
+end function
 
-fn pool() as int
+function pool() as int
     var p as Pool
     p.items.push(Res("i0"))
     p.items.push(Res("i1"))
@@ -73,22 +73,22 @@ fn pool() as int
     p.items.pop()
     p.first = make("first")
     return len(p.items)
-end fn
+end function
 
-fn pairs()
+function pairs()
     var p = Pair(Res("pa"), Res("pb"), 1)
     p.a = Res("pa2")
     var q = Pair(b: Res("qb"))
     q = Pair(Res("qa2"), Res("qb2"), 2)
     let r, s = (Res("r"), Res("s"))
-end fn
+end function
 
-fn either(c as bool)
+function either(c as bool)
     let a = Res("a")
     let b = Res("b")
     let g = a if c else b
     print("g", g.name)
-end fn
+end function
 
 print(early(true))
 print(early(false))

@@ -1,32 +1,32 @@
 ' OPTION DIALECT QUICKR
 ' calls: arguments, defaults, names, results
-fn f(a as int, b = 2) as int
+function f(a as int, b = 2) as int
     return a + b
-end fn
+end function
 print(f())
 print(f(1, 2, 3))
 print(f(b: 1))
 print(f(1, c: 2))
 print(f(a: 1, 2))
 print(f(1, a: 2))
-fn g(a = 1, b as int)
-end fn
-fn h(a as int = "x")
-end fn
-fn k(a as int = f(1))
-end fn
-fn m(mut a = 1)
-end fn
+function g(a = 1, b as int)
+end function
+function h(a as int = "x")
+end function
+function k(a as int = f(1))
+end function
+function m(mut a = 1)
+end function
 let v = g(1, 2)
-fn r() as int
+function r() as int
     print(1)
-end fn
-fn q() as int
+end function
+function q() as int
     if true then return 1
-end fn
-fn w()
+end function
+function w()
     return 1
-end fn
-fn e() as int
+end function
+function e() as int
     return
-end fn
+end function

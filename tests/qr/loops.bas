@@ -44,13 +44,13 @@ for k in lo..hi
         print(k, m)
     end for
 end for
-fn sum_to(n as int) as int
+function sum_to(n as int) as int
     var t = 0
     for k in 0..n + 1
         t += k
     end for
     return t
-end fn
+end function
 print(sum_to(100))
 var up = 2
 var dn = -2
@@ -73,11 +73,11 @@ let low = -2147483648
 for k in 0..low
     print("never")
 end for
-fn count_in(n as int, by as int) as int
+function count_in(n as int, by as int) as int
     var t = 0
     for k in 0..n step by
         t += 1
     end for
     return t
-end fn
+end function
 print(count_in(10, 3), count_in(10, 1), count_in(0, 1))

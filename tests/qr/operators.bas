@@ -1,5 +1,5 @@
 ' OPTION DIALECT QUICKR
-' fn operator: + - * / = < on records, inlined when one return
+' function operator: + - * / = < on records, inlined when one return
 from shapes import Size
 import shapes
 type Vec
@@ -7,48 +7,48 @@ type Vec
     y as int
 end type
 
-fn operator +(a as Vec, b as Vec) as Vec
+function operator +(a as Vec, b as Vec) as Vec
     return Vec(a.x + b.x, a.y + b.y)
-end fn
+end function
 
-fn operator -(a as Vec, b as Vec) as Vec
+function operator -(a as Vec, b as Vec) as Vec
     return Vec(a.x - b.x, a.y - b.y)
-end fn
+end function
 
-fn operator *(a as Vec, k as int) as Vec
+function operator *(a as Vec, k as int) as Vec
     return Vec(a.x * k, a.y * k)
-end fn
+end function
 
-fn operator /(a as Vec, k as int) as Vec
+function operator /(a as Vec, k as int) as Vec
     let r = Vec(a.x div k, a.y div k)
     return r
-end fn
+end function
 
-fn operator =(a as Vec, b as Vec) as bool
+function operator =(a as Vec, b as Vec) as bool
     return a.x = b.x and a.y = b.y
-end fn
+end function
 
-fn operator <(a as Vec, b as Vec) as bool
+function operator <(a as Vec, b as Vec) as bool
     if a.x <> b.x then return a.x < b.x
     return a.y < b.y
-end fn
+end function
 
 type Name
     first as string
     last as string
 end type
 
-fn operator +(a as Name, b as Name) as Name
+function operator +(a as Name, b as Name) as Name
     return Name(a.first + b.first, a.last + b.last)
-end fn
+end function
 
-fn largest[T](a as T[]) as T
+function largest[T](a as T[]) as T
     var best = a[0]
     for x in a
         if x > best then best = x
     end for
     return best
-end fn
+end function
 
 type Box
     at as Vec

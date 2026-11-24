@@ -16,26 +16,26 @@ calls.bas:10:15: a value by position after one by name
 calls.bas:11:12: a given twice
   print(f(1, a: 2))
              ^
-calls.bas:12:13: b needs a default: one before it has one
-  fn g(a = 1, b as int)
-              ^
-calls.bas:14:17: a string is not an int
-  fn h(a as int = "x")
-                  ^
-calls.bas:16:17: a default is a constant
-  fn k(a as int = f(1))
-                  ^
-calls.bas:18:10: a mut parameter has no default
-  fn m(mut a = 1)
-           ^
+calls.bas:12:19: b needs a default: one before it has one
+  function g(a = 1, b as int)
+                    ^
+calls.bas:14:23: a string is not an int
+  function h(a as int = "x")
+                        ^
+calls.bas:16:23: a default is a constant
+  function k(a as int = f(1))
+                        ^
+calls.bas:18:16: a mut parameter has no default
+  function m(mut a = 1)
+                 ^
 calls.bas:20:9: the call returns nothing
   let v = g(1, 2)
           ^
 calls.bas:23:1: r can end without returning an int
-  end fn
+  end function
   ^
 calls.bas:26:1: q can end without returning an int
-  end fn
+  end function
   ^
 calls.bas:28:12: w returns nothing: it has no as type
       return 1

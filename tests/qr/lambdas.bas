@@ -1,61 +1,61 @@
 ' OPTION DIALECT QUICKR
-' lambdas inlined per call, captures by reference, fn values
+' lambdas inlined per call, captures by reference, function values
 type Vec
     x as int
     y as int
 end type
 type Button
     label as string
-    on as fn(int) as int
+    on as function(int) as int
 end type
-fn apply(f as fn(int) as int, x as int) as int
+function apply(f as function(int) as int, x as int) as int
     return f(x)
-end fn
-fn twice(f as fn(int) as int, x as int) as int
+end function
+function twice(f as function(int) as int, x as int) as int
     return f(f(x))
-end fn
-fn pass_on(f as fn(int) as int, x as int) as int
+end function
+function pass_on(f as function(int) as int, x as int) as int
     return apply(f, x) + 1
-end fn
-fn each(a as int[], f as fn(int))
+end function
+function each(a as int[], f as function(int))
     for x in a
         f(x)
     end for
-end fn
-fn total(a as int[], f as fn(int) as int) as int
+end function
+function total(a as int[], f as function(int) as int) as int
     var t = 0
     for x in a
         t += f(x)
     end for
     return t
-end fn
-fn map_all[T, U](a as T[], f as fn(T) as U) as U[]
+end function
+function map_all[T, U](a as T[], f as function(T) as U) as U[]
     var r as U[]
     for x in a
         r.push(f(x))
     end for
     return r
-end fn
-fn vmap(v as Vec, f as fn(Vec) as Vec) as Vec
+end function
+function vmap(v as Vec, f as function(Vec) as Vec) as Vec
     return f(v)
-end fn
-fn join(a as string[], f as fn(string) as string) as string
+end function
+function join(a as string[], f as function(string) as string) as string
     var s = ""
     for x in a
         s = s + f(x) + ","
     end for
     return s
-end fn
-fn double_it(x as int) as int
+end function
+function double_it(x as int) as int
     return x * 2
-end fn
-fn shout(s as string) as string
+end function
+function shout(s as string) as string
     return s + "!"
-end fn
-fn through(f as fn(int) as int) as int
+end function
+function through(f as function(int) as int) as int
     return apply(fn(v) f(v) + 1, 2)
-end fn
-fn run()
+end function
+function run()
     var k = 10
     print(apply(fn(v) v + k, 5), twice(fn(v) v * k, 3), apply(double_it, 21))
     var xs as int[]
@@ -86,9 +86,9 @@ fn run()
     words.push("a")
     words.push("bc")
     print(join(words, fn(s) s + s), join(words, shout))
-end fn
+end function
 run()
-let g as fn(int) as int = double_it
+let g as function(int) as int = double_it
 print(g(4), apply(g, 6), through(g))
 let sh = shout
 print(sh("hey") + sh("x"))

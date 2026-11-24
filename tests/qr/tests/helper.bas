@@ -1,11 +1,11 @@
 ' OPTION DIALECT QUICKR
-public fn twice(x as int) as int
+public function twice(x as int) as int
     return x * 2
-end fn
+end function
 
-public fn check_pos(x as int)
+public function check_pos(x as int)
     assert x > 0
-end fn
+end function
 
 test "twice doubles"
     assert twice(3) = 6

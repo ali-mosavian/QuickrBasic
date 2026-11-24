@@ -55,18 +55,18 @@ enum Color
     red
     green
 end enum
-fn census(z as Zoo) as int[string]
+function census(z as Zoo) as int[string]
     var out as int[string]
     for k, p in z.pets
         out[k] = p.legs
     end for
     return out
-end fn
-fn add(mut z as Zoo, name as string, legs as int)
+end function
+function add(mut z as Zoo, name as string, legs as int)
     z.pets[name] = Pet(name, legs)
     z.pets[name].tags.push(f"{legs} legs")
     z.count += 1
-end fn
+end function
 var zoo as Zoo
 add(mut zoo, "rex", 4)
 add(mut zoo, "tweety", 2)
@@ -101,20 +101,20 @@ end for
 print(len(big), total, big[59].name)
 var moved = big
 print(len(moved))
-fn build(n as int) as int
+function build(n as int) as int
     var m as string[int]
     for i in 0..n
         m[i] = f"v{i}"
     end for
     return len(m)
-end fn
-fn made(n as int) as int[int]
+end function
+function made(n as int) as int[int]
     var m as int[int]
     for i in 0..n
         m[i] = i
     end for
     return m
-end fn
+end function
 var t = 0
 for r in 0..300
     t += build(200)

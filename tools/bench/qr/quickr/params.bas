@@ -4,12 +4,12 @@ type Acc
     s as int
 end type
 
-fn walk(mut a as Acc)
+function walk(mut a as Acc)
     for i in 0..10000000
         a.n += 3
         a.s = (a.s + a.n) mod 997
     end for
-end fn
+end function
 
 var a = Acc(0, 0)
 walk(mut a)

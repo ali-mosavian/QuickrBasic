@@ -1,0 +1,18 @@
+fnword.bas:4:1: a function is defined with function, not fn: fn is a lambda's
+  fn twice(x as int) as int
+  ^
+fnword.bas:9:5: a function ends with end function; end fn ends a lambda
+  end fn
+      ^
+fnword.bas:10:8: a function is defined with function, not fn: fn is a lambda's
+  public fn third(x as int) as int
+         ^
+fnword.bas:13:8: a function is defined with function, not fn: fn is a lambda's
+  native fn sqrt(x as double) as double
+         ^
+fnword.bas:14:10: a function's type is written function(T, ..), not fn: fn is a lambda's
+  var f as fn(int) as int = twice
+           ^
+fnword.bas:16:8: a lambda is written fn(x) .., not function
+  a.sort(function(x, y) x < y)
+         ^

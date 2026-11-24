@@ -3,10 +3,10 @@
 print(nope)
 let a = 1
 let a = 2
-fn f()
-end fn
-fn f()
-end fn
+function f()
+end function
+function f()
+end function
 f = 3
 print(f)
 g()
@@ -14,9 +14,9 @@ let h = 1
 h()
 const C = later_var
 var later_var = 1
-fn uses()
+function uses()
     print(local_of_other)
-end fn
-fn other()
+end function
+function other()
     let local_of_other = 1
-end fn
+end function

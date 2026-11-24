@@ -41,8 +41,8 @@ TEST(quickr_narrow_fields_are_variables)
     CHECK(!build(
         S,
         "type P\n    b as byte\n    s as short\n    u as ushort\nend type\n"
-        "fn f() as int\n    var p = P(b: 1, s: 2, u: 3)\n    p.s += p.b\n"
-        "    return int(p.s) + int(p.u)\nend fn\n"
+        "function f() as int\n    var p = P(b: 1, s: 2, u: 3)\n    p.s += p.b\n"
+        "    return int(p.s) + int(p.u)\nend function\n"
         "var g = P(b: 1, s: 2, u: 3)\ng.u += 1\nprint(f(), g.u)\n"
     ));
     CHECK(!unit_ops(S, O_FL_LD) && !unit_ops(S, O_FL_ST));
@@ -59,7 +59,8 @@ TEST(quickr_parameter_fields_by_ref)
         S,
         "type In\n    k as short\n    d as double\nend type\n"
         "type R\n    b as byte\n    n as int\n    i as In\nend type\n"
-        "fn bump(mut r as R)\n    r.n += int(r.b)\n    r.i.k += 1\n    r.i.d *= 2.0\nend fn\n"
+        "function bump(mut r as R)\n    r.n += int(r.b)\n    r.i.k += 1\n    r.i.d *= 2.0\nend "
+        "function\n"
         "var a = R(b: 1, n: 2, i: In(k: 3, d: 4.0))\nbump(mut a)\nprint(a.n, a.i.k, a.i.d)\n"
     ));
     CHECK(!unit_ops(S, O_R_ADDR) && !unit_ops(S, O_FL_LD) && !unit_ops(S, O_FL_ST));

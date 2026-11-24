@@ -17,15 +17,15 @@ const M = "k" + "m"
 const P = 0.5
 print(K, L, M, P)
 var count = 0
-fn bump()
+function bump()
     count += K
-end fn
+end function
 bump()
 bump()
 print(count)
-fn use_later() as int
+function use_later() as int
     return LATER + 1
-end fn
+end function
 const LATER = 41
 print(use_later())
 var x = 1

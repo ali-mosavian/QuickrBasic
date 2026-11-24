@@ -1,7 +1,7 @@
 ' OPTION DIALECT QUICKR
 ' io: the console; print needs no import
-public native fn read_line() as string
+public native function read_line() as string
 ' the cursor to a row and a column, each from 1
-public native fn at(row as int, col as int)
-public native fn color(fg as int, bg as int = 0)
-public native fn clear()
+public native function at(row as int, col as int)
+public native function color(fg as int, bg as int = 0)
+public native function clear()
