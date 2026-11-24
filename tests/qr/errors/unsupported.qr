@@ -3,4 +3,3 @@ var a as byte
 var b as short
 var c as long
 var u as uint
-let p = none

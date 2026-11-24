@@ -281,7 +281,7 @@ pos.scale(2)                ' before the dot, mut is implied
 - A list's own: `a.push(x)`, `a.pop()` (the last, taken), `a.insert(i, x)`, `a.remove(i)`, and
   `len(a)`. `x in a` searches it.
 - A map's own: `m[k] = v` adds `k` or changes its value, `m[k]` reads it (Subscript out of range
-  when `k` is not there), `m.get(k)` gives a `V?`, `k in m`, `m.remove(k)` (nothing when `k` is
+  when `k` is not there), `m.get(k)` gives a `V?` (`V` a number, a string or a bool), `k in m`, `m.remove(k)` (nothing when `k` is
   not there), `len(m)` and `m.keys()`, a new list. A key is an `int`, a `string` or an enum.
 - `for k, v in m` and `for k in m` go in the keys' order: as added, except that a remove moves
   the last key into the removed one's place.
@@ -497,6 +497,9 @@ let n = ages.get("bo") ?? 0
 - After `if x is none then return`, or any guard that leaves, `x` is a `T`. That fits the
   guard-first style.
 - `a ?? b` gives `b` when `a` is `none`.
+- The guard narrows a `let` or a parameter, which can't change after it. A `var` stays a `T?`:
+  read it with `??`, or bind a `let` to it first.
+- **In the VM**, a `T?` and a `T!` are records, as a tuple is: a box on the heap.
 
 ### Errors
 
@@ -523,6 +526,8 @@ print(r)                              ' a string from here on
 - `x?` gives the value, or returns the error from the function it is in. That function's result
   must be a `!` type too.
 - After a guard such as `if r is Error then return`, `r` is a `T`.
+- `r.code`, `r.message` and `r.line` read a `T!`'s error; they are 0 and "" when there is none.
+  `a ?? b` takes a `T!` too. Until modules, an error has no file.
 - A runtime error in the language itself, such as an index out of range or a division by zero,
   stops the program at its line, as today. A program handles only the errors a function
   returns as `T!`.

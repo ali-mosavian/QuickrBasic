@@ -1,0 +1,13 @@
+4 half 2
+7 odd
+-1 5
+false true 5
+true 42
+error 1 empty 8
+ok n=40
+error 2 abcdef is too long 10
+30 -1
+1 0 true
+three ?
+nothing
+hi

@@ -94,6 +94,8 @@ static bool qsem_byplace(const QSem *S, QType t);
 static QVar *qsem_root(const QExpr *e);
 static QExpr *qsem_addressed(QSem *S, QExpr *e);
 static bool qsem_changes(QSem *S, const QExpr *e, const QTok *at);
+static QExpr *qsem_get(QSem *S, QExpr *e);
+static QExpr *qsem_nameof(QSem *S, QVar *v, const QTok *tok);
 
 /* ---- errors */
 
@@ -190,6 +192,15 @@ static const char *qsem_tyname(QSem *const S, const QType t)
             S,
             qsem_join(S, qsem_tyname(S, y->elem), "[", qsem_tyname(S, y->key)),
             "]",
+            ""
+        );
+
+    case QT_OPT:
+    case QT_RES:
+        return qsem_join(
+            S,
+            qsem_tyname(S, y->fields[QF_VAL].type),
+            y->kind == QT_OPT ? "?" : "!",
             ""
         );
 
@@ -421,6 +432,48 @@ static QType qsem_mapof(QSem *const S, const QType key, const QType val)
     return t;
 }
 
+/* T? (QT_OPT) or T! (QT_RES) of val; interned. T?'s fields: has, val; T!'s: err, val, then its
+   error's code, message and line. */
+static QType qsem_wrapof(QSem *const S, const QTyKind kind, const QType val)
+{
+    const QTys *const ts = &S->prog->tys;
+
+    for (uint32_t i = 0; i < ts->n; i++)
+        if (ts->at[i].kind == kind && ts->at[i].fields[QF_VAL].type == val)
+            return QY_FIRST + i;
+
+    const QType types[] = {QY_BOOL, val, QY_INT, QY_STRING, QY_INT};
+
+    const uint32_t n = kind == QT_OPT ? 2 : countof(types);
+    QField *const fields = qast_alloc(S->mem, n * sizeof *fields);
+
+    for (uint32_t k = 0; k < n; k++)
+        fields[k] = (QField){.type = types[k]};
+
+    const bool owns = qsem_owns(S, val);
+    const QType t = qsem_newty(S, kind);
+    QTy *const y = qast_ty(S->prog, t);
+    y->fields = fields;
+    y->nfields = y->capfields = n;
+    y->owns = owns;
+    return t;
+}
+
+/* Is t a T? or a T!, of kind if not QT_REC? */
+static bool qsem_wraps(const QSem *const S, const QType t, const QTyKind kind)
+{
+    if (!qast_compound(t))
+        return false;
+
+    const QTyKind k = qast_ty(S->prog, t)->kind;
+    return kind == QT_REC ? k == QT_OPT || k == QT_RES : k == kind;
+}
+
+static QType qsem_inner(const QSem *const S, const QType t)
+{
+    return qast_ty(S->prog, t)->fields[QF_VAL].type;
+}
+
 static bool qsem_ismap(const QSem *const S, const QType t)
 {
     return qast_compound(t) && qast_ty(S->prog, t)->kind == QT_MAP;
@@ -512,6 +565,15 @@ static QType qsem_type(QSem *const S, const QTypeEx *const x)
 
     if (elem == QY_ERROR)
         return QY_ERROR;
+
+    if (x->kind == QX_OPT || x->kind == QX_RES) {
+        if (qsem_wraps(S, elem, QT_REC)) {
+            qsem_say(S, x->tok, "a T? or T!'s T is neither", nullptr);
+            return QY_ERROR;
+        }
+
+        return qsem_wrapof(S, x->kind == QX_OPT ? QT_OPT : QT_RES, elem);
+    }
 
     if (qast_array(S->prog, elem)) {
         qsem_say(S, x->tok, "lists of lists are not supported yet", nullptr);
@@ -699,10 +761,17 @@ static void qsem_mismatch(QSem *const S, const QExpr *const e, const QType to)
 }
 
 /* e as type to, by itself: an untyped constant typed, a widening made explicit. */
+static QExpr *qsem_wrap(QSem *S, QType to, QExpr *v);
+
 static QExpr *qsem_coerce(QSem *const S, QExpr *const e, const QType to)
 {
     if (e->type == QY_ERROR || to == QY_ERROR)
         return e;
+
+    if (e->type != to && qsem_wraps(S, to, QT_REC)) { /* a T for a T? or a T! */
+        QExpr *const v = qsem_coerce(S, e, qsem_inner(S, to));
+        return v->type == QY_ERROR ? v : qsem_wrap(S, to, v);
+    }
 
     if (e->untyped) {
         if (qast_numeric(to) && qsem_fits(e, to)) {
@@ -1766,6 +1835,34 @@ static QExpr *qsem_addressed(QSem *const S, QExpr *const e)
     return e;
 }
 
+/* A T? or T! of type t built: its flag and its value, null the rest's zero. */
+static QExpr *qsem_wrapped(
+    QSem *const S,
+    const QTok *const tok,
+    const QType t,
+    const bool flag,
+    QExpr *const val
+)
+{
+    const QTy *const y = qast_ty(S->prog, t);
+    QExpr *const e = qast_expr(S->mem, QE_NEW, tok);
+    e->type = t;
+    e->nargv = y->nfields;
+    e->argv = qast_alloc(S->mem, y->nfields * sizeof *e->argv);
+    e->argv[QF_FLAG] = qsem_bool(S, tok, flag);
+    e->argv[QF_VAL] = val;
+    return e;
+}
+
+static QExpr *qsem_owned(QSem *S, QExpr *e, bool returned);
+
+/* v, a T, as a T? or a T! of type to: has it, or no error. */
+static QExpr *qsem_wrap(QSem *const S, const QType to, QExpr *const v)
+{
+    const bool opt = qsem_wraps(S, to, QT_OPT);
+    return qsem_wrapped(S, v->tok, to, opt, qsem_owned(S, v, false));
+}
+
 /* A value for a place of type to: converted, a move noted. */
 static QExpr *qsem_value(QSem *const S, QExpr *const e, const QType to)
 {
@@ -1885,6 +1982,16 @@ static QExpr *qsem_field(QSem *const S, QExpr *const e)
 
     if (a->type == QY_ERROR)
         return e;
+
+    static const char *const errs[] =
+        {[QF_CODE] = "code", [QF_MESSAGE] = "message", [QF_LINE] = "line"};
+
+    for (uint32_t k = QF_CODE; qsem_wraps(S, a->type, QT_RES) && k <= QF_LINE; k++)
+        if (qsem_is(e->tok, errs[k])) {
+            e->field = k;
+            e->type = qast_ty(S->prog, a->type)->fields[k].type;
+            return e;
+        }
 
     if (!qsem_isrec(S, a->type)) {
         qsem_say(S, e->tok, qsem_aname(S, a->type), " has no fields", nullptr);
@@ -2212,6 +2319,8 @@ static QExpr *qsem_method(QSem *const S, QExpr *const e)
             return qsem_len(S, e, e->a);
         if (qsem_is(e->tok, "keys"))
             return qsem_keys(S, e);
+        if (qsem_is(e->tok, "get"))
+            return qsem_get(S, e);
 
         qsem_say(S, e->tok, "unknown fn ", qsem_text(S, e->tok), nullptr);
         e->type = QY_ERROR;
@@ -2480,6 +2589,156 @@ static QExpr *qsem_name(QSem *const S, QExpr *const e)
     return e;
 }
 
+/* ---- optionals and errors */
+
+/* Field k of T? or T! place a, read where it is: a fresh one is settled by its first read. */
+static QExpr *qsem_part(QSem *const S, QExpr *const a, const uint32_t k)
+{
+    QExpr *const f = qast_expr(S->mem, QE_FIELD, a->tok);
+    f->a = a;
+    f->field = k;
+    f->type = qast_ty(S->prog, a->type)->fields[k].type;
+    return f;
+}
+
+/* a's place for its later reads: a fresh one's temporary once settled. */
+static QExpr *qsem_again(QSem *const S, QExpr *const a)
+{
+    return qast_fresh(a) && a->var ? qsem_nameof(S, a->var, a->tok) : a;
+}
+
+/* Error(code, message) for a T! place hint: its line kept. */
+static QExpr *qsem_error(QSem *const S, QExpr *const e, const QType hint)
+{
+    e->type = QY_ERROR;
+
+    if (!qsem_wraps(S, hint, QT_RES)) {
+        qsem_say(S, e->tok, "Error(code, message) needs a T! place, as a fn's result", nullptr);
+        return e;
+    }
+
+    if (!qsem_plain(S, e, 2)) {
+        qsem_say(S, e->tok, "Error takes a code and a message", nullptr);
+        return e;
+    }
+
+    QExpr *const w = qsem_wrapped(S, e->tok, hint, true, nullptr);
+    w->argv[QF_CODE] = qsem_coerce(S, qsem_expr(S, e->args->e, QY_INT), QY_INT);
+    w->argv[QF_MESSAGE] = qsem_coerce(S, qsem_expr(S, e->args->next->e, QY_STRING), QY_STRING);
+    w->argv[QF_LINE] = qsem_const(S, e->tok, QY_INT, (QVal){.i = e->tok->line});
+
+    return w->argv[QF_CODE]->type == QY_ERROR || w->argv[QF_MESSAGE]->type == QY_ERROR ? e : w;
+}
+
+/* a is [not] none, a T?; a is [not] Error, a T!. */
+static QExpr *qsem_isnone(QSem *const S, QExpr *const e)
+{
+    QExpr *const a = e->a = qsem_addressed(S, qsem_expr(S, e->a, QY_VOID));
+    const bool none = e->op == QK_NONE;
+    e->type = QY_ERROR;
+
+    if (a->type == QY_ERROR)
+        return e;
+
+    if (!qsem_wraps(S, a->type, none ? QT_OPT : QT_RES)) {
+        const char *const say = none ? "is none takes a T?, not " : "is Error takes a T!, not ";
+        qsem_say(S, e->tok, say, qsem_aname(S, a->type), nullptr);
+        return e;
+    }
+
+    e->type = QY_BOOL;
+    return e;
+}
+
+/* a ?? b: a's T, or b when a is none or an Error. */
+static QExpr *qsem_coalesce(QSem *const S, QExpr *const e)
+{
+    QExpr *const a = qsem_addressed(S, qsem_expr(S, e->a, QY_VOID));
+    e->type = QY_ERROR;
+
+    if (a->type == QY_ERROR) {
+        qsem_expr(S, e->b, QY_VOID);
+        return e;
+    }
+
+    if (!qsem_wraps(S, a->type, QT_REC)) {
+        qsem_say(S, e->tok, "?? takes a T? or a T!, not ", qsem_aname(S, a->type), nullptr);
+        return e;
+    }
+
+    const QType t = qsem_inner(S, a->type);
+    QExpr *c = qsem_part(S, a, QF_FLAG); /* read first: settles a fresh a */
+
+    if (qsem_wraps(S, a->type, QT_RES)) {
+        QExpr *const n = qast_expr(S->mem, QE_UNARY, e->tok);
+        n->op = QK_NOT;
+        n->a = c;
+        n->type = QY_BOOL;
+        c = n;
+    }
+
+    e->kind = QE_COND;
+    e->c = c;
+    e->a = qsem_part(S, qsem_again(S, a), QF_VAL);
+    e->b = qsem_value(S, e->b, t);
+    e->type = e->b->type == QY_ERROR ? QY_ERROR : t;
+    return e;
+}
+
+/* x?: x's T, or its error returned from the fn, whose result is a T! too. */
+static QExpr *qsem_try(QSem *const S, QExpr *const e)
+{
+    QExpr *const a = e->a = qsem_addressed(S, qsem_expr(S, e->a, QY_VOID));
+    e->type = QY_ERROR;
+
+    if (a->type == QY_ERROR)
+        return e;
+
+    if (!qsem_wraps(S, a->type, QT_RES)) {
+        qsem_say(S, e->tok, "x? takes a T!, not ", qsem_aname(S, a->type), nullptr);
+        return e;
+    }
+
+    if (!S->fn || !qsem_wraps(S, S->fn->result, QT_RES)) {
+        qsem_say(S, e->tok, "x? returns its error: only in a fn whose result is a T!", nullptr);
+        return e;
+    }
+
+    e->fn = S->fn;
+    e->type = qsem_inner(S, a->type);
+    return e;
+}
+
+/* m.get(k): its value as a V?, none when k is not there; V no record or list. */
+static QExpr *qsem_get(QSem *const S, QExpr *const e)
+{
+    QExpr *const m = e->a = qsem_addressed(S, qsem_expr(S, e->a, QY_VOID));
+    e->type = QY_ERROR;
+
+    if (m->type == QY_ERROR)
+        return e;
+
+    if (!qsem_ismap(S, m->type) || !qsem_plain(S, e, 1)) {
+        const bool map = qsem_ismap(S, m->type);
+        qsem_say(S, e->tok, map ? "get() takes a key" : "only a map has get()", nullptr);
+        return e;
+    }
+
+    const QTy *const y = qast_ty(S->prog, m->type);
+
+    if (qsem_byplace(S, y->elem)) {
+        qsem_say(S, e->tok, "get() takes a map of numbers, strings and bools: use m[k]", nullptr);
+        return e;
+    }
+
+    e->builtin = QB_GET;
+    e->b = qsem_coerce(S, qsem_expr(S, e->args->e, y->key), y->key);
+    e->temps = qast_alloc(S->mem, sizeof *e->temps);
+    e->temps[0] = qsem_var(S, e->tok, QY_INT, QV_TEMP);
+    e->type = e->b->type == QY_ERROR ? QY_ERROR : qsem_wrapof(S, QT_OPT, y->elem);
+    return e;
+}
+
 /* e checked: its type set, constants folded; hint the type its place wants, QY_VOID none. */
 static QExpr *qsem_expr(QSem *const S, QExpr *const e, const QType hint)
 {
@@ -2515,7 +2774,7 @@ static QExpr *qsem_expr(QSem *const S, QExpr *const e, const QType hint)
         return qsem_unary(S, e);
 
     case QE_BINARY:
-        return qsem_binary(S, e);
+        return e->op == QK_QQ ? qsem_coalesce(S, e) : qsem_binary(S, e);
 
     case QE_CHAIN:
         return qsem_chain(S, e);
@@ -2531,7 +2790,24 @@ static QExpr *qsem_expr(QSem *const S, QExpr *const e, const QType hint)
         return qsem_in(S, e);
 
     case QE_CALL:
+        if (!e->a && qsem_is(e->tok, "Error") && !qsem_find(S, e->tok))
+            return qsem_error(S, e, hint);
+
         return qsem_call(S, e);
+
+    case QE_NONE:
+        if (qsem_wraps(S, hint, QT_OPT))
+            return qsem_wrapped(S, e->tok, hint, false, nullptr);
+
+        qsem_say(S, e->tok, "none needs a T? place: write var x as T? = none", nullptr);
+        e->type = QY_ERROR;
+        return e;
+
+    case QE_IS:
+        return qsem_isnone(S, e);
+
+    case QE_TRY:
+        return qsem_try(S, e);
 
     default:
         return e;
@@ -3264,15 +3540,41 @@ static bool qsem_returns(const QStmt *const last)
     return other;
 }
 
+static bool qsem_leaves(const QStmt *const s)
+{
+    return s && (s->kind == QS_RETURN || s->kind == QS_BREAK || s->kind == QS_CONTINUE);
+}
+
+/* After if x is none (or is Error) whose body last leaves, a let's or a parameter's x is its T
+   to the end of the block: an alias of its value, bound over x. */
+static void qsem_guard(QSem *const S, const QExpr *const c, const QStmt *const last)
+{
+    if (c->kind != QE_IS || c->neg || !qsem_leaves(last))
+        return;
+
+    const QExpr *const a = c->a;
+
+    if (a->kind != QE_NAME || !a->var || (a->var->kind != QV_LET && a->var->kind != QV_PARAM))
+        return;
+
+    QVar *const v = a->var;
+    QExpr *const place = qsem_part(S, qsem_nameof(S, v, a->tok), QF_VAL);
+    QVar *const n = qsem_var(S, v->name, place->type, QV_EACH);
+    n->place = place;
+    S->binds = qast_room(S->mem, S->binds, S->nbinds, &S->capbinds, sizeof *S->binds);
+    S->binds[S->nbinds++] = (QBind){.name = v->name, .var = n};
+}
+
 static void qsem_stmt(QSem *const S, QStmt *const s)
 {
     switch (s->kind) {
     case QS_IF:
         qsem_cond_of(S, s);
 
-        if (s->oneline)
+        if (s->oneline) {
             qsem_simple(S, s->body);
-        else
+            qsem_guard(S, s->e, s->body);
+        } else
             qsem_push(S);
 
         return;
@@ -3328,6 +3630,10 @@ static void qsem_stmt(QSem *const S, QStmt *const s)
 
     case QS_ENDIF:
         qsem_pop(S);
+
+        if (s->kind == QS_ENDIF && s->link->kind == QS_IF && s->link->link == s)
+            qsem_guard(S, s->link->e, s->prev);
+
         return;
 
     case QS_ENDFN: {

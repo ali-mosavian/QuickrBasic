@@ -213,6 +213,9 @@ static QExpr *qpar_primary(QPar *const P)
         return e;
     }
 
+    case QK_NONE:
+        return qast_expr(P->mem, QE_NONE, qpar_next(P));
+
     case QK_TRUE:
     case QK_FALSE: {
         QExpr *const e = qast_expr(P->mem, QE_CONST, qpar_next(P));
@@ -301,7 +304,14 @@ static QExpr *qpar_postfix(QPar *const P)
             continue;
         }
 
-        if (qpar_is(P, QK_QUEST) || qpar_is(P, QK_BANG))
+        if (qpar_is(P, QK_QUEST)) {
+            QExpr *const x = qast_expr(P->mem, QE_TRY, qpar_next(P));
+            x->a = e;
+            e = x;
+            continue;
+        }
+
+        if (qpar_is(P, QK_BANG))
             qpar_later(P, P->t, "{} is");
 
         return e;
@@ -423,9 +433,41 @@ static QExpr *qpar_in(QPar *const P, QExpr *const a)
 }
 
 /* Comparisons, a < b <= c one chain; or a in b..c. */
-static QExpr *qpar_compare(QPar *const P)
+/* a ?? b, binding tighter than a comparison; right to left. */
+static QExpr *qpar_coalesce(QPar *const P)
 {
     QExpr *const a = qpar_bor(P);
+
+    if (!qpar_is(P, QK_QQ))
+        return a;
+
+    const QTok *const op = qpar_next(P);
+    return qpar_binary(P, op, a, qpar_coalesce(P));
+}
+
+/* a is [not] none, a is [not] Error. */
+static QExpr *qpar_test(QPar *const P, QExpr *const a)
+{
+    QExpr *const e = qast_expr(P->mem, QE_IS, qpar_next(P));
+    e->a = a;
+    e->neg = qpar_take(P, QK_NOT);
+
+    if (qpar_is(P, QK_NONE) ||
+        (qpar_is(P, QK_NAME) && P->t->len == 5 && !memcmp(P->t->text, "Error", 5))) {
+        e->op = qpar_next(P)->kind;
+        return e;
+    }
+
+    qpar_need(P, QK_NONE, "none or Error");
+    return e;
+}
+
+static QExpr *qpar_compare(QPar *const P)
+{
+    QExpr *const a = qpar_coalesce(P);
+
+    if (qpar_is(P, QK_IS))
+        return qpar_test(P, a);
 
     if (qpar_is(P, QK_IN) || (qpar_is(P, QK_NOT) && P->t[1].kind == QK_IN))
         return qpar_in(P, a);
@@ -441,7 +483,7 @@ static QExpr *qpar_compare(QPar *const P)
         e->ops = qast_room(P->mem, e->ops, e->n - 1, &capops, sizeof *e->ops);
         e->ops[e->n - 1] = qpar_next(P)->kind;
         e->items = qast_room(P->mem, e->items, e->n, &cap, sizeof *e->items);
-        e->items[e->n++] = qpar_bor(P);
+        e->items[e->n++] = qpar_coalesce(P);
     }
 
     return e;
@@ -554,10 +596,11 @@ static QTypeEx *qpar_type(QPar *const P)
         x = y;
     }
 
-    if (qpar_is(P, QK_QUEST))
-        qpar_later(P, P->t, "optional types are");
-    if (qpar_is(P, QK_BANG))
-        qpar_later(P, P->t, "error types are");
+    if (qpar_is(P, QK_QUEST) || qpar_is(P, QK_BANG)) {
+        QTypeEx *const y = qpar_typex(P, qpar_is(P, QK_QUEST) ? QX_OPT : QX_RES, qpar_next(P));
+        y->elem = x;
+        return y;
+    }
 
     return x;
 }

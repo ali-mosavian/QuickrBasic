@@ -891,6 +891,63 @@ static void qcg_copyrec(QCg *const g, const QExpr *const dst, const QExpr *const
     qcg_recop(g, dst->type);
 }
 
+/* x?: T! place x checked, its error copied to the fn's result and returned; x's place, a fresh
+   one's temporary, for its value's read. */
+static QExpr qcg_tried(QCg *const g, const QExpr *const e)
+{
+    const QExpr t = qast_fresh(e->a) ? qcg_settle(g, e->a) : *e->a;
+    const QExpr err = qcg_fieldof(g, &t, QF_FLAG);
+    qcg_loadat(g, &err);
+    const QCgHop ok = qcg_hop(g, QJ_FALSE);
+    const QExpr res = qcg_named(e->fn->res);
+    static const uint32_t parts[] = {QF_FLAG, QF_CODE, QF_MESSAGE, QF_LINE};
+
+    for (uint32_t k = 0; k < countof(parts); k++) {
+        const QExpr to = qcg_fieldof(g, &res, parts[k]);
+        const QExpr from = qcg_fieldof(g, &t, parts[k]);
+        qcg_set(g, &to, &from);
+    }
+
+    code_op(g->c, O_PRET);
+    code_dword(g->c, e->fn->proc);
+    code_dword(g->c, 0);
+    qcg_land(g, ok);
+    return t;
+}
+
+/* m.get(k) built in dst: has whether k's value's address is not 0, then the value from it. */
+static void qcg_get(QCg *const g, const QExpr *const dst, const QExpr *const e)
+{
+    Code *const c = g->c;
+    const QVar *const at = e->temps[0];
+    const QExpr has = qcg_fieldof(g, dst, QF_FLAG);
+    const QExpr val = qcg_fieldof(g, dst, QF_VAL);
+
+    qcg_mapargs(g, e->a, e->b);
+    code_int(c, QM_FIND);
+    qcg_x(c, QX_MAPAT);
+    qcg_store(c, at);
+
+    for (uint32_t k = 0; k < 2; k++) { /* has set, then a jump past the value when not */
+        const QCgPut put = k ? (QCgPut){} : qcg_before(g, &has);
+
+        qcg_load(c, at);
+        uint8_t *const right = c->out;
+        code_int(c, 0);
+        qcg_compare(c, QY_INT, QK_NE, right);
+
+        if (!k)
+            qcg_put(g, &has, put);
+    }
+
+    const QCgHop none = qcg_hop(g, QJ_FALSE);
+    const QCgPut put = qcg_before(g, &val);
+    qcg_load(c, at);
+    qcg_fieldop(g, false, 0, val.type);
+    qcg_put(g, &val, put);
+    qcg_land(g, none);
+}
+
 /* A slice's two ends pushed: 0 and the most an int holds for those left out. */
 static void qcg_ends(QCg *const g, const QExpr *const e)
 {
@@ -1261,7 +1318,19 @@ static void qcg_build(QCg *const g, const QExpr *const dst, const QExpr *const e
         return;
     }
 
+    case QE_TRY: {
+        const QExpr t = qcg_tried(g, e);
+        const QExpr v = qcg_fieldof(g, &t, QF_VAL);
+        qcg_into(g, dst, &v);
+        return;
+    }
+
     default: /* a call's */
+        if (e->builtin == QB_GET) {
+            qcg_get(g, dst, e);
+            return;
+        }
+
         if (e->builtin == QB_SLICE) { /* the ends first: they may move the heap */
             qcg_ends(g, e);
             qcg_cell(g, e->a);
@@ -1384,6 +1453,23 @@ static void qcg_expr(QCg *const g, const QExpr *const e)
     case QE_INDEX:
         qcg_loadat(g, e);
         return;
+
+    case QE_IS: { /* T?'s has, T!'s err */
+        const QExpr f = qcg_fieldof(g, e->a, QF_FLAG);
+        qcg_loadat(g, &f);
+
+        if ((e->op == QK_NONE) != e->neg)
+            code_op(g->c, O_I_NOT);
+
+        return;
+    }
+
+    case QE_TRY: {
+        const QExpr t = qcg_tried(g, e);
+        const QExpr v = qcg_fieldof(g, &t, QF_VAL);
+        qcg_loadat(g, &v);
+        return;
+    }
 
     case QE_LIST:
         qcg_listop(g, e, nullptr);

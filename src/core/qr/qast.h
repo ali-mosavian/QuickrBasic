@@ -56,6 +56,7 @@ typedef enum : uint8_t {
     QK_MATCH,
     QK_MOD,
     QK_MUT,
+    QK_NONE,
     QK_NOT,
     QK_OR,
     QK_RETURN,
@@ -79,6 +80,7 @@ typedef enum : uint8_t {
     QK_DOT,
     QK_DOTDOT,
     QK_QUEST,
+    QK_QQ, /* ?? */
     QK_BANG,
     QK_PLUS,
     QK_MINUS,
@@ -179,13 +181,13 @@ typedef struct QFn QFn;
 typedef struct QExpr QExpr;
 typedef struct QStmt QStmt;
 
-/* A type as written: a name, T[], T[n], (T, U). */
-typedef enum : uint8_t { QX_NAME, QX_LIST, QX_ARRAY, QX_TUPLE } QTypeExKind;
+/* A type as written: a name, T[], T[n], (T, U), T?, T!. */
+typedef enum : uint8_t { QX_NAME, QX_LIST, QX_ARRAY, QX_TUPLE, QX_OPT, QX_RES } QTypeExKind;
 typedef struct QTypeEx QTypeEx;
 struct QTypeEx {
     QTypeExKind kind;
     const QTok *tok; /* its first token: a name's its name */
-    QTypeEx *elem;   /* a list's, an array's */
+    QTypeEx *elem;   /* a list's, an array's, T? and T!'s T */
     QExpr *count;    /* an array's */
     QTypeEx **items; /* a tuple's */
     uint32_t n;
@@ -208,11 +210,21 @@ typedef struct {
     uint32_t first; /* its first datum's field in the enum's */
 } QVariant;
 
-typedef enum : uint8_t { QT_REC, QT_ENUM, QT_LIST, QT_ARRAY, QT_TUPLE, QT_MAP } QTyKind;
+typedef enum : uint8_t {
+    QT_REC,
+    QT_ENUM,
+    QT_LIST,
+    QT_ARRAY,
+    QT_TUPLE,
+    QT_MAP,
+    QT_OPT,
+    QT_RES
+} QTyKind;
 
-/* A compound type. A record, a tuple, an enum with data and a map are the VM's records
+/* A compound type. A record, a tuple, an enum with data, a map, T? and T! are the VM's records
    (comp/declare.h): an enum's tag its field 0, then each value's data; a map's its keys, its values
-   and its hash slots, three lists (qr/qrt.c). */
+   and its hash slots, three lists (qr/qrt.c); T?'s has and its T; T!'s err, its T, then its error's
+   code, message and line (QF_*). */
 typedef struct {
     QTyKind kind;
     const QTok *name; /* a record's, an enum's */
@@ -312,6 +324,9 @@ typedef enum : uint8_t {
     QE_LIST,  /* a list's built-in: builtin, a the list, argv */
     QE_HAS,   /* a in b, b a list; not in when neg */
     QE_SLICE, /* a[b..c], b or c null when left out */
+    QE_NONE,  /* none */
+    QE_IS,    /* a is none, a is Error (op QK_NONE or QK_NAME); is not when neg */
+    QE_TRY,   /* a?: a's value, or its error returned from fn */
 } QExprKind;
 
 /* A built-in: print, a conversion, len, copy, a list's methods. */
@@ -330,6 +345,7 @@ typedef enum : uint8_t {
     QB_REMOVE,
     QB_BYTE,  /* s[i]: a, b */
     QB_SLICE, /* a[b..c] of a string or a list: b, c null for its ends */
+    QB_GET,   /* m.get(k): a, b; its value's address in temps[0] */
 } QBuiltin;
 
 /* A call's argument as written: its name (null positional), mut. */
@@ -478,15 +494,16 @@ const char *qast_typename(QType t);
 /* Compound type t's entry. */
 static inline QTy *qast_ty(const QProg *const p, const QType t) { return &p->tys.at[t - QY_FIRST]; }
 static inline bool qast_compound(const QType t) { return t >= QY_FIRST; }
-/* Is t the VM's record: a record, a tuple, an enum with data, a map? */
+/* Is t the VM's record: a record, a tuple, an enum with data, a map, T?, T!? */
+enum { QF_FLAG, QF_VAL, QF_CODE, QF_MESSAGE, QF_LINE }; /* T? and T!'s fields */
 static inline bool qast_record(const QProg *const p, const QType t)
 {
     if (!qast_compound(t))
         return false;
 
     const QTy *const y = qast_ty(p, t);
-    return y->kind == QT_REC || y->kind == QT_TUPLE || y->kind == QT_MAP ||
-           (y->kind == QT_ENUM && y->data);
+    return y->kind == QT_REC || y->kind == QT_TUPLE || y->kind == QT_MAP || y->kind == QT_OPT ||
+           y->kind == QT_RES || (y->kind == QT_ENUM && y->data);
 }
 /* Is t a list or a fixed array: the VM's array? */
 static inline bool qast_array(const QProg *const p, const QType t)
