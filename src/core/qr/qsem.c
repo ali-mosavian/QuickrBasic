@@ -1667,28 +1667,69 @@ static bool qsem_unify(
     }
 }
 
+/* Literal a given for parameter type x of generic g: each type parameter x names that is still
+   open, or was typed by literals only, takes a's type (1 and 2.5 meet in double); false when one a
+   typed value bound doesn't take a. */
+static bool qsem_literal(
+    QSem *const S,
+    const QFn *const g,
+    const QTypeEx *const x,
+    const QExpr *const a,
+    QType *const targs,
+    bool *const bylit
+)
+{
+    QType *const lit = qast_alloc(S->mem, g->ntp * sizeof *lit);
+    qsem_unify(S, g, x, a->type, lit);
+
+    for (uint32_t j = 0; j < g->ntp; j++) {
+        if (lit[j] && targs[j] && !bylit[j] && !qsem_fits(a, targs[j]))
+            return false;
+
+        if (lit[j] && (!targs[j] || (bylit[j] && lit[j] == QY_DOUBLE))) {
+            targs[j] = lit[j];
+            bylit[j] = true;
+        }
+    }
+
+    return true;
+}
+
 /* Generic g's call e: its types read from the arguments, its instance of them found or made,
-   its signature checked; null after an error. Each argument read is checked here, once. */
+   its signature checked; null after an error. Each argument read is checked here, once: typed
+   values first, then literals, which type only what is still open, as a place types them. */
 static QFn *qsem_instance(QSem *const S, QExpr *const e, QFn *const g)
 {
     QType *const targs = qast_alloc(S->mem, g->ntp * sizeof *targs);
-    uint32_t k = 0;
+    bool *const bylit = qast_alloc(S->mem, g->ntp * sizeof *bylit);
 
-    for (QArg *a = e->args; a; a = a->next, k++) {
-        uint32_t at = k;
+    for (uint32_t pass = 0; pass < 2; pass++) {
+        uint32_t k = 0;
 
-        for (uint32_t i = 0; a->name && i < g->npar; i++)
-            at = qsem_same(g->params[i].name, a->name) ? i : at;
+        for (QArg *a = e->args; a; a = a->next, k++) {
+            uint32_t at = k;
 
-        if (at >= g->npar || !g->params[at].type)
-            continue;
+            for (uint32_t i = 0; a->name && i < g->npar; i++)
+                at = qsem_same(g->params[i].name, a->name) ? i : at;
 
-        a->e = qsem_expr(S, a->e, QY_VOID);
-        a->e->done = true;
+            if (at >= g->npar || !g->params[at].type)
+                continue;
 
-        if (!qsem_unify(S, g, g->params[at].type, a->e->type, targs)) {
-            qsem_say(S, a->e->tok, qsem_text(S, g->name), "'s types don't agree here", nullptr);
-            return nullptr;
+            if (!pass) {
+                a->e = qsem_expr(S, a->e, QY_VOID);
+                a->e->done = true;
+            }
+
+            if (a->e->untyped != (pass == 1))
+                continue;
+
+            const bool fits = pass ? qsem_literal(S, g, g->params[at].type, a->e, targs, bylit)
+                                   : qsem_unify(S, g, g->params[at].type, a->e->type, targs);
+
+            if (!fits) {
+                qsem_say(S, a->e->tok, qsem_text(S, g->name), "'s types don't agree here", nullptr);
+                return nullptr;
+            }
         }
     }
 
