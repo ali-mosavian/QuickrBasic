@@ -1,0 +1,45 @@
+chains.qr:4:12: a chain is used up where it is made: by collect(), a reducing method or a for
+  let it = a.map(fn(x) x * 2)
+             ^
+chains.qr:5:22: sum() takes no values
+  print(a.map(fn(x) x).sum(1))
+                       ^
+chains.qr:6:22: an int is not a bool
+  print(a.filter(fn(x) x).count())
+                       ^
+chains.qr:7:13: the lambda takes one value here
+  print(a.map(fn(x, y) x).sum())
+              ^
+chains.qr:8:17: rev() goes before take, skip and zip
+  print(a.take(2).rev().sum())
+                  ^
+chains.qr:9:13: a chain takes a one-line lambda or a fn
+  print(a.map(fn(x)
+              ^
+chains.qr:12:11: a range goes in a for, or before a chain's method
+  let r = (0..3)
+            ^
+chains.qr:13:21: a is borrowed by the chain over it: it can't change here
+  print(a.map(fn(x) a.pop()).sum())
+                      ^
+chains.qr:15:9: sum() takes numbers, not a string
+  print(s.sum())
+          ^
+chains.qr:16:16: sum() takes one value: map the pair to one
+  print(a.zip(a).sum())
+                 ^
+chains.qr:17:7: an int has no chain: a list, an array, a map, a string, a range or a generator has
+  print(5.sum())
+        ^
+chains.qr:18:1: a chain's elements don't change: for mut takes a list
+  for mut x in a.filter(fn(x) x > 0)
+  ^
+chains.qr:21:1: for over a chain takes one name, or one for each of a zip's
+  for i, x in a.map(fn(x) x)
+  ^
+chains.qr:24:9: fold() takes a first value and a fn(acc, x)
+  print(a.fold(0))
+          ^
+chains.qr:25:16: x is an int here, not a string
+  print(a.map(fn(x as string) x).sum())
+                 ^

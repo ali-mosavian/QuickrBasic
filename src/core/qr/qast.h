@@ -184,6 +184,7 @@ typedef struct QLam QLam;
 typedef struct QCap QCap;
 typedef struct QExpr QExpr;
 typedef struct QStmt QStmt;
+typedef struct QIter QIter;
 
 /* A type as written: a name, T[], T[n], (T, U), T?, T!, fn(T) as U. */
 typedef enum : uint8_t { QX_NAME, QX_LIST, QX_ARRAY, QX_TUPLE, QX_OPT, QX_RES, QX_FN } QTypeExKind;
@@ -399,6 +400,8 @@ typedef enum : uint8_t {
     QE_APPLY,  /* one-line lam inlined: argv each stored to temps[k] (null: a place, read there),
                   then a */
     QE_FNREF,  /* fn as a value: its procedure's number */
+    QE_RANGE,  /* (a..b), a chain's source only */
+    QE_ITER,   /* a chain, iter: one loop */
 } QExprKind;
 
 /* A built-in: print, a conversion, len, copy, a list's methods. */
@@ -457,6 +460,66 @@ struct QExpr {
     uint32_t n;
     uint32_t field; /* QE_FIELD: its field's index; QE_NEW: an enum's value */
     QLam *lam;      /* QE_LAMBDA's, QE_APPLY's */
+    QIter *iter;    /* QE_ITER's */
+};
+
+/* ---- chains: a.map(f).filter(p).sum(), one loop */
+
+/* A chain's step: map(f) and filter(p) take a one-line lambda or a fn, inlined; take(n),
+   skip(n) count; zip(b) adds b's element to each. */
+typedef enum : uint8_t { QI_MAP, QI_FILTER, QI_TAKE, QI_SKIP, QI_ZIP } QStageKind;
+typedef struct {
+    QStageKind kind;
+    QExpr *e;    /* map's value, filter's condition, take's and skip's count, zip's element */
+    QVar *x;     /* map's value's or zip's element's variable; null: read where it is */
+    QVar *n, *k; /* take, skip: the count and how many so far; zip: b's index and its last */
+    QExpr *of;   /* zip: b, a list's or a string's place, a range's start */
+    QExpr *to;   /* zip: a range's end */
+    bool str;    /* zip: b a string */
+} QStage;
+
+/* What a chain runs over: a list's or an array's elements (a map's keys), a range's ints, a
+   string's bytes, what a kept generator yields. */
+typedef enum : uint8_t { QO_LIST, QO_RANGE, QO_STRING, QO_GEN } QSource;
+/* What uses a chain up: a reducing method, collect() or a for. */
+typedef enum : uint8_t {
+    QZ_SUM,
+    QZ_MIN,
+    QZ_MAX,
+    QZ_COUNT,
+    QZ_ANY,
+    QZ_ALL,
+    QZ_FIND,
+    QZ_FOLD,
+    QZ_COLLECT,
+    QZ_FOR,
+} QSink;
+
+struct QIter {
+    QSource from;
+    QSink sink;
+    bool rev; /* counted down */
+    const QTok *tok;
+    QExpr *src; /* the source's value held first: a fresh list's built, a string's in hold */
+    QVar *hold;
+    QExpr *list;         /* a list's or a string's place, the elements read there */
+    QExpr *lo, *hi;      /* a counted source's range: a..b, or 0..len */
+    QVar *i, *lim, *stp; /* its counter, its last and its step */
+    QExpr *start;        /* a generator made here, g(..): its arguments kept, gen from the start */
+    QVar *gen;
+    QExpr *next; /* a generator's next(), to got */
+    QVar *got;
+    QStage *stages;
+    uint32_t n;
+    QExpr **parts; /* the element where it is used up: a zip's its parts */
+    uint32_t nparts;
+    QExpr *pred; /* count(p), any, all, find: the condition; fold's next value */
+    QExpr *push; /* collect's */
+    QVar *acc, *has;
+    QExpr *init;   /* acc's first value: a sum's 0, fold's */
+    QExpr *result; /* after the loop; null: built in acc, the QE_ITER's var */
+    QVar **xs;     /* a for's names, each a part's */
+    uint32_t top;  /* the loop's start: its label's body, or its code's offset (qr/qcg.c) */
 };
 
 /* A match's case: one or more patterns, each a value, a to b, is op v, or an enum value with its

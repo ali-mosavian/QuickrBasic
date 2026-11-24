@@ -500,6 +500,23 @@ end for
 - A chain compiles to one loop, with its lambdas inlined. No list is built between the steps.
 - A chain is used up in the statement that makes it, by a `for`, a reducing method or
   `collect()`. It borrows its source only for that statement.
+- A string's elements are its bytes, `int`s as `s[i]` gives them; a map's are its keys. A range
+  is written `(a..b)` before a method, and `zip(0..n)` takes one bare.
+- A step or a reducing method takes a one-line lambda, or a name to call: a function, a function
+  value, a lambda passed in. A block lambda is not inlined, so a chain does not take one.
+- `min()`, `max()` and `find(p)` give a `T?`. `count(p)` counts the elements `p` holds for.
+  `fold(first, fn(acc, x) ..)` starts from `first`.
+- `rev()` goes before `take`, `skip` and `zip`, and not after a generator. On a range it counts
+  down.
+- `zip(b)` takes a variable's list or string, or a range. Its pair's parts are the next
+  lambda's two parameters, `fn(x, y)`, or a `for`'s two names: `for a, b in xs.zip(ys)`. A
+  second `zip` adds a third part. `sum`, `min`, `max`, `find` and `collect` take one value: map
+  the pair first.
+- A generator's call in a chain is kept as a `var`'s would be: each element is a `next()`.
+- **In the VM**, a chain is a loop within its statement's line: its start a label, its counter
+  stepped and tested by the ops a `for`'s `end for` uses, fused to one `I.NEXT`. With a string
+  on the stack under it, its jumps are `QJ`s. A `for` over a chain starts it and runs its steps
+  on the `for`'s line; `end for` steps its counter.
 - There are no comprehensions: one way to do it.
 
 ### Operators

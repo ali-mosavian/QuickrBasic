@@ -110,6 +110,17 @@ static void qsem_keep(QSem *S, QFn *r);
 static void qsem_fnbody(QSem *S, QFn *f);
 static QFn *qsem_genof(QSem *S, const QExpr *e);
 static QExpr *qsem_next(QSem *S, QExpr *e, QVar *v);
+static QExpr *qsem_iter(QSem *S, QExpr *e, uint32_t k, QStmt *loop);
+static void qsem_chainfor(QSem *S, QStmt *s);
+static QVar *qsem_keptas(QSem *S, QExpr *e, QFn *g, const QTok *name);
+static bool qsem_step(QSem *S, const QExpr *e, uint32_t *k);
+static bool qsem_method_of(
+    QSem *S,
+    const QExpr *e,
+    const char *const *names,
+    uint32_t n,
+    uint32_t *k
+);
 static const QBind *qsem_find(QSem *S, const QTok *name);
 static bool qsem_isconst(const QExpr *e);
 static bool qsem_byplace(const QSem *S, QType t);
@@ -2174,6 +2185,27 @@ static QLam *qsem_bindof(QSem *const S, const QExpr *const v)
     return v->kind == QE_NAME && v->var ? v->var->lam : nullptr;
 }
 
+/* A chain's steps' and ends' names, by QI_* and QZ_*. */
+static const char *const qsem_steps[] = {
+    [QI_MAP] = "map",
+    [QI_FILTER] = "filter",
+    [QI_TAKE] = "take",
+    [QI_SKIP] = "skip",
+    [QI_ZIP] = "zip",
+};
+static const char *const qsem_ends[] = {
+    [QZ_SUM] = "sum",
+    [QZ_MIN] = "min",
+    [QZ_MAX] = "max",
+    [QZ_COUNT] = "count",
+    [QZ_ANY] = "any",
+    [QZ_ALL] = "all",
+    [QZ_FIND] = "find",
+    [QZ_FOLD] = "fold",
+    [QZ_COLLECT] = "collect",
+};
+enum { QI_REV = QI_ZIP + 1 }; /* rev(): the source counted down */
+
 static QVar *qsem_var(QSem *S, const QTok *name, QType type, QVarKind kind);
 
 /* Instance i's parameters bound to their lambdas: each takes no value, and its lambda's captures
@@ -2539,7 +2571,15 @@ static bool qsem_changes(QSem *const S, const QExpr *const e, const QTok *const 
     const QLoan *const l = qsem_loan(S, orig);
 
     if (l && !l->loop->mut)
-        qsem_say(S, at, name, " is borrowed by the for over it: it can't change here", nullptr);
+        qsem_say(
+            S,
+            at,
+            name,
+            l->loop->kind == QS_CALL ? " is borrowed by the chain over it"
+                                     : " is borrowed by the for over it",
+            ": it can't change here",
+            nullptr
+        );
 
     return !l; /* a for mut's: qsem_name says so */
 }
@@ -3134,6 +3174,29 @@ static QExpr *qsem_method(QSem *const S, QExpr *const e)
 
         if (b && b->ty)
             return qsem_variant(S, e, b->ty, true);
+        if (b && b->var && qsem_isgen(S, b->var->type) && qsem_is(e->tok, "next"))
+            return qsem_next(S, e, b->var);
+    }
+
+    uint32_t k;
+
+    if (qsem_method_of(S, e, qsem_ends, QZ_FOR, &k))
+        return qsem_iter(S, e, k, nullptr);
+
+    if (qsem_step(S, e, &k)) {
+        qsem_say(
+            S,
+            e->tok,
+            "a chain is used up where it is made: by collect(), a reducing method or a for",
+            nullptr
+        );
+        e->type = QY_ERROR;
+        return e;
+    }
+
+    if (e->a->kind == QE_NAME) {
+        const QBind *const b = qsem_find(S, e->a->tok);
+
         if (b && b->var && qsem_isgen(S, b->var->type))
             return qsem_next(S, e, b->var);
     }
@@ -3892,6 +3955,11 @@ static QExpr *qsem_expr(QSem *const S, QExpr *const e, const QType hint)
         e->type = QY_ERROR;
         return e;
 
+    case QE_RANGE:
+        qsem_say(S, e->tok, "a range goes in a for, or before a chain's method", nullptr);
+        e->type = QY_ERROR;
+        return e;
+
     default:
         return e;
     }
@@ -4288,6 +4356,12 @@ static void qsem_each(QSem *const S, QStmt *const s)
     QExpr *const a = s->e = qsem_addressed(S, qsem_expr(S, s->e, QY_VOID));
     QType elem = QY_ERROR;
 
+    if (a->type == QY_STRING) { /* its bytes, a chain's */
+        a->done = true;
+        qsem_chainfor(S, s);
+        return;
+    }
+
     if (qsem_ismap(S, a->type)) {
         qsem_eachkey(S, s, root);
         return;
@@ -4329,14 +4403,27 @@ static void qsem_each(QSem *const S, QStmt *const s)
 
 static void qsem_genfor(QSem *S, QStmt *s, QFn *g);
 
+/* Is unchecked e a kept generator's name? */
+static bool qsem_kepton(QSem *const S, const QExpr *const e)
+{
+    const QBind *const b = e->kind == QE_NAME ? qsem_find(S, e->tok) : nullptr;
+    return b && b->var && qsem_isgen(S, b->var->type);
+}
+
 static void qsem_for(QSem *const S, QStmt *const s)
 {
     qsem_loop(S, s);
 
     QFn *const g = s->each ? qsem_genof(S, s->e) : nullptr;
+    uint32_t k;
 
     if (g) {
         qsem_genfor(S, s, g);
+        return;
+    }
+
+    if (s->each && (qsem_step(S, s->e, &k) || s->e->kind == QE_RANGE || qsem_kepton(S, s->e))) {
+        qsem_chainfor(S, s);
         return;
     }
 
@@ -4406,6 +4493,594 @@ static void qsem_return(QSem *const S, QStmt *const s)
 
     s->e = qsem_owned(S, qsem_coerce(S, qsem_expr(S, s->e, f->result), f->result), true);
     s->e = qsem_into(S, f->res, s->e);
+}
+
+/* ---- chains */
+
+/* Is e, unchecked, a.name(..) for one of n names, and no fn of that name: *k which. */
+static bool qsem_method_of(
+    QSem *const S,
+    const QExpr *const e,
+    const char *const *const names,
+    const uint32_t n,
+    uint32_t *const k
+)
+{
+    if (e->kind != QE_CALL || !e->a || e->done)
+        return false;
+
+    const QBind *const b = qsem_find(S, e->tok);
+
+    for (uint32_t i = 0; i < n && !(b && b->fn); i++)
+        if (qsem_is(e->tok, names[i])) {
+            *k = i;
+            return true;
+        }
+
+    return false;
+}
+
+/* Is e a chain's step, map(f) .. zip(b) or rev(): *k its QI_*. */
+static bool qsem_step(QSem *const S, const QExpr *const e, uint32_t *const k)
+{
+    static const char *const rev[] = {"rev"};
+
+    if (qsem_method_of(S, e, qsem_steps, countof(qsem_steps), k))
+        return true;
+    if (!qsem_method_of(S, e, rev, 1, k))
+        return false;
+
+    *k = QI_REV;
+    return true;
+}
+
+/* A checked value read again where it is: a copy of its node. */
+static QExpr *qsem_dup(QSem *const S, const QExpr *const e)
+{
+    QExpr *const d = qast_alloc(S->mem, sizeof *d);
+    *d = *e;
+    d->done = true;
+    return d;
+}
+
+static QExpr *qsem_intconst(QSem *const S, const QTok *const t, const int64_t v)
+{
+    return qsem_const(S, t, QY_INT, (QVal){.i = v});
+}
+
+/* A string's or a list's length, place a's. */
+static QExpr *qsem_lenof(QSem *const S, QExpr *const a)
+{
+    if (a->type != QY_STRING && qast_ty(S->prog, a->type)->kind == QT_ARRAY)
+        return qsem_intconst(S, a->tok, qast_ty(S->prog, a->type)->count);
+
+    QExpr *const n = qast_expr(S->mem, QE_CALL, a->tok);
+    n->builtin = QB_LEN;
+    n->a = a;
+    n->type = QY_INT;
+    return n;
+}
+
+/* Element at index variable i of a string's or a list's place a. */
+static QExpr *qsem_at_index(QSem *const S, QExpr *const a, QVar *const i)
+{
+    QExpr *const e = qast_expr(S->mem, a->type == QY_STRING ? QE_CALL : QE_INDEX, a->tok);
+    e->builtin = a->type == QY_STRING ? QB_BYTE : QB_NONE;
+    e->a = a;
+    e->b = qsem_nameof(S, i, a->tok);
+    e->type = a->type == QY_STRING ? QY_INT : qast_ty(S->prog, a->type)->elem;
+    return e;
+}
+
+/* Unchecked a, what a chain or its zip runs over: a list's, an array's, a map's keys' or a
+   string's place, held first when fresh (*src, in *hold for a string); null when it is none. */
+static QExpr *qsem_over(QSem *const S, QExpr *const c, QExpr **const src, QVar **const hold)
+{
+    QExpr *a = qsem_addressed(S, qsem_expr(S, c, QY_VOID));
+    *src = nullptr;
+    *hold = nullptr;
+
+    if (a->type == QY_ERROR)
+        return nullptr;
+
+    if (a->type == QY_STRING) {
+        if (a->kind == QE_NAME && a->var)
+            return a;
+
+        *src = a;
+        *hold = qsem_var(S, a->tok, QY_STRING, QV_TEMP);
+        return qsem_nameof(S, *hold, a->tok);
+    }
+
+    if (!qast_array(S->prog, a->type) && !qsem_ismap(S, a->type)) {
+        qsem_say(
+            S,
+            a->tok,
+            qsem_aname(S, a->type),
+            " has no chain: a list, an array, a map, a string, a range or a generator has",
+            nullptr
+        );
+        return nullptr;
+    }
+
+    if (qast_fresh(a)) {
+        *src = a;
+        a = qsem_nameof(S, a->var, a->tok);
+    }
+
+    return qsem_ismap(S, a->type) ? qsem_keysof(S, a) : a;
+}
+
+/* Kept generator v as chain it's source: its next() each time, to got. */
+static void qsem_fromgen(QSem *const S, QIter *const it, QVar *const v)
+{
+    const QFn *const r = qast_compound(v->type) ? qast_ty(S->prog, v->type)->gen : nullptr;
+
+    if (!r)
+        return;
+
+    QExpr *const call = qast_expr(S->mem, QE_CALL, it->tok);
+    call->fn = (QFn *)r;
+    call->type = r->result;
+    it->from = QO_GEN;
+    it->gen = v;
+    it->got = qsem_var(S, it->tok, r->result, QV_TEMP);
+    it->next = qsem_into(S, it->got, call);
+    it->parts[0] = qsem_part(S, qsem_nameof(S, it->got, it->tok), QF_VAL);
+    it->nparts = 1;
+}
+
+/* Chain it's source c, unchecked: its element its part; false after an error. */
+static bool qsem_source(QSem *const S, QIter *const it, QExpr *const c)
+{
+    it->parts = qast_alloc(S->mem, 4 * sizeof *it->parts);
+    QFn *const g = qsem_genof(S, c);
+    const QBind *const b = c->kind == QE_NAME ? qsem_find(S, c->tok) : nullptr;
+
+    if (g) {
+        it->start = c;
+        qsem_fromgen(S, it, qsem_keptas(S, c, g, it->tok));
+        return it->nparts;
+    }
+
+    if (b && b->var && qsem_isgen(S, b->var->type)) {
+        if (b->var->kind != QV_VAR)
+            qsem_say(S, c->tok, "a generator is called in its own fn, not a lambda's", nullptr);
+        else
+            qsem_fromgen(S, it, b->var);
+
+        return it->nparts;
+    }
+
+    it->i = qsem_var(S, it->tok, QY_INT, QV_TEMP);
+    it->lim = qsem_var(S, it->tok, QY_INT, QV_TEMP);
+    it->stp = qsem_var(S, it->tok, QY_INT, QV_TEMP);
+
+    if (c->kind == QE_RANGE) {
+        it->from = QO_RANGE;
+        it->lo = qsem_coerce(S, qsem_expr(S, c->a, QY_INT), QY_INT);
+        it->hi = qsem_coerce(S, qsem_expr(S, c->b, QY_INT), QY_INT);
+        it->parts[it->nparts++] = qsem_nameof(S, it->i, it->tok);
+        return it->lo->type != QY_ERROR && it->hi->type != QY_ERROR;
+    }
+
+    it->list = qsem_over(S, c, &it->src, &it->hold);
+
+    if (!it->list)
+        return false;
+
+    it->from = it->list->type == QY_STRING ? QO_STRING : QO_LIST;
+    it->lo = qsem_intconst(S, it->tok, 0);
+    it->hi = qsem_lenof(S, it->list);
+    it->parts[it->nparts++] = qsem_at_index(S, it->list, it->i);
+    return true;
+}
+
+/* Lambda or fn a applied to extra (n of them) then chain it's parts, checked for a place of type
+   hint: a one-line lambda's body, its parameters naming them; a name's call. */
+static QExpr *qsem_applied(
+    QSem *const S,
+    const QIter *const it,
+    QExpr *const a,
+    QExpr *const *const extra,
+    const uint32_t n,
+    const QType hint
+)
+{
+    const uint32_t count = n + it->nparts;
+
+    if (a->kind == QE_NAME) { /* a fn, a fn value, a lambda passed in: called */
+        QExpr *const call = qast_expr(S->mem, QE_CALL, a->tok);
+        QArg **next = &call->args;
+
+        for (uint32_t k = 0; k < count; k++) {
+            QArg *const x = qast_alloc(S->mem, sizeof *x);
+            x->e = qsem_dup(S, k < n ? extra[k] : it->parts[k - n]);
+            *next = x;
+            next = &x->next;
+        }
+
+        return qsem_call(S, call);
+    }
+
+    if (a->kind != QE_LAMBDA || !a->lam->body) {
+        qsem_say(S, a->tok, "a chain takes a one-line lambda or a fn", nullptr);
+        return qsem_const(S, a->tok, QY_ERROR, (QVal){});
+    }
+
+    QLam *const l = a->lam;
+
+    if (l->npar != count) {
+        qsem_say(
+            S,
+            l->tok,
+            "the lambda takes ",
+            count == 1 ? "one value" : qsem_join(S, qsem_uint(S, count), " values", ""),
+            " here",
+            nullptr
+        );
+        return qsem_const(S, a->tok, QY_ERROR, (QVal){});
+    }
+
+    qsem_push(S);
+
+    for (uint32_t k = 0; k < count; k++) {
+        const QParam *const p = &l->params[k];
+        QExpr *const v = k < n ? extra[k] : it->parts[k - n];
+        const QType w = p->type ? qsem_type(S, p->type) : v->type;
+
+        if (w != v->type && w != QY_ERROR && v->type != QY_ERROR)
+            qsem_say(
+                S,
+                p->name,
+                qsem_text(S, p->name),
+                " is ",
+                qsem_aname(S, v->type),
+                " here, not ",
+                qsem_aname(S, w),
+                nullptr
+            );
+
+        QVar *const x = qsem_var(S, p->name, v->type, QV_PARAM);
+        x->place = v;
+        qsem_bind(S, p->name, x, nullptr);
+    }
+
+    QExpr *v = qsem_expr(S, l->body, hint);
+
+    if (l->rtype)
+        v = qsem_coerce(S, v, qsem_type(S, l->rtype));
+
+    qsem_pop(S);
+    return v;
+}
+
+/* Call c's one argument, unchecked; null, said, when it has more or none. */
+static QExpr *qsem_onearg(QSem *const S, const QExpr *const c)
+{
+    if (c->args && !c->args->next && !c->args->name)
+        return c->args->e;
+
+    qsem_say(S, c->tok, qsem_text(S, c->tok), "() takes one value", nullptr);
+    return nullptr;
+}
+
+/* zip(b)'s b, unchecked: a range's or a place's element, kept in x at b's index n, past k. */
+static void qsem_zip(QSem *const S, QIter *const it, QStage *const st, QExpr *const b)
+{
+    st->n = qsem_var(S, it->tok, QY_INT, QV_TEMP);
+    st->k = qsem_var(S, it->tok, QY_INT, QV_TEMP);
+    QExpr *e;
+
+    if (b->kind == QE_RANGE) {
+        st->of = qsem_coerce(S, qsem_expr(S, b->a, QY_INT), QY_INT);
+        st->to = qsem_coerce(S, qsem_expr(S, b->b, QY_INT), QY_INT);
+        e = qsem_nameof(S, st->n, it->tok);
+    } else {
+        QExpr *src;
+        QVar *hold;
+        QExpr *const a = qsem_over(S, b, &src, &hold);
+
+        if (!a || src) {
+            if (a)
+                qsem_say(S, b->tok, "zip() takes a variable's list or string, or a range", nullptr);
+
+            it->nparts = 0;
+            return;
+        }
+
+        st->of = a;
+        st->str = a->type == QY_STRING;
+        st->to = qsem_lenof(S, a);
+        e = qsem_at_index(S, a, st->n);
+    }
+
+    st->x = qsem_var(S, it->tok, e->type, QV_TEMP);
+    st->e = qsem_into(S, st->x, qsem_owned(S, e, false));
+    it->parts[it->nparts++] = qsem_nameof(S, st->x, it->tok);
+}
+
+/* Chain it's step c, its kind k; last: the sink's own input, which a sum or a collect reads
+   once. */
+static void qsem_stage(
+    QSem *const S,
+    QIter *const it,
+    QExpr *const c,
+    const uint32_t k,
+    const bool last
+)
+{
+    if (k == QI_REV) {
+        for (uint32_t j = 0; j < it->n; j++)
+            if (it->stages[j].kind != QI_MAP && it->stages[j].kind != QI_FILTER) {
+                qsem_say(S, c->tok, "rev() goes before take, skip and zip", nullptr);
+                return;
+            }
+
+        if (c->args)
+            qsem_say(S, c->tok, "rev() takes no values", nullptr);
+        if (it->from == QO_GEN)
+            qsem_say(S, c->tok, "a generator can't go backwards", nullptr);
+
+        it->rev = !it->rev;
+        return;
+    }
+
+    QExpr *const a = qsem_onearg(S, c);
+    QStage *const st = &it->stages[it->n++];
+    *st = (QStage){.kind = (QStageKind)k};
+
+    if (!a) {
+        it->nparts = 0;
+        return;
+    }
+
+    switch (st->kind) {
+    case QI_MAP: {
+        QExpr *const v = qsem_settle(S, qsem_applied(S, it, a, nullptr, 0, QY_VOID));
+        const bool once = last && (it->sink == QZ_SUM || it->sink == QZ_COLLECT);
+
+        if (v->type == QY_VOID)
+            qsem_say(S, a->tok, "map() needs a value", nullptr);
+
+        if (qsem_cheap(v) || once) {
+            st->e = v;
+            it->parts[0] = v;
+        } else {
+            st->x = qsem_var(S, v->tok, v->type, QV_TEMP);
+            st->e = qsem_into(S, st->x, qsem_owned(S, v, false));
+            it->parts[0] = qsem_nameof(S, st->x, v->tok);
+        }
+
+        it->nparts = v->type == QY_ERROR ? 0 : 1;
+        return;
+    }
+
+    case QI_FILTER:
+        st->e = qsem_coerce(S, qsem_applied(S, it, a, nullptr, 0, QY_BOOL), QY_BOOL);
+        return;
+
+    case QI_TAKE:
+    case QI_SKIP:
+        st->e = qsem_coerce(S, qsem_expr(S, a, QY_INT), QY_INT);
+        st->n = qsem_var(S, c->tok, QY_INT, QV_TEMP);
+        st->k = qsem_var(S, c->tok, QY_INT, QV_TEMP);
+        return;
+
+    case QI_ZIP:
+        qsem_zip(S, it, st, a);
+        return;
+    }
+}
+
+/* T? of chain it's acc, has it. */
+static QExpr *qsem_maybe(QSem *const S, const QIter *const it)
+{
+    const QType t = qsem_wrapof(S, QT_OPT, it->acc->type);
+    QExpr *const e = qsem_wrapped(S, it->tok, t, true, qsem_nameof(S, it->acc, it->tok));
+    e->argv[QF_FLAG] = qsem_nameof(S, it->has, it->tok);
+    return e;
+}
+
+/* Chain it used up by c, sink k: what it keeps and gives after its loop. */
+static QType qsem_sink(QSem *const S, QIter *const it, QExpr *const c, QExpr *const e)
+{
+    const QSink k = it->sink;
+    const QType t = it->nparts == 1 ? it->parts[0]->type : QY_ERROR;
+    const QExpr *const a = c->args ? c->args->e : nullptr;
+    const bool pred = k == QZ_ANY || k == QZ_ALL || k == QZ_FIND || (k == QZ_COUNT && a);
+    const bool single = k != QZ_COUNT && k != QZ_ANY && k != QZ_ALL && k != QZ_FOLD;
+
+    if (!it->nparts)
+        return QY_ERROR;
+
+    if (single && it->nparts != 1) {
+        qsem_say(
+            S,
+            c->tok,
+            qsem_text(S, c->tok),
+            "() takes one value: map the pair to one",
+            nullptr
+        );
+        return QY_ERROR;
+    }
+
+    if (pred) {
+        QExpr *const p = qsem_onearg(S, c);
+        it->pred = p ? qsem_coerce(S, qsem_applied(S, it, p, nullptr, 0, QY_BOOL), QY_BOOL)
+                     : qsem_const(S, c->tok, QY_ERROR, (QVal){});
+    } else if (k != QZ_FOLD && c->args) {
+        qsem_say(S, c->tok, qsem_text(S, c->tok), "() takes no values", nullptr);
+        return QY_ERROR;
+    }
+
+    if ((k == QZ_SUM && !qast_numeric(t)) ||
+        ((k == QZ_MIN || k == QZ_MAX) && !qast_numeric(t) && t != QY_STRING)) {
+        if (t != QY_ERROR)
+            qsem_say(
+                S,
+                c->tok,
+                qsem_text(S, c->tok),
+                "() takes numbers",
+                k == QZ_SUM ? "" : " or strings",
+                ", not ",
+                qsem_aname(S, t),
+                nullptr
+            );
+
+        return QY_ERROR;
+    }
+
+    switch (k) {
+    case QZ_SUM:
+    case QZ_COUNT:
+    case QZ_ANY:
+    case QZ_ALL:
+        it->acc = qsem_var(S, c->tok, k == QZ_SUM ? t : k == QZ_COUNT ? QY_INT : QY_BOOL, QV_TEMP);
+        it->result = qsem_nameof(S, it->acc, c->tok);
+        return it->acc->type;
+
+    case QZ_MIN:
+    case QZ_MAX:
+    case QZ_FIND:
+        it->acc = qsem_var(S, c->tok, t, QV_TEMP);
+        it->has = qsem_var(S, c->tok, QY_BOOL, QV_TEMP);
+        it->result = qsem_maybe(S, it);
+        return it->result->type;
+
+    case QZ_COLLECT: {
+        it->acc = qsem_var(S, c->tok, qsem_listof(S, t, 0), QV_TEMP);
+        QExpr *const p = it->push = qast_expr(S->mem, QE_LIST, c->tok);
+        p->builtin = QB_PUSH;
+        p->a = qsem_nameof(S, it->acc, c->tok);
+        p->argv = qast_alloc(S->mem, sizeof *p->argv);
+        p->argv[0] = qsem_addressed(S, qsem_owned(S, qsem_dup(S, it->parts[0]), false));
+        p->nargv = 1;
+        p->type = QY_VOID;
+        e->var = it->acc;
+        return it->acc->type;
+    }
+
+    case QZ_FOLD: {
+        if (!a || !c->args->next || c->args->next->next) {
+            qsem_say(S, c->tok, "fold() takes a first value and a fn(acc, x)", nullptr);
+            return QY_ERROR;
+        }
+
+        QExpr *const init = qsem_settle(S, qsem_expr(S, c->args->e, QY_VOID));
+        it->acc = qsem_var(S, c->tok, init->type, QV_TEMP);
+        it->init = qsem_into(S, it->acc, qsem_owned(S, init, false));
+        QExpr *const acc = qsem_nameof(S, it->acc, c->tok);
+        QExpr *const v = qsem_applied(S, it, c->args->next->e, &acc, 1, init->type);
+        it->pred = qsem_into(S, it->acc, qsem_owned(S, qsem_coerce(S, v, init->type), false));
+
+        if (qsem_byplace(S, init->type))
+            e->var = it->acc;
+        else
+            it->result = qsem_nameof(S, it->acc, c->tok);
+
+        return init->type;
+    }
+
+    default:
+        return QY_ERROR;
+    }
+}
+
+/* Chain e, a.step(..)..: its source, its steps and, unless a for's (loop), its end, one loop
+   e->iter; loop's a.step(..) e. Its source is borrowed while it runs; its lambdas are checked
+   in the loop's scope. */
+static QExpr *qsem_iter(QSem *const S, QExpr *e, const uint32_t k, QStmt *const loop)
+{
+    QIter *const it = qast_alloc(S->mem, sizeof *it);
+    it->sink = loop ? QZ_FOR : (QSink)k;
+    it->tok = e->tok;
+    uint32_t n = 0, step;
+
+    QExpr *c = loop ? e : e->a;
+
+    for (; qsem_step(S, c, &step); c = c->a)
+        n++;
+
+    QExpr **const calls = qast_alloc(S->mem, (n ? n : 1) * sizeof *calls);
+    uint32_t *const kinds = qast_alloc(S->mem, (n ? n : 1) * sizeof *kinds);
+    c = loop ? e : e->a;
+
+    for (uint32_t j = n; j-- > 0; c = c->a) {
+        qsem_step(S, c, &kinds[j]);
+        calls[j] = c;
+    }
+
+    it->stages = qast_alloc(S->mem, (n ? n : 1) * sizeof *it->stages);
+    QStmt *const mark = loop ? loop : qast_alloc(S->mem, sizeof *mark);
+    const uint32_t loans = S->nloans;
+    bool ok = qsem_source(S, it, c);
+
+    if (!loop)
+        *mark = (QStmt){.kind = QS_CALL, .tok = e->tok};
+
+    if (ok && it->from != QO_GEN && it->from != QO_RANGE)
+        qsem_lend(S, qsem_root(it->list), mark);
+
+    if (!loop) { /* its lambdas run in a loop */
+        S->loops = qast_room(S->mem, S->loops, S->nloops, &S->caploops, sizeof *S->loops);
+        S->loops[S->nloops++] = qsem_at(S, e->tok);
+    }
+
+    for (uint32_t j = 0; ok && j < n; j++) {
+        qsem_stage(S, it, calls[j], kinds[j], j + 1 == n);
+        ok = it->nparts != 0;
+    }
+
+    if (loop && !n) /* for x in a: a the source, kept */
+        e = qast_expr(S->mem, QE_ITER, e->tok);
+
+    e->type = ok && !loop ? qsem_sink(S, it, e, e) : ok ? QY_VOID : QY_ERROR;
+
+    if (!loop) {
+        S->nloops--;
+        S->nloans = loans;
+    }
+
+    e->kind = QE_ITER;
+    e->iter = it;
+    e->a = nullptr;
+    e->done = true;
+    return e;
+}
+
+/* for x in a chain, s->e: its loop's names each a part, read where it is when cheap. */
+static void qsem_chainfor(QSem *const S, QStmt *const s)
+{
+    s->e = qsem_iter(S, s->e, 0, s);
+    QIter *const it = s->e->iter;
+    uint32_t names = 0;
+
+    for (const QDecl *d = s->decls; d; d = d->next)
+        names++;
+
+    if (s->mut)
+        qsem_say(S, s->tok, "a chain's elements don't change: for mut takes a list", nullptr);
+    if (s->e->type != QY_ERROR && names != it->nparts)
+        qsem_say(S, s->tok, "for over a chain takes one name, or one for each of a zip's", nullptr);
+
+    qsem_push(S);
+    it->xs = qast_alloc(S->mem, (names ? names : 1) * sizeof *it->xs);
+    uint32_t k = 0;
+
+    for (const QDecl *d = s->decls; d; d = d->next, k++) {
+        QExpr *const v = k < it->nparts && s->e->type != QY_ERROR ? it->parts[k] : nullptr;
+        QVar *const x = it->xs[k] = qsem_var(S, d->name, v ? v->type : QY_ERROR, QV_LOOP);
+
+        if (v && qsem_cheap(v) && !qsem_owns(S, v->type))
+            x->place = v;
+        else if (v)
+            it->parts[k] = qsem_into(S, x, qsem_owned(S, qsem_dup(S, v), false));
+
+        qsem_bind(S, d->name, x, nullptr);
+    }
+
+    s->var = it->xs[0];
 }
 
 /* ---- generators */
@@ -4568,8 +5243,16 @@ static void qsem_kept(QSem *const S, QDecl *const d, const QKind kw, QFn *const 
     if (d->type)
         qsem_say(S, d->type->tok, "a generator's type is its fn's: leave out as", nullptr);
 
+    d->var = qsem_keptas(S, d->value, g, d->name);
+    qsem_bind(S, d->name, d->var, nullptr);
+}
+
+/* Call e of generator g kept in a new variable named name, its resume index: e's arguments
+   each kept in a variable of this frame. */
+static QVar *qsem_keptas(QSem *const S, QExpr *const call, QFn *const g, const QTok *const name)
+{
     S->genkept = true;
-    QExpr *const e = d->value = qsem_fncall(S, d->value, g);
+    QExpr *const e = qsem_fncall(S, call, g);
     S->genkept = false;
     QFn *const r = e->type == QY_ERROR ? nullptr : e->fn;
     QType t = QY_ERROR;
@@ -4593,12 +5276,12 @@ static void qsem_kept(QSem *const S, QDecl *const d, const QKind kw, QFn *const 
         }
     }
 
-    d->var = qsem_var(S, d->name, t, QV_VAR);
+    QVar *const v = qsem_var(S, name, t, QV_VAR);
 
     if (r)
-        r->keep[r->npar] = qsem_nameof(S, d->var, d->name);
+        r->keep[r->npar] = qsem_nameof(S, v, name);
 
-    qsem_bind(S, d->name, d->var, nullptr);
+    return v;
 }
 
 /* Resumable r, checked: its resume index and each of its variables kept by its host, each a

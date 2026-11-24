@@ -116,7 +116,7 @@ static QExpr *qpar_binary(QPar *const P, const QTok *const op, QExpr *const a, Q
     return e;
 }
 
-/* name(args): each [name:] [mut] value. */
+/* name(args): each [name:] [mut] value, or a range. */
 static QExpr *qpar_call(QPar *const P, const QTok *const name)
 {
     QExpr *const e = qast_expr(P->mem, QE_CALL, name);
@@ -135,6 +135,14 @@ static QExpr *qpar_call(QPar *const P, const QTok *const name)
             a->mut = qpar_next(P);
 
         a->e = qpar_expr(P);
+
+        if (qpar_is(P, QK_DOTDOT)) { /* zip(0..n) */
+            QExpr *const r = qast_expr(P->mem, QE_RANGE, qpar_next(P));
+            r->a = a->e;
+            r->b = qpar_expr(P);
+            a->e = r;
+        }
+
         *last = a;
         last = &a->next;
 
@@ -354,6 +362,14 @@ static QExpr *qpar_primary(QPar *const P)
             QExpr *const tu = qpar_tuple(P, e);
             qpar_need(P, QK_RPAREN, ")");
             return tu;
+        }
+
+        if (qpar_is(P, QK_DOTDOT)) {
+            QExpr *const r = qast_expr(P->mem, QE_RANGE, qpar_next(P));
+            r->a = e;
+            r->b = qpar_expr(P);
+            qpar_need(P, QK_RPAREN, ")");
+            return r;
         }
 
         qpar_need(P, QK_RPAREN, ")");
