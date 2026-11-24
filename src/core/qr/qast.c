@@ -108,6 +108,8 @@ const char *qast_spelling(const QKind k)
         [QK_VAR] = "var",
         [QK_WHILE] = "while",
         [QK_XOR] = "xor",
+        [QK_YIELD] = "yield",
+        [QK_YIELDS] = "yields",
         [QK_LATER] = "a keyword",
         [QK_LPAREN] = "(",
         [QK_RPAREN] = ")",

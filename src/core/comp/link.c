@@ -492,6 +492,37 @@ static bool ref_line(
     return true;
 }
 
+Jump *link_jump(uint8_t *const op)
+{
+    switch (op[0]) {
+    case O_JMP:
+    case O_I_JF:
+    case O_F_JF:
+    case O_I_JT:
+    case O_F_JT:
+        return (Jump *)(op + 1);
+
+    case O_PCALL:
+        return (Jump *)(op + PCALL_JUMP);
+
+    case O_I_NEXT_UP: /* comp/fuse.c's: three cells (FV3), then the Jump */
+    case O_I_NEXT_DN:
+    case O_I_NEXT_UP_L:
+    case O_I_NEXT_DN_L:
+        return (Jump *)(op + 1 + 3 * VCELL);
+
+    case O_I_JFC_V: /* a cell (FV), a mask, then the Jump */
+    case O_I_JFC_L:
+    case O_I_JFC:
+    case O_I_JFC_U8:
+    case O_I_JFC_I16: /* the Jump ends the op */
+        return (Jump *)(op + flow_opsize(op) - sizeof(Jump));
+
+    default:
+        return nullptr;
+    }
+}
+
 /* The jumps and references of the op at op. */
 static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint8_t *const op)
 {
@@ -500,35 +531,28 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
     uint32_t nrefs = 1;
     Jump *j = nullptr;
 
+    if (op[0] == O_PCALL) { /* the procedure, its locals' cells, its parameters, the Jump */
+        store32(op + PCALL_CELLS, blok_proc(C->blok, load32(op + PCALL_PROC))->nframe);
+        store16(op + PCALL_NPAR, blok_proc(C->blok, load32(op + PCALL_PROC))->npar);
+    }
+
     switch (op[0]) {
     case O_JMP:
     case O_I_JF:
     case O_F_JF:
     case O_I_JT:
     case O_F_JT:
-        j = (Jump *)(op + 1);
-        break;
-
-    case O_PCALL: /* the procedure, its locals' cells, its parameters, the Jump */
-        store32(op + PCALL_CELLS, blok_proc(C->blok, load32(op + PCALL_PROC))->nframe);
-        store16(op + PCALL_NPAR, blok_proc(C->blok, load32(op + PCALL_PROC))->npar);
-
-        j = (Jump *)(op + PCALL_JUMP);
-        break;
-
-    case O_I_NEXT_UP: /* comp/fuse.c's: three cells (FV3), then the Jump */
+    case O_PCALL:
+    case O_I_NEXT_UP:
     case O_I_NEXT_DN:
     case O_I_NEXT_UP_L:
     case O_I_NEXT_DN_L:
-        j = (Jump *)(op + 1 + 3 * VCELL);
-        break;
-
-    case O_I_JFC_V: /* a cell (FV), a mask, then the Jump */
+    case O_I_JFC_V:
     case O_I_JFC_L:
     case O_I_JFC:
     case O_I_JFC_U8:
-    case O_I_JFC_I16: /* the Jump ends the op */
-        j = (Jump *)(op + flow_opsize(op) - sizeof(Jump));
+    case O_I_JFC_I16:
+        j = link_jump(op);
         break;
 
     case O_GOTO:

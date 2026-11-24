@@ -10,15 +10,18 @@ blocks.qr:7:1: continue outside a loop
 blocks.qr:8:1: return outside a fn
   return
   ^
-blocks.qr:10:5: a fn goes at the top level, not in a block
+blocks.qr:9:14: return outside a fn
+  if true then return
+               ^
+blocks.qr:11:5: a fn goes at the top level, not in a block
       fn g()
       ^
-blocks.qr:13:1: while without end while
+blocks.qr:14:1: while without end while
   while true
   ^
-blocks.qr:15:1: end fn without fn
+blocks.qr:16:1: end fn without fn
   end fn
   ^
-blocks.qr:16:1: do without end do
+blocks.qr:17:1: do without end do
   do
   ^

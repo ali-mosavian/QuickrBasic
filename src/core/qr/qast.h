@@ -67,6 +67,8 @@ typedef enum : uint8_t {
     QK_VAR,
     QK_WHILE,
     QK_XOR,
+    QK_YIELD,
+    QK_YIELDS,
     QK_LATER, /* a keyword of a later milestone: type, match, import .. */
     /* punctuation */
     QK_LPAREN,
@@ -221,14 +223,16 @@ typedef enum : uint8_t {
     QT_MAP,
     QT_OPT,
     QT_RES,
-    QT_FN
+    QT_FN,
+    QT_GEN
 } QTyKind;
 
 /* A compound type. A record, a tuple, an enum with data, a map, T? and T! are the VM's records
    (comp/declare.h): an enum's tag its field 0, then each value's data; a map's its keys, its values
    and its hash slots, three lists (qr/qrt.c); T?'s has and its T; T!'s err, its T, then its error's
    code, message and line (QF_*). A fn type's fields are its parameters', its elem its result's
-   (QY_VOID none): its value a procedure's number, an int. */
+   (QY_VOID none): its value a procedure's number, an int. A generator kept in a var, gen, is its
+   resume index, an int. */
 typedef struct {
     QTyKind kind;
     const QTok *name; /* a record's, an enum's */
@@ -247,6 +251,7 @@ typedef struct {
     bool deep;     /* qlink's: its TYPE holds strings or lists (comp/declare.h decl_dynamic) */
     uint32_t td;   /* its TYPE (comp/declare.h), qlink's */
     uint32_t size; /* its TYPE's bytes, qlink's */
+    QFn *gen;      /* QT_GEN's instance */
 } QTy;
 
 typedef struct {
@@ -284,6 +289,7 @@ struct QVar {
     QVar *next;    /* the program's next */
     QCap *cap;     /* a lambda's hidden parameter: the name it stands for, by reference */
     QLam *lam;     /* an instance's parameter bound to this lambda: no value */
+    bool byref;    /* a resumable generator's: kept by its holder, a parameter by reference */
 };
 
 typedef struct {
@@ -321,6 +327,15 @@ struct QFn {
     QLam *lamof;      /* a block lambda's procedure */
     QLam *aslam;      /* it passed as a lambda, named */
     bool inl;         /* a one-line lambda's, for its site's check: no code, no variables */
+    QTypeEx *ytx;     /* fn g(..) yields T: a generator */
+    QType ytype;
+    QStmt **yields; /* an instance's yields, numbered from 1 */
+    uint32_t nyields, capyields;
+    QStmt *loop;    /* for x in g(..)'s instance: that for, its code in its host's frame */
+    QFn *host;      /* an inline or resumable instance's fn holding its state, null the module */
+    bool resumable; /* var it = g(..)'s instance: a procedure, its state its host's */
+    QVar *resume;   /* the yield to go on from: 0 the start, -1 done */
+    QExpr **keep;   /* resumable: what each parameter is passed, its host's variable or place */
 };
 
 /* A name a lambda uses from outside it, as its site bound it. A fn's storage (frame) is reached
@@ -490,6 +505,7 @@ typedef enum : uint8_t {
     QS_MATCH, /* match e: its cases' lines follow, each linked to the next */
     QS_CASE,  /* pats, or case else (none) */
     QS_ENDMATCH,
+    QS_YIELD, /* e; link: the statement on its line (itself, or its one-line if) */
 } QStmtKind;
 
 /* A declaration's name [as type] [= value]. */
@@ -526,7 +542,7 @@ struct QStmt {
     QVar *index; /* QS_FOR over a list: its index (i in for i, x in a), else the compiler's */
     QVar *temp;  /* QS_MATCH: its value's; QS_ASSIGN of a tuple: each value's in temps */
     QVar **temps;
-    int32_t by;   /* QS_FOR: its step when constant, else 0 */
+    int32_t by;   /* QS_FOR: its step when constant, else 0; QS_YIELD: its number */
     bool each;    /* QS_FOR over a list or an array, e */
     bool mut;     /* for mut x in a */
     QPat *pats;   /* QS_CASE's; none: case else; its match its body */
@@ -593,8 +609,18 @@ static inline bool qast_place(const QExpr *e)
 
     return e->kind == QE_NAME && e->var;
 }
-/* Is f a generic, f[T]'s definition: no code, each instance checked and compiled instead? */
-static inline bool qast_generic(const QFn *const f) { return f->ntp && !f->of; }
+/* Is f a generic's or a generator's definition: no code, each instance checked and compiled? */
+static inline bool qast_generic(const QFn *const f) { return (f->ntp || f->ytx) && !f->of; }
+/* Is f for x in g(..)'s instance: no procedure, its code its host's? */
+static inline bool qast_inline(const QFn *const f) { return f->loop != nullptr; }
+/* The fn whose frame holds f's variables: f, or an inline instance's host's; null the module. */
+static inline const QFn *qast_home(const QFn *f)
+{
+    while (f && qast_inline(f))
+        f = f->host;
+
+    return f;
+}
 /* Is e a value made fresh, no place's: a call's, a record's built? */
 static inline bool qast_fresh(const QExpr *const e)
 {

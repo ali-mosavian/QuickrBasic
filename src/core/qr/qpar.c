@@ -836,6 +836,23 @@ static QStmt *qpar_return(QPar *const P)
     return s;
 }
 
+/* yield e, in a generator. */
+static QStmt *qpar_yield(QPar *const P)
+{
+    QStmt *const s = qpar_new(P, QS_YIELD, qpar_next(P));
+    s->link = s;
+
+    for (uint32_t i = 0; i < P->nopen; i++)
+        if (P->open[i].open->kind == QS_FN)
+            s->fn = P->open[i].open->fn;
+
+    if (!s->fn || !s->fn->ytx)
+        qpar_fail(P, s->tok, "yield outside a generator: write fn g(..) yields T");
+
+    s->e = qpar_expr(P);
+    return s;
+}
+
 /* An assignment or a call. */
 static QStmt *qpar_simple(QPar *const P)
 {
@@ -850,6 +867,9 @@ static QStmt *qpar_simple(QPar *const P)
 
     case QK_RETURN:
         return qpar_return(P);
+
+    case QK_YIELD:
+        return qpar_yield(P);
 
     default:
         break;
@@ -917,6 +937,9 @@ static void qpar_if(QPar *const P)
         qpar_fail(P, P->t, "a one-line if takes one simple statement, not {}");
 
     s->body = qpar_simple(P);
+
+    if (s->body->kind == QS_YIELD)
+        s->body->link = s;
 }
 
 /* elseif c then, else: the if's next clause. */
@@ -1028,6 +1051,10 @@ static void qpar_fn(QPar *const P)
 
     if (qpar_take(P, QK_AS))
         f->rtype = qpar_type(P);
+    if (qpar_take(P, QK_YIELDS))
+        f->ytx = qpar_type(P);
+    if (f->rtype && f->ytx)
+        qpar_fail(P, f->ytx->tok, "a generator yields its values: it has no as type");
     if (qpar_is(P, QK_LATER))
         qpar_later(P, P->t, "{} is");
 }

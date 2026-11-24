@@ -178,7 +178,7 @@ static uint32_t qlink_npar(const QFn *const f)
 static void qlink_procs(Comp *const C, const QProg *const p)
 {
     for (QFn *f = p->fns; f; f = f->next) {
-        if (!f->sig)
+        if (!f->sig || qast_inline(f) || qast_generic(f))
             continue;
 
         Proc *const pr = blok_add_proc(C->blok, C->fault);
@@ -196,12 +196,14 @@ static void qlink_procs(Comp *const C, const QProg *const p)
     }
 }
 
-/* Variable v's scope: its fn's procedure, else the module's. A number's result is the module's,
-   as a QBasic FUNCTION's (PRET.FV): return stores it right before PRET, so no call between can
-   overwrite it, and the frame is a cell smaller. A record's or list's is its last parameter. */
+/* Variable v's scope: its fn's procedure (an inline generator's its host's), else the module's.
+   A number's result is the module's, as a QBasic FUNCTION's (PRET.FV): return stores it right
+   before PRET, so no call between can overwrite it, and the frame is a cell smaller. A record's or
+   list's is its last parameter. */
 static uint32_t qlink_scope(const QVar *const v)
 {
-    return v->fn && (v->kind != QV_RESULT || v->fn->byarg) ? v->fn->proc : 0;
+    const QFn *const f = qast_home(v->fn);
+    return f && (v->kind != QV_RESULT || f->byarg) ? f->proc : 0;
 }
 
 /* Each variable but a const's in the symbol table; a fn's parameters its ref cells. */
@@ -212,12 +214,12 @@ static void qlink_vars(Comp *const C, const QProg *const p)
     Symb *const sy = C->symb;
 
     for (QVar *v = p->vars; v; v = v->next)
-        if (!v->constant && !v->place && !(v->fn && v->fn->inl))
+        if (!v->constant && !v->place && !(v->fn && (v->fn->inl || qast_generic(v->fn))))
             v->id =
                 qlink_symb(sy, p, v->kind == QV_TEMP ? &hidden : v->name, v->type, qlink_scope(v));
 
     for (const QFn *f = p->fns; f; f = f->next) {
-        if (!f->sig)
+        if (!f->sig || qast_inline(f) || qast_generic(f))
             continue;
 
         Proc *const pr = btab_at(&C->blok->procs, f->proc);
@@ -326,26 +328,55 @@ static void qlink_lines(
     } while (C->prog->base != base);
 }
 
-/* Each line's end goes on to the next line with a statement: one with none (a comment, a block
-   lambda's lines where it is written) costs nothing to pass. */
-static void qlink_thread(Comp *const C, const QProg *const p, const QStmt *const *const of)
+/* Where code at code of line goes on to: past a line's end (EOL.TO) and a JMP, to the first op
+   that does something; a few hops at most, so a loop of JMPs stays one. */
+static void qlink_onward(const Comp *const C, uint32_t *const line, uint32_t *const code)
 {
-    uint32_t next = p->src.nlines; /* the next line with a statement; none */
+    for (uint32_t hop = 0; hop < 16; hop++) {
+        const uint8_t *const op = at(C->allo->cache + *code);
+        const uint32_t to = load32(op + 1);
+        const uint32_t dest = load32(op + (*op == O_JMP ? 9 : 5));
 
-    for (uint32_t i = p->src.nlines; i-- > 0;) {
+        if (*op == O_EOL_TO && !prog_line(C->prog, to)->len)
+            return;
+        if (*op == O_JMP && dest <= TO_NEXT_STMT) /* not found */
+            return;
+        if (*op != O_EOL_TO && *op != O_JMP)
+            return;
+
+        *line = to;
+        *code = dest;
+    }
+}
+
+/* Each jump's target and each line's end gone on past what only passes control on: a line with
+   no statement (a comment, a block lambda's lines where it is written), a block's end that only
+   jumps, a yield's jump to its loop's body. */
+static void qlink_thread(Comp *const C, const QProg *const p)
+{
+    for (uint32_t i = 0; i < p->src.nlines; i++) {
         uint8_t *op = at(C->allo->cache + prog_line(C->prog, p->src.lines[i].at)->code);
 
-        while (*op != O_EOL && *op != O_EOL_TO)
-            op += link_opsize(op);
+        for (; *op != O_EOL && *op != O_EOL_TO; op += link_opsize(op)) {
+            uint8_t *const j = (uint8_t *)link_jump(op);
+            uint32_t line = j ? load32(j) : 0, code = j ? load32(j + 8) : 0;
 
-        if (*op == O_EOL_TO && next < p->src.nlines && next != i + 1) {
-            const uint32_t to = p->src.lines[next].at;
-            store32(op + 1, to);
-            store32(op + 5, prog_line(C->prog, to)->code);
+            if (!j || code <= TO_NEXT_STMT)
+                continue;
+
+            qlink_onward(C, &line, &code);
+            store32(j, line);
+            store32(j + 8, code);
         }
 
-        if (of[i])
-            next = i;
+        uint32_t line = load32(op + 1), code = load32(op + 5);
+
+        if (*op != O_EOL_TO || !prog_line(C->prog, line)->len)
+            continue;
+
+        qlink_onward(C, &line, &code);
+        store32(op + 1, line);
+        store32(op + 5, code);
     }
 }
 
@@ -360,7 +391,7 @@ void qlink_program(Comp *const C, QProg *const p, QMem *const m, const bool dbg)
     const QStmt **const of = qast_alloc(m, (p->src.nlines ? p->src.nlines : 1) * sizeof *of);
 
     for (const QStmt *s = p->first; s; s = s->next)
-        if (s->kind == QS_FN && !s->fn->sig) /* a generic: no code, its instances have theirs */
+        if (s->kind == QS_FN && (!s->fn->sig || qast_generic(s->fn))) /* its instances' code */
             s = s->fn->end;
         else
             of[s->line] = s;
@@ -381,7 +412,7 @@ void qlink_program(Comp *const C, QProg *const p, QMem *const m, const bool dbg)
         link_resolve(C, at, prog_line(C->prog, at)->code);
     }
 
-    qlink_thread(C, p, of);
+    qlink_thread(C, p);
 
     link_check(C);
     C->link->linked = true;

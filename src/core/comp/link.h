@@ -63,5 +63,7 @@ typedef void LinkEmptyEach(void *ctx, const LinkEmpty *e);
 uint32_t link_empties(const Comp *C, LinkEmptyEach *each, void *ctx);
 /* The size in a cache stream of the op at op: INPUT's start has its end's offset after it. */
 uint32_t link_opsize(const uint8_t *op);
+/* The Jump of jump op op, a block's, a call's or a loop's; null none. */
+Jump *link_jump(uint8_t *op);
 void link_walk(const uint8_t *code, void (*each)(uint8_t op, const uint8_t *at)); /* each op */
 #endif

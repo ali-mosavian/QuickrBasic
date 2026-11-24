@@ -102,10 +102,11 @@ static uint8_t qcg_pick(
     }
 }
 
-/* A parameter's ref: a fn's own, a lambda's capture's, and a record's or list's result. */
+/* A parameter's ref: a fn's own, a lambda's capture's, a resumable generator's state, and a
+   record's or list's result. */
 static bool qcg_par(const QVar *const v)
 {
-    return v->kind == QV_PARAM || v->kind == QV_MUT || v->cap ||
+    return v->kind == QV_PARAM || v->kind == QV_MUT || v->cap || v->byref ||
            (v->kind == QV_RESULT && v->fn->byarg);
 }
 
@@ -1129,7 +1130,7 @@ static void qcg_call(QCg *const g, const QExpr *const e, const QExpr *const dst)
 
     for (uint32_t k = 0; k < f->npar; k++) {
         const QParam *const p = &f->params[k];
-        const QExpr *const a = e->argv[k];
+        const QExpr *const a = f->keep ? f->keep[k] : e->argv[k];
 
         if (p->lam) /* bound to its lambda: no value */
             continue;
@@ -1552,6 +1553,135 @@ static void qcg_expr(QCg *const g, const QExpr *const e)
     }
 }
 
+/* ---- generators */
+
+static bool qcg_isgen(const QCg *const g, const QType t)
+{
+    return qast_compound(t) && qcg_ty(g, t)->kind == QT_GEN;
+}
+
+static void qcg_pret(Code *const c, const QFn *const f)
+{
+    code_op(c, O_PRET);
+    code_dword(c, f->proc);
+    code_dword(c, 0);
+}
+
+/* var it = g(..): each argument kept in its host's variable, it from the start. */
+static void qcg_kept(QCg *const g, const QDecl *const d)
+{
+    const QFn *const r = qcg_ty(g, d->var->type)->gen;
+
+    for (uint32_t k = 0; k < d->value->nargv; k++)
+        if (!r->params[k].hidden && !r->params[k].lam)
+            qcg_set(g, r->keep[k], d->value->argv[k]);
+
+    code_int(g->c, 0);
+    qcg_store(g->c, d->var);
+}
+
+/* On from where generator f stopped: to the yield its resume index names (a sole yield's
+   straight); a resumable's done (-1) to its end, 0 on into its body. */
+static void qcg_resume(QCg *const g, const QFn *const f)
+{
+    Code *const c = g->c;
+    const uint32_t n = f->nyields;
+
+    for (uint32_t k = 0; k < n; k++) {
+        if (k + 1 == n && !f->resumable) {
+            qcg_to(g, O_JMP, f->yields[k]->link, BOFF, TO_STMT);
+            return;
+        }
+
+        qcg_load(c, f->resume);
+        uint8_t *const right = c->out;
+        code_int(c, k + 1);
+        qcg_compare(c, QY_INT, QK_NE, right);
+        qcg_to(g, O_I_JF, f->yields[k]->link, BOFF, TO_STMT);
+    }
+
+    if (f->resumable) {
+        qcg_load(c, f->resume);
+        uint8_t *const right = c->out;
+        code_int(c, 0);
+        qcg_compare(c, QY_INT, QK_GE, right);
+        qcg_to(g, O_I_JF, f->end, 0, TO_STMT);
+    }
+}
+
+/* yield v: its number the resume index (when it needs one), v the loop's variable or next()'s
+   result; then to the loop's body, or back to next()'s caller. */
+static void qcg_yield(QCg *const g, const QStmt *const s)
+{
+    Code *const c = g->c;
+    const QFn *const f = s->fn;
+
+    if (f->resume) {
+        code_int(c, (uint32_t)s->by);
+        qcg_store(c, f->resume);
+    }
+
+    if (f->resumable) {
+        const QExpr res = qcg_named(f->res);
+        qcg_set(g, &res, s->e);
+        qcg_pret(c, f);
+        return;
+    }
+
+    const QStmt *const loop = f->loop;
+
+    if (!loop->var->place) {
+        const QExpr x = qcg_named(loop->var);
+        qcg_set(g, &x, s->e);
+    }
+
+    qcg_to(g, O_JMP, loop, BOFF, TO_STMT);
+}
+
+/* Generator f's return: past its loop, or to its end. */
+static void qcg_done(QCg *const g, const QFn *const f)
+{
+    if (f->resumable)
+        qcg_to(g, O_JMP, f->end, 0, TO_STMT);
+    else
+        qcg_to(g, O_JMP, f->loop->link, BOFF, TO_STMT);
+}
+
+/* Generator s->fn's end: past its loop; a resumable's done, next() none from now on. */
+static void qcg_ended(QCg *const g, const QStmt *const s)
+{
+    Code *const c = g->c;
+    const QFn *const f = s->fn;
+
+    if (!f->resumable) {
+        qcg_done(g, f);
+        return;
+    }
+
+    code_int(c, (uint32_t)-1);
+    qcg_store(c, f->resume);
+    const QExpr res = qcg_named(f->res);
+    qcg_set(g, &res, s->e);
+    qcg_pret(c, f);
+}
+
+/* for x in g(..): g's parameters given their values, then into its body. */
+static void qcg_genfor(QCg *const g, const QStmt *const s)
+{
+    const QFn *const f = s->fn;
+
+    for (uint32_t k = 0; k < f->npar; k++) {
+        QVar *const v = f->params[k].var;
+
+        if (!f->params[k].lam && !f->params[k].hidden && !v->constant && !v->place) {
+            const QExpr p = qcg_named(v);
+            qcg_set(g, &p, s->e->argv[k]);
+        }
+    }
+
+    qcg_to(g, O_JMP, f->def, BOFF, TO_STMT);
+}
+
 /* ---- statements */
 
 /* A variable's zero: 0, 0.0, false, "". */
@@ -1756,7 +1886,9 @@ static void qcg_simple(QCg *const g, const QStmt *const s)
         for (const QDecl *d = s->decls; d; d = d->next) {
             const QExpr to = qcg_named(d->var);
 
-            if (d->value)
+            if (qcg_isgen(g, d->var->type))
+                qcg_kept(g, d);
+            else if (d->value)
                 qcg_set(g, &to, d->value);
             else
                 qcg_fresh(g, d->var);
@@ -1797,6 +1929,10 @@ static void qcg_simple(QCg *const g, const QStmt *const s)
         qcg_to(g, O_JMP, s->link->link, BOFF, TO_STMT);
         return;
 
+    case QS_YIELD:
+        qcg_yield(g, s);
+        return;
+
     case QS_CONTINUE: {
         const QStmt *const loop = s->link;
 
@@ -1811,6 +1947,11 @@ static void qcg_simple(QCg *const g, const QStmt *const s)
     }
 
     case QS_RETURN:
+        if (s->fn->ytx) {
+            qcg_done(g, s->fn);
+            return;
+        }
+
         if (s->e) {
             const QExpr res = qcg_named(s->fn->res);
             qcg_set(g, &res, s->e);
@@ -1844,6 +1985,7 @@ static bool qcg_stops(const QStmt *const s)
     case QS_BREAK:
     case QS_CONTINUE:
     case QS_RETURN:
+    case QS_YIELD:
         return true;
 
     default:
@@ -1973,6 +2115,11 @@ static void qcg_body(QCg *const g, const QStmt *const s)
         return;
 
     case QS_FOR:
+        if (s->fn) {
+            qcg_genfor(g, s);
+            return;
+        }
+
         if (s->each) { /* the index from 0, the limit the list's length */
             if (qast_fresh(s->e))
                 qcg_settle(g, s->e);
@@ -2007,8 +2154,20 @@ static void qcg_body(QCg *const g, const QStmt *const s)
 
     case QS_ENDFOR: { /* NEXT's six ops (comp/fuse.c): I.NEXT.UP or I.NEXT.DN */
         const QStmt *const f = s->link;
+
+        if (f->fn) {
+            qcg_resume(g, f->fn);
+            return;
+        }
+
         qcg_load(c, qcg_counter(f));
-        code_opid(c, O_I_STEP_V, f->stp->id, false);
+
+        if (qcg_par(f->stp)) { /* a resumable's: I.STEP.V reads no ref */
+            qcg_load(c, f->stp);
+            code_op(c, O_I_ADD);
+        } else
+            code_opid(c, O_I_STEP_V, f->stp->id, false);
+
         qcg_store(c, qcg_counter(f));
         qcg_past(g, f, true);
         qcg_to(g, O_I_JF, f, BOFF, TO_STMT);
@@ -2017,7 +2176,12 @@ static void qcg_body(QCg *const g, const QStmt *const s)
 
     case QS_FN:
         qcg_to(g, O_JMP, s->fn->end, BOFF, TO_STMT);
+
+        if (s->fn->resumable) /* a call's entry, past the JMP */
+            qcg_resume(g, s->fn);
+
         return;
+
 
     case QS_MATCH:
         qcg_match(g, s);
@@ -2028,6 +2192,11 @@ static void qcg_body(QCg *const g, const QStmt *const s)
         return;
 
     case QS_ENDFN:
+        if (s->fn->ytx) {
+            qcg_ended(g, s);
+            return;
+        }
+
         code_op(c, O_PRET);
         code_dword(c, s->fn->proc);
         code_dword(c, 0);

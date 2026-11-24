@@ -389,6 +389,22 @@ end for
 - A generator kept in a `var` is resumed a frame at a time with `next()`, which suits cutscenes
   and enemy behaviour. Kept that way, it owns its arguments: they are moved or copied in, never
   borrowed.
+- `it.next()` gives a `T?`: `none` once the generator ends. A kept generator is declared with
+  `var` and used only as `it.next()`, in the function that declared it. It can't be copied,
+  passed, returned, printed or used by a lambda, and `for x in it` is not supported.
+- A generator has no `as` type, its `return` takes no value, and its parameters are not `mut`.
+  A generator can't loop over itself.
+- **In the VM**, each `for x in g(..)` gets its own copy of `g`, checked and compiled in the
+  loop's frame. Its parameters and locals are the caller's locals. A constant argument is
+  inlined, a record or list place is read where it is (borrowed for the loop), and the rest are
+  stored when the loop starts. A `yield` stores `x` and jumps to the body; `end for` jumps back
+  past the `yield`, on a resume index when there are several. When the only `yield` gives a
+  variable or a constant, `x` names it and nothing is stored.
+- A kept generator is a procedure. Its resume index is the `var`; its arguments and locals are
+  hoisted into the declaring function's frame and passed by reference to each `next()`, whose
+  entry jumps to the `yield` the index names.
+- The link threads every jump and line end past what only passes control on: a line with no
+  statement, a line that only jumps. A `yield` and its loop's `end for` cost no op.
 
 ### Borrowing
 
