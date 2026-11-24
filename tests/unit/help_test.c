@@ -201,7 +201,7 @@ TEST(help_topic_is_one_page_with_details_and_example)
     }
 
     CHECK(details && example);
-    CHECK(f.nnav == 9); /* 8 topics and the Index: no pages split off */
+    CHECK(f.nnav == 12); /* 11 topics and the Index: no pages split off */
     hdoc_free(&d);
     hlf_close(&f);
 }

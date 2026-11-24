@@ -37,6 +37,7 @@ Body text, hard-wrapped at 70 columns. A [link](KEY) jumps to the topic that has
 | `ide/` | the editor: menus, dialogs, keys, the debugger |
 | `errors/` | each error message: cause, remedy |
 | `ext/` | what QuickrBasic adds to QBasic |
+| `qr/` | Quickr: its index, the language, one per standard library module; keys `~quickr word` |
 | `status.txt` | one status-bar line per menu item, in menu order |
 
 Required topics: `contents` (the table of contents, key `contents`), `using-help` (key `using help`),

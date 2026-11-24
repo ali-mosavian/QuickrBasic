@@ -22,6 +22,7 @@
 #include "ui/mouse.h"
 #include "ui/screen.h"
 #include "ui/uimain.h"
+#include "ui/text.h"
 #include "ui/window.h"
 
 typedef struct {
@@ -79,10 +80,20 @@ void help_init(void)
             dir = i + 1;
 
     memcpy(name + dir, file, sizeof file);
-    hf.open = hlf_open(&hf.f, name);
+    help_open(name);
+}
+
+bool help_open(const char *const path)
+{
+    if (hf.open)
+        hlf_close(&hf.f);
+
+    hf.open = hlf_open(&hf.f, path);
 
     if (hf.open)
         status_lines();
+
+    return hf.open;
 }
 
 /* ---- a view */
@@ -585,14 +596,32 @@ uint16_t help_keyword(char *const out, const uint16_t max)
     return hdoc_word(lb->text, lb->len, lb->col, out, max);
 }
 
-/* The topic of the word at the cursor, HLF_NONE if there is none. */
-static uint16_t keyword_topic(void)
+enum { QUICKR_KEY = 7 }; /* "QUICKR " */
+
+/* A Quickr word's topic, w n characters, its dots kept: "quickr w" (a keyword, a module, a
+   module's m.name), else its first part's (a module's); HLF_NONE none. */
+static uint16_t quickr_topic(const char *const w, const uint16_t n)
+{
+    char key[QUICKR_KEY + KEY_MAX];
+    memcpy(key, "QUICKR ", QUICKR_KEY);
+    memcpy(key + QUICKR_KEY, w, n);
+    const uint16_t id = hlf_find(&hf.f, key, QUICKR_KEY + n);
+    const char *const dot = memchr(w, '.', n);
+
+    return id != HLF_NONE || !dot ? id : hlf_find(&hf.f, key, QUICKR_KEY + (uint32_t)(dot - w));
+}
+
+/* The topic of the word at the cursor, HLF_NONE if there is none. A Quickr program's window:
+   Quickr's topics only. */
+static uint16_t keyword_topic(Session *const S)
 {
     char w[KEY_MAX];
     const uint16_t n = hf.open ? help_keyword(w, sizeof w) : 0;
 
     if (!n)
         return HLF_NONE;
+    if (text_quickr(S) && uimn.tree.workspace.focus == FOC_EDIT)
+        return quickr_topic(w, n);
 
     uint16_t id = hlf_find(&hf.f, w, n);
 
@@ -602,7 +631,7 @@ static uint16_t keyword_topic(void)
     return id;
 }
 
-bool help_topic_exists(void) { return keyword_topic() != HLF_NONE; }
+bool help_topic_exists(Session *const S) { return keyword_topic(S) != HLF_NONE; }
 
 void help_f1(Session *const S)
 {
@@ -611,7 +640,9 @@ void help_f1(Session *const S)
         return;
     }
 
-    open_window(S, keyword_topic(), true);
+    const uint16_t id = keyword_topic(S);
+    const bool quickr = id == HLF_NONE && hf.open && text_quickr(S);
+    open_window(S, quickr ? hlf_find(&hf.f, "QUICKR", QUICKR_KEY - 1) : id, true);
 }
 
 void help_using(Session *const S) { open_window(S, hf.open ? hf.f.using_help : HLF_NONE, true); }

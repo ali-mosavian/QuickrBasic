@@ -12,6 +12,7 @@
 #include "ui/debugwatch.h"
 #include "ui/edit.h"
 #include "ui/errors.h"
+#include "ui/help.h"
 #include "ui/highlight.h"
 #include "ui/menu.h"
 #include "ui/text.h"
@@ -386,5 +387,39 @@ TEST(qride_completes_quickr_words)
     CHECK(offers(S, "let a = q.", "y"));
     CHECK(offers(S, "let a = q.", "norm"));
     CHECK(!offers(S, "let a = q.", "total"));
+    fx_done(S, files);
+}
+
+/* The cursor at col of line text's line. */
+static void cursor_at(Session *const S, const char *const text, const uint16_t col)
+{
+    edit_load(S, view_goline(S, fx_line_of(S, text)));
+    uimn.edline.col = col;
+}
+
+/* F1 in a Quickr program found QBasic's topics: none for fn, none for text.upper, a beep for s. */
+TEST(qride_f1_finds_quickr_topics)
+{
+    fx_open_program(S, "");
+    fx_write_file(
+        "main.bas",
+        DIALECT "fn up(s as string) as string\n    return text.upper(s)\nend fn\n"
+    );
+    uimn_open(S, fx_path_of("main.bas"));
+    CHECK(help_open("build/host/test.hlp"));
+    cursor_at(S, "fn up(s as string) as string", 1);
+    CHECK(help_topic_exists(S));
+    cursor_at(S, "    return text.upper(s)", 17);
+    CHECK(help_topic_exists(S));
+    help_f1(S);
+    fx_shown(S);
+    CHECK(strstr(fx_row(1), "Quickr text") != nullptr);
+    help_close();
+    cursor_at(S, "    return text.upper(s)", 22);
+    CHECK(!help_topic_exists(S));
+    help_f1(S);
+    fx_shown(S);
+    CHECK(strstr(fx_row(1), "Quickr index") != nullptr); /* none: Quickr's index */
+    help_close();
     fx_done(S, files);
 }

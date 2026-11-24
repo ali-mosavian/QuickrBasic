@@ -175,6 +175,10 @@ QBasic's otherwise, and a program is one or the other.
   public names; after `v.` the fields of `v`'s record type (as declared, `v as T`) and the fns whose
   first parameter is one (`qr_suggest`).
 
+- F1 in a Quickr program looks up `quickr WORD` (`help/qr/`): a keyword, a module, a module's
+  `m.name`, else the module before the dot; no topic opens the Quickr index. QBasic's topics are
+  never shown for a Quickr word.
+
 Built on `qr/qr.c` (`qr_read`, `qr_open`) and `ui/text.c`.
 
 ## Theme slots
