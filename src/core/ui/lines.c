@@ -53,7 +53,7 @@ static bool starts(const uint8_t *const s, const char *const word)
 /* View line line bounds its procedure: its SUB or FUNCTION line, or its END. */
 static bool bound(Session *const S, const uint32_t line)
 {
-    if (!line && view_at(uimn.ed.view)->kind)
+    if ((!line && view_at(uimn.ed.view)->kind) || text_marker(S, uimn.text.first + line))
         return true;
 
     get(S, line);

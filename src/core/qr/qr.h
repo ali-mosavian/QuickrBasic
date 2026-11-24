@@ -3,12 +3,16 @@
 #define QR_QR_H
 #include "base.h"
 
-/* Is path a Quickr file: does it end in .qr, any case? */
+/* A Quickr file's first line, its dialect's mark; any other file is QBasic's. */
+extern const char qr_dialect[];
+/* Is the line text, len bytes, qr_dialect: case aside, spaces after it? */
+bool qr_marker(const char *text, uint32_t len);
+/* Is the file at path Quickr's: its first line qr_dialect? */
 bool qr_is_file(const char *path);
-/* Load repl.file, a .qr, and report its compile errors; none: link it, ready to run. The errors'
+/* Load repl.file, Quickr's, and report its compile errors; none: link it, ready to run. The errors'
    count. */
 uint32_t qr_build(Session *S);
-/* Run repl.file, a .qr: every compile error reported, then exit 1; --check (repl.checking): exit
+/* Run repl.file, Quickr's: every compile error reported, then exit 1; --check (repl.checking): exit
    after the check. */
 void qr_run(Session *S);
 /* Runtime error code at a Quickr line (vm.line): file:line: message, then the line. */

@@ -5,7 +5,7 @@
  * FROM the package folder `lib/gfx/`, under the first root that has it: the main program's folder,
  * each of BASICLIB's folders (';'-separated), then `lib/` beside the interpreter. FROM's leading
  * dots name one root instead: the importing file's folder, a folder up for each dot past the first.
- * A Quickr module is a `.qr` alone.
+ * A Quickr module is a `.bas` alone, its first line saying so (qr/qr.h).
  */
 #include "io/locate.h"
 #include "io/path.h"

@@ -145,10 +145,10 @@ Built on `ui/debuginline.c`: the names are where the highlighter colours one, th
 
 ## Quickr
 
-The editor takes both dialects. A file's extension picks its dialect, `.bas` QBasic and `.qr` Quickr,
-and a program is one or the other.
+The editor takes both dialects. A file is Quickr's when its first line is `' OPTION DIALECT QUICKR`,
+QBasic's otherwise, and a program is one or the other.
 
-- File, Open lists `*.BAS` and `*.QR`. Save As names a Quickr program `.QR` when no extension is typed.
+- That first line is shown and saved but cannot be typed over, cut or joined: a file's dialect is fixed.
 - A Quickr line is stored as typed, its text the record's body (`LF_QR`), and saved as typed.
 - The modules a Quickr program imports open as a QBasic program's do, each its own view after the
   main's. A Quickr file is one view: its fns stay where they are written, and F2 lists them under

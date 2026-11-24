@@ -3,7 +3,7 @@ keys: command line, --check, basic --check, --test, /H
 
     basic [FILE.BAS]           run FILE and exit; none: READY
     basic --check FILE.BAS     check FILE and run nothing
-    basic --test FILE.QR       run FILE's test blocks, not FILE
+    basic --test FILE.BAS      run a Quickr FILE's test blocks, not FILE
     IDE32 [/H] [FILE.BAS]      the editor, FILE opened; /H 50 lines
 
 See also [QuickrBasic](QuickrBasic), [test scripts](test scripts)

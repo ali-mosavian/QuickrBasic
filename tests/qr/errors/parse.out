@@ -1,36 +1,36 @@
-parse.qr:2:5: expected a name, not =
+parse.bas:3:5: expected a name, not =
   let = 3
       ^
-parse.qr:3:10: expected a value, not )
+parse.bas:4:10: expected a value, not )
   print(1 +)
            ^
-parse.qr:4:1: if without end if
+parse.bas:5:1: if without end if
   if x then
   ^
-parse.qr:4:4: unknown name x
+parse.bas:5:4: unknown name x
   if x then
      ^
-parse.qr:5:9: expected the line's end, not )
+parse.bas:6:9: expected the line's end, not )
   print(1)) 
           ^
-parse.qr:6:7: expected in, not 0
+parse.bas:7:7: expected in, not 0
   for i 0..3
         ^
-parse.qr:8:1: end while without while
+parse.bas:9:1: end while without while
   end while
   ^
-parse.qr:10:1: fn without end fn
+parse.bas:11:1: fn without end fn
   fn
   ^
-parse.qr:10:3: expected the fn's name, not the line's end
+parse.bas:11:3: expected the fn's name, not the line's end
   fn
     ^
-parse.qr:11:1: a value alone is not a statement: assign it or call a fn
+parse.bas:12:1: a value alone is not a statement: assign it or call a fn
   x + 1
   ^
-parse.qr:13:9: lists are not supported yet
+parse.bas:14:9: lists are not supported yet
   var s = [1, 2]
           ^
-parse.qr:14:1: while without end while
+parse.bas:15:1: while without end while
   while true
   ^

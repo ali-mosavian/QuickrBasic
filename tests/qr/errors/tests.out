@@ -1,21 +1,21 @@
-tests.qr:2:6: expected the test's name, a string, not sums
+tests.bas:3:6: expected the test's name, a string, not sums
   test sums
        ^
-tests.qr:5:12: a test returns nothing
+tests.bas:6:12: a test returns nothing
       return 1
              ^
-tests.qr:8:12: an int is not a bool
+tests.bas:9:12: an int is not a bool
       assert 1
              ^
-tests.qr:10:8: a string is not a bool
+tests.bas:11:8: a string is not a bool
   assert "yes"
          ^
-tests.qr:12:5: a test goes at the top level, not in a block
+tests.bas:13:5: a test goes at the top level, not in a block
       test "inside"
       ^
-tests.qr:15:1: test without end test
+tests.bas:16:1: test without end test
   test "ends wrong"
   ^
-tests.qr:16:1: end fn without fn
+tests.bas:17:1: end fn without fn
   end fn
   ^

@@ -15,8 +15,9 @@
  * The text is each of the program's files, the main's first (mem/module.h): a line is its
  * record's file's, its names its module's. A Quickr program's lines (LF_QR) are their text alone,
  * kept as typed (qr/qr.h); the program's first record says which dialect it is, and every line
- * stored is that one's. A line stored in place of another is that one's file's;
- * one added is its view's neighbour's, the line it goes before, past the view's end its last. A
+ * stored is that one's. A Quickr file's first line is its dialect's (qr_dialect), never changed.
+ * A line stored in place of another is that one's file's; one added is its view's neighbour's,
+ * the line it goes before, past the view's end its last. A
  * module changed since saved is edited (ModuMod.edited); uimn.text.unsaved: any is.
  *
  * The clipboard is uimn.text.clip_len bytes of uimn.text.clip: whole lines (uimn.text.clip_lines,
@@ -162,6 +163,16 @@ static bool spelling_fits(Session *const S, const uint32_t pre_len)
 }
 
 bool text_quickr(Session *const S) { return prog_line(&S->prog, PROGBASE)->flags & LF_QR; }
+
+bool text_marker(Session *const S, const uint32_t line)
+{
+    if (line >= uimn.text.all)
+        return false;
+
+    const Line *const l = prog_line(&S->prog, lmap_off(S, line));
+    return l->flags & LF_QR &&
+           (!line || prog_line(&S->prog, lmap_off(S, line - 1))->file != l->file);
+}
 
 /* A Quickr line of len characters at src made a record's: its text the body, in comp_cbuf; LF_ASIS
    too when uimn.text.asis (used up), a syntax error's. */
@@ -315,6 +326,7 @@ void text_init(Session *const S, const bool quickr)
 
     if (quickr) {
         S->prog.add_flags = LF_QR;
+        prog_add(&S->prog, NONUM, (const uint8_t *)qr_dialect, (uint32_t)strlen(qr_dialect) + 1);
         prog_add(&S->prog, NONUM, (const uint8_t *)"", 1);
         S->prog.add_flags = 0;
     } else {

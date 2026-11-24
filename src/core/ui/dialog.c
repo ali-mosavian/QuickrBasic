@@ -101,8 +101,7 @@ static struct {
 static DlogList ls_files = {.size = NAMESZ, .columns = true}; /* items grown as names come */
 static DlogList ls_dirs = {.size = NAMESZ};
 static uint32_t files_cap, dirs_cap; /* their items' room */
-static char mask[80];                /* dl_mask: the Open box's, masks split by ; */
-static const char *ext = ".BAS";     /* a name without one gets it: .QR saving a Quickr program */
+static char mask[80];                /* dl_mask: the Open box's */
 static char *path;                   /* dl_path: the current directory, grown to fit */
 static uint32_t path_cap;
 static PfilFind dta; /* dl_dta */
@@ -1310,16 +1309,17 @@ static void sort_names(DlogList *const l, const uint32_t n)
     }
 }
 
-/* The names matching pattern with attrs (PFIL_ADIR: directories only, "." left out) to l's items
-   from n, cap of room, grown; their count then, as many as memory holds. */
-static uint32_t find_one(
+/* The names matching pattern with attrs (PFIL_ADIR: directories only, "." left out) to l's items,
+   cap of room, grown, by name; their count, as many as memory holds. */
+static uint32_t find(
     DlogList *const l,
     uint32_t *const cap,
     const char *const pattern,
-    const uint8_t attrs,
-    uint32_t n
+    const uint8_t attrs
 )
 {
+    uint32_t n = 0;
+
     for (uint16_t e = pfil_first(pattern, attrs, &dta); e == PFIL_OK; e = pfil_next(&dta)) {
         if (attrs == PFIL_ADIR && (!(dta.attr & PFIL_ADIR) || !strcmp(dta.name, ".")))
             continue;
@@ -1328,34 +1328,6 @@ static uint32_t find_one(
 
         memcpy(l->items + n * NAMESZ, dta.name, NAMESZ);
         n++;
-    }
-
-    return n;
-}
-
-/* The names matching any of patterns' masks (split by ;) with attrs to l's items, by name;
-   find_one's. Their count. */
-static uint32_t find(
-    DlogList *const l,
-    uint32_t *const cap,
-    const char *const patterns,
-    const uint8_t attrs
-)
-{
-    char one[sizeof mask];
-    uint32_t n = 0;
-
-    for (const char *p = patterns; *p;) {
-        uint32_t k = 0;
-
-        while (p[k] && p[k] != ';' && k < sizeof one - 1) {
-            one[k] = p[k];
-            k++;
-        }
-
-        one[k] = 0;
-        n = find_one(l, cap, one, attrs, n);
-        p += k + (p[k] == ';');
     }
 
     sort_names(l, n);
@@ -1452,9 +1424,8 @@ bool dlog_fileok(const uint8_t why)
     uint16_t end = len;
 
     if (!dot) {
-        const uint16_t n = (uint16_t)strlen(ext);
-        memcpy(d + end, ext, n);
-        end += n;
+        memcpy(d + end, ".BAS", 4);
+        end += 4;
     }
 
     d[end] = 0;
@@ -1469,18 +1440,15 @@ bool dlog_fileok(const uint8_t why)
 
 bool dlog_open(Session *const S)
 {
-    static const char both[] = "*.BAS;*.QR";
-    memcpy(mask, both, sizeof both);
-    ext = ".BAS";
+    memcpy(mask, "*.BAS", 6);
     set_field(mask);
     list_files();
     dg_open.focus = 0;
     return dlog_run(S, &dg_open) == DO_OK;
 }
 
-bool dlog_saveas(Session *const S, const bool quickr)
+bool dlog_saveas(Session *const S)
 {
-    ext = quickr ? ".QR" : ".BAS";
     set_field(uimn.file);
     memcpy(mask, "*.*", 4);
     list_files();

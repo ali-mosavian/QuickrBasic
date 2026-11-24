@@ -1,0 +1,6 @@
+' OPTION DIALECT QUICKR
+import ping
+public fn pong(n as int) as int
+    return 0 if n = 0 else ping.ping(n - 1) + 10
+end fn
+public var second = "pong"

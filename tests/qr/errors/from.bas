@@ -1,0 +1,3 @@
+' OPTION DIALECT QUICKR
+' a from line that doesn't parse imports nothing: it crashed
+from = 3

@@ -1,0 +1,26 @@
+' OPTION DIALECT QUICKR
+' chains: used up where made, steps' and ends' values, rev's place, borrowing
+var a as int[]
+a.push(1)
+let it = a.map(fn(x) x * 2)
+print(a.map(fn(x) x).sum(1))
+print(a.filter(fn(x) x).count())
+print(a.map(fn(x, y) x).sum())
+print(a.take(2).rev().sum())
+print(a.map(fn(x)
+    return x
+end fn).sum())
+let r = (0..3)
+print(a.map(fn(x) a.pop()).sum())
+var s as string[]
+print(s.sum())
+print(a.zip(a).sum())
+print(5.sum())
+for mut x in a.filter(fn(x) x > 0)
+    print(x)
+end for
+for i, x in a.map(fn(x) x)
+    print(x)
+end for
+print(a.fold(0))
+print(a.map(fn(x as string) x).sum())

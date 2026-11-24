@@ -632,7 +632,7 @@ typedef enum : uint8_t {
    search path's, 1 the importing file's folder), its as; the module found (qr.c), QMOD_NONE not
    found. A name from gives: path its one token; mod its module when from's is a package's
    folder. */
-enum : uint32_t { QMOD_NONE = UINT32_MAX };
+enum : uint32_t { QMOD_NONE = UINT32_MAX, QMOD_QBASIC = UINT32_MAX - 1 };
 typedef struct QImport QImport;
 struct QImport {
     const QTok *tok; /* its first */

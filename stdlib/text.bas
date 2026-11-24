@@ -1,0 +1,51 @@
+' OPTION DIALECT QUICKR
+' text: searching, cases, splitting and joining strings
+public native fn find(s as string, sub as string) as int
+public native fn find_from(s as string, sub as string, start as int) as int
+public native fn upper(s as string) as string
+public native fn lower(s as string) as string
+public native fn trim(s as string) as string
+public native fn chr(code as int) as string
+public native fn code(s as string) as int
+public native fn hex(n as int) as string
+public native fn number(s as string) as double
+
+' s's parts between seps; one part, s, when sep is not there
+public fn split(s as string, sep as string) as string[]
+    var parts as string[]
+    var start = 0
+    var at = find(s, sep)
+    while at >= 0 and len(sep) > 0
+        parts.push(s[start..at])
+        start = at + len(sep)
+        at = find_from(s, sep, start)
+    end while
+    parts.push(s[start..])
+    return parts
+end fn
+
+public fn join(parts as string[], sep as string) as string
+    var b as Builder
+    for i in 0..len(parts)
+        if i > 0 then b.add(sep)
+        b.add(parts[i])
+    end for
+    return b.text()
+end fn
+
+' a string built in parts: add them, then take text()
+public type Builder
+    parts as string[]
+end type
+
+public fn add(mut b as Builder, s as string)
+    b.parts.push(s)
+end fn
+
+public fn text(b as Builder) as string
+    var s = ""
+    for p in b.parts
+        s = s + p
+    end for
+    return s
+end fn

@@ -1,3 +1,3 @@
 1
-rt_generic.qr:3: Subscript out of range
+rt_generic.bas:4: Subscript out of range
       return a[i]

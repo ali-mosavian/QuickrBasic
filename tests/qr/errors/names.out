@@ -1,27 +1,27 @@
-names.qr:2:7: unknown name nope
+names.bas:3:7: unknown name nope
   print(nope)
         ^
-names.qr:4:5: a is already declared
+names.bas:5:5: a is already declared
   let a = 2
       ^
-names.qr:7:4: f is already declared
+names.bas:8:4: f is already declared
   fn f()
      ^
-names.qr:9:1: f is a fn: call it
+names.bas:10:1: f is a fn: call it
   f = 3
   ^
-names.qr:10:7: print takes numbers, strings and bools, not a fn()
+names.bas:11:7: print takes numbers, strings and bools, not a fn()
   print(f)
         ^
-names.qr:11:1: unknown fn g
+names.bas:12:1: unknown fn g
   g()
   ^
-names.qr:13:1: h is not a fn
+names.bas:14:1: h is not a fn
   h()
   ^
-names.qr:14:11: unknown const later_var
+names.bas:15:11: unknown const later_var
   const C = later_var
             ^
-names.qr:17:11: unknown name local_of_other
+names.bas:18:11: unknown name local_of_other
       print(local_of_other)
             ^

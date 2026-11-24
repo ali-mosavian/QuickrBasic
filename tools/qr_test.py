@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """qr_test.py [-v] [NAME...]: Quickr's cases on the host build (BASIC_EXE, build/host/basic).
 
-tests/qr/NAME.qr must print NAME.out; tests/qr/errors/NAME.qr its compile errors, NAME.out, and run
+tests/qr/NAME.bas, a Quickr file, must print NAME.out; tests/qr/errors/NAME.bas its compile errors, NAME.out, and run
 nothing. A folder NAME/ beside a case holds the modules it imports, put beside it; NAME.in is its
 standard input, NAME.args its command line. --check must
 list the same errors, exit 1 on them and 0 on a clean program; --test must print NAME.test, if
@@ -24,14 +24,14 @@ CASES = ROOT / "tests/qr"
 
 def cases() -> dict[str, Path]:
     """Each case's name (errors/NAME for an error case): its program."""
-    found = sorted(CASES.glob("*.qr")) + sorted((CASES / "errors").glob("*.qr"))
+    found = sorted(CASES.glob("*.bas")) + sorted((CASES / "errors").glob("*.bas"))
     return {str(p.relative_to(CASES).with_suffix("")): p for p in found if p.with_suffix(".out").exists()}
 
 
 def named(text: str, name: str) -> str:
-    """The output, its job file's name (J0\\NAME.QR) as the case's own and its folder (J0\\) dropped
+    """The output, its job file's name (J0\\NAME.BAS) as the case's own and its folder (J0\\) dropped
     from a module's, its lines ended by \\n."""
-    text = re.sub(r"J\d+\\[A-Z0-9_]+\.QR", Path(name).name + ".qr", text.replace("\r\n", "\n"))
+    text = re.sub(r"J\d+\\[A-Z0-9_]+\.BAS", Path(name).name + ".bas", text.replace("\r\n", "\n"))
     return re.sub(r"J\d+\\", "", text)
 
 
@@ -86,7 +86,7 @@ def main() -> None:
     args = [a for a in sys.argv[1:] if a != "-v"]
     pick = {k: v for k, v in cases().items() if not args or k in args}
     jobs = {k: (v.read_text(), beside(v, ".in"), beside(v, ".args").strip(), modules(v)) for k, v in pick.items()}
-    res = dosrun.run_host(jobs, Path(tempfile.mkdtemp()), 10000, True, "QR")
+    res = dosrun.run_host(jobs, Path(tempfile.mkdtemp()), 10000, True)
     ok = 0
     for k, prog in pick.items():
         got = named(res[k].out, k)

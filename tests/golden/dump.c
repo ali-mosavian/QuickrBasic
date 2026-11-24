@@ -1,6 +1,6 @@
 /* codegen's golden dump: the file argv[1] loaded and linked, each stored line compiled; per line,
    its index and its code's bytes in hex. A load error: "error n". -f FILE: the code fused, as run;
-   -l FILE: as linked, its cells and frames resolved; -d FILE: that, each op by name. A .qr: -l or
+   -l FILE: as linked, its cells and frames resolved; -d FILE: that, each op by name. A Quickr file: -l or
    -d only. */
 #include <stdio.h>
 #include <string.h>
@@ -20,7 +20,7 @@ static void load(Session *const S)
 
 static void link(Session *const S) { link_start(&S->comp); }
 
-/* A .qr loaded and linked; a compile error, back to the caller. */
+/* A Quickr file loaded and linked; a compile error, back to the caller. */
 static void build(Session *const S)
 {
     if (qr_build(S))

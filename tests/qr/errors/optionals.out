@@ -1,36 +1,36 @@
-optionals.qr:7:9: none needs a T? place: write var x as T? = none
+optionals.bas:8:9: none needs a T? place: write var x as T? = none
   let p = none
           ^
-optionals.qr:8:16: none needs a T? place: write var x as T? = none
+optionals.bas:9:16: none needs a T? place: write var x as T? = none
   var q as int = none
                  ^
-optionals.qr:10:22: x? returns its error: only in a fn whose result is a T!
+optionals.bas:11:22: x? returns its error: only in a fn whose result is a T!
       let r = parse("")?
                        ^
-optionals.qr:16:9: Error(code, message) needs a T! place, as a fn's result
+optionals.bas:17:9: Error(code, message) needs a T! place, as a fn's result
   let e = Error(1, "x")
           ^
-optionals.qr:18:9: + takes numbers, not an int?
+optionals.bas:19:9: + takes numbers, not an int?
   print(w + 1)
           ^
-optionals.qr:19:6: is Error takes a T!, not an int?
+optionals.bas:20:6: is Error takes a T!, not an int?
   if w is Error then print(1)
        ^
-optionals.qr:20:9: ?? takes a T? or a T!, not an int
+optionals.bas:21:9: ?? takes a T? or a T!, not an int
   print(3 ?? 4)
           ^
-optionals.qr:21:10: x? takes a T!, not an int
+optionals.bas:22:10: x? takes a T!, not an int
   let u = 5?
            ^
-optionals.qr:22:13: expected the line's end, not ??
+optionals.bas:23:13: expected the line's end, not ??
   var v as int?? = 1
               ^
-optionals.qr:24:18: a string is not an int
+optionals.bas:25:18: a string is not an int
       return Error("x", 2)
                    ^
-optionals.qr:24:23: an int is not a string: write string(x)
+optionals.bas:25:23: an int is not a string: write string(x)
       return Error("x", 2)
                         ^
-optionals.qr:27:13: an int is not a string: write string(x)
+optionals.bas:28:13: an int is not a string: write string(x)
   print(m.get(1))
               ^

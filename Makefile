@@ -239,8 +239,8 @@ HOST_TAG := $(if $(filter Darwin,$(HOST_OS)),macos,linux-x86_64)
 HOST_SLICE := -shared -fPIC -ffreestanding -fvisibility=hidden $(if $(filter Linux,$(HOST_OS)),-nostdlib) \
 	$(if $(filter Darwin,$(HOST_OS)),-arch arm64 -arch x86_64 -mmacosx-version-min=13.0)
 
-# Quickr's standard library, stdlib/*.qr, in lib/ beside each interpreter: where a module is looked for last
-STDLIB := $(wildcard stdlib/*.qr)
+# Quickr's standard library, stdlib/*.bas, in lib/ beside each interpreter: where a module is looked for last
+STDLIB := $(wildcard stdlib/*.bas)
 build/%/lib/.stdlib: $(STDLIB)
 	mkdir -p $(@D) && cp $^ $(@D) && touch $@
 

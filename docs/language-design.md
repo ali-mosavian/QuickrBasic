@@ -23,7 +23,7 @@ Status: a draft for discussion. Items marked **Open** need a decision.
 ## A program
 
 ```basic
-' bounce.qr
+' OPTION DIALECT QUICKR
 from gfx import Window
 from keys import Key
 from math import Vec
@@ -66,11 +66,13 @@ end while
 
 ## Choosing the dialect
 
-- The file's extension picks the dialect: `.bas` is QBasic and `.qr` is Quickr. Nothing guesses
+- Files are `.bas` in both dialects. A Quickr file's first line is `' OPTION DIALECT QUICKR`
+  (case aside), a comment to QBasic; a file without it is QBasic's. The line is the file's line 1,
+  required in every Quickr file, modules too.
   from a file's contents.
 - File > New asks which. The status bar shows the file's dialect. `basic` runs either.
-- **Open:** whether a `.qr` file may import a `.bas` module. Proposed: yes, one way only. Its
-  procedures and TYPEs appear with Quickr types, and a `.bas` never imports a `.qr`.
+- **Open:** whether a Quickr file may import a QBasic module. Proposed: yes, one way only. Its
+  procedures and TYPEs appear with Quickr types, and a QBasic file never imports a Quickr one.
 
 ## What goes
 
@@ -619,7 +621,8 @@ print(r)                              ' a string from here on
 ### Modules
 
 - A file is a module and a folder is a package, found as QBasic's `IMPORT` finds one (the main
-  file's folder, each folder of `BASICLIB`, then `lib/` beside the interpreter), as a `.qr`.
+  file's folder, each folder of `BASICLIB`, then `lib/` beside the interpreter), as a `.bas`
+  whose first line says it is Quickr's.
 - `import gfx`, `import m as n`, `import a.b` (then `a.b.f()`), `from a.b import X, Y as Z`,
   `from pkg import m` (a package's module) and relative `from .feet import Land`: `.` is the
   importing file's folder, `..` its parent.
@@ -635,9 +638,9 @@ print(r)                              ' a string from here on
 - Across a cycle, declarations refer to each other freely: every fn, type and const is known
   before any body is checked.
 - An error, at compile time or run time, names the module's own file and line.
-- A `.qr` importing a `.bas` is not supported.
-- **In the VM**, each module's lines are the program store's, a module's before the modules that
-  import it and the main's last, so the vars start by running the lines in order.
+- A Quickr file importing a QBasic module is an error at the import.
+- **In the VM**, each module's lines are the program store's. The run goes through the modules
+  in the order above, the main's last: each module's last line goes on to the next one's first.
 
 ### Tests
 
@@ -652,14 +655,14 @@ end test
 - `test` blocks sit in any module. `basic --test` runs them; a program's build leaves them out.
 - `assert c` stops with the file, the line and the condition's text when `c` is false.
 - A test goes at a module's top level and runs as a fn of no parameters: `return` ends it.
-- `basic --test FILE.qr` runs the tests of the file and of each module it imports, a module's
+- `basic --test FILE.bas` runs the tests of the file and of each module it imports, a module's
   after those it imports, each in source order. Each prints `pass name`, or `FAIL name:
   file:line: why`, an assert's why its condition's text; then `3 passed, 1 failed`, the exit 1
   when one failed.
 - A false assert or a runtime error ends its test, its owners dropped, and the next one runs.
 - Under `--test` the main file's top level runs its declarations alone; modules start as in a
   run.
-- Outside a test, a false assert stops the program: `prog.qr:5: assert failed`, then the line.
+- Outside a test, a false assert stops the program: `prog.bas:5: assert failed`, then the line.
 - **In the VM**, a test is a procedure whose handler, ON LOCAL ERROR's, says the failure and
   RESUMEs at its `end test`. Each test's run is a line of its own after the program's.
 
@@ -764,9 +767,9 @@ Everything else is in a module.
 
 Each step is usable before the next starts:
 
-1. Lexer, parser and sema for the core, with `io` and `math`. Tests are `.qr` programs and their
+1. Lexer, parser and sema for the core, with `io` and `math`. Tests are Quickr programs and their
    output.
 2. `text`, `lists`, `maps`, `random`, `time`, `fs` and `os`.
 3. `keys`, `gfx` and `synth`, on the extensions already built.
 4. The IDE: New asks for the dialect, then highlighting, completion and help.
-5. A `.qr` program imports a `.bas` module, if that is decided.
+5. A Quickr program imports a QBasic module, if that is decided.

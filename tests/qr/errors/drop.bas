@@ -1,0 +1,36 @@
+' OPTION DIALECT QUICKR
+' drop: its errors
+type Res
+    name as string
+end type
+fn drop(mut r as Res)
+end fn
+fn drop(mut r as Res)
+end fn
+fn drop(r as int)
+end fn
+fn drop(mut n as int)
+end fn
+type Node
+    kids as Node[]
+    r as Res
+end type
+enum Shape
+    held(r as Res)
+end enum
+fn make() as Res
+    return Res("m")
+end fn
+fn gen() yields int
+    let r = Res("g")
+    yield 1
+end fn
+var a = Res("a")
+var b = Res("b")
+let c = copy(a)
+print(make().name)
+var m as Res[string]
+a, b = b, a
+for x in gen()
+    print(x)
+end for

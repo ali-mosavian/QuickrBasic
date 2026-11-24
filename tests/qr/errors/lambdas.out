@@ -1,36 +1,36 @@
-lambdas.qr:18:13: f is a lambda: call it or pass it on
+lambdas.bas:19:13: f is a lambda: call it or pass it on
       let g = f
               ^
-lambdas.qr:19:24: f is a lambda: call it outside another lambda
+lambdas.bas:20:24: f is a lambda: call it outside another lambda
       return apply(fn(v) f(v), 2)
                          ^
-lambdas.qr:24:17: the lambda takes one value here
+lambdas.bas:25:17: the lambda takes one value here
       print(apply(fn(a, b) a, 1))
                   ^
-lambdas.qr:25:25: + joins two strings: write string(x)
+lambdas.bas:26:25: + joins two strings: write string(x)
       print(apply(fn(v) v + "s", 1))
                           ^
-lambdas.qr:26:17: a fn(int, int) as int is not a fn(int) as int
+lambdas.bas:27:17: a fn(int, int) as int is not a fn(int) as int
       print(apply(twoargs, 1))
                   ^
-lambdas.qr:27:17: bump is no value: it takes mut
+lambdas.bas:28:17: bump is no value: it takes mut
       print(apply(bump, 1))
                   ^
-lambdas.qr:28:13: a lambda is passed to a fn's parameter
+lambdas.bas:29:13: a lambda is passed to a fn's parameter
       let f = fn(v) v
               ^
-lambdas.qr:30:9: k is a let: it can't change
+lambdas.bas:31:9: k is a let: it can't change
           k += x
           ^
-lambdas.qr:32:10: xs is lent mut to the lambda in this call
+lambdas.bas:33:10: xs is lent mut to the lambda in this call
       each(xs, fn(x as int)
            ^
-lambdas.qr:35:20: v is an int here, not a string
+lambdas.bas:36:20: v is an int here, not a string
       print(apply(fn(v as string) 1, 1))
                      ^
-lambdas.qr:36:26: a string is not an int
+lambdas.bas:37:26: a string is not an int
       print(apply(fn(v) v, "no"))
                            ^
-lambdas.qr:40:16: xs is borrowed by the for over it: it can't change here
+lambdas.bas:41:16: xs is borrowed by the for over it: it can't change here
               xs.push(y)
                  ^

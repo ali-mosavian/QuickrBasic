@@ -159,7 +159,7 @@ def run_host(
     jobs: dict[str, str | tuple], work: Path, limit_ms: int, file: bool, ext: str = "BAS"
 ) -> dict[str, Result]:
     """run's jobs with the host build, natively: the same files, names and streams, no DOSBox. ext: the
-    programs' extension, QR for Quickr's."""
+    programs' extension."""
     out: dict[str, Result] = {}
     for i, name in enumerate(jobs):
         prog, stdin, args, own = job(jobs[name])

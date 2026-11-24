@@ -548,7 +548,7 @@ static bool option(const char **const s, const char *const opt)
 }
 
 /* Run the file the command line names, then exit; no name: back. --check FILE: every compile
-   error reported, not run; the exit 1 if any. --test FILE.qr: its tests run instead. */
+   error reported, not run; the exit 1 if any. --test FILE, a Quickr one: its tests run instead. */
 static void run_file(Session *const S)
 {
     char tail[PFIL_PATH];

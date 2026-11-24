@@ -1,9 +1,9 @@
-generics.qr:8:14: can't compare a Vec with a Vec in largest[Vec]
+generics.bas:9:14: can't compare a Vec with a Vec in largest[Vec]
           if x > best then
                ^
-generics.qr:22:12: pair's types don't agree here
+generics.bas:23:12: pair's types don't agree here
   print(pair(1, "a"))
              ^
-generics.qr:23:7: can't tell T from the values given
+generics.bas:24:7: can't tell T from the values given
   print(none_of())
         ^

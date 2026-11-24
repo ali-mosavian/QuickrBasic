@@ -1,18 +1,18 @@
-native.qr:5:11: no native entry is named no_such_entry
+native.bas:6:11: no native entry is named no_such_entry
   native fn no_such_entry(x as int) as int
             ^
-native.qr:6:20: a native fn takes numbers, bools and strings, not mut
+native.bas:7:20: a native fn takes numbers, bools and strings, not mut
   native fn sqrt(mut x as double) as double
                      ^
-native.qr:7:17: a native fn takes numbers, bools and strings, not mut
+native.bas:8:17: a native fn takes numbers, bools and strings, not mut
   native fn floor(p as P) as P
                   ^
-native.qr:7:28: a native fn gives a number, a bool or a string
+native.bas:8:28: a native fn gives a number, a bool or a string
   native fn floor(p as P) as P
                              ^
-native.qr:8:1: a native fn is not generic and yields nothing
+native.bas:9:1: a native fn is not generic and yields nothing
   native fn find[T](s as T) as int
   ^
-native.qr:9:8: native goes before fn
+native.bas:10:8: native goes before fn
   native type Q
          ^

@@ -9,7 +9,8 @@
  * A selection from (sel_line, sel_col) to the cursor is a piece of one line, or whole lines when it
  * spans several. The insert mode, uimn.ed.insert, is every line buffer's.
  *
- * A native module's view (a .qbx's interface) is not changed: each edit asks edit_refused first.
+ * A native module's view (a .qbx's interface) is not changed, nor a Quickr file's first line, its
+ * dialect's: each edit asks edit_refused first.
  *
  * The immediate window keeps its last lines (uimn.imm); edit_imm_up and edit_imm_down recall them
  * into uimn.immline.
@@ -445,7 +446,29 @@ bool edit_refused_in(Session *const S, const uint32_t v)
     return true;
 }
 
-bool edit_refused(Session *const S) { return edit_refused_in(S, uimn.ed.view); }
+/* The cursor's line, or a line selected, a Quickr file's dialect line: true, refused with a beep,
+   the line as stored again. */
+static bool marker_refused(Session *const S)
+{
+    const uint32_t from =
+        uimn.ed.sel_on && uimn.ed.sel_line < uimn.ed.line ? uimn.ed.sel_line : uimn.ed.line;
+    const uint32_t to =
+        uimn.ed.sel_on && uimn.ed.sel_line > uimn.ed.line ? uimn.ed.sel_line : uimn.ed.line;
+
+    for (uint32_t line = from; line <= to; line++)
+        if (text_marker(S, uimn.text.first + line)) {
+            edit_load(S, uimn.ed.line);
+            pscr_beep();
+            return true;
+        }
+
+    return false;
+}
+
+bool edit_refused(Session *const S)
+{
+    return edit_refused_in(S, uimn.ed.view) || marker_refused(S);
+}
 
 /* The lines entered next view v's: its file's names, its declarations its file's, its procedure's.
    The module entered before (repl.module). */
@@ -694,10 +717,20 @@ static void reindent(LineBuf *const b, const uint16_t n)
 
 void edit_enter(Session *const S)
 {
+    LineBuf *const b = &uimn.edline;
+
+    if (b->col >= b->len && text_marker(S, uimn.text.first + uimn.ed.line)) { /* a line after */
+        const uint32_t line = uimn.ed.line + 1;
+        text_insert(S, line, b->text, 0);
+        changed();
+        edit_load(S, line);
+        b->col = 0;
+        return;
+    }
+
     if (edit_refused(S))
         return;
 
-    LineBuf *const b = &uimn.edline;
     const uint16_t lead = indent(b);
     uint16_t ind = lead > b->col ? b->col : lead;
 
@@ -743,6 +776,10 @@ void edit_bs(Session *const S)
 
     if (!line)
         return;
+    if (text_marker(S, uimn.text.first + line - 1)) {
+        pscr_beep();
+        return;
+    }
 
     uimn.ed.nlen = b->len; /* this line, kept */
     memcpy(edit_lb_need(S, &uimn.build, b->len), b->text, b->len);

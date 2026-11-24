@@ -1,0 +1,19 @@
+' OPTION DIALECT QUICKR
+' conversions: widening by itself, the rest written out; a literal typed by its place
+let n = 7
+let s as single = 1.5
+var d as double = n
+print(d)
+d = s
+print(d)
+let w as double = n * 2
+print(w)
+let r as single = 6
+print(r)
+print(n + s, n * 1.5, s + 1)
+print(int(3.9), int(-3.9), int(2.5), int(s))
+print(single(n) / 2, double(n) / 4)
+print(single(0.1), double(single(0.5)))
+print(string(42) + "!", string(-1), string(0.25), string(false))
+print(string(s), string(1e20))
+print(7 / 2, 8 / 2, s / s)

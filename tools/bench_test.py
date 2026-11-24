@@ -191,9 +191,9 @@ def quickr_ops(b: bench.Build) -> None:
     """Each Quickr bench case (tools/bench/qr) runs no more ops than its QBasic twin, a set-up op or
     two aside, and prints the same values. Unfused, its for loop not I.NEXT, and a fn's result a
     frame cell, it ran 2.1x QBasic's ops on loop and 1.9x on fib."""
-    cases = sorted(bench.QR.glob("*.qr"))
-    qr = bench.run_natives([b], {p.stem: p.read_text() for p in cases}, runs=1, ext="QR")[0]
-    qb = bench.run_native(b, {p.stem: p.with_suffix(".bas").read_text() for p in cases}, runs=1)
+    cases = sorted((bench.QR / "quickr").glob("*.bas"))
+    qr = bench.run_natives([b], {p.stem: p.read_text() for p in cases}, runs=1, quickr=True)[0]
+    qb = bench.run_native(b, {p.stem: (bench.QR / p.name).read_text() for p in cases}, runs=1)
     for k, q in qr.items():
         assert q.out.split() == qb[k].out.split(), (k, q.out, qb[k].out)
         assert q.ops <= qb[k].ops * 1.001, f"{k}: Quickr's {q.ops:,} ops, QBasic's {qb[k].ops:,}"
@@ -204,9 +204,9 @@ def quickr_push(b: bench.Build) -> None:
     one element a push (REDIM PRESERVE's way), it cost 4.0x. Differences, as the bench subtracts a
     baseline of its own: raw counts at 8000 pushes read 2.45x, the offset not the growth. A run's count
     swings by 1M, so n large enough to drown that."""
-    prog = "var a as int[]\nfor i in 0..{n}\n    a.push(i)\nend for\nprint(len(a))\n"
+    prog = bench.QUICKR + "var a as int[]\nfor i in 0..{n}\n    a.push(i)\nend for\nprint(len(a))\n"
     progs = {str(n): prog.format(n=n) for n in (32000, 64000, 128000)}
-    r = bench.run_natives([b], progs, runs=3, ext="QR")[0]
+    r = bench.run_natives([b], progs, runs=3, quickr=True)[0]
     ratio = (r["128000"].insns - r["64000"].insns) / (r["64000"].insns - r["32000"].insns)
     assert ratio < 2.3, f"doubling the pushes cost {ratio:.2f}x the last doubling"
 

@@ -1,33 +1,33 @@
-drop.qr:7:4: a Res has a drop already
+drop.bas:8:4: a Res has a drop already
   fn drop(mut r as Res)
      ^
-drop.qr:9:4: drop takes one mut record and gives nothing
+drop.bas:10:4: drop takes one mut record and gives nothing
   fn drop(r as int)
      ^
-drop.qr:11:4: drop takes one mut record, not an int
+drop.bas:12:4: drop takes one mut record, not an int
   fn drop(mut n as int)
      ^
-drop.qr:13:6: a Node has drop: it can't hold itself
+drop.bas:14:6: a Node has drop: it can't hold itself
   type Node
        ^
-drop.qr:18:10: an enum's data can't have drop
+drop.bas:19:10: an enum's data can't have drop
       held(r as Res)
            ^
-drop.qr:24:9: a generator can't own a Res
+drop.bas:25:9: a generator can't own a Res
       let r = Res("g")
           ^
-drop.qr:29:9: a Res has drop: it can't be copied
+drop.bas:30:9: a Res has drop: it can't be copied
   let c = copy(a)
           ^
-drop.qr:30:7: a Res has drop: keep it in a let first
+drop.bas:31:7: a Res has drop: keep it in a let first
   print(make().name)
         ^
-drop.qr:31:5: a map's values can't have drop
+drop.bas:32:5: a map's values can't have drop
   var m as Res[string]
       ^
-drop.qr:32:1: a, b = of values with drop: assign each
+drop.bas:33:1: a, b = of values with drop: assign each
   a, b = b, a
   ^
-drop.qr:32:4: a, b = of values with drop: assign each
+drop.bas:33:4: a, b = of values with drop: assign each
   a, b = b, a
      ^

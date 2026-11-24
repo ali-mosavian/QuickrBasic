@@ -1,3 +1,3 @@
 ok
-rt_assert.qr:5: assert failed
+rt_assert.bas:6: assert failed
   if x > 1 then assert x < 2

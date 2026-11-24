@@ -1,36 +1,36 @@
-operators.qr:6:13: an operator's first value is a record's
+operators.bas:7:13: an operator's first value is a record's
   fn operator +(a as int, b as int) as int
               ^
-operators.qr:9:13: an operator takes two plain values
+operators.bas:10:13: an operator takes two plain values
   fn operator *(a as Vec) as Vec
               ^
-operators.qr:12:13: operator = gives a bool
+operators.bas:13:13: operator = gives a bool
   fn operator =(a as Vec, b as Vec) as int
               ^
-operators.qr:15:13: an operator takes two plain values
+operators.bas:16:13: an operator takes two plain values
   fn operator -(mut a as Vec, b as Vec) as Vec
               ^
-operators.qr:21:13: a Vec has an operator + already
+operators.bas:22:13: a Vec has an operator + already
   fn operator +(a as Vec, b as Vec) as Vec
               ^
-operators.qr:24:13: an operator is not generic and yields nothing
+operators.bas:25:13: an operator is not generic and yields nothing
   fn operator +[T](a as T, b as T) as T
               ^
-operators.qr:27:13: expected +, -, *, /, = or < after operator, not **
+operators.bas:28:13: expected +, -, *, /, = or < after operator, not **
   fn operator ** (a as Vec, b as Vec) as Vec
               ^
-operators.qr:30:11: a Vec has no operator /
+operators.bas:31:11: a Vec has no operator /
   let w = v / v
             ^
-operators.qr:31:11: can't compare a Vec with a Vec
+operators.bas:32:11: can't compare a Vec with a Vec
   let c = v < v
             ^
-operators.qr:32:11: a chain of comparisons takes numbers or strings
+operators.bas:33:11: a chain of comparisons takes numbers or strings
   let d = v < v < v
             ^
-operators.qr:33:20: Size's operator - is not public
+operators.bas:34:20: Size's operator - is not public
   let s = Size(1, 2) - Size(1, 1)
                      ^
-operators.qr:35:1: a Vec has no operator -
+operators.bas:36:1: a Vec has no operator -
   u -= v
   ^

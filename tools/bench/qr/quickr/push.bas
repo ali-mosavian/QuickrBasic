@@ -1,0 +1,6 @@
+' OPTION DIALECT QUICKR
+var b as int[]
+for i in 0..4000
+    b.push(i)
+end for
+print(len(b), b[3999])

@@ -1,48 +1,48 @@
-generators.qr:10:11: a string is not an int
+generators.bas:11:11: a string is not an int
       yield "x"
             ^
-generators.qr:11:12: a generator's return takes no value: yield it
+generators.bas:12:12: a generator's return takes no value: yield it
       return 5
              ^
-generators.qr:14:14: loops loops over itself: its for is inlined
+generators.bas:15:14: loops loops over itself: its for is inlined
       for x in loops(n)
                ^
-generators.qr:18:33: a generator yields its values: it has no as type
+generators.bas:19:33: a generator yields its values: it has no as type
   fn both(n as int) as int yields int
                                   ^
-generators.qr:22:5: yield outside a generator: write fn g(..) yields T
+generators.bas:23:5: yield outside a generator: write fn g(..) yields T
       yield 1
       ^
-generators.qr:24:16: a generator's parameters are not mut
+generators.bas:25:16: a generator's parameters are not mut
   fn changes(mut n as int) yields int
                  ^
-generators.qr:27:5: a generator changes as it runs: keep it in a var
+generators.bas:28:5: a generator changes as it runs: keep it in a var
   let a = upto(3)
       ^
-generators.qr:29:7: b is a generator: call its next()
+generators.bas:30:7: b is a generator: call its next()
   print(b)
         ^
-generators.qr:30:9: b is a generator: call its next()
+generators.bas:31:9: b is a generator: call its next()
   var c = b
           ^
-generators.qr:31:9: a generator has next() alone
+generators.bas:32:9: a generator has next() alone
   print(b.size())
           ^
-generators.qr:32:5: a generator changes as it runs: keep it in a var
+generators.bas:33:5: a generator changes as it runs: keep it in a var
   let s = upto(4)
       ^
-generators.qr:34:5: x is the loop's counter: it can't change
+generators.bas:35:5: x is the loop's counter: it can't change
       x = 5
       ^
-generators.qr:36:1: for over a generator takes one name, not mut
+generators.bas:37:1: for over a generator takes one name, not mut
   for i, x in upto(2)
   ^
-generators.qr:45:9: upto is no value: it is a generator
+generators.bas:46:9: upto is no value: it is a generator
   let f = upto
           ^
-generators.qr:49:14: next() takes no values
+generators.bas:50:14: next() takes no values
   print(b.next(1) ?? 0)
                ^
-generators.qr:50:1: upto is a generator: loop over it with for, or keep it in a var
+generators.bas:51:1: upto is a generator: loop over it with for, or keep it in a var
   upto(3)
   ^

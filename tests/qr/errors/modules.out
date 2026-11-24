@@ -1,39 +1,39 @@
-modules.qr:3:8: no module nope
+modules.bas:4:8: no module nope
   import nope
          ^
-modules.qr:4:17: hidden is not public in lib
+modules.bas:5:17: hidden is not public in lib
   from lib import hidden, shown, missing
                   ^
-modules.qr:4:32: lib has no missing
+modules.bas:5:32: lib has no missing
   from lib import hidden, shown, missing
                                  ^
-modules.qr:5:4: lib is already declared
+modules.bas:6:4: lib is already declared
   fn lib()
      ^
-modules.qr:7:24: hidden is not public in lib
+modules.bas:8:24: hidden is not public in lib
   print(lib.shown(), lib.hidden(), lib.count, lib.nothing)
                          ^
-modules.qr:7:38: count is not public in lib
+modules.bas:8:38: count is not public in lib
   print(lib.shown(), lib.hidden(), lib.count, lib.nothing)
                                        ^
-modules.qr:7:49: lib has no nothing
+modules.bas:8:49: lib has no nothing
   print(lib.shown(), lib.hidden(), lib.count, lib.nothing)
                                                   ^
-modules.qr:8:14: lib has no Nope
+modules.bas:9:14: lib has no Nope
   var x as lib.Nope
                ^
-modules.qr:10:1: public goes before fn, native, type, enum, const, var or let
+modules.bas:11:1: public goes before fn, native, type, enum, const, var or let
   public print(1)
   ^
-modules.qr:12:5: import goes at the top level, not in a block
+modules.bas:13:5: import goes at the top level, not in a block
       import lib
       ^
-lib.qr:10:1: a module runs nothing: its top level has fn, type, enum, const, var, let and import
+lib.bas:11:1: a module runs nothing: its top level has fn, type, enum, const, var, let and import
   print("a module runs nothing")
   ^
-lib.qr:12:12: a string is not an int
+lib.bas:13:12: a string is not an int
       return "no"
              ^
-early.qr:2:24: late is not there yet: its module's vars start after this one's
+early.bas:3:24: late is not there yet: its module's vars start after this one's
   public let first = lib.late
                          ^

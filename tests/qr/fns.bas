@@ -1,0 +1,66 @@
+' OPTION DIALECT QUICKR
+' fns: called as a value or a statement, recursion, mut, defaults, names
+fn fact(n as int) as int
+    if n <= 1 then return 1
+    return n * fact(n - 1)
+end fn
+print(fact(10))
+fn fib(n as int) as int
+    if n < 2 then return n
+    return fib(n - 1) + fib(n - 2)
+end fn
+print(fib(20))
+fn hello(who as string)
+    print("hello", who)
+end fn
+hello("you")
+fn early(n as int)
+    if n < 0 then return
+    print("non-negative", n)
+end fn
+early(-1)
+early(2)
+fn swap(mut a as int, mut b as int)
+    let t = a
+    a = b
+    b = t
+end fn
+var x = 1
+var y = 2
+swap(mut x, mut y)
+print(x, y)
+fn add_to(mut total as double, n as int, times = 1)
+    total += n * times
+end fn
+var acc as double = 0.5
+add_to(mut acc, 2)
+add_to(mut acc, 3, times: 10)
+add_to(mut acc, times: 2, n: 1)
+print(acc)
+fn label(text as string, left = "[", right = "]") as string
+    return left + text + right
+end fn
+print(label("a"), label("b", "<"), label("c", right: ")"))
+fn pass_on(mut n as int)
+    swap(mut n, mut y)
+end fn
+var z = 9
+pass_on(mut z)
+print(z, y)
+fn half(v as double) as double
+    return v / 2
+end fn
+print(half(3), half(x))
+fn is_even(n as int) as bool
+    return n mod 2 = 0
+end fn
+fn is_odd(n as int) as bool
+    if n = 0 then return false
+    return is_even(n - 1)
+end fn
+print(is_odd(7), is_even(7))
+fn reads(n as int) as int
+    return n + 1
+end fn
+var r = 5
+print(reads(r), r)

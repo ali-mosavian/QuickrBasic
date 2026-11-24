@@ -1,0 +1,8 @@
+' OPTION DIALECT QUICKR
+' keys: codes; nothing waits headless, and no mouse
+import keys
+from keys import Key
+print(keys.code(Key.escape), keys.code(Key.up), keys.code(Key.q), keys.code(Key.space))
+print(keys.next(), keys.pressed(Key.b), keys.down(Key.z))
+let m = keys.mouse()
+print(m.x, m.y, m.left, m.right, keys.clicked())

@@ -1,0 +1,38 @@
+' OPTION DIALECT QUICKR
+' let, var, const: typed or inferred, module and local
+let a = 1
+let b as double = 2
+let c = 2.5
+let d = "text"
+let e = true
+var f as int
+var g as string
+var h as bool
+var i as single
+print(a, b, c, d, e)
+print(f, g, h, i)
+const K = 10
+const L = K * 2 + 1
+const M = "k" + "m"
+const P = 0.5
+print(K, L, M, P)
+var count = 0
+fn bump()
+    count += K
+end fn
+bump()
+bump()
+print(count)
+fn use_later() as int
+    return LATER + 1
+end fn
+const LATER = 41
+print(use_later())
+var x = 1
+if x = 1 then
+    let x2 = x + 1
+    print(x2)
+end if
+let Name = "upper"
+let name = "lower"
+print(Name, name)

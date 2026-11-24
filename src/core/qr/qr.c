@@ -1,4 +1,4 @@
-/* Quickr, the modern dialect: a .qr file and the modules it imports loaded, checked, linked and
+/* Quickr, the modern dialect: a Quickr file (its first line qr_dialect) and the modules it imports loaded, checked, linked and
  * run.
  *
  * # How it works
@@ -7,16 +7,16 @@
  * runs in stages, each over the whole file: lex (qlex), parse (qpar), check (qsem). Every error
  * any stage finds is reported, in the source's order, before anything runs:
  *
- *   prog.qr:3:7: unknown name y
+ *   prog.bas:3:7: unknown name y
  *     print(y)
  *           ^
  *
- * Each import loads its module's file once (found by io/locate.c, as a .qr): its lines, its own
+ * Each import loads its module's file once (found by io/locate.c, a .bas whose first line is qr_dialect): its lines, its own
  * tokens and its statements, after the main file's. The store holds a module's lines before those
  * of the modules importing it, the main's last, so the modules' vars start in that order.
  *
  * A clean program is linked (qlink) and run by the VM as a QBasic one is. A runtime error stops
- * it at its line: prog.qr:5: Division by zero, then the line.
+ * it at its line: prog.bas:5: Division by zero, then the line.
  *
  * The editor keeps a program's lines in the store as it reads them, each file's number its
  * module's, the main's first (ui/text.h); a module is read in after the rest. A run's lines, a
@@ -39,11 +39,43 @@
 
 enum { QR_CHUNK = 0x10000 }; /* the front end's arena's blocks at least */
 
+const char qr_dialect[] = "' OPTION DIALECT QUICKR";
+
+bool qr_marker(const char *const text, const uint32_t len)
+{
+    const uint32_t n = sizeof qr_dialect - 1;
+
+    if (len < n)
+        return false;
+
+    for (uint32_t i = 0; i < n; i++)
+        if (upcase((uint8_t)text[i]) != (uint8_t)qr_dialect[i])
+            return false;
+
+    for (uint32_t i = n; i < len; i++)
+        if (text[i] != ' ' && text[i] != '\r' && text[i] != '\n')
+            return false;
+
+    return true;
+}
+
 bool qr_is_file(const char *const path)
 {
-    const size_t n = strlen(path);
-    return n > 3 && path[n - 3] == '.' && downcase((uint8_t)path[n - 2]) == 'q' &&
-           downcase((uint8_t)path[n - 1]) == 'r';
+    PfilHandle h;
+
+    if (pfil_open(path, PFIL_READ, &h))
+        return false;
+
+    char head[sizeof qr_dialect + 2];
+    uint32_t got = 0;
+    pfil_read(h, head, sizeof head, &got);
+    pfil_close(h);
+    uint32_t n = 0;
+
+    while (n < got && head[n] != '\n')
+        n++;
+
+    return qr_marker(head, n);
 }
 
 /* A platform error dos, if any, raised as QBasic's. */
@@ -280,8 +312,8 @@ typedef struct {
     bool stored;
 } QrLoad;
 
-/* The module at path: p's of that path, else read in, a new module. Its number; QMOD_NONE when
-   the editor cannot read it. */
+/* The module at path: p's of that path, else read in, a new module. Its number; QMOD_QBASIC when
+   its file is not Quickr's, QMOD_NONE when the editor cannot read it. */
 static uint32_t qr_load(const QrLoad *const L, const char *const path)
 {
     QProg *const p = L->p;
@@ -290,6 +322,8 @@ static uint32_t qr_load(const QrLoad *const L, const char *const path)
         if (qr_same(p->mods[i].path, path))
             return i;
 
+    if (!qr_is_file(path))
+        return QMOD_QBASIC;
     if (!L->stored)
         return qr_module(L->S, p, L->m, path);
 
@@ -306,6 +340,25 @@ static uint32_t qr_load(const QrLoad *const L, const char *const path)
     modu_file(mu, k, path, k);
     qr_gather(L->S, p, L->m, k, path);
     return k;
+}
+
+/* Module im, named name (n bytes), not loaded: an error at it, QMOD_NONE its number. */
+static void qr_unloaded(QProg *const p, QImport *const im, const char *const name, uint32_t n)
+{
+    if (im->mod == QMOD_QBASIC)
+        qast_error(
+            &p->errs,
+            im->tok,
+            "{} is a QBasic module: its first line is not ' OPTION DIALECT QUICKR",
+            name,
+            n
+        );
+    else if (im->mod == QMOD_NONE)
+        qast_error(&p->errs, im->tok, "no module {}", name, n);
+    else
+        return;
+
+    im->mod = QMOD_NONE;
 }
 
 /* Module im of p, found from module k's file: loaded once, its number in im->mod; a package's
@@ -336,7 +389,7 @@ static void qr_find(const QrLoad *const L, const uint32_t k, QImport *const im, 
         .main = S->repl.file,
         .lib = syst_env(&S->syst, "BASICLIB"),
         .from = p->mods[k].path,
-        .ext = ".qr",
+        .ext = ".bas",
     };
 
     bool dir = false;
@@ -352,9 +405,7 @@ static void qr_find(const QrLoad *const L, const uint32_t k, QImport *const im, 
     }
 
     im->mod = qr_load(L, folder ? folder : path);
-
-    if (im->mod == QMOD_NONE)
-        qast_error(&p->errs, im->tok, "no module {}", dotted, n);
+    qr_unloaded(p, im, dotted, n);
 }
 
 /* A name from gives, of the package in folder: its module, loaded once. */
@@ -364,15 +415,13 @@ static void qr_part(const QrLoad *const L, const char *const dir, QImport *const
     char path[PFIL_PATH];
     const ImptName name = {.text = (const uint8_t *)im->tok->text, .len = (uint8_t)im->tok->len};
 
-    if (!locate_in(dir, &name, ".qr", path)) {
+    if (!locate_in(dir, &name, ".bas", path)) {
         qast_error(&p->errs, im->tok, "no module {} in the package", im->tok->text, im->tok->len);
         return;
     }
 
     im->mod = qr_load(L, path);
-
-    if (im->mod == QMOD_NONE)
-        qast_error(&p->errs, im->tok, "no module {} in the package", im->tok->text, im->tok->len);
+    qr_unloaded(p, im, im->tok->text, im->tok->len);
 }
 
 /* Each module module k's imports and froms name, loaded once. */

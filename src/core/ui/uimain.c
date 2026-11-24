@@ -686,7 +686,7 @@ static bool save_as(Session *const S)
     edit_commit(S);
 
     for (;;) {
-        if (!dlog_saveas(S, text_quickr(S)))
+        if (!dlog_saveas(S))
             return false;
         if (same_caseless(uimn.chosen, uimn.file))
             break;
