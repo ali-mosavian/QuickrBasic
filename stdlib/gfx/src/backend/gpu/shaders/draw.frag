@@ -3,11 +3,12 @@
 // pixel's centre, kept in its rectangle (u repeating with WRAP); an index through the palette's
 // row; keyed; lit and tinted, or the vertex's colour alone (SOLID); with ADD, alpha's share of it,
 // which the pipeline adds; with MIX, mixed by alpha with the pixel behind, read from its copy, as
-// px_mix mixes. Into an 8-bit target (EIGHT) it draws an index in every channel: a texel's index
-// through the row, lit and tinted, matched by the palette's map as pal_lut does; a colour, matched;
-// SOLID's, the vertex's red; a blend, of the two indices' colours in row 0, matched, as pal_blend's
-// table, ADD's too. SMOOTH mixes the four texels round the centre, lit, as software's
-// smooth span does, a keyed one adding nothing, and draws where they are mostly kept.
+// px_mix mixes. Into an 8-bit target (EIGHT) it draws an index, in alpha, and its colour in row 0:
+// a texel's index through the row, lit and tinted, matched by the palette's map as pal_lut does; a
+// colour, matched; SOLID's, the vertex's red; a blend, of the two indices' colours in row 0,
+// matched, as pal_blend's table, ADD's too. An index texel is in red, or alpha with ALPHA. SMOOTH
+// mixes the four texels round the centre, lit, as software's smooth span does, a keyed one adding
+// nothing, and draws where they are mostly kept.
 #version 450
 
 const uint INDEXED = 1u;
@@ -21,6 +22,7 @@ const uint SMOOTH = 128u;
 const uint ADD = 256u;
 const uint MIX = 512u;
 const uint EIGHT = 1024u;
+const uint ALPHA = 2048u;
 
 const uint FULL = 63u;
 
@@ -107,6 +109,17 @@ uint looked_up(uint index)
     return nearest(lit(colour_of(v_more.x, index), true));
 }
 
+// An index texel's index, 0 to 1.
+float index_in(vec4 c, uint stages) { return (stages & ALPHA) != 0u ? c.a : c.r; }
+
+uint index_of(vec4 c, uint stages) { return uint(index_in(c, stages) * 255.0 + 0.5); }
+
+// Index i drawn into an 8-bit target: its colour in row 0, and itself.
+vec4 eight_bit(uint i)
+{
+    return vec4(texelFetch(palette, ivec2(i, 0), 0).rgb, float(i) / 255.0);
+}
+
 // The texel at t, kept in the rectangle (u repeating with WRAP).
 vec4 fetched(ivec2 t, uint stages)
 {
@@ -124,7 +137,7 @@ bool kept(vec4 c, uint stages)
     if ((stages & KEYED) == 0u)
         return true;
 
-    return (stages & INDEXED) != 0u ? c.r >= 0.5 / 255.0 : c.a >= 0.5;
+    return (stages & INDEXED) != 0u ? index_in(c, stages) >= 0.5 / 255.0 : c.a >= 0.5;
 }
 
 // The texel at t, lit: as an index when indices, else a colour; *drawn false where keyed.
@@ -134,7 +147,7 @@ uvec3 texel(ivec2 t, uint stages, bool indices, out bool drawn)
     drawn = kept(c, stages);
 
     if ((stages & INDEXED) != 0u) {
-        uint index = uint(c.r * 255.0 + 0.5);
+        uint index = index_of(c, stages);
         return indices ? uvec3(looked_up(index)) : lit(colour_of(v_more.x, index), true);
     }
 
@@ -185,9 +198,9 @@ uvec3 blended(uvec3 c, uint stages)
     if (!eight && (stages & ADD) != 0u)
         return c * alpha / FULL;
 
-    uvec3 d = bytes(texelFetch(behind, ivec2(gl_FragCoord.xy), 0).rgb);
+    vec4 b = texelFetch(behind, ivec2(gl_FragCoord.xy), 0);
     uvec3 s = eight ? colour_of(0u, c.r) : c;
-    d = eight ? colour_of(0u, d.r) : d;
+    uvec3 d = eight ? colour_of(0u, index_of(b, ALPHA)) : bytes(b.rgb);
     uvec3 m = (stages & ADD) != 0u ? min(d + s * alpha / FULL, uvec3(255u))
                                    : (d * (FULL - alpha) + s * alpha) / FULL;
     return eight ? uvec3(nearest(m)) : m;
@@ -198,14 +211,15 @@ uvec3 blended(uvec3 c, uint stages)
 void simple(uint stages)
 {
     vec4 t = fetched(ivec2(floor(v_texel)), stages);
+    bool solid = (stages & SOLID) != 0u;
 
     if (!kept(t, stages))
         discard;
 
-    if ((stages & SOLID) != 0u)
-        t.rgb = vec3(v_tint.rgb) / 255.0;
-
-    colour = (stages & EIGHT) != 0u ? vec4(t.r) : vec4(t.rgb, 1.0);
+    if ((stages & EIGHT) != 0u)
+        colour = eight_bit(solid ? v_tint.r : index_of(t, stages));
+    else
+        colour = solid ? vec4(vec3(v_tint.rgb) / 255.0, 1.0) : vec4(t.rgb, 1.0);
 }
 
 void main()
@@ -237,6 +251,6 @@ void main()
     if ((stages & (ADD | MIX)) != 0u)
         c = blended(c, stages);
 
-    colour = eight ? vec4(float(c.r) / 255.0) : vec4(vec3(c) / 255.0, 1.0);
+    colour = eight ? eight_bit(c.r) : vec4(vec3(c) / 255.0, 1.0);
 }
 #endif

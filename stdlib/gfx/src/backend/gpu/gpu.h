@@ -7,13 +7,13 @@
  * drawn from or into, and again when the CPU wrote them since (the root's version). A root drawn
  * from, half a page or smaller, is packed into an atlas page (atlas.h). Drawn into, a root has a
  * texture of its own, named by its handle; packed, it leaves its page. An 8-bit root is indices: a
- * byte a texel drawn from, RGBA drawn into, its index in every channel. An 8-bit canvas is shown
- * through palette row 0 by a pass into GPU_SHOWN at each flip. The palette's texture holds its
- * rows, then row 0's map (palette.h), sent when a draw needs it. A root drawn into is ahead on the
- * GPU (drawn) until gpu_sync reads it back. A draw reads its picture and the palette. A texture
- * keeps the rows the CPU wrote since it was sent (gpu_wrote), so it sends only those. A root drawn
- * into with depth has a depth texture too (gpu_depth), made on that first draw, which every pass
- * into it keeps after.
+ * byte a texel drawn from; drawn into, RGBA, its colour through row 0 and its index in alpha. An
+ * 8-bit canvas is shown as it is, its colours made again at a flip after row 0 changed. The
+ * palette's texture holds its rows, then row 0's map (palette.h), sent when a draw needs it. A root
+ * drawn into is ahead on the GPU (drawn) until gpu_sync reads it back. A draw reads its picture and
+ * the palette. A texture keeps the rows the CPU wrote since it was sent (gpu_wrote), so it sends
+ * only those. A root drawn into with depth has a depth texture too (gpu_depth), made on that first
+ * draw, which every pass into it keeps after.
  *
  * A draw that reads what is behind its pixels (GpuCall.behind) reads a copy of its target, made
  * before it when the target changed under it since the last: drawn in, by a call before this one,
@@ -27,12 +27,11 @@
 #include "backend/gpu/list.h"
 #include "core/surface.h"
 
-/* The palette's texture, the copy of what is behind, an 8-bit canvas shown, the first atlas page's,
-   a page's side; a root's depth texture is its handle with GPU_DEPTH's kind. */
+/* The palette's texture, the copy of what is behind, the first atlas page's, a page's side; a
+   root's depth texture is its handle with GPU_DEPTH's kind. */
 enum {
     GPU_PALETTE = PIC_FONT + 1,
     GPU_BEHIND,
-    GPU_SHOWN,
     GPU_PAGE_FIRST,
     GPU_PAGE = 1024,
     GPU_DEPTH = 8,
@@ -66,12 +65,12 @@ typedef struct {
     uint16_t x, y, row;
 } GpuPage;
 
-/* Where a picture's root is: its texture, its place in it, whether it holds indices, and its
-   depth texture (0 none). */
+/* Where a picture's root is: its texture, its place in it, whether it holds indices and them in
+   alpha, and its depth texture (0 none). */
 typedef struct {
     uint32_t id;
     uint16_t x, y;
-    bool indexed;
+    bool indexed, alpha;
     uint32_t depth;
 } GpuSource;
 
@@ -98,6 +97,8 @@ typedef struct {
     GpuBox call;                /* drawn in the pass by this call */
     uint32_t palette;           /* the palette's changes when sent, and 1; 0 not yet */
     uint32_t mapped;            /* row 0's changes when the map was sent, and 1; 0 not yet */
+    uint32_t row0;              /* row 0's changes when the palette was last sent, and 1 */
+    uint32_t coloured;          /* those an 8-bit canvas's colours are of; 0 none */
     bool eight;                 /* the canvas is 8 bits */
     int32_t screen_w, screen_h; /* its size */
     float down;      /* the shader's: 1 where clip space's y runs down a texture's rows, else -1 */

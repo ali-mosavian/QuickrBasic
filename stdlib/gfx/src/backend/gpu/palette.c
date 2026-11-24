@@ -54,6 +54,7 @@ bool gpu_palette(Gpu *const g, Palette *const pal, const bool map)
         return false;
 
     g->palette = changes;
+    g->row0 = row0;
 
     if (!map || row0 == g->mapped)
         return true;

@@ -114,10 +114,6 @@ static void screen(Session *const S, const int32_t w, const int32_t h, const int
    comes before its first draw. */
 #define HEAD "BWBWBW"
 #define FIRST HEAD "TT"
-/* An 8-bit canvas's first list: its shown texture too. */
-#define FIRST8 FIRST "T"
-/* An 8-bit list's end: the canvas through row 0 into GPU_SHOWN, shown. */
-#define SHOWN8 "PNCDSE"
 
 /* The last list's ops, a letter each: End, Buffer, Write, Texture, Free, Upload, pipeLine, Pass,
    Clip, uNiforms, Draw, Show. */
@@ -520,7 +516,7 @@ TEST(gfx_gpu_draws_shapes_and_pictures_in_one_batch)
     GPU_CALL("draw.circle", I(SURF_SCREEN), F(4), F(4), F(2), I(3), I(GFX_DRAW_FILL));
     GPU_CALL("draw.circle", I(SURF_SCREEN), F(4), F(4), F(3), I(3), I(0));
     GPU_CALL("display.flip");
-    CHECK(ops(HEAD "PNCDLD" SHOWN8));
+    CHECK(ops(HEAD "PNCDLDSE"));
     CHECK(arg(QX_LIST_DRAW, 0, 7) == GPU_PAGE_FIRST + 1 && arg(QX_LIST_DRAW, 0, 5) == 4 * 6);
     CHECK(arg(QX_LIST_DRAW, 1, 2) == LIST_DISCS && arg(QX_LIST_DRAW, 1, 5) == 2 * 6);
     CHECK(vertices[0].stages == (GPU_STAGE_SOLID | GPU_STAGE_EIGHT));
@@ -584,13 +580,13 @@ TEST(gfx_gpu_sends_the_rows_written)
     GPU_CALL("surface.write", I(v), I(0), I(0), I(2), I(1), ARRAY(&a));
     GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(s), I(0));
     GPU_CALL("display.flip");
-    CHECK(ops(HEAD "PNCUD" SHOWN8) && arg(QX_LIST_UPLOAD, 0, 1) == GPU_PAGE_FIRST + 1);
+    CHECK(ops(HEAD "PNCUDSE") && arg(QX_LIST_UPLOAD, 0, 1) == GPU_PAGE_FIRST + 1);
     CHECK(arg(QX_LIST_UPLOAD, 0, 3) == 2 && arg(QX_LIST_UPLOAD, 0, 4) == 4);
     CHECK(arg(QX_LIST_UPLOAD, 0, 5) == 3 && arg(QX_LIST_UPLOAD, 0, 6) == 4);
 
     GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(s), I(0));
     GPU_CALL("display.flip");
-    CHECK(ops(HEAD "PNCD" SHOWN8));
+    CHECK(ops(HEAD "PNCDSE"));
 }
 
 /* SMOOTH asks the shader to mix a picture's texels. */
@@ -622,10 +618,10 @@ TEST(gfx_gpu_sends_a_picture_once)
 
     GPU_CALL("draw.sprite", I(SURF_SCREEN), F(1), F(1), I(s), I(GFX_DRAW_FLIP_X));
     GPU_CALL("display.flip");
-    CHECK(ops(FIRST8 "TUPNCUTULDPNCLDSE"));
+    CHECK(ops(FIRST "TUPNCUTULDSE"));
     CHECK(
-        arg(QX_LIST_TEXTURE, 4, 1) == GPU_PAGE_FIRST + 1 &&
-        arg(QX_LIST_TEXTURE, 4, 4) == QX_TEXTURE_INDEX
+        arg(QX_LIST_TEXTURE, 3, 1) == GPU_PAGE_FIRST + 1 &&
+        arg(QX_LIST_TEXTURE, 3, 4) == QX_TEXTURE_INDEX
     );
     CHECK(arg(QX_LIST_DRAW, 0, 7) == GPU_PAGE_FIRST + 1);
     CHECK(placed(&vertices[0], 0.5f, 0.5f) && vertices[0].u == 2 && vertices[1].u == 0);
@@ -634,20 +630,20 @@ TEST(gfx_gpu_sends_a_picture_once)
 
     GPU_CALL("draw.sprite", I(SURF_SCREEN), F(1), F(1), I(s), I(0));
     GPU_CALL("display.flip");
-    CHECK(ops(HEAD "PNCD" SHOWN8));
+    CHECK(ops(HEAD "PNCDSE"));
 
     GPU_CALL("surface.write", I(s), I(0), I(0), I(2), I(2), ARRAY(&a));
     GPU_CALL("draw.sprite", I(SURF_SCREEN), F(1), F(1), I(s), I(0));
     GPU_CALL("display.flip");
-    CHECK(ops(HEAD "PNCUD" SHOWN8));
+    CHECK(ops(HEAD "PNCUDSE"));
 
     GPU_CALL("surface.free", I(s));
     GPU_CALL("display.flip");
-    CHECK(ops(HEAD SHOWN8));
+    CHECK(ops(HEAD "SE"));
 }
 
 /* A surface drawn into is an RGBA target of its own; an 8-bit one drawn from first leaves its
-   page, and holds and is drawn from as indices, keyed. */
+   page, and holds and is drawn from as indices, in alpha, keyed. */
 TEST(gfx_gpu_draws_into_surfaces)
 {
     screen(S, 8, 8, 8);
@@ -656,13 +652,16 @@ TEST(gfx_gpu_draws_into_surfaces)
     GPU_CALL("draw.clear", I(s), I(4));
     GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(s), I(0));
     GPU_CALL("display.flip");
-    CHECK(ops(FIRST8 "TUPNCUTULDTPNCDPNCDPNCLDSE"));
+    CHECK(ops(FIRST "TUPNCUTULDTPNCDPNCDSE"));
     CHECK(
-        arg(QX_LIST_TEXTURE, 5, 1) == (uint32_t)s && arg(QX_LIST_TEXTURE, 5, 4) == QX_TEXTURE_RGBA
+        arg(QX_LIST_TEXTURE, 4, 1) == (uint32_t)s && arg(QX_LIST_TEXTURE, 4, 4) == QX_TEXTURE_RGBA
     );
     CHECK(arg(QX_LIST_PASS, 1, 1) == (uint32_t)s && arg(QX_LIST_DRAW, 2, 7) == (uint32_t)s);
     CHECK(arg(QX_LIST_CLIP, 1, 3) == 2);
-    CHECK(vertices[8].stages == (GPU_STAGE_INDEXED | GPU_STAGE_KEYED | GPU_STAGE_EIGHT));
+    CHECK(
+        vertices[8].stages ==
+        (GPU_STAGE_INDEXED | GPU_STAGE_ALPHA | GPU_STAGE_KEYED | GPU_STAGE_EIGHT)
+    );
     CHECK(vertices[4].r == 4 && vertices[4].g == 4 && vertices[4].b == 4);
 }
 
@@ -702,15 +701,30 @@ TEST(gfx_gpu_picks_the_simple_shader)
     CHECK(pipeline_kind(&v) == PIPELINE_PLAIN);
 }
 
-/* An 8-bit canvas is shown through palette row 0: its indices drawn into GPU_SHOWN, which is
-   shown; a flip with nothing drawn too, as the palette may have changed since. */
+/* An 8-bit canvas holds each pixel's colour in row 0 and is shown as it is. After row 0 changed,
+   the flip colours it again: its indices copied behind and drawn back through the row. Each flip
+   drew it through row 0 again, a pass a frame for nothing. */
 TEST(gfx_gpu_shows_8_bits_through_row_0)
 {
+    const uint16_t copy = GPU_STAGE_INDEXED | GPU_STAGE_ALPHA | GPU_STAGE_EIGHT;
+    int32_t row[256] = {[1] = 0x404040};
+
+    QxArray a = gfx_array(row, 256, 4);
+
     screen(S, 8, 8, 8);
     GPU_CALL("display.flip");
-    CHECK(ops(FIRST8 "UPNCLDSE") && arg(QX_LIST_PASS, 0, 1) == GPU_SHOWN);
-    CHECK(arg(QX_LIST_DRAW, 0, 7) == SURF_SCREEN && arg(QX_LIST_SHOW, 0, 1) == GPU_SHOWN);
-    CHECK(vertices[0].stages == GPU_STAGE_INDEXED && vertices[0].row == 0);
+    CHECK(ops(FIRST "USE") && arg(QX_LIST_SHOW, 0, 1) == SURF_SCREEN);
+    GPU_CALL("display.flip");
+    CHECK(ops(HEAD "SE"));
+
+    GPU_CALL("display.set_palette", I(0), ARRAY(&a));
+    GPU_CALL("display.flip");
+    CHECK(ops(HEAD "UTPNCLDPNCDSE") && arg(QX_LIST_PASS, 0, 1) == GPU_BEHIND);
+    CHECK(arg(QX_LIST_DRAW, 0, 7) == SURF_SCREEN && arg(QX_LIST_PASS, 1, 1) == SURF_SCREEN);
+    CHECK(arg(QX_LIST_DRAW, 1, 7) == GPU_BEHIND && arg(QX_LIST_SHOW, 0, 1) == SURF_SCREEN);
+    CHECK(vertices[0].stages == copy && vertices[4].stages == copy && vertices[4].row == 0);
+    GPU_CALL("display.flip");
+    CHECK(ops(HEAD "SE"));
 }
 
 /* At 8 bits ADD, as BLEND, reads a copy of behind, and the palette's map, sent below its rows
@@ -720,22 +734,22 @@ TEST(gfx_gpu_blends_8_bits_through_the_map)
     screen(S, 8, 8, 8);
     GPU_CALL("draw.rect", I(SURF_SCREEN), F(0), F(0), F(1), F(1), I(1), I(GFX_DRAW_FILL));
     GPU_CALL("display.flip");
-    CHECK(ops(FIRST8 "TUPNCULDPNCLDSE"));
+    CHECK(ops(FIRST "TUPNCULDSE"));
 
     GPU_CALL("draw.rect", I(SURF_SCREEN), F(0), F(0), F(1), F(1), I(1), I(GFX_DRAW_ADD));
     GPU_CALL("display.flip");
-    CHECK(ops(HEAD "PNCUTPNCDPNCD" SHOWN8) && arg(QX_LIST_UPLOAD, 0, 3) == PAL_ROWS);
+    CHECK(ops(HEAD "PNCUTPNCDPNCLDSE") && arg(QX_LIST_UPLOAD, 0, 3) == PAL_ROWS);
     CHECK(arg(QX_LIST_UPLOAD, 0, 5) == GPU_MAP_ROWS && arg(QX_LIST_DRAW, 1, 9) == GPU_BEHIND);
     CHECK(vertices[4].stages == (GPU_STAGE_SOLID | GPU_STAGE_ADD | GPU_STAGE_EIGHT));
 
     GPU_CALL("draw.set_light", I(20));
     GPU_CALL("draw.rect", I(SURF_SCREEN), F(0), F(0), F(1), F(1), I(1), I(GFX_DRAW_FILL));
     GPU_CALL("display.flip");
-    CHECK(ops(HEAD "PNCD" SHOWN8));
+    CHECK(ops(HEAD "PNCDSE"));
 }
 
-/* A read plays what was drawn and reads it back: 32 bits as they are; 8 bits the index in red,
-   whatever its colour. */
+/* A read plays what was drawn and reads it back: 32 bits as they are; 8 bits the index in alpha,
+   whatever its colour. Read from red, an 8-bit pixel read back as its colour's red. */
 TEST(gfx_gpu_reads_back)
 {
     screen(S, 4, 1, 32);
@@ -749,7 +763,7 @@ TEST(gfx_gpu_reads_back)
 
     screen(S, 4, 1, 8);
     GPU_CALL("draw.pset", I(SURF_SCREEN), F(0), F(0), I(4));
-    memcpy(pixels, (const uint8_t[]){4, 4, 4, 4, 201, 201, 201, 201}, 8);
+    memcpy(pixels, (const uint8_t[]){9, 9, 9, 4, 7, 7, 7, 201}, 8);
 
     CHECK(GPU_CALL("surface.point", I(SURF_SCREEN), I(0), I(0)).result.i == 4);
     CHECK(GPU_CALL("surface.point", I(SURF_SCREEN), I(1), I(0)).result.i == 201);

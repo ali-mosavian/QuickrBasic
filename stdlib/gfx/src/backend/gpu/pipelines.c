@@ -15,7 +15,8 @@ static_assert(PIPELINE_KINDS * BLENDS * DEPTHS <= 64, "a pipeline a bit of Gpu.m
 
 PipelineKind pipeline_kind(const GpuVertex *const v)
 {
-    const uint32_t plain = v->stages & ~(GPU_STAGE_KEYED | GPU_STAGE_WRAP | GPU_STAGE_EIGHT);
+    const uint32_t plain =
+        v->stages & ~(GPU_STAGE_KEYED | GPU_STAGE_WRAP | GPU_STAGE_EIGHT | GPU_STAGE_ALPHA);
     const bool unlit = v->r == 255 && v->g == 255 && v->b == 255 && v->light == PAL_FULL;
     const bool eight = v->stages & GPU_STAGE_EIGHT;
 

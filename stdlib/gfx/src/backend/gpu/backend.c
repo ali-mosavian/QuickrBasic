@@ -246,7 +246,7 @@ static bool source(Gx *const g, const Picture *const p)
     k->g = (uint8_t)(rgb >> 8);
     k->b = (uint8_t)rgb;
     k->stages = (uint16_t)((k->stages & CALL_STAGES) | (from.indexed ? GPU_STAGE_INDEXED : 0) |
-                           (t->solid ? GPU_STAGE_SOLID : 0));
+                           (from.alpha ? GPU_STAGE_ALPHA : 0) | (t->solid ? GPU_STAGE_SOLID : 0));
     return true;
 }
 

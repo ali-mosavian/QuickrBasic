@@ -85,6 +85,8 @@ bool gpu_open(Gpu *const g, const QxScreen *const s, const bool eight)
     g->call = NONE;
     g->palette = 0;
     g->mapped = 0;
+    g->row0 = 1;
+    g->coloured = 1; /* all index 0, black in the palette as it starts */
     g->eight = eight;
     g->screen_w = (int32_t)s->w;
     g->screen_h = (int32_t)s->h;
@@ -99,13 +101,11 @@ bool gpu_open(Gpu *const g, const QxScreen *const s, const bool eight)
     const uint32_t made[][4] = {
         {SURF_SCREEN, s->w, s->h, QX_TEXTURE_RGBA},
         {GPU_PALETTE, PAL_COLOURS, GPU_PALETTE_ROWS, QX_TEXTURE_RGBA},
-        {GPU_SHOWN, s->w, s->h, QX_TEXTURE_RGBA},
     };
 
     if (!canvas || !pipeline_speaks(s->shader) || !list_init(&g->list) ||
         !list_op(&g->list, QX_LIST_TEXTURE, made[0], 4) ||
-        !list_op(&g->list, QX_LIST_TEXTURE, made[1], 4) ||
-        (eight && !list_op(&g->list, QX_LIST_TEXTURE, made[2], 4)))
+        !list_op(&g->list, QX_LIST_TEXTURE, made[1], 4))
         return false;
 
     *canvas = (GpuTexture){.handle = SURF_SCREEN, .format = QX_TEXTURE_RGBA};
@@ -186,6 +186,7 @@ bool gpu_texture(Gpu *const g, const Picture *const p, const bool into, GpuSourc
             return false;
 
         g->behind = id == g->behind ? 0 : g->behind;
+        g->coloured = id == SURF_SCREEN ? 0 : g->coloured;
     }
 
     if (e->version != p->version)
@@ -194,7 +195,14 @@ bool gpu_texture(Gpu *const g, const Picture *const p, const bool into, GpuSourc
     e->version = p->version;
     e->drawn = e->drawn || into;
 
-    *out = (GpuSource){id, e->x, e->y, px->format == PX_8, e->depth ? depth_of(name) : 0};
+    *out = (GpuSource){
+        id,
+        e->x,
+        e->y,
+        px->format == PX_8,
+        px->format == PX_8 && e->format == QX_TEXTURE_RGBA,
+        e->depth ? depth_of(name) : 0,
+    };
 
     return true;
 }
@@ -388,16 +396,26 @@ static bool copy_box(
            list_draw(&g->list, v, 4, pipeline_id(k, QX_BLEND_NONE, 0), textures, OPAQUE, false);
 }
 
-/* The pass's texture copied to GPU_BEHIND, made or made larger first; only what the copy lacks,
-   when it is of this texture: false, no memory. */
-static bool copy_behind(Gpu *const g)
+/* An 8-bit texture's copy: its indices, coloured through row 0. */
+static constexpr uint16_t EIGHT_COPY = GPU_STAGE_INDEXED | GPU_STAGE_ALPHA | GPU_STAGE_EIGHT;
+
+/* Texture id, w by h, copied to GPU_BEHIND, made or made larger first; only what the copy lacks,
+   when it is of id; indices when eight. The pass ends. False, no memory. */
+static bool copy_behind(
+    Gpu *const g,
+    const uint32_t id,
+    const int32_t w,
+    const int32_t h,
+    const bool eight
+)
 {
-    const uint32_t id = g->pass, deep = g->deep;
-    const int32_t w = g->w, h = g->h;
-    const Rect clip = g->clip;
+    const uint16_t stages = eight ? EIGHT_COPY : 0;
     const GpuBox all = {-0.5f, -0.5f, (float)w - 0.5f, (float)h - 0.5f};
 
     const bool some = g->behind == id && g->ndirty <= GPU_DIRTY;
+
+    if (some && !g->ndirty)
+        return true;
 
     if (w > g->behind_w || h > g->behind_h) {
         const uint32_t name = GPU_BEHIND;
@@ -422,23 +440,28 @@ static bool copy_behind(Gpu *const g)
         return false;
 
     for (uint32_t i = 0; some && i < g->ndirty; i++)
-        if (!copy_box(g, id, w, h, g->dirty[i], 0))
+        if (!copy_box(g, id, w, h, g->dirty[i], stages))
             return false;
 
-    if (!some && !copy_box(g, id, w, h, all, 0))
+    if (!some && !copy_box(g, id, w, h, all, stages))
         return false;
 
     g->passing = false;
     g->behind = id;
     g->ndirty = 0;
-    return aim(g, id, deep, w, h, clip);
+    return true;
 }
 
 /* t's draw over box b: what is behind it copied first when it reads that and the copy lacks some.
    False, no memory. */
 static bool drawing(Gpu *const g, const GpuCall *const t, const GpuBox b)
 {
-    if (t->behind && stale(g, b) && !copy_behind(g))
+    const uint32_t id = g->pass, deep = g->deep;
+    const int32_t w = g->w, h = g->h;
+    const Rect clip = g->clip;
+
+    if (t->behind && stale(g, b) &&
+        (!copy_behind(g, id, w, h, t->eight) || !aim(g, id, deep, w, h, clip)))
         return false;
 
     g->call = joined(g->call, b);
@@ -482,25 +505,34 @@ bool gpu_discs(Gpu *const g, const GpuCall *const t, const GpuDisc *const v, con
            );
 }
 
-/* An 8-bit canvas's indices through palette row 0 into GPU_SHOWN: false, no memory. */
-static bool present(Gpu *const g)
+/* An 8-bit canvas's colours made again from its indices through row 0, when it changed since they
+   were: copied behind, drawn back. False, no memory. */
+static bool recolour(Gpu *const g)
 {
     const int32_t w = g->screen_w, h = g->screen_h;
     const GpuBox all = {-0.5f, -0.5f, (float)w - 0.5f, (float)h - 0.5f};
 
-    return aim(g, GPU_SHOWN, 0, w, h, (Rect){0, 0, w, h}) &&
-           copy_box(g, SURF_SCREEN, w, h, all, GPU_STAGE_INDEXED);
+    if (g->coloured == g->row0)
+        return true;
+
+    if (!copy_behind(g, SURF_SCREEN, w, h, true) ||
+        !aim(g, SURF_SCREEN, 0, w, h, (Rect){0, 0, w, h}) ||
+        !copy_box(g, GPU_BEHIND, w, h, all, EIGHT_COPY))
+        return false;
+
+    g->coloured = g->row0;
+    return true;
 }
 
 void gpu_play(Gpu *const g, const bool show)
 {
-    const uint32_t shown = g->eight ? GPU_SHOWN : SURF_SCREEN;
+    const uint32_t shown = SURF_SCREEN;
     uint32_t n;
 
     called(g);
 
     const bool ready =
-        !show || ((!g->eight || present(g)) && list_op(&g->list, QX_LIST_SHOW, &shown, 1));
+        !show || ((!g->eight || recolour(g)) && list_op(&g->list, QX_LIST_SHOW, &shown, 1));
     const uint32_t *const words = ready ? list_end(&g->list, &n) : nullptr;
 
     if (words)
