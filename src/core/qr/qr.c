@@ -129,6 +129,47 @@ static void qr_say(Session *const S, const QProg *const p, const QErr *const e)
         qr_mark(co, ln->text, ln->len, e->col);
 }
 
+/* Each instance's lines, copies of its generic's at the store's end, its statements on them: one
+   code block a line, each copy keeping its source's number and text. */
+static void qr_instances(Session *const S, QProg *const p, QMem *const m)
+{
+    uint32_t cap = p->src.nlines;
+    S->prog.add_flags = LF_QR;
+    S->prog.add_file = 0;
+
+    for (const QFn *f = p->fns; f; f = f->next) {
+        if (!f->of)
+            continue;
+
+        const uint32_t base = p->src.nlines;
+        const uint32_t first = f->of->def->tok->line;
+
+        for (uint32_t i = first; i <= f->of->end->tok->line; i++) {
+            const QLine ln = p->src.lines[i];
+            p->src.lines = qast_room(m, p->src.lines, p->src.nlines, &cap, sizeof *p->src.lines);
+            p->src.lines[p->src.nlines++] = (QLine){
+                .at = prog_at(&S->prog),
+                .text = ln.text,
+                .len = ln.len,
+                .src = ln.src,
+            };
+
+            S->prog.add_src = ln.src;
+            prog_add(&S->prog, NONUM, (const uint8_t *)ln.text, ln.len + 1);
+        }
+
+        for (QStmt *s = f->def;; s = s->next) {
+            s->line = base + s->tok->line - first;
+
+            if (s == f->end)
+                break;
+        }
+    }
+
+    S->prog.add_flags = 0;
+    S->prog.add_src = 0;
+}
+
 uint32_t qr_build(Session *const S)
 {
     QMem m = {.fault = &S->fault};
@@ -147,8 +188,10 @@ uint32_t qr_build(Session *const S)
     for (uint32_t i = 0; i < p.errs.n; i++)
         qr_say(S, &p, &p.errs.at[i]);
 
-    if (!p.errs.n)
+    if (!p.errs.n) {
+        qr_instances(S, &p, &m);
         qlink_program(&S->comp, &p, &m, S->dbug.emit);
+    }
 
     arena_reset(&m.arena);
     return p.errs.n;

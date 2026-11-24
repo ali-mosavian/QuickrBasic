@@ -193,7 +193,7 @@ static void qcg_flush(QCg *const g)
    with. */
 static void qcg_target(QCg *const g, const QStmt *const s, const uint32_t body, const JumpMode mode)
 {
-    code_dword(g->c, g->env->lines[s->tok->line].at);
+    code_dword(g->c, g->env->lines[s->line].at);
     code_dword(g->c, body);
     code_dword(g->c, mode);
 }

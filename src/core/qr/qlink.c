@@ -166,6 +166,9 @@ static void qlink_types(Comp *const C, const QProg *const p)
 static void qlink_procs(Comp *const C, const QProg *const p)
 {
     for (QFn *f = p->fns; f; f = f->next) {
+        if (qast_generic(f))
+            continue;
+
         Proc *const pr = blok_add_proc(C->blok, C->fault);
         f->proc = C->blok->procs.n - 1;
         const uint32_t name =
@@ -174,8 +177,8 @@ static void qlink_procs(Comp *const C, const QProg *const p)
         *pr = (Proc){
             .name = name,
             .kind = f->result == QY_VOID || f->byarg ? PK_SUB : PK_FUNC,
-            .first = p->src.lines[f->def->tok->line].at,
-            .last = p->src.lines[f->end->tok->line].at,
+            .first = p->src.lines[f->def->line].at,
+            .last = p->src.lines[f->end->line].at,
             .npar = (uint16_t)(f->npar + f->byarg),
         };
     }
@@ -202,6 +205,9 @@ static void qlink_vars(Comp *const C, const QProg *const p)
                 qlink_symb(sy, p, v->kind == QV_TEMP ? &hidden : v->name, v->type, qlink_scope(v));
 
     for (const QFn *f = p->fns; f; f = f->next) {
+        if (qast_generic(f))
+            continue;
+
         Proc *const pr = btab_at(&C->blok->procs, f->proc);
         const uint32_t n = pr->npar;
         pr->result = f->res && !f->byarg ? f->res->id : 0;
@@ -316,7 +322,10 @@ void qlink_program(Comp *const C, QProg *const p, QMem *const m, const bool dbg)
     const QStmt **const of = qast_alloc(m, (p->src.nlines ? p->src.nlines : 1) * sizeof *of);
 
     for (const QStmt *s = p->first; s; s = s->next)
-        of[s->tok->line] = s;
+        if (s->kind == QS_FN && qast_generic(s->fn)) /* no code: its instances have theirs */
+            s = s->fn->end;
+        else
+            of[s->line] = s;
 
     qlink_lines(C, p, m, of, dbg);
 

@@ -329,8 +329,11 @@ end fn
 
 - `[T]` after the name makes a function generic. The compiler makes one copy of it for each type
   used, so nothing is dispatched at run time.
-- A type is checked when the function is used: `largest` of a type with no `<` is an error at
-  that call.
+- A type is checked when the function is used: `largest` of a type with no `<` is an error in
+  its body, named for the copy: `can't compare a Vec with a Vec in largest[Vec]`.
+- Each `T` is read from the values given. A generic never used is never checked.
+- **In the VM**, each copy is the generic's tree parsed again with `T` bound, compiled onto copies
+  of its lines, so an error or the debugger shows the generic's own line.
 
 #### Function values and lambdas
 

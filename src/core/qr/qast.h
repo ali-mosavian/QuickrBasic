@@ -300,6 +300,13 @@ struct QFn {
     QStmt *def, *end;
     uint32_t proc; /* its procedure (comp/blocks.h), qlink's */
     QFn *next;     /* the program's next */
+    const QTok **tparams; /* fn f[T, U]: its type parameters */
+    uint32_t ntp;
+    QType *targs;  /* an instance's types for them */
+    const QFn *of; /* an instance's generic */
+    QFn *insts;    /* a generic's instances, by sibling */
+    QFn *sibling;
+    uint32_t ninst; /* a generic's instances made */
 };
 
 /* ---- expressions */
@@ -366,6 +373,7 @@ struct QExpr {
     bool neg;     /* QE_IN: not in */
     bool trunc;   /* QE_CONV: int(x) of a float, toward 0 */
     bool insert;  /* QE_INDEX of a map, assigned: its key added when not there */
+    bool done;    /* checked already: a generic call's argument, its T read from it */
     QBuiltin builtin;
     const QTok *tok; /* its first token; a binary's, its operator */
     QExpr *a, *b, *c;
@@ -449,6 +457,7 @@ struct QStmt {
     bool broken;  /* a loop's: a break leaves it */
     bool early;   /* a module const's: checked before the rest */
     const QTok *tok;
+    uint32_t line; /* its QLine, its code's: tok's, or an instance's own copy of it (qr.c) */
     QStmt *next, *prev;
     /* if, elseif, else: the next clause (elseif, else, end if); a loop's opener: its end; an end:
        its opener; break, continue: the loop's opener */
@@ -523,6 +532,8 @@ static inline bool qast_place(const QExpr *e)
 
     return e->kind == QE_NAME && e->var;
 }
+/* Is f a generic, f[T]'s definition: no code, each instance checked and compiled instead? */
+static inline bool qast_generic(const QFn *const f) { return f->ntp && !f->of; }
 /* Is e a value made fresh, no place's: a call's, a record's built? */
 static inline bool qast_fresh(const QExpr *const e)
 {

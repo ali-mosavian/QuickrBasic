@@ -610,6 +610,7 @@ static QStmt *qpar_new(QPar *const P, const QStmtKind kind, const QTok *const to
     QStmt *const s = qast_alloc(P->mem, sizeof *s);
     s->kind = kind;
     s->tok = tok;
+    s->line = tok->line;
     return s;
 }
 
@@ -868,8 +869,16 @@ static void qpar_fn(QPar *const P)
 
     P->lastfn = f;
 
-    if (qpar_is(P, QK_LBRACK))
-        qpar_later(P, P->t, "generic fns are");
+    if (qpar_take(P, QK_LBRACK)) {
+        uint32_t cap = 0;
+
+        do {
+            f->tparams = qast_room(P->mem, f->tparams, f->ntp, &cap, sizeof *f->tparams);
+            f->tparams[f->ntp++] = qpar_need(P, QK_NAME, "a type parameter's name");
+        } while (qpar_take(P, QK_COMMA));
+
+        qpar_need(P, QK_RBRACK, "]");
+    }
 
     qpar_need(P, QK_LPAREN, "(");
     uint32_t cap = 0;
@@ -1187,4 +1196,32 @@ void qpar_program(QProg *const p, QMem *const m)
     }
 
     qpar_unclosed(&P);
+}
+
+QFn *qpar_again(QProg *const p, QMem *const m, const QFn *const f)
+{
+    QPar P = {
+        .prog = p,
+        .mem = m,
+        .t = f->def->tok,
+        .last = p->first,
+        .lastfn = p->fns,
+    };
+
+    while (P.last->next)
+        P.last = P.last->next;
+    while (P.lastfn->next)
+        P.lastfn = P.lastfn->next;
+
+    do {
+        if (!setjmp(P.fail))
+            qpar_statement(&P);
+
+        while (P.t->kind != QK_NL && P.t->kind != QK_EOF)
+            P.t++;
+
+        qpar_take(&P, QK_NL);
+    } while (P.nopen && P.t->kind != QK_EOF);
+
+    return P.lastfn;
 }

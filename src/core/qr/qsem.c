@@ -31,6 +31,7 @@
  *    let h = 7 / 2           3.5: an untyped double, a double by the let
  */
 #include "qr/qsem.h"
+#include "qr/qpar.h"
 #include <stdarg.h>
 
 enum { QSEM_SAY = 160 }; /* an error's text at most */
@@ -95,11 +96,14 @@ static QVar *qsem_root(const QExpr *e);
 static QExpr *qsem_addressed(QSem *S, QExpr *e);
 static bool qsem_changes(QSem *S, const QExpr *e, const QTok *at);
 static QExpr *qsem_get(QSem *S, QExpr *e);
+static void qsem_signature(QSem *S, QFn *f);
 static QExpr *qsem_nameof(QSem *S, QVar *v, const QTok *tok);
 
 /* ---- errors */
 
-/* An error at t: the parts, to a null, joined. */
+static const char *qsem_instname(QSem *S, const QFn *f);
+
+/* An error at t: the parts, to a null, joined; in an instance, its name after them. */
 static void qsem_say(QSem *const S, const QTok *const t, ...)
 {
     char text[QSEM_SAY];
@@ -115,7 +119,11 @@ static void qsem_say(QSem *const S, const QTok *const t, ...)
     }
 
     va_end(ap);
-    qast_error(&S->prog->errs, t, "{}", text, n);
+    const char *const in = S->fn && S->fn->of ? qsem_instname(S, S->fn) : "";
+    const uint32_t k = (uint32_t)strlen(in);
+    const uint32_t room = k < QSEM_SAY - 1 - n ? k : QSEM_SAY - 1 - n;
+    memcpy(text + n, in, room);
+    qast_error(&S->prog->errs, t, "{}", text, n + room);
 }
 
 /* t's text as a C string, for qsem_say. */
@@ -1587,8 +1595,154 @@ static const QArg **qsem_given(
 }
 
 /* A call of fn f: its arguments by parameter, defaults where left out. */
-static QExpr *qsem_fncall(QSem *const S, QExpr *const e, QFn *const f)
+/* ---- generics */
+
+enum { QSEM_INSTS = 64 }; /* a generic's instances at most: past it, one calls itself growing */
+
+/* Instance f's type parameters bound to its types, in the scope open. */
+static void qsem_typeargs(QSem *const S, const QFn *const f)
 {
+    for (uint32_t j = 0; f->of && j < f->ntp; j++)
+        qsem_bindty(S, f->tparams[j], f->targs[j]);
+}
+
+/* Instance f's name as an error ends with it: " in f[int, Vec]". */
+static const char *qsem_instname(QSem *const S, const QFn *const f)
+{
+    const char *s = qsem_join(S, " in ", qsem_text(S, f->name), "[");
+
+    for (uint32_t j = 0; j < f->ntp; j++)
+        s = qsem_join(S, s, j ? ", " : "", qsem_tyname(S, f->targs[j]));
+
+    return qsem_join(S, s, "]", "");
+}
+
+/* Type as written x matched to type t: each type parameter of g it names found, into targs; false
+   when one is found twice, two ways. */
+static bool qsem_unify(
+    QSem *const S,
+    const QFn *const g,
+    const QTypeEx *const x,
+    const QType t,
+    QType *const targs
+)
+{
+    if (t == QY_ERROR)
+        return true;
+
+    if (x->kind == QX_NAME) {
+        for (uint32_t j = 0; j < g->ntp; j++)
+            if (qsem_same(g->tparams[j], x->tok)) {
+                const bool fits = !targs[j] || targs[j] == t;
+                targs[j] = targs[j] ? targs[j] : t;
+                return fits;
+            }
+
+        return true;
+    }
+
+    const QTy *const y = qast_compound(t) ? qast_ty(S->prog, t) : nullptr;
+
+    switch (x->kind) {
+    case QX_LIST:
+    case QX_ARRAY:
+        return !y || (y->kind != QT_LIST && y->kind != QT_ARRAY) ||
+               qsem_unify(S, g, x->elem, y->elem, targs);
+
+    case QX_OPT:
+    case QX_RES: /* a T for a T? too */
+        return qsem_unify(S, g, x->elem, qsem_wraps(S, t, QT_REC) ? qsem_inner(S, t) : t, targs);
+
+    case QX_TUPLE: {
+        bool fits = true;
+
+        for (uint32_t k = 0; y && y->kind == QT_TUPLE && k < x->n && k < y->nfields; k++)
+            fits &= qsem_unify(S, g, x->items[k], y->fields[k].type, targs);
+
+        return fits;
+    }
+
+    default:
+        return true;
+    }
+}
+
+/* Generic g's call e: its types read from the arguments, its instance of them found or made,
+   its signature checked; null after an error. Each argument read is checked here, once. */
+static QFn *qsem_instance(QSem *const S, QExpr *const e, QFn *const g)
+{
+    QType *const targs = qast_alloc(S->mem, g->ntp * sizeof *targs);
+    uint32_t k = 0;
+
+    for (QArg *a = e->args; a; a = a->next, k++) {
+        uint32_t at = k;
+
+        for (uint32_t i = 0; a->name && i < g->npar; i++)
+            at = qsem_same(g->params[i].name, a->name) ? i : at;
+
+        if (at >= g->npar || !g->params[at].type)
+            continue;
+
+        a->e = qsem_expr(S, a->e, QY_VOID);
+        a->e->done = true;
+
+        if (!qsem_unify(S, g, g->params[at].type, a->e->type, targs)) {
+            qsem_say(S, a->e->tok, qsem_text(S, g->name), "'s types don't agree here", nullptr);
+            return nullptr;
+        }
+    }
+
+    for (uint32_t j = 0; j < g->ntp; j++)
+        if (!targs[j]) {
+            qsem_say(
+                S,
+                e->tok,
+                "can't tell ",
+                qsem_text(S, g->tparams[j]),
+                " from the values given",
+                nullptr
+            );
+            return nullptr;
+        }
+
+    for (QFn *i = g->insts; i; i = i->sibling)
+        if (!memcmp(i->targs, targs, g->ntp * sizeof *targs))
+            return i->sig ? i : nullptr;
+
+    if (g->ninst == QSEM_INSTS) {
+        qsem_say(
+            S,
+            e->tok,
+            qsem_text(S, g->name),
+            " has too many instances: does it call itself with ever new types?",
+            nullptr
+        );
+        return nullptr;
+    }
+
+    QFn *const i = qpar_again(S->prog, S->mem, g);
+    i->of = g;
+    i->targs = targs;
+    i->sibling = g->insts;
+    g->insts = i;
+    g->ninst++;
+
+    QFn *const fn = S->fn;
+    qsem_push(S);
+    qsem_typeargs(S, i);
+    qsem_signature(S, i);
+    qsem_pop(S);
+    S->fn = fn;
+    return i->sig ? i : nullptr;
+}
+
+static QExpr *qsem_fncall(QSem *const S, QExpr *const e, QFn *f)
+{
+    if (qast_generic(f) && !(f = qsem_instance(S, e, f))) {
+        e->type = QY_ERROR;
+        return e;
+    }
+
     e->fn = f;
     e->type = f->result;
     e->nargv = f->npar;
@@ -2744,6 +2898,9 @@ static QExpr *qsem_expr(QSem *const S, QExpr *const e, const QType hint)
 {
     if (!e)
         return qsem_const(S, &S->prog->src.toks[0], QY_ERROR, (QVal){});
+
+    if (e->done)
+        return e;
 
     if ((e->kind == QE_NAME || e->kind == QE_FIELD || e->kind == QE_INDEX) && e->type != QY_VOID)
         return e; /* a place checked already: a compound assignment's */
@@ -3941,12 +4098,13 @@ static void qsem_module(QSem *const S)
 /* Fn f's body, its parameters in its scope. */
 static void qsem_body(QSem *const S, QFn *const f)
 {
-    if (!f->end || !f->sig)
+    if (!f->end || !f->sig || qast_generic(f))
         return;
 
     S->fn = f;
     const uint32_t marks = S->nmarks;
     qsem_push(S);
+    qsem_typeargs(S, f);
 
     for (uint32_t k = 0; k < f->npar; k++)
         qsem_bind(S, f->params[k].name, f->params[k].var, nullptr);
@@ -3976,7 +4134,8 @@ void qsem_program(QProg *const p, QMem *const m)
         qsem_typed(&S, QY_FIRST + i);
 
     for (QFn *f = p->fns; f; f = f->next)
-        qsem_signature(&S, f);
+        if (!qast_generic(f))
+            qsem_signature(&S, f);
 
     qsem_module(&S);
 
