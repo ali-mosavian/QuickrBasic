@@ -149,6 +149,8 @@ The editor takes both dialects. A file is Quickr's when its first line is `' OPT
 QBasic's otherwise, and a program is one or the other.
 
 - That first line is shown and saved but cannot be typed over, cut or joined: a file's dialect is fixed.
+- File, New asks the dialect; a Quickr program starts with that line. The status bar names the
+  program's dialect before its bar, when the errors' count leaves room.
 - A Quickr line is stored as typed, its text the record's body (`LF_QR`), and saved as typed.
 - The modules a Quickr program imports open as a QBasic program's do, each its own view after the
   main's. A Quickr file is one view: its fns stay where they are written, and F2 lists them under

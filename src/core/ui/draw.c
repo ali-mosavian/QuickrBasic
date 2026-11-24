@@ -391,13 +391,14 @@ static char *decimal(char *const dst, uint32_t v, const int n)
     return dst + n;
 }
 
-/* The count of lines with errors, at the end of the bar's left part when it fits past column c. */
-static void status_errors(Session *const S, const uint8_t c)
+/* The count of lines with errors, at the end of the bar's left part when it fits past column c;
+   the column it starts at, the bar's when none. */
+static uint8_t status_errors(Session *const S, const uint8_t c)
 {
     const uint32_t n = errs_count(S);
 
     if (!n)
-        return;
+        return from_right(STATUS_BAR);
 
     char text[24];
     char *d = text;
@@ -406,8 +407,21 @@ static void status_errors(Session *const S, const uint8_t c)
     memcpy(d, n == 1 ? " error)" : " errors)", n == 1 ? 8 : 9);
     const uint8_t at = (uint8_t)(from_right(STATUS_BAR) - 1 - strlen(text));
 
+    if (at <= c)
+        return from_right(STATUS_BAR);
+
+    scrn_str(status_row(), at, text, SL_SMSG, SL_SMSG);
+    return at;
+}
+
+/* The program's dialect, before column end when it fits past column c. */
+static void status_dialect(Session *const S, const uint8_t c, const uint8_t end)
+{
+    const char *const name = text_quickr(S) ? "Quickr" : "QBasic";
+    const uint8_t at = (uint8_t)(end - 1 - strlen(name));
+
     if (at > c)
-        scrn_str(status_row(), at, text, SL_SMSG, SL_SMSG);
+        scrn_str(status_row(), at, name, SL_SMSG, SL_SMSG);
 }
 
 /* The status bar's left: the cursor's line's error, else the keys and the errors' count; else F1
@@ -420,7 +434,8 @@ static bool status_left(Session *const S)
         const char *const err = errs_message(S);
 
         if (!err) {
-            status_errors(S, scrn_str(status_row(), 1, draw_keys()->text, SL_SMSG, SL_SMSG));
+            const uint8_t c = scrn_str(status_row(), 1, draw_keys()->text, SL_SMSG, SL_SMSG);
+            status_dialect(S, c, status_errors(S, c));
             return true;
         }
 

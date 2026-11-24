@@ -124,6 +124,9 @@ static const char s_overw[] = "File already exists. Overwrite?";
 static const char s_nomatch[] = "Match not found";
 static const char s_chdone[] = "Change complete";
 static const char s_notsaved[] = "Loaded file is not saved. Save it now?";
+static const char s_dialect[] = "The new program's dialect:";
+static const MsgButton bt_dialect[] = {{"Q&Basic", 10}, {"&Quickr", 10}, {uimn_cancel, 10}, {}};
+enum : uint8_t { DIALECT_QBASIC = 0, DIALECT_QUICKR = 1 };
 static const char s_access[] = "Path/File access error";
 static const char s_about[] = "QuickrBasic||A full-screen editor";
 static const char s_welcome[] = "Welcome to QuickrBasic||"
@@ -741,18 +744,26 @@ static void reset(Session *const S)
     edit_load(S, 0);
 }
 
-/* ui_new: File, New. */
+/* ui_new: File, New, in the dialect asked. */
 static void file_new(Session *const S)
 {
     if (!ask_save(S))
         return;
 
-    text_init(S, false);
+    const uint8_t dialect = dlog_msg(S, s_dialect, bt_dialect);
+
+    if (dialect > DIALECT_QUICKR)
+        return;
+
+    text_init(S, dialect == DIALECT_QUICKR);
     uimn.file[0] = 0;
     named(S);
     reset(S);
     undo_clear();
     jumps_clear();
+
+    if (dialect == DIALECT_QUICKR)
+        edit_load(S, 1); /* past the dialect's line */
 }
 
 /* fn, a load (repl_open, repl_relink), under its own boundary: the modules it read shown

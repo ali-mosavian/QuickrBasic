@@ -173,3 +173,26 @@ TEST(qride_run_stops_at_a_type_error)
     CHECK(uimn.edline.col == 18);
     fx_done(S, files);
 }
+
+/* File > New made a QBasic program, asking nothing; after a Quickr one, its lines Quickr's still (the
+   emptied store's first record read). The status bar named no dialect. */
+TEST(qride_new_asks_the_dialect)
+{
+    fx_open_program(S, "PRINT 1\n");
+    host_key_push(FX_TAB);
+    host_key_push(FX_ENTER);
+    uimn_act(S, ACT_NEW);
+    pkey_flush();
+    CHECK(text_quickr(S));
+    CHECK(fx_line_of(S, "' OPTION DIALECT QUICKR") == 0);
+    CHECK(uimn.ed.line == 1);
+    fx_shown(S);
+    CHECK(strstr(fx_row(24), "Quickr") != nullptr);
+    host_key_push(FX_ENTER);
+    uimn_act(S, ACT_NEW);
+    pkey_flush();
+    CHECK(!text_quickr(S));
+    fx_shown(S);
+    CHECK(strstr(fx_row(24), "QBasic") != nullptr);
+    fx_done(S, files);
+}

@@ -162,7 +162,10 @@ static bool spelling_fits(Session *const S, const uint32_t pre_len)
     return S->cons.sblen + pre_len <= LNMAX;
 }
 
-bool text_quickr(Session *const S) { return prog_line(&S->prog, PROGBASE)->flags & LF_QR; }
+bool text_quickr(Session *const S)
+{
+    return S->prog.end > PROGBASE && prog_line(&S->prog, PROGBASE)->flags & LF_QR;
+}
 
 bool text_marker(Session *const S, const uint32_t line)
 {
