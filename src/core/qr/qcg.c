@@ -1,27 +1,51 @@
-/* Quickr's code generator: a checked statement to the VM's stack code.
+/* Quickr's code generator: a checked statement to the VM's stack code, as QBasic's makes it.
  *
  * # How it works
  * Every operand is pushed, then its op: I.ADD, F.ADD, D.ADD by the operands' type, which sema
- * made one. A bool is an int, -1 true, as QBasic's compares give it. A variable is its id, a
- * parameter's through its ref (V.LD, V.ST); link_resolve (comp/select.c) places each.
+ * made one. A right operand that is one load folds into the operator (I.ADD.V, I.CMP.U8), and the
+ * line's code is fused (comp/fuse.c), as QBasic's is. A bool is an int, -1 true, as QBasic's
+ * compares give it. A variable is its id, a parameter's through its ref (V.LD, V.ST);
+ * link_resolve (comp/select.c) places each.
  *
- * Control flow across lines is the VM's jumps, each a line and a body offset: 0 the statement,
- * BOFF the line's end, which threads to the next line. Within a line (and, or, a if c else b,
- * chains, in) it is CALL QJ by an offset (qr/qrt.c), patched once its target is known.
+ * Control flow is the VM's jumps, each a line and a body offset: 0 the statement, BOFF the line's
+ * end, which threads to the next line. A jump within the line (and, or, a if c else b, chains)
+ * goes to a label: an entry of the line's statement map, body 1, 2 ... A jump drops the string
+ * temporaries, so with a string on the stack it is CALL QJ by an offset instead (qr/qrt.c). Fusion
+ * runs a segment at a time, ended where a jump lands or a QJ starts, so neither moves.
+ *
+ * A for loop is QBasic's FOR and NEXT: its limit made inclusive once the loop is entered, so its
+ * end for fuses to I.NEXT.UP or I.NEXT.DN; a step whose sign is known only when run, I.PAST.
  *
  * A string literal loads from its line's text in the program store; an escape is CHR$ of its
  * byte, joined on.
  *
  * # Example
- *    while i < n          I.LD.V i, I.LD.V n, I.CMP <, I.JF (end while's line, BOFF)
+ *    while i < n          I.LD.V i, I.JFC.V n < (end while's line, BOFF)
  *    end while            JMP (while's line, 0)
  */
 #include "qr/qcg.h"
+#include "comp/codegen.h"
+#include "comp/fuse.h"
 #include "num/double.h"
 #include "qr/qrt.h"
 #include "vm/exec.h"
 
 enum { TXT_MAX = 255 }; /* S.LD.TXT's length at most */
+
+/* The int and single operators a right operand folds into: by form (plain, a variable's load, a
+   literal's), then operator. */
+enum { QA_ADD, QA_SUB, QA_MUL, QA_DIV, QA_AND, QA_OR };
+static const uint8_t qcg_iops[3][6] = {
+    {O_I_ADD, O_I_SUB, O_I_MUL, O_I_DIV, O_I_AND, O_I_OR},
+    {O_I_ADD_V, O_I_SUB_V, O_I_MUL_V, O_I_DIV_V, O_I_AND_V, O_I_OR_V},
+    {O_I_ADD_U8, O_I_SUB_U8, O_I_MUL_U8, O_I_DIV_U8, O_I_AND_U8, O_I_OR_U8},
+};
+static const uint8_t qcg_fops[3][4] = {
+    {O_F_ADD, O_F_SUB, O_F_MUL, O_F_DIV},
+    {O_F_ADD_V, O_F_SUB_V, O_F_MUL_V, O_F_DIV_V},
+    {O_F_ADD_F32, O_F_SUB_F32, O_F_MUL_F32, O_F_DIV_F32},
+};
+static const uint8_t qcg_dops[4] = {O_D_ADD, O_D_SUB, O_D_MUL, O_D_DIV};
 
 /* A relation's D.CMP mask (num/double.h's DC_*). */
 static uint8_t qcg_mask(const QKind op)
@@ -83,36 +107,104 @@ static void qcg_store(Code *const c, const QVar *const v)
     code_opid(c, qcg_pick(v->type, O_I_ST_V, O_F_ST_V, O_D_ST_V, O_S_ST_V), v->id, qcg_par(v));
 }
 
+/* Is the code from right to the end one op, op, of size bytes? */
+static bool qcg_right(
+    const Code *const c,
+    const uint8_t *const right,
+    const uint8_t op,
+    const uint32_t size
+)
+{
+    return (uint32_t)(c->out - right) == size && *right == op;
+}
+
+/* Operator k (QA_*) of type w after its operands: the right one's load, at right, folded in when
+   one variable's or literal's. */
+static void qcg_arith(Code *const c, uint8_t *const right, const QType w, const uint32_t k)
+{
+    uint32_t form = 0;
+
+    if (w == QY_DOUBLE) {
+        code_op(c, qcg_dops[k]);
+        return;
+    }
+
+    if (w == QY_SINGLE) {
+        form = qcg_right(c, right, O_F_LD_V, 1 + VCELL) ? 1
+               : qcg_right(c, right, O_F_LD_F32, 5)     ? 2
+                                                        : 0;
+    } else {
+        form = qcg_right(c, right, O_I_LD_V, 1 + VCELL) ? 1
+               : qcg_right(c, right, O_I_LD_U8, 2)      ? 2
+                                                        : 0;
+    }
+
+    const uint8_t op = w == QY_SINGLE ? qcg_fops[form][k] : qcg_iops[form][k];
+
+    if (!form) {
+        code_op(c, op);
+        return;
+    }
+
+    *right = op;
+    c->iload = c->iloadend = nullptr; /* no longer a load */
+}
+
+/* A compare of two values of type w, the right one's load at right (folded when it can be). */
+static void qcg_compare(Code *const c, const QType w, const QKind op, uint8_t *const right)
+{
+    const uint8_t m = qcg_mask(op);
+
+    if (w == QY_SINGLE)
+        cg_fcmp(c, m, right);
+    else if (w == QY_DOUBLE || w == QY_STRING)
+        code_opb(c, w == QY_DOUBLE ? O_D_CMP : O_S_CMP, m);
+    else
+        cg_icmp(c, m, right);
+}
+
 /* ---- jumps */
+
+/* The code since the last segment's end fused; the next segment starts here. */
+static void qcg_flush(QCg *const g)
+{
+    Code *const c = g->c;
+
+    if (!c->full && c->out != g->seg) {
+        c->out = fuse_code(g->env->sy, g->seg, c->out);
+        c->iload = c->iloadend = c->cmp = c->cmpend = c->shend = nullptr;
+    }
+
+    g->seg = c->out;
+}
 
 /* A Jump to statement s's line: its start (body 0), its end (BOFF), or past the JMP it starts
    with. */
-static void qcg_target(
-    Code *const c,
-    const QCgEnv *const env,
-    const QStmt *const s,
-    const uint32_t body,
-    const JumpMode mode
-)
+static void qcg_target(QCg *const g, const QStmt *const s, const uint32_t body, const JumpMode mode)
 {
-    code_dword(c, env->lines[s->tok->line].at);
-    code_dword(c, body);
-    code_dword(c, mode);
+    code_dword(g->c, g->env->lines[s->tok->line].at);
+    code_dword(g->c, body);
+    code_dword(g->c, mode);
 }
 
 /* Jump op op to qcg_target's. */
 static void qcg_to(
-    Code *const c,
-    const QCgEnv *const env,
+    QCg *const g,
     const uint8_t op,
     const QStmt *const s,
     const uint32_t body,
     const JumpMode mode
 )
 {
-    code_op(c, op);
-    qcg_target(c, env, s, body, mode);
+    code_op(g->c, op);
+    qcg_target(g, s, body, mode);
 }
+
+/* A jump forward within the line, landed by qcg_land: a label's body, or a QJ's operand. */
+typedef struct {
+    uint32_t body;
+    uint8_t *qj;
+} QCgHop;
 
 /* CALL QJ when, its offset patched by qcg_land; null: the code is full, the line made again. */
 static uint8_t *qcg_qj(Code *const c, const QrtWhen when)
@@ -124,37 +216,72 @@ static uint8_t *qcg_qj(Code *const c, const QrtWhen when)
     return c->full ? nullptr : at;
 }
 
-/* The QJ whose operand is at at lands here. */
-static void qcg_land(Code *const c, uint8_t *const at)
+/* A jump within the line when: JMP, I.JF or I.JT to a label; with a string on the stack, QJ. */
+static QCgHop qcg_hop(QCg *const g, const QrtWhen when)
 {
-    if (!at || c->full)
+    static const uint8_t ops[] = {[QJ_ALWAYS] = O_JMP, [QJ_FALSE] = O_I_JF, [QJ_TRUE] = O_I_JT};
+
+    if (g->strings) { /* a segment of its own: fusion can't move it */
+        qcg_flush(g);
+        uint8_t *const at = qcg_qj(g->c, when);
+        qcg_flush(g);
+        return (QCgHop){.qj = at};
+    }
+
+    const uint32_t body = ++g->hops;
+    code_op(g->c, ops[when]);
+    code_dword(g->c, g->line);
+    code_dword(g->c, body);
+    code_dword(g->c, TO_STMT);
+    return (QCgHop){.body = body};
+}
+
+/* Hop h lands here: a label, its map entry's room taken from the code's; or the QJ's offset. */
+static void qcg_land(QCg *const g, const QCgHop h)
+{
+    qcg_flush(g);
+    Code *const c = g->c;
+
+    if (c->full)
         return;
 
-    const int32_t from = (int32_t)(at + 4 + 2 - c->buf);
-    const int32_t rel = (int32_t)(c->out - c->buf) - from;
-    store32(at, (uint32_t)(rel * (1 << QJ_SHIFT)) | load32(at));
+    if (h.qj) {
+        const int32_t from = (int32_t)(h.qj + 4 + 2 - c->buf);
+        const int32_t rel = (int32_t)(c->out - c->buf) - from;
+        store32(h.qj, (uint32_t)(rel * (1 << QJ_SHIFT)) | load32(h.qj));
+        return;
+    }
+
+    g->labels = qast_room(g->mem, g->labels, g->nlabels, &g->caplabels, sizeof *g->labels);
+    g->labels[g->nlabels++] = (QCgLabel){.body = h.body, .code = (uint32_t)(c->out - c->buf)};
+
+    c->lim -= sizeof(Stmt);
+
+    if (c->out > c->lim)
+        c->full = true;
 }
 
 /* ---- values */
 
-static void qcg_expr(Code *c, const QCgEnv *env, const QExpr *e);
+static void qcg_expr(QCg *g, const QExpr *e);
 
 /* A string constant's text: each literal's runs from its line, its escapes CHR$, joined. */
-static void qcg_string(Code *const c, const QCgEnv *const env, const QPiece *s)
+static void qcg_string(QCg *const g, const QPiece *s)
 {
+    Code *const c = g->c;
     bool first = true;
 
     if (!s) { /* "" */
         code_op(c, O_S_LD_TXT);
         code_byte(c, 0);
-        code_dword(c, env->base);
+        code_dword(c, g->env->base);
         return;
     }
 
     for (; s; s = s->next) {
         const QTok *const t = s->lit;
-        const QLine *const ln = &env->lines[t->line];
-        const Addr text = env->base + ln->at + HDR + (uint32_t)(t->text - ln->text);
+        const QLine *const ln = &g->env->lines[t->line];
+        const Addr text = g->env->base + ln->at + HDR + (uint32_t)(t->text - ln->text);
         uint32_t i = 0;
 
         do {
@@ -184,8 +311,9 @@ static void qcg_string(Code *const c, const QCgEnv *const env, const QPiece *s)
 }
 
 /* A constant as type as: an int's, a float's, a bool's -1 or 0, a string's. */
-static void qcg_const(Code *const c, const QCgEnv *const env, const QExpr *const e, const QType as)
+static void qcg_const(QCg *const g, const QExpr *const e, const QType as)
 {
+    Code *const c = g->c;
     const double d = e->type == QY_INT ? (double)e->val.i : e->val.d;
 
     switch (as) {
@@ -205,7 +333,7 @@ static void qcg_const(Code *const c, const QCgEnv *const env, const QExpr *const
     }
 
     case QY_STRING:
-        qcg_string(c, env, e->val.s);
+        qcg_string(g, e->val.s);
         return;
 
     case QY_BOOL:
@@ -249,43 +377,53 @@ static void qcg_convert(Code *const c, const QType from, const QType to)
 }
 
 /* e's value as type w: a constant made so, else converted. */
-static void qcg_as(Code *const c, const QCgEnv *const env, const QExpr *const e, const QType w)
+static void qcg_as(QCg *const g, const QExpr *const e, const QType w)
 {
     if (e->kind == QE_CONST) {
-        qcg_const(c, env, e, w);
+        qcg_const(g, e, w);
         return;
     }
 
-    qcg_expr(c, env, e);
-    qcg_convert(c, e->type, w);
+    qcg_expr(g, e);
+    qcg_convert(g->c, e->type, w);
 }
 
-static void qcg_compare(Code *const c, const QType w, const QKind op)
+/* e's value pushed, held under what follows: a string counted (qcg_hop). */
+static void qcg_hold(QCg *const g, const QType t, const int32_t by)
 {
-    code_opb(c, qcg_pick(w, O_I_CMP, O_F_CMP, O_D_CMP, O_S_CMP), qcg_mask(op));
+    if (t == QY_STRING)
+        g->strings += (uint32_t)by;
 }
 
-static void qcg_binary(Code *const c, const QCgEnv *const env, const QExpr *const e)
+static void qcg_binary(QCg *const g, const QExpr *const e)
 {
+    Code *const c = g->c;
     const QType w = e->work;
-    qcg_as(c, env, e->a, w);
-    qcg_as(c, env, e->b, w);
+    qcg_as(g, e->a, w);
+    qcg_hold(g, w, 1);
+    uint8_t *const right = c->out;
+    qcg_as(g, e->b, w);
+    qcg_hold(g, w, -1);
 
     switch (e->op) {
     case QK_PLUS:
-        code_op(c, qcg_pick(w, O_I_ADD, O_F_ADD, O_D_ADD, O_S_CAT));
+        if (w == QY_STRING)
+            code_op(c, O_S_CAT);
+        else
+            qcg_arith(c, right, w, QA_ADD);
+
         return;
 
     case QK_MINUS:
-        code_op(c, qcg_pick(w, O_I_SUB, O_F_SUB, O_D_SUB, 0));
+        qcg_arith(c, right, w, QA_SUB);
         return;
 
     case QK_STAR:
-        code_op(c, qcg_pick(w, O_I_MUL, O_F_MUL, O_D_MUL, 0));
+        qcg_arith(c, right, w, QA_MUL);
         return;
 
     case QK_SLASH:
-        code_op(c, w == QY_SINGLE ? O_F_DIV : O_D_DIV);
+        qcg_arith(c, right, w, QA_DIV);
         return;
 
     case QK_POW:
@@ -297,7 +435,7 @@ static void qcg_binary(Code *const c, const QCgEnv *const env, const QExpr *cons
         return;
 
     case QK_DIV:
-        code_op(c, O_I_DIV);
+        qcg_arith(c, right, QY_INT, QA_DIV);
         return;
 
     case QK_MOD:
@@ -305,11 +443,11 @@ static void qcg_binary(Code *const c, const QCgEnv *const env, const QExpr *cons
         return;
 
     case QK_AMP:
-        code_op(c, O_I_AND);
+        qcg_arith(c, right, QY_INT, QA_AND);
         return;
 
     case QK_BAR:
-        code_op(c, O_I_OR);
+        qcg_arith(c, right, QY_INT, QA_OR);
         return;
 
     case QK_SHL:
@@ -325,108 +463,105 @@ static void qcg_binary(Code *const c, const QCgEnv *const env, const QExpr *cons
     }
 }
 
-static void qcg_unary(Code *const c, const QCgEnv *const env, const QExpr *const e)
+static void qcg_unary(QCg *const g, const QExpr *const e)
 {
-    qcg_expr(c, env, e->a);
+    qcg_expr(g, e->a);
 
     if (e->op == QK_MINUS)
-        code_op(c, qcg_pick(e->type, O_I_NEG, O_F_NEG, O_D_NEG, 0));
+        code_op(g->c, qcg_pick(e->type, O_I_NEG, O_F_NEG, O_D_NEG, 0));
     else
-        code_op(c, O_I_NOT);
+        code_op(g->c, O_I_NOT);
 }
 
 /* Chain item k as the pair's type w: a middle's from its temporary. */
-static void qcg_item(
-    Code *const c,
-    const QCgEnv *const env,
-    const QExpr *const e,
-    const uint32_t k,
-    const QType w
-)
+static void qcg_item(QCg *const g, const QExpr *const e, const uint32_t k, const QType w)
 {
     if (!e->temps[k]) {
-        qcg_as(c, env, e->items[k], w);
+        qcg_as(g, e->items[k], w);
         return;
     }
 
-    qcg_load(c, e->temps[k]);
-    qcg_convert(c, e->items[k]->type, w);
+    qcg_load(g->c, e->temps[k]);
+    qcg_convert(g->c, e->items[k]->type, w);
 }
 
 /* a < b <= c from pair k on: the pair compared, a middle stored once; false, past the rest. */
-static void qcg_chain(
-    Code *const c,
-    const QCgEnv *const env,
-    const QExpr *const e,
-    const uint32_t k
-)
+static void qcg_chain(QCg *const g, const QExpr *const e, const uint32_t k)
 {
     const QType w = e->works[k];
-    qcg_item(c, env, e, k, w);
+    qcg_item(g, e, k, w);
+    qcg_hold(g, w, 1);
 
     if (e->temps[k + 1]) {
-        qcg_expr(c, env, e->items[k + 1]);
-        qcg_store(c, e->temps[k + 1]);
+        qcg_expr(g, e->items[k + 1]);
+        qcg_store(g->c, e->temps[k + 1]);
     }
 
-    qcg_item(c, env, e, k + 1, w);
-    qcg_compare(c, w, e->ops[k]);
+    uint8_t *const right = g->c->out;
+    qcg_item(g, e, k + 1, w);
+    qcg_hold(g, w, -1);
+    qcg_compare(g->c, w, e->ops[k], right);
 
     if (k + 2 >= e->n)
         return;
 
-    uint8_t *const no = qcg_qj(c, QJ_FALSE);
-    qcg_chain(c, env, e, k + 1);
-    uint8_t *const over = qcg_qj(c, QJ_ALWAYS);
-    qcg_land(c, no);
-    code_int(c, 0);
-    qcg_land(c, over);
+    const QCgHop no = qcg_hop(g, QJ_FALSE);
+    qcg_chain(g, e, k + 1);
+    const QCgHop over = qcg_hop(g, QJ_ALWAYS);
+    qcg_land(g, no);
+    code_int(g->c, 0);
+    qcg_land(g, over);
 }
 
 /* a and b, a or b. */
-static void qcg_logic(Code *const c, const QCgEnv *const env, const QExpr *const e)
+static void qcg_logic(QCg *const g, const QExpr *const e)
 {
     const bool and = e->kind == QE_AND;
-    qcg_expr(c, env, e->a);
-    uint8_t *const skip = qcg_qj(c, and? QJ_FALSE : QJ_TRUE);
-    qcg_expr(c, env, e->b);
-    uint8_t *const over = qcg_qj(c, QJ_ALWAYS);
-    qcg_land(c, skip);
-    code_int(c, and? 0 : 0xFFFFFFFFu);
-    qcg_land(c, over);
+    qcg_expr(g, e->a);
+    const QCgHop skip = qcg_hop(g, and? QJ_FALSE : QJ_TRUE);
+    qcg_expr(g, e->b);
+    const QCgHop over = qcg_hop(g, QJ_ALWAYS);
+    qcg_land(g, skip);
+    code_int(g->c, and? 0 : 0xFFFFFFFFu);
+    qcg_land(g, over);
 }
 
-static void qcg_cond(Code *const c, const QCgEnv *const env, const QExpr *const e)
+/* a if c else b: a's value on the stack at the jump past b. */
+static void qcg_cond(QCg *const g, const QExpr *const e)
 {
-    qcg_expr(c, env, e->c);
-    uint8_t *const other = qcg_qj(c, QJ_FALSE);
-    qcg_expr(c, env, e->a);
-    uint8_t *const over = qcg_qj(c, QJ_ALWAYS);
-    qcg_land(c, other);
-    qcg_expr(c, env, e->b);
-    qcg_land(c, over);
+    qcg_expr(g, e->c);
+    const QCgHop other = qcg_hop(g, QJ_FALSE);
+    qcg_expr(g, e->a);
+    qcg_hold(g, e->type, 1);
+    const QCgHop over = qcg_hop(g, QJ_ALWAYS);
+    qcg_hold(g, e->type, -1);
+    qcg_land(g, other);
+    qcg_expr(g, e->b);
+    qcg_land(g, over);
 }
 
 /* x in a..b: a <= x and x < b, x once. */
-static void qcg_in(Code *const c, const QCgEnv *const env, const QExpr *const e)
+static void qcg_in(QCg *const g, const QExpr *const e)
 {
+    Code *const c = g->c;
     const QType w = e->work;
 
     if (e->var) {
-        qcg_expr(c, env, e->a);
+        qcg_expr(g, e->a);
         qcg_store(c, e->var);
     }
-
-    const QExpr *const x = e->a;
 
     for (uint32_t side = 0; side < 2; side++) {
         if (e->var)
             qcg_load(c, e->var);
         else
-            qcg_as(c, env, x, w);
+            qcg_as(g, e->a, w);
 
-        qcg_as(c, env, side ? e->c : e->b, w);
-        qcg_compare(c, w, side ? QK_LT : QK_GE);
+        qcg_hold(g, w, 1);
+        uint8_t *const right = c->out;
+        qcg_as(g, side ? e->c : e->b, w);
+        qcg_hold(g, w, -1);
+        qcg_compare(c, w, side ? QK_LT : QK_GE, right);
     }
 
     /* the first compare's flag is under the second's: and of -1 and 0 */
@@ -437,8 +572,10 @@ static void qcg_in(Code *const c, const QCgEnv *const env, const QExpr *const e)
 }
 
 /* print(a, b): each spelled, a space between, a new line. */
-static void qcg_print(Code *const c, const QCgEnv *const env, const QExpr *const e)
+static void qcg_print(QCg *const g, const QExpr *const e)
 {
+    Code *const c = g->c;
+
     for (uint32_t i = 0; i < e->nargv; i++) {
         const QExpr *const a = e->argv[i];
 
@@ -447,7 +584,7 @@ static void qcg_print(Code *const c, const QCgEnv *const env, const QExpr *const
             code_call(c, K_QPR);
         }
 
-        qcg_expr(c, env, a);
+        qcg_expr(g, a);
         const QType t = a->type;
         code_int(
             c,
@@ -464,14 +601,16 @@ static void qcg_print(Code *const c, const QCgEnv *const env, const QExpr *const
 }
 
 /* A fn's call: each argument a value cell and its ref; a var by its own cell. */
-static void qcg_call(Code *const c, const QCgEnv *const env, const QExpr *const e)
+static void qcg_call(QCg *const g, const QExpr *const e)
 {
     if (e->builtin == QB_PRINT) {
-        qcg_print(c, env, e);
+        qcg_print(g, e);
         return;
     }
 
+    Code *const c = g->c;
     const QFn *const f = e->fn;
+    uint32_t held = 0;
 
     for (uint32_t k = 0; k < f->npar; k++) {
         const QParam *const p = &f->params[k];
@@ -484,60 +623,63 @@ static void qcg_call(Code *const c, const QCgEnv *const env, const QExpr *const 
             continue;
         }
 
-        qcg_expr(c, env, a);
+        qcg_expr(g, a);
         code_opb(c, O_BYVAL, a->type == QY_STRING);
+        held += a->type == QY_STRING;
+        qcg_hold(g, a->type, 1);
     }
 
+    g->strings -= held;
     code_op(c, O_PCALL); /* the procedure, its locals' cells, its parameters (link's), its body */
     code_dword(c, f->proc);
     code_dword(c, 0);
     code_word(c, 0);
-    qcg_target(c, env, f->def, 0, PAST_JMP);
+    qcg_target(g, f->def, 0, PAST_JMP);
 }
 
-static void qcg_expr(Code *const c, const QCgEnv *const env, const QExpr *const e)
+static void qcg_expr(QCg *const g, const QExpr *const e)
 {
     switch (e->kind) {
     case QE_CONST:
-        qcg_const(c, env, e, e->type);
+        qcg_const(g, e, e->type);
         return;
 
     case QE_NAME:
-        qcg_load(c, e->var);
+        qcg_load(g->c, e->var);
         return;
 
     case QE_UNARY:
-        qcg_unary(c, env, e);
+        qcg_unary(g, e);
         return;
 
     case QE_BINARY:
-        qcg_binary(c, env, e);
+        qcg_binary(g, e);
         return;
 
     case QE_CHAIN:
-        qcg_chain(c, env, e, 0);
+        qcg_chain(g, e, 0);
         return;
 
     case QE_AND:
     case QE_OR:
-        qcg_logic(c, env, e);
+        qcg_logic(g, e);
         return;
 
     case QE_COND:
-        qcg_cond(c, env, e);
+        qcg_cond(g, e);
         return;
 
     case QE_IN:
-        qcg_in(c, env, e);
+        qcg_in(g, e);
         return;
 
     case QE_CALL:
-        qcg_call(c, env, e);
+        qcg_call(g, e);
         return;
 
     case QE_CONV:
-        qcg_expr(c, env, e->a);
-        qcg_convert(c, e->a->type, e->type);
+        qcg_expr(g, e->a);
+        qcg_convert(g->c, e->a->type, e->type);
         return;
     }
 }
@@ -545,23 +687,18 @@ static void qcg_expr(Code *const c, const QCgEnv *const env, const QExpr *const 
 /* ---- statements */
 
 /* A variable's zero: 0, 0.0, false, "". */
-static void qcg_zero(Code *const c, const QCgEnv *const env, const QType t)
+static void qcg_zero(QCg *const g, const QType t)
 {
     const QExpr zero = {.kind = QE_CONST, .type = t};
 
-    qcg_const(c, env, &zero, t);
+    qcg_const(g, &zero, t);
 }
 
 /* A clause's target from the one before it: past an elseif's or else's JMP, or the end if. */
-static void qcg_clause(
-    Code *const c,
-    const QCgEnv *const env,
-    const uint8_t op,
-    const QStmt *const next
-)
+static void qcg_clause(QCg *const g, const uint8_t op, const QStmt *const next)
 {
     const JumpMode mode = next->kind == QS_ENDIF ? TO_STMT : PAST_JMP;
-    qcg_to(c, env, op, next, 0, mode);
+    qcg_to(g, op, next, 0, mode);
 }
 
 /* The end if of the if whose clause s is. */
@@ -573,46 +710,67 @@ static const QStmt *qcg_endif(const QStmt *s)
     return s;
 }
 
-/* A for's test: the counter not past its limit, by its step's sign. */
-static void qcg_fortest(Code *const c, const QCgEnv *const env, const QStmt *const s)
+/* The flag of for s's counter past its limit, its step's sign known (by) or not (I.PAST).
+   entered: the limit inclusive, as end for makes it; else the range's end, past when reached. */
+static void qcg_past(QCg *const g, const QStmt *const s, const bool entered)
 {
-    const QKind ops[2] = {QK_LT, QK_GT};
+    Code *const c = g->c;
+    qcg_load(c, s->var);
 
-    uint8_t *down = nullptr, *over = nullptr;
-
-    for (uint32_t dir = 0; dir < 2; dir++) {
-        if (!s->stp && (dir == 0) != (s->by > 0))
-            continue;
-
-        if (s->stp && !dir) {
-            qcg_load(c, s->stp);
-            code_int(c, 0);
-            qcg_compare(c, QY_INT, QK_GT);
-            down = qcg_qj(c, QJ_FALSE);
-        }
-
-        if (s->stp && dir)
-            qcg_land(c, down);
-
-        qcg_load(c, s->var);
-
-        if (s->lim)
-            qcg_load(c, s->lim);
-        else
-            qcg_const(c, env, s->to, QY_INT);
-
-        qcg_compare(c, QY_INT, ops[dir]);
-
-        if (s->stp && !dir)
-            over = qcg_qj(c, QJ_ALWAYS);
+    if (s->by) {
+        uint8_t *const right = c->out;
+        qcg_load(c, s->lim);
+        qcg_compare(
+            c,
+            QY_INT,
+            s->by > 0 ? (entered ? QK_GT : QK_GE) : (entered ? QK_LT : QK_LE),
+            right
+        );
+        return;
     }
 
-    qcg_land(c, over);
+    qcg_load(c, s->lim);
+    qcg_load(c, s->stp);
+    code_op(c, O_I_PAST);
+
+    if (entered)
+        return;
+
+    qcg_load(c, s->var);
+    uint8_t *const right = c->out;
+    qcg_load(c, s->lim);
+    qcg_compare(c, QY_INT, QK_EQ, right);
+    code_op(c, O_I_OR);
+}
+
+/* For s's limit made inclusive, the loop entered: the range's end less the step's sign. */
+static void qcg_inclusive(QCg *const g, const QStmt *const s)
+{
+    Code *const c = g->c;
+    qcg_load(c, s->lim);
+
+    if (s->by) {
+        uint8_t *const right = c->out;
+        code_int(c, 1);
+        qcg_arith(c, right, QY_INT, s->by > 0 ? QA_SUB : QA_ADD);
+    } else { /* compares give -1 or 0: lim + (stp > 0) - (stp < 0) */
+        for (uint32_t k = 0; k < 2; k++) {
+            qcg_load(c, s->stp);
+            uint8_t *const right = c->out;
+            code_int(c, 0);
+            qcg_compare(c, QY_INT, k ? QK_LT : QK_GT, right);
+            code_op(c, k ? O_I_SUB : O_I_ADD);
+        }
+    }
+
+    qcg_store(c, s->lim);
 }
 
 /* A statement a one-line if may take, or one that is no block's. */
-static void qcg_simple(Code *const c, const QCgEnv *const env, const QStmt *const s)
+static void qcg_simple(QCg *const g, const QStmt *const s)
 {
+    Code *const c = g->c;
+
     switch (s->kind) {
     case QS_DECL:
         if (s->op == QK_CONST)
@@ -620,9 +778,9 @@ static void qcg_simple(Code *const c, const QCgEnv *const env, const QStmt *cons
 
         for (const QDecl *d = s->decls; d; d = d->next) {
             if (d->value)
-                qcg_expr(c, env, d->value);
+                qcg_expr(g, d->value);
             else
-                qcg_zero(c, env, d->var->type);
+                qcg_zero(g, d->var->type);
 
             qcg_store(c, d->var);
         }
@@ -630,12 +788,12 @@ static void qcg_simple(Code *const c, const QCgEnv *const env, const QStmt *cons
         return;
 
     case QS_ASSIGN:
-        qcg_expr(c, env, s->e);
+        qcg_expr(g, s->e);
         qcg_store(c, s->target->var);
         return;
 
     case QS_CALL:
-        qcg_expr(c, env, s->e);
+        qcg_expr(g, s->e);
 
         if (s->e->type != QY_VOID)
             code_op(c, O_DROP);
@@ -643,25 +801,25 @@ static void qcg_simple(Code *const c, const QCgEnv *const env, const QStmt *cons
         return;
 
     case QS_BREAK:
-        qcg_to(c, env, O_JMP, s->link->link, BOFF, TO_STMT);
+        qcg_to(g, O_JMP, s->link->link, BOFF, TO_STMT);
         return;
 
     case QS_CONTINUE: {
         const QStmt *const loop = s->link;
 
         if (loop->kind == QS_WHILE)
-            qcg_to(c, env, O_JMP, loop, 0, TO_STMT);
+            qcg_to(g, O_JMP, loop, 0, TO_STMT);
         else if (loop->kind == QS_FOR)
-            qcg_to(c, env, O_JMP, loop->link, 0, TO_STMT);
+            qcg_to(g, O_JMP, loop->link, 0, TO_STMT);
         else
-            qcg_to(c, env, O_JMP, loop, BOFF, TO_STMT);
+            qcg_to(g, O_JMP, loop, BOFF, TO_STMT);
 
         return;
     }
 
     case QS_RETURN:
         if (s->e) {
-            qcg_expr(c, env, s->e);
+            qcg_expr(g, s->e);
             qcg_store(c, s->fn->res);
         }
 
@@ -698,82 +856,75 @@ static bool qcg_stops(const QStmt *const s)
     }
 }
 
-void qcg_stmt(Code *const c, const QCgEnv *const env, const QStmt *const s)
+/* Statement s's code, unfused. */
+static void qcg_body(QCg *const g, const QStmt *const s)
 {
-    if (env->dbg && qcg_stops(s))
-        code_op(c, O_DBG);
+    Code *const c = g->c;
 
     switch (s->kind) {
     case QS_IF:
-        qcg_expr(c, env, s->e);
+        qcg_expr(g, s->e);
 
         if (s->oneline) {
-            qcg_to(c, env, O_I_JF, s, BOFF, TO_STMT);
-            qcg_simple(c, env, s->body);
+            qcg_to(g, O_I_JF, s, BOFF, TO_STMT);
+            qcg_simple(g, s->body);
         } else
-            qcg_clause(c, env, O_I_JF, s->link);
+            qcg_clause(g, O_I_JF, s->link);
 
         return;
 
     case QS_ELSEIF:
-        qcg_to(c, env, O_JMP, qcg_endif(s), BOFF, TO_STMT);
-        qcg_expr(c, env, s->e);
-        qcg_clause(c, env, O_I_JF, s->link);
+        qcg_to(g, O_JMP, qcg_endif(s), BOFF, TO_STMT);
+        qcg_expr(g, s->e);
+        qcg_clause(g, O_I_JF, s->link);
         return;
 
     case QS_ELSE:
-        qcg_to(c, env, O_JMP, qcg_endif(s), BOFF, TO_STMT);
+        qcg_to(g, O_JMP, qcg_endif(s), BOFF, TO_STMT);
         return;
 
     case QS_WHILE:
-        qcg_expr(c, env, s->e);
-        qcg_to(c, env, O_I_JF, s->link, BOFF, TO_STMT);
+        qcg_expr(g, s->e);
+        qcg_to(g, O_I_JF, s->link, BOFF, TO_STMT);
         return;
 
     case QS_ENDWHILE:
-        qcg_to(c, env, O_JMP, s->link, 0, TO_STMT);
+        qcg_to(g, O_JMP, s->link, 0, TO_STMT);
         return;
 
     case QS_ENDDO:
-        qcg_to(c, env, O_JMP, s->link, BOFF, TO_STMT);
+        qcg_to(g, O_JMP, s->link, BOFF, TO_STMT);
         return;
 
     case QS_FOR:
-        qcg_expr(c, env, s->e);
+        qcg_expr(g, s->e);
         qcg_store(c, s->var);
+        qcg_expr(g, s->to);
+        qcg_store(c, s->lim);
 
-        if (s->lim) {
-            qcg_expr(c, env, s->to);
-            qcg_store(c, s->lim);
-        }
+        if (s->by)
+            code_int(c, (uint32_t)s->by);
+        else
+            qcg_expr(g, s->step);
 
-        if (s->stp) {
-            qcg_expr(c, env, s->step);
-            qcg_store(c, s->stp);
-        }
-
-        qcg_fortest(c, env, s);
-        qcg_to(c, env, O_I_JF, s->link, BOFF, TO_STMT);
+        qcg_store(c, s->stp);
+        qcg_past(g, s, false);
+        qcg_to(g, O_I_JT, s->link, BOFF, TO_STMT);
+        qcg_inclusive(g, s);
         return;
 
-    case QS_ENDFOR: {
+    case QS_ENDFOR: { /* NEXT's six ops (comp/fuse.c): I.NEXT.UP or I.NEXT.DN */
         const QStmt *const f = s->link;
         qcg_load(c, f->var);
-
-        if (f->stp)
-            qcg_load(c, f->stp);
-        else
-            code_int(c, (uint32_t)f->by);
-
-        code_op(c, O_I_ADD);
+        code_opid(c, O_I_STEP_V, f->stp->id, false);
         qcg_store(c, f->var);
-        qcg_fortest(c, env, f);
-        qcg_to(c, env, O_I_JT, f, BOFF, TO_STMT);
+        qcg_past(g, f, true);
+        qcg_to(g, O_I_JF, f, BOFF, TO_STMT);
         return;
     }
 
     case QS_FN:
-        qcg_to(c, env, O_JMP, s->fn->end, BOFF, TO_STMT);
+        qcg_to(g, O_JMP, s->fn->end, BOFF, TO_STMT);
         return;
 
     case QS_ENDFN:
@@ -783,6 +934,18 @@ void qcg_stmt(Code *const c, const QCgEnv *const env, const QStmt *const s)
         return;
 
     default:
-        qcg_simple(c, env, s);
+        qcg_simple(g, s);
     }
+}
+
+void qcg_stmt(QCg *const g, const QStmt *const s)
+{
+    g->seg = g->c->out;
+    g->nlabels = g->hops = g->strings = 0;
+
+    if (g->env->dbg && qcg_stops(s))
+        code_op(g->c, O_DBG);
+
+    qcg_body(g, s);
+    qcg_flush(g);
 }

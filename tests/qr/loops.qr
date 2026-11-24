@@ -51,3 +51,32 @@ fn sum_to(n as int) as int
     return t
 end fn
 print(sum_to(100))
+var up = 2
+var dn = -2
+for k in 0..7 step up
+    print("vu", k)
+end for
+for k in 4..-1 step dn
+    print("vd", k)
+end for
+for k in 3..3 step up
+    print("never")
+end for
+for k in 2147483645..2147483647
+    print("top", k)
+end for
+for k in -2147483646..-2147483648 step -1
+    print("bottom", k)
+end for
+let low = -2147483648
+for k in 0..low
+    print("never")
+end for
+fn count_in(n as int, by as int) as int
+    var t = 0
+    for k in 0..n step by
+        t += 1
+    end for
+    return t
+end fn
+print(count_in(10, 3), count_in(10, 1), count_in(0, 1))

@@ -316,7 +316,7 @@ struct QStmt {
     QFn *fn;   /* QS_FN, QS_ENDFN, QS_RETURN: its fn */
     QVar *var; /* QS_FOR: its counter, its limit and its step (null: constant) */
     QVar *lim, *stp;
-    int32_t by; /* QS_FOR: its step when constant */
+    int32_t by; /* QS_FOR: its step when constant, else 0 */
 };
 
 typedef struct {

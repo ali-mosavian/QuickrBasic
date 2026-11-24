@@ -6,8 +6,9 @@
  * parameter its ref cell. A name the table already has for that scope and type, another spelling
  * of it (x, X) or a shadowed one, gets a ' and a number: each variable its own cell.
  *
- * Each line is one statement at most: its code is compiled with a statement map of two entries,
- * the statement (body 0) and the line's end (BOFF), then placed in the cache (link_place). The
+ * Each line is one statement at most: its code is compiled with a statement map of the statement
+ * (body 0), its labels (qr/qcg.c) and the line's end (BOFF), then placed in the cache
+ * (link_place). The
  * store moves when the cache grows, and a string literal's address with it: the lines are
  * compiled again until it stays. Then each procedure's frame is laid out and each line resolved
  * (link_resolve): its variables placed, its jumps found.
@@ -106,6 +107,14 @@ static void qlink_procs(Comp *const C, const QProg *const p)
     }
 }
 
+/* Variable v's scope: its fn's procedure, else the module's. A result is the module's, as a
+   QBasic FUNCTION's (PRET.FV): return stores it right before PRET, so no call between can
+   overwrite it, and the frame is a cell smaller. */
+static uint32_t qlink_scope(const QVar *const v)
+{
+    return v->fn && v->kind != QV_RESULT ? v->fn->proc : 0;
+}
+
 /* Each variable but a const's in the symbol table; a fn's parameters its ref cells. */
 static void qlink_vars(Comp *const C, const QProg *const p)
 {
@@ -115,12 +124,7 @@ static void qlink_vars(Comp *const C, const QProg *const p)
 
     for (QVar *v = p->vars; v; v = v->next)
         if (!v->constant)
-            v->id = qlink_symb(
-                sy,
-                v->kind == QV_TEMP ? &hidden : v->name,
-                v->type,
-                v->fn ? v->fn->proc : 0
-            );
+            v->id = qlink_symb(sy, v->kind == QV_TEMP ? &hidden : v->name, v->type, qlink_scope(v));
 
     for (const QFn *f = p->fns; f; f = f->next) {
         Proc *const pr = btab_at(&C->blok->procs, f->proc);
@@ -140,23 +144,18 @@ static void qlink_vars(Comp *const C, const QProg *const p)
     }
 }
 
-/* A statement map's entry: body offset body at the code's place. */
-static void qlink_map(Comp *const C, const uint32_t body)
+/* A statement map's entry: body offset body at code bytes into the line's code. */
+static void qlink_map(Comp *const C, const uint32_t body, const uint32_t code)
 {
     Stmt *const e = (Stmt *)C->map - (C->nstmt + 1);
-    *e = (Stmt){.body = body, .code = (uint32_t)(C->code->out - C->code->buf)};
+    *e = (Stmt){.body = body, .code = code};
 
     C->nstmt++;
 }
 
-/* Line's code to comp_xbuf: statement s's (null none), then the line's end; the buffer grown to
-   fit. */
-static void qlink_compile(
-    Comp *const C,
-    const QCgEnv *const env,
-    const uint32_t line,
-    const QStmt *const s
-)
+/* Line's code to comp_xbuf: statement s's (null none), its labels, then the line's end; the
+   buffer grown to fit. */
+static void qlink_compile(Comp *const C, QCg *const g, const uint32_t line, const QStmt *const s)
 {
     for (;;) {
         Code *const c = C->code;
@@ -168,12 +167,18 @@ static void qlink_compile(
         c->lim = C->map - 2 * sizeof(Stmt) - COMP_TAIL;
         C->nstmt = 0;
         C->line = line;
-        qlink_map(C, 0);
+        qlink_map(C, 0, 0);
+        g->c = c;
+        g->line = line;
+        g->nlabels = 0;
 
         if (s)
-            qcg_stmt(c, env, s);
+            qcg_stmt(g, s);
 
-        qlink_map(C, BOFF);
+        for (uint32_t i = 0; i < g->nlabels; i++)
+            qlink_map(C, g->labels[i].body, g->labels[i].code);
+
+        qlink_map(C, BOFF, (uint32_t)(c->out - c->buf));
         *c->out++ = O_EOL;
 
         if (!c->full)
@@ -184,7 +189,13 @@ static void qlink_compile(
 }
 
 /* Each line compiled into the cache, again till the store stays where it is. */
-static void qlink_lines(Comp *const C, const QProg *const p, const QStmt **const of, const bool dbg)
+static void qlink_lines(
+    Comp *const C,
+    const QProg *const p,
+    QMem *const m,
+    const QStmt **const of,
+    const bool dbg
+)
 {
     const uint32_t guess = CACHE0 + (C->prog->end - PROGBASE) + XLIM + XSLK;
 
@@ -195,7 +206,14 @@ static void qlink_lines(Comp *const C, const QProg *const p, const QStmt **const
 
     do {
         base = C->prog->base;
-        const QCgEnv env = {.base = base, .lines = p->src.lines, .dbg = dbg};
+        const QCgEnv env = {
+            .base = base,
+            .lines = p->src.lines,
+            .sy = C->symb,
+            .dbg = dbg,
+        };
+
+        QCg g = {.env = &env, .mem = m};
 
         C->link->end = C->allo->cache + CACHE0;
 
@@ -204,7 +222,7 @@ static void qlink_lines(Comp *const C, const QProg *const p, const QStmt **const
 
         for (uint32_t i = 0; i < p->src.nlines; i++) {
             const uint32_t at = p->src.lines[i].at;
-            qlink_compile(C, &env, at, of[i]);
+            qlink_compile(C, &g, at, of[i]);
             link_place(C, at);
         }
     } while (C->prog->base != base);
@@ -222,7 +240,7 @@ void qlink_program(Comp *const C, QProg *const p, QMem *const m, const bool dbg)
     for (const QStmt *s = p->first; s; s = s->next)
         of[s->tok->line] = s;
 
-    qlink_lines(C, p, of, dbg);
+    qlink_lines(C, p, m, of, dbg);
 
     for (uint32_t i = 1; i < C->blok->procs.n; i++)
         frame_layout(C->symb, C->decl, btab_at(&C->blok->procs, i), i);

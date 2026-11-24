@@ -1425,7 +1425,8 @@ static void qsem_cond_of(QSem *const S, QStmt *const s)
     s->e = qsem_coerce(S, qsem_expr(S, s->e, QY_BOOL), QY_BOOL);
 }
 
-/* for i in a..b [step s]: ints; a constant step not 0. */
+/* for i in a..b [step s]: ints; a constant step not 0. Its limit and step are variables, as
+   I.NEXT's (qr/qcg.c); by its step if constant, else 0. */
 static void qsem_for(QSem *const S, QStmt *const s)
 {
     s->e = qsem_coerce(S, qsem_expr(S, s->e, QY_INT), QY_INT);
@@ -1434,18 +1435,18 @@ static void qsem_for(QSem *const S, QStmt *const s)
 
     if (s->step) {
         s->step = qsem_coerce(S, qsem_expr(S, s->step, QY_INT), QY_INT);
+        s->by = 0;
 
         if (qsem_isconst(s->step) && s->step->type == QY_INT) {
             s->by = (int32_t)s->step->val.i;
 
             if (!s->by)
                 qsem_say(S, s->step->tok, "a step of 0 never ends", nullptr);
-        } else
-            s->stp = qsem_var(S, s->tok, QY_INT, QV_TEMP);
+        }
     }
 
-    if (!qsem_isconst(s->to))
-        s->lim = qsem_var(S, s->tok, QY_INT, QV_TEMP);
+    s->stp = qsem_var(S, s->tok, QY_INT, QV_TEMP);
+    s->lim = qsem_var(S, s->tok, QY_INT, QV_TEMP);
 
     qsem_push(S);
 

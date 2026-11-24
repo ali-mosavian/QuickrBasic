@@ -187,6 +187,18 @@ def costs(b: bench.Build) -> None:
     assert fixed <= FIXED_ELEM_BUDGET, f"a fixed field's element {fixed:.0f} instructions, budget {FIXED_ELEM_BUDGET}"
 
 
+def quickr_ops(b: bench.Build) -> None:
+    """Each Quickr bench case (tools/bench/qr) runs no more ops than its QBasic twin, a set-up op or
+    two aside, and prints the same values. Unfused, its for loop not I.NEXT, and a fn's result a
+    frame cell, it ran 2.1x QBasic's ops on loop and 1.9x on fib."""
+    cases = sorted(bench.QR.glob("*.qr"))
+    qr = bench.run_natives([b], {p.stem: p.read_text() for p in cases}, runs=1, ext="QR")[0]
+    qb = bench.run_native(b, {p.stem: p.with_suffix(".bas").read_text() for p in cases}, runs=1)
+    for k, q in qr.items():
+        assert q.out.split() == qb[k].out.split(), (k, q.out, qb[k].out)
+        assert q.ops <= qb[k].ops * 1.001, f"{k}: Quickr's {q.ops:,} ops, QBasic's {qb[k].ops:,}"
+
+
 def main() -> int:
     each_reps()
     charlie_each()
@@ -208,6 +220,7 @@ def main() -> int:
     again = [bench.run_native(b, {"two": loop(2000000)}, runs=1)["two"].insns for _ in range(5)]
     assert max(again) / min(again) < 1 + bench.INSNS_SLACK, f"one program's counts {again}"
     costs(b)
+    quickr_ops(b)
     exe = bench.ROOT / "build/c/basic32.exe"
     if exe.exists():  # the loaded bytes, not the file's: its fixups moved with layout
         assert bench.image(exe) > 100_000 and bench.image(exe) != exe.stat().st_size, bench.image(exe)

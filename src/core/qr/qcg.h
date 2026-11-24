@@ -3,15 +3,37 @@
 #define QR_QCG_H
 #include "qr/qast.h"
 #include "comp/code.h"
+#include "mem/symbols.h"
 
 /* What codegen needs besides the tree: where a line's text is in the arena (a string literal's
-   load points there), and whether a statement starts with DBG. */
+   load points there), the symbols (fusion's), and whether a statement starts with DBG. */
 typedef struct {
     Addr base;          /* the program store's */
     const QLine *lines; /* QLine.at: a line's record */
+    const Symb *sy;
     bool dbg;
 } QCgEnv;
 
-/* Statement s's code to c: a checked one (qr/qsem.h), its variables and procedures linked. */
-void qcg_stmt(Code *c, const QCgEnv *env, const QStmt *s);
+/* A jump's target within a line: an entry of its statement map. */
+typedef struct {
+    uint32_t body; /* 1, 2 ..: not the statement's 0, under BOFF */
+    uint32_t code; /* its offset in the line's code */
+} QCgLabel;
+
+/* A line's code in the making. The caller sets c, env, mem and line; qcg_stmt the rest. */
+typedef struct {
+    Code *c;
+    const QCgEnv *env;
+    QMem *mem;     /* the labels' room */
+    uint32_t line; /* the line's record */
+    uint8_t *seg;  /* the code from here not yet fused */
+    QCgLabel *labels;
+    uint32_t nlabels, caplabels;
+    uint32_t hops;    /* the jumps within the line so far: their labels' bodies */
+    uint32_t strings; /* strings on the stack under the value being made */
+} QCg;
+
+/* Statement s's code to g->c, fused, its labels in g->labels: a checked statement (qr/qsem.h),
+   its variables and procedures linked. */
+void qcg_stmt(QCg *g, const QStmt *s);
 #endif
