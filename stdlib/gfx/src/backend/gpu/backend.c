@@ -203,22 +203,27 @@ static bool begin(Gx *const g, const Command *const c, const Picture *const into
                 .light = (uint8_t)style->light,
                 .row = (uint8_t)style->palette_row,
                 .alpha = (uint8_t)style->alpha,
-                .stages = (uint16_t)((c->flags & GFX_DRAW_OPAQUE ? 0 : GPU_STAGE_KEYED) |
-                                     (c->flags & GFX_DRAW_SMOOTH ? GPU_STAGE_SMOOTH : 0) |
-                                     (add ? GPU_STAGE_ADD : 0) | (mix ? GPU_STAGE_MIX : 0) |
-                                     (eight ? GPU_STAGE_EIGHT : 0)),
+                .stages =
+                    (uint16_t)((c->flags & GFX_DRAW_OPAQUE ? 0 : GPU_STAGE_KEYED) |
+                               (c->flags & GFX_DRAW_SMOOTH ? GPU_STAGE_SMOOTH : 0) |
+                               (add ? GPU_STAGE_ADD : 0) | (mix && eight ? GPU_STAGE_MIX : 0) |
+                               (eight ? GPU_STAGE_EIGHT : 0)),
             },
         .texture = blank.id,
-        .blend = add && !eight ? QX_BLEND_ADD : QX_BLEND_NONE,
+        .blend = eight ? QX_BLEND_NONE
+                 : add ? QX_BLEND_ADD
+                 : mix ? QX_BLEND_MIX
+                       : QX_BLEND_NONE,
         .depth = depth,
         .perspective = c->flags & GFX_DRAW_PERSPECTIVE,
-        .alpha = ALPHA,
+        .alpha =
+            mix && !eight ? (uint8_t)((style->alpha * ALPHA + PAL_FULL / 2) / PAL_FULL) : ALPHA,
         .eight = eight,
         .lut = lut,
         .tint = style->tint,
         .solid = c->flags & GFX_DRAW_SOLID,
         .paint = eight ? spread(index) : paint,
-        .behind = mix || (add && eight),
+        .behind = eight && (mix || add),
     };
 
     return true;

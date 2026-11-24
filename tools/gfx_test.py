@@ -260,6 +260,9 @@ GPU_CELLS = (
 )
 # Cells whose texels the GPU picks by its own interpolation, not software's 16.16 walk: told, not failed.
 GPU_LOOSE = ("turned", "polys", "depth", "smooth")
+# Cells the GPU's own blending draws, by depth: the most a channel may be off. 32 bits: the blend constant's float
+# mix, a level.
+GPU_NEAR = {("blend", 32): 1}
 GPU_SCENE = """import gfx.display, gfx.draw, gfx.surface
 from gfx.draw import Vec2, Vertex
 canvas& = gfx.display.open(640, 480, {depth}, 0)
@@ -501,7 +504,8 @@ if __name__ == "__main__":
             print(f"{depth} bits: pixels the GPU drew other than pages, the most a channel was off")
             for name, n, most in gpu_parity(depth):
                 print(f"  {name:12}{n:7}{most:5}")
-                wrong += [f"{name} at {depth} bits"] if n and name not in GPU_LOOSE else []
+                near = most <= GPU_NEAR.get((name, depth), 0)
+                wrong += [f"{name} at {depth} bits"] if not near and name not in GPU_LOOSE else []
         sys.exit(f"GPU differs: {', '.join(wrong)}" if wrong else None)
     if sys.argv[1:2] == ["--sums"]:
         root = Path(sys.argv[2]) if len(sys.argv) > 2 else dosrun.ROOT

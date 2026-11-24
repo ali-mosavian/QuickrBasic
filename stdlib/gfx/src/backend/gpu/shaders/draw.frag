@@ -2,11 +2,11 @@
 // DISC, only those stdlib/gfx/disc.h's rule covers, worked as it works them; the texel at the
 // pixel's centre, kept in its rectangle (u repeating with WRAP); an index through the palette's
 // row; keyed; lit and tinted, or the vertex's colour alone (SOLID); with ADD, alpha's share of it,
-// which the pipeline adds; with MIX, mixed by alpha with the pixel behind, read from its copy, as
-// px_mix mixes. Into an 8-bit target (EIGHT) it draws an index, in alpha, and its colour in row 0:
-// a texel's index through the row, lit and tinted, matched by the palette's map as pal_lut does; a
-// colour, matched; SOLID's, the vertex's red; a blend, of the two indices' colours in row 0,
-// matched, as pal_blend's table, ADD's too. An index texel is in red, or alpha with ALPHA. SMOOTH
+// which the pipeline adds, as it mixes BLEND's. Into an 8-bit target (EIGHT) it draws an index, in
+// alpha, and its colour in row 0: a texel's index through the row, lit and tinted, matched by the
+// palette's map as pal_lut does; a colour, matched; SOLID's, the vertex's red; a blend (MIX, ADD),
+// of its index's colour in row 0 and the pixel behind's, read from its copy, matched, as
+// pal_blend's table. An index texel is in red, or alpha with ALPHA. SMOOTH
 // mixes the four texels round the centre, lit, as software's smooth span does, a keyed one adding
 // nothing, and draws where they are mostly kept.
 #version 450
@@ -189,21 +189,15 @@ uvec3 smoothed(uint stages, out bool drawn)
     return uvec3(c);
 }
 
-// c, a colour, or an index into an 8-bit target, blended with the pixel behind by alpha.
+// c, an index into an 8-bit target, blended with the pixel behind by alpha.
 uvec3 blended(uvec3 c, uint stages)
 {
-    bool eight = (stages & EIGHT) != 0u;
     uint alpha = v_more.y;
-
-    if (!eight && (stages & ADD) != 0u)
-        return c * alpha / FULL;
-
-    vec4 b = texelFetch(behind, ivec2(gl_FragCoord.xy), 0);
-    uvec3 s = eight ? colour_of(0u, c.r) : c;
-    uvec3 d = eight ? colour_of(0u, index_of(b, ALPHA)) : bytes(b.rgb);
+    uvec3 s = colour_of(0u, c.r);
+    uvec3 d = colour_of(0u, index_of(texelFetch(behind, ivec2(gl_FragCoord.xy), 0), ALPHA));
     uvec3 m = (stages & ADD) != 0u ? min(d + s * alpha / FULL, uvec3(255u))
                                    : (d * (FULL - alpha) + s * alpha) / FULL;
-    return eight ? uvec3(nearest(m)) : m;
+    return uvec3(nearest(m));
 }
 
 // A simple draw (pipelines.h): SOLID's colour or index; a texel unlit, into a 32-bit target as it
@@ -249,7 +243,7 @@ void main()
         discard;
 
     if ((stages & (ADD | MIX)) != 0u)
-        c = blended(c, stages);
+        c = eight ? blended(c, stages) : c * v_more.y / FULL;
 
     colour = eight ? eight_bit(c.r) : vec4(vec3(c) / 255.0, 1.0);
 }
