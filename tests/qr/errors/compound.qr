@@ -28,6 +28,7 @@ for x in c
 end for
 for mut x in c
     c.remove(0)
+    print(len(c), c[0])
 end for
 var bag as Bag
 var bag2 = bag

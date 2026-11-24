@@ -435,6 +435,7 @@ struct QStmt {
     QExpr *e;         /* a condition, a call, a value, a for's start */
     QExpr *to, *step; /* a for's */
     QExpr *target;    /* QS_ASSIGN: a place, or the QE_TUPLE of a, b = .. */
+    QStmt *pre;       /* QS_ASSIGN, compound: its target's subscripts' temporaries, set first */
     QDecl *decls;
     QFn *fn;   /* QS_FN, QS_ENDFN, QS_RETURN: its fn */
     QVar *var; /* QS_FOR: its counter, its limit and its step; over a list: its element */

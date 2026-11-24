@@ -378,8 +378,8 @@ at compile time.
 3. **Only a `var` can be borrowed `mut`**, never a `let`, a `const` or a plain parameter.
 4. **A borrow ends with its call.** No record, list or variable holds one, and no function
    returns one, so there are no lifetimes to write.
-5. **`for mut x in a` borrows `a` exclusively for the loop.** The body changes elements through
-   `x`, but can't push to `a` or remove from it.
+5. **`for mut x in a` borrows `a` exclusively for the loop.** The body reaches `a` only through
+   `x`: it can't read `a`, push to it or remove from it.
 6. **`for x in a` borrows `a` shared for the loop.** The body can't change `a`.
 7. **A lambda borrows what it uses for the call it is passed to**, exclusively if it assigns
    to it.

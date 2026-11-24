@@ -1536,8 +1536,18 @@ static QVar *qsem_rawroot(const QSem *const S, const QExpr *e)
     return b ? b->var : nullptr;
 }
 
+/* The for's loan of variable v, the innermost; null none. */
+static const QLoan *qsem_loan(const QSem *const S, const QVar *const v)
+{
+    for (uint32_t i = S->nloans; i-- > 0;)
+        if (S->loans[i].root == v)
+            return &S->loans[i];
+
+    return nullptr;
+}
+
 /* Unchecked place e changed at at: its variable a var, a mut parameter or a for mut's element,
-   and no list a for borrows. False: an error said. */
+   and no list a for borrows. False: an error said, a for mut's loan by qsem_name. */
 static bool qsem_changes(QSem *const S, const QExpr *const e, const QTok *const at)
 {
     static const char *const why[] = {
@@ -1568,13 +1578,12 @@ static bool qsem_changes(QSem *const S, const QExpr *const e, const QTok *const 
         return false;
     }
 
-    for (uint32_t i = 0; i < S->nloans; i++)
-        if (S->loans[i].root == v) {
-            qsem_say(S, at, name, " is borrowed by the for over it: it can't change here", nullptr);
-            return false;
-        }
+    const QLoan *const l = qsem_loan(S, v);
 
-    return true;
+    if (l && !l->loop->mut)
+        qsem_say(S, at, name, " is borrowed by the for over it: it can't change here", nullptr);
+
+    return !l; /* a for mut's: qsem_name says so */
 }
 
 static uint32_t qsem_at(const QSem *const S, const QTok *const t)
@@ -1628,25 +1637,43 @@ static void qsem_moved(QSem *const S)
     }
 }
 
-/* Is variable v read in e? */
-static bool qsem_mentions(const QExpr *const e, const QVar *const v)
+/* Does e, or any part of it, hit(part, v)? */
+static bool qsem_any(
+    const QExpr *const e,
+    bool (*const hit)(const QExpr *, const QVar *),
+    const QVar *const v
+)
 {
     if (!e)
         return false;
-    if (e->kind == QE_NAME && e->var == v)
-        return true;
-    if (qsem_mentions(e->a, v) || qsem_mentions(e->b, v) || qsem_mentions(e->c, v))
+    if (hit(e, v) || qsem_any(e->a, hit, v) || qsem_any(e->b, hit, v) || qsem_any(e->c, hit, v))
         return true;
 
     for (uint32_t k = 0; k < e->nargv; k++)
-        if (qsem_mentions(e->argv[k], v))
+        if (qsem_any(e->argv[k], hit, v))
             return true;
 
     for (uint32_t k = 0; e->kind != QE_NEW && k < e->n; k++)
-        if (qsem_mentions(e->items[k], v))
+        if (qsem_any(e->items[k], hit, v))
             return true;
 
     return false;
+}
+
+static bool qsem_names(const QExpr *const e, const QVar *const v)
+{
+    return e->kind == QE_NAME && e->var == v;
+}
+
+static bool qsem_calls(const QExpr *const e, const QVar *const)
+{
+    return e->kind == QE_CALL || e->kind == QE_LIST;
+}
+
+/* Is variable v read in e? */
+static bool qsem_mentions(const QExpr *const e, const QVar *const v)
+{
+    return qsem_any(e, qsem_names, v);
 }
 
 static bool qsem_byplace(const QSem *const S, const QType t)
@@ -2250,6 +2277,21 @@ static QExpr *qsem_name(QSem *const S, QExpr *const e)
         return p;
     }
 
+    const QLoan *const l = qsem_loan(S, v);
+
+    if (l && l->loop->mut) {
+        const char *const name = qsem_text(S, e->tok);
+        qsem_say(
+            S,
+            e->tok,
+            name,
+            " is borrowed by the for mut over it: reach it through ",
+            qsem_text(S, l->loop->var->name),
+            nullptr
+        );
+        return e;
+    }
+
     if (v->constant) {
         QExpr *const k = qsem_const(S, e->tok, v->type, v->val);
         k->untyped = v->untyped;
@@ -2498,6 +2540,48 @@ static void qsem_parallel(QSem *const S, QStmt *const s)
     }
 }
 
+static QExpr *qsem_nameof(QSem *const S, QVar *const v, const QTok *const tok)
+{
+    QExpr *const e = qast_expr(S->mem, QE_NAME, tok);
+    e->var = v;
+    e->type = v->type;
+    return e;
+}
+
+/* a[i] += v reads and writes a[i]: each subscript of t into a temporary first (s->pre), so it is
+   evaluated once. A constant stays; so does a variable, unless v calls a fn that may write it. */
+static void qsem_hoist(QSem *const S, QStmt *const s, QExpr *const t)
+{
+    if (t->kind == QE_FIELD)
+        qsem_hoist(S, s, t->a);
+    if (t->kind != QE_INDEX)
+        return;
+
+    qsem_hoist(S, s, t->a);
+
+    const QExpr *const b = t->b;
+    const bool shared = b->kind == QE_NAME && (!b->var->fn || b->var->shared) &&
+                        qsem_any(s->e, qsem_calls, nullptr);
+
+    if (b->kind == QE_CONST || (b->kind == QE_NAME && !shared))
+        return;
+
+    QStmt *const pre = qast_alloc(S->mem, sizeof *pre);
+    pre->kind = QS_ASSIGN;
+    pre->op = QK_EQ;
+    pre->tok = b->tok;
+    pre->target = qsem_nameof(S, qsem_var(S, b->tok, b->type, QV_TEMP), b->tok);
+    pre->e = t->b;
+    t->b = pre->target;
+
+    QStmt **at = &s->pre;
+
+    while (*at)
+        at = &(*at)->next;
+
+    *at = pre;
+}
+
 static void qsem_assign(QSem *const S, QStmt *const s)
 {
     if (s->target->kind == QE_TUPLE) {
@@ -2522,6 +2606,8 @@ static void qsem_assign(QSem *const S, QStmt *const s)
         return;
     }
 
+    qsem_hoist(S, s, t);
+
     static const QKind ops[] = {[QK_ADDEQ - QK_ADDEQ] = QK_PLUS, QK_MINUS, QK_STAR, QK_SLASH};
 
     QExpr *const x = qast_expr(S->mem, QE_BINARY, s->tok);
@@ -2542,14 +2628,6 @@ static void qsem_loop(QSem *const S, const QStmt *const s)
 {
     S->loops = qast_room(S->mem, S->loops, S->nloops, &S->caploops, sizeof *S->loops);
     S->loops[S->nloops++] = qsem_at(S, s->tok);
-}
-
-static QExpr *qsem_nameof(QSem *const S, QVar *const v, const QTok *const tok)
-{
-    QExpr *const e = qast_expr(S->mem, QE_NAME, tok);
-    e->var = v;
-    e->type = v->type;
-    return e;
 }
 
 /* for [i,] x in a, for mut x in a: a list or an array, borrowed by the loop; x names a[i], i

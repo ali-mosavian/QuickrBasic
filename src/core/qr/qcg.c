@@ -1537,6 +1537,9 @@ static void qcg_simple(QCg *const g, const QStmt *const s)
         return;
 
     case QS_ASSIGN:
+        for (const QStmt *p = s->pre; p; p = p->next)
+            qcg_set(g, p->target, p->e);
+
         if (s->target->kind == QE_TUPLE)
             qcg_parallel(g, s);
         else
