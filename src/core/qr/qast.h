@@ -308,7 +308,8 @@ typedef struct {
                       number field there, a held record's too (a word); 0 none */
     uint32_t nwords;
     QFn *gen;    /* a kept generator's state's: its resumable instance */
-    QFn *opers;  /* a record's fn operators, by QFn.opnext */
+    QFn **opers; /* a record's fn operators: those one of whose values it is */
+    uint32_t nopers, capopers;
     QFn *drop;   /* a record's fn drop */
     QFn **meths; /* a record's or an enum's methods */
     uint32_t nmeths, capmeths;
@@ -413,7 +414,6 @@ struct QFn {
     QExpr **news; /* resumable: each state made, g(..), its fields after nown filled by qsem_keep */
     uint32_t nnews, capnews;
     QKind op;         /* fn operator +: its operator, its name its token */
-    QFn *opnext;      /* its first parameter's type's next operator */
     const QTok *lone; /* an operator's body one return: its value's first token */
     bool inlining;    /* its lone value being checked where it is used */
     QOwners own;

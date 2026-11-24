@@ -34,3 +34,15 @@ let d = v < v < v
 let s = Size(1, 2) - Size(1, 1)
 var u = Vec(2)
 u -= v
+function operator +(a as Size, b as int) as Size
+    return a
+end function
+function operator *(a as Vec, k as double) as Vec
+    return a
+end function
+function operator *(a as Vec, k as single) as Vec
+    return a
+end function
+let x = v * 2
+let y = v * "s"
+let z = -v

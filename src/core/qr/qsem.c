@@ -1637,7 +1637,7 @@ static QExpr *qsem_binary(QSem *const S, QExpr *const e)
         return e;
     }
 
-    if (qsem_isrec(S, a->type) && qsem_arith(e->op))
+    if ((qsem_isrec(S, a->type) || qsem_isrec(S, b->type)) && qsem_arith(e->op))
         return qsem_operator(S, e, e->op, a, b);
     if (e->op == QK_PLUS && a->type == QY_STRING && b->type == QY_STRING)
         return qsem_strcat(S, e);
@@ -1715,6 +1715,9 @@ static QExpr *qsem_unary(QSem *const S, QExpr *const e)
 
         return e;
     }
+
+    if (qsem_isrec(S, a->type))
+        return qsem_operator(S, e, QK_MINUS, a, nullptr);
 
     if (!qast_numeric(a->type)) {
         qsem_say(S, e->tok, "- takes a number, not ", qsem_aname(S, a->type), nullptr);
@@ -4576,57 +4579,105 @@ static QExpr *qsem_inline(QSem *const S, QExpr *const e, QFn *const f, QExpr **c
     return e;
 }
 
-/* Record type t's fn operator op, null none. */
-static QFn *qsem_operof(const QSem *const S, const QType t, const QKind op)
+/* Can checked e be a value of type t: of it, widening to it, or an untyped constant fitting it? */
+static bool qsem_takes(const QExpr *const e, const QType t)
 {
-    for (QFn *f = qsem_isrec(S, t) ? qast_ty(S->prog, t)->opers : nullptr; f; f = f->opnext)
-        if (f->op == op)
-            return f;
-
-    return nullptr;
+    return e->type == t || qsem_widens(e->type, t) || (e->untyped && qsem_fits(e, t));
 }
 
-/* a op b, a a record: its type's fn operator op, inlined when its body is one return, else
-   called. */
+/* Operator op of a, or of a and b, from their records' operators: the one taking their types,
+   else the one they widen to; null none. *two: two of them widen. */
+static QFn *qsem_operfor(
+    const QSem *const S,
+    const QKind op,
+    const QExpr *const a,
+    const QExpr *const b,
+    bool *const two
+)
+{
+    const QExpr *const sides[] = {a, b};
+
+    QFn *wide = nullptr;
+    *two = false;
+
+    for (uint32_t i = 0; i < 2 && sides[i]; i++) {
+        const QTy *const y =
+            qsem_isrec(S, sides[i]->type) ? qast_ty(S->prog, sides[i]->type) : nullptr;
+
+        for (uint32_t k = 0; y && k < y->nopers; k++) {
+            QFn *const f = y->opers[k];
+
+            if (f->op != op || f->npar != (b ? 2u : 1u))
+                continue;
+
+            const QType p = f->params[0].var->type, q = b ? f->params[1].var->type : QY_VOID;
+
+            if (a->type == p && (!b || b->type == q))
+                return f;
+
+            if (qsem_takes(a, p) && (!b || qsem_takes(b, q))) {
+                *two |= wide && wide != f;
+                wide = f;
+            }
+        }
+    }
+
+    return wide;
+}
+
+/* a op b, or op a when b is null, of a record: its operator taking them, inlined when its body is
+   one return, else called. */
 static QExpr *qsem_operator(QSem *const S, QExpr *const e, const QKind op, QExpr *a, QExpr *b)
 {
-    QFn *const f = qsem_operof(S, a->type, op);
+    bool two;
+    QFn *const f = qsem_operfor(S, op, a, b, &two);
+    const char *const sym = qast_spelling(op);
+    const QExpr *const rec = qsem_isrec(S, a->type) ? a : b;
     e->type = QY_ERROR;
 
-    if (!f) {
-        qsem_say(
-            S,
-            e->tok,
-            qsem_aname(S, a->type),
-            " has no operator ",
-            qast_spelling(op),
-            nullptr
-        );
+    if (!f || two) {
+        if (b)
+            qsem_say(
+                S,
+                e->tok,
+                two ? "two operators " : "no operator ",
+                sym,
+                two ? " take " : " takes ",
+                qsem_aname(S, a->type),
+                " and ",
+                qsem_aname(S, b->type),
+                nullptr
+            );
+        else
+            qsem_say(S, e->tok, qsem_aname(S, a->type), " has no operator ", sym, nullptr);
+
         return e;
     }
 
     if (!f->pub && qsem_modof(S, f->name) != qsem_modof(S, e->tok)) {
-        const char *const ty = qsem_text(S, qast_ty(S->prog, a->type)->name);
-        qsem_say(S, e->tok, ty, "'s operator ", qast_spelling(op), " is not public", nullptr);
+        const char *const ty = qsem_text(S, qast_ty(S->prog, rec->type)->name);
+        qsem_say(S, e->tok, ty, "'s operator ", sym, " is not public", nullptr);
         return e;
     }
 
-    QExpr **const argv = qast_alloc(S->mem, 2 * sizeof *argv);
+    const uint32_t n = b ? 2 : 1;
+    QExpr **const argv = qast_alloc(S->mem, n * sizeof *argv);
     argv[0] = qsem_coerce(S, a, f->params[0].var->type);
-    argv[1] = qsem_coerce(S, b, f->params[1].var->type);
 
-    if (argv[0]->type == QY_ERROR || argv[1]->type == QY_ERROR)
+    if (b)
+        argv[1] = qsem_coerce(S, b, f->params[1].var->type);
+    if (argv[0]->type == QY_ERROR || (b && argv[1]->type == QY_ERROR))
         return e;
     if (f->lone && !f->inlining) /* a fresh argument built in its parameter's temporary */
         return qsem_inline(S, e, f, argv);
 
-    argv[0] = qsem_addressed(S, argv[0]);
-    argv[1] = qsem_addressed(S, argv[1]);
+    for (uint32_t k = 0; k < n; k++)
+        argv[k] = qsem_addressed(S, argv[k]);
 
     e->kind = QE_CALL;
     e->fn = f;
     e->argv = argv;
-    e->nargv = 2;
+    e->nargv = n;
     e->a = e->b = nullptr;
     e->done = true;
     e->type = f->result;
@@ -4643,7 +4694,9 @@ static bool qsem_hasrel(
 )
 {
     const bool swap = op == QK_GT || op == QK_LE;
-    return qsem_operof(S, (swap ? b : a)->type, op == QK_EQ || op == QK_NE ? QK_EQ : QK_LT);
+    const QKind by = op == QK_EQ || op == QK_NE ? QK_EQ : QK_LT;
+    bool two;
+    return qsem_operfor(S, by, swap ? b : a, swap ? a : b, &two);
 }
 
 /* a op b, a a record: = and < its operators; <> and >= not = and <; > and <= < the other way. */
@@ -7676,20 +7729,37 @@ static void qsem_signature(QSem *const S, QFn *const f)
     S->fn = nullptr;
 }
 
-/* Operator fn f checked and kept by its first parameter's type, a record. */
+/* Operator fn f checked and kept by each record among its values' types, one of them declared
+   in its module. */
 static void qsem_operdef(QSem *const S, QFn *const f)
 {
     const char *const op = qast_spelling(f->op);
-    const QType t = f->npar ? f->params[0].var->type : QY_ERROR;
     const QType r = f->op == QK_EQ || f->op == QK_LT ? QY_BOOL : f->result;
+    const bool plain =
+        f->npar && !f->params[0].mut && !f->params[f->npar - 1].mut && !f->params[f->npar - 1].def;
+    bool err = false, home = false;
 
-    if (f->npar != 2 || f->params[0].mut || f->params[1].mut || f->params[1].def)
-        qsem_say(S, f->name, "an operator takes two plain values", nullptr);
-    else if (t == QY_ERROR || f->result == QY_ERROR)
+    if (!plain || f->npar > 2 || (f->npar == 1 && f->op != QK_MINUS)) {
+        qsem_say(S, f->name, "an operator takes two plain values, or - one", nullptr);
         return;
-    else if (!qsem_isrec(S, t))
-        qsem_say(S, f->name, "an operator's first value is a record's", nullptr);
-    else if (f->result != r || r == QY_VOID)
+    }
+
+    for (uint32_t k = 0; k < f->npar; k++) {
+        const QType t = f->params[k].var->type;
+        err |= t == QY_ERROR;
+        home |= qsem_isrec(S, t) &&
+                qsem_modof(S, qast_ty(S->prog, t)->def->tok) == qsem_modof(S, f->name);
+    }
+
+    if (err || f->result == QY_ERROR)
+        return;
+
+    if (!home) {
+        qsem_say(S, f->name, "one of an operator's values is a record of its module", nullptr);
+        return;
+    }
+
+    if (f->result != r || r == QY_VOID) {
         qsem_say(
             S,
             f->name,
@@ -7698,12 +7768,31 @@ static void qsem_operdef(QSem *const S, QFn *const f)
             r == QY_BOOL ? " gives a bool" : " gives a value",
             nullptr
         );
-    else if (qsem_operof(S, t, f->op))
-        qsem_say(S, f->name, qsem_aname(S, t), " has an operator ", op, " already", nullptr);
-    else {
+        return;
+    }
+
+    const QExpr a = {.type = f->params[0].var->type};
+
+    const QExpr b = {.type = f->params[f->npar - 1].var->type};
+
+    bool two;
+    const QFn *const was = qsem_operfor(S, f->op, &a, f->npar == 2 ? &b : nullptr, &two);
+
+    if (was && was->params[0].var->type == a.type &&
+        (f->npar == 1 || was->params[1].var->type == b.type)) {
+        qsem_say(S, f->name, "an operator ", op, " of these values is there already", nullptr);
+        return;
+    }
+
+    for (uint32_t k = 0; k < f->npar; k++) {
+        const QType t = f->params[k].var->type;
+
+        if (!qsem_isrec(S, t) || (k && t == f->params[0].var->type))
+            continue;
+
         QTy *const y = qast_ty(S->prog, t);
-        f->opnext = y->opers;
-        y->opers = f;
+        y->opers = qast_room(S->mem, y->opers, y->nopers, &y->capopers, sizeof *y->opers);
+        y->opers[y->nopers++] = f;
     }
 }
 

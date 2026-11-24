@@ -1,10 +1,16 @@
 ' OPTION DIALECT QUICKR
-' function operator: + - * / = < on records, inlined when one return
+' function operator: + - * / = < on records, inlined when one return; one
+' an operator and pair of types, the record on either side; unary -
 from shapes import Size
 import shapes
 type Vec
     x as int
     y as int
+end type
+
+type Name
+    first as string
+    last as string
 end type
 
 function operator +(a as Vec, b as Vec) as Vec
@@ -17,6 +23,23 @@ end function
 
 function operator *(a as Vec, k as int) as Vec
     return Vec(a.x * k, a.y * k)
+end function
+
+function operator *(k as int, a as Vec) as Vec
+    return a * k
+end function
+
+function operator *(a as Vec, b as Vec) as int
+    return a.x * b.x + a.y * b.y
+end function
+
+function operator -(a as Vec) as Vec
+    return Vec(-a.x, -a.y)
+end function
+
+function operator -(n as Name) as Name
+    let r = Name(n.last, n.first)
+    return r
 end function
 
 function operator /(a as Vec, k as int) as Vec
@@ -33,10 +56,6 @@ function operator <(a as Vec, b as Vec) as bool
     return a.y < b.y
 end function
 
-type Name
-    first as string
-    last as string
-end type
 
 function operator +(a as Name, b as Name) as Name
     return Name(a.first + b.first, a.last + b.last)
@@ -85,3 +104,5 @@ let n = Name("a", "b") + Name("c", "d")
 print n.first; " "; n.last
 let s = Size(5, 6) + Size(1, 2)
 print s.w; " "; s.h; " "; shapes.shrink(s).w
+let w = 2 * v
+print w.x; " "; w.y; " "; v * w; " "; (-v).x; " "; (-(v * 2) + v).y; " "; (-n).first

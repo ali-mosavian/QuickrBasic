@@ -459,7 +459,8 @@ end function
 - `function operator` defines `+ - * / = <` of two values, or unary `-` of one, at the top level
   of a record's module. One of its values is that record.
 - A type has one operator for each pair of value types. The values' types pick it; a value
-  widens to a parameter's type when no operator takes it as it is.
+  widens to a parameter's type when no operator takes it as it is. Two that take it so are a
+  compile error: with `Vec * single` and `Vec * double`, `v * 2` is one.
 - `=` and `<` give a `bool`. `<>`, `>`, `<=` and `>=` follow from them.
 - `v += w` is `v = v + w`.
 - Another module uses an operator only if it is `public`.
@@ -468,8 +469,6 @@ end function
 - **In the VM**, an operator whose body is one `return` is inlined, its parameters read where
   its arguments are; any other is called. A record built from its own fields, `p = p + v`, is
   built in place when no field is read after it is written, so it costs the field arithmetic.
-- **Not yet:** the first value is the record and picks the operator; a type has one operator a
-  symbol, and no unary `-`.
 
 ### Generic records
 
