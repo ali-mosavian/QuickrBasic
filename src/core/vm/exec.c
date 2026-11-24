@@ -408,6 +408,11 @@ static inline bool r_addr(Regs *const r)
     X(n_st_v, exec_n_st_v, 2 + VCELL)                                                              \
     X(n_st_l, exec_n_st_l, 2 + VCELL)
 
+/* The ops on a record parameter's number field, a store's may fail: name, handler, size. */
+#define HOT_PFIELDS(X)                                                                             \
+    X(p_fl_ld, exec_p_fl_ld, 4 + VID)                                                              \
+    X(p_fl_st, exec_p_fl_st, 4 + VID)
+
 /* f_ld_f32's and f_st_v's run as i_ld_i32's and i_st_v's. */
 static inline Status hot_f_st_v(Regs *const r) { return hot_i_st_v(r); }
 static inline Status hot_f_st_l(Regs *const r) { return hot_i_st_l(r); }
@@ -433,7 +438,8 @@ static inline Status hot_f_ld_f32(Regs *const r) { return hot_i_ld_i32(r); }
     HOT_FAILS(HOT_FAIL_EACH)                                                                       \
     HOT_LONGS(HOT_LONG_EACH)                                                                       \
     HOT_LTOS(HOT_EACH)                                                                             \
-    HOT_NARROWS(HOT_EACH)
+    HOT_NARROWS(HOT_EACH)                                                                          \
+    HOT_PFIELDS(HOT_EACH)
 
 /* A CMPIF, an IF: true, on; false, the line ends (flow_nextln) unless it is the program's last or
    the direct line: then the op's handler, which nothing here has changed. */
@@ -1339,6 +1345,8 @@ void exec_n_ld_v(Session *const S) { hot_op(S, hot_n_ld_v); }
 void exec_n_ld_l(Session *const S) { hot_op(S, hot_n_ld_l); }
 void exec_n_st_v(Session *const S) { hot_op(S, hot_n_st_v); }
 void exec_n_st_l(Session *const S) { hot_op(S, hot_n_st_l); }
+void exec_p_fl_ld(Session *const S) { hot_op(S, hot_p_fl_ld); }
+void exec_p_fl_st(Session *const S) { hot_op(S, hot_p_fl_st); }
 
 /* N.LD.A id cell n et: a narrow array's element. */
 void exec_n_ld_a(Session *const S)

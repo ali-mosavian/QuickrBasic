@@ -607,6 +607,50 @@ static inline Status hot_n_ld_l(Regs *const r) { return hot_n_ld(r, true); }
 static inline Status hot_n_st_v(Regs *const r) { return hot_n_st(r, false); }
 static inline Status hot_n_st_l(Regs *const r) { return hot_n_st(r, true); }
 
+/* P.FL.LD ( -- x ) and P.FL.ST ( x -- ) ref off:2 et: a number field of the record whose address
+   a parameter's ref cell, ref bytes past the frame, holds; *type its ET_*. Overflow: a narrow
+   field's x past its range, nothing stored. */
+static inline Addr hot_pfield(Regs *const r, uint8_t *const type)
+{
+    const Addr rec = rd32(r->fp + hot_u32(r)) & REF_ADDR;
+    const Addr a = rec + load16(r->ip);
+    *type = r->ip[2];
+    r->ip += 3;
+    return a;
+}
+
+static inline Status hot_p_fl_ld(Regs *const r)
+{
+    uint8_t type;
+    const Addr a = hot_pfield(r, &type);
+
+    if (type == ET_R8)
+        *--r->sp = load_cell(at(a));
+    else
+        (--r->sp)->i = et_narrow(type) ? narrow_ld(a, type) : (int32_t)rd32(a);
+
+    return ST_OK;
+}
+
+static inline Status hot_p_fl_st(Regs *const r)
+{
+    uint8_t type;
+    const Addr a = hot_pfield(r, &type);
+    const Cell x = *r->sp;
+
+    if (type == ET_R8)
+        store_cell(at(a), x);
+    else if (!et_narrow(type))
+        wr32(a, x.u);
+    else if (narrow_fits(type, x))
+        narrow_wr(a, type, x);
+    else
+        return E_OV;
+
+    r->sp++;
+    return ST_OK;
+}
+
 /* E.NEXT's other x: i's and x's Locs both a resumable's refs or neither; x a number's cell, a
    narrow one's widened, or a record's size bytes. */
 [[gnu::noinline]]

@@ -86,7 +86,8 @@ enum { EOL_TO_SIZE = 1 + 2 * sizeof(uint32_t) };
 
 /* An ERR op: a compile error met running. */
 typedef struct PACKED {
-    uint8_t op;
+    uint8_t op;     /* O_X */
+    uint8_t xop;    /* X_ERR */
     uint8_t code;   /* the error, E_* */
     uint8_t dg;     /* its DG_ (io/msg), 0: by its text */
     uint32_t at;    /* the body's byte it is at */
@@ -123,6 +124,9 @@ enum : uint8_t {
 #include "vm/ops.def"
     X_NOPS
 };
+
+/* Is the op at op an ERR? */
+static inline bool exec_is_err(const uint8_t *const op) { return op[0] == O_X && op[1] == X_ERR; }
 
 enum : uint8_t {
 #define K(name, h) K_##name,

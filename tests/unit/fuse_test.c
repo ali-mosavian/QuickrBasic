@@ -90,3 +90,27 @@ TEST(fused_stores)
     CHECK(unit_run(S, lines) == ST_OK);
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 6 no 11 no 5  2147483600  89  2.5  123456.7 ");
 }
+
+/* A record parameter's field read as one op through its ref, P.FL.LD: R.ADDR and FL.LD were two.
+   A module's record keeps its pair. */
+TEST(fused_record_parameter_fields)
+{
+    static const char *const lines[] = {
+        "10 TYPE P",
+        "20 x AS INTEGER",
+        "30 y AS LONG",
+        "40 d AS DOUBLE",
+        "50 END TYPE",
+        "60 DIM a AS P",
+        "70 a.x = 3: CALL bump(a)",
+        "80 PRINT a.x; a.y; a.d;",
+        "90 SUB bump (r AS P)",
+        "100 r.x = r.x + 1: r.y = r.x * 2: r.d = r.y / 4",
+        "110 END SUB",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 4  8  2 ");
+    CHECK(unit_ops(S, O_P_FL_LD) == 3 && unit_ops(S, O_FL_LD) == 3);
+}

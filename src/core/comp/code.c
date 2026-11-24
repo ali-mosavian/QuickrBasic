@@ -194,9 +194,12 @@ void code_toint(Code *const c)
     if (c->type == T_INT)
         return;
 
-    const uint8_t op = c->type == T_DBL ? O_D_TOI : O_F_TOI;
+    if (c->type == T_DBL)
+        code_xop(c, X_D_TOI);
+    else
+        code_op(c, O_F_TOI);
+
     c->type = T_INT;
-    code_op(c, op);
 }
 
 void code_todouble(Code *const c)

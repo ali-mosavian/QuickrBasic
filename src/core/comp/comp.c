@@ -709,14 +709,17 @@ static void done(Comp *const C)
 static void fail(Comp *const C, const uint8_t err)
 {
     comp_flush(C);                   /* the steps checked before the error */
-    uint8_t *const o = C->code->out; /* ERR err dg at:4 state:2 */
+    const ErrOp e = {
+        .op = O_X,
+        .xop = X_ERR,
+        .code = err,
+        .dg = C->dg,
+        .at = (uint32_t)(C->p - C->body),
+        .state = C->dfa,
+    };
     C->errs = true;
-    o[0] = O_ERR;
-    o[1] = err;
-    o[2] = C->dg;
-    store32(o + 3, (uint32_t)(C->p - C->body));
-    store16(o + 7, C->dfa);
-    C->code->out = o + 9;
+    memcpy(C->code->out, &e, sizeof e);
+    C->code->out += sizeof e;
     C->dg = 0;
     C->dfa = 0xFFFF;
     comp_flush(C);

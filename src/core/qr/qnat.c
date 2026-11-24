@@ -16,6 +16,7 @@
 #define ARG(k) {QN_ARG, 0, k}
 #define OP(o) {QN_OP, O_##o, 0}
 #define OPB(o, b) {QN_OPB, O_##o, b}
+#define XOP(x) {QN_OPB, O_X, X_##x}
 #define INT(v) {QN_INT, 0, v}
 #define CALL(k) {QN_CALL, K_##k, 0}
 #define SYS(s) {QN_SYS, SC_##s, 0}
@@ -73,7 +74,7 @@ static const QNat qnat_all[] = {
         OP(I_TOD),
         OP(D_MUL),
         OPB(D_FN, DF_INT),
-        OP(D_TOI)),
+        XOP(D_TOI)),
     /* time: TIMER, DATE$, TIME$ */
     NAT("ticks", CALL(TIMER), OP(F_TOD)),
     NAT("date_text", CALL(DATE)),

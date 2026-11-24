@@ -1077,7 +1077,7 @@ static void at_line(Session *const S, const uint32_t line)
    word it is at selected. */
 static void run_error_words(Session *const S)
 {
-    if (!ui.at_error || !S->vm.opip || *S->vm.opip != O_ERR)
+    if (!ui.at_error || !S->vm.opip || !exec_is_err(S->vm.opip))
         return;
 
     LineBuf *const b = &uimn.edline;

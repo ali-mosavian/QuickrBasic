@@ -665,7 +665,7 @@ static uint32_t each_error(const Comp *const C, LinkEach *const each, void *cons
         const uint8_t *op = at(C->allo->cache + prog_line(C->prog, l)->code);
 
         for (; !line_end(*op); op += link_opsize(op))
-            if (*op == O_ERR) {
+            if (exec_is_err(op)) {
                 const ErrOp *const e = (const ErrOp *)op;
                 const Failure f = {
                     .code = e->code,

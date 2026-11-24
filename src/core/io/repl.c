@@ -100,7 +100,8 @@ static void place(Session *const S, const Failure *const e)
 {
     static ErrOp op;
     op = (ErrOp){
-        .op = O_ERR,
+        .op = O_X,
+        .xop = X_ERR,
         .code = e->code,
         .dg = e->dg,
         .at = e->at,
@@ -196,7 +197,7 @@ static bool load_error(const Session *const S) { return S->repl.loading; }
 static const ErrOp *err_op(const Session *const S)
 {
     const ErrOp *const e = (const ErrOp *)S->vm.opip;
-    return e && e->op == O_ERR ? e : nullptr;
+    return e && exec_is_err(&e->op) ? e : nullptr;
 }
 
 /* An error found before the run: loading the file, or compiling. */
@@ -749,7 +750,14 @@ Status repl_declare_check(Session *const S, const uint8_t *const body, ErrOp *co
         c.code = ST_OK;
     } else {
         const ErrOp *const e = err_op(S);
-        *op = e ? *e : (ErrOp){.op = O_ERR, .code = (uint8_t)c.code, .state = DX_NOSTATE};
+        const ErrOp none = {
+            .op = O_X,
+            .xop = X_ERR,
+            .code = (uint8_t)c.code,
+            .state = DX_NOSTATE,
+        };
+
+        *op = e ? *e : none;
     }
 
     S->vm.err.active = active;

@@ -15,6 +15,7 @@
  *   LONG's   [D.LD.V x,] L.CMP m, I.JF|I.JT j                                  L.JFC[.V] [x] m j
  *   x = a op b   I.LD.V a, I.ADD.V b .. I.MOD.I16 k, I.ST.V x                  I.ADD.V.ST x a b ..
  *   x = k, x = a I.LD.U8|I16|I32 k or I.LD.V a, I.ST.V x                       I.SET.U8 .. x k, I.MOV x a
+ *   p.f      R.ADDR p, FL.LD off et, p a record parameter                      P.FL.LD p off et
  *
  * A JT is a JF on the other relations: its mask's complement. A procedure's local has a frame twin
  * of each one-cell op, and of NEXT when its three cells are all the frame's (comp/select.c); it is
@@ -263,6 +264,24 @@ static uint8_t *store(Tail *const t)
     return replace(t, 2, op, 1 + VCELL + n);
 }
 
+/* A record parameter's address and the field's load after it: one load through its ref. */
+static uint8_t *pfield(Tail *const t)
+{
+    if (t->n < 2)
+        return nullptr;
+
+    const uint8_t *const ra = back(t, 1), *const ld = back(t, 0);
+
+    if (*ra != O_R_ADDR || *ld != O_FL_LD || !symb_is_ref(t->sy, load32(ra + 1)))
+        return nullptr;
+
+    uint8_t op[4 + VID];
+    op[0] = O_P_FL_LD;
+    memcpy(op + 1, ra + 1, VID);
+    memcpy(op + 1 + VID, ld + 1, 3);
+    return replace(t, 2, op, sizeof op);
+}
+
 uint8_t *fuse_code(const Symb *const sy, uint8_t *const start, uint8_t *const end)
 {
     static Tail t;
@@ -289,7 +308,7 @@ uint8_t *fuse_code(const Symb *const sy, uint8_t *const start, uint8_t *const en
         for (uint8_t *e;
 
              (e = next(&t)) || (e = literal(&t)) || (e = branch(&t)) || (e = lbranch(&t)) ||
-             (e = store(&t));)
+             (e = store(&t)) || (e = pfield(&t));)
             out = e;
     }
 

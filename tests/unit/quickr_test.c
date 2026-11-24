@@ -4,7 +4,6 @@
 #include <unistd.h>
 #include "session.h"
 #include "comp/declare.h"
-#include "comp/link.h"
 #include "qr/qr.h"
 #include "unit.h"
 
@@ -20,21 +19,6 @@ static uint32_t build(Session *const S, const char *const src)
     const uint32_t errors = qr_build(S);
     remove(path);
     return errors;
-}
-
-/* The ops op in the program built, as linked. */
-static uint32_t ops(const Session *const S, const uint8_t op)
-{
-    uint32_t n = 0;
-
-    for (uint32_t l = PROGBASE, len; (len = prog_line(&S->prog, l)->len); l += len) {
-        const uint8_t *b = at(S->allo.cache + prog_line(&S->prog, l)->code);
-
-        for (; *b != O_EOL && *b != O_EOL_TO; b += link_opsize(b))
-            n += *b == op;
-    }
-
-    return n;
 }
 
 /* A byte or a ubyte takes 1 byte and a short or a ushort 2, in a field and in a fixed array's
@@ -61,7 +45,23 @@ TEST(quickr_narrow_fields_are_variables)
         "    return int(p.s) + int(p.u)\nend fn\n"
         "var g = P(b: 1, s: 2, u: 3)\ng.u += 1\nprint(f(), g.u)\n"
     ));
-    CHECK(!ops(S, O_FL_LD) && !ops(S, O_FL_ST) && !ops(S, O_V_CELL) && !ops(S, O_L_CELL));
-    CHECK(ops(S, O_N_LD_L) == 4 && ops(S, O_N_ST_L) == 4);
-    CHECK(ops(S, O_N_LD_V) == 2 && ops(S, O_N_ST_V) == 4);
+    CHECK(!unit_ops(S, O_FL_LD) && !unit_ops(S, O_FL_ST));
+    CHECK(!unit_ops(S, O_V_CELL) && !unit_ops(S, O_L_CELL));
+    CHECK(unit_ops(S, O_N_LD_L) == 4 && unit_ops(S, O_N_ST_L) == 4);
+    CHECK(unit_ops(S, O_N_LD_V) == 2 && unit_ops(S, O_N_ST_V) == 4);
+}
+
+/* A record parameter's number field is read and written through its ref by one op, P.FL.LD or
+   P.FL.ST, a narrow one's and a held record's too. Through R.ADDR, each took two. */
+TEST(quickr_parameter_fields_by_ref)
+{
+    CHECK(!build(
+        S,
+        "type In\n    k as short\n    d as double\nend type\n"
+        "type R\n    b as byte\n    n as int\n    i as In\nend type\n"
+        "fn bump(mut r as R)\n    r.n += int(r.b)\n    r.i.k += 1\n    r.i.d *= 2.0\nend fn\n"
+        "var a = R(b: 1, n: 2, i: In(k: 3, d: 4.0))\nbump(mut a)\nprint(a.n, a.i.k, a.i.d)\n"
+    ));
+    CHECK(!unit_ops(S, O_R_ADDR) && !unit_ops(S, O_FL_LD) && !unit_ops(S, O_FL_ST));
+    CHECK(unit_ops(S, O_P_FL_LD) == 4 && unit_ops(S, O_P_FL_ST) == 3);
 }

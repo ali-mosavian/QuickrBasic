@@ -278,13 +278,13 @@ static uint32_t captured(Session *const S, void (*const print)(Session *S))
 }
 
 /* ui_chkop: link_walk's: an ERR op's error. */
-static void chkop(const uint8_t op, const uint8_t *const at)
+static void chkop([[maybe_unused]] const uint8_t op, const uint8_t *const at)
 {
-    if (op != O_ERR)
+    if (!exec_is_err(at))
         return;
 
-    uc.err = at[1];
     uc.eop = (const ErrOp *)at;
+    uc.err = uc.eop->code;
 }
 
 /* The body at uc.pre, n characters, tokenized into comp_cbuf, its declarations entered; the

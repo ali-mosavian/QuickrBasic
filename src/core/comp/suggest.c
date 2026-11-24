@@ -129,7 +129,7 @@ static bool sugg_compile(
     C->check = false;
 
     for (const uint8_t *op = C->xbuf; *op != O_EOL; op += flow_opsize(op)) {
-        if (*op == O_ERR) {
+        if (exec_is_err(op)) {
             const ErrOp *const e = (const ErrOp *)op;
             *at = e->at;
             *err = e->code;

@@ -564,7 +564,7 @@ static void qcg_conv(Code *const c, const QType from, const QType to, const bool
             code_op(c, O_F_TOD);
 
         code_opb(c, O_D_FN, DF_FIX);
-        code_op(c, O_D_TOI);
+        code_xop(c, X_D_TOI);
         return;
     }
 
@@ -1324,6 +1324,41 @@ static void qcg_wordop(const QCg *const g, const bool store, const QVar *const w
     code_byte(g->c, (uint8_t)qcg_et(g, w->type));
 }
 
+/* Field place e of a number in a record parameter's record: that parameter, *off the field's
+   bytes into its record; null none. A parameter by its ref cell (qr/qlink.c): an inlined fn's is
+   its caller's variable, a temporary's or none. */
+static const QVar *qcg_pfield(const QCg *const g, const QExpr *const e, uint32_t *const off)
+{
+    if (e->kind != QE_FIELD || qcg_byplace(g, e->type) || e->type == QY_STRING)
+        return nullptr;
+
+    const QExpr *r = e;
+    *off = 0;
+
+    for (; r->kind == QE_FIELD; r = r->a)
+        *off += qcg_ty(g, r->a->type)->fields[r->field].off;
+
+    if (r->kind != QE_NAME || r->var->cells || !symb_is_ref(g->env->sy, r->var->id) ||
+        *off > UINT16_MAX)
+        return nullptr;
+
+    return r->var;
+}
+
+/* Record parameter par's field's load or store, off bytes into its record: P.FL.LD or P.FL.ST. */
+static void qcg_pfieldop(
+    const QCg *const g,
+    const bool store,
+    const QVar *const par,
+    const uint32_t off,
+    const QType t
+)
+{
+    code_opid(g->c, store ? O_P_FL_ST : O_P_FL_LD, par->id, false);
+    code_word(g->c, (uint16_t)off);
+    code_byte(g->c, (uint8_t)qcg_et(g, t));
+}
+
 /* Is element place e a variable's list's, loaded and stored by I.LD.A1 and its kin? */
 static bool qcg_byindex(const QCg *const g, const QExpr *const e)
 {
@@ -1349,6 +1384,14 @@ static void qcg_loadat(QCg *const g, const QExpr *const e)
 
     if (qcg_copyat(g, e)) { /* a for's x: its copy, E.NEXT's */
         qcg_load(c, qcg_copyat(g, e));
+        return;
+    }
+
+    uint32_t off;
+    const QVar *const par = qcg_pfield(g, e, &off);
+
+    if (par) {
+        qcg_pfieldop(g, false, par, off, e->type);
         return;
     }
 
@@ -1393,15 +1436,22 @@ static void qcg_storeat(QCg *const g, const QVar *const list, const QType type)
 typedef struct {
     uint32_t off;
     const QVar *list; /* by I.ST.A1 and its kin */
+    const QVar *par;  /* by P.FL.ST, a record parameter's field */
     bool at;          /* by FL.ST or SF.ST, the address under the value */
 } QCgPut;
 
 static QCgPut qcg_before(QCg *const g, const QExpr *const e)
 {
     QVar w;
+    uint32_t off;
 
     if (e->kind == QE_NAME || qcg_word(g, e, &w))
         return (QCgPut){};
+
+    const QVar *const par = qcg_pfield(g, e, &off);
+
+    if (par)
+        return (QCgPut){.off = off, .par = par};
 
     if (e->kind == QE_FIELD)
         return (QCgPut){.off = qcg_fieldat(g, e), .at = true};
@@ -1418,7 +1468,9 @@ static QCgPut qcg_before(QCg *const g, const QExpr *const e)
 
 static void qcg_put(QCg *const g, const QExpr *const e, const QCgPut p)
 {
-    if (p.at)
+    if (p.par)
+        qcg_pfieldop(g, true, p.par, p.off, e->type);
+    else if (p.at)
         qcg_fieldop(g, true, p.off, e->type);
     else if (p.list)
         qcg_storeat(g, p.list, e->type);

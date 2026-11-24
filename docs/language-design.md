@@ -196,10 +196,10 @@ end while
   local's: its strings and lists owned as a QBasic TYPE's are, gone with its frame. A number
   field in its first 256 bytes, at any offset, is a variable of its own, a byte's or a short's
   read and written by `N.LD` and `N.ST`; one past them is read through the record's address. A
-  map and a larger record are boxes on the heap, a parameter a ref to its argument: each reached
-  by `R.ADDR`. A fixed array variable is a
-  dynamic array; as a field it is inline. An enum lays out each value's data after the tag, none
-  overlapping.
+  map and a larger record are boxes on the heap, reached by `R.ADDR`. A parameter is a ref to its
+  argument, its number fields read and written through it by `P.FL.LD` and `P.FL.ST`. A fixed
+  array variable is a dynamic array; as a field it is inline. An enum lays out each value's data
+  after the tag, none overlapping.
 
 ### Declarations
 

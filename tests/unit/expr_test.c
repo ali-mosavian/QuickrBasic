@@ -41,10 +41,10 @@ TEST(not_a_function_marked_at_itself)
     S->comp.check = false;
     const uint8_t *op = S->comp.xbuf;
 
-    while (*op != O_ERR && *op != O_EOL)
+    while (!exec_is_err(op) && *op != O_EOL)
         op += flow_opsize(op);
 
-    CHECK(*op == O_ERR);
+    CHECK(exec_is_err(op));
     CHECK(((const ErrOp *)op)->at == 8); /* x: 7 bytes, =, then MKDIR */
 }
 
@@ -68,10 +68,10 @@ TEST(parameter_mismatch_marked_at_its_argument)
     S->comp.check = false;
     const uint8_t *op = S->comp.xbuf;
 
-    while (*op != O_ERR && *op != O_EOL)
+    while (!exec_is_err(op) && *op != O_EOL)
         op += flow_opsize(op);
 
-    CHECK(*op == O_ERR);
+    CHECK(exec_is_err(op));
     CHECK(((const ErrOp *)op)->at == 19); /* x: 7 bytes, =, sum%: 10, (, then a */
 }
 
@@ -96,7 +96,7 @@ TEST(function_result_passes_the_line_check)
     S->comp.check = false;
     const uint8_t *op = S->comp.xbuf;
 
-    while (*op != O_ERR && *op != O_EOL)
+    while (!exec_is_err(op) && *op != O_EOL)
         op += flow_opsize(op);
 
     CHECK(*op == O_EOL);

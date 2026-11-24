@@ -35,8 +35,8 @@
  * | FX, FV, FB | FX, FV, FB (exec.h) | MIRROR |
  *
  * - D1. I.EQV, I.IMP, D.POW, P.REFN, F.TOB, F.TOA, D.NZ, S.IF, D.PAST, ONEV, ONERR, ONLERR, RESUME,
- *   RESTORE.L, RUN.L, R.COPY, MODEND, I.PAST, F.PAST, SF.LD and SF.ST are X ops; F.LD.PI, never
- *   made, is gone.
+ *   RESTORE.L, RUN.L, R.COPY, MODEND, I.PAST, F.PAST, SF.LD, SF.ST, ERR and D.TOI are X ops;
+ *   F.LD.PI, never made, is gone.
  */
 
 #if defined(OP) || defined(FRAME)
@@ -156,7 +156,7 @@ OP(RETURN, flow_return, 1, 0)
 TWIN(I_STEP_V, I_STEP_L, oper_i_step_v, oper_i_step_l, 1 + VCELL, FX, FV)
 /* a narrow field of a record in cells, a variable of its own (qr/qlink.c): cell et */
 TWIN(N_LD_V, N_LD_L, exec_n_ld_v, exec_n_ld_l, 2 + VCELL, FX, FV)
-OP(ERR, flow_err, sizeof(ErrOp), 0)
+OP(P_FL_LD, exec_p_fl_ld, 4 + VID, FX + FP) /* a record parameter's number field: off:2 et */
 OP(JMP, flow_jmp, JSIZE, 0)
 OP(I_JF, flow_i_jf, JSIZE, 0)
 OP(F_JF, flow_f_jf, JSIZE, 0)
@@ -196,7 +196,7 @@ OP(L_MUL, oper_l_mul, 1, FX + FK)
 OP(I_TOD, dubl_itod, 1, FX + FK)
 OP(F_TOD, dubl_ftod, 1, FX + FK)
 OP(D_TOF, dubl_tof, 1, FX + FK)
-OP(D_TOI, dubl_toi, 1, FX + FK)
+OP(P_FL_ST, exec_p_fl_st, 4 + VID, FP)
 OP(D_FN, dubl_fn, 2, FX)
 OP(L_ADD, oper_l_add, 1, FX + FK)
 OP(DBG, dbug_dbg, 1, 0)
@@ -334,6 +334,8 @@ XOP(I_PAST, flow_i_past, 2, FX)
 XOP(F_PAST, flow_f_past, 2, FX)
 XOP(SF_LD, exec_sf_ld, 6, 0)
 XOP(SF_ST, exec_sf_st, 6, 0)
+XOP(ERR, flow_err, sizeof(ErrOp), 0)
+XOP(D_TOI, dubl_toi, 2, FX + FK)
 #undef XOP
 #endif
 
