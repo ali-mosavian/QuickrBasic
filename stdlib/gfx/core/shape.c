@@ -6,8 +6,8 @@
 /* The texels' corners, top left round, flipped as flags say. */
 static void texels(const int32_t w, const int32_t h, const int32_t flags, Corner out[4])
 {
-    const float l = flags & GFX_DRAW_FLIPX ? (float)w : 0, r = (float)w - l;
-    const float top = flags & GFX_DRAW_FLIPY ? (float)h : 0, bottom = (float)h - top;
+    const float l = flags & GFX_DRAW_FLIP_X ? (float)w : 0, r = (float)w - l;
+    const float top = flags & GFX_DRAW_FLIP_Y ? (float)h : 0, bottom = (float)h - top;
     out[0].u = l, out[0].v = top;
     out[1].u = r, out[1].v = top;
     out[2].u = r, out[2].v = bottom;
@@ -73,9 +73,9 @@ void shape_segment(
     Corner out[4]
 )
 {
-    const float run = flags & GFX_DRAW_FLIPX ? -(b.x - a.x) : b.x - a.x;
-    const float u0 = flags & GFX_DRAW_FLIPX ? (float)w - u : u;
-    const float top = flags & GFX_DRAW_FLIPY ? (float)h : 0, bottom = (float)h - top;
+    const float run = flags & GFX_DRAW_FLIP_X ? -(b.x - a.x) : b.x - a.x;
+    const float u0 = flags & GFX_DRAW_FLIP_X ? (float)w - u : u;
+    const float top = flags & GFX_DRAW_FLIP_Y ? (float)h : 0, bottom = (float)h - top;
     const Vec corners[] = {a, b, {b.x, b.y + (float)h}, {a.x, a.y + (float)h}};
 
     const float us[] = {u0, u0 + run, u0 + run, u0}, vs[] = {top, top, bottom, bottom};

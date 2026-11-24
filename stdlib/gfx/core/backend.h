@@ -3,7 +3,7 @@
  *
  * # How it works
  * A backend keeps what it needs in its own state (Gx.own), made when it first needs it and freed
- * by stop. begin readies a call into the pen's target; source readies it for a picture's texels,
+ * by stop. begin readies a call into its target; source readies it for a picture's texels,
  * solid for one colour over the picture's shape. The rest draw: points name pixel centres
  * (cover.h), and a picture's corners carry its texels (shape.h).
  */
@@ -25,9 +25,9 @@ typedef struct {
 
 typedef struct {
     int32_t has; /* display.HAS_ */
-    /* The screen the host gave, its canvas of format: false, raised. */
+    /* The screen the host gave, its surface of format: false, raised. */
     bool (*open)(Gx *g, const QxScreen *s, PxFormat f);
-    /* The frame shown; the canvas's pixels kept. */
+    /* The frame shown; the screen's pixels kept. */
     void (*flip)(Gx *g);
     /* Before the screen closes. */
     void (*close)(Gx *g);
@@ -42,11 +42,11 @@ typedef struct {
     void (*wrote)(Gx *g, uint32_t h, int32_t top, int32_t bottom);
     /* h, a surface, freed. */
     void (*forget)(Gx *g, uint32_t h);
-    /* c's call readied into the pen's target, whose picture is into, within clip: false, raised. */
+    /* c's call readied into its target, whose picture is into, within clip: false, raised. */
     bool (*begin)(Gx *g, const Command *c, const Picture *into, Rect clip);
     /* The call readied for p's texels: false, raised. */
     bool (*source)(Gx *g, const Picture *p);
-    /* Every texel drawn is colour, through the pen as a shape's: SOLID's, with a colour of the
+    /* Every texel drawn is colour, through the style as a shape's: SOLID's, with a colour of the
        call's. */
     void (*solid)(Gx *g, uint32_t colour);
     void (*clear)(Gx *g, uint32_t colour);

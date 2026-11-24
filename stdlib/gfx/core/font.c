@@ -66,6 +66,12 @@ uint32_t font_new(
     return handle;
 }
 
+void font_free(Fonts *const fs, const uint32_t h)
+{
+    mem_free(hdl_item(&fs->table, h));
+    hdl_drop(&fs->table, h);
+}
+
 const Font *font_get(const Fonts *const fs, const uint32_t h)
 {
     return h ? hdl_item(&fs->table, h) : &fs->builtin;

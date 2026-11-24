@@ -1,12 +1,12 @@
 /* Surfaces: everything drawn from or into. A view is a surface over part of another's pixels, with
- * its own shape and no memory of its own; the canvas is the screen's page.
+ * its own shape and no memory of its own; the screen's surface is the screen's page.
  *
  * # How it works
- * A surface's pixels are its own, the canvas's page (slot 0, surface.CANVAS), or its parent's at
- * its place: surf_pixels walks up to the one with memory, so a view follows its parent's page from
- * frame to frame and aim moves it without allocating. Freeing a surface frees its views, and
- * theirs; their handles are then stale. A surface has a format: a view its parent's, the canvas
- * the screen's.
+ * A surface's pixels are its own, the screen's page (slot 0, SURF_SCREEN), or its parent's at its
+ * place: surf_pixels walks up to the one with memory, so a view follows its parent's page from
+ * frame to frame and set_view moves it without allocating. Freeing a surface frees its views, and
+ * theirs; their handles are then stale. A surface has a format: a view its parent's, the screen's
+ * the host's. Each has its own clip, camera and anchor, which drawing into or from it uses.
  *
  * A root, the surface with the pixels, counts the writes to them (version), so a GPU's copy knows
  * when it is behind.
@@ -21,16 +21,22 @@ typedef struct {
     int32_t x, y;    /* a view's place in its parent */
     int32_t w, h;
     int32_t ax, ay; /* the anchor: the point a sprite's x, y names */
+    Rect clip;      /* clipped false, the whole of it */
+    bool clipped;
+    Camera camera;
     PxFormat format;
-    uint8_t *own;      /* its own pixels, w a row; null a view's or the canvas's */
+    uint8_t *own;      /* its own pixels, w a row; null a view's or the screen's */
     uint32_t *palette; /* an image's 256 colours, &HRRGGBB; null none */
     uint32_t version;  /* a root's: its pixels written, counted; 0 never */
 } Surface;
 
+/* The screen's surface. */
+enum : uint32_t { SURF_SCREEN = (uint32_t)HDL_SURFACE << HDL_KIND_SHIFT };
+
 /* A picture's own texture, with no surface: a handle is never so small. */
 enum { PIC_WHITE = 1, PIC_FONT = 2 };
 
-/* A surface's pixels as drawn from: its root's (the surface with memory, or the canvas's page),
+/* A surface's pixels as drawn from: its root's (the surface with memory, or the screen's page),
    its rectangle in them; the root's handle, or a PIC_ texture's, and the root's version. */
 typedef struct {
     Pixels root;
@@ -42,17 +48,17 @@ static inline Pixels pic_pixels(const Picture *const p) { return px_cut(&p->root
 
 typedef struct {
     HdlTable t;
-    Pixels canvas; /* the page; p null, no screen */
+    Pixels screen; /* the page; p null, no screen */
 } Surfaces;
 
 void surf_init(Surfaces *ss);
 /* Every surface freed. */
 void surf_done(Surfaces *ss);
-/* The canvas, the screen's page w by h: false, no memory. */
+/* The screen's surface, the screen's page: false, no memory. */
 bool surf_open(Surfaces *ss, Pixels page);
 /* The page drawn in from now on: the next frame's. */
 void surf_page(Surfaces *ss, Pixels page);
-/* The canvas and its views freed. */
+/* The screen's surface and its views freed. */
 void surf_close(Surfaces *ss);
 /* A surface w by h of format with own's pixels (null: its own, zeroed) and palette (null none),
    both then its: its handle, 0 no memory. */
@@ -72,6 +78,8 @@ Surface *surf_get(const Surfaces *ss, uint32_t h);
 Picture surf_picture(const Surfaces *ss, uint32_t h);
 /* s's root; *h, s's handle, becomes the root's. */
 Surface *surf_root(const Surfaces *ss, Surface *s, uint32_t *h);
+/* s's clip, inside it. */
+Rect surf_clip(const Surface *s);
 /* s's pixels written: its root's version counted. */
 void surf_wrote(const Surfaces *ss, Surface *s);
 Pixels surf_pixels(const Surfaces *ss, const Surface *s);

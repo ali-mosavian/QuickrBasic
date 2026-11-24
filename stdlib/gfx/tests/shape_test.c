@@ -10,7 +10,7 @@
 TEST(gfx_circle_filled_and_outlined)
 {
     CANVAS(8, 8);
-    CALL("draw.circle", F(3), F(3), F(2), I(5), I(GFX_DRAW_FILL));
+    CALL("draw.circle", I(SURF_SCREEN), F(3), F(3), F(2), I(5), I(GFX_DRAW_FILL));
     ROW(0, "11111111");
     ROW(1, "11555111");
     ROW(2, "15555511");
@@ -20,15 +20,15 @@ TEST(gfx_circle_filled_and_outlined)
     ROW(6, "11111111");
 
     CANVAS(8, 8);
-    CALL("draw.circle", F(3), F(3), F(2), I(5), I(0));
-    CALL("draw.circle", F(6), F(6), F(0), I(7), I(0));
+    CALL("draw.circle", I(SURF_SCREEN), F(3), F(3), F(2), I(5), I(0));
+    CALL("draw.circle", I(SURF_SCREEN), F(6), F(6), F(0), I(7), I(0));
     ROW(1, "11555111");
     ROW(2, "15111511");
     ROW(3, "15111511");
     ROW(4, "15111511");
     ROW(5, "11555111");
     ROW(6, "11111171");
-    CHECK(CALL("draw.circle", F(0), F(0), F(-1), I(1), I(0)).error == 5);
+    CHECK(CALL("draw.circle", I(SURF_SCREEN), F(0), F(0), F(-1), I(1), I(0)).error == 5);
 }
 
 /* Clockwise on the screen from start to finish: 0 to a quarter turn is the lower right; past half
@@ -36,7 +36,7 @@ TEST(gfx_circle_filled_and_outlined)
 TEST(gfx_arc_sweeps_clockwise)
 {
     CANVAS(8, 8);
-    CALL("draw.arc", F(3), F(3), F(2), F(0), F(GM_PI / 2), I(5));
+    CALL("draw.arc", I(SURF_SCREEN), F(3), F(3), F(2), F(0), F(GM_PI / 2), I(5));
     ROW(1, "11111111");
     ROW(2, "11111111");
     ROW(3, "11111511");
@@ -44,7 +44,7 @@ TEST(gfx_arc_sweeps_clockwise)
     ROW(5, "11155111");
 
     CANVAS(8, 8);
-    CALL("draw.arc", F(3), F(3), F(2), F(1), F(5.5), I(5));
+    CALL("draw.arc", I(SURF_SCREEN), F(3), F(3), F(2), F(1), F(5.5), I(5));
     ROW(1, "11555111");
     ROW(2, "15111111");
     ROW(3, "15111111");
@@ -60,7 +60,8 @@ TEST(gfx_poly_filled_and_outlined)
     a.lbound = -1; /* points(-1 to 2): the triangle from index 0 */
 
     CANVAS(8, 8);
-    CHECK(!CALL("draw.poly", I(0), ARRAY(&a), I(0), I(3), I(3), I(GFX_DRAW_FILL)).error);
+    CHECK(!CALL("draw.poly", I(SURF_SCREEN), ARRAY(&a), I(0), I(3), I(0), I(3), I(GFX_DRAW_FILL))
+               .error);
     /* the centres with x + y < 7, the hypotenuse's own out. qgl's truncated reciprocal once made
        its slope -65535: from row 3 it kept the centre it passes */
     ROW(0, "11111111");
@@ -73,7 +74,7 @@ TEST(gfx_poly_filled_and_outlined)
 
     /* each edge without its end, the next one's start: each corner once */
     CANVAS(8, 8);
-    CALL("draw.poly", I(0), ARRAY(&a), I(0), I(3), I(4), I(0));
+    CALL("draw.poly", I(SURF_SCREEN), ARRAY(&a), I(0), I(3), I(0), I(4), I(0));
     ROW(1, "14444441");
     ROW(2, "14111411");
     ROW(3, "14114111");
@@ -81,9 +82,9 @@ TEST(gfx_poly_filled_and_outlined)
     ROW(5, "14411111");
     ROW(6, "14111111");
 
-    CHECK(CALL("draw.poly", I(0), ARRAY(&a), I(0), I(2), I(4), I(0)).error == 5);
-    CHECK(CALL("draw.poly", I(0), ARRAY(&a), I(1), I(3), I(4), I(0)).error == 9);
-    CHECK(CALL("draw.poly", I(0), ARRAY(&a), I(-2), I(3), I(4), I(0)).error == 9);
+    CHECK(CALL("draw.poly", I(SURF_SCREEN), ARRAY(&a), I(0), I(2), I(0), I(4), I(0)).error == 5);
+    CHECK(CALL("draw.poly", I(SURF_SCREEN), ARRAY(&a), I(1), I(3), I(0), I(4), I(0)).error == 9);
+    CHECK(CALL("draw.poly", I(SURF_SCREEN), ARRAY(&a), I(-2), I(3), I(0), I(4), I(0)).error == 9);
 }
 
 /* The camera's point at the target's centre (3.5, 3.5), the view a quarter turn clockwise: the
@@ -91,8 +92,10 @@ TEST(gfx_poly_filled_and_outlined)
 TEST(gfx_camera_turned_turns_and_zooms)
 {
     CANVAS(8, 8);
-    CHECK(!CALL("draw.camera_turned", F(0.3), F(0.2), F(GM_PI / 2), F(1)).error);
-    CALL("draw.rect", F(-2), F(-1), F(2), F(1), I(6), I(GFX_DRAW_FILL));
+    CHECK(
+        !CALL("surface.set_camera_turned", I(SURF_SCREEN), F(0.3), F(0.2), F(GM_PI / 2), F(1)).error
+    );
+    CALL("draw.rect", I(SURF_SCREEN), F(-2), F(-1), F(2), F(1), I(6), I(GFX_DRAW_FILL));
     ROW(1, "11111111");
     ROW(2, "11666111");
     ROW(4, "11666111");
@@ -100,22 +103,22 @@ TEST(gfx_camera_turned_turns_and_zooms)
     ROW(7, "11111111");
 
     gfx_display_command c;
-    CALL("display.drawn", I(2), REF(&c));
+    CALL("display.get_drawn", I(2), REF(&c));
     CHECK(c.kind == GFX_DISPLAY_DREW_RECT && c.scale == 1);
     CHECK(c.x > 2.29f && c.x < 2.31f && c.y > 5.79f && c.y < 5.81f);
     CHECK(c.x2 > 4.29f && c.x2 < 4.31f && c.angle < -1.5707f && c.angle > -1.5709f);
 
     /* zoomed twice: the rect's edges at 2.5 and 6.5 */
     CANVAS(8, 8);
-    CALL("draw.camera_turned", F(0.3), F(0.2), F(0), F(2));
-    CALL("draw.rect", F(0.3), F(0.2), F(1.3), F(1.2), I(6), I(GFX_DRAW_FILL));
+    CALL("surface.set_camera_turned", I(SURF_SCREEN), F(0.3), F(0.2), F(0), F(2));
+    CALL("draw.rect", I(SURF_SCREEN), F(0.3), F(0.2), F(1.3), F(1.2), I(6), I(GFX_DRAW_FILL));
     ROW(2, "11111111");
     ROW(3, "11166661");
     ROW(6, "11166661");
     ROW(7, "11111111");
-    CALL("display.drawn", I(2), REF(&c));
+    CALL("display.get_drawn", I(2), REF(&c));
     CHECK(c.scale == 2);
-    CHECK(CALL("draw.camera_turned", F(0), F(0), F(0), F(0)).error == 5);
+    CHECK(CALL("surface.set_camera_turned", I(SURF_SCREEN), F(0), F(0), F(0), F(0)).error == 5);
 }
 
 /* Each pixel of a 64 by 64 canvas is the colour where disc.h's rule covers it, else the clear. */
@@ -148,7 +151,15 @@ TEST(gfx_circles_follow_the_disc_rule)
         const Disc k = disc_of((Vec){edge[i][0], edge[i][1]}, edge[i][2], true);
 
         CANVAS(64, 64);
-        CALL("draw.circle", F(k.c.x), F(k.c.y), F(edge[i][2]), I(5), I(GFX_DRAW_FILL));
+        CALL(
+            "draw.circle",
+            I(SURF_SCREEN),
+            F(k.c.x),
+            F(k.c.y),
+            F(edge[i][2]),
+            I(5),
+            I(GFX_DRAW_FILL)
+        );
         CHECK(follows(S, &k, &whole));
     }
 
@@ -169,9 +180,17 @@ TEST(gfx_circles_follow_the_disc_rule)
         CANVAS(64, 64);
 
         if (i % 3 == 2)
-            CALL("draw.arc", F(c.x), F(c.y), F(r), F(start), F(finish), I(5));
+            CALL("draw.arc", I(SURF_SCREEN), F(c.x), F(c.y), F(r), F(start), F(finish), I(5));
         else
-            CALL("draw.circle", F(c.x), F(c.y), F(r), I(5), I(i % 3 == 0 ? GFX_DRAW_FILL : 0));
+            CALL(
+                "draw.circle",
+                I(SURF_SCREEN),
+                F(c.x),
+                F(c.y),
+                F(r),
+                I(5),
+                I(i % 3 == 0 ? GFX_DRAW_FILL : 0)
+            );
 
         CHECK(follows(S, &k, &w));
     }

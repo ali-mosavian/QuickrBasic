@@ -1,4 +1,4 @@
-/* Inks: what a draw call's pixels go through, made once for the call from its flags and the pen.
+/* Inks: what a draw call's pixels go through, made once for the call from its flags and the style.
  *
  * # How it works
  * An ink's texels are its source's (an index, or a pixel of 15, 16 or 32 bits); a shape's colour
@@ -17,7 +17,7 @@
 #define GFX_INK_H
 #include "base/pixels.h"
 #include "core/palette.h"
-#include "core/pen.h"
+#include "core/style.h"
 
 typedef struct {
     PxFormat source;
@@ -30,12 +30,12 @@ typedef struct {
     uint8_t alpha;
 } Ink;
 
-/* The ink of a call's flags and the pen p into a target of format, its texels a shape's colours:
+/* The ink of a call's flags and the style p into a target of format, its texels a shape's colours:
    false, no memory. */
-bool ink_begin(Ink *k, Palette *pal, const Pen *p, int32_t flags, PxFormat format);
+bool ink_begin(Ink *k, Palette *pal, const Style *p, int32_t flags, PxFormat format);
 /* k readied for a picture's texels, of format from, into a target of format into: false, no
    memory. */
-bool ink_source(Ink *k, Palette *pal, const Pen *p, PxFormat into, PxFormat from);
-/* Every texel drawn is colour, a shape's, through the pen: SOLID's. */
-void ink_solid(Ink *k, const Pen *p, PxFormat into, uint32_t colour);
+bool ink_source(Ink *k, Palette *pal, const Style *p, PxFormat into, PxFormat from);
+/* Every texel drawn is colour, a shape's, through the style: SOLID's. */
+void ink_solid(Ink *k, const Style *p, PxFormat into, uint32_t colour);
 #endif

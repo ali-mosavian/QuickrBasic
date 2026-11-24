@@ -17,7 +17,7 @@ Gx *gx_get(void)
         surf_init(&state->surfaces);
         font_init(&state->fonts);
         pal_default(&state->palette);
-        pen_reset(&state->pen, GFX_SURFACE_CANVAS);
+        style_reset(&state->style);
         state->backend = &backend_soft;
     }
 
@@ -108,11 +108,26 @@ void gx_wrote(Gx *const g, const uint32_t h, const Rect r)
     g->backend->wrote(g, p.texture, top, top + r.h);
 }
 
-bool gx_draw(Gx *const g, Command *const c, const int32_t allowed, Place *const where)
+bool gx_apart(Gx *const g, const uint32_t dst, const uint32_t src)
 {
-    Surface *const s = gx_surface(g, g->pen.target);
+    uint32_t a = dst, b = src;
 
-    if (!s)
+    surf_root(&g->surfaces, surf_get(&g->surfaces, dst), &a);
+    surf_root(&g->surfaces, surf_get(&g->surfaces, src), &b);
+    return !gx_illegal(a == b);
+}
+
+bool gx_check(
+    Gx *const g,
+    const uint32_t dst,
+    const Command *const c,
+    const int32_t allowed,
+    Place *const where
+)
+{
+    const Surface *const s = gx_surface(g, dst);
+
+    if (!s || (c->source && !gx_apart(g, dst, c->source)))
         return false;
 
     const uint32_t most = s->format == PX_8 ? COLOURS - 1 : PAL_WHITE;
@@ -123,16 +138,32 @@ bool gx_draw(Gx *const g, Command *const c, const int32_t allowed, Place *const 
         ))
         return false;
 
-    *where = cmd_where(&g->camera, s->w, s->h);
-    cmd_place(c, &g->pen, where);
+    *where = cmd_where(&s->camera, s->w, s->h);
+    where->clip = surf_clip(s);
+    return true;
+}
+
+bool gx_begin(Gx *const g, const uint32_t dst, Command *const c, const Place *const where)
+{
+    c->target = dst;
+    cmd_place(c, &g->style, where);
 
     if (!cmd_log(&g->log, c))
         return gx_fail(ERR_MEMORY);
 
-    const Picture into = surf_picture(&g->surfaces, g->pen.target);
-
-    where->clip = pen_clip(&g->pen, s->w, s->h);
+    const Picture into = surf_picture(&g->surfaces, dst);
     return g->backend->begin(g, c, &into, where->clip);
+}
+
+bool gx_draw(
+    Gx *const g,
+    const uint32_t dst,
+    Command *const c,
+    const int32_t allowed,
+    Place *const where
+)
+{
+    return gx_check(g, dst, c, allowed, where) && gx_begin(g, dst, c, where);
 }
 
 void gfx_init(void) {}

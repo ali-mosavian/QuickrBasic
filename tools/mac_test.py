@@ -57,21 +57,22 @@ LOOP = "DO\nLOOP\n"
 QUICKR = "' OPTION DIALECT QUICKR\nimport text\nprint text.upper(\"ok\")\nwhile true\nwend\n"
 NATIVE = "from qxtest import *\nSCREEN 9\nIF add%(2, 3) = 5 THEN LINE (0, 0)-(100, 100), 4, BF\n" + LOOP
 GFX = (
-    "import gfx.display, gfx.draw\ngfx.display.open 64, 48, {depth}, 0\ngfx.draw.clear &H123456\n"
-    "gfx.draw.rect 0, 0, 31, 47, &HFF8000, gfx.draw.FILL\ngfx.display.flip\n" + LOOP
+    "import gfx.display, gfx.draw\ncanvas& = gfx.display.open(64, 48, {depth}, 0)\n"
+    "gfx.draw.clear canvas&, &H123456\ngfx.draw.rect canvas&, 0, 0, 31, 47, &HFF8000, gfx.draw.FILL\n"
+    "gfx.display.flip\n" + LOOP
 )
 # its halves at 32 bits, and at 16 (565: each channel's top bits repeated below)
 GFX_SHOWN = {32: ((0xFF, 0x80, 0), (0x12, 0x34, 0x56)), 16: ((0xFF, 0x82, 0), (0x10, 0x34, 0x52))}
 # shapes, a surface drawn into and drawn, text: indexed textures, the palette, passes; circles off the pixel grid
 GFX_SCENE = (
-    "import gfx.display, gfx.draw, gfx.surface, gfx.pen\ngfx.display.open 160, 120, 8, 0\n"
-    "if (gfx.display.caps and gfx.display.HAS_GPU) <> {gpu} then end\n"
-    "gfx.draw.clear 1\ngfx.draw.rect 4, 4, 60, 40, 4, gfx.draw.FILL\ngfx.draw.line 0, 119, 159, 0, 14\n"
-    "gfx.draw.circle 100, 60, 20, 2, gfx.draw.FILL\ns& = gfx.surface.new(16, 16)\ngfx.pen.target s&\n"
-    "gfx.draw.clear 9\ngfx.draw.rect 0, 0, 7, 7, 12, gfx.draw.FILL\ngfx.pen.target gfx.surface.CANVAS\n"
-    'gfx.draw.sprite s&, 120, 90, 0\ngfx.draw.text 4, 100, "GPU", 15\ngfx.draw.circle 40, 80, 15.3, 10, 0\n'
-    "gfx.draw.arc 130.5, 30, 18, 0.5, 4, 13\ngfx.draw.circle 70.25, 70.5, 6.5, 11, gfx.draw.FILL\n"
-    "gfx.display.flip\n" + LOOP
+    "import gfx.display, gfx.draw, gfx.surface\ncanvas& = gfx.display.open(160, 120, 8, 0)\n"
+    "if (gfx.display.features and gfx.display.HAS_GPU) <> {gpu} then end\n"
+    "gfx.draw.clear canvas&, 1\ngfx.draw.rect canvas&, 4, 4, 60, 40, 4, gfx.draw.FILL\n"
+    "gfx.draw.line canvas&, 0, 119, 159, 0, 14\ngfx.draw.circle canvas&, 100, 60, 20, 2, gfx.draw.FILL\n"
+    "s& = gfx.surface.new(16, 16)\ngfx.draw.clear s&, 9\ngfx.draw.rect s&, 0, 0, 7, 7, 12, gfx.draw.FILL\n"
+    'gfx.draw.sprite canvas&, 120, 90, s&, 0\ngfx.draw.text canvas&, 4, 100, "GPU", 15\n'
+    "gfx.draw.circle canvas&, 40, 80, 15.3, 10, 0\ngfx.draw.arc canvas&, 130.5, 30, 18, 0.5, 4, 13\n"
+    "gfx.draw.circle canvas&, 70.25, 70.5, 6.5, 11, gfx.draw.FILL\ngfx.display.flip\n" + LOOP
 )
 HELP = "60:3B00"  # F1
 HELP_ESC = "60:3B00 70:011B"  # F1, Esc

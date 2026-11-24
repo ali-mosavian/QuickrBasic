@@ -6,7 +6,7 @@
 /* A draw call's flags as a row filler's variant. */
 static uint32_t variant(const int32_t flags)
 {
-    return (flags & GFX_DRAW_FLIPX ? FILL_FLIPX : 0) | (flags & GFX_PEN_OPAQUE ? FILL_OPAQUE : 0);
+    return (flags & GFX_DRAW_FLIP_X ? FILL_FLIPX : 0) | (flags & GFX_DRAW_OPAQUE ? FILL_OPAQUE : 0);
 }
 
 void soft_sprite(
@@ -21,10 +21,10 @@ void soft_sprite(
     const Rect drawn = rect_meet((Rect){left, top, s->w, s->h}, t->clip);
 
     FillRow *const row = t->fill->row[variant(flags)];
-    const bool flip_x = flags & GFX_DRAW_FLIPX, flip_y = flags & GFX_DRAW_FLIPY;
+    const bool flip_x = flags & GFX_DRAW_FLIP_X, flip_y = flags & GFX_DRAW_FLIP_Y;
     const int32_t u = flip_x ? s->w - 1 - (drawn.x - left) : drawn.x - left;
     const bool plain = span_fused(t, s);
-    const Textured walk = {t, s, flags & GFX_PEN_OPAQUE, false, false, false};
+    const Textured walk = {t, s, flags & GFX_DRAW_OPAQUE, false, false, false};
 
     for (int32_t y_ = drawn.y; y_ < drawn.y + drawn.h; y_++) {
         const int32_t v = flip_y ? s->h - 1 - (y_ - top) : y_ - top;

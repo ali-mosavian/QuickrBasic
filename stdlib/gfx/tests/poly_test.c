@@ -32,7 +32,8 @@ static int32_t poly(
 )
 {
     QxArray a = gfx_array(p, (uint32_t)n, sizeof *p);
-    return CALL("draw.poly", I(s), ARRAY(&a), I(0), I(n), I(colour), I(flags)).error;
+    return CALL("draw.poly", I(SURF_SCREEN), ARRAY(&a), I(0), I(n), I(s), I(colour), I(flags))
+        .error;
 }
 
 static int32_t flat(
@@ -53,26 +54,26 @@ static int32_t flat(
    depth hides too. ZTEST alone leaves the depth; ZSET alone draws whatever is there. */
 TEST(gfx_poly_depth_tests_and_sets)
 {
-    enum { BOTH = GFX_DRAW_ZTEST | GFX_DRAW_ZSET };
+    enum { BOTH = GFX_DRAW_DEPTH_TEST | GFX_DRAW_DEPTH_WRITE };
 
     CANVAS(8, 2);
-    CALL("draw.clear_depth");
+    CALL("surface.clear_depth", I(SURF_SCREEN));
     CHECK(!flat(S, 0, 3, 2, 5, BOTH));
     flat(S, 0, 5, 4, 6, BOTH);
     ROW(0, "55556611");
     ROW(1, "55556611");
 
-    flat(S, 2, 7, 2, 7, GFX_DRAW_ZTEST);
+    flat(S, 2, 7, 2, 7, GFX_DRAW_DEPTH_TEST);
     ROW(0, "55557777");
 
-    flat(S, 4, 7, 3, 3, GFX_DRAW_ZTEST);
+    flat(S, 4, 7, 3, 3, GFX_DRAW_DEPTH_TEST);
     ROW(1, "55553333");
 
-    flat(S, 0, 1, 8, 2, GFX_DRAW_ZSET);
-    flat(S, 0, 3, 4, 4, GFX_DRAW_ZTEST);
+    flat(S, 0, 1, 8, 2, GFX_DRAW_DEPTH_WRITE);
+    flat(S, 0, 3, 4, 4, GFX_DRAW_DEPTH_TEST);
     ROW(0, "44553333");
 
-    CALL("draw.clear_depth");
+    CALL("surface.clear_depth", I(SURF_SCREEN));
     flat(S, 0, 7, 9, 8, BOTH);
     ROW(1, "88888888");
 }
@@ -90,11 +91,11 @@ TEST(gfx_poly_keyed_texels_set_no_depth)
 
     gfx_draw_vertex p[4];
     band(p, 0, 3, 2, 2);
-    CALL("draw.clear_depth");
-    CHECK(!poly(S, s, p, 4, 0, GFX_DRAW_ZTEST | GFX_DRAW_ZSET));
+    CALL("surface.clear_depth", I(SURF_SCREEN));
+    CHECK(!poly(S, s, p, 4, 0, GFX_DRAW_DEPTH_TEST | GFX_DRAW_DEPTH_WRITE));
     ROW(0, "1177");
 
-    flat(S, 0, 3, 4, 6, GFX_DRAW_ZTEST);
+    flat(S, 0, 3, 4, 6, GFX_DRAW_DEPTH_TEST);
     ROW(0, "6677");
     ROW(1, "6677");
 }
@@ -122,7 +123,7 @@ TEST(gfx_poly_level_perspective_is_affine)
 
         QxArray a = gfx_array(bytes, 16, 1);
         CALL("surface.write", I(s), I(0), I(0), I(4), I(4), ARRAY(&a));
-        CHECK(!poly(S, s, p, 4, 0, k ? GFX_DRAW_PERSP : 0));
+        CHECK(!poly(S, s, p, 4, 0, k ? GFX_DRAW_PERSPECTIVE : 0));
 
         for (int32_t y = 0; y < 10; y++)
             for (int32_t x = 0; x < 10; x++)
@@ -148,7 +149,7 @@ TEST(gfx_poly_refuses)
     gfx_draw_vertex p[33];
     band(p, 0, 3, 0.5f, 1);
     CHECK(!poly(S, 0, p, 4, 3, GFX_DRAW_FILL));
-    CHECK(poly(S, 0, p, 4, 3, GFX_DRAW_FILL | GFX_DRAW_ZSET) == 5);
+    CHECK(poly(S, 0, p, 4, 3, GFX_DRAW_FILL | GFX_DRAW_DEPTH_WRITE) == 5);
 
     for (uint32_t i = 0; i < 33; i++)
         p[i] = (gfx_draw_vertex){(float)(i % 4), (float)(i / 4 % 2), 1, 0, 0};

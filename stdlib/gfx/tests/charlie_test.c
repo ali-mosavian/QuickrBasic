@@ -41,7 +41,7 @@ static void by_hand(CharlieFrame *const f, const uint8_t *const atlas, const Cha
     for (uint32_t n = 0; n < charlie_nsteps; n++) {
         const CharlieStep *const s = &charlie_steps[n];
         const CharlieCut *const c = &cuts[s->picture];
-        const bool opaque = s->flags & GFX_PEN_OPAQUE, flip = s->flags & GFX_DRAW_FLIPX;
+        const bool opaque = s->flags & GFX_DRAW_OPAQUE, flip = s->flags & GFX_DRAW_FLIP_X;
 
         if (s->kind == CHARLIE_SPRITE)
             paste(f, atlas, c, s->x, s->y, opaque, flip);
@@ -76,7 +76,7 @@ TEST(gfx_charlie_frame_both_ways)
     for (uint32_t n = 0; n < charlie_nsteps; n++) {
         const CharlieStep *const s = &charlie_steps[n];
         gfx_display_command d;
-        CHECK(!CALL("display.drawn", I(n + 1), REF(&d)).error);
+        CHECK(!CALL("display.get_drawn", I(n + 1), REF(&d)).error);
         CHECK(d.kind == DREW[s->kind] && d.x == (float)s->x && d.y == (float)s->y);
         CHECK(d.source == (s->kind == CHARLIE_SPRITE ? views[n] : 0) && d.flags == s->flags);
     }
@@ -92,15 +92,7 @@ TEST(gfx_charlie_frame_both_ways)
     static CharlieFrame want, got;
     by_hand(&want, atlas, cuts);
     QxArray g = gfx_array(got.px, sizeof got.px, 1);
-    CHECK(!CALL(
-               "surface.read",
-               I(GFX_SURFACE_CANVAS),
-               I(0),
-               I(0),
-               I(CHARLIE_W),
-               I(CHARLIE_H),
-               ARRAY(&g)
-    )
+    CHECK(!CALL("surface.read", I(SURF_SCREEN), I(0), I(0), I(CHARLIE_W), I(CHARLIE_H), ARRAY(&g))
                .error);
 
     uint32_t wrong = 0, first = 0;

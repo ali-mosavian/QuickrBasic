@@ -167,9 +167,9 @@ bool gpu_open(Gpu *const g, const QxScreen *const s)
     g->down = s->y_down ? 1 : -1;
     g->count = (GpuCount){};
 
-    GpuTexture *const canvas = entry(g, GFX_SURFACE_CANVAS);
+    GpuTexture *const canvas = entry(g, SURF_SCREEN);
     const uint32_t made[][4] = {
-        {GFX_SURFACE_CANVAS, s->w, s->h, QX_TEXTURE_RGBA},
+        {SURF_SCREEN, s->w, s->h, QX_TEXTURE_RGBA},
         {GPU_PALETTE, PAL_COLOURS, PAL_ROWS, QX_TEXTURE_RGBA},
     };
 
@@ -180,7 +180,7 @@ bool gpu_open(Gpu *const g, const QxScreen *const s)
         !list_op(&g->list, QX_LIST_TEXTURE, made[1], 4) || !pipelines(&g->list, code))
         return false;
 
-    *canvas = (GpuTexture){.handle = GFX_SURFACE_CANVAS, .format = QX_TEXTURE_RGBA};
+    *canvas = (GpuTexture){.handle = SURF_SCREEN, .format = QX_TEXTURE_RGBA};
 
     return true;
 }
@@ -429,7 +429,7 @@ bool gpu_discs(Gpu *const g, const GpuTarget *const t, const GpuDisc *const v, c
 
 void gpu_play(Gpu *const g, const bool show)
 {
-    const uint32_t canvas = GFX_SURFACE_CANVAS;
+    const uint32_t canvas = SURF_SCREEN;
     uint32_t n;
     const uint32_t *const words =
         !show || list_op(&g->list, QX_LIST_SHOW, &canvas, 1) ? list_end(&g->list, &n) : nullptr;

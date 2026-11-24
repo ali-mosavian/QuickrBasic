@@ -99,7 +99,7 @@ static void screen_in(
     nwords = plays = 0;
     memset(pixels, 0, sizeof pixels);
     CHECK(!GPU_CALL("display.open", I(w), I(h), I(depth), I(0)).error);
-    CHECK(GPU_CALL("display.caps").result.i == (GFX_DISPLAY_HAS_GPU | GFX_DISPLAY_HAS_SMOOTH));
+    CHECK(GPU_CALL("display.features").result.i == (GFX_DISPLAY_HAS_GPU | GFX_DISPLAY_HAS_SMOOTH));
 }
 
 /* A w by h screen of depth on a fake Metal. */
@@ -301,12 +301,12 @@ TEST(gfx_gpu_lines_cover_softwares_pixels)
     QxArray a = gfx_array(tri, 3, sizeof *tri);
 
     screen(S, 8, 8, 32);
-    GPU_CALL("draw.line", F(0), F(7), F(7), F(2), I(0xFFFFFF));
+    GPU_CALL("draw.line", I(SURF_SCREEN), F(0), F(7), F(7), F(2), I(0xFFFFFF));
     GPU_CALL("display.flip");
     CHECK(covered(0, line));
 
     screen(S, 8, 8, 32);
-    GPU_CALL("draw.poly", I(0), ARRAY(&a), I(0), I(3), I(0xFFFFFF), I(0));
+    GPU_CALL("draw.poly", I(SURF_SCREEN), ARRAY(&a), I(0), I(3), I(0), I(0xFFFFFF), I(0));
     GPU_CALL("display.flip");
     CHECK(covered(0, outline));
 }
@@ -339,7 +339,10 @@ TEST(gfx_soft_polys_cover_a_gpus_pixels)
         bool in[RULE_H][RULE_W] = {};
 
         CANVAS(RULE_W, RULE_H);
-        CHECK(!CALL("draw.poly", I(0), ARRAY(&a), I(0), I(3), I(2), I(GFX_DRAW_FILL)).error);
+        CHECK(
+            !CALL("draw.poly", I(SURF_SCREEN), ARRAY(&a), I(0), I(3), I(0), I(2), I(GFX_DRAW_FILL))
+                 .error
+        );
         scan_convex(p, 3, (Rect){0, 0, RULE_W, RULE_H}, rule_mark, in);
 
         int32_t wrong = 0;
@@ -379,7 +382,7 @@ TEST(gfx_gpu_draws_a_circle_as_one_box)
     };
 
     screen(S, 8, 8, 32);
-    GPU_CALL("draw.circle", F(3), F(3), F(2), I(0xFFFFFF), I(GFX_DRAW_FILL));
+    GPU_CALL("draw.circle", I(SURF_SCREEN), F(3), F(3), F(2), I(0xFFFFFF), I(GFX_DRAW_FILL));
     GPU_CALL("display.flip");
     CHECK(ops(FIRST "TUPNCUDSE") && arg(QX_LIST_DRAW, 0, 2) == LIST_DISCS);
     CHECK(arg(QX_LIST_DRAW, 0, 5) == 6 && discs[0].v.stages == (GPU_STAGE_SOLID | GPU_STAGE_DISC));
@@ -387,7 +390,7 @@ TEST(gfx_gpu_draws_a_circle_as_one_box)
     CHECK(covered(0, disc));
 
     screen(S, 8, 8, 32);
-    GPU_CALL("draw.arc", F(3), F(3), F(2), F(0), F(GM_PI / 2), I(0xFFFFFF));
+    GPU_CALL("draw.arc", I(SURF_SCREEN), F(3), F(3), F(2), F(0), F(GM_PI / 2), I(0xFFFFFF));
     GPU_CALL("display.flip");
     CHECK(arg(QX_LIST_DRAW, 0, 5) == 6);
     CHECK(discs[0].v.stages == (GPU_STAGE_SOLID | GPU_STAGE_DISC | GPU_STAGE_SWEEP));
@@ -399,12 +402,12 @@ TEST(gfx_gpu_draws_a_circle_as_one_box)
 TEST(gfx_gpu_draws_shapes_in_one_batch)
 {
     screen(S, 8, 8, 32);
-    GPU_CALL("draw.clear", I(0x102030));
-    GPU_CALL("draw.rect", F(1), F(1), F(2), F(2), I(0xFF0000), I(GFX_DRAW_FILL));
+    GPU_CALL("draw.clear", I(SURF_SCREEN), I(0x102030));
+    GPU_CALL("draw.rect", I(SURF_SCREEN), F(1), F(1), F(2), F(2), I(0xFF0000), I(GFX_DRAW_FILL));
     CHECK(!plays);
     GPU_CALL("display.flip");
     CHECK(plays == 1 && ops(FIRST "TUPNCUDSE"));
-    CHECK(arg(QX_LIST_TEXTURE, 0, 1) == GFX_SURFACE_CANVAS && arg(QX_LIST_TEXTURE, 0, 2) == 8);
+    CHECK(arg(QX_LIST_TEXTURE, 0, 1) == SURF_SCREEN && arg(QX_LIST_TEXTURE, 0, 2) == 8);
     CHECK(
         arg(QX_LIST_TEXTURE, 2, 1) == GPU_PAGE_FIRST &&
         arg(QX_LIST_TEXTURE, 2, 4) == QX_TEXTURE_RGBA
@@ -412,7 +415,7 @@ TEST(gfx_gpu_draws_shapes_in_one_batch)
     CHECK(arg(QX_LIST_TEXTURE, 2, 2) == GPU_PAGE && arg(QX_LIST_UPLOAD, 0, 1) == GPU_PAGE_FIRST);
     CHECK(arg(QX_LIST_PIPELINE, 0, 3) == sizeof(GpuVertex));
     CHECK(arg(QX_LIST_PIPELINE, 5, 3) == sizeof(GpuDisc));
-    CHECK(arg(QX_LIST_PASS, 0, 1) == GFX_SURFACE_CANVAS && arg(QX_LIST_CLIP, 0, 3) == 8);
+    CHECK(arg(QX_LIST_PASS, 0, 1) == SURF_SCREEN && arg(QX_LIST_CLIP, 0, 3) == 8);
     CHECK(uniforms[0] == 8 && uniforms[1] == 8 && uniforms[2] == -1);
     CHECK(arg(QX_LIST_DRAW, 0, 4) == 0 && arg(QX_LIST_DRAW, 0, 5) == 12);
     CHECK(arg(QX_LIST_DRAW, 0, 7) == GPU_PAGE_FIRST && arg(QX_LIST_DRAW, 0, 1) == 1);
@@ -432,15 +435,15 @@ TEST(gfx_gpu_counts_the_frame)
     gfx_display_framestats s = {};
 
     screen(S, 8, 8, 32);
-    GPU_CALL("draw.clear", I(0));
-    GPU_CALL("draw.rect", F(1), F(1), F(2), F(2), I(0xFF0000), I(GFX_DRAW_FILL));
+    GPU_CALL("draw.clear", I(SURF_SCREEN), I(0));
+    GPU_CALL("draw.rect", I(SURF_SCREEN), F(1), F(1), F(2), F(2), I(0xFF0000), I(GFX_DRAW_FILL));
     GPU_CALL("display.flip");
-    GPU_CALL("display.stats", REF(&s));
+    GPU_CALL("display.get_stats", REF(&s));
     CHECK(s.draws == 2 && s.batches == 1 && s.uploads == 2 && s.waits == 0);
 
-    GPU_CALL("surface.point", I(GFX_SURFACE_CANVAS), I(1), I(1));
+    GPU_CALL("surface.point", I(SURF_SCREEN), I(1), I(1));
     GPU_CALL("display.flip");
-    GPU_CALL("display.stats", REF(&s));
+    GPU_CALL("display.get_stats", REF(&s));
     CHECK(s.draws == 0 && s.batches == 0 && s.uploads == 0 && s.waits == 1);
 }
 
@@ -448,7 +451,7 @@ TEST(gfx_gpu_counts_the_frame)
 TEST(gfx_gpu_speaks_the_hosts_language)
 {
     screen_in(S, 8, 8, 32, QX_SHADER_ESSL, true);
-    GPU_CALL("draw.clear", I(0));
+    GPU_CALL("draw.clear", I(SURF_SCREEN), I(0));
     GPU_CALL("display.flip");
 
     for (uint32_t k = 0; k < 6; k++) {
@@ -467,9 +470,18 @@ TEST(gfx_gpu_speaks_the_hosts_language)
 TEST(gfx_gpu_splits_batches_at_a_blend)
 {
     screen(S, 8, 8, 32);
-    GPU_CALL("draw.rect", F(0), F(0), F(1), F(1), I(1), I(GFX_DRAW_FILL));
-    GPU_CALL("pen.alpha", I(32));
-    GPU_CALL("draw.rect", F(0), F(0), F(1), F(1), I(1), I(GFX_DRAW_FILL | GFX_PEN_BLEND));
+    GPU_CALL("draw.rect", I(SURF_SCREEN), F(0), F(0), F(1), F(1), I(1), I(GFX_DRAW_FILL));
+    GPU_CALL("draw.set_alpha", I(32));
+    GPU_CALL(
+        "draw.rect",
+        I(SURF_SCREEN),
+        F(0),
+        F(0),
+        F(1),
+        F(1),
+        I(1),
+        I(GFX_DRAW_FILL | GFX_DRAW_BLEND)
+    );
     GPU_CALL("display.flip");
     CHECK(ops(FIRST "TUPNCUDDSE"));
     CHECK(arg(QX_LIST_DRAW, 1, 1) == 1 + QX_BLEND_MIX && arg(QX_LIST_DRAW, 1, 6) == 129);
@@ -482,14 +494,14 @@ TEST(gfx_gpu_draws_shapes_and_pictures_in_one_batch)
     screen(S, 8, 8, 8);
     const int32_t s = GPU_CALL("surface.new", I(2), I(2)).result.i;
 
-    GPU_CALL("draw.sprite", I(s), F(0), F(0), I(0));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(s), I(0));
     GPU_CALL("display.flip");
-    GPU_CALL("draw.rect", F(0), F(0), F(1), F(1), I(1), I(GFX_DRAW_FILL));
-    GPU_CALL("draw.sprite", I(s), F(0), F(0), I(0));
-    GPU_CALL("draw.line", F(0), F(0), F(5), F(2), I(2));
-    GPU_CALL("draw.sprite", I(s), F(4), F(4), I(0));
-    GPU_CALL("draw.circle", F(4), F(4), F(2), I(3), I(GFX_DRAW_FILL));
-    GPU_CALL("draw.circle", F(4), F(4), F(3), I(3), I(0));
+    GPU_CALL("draw.rect", I(SURF_SCREEN), F(0), F(0), F(1), F(1), I(1), I(GFX_DRAW_FILL));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(s), I(0));
+    GPU_CALL("draw.line", I(SURF_SCREEN), F(0), F(0), F(5), F(2), I(2));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(4), F(4), I(s), I(0));
+    GPU_CALL("draw.circle", I(SURF_SCREEN), F(4), F(4), F(2), I(3), I(GFX_DRAW_FILL));
+    GPU_CALL("draw.circle", I(SURF_SCREEN), F(4), F(4), F(3), I(3), I(0));
     GPU_CALL("display.flip");
     CHECK(ops(HEAD "PNCDDSE"));
     CHECK(arg(QX_LIST_DRAW, 0, 7) == GPU_PAGE_FIRST + 1 && arg(QX_LIST_DRAW, 0, 5) == 4 * 6);
@@ -507,9 +519,9 @@ TEST(gfx_gpu_packs_pictures_into_pages)
     const int32_t big = GPU_CALL("surface.new", I(GPU_PAGE / 2 + 1), I(1)).result.i;
 
     for (uint32_t frame = 0; frame < 2; frame++) {
-        GPU_CALL("draw.sprite", I(a), F(0), F(0), I(0));
-        GPU_CALL("draw.sprite", I(b), F(4), F(4), I(0));
-        GPU_CALL("draw.sprite", I(big), F(0), F(6), I(0));
+        GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(a), I(0));
+        GPU_CALL("draw.sprite", I(SURF_SCREEN), F(4), F(4), I(b), I(0));
+        GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(6), I(big), I(0));
         GPU_CALL("display.flip");
 
         if (!frame) {
@@ -526,10 +538,10 @@ TEST(gfx_gpu_packs_pictures_into_pages)
 
     screen(S, 8, 8, 8);
     const int32_t c = GPU_CALL("surface.new", I(2), I(2)).result.i;
-    GPU_CALL("draw.sprite", I(c), F(0), F(0), I(0));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(c), I(0));
     GPU_CALL("surface.free", I(c));
     const int32_t d = GPU_CALL("surface.new", I(4), I(4)).result.i;
-    GPU_CALL("draw.sprite", I(d), F(0), F(0), I(0));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(d), I(0));
     GPU_CALL("display.flip");
     CHECK(arg(QX_LIST_UPLOAD, 3, 1) == GPU_PAGE_FIRST + 1 && arg(QX_LIST_UPLOAD, 3, 2) == 0);
     CHECK(arg(QX_LIST_UPLOAD, 3, 4) == 4 && arg(QX_LIST_DRAW, 1, 7) == GPU_PAGE_FIRST + 1);
@@ -541,24 +553,24 @@ TEST(gfx_gpu_sends_the_rows_written)
 {
     screen(S, 8, 8, 8);
     const int32_t s = GPU_CALL("surface.new", I(4), I(6)).result.i;
-    const int32_t v = GPU_CALL("surface.view", I(s), I(1), I(2), I(2), I(3)).result.i;
+    const int32_t v = GPU_CALL("surface.new_view", I(s), I(1), I(2), I(2), I(3)).result.i;
     uint8_t texels[8] = {1, 2, 3, 4, 5, 6, 7, 8};
 
     QxArray a = gfx_array(texels, 8, 1);
 
-    GPU_CALL("draw.sprite", I(s), F(0), F(0), I(0));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(s), I(0));
     GPU_CALL("display.flip");
     CHECK(arg(QX_LIST_UPLOAD, 2, 3) == 0 && arg(QX_LIST_UPLOAD, 2, 5) == 6);
 
     GPU_CALL("surface.write", I(s), I(0), I(4), I(4), I(1), ARRAY(&a));
     GPU_CALL("surface.write", I(v), I(0), I(0), I(2), I(1), ARRAY(&a));
-    GPU_CALL("draw.sprite", I(s), F(0), F(0), I(0));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(s), I(0));
     GPU_CALL("display.flip");
     CHECK(ops(HEAD "PNCUDSE") && arg(QX_LIST_UPLOAD, 0, 1) == GPU_PAGE_FIRST + 1);
     CHECK(arg(QX_LIST_UPLOAD, 0, 3) == 2 && arg(QX_LIST_UPLOAD, 0, 4) == 4);
     CHECK(arg(QX_LIST_UPLOAD, 0, 5) == 3 && arg(QX_LIST_UPLOAD, 0, 6) == 4);
 
-    GPU_CALL("draw.sprite", I(s), F(0), F(0), I(0));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(s), I(0));
     GPU_CALL("display.flip");
     CHECK(ops(HEAD "PNCDSE"));
 }
@@ -569,8 +581,8 @@ TEST(gfx_gpu_smooths_pictures)
     screen(S, 8, 8, 8);
     const int32_t s = GPU_CALL("surface.new", I(2), I(2)).result.i;
 
-    GPU_CALL("draw.sprite", I(s), F(0), F(0), I(GFX_PEN_SMOOTH));
-    GPU_CALL("draw.sprite", I(s), F(0), F(0), I(0));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(s), I(GFX_DRAW_SMOOTH));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(s), I(0));
     GPU_CALL("display.flip");
     CHECK(vertices[0].stages == (GPU_STAGE_INDEXED | GPU_STAGE_KEYED | GPU_STAGE_SMOOTH));
     CHECK(vertices[4].stages == (GPU_STAGE_INDEXED | GPU_STAGE_KEYED));
@@ -587,7 +599,7 @@ TEST(gfx_gpu_sends_a_picture_once)
     QxArray a = gfx_array(texels, 4, 1);
     GPU_CALL("surface.write", I(s), I(0), I(0), I(2), I(2), ARRAY(&a));
 
-    GPU_CALL("draw.sprite", I(s), F(1), F(1), I(GFX_DRAW_FLIPX));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(1), F(1), I(s), I(GFX_DRAW_FLIP_X));
     GPU_CALL("display.flip");
     CHECK(ops(FIRST "TUPNCUTUDSE"));
     CHECK(
@@ -598,12 +610,12 @@ TEST(gfx_gpu_sends_a_picture_once)
     CHECK(placed(&vertices[0], 0.5f, 0.5f) && vertices[0].u == 2 && vertices[1].u == 0);
     CHECK(vertices[0].stages == (GPU_STAGE_INDEXED | GPU_STAGE_KEYED) && vertices[0].rw == 2);
 
-    GPU_CALL("draw.sprite", I(s), F(1), F(1), I(0));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(1), F(1), I(s), I(0));
     GPU_CALL("display.flip");
     CHECK(ops(HEAD "PNCDSE"));
 
     GPU_CALL("surface.write", I(s), I(0), I(0), I(2), I(2), ARRAY(&a));
-    GPU_CALL("draw.sprite", I(s), F(1), F(1), I(0));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(1), F(1), I(s), I(0));
     GPU_CALL("display.flip");
     CHECK(ops(HEAD "PNCUDSE"));
 
@@ -618,11 +630,9 @@ TEST(gfx_gpu_draws_into_surfaces)
 {
     screen(S, 8, 8, 8);
     const int32_t s = GPU_CALL("surface.new", I(2), I(2)).result.i;
-    GPU_CALL("draw.sprite", I(s), F(0), F(0), I(0));
-    GPU_CALL("pen.target", I(s));
-    GPU_CALL("draw.clear", I(4));
-    GPU_CALL("pen.target", I(GFX_SURFACE_CANVAS));
-    GPU_CALL("draw.sprite", I(s), F(0), F(0), I(0));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(s), I(0));
+    GPU_CALL("draw.clear", I(s), I(4));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(s), I(0));
     GPU_CALL("display.flip");
     CHECK(ops(FIRST "TUPNCUTUDTPNCDPNCDSE"));
     CHECK(
@@ -638,18 +648,18 @@ TEST(gfx_gpu_draws_into_surfaces)
 TEST(gfx_gpu_reads_back)
 {
     screen(S, 4, 1, 32);
-    GPU_CALL("draw.pset", F(0), F(0), I(0x123456));
+    GPU_CALL("draw.pset", I(SURF_SCREEN), F(0), F(0), I(0x123456));
     memcpy(pixels, (const uint8_t[]){0x12, 0x34, 0x56, 0xFF}, 4);
 
-    CHECK(GPU_CALL("surface.point", I(GFX_SURFACE_CANVAS), I(0), I(0)).result.i == 0x123456);
+    CHECK(GPU_CALL("surface.point", I(SURF_SCREEN), I(0), I(0)).result.i == 0x123456);
     CHECK(plays == 1 && ops(FIRST "TUPNCUDE"));
-    CHECK(GPU_CALL("surface.point", I(GFX_SURFACE_CANVAS), I(1), I(0)).result.i == 0);
+    CHECK(GPU_CALL("surface.point", I(SURF_SCREEN), I(1), I(0)).result.i == 0);
     CHECK(plays == 1);
 
     screen(S, 4, 1, 8);
-    GPU_CALL("draw.pset", F(0), F(0), I(4));
+    GPU_CALL("draw.pset", I(SURF_SCREEN), F(0), F(0), I(4));
     memcpy(pixels, (const uint8_t[]){0xAA, 0, 0, 0xFF, 0xAA, 0, 0, 0x10}, 8);
 
-    CHECK(GPU_CALL("surface.point", I(GFX_SURFACE_CANVAS), I(0), I(0)).result.i == 4);
-    CHECK(GPU_CALL("surface.point", I(GFX_SURFACE_CANVAS), I(1), I(0)).result.i == 0);
+    CHECK(GPU_CALL("surface.point", I(SURF_SCREEN), I(0), I(0)).result.i == 4);
+    CHECK(GPU_CALL("surface.point", I(SURF_SCREEN), I(1), I(0)).result.i == 0);
 }

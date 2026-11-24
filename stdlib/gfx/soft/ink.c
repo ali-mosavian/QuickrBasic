@@ -5,28 +5,28 @@
 bool ink_begin(
     Ink *const k,
     Palette *const pal,
-    const Pen *const p,
+    const Style *const p,
     const int32_t flags,
     const PxFormat format
 )
 {
     const bool eight = format == PX_8;
-    const BlendMode mode = flags & GFX_PEN_ADD     ? BLEND_ADD
-                           : flags & GFX_PEN_BLEND ? BLEND_MIX
-                                                   : BLEND_NONE;
+    const BlendMode mode = flags & GFX_DRAW_ADD     ? BLEND_ADD
+                           : flags & GFX_DRAW_BLEND ? BLEND_MIX
+                                                    : BLEND_NONE;
     const uint32_t solid = pal_shade(p->tint, p->light, PAL_WHITE);
     uint8_t index = 0;
     *k = (Ink){
         .source = eight ? PX_8 : PX_32,
-        .keyed = !(flags & GFX_PEN_OPAQUE),
-        .solid = flags & GFX_PEN_SOLID,
+        .keyed = !(flags & GFX_DRAW_OPAQUE),
+        .solid = flags & GFX_DRAW_SOLID,
         .colour = PX_OPAQUE | solid,
         .shade = pal_shade(PAL_WHITE, p->light, p->tint),
         .mode = eight ? BLEND_NONE : mode,
         .alpha = (uint8_t)p->alpha,
     };
 
-    if (eight && !pal_lut(pal, p->recolour, p->light, p->tint, &k->lut))
+    if (eight && !pal_lut(pal, p->palette_row, p->light, p->tint, &k->lut))
         return false;
 
     if (eight && k->solid && !pal_index(pal, solid, &index))
@@ -43,7 +43,7 @@ bool ink_begin(
 bool ink_source(
     Ink *const k,
     Palette *const pal,
-    const Pen *const p,
+    const Style *const p,
     const PxFormat into,
     const PxFormat from
 )
@@ -55,10 +55,10 @@ bool ink_source(
         return false;
 
     return eight || from != PX_8 || k->argb ||
-           (k->argb = pal_argb(pal, p->recolour, p->light, p->tint));
+           (k->argb = pal_argb(pal, p->palette_row, p->light, p->tint));
 }
 
-void ink_solid(Ink *const k, const Pen *const p, const PxFormat into, const uint32_t colour)
+void ink_solid(Ink *const k, const Style *const p, const PxFormat into, const uint32_t colour)
 {
     k->solid = k->effects = true;
     k->colour = into == PX_8 ? (k->lut ? k->lut[colour] : colour)

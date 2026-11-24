@@ -1,4 +1,4 @@
-/* gfx's state, and what every entry shares: errors raised, handles and the pen's target resolved.
+/* gfx's state, and what every entry shares: errors raised, handles resolved, a draw call begun.
  * The entries are in api/, a part each.
  *
  * # How it works
@@ -23,7 +23,7 @@ enum : uint8_t {
     ERR_UNAVAILABLE = 73,
 };
 
-enum { GX_BLENDS = GFX_PEN_BLEND | GFX_PEN_ADD };
+enum { GX_BLENDS = GFX_DRAW_BLEND | GFX_DRAW_ADD };
 
 typedef struct Gx {
     const Backend *backend; /* the screen's */
@@ -31,8 +31,7 @@ typedef struct Gx {
     Surfaces surfaces;
     Fonts fonts;
     Palette palette;
-    Pen pen;
-    Camera camera;
+    Style style;
     CmdLog log;                  /* since the last flip */
     gfx_display_framestats cost; /* the frame shown last's */
     Vec *points;                 /* a call's points placed */
@@ -61,8 +60,16 @@ const void *gx_elements(const QxArray *a, uint32_t elem, int32_t first, int32_t 
 Vec *gx_points(Gx *g, uint32_t n);
 /* r of h's pixels written by the CPU: counted, and told the backend. */
 void gx_wrote(Gx *g, uint32_t h, Rect r);
-/* A draw call begun: its flags (those of allowed, BLEND or ADD) and colour checked, the camera
-   over the pen's target into *where, c placed (cmd_place) and logged, the backend readied: false,
+/* dst and src, surfaces, are not over the same pixels (one surface, or its views): false, raised.
+   A GPU cannot draw a texture into itself. */
+bool gx_apart(Gx *g, uint32_t dst, uint32_t src);
+/* A draw call into dst checked, nothing drawn or logged: dst, and c's source (0 none) apart from
+   it; its flags (those of allowed, BLEND or ADD) and colour; dst's camera and clip into *where:
+   false, raised. */
+bool gx_check(Gx *g, uint32_t dst, const Command *c, int32_t allowed, Place *where);
+/* A checked call begun: c placed into dst (cmd_place) and logged, the backend readied: false,
    raised. */
-bool gx_draw(Gx *g, Command *c, int32_t allowed, Place *where);
+bool gx_begin(Gx *g, uint32_t dst, Command *c, const Place *where);
+/* gx_check, then gx_begin. */
+bool gx_draw(Gx *g, uint32_t dst, Command *c, int32_t allowed, Place *where);
 #endif

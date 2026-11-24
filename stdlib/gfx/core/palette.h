@@ -1,8 +1,8 @@
-/* Colour: the palette's rows, the nearest index to a colour, and the tables an 8-bit canvas draws
+/* Colour: the palette's rows, the nearest index to a colour, and the tables an 8-bit surface draws
  * light, tint, palette rows and blending through.
  *
  * # How it works
- * Row 0 is the canvas's, shown at the flip; the rest are pen.recolour's. Each is 256 colours,
+ * Row 0 is the screen's, shown at the flip; the rest are draw.set_palette_row's. Each is 256 colours,
  * &HRRGGBB. Row 0 starts as the VGA's mode 13h palette.
  *
  * The tables come from row 0 and are made when first asked for, then kept until it changes:
@@ -11,7 +11,7 @@
  * - the light table: 64 rows of 256 indices, Quake's colormap; row 63 is each index itself;
  * - a blend table for each mode and alpha asked for, the last few kept: 256 rows by the colour
  *   drawn, 256 by what is there (64 KB).
- * A recolour, light and tint mix asked for is a row of 256 indices, made through the map.
+ * A palette_row, light and tint mix asked for is a row of 256 indices, made through the map.
  */
 #ifndef GFX_PALETTE_H
 #define GFX_PALETTE_H

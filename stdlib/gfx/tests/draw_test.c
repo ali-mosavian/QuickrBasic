@@ -10,11 +10,11 @@ static void canvas(Session *const S) { CANVAS(8, 4); }
 TEST(gfx_rect_top_and_left_edges)
 {
     canvas(S);
-    CALL("draw.rect", F(1), F(1), F(3), F(2), I(5), I(GFX_DRAW_FILL));
+    CALL("draw.rect", I(SURF_SCREEN), F(1), F(1), F(3), F(2), I(5), I(GFX_DRAW_FILL));
     ROW(0, "11111111");
     ROW(1, "15551111");
     ROW(2, "15551111");
-    CALL("draw.rect", F(4.5), F(0.5), F(6.5), F(1.5), I(7), I(GFX_DRAW_FILL));
+    CALL("draw.rect", I(SURF_SCREEN), F(4.5), F(0.5), F(6.5), F(1.5), I(7), I(GFX_DRAW_FILL));
     ROW(0, "11117771"); /* edges at x 4 and 7, y 0 and 2 */
     ROW(1, "15557771");
     ROW(2, "15551111");
@@ -24,29 +24,37 @@ TEST(gfx_rect_top_and_left_edges)
 TEST(gfx_rect_outline_and_line)
 {
     canvas(S);
-    CALL("draw.rect", F(0), F(0), F(3), F(3), I(2), I(0));
+    CALL("draw.rect", I(SURF_SCREEN), F(0), F(0), F(3), F(3), I(2), I(0));
     ROW(0, "22221111");
     ROW(1, "21121111");
     ROW(3, "22221111");
-    CALL("draw.line", F(4), F(0), F(7), F(3), I(3));
+    CALL("draw.line", I(SURF_SCREEN), F(4), F(0), F(7), F(3), I(3));
     ROW(0, "22223111");
     ROW(3, "22221113");
-    CALL("draw.line", F(-1e9), F(2), F(1e9), F(2), I(4)); /* far ends: cut to the clip */
+    CALL(
+        "draw.line",
+        I(SURF_SCREEN),
+        F(-1e9),
+        F(2),
+        F(1e9),
+        F(2),
+        I(4)
+    ); /* far ends: cut to the clip */
     ROW(2, "44444444");
 }
 
 TEST(gfx_clip_bounds_every_call)
 {
     canvas(S);
-    CALL("pen.clip", I(2), I(1), I(3), I(2));
-    CALL("draw.clear", I(6));
-    CALL("draw.line", F(0), F(3), F(7), F(0), I(8));
+    CALL("surface.set_clip", I(SURF_SCREEN), I(2), I(1), I(3), I(2));
+    CALL("draw.clear", I(SURF_SCREEN), I(6));
+    CALL("draw.line", I(SURF_SCREEN), F(0), F(3), F(7), F(0), I(8));
     ROW(0, "11111111");
     ROW(1, "11668111"); /* the line in the clip: (2, 2), (3, 2), (4, 1) */
     ROW(2, "11886111");
     ROW(3, "11111111");
-    CALL("pen.unclip");
-    CALL("draw.pset", F(0), F(0), I(9));
+    CALL("surface.unclip", I(SURF_SCREEN));
+    CALL("draw.pset", I(SURF_SCREEN), F(0), F(0), I(9));
     ROW(0, "91111111");
 }
 
@@ -65,11 +73,11 @@ TEST(gfx_sprite_key_flips_and_opaque)
 {
     canvas(S);
     const int32_t s = sheet(S);
-    CALL("draw.sprite", I(s), F(0), F(0), I(0));
-    CALL("draw.sprite", I(s), F(4), F(0), I(GFX_DRAW_FLIPX | GFX_DRAW_FLIPY));
+    CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(s), I(0));
+    CALL("draw.sprite", I(SURF_SCREEN), F(4), F(0), I(s), I(GFX_DRAW_FLIP_X | GFX_DRAW_FLIP_Y));
     ROW(0, "17913121");
     ROW(1, "21319711");
-    CALL("draw.sprite", I(s), F(0), F(2), I(GFX_PEN_OPAQUE | GFX_DRAW_FLIPX));
+    CALL("draw.sprite", I(SURF_SCREEN), F(0), F(2), I(s), I(GFX_DRAW_OPAQUE | GFX_DRAW_FLIP_X));
     ROW(2, "97011111");
     ROW(3, "30211111");
 }
@@ -79,13 +87,20 @@ TEST(gfx_sprite_anchor_and_edges)
 {
     canvas(S);
     const int32_t s = sheet(S);
-    CALL("surface.anchor", I(s), I(2), I(1));
-    CALL("draw.sprite", I(s), F(2), F(1), I(0));
+    CALL("surface.set_anchor", I(s), I(2), I(1));
+    CALL("draw.sprite", I(SURF_SCREEN), F(2), F(1), I(s), I(0));
     ROW(0, "17911111");
-    CALL("draw.sprite", I(s), F(0), F(3), I(GFX_PEN_OPAQUE));
+    CALL("draw.sprite", I(SURF_SCREEN), F(0), F(3), I(s), I(GFX_DRAW_OPAQUE));
     ROW(2, "91111111"); /* texel 2, 0 at pixel 0, 2: texels 0 and 1 off the left */
     ROW(3, "31111111");
-    CALL("draw.sprite", I(s), F(8.4), F(1), I(GFX_PEN_OPAQUE)); /* its top left at 6.4: pixel 6's */
+    CALL(
+        "draw.sprite",
+        I(SURF_SCREEN),
+        F(8.4),
+        F(1),
+        I(s),
+        I(GFX_DRAW_OPAQUE)
+    ); /* its top left at 6.4: pixel 6's */
     ROW(0, "17911107");
     ROW(1, "21311120");
 }
@@ -96,20 +111,27 @@ TEST(gfx_tiles_and_text)
     const int32_t s = sheet(S);
     int32_t views[6];
     QxArray v = gfx_array(views, 6, 4);
-    CHECK(CALL("surface.grid", I(s), I(1), I(1), ARRAY(&v)).result.i == 6);
+    CHECK(CALL("surface.new_views", I(s), I(1), I(1), ARRAY(&v)).result.i == 6);
     int32_t cells[] = {views[1], 0, views[2], views[5]};
 
     QxArray map = gfx_array(cells, 4, 4);
-    CHECK(!CALL("draw.tiles", ARRAY(&map), I(2), F(5), F(2), I(2), I(1), I(0)).error);
+    CHECK(
+        !CALL("draw.tiles", I(SURF_SCREEN), F(5), F(2), ARRAY(&map), I(2), I(2), I(1), I(0)).error
+    );
     ROW(2, "11111711");
     ROW(3, "11111913");
 
-    CHECK(!CALL("draw.text", F(0), F(0), STR("\xdb!"), I(4)).error); /* a full cell, then a ! */
+    CHECK(
+        !CALL("draw.text", I(SURF_SCREEN), F(0), F(0), STR("\xdb!"), I(4)).error
+    ); /* a full cell, then a ! */
     ROW(0, "44444444");
     CHECK(CALL("draw.text_width", STR("abc")).result.i == 24);
 
     cells[0] = 0x10000077; /* a surface's kind, never made */
-    CHECK(CALL("draw.tiles", ARRAY(&map), I(2), F(0), F(0), I(1), I(1), I(0)).error == 5);
+    CHECK(
+        CALL("draw.tiles", I(SURF_SCREEN), F(0), F(0), ARRAY(&map), I(2), I(1), I(1), I(0)).error ==
+        5
+    );
 }
 
 /* Each call takes its own flags: another's is illegal, and BLEND with ADD. */
@@ -117,9 +139,15 @@ TEST(gfx_flags_a_call_refuses)
 {
     canvas(S);
     const int32_t s = sheet(S);
-    CHECK(CALL("draw.sprite", I(s), F(0), F(0), I(GFX_DRAW_FILL)).error == 5);
-    CHECK(CALL("draw.rect", F(0), F(0), F(1), F(1), I(1), I(GFX_PEN_OPAQUE)).error == 5);
-    CHECK(CALL("draw.sprite", I(s), F(0), F(0), I(GFX_PEN_BLEND | GFX_PEN_ADD)).error == 5);
-    CHECK(CALL("draw.rect", F(0), F(0), F(1), F(1), I(256), I(0)).error == 5);
+    CHECK(CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(s), I(GFX_DRAW_FILL)).error == 5);
+    CHECK(
+        CALL("draw.rect", I(SURF_SCREEN), F(0), F(0), F(1), F(1), I(1), I(GFX_DRAW_OPAQUE)).error ==
+        5
+    );
+    CHECK(
+        CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(s), I(GFX_DRAW_BLEND | GFX_DRAW_ADD))
+            .error == 5
+    );
+    CHECK(CALL("draw.rect", I(SURF_SCREEN), F(0), F(0), F(1), F(1), I(256), I(0)).error == 5);
     CHECK(PX(0, 0) == 1);
 }

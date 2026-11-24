@@ -35,10 +35,10 @@ static void texture(
     const Textured x = {
         .t = t,
         .s = s,
-        .opaque = flags & GFX_PEN_OPAQUE,
+        .opaque = flags & GFX_DRAW_OPAQUE,
         .wrap = wrap,
-        .test = flags & GFX_DRAW_ZTEST,
-        .set = flags & GFX_DRAW_ZSET,
+        .test = flags & GFX_DRAW_DEPTH_TEST,
+        .set = flags & GFX_DRAW_DEPTH_WRITE,
     };
 
     scan_poly(v, n, mode, t->clip, mode == SCAN_PTEX ? perspective : textured, (void *)&x);
@@ -97,7 +97,7 @@ void soft_poly(
 )
 {
     ScanVert v[SCAN_MAXV];
-    const bool persp = s && flags & GFX_DRAW_PERSP;
+    const bool persp = s && flags & GFX_DRAW_PERSPECTIVE;
 
     if (n > SCAN_MAXV)
         return;
@@ -108,7 +108,7 @@ void soft_poly(
     if (s)
         texture(t, s, v, n, flags, wrap, persp ? SCAN_PTEX : SCAN_TEX);
     else {
-        const Flat f = {t, colour, flags & GFX_DRAW_ZTEST, flags & GFX_DRAW_ZSET};
+        const Flat f = {t, colour, flags & GFX_DRAW_DEPTH_TEST, flags & GFX_DRAW_DEPTH_WRITE};
 
         scan_poly(v, n, SCAN_FLAT, t->clip, flat, (void *)&f);
     }

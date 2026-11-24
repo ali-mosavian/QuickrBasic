@@ -34,6 +34,8 @@ uint32_t font_new(
     int32_t w,
     int32_t h
 );
+/* h's font freed; its handle then stale. */
+void font_free(Fonts *fs, uint32_t h);
 /* h's font, 0 the built-in: null, none. */
 const Font *font_get(const Fonts *fs, uint32_t h);
 /* The built-in's sheet into *out: false, no memory. */

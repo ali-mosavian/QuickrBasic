@@ -1,5 +1,6 @@
 /* A frame of CHARLIE (charlie.h). */
 #include "charlie.h"
+#include "core/surface.h"
 #include <stdio.h>
 
 enum {
@@ -15,7 +16,7 @@ enum {
 };
 
 const CharlieStep charlie_steps[] = {
-    {.kind = CHARLIE_SPRITE, .picture = BACKDROP, .flags = GFX_PEN_OPAQUE},
+    {.kind = CHARLIE_SPRITE, .picture = BACKDROP, .flags = GFX_DRAW_OPAQUE},
     {.kind = CHARLIE_SPRITE, .picture = HILLS, .y = GROUND - 80},
     {.kind = CHARLIE_TILES, .picture = LEDGE, .y = GROUND, .count = CHARLIE_W / 16},
     {.kind = CHARLIE_SPRITE, .picture = TREE, .x = 200, .y = GROUND - 80},
@@ -24,7 +25,7 @@ const CharlieStep charlie_steps[] = {
      .picture = CHARLIE,
      .x = 100,
      .y = GROUND - 32,
-     .flags = GFX_DRAW_FLIPX},
+     .flags = GFX_DRAW_FLIP_X},
     {.kind = CHARLIE_SPRITE, .picture = BONE, .x = 150, .y = GROUND - 24},
     {.kind = CHARLIE_SPRITE, .picture = TITLE, .x = 75, .y = 20},
     {.kind = CHARLIE_TEXT, .x = 8, .y = 8, .colour = WHITE, .text = "THE AMBER DOWNS"},
@@ -80,7 +81,7 @@ static uint8_t step(
 {
     switch (s->kind) {
     case CHARLIE_SPRITE:
-        TRY(CALL_ON(host, "draw.sprite", I(view), F(s->x), F(s->y), I(s->flags)));
+        TRY(CALL_ON(host, "draw.sprite", I(SURF_SCREEN), F(s->x), F(s->y), I(view), I(s->flags)));
         break;
 
     case CHARLIE_TILES: {
@@ -93,10 +94,11 @@ static uint8_t step(
         TRY(CALL_ON(
             host,
             "draw.tiles",
-            ARRAY(&map),
-            I(s->count),
+            I(SURF_SCREEN),
             F(s->x),
             F(s->y),
+            ARRAY(&map),
+            I(s->count),
             I(cut->w),
             I(cut->h),
             I(s->flags)
@@ -107,6 +109,7 @@ static uint8_t step(
         TRY(CALL_ON(
             host,
             "draw.text",
+            I(SURF_SCREEN),
             F(s->x),
             F(s->y),
             ((QxArg){.s = {s->text, (uint32_t)strlen(s->text)}}),
@@ -127,7 +130,7 @@ uint8_t charlie_draw(const QxHost *const host, const CharlieCut *const cuts, int
         return sheet.error;
 
     TRY(CALL_ON(host, "display.open", I(CHARLIE_W), I(CHARLIE_H), I(8), I(0)));
-    TRY(CALL_ON(host, "display.palette_of", I(0), I(sheet.result.i)));
+    TRY(CALL_ON(host, "display.set_palette_from", I(0), I(sheet.result.i)));
 
     for (uint32_t i = 0; i < charlie_nsteps; i++) {
         const CharlieStep *const s = &charlie_steps[i];
@@ -137,7 +140,7 @@ uint8_t charlie_draw(const QxHost *const host, const CharlieCut *const cuts, int
         if (s->kind != CHARLIE_TEXT) {
             const Called v = CALL_ON(
                 host,
-                "surface.view",
+                "surface.new_view",
                 I(sheet.result.i),
                 I(c->x),
                 I(c->y),

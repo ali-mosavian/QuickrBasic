@@ -18,6 +18,13 @@ typedef struct {
     float x, y, z, u, v;
 } Corner;
 
+/* A surface's camera: the world's point at its top left; or, centred, the world's point at its
+   centre, the camera turned by angle and the world zoomed. Zeroed, the world as it is. */
+typedef struct {
+    float x, y, angle, zoom;
+    bool centred;
+} Camera;
+
 static inline int32_t rect_max(const int32_t a, const int32_t b) { return a > b ? a : b; }
 
 static inline int32_t rect_min(const int32_t a, const int32_t b) { return a < b ? a : b; }

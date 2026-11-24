@@ -768,47 +768,47 @@ GFX_WORK = {
     "flip": "",
     "calls": "for i = 0 to 299\n"
     "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
-    "    gfx.pen.light 63\n    gfx.pen.light 63\n    gfx.pen.light 63\n"
+    "    gfx.draw.set_light 63\n    gfx.draw.set_light 63\n    gfx.draw.set_light 63\n"
     "next",
-    "fill": "for i = 0 to 9\n    gfx.draw.rect i, i, 629 + i, 469 + i, (i * 4099) and m&, gfx.draw.FILL\nnext",
+    "fill": "for i = 0 to 9\n    gfx.draw.rect canvas&, i, i, 629 + i, 469 + i, (i * 4099) and m&, gfx.draw.FILL\nnext",
     "rects": "for i = 0 to 299\n"
     "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
-    "    gfx.draw.rect x, y, x + 39, y + 39, (i * 4099) and m&, gfx.draw.FILL\n"
+    "    gfx.draw.rect canvas&, x, y, x + 39, y + 39, (i * 4099) and m&, gfx.draw.FILL\n"
     "next",
     "lines": "for i = 0 to 299\n"
     "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
-    "    gfx.draw.line x, y, 639 - x, 479 - y, (i * 977) and m&\n"
+    "    gfx.draw.line canvas&, x, y, 639 - x, 479 - y, (i * 977) and m&\n"
     "next",
     "circles": "for i = 0 to 299\n"
     "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
-    "    gfx.draw.circle 639 - x, y, 12, (i * 131) and m&, gfx.draw.FILL\n"
+    "    gfx.draw.circle canvas&, 639 - x, y, 12, (i * 131) and m&, gfx.draw.FILL\n"
     "next",
     "arcs": "for i = 0 to 299\n"
     "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
-    "    gfx.draw.arc 639 - x, y, 20, 0.3, 4, (i * 131) and m&\n"
+    "    gfx.draw.arc canvas&, 639 - x, y, 20, 0.3, 4, (i * 131) and m&\n"
     "next",
-    "sprites": "for i = 0 to 999\n    gfx.draw.sprite s&, (i * 37 + f) mod 608, (i * 53 + f) mod 448, 0\nnext",
+    "sprites": "for i = 0 to 999\n    gfx.draw.sprite canvas&, (i * 37 + f) mod 608, (i * 53 + f) mod 448, s&, 0\nnext",
     "pictures": "for i = 0 to 999\n"
-    "    gfx.draw.sprite pic&(i mod 16), (i * 37 + f) mod 608, (i * 53 + f) mod 448, 0\n"
+    "    gfx.draw.sprite canvas&, (i * 37 + f) mod 608, (i * 53 + f) mod 448, pic&(i mod 16), 0\n"
     "next",
     "turned": "for i = 0 to 99\n"
     "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
-    "    gfx.draw.sprite_turned s&, x + 16, y + 16, (i + f) * 0.05, 2, 0\n"
+    "    gfx.draw.sprite_turned canvas&, x + 16, y + 16, (i + f) * 0.05, 2, s&, 0\n"
     "next",
     "tris": "for i = 0 to 299\n"
     "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
     "    p(0).x = x: p(0).y = y: p(1).x = x + 40: p(1).y = y + 8: p(2).x = x + 12: p(2).y = y + 40\n"
-    "    gfx.draw.poly 0, p(), 0, 3, (i * 4099) and m&, gfx.draw.FILL\n"
+    "    gfx.draw.poly canvas&, p(), 0, 3, 0, (i * 4099) and m&, gfx.draw.FILL\n"
     "next",
     "octagons": "for i = 0 to 299\n"
     "    x = (i * 37 + f) mod 600 + 20: y = (i * 53) mod 440 + 20\n"
     "    for k = 0 to 7: p(k).x = x + ox(k): p(k).y = y + oy(k): next\n"
-    "    gfx.draw.poly 0, p(), 0, 8, (i * 4099) and m&, gfx.draw.FILL\n"
+    "    gfx.draw.poly canvas&, p(), 0, 8, 0, (i * 4099) and m&, gfx.draw.FILL\n"
     "next",
     "mixed": "for i = 0 to 299\n"
     "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
-    "    gfx.draw.sprite s&, x, y, 0\n"
-    "    gfx.draw.rect x, y, x + 7, y + 7, (i * 4099) and m&, gfx.draw.FILL\n"
+    "    gfx.draw.sprite canvas&, x, y, s&, 0\n"
+    "    gfx.draw.rect canvas&, x, y, x + 7, y + 7, (i * 4099) and m&, gfx.draw.FILL\n"
     "next",
 }
 # draw.poly's modes: 300 squares turned, 40 pixels across, their far edge twice as far; flat, or s&'s texels affine
@@ -825,18 +825,19 @@ POLY_LOOP = (
     "next"
 )
 GFX_WORK["poly_loop"] = POLY_LOOP.format(draw="")
-for kind, s_, how in (("flat", "0", "gfx.draw.FILL"), ("affine", "s&", "0"), ("persp", "s&", "gfx.draw.PERSP")):
+for kind, s_, how in (("flat", "0", "gfx.draw.FILL"), ("affine", "s&", "0"), ("persp", "s&", "gfx.draw.PERSPECTIVE")):
     for mode, z in (
         ("", ""),
-        ("_zset", " + gfx.draw.ZSET"),
-        ("_ztest", " + gfx.draw.ZTEST + gfx.draw.ZSET"),
-        ("_blend", " + gfx.pen.BLEND"),
-        ("_add", " + gfx.pen.ADD"),
+        ("_zset", " + gfx.draw.DEPTH_WRITE"),
+        ("_ztest", " + gfx.draw.DEPTH_TEST + gfx.draw.DEPTH_WRITE"),
+        ("_blend", " + gfx.draw.BLEND"),
+        ("_add", " + gfx.draw.ADD"),
     ):
-        draw = f"    gfx.draw.poly {s_}, p(), 0, 4, (i * 4099) and m&, {how}{z}\n"
-        first = "gfx.draw.clear_depth\n" if "ZSET" in z else "gfx.pen.alpha 32\n" if "pen" in z else ""
+        draw = f"    gfx.draw.poly canvas&, p(), 0, 4, {s_}, (i * 4099) and m&, {how}{z}\n"
+        depth, blends = "DEPTH_WRITE" in z, "BLEND" in z or "ADD" in z
+        first = "gfx.surface.clear_depth canvas&\n" if depth else "gfx.draw.set_alpha 32\n" if blends else ""
         GFX_WORK[f"poly_{kind}{mode}"] = first + POLY_LOOP.format(draw=draw)
-GFX_PROGRAM = """import gfx.display, gfx.draw, gfx.surface, gfx.pen
+GFX_PROGRAM = """import gfx.display, gfx.draw, gfx.surface
 from gfx.display import FrameStats
 from gfx.draw import Vertex
 dim st as FrameStats
@@ -846,13 +847,11 @@ for k = 0 to 7
     ox(k) = cos(k * 0.7853982) * 20: oy(k) = sin(k * 0.7853982) * 20: p(k).z = 1
 next
 p(1).u = 32: p(2).u = 32: p(2).v = 32: p(3).v = 32
-gfx.display.open 640, 480, {depth}, {flags}
+canvas& = gfx.display.open(640, 480, {depth}, {flags})
 m& = {mask}
 s& = gfx.surface.new(32, 32)
-gfx.pen.target s&
-gfx.draw.clear 0
-gfx.draw.circle 15, 15, 14, 2, gfx.draw.FILL
-gfx.pen.target gfx.surface.CANVAS
+gfx.draw.clear s&, 0
+gfx.draw.circle s&, 15, 15, 14, 2, gfx.draw.FILL
 dim px(32 * 32 * 4 - 1) as byte
 dim pic&(15)
 for k = 0 to 15
@@ -864,21 +863,21 @@ for k = 0 to 15
 next
 do
     if f = {warm} then t# = gfx.display.clock
-    gfx.draw.clear 1
+    gfx.draw.clear canvas&, 1
 {work}
     gfx.display.flip
     f = f + 1
 loop until f > {warm} and gfx.display.clock - t# >= {seconds}
 t# = gfx.display.clock - t#
 rate# = (f - {warm}) / t#
-gfx.display.stats st
+gfx.display.get_stats st
 f = 0
-gfx.draw.clear 1
+gfx.draw.clear canvas&, 1
 {work}
 gfx.display.flip
 for y = 0 to 479 step 16
     for x = 0 to 639 step 16
-        sum& = (sum& * 31 + gfx.surface.point(gfx.surface.CANVAS, x, y)) and &HFFFFF
+        sum& = (sum& * 31 + gfx.surface.point(canvas&, x, y)) and &HFFFFF
     next
 next
 {report}

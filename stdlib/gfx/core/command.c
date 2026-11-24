@@ -28,21 +28,20 @@ Place cmd_where(const Camera *const camera, const int32_t w, const int32_t h)
     return p;
 }
 
-void cmd_place(Command *const c, const Pen *const pen, const Place *const where)
+void cmd_place(Command *const c, const Style *const style, const Place *const where)
 {
     const Vec a = cmd_at(where, (Vec){c->x, c->y}), b = cmd_at(where, (Vec){c->x2, c->y2});
 
-    c->target = pen->target;
     c->x = a.x;
     c->y = a.y;
     c->x2 = b.x;
     c->y2 = b.y;
     c->angle += where->angle;
     c->scale *= where->zoom;
-    c->light = pen->light;
-    c->tint = pen->tint;
-    c->alpha = pen->alpha;
-    c->recolour = pen->recolour;
+    c->light = style->light;
+    c->tint = style->tint;
+    c->alpha = style->alpha;
+    c->palette_row = style->palette_row;
 }
 
 bool cmd_log(CmdLog *const log, const Command *const c)

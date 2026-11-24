@@ -72,7 +72,7 @@ typedef struct {
 typedef struct {
     Gpu *gpu;
     Vec at;        /* the target's place in its texture: a view's */
-    Rect clip;     /* the pen's, in the target */
+    Rect clip;     /* the target's */
     GpuVertex ink; /* the tint and light; a picture's rectangle, row and stages */
     uint32_t texture;
     QxBlend blend;

@@ -10,62 +10,66 @@ Status: a design. The interface is drafted in [stdlib/gfx](../stdlib/gfx); nothi
 ## What the program sees
 
 ```basic
-from gfx import display, surface, pen, draw, scene
+from gfx import display, surface, draw, scene
 
-display.open 320, 200, 8, display.VSYNC
+canvas& = display.open(320, 200, 8, display.VSYNC)
 sheet = surface.load("CHARLIE.BMP")
-display.palette_of 0, sheet
-n = surface.grid(sheet, 16, 16, tile())
-hero = surface.view(sheet, 0, 96, 30, 42)
+display.set_palette_from 0, sheet
+n = surface.new_views(sheet, 16, 16, tile())
+hero = surface.new_view(sheet, 0, 96, 30, 42)
 walls = scene.new_material(scene.LIGHTMAPPED, stone, lightmap)
 do
-    scene.camera eye, at, up, 1.05
-    scene.mesh level, walls, scene.ORDERED
+    scene.set_camera eye, at, up, 1.05
+    scene.mesh canvas&, level, walls, scene.ORDERED
     scene.place m, dog.at, dog.turn, 1
-    scene.mesh_placed dog.shape, fur, dog.frame, m, 0
-    draw.camera cam.x, cam.y
-    draw.tiles lv.map(), lv.w, 0, 0, 16, 16, 0
-    draw.sprite hero, p.at.x, p.at.y, draw.FLIPX
-    draw.rect 0, 0, 319, 9, CINK, draw.FILL
-    draw.text 4, 1, "SCORE" + str$(score), CWHITE
+    scene.mesh_placed canvas&, m, dog.frame, dog.shape, fur, 0
+    surface.set_camera canvas&, cam.x, cam.y
+    draw.tiles canvas&, 0, 0, lv.map(), lv.w, 16, 16, 0
+    draw.sprite canvas&, p.at.x, p.at.y, hero, draw.FLIP_X
+    draw.rect canvas&, 0, 0, 319, 9, CINK, draw.FILL
+    draw.text canvas&, 4, 1, "SCORE" + str$(score), CWHITE
     display.flip
 loop
 ```
 
 ## The interface
 
-`gfx` is a package of five modules, each an interface file in [stdlib/gfx](../stdlib/gfx): every
-procedure, record and constant.
+`gfx` is a package of four modules, each an interface file in [stdlib/gfx](../stdlib/gfx): every
+procedure, record and constant, each procedure with its docstring.
 
 | Module | Holds |
 |---|---|
-| `gfx.display` | the canvas and the screen: `open`, `flip`, modes, full screen, events, the clock, palettes; what a frame cost and drew |
-| `gfx.surface` | everything drawn from or into: `new`, `load`, `view`, `grid`, `free`; pixels read and written |
-| `gfx.pen` | where drawing goes and the numbers its flags use: `target`, `clip`, `light`, `tint`, `alpha`, `recolour`, `font` |
-| `gfx.draw` | 2D: shapes, sprites, tiles, strips, text, its camera |
-| `gfx.scene` | 3D: meshes, materials, billboards, its camera, matrices |
+| `gfx.display` | the screen, the palette and the host: `open`, `flip`, monitors and modes, events, the clock; what a frame cost and drew |
+| `gfx.surface` | everything drawn from or into: `new`, `load`, `new_view`, `new_views`, `free`; each one's clip, camera, anchor and depth; pixels read and written |
+| `gfx.draw` | 2D: shapes, sprites, tiles, strips, text; the settings every call draws with (`set_light`, `set_tint`, `set_alpha`, `set_palette_row`, `set_font`) |
+| `gfx.scene` | 3D: meshes, materials, billboards, its camera, matrices (declared, not built) |
 
-No module imports another. `draw` and `scene` sit over `pen`, and everything over `surface`.
+No module imports another; everything sits over `surface`.
 
 - **QuickrBasic's dialect.** It has no `SCREEN`, `PRINT`, `LINE`, `CIRCLE`, `PSET`, `OPEN` or
   `CLOSE` statements: those are QB's dialect's, and here the standard library's extensions. So
-  `draw.line`, `display.open` and `surface.view` are plain names, and the interfaces are read in this
-  dialect.
-- **The module is the noun**: `surface.load`, `display.flip`, `draw.sprite`, `scene.mesh`.
+  `draw.line`, `display.open` and `surface.new_view` are plain names, and the interfaces are read in
+  this dialect.
+- **Names by rule.** The module is the noun, a procedure the verb: `surface.load`, `display.flip`,
+  `draw.sprite`. A maker is `new_*` with a `free*`; a setting is `set_*` with a `get_*`. No
+  metaphors, no abbreviations.
+- **The destination first**, as µGL's `uglPut dst, x, y, src`: every draw call names the surface it
+  draws into, then where, then what. A source over the destination's pixels (the surface, or views of
+  one) is an illegal function call: a GPU cannot draw a texture into itself.
 - **Neither too low nor too high.** A call is a thing a game draws: a sprite, a tile layer, a mesh
   with its material. Stages, matrices set by hand, depth modes and the surface cache stay inside.
-- **Everything is a surface**: the canvas (`surface.CANVAS`), a loaded image, a view over part of
+- **Everything is a surface**: the screen (`display.open`'s), a loaded image, a view over part of
   either. A sprite, a tile, a glyph sheet and a texture are surfaces; an atlas is an image and the
-  views cut from it, by hand (`surface.view`) or as a grid (`surface.grid`).
+  views cut from it, by hand (`surface.new_view`) or as a grid (`surface.new_views`). A surface
+  carries its own clip, camera, anchor and depth.
 - **Handles** are longs: a kind (4 bits), a generation (8) and a slot (20), so a freed or wrong
   handle is an error, never a stray pointer. 0 is none.
-- **Flags pick the effect, the pen holds its numbers**, as µGL's `tfxBlit` and `tfxSet*`. Every
-  draw call takes flags from one set: `draw`'s `FILL`, `FLIPX`, `FLIPY`, `PERSP`, `ZTEST`, `ZSET`;
-  `pen`'s `OPAQUE`, `BLEND`, `ADD`, `SOLID`, `SMOOTH`; `scene`'s `ORDERED`, `NO_ZWRITE`,
-  `NO_ZTEST`. The pen's numbers land in the vertices, so a change does not end a batch; `pen.reset`
-  sets it back.
+- **Flags pick the effect, the settings hold its numbers**, as µGL's `tfxBlit` and `tfxSet*`.
+  `draw`'s flags are `FLIP_X`, `FLIP_Y`, `FILL`, `OPAQUE`, `BLEND`, `ADD`, `SOLID`, `SMOOTH`,
+  `PERSPECTIVE`, `DEPTH_TEST` and `DEPTH_WRITE`; `scene`'s add `ORDERED`. The settings land in the
+  vertices, so a change does not end a batch; `draw.reset` sets them back.
 - **No optional arguments**, so the common case is its own call, as µGL's `uglPut` and
-  `uglPutRotScl`: `sprite` and `sprite_turned`, `camera` and `camera_turned`, `mesh` and
+  `uglPutRotScl`: `sprite` and `sprite_turned`, `set_camera` and `set_camera_turned`, `mesh` and
   `mesh_placed`.
 - **A colour is the canvas's**: an index at 8 bits, `&HRRGGBB` at 15, 16 and 32. `display.rgb` gives
   one from red, green and blue.
@@ -102,8 +106,8 @@ drawn at.
 
 ## The canvas: any resolution and depth
 
-`display.open w, h, depth, flags` asks for a canvas; the backend gives the nearest it has, and
-`surface.width`, `height` and `bits` of `surface.CANVAS` say what it gave. Depth is 8 (indexed), 15,
+`display.open w, h, depth, flags` asks for a screen and returns its surface; the backend gives the
+nearest it has, and `surface.width`, `height` and `bits` of that surface say what it gave. Depth is 8 (indexed), 15,
 16 or 32 bits.
 
 The canvas is what the program draws in; the window is the host's. The host scales the canvas to the
@@ -126,7 +130,7 @@ shown in any mode.
 
 - `display.count` counts the monitors; `display.modes(monitor)` counts its modes and `display.mode`
   gives each one's width, height, depth and refresh.
-- `display.open` opens a window. `display.fullscreen monitor, n` shows the canvas full screen: n 0
+- `display.open` opens a window. `display.set_fullscreen monitor, n` shows the canvas full screen: n 0
   in the desktop's own mode, 1 on in the list's, switched to. `display.windowed` goes back.
 - With `VSYNC`, `display.flip` waits for the screen's refresh. `display.clock` is the host's own
   clock in seconds, and `display.refresh` the screen's rate.
@@ -153,15 +157,15 @@ A texture is indexed (8 bits and a palette) or direct (16 or 32 bits).
 
 - Light is a level from 0 to 63. On an 8-bit canvas it reads a light table, 64 rows of 256 indices:
   Quake's colormap. On the others it multiplies.
-- `display.palette row, colours()` sets a palette row, and `display.palette_of` takes an image's: row 0
-  is the canvas's, and `pen.recolour row` draws what follows through another, as PICO-8's `pal`. On DOS
+- `display.set_palette row, colours()` sets a palette row, and `display.set_palette_from` takes an
+  image's: row 0 is the screen's, and `draw.set_palette_row row` draws what follows through another, as PICO-8's `pal`. On DOS
   at 8 bits the VGA's palette changes the whole screen at once; the program does not rely on that.
 - Index 0 of an indexed texture, 0 of a 15 or 16-bit one, and alpha under one half of a 32-bit
   one, are not drawn; `OPAQUE` draws them.
 - `display.rgb(r, g, b)` is a colour in the canvas's own terms: the nearest index at 8 bits.
-- `SOLID` draws a surface's shape in the pen's tint: a hit's flash, a shadow, a one-colour font.
+- `SOLID` draws a surface's shape in `set_tint`'s colour: a hit's flash, a shadow, a one-colour font.
 
-Blending is keyed (as above), opaque, translucent (`BLEND`) or additive (`ADD`), by the pen's alpha. A
+Blending is keyed (as above), opaque, translucent (`BLEND`) or additive (`ADD`), by `set_alpha`'s level. A
 GPU blends in hardware; software at 8 bits reads a 64 KB table for each mode, index by index; at 15, 16
 and 32 bits it adds and multiplies.
 
@@ -175,7 +179,7 @@ Textures, meshes and canvases are uploaded once and named by a handle. A canvas 
 drawn into: a parallax layer, a HUD kept between frames, a mirror.
 
 One frame may hold a 3D pass and then a 2D pass: 3D calls take the 3D camera, the rest the 2D one
-(`draw.camera`, `draw.camera_turned`), applied as commands are recorded.
+(`surface.set_camera`, `surface.set_camera_turned`), a surface's own,, applied as commands are recorded.
 
 ## Friendly, and kind to a GPU
 
@@ -190,13 +194,13 @@ Each convenience of µGL and Allegro is kept, and given a shape a GPU draws in f
 | pixels written one by one into a surface | keeps that surface in memory and uploads its changed rows once, when it is next drawn from |
 
 A batch ends at another page, material, blend, target or clip. Order is kept, so the batches are the
-program's to shape, and `display.stats` counts them.
+program's to shape, and `display.get_stats` counts them.
 
 What would make a GPU wait is a call of its own, never a side effect of drawing:
 
 - `surface.point` and `surface.read`, on a surface the GPU drew, wait for it to finish. The canvas
   read after `display.flip` is the frame shown.
-- `display.stats` counts the frame's draws, batches, uploads and waits, so a slow frame says why.
+- `display.get_stats` counts the frame's draws, batches, uploads and waits, so a slow frame says why.
 
 Allegro 5's traps are the reverse of these: a memory bitmap drawn to the screen was uploaded at every
 draw, unseen, and its sprites batched only when held. Here where a surface lives is the backend's
@@ -210,11 +214,11 @@ QB's dialect's.
 A view is a surface over another surface's pixels, as µGL's `uglNewView` and qgl's `qglNewView`: its
 own shape and clipping, no memory of its own, nothing copied.
 
-- A picture is a view of its sheet, with an anchor (`surface.anchor`). `surface.view` cuts one by
-  hand; `surface.grid` fills an array with a sheet's equal cells: tiles, glyphs, an animation.
+- A picture is a view of its sheet, with an anchor (`surface.set_anchor`). `surface.new_view` cuts one
+  by hand; `surface.new_views` fills an array with a sheet's equal cells: tiles, glyphs, an animation.
 - Drawing into a view of a canvas draws into its rectangle, clipped to it: a split screen, a minimap,
   the HUD's strip.
-- `surface.aim` moves a view within its parent without allocating. The backend's surface cache is
+- `surface.set_view` moves a view within its parent without allocating. The backend's surface cache is
   built on it, as qgl's: n surfaces of one size, and one view aimed at each in turn.
 - Wrapping repeats a view, not its parent, so a tile in an atlas tiles.
 - A surface's views are freed with it. A handle to one is then stale, and using it is an error.
@@ -230,8 +234,8 @@ On a GPU a lightmapped surface is two textures multiplied, so there is no cache.
 
 Everything 2D is a textured quad or a strip of them, so the backends have one primitive.
 
-- `draw.sprite s, x, y, flags`: a surface at its anchor. `draw.sprite_turned` adds an angle and a
-  scale, about the anchor. `FLIPX` and `FLIPY` swap its u or v.
+- `draw.sprite dst, x, y, src, flags`: src at its anchor. `draw.sprite_turned` adds an angle and a
+  scale, about the anchor. `FLIP_X` and `FLIP_Y` swap its u or v.
 - `draw.quad`: a surface onto any four corners.
 - `draw.tiles`: a tile layer, a cell a surface, drawn a row of quads at a time; only the cells in
   view are visited.
@@ -240,10 +244,10 @@ Everything 2D is a textured quad or a strip of them, so the backends have one pr
 - `draw.pset`, `line` and `arc`; `rect`, `circle` and `poly`, outlined or with `FILL`.
 - `draw.poly s, points(), first, n, colour, flags`: a convex polygon of up to 32 `Vertex`es, each
   x, y, z (its distance, 1 or more) and u, v. `s` 0 draws in colour, else `s`'s texels, affine or
-  with `PERSP` in perspective. `ZTEST` draws only what is nearer than the target's depth there and
-  `ZSET` writes it; a keyed texel writes none. `draw.clear_depth` makes the pen's target's depth all
+  with `PERSPECTIVE` in perspective. `DEPTH_TEST` draws only what is nearer than the target's depth there and
+  `DEPTH_WRITE` writes it; a keyed texel writes none. `surface.clear_depth s` makes s's depth all
   far. Software only so far: a GPU draws them affine, with no depth.
-- `draw.text x, y, s$, colour` in the pen's font: a sheet of glyphs (`pen.new_font`), or the
+- `draw.text dst, x, y, s$, colour` in `set_font`'s font: a sheet of glyphs (`draw.new_font`), or the
   built-in 8 by 8. Its glyphs are pictures, in `colour`, or as the sheet has them with
   `draw.AS_DRAWN`.
 
@@ -257,12 +261,12 @@ and sets their anchors.
 
 - **Meshes**: a position, the texture's u and v, the lightmap's, a light and a tint for each
   vertex; triangles by index.
-- **Cameras**: `scene.camera eye, at, up, fov` for `scene`'s calls, `draw.camera` for `draw`'s. So
-  one frame holds both with no switch between. `scene.place` makes a matrix from a position and
+- **Cameras**: `scene.set_camera eye, at, up, fov` for `scene`'s calls; a surface's own
+  (`surface.set_camera`) for `draw`'s. So one frame holds both with no switch between. `scene.place` makes a matrix from a position and
   angles. The near plane is clipped by the GPU, and in software by clipping each polygon before it
   is scanned.
-- **Depth** is tested and written by every `scene` call. `NO_ZTEST` and `NO_ZWRITE` leave one out.
-  `ORDERED` says the calls come nearest first: a GPU rejects hidden pixels early; software keeps a
+- **Depth** is a surface's: tested with `DEPTH_TEST`, written with `DEPTH_WRITE`, cleared by
+  `surface.clear_depth`. `ORDERED` says the calls come nearest first: a GPU rejects hidden pixels early; software keeps a
   coverage buffer and skips spans already drawn, which on a 486 replaces testing each pixel's depth.
 - **Materials**: a kind and its textures, made once (`scene.new_material`). The kinds are lists of
   pixel stages ([Shaders](#shaders)), the same on every backend: flat, textured, vertex-lit,
@@ -299,7 +303,7 @@ too slow in software. Shaders come in three kinds, by where they can run.
   host crosses it to SPIR-V, MSL and DXIL (glslang, SDL_shadercross). A program that uses one also
   names a kind, drawn where there are no shaders.
 
-`display.caps` says what the backend has: a GPU, the program's own shaders, smooth sampling.
+`display.features` says what the backend has: a GPU, the program's own shaders, smooth sampling.
 `scene.cost` gives a cost for each kind of material, so the program picks its own detail.
 
 ## Backends
@@ -384,7 +388,7 @@ void *(*file_read)(const char *path, uint32_t len, uint32_t *bytes);
 ### One file, five interfaces
 
 A `.qbx` holds one interface today. `gfx.qbx` holds a table of them, each a module's name and
-source, over one slice a platform: the modules share the surfaces, the pen and the recorder.
+source, over one slice a platform: the modules share the surfaces, the style and the recorder.
 
 - `IMPORT gfx.draw` looks for `gfx/draw.bas`, `gfx/draw.qbx`, then `gfx.qbx`'s part `draw`.
 - One `qx_init_gfx`. An entry is named with its module, `draw.sprite`, and so is a type.
@@ -400,13 +404,13 @@ static.
 
 | Module | Owns |
 |---|---|
-| `api/display`, `api/surface`, `api/pen`, `api/draw` | the entries the glue calls, a part each: arguments checked |
-| `core/gfx` | the state; what the entries share: errors raised, handles and the pen's target resolved |
+| `api/display`, `api/surface`, `api/draw`, `api/style` | the entries the glue calls, a part each: arguments checked |
+| `core/gfx` | the state; what the entries share: errors raised, handles resolved, a draw call checked and begun |
 | `core/mem` | the host's memory, and copies without a C library |
 | `core/handle` | handles: slots and generations |
 | `core/surface` | surfaces, views and anchors; the pages images are packed in |
 | `core/palette` | palette rows, the light table, the blend tables, the nearest index |
-| `core/pen` | the pen |
+| `core/style` | the style: `draw`'s settings |
 | `core/font` | fonts: sheets cut into glyphs, and the built-in 8 by 8 as one |
 | `core/command` | a draw call to a command, the camera applied; the frame's log |
 | `core/shape` | a command to vertices: quads and fans |
@@ -418,15 +422,15 @@ static.
 | `soft/soft`, `persp` | a command drawn at once |
 | `soft/scanner` | a convex polygon to spans, clipped |
 | `soft/fill`, `fill8`, `fill16`, `fill32` | spans and rows to pixels: a table for each colour format |
-| `gpu/backend` | a GPU's backend: shapes and pictures as triangles, the pen in their vertices |
+| `gpu/backend` | a GPU's backend: shapes and pictures as triangles, the style in their vertices |
 | `gpu/gpu` | the GPU's recorder: textures and pipelines made, pixels sent, passes, clips, reads back |
 | `gpu/list` | the list the host plays: its words, vertices, indices and batches |
 | `gpu/shaders` | the one shader, and `shaders.h` made from it |
 
 ### From a call to pixels
 
-1. A draw call becomes a command: its kind, target, source and flags, the pen's numbers, and its
-   place after the camera. The frame's commands are logged, and `display.drawn` reads the log: the
+1. A draw call becomes a command: its kind, target, source and flags, the style's numbers, and its
+   place after the camera. The frame's commands are logged, and `display.get_drawn` reads the log: the
    same on every backend.
 2. `shape` makes its vertices: a place, u and v, light, tint, palette row and stage bits. In
    software an upright sprite at 1:1 skips this: its rows are copied.
@@ -461,8 +465,8 @@ atlas page batch.
 
 ## Tests
 
-`display.draws` counts the frame's commands and `display.drawn` gives each after every transform: what
-was drawn, where, how turned, with which pen. Tests assert on that, and pass on every backend.
+`display.draws` counts the frame's commands and `display.get_drawn` gives each after every transform: what
+was drawn, where, how turned, with which settings. Tests assert on that, and pass on every backend.
 
 `surface.read` of the canvas after `display.flip` gives a finished frame's pixels. Tests that compare
 pixels run on the software backend.
@@ -536,10 +540,10 @@ Step 3, in parts:
   most one transparent colour stays 8 bits, that colour swapped with index 0, the key's; the rest
   load at 32 bits, alpha the file's or tRNS's. `inflate.c` reads the zlib stream as zlib's `puff`
   does, a code a bit at a time: small, and fast enough for a game's pictures.
-- **Fonts**: `pen.new_font` cuts a sheet into w by h glyphs from code 32, row by row; `pen.font`
-  picks one, 0 the built-in. The built-in is the runtime's 8 by 8 drawn into a sheet of its own on
+- **Fonts**: `draw.new_font` cuts a sheet into w by h glyphs from code 32, row by row;
+  `draw.set_font` picks one, 0 the built-in; `draw.free_font` frees one. The built-in is the runtime's 8 by 8 drawn into a sheet of its own on
   first use. Each glyph is drawn as a picture, so text turns and zooms with the camera; in a colour
-  it is `SOLID`, that colour through the pen as a shape's.
+  it is `SOLID`, that colour through the style as a shape's.
 
 ### The GPU's players
 
@@ -563,13 +567,13 @@ Step 4, in parts:
   packed into a 1024 by 1024 atlas page of its format (indices or RGBA), rows of places, a place
   freed with its root and a page empty again started over; drawn into, a root has a texture of
   its own. So separate pictures draw as one batch once sent. A root keeps the rows written since
-  the GPU took it, and only those are sent again. `display.stats` gives the frame
+  the GPU took it, and only those are sent again. `display.get_stats` gives the frame
   shown last's draws, batches, uploads and reads waited for. On the Mac, 300 sprites and 300
   rects interleaved went from 601 batches to 1 (1764 to 2891 frames a second); 1000 sprites from
   16 pictures from 1000 batches to 1 (1371 to 1996).
 - **`SMOOTH`**: the shader mixes the four texels round a pixel's centre, each kept in the
   picture's rectangle, so a page's neighbours never bleed in; a keyed texel adds nothing, and a
-  pixel mostly keyed is not drawn. `display.caps` gives `HAS_SMOOTH` on a GPU.
+  pixel mostly keyed is not drawn. `display.features` gives `HAS_SMOOTH` on a GPU.
 - **The page's player** (`plat/wasm/player.c`, `web/gpu.mjs`): the module's thread copies each
   list and the memory it points at to the page, going on while the page is at most three behind;
   a read waits for the page. The page plays it with WebGL2 on its own thread: one with an event
@@ -647,9 +651,9 @@ Step 5, in parts:
 | Names that are QB's keywords | QuickrBasic's dialect has none of them: they are plain names |
 | Where the GPU backends live | in the extension, its list played by the host's generic GPU |
 | A sprite's arguments | `sprite` and `sprite_turned`, as µGL's pairs |
-| Effects | flags on each draw call; the pen holds their numbers |
+| Effects | flags on each draw call; `draw`'s settings hold their numbers |
 | What is drawn | everything is a surface; an atlas is an image and views over it |
-| The package | five modules, `display`, `surface`, `pen`, `draw`, `scene`, in one `gfx.qbx` |
+| The package | four modules, `display`, `surface`, `draw`, `scene`, in one `gfx.qbx` |
 | Software's frame | drawn in memory the host lends |
 | Images | BMP and PNG |
 | Software's pixels | fused fillers for the hot mixes, µGL's `tfx` rows for the rest |

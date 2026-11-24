@@ -1,9 +1,9 @@
 /* A GPU as a backend (backend.h): a call's shapes and pictures as triangles in the list
- * (gpu/gpu.h), the pen in their vertices.
+ * (gpu/gpu.h), the style in their vertices.
  *
  * # How it works
- * A shape is SOLID, its colour in the vertices (an index through the pen's row at 8 bits) times
- * the pen's tint, so its texel does not matter and it joins any batch; alone it draws from the
+ * A shape is SOLID, its colour in the vertices (an index through the style's palette row at 8 bits) times
+ * the style's tint, so its texel does not matter and it joins any batch; alone it draws from the
  * white texel. A picture's vertices carry its texels, its rectangle and its
  * stages. Pixels are squares about whole numbers, so a shape's edges lie half a pixel round the
  * centres it covers, as software's. A line covers software's pixels, one a step along its longer
@@ -127,15 +127,15 @@ static GpuTarget *call(const Gx *const g) { return &((GpuState *)g->own)->call; 
 
 static bool begin(Gx *const g, const Command *const c, const Picture *const into, const Rect clip)
 {
-    const Pen *const pen = &g->pen;
+    const Style *const style = &g->style;
     Gpu *const gp = gpu(g);
     const Picture white = {{(uint8_t *)&gp->white, 4, 1, 1, PX_32}, {0, 0, 1, 1}, PIC_WHITE, 1};
 
     const Rect in_root = {into->at.x + clip.x, into->at.y + clip.y, clip.w, clip.h};
 
-    const QxBlend blend = c->flags & GFX_PEN_ADD     ? QX_BLEND_ADD
-                          : c->flags & GFX_PEN_BLEND ? QX_BLEND_MIX
-                                                     : QX_BLEND_NONE;
+    const QxBlend blend = c->flags & GFX_DRAW_ADD     ? QX_BLEND_ADD
+                          : c->flags & GFX_DRAW_BLEND ? QX_BLEND_MIX
+                                                      : QX_BLEND_NONE;
     GpuSource target, blank;
 
     if (!gpu_texture(gp, &g->palette, into, true, &target) ||
@@ -150,19 +150,19 @@ static bool begin(Gx *const g, const Command *const c, const Picture *const into
         .clip = clip,
         .ink =
             {
-                .light = (uint8_t)pen->light,
-                .row = (uint8_t)pen->recolour,
-                .stages = (uint8_t)((c->flags & GFX_PEN_OPAQUE ? 0 : GPU_STAGE_KEYED) |
-                                    (c->flags & GFX_PEN_SMOOTH ? GPU_STAGE_SMOOTH : 0)),
+                .light = (uint8_t)style->light,
+                .row = (uint8_t)style->palette_row,
+                .stages = (uint8_t)((c->flags & GFX_DRAW_OPAQUE ? 0 : GPU_STAGE_KEYED) |
+                                    (c->flags & GFX_DRAW_SMOOTH ? GPU_STAGE_SMOOTH : 0)),
             },
         .texture = blank.id,
         .blend = blend,
-        .alpha = blend ? (uint8_t)(pen->alpha * ALPHA / PAL_FULL) : ALPHA,
+        .alpha = blend ? (uint8_t)(style->alpha * ALPHA / PAL_FULL) : ALPHA,
         .eight = into->root.format == PX_8,
-        .row = g->palette.rows[pen->recolour],
-        .tint = pen->tint,
-        .solid = c->flags & GFX_PEN_SOLID,
-        .paint = pen->tint,
+        .row = g->palette.rows[style->palette_row],
+        .tint = style->tint,
+        .solid = c->flags & GFX_DRAW_SOLID,
+        .paint = style->tint,
     };
 
     return true;
@@ -405,7 +405,7 @@ static void sprite(Gx *const g, const Picture *const p, const Vec at, const int3
     const GpuTarget *const t = call(g);
     const float w = (float)p->at.w, h = (float)p->at.h;
     const float x0 = at.x - 0.5f, y0 = at.y - 0.5f;
-    const float u0 = flags & GFX_DRAW_FLIPX ? w : 0, v0 = flags & GFX_DRAW_FLIPY ? h : 0;
+    const float u0 = flags & GFX_DRAW_FLIP_X ? w : 0, v0 = flags & GFX_DRAW_FLIP_Y ? h : 0;
     const float u1 = w - u0, v1 = h - v0;
     const Vec corners[] = {{x0, y0}, {x0 + w, y0}, {x0 + w, y0 + h}, {x0, y0 + h}};
 
@@ -474,7 +474,7 @@ static void screen_close(Gx *const g)
     for (uint32_t slot = 0; slot < gp->ntextures; slot++) {
         const GpuTexture *const e = &gp->textures[slot];
 
-        if (e->drawn && e->handle != GFX_SURFACE_CANVAS && surf_get(&g->surfaces, e->handle))
+        if (e->drawn && e->handle != SURF_SCREEN && surf_get(&g->surfaces, e->handle))
             sync(g, e->handle);
     }
 

@@ -1,5 +1,5 @@
-/* gfx.draw's entries: 2D into the pen's target (draw.bas). Each call is a command logged, then
-   drawn through the screen's backend. */
+/* gfx.draw's entries: 2D into a surface (draw.bas). Each call is a command logged, then drawn
+   through the screen's backend. */
 #include "core/gfx.h"
 #include "base/gmath.h"
 #include "core/shape.h"
@@ -7,13 +7,13 @@
 
 enum {
     SHAPE_FLAGS = GFX_DRAW_FILL | GX_BLENDS,
-    SPRITE_FLAGS = GFX_DRAW_FLIPX | GFX_DRAW_FLIPY | GFX_PEN_OPAQUE | GX_BLENDS | GFX_PEN_SOLID |
-                   GFX_PEN_SMOOTH,
+    SPRITE_FLAGS = GFX_DRAW_FLIP_X | GFX_DRAW_FLIP_Y | GFX_DRAW_OPAQUE | GX_BLENDS |
+                   GFX_DRAW_SOLID | GFX_DRAW_SMOOTH,
     POLY_LEAST = 3,
     POLY_MOST = 32, /* the scanner's SCAN_MAXV, less what a clip adds */
-    DEPTHS = GFX_DRAW_ZTEST | GFX_DRAW_ZSET,
-    POLY_FLAGS =
-        SHAPE_FLAGS | DEPTHS | GFX_DRAW_PERSP | GFX_PEN_OPAQUE | GFX_PEN_SOLID | GFX_PEN_SMOOTH,
+    DEPTHS = GFX_DRAW_DEPTH_TEST | GFX_DRAW_DEPTH_WRITE,
+    POLY_FLAGS = SHAPE_FLAGS | DEPTHS | GFX_DRAW_PERSPECTIVE | GFX_DRAW_OPAQUE | GFX_DRAW_SOLID |
+                 GFX_DRAW_SMOOTH,
 };
 static_assert(!((SPRITE_FLAGS | POLY_FLAGS) & POLY_WRAP));
 
@@ -38,53 +38,30 @@ static Command drawn(
     };
 }
 
-void gfx_draw_camera(const float x, const float y)
-{
-    Gx *const g = gx_get();
-
-    if (g)
-        g->camera = (Camera){.x = x, .y = y};
-}
-
-void gfx_draw_camera_turned(const float x, const float y, const float angle, const float zoom)
-{
-    Gx *const g = gx_get();
-
-    if (!g || gx_illegal(!(zoom > 0)))
-        return;
-
-    g->camera = (Camera){
-        .x = x,
-        .y = y,
-        .angle = angle,
-        .zoom = zoom,
-        .centred = true,
-    };
-}
-
-void gfx_draw_clear(const int32_t colour)
+void gfx_draw_clear(const int32_t dst, const int32_t colour)
 {
     Gx *const g = gx_get();
     Command c = drawn(GFX_DISPLAY_DREW_CLEAR, (Vec){}, (Vec){}, colour, 0);
 
     Place where;
 
-    if (g && gx_draw(g, &c, 0, &where))
+    if (g && gx_draw(g, (uint32_t)dst, &c, 0, &where))
         g->backend->clear(g, (uint32_t)colour);
 }
 
-void gfx_draw_pset(const float x, const float y, const int32_t colour)
+void gfx_draw_pset(const int32_t dst, const float x, const float y, const int32_t colour)
 {
     Gx *const g = gx_get();
     Command c = drawn(GFX_DISPLAY_DREW_PSET, (Vec){x, y}, (Vec){x, y}, colour, 0);
 
     Place where;
 
-    if (g && gx_draw(g, &c, 0, &where))
+    if (g && gx_draw(g, (uint32_t)dst, &c, 0, &where))
         g->backend->pset(g, (Vec){c.x, c.y}, (uint32_t)colour);
 }
 
 void gfx_draw_line(
+    const int32_t dst,
     const float x1,
     const float y1,
     const float x2,
@@ -97,7 +74,7 @@ void gfx_draw_line(
 
     Place where;
 
-    if (g && gx_draw(g, &c, 0, &where))
+    if (g && gx_draw(g, (uint32_t)dst, &c, 0, &where))
         g->backend->line(g, (Vec){c.x, c.y}, (Vec){c.x2, c.y2}, (uint32_t)colour);
 }
 
@@ -138,6 +115,7 @@ static void turned_rect(
 }
 
 void gfx_draw_rect(
+    const int32_t dst,
     const float x1,
     const float y1,
     const float x2,
@@ -151,7 +129,7 @@ void gfx_draw_rect(
 
     Place where;
 
-    if (!g || !gx_draw(g, &c, SHAPE_FLAGS, &where))
+    if (!g || !gx_draw(g, (uint32_t)dst, &c, SHAPE_FLAGS, &where))
         return;
 
     const bool fill = flags & GFX_DRAW_FILL;
@@ -163,6 +141,7 @@ void gfx_draw_rect(
 }
 
 void gfx_draw_circle(
+    const int32_t dst,
     const float x,
     const float y,
     const float r,
@@ -175,13 +154,14 @@ void gfx_draw_circle(
 
     Place where;
 
-    if (g && !gx_illegal(!(r >= 0)) && gx_draw(g, &c, SHAPE_FLAGS, &where))
+    if (g && !gx_illegal(!(r >= 0)) && gx_draw(g, (uint32_t)dst, &c, SHAPE_FLAGS, &where))
         g->backend
             ->circle(g, (Vec){c.x, c.y}, r * where.zoom, (uint32_t)colour, flags & GFX_DRAW_FILL);
 }
 
 /* x2, y2 the start's point; angle the start, after the camera. */
 void gfx_draw_arc(
+    const int32_t dst,
     const float x,
     const float y,
     const float r,
@@ -202,7 +182,7 @@ void gfx_draw_arc(
     c.angle = start;
     Place where;
 
-    if (gx_draw(g, &c, 0, &where))
+    if (gx_draw(g, (uint32_t)dst, &c, 0, &where))
         g->backend->arc(
             g,
             (Vec){c.x, c.y},
@@ -216,10 +196,11 @@ void gfx_draw_arc(
 /* x, y the first point, x2, y2 the last, after the camera; source s. A point's z counts only
    with PERSP or a depth flag, and must then be 1 or more. */
 void gfx_draw_poly(
-    const int32_t s_,
+    const int32_t dst,
     const QxArray *const points,
     const int32_t first,
     const int32_t n,
+    const int32_t s_,
     const int32_t colour,
     const int32_t flags
 )
@@ -234,7 +215,7 @@ void gfx_draw_poly(
     if (!p || (s_ && !gx_surface(g, (uint32_t)s_)))
         return;
 
-    const bool deep = flags & (DEPTHS | GFX_DRAW_PERSP);
+    const bool deep = flags & (DEPTHS | GFX_DRAW_PERSPECTIVE);
     bool near = true;
 
     for (int32_t i = 0; i < n && n <= POLY_MOST; i++)
@@ -254,7 +235,7 @@ void gfx_draw_poly(
     c.source = (uint32_t)s_;
     Place where;
 
-    if (!gx_draw(g, &c, POLY_FLAGS, &where))
+    if (!gx_draw(g, (uint32_t)dst, &c, POLY_FLAGS, &where))
         return;
 
     const Backend *const b = g->backend;
@@ -289,17 +270,6 @@ void gfx_draw_poly(
         b->outline(g, edges, (uint32_t)n, (uint32_t)colour);
 }
 
-void gfx_draw_clear_depth(void)
-{
-    Gx *const g = gx_get();
-
-    if (!g || !gx_surface(g, g->pen.target))
-        return;
-
-    const Picture into = surf_picture(&g->surfaces, g->pen.target);
-    g->backend->clear_depth(g, &into);
-}
-
 /* p's picture, its anchor at a in the world (placed: at), turned by angle and scaled: upright at
    its size, a sprite; else filled through its corners. */
 static void picture(
@@ -331,6 +301,7 @@ static void picture(
 }
 
 static void sprite(
+    const int32_t dst,
     const int32_t s_,
     const float x,
     const float y,
@@ -348,7 +319,7 @@ static void sprite(
     c.scale = scale;
     Place where;
 
-    if (!s || !gx_draw(g, &c, SPRITE_FLAGS, &where))
+    if (!s || !gx_draw(g, (uint32_t)dst, &c, SPRITE_FLAGS, &where))
         return;
 
     const Vec anchor = {(float)s->ax, (float)s->ay};
@@ -358,28 +329,36 @@ static void sprite(
     picture(g, &where, &p, anchor, (Vec){x, y}, (Vec){c.x, c.y}, angle, scale, flags);
 }
 
-void gfx_draw_sprite(const int32_t s, const float x, const float y, const int32_t flags)
+void gfx_draw_sprite(
+    const int32_t dst,
+    const float x,
+    const float y,
+    const int32_t s,
+    const int32_t flags
+)
 {
-    sprite(s, x, y, 0, 1, flags);
+    sprite(dst, s, x, y, 0, 1, flags);
 }
 
 void gfx_draw_sprite_turned(
-    const int32_t s,
+    const int32_t dst,
     const float x,
     const float y,
     const float angle,
     const float scale,
+    const int32_t s,
     const int32_t flags
 )
 {
-    sprite(s, x, y, angle, scale, flags);
+    sprite(dst, s, x, y, angle, scale, flags);
 }
 
 /* x, y the first corner, x2, y2 the third, after the camera. Two triangles, as a GPU draws it. */
 void gfx_draw_quad(
-    const int32_t s_,
+    const int32_t dst,
     const QxArray *const corners,
     const int32_t first,
+    const int32_t s_,
     const int32_t flags
 )
 {
@@ -396,7 +375,7 @@ void gfx_draw_quad(
     c.source = (uint32_t)s_;
     Place where;
 
-    if (!gx_draw(g, &c, SPRITE_FLAGS, &where))
+    if (!gx_draw(g, (uint32_t)dst, &c, SPRITE_FLAGS, &where))
         return;
 
     const Picture pic = surf_picture(&g->surfaces, (uint32_t)s_);
@@ -414,10 +393,11 @@ void gfx_draw_quad(
 /* x, y the first point, x2, y2 the last, after the camera. The picture repeats along the points,
    their line its top edge, its texels upright: u runs with x from the first point. */
 void gfx_draw_strip(
-    const int32_t s_,
+    const int32_t dst,
     const QxArray *const points,
     const int32_t first,
     const int32_t n,
+    const int32_t s_,
     const int32_t flags
 )
 {
@@ -446,7 +426,7 @@ void gfx_draw_strip(
     c.source = (uint32_t)s_;
     Place where;
 
-    if (!gx_draw(g, &c, SPRITE_FLAGS, &where))
+    if (!gx_draw(g, (uint32_t)dst, &c, SPRITE_FLAGS, &where))
         return;
 
     const Picture pic = surf_picture(&g->surfaces, (uint32_t)s_);
@@ -513,11 +493,58 @@ static void visible_turned(
     *cells = (Rect){c0, r0, c1 - c0, r1 - r0};
 }
 
-void gfx_draw_tiles(
-    const QxArray *const map,
+/* The cells of a map columns across, its top left at at (placed), w by h each, that where's clip
+   may show. */
+static Rect tiles_shown(
+    const Place *const where,
+    const Vec origin,
+    const Vec at,
+    const int32_t w,
+    const int32_t h,
     const int32_t columns,
+    const int32_t rows
+)
+{
+    if (!cmd_upright(where)) {
+        Rect cells;
+        visible_turned(where, where->clip, origin, w, h, columns, rows, &cells);
+        return cells;
+    }
+
+    int32_t c0, c1, r0, r1;
+    const Rect clip = where->clip;
+    visible(cover_pixel(at.x), w, clip.x, clip.x + clip.w, columns, &c0, &c1);
+    visible(cover_pixel(at.y), h, clip.y, clip.y + clip.h, rows, &r0, &r1);
+    return (Rect){c0, r0, c1 - c0, r1 - r0};
+}
+
+/* Every cell of cells a surface, or 0, apart from dst: false, raised. */
+static bool tiles_apart(
+    Gx *const g,
+    const uint32_t dst,
+    const int32_t *const map,
+    const int32_t columns,
+    const Rect cells
+)
+{
+    for (int32_t row = cells.y; row < cells.y + cells.h; row++)
+        for (int32_t col = cells.x; col < cells.x + cells.w; col++) {
+            const uint32_t cell = (uint32_t)map[row * columns + col];
+
+            if (cell && (!gx_surface(g, cell) || !gx_apart(g, dst, cell)))
+                return false;
+        }
+
+    return true;
+}
+
+/* The visible cells checked before any is drawn, so a refused call draws and logs nothing. */
+void gfx_draw_tiles(
+    const int32_t dst,
     const float x,
     const float y,
+    const QxArray *const map,
+    const int32_t columns,
     const int32_t w,
     const int32_t h,
     const int32_t flags
@@ -534,57 +561,53 @@ void gfx_draw_tiles(
     const int32_t rows = (int32_t)map->count / columns;
     const Vec end = {x + (float)(columns * w), y + (float)(rows * h)};
 
+    const int32_t *const cells = map->data;
+
     Command c = drawn(GFX_DISPLAY_DREW_TILES, (Vec){x, y}, end, 0, flags);
 
     Place where;
 
-    if (!gx_draw(g, &c, SPRITE_FLAGS, &where))
+    if (!gx_check(g, (uint32_t)dst, &c, SPRITE_FLAGS, &where))
         return;
 
-    Rect cells;
+    const Vec at = cmd_at(&where, (Vec){x, y});
 
-    if (cmd_upright(&where)) {
-        int32_t c0, c1, r0, r1;
-        const Rect clip = where.clip;
-        visible(cover_pixel(c.x), w, clip.x, clip.x + clip.w, columns, &c0, &c1);
-        visible(cover_pixel(c.y), h, clip.y, clip.y + clip.h, rows, &r0, &r1);
-        cells = (Rect){c0, r0, c1 - c0, r1 - r0};
-    } else
-        visible_turned(&where, where.clip, (Vec){x, y}, w, h, columns, rows, &cells);
+    const Rect shown = tiles_shown(&where, (Vec){x, y}, at, w, h, columns, rows);
 
-    const int32_t *const map_cells = map->data;
+    if (!tiles_apart(g, (uint32_t)dst, cells, columns, shown) ||
+        !gx_begin(g, (uint32_t)dst, &c, &where))
+        return;
 
-    for (int32_t row = cells.y; row < cells.y + cells.h; row++)
-        for (int32_t col = cells.x; col < cells.x + cells.w; col++) {
-            const int32_t cell = map_cells[row * columns + col];
-            const Surface *const s = cell ? gx_surface(g, (uint32_t)cell) : nullptr;
+    for (int32_t row = shown.y; row < shown.y + shown.h; row++)
+        for (int32_t col = shown.x; col < shown.x + shown.w; col++) {
+            const uint32_t cell = (uint32_t)cells[row * columns + col];
 
-            if (cell && !s)
-                return;
+            if (!cell)
+                continue;
 
             const Vec dx = {(float)(col * w), (float)(row * h)};
 
-            const Picture p = s ? surf_picture(&g->surfaces, (uint32_t)cell) : (Picture){};
+            const Picture p = surf_picture(&g->surfaces, cell);
 
-            if (s)
-                picture(
-                    g,
-                    &where,
-                    &p,
-                    (Vec){},
-                    (Vec){x + dx.x, y + dx.y},
-                    (Vec){c.x + dx.x, c.y + dx.y},
-                    0,
-                    1,
-                    flags
-                );
+            picture(
+                g,
+                &where,
+                &p,
+                (Vec){},
+                (Vec){x + dx.x, y + dx.y},
+                (Vec){at.x + dx.x, at.y + dx.y},
+                0,
+                1,
+                flags
+            );
         }
 }
 
-/* The pen's font and its sheet: null, raised (its sheet freed, or no memory). */
-static const Font *pen_font(Gx *const g, Picture *const sheet)
+/* The style's font and its sheet, apart from dst: null, raised (its sheet freed or dst's, or no
+   memory). */
+static const Font *style_font(Gx *const g, const uint32_t dst, Picture *const sheet)
 {
-    const Font *const f = font_get(&g->fonts, g->pen.font);
+    const Font *const f = font_get(&g->fonts, g->style.font);
 
     if (!f->sheet) {
         if (font_builtin(&g->fonts, &sheet->root)) {
@@ -601,24 +624,31 @@ static const Font *pen_font(Gx *const g, Picture *const sheet)
 
     const Surface *const s = gx_surface(g, f->sheet);
 
-    if (s)
-        *sheet = surf_picture(&g->surfaces, f->sheet);
+    if (!s || !gx_surface(g, dst) || !gx_apart(g, dst, f->sheet))
+        return nullptr;
 
-    return s ? f : nullptr;
+    *sheet = surf_picture(&g->surfaces, f->sheet);
+    return f;
 }
 
 /* Each glyph a picture, in colour (SOLID's), or draw.AS_DRAWN its own texels. */
-void gfx_draw_text(const float x, const float y, const QxStr s, const int32_t colour)
+void gfx_draw_text(
+    const int32_t dst,
+    const float x,
+    const float y,
+    const QxStr s,
+    const int32_t colour
+)
 {
     Gx *const g = gx_get();
     const bool own = colour == GFX_DRAW_AS_DRAWN;
     Command c = drawn(GFX_DISPLAY_DREW_TEXT, (Vec){x, y}, (Vec){x, y}, own ? 0 : colour, 0);
 
     Picture sheet;
-    const Font *const f = g ? pen_font(g, &sheet) : nullptr;
+    const Font *const f = g ? style_font(g, (uint32_t)dst, &sheet) : nullptr;
     Place where;
 
-    if (!f || !gx_draw(g, &c, 0, &where))
+    if (!f || !gx_draw(g, (uint32_t)dst, &c, 0, &where))
         return;
 
     if (!own)
@@ -645,5 +675,5 @@ void gfx_draw_text(const float x, const float y, const QxStr s, const int32_t co
 int32_t gfx_draw_text_width(const QxStr s)
 {
     Gx *const g = gx_get();
-    return g ? (int32_t)s.len * font_get(&g->fonts, g->pen.font)->w : 0;
+    return g ? (int32_t)s.len * font_get(&g->fonts, g->style.font)->w : 0;
 }

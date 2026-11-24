@@ -2,7 +2,7 @@
 #include "core/handle.h"
 #include "core/mem.h"
 
-enum { GEN_SHIFT = 20, KIND_SHIFT = 28, SLOTS = HDL_SLOTS };
+enum { GEN_SHIFT = 20, SLOTS = HDL_SLOTS };
 
 void hdl_init(HdlTable *const t, const uint8_t kind) { *t = (HdlTable){.kind = kind}; }
 
@@ -29,7 +29,7 @@ static bool reserve(HdlTable *const t, const uint32_t need)
 
 static uint32_t handle(const HdlTable *const t, const uint32_t slot)
 {
-    return (uint32_t)t->kind << KIND_SHIFT | (uint32_t)t->gens[slot] << GEN_SHIFT | slot;
+    return hdl_owned(t->kind) | (uint32_t)t->gens[slot] << GEN_SHIFT | slot;
 }
 
 uint32_t hdl_add(HdlTable *const t, void *const item)

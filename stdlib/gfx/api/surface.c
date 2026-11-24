@@ -25,7 +25,7 @@ int32_t gfx_surface_new(const int32_t w, const int32_t h)
     if (!g || gx_illegal(!gx_size(w, h)))
         return 0;
 
-    const PxFormat f = g->open ? g->surfaces.canvas.format : PX_8;
+    const PxFormat f = g->open ? g->surfaces.screen.format : PX_8;
     return (int32_t)made(surf_new(&g->surfaces, w, h, f, nullptr, nullptr));
 }
 
@@ -52,7 +52,7 @@ int32_t gfx_surface_load(const QxStr file)
     return (int32_t)made(surf_new(&g->surfaces, img.w, img.h, img.format, img.pixels, img.palette));
 }
 
-int32_t gfx_surface_view(
+int32_t gfx_surface_new_view(
     const int32_t parent,
     const int32_t x,
     const int32_t y,
@@ -72,7 +72,7 @@ int32_t gfx_surface_view(
     return (int32_t)made(surf_view(&g->surfaces, (uint32_t)parent, x, y, w, h));
 }
 
-int32_t gfx_surface_grid(
+int32_t gfx_surface_new_views(
     const int32_t parent,
     const int32_t w,
     const int32_t h,
@@ -108,7 +108,7 @@ int32_t gfx_surface_grid(
     return across * down;
 }
 
-void gfx_surface_aim(const int32_t v, const int32_t x, const int32_t y)
+void gfx_surface_set_view(const int32_t v, const int32_t x, const int32_t y)
 {
     Gx *const g = gx_get();
     Surface *const s = g ? gx_surface(g, (uint32_t)v) : nullptr;
@@ -125,10 +125,16 @@ void gfx_surface_aim(const int32_t v, const int32_t x, const int32_t y)
     s->y = y;
 }
 
-void gfx_surface_anchor(const int32_t s_, const int32_t x, const int32_t y)
+/* s's surface, null raised. */
+static Surface *any(const int32_t s)
 {
     Gx *const g = gx_get();
-    Surface *const s = g ? gx_surface(g, (uint32_t)s_) : nullptr;
+    return g ? gx_surface(g, (uint32_t)s) : nullptr;
+}
+
+void gfx_surface_set_anchor(const int32_t s_, const int32_t x, const int32_t y)
+{
+    Surface *const s = any(s_);
 
     if (s) {
         s->ax = x;
@@ -136,11 +142,97 @@ void gfx_surface_anchor(const int32_t s_, const int32_t x, const int32_t y)
     }
 }
 
-/* s's surface, null raised. */
-static const Surface *any(const int32_t s)
+void gfx_surface_get_anchor(const int32_t s_, int32_t *const x, int32_t *const y)
+{
+    const Surface *const s = any(s_);
+
+    if (s) {
+        *x = s->ax;
+        *y = s->ay;
+    }
+}
+
+void gfx_surface_set_clip(
+    const int32_t s_,
+    const int32_t x,
+    const int32_t y,
+    const int32_t w,
+    const int32_t h
+)
+{
+    Surface *const s = any(s_);
+
+    if (s && !gx_illegal(w < 0 || h < 0)) {
+        s->clip = (Rect){x, y, w, h};
+
+        s->clipped = true;
+    }
+}
+
+void gfx_surface_get_clip(
+    const int32_t s_,
+    int32_t *const x,
+    int32_t *const y,
+    int32_t *const w,
+    int32_t *const h
+)
+{
+    const Surface *const s = any(s_);
+    const Rect r = s ? surf_clip(s) : (Rect){};
+
+    if (s) {
+        *x = r.x;
+        *y = r.y;
+        *w = r.w;
+        *h = r.h;
+    }
+}
+
+void gfx_surface_unclip(const int32_t s_)
+{
+    Surface *const s = any(s_);
+
+    if (s)
+        s->clipped = false;
+}
+
+void gfx_surface_clear_depth(const int32_t s)
 {
     Gx *const g = gx_get();
-    return g ? gx_surface(g, (uint32_t)s) : nullptr;
+
+    if (!g || !gx_surface(g, (uint32_t)s))
+        return;
+
+    const Picture into = surf_picture(&g->surfaces, (uint32_t)s);
+    g->backend->clear_depth(g, &into);
+}
+
+void gfx_surface_set_camera(const int32_t s_, const float x, const float y)
+{
+    Surface *const s = any(s_);
+
+    if (s)
+        s->camera = (Camera){.x = x, .y = y};
+}
+
+void gfx_surface_set_camera_turned(
+    const int32_t s_,
+    const float x,
+    const float y,
+    const float angle,
+    const float zoom
+)
+{
+    Surface *const s = any(s_);
+
+    if (s && !gx_illegal(!(zoom > 0)))
+        s->camera = (Camera){
+            .x = x,
+            .y = y,
+            .angle = angle,
+            .zoom = zoom,
+            .centred = true,
+        };
 }
 
 int32_t gfx_surface_width(const int32_t s_)
@@ -161,7 +253,7 @@ int32_t gfx_surface_bits(const int32_t s_)
     return s ? (int32_t)px_bits(s->format) : 0;
 }
 
-/* The canvas goes with display.close. */
+/* The screen's goes with display.close. */
 void gfx_surface_free(const int32_t s)
 {
     Gx *const g = gx_get();
@@ -169,7 +261,7 @@ void gfx_surface_free(const int32_t s)
     if (!g || !gx_surface(g, (uint32_t)s))
         return;
 
-    if (gx_illegal((uint32_t)s == GFX_SURFACE_CANVAS))
+    if (gx_illegal((uint32_t)s == SURF_SCREEN))
         return;
 
     g->backend->forget(g, (uint32_t)s);

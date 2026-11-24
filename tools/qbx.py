@@ -8,7 +8,7 @@
 One interface is the module's own. Several are a package's parts, each named by its file: gfx's
 display.bas is gfx.display.
 
-glue: numeric CONSTs become C's, GFX_DRAW_FLIPX; the TYPEs packed C structs; each native DECLARE
+glue: numeric CONSTs become C's, GFX_DRAW_FLIP_X; the TYPEs packed C structs; each native DECLARE
 (one with CDECL, as the host binds it) a C prototype and a wrapper that lays out QxCall's arguments
 for it. The author writes plain C functions, named with the module and part: gfx's draw.sprite is
 gfx_draw_sprite, its TYPE scene.vertex gfx_scene_vertex; an ALIAS is the name as it is.

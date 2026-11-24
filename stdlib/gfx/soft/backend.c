@@ -1,4 +1,4 @@
-/* Software as a backend (backend.h): the pen made an ink (ink.h), and soft.h's drawing. Its own
+/* Software as a backend (backend.h): the style made an ink (ink.h), and soft.h's drawing. Its own
    state holds the call readied and each root's depth. */
 #include "core/gfx.h"
 #include "core/mem.h"
@@ -73,7 +73,7 @@ static bool screen_open(Gx *const g, const QxScreen *const s, const PxFormat f)
 static void screen_flip(Gx *const g)
 {
     qx_host->gfx_show(g->palette.rows[0]);
-    Pixels canvas = g->surfaces.canvas;
+    Pixels canvas = g->surfaces.screen;
     canvas.p = qx_host->gfx_page(&canvas.pitch);
     surf_page(&g->surfaces, canvas);
 }
@@ -82,7 +82,7 @@ static void screen_flip(Gx *const g)
 static void screen_close(Gx *const g)
 {
     if (g->own)
-        drop_depth(g->own, GFX_SURFACE_CANVAS);
+        drop_depth(g->own, SURF_SCREEN);
 }
 
 static void stop(Gx *const g)
@@ -139,10 +139,11 @@ static bool begin(Gx *const g, const Command *const c, const Picture *const into
         .fill = fill_formats[px.format],
     };
 
-    if (c->flags & (GFX_DRAW_ZTEST | GFX_DRAW_ZSET) && !(o->call.depth = depth(o, into)).p)
+    if (c->flags & (GFX_DRAW_DEPTH_TEST | GFX_DRAW_DEPTH_WRITE) &&
+        !(o->call.depth = depth(o, into)).p)
         return false;
 
-    return ink_begin(&o->call.ink, &g->palette, &g->pen, c->flags, px.format) ||
+    return ink_begin(&o->call.ink, &g->palette, &g->style, c->flags, px.format) ||
            gx_fail(ERR_MEMORY);
 }
 
@@ -164,14 +165,14 @@ static bool source(Gx *const g, const Picture *const p)
 {
     SoftTarget *const t = &((Soft *)g->own)->call;
 
-    return ink_source(&t->ink, &g->palette, &g->pen, t->px.format, p->root.format) ||
+    return ink_source(&t->ink, &g->palette, &g->style, t->px.format, p->root.format) ||
            gx_fail(ERR_MEMORY);
 }
 
 static void solid(Gx *const g, const uint32_t colour)
 {
     SoftTarget *const t = &((Soft *)g->own)->call;
-    ink_solid(&t->ink, &g->pen, t->px.format, colour);
+    ink_solid(&t->ink, &g->style, t->px.format, colour);
 }
 
 static void clear(Gx *const g, const uint32_t colour) { soft_clear(call(g), colour); }

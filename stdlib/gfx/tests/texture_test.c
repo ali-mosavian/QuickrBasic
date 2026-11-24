@@ -21,7 +21,8 @@ TEST(gfx_sprite_turned_a_quarter)
 {
     CANVAS(8, 8);
     const int32_t s = sheet(S);
-    CHECK(!CALL("draw.sprite_turned", I(s), F(3), F(3), F(GM_PI / 2), F(1), I(0)).error);
+    CHECK(!CALL("draw.sprite_turned", I(SURF_SCREEN), F(3), F(3), F(GM_PI / 2), F(1), I(s), I(0))
+               .error);
     ROW(2, "11111111");
     ROW(3, "11211111");
     ROW(4, "11171111");
@@ -35,7 +36,7 @@ TEST(gfx_sprite_turned_scaled_and_flipped)
 {
     CANVAS(8, 8);
     const int32_t s = sheet(S);
-    CALL("draw.sprite_turned", I(s), F(2.25), F(2.25), F(0), F(2), I(0));
+    CALL("draw.sprite_turned", I(SURF_SCREEN), F(2.25), F(2.25), F(0), F(2), I(s), I(0));
     ROW(1, "11111111");
     ROW(2, "11117799");
     ROW(3, "11117799");
@@ -44,12 +45,21 @@ TEST(gfx_sprite_turned_scaled_and_flipped)
     ROW(6, "11111111");
 
     gfx_display_command c;
-    CALL("display.drawn", I(2), REF(&c));
+    CALL("display.get_drawn", I(2), REF(&c));
     CHECK(c.kind == GFX_DISPLAY_DREW_SPRITE && c.scale == 2 && c.source == s);
 
     CANVAS(8, 8);
     const int32_t t = sheet(S);
-    CALL("draw.sprite_turned", I(t), F(2.25), F(2.25), F(0), F(2), I(GFX_DRAW_FLIPX));
+    CALL(
+        "draw.sprite_turned",
+        I(SURF_SCREEN),
+        F(2.25),
+        F(2.25),
+        F(0),
+        F(2),
+        I(t),
+        I(GFX_DRAW_FLIP_X)
+    );
     ROW(2, "11997711");
     ROW(4, "11331122");
 }
@@ -64,13 +74,13 @@ TEST(gfx_quad_over_the_sprite)
 
     CANVAS(8, 4);
     const int32_t s = sheet(S);
-    CHECK(!CALL("draw.quad", I(s), ARRAY(&a), I(0), I(0)).error);
+    CHECK(!CALL("draw.quad", I(SURF_SCREEN), ARRAY(&a), I(0), I(s), I(0)).error);
     ROW(0, "17911111");
     ROW(1, "21311111");
-    CALL("draw.quad", I(s), ARRAY(&a), I(0), I(GFX_PEN_OPAQUE));
+    CALL("draw.quad", I(SURF_SCREEN), ARRAY(&a), I(0), I(s), I(GFX_DRAW_OPAQUE));
     ROW(0, "07911111");
     ROW(1, "20311111");
-    CHECK(CALL("draw.quad", I(s), ARRAY(&a), I(1), I(0)).error == 9);
+    CHECK(CALL("draw.quad", I(SURF_SCREEN), ARRAY(&a), I(1), I(s), I(0)).error == 9);
 }
 
 /* A 2 by 2 picture, 5 6 above 7 8, along (0.5, 1.5), (4.5, 1.5), (8.5, 3.5): its top edge the
@@ -87,13 +97,13 @@ TEST(gfx_strip_follows_the_points)
 
     QxArray b = gfx_array(bytes, 4, 1);
     CALL("surface.write", I(s), I(0), I(0), I(2), I(2), ARRAY(&b));
-    CHECK(!CALL("draw.strip", I(s), ARRAY(&a), I(0), I(3), I(0)).error);
+    CHECK(!CALL("draw.strip", I(SURF_SCREEN), ARRAY(&a), I(0), I(3), I(s), I(0)).error);
     ROW(1, "11111111");
     ROW(2, "15656511");
     ROW(3, "17878765");
     ROW(4, "11111187");
     ROW(5, "11111111");
-    CHECK(CALL("draw.strip", I(s), ARRAY(&a), I(0), I(1), I(0)).error == 5);
+    CHECK(CALL("draw.strip", I(SURF_SCREEN), ARRAY(&a), I(0), I(1), I(s), I(0)).error == 5);
 }
 
 /* Under a camera a quarter turn clockwise, an upright sprite turns a quarter back: the world's
@@ -103,8 +113,8 @@ TEST(gfx_sprite_under_a_turned_camera)
 {
     CANVAS(8, 8);
     const int32_t s = sheet(S);
-    CALL("draw.camera_turned", F(0.3), F(0.2), F(GM_PI / 2), F(1));
-    CHECK(!CALL("draw.sprite", I(s), F(-1.2), F(-0.3), I(0)).error);
+    CALL("surface.set_camera_turned", I(SURF_SCREEN), F(0.3), F(0.2), F(GM_PI / 2), F(1));
+    CHECK(!CALL("draw.sprite", I(SURF_SCREEN), F(-1.2), F(-0.3), I(s), I(0)).error);
     ROW(2, "11111111");
     ROW(3, "11193111");
     ROW(4, "11171111");
@@ -118,17 +128,17 @@ TEST(gfx_text_in_a_sheet_font)
 {
     CANVAS(8, 8);
     const int32_t s = sheet(S);
-    const int32_t f = CALL("pen.new_font", I(s), I(3), I(2)).result.i;
-    CHECK(f && !CALL("pen.font", I(f)).error);
+    const int32_t f = CALL("draw.new_font", I(s), I(3), I(2)).result.i;
+    CHECK(f && !CALL("draw.set_font", I(f)).error);
     CHECK(CALL("draw.text_width", STR("ab")).result.i == 6);
-    CHECK(!CALL("draw.text", F(1), F(0), STR("! "), I(4)).error);
+    CHECK(!CALL("draw.text", I(SURF_SCREEN), F(1), F(0), STR("! "), I(4)).error);
     ROW(0, "11111441");
     ROW(1, "11114141");
-    CALL("draw.text", F(1), F(2), STR(" "), I(GFX_DRAW_AS_DRAWN));
+    CALL("draw.text", I(SURF_SCREEN), F(1), F(2), STR(" "), I(GFX_DRAW_AS_DRAWN));
     ROW(2, "11791111");
     ROW(3, "12131111");
 
-    CALL("pen.font", I(0));
+    CALL("draw.set_font", I(0));
     CHECK(CALL("draw.text_width", STR("ab")).result.i == 16);
 }
 
@@ -137,9 +147,9 @@ TEST(gfx_text_turns_with_the_camera)
 {
     CANVAS(8, 8);
     const int32_t s = sheet(S);
-    CALL("pen.font", I(CALL("pen.new_font", I(s), I(3), I(2)).result.i));
-    CALL("draw.camera_turned", F(0.3), F(0.2), F(GM_PI / 2), F(1));
-    CHECK(!CALL("draw.text", F(-1.2), F(-0.3), STR(" "), I(4)).error);
+    CALL("draw.set_font", I(CALL("draw.new_font", I(s), I(3), I(2)).result.i));
+    CALL("surface.set_camera_turned", I(SURF_SCREEN), F(0.3), F(0.2), F(GM_PI / 2), F(1));
+    CHECK(!CALL("draw.text", I(SURF_SCREEN), F(-1.2), F(-0.3), STR(" "), I(4)).error);
     ROW(3, "11144111");
     ROW(4, "11141111");
     ROW(5, "11114111");
@@ -149,15 +159,15 @@ TEST(gfx_fonts_refuse)
 {
     CANVAS(8, 8);
     const int32_t s = sheet(S);
-    CHECK(CALL("pen.new_font", I(s), I(0), I(1)).error == 5);
-    CHECK(CALL("pen.new_font", I(s), I(4), I(1)).error == 5);
-    CHECK(CALL("pen.new_font", I(0x10000077), I(1), I(1)).error == 5);
-    CHECK(CALL("pen.font", I(0x20000077)).error == 5);
-    CHECK(CALL("pen.font", I(s)).error == 5);
+    CHECK(CALL("draw.new_font", I(s), I(0), I(1)).error == 5);
+    CHECK(CALL("draw.new_font", I(s), I(4), I(1)).error == 5);
+    CHECK(CALL("draw.new_font", I(0x10000077), I(1), I(1)).error == 5);
+    CHECK(CALL("draw.set_font", I(0x20000077)).error == 5);
+    CHECK(CALL("draw.set_font", I(s)).error == 5);
 
-    CALL("pen.font", I(CALL("pen.new_font", I(s), I(1), I(1)).result.i));
+    CALL("draw.set_font", I(CALL("draw.new_font", I(s), I(1), I(1)).result.i));
     CALL("surface.free", I(s));
-    CHECK(CALL("draw.text", F(0), F(0), STR("!"), I(4)).error == 5);
+    CHECK(CALL("draw.text", I(SURF_SCREEN), F(0), F(0), STR("!"), I(4)).error == 5);
     CHECK(PX(0, 0) == 1);
 }
 
@@ -192,7 +202,7 @@ TEST(gfx_soft_perspective_trapezoid)
         {-0.5f, 3.5f, 0.5f, 0.5f, 4.5f},
     };
 
-    soft_poly(&t, &s, c, 4, 0, GFX_PEN_OPAQUE | GFX_DRAW_PERSP, false);
+    soft_poly(&t, &s, c, 4, 0, GFX_DRAW_OPAQUE | GFX_DRAW_PERSPECTIVE, false);
 
     static const uint8_t want[8][16] = {
         {1, 1, 19, 21, 23, 25, 1, 1},

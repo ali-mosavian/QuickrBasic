@@ -19,27 +19,27 @@ check() {
 
 check 'dotted' ' 5  1 ' \
     'import gfx.display, gfx.surface, gfx.draw' \
-    'gfx.display.open 8, 4, 8, 0' \
-    'gfx.draw.rect 1, 1, 3, 2, 5, gfx.draw.FILL' \
-    'print gfx.surface.point(gfx.surface.CANVAS, 2, 2); gfx.display.draws'
+    'canvas& = gfx.display.open(8, 4, 8, 0)' \
+    'gfx.draw.rect canvas&, 1, 1, 3, 2, 5, gfx.draw.FILL' \
+    'print gfx.surface.point(canvas&, 2, 2); gfx.display.draws'
 
 check 'from' ' 7  1  4  1  2 ' \
     'from gfx import surface' \
-    'from gfx.display import draws, drawn, Command' \
+    'from gfx.display import draws, get_drawn, Command' \
     'import gfx.display as d' \
     'from gfx.draw import rect' \
-    'd.open 4, 4, 8, 0' \
-    'rect 1, 2, 2, 3, 7, 4' \
+    'canvas& = d.open(4, 4, 8, 0)' \
+    'rect canvas&, 1, 2, 2, 3, 7, 4' \
     'dim c as Command' \
-    'drawn 1, c' \
-    'print surface.point(surface.CANVAS, 1, 2); draws; c.kind; c.x; c.y'
+    'get_drawn 1, c' \
+    'print surface.point(canvas&, 1, 2); draws; c.kind; c.x; c.y'
 
 check 'quickrbasic' ' 6  1 ' \
     'option dialect quickrbasic' \
     'from gfx import display, surface, draw' \
-    'display.open 4, 4, 8, 0' \
-    'draw.rect 0, 0, 2, 2, 6, draw.FILL' \
-    'n = surface.point(surface.CANVAS, 1, 1)' \
+    'canvas& = display.open(4, 4, 8, 0)' \
+    'draw.rect canvas&, 0, 0, 2, 2, 6, draw.FILL' \
+    'n = surface.point(canvas&, 1, 1)' \
     'option dialect qb' \
     'print n; display.draws'
 

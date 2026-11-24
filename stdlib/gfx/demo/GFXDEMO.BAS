@@ -17,7 +17,7 @@ end type
 
 declare sub start (b as Box, byval n as integer)
 declare sub move (b as Box, byval dt as single)
-declare sub show (b as Box)
+declare sub show (byval dst as long, b as Box)
 
 dim fleet(1 to BOXES) as Box
 randomize timer
@@ -26,23 +26,23 @@ for i = 1 to BOXES
     start fleet(i), i
 next
 
-gfx.display.open W, H, 8, gfx.display.VSYNC
+canvas& = gfx.display.open(W, H, 8, gfx.display.VSYNC)
 was# = gfx.display.clock
 
 do
     now# = gfx.display.clock
     dt! = now# - was#
     was# = now#
-    gfx.draw.clear 1
+    gfx.draw.clear canvas&, 1
 
     for i = 1 to BOXES
         move fleet(i), dt!
-        show fleet(i)
+        show canvas&, fleet(i)
     next
 
     fps% = 0
     if dt! > 0 then fps% = 1 / dt!
-    gfx.draw.text 4, 4, "gfx" + str$(fps%) + " fps", 15
+    gfx.draw.text canvas&, 4, 4, "gfx" + str$(fps%) + " fps", 15
     gfx.display.flip
 loop while inkey$ = ""
 
@@ -68,10 +68,11 @@ sub move (b as Box, byval dt as single)
     if b.y > H - SIDE then b.dy = -abs(b.dy)
 end sub
 
-sub show (b as Box)
+' Box b drawn into dst.
+sub show (byval dst as long, b as Box)
     x2! = b.x + SIDE
     y2! = b.y + SIDE
-    gfx.draw.rect b.x, b.y, x2!, y2!, b.colour, gfx.draw.FILL
-    gfx.draw.rect b.x, b.y, x2!, y2!, 15, 0
-    gfx.draw.line b.x, b.y, x2!, y2!, 15
+    gfx.draw.rect dst, b.x, b.y, x2!, y2!, b.colour, gfx.draw.FILL
+    gfx.draw.rect dst, b.x, b.y, x2!, y2!, 15, 0
+    gfx.draw.line dst, b.x, b.y, x2!, y2!, 15
 end sub

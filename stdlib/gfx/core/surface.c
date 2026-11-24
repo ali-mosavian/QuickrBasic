@@ -1,4 +1,4 @@
-/* Surfaces, views and the canvas (surface.h). */
+/* Surfaces, views and the screen's (surface.h). */
 #include "core/surface.h"
 #include "core/mem.h"
 
@@ -34,8 +34,8 @@ void surf_done(Surfaces *const ss)
     surf_init(ss);
 }
 
-/* A surface's record, held: its handle (slot 0's when canvas), 0 no memory. */
-static uint32_t hold(Surfaces *const ss, const Surface s, const bool canvas)
+/* A surface's record, held: its handle (slot 0's when screen), 0 no memory. */
+static uint32_t hold(Surfaces *const ss, const Surface s, const bool screen)
 {
     Surface *const kept = mem_alloc(sizeof *kept);
 
@@ -44,7 +44,7 @@ static uint32_t hold(Surfaces *const ss, const Surface s, const bool canvas)
 
     *kept = s;
     const uint32_t h =
-        canvas ? (hdl_own(&ss->t, kept) ? hdl_at(&ss->t, 0) : 0) : hdl_add(&ss->t, kept);
+        screen ? (hdl_own(&ss->t, kept) ? hdl_at(&ss->t, 0) : 0) : hdl_add(&ss->t, kept);
 
     if (!h)
         mem_free(kept);
@@ -55,16 +55,16 @@ static uint32_t hold(Surfaces *const ss, const Surface s, const bool canvas)
 bool surf_open(Surfaces *const ss, const Pixels page)
 {
     surf_close(ss);
-    ss->canvas = page;
+    ss->screen = page;
     return hold(ss, (Surface){.w = page.w, .h = page.h, .format = page.format}, true);
 }
 
-void surf_page(Surfaces *const ss, const Pixels page) { ss->canvas = page; }
+void surf_page(Surfaces *const ss, const Pixels page) { ss->screen = page; }
 
 void surf_close(Surfaces *const ss)
 {
     drop(ss, hdl_at(&ss->t, 0));
-    ss->canvas = (Pixels){};
+    ss->screen = (Pixels){};
 }
 
 uint32_t surf_new(
@@ -133,7 +133,7 @@ Picture surf_picture(const Surfaces *const ss, const uint32_t h)
         };
 
     if (!s->parent)
-        return (Picture){ss->canvas, all, h, s->version};
+        return (Picture){ss->screen, all, h, s->version};
 
     Picture p = surf_picture(ss, s->parent);
     p.at = (Rect){p.at.x + s->x, p.at.y + s->y, s->w, s->h};
@@ -147,7 +147,7 @@ Pixels surf_pixels(const Surfaces *const ss, const Surface *const s)
         return (Pixels){s->own, (uint32_t)s->w * px_bytes(s->format), s->w, s->h, s->format};
 
     if (!s->parent)
-        return ss->canvas;
+        return ss->screen;
 
     const Pixels p = surf_pixels(ss, surf_get(ss, s->parent));
     return px_cut(&p, (Rect){s->x, s->y, s->w, s->h});
@@ -161,6 +161,13 @@ Surface *surf_root(const Surfaces *const ss, Surface *s, uint32_t *const h)
     }
 
     return s;
+}
+
+Rect surf_clip(const Surface *const s)
+{
+    const Rect all = {0, 0, s->w, s->h};
+
+    return s->clipped ? rect_meet(s->clip, all) : all;
 }
 
 void surf_wrote(const Surfaces *const ss, Surface *s)

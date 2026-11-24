@@ -56,6 +56,6 @@ void soft_rect(
     uint32_t colour,
     bool fill
 );
-/* s with its top left texel at x, y; flags draw.FLIPX, draw.FLIPY, pen.OPAQUE. */
+/* s with its top left texel at x, y; flags draw.FLIP_X, draw.FLIP_Y, draw.OPAQUE. */
 void soft_sprite(const SoftTarget *t, const Pixels *s, float x, float y, int32_t flags);
 #endif

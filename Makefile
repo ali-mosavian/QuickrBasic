@@ -188,7 +188,7 @@ $(B)/ext/qxtest.dll: $(QXTEST) src/qx/qx.h
 	$(LLD_LINK) /dll /noentry /nodefaultlib /out:$@ $(@D)/qxtest.obj $(@D)/qxtest_qx.obj
 # gfx (stdlib/gfx): its glue from its parts' interfaces, scene's to come with 3D. Its core is linked
 # into the unit tests with its tests; the runtime's font and palette (vgadata.c) are already there
-GFX_PARTS := $(addprefix stdlib/gfx/,display.bas surface.bas pen.bas draw.bas)
+GFX_PARTS := $(addprefix stdlib/gfx/,display.bas surface.bas draw.bas)
 GFX_C := $(shell find stdlib/gfx -name '*.c' -not -path 'stdlib/gfx/tests/*' -not -path 'stdlib/gfx/dos/*')
 GFX_INC := -Istdlib/gfx -Isrc
 build/ext/gfx_qx.c: $(GFX_PARTS) tools/qbx.py
