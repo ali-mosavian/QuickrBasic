@@ -13,6 +13,9 @@
  * its condition is parsed, so a bad condition still pairs with its end. In a type or an enum each
  * line is a field or a value.
  *
+ * A block lambda's lines are statements inside the one that holds it: parsed in turn, each its
+ * own error's, on a list of their own from its fn to its end fn; then the holder goes on.
+ *
  * # Example
  *    if x < 0 then        QS_IF.link = the else
  *    else                 QS_ELSE.link = the end if
@@ -39,6 +42,11 @@ typedef struct {
 } QPar;
 
 static QExpr *qpar_expr(QPar *P);
+static QTypeEx *qpar_type(QPar *P);
+static void qpar_statement(QPar *P);
+static void qpar_end(QPar *P);
+static void qpar_push(QPar *P, QStmt *s);
+static QStmt *qpar_new(QPar *P, QStmtKind kind, const QTok *tok);
 
 /* ---- tokens */
 
@@ -189,6 +197,108 @@ static QExpr *qpar_fstring(QPar *const P)
     return e;
 }
 
+/* fn as a new fn of the program's, last. */
+static void qpar_addfn(QPar *const P, QFn *const f)
+{
+    if (P->lastfn)
+        P->lastfn->next = f;
+    else
+        P->prog->fns = f;
+
+    P->lastfn = f;
+}
+
+/* A block lambda's lines after its header, to its end fn: its fn's statements. */
+static void qpar_lamblock(QPar *const P, QLam *const l)
+{
+    QFn *const f = qast_alloc(P->mem, sizeof *f);
+    QStmt *const def = qpar_new(P, QS_FN, l->tok);
+    l->fn = f;
+    f->lamof = l;
+    f->name = l->tok;
+    f->params = l->params;
+    f->npar = l->npar;
+    f->rtype = l->rtype;
+    f->def = def;
+    def->fn = f;
+    qpar_addfn(P, f);
+
+    QStmt *const last = P->last;
+    jmp_buf outer;
+    memcpy(outer, P->fail, sizeof outer);
+    const uint32_t base = P->nopen;
+    P->last = def;
+    qpar_push(P, def);
+    qpar_next(P); /* the header's line end */
+
+    while (P->nopen > base && !qpar_is(P, QK_EOF)) {
+        const bool end = qpar_is(P, QK_END) && P->t[1].kind == QK_FN && P->nopen == base + 1;
+
+        if (!setjmp(P->fail)) {
+            if (end) {
+                qpar_end(P);
+                break;
+            }
+
+            qpar_statement(P);
+
+            if (!qpar_is(P, QK_NL))
+                qpar_expected(P, "the line's end");
+        }
+
+        while (P->t->kind != QK_NL && P->t->kind != QK_EOF)
+            P->t++;
+
+        qpar_take(P, QK_NL);
+    }
+
+    P->last = last;
+    memcpy(P->fail, outer, sizeof outer);
+
+    if (P->nopen > base) {
+        P->nopen = base;
+        qpar_fail(P, l->tok, "fn without end fn");
+    }
+}
+
+/* fn(x [as T], ..) expr, or a block: fn(x [as T], ..) [as U], its lines, end fn. */
+static QExpr *qpar_lambda(QPar *const P)
+{
+    QExpr *const e = qast_expr(P->mem, QE_LAMBDA, qpar_next(P));
+    QLam *const l = e->lam = qast_alloc(P->mem, sizeof *l);
+    l->tok = e->tok;
+    qpar_need(P, QK_LPAREN, "(");
+    uint32_t cap = 0;
+
+    while (!qpar_is(P, QK_RPAREN)) {
+        l->params = qast_room(P->mem, l->params, l->npar, &cap, sizeof *l->params);
+        QParam *const p = &l->params[l->npar++];
+        *p = (QParam){.name = qpar_need(P, QK_NAME, "a parameter's name")};
+
+        if (qpar_take(P, QK_AS))
+            p->type = qpar_type(P);
+        if (!qpar_take(P, QK_COMMA))
+            break;
+    }
+
+    qpar_need(P, QK_RPAREN, ")");
+
+    if (qpar_take(P, QK_AS))
+        l->rtype = qpar_type(P);
+
+    if (qpar_is(P, QK_NL)) {
+        qpar_lamblock(P, l);
+        return e;
+    }
+
+    if (l->rtype)
+        qpar_fail(P, l->rtype->tok, "a one-line lambda's type is its place's");
+
+    l->at = P->t;
+    l->body = qpar_expr(P);
+    return e;
+}
+
 static QExpr *qpar_primary(QPar *const P)
 {
     const QTok *const t = P->t;
@@ -257,7 +367,7 @@ static QExpr *qpar_primary(QPar *const P)
         qpar_later(P, t, "lists are");
 
     case QK_FN:
-        qpar_later(P, t, "lambdas are");
+        return qpar_lambda(P);
 
     case QK_LATER:
         qpar_later(P, t, "{} is");
@@ -561,10 +671,28 @@ static QTypeEx *qpar_typex(QPar *const P, const QTypeExKind kind, const QTok *co
 /* A type after as: a name, (T, U), then [] or [n] any times. */
 static QTypeEx *qpar_type(QPar *const P)
 {
-    if (qpar_is(P, QK_FN))
-        qpar_later(P, P->t, "fn types are");
-
     QTypeEx *x;
+
+    if (qpar_is(P, QK_FN)) { /* fn(T, ..) [as U] */
+        x = qpar_typex(P, QX_FN, qpar_next(P));
+        qpar_need(P, QK_LPAREN, "(");
+        uint32_t cap = 0;
+
+        while (!qpar_is(P, QK_RPAREN)) {
+            x->items = qast_room(P->mem, x->items, x->n, &cap, sizeof *x->items);
+            x->items[x->n++] = qpar_type(P);
+
+            if (!qpar_take(P, QK_COMMA))
+                break;
+        }
+
+        qpar_need(P, QK_RPAREN, ")");
+
+        if (qpar_take(P, QK_AS))
+            x->elem = qpar_type(P);
+
+        return x;
+    }
 
     if (qpar_is(P, QK_LPAREN)) {
         x = qpar_typex(P, QX_TUPLE, qpar_next(P));
@@ -862,12 +990,7 @@ static void qpar_fn(QPar *const P)
     if (nested)
         qpar_fail(P, s->tok, "a fn goes at the top level, not in a block");
 
-    if (P->lastfn)
-        P->lastfn->next = f;
-    else
-        P->prog->fns = f;
-
-    P->lastfn = f;
+    qpar_addfn(P, f);
 
     if (qpar_take(P, QK_LBRACK)) {
         uint32_t cap = 0;
@@ -1198,12 +1321,13 @@ void qpar_program(QProg *const p, QMem *const m)
     qpar_unclosed(&P);
 }
 
-QFn *qpar_again(QProg *const p, QMem *const m, const QFn *const f)
+/* A parser at token t, appending to p's statements and fns. */
+static QPar qpar_at(QProg *const p, QMem *const m, const QTok *const t)
 {
     QPar P = {
         .prog = p,
         .mem = m,
-        .t = f->def->tok,
+        .t = t,
         .last = p->first,
         .lastfn = p->fns,
     };
@@ -1212,6 +1336,14 @@ QFn *qpar_again(QProg *const p, QMem *const m, const QFn *const f)
         P.last = P.last->next;
     while (P.lastfn->next)
         P.lastfn = P.lastfn->next;
+
+    return P;
+}
+
+QFn *qpar_again(QProg *const p, QMem *const m, const QFn *const f)
+{
+    QPar P = qpar_at(p, m, f->def->tok);
+    const QStmt *const before = P.last;
 
     do {
         if (!setjmp(P.fail))
@@ -1223,5 +1355,15 @@ QFn *qpar_again(QProg *const p, QMem *const m, const QFn *const f)
         qpar_take(&P, QK_NL);
     } while (P.nopen && P.t->kind != QK_EOF);
 
-    return P.lastfn;
+    return before->next->fn;
+}
+
+QExpr *qpar_reexpr(QProg *const p, QMem *const m, const QTok *const t)
+{
+    QPar P = qpar_at(p, m, t);
+
+    if (setjmp(P.fail))
+        return nullptr;
+
+    return qpar_expr(&P);
 }

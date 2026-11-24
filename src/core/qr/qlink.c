@@ -162,11 +162,23 @@ static void qlink_types(Comp *const C, const QProg *const p)
             qlink_lay(C, p, QY_FIRST + i);
 }
 
-/* Each fn a procedure; its parameters and result linked in qlink_vars. */
+/* Fn f's parameters a call passes: all but those bound to a lambda. */
+static uint32_t qlink_npar(const QFn *const f)
+{
+    uint32_t n = 0;
+
+    for (uint32_t k = 0; k < f->npar; k++)
+        n += !f->params[k].lam;
+
+    return n;
+}
+
+/* Each fn checked a procedure, a generic's instances but not it; its parameters and result
+   linked in qlink_vars. */
 static void qlink_procs(Comp *const C, const QProg *const p)
 {
     for (QFn *f = p->fns; f; f = f->next) {
-        if (qast_generic(f))
+        if (!f->sig)
             continue;
 
         Proc *const pr = blok_add_proc(C->blok, C->fault);
@@ -179,7 +191,7 @@ static void qlink_procs(Comp *const C, const QProg *const p)
             .kind = f->result == QY_VOID || f->byarg ? PK_SUB : PK_FUNC,
             .first = p->src.lines[f->def->line].at,
             .last = p->src.lines[f->end->line].at,
-            .npar = (uint16_t)(f->npar + f->byarg),
+            .npar = (uint16_t)(qlink_npar(f) + f->byarg),
         };
     }
 }
@@ -200,12 +212,12 @@ static void qlink_vars(Comp *const C, const QProg *const p)
     Symb *const sy = C->symb;
 
     for (QVar *v = p->vars; v; v = v->next)
-        if (!v->constant && !v->place)
+        if (!v->constant && !v->place && !(v->fn && v->fn->inl))
             v->id =
                 qlink_symb(sy, p, v->kind == QV_TEMP ? &hidden : v->name, v->type, qlink_scope(v));
 
     for (const QFn *f = p->fns; f; f = f->next) {
-        if (qast_generic(f))
+        if (!f->sig)
             continue;
 
         Proc *const pr = btab_at(&C->blok->procs, f->proc);
@@ -216,8 +228,11 @@ static void qlink_vars(Comp *const C, const QProg *const p)
         if (!pr->params)
             fault_error(C->fault, E_OM);
 
-        for (uint32_t k = 0; k < n; k++) {
-            const uint32_t id = k < f->npar ? f->params[k].var->id : f->res->id;
+        for (uint32_t k = 0, at = 0; k < n; k++, at++) {
+            while (at < f->npar && f->params[at].lam)
+                at++;
+
+            const uint32_t id = at < f->npar ? f->params[at].var->id : f->res->id;
             pr->params[k] = (Param){.var = id};
 
             symb_varx(sy, id)->par = 1;
@@ -311,6 +326,29 @@ static void qlink_lines(
     } while (C->prog->base != base);
 }
 
+/* Each line's end goes on to the next line with a statement: one with none (a comment, a block
+   lambda's lines where it is written) costs nothing to pass. */
+static void qlink_thread(Comp *const C, const QProg *const p, const QStmt *const *const of)
+{
+    uint32_t next = p->src.nlines; /* the next line with a statement; none */
+
+    for (uint32_t i = p->src.nlines; i-- > 0;) {
+        uint8_t *op = at(C->allo->cache + prog_line(C->prog, p->src.lines[i].at)->code);
+
+        while (*op != O_EOL && *op != O_EOL_TO)
+            op += link_opsize(op);
+
+        if (*op == O_EOL_TO && next < p->src.nlines && next != i + 1) {
+            const uint32_t to = p->src.lines[next].at;
+            store32(op + 1, to);
+            store32(op + 5, prog_line(C->prog, to)->code);
+        }
+
+        if (of[i])
+            next = i;
+    }
+}
+
 void qlink_program(Comp *const C, QProg *const p, QMem *const m, const bool dbg)
 {
     blok_reset(C->blok, C->fault);
@@ -322,9 +360,13 @@ void qlink_program(Comp *const C, QProg *const p, QMem *const m, const bool dbg)
     const QStmt **const of = qast_alloc(m, (p->src.nlines ? p->src.nlines : 1) * sizeof *of);
 
     for (const QStmt *s = p->first; s; s = s->next)
-        if (s->kind == QS_FN && qast_generic(s->fn)) /* no code: its instances have theirs */
+        if (s->kind == QS_FN && !s->fn->sig) /* a generic: no code, its instances have theirs */
             s = s->fn->end;
         else
+            of[s->line] = s;
+
+    for (const QFn *f = p->fns; f; f = f->next) /* a block lambda's lines are its own */
+        for (const QStmt *s = f->lamof && f->sig ? f->def : nullptr; s; s = s->next)
             of[s->line] = s;
 
     qlink_lines(C, p, m, of, dbg);
@@ -338,6 +380,8 @@ void qlink_program(Comp *const C, QProg *const p, QMem *const m, const bool dbg)
         const uint32_t at = p->src.lines[i].at;
         link_resolve(C, at, prog_line(C->prog, at)->code);
     }
+
+    qlink_thread(C, p, of);
 
     link_check(C);
     C->link->linked = true;

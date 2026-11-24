@@ -23,6 +23,9 @@ Place flow_here(const Vm *vm, const Allo *al);
 /* The code at place, its line compiled if the cache dropped it. */
 uint8_t *flow_place(const Allo *al, Place place);
 
+/* A call of procedure proc from a routine, its arguments on the data stack: its frame pushed,
+   returning to vm->ip, into its body at code, on line. */
+void flow_call(Session *S, uint32_t proc, uint32_t line, uint8_t *code);
 /* Go to line's start, linking the program first if it is not. */
 void flow_jump(Session *S, uint32_t line);
 /* flow_nextln when the next line is a stored one: the temporaries dropped, vm->line that line,

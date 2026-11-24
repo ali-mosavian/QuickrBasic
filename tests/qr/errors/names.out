@@ -10,7 +10,7 @@ names.qr:7:4: f is already declared
 names.qr:9:1: f is a fn: call it
   f = 3
   ^
-names.qr:10:7: f is a fn: call it
+names.qr:10:7: print takes numbers, strings and bools, not a fn()
   print(f)
         ^
 names.qr:11:1: unknown fn g

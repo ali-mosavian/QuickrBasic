@@ -354,6 +354,21 @@ end fn).collect()
 - A lambda passed to a call may use the caller's variables: it borrows them for that call. It is
   inlined, and nothing is allocated.
 - A function value kept in a variable or a record captures nothing: it is a code address.
+- `fn(int) as int` is a function's type; `fn(string)` returns nothing. `b.on(5)` calls a record's
+  function value.
+- A lambda is only an argument for a function's parameter: `let f = fn(x) x` is an error. A
+  function value is a named function that takes no `mut`, no types and no functions.
+- A function taking functions is compiled once for each lambda or named function passed to it,
+  as a generic is for each type. A lambda's result may type the generic: `map_all(xs, fn(x)
+  f"{x}")` is a `string[]`.
+- A lambda can't call another lambda its caller was given: it passes it on, `apply(f, x)`.
+- **In the VM**, a one-line lambda's body is checked again and inlined at each call of its
+  parameter. A block lambda is a hidden function: each call of its parameter calls it. A
+  variable the lambda uses is a hidden parameter by reference, of the copy and of the block's
+  function. A call through a function value is `CALL QX` with the value, a procedure's number,
+  on top: the call `PCALL` makes, its target found from the procedure. No op is retired for it;
+  it costs a `PCALL` and a load. A line with no statement, a comment's or a block lambda's where
+  it is written, costs nothing to pass.
 
 #### Generators
 

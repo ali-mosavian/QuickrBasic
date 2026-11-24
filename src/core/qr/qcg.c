@@ -102,10 +102,11 @@ static uint8_t qcg_pick(
     }
 }
 
-/* A parameter's ref: a fn's own, and a record's or list's result. */
+/* A parameter's ref: a fn's own, a lambda's capture's, and a record's or list's result. */
 static bool qcg_par(const QVar *const v)
 {
-    return v->kind == QV_PARAM || v->kind == QV_MUT || (v->kind == QV_RESULT && v->fn->byarg);
+    return v->kind == QV_PARAM || v->kind == QV_MUT || v->cap ||
+           (v->kind == QV_RESULT && v->fn->byarg);
 }
 
 static void qcg_load(Code *const c, const QVar *const v)
@@ -1075,12 +1076,50 @@ static void qcg_print(QCg *const g, const QExpr *const e)
     code_call(c, K_PNL);
 }
 
+/* Argument a for a parameter of type t: by reference where it has a place, else a value cell and
+   its ref; a string's counted held, on the stack under the rest. */
+static void qcg_arg(QCg *const g, const QExpr *const a, const QType t, uint32_t *const held)
+{
+    if (qcg_byplace(g, t) || (!qast_fresh(a) && a->type == t)) {
+        qcg_ref(g, a);
+        return;
+    }
+
+    qcg_expr(g, a);
+    code_opb(g->c, O_BYVAL, a->type == QY_STRING);
+    *held += a->type == QY_STRING;
+    qcg_hold(g, a->type, 1);
+}
+
+/* A call through fn value e->a: its arguments as qcg_call's, a record's or list's result's place
+   dst, then the value, QX.CALL. */
+static void qcg_icall(QCg *const g, const QExpr *const e, const QExpr *const dst)
+{
+    const QTy *const y = qcg_ty(g, e->a->type);
+    uint32_t held = 0;
+
+    for (uint32_t k = 0; k < e->nargv; k++)
+        qcg_arg(g, e->argv[k], y->fields[k].type, &held);
+
+    if (qcg_byplace(g, y->elem))
+        qcg_ref(g, dst);
+
+    qcg_expr(g, e->a);
+    g->strings -= held;
+    qcg_x(g->c, QX_FNCALL);
+}
+
 /* A fn's call: each argument by reference where it has a place, else a value cell and its ref;
-   a record's or list's result's place, dst, last. */
+   a record's or list's result's place, dst, last. A parameter bound to a lambda takes none. */
 static void qcg_call(QCg *const g, const QExpr *const e, const QExpr *const dst)
 {
     if (e->builtin == QB_PRINT) {
         qcg_print(g, e);
+        return;
+    }
+
+    if (e->builtin == QB_ICALL) {
+        qcg_icall(g, e, dst);
         return;
     }
 
@@ -1092,15 +1131,15 @@ static void qcg_call(QCg *const g, const QExpr *const e, const QExpr *const dst)
         const QParam *const p = &f->params[k];
         const QExpr *const a = e->argv[k];
 
-        if (p->mut || qcg_byplace(g, p->var->type) || (!qast_fresh(a) && a->type == p->var->type)) {
+        if (p->lam) /* bound to its lambda: no value */
+            continue;
+
+        if (p->mut) {
             qcg_ref(g, a);
             continue;
         }
 
-        qcg_expr(g, a);
-        code_opb(c, O_BYVAL, a->type == QY_STRING);
-        held += a->type == QY_STRING;
-        qcg_hold(g, a->type, 1);
+        qcg_arg(g, a, p->var->type, &held);
     }
 
     if (f->byarg)
@@ -1112,6 +1151,17 @@ static void qcg_call(QCg *const g, const QExpr *const e, const QExpr *const dst)
     code_dword(c, 0);
     code_word(c, 0);
     qcg_target(g, f->def, 0, PAST_JMP);
+}
+
+/* Lambda application e's arguments, each stored to its parameter's temporary; those read where
+   they are need none. */
+static void qcg_applied(QCg *const g, const QExpr *const e)
+{
+    for (uint32_t k = 0; k < e->nargv; k++)
+        if (e->temps[k]) {
+            const QExpr t = qcg_named(e->temps[k]);
+            qcg_set(g, &t, e->argv[k]);
+        }
 }
 
 /* CALL QX op. */
@@ -1325,6 +1375,11 @@ static void qcg_build(QCg *const g, const QExpr *const dst, const QExpr *const e
         return;
     }
 
+    case QE_APPLY:
+        qcg_applied(g, e);
+        qcg_into(g, dst, e->a);
+        return;
+
     default: /* a call's */
         if (e->builtin == QB_GET) {
             qcg_get(g, dst, e);
@@ -1481,6 +1536,15 @@ static void qcg_expr(QCg *const g, const QExpr *const e)
 
     case QE_FSTR:
         qcg_fstring(g, e);
+        return;
+
+    case QE_APPLY:
+        qcg_applied(g, e);
+        qcg_expr(g, e->a);
+        return;
+
+    case QE_FNREF:
+        code_int(g->c, e->fn->proc);
         return;
 
     default: /* a record's, a tuple's: built where it is wanted */

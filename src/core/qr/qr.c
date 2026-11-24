@@ -129,8 +129,9 @@ static void qr_say(Session *const S, const QProg *const p, const QErr *const e)
         qr_mark(co, ln->text, ln->len, e->col);
 }
 
-/* Each instance's lines, copies of its generic's at the store's end, its statements on them: one
-   code block a line, each copy keeping its source's number and text. */
+/* Each instance's lines, copies of its generic's at the store's end, its statements on them; each
+   block lambda's so too, its lines in the store a procedure's own. One code block a line, each copy
+   keeping its source's number and text. */
 static void qr_instances(Session *const S, QProg *const p, QMem *const m)
 {
     uint32_t cap = p->src.nlines;
@@ -138,13 +139,14 @@ static void qr_instances(Session *const S, QProg *const p, QMem *const m)
     S->prog.add_file = 0;
 
     for (const QFn *f = p->fns; f; f = f->next) {
-        if (!f->of)
+        if (!f->of && !(f->lamof && f->sig))
             continue;
 
+        const QFn *const from = f->of ? f->of : f;
         const uint32_t base = p->src.nlines;
-        const uint32_t first = f->of->def->tok->line;
+        const uint32_t first = from->def->tok->line;
 
-        for (uint32_t i = first; i <= f->of->end->tok->line; i++) {
+        for (uint32_t i = first; i <= from->end->tok->line; i++) {
             const QLine ln = p->src.lines[i];
             p->src.lines = qast_room(m, p->src.lines, p->src.nlines, &cap, sizeof *p->src.lines);
             p->src.lines[p->src.nlines++] = (QLine){

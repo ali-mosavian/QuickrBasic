@@ -3,7 +3,7 @@
  * # How it works
  * Everything the front end makes lives in one bump arena (util/arena.h), freed at once after the
  * link. An error is its line, column and text, kept in the order found; qast_sort puts them in
- * the source's order before they are reported.
+ * the source's order, each once, before they are reported.
  */
 #include "qr/qast.h"
 
@@ -196,4 +196,17 @@ void qast_sort(QErrs *const e)
 
         e->at[j] = x;
     }
+
+    uint32_t n = 0;
+
+    for (uint32_t i = 0; i < e->n; i++) { /* a fn checked again, as an instance, says it once */
+        const QErr *const x = &e->at[i];
+        const QErr *const y = n ? &e->at[n - 1] : nullptr;
+
+        if (!y || x->line != y->line || x->col != y->col || x->len != y->len ||
+            memcmp(x->text, y->text, x->len))
+            e->at[n++] = *x;
+    }
+
+    e->n = n;
 }

@@ -14,6 +14,9 @@
  * QK_LBRACE and QK_RBRACE, a QK_FSPEC after its top-level :; then QK_FEND. {{ and }} are one
  * brace of text.
  *
+ * A line ending in a lambda's header, fn(x as T) [as U], starts a block: its lines are statements,
+ * each ended, until the end fn that closes it gives the brackets back their depth.
+ *
  * # Example
  *    let x = (1 +       let x = ( 1 +       no QK_NL: depth 1
  *             0x10)     0x10 ) QK_NL
@@ -34,6 +37,8 @@ typedef struct {
     uint32_t len;
     uint32_t at;    /* the next byte */
     uint32_t depth; /* the brackets open */
+    uint32_t *lams; /* each block lambda open: the depth its header ended at */
+    uint32_t nlams, caplams;
 } QLex;
 
 static const char *const qlex_words[] = {
@@ -522,7 +527,82 @@ static void qlex_fstring(QLex *const L, const uint32_t from)
     qlex_bad(L, start, "string not closed");
 }
 
-/* Line i's tokens; QK_NL after them at depth 0. */
+/* Can token kind k be part of a type after a lambda header's as, at bracket depth d past it? */
+static bool qlex_typetok(const QKind k, const int32_t d)
+{
+    return k == QK_NAME || k == QK_LBRACK || k == QK_RBRACK || k == QK_INT || k == QK_QUEST ||
+           k == QK_BANG || k == QK_LPAREN || k == QK_RPAREN || k == QK_FN || k == QK_AS ||
+           (k == QK_COMMA && d > 0);
+}
+
+/* Do the tokens from first to the last end in a lambda's header: fn(..) [as T], its fn not a
+   type's (after as)? */
+static bool qlex_header(const QSrc *const s, const uint32_t first)
+{
+    uint32_t f = s->ntoks;
+
+    for (uint32_t i = s->ntoks; i-- > first;)
+        if (s->toks[i].kind == QK_FN && i + 1 < s->ntoks && s->toks[i + 1].kind == QK_LPAREN &&
+            (!i || s->toks[i - 1].kind != QK_AS)) {
+            f = i;
+            break;
+        }
+
+    if (f == s->ntoks)
+        return false;
+
+    int32_t d = 0;
+    uint32_t i = f + 1;
+
+    for (; i < s->ntoks; i++) {
+        d += s->toks[i].kind == QK_LPAREN;
+        d -= s->toks[i].kind == QK_RPAREN;
+
+        if (!d)
+            break;
+    }
+
+    if (i == s->ntoks)
+        return false;
+    if (++i == s->ntoks)
+        return true;
+    if (s->toks[i].kind != QK_AS)
+        return false;
+
+    for (d = 0; i < s->ntoks; i++) {
+        const QKind k = s->toks[i].kind;
+        d += k == QK_LPAREN || k == QK_LBRACK;
+        d -= k == QK_RPAREN || k == QK_RBRACK;
+
+        if (d < 0 || !qlex_typetok(k, d))
+            return false;
+    }
+
+    return !d;
+}
+
+/* Does the line start with end fn? */
+static bool qlex_endfn(const QLex *const L)
+{
+    uint32_t i = 0;
+
+    while (i < L->len && is_blank((uint8_t)L->text[i]))
+        i++;
+
+    if (L->len - i < 3 || memcmp(L->text + i, "end", 3))
+        return false;
+
+    i += 3;
+    const uint32_t gap = i;
+
+    while (i < L->len && is_blank((uint8_t)L->text[i]))
+        i++;
+
+    return i > gap && L->len - i >= 2 && !memcmp(L->text + i, "fn", 2) &&
+           (L->len - i == 2 || !qlex_word_char((uint8_t)L->text[i + 2]));
+}
+
+/* Line i's tokens; QK_NL after them at depth 0, and after a block lambda's header. */
 static void qlex_line(QLex *const L, const uint32_t i)
 {
     const QLine *const ln = &L->src->lines[i];
@@ -531,11 +611,22 @@ static void qlex_line(QLex *const L, const uint32_t i)
     L->len = ln->len;
     L->at = 0;
 
+    if (L->nlams && !L->depth && qlex_endfn(L))
+        L->depth = L->lams[--L->nlams];
+
+    const uint32_t first = L->src->ntoks;
+
     while (L->at < L->len && qlex_one(L))
         ;
 
     const QSrc *const s = L->src;
     const bool open = s->ntoks && s->toks[s->ntoks - 1].kind != QK_NL;
+
+    if (L->depth && open && qlex_header(s, first)) {
+        L->lams = qast_room(L->mem, L->lams, L->nlams, &L->caplams, sizeof *L->lams);
+        L->lams[L->nlams++] = L->depth;
+        L->depth = 0;
+    }
 
     if (!L->depth && open) {
         L->at = L->len;

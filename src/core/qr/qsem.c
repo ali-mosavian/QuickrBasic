@@ -59,6 +59,16 @@ typedef struct {
     bool other; /* case else */
 } QOpenMatch;
 
+/* A lambda being checked at its site: its scope from binding mark on; up, the one it is in. */
+typedef struct QLamAt QLamAt;
+struct QLamAt {
+    QLam *lam;
+    uint32_t mark;
+    QLamAt *up;
+    QBind **views; /* each of lam's captures as its body sees it */
+    uint32_t capviews;
+};
+
 /* A variable moved: an error if it is used after, or in a loop it is declared outside. */
 typedef struct {
     const QExpr *e;
@@ -84,12 +94,15 @@ typedef struct {
     uint32_t nmoves, capmoves;
     uint32_t *loops; /* the open loops' first tokens */
     uint32_t nloops, caploops;
+    QLamAt *lamat;           /* the lambda checked at its site, null none */
+    uint32_t hidelo, hidehi; /* bindings not seen: a fn's, while a lambda's body is checked in it */
+    bool passing; /* an argument for a fn parameter checked: a lambda bound may pass on */
 } QSem;
 
 static QExpr *qsem_expr(QSem *S, QExpr *e, QType hint);
 static QExpr *qsem_coerce(QSem *S, QExpr *e, QType to);
 static void qsem_simple(QSem *S, QStmt *s);
-static const QBind *qsem_find(const QSem *S, const QTok *name);
+static const QBind *qsem_find(QSem *S, const QTok *name);
 static bool qsem_isconst(const QExpr *e);
 static bool qsem_byplace(const QSem *S, QType t);
 static QVar *qsem_root(const QExpr *e);
@@ -98,6 +111,8 @@ static bool qsem_changes(QSem *S, const QExpr *e, const QTok *at);
 static QExpr *qsem_get(QSem *S, QExpr *e);
 static void qsem_signature(QSem *S, QFn *f);
 static QExpr *qsem_nameof(QSem *S, QVar *v, const QTok *tok);
+static QExpr *qsem_icall(QSem *S, QExpr *e, QExpr *f);
+static bool qsem_isrec(const QSem *S, QType t);
 
 /* ---- errors */
 
@@ -212,6 +227,16 @@ static const char *qsem_tyname(QSem *const S, const QType t)
             ""
         );
 
+    case QT_FN: {
+        const char *s = "fn(";
+
+        for (uint32_t k = 0; k < y->nfields; k++)
+            s = qsem_join(S, s, k ? ", " : "", qsem_tyname(S, y->fields[k].type));
+
+        s = qsem_join(S, s, ")", "");
+        return y->elem == QY_VOID ? s : qsem_join(S, s, " as ", qsem_tyname(S, y->elem));
+    }
+
     default: {
         const char *s = "(";
 
@@ -282,11 +307,22 @@ static void qsem_bind(QSem *const S, const QTok *const name, QVar *const var, QF
     S->binds[S->nbinds++] = (QBind){.name = name, .var = var, .fn = fn};
 }
 
-static const QBind *qsem_find(const QSem *const S, const QTok *const name)
+/* The bindings every scope sees: the module's own, below its first block's or fn's. */
+static uint32_t qsem_floor(const QSem *const S) { return S->nmarks ? S->marks[0] : S->nbinds; }
+
+static const QBind *qsem_capture(QSem *S, QLamAt *c, uint32_t i, const QTok *use);
+
+static const QBind *qsem_find(QSem *const S, const QTok *const name)
 {
     for (uint32_t i = S->nbinds; i-- > 0;)
-        if (qsem_same(S->binds[i].name, name))
-            return &S->binds[i];
+        if ((i < S->hidelo || i >= S->hidehi) && qsem_same(S->binds[i].name, name)) {
+            QLamAt *const c = S->lamat;
+
+            if (!c || i >= c->mark || i < qsem_floor(S))
+                return &S->binds[i];
+
+            return qsem_capture(S, c, i, name);
+        }
 
     return nullptr;
 }
@@ -314,6 +350,87 @@ static QVar *qsem_var(QSem *const S, const QTok *const name, const QType type, c
 
     S->lastvar = v;
     return v;
+}
+
+/* ---- captures */
+
+static uint32_t qsem_at(const QSem *S, const QTok *t);
+static QVar *qsem_root(const QExpr *e);
+
+/* The kind a capture's hidden parameter takes from v, what it stands for: changeable as v is. */
+static QVarKind qsem_capkind(const QVar *const v)
+{
+    if (v->kind == QV_VAR || v->kind == QV_MUT || (v->kind == QV_EACH && v->mut))
+        return QV_MUT;
+
+    return v->kind == QV_EACH ? QV_LET : v->kind;
+}
+
+/* Binding i, outside lambda c's scope, as c's body sees it: as it is when no fn's storage (a
+   module's, a const, a fn, a type); else c's hidden parameter for it, made on first use. A lambda
+   c is in sees it first. The original's last use is use. */
+static const QBind *qsem_capture(
+    QSem *const S,
+    QLamAt *const c,
+    const uint32_t i,
+    const QTok *const use
+)
+{
+    QLam *const l = c->lam;
+
+    for (uint32_t k = 0; k < l->ncaps; k++)
+        if (l->caps[k]->at == i)
+            return c->views[k];
+
+    const QBind *const outer =
+        c->up && i < c->up->mark ? qsem_capture(S, c->up, i, use) : &S->binds[i];
+    QVar *const v = outer->var;
+
+    if (S->binds[i].var) {
+        QVar *const orig = S->binds[i].var;
+        QVar *const root = orig->place ? qsem_root(orig->place) : orig;
+        const uint32_t at = qsem_at(S, use);
+        root->last = at > root->last ? at : root->last;
+    }
+
+    QBind *const view = qast_alloc(S->mem, sizeof *view);
+    *view = *outer;
+
+    if (v && v->lam) { /* a lambda bound to a parameter: no value to reach */
+        qsem_say(
+            S,
+            use,
+            qsem_text(S, use),
+            " is a lambda: call it outside another lambda",
+            nullptr
+        );
+        *view = (QBind){.name = outer->name, .ty = QY_ERROR};
+
+        return view;
+    }
+
+    QCap *const cap = qast_alloc(S->mem, sizeof *cap);
+    *cap = (QCap){
+        .name = S->binds[i].name,
+        .var = v,
+        .fn = outer->fn,
+        .ty = outer->ty,
+        .at = i,
+        .frame = v && !v->constant && v->fn,
+    };
+
+    if (cap->frame) {
+        cap->param = qsem_var(S, cap->name, v->type, qsem_capkind(v));
+        cap->param->fn = l->fn;
+        cap->param->cap = cap;
+        view->var = cap->param;
+    }
+
+    l->caps = qast_room(S->mem, l->caps, l->ncaps, &l->capcaps, sizeof *l->caps);
+    c->views = qast_room(S->mem, c->views, l->ncaps, &c->capviews, sizeof *c->views);
+    c->views[l->ncaps] = view;
+    l->caps[l->ncaps++] = cap;
+    return view;
 }
 
 /* ---- types */
@@ -467,6 +584,39 @@ static QType qsem_wrapof(QSem *const S, const QTyKind kind, const QType val)
     return t;
 }
 
+/* The fn type of n parameters' types and a result (QY_VOID none); interned. */
+static QType qsem_fnof(
+    QSem *const S,
+    const QType *const params,
+    const uint32_t n,
+    const QType result
+)
+{
+    const QTys *const ts = &S->prog->tys;
+
+    for (uint32_t i = 0; i < ts->n; i++) {
+        const QTy *const y = &ts->at[i];
+        bool same = y->kind == QT_FN && y->nfields == n && y->elem == result;
+
+        for (uint32_t k = 0; same && k < n; k++)
+            same = y->fields[k].type == params[k];
+        if (same)
+            return QY_FIRST + i;
+    }
+
+    QField *const fields = qast_alloc(S->mem, (n ? n : 1) * sizeof *fields);
+
+    for (uint32_t k = 0; k < n; k++)
+        fields[k] = (QField){.type = params[k]};
+
+    const QType t = qsem_newty(S, QT_FN);
+    QTy *const y = qast_ty(S->prog, t);
+    y->fields = fields;
+    y->nfields = y->capfields = n;
+    y->elem = result;
+    return t;
+}
+
 /* Is t a T? or a T!, of kind if not QT_REC? */
 static bool qsem_wraps(const QSem *const S, const QType t, const QTyKind kind)
 {
@@ -511,7 +661,7 @@ static QType qsem_typename(QSem *const S, const QTok *const t)
 }
 
 /* Does T[e] name a map's key type, e a type's name? */
-static bool qsem_keyed(const QSem *const S, const QExpr *const e)
+static bool qsem_keyed(QSem *const S, const QExpr *const e)
 {
     if (e->kind != QE_NAME)
         return false;
@@ -559,14 +709,18 @@ static QType qsem_type(QSem *const S, const QTypeEx *const x)
     if (x->kind == QX_NAME)
         return qsem_typename(S, x->tok);
 
-    if (x->kind == QX_TUPLE) {
-        QType *const items = qast_alloc(S->mem, x->n * sizeof *items);
+    if (x->kind == QX_TUPLE || x->kind == QX_FN) {
+        QType *const items = qast_alloc(S->mem, (x->n ? x->n : 1) * sizeof *items);
 
         for (uint32_t k = 0; k < x->n; k++)
             if ((items[k] = qsem_type(S, x->items[k])) == QY_ERROR)
                 return QY_ERROR;
 
-        return qsem_tupleof(S, items, x->n);
+        if (x->kind == QX_TUPLE)
+            return qsem_tupleof(S, items, x->n);
+
+        const QType r = x->elem ? qsem_type(S, x->elem) : QY_VOID;
+        return r == QY_ERROR ? QY_ERROR : qsem_fnof(S, items, x->n, r);
     }
 
     const QType elem = qsem_type(S, x->elem);
@@ -1426,7 +1580,7 @@ static QExpr *qsem_print(QSem *const S, QExpr *const e)
 
         if (v->type == QY_VOID)
             qsem_mismatch(S, v, QY_STRING);
-        if (qsem_byplace(S, v->type))
+        if (qast_compound(v->type) && !qast_tag(S->prog, v->type))
             qsem_say(
                 S,
                 v->tok,
@@ -1523,12 +1677,15 @@ static QExpr *qsem_mutarg(QSem *const S, QExpr *const v, const QParam *const p)
     return v;
 }
 
-/* Call e's mut arguments each its only way to its var: no other argument the same var. */
+/* Call e's mut arguments each its only way to its var: no other argument the same var. A
+   lambda's capture is lent mut when the lambda changes it. */
 static void qsem_lent(QSem *const S, const QExpr *const e, const QFn *const f)
 {
     for (uint32_t k = 0; k < f->npar; k++) {
+        const QParam *const p = &f->params[k];
         const QExpr *const m = e->argv[k];
-        const QVar *const v = f->params[k].mut && m->type != QY_ERROR ? qsem_root(m) : nullptr;
+        const bool excl = p->hidden ? p->var->kind == QV_MUT : p->mut;
+        const QVar *const v = excl && m->type != QY_ERROR ? qsem_root(m) : nullptr;
 
         for (uint32_t j = 0; v && j < f->npar; j++)
             if (j != k && qsem_root(e->argv[j]) == v)
@@ -1536,7 +1693,8 @@ static void qsem_lent(QSem *const S, const QExpr *const e, const QFn *const f)
                     S,
                     e->argv[j]->tok,
                     qsem_text(S, v->name),
-                    " is lent mut in this call",
+                    p->hidden ? " is lent mut to the lambda in this call"
+                              : " is lent mut in this call",
                     nullptr
                 );
     }
@@ -1606,9 +1764,13 @@ static void qsem_typeargs(QSem *const S, const QFn *const f)
         qsem_bindty(S, f->tparams[j], f->targs[j]);
 }
 
-/* Instance f's name as an error ends with it: " in f[int, Vec]". */
+/* Instance f's name as an error ends with it: " in f[int, Vec]"; none for a fn's instance for
+   its lambdas, whose errors are its own. */
 static const char *qsem_instname(QSem *const S, const QFn *const f)
 {
+    if (!f->ntp)
+        return "";
+
     const char *s = qsem_join(S, " in ", qsem_text(S, f->name), "[");
 
     for (uint32_t j = 0; j < f->ntp; j++)
@@ -1653,11 +1815,16 @@ static bool qsem_unify(
     case QX_RES: /* a T for a T? too */
         return qsem_unify(S, g, x->elem, qsem_wraps(S, t, QT_REC) ? qsem_inner(S, t) : t, targs);
 
-    case QX_TUPLE: {
+    case QX_TUPLE:
+    case QX_FN: {
+        const QTyKind kind = x->kind == QX_TUPLE ? QT_TUPLE : QT_FN;
         bool fits = true;
 
-        for (uint32_t k = 0; y && y->kind == QT_TUPLE && k < x->n && k < y->nfields; k++)
+        for (uint32_t k = 0; y && y->kind == kind && k < x->n && k < y->nfields; k++)
             fits &= qsem_unify(S, g, x->items[k], y->fields[k].type, targs);
+
+        if (y && y->kind == QT_FN && x->elem)
+            fits &= qsem_unify(S, g, x->elem, y->elem, targs);
 
         return fits;
     }
@@ -1695,15 +1862,393 @@ static bool qsem_literal(
     return true;
 }
 
-/* Generic g's call e: its types read from the arguments, its instance of them found or made,
-   its signature checked; null after an error. Each argument read is checked here, once: typed
-   values first, then literals, which type only what is still open, as a place types them. */
+/* ---- lambdas */
+
+static void qsem_stmt(QSem *S, QStmt *s);
+
+/* Lambda l's block, as qsem_body checks a fn's: its result's variable, its statements. */
+static void qsem_lamblock(QSem *const S, QLam *const l, const QType result)
+{
+    QFn *const f = l->fn;
+    f->result = result;
+    f->byarg = qsem_byplace(S, result);
+
+    if (result != QY_VOID)
+        f->res = qsem_var(S, l->tok, result, QV_RESULT);
+
+    f->sig = true;
+    const uint32_t marks = S->nmarks;
+
+    for (QStmt *s = f->def->next; s && s != f->end; s = s->next)
+        qsem_stmt(S, s);
+
+    if (f->end)
+        qsem_stmt(S, f->end);
+
+    while (S->nmarks > marks)
+        qsem_pop(S);
+}
+
+/* Lambda l's fn's parameters: its own, then each capture of a fn's storage, hidden, by
+   reference. */
+static void qsem_lamparams(QSem *const S, QLam *const l)
+{
+    QFn *const f = l->fn;
+    uint32_t n = l->npar;
+
+    for (uint32_t j = 0; j < l->ncaps; j++)
+        n += l->caps[j]->frame;
+
+    f->params = qast_alloc(S->mem, (n ? n : 1) * sizeof *f->params);
+    memcpy(f->params, l->params, l->npar * sizeof *f->params);
+    f->npar = l->npar;
+
+    for (uint32_t j = 0; j < l->ncaps; j++)
+        if (l->caps[j]->frame) {
+            const QCap *const c = l->caps[j];
+            f->params[f->npar++] = (QParam){
+                .name = c->name,
+                .mut = true,
+                .hidden = true,
+                .var = c->param,
+            };
+
+            f->nhidden++;
+        }
+}
+
+/* Lambda e's site check for a place of fn type *t: its parameters typed as *t's (and as written,
+   if, the same), its body checked here, each name it uses from outside a capture. With open, *t's
+   result is the lambda's own, *t remade with it. False after an error. */
+static bool qsem_lambda(QSem *const S, QExpr *const e, QType *const t, const bool open)
+{
+    QLam *const l = e->lam;
+    const QTy *const y = qast_ty(S->prog, *t);
+    const uint32_t n = y->nfields;
+    const QField *const types = y->fields;
+    const uint32_t errs = S->prog->errs.n;
+    QType result = y->elem;
+    e->type = QY_ERROR;
+
+    if (l->npar != n) {
+        qsem_say(
+            S,
+            l->tok,
+            "the lambda takes ",
+            n == 1 ? "one value" : qsem_join(S, qsem_uint(S, n), " values", ""),
+            " here",
+            nullptr
+        );
+        return false;
+    }
+
+    if (!l->fn) { /* a one-line's: its checks' variables, no code */
+        l->fn = qast_alloc(S->mem, sizeof *l->fn);
+        *l->fn = (QFn){.name = l->tok, .inl = true};
+    }
+
+    QLamAt c = {.lam = l, .mark = S->nbinds, .up = S->lamat};
+
+    QFn *const fn = S->fn;
+    S->lamat = &c;
+    S->fn = l->fn;
+    qsem_push(S);
+
+    for (uint32_t k = 0; k < n; k++) {
+        QParam *const p = &l->params[k];
+        const QType w = p->type ? qsem_type(S, p->type) : types[k].type;
+
+        if (w != types[k].type && w != QY_ERROR && types[k].type != QY_ERROR)
+            qsem_say(
+                S,
+                p->name,
+                qsem_text(S, p->name),
+                " is ",
+                qsem_aname(S, types[k].type),
+                " here, not ",
+                qsem_aname(S, w),
+                nullptr
+            );
+
+        p->var = qsem_var(S, p->name, types[k].type, QV_PARAM);
+        qsem_bind(S, p->name, p->var, nullptr);
+    }
+
+    if (l->rtype) {
+        const QType r = qsem_type(S, l->rtype);
+
+        if (!open && r != result && r != QY_ERROR)
+            qsem_say(
+                S,
+                l->rtype->tok,
+                "the lambda returns ",
+                qsem_aname(S, result),
+                " here",
+                nullptr
+            );
+
+        result = r;
+    } else if (open && !l->body)
+        qsem_say(S, l->tok, "can't tell the lambda's result: write fn(..) as T", nullptr);
+
+    if (!l->body)
+        qsem_lamblock(S, l, result);
+    else {
+        QExpr *const v = qsem_expr(S, l->body, open ? QY_VOID : result);
+        result = open ? qsem_settle(S, v)->type : result;
+        l->body = result == QY_VOID ? v : qsem_coerce(S, v, result);
+    }
+
+    qsem_pop(S);
+    S->lamat = c.up;
+    S->fn = fn;
+    qsem_lamparams(S, l);
+
+    if (open) {
+        QType *const items = qast_alloc(S->mem, (n ? n : 1) * sizeof *items);
+
+        for (uint32_t k = 0; k < n; k++)
+            items[k] = types[k].type;
+
+        *t = result == QY_ERROR ? QY_ERROR : qsem_fnof(S, items, n, result);
+    }
+
+    l->type = e->type = *t;
+    l->checked = S->prog->errs.n == errs && *t != QY_ERROR;
+    return l->checked;
+}
+
+/* Capture c's value at a site that sees what it captured: its variable, or the place it
+   names. */
+static QExpr *qsem_capval(QSem *const S, const QCap *const c, const QTok *const tok)
+{
+    QVar *const v = c->var;
+
+    if (v->place) {
+        QExpr *const p = qast_alloc(S->mem, sizeof *p);
+        *p = *v->place;
+        p->tok = tok;
+        return p;
+    }
+
+    QExpr *const e = qast_expr(S->mem, QE_NAME, tok);
+    e->var = v;
+    e->type = v->type;
+    return e;
+}
+
+/* The parameter of the fn checked whose variable v is; null none. */
+static const QParam *qsem_paramof(const QSem *const S, const QVar *const v)
+{
+    for (uint32_t k = 0; S->fn && k < S->fn->npar; k++)
+        if (S->fn->params[k].var == v)
+            return &S->fn->params[k];
+
+    return nullptr;
+}
+
+/* Call e's hidden arguments from at, for fn parameter p bound to lambda l given as a: a literal's
+   captures as this site sees them; one passed on, the fn checked's own hidden parameters for it. */
+static void qsem_hiddenargs(
+    QSem *const S,
+    QExpr *const e,
+    uint32_t at,
+    const QLam *const l,
+    const QExpr *const a
+)
+{
+    const QParam *const from = a->kind == QE_NAME ? qsem_paramof(S, a->var) : nullptr;
+    uint32_t n = 0;
+
+    for (uint32_t j = 0; j < l->ncaps; j++) {
+        if (!l->caps[j]->frame)
+            continue;
+
+        e->argv[at++] = from ? qsem_nameof(S, S->fn->params[from->capat + n].var, e->tok)
+                             : qsem_capval(S, l->caps[j], e->tok);
+        n++;
+    }
+}
+
+/* Does type x name one of g's type parameters still open in targs? */
+static bool qsem_open(const QFn *const g, const QTypeEx *const x, const QType *const targs)
+{
+    if (!x)
+        return false;
+
+    for (uint32_t j = 0; x->kind == QX_NAME && j < g->ntp; j++)
+        if (!targs[j] && qsem_same(g->tparams[j], x->tok))
+            return true;
+
+    bool open = qsem_open(g, x->elem, targs);
+
+    for (uint32_t k = 0; x->kind != QX_NAME && k < x->n; k++)
+        open |= qsem_open(g, x->items[k], targs);
+
+    return open;
+}
+
+/* Lambda e for g's parameter at: the fn type its site check takes, its parameters' read with
+   targs bound; *open when its result names a type still open. QY_ERROR after an error. */
+static QType qsem_lamtype(
+    QSem *const S,
+    const QFn *const g,
+    const uint32_t at,
+    const QType *const targs,
+    bool *const open
+)
+{
+    const QTypeEx *const x = g->params[at].type;
+    *open = false;
+
+    if (!x || x->kind != QX_FN) {
+        qsem_say(S, g->params[at].name, "a lambda goes to a fn's parameter", nullptr);
+        return QY_ERROR;
+    }
+
+    if (!g->ntp)
+        return g->params[at].var->type;
+
+    for (uint32_t k = 0; k < x->n; k++)
+        if (qsem_open(g, x->items[k], targs)) {
+            qsem_say(S, g->params[at].name, "can't tell the lambda's parameters' types", nullptr);
+            return QY_ERROR;
+        }
+
+    *open = qsem_open(g, x->elem, targs);
+    qsem_push(S);
+
+    for (uint32_t j = 0; j < g->ntp; j++)
+        if (targs[j])
+            qsem_bindty(S, g->tparams[j], targs[j]);
+
+    QType *const items = qast_alloc(S->mem, (x->n ? x->n : 1) * sizeof *items);
+    QType t = QY_VOID;
+
+    for (uint32_t k = 0; k < x->n && t != QY_ERROR; k++)
+        t = items[k] = qsem_type(S, x->items[k]);
+
+    const QType r = *open || !x->elem ? QY_VOID : qsem_type(S, x->elem);
+    qsem_pop(S);
+    return t == QY_ERROR || r == QY_ERROR ? QY_ERROR : qsem_fnof(S, items, x->n, r);
+}
+
+/* Named fn f as a lambda: called directly where it is bound. */
+static QLam *qsem_aslam(QSem *const S, QFn *const f, const QType t)
+{
+    if (!f->aslam) {
+        f->aslam = qast_alloc(S->mem, sizeof *f->aslam);
+        *f->aslam = (QLam){
+            .tok = f->name,
+            .named = f,
+            .type = t,
+            .checked = true,
+        };
+    }
+
+    return f->aslam;
+}
+
+/* What argument v binds its fn parameter to: a lambda, a named fn, a parameter bound to one passed
+   on; null a fn value, passed as one. */
+static QLam *qsem_bindof(QSem *const S, const QExpr *const v)
+{
+    if (v->kind == QE_LAMBDA)
+        return v->lam;
+    if (v->kind == QE_FNREF)
+        return qsem_aslam(S, v->fn, v->type);
+
+    return v->kind == QE_NAME && v->var ? v->var->lam : nullptr;
+}
+
+static QVar *qsem_var(QSem *S, const QTok *name, QType type, QVarKind kind);
+
+/* Instance i's parameters bound to their lambdas: each takes no value, and its lambda's captures
+   of a fn's storage come last, hidden, by reference; changeable where the lambda changes them. A
+   lambda not of its parameter's type, said at call e, leaves i unchecked. */
+static void qsem_bound(QSem *const S, QFn *const i, const QExpr *const e)
+{
+    uint32_t n = i->npar;
+
+    for (uint32_t k = 0; k < i->npar; k++)
+        for (uint32_t j = 0; i->binds[k] && j < i->binds[k]->ncaps; j++)
+            n += i->binds[k]->caps[j]->frame;
+
+    QParam *const params = qast_alloc(S->mem, (n ? n : 1) * sizeof *params);
+    memcpy(params, i->params, i->npar * sizeof *params);
+    const uint32_t own = i->npar;
+    i->params = params;
+
+    for (uint32_t k = 0; k < own; k++) {
+        QLam *const l = i->binds[k];
+        QParam *const p = &params[k];
+
+        if (!l)
+            continue;
+
+        if (p->var->type != l->type && p->var->type != QY_ERROR) {
+            qsem_say(
+                S,
+                e->tok,
+                qsem_text(S, l->tok),
+                " is ",
+                qsem_aname(S, l->type),
+                ", not ",
+                qsem_aname(S, p->var->type),
+                nullptr
+            );
+            i->sig = false;
+        }
+
+        p->lam = p->var->lam = l;
+        p->capat = i->npar;
+
+        for (uint32_t j = 0; j < l->ncaps; j++) {
+            const QCap *const c = l->caps[j];
+
+            if (!c->frame)
+                continue;
+
+            QVar *const v = qsem_var(S, c->name, c->var->type, c->mut ? QV_MUT : QV_PARAM);
+            v->fn = i;
+            params[i->npar++] = (QParam){
+                .name = c->name,
+                .mut = true,
+                .hidden = true,
+                .var = v,
+            };
+
+            i->nhidden++;
+        }
+    }
+}
+
+/* Have instance i the types targs and the lambdas binds? */
+static bool qsem_keyed_as(
+    const QFn *const i,
+    const QType *const targs,
+    QLam *const *const binds,
+    const uint32_t ntp,
+    const uint32_t npar
+)
+{
+    return !memcmp(i->targs, targs, ntp * sizeof *targs) &&
+           !memcmp(i->binds, binds, npar * sizeof *binds);
+}
+
+/* Call e of g, a generic or a fn taking fns: its types read from the arguments, its lambdas
+   checked at their site, its instance of both found or made, its signature checked; g itself when
+   it needs none, null after an error. Each argument read is checked here, once: typed values
+   first, then literals, which type only what is still open, as a place types them; then lambdas,
+   whose results may type the rest. */
 static QFn *qsem_instance(QSem *const S, QExpr *const e, QFn *const g)
 {
-    QType *const targs = qast_alloc(S->mem, g->ntp * sizeof *targs);
-    bool *const bylit = qast_alloc(S->mem, g->ntp * sizeof *bylit);
+    QType *const targs = qast_alloc(S->mem, (g->ntp ? g->ntp : 1) * sizeof *targs);
+    bool *const bylit = qast_alloc(S->mem, (g->ntp ? g->ntp : 1) * sizeof *bylit);
+    QLam **const binds = qast_alloc(S->mem, (g->npar ? g->npar : 1) * sizeof *binds);
+    bool bound = false;
 
-    for (uint32_t pass = 0; pass < 2; pass++) {
+    for (uint32_t pass = 0; pass < 3; pass++) {
         uint32_t k = 0;
 
         for (QArg *a = e->args; a; a = a->next, k++) {
@@ -1712,12 +2257,37 @@ static QFn *qsem_instance(QSem *const S, QExpr *const e, QFn *const g)
             for (uint32_t i = 0; a->name && i < g->npar; i++)
                 at = qsem_same(g->params[i].name, a->name) ? i : at;
 
-            if (at >= g->npar || !g->params[at].type)
+            if (at >= g->npar || !g->params[at].type || (a->e->kind == QE_LAMBDA) != (pass == 2))
                 continue;
 
-            if (!pass) {
-                a->e = qsem_expr(S, a->e, QY_VOID);
+            if (pass == 2) {
+                bool open;
+                QType t = qsem_lamtype(S, g, at, targs, &open);
+
+                if (t == QY_ERROR || !qsem_lambda(S, a->e, &t, open))
+                    return nullptr;
+                if (open && !qsem_unify(S, g, g->params[at].type, t, targs))
+                    return nullptr;
+
                 a->e->done = true;
+                binds[at] = a->e->lam;
+                bound = true;
+                continue;
+            }
+
+            if (!pass) {
+                const QVar *const pv = g->params[at].var;
+                S->passing = g->params[at].type->kind == QX_FN;
+                a->e = qsem_expr(S, a->e, !g->ntp && pv ? pv->type : QY_VOID);
+                S->passing = false;
+                a->e->done = true;
+                binds[at] = g->params[at].type->kind == QX_FN ? qsem_bindof(S, a->e) : nullptr;
+                bound |= binds[at] != nullptr;
+
+                if (binds[at] && pv && a->e->type != pv->type && a->e->type != QY_ERROR) {
+                    qsem_mismatch(S, a->e, pv->type);
+                    return nullptr;
+                }
             }
 
             if (a->e->untyped != (pass == 1))
@@ -1746,8 +2316,11 @@ static QFn *qsem_instance(QSem *const S, QExpr *const e, QFn *const g)
             return nullptr;
         }
 
+    if (!g->ntp && !bound)
+        return g;
+
     for (QFn *i = g->insts; i; i = i->sibling)
-        if (!memcmp(i->targs, targs, g->ntp * sizeof *targs))
+        if (qsem_keyed_as(i, targs, binds, g->ntp, g->npar))
             return i->sig ? i : nullptr;
 
     if (g->ninst == QSEM_INSTS) {
@@ -1755,7 +2328,7 @@ static QFn *qsem_instance(QSem *const S, QExpr *const e, QFn *const g)
             S,
             e->tok,
             qsem_text(S, g->name),
-            " has too many instances: does it call itself with ever new types?",
+            " has too many instances: does it call itself with ever new types or lambdas?",
             nullptr
         );
         return nullptr;
@@ -1764,6 +2337,7 @@ static QFn *qsem_instance(QSem *const S, QExpr *const e, QFn *const g)
     QFn *const i = qpar_again(S->prog, S->mem, g);
     i->of = g;
     i->targs = targs;
+    i->binds = binds;
     i->sibling = g->insts;
     g->insts = i;
     g->ninst++;
@@ -1772,33 +2346,53 @@ static QFn *qsem_instance(QSem *const S, QExpr *const e, QFn *const g)
     qsem_push(S);
     qsem_typeargs(S, i);
     qsem_signature(S, i);
+    S->fn = i;
+    qsem_bound(S, i, e);
     qsem_pop(S);
     S->fn = fn;
     return i->sig ? i : nullptr;
 }
 
+/* Does f take a fn: a parameter of a fn type, as written? */
+static bool qsem_takesfn(const QFn *const f)
+{
+    for (uint32_t k = 0; k < f->npar; k++)
+        if (f->params[k].type && f->params[k].type->kind == QX_FN)
+            return true;
+
+    return false;
+}
+
+static void qsem_lent(QSem *S, const QExpr *e, const QFn *f);
+
 static QExpr *qsem_fncall(QSem *const S, QExpr *const e, QFn *f)
 {
-    if (qast_generic(f) && !(f = qsem_instance(S, e, f))) {
+    if ((qast_generic(f) || (!f->of && qsem_takesfn(f))) && !(f = qsem_instance(S, e, f))) {
         e->type = QY_ERROR;
         return e;
     }
 
+    const uint32_t own = f->npar - f->nhidden;
     e->fn = f;
     e->type = f->result;
     e->nargv = f->npar;
     e->argv = qast_alloc(S->mem, (f->npar ? f->npar : 1) * sizeof *e->argv);
     const QTok **const names = qast_alloc(S->mem, (f->npar ? f->npar : 1) * sizeof *names);
 
-    for (uint32_t k = 0; k < f->npar; k++)
+    for (uint32_t k = 0; k < own; k++)
         names[k] = f->params[k].name;
 
-    const QArg **const given =
-        qsem_given(S, e->args, names, f->npar, f->name, " has no parameter ");
+    const QArg **const given = qsem_given(S, e->args, names, own, f->name, " has no parameter ");
 
-    for (uint32_t k = 0; k < f->npar; k++) {
+    for (uint32_t k = 0; k < own; k++) {
         const QParam *const p = &f->params[k];
         const QArg *const a = given[k];
+
+        if (p->lam && a) { /* checked by qsem_instance: no value, its captures after */
+            e->argv[k] = a->e;
+            qsem_hiddenargs(S, e, p->capat, p->lam, a->e);
+            continue;
+        }
 
         if (!a) {
             if (!p->def)
@@ -1852,7 +2446,7 @@ static QVar *qsem_root(const QExpr *e)
 }
 
 /* An unchecked place's variable as bound: a for's element itself, not the list it names. */
-static QVar *qsem_rawroot(const QSem *const S, const QExpr *e)
+static QVar *qsem_rawroot(QSem *const S, const QExpr *e)
 {
     while (e->kind == QE_FIELD || e->kind == QE_INDEX)
         e = e->a;
@@ -1903,7 +2497,14 @@ static bool qsem_changes(QSem *const S, const QExpr *const e, const QTok *const 
         return false;
     }
 
-    const QLoan *const l = qsem_loan(S, v);
+    const QVar *orig = v;
+
+    for (const QVar *x = v; x && x->cap; x = x->cap->var) { /* a capture: what it stands for */
+        x->cap->mut = true;
+        orig = x->cap->var;
+    }
+
+    const QLoan *const l = qsem_loan(S, orig);
 
     if (l && !l->loop->mut)
         qsem_say(S, at, name, " is borrowed by the for over it: it can't change here", nullptr);
@@ -2003,7 +2604,7 @@ static bool qsem_mentions(const QExpr *const e, const QVar *const v)
 
 static bool qsem_byplace(const QSem *const S, const QType t)
 {
-    return qast_compound(t) && !qast_tag(S->prog, t);
+    return qast_compound(t) && !qast_cell(S->prog, t);
 }
 
 /* A record's or list's value e built straight into variable v's place, unless it reads v or calls
@@ -2517,6 +3118,18 @@ static QExpr *qsem_method(QSem *const S, QExpr *const e)
         if (qsem_is(e->tok, "get"))
             return qsem_get(S, e);
 
+        QExpr *const r = qsem_expr(S, e->a, QY_VOID);
+        const QTy *const y = qsem_isrec(S, r->type) ? qast_ty(S->prog, r->type) : nullptr;
+
+        for (uint32_t k = 0; y && k < y->nfields; k++) /* a record's fn value, called */
+            if (qsem_same(y->fields[k].name, e->tok) && qast_isfn(S->prog, y->fields[k].type)) {
+                QExpr *const f = qast_expr(S->mem, QE_FIELD, e->tok);
+                f->a = qsem_addressed(S, r);
+                f->field = k;
+                f->type = y->fields[k].type;
+                return qsem_icall(S, e, f);
+            }
+
         qsem_say(S, e->tok, "unknown fn ", qsem_text(S, e->tok), nullptr);
         e->type = QY_ERROR;
         return e;
@@ -2658,6 +3271,216 @@ static QExpr *qsem_fstring(QSem *const S, QExpr *const e)
     return e;
 }
 
+/* ---- calls of fn values and lambdas */
+
+/* A call's n values, plain, each for a parameter of type types[k]: checked, by position. */
+static QExpr **qsem_plainargs(
+    QSem *const S,
+    QExpr *const e,
+    const QField *const types,
+    const uint32_t n
+)
+{
+    QExpr **const argv = qast_alloc(S->mem, (n ? n : 1) * sizeof *argv);
+    uint32_t k = 0;
+
+    for (const QArg *a = e->args; a; a = a->next, k++) {
+        if (a->name || a->mut) {
+            qsem_say(S, a->name ? a->name : a->mut, "a fn value takes plain values", nullptr);
+            return nullptr;
+        }
+
+        if (k < n)
+            argv[k] = qsem_addressed(S, qsem_value(S, a->e, types[k].type));
+    }
+
+    if (k != n) {
+        qsem_say(S, e->tok, qsem_text(S, e->tok), " takes ", qsem_uint(S, n), " values", nullptr);
+        return nullptr;
+    }
+
+    return argv;
+}
+
+/* Can argument v stand for a lambda's parameter where it is read, unstored: a constant, a
+   variable, an element by a variable or a constant, their fields? */
+static bool qsem_cheap(const QExpr *const v)
+{
+    if (v->kind == QE_CONST || v->kind == QE_NAME)
+        return v->kind == QE_CONST || v->var;
+    if (v->kind == QE_FIELD)
+        return qsem_cheap(v->a);
+
+    return v->kind == QE_INDEX && !v->insert && (v->b->kind == QE_CONST || v->b->kind == QE_NAME) &&
+           qsem_cheap(v->a);
+}
+
+/* f(x), f the fn checked's parameter p, bound to one-line lambda l: l's body checked again here,
+   inlined. It sees only its parameters, its captures (the fn's hidden parameters for them) and
+   the module's names: x where it is read, when cheap, else stored first. */
+static QExpr *qsem_apply(QSem *const S, QExpr *const e, const QLam *const l, const QParam *const p)
+{
+    const QTy *const y = qast_ty(S->prog, l->type);
+    const QType result = y->elem;
+    QExpr **const argv = qsem_plainargs(S, e, y->fields, l->npar);
+    e->type = QY_ERROR;
+
+    if (!argv)
+        return e;
+
+    const uint32_t lo = S->hidelo, hi = S->hidehi;
+    QLamAt *const at = S->lamat;
+    S->hidelo = qsem_floor(S);
+    S->hidehi = S->nbinds;
+    S->lamat = nullptr;
+    qsem_push(S);
+    uint32_t n = 0;
+
+    for (uint32_t j = 0; j < l->ncaps; j++) {
+        const QCap *const c = l->caps[j];
+
+        if (c->frame)
+            qsem_bind(S, c->name, S->fn->params[p->capat + n++].var, nullptr);
+        else {
+            S->binds = qast_room(S->mem, S->binds, S->nbinds, &S->capbinds, sizeof *S->binds);
+            S->binds[S->nbinds++] = (QBind){
+                .name = c->name,
+                .var = c->var,
+                .fn = c->fn,
+                .ty = c->ty,
+            };
+        }
+    }
+
+    e->temps = qast_alloc(S->mem, (l->npar ? l->npar : 1) * sizeof *e->temps);
+
+    for (uint32_t k = 0; k < l->npar; k++) {
+        QVar *const v = qsem_var(S, l->params[k].name, argv[k]->type, QV_PARAM);
+
+        if (qsem_cheap(argv[k]))
+            v->place = argv[k];
+        else
+            e->temps[k] = v;
+
+        qsem_bind(S, l->params[k].name, v, nullptr);
+    }
+
+    QExpr *const body = qpar_reexpr(S->prog, S->mem, l->at);
+    QExpr *const v = body ? qsem_expr(S, body, result) : nullptr;
+    qsem_pop(S);
+    S->hidelo = lo;
+    S->hidehi = hi;
+    S->lamat = at;
+
+    if (!v)
+        return e;
+
+    e->kind = QE_APPLY;
+    e->lam = (QLam *)l;
+    e->a = result == QY_VOID ? v : qsem_coerce(S, v, result);
+    e->argv = argv;
+    e->nargv = l->npar;
+    e->type = e->a->type == QY_ERROR ? QY_ERROR : result;
+    return e;
+}
+
+/* f(x), f the fn checked's parameter p, bound to block lambda l: a call of its procedure, its
+   captures the fn's hidden parameters for them. */
+static QExpr *qsem_blockcall(
+    QSem *const S,
+    QExpr *const e,
+    const QLam *const l,
+    const QParam *const p
+)
+{
+    QFn *const f = l->fn;
+    const QTy *const y = qast_ty(S->prog, l->type);
+    QExpr **const argv = qsem_plainargs(S, e, y->fields, l->npar);
+    e->type = QY_ERROR;
+
+    if (!argv)
+        return e;
+
+    e->fn = f;
+    e->argv = qast_alloc(S->mem, (f->npar ? f->npar : 1) * sizeof *e->argv);
+    e->nargv = f->npar;
+    memcpy(e->argv, argv, l->npar * sizeof *argv);
+
+    for (uint32_t k = l->npar; k < f->npar; k++)
+        e->argv[k] = qsem_nameof(S, S->fn->params[p->capat + k - l->npar].var, e->tok);
+
+    e->type = f->result;
+    return e;
+}
+
+/* Call e through fn value f, checked. */
+static QExpr *qsem_icall(QSem *const S, QExpr *const e, QExpr *const f)
+{
+    e->type = QY_ERROR;
+
+    if (f->type == QY_ERROR)
+        return e;
+
+    const QTy *const y = qast_ty(S->prog, f->type);
+    const QType result = y->elem;
+    const uint32_t n = y->nfields;
+    QExpr **const argv = qsem_plainargs(S, e, y->fields, n);
+
+    if (!argv)
+        return e;
+
+    e->kind = QE_CALL;
+    e->builtin = QB_ICALL;
+    e->a = f;
+    e->argv = argv;
+    e->nargv = n;
+    e->type = result;
+    return e;
+}
+
+/* f(x), f a variable of a fn type: a lambda bound to the fn checked's parameter, inlined or
+   called; else a call through its value. */
+static QExpr *qsem_fnvar(QSem *const S, QExpr *const e, QVar *const v)
+{
+    if (v->lam) {
+        const QParam *const p = qsem_paramof(S, v);
+
+        if (v->lam->named)
+            return qsem_fncall(S, e, v->lam->named);
+
+        return v->lam->body ? qsem_apply(S, e, v->lam, p) : qsem_blockcall(S, e, v->lam, p);
+    }
+
+    return qsem_icall(S, e, qsem_expr(S, qast_expr(S->mem, QE_NAME, e->tok), QY_VOID));
+}
+
+/* Fn f named as a value: its procedure's number, typed by its signature. */
+static QExpr *qsem_fnref(QSem *const S, QExpr *const e, QFn *const f)
+{
+    e->type = QY_ERROR;
+
+    if (qast_generic(f) || qsem_takesfn(f)) {
+        qsem_say(S, e->tok, qsem_text(S, f->name), " is no value: it takes types or fns", nullptr);
+        return e;
+    }
+
+    QType *const items = qast_alloc(S->mem, (f->npar ? f->npar : 1) * sizeof *items);
+
+    for (uint32_t k = 0; k < f->npar; k++) {
+        if (f->params[k].mut) {
+            qsem_say(S, e->tok, qsem_text(S, f->name), " is no value: it takes mut", nullptr);
+            return e;
+        }
+
+        items[k] = f->params[k].var->type;
+    }
+
+    e->kind = QE_FNREF;
+    e->fn = f;
+    e->type = qsem_fnof(S, items, f->npar, f->result);
+    return e;
+}
+
 static QExpr *qsem_call(QSem *const S, QExpr *const e)
 {
     if (e->a)
@@ -2665,8 +3488,15 @@ static QExpr *qsem_call(QSem *const S, QExpr *const e)
 
     const QBind *const b = qsem_find(S, e->tok);
 
+    if (b && b->ty == QY_ERROR) {
+        e->type = QY_ERROR;
+        return e;
+    }
+
     if (b && b->fn)
         return qsem_fncall(S, e, b->fn);
+    if (b && b->var && qast_isfn(S->prog, b->var->type))
+        return qsem_fnvar(S, e, b->var);
 
     if (b && b->ty && qsem_isrec(S, b->ty)) {
         const QTy *const y = qast_ty(S->prog, b->ty);
@@ -2735,10 +3565,10 @@ static QExpr *qsem_name(QSem *const S, QExpr *const e)
         return e;
     }
 
-    if (b->fn) {
-        qsem_say(S, e->tok, qsem_text(S, e->tok), " is a fn: call it", nullptr);
+    if (b->ty == QY_ERROR)
         return e;
-    }
+    if (b->fn)
+        return qsem_fnref(S, e, b->fn);
 
     if (b->ty) {
         qsem_say(S, e->tok, qsem_text(S, e->tok), " is a type", nullptr);
@@ -2770,6 +3600,11 @@ static QExpr *qsem_name(QSem *const S, QExpr *const e)
             qsem_text(S, l->loop->var->name),
             nullptr
         );
+        return e;
+    }
+
+    if (v->lam && !S->passing) {
+        qsem_say(S, e->tok, qsem_text(S, e->tok), " is a lambda: call it or pass it on", nullptr);
         return e;
     }
 
@@ -3007,6 +3842,11 @@ static QExpr *qsem_expr(QSem *const S, QExpr *const e, const QType hint)
     case QE_TRY:
         return qsem_try(S, e);
 
+    case QE_LAMBDA:
+        qsem_say(S, e->tok, "a lambda is passed to a fn's parameter", nullptr);
+        e->type = QY_ERROR;
+        return e;
+
     default:
         return e;
     }
@@ -3131,6 +3971,14 @@ static void qsem_decls(QSem *const S, QStmt *const s)
 /* Unchecked place e, changed: checked, QY_ERROR when it can't change. */
 static QExpr *qsem_target(QSem *const S, QExpr *const e, const QTok *const at)
 {
+    const QBind *const b = e->kind == QE_NAME ? qsem_find(S, e->tok) : nullptr;
+
+    if (b && b->fn) {
+        qsem_say(S, e->tok, qsem_text(S, e->tok), " is a fn: call it", nullptr);
+        e->type = QY_ERROR;
+        return e;
+    }
+
     const bool ok = qsem_changes(S, e, at);
     QExpr *const t = qsem_expr(S, e, QY_VOID);
 
@@ -4139,7 +4987,7 @@ static void qsem_module(QSem *const S)
 /* Fn f's body, its parameters in its scope. */
 static void qsem_body(QSem *const S, QFn *const f)
 {
-    if (!f->end || !f->sig || qast_generic(f))
+    if (!f->end || !f->sig || qast_generic(f) || f->lamof)
         return;
 
     S->fn = f;
@@ -4148,7 +4996,8 @@ static void qsem_body(QSem *const S, QFn *const f)
     qsem_typeargs(S, f);
 
     for (uint32_t k = 0; k < f->npar; k++)
-        qsem_bind(S, f->params[k].name, f->params[k].var, nullptr);
+        if (!f->params[k].hidden)
+            qsem_bind(S, f->params[k].name, f->params[k].var, nullptr);
 
     for (QStmt *s = f->def->next; s != f->end; s = s->next)
         qsem_stmt(S, s);
@@ -4166,7 +5015,8 @@ void qsem_program(QProg *const p, QMem *const m)
     QSem S = {.prog = p, .mem = m};
 
     for (QFn *f = p->fns; f; f = f->next)
-        qsem_bind(&S, f->name, nullptr, f);
+        if (!f->lamof)
+            qsem_bind(&S, f->name, nullptr, f);
 
     qsem_types(&S);
     qsem_consts(&S);
@@ -4175,7 +5025,7 @@ void qsem_program(QProg *const p, QMem *const m)
         qsem_typed(&S, QY_FIRST + i);
 
     for (QFn *f = p->fns; f; f = f->next)
-        if (!qast_generic(f))
+        if (!qast_generic(f) && !f->lamof)
             qsem_signature(&S, f);
 
     qsem_module(&S);

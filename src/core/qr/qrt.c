@@ -15,6 +15,9 @@
  * cell afresh. A growth sweeps the dead only now and then (arry_tidy), before it, following the
  * cell. An f-string's spec is parsed when it runs, as Python's format() does.
  *
+ * A fn value is its procedure's number: QX.CALL makes the call PCALL makes, into the body past
+ * its first line's JMP, found from the procedure when it runs.
+ *
  * A map is a record of three lists (qsem_mapof): its keys and its values in the order they came,
  * and its slots, a power of 2 of them, each an entry's index + 1 or 0 free. A key's slot is its
  * hash's, probing on; half the slots at most are in use. A remove empties its slot, moving back
@@ -26,8 +29,10 @@
  */
 #include "qr/qrt.h"
 #include "session.h"
+#include "comp/blocks.h"
 #include "mem/array.h"
 #include "num/double.h"
+#include "vm/flow.h"
 
 enum { SNGL_DIGITS = 7, DBL_DIGITS = 15, EXP_FROM = -4 };
 
@@ -1129,6 +1134,18 @@ void qrt_x(Session *const S)
         const uint32_t n = qrt_len(src, &data);
         const uint32_t from = qrt_clamp(a, n), to = qrt_clamp(b, n);
         arry_copy_part(&S->arry, vm, d, (const ArrSlot *)at(src), from, to > from ? to - from : 0);
+        return;
+    }
+
+    case QX_FNCALL: { /* into its fn's body: past its first line's JMP, and a DBG before it */
+        const uint32_t proc = exec_pop(vm).u;
+        const uint32_t line = blok_proc(&S->blok, proc)->first;
+        uint8_t *code = at(S->allo.cache + prog_line(&S->prog, line)->code);
+
+        if (*code == O_DBG)
+            code += flow_opsize(code);
+
+        flow_call(S, proc, line, code + JSIZE);
         return;
     }
 

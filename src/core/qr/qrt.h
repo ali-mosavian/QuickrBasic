@@ -34,6 +34,7 @@ typedef enum : uint8_t {
     QX_BYTE,   /* ( s i -- n ): s's byte i */
     QX_SLICE,  /* ( s a b -- t ): s's bytes from a up to b, each clamped to s */
     QX_LSLICE, /* ( a b src dst -- ): dst a new list, src's elements from a up to b, clamped */
+    QX_FNCALL, /* ( args.. proc -- ): a call of procedure proc, as PCALL's */
 } QrtX;
 
 /* QX_MAPAT's how when the key is not there: Subscript out of range, made with an empty value, or

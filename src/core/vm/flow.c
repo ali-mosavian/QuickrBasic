@@ -472,17 +472,17 @@ void flow_d_past(Session *const S)
    address its parameter is: a scalar's cell, an array's ArrSlot, a record's data); vm.fp the last
    argument's ref cell, the locals' cells below it (a local array's its ArrSlot). */
 
-/* PCALL proc n body: the frame at the arguments on the data stack, its n locals' cells below it
-   zeroed, its frame pushed, into the body. */
-void flow_pcall(Session *const S)
+/* A call of proc: the frame at its npar arguments on the data stack, its n locals' cells below it
+   zeroed, its frame pushed returning to ret; vm->ip then its body's code. */
+static void call_into(
+    Session *const S,
+    const uint32_t proc,
+    const uint32_t n,
+    const uint16_t npar,
+    const Place ret
+)
 {
-    if (exec_stopchk(S)) /* before the arguments are taken */
-        return;
-
     Vm *const vm = &S->vm;
-    uint8_t *const op = vm->ip - 1;
-    const uint32_t n = load32(op + PCALL_CELLS);
-    const uint16_t npar = load16(op + PCALL_NPAR);
     Cell *back = nullptr;
     const uint32_t seg = vm->stak.cur;
 
@@ -502,9 +502,9 @@ void flow_pcall(Session *const S)
     memset(vm->sp, 0, n * sizeof(Cell));
     *vm->ftop++ = (Frame){
         .kind = back ? FRAME_CALL_X : FRAME_CALL,
-        .ret = {vm->line, cache_off(&S->allo, op + PCALL_SIZE)},
+        .ret = ret,
         .call = {
-            .proc = load32(op + PCALL_PROC),
+            .proc = proc,
             .temp_floor = S->strg.tmp_floor,
             .stack = vm->sp,
             .fp = vm->fp,
@@ -516,8 +516,32 @@ void flow_pcall(Session *const S)
     };
 
     S->strg.tmp_floor = S->strg.tmp_used;
+}
+
+/* PCALL proc n body: the frame at the arguments on the data stack, its n locals' cells below it
+   zeroed, its frame pushed, into the body. */
+void flow_pcall(Session *const S)
+{
+    if (exec_stopchk(S)) /* before the arguments are taken */
+        return;
+
+    Vm *const vm = &S->vm;
+    uint8_t *const op = vm->ip - 1;
+    const Place ret = {vm->line, cache_off(&S->allo, op + PCALL_SIZE)};
+
+    call_into(S, load32(op + PCALL_PROC), load32(op + PCALL_CELLS), load16(op + PCALL_NPAR), ret);
     vm->ip = op + PCALL_JUMP;
     take_jump(vm, &S->strg, &S->allo, &S->fault);
+}
+
+void flow_call(Session *const S, const uint32_t proc, const uint32_t line, uint8_t *const code)
+{
+    Vm *const vm = &S->vm;
+    const Proc *const p = blok_proc(&S->blok, proc);
+    call_into(S, proc, p->nframe, p->npar, (Place){vm->line, cache_off(&S->allo, vm->ip)});
+
+    vm->line = line;
+    vm->ip = code;
 }
 
 /* End call f, the innermost, and drop the frames above it: its local arrays on the heap freed

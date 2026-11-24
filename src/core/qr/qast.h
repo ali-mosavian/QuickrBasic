@@ -143,7 +143,7 @@ typedef struct {
 
 /* An error at token t: msg with its {} (if any) replaced by name's len bytes. */
 void qast_error(QErrs *e, const QTok *t, const char *msg, const char *name, uint32_t len);
-/* The errors in order of line and column. */
+/* The errors in order of line and column, each once. */
 void qast_sort(QErrs *e);
 
 /* ---- types and values */
@@ -178,18 +178,20 @@ typedef struct {
 
 typedef struct QVar QVar;
 typedef struct QFn QFn;
+typedef struct QLam QLam;
+typedef struct QCap QCap;
 typedef struct QExpr QExpr;
 typedef struct QStmt QStmt;
 
-/* A type as written: a name, T[], T[n], (T, U), T?, T!. */
-typedef enum : uint8_t { QX_NAME, QX_LIST, QX_ARRAY, QX_TUPLE, QX_OPT, QX_RES } QTypeExKind;
+/* A type as written: a name, T[], T[n], (T, U), T?, T!, fn(T) as U. */
+typedef enum : uint8_t { QX_NAME, QX_LIST, QX_ARRAY, QX_TUPLE, QX_OPT, QX_RES, QX_FN } QTypeExKind;
 typedef struct QTypeEx QTypeEx;
 struct QTypeEx {
     QTypeExKind kind;
     const QTok *tok; /* its first token: a name's its name */
-    QTypeEx *elem;   /* a list's, an array's, T? and T!'s T */
+    QTypeEx *elem;   /* a list's, an array's, T? and T!'s T; a fn's result, null none */
     QExpr *count;    /* an array's */
-    QTypeEx **items; /* a tuple's */
+    QTypeEx **items; /* a tuple's; a fn's parameters' */
     uint32_t n;
 };
 
@@ -218,13 +220,15 @@ typedef enum : uint8_t {
     QT_TUPLE,
     QT_MAP,
     QT_OPT,
-    QT_RES
+    QT_RES,
+    QT_FN
 } QTyKind;
 
 /* A compound type. A record, a tuple, an enum with data, a map, T? and T! are the VM's records
    (comp/declare.h): an enum's tag its field 0, then each value's data; a map's its keys, its values
    and its hash slots, three lists (qr/qrt.c); T?'s has and its T; T!'s err, its T, then its error's
-   code, message and line (QF_*). */
+   code, message and line (QF_*). A fn type's fields are its parameters', its elem its result's
+   (QY_VOID none): its value a procedure's number, an int. */
 typedef struct {
     QTyKind kind;
     const QTok *name; /* a record's, an enum's */
@@ -277,7 +281,9 @@ struct QVar {
     uint32_t last; /* its last use's token, sema's */
     QExpr *place;  /* QV_EACH, a case's datum: what it names, checked */
     uint32_t id;   /* its variable (mem/symbols.h), qlink's */
-    QVar *next;  /* the program's next */
+    QVar *next;    /* the program's next */
+    QCap *cap;     /* a lambda's hidden parameter: the name it stands for, by reference */
+    QLam *lam;     /* an instance's parameter bound to this lambda: no value */
 };
 
 typedef struct {
@@ -285,7 +291,10 @@ typedef struct {
     QTypeEx *type; /* its as type, null none */
     QExpr *def;    /* its default, folded; null none */
     bool mut;
+    bool hidden; /* a capture's, after the rest: by reference */
     QVar *var;
+    QLam *lam;      /* an instance's, bound to this lambda: no value passed */
+    uint32_t capat; /* bound: its lambda's first hidden parameter */
 } QParam;
 
 struct QFn {
@@ -306,7 +315,44 @@ struct QFn {
     const QFn *of; /* an instance's generic */
     QFn *insts;    /* a generic's instances, by sibling */
     QFn *sibling;
-    uint32_t ninst; /* a generic's instances made */
+    uint32_t ninst;   /* a generic's instances made */
+    QLam **binds;     /* an instance's lambda for each parameter, null none */
+    uint32_t nhidden; /* its last parameters a capture's each */
+    QLam *lamof;      /* a block lambda's procedure */
+    QLam *aslam;      /* it passed as a lambda, named */
+    bool inl;         /* a one-line lambda's, for its site's check: no code, no variables */
+};
+
+/* A name a lambda uses from outside it, as its site bound it. A fn's storage (frame) is reached
+   through a hidden parameter by reference (param, the lambda's own); the rest are seen as they
+   are. */
+struct QCap {
+    const QTok *name;
+    QVar *var;
+    QFn *fn;
+    QType ty;
+    uint32_t at; /* its binding's index at the site, sema's */
+    QVar *param; /* frame's: the lambda's parameter for it */
+    bool frame;
+    bool mut; /* the lambda changes it */
+};
+
+/* fn(x) expr, or a block's fn(x as T) .. end fn: its parameters typed by the place it is passed to.
+   A block is a procedure, fn; a one-line's body is checked again where it is called, inlined. A
+   named fn passed as one, named, is called directly. */
+struct QLam {
+    const QTok *tok; /* its fn */
+    const QTok *at;  /* a one-line's body's first token */
+    QParam *params;
+    uint32_t npar;
+    QTypeEx *rtype; /* a block's as type, null none */
+    QExpr *body;    /* a one-line's, as its site checked it */
+    QFn *fn;        /* a block's; a one-line's site check's */
+    QFn *named;
+    QCap **caps;
+    uint32_t ncaps, capcaps;
+    QType type;   /* its fn type */
+    bool checked; /* at its site, clean */
 };
 
 /* ---- expressions */
@@ -334,6 +380,10 @@ typedef enum : uint8_t {
     QE_NONE,  /* none */
     QE_IS,    /* a is none, a is Error (op QK_NONE or QK_NAME); is not when neg */
     QE_TRY,   /* a?: a's value, or its error returned from fn */
+    QE_LAMBDA, /* lam, a value only for a fn's parameter */
+    QE_APPLY,  /* one-line lam inlined: argv each stored to temps[k] (null: a place, read there),
+                  then a */
+    QE_FNREF,  /* fn as a value: its procedure's number */
 } QExprKind;
 
 /* A built-in: print, a conversion, len, copy, a list's methods. */
@@ -353,6 +403,7 @@ typedef enum : uint8_t {
     QB_BYTE,  /* s[i]: a, b */
     QB_SLICE, /* a[b..c] of a string or a list: b, c null for its ends */
     QB_GET,   /* m.get(k): a, b; its value's address in temps[0] */
+    QB_ICALL, /* a(argv): a call through fn value a */
 } QBuiltin;
 
 /* A call's argument as written: its name (null positional), mut. */
@@ -390,6 +441,7 @@ struct QExpr {
     const QTok **specs; /* QE_FSTR: each value's format spec, null none */
     uint32_t n;
     uint32_t field; /* QE_FIELD: its field's index; QE_NEW: an enum's value */
+    QLam *lam;      /* QE_LAMBDA's, QE_APPLY's */
 };
 
 /* A match's case: one or more patterns, each a value, a to b, is op v, or an enum value with its
@@ -523,6 +575,15 @@ static inline bool qast_array(const QProg *const p, const QType t)
 static inline bool qast_tag(const QProg *const p, const QType t)
 {
     return qast_compound(t) && qast_ty(p, t)->kind == QT_ENUM && !qast_ty(p, t)->data;
+}
+static inline bool qast_isfn(const QProg *const p, const QType t)
+{
+    return qast_compound(t) && qast_ty(p, t)->kind == QT_FN;
+}
+/* Is compound t an int cell: a plain enum, a fn value? */
+static inline bool qast_cell(const QProg *const p, const QType t)
+{
+    return qast_tag(p, t) || qast_isfn(p, t);
 }
 /* Is e a variable's place: a name, its fields', its elements'? */
 static inline bool qast_place(const QExpr *e)
