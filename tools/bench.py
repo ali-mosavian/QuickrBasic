@@ -5,6 +5,7 @@
     bench.py cmp [REV...] [-e CODE] [--file F] [--dos]  the suite, or these programs, per build (HEAD .)
     bench.py size [REV] [--functions]            the DOS executables' loaded bytes, REV's (default HEAD) and ours
     bench.py gate [--save]                       the suite and sizes against tools/bench/baseline.json
+    bench.py qr [REV...]                         tools/bench/qr: each NAME.qr against its QBasic twin NAME.bas
     bench.py qbasic [--json F]                   qbasic/BENCH.BAS in QBasic 1.1 and our IDE under DOSBox
     bench.py profile FILE.bas | -e CODE [-n N] [--link | --ide]  DOS: the functions a program spends its
                                                  instructions in; --link: RUN's link alone
@@ -43,6 +44,7 @@ import basic_src
 
 ROOT = Path(__file__).resolve().parent.parent
 SUITE = ROOT / "tools/bench"
+QR = SUITE / "qr"  # Quickr's cases, NAME.qr, each beside its QBasic twin NAME.bas
 BASELINE = SUITE / "baseline.json"
 REVS = ROOT / "build/bench"
 EXES = ("build/c/basic32.exe", "build/c/ide32.exe")
@@ -138,13 +140,14 @@ def count(exe: Path, bas: Path, env: str, key: bytes) -> tuple[int, str]:
     return int(m[1]), p.stdout.decode("latin-1").strip()
 
 
-def run_natives(builds: list[Build], progs: Programs, runs: int = RUNS) -> list[dict[str, Cost]]:
-    """Each build's costs, their runs interleaved: the machine's load drifts alike for all."""
+def run_natives(builds: list[Build], progs: Programs, runs: int = RUNS, ext: str = "BAS") -> list[dict[str, Cost]]:
+    """Each build's costs, their runs interleaved: the machine's load drifts alike for all. ext: the
+    programs' kind, QR Quickr's, as they are."""
     res: list[dict[str, Cost]] = [{} for _ in builds]
     with tempfile.TemporaryDirectory() as d:
         for name, prog in {"": "", **progs}.items():
-            bas = Path(d) / f"{name[:8].upper() or 'EMPTY'}.BAS"
-            bas.write_bytes(source(prog))
+            bas = Path(d) / f"{name[:8].upper() or 'EMPTY'}.{ext}"
+            bas.write_bytes(source(prog) if ext == "BAS" else prog.encode("latin-1"))
             least = [1 << 62] * len(builds)
             for _ in range(runs):
                 for i, b in enumerate(builds):
@@ -238,6 +241,27 @@ def cmd_cmp(a: argparse.Namespace) -> int:
             + "".join(f"{c.insns / row[0].insns:>8.3f}" for c in row[1:])
             + flag
         )
+    return 0
+
+
+def cmd_qr(a: argparse.Namespace) -> int:
+    """Per build, each Quickr case's instructions and ops against its QBasic twin's: Quickr's over
+    QBasic's. The two must print the same values."""
+    names: list[str] = a.revs or ["."]
+    cases = sorted(QR.glob("*.qr"))
+    builds = [build(r, False) for r in names]
+    qr = run_natives(builds, {p.stem: p.read_text() for p in cases}, ext="QR")
+    qb = run_natives(builds, {p.stem: p.with_suffix(".bas").read_text() for p in cases})
+    pairs = list(zip(qr, qb, strict=True))
+    print(f"{'':10}" + "".join(f"{'tree' if n == '.' else n:>40}" for n in names))
+    print(f"{'':10}" + f"{'insns':>14}{'QBasic':>14}{'x':>6}{'ops x':>6}" * len(names))
+    for k in qr[0]:
+        row = "".join(
+            f"{q[k].insns:>14,}{b[k].insns:>14,}{q[k].insns / b[k].insns:>6.2f}{q[k].ops / b[k].ops:>6.2f}"
+            for q, b in pairs
+        )
+        same = all(q[k].out.split() == b[k].out.split() for q, b in pairs)
+        print(f"{k:10}{row}" + ("" if same else "  OUTPUT DIFFERS"))
     return 0
 
 
@@ -867,6 +891,7 @@ def main() -> int:
     p.add_argument("-e", action="append", default=[], help="a program instead of the suite")
     p.add_argument("--file", action="append", default=[], help="a .bas file instead of the suite")
     p.add_argument("--dos", action="store_true")
+    sub.add_parser("qr").add_argument("revs", nargs="*")
     p = sub.add_parser("size")
     p.add_argument("rev", nargs="?", default="HEAD")
     p.add_argument("--functions", action="store_true", help="each function whose bytes changed")
@@ -898,6 +923,7 @@ def main() -> int:
         "cmp": cmd_cmp,
         "size": cmd_size,
         "gate": cmd_gate,
+        "qr": cmd_qr,
         "qbasic": cmd_qbasic,
         "profile": cmd_profile,
         "fps": cmd_fps,
