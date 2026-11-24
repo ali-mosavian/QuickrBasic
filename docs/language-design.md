@@ -652,6 +652,17 @@ end test
 
 - `test` blocks sit in any module. `basic --test` runs them; a program's build leaves them out.
 - `assert c` stops with the file, the line and the condition's text when `c` is false.
+- A test goes at a module's top level and runs as a fn of no parameters: `return` ends it.
+- `basic --test FILE.qr` runs the tests of the file and of each module it imports, a module's
+  after those it imports, each in source order. Each prints `pass name`, or `FAIL name:
+  file:line: why`, an assert's why its condition's text; then `3 passed, 1 failed`, the exit 1
+  when one failed.
+- A false assert or a runtime error ends its test, its owners dropped, and the next one runs.
+- Under `--test` the main file's top level runs its declarations alone; modules start as in a
+  run.
+- Outside a test, a false assert stops the program: `prog.qr:5: assert failed`, then the line.
+- **In the VM**, a test is a procedure whose handler, ON LOCAL ERROR's, says the failure and
+  RESUMEs at its `end test`. Each test's run is a line of its own after the program's.
 
 ## Execution efficiency
 

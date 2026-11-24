@@ -76,7 +76,8 @@ typedef enum : uint8_t {
     QK_PUBLIC,
     QK_NATIVE,
     QK_OPERATOR,
-    QK_LATER, /* a keyword of a later milestone: type, match, import .. */
+    QK_TEST,
+    QK_ASSERT,
     /* punctuation */
     QK_LPAREN,
     QK_RPAREN,
@@ -376,6 +377,8 @@ struct QFn {
     const QTok *lone; /* an operator's body one return: its value's first token */
     bool inlining;    /* its lone value being checked where it is used */
     QOwners own;
+    bool test;     /* a test block: its name a string's token; a procedure under --test alone */
+    QStmt *onfail; /* a test's QS_TESTFAIL */
 };
 
 /* A name a lambda uses from outside it, as its site bound it. A fn's storage (frame) is reached
@@ -609,10 +612,14 @@ typedef enum : uint8_t {
     QS_MATCH, /* match e: its cases' lines follow, each linked to the next */
     QS_CASE,  /* pats, or case else (none) */
     QS_ENDMATCH,
-    QS_YIELD,  /* e; link: the statement on its line (itself, or its one-line if) */
-    QS_IMPORT, /* import a.b [as n], ..: imps */
-    QS_FROM,   /* from a.b import X [as Y], ..: imps the module, names what it gives */
-    QS_ATEND,  /* the program's end: each module owner dropped; a line of its own */
+    QS_YIELD,    /* e; link: the statement on its line (itself, or its one-line if) */
+    QS_IMPORT,   /* import a.b [as n], ..: imps */
+    QS_FROM,     /* from a.b import X [as Y], ..: imps the module, names what it gives */
+    QS_ATEND,    /* the program's end: each module owner dropped; a line of its own */
+    QS_ASSERT,   /* assert e */
+    QS_TESTRUN,  /* --test: test fn run, counted passed unless it fails; link its QS_TESTFAIL */
+    QS_TESTFAIL, /* fn's error handler: counted failed, said, then to its end */
+    QS_TESTEND,  /* the tests' tally said; the run's end */
 } QStmtKind;
 
 /* A module named by import or from: its dotted name, the folders its leading dots go up (0 the
@@ -701,6 +708,11 @@ typedef struct {
     QErrs errs;
     QOwners own;  /* the modules' */
     QStmt *atend; /* QS_ATEND, when a module owns a value with drop */
+    bool testing; /* --test: the tests run, the main's top level only declares */
+    QStmt **runs; /* --test: each test's QS_TESTRUN, the modules' in their order */
+    uint32_t nruns, capruns;
+    QStmt *testend;
+    QVar *failed, *passes, *fails; /* the test running's; the tally */
 } QProg;
 
 /* ---- helpers */

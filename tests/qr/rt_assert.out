@@ -1,0 +1,3 @@
+ok
+rt_assert.qr:5: assert failed
+  if x > 1 then assert x < 2

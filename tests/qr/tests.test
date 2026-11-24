@@ -1,0 +1,9 @@
+pass twice doubles
+FAIL helper fails: helper.qr:14: assert failed: twice(2) = 5
+pass sums
+FAIL a failing assert: tests.qr:27: assert failed: count = 20
+drop held
+FAIL deep assert: helper.qr:6: assert failed: x > 0
+FAIL division: tests.qr:37: Division by zero
+pass returns early
+3 passed, 4 failed

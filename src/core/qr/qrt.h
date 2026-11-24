@@ -89,7 +89,14 @@ typedef enum : uint8_t {
     QX_FCLOSE,  /* ( n -- ) */
     QX_FLIST,   /* ( pattern -- names ): the files matching, each ended by a newline */
     QX_ERRTEXT, /* ( err -- s ): ERR err's message */
+    QX_ASSERT,  /* ( -- ): assert's failure raised, ERR QRT_ASSERT */
+    QX_PASSED,  /* ( name -- ): --test's: pass name */
+    QX_FAILED,  /* ( name -- ): FAIL name, where and why the error being handled was raised */
+    QX_TALLY,   /* ( passes fails -- ): the tests' tally said, the exit 1 when one failed */
 } QrtX;
+
+/* A failed assert's ERR: no QBasic error's. */
+enum { QRT_ASSERT = 200 };
 
 /* QX.FIND's operand with it: a from on the stack. */
 enum { QX_FROM = 0x100 };

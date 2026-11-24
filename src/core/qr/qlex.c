@@ -61,12 +61,7 @@ static const char *const qlex_words[] = {
     [QK_YIELDS - QK_AND] = "yields", [QK_FROM - QK_AND] = "from",
     [QK_IMPORT - QK_AND] = "import", [QK_PUBLIC - QK_AND] = "public",
     [QK_NATIVE - QK_AND] = "native", [QK_OPERATOR - QK_AND] = "operator",
-};
-
-/* The design's keywords this milestone does not take yet. */
-static const char *const qlex_later[] = {
-    "test",
-    "assert",
+    [QK_TEST - QK_AND] = "test",     [QK_ASSERT - QK_AND] = "assert",
 };
 
 /* Punctuation, longest first where one starts another. */
@@ -127,10 +122,6 @@ static void qlex_name(QLex *const L, const uint32_t from)
     for (uint32_t k = 0; k < countof(qlex_words); k++)
         if (strlen(qlex_words[k]) == n && !memcmp(qlex_words[k], w, n))
             kind = (QKind)(QK_AND + k);
-
-    for (uint32_t k = 0; k < countof(qlex_later); k++)
-        if (strlen(qlex_later[k]) == n && !memcmp(qlex_later[k], w, n))
-            kind = QK_LATER;
 
     qlex_tok(L, kind, from);
 }

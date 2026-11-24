@@ -1,6 +1,6 @@
-unsupported.qr:2:1: test is not supported yet
-  test "sums"
-  ^
-unsupported.qr:3:1: assert is not supported yet
-  assert 1 = 1
-  ^
+unsupported.qr:2:9: lists are not supported yet
+  let a = [1, 2]
+          ^
+unsupported.qr:3:12: ! is not supported yet
+  let b = f()!
+             ^

@@ -1414,6 +1414,79 @@ static void qrt_flist(Session *const S)
     exec_pusha(&S->vm, s);
 }
 
+/* Line at's file:line, its source's. */
+static void qrt_where(Session *const S, const uint32_t at)
+{
+    const Line *const l = prog_line(&S->prog, at);
+    cons_puts(&S->cons, modu_path(&S->modu, l->file));
+    cons_putc(&S->cons, ':');
+    cons_uint(&S->cons, l->src);
+}
+
+/* Line text's assert's condition; null none. */
+static const char *qrt_assertion(const char *s)
+{
+    for (; *s; s++)
+        if (!strncmp(s, "assert ", 7))
+            return s + 7;
+
+    return nullptr;
+}
+
+/* QX.FAILED ( name -- ): FAIL name: file:line: why; an assert's why its condition's text. */
+static void qrt_failed_test(Session *const S)
+{
+    Cons *const co = &S->cons;
+    const Desc name = strg_get(&S->strg, exec_popa(&S->vm));
+    const uint32_t line = S->vm.err.raised;
+    const char *const text = (const char *)at(prog_addr(&S->prog, line) + HDR);
+    const char *const cond = qrt_assertion(text);
+    cons_puts(co, "FAIL ");
+    cons_putdesc(co, name);
+    cons_puts(co, ": ");
+    qrt_where(S, line);
+    cons_puts(co, ": ");
+
+    if (S->vm.err.code == QRT_ASSERT && cond) {
+        cons_puts(co, "assert failed: ");
+        cons_puts(co, cond);
+    } else
+        cons_puts(co, emsg_text(S->vm.err.code, E_USR));
+
+    cons_nl(co);
+}
+
+/* --test's routines, QX.PASSED .. QX.TALLY. */
+static void qrt_test(Session *const S, const QrtX op)
+{
+    Cons *const co = &S->cons;
+
+    switch (op) {
+    case QX_PASSED: {
+        const Desc name = strg_get(&S->strg, exec_popa(&S->vm));
+        cons_puts(co, "pass ");
+        cons_putdesc(co, name);
+        cons_nl(co);
+        return;
+    }
+
+    case QX_FAILED:
+        qrt_failed_test(S);
+        return;
+
+    default: {
+        const int32_t fails = exec_popi(&S->vm);
+        const int32_t passes = exec_popi(&S->vm);
+        cons_uint(co, (uint32_t)passes);
+        cons_puts(co, " passed, ");
+        cons_uint(co, (uint32_t)fails);
+        cons_puts(co, " failed");
+        cons_nl(co);
+        cons_exit(co, fails ? 1 : 0);
+    }
+    }
+}
+
 /* The fs module's routines, QX.FOPEN .. QX.ERRTEXT. */
 static void qrt_file(Session *const S, const QrtX op)
 {
@@ -1636,6 +1709,16 @@ void qrt_x(Session *const S)
     case QX_FLIST:
     case QX_ERRTEXT:
         qrt_file(S, op);
+        return;
+
+    case QX_ASSERT:
+        S->vm.err.user = QRT_ASSERT;
+        repl_error(S, E_USR);
+
+    case QX_PASSED:
+    case QX_FAILED:
+    case QX_TALLY:
+        qrt_test(S, op);
         return;
 
     case QX_FMT: {

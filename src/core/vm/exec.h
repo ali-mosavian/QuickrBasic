@@ -204,6 +204,7 @@ typedef struct Vm {
         uint16_t user;    /* ERROR n's n, raised as E_USR */
         Place failed;     /* RESUME's statement */
         Place next;       /* RESUME NEXT's; code LINE_END the next line */
+        uint32_t raised;  /* the line it was raised at, before a handler's unwinding */
     } err;
 
 #ifdef EXEC_COUNT

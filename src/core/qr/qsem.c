@@ -5189,8 +5189,8 @@ static void qsem_return(QSem *const S, QStmt *const s)
         qsem_say(
             S,
             s->e->tok,
-            qsem_text(S, f->name),
-            " returns nothing: it has no as type",
+            f->test ? "a test" : qsem_text(S, f->name),
+            f->test ? " returns nothing" : " returns nothing: it has no as type",
             nullptr
         );
         qsem_expr(S, s->e, QY_VOID);
@@ -6298,6 +6298,10 @@ static void qsem_simple(QSem *const S, QStmt *const s)
         qsem_yield(S, s);
         return;
 
+    case QS_ASSERT:
+        s->e = qsem_coerce(S, qsem_expr(S, s->e, QY_BOOL), QY_BOOL);
+        return;
+
     default:
         return;
     }
@@ -6778,7 +6782,7 @@ static void qsem_operdef(QSem *const S, QFn *const f)
 /* Is f a fn drop: named drop? */
 static bool qsem_isdrop(const QFn *const f)
 {
-    return !f->lamof && !f->of && qsem_is(f->name, "drop");
+    return !f->lamof && !f->of && !f->test && qsem_is(f->name, "drop");
 }
 
 /* fn drop(mut x as T): T's, a record declared in its module. */
@@ -6862,6 +6866,47 @@ static void qsem_dropok(QSem *const S)
         for (uint32_t k = 0; y->kind == QT_REC && k < y->nfields; k++)
             qsem_dropin(S, y->fields[k].type, y->fields[k].name);
     }
+}
+
+/* A statement of kind of the run's own, at tok. */
+static QStmt *qsem_made(QSem *const S, const QStmtKind kind, const QTok *const tok)
+{
+    QStmt *const s = qast_alloc(S->mem, sizeof *s);
+    s->kind = kind;
+    s->tok = tok;
+    s->own = &S->prog->own;
+    return s;
+}
+
+/* --test: each test run, a module's after those it imports; a test's error handled by its
+   QS_TESTFAIL; the tally said at the end. */
+static void qsem_tests(QSem *const S)
+{
+    QProg *const p = S->prog;
+
+    if (!p->testing)
+        return;
+
+    for (uint32_t i = 0; i < p->nmods; i++) {
+        const QMod *const m = &p->mods[p->order[i]];
+
+        for (QStmt *s = m->head; s; s = qsem_nextin(m, s)) {
+            if (s->kind != QS_FN || !s->fn->test || !s->fn->sig)
+                continue;
+
+            QStmt *const run = qsem_made(S, QS_TESTRUN, s->tok);
+            run->fn = s->fn;
+            run->link = s->fn->onfail = qsem_made(S, QS_TESTFAIL, s->tok);
+            run->link->fn = s->fn;
+            p->runs = qast_room(S->mem, p->runs, p->nruns, &p->capruns, sizeof *p->runs);
+            p->runs[p->nruns++] = run;
+        }
+    }
+
+    p->testend = qsem_made(S, QS_TESTEND, p->nruns ? p->runs[0]->tok : p->mods[0].toks);
+    p->failed = qsem_var(S, p->testend->tok, QY_INT, QV_TEMP);
+    p->passes = qsem_var(S, p->testend->tok, QY_INT, QV_TEMP);
+    p->fails = qsem_var(S, p->testend->tok, QY_INT, QV_TEMP);
 }
 
 /* The program's end, when a module var owns a value with drop: each dropped there. */
@@ -7078,7 +7123,7 @@ void qsem_program(QProg *const p, QMem *const m)
     qsem_scopes(&S);
 
     for (QFn *f = p->fns; f; f = f->next)
-        if (!f->lamof && !f->op && !qsem_isdrop(f)) {
+        if (!f->lamof && !f->op && !f->test && !qsem_isdrop(f)) {
             S.pub = f->pub;
             qsem_bind(&S, f->name, nullptr, f);
             S.pub = false;
@@ -7121,4 +7166,5 @@ void qsem_program(QProg *const p, QMem *const m)
     qsem_exports(&S);
     qsem_moved(&S);
     qsem_atend(&S);
+    qsem_tests(&S);
 }

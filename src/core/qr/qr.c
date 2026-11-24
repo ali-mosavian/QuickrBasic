@@ -27,6 +27,7 @@
 #include "qr/qlex.h"
 #include "qr/qlink.h"
 #include "qr/qpar.h"
+#include "qr/qrt.h"
 #include "qr/qsem.h"
 
 enum { QR_CHUNK = 0x10000 }; /* the front end's arena's blocks at least */
@@ -304,12 +305,12 @@ static void qr_say(Session *const S, const QProg *const p, const QErr *const e)
         qr_mark(co, ln->text, ln->len, e->col);
 }
 
-/* The program's end's line, a copy of its first owner's: the modules' owners dropped. */
-static void qr_atend(Session *const S, QProg *const p, QMem *const m, uint32_t *const cap)
+/* A line of the run's own for statement s, a copy of its token's, at the store's end. */
+static void qr_own(Session *const S, QProg *const p, QMem *const m, uint32_t *const cap, QStmt *s)
 {
-    const QLine ln = p->src.lines[p->atend->tok->line];
+    const QLine ln = p->src.lines[s->tok->line];
     p->src.lines = qast_room(m, p->src.lines, p->src.nlines, cap, sizeof *p->src.lines);
-    p->atend->line = p->src.nlines;
+    s->line = p->src.nlines;
     p->src.lines[p->src.nlines++] = (QLine){
         .at = prog_at(&S->prog),
         .text = ln.text,
@@ -363,8 +364,17 @@ static void qr_instances(Session *const S, QProg *const p, QMem *const m)
         }
     }
 
-    if (p->atend) /* last: the run ends there, past every procedure */
-        qr_atend(S, p, m, &cap);
+    for (uint32_t i = 0; i < p->nruns; i++) /* last: the run ends there, past every procedure */
+        qr_own(S, p, m, &cap, p->runs[i]);
+
+    if (p->atend)
+        qr_own(S, p, m, &cap, p->atend);
+
+    if (p->testend) /* it exits; the handlers past it are jumped to */
+        qr_own(S, p, m, &cap, p->testend);
+
+    for (uint32_t i = 0; i < p->nruns; i++)
+        qr_own(S, p, m, &cap, p->runs[i]->link);
 
     S->prog.add_flags = 0;
     S->prog.add_src = 0;
@@ -376,7 +386,7 @@ uint32_t qr_build(Session *const S)
     QMem m = {.fault = &S->fault};
 
     arena_init(&m.arena, QR_CHUNK);
-    QProg p = {.errs = {.mem = &m}};
+    QProg p = {.errs = {.mem = &m}, .testing = S->repl.testing};
 
     S->repl.batch = true;
     modu_clear(&S->modu, S->repl.file);
@@ -422,7 +432,11 @@ void qr_report(Session *const S, const uint8_t code)
     cons_putc(co, ':');
     cons_uint(co, l->src);
     cons_puts(co, ": ");
-    cons_puts(co, emsg_text(S->vm.err.user, code));
+    cons_puts(
+        co,
+        code == E_USR && S->vm.err.user == QRT_ASSERT ? "assert failed"
+                                                      : emsg_text(S->vm.err.user, code)
+    );
     cons_nl(co);
     cons_spaces(co, 2);
     cons_puts(co, text);

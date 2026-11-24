@@ -2897,6 +2897,52 @@ static void qcg_replace(QCg *const g, const QExpr *const p, const QExpr *const v
         qcg_live(g, p->var, true);
 }
 
+/* ---- --test */
+
+/* A LineRef to statement s's line: ON LOCAL ERROR's handler, RESUME's line. */
+static void qcg_lineref(QCg *const g, const uint8_t op, const QStmt *const s)
+{
+    code_op(g->c, op);
+
+    if (op == O_RESUME)
+        code_byte(g->c, RESUME_LINE);
+
+    code_word(g->c, NONUM);
+    code_dword(g->c, g->env->lines[s->line].at);
+}
+
+/* Test s->fn run, its name said when it returns unfailed. */
+static void qcg_testrun(QCg *const g, const QStmt *const s)
+{
+    const QProg *const p = g->env->prog;
+    const QPiece name = {.lit = s->fn->name};
+
+    Code *const c = g->c;
+    code_int(c, 0);
+    qcg_store(c, p->failed);
+    qcg_pcall(g, s->fn);
+    qcg_load(c, p->failed);
+    const QCgHop out = qcg_hop(g, QJ_TRUE);
+    qcg_bump(c, p->passes, 1);
+    qcg_string(g, &name);
+    qcg_x(c, QX_PASSED);
+    qcg_land(g, out);
+}
+
+/* Test s->fn's error handler, in its frame: its failure said, then on at its end. */
+static void qcg_testfail(QCg *const g, const QStmt *const s)
+{
+    const QProg *const p = g->env->prog;
+    const QPiece name = {.lit = s->fn->name};
+
+    code_int(g->c, 1);
+    qcg_store(g->c, p->failed);
+    qcg_bump(g->c, p->fails, 1);
+    qcg_string(g, &name);
+    qcg_x(g->c, QX_FAILED);
+    qcg_lineref(g, O_RESUME, s->fn->end);
+}
+
 /* A statement a one-line if may take, or one that is no block's. */
 static void qcg_simple(QCg *const g, const QStmt *const s)
 {
@@ -2973,6 +3019,14 @@ static void qcg_simple(QCg *const g, const QStmt *const s)
     case QS_YIELD:
         qcg_yield(g, s);
         return;
+
+    case QS_ASSERT: {
+        qcg_expr(g, s->e);
+        const QCgHop ok = qcg_hop(g, QJ_TRUE);
+        qcg_x(c, QX_ASSERT);
+        qcg_land(g, ok);
+        return;
+    }
 
     case QS_CONTINUE: {
         const QStmt *const loop = s->link;
@@ -3226,6 +3280,8 @@ static void qcg_body(QCg *const g, const QStmt *const s)
 
         if (s->fn->resumable) /* a call's entry, past the JMP */
             qcg_resume(g, s->fn);
+        if (s->fn->onfail)
+            qcg_lineref(g, O_ONLERR, s->fn->onfail);
 
         return;
 
@@ -3252,6 +3308,20 @@ static void qcg_body(QCg *const g, const QStmt *const s)
 
     case QS_ATEND:
         qcg_dropall(g, s->own);
+        return;
+
+    case QS_TESTRUN:
+        qcg_testrun(g, s);
+        return;
+
+    case QS_TESTFAIL:
+        qcg_testfail(g, s);
+        return;
+
+    case QS_TESTEND:
+        qcg_load(c, g->env->prog->passes);
+        qcg_load(c, g->env->prog->fails);
+        qcg_x(c, QX_TALLY);
         return;
 
     default:

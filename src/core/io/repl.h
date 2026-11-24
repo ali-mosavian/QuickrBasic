@@ -43,6 +43,7 @@ typedef struct {
     uint32_t precap;
     bool batch;           /* a file run: its end exits */
     bool checking;        /* --check's: the file compiled, not run */
+    bool testing;         /* --test's: a .qr's tests run, not its program */
     char file[PFIL_PATH]; /* the command line's file name; CHAIN's */
     char incl[PFIL_PATH]; /* an '$INCLUDE's */
 } Repl;

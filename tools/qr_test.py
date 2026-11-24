@@ -4,8 +4,8 @@
 tests/qr/NAME.qr must print NAME.out; tests/qr/errors/NAME.qr its compile errors, NAME.out, and run
 nothing. A folder NAME/ beside a case holds the modules it imports, put beside it; NAME.in is its
 standard input, NAME.args its command line. --check must
-list the same errors, exit 1 on them and 0 on a clean program. NAME picks cases; -v prints a
-failure's output."""
+list the same errors, exit 1 on them and 0 on a clean program; --test must print NAME.test, if
+there, and exit 1 when a test fails. NAME picks cases; -v prints a failure's output."""
 
 import os
 import re
@@ -48,15 +48,33 @@ def beside(prog: Path, ext: str) -> str:
     return f.read_text() if f.exists() else ""
 
 
-def check(name: str, prog: Path) -> str:
-    """--check of prog, its modules beside it: "" if its output and exit status are right, else why."""
+def flagged(flag: str, prog: Path) -> subprocess.CompletedProcess[bytes]:
+    """prog run with flag, its modules beside it, in a folder of its own."""
     work = Path(tempfile.mkdtemp())
     (work / prog.name).write_bytes(prog.read_bytes())
     for n, data in modules(prog).items():
         (work / n).parent.mkdir(parents=True, exist_ok=True)
         (work / n).write_bytes(data)
-    p = subprocess.run([str(dosrun.COM.resolve()), "--check", prog.name], cwd=work, capture_output=True, timeout=10)
+    p = subprocess.run([str(dosrun.COM.resolve()), flag, prog.name], cwd=work, capture_output=True, timeout=10)
     shutil.rmtree(work)
+    return p
+
+
+def tested(prog: Path) -> str:
+    """--test of prog: "" if it prints NAME.test and exits 1 just when a test failed, else why."""
+    want = prog.with_suffix(".test")
+    if not want.exists():
+        return ""
+    p = flagged("--test", prog)
+    got = named(p.stdout.decode("latin-1"), prog.stem)
+    if got != want.read_text():
+        return f"--test printed {got[:60]!r}"
+    return "" if p.returncode == ("FAIL" in got) else f"--test exited {p.returncode}"
+
+
+def check(name: str, prog: Path) -> str:
+    """--check of prog, its modules beside it: "" if its output and exit status are right, else why."""
+    p = flagged("--check", prog)
     want = prog.with_suffix(".out").read_text() if name.startswith("errors/") else ""
     got = p.stdout.decode("latin-1").replace("\r\n", "\n")
     if got != want:
@@ -73,7 +91,7 @@ def main() -> None:
     for k, prog in pick.items():
         got = named(res[k].out, k)
         why = "" if got == prog.with_suffix(".out").read_text() else f"{res[k].reason} {got[:60]!r}"
-        why = why or check(k, prog)
+        why = why or check(k, prog) or tested(prog)
         ok += not why
         print(f"pass {k}" if not why else f"FAIL {k}: {why}")
         if why and "-v" in sys.argv:

@@ -82,6 +82,7 @@ void repl_error(Session *const S, uint8_t code)
     if (S->fault.catch) /* compiling, folding, a watch's probe: theirs */
         fault_throw(&S->fault, code);
     if (code != E_BRK && code != E_OS && !S->vm.err.active && S->vm.line != DLINE) {
+        S->vm.err.raised = S->vm.line;
         uint32_t handler = flow_handler(S);
 
         if (handler)
@@ -532,23 +533,33 @@ static void warn_empty(void *const ctx, const LinkEmpty *const e)
     repl_warn(S, prog_line(&S->prog, e->line)->src, text, 2);
 }
 
+/* Is the command line at *s the option opt, a word: *s then past it and its spaces. */
+static bool option(const char **const s, const char *const opt)
+{
+    const size_t n = strlen(opt);
+
+    if (strncmp(*s, opt, n) || (uint8_t)(*s)[n] > ' ')
+        return false;
+
+    for (*s += n; **s == ' ';)
+        (*s)++;
+
+    return true;
+}
+
 /* Run the file the command line names, then exit; no name: back. --check FILE: every compile
-   error reported, not run; the exit 1 if any. */
+   error reported, not run; the exit 1 if any. --test FILE.qr: its tests run instead. */
 static void run_file(Session *const S)
 {
     char tail[PFIL_PATH];
     psys_cmdline(tail, sizeof tail);
     const char *s = tail;
-    static const char check[] = "--check";
 
     while (*s == ' ')
         s++;
 
-    S->repl.checking = !strncmp(s, check, sizeof check - 1) && (uint8_t)s[sizeof check - 1] <= ' ';
-
-    if (S->repl.checking)
-        for (s += sizeof check - 1; *s == ' ';)
-            s++;
+    S->repl.checking = option(&s, "--check");
+    S->repl.testing = !S->repl.checking && option(&s, "--test");
 
     size_t n = 0;
 

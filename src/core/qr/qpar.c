@@ -389,9 +389,6 @@ static QExpr *qpar_primary(QPar *const P)
     case QK_FN:
         return qpar_lambda(P);
 
-    case QK_LATER:
-        qpar_later(P, t, "{} is");
-
     default:
         qpar_expected(P, "a value");
     }
@@ -896,6 +893,12 @@ static QStmt *qpar_simple(QPar *const P)
     case QK_YIELD:
         return qpar_yield(P);
 
+    case QK_ASSERT: {
+        QStmt *const s = qpar_new(P, QS_ASSERT, qpar_next(P));
+        s->e = qpar_expr(P);
+        return s;
+    }
+
     default:
         break;
     }
@@ -1095,8 +1098,24 @@ static void qpar_fn(QPar *const P)
         f->ytx = qpar_type(P);
     if (f->rtype && f->ytx)
         qpar_fail(P, f->ytx->tok, "a generator yields its values: it has no as type");
-    if (qpar_is(P, QK_LATER))
-        qpar_later(P, P->t, "{} is");
+}
+
+/* test "name": a block run by --test alone, a fn of no parameters named by its string. */
+static void qpar_testblock(QPar *const P)
+{
+    QStmt *const s = qpar_new(P, QS_FN, qpar_next(P));
+    QFn *const f = qast_alloc(P->mem, sizeof *f);
+    s->fn = f;
+    f->def = s;
+    f->test = true;
+    qpar_append(P, s);
+    qpar_push(P, s);
+    f->name = qpar_need(P, QK_STR, "the test's name, a string");
+
+    if (P->nopen > 1)
+        qpar_fail(P, s->tok, "a test goes at the top level, not in a block");
+
+    qpar_addfn(P, f);
 }
 
 /* What end closes: QS_ENDIF .. QS_ENDFN by the word after end. */
@@ -1109,6 +1128,7 @@ static const struct {
     {QK_FOR, QS_FOR, QS_ENDFOR},
     {QK_DO, QS_DO, QS_ENDDO},
     {QK_FN, QS_FN, QS_ENDFN},
+    {QK_TEST, QS_FN, QS_ENDFN},
     {QK_TYPE, QS_TYPE, QS_ENDTYPE},
     {QK_ENUM, QS_ENUM, QS_ENDENUM},
     {QK_MATCH, QS_MATCH, QS_ENDMATCH},
@@ -1123,7 +1143,7 @@ static void qpar_end(QPar *const P)
     while (k < countof(qpar_ends) && !qpar_is(P, qpar_ends[k].word))
         k++;
     if (k == countof(qpar_ends))
-        qpar_expected(P, "if, while, for, do, fn, type, enum or match after end");
+        qpar_expected(P, "if, while, for, do, fn, test, type, enum or match after end");
 
     const QTok *const word = qpar_next(P);
     QOpen *const o = qpar_top(P);
@@ -1131,7 +1151,8 @@ static void qpar_end(QPar *const P)
     if (o && o->open->kind == QS_MATCH && o->clause == o->open)
         qpar_fail(P, t, "a match needs a case");
 
-    if (!o || o->open->kind != qpar_ends[k].open) {
+    if (!o || o->open->kind != qpar_ends[k].open ||
+        (o->open->kind == QS_FN && o->open->fn->test != (word->kind == QK_TEST))) {
         char msg[32];
         memcpy(msg, "end {} without ", 15);
         const uint32_t n = word->len;
@@ -1343,6 +1364,10 @@ static void qpar_statement(QPar *const P)
         qpar_fn(P);
         return;
 
+    case QK_TEST:
+        qpar_testblock(P);
+        return;
+
     case QK_IMPORT:
     case QK_FROM:
         qpar_import(P);
@@ -1355,9 +1380,6 @@ static void qpar_statement(QPar *const P)
     case QK_NATIVE:
         qpar_native(P);
         return;
-
-    case QK_LATER:
-        qpar_later(P, t, "{} is");
 
     default:
         qpar_append(P, qpar_simple(P));
@@ -1481,7 +1503,14 @@ static void qpar_unclosed(QPar *const P)
 
     for (uint32_t i = 0; i < P->nopen; i++) {
         const QStmt *const s = P->open[i].open;
-        qast_error(&P->prog->errs, s->tok, msgs[s->kind], nullptr, 0);
+        const bool test = s->kind == QS_FN && s->fn->test;
+        qast_error(
+            &P->prog->errs,
+            s->tok,
+            test ? "test without end test" : msgs[s->kind],
+            nullptr,
+            0
+        );
     }
 }
 

@@ -188,12 +188,18 @@ static uint32_t qlink_npar(const QFn *const f)
     return n;
 }
 
+/* Does fn f run nowhere: unchecked, native, inline, a generic's model, a test without --test? */
+static bool qlink_none(const QProg *const p, const QFn *const f)
+{
+    return !f->sig || f->native || qast_inline(f) || qast_generic(f) || (f->test && !p->testing);
+}
+
 /* Each fn checked a procedure, a generic's instances but not it; its parameters and result
    linked in qlink_vars. */
 static void qlink_procs(Comp *const C, const QProg *const p)
 {
     for (QFn *f = p->fns; f; f = f->next) {
-        if (!f->sig || f->native || qast_inline(f) || qast_generic(f))
+        if (qlink_none(p, f))
             continue;
 
         Proc *const pr = blok_add_proc(C->blok, C->fault);
@@ -230,12 +236,13 @@ static void qlink_vars(Comp *const C, const QProg *const p)
 
     for (QVar *v = p->vars; v; v = v->next)
         if (!v->constant && !v->place &&
-            !(v->fn && (v->fn->inl || v->fn->native || qast_generic(v->fn))))
+            !(v->fn &&
+              (v->fn->inl || v->fn->native || qast_generic(v->fn) || (v->fn->test && !p->testing))))
             v->id =
                 qlink_symb(sy, p, v->kind == QV_TEMP ? &hidden : v->name, v->type, qlink_scope(v));
 
     for (const QFn *f = p->fns; f; f = f->next) {
-        if (!f->sig || f->native || qast_inline(f) || qast_generic(f))
+        if (qlink_none(p, f))
             continue;
 
         Proc *const pr = btab_at(&C->blok->procs, f->proc);
@@ -396,6 +403,61 @@ static void qlink_thread(Comp *const C, const QProg *const p)
     }
 }
 
+/* Does s open a block: its lines till its end its own? */
+static int32_t qlink_depth(const QStmt *const s)
+{
+    switch (s->kind) {
+    case QS_IF:
+        return !s->oneline;
+
+    case QS_WHILE:
+    case QS_FOR:
+    case QS_DO:
+    case QS_MATCH:
+        return 1;
+
+    case QS_ENDIF:
+    case QS_ENDWHILE:
+    case QS_ENDFOR:
+    case QS_ENDDO:
+    case QS_ENDMATCH:
+        return -1;
+
+    default:
+        return 0;
+    }
+}
+
+/* Each statement to its line's of: a generic's and an unrun test's none, their instances' and
+   procedures' code their own. --test: the main's top level its declarations alone. */
+static void qlink_stmts(const QProg *const p, const QStmt **const of)
+{
+    int32_t depth = 0;
+
+    for (const QStmt *s = p->first; s; s = s->next) {
+        if (s->kind == QS_FN &&
+            (!s->fn->sig || qast_generic(s->fn) || (s->fn->test && !p->testing))) {
+            s = s->fn->end;
+            continue;
+        }
+
+        if (s->kind == QS_FN) {
+            for (const QStmt *const end = s->fn->end; s != end; s = s->next)
+                of[s->line] = s;
+
+            of[s->line] = s;
+            continue;
+        }
+
+        const bool main = !p->src.lines[s->line].mod;
+        const int32_t d = qlink_depth(s);
+        depth += d;
+
+        if (!p->testing || !main || (!depth && !d && s->kind == QS_DECL))
+            of[s->line] = s;
+    }
+}
+
 void qlink_program(Comp *const C, QProg *const p, QMem *const m, const bool dbg)
 {
     blok_reset(C->blok, C->fault);
@@ -406,11 +468,7 @@ void qlink_program(Comp *const C, QProg *const p, QMem *const m, const bool dbg)
 
     const QStmt **const of = qast_alloc(m, (p->src.nlines ? p->src.nlines : 1) * sizeof *of);
 
-    for (const QStmt *s = p->first; s; s = s->next)
-        if (s->kind == QS_FN && (!s->fn->sig || qast_generic(s->fn))) /* its instances' code */
-            s = s->fn->end;
-        else
-            of[s->line] = s;
+    qlink_stmts(p, of);
 
     for (const QFn *f = p->fns; f; f = f->next) /* a block lambda's lines are its own */
         for (const QStmt *s = f->lamof && f->sig ? f->def : nullptr; s; s = s->next)
@@ -418,6 +476,14 @@ void qlink_program(Comp *const C, QProg *const p, QMem *const m, const bool dbg)
 
     if (p->atend)
         of[p->atend->line] = p->atend;
+
+    for (uint32_t i = 0; i < p->nruns; i++) {
+        of[p->runs[i]->line] = p->runs[i];
+        of[p->runs[i]->link->line] = p->runs[i]->link;
+    }
+
+    if (p->testend)
+        of[p->testend->line] = p->testend;
 
     qlink_lines(C, p, m, of, dbg);
 
