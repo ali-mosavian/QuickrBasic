@@ -104,7 +104,7 @@ typedef struct {
     uint32_t white;  /* the white texel shapes draw from */
     uint8_t *page;   /* the canvas's pixels, read back */
     uint32_t shader; /* the language (QxShader) */
-    uint32_t made;   /* the pipelines made, a bit each */
+    uint64_t made;   /* the pipelines made, a bit each */
     GpuCount count;  /* since gpu_counted */
 } Gpu;
 

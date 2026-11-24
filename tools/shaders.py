@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """shaders.py: gfx's one shader (stdlib/gfx/src/backend/gpu/shaders) in each language a host takes, its vertex
-stage twice: for plain vertices and, with DISC, for discs. glslang makes SPIR-V, for SDL_GPU's Vulkan,
+stage twice: for plain vertices and, with DISC, for discs; its fragment stage twice: whole and, with SIMPLE, for
+simple draws. glslang makes SPIR-V, for SDL_GPU's Vulkan,
 and spirv-cross MSL for its Metal and ESSL for the page's WebGL2. The header it writes is committed, so a build
 needs neither tool: run `make shaders` after an edit (tools/deps.sh shaders builds them)."""
 
@@ -13,7 +14,12 @@ ROOT = Path(__file__).resolve().parent.parent
 BIN = ROOT / "build" / "deps" / "bin"
 SOURCE = ROOT / "stdlib" / "gfx" / "src" / "backend" / "gpu" / "shaders"
 # name: source, defines
-SHADERS = {"draw_vert": ("draw.vert", ()), "disc_vert": ("draw.vert", ("-DDISC",)), "draw_frag": ("draw.frag", ())}
+SHADERS = {
+    "draw_vert": ("draw.vert", ()),
+    "disc_vert": ("draw.vert", ("-DDISC",)),
+    "draw_frag": ("draw.frag", ()),
+    "simple_frag": ("draw.frag", ("-DSIMPLE",)),
+}
 OUT = ROOT / "stdlib" / "gfx" / "src" / "backend" / "gpu" / "shaders.h"
 # SDL_GPU's Metal names a resource by its binding, as SDL_shadercross does
 MSL = ["--msl", "--msl-version", "20000", "--msl-decoration-binding"]

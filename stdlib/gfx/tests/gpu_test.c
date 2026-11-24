@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include "base/disc.h"
 #include "backend/gpu/gpu.h"
+#include "backend/gpu/pipelines.h"
 #include "base/cover.h"
 #include "core/surface.h"
 #include "test.h"
@@ -429,7 +430,8 @@ TEST(gfx_gpu_draws_shapes_in_one_batch)
     CHECK(arg(QX_LIST_PASS, 0, 1) == SURF_SCREEN && arg(QX_LIST_CLIP, 0, 3) == 8);
     CHECK(uniforms[0] == 8 && uniforms[1] == 8 && uniforms[2] == -1);
     CHECK(arg(QX_LIST_DRAW, 0, 4) == 0 && arg(QX_LIST_DRAW, 0, 5) == 12);
-    CHECK(arg(QX_LIST_DRAW, 0, 7) == GPU_PAGE_FIRST && arg(QX_LIST_DRAW, 0, 1) == 1);
+    CHECK(arg(QX_LIST_DRAW, 0, 7) == GPU_PAGE_FIRST);
+    CHECK(arg(QX_LIST_DRAW, 0, 1) == pipeline_id(PIPELINE_SIMPLE, QX_BLEND_NONE, 0));
     CHECK(placed(&vertices[0], -0.5f, -0.5f) && placed(&vertices[2], 7.5f, 7.5f));
     CHECK(vertices[0].r == 0x10 && vertices[0].g == 0x20 && vertices[0].b == 0x30);
     CHECK(
@@ -492,7 +494,7 @@ TEST(gfx_gpu_blends_read_a_copy_of_behind)
     GPU_CALL("display.flip");
     CHECK(
         ops(FIRST "TUPNCULD"
-                  "TPNCDPNCD"
+                  "TPNCDPNCLD"
                   "PNCDPNCD"
                   "SE")
     );
@@ -620,7 +622,7 @@ TEST(gfx_gpu_sends_a_picture_once)
 
     GPU_CALL("draw.sprite", I(SURF_SCREEN), F(1), F(1), I(s), I(GFX_DRAW_FLIP_X));
     GPU_CALL("display.flip");
-    CHECK(ops(FIRST8 "TUPNCUTULD" SHOWN8));
+    CHECK(ops(FIRST8 "TUPNCUTULDPNCLDSE"));
     CHECK(
         arg(QX_LIST_TEXTURE, 4, 1) == GPU_PAGE_FIRST + 1 &&
         arg(QX_LIST_TEXTURE, 4, 4) == QX_TEXTURE_INDEX
@@ -654,7 +656,7 @@ TEST(gfx_gpu_draws_into_surfaces)
     GPU_CALL("draw.clear", I(s), I(4));
     GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(s), I(0));
     GPU_CALL("display.flip");
-    CHECK(ops(FIRST8 "TUPNCUTULDTPNCDPNCD" SHOWN8));
+    CHECK(ops(FIRST8 "TUPNCUTULDTPNCDPNCDPNCLDSE"));
     CHECK(
         arg(QX_LIST_TEXTURE, 5, 1) == (uint32_t)s && arg(QX_LIST_TEXTURE, 5, 4) == QX_TEXTURE_RGBA
     );
@@ -662,6 +664,42 @@ TEST(gfx_gpu_draws_into_surfaces)
     CHECK(arg(QX_LIST_CLIP, 1, 3) == 2);
     CHECK(vertices[8].stages == (GPU_STAGE_INDEXED | GPU_STAGE_KEYED | GPU_STAGE_EIGHT));
     CHECK(vertices[4].r == 4 && vertices[4].g == 4 && vertices[4].b == 4);
+}
+
+/* Plain draws take the simple shader: SOLID's, texels unlit into 32 bits, indices through row 0
+   into 8; lit or tinted ones, indices into 32 bits, another row, blends and SMOOTH the whole. */
+TEST(gfx_gpu_picks_the_simple_shader)
+{
+    const GpuVertex white = {
+        .r = 255,
+        .g = 255,
+        .b = 255,
+        .light = 63,
+    };
+
+    GpuVertex v = white;
+
+    v.r = 7;
+    v.stages = GPU_STAGE_SOLID | GPU_STAGE_KEYED | GPU_STAGE_EIGHT;
+    CHECK(pipeline_kind(&v) == PIPELINE_SIMPLE);
+    v.stages = GPU_STAGE_SOLID | GPU_STAGE_MIX;
+    CHECK(pipeline_kind(&v) == PIPELINE_PLAIN);
+    v.stages = GPU_STAGE_SOLID | GPU_STAGE_SMOOTH;
+    CHECK(pipeline_kind(&v) == PIPELINE_PLAIN);
+
+    v = white;
+    v.stages = GPU_STAGE_KEYED | GPU_STAGE_WRAP;
+    CHECK(pipeline_kind(&v) == PIPELINE_SIMPLE);
+    v.light = 62;
+    CHECK(pipeline_kind(&v) == PIPELINE_PLAIN);
+
+    v = white;
+    v.stages = GPU_STAGE_INDEXED;
+    CHECK(pipeline_kind(&v) == PIPELINE_PLAIN);
+    v.stages = GPU_STAGE_INDEXED | GPU_STAGE_EIGHT;
+    CHECK(pipeline_kind(&v) == PIPELINE_SIMPLE);
+    v.row = 1;
+    CHECK(pipeline_kind(&v) == PIPELINE_PLAIN);
 }
 
 /* An 8-bit canvas is shown through palette row 0: its indices drawn into GPU_SHOWN, which is
@@ -682,7 +720,7 @@ TEST(gfx_gpu_blends_8_bits_through_the_map)
     screen(S, 8, 8, 8);
     GPU_CALL("draw.rect", I(SURF_SCREEN), F(0), F(0), F(1), F(1), I(1), I(GFX_DRAW_FILL));
     GPU_CALL("display.flip");
-    CHECK(ops(FIRST8 "TUPNCULD" SHOWN8));
+    CHECK(ops(FIRST8 "TUPNCULDPNCLDSE"));
 
     GPU_CALL("draw.rect", I(SURF_SCREEN), F(0), F(0), F(1), F(1), I(1), I(GFX_DRAW_ADD));
     GPU_CALL("display.flip");

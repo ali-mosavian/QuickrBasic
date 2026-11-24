@@ -5,8 +5,14 @@
 #define GFX_GPU_PIPELINES_H
 #include "backend/gpu/gpu.h"
 
-/* The vertices of list_draw and of list_discs. */
-typedef enum { PIPELINE_PLAIN, PIPELINE_ROUND, PIPELINE_KINDS } PipelineKind;
+/* Plain vertices (list_draw's), discs' (list_discs'), and plain vertices of a simple draw: one
+   drawing SOLID's colour or index, or texels unlit, as they are into a 32-bit target, indices
+   through row 0 into an 8-bit one. The shader for simple draws is the rest's first branch alone:
+   the whole one's size cost plain draws a tenth. */
+typedef enum { PIPELINE_PLAIN, PIPELINE_ROUND, PIPELINE_SIMPLE, PIPELINE_KINDS } PipelineKind;
+
+/* The kind of a draw of plain vertices like v. */
+PipelineKind pipeline_kind(const GpuVertex *v);
 
 /* The shader is in language (QxShader). */
 bool pipeline_speaks(uint32_t language);

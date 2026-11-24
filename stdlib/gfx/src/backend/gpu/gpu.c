@@ -382,15 +382,10 @@ static bool copy_box(
         v[i].v = v[i].y + 0.5f;
     }
 
-    return list_draw(
-        &g->list,
-        v,
-        4,
-        pipeline_id(PIPELINE_PLAIN, QX_BLEND_NONE, 0),
-        textures,
-        OPAQUE,
-        false
-    );
+    const PipelineKind k = pipeline_kind(v);
+
+    return pipeline_made(g, k, QX_BLEND_NONE, 0) &&
+           list_draw(&g->list, v, 4, pipeline_id(k, QX_BLEND_NONE, 0), textures, OPAQUE, false);
 }
 
 /* The pass's texture copied to GPU_BEHIND, made or made larger first; only what the copy lacks,
@@ -423,8 +418,7 @@ static bool copy_behind(Gpu *const g)
 
     g->passing = false;
 
-    if (!aim(g, GPU_BEHIND, 0, g->behind_w, g->behind_h, (Rect){0, 0, w, h}) ||
-        !pipeline_made(g, PIPELINE_PLAIN, QX_BLEND_NONE, 0))
+    if (!aim(g, GPU_BEHIND, 0, g->behind_w, g->behind_h, (Rect){0, 0, w, h}))
         return false;
 
     for (uint32_t i = 0; some && i < g->ndirty; i++)
@@ -456,13 +450,14 @@ bool gpu_draw(Gpu *const g, const GpuCall *const t, const GpuVertex *const v, co
     const uint32_t textures[LIST_TEXTURES] =
         {t->texture, GPU_PALETTE, t->behind ? GPU_BEHIND : GPU_PALETTE};
 
-    return drawing(g, t, box_of(v, sizeof *v, n)) &&
-           pipeline_made(g, PIPELINE_PLAIN, t->blend, t->depth) &&
+    const PipelineKind k = pipeline_kind(v);
+
+    return drawing(g, t, box_of(v, sizeof *v, n)) && pipeline_made(g, k, t->blend, t->depth) &&
            list_draw(
                &g->list,
                v,
                n,
-               pipeline_id(PIPELINE_PLAIN, t->blend, t->depth),
+               pipeline_id(k, t->blend, t->depth),
                textures,
                t->alpha,
                shared(v)
@@ -494,7 +489,6 @@ static bool present(Gpu *const g)
     const GpuBox all = {-0.5f, -0.5f, (float)w - 0.5f, (float)h - 0.5f};
 
     return aim(g, GPU_SHOWN, 0, w, h, (Rect){0, 0, w, h}) &&
-           pipeline_made(g, PIPELINE_PLAIN, QX_BLEND_NONE, 0) &&
            copy_box(g, SURF_SCREEN, w, h, all, GPU_STAGE_INDEXED);
 }
 

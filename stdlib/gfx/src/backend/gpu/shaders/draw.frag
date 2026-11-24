@@ -193,9 +193,28 @@ uvec3 blended(uvec3 c, uint stages)
     return eight ? uvec3(nearest(m)) : m;
 }
 
+// A simple draw (pipelines.h): SOLID's colour or index; a texel unlit, into a 32-bit target as it
+// is, an index into an 8-bit one, itself.
+void simple(uint stages)
+{
+    vec4 t = fetched(ivec2(floor(v_texel)), stages);
+
+    if (!kept(t, stages))
+        discard;
+
+    if ((stages & SOLID) != 0u)
+        t.rgb = vec3(v_tint.rgb) / 255.0;
+
+    colour = (stages & EIGHT) != 0u ? vec4(t.r) : vec4(t.rgb, 1.0);
+}
+
 void main()
 {
     uint stages = v_more.z;
+#ifdef SIMPLE
+    simple(stages);
+}
+#else
     bool eight = (stages & EIGHT) != 0u;
 
     if ((stages & DISC) != 0u && !covered(stages))
@@ -220,3 +239,4 @@ void main()
 
     colour = eight ? vec4(float(c.r) / 255.0) : vec4(vec3(c) / 255.0, 1.0);
 }
+#endif
