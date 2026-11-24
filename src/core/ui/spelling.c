@@ -173,7 +173,7 @@ char *spel_name(const Session *const S, char *const d, const uint32_t name, cons
 {
     const Spelling *e = slot(key_of(name, kind));
 
-    if ((!e || !e->key) && kind == SPEL_LOCAL)
+    if ((!e || !e->key) && (kind == SPEL_LOCAL || (kind == SPEL_FIELD && text_quickr(S))))
         e = slot(key_of(name, SPEL_MODULE));
 
     if (e && e->key) {

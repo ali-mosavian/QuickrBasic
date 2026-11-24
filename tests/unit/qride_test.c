@@ -282,6 +282,31 @@ TEST(qride_pane_spells_names_as_typed)
     fx_done(S, files);
 }
 
+/* An inline record, a frame's and the module's, showed as an int: "p = 1", "g = 3". */
+TEST(qride_shows_an_inline_record_by_its_fields)
+{
+    fx_open_program(S, "");
+    fx_write_file(
+        "main.bas",
+        DIALECT "type Pt\n    x as int\n    y as single\nend type\n"
+                "var g = Pt(3, 0.5)\n"
+                "fn f(n as int) as int\n    var p = Pt(n, 2.5)\n    return p.x\nend fn\n"
+                "print(f(1))\n"
+    );
+    uimn_open(S, fx_path_of("main.bas"));
+    edit_load(S, view_goline(S, fx_line_of(S, "    return p.x")));
+    udbg_bp(S);
+    captured(S, uimn_run);
+    dloc_read(S, 0);
+    CHECK(dloc_count() == 2 && !strcmp(dloc_row(1), "\x10p as Pt"));
+    CHECK(dloc_open(S, 1) && dloc_count() == 4);
+    CHECK(!strcmp(dloc_row(2), "   .x = 1") && !strcmp(dloc_row(3), "   .y = 2.5"));
+    dloc_read(S, 1);
+    CHECK(dloc_open(S, 0) && !strcmp(dloc_row(0), "\x1Fg as Pt"));
+    CHECK(!strcmp(dloc_row(1), "   .x = 3") && !strcmp(dloc_row(2), "   .y = .5"));
+    fx_done(S, files);
+}
+
 /* A watch on a Quickr fn's names read QBasic's MYX!, a new variable: "myX * 2 = 0". */
 TEST(qride_watches_names_as_typed)
 {

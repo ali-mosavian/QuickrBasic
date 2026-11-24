@@ -292,6 +292,8 @@ static void qlink_record(
     if (scope)
         v->id = qlink_symb(sy, p, name, QY_INT, scope);
 
+    /* an int's cells; the type is the debugger's (vm/inspect.c) */
+    symb_var(sy, v->id)->type = ET_REC + qast_ty(p, v->type)->td;
     v->words = qlink_word(sy, scope, k);
 
     for (uint32_t i = 1; i < qlink_nwords(p, v); i++)
@@ -330,7 +332,7 @@ static void qlink_vars(Comp *const C, const QProg *const p)
              (v->fn->inl || v->fn->native || qast_generic(v->fn) || (v->fn->test && !p->testing))))
             continue;
 
-        const QTok *const name = v->kind == QV_TEMP ? &hidden : v->name;
+        const QTok *const name = v->kind == QV_TEMP || v->kind == QV_RESULT ? &hidden : v->name;
 
         if (qlink_inline(p, v))
             qlink_record(sy, p, v, name, qlink_scope(v), &k);

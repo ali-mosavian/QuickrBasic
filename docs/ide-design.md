@@ -165,6 +165,7 @@ QBasic's otherwise, and a program is one or the other.
   toggled while stopped is set on the copies too (`qr_marks`). A run-time error puts the cursor at
   its line, an assert's message Quickr's.
 - Locals, Call stack and Watch spell names as typed, without suffixes; a fn's frame shows its name.
+  A record in cells opens to its fields as a box does; Quickr's hidden variables are not shown.
   A watch is evaluated as QBasic's, each name given its variable's suffix first.
 - A run goes through the modules in import order, each module's last line on to the next one's first
   (`qr/qlink.c`), so the store keeps the order the files were read in.
