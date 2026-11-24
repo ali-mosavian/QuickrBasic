@@ -104,6 +104,85 @@ Status insp_eval(Session *const S, const uint32_t f, const char *const expr, cha
 
 uint32_t insp_scope(const Session *const S, const uint32_t f) { return frame(S, f).proc; }
 
+enum { QR_EXPR = 256 }; /* a Quickr expression's QBasic text, 0-ended */
+
+static bool word_char(const char c)
+{
+    return c == '_' || (c >= '0' && c <= '9') || ((c | 0x20) >= 'a' && (c | 0x20) <= 'z');
+}
+
+/* The variable named name, len bytes, of scope, else of the module; 0 none. */
+static uint32_t var_named(
+    const Session *const S,
+    const uint32_t scope,
+    const char *const name,
+    const uint32_t len
+)
+{
+    const uint32_t id = symb_look_name(&S->symb, 0, (const uint8_t *)name, (uint8_t)len);
+    uint32_t module = 0;
+
+    for (uint32_t v = 1; id && v < S->symb.nvars; v++) {
+        if (symb_var(&S->symb, v)->name != id)
+            continue;
+
+        const uint32_t sc = symb_varx(&S->symb, v)->scope;
+
+        if (sc == scope)
+            return v;
+        if (!sc && !module)
+            module = v;
+    }
+
+    return module;
+}
+
+/* Quickr's expr as QBasic's at d: a variable's name its suffix added (Quickr's show none); a
+   number, a field's name after '.', a string kept. */
+static void qbasic_expr(
+    const Session *const S,
+    const uint32_t scope,
+    const char *const expr,
+    char *const d
+)
+{
+    const char *p = expr;
+    const uint32_t room = QR_EXPR - 2; /* a suffix and the 0 past it */
+    uint32_t n = 0;
+
+    while (*p && n < room) {
+        const char *const w = p;
+
+        if (*p == '"') {
+            d[n++] = *p++;
+
+            while (*p && n < room && (d[n++] = *p++) != '"')
+                ;
+
+            continue;
+        }
+
+        if (!word_char(*p)) {
+            d[n++] = *p++;
+            continue;
+        }
+
+        while (word_char(*p) && n < room)
+            d[n++] = *p++;
+
+        if ((*w >= '0' && *w <= '9') || (w > expr && w[-1] == '.'))
+            continue;
+
+        const uint32_t v = var_named(S, scope, w, (uint32_t)(p - w));
+        const uint32_t t = v ? symb_var(&S->symb, v)->type : ET_REC;
+
+        if (t <= ET_SD && sfx_of[t])
+            d[n++] = sfx_of[t];
+    }
+
+    d[n] = 0;
+}
+
 Status insp_eval_in(
     Session *const S,
     const uint32_t scope,
@@ -111,7 +190,12 @@ Status insp_eval_in(
     char out[static 80]
 )
 {
-    return session_eval(S, expr, scope, out);
+    if (!prog_quickr(&S->prog))
+        return session_eval(S, expr, scope, out);
+
+    char text[QR_EXPR];
+    qbasic_expr(S, scope, expr, text);
+    return session_eval(S, text, scope, out);
 }
 
 bool insp_settable(const Session *const S, const uint32_t f)

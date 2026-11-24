@@ -162,10 +162,7 @@ static bool spelling_fits(Session *const S, const uint32_t pre_len)
     return S->cons.sblen + pre_len <= LNMAX;
 }
 
-bool text_quickr(Session *const S)
-{
-    return S->prog.end > PROGBASE && prog_line(&S->prog, PROGBASE)->flags & LF_QR;
-}
+bool text_quickr(const Session *const S) { return prog_quickr(&S->prog); }
 
 bool text_marker(Session *const S, const uint32_t line)
 {
@@ -457,6 +454,7 @@ void text_toggle(Session *const S, const uint32_t line)
     const uint32_t rec = text_rec(S, line);
     Line *const ln = prog_line(&S->prog, rec);
     ln->flags ^= LF_BP;
+    qr_marks(&S->prog, rec);
     tell_mark(text_mark_nth(S, rec), ln->flags & LF_BP ? 1 : -1);
 }
 
@@ -493,6 +491,7 @@ void text_unmark(Session *const S, const uint32_t nth)
             continue;
 
         ln->flags &= ~LF_BP;
+        qr_marks(&S->prog, rec);
         tell_mark(nth, -1);
         return;
     }

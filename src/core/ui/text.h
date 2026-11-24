@@ -7,7 +7,7 @@
    text the view; uimn.text.changed. */
 void text_init(Session *S, bool quickr);
 /* The program is Quickr's: its lines its text (LF_QR). */
-bool text_quickr(Session *S);
+bool text_quickr(const Session *S);
 /* Text line line (the whole text's) a Quickr file's first, its dialect's: never changed. */
 bool text_marker(Session *S, uint32_t line);
 /* tx_whole: the whole text the view. */

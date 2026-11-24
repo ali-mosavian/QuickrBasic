@@ -34,6 +34,12 @@ static inline Line *prog_line(const Prog *const pg, const uint32_t line)
     return (Line *)at(pg->base + line);
 }
 
+/* The program is Quickr's: its first record's LF_QR. */
+static inline bool prog_quickr(const Prog *const pg)
+{
+    return pg->end > PROGBASE && prog_line(pg, PROGBASE)->flags & LF_QR;
+}
+
 /* Records move: dst, src offsets in the store. */
 void prog_copy(Prog *pg, uint32_t dst, uint32_t src, uint32_t len);
 /* The terminator at end. */

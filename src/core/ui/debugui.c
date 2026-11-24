@@ -26,6 +26,7 @@
  * - D1. The line comes as a parameter, not lp.dr_ln.
  */
 #include "ui/debugui.h"
+#include "qr/qr.h"
 #include "session.h"
 #include "comp/comp.h"
 #include "comp/lexer.h"
@@ -111,7 +112,7 @@ static void trace(Session *const S, const DebugPos *const at)
 /* DebugHooks.breaks: program line line's breakpoint stops, its Break When's condition met. */
 static bool breaks(Session *const S, const uint32_t line)
 {
-    return dwat_breaks(S, text_mark_nth(S, line));
+    return dwat_breaks(S, text_mark_nth(S, qr_origin(&S->prog, line)));
 }
 
 void udbg_init(Session *const S)

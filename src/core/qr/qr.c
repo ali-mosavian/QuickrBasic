@@ -539,10 +539,10 @@ static void qr_say(Session *const S, const QProg *const p, const QErr *const e)
    breakpoint stops the copy too. Its index. */
 static uint32_t qr_copy(Session *const S, QProg *const p, QMem *const m, uint32_t *cap, QLine ln)
 {
-    const uint8_t mark = ln.at ? prog_line(&S->prog, ln.at)->flags & LF_BP : 0;
-    S->prog.add_flags = LF_QR | LF_INC | mark;
+    const Line *const from = ln.at ? prog_line(&S->prog, ln.at) : nullptr;
+    S->prog.add_flags = LF_QR | LF_INC | (from ? from->flags & LF_BP : 0);
     S->prog.add_src = ln.src;
-    S->prog.add_file = ln.mod;
+    S->prog.add_file = from ? from->file : ln.mod; /* qr_origin finds its line by these */
     ln.at = prog_at(&S->prog);
     prog_add(&S->prog, NONUM, (const uint8_t *)ln.text, ln.len + 1);
     S->prog.add_flags = 0;
@@ -550,6 +550,38 @@ static uint32_t qr_copy(Session *const S, QProg *const p, QMem *const m, uint32_
     S->prog.add_file = 0;
     qr_addline(p, m, cap, ln);
     return p->src.nlines - 1;
+}
+
+uint32_t qr_origin(const Prog *const pg, const uint32_t rec)
+{
+    const Line *const copy = prog_line(pg, rec);
+
+    if ((copy->flags & (LF_QR | LF_INC)) != (LF_QR | LF_INC))
+        return rec;
+
+    for (uint32_t r = PROGBASE; prog_line(pg, r)->len; r += prog_line(pg, r)->len) {
+        const Line *const l = prog_line(pg, r);
+
+        if (!(l->flags & LF_INC) && l->file == copy->file && l->src == copy->src)
+            return r;
+    }
+
+    return rec;
+}
+
+void qr_marks(Prog *const pg, const uint32_t rec)
+{
+    const Line *const l = prog_line(pg, rec);
+
+    if (!(l->flags & LF_QR))
+        return;
+
+    for (uint32_t r = PROGBASE; prog_line(pg, r)->len; r += prog_line(pg, r)->len) {
+        Line *const copy = prog_line(pg, r);
+
+        if (copy->flags & LF_INC && copy->file == l->file && copy->src == l->src)
+            copy->flags = (uint8_t)((copy->flags & ~LF_BP) | (l->flags & LF_BP));
+    }
 }
 
 /* A line of the run's own for statement s, a copy of its token's, at the store's end. */

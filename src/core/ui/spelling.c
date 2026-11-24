@@ -13,6 +13,7 @@
 #include "comp/declare.h"
 #include "comp/dfa.h"
 #include "ui/linemap.h"
+#include "ui/text.h"
 #include "vm/inspect.h"
 #include "ui/view.h"
 
@@ -51,20 +52,66 @@ static Spelling *slot(const uint32_t key)
     return nullptr;
 }
 
-/* The name token at tok spells its name as a kind, unless an earlier one did. */
-static void seen(const uint8_t *const tok, const SpelKind kind)
+/* Name name spelled as text, len bytes, as a kind, unless an earlier one was. */
+static void spelled(
+    const uint32_t name,
+    const uint8_t *const text,
+    const uint8_t len,
+    const SpelKind kind
+)
 {
-    const uint32_t key = key_of(comp_nameof(tok), kind);
+    const uint32_t key = key_of(name, kind);
     Spelling *const e = slot(key);
-    const uint8_t len = (uint8_t)(tok[1] - !!comp_suffixof(tok));
 
     if (!e || e->key || sp.used + len > POOL)
         return;
 
     *e = (Spelling){.key = key, .len = len, .off = (uint16_t)sp.used};
 
-    memcpy(sp.pool + sp.used, tok + 2, len);
+    memcpy(sp.pool + sp.used, text, len);
     sp.used += len;
+}
+
+/* The name token at tok spells its name as a kind, unless an earlier one did. */
+static void seen(const uint8_t *const tok, const SpelKind kind)
+{
+    spelled(comp_nameof(tok), tok + 2, (uint8_t)(tok[1] - !!comp_suffixof(tok)), kind);
+}
+
+static bool word_char(const uint8_t c)
+{
+    return c == '_' || (c >= '0' && c <= '9') || ((c | 0x20) >= 'a' && (c | 0x20) <= 'z');
+}
+
+/* A Quickr line's names, text as typed: each a name's of the module, strings and a comment
+   skipped. */
+static void quickr_names(const Session *const S, const uint8_t *p)
+{
+    while (*p && *p != '\'') {
+        if (*p == '"') {
+            for (p++; *p && *p != '"'; p++)
+                ;
+
+            p += !!*p;
+            continue;
+        }
+
+        if (!word_char(*p) || (*p >= '0' && *p <= '9')) {
+            p++;
+            continue;
+        }
+
+        const uint8_t *const w = p;
+
+        while (word_char(*p))
+            p++;
+
+        const uint8_t len = (uint8_t)(p - w < UINT8_MAX ? p - w : UINT8_MAX);
+        const uint32_t name = symb_look_name(&S->symb, 0, w, len);
+
+        if (name)
+            spelled(name, w, len, SPEL_MODULE);
+    }
 }
 
 /* The line at p is a TYPE's field's: its name, its subscripts if any, then AS. */
@@ -93,6 +140,11 @@ static void view_names(Session *const S, const uint32_t v, const SpelKind kind)
     for (uint32_t line = w->first; line < w->first + w->n; line++) {
         const uint8_t *p = S->comp.cbuf;
         prog_body(&S->prog, lmap_off(S, line), S->comp.cbuf);
+
+        if (prog_line(&S->prog, lmap_off(S, line))->flags & LF_QR) {
+            quickr_names(S, p);
+            continue;
+        }
 
         if (field_line(p)) {
             seen(p, SPEL_FIELD);
@@ -136,7 +188,7 @@ char *spel_var(const Session *const S, char *d, const InspVar *const var)
 {
     d = spel_name(S, d, var->name, var->local ? SPEL_LOCAL : SPEL_MODULE);
 
-    if (var->sfx)
+    if (var->sfx && !text_quickr(S)) /* Quickr's types show no suffix */
         *d++ = var->sfx;
 
     return d;

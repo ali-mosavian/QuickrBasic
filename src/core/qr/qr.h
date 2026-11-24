@@ -1,7 +1,8 @@
-/* Quickr, the modern dialect (docs/language-design.md): running a .qr file. How it works: qr.c. */
+/* Quickr, the modern dialect (docs/language-design.md): running a Quickr file. How it works: qr.c. */
 #ifndef QR_QR_H
 #define QR_QR_H
 #include "base.h"
+#include "mem/program.h"
 
 /* A Quickr file's first line, its dialect's mark; any other file is QBasic's. */
 extern const char qr_dialect[];
@@ -47,6 +48,10 @@ void qr_go(Session *S);
 bool qr_syntax(Session *S, uint32_t rec, QrErr *e);
 /* Each stored Quickr line LF_ASIS when qr_syntax finds an error in it, else not. */
 void qr_flag(Session *S);
+/* The line a run's copy (LF_INC) was made from; else rec. */
+uint32_t qr_origin(const Prog *pg, uint32_t rec);
+/* The run's copies of the line at rec breakpoints as it is (LF_BP). */
+void qr_marks(Prog *pg, uint32_t rec);
 /* Is the line text, len bytes, a fn's first: its name's column and length (an operator's with its
    sign) to *at, *n. */
 bool qr_fn_at(const char *text, uint32_t len, uint32_t *at, uint32_t *n);

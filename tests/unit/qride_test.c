@@ -6,6 +6,9 @@
 #include "plat/host/host.h"
 #include "plat/pkey.h"
 #include "session.h"
+#include "ui/debuglocals.h"
+#include "ui/debugui.h"
+#include "ui/debugwatch.h"
 #include "ui/edit.h"
 #include "ui/errors.h"
 #include "ui/menu.h"
@@ -129,14 +132,14 @@ TEST(qride_checks_a_line_in_its_block)
     fx_done(S, files);
 }
 
-/* Run, its output in S->cons.sbuf. */
-static void run_captured(Session *const S)
+/* fn, a run's command, its output in S->cons.sbuf. */
+static void captured(Session *const S, void (*const fn)(Session *S))
 {
     S->cons.capture = CAP_SBUF;
     S->cons.sblen = 0;
     host_key_push(FX_ENTER);          /* the end's key, or a box's */
     headless_set_stdout_is_screen(1); /* the console's state left as the tests after want it */
-    uimn_run(S);
+    fn(S);
     headless_set_stdout_is_screen(0);
     pkey_flush();
     S->cons.capture = 0;
@@ -153,7 +156,7 @@ TEST(qride_runs_modules_first)
         "public fn twice(x as int) as int\n    return x * 2\nend fn\n"
     );
     uimn_open(S, fx_path_of("main.bas"));
-    run_captured(S);
+    captured(S, uimn_run);
     CHECK(strstr((const char *)S->cons.sbuf, "util") != nullptr);
     CHECK(
         S->cons.sblen > 0 &&
@@ -168,7 +171,7 @@ TEST(qride_run_stops_at_a_type_error)
     open_quickr(S);
     fx_retype(S, fx_line_of(S, "print(n)"), "let s as string = n");
     edit_load(S, view_goline(S, 0));
-    run_captured(S);
+    captured(S, uimn_run);
     CHECK(uimn.text.first + uimn.ed.line == fx_line_of(S, "let s as string = n"));
     CHECK(uimn.edline.col == 18);
     fx_done(S, files);
@@ -194,5 +197,126 @@ TEST(qride_new_asks_the_dialect)
     CHECK(!text_quickr(S));
     fx_shown(S);
     CHECK(strstr(fx_row(24), "QBasic") != nullptr);
+    fx_done(S, files);
+}
+
+/* The cursor's text line. */
+static uint32_t cursor_line(void) { return uimn.text.first + uimn.ed.line; }
+
+static const char generic[] = DIALECT "fn at[T](a as T[], i as int) as T\n"
+                                      "    return a[i]\n"
+                                      "end fn\n"
+                                      "var xs as int[]\n"
+                                      "xs.push(1)\n"
+                                      "print(at(xs, %d))\n"
+                                      "print(2)\n";
+
+static void open_generic(Session *const S, const int i)
+{
+    char text[sizeof generic + 8];
+    snprintf(text, sizeof text, generic, i);
+    fx_open_program(S, "");
+    fx_write_file("main.bas", text);
+    uimn_open(S, fx_path_of("main.bas"));
+}
+
+/* F9, F5, F8, Shift+F8, F10 in a Quickr program: stopped at each line; in a generic fn, at its
+   last line. */
+TEST(qride_steps_by_line)
+{
+    open_generic(S, 0);
+    edit_load(S, view_goline(S, fx_line_of(S, "xs.push(1)")));
+    udbg_bp(S);
+    captured(S, uimn_run);
+    CHECK(uimn.stopped && cursor_line() == fx_line_of(S, "xs.push(1)"));
+    captured(S, udbg_step);
+    CHECK(uimn.stopped && cursor_line() == fx_line_of(S, "print(at(xs, 0))"));
+    captured(S, udbg_step);
+    CHECK(uimn.stopped && cursor_line() == fx_line_of(S, "    return a[i]"));
+    captured(S, udbg_sout);
+    CHECK(uimn.stopped && cursor_line() == fx_line_of(S, "print(2)"));
+    captured(S, udbg_restart);
+    captured(S, uimn_cont);
+    captured(S, udbg_step);
+    captured(S, udbg_pstep);
+    CHECK(uimn.stopped && cursor_line() == fx_line_of(S, "print(2)"));
+    fx_done(S, files);
+}
+
+/* F9 at a generic fn's line while stopped: F5 ran past it. */
+TEST(qride_breaks_in_a_generic_set_while_stopped)
+{
+    open_generic(S, 0);
+    edit_load(S, view_goline(S, fx_line_of(S, "xs.push(1)")));
+    udbg_bp(S);
+    captured(S, uimn_run);
+    edit_load(S, view_goline(S, fx_line_of(S, "    return a[i]")));
+    udbg_bp(S);
+    captured(S, uimn_cont);
+    CHECK(uimn.stopped && cursor_line() == fx_line_of(S, "    return a[i]"));
+    fx_done(S, files);
+}
+
+/* Locals and Call stack spelled a Quickr fn's names QBasic's: "X& = 1", "module (X& = 1)". */
+TEST(qride_pane_spells_names_as_typed)
+{
+    fx_open_program(S, "");
+    fx_write_file(
+        "main.bas",
+        DIALECT "fn twice(myX as int) as int\n    let y = myX * 2\n    return y\nend fn\n"
+                "print(twice(1))\n"
+    );
+    uimn_open(S, fx_path_of("main.bas"));
+    edit_load(S, view_goline(S, fx_line_of(S, "    return y")));
+    udbg_bp(S);
+    captured(S, uimn_run);
+    dloc_read(S, 0);
+    CHECK(dloc_count() >= 2);
+    CHECK(!strcmp(dloc_row(0), "myX = 1"));
+    CHECK(!strcmp(dloc_row(1), "y = 2"));
+    dstk_read(S);
+    CHECK(!strncmp(dstk_row(0), "twice (myX = 1)", 15));
+    fx_done(S, files);
+}
+
+/* A watch on a Quickr fn's names read QBasic's MYX!, a new variable: "myX * 2 = 0". */
+TEST(qride_watches_names_as_typed)
+{
+    fx_open_program(S, "");
+    fx_write_file(
+        "main.bas",
+        DIALECT "fn twice(myX as int) as int\n    let y = myX * 2\n    return y\nend fn\n"
+                "print(twice(3))\n"
+    );
+    uimn_open(S, fx_path_of("main.bas"));
+    edit_load(S, view_goline(S, fx_line_of(S, "    return y")));
+    udbg_bp(S);
+    captured(S, uimn_run);
+    CHECK(dwat_add((const uint8_t *)"myX * 2 + y", 11));
+    dwat_eval(S);
+    CHECK(!strcmp(dwat_row(0), "myX * 2 + y = 12"));
+    dwat_del(S, 0);
+    fx_done(S, files);
+}
+
+/* A run-time error in a generic fn: the cursor at the program's last line. */
+TEST(qride_runtime_error_at_its_line)
+{
+    open_generic(S, 5);
+    captured(S, uimn_run);
+    CHECK(cursor_line() == fx_line_of(S, "    return a[i]"));
+    CHECK(!strcmp(uimn.errmsg, "Subscript out of range"));
+    fx_done(S, files);
+}
+
+/* A false assert said QBasic's message for its error code, not "assert failed". */
+TEST(qride_assert_says_so)
+{
+    fx_open_program(S, "");
+    fx_write_file("main.bas", DIALECT "let a = 1\nassert a = 2\n");
+    uimn_open(S, fx_path_of("main.bas"));
+    captured(S, uimn_run);
+    CHECK(cursor_line() == fx_line_of(S, "assert a = 2"));
+    CHECK(!strcmp(uimn.errmsg, "assert failed"));
     fx_done(S, files);
 }

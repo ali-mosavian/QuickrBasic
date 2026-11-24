@@ -160,6 +160,12 @@ QBasic's otherwise, and a program is one or the other.
   error is lit as a QBasic one is (`LF_ASIS`).
 - F5 checks the whole program first (types, borrows): the first error puts the cursor at its line and
   column, its message in a box.
+- Run, Break, the steps and breakpoints work by line. A generic fn's instance runs on copies of its
+  lines (`LF_INC`), each mapped back to its line by file and source line (`qr_origin`); a breakpoint
+  toggled while stopped is set on the copies too (`qr_marks`). A run-time error puts the cursor at
+  its line, an assert's message Quickr's.
+- Locals, Call stack and Watch spell names as typed, without suffixes; a fn's frame shows its name.
+  A watch is evaluated as QBasic's, each name given its variable's suffix first.
 - A run goes through the modules in import order, each module's last line on to the next one's first
   (`qr/qlink.c`), so the store keeps the order the files were read in.
 

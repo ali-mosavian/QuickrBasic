@@ -20,6 +20,7 @@
  */
 #include "ui/linemap.h"
 #include "session.h"
+#include "qr/qr.h"
 #include "io/repl.h"
 #include "mem/alloc.h"
 #include "mem/program.h"
@@ -61,9 +62,10 @@ uint32_t lmap_off(Session *const S, const uint32_t line)
     return line < uimn.text.all ? map(S)[line] : S->prog.end;
 }
 
-bool lmap_of(Session *const S, const uint32_t rec, uint32_t *const line)
+bool lmap_of(Session *const S, const uint32_t of, uint32_t *const line)
 {
     const uint32_t *const m = map(S);
+    const uint32_t rec = qr_origin(&S->prog, of);
     uint32_t lo = 0, hi = uimn.text.all; /* [lo, hi): the last <= rec in it */
     if (!hi || rec < m[0])
         return false;
