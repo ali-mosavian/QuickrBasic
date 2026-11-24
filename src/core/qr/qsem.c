@@ -6567,7 +6567,7 @@ static bool qsem_isdata(const QSem *const S, const QType t)
     return qast_compound(t) && qast_ty(S->prog, t)->kind == QT_ENUM && qast_ty(S->prog, t)->data;
 }
 
-/* match e: a number, a string, a bool or an enum's; a variable's read where it is, else held in
+/* select case e: a number, a string, a bool or an enum's; a variable's read where it is, else held in
    s->temp; an enum with data's tag held, its data read at its place. */
 static void qsem_match(QSem *const S, QStmt *const s)
 {
@@ -6595,7 +6595,7 @@ static void qsem_match(QSem *const S, QStmt *const s)
         qsem_say(
             S,
             v->tok,
-            "match takes a number, a string, a bool or an enum, not ",
+            "select case takes a number, a string, a bool or an enum, not ",
             qsem_aname(S, t),
             nullptr
         );
@@ -6673,7 +6673,22 @@ static void qsem_varpat(QSem *const S, const QOpenMatch *const m, QPat *const pt
         qsem_say(S, a->tok, qsem_text(S, a->tok), " has more data: name each", nullptr);
 }
 
-/* A case's pattern for match m: a value of its type, a to b, is op v. */
+/* A case's value e of plain enum t's: one of its values by its name alone, else e checked. */
+static QExpr *qsem_bare(QSem *const S, QExpr *const e, const QType t)
+{
+    if (!qast_tag(S->prog, t) || e->kind != QE_NAME)
+        return qsem_expr(S, e, t);
+
+    const QTy *const y = qast_ty(S->prog, t);
+
+    for (uint32_t k = 0; k < y->nvars; k++)
+        if (qsem_same(y->vars[k].name, e->tok))
+            return qsem_variant(S, e, t, false);
+
+    return qsem_expr(S, e, t);
+}
+
+/* A case's pattern for select m: a value of its type, a to b, is op v. */
 static void qsem_pat(QSem *const S, QOpenMatch *const m, QPat *const pt, const bool alone)
 {
     const QType t = m->s->ty;
@@ -6686,10 +6701,10 @@ static void qsem_pat(QSem *const S, QOpenMatch *const m, QPat *const pt, const b
         return;
     }
 
-    pt->a = qsem_coerce(S, qsem_expr(S, pt->a, t), t);
+    pt->a = qsem_coerce(S, qsem_bare(S, pt->a, t), t);
 
     if (pt->b)
-        pt->b = qsem_coerce(S, qsem_expr(S, pt->b, t), t);
+        pt->b = qsem_coerce(S, qsem_bare(S, pt->b, t), t);
 
     const bool ordered = qast_numeric(t) || t == QY_STRING;
 
@@ -6718,7 +6733,7 @@ static void qsem_case(QSem *const S, QStmt *const s)
         qsem_pat(S, m, pt, pt == s->pats && !pt->next);
 }
 
-/* end match: each value has its case, or there is a case else. */
+/* end select: each value has its case, or there is a case else. */
 static void qsem_endmatch(QSem *const S, const QStmt *const s)
 {
     qsem_pop(S);
@@ -6749,13 +6764,13 @@ static void qsem_endmatch(QSem *const S, const QStmt *const s)
         qsem_say(
             S,
             s->tok,
-            "the match misses ",
+            "the select misses ",
             what,
             ": give it a case, or add case else",
             nullptr
         );
     else
-        qsem_say(S, s->tok, "the match misses values: add case else", nullptr);
+        qsem_say(S, s->tok, "the select misses values: add case else", nullptr);
 }
 
 /* A statement a one-line if may take, or any not of a block. */
@@ -6800,7 +6815,7 @@ static bool qsem_returns(const QStmt *const last)
     if (last->kind == QS_ENDDO)
         return !last->e && !last->link->broken;
 
-    if (last->kind == QS_ENDMATCH) {
+    if (last->kind == QS_ENDSELECT) {
         for (const QStmt *c = last->link->link; c != last; c = c->link)
             if (!qsem_returns(c->link->prev))
                 return false;
@@ -6943,7 +6958,7 @@ static void qsem_stmt(QSem *const S, QStmt *const s)
         qsem_for(S, s);
         return;
 
-    case QS_MATCH:
+    case QS_SELECT:
         qsem_match(S, s);
         return;
 
@@ -6951,7 +6966,7 @@ static void qsem_stmt(QSem *const S, QStmt *const s)
         qsem_case(S, s);
         return;
 
-    case QS_ENDMATCH:
+    case QS_ENDSELECT:
         qsem_endmatch(S, s);
         return;
 
@@ -7025,9 +7040,9 @@ static void qsem_consts(QSem *const S, const QMod *const m)
             continue;
 
         const bool opens = (s->kind == QS_IF && !s->oneline) || s->kind == QS_WHILE ||
-                           s->kind == QS_DO || s->kind == QS_FOR || s->kind == QS_MATCH;
+                           s->kind == QS_DO || s->kind == QS_FOR || s->kind == QS_SELECT;
         const bool closes = s->kind == QS_ENDIF || s->kind == QS_ENDWHILE || s->kind == QS_ENDDO ||
-                            s->kind == QS_ENDFOR || s->kind == QS_ENDMATCH;
+                            s->kind == QS_ENDFOR || s->kind == QS_ENDSELECT;
 
         depth += opens;
         depth -= closes && depth;

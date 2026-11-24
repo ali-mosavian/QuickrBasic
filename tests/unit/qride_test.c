@@ -455,14 +455,14 @@ static const uint8_t *slots(Session *const S, const char *const text)
     return cols;
 }
 
-/* A Quickr line coloured by QBasic's lexer: function's name a variable's, match a name, '{' a string's. */
+/* A Quickr line coloured by QBasic's lexer: function's name a variable's, yield a name, '{' a string's. */
 TEST(qride_colours_by_quickrs_lexer)
 {
     open_quickr(S);
     const uint8_t *c = slots(S, "function twice(x as int) as int ' doubled");
     CHECK(c[0] == SL_KW && c[9] == SL_FNM && c[15] == SL_PAR && c[20] == SL_TYP);
     CHECK(c[28] == SL_TYP && c[32] == SL_COM && c[40] == SL_COM);
-    c = slots(S, "match n");
+    c = slots(S, "yield n");
     CHECK(c[0] == SL_KW && c[6] == SL_NAM);
     c = slots(S, "let s = f\"{n} it's\" + 'x'");
     CHECK(c[0] == SL_KW && c[8] == SL_STR && c[11] == SL_NAM && c[15] == SL_STR && c[21] == SL_OP);

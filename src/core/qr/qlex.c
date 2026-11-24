@@ -50,7 +50,7 @@ static const char *const qlex_words[] = {
     [QK_FALSE - QK_AND] = "false",   [QK_FN - QK_AND] = "fn",
     [QK_FOR - QK_AND] = "for",       [QK_IF - QK_AND] = "if",
     [QK_IN - QK_AND] = "in",         [QK_IS - QK_AND] = "is",
-    [QK_LET - QK_AND] = "let",       [QK_MATCH - QK_AND] = "match",
+    [QK_LET - QK_AND] = "let",       [QK_SELECT - QK_AND] = "select",
     [QK_MOD - QK_AND] = "mod",       [QK_MUT - QK_AND] = "mut",
     [QK_NONE - QK_AND] = "none",     [QK_NOT - QK_AND] = "not",
     [QK_OR - QK_AND] = "or",         [QK_RETURN - QK_AND] = "return",
@@ -143,6 +143,8 @@ static void qlex_name(QLex *const L, const uint32_t from)
 
     if (kind == QK_NEXT && s->ntoks && s->toks[s->ntoks - 1].kind != QK_NL)
         kind = QK_NAME;
+    if (n == 5 && !memcmp(w, "match", 5))
+        kind = QK_MATCH;
 
     qlex_tok(L, kind, from);
 }

@@ -49,7 +49,7 @@ end enum
 
 ' a key's code as next() gives it: a character's, 256 + an extended key's scan code
 public function code(k as Key) as int
-    match k
+    select case k
         case Key.escape
             return 27
         case Key.enter
@@ -70,7 +70,7 @@ public function code(k as Key) as int
             return 256 + 77
         case else
             return 97 + int(k) - int(Key.a)
-    end match
+    end select
 end function
 
 var waiting as int[]

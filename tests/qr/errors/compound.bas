@@ -35,17 +35,17 @@ var bag as Bag
 var bag2 = bag
 print(bag.items[0])
 var bag3 = bag.items
-match Mode.walk
+select case Mode.walk
     case Mode.walk
         print(1)
-end match
+end select
 function f(m as Mode) as int
-    match m
+    select case m
         case Mode.walk
             return 1
         case Mode.jump
             return 2
-    end match
+    end select
 end function
 var n as int[4]
 n.push(1)

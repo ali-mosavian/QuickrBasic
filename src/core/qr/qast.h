@@ -55,7 +55,6 @@ typedef enum : uint8_t {
     QK_IN,
     QK_IS,
     QK_LET,
-    QK_MATCH,
     QK_MOD,
     QK_MUT,
     QK_NONE,
@@ -85,7 +84,9 @@ typedef enum : uint8_t {
     QK_WEND,
     QK_LOOP,
     QK_UNTIL,
+    QK_SELECT,
     QK_FUNCTION,
+    QK_MATCH, /* not a keyword: an error naming select case */
     /* punctuation */
     QK_LPAREN,
     QK_RPAREN,
@@ -638,9 +639,9 @@ typedef enum : uint8_t {
     QS_ENUM,
     QS_VARIANT, /* an enum's value: decls its data */
     QS_ENDENUM,
-    QS_MATCH, /* match e: its cases' lines follow, each linked to the next */
+    QS_SELECT, /* select case e: its cases' lines follow, each linked to the next */
     QS_CASE,  /* pats, or case else (none) */
-    QS_ENDMATCH,
+    QS_ENDSELECT,
     QS_YIELD,    /* e; link: the statement on its line (itself, or its one-line if) */
     QS_IMPORT,   /* import a.b [as n], ..: imps */
     QS_FROM,     /* from a.b import X [as Y], ..: imps the module, names what it gives */
@@ -700,16 +701,16 @@ struct QStmt {
     QVar *var; /* QS_FOR: its counter, its limit and its step; over a list: its element */
     QVar *lim, *stp;
     QVar *index; /* QS_FOR over a list: its index (i in for i, x in a), else the compiler's */
-    QVar *temp;  /* QS_MATCH: its value's; QS_ASSIGN of a tuple: each value's in temps */
+    QVar *temp;  /* QS_SELECT: its value's; QS_ASSIGN of a tuple: each value's in temps */
     QVar **temps;
     int32_t by;         /* QS_FOR: its step when constant, else 0; QS_YIELD: its number */
     bool each;          /* QS_FOR over a list or an array, e */
     bool mut;           /* for mut x in a */
     bool inclusive;     /* QS_FOR: for i = a to b, b counted */
     QPat *pats;         /* QS_CASE's; none: case else; its match its body */
-    QType ty;           /* QS_TYPE, QS_ENUM: its type; QS_MATCH: its value's */
-    QExpr *place;       /* QS_MATCH of an enum with data: its value's place, its data read there */
-    bool full;          /* QS_MATCH: every value has its case */
+    QType ty;           /* QS_TYPE, QS_ENUM: its type; QS_SELECT: its value's */
+    QExpr *place;       /* QS_SELECT of an enum with data: its value's place, its data read there */
+    bool full;          /* QS_SELECT: every value has its case */
     bool pub;           /* public: a module's fn, type, enum, const, var or let */
     QImport *imps;      /* QS_IMPORT's modules; QS_FROM's module */
     QImport *names;     /* QS_FROM's */

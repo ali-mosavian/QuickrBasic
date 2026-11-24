@@ -617,14 +617,14 @@ static int32_t qlink_depth(const QStmt *const s)
     case QS_WHILE:
     case QS_FOR:
     case QS_DO:
-    case QS_MATCH:
+    case QS_SELECT:
         return 1;
 
     case QS_ENDIF:
     case QS_ENDWHILE:
     case QS_ENDFOR:
     case QS_ENDDO:
-    case QS_ENDMATCH:
+    case QS_ENDSELECT:
         return -1;
 
     default:

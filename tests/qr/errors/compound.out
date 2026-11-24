@@ -40,8 +40,8 @@ compound.bas:35:12: bag is used after it moves here: write copy(bag)
 compound.bas:37:16: only a whole let or var moves: write copy(..)
   var bag3 = bag.items
                  ^
-compound.bas:41:1: the match misses jump: give it a case, or add case else
-  end match
+compound.bas:41:1: the select misses jump: give it a case, or add case else
+  end select
   ^
 compound.bas:51:3: an array's size is fixed
   n.push(1)

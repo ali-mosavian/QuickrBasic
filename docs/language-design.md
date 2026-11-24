@@ -292,6 +292,8 @@ let sign = 1 if x >= 0 else -1
   - `is` and a comparison: `case is > 7`;
   - an enum's value, with or without its enum's name: `case walk`, `case Mode.walk`;
   - an enum's value with names for its data: `case circle(r)`.
+- A bare name in a case of a plain enum is its value when the enum has one of that name.
+  `match` is an error naming `select case`.
 - The first case that fits runs, and no other. A `select case` must cover every value or have
   `case else`: an enum's values, a bool's two; any other type needs `case else`.
 - `a..b` is a range: from `a` up to, not including, `b`. It is a loop's, a slice's (`s[1..3]`,
@@ -300,9 +302,8 @@ let sign = 1 if x >= 0 else -1
 - A slice is a new value: a string's a new string, a list's a new list of copies. Its ends are
   clamped to the elements, so `s[..100]` of a shorter `s` is all of it. `s[i]` past the end is a
   runtime error, Subscript out of range.
-- **Not yet:** a `for` stepping past an `int`'s last value stops with Overflow. `select case …
-  end select` is `match … end match`, and a plain enum's case needs its enum's name. A one-line
-  `if` has no `else`, and `else if` is rejected.
+- **Not yet:** a `for` stepping past an `int`'s last value stops with Overflow. A one-line `if`
+  has no `else`, and `else if` is rejected.
 
 ### Records
 

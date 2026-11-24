@@ -9,7 +9,7 @@
  *
  * Statements form one flat list in source order. A stack of the open blocks links each clause to
  * the next (if, elseif, else, end if), each loop to its end and back, each break and continue to
- * its loop, each case to the next (and to its match, by body). A block's opener is linked before
+ * its loop, each case to the next (and to its select, by body). A block's opener is linked before
  * its condition is parsed, so a bad condition still pairs with its end. In a type or an enum each
  * line is a field or a value.
  *
@@ -974,7 +974,7 @@ static void qpar_if(QPar *const P)
 
     if (k == QK_LET || k == QK_VAR || k == QK_CONST || k == QK_IF || k == QK_WHILE || k == QK_FOR ||
         k == QK_DO || k == QK_NEXT || k == QK_WEND || k == QK_LOOP || k == QK_FUNCTION ||
-        k == QK_TYPE || k == QK_ENUM || k == QK_MATCH || k == QK_CASE)
+        k == QK_TYPE || k == QK_ENUM || k == QK_SELECT || k == QK_CASE)
         qpar_fail(P, P->t, "a one-line if takes one simple statement, not {}");
 
     s->body = qpar_simple(P);
@@ -1154,7 +1154,8 @@ static const struct {
     {QK_TEST, QS_FN, QS_ENDFN},
     {QK_TYPE, QS_TYPE, QS_ENDTYPE},
     {QK_ENUM, QS_ENUM, QS_ENDENUM},
-    {QK_MATCH, QS_MATCH, QS_ENDMATCH},
+    {QK_SELECT, QS_SELECT, QS_ENDSELECT},
+    {QK_MATCH, QS_SELECT, QS_ENDSELECT}, /* said, and closed as end select */
 };
 
 /* What closes a loop, and its end as other languages write it. */
@@ -1215,13 +1216,15 @@ static void qpar_end(QPar *const P)
     while (k < countof(qpar_ends) && !qpar_is(P, qpar_ends[k].word))
         k++;
     if (k == countof(qpar_ends))
-        qpar_expected(P, "if, function, fn, test, type, enum or match after end");
+        qpar_expected(P, "if, function, fn, test, type, enum or select after end");
 
     const QTok *const word = qpar_next(P);
     QOpen *const o = qpar_top(P);
 
-    if (o && o->open->kind == QS_MATCH && o->clause == o->open)
-        qpar_unpaired(P, t, "a match needs a case");
+    if (word->kind == QK_MATCH)
+        qast_error(&P->prog->errs, t, "end match is written end select", nullptr, 0);
+    if (o && o->open->kind == QS_SELECT && o->clause == o->open)
+        qpar_unpaired(P, t, "a select needs a case");
 
     const bool named = o && o->open->kind == QS_FN && !o->open->fn->test && !o->open->fn->lamof;
 
@@ -1241,7 +1244,8 @@ static void qpar_end(QPar *const P)
     else if (named && word->kind != QK_FN)
         want = QK_FUNCTION;
 
-    if (!o || o->open->kind != qpar_ends[k].open || word->kind != want) {
+    if (!o || o->open->kind != qpar_ends[k].open ||
+        (word->kind != want && word->kind != QK_MATCH)) {
         char msg[32];
         memcpy(msg, "end {} without ", 15);
         const uint32_t n = word->len;
@@ -1272,19 +1276,25 @@ static void qpar_end(QPar *const P)
     P->nopen--;
 }
 
-/* type Name, enum Name, match e: a block whose lines are its own. */
+/* type Name, enum Name, select case e: a block whose lines are its own. match e is said, and
+   parsed as a select. */
 static void qpar_block(QPar *const P, const QStmtKind kind)
 {
     QStmt *const s = qpar_new(P, kind, qpar_next(P));
     qpar_append(P, s);
     qpar_push(P, s);
 
-    if (kind == QS_MATCH)
+    if (s->tok->kind == QK_MATCH)
+        qast_error(&P->prog->errs, s->tok, "match is written select case", nullptr, 0);
+    else if (kind == QS_SELECT)
+        qpar_need(P, QK_CASE, "case");
+
+    if (kind == QS_SELECT)
         s->e = qpar_expr(P);
     else
         s->decls = qpar_decls(P); /* its name alone */
 
-    if (kind != QS_MATCH && (s->decls->type || s->decls->value || s->decls->next))
+    if (kind != QS_SELECT && (s->decls->type || s->decls->value || s->decls->next))
         qpar_fail(P, s->tok, "{} takes a name alone");
     if (kind == QS_TYPE && P->nopen > 1)
         qpar_unpaired(P, s->tok, "a type goes at the top level, not in a block");
@@ -1342,14 +1352,14 @@ static QPat *qpar_pat(QPar *const P)
     return pt;
 }
 
-/* case pattern, ..; case else: the match's next clause. */
+/* case pattern, ..; case else: the select's next clause. */
 static void qpar_case(QPar *const P)
 {
     QStmt *const s = qpar_new(P, QS_CASE, qpar_next(P));
     QOpen *const o = qpar_top(P);
 
-    if (!o || o->open->kind != QS_MATCH)
-        qpar_unpaired(P, s->tok, "case outside a match");
+    if (!o || o->open->kind != QS_SELECT)
+        qpar_unpaired(P, s->tok, "case outside a select");
     if (o->clause->kind == QS_CASE && !o->clause->pats)
         qpar_unpaired(P, s->tok, "case after case else");
 
@@ -1385,8 +1395,8 @@ static void qpar_statement(QPar *const P)
             return;
         }
 
-        if (o->open->kind == QS_MATCH && o->clause == o->open && t->kind != QK_CASE)
-            qpar_unpaired(P, t, "a match's first line is a case");
+        if (o->open->kind == QS_SELECT && o->clause == o->open && t->kind != QK_CASE)
+            qpar_unpaired(P, t, "a select's first line is a case");
     }
 
     switch (t->kind) {
@@ -1398,8 +1408,9 @@ static void qpar_statement(QPar *const P)
         qpar_block(P, QS_ENUM);
         return;
 
+    case QK_SELECT:
     case QK_MATCH:
-        qpar_block(P, QS_MATCH);
+        qpar_block(P, QS_SELECT);
         return;
 
     case QK_CASE:
@@ -1617,7 +1628,7 @@ static void qpar_unclosed(QPar *const P)
         [QS_FN] = "function without end function",
         [QS_TYPE] = "type without end type",
         [QS_ENUM] = "enum without end enum",
-        [QS_MATCH] = "match without end match",
+        [QS_SELECT] = "select without end select",
     };
 
     for (uint32_t i = 0; !P->prog->loose && i < P->nopen; i++) {

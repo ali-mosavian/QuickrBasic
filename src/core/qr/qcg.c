@@ -23,8 +23,8 @@
  * offset, a nested one's offsets added at compile time. A list is a dynamic array: an element
  * I.LD.A1 and its kin, a record's RA.ADDR, a field's list's FE.ADDR, a fixed array field's
  * FX.IDX; its methods and an f-string's specs are CALL QX (qr/qrt.c). A record or list result is
- * written through a last parameter, the caller's place. A match is SELECT CASE: its value held,
- * each case's line its tests, past the case before's JMP to end match.
+ * written through a last parameter, the caller's place. A select case is QBasic's: its value held,
+ * each case's line its tests, past the case before's JMP to end select.
  *
  * # Example
  *    while i < n          I.LD.V i, I.JFC.V n < (wend's line, BOFF)
@@ -3177,7 +3177,7 @@ static void qcg_zero(QCg *const g, const QType t)
 /* A clause's target from the one before it: past an elseif's or else's JMP, or the end if. */
 static void qcg_clause(QCg *const g, const uint8_t op, const QStmt *const next)
 {
-    const JumpMode mode = next->kind == QS_ENDIF || next->kind == QS_ENDMATCH ? TO_STMT : PAST_JMP;
+    const JumpMode mode = next->kind == QS_ENDIF || next->kind == QS_ENDSELECT ? TO_STMT : PAST_JMP;
     qcg_to(g, op, next, 0, mode);
 }
 
@@ -3561,7 +3561,7 @@ static bool qcg_stops(const QStmt *const s)
     case QS_IF:
     case QS_WHILE:
     case QS_FOR:
-    case QS_MATCH:
+    case QS_SELECT:
     case QS_CASE:
     case QS_ENDFOR:
     case QS_BREAK:
@@ -3587,7 +3587,7 @@ static void qcg_subject(QCg *const g, const QStmt *const m)
         qcg_expr(g, m->e);
 }
 
-/* match e: its value held, then to its first case's tests, past that line's JMP. */
+/* select case e: its value held, then to its first case's tests, past that line's JMP. */
 static void qcg_match(QCg *const g, const QStmt *const s)
 {
     if (s->place) {
@@ -3635,13 +3635,13 @@ static void qcg_pattern(QCg *const g, const QStmt *const m, const QPat *const pt
         code_op(c, O_I_AND);
 }
 
-/* case: the case before it done, to end match; then its patterns, any of them, else to the
+/* case: the case before it done, to end select; then its patterns, any of them, else to the
    next case. */
 static void qcg_case(QCg *const g, const QStmt *const s)
 {
     const QStmt *end = s;
 
-    while (end->kind != QS_ENDMATCH)
+    while (end->kind != QS_ENDSELECT)
         end = end->link;
 
     qcg_to(g, O_JMP, end, BOFF, TO_STMT);
@@ -3806,7 +3806,7 @@ static void qcg_body(QCg *const g, const QStmt *const s)
         return;
 
 
-    case QS_MATCH:
+    case QS_SELECT:
         qcg_match(g, s);
         return;
 
