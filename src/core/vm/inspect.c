@@ -317,8 +317,16 @@ char *insp_text(const Session *const S, const InspValue *const v, char *d, const
         n = dubl_fmt((int16_t)rd16(v->at), buf);
         break;
 
+    case ET_US:
+        n = dubl_fmt(rd16(v->at), buf);
+        break;
+
     case ET_BY:
         n = dubl_fmt(rd8(v->at), buf);
+        break;
+
+    case ET_SB:
+        n = dubl_fmt((int8_t)rd8(v->at), buf);
         break;
 
     default:

@@ -36,8 +36,8 @@ typedef struct {
     const QOwners *own; /* the statement's frame's */
 } QCg;
 
-/* Scalar type t's ET_* in a record or a list: a byte's ET_SH, as a short's; a ushort's, a
-   uint's ET_I4; a long's, a ulong's ET_R8. */
+/* Scalar type t's ET_* in a record or a list: its own size's for a byte .. a ushort; a uint's
+   ET_I4; a long's, a ulong's ET_R8. */
 uint32_t qcg_scalar_et(QType t);
 /* Statement s's code to g->c, fused, its labels in g->labels: a checked statement (qr/qsem.h),
    its variables and procedures linked. */

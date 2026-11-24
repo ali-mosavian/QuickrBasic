@@ -89,7 +89,7 @@ typedef struct {
 } Decl;
 
 extern const uint8_t decl_astype[5]; /* g_dast: AS INTEGER .. AS STRING to ET_* */
-extern const uint8_t decl_etsize[8]; /* g_etsz: a field's bytes by ET_* */
+extern const uint8_t decl_etsize[10]; /* g_etsz: a field's bytes by ET_* */
 
 /* Ours, FFh n: AS n's ET_* (SHORT, BYTE), DEFn's (DEFSHORT, DEFBYTE); 0 none. */
 uint8_t decl_xastype(uint8_t tk1);

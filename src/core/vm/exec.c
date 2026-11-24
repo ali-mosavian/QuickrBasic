@@ -246,6 +246,50 @@ static inline bool ra_addr1(Regs *const r, const Arry *const ar)
     return true;
 }
 
+/* A narrow number's value at a: a record's field, an array's element, by its ET_*. */
+static inline int32_t narrow_ld(const Addr a, const uint8_t type)
+{
+    switch (type) {
+    case ET_SH:
+        return (int16_t)rd16(a);
+
+    case ET_US:
+        return rd16(a);
+
+    case ET_SB:
+        return (int8_t)rd8(a);
+
+    default:
+        return rd8(a);
+    }
+}
+
+/* Does x fit narrow type's range? */
+static inline bool narrow_fits(const uint8_t type, const Cell x)
+{
+    switch (type) {
+    case ET_SH:
+        return x.i == (int16_t)x.i;
+
+    case ET_US:
+        return x.u <= UINT16_MAX;
+
+    case ET_SB:
+        return x.i == (int8_t)x.i;
+
+    default:
+        return x.u <= UINT8_MAX;
+    }
+}
+
+static inline void narrow_wr(const Addr a, const uint8_t type, const Cell x)
+{
+    if (type == ET_SH || type == ET_US)
+        wr16(a, (uint16_t)x.u);
+    else
+        wr8(a, (uint8_t)x.u);
+}
+
 /* FL.LD ( a -- x ) and FL.ST ( a x -- ) of a field not a DOUBLE, a store in range; false: the
    handler's. */
 static inline bool fl_ld(Regs *const r)
@@ -256,9 +300,7 @@ static inline bool fl_ld(Regs *const r)
     if (type == ET_R8)
         return false;
 
-    r->sp->i = type == ET_SH   ? (int16_t)rd16(a)
-               : type == ET_BY ? (int32_t)rd8(a)
-                               : (int32_t)rd32(a);
+    r->sp->i = type < ET_SH ? (int32_t)rd32(a) : narrow_ld(a, type);
     r->ip += 4;
     return true;
 }
@@ -269,12 +311,13 @@ static inline bool fl_st(Regs *const r)
     const Cell x = *r->sp;
     const Addr a = r->sp[1].a + load16(r->ip + 1);
 
-    if (type == ET_SH && x.i == (int16_t)x.i)
-        wr16(a, (uint16_t)x.u);
-    else if (type == ET_BY && x.u <= 255)
-        wr8(a, (uint8_t)x.u);
-    else if (type != ET_SH && type != ET_BY && type != ET_R8)
+    if (type < ET_SH) {
+        if (type == ET_R8)
+            return false;
+
         wr32(a, x.u);
+    } else if (narrow_fits(type, x))
+        narrow_wr(a, type, x);
     else
         return false;
 
@@ -1235,35 +1278,22 @@ void exec_r_clear(Session *const S)
 
 static Cell cell_at(const Addr a) { return load_cell(at(a)); }
 
-/* A SHORT's or a BYTE's value at a: a record's field, an array's element. */
-static int32_t narrow_ld(const Addr a, const uint8_t type)
-{
-    return type == ET_SH ? (int16_t)rd16(a) : rd8(a);
-}
-
-/* x to a SHORT's or a BYTE's bytes at a. Overflow: a SHORT's past 16 bits, a BYTE's past 0 .. 255. */
+/* x to a narrow number's bytes at a. Overflow: x past its range. */
 static void narrow_st(Session *const S, const Addr a, const uint8_t type, const Cell x)
 {
-    if (type == ET_SH) {
-        if (x.i != (int16_t)x.i)
-            repl_error(S, E_OV);
+    if (!narrow_fits(type, x))
+        repl_error(S, E_OV);
 
-        wr16(a, (uint16_t)x.u);
-    } else {
-        if (x.u > 255)
-            repl_error(S, E_OV);
-
-        wr8(a, (uint8_t)x.u);
-    }
+    narrow_wr(a, type, x);
 }
 
-/* A record's number field: a SHORT, a BYTE, a DOUBLE, else 4 bytes. */
+/* A record's number field: a narrow one, a DOUBLE, else 4 bytes. */
 void exec_fl_ld(Session *const S)
 {
     const Addr a = exec_popa(&S->vm) + exec_u16(&S->vm);
     const uint8_t type = exec_u8(&S->vm);
 
-    if (type == ET_SH || type == ET_BY)
+    if (et_narrow(type))
         exec_pushi(&S->vm, narrow_ld(a, type));
     else if (type == ET_R8)
         exec_push(&S->vm, cell_at(a));
@@ -1271,7 +1301,7 @@ void exec_fl_ld(Session *const S)
         exec_pusha(&S->vm, rd32(a));
 }
 
-/* Overflow: a SHORT's past 16 bits, a BYTE's past 0 .. 255. */
+/* Overflow: a narrow field's past its range. */
 void exec_fl_st(Session *const S)
 {
     const uint16_t off = exec_u16(&S->vm);
@@ -1281,13 +1311,13 @@ void exec_fl_st(Session *const S)
 
     if (type == ET_R8)
         store_cell(at(a), x);
-    else if (type == ET_SH || type == ET_BY)
+    else if (et_narrow(type))
         narrow_st(S, a, type, x);
     else
         wr32(a, x.u);
 }
 
-/* N.LD.A id cell n et: a SHORT or BYTE array's element. */
+/* N.LD.A id cell n et: a narrow array's element. */
 void exec_n_ld_a(Session *const S)
 {
     const Addr e = exec_elem(&S->arry, &S->vm);
@@ -1353,13 +1383,16 @@ void exec_p_ref(Session *const S)
     exec_pusha(&S->vm, a);
 }
 
-/* P.REFN et ( addr -- 0 ref ): a SHORT or BYTE array's element by reference, its ref tagged. */
+/* P.REFN et ( addr -- 0 ref ): a narrow element by reference, its ref tagged with its et. */
 void exec_p_refn(Session *const S)
 {
     const Addr a = exec_popa(&S->vm);
     exec_pusha(&S->vm, 0);
-    exec_pusha(&S->vm, a | REF_NARROW | (exec_u8(&S->vm) == ET_SH ? REF_SHORT : 0));
+    exec_pusha(&S->vm, a | REF_NARROW | (uint32_t)(exec_u8(&S->vm) - ET_SH) << REF_KIND);
 }
+
+/* A narrow ref's target's ET_*. */
+static uint8_t ref_et(const uint32_t ref) { return (uint8_t)(ET_SH + (ref >> REF_KIND & 3)); }
 
 /* A scalar parameter's ref cell's word, at its offset from the frame: its argument's address,
    tagged (mem/loc.h). */
@@ -1380,7 +1413,7 @@ void exec_v_ld(Session *const S)
     const CellKind kind = exec_u8(&S->vm);
 
     if (ref & REF_NARROW)
-        exec_pushi(&S->vm, narrow_ld(cell, ref & REF_SHORT ? ET_SH : ET_BY));
+        exec_pushi(&S->vm, narrow_ld(cell, ref_et(ref)));
     else if (kind == CELL_DOUBLE)
         exec_push(&S->vm, cell_at(cell));
     else if (kind == CELL_STRING)
@@ -1397,7 +1430,7 @@ void exec_v_st(Session *const S)
     const Cell x = exec_pop(&S->vm);
 
     if (ref & REF_NARROW)
-        narrow_st(S, cell, ref & REF_SHORT ? ET_SH : ET_BY, x);
+        narrow_st(S, cell, ref_et(ref), x);
     else if (kind == CELL_DOUBLE)
         store_cell(at(cell), x);
     else if (kind == CELL_STRING)

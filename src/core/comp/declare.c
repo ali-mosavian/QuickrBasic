@@ -25,7 +25,7 @@
  * | g_typ, g_fld | Decl.types, TypeDef.fields (TypeDef: T_NAM T_NF T_SIZE, Field: F_NAM F_ET F_SUB F_FIX F_OFF) | D2 |
  * | g_obase, g_oexp, g_obset, g_odim, g_ndev, g_dscope, g_dredim | decl.opts, baseset, dimmed, ndefev, scope, redim | D2 |
  * | g_dfev, TDEFEV, NDEV, DEVSZ | Decl.defevs of DefEvent {line, deft[26]} | D2 |
- * | g_dast, g_etsz | decl_astype[5], decl_etsize[8] | MIRROR |
+ * | g_dast, g_etsz | decl_astype[5], decl_etsize[10] | MIRROR |
  * | g_dft0, g_dett | deft0, deftype | MIRROR |
  * | g_wpre .. g_wtail, g_wbuf | repl_warn (io/repl.c) | MOVED |
  * | lx.dproc, lx.ntyps, lx.dtype | decl.proc, decl.ntypes, decl.type | MOVED: lex's state before |
@@ -67,7 +67,7 @@ typedef struct {
 static uint32_t decl_own(const Decl *const d) { return d->proc ? d->proc : d->module; }
 
 const uint8_t decl_astype[5] = {ET_I2, ET_I4, ET_R4, ET_R8, ET_SD};
-const uint8_t decl_etsize[8] = {0, 4, 4, 4, 8, 0, 2, 1};
+const uint8_t decl_etsize[10] = {0, 4, 4, 4, 8, 0, 2, 1, 1, 2};
 
 static const uint8_t deft0[NLETTERS] = {
     ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4,

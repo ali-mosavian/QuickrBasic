@@ -384,8 +384,14 @@ static Cell qrt_elem(const uint32_t et, const Addr e)
     case ET_SH:
         return (Cell){.i = (int16_t)load16(at(e))};
 
+    case ET_US:
+        return (Cell){.u = load16(at(e))};
+
     case ET_BY:
         return (Cell){.u = *(const uint8_t *)at(e)};
+
+    case ET_SB:
+        return (Cell){.i = *(const int8_t *)at(e)};
 
     default:
         return (Cell){.u = load32(at(e))};

@@ -150,8 +150,6 @@ end while
   their arithmetic, compares and conversions are CALL QX, two ops each. An `int` added to a
   `long` is widened inside that call. The longs bench runs QBasic's ops and 2.1x its native
   instructions, a double's sum of the same values.
-- **In the VM**, a record's or a list's `byte` takes 2 bytes and a `ushort` 4, as the VM has no
-  signed 8-bit or unsigned 16-bit element; a file layout with them is read field by field.
 
 ### Ownership
 

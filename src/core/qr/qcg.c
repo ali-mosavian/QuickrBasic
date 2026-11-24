@@ -926,11 +926,16 @@ uint32_t qcg_scalar_et(const QType t)
         return ET_SD;
 
     case QY_BYTE:
-    case QY_SHORT:
-        return ET_SH;
+        return ET_SB;
 
     case QY_UBYTE:
         return ET_BY;
+
+    case QY_SHORT:
+        return ET_SH;
+
+    case QY_USHORT:
+        return ET_US;
 
     default:
         return ET_I4;
@@ -944,10 +949,7 @@ static uint32_t qcg_et(const QCg *const g, const QType t)
 }
 
 /* Is t kept in 2 bytes or 1 in a record or a list: N.LD.A, P.REFN? */
-static bool qcg_short(const QCg *const g, const QType t)
-{
-    return qcg_et(g, t) == ET_SH || qcg_et(g, t) == ET_BY;
-}
+static bool qcg_short(const QCg *const g, const QType t) { return et_narrow(qcg_et(g, t)); }
 
 /* A value of type t's bytes in a record or an array. */
 static uint32_t qcg_size(const QCg *const g, const QType t)
@@ -960,9 +962,11 @@ static uint32_t qcg_size(const QCg *const g, const QType t)
         return DSZ;
 
     case ET_SH:
+    case ET_US:
         return 2;
 
     case ET_BY:
+    case ET_SB:
         return 1;
 
     default:

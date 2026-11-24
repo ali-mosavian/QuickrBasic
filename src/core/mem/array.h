@@ -50,7 +50,7 @@ static inline uint32_t arry_var_et(const Symb *const sy, const uint32_t id)
         return v->type;
     if (v->info & SK_DBL)
         return ET_R8;
-    if (v->type == ET_SH || v->type == ET_BY)
+    if (et_narrow(v->type))
         return v->type;
 
     return (v->info & VK_MASK) == VK_STR ? ET_SD : (v->info & VK_MASK) == VK_INT ? ET_I4 : ET_R4;
@@ -64,9 +64,11 @@ static inline uint32_t arry_et_size(const Decl *const d, const uint32_t et)
         return 8;
 
     case ET_SH:
+    case ET_US:
         return 2;
 
     case ET_BY:
+    case ET_SB:
         return 1;
 
     case ET_SD:

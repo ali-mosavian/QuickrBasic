@@ -28,8 +28,13 @@ enum : uint8_t {
     ET_SD = 5,
     ET_SH = 6, /* SHORT: 2 bytes in a record, else an INT */
     ET_BY = 7, /* BYTE: 0 .. 255, 1 byte in a record, else an INT */
+    ET_SB = 8, /* Quickr's byte: -128 .. 127, 1 byte */
+    ET_US = 9, /* Quickr's ushort: 0 .. 65535, 2 bytes */
     ET_REC = 0x40,
 };
+
+/* Is et a number kept in 2 bytes or 1? */
+static inline bool et_narrow(const uint32_t et) { return et >= ET_SH && et <= ET_US; }
 
 enum {
     FBIAS = 127,
