@@ -5,7 +5,7 @@ drawn by the game they would cost its start-up a pixel at a time. --check: fail 
 stale. --sheet: every picture to a PNG, to look at. The game's tunes, tools/charliesong.txt, go in after them,
 then the kinds' rows.
 
-For gfx (docs/gfx-extension-design.md), the pictures packed in one 8-bit image too, CHARLIE.BMP in the Downs'
+For gfx (stdlib/gfx/docs/design.md), the pictures packed in one 8-bit image too, CHARLIE.BMP in the Downs'
 colours, and barkley/assets/sheet.bas, which cuts each picture's view of it at its index in the game's img
 array. A mirror is the picture drawn with FLIPX: none is packed.
 

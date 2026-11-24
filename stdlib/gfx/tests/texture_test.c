@@ -2,7 +2,7 @@
    the texel at its centre; the expectations are worked by hand, with no sample on a texel's edge
    (where backends may round either way). */
 #include "base/gmath.h"
-#include "soft/soft.h"
+#include "backend/soft/soft.h"
 #include "test.h"
 
 /* A 3 by 2 sheet: 0 7 9 above 2 0 3. */

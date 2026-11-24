@@ -188,15 +188,15 @@ $(B)/ext/qxtest.dll: $(QXTEST) src/qx/qx.h
 	$(LLD_LINK) /dll /noentry /nodefaultlib /out:$@ $(@D)/qxtest.obj $(@D)/qxtest_qx.obj
 # gfx (stdlib/gfx): its glue from its parts' interfaces, scene's to come with 3D. Its core is linked
 # into the unit tests with its tests; the runtime's font and palette (vgadata.c) are already there
-GFX_PARTS := $(addprefix stdlib/gfx/,display.bas surface.bas draw.bas)
-GFX_C := $(shell find stdlib/gfx -name '*.c' -not -path 'stdlib/gfx/tests/*' -not -path 'stdlib/gfx/dos/*')
-GFX_INC := -Istdlib/gfx -Isrc
+GFX_PARTS := $(addprefix stdlib/gfx/src/api/,display.bas surface.bas draw.bas)
+GFX_C := $(shell find stdlib/gfx/src -name '*.c' -not -path 'stdlib/gfx/src/platform/*')
+GFX_INC := -Istdlib/gfx/src -Isrc
 build/ext/gfx_qx.c: $(GFX_PARTS) tools/qbx.py
 	@mkdir -p $(@D)
 	$(PY) tools/qbx.py glue gfx $(@D) $(GFX_PARTS)
-GFX_UNIT_OBJ := $(GFX_C:stdlib/gfx/%.c=build/host/gfx/%.o) build/host/gfx/gfx_qx.o \
+GFX_UNIT_OBJ := $(GFX_C:stdlib/gfx/src/%.c=build/host/gfx/%.o) build/host/gfx/gfx_qx.o \
 	$(patsubst stdlib/gfx/tests/%.c,build/host/gfx/test/%.o,$(wildcard stdlib/gfx/tests/*.c))
-build/host/gfx/%.o: stdlib/gfx/%.c | build/ext/gfx_qx.c
+build/host/gfx/%.o: stdlib/gfx/src/%.c | build/ext/gfx_qx.c
 	@mkdir -p $(@D)
 	$(HOST_CC) $(QX_CFLAGS) -g $(GFX_INC) $(DEPFLAGS) -c $< -o $@
 build/host/gfx/gfx_qx.o: build/ext/gfx_qx.c
@@ -209,7 +209,7 @@ build/host/gfx/test/%.o: stdlib/gfx/tests/%.c | build/ext/gfx_qx.c
 # gfx.qbx for this machine, in lib/ beside basic: its slice the core, its glue and its own font; it
 # needs the host's minor 1
 GFX_SLICE_C := $(GFX_C) build/ext/gfx_qx.c $(QBRT)/qb/dev/host/vgadata.c
-build/host/ext/gfx.so: $(GFX_SLICE_C) $(shell find stdlib/gfx -name '*.h' -not -path 'stdlib/gfx/tests/*') src/qx/qx.h src/qx/qxlist.h
+build/host/ext/gfx.so: $(GFX_SLICE_C) $(shell find stdlib/gfx/src -name '*.h') src/qx/qx.h src/qx/qxlist.h
 	@mkdir -p $(@D)
 	$(HOST_CC) $(QX_CFLAGS) $(HOST_SLICE) $(GFX_INC) $(GFX_SLICE_C) -o $@
 build/host/lib/gfx.qbx: $(GFX_PARTS) build/host/ext/gfx.so tools/qbx.py
@@ -229,7 +229,7 @@ build/web/lib/gfx.qbx: $(GFX_PARTS) build/wasm/ext/gfx.wasm tools/qbx.py
 	$(PY) tools/qbx.py pack $@ --minor 1 $(GFX_PARTS) wasm32=build/wasm/ext/gfx.wasm
 # and for DOS, in lib/ beside basic32.exe: its slice an i386 DLL, which imports nothing, so it brings
 # its own copies and fills and the runtime's 64-bit division
-GFX_DOS_OBJ := $(patsubst %.c,$(B)/gfx/%.obj,$(GFX_SLICE_C) stdlib/gfx/dos/crt.c src/lib/lldiv.c src/lib/div64.c)
+GFX_DOS_OBJ := $(patsubst %.c,$(B)/gfx/%.obj,$(GFX_SLICE_C) stdlib/gfx/src/platform/dos/crt.c src/lib/lldiv.c src/lib/div64.c)
 $(B)/gfx/%.obj: %.c | build/ext/gfx_qx.c
 	@mkdir -p $(@D)
 	$(DOS_SLICE_CC) $(GFX_INC) $(DEPFLAGS) -c $< -o $@
@@ -360,9 +360,9 @@ $(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(GUI)/QuickrBasic $(HELP) $
 	codesign --force -s - $(APP)
 # gfx's first slice in the Mac's window: stdlib/gfx/tests/show.c draws CHARLIE's frame in the IDE's place,
 # the core linked in beside the runtime's font (vgadata.c); gfx-shot runs it from here, QB_SHOT takes it
-GFX_GUI_OBJ := $(GFX_C:stdlib/gfx/%.c=$(GUI)/gfx/%.o) $(GUI)/gfx/gfx_qx.o $(GUI)/gfx/test/charlie.o \
+GFX_GUI_OBJ := $(GFX_C:stdlib/gfx/src/%.c=$(GUI)/gfx/%.o) $(GUI)/gfx/gfx_qx.o $(GUI)/gfx/test/charlie.o \
 	$(GUI)/gfx/test/show.o
-$(GUI)/gfx/%.o: stdlib/gfx/%.c | build/ext/gfx_qx.c
+$(GUI)/gfx/%.o: stdlib/gfx/src/%.c | build/ext/gfx_qx.c
 	@mkdir -p $(@D)
 	$(HOST_CC) $(GUI_ARCH) $(QX_CFLAGS) $(GFX_INC) $(DEPFLAGS) -c $< -o $@
 $(GUI)/gfx/gfx_qx.o: build/ext/gfx_qx.c

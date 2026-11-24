@@ -1,7 +1,7 @@
 /* The GPU's list, on a host that records what it is given to play and reads back pixels it is
    told: each frame's ops in order, its batches and vertices, worked by hand. */
 #include "base/disc.h"
-#include "gpu/gpu.h"
+#include "backend/gpu/gpu.h"
 #include "base/cover.h"
 #include "core/surface.h"
 #include "test.h"

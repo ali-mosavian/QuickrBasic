@@ -48,7 +48,7 @@ print synth.beat()
 | Help (later) | pages for F1, in the help's Markdown |
 
 A package's `.qbx` holds its modules' interfaces over the same slices, as
-[gfx-extension-design.md](gfx-extension-design.md#one-file-five-interfaces) has it. Its modules are
+[gfx's architecture](../stdlib/gfx/docs/architecture.md#the-package) has it. Its modules are
 named as a folder's: `gfx.draw` is the part `draw` of `gfx.qbx`, whose path `locate.c` gives as
 `gfx.qbx/draw`, as Python's zipimport names a module in a zip. Its DECLAREs bind to the entries
 named `draw.NAME`. Version 1 held one interface, last.
