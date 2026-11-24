@@ -39,6 +39,7 @@ static void texture(
         .wrap = wrap,
         .test = flags & GFX_DRAW_DEPTH_TEST,
         .set = flags & GFX_DRAW_DEPTH_WRITE,
+        .smooth = flags & GFX_DRAW_SMOOTH,
     };
 
     scan_poly(v, n, mode, t->clip, mode == SCAN_PTEX ? perspective : textured, (void *)&x);

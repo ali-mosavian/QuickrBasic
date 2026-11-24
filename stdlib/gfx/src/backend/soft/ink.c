@@ -20,6 +20,7 @@ bool ink_begin(
         .source = eight ? PX_8 : PX_32,
         .keyed = !(flags & GFX_DRAW_OPAQUE),
         .solid = flags & GFX_DRAW_SOLID,
+        .smooth = flags & GFX_DRAW_SMOOTH,
         .colour = PX_OPAQUE | solid,
         .shade = pal_shade(PAL_WHITE, p->light, p->tint),
         .mode = eight ? BLEND_NONE : mode,
@@ -51,10 +52,12 @@ bool ink_source(
     const bool eight = into == PX_8;
     k->source = from;
 
-    if (eight && from != PX_8 && !k->map && !(k->map = pal_map(pal)))
+    const bool colours = from != PX_8 || k->smooth; /* matched to row 0 at 8 bits */
+
+    if (eight && colours && !k->map && !(k->map = pal_map(pal)))
         return false;
 
-    return eight || from != PX_8 || k->argb ||
+    return (eight && !k->smooth) || from != PX_8 || k->argb ||
            (k->argb = pal_argb(pal, p->palette_row, p->light, p->tint));
 }
 

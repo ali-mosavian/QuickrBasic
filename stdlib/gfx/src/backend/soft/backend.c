@@ -235,6 +235,7 @@ static void sprite(Gx *const g, const Picture *const p, const Vec at, const int3
 }
 
 const Backend backend_soft = {
+    .has = GFX_DISPLAY_HAS_SMOOTH,
     .open = screen_open,
     .flip = screen_flip,
     .close = screen_close,

@@ -118,6 +118,117 @@ static void each(
     }
 }
 
+/* The texel at u, v, whole texels, held inside s; u wrapped when it wraps. */
+static uint32_t texel_at(const Pixels *const s, const int32_t u, const int32_t v, const bool wrap)
+{
+    const uint32_t bytes = px_bytes(s->format);
+    const int32_t across = wrap ? steps_wrap(u, s->w) : steps_held(u, s->w);
+
+    return px_load(s->p + steps_held(v, s->h) * s->pitch + (uint32_t)across * bytes, bytes);
+}
+
+/* A colour's channels, 0 to 1, and its coverage: 1 drawn, 0 keyed. */
+typedef struct {
+    float r, g, b, a;
+} Mix;
+
+static Mix mix_of(const uint32_t argb, const bool drawn)
+{
+    const float n = drawn ? 1.0f / 255 : 0;
+
+    return (Mix){(float)(argb >> 16 & 0xFF) * n,
+                 (float)(argb >> 8 & 0xFF) * n,
+                 (float)(argb & 0xFF) * n,
+                 drawn ? 1.0f : 0};
+}
+
+/* GLSL's mix: a to b by f. */
+static Mix mix(const Mix a, const Mix b, const float f)
+{
+    const float e = 1 - f;
+    return (Mix){a.r * e + b.r * f, a.g * e + b.g * f, a.b * e + b.b * f, a.a * e + b.a * f};
+}
+
+static uint32_t channel(const float c) { return (uint32_t)(c * 255 + 0.5f); }
+
+/* The four texels round the walk's place through k but its blend, mixed as the GPU's shader mixes
+   them: the place half a texel back, its fractions the weights; a keyed texel adds nothing. Into
+   *argb, the mix's colour divided by its coverage: false, under half covered, not drawn. */
+static bool mixed(
+    const Textured *const x,
+    const Steps *const st,
+    const Ink *const k,
+    uint32_t *argb
+)
+{
+    const int32_t pu = (int32_t)((uint32_t)st->u - 0x8000u),
+                  pv = (int32_t)((uint32_t)st->v - 0x8000u);
+    const int32_t u = pu >> 16, v = pv >> 16;
+    const float fu = (float)(pu & 0xFFFF) / 65536, fv = (float)(pv & 0xFFFF) / 65536;
+    const uint32_t texels[] = {
+        texel_at(x->s, u, v, x->wrap),
+        texel_at(x->s, u + 1, v, x->wrap),
+        texel_at(x->s, u, v + 1, x->wrap),
+        texel_at(x->s, u + 1, v + 1, x->wrap),
+    };
+
+    uint32_t c[4];
+    bool drawn[4];
+
+    fill_argb(c, drawn, texels, 4, k);
+    const Mix top = mix(mix_of(c[0], drawn[0]), mix_of(c[1], drawn[1]), fu);
+    const Mix under = mix(mix_of(c[2], drawn[2]), mix_of(c[3], drawn[3]), fu);
+    const Mix m = mix(top, under, fv);
+
+    if (m.a < 0.5f)
+        return false;
+
+    *argb = PX_OPAQUE | channel(m.r / m.a) << 16 | channel(m.g / m.a) << 8 | channel(m.b / m.a);
+    return true;
+}
+
+/* n pixels SMOOTH's way, a pixel at a time: the mix shown over the depth there, drawn, its depth
+   set. A SOLID mix is its colour, where covered. */
+static void smooth(
+    const Textured *const x,
+    const int32_t px,
+    const int32_t y,
+    const int32_t n,
+    Steps st,
+    int32_t z,
+    const int32_t dz
+)
+{
+    const SoftTarget *const t = x->t;
+    const uint32_t bytes = px_bytes(t->px.format);
+    uint16_t *const d = t->depth.p ? t->depth.p + y * t->depth.row + px : nullptr;
+    uint8_t *const out = span_at(t, px, y);
+    Ink k = t->ink, drawn = t->ink;
+    k.source = x->s->format;
+    drawn.keyed = false;
+
+    if (!k.solid) {
+        drawn.source = PX_32;
+        drawn.shade = PX_WHITE;
+    }
+
+    for (int32_t i = 0; i < n; i++, z = depth_on(z, dz, 1), steps_on(&st)) {
+        const uint16_t here = depth_of(z);
+        uint32_t argb;
+
+        if (d && x->test && !depth_shows(d[i], here))
+            continue;
+
+        if (!mixed(x, &st, &k, &argb))
+            continue;
+
+        t->fill->ink(out + i * bytes, &argb, 1, &drawn);
+
+        if (d && x->set)
+            d[i] = here;
+    }
+}
+
 void span_texels(
     const Textured *const x,
     const int32_t px,
@@ -130,7 +241,9 @@ void span_texels(
 {
     const SoftTarget *const t = x->t;
 
-    if (t->depth.p || !steps_inside(&st, x->s, n))
+    if (x->smooth)
+        smooth(x, px, y, n, st, z, dz);
+    else if (t->depth.p || !steps_inside(&st, x->s, n))
         each(x, px, y, n, st, z, dz);
     else if (span_fused(t, x->s))
         t->fill->step[x->opaque ? FILL_OPAQUE : 0](span_at(t, px, y), x->s, st, n);

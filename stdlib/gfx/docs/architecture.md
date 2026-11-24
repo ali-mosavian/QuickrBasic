@@ -79,7 +79,8 @@ backend keeps are in [design.md](design.md).
   (`steps.h`). The target's fused filler draws it when the ink has nothing to do. Otherwise chunks go
   through the ink when the walk stays inside the picture and there is no depth. Otherwise it goes a
   pixel at a time: the texel held inside, keyed, depth-tested, drawn, and its depth set. A
-  perspective span is runs of 16 pixels between two divides.
+  perspective span is runs of 16 pixels between two divides. `SMOOTH` goes a pixel at a time too,
+  mixing the four texels round it as the GPU's shader does.
 - **The fillers** (`fill.c`, `fill8.c`, `fill16.c`, `fill32.c`) are a table for each format: rows
   copied, keyed and flipped, flat spans, and the ink's chunks. 15 and 16 bits share one template.
 - **Depth** is 1/z in 16 bits, a buffer for each root surface, made on its first `DEPTH_TEST` or

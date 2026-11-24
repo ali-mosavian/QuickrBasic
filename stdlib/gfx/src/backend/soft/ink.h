@@ -7,6 +7,8 @@
  *   fillers draw it.
  * - keyed: a texel 0, or 32 bits' alpha under a half, is not drawn.
  * - solid: every texel drawn is colour, the target's index or &HFFRRGGBB.
+ * - smooth: SMOOTH's, a picture's four texels round a pixel mixed: argb and, at 8 bits, map made
+   for any source, as the mix is a colour.
  * - An 8-bit target: lut, the index each index draws as; map, 5 bits a channel to the nearest
  *   index; blend, 256 rows by the index drawn and 256 by the one there.
  * - Another: argb, the colour each index draws as.
@@ -21,7 +23,7 @@
 
 typedef struct {
     PxFormat source;
-    bool effects, keyed, solid;
+    bool effects, keyed, solid, smooth;
     uint32_t colour;
     const uint8_t *lut, *map, *blend;
     const uint32_t *argb;

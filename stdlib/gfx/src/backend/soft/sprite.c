@@ -24,7 +24,7 @@ void soft_sprite(
     const bool flip_x = flags & GFX_DRAW_FLIP_X, flip_y = flags & GFX_DRAW_FLIP_Y;
     const int32_t u = flip_x ? s->w - 1 - (drawn.x - left) : drawn.x - left;
     const bool plain = span_fused(t, s);
-    const Textured walk = {t, s, flags & GFX_DRAW_OPAQUE, false, false, false};
+    const Textured walk = {.t = t, .s = s, .opaque = flags & GFX_DRAW_OPAQUE};
 
     for (int32_t y_ = drawn.y; y_ < drawn.y + drawn.h; y_++) {
         const int32_t v = flip_y ? s->h - 1 - (y_ - top) : y_ - top;

@@ -270,8 +270,15 @@ void gfx_draw_poly(
         b->outline(g, edges, (uint32_t)n, (uint32_t)colour);
 }
 
+/* v names a pixel's centre. */
+static bool whole(const Vec v)
+{
+    return (float)gm_floor(v.x) == v.x && (float)gm_floor(v.y) == v.y;
+}
+
 /* p's picture, its anchor at a in the world (placed: at), turned by angle and scaled: upright at
-   its size, a sprite; else filled through its corners. */
+   its size, a sprite, unless SMOOTH between pixels mixes its texels; else filled through its
+   corners. */
 static void picture(
     Gx *const g,
     const Place *const where,
@@ -289,8 +296,11 @@ static void picture(
     if (!b->source(g, p))
         return;
 
-    if (cmd_upright(where) && angle == 0 && scale == 1) {
-        b->sprite(g, p, (Vec){at.x - anchor.x, at.y - anchor.y}, flags);
+    const Vec top_left = {at.x - anchor.x, at.y - anchor.y};
+
+    if (cmd_upright(where) && angle == 0 && scale == 1 &&
+        (!(flags & GFX_DRAW_SMOOTH) || whole(top_left))) {
+        b->sprite(g, p, top_left, flags);
 
         return;
     }

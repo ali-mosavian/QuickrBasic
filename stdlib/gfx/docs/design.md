@@ -99,8 +99,9 @@ No module imports another; everything sits over `surface`.
   its top or left edge.
 - Edges and texture coordinates are sub-pixel and sub-texel exact: each span starts at its first
   whole pixel's centre, with u and v stepped to there.
-- A texel is the nearest unless the program asks for smooth sampling; a backend that cannot filter
-  takes the nearest.
+- A texel is the nearest unless the program asks for `SMOOTH`: the four texels round the pixel's
+  centre mixed, a keyed one adding nothing, drawn where half or more is kept. Software mixes them
+  as the GPU's shader does.
 - Depth is tested and written as the program sets it; commands are drawn in the order given.
 
 What may differ: rounding where a pixel's centre or a sample falls within a precision step of an

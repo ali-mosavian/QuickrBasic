@@ -27,7 +27,8 @@ const BLEND = 16
 const ADD = 32
 ' src's shape in set_tint's colour.
 const SOLID = 64
-' src's texels mixed where turned or scaled; HAS_SMOOTH.
+' src's four texels round each pixel mixed, where they
+' fall between pixels.
 const SMOOTH = 128
 ' poly's texels in perspective, by its points' z.
 const PERSPECTIVE = 2048
