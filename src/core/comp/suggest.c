@@ -29,6 +29,7 @@
  * - D2. The asm takes every name of the window's lines, ten letters at most, by kind then name.
  */
 #include "comp/suggest.h"
+#include "qr/qr.h"
 #include "session.h"
 #include "comp/comp.h"
 #include "comp/declare.h"
@@ -1333,6 +1334,44 @@ static bool sugg_word(
     return col - s <= SUGG_LEN;
 }
 
+/* ---- Quickr's */
+
+typedef struct {
+    Suggs *out;
+    const uint8_t *word; /* capitals */
+    uint16_t wn;
+} SuggQuickr;
+
+/* qr_suggest's: text, len bytes, a kind, offered when it fits the word; as written. */
+static void sugg_quickr_one(
+    void *const ctx,
+    const char *const text,
+    const uint32_t len,
+    const QrSuggKind kind,
+    const uint32_t rec
+)
+{
+    const SuggQuickr *const q = ctx;
+    uint8_t up[SUGG_LEN];
+
+    if (len > SUGG_LEN)
+        return;
+
+    for (uint32_t i = 0; i < len; i++)
+        up[i] = upcase((uint8_t)text[i]);
+
+    const uint8_t match = sugg_match(q->word, q->wn, up, (uint16_t)len);
+
+    if (!match)
+        return;
+
+    const SuggKind k = kind == QRS_KW ? SG_KW : kind == QRS_FN ? SG_FN : SG_VAR;
+    Sugg s = sugg_make((const uint8_t *)text, (uint16_t)len, k, match, kind == QRS_KW ? 0 : 10);
+    s.asis = s.len;
+    s.rec = kind == QRS_FN ? rec : 0;
+    sugg_add(q->out, &s);
+}
+
 /* One thing alone goes on: it is needed. */
 static void sugg_one(Suggs *const out)
 {
@@ -1371,6 +1410,14 @@ bool sugg_find(
         word[i] = upcase(text[start + i]);
 
     word[wn] = 0;
+
+    if (prog_quickr(&S->prog)) {
+        SuggQuickr q = {out, word, wn};
+
+        qr_suggest(S, rec, (const char *)text, start, sugg_quickr_one, &q);
+        sugg_one(out);
+        return out->n > 0;
+    }
 
     memcpy(sg.body, text, start); /* the line before the word: not in a string, a REM or DATA */
     sg.body[start] = 0;

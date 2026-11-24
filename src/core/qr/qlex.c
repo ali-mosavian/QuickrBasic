@@ -642,3 +642,8 @@ void qlex_source(QSrc *const src, const uint32_t first, QMem *const m, QErrs *co
     L.at = L.len;
     qlex_tok(&L, QK_EOF, L.at);
 }
+
+const char *qlex_keyword(const QKind k)
+{
+    return k >= QK_AND && k <= QK_ASSERT ? qlex_words[k - QK_AND] : nullptr;
+}

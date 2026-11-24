@@ -169,6 +169,12 @@ QBasic's otherwise, and a program is one or the other.
 - A run goes through the modules in import order, each module's last line on to the next one's first
   (`qr/qlink.c`), so the store keeps the order the files were read in.
 
+- Highlighting lexes a Quickr line with Quickr's lexer (`qr_tokens`): its keywords, a fn's name and
+  parameters, types after `as`, strings and f-strings, the comment past the last token.
+- Completion offers Quickr's keywords and the names in the file; after `m.` an imported module's
+  public names; after `v.` the fields of `v`'s record type (as declared, `v as T`) and the fns whose
+  first parameter is one (`qr_suggest`).
+
 Built on `qr/qr.c` (`qr_read`, `qr_open`) and `ui/text.c`.
 
 ## Theme slots

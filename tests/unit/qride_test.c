@@ -6,11 +6,13 @@
 #include "plat/host/host.h"
 #include "plat/pkey.h"
 #include "session.h"
+#include "comp/suggest.h"
 #include "ui/debuglocals.h"
 #include "ui/debugui.h"
 #include "ui/debugwatch.h"
 #include "ui/edit.h"
 #include "ui/errors.h"
+#include "ui/highlight.h"
 #include "ui/menu.h"
 #include "ui/text.h"
 #include "ui/uimain.h"
@@ -318,5 +320,71 @@ TEST(qride_assert_says_so)
     captured(S, uimn_run);
     CHECK(cursor_line() == fx_line_of(S, "assert a = 2"));
     CHECK(!strcmp(uimn.errmsg, "assert failed"));
+    fx_done(S, files);
+}
+
+/* Line text's slots, as the program window colours them. */
+static const uint8_t *slots(Session *const S, const char *const text)
+{
+    static uint8_t cols[SYNT_KEEP];
+    synt_cols(S, (const uint8_t *)text, (uint32_t)strlen(text), cols);
+    return cols;
+}
+
+/* A Quickr line coloured by QBasic's lexer: fn's name a variable's, match a name, '{' a string's. */
+TEST(qride_colours_by_quickrs_lexer)
+{
+    open_quickr(S);
+    const uint8_t *c = slots(S, "fn twice(x as int) as int ' doubled");
+    CHECK(c[0] == SL_KW && c[3] == SL_FNM && c[9] == SL_PAR && c[14] == SL_TYP);
+    CHECK(c[22] == SL_TYP && c[26] == SL_COM && c[34] == SL_COM);
+    c = slots(S, "match n");
+    CHECK(c[0] == SL_KW && c[6] == SL_NAM);
+    c = slots(S, "let s = f\"{n} it's\" + 'x'");
+    CHECK(c[0] == SL_KW && c[8] == SL_STR && c[11] == SL_NAM && c[15] == SL_STR && c[21] == SL_OP);
+    CHECK(c[23] == SL_COM);
+    fx_done(S, files);
+}
+
+/* What sugg_find offers for text typed on main.bas's last line: has it want. */
+static bool offers(Session *const S, const char *const text, const char *const want)
+{
+    Suggs out = {};
+
+    const uint16_t n = (uint16_t)strlen(text);
+    const uint32_t rec = text_rec(S, fx_line_of(S, "print(total)"));
+    bool found = false;
+
+    if (sugg_find(S, (const uint8_t *)text, n, n, rec, &out))
+        for (uint16_t i = 0; i < out.n; i++)
+            found |= !strcmp((const char *)out.list[i].text, want);
+
+    free(out.list);
+    return found;
+}
+
+/* Completion offered QBasic's words in a Quickr program: RETURN, no module's fns, no fields. */
+TEST(qride_completes_quickr_words)
+{
+    fx_open_program(S, "");
+    fx_write_file(
+        "main.bas",
+        DIALECT "import util\ntype P\n    x as int\n    y as int\nend type\n"
+                "fn norm(p as P) as int\n    return p.x + p.y\nend fn\n"
+                "var q as P\nlet total = norm(q)\nprint(total)\n"
+    );
+    fx_write_file(
+        "util.bas",
+        DIALECT "public fn twice(x as int) as int\n    return x * 2\nend fn\n"
+    );
+    uimn_open(S, fx_path_of("main.bas"));
+    CHECK(offers(S, "re", "return"));
+    CHECK(!offers(S, "re", "RETURN"));
+    CHECK(offers(S, "print(to", "total"));
+    CHECK(offers(S, "let a = util.t", "twice"));
+    CHECK(offers(S, "let a = q.", "x"));
+    CHECK(offers(S, "let a = q.", "y"));
+    CHECK(offers(S, "let a = q.", "norm"));
+    CHECK(!offers(S, "let a = q.", "total"));
     fx_done(S, files);
 }

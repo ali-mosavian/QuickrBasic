@@ -9,7 +9,8 @@
  * A state carries what the last item makes of the next: after AS or TYPE a type; after SUB,
  * FUNCTION, DEF a name being declared, then its parameters in the ( ) after it, depth deep.
  *
- * The text is copied to uimn.line first: the lexer changes it.
+ * The text is copied to uimn.line first: the lexer changes it. A Quickr program's lines are lexed
+ * by Quickr's lexer (qr_tokens), the state the same; its comment is past the last token.
  *
  * # Example
  *   FOR i = 1 TO 10 ' loop    FOR, TO: SL_KW; i: SL_NAM; 1, 10: SL_NUM; ' loop: SL_COM
@@ -30,6 +31,8 @@
 #include "comp/declare.h"
 #include "comp/dfa.h"
 #include "comp/lexer.h"
+#include "qr/qr.h"
+#include "ui/text.h"
 
 Synt synt = {.on = true};
 
@@ -39,6 +42,7 @@ enum { DATA_LEN = 4 };            /* "DATA" */
 
 static struct {
     uint8_t state, depth;
+    bool generic; /* in a Quickr fn's [ ]: its type parameters */
     uint32_t len;
     uint8_t prev_slot; /* the last item's slot */
     uint32_t prev_col; /* its column */
@@ -180,6 +184,105 @@ static uint8_t item(const uint8_t c, const uint8_t **const p, uint8_t *const sta
     return SL_ED;
 }
 
+/* A Quickr token's slot; hl.state the next one's. prev: the token before, QK_EOF none. */
+static uint8_t quickr_slot(const QTok *const t, const QKind prev)
+{
+    const uint8_t state = hl.state;
+    hl.state = 0;
+
+    switch (t->kind) {
+    case QK_NAME:
+        if (state & HS_AS || hl.generic)
+            return SL_TYP;
+        if (state & HS_DEF) {
+            hl.state = HS_NAME;
+            return SL_FNM;
+        }
+
+        return hl.depth ? SL_PAR : SL_NAM;
+
+    case QK_INT:
+    case QK_REAL:
+        return SL_NUM;
+
+    case QK_STR:
+    case QK_FSTR:
+    case QK_FPART:
+    case QK_FSPEC:
+    case QK_FEND:
+        return SL_STR;
+
+    case QK_AS:
+    case QK_TYPE:
+    case QK_ENUM:
+        hl.state = prev == QK_END ? 0 : HS_AS;
+        return SL_KW;
+
+    case QK_FN:
+        hl.state = prev == QK_END ? 0 : HS_DEF;
+        return SL_KW;
+
+    case QK_LBRACK: /* a generic's parameters: fn at[T] */
+        hl.generic = state & HS_NAME;
+        hl.state = state;
+        return SL_ED;
+
+    case QK_RBRACK:
+        hl.state = hl.generic ? HS_NAME : 0;
+        hl.generic = false;
+        return SL_ED;
+
+    case QK_LPAREN:
+        if (state & HS_NAME)
+            hl.depth = 1;
+        else if (hl.depth)
+            hl.depth++;
+
+        return SL_ED;
+
+    case QK_RPAREN:
+        if (hl.depth)
+            hl.depth--;
+
+        return SL_ED;
+
+    case QK_COMMA:
+        hl.state = state & HS_AS ? 0 : state;
+        return SL_ED;
+
+    default:
+        break;
+    }
+
+    if (t->kind >= QK_AND && t->kind <= QK_ASSERT)
+        return SL_KW;
+    if (t->kind >= QK_QUEST && t->kind < QK_BAD)
+        return SL_OP;
+
+    return SL_ED;
+}
+
+/* qr_tokens's: token t painted. */
+static void quickr_token(void *const ctx, const QTok *const t)
+{
+    QKind *const prev = ctx;
+    paint(t->col, quickr_slot(t, *prev));
+    *prev = t->kind;
+}
+
+/* hl.cols for a Quickr line, the n characters at text: its tokens by Quickr's lexer, its comment. */
+static void quickr_line(Session *const S, const uint8_t *const text, const uint32_t n)
+{
+    QKind prev = QK_EOF;
+    hl.generic = false;
+    const uint32_t comment = qr_tokens(&S->fault, (const char *)text, n, quickr_token, &prev);
+
+    if (comment < n)
+        paint(comment, SL_COM);
+
+    paint(n, hl.prev_slot);
+}
+
 /* hl.cols for the len characters at text, width columns from left. */
 static void line(
     Session *const S,
@@ -198,10 +301,16 @@ static void line(
     line[n] = 0;
     hl.prev_col = 0;
     hl.prev_slot = SL_ED;
-    lexr_line(&S->lexr, line, S->comp.cbuf);
-    const uint8_t *p = S->comp.cbuf;
     hl.state = 0;
     hl.depth = 0;
+
+    if (text_quickr(S)) {
+        quickr_line(S, line, n);
+        return;
+    }
+
+    lexr_line(&S->lexr, line, S->comp.cbuf);
+    const uint8_t *p = S->comp.cbuf;
 
     for (;;) {
         const uint32_t off = (uint32_t)(p - S->comp.cbuf);

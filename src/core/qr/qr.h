@@ -3,6 +3,7 @@
 #define QR_QR_H
 #include "base.h"
 #include "mem/program.h"
+#include "qr/qast.h"
 
 /* A Quickr file's first line, its dialect's mark; any other file is QBasic's. */
 extern const char qr_dialect[];
@@ -55,4 +56,16 @@ void qr_marks(Prog *pg, uint32_t rec);
 /* Is the line text, len bytes, a fn's first: its name's column and length (an operator's with its
    sign) to *at, *n. */
 bool qr_fn_at(const char *text, uint32_t len, uint32_t *at, uint32_t *n);
+/* The line text, len bytes, lexed alone: each token to fn with ctx, in order. Its comment's
+   column, len none. Out of memory raises through f. */
+typedef void QrTokFn(void *ctx, const QTok *t);
+uint32_t qr_tokens(Fault *f, const char *text, uint32_t len, QrTokFn *fn, void *ctx);
+/* A completion's kind: a keyword, a fn (rec its line), another name. */
+typedef enum : uint8_t { QRS_KW, QRS_FN, QRS_NAME } QrSuggKind;
+typedef void QrSuggFn(void *ctx, const char *text, uint32_t len, QrSuggKind kind, uint32_t rec);
+/* What fits at a word whose line before it is text, n bytes, the line at rec (a new one's: the
+   line it goes before), each to fn with ctx: after m. module m's public names; after v. the fields
+   of v's record type and the fns taking one first; else the keywords and the names in rec's file.
+   None in a string or a comment. */
+void qr_suggest(Session *S, uint32_t rec, const char *text, uint32_t n, QrSuggFn *fn, void *ctx);
 #endif

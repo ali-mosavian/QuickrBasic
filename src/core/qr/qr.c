@@ -38,6 +38,7 @@
 #include "qr/qsem.h"
 
 enum { QR_CHUNK = 0x10000 }; /* the front end's arena's blocks at least */
+enum { QR_LINE_CHUNK = 0x1000 }; /* a line lexed alone's */
 
 const char qr_dialect[] = "' OPTION DIALECT QUICKR";
 
@@ -940,4 +941,267 @@ bool qr_fn_at(const char *const text, const uint32_t len, uint32_t *const at, ui
     *at = i;
     *n = end - i;
     return true;
+}
+
+/* The line text, len bytes, lexed alone in m: its tokens to *toks, their count, the line's end
+   left out. */
+static uint32_t qr_lexed(
+    QMem *const m,
+    const char *const text,
+    const uint32_t len,
+    const QTok **const toks
+)
+{
+    QErrs errs = {.mem = m};
+
+    QLine ln = {.text = text, .len = len};
+
+    QSrc src = {.lines = &ln, .nlines = 1};
+
+    qlex_source(&src, 0, m, &errs);
+    uint32_t n = src.ntoks;
+
+    while (n && (src.toks[n - 1].kind == QK_NL || src.toks[n - 1].kind == QK_EOF))
+        n--;
+
+    *toks = src.toks;
+    return n;
+}
+
+uint32_t qr_tokens(
+    Fault *const f,
+    const char *const text,
+    const uint32_t len,
+    QrTokFn *const fn,
+    void *const ctx
+)
+{
+    QMem m = {.fault = f};
+
+    arena_init(&m.arena, QR_LINE_CHUNK);
+    const QTok *toks;
+    const uint32_t n = qr_lexed(&m, text, len, &toks);
+    uint32_t end = 0;
+
+    for (uint32_t i = 0; i < n; i++) {
+        if (toks[i].kind == QK_NL)
+            continue;
+
+        fn(ctx, &toks[i]);
+        end = toks[i].col + toks[i].len;
+    }
+
+    arena_reset(&m.arena);
+
+    while (end < len && text[end] != '\'')
+        end++;
+
+    return end;
+}
+
+/* ---- completion */
+
+static void qr_no_token(void *const ctx, const QTok *const t) {}
+
+typedef struct {
+    Session *S;
+    QMem *m;
+    QrSuggFn *fn;
+    void *ctx;
+} QrSugg;
+
+/* File file's next text line past rec, 0 its first; 0 none. */
+static uint32_t qr_next_line(const Prog *const pg, const uint32_t file, const uint32_t rec)
+{
+    uint32_t r = rec ? rec + prog_line(pg, rec)->len : PROGBASE;
+
+    for (; prog_line(pg, r)->len; r += prog_line(pg, r)->len)
+        if (qr_text(prog_line(pg, r), file))
+            return r;
+
+    return 0;
+}
+
+/* Line rec's tokens to *toks: their count. */
+static uint32_t qr_line_toks(const QrSugg *const g, const uint32_t rec, const QTok **const toks)
+{
+    const char *const body = (const char *)at(prog_addr(&g->S->prog, rec) + HDR);
+    return qr_lexed(g->m, body, (uint32_t)strlen(body), toks);
+}
+
+/* Token t is the name text, n bytes. */
+static bool qr_named(const QTok *const t, const char *const text, const uint32_t n)
+{
+    return t->kind == QK_NAME && t->len == n && !memcmp(t->text, text, n);
+}
+
+/* Past a declaration's public and native: its keyword's index in toks. */
+static uint32_t qr_decl(const QTok *const toks, const uint32_t n)
+{
+    uint32_t i = 0;
+
+    while (i < n && (toks[i].kind == QK_PUBLIC || toks[i].kind == QK_NATIVE))
+        i++;
+
+    return i;
+}
+
+/* The module named name, n bytes: its file's name less its extension; modu_count none. */
+static uint32_t qr_module_named(const Session *const S, const char *const name, const uint32_t n)
+{
+    for (uint32_t k = 0; k < modu_count(&S->modu); k++) {
+        const char *base = modu_module_path(&S->modu, k);
+
+        for (const char *c = base; *c; c++)
+            if (*c == '/' || *c == '\\')
+                base = c + 1;
+
+        uint32_t i = 0;
+
+        while (i < n && base[i] && upcase((uint8_t)base[i]) == upcase((uint8_t)name[i]))
+            i++;
+
+        if (i == n && base[n] == '.')
+            return k;
+    }
+
+    return modu_count(&S->modu);
+}
+
+/* Module k's public names. */
+static void qr_members(const QrSugg *const g, const uint32_t k)
+{
+    for (uint32_t rec = qr_next_line(&g->S->prog, k, 0); rec;
+
+         rec = qr_next_line(&g->S->prog, k, rec)) {
+        const QTok *toks;
+        const uint32_t n = qr_line_toks(g, rec, &toks);
+        const uint32_t i = qr_decl(toks, n);
+
+        if (!i || toks[0].kind != QK_PUBLIC || i + 1 >= n || toks[i + 1].kind != QK_NAME)
+            continue;
+
+        const bool fn = toks[i].kind == QK_FN;
+        g->fn(g->ctx, toks[i + 1].text, toks[i + 1].len, fn ? QRS_FN : QRS_NAME, rec);
+    }
+}
+
+/* Variable name's (n bytes) type as file declares it, x as T or let x = T(..): its name's token,
+   nullptr none. */
+static const QTok *qr_type_of(
+    const QrSugg *const g,
+    const uint32_t file,
+    const char *const name,
+    const uint32_t n
+)
+{
+    for (uint32_t rec = qr_next_line(&g->S->prog, file, 0); rec;
+
+         rec = qr_next_line(&g->S->prog, file, rec)) {
+        const QTok *toks;
+        const uint32_t nt = qr_line_toks(g, rec, &toks);
+
+        for (uint32_t i = 0; i + 2 < nt; i++)
+            if (qr_named(&toks[i], name, n) &&
+                (toks[i + 1].kind == QK_AS || toks[i + 1].kind == QK_EQ) &&
+                toks[i + 2].kind == QK_NAME)
+                return &toks[i + 2];
+    }
+
+    return nullptr;
+}
+
+/* Record type t's fields, as any file declares them; the fns whose first parameter is one. */
+static void qr_fields(const QrSugg *const g, const QTok *const t)
+{
+    for (uint32_t k = 0; k < modu_count(&g->S->modu); k++) {
+        bool in = false; /* in type t's lines */
+
+        for (uint32_t rec = qr_next_line(&g->S->prog, k, 0); rec;
+
+             rec = qr_next_line(&g->S->prog, k, rec)) {
+            const QTok *toks;
+            const uint32_t n = qr_line_toks(g, rec, &toks);
+            const uint32_t i = qr_decl(toks, n);
+
+            if (in && n >= 2 && toks[0].kind == QK_END && toks[1].kind == QK_TYPE)
+                in = false;
+            else if (in && n >= 2 && toks[0].kind == QK_NAME && toks[1].kind == QK_AS)
+                g->fn(g->ctx, toks[0].text, toks[0].len, QRS_NAME, rec);
+            else if (i + 1 < n && toks[i].kind == QK_TYPE)
+                in = qr_named(&toks[i + 1], t->text, t->len);
+            else if (i + 5 < n && toks[i].kind == QK_FN && toks[i + 1].kind == QK_NAME &&
+                     toks[i + 2].kind == QK_LPAREN && toks[i + 4].kind == QK_AS &&
+                     qr_named(&toks[i + 5], t->text, t->len))
+                g->fn(g->ctx, toks[i + 1].text, toks[i + 1].len, QRS_FN, rec);
+        }
+    }
+}
+
+/* The keywords; file's names, not a field's after '.'. */
+static void qr_scope(const QrSugg *const g, const uint32_t file)
+{
+    for (QKind k = QK_AND; k <= QK_ASSERT; k++)
+        g->fn(g->ctx, qlex_keyword(k), (uint32_t)strlen(qlex_keyword(k)), QRS_KW, 0);
+
+    for (uint32_t rec = qr_next_line(&g->S->prog, file, 0); rec;
+
+         rec = qr_next_line(&g->S->prog, file, rec)) {
+        const QTok *toks;
+        const uint32_t n = qr_line_toks(g, rec, &toks);
+
+        for (uint32_t i = 0; i < n; i++)
+            if (toks[i].kind == QK_NAME && (!i || toks[i - 1].kind != QK_DOT))
+                g->fn(
+                    g->ctx,
+                    toks[i].text,
+                    toks[i].len,
+                    i && toks[i - 1].kind == QK_FN ? QRS_FN : QRS_NAME,
+                    rec
+                );
+    }
+}
+
+void qr_suggest(
+    Session *const S,
+    const uint32_t rec,
+    const char *const text,
+    const uint32_t n,
+    QrSuggFn *const fn,
+    void *const ctx
+)
+{
+    uint32_t quotes = 0;
+
+    for (uint32_t i = 0; i < n; i++)
+        quotes += text[i] == '"';
+
+    if (quotes % 2 ||
+        qr_tokens(&S->fault, text, n, qr_no_token, nullptr) < n) /* a string's, a comment's */
+        return;
+
+    QMem m = {.fault = &S->fault};
+
+    arena_init(&m.arena, QR_LINE_CHUNK);
+    const QrSugg g = {S, &m, fn, ctx};
+
+    const uint32_t file = prog_line(&S->prog, rec)->len ? prog_line(&S->prog, rec)->file : 0;
+    uint32_t b = n ? n - 1 : 0; /* the name before a '.' at n - 1 */
+
+    while (b && qr_namec(text[b - 1]))
+        b--;
+
+    if (!n || text[n - 1] != '.')
+        qr_scope(&g, file);
+    else if (b < n - 1 && !is_digit((uint8_t)text[b]) && (!b || text[b - 1] != '.')) {
+        const uint32_t k = qr_module_named(S, text + b, n - 1 - b);
+        const QTok *const t = qr_type_of(&g, file, text + b, n - 1 - b);
+
+        if (k < modu_count(&S->modu))
+            qr_members(&g, k);
+        else if (t)
+            qr_fields(&g, t);
+    }
+
+    arena_reset(&m.arena);
 }
