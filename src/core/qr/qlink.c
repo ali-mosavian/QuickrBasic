@@ -763,6 +763,8 @@ bool qlink_direct(
     uint32_t k = 0;
 
     for (QVar *v = from; v; v = v->next, k++) {
+        if (v->place) /* an inlined method's parameter, read where its argument is */
+            continue;
         if (qast_record(p, v->type) || qast_array(p, v->type))
             return false;
 
