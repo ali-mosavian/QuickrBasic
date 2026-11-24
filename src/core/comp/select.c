@@ -88,4 +88,7 @@ void select_op(const Symb *const sy, const Blok *const b, uint8_t *const op)
         store32(op + 1, (uint32_t)loc_off(*symb_loc(sy, load32(op + 1))));
     if (op[0] == O_PRET)
         select_pret(sy, b, op);
+    if (op[0] == O_E_NEXT) /* its variables' Locs, read where it runs (vm/flow.c) */
+        for (uint32_t i = 0; i < 3; i++)
+            store32(op + 1 + i * VCELL, (uint32_t)symb_placed(sy, load32(op + 1 + i * VCELL)).w);
 }

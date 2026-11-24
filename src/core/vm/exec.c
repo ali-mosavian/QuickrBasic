@@ -594,6 +594,7 @@ static void exec_loop(Session *const S)
                 {flow_i_next_dn, &&i_next_dn},
                 {flow_i_next_up_l, &&i_next_up_l},
                 {flow_i_next_dn_l, &&i_next_dn_l},
+                {flow_e_next, &&e_next},
                 {flow_eol, &&eol},
                 {dbug_dbg, &&dbg},
                 {exec_i_ld_a1, &&i_ld_a1},
@@ -895,6 +896,25 @@ i_next_up_l:
     NEXT_RUN(r.fp, true)
 i_next_dn_l:
     NEXT_RUN(r.fp, false)
+
+e_next: /* for x in a's next: flow_e_next's */
+{
+    const Jump *const j = (const Jump *)(r.ip + NEXT_SIZE - sizeof(Jump));
+
+    if (v->stop || j->dest <= TO_NEXT_STMT)
+        goto slow;
+
+    if (!hot_e_next(r.ip, r.fp)) {
+        r.ip += NEXT_SIZE;
+        goto next;
+    }
+
+    S->strg.tmp_used = S->strg.tmp_floor;
+    v->line = j->line;
+    r.ip = at(S->allo.cache + j->dest);
+}
+
+    goto next;
 
 #define JFC_I(name, src) JFC_RUN(name, hot_jfc(&t, src))
 #define JFC_L(name, src) JFC_RUN(name, hot_ljfc(&t, src))
@@ -1538,6 +1558,15 @@ void exec_s_cat(Session *const S)
     const Addr right = exec_popa(&S->vm);
     const Addr left = exec_popa(&S->vm);
     exec_pusha(&S->vm, strg_cat(&S->strg, left, right));
+}
+
+/* S.JOIN n: n strings joined, sized first. */
+void exec_s_join(Session *const S)
+{
+    const uint32_t n = exec_u8(&S->vm);
+    const Addr r = strg_join(&S->strg, S->vm.sp, n);
+    S->vm.sp += n;
+    exec_pusha(&S->vm, r);
 }
 
 /* CALL k: routine k. */

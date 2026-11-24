@@ -1310,6 +1310,11 @@ static void qcg_loadat(QCg *const g, const QExpr *const e)
         return;
     }
 
+    if (e->kind == QE_INDEX && e->var && !e->var->byref) { /* a for's x: its copy, E.NEXT's */
+        qcg_load(c, e->var);
+        return;
+    }
+
     if (e->kind == QE_FIELD) {
         qcg_fieldop(g, false, qcg_fieldat(g, e), e->type);
         return;
@@ -2081,6 +2086,7 @@ static void qcg_has(QCg *const g, const QExpr *const e)
 static void qcg_fstring(QCg *const g, const QExpr *const e)
 {
     Code *const c = g->c;
+    uint32_t held = 0;
 
     if (!e->n)
         qcg_string(g, nullptr);
@@ -2104,13 +2110,17 @@ static void qcg_fstring(QCg *const g, const QExpr *const e)
             qcg_hold(g, v->type, -1);
         }
 
-        if (k)
-            code_op(c, O_S_CAT);
+        qcg_hold(g, QY_STRING, 1);
 
-        qcg_hold(g, QY_STRING, k ? 0 : 1);
+        if (++held == UINT8_MAX || (k + 1 == e->n && held > 1)) {
+            code_xop(c, X_S_JOIN);
+            code_byte(c, (uint8_t)held);
+            qcg_hold(g, QY_STRING, 1 - (int32_t)held);
+            held = 1;
+        }
     }
 
-    qcg_hold(g, QY_STRING, e->n ? -1 : 0);
+    qcg_hold(g, QY_STRING, -(int32_t)held);
 }
 
 /* Fresh record or list e built straight in place dst. */
@@ -2974,6 +2984,14 @@ static void qcg_inclusive(QCg *const g, const QStmt *const s)
     qcg_store(c, s->lim);
 }
 
+/* For s's copy of x, which its E.NEXT loads (qr/qsem.c qsem_each); null none, or a resumable
+   generator's loop: its variables by reference. */
+static const QVar *qcg_copy(const QStmt *const s)
+{
+    const QVar *const v = s->each && s->var && s->var->place ? s->var->place->var : nullptr;
+    return v && !v->byref ? v : nullptr;
+}
+
 /* Variable v, declared with no value: 0, "", an empty list, an array's elements 0, a record's
    fields their defaults. */
 static void qcg_fresh(QCg *const g, QVar *const v)
@@ -3448,6 +3466,14 @@ static void qcg_body(QCg *const g, const QStmt *const s)
         qcg_past(g, s, false);
         qcg_to(g, O_I_JT, s->link, BOFF, TO_STMT);
         qcg_inclusive(g, s);
+
+        if (qcg_copy(s)) { /* x's first copy; E.NEXT the rest */
+            QExpr at = *s->var->place;
+            at.var = nullptr;
+            qcg_loadat(g, &at);
+            qcg_store(c, qcg_copy(s));
+        }
+
         return;
 
     case QS_ENDFOR: { /* NEXT's six ops (comp/fuse.c): I.NEXT.UP or I.NEXT.DN */
@@ -3460,6 +3486,15 @@ static void qcg_body(QCg *const g, const QStmt *const s)
 
         if (f->e->kind == QE_ITER) {
             qcg_again(g, f->e->iter, g->env->lines[f->line].at);
+            return;
+        }
+
+        if (qcg_copy(f)) {
+            code_op(c, O_E_NEXT);
+            code_dword(c, f->index->id);
+            code_dword(c, f->e->var->id);
+            code_dword(c, qcg_copy(f)->id);
+            qcg_target(g, f, BOFF, TO_STMT);
             return;
         }
 

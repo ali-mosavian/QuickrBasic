@@ -265,7 +265,7 @@ OP(L_SUB, oper_l_sub, 1, FX + FK)
 OP(V_REF, exec_v_ref, 1 + VID, FP)  /* a parameter's ref, passed on */
 OP(FE_ADDR, exec_fe_addr, 10, 0)    /* a record's array field's element ( a s.. -- e ): off:4 n esize:4 */
 OP(FX_IDX, exec_fx_idx, 13, 0)      /* a fixed array field's element ( a s -- e ): lb count stride */
-OP(IMPORT, flow_import, 9, 0)       /* ours: a module's code run, once (comp/import.c): module:4 line:4 */
+OP(E_NEXT, flow_e_next, NEXT_SIZE, 0) /* for x in a's next: i, a and x Locs (comp/select.c), a Jump */
 OP(L_SUB_U8, oper_l_sub_u8, 2, FX + FK)
 OP(X, exec_x, 0, 0) /* an X op: its byte next (XOP) */
 #undef TWIN
@@ -328,6 +328,8 @@ XOP(IW_SUB, oper_iw_sub, 2, FX + FK)
 XOP(IW_MUL, oper_iw_mul, 2, FX + FK)
 XOP(IW_NEG, oper_iw_neg, 2, FX + FK)
 XOP(N_CONV, qrt_conv, 4, FX + FK) /* any integer or float as another: from, to and wrap (qr/qrt.h) */
+XOP(S_JOIN, exec_s_join, 3, FX)     /* n strings joined, one allocation: n */
+XOP(IMPORT, flow_import, 10, 0)   /* ours: a module's code run, once (comp/import.c): module:4 line:4 */
 #undef XOP
 #endif
 

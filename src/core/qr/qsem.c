@@ -5220,6 +5220,13 @@ static void qsem_eachkey(QSem *const S, QStmt *const s, const QVar *const root)
     qsem_lend(S, root, s);
 }
 
+/* Is a for's element of type t read from a copy its loop keeps: a number of 4 bytes or 8? */
+static bool qsem_copied(const QType t)
+{
+    return t == QY_INT || t == QY_SINGLE || t == QY_DOUBLE || t == QY_BOOL || t == QY_LONG ||
+           t == QY_UINT || t == QY_ULONG;
+}
+
 /* for [i,] x in a, for mut x in a: a list or an array, borrowed by the loop; x names a[i], i
    counting as a range's for does. */
 static void qsem_each(QSem *const S, QStmt *const s)
@@ -5272,6 +5279,9 @@ static void qsem_each(QSem *const S, QStmt *const s)
     s->var->place = at;
     qsem_bind(S, x->name, s->var, nullptr);
     qsem_lend(S, root, s);
+
+    if (!s->mut && a->kind == QE_NAME && qsem_copied(elem)) /* x read from its copy (qr/qcg.c) */
+        at->var = qsem_var(S, x->name, elem, QV_TEMP);
 }
 
 static void qsem_genfor(QSem *S, QStmt *s, QFn *g);

@@ -498,8 +498,8 @@ struct QExpr {
     const QTok *tok; /* its first token; a binary's, its operator */
     QExpr *a, *b, *c;
     QVal val;
-    QVar *var;    /* QE_NAME's; QE_IN's temporary; a record's built there first */
-    QFn *fn;      /* QE_CALL's */
+    QVar *var; /* QE_NAME's; QE_IN's temporary; a record's built there first; a for's x: its copy */
+    QFn *fn;   /* QE_CALL's */
     QArg *args;   /* QE_CALL as written */
     QExpr **argv; /* QE_CALL: by parameter, or print's in order */
     uint32_t nargv;

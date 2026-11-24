@@ -537,6 +537,32 @@ static inline Status hot_next(const uint8_t *const op, const Addr base, const bo
     return ST_OK;
 }
 
+/* E.NEXT at op, for x in a's next: its index stepped; under a's count, x a's element there, true.
+   Its cells are Locs (comp/select.c): i's and x's, the loop's own, both in the frame or neither;
+   a's a parameter's, a global's or a local's. */
+static inline bool hot_e_next(const uint8_t *const op, const Addr fp)
+{
+    const int32_t iw = (int32_t)load32(op + 1);
+    const Addr base = iw < 0 ? fp : 0;
+    const Addr a = ((const ArrSlot *)at(loc_at((Loc){(int32_t)load32(op + 1 + VCELL)}, fp)))->hdr;
+
+    const uint32_t n = rd32(base + (uint32_t)iw) + 1;
+    wr32(base + (uint32_t)iw, n);
+
+    if (!a || n >= ((const ArrayHdr *)at(a))->fast)
+        return false;
+
+    const ArrayHdr *const h = (const ArrayHdr *)at(a);
+    const Addr x = base + load32(op + 1 + 2 * VCELL);
+
+    if (h->et == ET_R8)
+        store_cell(at(x), load_cell(at(h->data + n * sizeof(Cell))));
+    else
+        wr32(x, rd32(h->data + n * 4));
+
+    return true;
+}
+
 /* The INT compare-and-branches (comp/fuse.c): name, the compare's right operand. */
 #define HOT_JFCS(X)                                                                                \
     X(i_jfc, HOT_POPPED)                                                                           \

@@ -64,6 +64,9 @@ uint32_t strg_span(const uint8_t **p, uint8_t stop1, uint8_t stop2);
 uint16_t strg_len(Addr desc);
 /* left + right, a new temporary. String too long (E_LS): over SMAX. */
 Addr strg_cat(Strg *sg, Addr left, Addr right);
+/* A new temporary of the n strings at parts joined, one allocation: parts[n - 1] first (a
+   stack's). String too long. */
+Addr strg_join(Strg *sg, const Cell *parts, uint32_t n);
 /* left against right, a prefix less: SCMP_*. */
 uint8_t strg_cmp(Strg *sg, Addr left, Addr right);
 /* A new temporary of desc's chars from start (0 the first), most of them. */

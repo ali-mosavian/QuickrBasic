@@ -417,6 +417,18 @@ static void next(Session *const S, const Addr base, const bool up)
     branch(S, back);
 }
 
+/* E.NEXT (qr/qcg.c): hot_e_next, then back to the body unless past. */
+void flow_e_next(Session *const S)
+{
+    if (exec_stopchk(S))
+        return;
+
+    const uint8_t *const op = S->vm.ip - 1;
+    const bool back = hot_e_next(op, S->vm.fp);
+    S->vm.ip = (uint8_t *)op + NEXT_SIZE - sizeof(Jump);
+    branch(S, back);
+}
+
 void flow_i_next_up(Session *const S) { next(S, 0, true); }
 void flow_i_next_dn(Session *const S) { next(S, 0, false); }
 void flow_i_next_up_l(Session *const S) { next(S, S->vm.fp, true); }
