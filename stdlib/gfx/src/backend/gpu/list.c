@@ -100,6 +100,7 @@ static void drawn(
         alpha,
         textures[0],
         textures[1],
+        textures[2],
     };
 
     mem_copy(d, w, sizeof w);
@@ -133,7 +134,7 @@ static bool draw(
 
     uint32_t *const d = l->words + l->draw;
     const bool open = l->draw && l->draw + DRAW_WORDS == l->n && d[1] == want[0] &&
-                      d[2] == want[1] && d[6] == want[5] && d[8] == want[7];
+                      d[2] == want[1] && d[6] == want[5] && d[8] == want[7] && d[9] == want[8];
 
     if (open && (d[7] == want[6] || any || l->any)) {
         if (!any)

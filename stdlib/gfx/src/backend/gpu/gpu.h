@@ -14,6 +14,11 @@
  * keeps the rows the CPU wrote since it was sent (gpu_wrote), so it sends only those. A root drawn
  * into with depth has a depth texture too (gpu_depth), made on that first draw, which every pass
  * into it keeps after. A pipeline is made when first drawn with.
+ *
+ * A draw that reads what is behind its pixels (GpuTarget.behind) reads a copy of its target, made
+ * before it when the target changed under it since the last: drawn in, by a call before this one,
+ * over the draw's box, or written by the CPU. A call's own draws never overlap. The copy is made
+ * again only where the target was drawn in since, when it is of the same target.
  */
 #ifndef GFX_GPU_GPU_H
 #define GFX_GPU_GPU_H
@@ -22,9 +27,17 @@
 #include "backend/gpu/list.h"
 #include "core/surface.h"
 
-/* The palette's texture, the first atlas page's, a page's side; a root's depth texture is its
-   handle with GPU_DEPTH's kind. */
-enum { GPU_PALETTE = PIC_FONT + 1, GPU_PAGE_FIRST, GPU_PAGE = 1024, GPU_DEPTH = 8 };
+/* The palette's texture, the copy of what is behind, the first atlas page's, a page's side; a
+   root's depth texture is its handle with GPU_DEPTH's kind. */
+enum { GPU_PALETTE = PIC_FONT + 1, GPU_BEHIND, GPU_PAGE_FIRST, GPU_PAGE = 1024, GPU_DEPTH = 8 };
+
+/* The boxes drawn in since the copy kept apart; past them, it is made again before the next read. */
+enum { GPU_DIRTY = 16 };
+
+/* A box of a target's pixels, its edges at half pixels: none when x0 is not under x1. */
+typedef struct {
+    float x0, y0, x1, y1;
+} GpuBox;
 
 typedef struct {
     uint32_t handle, version;
@@ -66,14 +79,20 @@ typedef struct {
     uint32_t npages, cappages;
     bool passing;        /* a pass since the list began */
     uint32_t pass, deep; /* its texture and depth texture */
+    int32_t w, h;        /* its size */
     Rect clip;
-    uint32_t palette; /* the palette's changes when sent, and 1; 0 not yet */
-    float down;       /* the shader's: 1 where clip space's y runs down a texture's rows, else -1 */
-    uint32_t white;   /* the white texel shapes draw from */
-    uint8_t *page;    /* the canvas's pixels, read back */
-    uint32_t shader;  /* the language (QxShader) */
-    uint32_t made;    /* the pipelines made, a bit each */
-    GpuCount count;   /* since gpu_counted */
+    uint32_t behind;            /* the texture GPU_BEHIND copies; 0 none */
+    int32_t behind_w, behind_h; /* GPU_BEHIND's size; 0 not made */
+    GpuBox dirty[GPU_DIRTY];    /* drawn in behind since the copy, by calls before this one */
+    uint32_t ndirty;            /* past GPU_DIRTY, more */
+    GpuBox call;                /* drawn in the pass by this call */
+    uint32_t palette;           /* the palette's changes when sent, and 1; 0 not yet */
+    float down;      /* the shader's: 1 where clip space's y runs down a texture's rows, else -1 */
+    uint32_t white;  /* the white texel shapes draw from */
+    uint8_t *page;   /* the canvas's pixels, read back */
+    uint32_t shader; /* the language (QxShader) */
+    uint32_t made;   /* the pipelines made, a bit each */
+    GpuCount count;  /* since gpu_counted */
 } Gpu;
 
 /* What a call's vertices share. */
@@ -92,6 +111,7 @@ typedef struct {
     uint32_t tint;
     uint32_t paint; /* a picture's colour: the tint, or SOLID's */
     bool solid;
+    bool behind; /* its pixels read what is behind them */
 } GpuTarget;
 
 /* The canvas, s's size, the palette and the pipelines, in the language s gave: false, no memory. */

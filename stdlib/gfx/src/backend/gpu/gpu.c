@@ -14,6 +14,9 @@ enum {
     DISC_ATTRIBUTES = 7,
 };
 
+/* A box none. */
+static constexpr GpuBox NONE = {0, 0, 0, 0};
+
 /* The vertices of list_draw and of list_discs. */
 typedef enum { PLAIN, ROUND, KINDS } Kind;
 
@@ -175,6 +178,10 @@ bool gpu_open(Gpu *const g, const QxScreen *const s)
     g->npages = 0;
 
     g->passing = false;
+    g->behind = 0;
+    g->behind_w = g->behind_h = 0;
+    g->ndirty = 0;
+    g->call = NONE;
     g->palette = 0;
     g->white = 0xFFFFFFFF;
     g->down = s->y_down ? 1 : -1;
@@ -337,6 +344,8 @@ bool gpu_texture(
 
         if (!list_op(&g->list, QX_LIST_UPLOAD, args, 8))
             return false;
+
+        g->behind = id == g->behind ? 0 : g->behind;
     }
 
     if (e->version != p->version)
@@ -375,7 +384,53 @@ static bool same(const Rect a, const Rect b)
     return a.x == b.x && a.y == b.y && a.w == b.w && a.h == b.h;
 }
 
-bool gpu_target(
+static GpuBox joined(const GpuBox a, const GpuBox b)
+{
+    if (!(a.x0 < a.x1))
+        return b;
+
+    if (!(b.x0 < b.x1))
+        return a;
+
+    return (GpuBox){a.x0 < b.x0 ? a.x0 : b.x0,
+                    a.y0 < b.y0 ? a.y0 : b.y0,
+                    a.x1 > b.x1 ? a.x1 : b.x1,
+                    a.y1 > b.y1 ? a.y1 : b.y1};
+}
+
+static bool overlap(const GpuBox a, const GpuBox b)
+{
+    return a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+}
+
+/* This call's box among what the copy of behind lacks, when the pass is what it copies. */
+static void called(Gpu *const g)
+{
+    if (g->passing && g->pass == g->behind && g->call.x0 < g->call.x1) {
+        if (g->ndirty < GPU_DIRTY)
+            g->dirty[g->ndirty] = g->call;
+
+        g->ndirty++;
+    }
+
+    g->call = NONE;
+}
+
+/* The copy of behind lacks some of b. */
+static bool stale(const Gpu *const g, const GpuBox b)
+{
+    if (g->behind != g->pass || g->ndirty > GPU_DIRTY)
+        return true;
+
+    for (uint32_t i = 0; i < g->ndirty; i++)
+        if (overlap(b, g->dirty[i]))
+            return true;
+
+    return false;
+}
+
+/* gpu_target's pass and clip. */
+static bool aim(
     Gpu *const g,
     const uint32_t id,
     const uint32_t deep,
@@ -405,6 +460,8 @@ bool gpu_target(
         g->passing = true;
         g->pass = id;
         g->deep = deep;
+        g->w = w;
+        g->h = h;
         g->clip = (Rect){.w = -1};
     }
 
@@ -416,6 +473,19 @@ bool gpu_target(
 
     g->clip = clip;
     return list_op(&g->list, QX_LIST_CLIP, args, 4);
+}
+
+bool gpu_target(
+    Gpu *const g,
+    const uint32_t id,
+    const uint32_t deep,
+    const int32_t w,
+    const int32_t h,
+    const Rect clip
+)
+{
+    called(g);
+    return aim(g, id, deep, w, h, clip);
 }
 
 bool gpu_palette(Gpu *const g, const Palette *const pal)
@@ -455,34 +525,146 @@ static bool any(const GpuVertex *const v)
     return (v->stages & (GPU_STAGE_SOLID | GPU_STAGE_KEYED)) == GPU_STAGE_SOLID;
 }
 
+/* The box of n vertices, stride bytes apart. */
+static GpuBox box_of(const void *const v, const uint32_t stride, const uint32_t n)
+{
+    GpuBox b = {1e30f, 1e30f, -1e30f, -1e30f};
+
+    for (uint32_t i = 0; i < n; i++) {
+        const GpuVertex *const p = (const GpuVertex *)((const uint8_t *)v + i * stride);
+        b.x0 = p->x < b.x0 ? p->x : b.x0;
+        b.y0 = p->y < b.y0 ? p->y : b.y0;
+        b.x1 = p->x > b.x1 ? p->x : b.x1;
+        b.y1 = p->y > b.y1 ? p->y : b.y1;
+    }
+
+    return b;
+}
+
+/* The box b of texture id, w by h, drawn into GPU_BEHIND's pass: false, no memory. */
+static bool copy_box(
+    Gpu *const g,
+    const uint32_t id,
+    const int32_t w,
+    const int32_t h,
+    const GpuBox b
+)
+{
+    const GpuVertex corner = {
+        .w = 1,
+        .rw = (uint16_t)w,
+        .rh = (uint16_t)h,
+        .r = 255,
+        .g = 255,
+        .b = 255,
+        .light = PAL_FULL,
+    };
+
+    const uint32_t textures[LIST_TEXTURES] = {id, GPU_PALETTE, GPU_PALETTE};
+
+    GpuVertex v[4] = {corner, corner, corner, corner};
+
+    for (uint32_t i = 0; i < 4; i++) {
+        const bool right = i == 1 || i == 2, low = i >= 2;
+        v[i].x = right ? b.x1 : b.x0;
+        v[i].y = low ? b.y1 : b.y0;
+        v[i].u = v[i].x + 0.5f;
+        v[i].v = v[i].y + 0.5f;
+    }
+
+    return list_draw(&g->list, v, 4, pipeline_of(PLAIN, QX_BLEND_NONE, 0), textures, OPAQUE, false);
+}
+
+/* The pass's texture copied to GPU_BEHIND, made or made larger first; only what the copy lacks,
+   when it is of this texture: false, no memory. */
+static bool copy_behind(Gpu *const g)
+{
+    const uint32_t id = g->pass, deep = g->deep;
+    const int32_t w = g->w, h = g->h;
+    const Rect clip = g->clip;
+    const GpuBox all = {-0.5f, -0.5f, (float)w - 0.5f, (float)h - 0.5f};
+
+    const bool some = g->behind == id && g->ndirty <= GPU_DIRTY;
+
+    if (w > g->behind_w || h > g->behind_h) {
+        const uint32_t name = GPU_BEHIND;
+        const uint32_t made[] = {
+            name,
+            (uint32_t)(w > g->behind_w ? w : g->behind_w),
+            (uint32_t)(h > g->behind_h ? h : g->behind_h),
+            QX_TEXTURE_RGBA
+        };
+
+        if ((g->behind_w && !list_op(&g->list, QX_LIST_FREE, &name, 1)) ||
+            !list_op(&g->list, QX_LIST_TEXTURE, made, 4))
+            return false;
+
+        g->behind_w = (int32_t)made[1];
+        g->behind_h = (int32_t)made[2];
+    }
+
+    g->passing = false;
+
+    if (!aim(g, GPU_BEHIND, 0, g->behind_w, g->behind_h, (Rect){0, 0, w, h}) ||
+        !pipeline(g, PLAIN, QX_BLEND_NONE, 0))
+        return false;
+
+    for (uint32_t i = 0; some && i < g->ndirty; i++)
+        if (!copy_box(g, id, w, h, g->dirty[i]))
+            return false;
+
+    if (!some && !copy_box(g, id, w, h, all))
+        return false;
+
+    g->passing = false;
+    g->behind = id;
+    g->ndirty = 0;
+    return aim(g, id, deep, w, h, clip);
+}
+
+/* t's draw over box b: what is behind it copied first when it reads that and the copy lacks some.
+   False, no memory. */
+static bool drawing(Gpu *const g, const GpuTarget *const t, const GpuBox b)
+{
+    if (t->behind && stale(g, b) && !copy_behind(g))
+        return false;
+
+    g->call = joined(g->call, b);
+    return true;
+}
+
 bool gpu_draw(Gpu *const g, const GpuTarget *const t, const GpuVertex *const v, const uint32_t n)
 {
-    const uint32_t textures[LIST_TEXTURES] = {t->texture, GPU_PALETTE};
+    const uint32_t textures[LIST_TEXTURES] =
+        {t->texture, GPU_PALETTE, t->behind ? GPU_BEHIND : GPU_PALETTE};
 
-    return pipeline(g, PLAIN, t->blend, t->depth) && list_draw(
-                                                         &g->list,
-                                                         v,
-                                                         n,
-                                                         pipeline_of(PLAIN, t->blend, t->depth),
-                                                         textures,
-                                                         t->alpha,
-                                                         any(v)
-                                                     );
+    return drawing(g, t, box_of(v, sizeof *v, n)) && pipeline(g, PLAIN, t->blend, t->depth) &&
+           list_draw(
+               &g->list,
+               v,
+               n,
+               pipeline_of(PLAIN, t->blend, t->depth),
+               textures,
+               t->alpha,
+               any(v)
+           );
 }
 
 bool gpu_discs(Gpu *const g, const GpuTarget *const t, const GpuDisc *const v, const uint32_t n)
 {
-    const uint32_t textures[LIST_TEXTURES] = {t->texture, GPU_PALETTE};
+    const uint32_t textures[LIST_TEXTURES] =
+        {t->texture, GPU_PALETTE, t->behind ? GPU_BEHIND : GPU_PALETTE};
 
-    return pipeline(g, ROUND, t->blend, 0) && list_discs(
-                                                  &g->list,
-                                                  v,
-                                                  n,
-                                                  pipeline_of(ROUND, t->blend, 0),
-                                                  textures,
-                                                  t->alpha,
-                                                  any(&v->v)
-                                              );
+    return drawing(g, t, box_of(v, sizeof *v, n)) && pipeline(g, ROUND, t->blend, 0) &&
+           list_discs(
+               &g->list,
+               v,
+               n,
+               pipeline_of(ROUND, t->blend, 0),
+               textures,
+               t->alpha,
+               any(&v->v)
+           );
 }
 
 void gpu_play(Gpu *const g, const bool show)
@@ -491,6 +673,8 @@ void gpu_play(Gpu *const g, const bool show)
     uint32_t n;
     const uint32_t *const words =
         !show || list_op(&g->list, QX_LIST_SHOW, &canvas, 1) ? list_end(&g->list, &n) : nullptr;
+
+    called(g);
 
     if (words)
         qx_host->gpu_play(words, n);
@@ -585,4 +769,6 @@ void gpu_forget(Gpu *const g, const uint32_t h)
 
     if (e)
         *e = (GpuTexture){};
+
+    g->behind = h == g->behind ? 0 : g->behind;
 }

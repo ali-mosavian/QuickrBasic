@@ -7,7 +7,8 @@ over 64 KB read whole was File not found, as a read's count kept its low 16 bits
 the cursor is where it was: the mode's set had put it top left, where the next PRINT went. The
 DOS slice draws the host's pixels: SAME_PIXELS's checksum is the same from both builds of the one C
 renderer, the x87's arithmetic and the host's. --gpu [DEPTH...]: GPU_SCENE in the Mac app, drawn by the GPU
-against pages, cell by cell: 32 bits' lights, tints, SOLID and ADD were the GPU's floats, a level or three off."""
+against pages, cell by cell: 32 bits' lights, tints, SOLID and ADD were the GPU's floats, a level or three off;
+BLEND, the blend constant's, a level off."""
 
 import os
 import subprocess
@@ -257,8 +258,7 @@ GPU_CELLS = (
     "solid", "blend", "add", "smooth", "rows", "text", "drawn into", "read back",
 )
 # Cells whose texels the GPU picks by its own interpolation, not software's 16.16 walk: told, not failed.
-# blend: until MIX reads what is behind.
-GPU_LOOSE = ("turned", "polys", "depth", "smooth", "blend")
+GPU_LOOSE = ("turned", "polys", "depth", "smooth")
 GPU_SCENE = """import gfx.display, gfx.draw, gfx.surface
 from gfx.draw import Vec2, Vertex
 canvas& = gfx.display.open(640, 480, {depth}, 0)

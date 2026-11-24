@@ -472,25 +472,30 @@ TEST(gfx_gpu_speaks_the_hosts_language)
     CHECK(uniforms[2] == 1);
 }
 
-/* BLEND at alpha 32 is its own batch, alpha 32 of 63 as 129 of 255. */
-TEST(gfx_gpu_splits_batches_at_a_blend)
+/* BLEND mixes in the shader with a copy of what is behind, made first: the rect before it covers
+   its pixels. One beside it reads that copy, in its batch; one over it, a copy made again of the
+   two drawn since alone. */
+TEST(gfx_gpu_blends_read_a_copy_of_behind)
 {
+    const int32_t blend = GFX_DRAW_FILL | GFX_DRAW_BLEND;
+
     screen(S, 8, 8, 32);
     GPU_CALL("draw.rect", I(SURF_SCREEN), F(0), F(0), F(1), F(1), I(1), I(GFX_DRAW_FILL));
     GPU_CALL("draw.set_alpha", I(32));
-    GPU_CALL(
-        "draw.rect",
-        I(SURF_SCREEN),
-        F(0),
-        F(0),
-        F(1),
-        F(1),
-        I(1),
-        I(GFX_DRAW_FILL | GFX_DRAW_BLEND)
-    );
+    GPU_CALL("draw.rect", I(SURF_SCREEN), F(0), F(0), F(1), F(1), I(1), I(blend));
+    GPU_CALL("draw.rect", I(SURF_SCREEN), F(4), F(4), F(5), F(5), I(1), I(blend));
+    GPU_CALL("draw.rect", I(SURF_SCREEN), F(0), F(1), F(1), F(2), I(1), I(blend));
     GPU_CALL("display.flip");
-    CHECK(ops(FIRST "TUPNCULDLDSE") && arg(QX_LIST_PIPELINE, 1, 2) == QX_BLEND_MIX);
-    CHECK(arg(QX_LIST_DRAW, 1, 1) == arg(QX_LIST_PIPELINE, 1, 1) && arg(QX_LIST_DRAW, 1, 6) == 129);
+    CHECK(
+        ops(FIRST "TUPNCULD"
+                  "TPNCDPNCD"
+                  "PNCDPNCD"
+                  "SE")
+    );
+    CHECK(arg(QX_LIST_DRAW, 1, 7) == SURF_SCREEN && arg(QX_LIST_DRAW, 2, 9) == GPU_BEHIND);
+    CHECK(arg(QX_LIST_DRAW, 2, 5) == 2 * 6 && arg(QX_LIST_DRAW, 2, 6) == 255);
+    CHECK(vertices[8].alpha == 32 && vertices[8].stages == (GPU_STAGE_SOLID | GPU_STAGE_MIX));
+    CHECK(arg(QX_LIST_DRAW, 3, 7) == SURF_SCREEN && arg(QX_LIST_DRAW, 3, 5) == 2 * 6);
 }
 
 /* A shape's texel does not matter: it joins a picture's batch, before or after it, and a circle

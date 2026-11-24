@@ -20,7 +20,10 @@
 
 /* ALPHA: a pipeline's whole alpha. CALL_STAGES: the stages a call's flags set, kept for its
    pictures. */
-enum { ALPHA = 255, CALL_STAGES = GPU_STAGE_KEYED | GPU_STAGE_SMOOTH | GPU_STAGE_ADD };
+enum {
+    ALPHA = 255,
+    CALL_STAGES = GPU_STAGE_KEYED | GPU_STAGE_SMOOTH | GPU_STAGE_ADD | GPU_STAGE_MIX,
+};
 
 /* The GPU's own (Gx.own): its recorder and the call readied. */
 typedef struct {
@@ -126,7 +129,7 @@ static GpuVertex shape(const GpuTarget *const t, const uint32_t colour)
         .b = (uint8_t)rgb,
         .light = (uint8_t)light,
         .alpha = t->ink.alpha,
-        .stages = (uint16_t)(GPU_STAGE_SOLID | (t->ink.stages & GPU_STAGE_ADD)),
+        .stages = (uint16_t)(GPU_STAGE_SOLID | (t->ink.stages & (GPU_STAGE_ADD | GPU_STAGE_MIX))),
     };
 }
 
@@ -162,9 +165,7 @@ static bool aim(
 static bool begin(Gx *const g, const Command *const c, const Picture *const into, const Rect clip)
 {
     const Style *const style = &g->style;
-    const QxBlend blend = c->flags & GFX_DRAW_ADD     ? QX_BLEND_ADD
-                          : c->flags & GFX_DRAW_BLEND ? QX_BLEND_MIX
-                                                      : QX_BLEND_NONE;
+    const bool add = c->flags & GFX_DRAW_ADD, mix = !add && c->flags & GFX_DRAW_BLEND;
     const uint8_t depth = (c->flags & GFX_DRAW_DEPTH_TEST ? QX_DEPTH_TEST : 0) |
                           (c->flags & GFX_DRAW_DEPTH_WRITE ? QX_DEPTH_WRITE : 0);
     GpuSource blank;
@@ -185,18 +186,19 @@ static bool begin(Gx *const g, const Command *const c, const Picture *const into
                 .alpha = (uint8_t)style->alpha,
                 .stages = (uint16_t)((c->flags & GFX_DRAW_OPAQUE ? 0 : GPU_STAGE_KEYED) |
                                      (c->flags & GFX_DRAW_SMOOTH ? GPU_STAGE_SMOOTH : 0) |
-                                     (blend == QX_BLEND_ADD ? GPU_STAGE_ADD : 0)),
+                                     (add ? GPU_STAGE_ADD : 0) | (mix ? GPU_STAGE_MIX : 0)),
             },
         .texture = blank.id,
-        .blend = blend,
+        .blend = add ? QX_BLEND_ADD : QX_BLEND_NONE,
         .depth = depth,
         .perspective = c->flags & GFX_DRAW_PERSPECTIVE,
-        .alpha = blend == QX_BLEND_MIX ? (uint8_t)(style->alpha * ALPHA / PAL_FULL) : ALPHA,
+        .alpha = ALPHA,
         .eight = into->root.format == PX_8,
         .row = g->palette.rows[style->palette_row],
         .tint = style->tint,
         .solid = c->flags & GFX_DRAW_SOLID,
         .paint = pal_shade(style->tint, style->light, PAL_WHITE),
+        .behind = mix,
     };
 
     return true;

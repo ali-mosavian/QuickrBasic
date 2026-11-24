@@ -16,7 +16,7 @@
 #include "qxlist.h"
 
 /* The list's buffers; a draw's textures. */
-enum { LIST_VERTICES = 1, LIST_DISCS, LIST_INDICES, LIST_TEXTURES = 2 };
+enum { LIST_VERTICES = 1, LIST_DISCS, LIST_INDICES, LIST_TEXTURES = 3 };
 
 typedef struct {
     uint32_t *words;

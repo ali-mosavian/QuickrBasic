@@ -2,7 +2,8 @@
 // DISC, only those stdlib/gfx/disc.h's rule covers, worked as it works them; the texel at the
 // pixel's centre, kept in its rectangle (u repeating with WRAP); an index through the palette's
 // row; keyed; lit and tinted, or the vertex's colour alone (SOLID); with ADD, alpha's share of it,
-// which the pipeline adds. SMOOTH mixes the four texels round the centre, lit, as software's
+// which the pipeline adds; with MIX, mixed by alpha with the pixel behind, read from its copy, as
+// px_mix mixes. SMOOTH mixes the four texels round the centre, lit, as software's
 // smooth span does, a keyed one adding nothing, and draws where they are mostly kept.
 #version 450
 
@@ -15,14 +16,17 @@ const uint SWEEP = 32u;
 const uint WIDE = 64u;
 const uint SMOOTH = 128u;
 const uint ADD = 256u;
+const uint MIX = 512u;
 
 const uint FULL = 63u;
 
 // ESSL's samplers are named by binding (qx/qxlist.h).
 layout(set = 2, binding = 0) uniform sampler2D s0;
 layout(set = 2, binding = 1) uniform sampler2D s1;
+layout(set = 2, binding = 2) uniform sampler2D s2;
 #define source s0
 #define palette s1
+#define behind s2
 
 layout(location = 0) in vec2 v_texel;
 layout(location = 1) flat in uvec4 v_rect;
@@ -147,8 +151,15 @@ void main()
     if ((stages & SOLID) != 0u)
         c = v_tint.rgb;
 
+    uint alpha = v_more.y;
+
     if ((stages & ADD) != 0u)
-        c = c * v_more.y / FULL;
+        c = c * alpha / FULL;
+
+    if ((stages & MIX) != 0u) {
+        uvec3 d = bytes(texelFetch(behind, ivec2(gl_FragCoord.xy), 0).rgb);
+        c = (d * (FULL - alpha) + c * alpha) / FULL;
+    }
 
     colour = vec4(vec3(c) / 255.0, 1.0);
 }
