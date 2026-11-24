@@ -278,12 +278,14 @@ mac: $(APP)/Contents/Info.plist
 $(MAC)/QuickrBasic: $(MAC_OBJ) $(MAC)/obj/plat/sdl/app/main.o $(SDL_LIB)
 	$(HOST_CC) $(MAC_ARCH) $(filter %.o,$^) $(SDL_LIBS) -lm -o $@
 # the bundle, signed ad hoc (Apple silicon runs nothing unsigned)
-$(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(MAC)/QuickrBasic $(HELP) $(DEMOS)
-	rm -rf $(APP)/Contents/Resources/demos
-	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources/demos
+# Quickr's library in Resources/lib: psys_self puts the app there, and codesign takes only code in MacOS
+$(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(MAC)/QuickrBasic $(HELP) $(DEMOS) $(STDLIB)
+	rm -rf $(APP)/Contents/Resources/demos $(APP)/Contents/Resources/lib
+	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources/demos $(APP)/Contents/Resources/lib
 	cp $(MAC)/QuickrBasic $(APP)/Contents/MacOS/
 	cp $(HELP) $(APP)/Contents/Resources/BASIC.HLP
 	cp -R src/plat/wasm/web/demos/. $(APP)/Contents/Resources/demos/
+	cp $(STDLIB) $(APP)/Contents/Resources/lib/
 	cp $< $@
 	codesign --force -s - $(APP)
 mac-zip: mac
@@ -376,7 +378,13 @@ build/wasm/basic: build/wasm/basic.wasm
 # The IDE's page, for GitHub Pages or tools/wasm/serve.py: its scripts, the module, the help, the demos
 WEB_SRC := $(wildcard src/plat/wasm/web/*.mjs src/plat/wasm/web/*.js src/plat/wasm/web/*.html) \
 	$(shell find src/plat/wasm/web/demos -type f)
-web: build/web/ide.wasm build/web/synth.wasm build/web/BASIC.HLP build/web/demos/MODULES $(WEB_SRC:src/plat/wasm/web/%=build/web/%)
+web: build/web/ide.wasm build/web/synth.wasm build/web/BASIC.HLP build/web/demos/MODULES build/web/lib/MODULES \
+	$(WEB_SRC:src/plat/wasm/web/%=build/web/%)
+# Quickr's library, fetched to /lib beside C:\BASIC.EXE, where a module is looked for last; one name a line
+build/web/lib/MODULES: $(STDLIB)
+	@mkdir -p $(@D)
+	cp $^ $(@D)
+	cd stdlib && ls *.bas > $(CURDIR)/$@
 # the demos' modules, one path a line: the page fetches them from here, as the folders cannot be listed
 build/web/demos/MODULES: $(shell find src/plat/wasm/web/demos -mindepth 2 -name '*.bas')
 	@mkdir -p $(@D)

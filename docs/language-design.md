@@ -724,7 +724,8 @@ Everything else is in a module.
   gives `1 2.5 x true`. A `single` shows 7 significant digits and a `double` 15, as `%g` does,
   and a whole number keeps its `.0`: `print(2.0, 1e20)` gives `2.0 1e+20`.
 - A module is written in Quickr where possible, in `stdlib/`; the build puts it in `lib/` beside
-  the interpreter, where a module is looked for last.
+  the interpreter, where a module is looked for last: the Mac app's in `Contents/Resources/lib`
+  (the app's files are its Resources'), the web page's in `/lib`.
 - Its machine-level parts are `native fn` declarations: `public native fn sqrt(x as double) as
   double`. A native fn has no body; its entry, by its name, is in `src/core/qr/qnat.c`, the VM's
   services and no module's. A call compiles to the entry's code, which is what QBasic's statement

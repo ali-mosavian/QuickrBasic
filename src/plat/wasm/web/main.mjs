@@ -28,11 +28,15 @@ async function files() {
   const out = new Map();
   // [where from, the path in the file system]: a demo's modules sit in a folder beside it, listed in demos/MODULES
   const wanted = [...DEMOS.map((n) => [`demos/${n}`, `/${n}`]), ...SUPPORT.map((s) => [s, '/' + s.split('/').pop()])];
-  try {
-    const r = await fetch('demos/MODULES');
-    if (r.ok) for (const m of (await r.text()).split('\n').filter(Boolean)) wanted.push([`demos/${m}`, `/${m}`]);
-  } catch (e) {
-    console.error('no list of modules:', e);
+  // Quickr's library in /lib, beside the interpreter (C:\BASIC.EXE), listed in lib/MODULES
+  for (const list of ['demos', 'lib']) {
+    try {
+      const r = await fetch(`${list}/MODULES`);
+      const at = list === 'lib' ? '/lib/' : '/';
+      if (r.ok) for (const m of (await r.text()).split('\n').filter(Boolean)) wanted.push([`${list}/${m}`, at + m]);
+    } catch (e) {
+      console.error(`no list of ${list}' modules:`, e);
+    }
   }
   await Promise.all(wanted.map(async ([src, path]) => {
     try { // a file that will not load is not worth the page
