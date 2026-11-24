@@ -97,6 +97,12 @@ typedef struct {
     uint32_t at, loop; /* their tokens; loop UINT32_MAX none */
 } QMove;
 
+/* A call lending a module var, checked once every fn's writes are known; in, the fn it is in. */
+typedef struct {
+    const QExpr *call;
+    QFn *in;
+} QLend;
+
 typedef struct {
     QProg *prog;
     QMem *mem;
@@ -123,6 +129,11 @@ typedef struct {
     QScope *scopes; /* each module's, by number, then the package folders' */
     uint32_t nscopes, capscopes;
     bool pub; /* a public statement's names bound */
+    QLend *lends;
+    uint32_t nlends, caplends;
+    QFn **values; /* fns named as values: what a call through one may run */
+    uint32_t nvalues, capvalues;
+    uint32_t walks; /* qsem_writer's searches */
 } QSem;
 
 static QExpr *qsem_expr(QSem *S, QExpr *e, QType hint);
@@ -2066,6 +2077,154 @@ static QExpr *qsem_mutarg(QSem *const S, QExpr *const v, const QParam *const p)
     return v;
 }
 
+/* ---- module vars a fn writes (borrow rule 9) */
+
+static bool qsem_modvar(const QVar *const v) { return v && v->kind == QV_VAR && !v->fn; }
+
+/* The fn checked calls g. */
+static void qsem_callto(QSem *const S, QFn *const g)
+{
+    QFn *const f = S->fn;
+
+    for (uint32_t i = 0; f && i < f->ncallees; i++)
+        if (f->callees[i] == g)
+            return;
+
+    if (f) {
+        f->callees = qast_room(S->mem, f->callees, f->ncallees, &f->capcallees, sizeof *f->callees);
+        f->callees[f->ncallees++] = g;
+    }
+}
+
+/* The fn checked may drop a value of type t: each drop in it a callee. */
+static void qsem_dropcalls(QSem *const S, const QType t)
+{
+    if (!S->fn || !qast_drops(S->prog, t))
+        return;
+
+    QTy *const y = qast_ty(S->prog, t);
+
+    if (y->seen)
+        return;
+    if (y->drop)
+        qsem_callto(S, y->drop);
+
+    y->seen = true;
+
+    for (uint32_t k = 0; k < qast_parts(y); k++)
+        qsem_dropcalls(S, qast_part(y, k));
+
+    y->seen = false;
+}
+
+/* Variable v written in the fn checked: a module var noted as its write, a value it holds
+   maybe dropped. */
+static void qsem_wrote(QSem *const S, const QVar *const v)
+{
+    QFn *const f = S->fn;
+
+    if (!f)
+        return;
+
+    qsem_dropcalls(S, v->type);
+
+    for (uint32_t i = 0; i < f->nwrites; i++)
+        if (f->writes[i] == v)
+            return;
+
+    if (qsem_modvar(v)) {
+        f->writes = qast_room(S->mem, f->writes, f->nwrites, &f->capwrites, sizeof *f->writes);
+        f->writes[f->nwrites++] = (QVar *)v;
+    }
+}
+
+/* Call e checked: its callee noted, and e kept for qsem_lends when it lends a module var. */
+static void qsem_callee(QSem *const S, const QExpr *const e)
+{
+    if (e->type == QY_ERROR)
+        return;
+    if (e->fn)
+        qsem_callto(S, e->fn);
+    if (S->fn && e->builtin == QB_ICALL)
+        S->fn->icalls = true;
+
+    qsem_dropcalls(S, e->type);
+
+    for (uint32_t k = 0; k < e->nargv; k++)
+        if (e->argv[k]->type != QY_ERROR && qsem_modvar(qsem_root(e->argv[k]))) {
+            S->lends = qast_room(S->mem, S->lends, S->nlends, &S->caplends, sizeof *S->lends);
+            S->lends[S->nlends++] = (QLend){e, S->fn};
+
+            return;
+        }
+}
+
+/* Does f, or a fn it reaches, write module var v? The fn that does; null none. */
+static const QFn *qsem_writer(QSem *const S, QFn *const f, const QVar *const v)
+{
+    if (f->walk == S->walks)
+        return nullptr;
+
+    f->walk = S->walks;
+
+    for (uint32_t i = 0; i < f->nwrites; i++)
+        if (f->writes[i] == v)
+            return f;
+
+    const QFn *w = nullptr;
+
+    for (uint32_t i = 0; !w && i < f->ncallees; i++)
+        w = qsem_writer(S, f->callees[i], v);
+    for (uint32_t i = 0; !w && f->icalls && i < S->nvalues; i++)
+        w = qsem_writer(S, S->values[i], v);
+
+    return w;
+}
+
+/* The fn call l reaches that writes module var v; null none. */
+static const QFn *qsem_lendee(QSem *const S, const QLend *const l, const QVar *const v)
+{
+    S->walks++;
+
+    if (l->call->fn)
+        return qsem_writer(S, l->call->fn, v);
+
+    const QFn *w = nullptr;
+
+    for (uint32_t i = 0; !w && i < S->nvalues; i++)
+        w = qsem_writer(S, S->values[i], v);
+
+    return w;
+}
+
+/* Each call lending a module var: no fn it reaches writes it. */
+static void qsem_lends(QSem *const S)
+{
+    for (uint32_t i = 0; i < S->nlends; i++) {
+        const QLend *const l = &S->lends[i];
+        S->fn = l->in;
+
+        for (uint32_t k = 0; k < l->call->nargv; k++) {
+            const QExpr *const a = l->call->argv[k];
+            const QVar *const v = a->type == QY_ERROR ? nullptr : qsem_root(a);
+            const QFn *const w = qsem_modvar(v) ? qsem_lendee(S, l, v) : nullptr;
+
+            if (w)
+                qsem_say(
+                    S,
+                    a->tok,
+                    qsem_text(S, v->name),
+                    " is written by ",
+                    w->lamof ? "a lambda" : qsem_text(S, w->name),
+                    ": this call can't borrow it",
+                    nullptr
+                );
+        }
+    }
+
+    S->fn = nullptr;
+}
+
 /* Call e's mut arguments each its only way to its var: no other argument the same var. A
    lambda's capture is lent mut when the lambda changes it. */
 static void qsem_lent(QSem *const S, const QExpr *const e, const QFn *const f)
@@ -2860,6 +3019,7 @@ static QExpr *qsem_fncall(QSem *const S, QExpr *const e, QFn *f)
     }
 
     qsem_lent(S, e, f);
+    qsem_callee(S, e);
     return e;
 }
 
@@ -2933,6 +3093,7 @@ static bool qsem_changes(QSem *const S, const QExpr *const e, const QTok *const 
         orig = x->cap->var;
     }
 
+    qsem_wrote(S, orig);
     const QLoan *const l = qsem_loan(S, orig);
 
     if (l && !l->loop->mut)
@@ -4081,6 +4242,7 @@ static QExpr *qsem_operator(QSem *const S, QExpr *const e, const QKind op, QExpr
     e->a = e->b = nullptr;
     e->done = true;
     e->type = f->result;
+    qsem_callee(S, e);
     return e;
 }
 
@@ -4145,6 +4307,7 @@ static QExpr *qsem_blockcall(
         e->argv[k] = qsem_nameof(S, S->fn->params[p->capat + k - l->npar].var, e->tok);
 
     e->type = f->result;
+    qsem_callee(S, e);
     return e;
 }
 
@@ -4170,6 +4333,7 @@ static QExpr *qsem_icall(QSem *const S, QExpr *const e, QExpr *const f)
     e->argv = argv;
     e->nargv = n;
     e->type = result;
+    qsem_callee(S, e);
     return e;
 }
 
@@ -4215,6 +4379,8 @@ static QExpr *qsem_fnref(QSem *const S, QExpr *const e, QFn *const f)
         items[k] = f->params[k].var->type;
     }
 
+    S->values = qast_room(S->mem, S->values, S->nvalues, &S->capvalues, sizeof *S->values);
+    S->values[S->nvalues++] = f;
     e->kind = QE_FNREF;
     e->fn = f;
     e->type = qsem_fnof(S, items, f->npar, f->result);
@@ -4637,6 +4803,7 @@ static void qsem_owner(QSem *const S, QVar *const v)
         return;
     }
 
+    qsem_dropcalls(S, v->type);
     QOwners *const o = qsem_frame(S);
     v->live = qsem_var(S, v->name, QY_INT, QV_TEMP);
     o->owned = qast_room(S->mem, o->owned, o->nowned, &o->capowned, sizeof *o->owned);
@@ -7162,6 +7329,8 @@ void qsem_program(QProg *const p, QMem *const m)
 
     for (QFn *f = p->fns; f; f = f->next)
         qsem_body(&S, f);
+
+    qsem_lends(&S);
 
     qsem_exports(&S);
     qsem_moved(&S);

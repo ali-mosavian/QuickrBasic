@@ -226,9 +226,7 @@ void qast_sort(QErrs *const e)
     e->n = n;
 }
 
-/* Type t's parts that may hold a value with drop: a record's or a tuple's fields, a list's or an
-   array's element, T?'s or T!'s value. */
-static uint32_t qast_parts(const QTy *const y)
+uint32_t qast_parts(const QTy *const y)
 {
     switch (y->kind) {
     case QT_REC:
@@ -246,7 +244,7 @@ static uint32_t qast_parts(const QTy *const y)
     }
 }
 
-static QType qast_part(const QTy *const y, const uint32_t k)
+QType qast_part(const QTy *const y, const uint32_t k)
 {
     return y->kind == QT_LIST || y->kind == QT_ARRAY ? y->elem
            : y->kind == QT_OPT || y->kind == QT_RES  ? y->fields[QF_VAL].type

@@ -379,6 +379,12 @@ struct QFn {
     QOwners own;
     bool test;     /* a test block: its name a string's token; a procedure under --test alone */
     QStmt *onfail; /* a test's QS_TESTFAIL */
+    QVar **writes; /* the module vars its body writes */
+    uint32_t nwrites, capwrites;
+    QFn **callees; /* the fns its body calls: its block lambdas' and its owners' drops too */
+    uint32_t ncallees, capcallees;
+    bool icalls;   /* it calls through a fn value */
+    uint32_t walk; /* the last search of its callees' writes it was in, sema's */
 };
 
 /* A name a lambda uses from outside it, as its site bound it. A fn's storage (frame) is reached
@@ -717,6 +723,10 @@ typedef struct {
 
 /* ---- helpers */
 
+/* Type y's parts that may hold a value with drop: a record's or a tuple's fields, a list's or an
+   array's element, T?'s or T!'s value. */
+uint32_t qast_parts(const QTy *y);
+QType qast_part(const QTy *y, uint32_t k);
 /* Does a value of type t hold one with drop: a record with fn drop, or a record, tuple, list,
    array, T? or T! holding one? */
 bool qast_drops(const QProg *p, QType t);

@@ -459,7 +459,8 @@ at compile time.
    to it.
 8. **A generator borrows its arguments** until its loop ends.
 9. **Module `var`s count too.** A call can't borrow a module variable that the callee, or
-   anything it calls, writes. The compiler knows which ones each function writes.
+   anything it calls, writes. The compiler knows which ones each function writes. A call
+   through a fn value may reach any fn used as a value, and a drop counts as a call.
 10. **A moved value is gone.** Using it before it is assigned again is an error.
 
 What this buys:
