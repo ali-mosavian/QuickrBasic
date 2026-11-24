@@ -391,6 +391,7 @@ mac-zip: mac
 # each architecture's half (x86-64's under Rosetta, where there is one)
 mac-test: mac $(GUI)/ext/qxtest.qbx
 	$(PY) tools/mac_test.py $(APP)/Contents/MacOS/QuickrBasic arm64 $(GUI)/ext/qxtest.qbx
+	$(PY) tools/gfx_test.py --gpu
 	if arch -x86_64 /usr/bin/true 2>/dev/null; then \
 		$(PY) tools/mac_test.py $(APP)/Contents/MacOS/QuickrBasic x86_64 $(GUI)/ext/qxtest.qbx; fi
 $(GUI)/ext/qxtest.qbx: tests/ext/qxtest.bas build/host/ext/qxtest.so tools/qbx.py

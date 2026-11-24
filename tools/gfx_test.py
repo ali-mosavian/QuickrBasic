@@ -6,8 +6,11 @@ pool; it is now the BASIC heap's free part, lent for the fill. gfx.qbx's DOS sli
 over 64 KB read whole was File not found, as a read's count kept its low 16 bits. Its screen closed,
 the cursor is where it was: the mode's set had put it top left, where the next PRINT went. The
 DOS slice draws the host's pixels: SAME_PIXELS's checksum is the same from both builds of the one C
-renderer, the x87's arithmetic and the host's."""
+renderer, the x87's arithmetic and the host's. --gpu [DEPTH...]: GPU_SCENE in the Mac app, drawn by the GPU
+against pages, cell by cell: 32 bits' lights, tints, SOLID and ADD were the GPU's floats, a level or three off."""
 
+import os
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -243,6 +246,190 @@ print sum&
 """
 
 
+# The GPU's frame against pages', a feature to a 160 by 120 cell of a 640 by 480 screen, each drawn
+# in a view of its cell: shapes; sprites keyed, flipped, OPAQUE; turned and a strip; polygons flat,
+# affine, in perspective; by depth; pictures lit, tinted; shapes lit and tinted; SOLID; BLEND and
+# ADD, shapes and pictures; SMOOTH; palette rows (8 bits); text; a surface drawn into, then drawn;
+# a surface drawn into, its pixels read back and drawn as colours, two indices of one colour among
+# them. {depth}, {bytes} a pixel, {spread} a colour's step. The frame is drawn once, then shown.
+GPU_CELLS = (
+    "shapes", "sprites", "turned", "polys", "depth", "lit", "tinted", "lit shapes",
+    "solid", "blend", "add", "smooth", "rows", "text", "drawn into", "read back",
+)
+# Cells whose texels the GPU picks by its own interpolation, not software's 16.16 walk: told, not failed.
+# blend: until MIX reads what is behind.
+GPU_LOOSE = ("turned", "polys", "depth", "smooth", "blend")
+GPU_SCENE = """import gfx.display, gfx.draw, gfx.surface
+from gfx.draw import Vec2, Vertex
+canvas& = gfx.display.open(640, 480, {depth}, 0)
+dim cell&(15)
+for k = 0 to 15
+    cell&(k) = gfx.surface.new_view(canvas&, (k mod 4) * 160, (k \\ 4) * 120, 160, 120)
+next
+s& = gfx.surface.new(37, 23)
+dim pic(37 * 23 * {bytes} - 1) as byte
+for i = 0 to 37 * 23 * {bytes} - 1
+    pic(i) = ((i * 7 + i \\ 37) mod 9) * 29
+next
+gfx.surface.write s&, 0, 0, 37, 23, pic()
+gfx.draw.clear canvas&, 3
+dim q(3) as Vertex
+q(1).u = 37: q(2).u = 37: q(2).v = 23: q(3).v = 23
+' shapes
+c& = cell&(0)
+for i = 0 to 9
+    k& = ((20 + i) * {spread}) and &HFFFFFF
+    gfx.draw.rect c&, i * 7, i * 5, i * 7 + 20, i * 5 + 9, k&, (i and 1) * gfx.draw.FILL
+    gfx.draw.line c&, 150 - i * 9, 5, 80 + i * 3.3, 110, k&
+    gfx.draw.circle c&, 40 + i * 9.5, 80 + (i mod 3) * 6.3, 2 + i * 1.3, k&, (i and 1) * gfx.draw.FILL
+    gfx.draw.arc c&, 120, 40, 4 + i * 3, i * 0.6, i * 0.6 + 2.5, k&
+    gfx.draw.pset c&, 5 + i * 3, 115, k&
+next
+' sprites
+c& = cell&(1)
+for i = 0 to 11
+    f% = (i and 1) * gfx.draw.FLIP_X + (i \\ 2 and 1) * gfx.draw.FLIP_Y + (i \\ 4 and 1) * gfx.draw.OPAQUE
+    gfx.draw.sprite c&, -9 + (i mod 4) * 41, 4 + (i \\ 4) * 38, s&, f%
+next
+' turned and a strip
+c& = cell&(2)
+for i = 0 to 5
+    gfx.draw.sprite_turned c&, 20 + i * 25, 30 + (i mod 2) * 20, i * 0.7, 0.6 + i * 0.2, s&, (i and 1) * 8
+next
+dim pts(2) as Vec2
+pts(0).x = 5: pts(0).y = 80: pts(1).x = 70: pts(1).y = 95: pts(2).x = 155: pts(2).y = 78
+gfx.draw.strip c&, pts(), 0, 3, s&, 0
+' polygons
+c& = cell&(3)
+for i = 0 to 8
+    x = 6 + (i mod 3) * 52: y = 5 + (i \\ 3) * 38
+    q(0).x = x: q(0).y = y: q(1).x = x + 44.5: q(1).y = y + 3.2
+    q(2).x = x + 40.1: q(2).y = y + 33.7: q(3).x = x - 2.6: q(3).y = y + 30.3
+    q(0).z = 1: q(1).z = 1: q(2).z = 3.1: q(3).z = 3.1
+    select case i mod 3
+    case 0
+        gfx.draw.poly c&, q(), 0, 4, 0, ((60 + i) * {spread}) and &HFFFFFF, gfx.draw.FILL
+    case 1
+        gfx.draw.poly c&, q(), 0, 4, s&, 0, 0
+    case else
+        gfx.draw.poly c&, q(), 0, 4, s&, 0, gfx.draw.PERSPECTIVE
+    end select
+next
+' by depth
+c& = cell&(4)
+gfx.surface.clear_depth c&
+for i = 0 to 11
+    x = 4 + i * 11.7: y = 10 + (i mod 3) * 25: z = 1 + (i mod 4) * 0.6
+    q(0).x = x: q(0).y = y: q(1).x = x + 30: q(1).y = y + 4
+    q(2).x = x + 26: q(2).y = y + 50: q(3).x = x - 3: q(3).y = y + 46
+    q(0).z = z: q(1).z = z * 2: q(2).z = z * 2: q(3).z = z
+    f% = gfx.draw.DEPTH_TEST + gfx.draw.DEPTH_WRITE + (i and 1) * gfx.draw.PERSPECTIVE
+    gfx.draw.poly c&, q(), 0, 4, s&, 0, f%
+next
+' pictures lit, tinted
+for k = 5 to 6
+    c& = cell&(k)
+    for i = 0 to 7
+        if k = 5 then gfx.draw.set_light 7 + i * 8 else gfx.draw.set_tint &H3F1F7F * (i + 1) and &HFFFFFF
+        gfx.draw.sprite c&, (i mod 4) * 40, (i \\ 4) * 50 + 5, s&, (i and 1) * gfx.draw.OPAQUE
+    next
+    gfx.draw.reset
+next
+' shapes lit and tinted
+c& = cell&(7)
+for i = 0 to 7
+    gfx.draw.set_light 7 + i * 8
+    gfx.draw.set_tint &H7F3F1F * (i + 1) and &HFFFFFF
+    k& = ((30 + i * 3) * {spread}) and &HFFFFFF
+    gfx.draw.rect c&, (i mod 4) * 40, (i \\ 4) * 60, (i mod 4) * 40 + 35, (i \\ 4) * 60 + 25, k&, gfx.draw.FILL
+    gfx.draw.circle c&, (i mod 4) * 40 + 18, (i \\ 4) * 60 + 45, 12, k&, gfx.draw.FILL
+next
+gfx.draw.reset
+' SOLID
+c& = cell&(8)
+for i = 0 to 7
+    gfx.draw.set_light 20 + i * 6
+    gfx.draw.set_tint &H8F4FCF * (i + 1) and &HFFFFFF
+    gfx.draw.sprite c&, (i mod 4) * 40, (i \\ 4) * 50 + 5, s&, gfx.draw.SOLID
+next
+gfx.draw.reset
+' BLEND and ADD
+for k = 9 to 10
+    c& = cell&(k)
+    f% = gfx.draw.BLEND
+    if k = 10 then f% = gfx.draw.ADD
+    for i = 0 to 7
+        gfx.draw.set_alpha 5 + i * 8
+        k& = ((70 + i * 5) * {spread}) and &HFFFFFF
+        gfx.draw.rect c&, i * 9, i * 6, i * 9 + 60, i * 6 + 40, k&, gfx.draw.FILL + f%
+        gfx.draw.sprite c&, 80 + (i mod 2) * 30, (i \\ 2) * 28, s&, f%
+    next
+    gfx.draw.reset
+next
+' SMOOTH
+c& = cell&(11)
+for i = 0 to 5
+    f% = gfx.draw.SMOOTH + (i and 1) * gfx.draw.OPAQUE
+    gfx.draw.sprite_turned c&, 25 + (i mod 3) * 50, 30 + (i \\ 3) * 60, i * 0.4, 1.1 + i * 0.25, s&, f%
+next
+' palette rows, 8 bits
+c& = cell&(12)
+if {depth} = 8 then
+    dim row&(255)
+    for r = 1 to 3
+        for i = 0 to 255
+            row&(i) = (i * 977 * r + r * 40503) and &HFFFFFF
+        next
+        gfx.display.set_palette r, row&()
+    next
+    for i = 0 to 7
+        gfx.draw.set_palette_row i mod 4
+        gfx.draw.sprite c&, (i mod 4) * 40, (i \\ 4) * 50 + 5, s&, 0
+    next
+    gfx.draw.reset
+end if
+' text
+c& = cell&(13)
+for i = 0 to 9
+    gfx.draw.text c&, (i mod 2) * 7, i * 11 + 2, "GFX " + str$(i * 1234), ((80 + i) * {spread}) and &HFFFFFF
+next
+' a surface drawn into, then drawn
+c& = cell&(14)
+d& = gfx.surface.new(70, 50)
+gfx.draw.clear d&, 0
+gfx.draw.rect d&, 5, 5, 40, 30, (90 * {spread}) and &HFFFFFF, gfx.draw.FILL
+gfx.draw.circle d&, 45, 25, 18, (95 * {spread}) and &HFFFFFF, gfx.draw.FILL
+gfx.draw.sprite d&, 20, 20, s&, 0
+for i = 0 to 3
+    gfx.draw.sprite c&, (i mod 2) * 80, (i \\ 2) * 60, d&, (i and 1) * gfx.draw.OPAQUE
+next
+' a surface drawn into, its pixels read back
+c& = cell&(15)
+e& = gfx.surface.new(16, 12)
+if {depth} = 8 then
+    dim same&(255)
+    gfx.display.get_palette 0, same&()
+    same&(201) = same&(200)
+    gfx.display.set_palette 0, same&()
+end if
+for i = 0 to 15
+    gfx.draw.rect e&, i, 0, i, 11, (200 + (i and 1)) * {spread} and &HFFFFFF, gfx.draw.FILL
+next
+gfx.draw.sprite e&, -10, -3, s&, 0
+for y = 0 to 11
+    for x = 0 to 15
+        v& = gfx.surface.point(e&, x, y)
+        if {depth} = 8 then v& = (v& * 7 + 16) and 255
+        gfx.draw.rect c&, x * 9, y * 9, x * 9 + 8, y * 9 + 8, v&, gfx.draw.FILL
+    next
+next
+gfx.display.flip
+do
+    gfx.display.flip
+loop
+"""
+
+
 DEPTHS = (8, 15, 16, 32)
 
 
@@ -271,11 +458,50 @@ def same_pixels(depths: tuple[int, ...] = DEPTHS) -> dict[tuple[int, str], str]:
     return {(d, name): got[name][d] for d in depths for name in got}
 
 
+def gpu_shot(depth: int, how: str) -> tuple[int, bytes]:
+    """GPU_SCENE's frame drawn `how`, "soft" or "gpu", in the Mac app: its width and RGB rows."""
+    app = dosrun.ROOT / "build/mac/QuickrBasic.app/Contents/MacOS/QuickrBasic"
+    with tempfile.TemporaryDirectory() as tmp:
+        prog, shot = Path(tmp) / "SCENE.BAS", Path(tmp) / "shot.ppm"
+        prog.write_text(GPU_SCENE.format(depth=depth, bytes=(depth + 7) // 8, spread=1 if depth == 8 else 40503))
+        env = os.environ | {"QB_GFX": how, "QB_KEYS": "3F00", "QB_SHOT": f"{shot}@3s", "SDL_AUDIO_DRIVER": "dummy"}
+        subprocess.run([str(app), prog.name], env=env, cwd=tmp, timeout=60, check=True)
+        head, pixels = shot.read_bytes().split(b"\n", 1)
+    return int(head.split()[1]), pixels
+
+
+def gpu_parity(depth: int) -> list[tuple[str, int, int]]:
+    """Each GPU_CELLS cell: the pixels the GPU drew other than pages did, and the most a channel was off."""
+    w, soft = gpu_shot(depth, "soft")
+    _, gpu = gpu_shot(depth, "gpu")
+    out = []
+    for k, name in enumerate(GPU_CELLS):
+        x0, y0 = k % 4 * 160, k // 4 * 120
+        n = most = 0
+        for y in range(y0, y0 + 120):
+            row = (y * w + x0) * 3
+            a, b = soft[row : row + 480], gpu[row : row + 480]
+            for x in range(0, 480, 3):
+                d = max(abs(a[x] - b[x]), abs(a[x + 1] - b[x + 1]), abs(a[x + 2] - b[x + 2]))
+                n += d > 0
+                most = max(most, d)
+        out.append((name, n, most))
+    return out
+
+
 def gfx_lib() -> dict[str, bytes]:
     return {"lib/gfx.qbx": (dosrun.COM.parent / "lib/gfx.qbx").read_bytes()}
 
 
 if __name__ == "__main__":
+    if sys.argv[1:2] == ["--gpu"]:
+        wrong = []
+        for depth in [int(d) for d in sys.argv[2:]] or [32]:
+            print(f"{depth} bits: pixels the GPU drew other than pages, the most a channel was off")
+            for name, n, most in gpu_parity(depth):
+                print(f"  {name:12}{n:7}{most:5}")
+                wrong += [f"{name} at {depth} bits"] if n and name not in GPU_LOOSE else []
+        sys.exit(f"GPU differs: {', '.join(wrong)}" if wrong else None)
     if sys.argv[1:2] == ["--sums"]:
         root = Path(sys.argv[2]) if len(sys.argv) > 2 else dosrun.ROOT
         for depth, out in pixel_sums("host", root=root).items():

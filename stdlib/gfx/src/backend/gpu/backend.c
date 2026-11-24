@@ -2,9 +2,9 @@
  * (backend/gpu/gpu.h), the style in their vertices.
  *
  * # How it works
- * A shape is SOLID, its colour in the vertices (an index through the style's palette row at 8 bits) times
- * the style's tint, so its texel does not matter and it joins any batch; alone it draws from the
- * white texel. A picture's vertices carry its texels, its rectangle and its
+ * A shape is SOLID, its colour in the vertices (an index through the style's palette row at 8 bits) lit
+ * and tinted here as software's ink, so its texel does not matter and it joins any batch; alone it
+ * draws from the white texel. SOLID's colour is worked here likewise. A picture's vertices carry its texels, its rectangle and its
  * stages. Pixels are squares about whole numbers, so a shape's edges lie half a pixel round the
  * centres it covers, as software's. A line covers software's pixels, one a step along its longer
  * side. A circle or an arc is one box, the shader keeping the pixels disc.h's rule covers. A
@@ -18,7 +18,9 @@
 #include "base/cover.h"
 #include "backend/gpu/gpu.h"
 
-enum { ALPHA = 255 };
+/* ALPHA: a pipeline's whole alpha. CALL_STAGES: the stages a call's flags set, kept for its
+   pictures. */
+enum { ALPHA = 255, CALL_STAGES = GPU_STAGE_KEYED | GPU_STAGE_SMOOTH | GPU_STAGE_ADD };
 
 /* The GPU's own (Gx.own): its recorder and the call readied. */
 typedef struct {
@@ -106,10 +108,13 @@ static void box(
     quad(t, ink, (const Vec[]){{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}}, nullptr);
 }
 
-/* A shape's ink: its colour, an index through the row at 8 bits, times the tint. */
+/* A shape's ink: its colour, an index through the row at 8 bits, lit and tinted as software's ink
+   lights a texel of it. */
 static GpuVertex shape(const GpuTarget *const t, const uint32_t colour)
 {
-    const uint32_t rgb = pal_shade(t->eight ? t->row[colour] : colour, PAL_FULL, t->tint);
+    const uint32_t light = t->ink.light;
+    const uint32_t rgb = t->eight ? pal_shade(t->row[colour], (int32_t)light, t->tint)
+                                  : px_shade(colour, pal_shade(PAL_WHITE, (int32_t)light, t->tint));
     return (GpuVertex){
         .w = 1,
         .u = 0.5f,
@@ -119,8 +124,9 @@ static GpuVertex shape(const GpuTarget *const t, const uint32_t colour)
         .r = (uint8_t)(rgb >> 16),
         .g = (uint8_t)(rgb >> 8),
         .b = (uint8_t)rgb,
-        .light = t->ink.light,
-        .stages = GPU_STAGE_SOLID,
+        .light = (uint8_t)light,
+        .alpha = t->ink.alpha,
+        .stages = (uint16_t)(GPU_STAGE_SOLID | (t->ink.stages & GPU_STAGE_ADD)),
     };
 }
 
@@ -176,19 +182,21 @@ static bool begin(Gx *const g, const Command *const c, const Picture *const into
                 .w = 1,
                 .light = (uint8_t)style->light,
                 .row = (uint8_t)style->palette_row,
-                .stages = (uint8_t)((c->flags & GFX_DRAW_OPAQUE ? 0 : GPU_STAGE_KEYED) |
-                                    (c->flags & GFX_DRAW_SMOOTH ? GPU_STAGE_SMOOTH : 0)),
+                .alpha = (uint8_t)style->alpha,
+                .stages = (uint16_t)((c->flags & GFX_DRAW_OPAQUE ? 0 : GPU_STAGE_KEYED) |
+                                     (c->flags & GFX_DRAW_SMOOTH ? GPU_STAGE_SMOOTH : 0) |
+                                     (blend == QX_BLEND_ADD ? GPU_STAGE_ADD : 0)),
             },
         .texture = blank.id,
         .blend = blend,
         .depth = depth,
         .perspective = c->flags & GFX_DRAW_PERSPECTIVE,
-        .alpha = blend ? (uint8_t)(style->alpha * ALPHA / PAL_FULL) : ALPHA,
+        .alpha = blend == QX_BLEND_MIX ? (uint8_t)(style->alpha * ALPHA / PAL_FULL) : ALPHA,
         .eight = into->root.format == PX_8,
         .row = g->palette.rows[style->palette_row],
         .tint = style->tint,
         .solid = c->flags & GFX_DRAW_SOLID,
-        .paint = style->tint,
+        .paint = pal_shade(style->tint, style->light, PAL_WHITE),
     };
 
     return true;
@@ -203,26 +211,27 @@ static bool source(Gx *const g, const Picture *const p)
         return gx_fail(ERR_MEMORY);
 
     GpuVertex *const k = &t->ink;
+    const uint32_t rgb = t->solid ? t->paint : t->tint;
     t->texture = from.id;
     k->rx = (uint16_t)(from.x + p->at.x);
     k->ry = (uint16_t)(from.y + p->at.y);
     k->rw = (uint16_t)p->at.w;
     k->rh = (uint16_t)p->at.h;
-    k->r = (uint8_t)(t->paint >> 16);
-    k->g = (uint8_t)(t->paint >> 8);
-    k->b = (uint8_t)t->paint;
-    k->stages =
-        (uint8_t)((k->stages & (GPU_STAGE_KEYED | GPU_STAGE_SMOOTH)) |
-                  (from.indexed ? GPU_STAGE_INDEXED : 0) | (t->solid ? GPU_STAGE_SOLID : 0));
+    k->r = (uint8_t)(rgb >> 16);
+    k->g = (uint8_t)(rgb >> 8);
+    k->b = (uint8_t)rgb;
+    k->stages = (uint16_t)((k->stages & CALL_STAGES) | (from.indexed ? GPU_STAGE_INDEXED : 0) |
+                           (t->solid ? GPU_STAGE_SOLID : 0));
     return true;
 }
 
+/* Every texel drawn is colour lit and tinted, as ink_solid's. */
 static void solid(Gx *const g, const uint32_t colour)
 {
     GpuTarget *const t = call(g);
-    const GpuVertex ink = shape(t, colour);
+    const int32_t light = t->ink.light;
     t->solid = true;
-    t->paint = (uint32_t)ink.r << 16 | (uint32_t)ink.g << 8 | ink.b;
+    t->paint = pal_shade(t->eight ? t->row[colour] : colour, light, t->tint);
 }
 
 static void clear(Gx *const g, const uint32_t colour)
@@ -377,8 +386,8 @@ static void disc(
     if (!(k->outer > 0))
         return;
 
-    d.v.stages = (uint8_t)(GPU_STAGE_SOLID | GPU_STAGE_DISC | (part ? GPU_STAGE_SWEEP : 0) |
-                           (part && w->wide ? GPU_STAGE_WIDE : 0));
+    d.v.stages |= (uint16_t)(GPU_STAGE_DISC | (part ? GPU_STAGE_SWEEP : 0) |
+                             (part && w->wide ? GPU_STAGE_WIDE : 0));
     d.disc[0] = k->c.x + t->at.x;
     d.disc[1] = k->c.y + t->at.y;
     d.disc[2] = k->outer;

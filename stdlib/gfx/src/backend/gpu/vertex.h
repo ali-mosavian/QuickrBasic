@@ -13,17 +13,19 @@ enum {
     GPU_STAGE_SWEEP = 32,   /* and in the sweep */
     GPU_STAGE_WIDE = 64,    /* the sweep is past half a turn */
     GPU_STAGE_SMOOTH = 128, /* the four texels round the centre mixed */
+    GPU_STAGE_ADD = 256,    /* alpha's share drawn, for the pipeline to add */
 };
 
 /* x, y a pixel's centre at whole numbers; z its depth, 1/z of a corner's z (0 far, as gfx's
    depth); w its z where texels go in perspective, else 1. u, v texels, the one at a pixel's centre
-   drawn, kept inside the rectangle rx, ry, rw by rh. Its colour is the texel's times r, g, b and
-   light / 63. */
+   drawn, kept inside the rectangle rx, ry, rw by rh. Its colour is the texel's lit by light and
+   tinted by r, g, b as software's ink (soft/ink.h); SOLID's, r, g, b. alpha: 0 to 63. */
 typedef struct {
     float x, y, z, w, u, v;
     uint16_t rx, ry, rw, rh;
     uint8_t r, g, b, light;
-    uint8_t row, stages, pad[2];
+    uint8_t row, alpha;
+    uint16_t stages;
 } GpuVertex;
 
 /* A circle's or an arc's vertex. With DISC, a pixel is drawn where its centre p is within disc's

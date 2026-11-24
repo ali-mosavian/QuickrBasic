@@ -1,8 +1,9 @@
-// gfx's one shader, its pixels: with DISC, only those stdlib/gfx/disc.h's rule covers, worked
-// as it works them; the texel at the pixel's centre, kept in its rectangle (u repeating with
-// WRAP); an index through the palette's row; keyed, or the tint alone (SOLID); times the tint and
-// the light. SMOOTH mixes the four texels round the centre instead, a keyed one adding nothing,
-// and draws where they are mostly kept. Blending is the pipeline's.
+// gfx's one shader, its pixels, in whole numbers as software's ink (soft/ink.h) works them: with
+// DISC, only those stdlib/gfx/disc.h's rule covers, worked as it works them; the texel at the
+// pixel's centre, kept in its rectangle (u repeating with WRAP); an index through the palette's
+// row; keyed; lit and tinted, or the vertex's colour alone (SOLID); with ADD, alpha's share of it,
+// which the pipeline adds. SMOOTH mixes the four texels round the centre, lit, as software's
+// smooth span does, a keyed one adding nothing, and draws where they are mostly kept.
 #version 450
 
 const uint INDEXED = 1u;
@@ -13,6 +14,9 @@ const uint DISC = 16u;
 const uint SWEEP = 32u;
 const uint WIDE = 64u;
 const uint SMOOTH = 128u;
+const uint ADD = 256u;
+
+const uint FULL = 63u;
 
 // ESSL's samplers are named by binding (qx/qxlist.h).
 layout(set = 2, binding = 0) uniform sampler2D s0;
@@ -22,8 +26,8 @@ layout(set = 2, binding = 1) uniform sampler2D s1;
 
 layout(location = 0) in vec2 v_texel;
 layout(location = 1) flat in uvec4 v_rect;
-layout(location = 2) in vec4 v_tint;
-layout(location = 3) flat in uvec2 v_more;
+layout(location = 2) flat in uvec4 v_tint; // r, g, b, light
+layout(location = 3) flat in uvec4 v_more; // row, alpha, stages
 layout(location = 4) in vec2 v_at;
 layout(location = 5) flat in vec4 v_disc;
 layout(location = 6) flat in vec4 v_sweep;
@@ -56,8 +60,23 @@ bool covered(uint stages)
     return (stages & WIDE) != 0u ? !(from < 0.0 && to < 0.0) : from >= 0.0 && to >= 0.0;
 }
 
-// The texel at t, kept in the rectangle: its colour, alpha 1; 0 keyed.
-vec4 texel(ivec2 t, uint stages)
+uvec3 bytes(vec3 c) { return uvec3(c * 255.0 + 0.5); }
+
+// c lit and tinted: an index's colour as pal_shade, one divide; a direct texel's by its shade,
+// the tint times the light over 63, as px_shade.
+uvec3 lit(uvec3 c, bool index)
+{
+    uvec3 tint = v_tint.rgb;
+    uint light = v_tint.a;
+
+    if (index)
+        return c * tint * light / (255u * FULL);
+
+    return c * (tint * light / FULL) / 255u;
+}
+
+// The texel at t, kept in the rectangle, lit; *drawn false where keyed.
+uvec3 texel(ivec2 t, uint stages, out bool drawn)
 {
     ivec2 from = ivec2(v_rect.xy), size = ivec2(v_rect.zw);
 
@@ -68,47 +87,68 @@ vec4 texel(ivec2 t, uint stages)
     vec4 c = texelFetch(source, t, 0);
 
     if ((stages & INDEXED) != 0u) {
-        int index = int(c.r * 255.0 + 0.5);
-
-        if ((stages & KEYED) != 0u && index == 0)
-            return vec4(0.0);
-
-        return vec4(texelFetch(palette, ivec2(index, int(v_more.x)), 0).rgb, 1.0);
+        uint index = uint(c.r * 255.0 + 0.5);
+        drawn = (stages & KEYED) == 0u || index != 0u;
+        return lit(bytes(texelFetch(palette, ivec2(index, v_more.x), 0).rgb), true);
     }
 
-    return (stages & KEYED) != 0u && c.a < 0.5 ? vec4(0.0) : vec4(c.rgb, 1.0);
+    drawn = (stages & KEYED) == 0u || c.a >= 0.5;
+    return lit(bytes(c.rgb), false);
+}
+
+// A texel's share of a mix: its colour, 0 to 1, and its coverage.
+vec4 share(uvec3 c, bool drawn)
+{
+    float n = drawn ? 1.0 / 255.0 : 0.0;
+    return vec4(vec3(c) * n, drawn ? 1.0 : 0.0);
+}
+
+// a to b by f, as software's mix: each product and sum rounded once.
+vec4 between(vec4 a, vec4 b, float f)
+{
+    precise float e = 1.0 - f;
+    precise vec4 m = a * e + b * f;
+    return m;
+}
+
+// The four texels round the centre mixed; *drawn false where under half covered.
+uvec3 smoothed(uint stages, out bool drawn)
+{
+    vec2 p = v_texel - 0.5;
+    vec2 f = fract(p);
+    ivec2 t = ivec2(floor(p));
+    bool k[4];
+    uvec3 c0 = texel(t, stages, k[0]);
+    uvec3 c1 = texel(t + ivec2(1, 0), stages, k[1]);
+    uvec3 c2 = texel(t + ivec2(0, 1), stages, k[2]);
+    uvec3 c3 = texel(t + ivec2(1, 1), stages, k[3]);
+    vec4 top = between(share(c0, k[0]), share(c1, k[1]), f.x);
+    vec4 under = between(share(c2, k[2]), share(c3, k[3]), f.x);
+    vec4 m = between(top, under, f.y);
+    drawn = m.a >= 0.5;
+    precise vec3 c = m.rgb / m.a * 255.0 + 0.5;
+    return uvec3(c);
 }
 
 void main()
 {
-    uint stages = v_more.y;
+    uint stages = v_more.z;
 
     if ((stages & DISC) != 0u && !covered(stages))
         discard;
 
-    vec4 c;
+    bool drawn;
+    uvec3 c = (stages & SMOOTH) != 0u ? smoothed(stages, drawn)
+                                      : texel(ivec2(floor(v_texel)), stages, drawn);
 
-    if ((stages & SMOOTH) != 0u) {
-        vec2 p = v_texel - 0.5;
-        vec2 f = fract(p);
-        ivec2 t = ivec2(floor(p));
-        vec4 top = mix(texel(t, stages), texel(t + ivec2(1, 0), stages), f.x);
-        vec4 under = mix(texel(t + ivec2(0, 1), stages), texel(t + ivec2(1, 1), stages), f.x);
-        c = mix(top, under, f.y);
-
-        if (c.a < 0.5)
-            discard;
-
-        c.rgb /= c.a;
-    } else {
-        c = texel(ivec2(floor(v_texel)), stages);
-
-        if (c.a == 0.0)
-            discard;
-    }
+    if (!drawn)
+        discard;
 
     if ((stages & SOLID) != 0u)
-        c.rgb = vec3(1.0);
+        c = v_tint.rgb;
 
-    colour = vec4(c.rgb * v_tint.rgb * v_tint.a, 1.0);
+    if ((stages & ADD) != 0u)
+        c = c * v_more.y / FULL;
+
+    colour = vec4(vec3(c) / 255.0, 1.0);
 }
