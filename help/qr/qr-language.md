@@ -37,7 +37,7 @@ Methods: fn f(self, ..) in a type or an enum is called a.f(..);
 mut self changes a. fn g(..) without self is called P.g(..). P.f is
 a function value. fn drop(mut self) runs when the owner ends.
 A parameter is read-only; mut on it makes it writable: f(a) then
-changes a. Records, lists and maps have
+changes a. Numbers, bools, enums and strings pass by value. Records, lists and maps have
 one owner: b = a copies a, or moves it when a is not used again.
 basic --copies FILE.BAS lists each copy of a list or a map.
 

@@ -1,5 +1,6 @@
 ' OPTION DIALECT QUICKR
-' a call can't borrow a module var the callee, or a function it reaches, writes
+' a call can't borrow a module record or list the callee, or a function it
+' reaches, writes; a number passes by value
 var count = 0
 type Point
     x as int
@@ -18,18 +19,11 @@ end function
 function add(xs as int[])
     items.push(1)
 end function
-bump(count)
-outer(count)
 grow(pt)
 add(items)
-let f = bump
-f(count)
 function apply(n as int, g as function(int))
     g(n)
 end function
-apply(count, fn(x as int)
-    count += x
-end fn)
 var drops = 0
 type Res
     n as int
@@ -40,7 +34,6 @@ end type
 function hold(n as int)
     let r = Res(1)
 end function
-hold(drops)
 function read(n as int) as int
     return n + count
 end function

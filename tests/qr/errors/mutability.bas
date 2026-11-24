@@ -18,9 +18,13 @@ g(v)
 g(a)
 g(1 + 2)
 f(v)
-function h(mut x as int, y as int)
+type Pt
+    x as int
+end type
+function h(mut a as Pt, b as Pt)
 end function
-h(v, v)
+var pt = Pt(1)
+h(pt, pt)
 var d as double = 1
 g(d)
 g(mut v)

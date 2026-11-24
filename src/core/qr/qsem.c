@@ -2273,7 +2273,22 @@ static const QFn *qsem_lendee(QSem *const S, const QLend *const l, const QVar *c
     return w;
 }
 
-/* Each call lending a module var: no fn it reaches writes it. */
+/* Does call e pass its argument k by value: a number, a bool, a plain enum, a string or a fn
+   value, to a parameter without mut? */
+static bool qsem_byvalue(const QSem *const S, const QExpr *const e, const uint32_t k)
+{
+    const QFn *const f = e->fn;
+
+    if (!f && e->builtin != QB_ICALL)
+        return false;
+    if (f && (k >= f->npar - f->nhidden || f->params[k].mut || f->params[k].lam))
+        return false;
+
+    return !qsem_byplace(S, e->argv[k]->type);
+}
+
+/* Each call lending a module var: no fn it reaches writes it, else it passes a copy of its
+   value. */
 static void qsem_lends(QSem *const S)
 {
     for (uint32_t i = 0; i < S->nlends; i++) {
@@ -2281,11 +2296,13 @@ static void qsem_lends(QSem *const S)
         S->fn = l->in;
 
         for (uint32_t k = 0; k < l->call->nargv; k++) {
-            const QExpr *const a = l->call->argv[k];
+            QExpr *const a = l->call->argv[k];
             const QVar *const v = a->type == QY_ERROR ? nullptr : qsem_root(a);
             const QFn *const w = qsem_modvar(v) ? qsem_lendee(S, l, v) : nullptr;
 
-            if (w)
+            if (w && qsem_byvalue(S, l->call, k))
+                a->byval = true;
+            else if (w)
                 qsem_say(
                     S,
                     a->tok,
@@ -2301,8 +2318,8 @@ static void qsem_lends(QSem *const S)
     S->fn = nullptr;
 }
 
-/* Call e's mut arguments each its only way to its var: no other argument the same var. A
-   lambda's capture is lent mut when the lambda changes it. */
+/* Call e's mut arguments each its only way to its var: no other argument the same var, but one
+   passed by value, a copy then. A lambda's capture is lent mut when the lambda changes it. */
 static void qsem_lent(QSem *const S, const QExpr *const e, const QFn *const f)
 {
     for (uint32_t k = 0; k < f->npar; k++) {
@@ -2312,7 +2329,9 @@ static void qsem_lent(QSem *const S, const QExpr *const e, const QFn *const f)
         const QVar *const v = excl && m->type != QY_ERROR ? qsem_root(m) : nullptr;
 
         for (uint32_t j = 0; v && j < f->npar; j++)
-            if (j != k && qsem_root(e->argv[j]) == v)
+            if (j != k && qsem_root(e->argv[j]) == v && qsem_byvalue(S, e, j))
+                e->argv[j]->byval = true;
+            else if (j != k && qsem_root(e->argv[j]) == v)
                 qsem_say(
                     S,
                     e->argv[j]->tok,

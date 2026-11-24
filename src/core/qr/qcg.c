@@ -1762,11 +1762,11 @@ static void qcg_print(QCg *const g, const QExpr *const e)
         code_call(c, K_PNL);
 }
 
-/* Argument a for a parameter of type t: by reference where it has a place, else a value cell and
-   its ref; a string's counted held, on the stack under the rest. */
+/* Argument a for a parameter of type t: by reference where it has a place the call can't change,
+   else a value cell and its ref; a string's counted held, on the stack under the rest. */
 static void qcg_arg(QCg *const g, const QExpr *const a, const QType t, uint32_t *const held)
 {
-    if (qcg_byplace(g, t) || (!qast_fresh(a) && a->type == t)) {
+    if (qcg_byplace(g, t) || (!qast_fresh(a) && a->type == t && !a->byval)) {
         qcg_ref(g, a);
         return;
     }

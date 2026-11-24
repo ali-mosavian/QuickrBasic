@@ -16,12 +16,12 @@ mutability.bas:18:3: a is a let: it can't change
 mutability.bas:19:3: mut takes a var
   g(1 + 2)
     ^
-mutability.bas:23:6: v is lent mut in this call
-  h(v, v)
-       ^
-mutability.bas:25:3: mut n is an int, not a double
+mutability.bas:27:7: pt is lent mut in this call
+  h(pt, pt)
+        ^
+mutability.bas:29:3: mut n is an int, not a double
   g(d)
     ^
-mutability.bas:26:3: mut is written on the parameter only: pass v as it is
+mutability.bas:30:3: mut is written on the parameter only: pass v as it is
   g(mut v)
     ^

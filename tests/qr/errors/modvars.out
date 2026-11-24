@@ -1,21 +1,6 @@
-modvars.bas:21:6: count is written by bump: this call can't borrow it
-  bump(count)
-       ^
-modvars.bas:22:7: count is written by bump: this call can't borrow it
-  outer(count)
-        ^
-modvars.bas:23:6: pt is written by grow: this call can't borrow it
+modvars.bas:22:6: pt is written by grow: this call can't borrow it
   grow(pt)
        ^
-modvars.bas:24:5: items is written by add: this call can't borrow it
+modvars.bas:23:5: items is written by add: this call can't borrow it
   add(items)
       ^
-modvars.bas:26:3: count is written by bump: this call can't borrow it
-  f(count)
-    ^
-modvars.bas:30:7: count is written by a lambda: this call can't borrow it
-  apply(count, fn(x as int)
-        ^
-modvars.bas:43:6: drops is written by drop: this call can't borrow it
-  hold(drops)
-       ^

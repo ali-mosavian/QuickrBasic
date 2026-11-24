@@ -519,8 +519,9 @@ grow(pos, k: 3)
 
 - `function name(parameters) [as T] … end function`, at the top level only. It is called as
   `f(x)`, as a statement or in an expression.
-- A parameter is read-only. A number, a bool, a plain enum and a string pass by value. Any other
-  passes by address, so a record or a list is not copied.
+- A parameter is read-only. A number, a bool, a plain enum, a string and a function value pass by
+  value: a call that changes the variable passed leaves the parameter as it was. Any other passes
+  by address, so a record or a list is not copied.
 - `mut` makes a parameter writable: the function changes the caller's value. It is written on the
   parameter only. Its argument is a `var`, a `var`'s field or element, a `mut` parameter or a
   `for mut` element, of the parameter's exact type.
@@ -540,9 +541,11 @@ grow(pos, k: 3)
   for a method and a lambda. One where the other belongs is a compile error that names the right
   word.
 - `grow(mut pos)` is a compile error: the call passes `pos` as it is.
-- **Not yet:** every parameter passes by address.
 - **In the VM**, a parameter by address is a ref to its argument, its number fields read and
-  written through it by `P.FL.LD` and `P.FL.ST`.
+  written through it by `P.FL.LD` and `P.FL.ST`. An argument by value that is a variable's place is
+  passed by its address too, as cheap, unless the call may change that variable: a module var the
+  callee writes, or one lent `mut` in the same call. Then its value goes in a cell of its own,
+  `BYVAL`; a string's is copied.
 
 #### Generic functions
 
@@ -798,8 +801,6 @@ What this buys:
   writes them.
 - No reference counts and no run-time checks.
 
-**Not yet:** rule 9 fires for a number or a string too, since every parameter passes by address.
-
 ### Optional values
 
 ```basic
@@ -921,7 +922,7 @@ The rule: a spelling change costs nothing, and what the source does not ask for 
 | Generators are state machines | a `yield` is a jump, and nothing is allocated |
 | Enums and optionals are inline | a tag beside the value, never a heap block |
 | Records and lists pass by address | passing one costs a pointer, never a copy |
-| Numbers and strings pass by value | no load through an address in the callee |
+| Numbers and strings pass by value | a call may change the variable passed; its value is copied only then |
 | A last use moves | `b = a` copies only when both are used after; `--copies` lists where |
 | Locals live on the stack | a call's locals cost one stack-pointer move; only large arrays and growing containers reach the heap |
 | Results are built in place | a returned record or list is not copied |

@@ -537,6 +537,7 @@ struct QExpr {
     bool wrap;    /* QE_BINARY, QE_UNARY, QE_CONV in wrap(..): integers wrap, not Overflow */
     bool move;    /* QE_NAME: an owner's value moved out, its live flag cleared */
     bool copy;    /* an owning place's value taken whole: copied, never moved */
+    bool byval;   /* an argument by value whose variable the call may change: its value passed */
     QBuiltin builtin;
     const QTok *tok; /* its first token; a binary's, its operator */
     QExpr *a, *b, *c;
