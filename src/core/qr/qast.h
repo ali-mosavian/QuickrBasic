@@ -208,15 +208,17 @@ typedef struct {
     uint32_t first; /* its first datum's field in the enum's */
 } QVariant;
 
-typedef enum : uint8_t { QT_REC, QT_ENUM, QT_LIST, QT_ARRAY, QT_TUPLE } QTyKind;
+typedef enum : uint8_t { QT_REC, QT_ENUM, QT_LIST, QT_ARRAY, QT_TUPLE, QT_MAP } QTyKind;
 
-/* A compound type. A record, a tuple and an enum with data are the VM's records (comp/declare.h):
-   an enum's tag its field 0, then each value's data. */
+/* A compound type. A record, a tuple, an enum with data and a map are the VM's records
+   (comp/declare.h): an enum's tag its field 0, then each value's data; a map's its keys, its values
+   and its hash slots, three lists (qr/qrt.c). */
 typedef struct {
     QTyKind kind;
     const QTok *name; /* a record's, an enum's */
     QStmt *def;
-    QType elem;     /* a list's, an array's */
+    QType elem;     /* a list's, an array's, a map's values' */
+    QType key;      /* a map's */
     uint32_t count; /* an array's */
     QField *fields; /* a record's, a tuple's; an enum's with data */
     uint32_t nfields, capfields;
@@ -303,7 +305,7 @@ typedef enum : uint8_t {
     QE_CALL,  /* tok's fn or built-in with args, a the receiver of a.f(args); argv by parameter */
     QE_CONV,  /* a converted to type */
     QE_FIELD, /* a.tok: field n of a record, tuple or enum */
-    QE_INDEX, /* a[b] */
+    QE_INDEX, /* a[b]: a list's element, a map's value by its key */
     QE_NEW,   /* a record, tuple or enum value of type: argv by field, null its default */
     QE_TUPLE, /* (items) as written: return a, b */
     QE_FSTR,  /* f"..": items its parts, a string's or a value's, specs each value's */
@@ -344,6 +346,7 @@ struct QExpr {
     bool untyped; /* QE_CONST: a literal's value, typed by its place */
     bool neg;     /* QE_IN: not in */
     bool trunc;   /* QE_CONV: int(x) of a float, toward 0 */
+    bool insert;  /* QE_INDEX of a map, assigned: its key added when not there */
     QBuiltin builtin;
     const QTok *tok; /* its first token; a binary's, its operator */
     QExpr *a, *b, *c;
@@ -472,14 +475,15 @@ const char *qast_typename(QType t);
 /* Compound type t's entry. */
 static inline QTy *qast_ty(const QProg *const p, const QType t) { return &p->tys.at[t - QY_FIRST]; }
 static inline bool qast_compound(const QType t) { return t >= QY_FIRST; }
-/* Is t the VM's record: a record, a tuple, an enum with data? */
+/* Is t the VM's record: a record, a tuple, an enum with data, a map? */
 static inline bool qast_record(const QProg *const p, const QType t)
 {
     if (!qast_compound(t))
         return false;
 
     const QTy *const y = qast_ty(p, t);
-    return y->kind == QT_REC || y->kind == QT_TUPLE || (y->kind == QT_ENUM && y->data);
+    return y->kind == QT_REC || y->kind == QT_TUPLE || y->kind == QT_MAP ||
+           (y->kind == QT_ENUM && y->data);
 }
 /* Is t a list or a fixed array: the VM's array? */
 static inline bool qast_array(const QProg *const p, const QType t)

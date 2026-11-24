@@ -185,6 +185,14 @@ static const char *qsem_tyname(QSem *const S, const QType t)
             ""
         );
 
+    case QT_MAP:
+        return qsem_join(
+            S,
+            qsem_join(S, qsem_tyname(S, y->elem), "[", qsem_tyname(S, y->key)),
+            "]",
+            ""
+        );
+
     default: {
         const char *s = "(";
 
@@ -385,6 +393,39 @@ static QType qsem_tupleof(QSem *const S, const QType *const items, const uint32_
     return t;
 }
 
+/* The map from key to val; interned. Its record's fields: its keys, its values and its slots,
+   lists in that order (qr/qrt.c). */
+static QType qsem_mapof(QSem *const S, const QType key, const QType val)
+{
+    const QTys *const ts = &S->prog->tys;
+
+    for (uint32_t i = 0; i < ts->n; i++)
+        if (ts->at[i].kind == QT_MAP && ts->at[i].key == key && ts->at[i].elem == val)
+            return QY_FIRST + i;
+
+    const QType lists[] =
+        {qsem_listof(S, key, 0), qsem_listof(S, val, 0), qsem_listof(S, QY_INT, 0)};
+
+    QField *const fields = qast_alloc(S->mem, countof(lists) * sizeof *fields);
+
+    for (uint32_t k = 0; k < countof(lists); k++)
+        fields[k] = (QField){.type = lists[k]};
+
+    const QType t = qsem_newty(S, QT_MAP);
+    QTy *const y = qast_ty(S->prog, t);
+    y->key = key;
+    y->elem = val;
+    y->fields = fields;
+    y->nfields = y->capfields = countof(lists);
+    y->owns = true;
+    return t;
+}
+
+static bool qsem_ismap(const QSem *const S, const QType t)
+{
+    return qast_compound(t) && qast_ty(S->prog, t)->kind == QT_MAP;
+}
+
 /* A type's name: QY_ERROR after saying why when it is none. */
 static QType qsem_typename(QSem *const S, const QTok *const t)
 {
@@ -408,19 +449,36 @@ static QType qsem_typename(QSem *const S, const QTok *const t)
     return QY_ERROR;
 }
 
-/* T[n]'s n: a constant above 0; 0 after an error. T[K], K a type, is a map's. */
-static uint32_t qsem_count(QSem *const S, QExpr *const e)
+/* Does T[e] name a map's key type, e a type's name? */
+static bool qsem_keyed(const QSem *const S, const QExpr *const e)
 {
-    if (e->kind == QE_NAME) {
-        const QBind *const b = qsem_find(S, e->tok);
-        bool later;
+    if (e->kind != QE_NAME)
+        return false;
 
-        if ((b && b->ty) || qsem_scalar(e->tok, &later) != QY_VOID || later) {
-            qsem_say(S, e->tok, "maps are not supported yet", nullptr);
-            return 0;
-        }
+    const QBind *const b = qsem_find(S, e->tok);
+    bool later;
+    return (b && b->ty) || qsem_scalar(e->tok, &later) != QY_VOID || later;
+}
+
+/* V[K]: a map, K an int, a string or a plain enum. */
+static QType qsem_maptype(QSem *const S, const QTypeEx *const x, const QType val)
+{
+    const QType key = qsem_typename(S, x->count->tok);
+
+    if (key == QY_ERROR)
+        return QY_ERROR;
+
+    if (key != QY_INT && key != QY_STRING && !qast_tag(S->prog, key)) {
+        qsem_say(S, x->count->tok, "a map's key is an int, a string or an enum", nullptr);
+        return QY_ERROR;
     }
 
+    return qsem_mapof(S, key, val);
+}
+
+/* T[n]'s n: a constant above 0; 0 after an error. */
+static uint32_t qsem_count(QSem *const S, QExpr *const e)
+{
     const QExpr *const n = qsem_coerce(S, qsem_expr(S, e, QY_INT), QY_INT);
 
     if (n->type == QY_ERROR)
@@ -462,6 +520,9 @@ static QType qsem_type(QSem *const S, const QTypeEx *const x)
 
     if (x->kind == QX_LIST)
         return qsem_listof(S, elem, 0);
+
+    if (qsem_keyed(S, x->count))
+        return qsem_maptype(S, x, elem);
 
     const uint32_t n = qsem_count(S, x->count);
     return n ? qsem_listof(S, elem, n) : QY_ERROR;
@@ -1847,6 +1908,14 @@ static QExpr *qsem_field(QSem *const S, QExpr *const e)
 static QExpr *qsem_index(QSem *const S, QExpr *const e)
 {
     const QExpr *const a = e->a = qsem_addressed(S, qsem_expr(S, e->a, QY_VOID));
+
+    if (qsem_ismap(S, a->type)) {
+        const QTy *const y = qast_ty(S->prog, a->type);
+        e->b = qsem_coerce(S, qsem_expr(S, e->b, y->key), y->key);
+        e->type = e->b->type == QY_ERROR ? QY_ERROR : y->elem;
+        return e;
+    }
+
     const QExpr *const i = e->b = qsem_coerce(S, qsem_expr(S, e->b, QY_INT), QY_INT);
     e->type = QY_ERROR;
 
@@ -1924,6 +1993,15 @@ static QExpr *qsem_listop(QSem *const S, QExpr *const e, const QBuiltin op)
     if (!ok || a->type == QY_ERROR)
         return e;
 
+    if (qsem_ismap(S, a->type) && op == QB_REMOVE && n == 1 && qsem_plain(S, e, ~0u)) {
+        const QType key = qast_ty(S->prog, a->type)->key;
+        e->argv = qast_alloc(S->mem, sizeof *e->argv);
+        e->nargv = 1;
+        e->argv[0] = qsem_coerce(S, qsem_expr(S, e->args->e, key), key);
+        e->type = QY_VOID;
+        return e;
+    }
+
     if (!qast_compound(a->type) || qast_ty(S->prog, a->type)->kind != QT_LIST) {
         const bool array = qast_array(S->prog, a->type);
         qsem_say(
@@ -1959,7 +2037,42 @@ static QExpr *qsem_listop(QSem *const S, QExpr *const e, const QBuiltin op)
     return e;
 }
 
-/* len(a): a list's elements, an array's its size. */
+/* Map m's keys, the list its record's first field. */
+static QExpr *qsem_keysof(QSem *const S, QExpr *const m)
+{
+    QExpr *const f = qast_expr(S->mem, QE_FIELD, m->tok);
+    f->a = m;
+    f->field = 0;
+    f->type = qast_ty(S->prog, m->type)->fields[0].type;
+    return f;
+}
+
+/* m.keys(): a new list of map m's keys, in their order. */
+static QExpr *qsem_keys(QSem *const S, QExpr *const e)
+{
+    QExpr *const m = qsem_addressed(S, qsem_expr(S, e->a, QY_VOID));
+    e->type = QY_ERROR;
+
+    if (m->type == QY_ERROR)
+        return e;
+
+    if (!qsem_ismap(S, m->type) || e->args) {
+        qsem_say(
+            S,
+            e->tok,
+            qsem_ismap(S, m->type) ? "keys() takes no values" : "only a map has keys()",
+            nullptr
+        );
+        return e;
+    }
+
+    e->builtin = QB_COPY;
+    e->a = qsem_keysof(S, m);
+    e->type = e->a->type;
+    return e;
+}
+
+/* len(a): a list's elements, a map's, an array's its size. */
 static QExpr *qsem_len(QSem *const S, QExpr *const e, QExpr *const recv)
 {
     e->type = QY_ERROR;
@@ -1971,10 +2084,13 @@ static QExpr *qsem_len(QSem *const S, QExpr *const e, QExpr *const recv)
         return e;
     }
 
-    QExpr *const a = qsem_addressed(S, qsem_expr(S, recv ? recv : e->args->e, QY_VOID));
+    QExpr *a = qsem_addressed(S, qsem_expr(S, recv ? recv : e->args->e, QY_VOID));
 
     if (a->type == QY_ERROR)
         return e;
+
+    if (qsem_ismap(S, a->type))
+        a = qsem_keysof(S, a);
 
     if (!qast_array(S->prog, a->type)) {
         qsem_say(
@@ -2042,6 +2158,8 @@ static QExpr *qsem_method(QSem *const S, QExpr *const e)
 
         if (qsem_is(e->tok, "len"))
             return qsem_len(S, e, e->a);
+        if (qsem_is(e->tok, "keys"))
+            return qsem_keys(S, e);
 
         qsem_say(S, e->tok, "unknown fn ", qsem_text(S, e->tok), nullptr);
         e->type = QY_ERROR;
@@ -2072,11 +2190,18 @@ static QExpr *qsem_has(QSem *const S, QExpr *const e)
         return e;
     }
 
+    if (qsem_ismap(S, a->type)) {
+        const QType key = qast_ty(S->prog, a->type)->key;
+        e->a = qsem_coerce(S, qsem_expr(S, e->a, key), key);
+        e->type = e->a->type == QY_ERROR ? QY_ERROR : QY_BOOL;
+        return e;
+    }
+
     if (!qast_array(S->prog, a->type)) {
         qsem_say(
             S,
             e->tok,
-            "in takes a range a..b or a list, not ",
+            "in takes a range a..b, a list or a map, not ",
             qsem_aname(S, a->type),
             nullptr
         );
@@ -2582,6 +2707,32 @@ static void qsem_hoist(QSem *const S, QStmt *const s, QExpr *const t)
     *at = pre;
 }
 
+static bool qsem_mapkey(const QSem *const S, const QExpr *const t)
+{
+    return t->kind == QE_INDEX && qsem_ismap(S, t->a->type);
+}
+
+/* m[k] = v: k added when not there. The key and the value first, each in a temporary unless
+   simple: finding the key's place may grow the map, which nothing may see half done. */
+static void qsem_mapset(QSem *const S, QStmt *const s, QExpr *const t)
+{
+    t->insert = true;
+    QExpr *const v = s->e = qsem_into(S, qsem_root(t), qsem_value(S, s->e, t->type));
+
+    if (!qsem_byplace(S, v->type) && !qsem_isconst(v) && v->kind != QE_NAME) {
+        QStmt *const pre = qast_alloc(S->mem, sizeof *pre);
+        pre->kind = QS_ASSIGN;
+        pre->op = QK_EQ;
+        pre->tok = v->tok;
+        pre->target = qsem_nameof(S, qsem_var(S, v->tok, v->type, QV_TEMP), v->tok);
+        pre->e = v;
+        s->e = pre->target;
+        s->pre = pre;
+    }
+
+    qsem_hoist(S, s, t);
+}
+
 static void qsem_assign(QSem *const S, QStmt *const s)
 {
     if (s->target->kind == QE_TUPLE) {
@@ -2593,6 +2744,11 @@ static void qsem_assign(QSem *const S, QStmt *const s)
 
     if (t->type == QY_ERROR) {
         qsem_expr(S, s->e, QY_VOID);
+        return;
+    }
+
+    if (s->op == QK_EQ && qsem_mapkey(S, t)) {
+        qsem_mapset(S, s, t);
         return;
     }
 
@@ -2630,6 +2786,58 @@ static void qsem_loop(QSem *const S, const QStmt *const s)
     S->loops[S->nloops++] = qsem_at(S, s->tok);
 }
 
+/* Variable v of a for, named name, naming list place a's element at the for's index. */
+static QVar *qsem_eachvar(QSem *const S, QStmt *const s, const QTok *const name, QExpr *const a)
+{
+    const QType elem = qast_ty(S->prog, a->type)->elem;
+    QExpr *const at = qast_expr(S->mem, QE_INDEX, name);
+    at->a = a;
+    at->b = qsem_nameof(S, s->index, name);
+    at->type = elem;
+
+    QVar *const v = qsem_var(S, name, elem, QV_EACH);
+    v->place = at;
+    qsem_bind(S, name, v, nullptr);
+    return v;
+}
+
+static void qsem_lend(QSem *const S, const QVar *const root, const QStmt *const s)
+{
+    if (!root)
+        return;
+
+    S->loans = qast_room(S->mem, S->loans, S->nloans, &S->caploans, sizeof *S->loans);
+    S->loans[S->nloans++] = (QLoan){.root = root, .loop = s};
+}
+
+/* for k [, v] in m, m a map: k its keys in their order, v their values; m borrowed shared. */
+static void qsem_eachkey(QSem *const S, QStmt *const s, const QVar *const root)
+{
+    QExpr *const a = s->e;
+    QExpr *const m = qast_fresh(a) && a->var ? qsem_nameof(S, a->var, a->tok) : a;
+
+    if (s->mut)
+        qsem_say(S, s->tok, "a map's keys don't change: assign m[k] for its values", nullptr);
+
+    s->by = 1;
+    s->stp = qsem_var(S, s->tok, QY_INT, QV_TEMP);
+    s->lim = qsem_var(S, s->tok, QY_INT, QV_TEMP);
+    s->index = qsem_var(S, s->tok, QY_INT, QV_TEMP);
+    qsem_push(S);
+
+    QExpr *const keys = qsem_keysof(S, m);
+    s->var = qsem_eachvar(S, s, s->decls->name, keys);
+
+    if (s->decls->next) {
+        QExpr *const vals = qsem_keysof(S, m);
+        vals->field = 1;
+        vals->type = qast_ty(S->prog, m->type)->fields[1].type;
+        qsem_eachvar(S, s, s->decls->next->name, vals);
+    }
+
+    qsem_lend(S, root, s);
+}
+
 /* for [i,] x in a, for mut x in a: a list or an array, borrowed by the loop; x names a[i], i
    counting as a range's for does. */
 static void qsem_each(QSem *const S, QStmt *const s)
@@ -2638,6 +2846,11 @@ static void qsem_each(QSem *const S, QStmt *const s)
     const bool ok = !s->mut || qsem_changes(S, s->e, s->tok);
     QExpr *const a = s->e = qsem_addressed(S, qsem_expr(S, s->e, QY_VOID));
     QType elem = QY_ERROR;
+
+    if (qsem_ismap(S, a->type)) {
+        qsem_eachkey(S, s, root);
+        return;
+    }
 
     if (a->type != QY_ERROR && !qast_array(S->prog, a->type))
         qsem_say(
@@ -2670,11 +2883,7 @@ static void qsem_each(QSem *const S, QStmt *const s)
     s->var->mut = s->mut;
     s->var->place = at;
     qsem_bind(S, x->name, s->var, nullptr);
-
-    if (root) {
-        S->loans = qast_room(S->mem, S->loans, S->nloans, &S->caploans, sizeof *S->loans);
-        S->loans[S->nloans++] = (QLoan){.root = root, .loop = s};
-    }
+    qsem_lend(S, root, s);
 }
 
 static void qsem_for(QSem *const S, QStmt *const s)

@@ -462,26 +462,25 @@ static bool arry_in_removed(const Freed *const f, const Addr c)
     return c >= f->data && c - f->data < f->size;
 }
 
-/* The moved string blocks' owners follow; a block owned in the data removed is dead. */
-static void arry_follow_owners(const Arry *const ay, const Freed *const f)
+/* The string blocks' owners follow n removals, in order; a block owned in data removed is dead. */
+static void arry_follow_owners(const Arry *const ay, const Freed *const fs, const uint32_t n)
 {
-    for (Addr b = ay->allo->top; b > ay->allo->strings;) {
+    for (Addr b = ay->allo->top; n && b > ay->allo->strings;) {
         b -= BHDR;
         StrTail *const tail = (StrTail *)at(b);
 
-        if (arry_in_removed(f, tail->owner))
-            tail->owner = 0;
-        else
-            tail->owner = arry_moved_cell(f, tail->owner);
+        for (uint32_t i = 0; i < n && tail->owner; i++)
+            tail->owner =
+                arry_in_removed(&fs[i], tail->owner) ? 0 : arry_moved_cell(&fs[i], tail->owner);
 
         b -= tail->len;
     }
 }
 
 /* Dead header h's array removed: its header and data go and what follows moves down. The headers'
-   data, their owners in the moved data, the cells of the headers moved, the moved string blocks'
-   owners and the parameters' cells in the moved data follow. */
-static void arry_remove(Arry *const ay, Vm *const vm, const Addr h)
+   data, their owners in the moved data, the cells of the headers moved, the parameters' cells in
+   the moved data and *follow follow; the string blocks' owners are left to arry_follow_owners. */
+static Freed arry_remove(Arry *const ay, Vm *const vm, const Addr h, Addr *const follow)
 {
     const ArrayHdr *const a = arry_hdr_at(h);
     const Freed f = {
@@ -515,7 +514,7 @@ static void arry_remove(Arry *const ay, Vm *const vm, const Addr h)
         arry_owner_slot(ay, kept->owner)->hdr = p;
     }
 
-    arry_follow_owners(ay, &f);
+    *follow = arry_moved_cell(&f, *follow);
 
     for (Addr c = ay->fcells; c < arry_fcells_end(ay); c = arry_fcell_next(c))
         arry_fcell_hdr(c)->data = arry_moved_cell(&f, arry_fcell_hdr(c)->data);
@@ -531,6 +530,8 @@ static void arry_remove(Arry *const ay, Vm *const vm, const Addr h)
         for (uint32_t k = 0; k < c->npar; k++)
             refs[2 * k].a = arry_moved_cell(&f, refs[2 * k].a);
     }
+
+    return f;
 }
 
 /* The arrays the n et elements at data hold dead, ours, a record's. */
@@ -558,14 +559,41 @@ void arry_kill(const Arry *const ay, const Addr h)
     arry_kill_recs(ay, a->data, arry_elem_count(a), a->et);
 }
 
-void arry_sweep(Arry *const ay, Vm *const vm)
+Addr arry_sweep_at(Arry *const ay, Vm *const vm, Addr a)
 {
-    for (Addr p = ay->allo->hdr_base; p < ay->hdr;)
-        if (arry_hdr_at(p)->owner)
+    enum { BATCH = 16 }; /* removals a walk of the string blocks follows: a bound, not a limit */
+    Freed fs[BATCH];
+    uint32_t n = 0;
+
+    for (Addr p = ay->allo->hdr_base; p < ay->hdr;) {
+        if (arry_hdr_at(p)->owner) {
             p += arry_hdr_size(arry_hdr_at(p)->dims);
-        else
-            arry_remove(ay, vm, p); /* the next one moves down to p */
+            continue;
+        }
+
+        fs[n++] = arry_remove(ay, vm, p, &a); /* the next one moves down to p */
+
+        if (n == BATCH) {
+            arry_follow_owners(ay, fs, n);
+            n = 0;
+        }
+    }
+
+    arry_follow_owners(ay, fs, n);
+    ay->idle = 0;
+    return a;
 }
+
+Addr arry_tidy(Arry *const ay, Vm *const vm, const Addr a, const uint32_t need)
+{
+    const Allo *const al = ay->allo;
+    const uint64_t used = (uint64_t)(al->arrays - al->bot) + (al->top - al->strings);
+    const bool room =
+        al->strings - al->arrays >= need && ay->fcells - ay->hdr >= 4 * arry_hdr_size(1);
+    return ay->idle && (2 * (uint64_t)ay->idle > used || !room) ? arry_sweep_at(ay, vm, a) : a;
+}
+
+void arry_sweep(Arry *const ay, Vm *const vm) { arry_sweep_at(ay, vm, 0); }
 
 /* Header h's array dead (arry_kill); the arena's newest, its room given back. */
 static void arry_drop(const Arry *const ay, const Addr h)
@@ -938,14 +966,12 @@ static void arry_slide(Arry *const ay, ArrSlot *const s, const Addr old)
     stack_arena_give(ay->vm, h, delta);
 }
 
-/* arry_redim, the new one's fast len when 1-D, else as made. */
-static void arry_resize(
+void arry_redim(
     Arry *const ay,
     ArrSlot *const s,
     const uint32_t et,
     const uint8_t n,
-    const bool keep,
-    const uint32_t len
+    const bool keep
 )
 {
     const Addr old = s->hdr;
@@ -961,34 +987,15 @@ static void arry_resize(
         s->hdr = 0;
         arry_drop(ay, old);
         arry_make(ay, s, et, n, true);
-
-        if (len != UINT32_MAX)
-            arry_hdr_at(s->hdr)->fast = len;
-
         arry_sweep(ay, ay->vm); /* last: s may be in the heap */
         return;
     }
 
     arry_make(ay, s, et, n, true);
-
-    if (len != UINT32_MAX)
-        arry_hdr_at(s->hdr)->fast = len;
-
     arry_keep(ay, old, s->hdr);
     arry_kill(ay, old);
     arry_slide(ay, s, old);
     arry_sweep(ay, ay->vm);
-}
-
-void arry_redim(
-    Arry *const ay,
-    ArrSlot *const s,
-    const uint32_t et,
-    const uint8_t n,
-    const bool keep
-)
-{
-    arry_resize(ay, s, et, n, keep, UINT32_MAX);
 }
 
 void arry_relen(
@@ -999,7 +1006,16 @@ void arry_relen(
     const uint32_t len
 )
 {
+    const Addr old = s->hdr;
     ay->subs[0] = (int32_t)cap - 1;
     ay->lbounds[0] = 0;
-    arry_resize(ay, s, et, 1, s->hdr != 0, len);
+    arry_counts(ay, 1);
+    arry_make(ay, s, et, 1, true);
+    arry_hdr_at(s->hdr)->fast = len;
+
+    if (old) {
+        arry_keep(ay, old, s->hdr);
+        arry_kill(ay, old);
+        ay->idle += arry_heap(ay, old) ? arry_size(ay, old) : 0;
+    }
 }

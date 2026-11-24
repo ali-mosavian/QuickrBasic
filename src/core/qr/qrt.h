@@ -29,7 +29,13 @@ typedef enum : uint8_t {
     QX_RAISE, /* ( cell et i -- ): i moved last, those past it down one */
     QX_HAS,   /* ( cell et v -- flag ): v among the elements, a number or a string */
     QX_FMT,   /* ( v spec kind -- s ): v of kind formatted by spec, Python's format spec */
+    QX_MAPAT,  /* ( key ket vet map how -- addr ): key's value in the map record at map, by how */
+    QX_MAPDEL, /* ( key ket vet map -- ): key's entry, if there, removed */
 } QrtX;
+
+/* QX_MAPAT's how when the key is not there: Subscript out of range, made with an empty value, or
+   the address 0. */
+typedef enum : uint8_t { QM_READ, QM_SET, QM_FIND } QrtHow;
 
 /* CALL QJ's operand: the offset from past the CALL, shifted by QJ_SHIFT, and when it jumps. */
 typedef enum : uint8_t { QJ_ALWAYS, QJ_FALSE, QJ_TRUE } QrtWhen;

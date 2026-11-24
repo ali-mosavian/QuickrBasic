@@ -664,13 +664,33 @@ static QVar *qcg_listvar(QCg *const g, const QExpr *const a)
     return a->var;
 }
 
+static void qcg_x(Code *c, QrtX op);
+
+/* QX.MAPAT's and QX.MAPDEL's operands: map place m's key, its ETs, then its address, last: the
+   key's evaluation may move the heap. */
+static void qcg_mapargs(QCg *const g, const QExpr *const m, const QExpr *const key)
+{
+    const QTy *const y = qcg_ty(g, m->type);
+    qcg_as(g, key, y->key);
+    code_int(g->c, qcg_et(g, y->key));
+    code_int(g->c, qcg_et(g, y->elem));
+    qcg_offset(g, qcg_addr(g, m));
+}
+
 /* Element place e, a[i]: its address pushed. A field's list's by FE.ADDR, its fixed array's by
-   FX.IDX; a variable's by RA.ADDR. */
+   FX.IDX; a variable's by RA.ADDR; a map's value by QX.MAPAT. */
 static void qcg_elem(QCg *const g, const QExpr *const e)
 {
     Code *const c = g->c;
     const QExpr *const a = e->a;
     const QTy *const y = qcg_ty(g, a->type);
+
+    if (y->kind == QT_MAP) {
+        qcg_mapargs(g, a, e->b);
+        code_int(c, e->insert ? QM_SET : QM_READ);
+        qcg_x(c, QX_MAPAT);
+        return;
+    }
 
     if (a->kind == QE_FIELD) {
         const uint32_t off = qcg_fieldat(g, a);
@@ -751,9 +771,9 @@ static void qcg_fieldop(QCg *const g, const bool store, const uint32_t off, cons
 }
 
 /* Is element place e a variable's list's, loaded and stored by I.LD.A1 and its kin? */
-static bool qcg_byindex(const QExpr *const e)
+static bool qcg_byindex(const QCg *const g, const QExpr *const e)
 {
-    return e->kind == QE_INDEX && e->a->kind != QE_FIELD;
+    return e->kind == QE_INDEX && e->a->kind != QE_FIELD && qcg_list(g, e->a->type);
 }
 
 /* Scalar place e's value pushed. */
@@ -771,7 +791,7 @@ static void qcg_loadat(QCg *const g, const QExpr *const e)
         return;
     }
 
-    if (qcg_byindex(e)) {
+    if (qcg_byindex(g, e)) {
         const QVar *const v = qcg_listvar(g, e->a);
         qcg_expr(g, e->b);
         code_opid(c, qcg_pick(e->type, O_I_LD_A1, O_F_LD_A1, O_D_LD_A1, O_S_LD_A1), v->id, false);
@@ -797,7 +817,7 @@ static QCgPut qcg_before(QCg *const g, const QExpr *const e)
     if (e->kind == QE_FIELD)
         return (QCgPut){.off = qcg_fieldat(g, e), .at = true};
 
-    if (qcg_byindex(e)) {
+    if (qcg_byindex(g, e)) {
         const QVar *const v = qcg_listvar(g, e->a);
         qcg_expr(g, e->b);
         return (QCgPut){.list = v};
@@ -1037,6 +1057,12 @@ static void qcg_listop(QCg *const g, const QExpr *const e, const QExpr *const ds
     const QType elem = qcg_ty(g, e->a->type)->elem;
     const uint32_t et = qcg_et(g, elem);
 
+    if (qcg_ty(g, e->a->type)->kind == QT_MAP) { /* remove(k) */
+        qcg_mapargs(g, e->a, e->argv[0]);
+        qcg_x(c, QX_MAPDEL);
+        return;
+    }
+
     switch (e->builtin) {
     case QB_PUSH:
     case QB_INSERT: { /* one more at the end, the value there; insert's moved to its place */
@@ -1132,6 +1158,16 @@ static void qcg_listop(QCg *const g, const QExpr *const e, const QExpr *const ds
 /* x in a, a list: QX.HAS. */
 static void qcg_has(QCg *const g, const QExpr *const e)
 {
+    if (qcg_ty(g, e->b->type)->kind == QT_MAP) {
+        qcg_mapargs(g, e->b, e->a);
+        code_int(g->c, QM_FIND);
+        qcg_x(g->c, QX_MAPAT);
+        uint8_t *const right = g->c->out;
+        code_int(g->c, 0);
+        qcg_compare(g->c, QY_INT, e->neg ? QK_EQ : QK_NE, right);
+        return;
+    }
+
     const QType elem = qcg_ty(g, e->b->type)->elem;
     qcg_cell(g, e->b);
     code_int(g->c, qcg_et(g, elem));

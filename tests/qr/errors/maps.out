@@ -1,0 +1,42 @@
+maps.qr:2:14: a map's key is an int, a string or an enum
+  var a as int[double]
+               ^
+maps.qr:3:15: lists of lists are not supported yet
+  var b as int[][string]
+                ^
+maps.qr:5:3: an int is not a string: write string(x)
+  m[3] = 1
+    ^
+maps.qr:6:14: + joins two strings: write string(x)
+  print(m["x"] + "y")
+               ^
+maps.qr:7:1: a map's keys don't change: assign m[k] for its values
+  for mut k in m
+  ^
+maps.qr:10:5: m is borrowed by the for over it: it can't change here
+      m["z"] = 1
+      ^
+maps.qr:11:7: m is borrowed by the for over it: it can't change here
+      m.remove(k)
+        ^
+maps.qr:13:3: only a list has push()
+  m.push(1)
+    ^
+maps.qr:14:9: keys() takes no values
+  print(m.keys(1))
+          ^
+maps.qr:15:9: m is used after it moves here: write copy(m)
+  let n = m
+          ^
+maps.qr:16:5: a let needs a value
+  let o as int[string]
+      ^
+maps.qr:17:2: o is a let: it can't change
+  o["a"] = 1
+   ^
+maps.qr:19:9: only a map has keys()
+  print(l.keys())
+          ^
+maps.qr:20:7: print takes numbers, strings and bools, not an int[string]
+  print(m)
+        ^

@@ -12,7 +12,14 @@
  * the room (arry_relen), so a push is amortized O(1); a pop frees nothing until the list is
  * empty. Insert and remove move an element by swaps, which keep its strings' and
  * arrays' owners. Either may move the heap, the list's cell with it, so each routine takes the
- * cell afresh. An f-string's spec is parsed when it runs, as Python's format() does.
+ * cell afresh. A growth sweeps the dead only now and then (arry_tidy), before it, following the
+ * cell. An f-string's spec is parsed when it runs, as Python's format() does.
+ *
+ * A map is a record of three lists (qsem_mapof): its keys and its values in the order they came,
+ * and its slots, a power of 2 of them, each an entry's index + 1 or 0 free. A key's slot is its
+ * hash's, probing on; half the slots at most are in use. A remove empties its slot, moving back
+ * the run after it, then moves the last entry into its place. Nothing sweeps between a map's
+ * lists' changes, so its address holds till the value's is returned.
  *
  * # Example
  *    a and b     a, I.LD.I32 n|FALSE, CALL QJ, b, I.LD.I32 m|ALWAYS, CALL QJ, I.LD.U8 0
@@ -234,9 +241,9 @@ static uint32_t qrt_len(const Addr cell, Addr *const data)
     return a->fast;
 }
 
-/* The list at cell one longer: within its room, else in twice the room, its elements kept. The
-   cell may move with the heap. */
-static void qrt_grow(Session *const S, const Addr cell, const uint32_t et)
+/* The list at cell one longer: within its room, else in twice the room, its elements kept, the
+   old array dead till a sweep: nothing moves. */
+static void qrt_lengthen(Session *const S, const Addr cell, const uint32_t et)
 {
     ArrSlot *const s = (ArrSlot *)at(cell);
     ArrayHdr *const a = s->hdr ? (ArrayHdr *)at(s->hdr) : nullptr;
@@ -250,16 +257,32 @@ static void qrt_grow(Session *const S, const Addr cell, const uint32_t et)
     arry_relen(&S->arry, s, et, n ? 2 * n : 4, n + 1);
 }
 
+/* The bytes a list at cell of et needs to grow: twice its room. */
+static uint32_t qrt_need(Session *const S, const Addr cell, const uint32_t et)
+{
+    Addr data;
+    const uint32_t n = qrt_len(cell, &data);
+    return 2 * (n ? n : 2) * arry_et_size(&S->decl, et);
+}
+
+/* qrt_lengthen, the dead swept first now and then (arry_tidy): the cell may move with the heap. */
+static void qrt_grow(Session *const S, Addr cell, const uint32_t et)
+{
+    cell = arry_tidy(&S->arry, &S->vm, cell, qrt_need(S, cell, et));
+    qrt_lengthen(S, cell, et);
+}
+
 /* The list at cell one shorter: its last emptied, its strings let go, its records' arrays dead;
-   none left, freed. */
-static void qrt_shrink(Session *const S, const Addr cell, const uint32_t et)
+   none left, the array dead till a sweep. */
+static void qrt_cut(Session *const S, const Addr cell, const uint32_t et)
 {
     ArrSlot *const s = (ArrSlot *)at(cell);
     ArrayHdr *const a = (ArrayHdr *)at(s->hdr);
     const uint32_t size = arry_et_size(&S->decl, et);
 
     if (a->fast == 1) {
-        arry_free(&S->arry, &S->vm, s);
+        arry_kill(&S->arry, s->hdr);
+        s->hdr = 0;
         return;
     }
 
@@ -270,6 +293,13 @@ static void qrt_shrink(Session *const S, const Addr cell, const uint32_t et)
         arry_kill(&S->arry, ((const ArrSlot *)at(e + td->slots[i]))->hdr);
 
     memset(at(e), 0, size);
+}
+
+/* qrt_cut, then the dead swept: the cell may move with the heap. */
+static void qrt_shrink(Session *const S, const Addr cell, const uint32_t et)
+{
+    qrt_cut(S, cell, et);
+    arry_sweep(&S->arry, &S->vm);
 }
 
 /* Elements a and b of et swapped, a string's and a record's owners following. */
@@ -712,6 +742,255 @@ uint32_t qrt_format(
     return o;
 }
 
+/* ---- maps */
+
+enum { QM_KEYS, QM_VALS, QM_SLOTS, QM_FIRST = 8 };
+
+/* Map at map's list k's cell: its three lists are its record's fields, in order (qsem_mapof). */
+static Addr qrt_mcell(const Addr map, const uint32_t k)
+{
+    return map + k * (uint32_t)sizeof(ArrSlot);
+}
+
+/* A key's hash: an int's bits or a string's FNV-1a, mixed (murmur3's finalizer). */
+static uint32_t qrt_hash(const uint32_t ket, const Cell key, const Desc str)
+{
+    uint32_t h = key.u;
+
+    if (ket == ET_SD) {
+        h = 2166136261u;
+
+        for (uint32_t i = 0; i < str.len; i++)
+            h = (h ^ ((const uint8_t *)at(str.ptr))[i]) * 16777619u;
+    }
+
+    h ^= h >> 16;
+    h *= 0x85ebca6bu;
+    h ^= h >> 13;
+    h *= 0xc2b2ae35u;
+    return h ^ (h >> 16);
+}
+
+static bool qrt_mkey(const uint32_t ket, const Addr e, const Cell key, const Desc str)
+{
+    if (ket != ET_SD)
+        return load32(at(e)) == key.u;
+
+    const Desc d = strg_peek(e);
+    return d.len == str.len && !memcmp(at(d.ptr), at(str.ptr), d.len);
+}
+
+static uint32_t qrt_ksize(const uint32_t ket) { return ket == ET_SD ? DSZ : 4; }
+
+/* key's slot in map: *found if it holds key's entry, else the free slot its probe stops at. A
+   map with no slots: 0, not found. */
+static uint32_t qrt_mslot(
+    const Addr map,
+    const uint32_t ket,
+    const Cell key,
+    const Desc str,
+    bool *const found
+)
+{
+    Addr slots, keys;
+    const uint32_t n = qrt_len(qrt_mcell(map, QM_SLOTS), &slots);
+    qrt_len(qrt_mcell(map, QM_KEYS), &keys);
+    *found = false;
+
+    if (!n)
+        return 0;
+
+    for (uint32_t p = qrt_hash(ket, key, str) & (n - 1);; p = (p + 1) & (n - 1)) {
+        const uint32_t i = load32(at(slots + 4 * p));
+
+        if (!i)
+            return p;
+        if (qrt_mkey(ket, keys + (i - 1) * qrt_ksize(ket), key, str)) {
+            *found = true;
+            return p;
+        }
+    }
+}
+
+/* Entry i's key's free slot, its probe's first: entry i in it. */
+static void qrt_mplace(const Addr map, const uint32_t ket, const uint32_t i)
+{
+    Addr slots, keys;
+    const uint32_t n = qrt_len(qrt_mcell(map, QM_SLOTS), &slots);
+    qrt_len(qrt_mcell(map, QM_KEYS), &keys);
+    const Addr k = keys + i * qrt_ksize(ket);
+    const Cell key = {.u = ket == ET_SD ? 0 : load32(at(k))};
+
+    uint32_t p = qrt_hash(ket, key, ket == ET_SD ? strg_peek(k) : (Desc){}) & (n - 1);
+
+    while (load32(at(slots + 4 * p)))
+        p = (p + 1) & (n - 1);
+
+    store32(at(slots + 4 * p), i + 1);
+}
+
+/* Map's slots twice as many (QM_FIRST at first), its n entries placed again. Nothing moves. */
+static void qrt_mrehash(Session *const S, const Addr map, const uint32_t ket, const uint32_t n)
+{
+    ArrSlot *const s = (ArrSlot *)at(qrt_mcell(map, QM_SLOTS));
+    Addr slots;
+    const uint32_t cap = qrt_len(qrt_mcell(map, QM_SLOTS), &slots);
+
+    arry_kill(&S->arry, s->hdr);
+    s->hdr = 0;
+    arry_relen(&S->arry, s, ET_I4, cap ? 2 * cap : QM_FIRST, cap ? 2 * cap : QM_FIRST);
+
+    for (uint32_t i = 0; i < n; i++)
+        qrt_mplace(map, ket, i);
+}
+
+/* key's entry made in map, its value empty: the value's address. The map may move first. */
+static Addr qrt_minsert(
+    Session *const S,
+    Addr map,
+    const uint32_t ket,
+    const uint32_t vet,
+    const Cell key
+)
+{
+    const uint32_t need = qrt_need(S, qrt_mcell(map, QM_KEYS), ket) +
+                          qrt_need(S, qrt_mcell(map, QM_VALS), vet) +
+                          qrt_need(S, qrt_mcell(map, QM_SLOTS), ET_I4);
+    map = arry_tidy(&S->arry, &S->vm, map, need);
+    Addr data;
+    const uint32_t n = qrt_len(qrt_mcell(map, QM_KEYS), &data);
+    Addr slots;
+
+    if (2 * (n + 1) > qrt_len(qrt_mcell(map, QM_SLOTS), &slots))
+        qrt_mrehash(S, map, ket, n);
+
+    qrt_lengthen(S, qrt_mcell(map, QM_KEYS), ket);
+    qrt_lengthen(S, qrt_mcell(map, QM_VALS), vet);
+    qrt_len(qrt_mcell(map, QM_KEYS), &data);
+    const Addr k = data + n * qrt_ksize(ket);
+
+    if (ket == ET_SD)
+        strg_set(&S->strg, key.u, k);
+    else
+        store32(at(k), key.u);
+
+    qrt_mplace(map, ket, n);
+    qrt_len(qrt_mcell(map, QM_VALS), &data);
+    return data + n * arry_et_size(&S->decl, vet);
+}
+
+/* Slot p emptied, the slots after it in its run moved back so each stays on its probe. */
+static void qrt_munslot(const Addr map, const uint32_t ket, uint32_t p)
+{
+    Addr slots, keys;
+    const uint32_t n = qrt_len(qrt_mcell(map, QM_SLOTS), &slots);
+    qrt_len(qrt_mcell(map, QM_KEYS), &keys);
+
+    for (uint32_t j = (p + 1) & (n - 1);; j = (j + 1) & (n - 1)) {
+        const uint32_t i = load32(at(slots + 4 * j));
+
+        if (!i)
+            break;
+
+        const Addr k = keys + (i - 1) * qrt_ksize(ket);
+        const Cell key = {.u = ket == ET_SD ? 0 : load32(at(k))};
+
+        const uint32_t home = qrt_hash(ket, key, ket == ET_SD ? strg_peek(k) : (Desc){}) & (n - 1);
+
+        if (((j - home) & (n - 1)) >= ((j - p) & (n - 1))) { /* home at p or before: back to p */
+            store32(at(slots + 4 * p), i);
+            p = j;
+        }
+    }
+
+    store32(at(slots + 4 * p), 0);
+}
+
+/* The entry at slot p removed: the last entry moved into its place, then the lists cut. */
+static void qrt_mremove(
+    Session *const S,
+    const Addr map,
+    const uint32_t ket,
+    const uint32_t vet,
+    const uint32_t p
+)
+{
+    Addr slots, keys, vals;
+    qrt_len(qrt_mcell(map, QM_SLOTS), &slots);
+    const uint32_t i = load32(at(slots + 4 * p)) - 1;
+    const uint32_t last = qrt_len(qrt_mcell(map, QM_KEYS), &keys) - 1;
+    qrt_len(qrt_mcell(map, QM_VALS), &vals);
+    const uint32_t vsize = arry_et_size(&S->decl, vet);
+
+    qrt_munslot(map, ket, p);
+
+    if (i != last) {
+        bool found;
+        const Addr k = keys + last * qrt_ksize(ket);
+        const Cell key = {.u = ket == ET_SD ? 0 : load32(at(k))};
+
+        const uint32_t q = qrt_mslot(map, ket, key, ket == ET_SD ? strg_peek(k) : (Desc){}, &found);
+
+        store32(at(slots + 4 * q), i + 1);
+        qrt_swap(S, ket, keys + i * qrt_ksize(ket), k);
+        qrt_swap(S, vet, vals + i * vsize, vals + last * vsize);
+    }
+
+    qrt_cut(S, qrt_mcell(map, QM_KEYS), ket);
+    qrt_cut(S, qrt_mcell(map, QM_VALS), vet);
+    arry_sweep(&S->arry, &S->vm);
+}
+
+/* QX_MAPAT: key's value's address in map, by how; QM_FIND's 0 when key is not there. */
+static Addr qrt_mapat(
+    Session *const S,
+    const Addr map,
+    const uint32_t ket,
+    const uint32_t vet,
+    const Cell key,
+    const QrtHow how
+)
+{
+    bool found;
+    const Desc str = ket == ET_SD ? strg_peek(key.u) : (Desc){};
+
+    const uint32_t p = qrt_mslot(map, ket, key, str, &found);
+
+    if (!found && how == QM_SET)
+        return qrt_minsert(S, map, ket, vet, key);
+
+    if (ket == ET_SD)
+        strg_get(&S->strg, key.u); /* its temporary popped */
+
+    if (!found && how == QM_READ)
+        arry_bad_sub(&S->arry);
+    if (!found)
+        return 0;
+
+    Addr slots, vals;
+    qrt_len(qrt_mcell(map, QM_SLOTS), &slots);
+    qrt_len(qrt_mcell(map, QM_VALS), &vals);
+    return vals + (load32(at(slots + 4 * p)) - 1) * arry_et_size(&S->decl, vet);
+}
+
+/* QX_MAPDEL: key's entry, if there, removed. */
+static void qrt_mapdel(
+    Session *const S,
+    const Addr map,
+    const uint32_t ket,
+    const uint32_t vet,
+    const Cell key
+)
+{
+    bool found;
+    const Desc str = ket == ET_SD ? strg_get(&S->strg, key.u) : (Desc){};
+
+    const uint32_t p = qrt_mslot(map, ket, key, str, &found);
+
+    if (found)
+        qrt_mremove(S, map, ket, vet, p);
+}
+
 /* QX ( args.. op -- results ): the routine op names (qr/qrt.h QrtX). */
 void qrt_x(Session *const S)
 {
@@ -790,6 +1069,23 @@ void qrt_x(Session *const S)
         const Desc str = et == ET_SD ? strg_get(&S->strg, v.u) : (Desc){};
 
         exec_pushi(vm, qrt_has(S, cell, et, v, str) ? -1 : 0);
+        return;
+    }
+
+    case QX_MAPAT: {
+        const QrtHow how = (QrtHow)exec_popi(vm);
+        const Addr map = exec_popa(vm);
+        const uint32_t vet = exec_pop(vm).u;
+        const uint32_t ket = exec_pop(vm).u;
+        exec_pusha(vm, qrt_mapat(S, map, ket, vet, exec_pop(vm), how));
+        return;
+    }
+
+    case QX_MAPDEL: {
+        const Addr map = exec_popa(vm);
+        const uint32_t vet = exec_pop(vm).u;
+        const uint32_t ket = exec_pop(vm).u;
+        qrt_mapdel(S, map, ket, vet, exec_pop(vm));
         return;
     }
 

@@ -280,6 +280,15 @@ pos.scale(2)                ' before the dot, mut is implied
   before a list's own.
 - A list's own: `a.push(x)`, `a.pop()` (the last, taken), `a.insert(i, x)`, `a.remove(i)`, and
   `len(a)`. `x in a` searches it.
+- A map's own: `m[k] = v` adds `k` or changes its value, `m[k]` reads it (Subscript out of range
+  when `k` is not there), `m.get(k)` gives a `V?`, `k in m`, `m.remove(k)` (nothing when `k` is
+  not there), `len(m)` and `m.keys()`, a new list. A key is an `int`, a `string` or an enum.
+- `for k, v in m` and `for k in m` go in the keys' order: as added, except that a remove moves
+  the last key into the removed one's place.
+- **In the VM**, a map is a record of three lists: its keys, its values and its hash slots, each
+  an entry's index. A key is found by its hash and a probe, half the slots at most in use. A
+  list's growth on the heap leaves its old array for a sweep, which walks every string block, so
+  the sweep waits until the dead arrays are half the heap in use or room runs short.
 
 #### Results
 

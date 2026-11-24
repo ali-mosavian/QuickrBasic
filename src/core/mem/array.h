@@ -21,6 +21,7 @@ typedef struct Arry {
     Vm *vm;              /* the run: its call's frame (vm.fp), the calls that own a heap's array */
     Addr hdr;            /* past the headers (mm.ahd) */
     Addr fcells;         /* the field cells' foot: they run to the headers' region's end */
+    uint32_t idle;       /* the data bytes of the dead arrays arry_relen left, not yet swept */
     int32_t subs[ADIMS]; /* the subscripts (g_dimbuf) */
     uint32_t counts[ADIMS]; /* the counts (g_cntbuf) */
     int32_t lbounds[ADIMS]; /* the lower bounds (g_lbbuf) */
@@ -103,7 +104,8 @@ void arry_dim(Arry *ay, uint32_t id, uint8_t n);
    one. Subscript out of range: keep, n not its dimensions. Illegal function call, Out of memory. */
 void arry_redim(Arry *ay, ArrSlot *s, uint32_t et, uint8_t n, bool keep);
 /* A list's array, ours: cell s's made cap elements of et, its first len (fast) its elements, the
-   old ones kept. Out of memory. */
+   old ones kept, the old array dead for arry_sweep (an arena's till its return): nothing moves
+   yet. Out of memory. */
 void arry_relen(Arry *ay, ArrSlot *s, uint32_t et, uint32_t cap, uint32_t len);
 /* The array fields of the n records of TYPE td at data dynamic and empty, ours. */
 void arry_empty_cells(Addr data, uint32_t n, const TypeDef *td);
@@ -170,6 +172,12 @@ void arry_kill(const Arry *ay, Addr h);
    owners in the moved data, the moved headers' cells, the moved string blocks' owners and the
    parameters' cells in the moved data follow. A cell held in the heap moves: not to be used after. */
 void arry_sweep(Arry *ay, Vm *vm);
+/* arry_sweep: where the heap address a moved to. */
+Addr arry_sweep_at(Arry *ay, Vm *vm, Addr a);
+/* Before a list grows by need bytes: arry_sweep_at when the dead arry_relen left are over half the
+   heap in use, or need or a map's headers do not fit, else a with nothing moved. A sweep moves the data and walks
+   every string block, so growth pays for one rarely. */
+Addr arry_tidy(Arry *ay, Vm *vm, Addr a, uint32_t need);
 /* Cell s's array dropped, s emptied: arry_kill, the arena's newest's room given back, then
    arry_sweep. */
 void arry_free(Arry *ay, Vm *vm, ArrSlot *s);
