@@ -83,6 +83,7 @@ static const QNat qnat_all[] = {
     NAT("command", CALL(CMD)),
     NAT("env", ARG(0), INT(1), CALL(ENVS)),
     NAT("exit", CALL(END)),
+    NAT("run", ARG(0), CALL(SHELL)),
     /* keys: INKEY$, PEN(n) */
     NAT("inkey", CALL(INKEY)),
     NAT("pen", ARG(0), SYS(PEN)),

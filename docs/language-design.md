@@ -760,11 +760,14 @@ Everything else is in a module.
 | `random.seed`; `int`, `real`, `pick` over RND | RANDOMIZE, RND |
 | `time.ticks`; `now`, `sleep`, `Clock` over it | TIMER; DATE$ and TIME$ |
 | `fs.open`, `read`, `write`, `seek`, `size`, `close`, `list` | OPEN, GET, PUT, SEEK, LOF, CLOSE, FILES (CALL QX) |
-| `os.env`, `exit`; `args` over COMMAND$ | ENVIRON$, END, COMMAND$ |
+| `os.env`, `exit`, `run`; `args` over COMMAND$ | ENVIRON$, END, SHELL, COMMAND$ |
 | `keys.next`, `pressed`, `down` over INKEY$; `mouse`, `clicked` | INKEY$, PEN |
 
 - `math`'s `abs`, `min`, `max` and `clamp` are generic Quickr fns. `Vec` has `+`, `-` and `=`,
   `*` and `/` by a `double`, `dot` and `length`.
+- `os.run(cmd)` runs `cmd` as SHELL does: `/bin/sh -c` on the host, `COMSPEC /C` on DOS. It
+  returns nothing, as SHELL gives no exit code; a command that can't start is Illegal function
+  call. **In the VM**, the command is cut at 122 bytes, as SHELL's is to fit DOS's command tail.
 - A `File` closes itself when it ends; `close(mut f)` closes it sooner. A file's error is a
   value, its `code` QBasic's ERR. `read_text` reads at most 32767 bytes, a string's most.
   `fs.list` gives the platform's DOS names, upper case on the host.
