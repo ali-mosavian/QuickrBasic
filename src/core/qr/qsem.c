@@ -133,9 +133,10 @@ typedef struct {
     uint32_t nlends, caplends;
     QFn **values; /* fns named as values: what a call through one may run */
     uint32_t nvalues, capvalues;
-    uint32_t walks; /* qsem_writer's searches */
-    QScopeAt *at;   /* the last statement's names in sight, QProg.keep */
-    QType inst;     /* a generic record's instance being made, its errors named for it */
+    uint32_t walks;  /* qsem_writer's searches */
+    QScopeAt *at;    /* the last statement's names in sight, QProg.keep */
+    QType inst;      /* a generic record's instance being made, its errors named for it */
+    const QFn *body; /* the method whose body is inlined, its errors named for it; null none */
 } QSem;
 
 /* The names in sight at a statement: its fn's, a block's, the modules' (QSemKeep's). */
@@ -224,7 +225,7 @@ static void qsem_say(QSem *const S, const QTok *const t, ...)
     }
 
     va_end(ap);
-    const QFn *const f = S->fn;
+    const QFn *const f = S->body ? S->body : S->fn;
     const QType ty = f && f->in && f->in->kind == QS_TYPE ? f->in->ty : S->inst;
     const bool inst = ty && qast_ty(S->prog, ty)->of;
     const char *const in = f && f->of ? qsem_instname(S, f)
@@ -3138,6 +3139,19 @@ static bool qsem_takesfn(const QFn *const f)
 
 static void qsem_lent(QSem *S, const QExpr *e, const QFn *f);
 
+static QExpr *qsem_inline(QSem *S, QExpr *e, QFn *f, QExpr **argv);
+
+/* Is a call of f inlined: a method whose body is one return, its parameters plain values? */
+static bool qsem_inlines(const QFn *const f)
+{
+    bool plain = f->in && f->lone && !f->inlining && !f->native && !f->ytx && !f->nhidden;
+
+    for (uint32_t k = 0; plain && k < f->npar; k++)
+        plain = !f->params[k].mut && !f->params[k].lam;
+
+    return plain;
+}
+
 static QExpr *qsem_fncall(QSem *const S, QExpr *const e, QFn *f)
 {
     f->idle = false;
@@ -3211,6 +3225,16 @@ static QExpr *qsem_fncall(QSem *const S, QExpr *const e, QFn *f)
 
         e->argv[k] =
             p->mut ? qsem_mutarg(S, v, p) : qsem_addressed(S, qsem_coerce(S, v, p->var->type));
+    }
+
+    if (qsem_inlines(f)) {
+        bool ok = true;
+
+        for (uint32_t k = 0; k < f->npar; k++)
+            ok &= e->argv[k]->type != QY_ERROR;
+
+        if (ok)
+            return qsem_inline(S, e, f, e->argv);
     }
 
     qsem_lent(S, e, f);
@@ -4706,9 +4730,9 @@ static QExpr *qsem_apply(QSem *const S, QExpr *const e, const QLam *const l, con
     return e;
 }
 
-/* Operator fn f's call e of argv, inlined: f's one return's value checked again here, each
-   parameter read where its argument is when cheap, else stored first. Its own module's names in
-   sight, not the caller's. */
+/* Operator or method fn f's call e of argv, inlined: f's one return's value checked again here,
+   each parameter read where its argument is when cheap, else stored first. Its own module's names
+   in sight, not the caller's. */
 static QExpr *qsem_inline(QSem *const S, QExpr *const e, QFn *const f, QExpr **const argv)
 {
     const uint32_t lo = S->hidelo, hi = S->hidehi;
@@ -4730,10 +4754,14 @@ static QExpr *qsem_inline(QSem *const S, QExpr *const e, QFn *const f, QExpr **c
         qsem_bind(S, f->params[k].name, v, nullptr);
     }
 
+    qsem_typeargs(S, f);
+    const QFn *const outer = S->body;
+    S->body = f;
     f->inlining = true;
     QExpr *const body = qpar_reexpr(S->prog, S->mem, f->lone);
     QExpr *const v = body ? qsem_expr(S, body, f->result) : nullptr;
     f->inlining = false;
+    S->body = outer;
     qsem_pop(S);
     S->hidelo = lo;
     S->hidehi = hi;

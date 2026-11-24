@@ -433,8 +433,9 @@ print v.length(); " "; v                ' 2.0 (2.0, 0.0)
   checked against each type it is used with, methods included, so `x.area()` in a generic needs
   no interface. A list of mixed shapes is an enum with data.
 - **In the VM**, a method is a procedure with `self` its first parameter, and a call of it is the
-  call a function's is. A method whose body is one `return` is inlined.
-- **Not yet:** a method whose body is one `return` is called, as a function is.
+  call a function's is. A method whose body is one `return` is inlined, its parameters read
+  where its arguments are, as an operator's are; one taking a `mut` parameter or a lambda is
+  called.
 
 ### Operators on records
 

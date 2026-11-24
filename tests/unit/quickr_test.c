@@ -77,3 +77,23 @@ TEST(quickr_assignment_moves_a_dead_source)
     CHECK(!build(S, "var a as int[]\na.push(1)\nvar b = a\nprint len(a); len(b)\n"));
     CHECK(!unit_calls(S, K_AMOVE) && unit_calls(S, K_ACOPY) == 1);
 }
+
+/* A method whose body is one return is inlined, a generic record's and an enum's too: p.dot(v)
+   costs the field arithmetic. Called, it cost a PCALL, two refs and a frame. */
+TEST(quickr_one_return_methods_inline)
+{
+    CHECK(!build(
+        S,
+        "type Vec\n    x as int\n    y as int\n"
+        "    fn dot(self, o as Vec) as int\n        return self.x * o.x + self.y * o.y\n"
+        "    end fn\nend type\n"
+        "type Box[T]\n    v as T\n    fn get(self) as T\n        return self.v\n    end fn\nend "
+        "type\n"
+        "enum Mode\n    walk\n    run\n"
+        "    fn speed(self) as int\n        return 1 if self = Mode.walk else 4\n    end fn\nend "
+        "enum\n"
+        "let p = Vec(1, 2)\nlet b = Box(3)\nlet m = Mode.run\n"
+        "print p.dot(p); b.get(); m.speed()\n"
+    ));
+    CHECK(!unit_ops(S, O_PCALL));
+}

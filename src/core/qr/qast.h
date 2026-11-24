@@ -421,7 +421,7 @@ struct QFn {
     QExpr **news; /* resumable: each state made, g(..), its fields after nown filled by qsem_keep */
     uint32_t nnews, capnews;
     QKind op;         /* fn operator +: its operator, its name its token */
-    const QTok *lone; /* an operator's body one return: its value's first token */
+    const QTok *lone; /* an operator's or a method's body one return: its value's first token */
     bool inlining;    /* its lone value being checked where it is used */
     QOwners own;
     bool test;     /* a test block: its name a string's token; a procedure under --test alone */

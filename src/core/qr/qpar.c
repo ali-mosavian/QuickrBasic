@@ -1484,7 +1484,8 @@ static void qpar_end(QPar *const P)
         s->fn = open->fn;
         open->fn->end = s;
 
-        if (open->fn->op && r->kind == QS_RETURN && r->next == s && r->e && r->e->kind != QE_TUPLE)
+        if ((open->fn->op || open->fn->in) && r->kind == QS_RETURN && r->next == s && r->e &&
+            r->e->kind != QE_TUPLE)
             open->fn->lone = r->tok + 1;
     }
 
