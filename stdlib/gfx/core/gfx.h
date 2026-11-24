@@ -1,5 +1,5 @@
 /* gfx's state, and what every entry shares: errors raised, handles and the pen's target resolved.
- * The entries are entry_*.c, a part each.
+ * The entries are in api/, a part each.
  *
  * # How it works
  * One state, made from the host's memory when an entry first needs it and freed at the run's end
@@ -9,12 +9,11 @@
 #ifndef GFX_GFX_H
 #define GFX_GFX_H
 #include "core/backend.h"
-#include "core/palette.h"
 #include "core/command.h"
 #include "core/font.h"
-#include "gfx_qx.h"
-#include "soft/soft.h"
+#include "core/palette.h"
 #include "core/surface.h"
+#include "gfx_qx.h"
 
 enum : uint8_t {
     ERR_ILLEGAL = 5,
@@ -24,13 +23,13 @@ enum : uint8_t {
     ERR_UNAVAILABLE = 73,
 };
 
-enum { GX_MOST = 1 << 14 }; /* pixels a side */
+enum { GX_BLENDS = GFX_PEN_BLEND | GFX_PEN_ADD };
 
 typedef struct Gx {
     const Backend *backend; /* the screen's */
+    void *own;              /* the backend's state: null till it makes it */
     Surfaces surfaces;
     Fonts fonts;
-    Gpu gpu; /* a GPU screen's recorder */
     Palette palette;
     Pen pen;
     Camera camera;
@@ -46,6 +45,12 @@ typedef struct Gx {
 Gx *gx_get(void);
 /* code raised: false. */
 bool gx_fail(uint8_t code);
+/* An illegal function call raised when bad: bad. */
+bool gx_illegal(bool bad);
+/* A size w by h a surface or a screen may have. */
+bool gx_size(int32_t w, int32_t h);
+/* b draws from now on: the last backend stopped. */
+void gx_use(Gx *g, const Backend *b);
 /* h's surface: null, none (raised). */
 Surface *gx_surface(Gx *g, uint32_t h);
 /* a's elements, elem bytes each, at least need of them: false, raised. */
@@ -54,8 +59,10 @@ bool gx_array(const QxArray *a, uint32_t elem, uint32_t need);
 const void *gx_elements(const QxArray *a, uint32_t elem, int32_t first, int32_t n);
 /* Room for n points placed: null, raised. */
 Vec *gx_points(Gx *g, uint32_t n);
+/* r of h's pixels written by the CPU: counted, and told the backend. */
+void gx_wrote(Gx *g, uint32_t h, Rect r);
 /* A draw call begun: its flags (those of allowed, BLEND or ADD) and colour checked, the camera
-   over the pen's target into *where, c placed (cmd_place) and logged, t readied by the backend:
-   false, raised. */
-bool gx_draw(Gx *g, Command *c, int32_t allowed, Target *t, Place *where);
+   over the pen's target into *where, c placed (cmd_place) and logged, the backend readied: false,
+   raised. */
+bool gx_draw(Gx *g, Command *c, int32_t allowed, Place *where);
 #endif

@@ -599,26 +599,6 @@ static void texture(
     scan_poly(v, n, mode, t->clip, gfx, persp ? perspective : textured, &x);
 }
 
-void soft_texture(
-    const SoftTarget *const t,
-    const Pixels *const s,
-    const Vertex *const v,
-    const uint32_t n,
-    const int32_t flags,
-    const bool wrap
-)
-{
-    ScanVert p[4];
-
-    if (n > 4)
-        return;
-
-    for (uint32_t i = 0; i < n; i++)
-        p[i] = qgl_corner(v[i].x, v[i].y, v[i].u, v[i].v);
-
-    texture(t, s, p, n, flags, wrap, SCAN_TEX, true);
-}
-
 void soft_texture_persp(
     const SoftTarget *const t,
     const Pixels *const s,
@@ -684,7 +664,8 @@ void soft_poly(
     const Corner *const c,
     const uint32_t n,
     const uint32_t colour,
-    const int32_t flags
+    const int32_t flags,
+    const bool wrap
 )
 {
     ScanVert v[SCAN_MAXV];
@@ -697,7 +678,7 @@ void soft_poly(
         v[i] = poly_corner(&c[i], persp);
 
     if (s)
-        texture(t, s, v, n, flags, false, persp ? SCAN_PTEX : SCAN_TEX, true);
+        texture(t, s, v, n, flags, wrap, persp ? SCAN_PTEX : SCAN_TEX, true);
     else {
         const Flat f = {t, colour, flags & GFX_DRAW_ZTEST, flags & GFX_DRAW_ZSET};
 

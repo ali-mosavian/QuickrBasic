@@ -1,5 +1,5 @@
 /* Shapes: a picture's draw call to its corners on the target, each with the texel there, u and v
- * in texels from the picture's top left: the polygons software fills, and a GPU's vertices.
+ * in texels from the picture's top left, z 1: the polygons a backend fills.
  *
  * # How it works
  * A picture's anchor names a texel's centre, so its edges lie half a texel round it. Its corners
@@ -21,7 +21,7 @@ void shape_sprite(
     float scale,
     int32_t flags,
     const Place *where,
-    Vertex out[4]
+    Corner out[4]
 );
 /* A picture w by h onto four corners in the world, from its top left round. */
 void shape_quad(
@@ -30,7 +30,7 @@ void shape_quad(
     const Vec corners[4],
     int32_t flags,
     const Place *where,
-    Vertex out[4]
+    Corner out[4]
 );
 /* A strip's part from a to b, the picture h high hanging below; u its texel at a. */
 void shape_segment(
@@ -41,6 +41,6 @@ void shape_segment(
     float u,
     int32_t flags,
     const Place *where,
-    Vertex out[4]
+    Corner out[4]
 );
 #endif

@@ -1,21 +1,21 @@
 /* gfx.draw's entries: 2D into the pen's target (draw.bas). Each call is a command logged, then
-   drawn at once by the software backend. */
+   drawn through the screen's backend. */
 #include "core/gfx.h"
 #include "base/gmath.h"
 #include "core/shape.h"
 #include "base/cover.h"
 
 enum {
-    BLENDS = GFX_PEN_BLEND | GFX_PEN_ADD,
-    SHAPE_FLAGS = GFX_DRAW_FILL | BLENDS,
-    SPRITE_FLAGS =
-        GFX_DRAW_FLIPX | GFX_DRAW_FLIPY | GFX_PEN_OPAQUE | BLENDS | GFX_PEN_SOLID | GFX_PEN_SMOOTH,
+    SHAPE_FLAGS = GFX_DRAW_FILL | GX_BLENDS,
+    SPRITE_FLAGS = GFX_DRAW_FLIPX | GFX_DRAW_FLIPY | GFX_PEN_OPAQUE | GX_BLENDS | GFX_PEN_SOLID |
+                   GFX_PEN_SMOOTH,
     POLY_LEAST = 3,
     POLY_MOST = 32, /* the scanner's SCAN_MAXV, less what a clip adds */
     DEPTHS = GFX_DRAW_ZTEST | GFX_DRAW_ZSET,
     POLY_FLAGS =
         SHAPE_FLAGS | DEPTHS | GFX_DRAW_PERSP | GFX_PEN_OPAQUE | GFX_PEN_SOLID | GFX_PEN_SMOOTH,
 };
+static_assert(!((SPRITE_FLAGS | POLY_FLAGS) & POLY_WRAP));
 
 /* A draw call's command: a to b, upright at its size. */
 static Command drawn(
@@ -50,13 +50,8 @@ void gfx_draw_camera_turned(const float x, const float y, const float angle, con
 {
     Gx *const g = gx_get();
 
-    if (!g)
+    if (!g || gx_illegal(!(zoom > 0)))
         return;
-
-    if (!(zoom > 0)) {
-        gx_fail(ERR_ILLEGAL);
-        return;
-    }
 
     g->camera = (Camera){
         .x = x,
@@ -72,11 +67,10 @@ void gfx_draw_clear(const int32_t colour)
     Gx *const g = gx_get();
     Command c = drawn(GFX_DISPLAY_DREW_CLEAR, (Vec){}, (Vec){}, colour, 0);
 
-    Target t;
     Place where;
 
-    if (g && gx_draw(g, &c, 0, &t, &where))
-        g->backend->clear(&t, (uint32_t)colour);
+    if (g && gx_draw(g, &c, 0, &where))
+        g->backend->clear(g, (uint32_t)colour);
 }
 
 void gfx_draw_pset(const float x, const float y, const int32_t colour)
@@ -84,11 +78,10 @@ void gfx_draw_pset(const float x, const float y, const int32_t colour)
     Gx *const g = gx_get();
     Command c = drawn(GFX_DISPLAY_DREW_PSET, (Vec){x, y}, (Vec){x, y}, colour, 0);
 
-    Target t;
     Place where;
 
-    if (g && gx_draw(g, &c, 0, &t, &where))
-        g->backend->pset(&t, (Vec){c.x, c.y}, (uint32_t)colour);
+    if (g && gx_draw(g, &c, 0, &where))
+        g->backend->pset(g, (Vec){c.x, c.y}, (uint32_t)colour);
 }
 
 void gfx_draw_line(
@@ -102,18 +95,16 @@ void gfx_draw_line(
     Gx *const g = gx_get();
     Command c = drawn(GFX_DISPLAY_DREW_LINE, (Vec){x1, y1}, (Vec){x2, y2}, colour, 0);
 
-    Target t;
     Place where;
 
-    if (g && gx_draw(g, &c, 0, &t, &where))
-        g->backend->line(&t, (Vec){c.x, c.y}, (Vec){c.x2, c.y2}, (uint32_t)colour);
+    if (g && gx_draw(g, &c, 0, &where))
+        g->backend->line(g, (Vec){c.x, c.y}, (Vec){c.x2, c.y2}, (uint32_t)colour);
 }
 
 /* A rect turned or zoomed: a polygon of its edges, half a pixel out of its corners, or the
    outline through its corners. */
 static void turned_rect(
-    const Backend *const b,
-    const Target *const t,
+    Gx *const g,
     const Place *const where,
     const float x1,
     const float y1,
@@ -134,7 +125,7 @@ static void turned_rect(
     };
 
     if (!fill) {
-        b->outline(t, corners, 4, colour);
+        g->backend->outline(g, corners, 4, colour);
         return;
     }
 
@@ -143,7 +134,7 @@ static void turned_rect(
     for (uint32_t i = 0; i < 4; i++)
         c[i] = (Corner){corners[i].x, corners[i].y, 1, 0, 0};
 
-    b->poly(t, nullptr, c, 4, colour, 0);
+    g->backend->poly(g, nullptr, c, 4, colour, 0);
 }
 
 void gfx_draw_rect(
@@ -158,18 +149,17 @@ void gfx_draw_rect(
     Gx *const g = gx_get();
     Command c = drawn(GFX_DISPLAY_DREW_RECT, (Vec){x1, y1}, (Vec){x2, y2}, colour, flags);
 
-    Target t;
     Place where;
 
-    if (!g || !gx_draw(g, &c, SHAPE_FLAGS, &t, &where))
+    if (!g || !gx_draw(g, &c, SHAPE_FLAGS, &where))
         return;
 
     const bool fill = flags & GFX_DRAW_FILL;
 
     if (cmd_upright(&where))
-        g->backend->rect(&t, (Vec){c.x, c.y}, (Vec){c.x2, c.y2}, (uint32_t)colour, fill);
+        g->backend->rect(g, (Vec){c.x, c.y}, (Vec){c.x2, c.y2}, (uint32_t)colour, fill);
     else
-        turned_rect(g->backend, &t, &where, x1, y1, x2, y2, (uint32_t)colour, fill);
+        turned_rect(g, &where, x1, y1, x2, y2, (uint32_t)colour, fill);
 }
 
 void gfx_draw_circle(
@@ -183,20 +173,11 @@ void gfx_draw_circle(
     Gx *const g = gx_get();
     Command c = drawn(GFX_DISPLAY_DREW_CIRCLE, (Vec){x, y}, (Vec){x + r, y}, colour, flags);
 
-    Target t;
     Place where;
 
-    if (!g)
-        return;
-
-    if (!(r >= 0)) {
-        gx_fail(ERR_ILLEGAL);
-        return;
-    }
-
-    if (gx_draw(g, &c, SHAPE_FLAGS, &t, &where))
+    if (g && !gx_illegal(!(r >= 0)) && gx_draw(g, &c, SHAPE_FLAGS, &where))
         g->backend
-            ->circle(&t, (Vec){c.x, c.y}, r * where.zoom, (uint32_t)colour, flags & GFX_DRAW_FILL);
+            ->circle(g, (Vec){c.x, c.y}, r * where.zoom, (uint32_t)colour, flags & GFX_DRAW_FILL);
 }
 
 /* x2, y2 the start's point; angle the start, after the camera. */
@@ -211,25 +192,19 @@ void gfx_draw_arc(
 {
     Gx *const g = gx_get();
 
-    if (!g)
+    if (!g || gx_illegal(!(r >= 0)))
         return;
-
-    if (!(r >= 0)) {
-        gx_fail(ERR_ILLEGAL);
-        return;
-    }
 
     float s, co;
     gm_sincos(start, &s, &co);
     Command c = drawn(GFX_DISPLAY_DREW_ARC, (Vec){x, y}, (Vec){x + r * co, y + r * s}, colour, 0);
 
     c.angle = start;
-    Target t;
     Place where;
 
-    if (gx_draw(g, &c, 0, &t, &where))
+    if (gx_draw(g, &c, 0, &where))
         g->backend->arc(
-            &t,
+            g,
             (Vec){c.x, c.y},
             r * where.zoom,
             c.angle,
@@ -265,10 +240,8 @@ void gfx_draw_poly(
     for (int32_t i = 0; i < n && n <= POLY_MOST; i++)
         near = near && (!deep || p[i].z >= 1);
 
-    if (n < POLY_LEAST || n > POLY_MOST || !near) {
-        gx_fail(ERR_ILLEGAL);
+    if (gx_illegal(n < POLY_LEAST || n > POLY_MOST || !near))
         return;
-    }
 
     Command c = drawn(
         GFX_DISPLAY_DREW_POLY,
@@ -279,10 +252,9 @@ void gfx_draw_poly(
     );
 
     c.source = (uint32_t)s_;
-    Target t;
     Place where;
 
-    if (!gx_draw(g, &c, POLY_FLAGS, &t, &where))
+    if (!gx_draw(g, &c, POLY_FLAGS, &where))
         return;
 
     const Backend *const b = g->backend;
@@ -297,14 +269,14 @@ void gfx_draw_poly(
     if (s_) {
         const Picture pic = surf_picture(&g->surfaces, (uint32_t)s_);
 
-        if (b->source(g, &t, &pic))
-            b->poly(&t, &pic, placed, (uint32_t)n, (uint32_t)colour, flags);
+        if (b->source(g, &pic))
+            b->poly(g, &pic, placed, (uint32_t)n, (uint32_t)colour, flags);
 
         return;
     }
 
     if (flags & GFX_DRAW_FILL) {
-        b->poly(&t, nullptr, placed, (uint32_t)n, (uint32_t)colour, flags);
+        b->poly(g, nullptr, placed, (uint32_t)n, (uint32_t)colour, flags);
         return;
     }
 
@@ -314,23 +286,24 @@ void gfx_draw_poly(
         edges[i] = (Vec){placed[i].x, placed[i].y};
 
     if (edges)
-        b->outline(&t, edges, (uint32_t)n, (uint32_t)colour);
+        b->outline(g, edges, (uint32_t)n, (uint32_t)colour);
 }
 
 void gfx_draw_clear_depth(void)
 {
     Gx *const g = gx_get();
-    Surface *const s = g ? gx_surface(g, g->pen.target) : nullptr;
 
-    if (s)
-        g->backend->clear_depth(g, s);
+    if (!g || !gx_surface(g, g->pen.target))
+        return;
+
+    const Picture into = surf_picture(&g->surfaces, g->pen.target);
+    g->backend->clear_depth(g, &into);
 }
 
 /* p's picture, its anchor at a in the world (placed: at), turned by angle and scaled: upright at
    its size, a sprite; else filled through its corners. */
 static void picture(
     Gx *const g,
-    Target *const t,
     const Place *const where,
     const Picture *const p,
     const Vec anchor,
@@ -343,18 +316,18 @@ static void picture(
 {
     const Backend *const b = g->backend;
 
-    if (!b->source(g, t, p))
+    if (!b->source(g, p))
         return;
 
     if (cmd_upright(where) && angle == 0 && scale == 1) {
-        b->sprite(t, p, (Vec){at.x - anchor.x, at.y - anchor.y}, flags);
+        b->sprite(g, p, (Vec){at.x - anchor.x, at.y - anchor.y}, flags);
 
         return;
     }
 
-    Vertex v[4];
+    Corner v[4];
     shape_sprite(p->at.w, p->at.h, anchor, a, angle, scale, flags, where, v);
-    b->texture(t, p, v, 4, flags, false);
+    b->poly(g, p, v, 4, 0, flags);
 }
 
 static void sprite(
@@ -373,17 +346,16 @@ static void sprite(
     c.source = (uint32_t)s_;
     c.angle = angle;
     c.scale = scale;
-    Target t;
     Place where;
 
-    if (!s || !gx_draw(g, &c, SPRITE_FLAGS, &t, &where))
+    if (!s || !gx_draw(g, &c, SPRITE_FLAGS, &where))
         return;
 
     const Vec anchor = {(float)s->ax, (float)s->ay};
 
     const Picture p = surf_picture(&g->surfaces, (uint32_t)s_);
 
-    picture(g, &t, &where, &p, anchor, (Vec){x, y}, (Vec){c.x, c.y}, angle, scale, flags);
+    picture(g, &where, &p, anchor, (Vec){x, y}, (Vec){c.x, c.y}, angle, scale, flags);
 }
 
 void gfx_draw_sprite(const int32_t s, const float x, const float y, const int32_t flags)
@@ -422,22 +394,21 @@ void gfx_draw_quad(
 
     Command c = drawn(GFX_DISPLAY_DREW_QUAD, world[0], world[2], 0, flags);
     c.source = (uint32_t)s_;
-    Target t;
     Place where;
 
-    if (!gx_draw(g, &c, SPRITE_FLAGS, &t, &where))
+    if (!gx_draw(g, &c, SPRITE_FLAGS, &where))
         return;
 
     const Picture pic = surf_picture(&g->surfaces, (uint32_t)s_);
     const Backend *const b = g->backend;
-    Vertex v[4];
+    Corner v[4];
 
-    if (!b->source(g, &t, &pic))
+    if (!b->source(g, &pic))
         return;
 
     shape_quad(s->w, s->h, world, flags, &where, v);
-    b->texture(&t, &pic, v, 3, flags, false);
-    b->texture(&t, &pic, (const Vertex[]){v[0], v[2], v[3]}, 3, flags, false);
+    b->poly(g, &pic, v, 3, 0, flags);
+    b->poly(g, &pic, (const Corner[]){v[0], v[2], v[3]}, 3, 0, flags);
 }
 
 /* x, y the first point, x2, y2 the last, after the camera. The picture repeats along the points,
@@ -456,10 +427,8 @@ void gfx_draw_strip(
     if (!s)
         return;
 
-    if (n < 2) {
-        gx_fail(ERR_ILLEGAL);
+    if (gx_illegal(n < 2))
         return;
-    }
 
     const gfx_draw_vec2 *const p = gx_elements(points, sizeof *p, first, n);
 
@@ -475,23 +444,22 @@ void gfx_draw_strip(
     );
 
     c.source = (uint32_t)s_;
-    Target t;
     Place where;
 
-    if (!gx_draw(g, &c, SPRITE_FLAGS, &t, &where))
+    if (!gx_draw(g, &c, SPRITE_FLAGS, &where))
         return;
 
     const Picture pic = surf_picture(&g->surfaces, (uint32_t)s_);
 
-    if (!g->backend->source(g, &t, &pic))
+    if (!g->backend->source(g, &pic))
         return;
 
     for (int32_t i = 0; i + 1 < n; i++) {
-        Vertex v[4];
+        Corner v[4];
         const Vec a = {p[i].x, p[i].y}, b = {p[i + 1].x, p[i + 1].y};
 
         shape_segment(s->w, s->h, a, b, p[i].x - p[0].x, flags, &where, v);
-        g->backend->texture(&t, &pic, v, 4, flags, true);
+        g->backend->poly(g, &pic, v, 4, 0, flags | POLY_WRAP);
     }
 }
 
@@ -560,31 +528,29 @@ void gfx_draw_tiles(
     if (!g || !gx_array(map, sizeof(int32_t), 0))
         return;
 
-    if (columns < 1 || w < 1 || h < 1) {
-        gx_fail(ERR_ILLEGAL);
+    if (gx_illegal(columns < 1 || w < 1 || h < 1))
         return;
-    }
 
     const int32_t rows = (int32_t)map->count / columns;
     const Vec end = {x + (float)(columns * w), y + (float)(rows * h)};
 
     Command c = drawn(GFX_DISPLAY_DREW_TILES, (Vec){x, y}, end, 0, flags);
 
-    Target t;
     Place where;
 
-    if (!gx_draw(g, &c, SPRITE_FLAGS, &t, &where))
+    if (!gx_draw(g, &c, SPRITE_FLAGS, &where))
         return;
 
     Rect cells;
 
     if (cmd_upright(&where)) {
         int32_t c0, c1, r0, r1;
-        visible(cover_pixel(c.x), w, t.clip.x, t.clip.x + t.clip.w, columns, &c0, &c1);
-        visible(cover_pixel(c.y), h, t.clip.y, t.clip.y + t.clip.h, rows, &r0, &r1);
+        const Rect clip = where.clip;
+        visible(cover_pixel(c.x), w, clip.x, clip.x + clip.w, columns, &c0, &c1);
+        visible(cover_pixel(c.y), h, clip.y, clip.y + clip.h, rows, &r0, &r1);
         cells = (Rect){c0, r0, c1 - c0, r1 - r0};
     } else
-        visible_turned(&where, t.clip, (Vec){x, y}, w, h, columns, rows, &cells);
+        visible_turned(&where, where.clip, (Vec){x, y}, w, h, columns, rows, &cells);
 
     const int32_t *const map_cells = map->data;
 
@@ -603,7 +569,6 @@ void gfx_draw_tiles(
             if (s)
                 picture(
                     g,
-                    &t,
                     &where,
                     &p,
                     (Vec){},
@@ -627,7 +592,6 @@ static const Font *pen_font(Gx *const g, Picture *const sheet)
 
             sheet->texture = PIC_FONT;
             sheet->version = 1;
-            sheet->surface = nullptr;
             return f;
         }
 
@@ -652,14 +616,13 @@ void gfx_draw_text(const float x, const float y, const QxStr s, const int32_t co
 
     Picture sheet;
     const Font *const f = g ? pen_font(g, &sheet) : nullptr;
-    Target t;
     Place where;
 
-    if (!f || !gx_draw(g, &c, 0, &t, &where))
+    if (!f || !gx_draw(g, &c, 0, &where))
         return;
 
     if (!own)
-        g->backend->solid(g, &t, (uint32_t)colour);
+        g->backend->solid(g, (uint32_t)colour);
 
     for (uint32_t i = 0; i < s.len; i++) {
         const float dx = (float)((int32_t)i * f->w);
@@ -673,10 +636,9 @@ void gfx_draw_text(const float x, const float y, const QxStr s, const int32_t co
             {sheet.at.x + cell.x, sheet.at.y + cell.y, cell.w, cell.h},
             sheet.texture,
             sheet.version,
-            sheet.surface,
         };
 
-        picture(g, &t, &where, &glyph, (Vec){}, (Vec){x + dx, y}, (Vec){c.x + dx, c.y}, 0, 1, 0);
+        picture(g, &where, &glyph, (Vec){}, (Vec){x + dx, y}, (Vec){c.x + dx, c.y}, 0, 1, 0);
     }
 }
 

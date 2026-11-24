@@ -21,7 +21,6 @@ static void drop(Surfaces *const ss, const uint32_t h)
 
     mem_free(s->own);
     mem_free(s->palette);
-    mem_free(s->depth);
     mem_free(s);
     hdl_drop(&ss->t, h);
 }
@@ -85,7 +84,6 @@ uint32_t surf_new(
         .own = pixels,
         .palette = palette,
         .version = own != nullptr,
-        .bottom = own ? h : 0,
     };
 
     const uint32_t handle = pixels ? hold(ss, s, false) : 0;
@@ -132,11 +130,10 @@ Picture surf_picture(const Surfaces *const ss, const uint32_t h)
             all,
             h,
             s->version,
-            s,
         };
 
     if (!s->parent)
-        return (Picture){ss->canvas, all, h, s->version, s};
+        return (Picture){ss->canvas, all, h, s->version};
 
     Picture p = surf_picture(ss, s->parent);
     p.at = (Rect){p.at.x + s->x, p.at.y + s->y, s->w, s->h};
@@ -156,20 +153,6 @@ Pixels surf_pixels(const Surfaces *const ss, const Surface *const s)
     return px_cut(&p, (Rect){s->x, s->y, s->w, s->h});
 }
 
-Depth surf_depth(const Surfaces *const ss, Surface *s)
-{
-    int32_t x = 0, y = 0;
-
-    for (; s->parent; s = surf_get(ss, s->parent))
-        x += s->x, y += s->y;
-
-    if (!s->depth)
-        s->depth = mem_alloc((uint32_t)(s->w * s->h) * sizeof *s->depth);
-
-    const uint32_t row = (uint32_t)s->w;
-    return (Depth){s->depth ? s->depth + y * row + x : nullptr, row};
-}
-
 Surface *surf_root(const Surfaces *const ss, Surface *s, uint32_t *const h)
 {
     while (s->parent) {
@@ -180,19 +163,10 @@ Surface *surf_root(const Surfaces *const ss, Surface *s, uint32_t *const h)
     return s;
 }
 
-void surf_wrote(const Surfaces *const ss, Surface *s, const Rect r)
+void surf_wrote(const Surfaces *const ss, Surface *s)
 {
-    int32_t top = r.y;
-
-    for (; s->parent; s = surf_get(ss, s->parent))
-        top += s->y;
-
-    const int32_t bottom = top + r.h;
-    const bool none = s->top >= s->bottom;
-
-    s->version++;
-    s->top = none || top < s->top ? top : s->top;
-    s->bottom = none || bottom > s->bottom ? bottom : s->bottom;
+    uint32_t h = 0;
+    surf_root(ss, s, &h)->version++;
 }
 
 void surf_free(Surfaces *const ss, const uint32_t h) { drop(ss, h); }

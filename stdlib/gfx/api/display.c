@@ -17,7 +17,7 @@ static void close_screen(Gx *const g)
     surf_close(&g->surfaces);
     qx_host->gfx_close();
     g->open = false;
-    g->backend = &backend_soft;
+    gx_use(g, &backend_soft);
 }
 
 /* The host plays a GPU's lists: it gave one, and knows minor 2. */
@@ -50,11 +50,8 @@ void gfx_display_open(const int32_t w, const int32_t h, const int32_t depth, con
 
     PxFormat format;
 
-    if (w < 1 || h < 1 || w > GX_MOST || h > GX_MOST || !format_of(depth, &format) ||
-        flags & ~OPEN_FLAGS) {
-        gx_fail(ERR_ILLEGAL);
+    if (gx_illegal(!gx_size(w, h) || !format_of(depth, &format) || flags & ~OPEN_FLAGS))
         return;
-    }
 
     close_screen(g);
     QxScreen s = {
@@ -70,10 +67,10 @@ void gfx_display_open(const int32_t w, const int32_t h, const int32_t depth, con
         return;
     }
 
-    g->backend = plays(&s) ? &backend_gpu : &backend_soft;
+    gx_use(g, plays(&s) ? &backend_gpu : &backend_soft);
 
     if (!g->backend->open(g, &s, format)) {
-        g->backend = &backend_soft;
+        gx_use(g, &backend_soft);
         qx_host->gfx_close();
         return;
     }
@@ -103,19 +100,17 @@ void gfx_display_flip(void)
     if (!g)
         return;
 
-    if (!g->open) {
-        gx_fail(ERR_ILLEGAL);
+    if (gx_illegal(!g->open))
         return;
-    }
 
     g->backend->flip(g);
 
-    const GpuCount gpu = gpu_counted(&g->gpu);
+    const BackendCount n = g->backend->counted(g);
     g->cost = (gfx_display_framestats){
         .draws = (int32_t)g->log.n,
-        .batches = (int32_t)gpu.batches,
-        .uploads = (int32_t)gpu.uploads,
-        .waits = (int32_t)gpu.waits,
+        .batches = (int32_t)n.batches,
+        .uploads = (int32_t)n.uploads,
+        .waits = (int32_t)n.waits,
     };
 
     cmd_clear(&g->log);
@@ -133,7 +128,7 @@ float gfx_display_refresh(void)
 int32_t gfx_display_caps(void)
 {
     const Gx *const g = gx_get();
-    return g && g->backend == &backend_gpu ? GFX_DISPLAY_HAS_GPU | GFX_DISPLAY_HAS_SMOOTH : 0;
+    return g ? g->backend->has : 0;
 }
 
 int32_t gfx_display_poll(gfx_display_hostevent *const e)
@@ -162,10 +157,8 @@ void gfx_display_palette(const int32_t row, const QxArray *const colours)
     if (!g || !gx_array(colours, sizeof(int32_t), 0))
         return;
 
-    if (row < 0 || row >= PAL_ROWS) {
-        gx_fail(ERR_ILLEGAL);
+    if (gx_illegal(row < 0 || row >= PAL_ROWS))
         return;
-    }
 
     const uint32_t n = colours->count < PAL_COLOURS ? colours->count : PAL_COLOURS;
     pal_set(&g->palette, row, colours->data, n);
@@ -179,10 +172,8 @@ void gfx_display_palette_of(const int32_t row, const int32_t source)
     if (!s)
         return;
 
-    if (row < 0 || row >= PAL_ROWS || !s->palette) {
-        gx_fail(ERR_ILLEGAL);
+    if (gx_illegal(row < 0 || row >= PAL_ROWS || !s->palette))
         return;
-    }
 
     pal_set(&g->palette, row, s->palette, PAL_COLOURS);
 }
@@ -255,10 +246,8 @@ int32_t gfx_display_count(void)
 /* monitor's modes: false, not one of the host's (an error raised). */
 static bool monitor_modes(const int32_t monitor, uint32_t *const n)
 {
-    if (monitor < 1 || monitor > gfx_display_count()) {
-        gx_fail(ERR_ILLEGAL);
+    if (gx_illegal(monitor < 1 || monitor > gfx_display_count()))
         return false;
-    }
 
     *n = qx_host->gfx_modes((uint32_t)monitor, nullptr, 0);
     return true;
@@ -314,10 +303,8 @@ static void shown_on(const uint32_t monitor, const uint32_t n)
     if (!g)
         return;
 
-    if (!g->open) {
-        gx_fail(ERR_ILLEGAL);
+    if (gx_illegal(!g->open))
         return;
-    }
 
     if (!displays() || !qx_host->gfx_mode(monitor, n))
         gx_fail(ERR_UNAVAILABLE);
@@ -330,10 +317,8 @@ void gfx_display_fullscreen(const int32_t monitor, const int32_t n)
     if (!gx_get() || !monitor_modes(monitor, &modes))
         return;
 
-    if (n < 0 || (uint32_t)n > modes) {
-        gx_fail(ERR_ILLEGAL);
+    if (gx_illegal(n < 0 || (uint32_t)n > modes))
         return;
-    }
 
     shown_on((uint32_t)monitor, (uint32_t)n);
 }

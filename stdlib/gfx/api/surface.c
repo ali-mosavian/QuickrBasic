@@ -22,11 +22,8 @@ int32_t gfx_surface_new(const int32_t w, const int32_t h)
 {
     Gx *const g = gx_get();
 
-    if (!g)
+    if (!g || gx_illegal(!gx_size(w, h)))
         return 0;
-
-    if (w < 1 || h < 1 || w > GX_MOST || h > GX_MOST)
-        return gx_fail(ERR_ILLEGAL);
 
     const PxFormat f = g->open ? g->surfaces.canvas.format : PX_8;
     return (int32_t)made(surf_new(&g->surfaces, w, h, f, nullptr, nullptr));
@@ -121,10 +118,8 @@ void gfx_surface_aim(const int32_t v, const int32_t x, const int32_t y)
 
     const Surface *const p = s->parent ? surf_get(&g->surfaces, s->parent) : nullptr;
 
-    if (!p || !inside(p, x, y, s->w, s->h)) {
-        gx_fail(ERR_ILLEGAL);
+    if (gx_illegal(!p || !inside(p, x, y, s->w, s->h)))
         return;
-    }
 
     s->x = x;
     s->y = y;
@@ -174,10 +169,8 @@ void gfx_surface_free(const int32_t s)
     if (!g || !gx_surface(g, (uint32_t)s))
         return;
 
-    if ((uint32_t)s == GFX_SURFACE_CANVAS) {
-        gx_fail(ERR_ILLEGAL);
+    if (gx_illegal((uint32_t)s == GFX_SURFACE_CANVAS))
         return;
-    }
 
     g->backend->forget(g, (uint32_t)s);
     surf_free(&g->surfaces, (uint32_t)s);
@@ -211,7 +204,7 @@ static Pixels region(
         return (Pixels){};
 
     if (writes)
-        surf_wrote(&g->surfaces, s, (Rect){x, y, w, h});
+        gx_wrote(g, (uint32_t)s_, (Rect){x, y, w, h});
 
     const Pixels all = surf_pixels(&g->surfaces, s);
     return px_cut(&all, (Rect){x, y, w, h});

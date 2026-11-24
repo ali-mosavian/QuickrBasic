@@ -1,5 +1,21 @@
-/* Software as a backend (backend.h): the pen made an ink (fill.h), and soft.h's drawing. */
+/* Software as a backend (backend.h): the pen made an ink (fill.h), and soft.h's drawing. Its own
+   state holds the call readied and each root's depth. */
 #include "core/gfx.h"
+#include "core/mem.h"
+#include "soft/soft.h"
+
+/* A root's depth, w by h as the root: 1/z by DEPTH_NEAR, 0 far. */
+typedef struct {
+    uint32_t handle;
+    uint16_t *p;
+} SoftDepth;
+
+/* Software's own (Gx.own): the call readied, and the roots' depths by their slots. */
+typedef struct {
+    SoftTarget call;
+    SoftDepth *depths;
+    uint32_t ndepths;
+} Soft;
 
 /* The ink of a call's flags and the pen over a target of format, its texels a shape's colours:
    false, raised. */
@@ -37,6 +53,50 @@ static bool ink(Gx *const g, const int32_t flags, const PxFormat format, Ink *co
     return true;
 }
 
+/* Software's own, made on first ask: null, raised. */
+static Soft *own(Gx *const g)
+{
+    if (!g->own && !(g->own = mem_alloc(sizeof(Soft))))
+        gx_fail(ERR_MEMORY);
+
+    return g->own;
+}
+
+/* The call begin readied. */
+static const SoftTarget *call(const Gx *const g) { return &((const Soft *)g->own)->call; }
+
+/* h's depth dropped, h a root. */
+static void drop_depth(Soft *const o, const uint32_t h)
+{
+    const uint32_t slot = hdl_slot(h);
+
+    if (slot < o->ndepths && o->depths[slot].handle == h) {
+        mem_free(o->depths[slot].p);
+        o->depths[slot] = (SoftDepth){};
+    }
+}
+
+/* p's depth, its root's made all far on first ask: p null, raised. */
+static Depth depth(Soft *const o, const Picture *const p)
+{
+    const uint32_t slot = hdl_slot(p->texture), row = (uint32_t)p->root.w;
+
+    if (!mem_grow((void **)&o->depths, &o->ndepths, slot + 1, sizeof *o->depths))
+        return gx_fail(ERR_MEMORY), (Depth){};
+
+    SoftDepth *const d = &o->depths[slot];
+
+    if (d->handle != p->texture || !d->p) {
+        mem_free(d->p);
+        *d = (SoftDepth){p->texture, mem_alloc(row * (uint32_t)p->root.h * sizeof *d->p)};
+    }
+
+    if (!d->p)
+        return gx_fail(ERR_MEMORY), (Depth){};
+
+    return (Depth){d->p + p->at.y * row + p->at.x, row};
+}
+
 static bool screen_open(Gx *const g, const QxScreen *const s, const PxFormat f)
 {
     uint32_t pitch;
@@ -54,7 +114,33 @@ static void screen_flip(Gx *const g)
     surf_page(&g->surfaces, canvas);
 }
 
-static void screen_close(Gx *const g) { (void)g; }
+/* The canvas's depth goes with it: the next is of another size. */
+static void screen_close(Gx *const g)
+{
+    if (g->own)
+        drop_depth(g->own, GFX_SURFACE_CANVAS);
+}
+
+static void stop(Gx *const g)
+{
+    Soft *const o = g->own;
+
+    if (!o)
+        return;
+
+    for (uint32_t i = 0; i < o->ndepths; i++)
+        mem_free(o->depths[i].p);
+
+    mem_free(o->depths);
+    mem_free(o);
+    g->own = nullptr;
+}
+
+static BackendCount counted(Gx *const g)
+{
+    (void)g;
+    return (BackendCount){};
+}
 
 static bool sync(Gx *const g, const uint32_t h)
 {
@@ -62,46 +148,60 @@ static bool sync(Gx *const g, const uint32_t h)
     return true;
 }
 
-static void forget(Gx *const g, const uint32_t h) { (void)g, (void)h; }
-
-static bool begin(Gx *const g, Surface *const s, const Command *const c, Target *const t)
+static void wrote(Gx *const g, const uint32_t h, const int32_t top, const int32_t bottom)
 {
-    const Pixels px = surf_pixels(&g->surfaces, s);
-    surf_wrote(&g->surfaces, s, (Rect){0, 0, s->w, s->h});
+    (void)g, (void)h, (void)top, (void)bottom;
+}
 
-    t->soft = (SoftTarget){
+static void forget(Gx *const g, const uint32_t h)
+{
+    if (g->own)
+        drop_depth(g->own, h);
+}
+
+static bool begin(Gx *const g, const Command *const c, const Picture *const into, const Rect clip)
+{
+    Soft *const o = own(g);
+
+    if (!o)
+        return false;
+
+    const Pixels px = pic_pixels(into);
+    gx_wrote(g, c->target, (Rect){0, 0, px.w, px.h});
+
+    o->call = (SoftTarget){
         .px = px,
-        .clip = t->clip,
+        .clip = clip,
         .fill = fill_formats[px.format],
     };
 
-    if (c->flags & (GFX_DRAW_ZTEST | GFX_DRAW_ZSET) &&
-        !(t->soft.depth = surf_depth(&g->surfaces, s)).p)
-        return gx_fail(ERR_MEMORY);
+    if (c->flags & (GFX_DRAW_ZTEST | GFX_DRAW_ZSET) && !(o->call.depth = depth(o, into)).p)
+        return false;
 
-    return ink(g, c->flags, px.format, &t->soft.ink);
+    return ink(g, c->flags, px.format, &o->call.ink);
 }
 
-static bool clear_depth(Gx *const g, Surface *const s)
+static bool clear_depth(Gx *const g, const Picture *const into)
 {
-    const Depth d = surf_depth(&g->surfaces, s);
+    Soft *const o = own(g);
+    const Depth d = o ? depth(o, into) : (Depth){};
 
     if (!d.p)
-        return gx_fail(ERR_MEMORY);
+        return false;
 
-    for (int32_t y = 0; y < s->h; y++)
-        for (int32_t x = 0; x < s->w; x++)
-            d.p[y * d.row + x] = 0;
+    for (int32_t y = 0; y < into->at.h; y++)
+        mem_fill(d.p + y * d.row, 0, (size_t)into->at.w * sizeof *d.p);
 
     return true;
 }
 
-static bool source(Gx *const g, Target *const t, const Picture *const p)
+static bool source(Gx *const g, const Picture *const p)
 {
-    Ink *const k = &t->soft.ink;
+    Soft *const o = g->own;
+    Ink *const k = &o->call.ink;
     const Pen *const pen = &g->pen;
     const PxFormat from = p->root.format;
-    const bool eight = t->soft.px.format == PX_8;
+    const bool eight = o->call.px.format == PX_8;
     k->source = from;
 
     if (eight && from != PX_8 && !k->map && !(k->map = pal_map(&g->palette)))
@@ -114,40 +214,36 @@ static bool source(Gx *const g, Target *const t, const Picture *const p)
     return true;
 }
 
-static void solid(const Gx *const g, Target *const t, const uint32_t colour)
+static void solid(Gx *const g, const uint32_t colour)
 {
-    Ink *const k = &t->soft.ink;
+    Soft *const o = g->own;
+    Ink *const k = &o->call.ink;
     const Pen *const p = &g->pen;
-    const bool eight = t->soft.px.format == PX_8;
+    const bool eight = o->call.px.format == PX_8;
     k->solid = k->effects = true;
     k->colour = eight ? (k->lut ? k->lut[colour] : colour)
                       : PX_OPAQUE | pal_shade(colour, p->light, p->tint);
 }
 
-static void clear(const Target *const t, const uint32_t colour) { soft_clear(&t->soft, colour); }
+static void clear(Gx *const g, const uint32_t colour) { soft_clear(call(g), colour); }
 
-static void pset(const Target *const t, const Vec p, const uint32_t colour)
+static void pset(Gx *const g, const Vec p, const uint32_t colour)
 {
-    soft_pset(&t->soft, p.x, p.y, colour);
+    soft_pset(call(g), p.x, p.y, colour);
 }
 
-static void line(const Target *const t, const Vec a, const Vec b, const uint32_t colour)
+static void line(Gx *const g, const Vec a, const Vec b, const uint32_t colour)
 {
-    soft_line(&t->soft, a, b, colour);
+    soft_line(call(g), a, b, colour);
 }
 
-static void outline(
-    const Target *const t,
-    const Vec *const p,
-    const uint32_t n,
-    const uint32_t colour
-)
+static void outline(Gx *const g, const Vec *const p, const uint32_t n, const uint32_t colour)
 {
-    soft_outline(&t->soft, p, n, colour);
+    soft_outline(call(g), p, n, colour);
 }
 
 static void poly(
-    const Target *const t,
+    Gx *const g,
     const Picture *const p,
     const Corner *const c,
     const uint32_t n,
@@ -157,22 +253,16 @@ static void poly(
 {
     const Pixels px = p ? pic_pixels(p) : (Pixels){};
 
-    soft_poly(&t->soft, p ? &px : nullptr, c, n, colour, flags);
+    soft_poly(call(g), p ? &px : nullptr, c, n, colour, flags & ~POLY_WRAP, flags & POLY_WRAP);
 }
 
-static void circle(
-    const Target *const t,
-    const Vec c,
-    const float r,
-    const uint32_t colour,
-    const bool fill
-)
+static void circle(Gx *const g, const Vec c, const float r, const uint32_t colour, const bool fill)
 {
-    soft_circle(&t->soft, c, r, colour, fill);
+    soft_circle(call(g), c, r, colour, fill);
 }
 
 static void arc(
-    const Target *const t,
+    Gx *const g,
     const Vec c,
     const float r,
     const float start,
@@ -180,44 +270,28 @@ static void arc(
     const uint32_t colour
 )
 {
-    soft_arc(&t->soft, c, r, start, finish, colour);
+    soft_arc(call(g), c, r, start, finish, colour);
 }
 
-static void rect(
-    const Target *const t,
-    const Vec a,
-    const Vec b,
-    const uint32_t colour,
-    const bool fill
-)
+static void rect(Gx *const g, const Vec a, const Vec b, const uint32_t colour, const bool fill)
 {
-    soft_rect(&t->soft, a.x, a.y, b.x, b.y, colour, fill);
+    soft_rect(call(g), a.x, a.y, b.x, b.y, colour, fill);
 }
 
-static void sprite(const Target *const t, const Picture *const p, const Vec at, const int32_t flags)
+static void sprite(Gx *const g, const Picture *const p, const Vec at, const int32_t flags)
 {
     const Pixels px = pic_pixels(p);
-    soft_sprite(&t->soft, &px, at.x, at.y, flags);
-}
-
-static void texture(
-    const Target *const t,
-    const Picture *const p,
-    const Vertex *const v,
-    const uint32_t n,
-    const int32_t flags,
-    const bool wrap
-)
-{
-    const Pixels px = pic_pixels(p);
-    soft_texture(&t->soft, &px, v, n, flags, wrap);
+    soft_sprite(call(g), &px, at.x, at.y, flags);
 }
 
 const Backend backend_soft = {
     .open = screen_open,
     .flip = screen_flip,
     .close = screen_close,
+    .stop = stop,
+    .counted = counted,
     .sync = sync,
+    .wrote = wrote,
     .forget = forget,
     .begin = begin,
     .source = source,
@@ -232,5 +306,4 @@ const Backend backend_soft = {
     .arc = arc,
     .rect = rect,
     .sprite = sprite,
-    .texture = texture,
 };

@@ -16,10 +16,8 @@ void gfx_pen_clip(const int32_t x, const int32_t y, const int32_t w, const int32
     if (!g)
         return;
 
-    if (w < 0 || h < 0) {
-        gx_fail(ERR_ILLEGAL);
+    if (gx_illegal(w < 0 || h < 0))
         return;
-    }
 
     g->pen.clip = (Rect){x, y, w, h};
 
@@ -65,10 +63,8 @@ void gfx_pen_font(const int32_t handle)
     if (!g)
         return;
 
-    if (!font_get(&g->fonts, (uint32_t)handle)) {
-        gx_fail(ERR_ILLEGAL);
+    if (gx_illegal(!font_get(&g->fonts, (uint32_t)handle)))
         return;
-    }
 
     g->pen.font = (uint32_t)handle;
 }
@@ -77,11 +73,7 @@ void gfx_pen_font(const int32_t handle)
 static Pen *pen_for(const int32_t v, const int32_t lo, const int32_t hi)
 {
     Gx *const g = gx_get();
-
-    if (g && (v < lo || v > hi))
-        gx_fail(ERR_ILLEGAL);
-
-    return g && v >= lo && v <= hi ? &g->pen : nullptr;
+    return g && !gx_illegal(v < lo || v > hi) ? &g->pen : nullptr;
 }
 
 void gfx_pen_light(const int32_t level)

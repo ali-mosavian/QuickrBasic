@@ -4,7 +4,7 @@
 #include "base/gmath.h"
 
 /* The texels' corners, top left round, flipped as flags say. */
-static void texels(const int32_t w, const int32_t h, const int32_t flags, Vertex out[4])
+static void texels(const int32_t w, const int32_t h, const int32_t flags, Corner out[4])
 {
     const float l = flags & GFX_DRAW_FLIPX ? (float)w : 0, r = (float)w - l;
     const float top = flags & GFX_DRAW_FLIPY ? (float)h : 0, bottom = (float)h - top;
@@ -14,11 +14,12 @@ static void texels(const int32_t w, const int32_t h, const int32_t flags, Vertex
     out[3].u = l, out[3].v = bottom;
 }
 
-static void placed(Vertex *const v, const Place *const where, const Vec world)
+static void placed(Corner *const v, const Place *const where, const Vec world)
 {
     const Vec at = cmd_at(where, world);
     v->x = at.x;
     v->y = at.y;
+    v->z = 1;
 }
 
 void shape_sprite(
@@ -30,7 +31,7 @@ void shape_sprite(
     const float scale,
     const int32_t flags,
     const Place *const where,
-    Vertex out[4]
+    Corner out[4]
 )
 {
     float s, c;
@@ -52,7 +53,7 @@ void shape_quad(
     const Vec corners[4],
     const int32_t flags,
     const Place *const where,
-    Vertex out[4]
+    Corner out[4]
 )
 {
     texels(w, h, flags, out);
@@ -69,7 +70,7 @@ void shape_segment(
     const float u,
     const int32_t flags,
     const Place *const where,
-    Vertex out[4]
+    Corner out[4]
 )
 {
     const float run = flags & GFX_DRAW_FLIPX ? -(b.x - a.x) : b.x - a.x;

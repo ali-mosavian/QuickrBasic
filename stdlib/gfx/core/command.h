@@ -23,11 +23,12 @@ typedef struct {
 } Camera;
 
 /* The camera over one target: a world point p lands at m p + move; a command turns by angle more
-   and scales by zoom. */
+   and scales by zoom. clip: the pen's, in the target. */
 typedef struct {
     float m11, m12, m21, m22;
     Vec move;
     float angle, zoom;
+    Rect clip;
 } Place;
 
 typedef struct {

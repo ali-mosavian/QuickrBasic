@@ -12,12 +12,8 @@ typedef struct {
     float x, y;
 } Vec;
 
-/* A shape's corner on the target, and the texel there: u and v in texels from the top left. */
-typedef struct {
-    float x, y, u, v;
-} Vertex;
-
-/* A polygon's corner on the target: z its distance, 1 or more; u, v its texel. */
+/* A polygon's corner on the target: z its distance, 1 or more; u, v its texel, in texels from the
+   top left. */
 typedef struct {
     float x, y, z, u, v;
 } Corner;

@@ -29,15 +29,16 @@ void soft_line(const SoftTarget *t, Vec a, Vec b, uint32_t colour);
 /* A closed outline through n points, each pixel once. */
 void soft_outline(const SoftTarget *t, const Vec *p, uint32_t n, uint32_t colour);
 /* A convex polygon of n corners, 3 up to SCAN_MAXV: s's texels, affine or with draw.PERSP in
-   perspective, keyed unless OPAQUE; s null, colour. ZTEST draws a pixel only nearer than t's
-   depth there, ZSET writes the depth of each drawn. */
+   perspective, keyed unless OPAQUE, u repeating when wrap, else u and v inside s; s null, colour.
+   ZTEST draws a pixel only nearer than t's depth there, ZSET writes the depth of each drawn. */
 void soft_poly(
     const SoftTarget *t,
     const Pixels *s,
     const Corner *c,
     uint32_t n,
     uint32_t colour,
-    int32_t flags
+    int32_t flags,
+    bool wrap
 );
 /* The circle about c of radius r: filled, the pixels whose centres lie within r and a half; else
    its outline, those from r less a half. */
@@ -57,17 +58,6 @@ void soft_rect(
 );
 /* s with its top left texel at x, y; flags draw.FLIPX, draw.FLIPY, pen.OPAQUE. */
 void soft_sprite(const SoftTarget *t, const Pixels *s, float x, float y, int32_t flags);
-/* A convex polygon of n corners, n 3 or 4, whose texels are affine over it (a triangle, or a
-   parallelogram's corners): each pixel takes s's texel at its centre, keyed unless OPAQUE; u
-   repeats when wrap, else u and v stay inside s. */
-void soft_texture(
-    const SoftTarget *t,
-    const Pixels *s,
-    const Vertex *v,
-    uint32_t n,
-    int32_t flags,
-    bool wrap
-);
 /* A perspective polygon (scanner.h) of n up to SCAN_MAXV vertices, u/z, v/z and 1/z, in mode SCAN_PTEX or
    SCAN_ATEX, drawn by persp.h: only into a target s is fused with (fill.h). */
 void soft_texture_persp(

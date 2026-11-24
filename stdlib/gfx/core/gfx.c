@@ -2,7 +2,7 @@
 #include "core/gfx.h"
 #include "core/mem.h"
 
-enum { COLOURS = 256, BLENDS = GFX_PEN_BLEND | GFX_PEN_ADD };
+enum { COLOURS = 256, MOST = 1 << 14 }; /* MOST: pixels a side */
 
 static Gx *state;
 
@@ -31,6 +31,28 @@ bool gx_fail(const uint8_t code)
 {
     qx_fail(code);
     return false;
+}
+
+bool gx_illegal(const bool bad)
+{
+    if (bad)
+        gx_fail(ERR_ILLEGAL);
+
+    return bad;
+}
+
+bool gx_size(const int32_t w, const int32_t h)
+{
+    return w >= 1 && h >= 1 && w <= MOST && h <= MOST;
+}
+
+void gx_use(Gx *const g, const Backend *const b)
+{
+    if (g->backend == b)
+        return;
+
+    g->backend->stop(g);
+    g->backend = b;
 }
 
 Surface *gx_surface(Gx *const g, const uint32_t h)
@@ -77,13 +99,16 @@ Vec *gx_points(Gx *const g, const uint32_t n)
     return g->points;
 }
 
-bool gx_draw(
-    Gx *const g,
-    Command *const c,
-    const int32_t allowed,
-    Target *const t,
-    Place *const where
-)
+void gx_wrote(Gx *const g, const uint32_t h, const Rect r)
+{
+    const Picture p = surf_picture(&g->surfaces, h);
+    const int32_t top = p.at.y + r.y;
+
+    surf_wrote(&g->surfaces, surf_get(&g->surfaces, h));
+    g->backend->wrote(g, p.texture, top, top + r.h);
+}
+
+bool gx_draw(Gx *const g, Command *const c, const int32_t allowed, Place *const where)
 {
     Surface *const s = gx_surface(g, g->pen.target);
 
@@ -92,9 +117,11 @@ bool gx_draw(
 
     const uint32_t most = s->format == PX_8 ? COLOURS - 1 : PAL_WHITE;
 
-    if (c->flags & ~allowed || (c->flags & BLENDS) == BLENDS || c->colour < 0 ||
-        (uint32_t)c->colour > most)
-        return gx_fail(ERR_ILLEGAL);
+    if (gx_illegal(
+            c->flags & ~allowed || (c->flags & GX_BLENDS) == GX_BLENDS || c->colour < 0 ||
+            (uint32_t)c->colour > most
+        ))
+        return false;
 
     *where = cmd_where(&g->camera, s->w, s->h);
     cmd_place(c, &g->pen, where);
@@ -102,8 +129,10 @@ bool gx_draw(
     if (!cmd_log(&g->log, c))
         return gx_fail(ERR_MEMORY);
 
-    t->clip = pen_clip(&g->pen, s->w, s->h);
-    return g->backend->begin(g, s, c, t);
+    const Picture into = surf_picture(&g->surfaces, g->pen.target);
+
+    where->clip = pen_clip(&g->pen, s->w, s->h);
+    return g->backend->begin(g, c, &into, where->clip);
 }
 
 void gfx_init(void) {}
@@ -117,6 +146,8 @@ void gfx_stop(void)
 
     if (state->open)
         qx_host->gfx_close();
+
+    state->backend->stop(state);
 
     surf_done(&state->surfaces);
     font_done(&state->fonts);

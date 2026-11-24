@@ -272,7 +272,7 @@ bool gpu_texture(
         return false;
 
     if (e->handle != p->texture)
-        *e = (GpuTexture){.handle = p->texture};
+        *e = (GpuTexture){.handle = p->texture, .bottom = px->h};
 
     if (e->page && into) {
         unpack(g, e);
@@ -285,6 +285,8 @@ bool gpu_texture(
 
         e->format = want;
         e->version = ~p->version; /* the place may hold another's */
+        e->top = 0;
+        e->bottom = px->h;
     } else if (!e->format || (want == QX_TEXTURE_RGBA && e->format == QX_TEXTURE_INDEX)) {
         const bool had = e->format;
         const uint32_t args[] = {name, (uint32_t)px->w, (uint32_t)px->h, want};
@@ -297,14 +299,12 @@ bool gpu_texture(
 
         e->format = want;
         e->version = had ? ~p->version : 0;
+        e->top = 0;
+        e->bottom = px->h;
     }
 
     const uint32_t id = e->page ? e->page : name;
-
-    Surface *const r = p->surface;
-    /* the GPU has all but the rows written since it took them */
-    const bool rows = r && e->version == r->taken;
-    const int32_t top = rows ? r->top : 0, h = rows ? r->bottom - r->top : px->h;
+    const int32_t top = e->top, h = e->bottom - e->top;
 
     if (e->version != p->version && h > 0) {
         const Pixels cut = px_cut(px, (Rect){0, top, px->w, h});
@@ -323,12 +323,11 @@ bool gpu_texture(
             return false;
     }
 
-    if (e->version != p->version && r) {
-        r->taken = p->version;
-        r->top = r->bottom = 0;
-    }
+    if (e->version != p->version)
+        e->top = e->bottom = 0;
 
     e->version = p->version;
+    e->drawn = e->drawn || into;
 
     *out = (GpuSource){id, e->x, e->y, e->format == QX_TEXTURE_INDEX};
 
@@ -445,15 +444,32 @@ void gpu_play(Gpu *const g, const bool show)
     g->passing = false;
 }
 
-bool gpu_sync(
-    Gpu *const g,
-    Palette *const pal,
-    Surface *const root,
-    const Pixels px,
-    const uint32_t h
-)
+/* h's texture: null, none made. */
+static GpuTexture *made(Gpu *const g, const uint32_t h)
 {
-    if (!root->drawn)
+    const uint32_t slot = hdl_slot(h);
+    GpuTexture *const e = slot < g->ntextures ? &g->textures[slot] : nullptr;
+
+    return e && e->handle == h ? e : nullptr;
+}
+
+void gpu_wrote(Gpu *const g, const uint32_t h, const int32_t top, const int32_t bottom)
+{
+    GpuTexture *const e = made(g, h);
+    const bool none = e && e->top >= e->bottom;
+
+    if (!e)
+        return;
+
+    e->top = none || top < e->top ? top : e->top;
+    e->bottom = none || bottom > e->bottom ? bottom : e->bottom;
+}
+
+bool gpu_sync(Gpu *const g, const Palette *const pal, const Pixels px, const uint32_t h)
+{
+    GpuTexture *const e = made(g, h);
+
+    if (!e || !e->drawn)
         return true;
 
     gpu_play(g, false);
@@ -483,7 +499,7 @@ bool gpu_sync(
         }
 
     mem_free(rgba);
-    root->drawn = false;
+    e->drawn = false;
     return true;
 }
 
@@ -497,14 +513,13 @@ GpuCount gpu_counted(Gpu *const g)
 
 void gpu_forget(Gpu *const g, const uint32_t h)
 {
-    const uint32_t slot = hdl_slot(h);
-    GpuTexture *const e = slot < g->ntextures ? &g->textures[slot] : nullptr;
+    GpuTexture *const e = made(g, h);
 
-    if (e && e->handle == h && e->page)
+    if (e && e->page)
         unpack(g, e);
-    else if (e && e->handle == h && e->format)
+    else if (e && e->format)
         list_op(&g->list, QX_LIST_FREE, &h, 1);
 
-    if (e && e->handle == h)
+    if (e)
         *e = (GpuTexture){};
 }
