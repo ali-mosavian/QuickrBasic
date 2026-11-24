@@ -68,9 +68,9 @@ end while
 
 - Files are `.bas` in both dialects. A Quickr file's first line is `' OPTION DIALECT QUICKR`
   (case aside), a comment to QBasic; a file without it is QBasic's. The line is the file's line 1,
-  required in every Quickr file, modules too.
-  from a file's contents.
-- File > New asks which. The status bar shows the file's dialect. `basic` runs either.
+  required in every Quickr file, modules too. Nothing else is guessed from a file's contents.
+- File > New asks which, and a Quickr program starts with that line, which the editor keeps as it
+  is. The status bar shows the program's dialect. `basic` runs either.
 - **Open:** whether a Quickr file may import a QBasic module. Proposed: yes, one way only. Its
   procedures and TYPEs appear with Quickr types, and a QBasic file never imports a Quickr one.
 
@@ -763,7 +763,8 @@ Everything else is in a module.
 - **llrm can compile it too.** Nothing in the language needs the VM. If llrm takes Quickr up,
   each front end runs the other's test programs.
 - **The IDE takes both dialects.** Each has its own highlighting, completion and help (`help/qr/`).
-  Lines are still checked one at a time.
+  Lines are still checked one at a time; the whole program before a run. The debugger steps and
+  stops by line, names spelled as typed (docs/ide-design.md).
 
 Each step is usable before the next starts:
 
