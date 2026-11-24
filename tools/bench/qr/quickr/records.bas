@@ -14,5 +14,5 @@ let v = Vec(3, 1)
 for i in 0..2000000
     advance(mut p, v)
     p.x = p.x mod 1000
-end for
+next
 print(p.x, p.y)

@@ -3,7 +3,7 @@
  * # How it works
  * A line is scanned left to right: blanks skipped, ' starts a comment to the line's end. A name
  * is a letter or _ then letters, digits and _; one spelled as a keyword, case and all, is that
- * keyword. Brackets ( [ { count a depth: a line's end is a statement's end (QK_NL) only at depth
+ * keyword, but next only where a statement starts: it.next() is a name. Brackets ( [ { count a depth: a line's end is a statement's end (QK_NL) only at depth
  * 0, so an open bracket continues the statement on the next line.
  *
  * A number is 0x hex, 0b binary or decimal, _ allowed between digits; a point followed by a digit
@@ -41,51 +41,31 @@ typedef struct {
 } QLex;
 
 static const char *const qlex_words[] = {
-    [QK_AND - QK_AND] = "and",
-    [QK_AS - QK_AND] = "as",
-    [QK_BREAK - QK_AND] = "break",
-    [QK_CASE - QK_AND] = "case",
-    [QK_CONST - QK_AND] = "const",
-    [QK_CONTINUE - QK_AND] = "continue",
-    [QK_DIV - QK_AND] = "div",
-    [QK_DO - QK_AND] = "do",
-    [QK_ELSE - QK_AND] = "else",
-    [QK_ELSEIF - QK_AND] = "elseif",
-    [QK_END - QK_AND] = "end",
-    [QK_ENUM - QK_AND] = "enum",
-    [QK_FALSE - QK_AND] = "false",
-    [QK_FN - QK_AND] = "fn",
-    [QK_FOR - QK_AND] = "for",
-    [QK_IF - QK_AND] = "if",
-    [QK_IN - QK_AND] = "in",
-    [QK_IS - QK_AND] = "is",
-    [QK_LET - QK_AND] = "let",
-    [QK_MATCH - QK_AND] = "match",
-    [QK_MOD - QK_AND] = "mod",
-    [QK_MUT - QK_AND] = "mut",
-    [QK_NONE - QK_AND] = "none",
-    [QK_NOT - QK_AND] = "not",
-    [QK_OR - QK_AND] = "or",
-    [QK_RETURN - QK_AND] = "return",
-    [QK_STEP - QK_AND] = "step",
-    [QK_THEN - QK_AND] = "then",
-    [QK_TRUE - QK_AND] = "true",
-    [QK_TYPE - QK_AND] = "type",
-    [QK_VAR - QK_AND] = "var",
-    [QK_WHILE - QK_AND] = "while",
-    [QK_XOR - QK_AND] = "xor",
-    [QK_YIELD - QK_AND] = "yield",
-    [QK_YIELDS - QK_AND] = "yields",
-    [QK_FROM - QK_AND] = "from",
-    [QK_IMPORT - QK_AND] = "import",
-    [QK_PUBLIC - QK_AND] = "public",
-    [QK_NATIVE - QK_AND] = "native",
-    [QK_OPERATOR - QK_AND] = "operator",
-    [QK_TEST - QK_AND] = "test",
-    [QK_ASSERT - QK_AND] = "assert",
-    [QK_SHL - QK_AND] = "shl",
-    [QK_SHR - QK_AND] = "shr",
-    [QK_FUNCTION - QK_AND] = "function",
+    [QK_AND - QK_AND] = "and",       [QK_AS - QK_AND] = "as",
+    [QK_BREAK - QK_AND] = "break",   [QK_CASE - QK_AND] = "case",
+    [QK_CONST - QK_AND] = "const",   [QK_CONTINUE - QK_AND] = "continue",
+    [QK_DIV - QK_AND] = "div",       [QK_DO - QK_AND] = "do",
+    [QK_ELSE - QK_AND] = "else",     [QK_ELSEIF - QK_AND] = "elseif",
+    [QK_END - QK_AND] = "end",       [QK_ENUM - QK_AND] = "enum",
+    [QK_FALSE - QK_AND] = "false",   [QK_FN - QK_AND] = "fn",
+    [QK_FOR - QK_AND] = "for",       [QK_IF - QK_AND] = "if",
+    [QK_IN - QK_AND] = "in",         [QK_IS - QK_AND] = "is",
+    [QK_LET - QK_AND] = "let",       [QK_MATCH - QK_AND] = "match",
+    [QK_MOD - QK_AND] = "mod",       [QK_MUT - QK_AND] = "mut",
+    [QK_NONE - QK_AND] = "none",     [QK_NOT - QK_AND] = "not",
+    [QK_OR - QK_AND] = "or",         [QK_RETURN - QK_AND] = "return",
+    [QK_STEP - QK_AND] = "step",     [QK_THEN - QK_AND] = "then",
+    [QK_TRUE - QK_AND] = "true",     [QK_TYPE - QK_AND] = "type",
+    [QK_VAR - QK_AND] = "var",       [QK_WHILE - QK_AND] = "while",
+    [QK_XOR - QK_AND] = "xor",       [QK_YIELD - QK_AND] = "yield",
+    [QK_YIELDS - QK_AND] = "yields", [QK_FROM - QK_AND] = "from",
+    [QK_IMPORT - QK_AND] = "import", [QK_PUBLIC - QK_AND] = "public",
+    [QK_NATIVE - QK_AND] = "native", [QK_OPERATOR - QK_AND] = "operator",
+    [QK_TEST - QK_AND] = "test",     [QK_ASSERT - QK_AND] = "assert",
+    [QK_SHL - QK_AND] = "shl",       [QK_SHR - QK_AND] = "shr",
+    [QK_TO - QK_AND] = "to",         [QK_NEXT - QK_AND] = "next",
+    [QK_WEND - QK_AND] = "wend",     [QK_LOOP - QK_AND] = "loop",
+    [QK_UNTIL - QK_AND] = "until",   [QK_FUNCTION - QK_AND] = "function",
 };
 
 /* Punctuation, longest first where one starts another. */
@@ -158,6 +138,11 @@ static void qlex_name(QLex *const L, const uint32_t from)
     for (uint32_t k = 0; k < countof(qlex_words); k++)
         if (strlen(qlex_words[k]) == n && !memcmp(qlex_words[k], w, n))
             kind = (QKind)(QK_AND + k);
+
+    const QSrc *const s = L->src;
+
+    if (kind == QK_NEXT && s->ntoks && s->toks[s->ntoks - 1].kind != QK_NL)
+        kind = QK_NAME;
 
     qlex_tok(L, kind, from);
 }

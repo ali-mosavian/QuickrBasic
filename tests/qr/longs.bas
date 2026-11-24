@@ -3,12 +3,12 @@
 var t as long = 0
 for i in 0..1000
     t += i * 3
-end for
+next
 var n as long = 5_000_000_000
 var k as long = 0
 while k < n
     k += 1_000_000_000
-end while
+wend
 var c as long = 7
 c -= 10
 c *= -4
@@ -44,7 +44,7 @@ function tri(n as long) as long
         j += 1
         s = j + s
         s = s * 1
-    end while
+    wend
     return s - n + n
 end function
 print(tri(100_000))

@@ -5,8 +5,8 @@ print(1 +)
 if x then
 print(1)) 
 for i 0..3
-end for
-end while
+next
+wend
 else
 function
 x + 1

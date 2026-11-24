@@ -20,13 +20,13 @@ end type
 function of(xs as long[]) yields long
     for x in xs
         yield x * long(2)
-    end for
+    next
 end function
 
 function points(ps as Pt[]) yields int
     for p in ps
         yield p.x + p.tag
-    end for
+    next
 end function
 
 var bs as byte[]
@@ -34,36 +34,36 @@ var us as ushort[]
 for i in 0..5
     bs.push(byte(i - 2))
     us.push(ushort(60000 + i))
-end for
+next
 var t = 0
 for b in bs
     t += b
-end for
+next
 var u = 0
 for w in us
     u += w - 60000
-end for
+next
 print(t, u)
 var ds as Dir[]
 ds.push(Dir.south)
 ds.push(Dir.north)
 for d in ds
     print(d = Dir.south)
-end for
+next
 var ps as Pt[]
 var twos as Two[]
 for i in 0..4
     ps.push(Pt(tag: byte(i), x: i * 10, y: 0.5))
     twos.push(Two(a: Pt(tag: byte(1), x: i, y: 1.0), n: short(i)))
-end for
+next
 var s = 0.0
 for p in ps
     s += double(p.x + p.tag) + p.y
-end for
+next
 var n = 0
 for tw in twos
     n += tw.a.x + tw.n + tw.a.tag
-end for
+next
 print(s, n)
 var ls as long[]
 ls.push(long(5))
@@ -72,10 +72,10 @@ var it = of(ls)
 var lt = long(0)
 for x in it
     lt += x
-end for
+next
 var pi = points(ps)
 var pt = 0
 for v in pi
     pt += v
-end for
+next
 print(lt, pt)

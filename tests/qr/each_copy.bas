@@ -10,7 +10,7 @@ function total(a as long[]) as long
     var s as long = 0
     for x in a
         s += x * x
-    end for
+    next
     return s
 end function
 
@@ -19,8 +19,8 @@ function gsum() as double
     for x in g
         for y in g
             s += x * y
-        end for
-    end for
+        next
+    next
     return s
 end function
 
@@ -32,7 +32,7 @@ var none_ as int[]
 var n = 0
 for x in none_
     n += 1
-end for
+next
 print(n)
 var ls as long[]
 ls.push(3_000_000_000)
@@ -46,7 +46,7 @@ var t = 0
 for i, b in bs
     if not b then continue
     t += i + apply(fn(k) k * 10, i)
-end for
+next
 print(t)
 var fs as single[]
 fs.push(0.5)
@@ -55,16 +55,16 @@ var u as uint[]
 u.push(4_000_000_000)
 for x in u
     print(x)
-end for
+next
 for i, x in fs
     print(i, x, fs[i])
     if i = 0 then break
-end for
+next
 
 function doubled(a as int[]) yields int
     for x in a
         yield x * 2
-    end for
+    next
 end function
 
 var w as int[]

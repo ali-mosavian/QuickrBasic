@@ -46,7 +46,7 @@ var s = 0.0
 for i in 0..4
     let a, b = halves(i)
     s += a + b
-end for
+next
 print(s)
 var m as int? = none
 print(m ?? -1)
@@ -73,7 +73,7 @@ function walk(k as int) as int
         o.d *= 1.0
         o.l += long(o.n)
         o.b = 7
-    end for
+    next
     return o.n + o.b + o.s + int(o.l)
 end function
 
@@ -99,7 +99,7 @@ function narrow(k as int) as int
         p.s += 1
         p.b = -p.b
         p.n += p.u + p.w
-    end for
+    next
     return p.n + p.s + p.b
 end function
 

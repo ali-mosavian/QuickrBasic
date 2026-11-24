@@ -15,7 +15,7 @@ end function
 public function sleep(seconds as double)
     let start = ticks()
     while since(start) < seconds
-    end while
+    wend
 end function
 
 ' seconds since start, a ticks(); past midnight too

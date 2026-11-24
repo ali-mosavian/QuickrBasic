@@ -88,7 +88,7 @@ function poll()
         seen[c] = time.ticks()
         fresh[c] = true
         s = inkey()
-    end while
+    wend
 end function
 
 ' the next key's code, 0 none waiting

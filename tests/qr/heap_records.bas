@@ -18,7 +18,7 @@ function make(i as int) as Bag
     var b = Bag(n: i, name: f"b{i}", pair: Pair(key: f"k{i}", n: i))
     for k in 0..i
         b.tags.push(k * 10)
-    end for
+    next
     return b
 end function
 
@@ -27,7 +27,7 @@ function churn() as int
     for k in 0..300
         let s = f"garbage {k} and some more of it to fill the heap"
         t += len(s)
-    end for
+    next
     return t
 end function
 
@@ -65,11 +65,11 @@ var all as Bag[]
 for i in 0..6
     all.push(make(i))
     churn()
-end for
+next
 var sum = 0
 for b in all
     sum += b.n + len(b.tags) + len(b.name) + b.pair.n
-end for
+next
 print(sum)
 
 type Big

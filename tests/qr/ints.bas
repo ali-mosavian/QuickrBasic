@@ -33,7 +33,7 @@ print(wrap(ubyte(300)), wrap(ub + ub), wrap(b - 100), wrap(u * u), wrap(l * l))
 var h as uint = 2166136261
 for c in "abc"
     h = wrap((h xor c) * 16777619)
-end for
+next
 print(h)
 print(wrap(int(2147483647) + 1), wrap(-l * 1_000_000_000_000))
 ' bits: and or not shl shr

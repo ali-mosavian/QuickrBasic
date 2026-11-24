@@ -2,5 +2,5 @@
 var b as int[]
 for i in 0..4000
     b.push(i)
-end for
+next
 print(len(b), b[3999])

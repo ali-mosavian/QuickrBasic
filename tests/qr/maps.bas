@@ -9,38 +9,38 @@ ages["bob"] += 1
 print(ages["bob"], "ada" in ages, "zed" in ages, "zed" not in ages)
 for k, v in ages
     print(k, v)
-end for
+next
 ages.remove("ada")
 ages.remove("nope")
 print(len(ages))
 for k in ages
     print(k)
-end for
+next
 let ks = ages.keys()
 print(len(ks), ks[0])
 var sq as int[int]
 for i in 0..1000
     sq[i * 7] = i * i
-end for
+next
 var sum = 0
 for i in 0..1000
     sum += sq[i * 7]
-end for
+next
 print(len(sq), sum, sq[700])
 for i in 0..1000
     if i mod 3 <> 0 then
         sq.remove(i * 7)
     end if
-end for
+next
 var ok = true
 for i in 0..1000
     ok = ok and ((i * 7 in sq) = (i mod 3 = 0))
-end for
+next
 print(len(sq), ok)
 var names as string[int]
 for i in 0..200
     names[i] = f"n{i}"
-end for
+next
 print(names[150], len(names))
 type Pet
     name as string
@@ -59,7 +59,7 @@ function census(z as Zoo) as int[string]
     var out as int[string]
     for k, p in z.pets
         out[k] = p.legs
-    end for
+    next
     return out
 end function
 function add(mut z as Zoo, name as string, legs as int)
@@ -75,7 +75,7 @@ print(zoo.count, len(zoo.pets), zoo.pets["tweety"].tags[0])
 let c = census(zoo)
 for k, v in c
     print(k, v)
-end for
+next
 var z2 = copy(zoo)
 z2.pets["rex"].legs = 3
 z2.pets.remove("nemo")
@@ -88,16 +88,16 @@ var big as Pet[int]
 for i in 0..60
     big[i] = Pet(f"p{i}", i)
     big[i].tags.push("t")
-end for
+next
 for i in 0..60
     if i mod 2 = 0 then
         big.remove(i)
     end if
-end for
+next
 var total = 0
 for k, p in big
     total += p.legs + len(p.tags)
-end for
+next
 print(len(big), total, big[59].name)
 var moved = big
 print(len(moved))
@@ -105,14 +105,14 @@ function build(n as int) as int
     var m as string[int]
     for i in 0..n
         m[i] = f"v{i}"
-    end for
+    next
     return len(m)
 end function
 function made(n as int) as int[int]
     var m as int[int]
     for i in 0..n
         m[i] = i
-    end for
+    next
     return m
 end function
 var t = 0
@@ -120,9 +120,9 @@ for r in 0..300
     t += build(200)
     let q = made(50)
     t += len(q)
-end for
+next
 print(t)
 for k, v in made(5)
     print(k, v)
-end for
+next
 print(len(made(9).keys()))

@@ -6,11 +6,11 @@ var m as int[string]
 m[3] = 1
 print(m["x"] + "y")
 for mut k in m
-end for
+next
 for k, v in m
     m["z"] = 1
     m.remove(k)
-end for
+next
 m.push(1)
 print(m.keys(1))
 let n = m

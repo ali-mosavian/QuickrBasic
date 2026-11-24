@@ -9,7 +9,7 @@ function walk() as int
     for i in 0..10000000
         p.s = (p.s + 7) mod 1001
         p.t = (p.t + p.s) mod 997
-    end for
+    next
     return int(p.s) + int(p.t)
 end function
 

@@ -61,9 +61,9 @@ types.bas:24:9: can't compare an int with a string
 types.bas:25:10: a double is not an int: write int(x)
   for k in 0.5..2
            ^
-types.bas:27:20: a step of 0 never ends
-  for k in 0..2 step 0
-                     ^
+types.bas:27:21: a step of 0 never ends
+  for k = 0 to 2 step 0
+                      ^
 types.bas:29:10: unknown type text
   var t as text
            ^

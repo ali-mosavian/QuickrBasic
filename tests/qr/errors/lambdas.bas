@@ -6,7 +6,7 @@ end function
 function each(a as int[], f as function(int))
     for x in a
         f(x)
-    end for
+    next
 end function
 function twoargs(a as int, b as int) as int
     return a + b
@@ -40,6 +40,6 @@ function run()
         each(xs, fn(y as int)
             xs.push(y)
         end fn)
-    end for
+    next
 end function
 run()

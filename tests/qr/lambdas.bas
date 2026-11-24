@@ -20,20 +20,20 @@ end function
 function each(a as int[], f as function(int))
     for x in a
         f(x)
-    end for
+    next
 end function
 function total(a as int[], f as function(int) as int) as int
     var t = 0
     for x in a
         t += f(x)
-    end for
+    next
     return t
 end function
 function map_all[T, U](a as T[], f as function(T) as U) as U[]
     var r as U[]
     for x in a
         r.push(f(x))
-    end for
+    next
     return r
 end function
 function vmap(v as Vec, f as function(Vec) as Vec) as Vec
@@ -43,7 +43,7 @@ function join(a as string[], f as function(string) as string) as string
     var s = ""
     for x in a
         s = s + f(x) + ","
-    end for
+    next
     return s
 end function
 function double_it(x as int) as int
@@ -61,7 +61,7 @@ function run()
     var xs as int[]
     for i in 0..5
         xs.push(i)
-    end for
+    next
     var sum = 0
     each(xs, fn(x as int)
         ' a block's own lines
@@ -78,7 +78,7 @@ function run()
     print(names[0], names[4], len(names), map_all(xs, fn(x) x / 2)[3])
     for y in xs
         if y > 2 then print(apply(fn(v) v * y, 10))
-    end for
+    next
     print(pass_on(fn(v) v - xs[1], 10), apply(fn(a) apply(fn(b) a * b + xs[4], 2), 3))
     let w = vmap(Vec(1, 2), fn(p) Vec(p.y + xs[3], p.x))
     print(w.x, w.y)
@@ -98,4 +98,4 @@ var zs as int[]
 zs.push(7)
 for z in zs
     print(apply(fn(v) v + z, 1))
-end for
+next

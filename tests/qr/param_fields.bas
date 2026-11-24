@@ -25,7 +25,7 @@ function bump(mut r as Rec, k as int)
         r.l += long(2)
         r.u = ushort(r.u + 3)
         r.b = -r.b
-    end for
+    next
 end function
 
 var a = Rec(b: 3, n: 1, inr: Inner(k: 2, d: 1.0), l: 5, u: 7)

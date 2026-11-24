@@ -46,7 +46,7 @@ function largest[T](a as T[]) as T
     var best = a[0]
     for x in a
         if x > best then best = x
-    end for
+    next
     return best
 end function
 

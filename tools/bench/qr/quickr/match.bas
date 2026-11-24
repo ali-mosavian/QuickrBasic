@@ -11,5 +11,5 @@ for i in 0..3000000
         case else
             s += 4
     end match
-end for
+next
 print(s)

@@ -47,7 +47,7 @@ for i in 0..10
         case else
             print(i, "other")
     end match
-end for
+next
 let k = "b"
 match k
     case "a"

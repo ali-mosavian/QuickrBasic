@@ -19,7 +19,7 @@ public function split(s as string, sep as string) as string[]
         parts.push(s[start..at])
         start = at + len(sep)
         at = find_from(s, sep, start)
-    end while
+    wend
     parts.push(s[start..])
     return parts
 end function
@@ -29,7 +29,7 @@ public function join(parts as string[], sep as string) as string
     for i in 0..len(parts)
         if i > 0 then b.add(sep)
         b.add(parts[i])
-    end for
+    next
     return b.text()
 end function
 
@@ -46,6 +46,6 @@ public function text(b as Builder) as string
     var s = ""
     for p in b.parts
         s = s + p
-    end for
+    next
     return s
 end function

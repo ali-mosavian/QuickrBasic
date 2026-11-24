@@ -19,7 +19,7 @@ test "sums"
     var total = 0
     for i in 0..5
         total += i
-    end for
+    next
     assert total = 10
 end test
 

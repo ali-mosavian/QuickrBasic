@@ -5,7 +5,7 @@ function upto(n as int) yields int
     while i < n
         yield i
         i += 1
-    end while
+    wend
 end function
 function bad(n as int) yields int
     yield "x"
@@ -14,7 +14,7 @@ end function
 function loops(n as int) yields int
     for x in loops(n)
         yield x
-    end for
+    next
 end function
 function both(n as int) as int yields int
     return 1
@@ -34,19 +34,19 @@ print(b.size())
 let s = upto(4)
 for x in upto(2)
     x = 5
-end for
+next
 for i, x in upto(2)
     print(x)
-end for
+next
 for x in bad(1)
     print(x)
-end for
+next
 for x in loops(1)
     print(x)
-end for
+next
 let f = upto
 for x in changes(mut m)
     print(x)
-end for
+next
 print(b.next(1) ?? 0)
 upto(3)

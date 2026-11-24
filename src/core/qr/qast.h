@@ -80,6 +80,11 @@ typedef enum : uint8_t {
     QK_ASSERT,
     QK_SHL,
     QK_SHR,
+    QK_TO,
+    QK_NEXT, /* only where a statement starts: elsewhere a name, it.next() */
+    QK_WEND,
+    QK_LOOP,
+    QK_UNTIL,
     QK_FUNCTION,
     /* punctuation */
     QK_LPAREN,
@@ -621,7 +626,7 @@ typedef enum : uint8_t {
     QS_FOR,
     QS_ENDFOR,
     QS_DO,
-    QS_ENDDO,
+    QS_ENDDO, /* e: loop while e (op QK_WHILE), loop until e (QK_UNTIL); null none */
     QS_BREAK,
     QS_CONTINUE,
     QS_RETURN,
@@ -697,17 +702,18 @@ struct QStmt {
     QVar *index; /* QS_FOR over a list: its index (i in for i, x in a), else the compiler's */
     QVar *temp;  /* QS_MATCH: its value's; QS_ASSIGN of a tuple: each value's in temps */
     QVar **temps;
-    int32_t by;     /* QS_FOR: its step when constant, else 0; QS_YIELD: its number */
-    bool each;      /* QS_FOR over a list or an array, e */
-    bool mut;       /* for mut x in a */
-    QPat *pats;     /* QS_CASE's; none: case else; its match its body */
-    QType ty;       /* QS_TYPE, QS_ENUM: its type; QS_MATCH: its value's */
-    QExpr *place;   /* QS_MATCH of an enum with data: its value's place, its data read there */
-    bool full;      /* QS_MATCH: every value has its case */
-    bool pub;       /* public: a module's fn, type, enum, const, var or let */
-    QImport *imps;  /* QS_IMPORT's modules; QS_FROM's module */
-    QImport *names; /* QS_FROM's */
-    QOwners *own;   /* its frame's: a fn's, or the modules' */
+    int32_t by;         /* QS_FOR: its step when constant, else 0; QS_YIELD: its number */
+    bool each;          /* QS_FOR over a list or an array, e */
+    bool mut;           /* for mut x in a */
+    bool inclusive;     /* QS_FOR: for i = a to b, b counted */
+    QPat *pats;         /* QS_CASE's; none: case else; its match its body */
+    QType ty;           /* QS_TYPE, QS_ENUM: its type; QS_MATCH: its value's */
+    QExpr *place;       /* QS_MATCH of an enum with data: its value's place, its data read there */
+    bool full;          /* QS_MATCH: every value has its case */
+    bool pub;           /* public: a module's fn, type, enum, const, var or let */
+    QImport *imps;      /* QS_IMPORT's modules; QS_FROM's module */
+    QImport *names;     /* QS_FROM's */
+    QOwners *own;       /* its frame's: a fn's, or the modules' */
     const QScopeAt *at; /* the names in sight at it, QProg.keep */
 };
 

@@ -14,6 +14,6 @@ public function args() as string[]
     var words as string[]
     for w in text.split(command(), " ")
         if len(w) > 0 then words.push(w)
-    end for
+    next
     return words
 end function

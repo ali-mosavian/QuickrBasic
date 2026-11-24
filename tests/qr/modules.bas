@@ -29,7 +29,7 @@ ss.push("c")
 print(largest(xs), gfx.largest(ss))
 for e in gfx.evens(5)
     print(e)
-end for
+next
 print(ping.ping(5))
 from pkg import b as bmod
 print(bmod.twice(21))

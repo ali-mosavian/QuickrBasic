@@ -4,7 +4,7 @@
 function upto(n as int) yields int
     for i in 0..n
         yield i
-    end for
+    next
     return 100 + n
 end function
 function words(s as string) yields string
@@ -16,7 +16,7 @@ function words(s as string) yields string
         else
             w = w + text_of(c)
         end if
-    end for
+    next
     yield w
 end function
 function text_of(c as int) as string
@@ -26,7 +26,7 @@ function drain(mut it as upto) as int
     var t = 0
     for x in it
         t += x
-    end for
+    next
     return t
 end function
 function make(n as int) as upto
@@ -56,5 +56,5 @@ print(apply(fn(k) k + (c.next() ?? 0)), apply(fn(k) k + (c.next() ?? 0)))
 var v = 5
 for x in bump(mut v)
     print(x, v)
-end for
+next
 print(v)

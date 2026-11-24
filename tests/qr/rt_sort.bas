@@ -20,7 +20,7 @@ ps.sort(fn(x, y) x.name < y.name)
 ps.sort(fn(x, y) x.v < y.v)
 for p in ps
     print(p.name, p.v)
-end for
+next
 var s as string[]
 s.push("ccc")
 s.push("b")
@@ -39,7 +39,7 @@ print(s[0], s[1], s[2], s[3])
 var a as int[]
 for k in 0..10
     a.push((k * 7) mod 10 - 5)
-end for
+next
 a.sort()
 print(a[0], a[1], a[5], a[9])
 var u as uint[]

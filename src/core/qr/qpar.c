@@ -973,8 +973,8 @@ static void qpar_if(QPar *const P)
     const QKind k = P->t->kind;
 
     if (k == QK_LET || k == QK_VAR || k == QK_CONST || k == QK_IF || k == QK_WHILE || k == QK_FOR ||
-        k == QK_DO || k == QK_FUNCTION || k == QK_TYPE || k == QK_ENUM || k == QK_MATCH ||
-        k == QK_CASE)
+        k == QK_DO || k == QK_NEXT || k == QK_WEND || k == QK_LOOP || k == QK_FUNCTION ||
+        k == QK_TYPE || k == QK_ENUM || k == QK_MATCH || k == QK_CASE)
         qpar_fail(P, P->t, "a one-line if takes one simple statement, not {}");
 
     s->body = qpar_simple(P);
@@ -1004,7 +1004,7 @@ static void qpar_clause(QPar *const P, const QStmtKind kind)
     }
 }
 
-/* for name in a..b [step s]. */
+/* for i = a to b [step s]; for [mut] [i,] x in a; for i in a..b. */
 static void qpar_for(QPar *const P)
 {
     QStmt *const s = qpar_new(P, QS_FOR, qpar_next(P));
@@ -1015,6 +1015,18 @@ static void qpar_for(QPar *const P)
     QDecl *const d = qast_alloc(P->mem, sizeof *d);
     d->name = qpar_need(P, QK_NAME, "a name");
     s->decls = d;
+
+    if (!s->mut && qpar_take(P, QK_EQ)) {
+        s->inclusive = true;
+        s->e = qpar_expr(P);
+        qpar_need(P, QK_TO, "to");
+        s->to = qpar_expr(P);
+
+        if (qpar_take(P, QK_STEP))
+            s->step = qpar_expr(P);
+
+        return;
+    }
 
     if (qpar_take(P, QK_COMMA)) { /* i, x: the index first */
         d->next = qast_alloc(P->mem, sizeof *d);
@@ -1035,8 +1047,8 @@ static void qpar_for(QPar *const P)
     qpar_next(P);
     s->to = qpar_shift(P);
 
-    if (qpar_take(P, QK_STEP))
-        s->step = qpar_expr(P);
+    if (qpar_is(P, QK_STEP))
+        qpar_fail(P, P->t, "a range has no step: write for i = a to b step s");
 }
 
 /* function operator +: its operator, + - * / = or <, its name. */
@@ -1137,9 +1149,6 @@ static const struct {
     QStmtKind open, close;
 } qpar_ends[] = {
     {QK_IF, QS_IF, QS_ENDIF},
-    {QK_WHILE, QS_WHILE, QS_ENDWHILE},
-    {QK_FOR, QS_FOR, QS_ENDFOR},
-    {QK_DO, QS_DO, QS_ENDDO},
     {QK_FUNCTION, QS_FN, QS_ENDFN},
     {QK_FN, QS_FN, QS_ENDFN},
     {QK_TEST, QS_FN, QS_ENDFN},
@@ -1148,16 +1157,65 @@ static const struct {
     {QK_MATCH, QS_MATCH, QS_ENDMATCH},
 };
 
-/* end if, end while, end for, end do, end function, end fn: its block closed. */
+/* What closes a loop, and its end as other languages write it. */
+static const struct {
+    QKind word;
+    QStmtKind open, close;
+    const char *without, *old;
+} qpar_loops[] = {
+    {QK_FOR, QS_FOR, QS_ENDFOR, "next without for", "end for is written next"},
+    {QK_WHILE, QS_WHILE, QS_ENDWHILE, "wend without while", "end while is written wend"},
+    {QK_DO, QS_DO, QS_ENDDO, "loop without do", "end do is written loop"},
+};
+
+/* next, wend, loop at t, loop k's end: its loop closed. */
+static QStmt *qpar_endloop(QPar *const P, const QTok *const t, const uint32_t k)
+{
+    QOpen *const o = qpar_top(P);
+
+    if (!o || o->open->kind != qpar_loops[k].open)
+        qpar_unpaired(P, t, qpar_loops[k].without);
+
+    QStmt *const s = qpar_new(P, qpar_loops[k].close, t);
+    qpar_append(P, s);
+    o->clause->link = s;
+    s->link = o->open;
+    P->nopen--;
+    return s;
+}
+
+/* next, wend, loop [while c | until c]. */
+static void qpar_loopend(QPar *const P, const uint32_t k)
+{
+    QStmt *const s = qpar_endloop(P, qpar_next(P), k);
+
+    if (k == 0 && qpar_is(P, QK_NAME))
+        qpar_fail(P, P->t, "next takes no name");
+
+    if (k == 2 && (qpar_is(P, QK_WHILE) || qpar_is(P, QK_UNTIL))) {
+        s->op = qpar_next(P)->kind;
+        s->e = qpar_expr(P);
+    }
+}
+
+/* end if, end function, end fn ..: its block closed. */
 static void qpar_end(QPar *const P)
 {
     const QTok *const t = qpar_next(P);
+
+    for (uint32_t k = 0; k < countof(qpar_loops); k++)
+        if (qpar_is(P, qpar_loops[k].word)) { /* said, and closed as its end would */
+            qast_error(&P->prog->errs, t, qpar_loops[k].old, nullptr, 0);
+            qpar_endloop(P, qpar_next(P), k);
+            return;
+        }
+
     uint32_t k = 0;
 
     while (k < countof(qpar_ends) && !qpar_is(P, qpar_ends[k].word))
         k++;
     if (k == countof(qpar_ends))
-        qpar_expected(P, "if, while, for, do, function, fn, test, type, enum or match after end");
+        qpar_expected(P, "if, function, fn, test, type, enum or match after end");
 
     const QTok *const word = qpar_next(P);
     QOpen *const o = qpar_top(P);
@@ -1276,8 +1334,7 @@ static QPat *qpar_pat(QPar *const P)
 
     pt->a = qpar_shift(P);
 
-    if (qpar_is(P, QK_NAME) && P->t->len == 2 && !memcmp(P->t->text, "to", 2)) {
-        qpar_next(P);
+    if (qpar_take(P, QK_TO)) {
         pt->kind = QP_RANGE;
         pt->b = qpar_shift(P);
     }
@@ -1387,8 +1444,24 @@ static void qpar_statement(QPar *const P)
         QStmt *const s = qpar_new(P, QS_DO, qpar_next(P));
         qpar_append(P, s);
         qpar_push(P, s);
+
+        if (qpar_is(P, QK_WHILE) || qpar_is(P, QK_UNTIL))
+            qpar_fail(P, P->t, "a do's test goes after loop: loop {} c");
+
         return;
     }
+
+    case QK_NEXT:
+        qpar_loopend(P, 0);
+        return;
+
+    case QK_WEND:
+        qpar_loopend(P, 1);
+        return;
+
+    case QK_LOOP:
+        qpar_loopend(P, 2);
+        return;
 
     case QK_FOR:
         qpar_for(P);
@@ -1538,9 +1611,9 @@ static void qpar_unclosed(QPar *const P)
 {
     static const char *const msgs[] = {
         [QS_IF] = "if without end if",
-        [QS_WHILE] = "while without end while",
-        [QS_FOR] = "for without end for",
-        [QS_DO] = "do without end do",
+        [QS_WHILE] = "while without wend",
+        [QS_FOR] = "for without next",
+        [QS_DO] = "do without loop",
         [QS_FN] = "function without end function",
         [QS_TYPE] = "type without end type",
         [QS_ENUM] = "enum without end enum",

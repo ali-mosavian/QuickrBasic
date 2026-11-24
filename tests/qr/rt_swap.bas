@@ -11,7 +11,7 @@ var s as string[]
 var ps as P[]
 for i in 1..5
     a.push(i)
-end for
+next
 s.push("x")
 s.push("y")
 s.push("z")

@@ -11,7 +11,7 @@ for i in 0..len(s)
     if s[i] = 111 then
         n += 1
     end if
-end for
+next
 print(n)
 type P
     name as string
@@ -20,7 +20,7 @@ end type
 var a as int[]
 for i in 0..10
     a.push(i * i)
-end for
+next
 let b = a[2..5]
 print(len(b), b[0], b[2])
 var c = a[..3]

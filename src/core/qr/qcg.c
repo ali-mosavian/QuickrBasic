@@ -14,7 +14,7 @@
  * runs a segment at a time, ended where a jump lands or a QJ starts, so neither moves.
  *
  * A for loop is QBasic's FOR and NEXT: its limit made inclusive once the loop is entered, so its
- * end for fuses to I.NEXT.UP or I.NEXT.DN; a step whose sign is known only when run, I.PAST.
+ * next fuses to I.NEXT.UP or I.NEXT.DN; a step whose sign is known only when run, I.PAST.
  *
  * A string literal loads from its line's text in the program store; an escape is CHR$ of its
  * byte, joined on.
@@ -27,8 +27,8 @@
  * each case's line its tests, past the case before's JMP to end match.
  *
  * # Example
- *    while i < n          I.LD.V i, I.JFC.V n < (end while's line, BOFF)
- *    end while            JMP (while's line, 0)
+ *    while i < n          I.LD.V i, I.JFC.V n < (wend's line, BOFF)
+ *    wend                 JMP (while's line, 0)
  */
 #include "qr/qcg.h"
 #include "comp/codegen.h"
@@ -2510,7 +2510,7 @@ static void qcg_fresh(QCg *g, QVar *v);
 /* A chain's loop's exits: to its next element and past its end. A for's are jumps to its end
    for's start and end; an expression's, hops within the line, landed after. */
 typedef struct {
-    const QStmt *end; /* the for's end for; null an expression's */
+    const QStmt *end; /* the for's next; null an expression's */
     QCgHop *hops;
     bool *done; /* each hop's: past the end, else to the next element */
     uint32_t n, cap;
@@ -3194,7 +3194,7 @@ static const QStmt *qcg_endif(const QStmt *s)
 static QVar *qcg_counter(const QStmt *const s) { return s->each ? s->index : s->var; }
 
 /* The flag of for s's counter past its limit, its step's sign known (by) or not (I.PAST).
-   entered: the limit inclusive, as end for makes it; else the range's end, past when reached. */
+   entered: the limit inclusive, as next has it; else the range's end, past when reached. */
 static void qcg_past(QCg *const g, const QStmt *const s, const bool entered)
 {
     Code *const c = g->c;
@@ -3516,7 +3516,7 @@ static void qcg_simple(QCg *const g, const QStmt *const s)
 
         if (loop->kind == QS_WHILE)
             qcg_to(g, O_JMP, loop, 0, TO_STMT);
-        else if (loop->kind == QS_FOR)
+        else if (loop->kind == QS_FOR || loop->link->e) /* to its next, its loop's test */
             qcg_to(g, O_JMP, loop->link, 0, TO_STMT);
         else
             qcg_to(g, O_JMP, loop, BOFF, TO_STMT);
@@ -3569,6 +3569,9 @@ static bool qcg_stops(const QStmt *const s)
     case QS_RETURN:
     case QS_YIELD:
         return true;
+
+    case QS_ENDDO:
+        return s->e != nullptr;
 
     default:
         return false;
@@ -3693,7 +3696,12 @@ static void qcg_body(QCg *const g, const QStmt *const s)
         return;
 
     case QS_ENDDO:
-        qcg_to(g, O_JMP, s->link, BOFF, TO_STMT);
+        if (s->e) {
+            qcg_expr(g, s->e);
+            qcg_to(g, s->op == QK_UNTIL ? O_I_JF : O_I_JT, s->link, BOFF, TO_STMT);
+        } else
+            qcg_to(g, O_JMP, s->link, BOFF, TO_STMT);
+
         return;
 
     case QS_FOR:
@@ -3734,9 +3742,11 @@ static void qcg_body(QCg *const g, const QStmt *const s)
             qcg_expr(g, s->step);
 
         qcg_store(c, s->stp);
-        qcg_past(g, s, false);
+        qcg_past(g, s, s->inclusive);
         qcg_to(g, O_I_JT, s->link, BOFF, TO_STMT);
-        qcg_inclusive(g, s);
+
+        if (!s->inclusive)
+            qcg_inclusive(g, s);
 
         if (qcg_copy(g, s)) { /* x's first copy; E.NEXT the rest */
             QExpr at = *s->var->place;

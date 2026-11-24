@@ -9,7 +9,7 @@ function upto(n as int, start as int = 0) yields int
     while i < n
         yield i
         i += 1
-    end while
+    wend
 end function
 function once() yields int
     yield 7
@@ -22,30 +22,30 @@ end function
 function evens[T](a as T[]) yields T
     for i, x in a
         if i mod 2 = 0 then yield x
-    end for
+    next
 end function
 function grid(n as int) yields P
     for i in upto(n)
         for j in 0..n
             yield P(i, j)
-        end for
-    end for
+        next
+    next
 end function
 function until_neg(a as int[]) yields int
     for x in a
         if x < 0 then return
         yield x * 10
-    end for
+    next
 end function
 function squares(n as int) yields int
     for x in upto(n)
         yield x * x
-    end for
+    next
 end function
 function mapped(n as int, f as function(int) as int) yields int
     for x in upto(n)
         yield f(x)
-    end for
+    next
 end function
 function words(s as string) yields string
     var w = ""
@@ -57,7 +57,7 @@ function words(s as string) yields string
         else
             w = w + ch
         end if
-    end for
+    next
     if len(w) > 0 then yield w
 end function
 function zipped(n as int) yields int
@@ -68,7 +68,7 @@ function zipped(n as int) yields int
         if x is none then return
         yield x
         yield b.next() ?? -1
-    end while
+    wend
 end function
 function deep(n as int) as int
     if n = 0 then return 0
@@ -80,13 +80,13 @@ end function
 function big(m as int[string]) yields string
     for k in m
         if m[k] > 1 then yield k
-    end for
+    next
 end function
 function sum_to(n as int) as int
     var t = 0
     for x in upto(n)
         t += x
-    end for
+    next
     return t
 end function
 function run(k as int)
@@ -95,12 +95,12 @@ function run(k as int)
         let p = g.next()
         if p is none then break
         print(p.x, p.y)
-    end while
+    wend
     var sq = mapped(4, fn(x) x * x + k)
     print(sq.next() ?? -1, sq.next() ?? -1)
     for v in mapped(3, fn(x) x + k)
         print(v)
-    end for
+    next
     var names as string[]
     names.push("ann")
     names.push("bo")
@@ -110,10 +110,10 @@ function run(k as int)
 end function
 for x in once()
     print(x + 1)
-end for
+next
 for s in three()
     print(s)
-end for
+next
 var nums as int[]
 nums.push(5)
 nums.push(6)
@@ -121,29 +121,29 @@ nums.push(-7)
 nums.push(8)
 for v in evens(nums)
     print(v)
-end for
+next
 for x in until_neg(nums)
     print(x)
-end for
+next
 for x in squares(4)
     if x = 4 then continue
     if x = 9 then break
     print(x)
-end for
+next
 print(sum_to(10))
 var n = 3
 for x in upto(n)
     n += 1
     print(x, n)
-end for
+next
 for w in words("the quick  brown fox ")
     print(w)
-end for
+next
 var ws = words("ab cd")
 print(ws.next() ?? "-", ws.next() ?? "-", ws.next() ?? "-")
 for v in zipped(3)
     print(v)
-end for
+next
 print(deep(3))
 var m as int[string]
 m["a"] = 1
@@ -151,13 +151,13 @@ m["b"] = 2
 m["c"] = 3
 for k in big(m)
     print(k)
-end for
+next
 for x in upto(3, 1)
     for y in upto(x)
         print(x, y)
-    end for
-end for
+    next
+next
 run(100)
 for p in grid(2)
     print(p.x + p.y)
-end for
+next

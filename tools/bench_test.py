@@ -204,7 +204,7 @@ def quickr_push(b: bench.Build) -> None:
     one element a push (REDIM PRESERVE's way), it cost 4.0x. Differences, as the bench subtracts a
     baseline of its own: raw counts at 8000 pushes read 2.45x, the offset not the growth. A run's count
     swings by 1M, so n large enough to drown that."""
-    prog = bench.QUICKR + "var a as int[]\nfor i in 0..{n}\n    a.push(i)\nend for\nprint(len(a))\n"
+    prog = bench.QUICKR + "var a as int[]\nfor i in 0..{n}\n    a.push(i)\nnext\nprint(len(a))\n"
     progs = {str(n): prog.format(n=n) for n in (32000, 64000, 128000)}
     r = bench.run_natives([b], progs, runs=3, quickr=True)[0]
     ratio = (r["128000"].insns - r["64000"].insns) / (r["64000"].insns - r["32000"].insns)

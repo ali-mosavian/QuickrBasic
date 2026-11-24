@@ -15,7 +15,7 @@ function squares(n as int) as int[]
     var r as int[]
     for i in 0..n
         r.push(i * i)
-    end for
+    next
     return r
 end function
 
@@ -23,14 +23,14 @@ function total(a as int[]) as int
     var t = 0
     for x in a
         t += x
-    end for
+    next
     return t
 end function
 
 function bump(mut a as int[])
     for mut x in a
         x += 1
-    end for
+    next
 end function
 
 let s = squares(5)
@@ -40,13 +40,13 @@ a.push(10)
 bump(mut a)
 for i, x in a
     print(i, x)
-end for
+next
 print(a.pop(), len(a))
 a.insert(0, 99)
 a.remove(2)
 for x in a
     print(x)
-end for
+next
 print(5 in a, 99 in a, 7 not in a)
 var balls as Ball[]
 balls.push(Ball(1, "a"))
@@ -54,7 +54,7 @@ balls.push(Ball(2, "b"))
 balls[1].r = 20
 for b in balls
     print(b.r, b.name)
-end for
+next
 let last = balls.pop()
 print(last.name, len(balls))
 var f as int[3]
@@ -71,7 +71,7 @@ names.push("y")
 names.insert(1, "m")
 for n in names
     print(n)
-end for
+next
 let c = copy(a)
 print(len(c))
 function three() as string[]
@@ -83,7 +83,7 @@ function three() as string[]
 end function
 for s in three()
     print(s)
-end for
+next
 var l = three()
 print("bb" in l, "z" in l, l.pop(), len(l))
 let t = three()[1]

@@ -9,7 +9,7 @@ function largest[T](a as T[]) as T
         if x > best then
             best = x
         end if
-    end for
+    next
     return best
 end function
 function pair[T](a as T, b as T) as int

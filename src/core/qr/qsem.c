@@ -20,7 +20,7 @@
  * one is built straight into the place it goes to, or first in a temporary when it reads that
  * place, or is no place's and its address is wanted. A for's element and a case's datum name
  * the place they stand for (QVar.place), so they cost nothing. A for over a list borrows it till
- * end for: no change to it but through its element.
+ * next: no change to it but through its element.
  *
  * An expression gets its type bottom up. A literal is untyped until its place types it: a
  * binary operator's other side, a declaration's as, a parameter's type; alone, an int or a
@@ -66,7 +66,7 @@ typedef struct {
     bool ready;
 } QScope;
 
-/* A for over a list: the list's variable, borrowed till its end for. */
+/* A for over a list: the list's variable, borrowed till its next. */
 typedef struct {
     const QVar *root;
     const QStmt *loop;
@@ -5380,7 +5380,7 @@ static void qsem_cond_of(QSem *const S, QStmt *const s)
     s->e = qsem_coerce(S, qsem_expr(S, s->e, QY_BOOL), QY_BOOL);
 }
 
-/* for i in a..b [step s]: ints; a constant step not 0. Its limit and step are variables, as
+/* for i = a to b [step s], for i in a..b: ints; a constant step not 0. Its limit and step are variables, as
    I.NEXT's (qr/qcg.c); by its step if constant, else 0. */
 static void qsem_loop(QSem *const S, const QStmt *const s)
 {
@@ -6798,7 +6798,7 @@ static bool qsem_returns(const QStmt *const last)
     if (last->kind == QS_RETURN)
         return true;
     if (last->kind == QS_ENDDO)
-        return !last->link->broken;
+        return !last->e && !last->link->broken;
 
     if (last->kind == QS_ENDMATCH) {
         for (const QStmt *c = last->link->link; c != last; c = c->link)
@@ -6970,6 +6970,8 @@ static void qsem_stmt(QSem *const S, QStmt *const s)
     case QS_ENDIF:
         qsem_pop(S);
 
+        if (s->kind == QS_ENDDO && s->e) /* the body's names ended */
+            qsem_cond_of(S, s);
         if (s->kind == QS_ENDIF && s->link->kind == QS_IF && s->link->link == s)
             qsem_guard(S, s->link->e, s->prev);
 

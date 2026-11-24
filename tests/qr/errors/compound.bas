@@ -26,11 +26,11 @@ var c as int[]
 for x in c
     c.push(x)
     x = 2
-end for
+next
 for mut x in c
     c.remove(0)
     print(len(c), c[0])
-end for
+next
 var bag as Bag
 var bag2 = bag
 print(bag.items[0])
@@ -59,7 +59,7 @@ let j = f"{3:q}"
 var ss as int[]
 for i in 0..3
     var t = ss
-end for
+next
 var l1 as int[]
 var l2 as int[]
 var l3 = l1 if len(l2) > 0 else l2

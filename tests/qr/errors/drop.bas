@@ -33,4 +33,4 @@ var m as Res[string]
 a, b = b, a
 for x in gen()
     print(x)
-end for
+next

@@ -9,7 +9,7 @@ function f(n as int)
 end function
 for i in 0..3
     i = 5
-end for
+next
 function g(mut n as int)
 end function
 var v = 1

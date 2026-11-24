@@ -20,9 +20,9 @@ print(a.zip(a).sum())
 print(5.sum())
 for mut x in a.filter(fn(x) x > 0)
     print(x)
-end for
+next
 for i, x in a.map(fn(x) x)
     print(x)
-end for
+next
 print(a.fold(0))
 print(a.map(fn(x as string) x).sum())

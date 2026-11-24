@@ -281,7 +281,10 @@ let sign = 1 if x >= 0 else -1
 - `for … in` takes any iterable: see [Iteration](#iteration).
 - `next` ends a `for` and takes no name. `wend` ends a `while`. `loop` ends a `do`.
 - `loop until c` leaves when `c` is true after a pass; `loop while c` when it is false. The body
-  runs at least once. `continue` in a `do` goes to that test.
+  runs at least once. `continue` in a `do` goes to that test. The test is outside the body: it
+  doesn't see the body's names.
+- `next`, `wend` and `loop` are written alone; `end for`, `end while` and `end do` are errors.
+  `next` is a keyword only where a statement starts: `it.next()` is a method.
 - `break` and `continue` act on the innermost loop.
 - `select case x` takes a number, a string, a bool or an enum. A case is a list of:
   - a value: `case 3, 5`, `case "q", "x"`;
@@ -297,10 +300,9 @@ let sign = 1 if x >= 0 else -1
 - A slice is a new value: a string's a new string, a list's a new list of copies. Its ends are
   clamped to the elements, so `s[..100]` of a shorter `s` is all of it. `s[i]` past the end is a
   runtime error, Subscript out of range.
-- **Not yet:** a counting loop is `for i in a..b [step s] … end for`, where a negative step
-  counts down from `a` to above `b`. Loops end `end for`, `end while` and `end do`, and `do` has
-  no test. `select case … end select` is `match … end match`, and a plain enum's case needs its
-  enum's name. A one-line `if` has no `else`, and `else if` is rejected.
+- **Not yet:** a `for` stepping past an `int`'s last value stops with Overflow. `select case …
+  end select` is `match … end match`, and a plain enum's case needs its enum's name. A one-line
+  `if` has no `else`, and `else if` is rejected.
 
 ### Records
 

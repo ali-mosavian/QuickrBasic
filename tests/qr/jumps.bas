@@ -15,5 +15,5 @@ print(0 < x < 5 < 10, 0 < x < 2 < 10, x + (10 if x > 1 else 20))
 var n = 0
 while n < 10 and not (n > 2 and n mod 2 = 1)
     n += 1
-end while
+wend
 print(n)

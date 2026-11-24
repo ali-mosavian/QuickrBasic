@@ -8,12 +8,12 @@ function steps(n as int) yields int
             x = 3 * x + 1
         end if
         yield x
-    end while
+    wend
 end function
 var t = 0
 for s in 1..3000
     for v in steps(s)
         t += v mod 7
-    end for
-end for
+    next
+next
 print(t)

@@ -2,11 +2,11 @@
 var m as int[int]
 for i in 0..4000
     m[i * 7919] = i
-end for
+next
 var sum = 0
 for r in 0..5
     for i in 0..4000
         sum += m[i * 7919]
-    end for
-end for
+    next
+next
 print(len(m), sum)

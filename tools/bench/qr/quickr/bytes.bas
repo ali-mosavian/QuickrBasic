@@ -6,6 +6,6 @@ for r in 0..20000
         if s[i] = 111 then
             n += 1
         end if
-    end for
-end for
+    next
+next
 print(n, s[4..9])

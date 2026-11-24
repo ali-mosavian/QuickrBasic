@@ -21,5 +21,5 @@ call.
     import os
     for a in os.args()
         print(a)
-    end for
+    next
     print(os.env("PATH"))

@@ -25,18 +25,18 @@ public function largest[T](a as T[]) as T
     var best = a[0]
     for x in a
         if x > best then best = x
-    end for
+    next
     return best
 end function
 public function evens(n as int) yields int
-    for i in 0..n step 2
+    for i = 0 to n - 1 step 2
         yield i
-    end for
+    next
 end function
 public function apply(xs as int[], f as function(int) as int) as int
     var total = 0
     for x in xs
         total += f(x)
-    end for
+    next
     return total
 end function

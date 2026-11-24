@@ -37,3 +37,16 @@ top 2147483646
 bottom -2147483646
 bottom -2147483647
 4 10 0
+to 1
+to 2
+to 3
+down 3
+down 2
+down 1
+once 1 1
+once 2 1
+once 3 1
+until 3
+while 4
+continue 6 3
+7

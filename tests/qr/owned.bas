@@ -10,7 +10,7 @@ function make(n as int) as Bag
     b.name = "bag" + string(n)
     for i in 0..n
         b.items.push(i)
-    end for
+    next
     return b
 end function
 
@@ -18,7 +18,7 @@ function sum(a as int[]) as int
     var t = 0
     for x in a
         t += x
-    end for
+    next
     return t
 end function
 
@@ -26,7 +26,7 @@ function count(n as int) as int
     var l as int[]
     for i in 0..n
         l.push(i)
-    end for
+    next
     return len(l)
 end function
 
@@ -48,7 +48,7 @@ function rev(a as int[]) as int[]
     var r as int[]
     for i in 0..len(a)
         r.push(a[len(a) - 1 - i])
-    end for
+    next
     return r
 end function
 let r = rev(rev(b.items))

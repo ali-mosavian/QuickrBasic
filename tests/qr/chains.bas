@@ -5,12 +5,12 @@ function upto(n as int) yields int
     while i < n
         yield i
         i += 1
-    end while
+    wend
 end function
 function chained(n as int) yields int
     for x in (0..n).filter(fn(x) x mod 2 = 1)
         yield x * 100
-    end for
+    next
 end function
 function twice(x as int) as int
     return x * 2
@@ -21,17 +21,17 @@ end function
 function evens(a as int[]) yields int
     for x in a.filter(fn(x) x mod 2 = 0).rev()
         yield x
-    end for
+    next
 end function
 function sums(n as int) yields int
     for i in 1..n
         yield (0..i).sum()
-    end for
+    next
 end function
 var a as int[]
 for i in 0..10
     a.push(i)
-end for
+next
 print(a.sum(), a.count(), a.filter(fn(x) x mod 2 = 0).sum())
 print(a.map(fn(x) x * x).filter(fn(v) v > 10).sum())
 print((0..5).sum(), (0..5).rev().collect()[0], len(a.collect()))
@@ -43,14 +43,14 @@ let s = "hello"
 print(s.count(), s.filter(fn(b) b = 108).count(), s.max() ?? 0)
 for i in (0..4).rev()
     print(i)
-end for
+next
 for x in a.filter(fn(x) x mod 3 = 0).map(fn(x) x * 10)
     if x = 30 then continue
     print(x)
-end for
+next
 for p, q in a.zip(a).filter(fn(u, v) u > 6)
     print(p + q)
-end for
+next
 print(a.zip(0..3).count(), a.zip(s).map(fn(x, b) x + b).sum())
 let sq = a.map(fn(x) x * x).collect()
 print(len(sq), sq[9])
@@ -64,12 +64,12 @@ print(g.next() ?? -1)
 print(upto(4).map(twice).collect()[3], upto(6).filter(fn(x) x > 2).count())
 for x in upto(10).filter(fn(x) x mod 4 = 0)
     print(x)
-end for
+next
 var ch = chained(6)
 print(ch.next() ?? -1, ch.next() ?? -1)
 for x in chained(4)
     print(x)
-end for
+next
 var m as int[string]
 m["a"] = 1
 m["bb"] = 2
@@ -79,12 +79,12 @@ arr[2] = 7
 print(arr.sum(), arr.rev().collect()[1])
 for b in "hi"
     print(b)
-end for
+next
 let k = 3
 var xs as int[]
 for i in 0..5
     xs.push(i)
-end for
+next
 print(f"{xs.filter(fn(x) x > k).sum()} and {xs.map(fn(x) x * k).max() ?? 0}")
 print("n=" + string(xs.sum()), xs.map(fn(x) xs.filter(fn(y) y < x).count()).sum())
 print(total(xs, fn(x) x + k), total(xs, twice))
@@ -95,12 +95,12 @@ print("w: " + (words.map(fn(w) w + w).max() ?? "") + "!")
 var a3 as int[]
 for i in 0..7
     a3.push(i)
-end for
+next
 var g3 = evens(copy(a3))
 print(g3.next() ?? -1, g3.next() ?? -1, g3.next() ?? -1, g3.next() ?? -1, g3.next() ?? -1)
 for x in evens(a3)
     print(x)
-end for
+next
 var sm = sums(5)
 print(sm.collect()[3], sm.next() ?? -1)
 print(sums(4).fold("", fn(t, v) t + string(v) + ","))

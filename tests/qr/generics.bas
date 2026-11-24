@@ -10,7 +10,7 @@ function largest[T](a as T[], better as int) as T
         if x > best then
             best = x
         end if
-    end for
+    next
     return best
 end function
 function pick[T](c as bool, a as T, b as T) as T
@@ -22,7 +22,7 @@ function count[T](a as T[], v as T) as int
         if x = v then
             n += 1
         end if
-    end for
+    next
     return n
 end function
 var ints as int[]
@@ -30,7 +30,7 @@ var strs as string[]
 for i in 0..5
     ints.push((i * 7) mod 5)
     strs.push(f"s{(i * 3) mod 4}")
-end for
+next
 print(largest(ints, 0), largest(strs, 0))
 print(pick(true, 1, 2), pick(false, "a", "b"), pick(true, 1.5, 2.5))
 print(count(ints, 3), count(strs, "s0"))

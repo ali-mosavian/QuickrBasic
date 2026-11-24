@@ -48,10 +48,10 @@ function tried(fail as bool) as int!
     return v
 end function
 
-function loop()
+function in_loop()
     for i in 0..3
         let r = Res(f"loop{i}")
-    end for
+    next
     print("loop done")
 end function
 
@@ -96,7 +96,7 @@ let got = kept()
 print("got", got.name)
 print(tried(true) is Error)
 print(tried(false) ?? 0)
-loop()
+in_loop()
 maybe_move(true)
 maybe_move(false)
 print(pool())
@@ -112,5 +112,5 @@ list.push(Res("l0"))
 list.push(moved)
 for i in 0..2
     let each = Res(f"top{i}")
-end for
+next
 print("end")

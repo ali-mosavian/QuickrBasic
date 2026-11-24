@@ -9,13 +9,13 @@ function total(a as Pt[]) as int
     for k in 0..4000
         for p in a
             s += p.x + p.y
-        end for
-    end for
+        next
+    next
     return s
 end function
 
 var a as Pt[]
 for i in 0..1000
     a.push(Pt(i mod 500, i mod 7))
-end for
+next
 print(total(a))
