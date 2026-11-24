@@ -5,7 +5,7 @@ tests/qr/NAME.bas, a Quickr file, must print NAME.out; tests/qr/errors/NAME.bas 
 nothing. A folder NAME/ beside a case holds the modules it imports, put beside it; NAME.in is its
 standard input, NAME.args its command line. --check must
 list the same errors, exit 1 on them and 0 on a clean program; --test must print NAME.test, if
-there, and exit 1 when a test fails. NAME picks cases; -v prints a failure's output."""
+there, and exit 1 when a test fails; --copies must print NAME.copies, if there. NAME picks cases; -v prints a failure's output."""
 
 import os
 import re
@@ -72,6 +72,15 @@ def tested(prog: Path) -> str:
     return "" if p.returncode == ("FAIL" in got) else f"--test exited {p.returncode}"
 
 
+def copied(prog: Path) -> str:
+    """--copies of prog: "" if it prints NAME.copies, else why."""
+    want = prog.with_suffix(".copies")
+    if not want.exists():
+        return ""
+    got = named(flagged("--copies", prog).stdout.decode("latin-1"), prog.stem)
+    return "" if got == want.read_text() else f"--copies printed {got[:60]!r}"
+
+
 def check(name: str, prog: Path) -> str:
     """--check of prog, its modules beside it: "" if its output and exit status are right, else why."""
     p = flagged("--check", prog)
@@ -91,7 +100,7 @@ def main() -> None:
     for k, prog in pick.items():
         got = named(res[k].out, k)
         why = "" if got == prog.with_suffix(".out").read_text() else f"{res[k].reason} {got[:60]!r}"
-        why = why or check(k, prog) or tested(prog)
+        why = why or check(k, prog) or tested(prog) or copied(prog)
         ok += not why
         print(f"pass {k}" if not why else f"FAIL {k}: {why}")
         if why and "-v" in sys.argv:

@@ -67,3 +67,13 @@ TEST(quickr_parameter_fields_by_ref)
     CHECK(!unit_ops(S, O_R_ADDR) && !unit_ops(S, O_FL_LD) && !unit_ops(S, O_FL_ST));
     CHECK(unit_ops(S, O_P_FL_LD) == 4 && unit_ops(S, O_P_FL_ST) == 3);
 }
+
+/* b = a copies a list only when a is used after it: the last use moves it, as it did before
+   assignment copied, and copies nothing. */
+TEST(quickr_assignment_moves_a_dead_source)
+{
+    CHECK(!build(S, "var a as int[]\na.push(1)\nvar b = a\nprint len(b)\n"));
+    CHECK(unit_calls(S, K_AMOVE) == 1 && !unit_calls(S, K_ACOPY));
+    CHECK(!build(S, "var a as int[]\na.push(1)\nvar b = a\nprint len(a); len(b)\n"));
+    CHECK(!unit_calls(S, K_AMOVE) && unit_calls(S, K_ACOPY) == 1);
+}

@@ -13,7 +13,6 @@ for k, v in m
 next
 m.push(1)
 print m.keys(1)
-let n = m
 let o as dict[string, int]
 o["a"] = 1
 var l as int[]

@@ -90,9 +90,9 @@ struct QLamAt {
     uint32_t capviews;
 };
 
-/* A variable moved: an error if it is used after, or in a loop it is declared outside. */
+/* A variable moved: a copy if it is used after, or in a loop it is declared outside. */
 typedef struct {
-    const QExpr *e;
+    QExpr *e;
     QVar *var;
     uint32_t at, loop; /* their tokens; loop UINT32_MAX none */
 } QMove;
@@ -3197,8 +3197,17 @@ static uint32_t qsem_at(const QSem *const S, const QTok *const t)
     return m->base + (uint32_t)(t - m->toks);
 }
 
-/* Value e of a type that owns a list, taken whole: a local's name moves (qsem_moved checks it
-   later), leaving its fn when it returns; any other place is copied, which copy() writes out. */
+/* Owned place e copied: listed for --copies. */
+static void qsem_copyof(QSem *const S, QExpr *const e)
+{
+    const char *const name = qsem_aname(S, e->type);
+    e->copy = true;
+    qast_error(&S->prog->copies, e->tok, "{} copied", name, (uint32_t)strlen(name));
+}
+
+/* Value e of a type that owns a list, taken whole: a local's name moves when qsem_moved finds it
+   is not used again, leaving its fn when it returns; any other place is copied. A value with drop
+   only moves. */
 static QExpr *qsem_owned(QSem *const S, QExpr *const e, const bool returned)
 {
     if (e->kind == QE_COND) { /* the arm taken moves */
@@ -3213,8 +3222,19 @@ static QExpr *qsem_owned(QSem *const S, QExpr *const e, const bool returned)
     QVar *const v = e->kind == QE_NAME ? e->var : nullptr;
 
     if (!v || (v->kind != QV_LET && v->kind != QV_VAR)) {
-        qsem_say(S, e->tok, "only a whole let or var moves: write copy(..)", nullptr);
-        e->type = QY_ERROR;
+        if (qast_drops(S->prog, e->type)) {
+            qsem_say(
+                S,
+                e->tok,
+                qsem_aname(S, e->type),
+                " has drop: only a whole let or var moves",
+                nullptr
+            );
+            e->type = QY_ERROR;
+        } else {
+            qsem_copyof(S, e);
+        }
+
         return e;
     }
 
@@ -3234,7 +3254,8 @@ static QExpr *qsem_owned(QSem *const S, QExpr *const e, const bool returned)
     return e;
 }
 
-/* Each move: its variable not used after it, nor moved in a loop it is declared outside. */
+/* Each move: its variable not used after it, nor moved in a loop it is declared outside, else a
+   copy; a value with drop's an error. */
 static void qsem_moved(QSem *const S)
 {
     for (uint32_t i = 0; i < S->nmoves; i++) {
@@ -3246,8 +3267,13 @@ static void qsem_moved(QSem *const S)
                                     ? " moves in a loop it is declared outside"
                                     : nullptr;
 
-        if (why)
-            qsem_say(S, m->e->tok, name, why, ": write copy(", name, ")", nullptr);
+        if (!why)
+            continue;
+
+        if (qast_drops(S->prog, m->e->type))
+            qsem_say(S, m->e->tok, name, why, "; it has drop, so it only moves", nullptr);
+        else
+            qsem_copyof(S, m->e);
     }
 }
 
@@ -3981,27 +4007,11 @@ static QExpr *qsem_len(QSem *const S, QExpr *const e)
     return e;
 }
 
-/* copy(x): a copy of x, a record's or a list's made whole. */
+/* copy(x): gone, assignment copies. */
 static QExpr *qsem_copy(QSem *const S, QExpr *const e)
 {
+    qsem_say(S, e->tok, "there is no copy(): an assignment copies, var b = a", nullptr);
     e->type = QY_ERROR;
-
-    if (!qsem_plain(S, e, 1))
-        return e;
-
-    QExpr *const a = qsem_settle(S, qsem_expr(S, e->args->e, QY_VOID));
-
-    if (!qsem_byplace(S, a->type))
-        return a;
-
-    if (qast_drops(S->prog, a->type)) {
-        qsem_say(S, e->tok, qsem_aname(S, a->type), " has drop: it can't be copied", nullptr);
-        return e;
-    }
-
-    e->builtin = QB_COPY;
-    e->a = qsem_addressed(S, a);
-    e->type = a->type;
     return e;
 }
 

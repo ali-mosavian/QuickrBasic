@@ -36,6 +36,12 @@ end function
 var a = Res("a")
 var b = Res("b")
 let c = copy(a)
+let e = a
+type Holder
+    r as Res
+end type
+var h = Holder(Res("h"))
+let hr = h.r
 print make().name
 a.drop()
 let d = Res.drop

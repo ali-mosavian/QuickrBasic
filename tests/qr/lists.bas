@@ -72,7 +72,7 @@ names.insert(1, "m")
 for n in names
     print n
 next
-let c = copy(a)
+let c = a
 print len(c)
 function three() as string[]
     var r as string[]

@@ -121,6 +121,20 @@ uint32_t unit_ops(const Session *const S, const uint8_t op)
     return n;
 }
 
+uint32_t unit_calls(const Session *const S, const uint8_t k)
+{
+    uint32_t n = 0;
+
+    for (uint32_t l = PROGBASE, len; (len = prog_line(&S->prog, l)->len); l += len) {
+        const uint8_t *b = at(S->allo.cache + prog_line(&S->prog, l)->code);
+
+        for (; *b != O_EOL && *b != O_EOL_TO; b += link_opsize(b))
+            n += *b == O_CALL && b[1] == k;
+    }
+
+    return n;
+}
+
 Status unit_run_bytes(Session *const S, const char *const src, const size_t n)
 {
     char path[] = "/tmp/qb_unit_XXXXXX";

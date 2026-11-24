@@ -33,7 +33,7 @@ end function
 print count(3); " "; count(5)
 let b = make(4)
 print b.name; " "; len(b.items); " "; sum(b.items)
-var c = copy(b)
+var c = b
 c.items.push(100)
 print len(b.items); " "; len(c.items); " "; sum(c.items)
 var bags as Bag[]

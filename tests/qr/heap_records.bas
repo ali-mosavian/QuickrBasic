@@ -50,7 +50,7 @@ print x.n; " "; len(x.tags); " "; x.name; " "; x.pair.key
 x = make(3)
 churn()
 print x.n; " "; len(x.tags); " "; x.tags[2]; " "; x.name; " "; x.pair.key
-var y = copy(x)
+var y = x
 y.tags[0] = 99
 y.pair.key += "!"
 churn()
@@ -92,7 +92,7 @@ end function
 
 var big = fill(4)
 big.b += 1
-let c = copy(big)
+let c = big
 big.d *= 2.0
 print big.a; " "; big.b; " "; big.d; " "; big.pad[69]; " "; big.s
 print weigh(big); " "; c.d

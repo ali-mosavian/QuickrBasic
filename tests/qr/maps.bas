@@ -76,7 +76,7 @@ let c = census(zoo)
 for k, v in c
     print k; " "; v
 next
-var z2 = copy(zoo)
+var z2 = zoo
 z2.pets["rex"].legs = 3
 z2.pets.remove("nemo")
 print zoo.pets["rex"].legs; " "; z2.pets["rex"].legs; " "; len(zoo.pets); " "; len(z2.pets)

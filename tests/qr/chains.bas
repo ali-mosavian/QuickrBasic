@@ -96,7 +96,7 @@ var a3 as int[]
 for i in 0..7
     a3.push(i)
 next
-var g3 = evens(copy(a3))
+var g3 = evens(a3)
 print g3.next() or else -1; " "; g3.next() or else -1; " "; g3.next() or else -1; " "; g3.next() or else -1; " "; g3.next() or else -1
 for x in evens(a3)
     print x

@@ -554,7 +554,8 @@ static bool option(const char **const s, const char *const opt)
 }
 
 /* Run the file the command line names, then exit; no name: back. --check FILE: every compile
-   error reported, not run; the exit 1 if any. --test FILE, a Quickr one: its tests run instead. */
+   error reported, not run; the exit 1 if any. --test FILE, a Quickr one: its tests run instead;
+   --copies FILE, a Quickr one: each copy of a list, a dict or a record holding one listed. */
 static void run_file(Session *const S)
 {
     char tail[PFIL_PATH];
@@ -566,6 +567,7 @@ static void run_file(Session *const S)
 
     S->repl.checking = option(&s, "--check");
     S->repl.testing = !S->repl.checking && option(&s, "--test");
+    S->repl.copying = !S->repl.checking && !S->repl.testing && option(&s, "--copies");
 
     size_t n = 0;
 

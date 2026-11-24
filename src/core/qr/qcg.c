@@ -2385,7 +2385,7 @@ static void qcg_place(QCg *const g, const QExpr *const dst, const QExpr *const e
     }
 
     if (qcg_list(g, e->type))
-        qcg_listto(g, dst, e, e->kind == QE_NAME && qcg_ty(g, e->type)->owns);
+        qcg_listto(g, dst, e, e->kind == QE_NAME && !e->copy && qcg_ty(g, e->type)->owns);
     else
         qcg_copyrec(g, dst, e);
 }

@@ -44,6 +44,7 @@ typedef struct {
     bool batch;           /* a file run: its end exits */
     bool checking;        /* --check's: the file compiled, not run */
     bool testing;         /* --test's: a Quickr file's tests run, not its program */
+    bool copying;         /* --copies: a Quickr file's copies of lists listed, not run */
     char file[PFIL_PATH]; /* the command line's file name; CHAIN's */
     char incl[PFIL_PATH]; /* an '$INCLUDE's */
 } Repl;

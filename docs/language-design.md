@@ -722,12 +722,13 @@ var c = b           ' a move: b is not used again
   fields is one block copy; a list or a dict copies its elements.
 - When `a` is not used again, `b = a` moves it and nothing is copied.
   - "Not used again" is read from the source: `a` is a whole `let` or `var`, no use of it
-    follows, it is no module variable, and the assignment is not in a loop `a` is declared
-    outside.
+    follows, no function sees it, and the assignment is not in a loop `a` is declared outside.
   - A field, an element and a parameter are always copied.
 - An argument kept by what it is passed to is assigned by the same rule: `a.push(x)`, `Ball(at:
-  v)`, a kept generator's arguments.
-- There is no `copy()`. `basic --copies FILE.bas` lists each line that copies a list or a dict.
+  v)`, a kept generator's arguments. So is a returned module variable or parameter.
+- There is no `copy()`; `copy(a)` is a compile error that names assignment. `basic --copies
+  FILE.bas` lists each copy kept of a list, a dict or a record holding one, by its line, column
+  and type, and runs nothing.
 - A type with an `fn drop(mut self)` has it run when an owner of one ends, at a known point: a
   `File` closes itself. There are no finalizers and no collector pauses.
   - A local ends when its function returns, by any `return` or `?`, or when its declaration runs
@@ -741,8 +742,6 @@ var c = b           ' a move: b is not used again
     can a type hold itself.
   - A runtime error or `os.exit()` runs no `drop`.
 - There are no pointers: an element is referred to by its index.
-- **Not yet:** a list, a dict, or a record holding one moves or is a compile error that asks for
-  `copy(a)`. `--copies` is not there.
 - **In the VM**, each owner of a value with `drop` has a hidden flag, set when it takes a value
   and cleared when the value moves out; the function's returns drop each owner whose flag is set.
   A list's elements are dropped by a loop in the line. A function with no owner runs nothing more.

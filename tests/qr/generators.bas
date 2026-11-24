@@ -104,7 +104,7 @@ function run(k as int)
     var names as string[]
     names.push("ann")
     names.push("bo")
-    var nm = evens(copy(names))
+    var nm = evens(names)
     names.push("cy")
     print nm.next() or else "?"; " "; nm.next() or else "?"; " "; len(names)
 end function

@@ -536,6 +536,7 @@ struct QExpr {
     bool done;    /* checked already: a generic call's argument, its T read from it */
     bool wrap;    /* QE_BINARY, QE_UNARY, QE_CONV in wrap(..): integers wrap, not Overflow */
     bool move;    /* QE_NAME: an owner's value moved out, its live flag cleared */
+    bool copy;    /* an owning place's value taken whole: copied, never moved */
     QBuiltin builtin;
     const QTok *tok; /* its first token; a binary's, its operator */
     QExpr *a, *b, *c;
@@ -762,6 +763,7 @@ typedef struct {
     QVar *vars;
     QTys tys;
     QErrs errs;
+    QErrs copies; /* each copy of a value owning a list kept, for --copies: "a T copied" */
     QOwners own;  /* the modules' */
     QStmt *atend; /* QS_ATEND, when a module owns a value with drop */
     bool testing; /* --test: the tests run, the main's top level only declares */

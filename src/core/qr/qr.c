@@ -635,7 +635,7 @@ uint32_t qr_build(Session *const S)
     QMem m = {.fault = &S->fault};
 
     arena_init(&m.arena, QR_CHUNK);
-    QProg p = {.errs = {.mem = &m}, .testing = S->repl.testing};
+    QProg p = {.errs = {.mem = &m}, .copies = {.mem = &m}, .testing = S->repl.testing};
 
     const QrLoad L = {S, &p, &m, false};
 
@@ -654,6 +654,13 @@ uint32_t qr_build(Session *const S)
     for (uint32_t i = 0; i < p.errs.n; i++)
         qr_say(S, &p, &p.errs.at[i]);
 
+    if (!p.errs.n && S->repl.copying) {
+        qast_sort(&p.copies);
+
+        for (uint32_t i = 0; i < p.copies.n; i++)
+            qr_say(S, &p, &p.copies.at[i]);
+    }
+
     if (!p.errs.n) {
         qr_instances(S, &p, &m);
         qlink_program(&S->comp, &p, &m, S->dbug.emit);
@@ -667,7 +674,7 @@ void qr_run(Session *const S)
 {
     const uint32_t errors = qr_build(S);
 
-    if (errors || S->repl.checking)
+    if (errors || S->repl.checking || S->repl.copying)
         cons_exit(&S->cons, errors ? 1 : 0);
 
     stmt_runfirst(S);
@@ -803,7 +810,7 @@ void qr_open(Session *const S)
     QMem m = {.fault = &S->fault};
 
     arena_init(&m.arena, QR_CHUNK);
-    QProg p = {.errs = {.mem = &m}};
+    QProg p = {.errs = {.mem = &m}, .copies = {.mem = &m}};
 
     qr_enter(&(QrLoad){S, &p, &m, true});
 
@@ -834,7 +841,7 @@ uint32_t qr_link(Session *const S, QrErr *const e)
     arena_init(&k->mem.arena, QR_CHUNK);
     QMem *const m = &k->mem;
     QProg *const p = qast_alloc(m, sizeof *p);
-    *p = (QProg){.errs = {.mem = m}, .keep = true};
+    *p = (QProg){.errs = {.mem = m}, .copies = {.mem = m}, .keep = true};
 
     qr_enter(&(QrLoad){S, p, m, true});
 
@@ -999,7 +1006,7 @@ bool qr_syntax(Session *const S, const uint32_t rec, QrErr *const e)
     QMem m = {.fault = &S->fault};
 
     arena_init(&m.arena, QR_CHUNK);
-    QProg p = {.errs = {.mem = &m}, .loose = true};
+    QProg p = {.errs = {.mem = &m}, .copies = {.mem = &m}, .loose = true};
 
     qr_lines(S, &p, &m, prog_line(&S->prog, rec)->file);
     bool found = false;
@@ -1021,7 +1028,7 @@ void qr_flag(Session *const S)
     arena_init(&m.arena, QR_CHUNK);
 
     for (uint32_t k = 0; k < modu_count(&S->modu); k++) {
-        QProg p = {.errs = {.mem = &m}, .loose = true};
+        QProg p = {.errs = {.mem = &m}, .copies = {.mem = &m}, .loose = true};
 
         qr_lines(S, &p, &m, k);
 
