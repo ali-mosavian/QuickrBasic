@@ -1256,11 +1256,18 @@ static const QTok *qr_type_of(
     return nullptr;
 }
 
-/* Record type t's fields, as any file declares them; the fns whose first parameter is one. */
-static void qr_fields(const QrSugg *const g, const QTok *const t)
+/* Type t's (tn bytes) members as any file declares them: on a value its fields and its methods
+   with self; on the type its methods without self and an enum's values. */
+static void qr_fields(
+    const QrSugg *const g,
+    const char *const t,
+    const uint32_t tn,
+    const bool value
+)
 {
     for (uint32_t k = 0; k < modu_count(&g->S->modu); k++) {
-        bool in = false; /* in type t's lines */
+        bool in = false;   /* in type t's lines */
+        bool body = false; /* in a method's */
 
         for (uint32_t rec = qr_next_line(&g->S->prog, k, 0); rec;
 
@@ -1268,17 +1275,29 @@ static void qr_fields(const QrSugg *const g, const QTok *const t)
             const QTok *toks;
             const uint32_t n = qr_line_toks(g, rec, &toks);
             const uint32_t i = qr_decl(toks, n);
+            const bool end = n >= 2 && toks[0].kind == QK_END;
 
-            if (in && n >= 2 && toks[0].kind == QK_END && toks[1].kind == QK_TYPE)
+            if (in && end && (toks[1].kind == QK_TYPE || toks[1].kind == QK_ENUM))
                 in = false;
-            else if (in && n >= 2 && toks[0].kind == QK_NAME && toks[1].kind == QK_AS)
-                g->fn(g->ctx, toks[0].text, toks[0].len, QRS_NAME, rec);
-            else if (i + 1 < n && toks[i].kind == QK_TYPE)
-                in = qr_named(&toks[i + 1], t->text, t->len);
-            else if (i + 5 < n && toks[i].kind == QK_FUNCTION && toks[i + 1].kind == QK_NAME &&
-                     toks[i + 2].kind == QK_LPAREN && toks[i + 4].kind == QK_AS &&
-                     qr_named(&toks[i + 5], t->text, t->len))
-                g->fn(g->ctx, toks[i + 1].text, toks[i + 1].len, QRS_FN, rec);
+            else if (in && end && toks[1].kind == QK_FN)
+                body = false;
+            else if (in && !body && i + 3 < n && toks[i].kind == QK_FN &&
+                     toks[i + 1].kind == QK_NAME && toks[i + 2].kind == QK_LPAREN) {
+                const uint32_t at = i + 3 + (toks[i + 3].kind == QK_MUT);
+                const bool self = at < n && toks[at].kind == QK_SELF;
+                body = true;
+
+                if (self == value)
+                    g->fn(g->ctx, toks[i + 1].text, toks[i + 1].len, QRS_FN, rec);
+            } else if (in && !body && n && toks[0].kind == QK_NAME) {
+                const bool field = n >= 2 && toks[1].kind == QK_AS;
+
+                if (field == value)
+                    g->fn(g->ctx, toks[0].text, toks[0].len, QRS_NAME, rec);
+            } else if (i + 1 < n && (toks[i].kind == QK_TYPE || toks[i].kind == QK_ENUM)) {
+                in = qr_named(&toks[i + 1], t, tn);
+                body = false;
+            }
         }
     }
 }
@@ -1345,7 +1364,9 @@ void qr_suggest(
         if (k < modu_count(&S->modu))
             qr_members(&g, k);
         else if (t)
-            qr_fields(&g, t);
+            qr_fields(&g, t->text, t->len, true);
+        else
+            qr_fields(&g, text + b, n - 1 - b, false);
     }
 
     arena_reset(&m.arena);

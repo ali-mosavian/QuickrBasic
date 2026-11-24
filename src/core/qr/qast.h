@@ -86,6 +86,7 @@ typedef enum : uint8_t {
     QK_UNTIL,
     QK_SELECT,
     QK_PRINT,
+    QK_SELF,
     QK_FUNCTION,
     QK_MATCH, /* not a keyword: an error naming select case */
     /* punctuation */
@@ -304,9 +305,11 @@ typedef struct {
     uint8_t *word; /* qlink's: by offset in its first QAST_WORDS bytes, the number + 1 of the
                       number field there, a held record's too (a word); 0 none */
     uint32_t nwords;
-    QFn *gen;      /* a kept generator's state's: its resumable instance */
-    QFn *opers;    /* a record's fn operators, by QFn.opnext */
-    QFn *drop;     /* a record's fn drop */
+    QFn *gen;    /* a kept generator's state's: its resumable instance */
+    QFn *opers;  /* a record's fn operators, by QFn.opnext */
+    QFn *drop;   /* a record's fn drop */
+    QFn **meths; /* a record's or an enum's methods */
+    uint32_t nmeths, capmeths;
     bool seen;     /* qast_drops' guard against a type holding itself */
 } QTy;
 
@@ -367,6 +370,8 @@ typedef struct {
 struct QFn {
     const QTok *name;
     bool pub;
+    QStmt *in; /* a method's type or enum, its statement; null a function */
+    bool self; /* a method on a value: its first parameter self */
     QParam *params;
     uint32_t npar;
     QTypeEx *rtype; /* its as type, null none */

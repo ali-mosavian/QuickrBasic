@@ -123,6 +123,7 @@ const char *qast_spelling(const QKind k)
         [QK_OPERATOR] = "operator",
         [QK_TEST] = "test",
         [QK_ASSERT] = "assert",
+        [QK_SELF] = "self",
         [QK_FUNCTION] = "function",
         [QK_LPAREN] = "(",
         [QK_RPAREN] = ")",

@@ -192,6 +192,9 @@ static QExpr *qsem_icall(QSem *S, QExpr *e, QExpr *f);
 static bool qsem_isrec(const QSem *S, QType t);
 static QExpr *qsem_name(QSem *S, QExpr *e);
 static QExpr *qsem_called(QSem *S, QExpr *e, const QBind *b);
+static QFn *qsem_methodof(const QSem *S, QType t, const QTok *name);
+static bool qsem_named(QSem *S, const QFn *f, const QTok *t);
+static QExpr *qsem_fnref(QSem *S, QExpr *e, QFn *f);
 
 /* ---- errors */
 
@@ -3548,6 +3551,15 @@ static QExpr *qsem_field(QSem *const S, QExpr *const e)
             return e;
         }
 
+        QFn *const f = b && b->ty ? qsem_methodof(S, b->ty, e->tok) : nullptr;
+
+        if (f && !qsem_named(S, f, e->tok)) {
+            e->type = QY_ERROR;
+            return e;
+        }
+
+        if (f) /* Type.f: a function value */
+            return qsem_fnref(S, e, f);
         if (b && b->ty)
             return qsem_variant(S, e, b->ty, false);
     }
@@ -3582,7 +3594,11 @@ static QExpr *qsem_field(QSem *const S, QExpr *const e)
             return e;
         }
 
-    qsem_say(S, e->tok, qsem_text(S, y->name), " has no field ", qsem_text(S, e->tok), nullptr);
+    if (qsem_methodof(S, a->type, e->tok))
+        qsem_say(S, e->tok, qsem_text(S, e->tok), " is a method: call it, with (..)", nullptr);
+    else
+        qsem_say(S, e->tok, qsem_text(S, y->name), " has no field ", qsem_text(S, e->tok), nullptr);
+
     return e;
 }
 
@@ -3907,18 +3923,14 @@ static QExpr *qsem_keys(QSem *const S, QExpr *const e)
 }
 
 /* len(a): a list's elements, a map's, a string's bytes, an array's its size. */
-static QExpr *qsem_len(QSem *const S, QExpr *const e, QExpr *const recv)
+static QExpr *qsem_len(QSem *const S, QExpr *const e)
 {
     e->type = QY_ERROR;
 
-    if (!recv && !qsem_plain(S, e, 1))
+    if (!qsem_plain(S, e, 1))
         return e;
-    if (recv && e->args) {
-        qsem_say(S, e->tok, "len() takes no values", nullptr);
-        return e;
-    }
 
-    QExpr *a = qsem_addressed(S, qsem_expr(S, recv ? recv : e->args->e, QY_VOID));
+    QExpr *a = qsem_addressed(S, qsem_expr(S, e->args->e, QY_VOID));
 
     if (a->type == QY_ERROR)
         return e;
@@ -3981,24 +3993,201 @@ static QExpr *qsem_copy(QSem *const S, QExpr *const e)
     return e;
 }
 
-/* a.f(b): a list's method, an enum's value with data, else f(a, b) with mut implied. */
-/* a.f(..)'s f, not in sight: the public fn f of the module type t is declared in; null none. */
-static const QBind *qsem_typefn(QSem *const S, const QType t, const QTok *const name)
+/* Type t's method name, null none. */
+static QFn *qsem_methodof(const QSem *const S, const QType t, const QTok *const name)
 {
     const QTy *const y = qast_compound(t) ? qast_ty(S->prog, t) : nullptr;
 
-    if (!y || !y->def)
-        return nullptr;
-
-    const QScope *const sc = &S->scopes[qsem_modof(S, y->def->tok)];
-
-    for (uint32_t i = 0; i < sc->n; i++)
-        if (qsem_same(sc->at[i].name, name) && sc->at[i].fn && sc->at[i].pub)
-            return &sc->at[i];
+    for (uint32_t k = 0; y && k < y->nmeths; k++)
+        if (qsem_same(y->meths[k]->name, name))
+            return y->meths[k];
 
     return nullptr;
 }
 
+/* Is t a type or an enum a program declares: one with methods? */
+static bool qsem_owntype(const QSem *const S, const QType t)
+{
+    const QTy *const y = qast_compound(t) ? qast_ty(S->prog, t) : nullptr;
+    return y && y->def && (y->kind == QT_REC || y->kind == QT_ENUM);
+}
+
+/* Method f named at t, as a call or a value: an error if it is drop. */
+static bool qsem_named(QSem *const S, const QFn *const f, const QTok *const t)
+{
+    if (!qsem_is(f->name, "drop"))
+        return true;
+
+    qsem_say(S, t, "drop runs when its owner ends: it is never called by name", nullptr);
+    return false;
+}
+
+/* Unchecked e's type as its names tell it, nothing checked: a variable's, its fields' and
+   elements', a call's result, an enum's value; QY_VOID when they don't. */
+static QType qsem_peek(QSem *const S, const QExpr *const e)
+{
+    if (e->done)
+        return e->type;
+
+    switch (e->kind) {
+    case QE_NAME: {
+        const QBind *const b = qsem_qual(S, e);
+        return b && b->var ? b->var->type : QY_VOID;
+    }
+
+    case QE_FIELD: {
+        const QBind *const b =
+            e->a->kind == QE_NAME || e->a->kind == QE_FIELD ? qsem_qual(S, e->a) : nullptr;
+
+        if (b && b->ty) /* Enum.value */
+            return qsem_methodof(S, b->ty, e->tok) ? QY_VOID : b->ty;
+        if (b && b->scope) {
+            const QBind *const x = qsem_qual(S, e);
+            return x && x->var ? x->var->type : QY_VOID;
+        }
+
+        const QType t = qsem_peek(S, e->a);
+        const QTy *const y = qsem_isrec(S, t) ? qast_ty(S->prog, t) : nullptr;
+
+        for (uint32_t k = 0; y && k < y->nfields; k++)
+            if (qsem_same(y->fields[k].name, e->tok))
+                return y->fields[k].type;
+
+        return QY_VOID;
+    }
+
+    case QE_INDEX: {
+        const QType t = qsem_peek(S, e->a);
+        const QTy *const y = qast_compound(t) ? qast_ty(S->prog, t) : nullptr;
+        const bool elems = y && (y->kind == QT_LIST || y->kind == QT_ARRAY || y->kind == QT_MAP);
+        return elems ? y->elem : QY_VOID;
+    }
+
+    case QE_CALL: {
+        const QBind *b = nullptr;
+        const QFn *f = nullptr;
+
+        if (!e->a)
+            b = qsem_find(S, e->tok);
+        else if (e->a->kind == QE_NAME || e->a->kind == QE_FIELD) {
+            const QBind *const m = qsem_qual(S, e->a);
+
+            if (m && m->ty) {
+                f = qsem_methodof(S, m->ty, e->tok);
+
+                if (!f)
+                    return m->ty; /* an enum's value with data */
+            } else if (m && m->scope && !m->alias) {
+                QExpr name = {.kind = QE_NAME, .tok = e->tok, .a = e->a};
+
+                b = qsem_qual(S, &name);
+            }
+        }
+
+        if (e->a && !b && !f)
+            f = qsem_methodof(S, qsem_peek(S, e->a), e->tok);
+        if (b && b->ty)
+            return b->ty;
+        if (b && b->fn)
+            f = b->fn;
+
+        return f && f->sig && !qast_generic(f) ? f->result : QY_VOID;
+    }
+
+    default:
+        return QY_VOID;
+    }
+}
+
+/* T.f(..): T's method f without self, else an enum's value with data. */
+static QExpr *qsem_typecall(QSem *const S, QExpr *const e, const QType t)
+{
+    QFn *const f = qsem_methodof(S, t, e->tok);
+    const QTy *const y = qast_ty(S->prog, t);
+    e->type = QY_ERROR;
+
+    if (!f && y->kind == QT_REC) {
+        qsem_say(S, e->tok, qsem_aname(S, t), " has no method ", qsem_text(S, e->tok), nullptr);
+        return e;
+    }
+
+    if (!f)
+        return qsem_variant(S, e, t, true);
+    if (!qsem_named(S, f, e->tok))
+        return e;
+
+    if (f->self) {
+        qsem_say(
+            S,
+            e->tok,
+            qsem_text(S, e->tok),
+            " takes self: call it on ",
+            qsem_aname(S, t),
+            nullptr
+        );
+        return e;
+    }
+
+    return qsem_fncall(S, e, f);
+}
+
+/* a.f(..), a checked as r: a method of r's type with self, else a record's fn value called. */
+static QExpr *qsem_valuecall(QSem *const S, QExpr *const e, QExpr *const r)
+{
+    e->type = QY_ERROR;
+
+    if (r->type == QY_ERROR)
+        return e;
+
+    QFn *const f = qsem_methodof(S, r->type, e->tok);
+
+    if (f && !qsem_named(S, f, e->tok))
+        return e;
+
+    if (f && !f->self) {
+        const char *const ty = qsem_text(S, qast_ty(S->prog, r->type)->name);
+        qsem_say(
+            S,
+            e->tok,
+            qsem_text(S, e->tok),
+            " is called on its type: ",
+            ty,
+            ".",
+            qsem_text(S, e->tok),
+            "(..)",
+            nullptr
+        );
+        return e;
+    }
+
+    if (f) {
+        QArg *const self = qast_alloc(S->mem, sizeof *self);
+        r->done = true;
+        self->e = r;
+        self->next = e->args;
+        self->mut = f->params[0].mut ? e->tok : nullptr;
+        e->args = self;
+        e->a = nullptr;
+        return qsem_fncall(S, e, f);
+    }
+
+    const QTy *const y = qsem_isrec(S, r->type) ? qast_ty(S->prog, r->type) : nullptr;
+
+    for (uint32_t k = 0; y && k < y->nfields; k++) /* a record's fn value, called */
+        if (qsem_same(y->fields[k].name, e->tok) && qast_isfn(S->prog, y->fields[k].type)) {
+            QExpr *const fv = qast_expr(S->mem, QE_FIELD, e->tok);
+            fv->a = qsem_addressed(S, r);
+            fv->field = k;
+            fv->type = y->fields[k].type;
+            return qsem_icall(S, e, fv);
+        }
+
+    qsem_say(S, e->tok, qsem_aname(S, r->type), " has no method ", qsem_text(S, e->tok), nullptr);
+    return e;
+}
+
+/* a.f(b): f of module a; a method of a's type; an enum's value with data; a list's, a dict's
+   or a chain's method. */
 static QExpr *qsem_method(QSem *const S, QExpr *const e)
 {
     static const struct {
@@ -4021,10 +4210,13 @@ static QExpr *qsem_method(QSem *const S, QExpr *const e)
         }
 
         if (b && b->ty)
-            return qsem_variant(S, e, b->ty, true);
+            return qsem_typecall(S, e, b->ty);
         if (b && b->var && qsem_isgen(S, b->var->type) && qsem_is(e->tok, "next"))
             return qsem_next(S, e, b->var);
     }
+
+    if (qsem_owntype(S, qsem_peek(S, e->a)))
+        return qsem_valuecall(S, e, qsem_expr(S, e->a, QY_VOID));
 
     uint32_t k;
 
@@ -4049,61 +4241,26 @@ static QExpr *qsem_method(QSem *const S, QExpr *const e)
             return qsem_next(S, e, b->var);
     }
 
-    const QBind *b = qsem_find(S, e->tok);
+    for (uint32_t i = 0; i < countof(lists); i++)
+        if (qsem_is(e->tok, lists[i].name))
+            return qsem_listop(S, e, lists[i].op);
 
-    if (!b || !b->fn) {
-        for (uint32_t i = 0; i < countof(lists); i++)
-            if (qsem_is(e->tok, lists[i].name))
-                return qsem_listop(S, e, lists[i].op);
+    if (qsem_is(e->tok, "swap"))
+        return qsem_swap(S, e);
+    if (qsem_is(e->tok, "sort"))
+        return qsem_sort(S, e);
+    if (qsem_is(e->tok, "keys"))
+        return qsem_keys(S, e);
+    if (qsem_is(e->tok, "get"))
+        return qsem_get(S, e);
 
-        if (qsem_is(e->tok, "swap"))
-            return qsem_swap(S, e);
-        if (qsem_is(e->tok, "sort"))
-            return qsem_sort(S, e);
-
-        if (qsem_is(e->tok, "len"))
-            return qsem_len(S, e, e->a);
-        if (qsem_is(e->tok, "keys"))
-            return qsem_keys(S, e);
-        if (qsem_is(e->tok, "get"))
-            return qsem_get(S, e);
-
-        QExpr *const r = qsem_expr(S, e->a, QY_VOID);
-        const QTy *const y = qsem_isrec(S, r->type) ? qast_ty(S->prog, r->type) : nullptr;
-
-        for (uint32_t k = 0; y && k < y->nfields; k++) /* a record's fn value, called */
-            if (qsem_same(y->fields[k].name, e->tok) && qast_isfn(S->prog, y->fields[k].type)) {
-                QExpr *const f = qast_expr(S->mem, QE_FIELD, e->tok);
-                f->a = qsem_addressed(S, r);
-                f->field = k;
-                f->type = y->fields[k].type;
-                return qsem_icall(S, e, f);
-            }
-
-        b = qsem_typefn(S, r->type, e->tok);
-
-        if (!b) {
-            if (r->type != QY_ERROR)
-                qsem_say(S, e->tok, "unknown function ", qsem_text(S, e->tok), nullptr);
-
-            e->type = QY_ERROR;
-            return e;
-        }
-
-        r->done = true;
-        e->a = r;
+    if (qsem_is(e->tok, "len")) {
+        qsem_say(S, e->tok, "the length is len(x), not x.len()", nullptr);
+        e->type = QY_ERROR;
+        return e;
     }
 
-    QArg *const self = qast_alloc(S->mem, sizeof *self);
-    self->e = e->a;
-    self->next = e->args;
-
-    if (b->fn->npar && b->fn->params[0].mut)
-        self->mut = e->tok;
-
-    e->args = self;
-    e->a = nullptr;
-    return qsem_fncall(S, e, b->fn);
+    return qsem_valuecall(S, e, qsem_expr(S, e->a, QY_VOID));
 }
 
 /* x in a, a list: a's element type. */
@@ -4642,7 +4799,7 @@ static QExpr *qsem_called(QSem *const S, QExpr *const e, const QBind *const b)
         return qsem_convert(S, e, to);
 
     if (qsem_is(e->tok, "len"))
-        return qsem_len(S, e, nullptr);
+        return qsem_len(S, e);
     if (qsem_is(e->tok, "copy"))
         return qsem_copy(S, e);
     if (qsem_is(e->tok, "wrap"))
@@ -5625,7 +5782,7 @@ static void qsem_return(QSem *const S, QStmt *const s)
 
 /* ---- chains */
 
-/* Is e, unchecked, a.name(..) for one of n names, and no fn of that name: *k which. */
+/* Is e, unchecked, a.name(..) for one of n names, a not a record or an enum: *k which. */
 static bool qsem_method_of(
     QSem *const S,
     const QExpr *const e,
@@ -5636,10 +5793,10 @@ static bool qsem_method_of(
 {
     if (e->kind != QE_CALL || !e->a || e->done || qsem_ismod(S, e->a))
         return false;
+    if (qsem_owntype(S, qsem_peek(S, e->a)))
+        return false;
 
-    const QBind *const b = qsem_find(S, e->tok);
-
-    for (uint32_t i = 0; i < n && !(b && b->fn); i++)
+    for (uint32_t i = 0; i < n; i++)
         if (qsem_is(e->tok, names[i])) {
             *k = i;
             return true;
@@ -5858,12 +6015,25 @@ static QExpr *qsem_applied(
 )
 {
     const uint32_t count = n + it->nparts;
+    const bool qual = a->kind == QE_FIELD && (a->a->kind == QE_NAME || a->a->kind == QE_FIELD);
+    const QBind *const b = qual && !qsem_ismod(S, a->a) ? qsem_qual(S, a->a) : nullptr;
+    QFn *const f = b && b->ty ? qsem_methodof(S, b->ty, a->tok) : nullptr;
 
-    if (a->kind == QE_NAME) { /* a fn, a fn value, a lambda passed in: called */
+    if (f && f->self && f->params[0].mut) {
+        qsem_say(S, a->tok, qsem_text(S, a->tok), " is no value: it takes mut", nullptr);
+        return qsem_const(S, a->tok, QY_ERROR, (QVal){});
+    }
+
+    if (a->kind == QE_NAME || (qual && (!b || b->ty))) { /* f, m.f, T.f, a lambda passed in */
         QExpr *const call = qast_expr(S->mem, QE_CALL, a->tok);
+        const bool self = f && f->self && count;
         QArg **next = &call->args;
+        call->a = qual ? a->a : nullptr;
 
-        for (uint32_t k = 0; k < count; k++) {
+        if (self) /* T.f(x, ..) is x.f(..) */
+            call->a = qsem_dup(S, n ? extra[0] : it->parts[0]);
+
+        for (uint32_t k = self; k < count; k++) {
             QArg *const x = qast_alloc(S->mem, sizeof *x);
             x->e = qsem_dup(S, k < n ? extra[k] : it->parts[k - n]);
             *next = x;
@@ -7076,15 +7246,29 @@ static void qsem_consts(QSem *const S, const QMod *const m)
     }
 }
 
+/* Is name taken in type y's one set of names, its fields', values' and methods': said. */
+static bool qsem_taken(QSem *const S, const QTy *const y, const QTok *const name)
+{
+    const char *what = nullptr;
+
+    for (uint32_t k = 0; k < y->nfields && y->kind == QT_REC; k++)
+        what = qsem_same(y->fields[k].name, name) ? " is already a field" : what;
+    for (uint32_t k = 0; k < y->nvars; k++)
+        what = qsem_same(y->vars[k].name, name) ? " is already a value" : what;
+    for (uint32_t k = 0; k < y->nmeths; k++)
+        what = qsem_same(y->meths[k]->name, name) ? " is already a method" : what;
+
+    if (what)
+        qsem_say(S, name, qsem_text(S, name), what, nullptr);
+
+    return what;
+}
+
 /* A field of type t declared: d's name, type and default. */
 static void qsem_addfield(QSem *const S, const QType t, QDecl *const d)
 {
     QTy *const y = qast_ty(S->prog, t);
-
-    for (uint32_t k = 0; k < y->nfields; k++)
-        if (qsem_same(y->fields[k].name, d->name))
-            qsem_say(S, d->name, qsem_text(S, d->name), " is already a field", nullptr);
-
+    qsem_taken(S, y, d->name);
     y->fields = qast_room(S->mem, y->fields, y->nfields, &y->capfields, sizeof *y->fields);
     y->fields[y->nfields++] = (QField){.name = d->name, .tx = d->type, .def = d->value};
 }
@@ -7093,11 +7277,7 @@ static void qsem_addfield(QSem *const S, const QType t, QDecl *const d)
 static void qsem_addvariant(QSem *const S, const QType t, const QDecl *const d)
 {
     QTy *const y = qast_ty(S->prog, t);
-
-    for (uint32_t k = 0; k < y->nvars; k++)
-        if (qsem_same(y->vars[k].name, d->name))
-            qsem_say(S, d->name, qsem_text(S, d->name), " is already a value", nullptr);
-
+    qsem_taken(S, y, d->name);
     y->vars = qast_room(S->mem, y->vars, y->nvars, &y->capvars, sizeof *y->vars);
     QVariant *const v = &y->vars[y->nvars++];
     *v = (QVariant){.name = d->name};
@@ -7136,6 +7316,17 @@ static void qsem_types(QSem *const S)
                     qsem_addfield(S, t, d);
             else if (m->kind == QS_VARIANT)
                 qsem_addvariant(S, t, m->decls);
+            else if (m->kind == QS_FN && m->fn->in == s) {
+                QTy *const y = qast_ty(S->prog, t);
+
+                if (!qsem_taken(S, y, m->fn->name)) {
+                    y->meths =
+                        qast_room(S->mem, y->meths, y->nmeths, &y->capmeths, sizeof *y->meths);
+                    y->meths[y->nmeths++] = m->fn;
+                }
+
+                m = m->fn->end ? m->fn->end : m;
+            }
 
         if (s->kind == QS_ENUM && !qast_ty(S->prog, t)->nvars)
             qsem_say(S, s->tok, "an enum needs a value", nullptr);
@@ -7243,6 +7434,9 @@ static void qsem_signature(QSem *const S, QFn *const f)
         QParam *const p = &f->params[k];
         QType t = p->type ? qsem_type(S, p->type) : QY_VOID;
 
+        if (f->self && !k)
+            t = f->in->ty;
+
         if (p->def) {
             QExpr *d = qsem_expr(S, p->def, t);
             d = p->type ? qsem_coerce(S, d, t) : qsem_settle(S, d);
@@ -7265,8 +7459,10 @@ static void qsem_signature(QSem *const S, QFn *const f)
                 nullptr
             );
 
-        if (!p->type && !p->def) {
-            qsem_say(S, p->name, qsem_text(S, p->name), " needs a type", nullptr);
+        if (!p->type && !p->def && !(f->self && !k)) {
+            if (p->name->kind != QK_SELF) /* else said */
+                qsem_say(S, p->name, qsem_text(S, p->name), " needs a type", nullptr);
+
             t = QY_ERROR;
         }
 
@@ -7322,35 +7518,29 @@ static void qsem_operdef(QSem *const S, QFn *const f)
     }
 }
 
-/* Is f a fn drop: named drop? */
+/* Is f named drop: a method, or a function said to be one? */
 static bool qsem_isdrop(const QFn *const f)
 {
-    return !f->lamof && !f->of && !f->test && qsem_is(f->name, "drop");
+    return !f->lamof && !f->of && !f->test && !f->op && qsem_is(f->name, "drop");
 }
 
-/* function drop(mut x as T): T's, a record declared in its module. */
+/* fn drop(mut self) in a type: its drop. */
 static void qsem_dropdef(QSem *const S, QFn *const f)
 {
-    if (f->ntp || f->ytx || f->npar != 1 || !f->params[0].mut || f->rtype || f->native) {
-        qsem_say(S, f->name, "drop takes one mut record and gives nothing", nullptr);
+    if (!f->in) {
+        qsem_say(S, f->name, "drop is a method: fn drop(mut self) in its type", nullptr);
         return;
     }
 
-    const QType t = f->params[0].var->type;
-
-    if (t == QY_ERROR)
+    if (f->in->kind != QS_TYPE) {
+        qsem_say(S, f->name, "an enum has no drop", nullptr);
         return;
+    }
 
-    QTy *const y = qsem_isrec(S, t) ? qast_ty(S->prog, t) : nullptr;
-
-    if (!y)
-        qsem_say(S, f->name, "drop takes one mut record, not ", qsem_aname(S, t), nullptr);
-    else if (qsem_modof(S, y->name) != qsem_modof(S, f->name))
-        qsem_say(S, f->name, qsem_aname(S, t), "'s drop goes in its module", nullptr);
-    else if (y->drop)
-        qsem_say(S, f->name, qsem_aname(S, t), " has a drop already", nullptr);
+    if (f->ntp || f->ytx || f->npar != 1 || !f->self || !f->params[0].mut || f->rtype)
+        qsem_say(S, f->name, "drop takes mut self alone and gives nothing", nullptr);
     else
-        y->drop = f;
+        qast_ty(S->prog, f->in->ty)->drop = f;
 }
 
 /* Does a value of type t hold one of type of: a field's, an element's, T?'s value? */
@@ -7672,7 +7862,7 @@ void qsem_program(QProg *const p, QMem *const m)
     qsem_scopes(&S);
 
     for (QFn *f = p->fns; f; f = f->next)
-        if (!f->lamof && !f->op && !f->test && !qsem_isdrop(f)) {
+        if (!f->lamof && !f->op && !f->test && !f->in && !qsem_isdrop(f)) {
             S.pub = f->pub;
             qsem_bind(&S, f->name, nullptr, f);
             S.pub = false;
@@ -7695,10 +7885,8 @@ void qsem_program(QProg *const p, QMem *const m)
             qsem_say(&S, f->name, "an operator is not generic and yields nothing", nullptr);
         else if (f->op)
             qsem_operdef(&S, f);
-        else if (qsem_isdrop(f) && f->sig)
-            qsem_dropdef(&S, f);
         else if (qsem_isdrop(f))
-            qsem_say(&S, f->name, "drop takes one mut record and gives nothing", nullptr);
+            qsem_dropdef(&S, f);
 
     qsem_dropok(&S);
 

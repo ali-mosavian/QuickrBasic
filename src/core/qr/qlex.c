@@ -51,7 +51,7 @@ static const char *const qlex_words[] = {
     [QK_FOR - QK_AND] = "for",       [QK_IF - QK_AND] = "if",
     [QK_IN - QK_AND] = "in",         [QK_IS - QK_AND] = "is",
     [QK_LET - QK_AND] = "let",       [QK_SELECT - QK_AND] = "select",
-    [QK_PRINT - QK_AND] = "print",
+    [QK_PRINT - QK_AND] = "print",   [QK_SELF - QK_AND] = "self",
     [QK_MOD - QK_AND] = "mod",       [QK_MUT - QK_AND] = "mut",
     [QK_NONE - QK_AND] = "none",     [QK_NOT - QK_AND] = "not",
     [QK_OR - QK_AND] = "or",         [QK_RETURN - QK_AND] = "return",

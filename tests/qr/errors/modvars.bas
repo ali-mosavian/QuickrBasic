@@ -33,10 +33,10 @@ end fn)
 var drops = 0
 type Res
     n as int
+    fn drop(mut self)
+        drops += 1
+    end fn
 end type
-function drop(mut r as Res)
-    drops += 1
-end function
 function hold(n as int)
     let r = Res(1)
 end function

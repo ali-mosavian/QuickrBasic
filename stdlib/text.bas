@@ -27,10 +27,10 @@ end function
 public function join(parts as string[], sep as string) as string
     var b as Builder
     for i in 0..len(parts)
-        if i > 0 then b.add(sep)
-        b.add(parts[i])
+        if i > 0 then add(mut b, sep)
+        add(mut b, parts[i])
     next
-    return b.text()
+    return text(b)
 end function
 
 ' a string built in parts: add them, then take text()

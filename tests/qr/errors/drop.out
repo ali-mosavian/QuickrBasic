@@ -1,33 +1,42 @@
-drop.bas:8:10: a Res has a drop already
+drop.bas:7:8: drop is already a method
+      fn drop(mut self)
+         ^
+drop.bas:12:8: drop takes mut self alone and gives nothing
+      fn drop(self)
+         ^
+drop.bas:15:10: drop is a method: fn drop(mut self) in its type
   function drop(mut r as Res)
            ^
-drop.bas:10:10: drop takes one mut record and gives nothing
-  function drop(r as int)
-           ^
-drop.bas:12:10: drop takes one mut record, not an int
-  function drop(mut n as int)
-           ^
-drop.bas:14:6: a Node has drop: it can't hold itself
+drop.bas:19:8: an enum has no drop
+      fn drop(mut self)
+         ^
+drop.bas:22:6: a Node has drop: it can't hold itself
   type Node
        ^
-drop.bas:19:10: an enum's data can't have drop
+drop.bas:27:10: an enum's data can't have drop
       held(r as Res)
            ^
-drop.bas:25:9: a generator can't own a Res
+drop.bas:33:9: a generator can't own a Res
       let r = Res("g")
           ^
-drop.bas:30:9: a Res has drop: it can't be copied
+drop.bas:38:9: a Res has drop: it can't be copied
   let c = copy(a)
           ^
-drop.bas:31:7: a Res has drop: keep it in a let first
+drop.bas:39:7: a Res has drop: keep it in a let first
   print make().name
         ^
-drop.bas:32:5: a dict's values can't have drop
+drop.bas:40:3: drop runs when its owner ends: it is never called by name
+  a.drop()
+    ^
+drop.bas:41:13: drop runs when its owner ends: it is never called by name
+  let d = Res.drop
+              ^
+drop.bas:42:5: a dict's values can't have drop
   var m as dict[string, Res]
       ^
-drop.bas:33:1: a, b = of values with drop: assign each
+drop.bas:43:1: a, b = of values with drop: assign each
   a, b = b, a
   ^
-drop.bas:33:4: a, b = of values with drop: assign each
+drop.bas:43:4: a, b = of values with drop: assign each
   a, b = b, a
      ^

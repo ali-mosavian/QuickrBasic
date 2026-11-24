@@ -3,6 +3,15 @@
 type Vec
     x as single
     y as single = 1
+
+    fn length2(self) as single
+        return self.x * self.x + self.y * self.y
+    end fn
+
+    fn scale(mut self, k as single)
+        self.x *= k
+        self.y *= k
+    end fn
 end type
 
 type Ball

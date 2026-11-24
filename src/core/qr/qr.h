@@ -82,7 +82,7 @@ typedef enum : uint8_t { QRS_KW, QRS_FN, QRS_NAME } QrSuggKind;
 typedef void QrSuggFn(void *ctx, const char *text, uint32_t len, QrSuggKind kind, uint32_t rec);
 /* What fits at a word whose line before it is text, n bytes, the line at rec (a new one's: the
    line it goes before), each to fn with ctx: after m. module m's public names; after v. the fields
-   of v's record type and the fns taking one first; else the keywords and the names in rec's file.
-   None in a string or a comment. */
+   and methods of v's type; after T. type T's methods without self, an enum's values; else the
+   keywords and the names in rec's file. None in a string or a comment. */
 void qr_suggest(Session *S, uint32_t rec, const char *text, uint32_t n, QrSuggFn *fn, void *ctx);
 #endif

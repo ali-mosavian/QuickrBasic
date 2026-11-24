@@ -1,5 +1,5 @@
 # The Quickr Language
-keys: ~quickr language, ~quickr and, ~quickr as, ~quickr break, ~quickr case, ~quickr const, ~quickr continue, ~quickr div, ~quickr do, ~quickr else, ~quickr elseif, ~quickr end, ~quickr enum, ~quickr false, ~quickr fn, ~quickr function, ~quickr for, ~quickr if, ~quickr in, ~quickr is, ~quickr let, ~quickr select, ~quickr mod, ~quickr mut, ~quickr none, ~quickr not, ~quickr or, ~quickr return, ~quickr step, ~quickr then, ~quickr true, ~quickr type, ~quickr var, ~quickr while, ~quickr xor, ~quickr yield, ~quickr yields, ~quickr from, ~quickr import, ~quickr public, ~quickr native, ~quickr operator, ~quickr test, ~quickr assert, ~quickr shl, ~quickr shr, ~quickr to, ~quickr next, ~quickr wend, ~quickr loop, ~quickr until, ~quickr print, ~quickr len, ~quickr copy, ~quickr wrap, ~quickr Error, ~quickr bool, ~quickr byte, ~quickr short, ~quickr int, ~quickr long, ~quickr ubyte, ~quickr ushort, ~quickr uint, ~quickr ulong, ~quickr single, ~quickr double, ~quickr string, ~quickr dict
+keys: ~quickr language, ~quickr and, ~quickr as, ~quickr break, ~quickr case, ~quickr const, ~quickr continue, ~quickr div, ~quickr do, ~quickr else, ~quickr elseif, ~quickr end, ~quickr enum, ~quickr false, ~quickr fn, ~quickr function, ~quickr for, ~quickr if, ~quickr in, ~quickr is, ~quickr let, ~quickr select, ~quickr mod, ~quickr mut, ~quickr none, ~quickr not, ~quickr or, ~quickr return, ~quickr step, ~quickr then, ~quickr true, ~quickr type, ~quickr var, ~quickr while, ~quickr xor, ~quickr yield, ~quickr yields, ~quickr from, ~quickr import, ~quickr public, ~quickr native, ~quickr operator, ~quickr test, ~quickr assert, ~quickr shl, ~quickr shr, ~quickr to, ~quickr next, ~quickr wend, ~quickr loop, ~quickr until, ~quickr print, ~quickr self, ~quickr len, ~quickr copy, ~quickr wrap, ~quickr Error, ~quickr bool, ~quickr byte, ~quickr short, ~quickr int, ~quickr long, ~quickr ubyte, ~quickr ushort, ~quickr uint, ~quickr ulong, ~quickr single, ~quickr double, ~quickr string, ~quickr dict
 
 Names are case-sensitive; keywords are lower case. A line ends a
 statement, except inside ( [ or {. A comment starts with '.
@@ -12,7 +12,8 @@ Declarations: name [as type] [= value].
     let x = 1             immutable
     var n as int          mutable; zero
     function f(a as int, mut b as P) as int ... end function
-    type P ... end type   a record: x as int, one field a line
+    type P ... end type   a record: x as int, one field a line,
+                          then its methods: fn f(self) ... end fn
     enum Mode ... end enum
 
 Types: bool, byte short int long, ubyte ushort uint ulong, single
@@ -32,8 +33,11 @@ Operators: + - * / div mod ^, = <> < <= > >=, and or not xor
 (integers: bitwise), shl shr, a if c else b, a or else b (b when a
 holds none or an Error), x? (an error returned), += -= *= /=.
 
-a.f(b) calls f(a, b). A parameter is read-only; mut makes it
-writable, the caller writing mut too. Records, lists and maps have
+Methods: fn f(self, ..) in a type or an enum is called a.f(..);
+mut self changes a. fn g(..) without self is called P.g(..). P.f is
+a function value. fn drop(mut self) runs when the owner ends.
+A parameter is read-only; mut makes it writable, the caller writing
+mut too. Records, lists and maps have
 one owner: copy(a) copies one.
 
 Modules: import m, import m as n, from m import a, b. Only public
@@ -53,11 +57,11 @@ them.
     type P
         x as int
         y as int
-    end type
 
-    function sum(p as P) as int
-        return p.x + p.y
-    end function
+        fn sum(self) as int
+            return self.x + self.y
+        end fn
+    end type
 
     let p = P(x: 2, y: 3)
     for i in 0..3

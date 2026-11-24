@@ -39,6 +39,7 @@ typedef struct {
     QFn *lastfn;
     QOpen *open;
     uint32_t nopen, capopen;
+    QStmt *in; /* a generic method parsed again: its type's */
 } QPar;
 
 static QExpr *qpar_expr(QPar *P);
@@ -60,13 +61,19 @@ static void qpar_fail(QPar *const P, const QTok *const t, const char *const msg)
     longjmp(P->fail, 1);
 }
 
+/* msg at t, the statement parsed on. */
+static void qpar_said(QPar *const P, const QTok *const t, const char *const msg)
+{
+    qast_error(&P->prog->errs, t, msg, t->text, t->len);
+}
+
 /* A named function's fn, at t: said, the function parsed on. */
 static void qpar_fnword(QPar *const P, const QTok *const t)
 {
     qast_error(
         &P->prog->errs,
         t,
-        "a function is defined with function, not fn: fn is a lambda's",
+        "a function is defined with function, not fn: fn is a method's or a lambda's",
         t->text,
         t->len
     );
@@ -376,6 +383,9 @@ static QExpr *qpar_primary(QPar *const P)
             return qpar_call(P, t);
 
         return qast_expr(P->mem, QE_NAME, t);
+
+    case QK_SELF:
+        return qast_expr(P->mem, QE_NAME, qpar_next(P));
 
     case QK_LPAREN: {
         qpar_next(P);
@@ -999,7 +1009,7 @@ static QStmt *qpar_simple(QPar *const P)
         break;
     }
 
-    if (t->kind == QK_NAME) { /* places, then = : an assignment */
+    if (t->kind == QK_NAME || t->kind == QK_SELF) { /* places, then = : an assignment */
         QExpr *to = qpar_postfix(P);
 
         if (qpar_is(P, QK_COMMA)) {
@@ -1164,18 +1174,20 @@ static const QTok *qpar_operator(QPar *const P, QFn *const f)
     qpar_expected(P, "+, -, *, /, = or < after operator");
 }
 
-/* function name[T, ..](params) [as type | yields type]. */
-static void qpar_fn(QPar *const P)
+/* function name[T, ..](params) [as type | yields type]; a method's fn name(..) in type or enum
+   in, its first parameter [mut] self if it has one. */
+static void qpar_fn(QPar *const P, QStmt *const in)
 {
     QStmt *const s = qpar_new(P, QS_FN, qpar_next(P));
     QFn *const f = qast_alloc(P->mem, sizeof *f);
-    const bool nested = P->nopen;
+    const bool nested = P->nopen > (in && P->nopen);
     s->fn = f;
     f->def = s;
+    f->in = in;
     qpar_append(P, s);
     qpar_push(P, s);
-    f->name = qpar_take(P, QK_OPERATOR) ? qpar_operator(P, f)
-                                        : qpar_need(P, QK_NAME, "the function's name");
+    f->name = !in && qpar_take(P, QK_OPERATOR) ? qpar_operator(P, f)
+                                               : qpar_need(P, QK_NAME, "the function's name");
 
     if (nested)
         qpar_unpaired(P, s->tok, "a function goes at the top level, not in a block");
@@ -1201,10 +1213,20 @@ static void qpar_fn(QPar *const P)
         QParam *const p = &f->params[f->npar];
         *p = (QParam){.mut = qpar_take(P, QK_MUT)};
 
-        p->name = qpar_need(P, QK_NAME, "a parameter's name");
+        const bool self = qpar_is(P, QK_SELF) && in && !f->npar;
 
-        if (qpar_take(P, QK_AS))
-            p->type = qpar_type(P);
+        if (qpar_is(P, QK_SELF) && !self)
+            qpar_said(P, P->t, "self is a method's first parameter");
+
+        f->self |= self;
+        p->name = qpar_is(P, QK_SELF) ? qpar_next(P) : qpar_need(P, QK_NAME, "a parameter's name");
+
+        if (self && qpar_is(P, QK_AS))
+            qpar_said(P, P->t, "self has no as: its type is the type it is in");
+        if (qpar_take(P, QK_AS)) {
+            QTypeEx *const x = qpar_type(P);
+            p->type = self ? nullptr : x;
+        }
         if (qpar_take(P, QK_EQ))
             p->def = qpar_expr(P);
 
@@ -1326,22 +1348,27 @@ static void qpar_end(QPar *const P)
         qpar_unpaired(P, t, "a select needs a case");
 
     const bool named = o && o->open->kind == QS_FN && !o->open->fn->test && !o->open->fn->lamof;
+    const bool method = named && o->open->fn->in;
 
-    if (named && word->kind == QK_FN && o->open->tok->kind == QK_FUNCTION)
+    if (named && !method && word->kind == QK_FN && o->open->tok->kind == QK_FUNCTION)
         qast_error(
             &P->prog->errs,
             word,
-            "a function ends with end function; end fn ends a lambda",
+            "a function ends with end function; end fn ends a method or a lambda",
             word->text,
             word->len
         );
+    if (method && word->kind == QK_FUNCTION)
+        qpar_said(P, word, "a method ends with end fn");
 
-    QKind want = word->kind; /* a function's end fn said above, the function closed */
+    QKind want = word->kind; /* a function's end fn, a method's end function, said above */
 
     if (o && o->open->kind == QS_FN && !named)
         want = o->open->fn->test ? QK_TEST : QK_FN;
-    else if (named && word->kind != QK_FN)
+    else if (named && !method && word->kind != QK_FN)
         want = QK_FUNCTION;
+    else if (method && word->kind != QK_FUNCTION)
+        want = QK_FN;
 
     if (!o || o->open->kind != qpar_ends[k].open ||
         (word->kind != want && word->kind != QK_MATCH)) {
@@ -1484,6 +1511,16 @@ static void qpar_statement(QPar *const P)
     const QOpen *const o = qpar_top(P);
 
     if (o && t->kind != QK_END) {
+        const bool typed = o->open->kind == QS_TYPE || o->open->kind == QS_ENUM;
+
+        if (typed && (t->kind == QK_FN || t->kind == QK_FUNCTION)) {
+            if (t->kind == QK_FUNCTION)
+                qpar_said(P, t, "a method is defined with fn, not function");
+
+            qpar_fn(P, o->open);
+            return;
+        }
+
         if (o->open->kind == QS_TYPE) {
             qpar_field(P);
             return;
@@ -1578,7 +1615,7 @@ static void qpar_statement(QPar *const P)
         return;
 
     case QK_FUNCTION:
-        qpar_fn(P);
+        qpar_fn(P, P->in);
         return;
 
     case QK_FN: /* a function's, mistaken */
@@ -1587,8 +1624,10 @@ static void qpar_statement(QPar *const P)
             return;
         }
 
-        qpar_fnword(P, P->t);
-        qpar_fn(P);
+        if (!P->in)
+            qpar_fnword(P, P->t);
+
+        qpar_fn(P, P->in);
         return;
 
     case QK_TEST:
@@ -1693,7 +1732,7 @@ static void qpar_native(QPar *const P)
     else if (!qpar_is(P, QK_FUNCTION))
         qpar_fail(P, P->t, "native goes before function");
 
-    qpar_fn(P);
+    qpar_fn(P, nullptr);
     P->nopen--;
     QFn *const f = P->last->fn;
     f->native = true;
@@ -1739,10 +1778,13 @@ static void qpar_unclosed(QPar *const P)
     for (uint32_t i = 0; !P->prog->loose && i < P->nopen; i++) {
         const QStmt *const s = P->open[i].open;
         const bool test = s->kind == QS_FN && s->fn->test;
+        const bool method = s->kind == QS_FN && s->fn->in;
         qast_error(
             &P->prog->errs,
             s->tok,
-            test ? "test without end test" : msgs[s->kind],
+            test     ? "test without end test"
+            : method ? "fn without end fn"
+                     : msgs[s->kind],
             nullptr,
             0
         );
@@ -1807,6 +1849,7 @@ static QPar qpar_at(QProg *const p, QMem *const m, const QTok *const t)
 QFn *qpar_again(QProg *const p, QMem *const m, const QFn *const f)
 {
     QPar P = qpar_at(p, m, f->def->tok);
+    P.in = f->in;
     const QStmt *const before = P.last;
 
     do {

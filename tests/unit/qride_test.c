@@ -389,8 +389,9 @@ TEST(qride_immediate_runs_quickr_at_the_stop)
 }
 
 static const char shadows[] =
-    DIALECT "type V\n    x as int\n    y as int\nend type\n"
-            "function len2(v as V) as int\n    return v.x * v.x + v.y * v.y\nend function\n"
+    DIALECT "type V\n    x as int\n    y as int\n"
+            "    fn len2(self) as int\n        return self.x * self.x + self.y * self.y\n    end fn\n"
+            "end type\n"
             "function f(n as int) as int\n    let v = V(3, 4)\n    var x = n\n"
             "    if n > 0 then\n        let x = 10\n        print x\n"
             "    end if\n    return x + v.len2()\nend function\n"
@@ -455,7 +456,8 @@ static const uint8_t *slots(Session *const S, const char *const text)
     return cols;
 }
 
-/* A Quickr line coloured by QBasic's lexer: function's name a variable's, yield a name, '{' a string's. */
+/* A Quickr line coloured by QBasic's lexer: function's name a variable's, yield a name, '{' a string's.
+   A method's name was a variable's and self a parameter's. */
 TEST(qride_colours_by_quickrs_lexer)
 {
     open_quickr(S);
@@ -467,6 +469,8 @@ TEST(qride_colours_by_quickrs_lexer)
     c = slots(S, "let s = f\"{n} it's\" + 'x'");
     CHECK(c[0] == SL_KW && c[8] == SL_STR && c[11] == SL_NAM && c[15] == SL_STR && c[21] == SL_OP);
     CHECK(c[23] == SL_COM);
+    c = slots(S, "    fn length(mut self, k as double)");
+    CHECK(c[4] == SL_KW && c[7] == SL_FNM && c[14] == SL_KW && c[18] == SL_KW && c[24] == SL_PAR);
     fx_done(S, files);
 }
 
@@ -487,13 +491,17 @@ static bool offers(Session *const S, const char *const text, const char *const w
     return found;
 }
 
-/* Completion offered QBasic's words in a Quickr program: RETURN, no module's fns, no fields. */
+/* Completion offered QBasic's words in a Quickr program: RETURN, no module's fns, no fields. After
+   a value's dot it offered the functions taking one first, which a.f() no longer calls, and none of
+   its type's methods. */
 TEST(qride_completes_quickr_words)
 {
     fx_open_program(S, "");
     fx_write_file(
         "main.bas",
-        DIALECT "import util\ntype P\n    x as int\n    y as int\nend type\n"
+        DIALECT "import util\ntype P\n    x as int\n    y as int\n"
+                "    fn half(self) as int\n        return self.x div 2\n    end fn\n"
+                "    fn origin() as P\n        return P(0, 0)\n    end fn\nend type\n"
                 "function norm(p as P) as int\n    return p.x + p.y\nend function\n"
                 "var q as P\nlet total = norm(q)\nprint total\n"
     );
@@ -508,8 +516,13 @@ TEST(qride_completes_quickr_words)
     CHECK(offers(S, "let a = util.t", "twice"));
     CHECK(offers(S, "let a = q.", "x"));
     CHECK(offers(S, "let a = q.", "y"));
-    CHECK(offers(S, "let a = q.", "norm"));
+    CHECK(offers(S, "let a = q.", "half"));
+    CHECK(!offers(S, "let a = q.", "norm"));
+    CHECK(!offers(S, "let a = q.", "origin"));
     CHECK(!offers(S, "let a = q.", "total"));
+    CHECK(offers(S, "let a = P.", "origin"));
+    CHECK(!offers(S, "let a = P.", "half"));
+    CHECK(!offers(S, "let a = P.", "x"));
     fx_done(S, files);
 }
 

@@ -6,6 +6,10 @@ var hidden = 5
 public type Point
     x as int
     y as int
+
+    fn norm(self) as int
+        return self.x + self.y
+    end fn
 end type
 public enum Shade
     dark

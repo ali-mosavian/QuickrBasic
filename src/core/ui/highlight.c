@@ -219,6 +219,7 @@ static uint8_t quickr_slot(const QTok *const t, const QKind prev)
         return SL_KW;
 
     case QK_FUNCTION:
+    case QK_FN: /* a method's name after it; a lambda's ( */
         hl.state = prev == QK_END ? 0 : HS_DEF;
         return SL_KW;
 

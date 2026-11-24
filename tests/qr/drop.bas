@@ -2,11 +2,11 @@
 ' drop: run when an owner of a value with drop ends
 type Res
     name as string
-end type
 
-function drop(mut r as Res)
-    print "drop"; " "; r.name
-end function
+    fn drop(mut self)
+        print "drop"; " "; self.name
+    end fn
+end type
 
 type Pair
     a as Res

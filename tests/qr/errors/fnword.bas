@@ -1,6 +1,6 @@
 ' OPTION DIALECT QUICKR
-' fn is a lambda's alone: a function, its end and its type are
-' written function
+' fn is a method's and a lambda's: a function, its end and its type
+' are written function
 fn twice(x as int) as int
     return x * 2
 end fn

@@ -9,19 +9,19 @@ let m = fs.read_text("missing.txt")
 print m is Error; " "; m.code; " "; m.message
 let f = fs.open("libfs.bin", "rw")
 if f is not Error then
-    print f.write("abcdef") is Error
-    print f.seek(2) is Error
-    print f.read(3); " "; f.read(10); " "; f.size()
+    print fs.write(f, "abcdef") is Error
+    print fs.seek(f, 2) is Error
+    print fs.read(f, 3); " "; fs.read(f, 10); " "; fs.size(f)
 end if
 function unclosed(path as string) as bool or Error
     let f = fs.open(path, "w")?
-    return f.write("written, closed by its drop")?
+    return fs.write(f, "written, closed by its drop")?
 end function
 function closed(path as string) as bool or Error
     var f = fs.open(path, "w")?
-    let ok = f.write("closed twice")?
-    f.close()
-    f.close()
+    let ok = fs.write(f, "closed twice")?
+    fs.close(mut f)
+    fs.close(mut f)
     return ok
 end function
 print unclosed("libfs.drp") or else false; " "; fs.read_text("libfs.drp") or else ""

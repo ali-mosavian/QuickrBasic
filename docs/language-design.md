@@ -24,7 +24,7 @@ type Ball
     vel as Vec
     r as double = 6
 
-    fn step(mut self, dt as double, size as Vec)
+    fn move(mut self, dt as double, size as Vec)
         self.at = self.at + self.vel * dt
         if not self.r <= self.at.x <= size.x - self.r then self.vel.x = -self.vel.x
         if not self.r <= self.at.y <= size.y - self.r then self.vel.y = -self.vel.y
@@ -42,7 +42,7 @@ var clock = time.Clock()
 while not keys.down(Key.escape)
     let dt = clock.tick()
     for mut b in balls
-        b.step(dt, size)
+        b.move(dt, size)
     next
     print f"{balls[0].at.x:.0f}", f"{balls[0].at.y:.0f}"
 wend
@@ -403,8 +403,10 @@ print v.length(); " "; v                ' 2.0 (2.0, 0.0)
   values, as `fn name(…) [as T] … end fn`.
 - A first parameter named `self` makes it a method on a value: `v.length()`. `self` has no `as`;
   its type is the type it is in. `self` reads the value. `mut self` changes it, and the value it
-  is called on is a `var`, a `mut` parameter or a `for mut` element.
-- A method without `self` is called on the type: `Vec.polar(1, 0)`.
+  is called on is a `var`, a `mut` parameter or a `for mut` element. `self` is a keyword, a
+  parameter nowhere else.
+- A method without `self` is called on the type: `Vec.polar(1, 0)`. One with `self` is called on
+  a value only: `Vec.length(v)` is a compile error.
 - A field is `self.x`, never bare. Another method is `self.f()` or `Vec.f()`.
 - A method is a function in all else: defaults, named arguments, `[T]`, `yields`, a result.
 - `v.f(x)` looks in the methods and fields of `v`'s type and nowhere else. `f(v, x)` calls a
@@ -416,10 +418,13 @@ print v.length(); " "; v                ' 2.0 (2.0, 0.0)
 - Only its own `type` block gives a type methods. A program gives none to `string`, a list, a
   dict or another module's type; it writes a function: `text.upper(s)`.
 - `Vec.length` is a function value, a `function(Vec) as double`. A `mut self` method is no value.
+  Passed to a chain or `sort` by name, as `vs.map(Vec.length)`, it is called directly, as a
+  function's name is.
 - Two names are reserved:
   - `fn text(self) as string`: `print` and an f-string spell the value by it.
   - `fn drop(mut self)`: runs when the value's owner ends (see [Ownership](#ownership)). It is
-    never called by name.
+    never called by name, and only a `type` has one: a top-level `function drop` is a compile
+    error.
 - The built-in types' methods are the core's: a list's, a dict's, an iterable's (below) and a
   kept generator's `next()`. `len(x)` is a function, not a method.
 - There is no inheritance, no interface and no dispatch at run time. A generic function is
@@ -427,10 +432,8 @@ print v.length(); " "; v                ' 2.0 (2.0, 0.0)
   no interface. A list of mixed shapes is an enum with data.
 - **In the VM**, a method is a procedure with `self` its first parameter, and a call of it is the
   call a function's is. A method whose body is one `return` is inlined.
-- **Not yet:** a type block holds fields only. `a.f(b)` calls the function `f(a, b)` in sight,
-  else the public `f` of the module declaring `a`'s type, so two types can't share a method's
-  name. `drop` is a function `drop(mut x as T)` in `T`'s module. `text`, `self` and `private` are
-  not there. `a.len()` works.
+- **Not yet:** `text` and `private`. A method whose body is one `return` is called, as a
+  function is.
 
 ### Operators on records
 
@@ -883,7 +886,7 @@ end function
 ```basic
 test "a ball bounces off the left wall"
     var b = Ball(at: Vec(1, 50), vel: Vec(-10, 0))
-    b.step(0.1, Vec(320, 200))
+    b.move(0.1, Vec(320, 200))
     assert b.vel.x > 0
 end test
 ```

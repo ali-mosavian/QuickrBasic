@@ -14,11 +14,11 @@ native function error_text(err as int) as string
 ' an open file: its number, as OPEN's; 0 closed
 public type File
     n as int
-end type
 
-function drop(mut f as File)
-    close(mut f)
-end function
+    fn drop(mut self)
+        close(mut self)
+    end fn
+end type
 
 ' path opened: mode "r" to read, "w" to write it anew, "a" to add to its end, "rw" both
 public function open(path as string, mode as string = "r") as File or Error
@@ -63,7 +63,7 @@ end function
 public function write_text(path as string, s as string) as bool or Error
     var f = open(path, "w")?
     let st = file_write(f.n, s)
-    f.close()
+    close(mut f)
     if st < 0 then return Error(-st, f"{path}: {error_text(-st)}")
     return true
 end function
