@@ -17,7 +17,6 @@
  *    a and b     a, I.LD.I32 n|FALSE, CALL QJ, b, I.LD.I32 m|ALWAYS, CALL QJ, I.LD.U8 0
  */
 #include "qr/qrt.h"
-#include <stdio.h>
 #include "session.h"
 #include "mem/array.h"
 #include "num/double.h"
@@ -431,7 +430,141 @@ static uint32_t qrt_group(char *const b, const uint32_t n, const char g)
     return n + commas;
 }
 
-/* A number's digits, no sign, by the spec's type: to body, room for 512; its length. */
+/* u in base 2, 8, 10 or 16 to out; its length. */
+static uint32_t qrt_radix(uint32_t u, const uint32_t base, const bool upper, char *const out)
+{
+    const char *const digits = upper ? "0123456789ABCDEF" : "0123456789abcdef";
+    char rev[32];
+    uint32_t n = 0;
+
+    do {
+        rev[n++] = digits[u % base];
+        u /= base;
+    } while (u);
+
+    for (uint32_t i = 0; i < n; i++)
+        out[i] = rev[n - 1 - i];
+
+    return n;
+}
+
+enum { QRT_SIG = 17, QRT_PREC = 100 }; /* a double's digits known; a precision at most */
+
+/* m, finite and not below 0, to n significant digits, zeros kept: dig, and the first's power of
+   ten. */
+static void qrt_sig(const double m, const uint32_t n, uint8_t *const dig, int32_t *const dp)
+{
+    memset(dig, '0', n);
+    *dp = 0;
+
+    if (m > 0)
+        dubl_digits(m, n < QRT_SIG ? n : QRT_SIG, dig, dp);
+}
+
+/* dig[0..n) (its first's power dp) with prec digits after the point, zeros past n. */
+static uint32_t qrt_fixed(
+    const uint8_t *const dig,
+    const uint32_t n,
+    const int32_t dp,
+    const int32_t prec,
+    const bool point,
+    char *const out
+)
+{
+    uint32_t o = 0;
+
+    for (int32_t p = dp > 0 ? dp : 0; p >= -prec; p--) {
+        const int32_t i = dp - p;
+        out[o++] = i >= 0 && (uint32_t)i < n ? (char)dig[i] : '0';
+
+        if (!p && (prec || point))
+            out[o++] = '.';
+    }
+
+    return o;
+}
+
+/* dig[0..n) as d.ddde+XX, n - 1 digits after the point. */
+static uint32_t qrt_expo(
+    const uint8_t *const dig,
+    const uint32_t n,
+    const int32_t dp,
+    const bool point,
+    const char e,
+    char *const out
+)
+{
+    uint32_t o = 0;
+    out[o++] = (char)dig[0];
+
+    if (n > 1 || point)
+        out[o++] = '.';
+
+    for (uint32_t i = 1; i < n; i++)
+        out[o++] = (char)dig[i];
+
+    out[o++] = e;
+    out[o++] = dp < 0 ? '-' : '+';
+    const uint32_t x = (uint32_t)(dp < 0 ? -dp : dp);
+
+    if (x < 10)
+        out[o++] = '0';
+
+    return o + qrt_radix(x, 10, false, out + o);
+}
+
+/* m, finite and not below 0, by type e, f or g and its precision (Python's, # alt). */
+static uint32_t qrt_real_as(
+    const double m,
+    const char type,
+    const int32_t prec,
+    const bool alt,
+    char *const out
+)
+{
+    uint8_t dig[QRT_PREC + 400];
+    int32_t dp;
+    const char t = (char)(type | 0x20);
+    const char e = type == t ? 'e' : 'E';
+
+    if (t == 'e') {
+        qrt_sig(m, (uint32_t)prec + 1, dig, &dp);
+        return qrt_expo(dig, (uint32_t)prec + 1, dp, alt, e, out);
+    }
+
+    if (t == 'f') {
+        qrt_sig(m, QRT_SIG, dig, &dp);
+        const int32_t n = dp + 1 + prec;
+
+        if (n < 1) { /* below the last place shown: 0, or its 1 when over half of it */
+            bool up = n == 0 && dig[0] > '5';
+
+            for (uint32_t i = 1; n == 0 && dig[0] == '5' && i < QRT_SIG && !up; i++)
+                up = dig[i] != '0';
+
+            const uint8_t one = '1';
+            return qrt_fixed(&one, up, -prec, prec, alt, out);
+        }
+
+        qrt_sig(m, (uint32_t)n, dig, &dp);
+        return qrt_fixed(dig, (uint32_t)n, dp, prec, alt, out);
+    }
+
+    const int32_t p = prec ? prec : 1; /* g */
+    qrt_sig(m, (uint32_t)p, dig, &dp);
+    uint32_t n = (uint32_t)p;
+
+    while (!alt && n > 1 && dig[n - 1] == '0')
+        n--;
+
+    if (dp < -4 || dp >= p)
+        return qrt_expo(dig, n, dp, alt, e, out);
+
+    const int32_t after = alt ? p - 1 - dp : (int32_t)n - 1 - dp;
+    return qrt_fixed(dig, n, dp, after > 0 ? after : 0, alt, out);
+}
+
+/* A number's digits, no sign, by the spec's type: to body; its length. */
 static uint32_t qrt_digits(
     const QrtSpec *const f,
     const QrtKind kind,
@@ -449,24 +582,19 @@ static uint32_t qrt_digits(
             return 1;
         }
 
-        if (t == 'b') {
-            char rev[32];
-            uint32_t n = 0;
-
-            for (uint32_t x = u; !n || x; x >>= 1)
-                rev[n++] = (char)('0' + (x & 1));
-            for (uint32_t i = 0; i < n; i++)
-                body[i] = rev[n - 1 - i];
-
-            return n;
-        }
-
-        const char *const fmt = t == 'o' ? "%o" : t == 'x' ? "%x" : t == 'X' ? "%X" : "%u";
-        return (uint32_t)snprintf(body, 512, fmt, u);
+        const uint32_t base = t == 'b' ? 2 : t == 'o' ? 8 : t == 'x' || t == 'X' ? 16 : 10;
+        return qrt_radix(u, base, t == 'X', body);
     }
 
     const double d = kind == QRT_INT ? (double)v.i : kind == QRT_SINGLE ? (double)v.f : v.d;
     const double m = d < 0 ? -d : d;
+    const bool upper = t && t != '%' && t != 'n' && !(t & 0x20);
+
+    if (m != m || m > 1.7976931348623157e308) {
+        const char *const s = m != m ? (upper ? "NAN" : "nan") : upper ? "INF" : "inf";
+        memcpy(body, s, 3);
+        return 3;
+    }
 
     if (!t && f->prec < 0) { /* as print spells it */
         const Cell mag = kind == QRT_SINGLE ? (Cell){.f = (float)m} : (Cell){.d = m};
@@ -474,12 +602,9 @@ static uint32_t qrt_digits(
         return qrt_text(kind == QRT_SINGLE ? QRT_SINGLE : QRT_DOUBLE, mag, (uint8_t *)body);
     }
 
-    const int32_t prec = f->prec < 0 ? 6 : f->prec > 100 ? 100 : f->prec;
-    const char tt = !t || t == 'n' ? 'g' : t == '%' ? 'f' : t;
-    char fmt[8];
-    snprintf(fmt, sizeof fmt, "%%%s.*%c", f->alt ? "#" : "", tt);
-    const int n = snprintf(body, 512, fmt, prec, t == '%' ? m * 100 : m);
-    return n < 512 ? (uint32_t)n : 511;
+    const int32_t prec = f->prec < 0 ? 6 : f->prec > QRT_PREC ? QRT_PREC : f->prec;
+    const char type = !t || t == 'n' ? 'g' : t == '%' ? 'f' : t;
+    return qrt_real_as(t == '%' ? m * 100 : m, type, prec, f->alt, body);
 }
 
 uint32_t qrt_format(
@@ -492,7 +617,7 @@ uint32_t qrt_format(
 )
 {
     const QrtSpec f = qrt_spec(spec, spec + n);
-    char body[512];
+    char body[QRT_PREC + 512];
     uint32_t len;
     const char *pre = "";
     bool neg = false;

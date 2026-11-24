@@ -32,7 +32,6 @@
  */
 #include "qr/qsem.h"
 #include <stdarg.h>
-#include <stdio.h>
 
 enum { QSEM_SAY = 160 }; /* an error's text at most */
 
@@ -143,6 +142,25 @@ static const char *qsem_join(
     return s;
 }
 
+/* n in decimal, in the arena. */
+static const char *qsem_uint(QSem *const S, uint32_t n)
+{
+    char rev[12];
+    uint32_t k = 0;
+
+    do {
+        rev[k++] = (char)('0' + n % 10);
+        n /= 10;
+    } while (n);
+
+    char *const s = qast_alloc(S->mem, k + 1);
+
+    for (uint32_t i = 0; i < k; i++)
+        s[i] = rev[k - 1 - i];
+
+    return s;
+}
+
 /* Type t's name as written: int, Vec, int[], Vec[4], (int, string). */
 static const char *qsem_tyname(QSem *const S, const QType t)
 {
@@ -159,11 +177,13 @@ static const char *qsem_tyname(QSem *const S, const QType t)
     case QT_LIST:
         return qsem_join(S, qsem_tyname(S, y->elem), "[]", "");
 
-    case QT_ARRAY: {
-        char n[16];
-        snprintf(n, sizeof n, "[%u]", y->count);
-        return qsem_join(S, qsem_tyname(S, y->elem), n, "");
-    }
+    case QT_ARRAY:
+        return qsem_join(
+            S,
+            qsem_join(S, qsem_tyname(S, y->elem), "[", qsem_uint(S, y->count)),
+            "]",
+            ""
+        );
 
     default: {
         const char *s = "(";
@@ -2369,11 +2389,16 @@ static void qsem_destructure(QSem *const S, QStmt *const s)
     const QTy *const y = qast_compound(v->type) ? qast_ty(S->prog, v->type) : nullptr;
     const bool fits = y && y->kind == QT_TUPLE && y->nfields == n;
 
-    if (v->type != QY_ERROR && !fits) {
-        char count[16];
-        snprintf(count, sizeof count, "%u", n);
-        qsem_say(S, v->tok, qsem_aname(S, v->type), " is not ", count, " values", nullptr);
-    }
+    if (v->type != QY_ERROR && !fits)
+        qsem_say(
+            S,
+            v->tok,
+            qsem_aname(S, v->type),
+            " is not ",
+            qsem_uint(S, n),
+            " values",
+            nullptr
+        );
 
     if (fits)
         qsem_addressed(S, v);
