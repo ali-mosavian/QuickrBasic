@@ -3,14 +3,14 @@
 //
 // # How it works
 // The module's thread (GpuLink) copies each list and the memory it points at into one buffer, its
-// pointers made offsets there, and posts it; it goes on while the page is at most FLIGHT lists behind,
-// and a read waits for the page. The page (Gpu) plays them on an OffscreenCanvas's context. Every
-// texture is R8, RGBA8 or DEPTH16, zeros as WebGL makes it, an RGBA one with a framebuffer to draw
-// in, a depth one attached to it by the first pass that names both. A pipeline is a program, its
-// blend, its depth and its vertices' layout; a draw's alpha the blend colour. GL's
-// row 0 is a texture's first, so clip space's y runs down its rows (y_down), and uploads, clips and
-// reads take rows as they are. SHOW copies the texture to the one shown; at each refresh the page
-// draws that, flipped to put row 0 on top (present).
+// pointers made offsets there, and posts it; it goes on while the GPU has at most FLIGHT unfinished, as
+// a swapchain holds a native program without vsync, and a read waits for the page. The page (Gpu) plays
+// them on an OffscreenCanvas's context. Every texture is R8, RGBA8 or DEPTH16, zeros as WebGL makes it,
+// an RGBA one with a framebuffer to draw in, a depth one attached to it by the first pass that names
+// both. A pipeline is a program, its blend, its depth and its vertices' layout; a draw's alpha the
+// blend colour. GL's row 0 is a texture's first, so clip space's y runs down its rows (y_down), and
+// uploads, clips and reads take rows as they are. SHOW copies the texture to the one shown; at each
+// refresh the page draws that, flipped to put row 0 on top (present).
 
 const OP = { BUFFER: 1, WRITE: 2, TEXTURE: 3, FREE: 4, UPLOAD: 5, PIPELINE: 6, PASS: 7, CLIP: 8, UNIFORMS: 9,
   DRAW: 10, SHOW: 11 };
@@ -97,7 +97,7 @@ export function gpu(memory, sync) {
   return gl && new Gpu(gl, memory, sync);
 }
 
-class Gpu {
+export class Gpu {
   constructor(gl, memory, sync) {
     this.gl = gl;
     this.memory = memory;
@@ -108,6 +108,7 @@ class Gpu {
     this.uniforms = gl.createBuffer();
     this.shown = null; // the texture shown
     this.fresh = false; // shown since present
+    this.fences = []; // after each list the GPU has not finished
     gl.bindVertexArray(gl.createVertexArray());
   }
 
@@ -183,8 +184,24 @@ class Gpu {
       }
     }
     this.list = null;
-    Atomics.add(this.sync, PLAYED, 1);
-    Atomics.notify(this.sync, PLAYED);
+    this.fences.push(this.gl.fenceSync(this.gl.SYNC_GPU_COMMANDS_COMPLETE, 0));
+    this.gl.flush();
+    if (this.fences.length === 1) setTimeout(() => this.finished());
+  }
+
+  // The lists the GPU has finished, counted played; looked at again while one is not. A fence
+  // signals only in a later task.
+  finished() {
+    const gl = this.gl;
+    let n = 0;
+    for (; n < this.fences.length && gl.clientWaitSync(this.fences[n], 0, 0) !== gl.TIMEOUT_EXPIRED; n++)
+      gl.deleteSync(this.fences[n]);
+    this.fences.splice(0, n);
+    if (n) {
+      Atomics.add(this.sync, PLAYED, n);
+      Atomics.notify(this.sync, PLAYED);
+    }
+    if (this.fences.length) setTimeout(() => this.finished());
   }
 
   // Buffer id at least bytes of kind, made again twice that when smaller.
