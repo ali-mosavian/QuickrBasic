@@ -134,7 +134,7 @@ dos-zip: $(DOS_EXE) $(DOS_GAMES) $(DOS_MODULES)
 	mkdir -p $(B)/release
 	cp $(B)/ide32.exe $(B)/release/IDE32.EXE
 	cp $(B)/basic32.exe $(B)/release/BASIC32.EXE
-	cp $(B)/DOS32A.EXE $(B)/BASIC.HLP $(DOS_GAMES) $(GFX_DEMO) $(B)/release/
+	cp $(B)/DOS32A.EXE $(B)/BASIC.HLP $(DOS_GAMES) $(GFX_DEMOS) $(B)/release/
 	rm -rf $(B)/release/barkley $(B)/release/engine $(B)/release/lib
 	mkdir -p $(B)/release/lib
 	cp $(B)/lib/gfx.qbx $(B)/release/lib/
@@ -347,14 +347,14 @@ $(GUI)/QuickrBasic: $(GUI_OBJ) $(GUI)/obj/plat/sdl/app/main.o $(SDL_LIB)
 	$(HOST_CC) $(GUI_ARCH) $(filter %.o,$^) $(SDL_LIBS) -lm -o $@
 # the bundle, signed ad hoc (Apple silicon runs nothing unsigned)
 # Quickr's library in Resources/lib: psys_self puts the app there, and codesign takes only code in MacOS
-GFX_DEMO := stdlib/gfx/demo/GFXDEMO.BAS
-$(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(GUI)/QuickrBasic $(HELP) $(DEMOS) $(STDLIB) build/host/lib/gfx.qbx $(GFX_DEMO)
+GFX_DEMOS := $(wildcard stdlib/gfx/demos/*.BAS)
+$(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(GUI)/QuickrBasic $(HELP) $(DEMOS) $(STDLIB) build/host/lib/gfx.qbx $(GFX_DEMOS)
 	rm -rf $(APP)/Contents/Resources/demos $(APP)/Contents/Resources/lib
 	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources/demos $(APP)/Contents/Resources/lib
 	cp $(GUI)/QuickrBasic $(APP)/Contents/MacOS/
 	cp build/host/lib/gfx.qbx $(APP)/Contents/Resources/lib/
 	cp $(HELP) $(APP)/Contents/Resources/BASIC.HLP
-	cp -R src/plat/wasm/web/demos/. $(GFX_DEMO) $(APP)/Contents/Resources/demos/
+	cp -R src/plat/wasm/web/demos/. $(GFX_DEMOS) $(APP)/Contents/Resources/demos/
 	cp $(STDLIB) $(APP)/Contents/Resources/lib/
 	cp $< $@
 	codesign --force -s - $(APP)
@@ -377,12 +377,12 @@ gfx-shot: $(GUI)/gfxshow
 	QB_SHOT=$(GUI)/charlie.ppm@30 $<
 
 linux-app: $(GUI)/app/QuickrBasic
-$(GUI)/app/QuickrBasic: $(GUI)/QuickrBasic $(HELP) $(DEMOS) build/host/lib/gfx.qbx $(GFX_DEMO)
+$(GUI)/app/QuickrBasic: $(GUI)/QuickrBasic $(HELP) $(DEMOS) build/host/lib/gfx.qbx $(GFX_DEMOS)
 	rm -rf $(@D)
 	mkdir -p $(@D)/demos $(@D)/lib
 	cp build/host/lib/gfx.qbx $(@D)/lib/
 	cp $(HELP) $(@D)/BASIC.HLP
-	cp -R src/plat/wasm/web/demos/. $(GFX_DEMO) $(@D)/demos/
+	cp -R src/plat/wasm/web/demos/. $(GFX_DEMOS) $(@D)/demos/
 	cp $< $@
 
 mac-zip: mac
@@ -476,14 +476,15 @@ build/wasm/basic: build/wasm/basic.wasm
 # The IDE's page, for GitHub Pages or tools/wasm/serve.py: its scripts, the module, the help, the demos
 WEB_SRC := $(wildcard src/plat/wasm/web/*.mjs src/plat/wasm/web/*.js src/plat/wasm/web/*.html) \
 	$(shell find src/plat/wasm/web/demos -type f)
+GFX_WEB_DEMOS := $(GFX_DEMOS:stdlib/gfx/demos/%=build/web/demos/%)
 web: build/web/ide.wasm build/web/synth.wasm build/web/BASIC.HLP build/web/demos/MODULES build/web/lib/MODULES \
-	$(WEB_SRC:src/plat/wasm/web/%=build/web/%) build/web/lib/gfx.qbx build/web/demos/GFXDEMO.BAS
+	$(WEB_SRC:src/plat/wasm/web/%=build/web/%) build/web/lib/gfx.qbx $(GFX_WEB_DEMOS)
 # Quickr's library, fetched to /lib beside C:\BASIC.EXE, where a module is looked for last; one name a line
 build/web/lib/MODULES: $(STDLIB)
 	@mkdir -p $(@D)
 	cp $^ $(@D)
 	cd stdlib && ls *.bas > $(CURDIR)/$@
-build/web/demos/GFXDEMO.BAS: $(GFX_DEMO)
+$(GFX_WEB_DEMOS): build/web/demos/%: stdlib/gfx/demos/%
 	@mkdir -p $(@D)
 	cp $< $@
 # the demos' modules, one path a line: the page fetches them from here, as the folders cannot be listed
