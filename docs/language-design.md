@@ -398,6 +398,9 @@ end fn).collect()
   as a generic is for each type. A lambda's result may type the generic: `map_all(xs, fn(x)
   f"{x}")` is a `string[]`.
 - A lambda can't call another lambda its caller was given: it passes it on, `apply(f, x)`.
+- `a.sort(fn(x, y) x < y)` orders a list or an array by a "less than" lambda, and is stable:
+  equal elements keep their order. `a.sort()` orders numbers and strings by value; equal values
+  can't be told apart, so stability doesn't arise. `a.swap(i, j)` exchanges two elements.
 - **In the VM**, a one-line lambda's body is checked again and inlined at each call of its
   parameter. A block lambda is a hidden function: each call of its parameter calls it. A
   variable the lambda uses is a hidden parameter by reference, of the copy and of the block's
@@ -405,6 +408,12 @@ end fn).collect()
   on top: the call `PCALL` makes, its target found from the procedure. No op is retired for it;
   it costs a `PCALL` and a load. A line with no statement, a comment's or a block lambda's where
   it is written, costs nothing to pass.
+- **In the VM**, `sort` is C. With a lambda it is a natural merge sort over the elements' indexes:
+  its ascending runs found, n - 1 compares, then merged; the order found is applied by swaps.
+  Each compare runs the lambda's code, compiled after `CALL QX` and jumped over, on the two
+  indexes. One buffer of 12 bytes an element is allocated for the sort and freed after it.
+  Without one it is a quicksort, compares in C: a median-of-three or ninther pivot and a
+  three-way partition, the smaller side recursed.
 
 #### Generators
 

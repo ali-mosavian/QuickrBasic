@@ -484,6 +484,7 @@ typedef enum : uint8_t {
     QB_GET,   /* m.get(k): a, b; its value's address in temps[0] */
     QB_ICALL, /* a(argv): a call through fn value a */
     QB_SWAP,  /* a.swap(i, j): argv */
+    QB_SORT,  /* a.sort(): by value; a.sort(lam): argv[0] the lambda on a[temps[0]], a[temps[1]] */
 } QBuiltin;
 
 /* A call's argument as written: its name (null positional), mut. */

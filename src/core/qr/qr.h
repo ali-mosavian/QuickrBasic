@@ -27,6 +27,7 @@ typedef struct {
     QMem mem;
     QProg *prog;
     char said[80]; /* the last probe's error */
+    void *sorts;   /* the merge sorts' buffers, the newest first (qrt.c) */
 } QrKeep;
 void qr_forget(QrKeep *k);
 enum { QR_SPELL = 40 }; /* a name spelled: its bytes at most, as QBasic's */

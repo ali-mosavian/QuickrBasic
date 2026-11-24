@@ -2116,6 +2116,30 @@ static void qcg_listop(QCg *const g, const QExpr *const e, const QExpr *const ds
         return;
     }
 
+    case QB_SORT: { /* by a lambda: its code after the CALL, a QJ over it, run from QX.SORT */
+        const uint32_t how = qcg_elems(g, e->a);
+        code_int(c, et);
+
+        if (!e->nargv) {
+            code_int(c, qcg_kind(elem));
+            code_int(c, QX_SORT | how);
+            code_call(c, K_QX);
+            return;
+        }
+
+        code_int(c, QX_SORT | QX_BY | how);
+        code_call(c, K_QX);
+        qcg_flush(g);
+        uint8_t *const over = qcg_qj(c, QJ_ALWAYS);
+        qcg_flush(g);
+        qcg_store(c, e->temps[1]);
+        qcg_store(c, e->temps[0]);
+        qcg_expr(g, e->argv[0]);
+        qcg_land(g, (QCgHop){.qj = over});
+
+        return;
+    }
+
     case QB_PUSH:
     case QB_INSERT: { /* one more at the end, the value there; insert's moved to its place */
         const QExpr *v = e->argv[e->nargv - 1];

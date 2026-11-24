@@ -39,6 +39,7 @@
 #include "mem/string.h"
 #include "plat/pfil.h"
 #include "plat/pmem.h"
+#include "qr/qsort.h"
 
 enum { SNGL_DIGITS = 7, DBL_DIGITS = 15, EXP_FROM = -4 };
 
@@ -411,6 +412,148 @@ static Cell qrt_elem(const uint32_t et, const Addr e)
     default:
         return (Cell){.u = load32(at(e))};
     }
+}
+
+/* ---- sort */
+
+/* A merge sort's buffer, on qr.sorts while it runs. */
+typedef struct QrtBuf {
+    struct QrtBuf *prev;
+    uint32_t depth; /* the frames under its sort's */
+    uint32_t words[];
+} QrtBuf;
+
+/* The buffers on *sorts as deep as depth or deeper freed: sorts a compare's error ended. A sort
+   running is shallower than one its compares start. */
+static void qrt_unsort(void **const sorts, const uint32_t depth)
+{
+    QrtBuf *b = *sorts;
+
+    while (b && b->depth >= depth) {
+        QrtBuf *const prev = b->prev;
+        pmem_free(b);
+        b = prev;
+    }
+
+    *sorts = b;
+}
+
+void qrt_sorts_free(void **const sorts) { qrt_unsort(sorts, 0); }
+
+/* QX.SORT's elements: a list's at cell, or an inline array's at data. */
+typedef struct {
+    QSort s;
+    Session *S;
+    Addr cell, data;
+    uint32_t et, size;
+    QrtKind kind;
+    uint8_t *code, *end; /* the lambda's: ( i j -- less ) */
+} QrtSort;
+
+/* Element k's address: a list's from its cell afresh, a compare may have moved the heap. */
+static Addr qrt_sorted(const QrtSort *const q, const uint32_t k)
+{
+    Addr data = q->data;
+
+    if (q->cell)
+        qrt_len(q->cell, &data);
+
+    return data + k * q->size;
+}
+
+static void qrt_sort_swap(QSort *const s, const uint32_t a, const uint32_t b)
+{
+    const QrtSort *const q = (const QrtSort *)s;
+    qrt_swap(q->S, q->et, qrt_sorted(q, a), qrt_sorted(q, b));
+}
+
+/* By value: a string's bytes, then its length, as < has them. */
+static bool qrt_sort_less(QSort *const s, const uint32_t a, const uint32_t b)
+{
+    const QrtSort *const q = (const QrtSort *)s;
+    const Addr x = q->data + a * q->size, y = q->data + b * q->size;
+
+    if (q->et == ET_SD) {
+        const Desc l = strg_peek(x), r = strg_peek(y);
+        const int c = memcmp(at(l.ptr), at(r.ptr), l.len < r.len ? l.len : r.len);
+        return c ? c < 0 : l.len < r.len;
+    }
+
+    const Cell l = qrt_elem(q->et, x), r = qrt_elem(q->et, y);
+
+    switch (q->kind) {
+    case QRT_SINGLE:
+        return l.f < r.f;
+
+    case QRT_DOUBLE:
+        return l.d < r.d;
+
+    case QRT_LONG:
+        return l.l < r.l;
+
+    case QRT_ULONG:
+        return l.raw < r.raw;
+
+    case QRT_UINT:
+        return l.u < r.u;
+
+    default:
+        return l.i < r.i;
+    }
+}
+
+/* By the lambda: its code run on a and b, the temporaries it made let go. */
+static bool qrt_sort_by(QSort *const s, const uint32_t a, const uint32_t b)
+{
+    const QrtSort *const q = (const QrtSort *)s;
+    Session *const S = q->S;
+    Vm *const vm = &S->vm;
+    const uint32_t temps = S->strg.tmp_used;
+
+    exec_pushi(vm, (int32_t)a);
+    exec_pushi(vm, (int32_t)b);
+    vm->ip = q->code;
+    exec_until(S, q->end);
+    S->strg.tmp_used = temps;
+    return exec_popi(vm) != 0;
+}
+
+/* QX.SORT: by value a quicksort, by a lambda a merge sort run past the QJ after the CALL. */
+static void qrt_sort(Session *const S, const uint32_t word)
+{
+    enum { QJ_SIZE = 1 + 4 + 2 }; /* I.LD.I32 offset, CALL QJ */
+    Vm *const vm = &S->vm;
+    const bool by = word & QX_BY;
+    QrtSort q = {.s = {by ? qrt_sort_by : qrt_sort_less, qrt_sort_swap}, .S = S};
+
+    if (!by)
+        q.kind = (QrtKind)exec_pop(vm).u;
+
+    q.et = exec_pop(vm).u;
+    const uint32_t n = qrt_elems(S, word, &q.data, &q.cell);
+    q.size = arry_et_size(&S->decl, q.et);
+
+    if (!by) {
+        qsort_quick(&q.s, n);
+        return;
+    }
+
+    q.code = vm->ip + QJ_SIZE;
+    q.end = q.code + (load32(vm->ip + 1) >> QJ_SHIFT);
+    const uint32_t depth = (uint32_t)(vm->ftop - vm->frames);
+    qrt_unsort(&S->qr.sorts, depth);
+    QrtBuf *const b = pmem_resize(nullptr, sizeof *b + qsort_room(n) * sizeof *b->words);
+
+    if (!b)
+        fault_error(&S->fault, E_OM);
+
+    *b = (QrtBuf){.prev = S->qr.sorts, .depth = depth};
+
+    S->qr.sorts = b;
+    qsort_merge(&q.s, n, b->words);
+    S->qr.sorts = b->prev;
+    pmem_free(b);
+    vm->ip = q.end;
 }
 
 /* A list's last element's value pushed: a number, or a new string of its text. */
@@ -1549,6 +1692,10 @@ void qrt_x(Session *const S)
 
         return;
     }
+
+    case QX_SORT:
+        qrt_sort(S, word);
+        return;
 
     case QX_HAS: {
         const Cell v = exec_pop(vm);

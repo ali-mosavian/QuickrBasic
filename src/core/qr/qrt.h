@@ -81,6 +81,7 @@ typedef enum : uint8_t {
     QX_FAILED,  /* ( name -- ): FAIL name, where and why the error being handled was raised */
     QX_TALLY,   /* ( passes fails -- ): the tests' tally said, the exit 1 when one failed */
     QX_SWAP,    /* ( elems et i j -- ): elements i and j exchanged, each checked */
+    QX_SORT, /* ( elems et kind -- ): in order by value; with QX_BY ( elems et -- ) by a lambda */
 } QrtX;
 
 /* A failed assert's ERR: no QBasic error's. */
@@ -93,6 +94,9 @@ enum { QX_FROM = 0x100 };
    field's, its first element's address and its count. */
 enum { QX_INLINE = 0x200 };
 
+/* QX.SORT's operand with it: a QJ past the lambda's code follows, ( i j -- less ). */
+enum { QX_BY = 0x400 };
+
 /* QX.HAS's et with it: elements compared by their 8 bytes, a long's. */
 enum { QRT_RAW = 0x1000 };
 
@@ -104,6 +108,8 @@ typedef enum : uint8_t { QM_READ, QM_SET, QM_FIND } QrtHow;
 typedef enum : uint8_t { QJ_ALWAYS, QJ_FALSE, QJ_TRUE } QrtWhen;
 enum { QJ_SHIFT = 2 };
 
+/* The merge sorts' buffers on *sorts (QrKeep.sorts) freed. */
+void qrt_sorts_free(void **sorts);
 /* v, a number or bool of kind, as print spells it: an int in decimal, a bool true or false, a
    single to 7 significant digits and a double to 15, as %g with a point always. Returns its
    length. */

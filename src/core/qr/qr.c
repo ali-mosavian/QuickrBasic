@@ -820,6 +820,7 @@ static void qr_end(Session *const S, QProg *const p, QMem *const m)
 void qr_forget(QrKeep *const k)
 {
     arena_reset(&k->mem.arena);
+    qrt_sorts_free(&k->sorts);
     k->prog = nullptr;
     k->said[0] = 0;
 }

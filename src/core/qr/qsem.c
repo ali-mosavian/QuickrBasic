@@ -3755,6 +3755,78 @@ static QExpr *qsem_swap(QSem *const S, QExpr *const e)
     return e;
 }
 
+static QExpr *qsem_at_index(QSem *S, QExpr *a, QVar *i);
+static QExpr *qsem_applied(
+    QSem *S,
+    const QIter *it,
+    QExpr *a,
+    QExpr *const *extra,
+    uint32_t n,
+    QType hint
+);
+
+/* a.sort(less): a mutable list's or array's elements in order, less(x, y) a bool on two of them;
+   with none, numbers' or strings' by value. */
+static QExpr *qsem_sort(QSem *const S, QExpr *const e)
+{
+    const bool ok = qsem_changes(S, e->a, e->tok);
+    QExpr *const a = e->a = qsem_expr(S, e->a, QY_VOID);
+    e->kind = QE_LIST;
+    e->builtin = QB_SORT;
+    e->type = QY_ERROR;
+
+    if (!ok || a->type == QY_ERROR)
+        return e;
+
+    if (!qast_array(S->prog, a->type)) {
+        qsem_say(S, e->tok, "only a list or an array has sort()", nullptr);
+        return e;
+    }
+
+    if (!qsem_plain(S, e, ~0u))
+        return e;
+
+    if (e->args && e->args->next) {
+        qsem_say(S, e->tok, "sort() takes one lambda, less than", nullptr);
+        return e;
+    }
+
+    const QType elem = qast_ty(S->prog, a->type)->elem;
+
+    if (!e->args) {
+        if (!qast_numeric(elem) && elem != QY_STRING) {
+            qsem_say(S, e->tok, "sort() takes a lambda here: fn(x, y) x < y", nullptr);
+            return e;
+        }
+
+        e->type = QY_VOID;
+        return e;
+    }
+
+    e->temps = qast_alloc(S->mem, 2 * sizeof *e->temps);
+    QExpr *at[2];
+
+    for (uint32_t k = 0; k < 2; k++) {
+        e->temps[k] = qsem_var(S, e->tok, QY_INT, QV_TEMP);
+        at[k] = qsem_at_index(S, a, e->temps[k]);
+    }
+
+    QExpr *const less = qsem_applied(S, &(QIter){}, e->args->e, at, 2, QY_BOOL);
+
+    if (less->type != QY_BOOL) {
+        if (less->type != QY_ERROR)
+            qsem_say(S, e->tok, "sort()'s lambda gives a bool: x less than y", nullptr);
+
+        return e;
+    }
+
+    e->argv = qast_alloc(S->mem, sizeof *e->argv);
+    e->argv[0] = less;
+    e->nargv = 1;
+    e->type = QY_VOID;
+    return e;
+}
+
 /* Map m's keys, the list its record's first field. */
 static QExpr *qsem_keysof(QSem *const S, QExpr *const m)
 {
@@ -3942,6 +4014,8 @@ static QExpr *qsem_method(QSem *const S, QExpr *const e)
 
         if (qsem_is(e->tok, "swap"))
             return qsem_swap(S, e);
+        if (qsem_is(e->tok, "sort"))
+            return qsem_sort(S, e);
 
         if (qsem_is(e->tok, "len"))
             return qsem_len(S, e, e->a);
