@@ -55,13 +55,25 @@ void span_flat(
 {
     const int32_t from = rect_max(x0, t->clip.x), to = rect_min(x1, t->clip.x + t->clip.w);
 
-    if (y < t->clip.y || y >= t->clip.y + t->clip.h || from >= to)
+    if (y >= t->clip.y && y < t->clip.y + t->clip.h && from < to)
+        span_fill(t, y, from, to, colour);
+}
+
+void span_fill(
+    const SoftTarget *const t,
+    const int32_t y,
+    const int32_t x0,
+    const int32_t x1,
+    const uint32_t colour
+)
+{
+    if (x0 >= x1)
         return;
 
     if (blends(&t->ink))
-        inked(t, from, y, to - from, nullptr, (Steps){}, colour);
+        inked(t, x0, y, x1 - x0, nullptr, (Steps){}, colour);
     else
-        t->fill->span(span_at(t, from, y), to - from, t->fill->paint(colour, &t->ink));
+        t->fill->span(span_at(t, x0, y), x1 - x0, t->fill->paint(colour, &t->ink));
 }
 
 /* n pixels a pixel at a time: each texel held inside, keyed, shown over the depth there, drawn,

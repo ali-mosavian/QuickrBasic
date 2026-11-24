@@ -5,16 +5,17 @@
  * one pixel of area is dropped), a clip to the rectangle, then 16.16 vertices. The scanners are
  * integer: two edge chains walk down from the topmost vertex, one span a row.
  *
- * qgl's pixel rule: an edge's x and y round half up to a pixel (affine; the perspective scanner
- * adds no half, so it truncates), and a row's span runs from its left edge's pixel up to, not
- * including, its right edge's; rows likewise. An edge a row or more high has its slope divided,
- * floored, where qgl's multiplied by a truncated reciprocal and drifted; under a row, qgl's, a
- * sub-scanline edge's with 14 bits more.
+ * gfx's pixel rule, a GPU's: a pixel is covered when its centre is inside, a centre on a top or
+ * left edge inside. qgl's is on the bottom or right, its perspective scanner a half pixel off: an
+ * edge's x and y round half up to a pixel, less a unit, and a row's span runs from its left edge's
+ * pixel up to, not including, its right edge's; rows likewise. An edge a row or more high has its
+ * slope divided, floored, where qgl's multiplied by a truncated reciprocal and drifted; under a
+ * row, qgl's, a sub-scanline edge's with 14 bits more.
  *
  * u and v are in texels (qgl scales them by the texture's size: here the scale is 1). Affine
  * spans carry u and v 16.16 at x0 and their step a pixel; u, v and 1/z are taken at the pixel
  * centre as qgl$drawA does. Perspective spans carry u/z, v/z and 1/z at x0 and their steps, as
- * qgl$drawP does, for span.h.
+ * qgl$drawP does, for span.h. A span is held in the clip, its values a pixel on for each it lost.
  *
  * Left out: depth, EMS and slots, profiling, lightmaps, the cover and bound helpers, WIRE. The
  * x87's extended arithmetic is done in doubles, and its stores to real4 as floats.
@@ -37,7 +38,7 @@ typedef enum {
 
 enum { SCAN_MAXV = 41, SCAN_SUBDIVS = 4, SCAN_SUBDIVP = 16 };
 
-/* A row's span, pixels x0 up to x1, not clipped to x: the caller holds it in. */
+/* A row's span, pixels x0 up to x1, inside the clip. */
 typedef struct {
     int32_t y, x0, x1;
     int32_t u, v, du, dv;   /* SCAN_TEX: 16.16 at x0, and a pixel's step */
@@ -76,16 +77,6 @@ static inline int32_t scan_fistp_low(const double x)
 }
 
 /* n vertices (3 up to SCAN_MAXV, either winding) of mode, clipped to clip, a span to fill each
-   row. gfx: gfx's pixel rule, a centre on a top or left edge inside as a GPU's, where qgl's is on
-   the bottom or right; and in perspective the half pixel qgl$F2fxP leaves out, so it covers as
-   affine does. The rows covered, 0 for none; -1: refused. */
-int32_t scan_poly(
-    const ScanVert *v,
-    uint32_t n,
-    ScanMode mode,
-    Rect clip,
-    bool gfx,
-    ScanFill *fill,
-    void *ctx
-);
+   row. */
+void scan_poly(const ScanVert *v, uint32_t n, ScanMode mode, Rect clip, ScanFill *fill, void *ctx);
 #endif

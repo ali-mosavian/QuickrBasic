@@ -27,6 +27,8 @@ uint8_t *span_at(const SoftTarget *t, int32_t x, int32_t y);
 bool span_fused(const SoftTarget *t, const Pixels *s);
 /* Row y from x0 up to x1 in colour, clipped. */
 void span_flat(const SoftTarget *t, int32_t y, int32_t x0, int32_t x1, uint32_t colour);
+/* Row y from x0 up to x1 in colour, inside the clip; none when x1 is x0. */
+void span_fill(const SoftTarget *t, int32_t y, int32_t x0, int32_t x1, uint32_t colour);
 /* n pixels from x, y, inside the clip, along st's texels of x's picture, u wrapped already when
    it wraps; their depth from z by dz a pixel, tested and set as x says. */
 void span_texels(

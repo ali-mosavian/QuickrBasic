@@ -161,15 +161,13 @@ TEST(gfx_fonts_refuse)
     CHECK(PX(0, 0) == 1);
 }
 
-/* qgl's perspective scan of a trapezoid, (2, 0) (6, 0) (8, 4) (0, 4) with 1/z 1 down to 2 and
-   u/z, v/z linear (u 0 to 8 across, v 0 to 4 down), over an 8 by 4 picture whose texel (u, v) is
-   10 + 8v + u. Worked from qgl's rule: edges evaluated a row below the vertex (x at rows 0 to 3:
-   1.5..6.5, 1..7, 0.5..7.5, 0..8, so spans of 5, 6, 7 and 8 pixels), u/z and v/z at the first
-   pixel, u = (u/z) / (1/z) in 16.16 rounded, plus half a texel, and the far end a whole run (16
-   pixels) on, unclamped; the steps are the difference over 16, and each texel is held inside the
-   picture. Row 1: u 1.83 stepping 1.33, v 3.17, texels 35 37 38 39 41 and 41 (8.5 held to 7).
-   It once clamped the far end to the picture, as qgl's bound mode: a short span's step bent,
-   row 0 read 27 27 28 28 28 where u runs 1.3 to 7.7. */
+/* A trapezoid in perspective, pixel centres (1.5, -0.5) (5.5, -0.5) (7.5, 3.5) (-0.5, 3.5), z 1 down
+   to 0.5, over an 8 by 4 picture whose texel (u, v) is 10 + 8v + u, u 0.5 to 8.5 across and v 0.5
+   to 4.5 down. Worked by hand from the plane (1/z, u/z, v/z linear): rows 0 to 3 cover pixels 2-5,
+   1-6, 1-6 and 0-7; a span's u is taken at its first centre and a whole run (16 pixels) on,
+   unclamped, the step their difference over 16, each texel held inside. Row 0's u runs 1.83 to
+   7.17 by 1.78: texels 1, 3, 5, 7. Clamping the far end to the picture, as qgl's bound mode, bent
+   that step to 0.39: 1, 2, 2, 2. */
 TEST(gfx_soft_perspective_trapezoid)
 {
     uint8_t tex[32], dst[16 * 8];
@@ -187,15 +185,20 @@ TEST(gfx_soft_perspective_trapezoid)
 
     const Pixels s = {tex, 8, 8, 4, PX_8};
 
-    const ScanVert v[] = {{2, 0, 1, 0, 0}, {6, 0, 1, 8, 0}, {8, 4, 2, 16, 8}, {0, 4, 2, 0, 8}};
+    const Corner c[] = {
+        {1.5f, -0.5f, 1, 0.5f, 0.5f},
+        {5.5f, -0.5f, 1, 8.5f, 0.5f},
+        {7.5f, 3.5f, 0.5f, 8.5f, 4.5f},
+        {-0.5f, 3.5f, 0.5f, 0.5f, 4.5f},
+    };
 
-    soft_texture_persp(&t, &s, v, 4, GFX_PEN_OPAQUE, false);
+    soft_poly(&t, &s, c, 4, 0, GFX_PEN_OPAQUE | GFX_DRAW_PERSP, false);
 
     static const uint8_t want[8][16] = {
-        {1, 27, 28, 30, 32, 33, 1, 1},
-        {1, 35, 37, 38, 39, 41, 41, 1},
-        {35, 36, 37, 38, 39, 40, 41, 1},
-        {35, 36, 37, 38, 39, 40, 41, 41},
+        {1, 1, 19, 21, 23, 25, 1, 1},
+        {1, 26, 28, 29, 31, 32, 33, 1},
+        {1, 35, 36, 37, 39, 40, 41, 1},
+        {34, 35, 36, 37, 39, 40, 41, 41},
     };
 
     for (uint32_t y = 0; y < 8; y++)

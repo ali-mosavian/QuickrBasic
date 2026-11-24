@@ -58,14 +58,4 @@ void soft_rect(
 );
 /* s with its top left texel at x, y; flags draw.FLIPX, draw.FLIPY, pen.OPAQUE. */
 void soft_sprite(const SoftTarget *t, const Pixels *s, float x, float y, int32_t flags);
-/* A perspective polygon (scanner.h) of n up to SCAN_MAXV vertices, u/z, v/z and 1/z, by qgl's
-   pixel rule. */
-void soft_texture_persp(
-    const SoftTarget *t,
-    const Pixels *s,
-    const ScanVert *v,
-    uint32_t n,
-    int32_t flags,
-    bool wrap
-);
 #endif
