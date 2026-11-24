@@ -403,6 +403,48 @@ static void qlink_thread(Comp *const C, const QProg *const p)
     }
 }
 
+/* Line's end (its EOL.TO) on to line to. */
+static void qlink_eol(Comp *const C, const uint32_t line, const uint32_t to)
+{
+    uint8_t *op = at(C->allo->cache + prog_line(C->prog, line)->code);
+
+    while (*op != O_EOL && *op != O_EOL_TO)
+        op += link_opsize(op);
+
+    if (*op != O_EOL_TO)
+        return;
+
+    store32(op + 1, to);
+    store32(op + 5, prog_line(C->prog, to)->code);
+}
+
+/* The run in p->order, not the store's: each module's last line on to the next one's first, the
+   main's to p->end's when set; the run's first line the first module's. */
+static void qlink_chain(Comp *const C, const QProg *const p)
+{
+    uint32_t last = 0;
+    C->link->start = 0;
+
+    for (uint32_t i = 0; i < p->nmods; i++) {
+        const QMod *const mod = &p->mods[p->order[i]];
+
+        if (!mod->nlines)
+            continue;
+
+        const uint32_t first = p->src.lines[mod->first].at;
+
+        if (last)
+            qlink_eol(C, last, first);
+        else
+            C->link->start = first;
+
+        last = p->src.lines[mod->first + mod->nlines - 1].at;
+    }
+
+    if (last && p->end)
+        qlink_eol(C, last, p->src.lines[p->end - 1].at);
+}
+
 /* Does s open a block: its lines till its end its own? */
 static int32_t qlink_depth(const QStmt *const s)
 {
@@ -497,6 +539,7 @@ void qlink_program(Comp *const C, QProg *const p, QMem *const m, const bool dbg)
         link_resolve(C, at, prog_line(C->prog, at)->code);
     }
 
+    qlink_chain(C, p);
     qlink_thread(C, p);
 
     link_check(C);

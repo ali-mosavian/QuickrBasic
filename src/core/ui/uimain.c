@@ -58,6 +58,7 @@
 #include "plat/pscr.h"
 #include "plat/psys.h"
 #include "qbrt/qbrt.h"
+#include "qr/qr.h"
 #include "ui/complete.h"
 #include "ui/dialog.h"
 #include "ui/debugpane.h"
@@ -685,7 +686,7 @@ static bool save_as(Session *const S)
     edit_commit(S);
 
     for (;;) {
-        if (!dlog_saveas(S))
+        if (!dlog_saveas(S, text_quickr(S)))
             return false;
         if (same_caseless(uimn.chosen, uimn.file))
             break;
@@ -746,7 +747,7 @@ static void file_new(Session *const S)
     if (!ask_save(S))
         return;
 
-    text_init(S);
+    text_init(S, false);
     uimn.file[0] = 0;
     named(S);
     reset(S);
@@ -773,14 +774,14 @@ static void load(Session *const S)
             return;
         }
 
-        text_init(S);
+        text_init(S, qr_is_file(uimn.chosen));
     }
 
     memcpy(uimn.file, uimn.chosen, sizeof uimn.file);
     named(S);
     reset(S);
     bool read;
-    const Status st = loaded(S, repl_open, &read);
+    const Status st = loaded(S, text_quickr(S) ? qr_open : repl_open, &read);
     edit_recheck(S);
     text_clean(S);
     undo_clear();
@@ -1498,7 +1499,7 @@ void uimn_init(Session *const S)
     wind_init();
     mous_init();
     help_init();
-    text_init(S);
+    text_init(S, false);
     view_reset(S);
     edit_load(S, 0);
     edit_imm_load();

@@ -20,15 +20,16 @@ typedef struct {
 enum { LINK_EMPTIES = 32 }; /* kept; more are not */
 
 typedef struct Link {
-    Addr end;                   /* cend: the cache's next byte */
-    Addr lim;                   /* elim: link_xlate's limit */
-    Addr eol;                   /* eeol: the stream's EOL */
-    Addr inbeg;                 /* einb: an INPUT's end to fill in, 0 none */
-    Addr map;                   /* emap: the stream's map */
-    Addr code;                  /* ecode: its code, past the map */
-    uint32_t mapnext;           /* the next statement link_xlate maps */
-    bool linked;                /* the cache is ready for the program */
-    uint32_t cursor;            /* mem/prog's and vm/flow's line cursor; 0 when linked */
+    Addr end;         /* cend: the cache's next byte */
+    Addr lim;         /* elim: link_xlate's limit */
+    Addr eol;         /* eeol: the stream's EOL */
+    Addr inbeg;       /* einb: an INPUT's end to fill in, 0 none */
+    Addr map;         /* emap: the stream's map */
+    Addr code;        /* ecode: its code, past the map */
+    uint32_t mapnext; /* the next statement link_xlate maps */
+    bool linked;      /* the cache is ready for the program */
+    uint32_t cursor;  /* mem/prog's and vm/flow's line cursor; 0 when linked */
+    uint32_t start;   /* the run's first line, 0 PROGBASE: a Quickr program's (qr/qlink.c) */
     LinkMiss miss[LINK_MISSES]; /* the ledger: targets not found, in program order */
     uint32_t nmiss;
     LinkEmpty empty[LINK_EMPTIES]; /* the DIM a()s, in program order, each array once */

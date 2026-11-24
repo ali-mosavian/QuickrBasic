@@ -507,8 +507,19 @@ bool edit_commit(Session *const S)
     return true;
 }
 
+/* edit_store's of a Quickr program's line: as typed. */
+static bool store_quickr(Session *const S, const uint32_t line, LineBuf *const b)
+{
+    uimn.text.asis = false;
+    text_repl(S, line, b->text, b->len);
+    return true;
+}
+
 bool edit_store(Session *const S, const uint32_t line, LineBuf *const b)
 {
+    if (text_quickr(S))
+        return store_quickr(S, line, b);
+
     const uint32_t was = enter_view(S, uimn.ed.view);
     uint32_t lexed;
     const bool canon = edit_canon(S, b->text, b->len, &lexed);

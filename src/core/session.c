@@ -220,6 +220,7 @@ void session_drop(Session *const S)
     S->vm.cont.line = 0;
     S->link.cursor = 0;
     S->link.linked = false;
+    S->link.start = 0;
     S->link.lmask = 0;
     flow_drop_calls(S);
     prog_terminate(&S->prog);

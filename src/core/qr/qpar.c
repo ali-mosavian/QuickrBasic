@@ -60,6 +60,17 @@ static void qpar_fail(QPar *const P, const QTok *const t, const char *const msg)
     longjmp(P->fail, 1);
 }
 
+/* A block's lines not paired, msg at t: an error, but none in the editor's line check (QProg.loose),
+   where the rest of the block may be typed yet. */
+[[noreturn]]
+static void qpar_unpaired(QPar *const P, const QTok *const t, const char *const msg)
+{
+    if (!P->prog->loose)
+        qast_error(&P->prog->errs, t, msg, t->text, t->len);
+
+    longjmp(P->fail, 1);
+}
+
 /* The next token not what was wanted: "expected {want}". */
 [[noreturn]]
 static void qpar_expected(QPar *const P, const char *const want)
@@ -977,9 +988,9 @@ static void qpar_clause(QPar *const P, const QStmtKind kind)
     QOpen *const o = qpar_top(P);
 
     if (!o || o->open->kind != QS_IF)
-        qpar_fail(P, s->tok, "{} without if");
+        qpar_unpaired(P, s->tok, "{} without if");
     if (o->clause->kind == QS_ELSE)
-        qpar_fail(P, s->tok, "{} after else");
+        qpar_unpaired(P, s->tok, "{} after else");
 
     qpar_append(P, s);
     o->clause->link = s;
@@ -1054,7 +1065,7 @@ static void qpar_fn(QPar *const P)
         qpar_take(P, QK_OPERATOR) ? qpar_operator(P, f) : qpar_need(P, QK_NAME, "the fn's name");
 
     if (nested)
-        qpar_fail(P, s->tok, "a fn goes at the top level, not in a block");
+        qpar_unpaired(P, s->tok, "a fn goes at the top level, not in a block");
 
     qpar_addfn(P, f);
 
@@ -1113,7 +1124,7 @@ static void qpar_testblock(QPar *const P)
     f->name = qpar_need(P, QK_STR, "the test's name, a string");
 
     if (P->nopen > 1)
-        qpar_fail(P, s->tok, "a test goes at the top level, not in a block");
+        qpar_unpaired(P, s->tok, "a test goes at the top level, not in a block");
 
     qpar_addfn(P, f);
 }
@@ -1149,7 +1160,7 @@ static void qpar_end(QPar *const P)
     QOpen *const o = qpar_top(P);
 
     if (o && o->open->kind == QS_MATCH && o->clause == o->open)
-        qpar_fail(P, t, "a match needs a case");
+        qpar_unpaired(P, t, "a match needs a case");
 
     if (!o || o->open->kind != qpar_ends[k].open ||
         (o->open->kind == QS_FN && o->open->fn->test != (word->kind == QK_TEST))) {
@@ -1158,7 +1169,10 @@ static void qpar_end(QPar *const P)
         const uint32_t n = word->len;
         memcpy(msg + 15, word->text, n);
         msg[15 + n] = 0;
-        qast_error(&P->prog->errs, t, msg, word->text, word->len);
+
+        if (!P->prog->loose)
+            qast_error(&P->prog->errs, t, msg, word->text, word->len);
+
         longjmp(P->fail, 1);
     }
 
@@ -1195,9 +1209,9 @@ static void qpar_block(QPar *const P, const QStmtKind kind)
     if (kind != QS_MATCH && (s->decls->type || s->decls->value || s->decls->next))
         qpar_fail(P, s->tok, "{} takes a name alone");
     if (kind == QS_TYPE && P->nopen > 1)
-        qpar_fail(P, s->tok, "a type goes at the top level, not in a block");
+        qpar_unpaired(P, s->tok, "a type goes at the top level, not in a block");
     if (kind == QS_ENUM && P->nopen > 1)
-        qpar_fail(P, s->tok, "an enum goes at the top level, not in a block");
+        qpar_unpaired(P, s->tok, "an enum goes at the top level, not in a block");
 }
 
 /* A line in a type: name as type [= default]. */
@@ -1258,9 +1272,9 @@ static void qpar_case(QPar *const P)
     QOpen *const o = qpar_top(P);
 
     if (!o || o->open->kind != QS_MATCH)
-        qpar_fail(P, s->tok, "case outside a match");
+        qpar_unpaired(P, s->tok, "case outside a match");
     if (o->clause->kind == QS_CASE && !o->clause->pats)
-        qpar_fail(P, s->tok, "case after case else");
+        qpar_unpaired(P, s->tok, "case after case else");
 
     qpar_append(P, s);
     o->clause->link = s;
@@ -1295,7 +1309,7 @@ static void qpar_statement(QPar *const P)
         }
 
         if (o->open->kind == QS_MATCH && o->clause == o->open && t->kind != QK_CASE)
-            qpar_fail(P, t, "a match's first line is a case");
+            qpar_unpaired(P, t, "a match's first line is a case");
     }
 
     switch (t->kind) {
@@ -1423,7 +1437,7 @@ static void qpar_import(QPar *const P)
     QStmt *const s = qpar_new(P, from ? QS_FROM : QS_IMPORT, qpar_next(P));
 
     if (P->nopen)
-        qpar_fail(P, s->tok, "{} goes at the top level, not in a block");
+        qpar_unpaired(P, s->tok, "{} goes at the top level, not in a block");
 
     QImport **last = from ? &s->names : &s->imps;
 
@@ -1475,7 +1489,7 @@ static void qpar_public(QPar *const P)
     const QKind k = P->t->kind;
 
     if (P->nopen)
-        qpar_fail(P, t, "public goes at the top level, not in a block");
+        qpar_unpaired(P, t, "public goes at the top level, not in a block");
     if (k != QK_FN && k != QK_NATIVE && k != QK_TYPE && k != QK_ENUM && k != QK_CONST &&
         k != QK_VAR && k != QK_LET)
         qpar_fail(P, t, "public goes before fn, native, type, enum, const, var or let");
@@ -1501,7 +1515,7 @@ static void qpar_unclosed(QPar *const P)
         [QS_MATCH] = "match without end match",
     };
 
-    for (uint32_t i = 0; i < P->nopen; i++) {
+    for (uint32_t i = 0; !P->prog->loose && i < P->nopen; i++) {
         const QStmt *const s = P->open[i].open;
         const bool test = s->kind == QS_FN && s->fn->test;
         qast_error(

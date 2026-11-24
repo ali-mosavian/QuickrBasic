@@ -707,6 +707,7 @@ typedef struct {
     QMod *mods; /* [0] the main program */
     uint32_t nmods, capmods;
     uint32_t *order; /* the modules in the order their vars start: each after those it imports */
+    uint32_t end; /* the editor's: the line the run goes on to past the main's, + 1; 0 the next */
     QStmt *first;
     QFn *fns;
     QVar *vars;
@@ -715,6 +716,7 @@ typedef struct {
     QOwners own;  /* the modules' */
     QStmt *atend; /* QS_ATEND, when a module owns a value with drop */
     bool testing; /* --test: the tests run, the main's top level only declares */
+    bool loose;   /* the editor's line check: a block's lines need not pair */
     QStmt **runs; /* --test: each test's QS_TESTRUN, the modules' in their order */
     uint32_t nruns, capruns;
     QStmt *testend;

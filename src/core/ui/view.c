@@ -43,10 +43,18 @@
 #include "mem/copy.h"
 #include "mem/module.h"
 #include "mem/program.h"
+#include "qr/qr.h"
 #include "util/grow.h"
 
 /* The 0-ended s to d, its 0 too. */
 static void copy_str(char *const d, const char *const s) { memcpy(d, s, strlen(s) + 1); }
+
+/* The SUBs box's item: its view; a Quickr fn's, its first line in the text and its name's offset
+   in vw.fns, else line NOLINE. */
+enum : uint32_t { NOLINE = UINT32_MAX };
+typedef struct {
+    uint32_t view, line, name;
+} Item;
 
 static struct {
     uint8_t name_text[DLBUF]; /* first: name_field points here (ui.h's 16-bit note) */
@@ -58,8 +66,10 @@ static struct {
     LineBuf new_line; /* vw_new, vw_nlen: add's line, grown to fit */
     char *list_text;
     uint32_t list_cap;
-    uint32_t *order; /* the SUBs list's views: each file's module, then its procedures by name */
-    uint32_t order_cap;
+    Item *order; /* the SUBs list's: each file's module, then its procedures or fns by name */
+    uint32_t order_cap, nitems;
+    char *fns; /* the Quickr fns' names, each 0-ended */
+    uint32_t nfns, fns_cap;
     uint32_t epoch, drops; /* the modules' (Modu's) when the views were made */
     View *was;             /* view_rebuild's: the views before, their names */
     uint32_t was_cap;
@@ -134,9 +144,15 @@ static Dlog dg_subs = {
 enum : uint8_t { VNEW_OK = 1 };
 enum : uint8_t { SUBS_ACTIVE = 1, SUBS_SPLIT = 2, SUBS_DELETE = 3 };
 
-/* Record rec's body to comp_cbuf: decl_proc's answer; *name its M_VAR for PK_SUB, PK_FUNC. */
+/* Record rec's body to comp_cbuf: decl_proc's answer; *name its M_VAR for PK_SUB, PK_FUNC. A
+   Quickr line is none: a Quickr file is one view. */
 static uint8_t kind_of(Session *const S, const uint32_t rec, const uint8_t **const name)
 {
+    if (name)
+        *name = nullptr;
+    if (prog_line(&S->prog, rec)->flags & LF_QR)
+        return 0;
+
     prog_body(&S->prog, rec, S->comp.cbuf);
     const uint8_t *nm = nullptr;
     const uint8_t k = decl_proc(S->comp.cbuf, &nm);
@@ -572,15 +588,35 @@ static void add(Session *const S, const uint8_t k)
     view_show(S, last + 1);
 }
 
+/* Text line line an import or from of Quickr's? */
+static bool quickr_import(Session *const S, const uint32_t line)
+{
+    const uint32_t n = text_record(S, lmap_off(S, line), &uimn.build);
+    const uint8_t *const t = uimn.build.text;
+    uint32_t i = 0;
+
+    while (i < n && t[i] == ' ')
+        i++;
+
+    return (n - i > 7 && !memcmp(t + i, "import ", 7)) || (n - i > 5 && !memcmp(t + i, "from ", 5));
+}
+
 /* Text line line (the active view's) an IMPORT or FROM: the modules it names loaded, shown. */
 static void imports(Session *const S, const uint32_t line)
 {
-    prog_body(&S->prog, lmap_off(S, line), S->comp.cbuf);
+    const bool quickr = text_quickr(S);
 
-    if (!impt_line(S->comp.cbuf, nullptr, nullptr))
+    if (quickr && !quickr_import(S, line))
         return;
 
-    const Status st = repl_call(S, repl_open);
+    if (!quickr) {
+        prog_body(&S->prog, lmap_off(S, line), S->comp.cbuf);
+
+        if (!impt_line(S->comp.cbuf, nullptr, nullptr))
+            return;
+    }
+
+    const Status st = repl_call(S, quickr ? qr_open : repl_open);
     view_modules(S);
     edit_recheck(S);
     fault_check(&S->fault, st);
@@ -689,58 +725,120 @@ static void del(Session *const S, const uint32_t v)
     edit_load(S, 0);
 }
 
-/* View v's item in the SUBs box: its file's name, a procedure's indented. */
-static uint32_t item_len(Session *const S, const uint32_t v)
+/* Item it's name: a procedure's, a fn's, else its file's. */
+static const char *item_name(Session *const S, const Item *const it)
 {
-    return (uint32_t)strlen(vw.tab[v].kind ? view_name(v) : view_file(S, v)) +
-           (vw.tab[v].kind ? 3 : 1); /* two spaces in; its 0 */
+    if (it->line != NOLINE)
+        return vw.fns + it->name;
+
+    return vw.tab[it->view].kind ? view_name(it->view) : view_file(S, it->view);
 }
 
-/* The SUBs box's list: each file's name, then its procedures' indented, by name; each item as wide
-   as the longest. false: no memory. */
-static bool list_fill(Session *const S)
+/* Is item it under its file: a procedure's or a fn's? */
+static bool item_sub(const Item *const it) { return it->line != NOLINE || vw.tab[it->view].kind; }
+
+/* Item it the list's last. false: no memory. */
+static bool item_add(const Item it)
 {
-    uint32_t size = 1;
-
-    for (uint32_t i = 0; i < vw.n; i++) {
-        const uint32_t len = item_len(S, i);
-        size = len > size ? len : size;
-    }
-
-    if (!grow_room(&vw.list_text, &vw.list_cap, vw.n * size, 1) ||
-        !GROW(vw.order, vw.order_cap, vw.n))
+    if (!GROW(vw.order, vw.order_cap, vw.nitems + 1))
         return false;
 
-    list.sel = 0;
+    vw.order[vw.nitems++] = it;
+    return true;
+}
 
-    for (uint32_t i = 0; i < vw.n; i++) { /* insertion: a procedure among its file's, by name */
+/* View v's Quickr fns, each an item. false: no memory. */
+static bool fn_items(Session *const S, const uint32_t v)
+{
+    const View *const w = &vw.tab[v];
+
+    for (uint32_t line = w->first; line < w->first + w->n; line++) {
+        const uint32_t rec = lmap_off(S, line);
+
+        if (!(prog_line(&S->prog, rec)->flags & LF_QR))
+            return true;
+
+        const uint32_t len = text_record(S, rec, &uimn.build);
+        uint32_t at, n;
+
+        if (!qr_fn_at((const char *)uimn.build.text, len, &at, &n))
+            continue;
+        if (!GROW(vw.fns, vw.fns_cap, vw.nfns + n + 1))
+            return false;
+
+        memcpy(vw.fns + vw.nfns, uimn.build.text + at, n);
+        vw.fns[vw.nfns + n] = 0;
+
+        if (!item_add((Item){v, line, vw.nfns}))
+            return false;
+
+        vw.nfns += n + 1;
+    }
+
+    return true;
+}
+
+/* The SUBs box's items: each view, a Quickr file's fns after it; each procedure or fn among its
+   file's by name. false: no memory. */
+static bool items_fill(Session *const S)
+{
+    vw.nitems = vw.nfns = 0;
+
+    for (uint32_t v = 0; v < vw.n; v++)
+        if (!item_add((Item){v, NOLINE, 0}) || (!vw.tab[v].kind && !fn_items(S, v)))
+            return false;
+
+    for (uint32_t i = 1; i < vw.nitems; i++) { /* insertion: a sub among its file's, by name */
+        const Item it = vw.order[i];
         uint32_t at = i;
 
-        for (; vw.tab[i].kind && vw.tab[vw.order[at - 1]].kind &&
-               dlog_namecmp(view_name(vw.order[at - 1]), view_name(i)) > 0;
+        for (; item_sub(&it) && item_sub(&vw.order[at - 1]) &&
+               dlog_namecmp(item_name(S, &vw.order[at - 1]), item_name(S, &it)) > 0;
 
              at--)
             vw.order[at] = vw.order[at - 1];
 
-        vw.order[at] = i;
+        vw.order[at] = it;
     }
 
-    for (uint32_t k = 0; k < vw.n; k++) {
-        const uint32_t v = vw.order[k];
+    return true;
+}
+
+/* The SUBs box's list: each file's name, then its procedures' or fns' indented, by name; each
+   item as wide as the longest. false: no memory. */
+static bool list_fill(Session *const S)
+{
+    if (!items_fill(S))
+        return false;
+
+    uint32_t size = 1;
+
+    for (uint32_t i = 0; i < vw.nitems; i++) {
+        const uint32_t len = (uint32_t)strlen(item_name(S, &vw.order[i])) + 3; /* indent, 0 */
+        size = len > size ? len : size;
+    }
+
+    if (!grow_room(&vw.list_text, &vw.list_cap, vw.nitems * size, 1))
+        return false;
+
+    list.sel = 0;
+
+    for (uint32_t k = 0; k < vw.nitems; k++) {
+        const Item *const it = &vw.order[k];
         char *const d = vw.list_text + k * size;
 
-        if (v == uimn.ed.view)
+        if (it->view == uimn.ed.view && it->line == NOLINE)
             list.sel = k;
 
-        if (!vw.tab[v].kind) {
-            copy_str(d, view_file(S, v));
+        if (!item_sub(it)) {
+            copy_str(d, item_name(S, it));
         } else {
             d[0] = d[1] = ' ';
-            copy_str(d + 2, view_name(v));
+            copy_str(d + 2, item_name(S, it));
         }
     }
 
-    list.n = vw.n;
+    list.n = vw.nitems;
     list.top = 0;
     list.items = vw.list_text;
     list.size = size;
@@ -748,6 +846,20 @@ static bool list_fill(Session *const S)
 }
 
 const DlogList *view_list(Session *const S) { return list_fill(S) ? &list : nullptr; }
+
+/* Item it in the active window: its view, a fn's line at the top. */
+static void show_item(Session *const S, const Item *const it)
+{
+    view_show(S, it->view);
+
+    if (it->line == NOLINE)
+        return;
+
+    edit_load(S, view_goline(S, it->line));
+    uimn.ed.top = uimn.ed.line;
+    uimn.edline.col = 0;
+    uimn.ed.sel_on = false;
+}
 
 void view_subs(Session *const S)
 {
@@ -758,15 +870,15 @@ void view_subs(Session *const S)
 
     dg_subs.focus = 0;
     const uint8_t b = dlog_run(S, &dg_subs);
-    const uint32_t v = list.n ? vw.order[list.sel] : 0;
+    const Item it = list.n ? vw.order[list.sel] : (Item){0, NOLINE, 0};
 
     if (b == SUBS_ACTIVE) {
         jumps_push();
-        view_show(S, v);
+        show_item(S, &it);
     } else if (b == SUBS_SPLIT) { /* the split's other window shows it */
         wind_other(S, false);
-        view_show(S, v);
-    } else if (b == SUBS_DELETE) {
-        del(S, v);
+        show_item(S, &it);
+    } else if (b == SUBS_DELETE && it.line == NOLINE) {
+        del(S, it.view);
     }
 }

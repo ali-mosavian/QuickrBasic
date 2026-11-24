@@ -143,6 +143,21 @@ the run goes on.
 Built on `ui/debuginline.c`: the names are where the highlighter colours one, the values Locals' rows
 (`ui/debuglocals.c`, over `vm/inspect.h`), so they follow the selected frame and its spelling.
 
+## Quickr
+
+The editor takes both dialects. A file's extension picks its dialect, `.bas` QBasic and `.qr` Quickr,
+and a program is one or the other.
+
+- File, Open lists `*.BAS` and `*.QR`. Save As names a Quickr program `.QR` when no extension is typed.
+- A Quickr line is stored as typed, its text the record's body (`LF_QR`), and saved as typed.
+- The modules a Quickr program imports open as a QBasic program's do, each its own view after the
+  main's. A Quickr file is one view: its fns stay where they are written, and F2 lists them under
+  their file.
+- A run goes through the modules in import order, each module's last line on to the next one's first
+  (`qr/qlink.c`), so the store keeps the order the files were read in.
+
+Built on `qr/qr.c` (`qr_read`, `qr_open`) and `ui/text.c`.
+
 ## Theme slots
 
 Five slots, set in every theme: SL_ERR, SL_FIND, SL_MATCH, SL_OCC, SL_HINT.

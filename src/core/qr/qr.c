@@ -17,6 +17,12 @@
  *
  * A clean program is linked (qlink) and run by the VM as a QBasic one is. A runtime error stops
  * it at its line: prog.qr:5: Division by zero, then the line.
+ *
+ * The editor keeps a program's lines in the store as it reads them, each file's number its
+ * module's, the main's first (ui/text.h); a module is read in after the rest. A run's lines, a
+ * generic's instances and the end of the run past the main's last line, go after them (LF_INC)
+ * and out again before the next build. The run goes through the modules in the order above, each
+ * module's last line on to the next's first (qlink).
  */
 #include "qr/qr.h"
 #include "session.h"
@@ -46,27 +52,44 @@ static void qr_check(Session *const S, const uint16_t dos)
         fault_check(&S->fault, chnl_doserr(dos));
 }
 
-/* The bytes of the file at path in the arena, a 0 after them; *len how many. */
-static char *qr_read(Session *const S, QMem *const m, const char *const path, uint32_t *const len)
+/* The bytes of the file at path in the arena, a 0 after them; *len how many. PFIL_OK, else the DOS
+   error. */
+static uint16_t qr_bytes(QMem *const m, const char *const path, char **const text, uint32_t *len)
 {
     PfilHandle h;
-    qr_check(S, pfil_open(path, PFIL_READ, &h));
+    const uint16_t e = pfil_open(path, PFIL_READ, &h);
+
+    if (e)
+        return e;
+
     uint32_t size = 0, got = 0;
     pfil_seek(h, 0, PFIL_END, &size);
     pfil_seek(h, 0, PFIL_SET, nullptr);
-    char *const text = qast_alloc(m, size + 1);
-    const uint16_t st = pfil_read(h, text, size, &got);
+    *text = qast_alloc(m, size + 1);
+    const uint16_t st = pfil_read(h, *text, size, &got);
     pfil_close(h);
-    qr_check(S, st);
     *len = got;
-    return text;
+    return st;
 }
 
-/* The file at path a new module of p: its lines, lexed and parsed. Its number. */
-static uint32_t qr_module(Session *const S, QProg *const p, QMem *const m, const char *const path)
+/* The line of text at *at, len bytes in all, its end (LF, CR LF) a 0 in place; *at past it. Its
+   length. */
+static uint32_t qr_line(char *const text, const uint32_t len, uint32_t *const at)
 {
-    uint32_t len, cap = p->src.nlines;
-    char *const text = qr_read(S, m, path, &len);
+    uint32_t end = *at;
+
+    while (end < len && text[end] != '\n')
+        end++;
+
+    const uint32_t w = end - *at - (end > *at && text[end - 1] == '\r');
+    text[*at + w] = 0;
+    *at = end + 1;
+    return w;
+}
+
+/* A new module of p at path, its lines next: its number. */
+static uint32_t qr_newmod(QProg *const p, QMem *const m, const char *const path)
+{
     const uint32_t k = p->nmods;
     const uint32_t n = (uint32_t)strlen(path);
     char *const name = qast_alloc(m, n + 1);
@@ -78,32 +101,164 @@ static uint32_t qr_module(Session *const S, QProg *const p, QMem *const m, const
     if (k)
         p->mods[k].base = p->mods[k - 1].base + p->mods[k - 1].ntoks;
 
-    for (uint32_t at = 0, src = 1; at < len; src++) {
-        uint32_t end = at;
+    return k;
+}
 
-        while (end < len && text[end] != '\n')
-            end++;
+/* ln a line of p's, the last; *cap the lines' room. */
+static void qr_addline(QProg *const p, QMem *const m, uint32_t *const cap, const QLine ln)
+{
+    p->src.lines = qast_room(m, p->src.lines, p->src.nlines, cap, sizeof *p->src.lines);
+    p->src.lines[p->src.nlines++] = ln;
+}
 
-        const uint32_t w = end - at - (end > at && text[end - 1] == '\r');
-        text[at + w] = 0;
-        p->src.lines = qast_room(m, p->src.lines, p->src.nlines, &cap, sizeof *p->src.lines);
-        p->src.lines[p->src.nlines++] = (QLine){
-            .text = text + at,
-            .len = w,
-            .src = (uint16_t)src,
-            .mod = (uint16_t)k,
-        };
-
-        at = end + 1;
-    }
-
+/* Module k, its lines p's last: lexed and parsed. */
+static void qr_parse(QProg *const p, QMem *const m, const uint32_t k)
+{
     QMod *const mod = &p->mods[k];
     mod->nlines = p->src.nlines - mod->first;
     qlex_source(&p->src, mod->first, m, &p->errs);
     mod->toks = p->src.toks;
     mod->ntoks = p->src.ntoks;
     qpar_program(p, m, mod);
+}
+
+/* The file at path a new module of p: its lines, lexed and parsed. Its number. */
+static uint32_t qr_module(Session *const S, QProg *const p, QMem *const m, const char *const path)
+{
+    uint32_t len, cap = p->src.nlines;
+    char *text;
+    qr_check(S, qr_bytes(m, path, &text, &len));
+    const uint32_t k = qr_newmod(p, m, path);
+
+    for (uint32_t at = 0, src = 1; at < len; src++) {
+        const uint32_t start = at;
+        const uint32_t w = qr_line(text, len, &at);
+        qr_addline(
+            p,
+            m,
+            &cap,
+            (QLine){
+                .text = text + start,
+                .len = w,
+                .src = (uint16_t)src,
+                .mod = (uint16_t)k,
+            }
+
+        );
+    }
+
+    qr_parse(p, m, k);
     return k;
+}
+
+/* Is record l a text line of file file's: Quickr's, not a run's own? */
+static bool qr_text(const Line *const l, const uint32_t file)
+{
+    return (l->flags & (LF_QR | LF_INC)) == LF_QR && l->file == file;
+}
+
+/* The store's lines of file file, a new module of p at path: each's text copied, its src its
+   number in the file; lexed and parsed. */
+static void qr_gather(
+    Session *const S,
+    QProg *const p,
+    QMem *const m,
+    const uint32_t file,
+    const char *const path
+)
+{
+    Prog *const pg = &S->prog;
+    const uint32_t k = qr_newmod(p, m, path);
+    uint32_t cap = p->src.nlines, src = 1;
+
+    for (uint32_t rec = PROGBASE; prog_line(pg, rec)->len; rec += prog_line(pg, rec)->len) {
+        Line *const l = prog_line(pg, rec);
+
+        if (!qr_text(l, file))
+            continue;
+
+        const char *const body = (const char *)at(prog_addr(pg, rec) + HDR);
+        const uint32_t n = (uint32_t)strlen(body);
+        char *const text = qast_alloc(m, n + 1);
+        memcpy(text, body, n);
+        l->src = (uint16_t)src;
+        qr_addline(
+            p,
+            m,
+            &cap,
+            (QLine){
+                .at = rec,
+                .text = text,
+                .len = n,
+                .src = (uint16_t)src,
+                .mod = (uint16_t)k,
+            }
+
+        );
+        src++;
+    }
+
+    qr_parse(p, m, k);
+}
+
+/* The line at text, n bytes, its tabs spaces to the next column of 8: in the arena, 0-ended;
+   *w its length. */
+static const char *qr_untab(QMem *const m, const char *const text, const uint32_t n, uint32_t *w)
+{
+    uint32_t tabs = 0;
+
+    for (uint32_t i = 0; i < n; i++)
+        tabs += text[i] == '\t';
+
+    char *const out = qast_alloc(m, n + tabs * 7 + 1);
+    uint32_t o = 0;
+
+    for (uint32_t i = 0; i < n; i++) {
+        if (text[i] != '\t') {
+            out[o++] = text[i];
+            continue;
+        }
+
+        do
+            out[o++] = ' ';
+        while (o % 8);
+    }
+
+    out[o] = 0;
+    *w = o;
+    return out;
+}
+
+uint16_t qr_read(Session *const S, const char *const path, const uint16_t file)
+{
+    QMem m = {.fault = &S->fault};
+
+    arena_init(&m.arena, QR_CHUNK);
+    char *text;
+    uint32_t len;
+    const uint16_t e = qr_bytes(&m, path, &text, &len);
+    const char *const eof = e ? nullptr : memchr(text, 0x1A, len);
+
+    if (eof)
+        len = (uint32_t)(eof - text);
+
+    S->prog.add_flags = LF_QR;
+    S->prog.add_file = file;
+    S->prog.add_at = 0;
+
+    for (uint32_t at = 0, src = 1; !e && (at < len || src == 1); src++) {
+        const uint32_t start = at;
+        uint32_t w;
+        const char *const line = qr_untab(&m, text + start, qr_line(text, len, &at), &w);
+        S->prog.add_src = (uint16_t)src;
+        prog_add(&S->prog, NONUM, (const uint8_t *)line, w + 1);
+    }
+
+    S->prog.add_flags = 0;
+    S->prog.add_src = 0;
+    S->prog.add_file = 0;
+    arena_reset(&m.arena);
+    return e;
 }
 
 /* Are paths a and b the same, case aside? */
@@ -115,17 +270,49 @@ static bool qr_same(const char *a, const char *b)
     return !*a && !*b;
 }
 
+/* A program being loaded: its tree's, and whether its lines are the store's (the editor's), a
+   module read in after them; else each file's text is read into the arena. */
+typedef struct {
+    Session *S;
+    QProg *p;
+    QMem *m;
+    bool stored;
+} QrLoad;
+
+/* The module at path: p's of that path, else read in, a new module. Its number; QMOD_NONE when
+   the editor cannot read it. */
+static uint32_t qr_load(const QrLoad *const L, const char *const path)
+{
+    QProg *const p = L->p;
+
+    for (uint32_t i = 0; i < p->nmods; i++)
+        if (qr_same(p->mods[i].path, path))
+            return i;
+
+    if (!L->stored)
+        return qr_module(L->S, p, L->m, path);
+
+    Modu *const mu = &L->S->modu;
+    const uint32_t k = modu_module(mu, path);
+
+    if (k < p->nmods) /* another spelling of its path */
+        return k;
+    if (qr_read(L->S, path, (uint16_t)k)) {
+        modu_drop(mu, k);
+        return QMOD_NONE;
+    }
+
+    modu_file(mu, k, path, k);
+    qr_gather(L->S, p, L->m, k, path);
+    return k;
+}
+
 /* Module im of p, found from module k's file: loaded once, its number in im->mod; a package's
    folder (folder not null) to folder. Not found: an error at its name. */
-static void qr_find(
-    Session *const S,
-    QProg *const p,
-    QMem *const m,
-    const uint32_t k,
-    QImport *const im,
-    char *const folder
-)
+static void qr_find(const QrLoad *const L, const uint32_t k, QImport *const im, char *const folder)
 {
+    Session *const S = L->S;
+    QProg *const p = L->p;
     char dotted[PFIL_PATH], path[PFIL_PATH];
     uint32_t n = 0;
 
@@ -163,20 +350,16 @@ static void qr_find(
         return;
     }
 
-    const char *const at = folder ? folder : path;
+    im->mod = qr_load(L, folder ? folder : path);
 
-    for (uint32_t i = 0; i < p->nmods; i++)
-        if (qr_same(p->mods[i].path, at)) {
-            im->mod = i;
-            return;
-        }
-
-    im->mod = qr_module(S, p, m, at);
+    if (im->mod == QMOD_NONE)
+        qast_error(&p->errs, im->tok, "no module {}", dotted, n);
 }
 
 /* A name from gives, of the package in folder: its module, loaded once. */
-static void qr_part(Session *const S, QProg *const p, QMem *const m, const char *dir, QImport *im)
+static void qr_part(const QrLoad *const L, const char *const dir, QImport *const im)
 {
+    QProg *const p = L->p;
     char path[PFIL_PATH];
     const ImptName name = {.text = (const uint8_t *)im->tok->text, .len = (uint8_t)im->tok->len};
 
@@ -185,32 +368,29 @@ static void qr_part(Session *const S, QProg *const p, QMem *const m, const char 
         return;
     }
 
-    for (uint32_t i = 0; i < p->nmods; i++)
-        if (qr_same(p->mods[i].path, path)) {
-            im->mod = i;
-            return;
-        }
+    im->mod = qr_load(L, path);
 
-    im->mod = qr_module(S, p, m, path);
+    if (im->mod == QMOD_NONE)
+        qast_error(&p->errs, im->tok, "no module {} in the package", im->tok->text, im->tok->len);
 }
 
 /* Each module module k's imports and froms name, loaded once. */
-static void qr_imports(Session *const S, QProg *const p, QMem *const m, const uint32_t k)
+static void qr_imports(const QrLoad *const L, const uint32_t k)
 {
-    for (QStmt *s = p->mods[k].head; s; s = s->next) {
+    for (QStmt *s = L->p->mods[k].head; s; s = s->next) {
         if (s->kind == QS_IMPORT)
             for (QImport *im = s->imps; im; im = im->next)
-                qr_find(S, p, m, k, im, nullptr);
+                qr_find(L, k, im, nullptr);
 
         if (s->kind == QS_FROM) {
             char dir[PFIL_PATH];
-            qr_find(S, p, m, k, s->imps, dir);
+            qr_find(L, k, s->imps, dir);
 
             for (QImport *im = s->names; s->imps->folder && im; im = im->next)
-                qr_part(S, p, m, dir, im);
+                qr_part(L, dir, im);
         }
 
-        if (s == p->mods[k].tail)
+        if (s == L->p->mods[k].tail)
             break;
     }
 }
@@ -305,23 +485,27 @@ static void qr_say(Session *const S, const QProg *const p, const QErr *const e)
         qr_mark(co, ln->text, ln->len, e->col);
 }
 
+/* Line ln of p's copied, the run's own, at the store's end: its source's mark kept, so a
+   breakpoint stops the copy too. Its index. */
+static uint32_t qr_copy(Session *const S, QProg *const p, QMem *const m, uint32_t *cap, QLine ln)
+{
+    const uint8_t mark = ln.at ? prog_line(&S->prog, ln.at)->flags & LF_BP : 0;
+    S->prog.add_flags = LF_QR | LF_INC | mark;
+    S->prog.add_src = ln.src;
+    S->prog.add_file = ln.mod;
+    ln.at = prog_at(&S->prog);
+    prog_add(&S->prog, NONUM, (const uint8_t *)ln.text, ln.len + 1);
+    S->prog.add_flags = 0;
+    S->prog.add_src = 0;
+    S->prog.add_file = 0;
+    qr_addline(p, m, cap, ln);
+    return p->src.nlines - 1;
+}
+
 /* A line of the run's own for statement s, a copy of its token's, at the store's end. */
 static void qr_own(Session *const S, QProg *const p, QMem *const m, uint32_t *const cap, QStmt *s)
 {
-    const QLine ln = p->src.lines[s->tok->line];
-    p->src.lines = qast_room(m, p->src.lines, p->src.nlines, cap, sizeof *p->src.lines);
-    s->line = p->src.nlines;
-    p->src.lines[p->src.nlines++] = (QLine){
-        .at = prog_at(&S->prog),
-        .text = ln.text,
-        .len = ln.len,
-        .src = ln.src,
-        .mod = ln.mod,
-    };
-
-    S->prog.add_src = ln.src;
-    S->prog.add_file = ln.mod;
-    prog_add(&S->prog, NONUM, (const uint8_t *)ln.text, ln.len + 1);
+    s->line = qr_copy(S, p, m, cap, p->src.lines[s->tok->line]);
 }
 
 /* Each instance's lines, copies of its generic's at the store's end, its statements on them; each
@@ -330,7 +514,6 @@ static void qr_own(Session *const S, QProg *const p, QMem *const m, uint32_t *co
 static void qr_instances(Session *const S, QProg *const p, QMem *const m)
 {
     uint32_t cap = p->src.nlines;
-    S->prog.add_flags = LF_QR;
 
     for (const QFn *f = p->fns; f; f = f->next) {
         if (!f->of && !(f->lamof && f->sig))
@@ -340,21 +523,8 @@ static void qr_instances(Session *const S, QProg *const p, QMem *const m)
         const uint32_t base = p->src.nlines;
         const uint32_t first = from->def->tok->line;
 
-        for (uint32_t i = first; i <= from->end->tok->line; i++) {
-            const QLine ln = p->src.lines[i];
-            p->src.lines = qast_room(m, p->src.lines, p->src.nlines, &cap, sizeof *p->src.lines);
-            p->src.lines[p->src.nlines++] = (QLine){
-                .at = prog_at(&S->prog),
-                .text = ln.text,
-                .len = ln.len,
-                .src = ln.src,
-                .mod = ln.mod,
-            };
-
-            S->prog.add_src = ln.src;
-            S->prog.add_file = ln.mod;
-            prog_add(&S->prog, NONUM, (const uint8_t *)ln.text, ln.len + 1);
-        }
+        for (uint32_t i = first; i <= from->end->tok->line; i++)
+            qr_copy(S, p, m, &cap, p->src.lines[i]);
 
         for (QStmt *s = f->def;; s = s->next) {
             s->line = base + s->tok->line - first;
@@ -375,10 +545,6 @@ static void qr_instances(Session *const S, QProg *const p, QMem *const m)
 
     for (uint32_t i = 0; i < p->nruns; i++)
         qr_own(S, p, m, &cap, p->runs[i]->link);
-
-    S->prog.add_flags = 0;
-    S->prog.add_src = 0;
-    S->prog.add_file = 0;
 }
 
 uint32_t qr_build(Session *const S)
@@ -388,12 +554,14 @@ uint32_t qr_build(Session *const S)
     arena_init(&m.arena, QR_CHUNK);
     QProg p = {.errs = {.mem = &m}, .testing = S->repl.testing};
 
+    const QrLoad L = {S, &p, &m, false};
+
     S->repl.batch = true;
     modu_clear(&S->modu, S->repl.file);
     qr_module(S, &p, &m, S->repl.file);
 
     for (uint32_t k = 0; k < p.nmods; k++)
-        qr_imports(S, &p, &m, k);
+        qr_imports(&L, k);
 
     qr_store(S, &p, &m);
     session_drop(S);
@@ -423,6 +591,12 @@ void qr_run(Session *const S)
     exec_run(S);
 }
 
+const char *qr_message(const Session *const S, const uint8_t code)
+{
+    return code == E_USR && S->vm.err.user == QRT_ASSERT ? "assert failed"
+                                                         : emsg_text(S->vm.err.user, code);
+}
+
 void qr_report(Session *const S, const uint8_t code)
 {
     Cons *const co = &S->cons;
@@ -432,13 +606,248 @@ void qr_report(Session *const S, const uint8_t code)
     cons_putc(co, ':');
     cons_uint(co, l->src);
     cons_puts(co, ": ");
-    cons_puts(
-        co,
-        code == E_USR && S->vm.err.user == QRT_ASSERT ? "assert failed"
-                                                      : emsg_text(S->vm.err.user, code)
-    );
+    cons_puts(co, qr_message(S, code));
     cons_nl(co);
     cons_spaces(co, 2);
     cons_puts(co, text);
     cons_nl(co);
+}
+
+/* ---- the editor's */
+
+/* The run's own lines out of the store: a build's. */
+static void qr_unrun(Prog *const pg)
+{
+    for (uint32_t rec = PROGBASE; prog_line(pg, rec)->len;)
+        if ((prog_line(pg, rec)->flags & (LF_QR | LF_INC)) == (LF_QR | LF_INC))
+            prog_cut(pg, rec);
+        else
+            rec += prog_line(pg, rec)->len;
+}
+
+/* Module d's lines out of the store, those of the files after it a number down; d out of the
+   modules. */
+static void qr_drop(Session *const S, const uint32_t d)
+{
+    Prog *const pg = &S->prog;
+
+    for (uint32_t rec = PROGBASE; prog_line(pg, rec)->len;) {
+        Line *const l = prog_line(pg, rec);
+
+        if (l->flags & LF_QR && l->file == d) {
+            prog_cut(pg, rec);
+            continue;
+        }
+
+        if (l->flags & LF_QR && l->file > d)
+            l->file--;
+
+        rec += l->len;
+    }
+
+    modu_drop(&S->modu, d);
+    modu_relink(&S->modu, S->repl.file, modu_count(&S->modu));
+}
+
+/* The store's program, repl.file the main's, as L's: the run's own lines out; each module's lines
+   gathered, then the modules their imports name read in after the rest; p->order each module after
+   those it imports, the main's last. A module no import reaches is dropped and the lot gathered
+   again, unless edited: that one is the program's still, before the main. */
+static void qr_enter(const QrLoad *const L)
+{
+    Session *const S = L->S;
+    QProg *const p = L->p;
+    const QProg fresh = *p;
+    qr_unrun(&S->prog);
+    modu_relink(&S->modu, S->repl.file, modu_count(&S->modu));
+
+    for (uint32_t k = 0; k < modu_count(&S->modu); k++)
+        qr_gather(S, p, L->m, k, modu_module_path(&S->modu, k));
+
+    for (uint32_t k = 0; k < p->nmods; k++)
+        qr_imports(L, k);
+
+    bool *const seen = qast_alloc(L->m, p->nmods);
+    uint32_t n = 0;
+    p->order = qast_alloc(L->m, p->nmods * sizeof *p->order);
+    qr_visit(p, seen, 0, &n);
+    const uint32_t main = n - 1;
+
+    for (uint32_t k = 1; k < p->nmods; k++)
+        if (!seen[k] && modu_mod(&S->modu, k)->edited)
+            qr_visit(p, seen, k, &n);
+
+    for (uint32_t k = 1; k < p->nmods; k++)
+        if (!seen[k]) {
+            qr_drop(S, k);
+            *p = fresh;
+            qr_enter(L);
+            return;
+        }
+
+    memmove(p->order + main, p->order + main + 1, (n - main - 1) * sizeof *p->order);
+    p->order[n - 1] = 0;
+}
+
+/* Error e of p's to *out: its line's record, its column, its message. One past the lines: the
+   last's end. */
+static void qr_said(const QProg *const p, const QErr *const e, QrErr *const out)
+{
+    const bool past = e->line >= p->src.nlines;
+    const QLine *const ln =
+        p->src.nlines ? &p->src.lines[past ? p->src.nlines - 1 : e->line] : nullptr;
+    const uint32_t n = out->cap && e->len >= out->cap ? out->cap - 1 : e->len;
+    out->rec = ln ? ln->at : PROGBASE;
+    out->col = ln && past ? ln->len : e->col;
+
+    if (!out->cap)
+        return;
+
+    memcpy(out->msg, e->text, n);
+    out->msg[n] = 0;
+}
+
+void qr_open(Session *const S)
+{
+    QMem m = {.fault = &S->fault};
+
+    arena_init(&m.arena, QR_CHUNK);
+    QProg p = {.errs = {.mem = &m}};
+
+    qr_enter(&(QrLoad){S, &p, &m, true});
+
+    arena_reset(&m.arena);
+}
+
+/* The run's end past the main's last line: an empty line of the run's own, p->end. */
+static void qr_end(Session *const S, QProg *const p, QMem *const m)
+{
+    uint32_t cap = p->src.nlines;
+    p->end = qr_copy(S, p, m, &cap, (QLine){.text = ""}) + 1;
+}
+
+uint32_t qr_link(Session *const S, QrErr *const e)
+{
+    QMem m = {.fault = &S->fault};
+
+    arena_init(&m.arena, QR_CHUNK);
+    QProg p = {.errs = {.mem = &m}};
+
+    qr_enter(&(QrLoad){S, &p, &m, true});
+
+    session_drop(S);
+    qsem_program(&p, &m);
+    qast_sort(&p.errs);
+
+    if (p.errs.n) {
+        qr_said(&p, &p.errs.at[0], e);
+    } else {
+        qr_end(S, &p, &m);
+        qr_instances(S, &p, &m);
+        qlink_program(&S->comp, &p, &m, S->dbug.emit);
+    }
+
+    arena_reset(&m.arena);
+    return p.errs.n;
+}
+
+/* File file's lines, p's only module: lexed and parsed (p->loose), the errors sorted. */
+static void qr_lines(Session *const S, QProg *const p, QMem *const m, const uint32_t file)
+{
+    qr_gather(S, p, m, file, "");
+    qast_sort(&p->errs);
+}
+
+bool qr_syntax(Session *const S, const uint32_t rec, QrErr *const e)
+{
+    QMem m = {.fault = &S->fault};
+
+    arena_init(&m.arena, QR_CHUNK);
+    QProg p = {.errs = {.mem = &m}, .loose = true};
+
+    qr_lines(S, &p, &m, prog_line(&S->prog, rec)->file);
+    bool found = false;
+
+    for (uint32_t i = 0; !found && i < p.errs.n; i++)
+        if (p.errs.at[i].line < p.src.nlines && p.src.lines[p.errs.at[i].line].at == rec) {
+            qr_said(&p, &p.errs.at[i], e);
+            found = true;
+        }
+
+    arena_reset(&m.arena);
+    return found;
+}
+
+void qr_flag(Session *const S)
+{
+    QMem m = {.fault = &S->fault};
+
+    arena_init(&m.arena, QR_CHUNK);
+
+    for (uint32_t k = 0; k < modu_count(&S->modu); k++) {
+        QProg p = {.errs = {.mem = &m}, .loose = true};
+
+        qr_lines(S, &p, &m, k);
+
+        for (uint32_t i = 0; i < p.src.nlines; i++)
+            prog_line(&S->prog, p.src.lines[i].at)->flags &= ~LF_ASIS;
+
+        for (uint32_t i = 0; i < p.errs.n; i++)
+            if (p.errs.at[i].line < p.src.nlines)
+                prog_line(&S->prog, p.src.lines[p.errs.at[i].line].at)->flags |= LF_ASIS;
+    }
+
+    arena_reset(&m.arena);
+}
+
+/* Is c a name's: a letter, a digit or _? */
+static bool qr_namec(const char c)
+{
+    return is_letter((uint8_t)c) || is_digit((uint8_t)c) || c == '_';
+}
+
+/* Past the word w at text's *at and the blanks after it: true, *at past them. */
+static bool qr_word(const char *const text, const uint32_t len, uint32_t *const at, const char *w)
+{
+    const uint32_t n = (uint32_t)strlen(w);
+
+    if (*at + n > len || memcmp(text + *at, w, n) || (*at + n < len && qr_namec(text[*at + n])))
+        return false;
+
+    *at += n;
+
+    while (*at < len && text[*at] == ' ')
+        (*at)++;
+
+    return true;
+}
+
+bool qr_fn_at(const char *const text, const uint32_t len, uint32_t *const at, uint32_t *const n)
+{
+    uint32_t i = 0;
+
+    while (i < len && text[i] == ' ')
+        i++;
+
+    qr_word(text, len, &i, "public");
+    qr_word(text, len, &i, "native");
+
+    if (!qr_word(text, len, &i, "fn"))
+        return false;
+
+    uint32_t end = i;
+
+    if (qr_word(text, len, &end, "operator")) /* its operator too: fn operator + */
+        while (end < len && text[end] != ' ' && text[end] != '(')
+            end++;
+    else
+        while (end < len && qr_namec(text[end]))
+            end++;
+
+    if (end == i || is_digit((uint8_t)text[i]))
+        return false;
+
+    *at = i;
+    *n = end - i;
+    return true;
 }

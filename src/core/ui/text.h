@@ -3,8 +3,11 @@
 #define UI_TEXT_H
 #include "ui/ui.h"
 
-/* tx_init: a new program: one empty line, the whole text the view; uimn.text.changed. */
-void text_init(Session *S);
+/* tx_init: a new program, Quickr's when quickr: one empty line, the whole text the view;
+   uimn.text.changed. */
+void text_init(Session *S, bool quickr);
+/* The program is Quickr's: its lines its text (LF_QR). */
+bool text_quickr(Session *S);
 /* tx_whole: the whole text the view. */
 void text_whole(void);
 /* tx_view: the view n lines from text line first. */
@@ -72,7 +75,8 @@ void text_clip_lines(Session *S, uint32_t from, uint32_t to);
 
 /* tx_read: the file name the text, the whole the view: CR LF and LF end lines, a tab to the next
    column of 8, ^Z ends it, a long line is cut, a line ending in '_' goes on in the next (srcr's
-   physical lines); each line as edit_canon makes it, a syntax error's kept as typed.
+   physical lines); each line as edit_canon makes it, a syntax error's kept as typed. A .qr's lines
+   as qr_read reads them.
    PFIL_OK, else the DOS error of opening it, the text as it was. Errors: Out of memory. */
 uint16_t text_read(Session *S, const char *name);
 /* tx_write: module module's lines to the file name, ended by CR LF; PFIL_OK, else the DOS error

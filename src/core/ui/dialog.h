@@ -89,13 +89,14 @@ void dlog_err(Session *S, char *text);
    44 columns; a '|' of src a box's line drawing character (B3h). Past them in dst. */
 uint8_t *dlog_wrap(uint8_t *dst, const uint8_t *src, uint32_t len, uint8_t indent);
 
-/* dl_open: File, Open's box (*.BAS); true: uimn.chosen the file. */
+/* dl_open: File, Open's box (*.BAS and *.QR); true: uimn.chosen the file. */
 bool dlog_open(Session *S);
-/* dl_saveas: Save As's box, the field the file's name; true: uimn.chosen the file. */
-bool dlog_saveas(Session *S);
+/* dl_saveas: Save As's box, the field the file's name, a Quickr program's (quickr) .QR when none;
+   true: uimn.chosen the file. */
+bool dlog_saveas(Session *S, bool quickr);
 /* dl_fok: OK in Open and Save As (a button's hook, also uimn_start's): uimn.fname a mask (* ?)
-   lists it, the box stays (true); empty: stays; else the name, .BAS added when it has no dot, in
-   uimn.chosen (false). */
+   lists it, the box stays (true); empty: stays; else the name, .BAS added when it has no dot (.QR
+   in a Quickr program's Save As), in uimn.chosen (false). */
 bool dlog_fileok(uint8_t why);
 /* dl_bhelp: a Help button's hook: no help to show; a beep, the box stays (true). */
 bool dlog_nohelp(uint8_t why);

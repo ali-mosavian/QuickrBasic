@@ -637,7 +637,7 @@ void stmt_runfirst(Session *const S)
     if (!prog_line(&S->prog, PROGBASE)->len)
         flow_end(S);
 
-    stmt_rungo(S, PROGBASE);
+    stmt_rungo(S, S->link.start ? S->link.start : PROGBASE);
 }
 
 /* LIST ( from to -- ), then READY. */
