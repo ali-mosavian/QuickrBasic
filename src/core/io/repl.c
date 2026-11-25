@@ -1381,6 +1381,8 @@ static void declare_again(Session *const S, const bool guests, const bool lenien
 /* Dialect.redeclare's: the program's own and its other dialects' modules', those lenient. */
 static void redeclare_qbasic(Session *const S) { declare_again(S, false, true); }
 
+void repl_redeclare_guests(Session *const S) { declare_again(S, true, false); }
+
 void repl_load(Session *const S)
 {
     S->repl.loading = true;

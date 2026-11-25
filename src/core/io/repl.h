@@ -103,6 +103,9 @@ void repl_guests_stored(Session *S, const uint32_t *mods, uint32_t n, uint32_t f
 /* repl_guests_stored's first part alone: each stored QBasic line's imports found, as the modules'
    edges, a module new added; nothing read. */
 void repl_guests_found(Session *S);
+/* The editor's Quickr program's QBasic modules declared again from none (its Dialect.redeclare).
+   Errors: as repl_load. */
+void repl_redeclare_guests(Session *S);
 /* Stored QBasic module m's lines out of the store, its LF_TOP's too, the last LF_TOP when no
    other module is QBasic's; m kept in the modules. */
 void repl_cut_module(Session *S, uint32_t m);

@@ -551,26 +551,17 @@ static bool text_error(Session *const S, const uint32_t line)
     return err;
 }
 
-/* edit_store's of a text dialect's line: as typed, then checked; the program's declarations
-   after it. */
+/* edit_store's of a text dialect's line: as typed, then checked. */
 static bool store_text(Session *const S, const uint32_t line, LineBuf *const b)
 {
     uimn.text.asis = false;
     text_repl(S, line, b->text, b->len);
-    const bool err = text_error(S, line + uimn.text.first);
-    const Dialect *const d = dial_program(&S->prog);
-
-    if (d->redeclare)
-        d->redeclare(S);
-
-    return !err;
+    return !text_error(S, line + uimn.text.first);
 }
 
-bool edit_store(Session *const S, const uint32_t line, LineBuf *const b)
+/* edit_store's of a QBasic line: made canonical, kept as typed on a syntax error. */
+static bool store_qbasic(Session *const S, const uint32_t line, LineBuf *const b)
 {
-    if (text_dialect_at(S, line + uimn.text.first)->text)
-        return store_text(S, line, b);
-
     const uint32_t was = enter_view(S, uimn.ed.view);
     uint32_t lexed;
     const bool canon = edit_canon(S, b->text, b->len, &lexed);
@@ -584,6 +575,18 @@ bool edit_store(Session *const S, const uint32_t line, LineBuf *const b)
 
     text_repl(S, line, b->text, b->len);
     return canon;
+}
+
+bool edit_store(Session *const S, const uint32_t line, LineBuf *const b)
+{
+    const Dialect *const d = text_dialect_at(S, line + uimn.text.first);
+    const Dialect *const p = dial_program(&S->prog);
+    const bool ok = d->text ? store_text(S, line, b) : store_qbasic(S, line, b);
+
+    if (d != p && p->redeclare) /* another dialect's line: the program's view of it */
+        p->redeclare(S);
+
+    return ok;
 }
 
 void edit_goto(Session *const S, const uint32_t line)

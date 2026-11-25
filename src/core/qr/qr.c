@@ -2253,6 +2253,7 @@ const Dialect dialect_quickr = {
     .link = qr_link,
     .go = qr_go,
     .linked = qr_linked,
+    .redeclare = repl_redeclare_guests,
     .print = qr_print,
     .direct = qr_direct_code,
     .syntax = qr_syntax,

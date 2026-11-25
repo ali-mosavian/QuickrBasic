@@ -218,9 +218,9 @@ debugs either as it does a program of one dialect.
 - A Quickr program's modules are those its imports reach, a QBasic module's own `IMPORT`s too
   (`modu_unreached`, as a QBasic program's): one no longer imported is dropped at the next link,
   before its lines are read again.
-- A line stored in a QBasic program's module of another dialect declares the program again
-  (`Dialect.redeclare`): its exports reach completion at once. One with an error exports nothing
-  till it checks; the run says the error.
+- A line stored in a module of a dialect other than the program's declares the program again
+  (`Dialect.redeclare`): its exports and TYPE fields reach completion at once, removals too. A
+  Quickr module with an error exports nothing till it checks; the run says the error.
 
 ## Theme slots
 

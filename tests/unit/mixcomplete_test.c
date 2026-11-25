@@ -240,8 +240,6 @@ TEST(mixcomplete_qr_main_offers_built_in_methods)
     fx_done(S, files);
 }
 
-/* An edit to a Quickr module's exports reached a QBasic program's completion only at the next
-   run: helper no more private was not offered; one made wrong kept the old exports. */
 /* After a Quickr module's name a QBasic program offered a function and a record it can't use:
    a list result, a list field. */
 TEST(mixcomplete_qb_main_leaves_out_what_it_cant_use)
@@ -253,6 +251,8 @@ TEST(mixcomplete_qb_main_leaves_out_what_it_cant_use)
     fx_done(S, files);
 }
 
+/* An edit to a Quickr module's exports reached a QBasic program's completion only at the next
+   run: helper no more private was not offered; one made wrong kept the old exports. */
 TEST(mixcomplete_qb_main_follows_a_quickr_modules_edits)
 {
     open_with(S, qb_main);
@@ -263,5 +263,19 @@ TEST(mixcomplete_qb_main_follows_a_quickr_modules_edits)
     CHECK(!offers(S, "print total", "a = geo.", "area")); /* an error: none till it checks */
     fx_typed_over(S, fx_line_of(S, "    return \"x\""), "    return 1");
     CHECK(offers(S, "print total", "a = geo.", "area"));
+    fx_done(S, files);
+}
+
+/* An edit to a QBasic module's exports reached a Quickr program's completion only at the next
+   run: a SUB and a TYPE field renamed were offered by their old names. */
+TEST(mixcomplete_qr_main_follows_a_qbasic_modules_edits)
+{
+    open_with(S, qr_main);
+    fx_typed_over(S, fx_line_of(S, "sub Show (a as long)"), "sub Shew (a as long)");
+    CHECK(offers(S, "print total", "shapes.", "Shew"));
+    CHECK(!offers(S, "print total", "shapes.", "Show"));
+    fx_typed_over(S, fx_line_of(S, "    W as long"), "    Wd as long");
+    CHECK(offers(S, "print total", "r.", "Wd"));
+    CHECK(!offers(S, "print total", "r.", "W"));
     fx_done(S, files);
 }

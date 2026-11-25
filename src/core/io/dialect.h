@@ -110,8 +110,8 @@ struct Dialect {
        QBasic's, the link's hooks set (comp/link.h). Lenient: an error leaves the exports out, not
        raised nor said. */
     void (*guest_declare)(Session *S, bool lenient);
-    /* The program's declarations made again after a line of another dialect's changed in it, that
-       one's errors lenient; null: nothing to make. */
+    /* The program's declarations made again after a line of another dialect's changed in it;
+       null: nothing to make. */
     void (*redeclare)(Session *S);
 };
 
