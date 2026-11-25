@@ -17,9 +17,9 @@
     bench.py fps [--real] [--profile | --parts]  MOTHLITE.BAS played by an autopilot on a 486 at 10k cycles/ms
                                                  with the Sound Blaster: its frame rate in each mode;
                                                  --parts: each step of its loop's ms a frame
-    bench.py gfx [--depth D] [--seconds S] [--dos]  gfx's frames a second in the Mac app, drawn in pages
-                                                 against played on the GPU, for each of GFX_WORK's frames;
-                                                 --dos: in pages on DOS
+    bench.py gfx [REV...] [--depth D] [--seconds S] [--dos]  gfx's frames a second in the Mac app, drawn in
+                                                 pages against played on the GPU, for each of GFX_WORK's
+                                                 frames; --dos: in pages on DOS; REVs: in pages, per build
 
 Native (the default) runs build/hostperf/basic for retired instructions, the least of RUNS runs less
 an empty program's, builds compared run interleaved; and build/host/basic for the ops dispatched,
@@ -1052,14 +1052,45 @@ def cmd_gfx_dos(a: argparse.Namespace) -> int:
     return 0
 
 
+def gfx_app(rev: str) -> Path:
+    """The app of rev (. the working tree), made: a REV's in its own worktree, by its own Makefile."""
+    mac = sys.platform == "darwin"
+    root = ROOT
+    if rev != ".":
+        root = REVS / f"{git('rev-parse', '--short', rev)}-app"
+        if not root.exists():
+            git("worktree", "add", "-q", "--detach", str(root), rev)
+    subprocess.run(["make", "-j8", "mac" if mac else "linux-app"], cwd=root, check=True, capture_output=True)
+    return root / ("build/mac/QuickrBasic.app/Contents/MacOS/QuickrBasic" if mac else "build/linux/app/QuickrBasic")
+
+
+def cmd_gfx_revs(a: argparse.Namespace) -> int:
+    """Each GFX_WORK frame's rate in pages per build, the builds run in turn, the best of -n; and whether frame 0's
+    pixels differ from the first build's."""
+    apps = [gfx_app(rev) for rev in a.revs]
+    print(f"640x480 at {a.depth} bits in pages, frames a second, the best of {a.n}")
+    print(f"{'':16}" + "".join(f"{rev:>10}" for rev in a.revs) + f"{'last/first':>12}")
+    for work in a.work or GFX_WORK:
+        best, sums = [0.0] * len(apps), [0] * len(apps)
+        for _ in range(a.n):
+            for i, app in enumerate(apps):
+                rate, sums[i], _, _ = gfx_rate(app, work, a.depth, a.seconds, "soft", a.vsync)
+                best[i] = max(best[i], rate)
+        same = "" if len(set(sums)) == 1 else "  frames differ"
+        cells = "".join(f"{r:10.0f}" for r in best)
+        print(f"{work:16}{cells}{best[-1] / best[0]:11.2f}x{same}", flush=True)
+    return 0
+
+
 def cmd_gfx(a: argparse.Namespace) -> int:
     """Each GFX_WORK frame's rate in pages and on the GPU, in the app's window (the Mac's, or Linux's, off-screen with
-    SDL_VIDEO_DRIVER=offscreen); with --vsync, each flip waiting for the refresh. --dos: in pages on DOS."""
+    SDL_VIDEO_DRIVER=offscreen); with --vsync, each flip waiting for the refresh. --dos: in pages on DOS. With REVs:
+    in pages alone, per build."""
     if a.dos:
         return cmd_gfx_dos(a)
-    mac = sys.platform == "darwin"
-    subprocess.run(["make", "-j8", "mac" if mac else "linux-app"], cwd=ROOT, check=True, capture_output=True)
-    app = ROOT / ("build/mac/QuickrBasic.app/Contents/MacOS/QuickrBasic" if mac else "build/linux/app/QuickrBasic")
+    if a.revs:
+        return cmd_gfx_revs(a)
+    app = gfx_app(".")
     print(f"640x480 at {a.depth} bits, frames a second")
     print(f"{'':10}{'pages':>10}{'GPU':>10}{'GPU/pages':>11}{'batches':>9}{'refresh':>9}")
     for work in a.work or GFX_WORK:
@@ -1290,7 +1321,9 @@ def main() -> int:
     p.add_argument("--nosb", action="store_true", help="no Sound Blaster: the PC speaker's music")
     p.add_argument("-n", type=int, default=30)
     p = sub.add_parser("gfx")
+    p.add_argument("revs", nargs="*", help="builds to time in pages against each other (. the working tree)")
     p.add_argument("--depth", type=int, default=32)
+    p.add_argument("-n", type=int, default=2, help="REVs: runs of each, the best kept")
     p.add_argument("--seconds", type=float, default=3)
     p.add_argument("--work", action="append", choices=list(GFX_WORK), help="a frame to time; all when none")
     p.add_argument("--vsync", action="store_true", help="each flip waits for the refresh")
