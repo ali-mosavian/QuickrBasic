@@ -76,12 +76,16 @@ static inline uint32_t steps_texel(const Pixels *const s, const Steps *const st)
     return px_load(s->p + v * s->pitch + (uint32_t)u * bytes, bytes);
 }
 
-/* A walk that does not wrap read texel by texel, inside its picture: the texel's address stepped
-   by the walk's whole texels and rows, then a row more when v's fraction carries and a texel more
-   when u's does (Abrash's). No texel costs a multiply. The fractions share a register, uGL's
-   halves: u's the low one, stepped by a 16-bit add, v's pre-shifted to the top, by a 32-bit one.
-   The address counts texels, so u's carry is one at every depth: a picture's texels and rows are
-   whole texels from 0. The address is a number: the last step may leave the picture. */
+#if defined(__i386__) || defined(__x86_64__)
+/* x86's: a walk that does not wrap read texel by texel, inside its picture: the texel's address
+   stepped by the walk's whole texels and rows, then a row more when v's fraction carries and a
+   texel more when u's does (Abrash's). No texel costs a multiply. The fractions share a register,
+   uGL's halves: u's the low one, stepped by a 16-bit add, v's pre-shifted to the top, by a 32-bit
+   one. The address counts texels, so u's carry is one at every depth: a picture's texels and rows
+   are whole texels from 0. The address is a number: the last step may leave the picture. A walk
+   that wraps is cut where u wraps. */
+enum { STEPS_MASKED = 0 };
+
 typedef struct {
     intptr_t step, pitch; /* in texels */
     uint32_t dv;          /* its low half 0 */
@@ -128,13 +132,12 @@ static inline StepsRead steps_read(
 }
 
 /* The texel at the read's place, bytes a texel, a constant for a format's own load; the read a
-   pixel on: v's add, its carry a row; u's 16-bit add, its carry a texel. On x86 in asm, as uGL's,
-   since a compiler will not add into a register's half in place. */
+   pixel on: v's add, its carry a row; u's 16-bit add, its carry a texel. In asm, as uGL's, since a
+   compiler will not add into a register's half in place. */
 [[gnu::always_inline]]
 static inline uint32_t steps_read_next(StepsRead *const r, const uint32_t bytes)
 {
     const uint32_t texel = px_load((const uint8_t *)(r->at * bytes), bytes);
-#if defined(__i386__) || defined(__x86_64__)
     intptr_t row;
 
     __asm__(
@@ -149,15 +152,86 @@ static inline uint32_t steps_read_next(StepsRead *const r, const uint32_t bytes)
         [dv] "m"(r->by->dv), [du] "m"(r->by->du), [pitch] "m"(r->by->pitch), [step] "m"(r->by->step)
         : "cc"
     );
-#else
-    const bool down = __builtin_add_overflow(r->uv, r->by->dv, &r->uv);
-    uint16_t u = (uint16_t)r->uv;
-    const bool across = __builtin_add_overflow(u, r->by->du, &u);
-
-    r->uv = (r->uv & 0xFFFF0000u) | u;
-    r->at += (uintptr_t)(r->by->step + (down ? r->by->pitch : 0)) + across;
-#endif
     return texel;
+}
+#else
+/* Elsewhere, 64 bits a register: u and v 16.16 in one, v's pre-shifted to the top half, so one add
+   steps both; a texel's place their whole parts, u's masked, by the pitch. A wrap of a width a
+   power of two is u's mask (STEPS_MASKED), so its walk is not cut where u wraps; u is then biased
+   by 2^31, a multiple of the width's, so it neither borrows from v nor carries into it. On arm64
+   in asm: and, lsr, madd, add. */
+enum { STEPS_MASKED = 1 };
+
+typedef struct {
+    uint64_t duv, umask;
+    uint64_t pitch; /* in texels */
+} StepsBy;
+
+/* The steps beside the place, all in registers. */
+typedef struct {
+    const uint8_t *p;
+    uint64_t uv;
+    StepsBy by;
+} StepsRead;
+
+/* The walk's steps over s, bytes a texel: a constant, the filler's format's. */
+[[gnu::always_inline]]
+static inline StepsBy steps_by(const Pixels *const s, const Steps st, const uint32_t bytes)
+{
+    return (StepsBy){
+        .duv = ((uint64_t)(uint32_t)st.dv << 32) + (uint64_t)(int64_t)st.du,
+        .umask = st.wrap ? (uint32_t)(st.wrap >> 16) - 1 : 0xFFFF,
+        .pitch = s->pitch / bytes,
+    };
+}
+
+[[gnu::always_inline]]
+static inline StepsRead steps_read(
+    const Pixels *const s,
+    const Steps st,
+    const StepsBy *const by,
+    [[maybe_unused]] const uint32_t bytes
+)
+{
+    const uint32_t u = (uint32_t)st.u + (st.wrap ? 0x80000000u : 0);
+
+    return (StepsRead){
+        .p = s->p,
+        .uv = (uint64_t)(uint32_t)st.v << 32 | u,
+        .by = *by,
+    };
+}
+
+/* The texel at the read's place, bytes a texel, a constant for a format's own load; the read a
+   pixel on. */
+[[gnu::always_inline]]
+static inline uint32_t steps_read_next(StepsRead *const r, const uint32_t bytes)
+{
+    uint64_t at;
+#if defined(__aarch64__)
+    uint64_t u;
+
+    __asm__("and %[u], %[mask], %[uv], lsr #16\n\t"
+            "lsr %[at], %[uv], #48\n\t"
+            "madd %[at], %[at], %[pitch], %[u]\n\t"
+            "add %[uv], %[uv], %[duv]"
+            : [uv] "+r"(r->uv), [at] "=&r"(at), [u] "=&r"(u)
+            : [mask] "r"(r->by.umask), [pitch] "r"(r->by.pitch), [duv] "r"(r->by.duv));
+#else
+    at = (r->uv >> 48) * r->by.pitch + (r->uv >> 16 & r->by.umask);
+    r->uv += r->by.duv;
+#endif
+    return px_load(r->p + at * bytes, bytes);
+}
+#endif
+
+/* The walk drawn whole, its wraps its mask: STEPS_MASKED, a wrap of a width a power of two, and u
+   travelling under 2^30, so its bias of 2^31 keeps it inside its half. */
+static inline bool steps_masked(const Steps *const st, const int32_t w, const int32_t n)
+{
+    const int64_t travel = (int64_t)(st->du < 0 ? -(int64_t)st->du : st->du) * n;
+
+    return STEPS_MASKED && st->wrap && !(w & (w - 1)) && travel < (int64_t)1 << 30;
 }
 
 /* The pixels from the walk's place up to where u wraps, at most n: those a walk that does not

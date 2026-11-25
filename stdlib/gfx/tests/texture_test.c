@@ -255,3 +255,42 @@ TEST(gfx_soft_walks_held_inside)
         }
     }
 }
+
+/* Walks that wrap both ways over a width a power of two, which the walk's mask wraps, and over one
+   that is not, cut where u wraps: each texel at u's place wrapped. v sits on a texel's edge, so a
+   borrow from u's half reads the row above. Wrong pixels here were a mask's wrap a texel off, or
+   u's bias borrowing from v. */
+TEST(gfx_soft_walks_wrapped)
+{
+    enum { PITCH = 8, H = 4, N = 48 };
+
+    uint8_t tex[PITCH * H], dst[N];
+
+    for (uint32_t i = 0; i < PITCH * H; i++)
+        tex[i] = (uint8_t)(10 + i);
+
+    const SoftTarget t = {.px = {dst, N, N, 1, PX_8}, .clip = {0, 0, N, 1}, .fill = &fill8};
+
+    static const int32_t steps[] = {0x5800, -0x6000, 0x29000, -0x31000};
+
+    for (int32_t w = 6; w <= 8; w += 2)
+        for (uint32_t k = 0; k < sizeof steps / sizeof *steps; k++) {
+            const Pixels s = {tex, PITCH, w, H, PX_8};
+
+            const Textured x = {
+                .t = &t,
+                .s = &s,
+                .opaque = true,
+                .wrap = true,
+            };
+
+            const Steps st =
+                steps_from(0x18000 + (int32_t)k * 0x7000, 2 << 16, steps[k], 0, w << 16);
+
+            memset(dst, 0, sizeof dst);
+            span_texels(&x, 0, 0, N, st, 0, 0);
+
+            for (int32_t i = 0; i < N; i++)
+                CHECK(dst[i] == tex[2 * PITCH + (steps_wrap(st.u + i * st.du, w << 16) >> 16)]);
+        }
+}

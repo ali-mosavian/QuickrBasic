@@ -47,7 +47,8 @@ static void drawn(
         f.inked(d, x->s, st, n, &x->t->ink);
 }
 
-/* n pixels from x, y by the span's filler. A wrapping walk is cut where u wraps, so none wraps. */
+/* n pixels from x, y by the span's filler. A wrapping walk is cut where u wraps, so none wraps,
+   unless its mask wraps it (steps_masked). */
 [[gnu::always_inline]]
 static inline void filled(
     const Textured *const x,
@@ -58,11 +59,13 @@ static inline void filled(
 )
 {
     const Filler f = filler_of(x);
+    const bool masked = steps_masked(&st, x->s->w, n);
 
     for (int32_t done = 0; done < n;) {
-        const int32_t m = st.wrap ? steps_unwrapped(&st, n - done) : n - done;
+        const int32_t m = st.wrap && !masked ? steps_unwrapped(&st, n - done) : n - done;
+        const Steps at = {st.u, st.v, st.du, st.dv, masked ? st.wrap : 0};
 
-        drawn(x, f, span_at(x->t, px + done, y), m, (Steps){st.u, st.v, st.du, st.dv, 0});
+        drawn(x, f, span_at(x->t, px + done, y), m, at);
 
         done += m;
         st.u = st.wrap ? steps_wrap(st.u + m * st.du, st.wrap) : st.u;
