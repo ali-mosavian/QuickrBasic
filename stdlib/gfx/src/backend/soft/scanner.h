@@ -15,8 +15,8 @@
  * u and v are in texels (qgl scales them by the texture's size: here the scale is 1). Affine
  * spans carry u and v 16.16 at x0 and their step a pixel; u, v and 1/z are taken at the pixel
  * centre as qgl$drawA does. Perspective spans carry u/z, v/z and 1/z at x0 and their steps, as
- * qgl$drawP does, to a row filler (fill.h) picked once a polygon. A span is held in the clip,
- * its values a pixel on for each it lost.
+ * qgl$drawP does, to a row filler (fill.h) picked once a polygon. The polygon is clipped once,
+ * Sutherland-Hodgman, before the walk: every row is inside, and no filler tests a bound.
  *
  * Left out: depth, EMS and slots, profiling, lightmaps, the cover and bound helpers, WIRE. The
  * x87's extended arithmetic is done in doubles, and its stores to real4 as floats.

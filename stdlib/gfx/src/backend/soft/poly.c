@@ -79,10 +79,11 @@ static void texture(
         scan_affine(v, n, t->clip, &r, fill->general, fill->general);
 }
 
-/* c as qgl's vertex (qgl_corner), 1/z its z; in perspective u and v by 1/z. */
+/* c as qgl's vertex (qgl_corner), 1/z its z; in perspective u and v by 1/z. A 2D corner's z is 1,
+   its 1/z no divide. */
 static ScanVert poly_corner(const Corner *const c, const bool persp)
 {
-    const float r = 1 / c->z;
+    const float r = c->z == 1 ? 1 : 1 / c->z;
     const ScanVert q = qgl_corner(c->x, c->y, c->u, c->v);
 
     return persp ? (ScanVert){q.x, q.y, r, q.u * r, q.v * r} : (ScanVert){q.x, q.y, r, q.u, q.v};

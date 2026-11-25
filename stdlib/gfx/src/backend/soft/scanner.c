@@ -118,6 +118,22 @@ static uint32_t clip_pass(
     return nout;
 }
 
+/* Every x and y finite, by their exponents: the clip cannot hold a ring with one that is not, and
+   the fillers test no bound. */
+static bool finite_xy(const ScanVert *const v, const uint32_t n)
+{
+    for (uint32_t i = 0; i < n; i++) {
+        uint32_t x, y;
+        __builtin_memcpy(&x, &v[i].x, sizeof x);
+        __builtin_memcpy(&y, &v[i].y, sizeof y);
+
+        if ((x & 0x7F800000) == 0x7F800000 || (y & 0x7F800000) == 0x7F800000)
+            return false;
+    }
+
+    return true;
+}
+
 /* mgl's outcodes of n vertices against clip, each by clip_pass's test, its distance's sign,
    which real4 keeps: in all, those outside a boundary; in any, outside one. */
 static void outcodes(
@@ -436,7 +452,7 @@ static bool ring_of(
     Ring *const ring
 )
 {
-    if (n < 3 || n > SCAN_MAXV)
+    if (n < 3 || n > SCAN_MAXV || !finite_xy(v, n))
         return false;
 
     /* every vertex outside one boundary: clip_poly would keep none; inside all, each as it is */
@@ -478,7 +494,7 @@ static bool ring_of(
     /* by ring index, so the denominator's sign is the ring's winding */
     const uint32_t lo = b < c ? b : c, hi = b < c ? c : b;
     Grad *const g = &ring->g;
-    *g = (Grad){};
+    __builtin_memset(g, 0, sizeof *g);
 
     if (!grad(&v[0], &v[lo], &v[hi], persp, g))
         return false;
@@ -499,8 +515,10 @@ static bool ring_of(
     /* the ring from the topmost vertex in the winding's direction, clipped */
     ScanVert from[SCAN_MAXV + 4], work[SCAN_MAXV + 4];
 
-    for (uint32_t k = 0; k < n; k++)
-        from[k] = v[((int32_t)top + vstep * (int32_t)k + (int32_t)n) % (int32_t)n];
+    for (uint32_t k = 0, at = top; k < n; k++) {
+        from[k] = v[at];
+        at = vstep > 0 ? (at + 1 == n ? 0 : at + 1) : (at == 0 ? n - 1 : at - 1);
+    }
 
     ScanVert *clipped = from;
     const uint32_t cnt = any ? clip_poly(from, work, n, clip, &clipped) : n;
@@ -525,15 +543,18 @@ static bool ring_of(
         if (fx[i].ky < fx[k].ky)
             k = i;
 
-    for (uint32_t i = 0; i < cnt; i++)
-        ring->fx[i] = fx[(i + k) % cnt];
+    for (uint32_t i = k; i < cnt; i++)
+        ring->fx[i - k] = fx[i];
+
+    for (uint32_t i = 0; i < k; i++)
+        ring->fx[cnt - k + i] = fx[i];
 
     ring->cnt = (int32_t)cnt;
     return true;
 }
 
 /* qgl$drawA's walk, the left edge carrying 1/z: each row's run from the left edge's pixel up to
-   the right's, its depth at its first pixel centre, held in the clip, filled by fill. */
+   the right's, its depth at its first pixel centre, filled by fill. */
 void scan_flat(
     const ScanVert *const v,
     const uint32_t n,
@@ -591,13 +612,9 @@ void scan_flat(
         for (int16_t row = 0; row < height; row++, y++) {
             const int32_t x0 = (int16_t)FXFLOOR(l.x);
             const int32_t x1 = x0 + (int16_t)(FXFLOOR(rt.x) - FXFLOOR(l.x));
-            const int32_t from = rect_max(x0, clip.x), to = rect_min(x1, clip.x + clip.w);
 
-            if (x1 > x0 && y >= clip.y && y < clip.y + clip.h && from < to) {
-                const int32_t z = scan_fistp_low((double)c.z * DEPTH_NEAR * 65536.0);
-
-                fill(r, y, from, to, depth_on(z, g->dzdx, from - x0));
-            }
+            if (x1 > x0)
+                fill(r, y, x0, x1, scan_fistp_low((double)c.z * DEPTH_NEAR * 65536.0));
 
             l.x = add32(l.x, l.dx);
             rt.x = add32(rt.x, rt.dx);
@@ -607,156 +624,148 @@ void scan_flat(
 }
 
 #if defined(__i386__)
-/* affine_walk's rows without depth in asm, uGL's FILLSEL: each row's run and its u and v at its
-   first pixel as affine_walk's, the plain filler or the held one picked by steps_inside's 32-bit
-   test, then called. The filler takes every register but ebx, esi, edi and ebp, so the walk's
-   state is in rows_walk, at its absolute place. */
+/* affine_walk's rows without depth in asm, uGL's FILLSEL, by additions alone: each row's run and
+   its u and v at its first pixel as affine_walk's Across; picked, the plain filler or the held one
+   by steps_inside's 32-bit test. x0 is in edi, x1 in esi, u in ebp and v in ebx, which the filler
+   keeps; the rest of the walk is in rows_walk, at its absolute place. A fraction is in its
+   register's upper 16 bits, so its add carries into the whole part's adc. */
 typedef struct {
-    int32_t lx, ldx, rx, rdx; /* the edges' x, 16.16, and their steps a row */
-    int32_t u, du, v, dv;     /* the left edge's u and v, and their steps a row */
-    int32_t y, rows;          /* the row, and the rows left */
-    int32_t cx0, cx1, cy0, cy1;
+    uint32_t fl, fdl;     /* the left edge's fraction and its step's */
+    int32_t il;           /* its whole step a row */
+    uint32_t fr, fdr;     /* the right edge's */
+    int32_t ir;
+    int32_t x0, x1;       /* the first row's run */
+    uint32_t uf, usf;     /* u at x0's fraction, and its step's */
+    int32_t ui, usi;      /* u at x0, 16.16, and its step's, less the left edge's carry */
+    uint32_t vf, vsf;
+    int32_t vi, vsi;
+    int32_t ue, uw;       /* Across's end, and its step less the edges' carries */
+    int32_t ve, vw;
     int32_t dudx, dvdx;
-    uint32_t sw, sh; /* the texture's sides, 16.16 */
-    int32_t su;      /* the row's u at its first pixel */
+    int32_t y, rows;      /* the row, and the rows left */
+    uint32_t sw, sh;      /* the texture's sides, 16.16 */
     Rows *r;
     RowAffine *plain, *held;
 } RowsWalk;
 
 /* clang-format off */
 /* RowsWalk's places, the asm's names for them. */
-#define RW_lx 0
-#define RW_lxw 2
-#define RW_ldx 4
-#define RW_rx 8
-#define RW_rxw 10
-#define RW_rdx 12
-#define RW_u 16
-#define RW_du 20
-#define RW_v 24
-#define RW_dv 28
-#define RW_y 32
-#define RW_rows 36
-#define RW_cx0 40
-#define RW_cx1 44
-#define RW_cy0 48
-#define RW_cy1 52
-#define RW_dudx 56
-#define RW_dvdx 60
-#define RW_sw 64
-#define RW_sh 68
-#define RW_su 72
-#define RW_r 76
-#define RW_plain 80
-#define RW_held 84
+#define RW_fl 0
+#define RW_fdl 4
+#define RW_il 8
+#define RW_fr 12
+#define RW_fdr 16
+#define RW_ir 20
+#define RW_x0 24
+#define RW_x1 28
+#define RW_uf 32
+#define RW_usf 36
+#define RW_ui 40
+#define RW_usi 44
+#define RW_vf 48
+#define RW_vsf 52
+#define RW_vi 56
+#define RW_vsi 60
+#define RW_ue 64
+#define RW_uw 68
+#define RW_ve 72
+#define RW_vw 76
+#define RW_dudx 80
+#define RW_dvdx 84
+#define RW_y 88
+#define RW_rows 92
+#define RW_sw 96
+#define RW_sh 100
+#define RW_r 104
+#define RW_plain 108
+#define RW_held 112
 #define RW_CHECK(f) static_assert(__builtin_offsetof(RowsWalk, f) == RW_##f);
-RW_CHECK(lx) RW_CHECK(ldx) RW_CHECK(rx) RW_CHECK(rdx) RW_CHECK(u) RW_CHECK(du) RW_CHECK(v)
-RW_CHECK(dv) RW_CHECK(y) RW_CHECK(rows) RW_CHECK(cx0) RW_CHECK(cx1) RW_CHECK(cy0) RW_CHECK(cy1)
-RW_CHECK(dudx) RW_CHECK(dvdx) RW_CHECK(sw) RW_CHECK(sh) RW_CHECK(su) RW_CHECK(r) RW_CHECK(plain)
+RW_CHECK(fl) RW_CHECK(fdl) RW_CHECK(il) RW_CHECK(fr) RW_CHECK(fdr) RW_CHECK(ir) RW_CHECK(x0)
+RW_CHECK(x1) RW_CHECK(uf) RW_CHECK(usf) RW_CHECK(ui) RW_CHECK(usi) RW_CHECK(vf) RW_CHECK(vsf)
+RW_CHECK(vi) RW_CHECK(vsi) RW_CHECK(ue) RW_CHECK(uw) RW_CHECK(ve) RW_CHECK(vw) RW_CHECK(dudx)
+RW_CHECK(dvdx) RW_CHECK(y) RW_CHECK(rows) RW_CHECK(sw) RW_CHECK(sh) RW_CHECK(r) RW_CHECK(plain)
 RW_CHECK(held)
 #define RW_STR(n) #n
 #define RW_AT(n) RW_STR(n)
 /* Field f of rows_walk, operand [w]. */
 #define RW(f) RW_AT(RW_##f) "+%[w]"
 
-/* x0 in esi and x1 in ecx, as affine_walk's; from in edi and to in ecx, held in the clip: the
-   row skipped, 9f, unless it shows. */
+/* The row skipped, 9f, unless it shows. The ring is clipped, so its rows are inside. */
 #define ROWS_RUN                                                                                   \
-    "movswl " RW(lxw) ", %%esi\n\t"                                                                \
-    "movw " RW(rxw) ", %%cx\n\t"                                                                   \
-    "subw " RW(lxw) ", %%cx\n\t"                                                                   \
-    "movswl %%cx, %%ecx\n\t"                                                                       \
-    "addl %%esi, %%ecx\n\t"                                                                        \
-    "cmpl %%esi, %%ecx\n\t"                                                                        \
-    "jle 9f\n\t"                                                                                   \
-    "movl " RW(y) ", %%eax\n\t"                                                                    \
-    "cmpl " RW(cy0) ", %%eax\n\t"                                                                  \
-    "jl 9f\n\t"                                                                                    \
-    "cmpl " RW(cy1) ", %%eax\n\t"                                                                  \
-    "jge 9f\n\t"                                                                                   \
-    "movl %%esi, %%edi\n\t"                                                                        \
-    "cmpl " RW(cx0) ", %%edi\n\t"                                                                  \
-    "jge 2f\n\t"                                                                                   \
-    "movl " RW(cx0) ", %%edi\n"                                                                    \
-    "2:\n\t"                                                                                       \
-    "cmpl " RW(cx1) ", %%ecx\n\t"                                                                  \
-    "jle 3f\n\t"                                                                                   \
-    "movl " RW(cx1) ", %%ecx\n"                                                                    \
-    "3:\n\t"                                                                                       \
-    "cmpl %%ecx, %%edi\n\t"                                                                        \
-    "jge 9f\n\t"
-/* u and v at from, ebx the prestep into the row and esi the pixels lost to the clip: su, and v in
-   eax. */
-#define ROWS_UV                                                                                    \
-    "movzwl " RW(lx) ", %%ebx\n\t"                                                                 \
-    "negl %%ebx\n\t"                                                                               \
-    "addl $65536, %%ebx\n\t"                                                                       \
-    "negl %%esi\n\t"                                                                               \
-    "addl %%edi, %%esi\n\t"                                                                        \
-    "movl " RW(dudx) ", %%eax\n\t"                                                                 \
-    "imull %%ebx\n\t"                                                                              \
-    "shrdl $16, %%edx, %%eax\n\t"                                                                  \
-    "addl " RW(u) ", %%eax\n\t"                                                                    \
-    "addl $32768, %%eax\n\t"                                                                       \
-    "movl " RW(dudx) ", %%edx\n\t"                                                                 \
-    "imull %%esi, %%edx\n\t"                                                                       \
-    "addl %%edx, %%eax\n\t"                                                                        \
-    "movl %%eax, " RW(su) "\n\t"                                                                   \
-    "movl " RW(dvdx) ", %%eax\n\t"                                                                 \
-    "imull %%ebx\n\t"                                                                              \
-    "shrdl $16, %%edx, %%eax\n\t"                                                                  \
-    "addl " RW(v) ", %%eax\n\t"                                                                    \
-    "addl $32768, %%eax\n\t"                                                                       \
-    "movl " RW(dvdx) ", %%edx\n\t"                                                                 \
-    "imull %%esi, %%edx\n\t"                                                                       \
-    "addl %%edx, %%eax\n\t"
-/* The filler in ebx: plain when the walk of to - from pixels stays inside the texture. */
+    "cmpl %%edi, %%esi\n\t"                                                                        \
+    "jle 9f\n\t"
+/* The filler in ecx: plain when the walk of x1 - x0 pixels stays inside the texture. */
 #define ROWS_PICK                                                                                  \
-    "movl %%ecx, %%edx\n\t"                                                                        \
-    "subl %%edi, %%edx\n\t"                                                                        \
-    "decl %%edx\n\t"                                                                               \
-    "movl " RW(held) ", %%ebx\n\t"                                                                 \
-    "movl " RW(dudx) ", %%esi\n\t"                                                                 \
-    "imull %%edx, %%esi\n\t"                                                                       \
-    "jo 4f\n\t"                                                                                    \
-    "addl " RW(su) ", %%esi\n\t"                                                                   \
-    "jo 4f\n\t"                                                                                    \
-    "cmpl " RW(sw) ", %%esi\n\t"                                                                   \
+    "movl " RW(held) ", %%ecx\n\t"                                                                 \
+    "cmpl " RW(sw) ", %%ebp\n\t"                                                                   \
     "jae 4f\n\t"                                                                                   \
-    "movl " RW(su) ", %%esi\n\t"                                                                   \
-    "cmpl " RW(sw) ", %%esi\n\t"                                                                   \
-    "jae 4f\n\t"                                                                                   \
-    "movl " RW(dvdx) ", %%esi\n\t"                                                                 \
-    "imull %%edx, %%esi\n\t"                                                                       \
+    "movl %%ebp, %%eax\n\t"                                                                        \
+    "addl " RW(ue) ", %%eax\n\t"                                                                   \
     "jo 4f\n\t"                                                                                    \
-    "addl %%eax, %%esi\n\t"                                                                        \
-    "jo 4f\n\t"                                                                                    \
-    "cmpl " RW(sh) ", %%esi\n\t"                                                                   \
+    "cmpl " RW(sw) ", %%eax\n\t"                                                                   \
     "jae 4f\n\t"                                                                                   \
+    "cmpl " RW(sh) ", %%ebx\n\t"                                                                   \
+    "jae 4f\n\t"                                                                                   \
+    "movl %%ebx, %%eax\n\t"                                                                        \
+    "addl " RW(ve) ", %%eax\n\t"                                                                   \
+    "jo 4f\n\t"                                                                                    \
     "cmpl " RW(sh) ", %%eax\n\t"                                                                   \
     "jae 4f\n\t"                                                                                   \
-    "movl " RW(plain) ", %%ebx\n"                                                                  \
+    "movl " RW(plain) ", %%ecx\n"                                                                  \
     "4:\n\t"
-/* fill(r, y, from, to, u, v, 0), then the edges, u and v a row on. */
+/* fill(r, y, x0, x1, u, v, 0) */
 #define ROWS_FILL                                                                                  \
     "pushl $0\n\t"                                                                                 \
-    "pushl %%eax\n\t"                                                                              \
-    "pushl " RW(su) "\n\t"                                                                         \
-    "pushl %%ecx\n\t"                                                                              \
+    "pushl %%ebx\n\t"                                                                              \
+    "pushl %%ebp\n\t"                                                                              \
+    "pushl %%esi\n\t"                                                                              \
     "pushl %%edi\n\t"                                                                              \
     "pushl " RW(y) "\n\t"                                                                          \
     "pushl " RW(r) "\n\t"                                                                          \
-    "call *%%ebx\n\t"                                                                              \
+    "call *%%ecx\n\t"                                                                              \
     "addl $28, %%esp\n"                                                                            \
-    "9:\n\t"                                                                                       \
-    "movl " RW(ldx) ", %%eax\n\t"                                                                  \
-    "addl %%eax, " RW(lx) "\n\t"                                                                   \
-    "movl " RW(rdx) ", %%eax\n\t"                                                                  \
-    "addl %%eax, " RW(rx) "\n\t"                                                                   \
-    "movl " RW(du) ", %%eax\n\t"                                                                   \
-    "addl %%eax, " RW(u) "\n\t"                                                                    \
-    "movl " RW(dv) ", %%eax\n\t"                                                                   \
-    "addl %%eax, " RW(v) "\n\t"                                                                    \
+    "9:\n\t"
+/* The left edge a row down, edx less its carry; u and v with it. */
+#define ROWS_LEFT                                                                                  \
+    "movl " RW(fdl) ", %%eax\n\t"                                                                  \
+    "addl %%eax, " RW(fl) "\n\t"                                                                   \
+    "sbbl %%edx, %%edx\n\t"                                                                        \
+    "adcl " RW(il) ", %%edi\n\t"                                                                   \
+    "movl " RW(usf) ", %%eax\n\t"                                                                  \
+    "addl %%eax, " RW(uf) "\n\t"                                                                   \
+    "adcl " RW(usi) ", %%ebp\n\t"                                                                  \
+    "movl " RW(vsf) ", %%eax\n\t"                                                                  \
+    "addl %%eax, " RW(vf) "\n\t"                                                                   \
+    "adcl " RW(vsi) ", %%ebx\n\t"                                                                  \
+    "movl " RW(dudx) ", %%eax\n\t"                                                                 \
+    "andl %%edx, %%eax\n\t"                                                                        \
+    "addl %%eax, %%ebp\n\t"                                                                        \
+    "movl " RW(dvdx) ", %%eax\n\t"                                                                 \
+    "andl %%edx, %%eax\n\t"                                                                        \
+    "addl %%eax, %%ebx\n\t"
+/* The right edge, ecx less its carry. */
+#define ROWS_RIGHT                                                                                 \
+    "movl " RW(fdr) ", %%eax\n\t"                                                                  \
+    "addl %%eax, " RW(fr) "\n\t"                                                                   \
+    "sbbl %%ecx, %%ecx\n\t"                                                                        \
+    "adcl " RW(ir) ", %%esi\n\t"
+/* The run's ends a row down. */
+#define ROWS_ENDS                                                                                  \
+    "movl " RW(dudx) ", %%eax\n\t"                                                                 \
+    "andl %%ecx, %%eax\n\t"                                                                        \
+    "addl " RW(uw) ", %%eax\n\t"                                                                   \
+    "addl %%eax, " RW(ue) "\n\t"                                                                   \
+    "movl " RW(dudx) ", %%eax\n\t"                                                                 \
+    "andl %%edx, %%eax\n\t"                                                                        \
+    "subl %%eax, " RW(ue) "\n\t"                                                                   \
+    "movl " RW(dvdx) ", %%eax\n\t"                                                                 \
+    "andl %%ecx, %%eax\n\t"                                                                        \
+    "addl " RW(vw) ", %%eax\n\t"                                                                   \
+    "addl %%eax, " RW(ve) "\n\t"                                                                   \
+    "movl " RW(dvdx) ", %%eax\n\t"                                                                 \
+    "andl %%edx, %%eax\n\t"                                                                        \
+    "subl %%eax, " RW(ve) "\n\t"
+#define ROWS_LOOP                                                                                  \
     "incl " RW(y) "\n\t"                                                                           \
     "decl " RW(rows) "\n\t"                                                                        \
     "jnz 1b"
@@ -764,34 +773,68 @@ RW_CHECK(held)
 
 static RowsWalk rows_walk;
 
-/* rows_walk's rows, one or more. */
-static void rows_of(void)
+/* rows_walk's rows, one or more, each picking its filler or each calling plain. */
+#define ROWS_ASM(BODY)                                                                             \
+    __asm__ volatile("movl " RW(x0) ", %%edi\n\t"                                                  \
+                     "movl " RW(x1) ", %%esi\n\t"                                                  \
+                     "movl " RW(ui) ", %%ebp\n\t"                                                  \
+                     "movl " RW(vi) ", %%ebx\n"                                                    \
+                     "1:\n\t" BODY                                                                 \
+                     : [w] "+m"(rows_walk)                                                         \
+                     :                                                                             \
+                     : "eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "cc", "memory", "st",      \
+                       "st(1)", "st(2)", "st(3)", "st(4)", "st(5)", "st(6)", "st(7)")
+
+static void rows_picked(void)
 {
-    __asm__ volatile("1:\n\t" ROWS_RUN ROWS_UV ROWS_PICK ROWS_FILL
-                     : [w] "+m"(rows_walk)
-                     :
-                     : "eax",
-                       "ebx",
-                       "ecx",
-                       "edx",
-                       "esi",
-                       "edi",
-                       "cc",
-                       "memory",
-                       "st",
-                       "st(1)",
-                       "st(2)",
-                       "st(3)",
-                       "st(4)",
-                       "st(5)",
-                       "st(6)",
-                       "st(7)");
+    ROWS_ASM(ROWS_RUN ROWS_PICK ROWS_FILL ROWS_LEFT ROWS_RIGHT ROWS_ENDS ROWS_LOOP);
+}
+
+static void rows_plain(void)
+{
+    ROWS_ASM(ROWS_RUN "movl " RW(plain) ", %%ecx\n\t" ROWS_FILL ROWS_LEFT ROWS_RIGHT ROWS_LOOP);
 }
 #endif
 
+/* A row's u or v at its first pixel centre, 16.16 in at's upper 48 bits, and its last pixel's
+   less its first's, end: each a row down by additions alone. at is the left edge's value, 32768
+   and the prestep into the row times the gradient, the product kept whole so that its floor is
+   the multiply's; a row on, the prestep loses the edge's fraction and, when it carries, gains a
+   pixel. end is the span less a pixel times the gradient, and the span moves by the edges'
+   whole steps and carries. */
+typedef struct {
+    int64_t at, step, carry;
+    int64_t end, wide, grad;
+} Across;
+
+static Across across_from(
+    const int32_t edge,
+    const int32_t down,
+    const Edge l,
+    const Edge rt,
+    const int32_t span,
+    const int32_t grad
+)
+{
+    return (Across){
+        .at = (int64_t)edge * 65536 + (int64_t)prestep(l.x) * grad + (int64_t)32768 * 65536,
+        .step = (int64_t)down * 65536 - (int64_t)(l.dx & 0xFFFF) * grad,
+        .carry = (int64_t)grad * 65536,
+        .end = (int64_t)(span - 1) * grad,
+        .wide = (int64_t)((rt.dx >> 16) - (l.dx >> 16)) * grad,
+        .grad = grad,
+    };
+}
+
+static inline void across_on(Across *const a, const bool cl, const bool cr)
+{
+    a->at += a->step + (cl ? a->carry : 0);
+    a->end += a->wide + (cr ? a->grad : 0) - (cl ? a->grad : 0);
+}
+
 /* qgl$drawA: the two chains down from the topmost vertex, each row's run from the left edge's
-   pixel up to the right's, its u, v and, when deep, depth at its first pixel centre, held in the
-   clip; filled by plain, or held where the walk leaves the texture. */
+   pixel up to the right's, its u, v and, when deep, depth at its first pixel centre; filled by
+   plain, or held where the walk leaves the texture. */
 [[gnu::always_inline]]
 static inline void affine_walk(
     const ScanVert *const v,
@@ -819,17 +862,19 @@ static inline void affine_walk(
     /* in asm unless deep or a side reaches 32768, where steps_inside's test needs 64 bits */
     const bool in_asm = !deep && r->src.w < 32768 && r->src.h < 32768;
 
+    /* a run's ends in 32 bits, as steps_inside's test: else held, whose pixels are plain's */
+    const int64_t gu = g->dudx < 0 ? -(int64_t)g->dudx : g->dudx;
+    const int64_t gv = g->dvdx < 0 ? -(int64_t)g->dvdx : g->dvdx;
+    const bool wide = (int64_t)(clip.w + 2) * (gu > gv ? gu : gv) >= INT32_MAX;
+    void (*const walk_rows)(void) = plain == held || wide ? rows_plain : rows_picked;
+
     if (in_asm) {
-        rows_walk.cx0 = clip.x;
-        rows_walk.cx1 = clip.x + clip.w;
-        rows_walk.cy0 = clip.y;
-        rows_walk.cy1 = clip.y + clip.h;
         rows_walk.dudx = g->dudx;
         rows_walk.dvdx = g->dvdx;
         rows_walk.sw = (uint32_t)r->src.w << 16;
         rows_walk.sh = (uint32_t)r->src.h << 16;
         rows_walk.r = r;
-        rows_walk.plain = plain;
+        rows_walk.plain = wide ? held : plain;
         rows_walk.held = held;
     }
 #endif
@@ -868,55 +913,70 @@ static inline void affine_walk(
         }
 
         height = l.rows < rt.rows ? l.rows : rt.rows;
+
+        if (height <= 0)
+            continue;
+
+        int32_t x0 = (int16_t)FXFLOOR(l.x), x1 = x0 + (int16_t)(FXFLOOR(rt.x) - FXFLOOR(l.x));
+        Across u = across_from(c.u, c.du, l, rt, x1 - x0, g->dudx);
+        Across vv = across_from(c.v, c.dv, l, rt, x1 - x0, g->dvdx);
 #if defined(__i386__)
 
-        if (in_asm && height > 0) {
-            rows_walk.lx = l.x;
-            rows_walk.ldx = l.dx;
-            rows_walk.rx = rt.x;
-            rows_walk.rdx = rt.dx;
-            rows_walk.u = c.u;
-            rows_walk.du = c.du;
-            rows_walk.v = c.v;
-            rows_walk.dv = c.dv;
+        if (in_asm) {
+            rows_walk.fl = (uint32_t)l.x << 16;
+            rows_walk.fdl = (uint32_t)l.dx << 16;
+            rows_walk.il = l.dx >> 16;
+            rows_walk.fr = (uint32_t)rt.x << 16;
+            rows_walk.fdr = (uint32_t)rt.dx << 16;
+            rows_walk.ir = rt.dx >> 16;
+            rows_walk.x0 = x0;
+            rows_walk.x1 = x1;
+            rows_walk.uf = (uint32_t)u.at << 16;
+            rows_walk.usf = (uint32_t)u.step << 16;
+            rows_walk.ui = (int32_t)(u.at >> 16);
+            rows_walk.usi = (int32_t)(u.step >> 16);
+            rows_walk.vf = (uint32_t)vv.at << 16;
+            rows_walk.vsf = (uint32_t)vv.step << 16;
+            rows_walk.vi = (int32_t)(vv.at >> 16);
+            rows_walk.vsi = (int32_t)(vv.step >> 16);
+            rows_walk.ue = (int32_t)u.end;
+            rows_walk.uw = (int32_t)u.wide;
+            rows_walk.ve = (int32_t)vv.end;
+            rows_walk.vw = (int32_t)vv.wide;
             rows_walk.y = y;
             rows_walk.rows = height;
-            rows_of();
-            l.x = rows_walk.lx;
-            rt.x = rows_walk.rx;
-            c.u = rows_walk.u;
-            c.v = rows_walk.v;
-            y = (int16_t)rows_walk.y;
+            walk_rows();
+            l.x = add32(l.x, (int32_t)((uint32_t)l.dx * (uint32_t)height));
+            rt.x = add32(rt.x, (int32_t)((uint32_t)rt.dx * (uint32_t)height));
+            c.u = add32(c.u, (int32_t)((uint32_t)c.du * (uint32_t)height));
+            c.v = add32(c.v, (int32_t)((uint32_t)c.dv * (uint32_t)height));
+            y = (int16_t)(y + height);
             continue;
         }
 #endif
 
         for (int16_t row = 0; row < height; row++, y++) {
-            const int32_t into = prestep(l.x), x0 = (int16_t)FXFLOOR(l.x);
-            const int32_t x1 = x0 + (int16_t)(FXFLOOR(rt.x) - FXFLOOR(l.x));
-            const int32_t from = rect_max(x0, clip.x), to = rect_min(x1, clip.x + clip.w);
-
-            if (x1 > x0 && y >= clip.y && y < clip.y + clip.h && from < to) {
-                const int32_t lost = from - x0;
-                const int32_t u = add32(add32(c.u, 32768), FXMUL(into, g->dudx));
-                const int32_t vv = add32(add32(c.v, 32768), FXMUL(into, g->dvdx));
+            if (x1 > x0) {
+                const int32_t u0 = (int32_t)(u.at >> 16), v0 = (int32_t)(vv.at >> 16);
                 const int32_t z = deep ? scan_fistp_low((double)c.z * DEPTH_NEAR * 65536.0) : 0;
-                const Steps st = {
-                    (int32_t)(u + (int64_t)lost * g->dudx),
-                    (int32_t)(vv + (int64_t)lost * g->dvdx),
-                    g->dudx,
-                    g->dvdx,
-                    0,
-                    0,
-                };
+                RowAffine *const fill = steps_in(u0, r->src.w) && steps_in(u0 + u.end, r->src.w) &&
+                                                steps_in(v0, r->src.h) &&
+                                                steps_in(v0 + vv.end, r->src.h)
+                                            ? plain
+                                            : held;
 
-                RowAffine *const fill = steps_inside(&st, &r->src, to - from) ? plain : held;
-
-                fill(r, y, from, to, st.u, st.v, deep ? depth_on(z, g->dzdx, lost) : 0);
+                fill(r, y, x0, x1, u0, v0, z);
             }
+
+            const bool cl = (l.x & 0xFFFF) + (l.dx & 0xFFFF) > 0xFFFF;
+            const bool cr = (rt.x & 0xFFFF) + (rt.dx & 0xFFFF) > 0xFFFF;
 
             l.x = add32(l.x, l.dx);
             rt.x = add32(rt.x, rt.dx);
+            x0 += (l.dx >> 16) + cl;
+            x1 += (rt.dx >> 16) + cr;
+            across_on(&u, cl, cr);
+            across_on(&vv, cl, cr);
             carried_on(&c, false, deep);
         }
     }
@@ -1000,24 +1060,19 @@ void scan_persp(
         for (int16_t row = 0; row < height; row++, y++) {
             const int32_t into = prestep(l.x), x0 = (int16_t)FXFLOOR(l.x);
             const int32_t x1 = x0 + (int16_t)(FXFLOOR(rt.x) - FXFLOOR(l.x));
-            const int32_t from = rect_max(x0, clip.x), to = rect_min(x1, clip.x + clip.w);
 
-            if (x1 > x0 && y >= clip.y && y < clip.y + clip.h && from < to) {
-                const double diff = (double)into * r65536, lost = from - x0;
-                const int32_t z = scan_fistp_low((double)c.z * DEPTH_NEAR * 65536.0);
-                const double pu = (double)c.pu + (double)g->fdudx * diff;
-                const double pv = (double)c.pv + (double)g->fdvdx * diff;
-                const double pz = (double)c.z + (double)g->fdzdx * diff;
+            if (x1 > x0) {
+                const double diff = (double)into * r65536;
 
                 fill(
                     r,
                     y,
-                    from,
-                    to,
-                    pu + g->fdudx * lost,
-                    pv + g->fdvdx * lost,
-                    pz + g->fdzdx * lost,
-                    depth_on(z, g->dzdx, from - x0)
+                    x0,
+                    x1,
+                    (double)c.pu + (double)g->fdudx * diff,
+                    (double)c.pv + (double)g->fdvdx * diff,
+                    (double)c.z + (double)g->fdzdx * diff,
+                    scan_fistp_low((double)c.z * DEPTH_NEAR * 65536.0)
                 );
             }
 
