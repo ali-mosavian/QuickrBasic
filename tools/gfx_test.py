@@ -149,7 +149,9 @@ def extension_row() -> str:
 
 # Each of the renderer's paths at a depth: spans of each length, rows keyed and opaque, flipped or
 # not, clipped; walks turned and scaled, and wrapped along a strip; polygons flat, affine and in
-# perspective, with depth tested and set, their planes crossing; arcs, circles and lines.
+# perspective, with depth tested and set, their planes crossing; arcs, circles and lines. A
+# perspective row walked held, plain, then held: no row went on past a held run, so the DOS asm's
+# resume, its x87 state kept across it, was never drawn.
 # The picture's bytes make keyed holes at each depth: a 0, or at 32 bits an alpha under a half.
 SAME_PIXELS = """import gfx.display, gfx.draw, gfx.surface
 from gfx.draw import Vec2, Vertex
@@ -232,6 +234,15 @@ for i = 0 to 23
         gfx.draw.poly canvas&, q(), 0, 4, t&, 0, f% + gfx.draw.PERSPECTIVE
     end select
 next
+dim e(3) as Vertex
+e(0).x = 30: e(0).y = 110: e(1).x = 290: e(1).y = 104
+e(2).x = 296: e(2).y = 128: e(3).x = 24: e(3).y = 124
+e(0).z = 1: e(1).z = 4: e(2).z = 4: e(3).z = 1
+e(0).u = -9: e(1).u = 46: e(2).u = 46: e(2).v = 23: e(3).u = -9: e(3).v = 23
+f% = gfx.draw.PERSPECTIVE + gfx.draw.DEPTH_TEST + gfx.draw.DEPTH_WRITE
+gfx.draw.poly canvas&, e(), 0, 4, s&, 0, f%
+e(0).z = 3: e(1).z = 1.5: e(2).z = 1.5: e(3).z = 3
+gfx.draw.poly canvas&, e(), 0, 4, t&, 0, f%
 for i = 0 to 23
     x = 7.3 + i * 13.4: y = 12.6 + (i mod 4) * 11.3: r = 3 + i * 1.7
     c& = ((120 + i) * {spread}) and &HFFFFFF
