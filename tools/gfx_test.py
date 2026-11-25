@@ -436,15 +436,30 @@ loop
 
 
 DEPTHS = (8, 15, 16, 32)
+# GPU_SCENE drawn once and summed as SAME_PIXELS is: the styles' pixels too, for --sums
+STYLE_PIXELS = GPU_SCENE.replace("""gfx.display.flip
+do
+    gfx.display.flip
+loop
+""", """dim px(640& * 480 * {bytes} - 1) as byte
+gfx.surface.read canvas&, 0, 0, 640, 480, px()
+for i& = 0 to 640& * 480 * {bytes} - 1
+    sum& = (sum& * 31 + px(i&)) and &HFFFFF
+next
+gfx.display.close
+print sum&
+""")
 
 
-def pixel_sums(build: str, depths: tuple[int, ...] = DEPTHS, root: Path = dosrun.ROOT) -> dict[int, str]:
-    """SAME_PIXELS's output at each depth: build "dos", root's DOS slice in one DOSBox, or "host", root's host
-    build natively."""
+def pixel_sums(
+    build: str, depths: tuple[int, ...] = DEPTHS, root: Path = dosrun.ROOT, scene: str = SAME_PIXELS
+) -> dict[int, str]:
+    """scene's output at each depth: build "dos", root's DOS slice in one DOSBox, or "host", root's host build
+    natively."""
     qbx = (dosrun.COM.parent if build == "dos" else root / "build/host") / "lib/gfx.qbx"
     data = qbx.read_bytes()
     jobs = {
-        f"{build}{d}": (SAME_PIXELS.format(depth=d, bytes=(d + 7) // 8, spread=1 if d == 8 else 40503), "", "",
+        f"{build}{d}": (scene.format(depth=d, bytes=(d + 7) // 8, spread=1 if d == 8 else 40503), "", "",
                         {"gfx.qbx": data})
         for d in depths
     }
@@ -510,8 +525,9 @@ if __name__ == "__main__":
         sys.exit(f"GPU differs: {', '.join(wrong)}" if wrong else None)
     if sys.argv[1:2] == ["--sums"]:
         root = Path(sys.argv[2]) if len(sys.argv) > 2 else dosrun.ROOT
+        styles = pixel_sums("host", root=root, scene=STYLE_PIXELS)
         for depth, out in pixel_sums("host", root=root).items():
-            print(depth, out.split()[-1] if out.split() else out)
+            print(depth, *(o.split()[-1] if o.split() else o for o in (out, styles[depth])))
         sys.exit()
     for name, program, want in (("gfx", PROGRAM, " 9  9  12  1  14 "), ("whole", WHOLE, " 2  2 ")):
         out = dosrun.run({name: program}, Path(tempfile.mkdtemp()) / "w", 60000, mem=4)[name].out
