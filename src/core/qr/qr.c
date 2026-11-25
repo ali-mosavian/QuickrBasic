@@ -420,6 +420,13 @@ static void qr_unloaded(
     im->mod = QMOD_NONE;
 }
 
+/* Module k imports im's module: the editor's program's import, an edge of its modules. */
+static void qr_edge(const QrLoad *const L, const uint32_t k, const QImport *const im)
+{
+    if (L->stored && im->mod < modu_count(&L->S->modu))
+        modu_import(&L->S->modu, k, im->mod);
+}
+
 /* Module im of p, found from module k's file: loaded once, its number in im->mod; a package's
    folder (folder not null) to folder. Not found: an error at its name. */
 static void qr_find(const QrLoad *const L, const uint32_t k, QImport *const im, char *const folder)
@@ -464,11 +471,17 @@ static void qr_find(const QrLoad *const L, const uint32_t k, QImport *const im, 
     }
 
     im->mod = qr_load(L, folder ? folder : path);
+    qr_edge(L, k, im);
     qr_unloaded(L, im, dotted, n);
 }
 
 /* A name from gives, of the package in folder: its module, loaded once. */
-static void qr_part(const QrLoad *const L, const char *const dir, QImport *const im)
+static void qr_part(
+    const QrLoad *const L,
+    const uint32_t k,
+    const char *const dir,
+    QImport *const im
+)
 {
     QProg *const p = L->p;
     char path[PFIL_PATH];
@@ -480,6 +493,7 @@ static void qr_part(const QrLoad *const L, const char *const dir, QImport *const
     }
 
     im->mod = qr_load(L, path);
+    qr_edge(L, k, im);
     qr_unloaded(L, im, im->tok->text, im->tok->len);
 }
 
@@ -496,7 +510,7 @@ static void qr_imports(const QrLoad *const L, const uint32_t k)
             qr_find(L, k, s->imps, dir);
 
             for (QImport *im = s->names; s->imps->folder && im; im = im->next)
-                qr_part(L, dir, im);
+                qr_part(L, k, dir, im);
         }
 
         if (s == L->p->mods[k].tail)
@@ -833,10 +847,13 @@ static void qr_unrun(Prog *const pg)
 }
 
 /* Module d's lines out of the store, those of the files after it a number down, a QBasic
-   module's and its LF_TOP's too (each file its module's); d out of the modules. */
-static void qr_drop(Session *const S, const uint32_t d)
+   module's (qbasic) and its LF_TOP's too (each file its module's); d out of the modules. */
+static void qr_drop(Session *const S, const uint32_t d, const bool qbasic)
 {
     Prog *const pg = &S->prog;
+
+    if (qbasic)
+        repl_cut_module(S, d);
 
     for (uint32_t rec = PROGBASE; prog_line(pg, rec)->len;) {
         Line *const l = prog_line(pg, rec);
@@ -881,7 +898,7 @@ static uint8_t *qr_stored(Session *const S, QMem *const m)
 /* p's QBasic modules (the editor's: each p's number its module's): read into the store when not
    there, each's own imports with it, declared when L->declare (io/repl.c); each's code run from
    its first line. */
-static void qr_qbasic(const QrLoad *const L)
+static void qr_qbasic(const QrLoad *const L, const uint32_t from)
 {
     Session *const S = L->S;
     QProg *const p = L->p;
@@ -895,7 +912,7 @@ static void qr_qbasic(const QrLoad *const L)
     if (!n && !qr_first_top(&S->prog))
         return;
 
-    repl_guests_stored(S, mods, n, L->declare);
+    repl_guests_stored(S, mods, n, from, L->declare);
 
     for (uint32_t i = 0; i < n; i++) {
         QMod *const mod = &p->mods[mods[i]];
@@ -939,20 +956,23 @@ static void qr_enter(const QrLoad *const L)
     const uint32_t main = n - 1;
 
     for (uint32_t k = 1; k < p->nmods; k++)
-        if (!seen[k] && (modu_mod(&S->modu, k)->edited || (k < nheld && held[k] == QR_TOP)))
+        if (!seen[k]) /* a QBasic module's import's, an edited one, or one dropped below */
             qr_visit(p, seen, k, &n);
-
-    for (uint32_t k = 1; k < p->nmods; k++)
-        if (!seen[k]) {
-            qr_drop(S, k);
-            *p = fresh;
-            qr_enter(L);
-            return;
-        }
 
     memmove(p->order + main, p->order + main + 1, (n - main - 1) * sizeof *p->order);
     p->order[n - 1] = 0;
-    qr_qbasic(L);
+    const uint32_t found = modu_count(&S->modu); /* those after, a QBasic module's imports */
+    repl_guests_found(S);
+    const uint32_t gone = modu_unreached(&S->modu, found);
+
+    if (gone) {                                 /* imported no more: dropped before it is read */
+        qr_drop(S, gone, held[gone] == QR_TOP); /* gone < nheld: one added is imported */
+        *p = fresh;
+        qr_enter(L);
+        return;
+    }
+
+    qr_qbasic(L, found);
 }
 
 /* Error e of p's to *out: its line's record, its column, its message. One past the lines: the

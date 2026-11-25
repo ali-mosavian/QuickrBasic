@@ -1437,25 +1437,16 @@ static void read_guest(Session *const S, const uint32_t m, uint32_t *const last)
     read_file(S, path, SOURCE_FILENO, 0);
 }
 
-void repl_guests_stored(
-    Session *const S,
-    const uint32_t *const mods,
-    const uint32_t n,
-    const bool declare
-)
+/* repl_guests_found's: each stored QBasic line's imports found, each LF_TOP its module's; the last
+   LF_TOP, 0 none. */
+static uint32_t guests_walk(Session *const S)
 {
     Prog *const pg = &S->prog;
-    const uint32_t from = modu_count(&S->modu);
     uint32_t last = 0;
     S->repl.loading = true;
     S->repl.guests = true;
     S->repl.fline = 0;
     S->repl.module = 0;
-
-    for (uint32_t i = 0; i < n; i++) {
-        modu_top(&S->modu, mods[i], 0);
-        modu_import(&S->modu, 0, mods[i]);
-    }
 
     for (uint32_t line = PROGBASE; prog_line(pg, line)->len; line = next_line(pg, line)) {
         const Line *const l = prog_line(pg, line);
@@ -1477,6 +1468,29 @@ void repl_guests_stored(
         }
     }
 
+    S->repl.module = 0;
+    S->repl.guests = false;
+    S->repl.loading = false;
+    return last;
+}
+
+void repl_guests_found(Session *const S) { guests_walk(S); }
+
+void repl_guests_stored(
+    Session *const S,
+    const uint32_t *const mods,
+    const uint32_t n,
+    const uint32_t from,
+    const bool declare
+)
+{
+    for (uint32_t i = 0; i < n; i++)
+        modu_top(&S->modu, mods[i], 0);
+
+    uint32_t last = guests_walk(S);
+    S->repl.loading = true;
+    S->repl.guests = true;
+
     for (uint32_t i = 0; i < n; i++)
         if (!modu_top_of(&S->modu, mods[i]))
             read_guest(S, mods[i], &last);
@@ -1496,9 +1510,8 @@ void repl_guests_stored(
     S->repl.loading = false;
 }
 
-/* Stored module m's records out, its LF_TOP first; the one past the lines too when m was the only
-   module of n. */
-static void drop_module(Session *const S, const uint32_t m, const uint32_t n)
+/* Module m's lines out of the store, its LF_TOP first; the one past them too when last. */
+static void cut_module(Session *const S, const uint32_t m, const bool last)
 {
     Prog *const pg = &S->prog;
     const uint32_t top = modu_top_of(&S->modu, m);
@@ -1506,11 +1519,31 @@ static void drop_module(Session *const S, const uint32_t m, const uint32_t n)
 
     while (!(prog_line(pg, end)->flags & LF_TOP)) /* one is past the last module's lines */
         end += prog_line(pg, end)->len;
-    if (n == 2)
+    if (last)
         end += prog_line(pg, end)->len;
 
     prog_cut_to(pg, top, end);
+}
+
+/* Stored module m's records out, its LF_TOP first; the one past the lines too when m was the only
+   module of n. */
+static void drop_module(Session *const S, const uint32_t m, const uint32_t n)
+{
+    cut_module(S, m, n == 2);
     modu_drop(&S->modu, m);
+}
+
+void repl_cut_module(Session *const S, const uint32_t m)
+{
+    const Prog *const pg = &S->prog;
+    bool others = false; /* another QBasic module's lines after an LF_TOP */
+
+    for (uint32_t line = PROGBASE; prog_line(pg, line)->len; line += prog_line(pg, line)->len) {
+        const Line *const l = prog_line(pg, line);
+        others |= l->flags & LF_TOP && l->file && l->file != m;
+    }
+
+    cut_module(S, m, !others);
 }
 
 /* Each LF_TOP's file its module's number, as modu_relink numbers the modules' own files. */

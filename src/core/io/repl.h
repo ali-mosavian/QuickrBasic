@@ -96,9 +96,16 @@ void repl_load(Session *S);
 void repl_guests(Session *S, const char *const *paths, uint32_t n, uint16_t file, uint32_t *mods);
 /* The editor's Quickr program's QBasic modules (qr/qr.c), the Quickr files' lines first in the
    store, then each QBasic module's after its LF_TOP: each stored line's imports found, mods (n of
-   them, its main's imports) and the modules found read in when not stored, each its file
+   them, its Quickr files' imports, as the caller's modules' edges) and the modules found, from
+   number from on, read in when not stored, each its file
    numbered as the module; declared when declare. Errors: as repl_load. */
-void repl_guests_stored(Session *S, const uint32_t *mods, uint32_t n, bool declare);
+void repl_guests_stored(Session *S, const uint32_t *mods, uint32_t n, uint32_t from, bool declare);
+/* repl_guests_stored's first part alone: each stored QBasic line's imports found, as the modules'
+   edges, a module new added; nothing read. */
+void repl_guests_found(Session *S);
+/* Stored QBasic module m's lines out of the store, its LF_TOP's too, the last LF_TOP when no
+   other module is QBasic's; m kept in the modules. */
+void repl_cut_module(Session *S, uint32_t m);
 /* Tokenize inbuf, len long; store a numbered line, an empty one deletes it; loading, every line
    at the end. ENTER_*. Errors: Syntax error a number 64000 or over, Out of memory, Duplicate
    label. */

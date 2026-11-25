@@ -6,6 +6,7 @@
 #include "plat/host/host.h"
 #include "plat/pkey.h"
 #include "session.h"
+#include "mem/module.h"
 #include "qr/qr.h"
 #include "ui/debuglocals.h"
 #include "ui/debugpane.h"
@@ -500,5 +501,18 @@ TEST(mixide_qr_main_qbasic_imports)
     CHECK(strstr(pressed(S, K_F5), "6") != nullptr);
     fx_retype(S, fx_line_of(S, "print shapes.twice(3)"), "print shapes.twice(4)");
     CHECK(strstr(pressed(S, K_F5), "8") != nullptr);
+    fx_done(S, files);
+}
+
+/* A QBasic module a Quickr program imported no more stayed till the program was opened again:
+   its lines in the store, its names still the program's. */
+TEST(mixide_qr_main_drops_a_qbasic_module_no_more_imported)
+{
+    open_qr(S, "print 1\n");
+    CHECK(fx_line_of(S, "    Quot& = a \\ b") != ~0u);
+    CHECK(fx_typed_over(S, fx_line_of(S, "import shapes"), "print 2"));
+    CHECK(strstr(pressed(S, K_F5), "2") != nullptr);
+    CHECK(fx_line_of(S, "    Quot& = a \\ b") == ~0u);
+    CHECK(modu_find(&S->modu, fx_path_of("shapes.bas")) == modu_count(&S->modu));
     fx_done(S, files);
 }
