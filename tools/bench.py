@@ -1163,7 +1163,7 @@ def mtools(tool: str, image: Path, *args: str, check: bool = True) -> bytes:
 
 def vm_stage(image: Path, d: Path, com: Path, job: tuple, files: dict[str, bytes], last: str) -> Path:
     """com, the job's files and files put in C:\\QB on image, d the scratch: RUN.BAT, which runs the job
-    there into OUT.TXT, then last, a DOS command."""
+    there into OUT.TXT inside HLPROF's profile window, then last, a DOS command."""
     prog, _, args, own = dosrun.job(job)
     qb = d / "QB"
     qb.mkdir()
@@ -1178,10 +1178,12 @@ def vm_stage(image: Path, d: Path, com: Path, job: tuple, files: dict[str, bytes
         (qb / "DEMO.BAS").write_bytes(prog.encode("latin-1"))
     (qb / "J.IN").write_bytes(b"")
     bat = d / "RUN.BAT"
-    bat.write_bytes(f"@ECHO OFF\r\nCD \\QB\r\n{run} < J.IN > OUT.TXT\r\n{last}\r\n".encode())
+    lines = ["@ECHO OFF", "CD \\QB", "C:\\HLPROF.COM 1", f"{run} < J.IN > OUT.TXT", "C:\\HLPROF.COM 0", last]
+    bat.write_bytes("".join(f"{n}\r\n" for n in lines).encode())
     mtools("mdeltree", image, "::QB", check=False)
     mtools("mcopy", image, "-s", "-o", str(qb), "::")
-    mtools("mcopy", image, "-o", str(HL86 / "src/headless/examples/hlexit.com"), "::HLEXIT.COM")
+    for n in ("hlexit", "hlprof"):
+        mtools("mcopy", image, "-o", str(HL86 / f"src/headless/examples/{n}.com"), f"::{n.upper()}.COM")
     return bat
 
 
@@ -1354,9 +1356,10 @@ class Samples:
     mhz: float
 
 
-def vm_samples(machine: str, exe: Path, job: tuple, files: dict[str, bytes]) -> Samples:
-    """exe's job on 86Box's machine, its CPU's place sampled every 10 emulated us from boot: the samples
-    by function of the map beside exe, and the frames the job drew (its output's last number)."""
+def vm_samples(machine: str, exe: Path, job: tuple, files: dict[str, bytes], late: float = 0.0) -> Samples:
+    """exe's job on 86Box's machine, its CPU's place sampled every 10 emulated us over the job alone: the samples
+    by function of the map beside exe, and the frames the job drew (its output's last number). late: the
+    host's seconds in seeing the job end."""
     hl86 = hl86_module()
     image = HL86_VMS / MACHINES[machine] / "c.img"
     with tempfile.TemporaryDirectory() as d:
@@ -1372,6 +1375,7 @@ def vm_samples(machine: str, exe: Path, job: tuple, files: dict[str, bytes]) -> 
             with hl86.Client(sock, timeout=1800.0) as c:
                 c.profile_start(interval_us=10)
                 c.wait_text(r"QB-DONE", timeout=1800.0)
+                time.sleep(late)
                 c.profile_stop(Path(d) / "pcs.json")
                 memory = c.mem_read(0, 16 << 20, Path(d) / "mem.bin")  # the VMs' 16 MB
                 mhz = float(c.status()["cpu_hz"]) / 1e6

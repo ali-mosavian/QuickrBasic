@@ -273,6 +273,19 @@ def vm_object_base() -> None:
     assert bench.object_base(bytes(memory), code) == 70000, bench.object_base(bytes(memory), code)
 
 
+def vm_window() -> None:
+    """A VM's profile samples the job alone. It sampled from boot until the host stopped it, so the host's delay in
+    seeing the end read as frame time: one build's ISLES on the 486, 14.8M cycles a frame, then 11.9M."""
+    b = bench.build(".", True)
+    own = {n: (bench.DEMOS / n).read_bytes() for n in ("stage.bas", "meter.bas")}
+    job = (bench.demo_program("ISLES", 0, False, 0, 2), "", "", own)
+    lib = {"lib/gfx.qbx": (b.dos.parent / "lib/gfx.qbx").read_bytes()}
+    with tempfile.TemporaryDirectory() as d:
+        exe = bench.profiled(b, Path(d))
+        soon, late = (sum(bench.vm_samples("486", exe, job, lib, s).by.values()) for s in (0.0, 2.0))
+    assert abs(late - soon) < soon * 0.001, (soon, late)
+
+
 def main() -> int:
     stdlib_absent()
     each_reps()
@@ -286,6 +299,8 @@ def main() -> int:
     fps_start_up()
     vm_rate()
     vm_object_base()
+    if (bench.HL86 / "build/src/86Box-headless").exists():
+        vm_window()
     b = bench.build(".", False)  # the tree's own instruments: copying them onto themselves raised
     demo_colours(b)
     try:
