@@ -1183,8 +1183,10 @@ static void cg_if(Code *const c)
         *c->cmp = cmpif(*c->cmp);
     else if (c->type == T_STR)
         code_xop(c, X_S_IF);
+    else if (c->type == T_FLT)
+        code_xop(c, X_F_IF);
     else /* code_dtest made a DOUBLE an INT */
-        code_op(c, c->type == T_FLT ? O_F_IF : O_I_IF);
+        code_op(c, O_I_IF);
 }
 
 /* ON's byte made: ON kind + n, then its n lines. */

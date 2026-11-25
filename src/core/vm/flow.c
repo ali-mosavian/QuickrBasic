@@ -403,16 +403,18 @@ void flow_f_jt(Session *const S)
 
 /* ---- FOR / NEXT ----------------------------------------------------------------------------- */
 
-/* I.NEXT.UP, I.NEXT.DN (comp/fuse.c): the counter stepped, back to the body unless past. The stop
-   check comes first: a stop runs the op again, not stepped twice. */
-static void next(Session *const S, const Addr base, const bool up)
+typedef Status Stepper(const uint8_t *op, Addr base, bool up, bool *back);
+
+/* I.NEXT.UP, I.NEXT.DN, I.COUNT.UP, I.COUNT.DN (comp/fuse.c): the counter stepped, back to the
+   body unless past. The stop check comes first: a stop runs the op again, not stepped twice. */
+static void next(Session *const S, const Addr base, const bool up, Stepper *const step)
 {
     if (exec_stopchk(S))
         return;
 
     const uint8_t *const op = S->vm.ip - 1;
     bool back;
-    fault_check(&S->fault, hot_next(op, base, up, &back));
+    fault_check(&S->fault, step(op, base, up, &back));
     S->vm.ip = (uint8_t *)op + NEXT_SIZE - sizeof(Jump);
     branch(S, back);
 }
@@ -429,10 +431,14 @@ void flow_e_next(Session *const S)
     branch(S, back);
 }
 
-void flow_i_next_up(Session *const S) { next(S, 0, true); }
-void flow_i_next_dn(Session *const S) { next(S, 0, false); }
-void flow_i_next_up_l(Session *const S) { next(S, S->vm.fp, true); }
-void flow_i_next_dn_l(Session *const S) { next(S, S->vm.fp, false); }
+void flow_i_next_up(Session *const S) { next(S, 0, true, hot_next); }
+void flow_i_next_dn(Session *const S) { next(S, 0, false, hot_next); }
+void flow_i_next_up_l(Session *const S) { next(S, S->vm.fp, true, hot_next); }
+void flow_i_next_dn_l(Session *const S) { next(S, S->vm.fp, false, hot_next); }
+void flow_i_count_up(Session *const S) { next(S, 0, true, hot_count_next); }
+void flow_i_count_dn(Session *const S) { next(S, 0, false, hot_count_next); }
+void flow_i_count_up_l(Session *const S) { next(S, S->vm.fp, true, hot_count_next); }
+void flow_i_count_dn_l(Session *const S) { next(S, S->vm.fp, false, hot_count_next); }
 
 /* I.JFC ... (comp/fuse.c): an INT compare, then JF's jump unless it is true. */
 #define X(name, src)                                                                               \

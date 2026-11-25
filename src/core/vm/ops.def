@@ -13,7 +13,8 @@
  * the place flag (FV, FA) and O_twin its form on a variable in the frame (comp/select.c): its
  * operand an offset from the frame, not a cell. FRAME(name, twin) gets each pair.
  *
- * An op's number is the golden code's: a new op takes the slot of one moved behind X.
+ * An op's number is the golden code's: a new op takes the slot of one moved behind X; a new X op
+ * goes last.
  *
  * XOP(name, handler, size, flags): X op X_name, O_X then its byte, size counting both: the less hot
  * ops. None names a variable (FV, FA, FP) or reads its op (FB).
@@ -34,8 +35,8 @@
  * | qbklist, K_*, K_N, K_FN, K_LEFT, K_MID2 | K(...), K_*, K_N, K_FN (= K_FN_SGN), K_LEFT, K_MID2 (exec.h) | MIRROR |
  * | FX, FV, FB | FX, FV, FB (exec.h) | MIRROR |
  *
- * - D1. I.EQV, I.IMP, D.POW, P.REFN, F.TOB, F.TOA, D.NZ, S.IF, D.PAST, ONEV, ONERR, ONLERR, RESUME,
- *   RESTORE.L, RUN.L, R.COPY, MODEND, I.PAST, F.PAST, SF.LD, SF.ST, ERR and D.TOI are X ops;
+ * - D1. I.EQV, I.IMP, D.POW, P.REFN, F.TOB, F.TOA, D.NZ, S.IF, F.IF, D.PAST, ONEV, ONERR, ONLERR,
+ *   RESUME, RESTORE.L, RUN.L, R.COPY, MODEND, I.PAST, F.PAST, SF.LD, SF.ST, ERR and D.TOI are X ops;
  *   F.LD.PI, never made, is gone.
  */
 
@@ -138,7 +139,8 @@ OP(F_CMPIF_U8, oper_f_cmpif_u8, 3, FB)
 OP(F_CMPIF_F32, oper_f_cmpif_f32, 6, FB)
 OP(S_CMPIF, exec_s_cmp, 2, FB)
 OP(I_IF, oper_i_if, 1, 0)
-OP(F_IF, oper_f_if, 1, 0)
+/* Quickr's NEXT (comp/fuse.c): never past an INT's range */
+OP(I_COUNT_UP, flow_i_count_up, NEXT_SIZE, FV + FV2 + FV3)
 OP(I_TOL, oper_i_tol, 1, FX + FK) /* an INT as a LONG */
 OP(S_CAT, exec_s_cat, 1, FX)
 OP(I_TOF, oper_i_tof, 1, FX + FK)
@@ -206,7 +208,7 @@ TWIN(V_CELL, L_CELL, oper_s_ld_v, oper_s_ld_l, 1 + VCELL, FX, FV) /* a scalar's 
 OP(V_LD, exec_v_ld, 2 + VID, FX + FP)
 OP(V_ST, exec_v_st, 2 + VID, FP)
 OP(SYSCALL, sysc_call, 2, 0) /* the runtime's service n (vm/syscalls.def) */
-OP(L_ADD_U8, oper_l_add_u8, 2, FX + FK)
+OP(I_COUNT_DN, flow_i_count_dn, NEXT_SIZE, FV + FV2 + FV3)
 /* fused (comp/fuse.c), no asm counterpart */
 OP(I_NEXT_UP, flow_i_next_up, NEXT_SIZE, FV + FV2 + FV3)
 OP(I_NEXT_DN, flow_i_next_dn, NEXT_SIZE, FV + FV2 + FV3)
@@ -261,12 +263,14 @@ OP(I_NEXT_DN_L, flow_i_next_dn_l, NEXT_SIZE, 0)
 FRAME(I_NEXT_DN, I_NEXT_DN_L)
 OP(N_LD_A, exec_n_ld_a, 3 + VID + VCELL, FX + FA) /* a SHORT or BYTE array's element: id cell n et */
 OP(N_ST_A, exec_n_st_a, 3 + VID + VCELL, FA)
-OP(L_SUB, oper_l_sub, 1, FX + FK)
+OP(I_COUNT_UP_L, flow_i_count_up_l, NEXT_SIZE, 0)
+FRAME(I_COUNT_UP, I_COUNT_UP_L)
 OP(V_REF, exec_v_ref, 1 + VID, FP)  /* a parameter's ref, passed on */
 OP(FE_ADDR, exec_fe_addr, 10, 0)    /* a record's array field's element ( a s.. -- e ): off:4 n esize:4 */
 OP(FX_IDX, exec_fx_idx, 13, 0)      /* a fixed array field's element ( a s -- e ): lb count stride */
 OP(E_NEXT, flow_e_next, E_NEXT_SIZE, 0) /* for x in a's next: i, a and x Locs (comp/select.c), a Jump */
-OP(L_SUB_U8, oper_l_sub_u8, 2, FX + FK)
+OP(I_COUNT_DN_L, flow_i_count_dn_l, NEXT_SIZE, 0)
+FRAME(I_COUNT_DN, I_COUNT_DN_L)
 OP(X, exec_x, 0, 0) /* an X op: its byte next (XOP) */
 #undef TWIN
 #undef FRAME
@@ -336,6 +340,10 @@ XOP(SF_LD, exec_sf_ld, 6, 0)
 XOP(SF_ST, exec_sf_st, 6, 0)
 XOP(ERR, flow_err, sizeof(ErrOp), 0)
 XOP(D_TOI, dubl_toi, 2, FX + FK)
+XOP(F_IF, oper_f_if, 2, 0)
+XOP(L_SUB, oper_l_sub, 2, FX + FK)
+XOP(L_ADD_U8, oper_l_add_u8, 3, FX + FK)
+XOP(L_SUB_U8, oper_l_sub_u8, 3, FX + FK)
 #undef XOP
 #endif
 

@@ -143,6 +143,7 @@ HOT_LONGS(X)
 #define X(name, op)                                                                                \
     void oper_##name(Session *const S) { hot_op(S, hot_##name); }
 HOT_XLONGS(X)
+HOT_XLONGS8(X)
 HOT_XUINTS(X)
 #undef X
 

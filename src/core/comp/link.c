@@ -509,6 +509,10 @@ Jump *link_jump(uint8_t *const op)
     case O_I_NEXT_DN:
     case O_I_NEXT_UP_L:
     case O_I_NEXT_DN_L:
+    case O_I_COUNT_UP:
+    case O_I_COUNT_DN:
+    case O_I_COUNT_UP_L:
+    case O_I_COUNT_DN_L:
         return (Jump *)(op + 1 + 3 * VCELL);
 
     case O_E_NEXT:
@@ -578,6 +582,10 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
     case O_I_NEXT_DN:
     case O_I_NEXT_UP_L:
     case O_I_NEXT_DN_L:
+    case O_I_COUNT_UP:
+    case O_I_COUNT_DN:
+    case O_I_COUNT_UP_L:
+    case O_I_COUNT_DN_L:
     case O_E_NEXT:
     case O_I_JFC_V:
     case O_I_JFC_L:

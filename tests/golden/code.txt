@@ -12732,7 +12732,7 @@ bcg/55_life.bas 20 60cbe87d651b
 bcg/55_life.bas 21 7837a30f23c4
 bcg/55_life.bas 22 b53a0e20458d
 bcg/55_life.bas 23 1000a225574b
-bcg/55_life.bas 24 85299b4d340d
+bcg/55_life.bas 24 f97ee2307148
 bcg/55_life.bas 25 40ad1db21f87
 bcg/55_life.bas 26 f9d6fe4e5871
 bcg/55_life.bas 27 e9295c0314a6
@@ -12798,47 +12798,47 @@ bcg/55_life.bas L 20 98c3f42ee86e
 bcg/55_life.bas L 21 6eccdb5310e1
 bcg/55_life.bas L 22 8cbb47e6a680
 bcg/55_life.bas L 23 e3da3a50a315
-bcg/55_life.bas L 24 e42db4e91518
-bcg/55_life.bas L 25 c7fd74e11380
-bcg/55_life.bas L 26 8347dfa14745
-bcg/55_life.bas L 27 107918da1fcd
-bcg/55_life.bas L 28 cabd80fab90d
-bcg/55_life.bas L 29 47fcf0698197
-bcg/55_life.bas L 30 d9ed94aa0420
-bcg/55_life.bas L 31 f744f4e3066f
-bcg/55_life.bas L 32 f23c08e27db7
-bcg/55_life.bas L 33 a67e4a8698fd
-bcg/55_life.bas L 34 7927777487b5
-bcg/55_life.bas L 35 336616518a73
-bcg/55_life.bas L 36 08fdca9a914a
-bcg/55_life.bas L 37 5f804a1d6733
-bcg/55_life.bas L 38 e4131a0daf6c
-bcg/55_life.bas L 39 1cd440ce8a44
-bcg/55_life.bas L 40 465fc112ff9c
-bcg/55_life.bas L 41 4d605430a706
-bcg/55_life.bas L 42 44a42227a058
-bcg/55_life.bas L 43 e574cffdb692
-bcg/55_life.bas L 44 c01659ab4450
-bcg/55_life.bas L 45 83ba6bdc1eae
-bcg/55_life.bas L 46 cf3cc13ea712
-bcg/55_life.bas L 47 aa64b845f621
-bcg/55_life.bas L 48 25e50b905fd6
-bcg/55_life.bas L 49 4021c5ad05e5
-bcg/55_life.bas L 50 9eb0046e10e9
-bcg/55_life.bas L 51 929ec76cfbd1
-bcg/55_life.bas L 52 216690194d66
-bcg/55_life.bas L 53 9bbda531e637
-bcg/55_life.bas L 54 6b16a8b5472c
-bcg/55_life.bas L 55 89346bcfb6cf
-bcg/55_life.bas L 56 eb306218f8ca
-bcg/55_life.bas L 57 3e39ae8a1703
-bcg/55_life.bas L 58 7f33dd81b313
-bcg/55_life.bas L 59 f11c5649a458
-bcg/55_life.bas L 60 3bf2609d9060
-bcg/55_life.bas L 61 3c3ba84f52e9
-bcg/55_life.bas L 62 9cd6e3e34c19
-bcg/55_life.bas L 63 f1977433a34a
-bcg/55_life.bas L 64 05e52f00d939
+bcg/55_life.bas L 24 a6ced002abaa
+bcg/55_life.bas L 25 fb102ef5de70
+bcg/55_life.bas L 26 978ccce015a2
+bcg/55_life.bas L 27 5758bd95b285
+bcg/55_life.bas L 28 ea953e244ecc
+bcg/55_life.bas L 29 812b6e9b104e
+bcg/55_life.bas L 30 4bfbb6d7e1ea
+bcg/55_life.bas L 31 73cd5703407b
+bcg/55_life.bas L 32 ff7511fd4571
+bcg/55_life.bas L 33 0620717862bb
+bcg/55_life.bas L 34 5e447d7b778c
+bcg/55_life.bas L 35 fb4b7b7a02c7
+bcg/55_life.bas L 36 7ee637f49146
+bcg/55_life.bas L 37 22f70d716df3
+bcg/55_life.bas L 38 01a14e41d30d
+bcg/55_life.bas L 39 6f09205abe7d
+bcg/55_life.bas L 40 0ff2d3cf1cda
+bcg/55_life.bas L 41 25989be1b9ff
+bcg/55_life.bas L 42 c75a4f864b1a
+bcg/55_life.bas L 43 4aa20aa945ed
+bcg/55_life.bas L 44 784e55441b02
+bcg/55_life.bas L 45 59a7de3702f9
+bcg/55_life.bas L 46 00f6faff1a6c
+bcg/55_life.bas L 47 28da3061eeaa
+bcg/55_life.bas L 48 5b6867167e97
+bcg/55_life.bas L 49 cbeeebe5a783
+bcg/55_life.bas L 50 46f54d390795
+bcg/55_life.bas L 51 bd7433aae00e
+bcg/55_life.bas L 52 0bb19d9ffa51
+bcg/55_life.bas L 53 f1c3e003ee81
+bcg/55_life.bas L 54 9287dfca04c8
+bcg/55_life.bas L 55 50d623579b5b
+bcg/55_life.bas L 56 3f43a618573f
+bcg/55_life.bas L 57 36d84392ecf9
+bcg/55_life.bas L 58 da96efcb91ac
+bcg/55_life.bas L 59 c9200c1dc833
+bcg/55_life.bas L 60 76dcee16c1dd
+bcg/55_life.bas L 61 fbccc92d912d
+bcg/55_life.bas L 62 2557571f5e19
+bcg/55_life.bas L 63 c0761d080cba
+bcg/55_life.bas L 64 67707e4966e8
 bcg/55_life.bas L 65 374c712e14f9
 bcg/56_lifefortwo.bas 0 30c95dd80374
 bcg/56_lifefortwo.bas 1 432c0833205a
@@ -29610,8 +29610,8 @@ stmts/s009.bas 0 111ffa0e14eb
 stmts/s009.bas L 0 a16ddbb971af
 stmts/s010.bas 0 69de88040c31
 stmts/s010.bas L 0 994c8be63fb1
-stmts/s011.bas 0 8aae2e2b7199
-stmts/s011.bas L 0 6ae87e3796df
+stmts/s011.bas 0 4e12b5de5d95
+stmts/s011.bas L 0 5797c1fc584f
 stmts/s012.bas 0 64a147127b93
 stmts/s012.bas L 0 bd4b49d3526f
 stmts/s013.bas 0 3757cbcbd10f
@@ -29643,9 +29643,9 @@ stmts/s021.bas L 0 7a89b4d228f4
 stmts/s022.bas 0 cc3ab1f4aa60
 stmts/s022.bas L 0 4629d712024e
 stmts/s023.bas error da4b9237bacc
-stmts/s023.bas 0 1e50e9dbc395
+stmts/s023.bas 0 86a4ef912aa0
 stmts/s023.bas L error da4b9237bacc
-stmts/s023.bas L 0 482cd7eeeb88
+stmts/s023.bas L 0 39d2bd760a09
 stmts/s024.bas 0 b809302fa236
 stmts/s024.bas L 0 148982a407b3
 stmts/s025.bas 0 57d7a16775c6

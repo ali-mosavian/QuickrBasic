@@ -75,7 +75,7 @@ enum {
 enum { VCELL = 4 };
 /* An FA or FP op's operand: the variable's id; an FP op's its ref cell's frame offset once linked. */
 enum { VID = 4 };
-/* I.NEXT.UP, I.NEXT.DN: counter, step, limit cells, the Jump back */
+/* I.NEXT.UP, I.NEXT.DN, I.COUNT.UP, I.COUNT.DN: counter, step, limit cells, the Jump back */
 enum { NEXT_SIZE = 1 + 3 * VCELL + sizeof(Jump) };
 /* E.NEXT: i, a and x cells, x's bytes (2; 0 a number's of 4 or 8 in a cell), the Jump back */
 enum { E_NEXT_SIZE = NEXT_SIZE + 2 };

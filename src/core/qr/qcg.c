@@ -55,12 +55,6 @@ static const uint8_t qcg_fops[3][4] = {
     {O_F_ADD_F32, O_F_SUB_F32, O_F_MUL_F32, O_F_DIV_F32},
 };
 static const uint8_t qcg_dops[4] = {O_D_ADD, O_D_SUB, O_D_MUL, O_D_DIV};
-/* A LONG's + - *: by form (plain, a variable's load, a literal byte's), then operator. */
-static const uint8_t qcg_lops[3][3] = {
-    {O_L_ADD, O_L_SUB, O_L_MUL},
-    {O_L_ADD_V, O_L_SUB_V, O_L_MUL_V},
-    {O_L_ADD_U8, O_L_SUB_U8, 0},
-};
 
 /* A relation's D.CMP mask (num/double.h's DC_*). */
 static uint8_t qcg_mask(const QKind op)
@@ -603,19 +597,27 @@ static void qcg_hold(QCg *const g, const QType t, const int32_t by)
    variable's or a byte's. */
 static void qcg_larith(Code *const c, uint8_t *const right, const uint32_t k)
 {
-    const bool byte = k != QA_MUL && qcg_right(c, right, O_D_LD_K, 1 + sizeof(Cell)) &&
-                      load32(right + 1) <= UINT8_MAX && !load32(right + 5);
-    const uint32_t form = qcg_right(c, right, O_D_LD_V, 1 + VCELL) ? 1 : byte ? 2 : 0;
+    static const uint8_t var[] = {O_L_ADD_V, O_L_SUB_V, O_L_MUL_V};
+    static const uint8_t byte[] = {X_L_ADD_U8, X_L_SUB_U8};
 
-    if (!form) {
-        code_op(c, qcg_lops[0][k]);
+    if (qcg_right(c, right, O_D_LD_V, 1 + VCELL)) {
+        right[0] = var[k];
         return;
     }
 
-    right[0] = qcg_lops[form][k];
+    if (k != QA_MUL && qcg_right(c, right, O_D_LD_K, 1 + sizeof(Cell)) &&
+        load32(right + 1) <= UINT8_MAX && !load32(right + 5)) { /* the X op, its low byte kept */
+        right[2] = right[1];
+        right[0] = O_X;
+        right[1] = byte[k];
+        c->out = right + 3;
+        return;
+    }
 
-    if (byte)
-        c->out = right + 2; /* its low byte kept */
+    if (k == QA_SUB)
+        code_xop(c, X_L_SUB);
+    else
+        code_op(c, k == QA_ADD ? O_L_ADD : O_L_MUL);
 }
 
 /* Operator op of a long or a ulong, w, its operands pushed. A shift's count is an int. */

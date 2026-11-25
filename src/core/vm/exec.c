@@ -551,7 +551,6 @@ static void exec_loop(Session *const S)
                 {flow_f_jt, &&f_jt},
                 {flow_jmp, &&jmp},
                 {oper_i_if, &&i_if},
-                {oper_f_if, &&f_if},
                 {flow_nextln, &&nxln},
                 {flow_gosub, &&gosub},
                 {flow_return, &&ret},
@@ -564,6 +563,10 @@ static void exec_loop(Session *const S)
                 {flow_i_next_dn, &&i_next_dn},
                 {flow_i_next_up_l, &&i_next_up_l},
                 {flow_i_next_dn_l, &&i_next_dn_l},
+                {flow_i_count_up, &&i_count_up},
+                {flow_i_count_dn, &&i_count_dn},
+                {flow_i_count_up_l, &&i_count_up_l},
+                {flow_i_count_dn_l, &&i_count_dn_l},
                 {flow_e_next, &&e_next},
                 {flow_eol, &&eol},
                 {dbug_dbg, &&dbg},
@@ -683,8 +686,6 @@ jmp:
 
 i_if:
     IF_RUN(r.sp->i)
-f_if:
-    IF_RUN(r.sp->u & ~SNGL_SIGN)
 
 nxln: /* to the next stored line; the program's end, the direct line: flow_nextln's */
 {
@@ -832,8 +833,9 @@ i_jf: /* JF: past its jump, or to its target; a stop, a jump not resolved: flow_
 
     goto next;
 
-/* NEXT: stepped, back to the body until past; a stop, a jump not resolved: its handler's. */
-#define NEXT_RUN(base, up)                                                                         \
+/* NEXT: stepped by step (hot_next, hot_count_next), back to the body until past; a stop, a jump not
+   resolved: its handler's. */
+#define NEXT_RUN(step, base, up)                                                                   \
     {                                                                                              \
         const Jump *const j = (const Jump *)(r.ip + NEXT_SIZE - sizeof(Jump));                     \
                                                                                                    \
@@ -842,7 +844,7 @@ i_jf: /* JF: past its jump, or to its target; a stop, a jump not resolved: flow_
                                                                                                    \
         bool back;                                                                                 \
                                                                                                    \
-        if ((st = hot_next(r.ip, base, up, &back)) != ST_OK) {                                     \
+        if ((st = step(r.ip, base, up, &back)) != ST_OK) {                                         \
             op = r.ip;                                                                             \
             goto fail;                                                                             \
         }                                                                                          \
@@ -859,13 +861,21 @@ i_jf: /* JF: past its jump, or to its target; a stop, a jump not resolved: flow_
     goto next;
 
 i_next_up:
-    NEXT_RUN(0, true)
+    NEXT_RUN(hot_next, 0, true)
 i_next_dn:
-    NEXT_RUN(0, false)
+    NEXT_RUN(hot_next, 0, false)
 i_next_up_l:
-    NEXT_RUN(r.fp, true)
+    NEXT_RUN(hot_next, r.fp, true)
 i_next_dn_l:
-    NEXT_RUN(r.fp, false)
+    NEXT_RUN(hot_next, r.fp, false)
+i_count_up:
+    NEXT_RUN(hot_count_next, 0, true)
+i_count_dn:
+    NEXT_RUN(hot_count_next, 0, false)
+i_count_up_l:
+    NEXT_RUN(hot_count_next, r.fp, true)
+i_count_dn_l:
+    NEXT_RUN(hot_count_next, r.fp, false)
 
 e_next: /* for x in a's next: flow_e_next's */
 {

@@ -537,6 +537,46 @@ static inline Status hot_next(const uint8_t *const op, const Addr base, const bo
     return ST_OK;
 }
 
+/* Quickr's NEXT of counter *n, not past lim, by step: true and *n stepped unless lim is less than a
+   step away. The distance is unsigned, so the counter stops at an INT's last value. */
+static inline bool hot_counted(
+    uint32_t *const n,
+    const uint32_t lim,
+    const uint32_t step,
+    const bool up
+)
+{
+    if (up ? lim - *n < step : *n - lim < 0u - step)
+        return false;
+
+    *n += step;
+    return true;
+}
+
+/* I.COUNT.UP or .DN at op, its cells as I.NEXT's: hot_counted's, the counter stored when stepped.
+   It never fails; a Status for NEXT_RUN. */
+static inline Status hot_count_next(
+    const uint8_t *const op,
+    const Addr base,
+    const bool up,
+    bool *const back
+)
+{
+    const Addr cell = base + load32(op + 1);
+    uint32_t n = rd32(cell);
+    *back = hot_counted(
+        &n,
+        rd32(base + load32(op + 1 + 2 * VCELL)),
+        rd32(base + load32(op + 1 + VCELL)),
+        up
+    );
+
+    if (*back)
+        wr32(cell, n);
+
+    return ST_OK;
+}
+
 /* A narrow number's value at a: a record's field, an array's element, by its ET_*. */
 static inline int32_t narrow_ld(const Addr a, const uint8_t type)
 {
@@ -1024,19 +1064,17 @@ static inline Status hot_l_to_l(Regs *const r) { return hot_lto(r, true); }
 /* The LONG ops of one byte: name, right operand, what it does. */
 #define HOT_LONGS(X)                                                                               \
     X(l_add, HL_POPPED, HL_ADD)                                                                    \
-    X(l_sub, HL_POPPED, HL_SUB)                                                                    \
     X(l_mul, HL_POPPED, HL_MUL)                                                                    \
     X(l_add_v, HL_VAR, HL_ADD)                                                                     \
     X(l_sub_v, HL_VAR, HL_SUB)                                                                     \
     X(l_mul_v, HL_VAR, HL_MUL)                                                                     \
     X(l_add_l, HL_LOC, HL_ADD)                                                                     \
     X(l_sub_l, HL_LOC, HL_SUB)                                                                     \
-    X(l_mul_l, HL_LOC, HL_MUL)                                                                     \
-    X(l_add_u8, HL_U8, HL_ADD)                                                                     \
-    X(l_sub_u8, HL_U8, HL_SUB)
+    X(l_mul_l, HL_LOC, HL_MUL)
 
 /* Behind X, the right operand popped: name, what it does. */
 #define HOT_XLONGS(X)                                                                              \
+    X(l_sub, HL_SUB)                                                                               \
     X(l_div, HL_DIV)                                                                               \
     X(l_mod, HL_MOD)                                                                               \
     X(l_and, HL_AND)                                                                               \
@@ -1058,6 +1096,16 @@ HOT_LONGS(X)
 #define X(name, op)                                                                                \
     static inline Status hot_##name(Regs *const r) { return hot_long(r, HL_POPPED, op); }
 HOT_XLONGS(X)
+#undef X
+
+/* Behind X, the right operand a literal byte: name, what it does. */
+#define HOT_XLONGS8(X)                                                                             \
+    X(l_add_u8, HL_ADD)                                                                            \
+    X(l_sub_u8, HL_SUB)
+
+#define X(name, op)                                                                                \
+    static inline Status hot_##name(Regs *const r) { return hot_long(r, HL_U8, op); }
+HOT_XLONGS8(X)
 #undef X
 
 /* The popped LONG, or ULONG when uns, against the right operand: OPER_GT, OPER_EQ or OPER_LT. */
