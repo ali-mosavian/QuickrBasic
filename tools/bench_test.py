@@ -87,7 +87,7 @@ def demo_colours(b: bench.Build) -> None:
         for name in bench.DEMO_EDITS:
             (Path(d) / "DEMO.BAS").write_text(bench.demo_program(name, 0.5, False, 0))
             r = subprocess.run([str(b.counted), "DEMO.BAS"], cwd=d, capture_output=True, text=True, timeout=60)
-            assert re.fullmatch(r"\s*[\d.]+\s*", r.stdout), f"{name}: {r.stdout}{r.stderr}"
+            assert re.fullmatch(r"\s*[\d.]+\s+\d+\s*", r.stdout), f"{name}: {r.stdout}{r.stderr}"
 
 
 def fps_start_up() -> None:

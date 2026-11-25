@@ -1097,13 +1097,15 @@ DEMO_EDITS = {
         ("no clouds", "    draw_clouds world&, clouds()\n", ""),
     ),
 }
-# a frame counted, and the rate since the first printed once seconds have passed
+# demos --profile: each run's seconds; the longer one's counts less the shorter's are frames alone
+DEMO_PROFILE_SECONDS = (2.0, 4.0)
+# a frame counted, and the rate since the first and the frames printed once seconds have passed
 DEMO_FLIP = """{i}gfx.display.flip
 {i}if frames& = 0 then t0# = gfx.display.clock
 {i}frames& = frames& + 1
 {i}if gfx.display.clock - t0# >= {seconds} then
 {i}    gfx.display.close
-{i}    print (frames& - 1) / (gfx.display.clock - t0#)
+{i}    print (frames& - 1) / (gfx.display.clock - t0#); frames&
 {i}    end
 {i}end if"""
 
@@ -1146,12 +1148,63 @@ def dos_rate(com: Path, job: tuple, cycles: int, files: dict[str, bytes]) -> str
         return r.reason
 
 
+def dos_profile(com: Path, job: tuple, cycles: int, files: dict[str, bytes]) -> tuple[dosrun.Result, int]:
+    """Program com's job profiled by the map beside it, at cycles a virtual ms, and the frames it drew: FPS.TXT's second
+    number, or its output's."""
+    conf, was = dosrun.CONF, dosrun.COM
+    dosrun.CONF = conf.replace("virtual time rate=20000\n", f"virtual time rate={cycles}\n")
+    assert conf != dosrun.CONF
+    dosrun.COM = com
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            r = dosrun.run({"demo": job}, Path(d) / "w", limit_ms=600000, file=True, mem=16, files=files, profile=True)
+            fps = Path(d) / "w" / "FPS.TXT"
+            out = fps.read_text() if fps.exists() else r["demo"].out
+    finally:
+        dosrun.CONF, dosrun.COM = conf, was
+    try:
+        return r["demo"], int(float(out.split()[1]))
+    except (IndexError, ValueError):
+        sys.exit(f"{com.name}: {r['demo'].reason}: {out.strip()[-300:]}")
+
+
+def print_frame_profile(name: str, com: Path, jobs: list[tuple], cycles: int, files: dict[str, bytes], n: int) -> None:
+    """The cycles, instructions and each function's instructions, memory operands and calls a frame: the longer job's
+    less the shorter's, over the frames between, so the start-up drops out. A rep is one instruction and none of its
+    memory operands; the cycles count each of its turns."""
+    (a, fa), (b, fb) = (dos_profile(com, j, cycles, files) for j in jobs)
+    frames = fb - fa
+    spent = (b.ms - a.ms) * cycles / frames
+    run = (b.instructions - a.instructions) / frames
+    own = {
+        f: tuple((after.get(f, 0) - before.get(f, 0)) / frames for before, after in
+                 ((a.selfs, b.selfs), (a.memory, b.memory), (a.calls, b.calls)))
+        for f in b.selfs
+    }
+    print(f"{name}: {spent:,.0f} cycles a frame, {run:,.0f} instructions ({run / spent:.0%}), {frames} frames")
+    print(f"{'instructions':>12} {'':6} {'memory':>10} {'calls':>8}")
+    for f, (insns, memory, calls) in sorted(own.items(), key=lambda kv: -kv[1][0])[:n]:
+        print(f"{insns:>12,.0f} {insns / run:6.1%} {memory:>10,.0f} {calls:>8,.0f}  {f}")
+
+
 def cmd_demos(a: argparse.Namespace) -> int:
     """Each demo of DEMO_EDITS at 320x200x8 on DOS, at --cycles a virtual ms: ours as shipped, then without vsync, then
-    with each of its edits in turn; and each EXE, a DOS program built elsewhere."""
+    with each of its edits in turn; and each EXE, a DOS program built elsewhere. --profile: ours with every edit, and
+    each EXE, a map beside it and its seconds its last argument, by function a frame."""
     b = build(".", True)
     qbx = (b.dos.parent / "lib/gfx.qbx").read_bytes()
     own = {n: (DEMOS / n).read_bytes() for n in ("stage.bas", "meter.bas")}
+    if a.profile:
+        with tempfile.TemporaryDirectory() as d:
+            com = profiled(b, Path(d))
+            for name in a.demo or DEMO_EDITS:
+                edits = len(DEMO_EDITS[name])
+                jobs = [(demo_program(name, s, False, edits), "", "", own) for s in DEMO_PROFILE_SECONDS]
+                print_frame_profile(name, com, jobs, a.cycles, {"lib/gfx.qbx": qbx}, a.n)
+        for exe in map(Path, a.exes):
+            jobs = [("", "", f"{s:g}") for s in DEMO_PROFILE_SECONDS]
+            print_frame_profile(exe.name, exe, jobs, a.cycles, {}, a.n)
+        return 0
     print(f"320x200 at 8 bits on DOS (pentium), {a.cycles} cycles a ms, frames a second over {a.seconds:g} s")
     for name in a.demo or DEMO_EDITS:
         edits = DEMO_EDITS[name]
@@ -1420,6 +1473,8 @@ def main() -> int:
     p.add_argument("--cycles", type=int, default=25000, help="DOSBox's cycles a virtual ms")
     p.add_argument("--demo", action="append", choices=list(DEMO_EDITS), help="a demo to time; all when none")
     p.add_argument("--seconds", type=float, default=10)
+    p.add_argument("--profile", action="store_true", help="by function a frame, ours with every edit (normal core)")
+    p.add_argument("-n", type=int, default=20, help="--profile: the functions shown")
     sub.add_parser("charlie")
     sub.add_parser("engine")
     a = ap.parse_args()
