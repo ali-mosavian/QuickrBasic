@@ -233,6 +233,10 @@ GFX_DOS_OBJ := $(patsubst %.c,$(B)/gfx/%.obj,$(GFX_SLICE_C) stdlib/gfx/src/platf
 $(B)/gfx/%.obj: %.c | build/ext/gfx_qx.c
 	@mkdir -p $(@D)
 	$(DOS_SLICE_CC) $(GFX_INC) $(DEPFLAGS) -c $< -o $@
+# bench.py profile's pext.c: gfx's slice linked in beside the program, which then names it
+$(B)/prof/pext.obj: src/plat/dos32/pext.c
+	@mkdir -p $(@D)
+	$(call compile,$(CFLAGS) -DPEXT_LINKED)
 $(B)/ext/gfx.dll: $(GFX_DOS_OBJ)
 	@mkdir -p $(@D)
 	$(LLD_LINK) /dll /noentry /nodefaultlib /safeseh:no /out:$@ $^

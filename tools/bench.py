@@ -461,6 +461,9 @@ def cmd_qbasic(a: argparse.Namespace) -> int:
     return 0
 
 
+OBJCOPY = os.environ.get("OBJCOPY", shutil.which("llvm-objcopy") or "/opt/homebrew/opt/llvm/bin/llvm-objcopy")
+
+
 def nm(o: Path) -> list[tuple[int, str, str]]:
     """Object o's defined symbols: offset, kind (t local, T global, ...), name."""
     out = subprocess.run([os.environ.get("NM", "nm"), "-n", "--defined-only", o], capture_output=True, text=True).stdout
@@ -496,6 +499,19 @@ def with_statics(listing: str, objs: list[Path]) -> str:
     return "\n".join(out) + "\n"
 
 
+def apart(objs: list[Path], d: Path) -> list[Path]:
+    """objs copied into d, each name they define but the entry renamed in all of them: jwlink binds a static by its
+    name, so the slice's call to its gfx_init ran cngfx.c's static one, and display.open failed."""
+    clash = {n for o in objs for _, _, n in nm(o) if n != "_qx_init_gfx" and not n.startswith(("@", ".", "__real@", "??_C@"))}
+    renames = [a for n in sorted(clash) for a in ("--redefine-sym", f"{n}=_slice{n}")]
+    (d / "slice").mkdir(exist_ok=True)
+    out = []
+    for i, o in enumerate(objs):
+        out.append(d / "slice" / f"{i}_{o.name}")
+        subprocess.run([OBJCOPY, *renames, str(o), str(out[-1])], check=True)
+    return out
+
+
 def profiled(b: Build, d: Path, ide: bool = False) -> Path:
     """b's basic32 (ide: ide32) relinked in d with a map that names its static functions too."""
     var = "IDE_OBJ" if ide else "BASIC_OBJ"
@@ -506,9 +522,15 @@ def profiled(b: Build, d: Path, ide: bool = False) -> Path:
         text=True,
     ).stdout
     m = re.search(rf"^{var} := (.*)$", db, re.M)
-    if not m:
-        sys.exit(f"profile: make printed no {var}")
-    objs = [b.root / o for o in m.group(1).split()]
+    g = re.search(r"^GFX_DOS_OBJ := (.*)$", db, re.M)
+    if not m or not g:
+        sys.exit(f"profile: make printed no {var} or GFX_DOS_OBJ")
+    # gfx's slice linked in, its loader's PEXT_LINKED pext.c taking it: the map names gfx's code too. Its own C library
+    # bits are the program's.
+    linked = b.root / "build/c/prof/pext.obj"
+    subprocess.run(["make", str(linked.relative_to(b.root))], cwd=b.root, check=True, capture_output=True)
+    objs = [linked if o.endswith("plat/dos32/pext.obj") else b.root / o for o in m.group(1).split()]
+    objs += apart([b.root / o for o in g.group(1).split()], d)
     exe = d / ("ide32.exe" if ide else "basic32.exe")
     listing = exe.with_suffix(".map")
     doslink.link(exe, objs, listing)
@@ -537,10 +559,13 @@ def cmd_profile(a: argparse.Namespace) -> int:
     text = program(a)
     jobs: dict[str, str | tuple] = {"": text, "prog": text + "\nRUN\n"} if a.link else {"": "", "prog": text}
     with tempfile.TemporaryDirectory() as d:
-        dosrun.COM = profiled(build(".", True), Path(d), a.ide)
+        b = build(".", True)
+        gfx = b.dos.parent / "lib/gfx.qbx"
+        dosrun.COM = profiled(b, Path(d), a.ide)
         r = dosrun.run(
             jobs,
             Path(d) / "w",
+            files={"lib/gfx.qbx": gfx.read_bytes()} if gfx.exists() else None,
             limit_ms=a.ms if a.ide else 600000,
             file=not a.link,
             profile=True,
