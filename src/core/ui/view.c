@@ -594,10 +594,11 @@ static bool text_imports(Session *const S, const Dialect *const d, const uint32_
     return d->imports(uimn.build.text, n);
 }
 
-/* Text line line (the active view's) an IMPORT or FROM: the modules it names loaded, shown. */
+/* Text line line (the active view's) an IMPORT or FROM, of its file's dialect: the modules the
+   program imports loaded, shown. */
 static void imports(Session *const S, const uint32_t line)
 {
-    const Dialect *const d = text_dialect(S);
+    const Dialect *const d = text_dialect_at(S, line);
 
     if (d->text && !text_imports(S, d, line))
         return;
@@ -609,7 +610,7 @@ static void imports(Session *const S, const uint32_t line)
             return;
     }
 
-    const Status st = repl_call(S, d->open);
+    const Status st = repl_call(S, text_dialect(S)->open);
     view_modules(S);
     edit_recheck(S);
     fault_check(&S->fault, st);

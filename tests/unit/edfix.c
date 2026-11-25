@@ -65,8 +65,9 @@ void fx_open_program(Session *const S, const char *const gfx)
     CHECK(mkdtemp(dir));
     fx_write_file("main.bas", "import gfx\r\ngfx.hi\r\n");
     fx_write_file("gfx.bas", gfx);
-    S->dbug.mode = 0; /* debug_test.c's last step */
-    S->lexr.cols = true; /* the IDE's, uimn_front_end's regions: the error columns */
+    S->dbug.mode = 0;      /* debug_test.c's last step */
+    S->repl.batch = false; /* a file test's run: the editor's is none */
+    S->lexr.cols = true;   /* the IDE's, uimn_front_end's regions: the error columns */
     uimn_init(S);
     uimn_open(S, fx_path_of("main.bas"));
 }

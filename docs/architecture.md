@@ -150,7 +150,7 @@ only through its table. `io/dialect.c` lists the tables in `DIALECTS(X)`, QBasic
   | Load and run | `open`, `read`, `link`, `go`, `run`, `report`, `message`, `errtext` |
   | Editor | `syntax`, `flag`, `colour`, `names`, `fn_at`, `imports`, `suggest` |
   | Debugger and Immediate | `direct`, `print`, `spell` |
-  | Interop | `guest_read`, `guest_declare` |
+  | Interop | `guest_read`, `guest_find`, `guest_declare` |
   | State | `size`, `forget` |
 
   A null hook is one QBasic has none of. No hook runs per VM op.
@@ -160,7 +160,10 @@ only through its table. `io/dialect.c` lists the tables in `DIALECTS(X)`, QBasic
 - **Interop:** `comp/export.h` describes a module's procedures and records in the VM's types. Each
   front end exports its own modules and imports the other's. A QBasic program reads a module of
   another dialect through `guest_read`, then declares its exports through `guest_declare`, which
-  sets the link's `LinkGuest` hooks. A call across is a plain `PCALL`, with no marshalling.
+  sets the link's `LinkGuest` hooks; the editor's relink finds its imports again through
+  `guest_find`. A Quickr program's QBasic modules are read and declared by `repl_guests` (a file
+  run) or `repl_guests_stored` (the editor's). A call across is a plain `PCALL`, with no
+  marshalling.
 
 **A new dialect** is:
 

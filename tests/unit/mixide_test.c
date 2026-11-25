@@ -309,6 +309,72 @@ TEST(mixide_qb_main_runtime_error_in_quickr_code)
     fx_done(S, files);
 }
 
+/* A type error in geo: F5 said nothing of where. */
+TEST(mixide_qb_main_compile_error_in_quickr_code)
+{
+    open_qb(S, "print geo.area(2, 3)\n");
+    fx_retype(S, fx_line_of(S, "    let total = w * h"), "    let total as string = w");
+    pressed(S, K_F5);
+    CHECK(cursor_line() == fx_line_of(S, "    let total as string = w"));
+    CHECK(strstr(uimn.errmsg, "string") != nullptr);
+    fx_done(S, files);
+}
+
+static const char util[] = DIALECT "public function twice(x as int) as int\n"
+                                   "    return x * 2\n"
+                                   "end function\n";
+
+static const char geo_util[] = DIALECT "import util\n"
+                                       "public function area(w as int, h as int) as int\n"
+                                       "    return util.twice(w) * h\n"
+                                       "end function\n";
+
+/* geo importing util, both Quickr's: the second run found no util, dropped by the first's relink
+   (its import was never found again). */
+TEST(mixide_qb_main_runs_again_with_quickr_imports)
+{
+    fx_open_program(S, "");
+    fx_write_file("util.bas", util);
+    fx_write_file("main.bas", "IMPORT geo\nprint geo.area(2, 3)\n");
+    fx_write_file("geo.bas", geo_util);
+    uimn_open(S, fx_path_of("main.bas"));
+    CHECK(strstr(pressed(S, K_F5), " 12") != nullptr);
+    fx_retype(S, fx_line_of(S, "print geo.area(2, 3)"), "print geo.area(3, 3)");
+    CHECK(strstr(pressed(S, K_F5), " 18") != nullptr);
+    CHECK(fx_line_of(S, "    return x * 2") != ~0u);
+    fx_done(S, files);
+}
+
+/* An import typed in geo: read as QBasic's tokens, util not read till a run. */
+TEST(mixide_qb_main_reads_an_import_typed_in_quickr_code)
+{
+    open_qb_with(S, DIALECT "' none yet\n", "print 1\n");
+    fx_write_file("util.bas", util);
+    fx_retype(S, fx_line_of(S, "' none yet"), "import util");
+    CHECK(fx_line_of(S, "    return x * 2") != ~0u);
+    fx_done(S, files);
+}
+
+/* F1 on a Quickr word in geo looked it up in QBasic's topics. */
+TEST(mixide_qb_main_f1_finds_quickr_topics)
+{
+    open_qb_with(
+        S,
+        DIALECT "import text\npublic function up(s as string) as string\n"
+                "    return text.upper(s)\n"
+                "end function\n",
+        "print geo.up(\"a\")\n"
+    );
+    CHECK(help_open("build/host/test.hlp"));
+    edit_load(S, view_goline(S, fx_line_of(S, "    return text.upper(s)")));
+    uimn.edline.col = 17;
+    help_f1(S);
+    fx_shown(S);
+    CHECK(strstr(fx_row(1), "Quickr text") != nullptr);
+    help_close();
+    fx_done(S, files);
+}
+
 /* ---- a Quickr main, a QBasic module */
 
 /* The editor refused a Quickr main importing a QBasic module: shapes not read, no run. */

@@ -146,7 +146,8 @@ Built on `ui/debuginline.c`: the names are where the highlighter colours one, th
 ## Quickr
 
 The editor takes both dialects. A file is Quickr's when its first line is `' OPTION DIALECT QUICKR`,
-QBasic's otherwise, and a program is one or the other.
+QBasic's otherwise. The main file's is the program's; its modules may be of either
+([Interop](language-design.md#interop)).
 
 - That first line is shown and saved but cannot be typed over, cut or joined: a file's dialect is fixed.
 - File, New asks the dialect; a Quickr program starts with that line. The status bar names the
@@ -189,6 +190,27 @@ QBasic's otherwise, and a program is one or the other.
 
 Built on the dialect's hooks (`io/dialect.h`; Quickr's table in `qr/qr.c`) and `ui/text.c`. The
 editor names no dialect: a text dialect's lines go through its table.
+
+### Both dialects in one program
+
+A QBasic main may import Quickr modules, a Quickr main QBasic ones. The editor opens, runs and
+debugs either as it does a program of one dialect.
+
+- Each line is its file's dialect's (`dial_file`, `text_dialect_at`): stored, checked, coloured
+  and looked up in F1 by it. Lines typed in a Quickr file of a QBasic program are kept as typed.
+- F5 runs the main's dialect's way: a QBasic main relinks, its Quickr modules checked as it
+  declares them; a Quickr main links, its QBasic modules declared first. A compile error in either
+  file puts the cursor at its line, its message its dialect's.
+- A Quickr program's store holds the Quickr files' lines first, then each QBasic module's after
+  its `LF_TOP`, each file numbered as its module (`repl_guests_stored`). A Quickr module imported
+  later goes before the QBasic ones'.
+- A QBasic program's Quickr module's own imports are found again at each relink
+  (`Dialect.guest_find`), as its QBasic lines' are.
+- Steps, breakpoints and Ctrl+F7 work by line in either file. Locals, Call stack, Watch and the tip
+  spell a name as its dialect does: Quickr's as typed, QBasic's with its suffix. A watch, a value
+  set in Locals and the immediate window run in the stopped frame's dialect, a QBasic one's names
+  its module's.
+- A QBasic module a Quickr program no longer imports stays till the program is opened again.
 
 ## Theme slots
 

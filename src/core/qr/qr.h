@@ -59,6 +59,8 @@ QrState *qr_state(Session *S);
 /* Module m's file, Quickr's, read into the store at its end; each module its imports name the
    program's, Quickr's, imported by m. */
 void qr_guest_read(Session *S, uint32_t m);
+/* The same, its lines in the store: each module its imports name the program's, imported by m. */
+void qr_guest_find(Session *S, uint32_t m);
 /* Each Quickr module checked, every error reported (a file run's: then exit 1, else Syntax error
    raised); their records' TYPEs made, their exports declared as QBasic's, the link's hooks set. A
    module two of whose publics differ only by case: its ModuMod.clash. */

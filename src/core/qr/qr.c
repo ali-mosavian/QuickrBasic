@@ -1014,6 +1014,13 @@ static void qr_finds(Session *const S, const uint32_t k, const uint16_t file, co
     arena_reset(&m.arena);
 }
 
+void qr_guest_find(Session *const S, const uint32_t m)
+{
+    char path[PFIL_PATH]; /* the table may move as it grows */
+    strcpy(path, modu_module_path(&S->modu, m));
+    qr_finds(S, m, modu_mod(&S->modu, m)->file, path);
+}
+
 void qr_guest_read(Session *const S, const uint32_t m)
 {
     char path[PFIL_PATH]; /* the table may move as it grows */
@@ -1141,7 +1148,9 @@ static void qr_guest_forget(QrGuests *const g)
 
 void qr_guest_declare(Session *const S)
 {
-    QrGuests *const G = &qr_state(S)->guests;
+    QrState *const q = qr_state(S);
+    QrGuests *const G = &q->guests;
+    q->keep.said[0] = 0;
     qr_guest_forget(G);
     G->mem = (QMem){.fault = &S->fault};
 
@@ -1185,8 +1194,13 @@ void qr_guest_declare(Session *const S)
 
     if (p->errs.n && S->repl.batch)
         cons_exit(&S->cons, 1);
-    if (p->errs.n)
-        fault_error(&S->fault, E_SN);
+
+    if (p->errs.n) { /* the editor's: the first at its line, its message qr_errtext's */
+        DialErr e = {.msg = q->keep.said, .cap = sizeof q->keep.said};
+
+        qr_said(p, &p->errs.at[0], &e);
+        fault_raise(&S->fault, (Failure){.code = E_SN, .line = e.rec, .at = FAULT_KEEP});
+    }
 
     qr_instances(S, p, m);
     qlink_guest_types(&S->comp, p, m);
@@ -2085,5 +2099,6 @@ const Dialect dialect_quickr = {
     .errtext = qr_errtext,
     .forget = qr_forget_kept,
     .guest_read = qr_guest_read,
+    .guest_find = qr_guest_find,
     .guest_declare = qr_guest_declare,
 };

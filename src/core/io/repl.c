@@ -1544,6 +1544,11 @@ static void walk(Session *const S, const bool lenient)
             if (S->repl.module)
                 modu_top(&S->modu, S->repl.module, last);
 
+            const Dialect *const d = modu_mod(&S->modu, S->repl.module)->dialect;
+
+            if (S->repl.module && d) /* another dialect's: its imports as it finds them */
+                d->guest_find(S, S->repl.module);
+
             S->repl.inproc = false;
             continue;
         }

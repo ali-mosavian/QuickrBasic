@@ -103,6 +103,9 @@ struct Dialect {
     void (*forget)(Session *S);
     /* A QBasic program's module m, this dialect's: its file read into the store at its end. */
     void (*guest_read)(Session *S, uint32_t m);
+    /* The same, its lines in the store: each module its imports name the program's, imported
+       by m, as guest_read finds them. */
+    void (*guest_find)(Session *S, uint32_t m);
     /* Each of the QBasic program's modules of this dialect checked, their exports declared as
        QBasic's, the link's hooks set (comp/link.h). */
     void (*guest_declare)(Session *S);

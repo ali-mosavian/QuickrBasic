@@ -424,7 +424,8 @@ void edit_emsg(Session *const S, const uint8_t code)
 {
     const Dialect *const d =
         S->vm.line != DLINE ? dial_line(&S->prog, S->vm.line) : text_dialect(S);
-    const char *const s = d->message(S, code);
+    const char *const own = d->errtext ? d->errtext(S, code) : nullptr;
+    const char *const s = own ? own : d->message(S, code);
     memcpy(uimn.errmsg, s, strlen(s) + 1);
 }
 
