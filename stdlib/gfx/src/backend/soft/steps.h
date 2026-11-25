@@ -96,10 +96,11 @@ typedef struct {
     const StepsBy *by;
 } StepsRead;
 
+/* The walk's steps over s, bytes a texel: a constant, the filler's format's. */
 [[gnu::always_inline]]
-static inline StepsBy steps_by(const Pixels *const s, const Steps st)
+static inline StepsBy steps_by(const Pixels *const s, const Steps st, const uint32_t bytes)
 {
-    const int32_t pitch = (int32_t)(s->pitch / px_bytes(s->format));
+    const int32_t pitch = (int32_t)(s->pitch / bytes);
 
     return (StepsBy){
         .step = (st.du >> 16) + (st.dv >> 16) * pitch,
@@ -110,9 +111,13 @@ static inline StepsBy steps_by(const Pixels *const s, const Steps st)
 }
 
 [[gnu::always_inline]]
-static inline StepsRead steps_read(const Pixels *const s, const Steps st, const StepsBy *const by)
+static inline StepsRead steps_read(
+    const Pixels *const s,
+    const Steps st,
+    const StepsBy *const by,
+    const uint32_t bytes
+)
 {
-    const uint32_t bytes = px_bytes(s->format);
     const int32_t pitch = (int32_t)by->pitch;
 
     return (StepsRead){

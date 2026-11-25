@@ -437,8 +437,8 @@ static inline void kept_of(
 )
 {
     if (!st.wrap && steps_inside(&st, s, n)) {
-        const StepsBy by = steps_by(s, st);
-        StepsRead r = steps_read(s, st, &by);
+        const StepsBy by = steps_by(s, st, px_bytes(g));
+        StepsRead r = steps_read(s, st, &by, px_bytes(g));
 
         for (int32_t i = 0; i < n; i++)
             out[i] = !px_key(g, steps_read_next(&r, px_bytes(g)));

@@ -491,9 +491,10 @@ static inline void steps_of(
     const bool key
 )
 {
-    const StepsBy by = steps_by(s, st);
+    const StepsBy by = steps_by(s, st, px_bytes(f));
+    const Inputs in = {.walk = steps_read(s, st, &by, px_bytes(f))};
 
-    fill_of(KIND_STEP, f, f, key ? FILL_KEYED : 0, d, n, (Inputs){.walk = steps_read(s, st, &by)});
+    fill_of(KIND_STEP, f, f, key ? FILL_KEYED : 0, d, n, in);
 }
 
 /* ink_of's texels fetched as drawn, from g into f as variant v. */
@@ -509,9 +510,18 @@ static inline void inked_of(
     const Ink *const k
 )
 {
-    const StepsBy by = steps_by(s, st);
+    const StepsBy by = steps_by(s, st, px_bytes(g));
 
-    fill_of(KIND_INKED, f, g, v, d, n, (Inputs){.ink = *k, .walk = steps_read(s, st, &by)});
+    fill_of(
+        KIND_INKED,
+        f,
+        g,
+        v,
+        d,
+        n,
+        (Inputs){.ink = *k, .walk = steps_read(s, st, &by, px_bytes(g))}
+
+    );
 }
 
 const uint32_t *fill_colours(FillColours *const c, const Ink *const k)
