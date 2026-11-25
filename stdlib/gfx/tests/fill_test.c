@@ -298,3 +298,37 @@ TEST(gfx_fill_mixes_every_alpha)
             }
         }
 }
+
+/* Wrong colours here were a smooth texel's read from its table by the wrong channel's entry. */
+TEST(gfx_fill_argb_lights_texels)
+{
+    static FillColours colours;
+    uint32_t seed = 6;
+    uint8_t src[N * 4];
+
+    for (PxFormat g = PX_15; g < PX_FORMATS; g++) {
+        const uint32_t b = px_bytes(g);
+        Ink k = {
+            .source = g,
+            .keyed = true,
+            .smooth = true,
+            .shade = next(&seed) & PX_WHITE,
+        };
+
+        uint32_t texels[N], argb[N];
+        bool drawn[N];
+
+        k.argb = fill_colours(&colours, &k);
+        texels_at(&seed, src, N, g);
+
+        for (uint32_t i = 0; i < N; i++)
+            texels[i] = px_load(src + i * b, b);
+
+        fill_argb(argb, drawn, texels, N, &k);
+
+        for (uint32_t i = 0; i < N; i++) {
+            const uint32_t lit = px_shade(px_argb(g, texels[i]), k.shade);
+            CHECK(drawn[i] == !px_key(g, texels[i]) && (argb[i] & PX_WHITE) == (lit & PX_WHITE));
+        }
+    }
+}

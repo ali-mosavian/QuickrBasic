@@ -64,6 +64,18 @@ typedef struct {
 /* k's mix table into a target of direct format into, made in m unless made already. */
 const uint32_t *fill_mixes(FillMixes *m, PxFormat into, const Ink *k);
 
+/* SMOOTH's colours of a direct picture's texels, lit, by px_table's channels: made for the
+   source and shade, again only when one changes. */
+typedef struct {
+    uint32_t table[PX_TABLE];
+    PxFormat from;
+    uint32_t shade;
+    bool made;
+} FillColours;
+
+/* k's colours of its direct source, made in c unless made already. */
+const uint32_t *fill_colours(FillColours *c, const Ink *k);
+
 /* n pixels of a shape's colour through the ink, blended over those there; into a direct target,
    by tints, made first unless made already. */
 typedef void FillTint(uint8_t *d, int32_t n, uint32_t colour, const Ink *k, FillTints *tints);
@@ -93,7 +105,7 @@ static inline uint32_t fill_variant(const Ink *const k, const PxFormat into, con
 extern const Fill *const fill_formats[PX_FORMATS];
 extern const Fill fill8, fill15, fill16, fill32;
 
-/* The ARGB of n texels through the ink but its blend, and which are drawn: a direct target's
+/* The ARGB of n texels through the ink but its blend, by its argb, and which are drawn: SMOOTH's
    first steps. */
 void fill_argb(uint32_t *argb, bool *drawn, const uint32_t *texels, int32_t n, const Ink *k);
 #endif

@@ -171,7 +171,7 @@ static inline void argb_of(
 
     for (int32_t i = 0; i < n; i++) {
         drawn[i] = !ink.keyed || !px_key(g, texels[i]);
-        argb[i] = ink_colour(PX_32, g, FILL_ANY, &ink, texels[i]);
+        argb[i] = ink.solid ? ink.colour : tabled(g, ink.argb, texels[i]);
     }
 }
 
@@ -512,6 +512,18 @@ static inline void inked_of(
     const StepsBy by = steps_by(s, st);
 
     fill_of(KIND_INKED, f, g, v, d, n, (Inputs){.ink = *k, .walk = steps_read(s, st, &by)});
+}
+
+const uint32_t *fill_colours(FillColours *const c, const Ink *const k)
+{
+    if (!c->made || c->from != k->source || c->shade != k->shade) {
+        px_table(c->table, k->source, PX_32, nullptr, k->shade);
+        c->from = k->source;
+        c->shade = k->shade;
+        c->made = true;
+    }
+
+    return c->table;
 }
 
 const uint32_t *fill_mixes(FillMixes *const m, const PxFormat into, const Ink *const k)

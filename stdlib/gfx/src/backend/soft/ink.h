@@ -11,7 +11,8 @@
    for any source, as the mix is a colour.
  * - An 8-bit target: lut, the index each index draws as; map, 5 bits a channel to the nearest
  *   index; blend, 256 rows by the index drawn and 256 by the one there.
- * - Another: argb, the colour each index draws as.
+ * - Another: argb, the colour each index draws as; SMOOTH's from a direct picture, each texel's
+ *   by channel (fill_colours).
  * - shade: light and tint multiplied into a direct texel (&HFFFFFF none); mode and alpha, the
  *   blend of a direct target.
  * - pixels: px_table's, a picture's texel as the target's pixel by index or channel, for the

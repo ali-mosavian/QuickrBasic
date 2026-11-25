@@ -10,13 +10,15 @@ typedef struct {
     uint16_t *p;
 } SoftDepth;
 
-/* Software's own (Gx.own): the call readied, and the roots' depths by their slots. */
+/* Software's own (Gx.own): the call readied, the roots' depths by their slots, and the tables
+   its shapes make once. */
 typedef struct {
     SoftTarget call;
     SoftDepth *depths;
     uint32_t ndepths;
     FillTints tints;
     FillMixes mixes;
+    FillColours colours;
 } Soft;
 
 /* Software's own, made on first ask: null, raised. */
@@ -174,6 +176,9 @@ static bool source(Gx *const g, const Picture *const p)
 
     if (t->px.format != PX_8 && t->ink.mode && !t->ink.solid)
         t->ink.mixes = fill_mixes(&o->mixes, t->px.format, &t->ink);
+
+    if (t->ink.smooth && p->root.format != PX_8 && !t->ink.solid)
+        t->ink.argb = fill_colours(&o->colours, &t->ink);
 
     return true;
 }
