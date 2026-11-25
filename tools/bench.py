@@ -587,6 +587,75 @@ def cmd_profile(a: argparse.Namespace) -> int:
     return 0
 
 
+# fills: each case's draw, a statement on canvas& from tex& (64 by 64) or q(), and the pixels it covers. The quad is the
+# whole screen, its texels a turned parallelogram inside tex&, so u and v both step along a row.
+FILLS_CASES: dict[str, tuple[str, str, int]] = {
+    "textured": ("", "gfx.draw.poly canvas&, q(), 0, 4, tex&, 0, 0", 64000),
+    "lit": ("gfx.draw.set_light 31", "gfx.draw.poly canvas&, q(), 0, 4, tex&, 0, 0", 64000),
+    "lit opaque": ("gfx.draw.set_light 31", "gfx.draw.poly canvas&, q(), 0, 4, tex&, 0, gfx.draw.OPAQUE", 64000),
+    "lit persp": ("gfx.draw.set_light 31", "gfx.draw.poly canvas&, q(), 0, 4, tex&, 0, gfx.draw.PERSPECTIVE", 64000),
+    "added": (
+        "gfx.draw.set_alpha 32", "gfx.draw.rect canvas&, 0, 0, 319, 199, warm&, gfx.draw.FILL + gfx.draw.ADD", 64000
+    ),
+    "rect": ("", "gfx.draw.rect canvas&, 0, 0, 319, 199, warm&, gfx.draw.FILL", 64000),
+    "sprites": ("", "for k = 0 to 14\ngfx.draw.sprite canvas&, (k mod 5) * 64, (k \\ 5) * 64, tex&, 0\nnext", 61440),
+}
+FILLS_DRAWS = 4
+# the texture's two colours and the shapes', by depth
+FILLS_COLOURS = {8: (7, 15, 42), 16: (0x808080, 0xC0C0C0, 0xFF9030)}
+
+
+def fills_program(bits: int, case: str, draws: int) -> str:
+    """case's draw a warm-up and draws more times at bits; its z far at the foot for PERSPECTIVE."""
+    setup, draw, _ = FILLS_CASES[case]
+    plain, band, warm = FILLS_COLOURS[bits]
+    corners = ((0, 0, 8, 0), (320, 0, 63, 8), (320, 200, 55, 63), (0, 200, 0, 55))
+    lines = [
+        "import gfx.display, gfx.surface, gfx.draw",
+        "from gfx.draw import Vertex",
+        "dim q(3) as Vertex",
+        f"canvas& = gfx.display.open(320, 200, {bits}, 0)",
+        "tex& = gfx.surface.new(64, 64)",
+        f"gfx.draw.clear tex&, {plain}",
+        f"gfx.draw.rect tex&, 8, 8, 55, 55, {band}, gfx.draw.FILL",
+        f"warm& = {warm}",
+    ]
+    for i, (x, y, u, v) in enumerate(corners):
+        lines += [f"q({i}).x = {x}", f"q({i}).y = {y}", f"q({i}).z = {1 + i // 2}"]
+        lines += [f"q({i}).u = {u}", f"q({i}).v = {v}"]
+    return "\n".join([*lines, setup, f"for i = 0 to {draws}", draw, "next", "gfx.display.close", ""])
+
+
+def cmd_fills(a: argparse.Namespace) -> int:
+    """Each FILLS_CASES draw's instructions a pixel on DOS, at 8 and 16 bits: all of them, and each function's own
+    among the top. A case is run with FILLS_DRAWS more draws and with none, the same warm-up in both, so all else
+    cancels."""
+    cases, depths = a.case or list(FILLS_CASES), a.bits or list(FILLS_COLOURS)
+    jobs = {f"{bits} {case} {n}": fills_program(bits, case, n) for bits in depths for case in cases
+            for n in (0, FILLS_DRAWS)}
+    with tempfile.TemporaryDirectory() as d:
+        b = build(".", True)
+        dosrun.COM = profiled(b, Path(d))
+        qbx = (b.dos.parent / "lib/gfx.qbx").read_bytes()
+        batches = [{"jobs": {k: v}, "limit_ms": 600000, "file": True, "files": {"lib/gfx.qbx": qbx}, "mem": 16,
+                    "profile": True} for k, v in jobs.items()]
+        r = dosrun.run_all(batches, Path(d))
+    print(f"{'':16}{'a pixel':>8}  its own, the top {a.n}")
+    for bits in depths:
+        for case in cases:
+            base, got = r[f"{bits} {case} 0"], r[f"{bits} {case} {FILLS_DRAWS}"]
+            if stopped(got):
+                print(f"{bits:>2} {case:13}{stopped(got)}")
+                continue
+            own = {f: n - base.selfs.get(f, 0) for f, n in got.selfs.items() if n > base.selfs.get(f, 0)}
+            pixels = FILLS_CASES[case][2] * FILLS_DRAWS
+            top = sorted(own.items(), key=lambda kv: -kv[1])[: a.n]
+            calls = {f: got.calls.get(f, 0) - base.calls.get(f, 0) for f, _ in top}
+            parts = "  ".join(f"{f.removeprefix('_slice_')} {n / pixels:.1f} ({calls[f]:,})" for f, n in top)
+            print(f"{bits:>2} {case:13}{sum(own.values()) / pixels:8.1f}  {parts}")
+    return 0
+
+
 MOTH = ROOT / "src/plat/wasm/web/demos/MOTHLITE.BAS"
 # a 486 at 10000 cycles a ms, the Sound Blaster on: by virtual time, or --real by the host's clock
 FPS_CPU = "core=dynamic\ncputype=486\nvirtual time=true\nvirtual time rate=10000\n"
@@ -1194,6 +1263,10 @@ def main() -> int:
     p.add_argument("--inclusive", action="store_true", help="each function's instructions with its callees'")
     p.add_argument("--ms", type=int, default=30000, help="--ide: the emulated time each run is given")
     p.add_argument("--mem", type=int, default=4, help="DOSBox's MB")
+    p = sub.add_parser("fills")
+    p.add_argument("--case", action="append", choices=list(FILLS_CASES), help="a draw to count; all when none")
+    p.add_argument("--bits", type=int, action="append", choices=list(FILLS_COLOURS), help="a depth; 8 and 16 when none")
+    p.add_argument("-n", type=int, default=3)
     p = sub.add_parser("fps")
     p.add_argument("--real", action="store_true", help="the host's clock at cycles=fixed 10000, not virtual time")
     p.add_argument("--profile", action="store_true", help="the functions it spends its instructions in (normal core)")
@@ -1222,6 +1295,7 @@ def main() -> int:
         "qbasic": cmd_qbasic,
         "ops": cmd_ops,
         "profile": cmd_profile,
+        "fills": cmd_fills,
         "fps": cmd_fps,
         "gfx": cmd_gfx,
         "charlie": cmd_charlie,
