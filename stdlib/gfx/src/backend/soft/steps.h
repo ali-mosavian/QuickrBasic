@@ -52,14 +52,26 @@ static inline bool steps_in(const int64_t f, const int32_t n)
     return f >= 0 && f < (int64_t)n << 16;
 }
 
-/* Every texel of n pixels' walk inside s: the plain fillers' walk, not the held ones'. */
+/* steps_in's for n under 32768, f 32 bits: n's 16.16 fits an unsigned compare, f's sign with it. */
+static inline bool steps_in32(const int32_t f, const int32_t n)
+{
+    return (uint32_t)f < (uint32_t)n << 16;
+}
+
+/* Every texel of n pixels' walk inside s: the plain fillers' walk, not the held ones'. In 32 bits
+   unless a side or an end needs more. */
 static inline bool steps_inside(const Steps *const st, const Pixels *const s, const int32_t n)
 {
-    const int64_t u1 = st->u + (int64_t)st->du * (n - 1);
-    const int64_t v1 = st->v + (int64_t)st->dv * (n - 1);
+    int32_t du, dv, u1, v1;
 
-    return steps_in(st->v, s->h) && steps_in(v1, s->h) && steps_in(st->u, s->w) &&
-           steps_in(u1, s->w);
+    if (s->w > 32767 || s->h > 32767 || __builtin_mul_overflow(st->du, n - 1, &du) ||
+        __builtin_mul_overflow(st->dv, n - 1, &dv) || __builtin_add_overflow(st->u, du, &u1) ||
+        __builtin_add_overflow(st->v, dv, &v1))
+        return steps_in(st->v, s->h) && steps_in(st->v + (int64_t)st->dv * (n - 1), s->h) &&
+               steps_in(st->u, s->w) && steps_in(st->u + (int64_t)st->du * (n - 1), s->w);
+
+    return steps_in32(st->v, s->h) && steps_in32(v1, s->h) && steps_in32(st->u, s->w) &&
+           steps_in32(u1, s->w);
 }
 
 static inline int32_t steps_held(const int32_t i, const int32_t n)
