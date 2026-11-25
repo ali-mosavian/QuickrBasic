@@ -1,0 +1,65 @@
+/* A module's exports as the other dialect sees them: its procedures and its records, in the VM's
+ * types. How it works: export.c. */
+#ifndef COMP_EXPORT_H
+#define COMP_EXPORT_H
+#include "defs.h"
+#include "util/arena.h"
+
+typedef struct Comp Comp;
+
+/* A parameter's or a result's type: ET_*, ET_REC + t a TYPE's, ET_IMP a SUB's result; byref a
+   parameter by reference; a parameter's name as first written. */
+typedef struct {
+    uint32_t et;
+    bool byref;
+    const char *name;
+    uint32_t len;
+} ExpVal;
+
+/* A procedure: its name as first written, no suffix; its number (0 till its front end links it);
+   its parameters, a record result's last when resarg; why it can't be called across, null when
+   it can. */
+typedef struct {
+    const char *name;
+    uint32_t len;
+    uint32_t proc;
+    ExpVal result;
+    ExpVal *params;
+    uint32_t npar;
+    bool resarg;
+    const char *why;
+} ExpProc;
+
+/* A record's field: its name, its type (an ExpVal's), its bytes into the record. */
+typedef struct {
+    const char *name;
+    uint32_t len;
+    uint32_t et;
+    uint32_t off;
+} ExpField;
+
+/* A record: its name, its TYPE (comp/declare.h), its fields and bytes, whether it holds strings;
+   why it can't be used across, null when it can. */
+typedef struct {
+    const char *name;
+    uint32_t len;
+    uint32_t td;
+    ExpField *fields;
+    uint32_t nfields;
+    uint32_t size;
+    bool deep;
+    const char *why;
+} ExpType;
+
+typedef struct Exports {
+    ExpProc *procs;
+    uint32_t nprocs;
+    ExpType *types;
+    uint32_t ntypes;
+} Exports;
+
+/* QBasic module m's SUBs, FUNCTIONs and TYPEs but the PRIVATE ones, after link_prepare: each
+   value's type one both dialects have (ET_I2, ET_I4, ET_SH, ET_R4, ET_R8, ET_SD, a TYPE of them),
+   else why not. In a's room; Out of memory through C's fault. */
+Exports expo_qbasic(const Comp *C, uint32_t m, Arena *a);
+#endif

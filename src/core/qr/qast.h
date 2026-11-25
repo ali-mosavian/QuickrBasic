@@ -137,7 +137,8 @@ typedef struct {
     const char *text;
     int64_t i;
     double d;
-    bool big; /* QK_INT past INT64_MAX: i its bits, a ulong's */
+    bool big;    /* QK_INT past INT64_MAX: i its bits, a ulong's */
+    bool nocase; /* a QBasic module's name: matched case aside */
 } QTok;
 
 /* The source: every module's lines; the tokens of the lines lexed last, a QK_EOF after them. */
@@ -321,6 +322,7 @@ typedef struct {
     uint32_t ntp;
     QType of;     /* an instance's generic */
     QType *targs; /* an instance's types for its tparams */
+    bool foreign; /* a QBasic TYPE: td its own, laid (comp/export.h) */
 } QTy;
 
 enum { QAST_WORDS = 256 }; /* a record in cells' bytes whose fields are variables (qr/qlink.c) */
@@ -375,6 +377,7 @@ typedef struct {
     QVar *var;
     QLam *lam;      /* an instance's, bound to this lambda: no value passed */
     uint32_t capat; /* bound: its lambda's first hidden parameter */
+    bool ref;       /* a QBasic procedure's by reference: a var's place passed, else a copy */
 } QParam;
 
 struct QFn {
@@ -434,6 +437,8 @@ struct QFn {
     uint32_t walk; /* the last search of its callees' writes it was in, sema's */
     bool idle;     /* a generic record instance's method not called: unchecked, no code */
     bool checked;  /* its body checked, sema's */
+    bool foreign;  /* a QBasic module's procedure, proc: no body; entry its PCALL's Jump, qlink's */
+    uint32_t entry[3];
 };
 
 /* A name a lambda uses from outside it, as its site bound it. A fn's storage (frame) is reached
@@ -757,13 +762,17 @@ struct QStmt {
 };
 
 /* A file: a module. Its path as found, its lines (from first), its tokens (base: the first's
-   number across modules), its statements; the modules it imports, by its import statements. */
+   number across modules), its statements; the modules it imports, by its import statements. A
+   QBasic module's (ex, comp/export.h) none: its lines QBasic's, its module and its first line
+   mem/module.h's, its code run by its first import (start). */
 typedef struct {
     const char *path;
     uint32_t first, nlines;
     QTok *toks;
     uint32_t ntoks, base;
     QStmt *head, *tail;
+    const struct Exports *ex;
+    uint32_t modu, start;
 } QMod;
 
 typedef struct {
@@ -774,6 +783,7 @@ typedef struct {
     uint32_t end; /* the editor's: the line the run goes on to past the main's, + 1; 0 the next */
     QStmt *first;
     QFn *fns;
+    QFn *foreign; /* the QBasic modules' procedures (QFn.foreign), by next */
     QVar *vars;
     QTys tys;
     QErrs errs;

@@ -37,6 +37,7 @@
  *    let h = 7 / 2           3.5: an untyped double, a double by the let
  */
 #include "qr/qsem.h"
+#include "comp/export.h"
 #include "qr/qnat.h"
 #include "qr/qpar.h"
 #include <stdarg.h>
@@ -55,6 +56,7 @@ typedef struct {
     uint32_t scope;
     const QTok *alias;
     bool pub;
+    const char *why; /* a QBasic module's name Quickr can't use: why, said where it is used */
 } QBind;
 
 /* A module's names, or a package folder's modules (mod QMOD_NONE); ready once its statements are
@@ -381,7 +383,16 @@ static const char *qsem_aname(QSem *const S, const QType t)
 
 static bool qsem_same(const QTok *const a, const QTok *const b)
 {
-    return a->len == b->len && !memcmp(a->text, b->text, a->len);
+    if (a->len != b->len)
+        return false;
+    if (!a->nocase && !b->nocase)
+        return !memcmp(a->text, b->text, a->len);
+
+    for (uint32_t i = 0; i < a->len; i++)
+        if (downcase((uint8_t)a->text[i]) != downcase((uint8_t)b->text[i]))
+            return false;
+
+    return true;
 }
 
 static bool qsem_is(const QTok *const t, const char *const word)
@@ -457,6 +468,16 @@ static const QBind qsem_spoilt = {.ty = QY_ERROR};
 static const QBind *qsem_member(QSem *S, const QBind *m, const QTok *name);
 static const QBind *qsem_exported(const QSem *S, uint32_t k, const QTok *name);
 
+/* b, a module's name, used at name: an error if it is a QBasic one Quickr can't use. */
+static const QBind *qsem_usable(QSem *const S, const QBind *const b, const QTok *const name)
+{
+    if (!b || !b->why)
+        return b;
+
+    qsem_say(S, name, qsem_text(S, name), " is not usable from Quickr: ", b->why, nullptr);
+    return &qsem_spoilt;
+}
+
 /* name in module k's scope, an alias followed; null none. */
 static const QBind *qsem_global(QSem *const S, const uint32_t k, const QTok *const name)
 {
@@ -473,7 +494,7 @@ static const QBind *qsem_global(QSem *const S, const uint32_t k, const QTok *con
         const QBind *const x = qsem_exported(S, b->scope - 1, b->alias);
 
         if (x && x->pub)
-            return x;
+            return qsem_usable(S, x, name);
         if (!x && !S->scopes[b->scope - 1].ready)
             qsem_say(
                 S,
@@ -556,7 +577,7 @@ static const QBind *qsem_qual(QSem *const S, const QExpr *const e)
         return nullptr;
 
     const QBind *const m = qsem_qual(S, e->a);
-    return m && m->scope && !m->alias ? qsem_member(S, m, e->tok) : nullptr;
+    return m && m->scope && !m->alias ? qsem_usable(S, qsem_member(S, m, e->tok), e->tok) : nullptr;
 }
 
 /* Is unchecked e a module's name, or a package's? */
@@ -954,7 +975,7 @@ static QType qsem_qualtype(
         return QY_ERROR;
     }
 
-    const QBind *const b = qsem_member(S, m, t);
+    const QBind *const b = qsem_usable(S, qsem_member(S, m, t), t);
 
     if (b->ty)
         return b->ty;
@@ -3152,6 +3173,52 @@ static bool qsem_inlines(const QFn *const f)
     return plain;
 }
 
+static QVar *qsem_rawroot(QSem *S, const QExpr *e);
+
+/* Is unchecked e a var's place: a var's, a mut parameter's, a for mut's element's? */
+static bool qsem_varplace(QSem *const S, const QExpr *const e)
+{
+    const QVar *const v = qsem_rawroot(S, e);
+    return v && (v->kind == QV_VAR || v->kind == QV_MUT || (v->kind == QV_EACH && v->mut));
+}
+
+/* Var place v for QBasic by-reference parameter p: of its type, so the var sees the change. */
+static QExpr *qsem_refarg(QSem *const S, QExpr *const v, const QParam *const p)
+{
+    if (v->type != p->var->type && v->type != QY_ERROR) {
+        qsem_say(
+            S,
+            v->tok,
+            qsem_text(S, p->name),
+            " is by reference: pass a var of its type, ",
+            qsem_aname(S, p->var->type),
+            nullptr
+        );
+        v->type = QY_ERROR;
+    }
+
+    return v;
+}
+
+/* Checked argument v for a QBasic procedure, no var's by reference: a copy the call may change, a
+   place's record its own temporary's, a number or a string by value. */
+static QExpr *qsem_copyarg(QSem *const S, QExpr *const v)
+{
+    if (v->type == QY_ERROR || qast_fresh(v))
+        return v;
+
+    if (!qsem_byplace(S, v->type)) {
+        v->byval = true;
+        return v;
+    }
+
+    QExpr *const c = qast_expr(S->mem, QE_CALL, v->tok);
+    c->builtin = QB_COPY;
+    c->a = v;
+    c->type = v->type;
+    return qsem_held(S, c);
+}
+
 static QExpr *qsem_fncall(QSem *const S, QExpr *const e, QFn *f)
 {
     f->idle = false;
@@ -3217,14 +3284,19 @@ static QExpr *qsem_fncall(QSem *const S, QExpr *const e, QFn *f)
             continue;
         }
 
-        const bool lend = p->mut && qsem_changes(S, a->e, a->e->tok);
+        const bool ref = p->ref && qsem_varplace(S, a->e);
+        const bool lend = (p->mut || ref) && qsem_changes(S, a->e, a->e->tok);
         QExpr *const v = qsem_expr(S, a->e, p->var->type);
 
-        if (p->mut && !lend)
+        if ((p->mut || ref) && !lend)
             v->type = QY_ERROR;
 
-        e->argv[k] =
-            p->mut ? qsem_mutarg(S, v, p) : qsem_addressed(S, qsem_coerce(S, v, p->var->type));
+        e->argv[k] = ref      ? qsem_refarg(S, v, p)
+                     : p->mut ? qsem_mutarg(S, v, p)
+                              : qsem_addressed(S, qsem_coerce(S, v, p->var->type));
+
+        if (f->foreign && !ref)
+            e->argv[k] = qsem_copyarg(S, e->argv[k]);
     }
 
     if (qsem_inlines(f)) {
@@ -5004,6 +5076,11 @@ static QExpr *qsem_fnref(QSem *const S, QExpr *const e, QFn *const f)
 
     if (f->ytx) {
         qsem_say(S, e->tok, qsem_text(S, f->name), " is no value: it is a generator", nullptr);
+        return e;
+    }
+
+    if (f->foreign) {
+        qsem_say(S, e->tok, qsem_text(S, f->name), " is no value: it is QBasic's", nullptr);
         return e;
     }
 
@@ -8054,7 +8131,7 @@ static void qsem_operdef(QSem *const S, QFn *const f)
     for (uint32_t k = 0; k < f->npar; k++) {
         const QType t = f->params[k].var->type;
         err |= t == QY_ERROR;
-        home |= qsem_isrec(S, t) &&
+        home |= qsem_isrec(S, t) && qast_ty(S->prog, t)->def &&
                 qsem_modof(S, qast_ty(S->prog, t)->def->tok) == qsem_modof(S, f->name);
     }
 
@@ -8535,11 +8612,175 @@ static void qsem_from(QSem *const S, const uint32_t k, const QStmt *const s)
     }
 }
 
-/* Each module's scope, its imports bound. */
+/* ---- a QBasic module's exports (comp/export.h) */
+
+/* A QBasic name: text's len bytes, matched case aside. */
+static const QTok *qsem_qbtok(QSem *const S, const char *const text, const uint32_t len)
+{
+    QTok *const t = qast_alloc(S->mem, sizeof *t);
+    *t = (QTok){
+        .kind = QK_NAME,
+        .line = UINT32_MAX,
+        .len = len,
+        .text = text,
+        .nocase = true,
+    };
+
+    return t;
+}
+
+/* The record of QBasic TYPE td, QY_ERROR none. */
+static QType qsem_qbrec(const QSem *const S, const uint32_t td)
+{
+    for (uint32_t i = 0; i < S->prog->tys.n; i++)
+        if (S->prog->tys.at[i].foreign && S->prog->tys.at[i].td == td)
+            return QY_FIRST + i;
+
+    return QY_ERROR;
+}
+
+/* An export's type et as Quickr's: QY_VOID none, QY_ERROR a TYPE no module Quickr imports gives. */
+static QType qsem_qbtype(const QSem *const S, const uint32_t et)
+{
+    switch (et) {
+    case ET_IMP:
+        return QY_VOID;
+
+    case ET_I2:
+    case ET_I4:
+        return QY_INT;
+
+    case ET_SH:
+        return QY_SHORT;
+
+    case ET_R4:
+        return QY_SINGLE;
+
+    case ET_R8:
+        return QY_DOUBLE;
+
+    case ET_SD:
+        return QY_STRING;
+
+    default:
+        return et >= ET_REC ? qsem_qbrec(S, et - ET_REC) : QY_ERROR;
+    }
+}
+
+/* b bound in QBasic module k's scope, public: it and one there of its name, case aside, both an
+   error where used. */
+static void qsem_qbbind(QSem *const S, const uint32_t k, QBind b)
+{
+    static const char twice[] = "two of its module's names match it, case aside";
+
+    QScope *const sc = &S->scopes[k];
+    b.pub = true;
+
+    for (uint32_t i = 0; i < sc->n; i++)
+        if (qsem_same(sc->at[i].name, b.name))
+            sc->at[i].why = b.why = twice;
+
+    sc->at = qast_room(S->mem, sc->at, sc->n, &sc->cap, sizeof *sc->at);
+    sc->at[sc->n++] = b;
+}
+
+/* QBasic module k's TYPEs, records with no fields yet. */
+static void qsem_qbrecords(QSem *const S, const uint32_t k)
+{
+    const Exports *const x = S->prog->mods[k].ex;
+
+    for (uint32_t i = 0; i < x->ntypes; i++) {
+        const ExpType *const e = &x->types[i];
+        const QType t = qsem_newty(S, QT_REC);
+        QTy *const y = qast_ty(S->prog, t);
+        y->name = qsem_qbtok(S, e->name, e->len);
+        y->foreign = y->laid = true;
+        y->td = e->td;
+        y->size = e->size;
+        y->deep = e->deep;
+    }
+}
+
+/* QBasic module k's TYPEs' fields, its procedures functions: each bound in its scope, why one
+   is not usable kept. */
+static void qsem_qbnames(QSem *const S, const uint32_t k)
+{
+    static const char unseen[] = "a TYPE no module it imports exports";
+
+    const Exports *const x = S->prog->mods[k].ex;
+
+    for (uint32_t i = 0; i < x->ntypes; i++) {
+        const ExpType *const e = &x->types[i];
+        const QType t = qsem_qbrec(S, e->td);
+        QTy *const y = qast_ty(S->prog, t);
+        const char *why = e->why;
+        y->fields = qast_alloc(S->mem, (e->nfields ? e->nfields : 1) * sizeof *y->fields);
+        y->nfields = y->capfields = e->nfields;
+
+        for (uint32_t f = 0; f < e->nfields; f++) {
+            const ExpField *const ef = &e->fields[f];
+            const QType ft = qsem_qbtype(S, ef->et);
+            why = why || ft != QY_ERROR ? why : unseen;
+            y->fields[f] = (QField){
+                .name = qsem_qbtok(S, ef->name, ef->len),
+                .type = ft,
+                .off = ef->off,
+            };
+        }
+
+        qsem_qbbind(S, k, (QBind){.name = y->name, .ty = t, .why = why});
+    }
+
+    for (uint32_t i = 0; i < x->nprocs; i++) {
+        const ExpProc *const e = &x->procs[i];
+        QFn *const f = qast_alloc(S->mem, sizeof *f);
+        const char *why = e->why;
+        *f = (QFn){
+            .name = qsem_qbtok(S, e->name, e->len),
+            .pub = true,
+            .npar = e->npar,
+            .params = qast_alloc(S->mem, (e->npar ? e->npar : 1) * sizeof *f->params),
+            .result = qsem_qbtype(S, e->result.et),
+            .byarg = e->resarg,
+            .sig = true,
+            .checked = true,
+            .foreign = true,
+            .proc = e->proc,
+        };
+
+        why = why || f->result != QY_ERROR ? why : unseen;
+
+        for (uint32_t j = 0; j < e->npar; j++) {
+            const ExpVal *const v = &e->params[j];
+            const QTok *const name = qsem_qbtok(S, v->name, v->len);
+            const QType pt = qsem_qbtype(S, v->et);
+            QVar *const var = qast_alloc(S->mem, sizeof *var);
+            *var = (QVar){.name = name, .type = pt, .kind = QV_PARAM};
+
+            f->params[j] = (QParam){.name = name, .var = var, .ref = v->byref};
+
+            why = why || pt != QY_ERROR ? why : unseen;
+        }
+
+        f->next = S->prog->foreign;
+        S->prog->foreign = f;
+        qsem_qbbind(S, k, (QBind){.name = f->name, .fn = f, .why = why});
+    }
+}
+
+/* Each module's scope, its imports bound; a QBasic module's its exports. */
 static void qsem_scopes(QSem *const S)
 {
     for (uint32_t k = 0; k < S->prog->nmods; k++)
         qsem_newscope(S, k);
+
+    for (uint32_t k = 0; k < S->prog->nmods; k++)
+        if (S->prog->mods[k].ex)
+            qsem_qbrecords(S, k);
+
+    for (uint32_t k = 0; k < S->prog->nmods; k++)
+        if (S->prog->mods[k].ex)
+            qsem_qbnames(S, k);
 
     for (uint32_t k = 0; k < S->prog->nmods; k++) {
         const QMod *const m = &S->prog->mods[k];

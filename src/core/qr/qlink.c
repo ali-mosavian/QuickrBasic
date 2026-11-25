@@ -17,6 +17,7 @@
  */
 #include "qr/qlink.h"
 #include "comp/blocks.h"
+#include "comp/control.h"
 #include "comp/declare.h"
 #include "comp/frame.h"
 #include "comp/link.h"
@@ -242,7 +243,7 @@ static void qlink_wordsof(
 static void qlink_types(Comp *const C, const QProg *const p, QMem *const m)
 {
     for (uint32_t i = 0; i < p->tys.n; i++)
-        if (qast_record(p, QY_FIRST + i))
+        if (qast_record(p, QY_FIRST + i) && !p->tys.at[i].foreign)
             p->tys.at[i].td =
                 decl_newtype(C->decl, C->symb, qlink_name(C->symb, p->tys.at[i].name));
 
@@ -493,13 +494,15 @@ static void qlink_compile(Comp *const C, QCg *const g, const uint32_t line, cons
     }
 }
 
-/* Each line compiled into the cache, again till the store stays where it is. */
+/* Each line compiled into the cache, again till the store stays where it is; the QBasic modules'
+   first when qb. */
 static void qlink_lines(
     Comp *const C,
     const QProg *const p,
     QMem *const m,
     const QStmt **const of,
-    const bool dbg
+    const bool dbg,
+    const bool qb
 )
 {
     const uint32_t guess = CACHE0 + (C->prog->end - PROGBASE) + XLIM + XSLK;
@@ -522,6 +525,9 @@ static void qlink_lines(
         QCg g = {.env = &env, .mem = m};
 
         C->link->end = C->allo->cache + CACHE0;
+
+        if (qb)
+            link_lines_qb(C);
 
         for (uint32_t i = 0; i < p->src.nlines; i++)
             prog_line(C->prog, p->src.lines[i].at)->code = 0;
@@ -701,9 +707,30 @@ static void qlink_stmts(const QProg *const p, const QStmt **const of)
     }
 }
 
+/* Each QBasic procedure's PCALL Jump (comp/control.h), from its entry. */
+static void qlink_foreign(Comp *const C, const QProg *const p)
+{
+    C->line = DLINE;
+
+    for (QFn *f = p->foreign; f; f = f->next) {
+        const Jump j = ctrl_jump(C, blok_proc(C->blok, f->proc)->entry);
+        f->entry[0] = j.line;
+        f->entry[1] = j.body;
+        f->entry[2] = j.dest;
+    }
+}
+
 void qlink_program(Comp *const C, QProg *const p, QMem *const m, const bool dbg)
 {
-    blok_reset(C->blok, C->fault);
+    bool qb = false; /* QBasic modules: blocks paired, procedures made (comp/link.h link_prepare) */
+
+    for (uint32_t k = 0; k < p->nmods; k++)
+        qb |= p->mods[k].ex != nullptr;
+
+    if (!qb)
+        blok_reset(C->blok, C->fault);
+
+    qlink_foreign(C, p);
     qlink_types(C, p, m);
     qlink_procs(C, p);
     qlink_vars(C, p);
@@ -728,7 +755,10 @@ void qlink_program(Comp *const C, QProg *const p, QMem *const m, const bool dbg)
     if (p->testend)
         of[p->testend->line] = p->testend;
 
-    qlink_lines(C, p, m, of, dbg);
+    qlink_lines(C, p, m, of, dbg, qb);
+
+    if (qb)
+        link_raise(C);
 
     qlink_unplace(C->symb, p);
 
@@ -738,6 +768,9 @@ void qlink_program(Comp *const C, QProg *const p, QMem *const m, const bool dbg)
     qlink_words(C->symb, p);
 
     C->link->nmiss = 0;
+
+    if (qb)
+        link_resolve_qb(C);
 
     for (uint32_t i = 0; i < p->src.nlines; i++) {
         const uint32_t at = p->src.lines[i].at;

@@ -843,6 +843,9 @@ void blok_pair(Blok *const b, const Prog *const pg, const Symb *const sy, Fault 
     btab_init(&sc.open, sizeof(BlokOpen));
 
     for (uint32_t ln = PROGBASE; prog_line(pg, ln)->len; ln += prog_line(pg, ln)->len) {
+        if (prog_line(pg, ln)->flags & LF_QR) /* a Quickr line: text, qr/'s */
+            continue;
+
         sc.line = ln;
         blok_scanline(&sc, at(pg->base + ln + HDR));
     }

@@ -118,6 +118,10 @@ static void link_procvars(Comp *const C)
 
     for (uint32_t i = 1; i < C->blok->procs.n; i++) {
         Proc *const p = btab_at(&C->blok->procs, i);
+
+        if (p->flags & PF_FOREIGN)
+            continue;
+
         decl_deftype(C->decl, C->symb, p->first);
         symb_name(C->symb, p->name)->proc = i;
         p->module = comp_module(C, p->first);
@@ -740,8 +744,8 @@ static void link_tops(Comp *const C)
             modu_top(C->modu, m++, l);
 }
 
-/* Every line compiled: each module's after those it imports, the main's last, so a use of another
-   module's CONST loads its literal (comp/fold.c). */
+/* Every QBasic line compiled: each module's after those it imports, the main's last, so a use of
+   another module's CONST loads its literal (comp/fold.c). A Quickr line is qr/qlink.c's. */
 static void link_lines(Comp *const C)
 {
     const uint32_t n = modu_count(C->modu);
@@ -749,7 +753,8 @@ static void link_lines(Comp *const C)
 
     if (n <= 1) {
         for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
-            link_line(C, l);
+            if (!(prog_line(C->prog, l)->flags & LF_QR))
+                link_line(C, l);
 
         return;
     }
@@ -758,7 +763,7 @@ static void link_lines(Comp *const C)
         const uint32_t m = sc_module(modu_ordered(C->modu)[i]);
 
         for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
-            if (comp_module(C, l) == m)
+            if (!(prog_line(C->prog, l)->flags & LF_QR) && comp_module(C, l) == m)
                 link_line(C, l);
     }
 }
@@ -893,8 +898,7 @@ static void link_natives(Comp *const C)
     }
 }
 
-/* Blocks paired, every line compiled and resolved; the ledger holds what was not found. */
-static void build(Comp *const C)
+void link_prepare(Comp *const C)
 {
     fold_clear(C);
     blok_pair(C->blok, C->prog, C->symb, C->fault);
@@ -902,7 +906,6 @@ static void build(Comp *const C)
     decl_defevents(C->decl, C->scop, C->symb, C->prog); /* the typed lines' DEFtypes too */
     link_procvars(C);
     link_natives(C);
-    Addr base;
     memset(C->memo, 0, sizeof C->memo);
     C->memo_on = true;
     C->scop->look_on = true;
@@ -921,28 +924,47 @@ static void build(Comp *const C)
 
     for (uint32_t id = 1; id < C->symb->nvars; id++)
         symb_varx(C->symb, id)->given = 0;
+}
+
+void link_lines_qb(Comp *const C)
+{
+    C->link->cursor = 0;
+    uncache(C);
+    C->link->end = C->allo->cache + CACHE0;
+    link_lines(C);
+}
+
+void link_resolve_qb(Comp *const C)
+{
+    C->memo_on = false;
+    C->scop->look_on = false;
+    index_lines(C);
+
+    for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
+        if (!(prog_line(C->prog, l)->flags & LF_QR))
+            link_resolve(C, l, prog_line(C->prog, l)->code);
+}
+
+/* Blocks paired, every line compiled and resolved; the ledger holds what was not found. */
+static void build(Comp *const C)
+{
+    link_prepare(C);
+    Addr base;
 
     do { /* the cache grown moves the store: a literal's Addr of its text, compiled again */
         base = C->prog->base;
-        C->link->cursor = 0;
-        uncache(C);
-        C->link->end = C->allo->cache + CACHE0;
-
-        link_lines(C);
+        link_lines_qb(C);
     } while (C->prog->base != base);
 
-    C->memo_on = false;
-    C->scop->look_on = false;
     C->link->nmiss = 0;
 
     for (uint32_t i = 1; i < C->blok->procs.n; i++) /* every line compiled: every local made */
         frame_layout(C->symb, C->decl, btab_at(&C->blok->procs, i), i);
 
-    index_lines(C);
-
-    for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
-        link_resolve(C, l, prog_line(C->prog, l)->code);
+    link_resolve_qb(C);
 }
+
+void link_raise(Comp *const C) { each_error(C, raise_one, C->fault); }
 
 void link_start(Comp *const C)
 {

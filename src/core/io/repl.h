@@ -41,10 +41,11 @@ typedef struct {
     bool keep_pre;      /* the editor's: a line loaded keeps its indent and number as typed */
     uint8_t *pre;       /* keep_pre's, precap bytes */
     uint32_t precap;
-    bool batch;           /* a file run: its end exits */
-    bool checking;        /* --check's: the file compiled, not run */
-    bool testing;         /* --test's: a Quickr file's tests run, not its program */
-    bool copying;         /* --copies: a Quickr file's copies of lists listed, not run */
+    bool batch;    /* a file run: its end exits */
+    bool checking; /* --check's: the file compiled, not run */
+    bool testing;  /* --test's: a Quickr file's tests run, not its program */
+    bool copying;  /* --copies: a Quickr file's copies of lists listed, not run */
+    bool guests;   /* loading a Quickr program's QBasic modules: Quickr's no import of theirs */
     char file[PFIL_PATH]; /* the command line's file name; CHAIN's */
     char incl[PFIL_PATH]; /* an '$INCLUDE's */
 } Repl;
@@ -89,6 +90,10 @@ void repl_cont(Session *S);
 /* Enter the lines of the file repl.file names, its includes' in place; then the console's
    again. Errors: as chnl_open. */
 void repl_load(Session *S);
+/* A Quickr program's QBasic modules (qr/qr.c): those at paths, n of them, read into the store
+   after its lines, each its own's imports after it, and declared; their files numbered from file,
+   each's module to mods. Errors: as repl_load. */
+void repl_guests(Session *S, const char *const *paths, uint32_t n, uint16_t file, uint32_t *mods);
 /* Tokenize inbuf, len long; store a numbered line, an empty one deletes it; loading, every line
    at the end. ENTER_*. Errors: Syntax error a number 64000 or over, Out of memory, Duplicate
    label. */

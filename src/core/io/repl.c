@@ -901,6 +901,17 @@ static void not_found(Session *const S)
    header is read now, so an error in it is at the IMPORT. */
 static void import(Session *const S, const char *const path)
 {
+    if (S->repl.guests && qr_is_file(path))
+        fault_raise(
+            &S->fault,
+            (Failure){
+                .code = E_SN,
+                .dg = DG_SYNTAX_ERROR_GUEST,
+                .line = FAULT_KEEP,
+            }
+
+        );
+
     const uint32_t m = modu_module(&S->modu, path);
 
     if (qbxf_is(path)) {
@@ -1238,12 +1249,16 @@ static void redeclare(Session *const S, const uint32_t line)
 }
 
 /* The program's lines read, declared: each module's after those it imports, the main's last,
-   its file's DEFtypes and OPTIONs from its first line. Then the main's again, for lines typed. */
-static void declare_program(Session *const S)
+   its file's DEFtypes and OPTIONs from its first line; the main's not when it is Quickr's (guests).
+   Then the main's again, for lines typed. */
+static void declare_program(Session *const S, const bool guests)
 {
     const uint32_t n = modu_count(&S->modu), *const order = modu_order(&S->modu);
 
     for (uint32_t i = 0; i < n; i++) {
+        if (guests && !order[i])
+            continue;
+
         const uint32_t m = order[i], top = modu_top_of(&S->modu, m);
         const uint32_t from = m ? top + prog_line(&S->prog, top)->len : PROGBASE;
         const uint32_t to = m + 1 < n ? modu_top_of(&S->modu, m + 1) : prog_at(&S->prog);
@@ -1271,7 +1286,32 @@ void repl_load(Session *const S)
     modu_clear(&S->modu, S->repl.file);
     read_file(S, S->repl.file, SOURCE_FILENO, 0);
     read_modules(S, 1, 0);
-    declare_program(S);
+    declare_program(S, false);
+    S->repl.loading = false;
+}
+
+void repl_guests(
+    Session *const S,
+    const char *const *const paths,
+    const uint32_t n,
+    const uint16_t file,
+    uint32_t *const mods
+)
+{
+    S->repl.loading = true;
+    S->repl.guests = true;
+    S->repl.fline = 0;
+    S->repl.nfile = file;
+    S->repl.module = 0;
+
+    for (uint32_t i = 0; i < n; i++) {
+        mods[i] = modu_module(&S->modu, paths[i]);
+        modu_import(&S->modu, 0, mods[i]);
+    }
+
+    read_modules(S, 1, 0);
+    declare_program(S, true);
+    S->repl.guests = false;
     S->repl.loading = false;
 }
 
@@ -1376,7 +1416,7 @@ static void reread(Session *const S, const bool lenient)
 static void relink(Session *const S, const bool lenient)
 {
     reread(S, lenient);
-    declare_program(S);
+    declare_program(S, false);
     S->repl.loading = false;
 }
 

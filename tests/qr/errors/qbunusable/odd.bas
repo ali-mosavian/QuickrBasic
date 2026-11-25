@@ -1,0 +1,22 @@
+TYPE Fixed
+    Code AS STRING * 4
+END TYPE
+TYPE Arr
+    V(0 TO 3) AS LONG
+END TYPE
+TYPE Box
+    F AS Fixed
+END TYPE
+TYPE Same
+    A AS LONG
+END TYPE
+SUB Fill (a() AS LONG)
+END SUB
+SUB Bytes (b AS BYTE)
+END SUB
+FUNCTION Code$ (f AS Fixed)
+END FUNCTION
+SUB same
+END SUB
+SUB Inc (n AS LONG)
+END SUB

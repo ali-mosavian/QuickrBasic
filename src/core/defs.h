@@ -346,7 +346,9 @@ enum : uint8_t {
     PF_STAT = 1,
     PF_DEF = 2,
     PF_RESARG = 8,
-    PF_NATIVE = 16
+    PF_NATIVE = 16,
+    PF_FOREIGN = 32
 }; /* ours: PF_RESARG, a FUNCTION's record or array result, its last parameter (blok_nargs);
-      PF_NATIVE, a native module's DECLARE CDECL, its code an extension's entry (io/native.c) */
+      PF_NATIVE, a native module's DECLARE CDECL, its code an extension's entry (io/native.c);
+      PF_FOREIGN, a Quickr fn QBasic calls: its entry its first line, no tokens (qr/qlink.c) */
 #endif

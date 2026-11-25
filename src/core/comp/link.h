@@ -43,6 +43,15 @@ typedef void LinkEach(void *ctx, const Failure *f);
 /* link_start's work, unlinked: each compile error, then each label not found, to each, raising none
    (a block's pairing still raises its first); how many. */
 uint32_t link_report(Comp *C, LinkEach *each, void *ctx);
+/* link_start's parts, for a program with Quickr's lines too (qr/qlink.c): the QBasic lines'
+   blocks paired, their procedures' variables declared, compiling begun; then each QBasic line
+   compiled into the cache, from its start; then, every procedure's frame laid out, each QBasic
+   line resolved. */
+void link_prepare(Comp *C);
+void link_lines_qb(Comp *C);
+void link_resolve_qb(Comp *C);
+/* link_start's compile errors raised, the first; none: nothing. */
+void link_raise(Comp *C);
 void link_compile(Comp *C, uint32_t line); /* cm_comp: line compiled to comp_xbuf */
 /* comp_xbuf's code (comp.line's) placed at link.end as line's stream, the cache grown should it
    not fit. Out of memory. */

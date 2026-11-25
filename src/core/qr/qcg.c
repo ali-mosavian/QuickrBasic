@@ -1925,7 +1925,33 @@ static void qcg_pcall(QCg *const g, const QFn *const f)
     code_dword(c, f->proc);
     code_dword(c, 0);
     code_word(c, 0);
-    qcg_target(g, f->def, 0, PAST_JMP);
+
+    if (!f->foreign) {
+        qcg_target(g, f->def, 0, PAST_JMP);
+        return;
+    }
+
+    for (uint32_t i = 0; i < countof(f->entry); i++)
+        code_dword(c, f->entry[i]);
+}
+
+/* An import's: each QBasic module it names run, the first time (comp/import.c). */
+static void qcg_imports(QCg *const g, const QStmt *const s)
+{
+    const QImport *const lists[] = {s->imps, s->kind == QS_FROM ? s->names : nullptr};
+
+    for (uint32_t j = 0; j < countof(lists); j++)
+        for (const QImport *im = lists[j]; im; im = im->next) {
+            const QMod *const mod =
+                im->mod < g->env->prog->nmods ? &g->env->prog->mods[im->mod] : nullptr;
+
+            if (!mod || !mod->ex || (j && !s->imps->folder))
+                continue;
+
+            code_xop(g->c, X_IMPORT);
+            code_dword(g->c, mod->modu);
+            code_dword(g->c, mod->start);
+        }
 }
 
 /* A fn's call: each argument by reference where it has a place, else a value cell and its ref;
@@ -3965,6 +3991,11 @@ static void qcg_body(QCg *const g, const QStmt *const s)
         qcg_load(c, g->env->prog->passes);
         qcg_load(c, g->env->prog->fails);
         qcg_x(c, QX_TALLY);
+        return;
+
+    case QS_IMPORT:
+    case QS_FROM:
+        qcg_imports(g, s);
         return;
 
     default:

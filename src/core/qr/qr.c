@@ -26,6 +26,9 @@
  */
 #include "qr/qr.h"
 #include "session.h"
+#include "comp/export.h"
+#include "comp/link.h"
+#include "io/repl.h"
 #include "io/errmsg.h"
 #include "io/locate.h"
 #include "plat/pfil.h"
@@ -323,8 +326,14 @@ static uint32_t qr_load(const QrLoad *const L, const char *const path)
         if (qr_same(p->mods[i].path, path))
             return i;
 
-    if (!qr_is_file(path))
+    if (!qr_is_file(path) && L->stored)
         return QMOD_QBASIC;
+    if (!qr_is_file(path)) { /* its lines the QBasic loader's: qr_guests */
+        const uint32_t k = qr_newmod(p, L->m, path);
+        p->mods[k].ex = qast_alloc(L->m, sizeof(Exports));
+        return k;
+    }
+
     if (!L->stored)
         return qr_module(L->S, p, L->m, path);
 
@@ -350,7 +359,8 @@ static void qr_unloaded(QProg *const p, QImport *const im, const char *const nam
         qast_error(
             &p->errs,
             im->tok,
-            "{} is a QBasic module: its first line is not ' OPTION DIALECT QUICKR",
+            "{} is a QBasic module: the editor runs a Quickr program that imports one only from "
+            "the command line",
             name,
             n
         );
@@ -481,6 +491,10 @@ static void qr_store(Session *const S, QProg *const p, QMem *const m)
 
     for (uint32_t i = 0; i < n; i++) {
         const QMod *const mod = &p->mods[p->order[i]];
+
+        if (mod->ex)
+            continue;
+
         modu_file(&S->modu, p->order[i], mod->path, 0);
         S->prog.add_file = (uint16_t)p->order[i];
 
@@ -495,6 +509,54 @@ static void qr_store(Session *const S, QProg *const p, QMem *const m)
     S->prog.add_flags = 0;
     S->prog.add_src = 0;
     S->prog.add_file = 0;
+}
+
+/* p's QBasic modules read into the store before its lines, each's own imports with it, and
+   declared (io/repl.c); each's code runs from its first line. Are there any? */
+static bool qr_guests(Session *const S, QProg *const p, QMem *const m)
+{
+    const char **const paths = qast_alloc(m, (p->nmods ? p->nmods : 1) * sizeof *paths);
+    uint32_t *const mods = qast_alloc(m, (p->nmods ? p->nmods : 1) * sizeof *mods);
+    uint32_t n = 0;
+
+    for (uint32_t k = 0; k < p->nmods; k++)
+        if (p->mods[k].ex)
+            paths[n++] = p->mods[k].path;
+
+    if (!n)
+        return false;
+
+    repl_guests(S, paths, n, (uint16_t)p->nmods, mods);
+
+    for (uint32_t k = 0, i = 0; k < p->nmods; k++) {
+        QMod *const mod = &p->mods[k];
+
+        if (!mod->ex)
+            continue;
+
+        const uint32_t top = modu_top_of(&S->modu, mods[i]);
+        mod->modu = mods[i++];
+        mod->start = top + prog_line(&S->prog, top)->len;
+    }
+
+    return true;
+}
+
+/* Each QBasic module's exports, its procedures' variables declared first (comp/link.h). */
+static void qr_exports(Session *const S, QProg *const p, QMem *const m)
+{
+    link_prepare(&S->comp);
+
+    for (uint32_t k = 0; k < p->nmods; k++) {
+        QMod *const mod = &p->mods[k];
+
+        if (!mod->ex)
+            continue;
+
+        Exports *const x = qast_alloc(m, sizeof *x);
+        *x = expo_qbasic(&S->comp, mod->modu, &m->arena);
+        mod->ex = x;
+    }
 }
 
 /* The line text, then a ^ under its byte col, tabs kept so it lines up. */
@@ -663,8 +725,13 @@ uint32_t qr_build(Session *const S)
     for (uint32_t k = 0; k < p.nmods; k++)
         qr_imports(&L, k);
 
+    const bool guests = qr_guests(S, &p, &m);
     qr_store(S, &p, &m);
     session_drop(S);
+
+    if (guests)
+        qr_exports(S, &p, &m);
+
     qsem_program(&p, &m);
     qast_sort(&p.errs);
 

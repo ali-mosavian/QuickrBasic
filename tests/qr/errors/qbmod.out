@@ -1,3 +1,0 @@
-qbmod.bas:2:8: plain is a QBasic module: its first line is not ' OPTION DIALECT QUICKR
-  import plain
-         ^
