@@ -297,6 +297,32 @@ static bool shots(const char *s, const uint32_t now, const uint32_t dflt, const 
     return done;
 }
 
+/* The GPU's renderer, w's; the offscreen driver's, which can show nothing, into a texture (Vulkan's:
+   Metal's needs a window). */
+static SDL_Renderer *gpu_renderer(SDL_Window *const w)
+{
+    if (strcmp(SDL_GetCurrentVideoDriver(), "offscreen"))
+        return SDL_CreateGPURenderer(nullptr, w);
+
+    SDL_Renderer *const r = SDL_CreateGPURenderer(nullptr, nullptr);
+    SDL_Texture *const into = r ? SDL_CreateTexture(
+                                      r,
+                                      SDL_PIXELFORMAT_RGBA32,
+                                      SDL_TEXTUREACCESS_TARGET,
+                                      VIEW_MAX_W,
+                                      VIEW_MAX_H
+                                  )
+                                : nullptr;
+
+    if (into && SDL_SetRenderTarget(r, into))
+        return r;
+
+    if (r)
+        SDL_DestroyRenderer(r);
+
+    return nullptr;
+}
+
 int sdl_main(void)
 {
     home();
@@ -336,8 +362,7 @@ int sdl_main(void)
         SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY
     );
     /* QB_GFX: soft, gfx draws in pages; gpu, the GPU or exit. Unset, the GPU where SDL has one, else
-       pages. Asked first: a GPU renderer that fails takes the window with it. The offscreen driver
-       has neither window nor renderer; its shots need none. */
+       pages. Asked first: a GPU renderer that fails takes the window with it. */
     const char *const gfx = getenv("QB_GFX");
     SDL_Renderer *const gpu =
         (gfx && !strcmp(gfx, "soft")) || !SDL_GPUSupportsShaderFormats(
@@ -345,7 +370,7 @@ int sdl_main(void)
                                              nullptr
                                          )
             ? nullptr
-            : SDL_CreateGPURenderer(nullptr, w);
+            : gpu_renderer(w);
     const bool played = gpu && sdl_player_init(SDL_GetGPURendererDevice(gpu));
     sdl_display_open(w);
     SDL_Renderer *const r = gpu ? gpu : SDL_CreateRenderer(w, nullptr);

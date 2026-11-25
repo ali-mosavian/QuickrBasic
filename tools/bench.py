@@ -944,8 +944,8 @@ def cmd_gfx_dos(a: argparse.Namespace) -> int:
 
 
 def cmd_gfx(a: argparse.Namespace) -> int:
-    """Each GFX_WORK frame's rate in pages and on the GPU, in the app's window (the Mac's, or Linux's); with --vsync,
-    each flip waiting for the refresh. --dos: in pages on DOS."""
+    """Each GFX_WORK frame's rate in pages and on the GPU, in the app's window (the Mac's, or Linux's, off-screen with
+    SDL_VIDEO_DRIVER=offscreen); with --vsync, each flip waiting for the refresh. --dos: in pages on DOS."""
     if a.dos:
         return cmd_gfx_dos(a)
     mac = sys.platform == "darwin"

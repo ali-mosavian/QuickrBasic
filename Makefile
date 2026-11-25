@@ -26,7 +26,7 @@ DOSBOX_BIN ?= $(DEPS)/dosbox-x
 DOS32A ?= third_party/dos32a
 export JWASM JWLINK DOSBOX_BIN DOS32A
 
-.PHONY: all test host host-test wasm wasm-test web mac mac-zip mac-test linux-app dos-zip lto format clean shaders
+.PHONY: all test host host-test wasm wasm-test web mac mac-zip mac-test linux-app linux-test dos-zip lto format clean shaders
 all:
 
 # one run builds both: two would clone into the same directory at once under -j
@@ -319,7 +319,7 @@ build/hostperf/basic: $(build/hostperf_OBJ) build/hostperf/obj/app/basic32.o bui
 
 # ---- The window's: the IDE in a window. The Mac's build/mac/QuickrBasic.app, universal (arm64 and x86-64, macOS 13
 # on); mac-zip, the app zipped. Linux's build/linux/app (linux-app): QuickrBasic with its help, gfx and demos beside
-# it. SDL 3 is linked in, built by tools/deps.sh sdl. The display is plat/view's, as the browser's; wrap.h is ld's
+# it; linux-test, its window off-screen. SDL 3 is linked in, built by tools/deps.sh sdl. The display is plat/view's, as the browser's; wrap.h is ld's
 # --wrap ----
 
 SDL_DIR := build/deps/sdl3
@@ -378,6 +378,8 @@ gfx-shot: $(GUI)/gfxshow
 	QB_SHOT=$(GUI)/charlie.ppm@30 $<
 
 linux-app: $(GUI)/app/QuickrBasic
+linux-test: linux-app
+	$(PY) tools/linux_test.py $(GUI)/app/QuickrBasic
 $(GUI)/app/QuickrBasic: $(GUI)/QuickrBasic $(HELP) $(DEMOS) build/host/lib/gfx.qbx $(GFX_DEMOS)
 	rm -rf $(@D)
 	mkdir -p $(@D)/demos $(@D)/lib
