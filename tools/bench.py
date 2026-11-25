@@ -1189,8 +1189,8 @@ def print_frame_profile(name: str, com: Path, jobs: list[tuple], cycles: int, fi
 
 def cmd_demos(a: argparse.Namespace) -> int:
     """Each demo of DEMO_EDITS at 320x200x8 on DOS, at --cycles a virtual ms: ours as shipped, then without vsync, then
-    with each of its edits in turn; and each EXE, a DOS program built elsewhere. --profile: ours with every edit, and
-    each EXE, a map beside it and its seconds its last argument, by function a frame."""
+    with each of its edits in turn; and each EXE, a DOS program built elsewhere. --profile: ours with --edits (all when
+    none), and each EXE, a map beside it and its seconds its last argument, by function a frame."""
     b = build(".", True)
     qbx = (b.dos.parent / "lib/gfx.qbx").read_bytes()
     own = {n: (DEMOS / n).read_bytes() for n in ("stage.bas", "meter.bas")}
@@ -1198,7 +1198,7 @@ def cmd_demos(a: argparse.Namespace) -> int:
         with tempfile.TemporaryDirectory() as d:
             com = profiled(b, Path(d))
             for name in a.demo or DEMO_EDITS:
-                edits = len(DEMO_EDITS[name])
+                edits = len(DEMO_EDITS[name]) if a.edits is None else a.edits
                 jobs = [(demo_program(name, s, False, edits), "", "", own) for s in DEMO_PROFILE_SECONDS]
                 print_frame_profile(name, com, jobs, a.cycles, {"lib/gfx.qbx": qbx}, a.n)
         for exe in map(Path, a.exes):
@@ -1475,6 +1475,7 @@ def main() -> int:
     p.add_argument("--seconds", type=float, default=10)
     p.add_argument("--profile", action="store_true", help="by function a frame, ours with every edit (normal core)")
     p.add_argument("-n", type=int, default=20, help="--profile: the functions shown")
+    p.add_argument("--edits", type=int, help="--profile: ours with its first so many edits; all when none")
     sub.add_parser("charlie")
     sub.add_parser("engine")
     a = ap.parse_args()
