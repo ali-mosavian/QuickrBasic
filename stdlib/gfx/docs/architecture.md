@@ -79,10 +79,10 @@ backend keeps are in [design.md](design.md).
 - **The row fillers** (`fill.c`) are a table for each format, as µGL's `cfmt`. A call picks its
   filler once (`poly.c`, `span.c`), and each is one straight loop for its variant: masked or not,
   each depth mode, held or not. An affine row inside the picture takes the plain loop, one that
-  leaves it the held one. A perspective row divides every 16 pixels. An ink with work to do has an
-  inked filler for each source format and variant. With depth or perspective as well it goes
-  through the general filler, a pixel at a time. `SMOOTH` has its own, which mixes the four texels
-  round each pixel as the GPU's shader does.
+  leaves it the held one, or the wrapped one when the texture tiles (`px_tiles`). A perspective row
+  divides every 16 pixels. An ink with work to do has an inked filler for each source format and
+  variant. With depth or perspective as well it goes through the general filler, a pixel at a time.
+  `SMOOTH` has its own, which mixes the four texels round each pixel as the GPU's shader does.
 - **Depth** is 1/z in 16 bits, a buffer for each root surface, made on its first `DEPTH_TEST` or
   `DEPTH_WRITE` draw.
 

@@ -268,7 +268,7 @@ print sum&
 # them. {depth}, {bytes} a pixel, {spread} a colour's step. The frame is drawn once, then shown.
 GPU_CELLS = (
     "shapes", "sprites", "turned", "polys", "depth", "lit", "tinted", "lit shapes",
-    "solid", "blend", "add", "smooth", "rows", "text", "drawn into", "read back",
+    "solid", "blend", "add", "smooth", "rows", "text, tiles", "drawn into", "read back",
 )
 # Cells whose texels the GPU picks by its own interpolation, not software's 16.16 walk: told, not failed.
 GPU_LOOSE = ("turned", "polys", "depth", "smooth")
@@ -409,6 +409,21 @@ c& = cell&(13)
 for i = 0 to 9
     gfx.draw.text c&, (i mod 2) * 7, i * 11 + 2, "GFX " + str$(i * 1234), ((80 + i) * {spread}) and &HFFFFFF
 next
+' a 16 by 16 texture tiled, u and v -16 to 32 under 48 by 48 pixels
+t& = gfx.surface.new(16, 16)
+dim tile(16 * 16 * {bytes} - 1) as byte
+for i = 0 to 16 * 16 * {bytes} - 1
+    tile(i) = ((i * 5 + i \\ 16) mod 11) * 23
+next
+gfx.surface.write t&, 0, 0, 16, 16, tile()
+q(0).x = 87.5: q(0).y = 7.5: q(1).x = 135.5: q(1).y = 7.5
+q(2).x = 135.5: q(2).y = 55.5: q(3).x = 87.5: q(3).y = 55.5
+q(0).u = -16: q(0).v = -16: q(1).u = 32: q(1).v = -16
+q(2).u = 32: q(2).v = 32: q(3).u = -16: q(3).v = 32
+for i = 0 to 3
+    q(i).z = 1
+next
+gfx.draw.poly c&, q(), 0, 4, t&, 0, gfx.draw.OPAQUE
 ' a surface drawn into, then drawn
 c& = cell&(14)
 d& = gfx.surface.new(70, 50)

@@ -907,6 +907,7 @@ static inline void affine_walk(
                     g->dudx,
                     g->dvdx,
                     0,
+                    0,
                 };
 
                 RowAffine *const fill = steps_inside(&st, &r->src, to - from) ? plain : held;

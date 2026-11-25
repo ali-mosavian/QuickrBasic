@@ -195,4 +195,12 @@ static inline Pixels px_cut(const Pixels *const p, const Rect r)
     const uint32_t at = (uint32_t)r.y * p->pitch + (uint32_t)r.x * px_bytes(p->format);
     return (Pixels){p->p + at, p->pitch, r.w, r.h, p->format};
 }
+
+/* A texture w by h repeats both ways under a polygon when both are powers of two, as mgl's masks
+   wrap one; any other is held at its edges, and so is any under SMOOTH, whose edges would
+   blend the far side's in. */
+static inline bool px_tiles(const int32_t w, const int32_t h)
+{
+    return w > 0 && h > 0 && !(w & (w - 1)) && !(h & (h - 1));
+}
 #endif

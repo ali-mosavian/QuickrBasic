@@ -7,9 +7,9 @@
 #include "base/pixels.h"
 
 /* The first texel's u and v, and the step a pixel. wrap: u repeats every wrap (16.16), and stays
-   in [0, wrap); 0 never. */
+   in [0, wrap); wrap_v, v the same; 0 never. */
 typedef struct {
-    int32_t u, v, du, dv, wrap;
+    int32_t u, v, du, dv, wrap, wrap_v;
 } Steps;
 
 /* u wrapped into [0, w): a step past an end, by a width, without a divide. */
@@ -24,16 +24,24 @@ static inline int32_t steps_wrap(int32_t u, const int32_t w)
     return m < 0 ? m + w : m;
 }
 
-/* The walk from u, v by du, dv a pixel, u wrapped when it wraps. */
+/* The walk from u, v by du, dv a pixel, each wrapped when it wraps. */
 static inline Steps steps_from(
     const int32_t u,
     const int32_t v,
     const int32_t du,
     const int32_t dv,
-    const int32_t wrap
+    const int32_t wrap,
+    const int32_t wrap_v
 )
 {
-    return (Steps){wrap ? steps_wrap(u, wrap) : u, v, du, dv, wrap};
+    return (Steps){
+        wrap ? steps_wrap(u, wrap) : u,
+        wrap_v ? steps_wrap(v, wrap_v) : v,
+        du,
+        dv,
+        wrap,
+        wrap_v,
+    };
 }
 
 /* The walk a pixel on. */
@@ -44,6 +52,9 @@ static inline void steps_on(Steps *const st)
 
     if (st->wrap)
         st->u = steps_wrap(st->u, st->wrap);
+
+    if (st->wrap_v)
+        st->v = steps_wrap(st->v, st->wrap_v);
 }
 
 /* f, 16.16, held a texel inside [0, n) texels. */

@@ -79,7 +79,8 @@ typedef struct {
     uint32_t colour;        /* flat: the pixel, or blended the colour through the ink */
     const uint8_t *blend;   /* flat, blended into 8 bits: the colour's row of the blend table */
     const uint32_t *tints;  /* flat, blended into a direct target: FillTints' pixels */
-    int32_t wrap;           /* the general fillers': u repeats every wrap (16.16), 0 never */
+    int32_t wrap;           /* u repeats every wrap (16.16), 0 never */
+    int32_t wrap_v;         /* v repeats every wrap_v (16.16), 0 never */
     int32_t du, dv, dz;     /* affine: u and v 16.16 a pixel; depth's a pixel */
     float dpun, dpvn, dpzn; /* perspective: u/z, v/z and 1/z a run's, SCAN_SUBDIVP pixels */
 } Rows;

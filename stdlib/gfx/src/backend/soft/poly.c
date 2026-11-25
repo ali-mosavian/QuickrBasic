@@ -20,8 +20,9 @@ static uint32_t depths_of(const SoftTarget *const t, const int32_t flags)
 }
 
 /* A picture's polygon: its row filler picked once, then scanned. The fused fillers when the ink
-   has nothing to do and u does not wrap; an affine row inside the picture, no depth, by its inked
-   filler; any other by the general one; SMOOTH's by its own. */
+   has nothing to do and u does not wrap for a strip, a row leaving a tiled texture (px_tiles)
+   wrapped; an affine row inside the texture, no depth, by its inked filler; any other by the
+   general one; SMOOTH's by its own. */
 static void texture(
     const SoftTarget *const t,
     const Pixels *const s,
@@ -35,13 +36,15 @@ static void texture(
     const Fill *const fill = t->fill;
     const uint32_t o = flags & GFX_DRAW_OPAQUE ? FILL_OPAQUE : 0;
     const uint32_t z = depths_of(t, flags);
+    const bool tiled = !(flags & GFX_DRAW_SMOOTH) && px_tiles(s->w, s->h);
     Rows r = {
         .dst = t->px,
         .src = *s,
         .depth = t->depth,
         .ink = &t->ink,
         .depths = z,
-        .wrap = wrap ? s->w << 16 : 0,
+        .wrap = wrap || tiled ? s->w << 16 : 0,
+        .wrap_v = tiled ? s->h << 16 : 0,
     };
 
     if (flags & GFX_DRAW_SMOOTH) {
@@ -59,7 +62,7 @@ static void texture(
                 t->clip,
                 &r,
                 fill->affine[o][z][ROW_PLAIN],
-                fill->affine[o][z][ROW_HELD]
+                fill->affine[o][z][tiled ? ROW_WRAPPED : ROW_HELD]
             );
     } else if (span_fused(t, s) && !persp) {
         RowAffine *const wrapped = fill->affine[o][z][ROW_WRAPPED];

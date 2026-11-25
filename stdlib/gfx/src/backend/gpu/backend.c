@@ -372,7 +372,10 @@ static void poly(
     const GpuCall *const t = call(g);
     Shape s = {p ? t->template : shape(t, colour), c, !p, p && t->perspective};
 
+    const bool tiled = p && !(s.template.stages & GPU_STAGE_SMOOTH) && px_tiles(p->at.w, p->at.h);
+
     s.template.stages |= flags & POLY_WRAP ? GPU_STAGE_WRAP : 0;
+    s.template.stages |= tiled ? GPU_STAGE_TILE : 0;
     fan(t, shape_corner, &s, n);
 }
 

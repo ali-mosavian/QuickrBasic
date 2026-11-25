@@ -102,6 +102,8 @@ No module imports another; everything sits over `surface`.
 - A texel is the nearest unless the program asks for `SMOOTH`: the four texels round the pixel's
   centre mixed, a keyed one adding nothing, drawn where half or more is kept. Software mixes them
   as the GPU's shader does.
+- A polygon's u and v past a texture's edge repeat it when both its sides are powers of two and it
+  is not drawn `SMOOTH`; any other texture is held at its edges.
 - Depth is tested and written as the program sets it; commands are drawn in the order given.
 
 What may differ: rounding where a pixel's centre or a sample falls within a precision step of an
@@ -254,9 +256,11 @@ Everything 2D is a textured quad or a strip of them, so the backends have one pr
 - `draw.pset`, `line` and `arc`; `rect`, `circle` and `poly`, outlined or with `FILL`.
 - `draw.poly s, points(), first, n, colour, flags`: a convex polygon of up to 32 `Vertex`es, each x,
   y, z (its distance, 1 or more) and u, v. `s` 0 draws in colour, else `s`'s texels, affine or with
-  `PERSPECTIVE` in perspective. `DEPTH_TEST` draws only what is nearer than the target's depth there
-  and `DEPTH_WRITE` writes it; a keyed texel writes none. `surface.clear_depth s` makes s's depth
-  all far. Software only so far: a GPU draws them affine, with no depth.
+  `PERSPECTIVE` in perspective. A texture whose sides are both powers of two repeats past its edges,
+  unless `SMOOTH`; any other is held at them. `DEPTH_TEST` draws only what is nearer than the
+  target's depth there and `DEPTH_WRITE` writes it; a keyed texel writes none.
+  `surface.clear_depth s` makes s's depth all far. Software only so far: a GPU draws them affine,
+  with no depth.
 - `draw.text dst, x, y, s$, colour` in `set_font`'s font: a sheet of glyphs (`draw.new_font`), or
   the built-in 8 by 8. Its glyphs are pictures, in `colour`, or as the sheet has them with
   `draw.AS_DRAWN`.

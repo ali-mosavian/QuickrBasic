@@ -176,9 +176,9 @@ TEST(gfx_fonts_refuse)
    to 0.5, over an 8 by 4 picture whose texel (u, v) is 10 + 8v + u, u 0.5 to 8.5 across and v 0.5
    to 4.5 down. Worked by hand from the plane (1/z, u/z, v/z linear): rows 0 to 3 cover pixels 2-5,
    1-6, 1-6 and 0-7; a span's u is taken at its first centre and a whole run (16 pixels) on,
-   unclamped, the step their difference over 16, each texel held inside. Row 0's u runs 1.83 to
-   7.17 by 1.78: texels 1, 3, 5, 7. Clamping the far end to the picture, as qgl's bound mode, bent
-   that step to 0.39: 1, 2, 2, 2. */
+   unclamped, the step their difference over 16. The texture tiles (px_tiles): row 1's u past 8
+   reads texel 0, and row 3's v 4.5 row 0. Row 0's u runs 1.83 to 7.17 by 1.78: texels 1, 3, 5, 7.
+   Clamping the far end to the texture, as qgl's bound mode, bent that step to 0.39: 1, 2, 2, 2. */
 TEST(gfx_soft_perspective_trapezoid)
 {
     uint8_t tex[32], dst[16 * 8];
@@ -207,14 +207,49 @@ TEST(gfx_soft_perspective_trapezoid)
 
     static const uint8_t want[8][16] = {
         {1, 1, 19, 21, 23, 25, 1, 1},
-        {1, 26, 28, 29, 31, 32, 33, 1},
+        {1, 26, 28, 29, 31, 32, 26, 1},
         {1, 35, 36, 37, 39, 40, 41, 1},
-        {34, 35, 36, 37, 39, 40, 41, 41},
+        {10, 11, 12, 13, 15, 16, 17, 10},
     };
 
     for (uint32_t y = 0; y < 8; y++)
         for (uint32_t x = 0; x < 16; x++)
             CHECK(dst[y * 16 + x] == (y < 4 && x < 8 ? want[y][x] : 1));
+}
+
+/* An affine square over a 4 by 4 texture whose texel (u, v) is 10 + 4v + u, u and v -4 to 8 across
+   its 12 by 12 pixels: one texel a pixel, from texel -4. The texture tiles (px_tiles): pixel (x, y)
+   reads texel (x & 3, y & 3). Held, as before the rule, the first four rows and columns read the
+   edge's. */
+TEST(gfx_soft_tiles_wrap)
+{
+    uint8_t tex[16], dst[16 * 16];
+
+    for (uint32_t i = 0; i < 16; i++)
+        tex[i] = (uint8_t)(10 + i);
+
+    memset(dst, 1, sizeof dst);
+
+    const SoftTarget t = {
+        .px = {dst, 16, 16, 16, PX_8},
+        .clip = {0, 0, 16, 16},
+        .fill = &fill8,
+    };
+
+    const Pixels s = {tex, 4, 4, 4, PX_8};
+
+    const Corner c[] = {
+        {-0.5f, -0.5f, 1, -4, -4},
+        {11.5f, -0.5f, 1, 8, -4},
+        {11.5f, 11.5f, 1, 8, 8},
+        {-0.5f, 11.5f, 1, -4, 8},
+    };
+
+    soft_poly(&t, &s, c, 4, 0, GFX_DRAW_OPAQUE, false);
+
+    for (uint32_t y = 0; y < 16; y++)
+        for (uint32_t x = 0; x < 16; x++)
+            CHECK(dst[y * 16 + x] == (y < 12 && x < 12 ? tex[(y & 3) * 4 + (x & 3)] : 1));
 }
 
 /* Walks past a picture's edges, both ways, through the held filler: each texel held inside as
@@ -232,11 +267,11 @@ TEST(gfx_soft_walks_held_inside)
     const Pixels s = {tex, W, W, H, PX_8};
 
     static const Steps walks[] = {
-        {-3 * 65536, -2 * 65536, 0x5800, 0x2400, 0},
-        {(W + 2) << 16, (H + 1) << 16, -0x6000, -0x1C00, 0},
-        {0x8000, (H + 3) << 16, 0x3000, 0, 0},
-        {-0x10000, 0x8000, 0, 0x1800, 0},
-        {(W + 1) << 16, 0, -0x8000, 0x1000, 0}, /* on the edge at a pixel, still past it */
+        {-3 * 65536, -2 * 65536, 0x5800, 0x2400, 0, 0},
+        {(W + 2) << 16, (H + 1) << 16, -0x6000, -0x1C00, 0, 0},
+        {0x8000, (H + 3) << 16, 0x3000, 0, 0, 0},
+        {-0x10000, 0x8000, 0, 0x1800, 0, 0},
+        {(W + 1) << 16, 0, -0x8000, 0x1000, 0, 0}, /* on the edge at a pixel, still past it */
     };
 
     for (uint32_t k = 0; k < sizeof walks / sizeof *walks; k++) {
@@ -282,7 +317,7 @@ TEST(gfx_soft_walks_wrapped)
                 .wrap = w << 16,
             };
 
-            const Steps st = steps_from(u, 2 << 16, steps[k], 0, w << 16);
+            const Steps st = steps_from(u, 2 << 16, steps[k], 0, w << 16, 0);
 
             memset(dst, 0, sizeof dst);
             fill8.general(&r, 0, 0, N, u, 2 << 16, 0);

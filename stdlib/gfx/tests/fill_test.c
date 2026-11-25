@@ -114,7 +114,7 @@ static void there_of(uint32_t *const seed, There *const t)
 
 /* The walk of COUNT pixels inside an N by N picture: u and v both step, v back across the rows, a
    fraction a pixel. */
-static const Steps WALK = {0x4000, (N - 1) << 16 | 0xE000, 0xC000, -0x9000, 0};
+static const Steps WALK = {0x4000, (N - 1) << 16 | 0xE000, 0xC000, -0x9000, 0, 0};
 
 /* WALK's row over s into d, a row of format f, inked by k. */
 static Rows walk_rows(uint8_t *const d, const Pixels *const s, const PxFormat f, const Ink *const k)

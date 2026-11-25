@@ -854,7 +854,7 @@ typedef struct {
     uintptr_t at;       /* the picture's first texel's place, in texels */
     uint8_t *d;         /* the row's first pixel */
     uint16_t *zp;       /* and its depth */
-    Steps held;         /* the run left to held_of */
+    int32_t held[4];    /* the run left to held_of: its u, v, du and dv */
     float dpun, dpvn, dpzn, unit; /* unit: 65536 */
     uint8_t uvw[30]; /* u/z, v/z and 1/z as the x87 holds them, 80 bits each, across a held run */
     double u, v, w;  /* u/z, v/z and 1/z at the row's first pixel */
@@ -881,11 +881,11 @@ typedef struct {
 #define WF_d 60
 #define WF_zp 64
 #define WF_held 68
-#define WF_dpun 88
-#define WF_dpvn 92
-#define WF_dpzn 96
-#define WF_unit 100
-#define WF_uvw 104
+#define WF_dpun 84
+#define WF_dpvn 88
+#define WF_dpzn 92
+#define WF_unit 96
+#define WF_uvw 100
 #define WF_u 136
 #define WF_v 144
 #define WF_w 152
@@ -1218,8 +1218,8 @@ static inline void affine_row(
     const int32_t zd
 )
 {
-    const Steps st = walk == ROW_WRAPPED ? steps_from(u, v, r->du, r->dv, r->wrap)
-                                         : (Steps){u, v, r->du, r->dv, 0};
+    const Steps st = walk == ROW_WRAPPED ? steps_from(u, v, r->du, r->dv, r->wrap, r->wrap_v)
+                                         : (Steps){u, v, r->du, r->dv, 0, 0};
 
     const Row w = row_of_rows(f, z, r, y, x0);
 
@@ -1278,6 +1278,9 @@ static inline void persp_row(
         if (at >= n)
             return;
 
+        const int32_t *const h = walk_frame.held;
+        const Steps st = steps_from(h[0], h[1], h[2], h[3], r->wrap, r->wrap_v);
+
         held_of(
             f,
             key,
@@ -1285,7 +1288,7 @@ static inline void persp_row(
             row.d + (uint32_t)at * b,
             z ? row.zp + at : nullptr,
             &row.src,
-            walk_frame.held,
+            st,
             m,
             walk_frame.z,
             row.dz
@@ -1309,7 +1312,9 @@ static inline void persp_row(
         w += dpzn;
 
         const ScanUV l = scan_pdiv(u, v, w);
-        const Steps st = {p.u, p.v, scan_step(p.u, l.u), scan_step(p.v, l.v), 0};
+        const Steps st = steps_from(
+            p.u, p.v, scan_step(p.u, l.u), scan_step(p.v, l.v), r->wrap, r->wrap_v
+        );
 
         const int32_t at = depth_on(zd, row.dz, done);
 
@@ -1325,13 +1330,20 @@ static inline void persp_row(
 
 /* ---- SMOOTH's and the general row fillers ---- */
 
-/* The texel at u, v, whole texels, held inside s; u wrapped when it wraps. */
-static uint32_t texel_at(const Pixels *const s, const int32_t u, const int32_t v, const bool wrap)
+/* The texel at u, v, whole texels, held inside s; each wrapped when it wraps. */
+static uint32_t texel_at(
+    const Pixels *const s,
+    const int32_t u,
+    const int32_t v,
+    const bool wrap,
+    const bool wrap_v
+)
 {
     const uint32_t bytes = px_bytes(s->format);
     const int32_t across = wrap ? steps_wrap(u, s->w) : steps_held(u, s->w);
+    const int32_t down = wrap_v ? steps_wrap(v, s->h) : steps_held(v, s->h);
 
-    return px_load(s->p + steps_held(v, s->h) * s->pitch + (uint32_t)across * bytes, bytes);
+    return px_load(s->p + down * s->pitch + (uint32_t)across * bytes, bytes);
 }
 
 /* The four texels from u, v to u + 1, v + 1, whole texels, of s, g's: read from one place when
@@ -1343,7 +1355,8 @@ static inline void corners(
     const Pixels *const s,
     const int32_t u,
     const int32_t v,
-    const bool wrap
+    const bool wrap,
+    const bool wrap_v
 )
 {
     const uint32_t bytes = px_bytes(g);
@@ -1358,10 +1371,10 @@ static inline void corners(
         return;
     }
 
-    out[0] = texel_at(s, u, v, wrap);
-    out[1] = texel_at(s, u + 1, v, wrap);
-    out[2] = texel_at(s, u, v + 1, wrap);
-    out[3] = texel_at(s, u + 1, v + 1, wrap);
+    out[0] = texel_at(s, u, v, wrap, wrap_v);
+    out[1] = texel_at(s, u + 1, v, wrap, wrap_v);
+    out[2] = texel_at(s, u, v + 1, wrap, wrap_v);
+    out[3] = texel_at(s, u + 1, v + 1, wrap, wrap_v);
 }
 
 /* A colour's channels, 0 to 1, and its coverage: 1 drawn, 0 keyed. */
@@ -1504,7 +1517,7 @@ static inline void smooth_of(
 
             fu[i] = (float)(pu & 0xFFFF) / 65536;
             fv[i] = (float)(pv & 0xFFFF) / 65536;
-            corners(texels + 4 * i, g, &r->src, pu >> 16, pv >> 16, r->wrap);
+            corners(texels + 4 * i, g, &r->src, pu >> 16, pv >> 16, r->wrap, r->wrap_v);
         }
 
         fill_argb(c, drawn, texels, 4 * m, &k);
@@ -1662,7 +1675,9 @@ static inline void persp_runs(
         w += r->dpzn;
 
         const ScanUV l = scan_pdiv(u, v, w);
-        const Steps st = steps_from(p.u, p.v, scan_step(p.u, l.u), scan_step(p.v, l.v), r->wrap);
+        const Steps st = steps_from(
+            p.u, p.v, scan_step(p.u, l.u), scan_step(p.v, l.v), r->wrap, r->wrap_v
+        );
         const int32_t at = depth_on(zd, r->dz, done);
 
         run(r, y, x0 + done, m, st, at);
@@ -1902,7 +1917,7 @@ static inline RowFlat *flat_pick(
     )                                                                                              \
     {                                                                                              \
         uint8_t *const d = r->dst.p + y * r->dst.pitch + (uint32_t)x0 * px_bytes(f);               \
-        const Steps st = {u, v, r->du, r->dv, 0};                                                  \
+        const Steps st = {u, v, r->du, r->dv, 0, 0};                                               \
                                                                                                    \
         inked_of(f, g, FILL_VARIANT(k, s, l, b), d, &r->src, st, x1 - x0, r->ink);                 \
     }
@@ -2039,7 +2054,9 @@ static RowAffine *const fill_inked[PX_FORMATS][PX_FORMATS][FILL_INKS] = {
         const int32_t z                                                                            \
     )                                                                                              \
     {                                                                                              \
-        name##_general_run(r, y, x0, x1 - x0, steps_from(u, v, r->du, r->dv, r->wrap), z);         \
+        name##_general_run(                                                                        \
+            r, y, x0, x1 - x0, steps_from(u, v, r->du, r->dv, r->wrap, r->wrap_v), z               \
+        );                                                                                         \
     }                                                                                              \
     static void name##_general_persp(                                                              \
         const Rows *const r,                                                                       \
@@ -2064,7 +2081,9 @@ static RowAffine *const fill_inked[PX_FORMATS][PX_FORMATS][FILL_INKS] = {
         const int32_t z                                                                            \
     )                                                                                              \
     {                                                                                              \
-        name##_smooth_run(r, y, x0, x1 - x0, steps_from(u, v, r->du, r->dv, r->wrap), z);          \
+        name##_smooth_run(                                                                         \
+            r, y, x0, x1 - x0, steps_from(u, v, r->du, r->dv, r->wrap, r->wrap_v), z               \
+        );                                                                                         \
     }                                                                                              \
     static void name##_smooth_persp(                                                               \
         const Rows *const r,                                                                       \

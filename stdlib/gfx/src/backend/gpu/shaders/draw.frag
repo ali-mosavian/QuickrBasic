@@ -26,6 +26,7 @@ const uint EIGHT = 1024u;
 const uint ALPHA = 2048u;
 const uint FIFTEEN = 4096u;
 const uint SIXTEEN = 8192u;
+const uint TILE = 16384u;
 
 const uint FULL = 63u;
 
@@ -135,13 +136,16 @@ vec3 held(uvec3 c, uint stages)
     return vec3(v << (8u - bits) | v >> (2u * bits - 8u)) / 255.0;
 }
 
-// The texel at t, kept in the rectangle (u repeating with WRAP).
+// The texel at t, kept in the rectangle (u repeating with WRAP, u and v with TILE).
 vec4 fetched(ivec2 t, uint stages)
 {
     ivec2 from = ivec2(v_rect.xy), size = ivec2(v_rect.zw);
 
     if ((stages & WRAP) != 0u)
         t.x = from.x + int(mod(float(t.x - from.x), float(size.x)));
+
+    if ((stages & TILE) != 0u)
+        t = from + ((t - from) & (size - 1));
 
     return texelFetch(source, clamp(t, from, from + size - 1), 0);
 }
