@@ -169,7 +169,13 @@ void pairs_find(Session *const S)
 
     pr.key = key;
     pr.n = 0;
-    synt_cols(S, b->text, b->len < SYNT_KEEP ? b->len : SYNT_KEEP, pr.cols);
+    synt_cols(
+        S,
+        text_dialect_at(S, uimn.text.first + uimn.ed.line),
+        b->text,
+        b->len < SYNT_KEEP ? b->len : SYNT_KEEP,
+        pr.cols
+    );
     const uint16_t col = b->col;
 
     if (col < b->len && (b->text[col] == '(' || b->text[col] == ')') && code(col))

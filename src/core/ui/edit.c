@@ -422,7 +422,9 @@ uint16_t edit_dxerr(Session *const S, const uint8_t *const text, const ErrOp *co
 
 void edit_emsg(Session *const S, const uint8_t code)
 {
-    const char *const s = text_dialect(S)->message(S, code);
+    const Dialect *const d =
+        S->vm.line != DLINE ? dial_line(&S->prog, S->vm.line) : text_dialect(S);
+    const char *const s = d->message(S, code);
     memcpy(uimn.errmsg, s, strlen(s) + 1);
 }
 
@@ -482,18 +484,15 @@ static uint32_t enter_view(Session *const S, const uint32_t v)
 
 void edit_recheck(Session *const S)
 {
-    const Dialect *const d = text_dialect(S);
-
-    if (d->text) {
-        d->flag(S);
-        return;
-    }
+    for (uint32_t i = 0; i < dial_count(); i++)
+        if (dial_at(i)->text)
+            dial_at(i)->flag(S);
 
     const uint32_t first = uimn.text.first, n = uimn.text.n;
     text_whole();
 
     for (uint32_t line = 0; line < uimn.text.all; line++) {
-        if (!(prog_line(&S->prog, lmap_off(S, line))->flags & LF_ASIS))
+        if ((prog_line(&S->prog, lmap_off(S, line))->flags & (LF_ASIS | LF_TEXT)) != LF_ASIS)
             continue;
 
         LineBuf *const b = &uimn.build;
@@ -544,7 +543,7 @@ static bool text_error(Session *const S, const uint32_t line)
     const uint32_t rec = lmap_off(S, line);
     DialErr e = {.msg = uimn.errmsg, .cap = sizeof uimn.errmsg};
 
-    const bool err = text_dialect(S)->syntax(S, rec, &e);
+    const bool err = text_dialect_at(S, line)->syntax(S, rec, &e);
     Line *const l = prog_line(&S->prog, rec);
     l->flags = (uint8_t)((l->flags & ~LF_ASIS) | (err ? LF_ASIS : 0));
     uc.ecol = err ? (uint16_t)e.col : 0;
@@ -561,7 +560,7 @@ static bool store_text(Session *const S, const uint32_t line, LineBuf *const b)
 
 bool edit_store(Session *const S, const uint32_t line, LineBuf *const b)
 {
-    if (prog_text(&S->prog))
+    if (text_dialect_at(S, line + uimn.text.first)->text)
         return store_text(S, line, b);
 
     const uint32_t was = enter_view(S, uimn.ed.view);
@@ -589,7 +588,7 @@ bool edit_error(Session *const S, const uint32_t line, uint16_t *const col)
 {
     static LineBuf b = {.grows = true};
 
-    if (prog_text(&S->prog)) {
+    if (text_dialect_at(S, line)->text) {
         const bool err = text_error(S, line);
         *col = uc.ecol;
         return err;

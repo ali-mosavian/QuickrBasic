@@ -79,6 +79,18 @@ const Dialect *dial_line(const Prog *const pg, const uint32_t rec)
     return marked(pg, rec);
 }
 
+const Dialect *dial_file(const Prog *const pg, const uint32_t file)
+{
+    for (uint32_t r = PROGBASE; prog_line(pg, r)->len; r += prog_line(pg, r)->len) {
+        const Line *const l = prog_line(pg, r);
+
+        if (l->file == file && !(l->flags & (LF_INC | LF_TOP)))
+            return l->flags & LF_TEXT ? marked(pg, r) : &dialect_qbasic;
+    }
+
+    return &dialect_qbasic;
+}
+
 uint32_t dial_index(const Dialect *const d)
 {
     uint32_t i = 0;

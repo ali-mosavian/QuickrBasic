@@ -456,7 +456,7 @@ TEST(qride_assert_says_so)
 static const uint8_t *slots(Session *const S, const char *const text)
 {
     static uint8_t cols[SYNT_KEEP];
-    synt_cols(S, (const uint8_t *)text, (uint32_t)strlen(text), cols);
+    synt_cols(S, text_dialect(S), (const uint8_t *)text, (uint32_t)strlen(text), cols);
     return cols;
 }
 

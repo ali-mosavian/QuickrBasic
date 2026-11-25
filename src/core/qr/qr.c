@@ -1371,10 +1371,13 @@ void qr_flag(Session *const S)
 
     arena_init(&m.arena, QR_CHUNK);
 
-    for (uint32_t k = 0; k < modu_count(&S->modu); k++) {
+    for (uint32_t f = 0; f < S->modu.nfiles; f++) {
+        if (dial_file(&S->prog, f) != &dialect_quickr)
+            continue;
+
         QProg p = {.errs = {.mem = &m}, .copies = {.mem = &m}, .loose = true};
 
-        qr_lines(S, &p, &m, k);
+        qr_lines(S, &p, &m, f);
 
         for (uint32_t i = 0; i < p.src.nlines; i++)
             prog_line(&S->prog, p.src.lines[i].at)->flags &= ~LF_ASIS;
@@ -1935,13 +1938,20 @@ static const char *qr_errtext(const Session *const S, const uint8_t code)
     return q && code == E_SN && q->keep.said[0] ? q->keep.said : nullptr;
 }
 
-/* The kept program forgotten. */
+/* The kept programs forgotten, the link's and a QBasic program's modules'. */
 static void qr_forget_kept(Session *const S)
 {
     QrState *const q = dial_kept(&S->dial, &dialect_quickr);
 
-    if (q)
+    if (!q)
+        return;
+    if (q->keep.prog) /* none: none, or qr_link's, being made */
         qr_forget(&q->keep);
+
+    qr_guest_forget(&q->guests);
+
+    if (S->comp.guest == &q->guests.link)
+        S->comp.guest = nullptr;
 }
 
 const Dialect dialect_quickr = {

@@ -125,6 +125,8 @@ const Dialect *dial_of_file(const char *path);
 const Dialect *dial_program(const Prog *pg);
 /* Record rec's dialect: its file's, LF_TEXT's; else QBasic's. */
 const Dialect *dial_line(const Prog *pg, uint32_t rec);
+/* File file's dialect: its first record's; QBasic's when it has none. */
+const Dialect *dial_file(const Prog *pg, uint32_t file);
 /* d's place among the dialects, under DIAL_MAX. */
 uint32_t dial_index(const Dialect *d);
 /* d's state, made zeroed on first use; null none left. */

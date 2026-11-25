@@ -12,6 +12,7 @@
 #include "ui/closers.h"
 #include "ui/edit.h"
 #include "ui/highlight.h"
+#include "ui/text.h"
 
 enum : uint8_t { IN_CODE, IN_STRING, IN_COMMENT };
 
@@ -26,7 +27,7 @@ static uint8_t place(Session *const S, const uint16_t col)
 
     static uint8_t cols[SYNT_KEEP];
     const uint32_t n = end < SYNT_KEEP ? end : SYNT_KEEP;
-    synt_cols(S, b->text, n, cols);
+    synt_cols(S, text_dialect_at(S, uimn.text.first + uimn.ed.line), b->text, n, cols);
 
     if (cols[n - 1] == SL_COM)
         return IN_COMMENT;

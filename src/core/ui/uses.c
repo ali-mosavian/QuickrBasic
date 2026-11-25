@@ -12,6 +12,7 @@
 #include "ui/uses.h"
 #include "ui/highlight.h"
 #include "ui/screen.h"
+#include "ui/text.h"
 #include "util/hash.h"
 
 enum { NAME = 41 }; /* a name's characters at most, its suffix with them */
@@ -34,7 +35,7 @@ void uses_find(Session *const S)
     us.key = key;
     us.len = 0;
     const uint32_t len = b->len < SYNT_KEEP ? b->len : SYNT_KEEP;
-    synt_cols(S, b->text, len, us.cols);
+    synt_cols(S, text_dialect_at(S, uimn.text.first + uimn.ed.line), b->text, len, us.cols);
 
     for (uint32_t i = (b->col < len ? b->col : len) + 1; i-- > 0;) { /* the name nearest before */
         uint32_t n;
@@ -58,6 +59,7 @@ void uses_find(Session *const S)
 
 void uses_paint(
     Session *const S,
+    const Dialect *const d,
     const uint8_t row,
     const uint8_t col,
     const uint8_t *const text,
@@ -68,7 +70,7 @@ void uses_paint(
     if (!us.len)
         return;
 
-    cols = synt_need(S, text, len < SYNT_KEEP ? len : SYNT_KEEP, cols);
+    cols = synt_need(S, d, text, len < SYNT_KEEP ? len : SYNT_KEEP, cols);
     const uint32_t left = uimn.ed.left, right = left + uimn.ed.width;
 
     for (uint32_t i = 0; i < len && i < right; i++) {

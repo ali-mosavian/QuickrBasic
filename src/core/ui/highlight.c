@@ -214,9 +214,10 @@ static void text_line(
     paint(n, hl.prev_slot);
 }
 
-/* hl.cols for the len characters at text, width columns from left. */
+/* hl.cols for the len characters at text, dialect d's, width columns from left. */
 static void line(
     Session *const S,
+    const Dialect *const d,
     const uint8_t *const text,
     const uint32_t len,
     const uint32_t left,
@@ -234,8 +235,6 @@ static void line(
     hl.prev_slot = SL_ED;
     hl.state = 0;
     hl.depth = 0;
-
-    const Dialect *const d = text_dialect(S);
 
     if (d->text) {
         text_line(S, d, line, n);
@@ -282,6 +281,7 @@ static void line(
 
 void synt_row(
     Session *const S,
+    const Dialect *const d,
     const uint8_t row,
     const uint8_t col,
     const uint8_t *const text,
@@ -292,7 +292,7 @@ void synt_row(
         return;
 
     const uint32_t left = uimn.ed.left;
-    line(S, text, len, left, uimn.ed.width);
+    line(S, d, text, len, left, uimn.ed.width);
 
     for (uint16_t i = 0; i < uimn.ed.width && left + i < hl.len; i++)
         if (hl.cols[i] != SL_ED)
@@ -301,17 +301,19 @@ void synt_row(
 
 void synt_cols(
     Session *const S,
+    const Dialect *const d,
     const uint8_t *const text,
     const uint32_t len,
     uint8_t cols[static SYNT_KEEP]
 )
 {
-    line(S, text, len, 0, SYNT_KEEP);
+    line(S, d, text, len, 0, SYNT_KEEP);
     memcpy(cols, hl.cols, len);
 }
 
 const uint8_t *synt_need(
     Session *const S,
+    const Dialect *const d,
     const uint8_t *const text,
     const uint32_t len,
     const uint8_t *const cols
@@ -320,7 +322,7 @@ const uint8_t *synt_need(
     if (cols)
         return cols;
 
-    line(S, text, len, 0, SYNT_KEEP);
+    line(S, d, text, len, 0, SYNT_KEEP);
     return hl.cols;
 }
 

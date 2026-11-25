@@ -612,8 +612,16 @@ static uint16_t text_topic(const char *const help, const char *const w, const ui
     return id != HLF_NONE || !dot ? id : hlf_find(&hf.f, key, k + (uint32_t)(dot - w));
 }
 
-/* The topic of the word at the cursor, HLF_NONE if there is none. A text dialect's program's
-   window: its topics only. */
+/* The dialect of the cursor's word: the program window's line's, else the program's. */
+static const Dialect *cursor_dialect(Session *const S)
+{
+    return uimn.tree.workspace.focus == FOC_EDIT
+               ? text_dialect_at(S, uimn.text.first + uimn.ed.line)
+               : text_dialect(S);
+}
+
+/* The topic of the word at the cursor, HLF_NONE if there is none. A text dialect's line in the
+   program window: its topics only. */
 static uint16_t keyword_topic(Session *const S)
 {
     char w[KEY_MAX];
@@ -622,7 +630,7 @@ static uint16_t keyword_topic(Session *const S)
     if (!n)
         return HLF_NONE;
 
-    const Dialect *const d = text_dialect(S);
+    const Dialect *const d = cursor_dialect(S);
 
     if (d->text && uimn.tree.workspace.focus == FOC_EDIT)
         return text_topic(d->help, w, n);
@@ -645,7 +653,7 @@ void help_f1(Session *const S)
     }
 
     const uint16_t id = keyword_topic(S);
-    const Dialect *const d = text_dialect(S);
+    const Dialect *const d = cursor_dialect(S);
     const bool text = id == HLF_NONE && hf.open && d->text;
     open_window(S, text ? hlf_find(&hf.f, d->help, (uint32_t)strlen(d->help)) : id, true);
 }

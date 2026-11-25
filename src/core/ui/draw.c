@@ -200,19 +200,21 @@ static void draw_row(Session *const S, const uint16_t r)
     const uint8_t c = scrn_strn(row, col, v.text + e->left, n, SL_ED);
     scrn_fill(row, c, SL_ED, ' ', e->width - n);
 
+    const Dialect *const d = text_dialect_at(S, line + uimn.text.first);
+
     if (v.cols)
         synt_paint(row, col, v.cols, len);
     else
-        synt_row(S, row, col, v.text, len);
+        synt_row(S, d, row, col, v.text, len);
 
     udbg_row(S, row, col, line);
 
     if (has_focus())
-        uses_paint(S, row, col, v.text, len, v.cols);
+        uses_paint(S, d, row, col, v.text, len, v.cols);
 
     errs_paint(S, row, col, line + uimn.text.first, v.text, len);
     fbar_paint(row, col, v.text, len);
-    dinl_paint(S, row, col, v.text, len, v.cols);
+    dinl_paint(S, d, row, col, v.text, len, v.cols);
 
     if (has_focus())
         pairs_paint(row, col, line + uimn.text.first);
