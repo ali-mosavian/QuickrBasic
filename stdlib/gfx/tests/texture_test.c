@@ -326,3 +326,63 @@ TEST(gfx_soft_strip_keeps_texels)
         for (uint32_t x = 0; x < N; x++)
             CHECK(dst[y * N + x] == tex[y * W + x % W]);
 }
+
+/* A map under turned and zoomed cameras draws as its cells drawn one at a time: the cull of cells
+   off the target drops none the clip meets. Zoomed 1.5 upright, a cell is 4.5 by 3 pixels, its box
+   the cell: the second camera puts a cell's right and bottom edges 0.1 past pixel 0's centre, the
+   third a cell's left and top edges 0.1 before pixel 7's, each a row or column of pixels kept only
+   if the cull keeps that cell. */
+TEST(gfx_tiles_turned_keep_every_cell_shown)
+{
+    enum { COLS = 8, ROWS = 12, W = 3, H = 2 };
+
+    static const float cameras[][4] = {
+        {0.4f, -0.3f, 0.6f, 1.7f},
+        {1.766667f, -0.233333f, 0, 1.5f},
+        {0.233333f, -0.766667f, 0, 1.5f},
+    };
+
+    for (uint32_t k = 0; k < sizeof cameras / sizeof *cameras; k++) {
+        const float *const c = cameras[k];
+
+        CANVAS(8, 8);
+        const int32_t s = sheet(S);
+        int32_t cells[COLS * ROWS];
+        uint8_t tiles[64];
+
+        for (uint32_t i = 0; i < COLS * ROWS; i++)
+            cells[i] = s;
+
+        QxArray map = gfx_array(cells, COLS * ROWS, 4);
+        CALL("surface.set_camera_turned", I(SURF_SCREEN), F(c[0]), F(c[1]), F(c[2]), F(c[3]));
+        CHECK(!CALL(
+                   "draw.tiles",
+                   I(SURF_SCREEN),
+                   F(-12),
+                   F(-12),
+                   ARRAY(&map),
+                   I(COLS),
+                   I(W),
+                   I(H),
+                   I(GFX_DRAW_OPAQUE)
+        )
+                   .error);
+
+        for (int32_t i = 0; i < 64; i++) {
+            tiles[i] = (uint8_t)PX(i % 8, i / 8);
+            CHECK(tiles[i] != 1);
+        }
+
+        CALL("draw.clear", I(SURF_SCREEN), I(1));
+
+        for (int32_t row = 0; row < ROWS; row++)
+            for (int32_t col = 0; col < COLS; col++) {
+                const float x = (float)(-12 + col * W), y = (float)(-12 + row * H);
+
+                CALL("draw.sprite", I(SURF_SCREEN), F(x), F(y), I(s), I(GFX_DRAW_OPAQUE));
+            }
+
+        for (int32_t i = 0; i < 64; i++)
+            CHECK(PX(i % 8, i / 8) == tiles[i]);
+    }
+}

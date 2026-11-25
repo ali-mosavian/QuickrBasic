@@ -503,6 +503,64 @@ static void visible_turned(
     *cells = (Rect){c0, r0, c1 - c0, r1 - r0};
 }
 
+/* A turned map's cells on the target: cell (col, row)'s corners at at + col * across + row * down,
+   then lo to hi on; the clip a pixel and a half round, as the scanner's bounds lie half a pixel
+   off gfx's and the cells' corners here a rounding off shape_sprite's. */
+typedef struct {
+    Vec at, across, down, lo, hi;
+    float l, r, top, bottom;
+} Turned;
+
+static float least(const float a, const float b) { return a < b ? a : b; }
+
+static float most(const float a, const float b) { return a > b ? a : b; }
+
+static Turned turned_of(
+    const Place *const where,
+    const Vec origin,
+    const int32_t w,
+    const int32_t h
+)
+{
+    const Vec o = {origin.x - 0.5f, origin.y - 0.5f}, at = cmd_at(where, o);
+
+    const Vec x = cmd_at(where, (Vec){o.x + (float)w, o.y});
+
+    const Vec y = cmd_at(where, (Vec){o.x, o.y + (float)h});
+
+    const Vec across = {x.x - at.x, x.y - at.y}, down = {y.x - at.x, y.y - at.y};
+
+    const Vec far = {across.x + down.x, across.y + down.y};
+
+    const Rect c = where->clip;
+
+    return (Turned){
+        .at = at,
+        .across = across,
+        .down = down,
+        .lo =
+            {least(least(across.x, down.x), least(far.x, 0)),
+             least(least(across.y, down.y), least(far.y, 0))},
+        .hi =
+            {most(most(across.x, down.x), most(far.x, 0)),
+             most(most(across.y, down.y), most(far.y, 0))},
+        .l = (float)c.x - 1.5f,
+        .r = (float)(c.x + c.w) + 0.5f,
+        .top = (float)c.y - 1.5f,
+        .bottom = (float)(c.y + c.h) + 0.5f,
+    };
+}
+
+/* Cell (col, row) may show: its corners' box meets the clip. */
+static bool turned_shows(const Turned *const t, const int32_t col, const int32_t row)
+{
+    const float x = t->at.x + (float)col * t->across.x + (float)row * t->down.x;
+    const float y = t->at.y + (float)col * t->across.y + (float)row * t->down.y;
+
+    return x + t->hi.x >= t->l && x + t->lo.x <= t->r && y + t->hi.y >= t->top &&
+           y + t->lo.y <= t->bottom;
+}
+
 /* The cells of a map columns across, its top left at at (placed), w by h each, that where's clip
    may show. */
 static Rect tiles_shown(
@@ -588,11 +646,14 @@ void gfx_draw_tiles(
         !gx_begin(g, (uint32_t)dst, &c, &where))
         return;
 
+    const bool turned = !cmd_upright(&where);
+    const Turned t = turned ? turned_of(&where, (Vec){x, y}, w, h) : (Turned){};
+
     for (int32_t row = shown.y; row < shown.y + shown.h; row++)
         for (int32_t col = shown.x; col < shown.x + shown.w; col++) {
             const uint32_t cell = (uint32_t)cells[row * columns + col];
 
-            if (!cell)
+            if (!cell || (turned && !turned_shows(&t, col, row)))
                 continue;
 
             const Vec dx = {(float)(col * w), (float)(row * h)};

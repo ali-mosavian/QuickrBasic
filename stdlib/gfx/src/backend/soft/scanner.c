@@ -39,12 +39,6 @@ static inline int32_t FXMUL14(const int32_t a, const int32_t b)
     return (int32_t)((int64_t)a * b >> 14);
 }
 
-/* a/b, both 16.16 */
-static inline int32_t FXDIV(const int32_t a, const int32_t b)
-{
-    return (int32_t)(((int64_t)a << 16) / b);
-}
-
 /* the rows between two 16.16 y, as qgl's word subtract */
 static inline int16_t rows_between(const int32_t from, const int32_t to)
 {
@@ -122,6 +116,41 @@ static uint32_t clip_pass(
     }
 
     return nout;
+}
+
+/* mgl's outcodes of n vertices against clip, each by clip_pass's test, its distance's sign,
+   which real4 keeps: in all, those outside a boundary; in any, outside one. */
+static void outcodes(
+    const ScanVert *const v,
+    const uint32_t n,
+    const Rect clip,
+    uint32_t *const all,
+    uint32_t *const any
+)
+{
+    const float bound[4] = {
+        (float)clip.x,
+        (float)(clip.x + clip.w),
+        (float)clip.y,
+        (float)(clip.y + clip.h),
+    };
+
+    *all = 15;
+    *any = 0;
+
+    for (uint32_t i = 0; i < n; i++) {
+        uint32_t out = 0;
+
+        for (uint32_t pass = 0; pass < 4; pass++) {
+            const float at = pass >> 1 ? v[i].y : v[i].x;
+
+            if (__builtin_signbit(((double)at - bound[pass]) * (pass & 1 ? -1.0f : 1.0f)))
+                out |= 1u << pass;
+        }
+
+        *all &= out;
+        *any |= out;
+    }
 }
 
 /* qglClPolyEx: the ring in a, four passes (left, right, top, bottom) between a and b. The
@@ -250,12 +279,28 @@ typedef struct {
     bool sub;
 } Slope;
 
+/* n / d and its remainder, the quotient a 32-bit one: on i386 one idiv, not __alldiv's call. */
+static int32_t div_of(const int64_t n, const int32_t d, int32_t *const rem)
+{
+#ifdef __i386__
+    int32_t q;
+    __asm__("idivl %[d]" : "=a"(q), "=d"(*rem) : "A"(n), [d] "rm"(d) : "cc");
+    return q;
+#else
+
+    *rem = (int32_t)(n % d);
+    return (int32_t)(n / d);
+#endif
+}
+
 static Slope slope_of(const int32_t h)
 {
-    if (h < 32768)
-        return (Slope){(int32_t)((int64_t)(65536 << 14) / h), true};
+    int32_t rem;
 
-    return (Slope){FXDIV(65536, h), false};
+    if (h < 32768)
+        return (Slope){div_of(65536 << 14, h, &rem), true};
+
+    return (Slope){div_of((int64_t)65536 << 16, h, &rem), false};
 }
 
 static int32_t slope_mul(const int32_t d, const Slope s)
@@ -271,8 +316,10 @@ static int32_t edge_slope(const int32_t d, const int32_t h)
     if (h < 65536)
         return slope_mul(d, slope_of(h));
 
-    const int64_t n = (int64_t)d * 65536;
-    return (int32_t)(n / h - (n % h < 0));
+    int32_t rem;
+    const int32_t q = div_of((int64_t)d * 65536, h, &rem);
+
+    return q - (rem < 0);
 }
 
 /* how far into the row a's y sits, to the next row: 16.16 */
@@ -387,6 +434,13 @@ static bool ring_of(
     if (n < 3 || n > SCAN_MAXV)
         return false;
 
+    /* every vertex outside one boundary: clip_poly would keep none; inside all, each as it is */
+    uint32_t all, any;
+    outcodes(v, n, clip, &all, &any);
+
+    if (all)
+        return false;
+
     /* the triple: the vertex furthest from v[0] (L1), then the furthest off that baseline */
     uint32_t b = 1, c = 2;
     float best = 0;
@@ -443,8 +497,8 @@ static bool ring_of(
     for (uint32_t k = 0; k < n; k++)
         from[k] = v[((int32_t)top + vstep * (int32_t)k + (int32_t)n) % (int32_t)n];
 
-    ScanVert *clipped = nullptr;
-    const uint32_t cnt = clip_poly(from, work, n, clip, &clipped);
+    ScanVert *clipped = from;
+    const uint32_t cnt = any ? clip_poly(from, work, n, clip, &clipped) : n;
 
     if (cnt < 3)
         return false;
