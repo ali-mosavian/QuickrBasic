@@ -578,12 +578,12 @@ typedef struct {
     QStageKind kind;
     QExpr *e;    /* map's value, filter's condition, take's and skip's count, zip's element */
     QVar *x;     /* map's value's or zip's element's variable; null: read where it is */
-    QVar *n, *k; /* take, skip: the count and how many so far; zip: b's index and its last */
+    QVar *n, *k; /* take, skip: the count and how many so far; zip: b's index and its end */
     QExpr *of;   /* zip: b, a list's or a string's place, a range's start */
     QExpr *to;   /* zip: a range's end */
     bool str;    /* zip: b a string */
     bool win;    /* take, skip, zip before a rev(): a window on the source's indices, set at its
-                    start; zip's k then b's index less the source's */
+                    start; zip's k then b's index less the source's, its n counted down */
 } QStage;
 
 /* What a chain runs over: a list's or an array's elements (a map's keys), a range's ints, a

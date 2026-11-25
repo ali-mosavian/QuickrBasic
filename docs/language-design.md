@@ -297,7 +297,8 @@ let sign = 1 if x >= 0 else -1
   `case else`: an enum's values, a bool's two; any other type needs `case else`.
 - `a..b` is a range: from `a` up to, not including, `b`. It is a loop's, a slice's (`s[1..3]`,
   `a[..n]`, `a[n..]`), `in`'s and a chain's source. It has no step and counts up; `(a..b).rev()`
-  counts down.
+  counts down. A range may hold any `int`s: `(0..low).rev()` with `low` an `int`'s first value
+  is empty, and `take`, `skip` and `zip` over a range wider than an `int` count right.
 - A slice is a new value: a string's a new string, a list's a new list of copies. Its ends are
   clamped to the elements, so `s[..100]` of a shorter `s` is all of it. `s[i]` past the end is a
   runtime error, Subscript out of range.
