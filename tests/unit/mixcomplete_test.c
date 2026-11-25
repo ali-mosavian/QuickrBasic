@@ -176,3 +176,28 @@ TEST(mixcomplete_qr_main_offers_a_modules_enum_values)
     CHECK(!offers(S, "print total", "let a = geo.", "helper"));
     fx_done(S, files);
 }
+
+/* A QBasic program offered its modules' own names where they are not seen: a module's SUB in the
+   main, a Quickr module's lines read as tokens. FROM's names are the main's. */
+TEST(mixcomplete_qb_main_offers_its_modules_own_names)
+{
+    open_with(S, "IMPORT geo\nFROM shapes IMPORT Show\ntotal = 1\nPRINT total\n");
+    CHECK(offers(S, "print total", "a = ", "total"));
+    CHECK(offers(S, "print total", "", "Show"));
+    CHECK(!offers(S, "print total", "", "Hidden"));
+    CHECK(!offers(S, "print total", "a = ", "MAXW"));
+    CHECK(!offers(S, "print total", "a = ", "helper"));
+    CHECK(offers(S, "    Area& = r.W * r.H", "    a = ", "MAXW"));
+    CHECK(!offers(S, "    Area& = r.W * r.H", "    a = ", "total"));
+    fx_done(S, files);
+}
+
+/* In a Quickr program a QBasic module's line was offered the Quickr files' names. */
+TEST(mixcomplete_qr_main_offers_a_qbasic_lines_module_names)
+{
+    open_with(S, qr_main);
+    CHECK(offers(S, "    Area& = r.W * r.H", "    a = ", "MAXW"));
+    CHECK(!offers(S, "    Area& = r.W * r.H", "    a = ", "total"));
+    CHECK(!offers(S, "    Area& = r.W * r.H", "    a = ", "helper"));
+    fx_done(S, files);
+}

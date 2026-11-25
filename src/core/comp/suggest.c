@@ -81,8 +81,15 @@ typedef struct {
     const Scop *scop;
     const Decl *decl; /* the TYPEs */
     Symb *symb;       /* the names, found by their texts */
+    const Modu *modu; /* the lines' modules */
     uint32_t module;  /* the word's */
 } SuggSrc;
+
+/* Is line ln the word's module's, QBasic's? */
+static bool sugg_ours(const SuggSrc *const src, const Line *const ln)
+{
+    return !(ln->flags & LF_TEXT) && modu_of(src->modu, ln->file) == src->module;
+}
 
 static struct {
     uint8_t before[TEXT_MAX]; /* the line before the word */
@@ -847,8 +854,9 @@ typedef struct {
 } SuggAt;
 
 /* Pass one: the word's line and procedure, the open FORs before it. */
-static void sugg_where(const Prog *const pg, SuggAt *const w)
+static void sugg_where(const SuggSrc *const src, SuggAt *const w)
 {
+    const Prog *const pg = src->prog;
     uint32_t scope = 0;
     uint8_t prior = 0;
     sg.nopen = sg.ndo = sg.nwhile = sg.nsel = 0;
@@ -858,7 +866,8 @@ static void sugg_where(const Prog *const pg, SuggAt *const w)
         const Line *const ln = prog_line(pg, rec);
         const uint8_t *const body = at(prog_addr(pg, rec + HDR));
         const uint8_t *name;
-        const uint8_t kind = ln->flags & LF_ASIS ? 0 : decl_proc(body, &name);
+        const bool ours = sugg_ours(src, ln) && !(ln->flags & LF_ASIS);
+        const uint8_t kind = ours ? decl_proc(body, &name) : 0;
 
         if (kind == PK_SUB || kind == PK_FUNC) {
             scope = comp_nameof(name);
@@ -871,7 +880,7 @@ static void sugg_where(const Prog *const pg, SuggAt *const w)
             return;
         }
 
-        if (!(ln->flags & LF_ASIS))
+        if (ours)
             sugg_events(body, body + ln->len - HDR);
         if (kind == PK_END) {
             scope = 0;
@@ -880,21 +889,21 @@ static void sugg_where(const Prog *const pg, SuggAt *const w)
 
         const uint8_t *t = body;
         decl_tail(&t);
-        prior = ln->flags & LF_ASIS ? 0 : *t;
+        prior = !sugg_ours(src, ln) ? prior : ln->flags & LF_ASIS ? 0 : *t;
     }
 
     *w = (SuggAt){w->rec, ord, scope, prior};
 }
 
 /* A name of scope seen from the word's procedure: its own, or the module's SHARED or CONST. */
-static bool sugg_seen(const Scop *const sc, const SuggName *const n, const uint32_t from)
+static bool sugg_seen(const SuggSrc *const src, const SuggName *const n, const uint32_t from)
 {
     if (n->scope == from)
         return true;
     if (n->scope)
         return false;
 
-    const Binding *const b = scop_get(sc, 0, n->name);
+    const Binding *const b = scop_get(src->scop, sc_module(src->module), n->name);
     return b && b->flags & (BF_SHR | BF_CON);
 }
 
@@ -1261,7 +1270,7 @@ static void sugg_program(
     for (uint32_t rec = PROGBASE; prog_line(pg, rec)->len; rec += prog_line(pg, rec)->len, ord++) {
         const Line *const ln = prog_line(pg, rec);
 
-        if (ln->flags & LF_ASIS)
+        if (ln->flags & LF_ASIS || !sugg_ours(src, ln))
             continue;
 
         const uint8_t *const body = at(prog_addr(pg, rec + HDR));
@@ -1345,7 +1354,7 @@ static void sugg_vars(
         const SuggName *const e = &sg.names[i];
         const uint8_t m = sugg_match(word, n, e->text, e->len);
 
-        if (!m || !sugg_seen(src->scop, e, w->scope))
+        if (!m || !sugg_seen(src, e, w->scope))
             continue;
 
         bool proc = false; /* a procedure's name: listed as one */
@@ -1500,12 +1509,21 @@ bool sugg_find(
         return false;
 
     const uint32_t module = modu_of(&S->modu, prog_line(&S->prog, rec)->file);
-    const SuggSrc src = {&S->comp, &S->lexr, &S->prog, &S->scop, &S->decl, &S->symb, module};
+    const SuggSrc src = {
+        &S->comp,
+        &S->lexr,
+        &S->prog,
+        &S->scop,
+        &S->decl,
+        &S->symb,
+        &S->modu,
+        module,
+    };
 
     sugg_tail(sg.body, blen);
     SuggAt w = {.rec = rec};
 
-    sugg_where(src.prog, &w);
+    sugg_where(&src, &w);
     sugg_events(sg.body, sg.body + blen);
     sugg_before(&src, text, start);
 
