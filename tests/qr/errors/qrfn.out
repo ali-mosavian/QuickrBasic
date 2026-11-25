@@ -1,0 +1,5 @@
+qrfn.bas:4: Parameter type mismatch
+  print odd.maybe(1)
+        ^
+`odd.maybe` is a Quickr function whose parameters or result QBasic has no equal for: a byte, an unsigned or long integer, an optional, an Error, a list, a dict, an enum, a function value; or it is generic, a generator, a native.
+Keep the function's parameters and result to int, short, single, double, string, bool and records of them.

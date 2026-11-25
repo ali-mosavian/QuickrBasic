@@ -1,0 +1,51 @@
+compound.bas:8:5: me holds its own type: hold it in a list
+      me as Loop
+      ^
+compound.bas:14:19: too many values for Vec
+  let v = Vec(1, 2, 3)
+                    ^
+compound.bas:15:13: Vec has no field z
+  let w = Vec(z: 1)
+              ^
+compound.bas:16:9: Vec has no field z
+  print v.z
+          ^
+compound.bas:17:3: v is a let: it can't change
+  v.x = 2
+    ^
+compound.bas:18:7: a Vec has no text(): print can't spell it
+  print v
+        ^
+compound.bas:21:7: c is borrowed by the for over it: it can't change here
+      c.push(x)
+        ^
+compound.bas:22:5: x is the for's element: write for mut x
+      x = 2
+      ^
+compound.bas:25:5: c is borrowed by the for mut over it: reach it through x
+      c.remove(0)
+      ^
+compound.bas:26:15: c is borrowed by the for mut over it: reach it through x
+      print len(c); " "; c[0]
+                ^
+compound.bas:26:24: c is borrowed by the for mut over it: reach it through x
+      print len(c); " "; c[0]
+                         ^
+compound.bas:31:1: the select misses jump: give it a case, or add case else
+  end select
+  ^
+compound.bas:41:3: an array's size is fixed
+  n.push(1)
+    ^
+compound.bas:42:9: the index is past the elements
+  print n[4]
+          ^
+compound.bas:46:5: mut v is a Vec, not a single
+  g(u.x)
+      ^
+compound.bas:47:12: a Vec has no text(): an f-string can't spell it
+  let k = f"{v}"
+             ^
+compound.bas:48:14: q is no format for an int
+  let j = f"{3:q}"
+               ^

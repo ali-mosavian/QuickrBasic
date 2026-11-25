@@ -185,7 +185,7 @@ static void run(void *const ctx, const uint32_t module)
 {
     Comp *const C = ctx;
     const uint32_t top = modu_top_of(C->modu, module);
-    Node *const n = comp_op(C, O_IMPORT);
+    Node *const n = comp_xop(C, X_IMPORT);
     comp_dword(n, module);
     comp_dword(n, top + prog_line(C->prog, top)->len);
 }

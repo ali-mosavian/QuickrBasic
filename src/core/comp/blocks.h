@@ -55,6 +55,10 @@ typedef struct {
     uint32_t nnames; /* the program's M_VAR tokens */
 } Blok;
 
+/* No blocks, no procedures but 0, the module's. Out of memory raises through f. */
+void blok_reset(Blok *b, Fault *f);
+/* A new procedure, zeroed, its number procs.n - 1. Out of memory. */
+Proc *blok_add_proc(Blok *b, Fault *f);
 /* cm_blocks: pair the program's blocks; FOR without NEXT .. raise through f. */
 void blok_pair(Blok *b, const Prog *pg, const Symb *sy, Fault *f);
 /* The entry of line's statement at body offset off; null none. */

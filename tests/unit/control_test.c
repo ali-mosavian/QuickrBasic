@@ -4,9 +4,9 @@
 
 static bool erred;
 
-static void each(const uint8_t op, [[maybe_unused]] const uint8_t *const at)
+static void each([[maybe_unused]] const uint8_t op, const uint8_t *const at)
 {
-    erred |= op == O_ERR;
+    erred |= exec_is_err(at);
 }
 
 /* The direct line text compiled as the editor checks a line: an error in its code? */

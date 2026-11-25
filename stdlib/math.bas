@@ -1,0 +1,97 @@
+' OPTION DIALECT QUICKR
+' math: numbers' functions; sqrt .. floor are the VM's ops
+const pi = 3.141592653589793
+
+native function sqrt(x as double) as double
+native function sin(x as double) as double
+native function cos(x as double) as double
+native function tan(x as double) as double
+native function atan(x as double) as double
+native function exp(x as double) as double
+native function log(x as double) as double
+native function floor(x as double) as double
+native function ceil(x as double) as double
+
+function round(x as double) as double
+    return floor(x + 0.5)
+end function
+
+function atan2(y as double, x as double) as double
+    if x > 0 then return atan(y / x)
+    if x < 0 and y >= 0 then return atan(y / x) + pi
+    if x < 0 then return atan(y / x) - pi
+    if y > 0 then return pi / 2
+    if y < 0 then return -pi / 2
+    return 0
+end function
+
+function abs[T](x as T) as T
+    if x < 0 then return -x
+    return x
+end function
+
+function min[T](a as T, b as T) as T
+    if b < a then return b
+    return a
+end function
+
+function max[T](a as T, b as T) as T
+    if b > a then return b
+    return a
+end function
+
+function clamp[T](x as T, lo as T, hi as T) as T
+    if x < lo then return lo
+    if x > hi then return hi
+    return x
+end function
+
+function lerp(a as double, b as double, t as double) as double
+    return a + (b - a) * t
+end function
+
+' a 2-d vector
+type Vec
+    x as double
+    y as double
+
+    fn dot(self, b as Vec) as double
+        return self.x * b.x + self.y * b.y
+    end fn
+
+    fn length(self) as double
+        return sqrt(self.x * self.x + self.y * self.y)
+    end fn
+
+    fn text(self) as string
+        return f"({self.x}, {self.y})"
+    end fn
+end type
+
+function operator +(a as Vec, b as Vec) as Vec
+    return Vec(a.x + b.x, a.y + b.y)
+end function
+
+function operator -(a as Vec, b as Vec) as Vec
+    return Vec(a.x - b.x, a.y - b.y)
+end function
+
+function operator *(a as Vec, k as double) as Vec
+    return Vec(a.x * k, a.y * k)
+end function
+
+function operator *(k as double, a as Vec) as Vec
+    return Vec(a.x * k, a.y * k)
+end function
+
+function operator -(a as Vec) as Vec
+    return Vec(-a.x, -a.y)
+end function
+
+function operator /(a as Vec, k as double) as Vec
+    return Vec(a.x / k, a.y / k)
+end function
+
+function operator =(a as Vec, b as Vec) as bool
+    return a.x = b.x and a.y = b.y
+end function

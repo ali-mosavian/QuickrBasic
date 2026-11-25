@@ -38,6 +38,7 @@ typedef struct {
     uint32_t *strs;
     uint32_t nslot, slotcap;
     uint32_t *slots; /* ours: its dynamic arrays' cells' offsets, its records' too */
+    bool alien;      /* a Quickr record QBasic has no equal for: Type mismatch where used */
 } TypeDef;
 /* A TYPE's bytes at most, ours: GET's and PUT's sizes are 24 bits (defs.h va_pack). */
 enum : uint32_t { TYPE_MAX = 0xFFFFFF };
@@ -63,7 +64,7 @@ typedef struct {
 enum : uint8_t { DO_BASE1 = 1, DO_EXPLICIT = 2 };
 
 /* The program's declarations; its arena holds the tables. */
-typedef struct {
+typedef struct Decl {
     Arena arena;
     Fault *fault;
     uint32_t module; /* the module being entered: its scope (sc_module) */
@@ -89,7 +90,7 @@ typedef struct {
 } Decl;
 
 extern const uint8_t decl_astype[5]; /* g_dast: AS INTEGER .. AS STRING to ET_* */
-extern const uint8_t decl_etsize[8]; /* g_etsz: a field's bytes by ET_* */
+extern const uint8_t decl_etsize[10]; /* g_etsz: a field's bytes by ET_* */
 
 /* Ours, FFh n: AS n's ET_* (SHORT, BYTE), DEFn's (DEFSHORT, DEFBYTE); 0 none. */
 uint8_t decl_xastype(uint8_t tk1);
@@ -120,6 +121,11 @@ static inline uint8_t decl_base(const Decl *const d, const uint32_t module)
 void decl_defevents(Decl *d, Scop *sc, Symb *sy, const Prog *pg);
 /* dc_deft: the DEFtypes (sy->deft) line sees. */
 void decl_deftype(const Decl *d, Symb *sy, uint32_t line);
+/* Ours, for a front end of its own (qr/qlink.c): a new TYPE of name (a symbol table name), its
+   number; then its fields in order, each of ET_* or ET_REC + t et, count elements (0 one), dyn a
+   dynamic array's cell. Out of memory. */
+uint32_t decl_newtype(Decl *d, Symb *sy, uint32_t name);
+void decl_newfield(Decl *d, uint32_t t, uint32_t name, uint32_t et, uint32_t count, bool dyn);
 /* TYPE t. */
 static inline const TypeDef *decl_type(const Decl *const d, const uint32_t t)
 {

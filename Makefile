@@ -187,6 +187,7 @@ host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/h
 	$(PY) tools/golden.py
 	BASIC_EXE=build/host/basic $(PY) tools/regress_test.py build/host/basic
 	BASIC_EXE=build/host/basic $(PY) tools/conformance.py
+	BASIC_EXE=build/host/basic $(PY) tools/qr_test.py
 	$(PY) tools/fold_test.py build/host/basic
 	$(PY) tools/mothlite_test.py build/host/basic
 	$(PY) tools/charlie_test.py build/host/basic
@@ -238,10 +239,15 @@ HOST_TAG := $(if $(filter Darwin,$(HOST_OS)),macos,linux-x86_64)
 HOST_SLICE := -shared -fPIC -ffreestanding -fvisibility=hidden $(if $(filter Linux,$(HOST_OS)),-nostdlib) \
 	$(if $(filter Darwin,$(HOST_OS)),-arch arm64 -arch x86_64 -mmacosx-version-min=13.0)
 
+# Quickr's standard library, stdlib/*.bas, in lib/ beside each interpreter: where a module is looked for last
+STDLIB := $(wildcard stdlib/*.bas)
+build/%/lib/.stdlib: $(STDLIB)
+	mkdir -p $(@D) && $(if $^,cp $^ $(@D) &&) touch $@
+
 host: build/host/basic
-build/host/basic: $(build/host_OBJ) build/host/obj/app/basic32.o build/host/obj/plat/host/app/term.o
+build/host/basic: $(build/host_OBJ) build/host/obj/app/basic32.o build/host/obj/plat/host/app/term.o | build/host/lib/.stdlib
 	$(HOST_CC) $^ -lm $(HOST_DL) -o $@
-build/hostperf/basic: $(build/hostperf_OBJ) build/hostperf/obj/app/basic32.o build/hostperf/obj/plat/host/app/insns.o
+build/hostperf/basic: $(build/hostperf_OBJ) build/hostperf/obj/app/basic32.o build/hostperf/obj/plat/host/app/insns.o | build/hostperf/lib/.stdlib
 	$(HOST_CC) $^ -lm $(HOST_DL) -o $@
 
 # ---- The Mac's: the IDE in a window, build/mac/QuickrBasic.app, universal (arm64 and x86-64, macOS 13 on); mac-zip,
@@ -272,12 +278,14 @@ mac: $(APP)/Contents/Info.plist
 $(MAC)/QuickrBasic: $(MAC_OBJ) $(MAC)/obj/plat/sdl/app/main.o $(SDL_LIB)
 	$(HOST_CC) $(MAC_ARCH) $(filter %.o,$^) $(SDL_LIBS) -lm -o $@
 # the bundle, signed ad hoc (Apple silicon runs nothing unsigned)
-$(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(MAC)/QuickrBasic $(HELP) $(DEMOS)
-	rm -rf $(APP)/Contents/Resources/demos
-	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources/demos
+# Quickr's library in Resources/lib: psys_self puts the app there, and codesign takes only code in MacOS
+$(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(MAC)/QuickrBasic $(HELP) $(DEMOS) $(STDLIB)
+	rm -rf $(APP)/Contents/Resources/demos $(APP)/Contents/Resources/lib
+	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources/demos $(APP)/Contents/Resources/lib
 	cp $(MAC)/QuickrBasic $(APP)/Contents/MacOS/
 	cp $(HELP) $(APP)/Contents/Resources/BASIC.HLP
 	cp -R src/plat/wasm/web/demos/. $(APP)/Contents/Resources/demos/
+	cp $(STDLIB) $(APP)/Contents/Resources/lib/
 	cp $< $@
 	codesign --force -s - $(APP)
 mac-zip: mac
@@ -370,7 +378,13 @@ build/wasm/basic: build/wasm/basic.wasm
 # The IDE's page, for GitHub Pages or tools/wasm/serve.py: its scripts, the module, the help, the demos
 WEB_SRC := $(wildcard src/plat/wasm/web/*.mjs src/plat/wasm/web/*.js src/plat/wasm/web/*.html) \
 	$(shell find src/plat/wasm/web/demos -type f)
-web: build/web/ide.wasm build/web/synth.wasm build/web/BASIC.HLP build/web/demos/MODULES $(WEB_SRC:src/plat/wasm/web/%=build/web/%)
+web: build/web/ide.wasm build/web/synth.wasm build/web/BASIC.HLP build/web/demos/MODULES build/web/lib/MODULES \
+	$(WEB_SRC:src/plat/wasm/web/%=build/web/%)
+# Quickr's library, fetched to /lib beside C:\BASIC.EXE, where a module is looked for last; one name a line
+build/web/lib/MODULES: $(STDLIB)
+	@mkdir -p $(@D)
+	cp $^ $(@D)
+	cd stdlib && ls *.bas > $(CURDIR)/$@
 # the demos' modules, one path a line: the page fetches them from here, as the folders cannot be listed
 build/web/demos/MODULES: $(shell find src/plat/wasm/web/demos -mindepth 2 -name '*.bas')
 	@mkdir -p $(@D)

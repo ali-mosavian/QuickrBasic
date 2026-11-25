@@ -49,13 +49,14 @@ static bool record_name(const Session *const S, const uint32_t id)
     return b && b->rec[!!(v->info & VI_ARR)];
 }
 
-/* A variable a debugger leaves out: a DEF FN's, a FOR loop's hidden limit or step, a number of a
-   record's name. */
+/* A variable a debugger leaves out: a DEF FN's, a FOR loop's hidden limit or step, Quickr's own
+   (~: a temporary, an inline record's word), a number of a record's name. */
 static bool hidden(const Session *const S, const uint32_t id)
 {
     const Var *const v = symb_var(&S->symb, id);
-    return (v->info & (VI_ARR | VK_MASK)) == VK_FN ||
-           symb_text(&S->symb, v->name)[1] == LOOP_NAME || record_name(S, id);
+    const uint8_t first = symb_text(&S->symb, v->name)[1];
+    return (v->info & (VI_ARR | VK_MASK)) == VK_FN || first == LOOP_NAME || first == '~' ||
+           record_name(S, id);
 }
 
 /* id is a parameter of procedure proc. */
@@ -231,6 +232,9 @@ InspValue insp_var(const Session *const S, const uint32_t f, const InspVar *cons
                      : (InspValue){.kind = IV_NONE};
     }
 
+    if (v->type >= ET_REC && !(v->info & VI_ARR)) /* Quickr's inline record: from its cell on */
+        return (InspValue){.kind = IV_RECORD, .type = v->type, .at = cell};
+
     if (v->info & VI_ARR)
         return (InspValue){.kind = IV_ARRAY,
                            .type = arry_var_et(&S->symb, var->id),
@@ -317,8 +321,16 @@ char *insp_text(const Session *const S, const InspValue *const v, char *d, const
         n = dubl_fmt((int16_t)rd16(v->at), buf);
         break;
 
+    case ET_US:
+        n = dubl_fmt(rd16(v->at), buf);
+        break;
+
     case ET_BY:
         n = dubl_fmt(rd8(v->at), buf);
+        break;
+
+    case ET_SB:
+        n = dubl_fmt((int8_t)rd8(v->at), buf);
         break;
 
     default:

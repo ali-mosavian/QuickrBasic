@@ -1,0 +1,27 @@
+qbunusable.bas:5:5: fill is not usable from Quickr: an array parameter
+  odd.fill()
+      ^
+qbunusable.bas:6:10: Fixed is not usable from Quickr: a fixed-length string field
+  var f as Fixed
+           ^
+qbunusable.bas:7:14: Arr is not usable from Quickr: an array field
+  var a as odd.Arr
+               ^
+qbunusable.bas:8:14: Box is not usable from Quickr: a field of a TYPE Quickr can't use
+  var b as odd.Box
+               ^
+qbunusable.bas:9:5: bytes is not usable from Quickr: a BYTE parameter
+  odd.bytes(1)
+      ^
+qbunusable.bas:10:11: code is not usable from Quickr: a parameter of a TYPE Quickr can't use
+  print odd.code(f)
+            ^
+qbunusable.bas:11:5: same is not usable from Quickr: two of its module's names match it, case aside
+  odd.same()
+      ^
+qbunusable.bas:13:9: n is by reference: pass a var of its type, an int
+  odd.inc(s)
+          ^
+qbunusable.bas:14:13: Inc is no value: it is QBasic's
+  let g = odd.inc
+              ^

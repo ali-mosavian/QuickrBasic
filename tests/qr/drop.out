@@ -1,0 +1,49 @@
+drop x
+1
+drop y
+drop x
+2
+drop tmp
+got k
+drop t
+true
+drop u
+drop t
+5
+drop loop0
+drop loop1
+loop done
+drop loop2
+in moved true
+out
+drop moved true
+out
+drop moved false
+drop i1
+drop i2
+drop i0
+drop first
+1
+drop pa
+drop 
+drop qb
+drop s
+drop r
+drop qa2
+drop qb2
+drop pa2
+drop pb
+g a
+drop a
+drop b
+g b
+drop b
+drop a
+drop 
+drop discarded
+drop top0
+end
+drop top1
+drop l0
+drop k
+drop w

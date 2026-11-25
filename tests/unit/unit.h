@@ -37,6 +37,10 @@ Status unit_typed(Session *S, const char *line);
 /* lines, unnumbered as a file's may be, stored as a file's load does, then RUN: its output in
    S->cons.sbuf. */
 Status unit_run_file(Session *S, const char *const *lines);
+/* The ops op in the stored program's code, as linked. */
+uint32_t unit_ops(const Session *S, uint8_t op);
+/* The program's CALL k ops of built-in k, as unit_ops counts. */
+uint32_t unit_calls(const Session *S, uint8_t k);
 /* The n bytes of src written to a file, loaded as a program file is (repl_load), then RUN: its
    output in S->cons.sbuf. */
 Status unit_run_bytes(Session *S, const char *src, size_t n);

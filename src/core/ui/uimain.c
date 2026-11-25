@@ -123,6 +123,7 @@ static const char s_overw[] = "File already exists. Overwrite?";
 static const char s_nomatch[] = "Match not found";
 static const char s_chdone[] = "Change complete";
 static const char s_notsaved[] = "Loaded file is not saved. Save it now?";
+static const char s_dialect[] = "The new program's dialect:";
 static const char s_access[] = "Path/File access error";
 static const char s_about[] = "QuickrBasic||A full-screen editor";
 static const char s_welcome[] = "Welcome to QuickrBasic||"
@@ -740,18 +741,35 @@ static void reset(Session *const S)
     edit_load(S, 0);
 }
 
-/* ui_new: File, New. */
+/* ui_new: File, New, in the dialect asked. */
 static void file_new(Session *const S)
 {
     if (!ask_save(S))
         return;
 
-    text_init(S);
+    MsgButton bt[DIAL_MAX + 2] = {}; /* each dialect's, Cancel, the end */
+    const uint32_t n = dial_count();
+
+    for (uint32_t i = 0; i < n; i++)
+        bt[i] = (MsgButton){dial_at(i)->button, 10};
+
+    bt[n] = (MsgButton){uimn_cancel, 10};
+
+    const uint8_t choice = dlog_msg(S, s_dialect, bt);
+
+    if (choice >= n)
+        return;
+
+    const Dialect *const d = dial_at(choice);
+    text_init(S, d);
     uimn.file[0] = 0;
     named(S);
     reset(S);
     undo_clear();
     jumps_clear();
+
+    if (d->text)
+        edit_load(S, 1); /* past the dialect's line */
 }
 
 /* fn, a load (repl_open, repl_relink), under its own boundary: the modules it read shown
@@ -773,14 +791,14 @@ static void load(Session *const S)
             return;
         }
 
-        text_init(S);
+        text_init(S, dial_of_file(uimn.chosen));
     }
 
     memcpy(uimn.file, uimn.chosen, sizeof uimn.file);
     named(S);
     reset(S);
     bool read;
-    const Status st = loaded(S, repl_open, &read);
+    const Status st = loaded(S, text_dialect(S)->open, &read);
     edit_recheck(S);
     text_clean(S);
     undo_clear();
@@ -851,12 +869,58 @@ void uimn_sync(Session *const S)
     uimn.text.changed = false;
 }
 
+/* The cursor at text line line's column col, in its view. */
+static void at_col(Session *const S, const uint32_t line, const uint16_t col)
+{
+    uimn.tree.workspace.focus = FOC_EDIT;
+    edit_load(S, view_goline(S, line));
+    uimn.edline.col = col;
+    uimn.ed.sel_on = false;
+    edit_ensure();
+}
+
+/* A text dialect's program checked and linked for a run (Dialect.link), the modules it read shown:
+   true; else the cursor at its first error, its message in a box. */
+static bool built(Session *const S)
+{
+    edit_commit(S);
+    DialErr e = {.msg = uimn.errmsg, .cap = sizeof uimn.errmsg};
+
+    const uint32_t errors = text_dialect(S)->link(S, &e);
+    view_modules(S);
+
+    if (!errors) {
+        uimn.text.changed = false;
+        return true;
+    }
+
+    uint32_t line;
+
+    if (lmap_of(S, e.rec, &line))
+        at_col(S, line, (uint16_t)e.col);
+
+    dlog_err(S, uimn.errmsg);
+    return false;
+}
+
 void uimn_run(Session *const S)
 {
-    uimn_sync(S);
+    const Dialect *const d = text_dialect(S);
+
+    if (d->text && !built(S))
+        return;
+    if (!d->text)
+        uimn_sync(S);
+
     udbg_prep(S);
     upag_clear(S);
     ui.run_wait = true;
+
+    if (d->text) {
+        ran(S, repl_call(S, d->go));
+        return;
+    }
+
     static const char cmd[] = "RUN";
     memcpy(S->cons.inbuf, cmd, sizeof cmd - 1);
     repl_enter(S, sizeof cmd - 1);
@@ -885,6 +949,38 @@ void uimn_cont(Session *const S)
 }
 
 /* ui_exec: Enter in the immediate window: its line run on the output page. */
+/* An immediate line of text dialect d's, len bytes in cons.inbuf: run as its own at the stopped
+   statement, else after the program's last line, linked first; an error said in a box, the stop
+   kept. */
+static void text_line(Session *const S, const Dialect *const d, const uint16_t len)
+{
+    char line[INMAX + 1];
+    memcpy(line, S->cons.inbuf, len);
+    line[len] = 0;
+
+    if (!(uimn_stopped() && d->linked(S)) && !built(S))
+        return;
+
+    memcpy(S->cons.inbuf, line, len + 1u);
+    S->vm.line = DLINE;
+    const Status st = repl_call(S, session_text_line);
+
+    if (st != ST_OK) {
+        const char *const why = session_errtext(S, (uint8_t)st);
+        const size_t n =
+            strlen(why) < sizeof uimn.errmsg - 1 ? strlen(why) : sizeof uimn.errmsg - 1;
+        memcpy(uimn.errmsg, why, n);
+        uimn.errmsg[n] = 0;
+        dlog_err(S, uimn.errmsg);
+        return;
+    }
+
+    upag_out(S);
+    qbrt_where(&ui.crow, &ui.ccol);
+    ui.run_wait = false;
+    ran(S, repl_call(S, repl_direct));
+}
+
 static void exec_line(Session *const S)
 {
     uimn_sync(S);
@@ -892,6 +988,13 @@ static void exec_line(Session *const S)
 
     if (!len)
         return;
+
+    const Dialect *const d = uimn_stopped() ? session_dialect(S) : text_dialect(S);
+
+    if (d->text) {
+        text_line(S, d, len);
+        return;
+    }
 
     upag_out(S);
     qbrt_where(&ui.crow, &ui.ccol);
@@ -982,7 +1085,7 @@ static void at_line(Session *const S, const uint32_t line)
    word it is at selected. */
 static void run_error_words(Session *const S)
 {
-    if (!ui.at_error || !S->vm.opip || *S->vm.opip != O_ERR)
+    if (!ui.at_error || !S->vm.opip || !exec_is_err(S->vm.opip))
         return;
 
     LineBuf *const b = &uimn.edline;
@@ -1498,7 +1601,7 @@ void uimn_init(Session *const S)
     wind_init();
     mous_init();
     help_init();
-    text_init(S);
+    text_init(S, &dialect_qbasic);
     view_reset(S);
     edit_load(S, 0);
     edit_imm_load();

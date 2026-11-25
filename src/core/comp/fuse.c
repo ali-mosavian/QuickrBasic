@@ -9,11 +9,14 @@
  * after each rewrite, so a fused op can fuse further:
  *
  *   NEXT     I.LD.V c, I.STEP.V s, I.ST.V c, I.LD.V c, I.CMP.V lim m, I.JF j   I.NEXT.UP|DN c s lim j
+ *   Quickr's I.LD.V c, I.LD.V lim, I.LD.V s, X.I.COUNT k, I.ST.V c, I.JT j      I.COUNT.UP|DN c s lim j
  *   MOD k    I.LD.U8 k, I.MOD                                                  I.MOD.U8 k
  *   op k     I.LD.I16 k, I.ADD .. I.MOD | I.CMP m                              I.ADD.I16 .. k [m]
  *   branch   I.CMP[.V|.U8|.I16] [x] m, I.JF|I.JT j                             I.JFC[...] [x] m j
+ *   LONG's   [D.LD.V x,] L.CMP m, I.JF|I.JT j                                  L.JFC[.V] [x] m j
  *   x = a op b   I.LD.V a, I.ADD.V b .. I.MOD.I16 k, I.ST.V x                  I.ADD.V.ST x a b ..
  *   x = k, x = a I.LD.U8|I16|I32 k or I.LD.V a, I.ST.V x                       I.SET.U8 .. x k, I.MOV x a
+ *   p.f      R.ADDR p, FL.LD off et, p a record parameter                      P.FL.LD p off et
  *
  * A JT is a JF on the other relations: its mask's complement. A procedure's local has a frame twin
  * of each one-cell op, and of NEXT when its three cells are all the frame's (comp/select.c); it is
@@ -58,35 +61,80 @@ static uint8_t *replace(
     return start + len;
 }
 
+/* Are the last n ops those of ops, by their first bytes? */
+static bool ends(const Tail *const t, const uint8_t *const ops, const uint32_t n)
+{
+    if (t->n < n)
+        return false;
+
+    for (uint32_t i = 0; i < n; i++)
+        if (*back(t, n - 1 - i) != ops[i])
+            return false;
+
+    return true;
+}
+
+/* The last k ops as the fused NEXT op op: its counter, step and limit cells those at c, s and lim,
+   its Jump j's. Null unless all three are global or all three in the frame: its frame twin
+   (comp/select.c). */
+static uint8_t *counted(
+    Tail *const t,
+    const uint32_t k,
+    const uint8_t op,
+    const uint8_t *const c,
+    const uint8_t *const s,
+    const uint8_t *const lim,
+    const uint8_t *const j
+)
+{
+    if (global(t, c) != global(t, s) || global(t, c) != global(t, lim))
+        return nullptr;
+
+    uint8_t to[NEXT_SIZE];
+    to[0] = op;
+    memcpy(to + 1, c, VCELL);
+    memcpy(to + 1 + VCELL, s, VCELL);
+    memcpy(to + 1 + 2 * VCELL, lim, VCELL);
+    memcpy(to + 1 + 3 * VCELL, j + 1, sizeof(Jump));
+    return replace(t, k, to, NEXT_SIZE);
+}
+
 /* NEXT's six ops, an INT's of a step whose sign is known (past by GT or LT). */
 static uint8_t *next(Tail *const t)
 {
     static const uint8_t ops[] = {O_I_LD_V, O_I_STEP_V, O_I_ST_V, O_I_LD_V, O_I_CMP_V, O_I_JF};
 
-    if (t->n < countof(ops))
+    if (!ends(t, ops, countof(ops)))
         return nullptr;
 
-    for (uint32_t i = 0; i < countof(ops); i++)
-        if (*back(t, countof(ops) - 1 - i) != ops[i])
-            return nullptr;
-
     const uint8_t *const ld = back(t, 5), *const step = back(t, 4), *const st = back(t, 3);
-    const uint8_t *const ld2 = back(t, 2), *const cmp = back(t, 1), *const jf = back(t, 0);
+    const uint8_t *const ld2 = back(t, 2), *const cmp = back(t, 1);
     const uint32_t c = load32(ld + 1);
     const uint8_t m = cmp[1 + VCELL];
 
-    /* all three global, or all three in the frame: I.NEXT's frame twin (comp/select.c) */
-    if (load32(st + 1) != c || load32(ld2 + 1) != c || (m != DC_GT && m != DC_LT) ||
-        global(t, ld + 1) != global(t, step + 1) || global(t, ld + 1) != global(t, cmp + 1))
+    if (load32(st + 1) != c || load32(ld2 + 1) != c || (m != DC_GT && m != DC_LT))
         return nullptr;
 
-    uint8_t op[NEXT_SIZE];
-    op[0] = m == DC_GT ? O_I_NEXT_UP : O_I_NEXT_DN;
-    store32(op + 1, c);
-    store32(op + 1 + VCELL, load32(step + 1));
-    store32(op + 1 + 2 * VCELL, load32(cmp + 1));
-    memcpy(op + 1 + 3 * VCELL, jf + 1, sizeof(Jump));
-    return replace(t, countof(ops), op, NEXT_SIZE);
+    const uint8_t op = m == DC_GT ? O_I_NEXT_UP : O_I_NEXT_DN;
+    return counted(t, countof(ops), op, ld + 1, step + 1, cmp + 1, back(t, 0));
+}
+
+/* Quickr's NEXT, its six ops (qr/qcg_emit.c), of a step whose sign is known. */
+static uint8_t *count(Tail *const t)
+{
+    static const uint8_t ops[] = {O_I_LD_V, O_I_LD_V, O_I_LD_V, O_X, O_I_ST_V, O_I_JT};
+
+    if (!ends(t, ops, countof(ops)))
+        return nullptr;
+
+    const uint8_t *const ld = back(t, 5), *const lim = back(t, 4), *const step = back(t, 3);
+    const uint8_t *const x = back(t, 2), *const st = back(t, 1);
+
+    if (x[1] != X_I_COUNT || x[2] == COUNT_BY || load32(st + 1) != load32(ld + 1))
+        return nullptr;
+
+    const uint8_t op = x[2] == COUNT_UP ? O_I_COUNT_UP : O_I_COUNT_DN;
+    return counted(t, countof(ops), op, ld + 1, step + 1, lim + 1, back(t, 0));
 }
 
 /* A literal's load and the INT operator after it: the operator with the literal. */
@@ -169,6 +217,31 @@ static uint8_t *branch(Tail *const t)
     return nullptr;
 }
 
+/* A LONG compare, its right operand a variable's load or not, and the JF or JT after it: one
+   compare-and-branch. */
+static uint8_t *lbranch(Tail *const t)
+{
+    if (t->n < 2)
+        return nullptr;
+
+    const uint8_t *const cmp = back(t, 1), *const j = back(t, 0);
+
+    if (*cmp != O_L_CMP || (*j != O_I_JF && *j != O_I_JT))
+        return nullptr;
+
+    const bool var = t->n >= 3 && *back(t, 2) == O_D_LD_V;
+    const uint32_t n = var ? VCELL : 0;
+    uint8_t op[2 + VCELL + sizeof(Jump)];
+    op[0] = var ? O_L_JFC_V : O_L_JFC;
+
+    if (var)
+        memcpy(op + 1, back(t, 2) + 1, VCELL);
+
+    op[1 + n] = *j == O_I_JF ? cmp[1] : ~cmp[1] & (DC_GT | DC_EQ | DC_LT);
+    memcpy(op + 2 + n, j + 1, sizeof(Jump));
+    return replace(t, 2 + var, op, 2 + n + sizeof(Jump));
+}
+
 /* A store after an INT op on a load, or after a load alone: one op that stores. */
 static uint8_t *store(Tail *const t)
 {
@@ -194,7 +267,7 @@ static uint8_t *store(Tail *const t)
     if (*st == O_I_ST_V && t->n >= 3 && *back(t, 2) == O_I_LD_V)
         for (uint32_t i = 0; i < countof(with); i++)
             if (*prev == with[i].op) {
-                if (!global(t, back(t, 2) + 1) || (exec_flags(*prev) & FV && !global(t, prev + 1)))
+                if (!global(t, back(t, 2) + 1) || (exec_opflags(prev) & FV && !global(t, prev + 1)))
                     return nullptr;
 
                 const uint32_t n = flow_opsize(prev) - 1; /* its operand */
@@ -237,6 +310,24 @@ static uint8_t *store(Tail *const t)
     return replace(t, 2, op, 1 + VCELL + n);
 }
 
+/* A record parameter's address and the field's load after it: one load through its ref. */
+static uint8_t *pfield(Tail *const t)
+{
+    if (t->n < 2)
+        return nullptr;
+
+    const uint8_t *const ra = back(t, 1), *const ld = back(t, 0);
+
+    if (*ra != O_R_ADDR || *ld != O_FL_LD || !symb_is_ref(t->sy, load32(ra + 1)))
+        return nullptr;
+
+    uint8_t op[4 + VID];
+    op[0] = O_P_FL_LD;
+    memcpy(op + 1, ra + 1, VID);
+    memcpy(op + 1 + VID, ld + 1, 3);
+    return replace(t, 2, op, sizeof op);
+}
+
 uint8_t *fuse_code(const Symb *const sy, uint8_t *const start, uint8_t *const end)
 {
     static Tail t;
@@ -262,7 +353,8 @@ uint8_t *fuse_code(const Symb *const sy, uint8_t *const start, uint8_t *const en
 
         for (uint8_t *e;
 
-             (e = next(&t)) || (e = literal(&t)) || (e = branch(&t)) || (e = store(&t));)
+             (e = next(&t)) || (e = count(&t)) || (e = literal(&t)) || (e = branch(&t)) ||
+             (e = lbranch(&t)) || (e = store(&t)) || (e = pfield(&t));)
             out = e;
     }
 

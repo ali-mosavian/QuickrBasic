@@ -11,9 +11,9 @@ typedef struct {
     int32_t w;
 } Loc;
 
-/* A ref cell's address, tagged when its target is narrower than a cell: a SHORT array's element
-   (REF_NARROW | REF_SHORT) or a BYTE array's (REF_NARROW). Addresses stay under REF_ADDR. */
-enum : uint32_t { REF_NARROW = 0x80000000u, REF_SHORT = 0x40000000u, REF_ADDR = 0x3FFFFFFFu };
+/* A ref cell's address, tagged when its target is narrower than a cell: REF_NARROW, and its ET_*
+   less ET_SH at bit REF_KIND. Addresses stay under REF_ADDR. */
+enum : uint32_t { REF_NARROW = 0x80000000u, REF_KIND = 29, REF_ADDR = 0x1FFFFFFFu };
 
 static inline Loc loc_cell(const Addr a) { return (Loc){(int32_t)a}; }
 static inline Loc loc_frame(const int32_t off) { return (Loc){off}; }

@@ -1,0 +1,3 @@
+4294967295
+rt_uint.bas:6: Overflow
+  print u + v + 1

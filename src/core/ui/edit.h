@@ -51,11 +51,12 @@ bool edit_commit(Session *S);
 /* b's text stored as line line of the view, as edit_commit stores the cursor's: LIST's spelling,
    b's then; as typed with a syntax error, false. */
 bool edit_store(Session *S, uint32_t line, LineBuf *b);
-/* Text line line (the whole text's) checked as entered in its view: false it passes; else its
-   error's column to *col, its message in uimn.errmsg. */
+/* Text line line (the whole text's) checked as entered in its view (a text dialect's in its file,
+   its LF_ASIS set to the answer): false it passes; else its error's column to *col, its message in
+   uimn.errmsg. */
 bool edit_error(Session *S, uint32_t line, uint16_t *col);
 /* Each line kept as typed checked again, as entered in its view: stored as edit_canon makes it
-   when it passes now (a call into a module just bound). */
+   when it passes now (a call into a module just bound). A text dialect's: Dialect.flag. */
 void edit_recheck(Session *S);
 /* ed_goto: the cursor to line, this one committed first. */
 void edit_goto(Session *S, uint32_t line);

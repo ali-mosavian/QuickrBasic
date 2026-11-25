@@ -1,0 +1,48 @@
+operators.bas:7:19: one of an operator's values is a record of its module
+  function operator +(a as int, b as int) as int
+                    ^
+operators.bas:10:19: an operator takes two plain values, or - one
+  function operator *(a as Vec) as Vec
+                    ^
+operators.bas:13:19: operator = gives a bool
+  function operator =(a as Vec, b as Vec) as int
+                    ^
+operators.bas:16:19: an operator takes two plain values, or - one
+  function operator -(mut a as Vec, b as Vec) as Vec
+                    ^
+operators.bas:22:19: an operator + of these values is there already
+  function operator +(a as Vec, b as Vec) as Vec
+                    ^
+operators.bas:25:19: an operator is not generic and yields nothing
+  function operator +[T](a as T, b as T) as T
+                    ^
+operators.bas:28:19: expected +, -, *, /, = or < after operator, not ^
+  function operator ^ (a as Vec, b as Vec) as Vec
+                    ^
+operators.bas:31:11: no operator / takes a Vec and a Vec
+  let w = v / v
+            ^
+operators.bas:32:11: can't compare a Vec with a Vec
+  let c = v < v
+            ^
+operators.bas:33:11: a chain of comparisons takes numbers or strings
+  let d = v < v < v
+            ^
+operators.bas:34:20: Size's operator - is private
+  let s = Size(1, 2) - Size(1, 1)
+                     ^
+operators.bas:36:1: no operator - takes a Vec and a Vec
+  u -= v
+  ^
+operators.bas:37:19: one of an operator's values is a record of its module
+  function operator +(a as Size, b as int) as Size
+                    ^
+operators.bas:46:11: two operators * take a Vec and an int
+  let x = v * 2
+            ^
+operators.bas:47:11: no operator * takes a Vec and a string
+  let y = v * "s"
+            ^
+operators.bas:48:9: a Vec has no operator -
+  let z = -v
+          ^

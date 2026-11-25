@@ -275,6 +275,22 @@ TEST(suggest_names_as_written)
     CHECK(suggest(S, "for i = 1 to 2: next ") && !strcmp((const char *)out.list[0].text, "i"));
 }
 
+/* After a record variable's '.' the compiler read the empty field's name before its start: the
+   editor crashed. */
+TEST(suggest_after_a_records_dot)
+{
+    static const char *const lines[] = {
+        "10 TYPE pair",
+        "20 a AS INTEGER",
+        "30 END TYPE",
+        "40 DIM r AS pair",
+        nullptr,
+    };
+
+    unit_store(S, lines);
+    CHECK(suggest(S, "print r.") && out.n == 1 && !strcmp((const char *)out.list[0].text, "a"));
+}
+
 /* A mark after the word keeps the word as typed: Tab rewrote it, Counterofitems to COUNTEROFITEMS;. */
 TEST(suggest_mark_keeps_the_word)
 {

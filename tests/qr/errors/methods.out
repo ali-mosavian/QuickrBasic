@@ -1,0 +1,57 @@
+methods.bas:6:8: x is already a field
+      fn x(self) as double
+         ^
+methods.bas:12:8: length is already a method
+      fn length(self) as double
+         ^
+methods.bas:21:23: self is a method's first parameter
+      fn flip(n as int, self) as Vec
+                        ^
+methods.bas:24:19: self has no as: its type is the type it is in
+      fn typed(self as Vec) as double
+                    ^
+methods.bas:27:5: a method is defined with fn, not function
+      function old(self) as double
+      ^
+methods.bas:32:9: a method ends with end fn
+      end function
+          ^
+methods.bas:36:8: walk is already a value
+      fn walk(self) as int
+         ^
+methods.bas:40:14: self is a method's first parameter
+  function far(self) as int
+               ^
+methods.bas:43:1: a function is defined with function, not fn: fn is a method's or a lambda's
+  fn top(x as int) as int
+  ^
+methods.bas:50:1: v is a let: it can't change
+  v.scale(2)
+  ^
+methods.bas:51:11: length takes self: call it on a Vec
+  print Vec.length(v); " "; v.polar(1).x; " "; v.nothing(); " "; Vec.nothing(1)
+            ^
+methods.bas:51:29: polar is called on its type: Vec.polar(..)
+  print Vec.length(v); " "; v.polar(1).x; " "; v.nothing(); " "; Vec.nothing(1)
+                              ^
+methods.bas:51:48: a Vec has no method nothing
+  print Vec.length(v); " "; v.polar(1).x; " "; v.nothing(); " "; Vec.nothing(1)
+                                                 ^
+methods.bas:51:68: a Vec has no method nothing
+  print Vec.length(v); " "; v.polar(1).x; " "; v.nothing(); " "; Vec.nothing(1)
+                                                                     ^
+methods.bas:52:9: a Vec has no method length2
+  print v.length2(); " "; v.length
+          ^
+methods.bas:52:27: length is a method: call it, with (..)
+  print v.length2(); " "; v.length
+                            ^
+methods.bas:54:9: the length is len(x), not x.len()
+  print a.len()
+          ^
+methods.bas:55:13: scale is no value: it takes mut
+  let s = Vec.scale
+              ^
+methods.bas:56:7: unknown name self
+  print self
+        ^

@@ -175,6 +175,7 @@ static struct {
     bool open; /* its box open, else the bar lit */
     bool sub;  /* a sub-menu open */
     bool alt;  /* Alt held: the bar's letters lit */
+    bool topic; /* help has the cursor's word's topic: Help, Topic is on */
     Level box, saved;
 } mn;
 
@@ -203,7 +204,7 @@ static bool gray(const Item *const it)
         return true;
     if ((f & MF_ED) && uimn.tree.workspace.focus)
         return true;
-    if ((f & MF_KW) && !help_topic_exists())
+    if ((f & MF_KW) && !mn.topic)
         return true;
 
     return false;
@@ -787,6 +788,7 @@ void menu_run(Session *const S, const uint8_t m, const bool open)
     edit_commit(S);
     mn.c = m;
     mn.open = open;
+    mn.topic = help_topic_exists(S);
     uimn.help = uimn_menu_help;
     restart();
     uimn_modal(S, &mn.w);

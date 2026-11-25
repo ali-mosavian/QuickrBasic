@@ -71,7 +71,7 @@ VislLine visl_get(Session *const S, const uint32_t line)
         return (VislLine){.text = r->text, .len = r->len};
 
     if (!r->colored) {
-        synt_cols(S, r->text, r->len, r->cols);
+        synt_cols(S, text_dialect_at(S, uimn.text.first + line), r->text, r->len, r->cols);
         r->colored = true;
     }
 

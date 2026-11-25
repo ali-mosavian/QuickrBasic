@@ -75,14 +75,21 @@ enum {
 enum { VCELL = 4 };
 /* An FA or FP op's operand: the variable's id; an FP op's its ref cell's frame offset once linked. */
 enum { VID = 4 };
-/* I.NEXT.UP, I.NEXT.DN: counter, step, limit cells, the Jump back */
+/* I.NEXT.UP, I.NEXT.DN, I.COUNT.UP, I.COUNT.DN: counter, step, limit cells, the Jump back */
 enum { NEXT_SIZE = 1 + 3 * VCELL + sizeof(Jump) };
+/* E.NEXT: i, a and x cells, x's bytes (2; 0 a number's of 4 or 8 in a cell), the Jump back */
+enum { E_NEXT_SIZE = NEXT_SIZE + 2 };
+/* X.I.COUNT k's k: the step's sign, known (comp/fuse.c fuses those) or COUNT_BY the step's own. */
+enum : uint8_t { COUNT_BY, COUNT_UP, COUNT_DN };
+/* L.TO.V x k's k: x's operator; with LTO_INT the value popped an INT's. */
+enum : uint8_t { LTO_ADD, LTO_SUB, LTO_MUL, LTO_INT = 4 };
 /* EOL.TO: the next line, its code's offset in the cache */
 enum { EOL_TO_SIZE = 1 + 2 * sizeof(uint32_t) };
 
 /* An ERR op: a compile error met running. */
 typedef struct PACKED {
-    uint8_t op;
+    uint8_t op;     /* O_X */
+    uint8_t xop;    /* X_ERR */
     uint8_t code;   /* the error, E_* */
     uint8_t dg;     /* its DG_ (io/msg), 0: by its text */
     uint32_t at;    /* the body's byte it is at */
@@ -106,8 +113,22 @@ enum : uint8_t { FX = 1, FV = 2, FB = 4, FK = 8, FV2 = 16, FV3 = 32, FP = 64, FA
 enum : uint8_t {
 #define OP(name, h, size, fl) O_##name,
 #include "vm/ops.def"
-    O_NOPS
 };
+
+enum { /* 256 at most */
+       O_NOPS = 0
+#define OP(name, h, size, fl) +1
+#include "vm/ops.def"
+};
+
+enum : uint8_t {
+#define XOP(name, h, size, fl) X_##name,
+#include "vm/ops.def"
+    X_NOPS
+};
+
+/* Is the op at op an ERR? */
+static inline bool exec_is_err(const uint8_t *const op) { return op[0] == O_X && op[1] == X_ERR; }
 
 enum : uint8_t {
 #define K(name, h) K_##name,
@@ -155,7 +176,10 @@ typedef struct {
     Place ret; /* where RETURN or the call's end goes */
     union {
         Call call;
-        uint8_t event; /* the event's slot */
+        struct {
+            uint8_t event; /* the event's slot */
+            bool held;     /* run mid-statement: sweeps held (mem/array.h arry_hold) */
+        };
     };
 } Frame;
 
@@ -204,11 +228,14 @@ typedef struct Vm {
         uint16_t user;    /* ERROR n's n, raised as E_USR */
         Place failed;     /* RESUME's statement */
         Place next;       /* RESUME NEXT's; code LINE_END the next line */
+        uint32_t raised;  /* the line it was raised at, before a handler's unwinding */
     } err;
 
 #ifdef EXEC_COUNT
 
-    uint64_t count; /* the ops dispatched: the host build's instruction count */
+    uint64_t count;      /* the ops dispatched: the host build's instruction count */
+    uint64_t each[256];  /* those of each op, an X op's under O_X */
+    uint64_t xeach[256]; /* those of each X op */
 #endif
     bool running; /* exec_run's loop is on the C stack: vm.loop holds */
     jmp_buf loop; /* exec_run's: flow_trap comes back into the loop */
@@ -216,12 +243,18 @@ typedef struct Vm {
 
 static inline uint32_t vm_nframes(const Vm *const v) { return (uint32_t)(v->ftop - v->frames); }
 
-static inline void exec_counted(Vm *const vm)
+/* The op at op dispatched. */
+static inline void exec_counted(Vm *const vm, const uint8_t *const op)
 {
 #ifdef EXEC_COUNT
     vm->count++;
+    vm->each[op[0]]++;
+
+    if (op[0] == O_X)
+        vm->xeach[op[1]]++;
 #else
     (void)vm;
+    (void)op;
 #endif
 }
 
@@ -264,6 +297,8 @@ void exec_run(Session *S);
 void exec_until(Session *S, const uint8_t *end);
 /* Op op's flags: FX, FV, FB, FK. */
 uint8_t exec_flags(uint8_t op);
+/* The flags of the op at op, an X op's its own. */
+uint8_t exec_opflags(const uint8_t *op);
 /* ex_brk: the STOP check found vm.stop or the platform's flags set. true: the op is not to run,
    vm.ip moved (an event's GOSUB, or the IDE's step back at the op); false: go on. BREAK raises. */
 bool exec_brk(Session *S);

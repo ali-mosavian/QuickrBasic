@@ -17,7 +17,7 @@ struct Binding {
     uint32_t rec[2]; /* the record's TYPE: the scalar's, the array's */
     uint16_t fix[2]; /* STRING * n: the scalar's, the array's */
     uint32_t line;   /* a label's line */
-    int32_t val;     /* BF_VAL: a CONST's value */
+    int32_t val;     /* BF_VAL: a CONST's value; BF_PROC: its verdict (comp/export.h) */
 };
 
 enum {

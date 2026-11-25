@@ -1,0 +1,27 @@
+blocks.bas:5:1: wend without while
+  wend
+  ^
+blocks.bas:7:1: break outside a loop
+  break
+  ^
+blocks.bas:8:1: continue outside a loop
+  continue
+  ^
+blocks.bas:9:1: return outside a function
+  return
+  ^
+blocks.bas:10:14: return outside a function
+  if true then return
+               ^
+blocks.bas:12:5: a function goes at the top level, not in a block
+      function g()
+      ^
+blocks.bas:15:1: while without wend
+  while true
+  ^
+blocks.bas:17:1: end fn without fn
+  end fn
+  ^
+blocks.bas:18:1: do without loop
+  do
+  ^

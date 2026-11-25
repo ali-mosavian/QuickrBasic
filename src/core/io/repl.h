@@ -41,8 +41,11 @@ typedef struct {
     bool keep_pre;      /* the editor's: a line loaded keeps its indent and number as typed */
     uint8_t *pre;       /* keep_pre's, precap bytes */
     uint32_t precap;
-    bool batch;           /* a file run: its end exits */
-    bool checking;        /* --check's: the file compiled, not run */
+    bool batch;    /* a file run: its end exits */
+    bool checking; /* --check's: the file compiled, not run */
+    bool testing;  /* --test's: a Quickr file's tests run, not its program */
+    bool copying;  /* --copies: a Quickr file's copies of lists listed, not run */
+    bool guests;   /* loading a Quickr program's QBasic modules: Quickr's no import of theirs */
     char file[PFIL_PATH]; /* the command line's file name; CHAIN's */
     char incl[PFIL_PATH]; /* an '$INCLUDE's */
 } Repl;
@@ -78,12 +81,34 @@ void repl_ready(Session *S);
 /* Run the direct line repl_enter left in comp_cbuf: under repl_call, which it ends. */
 [[noreturn]]
 void repl_run(Session *S);
+/* Run the direct line's code, made (comp's buffer): as repl_run. */
+[[noreturn]]
+void repl_direct(Session *S);
 /* CONT from the editor: as repl_run. */
 [[noreturn]]
 void repl_cont(Session *S);
 /* Enter the lines of the file repl.file names, its includes' in place; then the console's
    again. Errors: as chnl_open. */
 void repl_load(Session *S);
+/* A Quickr program's QBasic modules (qr/qr.c): those at paths, n of them, read into the store
+   after its lines, each its own's imports after it, and declared; their files numbered from file,
+   each's module to mods. Errors: as repl_load. */
+void repl_guests(Session *S, const char *const *paths, uint32_t n, uint16_t file, uint32_t *mods);
+/* The editor's Quickr program's QBasic modules (qr/qr.c), the Quickr files' lines first in the
+   store, then each QBasic module's after its LF_TOP: each stored line's imports found, mods (n of
+   them, its Quickr files' imports, as the caller's modules' edges) and the modules found, from
+   number from on, read in when not stored, each its file
+   numbered as the module; declared when declare. Errors: as repl_load. */
+void repl_guests_stored(Session *S, const uint32_t *mods, uint32_t n, uint32_t from, bool declare);
+/* repl_guests_stored's first part alone: each stored QBasic line's imports found, as the modules'
+   edges, a module new added; nothing read. */
+void repl_guests_found(Session *S);
+/* The editor's Quickr program's QBasic modules declared again from none (its Dialect.redeclare).
+   Errors: as repl_load. */
+void repl_redeclare_guests(Session *S);
+/* Stored QBasic module m's lines out of the store, its LF_TOP's too, the last LF_TOP when no
+   other module is QBasic's; m kept in the modules. */
+void repl_cut_module(Session *S, uint32_t m);
 /* Tokenize inbuf, len long; store a numbered line, an empty one deletes it; loading, every line
    at the end. ENTER_*. Errors: Syntax error a number 64000 or over, Out of memory, Duplicate
    label. */

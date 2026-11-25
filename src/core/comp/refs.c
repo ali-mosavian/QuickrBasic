@@ -24,6 +24,7 @@
  * - D2. A record's place is a RecRef on the node, not globals.
  */
 #include "comp/refs.h"
+#include "comp/bind.h"
 #include "comp/expr.h"
 #include "comp/declare.h"
 #include "comp/dfa.h"
@@ -295,6 +296,8 @@ static RecRef path(Comp *const C, Node *const at, uint32_t t, const uint8_t *tex
     const Field *f;
 
     for (;;) {
+        if (!len) /* r. */
+            synerr(C);
         if (text[len - 1] < '.') /* a suffix is not the name's */
             len--;
 
@@ -927,7 +930,9 @@ Node *ref_result(Comp *const C)
 {
     const uint32_t name = comp_nameof(C->p);
     const Name *const nm = symb_name(C->symb, name);
-    const Binding *const b = scop_get(C->scop, name, name); /* its own scope's: its result's type */
+    const uint32_t alias = nm->flags & (NM_MOD | NM_BAD) ? 0 : *symb_alias(C->symb, name);
+    const uint32_t own = alias ? alias & ~BIND_STAR : name; /* another module's: its exporter's */
+    const Binding *const b = scop_get(C->scop, own, own);   /* its own scope's: its result's type */
 
     if (!(nm->flags & NM_FUNC) || !b)
         return nullptr;
@@ -982,6 +987,12 @@ Node *ref_call(
     const ArgsForm form
 )
 {
+    if (pr->flags & PF_FOREIGN && !pr->entry) { /* a Quickr fn of types QBasic lacks */
+        C->p = name;
+        C->dg = DG_PARAMETER_TYPE_MISMATCH_QUICKR;
+        fault_error(C->fault, E_PTM);
+    }
+
     Node *const n = ast_new(C->ast, N_CALL);
     n->num = idx;
     n->b = nullptr;

@@ -13,8 +13,12 @@
  * to uimn.text.hook (the text's line, 1 or -1). Storing a line can raise Out of memory.
  *
  * The text is each of the program's files, the main's first (mem/module.h): a line is its
- * record's file's, its names its module's. A line stored in place of another is that one's file's;
- * one added is its view's neighbour's, the line it goes before, past the view's end its last. A
+ * record's file's, its names its module's. A text dialect's file's lines (LF_TEXT) are their
+ * text alone, kept as typed (io/dialect.h); a file's first record says which dialect its lines
+ * are, the program's first the program's. A text dialect's file's first line is its mark, never
+ * changed.
+ * A line stored in place of another is that one's file's; one added is its view's neighbour's,
+ * the line it goes before, past the view's end its last. A
  * module changed since saved is edited (ModuMod.edited); uimn.text.unsaved: any is.
  *
  * The clipboard is uimn.text.clip_len bytes of uimn.text.clip: whole lines (uimn.text.clip_lines,
@@ -50,6 +54,7 @@
 #include "comp/lexer.h"
 #include "comp/listing.h"
 #include "io/console.h"
+#include "io/dialect.h"
 #include "io/source.h"
 #include "mem/module.h"
 #include "mem/program.h"
@@ -95,6 +100,13 @@ uint32_t text_rec(Session *const S, const uint32_t line)
 uint32_t text_record(Session *const S, const uint32_t rec, LineBuf *const b)
 {
     const Line *const p = prog_line(&S->prog, rec);
+
+    if (p->flags & LF_TEXT) {
+        const uint32_t n = p->len - HDR - 1;
+        memcpy(edit_lb_need(S, b, n), at(prog_addr(&S->prog, rec + HDR)), n);
+        return n;
+    }
+
     const uint32_t pre = p->pre;
     memcpy(edit_lb_need(S, b, pre), at(prog_addr(&S->prog, rec + p->len - pre)), pre);
 
@@ -151,11 +163,44 @@ static bool spelling_fits(Session *const S, const uint32_t pre_len)
     return S->cons.sblen + pre_len <= LNMAX;
 }
 
+const Dialect *text_dialect(const Session *const S) { return dial_program(&S->prog); }
+
+const Dialect *text_dialect_at(Session *const S, const uint32_t line)
+{
+    return dial_line(&S->prog, lmap_off(S, line));
+}
+
+bool text_marker(Session *const S, const uint32_t line)
+{
+    if (line >= uimn.text.all)
+        return false;
+
+    const Line *const l = prog_line(&S->prog, lmap_off(S, line));
+    return l->flags & LF_TEXT &&
+           (!line || prog_line(&S->prog, lmap_off(S, line - 1))->file != l->file);
+}
+
+/* A text dialect's line of len characters at src made a record's: its text the body, in comp_cbuf;
+   LF_ASIS too when uimn.text.asis (used up), a syntax error's. */
+static Made make_text(Session *const S, const uint8_t *const src, const uint32_t len)
+{
+    memmove(S->comp.cbuf, src, len);
+    S->comp.cbuf[len] = 0;
+    S->prog.pre_len = 0;
+    const uint8_t flags = LF_TEXT | (uimn.text.asis ? LF_ASIS : 0);
+    uimn.text.asis = false;
+    return (Made){.num = NONUM, .len = len + 1, .flags = flags};
+}
+
 /* The line of len characters at src made a record's: its body in comp_cbuf, its number, its text
    before the body (prog.pre); as typed when uimn.text.asis (used up) or when LIST would spell it
-   past an editor line. src is kept till the record is filled. */
-static Made make(Session *const S, const uint8_t *const src, const uint32_t len)
+   past an editor line. A text dialect's (typed): make_text's. src is kept till the record is
+   filled. */
+static Made make(Session *const S, const uint8_t *const src, const uint32_t len, const bool typed)
 {
+    if (typed)
+        return make_text(S, src, len);
+
     Made m = {};
 
     S->prog.pre = src;
@@ -219,7 +264,7 @@ static void store(
     const uint8_t mark = insert ? 0 : old->flags & LF_BP;
     const uint32_t module = S->repl.module;
     S->repl.module = modu_of(&S->modu, file);
-    Made m = make(S, src, len);
+    Made m = make(S, src, len, dial_file(&S->prog, file)->text);
     S->repl.module = module;
     touch(S, file);
     const uint32_t rec = lmap_off(S, line);
@@ -260,7 +305,7 @@ static void put(
 /* The line of len characters at src stored after the rest, the map not made. */
 static void add(Session *const S, const uint8_t *const src, const uint32_t len)
 {
-    const Made m = make(S, src, len);
+    const Made m = make(S, src, len, prog_text(&S->prog));
     S->prog.add_flags = m.flags;
     S->prog.add_at = 0;
     prog_add(&S->prog, m.num, S->comp.cbuf, m.len);
@@ -282,10 +327,19 @@ static void renew(Session *const S)
     tell_mark(TEXT_MARKS, -1);
 }
 
-void text_init(Session *const S)
+void text_init(Session *const S, const Dialect *const d)
 {
     renew(S);
-    add(S, (const uint8_t *)"", 0);
+
+    if (d->text) {
+        S->prog.add_flags = LF_TEXT;
+        prog_add(&S->prog, NONUM, (const uint8_t *)d->mark, (uint32_t)strlen(d->mark) + 1);
+        prog_add(&S->prog, NONUM, (const uint8_t *)"", 1);
+        S->prog.add_flags = 0;
+    } else {
+        add(S, (const uint8_t *)"", 0);
+    }
+
     lmap_build(S);
     text_whole();
 }
@@ -407,6 +461,7 @@ void text_toggle(Session *const S, const uint32_t line)
     const uint32_t rec = text_rec(S, line);
     Line *const ln = prog_line(&S->prog, rec);
     ln->flags ^= LF_BP;
+    prog_marks(&S->prog, rec);
     tell_mark(text_mark_nth(S, rec), ln->flags & LF_BP ? 1 : -1);
 }
 
@@ -443,6 +498,7 @@ void text_unmark(Session *const S, const uint32_t nth)
             continue;
 
         ln->flags &= ~LF_BP;
+        prog_marks(&S->prog, rec);
         tell_mark(nth, -1);
         return;
     }
@@ -585,6 +641,22 @@ static uint32_t line_char(Session *const S, const uint8_t c, uint32_t n)
 
 uint16_t text_read(Session *const S, const char *const name)
 {
+    const Dialect *const d = dial_of_file(name);
+
+    if (d->text) {
+        uint8_t attr;
+        const uint16_t there = pfil_getattr(name, &attr);
+
+        if (there != PFIL_OK)
+            return there;
+
+        renew(S);
+        const uint16_t e = d->read(S, name, 0);
+        lmap_build(S);
+        text_whole();
+        return e;
+    }
+
     const uint16_t e = pfil_open(name, PFIL_READ, &io.h);
 
     if (e != PFIL_OK)

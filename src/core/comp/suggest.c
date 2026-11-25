@@ -30,11 +30,15 @@
  */
 #include "comp/suggest.h"
 #include "session.h"
+#include "comp/bind.h"
 #include "comp/comp.h"
 #include "comp/declare.h"
 #include "comp/dfa.h"
+#include "comp/export.h"
 #include "comp/lexer.h"
+#include "io/dialect.h"
 #include "io/gen.h"
+#include "mem/module.h"
 #include "mem/program.h"
 #include "mem/scope.h"
 #include "vm/flow.h"
@@ -78,7 +82,15 @@ typedef struct {
     const Scop *scop;
     const Decl *decl; /* the TYPEs */
     Symb *symb;       /* the names, found by their texts */
+    const Modu *modu; /* the lines' modules */
+    uint32_t module;  /* the word's */
 } SuggSrc;
+
+/* Is line ln the word's module's, QBasic's? */
+static bool sugg_ours(const SuggSrc *const src, const Line *const ln)
+{
+    return !(ln->flags & LF_TEXT) && modu_of(src->modu, ln->file) == src->module;
+}
 
 static struct {
     uint8_t before[TEXT_MAX]; /* the line before the word */
@@ -128,7 +140,7 @@ static bool sugg_compile(
     C->check = false;
 
     for (const uint8_t *op = C->xbuf; *op != O_EOL; op += flow_opsize(op)) {
-        if (*op == O_ERR) {
+        if (exec_is_err(op)) {
             const ErrOp *const e = (const ErrOp *)op;
             *at = e->at;
             *err = e->code;
@@ -843,8 +855,9 @@ typedef struct {
 } SuggAt;
 
 /* Pass one: the word's line and procedure, the open FORs before it. */
-static void sugg_where(const Prog *const pg, SuggAt *const w)
+static void sugg_where(const SuggSrc *const src, SuggAt *const w)
 {
+    const Prog *const pg = src->prog;
     uint32_t scope = 0;
     uint8_t prior = 0;
     sg.nopen = sg.ndo = sg.nwhile = sg.nsel = 0;
@@ -854,7 +867,8 @@ static void sugg_where(const Prog *const pg, SuggAt *const w)
         const Line *const ln = prog_line(pg, rec);
         const uint8_t *const body = at(prog_addr(pg, rec + HDR));
         const uint8_t *name;
-        const uint8_t kind = ln->flags & LF_ASIS ? 0 : decl_proc(body, &name);
+        const bool ours = sugg_ours(src, ln) && !(ln->flags & LF_ASIS);
+        const uint8_t kind = ours ? decl_proc(body, &name) : 0;
 
         if (kind == PK_SUB || kind == PK_FUNC) {
             scope = comp_nameof(name);
@@ -867,7 +881,7 @@ static void sugg_where(const Prog *const pg, SuggAt *const w)
             return;
         }
 
-        if (!(ln->flags & LF_ASIS))
+        if (ours)
             sugg_events(body, body + ln->len - HDR);
         if (kind == PK_END) {
             scope = 0;
@@ -876,21 +890,21 @@ static void sugg_where(const Prog *const pg, SuggAt *const w)
 
         const uint8_t *t = body;
         decl_tail(&t);
-        prior = ln->flags & LF_ASIS ? 0 : *t;
+        prior = !sugg_ours(src, ln) ? prior : ln->flags & LF_ASIS ? 0 : *t;
     }
 
     *w = (SuggAt){w->rec, ord, scope, prior};
 }
 
 /* A name of scope seen from the word's procedure: its own, or the module's SHARED or CONST. */
-static bool sugg_seen(const Scop *const sc, const SuggName *const n, const uint32_t from)
+static bool sugg_seen(const SuggSrc *const src, const SuggName *const n, const uint32_t from)
 {
     if (n->scope == from)
         return true;
     if (n->scope)
         return false;
 
-    const Binding *const b = scop_get(sc, 0, n->name);
+    const Binding *const b = scop_get(src->scop, sc_module(src->module), n->name);
     return b && b->flags & (BF_SHR | BF_CON);
 }
 
@@ -1164,6 +1178,70 @@ static bool sugg_fields(
     return true;
 }
 
+/* sugg_exports': where the word's matches go. */
+typedef struct {
+    const SuggSrc *src;
+    Suggs *out;
+    const uint8_t *word;
+    uint16_t wn;
+} SuggExports;
+
+/* Export t, its kinds k, offered when it matches the word and usable (comp/export.h). */
+static void sugg_export(void *const ctx, const uint32_t t, const uint8_t k)
+{
+    const SuggExports *const q = ctx;
+    const Name *const nm = symb_name(q->src->symb, t);
+    const uint8_t *const text = symb_text(q->src->symb, t);
+    const uint8_t m = sugg_match(q->word, q->wn, text + 1, text[0]);
+
+    if (!m || !expo_usable(q->src->comp, t))
+        return;
+
+    const SuggKind kind = nm->flags & NM_SUB ? SG_SUB : nm->flags & NM_FUNC ? SG_FN : SG_VAR;
+    const Sugg s = sugg_named(q->src, t, text + 1, text[0], kind, m, 50);
+    sugg_add(q->out, &s);
+}
+
+/* After an imported module's name and '.': its exports the word starts; false not after one. */
+static bool sugg_exports(
+    const SuggSrc *const src,
+    Suggs *const out,
+    const uint8_t *const word,
+    const uint16_t wn
+)
+{
+    const uint8_t *const b = sg.before;
+
+    if (!sg.nbefore || b[sg.nbefore - 1] != '.')
+        return false;
+
+    const uint16_t e = sg.nbefore - 1;
+    uint16_t s = e;
+
+    while (s && is_name_char(b[s - 1])) /* a package's module: lib.gfx */
+        s--;
+
+    if (s == e || e - s > UINT8_MAX || !is_letter(b[s]))
+        return false;
+
+    const uint32_t name = symb_look_name(src->symb, src->module, b + s, (uint8_t)(e - s));
+
+    if (!name || !(symb_name(src->symb, name)->flags & NM_MOD))
+        return false;
+
+    SuggExports q = {src, out, word, wn};
+
+    bind_each_export(
+        src->scop,
+        src->symb,
+        *symb_alias(src->symb, name),
+        UINT8_MAX,
+        sugg_export,
+        &q
+    );
+    return true;
+}
+
 /* The word starts a statement: the line, ':', THEN or ELSE before it. */
 static bool sugg_starts(void)
 {
@@ -1192,7 +1270,7 @@ static void sugg_program(
     for (uint32_t rec = PROGBASE; prog_line(pg, rec)->len; rec += prog_line(pg, rec)->len, ord++) {
         const Line *const ln = prog_line(pg, rec);
 
-        if (ln->flags & LF_ASIS)
+        if (ln->flags & LF_ASIS || !sugg_ours(src, ln))
             continue;
 
         const uint8_t *const body = at(prog_addr(pg, rec + HDR));
@@ -1276,7 +1354,7 @@ static void sugg_vars(
         const SuggName *const e = &sg.names[i];
         const uint8_t m = sugg_match(word, n, e->text, e->len);
 
-        if (!m || !sugg_seen(src->scop, e, w->scope))
+        if (!m || !sugg_seen(src, e, w->scope))
             continue;
 
         bool proc = false; /* a procedure's name: listed as one */
@@ -1333,6 +1411,44 @@ static bool sugg_word(
     return col - s <= SUGG_LEN;
 }
 
+/* ---- a text dialect's */
+
+typedef struct {
+    Suggs *out;
+    const uint8_t *word; /* capitals */
+    uint16_t wn;
+} SuggText;
+
+/* Dialect.suggest's: text, len bytes, a kind, offered when it fits the word; as written. */
+static void sugg_text_one(
+    void *const ctx,
+    const char *const text,
+    const uint32_t len,
+    const DialSuggKind kind,
+    const uint32_t rec
+)
+{
+    const SuggText *const q = ctx;
+    uint8_t up[SUGG_LEN];
+
+    if (len > SUGG_LEN)
+        return;
+
+    for (uint32_t i = 0; i < len; i++)
+        up[i] = upcase((uint8_t)text[i]);
+
+    const uint8_t match = sugg_match(q->word, q->wn, up, (uint16_t)len);
+
+    if (!match)
+        return;
+
+    const SuggKind k = kind == DSG_KW ? SG_KW : kind == DSG_FN ? SG_FN : SG_VAR;
+    Sugg s = sugg_make((const uint8_t *)text, (uint16_t)len, k, match, kind == DSG_KW ? 0 : 10);
+    s.asis = s.len;
+    s.rec = kind == DSG_FN ? rec : 0;
+    sugg_add(q->out, &s);
+}
+
 /* One thing alone goes on: it is needed. */
 static void sugg_one(Suggs *const out)
 {
@@ -1372,6 +1488,16 @@ bool sugg_find(
 
     word[wn] = 0;
 
+    const Dialect *const d = dial_line(&S->prog, rec);
+
+    if (d->text) {
+        SuggText q = {out, word, wn};
+
+        d->suggest(S, rec, (const char *)text, start, sugg_text_one, &q);
+        sugg_one(out);
+        return out->n > 0;
+    }
+
     memcpy(sg.body, text, start); /* the line before the word: not in a string, a REM or DATA */
     sg.body[start] = 0;
     uint8_t *const end = lexr_line(&S->lexr, sg.body, S->comp.cbuf);
@@ -1382,12 +1508,22 @@ bool sugg_find(
     if (decl_tail(&tail))
         return false;
 
-    const SuggSrc src = {&S->comp, &S->lexr, &S->prog, &S->scop, &S->decl, &S->symb};
+    const uint32_t module = modu_of(&S->modu, prog_line(&S->prog, rec)->file);
+    const SuggSrc src = {
+        &S->comp,
+        &S->lexr,
+        &S->prog,
+        &S->scop,
+        &S->decl,
+        &S->symb,
+        &S->modu,
+        module,
+    };
 
     sugg_tail(sg.body, blen);
     SuggAt w = {.rec = rec};
 
-    sugg_where(src.prog, &w);
+    sugg_where(&src, &w);
     sugg_events(sg.body, sg.body + blen);
     sugg_before(&src, text, start);
 
@@ -1395,6 +1531,11 @@ bool sugg_find(
         sg.str_ok = sg.num_ok = false;
     if (sugg_fields(&src, out, word, wn)) /* r.f: the record's fields alone */
         return out->n > 0;
+    if (sugg_exports(&src, out, word, wn)) { /* m.f: the module's exports alone */
+        sugg_one(out);
+        return out->n > 0;
+    }
+
     if (sg.hash) { /* #n: the program's files */
         sugg_files(&src, out, word, wn);
         sugg_one(out);

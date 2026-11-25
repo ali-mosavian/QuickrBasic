@@ -1,0 +1,18 @@
+private.bas:5:9: cents is private to Account's module
+  print a.cents
+          ^
+private.bas:6:3: cents is private to Account's module
+  a.cents = 5
+    ^
+private.bas:7:9: checked is private to Account's module
+  print a.checked(1)
+          ^
+private.bas:8:17: checked is private to Account's module
+  let f = Account.checked
+                  ^
+private.bas:9:9: Account has a private field: only its module builds one
+  let b = Account("cy", 3)
+          ^
+private.bas:18:5: private goes before a type's field or a method
+      private walk
+      ^

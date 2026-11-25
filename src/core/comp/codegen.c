@@ -37,7 +37,7 @@
 #include "num/fpmath.h"
 #include "vm/flow.h"
 
-static const uint8_t xop[] = {O_I_DIV, O_I_MOD, O_I_XOR, O_I_EQV, O_I_IMP}; /* from OP_IDIV */
+static const uint8_t xop[] = {O_I_DIV, O_I_MOD, O_I_XOR}; /* from OP_IDIV; EQV, IMP X ops */
 static const uint8_t fcmpk[4] = {O_F_CMP_V, O_F_CMP_VI, O_F_CMP_U8, O_F_CMP_F32};
 /* The binary ops with a right operand folded in, by its form (V, U8; SINGLE's V, VI, U8, F32) and
    the operator, OP_ADD .. OP_OR. */
@@ -97,16 +97,6 @@ static uint8_t shortop(const uint8_t rel, const uint8_t lsh, const uint8_t rsh)
     return arith ? SH_SHORT : SH_NONE;
 }
 
-static bool isright(
-    Code *const c,
-    const uint8_t op,
-    const uint32_t size,
-    const uint8_t *const right
-)
-{
-    return (uint32_t)(c->out - right) == size && *right == op;
-}
-
 uint8_t *cg_lfloat(Code *const c, uint8_t *const left, uint8_t *const right)
 {
     if (left) {
@@ -131,9 +121,9 @@ void cg_icmp(Code *const c, const uint8_t rel, uint8_t *const right)
     const uint8_t m = rel & REL_MASK;
     uint8_t op;
 
-    if (isright(c, O_I_LD_V, 1 + VCELL, right))
+    if (code_ends_op(c, right, O_I_LD_V, 1 + VCELL))
         op = O_I_CMP_V;
-    else if (isright(c, O_I_LD_U8, 2, right))
+    else if (code_ends_op(c, right, O_I_LD_U8, 2))
         op = O_I_CMP_U8;
     else {
         c->cmp = c->out;
@@ -151,13 +141,13 @@ void cg_icmp(Code *const c, const uint8_t rel, uint8_t *const right)
 /* The right operand's load that folds: its form, farith's row, plus 1; 0 none. */
 static uint8_t fltkind(Code *const c, const uint8_t *const right)
 {
-    if (isright(c, O_F_LD_V, 1 + VCELL, right))
+    if (code_ends_op(c, right, O_F_LD_V, 1 + VCELL))
         return 1;
-    if (isright(c, O_F_LD_VI, 1 + VCELL, right))
+    if (code_ends_op(c, right, O_F_LD_VI, 1 + VCELL))
         return 2;
-    if (isright(c, O_F_LD_U8, 2, right))
+    if (code_ends_op(c, right, O_F_LD_U8, 2))
         return 3;
-    if (isright(c, O_F_LD_F32, 5, right))
+    if (code_ends_op(c, right, O_F_LD_F32, 5))
         return 4;
 
     return 0;
@@ -421,7 +411,7 @@ static void cg_binary(Code *const c, const Node *const n)
         c->iload = c->iloadend = nullptr;
 
         if (rel == OP_POW)
-            code_op(c, O_D_POW);
+            code_xop(c, X_D_POW);
         else if (ast_isrel(rel)) {
             code_opb(c, O_D_CMP, rel & REL_MASK);
             c->type = T_INT;
@@ -441,7 +431,12 @@ static void cg_binary(Code *const c, const Node *const n)
         if (ast_isxop(rel)) {
             cg_as(c, n->b, T_INT, false);
             rsh = code_shclass(c);
-            code_op(c, xop[rel - OP_IDIV]);
+
+            if (rel == OP_EQV || rel == OP_IMP)
+                code_xop(c, rel == OP_EQV ? X_I_EQV : X_I_IMP);
+            else
+                code_op(c, xop[rel - OP_IDIV]);
+
             c->type = T_INT;
         } else {
             numeric(
@@ -903,12 +898,15 @@ static uint16_t field_off(Code *const c, const uint32_t off)
 /* A record's field's value: SF.LD off fix, FL.LD off et. */
 static void cg_field(Code *const c, const Node *const n)
 {
+    const bool held = c->held;
     gen(c, n->a);
+    c->held = held; /* its address taken by the load */
     const RecRef *const rec = &n->a->rec;
     const uint16_t off = field_off(c, rec->off);
 
     if (rec->et == ET_SD) {
-        code_opw(c, O_SF_LD, off);
+        code_xop(c, X_SF_LD);
+        code_word(c, off);
         code_word(c, (uint16_t)rec->fix);
     } else {
         code_opw(c, O_FL_LD, off);
@@ -969,7 +967,8 @@ static void cg_arg(Code *const c, const Node *const n)
 
     case PA_NREF:
         gen(c, n->a);
-        code_opb(c, O_P_REFN, (uint8_t)n->a->vtype);
+        code_xop(c, X_P_REFN);
+        code_byte(c, (uint8_t)n->a->vtype);
         break;
 
     case PA_FIELD:
@@ -980,7 +979,9 @@ static void cg_arg(Code *const c, const Node *const n)
 }
 
 /* A procedure's call: its arguments, PCALL, a record result's place; one DECLAREd only: ERROR, its
-   result's load; a native one's: its number, CALL NCALL, which pushes its result. */
+   result's load; a native one's: its number, CALL NCALL, which pushes its result. A call made while
+   the statement's addresses may wait on the stack is held, HOLD before its arguments and UNHOLD
+   after: a sweep in it would move what they point at (mem/array.c). */
 static void cg_call(Code *const c, const Node *const n)
 {
     if (n->mode == CALL_UNDEF) {
@@ -990,12 +991,15 @@ static void cg_call(Code *const c, const Node *const n)
         return;
     }
 
+    const bool user = n->mode == CALL_PROC, waiting = code_calling(c, user);
+
     for (const Node *a = n->b; a != nullptr; a = a->next)
         gen(c, a);
 
     if (n->mode == CALL_NATIVE) {
         code_int(c, n->num);
         code_call(c, K_NCALL);
+        code_called(c, waiting, user);
         c->type = n->type;
         c->iload = c->iloadend = nullptr;
         return;
@@ -1008,6 +1012,8 @@ static void cg_call(Code *const c, const Node *const n)
     code_dword(c, n->jump.line);
     code_dword(c, n->jump.body);
     code_dword(c, n->jump.dest);
+
+    code_called(c, waiting, user);
 
     if (n->a != nullptr) /* a record result's place, ours */
         gen(c, n->a);
@@ -1174,8 +1180,12 @@ static void cg_if(Code *const c)
 
     if (c->out == c->cmpend)
         *c->cmp = cmpif(*c->cmp);
+    else if (c->type == T_STR)
+        code_xop(c, X_S_IF);
+    else if (c->type == T_FLT)
+        code_xop(c, X_F_IF);
     else /* code_dtest made a DOUBLE an INT */
-        code_op(c, code_pick(c->type, O_I_IF, O_F_IF, O_I_IF, O_S_IF));
+        code_op(c, O_I_IF);
 }
 
 /* ON's byte made: ON kind + n, then its n lines. */

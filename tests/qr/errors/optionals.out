@@ -1,0 +1,54 @@
+optionals.bas:8:9: none needs a T or none place: write var x as T or none = none
+  let p = none
+          ^
+optionals.bas:9:16: none needs a T or none place: write var x as T or none = none
+  var q as int = none
+                 ^
+optionals.bas:11:22: x? returns its error: only in a function whose result is a T or Error
+      let r = parse("")?
+                       ^
+optionals.bas:17:9: Error(code, message) needs a T or Error place, as a function's result
+  let e = Error(1, "x")
+          ^
+optionals.bas:19:9: + takes numbers, not an int or none
+  print w + 1
+          ^
+optionals.bas:20:6: is Error takes a T or Error, not an int or none
+  if w is Error then print 1
+       ^
+optionals.bas:21:9: or else takes a T or none or a T or Error, not an int
+  print 3 or else 4
+          ^
+optionals.bas:22:10: x? takes a T or Error, not an int
+  let u = 5?
+           ^
+optionals.bas:23:22: a type has one or
+  var v as int or none or none = 1
+                       ^
+optionals.bas:25:18: a string is not an int
+      return Error("x", 2)
+                   ^
+optionals.bas:25:23: an int is not a string: write string(x)
+      return Error("x", 2)
+                        ^
+optionals.bas:28:13: an int is not a string: write string(x)
+  print m.get(1)
+              ^
+optionals.bas:29:15: T? is written T or none
+  var old as int? = 1
+                ^
+optionals.bas:30:24: T! is written T or Error
+  function old_r() as int!
+                         ^
+optionals.bas:33:17: V[K] is written dict[K, V]
+  var old_m as int[string]
+                  ^
+optionals.bas:34:9: ?? is written or else
+  print w ?? 0
+          ^
+optionals.bas:35:19: a bool is not an int
+  print w or else 0 = 3
+                    ^
+optionals.bas:37:13: unknown function nowhere
+      let r = nowhere()
+              ^

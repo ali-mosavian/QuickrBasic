@@ -16,6 +16,7 @@
 #include "io/file.h"
 #include "io/repl.h"
 #include "mem/alloc.h"
+#include "mem/loc.h"
 #include "mem/program.h"
 #include "mem/string.h"
 #include "mem/symbols.h"
@@ -47,6 +48,9 @@ void boot(Session *const S, const FrontEnd *const fe)
         pfil_write(PFIL_STDERR, msg, sizeof msg - 1, &put);
         psys_exit(1);
     }
+
+    if (hi > REF_ADDR) /* a ref's tag bits above it */
+        hi = REF_ADDR;
 
     scop_init(&S->scop, &S->fault); /* its arena's first block from the C side's heap */
 

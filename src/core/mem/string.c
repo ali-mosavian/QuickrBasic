@@ -280,6 +280,28 @@ Addr strg_cat(Strg *const sg, const Addr left, const Addr right)
     return strg_new(sg, c, (uint16_t)n);
 }
 
+Addr strg_join(Strg *const sg, const Cell *const parts, const uint32_t n)
+{
+    uint32_t len = 0;
+
+    for (uint32_t k = 0; k < n; k++)
+        len += strg_len(parts[k].a);
+
+    if (len > SMAX)
+        fault_error(sg->fault, E_LS);
+
+    const Addr c = strg_alloc(sg, (uint16_t)len);
+    uint32_t off = 0;
+
+    for (uint32_t k = n; k-- > 0;) {
+        const Desc d = strg_get(sg, parts[k].a);
+        copy_mem(c + off, d.ptr, d.len);
+        off += d.len;
+    }
+
+    return strg_new(sg, c, (uint16_t)len);
+}
+
 uint8_t strg_cmp(Strg *const sg, const Addr left, const Addr right)
 {
     const Desc r = strg_get(sg, right);

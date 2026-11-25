@@ -64,6 +64,8 @@
 
 #define OP(name, h, size, fl) void h(Session *S);
 #include "vm/ops.def"
+#define XOP(name, h, size, fl) void h(Session *S);
+#include "vm/ops.def"
 #define K(name, h) void h(Session *S);
 #include "vm/ops.def"
 
@@ -79,6 +81,16 @@ static const uint8_t flags[O_NOPS] = {
 #include "vm/ops.def"
 };
 
+static Handler *const xops[X_NOPS] = {
+#define XOP(name, h, size, fl) h,
+#include "vm/ops.def"
+};
+
+static const uint8_t xflags[X_NOPS] = {
+#define XOP(name, h, size, fl) fl,
+#include "vm/ops.def"
+};
+
 static Handler *const calls[K_N] = {
 #define K(name, h) h,
 #include "vm/ops.def"
@@ -86,13 +98,21 @@ static Handler *const calls[K_N] = {
 
 uint8_t exec_flags(const uint8_t op) { return flags[op]; }
 
+uint8_t exec_opflags(const uint8_t *const op)
+{
+    return op[0] == O_X ? xflags[op[1]] : flags[op[0]];
+}
+
+/* X: the X op its byte names. */
+void exec_x(Session *const S) { xops[exec_u8(&S->vm)](S); }
+
 void exec_until(Session *const S, const uint8_t *const end)
 {
     Vm *const v = &S->vm;
 
     while (v->ip != end) {
         v->opip = v->ip;
-        exec_counted(v);
+        exec_counted(v, v->ip);
         ops[*v->ip++](S);
     }
 }
@@ -146,9 +166,9 @@ static inline bool elem_index(
     uint32_t *const idx
 )
 {
-    if (n == 1 && (uint32_t)sp->i < a->fast) { /* a 1-D from 0 */
+    if (n == 1 && a->fast) { /* a 1-D from 0: fast its count, a list's its length (mem/array.c) */
         *idx = sp->u;
-        return true;
+        return (uint32_t)sp->i < a->fast;
     }
 
     if (a->dims != n)
@@ -256,9 +276,7 @@ static inline bool fl_ld(Regs *const r)
     if (type == ET_R8)
         return false;
 
-    r->sp->i = type == ET_SH   ? (int16_t)rd16(a)
-               : type == ET_BY ? (int32_t)rd8(a)
-                               : (int32_t)rd32(a);
+    r->sp->i = type < ET_SH ? (int32_t)rd32(a) : narrow_ld(a, type);
     r->ip += 4;
     return true;
 }
@@ -269,12 +287,13 @@ static inline bool fl_st(Regs *const r)
     const Cell x = *r->sp;
     const Addr a = r->sp[1].a + load16(r->ip + 1);
 
-    if (type == ET_SH && x.i == (int16_t)x.i)
-        wr16(a, (uint16_t)x.u);
-    else if (type == ET_BY && x.u <= 255)
-        wr8(a, (uint8_t)x.u);
-    else if (type != ET_SH && type != ET_BY && type != ET_R8)
+    if (type < ET_SH) {
+        if (type == ET_R8)
+            return false;
+
         wr32(a, x.u);
+    } else if (narrow_fits(type, x))
+        narrow_wr(a, type, x);
     else
         return false;
 
@@ -343,7 +362,6 @@ static inline bool r_addr(Regs *const r)
     X(i_cmp_u8, oper_i_cmp_u8)                                                                     \
     X(f_ld_u8, oper_f_ld_u8)                                                                       \
     X(f_ld_vi, oper_f_ld_vi)                                                                       \
-    X(f_ld_pi, oper_f_ld_pi)                                                                       \
     X(f_neg, oper_f_neg)                                                                           \
     X(i_not, oper_i_not)                                                                           \
     X(drop, oper_drop)                                                                             \
@@ -363,7 +381,6 @@ static inline bool r_addr(Regs *const r)
     X(d_ld_k, dubl_ldk)                                                                            \
     X(d_neg, dubl_neg)                                                                             \
     X(d_cmp, dubl_cmp)                                                                             \
-    X(d_nz, dubl_nz)                                                                               \
     X(i_tod, dubl_itod)                                                                            \
     X(f_tod, dubl_ftod)                                                                            \
     X(d_tof, dubl_tof)                                                                             \
@@ -375,7 +392,26 @@ static inline bool r_addr(Regs *const r)
     X(f_cmp_l, oper_f_cmp_l)                                                                       \
     X(f_cmp_li, oper_f_cmp_li)                                                                     \
     X(d_ld_l, oper_d_ld_l)                                                                         \
-    X(d_st_l, oper_d_st_l)
+    X(d_st_l, oper_d_st_l)                                                                         \
+    X(i_tol, oper_i_tol)                                                                           \
+    X(l_cmp, oper_l_cmp)
+
+/* The fused LONG stores, which may fail: name, handler, size. */
+#define HOT_LTOS(X)                                                                                \
+    X(l_to_v, oper_l_to_v, 2 + VCELL)                                                              \
+    X(l_to_l, oper_l_to_l, 2 + VCELL)
+
+/* The ops on a narrow field of a record in cells, a store's may fail: name, handler, size. */
+#define HOT_NARROWS(X)                                                                             \
+    X(n_ld_v, exec_n_ld_v, 2 + VCELL)                                                              \
+    X(n_ld_l, exec_n_ld_l, 2 + VCELL)                                                              \
+    X(n_st_v, exec_n_st_v, 2 + VCELL)                                                              \
+    X(n_st_l, exec_n_st_l, 2 + VCELL)
+
+/* The ops on a record parameter's number field, a store's may fail: name, handler, size. */
+#define HOT_PFIELDS(X)                                                                             \
+    X(p_fl_ld, exec_p_fl_ld, 4 + VID)                                                              \
+    X(p_fl_st, exec_p_fl_st, 4 + VID)
 
 /* f_ld_f32's and f_st_v's run as i_ld_i32's and i_st_v's. */
 static inline Status hot_f_st_v(Regs *const r) { return hot_i_st_v(r); }
@@ -393,12 +429,17 @@ static inline Status hot_f_ld_f32(Regs *const r) { return hot_i_ld_i32(r); }
 #define HOT_FLT_EACH(name, src, op) HOT_EACH(name, oper_##name, hot_fsize(src))
 #define HOT_INT_ST_EACH(NAME, name, src, op)                                                       \
     HOT_EACH(name##_st, oper_##name##_st, hot_size(src) + 2 * VCELL)
+#define HOT_LONG_EACH(name, src, op) HOT_EACH(name, oper_##name, hot_lsize(src))
 #define HOT_ALL()                                                                                  \
     HOT_OPS(HOT_OP_EACH)                                                                           \
     HOT_INTS(HOT_INT_EACH)                                                                         \
     HOT_FLTS(HOT_FLT_EACH)                                                                         \
     HOT_INT_STS(HOT_INT_ST_EACH)                                                                   \
-    HOT_FAILS(HOT_FAIL_EACH)
+    HOT_FAILS(HOT_FAIL_EACH)                                                                       \
+    HOT_LONGS(HOT_LONG_EACH)                                                                       \
+    HOT_LTOS(HOT_EACH)                                                                             \
+    HOT_NARROWS(HOT_EACH)                                                                          \
+    HOT_PFIELDS(HOT_EACH)
 
 /* A CMPIF, an IF: true, on; false, the line ends (flow_nextln) unless it is the program's last or
    the direct line: then the op's handler, which nothing here has changed. */
@@ -422,13 +463,13 @@ static inline Status hot_f_ld_f32(Regs *const r) { return hot_i_ld_i32(r); }
     }                                                                                              \
     goto next;
 
-/* An INT compare-and-branch: its compare true, past it; else JF's jump, a stop and a jump not
-   resolved its handler's. */
-#define JFC_RUN(name, src)                                                                         \
+/* A compare-and-branch: its compare, yes on t, true, past it; else JF's jump, a stop and a jump
+   not resolved its handler's. */
+#define JFC_RUN(name, yes)                                                                         \
     name: {                                                                                        \
         Regs t = {r.ip + 1, r.sp, r.fp};                                                           \
                                                                                                    \
-        if (hot_jfc(&t, src)) {                                                                    \
+        if (yes) {                                                                                 \
             r = (Regs){t.ip + sizeof(Jump), t.sp, t.fp};                                           \
             goto next;                                                                             \
         }                                                                                          \
@@ -452,7 +493,8 @@ typedef struct {
 } HotAt;
 
 /* Each op's label, by its handler's entry in hot (to the null handler's, cold's); EOL.TO's eol_to.
-   A hash of the handlers: comparing each op's against each entry ran 190K instructions a run. */
+   A hash of the handlers: comparing each op's against each entry ran 190K instructions a run. An
+   X op's is cold's: a label of its own, dispatching by its byte, cost QBasic's loops 2 to 5%. */
 static void label_ops(void *at_op[static 256], const HotAt *const hot, void *const eol_to)
 {
     enum { SLOTS = 512 };
@@ -500,7 +542,7 @@ static void exec_loop(Session *const S)
 #define HOT_EACH(name, handler, size) {handler, &&hot_##name},
 #define CMPIF_EACH(name, handler, src, rel) {handler, &&cmpif_##name},
 #define JFC_EACH(name, src) {flow_##name, &&name},
-                HOT_ALL() HOT_CMPIFS(CMPIF_EACH) HOT_JFCS(JFC_EACH)
+                HOT_ALL() HOT_CMPIFS(CMPIF_EACH) HOT_JFCS(JFC_EACH) HOT_LJFCS(JFC_EACH)
 #undef HOT_EACH
 #undef CMPIF_EACH
 #undef JFC_EACH
@@ -509,7 +551,6 @@ static void exec_loop(Session *const S)
                 {flow_f_jt, &&f_jt},
                 {flow_jmp, &&jmp},
                 {oper_i_if, &&i_if},
-                {oper_f_if, &&f_if},
                 {flow_nextln, &&nxln},
                 {flow_gosub, &&gosub},
                 {flow_return, &&ret},
@@ -522,6 +563,11 @@ static void exec_loop(Session *const S)
                 {flow_i_next_dn, &&i_next_dn},
                 {flow_i_next_up_l, &&i_next_up_l},
                 {flow_i_next_dn_l, &&i_next_dn_l},
+                {flow_i_count_up, &&i_count_up},
+                {flow_i_count_dn, &&i_count_dn},
+                {flow_i_count_up_l, &&i_count_up_l},
+                {flow_i_count_dn_l, &&i_count_dn_l},
+                {flow_e_next, &&e_next},
                 {flow_eol, &&eol},
                 {dbug_dbg, &&dbg},
                 {exec_i_ld_a1, &&i_ld_a1},
@@ -552,7 +598,7 @@ static void exec_loop(Session *const S)
     Status st;
 
 next: /* r.ip at the op: each label steps past it */
-    exec_counted(v);
+    exec_counted(v, r.ip);
     goto *at_op[*r.ip];
 
 /* An op's handler, from the ops table: vm.ip, vm.sp and vm.opip stored around it. cold is the
@@ -565,7 +611,7 @@ next: /* r.ip at the op: each label steps past it */
     v->opip = r.ip;                                                                                \
     ops[*r.ip](S);                                                                                 \
     r = (Regs){v->ip, v->sp, v->fp};                                                               \
-    exec_counted(v);                                                                               \
+    exec_counted(v, r.ip);                                                                         \
     goto *at_op[*r.ip];
 
 cold:
@@ -640,8 +686,6 @@ jmp:
 
 i_if:
     IF_RUN(r.sp->i)
-f_if:
-    IF_RUN(r.sp->u & ~SNGL_SIGN)
 
 nxln: /* to the next stored line; the program's end, the direct line: flow_nextln's */
 {
@@ -789,8 +833,9 @@ i_jf: /* JF: past its jump, or to its target; a stop, a jump not resolved: flow_
 
     goto next;
 
-/* NEXT: stepped, back to the body until past; a stop, a jump not resolved: its handler's. */
-#define NEXT_RUN(base, up)                                                                         \
+/* NEXT: stepped by step (hot_next, hot_count_next), back to the body until past; a stop, a jump not
+   resolved: its handler's. */
+#define NEXT_RUN(step, base, up)                                                                   \
     {                                                                                              \
         const Jump *const j = (const Jump *)(r.ip + NEXT_SIZE - sizeof(Jump));                     \
                                                                                                    \
@@ -799,7 +844,7 @@ i_jf: /* JF: past its jump, or to its target; a stop, a jump not resolved: flow_
                                                                                                    \
         bool back;                                                                                 \
                                                                                                    \
-        if ((st = hot_next(r.ip, base, up, &back)) != ST_OK) {                                     \
+        if ((st = step(r.ip, base, up, &back)) != ST_OK) {                                         \
             op = r.ip;                                                                             \
             goto fail;                                                                             \
         }                                                                                          \
@@ -816,15 +861,47 @@ i_jf: /* JF: past its jump, or to its target; a stop, a jump not resolved: flow_
     goto next;
 
 i_next_up:
-    NEXT_RUN(0, true)
+    NEXT_RUN(hot_next, 0, true)
 i_next_dn:
-    NEXT_RUN(0, false)
+    NEXT_RUN(hot_next, 0, false)
 i_next_up_l:
-    NEXT_RUN(r.fp, true)
+    NEXT_RUN(hot_next, r.fp, true)
 i_next_dn_l:
-    NEXT_RUN(r.fp, false)
+    NEXT_RUN(hot_next, r.fp, false)
+i_count_up:
+    NEXT_RUN(hot_count_next, 0, true)
+i_count_dn:
+    NEXT_RUN(hot_count_next, 0, false)
+i_count_up_l:
+    NEXT_RUN(hot_count_next, r.fp, true)
+i_count_dn_l:
+    NEXT_RUN(hot_count_next, r.fp, false)
 
-    HOT_JFCS(JFC_RUN)
+e_next: /* for x in a's next: flow_e_next's */
+{
+    const Jump *const j = (const Jump *)(r.ip + E_NEXT_SIZE - sizeof(Jump));
+
+    if (v->stop || j->dest <= TO_NEXT_STMT)
+        goto slow;
+
+    if (!hot_e_next(r.ip, r.fp)) {
+        r.ip += E_NEXT_SIZE;
+        goto next;
+    }
+
+    S->strg.tmp_used = S->strg.tmp_floor;
+    v->line = j->line;
+    r.ip = at(S->allo.cache + j->dest);
+}
+
+    goto next;
+
+#define JFC_I(name, src) JFC_RUN(name, hot_jfc(&t, src))
+#define JFC_L(name, src) JFC_RUN(name, hot_ljfc(&t, src))
+    HOT_JFCS(JFC_I)
+    HOT_LJFCS(JFC_L)
+#undef JFC_I
+#undef JFC_L
 
 dbg: /* a statement's start, where nothing could stop; else dbug_dbg's */
     if (v->line != DLINE && dbug_may_stop(&S->dbug, prog_line(&S->prog, v->line)->flags))
@@ -1235,35 +1312,22 @@ void exec_r_clear(Session *const S)
 
 static Cell cell_at(const Addr a) { return load_cell(at(a)); }
 
-/* A SHORT's or a BYTE's value at a: a record's field, an array's element. */
-static int32_t narrow_ld(const Addr a, const uint8_t type)
-{
-    return type == ET_SH ? (int16_t)rd16(a) : rd8(a);
-}
-
-/* x to a SHORT's or a BYTE's bytes at a. Overflow: a SHORT's past 16 bits, a BYTE's past 0 .. 255. */
+/* x to a narrow number's bytes at a. Overflow: x past its range. */
 static void narrow_st(Session *const S, const Addr a, const uint8_t type, const Cell x)
 {
-    if (type == ET_SH) {
-        if (x.i != (int16_t)x.i)
-            repl_error(S, E_OV);
+    if (!narrow_fits(type, x))
+        repl_error(S, E_OV);
 
-        wr16(a, (uint16_t)x.u);
-    } else {
-        if (x.u > 255)
-            repl_error(S, E_OV);
-
-        wr8(a, (uint8_t)x.u);
-    }
+    narrow_wr(a, type, x);
 }
 
-/* A record's number field: a SHORT, a BYTE, a DOUBLE, else 4 bytes. */
+/* A record's number field: a narrow one, a DOUBLE, else 4 bytes. */
 void exec_fl_ld(Session *const S)
 {
     const Addr a = exec_popa(&S->vm) + exec_u16(&S->vm);
     const uint8_t type = exec_u8(&S->vm);
 
-    if (type == ET_SH || type == ET_BY)
+    if (et_narrow(type))
         exec_pushi(&S->vm, narrow_ld(a, type));
     else if (type == ET_R8)
         exec_push(&S->vm, cell_at(a));
@@ -1271,7 +1335,7 @@ void exec_fl_ld(Session *const S)
         exec_pusha(&S->vm, rd32(a));
 }
 
-/* Overflow: a SHORT's past 16 bits, a BYTE's past 0 .. 255. */
+/* Overflow: a narrow field's past its range. */
 void exec_fl_st(Session *const S)
 {
     const uint16_t off = exec_u16(&S->vm);
@@ -1281,13 +1345,20 @@ void exec_fl_st(Session *const S)
 
     if (type == ET_R8)
         store_cell(at(a), x);
-    else if (type == ET_SH || type == ET_BY)
+    else if (et_narrow(type))
         narrow_st(S, a, type, x);
     else
         wr32(a, x.u);
 }
 
-/* N.LD.A id cell n et: a SHORT or BYTE array's element. */
+void exec_n_ld_v(Session *const S) { hot_op(S, hot_n_ld_v); }
+void exec_n_ld_l(Session *const S) { hot_op(S, hot_n_ld_l); }
+void exec_n_st_v(Session *const S) { hot_op(S, hot_n_st_v); }
+void exec_n_st_l(Session *const S) { hot_op(S, hot_n_st_l); }
+void exec_p_fl_ld(Session *const S) { hot_op(S, hot_p_fl_ld); }
+void exec_p_fl_st(Session *const S) { hot_op(S, hot_p_fl_st); }
+
+/* N.LD.A id cell n et: a narrow array's element. */
 void exec_n_ld_a(Session *const S)
 {
     const Addr e = exec_elem(&S->arry, &S->vm);
@@ -1353,13 +1424,16 @@ void exec_p_ref(Session *const S)
     exec_pusha(&S->vm, a);
 }
 
-/* P.REFN et ( addr -- 0 ref ): a SHORT or BYTE array's element by reference, its ref tagged. */
+/* P.REFN et ( addr -- 0 ref ): a narrow element by reference, its ref tagged with its et. */
 void exec_p_refn(Session *const S)
 {
     const Addr a = exec_popa(&S->vm);
     exec_pusha(&S->vm, 0);
-    exec_pusha(&S->vm, a | REF_NARROW | (exec_u8(&S->vm) == ET_SH ? REF_SHORT : 0));
+    exec_pusha(&S->vm, a | REF_NARROW | (uint32_t)(exec_u8(&S->vm) - ET_SH) << REF_KIND);
 }
+
+/* A narrow ref's target's ET_*. */
+static uint8_t ref_et(const uint32_t ref) { return (uint8_t)(ET_SH + (ref >> REF_KIND & 3)); }
 
 /* A scalar parameter's ref cell's word, at its offset from the frame: its argument's address,
    tagged (mem/loc.h). */
@@ -1380,7 +1454,7 @@ void exec_v_ld(Session *const S)
     const CellKind kind = exec_u8(&S->vm);
 
     if (ref & REF_NARROW)
-        exec_pushi(&S->vm, narrow_ld(cell, ref & REF_SHORT ? ET_SH : ET_BY));
+        exec_pushi(&S->vm, narrow_ld(cell, ref_et(ref)));
     else if (kind == CELL_DOUBLE)
         exec_push(&S->vm, cell_at(cell));
     else if (kind == CELL_STRING)
@@ -1397,7 +1471,7 @@ void exec_v_st(Session *const S)
     const Cell x = exec_pop(&S->vm);
 
     if (ref & REF_NARROW)
-        narrow_st(S, cell, ref & REF_SHORT ? ET_SH : ET_BY, x);
+        narrow_st(S, cell, ref_et(ref), x);
     else if (kind == CELL_DOUBLE)
         store_cell(at(cell), x);
     else if (kind == CELL_STRING)
@@ -1471,6 +1545,15 @@ void exec_s_cat(Session *const S)
     const Addr right = exec_popa(&S->vm);
     const Addr left = exec_popa(&S->vm);
     exec_pusha(&S->vm, strg_cat(&S->strg, left, right));
+}
+
+/* S.JOIN n: n strings joined, sized first. */
+void exec_s_join(Session *const S)
+{
+    const uint32_t n = exec_u8(&S->vm);
+    const Addr r = strg_join(&S->strg, S->vm.sp, n);
+    S->vm.sp += n;
+    exec_pusha(&S->vm, r);
 }
 
 /* CALL k: routine k. */

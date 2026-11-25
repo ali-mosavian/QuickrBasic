@@ -1,0 +1,3 @@
+2
+calc.bas:4: Division by zero
+      return a div b

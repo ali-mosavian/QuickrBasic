@@ -1,0 +1,46 @@
+' OPTION DIALECT QUICKR
+' narrow fields and elements: each type's range kept, by value and by mut
+type Narrow
+    b as byte
+    ub as ubyte
+    s as short
+    us as ushort
+    bs as byte[3]
+    uss as ushort[2]
+end type
+function low(mut b as byte)
+    b = -128
+end function
+function high(mut us as ushort)
+    us = 65535
+end function
+function up(mut b as byte)
+    b = 127
+end function
+var n = Narrow(b: -128, ub: 255, s: -32768, us: 65535)
+print n.b; " "; n.ub; " "; n.s; " "; n.us
+n.b += 127
+n.us -= 65535
+print n.b; " "; n.us
+n.bs[0] = -128
+n.bs[2] = 127
+n.uss[1] = 65535
+print n.bs[0]; " "; n.bs[1]; " "; n.bs[2]; " "; n.uss[0]; " "; n.uss[1]
+up(n.b)
+high(n.us)
+print n.b; " "; n.us
+low(n.bs[2])
+n.uss[1] = 0
+high(n.uss[0])
+print n.bs[2]; " "; n.uss[0]; " "; n.uss[1]
+var bs as byte[]
+var uss as ushort[]
+bs.push(-128)
+bs.push(127)
+uss.push(65535)
+uss.push(1)
+print bs[0]; " "; bs[1]; " "; uss[0]; " "; uss[1]; " "; -128 in bs; " "; 65535 in uss
+up(bs[0])
+high(uss[1])
+print bs[0]; " "; uss[1]; " "; bs.sum(); " "; uss.sum()
+print bs.pop(); " "; uss.pop(); " "; len(bs); " "; len(uss)

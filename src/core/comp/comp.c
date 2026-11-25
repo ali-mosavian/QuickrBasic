@@ -181,6 +181,13 @@ void comp_int(Comp *const C, const uint32_t n) { node(C, N_INT, 0)->num = n; }
 Node *comp_op(Comp *const C, const uint8_t op) { return node(C, N_OP, op); }
 void comp_byte(Node *const n, const uint8_t b) { n->lit[n->nargs++] = b; }
 
+Node *comp_xop(Comp *const C, const uint8_t x)
+{
+    Node *const n = comp_op(C, O_X);
+    comp_byte(n, x);
+    return n;
+}
+
 void comp_word(Node *const n, const uint16_t w)
 {
     comp_byte(n, (uint8_t)w);
@@ -200,6 +207,13 @@ Node *comp_jump(Comp *const C, const uint8_t op)
     Node *const n = node(C, N_JUMP, op);
     n->id = C->lnum;
     n->num = C->jline ? C->jline : LREF_AT | C->lnumat;
+    return n;
+}
+
+Node *comp_xjump(Comp *const C, const uint8_t x)
+{
+    Node *const n = comp_jump(C, O_X);
+    comp_byte(n, x);
     return n;
 }
 
@@ -633,6 +647,7 @@ static void mapstmt(Comp *const C, const uint32_t bodyoff)
 static void mark(Comp *const C)
 {
     comp_flush(C); /* an IF's before its THEN's statement */
+    C->code->held = false;
     ast_reset(C->ast);
     mapstmt(C, (uint32_t)(C->p - C->body));
 }
@@ -695,14 +710,17 @@ static void done(Comp *const C)
 static void fail(Comp *const C, const uint8_t err)
 {
     comp_flush(C);                   /* the steps checked before the error */
-    uint8_t *const o = C->code->out; /* ERR err dg at:4 state:2 */
+    const ErrOp e = {
+        .op = O_X,
+        .xop = X_ERR,
+        .code = err,
+        .dg = C->dg,
+        .at = (uint32_t)(C->p - C->body),
+        .state = C->dfa,
+    };
     C->errs = true;
-    o[0] = O_ERR;
-    o[1] = err;
-    o[2] = C->dg;
-    store32(o + 3, (uint32_t)(C->p - C->body));
-    store16(o + 7, C->dfa);
-    C->code->out = o + 9;
+    memcpy(C->code->out, &e, sizeof e);
+    C->code->out += sizeof e;
     C->dg = 0;
     C->dfa = 0xFFFF;
     comp_flush(C);
@@ -1060,8 +1078,8 @@ static void act_data(Comp *const C) { C->p = comp_skipdata(C->kw + 1); }
 /* REM: the line's end. */
 static void act_rem(Comp *const C) { done(C); }
 
-/* RUN, RESTORE [line]: CALL k, or op and the line, set at link. */
-static void runres(Comp *const C, const uint8_t k, const uint8_t op)
+/* RUN, RESTORE [line]: CALL k, or X op x and the line, set at link. */
+static void runres(Comp *const C, const uint8_t k, const uint8_t x)
 {
     if (comp_end(C)) {
         comp_call(C, k);
@@ -1070,10 +1088,10 @@ static void runres(Comp *const C, const uint8_t k, const uint8_t op)
 
     C->modlabel = true; /* the module's label */
     comp_lnum(C);
-    comp_jump(C, op);
+    comp_xjump(C, x);
 }
-static void act_run(Comp *const C) { runres(C, K_RUN, O_RUN_L); }
-static void act_res(Comp *const C) { runres(C, K_RES, O_RESTORE_L); }
+static void act_run(Comp *const C) { runres(C, K_RUN, X_RUN_L); }
+static void act_res(Comp *const C) { runres(C, K_RES, X_RESTORE_L); }
 
 /* A bound's expression, as an INT; true and *v: its value when it folds to a constant. */
 static bool bound(Comp *const C, int32_t *const v)

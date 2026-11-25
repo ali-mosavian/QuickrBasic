@@ -2,9 +2,9 @@
  *
  * # How it works
  * The arena, [lo, hi) from pmem_init, is carved at start: first the fixed regions (allo_carve: the
- * arrays' headers and the control stack, the POKE memory, and any other module's region a stored
- * Addr can reach), then the blocks (allo_new: the code cache, the program store, the editor's line
- * map, the symbol tables), then the BASIC heap, bot to top: arrays up from bot (allo.arrays), strings
+ * control stack, the POKE memory, and any other module's region a stored Addr can reach), then the
+ * blocks (allo_new: the code cache, the program store, the editor's line map, the symbol tables),
+ * then the BASIC heap, bot to top: arrays up from bot (allo.arrays), strings
  * down from top (allo.strings).
  *
  * A block is reached by its handle, never by a stored Addr: it moves when one before it grows.
@@ -22,7 +22,7 @@
  * | alloc_grow (EAX, ECX; CF) | allo_grow(h, size) | MIRROR; D2 |
  * | alloc_sel, sel_set, mm.peekseg | | D1 |
  * | plt_heap's hbot/htop | pmem_init, then allo_init(lo, hi) | MIRROR |
- * | g_dsb+0BC00h HDRBASE, HDRLIM | Allo.hdr_base, Allo.hdr_base + HDRSZ | MIRROR |
+ * | g_dsb+0BC00h HDRBASE, HDRLIM | OLDHDRSZ, unused | MOVED: mem/array.c's heap blocks |
  * | CSLIM, CSTOP | Allo.cs_lim, Allo.cs_top | MIRROR |
  * | g_pokeb | Allo.poke (POKESZ) | MIRROR |
  * | g_tmpd, sg.tmplin | Strg.tmp | MOVED: strg_init (mem/string.c) |
@@ -54,8 +54,7 @@ void allo_init(Allo *const al, Fault *const f, const Addr lo, const Addr hi)
     al->fault = f;
     al->bot = lo;
     al->top = hi;
-    al->hdr_base = allo_carve(al, HDRSZ + CSSZ + CSTAIL);
-    al->cs_lim = al->hdr_base + HDRSZ;
+    al->cs_lim = allo_carve(al, OLDHDRSZ + CSSZ + CSTAIL) + OLDHDRSZ;
     al->cs_top = al->cs_lim + CSSZ;
     al->poke = allo_carve(al, POKESZ);
 }

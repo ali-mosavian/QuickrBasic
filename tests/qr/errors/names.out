@@ -1,0 +1,27 @@
+names.bas:3:7: unknown name nope
+  print nope
+        ^
+names.bas:5:5: a is already declared
+  let a = 2
+      ^
+names.bas:8:10: f is already declared
+  function f()
+           ^
+names.bas:10:1: f is a function: call it
+  f = 3
+  ^
+names.bas:11:7: print can't spell a function()
+  print f
+        ^
+names.bas:12:1: unknown function g
+  g()
+  ^
+names.bas:14:1: h is not a function
+  h()
+  ^
+names.bas:15:11: unknown const later_var
+  const C = later_var
+            ^
+names.bas:18:11: unknown name local_of_other
+      print local_of_other
+            ^

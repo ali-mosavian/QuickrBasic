@@ -1,0 +1,39 @@
+maps.bas:3:15: a dict's key is an int, a string or an enum
+  var a as dict[double, int]
+                ^
+maps.bas:5:3: an int is not a string: write string(x)
+  m[3] = 1
+    ^
+maps.bas:6:14: + joins two strings: write string(x)
+  print m["x"] + "y"
+               ^
+maps.bas:7:1: a dict's keys don't change: assign d[k] for its values
+  for mut k in m
+  ^
+maps.bas:10:5: m is borrowed by the for over it: it can't change here
+      m["z"] = 1
+      ^
+maps.bas:11:7: m is borrowed by the for over it: it can't change here
+      m.remove(k)
+        ^
+maps.bas:13:3: only a list has push()
+  m.push(1)
+    ^
+maps.bas:14:9: keys() takes no values
+  print m.keys(1)
+          ^
+maps.bas:15:5: a let needs a value
+  let o as dict[string, int]
+      ^
+maps.bas:16:2: o is a let: it can't change
+  o["a"] = 1
+   ^
+maps.bas:18:9: only a dict has keys()
+  print l.keys()
+          ^
+maps.bas:19:7: print can't spell a dict[string, int]
+  print m
+        ^
+maps.bas:21:9: get() of a dict of T or Error: test k in d, then read d[k]
+  print r.get("a") is none
+          ^

@@ -4,9 +4,10 @@
  * Each event has a slot (EventSlot, defs.h). The platform's tick and its trapped keys set vm.stop's
  * SF_TICK; the STOP check then counts them (evnt_poll), and an event an ON slot can run sets
  * SF_EV, so the check runs it (evnt_run): a GOSUB to its line that comes back to the op that
- * checked. Its slot runs no other event till that RETURN (evnt_return). PLAY's happens when the
- * notes waiting in the background music fall below its n. COM, PEN and STRIG are accepted and
- * never fire.
+ * checked. One run mid-statement, the statement's values on the stack, holds sweeps till its
+ * RETURN (mem/array.c). Its slot runs no other event till that RETURN (evnt_return). PLAY's happens
+ * when the notes waiting in the background music fall below its n, seen on a tick or after PLAY(n)
+ * looks (vm/sound.c). COM, PEN and STRIG are accepted and never fire.
  *
  * # Example
  *   10 ON TIMER(5) GOSUB tick : TIMER ON      tick runs every 5 seconds, between statements
@@ -256,7 +257,14 @@ bool evnt_run(Session *const S)
 
         if (runnable(s)) {
             s->flags = EF_RUNNING; /* no longer pending */
-            flow_push(S, FRAME_EVENT)->event = (uint8_t)i;
+            const bool held = S->vm.sp != flow_stack_base(&S->vm);
+            Frame *const f = flow_push(S, FRAME_EVENT);
+            f->event = (uint8_t)i;
+            f->held = held;
+
+            if (held)
+                arry_hold(&S->arry);
+
             flow_jump(S, s->line);
             break;
         }

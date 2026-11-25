@@ -1,0 +1,18 @@
+lex.bas:3:7: bad number 0x
+  print 0x
+        ^
+lex.bas:4:7: bad number 0b102
+  print 0b102
+        ^
+lex.bas:5:7: number 99999999999999999999 too large
+  print 99999999999999999999
+        ^
+lex.bas:6:7: string not closed
+  print "open
+        ^
+lex.bas:7:12: unknown escape \q
+  print "bad \q escape"
+             ^
+lex.bas:8:9: unexpected character #
+  print 1 # 2
+          ^

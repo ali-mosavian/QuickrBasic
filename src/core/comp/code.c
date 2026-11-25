@@ -8,6 +8,11 @@
  * A conversion (code_toint, code_tofloat, ...) looks at the value's type and appends the op that
  * changes it; an INT load just made is rewritten in place where it can be (code_tofloat).
  *
+ * An op that pushes an address into the heap marks the statement held: a call after it, QBasic's
+ * or Quickr's, is wrapped in HOLD and UNHOLD (code_calling), so no sweep moves what the address
+ * points at (mem/array.c). A call's arguments and a load take theirs: the mark goes back to what
+ * it was before them. The statement's start clears it.
+ *
  * # asm structure (retired/asm32/comp/comp.asm, expr.asm)
  * | asm | here | |
  * |---|---|---|
@@ -37,6 +42,8 @@ void code_opb(Code *const c, const uint8_t op, const uint8_t b)
     code_op(c, op);
     code_byte(c, b);
 }
+
+void code_xop(Code *const c, const uint8_t x) { code_opb(c, O_X, x); }
 
 void code_word(Code *const c, const uint16_t w)
 {
@@ -107,7 +114,22 @@ void code_int(Code *const c, const uint32_t n)
     c->iloadend = c->out;
 }
 
-void code_call(Code *const c, const uint8_t k) { code_opb(c, O_CALL, k); }
+bool code_heapop(const uint8_t op)
+{
+    return op == O_R_ADDR || op == O_RA_ADDR || op == O_V_REF || op == O_FE_ADDR;
+}
+
+void code_op(Code *const c, const uint8_t op)
+{
+    c->held |= code_heapop(op);
+    code_byte(c, op);
+}
+
+void code_call(Code *const c, const uint8_t k)
+{
+    c->held |= k == K_FCELL; /* a field cell's heap block */
+    code_opb(c, O_CALL, k);
+}
 
 /* cm_vop: X.LD.V or X.ST.V of a scalar parameter: V.LD, V.ST id kind (kind 0 4 bytes, 1 8, 2 a
    Desc); false: op not one of them. */
@@ -160,6 +182,8 @@ static bool parop(Code *const c, const uint8_t op, const uint32_t id)
 
 void code_opid(Code *const c, const uint8_t op, const uint32_t id, const bool par)
 {
+    c->held |= code_heapop(op); /* a parameter's: its ref */
+
     if (par && parop(c, op, id))
         return;
 
@@ -169,6 +193,22 @@ void code_opid(Code *const c, const uint8_t op, const uint32_t id, const bool pa
 
     if (exec_flags(op) & FA) /* the array's cell, link's */
         code_dword(c, 0);
+}
+
+bool code_calling(Code *const c, const bool sweeps)
+{
+    if (c->held && sweeps)
+        code_xop(c, X_HOLD);
+
+    return c->held;
+}
+
+void code_called(Code *const c, const bool waiting, const bool sweeps)
+{
+    if (waiting && sweeps)
+        code_xop(c, X_UNHOLD);
+
+    c->held = waiting;
 }
 
 uint8_t *code_intleaf(Code *const c)
@@ -192,9 +232,12 @@ void code_toint(Code *const c)
     if (c->type == T_INT)
         return;
 
-    const uint8_t op = c->type == T_DBL ? O_D_TOI : O_F_TOI;
+    if (c->type == T_DBL)
+        code_xop(c, X_D_TOI);
+    else
+        code_op(c, O_F_TOI);
+
     c->type = T_INT;
-    code_op(c, op);
 }
 
 void code_todouble(Code *const c)
@@ -218,11 +261,11 @@ void code_dtest(Code *const c)
         return;
 
     c->type = T_INT;
-    code_op(c, O_D_NZ);
+    code_xop(c, X_D_NZ);
 }
 
-/* A byte or an address: a U8 load needs nothing. */
-static void tonarrow(Code *const c, const uint8_t fop, const uint8_t iop)
+/* A byte or an address: a U8 load needs nothing; a SINGLE's, X op fx. */
+static void tonarrow(Code *const c, const uint8_t fx, const uint8_t iop)
 {
     if (c->type == T_DBL)
         code_toint(c);
@@ -237,11 +280,15 @@ static void tonarrow(Code *const c, const uint8_t fop, const uint8_t iop)
     }
 
     c->type = T_INT;
-    code_op(c, is_int ? iop : fop);
+
+    if (is_int)
+        code_op(c, iop);
+    else
+        code_xop(c, fx);
 }
 
-void code_tobyte(Code *const c) { tonarrow(c, O_F_TOB, O_I_TOB); }
-void code_toaddr(Code *const c) { tonarrow(c, O_F_TOA, O_I_TOA); }
+void code_tobyte(Code *const c) { tonarrow(c, X_F_TOB, O_I_TOB); }
+void code_toaddr(Code *const c) { tonarrow(c, X_F_TOA, O_I_TOA); }
 
 void code_tofloat(Code *const c)
 {

@@ -1,0 +1,3 @@
+5 4
+rt_length.bas:10: Subscript out of range
+  print a[4]

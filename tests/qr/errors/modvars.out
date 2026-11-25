@@ -1,0 +1,6 @@
+modvars.bas:22:6: pt is written by grow: this call can't borrow it
+  grow(pt)
+       ^
+modvars.bas:23:5: items is written by add: this call can't borrow it
+  add(items)
+      ^

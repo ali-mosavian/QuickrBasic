@@ -25,7 +25,7 @@
  * | g_typ, g_fld | Decl.types, TypeDef.fields (TypeDef: T_NAM T_NF T_SIZE, Field: F_NAM F_ET F_SUB F_FIX F_OFF) | D2 |
  * | g_obase, g_oexp, g_obset, g_odim, g_ndev, g_dscope, g_dredim | decl.opts, baseset, dimmed, ndefev, scope, redim | D2 |
  * | g_dfev, TDEFEV, NDEV, DEVSZ | Decl.defevs of DefEvent {line, deft[26]} | D2 |
- * | g_dast, g_etsz | decl_astype[5], decl_etsize[8] | MIRROR |
+ * | g_dast, g_etsz | decl_astype[5], decl_etsize[10] | MIRROR |
  * | g_dft0, g_dett | deft0, deftype | MIRROR |
  * | g_wpre .. g_wtail, g_wbuf | repl_warn (io/repl.c) | MOVED |
  * | lx.dproc, lx.ntyps, lx.dtype | decl.proc, decl.ntypes, decl.type | MOVED: lex's state before |
@@ -41,6 +41,8 @@
 #include "comp/bind.h"
 #include "comp/comp.h"
 #include "comp/dfa.h"
+#include "comp/export.h"
+#include "io/msg.h"
 #include "mem/program.h"
 #include "mem/scope.h"
 #include "mem/symbols.h"
@@ -67,7 +69,7 @@ typedef struct {
 static uint32_t decl_own(const Decl *const d) { return d->proc ? d->proc : d->module; }
 
 const uint8_t decl_astype[5] = {ET_I2, ET_I4, ET_R4, ET_R8, ET_SD};
-const uint8_t decl_etsize[8] = {0, 4, 4, 4, 8, 0, 2, 1};
+const uint8_t decl_etsize[10] = {0, 4, 4, 4, 8, 0, 2, 1, 1, 2};
 
 static const uint8_t deft0[NLETTERS] = {
     ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4,
@@ -411,6 +413,29 @@ static void decl_fail(const DeclScan *const ds, const uint8_t code)
     decl_fail_at(ds, ds->at, code);
 }
 
+/* The TYPE named at the cursor, past it; Type mismatch: a Quickr record QBasic can't use. */
+static uint32_t decl_record(DeclScan *const ds)
+{
+    const uint8_t *const at = ds->at;
+    const uint32_t t = symb_name(ds->sy, decl_name(ds, nullptr))->rec;
+
+    if (t && decl_type(ds->d, t)->alien) {
+        const uint32_t off = ds->body ? (uint32_t)(at - ds->body) : FAULT_KEEP;
+        fault_raise(
+            ds->d->fault,
+            (Failure){
+                .code = E_TM,
+                .dg = DG_TYPE_MISMATCH_QUICKR,
+                .at = off,
+                .line = FAULT_KEEP,
+            }
+
+        );
+    }
+
+    return t;
+}
+
 /* The name n at p declared by the module, NM_PRIV by PRIVATE: an imported one's * binding dropped.
    Duplicate definition: another the module binds. */
 static void decl_mine(const DeclScan *const ds, const uint8_t *const p, const uint32_t n)
@@ -567,7 +592,7 @@ static void decl_as(DeclScan *const ds, Binding *const b, const uint32_t n, cons
 
     if (c == M_VAR) { /* AS a TYPE: a record, its array */
         ds->at++;
-        b->rec[arr] = symb_name(ds->sy, decl_name(ds, nullptr))->rec;
+        b->rec[arr] = decl_record(ds);
         symb_name(ds->sy, n)->flags |= NM_REC;
         return;
     }
@@ -603,11 +628,14 @@ static void decl_as(DeclScan *const ds, Binding *const b, const uint32_t n, cons
     ds->at = decl_item(ds->at);
 }
 
-/* ( [BYVAL] n[()] [AS type] {, ..} ): as DIM's. */
-static void decl_params(DeclScan *const ds)
+/* ( [BYVAL] n[()] [AS type] {, ..} ): as DIM's. The first one's why Quickr can't pass it
+   (comp/export.h), EW_NONE none. */
+static ExpWhy decl_params(DeclScan *const ds)
 {
+    ExpWhy why = EW_NONE;
+
     if (*ds->at != '(')
-        return;
+        return why;
 
     ds->at++;
 
@@ -615,12 +643,15 @@ static void decl_params(DeclScan *const ds)
         if (*ds->at == TK_BYVAL)
             ds->at++;
         if (*ds->at != M_VAR)
-            return;
+            return why;
 
-        decl_dim1(ds, decl_name(ds, nullptr));
+        const uint32_t n = decl_name(ds, nullptr);
+        const bool arr = *ds->at == '(';
+        decl_dim1(ds, n);
+        why = why ? why : expo_value_why(ds->d, scop_get(ds->sc, ds->d->scope, n), arr);
 
         if (*ds->at != ',')
-            return;
+            return why;
 
         ds->at++;
     }
@@ -888,7 +919,7 @@ static void decl_field(DeclScan *const ds)
 
     if (c == M_VAR) { /* another TYPE's */
         ds->at++;
-        f->sub = symb_name(ds->sy, decl_name(ds, nullptr))->rec;
+        f->sub = decl_record(ds);
         size = decl_type(ds->d, f->sub)->size;
     } else if (c == TK_X) {
         f->et = decl_xastype(ds->at[2]);
@@ -928,6 +959,60 @@ static void decl_field(DeclScan *const ds)
         decl_fail_at(ds, name, E_OM);
 
     decl_fielddeep(ds, td, f, elems, size);
+    td->size += size * elems;
+}
+
+uint32_t decl_newtype(Decl *const d, Symb *const sy, const uint32_t name)
+{
+    const DeclScan ds = {.d = d, .sy = sy};
+
+    if (!d->types.n && !btab_add(&d->types, &d->arena))
+        decl_fail(&ds, E_OM);
+
+    TypeDef *const td = btab_add(&d->types, &d->arena);
+
+    if (!td)
+        decl_fail(&ds, E_OM);
+
+    *td = (TypeDef){.name = name};
+
+    return ++d->ntypes;
+}
+
+void decl_newfield(
+    Decl *const d,
+    const uint32_t t,
+    const uint32_t name,
+    const uint32_t et,
+    const uint32_t count,
+    const bool dyn
+)
+{
+    DeclScan ds = {.d = d};
+
+    TypeDef *const td = btab_at(&d->types, t);
+    decl_room(&ds, (void **)&td->fields, td->nfld, &td->cap, sizeof *td->fields);
+    Field *const f = &td->fields[td->nfld++];
+    *f = (Field){
+        .name = name,
+        .et = et >= ET_REC ? 0 : et,
+        .sub = et >= ET_REC ? et - ET_REC : 0,
+        .off = td->size,
+        .dyn = dyn,
+    };
+
+    const FieldDim dim = {.count = count};
+
+    const uint32_t elems = count ? decl_fielddims(&ds, f, &dim, 1, nullptr) : 1;
+    const uint32_t size = dyn              ? sizeof(ArrSlot)
+                          : f->sub         ? decl_type(d, f->sub)->size
+                          : f->et == ET_SD ? DSZ
+                                           : decl_etsize[f->et];
+
+    if (td->size + (uint64_t)size * elems > TYPE_MAX)
+        decl_fail(&ds, E_OM);
+
+    decl_fielddeep(&ds, td, f, elems, size);
     td->size += size * elems;
 }
 
@@ -1063,10 +1148,17 @@ static void decl_subfn(DeclScan *const ds, const uint8_t flag)
     scop_bind(ds->sc, ds->d->module, n)->flags |= BF_PROC;
     ds->d->proc = n;
     ds->d->scope = n;
-    decl_params(ds);
+    uint32_t verdict = decl_params(ds); /* as Quickr sees it (comp/export.h) */
 
-    if (flag == NM_FUNC)
+    if (flag == NM_FUNC) {
+        const uint8_t *const as = ds->at + (*ds->at == ')');
+        const bool arr = *as == TK_AS && *decl_item(as + 1) == '(';
         decl_result(ds, n, true);
+        const ExpWhy res = expo_value_why(ds->d, scop_get(ds->sc, n, n), arr);
+        verdict = verdict ? verdict : res * EXP_RESULT;
+    }
+
+    scop_get(ds->sc, ds->d->module, n)->val = (int32_t)verdict;
 }
 
 /* SHARED (BF_REF), STATIC (BF_STAT) n[()] [AS t] {, ..} */
@@ -1499,7 +1591,7 @@ void decl_defevents(Decl *const d, Scop *const sc, Symb *const sy, const Prog *c
     memcpy(sy->deft, deft0, NLETTERS);
 
     for (uint32_t rec = PROGBASE, len; (len = prog_line(pg, rec)->len); rec += len) {
-        if (prog_line(pg, rec)->flags & (LF_ASIS | LF_NODEF))
+        if (prog_line(pg, rec)->flags & (LF_ASIS | LF_NODEF | LF_TEXT))
             continue;
 
         DeclScan scan = {

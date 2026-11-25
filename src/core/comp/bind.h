@@ -7,6 +7,21 @@
 
 /* An alias by FROM's *: it yields to the module's own name. */
 enum : uint32_t { BIND_STAR = 0x80000000 };
+/* What a name exports: its kinds. */
+enum : uint8_t { BIND_PROC = 1, BIND_TYPE = 2, BIND_CONST = 4, BIND_VAR = 8 };
+
+/* What name t exports of its module's own: its kinds, 0 none (PRIVATE, imported, a module's). */
+uint8_t bind_exports(const Scop *sc, const Symb *sy, uint32_t t);
+/* Each name module m exports, of kinds, to fn with ctx: its name, its kinds of them. */
+typedef void BindExportFn(void *ctx, uint32_t t, uint8_t k);
+void bind_each_export(
+    const Scop *sc,
+    const Symb *sy,
+    uint32_t m,
+    uint8_t kinds,
+    BindExportFn *fn,
+    void *ctx
+);
 
 /* Module m binds n (its AS name, else its text) to module to: IMPORT's, FROM's of a package; again
    to the same, nothing. Duplicate definition: m declares the name, or binds it otherwise. */

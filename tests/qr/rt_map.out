@@ -1,0 +1,3 @@
+36
+rt_map.bas:6: Subscript out of range
+  print ages["zed"]

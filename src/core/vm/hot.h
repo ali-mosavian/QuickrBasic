@@ -239,17 +239,21 @@ static inline Status hot_int(Regs *const r, const HotSrc src, const HotOp op)
     X(i_step_v, HOT_VAR, HOT_STEP)                                                                 \
     X(i_mod, HOT_POPPED, HOT_MOD)                                                                  \
     X(i_xor, HOT_POPPED, HOT_XOR)                                                                  \
-    X(i_eqv, HOT_POPPED, HOT_EQV)                                                                  \
-    X(i_imp, HOT_POPPED, HOT_IMP)                                                                  \
     X(i_mod_u8, HOT_U8, HOT_MOD)                                                                   \
     HOT_INT_OPS(X, _i16, HOT_I16)                                                                  \
     X(i_mod_i16, HOT_I16, HOT_MOD)                                                                 \
     HOT_INT_OPS(X, _l, HOT_LOC)                                                                    \
     X(i_step_l, HOT_LOC, HOT_STEP)
 
+/* The INT ops behind X. */
+#define HOT_XINTS(X)                                                                               \
+    X(i_eqv, HOT_POPPED, HOT_EQV)                                                                  \
+    X(i_imp, HOT_POPPED, HOT_IMP)
+
 #define X(name, src, op)                                                                           \
     static inline Status hot_##name(Regs *const r) { return hot_int(r, src, op); }
 HOT_INTS(X)
+HOT_XINTS(X)
 #undef X
 
 /* The popped INT against the right operand: OPER_GT, OPER_EQ or OPER_LT. */
@@ -422,12 +426,6 @@ static inline Status hot_f_ld_li(Regs *const r)
     return ST_OK;
 }
 
-static inline Status hot_f_ld_pi(Regs *const r)
-{
-    (--r->sp)->a = SNGL_PI;
-    return ST_OK;
-}
-
 /* -0 stays 0. */
 static inline Status hot_f_neg(Regs *const r)
 {
@@ -513,8 +511,6 @@ static inline Status hot_i_chk8(Regs *const r) { return r->sp->u > 255 ? E_OV : 
 #define HOT_FAILS(X)                                                                               \
     X(i_neg, oper_i_neg)                                                                           \
     X(f_toi, oper_f_toi)                                                                           \
-    X(f_tob, oper_f_tob)                                                                           \
-    X(f_toa, oper_f_toa)                                                                           \
     X(i_tob, oper_i_tob)                                                                           \
     X(i_toa, oper_i_toa)                                                                           \
     X(i_chk16, exec_i_chk16)                                                                       \
@@ -539,6 +535,224 @@ static inline Status hot_next(const uint8_t *const op, const Addr base, const bo
     const int32_t lim = (int32_t)rd32(base + load32(op + 1 + 2 * VCELL));
     *back = up ? n <= lim : n >= lim;
     return ST_OK;
+}
+
+/* Quickr's NEXT of counter *n, not past lim, by step: true and *n stepped unless lim is less than a
+   step away. The distance is unsigned, so the counter stops at an INT's last value. */
+static inline bool hot_counted(
+    uint32_t *const n,
+    const uint32_t lim,
+    const uint32_t step,
+    const bool up
+)
+{
+    if (up ? lim - *n < step : *n - lim < 0u - step)
+        return false;
+
+    *n += step;
+    return true;
+}
+
+/* I.COUNT.UP or .DN at op, its cells as I.NEXT's: hot_counted's, the counter stored when stepped.
+   It never fails; a Status for NEXT_RUN. */
+static inline Status hot_count_next(
+    const uint8_t *const op,
+    const Addr base,
+    const bool up,
+    bool *const back
+)
+{
+    const Addr cell = base + load32(op + 1);
+    uint32_t n = rd32(cell);
+    *back = hot_counted(
+        &n,
+        rd32(base + load32(op + 1 + 2 * VCELL)),
+        rd32(base + load32(op + 1 + VCELL)),
+        up
+    );
+
+    if (*back)
+        wr32(cell, n);
+
+    return ST_OK;
+}
+
+/* A narrow number's value at a: a record's field, an array's element, by its ET_*. */
+static inline int32_t narrow_ld(const Addr a, const uint8_t type)
+{
+    switch (type) {
+    case ET_SH:
+        return (int16_t)rd16(a);
+
+    case ET_US:
+        return rd16(a);
+
+    case ET_SB:
+        return (int8_t)rd8(a);
+
+    default:
+        return rd8(a);
+    }
+}
+
+/* Does x fit narrow type's range? */
+static inline bool narrow_fits(const uint8_t type, const Cell x)
+{
+    switch (type) {
+    case ET_SH:
+        return x.i == (int16_t)x.i;
+
+    case ET_US:
+        return x.u <= UINT16_MAX;
+
+    case ET_SB:
+        return x.i == (int8_t)x.i;
+
+    default:
+        return x.u <= UINT8_MAX;
+    }
+}
+
+static inline void narrow_wr(const Addr a, const uint8_t type, const Cell x)
+{
+    if (type == ET_SH || type == ET_US)
+        wr16(a, (uint16_t)x.u);
+    else
+        wr8(a, (uint8_t)x.u);
+}
+
+/* N.LD ( -- x ) and N.ST ( x -- ) cell et: a narrow field of a record in cells. Overflow: x past
+   its range, nothing stored. */
+static inline Status hot_n_ld(Regs *const r, const bool local)
+{
+    const Addr cell = hot_cell(r, local);
+    (--r->sp)->i = narrow_ld(cell, hot_u8(r));
+    return ST_OK;
+}
+
+static inline Status hot_n_st(Regs *const r, const bool local)
+{
+    const Addr cell = hot_cell(r, local);
+    const uint8_t type = hot_u8(r);
+
+    if (!narrow_fits(type, *r->sp))
+        return E_OV;
+
+    narrow_wr(cell, type, *r->sp++);
+    return ST_OK;
+}
+
+static inline Status hot_n_ld_v(Regs *const r) { return hot_n_ld(r, false); }
+static inline Status hot_n_ld_l(Regs *const r) { return hot_n_ld(r, true); }
+static inline Status hot_n_st_v(Regs *const r) { return hot_n_st(r, false); }
+static inline Status hot_n_st_l(Regs *const r) { return hot_n_st(r, true); }
+
+/* P.FL.LD ( -- x ) and P.FL.ST ( x -- ) ref off:2 et: a number field of the record whose address
+   a parameter's ref cell, ref bytes past the frame, holds; *type its ET_*. Overflow: a narrow
+   field's x past its range, nothing stored. */
+static inline Addr hot_pfield(Regs *const r, uint8_t *const type)
+{
+    const Addr rec = rd32(r->fp + hot_u32(r)) & REF_ADDR;
+    const Addr a = rec + load16(r->ip);
+    *type = r->ip[2];
+    r->ip += 3;
+    return a;
+}
+
+static inline Status hot_p_fl_ld(Regs *const r)
+{
+    uint8_t type;
+    const Addr a = hot_pfield(r, &type);
+
+    if (type == ET_R8)
+        *--r->sp = load_cell(at(a));
+    else
+        (--r->sp)->i = et_narrow(type) ? narrow_ld(a, type) : (int32_t)rd32(a);
+
+    return ST_OK;
+}
+
+static inline Status hot_p_fl_st(Regs *const r)
+{
+    uint8_t type;
+    const Addr a = hot_pfield(r, &type);
+    const Cell x = *r->sp;
+
+    if (type == ET_R8)
+        store_cell(at(a), x);
+    else if (!et_narrow(type))
+        wr32(a, x.u);
+    else if (narrow_fits(type, x))
+        narrow_wr(a, type, x);
+    else
+        return E_OV;
+
+    r->sp++;
+    return ST_OK;
+}
+
+/* E.NEXT's other x: i's and x's Locs both a resumable's refs or neither; x a number's cell, a
+   narrow one's widened, or a record's size bytes. */
+[[gnu::noinline]]
+static bool hot_e_other(const uint8_t *const op, const Addr fp, const uint32_t size)
+{
+    const Addr i = loc_at((Loc){(int32_t)load32(op + 1)}, fp);
+
+    const Addr a = ((const ArrSlot *)at(loc_at((Loc){(int32_t)load32(op + 1 + VCELL)}, fp)))->hdr;
+
+    const uint32_t n = rd32(i) + 1;
+    wr32(i, n);
+
+    if (!a || n >= ((const ArrayHdr *)at(a))->fast)
+        return false;
+
+    const ArrayHdr *const h = (const ArrayHdr *)at(a);
+    const Addr x = loc_at((Loc){(int32_t)load32(op + 1 + 2 * VCELL)}, fp);
+
+    const Addr e = h->data + n * size;
+
+    if (size == 8)
+        store_cell(at(x), load_cell(at(e)));
+    else if (size == 4)
+        wr32(x, rd32(e));
+    else if (et_narrow(h->et))
+        wr32(x, narrow_ld(e, (uint8_t)h->et));
+    else
+        memcpy(at(x), at(e), size);
+
+    return true;
+}
+
+/* E.NEXT at op, for x in a's next: its index stepped; under a's count, x a's element there, true.
+   Its cells are Locs (comp/select.c): i's and x's, the loop's own, both in the frame or neither;
+   a's a parameter's, a global's or a local's. Its size 0: x a number of 4 bytes or 8, else
+   hot_e_other's. */
+static inline bool hot_e_next(const uint8_t *const op, const Addr fp)
+{
+    const uint32_t size = load16(op + 1 + 3 * VCELL);
+
+    if (size)
+        return hot_e_other(op, fp, size);
+
+    const int32_t iw = (int32_t)load32(op + 1);
+    const Addr base = iw < 0 ? fp : 0;
+    const Addr a = ((const ArrSlot *)at(loc_at((Loc){(int32_t)load32(op + 1 + VCELL)}, fp)))->hdr;
+
+    const uint32_t n = rd32(base + (uint32_t)iw) + 1;
+    wr32(base + (uint32_t)iw, n);
+
+    if (!a || n >= ((const ArrayHdr *)at(a))->fast)
+        return false;
+
+    const ArrayHdr *const h = (const ArrayHdr *)at(a);
+    const Addr x = base + load32(op + 1 + 2 * VCELL);
+
+    if (h->et == ET_R8)
+        store_cell(at(x), load_cell(at(h->data + n * sizeof(Cell))));
+    else
+        wr32(x, rd32(h->data + n * 4));
+
+    return true;
 }
 
 /* The INT compare-and-branches (comp/fuse.c): name, the compare's right operand. */
@@ -670,6 +884,461 @@ static inline Status hot_f_tod(Regs *const r)
 static inline Status hot_d_tof(Regs *const r)
 {
     r->sp->u = sngl_bits((float)r->sp->d);
+    return ST_OK;
+}
+
+/* ---- LONG, ULONG and UINT: a LONG the cell's 8 bytes, a UINT its low dword. Those behind X run
+   off their handlers alone. ---- */
+
+/* Where a LONG op's right operand comes from, what the op does: a LONG's, wrapped (W), a ULONG's
+   (U). */
+typedef enum { HL_POPPED, HL_VAR, HL_LOC, HL_U8 } HotLsrc;
+typedef enum {
+    HL_ADD,
+    HL_SUB,
+    HL_MUL,
+    HL_DIV,
+    HL_MOD,
+    HL_AND,
+    HL_OR,
+    HL_XOR,
+    HL_WADD,
+    HL_WSUB,
+    HL_WMUL,
+    HL_UADD,
+    HL_USUB,
+    HL_UMUL,
+    HL_UDIV,
+    HL_UMOD,
+} HotLop;
+
+/* A LONG op's bytes, by its right operand. */
+static inline uint32_t hot_lsize(const HotLsrc src)
+{
+    return src == HL_VAR || src == HL_LOC ? 1 + VCELL : src == HL_U8 ? 2 : 1;
+}
+
+static inline uint64_t hot_loperand(Regs *const r, const HotLsrc src)
+{
+    switch (src) {
+    case HL_POPPED:
+        return r->sp++->raw;
+
+    case HL_VAR:
+    case HL_LOC:
+        return load_cell(at(hot_cell(r, src == HL_LOC))).raw;
+
+    case HL_U8:
+        return hot_u8(r);
+    }
+
+    unreachable();
+}
+
+/* The top cell op the right operand. Overflow; Division by zero. */
+static inline Status hot_long(Regs *const r, const HotLsrc src, const HotLop op)
+{
+    const uint64_t b = hot_loperand(r, src);
+    Cell *const top = r->sp;
+    const uint64_t a = top->raw;
+    const int64_t sa = (int64_t)a, sb = (int64_t)b;
+    int64_t s = 0;
+    uint64_t v = 0;
+    bool over = false;
+
+    switch (op) {
+    case HL_ADD:
+        over = __builtin_add_overflow(sa, sb, &s);
+        v = (uint64_t)s;
+        break;
+
+    case HL_SUB:
+        over = __builtin_sub_overflow(sa, sb, &s);
+        v = (uint64_t)s;
+        break;
+
+    case HL_MUL:
+        over = __builtin_mul_overflow(sa, sb, &s);
+        v = (uint64_t)s;
+        break;
+
+    case HL_DIV:
+    case HL_MOD: /* the remainder takes the left operand's sign; by -1, 0 */
+        if (!b)
+            return E_DZ;
+
+        if (sb == -1) {
+            over = op == HL_DIV && sa == INT64_MIN;
+            v = op == HL_DIV ? 0 - a : 0;
+        } else
+            v = (uint64_t)(op == HL_DIV ? sa / sb : sa % sb);
+
+        break;
+
+    case HL_AND:
+        v = a & b;
+        break;
+
+    case HL_OR:
+        v = a | b;
+        break;
+
+    case HL_XOR:
+        v = a ^ b;
+        break;
+
+    case HL_WADD:
+        v = a + b;
+        break;
+
+    case HL_WSUB:
+        v = a - b;
+        break;
+
+    case HL_WMUL:
+        v = a * b;
+        break;
+
+    case HL_UADD:
+        over = __builtin_add_overflow(a, b, &v);
+        break;
+
+    case HL_USUB:
+        over = __builtin_sub_overflow(a, b, &v);
+        break;
+
+    case HL_UMUL:
+        over = __builtin_mul_overflow(a, b, &v);
+        break;
+
+    case HL_UDIV:
+    case HL_UMOD:
+        if (!b)
+            return E_DZ;
+
+        v = op == HL_UDIV ? a / b : a % b;
+        break;
+    }
+
+    if (over)
+        return E_OV;
+
+    top->raw = v;
+    return ST_OK;
+}
+
+/* L.TO.V x k (exec.h LTO_*): the LONG at x op= the popped value. Overflow. */
+static inline Status hot_lto(Regs *const r, const bool local)
+{
+    const Addr x = hot_cell(r, local);
+    const uint8_t k = hot_u8(r);
+    const Cell b = *r->sp++;
+    const int64_t right = k & LTO_INT ? b.i : b.l, left = load_cell(at(x)).l;
+    int64_t v;
+    bool over;
+
+    switch (k & ~LTO_INT) {
+    case LTO_ADD:
+        over = __builtin_add_overflow(left, right, &v);
+        break;
+
+    case LTO_SUB:
+        over = __builtin_sub_overflow(left, right, &v);
+        break;
+
+    default:
+        over = __builtin_mul_overflow(left, right, &v);
+    }
+
+    if (over)
+        return E_OV;
+
+    store_cell(at(x), (Cell){.l = v});
+
+    return ST_OK;
+}
+
+static inline Status hot_l_to_v(Regs *const r) { return hot_lto(r, false); }
+static inline Status hot_l_to_l(Regs *const r) { return hot_lto(r, true); }
+
+/* The LONG ops of one byte: name, right operand, what it does. */
+#define HOT_LONGS(X)                                                                               \
+    X(l_add, HL_POPPED, HL_ADD)                                                                    \
+    X(l_mul, HL_POPPED, HL_MUL)                                                                    \
+    X(l_add_v, HL_VAR, HL_ADD)                                                                     \
+    X(l_sub_v, HL_VAR, HL_SUB)                                                                     \
+    X(l_mul_v, HL_VAR, HL_MUL)                                                                     \
+    X(l_add_l, HL_LOC, HL_ADD)                                                                     \
+    X(l_sub_l, HL_LOC, HL_SUB)                                                                     \
+    X(l_mul_l, HL_LOC, HL_MUL)
+
+/* Behind X, the right operand popped: name, what it does. */
+#define HOT_XLONGS(X)                                                                              \
+    X(l_sub, HL_SUB)                                                                               \
+    X(l_div, HL_DIV)                                                                               \
+    X(l_mod, HL_MOD)                                                                               \
+    X(l_and, HL_AND)                                                                               \
+    X(l_or, HL_OR)                                                                                 \
+    X(l_xor, HL_XOR)                                                                               \
+    X(lw_add, HL_WADD)                                                                             \
+    X(lw_sub, HL_WSUB)                                                                             \
+    X(lw_mul, HL_WMUL)                                                                             \
+    X(ul_add, HL_UADD)                                                                             \
+    X(ul_sub, HL_USUB)                                                                             \
+    X(ul_mul, HL_UMUL)                                                                             \
+    X(ul_div, HL_UDIV)                                                                             \
+    X(ul_mod, HL_UMOD)
+
+#define X(name, src, op)                                                                           \
+    static inline Status hot_##name(Regs *const r) { return hot_long(r, src, op); }
+HOT_LONGS(X)
+#undef X
+#define X(name, op)                                                                                \
+    static inline Status hot_##name(Regs *const r) { return hot_long(r, HL_POPPED, op); }
+HOT_XLONGS(X)
+#undef X
+
+/* Behind X, the right operand a literal byte: name, what it does. */
+#define HOT_XLONGS8(X)                                                                             \
+    X(l_add_u8, HL_ADD)                                                                            \
+    X(l_sub_u8, HL_SUB)
+
+#define X(name, op)                                                                                \
+    static inline Status hot_##name(Regs *const r) { return hot_long(r, HL_U8, op); }
+HOT_XLONGS8(X)
+#undef X
+
+/* The popped LONG, or ULONG when uns, against the right operand: OPER_GT, OPER_EQ or OPER_LT. */
+static inline uint8_t hot_lrel(Regs *const r, const HotLsrc src, const bool uns)
+{
+    const uint64_t b = hot_loperand(r, src);
+    const uint64_t a = r->sp++->raw;
+    const bool lt = uns ? a < b : (int64_t)a < (int64_t)b;
+    return a == b ? OPER_EQ : lt ? OPER_LT : OPER_GT;
+}
+
+static inline Status hot_lcmp(Regs *const r, const bool uns)
+{
+    const uint8_t got = hot_lrel(r, HL_POPPED, uns);
+    const bool yes = got & hot_u8(r);
+    (--r->sp)->i = yes ? -1 : 0;
+    return ST_OK;
+}
+
+static inline Status hot_l_cmp(Regs *const r) { return hot_lcmp(r, false); }
+static inline Status hot_ul_cmp(Regs *const r) { return hot_lcmp(r, true); }
+
+/* The LONG compare-and-branches (comp/fuse.c): name, the compare's right operand. */
+#define HOT_LJFCS(X)                                                                               \
+    X(l_jfc, HL_POPPED)                                                                            \
+    X(l_jfc_v, HL_VAR)                                                                             \
+    X(l_jfc_l, HL_LOC)
+
+/* hot_jfc's of LONGs. */
+static inline bool hot_ljfc(Regs *const r, const HotLsrc src)
+{
+    const uint8_t got = hot_lrel(r, src, false);
+    return got & hot_u8(r);
+}
+
+/* Overflow at -2^63. */
+static inline Status hot_l_neg(Regs *const r)
+{
+    if (r->sp->l == INT64_MIN)
+        return E_OV;
+
+    r->sp->l = -r->sp->l;
+    return ST_OK;
+}
+
+static inline Status hot_lw_neg(Regs *const r)
+{
+    r->sp->raw = 0 - r->sp->raw;
+    return ST_OK;
+}
+
+static inline Status hot_l_not(Regs *const r)
+{
+    r->sp->raw = ~r->sp->raw;
+    return ST_OK;
+}
+
+/* A shift's count popped: past bits, Illegal function call. */
+static inline Status hot_count(Regs *const r, const uint32_t bits, uint32_t *const n)
+{
+    *n = r->sp++->u;
+    return *n < bits ? ST_OK : E_IQ;
+}
+
+static inline Status hot_l_shl(Regs *const r)
+{
+    uint32_t n;
+    const Status st = hot_count(r, 64, &n);
+
+    if (st == ST_OK)
+        r->sp->raw <<= n;
+
+    return st;
+}
+
+/* The sign shifted in. */
+static inline Status hot_l_shr(Regs *const r)
+{
+    uint32_t n;
+    const Status st = hot_count(r, 64, &n);
+    const int64_t x = r->sp->l;
+
+    if (st == ST_OK)
+        r->sp->l = x < 0 ? ~(~x >> n) : x >> n;
+
+    return st;
+}
+
+static inline Status hot_ul_shr(Regs *const r)
+{
+    uint32_t n;
+    const Status st = hot_count(r, 64, &n);
+
+    if (st == ST_OK)
+        r->sp->raw >>= n;
+
+    return st;
+}
+
+static inline Status hot_u_shr(Regs *const r)
+{
+    uint32_t n;
+    const Status st = hot_count(r, 32, &n);
+
+    if (st == ST_OK)
+        r->sp->u >>= n;
+
+    return st;
+}
+
+static inline Status hot_i_tol(Regs *const r)
+{
+    r->sp->l = r->sp->i;
+    return ST_OK;
+}
+
+static inline Status hot_u_tol(Regs *const r)
+{
+    r->sp->raw = r->sp->u;
+    return ST_OK;
+}
+
+/* Overflow past an INT. */
+static inline Status hot_l_toi(Regs *const r)
+{
+    const int64_t x = r->sp->l;
+
+    if (x != (int32_t)x)
+        return E_OV;
+
+    r->sp->raw = (uint32_t)x;
+    return ST_OK;
+}
+
+static inline Status hot_l_tod(Regs *const r)
+{
+    r->sp->d = (double)r->sp->l;
+    return ST_OK;
+}
+
+/* Toward 0; Overflow past a LONG, and NaN. */
+static inline Status hot_d_tol(Regs *const r)
+{
+    const double d = r->sp->d, top = 9223372036854775808.0;
+
+    if (!(d >= -top && d < top))
+        return E_OV;
+
+    r->sp->l = (int64_t)d;
+    return ST_OK;
+}
+
+/* A UINT's op: checked, or wrapped (W) as an INT's bits. */
+typedef enum { HU_ADD, HU_SUB, HU_MUL, HU_DIV, HU_MOD, HU_WADD, HU_WSUB, HU_WMUL } HotUop;
+
+/* The top cell op the popped one. Overflow; Division by zero. */
+static inline Status hot_uint(Regs *const r, const HotUop op)
+{
+    const uint32_t b = r->sp++->u;
+    Cell *const top = r->sp;
+    const uint32_t a = top->u;
+    uint32_t v = 0;
+    bool over = false;
+
+    switch (op) {
+    case HU_ADD:
+        over = __builtin_add_overflow(a, b, &v);
+        break;
+
+    case HU_SUB:
+        over = __builtin_sub_overflow(a, b, &v);
+        break;
+
+    case HU_MUL:
+        over = __builtin_mul_overflow(a, b, &v);
+        break;
+
+    case HU_DIV:
+    case HU_MOD:
+        if (!b)
+            return E_DZ;
+
+        v = op == HU_DIV ? a / b : a % b;
+        break;
+
+    case HU_WADD:
+        v = a + b;
+        break;
+
+    case HU_WSUB:
+        v = a - b;
+        break;
+
+    case HU_WMUL:
+        v = a * b;
+        break;
+    }
+
+    if (over)
+        return E_OV;
+
+    top->u = v;
+    return ST_OK;
+}
+
+/* The UINT and wrapped INT ops behind X: name, what it does. */
+#define HOT_XUINTS(X)                                                                              \
+    X(u_add, HU_ADD)                                                                               \
+    X(u_sub, HU_SUB)                                                                               \
+    X(u_mul, HU_MUL)                                                                               \
+    X(u_div, HU_DIV)                                                                               \
+    X(u_mod, HU_MOD)                                                                               \
+    X(iw_add, HU_WADD)                                                                             \
+    X(iw_sub, HU_WSUB)                                                                             \
+    X(iw_mul, HU_WMUL)
+
+#define X(name, op)                                                                                \
+    static inline Status hot_##name(Regs *const r) { return hot_uint(r, op); }
+HOT_XUINTS(X)
+#undef X
+
+static inline Status hot_u_cmp(Regs *const r)
+{
+    const uint32_t b = r->sp++->u;
+    const uint32_t a = r->sp++->u;
+    const uint8_t got = a == b ? OPER_EQ : a < b ? OPER_LT : OPER_GT;
+    (--r->sp)->i = got & hot_u8(r) ? -1 : 0;
+    return ST_OK;
+}
+
+static inline Status hot_iw_neg(Regs *const r)
+{
+    r->sp->u = 0 - r->sp->u;
     return ST_OK;
 }
 

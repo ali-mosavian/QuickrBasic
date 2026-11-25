@@ -77,6 +77,11 @@ void modu_drop(Modu *const mu, const uint32_t m)
 {
     memmove(mu->mods + m, mu->mods + m + 1, (mu->nmods - m - 1) * sizeof *mu->mods);
     mu->nmods--;
+
+    for (uint32_t f = 0; f < mu->nfiles; f++)
+        if (mu->files[f].module > m)
+            mu->files[f].module--;
+
     mu->nedges = 0;
     mu->epoch++;
     mu->drops++;

@@ -1,0 +1,21 @@
+tests.bas:3:6: expected the test's name, a string, not sums
+  test sums
+       ^
+tests.bas:6:12: a test returns nothing
+      return 1
+             ^
+tests.bas:9:12: an int is not a bool
+      assert 1
+             ^
+tests.bas:11:8: a string is not a bool
+  assert "yes"
+         ^
+tests.bas:13:5: a test goes at the top level, not in a block
+      test "inside"
+      ^
+tests.bas:16:1: test without end test
+  test "ends wrong"
+  ^
+tests.bas:17:1: end fn without fn
+  end fn
+  ^

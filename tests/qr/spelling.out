@@ -1,0 +1,8 @@
+(1.0, 2.5) jump walk roll jump circle 2.0 dot
+[(1.0, 2.5)] [  jump] [jump] [T] H
+none none
+4
+none
+(0.0, 1.0) 1
+roll
+1 none

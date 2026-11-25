@@ -54,9 +54,10 @@ typedef struct Comp {
     Vm *vm;
     Dbug *dbug;
     CompRun *run;
-    struct Modu *modu;     /* each line's module, by its file; their tops again at link */
-    struct Natv *natv;     /* native modules' code, bound at link (io/native.h) */
-    struct ImptFind *impt; /* the modules an IMPORT or FROM runs (comp/import.h) */
+    struct Modu *modu;       /* each line's module, by its file; their tops again at link */
+    struct Natv *natv;       /* native modules' code, bound at link (io/native.h) */
+    struct ImptFind *impt;   /* the modules an IMPORT or FROM runs (comp/import.h) */
+    struct LinkGuest *guest; /* the Quickr modules' lines, linked with QBasic's; null none */
 
     /* the cursor and the code */
     const uint8_t *p;    /* (ESI) the token cursor */
@@ -178,6 +179,7 @@ void comp_value(Comp *C, uint8_t type); /* the last step leaves a value of type 
 void comp_call(Comp *C, uint8_t k);     /* CALL k */
 void comp_int(Comp *C, uint32_t n);     /* an INT's load */
 Node *comp_op(Comp *C, uint8_t op);     /* op; its operands after, by comp_byte, comp_word */
+Node *comp_xop(Comp *C, uint8_t x);     /* X op x; its operands after */
 void comp_byte(Node *n, uint8_t b);
 void comp_word(Node *n, uint16_t w);
 void comp_dword(Node *n, uint32_t d);
@@ -185,6 +187,7 @@ void comp_dword(Node *n, uint32_t d);
 void comp_opid(Comp *C, uint8_t op, uint32_t id);
 /* op (0 none), its operands by comp_byte, then comp.lnum's line: num addr */
 Node *comp_jump(Comp *C, uint8_t op);
+Node *comp_xjump(Comp *C, uint8_t x);        /* comp_jump's of X op x */
 Node *comp_go(Comp *C, uint8_t op, Jump j);  /* op to a block's target; operands by comp_byte */
 void comp_cond(Comp *C, uint8_t op, Jump j); /* JF or JT on the value: a number */
 

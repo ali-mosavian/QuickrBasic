@@ -13,6 +13,7 @@
 #include "comp/declare.h"
 #include "comp/dfa.h"
 #include "ui/linemap.h"
+#include "ui/text.h"
 #include "vm/inspect.h"
 #include "ui/view.h"
 
@@ -51,20 +52,50 @@ static Spelling *slot(const uint32_t key)
     return nullptr;
 }
 
-/* The name token at tok spells its name as a kind, unless an earlier one did. */
-static void seen(const uint8_t *const tok, const SpelKind kind)
+/* Name name spelled as text, len bytes, as a kind, unless an earlier one was. */
+static void spelled(
+    const uint32_t name,
+    const uint8_t *const text,
+    const uint8_t len,
+    const SpelKind kind
+)
 {
-    const uint32_t key = key_of(comp_nameof(tok), kind);
+    const uint32_t key = key_of(name, kind);
     Spelling *const e = slot(key);
-    const uint8_t len = (uint8_t)(tok[1] - !!comp_suffixof(tok));
 
     if (!e || e->key || sp.used + len > POOL)
         return;
 
     *e = (Spelling){.key = key, .len = len, .off = (uint16_t)sp.used};
 
-    memcpy(sp.pool + sp.used, tok + 2, len);
+    memcpy(sp.pool + sp.used, text, len);
     sp.used += len;
+}
+
+/* The name token at tok spells its name as a kind, unless an earlier one did. */
+static void seen(const uint8_t *const tok, const SpelKind kind)
+{
+    spelled(comp_nameof(tok), tok + 2, (uint8_t)(tok[1] - !!comp_suffixof(tok)), kind);
+}
+
+/* A text dialect's line's names: its module's. */
+typedef struct {
+    const Session *S;
+    uint32_t module;
+} TextNames;
+
+/* Dialect.names's: a text dialect's line's name, n bytes at w, a name's of its module, else of
+   the main's (a text dialect's program's names are all its). */
+static void text_name(void *const ctx, const uint8_t *const w, const uint32_t n)
+{
+    const TextNames *const t = ctx;
+    const uint8_t len = (uint8_t)(n < UINT8_MAX ? n : UINT8_MAX);
+    uint32_t name = symb_look_name(&t->S->symb, t->module, w, len);
+
+    if (!name && t->module)
+        name = symb_look_name(&t->S->symb, 0, w, len);
+    if (name)
+        spelled(name, w, len, SPEL_MODULE);
 }
 
 /* The line at p is a TYPE's field's: its name, its subscripts if any, then AS. */
@@ -89,10 +120,20 @@ static bool field_line(const uint8_t *const p)
 static void view_names(Session *const S, const uint32_t v, const SpelKind kind)
 {
     const View *const w = view_at(v);
+    const Dialect *d = nullptr; /* a text file's, from its first line */
 
     for (uint32_t line = w->first; line < w->first + w->n; line++) {
         const uint8_t *p = S->comp.cbuf;
         prog_body(&S->prog, lmap_off(S, line), S->comp.cbuf);
+
+        if (prog_line(&S->prog, lmap_off(S, line))->flags & LF_TEXT) {
+            if (!d)
+                d = dial_line(&S->prog, lmap_off(S, line));
+
+            d->names(p, text_name, &(TextNames){S, w->module});
+
+            continue;
+        }
 
         if (field_line(p)) {
             seen(p, SPEL_FIELD);
@@ -121,7 +162,7 @@ char *spel_name(const Session *const S, char *const d, const uint32_t name, cons
 {
     const Spelling *e = slot(key_of(name, kind));
 
-    if ((!e || !e->key) && kind == SPEL_LOCAL)
+    if ((!e || !e->key) && (kind == SPEL_LOCAL || (kind == SPEL_FIELD && prog_text(&S->prog))))
         e = slot(key_of(name, SPEL_MODULE));
 
     if (e && e->key) {
@@ -134,9 +175,17 @@ char *spel_name(const Session *const S, char *const d, const uint32_t name, cons
 
 char *spel_var(const Session *const S, char *d, const InspVar *const var)
 {
+    for (uint32_t i = 0; i < dial_count(); i++) { /* a text dialect's as it typed it */
+        const Dialect *const dl = dial_at(i);
+        const uint32_t typed = dl->text ? dl->spell(S, var->id, d) : 0;
+
+        if (typed)
+            return d + typed;
+    }
+
     d = spel_name(S, d, var->name, var->local ? SPEL_LOCAL : SPEL_MODULE);
 
-    if (var->sfx)
+    if (var->sfx && dialect_qbasic.suffix) /* no text dialect's: QBasic's */
         *d++ = var->sfx;
 
     return d;

@@ -22,6 +22,7 @@
 #include "ui/mouse.h"
 #include "ui/screen.h"
 #include "ui/uimain.h"
+#include "ui/text.h"
 #include "ui/window.h"
 
 typedef struct {
@@ -79,10 +80,20 @@ void help_init(void)
             dir = i + 1;
 
     memcpy(name + dir, file, sizeof file);
-    hf.open = hlf_open(&hf.f, name);
+    help_open(name);
+}
+
+bool help_open(const char *const path)
+{
+    if (hf.open)
+        hlf_close(&hf.f);
+
+    hf.open = hlf_open(&hf.f, path);
 
     if (hf.open)
         status_lines();
+
+    return hf.open;
 }
 
 /* ---- a view */
@@ -585,14 +596,44 @@ uint16_t help_keyword(char *const out, const uint16_t max)
     return hdoc_word(lb->text, lb->len, lb->col, out, max);
 }
 
-/* The topic of the word at the cursor, HLF_NONE if there is none. */
-static uint16_t keyword_topic(void)
+/* A text dialect's word's topic, w n characters, its dots kept: "KEY w" (a keyword, a module, a
+   module's m.name), else its first part's (a module's); HLF_NONE none. KEY: help, its
+   Dialect.help. */
+static uint16_t text_topic(const char *const help, const char *const w, const uint16_t n)
+{
+    const uint32_t k = (uint32_t)strlen(help) + 1; /* "KEY " */
+    char key[DIAL_HELP + KEY_MAX];
+    memcpy(key, help, k - 1);
+    key[k - 1] = ' ';
+    memcpy(key + k, w, n);
+    const uint16_t id = hlf_find(&hf.f, key, k + n);
+    const char *const dot = memchr(w, '.', n);
+
+    return id != HLF_NONE || !dot ? id : hlf_find(&hf.f, key, k + (uint32_t)(dot - w));
+}
+
+/* The dialect of the cursor's word: the program window's line's, else the program's. */
+static const Dialect *cursor_dialect(Session *const S)
+{
+    return uimn.tree.workspace.focus == FOC_EDIT
+               ? text_dialect_at(S, uimn.text.first + uimn.ed.line)
+               : text_dialect(S);
+}
+
+/* The topic of the word at the cursor, HLF_NONE if there is none. A text dialect's line in the
+   program window: its topics only. */
+static uint16_t keyword_topic(Session *const S)
 {
     char w[KEY_MAX];
     const uint16_t n = hf.open ? help_keyword(w, sizeof w) : 0;
 
     if (!n)
         return HLF_NONE;
+
+    const Dialect *const d = cursor_dialect(S);
+
+    if (d->text && uimn.tree.workspace.focus == FOC_EDIT)
+        return text_topic(d->help, w, n);
 
     uint16_t id = hlf_find(&hf.f, w, n);
 
@@ -602,7 +643,7 @@ static uint16_t keyword_topic(void)
     return id;
 }
 
-bool help_topic_exists(void) { return keyword_topic() != HLF_NONE; }
+bool help_topic_exists(Session *const S) { return keyword_topic(S) != HLF_NONE; }
 
 void help_f1(Session *const S)
 {
@@ -611,7 +652,10 @@ void help_f1(Session *const S)
         return;
     }
 
-    open_window(S, keyword_topic(), true);
+    const uint16_t id = keyword_topic(S);
+    const Dialect *const d = cursor_dialect(S);
+    const bool text = id == HLF_NONE && hf.open && d->text;
+    open_window(S, text ? hlf_find(&hf.f, d->help, (uint32_t)strlen(d->help)) : id, true);
 }
 
 void help_using(Session *const S) { open_window(S, hf.open ? hf.f.using_help : HLF_NONE, true); }

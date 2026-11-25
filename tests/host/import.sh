@@ -15,4 +15,11 @@ ln -s ../bin/basic "$D/prog/basic"
 long=$D/$(printf 'n%.0s' $(seq 300))
 out=$(cd "$D/prog" && BASICLIB="$long;$D/ext" ./basic t.bas < /dev/null | tr -d '\r')
 [ "$out" = "$(printf 'ext1\nown1')" ] || { echo "import: got '$out'"; exit 1; }
+
+# A FUNCTION of another module whose result is a TYPE: its own module held its result's type, the
+# caller's looked in its own and found none: Type mismatch.
+printf 'type p\n x as integer\nend type\nfunction mk(v) as p\n dim r as p\n r.x = v\n mk = r\nend function\n' > "$D/prog/rec.bas"
+printf 'import rec\nfrom rec import mk, p\ndim a as p\na = rec.mk(3)\nprint a.x\na = mk(4)\nprint a.x\n' > "$D/prog/r.bas"
+out=$(cd "$D/prog" && ./basic r.bas < /dev/null | tr -d '\r')
+[ "$out" = "$(printf ' 3 \n 4 ')" ] || { echo "import: a TYPE result got '$out'"; exit 1; }
 echo ok

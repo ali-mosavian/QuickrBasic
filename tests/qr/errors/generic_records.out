@@ -1,0 +1,36 @@
+generic_records.bas:10:23: can't compare a Vec with a Vec in Box[Vec]
+          return self.v > o.v
+                        ^
+generic_records.bas:17:1: an enum is not generic: a type is
+  enum Shape[T]
+  ^
+generic_records.bas:20:11: Box is generic: give its types, Box[T]
+  var b1 as Box
+            ^
+generic_records.bas:21:11: Box takes 1 type
+  var b2 as Box[int, int]
+            ^
+generic_records.bas:22:14: V[K] is written dict[K, V]
+  var b3 as Vec[int]
+               ^
+generic_records.bas:25:10: can't tell B from the values given: write Pair[A, B](..)
+  let b5 = Pair(1)
+           ^
+generic_records.bas:26:19: + joins two strings: write string(x)
+  let b6 = Box(1).v + "a"
+                    ^
+generic_records.bas:27:10: largest is not a generic type: it takes no types
+  let b7 = largest[int](3)
+           ^
+generic_records.bas:28:13: a type is no value: build one with (..)
+  let b8 = Box[int]
+              ^
+generic_records.bas:29:15: T is already declared in Twice[int, int]
+  type Twice[T, T]
+                ^
+generic_records.bas:34:13: Grow has too many instances: does it hold itself with ever new types?
+      more as Grow[T[]][]
+              ^
+generic_records.bas:38:5: me holds its own type: hold it in a list in Self[int]
+      me as Self[T]
+      ^

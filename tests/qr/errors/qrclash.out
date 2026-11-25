@@ -1,0 +1,5 @@
+qrclash.bas:2: Duplicate definition
+  import cased
+  ^
+This Quickr module has two public names spelled `twice` but for case, and QBasic matches names case aside.
+Rename one of them.

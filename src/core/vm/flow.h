@@ -23,6 +23,9 @@ Place flow_here(const Vm *vm, const Allo *al);
 /* The code at place, its line compiled if the cache dropped it. */
 uint8_t *flow_place(const Allo *al, Place place);
 
+/* A call of procedure proc from a routine, its arguments on the data stack: its frame pushed,
+   returning to vm->ip, into its body at code, on line. */
+void flow_call(Session *S, uint32_t proc, uint32_t line, uint8_t *code);
 /* Go to line's start, linking the program first if it is not. */
 void flow_jump(Session *S, uint32_t line);
 /* flow_nextln when the next line is a stored one: the temporaries dropped, vm->line that line,
@@ -103,13 +106,16 @@ void flow_setcont(Vm *vm, const Allo *al);
 void flow_end(Session *S);
 /* Illegal direct when running the direct line. */
 void flow_nodir(Session *S);
-/* Each op's size, 0 one that says its own */
+/* Each op's size, 0 one that says its own; each X op's, its O_X too */
 extern const uint8_t flow_op_sizes[O_NOPS];
+extern const uint8_t flow_xop_sizes[X_NOPS];
 /* The size of the op at op, with its operands. */
 static inline uint32_t flow_opsize(const uint8_t *const op)
 {
     if (flow_op_sizes[op[0]])
         return flow_op_sizes[op[0]];
+    if (op[0] == O_X)
+        return flow_xop_sizes[op[1]];
     if (op[0] == O_ON)
         return (op[1] & ON_COUNT) * sizeof(LineRef) + 2;
 

@@ -1,0 +1,4 @@
+' OPTION DIALECT QUICKR
+' a shift by more than 31 is an error
+var n = 40
+print 1 shl n

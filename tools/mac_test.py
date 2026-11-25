@@ -30,6 +30,8 @@ them too: a fixed list of files once left CHARLIE.BAS without its barkley packag
 and its rows touching. 132 x 50 is 1188x800: the frame was 80 columns wide once.
 QBX, tests/ext's qxtest packed for macos: a program imports it and draws if its add%(2, 3) is 5. Its slice
 was arm64's alone once, and the x86-64 half stopped at the IMPORT.
+A Quickr program imports text, Quickr's library in the app's Resources/lib: once the app shipped
+none, and F5 stopped at the import unless BASICLIB was set.
 """
 
 import os
@@ -48,6 +50,7 @@ HIDDEN = {
     "text": "SCREEN 0, , 1, 0\nCOLOR 4, 4\nCLS\n",
 }
 LOOP = "DO\nLOOP\n"
+QUICKR = "' OPTION DIALECT QUICKR\nimport text\nprint text.upper(\"ok\")\nwhile true\nwend\n"
 NATIVE = "from qxtest import *\nSCREEN 9\nIF add%(2, 3) = 5 THEN LINE (0, 0)-(100, 100), 4, BF\n" + LOOP
 HELP = "60:3B00"  # F1
 HELP_ESC = "60:3B00 70:011B"  # F1, Esc
@@ -204,6 +207,9 @@ def main() -> None:
             (Path(tmp) / "NATIVE.BAS").write_text(NATIVE)
             nw, _, drawn = frame(run, Path(tmp) / "NATIVE.BAS", "3F00")
             native = pixel(nw, drawn, 50, 50) == RED
+        quickr = Path(tmp) / "QUICKR.BAS"
+        quickr.write_text(QUICKR)
+        qw, _, imported = frame(run, quickr, "3F00")
         w, h, pixels = frame(run, program)
         _, _, menu = frame(run, program, "2100")
         box = Path(tmp) / "BOX.BAS"
@@ -278,6 +284,7 @@ def main() -> None:
 
     checks = {
         "720x400": (w, h) == (720, 400),
+        "Quickr's library found": pixel(qw, imported, 700, 300) == (0, 0, 0),
         "menu bar grey": pixel(w, pixels, 700, 8) == GREY,
         "editor blue": pixel(w, pixels, 400, 200) == BLUE,
         "text on it": len({pixel(w, pixels, x, y) for x in range(9, 9 * 14) for y in range(32, 48)}) > 1,

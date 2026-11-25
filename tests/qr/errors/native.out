@@ -1,0 +1,18 @@
+native.bas:6:17: no native entry is named no_such_entry
+  native function no_such_entry(x as int) as int
+                  ^
+native.bas:7:26: a native function takes numbers, bools and strings, not mut
+  native function sqrt(mut x as double) as double
+                           ^
+native.bas:8:23: a native function takes numbers, bools and strings, not mut
+  native function floor(p as P) as P
+                        ^
+native.bas:8:34: a native function gives a number, a bool or a string
+  native function floor(p as P) as P
+                                   ^
+native.bas:9:1: a native function is not generic and yields nothing
+  native function find[T](s as T) as int
+  ^
+native.bas:10:8: native goes before function
+  native type Q
+         ^

@@ -83,6 +83,11 @@ const uint8_t flow_op_sizes[O_NOPS] = {
 #include "vm/ops.def"
 };
 
+const uint8_t flow_xop_sizes[X_NOPS] = {
+#define XOP(name, h, size, fl) size,
+#include "vm/ops.def"
+};
+
 enum {
     DCODE_SIZE = CACHE0 - DCODE, /* the direct line's room in the cache */
 };
@@ -212,6 +217,7 @@ void flow_drop_calls(Session *const S)
     S->vm.ftop = S->vm.frames;
     S->vm.fp = 0;
     stack_reset(S);
+    arry_unwound(&S->arry);
 }
 
 static Frame *top_frame(Vm *const vm) { return vm->ftop > vm->frames ? vm->ftop - 1 : nullptr; }
@@ -260,6 +266,8 @@ void flow_return(Session *const S)
         repl_error(S, E_RG);
     if (f->kind == FRAME_EVENT)
         evnt_return(&S->evnt, &S->vm, f->event);
+    if (f->kind == FRAME_EVENT && f->held)
+        arry_unhold(&S->arry);
 
     pop_to(&S->vm, f);
     drop_temps(&S->strg);
@@ -398,24 +406,56 @@ void flow_f_jt(Session *const S)
 
 /* ---- FOR / NEXT ----------------------------------------------------------------------------- */
 
-/* I.NEXT.UP, I.NEXT.DN (comp/fuse.c): the counter stepped, back to the body unless past. The stop
-   check comes first: a stop runs the op again, not stepped twice. */
-static void next(Session *const S, const Addr base, const bool up)
+typedef Status Stepper(const uint8_t *op, Addr base, bool up, bool *back);
+
+/* I.NEXT.UP, I.NEXT.DN, I.COUNT.UP, I.COUNT.DN (comp/fuse.c): the counter stepped, back to the
+   body unless past. The stop check comes first: a stop runs the op again, not stepped twice. */
+static void next(Session *const S, const Addr base, const bool up, Stepper *const step)
 {
     if (exec_stopchk(S))
         return;
 
     const uint8_t *const op = S->vm.ip - 1;
     bool back;
-    fault_check(&S->fault, hot_next(op, base, up, &back));
+    fault_check(&S->fault, step(op, base, up, &back));
     S->vm.ip = (uint8_t *)op + NEXT_SIZE - sizeof(Jump);
     branch(S, back);
 }
 
-void flow_i_next_up(Session *const S) { next(S, 0, true); }
-void flow_i_next_dn(Session *const S) { next(S, 0, false); }
-void flow_i_next_up_l(Session *const S) { next(S, S->vm.fp, true); }
-void flow_i_next_dn_l(Session *const S) { next(S, S->vm.fp, false); }
+/* E.NEXT (qr/qcg.c): hot_e_next, then back to the body unless past. */
+void flow_e_next(Session *const S)
+{
+    if (exec_stopchk(S))
+        return;
+
+    const uint8_t *const op = S->vm.ip - 1;
+    const bool back = hot_e_next(op, S->vm.fp);
+    S->vm.ip = (uint8_t *)op + E_NEXT_SIZE - sizeof(Jump);
+    branch(S, back);
+}
+
+void flow_i_next_up(Session *const S) { next(S, 0, true, hot_next); }
+void flow_i_next_dn(Session *const S) { next(S, 0, false, hot_next); }
+void flow_i_next_up_l(Session *const S) { next(S, S->vm.fp, true, hot_next); }
+void flow_i_next_dn_l(Session *const S) { next(S, S->vm.fp, false, hot_next); }
+void flow_i_count_up(Session *const S) { next(S, 0, true, hot_count_next); }
+void flow_i_count_dn(Session *const S) { next(S, 0, false, hot_count_next); }
+void flow_i_count_up_l(Session *const S) { next(S, S->vm.fp, true, hot_count_next); }
+void flow_i_count_dn_l(Session *const S) { next(S, S->vm.fp, false, hot_count_next); }
+
+/* X.I.COUNT k ( n lim step -- go n' ): I.COUNT's of cells it cannot name, a generator's refs, or
+   of a step whose sign is known only when run (k COUNT_BY). */
+void flow_i_count(Session *const S)
+{
+    Vm *const v = &S->vm;
+    const uint8_t k = exec_u8(v);
+    const uint32_t step = exec_pop(v).u;
+    const uint32_t lim = exec_pop(v).u;
+    uint32_t n = exec_pop(v).u;
+    const bool up = k == COUNT_BY ? !(step >> 31) : k == COUNT_UP;
+    exec_pushi(v, hot_counted(&n, lim, step, up) ? -1 : 0);
+    exec_pushi(v, (int32_t)n);
+}
 
 /* I.JFC ... (comp/fuse.c): an INT compare, then JF's jump unless it is true. */
 #define X(name, src)                                                                               \
@@ -431,6 +471,22 @@ void flow_i_next_dn_l(Session *const S) { next(S, S->vm.fp, false); }
         branch(S, !yes);                                                                           \
     }
 HOT_JFCS(X)
+#undef X
+
+/* L.JFC ...: I.JFC's of LONGs. */
+#define X(name, src)                                                                               \
+    void flow_##name(Session *const S)                                                             \
+    {                                                                                              \
+        if (exec_stopchk(S))                                                                       \
+            return;                                                                                \
+                                                                                                   \
+        Regs r = {S->vm.ip, S->vm.sp, S->vm.fp};                                                   \
+        const bool yes = hot_ljfc(&r, src);                                                        \
+        S->vm.ip = r.ip;                                                                           \
+        S->vm.sp = r.sp;                                                                           \
+        branch(S, !yes);                                                                           \
+    }
+HOT_LJFCS(X)
 #undef X
 
 /* Is x past limit, counting by step: INTs, or SINGLEs' bits? */
@@ -472,17 +528,17 @@ void flow_d_past(Session *const S)
    address its parameter is: a scalar's cell, an array's ArrSlot, a record's data); vm.fp the last
    argument's ref cell, the locals' cells below it (a local array's its ArrSlot). */
 
-/* PCALL proc n body: the frame at the arguments on the data stack, its n locals' cells below it
-   zeroed, its frame pushed, into the body. */
-void flow_pcall(Session *const S)
+/* A call of proc: the frame at its npar arguments on the data stack, its n locals' cells below it
+   zeroed, its frame pushed returning to ret; vm->ip then its body's code. */
+static void call_into(
+    Session *const S,
+    const uint32_t proc,
+    const uint32_t n,
+    const uint16_t npar,
+    const Place ret
+)
 {
-    if (exec_stopchk(S)) /* before the arguments are taken */
-        return;
-
     Vm *const vm = &S->vm;
-    uint8_t *const op = vm->ip - 1;
-    const uint32_t n = load32(op + PCALL_CELLS);
-    const uint16_t npar = load16(op + PCALL_NPAR);
     Cell *back = nullptr;
     const uint32_t seg = vm->stak.cur;
 
@@ -502,9 +558,9 @@ void flow_pcall(Session *const S)
     memset(vm->sp, 0, n * sizeof(Cell));
     *vm->ftop++ = (Frame){
         .kind = back ? FRAME_CALL_X : FRAME_CALL,
-        .ret = {vm->line, cache_off(&S->allo, op + PCALL_SIZE)},
+        .ret = ret,
         .call = {
-            .proc = load32(op + PCALL_PROC),
+            .proc = proc,
             .temp_floor = S->strg.tmp_floor,
             .stack = vm->sp,
             .fp = vm->fp,
@@ -516,8 +572,32 @@ void flow_pcall(Session *const S)
     };
 
     S->strg.tmp_floor = S->strg.tmp_used;
+}
+
+/* PCALL proc n body: the frame at the arguments on the data stack, its n locals' cells below it
+   zeroed, its frame pushed, into the body. */
+void flow_pcall(Session *const S)
+{
+    if (exec_stopchk(S)) /* before the arguments are taken */
+        return;
+
+    Vm *const vm = &S->vm;
+    uint8_t *const op = vm->ip - 1;
+    const Place ret = {vm->line, cache_off(&S->allo, op + PCALL_SIZE)};
+
+    call_into(S, load32(op + PCALL_PROC), load32(op + PCALL_CELLS), load16(op + PCALL_NPAR), ret);
     vm->ip = op + PCALL_JUMP;
     take_jump(vm, &S->strg, &S->allo, &S->fault);
+}
+
+void flow_call(Session *const S, const uint32_t proc, const uint32_t line, uint8_t *const code)
+{
+    Vm *const vm = &S->vm;
+    const Proc *const p = blok_proc(&S->blok, proc);
+    call_into(S, proc, p->nframe, p->npar, (Place){vm->line, cache_off(&S->allo, vm->ip)});
+
+    vm->line = line;
+    vm->ip = code;
 }
 
 /* End call f, the innermost, and drop the frames above it: its local arrays on the heap freed
@@ -720,6 +800,7 @@ void flow_trap(Session *const S, const uint8_t code, const uint32_t handler)
 
     chnl_clear(&S->chnl);
     S->vm.sp = flow_stack_base(&S->vm);
+    arry_unwound(&S->arry);
     flow_jump(S, handler);
 
     if (S->vm.running)
@@ -770,6 +851,7 @@ void flow_resume(Session *const S)
     S->vm.err.active = false;
     S->vm.err.code = 0;
     S->vm.sp = flow_stack_base(&S->vm);
+    arry_unwound(&S->arry);
     const ResumeMode mode = exec_u8(&S->vm);
 
     if (mode == RESUME_LINE) {

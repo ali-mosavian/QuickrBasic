@@ -9,7 +9,8 @@
  * A selection from (sel_line, sel_col) to the cursor is a piece of one line, or whole lines when it
  * spans several. The insert mode, uimn.ed.insert, is every line buffer's.
  *
- * A native module's view (a .qbx's interface) is not changed: each edit asks edit_refused first.
+ * A native module's view (a .qbx's interface) is not changed, nor a text dialect's file's first
+ * line, its mark: each edit asks edit_refused first.
  *
  * The immediate window keeps its last lines (uimn.imm); edit_imm_up and edit_imm_down recall them
  * into uimn.immline.
@@ -276,13 +277,13 @@ static uint32_t captured(Session *const S, void (*const print)(Session *S))
 }
 
 /* ui_chkop: link_walk's: an ERR op's error. */
-static void chkop(const uint8_t op, const uint8_t *const at)
+static void chkop([[maybe_unused]] const uint8_t op, const uint8_t *const at)
 {
-    if (op != O_ERR)
+    if (!exec_is_err(at))
         return;
 
-    uc.err = at[1];
     uc.eop = (const ErrOp *)at;
+    uc.err = uc.eop->code;
 }
 
 /* The body at uc.pre, n characters, tokenized into comp_cbuf, its declarations entered; the
@@ -421,7 +422,10 @@ uint16_t edit_dxerr(Session *const S, const uint8_t *const text, const ErrOp *co
 
 void edit_emsg(Session *const S, const uint8_t code)
 {
-    const char *const s = emsg_text(S->vm.err.user, code);
+    const Dialect *const d =
+        S->vm.line != DLINE ? dial_line(&S->prog, S->vm.line) : text_dialect(S);
+    const char *const own = d->errtext ? d->errtext(S, code) : nullptr;
+    const char *const s = own ? own : d->message(S, code);
     memcpy(uimn.errmsg, s, strlen(s) + 1);
 }
 
@@ -444,7 +448,29 @@ bool edit_refused_in(Session *const S, const uint32_t v)
     return true;
 }
 
-bool edit_refused(Session *const S) { return edit_refused_in(S, uimn.ed.view); }
+/* The cursor's line, or a line selected, a text dialect's file's mark: true, refused with a beep,
+   the line as stored again. */
+static bool marker_refused(Session *const S)
+{
+    const uint32_t from =
+        uimn.ed.sel_on && uimn.ed.sel_line < uimn.ed.line ? uimn.ed.sel_line : uimn.ed.line;
+    const uint32_t to =
+        uimn.ed.sel_on && uimn.ed.sel_line > uimn.ed.line ? uimn.ed.sel_line : uimn.ed.line;
+
+    for (uint32_t line = from; line <= to; line++)
+        if (text_marker(S, uimn.text.first + line)) {
+            edit_load(S, uimn.ed.line);
+            pscr_beep();
+            return true;
+        }
+
+    return false;
+}
+
+bool edit_refused(Session *const S)
+{
+    return edit_refused_in(S, uimn.ed.view) || marker_refused(S);
+}
 
 /* The lines entered next view v's: its file's names, its declarations its file's, its procedure's.
    The module entered before (repl.module). */
@@ -459,11 +485,15 @@ static uint32_t enter_view(Session *const S, const uint32_t v)
 
 void edit_recheck(Session *const S)
 {
+    for (uint32_t i = 0; i < dial_count(); i++)
+        if (dial_at(i)->text)
+            dial_at(i)->flag(S);
+
     const uint32_t first = uimn.text.first, n = uimn.text.n;
     text_whole();
 
     for (uint32_t line = 0; line < uimn.text.all; line++) {
-        if (!(prog_line(&S->prog, lmap_off(S, line))->flags & LF_ASIS))
+        if ((prog_line(&S->prog, lmap_off(S, line))->flags & (LF_ASIS | LF_TEXT)) != LF_ASIS)
             continue;
 
         LineBuf *const b = &uimn.build;
@@ -507,7 +537,30 @@ bool edit_commit(Session *const S)
     return true;
 }
 
-bool edit_store(Session *const S, const uint32_t line, LineBuf *const b)
+/* Text line line (the whole text's), a text dialect's, checked in its file (Dialect.syntax): false
+   it passes; else LF_ASIS, its error's column in uc.ecol, its message in uimn.errmsg. */
+static bool text_error(Session *const S, const uint32_t line)
+{
+    const uint32_t rec = lmap_off(S, line);
+    DialErr e = {.msg = uimn.errmsg, .cap = sizeof uimn.errmsg};
+
+    const bool err = text_dialect_at(S, line)->syntax(S, rec, &e);
+    Line *const l = prog_line(&S->prog, rec);
+    l->flags = (uint8_t)((l->flags & ~LF_ASIS) | (err ? LF_ASIS : 0));
+    uc.ecol = err ? (uint16_t)e.col : 0;
+    return err;
+}
+
+/* edit_store's of a text dialect's line: as typed, then checked. */
+static bool store_text(Session *const S, const uint32_t line, LineBuf *const b)
+{
+    uimn.text.asis = false;
+    text_repl(S, line, b->text, b->len);
+    return !text_error(S, line + uimn.text.first);
+}
+
+/* edit_store's of a QBasic line: made canonical, kept as typed on a syntax error. */
+static bool store_qbasic(Session *const S, const uint32_t line, LineBuf *const b)
 {
     const uint32_t was = enter_view(S, uimn.ed.view);
     uint32_t lexed;
@@ -524,6 +577,18 @@ bool edit_store(Session *const S, const uint32_t line, LineBuf *const b)
     return canon;
 }
 
+bool edit_store(Session *const S, const uint32_t line, LineBuf *const b)
+{
+    const Dialect *const d = text_dialect_at(S, line + uimn.text.first);
+    const Dialect *const p = dial_program(&S->prog);
+    const bool ok = d->text ? store_text(S, line, b) : store_qbasic(S, line, b);
+
+    if (d != p && p->redeclare) /* another dialect's line: the program's view of it */
+        p->redeclare(S);
+
+    return ok;
+}
+
 void edit_goto(Session *const S, const uint32_t line)
 {
     edit_commit(S);
@@ -533,6 +598,12 @@ void edit_goto(Session *const S, const uint32_t line)
 bool edit_error(Session *const S, const uint32_t line, uint16_t *const col)
 {
     static LineBuf b = {.grows = true};
+
+    if (text_dialect_at(S, line)->text) {
+        const bool err = text_error(S, line);
+        *col = uc.ecol;
+        return err;
+    }
 
     const uint32_t len = text_record(S, lmap_off(S, line), &b);
     const uint32_t was = enter_view(S, view_of(line));
@@ -657,10 +728,20 @@ static void reindent(LineBuf *const b, const uint16_t n)
 
 void edit_enter(Session *const S)
 {
+    LineBuf *const b = &uimn.edline;
+
+    if (b->col >= b->len && text_marker(S, uimn.text.first + uimn.ed.line)) { /* a line after */
+        const uint32_t line = uimn.ed.line + 1;
+        text_insert(S, line, b->text, 0);
+        changed();
+        edit_load(S, line);
+        b->col = 0;
+        return;
+    }
+
     if (edit_refused(S))
         return;
 
-    LineBuf *const b = &uimn.edline;
     const uint16_t lead = indent(b);
     uint16_t ind = lead > b->col ? b->col : lead;
 
@@ -706,6 +787,10 @@ void edit_bs(Session *const S)
 
     if (!line)
         return;
+    if (text_marker(S, uimn.text.first + line - 1)) {
+        pscr_beep();
+        return;
+    }
 
     uimn.ed.nlen = b->len; /* this line, kept */
     memcpy(edit_lb_need(S, &uimn.build, b->len), b->text, b->len);

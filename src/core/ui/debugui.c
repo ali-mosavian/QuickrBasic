@@ -111,7 +111,7 @@ static void trace(Session *const S, const DebugPos *const at)
 /* DebugHooks.breaks: program line line's breakpoint stops, its Break When's condition met. */
 static bool breaks(Session *const S, const uint32_t line)
 {
-    return dwat_breaks(S, text_mark_nth(S, line));
+    return dwat_breaks(S, text_mark_nth(S, prog_origin(&S->prog, line)));
 }
 
 void udbg_init(Session *const S)

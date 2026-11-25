@@ -28,8 +28,13 @@ enum : uint8_t {
     ET_SD = 5,
     ET_SH = 6, /* SHORT: 2 bytes in a record, else an INT */
     ET_BY = 7, /* BYTE: 0 .. 255, 1 byte in a record, else an INT */
+    ET_SB = 8, /* Quickr's byte: -128 .. 127, 1 byte */
+    ET_US = 9, /* Quickr's ushort: 0 .. 65535, 2 bytes */
     ET_REC = 0x40,
 };
+
+/* Is et a number kept in 2 bytes or 1? */
+static inline bool et_narrow(const uint32_t et) { return et >= ET_SH && et <= ET_US; }
 
 enum {
     FBIAS = 127,
@@ -55,7 +60,8 @@ enum : uint8_t {
 
 /* A binding's flags (mem/scope). BF_IMP: another module's variable or CONST, the name's alias.
    BF_PUB: DIM PUBLIC's, exported. BF_PROC: a SUB or FUNCTION its module defines. BF_CMN: COMMON's
-   name for another module's COMMON variable, BF_IMP too. */
+   name for another module's COMMON variable, BF_IMP too. BF_ALIEN: a procedure another dialect's
+   module exports that QBasic can't call (comp/export.h). */
 enum : uint16_t {
     BF_SHR = 1,
     BF_REF = 2,
@@ -68,7 +74,8 @@ enum : uint16_t {
     BF_IMP = 256,
     BF_PUB = 512,
     BF_PROC = 1024,
-    BF_CMN = 2048
+    BF_CMN = 2048,
+    BF_ALIEN = 4096
 };
 /* A scope key's flags (mem/scope): a line number's, an array's, a module's (an imported file's,
    its number below; the main's is 0), the labels any scope of a module has. Names are below. */
@@ -123,9 +130,19 @@ typedef struct PACKED {
 static_assert(sizeof(Line) == 20);
 enum { HDR = sizeof(Line) };
 /* LF_NODEF: decl_line found no DEFtype in it, decl_defevents passes it. LF_TOP: the END before an
-   imported module's lines, where its file's settings start, and past the last module's.
-   LF_NATIVE: a native module's interface (a .qbx's): its DECLARE CDECLs name its code's entries. */
-enum : uint8_t { LF_ASIS = 1, LF_BP = 2, LF_INC = 4, LF_NODEF = 8, LF_TOP = 32, LF_NATIVE = 64 };
+   imported module's lines, where its file's settings start, its Line.file that module's own; and
+   past the last module's, the main's file.
+   LF_NATIVE: a native module's interface (a .qbx's): its DECLARE CDECLs name its code's entries.
+   LF_TEXT: a text dialect's line (io/dialect.h), its body its source text. */
+enum : uint8_t {
+    LF_ASIS = 1,
+    LF_BP = 2,
+    LF_INC = 4,
+    LF_NODEF = 8,
+    LF_TEXT = 16,
+    LF_TOP = 32,
+    LF_NATIVE = 64
+};
 enum : uint32_t {
     NONUM = 0xFFFF,
     LMAX = 0x17000,    /* a line's body at most: 0xFEE0 with 2-byte name ids, times 7/5 */
@@ -332,7 +349,9 @@ enum : uint8_t {
     PF_STAT = 1,
     PF_DEF = 2,
     PF_RESARG = 8,
-    PF_NATIVE = 16
+    PF_NATIVE = 16,
+    PF_FOREIGN = 32
 }; /* ours: PF_RESARG, a FUNCTION's record or array result, its last parameter (blok_nargs);
-      PF_NATIVE, a native module's DECLARE CDECL, its code an extension's entry (io/native.c) */
+      PF_NATIVE, a native module's DECLARE CDECL, its code an extension's entry (io/native.c);
+      PF_FOREIGN, a Quickr fn QBasic calls: its entry its first line, no tokens (qr/qlink.c) */
 #endif

@@ -200,19 +200,21 @@ static void draw_row(Session *const S, const uint16_t r)
     const uint8_t c = scrn_strn(row, col, v.text + e->left, n, SL_ED);
     scrn_fill(row, c, SL_ED, ' ', e->width - n);
 
+    const Dialect *const d = text_dialect_at(S, line + uimn.text.first);
+
     if (v.cols)
         synt_paint(row, col, v.cols, len);
     else
-        synt_row(S, row, col, v.text, len);
+        synt_row(S, d, row, col, v.text, len);
 
     udbg_row(S, row, col, line);
 
     if (has_focus())
-        uses_paint(S, row, col, v.text, len, v.cols);
+        uses_paint(S, d, row, col, v.text, len, v.cols);
 
     errs_paint(S, row, col, line + uimn.text.first, v.text, len);
     fbar_paint(row, col, v.text, len);
-    dinl_paint(S, row, col, v.text, len, v.cols);
+    dinl_paint(S, d, row, col, v.text, len, v.cols);
 
     if (has_focus())
         pairs_paint(row, col, line + uimn.text.first);
@@ -391,13 +393,14 @@ static char *decimal(char *const dst, uint32_t v, const int n)
     return dst + n;
 }
 
-/* The count of lines with errors, at the end of the bar's left part when it fits past column c. */
-static void status_errors(Session *const S, const uint8_t c)
+/* The count of lines with errors, at the end of the bar's left part when it fits past column c;
+   the column it starts at, the bar's when none. */
+static uint8_t status_errors(Session *const S, const uint8_t c)
 {
     const uint32_t n = errs_count(S);
 
     if (!n)
-        return;
+        return from_right(STATUS_BAR);
 
     char text[24];
     char *d = text;
@@ -406,8 +409,21 @@ static void status_errors(Session *const S, const uint8_t c)
     memcpy(d, n == 1 ? " error)" : " errors)", n == 1 ? 8 : 9);
     const uint8_t at = (uint8_t)(from_right(STATUS_BAR) - 1 - strlen(text));
 
+    if (at <= c)
+        return from_right(STATUS_BAR);
+
+    scrn_str(status_row(), at, text, SL_SMSG, SL_SMSG);
+    return at;
+}
+
+/* The program's dialect, before column end when it fits past column c. */
+static void status_dialect(Session *const S, const uint8_t c, const uint8_t end)
+{
+    const char *const name = text_dialect(S)->name;
+    const uint8_t at = (uint8_t)(end - 1 - strlen(name));
+
     if (at > c)
-        scrn_str(status_row(), at, text, SL_SMSG, SL_SMSG);
+        scrn_str(status_row(), at, name, SL_SMSG, SL_SMSG);
 }
 
 /* The status bar's left: the cursor's line's error, else the keys and the errors' count; else F1
@@ -420,7 +436,8 @@ static bool status_left(Session *const S)
         const char *const err = errs_message(S);
 
         if (!err) {
-            status_errors(S, scrn_str(status_row(), 1, draw_keys()->text, SL_SMSG, SL_SMSG));
+            const uint8_t c = scrn_str(status_row(), 1, draw_keys()->text, SL_SMSG, SL_SMSG);
+            status_dialect(S, c, status_errors(S, c));
             return true;
         }
 

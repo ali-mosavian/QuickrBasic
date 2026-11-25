@@ -1,0 +1,36 @@
+lambdas.bas:19:13: f is a lambda: call it or pass it on
+      let g = f
+              ^
+lambdas.bas:20:24: f is a lambda: call it outside another lambda
+      return apply(fn(v) f(v), 2)
+                         ^
+lambdas.bas:25:17: the lambda takes one value here
+      print apply(fn(a, b) a, 1)
+                  ^
+lambdas.bas:26:25: + joins two strings: write string(x)
+      print apply(fn(v) v + "s", 1)
+                          ^
+lambdas.bas:27:17: a function(int, int) as int is not a function(int) as int
+      print apply(twoargs, 1)
+                  ^
+lambdas.bas:28:17: bump is no value: it takes mut
+      print apply(bump, 1)
+                  ^
+lambdas.bas:29:13: a lambda is passed to a function's parameter
+      let f = fn(v) v
+              ^
+lambdas.bas:31:9: k is a let: it can't change
+          k += x
+          ^
+lambdas.bas:33:10: xs is lent mut to the lambda in this call
+      each(xs, fn(x as int)
+           ^
+lambdas.bas:36:20: v is an int here, not a string
+      print apply(fn(v as string) 1, 1)
+                     ^
+lambdas.bas:37:26: a string is not an int
+      print apply(fn(v) v, "no")
+                           ^
+lambdas.bas:41:16: xs is borrowed by the for over it: it can't change here
+              xs.push(y)
+                 ^

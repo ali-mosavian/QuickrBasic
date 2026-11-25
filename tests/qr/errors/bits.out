@@ -1,0 +1,27 @@
+bits.bas:4:9: ** is written ^
+  print 2 ** 3
+          ^
+bits.bas:5:9: & is written and
+  print x & 1
+          ^
+bits.bas:6:9: | is written or
+  print x | 1
+          ^
+bits.bas:7:7: ~ is written not
+  print ~x
+        ^
+bits.bas:8:9: << is written shl
+  print x << 1
+          ^
+bits.bas:9:9: >> is written shr
+  print x >> 1
+          ^
+bits.bas:10:9: and takes two bools or two integers, not an int and a bool
+  print x and 0xff = 0
+          ^
+bits.bas:11:13: or takes two bools or two integers, not a bool and an int
+  print x > 1 or x
+              ^
+bits.bas:12:12: xor takes two bools or two integers, not a bool and an int
+  print true xor 1
+             ^

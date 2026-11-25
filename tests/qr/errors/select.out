@@ -1,0 +1,15 @@
+select.bas:8:1: match is written select case
+  match m
+  ^
+select.bas:13:1: end match is written end select
+  end match
+  ^
+select.bas:14:8: expected case, not m
+  select m
+         ^
+select.bas:19:10: unknown name fly
+      case fly
+           ^
+select.bas:21:1: the select misses walk: give it a case, or add case else
+  end select
+  ^

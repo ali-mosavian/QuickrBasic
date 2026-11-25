@@ -1,0 +1,5 @@
+' OPTION DIALECT QUICKR
+' a conversion that loses the value is an overflow
+var n = 70000
+print uint(n)
+print ushort(n)

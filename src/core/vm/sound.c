@@ -44,10 +44,13 @@ void snd_play_voices(Session *const S)
     B_SPLYV(commands, (unsigned)count);
 }
 
+/* ON PLAY looks too, at the next stop check: its own look is on the clock's tick, not the music's,
+   and the program must not act on a fall it has not seen. */
 void snd_waiting(Session *const S)
 {
     (void)exec_popi(&S->vm);
     qbrt_tick_poll();
+    S->vm.stop |= SF_TICK;
     exec_pushi(&S->vm, (int32_t)music_waiting());
 }
 

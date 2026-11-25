@@ -9,7 +9,8 @@
  * A state carries what the last item makes of the next: after AS or TYPE a type; after SUB,
  * FUNCTION, DEF a name being declared, then its parameters in the ( ) after it, depth deep.
  *
- * The text is copied to uimn.line first: the lexer changes it.
+ * The text is copied to uimn.line first: the lexer changes it. A text dialect's program's lines
+ * are coloured by the dialect (Dialect.colour), each part's colour a slot.
  *
  * # Example
  *   FOR i = 1 TO 10 ' loop    FOR, TO: SL_KW; i: SL_NAM; 1, 10: SL_NUM; ' loop: SL_COM
@@ -30,6 +31,7 @@
 #include "comp/declare.h"
 #include "comp/dfa.h"
 #include "comp/lexer.h"
+#include "ui/text.h"
 
 Synt synt = {.on = true};
 
@@ -180,9 +182,42 @@ static uint8_t item(const uint8_t c, const uint8_t **const p, uint8_t *const sta
     return SL_ED;
 }
 
-/* hl.cols for the len characters at text, width columns from left. */
+/* A text dialect's colour's slot. */
+static const uint8_t text_slots[] = {
+    [DHL_PLAIN] = SL_ED,
+    [DHL_KW] = SL_KW,
+    [DHL_NAME] = SL_NAM,
+    [DHL_TYPE] = SL_TYP,
+    [DHL_FN] = SL_FNM,
+    [DHL_PARAM] = SL_PAR,
+    [DHL_NUM] = SL_NUM,
+    [DHL_STR] = SL_STR,
+    [DHL_OP] = SL_OP,
+    [DHL_COMMENT] = SL_COM,
+};
+
+/* Dialect.colour's: colour c from column col on. */
+static void text_part(void *const ctx, const uint32_t col, const DialColour c)
+{
+    paint(col, text_slots[c]);
+}
+
+/* hl.cols for a text dialect's line, the n characters at text: its parts as d colours them. */
+static void text_line(
+    Session *const S,
+    const Dialect *const d,
+    const uint8_t *const text,
+    const uint32_t n
+)
+{
+    d->colour(&S->fault, (const char *)text, n, text_part, nullptr);
+    paint(n, hl.prev_slot);
+}
+
+/* hl.cols for the len characters at text, dialect d's, width columns from left. */
 static void line(
     Session *const S,
+    const Dialect *const d,
     const uint8_t *const text,
     const uint32_t len,
     const uint32_t left,
@@ -198,10 +233,16 @@ static void line(
     line[n] = 0;
     hl.prev_col = 0;
     hl.prev_slot = SL_ED;
-    lexr_line(&S->lexr, line, S->comp.cbuf);
-    const uint8_t *p = S->comp.cbuf;
     hl.state = 0;
     hl.depth = 0;
+
+    if (d->text) {
+        text_line(S, d, line, n);
+        return;
+    }
+
+    lexr_line(&S->lexr, line, S->comp.cbuf);
+    const uint8_t *p = S->comp.cbuf;
 
     for (;;) {
         const uint32_t off = (uint32_t)(p - S->comp.cbuf);
@@ -240,6 +281,7 @@ static void line(
 
 void synt_row(
     Session *const S,
+    const Dialect *const d,
     const uint8_t row,
     const uint8_t col,
     const uint8_t *const text,
@@ -250,7 +292,7 @@ void synt_row(
         return;
 
     const uint32_t left = uimn.ed.left;
-    line(S, text, len, left, uimn.ed.width);
+    line(S, d, text, len, left, uimn.ed.width);
 
     for (uint16_t i = 0; i < uimn.ed.width && left + i < hl.len; i++)
         if (hl.cols[i] != SL_ED)
@@ -259,17 +301,19 @@ void synt_row(
 
 void synt_cols(
     Session *const S,
+    const Dialect *const d,
     const uint8_t *const text,
     const uint32_t len,
     uint8_t cols[static SYNT_KEEP]
 )
 {
-    line(S, text, len, 0, SYNT_KEEP);
+    line(S, d, text, len, 0, SYNT_KEEP);
     memcpy(cols, hl.cols, len);
 }
 
 const uint8_t *synt_need(
     Session *const S,
+    const Dialect *const d,
     const uint8_t *const text,
     const uint32_t len,
     const uint8_t *const cols
@@ -278,7 +322,7 @@ const uint8_t *synt_need(
     if (cols)
         return cols;
 
-    line(S, text, len, 0, SYNT_KEEP);
+    line(S, d, text, len, 0, SYNT_KEEP);
     return hl.cols;
 }
 

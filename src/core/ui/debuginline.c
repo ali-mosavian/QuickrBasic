@@ -43,6 +43,7 @@ static bool scalar(const uint8_t r)
 
 void dinl_paint(
     Session *const S,
+    const Dialect *const d,
     const uint8_t row,
     const uint8_t col,
     const uint8_t *const text,
@@ -54,7 +55,7 @@ void dinl_paint(
         return;
 
     const uint32_t n = len < SYNT_KEEP ? len : SYNT_KEEP, right = uimn.ed.left + uimn.ed.width;
-    cols = synt_need(S, text, n, cols);
+    cols = synt_need(S, d, text, n, cols);
     uint8_t shown[NSHOWN];
     uint32_t k = 0, at = len + GAP;
 

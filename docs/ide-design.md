@@ -143,6 +143,85 @@ the run goes on.
 Built on `ui/debuginline.c`: the names are where the highlighter colours one, the values Locals' rows
 (`ui/debuglocals.c`, over `vm/inspect.h`), so they follow the selected frame and its spelling.
 
+## Quickr
+
+The editor takes both dialects. A file is Quickr's when its first line is `' OPTION DIALECT QUICKR`,
+QBasic's otherwise. The main file's is the program's; its modules may be of either
+([Interop](language-design.md#interop)).
+
+- That first line is shown and saved but cannot be typed over, cut or joined: a file's dialect is fixed.
+- File, New asks the dialect; a Quickr program starts with that line. The status bar names the
+  program's dialect before its bar, when the errors' count leaves room.
+- A Quickr line is stored as typed, its text the record's body (`LF_TEXT`), and saved as typed.
+- The modules a Quickr program imports open as a QBasic program's do, each its own view after the
+  main's. A Quickr file is one view: its functions stay where they are written, and F2 lists them
+  under their file.
+- A line entered is lexed and parsed at once in its file, as the lines around it make it: a field's
+  line in a type, a line inside an open bracket. A block not closed yet is no error. A line with an
+  error is lit as a QBasic one is (`LF_ASIS`).
+- F5 checks the whole program first (types, borrows): the first error puts the cursor at its line and
+  column, its message in a box.
+- Run, Break, the steps and breakpoints work by line. A generic function's instance runs on copies
+  of its lines (`LF_INC`), each mapped back to its line by file and source line (`prog_origin`); a
+  breakpoint toggled while stopped is set on the copies too (`prog_marks`). A run-time error puts
+  the cursor at its line, an assert's message Quickr's.
+- Locals, Call stack and Watch spell names as typed, without suffixes; a function's frame shows its
+  name. A record in cells opens to its fields as a box does; Quickr's hidden variables are not
+  shown. A name a block declares again over an outer one's shows as typed.
+- A watch is a Quickr expression, printed as `print` would: its names the stopped statement's, a
+  block's over an outer one's, `v.length()` a call. A value set in Locals is a Quickr assignment.
+- The immediate window runs a Quickr line: a call or an assignment, a value alone printed. Stopped,
+  its names are the stopped statement's; else the modules', after their last line, the program
+  linked first. It runs on the checked program the link keeps (`qr.c`'s `QrKeep`), each statement's
+  names in sight kept by the check; a line needing a list, a record or a generic's new instance of
+  its own can't run there.
+- A run goes through the modules in import order, each module's last line on to the next one's first
+  (`qr/qlink.c`), so the store keeps the order the files were read in.
+
+- Highlighting lexes a Quickr line with Quickr's lexer (`qr_colour`): its keywords, a function's
+  name and parameters, types after `as`, strings and f-strings, the comment past the last token.
+- Completion offers Quickr's keywords and the names in the file; after `m.` an imported module's
+  exported names, a QBasic module's SUBs, FUNCTIONs and TYPEs; after `m.E.` an enum's values; after
+  `v.` the fields and methods of `v`'s record type, as declared (`v as T`), a QBasic TYPE's fields
+  too, or a list's, a dict's or a string's methods, as the checker has them (`qsem_methods`)
+  (`qr_suggest`). A Quickr module's names come from its parsed lines, a QBasic module's from
+  QBasic's own symbol table (`bind_each_export`).
+
+- F1 in a Quickr program looks up `quickr WORD` (`help/qr/`): a keyword, a module, a module's
+  `m.name`, else the module before the dot; no topic opens the Quickr index. QBasic's topics are
+  never shown for a Quickr word.
+
+Built on the dialect's hooks (`io/dialect.h`; Quickr's table in `qr/qr.c`) and `ui/text.c`. The
+editor names no dialect: a text dialect's lines go through its table.
+
+### Both dialects in one program
+
+A QBasic main may import Quickr modules, a Quickr main QBasic ones. The editor opens, runs and
+debugs either as it does a program of one dialect.
+
+- Each line is its file's dialect's (`dial_file`, `text_dialect_at`): stored, checked, coloured
+  and looked up in F1 by it. Lines typed in a Quickr file of a QBasic program are kept as typed.
+- F5 runs the main's dialect's way: a QBasic main relinks, its Quickr modules checked as it
+  declares them; a Quickr main links, its QBasic modules declared first. A compile error in either
+  file puts the cursor at its line, its message its dialect's.
+- A Quickr program's store holds the Quickr files' lines first, then each QBasic module's after
+  its `LF_TOP`, each file numbered as its module (`repl_guests_stored`). A Quickr module imported
+  later goes before the QBasic ones'.
+- A QBasic program's Quickr module's own imports are found again at each relink
+  (`Dialect.guest_find`), as its QBasic lines' are.
+- Steps, breakpoints and Ctrl+F7 work by line in either file. Locals, Call stack, Watch and the tip
+  spell a name as its dialect does: Quickr's as typed, QBasic's with its suffix. A watch, a value
+  set in Locals and the immediate window run in the stopped frame's dialect, a QBasic one's names
+  its module's.
+- Completion goes by the line's file's dialect. After `m.` a QBasic line offers module `m`'s
+  exports as `IMPORT` binds them (`bind_each_export`), a Quickr module's those QBasic sees.
+- A Quickr program's modules are those its imports reach, a QBasic module's own `IMPORT`s too
+  (`modu_unreached`, as a QBasic program's): one no longer imported is dropped at the next link,
+  before its lines are read again.
+- A line stored in a module of a dialect other than the program's declares the program again
+  (`Dialect.redeclare`): its exports and TYPE fields reach completion at once, removals too. A
+  Quickr module with an error exports nothing till it checks; the run says the error.
+
 ## Theme slots
 
 Five slots, set in every theme: SL_ERR, SL_FIND, SL_MATCH, SL_OCC, SL_HINT.

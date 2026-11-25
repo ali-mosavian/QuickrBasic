@@ -118,6 +118,10 @@ static void link_procvars(Comp *const C)
 
     for (uint32_t i = 1; i < C->blok->procs.n; i++) {
         Proc *const p = btab_at(&C->blok->procs, i);
+
+        if (p->flags & PF_FOREIGN)
+            continue;
+
         decl_deftype(C->decl, C->symb, p->first);
         symb_name(C->symb, p->name)->proc = i;
         p->module = comp_module(C, p->first);
@@ -157,11 +161,8 @@ static void uncache(Comp *const C)
         prog_line(C->prog, l)->code = 0;
 }
 
-/* Line compiled into the cache at link.end, the cache grown should it not fit. Out of memory. */
-static void link_line(Comp *const C, const uint32_t line)
+void link_place(Comp *const C, const uint32_t line)
 {
-    link_compile(C, line);
-
     for (;;) {
         Addr a = C->link->end;
         C->link->lim = C->allo->cache + allo_cap(C->allo, HCACHE);
@@ -177,6 +178,13 @@ static void link_line(Comp *const C, const uint32_t line)
         if (!allo_grow(C->allo, HCACHE, need))
             fault_error(C->fault, E_OM);
     }
+}
+
+/* Line compiled into the cache at link.end. */
+static void link_line(Comp *const C, const uint32_t line)
+{
+    link_compile(C, line);
+    link_place(C, line);
 }
 
 /* cx_mapstmt: the map entries of the statements whose code starts at s; a the stream's place. */
@@ -488,6 +496,72 @@ static bool ref_line(
     return true;
 }
 
+Jump *link_jump(uint8_t *const op)
+{
+    switch (op[0]) {
+    case O_JMP:
+    case O_I_JF:
+    case O_F_JF:
+    case O_I_JT:
+    case O_F_JT:
+        return (Jump *)(op + 1);
+
+    case O_PCALL:
+        return (Jump *)(op + PCALL_JUMP);
+
+    case O_I_NEXT_UP: /* comp/fuse.c's: three cells (FV3), then the Jump */
+    case O_I_NEXT_DN:
+    case O_I_NEXT_UP_L:
+    case O_I_NEXT_DN_L:
+    case O_I_COUNT_UP:
+    case O_I_COUNT_DN:
+    case O_I_COUNT_UP_L:
+    case O_I_COUNT_DN_L:
+        return (Jump *)(op + 1 + 3 * VCELL);
+
+    case O_E_NEXT:
+        return (Jump *)(op + E_NEXT_SIZE - sizeof(Jump));
+
+    case O_I_JFC_V: /* a cell (FV), a mask, then the Jump */
+    case O_I_JFC_L:
+    case O_I_JFC:
+    case O_I_JFC_U8:
+    case O_I_JFC_I16:
+    case O_L_JFC:
+    case O_L_JFC_V:
+    case O_L_JFC_L: /* the Jump ends the op */
+        return (Jump *)(op + flow_opsize(op) - sizeof(Jump));
+
+    default:
+        return nullptr;
+    }
+}
+
+/* An X op's line, a LineRef; null none. */
+static LineRef *xref(uint8_t *const op)
+{
+    LineRef *const ref = (LineRef *)(op + 2), *const after = (LineRef *)(op + 3);
+
+    switch (op[1]) {
+    case X_RESTORE_L:
+    case X_RUN_L:
+        return ref;
+
+    case X_ONERR:
+    case X_ONLERR:
+        return ref->num ? ref : nullptr; /* GOTO 0: none */
+
+    case X_ONEV:
+        return after->num ? after : nullptr;
+
+    case X_RESUME:
+        return op[2] == RESUME_LINE ? after : nullptr;
+
+    default:
+        return nullptr;
+    }
+}
+
 /* The jumps and references of the op at op. */
 static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint8_t *const op)
 {
@@ -496,55 +570,45 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
     uint32_t nrefs = 1;
     Jump *j = nullptr;
 
+    if (op[0] == O_PCALL) { /* the procedure, its locals' cells, its parameters, the Jump */
+        store32(op + PCALL_CELLS, blok_proc(C->blok, load32(op + PCALL_PROC))->nframe);
+        store16(op + PCALL_NPAR, blok_proc(C->blok, load32(op + PCALL_PROC))->npar);
+    }
+
     switch (op[0]) {
     case O_JMP:
     case O_I_JF:
     case O_F_JF:
     case O_I_JT:
     case O_F_JT:
-        j = (Jump *)(op + 1);
-        break;
-
-    case O_PCALL: /* the procedure, its locals' cells, its parameters, the Jump */
-        store32(op + PCALL_CELLS, blok_proc(C->blok, load32(op + PCALL_PROC))->nframe);
-        store16(op + PCALL_NPAR, blok_proc(C->blok, load32(op + PCALL_PROC))->npar);
-
-        j = (Jump *)(op + PCALL_JUMP);
-        break;
-
-    case O_I_NEXT_UP: /* comp/fuse.c's: three cells (FV3), then the Jump */
+    case O_PCALL:
+    case O_I_NEXT_UP:
     case O_I_NEXT_DN:
     case O_I_NEXT_UP_L:
     case O_I_NEXT_DN_L:
-        j = (Jump *)(op + 1 + 3 * VCELL);
-        break;
-
-    case O_I_JFC_V: /* a cell (FV), a mask, then the Jump */
+    case O_I_COUNT_UP:
+    case O_I_COUNT_DN:
+    case O_I_COUNT_UP_L:
+    case O_I_COUNT_DN_L:
+    case O_E_NEXT:
+    case O_I_JFC_V:
     case O_I_JFC_L:
     case O_I_JFC:
     case O_I_JFC_U8:
-    case O_I_JFC_I16: /* the Jump ends the op */
-        j = (Jump *)(op + flow_opsize(op) - sizeof(Jump));
+    case O_I_JFC_I16:
+    case O_L_JFC:
+    case O_L_JFC_V:
+    case O_L_JFC_L:
+        j = link_jump(op);
         break;
 
     case O_GOTO:
     case O_GOSUB:
-    case O_RESTORE_L:
-    case O_RUN_L:
         refs = (LineRef *)(op + 1);
         break;
 
-    case O_ONERR:
-    case O_ONLERR:
-        refs = ((LineRef *)(op + 1))->num ? (LineRef *)(op + 1) : nullptr; /* GOTO 0: none */
-        break;
-
-    case O_ONEV:
-        refs = ((LineRef *)(op + 2))->num ? (LineRef *)(op + 2) : nullptr;
-        break;
-
-    case O_RESUME:
-        refs = op[1] == RESUME_LINE ? (LineRef *)(op + 2) : nullptr;
+    case O_X:
+        refs = xref(op);
         break;
 
     case O_ON:
@@ -613,7 +677,7 @@ static uint32_t each_error(const Comp *const C, LinkEach *const each, void *cons
         const uint8_t *op = at(C->allo->cache + prog_line(C->prog, l)->code);
 
         for (; !line_end(*op); op += link_opsize(op))
-            if (*op == O_ERR) {
+            if (exec_is_err(op)) {
                 const ErrOp *const e = (const ErrOp *)op;
                 const Failure f = {
                     .code = e->code,
@@ -669,19 +733,19 @@ void link_walk(const uint8_t *code, void (*each)(uint8_t op, const uint8_t *at))
         each(*code, code);
 }
 
-/* Each module's LF_TOP line again, the k-th the k-th module's (io/repl.c read_modules): lines
-   typed before them moved them. */
-static void link_tops(Comp *const C)
+/* The one past the last module's lines is the main's file: no top. */
+void link_tops(Comp *const C)
 {
-    uint32_t m = 1;
+    for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len) {
+        const uint32_t m = modu_of(C->modu, prog_line(C->prog, l)->file);
 
-    for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
-        if (prog_line(C->prog, l)->flags & LF_TOP && m < modu_count(C->modu))
-            modu_top(C->modu, m++, l);
+        if (prog_line(C->prog, l)->flags & LF_TOP && m)
+            modu_top(C->modu, m, l);
+    }
 }
 
-/* Every line compiled: each module's after those it imports, the main's last, so a use of another
-   module's CONST loads its literal (comp/fold.c). */
+/* Every QBasic line compiled: each module's after those it imports, the main's last, so a use of
+   another module's CONST loads its literal (comp/fold.c). A Quickr line is qr/qlink.c's. */
 static void link_lines(Comp *const C)
 {
     const uint32_t n = modu_count(C->modu);
@@ -689,7 +753,8 @@ static void link_lines(Comp *const C)
 
     if (n <= 1) {
         for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
-            link_line(C, l);
+            if (!(prog_line(C->prog, l)->flags & LF_TEXT))
+                link_line(C, l);
 
         return;
     }
@@ -698,7 +763,7 @@ static void link_lines(Comp *const C)
         const uint32_t m = sc_module(modu_ordered(C->modu)[i]);
 
         for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
-            if (comp_module(C, l) == m)
+            if (!(prog_line(C->prog, l)->flags & LF_TEXT) && comp_module(C, l) == m)
                 link_line(C, l);
     }
 }
@@ -833,8 +898,7 @@ static void link_natives(Comp *const C)
     }
 }
 
-/* Blocks paired, every line compiled and resolved; the ledger holds what was not found. */
-static void build(Comp *const C)
+void link_prepare(Comp *const C)
 {
     fold_clear(C);
     blok_pair(C->blok, C->prog, C->symb, C->fault);
@@ -842,7 +906,6 @@ static void build(Comp *const C)
     decl_defevents(C->decl, C->scop, C->symb, C->prog); /* the typed lines' DEFtypes too */
     link_procvars(C);
     link_natives(C);
-    Addr base;
     memset(C->memo, 0, sizeof C->memo);
     C->memo_on = true;
     C->scop->look_on = true;
@@ -861,28 +924,60 @@ static void build(Comp *const C)
 
     for (uint32_t id = 1; id < C->symb->nvars; id++)
         symb_varx(C->symb, id)->given = 0;
+}
+
+void link_lines_qb(Comp *const C)
+{
+    C->link->cursor = 0;
+    uncache(C);
+    C->link->end = C->allo->cache + CACHE0;
+    link_lines(C);
+}
+
+void link_resolve_qb(Comp *const C)
+{
+    C->memo_on = false;
+    C->scop->look_on = false;
+    index_lines(C);
+
+    for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
+        if (!(prog_line(C->prog, l)->flags & LF_TEXT))
+            link_resolve(C, l, prog_line(C->prog, l)->code);
+}
+
+/* Blocks paired, every line compiled and resolved; the ledger holds what was not found. */
+static void build(Comp *const C)
+{
+    LinkGuest *const g = C->guest;
+    link_prepare(C);
+
+    if (g) {
+        g->made(g, C);
+        bind_procs(C->symb);
+    }
+
+    Addr base;
 
     do { /* the cache grown moves the store: a literal's Addr of its text, compiled again */
         base = C->prog->base;
-        C->link->cursor = 0;
-        uncache(C);
-        C->link->end = C->allo->cache + CACHE0;
+        link_lines_qb(C);
 
-        link_lines(C);
+        if (g)
+            g->lines(g, C);
     } while (C->prog->base != base);
 
-    C->memo_on = false;
-    C->scop->look_on = false;
     C->link->nmiss = 0;
 
     for (uint32_t i = 1; i < C->blok->procs.n; i++) /* every line compiled: every local made */
         frame_layout(C->symb, C->decl, btab_at(&C->blok->procs, i), i);
 
-    index_lines(C);
+    link_resolve_qb(C);
 
-    for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
-        link_resolve(C, l, prog_line(C->prog, l)->code);
+    if (g)
+        g->resolve(g, C);
 }
+
+void link_raise(Comp *const C) { each_error(C, raise_one, C->fault); }
 
 void link_start(Comp *const C)
 {

@@ -163,9 +163,7 @@ void func_rtrim(Session *const S)
     exec_pusha(&S->vm, strg_sub(&S->strg, exec_popa(&S->vm), 0, len));
 }
 
-/* INSTR ( [n] s t count -- i ): where t is in s from n, 1 the first; 0 none. Illegal function
-   call: n under 1. */
-static int32_t instr(const Desc s, const Desc t, const int32_t from)
+int32_t func_find(const Desc s, const Desc t, const int32_t from)
 {
     if (from > s.len)
         return 0;
@@ -178,6 +176,8 @@ static int32_t instr(const Desc s, const Desc t, const int32_t from)
     return 0;
 }
 
+/* INSTR ( [n] s t count -- i ): where t is in s from n, 1 the first; 0 none. Illegal function
+   call: n under 1. */
 void func_instr(Session *const S)
 {
     const uint32_t count = exec_pop(&S->vm).u;
@@ -188,7 +188,7 @@ void func_instr(Session *const S)
     if (from < 1)
         repl_error(S, E_IQ);
 
-    exec_pushi(&S->vm, instr(s, t, from));
+    exec_pushi(&S->vm, func_find(s, t, from));
 }
 
 /* The MID$ statement's value ( s i n v -- s ): s with v over its chars from i, n at most, its

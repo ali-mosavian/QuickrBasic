@@ -1,0 +1,6 @@
+chars.bas:3:18: the index is past the elements
+  const END = "ab"[2]
+                   ^
+chars.bas:4:21: the index is past the elements
+  const BEFORE = "ab"[-1]
+                      ^

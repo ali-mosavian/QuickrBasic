@@ -1,0 +1,36 @@
+loops.bas:4:1: end for is written next
+  end for
+  ^
+loops.bas:6:1: end while is written wend
+  end while
+  ^
+loops.bas:9:1: end do is written loop
+  end do
+  ^
+loops.bas:10:16: a range has no step: write for i = a to b step s
+  for k in 0..10 step 2
+                 ^
+loops.bas:13:6: next takes no name
+  next i
+       ^
+loops.bas:14:4: a do's test goes after loop: loop while c
+  do while true
+     ^
+loops.bas:18:12: unknown name y
+  loop until y = 2
+             ^
+loops.bas:19:21: a step of 0 never ends
+  for i = 1 to 3 step 0
+                      ^
+loops.bas:21:1: wend without while
+  wend
+  ^
+loops.bas:22:1: loop without do
+  loop
+  ^
+loops.bas:23:1: next without for
+  next
+  ^
+loops.bas:24:11: expected in, not =
+  for mut i = 1 to 3
+            ^

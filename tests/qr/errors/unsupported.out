@@ -1,0 +1,6 @@
+unsupported.bas:3:9: lists are not supported yet
+  let a = [1, 2]
+          ^
+unsupported.bas:4:12: ! is not supported yet
+  let b = f()!
+             ^

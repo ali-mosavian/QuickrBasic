@@ -13,14 +13,17 @@ enum { ADIMS = 64 }; /* the subscript buffers' words */
 static_assert(MAXDIMS <= ADIMS && MAXDIMS <= DIM_COUNT);
 
 typedef struct Arry {
-    Allo *allo;          /* the headers' region; the data from allo.bot up to allo.arrays */
+    Allo *allo;          /* the heap arrays, from allo.bot up to allo.arrays */
     Fault *fault;        /* Subscript out of range, Out of memory, ... */
     Symb *symb;          /* the arrays' variables */
     const Decl *decl;    /* the TYPEs' sizes, OPTION BASE */
     Strg *strg;          /* collected for room; a string element's block follows it */
     Vm *vm;              /* the run: its call's frame (vm.fp), the calls that own a heap's array */
-    Addr hdr;            /* past the headers (mm.ahd) */
-    Addr fcells;         /* the field cells' foot: they run to the headers' region's end */
+    Addr fcells;         /* the newest live field cell's header, 0 none */
+    uint32_t idle;       /* the bytes of the dead arry_relen and field cells left, not yet swept */
+    Addr *holds;         /* arry_hold's sp each, the newest last */
+    uint32_t nholds;     /* in use */
+    uint32_t holdcap;    /* holds' room */
     int32_t subs[ADIMS]; /* the subscripts (g_dimbuf) */
     uint32_t counts[ADIMS]; /* the counts (g_cntbuf) */
     int32_t lbounds[ADIMS]; /* the lower bounds (g_lbbuf) */
@@ -49,7 +52,7 @@ static inline uint32_t arry_var_et(const Symb *const sy, const uint32_t id)
         return v->type;
     if (v->info & SK_DBL)
         return ET_R8;
-    if (v->type == ET_SH || v->type == ET_BY)
+    if (et_narrow(v->type))
         return v->type;
 
     return (v->info & VK_MASK) == VK_STR ? ET_SD : (v->info & VK_MASK) == VK_INT ? ET_I4 : ET_R4;
@@ -63,9 +66,11 @@ static inline uint32_t arry_et_size(const Decl *const d, const uint32_t et)
         return 8;
 
     case ET_SH:
+    case ET_US:
         return 2;
 
     case ET_BY:
+    case ET_SB:
         return 1;
 
     case ET_SD:
@@ -102,6 +107,10 @@ void arry_dim(Arry *ay, uint32_t id, uint8_t n);
    lower bounds arry.lbounds; keep: the old one's elements moved in. Duplicate definition: a fixed
    one. Subscript out of range: keep, n not its dimensions. Illegal function call, Out of memory. */
 void arry_redim(Arry *ay, ArrSlot *s, uint32_t et, uint8_t n, bool keep);
+/* A list's array, ours: cell s's made cap elements of et, its first len (fast) its elements, the
+   old ones kept, the old array dead for arry_sweep (an arena's till its return): nothing moves
+   yet. Out of memory. */
+void arry_relen(Arry *ay, ArrSlot *s, uint32_t et, uint32_t cap, uint32_t len);
 /* The array fields of the n records of TYPE td at data dynamic and empty, ours. */
 void arry_empty_cells(Addr data, uint32_t n, const TypeDef *td);
 /* DIM a(), ours: array id dynamic and empty until a REDIM, as ERASE leaves one; keep: a STATIC's
@@ -110,6 +119,9 @@ void arry_empty(Arry *ay, uint32_t id, bool keep);
 /* a(:) = b(:), ours: cell d gets s's bounds and a copy of its elements, a dynamic array after, its
    old one freed. Duplicate definition: d a DIM's with elements. Out of memory. */
 void arry_copy(Arry *ay, Vm *vm, ArrSlot *d, const ArrSlot *s);
+/* Cell d's array, ours, a list of n copies of s's elements from from: d's old one freed, which
+   may be s's. */
+void arry_copy_part(Arry *ay, Vm *vm, ArrSlot *d, const ArrSlot *s, uint32_t from, uint32_t n);
 /* arry_copy's copy into the empty cell d, ours: made at the heap's end, nothing moves. */
 void arry_copy_into(Arry *ay, ArrSlot *d, const ArrSlot *s);
 /* A record of TYPE td copied from src to dst, ours: dst's STRINGs and arrays made its own (its old
@@ -128,8 +140,8 @@ void arry_move(Arry *ay, Vm *vm, ArrSlot *d, ArrSlot *s);
 /* An array result emptied as its FUNCTION starts, ours: cell s's array freed, s dynamic and empty. */
 void arry_reset(Arry *ay, Vm *vm, ArrSlot *s);
 /* An array of et elements made in cell s, ours: arry.counts and arry.lbounds [0..n), its data
-   zeroed; on the running call's arena (vm/stack.c), else its header at arry.hdr, its owner s, its
-   data at allo.arrays; dyn a REDIM's. Returns the header. Out of memory. */
+   zeroed; on the running call's arena (vm/stack.c), else its header and data at allo.arrays, its
+   owner s; dyn a REDIM's. Returns the header. Out of memory. */
 Addr arry_make(Arry *ay, ArrSlot *s, uint32_t et, uint8_t n, bool dyn);
 /* arry_make for array id in its cell. */
 Addr arry_new(Arry *ay, uint32_t id, uint8_t n, bool dyn);
@@ -165,8 +177,22 @@ void arry_clear(Arry *ay, Vm *vm, const ArrView *v);
 void arry_kill(const Arry *ay, Addr h);
 /* The dead arrays removed, ours: what follows each moves down, and the headers' data, their
    owners in the moved data, the moved headers' cells, the moved string blocks' owners and the
-   parameters' cells in the moved data follow. A cell held in the heap moves: not to be used after. */
+   parameters' cells in the moved data follow. A cell held in the heap moves: not to be used after.
+   Held (arry_hold): nothing moves, the dead left to a later sweep. */
 void arry_sweep(Arry *ay, Vm *vm);
+/* arry_sweep: where the heap address a moved to. */
+Addr arry_sweep_at(Arry *ay, Vm *vm, Addr a);
+/* Code starts that may sweep while addresses into the heap wait on the stack at or above sp, where
+   no sweep can follow them: sweeps wait till its arry_unhold, which drops the newest hold, or till
+   an error's unwinding takes sp up to it (arry_unwound). Out of memory. */
+void arry_hold(Arry *ay);
+void arry_unhold(Arry *ay);
+/* The holds at or under sp dropped: the stack unwound past them. */
+void arry_unwound(Arry *ay);
+/* Before a list grows by need bytes: arry_sweep_at when the dead arry_relen left are over half the
+   heap in use, or need does not fit, else a with nothing moved. A sweep moves the data and walks
+   every string block, so growth pays for one rarely. */
+Addr arry_tidy(Arry *ay, Vm *vm, Addr a, uint32_t need);
 /* Cell s's array dropped, s emptied: arry_kill, the arena's newest's room given back, then
    arry_sweep. */
 void arry_free(Arry *ay, Vm *vm, ArrSlot *s);

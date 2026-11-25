@@ -64,10 +64,10 @@ def job(spec: str | tuple) -> tuple[str, str, str, dict[str, bytes]]:
     return prog, stdin, args, files
 
 
-def job_file(work: Path, i: int, name: str, prog: str, files: dict[str, bytes]) -> str:
-    """Job i's program written as J{i}\\NAME.BAS, its files beside it; the DOS path."""
+def job_file(work: Path, i: int, name: str, prog: str, files: dict[str, bytes], ext: str = "BAS") -> str:
+    """Job i's program written as J{i}\\NAME.ext, its files beside it; the DOS path."""
     # the file named as the job, its first 8 letters: BC's module name in an error's message
-    bas = f"J{i}\\{re.sub(r'[^A-Za-z0-9_]', '', name)[:8].upper() or 'PROG'}.BAS"
+    bas = f"J{i}\\{re.sub(r'[^A-Za-z0-9_]', '', name)[:8].upper() or 'PROG'}.{ext}"
     (work / f"J{i}").mkdir()
     (work / bas.replace("\\", "/")).write_bytes(prog.encode("latin-1"))
     for n, data in files.items():
@@ -155,14 +155,17 @@ def is_host(com: Path) -> bool:
     return com.suffix.lower() not in (".exe", ".com")
 
 
-def run_host(jobs: dict[str, str | tuple], work: Path, limit_ms: int, file: bool) -> dict[str, Result]:
-    """run's jobs with the host build, natively: the same files, names and streams, no DOSBox."""
+def run_host(
+    jobs: dict[str, str | tuple], work: Path, limit_ms: int, file: bool, ext: str = "BAS"
+) -> dict[str, Result]:
+    """run's jobs with the host build, natively: the same files, names and streams, no DOSBox. ext: the
+    programs' extension."""
     out: dict[str, Result] = {}
     for i, name in enumerate(jobs):
         prog, stdin, args, own = job(jobs[name])
         argv = [str(COM.resolve())]
         if file:
-            argv += [job_file(work, i, name, prog, own), *args.split()]
+            argv += [job_file(work, i, name, prog, own, ext), *args.split()]
         data = (stdin if file else prog).encode("latin-1")
         try:
             p = subprocess.run(argv, cwd=work, input=data, capture_output=True, timeout=limit_ms / 1000,
