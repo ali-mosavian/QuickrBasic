@@ -872,60 +872,94 @@ static inline void held_of(
     "2:\n\t"                                                                                       \
     "addl %[dv], %%edx\n\t"                                                                        \
     "sbbl %%ebx, %%ebx\n\t"                                                                        \
-    "andl %[pitch], %%ebx\n\t"                                                                     \
-    "addl %[step], %%ebx\n\t"                                                                      \
     "addw %[du], %%dx\n\t"                                                                         \
-    "adcl %%ebx, %%esi\n\t"                                                                        \
+    "adcl %[steps](,%%ebx,4), %%esi\n\t"                                                           \
     "incl %%ecx\n\t"                                                                               \
     "jnz 1b"
 #define WALK_LOOP(b, k, z)                                                                         \
     "1:\n\t" WALK_HERE_##z WALK_TEST_##z WALK_TEXEL_##b WALK_KEY_##k##_##b WALK_STORE_##b          \
         WALK_WRITE_##z WALK_STEP
+/* A run's loads into the loop: its place, fractions, steps and ends, from the next WalkRun. */
+#define WALK_RUN_0                                                                                 \
+    "3:\n\t"                                                                                       \
+    "movl %[runp], %%ebx\n\t"                                                                      \
+    "movl (%%ebx), %%esi\n\t"                                                                      \
+    "movl 4(%%ebx), %%edx\n\t"                                                                     \
+    "movl 8(%%ebx), %%eax\n\t"                                                                     \
+    "movl %%eax, %[dv]\n\t"                                                                        \
+    "movl 12(%%ebx), %%eax\n\t"                                                                    \
+    "movl %%eax, %[steps0]\n\t"                                                                    \
+    "movl 16(%%ebx), %%eax\n\t"                                                                    \
+    "movl %%eax, %[steps]\n\t"                                                                     \
+    "movl 20(%%ebx), %%eax\n\t"                                                                    \
+    "movw %%ax, %[du]\n\t"                                                                         \
+    "movl 24(%%ebx), %%ecx\n\t"                                                                    \
+    "movl 28(%%ebx), %%edi\n\t"
+#define WALK_RUN_1 WALK_RUN_0 "movl 32(%%ebx), %%ebp\n\t"
+#define WALK_RUN_NEXT "addl $36, %%ebx\n\tmovl %%ebx, %[runp]\n\t"
+#define WALK_RUNS_DONE "\n\tdecl %[left]\n\tjnz 3b"
 #define WALK_FLAT(B, K)                                                                            \
     if (b == B && key == K && !z) {                                                                \
-        __asm__ volatile(WALK_LOOP(B, K, 0)                                                        \
-                         : "+S"(at), "+d"(uv), "+c"(i)                                             \
-                         : "D"(end),                                                               \
-                           [dv] "m"(by.dv),                                                        \
-                           [du] "m"(by.du),                                                        \
-                           [pitch] "m"(by.pitch),                                                  \
-                           [step] "m"(by.step)                                                     \
-                         : "ebx", "cc", "memory");                                                 \
+        __asm__ volatile(WALK_RUN_0 WALK_RUN_NEXT WALK_LOOP(B, K, 0) WALK_RUNS_DONE                \
+                         : [runp] "+m"(runp),                                                      \
+                           [left] "+m"(left),                                                      \
+                           [dv] "+m"(dv),                                                          \
+                           [du] "+m"(du),                                                          \
+                           [steps0] "+m"(walk_steps[0]),                                           \
+                           [steps] "+m"(walk_steps[1])                                             \
+                         :                                                                         \
+                         : "eax", "ebx", "ecx", "edx", "esi", "edi", "cc", "memory");              \
         return;                                                                                    \
     }
 #define WALK_DEEP(B, Z, K)                                                                         \
     if (b == B && key == K && z == Z) {                                                            \
-        __asm__ volatile("movl %[zp], %%ebp\n\t" WALK_LOOP(B, K, Z)                                \
-                         : "+S"(at), "+d"(uv), "+c"(i), [z] "+m"(acc.z)                            \
-                         : "D"(end),                                                               \
-                           [zp] "m"(zend),                                                         \
-                           [here] "m"(acc.half[1]),                                                \
-                           [dz] "m"(step_z),                                                       \
-                           [dv] "m"(by.dv),                                                        \
-                           [du] "m"(by.du),                                                        \
-                           [pitch] "m"(by.pitch),                                                  \
-                           [step] "m"(by.step)                                                     \
-                         : "eax", "ebx", "ebp", "cc", "memory");                                   \
+        __asm__ volatile(WALK_RUN_1 WALK_RUN_NEXT WALK_LOOP(B, K, Z) WALK_RUNS_DONE                \
+                         : [runp] "+m"(runp),                                                      \
+                           [left] "+m"(left),                                                      \
+                           [dv] "+m"(dv),                                                          \
+                           [du] "+m"(du),                                                          \
+                           [steps0] "+m"(walk_steps[0]),                                           \
+                           [steps] "+m"(walk_steps[1]),                                            \
+                           [z] "+m"(acc.z)                                                         \
+                         : [here] "m"(acc.half[1]), [dz] "m"(step_z)                               \
+                         : "eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "cc", "memory");       \
         return;                                                                                    \
     }
 #define WALK_KEYS(X, ...) X(__VA_ARGS__, 0) X(__VA_ARGS__, 1)
 
+/* The place's step a pixel, Abrash's: by v's borrow, 0 or -1, a row more or not; u's carry adds the
+   texel. Set a run, read by the loop at its absolute place: no register is left to point at it. */
+static int32_t walk_steps[2];
+
+/* A plain run, as the loop loads it (WALK_RUN_0's offsets): its first texel's place and u's and v's
+   fractions (StepsRead's), v's step's fraction, the place's steps by v's borrow, u's step's
+   fraction, -n, and the ends of its pixels and depths. */
+typedef struct {
+    uintptr_t at;
+    uint32_t uv, dv;
+    int32_t steps[2];
+    uint32_t du;
+    int32_t n;
+    uint8_t *end;
+    uint16_t *zend;
+} WalkRun;
+
+static_assert(sizeof(WalkRun) == 36);
+
+/* left runs, each n >= 1 pixels, keyed or not, in depth mode z, from z zd by dz a pixel. */
 [[gnu::always_inline]]
-static inline void walk_asm_of(
+static inline void walk_runs_of(
     const uint32_t b,
     const bool key,
     const uint32_t z,
-    uint8_t *const end,
-    uint16_t *const zend,
-    const StepsBy by,
-    StepsRead rd,
-    int32_t i,
+    const WalkRun *runp,
+    int32_t left,
     const int32_t zd,
     const int32_t step_z
 )
 {
-    uintptr_t at = rd.at;
-    uint32_t uv = rd.uv;
+    uint32_t dv = 0;
+    uint16_t du = 0;
     union {
         int32_t z;
         uint16_t half[2];
@@ -946,7 +980,60 @@ static inline void walk_asm_of(
 }
 #endif
 
-/* A run of n pixels at x of row y along st, f's texels: deep_of's, steps_of's without depth, or
+/* A row's, read by its runs, taken from Rows once a row: an asm run's memory clobber reloads none
+   of it. */
+typedef struct {
+    uint8_t *d;
+    uint16_t *zp;
+    Pixels src;
+    int32_t dz;
+} Row;
+
+static inline Row row_of_rows(
+    const PxFormat f,
+    const uint32_t z,
+    const Rows *const r,
+    const int32_t y,
+    const int32_t x
+)
+{
+    return (Row){
+        r->dst.p + y * r->dst.pitch + (uint32_t)x * px_bytes(f),
+        z ? r->depth.p + y * r->depth.row + x : nullptr,
+        r->src,
+        r->dz,
+    };
+}
+
+#if defined(__i386__)
+/* The plain run of n pixels at x of the row along st, as the asm loads it. */
+[[gnu::always_inline]]
+static inline WalkRun walk_run(
+    const PxFormat f,
+    const Row *const w,
+    const int32_t x,
+    const int32_t n,
+    const Steps st
+)
+{
+    const uint32_t b = px_bytes(f);
+    const StepsBy by = steps_by(&w->src, st, b);
+    const StepsRead rd = steps_read(&w->src, st, &by, b);
+
+    return (WalkRun){
+        rd.at,
+        rd.uv,
+        by.dv,
+        {(int32_t)(by.step + by.pitch), (int32_t)by.step},
+        by.du,
+        -n,
+        w->d + (uint32_t)(x + n) * b,
+        w->zp ? w->zp + x + n : nullptr,
+    };
+}
+#endif
+
+/* A run of n pixels at x of the row along st, f's texels: deep_of's, steps_of's without depth, or
    held_of's. */
 [[gnu::always_inline]]
 static inline void run_at(
@@ -954,8 +1041,7 @@ static inline void run_at(
     const bool key,
     const uint32_t z,
     const bool held,
-    const Rows *const r,
-    const int32_t y,
+    const Row *const w,
     const int32_t x,
     const int32_t n,
     const Steps st,
@@ -963,36 +1049,25 @@ static inline void run_at(
 )
 {
     const uint32_t b = px_bytes(f);
-    uint8_t *const d = r->dst.p + y * r->dst.pitch + (uint32_t)x * b;
-    uint16_t *const zp = z ? r->depth.p + y * r->depth.row + x : nullptr;
+    uint8_t *const d = w->d + (uint32_t)x * b;
+    uint16_t *const zp = z ? w->zp + x : nullptr;
 
     if (held)
-        held_of(f, key, z, d, zp, &r->src, st, n, zd, r->dz);
+        held_of(f, key, z, d, zp, &w->src, st, n, zd, w->dz);
 #if defined(__i386__)
     else if (n > 0) {
-        const StepsBy by = steps_by(&r->src, st, b);
+        const WalkRun run = walk_run(f, w, x, n, st);
 
-        walk_asm_of(
-            b,
-            key,
-            z,
-            d + n * b,
-            zp + n,
-            by,
-            steps_read(&r->src, st, &by, b),
-            -n,
-            zd,
-            r->dz
-        );
+        walk_runs_of(b, key, z, &run, 1, zd, w->dz);
     }
 #else
     else if (!z)
-        steps_of(f, d, &r->src, st, n, key);
+        steps_of(f, d, &w->src, st, n, key);
     else {
-        const StepsBy by = steps_by(&r->src, st, b);
-        StepsRead rd = steps_read(&r->src, st, &by, b);
+        const StepsBy by = steps_by(&w->src, st, b);
+        StepsRead rd = steps_read(&w->src, st, &by, b);
 
-        deep_of(f, key, z, d, zp, &rd, n, zd, r->dz);
+        deep_of(f, key, z, d, zp, &rd, n, zd, w->dz);
     }
 #endif
 }
@@ -1016,8 +1091,13 @@ static inline void affine_row(
     const Steps st = walk == ROW_WRAPPED ? steps_from(u, v, r->du, r->dv, r->wrap)
                                          : (Steps){u, v, r->du, r->dv, 0};
 
-    run_at(f, key, z, walk != ROW_PLAIN, r, y, x0, x1 - x0, st, zd);
+    const Row w = row_of_rows(f, z, r, y, x0);
+
+    run_at(f, key, z, walk != ROW_PLAIN, &w, 0, x1 - x0, st, zd);
 }
+
+/* The plain runs a perspective row walks in one asm call, at most. */
+enum { PERSP_RUNS = 32 };
 
 /* RowPersp's, f's texels into f: runs of SCAN_SUBDIVP, each a walk between two divides, held where
    it leaves the picture. */
@@ -1037,27 +1117,63 @@ static inline void persp_row(
 )
 {
     const int32_t n = x1 - x0;
+    const Row row = row_of_rows(f, z, r, y, x0);
+    const float dpun = r->dpun, dpvn = r->dpvn, dpzn = r->dpzn;
     ScanUV p = scan_pdiv(u, v, w);
+#if defined(__i386__)
+    /* the plain runs gathered, then walked by one asm call; a held one between them in C */
+    WalkRun runs[PERSP_RUNS];
+    int32_t gathered = 0, from = 0;
 
     for (int32_t done = 0; done < n; done += SCAN_SUBDIVP) {
         const int32_t m = n - done < SCAN_SUBDIVP ? n - done : SCAN_SUBDIVP;
 
-        u += r->dpun;
-        v += r->dpvn;
-        w += r->dpzn;
+        u += dpun;
+        v += dpvn;
+        w += dpzn;
 
         const ScanUV l = scan_pdiv(u, v, w);
         const Steps st = {p.u, p.v, scan_step(p.u, l.u), scan_step(p.v, l.v), 0};
 
-        const int32_t at = depth_on(zd, r->dz, done);
+        const bool inside = steps_inside(&st, &row.src, m);
 
-        if (steps_inside(&st, &r->src, m))
-            run_at(f, key, z, false, r, y, x0 + done, m, st, at);
+        p = l;
+
+        if (inside) {
+            from = gathered ? from : done;
+            runs[gathered++] = walk_run(f, &row, done, m, st);
+        }
+
+        if (gathered && (!inside || gathered == PERSP_RUNS || done + m >= n)) {
+            walk_runs_of(px_bytes(f), key, z, runs, gathered, depth_on(zd, row.dz, from), row.dz);
+            gathered = 0;
+        }
+
+        if (!inside)
+            run_at(f, key, z, true, &row, done, m, st, depth_on(zd, row.dz, done));
+    }
+#else
+
+    for (int32_t done = 0; done < n; done += SCAN_SUBDIVP) {
+        const int32_t m = n - done < SCAN_SUBDIVP ? n - done : SCAN_SUBDIVP;
+
+        u += dpun;
+        v += dpvn;
+        w += dpzn;
+
+        const ScanUV l = scan_pdiv(u, v, w);
+        const Steps st = {p.u, p.v, scan_step(p.u, l.u), scan_step(p.v, l.v), 0};
+
+        const int32_t at = depth_on(zd, row.dz, done);
+
+        if (steps_inside(&st, &row.src, m))
+            run_at(f, key, z, false, &row, done, m, st, at);
         else
-            run_at(f, key, z, true, r, y, x0 + done, m, st, at);
+            run_at(f, key, z, true, &row, done, m, st, at);
 
         p = l;
     }
+#endif
 }
 
 /* ---- SMOOTH's and the general row fillers ---- */
