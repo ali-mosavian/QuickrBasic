@@ -187,15 +187,66 @@ static DebugFrame session_top(const Session *const S)
     return f;
 }
 
-/* A probe's line, the text dialect's, as the direct line's code, at the stopped statement when it
-   is in the probe's procedure, else after the modules' last line. */
+/* The stopped run's newest frame in procedure proc's scope, at a program line, to *f; false
+   none. */
+static bool scope_frame(const Session *const S, const uint32_t proc, DebugFrame *const f)
+{
+    FrameWalk w = walk_start(S);
+
+    while (walk_next(S, &w, f))
+        if (f->proc == proc && f->line && f->line != DLINE)
+            return true;
+
+    return false;
+}
+
+/* The dialect of the stopped run's code in procedure proc's scope: its frame's line's; none, the
+   program's. */
+static const Dialect *scope_dialect(const Session *const S, const uint32_t proc)
+{
+    DebugFrame f;
+    return scope_frame(S, proc, &f) ? dial_line(&S->prog, f.line) : dial_program(&S->prog);
+}
+
+/* A QBasic probe of text in procedure proc's scope, its names its frame's module's (dbug_eval,
+   dbug_exec). */
+static Status qbasic_probe(
+    Session *const S,
+    Status (*const probe)(Session *S, const char *text, uint32_t proc, char out[static 80]),
+    const char *const text,
+    const uint32_t proc,
+    char out[static 80]
+)
+{
+    const uint32_t was = S->repl.module;
+    DebugFrame f;
+
+    if (scope_frame(S, proc, &f))
+        S->repl.module = modu_of(&S->modu, prog_line(&S->prog, f.line)->file);
+
+    const Status st = probe(S, text, proc, out);
+    S->repl.module = was;
+    return st;
+}
+
+/* A probe's line, its scope's dialect's, as the direct line's code, at the stopped statement
+   when it is in the probe's procedure, else after the modules' last line. */
 static void session_text_code(Session *const S)
 {
     const DebugFrame f = session_top(S);
-    dial_program(&S->prog)->direct(S, f.proc == S->comp.dlproc ? f.line : 0);
+    scope_dialect(S, S->comp.dlproc)->direct(S, f.proc == S->comp.dlproc ? f.line : 0);
 }
 
-void session_text_line(Session *const S) { dial_program(&S->prog)->direct(S, session_top(S).line); }
+void session_text_line(Session *const S)
+{
+    const DebugFrame f = session_top(S);
+    scope_dialect(S, f.proc)->direct(S, f.line);
+}
+
+const Dialect *session_dialect(const Session *const S)
+{
+    return scope_dialect(S, session_top(S).proc);
+}
 
 Status session_eval(
     Session *const S,
@@ -204,10 +255,10 @@ Status session_eval(
     char out[static 80]
 )
 {
-    const Dialect *const d = dial_program(&S->prog);
+    const Dialect *const d = scope_dialect(S, proc);
 
     if (!d->text)
-        return dbug_eval(S, expr, proc, out);
+        return qbasic_probe(S, dbug_eval, expr, proc, out);
 
     enum { TEXT = 256 };
 
@@ -226,8 +277,8 @@ Status session_exec(
     char out[static 80]
 )
 {
-    return prog_text(&S->prog) ? dbug_probe(S, session_text_code, stmt, proc, out)
-                               : dbug_exec(S, stmt, proc, out);
+    return scope_dialect(S, proc)->text ? dbug_probe(S, session_text_code, stmt, proc, out)
+                                        : qbasic_probe(S, dbug_exec, stmt, proc, out);
 }
 
 const char *session_errtext(const Session *const S, const uint8_t code)

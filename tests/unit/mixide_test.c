@@ -87,6 +87,50 @@ static const char *pressed(Session *const S, const uint16_t key)
     return (const char *)S->cons.sbuf;
 }
 
+/* Run, Restart. */
+static void restart(Session *const S)
+{
+    host_key_push(FX_ENTER);
+    headless_set_stdout_is_screen(1);
+    udbg_restart(S);
+    headless_set_stdout_is_screen(0);
+    pkey_flush();
+}
+
+/* text typed in the immediate window and run; its output, 0-ended. */
+static const char *immediate(Session *const S, const char *const text)
+{
+    dpan_close();
+    wind_focus(S, W_IMM);
+    fx_type(S, text);
+    S->cons.capture = CAP_SBUF;
+    S->cons.sblen = 0;
+    host_key_push(FX_ENTER);
+    headless_set_stdout_is_screen(1);
+    fx_key(S, FX_ENTER, 0);
+    headless_set_stdout_is_screen(0);
+    pkey_flush();
+    S->cons.capture = 0;
+    S->cons.sbuf[S->cons.sblen] = 0;
+    wind_focus(S, W_ED1);
+    return (const char *)S->cons.sbuf;
+}
+
+static uint32_t cursor_line(void) { return uimn.text.first + uimn.ed.line; }
+
+/* Stopped at the line spelled text? */
+static bool stopped_at(Session *const S, const char *const text)
+{
+    return uimn.stopped && cursor_line() == fx_line_of(S, text);
+}
+
+/* A breakpoint on the line spelled text. */
+static void break_at(Session *const S, const char *const text)
+{
+    edit_load(S, view_goline(S, fx_line_of(S, text)));
+    udbg_bp(S);
+}
+
 /* The slot of column col of the line spelled text, as the program window colours it. */
 static uint8_t slot_at(Session *const S, const char *const text, const uint32_t col)
 {
@@ -99,6 +143,48 @@ static uint8_t slot_at(Session *const S, const char *const text, const uint32_t 
 
     synt_cols(S, text_dialect_at(S, line), (const uint8_t *)text, (uint32_t)strlen(text), cols);
     return cols[col];
+}
+
+/* Is a Locals row of frame f want? */
+static bool local_is(Session *const S, const uint8_t f, const char *const want)
+{
+    dloc_read(S, f);
+
+    for (uint8_t i = 0; i < dloc_count(); i++)
+        if (!strcmp(dloc_row(i), want))
+            return true;
+
+    return false;
+}
+
+/* Does call stack row i start with want? */
+static bool frame_is(Session *const S, const uint8_t i, const char *const want)
+{
+    dstk_read(S);
+    return i < dstk_rows() && !strncmp(dstk_row(i), want, strlen(want));
+}
+
+/* The watch on expr's row, the watch gone after. */
+static const char *watched(Session *const S, const char *const expr)
+{
+    static char row[128];
+    CHECK(dwat_add((const uint8_t *)expr, (uint32_t)strlen(expr)));
+    dwat_eval(S);
+    snprintf(row, sizeof row, "%s", dwat_row((uint8_t)(dwat_count() - 1)));
+    dwat_del(S, (uint8_t)(dwat_count() - 1));
+    return row;
+}
+
+/* Does a screen row hold want? */
+static bool screen_has(Session *const S, const char *const want)
+{
+    fx_shown(S);
+
+    for (uint8_t r = 0; r < 25; r++)
+        if (strstr(fx_row(r), want))
+            return true;
+
+    return false;
 }
 
 /* ---- a QBasic main, a Quickr module */
@@ -138,5 +224,62 @@ TEST(mixide_qb_main_checks_a_line_by_its_file)
     CHECK(!fx_typed_over(S, line, "    total$ = \"a\""));
     CHECK(errs_at(S, line, &col) && col == 4 && strstr(errs_message(S), "a value alone"));
     CHECK(!fx_typed_over(S, fx_line_of(S, "print geo.area(2, 3)"), "x = f\"{w}\""));
+    fx_done(S, files);
+}
+
+/* Stepping into a Quickr function, Locals spelled its names QBasic's (w&), the call stack named
+   no function, a watch read QBasic's total& (0), the immediate window ran QBasic. */
+TEST(mixide_qb_main_debugs_quickr_code)
+{
+    open_qb(S, "x& = geo.area(2, 3)\nprint x&\nprint 1\n");
+    break_at(S, "x& = geo.area(2, 3)");
+    pressed(S, K_F5);
+    CHECK(stopped_at(S, "x& = geo.area(2, 3)"));
+    pressed(S, K_F8);
+    CHECK(stopped_at(S, "    let total = w * h"));
+    pressed(S, K_F8);
+    CHECK(stopped_at(S, "    return total"));
+    CHECK(local_is(S, 0, "w = 2") && local_is(S, 0, "total = 6"));
+    CHECK(frame_is(S, 0, "area (w = 2, h = 3)"));
+    CHECK(frame_is(S, 1, "module"));
+    CHECK(!strcmp(watched(S, "total + w"), "total + w = 8"));
+    CHECK(strstr(immediate(S, "total * 10"), "60") != nullptr);
+    pressed(S, K_SHIFT_F8);
+    CHECK(stopped_at(S, "print x&"));
+    pressed(S, K_F10);
+    CHECK(stopped_at(S, "print 1"));
+    fx_done(S, files);
+}
+
+/* A breakpoint and run to the cursor in geo; the cursor on a name, its tip: Quickr's spelling. */
+TEST(mixide_qb_main_breaks_in_quickr_code)
+{
+    open_qb(S, "print geo.area(2, 3)\nprint geo.area(4, 5)\n");
+    break_at(S, "    return total");
+    pressed(S, K_F5);
+    CHECK(stopped_at(S, "    return total"));
+    edit_load(S, view_goline(S, fx_line_of(S, "    return total")));
+    uimn.edline.col = 12;
+    uimn.tip_mouse = false;
+    CHECK(screen_has(S, " total = 6 "));
+    edit_load(S, view_goline(S, fx_line_of(S, "    return total")));
+    udbg_bp(S);
+    edit_load(S, view_goline(S, fx_line_of(S, "    let total = w * h")));
+    pressed(S, K_CTRL_F7);
+    CHECK(stopped_at(S, "    let total = w * h") && local_is(S, 0, "w = 4"));
+    restart(S);
+    CHECK(uimn.stopped);
+    pressed(S, K_F5);
+    CHECK(!uimn.stopped);
+    fx_done(S, files);
+}
+
+/* A run-time error in geo: the cursor at its line, QBasic's message. */
+TEST(mixide_qb_main_runtime_error_in_quickr_code)
+{
+    open_qb(S, "print geo.quot(1, 0)\n");
+    pressed(S, K_F5);
+    CHECK(cursor_line() == fx_line_of(S, "    return a div b"));
+    CHECK(!strcmp(uimn.errmsg, "Division by zero"));
     fx_done(S, files);
 }

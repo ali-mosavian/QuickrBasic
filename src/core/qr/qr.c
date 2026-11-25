@@ -1064,7 +1064,7 @@ void qr_guest_declare(Session *const S)
     arena_init(&G->mem.arena, QR_CHUNK);
     QMem *const m = &G->mem;
     QProg *const p = G->prog = qast_alloc(m, sizeof *p);
-    *p = (QProg){.errs = {.mem = m}, .copies = {.mem = m}, .guest = true};
+    *p = (QProg){.errs = {.mem = m}, .copies = {.mem = m}, .guest = true, .keep = true};
 
     qr_newmod(p, m, S->repl.file); /* 0: the QBasic program's, no lines */
 
@@ -1205,10 +1205,16 @@ uint32_t qr_link(Session *const S, DialErr *const e)
     return 0;
 }
 
+/* The checked program q keeps: the link's, else a QBasic program's modules'; null none. */
+static QProg *qr_kept(const QrState *const q)
+{
+    return !q ? nullptr : q->keep.prog ? q->keep.prog : q->guests.prog;
+}
+
 uint32_t qr_spell(const Session *const S, const uint32_t id, char *const d)
 {
-    const QrState *const q = dial_kept(&S->dial, &dialect_quickr);
-    const QVar *v = q && q->keep.prog ? q->keep.prog->vars : nullptr;
+    const QProg *const p = qr_kept(dial_kept(&S->dial, &dialect_quickr));
+    const QVar *v = p ? p->vars : nullptr;
 
     while (v && (v->id != id || !v->name))
         v = v->next;
@@ -1229,6 +1235,16 @@ static const QScopeAt *qr_sight(const QProg *const p, const uint32_t rec)
             return s->at;
 
     return nullptr;
+}
+
+/* Program line rec's module of p's; 0 none. */
+static uint16_t qr_mod_at(const QProg *const p, const uint32_t rec)
+{
+    for (uint32_t i = 0; i < p->src.nlines; i++)
+        if (p->src.lines[i].at == rec)
+            return p->src.lines[i].mod;
+
+    return 0;
 }
 
 /* The probe's line, cons.inbuf's text: lexed as p's last line, in module mod; its first token. */
@@ -1280,8 +1296,9 @@ static void qr_printed(Session *const S)
 
 void qr_direct_code(Session *const S, const uint32_t rec)
 {
-    QrKeep *const k = &qr_state(S)->keep;
-    QProg *const p = k->prog;
+    QrState *const q = qr_state(S);
+    QrKeep *const k = &q->keep;
+    QProg *const p = qr_kept(q);
     k->said[0] = 0;
 
     if (!p) {
@@ -1301,7 +1318,7 @@ void qr_direct_code(Session *const S, const uint32_t rec)
 
     p->errs.mem = &m;
     const QScopeAt *const at = qr_sight(p, rec);
-    const uint16_t mod = at && rec && rec != DLINE ? prog_line(&S->prog, rec)->file : 0;
+    const uint16_t mod = at ? qr_mod_at(p, rec) : 0;
     QStmt *s = qpar_line(p, &m, qr_probe_line(S, p, &m, mod));
 
     if (!s && qr_alone(p)) {
@@ -1927,8 +1944,7 @@ static bool qr_print(const char *const expr, char *const d, const uint32_t cap)
 /* Is a program qr_link made kept? */
 static bool qr_linked(const Session *const S)
 {
-    const QrState *const q = dial_kept(&S->dial, &dialect_quickr);
-    return q && q->keep.prog;
+    return qr_kept(dial_kept(&S->dial, &dialect_quickr)) != nullptr;
 }
 
 /* The last probe's error, Syntax error's: its message; null none. */

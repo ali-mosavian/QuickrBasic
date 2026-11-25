@@ -949,16 +949,16 @@ void uimn_cont(Session *const S)
 }
 
 /* ui_exec: Enter in the immediate window: its line run on the output page. */
-/* A text dialect's program's immediate line, len bytes in cons.inbuf: run as its own at the
-   stopped statement, else after the program's last line, linked first; an error said in a box,
-   the stop kept. */
-static void text_line(Session *const S, const uint16_t len)
+/* An immediate line of text dialect d's, len bytes in cons.inbuf: run as its own at the stopped
+   statement, else after the program's last line, linked first; an error said in a box, the stop
+   kept. */
+static void text_line(Session *const S, const Dialect *const d, const uint16_t len)
 {
     char line[INMAX + 1];
     memcpy(line, S->cons.inbuf, len);
     line[len] = 0;
 
-    if (!(uimn_stopped() && text_dialect(S)->linked(S)) && !built(S))
+    if (!(uimn_stopped() && d->linked(S)) && !built(S))
         return;
 
     memcpy(S->cons.inbuf, line, len + 1u);
@@ -989,8 +989,10 @@ static void exec_line(Session *const S)
     if (!len)
         return;
 
-    if (text_dialect(S)->text) {
-        text_line(S, len);
+    const Dialect *const d = uimn_stopped() ? session_dialect(S) : text_dialect(S);
+
+    if (d->text) {
+        text_line(S, d, len);
         return;
     }
 

@@ -78,13 +78,22 @@ static void seen(const uint8_t *const tok, const SpelKind kind)
     spelled(comp_nameof(tok), tok + 2, (uint8_t)(tok[1] - !!comp_suffixof(tok)), kind);
 }
 
-/* Dialect.names's: a text dialect's line's name, n bytes at w, a name's of the module. */
+/* A text dialect's line's names: its module's. */
+typedef struct {
+    const Session *S;
+    uint32_t module;
+} TextNames;
+
+/* Dialect.names's: a text dialect's line's name, n bytes at w, a name's of its module, else of
+   the main's (a text dialect's program's names are all its). */
 static void text_name(void *const ctx, const uint8_t *const w, const uint32_t n)
 {
-    const Session *const S = ctx;
+    const TextNames *const t = ctx;
     const uint8_t len = (uint8_t)(n < UINT8_MAX ? n : UINT8_MAX);
-    const uint32_t name = symb_look_name(&S->symb, 0, w, len);
+    uint32_t name = symb_look_name(&t->S->symb, t->module, w, len);
 
+    if (!name && t->module)
+        name = symb_look_name(&t->S->symb, 0, w, len);
     if (name)
         spelled(name, w, len, SPEL_MODULE);
 }
@@ -121,7 +130,8 @@ static void view_names(Session *const S, const uint32_t v, const SpelKind kind)
             if (!d)
                 d = dial_line(&S->prog, lmap_off(S, line));
 
-            d->names(p, text_name, S);
+            d->names(p, text_name, &(TextNames){S, w->module});
+
             continue;
         }
 
@@ -165,15 +175,17 @@ char *spel_name(const Session *const S, char *const d, const uint32_t name, cons
 
 char *spel_var(const Session *const S, char *d, const InspVar *const var)
 {
-    const Dialect *const dl = text_dialect(S);
-    const uint32_t typed = dl->text ? dl->spell(S, var->id, d) : 0;
+    for (uint32_t i = 0; i < dial_count(); i++) { /* a text dialect's as it typed it */
+        const Dialect *const dl = dial_at(i);
+        const uint32_t typed = dl->text ? dl->spell(S, var->id, d) : 0;
 
-    if (typed)
-        return d + typed;
+        if (typed)
+            return d + typed;
+    }
 
     d = spel_name(S, d, var->name, var->local ? SPEL_LOCAL : SPEL_MODULE);
 
-    if (var->sfx && dl->suffix)
+    if (var->sfx && dialect_qbasic.suffix) /* no text dialect's: QBasic's */
         *d++ = var->sfx;
 
     return d;
