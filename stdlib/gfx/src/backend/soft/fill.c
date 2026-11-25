@@ -585,7 +585,8 @@ static inline int32_t row_vectors(
     return m;
 }
 
-/* The vectors of n pixels of colour c, f's, whole ones: stored, and how many. */
+/* The vectors of n pixels of colour c, f's, whole ones: stored four at once, then one, and how
+   many pixels. */
 [[gnu::always_inline]]
 static inline int32_t span_vectors(
     const PxFormat f,
@@ -594,11 +595,16 @@ static inline int32_t span_vectors(
     const uint32_t c
 )
 {
-    const int32_t b = (int32_t)px_bytes(f), per = 16 / b, m = n / per * per;
+    const int32_t b = (int32_t)px_bytes(f), per = 16 / b, m = n / per * per,
+                  fours = m / (4 * per) * 4 * per;
     const uint8x16_t t = f == PX_32 ? vreinterpretq_u8_u32(vdupq_n_u32(c))
                                     : vreinterpretq_u8_u16(vdupq_n_u16((uint16_t)c));
+    const uint8x16x4_t four = {{t, t, t, t}};
 
-    for (int32_t i = 0; i < m; i += per)
+    for (int32_t i = 0; i < fours; i += 4 * per)
+        vst1q_u8_x4(d + i * b, four);
+
+    for (int32_t i = fours; i < m; i += per)
         vst1q_u8(d + i * b, t);
 
     return m;
