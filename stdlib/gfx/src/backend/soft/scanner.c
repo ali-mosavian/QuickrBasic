@@ -371,20 +371,23 @@ static void carried_depth(
     c->z = real4(diff * c->dz + b->kz);
 }
 
-/* carried_depth's, and u and v. */
-static void carried_from(
+/* carried_depth's when deep, and u and v. */
+[[gnu::always_inline]]
+static inline void carried_from(
     Carried *const c,
     const Fx *const b,
     const Fx *const e,
     const Grad *const g,
-    const bool persp
+    const bool persp,
+    const bool deep
 )
 {
     const double r65536 = 0.0000152587890625;
     const int32_t h = e->ky - b->ky, f = prestep(b->ky) - g->bias;
     const double inv = 65536.0 / (double)h, diff = (double)f * r65536;
 
-    carried_depth(c, b, e, g);
+    if (deep)
+        carried_depth(c, b, e, g);
 
     if (persp) {
         c->dpu = real4(((double)e->fu - b->fu) * inv);
@@ -400,10 +403,12 @@ static void carried_from(
     c->v = add32(FXMUL(f, c->dv), b->kv);
 }
 
-/* The left edge a row down. */
-static void carried_on(Carried *const c, const bool persp)
+/* The left edge a row down; its depth when deep. */
+[[gnu::always_inline]]
+static inline void carried_on(Carried *const c, const bool persp, const bool deep)
 {
-    c->z = real4((double)c->z + c->dz);
+    if (deep)
+        c->z = real4((double)c->z + c->dz);
 
     if (persp) {
         c->pu = real4((double)c->pu + c->dpu);
@@ -602,15 +607,17 @@ void scan_flat(
 }
 
 /* qgl$drawA: the two chains down from the topmost vertex, each row's run from the left edge's
-   pixel up to the right's, its u, v and depth at its first pixel centre, held in the clip; filled
-   by plain, or held where the walk leaves the picture. */
-void scan_affine(
+   pixel up to the right's, its u, v and, when deep, depth at its first pixel centre, held in the
+   clip; filled by plain, or held where the walk leaves the picture. */
+[[gnu::always_inline]]
+static inline void affine_walk(
     const ScanVert *const v,
     const uint32_t n,
     const Rect clip,
     Rows *const r,
     RowAffine *const plain,
-    RowAffine *const held
+    RowAffine *const held,
+    const bool deep
 )
 {
     Ring ring;
@@ -644,7 +651,7 @@ void scan_affine(
                 return;
 
             if (l.rows > 0)
-                carried_from(&c, &fx[l.s], &fx[l.e], g, false);
+                carried_from(&c, &fx[l.s], &fx[l.e], g, false, deep);
 
             l.s = l.e--;
         }
@@ -670,7 +677,7 @@ void scan_affine(
                 const int32_t lost = from - x0;
                 const int32_t u = add32(add32(c.u, 32768), FXMUL(into, g->dudx));
                 const int32_t vv = add32(add32(c.v, 32768), FXMUL(into, g->dvdx));
-                const int32_t z = scan_fistp_low((double)c.z * DEPTH_NEAR * 65536.0);
+                const int32_t z = deep ? scan_fistp_low((double)c.z * DEPTH_NEAR * 65536.0) : 0;
                 const Steps st = {
                     (int32_t)(u + (int64_t)lost * g->dudx),
                     (int32_t)(vv + (int64_t)lost * g->dvdx),
@@ -681,14 +688,29 @@ void scan_affine(
 
                 RowAffine *const fill = steps_inside(&st, &r->src, to - from) ? plain : held;
 
-                fill(r, y, from, to, st.u, st.v, depth_on(z, g->dzdx, lost));
+                fill(r, y, from, to, st.u, st.v, deep ? depth_on(z, g->dzdx, lost) : 0);
             }
 
             l.x = add32(l.x, l.dx);
             rt.x = add32(rt.x, rt.dx);
-            carried_on(&c, false);
+            carried_on(&c, false, deep);
         }
     }
+}
+
+void scan_affine(
+    const ScanVert *const v,
+    const uint32_t n,
+    const Rect clip,
+    Rows *const r,
+    RowAffine *const plain,
+    RowAffine *const held
+)
+{
+    if (r->depths)
+        affine_walk(v, n, clip, r, plain, held, true);
+    else
+        affine_walk(v, n, clip, r, plain, held, false);
 }
 
 /* qgl$drawP: scan_affine's walk, the left edge carrying u/z, v/z and 1/z; each row's run filled
@@ -734,7 +756,7 @@ void scan_persp(
                 return;
 
             if (l.rows > 0)
-                carried_from(&c, &fx[l.s], &fx[l.e], g, true);
+                carried_from(&c, &fx[l.s], &fx[l.e], g, true, true);
 
             l.s = l.e--;
         }
@@ -777,7 +799,7 @@ void scan_persp(
 
             l.x = add32(l.x, l.dx);
             rt.x = add32(rt.x, rt.dx);
-            carried_on(&c, true);
+            carried_on(&c, true, true);
         }
     }
 }
