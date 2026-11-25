@@ -798,6 +798,7 @@ typedef struct {
     QVar *failed, *passes, *fails; /* the test running's; the tally */
     bool keep;                     /* the debugger's: each statement's names in sight kept */
     QSemKeep *sem;
+    bool guest; /* a QBasic program's modules (qr.c): QMod.modu each's, no main of its own */
 } QProg;
 
 /* ---- helpers */

@@ -62,4 +62,8 @@ typedef struct Exports {
    value's type one both dialects have (ET_I2, ET_I4, ET_SH, ET_R4, ET_R8, ET_SD, a TYPE of them),
    else why not. In a's room; Out of memory through C's fault. */
 Exports expo_qbasic(const Comp *C, uint32_t m, Arena *a);
+/* Quickr module m's exports x, declared as QBasic's in module m: each procedure a SUB, or a
+   FUNCTION of its result's type; each record usable a TYPE. The first name two of them spell,
+   case aside; 0 none. */
+uint32_t expo_declare(Comp *C, uint32_t m, const Exports *x);
 #endif

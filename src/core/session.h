@@ -75,6 +75,7 @@ struct Session {
     Prog prog;
     ProgUser prog_user;
     QrKeep qr;
+    QrGuests qrg;
     CompRun comp_run;
     Repl repl;
     Rndm rndm;

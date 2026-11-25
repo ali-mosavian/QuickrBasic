@@ -54,9 +54,10 @@ typedef struct Comp {
     Vm *vm;
     Dbug *dbug;
     CompRun *run;
-    struct Modu *modu;     /* each line's module, by its file; their tops again at link */
-    struct Natv *natv;     /* native modules' code, bound at link (io/native.h) */
-    struct ImptFind *impt; /* the modules an IMPORT or FROM runs (comp/import.h) */
+    struct Modu *modu;       /* each line's module, by its file; their tops again at link */
+    struct Natv *natv;       /* native modules' code, bound at link (io/native.h) */
+    struct ImptFind *impt;   /* the modules an IMPORT or FROM runs (comp/import.h) */
+    struct LinkGuest *guest; /* the Quickr modules' lines, linked with QBasic's; null none */
 
     /* the cursor and the code */
     const uint8_t *p;    /* (ESI) the token cursor */

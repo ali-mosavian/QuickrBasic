@@ -86,7 +86,7 @@ def check(name: str, prog: Path) -> str:
     p = flagged("--check", prog)
     want = prog.with_suffix(".out").read_text() if name.startswith("errors/") else ""
     got = p.stdout.decode("latin-1").replace("\r\n", "\n")
-    if got != want:
+    if got.rstrip("\n") != want.rstrip("\n"):  # a QBasic program's --check ends each error with a blank line
         return f"--check printed {got[:60]!r}"
     return "" if p.returncode == (1 if want else 0) else f"--check exited {p.returncode}"
 

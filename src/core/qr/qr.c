@@ -39,6 +39,7 @@
 #include "qr/qpar.h"
 #include "qr/qrt.h"
 #include "qr/qsem.h"
+#include "comp/blocks.h"
 
 enum { QR_CHUNK = 0x10000 }; /* the front end's arena's blocks at least */
 enum { QR_LINE_CHUNK = 0x1000 }; /* a line lexed alone's */
@@ -308,12 +309,16 @@ static bool qr_same(const char *a, const char *b)
 }
 
 /* A program being loaded: its tree's, and whether its lines are the store's (the editor's), a
-   module read in after them; else each file's text is read into the arena. */
+   module read in after them; else each file's text is read into the arena. A QBasic program's
+   Quickr modules: guest, each read already; find, module from's imports found, each the
+   program's (mem/module.h). */
 typedef struct {
     Session *S;
     QProg *p;
     QMem *m;
     bool stored;
+    bool guest, find;
+    uint32_t from;
 } QrLoad;
 
 /* The module at path: p's of that path, else read in, a new module. Its number; QMOD_QBASIC when
@@ -326,8 +331,19 @@ static uint32_t qr_load(const QrLoad *const L, const char *const path)
         if (qr_same(p->mods[i].path, path))
             return i;
 
-    if (!qr_is_file(path) && L->stored)
+    if (!qr_is_file(path) && (L->stored || L->guest || L->find))
         return QMOD_QBASIC;
+    if (L->guest)
+        return QMOD_NONE;
+
+    if (L->find) {
+        Modu *const mu = &L->S->modu;
+        const uint32_t k = modu_module(mu, path);
+        modu_mod(mu, k)->quickr = true;
+        modu_import(mu, L->from, k);
+        return QMOD_NONE;
+    }
+
     if (!qr_is_file(path)) { /* its lines the QBasic loader's: qr_guests */
         const uint32_t k = qr_newmod(p, L->m, path);
         p->mods[k].ex = qast_alloc(L->m, sizeof(Exports));
@@ -353,9 +369,24 @@ static uint32_t qr_load(const QrLoad *const L, const char *const path)
 }
 
 /* Module im, named name (n bytes), not loaded: an error at it, QMOD_NONE its number. */
-static void qr_unloaded(QProg *const p, QImport *const im, const char *const name, uint32_t n)
+static void qr_unloaded(
+    const QrLoad *const L,
+    QImport *const im,
+    const char *const name,
+    uint32_t n
+)
 {
-    if (im->mod == QMOD_QBASIC)
+    QProg *const p = L->p;
+
+    if (im->mod == QMOD_QBASIC && !L->stored)
+        qast_error(
+            &p->errs,
+            im->tok,
+            "{} is a QBasic module: a Quickr module QBasic imports imports only Quickr ones",
+            name,
+            n
+        );
+    else if (im->mod == QMOD_QBASIC)
         qast_error(
             &p->errs,
             im->tok,
@@ -416,7 +447,7 @@ static void qr_find(const QrLoad *const L, const uint32_t k, QImport *const im, 
     }
 
     im->mod = qr_load(L, folder ? folder : path);
-    qr_unloaded(p, im, dotted, n);
+    qr_unloaded(L, im, dotted, n);
 }
 
 /* A name from gives, of the package in folder: its module, loaded once. */
@@ -432,7 +463,7 @@ static void qr_part(const QrLoad *const L, const char *const dir, QImport *const
     }
 
     im->mod = qr_load(L, path);
-    qr_unloaded(p, im, im->tok->text, im->tok->len);
+    qr_unloaded(L, im, im->tok->text, im->tok->len);
 }
 
 /* Each module module k's imports and froms name, loaded once. */
@@ -716,7 +747,7 @@ uint32_t qr_build(Session *const S)
     arena_init(&m.arena, QR_CHUNK);
     QProg p = {.errs = {.mem = &m}, .copies = {.mem = &m}, .testing = S->repl.testing};
 
-    const QrLoad L = {S, &p, &m, false};
+    const QrLoad L = {.S = S, .p = &p, .m = &m};
 
     S->repl.batch = true;
     modu_clear(&S->modu, S->repl.file);
@@ -896,7 +927,7 @@ void qr_open(Session *const S)
     arena_init(&m.arena, QR_CHUNK);
     QProg p = {.errs = {.mem = &m}, .copies = {.mem = &m}};
 
-    qr_enter(&(QrLoad){S, &p, &m, true});
+    qr_enter(&(QrLoad){S, &p, &m, .stored = true});
 
     arena_reset(&m.arena);
 }
@@ -916,6 +947,253 @@ void qr_forget(QrKeep *const k)
     k->said[0] = 0;
 }
 
+/* ---- a QBasic program's Quickr modules */
+
+/* Each module module k's imports name, of a file at k's path: found, each the program's. */
+static void qr_finds(Session *const S, const uint32_t k, const uint16_t file, const char *path)
+{
+    QMem m = {.fault = &S->fault};
+
+    arena_init(&m.arena, QR_CHUNK);
+    QProg p = {.errs = {.mem = &m}, .copies = {.mem = &m}};
+
+    qr_gather(S, &p, &m, file, path);
+    qr_imports(&(const QrLoad){S, &p, &m, .find = true, .from = k}, 0); /* errors: the check's */
+    arena_reset(&m.arena);
+}
+
+void qr_guest_read(Session *const S, const uint32_t m)
+{
+    char path[PFIL_PATH]; /* the table may move as it grows */
+    strcpy(path, modu_module_path(&S->modu, m));
+    const uint16_t file = S->repl.nfile++;
+    modu_file(&S->modu, file, path, m);
+    modu_mod(&S->modu, m)->file = file;
+    qr_check(S, qr_read(S, path, file));
+    qr_finds(S, m, file, path);
+}
+
+/* Type t as a QBasic value's (comp/export.h): ET_IMP none; false QBasic has no equal for it. */
+static bool qr_et(const QProg *const p, const QType t, uint32_t *const et)
+{
+    static const uint8_t ets[] = {
+        [QY_VOID] = ET_IMP,
+        [QY_INT] = ET_I4,
+        [QY_SINGLE] = ET_R4,
+        [QY_DOUBLE] = ET_R8,
+        [QY_STRING] = ET_SD,
+        [QY_BOOL] = ET_I2,
+        [QY_SHORT] = ET_SH,
+    };
+
+    if (t < countof(ets) && (ets[t] || t == QY_VOID)) {
+        *et = ets[t];
+        return true;
+    }
+
+    const QTy *const y = qast_compound(t) ? qast_ty(p, t) : nullptr;
+
+    if (!y || y->kind != QT_REC || y->ntp)
+        return false;
+
+    for (uint32_t k = 0; k < y->nfields; k++) {
+        uint32_t f;
+
+        if (y->fields[k].priv || !qr_et(p, y->fields[k].type, &f) || f == ET_IMP)
+            return false;
+    }
+
+    *et = ET_REC + y->td;
+    return true;
+}
+
+/* The module token t is in. */
+static uint32_t qr_modof(const QProg *const p, const QTok *const t)
+{
+    return t->line < p->src.nlines ? p->src.lines[t->line].mod : 0;
+}
+
+/* Module k's public functions, methods aside, and records, as QBasic sees them. */
+static Exports qr_exported(const QProg *const p, const uint32_t k, QMem *const m)
+{
+    static const char why[] = "a type QBasic has no equal for";
+
+    uint32_t nf = 0, nt = 0;
+
+    for (const QFn *f = p->fns; f; f = f->next)
+        nf++;
+
+    Exports x = {
+        .procs = qast_alloc(m, (nf ? nf : 1) * sizeof *x.procs),
+        .types = qast_alloc(m, (p->tys.n ? p->tys.n : 1) * sizeof *x.types),
+    };
+
+    for (const QFn *f = p->fns; f; f = f->next) {
+        if (!f->pub || f->in || f->op || f->test || f->lamof || f->of || qr_modof(p, f->name) != k)
+            continue;
+
+        ExpProc *const e = &x.procs[x.nprocs++];
+        *e = (ExpProc){
+            .name = f->name->text,
+            .len = f->name->len,
+            .npar = f->npar,
+            .params = qast_alloc(m, (f->npar + 1) * sizeof *e->params),
+            .resarg = f->byarg,
+        };
+
+        bool ok = !f->ntp && !f->ytx && !f->native && qr_et(p, f->result, &e->result.et);
+
+        if (!ok && f->rtype) /* a FUNCTION still, an error where called */
+            e->result.et = ET_I4;
+
+        for (uint32_t j = 0; j < f->npar; j++) { /* a generic's have no var: ok false before */
+            ExpVal *const v = &e->params[j];
+            ok = ok && qr_et(p, f->params[j].var->type, &v->et) && v->et != ET_IMP;
+            v->byref = f->params[j].mut;
+            v->name = f->params[j].name->text;
+            v->len = f->params[j].name->len;
+        }
+
+        e->params[f->npar] = e->result;
+        e->why = ok ? nullptr : why;
+    }
+
+    for (uint32_t i = 0; i < p->tys.n; i++) {
+        const QTy *const y = &p->tys.at[i];
+        uint32_t et;
+
+        if (y->kind != QT_REC || !y->def || !y->def->pub || y->ntp || y->of ||
+            qr_modof(p, y->def->tok) != k)
+            continue;
+
+        x.types[nt++] = (ExpType){
+            .name = y->name->text,
+            .len = y->name->len,
+            .td = y->td,
+            .why = qr_et(p, QY_FIRST + i, &et) ? nullptr : why,
+        };
+    }
+
+    x.ntypes = nt;
+    return x;
+}
+
+/* The tree kept no more. */
+static void qr_guest_forget(QrGuests *const g)
+{
+    if (g->prog)
+        arena_reset(&g->mem.arena);
+
+    g->prog = nullptr;
+}
+
+void qr_guest_declare(Session *const S)
+{
+    QrGuests *const G = &S->qrg;
+    qr_guest_forget(G);
+    G->mem = (QMem){.fault = &S->fault};
+
+    arena_init(&G->mem.arena, QR_CHUNK);
+    QMem *const m = &G->mem;
+    QProg *const p = G->prog = qast_alloc(m, sizeof *p);
+    *p = (QProg){.errs = {.mem = m}, .copies = {.mem = m}, .guest = true};
+
+    qr_newmod(p, m, S->repl.file); /* 0: the QBasic program's, no lines */
+
+    for (uint32_t mm = 0; mm < modu_count(&S->modu); mm++) {
+        const ModuMod *const mod = modu_mod(&S->modu, mm);
+
+        if (!mod->quickr)
+            continue;
+
+        const uint32_t k = p->nmods;
+        qr_gather(S, p, m, mod->file, modu_module_path(&S->modu, mm));
+        p->mods[k].modu = mm;
+        p->mods[k].start = mod->top + prog_line(&S->prog, mod->top)->len;
+    }
+
+    const QrLoad L = {S, p, m, .guest = true};
+
+    for (uint32_t k = 0; k < p->nmods; k++)
+        qr_imports(&L, k);
+
+    bool *const seen = qast_alloc(m, p->nmods);
+    uint32_t n = 0;
+    p->order = qast_alloc(m, p->nmods * sizeof *p->order);
+
+    for (uint32_t k = 0; k < p->nmods; k++)
+        if (!seen[k])
+            qr_visit(p, seen, k, &n);
+
+    qsem_program(p, m);
+    qast_sort(&p->errs);
+
+    for (uint32_t i = 0; i < p->errs.n; i++)
+        qr_say(S, p, &p->errs.at[i]);
+
+    if (p->errs.n && S->repl.batch)
+        cons_exit(&S->cons, 1);
+    if (p->errs.n)
+        fault_error(&S->fault, E_SN);
+
+    qr_instances(S, p, m);
+    qlink_guest_types(&S->comp, p, m);
+    Exports *const ex = qast_alloc(m, p->nmods * sizeof *ex);
+
+    for (uint32_t k = 1; k < p->nmods; k++) {
+        ex[k] = qr_exported(p, k, m);
+        modu_mod(&S->modu, p->mods[k].modu)->clash =
+            expo_declare(&S->comp, p->mods[k].modu, &ex[k]);
+    }
+
+    G->ex = ex;
+    S->comp.guest = &G->link;
+}
+
+/* The QBasic link's: each Quickr procedure and variable made; each export QBasic can't call a
+   procedure of no entry, an error where called (comp/refs.c). */
+static void qr_guest_made(LinkGuest *const g, Comp *const C)
+{
+    QrGuests *const G = container_of(g, QrGuests, link);
+    const QProg *const p = G->prog;
+    G->of = qlink_guest_made(C, p, &G->mem);
+
+    for (uint32_t k = 1; k < p->nmods; k++)
+        for (uint32_t i = 0; i < G->ex[k].nprocs; i++) {
+            const ExpProc *const e = &G->ex[k].procs[i];
+
+            if (!e->why)
+                continue;
+
+            const uint32_t n =
+                symb_find_name(C->symb, p->mods[k].modu, (const uint8_t *)e->name, (uint8_t)e->len);
+            Proc *const pr = blok_add_proc(C->blok, C->fault);
+            *pr = (Proc){.name = n, .kind = PK_SUB, .flags = PF_FOREIGN};
+
+            symb_name(C->symb, n)->proc = C->blok->procs.n - 1;
+        }
+}
+
+static void qr_guest_lines(LinkGuest *const g, Comp *const C)
+{
+    QrGuests *const G = container_of(g, QrGuests, link);
+    const Session *const S = container_of(G, Session, qrg);
+    qlink_guest_lines(C, G->prog, &G->mem, G->of, S->dbug.emit);
+}
+
+static void qr_guest_resolve(LinkGuest *const g, Comp *const C)
+{
+    const QrGuests *const G = container_of(g, QrGuests, link);
+    qlink_guest_resolve(C, G->prog);
+}
+
+void qr_guest_init(QrGuests *const g)
+{
+    *g = (QrGuests){
+        .link = {.made = qr_guest_made, .lines = qr_guest_lines, .resolve = qr_guest_resolve},
+    };
+}
+
 uint32_t qr_link(Session *const S, QrErr *const e)
 {
     QrKeep *const k = &S->qr;
@@ -927,7 +1205,7 @@ uint32_t qr_link(Session *const S, QrErr *const e)
     QProg *const p = qast_alloc(m, sizeof *p);
     *p = (QProg){.errs = {.mem = m}, .copies = {.mem = m}, .keep = true};
 
-    qr_enter(&(QrLoad){S, p, m, true});
+    qr_enter(&(QrLoad){S, p, m, .stored = true});
 
     session_drop(S);
     qsem_program(p, m);

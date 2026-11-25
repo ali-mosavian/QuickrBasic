@@ -10,6 +10,7 @@
 #include "comp/export.h"
 #include "comp/blocks.h"
 #include "comp/comp.h"
+#include "mem/scope.h"
 
 /* A room of n entries of size from a; Out of memory. */
 static void *expo_room(const Comp *const C, Arena *const a, const uint32_t n, const size_t size)
@@ -177,4 +178,51 @@ Exports expo_qbasic(const Comp *const C, const uint32_t m, Arena *const a)
     }
 
     return x;
+}
+
+/* Name n declared again by an export: the clash *clash records, the first. */
+static void expo_again(const Symb *const sy, const uint32_t n, uint32_t *const clash)
+{
+    const Name *const nm = symb_name(sy, n);
+
+    if (!*clash && (nm->flags & (NM_SUB | NM_FUNC) || nm->rec))
+        *clash = n;
+}
+
+uint32_t expo_declare(Comp *const C, const uint32_t m, const Exports *const x)
+{
+    Symb *const sy = C->symb;
+    uint32_t clash = 0;
+
+    for (uint32_t i = 0; i < x->nprocs; i++) {
+        const ExpProc *const e = &x->procs[i];
+        const uint32_t n = symb_find_name(sy, m, (const uint8_t *)e->name, (uint8_t)e->len);
+        const bool fn = e->result.et != ET_IMP;
+        expo_again(sy, n, &clash);
+        symb_name(sy, n)->flags |= fn ? NM_FUNC : NM_SUB;
+        scop_bind(C->scop, sc_module(m), n)->flags |= BF_PROC;
+
+        if (!fn)
+            continue;
+
+        Binding *const b = scop_bind(C->scop, n, n); /* its result's type, as a FUNCTION's AS */
+        b->flags |= BF_RES;
+
+        if (e->result.et >= ET_REC) {
+            b->rec[0] = e->result.et - ET_REC;
+            symb_name(sy, n)->flags |= NM_REC;
+        } else
+            b->et[0] = (uint8_t)e->result.et;
+    }
+
+    for (uint32_t i = 0; i < x->ntypes; i++) {
+        const ExpType *const e = &x->types[i];
+        const uint32_t n = symb_find_name(sy, m, (const uint8_t *)e->name, (uint8_t)e->len);
+        expo_again(sy, n, &clash);
+
+        symb_name(sy, n)->rec = e->td;
+        ((TypeDef *)btab_at(&C->decl->types, e->td))->alien = e->why;
+    }
+
+    return clash;
 }

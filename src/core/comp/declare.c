@@ -41,6 +41,7 @@
 #include "comp/bind.h"
 #include "comp/comp.h"
 #include "comp/dfa.h"
+#include "io/msg.h"
 #include "mem/program.h"
 #include "mem/scope.h"
 #include "mem/symbols.h"
@@ -411,6 +412,29 @@ static void decl_fail(const DeclScan *const ds, const uint8_t code)
     decl_fail_at(ds, ds->at, code);
 }
 
+/* The TYPE named at the cursor, past it; Type mismatch: a Quickr record QBasic can't use. */
+static uint32_t decl_record(DeclScan *const ds)
+{
+    const uint8_t *const at = ds->at;
+    const uint32_t t = symb_name(ds->sy, decl_name(ds, nullptr))->rec;
+
+    if (t && decl_type(ds->d, t)->alien) {
+        const uint32_t off = ds->body ? (uint32_t)(at - ds->body) : FAULT_KEEP;
+        fault_raise(
+            ds->d->fault,
+            (Failure){
+                .code = E_TM,
+                .dg = DG_TYPE_MISMATCH_QUICKR,
+                .at = off,
+                .line = FAULT_KEEP,
+            }
+
+        );
+    }
+
+    return t;
+}
+
 /* The name n at p declared by the module, NM_PRIV by PRIVATE: an imported one's * binding dropped.
    Duplicate definition: another the module binds. */
 static void decl_mine(const DeclScan *const ds, const uint8_t *const p, const uint32_t n)
@@ -567,7 +591,7 @@ static void decl_as(DeclScan *const ds, Binding *const b, const uint32_t n, cons
 
     if (c == M_VAR) { /* AS a TYPE: a record, its array */
         ds->at++;
-        b->rec[arr] = symb_name(ds->sy, decl_name(ds, nullptr))->rec;
+        b->rec[arr] = decl_record(ds);
         symb_name(ds->sy, n)->flags |= NM_REC;
         return;
     }
@@ -888,7 +912,7 @@ static void decl_field(DeclScan *const ds)
 
     if (c == M_VAR) { /* another TYPE's */
         ds->at++;
-        f->sub = symb_name(ds->sy, decl_name(ds, nullptr))->rec;
+        f->sub = decl_record(ds);
         size = decl_type(ds->d, f->sub)->size;
     } else if (c == TK_X) {
         f->et = decl_xastype(ds->at[2]);

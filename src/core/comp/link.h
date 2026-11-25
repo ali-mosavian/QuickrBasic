@@ -3,6 +3,7 @@
 #define COMP_LINK_H
 #include "defs.h"
 #include "fault.h"
+#include "vm/exec.h"
 typedef struct Comp Comp;
 
 /* A target link_resolve could not find: its error, at its statement's body offset at in line. */
@@ -38,6 +39,15 @@ typedef struct Link {
     uint32_t lmask;  /* its slots less 1; 0 none */
 } Link;
 
+/* A QBasic program's Quickr modules (qr/qr.c), linked in its link: their procedures and
+   variables made, QBasic's made; their lines compiled into the cache from link.end; their lines
+   resolved, every frame laid out. */
+typedef struct LinkGuest LinkGuest;
+struct LinkGuest {
+    void (*made)(LinkGuest *g, Comp *C);
+    void (*lines)(LinkGuest *g, Comp *C);
+    void (*resolve)(LinkGuest *g, Comp *C);
+};
 void link_start(Comp *C); /* cm_link: before a run: blocks paired, every line compiled */
 typedef void LinkEach(void *ctx, const Failure *f);
 /* link_start's work, unlinked: each compile error, then each label not found, to each, raising none

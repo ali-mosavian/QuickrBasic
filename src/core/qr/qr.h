@@ -2,6 +2,7 @@
 #ifndef QR_QR_H
 #define QR_QR_H
 #include "base.h"
+#include "comp/link.h"
 #include "mem/program.h"
 #include "qr/qast.h"
 
@@ -30,6 +31,26 @@ typedef struct {
     void *sorts;   /* the merge sorts' buffers, the newest first (qrt.c) */
 } QrKeep;
 void qr_forget(QrKeep *k);
+
+/* A QBasic program's Quickr modules (io/repl.c): read, then checked when its QBasic modules are
+   declared, then linked in its link (comp/link.h), each's code run by its first IMPORT. Their
+   tree, each line's statement and each module's exports, kept till the next load. */
+typedef struct {
+    LinkGuest link;
+    QMem mem;
+    QProg *prog;
+    const QStmt *const *of;
+    const struct Exports *ex; /* by QProg.mods */
+} QrGuests;
+/* The QBasic link's hooks; no tree. */
+void qr_guest_init(QrGuests *g);
+/* Module m's file, Quickr's, read into the store at its end; each module its imports name the
+   program's, Quickr's, imported by m. */
+void qr_guest_read(Session *S, uint32_t m);
+/* Each Quickr module checked, every error reported (a file run's: then exit 1, else Syntax error
+   raised); their records' TYPEs made, their exports declared as QBasic's, the link's hooks set. A
+   module two of whose publics differ only by case: its ModuMod.clash. */
+void qr_guest_declare(Session *S);
 enum { QR_SPELL = 40 }; /* a name spelled: its bytes at most, as QBasic's */
 /* Variable id's name as typed at d, QR_SPELL bytes at most (a block's over an outer one's,
    X'1's, too); its length, 0 not one of the kept program's. */

@@ -38,6 +38,7 @@ typedef struct {
     uint32_t *strs;
     uint32_t nslot, slotcap;
     uint32_t *slots; /* ours: its dynamic arrays' cells' offsets, its records' too */
+    bool alien;      /* a Quickr record QBasic has no equal for: Type mismatch where used */
 } TypeDef;
 /* A TYPE's bytes at most, ours: GET's and PUT's sizes are 24 bits (defs.h va_pack). */
 enum : uint32_t { TYPE_MAX = 0xFFFFFF };

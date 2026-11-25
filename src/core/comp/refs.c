@@ -985,6 +985,12 @@ Node *ref_call(
     const ArgsForm form
 )
 {
+    if (pr->flags & PF_FOREIGN && !pr->entry) { /* a Quickr fn of types QBasic lacks */
+        C->p = name;
+        C->dg = DG_PARAMETER_TYPE_MISMATCH_QUICKR;
+        fault_error(C->fault, E_PTM);
+    }
+
     Node *const n = ast_new(C->ast, N_CALL);
     n->num = idx;
     n->b = nullptr;

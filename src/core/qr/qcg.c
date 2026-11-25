@@ -1935,7 +1935,8 @@ static void qcg_pcall(QCg *const g, const QFn *const f)
         code_dword(c, f->entry[i]);
 }
 
-/* An import's: each QBasic module it names run, the first time (comp/import.c). */
+/* An import's: each module it names that an IMPORT runs (QMod.start: a QBasic one, or any of a
+   QBasic program's) run, the first time (comp/import.c). */
 static void qcg_imports(QCg *const g, const QStmt *const s)
 {
     const QImport *const lists[] = {s->imps, s->kind == QS_FROM ? s->names : nullptr};
@@ -1945,7 +1946,7 @@ static void qcg_imports(QCg *const g, const QStmt *const s)
             const QMod *const mod =
                 im->mod < g->env->prog->nmods ? &g->env->prog->mods[im->mod] : nullptr;
 
-            if (!mod || !mod->ex || (j && !s->imps->folder))
+            if (!mod || !mod->start || (j && !s->imps->folder))
                 continue;
 
             code_xop(g->c, X_IMPORT);

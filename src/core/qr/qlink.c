@@ -293,8 +293,15 @@ static bool qlink_none(const QProg *const p, const QFn *const f)
            (f->test && !p->testing);
 }
 
+/* The module token t is in: a QBasic program's guest's (mem/module.h), else 0. */
+static uint32_t qlink_modu(const QProg *const p, const QTok *const t)
+{
+    return p->guest && t && t->line < p->src.nlines ? p->mods[p->src.lines[t->line].mod].modu : 0;
+}
+
 /* Each fn checked a procedure, a generic's instances but not it; its parameters and result
-   linked in qlink_vars. */
+   linked in qlink_vars. A QBasic program's guest's: named in its module, called as a FUNCTION
+   or a SUB from its first line (PF_FOREIGN), a record's result its last parameter (PF_RESARG). */
 static void qlink_procs(Comp *const C, const QProg *const p)
 {
     for (QFn *f = p->fns; f; f = f->next) {
@@ -302,17 +309,30 @@ static void qlink_procs(Comp *const C, const QProg *const p)
             continue;
 
         Proc *const pr = blok_add_proc(C->blok, C->fault);
+        const uint32_t m = qlink_modu(p, f->name);
         f->proc = C->blok->procs.n - 1;
         const uint32_t name =
-            symb_find_name(C->symb, 0, (const uint8_t *)f->name->text, (uint8_t)f->name->len);
+            symb_find_name(C->symb, m, (const uint8_t *)f->name->text, (uint8_t)f->name->len);
         symb_name(C->symb, name)->proc = f->proc;
         *pr = (Proc){
             .name = name,
-            .kind = f->result == QY_VOID || f->byarg ? PK_SUB : PK_FUNC,
+            .kind = f->result == QY_VOID || (f->byarg && !p->guest) ? PK_SUB : PK_FUNC,
             .first = p->src.lines[f->def->line].at,
             .last = p->src.lines[f->end->line].at,
             .npar = (uint16_t)(qlink_npar(f) + f->byarg),
         };
+
+        if (p->guest)
+            *pr = (Proc){
+                .name = pr->name,
+                .kind = pr->kind,
+                .flags = PF_FOREIGN | (f->byarg ? PF_RESARG : 0),
+                .entry = pr->first,
+                .first = pr->first,
+                .last = pr->last,
+                .module = sc_module(m),
+                .npar = pr->npar,
+            };
     }
 }
 
@@ -320,10 +340,10 @@ static void qlink_procs(Comp *const C, const QProg *const p)
    A number's result is the module's, as a QBasic FUNCTION's (PRET.FV): return stores it right
    before PRET, so no call between can overwrite it, and the frame is a cell smaller. A record's or
    list's is its last parameter. */
-static uint32_t qlink_scope(const QVar *const v)
+static uint32_t qlink_scope(const QProg *const p, const QVar *const v)
 {
     const QFn *const f = qast_home(v->fn);
-    return f && (v->kind != QV_RESULT || f->byarg) ? f->proc : 0;
+    return f && (v->kind != QV_RESULT || f->byarg) ? f->proc : sc_module(qlink_modu(p, v->name));
 }
 
 enum { INLINE_MAX = 4096 }; /* an inline record's bytes at most, as a fixed array's on the stack */
@@ -403,6 +423,15 @@ static void qlink_words(Symb *const sy, const QProg *const p)
     }
 }
 
+/* A QBasic program's guest's parameter v of type t: a short's SHORT, a bool's INTEGER (true -1). */
+static void qlink_typed(Var *const v, const QType t)
+{
+    if (t == QY_SHORT)
+        v->type = ET_SH;
+    if (t == QY_BOOL)
+        v->type = ET_I2;
+}
+
 /* Each variable but a const's in the symbol table; a fn's parameters its ref cells. */
 static void qlink_vars(Comp *const C, const QProg *const p)
 {
@@ -420,9 +449,9 @@ static void qlink_vars(Comp *const C, const QProg *const p)
         const QTok *const name = v->kind == QV_TEMP || v->kind == QV_RESULT ? &hidden : v->name;
 
         if (qlink_inline(p, v))
-            qlink_record(sy, p, v, name, qlink_scope(v), &k);
+            qlink_record(sy, p, v, name, qlink_scope(p, v), &k);
         else
-            v->id = qlink_symb(sy, p, name, v->type, qlink_scope(v));
+            v->id = qlink_symb(sy, p, name, v->type, qlink_scope(p, v));
     }
 
     for (const QFn *f = p->fns; f; f = f->next) {
@@ -442,7 +471,11 @@ static void qlink_vars(Comp *const C, const QProg *const p)
                 at++;
 
             const uint32_t id = at < f->npar ? f->params[at].var->id : f->res->id;
-            pr->params[k] = (Param){.var = id};
+            pr->params[k] =
+                (Param){.var = id, .byval = p->guest && at < f->npar && !f->params[at].mut};
+
+            if (p->guest && at < f->npar) /* QBasic's by reference: its variable's type exactly */
+                qlink_typed(symb_var(sy, id), f->params[at].var->type);
 
             symb_varx(sy, id)->par = 1;
             *symb_loc(sy, id) = loc_ref((uint32_t)(2 * sizeof(Cell) * (n - 1u - k)));
@@ -494,13 +527,42 @@ static void qlink_compile(Comp *const C, QCg *const g, const uint32_t line, cons
     }
 }
 
+/* Each line compiled into the cache from link.end. */
+static void qlink_pass(
+    Comp *const C,
+    const QProg *const p,
+    QMem *const m,
+    const QStmt *const *const of,
+    const bool dbg
+)
+{
+    const QCgEnv env = {
+        .prog = p,
+        .base = C->prog->base,
+        .lines = p->src.lines,
+        .sy = C->symb,
+        .dbg = dbg,
+    };
+
+    QCg g = {.env = &env, .mem = m};
+
+    for (uint32_t i = 0; i < p->src.nlines; i++)
+        prog_line(C->prog, p->src.lines[i].at)->code = 0;
+
+    for (uint32_t i = 0; i < p->src.nlines; i++) {
+        const uint32_t at = p->src.lines[i].at;
+        qlink_compile(C, &g, at, of[i]);
+        link_place(C, at);
+    }
+}
+
 /* Each line compiled into the cache, again till the store stays where it is; the QBasic modules'
    first when qb. */
 static void qlink_lines(
     Comp *const C,
     const QProg *const p,
     QMem *const m,
-    const QStmt **const of,
+    const QStmt *const *const of,
     const bool dbg,
     const bool qb
 )
@@ -514,29 +576,12 @@ static void qlink_lines(
 
     do {
         base = C->prog->base;
-        const QCgEnv env = {
-            .prog = p,
-            .base = base,
-            .lines = p->src.lines,
-            .sy = C->symb,
-            .dbg = dbg,
-        };
-
-        QCg g = {.env = &env, .mem = m};
-
         C->link->end = C->allo->cache + CACHE0;
 
         if (qb)
             link_lines_qb(C);
 
-        for (uint32_t i = 0; i < p->src.nlines; i++)
-            prog_line(C->prog, p->src.lines[i].at)->code = 0;
-
-        for (uint32_t i = 0; i < p->src.nlines; i++) {
-            const uint32_t at = p->src.lines[i].at;
-            qlink_compile(C, &g, at, of[i]);
-            link_place(C, at);
-        }
+        qlink_pass(C, p, m, of, dbg);
     } while (C->prog->base != base);
 }
 
@@ -720,6 +765,17 @@ static void qlink_foreign(Comp *const C, const QProg *const p)
     }
 }
 
+/* Each inline record's words placed, every frame laid out; each line resolved. */
+static void qlink_resolve(Comp *const C, const QProg *const p)
+{
+    qlink_words(C->symb, p);
+
+    for (uint32_t i = 0; i < p->src.nlines; i++) {
+        const uint32_t at = p->src.lines[i].at;
+        link_resolve(C, at, prog_line(C->prog, at)->code);
+    }
+}
+
 void qlink_program(Comp *const C, QProg *const p, QMem *const m, const bool dbg)
 {
     bool qb = false; /* QBasic modules: blocks paired, procedures made (comp/link.h link_prepare) */
@@ -732,6 +788,34 @@ void qlink_program(Comp *const C, QProg *const p, QMem *const m, const bool dbg)
 
     qlink_foreign(C, p);
     qlink_types(C, p, m);
+    const QStmt *const *const of = qlink_guest_made(C, p, m);
+    qlink_lines(C, p, m, of, dbg, qb);
+
+    if (qb)
+        link_raise(C);
+
+    qlink_unplace(C->symb, p);
+
+    for (uint32_t i = 1; i < C->blok->procs.n; i++)
+        frame_layout(C->symb, C->decl, btab_at(&C->blok->procs, i), i);
+
+    C->link->nmiss = 0;
+
+    if (qb)
+        link_resolve_qb(C);
+
+    qlink_resolve(C, p);
+    qlink_chain(C, p);
+    qlink_thread(C, p);
+
+    link_check(C);
+    C->link->linked = true;
+}
+
+void qlink_guest_types(Comp *const C, const QProg *const p, QMem *const m) { qlink_types(C, p, m); }
+
+const QStmt *const *qlink_guest_made(Comp *const C, const QProg *const p, QMem *const m)
+{
     qlink_procs(C, p);
     qlink_vars(C, p);
     symb_size(C->symb, 0);
@@ -755,33 +839,25 @@ void qlink_program(Comp *const C, QProg *const p, QMem *const m, const bool dbg)
     if (p->testend)
         of[p->testend->line] = p->testend;
 
-    qlink_lines(C, p, m, of, dbg, qb);
+    return of;
+}
 
-    if (qb)
-        link_raise(C);
-
+void qlink_guest_lines(
+    Comp *const C,
+    const QProg *const p,
+    QMem *const m,
+    const QStmt *const *const of,
+    const bool dbg
+)
+{
+    qlink_pass(C, p, m, of, dbg);
     qlink_unplace(C->symb, p);
+}
 
-    for (uint32_t i = 1; i < C->blok->procs.n; i++)
-        frame_layout(C->symb, C->decl, btab_at(&C->blok->procs, i), i);
-
-    qlink_words(C->symb, p);
-
-    C->link->nmiss = 0;
-
-    if (qb)
-        link_resolve_qb(C);
-
-    for (uint32_t i = 0; i < p->src.nlines; i++) {
-        const uint32_t at = p->src.lines[i].at;
-        link_resolve(C, at, prog_line(C->prog, at)->code);
-    }
-
-    qlink_chain(C, p);
+void qlink_guest_resolve(Comp *const C, const QProg *const p)
+{
+    qlink_resolve(C, p);
     qlink_thread(C, p);
-
-    link_check(C);
-    C->link->linked = true;
 }
 
 bool qlink_direct(

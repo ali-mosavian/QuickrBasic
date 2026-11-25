@@ -948,12 +948,22 @@ void link_resolve_qb(Comp *const C)
 /* Blocks paired, every line compiled and resolved; the ledger holds what was not found. */
 static void build(Comp *const C)
 {
+    LinkGuest *const g = C->guest;
     link_prepare(C);
+
+    if (g) {
+        g->made(g, C);
+        bind_procs(C->symb);
+    }
+
     Addr base;
 
     do { /* the cache grown moves the store: a literal's Addr of its text, compiled again */
         base = C->prog->base;
         link_lines_qb(C);
+
+        if (g)
+            g->lines(g, C);
     } while (C->prog->base != base);
 
     C->link->nmiss = 0;
@@ -962,6 +972,9 @@ static void build(Comp *const C)
         frame_layout(C->symb, C->decl, btab_at(&C->blok->procs, i), i);
 
     link_resolve_qb(C);
+
+    if (g)
+        g->resolve(g, C);
 }
 
 void link_raise(Comp *const C) { each_error(C, raise_one, C->fault); }

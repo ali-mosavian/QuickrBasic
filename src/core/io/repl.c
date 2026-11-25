@@ -914,6 +914,8 @@ static void import(Session *const S, const char *const path)
 
     const uint32_t m = modu_module(&S->modu, path);
 
+    if (qr_is_file(path))
+        modu_mod(&S->modu, m)->quickr = true;
     if (qbxf_is(path)) {
         natv_open(&S->natv, path);
         modu_mod(&S->modu, m)->native = true;
@@ -962,6 +964,27 @@ static void imported(void *const ctx, const ImptKind kind, const ImptName *const
     }
 }
 
+/* Module m bound by an import: Duplicate definition when it is a Quickr one two of whose publics
+   QBasic can't tell apart. */
+static void clashed(Session *const S, const uint32_t m)
+{
+    const uint32_t n = modu_mod(&S->modu, m)->clash;
+
+    if (!n)
+        return;
+
+    const uint8_t *const t = symb_text(&S->symb, n);
+    const Failure f = {
+        .code = E_RD,
+        .dg = DG_DUPLICATE_DEFINITION_QUICKR,
+        .line = FAULT_KEEP,
+        .other = (const char *)t + 1 + t[0],
+        .len = t[0],
+    };
+
+    fault_raise(&S->fault, f);
+}
+
 /* One name the line gives bound in the module being declared, its modules found when loaded. */
 static void bound(void *const ctx, const ImptKind kind, const ImptName *const n)
 {
@@ -973,6 +996,7 @@ static void bound(void *const ctx, const ImptKind kind, const ImptName *const n)
     switch (kind) {
     case IMPT_MODULE:
         locate(&im->where, n, path, nullptr);
+        clashed(S, modu_module(&S->modu, path));
         bind_module(&S->scop, &S->symb, &S->fault, m, n, modu_module(&S->modu, path));
         return;
 
@@ -982,7 +1006,7 @@ static void bound(void *const ctx, const ImptKind kind, const ImptName *const n)
         if (im->in_package)
             strcpy(im->package, path);
         else
-            im->module = modu_module(&S->modu, path);
+            clashed(S, im->module = modu_module(&S->modu, path));
 
         return;
 
@@ -993,6 +1017,7 @@ static void bound(void *const ctx, const ImptKind kind, const ImptName *const n)
         }
 
         locate_in(im->package, n, nullptr, path);
+        clashed(S, modu_module(&S->modu, path));
         bind_module(&S->scop, &S->symb, &S->fault, m, n, modu_module(&S->modu, path));
         return;
 
@@ -1130,6 +1155,9 @@ static void read_modules(Session *const S, const uint32_t from, const uint32_t l
         prog_cut(&S->prog, last);
 
     for (uint32_t m = from; m < modu_count(&S->modu); m++) {
+        if (modu_mod(&S->modu, m)->quickr) /* after the QBasic ones: their procedures first */
+            continue;
+
         char path[PFIL_PATH]; /* the table may move as it grows */
         strcpy(path, modu_module_path(&S->modu, m));
         modu_top(&S->modu, m, prog_at(&S->prog));
@@ -1146,6 +1174,14 @@ static void read_modules(Session *const S, const uint32_t from, const uint32_t l
         read_file(S, path, SOURCE_FILENO, natv_open(&S->natv, path));
         S->prog.add_flags = flags;
     }
+
+    for (uint32_t m = from; m < modu_count(&S->modu); m++) /* its imports Quickr's alone */
+        if (modu_mod(&S->modu, m)->quickr) {
+            modu_top(&S->modu, m, prog_at(&S->prog));
+            module_end(S);
+            S->repl.module = m;
+            qr_guest_read(S, m);
+        }
 
     module_end(S); /* the last module's */
     S->repl.module = 0;
@@ -1255,9 +1291,19 @@ static void declare_program(Session *const S, const bool guests)
 {
     const uint32_t n = modu_count(&S->modu), *const order = modu_order(&S->modu);
 
+    bool quickr = false;
+    S->comp.guest = nullptr;
+
     for (uint32_t i = 0; i < n; i++) {
         if (guests && !order[i])
             continue;
+        if (modu_mod(&S->modu, order[i])->quickr) { /* Quickr's: each checked, all at once */
+            if (!quickr)
+                qr_guest_declare(S);
+
+            quickr = true;
+            continue;
+        }
 
         const uint32_t m = order[i], top = modu_top_of(&S->modu, m);
         const uint32_t from = m ? top + prog_line(&S->prog, top)->len : PROGBASE;
@@ -1362,6 +1408,11 @@ static void walk(Session *const S, const bool lenient)
                 modu_top(&S->modu, ++S->repl.module, last);
 
             S->repl.inproc = false;
+            continue;
+        }
+
+        if (l->flags & LF_QR) { /* a Quickr module's: qr/qr.c's */
+            line += l->len;
             continue;
         }
 
