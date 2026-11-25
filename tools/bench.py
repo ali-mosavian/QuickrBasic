@@ -468,6 +468,7 @@ def cmd_qbasic(a: argparse.Namespace) -> int:
 
 
 OBJCOPY = os.environ.get("OBJCOPY", shutil.which("llvm-objcopy") or "/opt/homebrew/opt/llvm/bin/llvm-objcopy")
+LLVM_OBJDUMP = os.environ.get("LLVM_OBJDUMP", shutil.which("llvm-objdump") or "/opt/homebrew/opt/llvm/bin/llvm-objdump")
 
 
 def nm(o: Path) -> list[tuple[int, str, str]]:
@@ -1388,12 +1389,84 @@ def vm_samples(machine: str, exe: Path, job: tuple, files: dict[str, bytes]) -> 
     return Samples(by, at, int(frames[-1]), int(pcs["interval_us"]), mhz)
 
 
+def gfx_objects(b: Build) -> list[Path]:
+    """The DOS gfx slice's objects, in the order profiled links them (apart's slice/{i}_ names)."""
+    db = subprocess.run(["make", "-pnq", "build/c/basic32.exe"], cwd=b.root, capture_output=True, text=True).stdout
+    g = re.search(r"^GFX_DOS_OBJ := (.*)$", db, re.M)
+    if not g:
+        sys.exit("profile: make printed no GFX_DOS_OBJ")
+    return [b.root / o for o in g.group(1).split()]
+
+
+def by_line(b: Build, listing: str, name: str, offsets: dict[int, float], d: Path) -> dict[str, float]:
+    """name's cycles by offset as by source line, inlined callees' lines their own. Its object, the
+    map's module for it, is built again with DWARF line tables, the same code; a sample is the
+    block that ran, charged to its first instruction's line."""
+    module = ""
+    for row in listing.splitlines():
+        if m := re.match(r"Module: (.*?)\(", row):
+            module = m[1]
+        elif re.match(rf"0001:[0-9a-f]{{8}}\*?\s+{re.escape(name)}$", row):
+            break
+    else:
+        return {}
+    at = re.search(r"slice/(\d+)_[^/]*$", module)
+    if not at:
+        return {}
+    obj = gfx_objects(b)[int(at[1])]
+    rel = str(obj.relative_to(b.root))
+    made = subprocess.run(["make", "-n", "-B", rel], cwd=b.root, capture_output=True, text=True).stdout
+    cmd = next(c for c in made.splitlines() if f"-o {rel}" in c)
+    lined = d / f"{obj.stem}.lines.obj"
+    subprocess.run(cmd.replace(f"-o {rel}", f"-gdwarf-4 -o {lined}"), shell=True, cwd=b.root, check=True)
+    sym = name.removeprefix("_slice")
+
+    def listing_of(o: Path, lines: bool) -> str:
+        flags = ["-d", "--no-show-raw-insn", *(["-l"] if lines else []), f"--disassemble-symbols={sym}"]
+        return subprocess.run([LLVM_OBJDUMP, *flags, str(o)], capture_output=True, text=True).stdout
+
+    def code(text: str) -> list[str]:
+        return [row.split(":", 1)[1] for row in text.splitlines() if re.match(r"\s*[0-9a-f]+:", row)]
+
+    text = listing_of(lined, True)
+    if code(text) != code(listing_of(obj, False)):
+        print(f"  {name}: the lined build's code differs; its lines are a guess")
+    where, start, lines = "?", -1, {}
+    for row in text.splitlines():
+        if m := re.match(r"; (\S+):(\d+)", row):
+            where = f"{Path(m[1]).name}:{m[2]}"
+        elif m := re.match(r"\s*([0-9a-f]+):", row):
+            start = int(m[1], 16) if start < 0 else start
+            lines[int(m[1], 16) - start] = where
+    out: dict[str, float] = {}
+    for off, c in offsets.items():
+        key = lines.get(max((o for o in lines if o <= off), default=-1), "?")
+        out[key] = out.get(key, 0) + c
+    return out
+
+
+def source_text(b: Build, where: str) -> str:
+    """The source line file:line names, under stdlib/gfx/src; empty when not found."""
+    name, _, line = where.partition(":")
+    found = next(iter((b.root / "stdlib/gfx/src").rglob(name)), None)
+    rows = found.read_text().splitlines() if found and line.isdigit() else []
+    return rows[int(line) - 1].strip() if rows and int(line) <= len(rows) else ""
+
+
 def print_vm_profile(
-    name: str, machine: str, exe: Path, jobs: list[tuple], files: dict[str, bytes], n: int, inside: list[str]
+    name: str,
+    machine: str,
+    exe: Path,
+    jobs: list[tuple],
+    files: dict[str, bytes],
+    n: int,
+    inside: list[str],
+    lined: Build | None = None,
 ) -> None:
     """Each function's cycles a frame on 86Box's machine, by time sampled: the longer job's less the
     shorter's, over the frames between, so the start-up drops out. Each of inside's functions by
-    offset too: a sample lands on its block's first instruction."""
+    offset too, a sample landing on its block's first instruction; with lined, the build, by source
+    line instead."""
     a, b = (vm_samples(machine, exe, j, files) for j in jobs)
     frames = b.frames - a.frames
     per = b.interval_us * b.mhz / frames
@@ -1404,6 +1477,13 @@ def print_vm_profile(
         print(f"{c:>12,.0f} {c / total:6.1%}  {f}")
     for f in inside:
         offs = {k[1]: (v - a.at.get(k, 0)) * per for k, v in b.at.items() if k[0] == f}
+        if lined:
+            with tempfile.TemporaryDirectory() as d:
+                lines = by_line(lined, exe.with_suffix(".map").read_text(), f, offs, Path(d))
+            print(f"{f}, {cycles.get(f, 0):,.0f} cycles, by line:")
+            for where, c in sorted(lines.items(), key=lambda kv: -kv[1])[:n]:
+                print(f"{c:>12,.0f} {c / total:6.1%}  {where:16} {source_text(lined, where)[:70]}")
+            continue
         print(f"{f}, by offset:")
         for off, c in sorted(offs.items(), key=lambda kv: -kv[1])[:n]:
             print(f"{c:>12,.0f} {c / total:6.1%}  +{off:#x}")
@@ -1419,7 +1499,8 @@ def demos_on(a: argparse.Namespace, own: dict[str, bytes]) -> int:
             exe = profiled(builds[-1][1], Path(d))
             for name in a.demo or DEMO_EDITS:
                 jobs = [(demo_program(name, t, False, a.edits or 0), "", "", own) for t in (a.seconds / 2, a.seconds)]
-                print_vm_profile(name, a.machine, exe, jobs, libs[-1], a.n, a.at or [])
+                lined = builds[-1][1] if a.lines else None
+                print_vm_profile(name, a.machine, exe, jobs, libs[-1], a.n, a.at or [], lined)
         return 0
     print(f"320x200 at 8 bits on 86Box ({a.machine}), frames a second over {a.seconds:g} s")
     print(f"{'':12}" + "".join(f"{rev:>10}" for rev, _ in builds))
@@ -1685,6 +1766,7 @@ def main() -> int:
     p.add_argument("--cycles", type=int, default=25000, help="DOSBox's cycles a virtual ms")
     p.add_argument("--machine", choices=list(MACHINES), help="on 86Box's 486DX2-66, Pentium 100 or Pentium Pro 200")
     p.add_argument("--at", action="append", help="--machine --profile: this function's cycles by offset too")
+    p.add_argument("--lines", action="store_true", help="--at: by source line, not offset")
     p.add_argument("--rev", action="append", help="--machine: a revision's build timed too, before the tree's")
     p.add_argument("--demo", action="append", choices=list(DEMO_EDITS), help="a demo to time; all when none")
     p.add_argument("--seconds", type=float, default=10)
