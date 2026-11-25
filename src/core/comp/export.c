@@ -180,6 +180,14 @@ Exports expo_qbasic(const Comp *const C, const uint32_t m, Arena *const a)
     return x;
 }
 
+bool expo_usable(const Comp *const C, const uint32_t t)
+{
+    const Name *const n = symb_name(C->symb, t);
+    const Binding *const b = scop_get(C->scop, sc_module(n->module), t);
+
+    return !(b && b->flags & BF_ALIEN) && !(n->rec && decl_type(C->decl, n->rec)->alien);
+}
+
 /* Name n declared again by an export: the clash *clash records, the first. */
 static void expo_again(const Symb *const sy, const uint32_t n, uint32_t *const clash)
 {
@@ -200,7 +208,7 @@ uint32_t expo_declare(Comp *const C, const uint32_t m, const Exports *const x)
         const bool fn = e->result.et != ET_IMP;
         expo_again(sy, n, &clash);
         symb_name(sy, n)->flags |= fn ? NM_FUNC : NM_SUB;
-        scop_bind(C->scop, sc_module(m), n)->flags |= BF_PROC;
+        scop_bind(C->scop, sc_module(m), n)->flags |= BF_PROC | (e->why ? BF_ALIEN : 0);
 
         if (!fn)
             continue;

@@ -36,6 +36,13 @@ static const char geo[] = DIALECT "type Spot\n"
                                   "    let total = w * h\n"
                                   "    return total\n"
                                   "end function\n"
+                                  "function names() as string[]\n"
+                                  "    var n as string[]\n"
+                                  "    return n\n"
+                                  "end function\n"
+                                  "type Bag\n"
+                                  "    items as int[]\n"
+                                  "end type\n"
                                   "private function helper() as int\n"
                                   "    return 1\n"
                                   "end function\n";
@@ -223,6 +230,17 @@ TEST(mixcomplete_qr_main_offers_built_in_methods)
 
 /* An edit to a Quickr module's exports reached a QBasic program's completion only at the next
    run: helper no more private was not offered; one made wrong kept the old exports. */
+/* After a Quickr module's name a QBasic program offered a function and a record it can't use:
+   a list result, a list field. */
+TEST(mixcomplete_qb_main_leaves_out_what_it_cant_use)
+{
+    open_with(S, qb_main);
+    CHECK(offers(S, "print total", "a = geo.", "area"));
+    CHECK(!offers(S, "print total", "a = geo.", "names"));
+    CHECK(!offers(S, "print total", "dim q as geo.", "Bag"));
+    fx_done(S, files);
+}
+
 TEST(mixcomplete_qb_main_follows_a_quickr_modules_edits)
 {
     open_with(S, qb_main);

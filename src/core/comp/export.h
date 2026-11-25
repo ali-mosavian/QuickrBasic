@@ -66,4 +66,7 @@ Exports expo_qbasic(const Comp *C, uint32_t m, Arena *a);
    FUNCTION of its result's type; each record usable a TYPE. The first name two of them spell,
    case aside; 0 none. */
 uint32_t expo_declare(Comp *C, uint32_t m, const Exports *x);
+/* Can QBasic use name t, a module's export: not a procedure or a TYPE another dialect's export
+   says it can't (a why expo_declare declared)? */
+bool expo_usable(const Comp *C, uint32_t t);
 #endif

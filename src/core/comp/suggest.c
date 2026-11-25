@@ -34,6 +34,7 @@
 #include "comp/comp.h"
 #include "comp/declare.h"
 #include "comp/dfa.h"
+#include "comp/export.h"
 #include "comp/lexer.h"
 #include "io/dialect.h"
 #include "io/gen.h"
@@ -1185,8 +1186,7 @@ typedef struct {
     uint16_t wn;
 } SuggExports;
 
-/* Export t, its kinds k, offered when it matches the word; not a TYPE the module's importers
-   can't use. */
+/* Export t, its kinds k, offered when it matches the word and usable (comp/export.h). */
 static void sugg_export(void *const ctx, const uint32_t t, const uint8_t k)
 {
     const SuggExports *const q = ctx;
@@ -1194,7 +1194,7 @@ static void sugg_export(void *const ctx, const uint32_t t, const uint8_t k)
     const uint8_t *const text = symb_text(q->src->symb, t);
     const uint8_t m = sugg_match(q->word, q->wn, text + 1, text[0]);
 
-    if (!m || (k & BIND_TYPE && decl_type(q->src->decl, nm->rec)->alien))
+    if (!m || !expo_usable(q->src->comp, t))
         return;
 
     const SuggKind kind = nm->flags & NM_SUB ? SG_SUB : nm->flags & NM_FUNC ? SG_FN : SG_VAR;
