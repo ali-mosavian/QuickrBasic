@@ -31,7 +31,8 @@ maps the asm it replaced.
 | `core/session.c` | `Session` | Every module's state; the debugger's API |
 | `core/comp` | `Lexr`, `Comp`, `Ast`, `Expr`, `Decl`, `Ctrl`, `Blok`, `Link`, `List`, `Code` | Lexer, statement automaton, steps and trees, `sema`, fold, codegen, op fusion, link, lister |
 | `core/vm` | `Vm`, `Flow`, `Dbug`, `Evnt`, `Chai`, `Usng`, `Syst`, `StmtState` | The loop, ops (`ops.def`), statements and functions, frames, events, CHAIN, PRINT USING, the debugger's stops |
-| `core/io` | `Chnl`, `Cons`, `File`, `Repl`, `Srcr`, `Diag` | Channels, console, files, the READY loop, loading source, error messages |
+| `core/io` | `Chnl`, `Cons`, `File`, `Repl`, `Srcr`, `Diag`, `Dial` | Channels, console, files, the READY loop, loading source, error messages; the dialects (`dialect.h`), QBasic's the core's own |
+| `core/qr` | Quickr's state (`Dial`'s) | Quickr, a text dialect: its table (`qr.c`), lexer, parser, checker (`qsem*.c`), codegen (`qcg*.c`), link, runtime (`qrt.c`) |
 | `core/mem` | `Allo`, `Arry`, `Prog`, `Scop`, `Strg`, `Symb` | The BASIC arena: its blocks, arrays, the program store, scopes, strings, symbols |
 | `core/num` | `Rndm` | SINGLE and DOUBLE arithmetic, the maths functions, RND |
 | `core/util` | none | Bump arenas for scratch, a free-list heap |
@@ -75,6 +76,8 @@ Each stage does one job and hands the next a finished product. Nothing reaches a
   comes from bump arenas (`util/arena.h`) freed all at once. No malloc in the core.
 - The core never calls up into a front end. It reports through `FrontEnd` (`io/repl.h`) and
   `DebugHooks` (`vm/debug.h`), which the front end installs.
+- The core names no dialect but QBasic, its own. It asks a program's, module's or line's `Dialect`
+  (`io/dialect.h`), a table each dialect provides; `io/dialect.c` lists them.
 
 ## Flow
 

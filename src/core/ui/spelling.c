@@ -78,40 +78,15 @@ static void seen(const uint8_t *const tok, const SpelKind kind)
     spelled(comp_nameof(tok), tok + 2, (uint8_t)(tok[1] - !!comp_suffixof(tok)), kind);
 }
 
-static bool word_char(const uint8_t c)
+/* Dialect.names's: a text dialect's line's name, n bytes at w, a name's of the module. */
+static void text_name(void *const ctx, const uint8_t *const w, const uint32_t n)
 {
-    return c == '_' || (c >= '0' && c <= '9') || ((c | 0x20) >= 'a' && (c | 0x20) <= 'z');
-}
+    const Session *const S = ctx;
+    const uint8_t len = (uint8_t)(n < UINT8_MAX ? n : UINT8_MAX);
+    const uint32_t name = symb_look_name(&S->symb, 0, w, len);
 
-/* A Quickr line's names, text as typed: each a name's of the module, strings and a comment
-   skipped. */
-static void quickr_names(const Session *const S, const uint8_t *p)
-{
-    while (*p && *p != '\'') {
-        if (*p == '"') {
-            for (p++; *p && *p != '"'; p++)
-                ;
-
-            p += !!*p;
-            continue;
-        }
-
-        if (!word_char(*p) || (*p >= '0' && *p <= '9')) {
-            p++;
-            continue;
-        }
-
-        const uint8_t *const w = p;
-
-        while (word_char(*p))
-            p++;
-
-        const uint8_t len = (uint8_t)(p - w < UINT8_MAX ? p - w : UINT8_MAX);
-        const uint32_t name = symb_look_name(&S->symb, 0, w, len);
-
-        if (name)
-            spelled(name, w, len, SPEL_MODULE);
-    }
+    if (name)
+        spelled(name, w, len, SPEL_MODULE);
 }
 
 /* The line at p is a TYPE's field's: its name, its subscripts if any, then AS. */
@@ -136,13 +111,17 @@ static bool field_line(const uint8_t *const p)
 static void view_names(Session *const S, const uint32_t v, const SpelKind kind)
 {
     const View *const w = view_at(v);
+    const Dialect *d = nullptr; /* a text file's, from its first line */
 
     for (uint32_t line = w->first; line < w->first + w->n; line++) {
         const uint8_t *p = S->comp.cbuf;
         prog_body(&S->prog, lmap_off(S, line), S->comp.cbuf);
 
-        if (prog_line(&S->prog, lmap_off(S, line))->flags & LF_QR) {
-            quickr_names(S, p);
+        if (prog_line(&S->prog, lmap_off(S, line))->flags & LF_TEXT) {
+            if (!d)
+                d = dial_line(&S->prog, lmap_off(S, line));
+
+            d->names(p, text_name, S);
             continue;
         }
 
@@ -173,7 +152,7 @@ char *spel_name(const Session *const S, char *const d, const uint32_t name, cons
 {
     const Spelling *e = slot(key_of(name, kind));
 
-    if ((!e || !e->key) && (kind == SPEL_LOCAL || (kind == SPEL_FIELD && text_quickr(S))))
+    if ((!e || !e->key) && (kind == SPEL_LOCAL || (kind == SPEL_FIELD && prog_text(&S->prog))))
         e = slot(key_of(name, SPEL_MODULE));
 
     if (e && e->key) {
@@ -186,14 +165,15 @@ char *spel_name(const Session *const S, char *const d, const uint32_t name, cons
 
 char *spel_var(const Session *const S, char *d, const InspVar *const var)
 {
-    const uint32_t typed = text_quickr(S) ? qr_spell(&S->qr, var->id, d) : 0;
+    const Dialect *const dl = text_dialect(S);
+    const uint32_t typed = dl->text ? dl->spell(S, var->id, d) : 0;
 
     if (typed)
         return d + typed;
 
     d = spel_name(S, d, var->name, var->local ? SPEL_LOCAL : SPEL_MODULE);
 
-    if (var->sfx && !text_quickr(S)) /* Quickr's types show no suffix */
+    if (var->sfx && dl->suffix)
         *d++ = var->sfx;
 
     return d;

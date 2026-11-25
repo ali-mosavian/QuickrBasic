@@ -38,7 +38,6 @@ void boot(Session *const S, const FrontEnd *const fe)
     decl_init(&S->decl, &S->fault);
     S->names.intern = repl_intern;
     S->impt.find = repl_runs;
-    qr_guest_init(&S->qrg);
     lexr_init(&S->lexr, &S->fault, &S->names);
     stmt_usng_init(S);
     Addr lo, hi;

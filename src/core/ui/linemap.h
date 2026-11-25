@@ -11,6 +11,6 @@ void lmap_build(Session *S);
 /* lm_off: text line line's record; past the last, prog.end. */
 uint32_t lmap_off(Session *S, uint32_t line);
 /* lm_of: the text line whose record is at rec, or the last before it (an include's records are
-   its line's, a Quickr run's copy its origin's); false: none, rec before the first. */
+   its line's, a text line's run copy its origin's); false: none, rec before the first. */
 bool lmap_of(Session *S, uint32_t rec, uint32_t *line);
 #endif

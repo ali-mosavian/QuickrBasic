@@ -9,8 +9,8 @@
  * A selection from (sel_line, sel_col) to the cursor is a piece of one line, or whole lines when it
  * spans several. The insert mode, uimn.ed.insert, is every line buffer's.
  *
- * A native module's view (a .qbx's interface) is not changed, nor a Quickr file's first line, its
- * dialect's: each edit asks edit_refused first.
+ * A native module's view (a .qbx's interface) is not changed, nor a text dialect's file's first
+ * line, its mark: each edit asks edit_refused first.
  *
  * The immediate window keeps its last lines (uimn.imm); edit_imm_up and edit_imm_down recall them
  * into uimn.immline.
@@ -55,7 +55,6 @@
 #include "io/diag.h"
 #include "io/errmsg.h"
 #include "mem/module.h"
-#include "qr/qr.h"
 #include "ui/dialog.h"
 #include "ui/helpdoc.h"
 #include "ui/linemap.h"
@@ -423,7 +422,7 @@ uint16_t edit_dxerr(Session *const S, const uint8_t *const text, const ErrOp *co
 
 void edit_emsg(Session *const S, const uint8_t code)
 {
-    const char *const s = text_quickr(S) ? qr_message(S, code) : emsg_text(S->vm.err.user, code);
+    const char *const s = text_dialect(S)->message(S, code);
     memcpy(uimn.errmsg, s, strlen(s) + 1);
 }
 
@@ -446,7 +445,7 @@ bool edit_refused_in(Session *const S, const uint32_t v)
     return true;
 }
 
-/* The cursor's line, or a line selected, a Quickr file's dialect line: true, refused with a beep,
+/* The cursor's line, or a line selected, a text dialect's file's mark: true, refused with a beep,
    the line as stored again. */
 static bool marker_refused(Session *const S)
 {
@@ -483,8 +482,10 @@ static uint32_t enter_view(Session *const S, const uint32_t v)
 
 void edit_recheck(Session *const S)
 {
-    if (text_quickr(S)) {
-        qr_flag(S);
+    const Dialect *const d = text_dialect(S);
+
+    if (d->text) {
+        d->flag(S);
         return;
     }
 
@@ -536,32 +537,32 @@ bool edit_commit(Session *const S)
     return true;
 }
 
-/* Text line line (the whole text's), a Quickr one, checked in its file (qr_syntax): false it
-   passes; else LF_ASIS, its error's column in uc.ecol, its message in uimn.errmsg. */
-static bool quickr_error(Session *const S, const uint32_t line)
+/* Text line line (the whole text's), a text dialect's, checked in its file (Dialect.syntax): false
+   it passes; else LF_ASIS, its error's column in uc.ecol, its message in uimn.errmsg. */
+static bool text_error(Session *const S, const uint32_t line)
 {
     const uint32_t rec = lmap_off(S, line);
-    QrErr e = {.msg = uimn.errmsg, .cap = sizeof uimn.errmsg};
+    DialErr e = {.msg = uimn.errmsg, .cap = sizeof uimn.errmsg};
 
-    const bool err = qr_syntax(S, rec, &e);
+    const bool err = text_dialect(S)->syntax(S, rec, &e);
     Line *const l = prog_line(&S->prog, rec);
     l->flags = (uint8_t)((l->flags & ~LF_ASIS) | (err ? LF_ASIS : 0));
     uc.ecol = err ? (uint16_t)e.col : 0;
     return err;
 }
 
-/* edit_store's of a Quickr program's line: as typed, then checked. */
-static bool store_quickr(Session *const S, const uint32_t line, LineBuf *const b)
+/* edit_store's of a text dialect's line: as typed, then checked. */
+static bool store_text(Session *const S, const uint32_t line, LineBuf *const b)
 {
     uimn.text.asis = false;
     text_repl(S, line, b->text, b->len);
-    return !quickr_error(S, line + uimn.text.first);
+    return !text_error(S, line + uimn.text.first);
 }
 
 bool edit_store(Session *const S, const uint32_t line, LineBuf *const b)
 {
-    if (text_quickr(S))
-        return store_quickr(S, line, b);
+    if (prog_text(&S->prog))
+        return store_text(S, line, b);
 
     const uint32_t was = enter_view(S, uimn.ed.view);
     uint32_t lexed;
@@ -588,8 +589,8 @@ bool edit_error(Session *const S, const uint32_t line, uint16_t *const col)
 {
     static LineBuf b = {.grows = true};
 
-    if (text_quickr(S)) {
-        const bool err = quickr_error(S, line);
+    if (prog_text(&S->prog)) {
+        const bool err = text_error(S, line);
         *col = uc.ecol;
         return err;
     }

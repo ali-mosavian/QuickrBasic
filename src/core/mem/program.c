@@ -6,6 +6,9 @@
  * is at DLINE, the program from PROGBASE; a len of 0 ends it, at end. A line is named by its
  * offset in the store, which stays when the block moves.
  *
+ * A text dialect's line (LF_TEXT) is its text; a run's copy of one (LF_INC too) maps back to it by
+ * file and source line (prog_origin), and takes its breakpoint (prog_marks).
+ *
  * prog_find looks from the link's cursor when that is not above the number. Any edit ends with
  * prog_drop: CONT and the link's cursor end, the frames drop and the variables are cleared, so the
  * next link empties the code cache.
@@ -246,4 +249,36 @@ uint32_t prog_lineof_from(
 
     *off = pos - line - HDR;
     return line;
+}
+
+uint32_t prog_origin(const Prog *const pg, const uint32_t rec)
+{
+    const Line *const copy = prog_line(pg, rec);
+
+    if ((copy->flags & (LF_TEXT | LF_INC)) != (LF_TEXT | LF_INC))
+        return rec;
+
+    for (uint32_t r = PROGBASE; prog_line(pg, r)->len; r += prog_line(pg, r)->len) {
+        const Line *const l = prog_line(pg, r);
+
+        if (!(l->flags & LF_INC) && l->file == copy->file && l->src == copy->src)
+            return r;
+    }
+
+    return rec;
+}
+
+void prog_marks(Prog *const pg, const uint32_t rec)
+{
+    const Line *const l = prog_line(pg, rec);
+
+    if (!(l->flags & LF_TEXT))
+        return;
+
+    for (uint32_t r = PROGBASE; prog_line(pg, r)->len; r += prog_line(pg, r)->len) {
+        Line *const copy = prog_line(pg, r);
+
+        if (copy->flags & LF_INC && copy->file == l->file && copy->src == l->src)
+            copy->flags = (uint8_t)((copy->flags & ~LF_BP) | (l->flags & LF_BP));
+    }
 }

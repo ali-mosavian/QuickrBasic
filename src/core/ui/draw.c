@@ -417,7 +417,7 @@ static uint8_t status_errors(Session *const S, const uint8_t c)
 /* The program's dialect, before column end when it fits past column c. */
 static void status_dialect(Session *const S, const uint8_t c, const uint8_t end)
 {
-    const char *const name = text_quickr(S) ? "Quickr" : "QBasic";
+    const char *const name = text_dialect(S)->name;
     const uint8_t at = (uint8_t)(end - 1 - strlen(name));
 
     if (at > c)

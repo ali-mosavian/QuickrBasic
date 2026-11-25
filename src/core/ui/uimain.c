@@ -58,7 +58,6 @@
 #include "plat/pscr.h"
 #include "plat/psys.h"
 #include "qbrt/qbrt.h"
-#include "qr/qr.h"
 #include "ui/complete.h"
 #include "ui/dialog.h"
 #include "ui/debugpane.h"
@@ -125,8 +124,6 @@ static const char s_nomatch[] = "Match not found";
 static const char s_chdone[] = "Change complete";
 static const char s_notsaved[] = "Loaded file is not saved. Save it now?";
 static const char s_dialect[] = "The new program's dialect:";
-static const MsgButton bt_dialect[] = {{"Q&Basic", 10}, {"&Quickr", 10}, {uimn_cancel, 10}, {}};
-enum : uint8_t { DIALECT_QBASIC = 0, DIALECT_QUICKR = 1 };
 static const char s_access[] = "Path/File access error";
 static const char s_about[] = "QuickrBasic||A full-screen editor";
 static const char s_welcome[] = "Welcome to QuickrBasic||"
@@ -750,19 +747,28 @@ static void file_new(Session *const S)
     if (!ask_save(S))
         return;
 
-    const uint8_t dialect = dlog_msg(S, s_dialect, bt_dialect);
+    MsgButton bt[DIAL_MAX + 2] = {}; /* each dialect's, Cancel, the end */
+    const uint32_t n = dial_count();
 
-    if (dialect > DIALECT_QUICKR)
+    for (uint32_t i = 0; i < n; i++)
+        bt[i] = (MsgButton){dial_at(i)->button, 10};
+
+    bt[n] = (MsgButton){uimn_cancel, 10};
+
+    const uint8_t choice = dlog_msg(S, s_dialect, bt);
+
+    if (choice >= n)
         return;
 
-    text_init(S, dialect == DIALECT_QUICKR);
+    const Dialect *const d = dial_at(choice);
+    text_init(S, d);
     uimn.file[0] = 0;
     named(S);
     reset(S);
     undo_clear();
     jumps_clear();
 
-    if (dialect == DIALECT_QUICKR)
+    if (d->text)
         edit_load(S, 1); /* past the dialect's line */
 }
 
@@ -785,14 +791,14 @@ static void load(Session *const S)
             return;
         }
 
-        text_init(S, qr_is_file(uimn.chosen));
+        text_init(S, dial_of_file(uimn.chosen));
     }
 
     memcpy(uimn.file, uimn.chosen, sizeof uimn.file);
     named(S);
     reset(S);
     bool read;
-    const Status st = loaded(S, text_quickr(S) ? qr_open : repl_open, &read);
+    const Status st = loaded(S, text_dialect(S)->open, &read);
     edit_recheck(S);
     text_clean(S);
     undo_clear();
@@ -873,14 +879,14 @@ static void at_col(Session *const S, const uint32_t line, const uint16_t col)
     edit_ensure();
 }
 
-/* A Quickr program checked and linked for a run (qr_link), the modules it read shown: true; else
-   the cursor at its first error, its message in a box. */
+/* A text dialect's program checked and linked for a run (Dialect.link), the modules it read shown:
+   true; else the cursor at its first error, its message in a box. */
 static bool built(Session *const S)
 {
     edit_commit(S);
-    QrErr e = {.msg = uimn.errmsg, .cap = sizeof uimn.errmsg};
+    DialErr e = {.msg = uimn.errmsg, .cap = sizeof uimn.errmsg};
 
-    const uint32_t errors = qr_link(S, &e);
+    const uint32_t errors = text_dialect(S)->link(S, &e);
     view_modules(S);
 
     if (!errors) {
@@ -899,19 +905,19 @@ static bool built(Session *const S)
 
 void uimn_run(Session *const S)
 {
-    const bool quickr = text_quickr(S);
+    const Dialect *const d = text_dialect(S);
 
-    if (quickr && !built(S))
+    if (d->text && !built(S))
         return;
-    if (!quickr)
+    if (!d->text)
         uimn_sync(S);
 
     udbg_prep(S);
     upag_clear(S);
     ui.run_wait = true;
 
-    if (quickr) {
-        ran(S, repl_call(S, qr_go));
+    if (d->text) {
+        ran(S, repl_call(S, d->go));
         return;
     }
 
@@ -943,21 +949,21 @@ void uimn_cont(Session *const S)
 }
 
 /* ui_exec: Enter in the immediate window: its line run on the output page. */
-/* A Quickr program's immediate line, len bytes in cons.inbuf: run as Quickr at the stopped
-   statement, else after the program's last line, linked first; an error said in a box, the stop
-   kept. */
-static void quickr_line(Session *const S, const uint16_t len)
+/* A text dialect's program's immediate line, len bytes in cons.inbuf: run as its own at the
+   stopped statement, else after the program's last line, linked first; an error said in a box,
+   the stop kept. */
+static void text_line(Session *const S, const uint16_t len)
 {
     char line[INMAX + 1];
     memcpy(line, S->cons.inbuf, len);
     line[len] = 0;
 
-    if (!(uimn_stopped() && S->qr.prog) && !built(S))
+    if (!(uimn_stopped() && text_dialect(S)->linked(S)) && !built(S))
         return;
 
     memcpy(S->cons.inbuf, line, len + 1u);
     S->vm.line = DLINE;
-    const Status st = repl_call(S, session_quickr_line);
+    const Status st = repl_call(S, session_text_line);
 
     if (st != ST_OK) {
         const char *const why = session_errtext(S, (uint8_t)st);
@@ -983,8 +989,8 @@ static void exec_line(Session *const S)
     if (!len)
         return;
 
-    if (text_quickr(S)) {
-        quickr_line(S, len);
+    if (text_dialect(S)->text) {
+        text_line(S, len);
         return;
     }
 
@@ -1593,7 +1599,7 @@ void uimn_init(Session *const S)
     wind_init();
     mous_init();
     help_init();
-    text_init(S, false);
+    text_init(S, &dialect_qbasic);
     view_reset(S);
     edit_load(S, 0);
     edit_imm_load();

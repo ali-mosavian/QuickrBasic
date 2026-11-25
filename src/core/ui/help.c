@@ -596,23 +596,24 @@ uint16_t help_keyword(char *const out, const uint16_t max)
     return hdoc_word(lb->text, lb->len, lb->col, out, max);
 }
 
-enum { QUICKR_KEY = 7 }; /* "QUICKR " */
-
-/* A Quickr word's topic, w n characters, its dots kept: "quickr w" (a keyword, a module, a
-   module's m.name), else its first part's (a module's); HLF_NONE none. */
-static uint16_t quickr_topic(const char *const w, const uint16_t n)
+/* A text dialect's word's topic, w n characters, its dots kept: "KEY w" (a keyword, a module, a
+   module's m.name), else its first part's (a module's); HLF_NONE none. KEY: help, its
+   Dialect.help. */
+static uint16_t text_topic(const char *const help, const char *const w, const uint16_t n)
 {
-    char key[QUICKR_KEY + KEY_MAX];
-    memcpy(key, "QUICKR ", QUICKR_KEY);
-    memcpy(key + QUICKR_KEY, w, n);
-    const uint16_t id = hlf_find(&hf.f, key, QUICKR_KEY + n);
+    const uint32_t k = (uint32_t)strlen(help) + 1; /* "KEY " */
+    char key[DIAL_HELP + KEY_MAX];
+    memcpy(key, help, k - 1);
+    key[k - 1] = ' ';
+    memcpy(key + k, w, n);
+    const uint16_t id = hlf_find(&hf.f, key, k + n);
     const char *const dot = memchr(w, '.', n);
 
-    return id != HLF_NONE || !dot ? id : hlf_find(&hf.f, key, QUICKR_KEY + (uint32_t)(dot - w));
+    return id != HLF_NONE || !dot ? id : hlf_find(&hf.f, key, k + (uint32_t)(dot - w));
 }
 
-/* The topic of the word at the cursor, HLF_NONE if there is none. A Quickr program's window:
-   Quickr's topics only. */
+/* The topic of the word at the cursor, HLF_NONE if there is none. A text dialect's program's
+   window: its topics only. */
 static uint16_t keyword_topic(Session *const S)
 {
     char w[KEY_MAX];
@@ -620,8 +621,11 @@ static uint16_t keyword_topic(Session *const S)
 
     if (!n)
         return HLF_NONE;
-    if (text_quickr(S) && uimn.tree.workspace.focus == FOC_EDIT)
-        return quickr_topic(w, n);
+
+    const Dialect *const d = text_dialect(S);
+
+    if (d->text && uimn.tree.workspace.focus == FOC_EDIT)
+        return text_topic(d->help, w, n);
 
     uint16_t id = hlf_find(&hf.f, w, n);
 
@@ -641,8 +645,9 @@ void help_f1(Session *const S)
     }
 
     const uint16_t id = keyword_topic(S);
-    const bool quickr = id == HLF_NONE && hf.open && text_quickr(S);
-    open_window(S, quickr ? hlf_find(&hf.f, "QUICKR", QUICKR_KEY - 1) : id, true);
+    const Dialect *const d = text_dialect(S);
+    const bool text = id == HLF_NONE && hf.open && d->text;
+    open_window(S, text ? hlf_find(&hf.f, d->help, (uint32_t)strlen(d->help)) : id, true);
 }
 
 void help_using(Session *const S) { open_window(S, hf.open ? hf.f.using_help : HLF_NONE, true); }

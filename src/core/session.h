@@ -20,6 +20,7 @@
 #include "comp/listing.h"
 #include "io/channel.h"
 #include "io/console.h"
+#include "io/dialect.h"
 #include "io/diag.h"
 #include "io/file.h"
 #include "io/native.h"
@@ -33,7 +34,6 @@
 #include "mem/string.h"
 #include "mem/symbols.h"
 #include "num/random.h"
-#include "qr/qr.h"
 #include "vm/chain.h"
 #include "vm/debug.h"
 #include "vm/devices.h"
@@ -74,8 +74,7 @@ struct Session {
     Natv natv;
     Prog prog;
     ProgUser prog_user;
-    QrKeep qr;
-    QrGuests qrg;
+    Dial dial;
     CompRun comp_run;
     Repl repl;
     Rndm rndm;
@@ -144,12 +143,12 @@ Addr session_cell(const Session *S, const DebugFrame *f, uint32_t id, int32_t pa
 bool session_in_direct(const Session *S);
 /* PRINT expr in procedure proc's scope to out (dbug_eval): its error, else ST_OK. */
 Status session_eval(Session *S, const char *expr, uint32_t proc, char out[static 80]);
-/* Statement stmt run so (dbug_exec). In a Quickr program both are Quickr's, at the stopped
+/* Statement stmt run so (dbug_exec). In a text dialect's program both are its own, at the stopped
    statement when the scope is its procedure's. */
 Status session_exec(Session *S, const char *stmt, uint32_t proc, char out[static 80]);
-/* cons.inbuf's Quickr line as the direct line's code, at the stopped statement, else after the
-   modules' last line (qr_direct_code). */
-void session_quickr_line(Session *S);
+/* cons.inbuf's line, a text dialect's, as the direct line's code, at the stopped statement, else
+   after the modules' last line (Dialect.direct). */
+void session_text_line(Session *S);
 /* Error code's message, the program's own ON ERROR texts' too. */
 const char *session_errtext(const Session *S, uint8_t code);
 #endif

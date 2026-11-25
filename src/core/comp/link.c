@@ -754,7 +754,7 @@ static void link_lines(Comp *const C)
 
     if (n <= 1) {
         for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
-            if (!(prog_line(C->prog, l)->flags & LF_QR))
+            if (!(prog_line(C->prog, l)->flags & LF_TEXT))
                 link_line(C, l);
 
         return;
@@ -764,7 +764,7 @@ static void link_lines(Comp *const C)
         const uint32_t m = sc_module(modu_ordered(C->modu)[i]);
 
         for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
-            if (!(prog_line(C->prog, l)->flags & LF_QR) && comp_module(C, l) == m)
+            if (!(prog_line(C->prog, l)->flags & LF_TEXT) && comp_module(C, l) == m)
                 link_line(C, l);
     }
 }
@@ -942,7 +942,7 @@ void link_resolve_qb(Comp *const C)
     index_lines(C);
 
     for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
-        if (!(prog_line(C->prog, l)->flags & LF_QR))
+        if (!(prog_line(C->prog, l)->flags & LF_TEXT))
             link_resolve(C, l, prog_line(C->prog, l)->code);
 }
 

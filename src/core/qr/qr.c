@@ -2,7 +2,7 @@
  * run.
  *
  * # How it works
- * Each source line becomes a line of the program store (LF_QR), its body the line's text, so the
+ * Each source line becomes a line of the program store (LF_TEXT), its body the line's text, so the
  * editor, an error's place and the debugger work line by line as for QBasic. The front end then
  * runs in stages, each over the whole file: lex (qlex), parse (qpar), check (qsem). Every error
  * any stage finds is reported, in the source's order, before anything runs:
@@ -192,7 +192,7 @@ static uint32_t qr_module(Session *const S, QProg *const p, QMem *const m, const
 /* Is record l a text line of file file's: Quickr's, not a run's own? */
 static bool qr_text(const Line *const l, const uint32_t file)
 {
-    return (l->flags & (LF_QR | LF_INC)) == LF_QR && l->file == file;
+    return (l->flags & (LF_TEXT | LF_INC)) == LF_TEXT && l->file == file;
 }
 
 /* The store's lines of file file, a new module of p at path: each's text copied, its src its
@@ -280,7 +280,7 @@ uint16_t qr_read(Session *const S, const char *const path, const uint16_t file)
     if (eof)
         len = (uint32_t)(eof - text);
 
-    S->prog.add_flags = LF_QR;
+    S->prog.add_flags = LF_TEXT;
     S->prog.add_file = file;
     S->prog.add_at = 0;
 
@@ -339,7 +339,7 @@ static uint32_t qr_load(const QrLoad *const L, const char *const path)
     if (L->find) {
         Modu *const mu = &L->S->modu;
         const uint32_t k = modu_module(mu, path);
-        modu_mod(mu, k)->quickr = true;
+        modu_mod(mu, k)->dialect = &dialect_quickr;
         modu_import(mu, L->from, k);
         return QMOD_NONE;
     }
@@ -518,7 +518,7 @@ static void qr_store(Session *const S, QProg *const p, QMem *const m)
     uint32_t n = 0;
     p->order = qast_alloc(m, p->nmods * sizeof *p->order);
     qr_visit(p, seen, 0, &n);
-    S->prog.add_flags = LF_QR;
+    S->prog.add_flags = LF_TEXT;
 
     for (uint32_t i = 0; i < n; i++) {
         const QMod *const mod = &p->mods[p->order[i]];
@@ -634,9 +634,9 @@ static void qr_say(Session *const S, const QProg *const p, const QErr *const e)
 static uint32_t qr_copy(Session *const S, QProg *const p, QMem *const m, uint32_t *cap, QLine ln)
 {
     const Line *const from = ln.at ? prog_line(&S->prog, ln.at) : nullptr;
-    S->prog.add_flags = LF_QR | LF_INC | (from ? from->flags & LF_BP : 0);
+    S->prog.add_flags = LF_TEXT | LF_INC | (from ? from->flags & LF_BP : 0);
     S->prog.add_src = ln.src;
-    S->prog.add_file = from ? from->file : ln.mod; /* qr_origin finds its line by these */
+    S->prog.add_file = from ? from->file : ln.mod; /* prog_origin finds its line by these */
     ln.at = prog_at(&S->prog);
     prog_add(&S->prog, NONUM, (const uint8_t *)ln.text, ln.len + 1);
     S->prog.add_flags = 0;
@@ -644,38 +644,6 @@ static uint32_t qr_copy(Session *const S, QProg *const p, QMem *const m, uint32_
     S->prog.add_file = 0;
     qr_addline(p, m, cap, ln);
     return p->src.nlines - 1;
-}
-
-uint32_t qr_origin(const Prog *const pg, const uint32_t rec)
-{
-    const Line *const copy = prog_line(pg, rec);
-
-    if ((copy->flags & (LF_QR | LF_INC)) != (LF_QR | LF_INC))
-        return rec;
-
-    for (uint32_t r = PROGBASE; prog_line(pg, r)->len; r += prog_line(pg, r)->len) {
-        const Line *const l = prog_line(pg, r);
-
-        if (!(l->flags & LF_INC) && l->file == copy->file && l->src == copy->src)
-            return r;
-    }
-
-    return rec;
-}
-
-void qr_marks(Prog *const pg, const uint32_t rec)
-{
-    const Line *const l = prog_line(pg, rec);
-
-    if (!(l->flags & LF_QR))
-        return;
-
-    for (uint32_t r = PROGBASE; prog_line(pg, r)->len; r += prog_line(pg, r)->len) {
-        Line *const copy = prog_line(pg, r);
-
-        if (copy->flags & LF_INC && copy->file == l->file && copy->src == l->src)
-            copy->flags = (uint8_t)((copy->flags & ~LF_BP) | (l->flags & LF_BP));
-    }
 }
 
 /* A line of the run's own for statement s, a copy of its token's, at the store's end. */
@@ -832,7 +800,7 @@ void qr_report(Session *const S, const uint8_t code)
 static void qr_unrun(Prog *const pg)
 {
     for (uint32_t rec = PROGBASE; prog_line(pg, rec)->len;)
-        if ((prog_line(pg, rec)->flags & (LF_QR | LF_INC)) == (LF_QR | LF_INC))
+        if ((prog_line(pg, rec)->flags & (LF_TEXT | LF_INC)) == (LF_TEXT | LF_INC))
             prog_cut(pg, rec);
         else
             rec += prog_line(pg, rec)->len;
@@ -847,12 +815,12 @@ static void qr_drop(Session *const S, const uint32_t d)
     for (uint32_t rec = PROGBASE; prog_line(pg, rec)->len;) {
         Line *const l = prog_line(pg, rec);
 
-        if (l->flags & LF_QR && l->file == d) {
+        if (l->flags & LF_TEXT && l->file == d) {
             prog_cut(pg, rec);
             continue;
         }
 
-        if (l->flags & LF_QR && l->file > d)
+        if (l->flags & LF_TEXT && l->file > d)
             l->file--;
 
         rec += l->len;
@@ -904,7 +872,7 @@ static void qr_enter(const QrLoad *const L)
 
 /* Error e of p's to *out: its line's record, its column, its message. One past the lines: the
    last's end. */
-static void qr_said(const QProg *const p, const QErr *const e, QrErr *const out)
+static void qr_said(const QProg *const p, const QErr *const e, DialErr *const out)
 {
     const bool past = e->line >= p->src.nlines;
     const QLine *const ln =
@@ -1089,7 +1057,7 @@ static void qr_guest_forget(QrGuests *const g)
 
 void qr_guest_declare(Session *const S)
 {
-    QrGuests *const G = &S->qrg;
+    QrGuests *const G = &qr_state(S)->guests;
     qr_guest_forget(G);
     G->mem = (QMem){.fault = &S->fault};
 
@@ -1103,7 +1071,7 @@ void qr_guest_declare(Session *const S)
     for (uint32_t mm = 0; mm < modu_count(&S->modu); mm++) {
         const ModuMod *const mod = modu_mod(&S->modu, mm);
 
-        if (!mod->quickr)
+        if (mod->dialect != &dialect_quickr)
             continue;
 
         const uint32_t k = p->nmods;
@@ -1177,8 +1145,7 @@ static void qr_guest_made(LinkGuest *const g, Comp *const C)
 static void qr_guest_lines(LinkGuest *const g, Comp *const C)
 {
     QrGuests *const G = container_of(g, QrGuests, link);
-    const Session *const S = container_of(G, Session, qrg);
-    qlink_guest_lines(C, G->prog, &G->mem, G->of, S->dbug.emit);
+    qlink_guest_lines(C, G->prog, &G->mem, G->of, *G->emit);
 }
 
 static void qr_guest_resolve(LinkGuest *const g, Comp *const C)
@@ -1187,16 +1154,30 @@ static void qr_guest_resolve(LinkGuest *const g, Comp *const C)
     qlink_guest_resolve(C, G->prog);
 }
 
-void qr_guest_init(QrGuests *const g)
+/* The QBasic link's hooks, emit the session's dbug.emit; no tree. */
+static void qr_guest_init(QrGuests *const g, const bool *const emit)
 {
     *g = (QrGuests){
         .link = {.made = qr_guest_made, .lines = qr_guest_lines, .resolve = qr_guest_resolve},
+        .emit = emit,
     };
 }
 
-uint32_t qr_link(Session *const S, QrErr *const e)
+QrState *qr_state(Session *const S)
 {
-    QrKeep *const k = &S->qr;
+    QrState *const q = dial_state(&S->dial, &dialect_quickr);
+
+    if (!q)
+        fault_error(&S->fault, E_OM);
+    if (!q->guests.emit) /* new */
+        qr_guest_init(&q->guests, &S->dbug.emit);
+
+    return q;
+}
+
+uint32_t qr_link(Session *const S, DialErr *const e)
+{
+    QrKeep *const k = &qr_state(S)->keep;
     qr_forget(k);
     k->mem = (QMem){.fault = &S->fault};
 
@@ -1224,9 +1205,10 @@ uint32_t qr_link(Session *const S, QrErr *const e)
     return 0;
 }
 
-uint32_t qr_spell(const QrKeep *const k, const uint32_t id, char *const d)
+uint32_t qr_spell(const Session *const S, const uint32_t id, char *const d)
 {
-    const QVar *v = k->prog ? k->prog->vars : nullptr;
+    const QrState *const q = dial_kept(&S->dial, &dialect_quickr);
+    const QVar *v = q && q->keep.prog ? q->keep.prog->vars : nullptr;
 
     while (v && (v->id != id || !v->name))
         v = v->next;
@@ -1234,7 +1216,7 @@ uint32_t qr_spell(const QrKeep *const k, const uint32_t id, char *const d)
     if (!v)
         return 0;
 
-    const uint32_t n = v->name->len < QR_SPELL ? v->name->len : QR_SPELL;
+    const uint32_t n = v->name->len < DIAL_SPELL ? v->name->len : DIAL_SPELL;
     memcpy(d, v->name->text, n);
     return n;
 }
@@ -1298,7 +1280,7 @@ static void qr_printed(Session *const S)
 
 void qr_direct_code(Session *const S, const uint32_t rec)
 {
-    QrKeep *const k = &S->qr;
+    QrKeep *const k = &qr_state(S)->keep;
     QProg *const p = k->prog;
     k->said[0] = 0;
 
@@ -1363,7 +1345,7 @@ static void qr_lines(Session *const S, QProg *const p, QMem *const m, const uint
     qast_sort(&p->errs);
 }
 
-bool qr_syntax(Session *const S, const uint32_t rec, QrErr *const e)
+bool qr_syntax(Session *const S, const uint32_t rec, DialErr *const e)
 {
     QMem m = {.fault = &S->fault};
 
@@ -1520,7 +1502,7 @@ static void qr_no_token(void *const ctx, const QTok *const t) {}
 typedef struct {
     Session *S;
     QMem *m;
-    QrSuggFn *fn;
+    DialSuggFn *fn;
     void *ctx;
 } QrSugg;
 
@@ -1596,7 +1578,7 @@ static void qr_members(const QrSugg *const g, const uint32_t k)
             continue;
 
         const bool fn = toks[i].kind == QK_FUNCTION;
-        g->fn(g->ctx, toks[i + 1].text, toks[i + 1].len, fn ? QRS_FN : QRS_NAME, rec);
+        g->fn(g->ctx, toks[i + 1].text, toks[i + 1].len, fn ? DSG_FN : DSG_NAME, rec);
     }
 }
 
@@ -1673,12 +1655,12 @@ static void qr_fields(
                 body = true;
 
                 if (self == value)
-                    g->fn(g->ctx, toks[i + 1].text, toks[i + 1].len, QRS_FN, rec);
+                    g->fn(g->ctx, toks[i + 1].text, toks[i + 1].len, DSG_FN, rec);
             } else if (in && !body && n && toks[0].kind == QK_NAME) {
                 const bool field = n >= 2 && toks[1].kind == QK_AS;
 
                 if (field == value)
-                    g->fn(g->ctx, toks[0].text, toks[0].len, QRS_NAME, rec);
+                    g->fn(g->ctx, toks[0].text, toks[0].len, DSG_NAME, rec);
             } else if (i + 1 < n && (toks[i].kind == QK_TYPE || toks[i].kind == QK_ENUM)) {
                 in = qr_named(&toks[i + 1], t, tn);
                 body = false;
@@ -1691,7 +1673,7 @@ static void qr_fields(
 static void qr_scope(const QrSugg *const g, const uint32_t file)
 {
     for (QKind k = QK_AND; k <= QK_FUNCTION; k++)
-        g->fn(g->ctx, qlex_keyword(k), (uint32_t)strlen(qlex_keyword(k)), QRS_KW, 0);
+        g->fn(g->ctx, qlex_keyword(k), (uint32_t)strlen(qlex_keyword(k)), DSG_KW, 0);
 
     for (uint32_t rec = qr_next_line(&g->S->prog, file, 0); rec;
 
@@ -1705,7 +1687,7 @@ static void qr_scope(const QrSugg *const g, const uint32_t file)
                     g->ctx,
                     toks[i].text,
                     toks[i].len,
-                    i && toks[i - 1].kind == QK_FUNCTION ? QRS_FN : QRS_NAME,
+                    i && toks[i - 1].kind == QK_FUNCTION ? DSG_FN : DSG_NAME,
                     rec
                 );
     }
@@ -1716,7 +1698,7 @@ void qr_suggest(
     const uint32_t rec,
     const char *const text,
     const uint32_t n,
-    QrSuggFn *const fn,
+    DialSuggFn *const fn,
     void *const ctx
 )
 {
@@ -1765,3 +1747,232 @@ void qr_suggest(
 
     arena_reset(&m.arena);
 }
+
+/* ---- colours */
+
+enum : uint8_t { QR_HS_AS = 1, QR_HS_DEF = 2, QR_HS_NAME = 4 };
+
+/* A line being coloured, its parts to fn with ctx: the token before (QK_EOF none); what it makes
+   of the next, as ui/highlight.c's QBasic state: after AS or TYPE a type, after FUNCTION or FN a
+   name being declared, then its parameters in the ( ) after it, depth deep; in a fn's [ ] its
+   type parameters. */
+typedef struct {
+    DialColourFn *fn;
+    void *ctx;
+    QKind prev;
+    uint8_t state, depth;
+    bool generic;
+} QrHl;
+
+/* A token's colour; hl->state the next one's. */
+static DialColour qr_hl_slot(QrHl *const hl, const QTok *const t)
+{
+    const uint8_t state = hl->state;
+    hl->state = 0;
+
+    switch (t->kind) {
+    case QK_NAME:
+        if (state & QR_HS_AS || hl->generic)
+            return DHL_TYPE;
+        if (state & QR_HS_DEF) {
+            hl->state = QR_HS_NAME;
+            return DHL_FN;
+        }
+
+        return hl->depth ? DHL_PARAM : DHL_NAME;
+
+    case QK_INT:
+    case QK_REAL:
+        return DHL_NUM;
+
+    case QK_STR:
+    case QK_FSTR:
+    case QK_FPART:
+    case QK_FSPEC:
+    case QK_FEND:
+        return DHL_STR;
+
+    case QK_AS:
+    case QK_TYPE:
+    case QK_ENUM:
+        hl->state = hl->prev == QK_END ? 0 : QR_HS_AS;
+        return DHL_KW;
+
+    case QK_FUNCTION:
+    case QK_FN: /* a method's name after it; a lambda's ( */
+        hl->state = hl->prev == QK_END ? 0 : QR_HS_DEF;
+        return DHL_KW;
+
+    case QK_LBRACK: /* a generic's parameters: function at[T] */
+        hl->generic = state & QR_HS_NAME;
+        hl->state = state;
+        return DHL_PLAIN;
+
+    case QK_RBRACK:
+        hl->state = hl->generic ? QR_HS_NAME : 0;
+        hl->generic = false;
+        return DHL_PLAIN;
+
+    case QK_LPAREN:
+        if (state & QR_HS_NAME)
+            hl->depth = 1;
+        else if (hl->depth)
+            hl->depth++;
+
+        return DHL_PLAIN;
+
+    case QK_RPAREN:
+        if (hl->depth)
+            hl->depth--;
+
+        return DHL_PLAIN;
+
+    case QK_COMMA:
+        hl->state = state & QR_HS_AS ? 0 : state;
+        return DHL_PLAIN;
+
+    default:
+        break;
+    }
+
+    if (t->kind >= QK_AND && t->kind <= QK_FUNCTION)
+        return DHL_KW;
+    if (t->kind >= QK_QUEST && t->kind < QK_BAD)
+        return DHL_OP;
+
+    return DHL_PLAIN;
+}
+
+/* qr_tokens's: token t's colour. */
+static void qr_hl_token(void *const ctx, const QTok *const t)
+{
+    QrHl *const hl = ctx;
+    hl->fn(hl->ctx, t->col, qr_hl_slot(hl, t));
+    hl->prev = t->kind;
+}
+
+/* The line text, len bytes: its tokens' colours by Quickr's lexer, then its comment's. */
+static void qr_colour(
+    Fault *const f,
+    const char *const text,
+    const uint32_t len,
+    DialColourFn *const fn,
+    void *const ctx
+)
+{
+    QrHl hl = {.fn = fn, .ctx = ctx, .prev = QK_EOF};
+
+    const uint32_t comment = qr_tokens(f, text, len, qr_hl_token, &hl);
+
+    if (comment < len)
+        fn(ctx, comment, DHL_COMMENT);
+}
+
+/* ---- the editor's other hooks */
+
+/* A line's names, text as typed: each to fn with ctx, strings and a comment skipped. */
+static void qr_names(const uint8_t *p, DialNameFn *const fn, void *const ctx)
+{
+    while (*p && *p != '\'') {
+        if (*p == '"') {
+            for (p++; *p && *p != '"'; p++)
+                ;
+
+            p += !!*p;
+            continue;
+        }
+
+        if (!is_word_char(*p) || (*p >= '0' && *p <= '9')) {
+            p++;
+            continue;
+        }
+
+        const uint8_t *const w = p;
+
+        while (is_word_char(*p))
+            p++;
+
+        fn(ctx, w, (uint32_t)(p - w));
+    }
+}
+
+/* Is the line t, n bytes, an import or a from? */
+static bool qr_imports_line(const uint8_t *const t, const uint32_t n)
+{
+    uint32_t i = 0;
+
+    while (i < n && t[i] == ' ')
+        i++;
+
+    return (n - i > 7 && !memcmp(t + i, "import ", 7)) || (n - i > 5 && !memcmp(t + i, "from ", 5));
+}
+
+/* expr's value printed: print(expr), to d, cap bytes with its 0; false too long. */
+static bool qr_print(const char *const expr, char *const d, const uint32_t cap)
+{
+    const size_t n = strlen(expr);
+
+    if (n + 8 > cap)
+        return false;
+
+    memcpy(d, "print(", 6);
+    memcpy(d + 6, expr, n);
+    memcpy(d + 6 + n, ")", 2);
+    return true;
+}
+
+/* Is a program qr_link made kept? */
+static bool qr_linked(const Session *const S)
+{
+    const QrState *const q = dial_kept(&S->dial, &dialect_quickr);
+    return q && q->keep.prog;
+}
+
+/* The last probe's error, Syntax error's: its message; null none. */
+static const char *qr_errtext(const Session *const S, const uint8_t code)
+{
+    const QrState *const q = dial_kept(&S->dial, &dialect_quickr);
+    return q && code == E_SN && q->keep.said[0] ? q->keep.said : nullptr;
+}
+
+/* The kept program forgotten. */
+static void qr_forget_kept(Session *const S)
+{
+    QrState *const q = dial_kept(&S->dial, &dialect_quickr);
+
+    if (q)
+        qr_forget(&q->keep);
+}
+
+const Dialect dialect_quickr = {
+    .name = "Quickr",
+    .button = "&Quickr",
+    .open = qr_open,
+    .run = qr_run,
+    .report = qr_report,
+    .message = qr_message,
+    .text = true,
+    .mark = qr_dialect,
+    .help = "QUICKR",
+    .size = sizeof(QrState),
+    .marker = qr_marker,
+    .is_file = qr_is_file,
+    .read = qr_read,
+    .link = qr_link,
+    .go = qr_go,
+    .linked = qr_linked,
+    .print = qr_print,
+    .direct = qr_direct_code,
+    .syntax = qr_syntax,
+    .flag = qr_flag,
+    .colour = qr_colour,
+    .names = qr_names,
+    .fn_at = qr_fn_at,
+    .imports = qr_imports_line,
+    .suggest = qr_suggest,
+    .spell = qr_spell,
+    .errtext = qr_errtext,
+    .forget = qr_forget_kept,
+    .guest_read = qr_guest_read,
+    .guest_declare = qr_guest_declare,
+};

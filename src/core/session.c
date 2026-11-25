@@ -187,15 +187,15 @@ static DebugFrame session_top(const Session *const S)
     return f;
 }
 
-/* A probe's Quickr line as the direct line's code, at the stopped statement when it is in the
-   probe's procedure, else after the modules' last line. */
-static void session_quickr_code(Session *const S)
+/* A probe's line, the text dialect's, as the direct line's code, at the stopped statement when it
+   is in the probe's procedure, else after the modules' last line. */
+static void session_text_code(Session *const S)
 {
     const DebugFrame f = session_top(S);
-    qr_direct_code(S, f.proc == S->comp.dlproc ? f.line : 0);
+    dial_program(&S->prog)->direct(S, f.proc == S->comp.dlproc ? f.line : 0);
 }
 
-void session_quickr_line(Session *const S) { qr_direct_code(S, session_top(S).line); }
+void session_text_line(Session *const S) { dial_program(&S->prog)->direct(S, session_top(S).line); }
 
 Status session_eval(
     Session *const S,
@@ -204,21 +204,19 @@ Status session_eval(
     char out[static 80]
 )
 {
-    if (!prog_quickr(&S->prog))
+    const Dialect *const d = dial_program(&S->prog);
+
+    if (!d->text)
         return dbug_eval(S, expr, proc, out);
 
     enum { TEXT = 256 };
 
     char text[TEXT];
-    const size_t n = strlen(expr);
 
-    if (n + 8 > TEXT)
+    if (!d->print(expr, text, TEXT))
         return E_LS;
 
-    memcpy(text, "print(", 6);
-    memcpy(text + 6, expr, n);
-    memcpy(text + 6 + n, ")", 2);
-    return dbug_probe(S, session_quickr_code, text, proc, out);
+    return dbug_probe(S, session_text_code, text, proc, out);
 }
 
 Status session_exec(
@@ -228,13 +226,14 @@ Status session_exec(
     char out[static 80]
 )
 {
-    return prog_quickr(&S->prog) ? dbug_probe(S, session_quickr_code, stmt, proc, out)
-                                 : dbug_exec(S, stmt, proc, out);
+    return prog_text(&S->prog) ? dbug_probe(S, session_text_code, stmt, proc, out)
+                               : dbug_exec(S, stmt, proc, out);
 }
 
 const char *session_errtext(const Session *const S, const uint8_t code)
 {
-    return code == E_SN && S->qr.said[0] ? S->qr.said : emsg_text(S->vm.err.user, code);
+    const char *const said = dial_errtext(S, code);
+    return said ? said : emsg_text(S->vm.err.user, code);
 }
 
 void session_clear(Session *const S)
@@ -263,7 +262,7 @@ void session_drop(Session *const S)
 
 void session_new(Session *const S)
 {
-    qr_forget(&S->qr);
+    dial_forget(S);
     S->prog.end = PROGBASE;
     symb_reset(&S->symb);
     decl_reset(&S->decl, &S->scop, &S->symb);
@@ -273,7 +272,7 @@ void session_new(Session *const S)
 static void session_edited(ProgUser *const u)
 {
     Session *const S = container_of(u, Session, prog_user);
-    qr_forget(&S->qr);
+    dial_forget(S);
     session_drop(S);
 }
 static void session_growing(ProgUser *const u)

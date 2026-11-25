@@ -53,6 +53,7 @@
 #include "io/channel.h"
 #include "io/console.h"
 #include "io/diag.h"
+#include "io/dialect.h"
 #include "io/errmsg.h"
 #include "io/locate.h"
 #include "io/native.h"
@@ -67,7 +68,6 @@
 #include "plat/pfil.h"
 #include "plat/psys.h"
 #include "qbrt/qbrt.h"
-#include "qr/qr.h"
 #include "util/grow.h"
 #include "vm/debug.h"
 #include "vm/exec.h"
@@ -285,32 +285,13 @@ static void diagnose_run(Session *const S, const uint16_t file, const uint16_t s
     warn_captured(S);
 }
 
-/* repl_error's message. A file run's compile error: "FILE:n: " before it. Its runtime error, as
-   BC's, after it: "in line n|No line number in module NAME at address X", X the op's bytecode
-   offset, then its place on standard error. Else "in line n" if numbered. A compile error's
-   FILE:n on a line of its own, if not before, and the line, marked. Or BREAK [IN n]. The stacks reset first; the editor takes it there. */
-static void report(Session *const S, const uint8_t code)
+/* QBasic's report of error code. A file run's compile error: "FILE:n: " before it. Its runtime
+   error, as BC's, after it: "in line n|No line number in module NAME at address X", X the op's
+   bytecode offset, then its place on standard error. Else "in line n" if numbered. A compile
+   error's FILE:n on a line of its own, if not before, and the line, marked. */
+static void report_qbasic(Session *const S, const uint8_t code)
 {
     const uint32_t line = S->vm.line;
-
-    if (code == E_BRK) {
-        cons_msg(&S->cons, E_BRK); /* BREAK [IN n] */
-        if (line != DLINE && prog_line(&S->prog, line)->num != NONUM) {
-            cons_msg(&S->cons, MSG_IN);
-            cons_uint(&S->cons, prog_line(&S->prog, line)->num);
-        }
-
-        return;
-    }
-
-    flow_drop_calls(S);
-    S->vm.cont.line = 0;
-
-    if (line != DLINE && prog_line(&S->prog, line)->flags & LF_QR) {
-        qr_report(S, code);
-        return;
-    }
-
     uint16_t file;
     const uint16_t src = source_line(S, &file);
     const bool compiled = compile_error(S), lead = S->repl.batch && compiled && src;
@@ -365,6 +346,27 @@ static void report(Session *const S, const uint8_t code)
         if (src)
             diagnose_run(S, file, src);
     }
+}
+
+/* repl_error's message, its line's dialect's (QBasic's for the direct line); or BREAK [IN n]. The
+   stacks reset first; the editor takes it there. */
+static void report(Session *const S, const uint8_t code)
+{
+    const uint32_t line = S->vm.line;
+
+    if (code == E_BRK) {
+        cons_msg(&S->cons, E_BRK); /* BREAK [IN n] */
+        if (line != DLINE && prog_line(&S->prog, line)->num != NONUM) {
+            cons_msg(&S->cons, MSG_IN);
+            cons_uint(&S->cons, prog_line(&S->prog, line)->num);
+        }
+
+        return;
+    }
+
+    flow_drop_calls(S);
+    S->vm.cont.line = 0;
+    (line != DLINE ? dial_line(&S->prog, line) : &dialect_qbasic)->report(S, code);
 }
 
 /* The input's end in a file run, or at READY: files closed, exit. */
@@ -555,7 +557,8 @@ static bool option(const char **const s, const char *const opt)
 
 /* Run the file the command line names, then exit; no name: back. --check FILE: every compile
    error reported, not run; the exit 1 if any. --test FILE, a Quickr one: its tests run instead;
-   --copies FILE, a Quickr one: each copy of a list, a dict or a record holding one listed. */
+   --copies FILE, a Quickr one: each copy of a list, a dict or a record holding one listed. Each
+   run by the file's dialect. */
 static void run_file(Session *const S)
 {
     char tail[PFIL_PATH];
@@ -576,14 +579,14 @@ static void run_file(Session *const S)
 
     S->repl.file[n] = 0;
 
-    if (!n)
-        return;
+    if (n)
+        dial_of_file(S->repl.file)->run(S);
+}
 
-    if (qr_is_file(S->repl.file)) {
-        qr_run(S);
-        return;
-    }
-
+/* QBasic's run of repl.file: loaded, then linked and run; --check: its compile errors reported,
+   the exit 1 if any. */
+static void run_qbasic(Session *const S)
+{
     repl_load(S);
     session_drop(S);
 
@@ -607,6 +610,21 @@ static void warn_stderr(Session *const S, const char *const text, const uint32_t
 }
 
 const FrontEnd repl_batch = {.start = run_file, .warn = warn_stderr};
+
+static const char *message_qbasic(const Session *const S, const uint8_t code)
+{
+    return emsg_text(S->vm.err.user, code);
+}
+
+const Dialect dialect_qbasic = {
+    .name = "QBasic",
+    .button = "Q&Basic",
+    .suffix = true,
+    .open = repl_open,
+    .run = run_qbasic,
+    .report = report_qbasic,
+    .message = message_qbasic,
+};
 
 void repl_main(Session *const S)
 {
@@ -901,7 +919,9 @@ static void not_found(Session *const S)
    header is read now, so an error in it is at the IMPORT. */
 static void import(Session *const S, const char *const path)
 {
-    if (S->repl.guests && qr_is_file(path))
+    const Dialect *const d = dial_of_file(path);
+
+    if (S->repl.guests && d->text)
         fault_raise(
             &S->fault,
             (Failure){
@@ -914,8 +934,8 @@ static void import(Session *const S, const char *const path)
 
     const uint32_t m = modu_module(&S->modu, path);
 
-    if (qr_is_file(path))
-        modu_mod(&S->modu, m)->quickr = true;
+    if (d->text)
+        modu_mod(&S->modu, m)->dialect = d;
     if (qbxf_is(path)) {
         natv_open(&S->natv, path);
         modu_mod(&S->modu, m)->native = true;
@@ -1147,7 +1167,7 @@ static void module_end(Session *const S, const uint16_t file)
 }
 
 /* The modules the program imports from module from on, after the store's lines, each once and in
-   the order first named, a module's own imports after it; the Quickr ones last, so a top's place
+   the order first named, a module's own imports after it; another dialect's last, so a top's place
    is no module's number. An END ends each module's lines, the main's too, its LF_TOP the next
    module's top, the file it reads next. last: the LF_TOP past the lines of the modules before
    from, cut first; 0 none. */
@@ -1159,7 +1179,7 @@ static void read_modules(Session *const S, const uint32_t from, const uint32_t l
         prog_cut(&S->prog, last);
 
     for (uint32_t m = from; m < modu_count(&S->modu); m++) {
-        if (modu_mod(&S->modu, m)->quickr) /* after the QBasic ones: their procedures first */
+        if (modu_mod(&S->modu, m)->dialect) /* after the QBasic ones: their procedures first */
             continue;
 
         char path[PFIL_PATH]; /* the table may move as it grows */
@@ -1179,13 +1199,17 @@ static void read_modules(Session *const S, const uint32_t from, const uint32_t l
         S->prog.add_flags = flags;
     }
 
-    for (uint32_t m = from; m < modu_count(&S->modu); m++) /* its imports Quickr's alone */
-        if (modu_mod(&S->modu, m)->quickr) {
-            modu_top(&S->modu, m, prog_at(&S->prog));
-            module_end(S, S->repl.nfile);
-            S->repl.module = m;
-            qr_guest_read(S, m);
-        }
+    for (uint32_t m = from; m < modu_count(&S->modu); m++) { /* its imports its dialect's alone */
+        const Dialect *const d = modu_mod(&S->modu, m)->dialect;
+
+        if (!d)
+            continue;
+
+        modu_top(&S->modu, m, prog_at(&S->prog));
+        module_end(S, S->repl.nfile);
+        S->repl.module = m;
+        d->guest_read(S, m);
+    }
 
     module_end(S, 0); /* the last module's */
     S->repl.module = 0;
@@ -1300,23 +1324,28 @@ static uint32_t next_line(const Prog *const pg, const uint32_t line)
 }
 
 /* The program's lines read, declared: each module's after those it imports, the main's last,
-   its file's DEFtypes and OPTIONs from its first line; the main's not when it is Quickr's (guests).
-   Then the main's again, for lines typed. */
+   its file's DEFtypes and OPTIONs from its first line; the main's not when it is another
+   dialect's (guests). Then the main's again, for lines typed. */
 static void declare_program(Session *const S, const bool guests)
 {
     const uint32_t n = modu_count(&S->modu), *const order = modu_order(&S->modu);
 
-    bool quickr = false;
+    uint32_t declared = 0; /* by dial_index */
     S->comp.guest = nullptr;
 
     for (uint32_t i = 0; i < n; i++) {
         if (guests && !order[i])
             continue;
-        if (modu_mod(&S->modu, order[i])->quickr) { /* Quickr's: each checked, all at once */
-            if (!quickr)
-                qr_guest_declare(S);
 
-            quickr = true;
+        const Dialect *const d = modu_mod(&S->modu, order[i])->dialect;
+
+        if (d) { /* another dialect's: each checked, all at once */
+            const uint32_t bit = 1u << dial_index(d);
+
+            if (!(declared & bit))
+                d->guest_declare(S);
+
+            declared |= bit;
             continue;
         }
 
@@ -1438,7 +1467,7 @@ static void walk(Session *const S, const bool lenient)
             continue;
         }
 
-        if (l->flags & LF_QR) { /* a Quickr module's: qr/qr.c's */
+        if (l->flags & LF_TEXT) { /* a text dialect's module's: its own */
             line += l->len;
             continue;
         }

@@ -151,7 +151,7 @@ QBasic's otherwise, and a program is one or the other.
 - That first line is shown and saved but cannot be typed over, cut or joined: a file's dialect is fixed.
 - File, New asks the dialect; a Quickr program starts with that line. The status bar names the
   program's dialect before its bar, when the errors' count leaves room.
-- A Quickr line is stored as typed, its text the record's body (`LF_QR`), and saved as typed.
+- A Quickr line is stored as typed, its text the record's body (`LF_TEXT`), and saved as typed.
 - The modules a Quickr program imports open as a QBasic program's do, each its own view after the
   main's. A Quickr file is one view: its functions stay where they are written, and F2 lists them
   under their file.
@@ -161,9 +161,9 @@ QBasic's otherwise, and a program is one or the other.
 - F5 checks the whole program first (types, borrows): the first error puts the cursor at its line and
   column, its message in a box.
 - Run, Break, the steps and breakpoints work by line. A generic function's instance runs on copies
-  of its lines (`LF_INC`), each mapped back to its line by file and source line (`qr_origin`); a
-  breakpoint toggled while stopped is set on the copies too (`qr_marks`). A run-time error puts the
-  cursor at its line, an assert's message Quickr's.
+  of its lines (`LF_INC`), each mapped back to its line by file and source line (`prog_origin`); a
+  breakpoint toggled while stopped is set on the copies too (`prog_marks`). A run-time error puts
+  the cursor at its line, an assert's message Quickr's.
 - Locals, Call stack and Watch spell names as typed, without suffixes; a function's frame shows its
   name. A record in cells opens to its fields as a box does; Quickr's hidden variables are not
   shown. A name a block declares again over an outer one's shows as typed.
@@ -177,7 +177,7 @@ QBasic's otherwise, and a program is one or the other.
 - A run goes through the modules in import order, each module's last line on to the next one's first
   (`qr/qlink.c`), so the store keeps the order the files were read in.
 
-- Highlighting lexes a Quickr line with Quickr's lexer (`qr_tokens`): its keywords, a function's
+- Highlighting lexes a Quickr line with Quickr's lexer (`qr_colour`): its keywords, a function's
   name and parameters, types after `as`, strings and f-strings, the comment past the last token.
 - Completion offers Quickr's keywords and the names in the file; after `m.` an imported module's
   public names; after `v.` the fields of `v`'s record type (as declared, `v as T`) and the functions
@@ -187,7 +187,8 @@ QBasic's otherwise, and a program is one or the other.
   `m.name`, else the module before the dot; no topic opens the Quickr index. QBasic's topics are
   never shown for a Quickr word.
 
-Built on `qr/qr.c` (`qr_read`, `qr_open`) and `ui/text.c`.
+Built on the dialect's hooks (`io/dialect.h`; Quickr's table in `qr/qr.c`) and `ui/text.c`. The
+editor names no dialect: a text dialect's lines go through its table.
 
 ## Theme slots
 

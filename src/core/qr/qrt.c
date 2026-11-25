@@ -28,6 +28,7 @@
  *    a and b     a, I.LD.I32 n|FALSE, CALL QJ, b, I.LD.I32 m|ALWAYS, CALL QJ, I.LD.U8 0
  */
 #include "qr/qrt.h"
+#include "qr/qr.h"
 #include "session.h"
 #include "comp/blocks.h"
 #include "mem/array.h"
@@ -544,17 +545,18 @@ static void qrt_sort(Session *const S, const uint32_t word)
     q.code = vm->ip + QJ_SIZE;
     q.end = q.code + (load32(vm->ip + 1) >> QJ_SHIFT);
     const uint32_t depth = (uint32_t)(vm->ftop - vm->frames);
-    qrt_unsort(&S->qr.sorts, depth);
+    QrKeep *const k = &qr_state(S)->keep;
+    qrt_unsort(&k->sorts, depth);
     QrtBuf *const b = pmem_resize(nullptr, sizeof *b + qsort_room(n) * sizeof *b->words);
 
     if (!b)
         fault_error(&S->fault, E_OM);
 
-    *b = (QrtBuf){.prev = S->qr.sorts, .depth = depth};
+    *b = (QrtBuf){.prev = k->sorts, .depth = depth};
 
-    S->qr.sorts = b;
+    k->sorts = b;
     qsort_merge(&q.s, n, b->words);
-    S->qr.sorts = b->prev;
+    k->sorts = b->prev;
     pmem_free(b);
     vm->ip = q.end;
 }

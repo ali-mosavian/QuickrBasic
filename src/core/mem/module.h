@@ -30,9 +30,10 @@ typedef struct {
     uint32_t path; /* an offset in Modu.text */
     uint32_t top;
     bool native;
-    bool quickr;    /* a QBasic program's Quickr module (qr/qr.c) */
-    uint16_t file;  /* a Quickr module's lines' file */
-    uint32_t clash; /* a name two of a Quickr module's publics spell, case aside; 0 none */
+    const struct Dialect
+        *dialect;   /* a QBasic program's module of another (io/dialect.h); else null */
+    uint16_t file;  /* such a module's lines' file */
+    uint32_t clash; /* a name two of such a module's publics spell, case aside; 0 none */
     bool edited;
     bool ran;
     uint32_t handler;

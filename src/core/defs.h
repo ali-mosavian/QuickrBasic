@@ -131,13 +131,13 @@ enum { HDR = sizeof(Line) };
    imported module's lines, where its file's settings start, its Line.file that module's own; and
    past the last module's, the main's file.
    LF_NATIVE: a native module's interface (a .qbx's): its DECLARE CDECLs name its code's entries.
-   LF_QR: a Quickr line (qr/qr.h), its body its source text. */
+   LF_TEXT: a text dialect's line (io/dialect.h), its body its source text. */
 enum : uint8_t {
     LF_ASIS = 1,
     LF_BP = 2,
     LF_INC = 4,
     LF_NODEF = 8,
-    LF_QR = 16,
+    LF_TEXT = 16,
     LF_TOP = 32,
     LF_NATIVE = 64
 };

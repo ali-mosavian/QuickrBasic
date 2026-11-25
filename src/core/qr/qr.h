@@ -3,8 +3,12 @@
 #define QR_QR_H
 #include "base.h"
 #include "comp/link.h"
+#include "io/dialect.h"
 #include "mem/program.h"
 #include "qr/qast.h"
+
+/* Quickr's dialect table (io/dialect.h). */
+extern const Dialect dialect_quickr;
 
 /* A Quickr file's first line, its dialect's mark; any other file is QBasic's. */
 extern const char qr_dialect[];
@@ -34,16 +38,24 @@ void qr_forget(QrKeep *k);
 
 /* A QBasic program's Quickr modules (io/repl.c): read, then checked when its QBasic modules are
    declared, then linked in its link (comp/link.h), each's code run by its first IMPORT. Their
-   tree, each line's statement and each module's exports, kept till the next load. */
+   tree, each line's statement and each module's exports, kept till the next load; the link's
+   hooks, set by qr_guest_declare. */
 typedef struct {
     LinkGuest link;
+    const bool *emit; /* the session's dbug.emit */
     QMem mem;
     QProg *prog;
     const QStmt *const *of;
     const struct Exports *ex; /* by QProg.mods */
 } QrGuests;
-/* The QBasic link's hooks; no tree. */
-void qr_guest_init(QrGuests *g);
+
+/* Quickr's state in a session (Dial). */
+typedef struct {
+    QrKeep keep;
+    QrGuests guests;
+} QrState;
+/* S's, made on first use. Out of memory. */
+QrState *qr_state(Session *S);
 /* Module m's file, Quickr's, read into the store at its end; each module its imports name the
    program's, Quickr's, imported by m. */
 void qr_guest_read(Session *S, uint32_t m);
@@ -51,24 +63,16 @@ void qr_guest_read(Session *S, uint32_t m);
    raised); their records' TYPEs made, their exports declared as QBasic's, the link's hooks set. A
    module two of whose publics differ only by case: its ModuMod.clash. */
 void qr_guest_declare(Session *S);
-enum { QR_SPELL = 40 }; /* a name spelled: its bytes at most, as QBasic's */
-/* Variable id's name as typed at d, QR_SPELL bytes at most (a block's over an outer one's,
+/* Variable id's name as typed at d, DIAL_SPELL bytes at most (a block's over an outer one's,
    X'1's, too); its length, 0 not one of the kept program's. */
-uint32_t qr_spell(const QrKeep *k, uint32_t id, char *d);
+uint32_t qr_spell(const Session *S, uint32_t id, char *d);
 /* cons.inbuf's Quickr line as the direct line's code (comp's), its names as at program line rec's
    statement (0 or DLINE: the modules', after their last line); a value alone print()ed. The
    program linked (qr_link). An error: Syntax error raised, its message to qr.said. */
 void qr_direct_code(Session *S, uint32_t rec);
 
-/* The editor's: a Quickr program's lines in the store (LF_QR), each its file's, the main's 0 and
+/* The editor's: a Quickr program's lines in the store (LF_TEXT), each its file's, the main's 0 and
    a module's its module's number (mem/module.h). */
-
-/* An error at a stored line: its record, its column; its message to msg, cap bytes with its 0. */
-typedef struct {
-    uint32_t rec, col;
-    char *msg;
-    uint32_t cap;
-} QrErr;
 
 /* The file at path's lines after the store's, Quickr's, of file file: tabs to columns of 8, ^Z its
    end. PFIL_OK, else the DOS error. */
@@ -78,19 +82,15 @@ uint16_t qr_read(Session *S, const char *path, uint16_t file);
 void qr_open(Session *S);
 /* qr_open's, then checked and linked, ready to run (stmt_runfirst): its errors' count, the first
    to *e. */
-uint32_t qr_link(Session *S, QrErr *e);
+uint32_t qr_link(Session *S, DialErr *e);
 /* The program qr_link made run from its first line, under repl_call: as repl_run. */
 [[noreturn]]
 void qr_go(Session *S);
 /* Record rec's file's lines lexed and parsed, a block's lines unpaired no error: rec's first error
    to *e; false none. */
-bool qr_syntax(Session *S, uint32_t rec, QrErr *e);
+bool qr_syntax(Session *S, uint32_t rec, DialErr *e);
 /* Each stored Quickr line LF_ASIS when qr_syntax finds an error in it, else not. */
 void qr_flag(Session *S);
-/* The line a run's copy (LF_INC) was made from; else rec. */
-uint32_t qr_origin(const Prog *pg, uint32_t rec);
-/* The run's copies of the line at rec breakpoints as it is (LF_BP). */
-void qr_marks(Prog *pg, uint32_t rec);
 /* Is the line text, len bytes, a function's first: its name's column and length (an operator's with its
    sign) to *at, *n. */
 bool qr_fn_at(const char *text, uint32_t len, uint32_t *at, uint32_t *n);
@@ -98,12 +98,9 @@ bool qr_fn_at(const char *text, uint32_t len, uint32_t *at, uint32_t *n);
    column, len none. Out of memory raises through f. */
 typedef void QrTokFn(void *ctx, const QTok *t);
 uint32_t qr_tokens(Fault *f, const char *text, uint32_t len, QrTokFn *fn, void *ctx);
-/* A completion's kind: a keyword, a fn (rec its line), another name. */
-typedef enum : uint8_t { QRS_KW, QRS_FN, QRS_NAME } QrSuggKind;
-typedef void QrSuggFn(void *ctx, const char *text, uint32_t len, QrSuggKind kind, uint32_t rec);
 /* What fits at a word whose line before it is text, n bytes, the line at rec (a new one's: the
    line it goes before), each to fn with ctx: after m. module m's public names; after v. the fields
    and methods of v's type; after T. type T's methods without self, an enum's values; else the
    keywords and the names in rec's file. None in a string or a comment. */
-void qr_suggest(Session *S, uint32_t rec, const char *text, uint32_t n, QrSuggFn *fn, void *ctx);
+void qr_suggest(Session *S, uint32_t rec, const char *text, uint32_t n, DialSuggFn *fn, void *ctx);
 #endif

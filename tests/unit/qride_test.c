@@ -7,6 +7,7 @@
 #include "plat/pkey.h"
 #include "session.h"
 #include "comp/suggest.h"
+#include "qr/qr.h"
 #include "ui/debuglocals.h"
 #include "ui/debugpane.h"
 #include "ui/debugui.h"
@@ -61,7 +62,7 @@ static uint32_t items(Session *const S)
 TEST(qride_opens_a_program_and_its_modules)
 {
     open_quickr(S);
-    CHECK(text_quickr(S));
+    CHECK(text_dialect(S) == &dialect_quickr);
     CHECK(fx_line_of(S, "let n = util.twice(2)") != ~0u);
     const uint32_t ret = fx_line_of(S, "    return x * 2");
     CHECK(ret != ~0u);
@@ -195,7 +196,7 @@ TEST(qride_new_asks_the_dialect)
     host_key_push(FX_ENTER);
     uimn_act(S, ACT_NEW);
     pkey_flush();
-    CHECK(text_quickr(S));
+    CHECK(text_dialect(S) == &dialect_quickr);
     CHECK(fx_line_of(S, "' OPTION DIALECT QUICKR") == 0);
     CHECK(uimn.ed.line == 1);
     fx_shown(S);
@@ -203,7 +204,7 @@ TEST(qride_new_asks_the_dialect)
     host_key_push(FX_ENTER);
     uimn_act(S, ACT_NEW);
     pkey_flush();
-    CHECK(!text_quickr(S));
+    CHECK(text_dialect(S) == &dialect_qbasic);
     fx_shown(S);
     CHECK(strstr(fx_row(24), "QBasic") != nullptr);
     fx_done(S, files);

@@ -43,14 +43,13 @@
 #include "mem/copy.h"
 #include "mem/module.h"
 #include "mem/program.h"
-#include "qr/qr.h"
 #include "util/grow.h"
 
 /* The 0-ended s to d, its 0 too. */
 static void copy_str(char *const d, const char *const s) { memcpy(d, s, strlen(s) + 1); }
 
-/* The SUBs box's item: its view; a Quickr fn's, its first line in the text and its name's offset
-   in vw.fns, else line NOLINE. */
+/* The SUBs box's item: its view; a text dialect's fn's, its first line in the text and its name's
+   offset in vw.fns, else line NOLINE. */
 enum : uint32_t { NOLINE = UINT32_MAX };
 typedef struct {
     uint32_t view, line, name;
@@ -68,7 +67,7 @@ static struct {
     uint32_t list_cap;
     Item *order; /* the SUBs list's: each file's module, then its procedures or fns by name */
     uint32_t order_cap, nitems;
-    char *fns; /* the Quickr fns' names, each 0-ended */
+    char *fns; /* the text dialects' fns' names, each 0-ended */
     uint32_t nfns, fns_cap;
     uint32_t epoch, drops; /* the modules' (Modu's) when the views were made */
     View *was;             /* view_rebuild's: the views before, their names */
@@ -145,12 +144,12 @@ enum : uint8_t { VNEW_OK = 1 };
 enum : uint8_t { SUBS_ACTIVE = 1, SUBS_SPLIT = 2, SUBS_DELETE = 3 };
 
 /* Record rec's body to comp_cbuf: decl_proc's answer; *name its M_VAR for PK_SUB, PK_FUNC. A
-   Quickr line is none: a Quickr file is one view. */
+   text dialect's line is none: its file is one view. */
 static uint8_t kind_of(Session *const S, const uint32_t rec, const uint8_t **const name)
 {
     if (name)
         *name = nullptr;
-    if (prog_line(&S->prog, rec)->flags & LF_QR)
+    if (prog_line(&S->prog, rec)->flags & LF_TEXT)
         return 0;
 
     prog_body(&S->prog, rec, S->comp.cbuf);
@@ -588,35 +587,29 @@ static void add(Session *const S, const uint8_t k)
     view_show(S, last + 1);
 }
 
-/* Text line line an import or from of Quickr's? */
-static bool quickr_import(Session *const S, const uint32_t line)
+/* Text line line, dialect d's, an import of its? */
+static bool text_imports(Session *const S, const Dialect *const d, const uint32_t line)
 {
     const uint32_t n = text_record(S, lmap_off(S, line), &uimn.build);
-    const uint8_t *const t = uimn.build.text;
-    uint32_t i = 0;
-
-    while (i < n && t[i] == ' ')
-        i++;
-
-    return (n - i > 7 && !memcmp(t + i, "import ", 7)) || (n - i > 5 && !memcmp(t + i, "from ", 5));
+    return d->imports(uimn.build.text, n);
 }
 
 /* Text line line (the active view's) an IMPORT or FROM: the modules it names loaded, shown. */
 static void imports(Session *const S, const uint32_t line)
 {
-    const bool quickr = text_quickr(S);
+    const Dialect *const d = text_dialect(S);
 
-    if (quickr && !quickr_import(S, line))
+    if (d->text && !text_imports(S, d, line))
         return;
 
-    if (!quickr) {
+    if (!d->text) {
         prog_body(&S->prog, lmap_off(S, line), S->comp.cbuf);
 
         if (!impt_line(S->comp.cbuf, nullptr, nullptr))
             return;
     }
 
-    const Status st = repl_call(S, quickr ? qr_open : repl_open);
+    const Status st = repl_call(S, d->open);
     view_modules(S);
     edit_recheck(S);
     fault_check(&S->fault, st);
@@ -747,21 +740,24 @@ static bool item_add(const Item it)
     return true;
 }
 
-/* View v's Quickr fns, each an item. false: no memory. */
+/* View v's fns, a text dialect's file's, each an item. false: no memory. */
 static bool fn_items(Session *const S, const uint32_t v)
 {
     const View *const w = &vw.tab[v];
+    const Dialect *d = nullptr; /* the file's, from its first line */
 
     for (uint32_t line = w->first; line < w->first + w->n; line++) {
         const uint32_t rec = lmap_off(S, line);
 
-        if (!(prog_line(&S->prog, rec)->flags & LF_QR))
+        if (!(prog_line(&S->prog, rec)->flags & LF_TEXT))
             return true;
+        if (!d)
+            d = dial_line(&S->prog, rec);
 
         const uint32_t len = text_record(S, rec, &uimn.build);
         uint32_t at, n;
 
-        if (!qr_fn_at((const char *)uimn.build.text, len, &at, &n))
+        if (!d->fn_at((const char *)uimn.build.text, len, &at, &n))
             continue;
         if (!GROW(vw.fns, vw.fns_cap, vw.nfns + n + 1))
             return false;
@@ -778,8 +774,8 @@ static bool fn_items(Session *const S, const uint32_t v)
     return true;
 }
 
-/* The SUBs box's items: each view, a Quickr file's fns after it; each procedure or fn among its
-   file's by name. false: no memory. */
+/* The SUBs box's items: each view, a text dialect's file's fns after it; each procedure or fn
+   among its file's by name. false: no memory. */
 static bool items_fill(Session *const S)
 {
     vw.nitems = vw.nfns = 0;

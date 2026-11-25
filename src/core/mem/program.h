@@ -34,10 +34,10 @@ static inline Line *prog_line(const Prog *const pg, const uint32_t line)
     return (Line *)at(pg->base + line);
 }
 
-/* The program is Quickr's: its first record's LF_QR. */
-static inline bool prog_quickr(const Prog *const pg)
+/* The program is a text dialect's (io/dialect.h): its first record's LF_TEXT. */
+static inline bool prog_text(const Prog *const pg)
 {
-    return pg->end > PROGBASE && prog_line(pg, PROGBASE)->flags & LF_QR;
+    return pg->end > PROGBASE && prog_line(pg, PROGBASE)->flags & LF_TEXT;
 }
 
 /* Records move: dst, src offsets in the store. */
@@ -72,6 +72,10 @@ uint32_t prog_cut(Prog *pg, uint32_t line);
 uint32_t prog_ins(Prog *pg, uint32_t line, uint16_t num, const uint8_t *body, uint32_t len);
 /* The store size bytes at least: grown, the user's growing first. Out of memory. */
 void prog_room(Prog *pg, uint32_t size);
+/* A text line's copy a run made (LF_TEXT | LF_INC): the line it was made from; else rec. */
+uint32_t prog_origin(const Prog *pg, uint32_t rec);
+/* The run's copies of the text line at rec breakpoints as it is (LF_BP). */
+void prog_marks(Prog *pg, uint32_t rec);
 /* The store's block, 64 KB from al, after the cache's. */
 void prog_new(Prog *pg, Allo *al, Fault *f, ProgUser *user);
 #endif

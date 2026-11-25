@@ -843,7 +843,7 @@ void blok_pair(Blok *const b, const Prog *const pg, const Symb *const sy, Fault 
     btab_init(&sc.open, sizeof(BlokOpen));
 
     for (uint32_t ln = PROGBASE; prog_line(pg, ln)->len; ln += prog_line(pg, ln)->len) {
-        if (prog_line(pg, ln)->flags & LF_QR) /* a Quickr line: text, qr/'s */
+        if (prog_line(pg, ln)->flags & LF_TEXT) /* a text dialect's line: its own */
             continue;
 
         sc.line = ln;

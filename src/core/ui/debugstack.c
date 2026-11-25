@@ -74,7 +74,7 @@ static void frame1(Session *const S, StackFrame *const f, const uint32_t i)
     f->line = (int32_t)tl;
     spel_read(S, v);
     const uint32_t proc = insp_scope(S, i);
-    char *d = text_quickr(S) && proc /* a fn's, its view its file's */
+    char *d = prog_text(&S->prog) && proc /* a fn's, its view its file's */
                   ? spel_name(S, row, blok_proc(&S->blok, proc)->name, SPEL_MODULE)
                   : dtxt_cpy(row, view_title(v));
     d = args(S, row, d, i);

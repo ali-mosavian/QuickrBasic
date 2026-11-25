@@ -1,14 +1,15 @@
 /* The text's interface. How it works: text.c. */
 #ifndef UI_TEXT_H
 #define UI_TEXT_H
+#include "io/dialect.h"
 #include "ui/ui.h"
 
-/* tx_init: a new program: one empty line, Quickr's after its dialect's when quickr; the whole
+/* tx_init: a new program of dialect d: one empty line, a text dialect's after its mark; the whole
    text the view; uimn.text.changed. */
-void text_init(Session *S, bool quickr);
-/* The program is Quickr's: its lines its text (LF_QR). */
-bool text_quickr(const Session *S);
-/* Text line line (the whole text's) a Quickr file's first, its dialect's: never changed. */
+void text_init(Session *S, const Dialect *d);
+/* The program's dialect: a text one's lines their text (LF_TEXT). */
+const Dialect *text_dialect(const Session *S);
+/* Text line line (the whole text's) a text dialect's file's first, its mark: never changed. */
 bool text_marker(Session *S, uint32_t line);
 /* tx_whole: the whole text the view. */
 void text_whole(void);
@@ -77,8 +78,8 @@ void text_clip_lines(Session *S, uint32_t from, uint32_t to);
 
 /* tx_read: the file name the text, the whole the view: CR LF and LF end lines, a tab to the next
    column of 8, ^Z ends it, a long line is cut, a line ending in '_' goes on in the next (srcr's
-   physical lines); each line as edit_canon makes it, a syntax error's kept as typed. A Quickr file's lines
-   as qr_read reads them.
+   physical lines); each line as edit_canon makes it, a syntax error's kept as typed. A text
+   dialect's file's lines as its Dialect.read reads them.
    PFIL_OK, else the DOS error of opening it, the text as it was. Errors: Out of memory. */
 uint16_t text_read(Session *S, const char *name);
 /* tx_write: module module's lines to the file name, ended by CR LF; PFIL_OK, else the DOS error

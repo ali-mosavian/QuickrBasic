@@ -29,12 +29,12 @@
  * - D2. The asm takes every name of the window's lines, ten letters at most, by kind then name.
  */
 #include "comp/suggest.h"
-#include "qr/qr.h"
 #include "session.h"
 #include "comp/comp.h"
 #include "comp/declare.h"
 #include "comp/dfa.h"
 #include "comp/lexer.h"
+#include "io/dialect.h"
 #include "io/gen.h"
 #include "mem/program.h"
 #include "mem/scope.h"
@@ -1334,24 +1334,24 @@ static bool sugg_word(
     return col - s <= SUGG_LEN;
 }
 
-/* ---- Quickr's */
+/* ---- a text dialect's */
 
 typedef struct {
     Suggs *out;
     const uint8_t *word; /* capitals */
     uint16_t wn;
-} SuggQuickr;
+} SuggText;
 
-/* qr_suggest's: text, len bytes, a kind, offered when it fits the word; as written. */
-static void sugg_quickr_one(
+/* Dialect.suggest's: text, len bytes, a kind, offered when it fits the word; as written. */
+static void sugg_text_one(
     void *const ctx,
     const char *const text,
     const uint32_t len,
-    const QrSuggKind kind,
+    const DialSuggKind kind,
     const uint32_t rec
 )
 {
-    const SuggQuickr *const q = ctx;
+    const SuggText *const q = ctx;
     uint8_t up[SUGG_LEN];
 
     if (len > SUGG_LEN)
@@ -1365,10 +1365,10 @@ static void sugg_quickr_one(
     if (!match)
         return;
 
-    const SuggKind k = kind == QRS_KW ? SG_KW : kind == QRS_FN ? SG_FN : SG_VAR;
-    Sugg s = sugg_make((const uint8_t *)text, (uint16_t)len, k, match, kind == QRS_KW ? 0 : 10);
+    const SuggKind k = kind == DSG_KW ? SG_KW : kind == DSG_FN ? SG_FN : SG_VAR;
+    Sugg s = sugg_make((const uint8_t *)text, (uint16_t)len, k, match, kind == DSG_KW ? 0 : 10);
     s.asis = s.len;
-    s.rec = kind == QRS_FN ? rec : 0;
+    s.rec = kind == DSG_FN ? rec : 0;
     sugg_add(q->out, &s);
 }
 
@@ -1411,10 +1411,12 @@ bool sugg_find(
 
     word[wn] = 0;
 
-    if (prog_quickr(&S->prog)) {
-        SuggQuickr q = {out, word, wn};
+    const Dialect *const d = dial_program(&S->prog);
 
-        qr_suggest(S, rec, (const char *)text, start, sugg_quickr_one, &q);
+    if (d->text) {
+        SuggText q = {out, word, wn};
+
+        d->suggest(S, rec, (const char *)text, start, sugg_text_one, &q);
         sugg_one(out);
         return out->n > 0;
     }
