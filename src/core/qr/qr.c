@@ -1109,7 +1109,7 @@ static Exports qr_exported(const QProg *const p, const uint32_t k, QMem *const m
     };
 
     for (const QFn *f = p->fns; f; f = f->next) {
-        if (!f->pub || f->in || f->op || f->test || f->lamof || f->of || qr_modof(p, f->name) != k)
+        if (f->priv || f->in || f->op || f->test || f->lamof || f->of || qr_modof(p, f->name) != k)
             continue;
 
         ExpProc *const e = &x.procs[x.nprocs++];
@@ -1142,7 +1142,7 @@ static Exports qr_exported(const QProg *const p, const uint32_t k, QMem *const m
         const QTy *const y = &p->tys.at[i];
         uint32_t et;
 
-        if (y->kind != QT_REC || !y->def || !y->def->pub || y->ntp || y->of ||
+        if (y->kind != QT_REC || !y->def || y->def->priv || y->ntp || y->of ||
             qr_modof(p, y->def->tok) != k)
             continue;
 
@@ -1735,11 +1735,11 @@ static void qr_publics(const QrSugg *const g, const QProg *const p, const QMod *
     for (QStmt *s = mod->head; s; s = qsem_nextin(mod, s)) {
         const QFn *const f = s->kind == QS_FN ? s->fn : nullptr;
 
-        if (f && f->pub && !f->in && !f->op && !f->test)
+        if (f && !f->priv && !f->in && !f->op && !f->test)
             qr_offer(g, p, s, f->name, DSG_FN);
-        else if ((s->kind == QS_TYPE || s->kind == QS_ENUM) && s->pub)
+        else if ((s->kind == QS_TYPE || s->kind == QS_ENUM) && !s->priv)
             qr_offer(g, p, s, s->decls->name, DSG_NAME);
-        else if (s->kind == QS_DECL && s->pub)
+        else if (s->kind == QS_DECL && !s->priv)
             for (const QDecl *d = s->decls; d; d = d->next)
                 qr_offer(g, p, s, d->name, DSG_NAME);
     }

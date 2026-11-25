@@ -7,7 +7,7 @@ end fn
 function half(x as int) as int
     return x div 2
 end fn
-public fn third(x as int) as int
+fn third(x as int) as int
     return x div 3
 end fn
 native fn sqrt(x as double) as double

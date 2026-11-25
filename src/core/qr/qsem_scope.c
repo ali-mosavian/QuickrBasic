@@ -159,7 +159,7 @@ const QBind *qsem_member(QSem *const S, const QBind *const m, const QTok *const 
         return b;
 
     if (b) {
-        qsem_say(S, name, qsem_text(S, name), " is not public in ", qsem_text(S, m->name), nullptr);
+        qsem_say(S, name, qsem_text(S, name), " is private in ", qsem_text(S, m->name), nullptr);
         return &qsem_spoilt;
     }
 

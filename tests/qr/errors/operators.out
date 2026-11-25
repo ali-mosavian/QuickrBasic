@@ -28,7 +28,7 @@ operators.bas:32:11: can't compare a Vec with a Vec
 operators.bas:33:11: a chain of comparisons takes numbers or strings
   let d = v < v < v
             ^
-operators.bas:34:20: Size's operator - is not public
+operators.bas:34:20: Size's operator - is private
   let s = Size(1, 2) - Size(1, 1)
                      ^
 operators.bas:36:1: no operator - takes a Vec and a Vec

@@ -51,7 +51,7 @@ static void qpar_end(QPar *P);
 static void qpar_push(QPar *P, QStmt *s);
 static QStmt *qpar_new(QPar *P, QStmtKind kind, const QTok *tok);
 static void qpar_import(QPar *P);
-static void qpar_public(QPar *P);
+static void qpar_access(QPar *P);
 static void qpar_native(QPar *P);
 
 /* ---- tokens */
@@ -1617,7 +1617,7 @@ static void qpar_statement(QPar *const P)
     if (o && t->kind != QK_END) {
         const bool typed = o->open->kind == QS_TYPE || o->open->kind == QS_ENUM;
         const bool priv = typed && qpar_is(P, QK_PRIVATE);
-        const QTok *const w = priv ? &t[1] : t;
+        const QTok *const w = priv || (typed && qpar_is(P, QK_PUBLIC)) ? &t[1] : t;
 
         if (typed && (w->kind == QK_FN || w->kind == QK_FUNCTION)) {
             if (w->kind == QK_FUNCTION)
@@ -1755,16 +1755,9 @@ static void qpar_statement(QPar *const P)
         return;
 
     case QK_PUBLIC:
-        qpar_public(P);
-        return;
-
     case QK_PRIVATE:
-        qpar_fail(
-            P,
-            t,
-            "private goes before a type's field or a method: a top-level name is public or its "
-            "module's"
-        );
+        qpar_access(P);
+        return;
 
     case QK_NATIVE:
         qpar_native(P);
@@ -1865,23 +1858,28 @@ static void qpar_native(QPar *const P)
         qpar_fail(P, t, "a native function is not generic and yields nothing");
 }
 
-/* public before a module's function, type, enum, const, var or let. */
-static void qpar_public(QPar *const P)
+/* private, or public (the default, nothing), before a module's function, type, enum, const,
+   var or let. */
+static void qpar_access(QPar *const P)
 {
     const QTok *const t = qpar_next(P);
     const QKind k = P->t->kind;
 
     if (P->nopen)
-        qpar_unpaired(P, t, "public goes at the top level, not in a block");
+        qpar_unpaired(P, t, "{} goes at the top level, not in a block");
     if (k != QK_FUNCTION && k != QK_FN && k != QK_NATIVE && k != QK_TYPE && k != QK_ENUM &&
         k != QK_CONST && k != QK_VAR && k != QK_LET)
-        qpar_fail(P, t, "public goes before function, native, type, enum, const, var or let");
+        qpar_fail(P, t, "{} goes before function, native, type, enum, const, var or let");
 
     qpar_statement(P);
-    P->last->pub = true;
+
+    if (t->kind != QK_PRIVATE)
+        return;
+
+    P->last->priv = true;
 
     if (P->last->kind == QS_FN)
-        P->last->fn->pub = true;
+        P->last->fn->priv = true;
 }
 
 /* Each block left open: its error at its opener. */

@@ -45,9 +45,9 @@ Records, lists and maps have one owner: b = a copies a, or moves it
 when a is not used again. basic --copies FILE.BAS lists each copy of
 a list or a map.
 
-Modules: import m, import m as n, from m import a, b. Only public
-names are seen outside their file; a type's fields and methods are,
-unless private. A type with a private field is built in its file.
+Modules: import m, import m as n, from m import a, b. A top-level
+name, a type's field or method is seen outside its file unless
+private. A type with a private field is built in its file.
 
 print a; b, c: ; joins, , to the next 14-column zone, a separator
 last holds the line; print alone, an empty line.

@@ -1,6 +1,6 @@
 ' OPTION DIALECT QUICKR
 ' an account: its balance private, changed by its methods alone
-public type Account
+type Account
     name as string
     private cents as int
 
@@ -21,6 +21,6 @@ public type Account
     end fn
 end type
 
-public type Tag
+type Tag
     label as string
 end type

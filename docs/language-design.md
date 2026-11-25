@@ -328,8 +328,8 @@ let b = Ball(at: v)         ' or by name; the rest take their defaults
 - A field is seen wherever its type is, unless marked `private`: then only its module reads or
   writes it. A type with a private field is built, `T(…)`, only in its module; elsewhere one comes
   from its methods, or is declared `var x as T`, its fields their defaults.
-- `private` goes before a field or a method alone; a top-level name is its module's unless
-  `public`.
+- `private` goes before a field, a method or a top-level name. `public` is accepted where
+  `private` is and changes nothing.
 
 ### Enums
 
@@ -463,7 +463,7 @@ end function
   compile error: with `Vec * single` and `Vec * double`, `v * 2` is one.
 - `=` and `<` give a `bool`. `<>`, `>`, `<=` and `>=` follow from them.
 - `v += w` is `v = v + w`.
-- Another module uses an operator only if it is `public`.
+- Another module uses an operator unless it is `private`.
 - An operator is not generic and yields nothing. A comparison chain of records, `a < b < c`, is
   an error.
 - **In the VM**, an operator whose body is one `return` is inlined, its parameters read where
@@ -878,7 +878,7 @@ end function
 - `import m`, `import m as n`, `import a.b` (then `a.b.f()`), `from a.b import X, Y as Z`,
   `from pkg import m` (a package's module) and relative `from .feet import Land`: `.` is the
   importing file's folder, `..` its parent. An import goes at the top level.
-- A top-level name is exported only if marked `public`: a `function`, `type`, `enum`, `const`,
+- A top-level name is exported unless marked `private`: a `function`, `type`, `enum`, `const`,
   `var` or `let`. A name a module imports is not exported again.
 - A type's fields and methods come with it, the `private` ones aside. `clock.tick()` needs only
   a `Clock`, however it got here.
@@ -908,13 +908,13 @@ end function
   fixed-length string, an array, a TYPE's array field.
 - A QBasic module's code runs at its first import, as in QBasic.
 - A QBasic file imports a Quickr module: `IMPORT shapes`, then `shapes.area(2, 3)`, or `FROM
-  shapes IMPORT area`. Its public functions are SUBs and FUNCTIONs, its public records TYPEs. Its
-  methods are not seen.
+  shapes IMPORT area`. Its functions are SUBs and FUNCTIONs, its records TYPEs, the private ones
+  aside. Its methods are not seen.
 - Types back: `int` is LONG, `short` SHORT, `single`, `double` and `string` the same, `bool`
   INTEGER, true -1 in both, a record a TYPE. A `mut` parameter is by reference, any other by value.
 - Any other type in a function's parameters or result, or in a record's fields, makes it an error
   where QBasic uses it.
-- QBasic matches names case aside: two publics that differ only so are an error at the IMPORT.
+- QBasic matches names case aside: two exports that differ only so are an error at the IMPORT.
 - A module of the other dialect imports only modules of its own dialect.
 - A runtime error names the file and line of the code it is in, either dialect's. QBasic's `ON
   ERROR` catches one raised in the Quickr code it calls.
@@ -1004,7 +1004,7 @@ dicts and iterables. Everything else is in a module.
 - A module is written in Quickr, in `stdlib/`; the build puts it in `lib/` beside the
   interpreter, where a module is looked for last: the Mac app's in `Contents/Resources/lib`, the
   web page's in `/lib`.
-- Its machine-level parts are `native function` declarations: `public native function sqrt(x as
+- Its machine-level parts are `native function` declarations: `native function sqrt(x as
   double) as double`. A native function has no body; its entry, by its name, is in
   `src/core/qr/qnat.c`. A call compiles to the entry's code, which is what QBasic's statement
   compiles to, so a library call costs what the built-in does. A native takes and gives numbers,

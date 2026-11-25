@@ -1,5 +1,5 @@
 ' OPTION DIALECT QUICKR
-public type Shelf[T]
+type Shelf[T]
     things as T[]
     private count as int
 

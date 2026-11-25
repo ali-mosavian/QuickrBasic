@@ -2,17 +2,17 @@
 ' fs: files, each error a value. A File closes itself when it ends, or at close().
 import text
 
-native function file_open(path as string, mode as string) as int
-native function file_read(n as int, count as int) as string
-native function file_write(n as int, s as string) as int
-native function file_seek(n as int, at as int) as int
-native function file_size(n as int) as int
-native function file_close(n as int)
-native function file_list(pattern as string) as string
-native function error_text(err as int) as string
+private native function file_open(path as string, mode as string) as int
+private native function file_read(n as int, count as int) as string
+private native function file_write(n as int, s as string) as int
+private native function file_seek(n as int, at as int) as int
+private native function file_size(n as int) as int
+private native function file_close(n as int)
+private native function file_list(pattern as string) as string
+private native function error_text(err as int) as string
 
 ' an open file: its number, as OPEN's; 0 closed
-public type File
+type File
     private n as int
 
     ' path opened: mode "r" to read, "w" to write it anew, "a" to add to its end, "rw" both
@@ -55,12 +55,12 @@ public type File
 end type
 
 ' the whole file as a string
-public function read_text(path as string) as string or Error
+function read_text(path as string) as string or Error
     let f = File.open(path)?
     return f.read(f.size())
 end function
 
-public function write_text(path as string, s as string) as bool or Error
+function write_text(path as string, s as string) as bool or Error
     var f = File.open(path, "w")?
     let st = file_write(f.n, s)
     f.close()
@@ -69,7 +69,7 @@ public function write_text(path as string, s as string) as bool or Error
 end function
 
 ' the names of the files matching pattern, wildcards * and ?
-public function list(pattern as string = "*.*") as string[]
+function list(pattern as string = "*.*") as string[]
     var names = text.split(file_list(pattern), text.chr(10))
     names.pop()
     return names

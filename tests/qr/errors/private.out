@@ -13,9 +13,6 @@ private.bas:8:17: checked is private to Account's module
 private.bas:9:9: Account has a private field: only its module builds one
   let b = Account("cy", 3)
           ^
-private.bas:10:1: private goes before a type's field or a method: a top-level name is public or its module's
-  private var x = 1
-  ^
 private.bas:18:5: private goes before a type's field or a method
       private walk
       ^

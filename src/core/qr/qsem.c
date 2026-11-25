@@ -122,7 +122,7 @@ void qsem_program(QProg *const p, QMem *const m)
 
     for (QFn *f = p->fns; f; f = f->next)
         if (!f->lamof && !f->op && !f->test && !f->in && !qsem_isdrop(f)) {
-            S.pub = f->pub;
+            S.pub = !f->priv;
             qsem_bind(&S, f->name, nullptr, f);
             S.pub = false;
         }

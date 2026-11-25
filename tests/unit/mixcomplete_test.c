@@ -19,24 +19,24 @@ static const char *const files[] = {
 
 #define DIALECT "' OPTION DIALECT QUICKR\n"
 
-static const char geo[] = DIALECT "public type Spot\n"
+static const char geo[] = DIALECT "type Spot\n"
                                   "    x as int\n"
                                   "    y as int\n"
                                   "    fn moved(self) as Spot\n"
                                   "        return Spot(self.x + 1, self.y)\n"
                                   "    end fn\n"
                                   "end type\n"
-                                  "public enum Colour\n"
+                                  "enum Colour\n"
                                   "    red\n"
                                   "    green\n"
                                   "end enum\n"
-                                  "public const limit = 10\n"
-                                  "public var count as int\n"
-                                  "public function area(w as int, h as int) as int\n"
+                                  "const limit = 10\n"
+                                  "var count as int\n"
+                                  "function area(w as int, h as int) as int\n"
                                   "    let total = w * h\n"
                                   "    return total\n"
                                   "end function\n"
-                                  "function helper() as int\n"
+                                  "private function helper() as int\n"
                                   "    return 1\n"
                                   "end function\n";
 
@@ -222,12 +222,12 @@ TEST(mixcomplete_qr_main_offers_built_in_methods)
 }
 
 /* An edit to a Quickr module's exports reached a QBasic program's completion only at the next
-   run: helper made public was not offered; one made wrong kept the old exports. */
+   run: helper no more private was not offered; one made wrong kept the old exports. */
 TEST(mixcomplete_qb_main_follows_a_quickr_modules_edits)
 {
     open_with(S, qb_main);
     CHECK(!offers(S, "print total", "a = geo.", "helper"));
-    fx_typed_over(S, fx_line_of(S, "function helper() as int"), "public function helper() as int");
+    fx_typed_over(S, fx_line_of(S, "private function helper() as int"), "function helper() as int");
     CHECK(offers(S, "print total", "a = geo.", "helper"));
     fx_typed_over(S, fx_line_of(S, "    return 1"), "    return \"x\"");
     CHECK(!offers(S, "print total", "a = geo.", "area")); /* an error: none till it checks */

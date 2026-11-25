@@ -1,4 +1,4 @@
 ' OPTION DIALECT QUICKR
-public type Bag
+type Bag
     items as int[]
 end type

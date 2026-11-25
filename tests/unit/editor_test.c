@@ -235,7 +235,7 @@ TEST(editor_runs_a_module_stored_out_of_order)
     fx_open_program(S, "data 11, 22\r\nsub hi\r\nread a, b\r\nprint a; b\r\nend sub\r\n");
     fx_write_file(
         "q.bas",
-        "' OPTION DIALECT QUICKR\npublic function twice(n as int) as int\n"
+        "' OPTION DIALECT QUICKR\nfunction twice(n as int) as int\n"
         "    return n * 2\nend function\n"
     );
     fx_write_file("main.bas", "import q\r\nimport gfx\r\nprint q.twice(4)\r\ngfx.hi\r\n");

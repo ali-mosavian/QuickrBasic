@@ -42,7 +42,7 @@ void qsem_consts(QSem *const S, const QMod *const m)
 
         if (!depth && s->kind == QS_DECL && s->op == QK_CONST) {
             s->early = S->early = true;
-            S->pub = s->pub;
+            S->pub = !s->priv;
             qsem_decls(S, s);
             S->early = S->pub = false;
         }
@@ -135,7 +135,7 @@ void qsem_types(QSem *const S)
         y->state = 0;
         y->tparams = s->tparams;
         y->ntp = s->kind == QS_TYPE ? s->ntp : 0; /* an enum's, said */
-        S->pub = s->pub;
+        S->pub = !s->priv;
         qsem_bindty(S, s->decls->name, t);
         S->pub = false;
 
@@ -537,7 +537,7 @@ QType qsem_typeinst(QSem *const S, const QType g, const QType *const targs, cons
     y->of = g;
     y->targs = keep;
     s->ntp = 0;
-    s->pub = m->def->pub;
+    s->priv = m->def->priv;
     qsem_members(S, s, t);
 
     const QHide h = qsem_hide(S, t);

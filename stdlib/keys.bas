@@ -4,12 +4,12 @@
 ' held_for seconds after k's last press or repeat.
 import time
 
-native function inkey() as string
-native function pen(n as int) as int
+private native function inkey() as string
+private native function pen(n as int) as int
 
-public const held_for = 0.55
+const held_for = 0.55
 
-public enum Key
+enum Key
     escape
     enter
     space
@@ -73,12 +73,12 @@ public enum Key
     end fn
 end enum
 
-var waiting as int[]
-var seen as double[512]
-var fresh as bool[512]
+private var waiting as int[]
+private var seen as double[512]
+private var fresh as bool[512]
 
 ' the keys typed since the last look, taken
-function poll()
+private function poll()
     var s = inkey()
     while len(s) > 0
         var c = int(s[0])
@@ -92,7 +92,7 @@ function poll()
 end function
 
 ' the next key's code, 0 none waiting
-public function next() as int
+function next() as int
     poll()
     if len(waiting) = 0 then return 0
     let c = waiting[0]
@@ -101,7 +101,7 @@ public function next() as int
 end function
 
 ' k pressed since the last pressed(k)
-public function pressed(k as Key) as bool
+function pressed(k as Key) as bool
     poll()
     let c = k.code()
     let was = fresh[c]
@@ -110,7 +110,7 @@ public function pressed(k as Key) as bool
 end function
 
 ' k held: pressed or repeated in the last held_for seconds
-public function down(k as Key) as bool
+function down(k as Key) as bool
     poll()
     let c = k.code()
     if seen[c] = 0 then return false
@@ -120,19 +120,19 @@ public function down(k as Key) as bool
 end function
 
 ' the mouse: its pixel, its buttons down now
-public type Mouse
+type Mouse
     x as int
     y as int
     left as bool
     right as bool
 end type
 
-public function mouse() as Mouse
+function mouse() as Mouse
     return Mouse(x: pen(4), y: pen(5), left: pen(3) <> 0, right: pen(13) <> 0)
 end function
 
 ' the left button, or the right, pressed since the last clicked() of it
-public function clicked(right as bool = false) as bool
+function clicked(right as bool = false) as bool
     if right then return pen(10) <> 0
     return pen(0) <> 0
 end function

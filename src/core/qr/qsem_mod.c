@@ -49,7 +49,7 @@ void qsem_module(QSem *const S, const uint32_t k)
             continue;
         }
 
-        S->pub = s->pub && !S->nmarks;
+        S->pub = s->kind == QS_DECL && !s->priv && !S->nmarks;
         qsem_stmt(S, s);
         S->pub = false;
     }
@@ -248,7 +248,6 @@ static void qsem_qbnames(QSem *const S, const uint32_t k)
         const char *why = e->why;
         *f = (QFn){
             .name = qsem_qbtok(S, e->name, e->len),
-            .pub = true,
             .npar = e->npar,
             .params = qast_alloc(S->mem, (e->npar ? e->npar : 1) * sizeof *f->params),
             .result = qsem_qbtype(S, e->result.et),

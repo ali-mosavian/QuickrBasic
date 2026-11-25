@@ -1,3 +1,3 @@
 ' OPTION DIALECT QUICKR
 import lib
-public let first = lib.late
+let first = lib.late

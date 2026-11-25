@@ -383,10 +383,9 @@ typedef struct {
 
 struct QFn {
     const QTok *name;
-    bool pub;
     QStmt *in; /* a method's type or enum, its statement; null a function */
     bool self; /* a method on a value: its first parameter self */
-    bool priv; /* a private method: its module's alone */
+    bool priv; /* private: its module's alone, a function or a method */
     QParam *params;
     uint32_t npar;
     QTypeEx *rtype; /* its as type, null none */
@@ -752,8 +751,7 @@ struct QStmt {
     QType ty;           /* QS_TYPE, QS_ENUM: its type; QS_SELECT: its value's */
     QExpr *place;       /* QS_SELECT of an enum with data: its value's place, its data read there */
     bool full;          /* QS_SELECT: every value has its case */
-    bool pub;           /* public: a module's fn, type, enum, const, var or let */
-    bool priv;          /* QS_FIELD: private */
+    bool priv;          /* private: a field's, a top-level name's */
     QImport *imps;      /* QS_IMPORT's modules; QS_FROM's module */
     QImport *names;     /* QS_FROM's */
     QOwners *own;       /* its frame's: a fn's, or the modules' */

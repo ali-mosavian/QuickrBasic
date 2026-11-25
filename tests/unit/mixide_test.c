@@ -39,15 +39,15 @@ static const char *const files[] = {
 
 #define DIALECT "' OPTION DIALECT QUICKR\n"
 
-static const char geo[] = DIALECT "public type Spot\n"
+static const char geo[] = DIALECT "type Spot\n"
                                   "    x as int\n"
                                   "    y as int\n"
                                   "end type\n"
-                                  "public function area(w as int, h as int) as int\n"
+                                  "function area(w as int, h as int) as int\n"
                                   "    let total = w * h\n"
                                   "    return total\n"
                                   "end function\n"
-                                  "public function quot(a as int, b as int) as int\n"
+                                  "function quot(a as int, b as int) as int\n"
                                   "    return a div b\n"
                                   "end function\n";
 
@@ -215,13 +215,13 @@ static bool screen_has(Session *const S, const char *const want)
 
 /* ---- a QBasic main, a Quickr module */
 
-/* geo's lines were coloured by QBasic's lexer: public a name, not a keyword. */
+/* geo's lines were coloured by QBasic's lexer: function's name a variable's, w a name. */
 TEST(mixide_qb_main_colours_each_file_its_own)
 {
     open_qb(S, "x& = geo.area(2, 3)\nprint x&\n");
-    CHECK(slot_at(S, "public function area(w as int, h as int) as int", 0) == SL_KW);
-    CHECK(slot_at(S, "public function area(w as int, h as int) as int", 16) == SL_FNM);
-    CHECK(slot_at(S, "public function area(w as int, h as int) as int", 21) == SL_PAR);
+    CHECK(slot_at(S, "function area(w as int, h as int) as int", 0) == SL_KW);
+    CHECK(slot_at(S, "function area(w as int, h as int) as int", 9) == SL_FNM);
+    CHECK(slot_at(S, "function area(w as int, h as int) as int", 14) == SL_PAR);
     CHECK(slot_at(S, "print x&", 0) == SL_KW);
     fx_done(S, files);
 }
@@ -321,12 +321,12 @@ TEST(mixide_qb_main_compile_error_in_quickr_code)
     fx_done(S, files);
 }
 
-static const char util[] = DIALECT "public function twice(x as int) as int\n"
+static const char util[] = DIALECT "function twice(x as int) as int\n"
                                    "    return x * 2\n"
                                    "end function\n";
 
 static const char geo_util[] = DIALECT "import util\n"
-                                       "public function area(w as int, h as int) as int\n"
+                                       "function area(w as int, h as int) as int\n"
                                        "    return util.twice(w) * h\n"
                                        "end function\n";
 
@@ -361,7 +361,7 @@ TEST(mixide_qb_main_f1_finds_quickr_topics)
 {
     open_qb_with(
         S,
-        DIALECT "import text\npublic function up(s as string) as string\n"
+        DIALECT "import text\nfunction up(s as string) as string\n"
                 "    return text.upper(s)\n"
                 "end function\n",
         "print geo.up(\"a\")\n"

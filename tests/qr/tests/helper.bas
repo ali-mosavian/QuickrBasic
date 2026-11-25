@@ -1,9 +1,9 @@
 ' OPTION DIALECT QUICKR
-public function twice(x as int) as int
+function twice(x as int) as int
     return x * 2
 end function
 
-public function check_pos(x as int)
+function check_pos(x as int)
     assert x > 0
 end function
 

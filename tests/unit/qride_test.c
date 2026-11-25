@@ -37,8 +37,8 @@ static void open_quickr(Session *const S)
     fx_write_file("main.bas", DIALECT "import util\nlet n = util.twice(2)\nprint n\n");
     fx_write_file(
         "util.bas",
-        DIALECT "public function twice(x as int) as int\n    return x * 2\nend function\n"
-                "public type Box\n    w as int\n    private h as int\n"
+        DIALECT "function twice(x as int) as int\n    return x * 2\nend function\n"
+                "type Box\n    w as int\n    private h as int\n"
                 "    private fn area(self) as int\n        return self.w * self.h\n    end fn\n"
                 "end type\n"
     );
@@ -163,7 +163,7 @@ TEST(qride_runs_modules_first)
         "util.bas",
         DIALECT "function hello() as int\n    print \"util\"\n    return 1\nend function\nlet u = "
                 "hello()\n"
-                "public function twice(x as int) as int\n    return x * 2\nend function\n"
+                "function twice(x as int) as int\n    return x * 2\nend function\n"
     );
     uimn_open(S, fx_path_of("main.bas"));
     captured(S, uimn_run);
@@ -511,8 +511,8 @@ TEST(qride_completes_quickr_words)
     );
     fx_write_file(
         "util.bas",
-        DIALECT "public function twice(x as int) as int\n    return x * 2\nend function\n"
-                "public type Box\n    w as int\n    private h as int\n"
+        DIALECT "function twice(x as int) as int\n    return x * 2\nend function\n"
+                "type Box\n    w as int\n    private h as int\n"
                 "    private fn area(self) as int\n        return self.w * self.h\n    end fn\n"
                 "end type\n"
     );

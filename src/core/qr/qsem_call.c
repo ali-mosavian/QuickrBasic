@@ -247,9 +247,9 @@ QExpr *qsem_operator(QSem *const S, QExpr *const e, const QKind op, QExpr *a, QE
         return e;
     }
 
-    if (!f->pub && qsem_modof(S, f->name) != qsem_modof(S, e->tok)) {
+    if (f->priv && qsem_modof(S, f->name) != qsem_modof(S, e->tok)) {
         const char *const ty = qsem_text(S, qast_ty(S->prog, rec->type)->name);
-        qsem_say(S, e->tok, ty, "'s operator ", sym, " is not public", nullptr);
+        qsem_say(S, e->tok, ty, "'s operator ", sym, " is private", nullptr);
         return e;
     }
 

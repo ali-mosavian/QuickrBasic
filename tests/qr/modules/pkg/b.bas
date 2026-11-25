@@ -1,9 +1,9 @@
 ' OPTION DIALECT QUICKR
-public function twice(n as int) as int
+function twice(n as int) as int
     return n * 2
 end function
-public let order = say()
-function say() as string
+let order = say()
+private function say() as string
     print "init b"
     return "b"
 end function
