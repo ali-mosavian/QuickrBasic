@@ -9,4 +9,6 @@ void qsem_program(QProg *p, QMem *m);
 /* Statement s, a probe's, checked where the names at are in sight (QStmt.at; null the modules'
    alone), p checked with keep: false an error, to p->errs. Its new variables after p's. */
 bool qsem_probe(QProg *p, QMem *m, const QScopeAt *at, QStmt *s);
+/* Module m's statement after s, past a fn's: null after its last. */
+QStmt *qsem_nextin(const QMod *m, QStmt *s);
 #endif

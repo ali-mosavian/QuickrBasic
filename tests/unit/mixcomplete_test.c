@@ -116,3 +116,63 @@ TEST(mixcomplete_qr_main_completes_qbasic_lines_as_qbasic)
     CHECK(!offers(S, "    print a", "    PRI", "print"));
     fx_done(S, files);
 }
+
+/* After a QBasic module's name, a QBasic program offered every name of the program, the module's
+   PRIVATE ones and the main's own too. */
+TEST(mixcomplete_qb_main_offers_a_qbasic_modules_exports)
+{
+    open_with(S, qb_main);
+    CHECK(offers(S, "print total", "a = shapes.", "Area"));
+    CHECK(offers(S, "print total", "shapes.", "Show"));
+    CHECK(offers(S, "print total", "a = shapes.", "MAXW"));
+    CHECK(offers(S, "print total", "dim q as shapes.", "Rect"));
+    CHECK(!offers(S, "print total", "shapes.", "Hidden"));
+    CHECK(!offers(S, "print total", "a = shapes.", "total"));
+    CHECK(offers(S, "print total", "a = shapes.Ar", "Area"));
+    CHECK(fx_typed_over(S, fx_line_of(S, "private sub Hidden"), "sub Shown"));
+    CHECK(offers(S, "print total", "shapes.", "Shown"));
+    fx_done(S, files);
+}
+
+/* After a Quickr module's name, a QBasic program offered its own names, not the module's. */
+TEST(mixcomplete_qb_main_offers_a_quickr_modules_exports)
+{
+    open_with(S, qb_main);
+    CHECK(offers(S, "print total", "a = geo.", "area"));
+    CHECK(offers(S, "print total", "dim q as geo.", "Spot"));
+    CHECK(!offers(S, "print total", "a = geo.", "helper"));
+    CHECK(!offers(S, "print total", "a = geo.", "limit")); /* QBasic sees no const */
+    CHECK(!offers(S, "print total", "a = geo.", "Area"));
+    CHECK(!offers(S, "print total", "a = geo.", "total"));
+    fx_done(S, files);
+}
+
+/* After a QBasic module's name a Quickr program offered nothing, nor after a value of one of its
+   TYPEs; after a module's enum, nothing. */
+TEST(mixcomplete_qr_main_offers_a_qbasic_modules_exports)
+{
+    open_with(S, qr_main);
+    CHECK(offers(S, "print total", "let a = shapes.", "Area"));
+    CHECK(offers(S, "print total", "shapes.", "Show"));
+    CHECK(offers(S, "print total", "var q as shapes.", "Rect"));
+    CHECK(!offers(S, "print total", "shapes.", "Hidden"));
+    CHECK(!offers(S, "print total", "let a = shapes.", "MAXW")); /* Quickr sees no CONST */
+    CHECK(offers(S, "print total", "let a = r.", "W"));
+    CHECK(offers(S, "print total", "let a = r.", "H"));
+    CHECK(fx_typed_over(S, fx_line_of(S, "private sub Hidden"), "sub Shown"));
+    CHECK(fx_typed_over(S, fx_line_of(S, "print total"), "print total + 1"));
+    CHECK(offers(S, "print total + 1", "shapes.", "Shown"));
+    CHECK(offers(S, "print total + 1", "shapes.", "Area"));
+    fx_done(S, files);
+}
+
+/* After a module's enum, m.E., a Quickr program offered nothing: its values were not found. */
+TEST(mixcomplete_qr_main_offers_a_modules_enum_values)
+{
+    open_with(S, qr_main);
+    CHECK(offers(S, "print total", "let a = geo.", "Colour"));
+    CHECK(offers(S, "print total", "let a = geo.Colour.", "red"));
+    CHECK(offers(S, "print total", "let a = geo.Colour.", "green"));
+    CHECK(!offers(S, "print total", "let a = geo.", "helper"));
+    fx_done(S, files);
+}

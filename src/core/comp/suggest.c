@@ -30,12 +30,14 @@
  */
 #include "comp/suggest.h"
 #include "session.h"
+#include "comp/bind.h"
 #include "comp/comp.h"
 #include "comp/declare.h"
 #include "comp/dfa.h"
 #include "comp/lexer.h"
 #include "io/dialect.h"
 #include "io/gen.h"
+#include "mem/module.h"
 #include "mem/program.h"
 #include "mem/scope.h"
 #include "vm/flow.h"
@@ -79,6 +81,7 @@ typedef struct {
     const Scop *scop;
     const Decl *decl; /* the TYPEs */
     Symb *symb;       /* the names, found by their texts */
+    uint32_t module;  /* the word's */
 } SuggSrc;
 
 static struct {
@@ -1165,6 +1168,71 @@ static bool sugg_fields(
     return true;
 }
 
+/* sugg_exports': where the word's matches go. */
+typedef struct {
+    const SuggSrc *src;
+    Suggs *out;
+    const uint8_t *word;
+    uint16_t wn;
+} SuggExports;
+
+/* Export t, its kinds k, offered when it matches the word; not a TYPE the module's importers
+   can't use. */
+static void sugg_export(void *const ctx, const uint32_t t, const uint8_t k)
+{
+    const SuggExports *const q = ctx;
+    const Name *const nm = symb_name(q->src->symb, t);
+    const uint8_t *const text = symb_text(q->src->symb, t);
+    const uint8_t m = sugg_match(q->word, q->wn, text + 1, text[0]);
+
+    if (!m || (k & BIND_TYPE && decl_type(q->src->decl, nm->rec)->alien))
+        return;
+
+    const SuggKind kind = nm->flags & NM_SUB ? SG_SUB : nm->flags & NM_FUNC ? SG_FN : SG_VAR;
+    const Sugg s = sugg_named(q->src, t, text + 1, text[0], kind, m, 50);
+    sugg_add(q->out, &s);
+}
+
+/* After an imported module's name and '.': its exports the word starts; false not after one. */
+static bool sugg_exports(
+    const SuggSrc *const src,
+    Suggs *const out,
+    const uint8_t *const word,
+    const uint16_t wn
+)
+{
+    const uint8_t *const b = sg.before;
+
+    if (!sg.nbefore || b[sg.nbefore - 1] != '.')
+        return false;
+
+    const uint16_t e = sg.nbefore - 1;
+    uint16_t s = e;
+
+    while (s && is_name_char(b[s - 1])) /* a package's module: lib.gfx */
+        s--;
+
+    if (s == e || e - s > UINT8_MAX || !is_letter(b[s]))
+        return false;
+
+    const uint32_t name = symb_look_name(src->symb, src->module, b + s, (uint8_t)(e - s));
+
+    if (!name || !(symb_name(src->symb, name)->flags & NM_MOD))
+        return false;
+
+    SuggExports q = {src, out, word, wn};
+
+    bind_each_export(
+        src->scop,
+        src->symb,
+        *symb_alias(src->symb, name),
+        UINT8_MAX,
+        sugg_export,
+        &q
+    );
+    return true;
+}
+
 /* The word starts a statement: the line, ':', THEN or ELSE before it. */
 static bool sugg_starts(void)
 {
@@ -1431,7 +1499,8 @@ bool sugg_find(
     if (decl_tail(&tail))
         return false;
 
-    const SuggSrc src = {&S->comp, &S->lexr, &S->prog, &S->scop, &S->decl, &S->symb};
+    const uint32_t module = modu_of(&S->modu, prog_line(&S->prog, rec)->file);
+    const SuggSrc src = {&S->comp, &S->lexr, &S->prog, &S->scop, &S->decl, &S->symb, module};
 
     sugg_tail(sg.body, blen);
     SuggAt w = {.rec = rec};
@@ -1444,6 +1513,11 @@ bool sugg_find(
         sg.str_ok = sg.num_ok = false;
     if (sugg_fields(&src, out, word, wn)) /* r.f: the record's fields alone */
         return out->n > 0;
+    if (sugg_exports(&src, out, word, wn)) { /* m.f: the module's exports alone */
+        sugg_one(out);
+        return out->n > 0;
+    }
+
     if (sg.hash) { /* #n: the program's files */
         sugg_files(&src, out, word, wn);
         sugg_one(out);

@@ -39,6 +39,7 @@
 #include "qr/qpar.h"
 #include "qr/qrt.h"
 #include "qr/qsem.h"
+#include "comp/bind.h"
 #include "comp/blocks.h"
 
 enum { QR_CHUNK = 0x10000 }; /* the front end's arena's blocks at least */
@@ -979,7 +980,7 @@ void qr_open(Session *const S)
     arena_init(&m.arena, QR_CHUNK);
     QProg p = {.errs = {.mem = &m}, .copies = {.mem = &m}};
 
-    qr_enter(&(QrLoad){S, &p, &m, .stored = true});
+    qr_enter(&(QrLoad){S, &p, &m, .stored = true, .declare = true});
 
     arena_reset(&m.arena);
 }
@@ -1650,17 +1651,6 @@ static bool qr_named(const QTok *const t, const char *const text, const uint32_t
     return t->kind == QK_NAME && t->len == n && !memcmp(t->text, text, n);
 }
 
-/* Past a declaration's public and native: its keyword's index in toks. */
-static uint32_t qr_decl(const QTok *const toks, const uint32_t n)
-{
-    uint32_t i = 0;
-
-    while (i < n && (toks[i].kind == QK_PUBLIC || toks[i].kind == QK_NATIVE))
-        i++;
-
-    return i;
-}
-
 /* The module named name, n bytes: its file's name less its extension; modu_count none. */
 static uint32_t qr_module_named(const Session *const S, const char *const name, const uint32_t n)
 {
@@ -1683,22 +1673,78 @@ static uint32_t qr_module_named(const Session *const S, const char *const name, 
     return modu_count(&S->modu);
 }
 
-/* Module k's public names. */
+/* The file module k's lines are: a QBasic program's Quickr module's its own, else k. */
+static uint32_t qr_file_of(Session *const S, const uint32_t k)
+{
+    const ModuMod *const mod = modu_mod(&S->modu, k);
+    return mod->dialect ? mod->file : k;
+}
+
+/* File file's lines parsed, p's: its module; null not Quickr's. */
+static const QMod *qr_parsed(const QrSugg *const g, const uint32_t file, QProg *const p)
+{
+    if (dial_file(&g->S->prog, file) != &dialect_quickr)
+        return nullptr;
+
+    *p = (QProg){.errs = {.mem = g->m}, .copies = {.mem = g->m}, .loose = true};
+
+    qr_lines(g->S, p, g->m, file);
+    return &p->mods[0];
+}
+
+/* Name t, kind k, of statement s of p's to g. */
+static void qr_offer(
+    const QrSugg *const g,
+    const QProg *const p,
+    const QStmt *const s,
+    const QTok *const t,
+    const DialSuggKind k
+)
+{
+    g->fn(g->ctx, t->text, t->len, k, p->src.lines[s->line].at);
+}
+
+/* Module mod's public names, of p's: its functions, types, enums, consts, vars and lets. */
+static void qr_publics(const QrSugg *const g, const QProg *const p, const QMod *const mod)
+{
+    for (QStmt *s = mod->head; s; s = qsem_nextin(mod, s)) {
+        const QFn *const f = s->kind == QS_FN ? s->fn : nullptr;
+
+        if (f && f->pub && !f->in && !f->op && !f->test)
+            qr_offer(g, p, s, f->name, DSG_FN);
+        else if ((s->kind == QS_TYPE || s->kind == QS_ENUM) && s->pub)
+            qr_offer(g, p, s, s->decls->name, DSG_NAME);
+        else if (s->kind == QS_DECL && s->pub)
+            for (const QDecl *d = s->decls; d; d = d->next)
+                qr_offer(g, p, s, d->name, DSG_NAME);
+    }
+}
+
+/* A QBasic module's export t, kinds k, as written, to the QrSugg ctx. */
+static void qr_qbexport(void *const ctx, const uint32_t t, const uint8_t k)
+{
+    const QrSugg *const g = ctx;
+    const uint8_t *const text = symb_text(&g->S->symb, t);
+    g->fn(g->ctx, (const char *)text + 1 + text[0], text[0], k & BIND_PROC ? DSG_FN : DSG_NAME, 0);
+}
+
+/* Module k's public names: a Quickr module's; a QBasic module's SUBs, FUNCTIONs and TYPEs. */
 static void qr_members(const QrSugg *const g, const uint32_t k)
 {
-    for (uint32_t rec = qr_next_line(&g->S->prog, k, 0); rec;
+    QProg p;
+    const QMod *const mod = qr_parsed(g, qr_file_of(g->S, k), &p);
 
-         rec = qr_next_line(&g->S->prog, k, rec)) {
-        const QTok *toks;
-        const uint32_t n = qr_line_toks(g, rec, &toks);
-        const uint32_t i = qr_decl(toks, n);
-
-        if (!i || toks[0].kind != QK_PUBLIC || i + 1 >= n || toks[i + 1].kind != QK_NAME)
-            continue;
-
-        const bool fn = toks[i].kind == QK_FUNCTION;
-        g->fn(g->ctx, toks[i + 1].text, toks[i + 1].len, fn ? DSG_FN : DSG_NAME, rec);
-    }
+    if (mod)
+        qr_publics(g, &p, mod);
+    else
+        bind_each_export(
+            &g->S->scop,
+            &g->S->symb,
+            k,
+            BIND_PROC | BIND_TYPE,
+            qr_qbexport,
+            (void *)g
+        );
 }
 
 /* Variable name's (n bytes) type as file declares it, x as [m.]T or let x = [m.]T(..): T's token,
@@ -1734,9 +1780,77 @@ static const QTok *qr_type_of(
     return nullptr;
 }
 
-/* Type t's (tn bytes) members as any file declares them, a private one in file alone: on a value
-   its fields and its methods with self; on the type its methods without self and an enum's
-   values. */
+/* Is token t the name text, n bytes, case aside? */
+static bool qr_named_nocase(const uint8_t *const t, const uint8_t n, const char *const text)
+{
+    uint32_t i = 0;
+
+    while (i < n && t[i] == upcase((uint8_t)text[i]))
+        i++;
+
+    return i == n;
+}
+
+/* A QBasic module's TYPE: the name sought, the QrSugg its fields go to. */
+typedef struct {
+    const QrSugg *g;
+    const char *name;
+    uint32_t n;
+} QrQbType;
+
+/* Export t, a TYPE: its fields to the QrQbType ctx when it is the one sought. */
+static void qr_qbfields(void *const ctx, const uint32_t t, const uint8_t k)
+{
+    const QrQbType *const q = ctx;
+    const Session *const S = q->g->S;
+    const uint8_t *const text = symb_text(&S->symb, t);
+
+    if (text[0] != q->n || !qr_named_nocase(text + 1, text[0], q->name))
+        return;
+
+    const TypeDef *const td = decl_type(&S->decl, symb_name(&S->symb, t)->rec);
+
+    for (uint32_t f = 0; f < td->nfld; f++) {
+        const uint8_t *const ft = symb_text(&S->symb, td->fields[f].name);
+        q->g->fn(q->g->ctx, (const char *)ft + 1 + ft[0], ft[0], DSG_NAME, 0);
+    }
+}
+
+/* Type t's (tn bytes) members, of module mod of p's, a private one there only when own: on a
+   value its fields and its methods with self; on the type its methods without self and an
+   enum's values. */
+static void qr_members_of(
+    const QrSugg *const g,
+    const QProg *const p,
+    const QMod *const mod,
+    const char *const t,
+    const uint32_t tn,
+    const bool value,
+    const bool own
+)
+{
+    const QStmt *in = nullptr; /* type t's statement, while in its lines */
+
+    for (QStmt *s = mod->head; s; s = qsem_nextin(mod, s)) {
+        const QFn *const f = s->kind == QS_FN ? s->fn : nullptr;
+
+        if (s->kind == QS_TYPE || s->kind == QS_ENUM)
+            in = s->decls->name->len == tn && !memcmp(s->decls->name->text, t, tn) ? s : nullptr;
+        else if (s->kind == QS_ENDTYPE || s->kind == QS_ENDENUM)
+            in = nullptr;
+        else if (!in)
+            continue;
+        else if (f && f->in == in && f->self == value && (own || !f->priv))
+            qr_offer(g, p, s, f->name, DSG_FN);
+        else if (s->kind == QS_FIELD && value && (own || !s->priv))
+            qr_offer(g, p, s, s->decls->name, DSG_NAME);
+        else if (s->kind == QS_VARIANT && !value)
+            qr_offer(g, p, s, s->decls->name, DSG_NAME);
+    }
+}
+
+/* Type t's (tn bytes) members as any module declares them, a private one file's alone: a Quickr
+   type's qr_members_of; a QBasic TYPE's fields on a value. */
 static void qr_fields(
     const QrSugg *const g,
     const uint32_t file,
@@ -1746,45 +1860,15 @@ static void qr_fields(
 )
 {
     for (uint32_t k = 0; k < modu_count(&g->S->modu); k++) {
-        bool in = false;   /* in type t's lines */
-        bool body = false; /* in a method's */
+        const uint32_t kf = qr_file_of(g->S, k);
+        QProg p;
+        const QMod *const mod = qr_parsed(g, kf, &p);
+        QrQbType q = {g, t, tn};
 
-        for (uint32_t rec = qr_next_line(&g->S->prog, k, 0); rec;
-
-             rec = qr_next_line(&g->S->prog, k, rec)) {
-            const QTok *all;
-            const uint32_t na = qr_line_toks(g, rec, &all);
-            const bool priv = na && all[0].kind == QK_PRIVATE;
-            const QTok *const toks = all + priv;
-            const uint32_t n = na - priv;
-            const uint32_t i = qr_decl(toks, n);
-            const bool end = n >= 2 && toks[0].kind == QK_END;
-
-            if (priv && k != file)
-                continue;
-
-            if (in && end && (toks[1].kind == QK_TYPE || toks[1].kind == QK_ENUM))
-                in = false;
-            else if (in && end && toks[1].kind == QK_FN)
-                body = false;
-            else if (in && !body && i + 3 < n && toks[i].kind == QK_FN &&
-                     toks[i + 1].kind == QK_NAME && toks[i + 2].kind == QK_LPAREN) {
-                const uint32_t at = i + 3 + (toks[i + 3].kind == QK_MUT);
-                const bool self = at < n && toks[at].kind == QK_SELF;
-                body = true;
-
-                if (self == value)
-                    g->fn(g->ctx, toks[i + 1].text, toks[i + 1].len, DSG_FN, rec);
-            } else if (in && !body && n && toks[0].kind == QK_NAME) {
-                const bool field = n >= 2 && toks[1].kind == QK_AS;
-
-                if (field == value)
-                    g->fn(g->ctx, toks[0].text, toks[0].len, DSG_NAME, rec);
-            } else if (i + 1 < n && (toks[i].kind == QK_TYPE || toks[i].kind == QK_ENUM)) {
-                in = qr_named(&toks[i + 1], t, tn);
-                body = false;
-            }
-        }
+        if (mod)
+            qr_members_of(g, &p, mod, t, tn, value, kf == file);
+        else if (value)
+            bind_each_export(&g->S->scop, &g->S->symb, k, BIND_TYPE, qr_qbfields, &q);
     }
 }
 
@@ -1852,7 +1936,15 @@ void qr_suggest(
 
     if (!n || text[n - 1] != '.')
         qr_scope(&g, file);
-    else if (b < e && !is_digit((uint8_t)text[b]) && (!b || text[b - 1] != '.')) {
+    else if (b < e && !is_digit((uint8_t)text[b]) && b && text[b - 1] == '.') {
+        uint32_t a = b - 1; /* m.T.: T module m's type */
+
+        while (a && qr_namec(text[a - 1]))
+            a--;
+
+        if (a < b - 1 && qr_module_named(S, text + a, b - 1 - a) < modu_count(&S->modu))
+            qr_fields(&g, file, text + b, e - b, false);
+    } else if (b < e && !is_digit((uint8_t)text[b])) {
         const uint32_t k = qr_module_named(S, text + b, e - b);
         const QTok *const t = qr_type_of(&g, file, text + b, e - b);
 

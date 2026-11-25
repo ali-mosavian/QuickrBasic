@@ -340,7 +340,6 @@ void qsem_lend(QSem *S, const QVar *root, const QStmt *s);
 void qsem_stmt(QSem *S, QStmt *s);
 
 /* qsem_decl.c */
-QStmt *qsem_nextin(const QMod *m, QStmt *s);
 void qsem_consts(QSem *S, const QMod *m);
 void qsem_types(QSem *S);
 void qsem_typed(QSem *S, QType t);

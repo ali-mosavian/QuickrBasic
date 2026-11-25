@@ -8,6 +8,7 @@
  * an error where the name is used.
  */
 #include "comp/export.h"
+#include "comp/bind.h"
 #include "comp/blocks.h"
 #include "comp/comp.h"
 #include "mem/scope.h"
@@ -142,10 +143,9 @@ Exports expo_qbasic(const Comp *const C, const uint32_t m, Arena *const a)
 
     for (uint32_t i = 1; i < b->procs.n; i++) {
         const Proc *const p = blok_proc(b, i);
-        const Name *const n = symb_name(C->symb, p->name);
 
         if (p->module == sc_module(m) && !(p->flags & (PF_DEF | PF_FOREIGN)) &&
-            !(n->flags & NM_PRIV))
+            bind_exports(C->scop, C->symb, p->name) & BIND_PROC)
             x.procs[x.nprocs++] = expo_proc(C, a, p, i);
     }
 
@@ -153,7 +153,7 @@ Exports expo_qbasic(const Comp *const C, const uint32_t m, Arena *const a)
         const TypeDef *const td = decl_type(C->decl, t);
         const Name *const n = td->name ? symb_name(C->symb, td->name) : nullptr;
 
-        if (!n || n->module != m || n->flags & NM_PRIV)
+        if (!n || n->module != m || !(bind_exports(C->scop, C->symb, td->name) & BIND_TYPE))
             continue;
 
         ExpType *const e = &x.types[x.ntypes++];

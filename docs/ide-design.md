@@ -181,8 +181,10 @@ QBasic's otherwise. The main file's is the program's; its modules may be of eith
 - Highlighting lexes a Quickr line with Quickr's lexer (`qr_colour`): its keywords, a function's
   name and parameters, types after `as`, strings and f-strings, the comment past the last token.
 - Completion offers Quickr's keywords and the names in the file; after `m.` an imported module's
-  public names; after `v.` the fields of `v`'s record type (as declared, `v as T`) and the functions
-  whose first parameter is one (`qr_suggest`).
+  public names, a QBasic module's SUBs, FUNCTIONs and TYPEs; after `m.E.` an enum's values; after
+  `v.` the fields and methods of `v`'s record type, as declared (`v as T`), a QBasic TYPE's fields
+  too (`qr_suggest`). A Quickr module's names come from its parsed lines, a QBasic module's from
+  QBasic's own symbol table (`bind_each_export`).
 
 - F1 in a Quickr program looks up `quickr WORD` (`help/qr/`): a keyword, a module, a module's
   `m.name`, else the module before the dot; no topic opens the Quickr index. QBasic's topics are
@@ -210,7 +212,10 @@ debugs either as it does a program of one dialect.
   spell a name as its dialect does: Quickr's as typed, QBasic's with its suffix. A watch, a value
   set in Locals and the immediate window run in the stopped frame's dialect, a QBasic one's names
   its module's.
+- Completion goes by the line's file's dialect. After `m.` a QBasic line offers module `m`'s
+  exports as `IMPORT` binds them (`bind_each_export`), a Quickr module's those QBasic sees.
 - A QBasic module a Quickr program no longer imports stays till the program is opened again.
+- In a QBasic program a Quickr module's changed exports reach completion at the next run.
 
 ## Theme slots
 

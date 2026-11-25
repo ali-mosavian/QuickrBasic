@@ -18,9 +18,6 @@
  */
 #include "comp/bind.h"
 
-/* What a name exports: its kinds. */
-enum : uint8_t { EX_PROC = 1, EX_TYPE = 2, EX_CONST = 4, EX_VAR = 8 };
-
 [[noreturn]]
 static void fail(Fault *const f, const uint8_t code)
 {
@@ -33,16 +30,15 @@ static Binding *module_binding(const Scop *const sc, const Symb *const sy, const
     return scop_get(sc, sc_module(symb_name(sy, n)->module), n);
 }
 
-/* What name t exports, of its module's own. */
-static uint8_t exports(const Scop *const sc, const Symb *const sy, const uint32_t t)
+uint8_t bind_exports(const Scop *const sc, const Symb *const sy, const uint32_t t)
 {
     if (!t || *symb_alias(sy, t) || symb_name(sy, t)->flags & (NM_PRIV | NM_MOD | NM_BAD))
         return 0;
 
     const Binding *const b = module_binding(sc, sy, t);
     const uint16_t flags = b ? b->flags : 0;
-    return (flags & BF_PROC ? EX_PROC : 0) | (symb_name(sy, t)->rec ? EX_TYPE : 0) |
-           (flags & BF_CON ? EX_CONST : 0) | (flags & BF_PUB ? EX_VAR : 0);
+    return (flags & BF_PROC ? BIND_PROC : 0) | (symb_name(sy, t)->rec ? BIND_TYPE : 0) |
+           (flags & BF_CON ? BIND_CONST : 0) | (flags & BF_PUB ? BIND_VAR : 0);
 }
 
 /* Name n declared by its own module: DIM, CONST, SUB, FUNCTION, TYPE. */
@@ -78,11 +74,11 @@ static void bind(
     Name *const nm = symb_name(sy, n);
     const Name *const tn = symb_name(sy, t);
 
-    if (k & EX_PROC)
+    if (k & BIND_PROC)
         nm->flags |= tn->flags & (NM_SUB | NM_FUNC);
-    if (k & EX_TYPE)
+    if (k & BIND_TYPE)
         nm->rec = tn->rec;
-    if (!(k & (EX_CONST | EX_VAR)))
+    if (!(k & (BIND_CONST | BIND_VAR)))
         return;
 
     const uint32_t from = sc_module(tn->module), to = sc_module(nm->module);
@@ -129,7 +125,7 @@ static void bind_dotted(Scop *const sc, Symb *const sy, const uint32_t n, const 
     const uint8_t end = dot ? (uint8_t)(dot - text) : all;
     const uint32_t to = *symb_alias(sy, prefix);
     const uint32_t e = symb_look_name(sy, to, text + len + 1, (uint8_t)(end - len - 1));
-    const uint8_t k = exports(sc, sy, e);
+    const uint8_t k = bind_exports(sc, sy, e);
     const uint32_t whole = symb_find_name(sy, symb_name(sy, n)->module, text, end);
 
     if (!k)
@@ -137,7 +133,8 @@ static void bind_dotted(Scop *const sc, Symb *const sy, const uint32_t n, const 
     else
         bind(sc, sy, whole, e, k, false);
 
-    if (whole != n && !(k & EX_VAR && symb_name(sy, e)->flags & NM_REC)) /* .f: a record's field */
+    if (whole != n &&
+        !(k & BIND_VAR && symb_name(sy, e)->flags & NM_REC)) /* .f: a record's field */
         bad(sy, n, E_NEX);
 }
 
@@ -181,11 +178,11 @@ void bind_name(
 )
 {
     const uint32_t t = symb_look_name(sy, from, n->text, n->len);
-    const uint8_t k = exports(sc, sy, t);
+    const uint8_t k = bind_exports(sc, sy, t);
 
-    if (!k || (n->arr && !(k & EX_VAR && scop_get(sc, sc_module(from) | SC_ARR, t))))
+    if (!k || (n->arr && !(k & BIND_VAR && scop_get(sc, sc_module(from) | SC_ARR, t))))
         fail(f, E_NEX);
-    if (n->sfx && k & (EX_CONST | EX_VAR) &&
+    if (n->sfx && k & (BIND_CONST | BIND_VAR) &&
         module_binding(sc, sy, t)->et[n->arr] != comp_suffix(n->sfx)) /* as where it is used */
         fail(f, E_RD);
 
@@ -195,24 +192,53 @@ void bind_name(
     bind(sc, sy, name, t, k, false);
 }
 
+void bind_each_export(
+    const Scop *const sc,
+    const Symb *const sy,
+    const uint32_t m,
+    const uint8_t kinds,
+    BindExportFn *const fn,
+    void *const ctx
+)
+{
+    const uint32_t count = sy->nnames; /* those fn makes aside */
+
+    for (uint32_t t = 1; t < count; t++) {
+        const uint8_t k = symb_name(sy, t)->module == m ? bind_exports(sc, sy, t) & kinds : 0;
+
+        if (k)
+            fn(ctx, t, k);
+    }
+}
+
+/* bind_star's: module m, binding. */
+typedef struct {
+    Scop *sc;
+    Symb *sy;
+    uint32_t m;
+} Star;
+
+/* bind_star's: export t, its kinds k, bound in the module unless it names t otherwise. */
+static void star(void *const ctx, const uint32_t t, const uint8_t k)
+{
+    const Star *const s = ctx;
+    const uint32_t n = symb_name_in(s->sy, s->m, t), a = *symb_alias(s->sy, n);
+
+    if (declares(s->sc, s->sy, n) || symb_name(s->sy, n)->flags & (NM_MOD | NM_BAD) ||
+        (a && !(a & BIND_STAR)))
+        return;
+    if (a && a != (t | BIND_STAR)) /* another module's *'s */
+        bad(s->sy, n, E_RD);
+    else
+        bind(s->sc, s->sy, n, t, k, true);
+}
+
 void bind_star(Scop *const sc, Symb *const sy, const uint32_t m, const uint32_t from)
 {
-    for (uint32_t t = 1; t < sy->nnames; t++) {
-        const uint8_t k = exports(sc, sy, t) & (uint8_t)~EX_VAR;
+    Star s = {sc, sy, m};
 
-        if (!k || symb_name(sy, t)->module != from || from == m)
-            continue;
-
-        const uint32_t n = symb_name_in(sy, m, t), a = *symb_alias(sy, n);
-
-        if (declares(sc, sy, n) || symb_name(sy, n)->flags & (NM_MOD | NM_BAD) ||
-            (a && !(a & BIND_STAR)))
-            continue;
-        if (a && a != (t | BIND_STAR)) /* another module's *'s */
-            bad(sy, n, E_RD);
-        else
-            bind(sc, sy, n, t, k, true);
-    }
+    if (from != m)
+        bind_each_export(sc, sy, from, (uint8_t)~BIND_VAR, star, &s);
 }
 
 void bind_common(Scop *const sc, Symb *const sy, const uint32_t n, const uint32_t to)
