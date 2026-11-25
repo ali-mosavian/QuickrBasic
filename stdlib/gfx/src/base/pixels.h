@@ -26,25 +26,32 @@ typedef struct {
     PxFormat format;
 } Pixels;
 
-static inline uint32_t px_bytes(const PxFormat f) { return f == PX_8 ? 1 : f == PX_32 ? 4 : 2; }
+[[gnu::always_inline]]
+static inline uint32_t px_bytes(const PxFormat f)
+{
+    return f == PX_8 ? 1 : f == PX_32 ? 4 : 2;
+}
 
 static inline uint32_t px_bits(const PxFormat f)
 {
     return f == PX_8 ? 8 : f == PX_15 ? 15 : f == PX_16 ? 16 : 32;
 }
 
+[[gnu::always_inline]]
 static inline uint32_t px_channel(const uint32_t c, const uint32_t shift)
 {
     return c >> shift & 0xFF;
 }
 
 /* A channel of bits widened to 8, its top bits repeated below. */
+[[gnu::always_inline]]
 static inline uint32_t px_widen(const uint32_t v, const uint32_t bits)
 {
     return v << (8 - bits) | v >> (2 * bits - 8);
 }
 
 /* A pixel of a direct format as ARGB. */
+[[gnu::always_inline]]
 static inline uint32_t px_argb(const PxFormat f, const uint32_t v)
 {
     if (f == PX_32)
@@ -56,6 +63,7 @@ static inline uint32_t px_argb(const PxFormat f, const uint32_t v)
 }
 
 /* ARGB as a pixel of a direct format. */
+[[gnu::always_inline]]
 static inline uint32_t px_pack(const PxFormat f, const uint32_t c)
 {
     if (f == PX_32)
@@ -68,6 +76,7 @@ static inline uint32_t px_pack(const PxFormat f, const uint32_t c)
 
 /* The pixel of bytes, 1, 2 or 4, at p: one access, little-endian as every target is (a byte loop
    is four on i386; a memcpy of a width known only at run time, a call). */
+[[gnu::always_inline]]
 static inline uint32_t px_load(const uint8_t *const p, const uint32_t bytes)
 {
     if (bytes == 4) {
@@ -85,6 +94,7 @@ static inline uint32_t px_load(const uint8_t *const p, const uint32_t bytes)
     return *p;
 }
 
+[[gnu::always_inline]]
 static inline void px_store(uint8_t *const p, const uint32_t v, const uint32_t bytes)
 {
     if (bytes == 4)
@@ -97,12 +107,14 @@ static inline void px_store(uint8_t *const p, const uint32_t v, const uint32_t b
 }
 
 /* A texel a keyed draw skips: 0, or 32 bits' alpha under a half. */
+[[gnu::always_inline]]
 static inline bool px_key(const PxFormat f, const uint32_t v)
 {
     return f == PX_32 ? v < 0x80000000u : !v;
 }
 
 /* c's channels multiplied by shade's, &HRRGGBB; c's alpha kept. */
+[[gnu::always_inline]]
 static inline uint32_t px_shade(const uint32_t c, const uint32_t shade)
 {
     if ((shade & PX_WHITE) == PX_WHITE)
@@ -117,6 +129,7 @@ static inline uint32_t px_shade(const uint32_t c, const uint32_t shade)
 }
 
 /* s drawn over d by mode at alpha: their channels mixed, or added. */
+[[gnu::always_inline]]
 static inline uint32_t px_mix(
     const uint32_t s,
     const uint32_t d,
@@ -137,6 +150,7 @@ static inline uint32_t px_mix(
 }
 
 /* The cell of rgb in a map of 5 bits a channel. */
+[[gnu::always_inline]]
 static inline uint32_t px_cell(const uint32_t rgb)
 {
     return px_channel(rgb, 16) >> 3 << 10 | px_channel(rgb, 8) >> 3 << 5 | px_channel(rgb, 0) >> 3;

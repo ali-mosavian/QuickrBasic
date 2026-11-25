@@ -76,41 +76,46 @@ static inline uint32_t steps_texel(const Pixels *const s, const Steps *const st)
     return px_load(s->p + v * s->pitch + (uint32_t)u * bytes, bytes);
 }
 
-/* A walk that does not wrap read texel by texel, inside its picture: its row's address stepped by
-   whole rows, v's fraction carried into it, so no texel costs a multiply. The address is a number:
-   the last step may leave the picture. */
+/* A walk that does not wrap read texel by texel, inside its picture: the texel's address stepped
+   by the walk's whole texels and rows, then a row more when v's fraction carries and a texel more
+   when u's does (Abrash's). No texel costs a multiply. The address counts texels, so u's carry is
+   one at every depth: a picture's texels and rows are whole texels from 0. The address is a
+   number: the last step may leave the picture. */
 typedef struct {
-    uintptr_t row;
-    int32_t down, pitch;
-    uint32_t v, dv; /* v's fraction and its step's, in the top 16 bits */
-    int32_t u, du;
+    uintptr_t at;
+    uint32_t u, du, v, dv; /* the fractions and their steps', in the top 16 bits */
+    int32_t step, pitch;
 } StepsRead;
 
+[[gnu::always_inline]]
 static inline StepsRead steps_read(const Pixels *const s, const Steps st)
 {
-    const int32_t pitch = (int32_t)s->pitch;
+    const uint32_t bytes = px_bytes(s->format);
+    const int32_t pitch = (int32_t)(s->pitch / bytes);
 
     return (StepsRead){
-        .row = (uintptr_t)s->p + (uintptr_t)(intptr_t)((st.v >> 16) * pitch),
-        .down = (st.dv >> 16) * pitch,
-        .pitch = pitch,
+        .at = (uintptr_t)s->p / bytes + (uintptr_t)(intptr_t)((st.v >> 16) * pitch + (st.u >> 16)),
+        .u = (uint32_t)st.u << 16,
+        .du = (uint32_t)st.du << 16,
         .v = (uint32_t)st.v << 16,
         .dv = (uint32_t)st.dv << 16,
-        .u = st.u,
-        .du = st.du,
+        .step = (st.du >> 16) + (st.dv >> 16) * pitch,
+        .pitch = pitch,
     };
 }
 
 /* The texel at the read's place, bytes a texel, a constant for a format's own load; the read a
-   pixel on. */
+   pixel on. The carries are the adds' own; the empty asm keeps u and v stepped one pixel at a
+   time, where the compiler would hold u + 2du and u + 3du too and run out of i386's registers. */
+[[gnu::always_inline]]
 static inline uint32_t steps_read_next(StepsRead *const r, const uint32_t bytes)
 {
-    const uint32_t texel = px_load((const uint8_t *)r->row + (r->u >> 16) * (int32_t)bytes, bytes);
-    const uint32_t was = r->v;
+    const uint32_t texel = px_load((const uint8_t *)(r->at * bytes), bytes);
+    const bool down = __builtin_add_overflow(r->v, r->dv, &r->v);
+    const bool across = __builtin_add_overflow(r->u, r->du, &r->u);
 
-    r->v += r->dv;
-    r->row += (uintptr_t)(intptr_t)(r->down + (-(int32_t)(r->v < was) & r->pitch));
-    r->u = (int32_t)((uint32_t)r->u + (uint32_t)r->du);
+    r->at += (uintptr_t)(intptr_t)r->step + ((uint32_t)r->pitch & -(uint32_t)down) + across;
+    __asm__("" : "+r"(r->u), "+r"(r->v));
     return texel;
 }
 
