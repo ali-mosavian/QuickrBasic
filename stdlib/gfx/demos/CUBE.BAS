@@ -42,14 +42,10 @@ declare function tone ( _
     byval least as integer, _
     byval more as integer _
 ) as long
-declare sub turn (spun() as Vec3, byval angle as single)
-declare sub draw_face ( _
-    byval dst as long, _
-    st as Stage, _
-    byval n as integer, _
-    byval src as long, _
+declare sub turn ( _
     spun() as Vec3, _
-    byval flags as integer _
+    byval angle as single, _
+    st as Stage _
 )
 declare function flags_of (o as Options) as integer
 declare sub toggle (o as Options, byval k as string)
@@ -69,6 +65,9 @@ for i = 0 to FACES - 1
 next
 
 dim spun(CORNERS - 1) as Vec3
+' the faces' corners end to end, four a face
+dim quads(FACES * 4 - 1) as Vertex
+dim corner(FACES * 4 - 1) as integer
 dim st as Stage
 dim o as Options
 dim fps as Meter
@@ -76,6 +75,14 @@ dim rates(KEPT - 1) as single
 o.perspective = -1
 o.depth = -1
 angle! = 0
+
+for i = 0 to FACES * 4 - 1
+    corner(i) = val(mid$(FACE_CORNERS, i + 1, 1))
+    k = i mod 4
+    quads(i).u = SIDE * ((k + 1) \ 2 mod 2)
+    quads(i).v = SIDE * (k \ 2)
+next
+
 was# = gfx.display.clock
 fps.since = was#
 
@@ -86,13 +93,23 @@ do
     angle! = angle! + dt!
     count_frame fps, rates(), now#
     measure canvas&, st
-    turn spun(), angle!
+    turn spun(), angle!, st
+
+    for i = 0 to FACES * 4 - 1
+        c = corner(i)
+        quads(i).x = spun(c).x
+        quads(i).y = spun(c).y
+        quads(i).z = spun(c).z
+    next
+
     gfx.draw.clear canvas&, back&
     gfx.surface.clear_depth canvas&
     flags% = flags_of(o)
 
     for i = 0 to FACES - 1
-        draw_face canvas&, st, i, pictures(i), spun(), flags%
+        first = i * 4
+        src& = pictures(i)
+        gfx.draw.poly canvas&, quads(), first, 4, src&, 0, flags%
     next
 
     show_options canvas&, st, o, fps
@@ -144,47 +161,31 @@ function tone ( _
 end function
 
 ' The cube's corners turned by angle about y and by 0.7 of
-' it about x, then set AWAY from the eye.
-sub turn (spun() as Vec3, byval angle as single)
-    ay! = angle
-    ax! = angle * 0.7
+' it about x, set AWAY from the eye and projected onto st
+' about its centre: x and y there, z the depth.
+sub turn ( _
+    spun() as Vec3, _
+    byval angle as single, _
+    st as Stage _
+)
+    cos_y! = cos(angle)
+    sin_y! = sin(angle)
+    cos_x! = cos(angle * 0.7)
+    sin_x! = sin(angle * 0.7)
+    eye! = LENS * st.unit
 
     for i = 0 to CORNERS - 1
         x! = (i and 1) * 2 - 1
         y! = (i \ 2 and 1) * 2 - 1
         z! = (i \ 4 and 1) * 2 - 1
-        x1! = x! * cos(ay!) + z! * sin(ay!)
-        z1! = z! * cos(ay!) - x! * sin(ay!)
-        spun(i).x = x1!
-        spun(i).y = y! * cos(ax!) - z1! * sin(ax!)
-        spun(i).z = y! * sin(ax!) + z1! * cos(ax!) + AWAY
+        x1! = x! * cos_y! + z! * sin_y!
+        z1! = z! * cos_y! - x! * sin_y!
+        y2! = y! * cos_x! - z1! * sin_x!
+        z2! = y! * sin_x! + z1! * cos_x! + AWAY
+        spun(i).x = st.cx + eye! * x1! / z2!
+        spun(i).y = st.cy + eye! * y2! / z2!
+        spun(i).z = z2!
     next
-end sub
-
-' Face n drawn from src, its corners projected onto dst
-' about its centre.
-sub draw_face ( _
-    byval dst as long, _
-    st as Stage, _
-    byval n as integer, _
-    byval src as long, _
-    spun() as Vec3, _
-    byval flags as integer _
-)
-    dim q(3) as Vertex
-    eye! = LENS * st.unit
-
-    for k = 0 to 3
-        c = val(mid$(FACE_CORNERS, n * 4 + k + 1, 1))
-        z! = spun(c).z
-        q(k).x = st.cx + eye! * spun(c).x / z!
-        q(k).y = st.cy + eye! * spun(c).y / z!
-        q(k).z = z!
-        q(k).u = SIDE * ((k + 1) \ 2 mod 2)
-        q(k).v = SIDE * (k \ 2)
-    next
-
-    gfx.draw.poly dst, q(), 0, 4, src, 0, flags
 end sub
 
 ' The draw flags o asks for.
