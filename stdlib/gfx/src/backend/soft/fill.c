@@ -3,6 +3,10 @@
 #include "core/mem.h"
 #include "backend/soft/fill.h"
 
+#if defined(__ARM_NEON)
+#include <arm_neon.h>
+#endif
+
 /* ---- A texel through the ink ---- */
 
 /* ARGB as a pixel of direct format f, opaque as all drawn into a surface is. */
@@ -333,6 +337,7 @@ static inline void pixel_at(
         px_store(p, pixel_of(kind, f, g, v, in, t, v & FILL_BLENDED ? px_load(p, b) : 0), b);
 }
 
+#if !defined(__ARM_NEON)
 /* A row's next word of f's texels, read at once: backward when dir is, its texels then
    reversed. */
 [[gnu::always_inline]]
@@ -406,9 +411,95 @@ static inline void word_at(
 
     px_store(p, word, 4);
 }
+#endif
+
+#if defined(__ARM_NEON)
+/* ---- NEON: 16 bytes of pixels a vector ---- */
+
+/* A vector of f's pixels in the reverse order. */
+[[gnu::always_inline]]
+static inline uint8x16_t reversed(const PxFormat f, const uint8x16_t t)
+{
+    if (f == PX_8)
+        return vextq_u8(vrev64q_u8(t), vrev64q_u8(t), 8);
+
+    if (f == PX_32) {
+        const uint32x4_t w = vrev64q_u32(vreinterpretq_u32_u8(t));
+        return vreinterpretq_u8_u32(vextq_u32(w, w, 2));
+    }
+
+    const uint16x8_t h = vrev64q_u16(vreinterpretq_u16_u8(t));
+    return vreinterpretq_u8_u16(vextq_u16(h, h, 4));
+}
+
+/* A vector of f's texels' lanes all ones where drawn, not keyed (px_key). */
+[[gnu::always_inline]]
+static inline uint8x16_t drawn_lanes(const PxFormat f, const uint8x16_t t)
+{
+    if (f == PX_8)
+        return vtstq_u8(t, t);
+
+    if (f == PX_32)
+        return vreinterpretq_u8_u32(vcltzq_s32(vreinterpretq_s32_u8(t)));
+
+    const uint16x8_t h = vreinterpretq_u16_u8(t);
+    return vreinterpretq_u8_u16(vtstq_u16(h, h));
+}
+
+/* 16 bytes of pixels at p, f's from g as variant v: built a pixel at a time into two 64-bit
+   halves and stored at once, the keyed pixels kept by a select. A texel as wide as the pixel is
+   keyed when 0, so a vector of them is keyed at once (drawn_lanes). */
+[[gnu::always_inline]]
+static inline void vector_at(
+    const Kind kind,
+    const PxFormat f,
+    const PxFormat g,
+    const uint32_t v,
+    Inputs *const in,
+    uint8_t *const p
+)
+{
+    const uint32_t b = px_bytes(f), bits = 8 * b, per = 8 / b;
+    const uint64_t mask = (uint64_t)-1 >> (64 - bits);
+    const bool lanes = px_bytes(g) == b;
+    uint64_t word[2] = {}, texels[2] = {}, keyed[2] = {};
+
+    for (uint32_t h = 0; h < 2; h++)
+        for (uint32_t j = 0; j < per; j++) {
+            const uint8_t *const at = p + (h * per + j) * b;
+            const uint32_t t = texel_next(kind, g, in);
+            const uint32_t there = v & FILL_BLENDED ? px_load(at, b) : 0;
+
+            word[h] |= (uint64_t)pixel_of(kind, f, g, v, in, t, there) << bits * j;
+            texels[h] |= (t & mask) << bits * j;
+            keyed[h] |= (v & FILL_KEYED && px_key(g, t) ? mask : 0) << bits * j;
+        }
+
+    const uint8x16_t got =
+        vreinterpretq_u8_u64(vcombine_u64(vcreate_u64(word[0]), vcreate_u64(word[1])));
+
+    if (!(v & FILL_KEYED)) {
+        vst1q_u8(p, got);
+        return;
+    }
+
+    const uint8x16_t drawn =
+        lanes
+            ? drawn_lanes(
+                  f,
+                  vreinterpretq_u8_u64(vcombine_u64(vcreate_u64(texels[0]), vcreate_u64(texels[1])))
+              )
+            : vmvnq_u8(
+                  vreinterpretq_u8_u64(vcombine_u64(vcreate_u64(keyed[0]), vcreate_u64(keyed[1])))
+              );
+
+    vst1q_u8(p, vbslq_u8(drawn, got, vld1q_u8(p)));
+}
+#endif
 
 /* n pixels into d, of f from g as variant v: alone until d is aligned, then a word of them at a
-   time, the rest alone. A pixel of 32 bits is a word. */
+   time, the rest alone; a pixel of 32 bits is a word. With NEON, 16 bytes a vector from the
+   first, the rest alone. */
 [[gnu::always_inline]]
 static inline void run_of(
     const Kind kind,
@@ -420,8 +511,18 @@ static inline void run_of(
     Inputs in
 )
 {
-    const int32_t b = (int32_t)px_bytes(f), per = 4 / b;
-    const int32_t align = (int32_t)(-(uintptr_t)d & 3) / b;
+    const int32_t b = (int32_t)px_bytes(f);
+#if defined(__ARM_NEON)
+    const int32_t vectors = n / (16 / b) * (16 / b);
+
+    for (int32_t i = 0; i < vectors; i += 16 / b)
+        vector_at(kind, f, g, v, &in, d + i * b);
+
+    for (int32_t i = vectors; i < n; i++)
+        pixel_at(kind, f, g, v, &in, d + i * b);
+#else
+
+    const int32_t per = 4 / b, align = (int32_t)(-(uintptr_t)d & 3) / b;
     const int32_t head = per == 1 || align > n ? n : align, tail = head + (n - head) / per * per;
     uint8_t *const words = d + head * b, *const rest = d + tail * b;
 
@@ -433,6 +534,7 @@ static inline void run_of(
 
     for (int32_t i = tail; i < n; i++)
         pixel_at(kind, f, g, v, &in, d + i * b);
+#endif
 }
 
 /* run_of, a blended one's mode picked once. */
@@ -453,13 +555,74 @@ static inline void fill_of(
         run_of(kind, f, g, v, d, n, in);
 }
 
+#if defined(__ARM_NEON)
+/* The vectors of row_of's n texels, whole ones: their pixels drawn, and how many. */
+[[gnu::always_inline]]
+static inline int32_t row_vectors(
+    const PxFormat f,
+    uint8_t *const d,
+    const uint8_t *const s,
+    const int32_t n,
+    const int32_t dir,
+    const bool key
+)
+{
+    const int32_t b = (int32_t)px_bytes(f), per = 16 / b, m = n / per * per;
+
+    for (int32_t i = 0; i < m; i += per) {
+        const uint8_t *const at = dir > 0 ? s + i * b : s - (i + per - 1) * b;
+        uint8x16_t t = vld1q_u8(at);
+
+        if (dir < 0)
+            t = reversed(f, t);
+
+        if (key)
+            t = vbslq_u8(drawn_lanes(f, t), t, vld1q_u8(d + i * b));
+
+        vst1q_u8(d + i * b, t);
+    }
+
+    return m;
+}
+
+/* The vectors of n pixels of colour c, f's, whole ones: stored, and how many. */
+[[gnu::always_inline]]
+static inline int32_t span_vectors(
+    const PxFormat f,
+    uint8_t *const d,
+    const int32_t n,
+    const uint32_t c
+)
+{
+    const int32_t b = (int32_t)px_bytes(f), per = 16 / b, m = n / per * per;
+    const uint8x16_t t = f == PX_32 ? vreinterpretq_u8_u32(vdupq_n_u32(c))
+                                    : vreinterpretq_u8_u16(vdupq_n_u16((uint16_t)c));
+
+    for (int32_t i = 0; i < m; i += per)
+        vst1q_u8(d + i * b, t);
+
+    return m;
+}
+#else
+/* No vectors: none drawn so. */
+static inline int32_t row_vectors(PxFormat, uint8_t *, const uint8_t *, int32_t, int32_t, bool)
+{
+    return 0;
+}
+
+static inline int32_t span_vectors(PxFormat, uint8_t *, int32_t, uint32_t) { return 0; }
+#endif
+
 [[gnu::always_inline]]
 static inline void span_of(const PxFormat f, uint8_t *const d, const int32_t n, const uint32_t c)
 {
-    if (f == PX_8)
+    if (f == PX_8) {
         mem_fill(d, (uint8_t)c, (size_t)n);
-    else
-        fill_of(KIND_SPAN, f, f, 0, d, n, (Inputs){.colour = c});
+        return;
+    }
+
+    const int32_t m = span_vectors(f, d, n, c);
+    fill_of(KIND_SPAN, f, f, 0, d + m * (int32_t)px_bytes(f), n - m, (Inputs){.colour = c});
 }
 
 /* n texels from s, each the next dir texels on; key skips px_key's. */
@@ -475,10 +638,15 @@ static inline void row_of(
 {
     const int32_t b = (int32_t)px_bytes(f);
 
-    if (!key && dir == 1)
+    if (!key && dir == 1) {
         mem_copy(d, s, (size_t)(b * n));
-    else
-        fill_of(KIND_ROW, f, f, key ? FILL_KEYED : 0, d, n, (Inputs){.row = s, .dir = dir * b});
+        return;
+    }
+
+    const int32_t m = row_vectors(f, d, s, n, dir, key);
+    const Inputs in = {.row = s + m * dir * b, .dir = dir * b};
+
+    fill_of(KIND_ROW, f, f, key ? FILL_KEYED : 0, d + m * b, n - m, in);
 }
 
 [[gnu::always_inline]]
