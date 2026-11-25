@@ -1411,7 +1411,7 @@ bool sugg_find(
 
     word[wn] = 0;
 
-    const Dialect *const d = dial_program(&S->prog);
+    const Dialect *const d = dial_line(&S->prog, rec);
 
     if (d->text) {
         SuggText q = {out, word, wn};

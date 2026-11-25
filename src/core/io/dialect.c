@@ -66,6 +66,8 @@ const Dialect *dial_line(const Prog *const pg, const uint32_t rec)
 {
     const Line *const l = prog_line(pg, rec);
 
+    if (!l->len) /* the end: a line typed there the program's */
+        return dial_program(pg);
     if (!(l->flags & LF_TEXT))
         return &dialect_qbasic;
 
