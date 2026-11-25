@@ -15,7 +15,8 @@
  * u and v are in texels (qgl scales them by the texture's size: here the scale is 1). Affine
  * spans carry u and v 16.16 at x0 and their step a pixel; u, v and 1/z are taken at the pixel
  * centre as qgl$drawA does. Perspective spans carry u/z, v/z and 1/z at x0 and their steps, as
- * qgl$drawP does, for span.h. A span is held in the clip, its values a pixel on for each it lost.
+ * qgl$drawP does, to a row filler (fill.h) picked once a polygon. A span is held in the clip,
+ * its values a pixel on for each it lost.
  *
  * Left out: depth, EMS and slots, profiling, lightmaps, the cover and bound helpers, WIRE. The
  * x87's extended arithmetic is done in doubles, and its stores to real4 as floats.
@@ -31,25 +32,7 @@ typedef struct {
     float x, y, z, u, v;
 } ScanVert;
 
-typedef enum {
-    SCAN_FLAT = 1, /* no u, v */
-    SCAN_TEX,      /* affine */
-    SCAN_PTEX,     /* perspective, a divide every SCAN_SUBDIVP pixels */
-} ScanMode;
-
 enum { SCAN_MAXV = 41, SCAN_SUBDIVS = 4, SCAN_SUBDIVP = 16 };
-
-/* A row's span, pixels x0 up to x1, inside the clip. */
-typedef struct {
-    int32_t y, x0, x1;
-    int32_t u, v, du, dv;   /* SCAN_TEX: 16.16 at x0, and a pixel's step */
-    double pu, pv, pz;      /* SCAN_PTEX: u/z, v/z, 1/z at x0 */
-    float dpu, dpv, dpz;    /* ... a pixel's step */
-    float dpun, dpvn, dpzn; /* ... SCAN_SUBDIVP pixels' */
-    int32_t z, dz;          /* depth, 16.16: at x0 (qgl's zacc), and a pixel's step */
-} ScanSpan;
-
-typedef void ScanFill(void *ctx, const ScanSpan *span);
 
 /* x to the nearest integer, ties to even. llrint is a fistp on an x87, whose 64-bit mantissa a
    double's magic-number round does not round; wasm has no llrint, but rint is f64.nearest. */
@@ -107,11 +90,11 @@ static inline int32_t scan_step(const int32_t from, const int32_t to)
     return (int32_t)((uint32_t)to - (uint32_t)from) >> SCAN_SUBDIVS;
 }
 
-/* n vertices (3 up to SCAN_MAXV, either winding) of mode, clipped to clip, a span to fill each
-   row. */
-void scan_poly(const ScanVert *v, uint32_t n, ScanMode mode, Rect clip, ScanFill *fill, void *ctx);
-/* n vertices of a picture's polygon in r, affine, clipped to clip, scanned top to bottom: each
-   row's run filled by plain, or by held where its walk leaves the picture. r's steps are set. */
+/* n vertices (3 up to SCAN_MAXV, either winding) of a flat polygon in r, clipped to clip, scanned
+   top to bottom: each row's run filled by fill. r's depth step is set. */
+void scan_flat(const ScanVert *v, uint32_t n, Rect clip, Rows *r, RowFlat *fill);
+/* As scan_flat, a picture's, affine: each row's run filled by plain, or by held where its walk
+   leaves the picture. r's steps are set. */
 void scan_affine(
     const ScanVert *v,
     uint32_t n,

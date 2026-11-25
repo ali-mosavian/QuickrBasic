@@ -23,14 +23,10 @@ enum { FILL_OPAQUE = 1, FILL_FLIPX = 2, FILL_VARIANTS = 4 };
    the lut, blended over the pixel there. */
 enum { FILL_KEYED = 1, FILL_SOLID = 2, FILL_LUT = 4, FILL_BLENDED = 8, FILL_INKS = 16 };
 
-/* n pixels of a colour of this format. */
-typedef void FillSpan(uint8_t *d, int32_t n, uint32_t colour);
 /* n texels from s, its first read; FLIPX variants step back from it. */
 typedef void FillRow(uint8_t *d, const uint8_t *s, int32_t n);
 /* n texels through the ink into d, of this format: the steps of uGL's tfx row pipeline. */
 typedef void FillInk(uint8_t *d, const uint32_t *texels, int32_t n, const Ink *k);
-/* One texel through the ink but its blend: this format's colour. */
-typedef uint32_t FillPaint(uint32_t texel, const Ink *k);
 /* A blended colour's pixel over each pixel there, by its channels as px_table's: made for its
    colour, mode, alpha and format, again only when one changes, so once a shape. */
 typedef struct {
@@ -73,16 +69,15 @@ typedef struct {
 /* k's colours of its direct source, made in c unless made already. */
 const uint32_t *fill_colours(FillColours *c, const Ink *k);
 
-/* n pixels of a shape's colour through the ink, blended over those there; into a direct target,
-   by tints, made first unless made already. */
-typedef void FillTint(uint8_t *d, int32_t n, uint32_t colour, const Ink *k, FillTints *tints);
-
-/* A polygon's, read by its row fillers: set once a polygon, as uGL patches its fillers. */
+/* A call's, read by its row fillers: set once a call, as uGL patches its fillers. */
 typedef struct {
     Pixels dst, src;
     Depth depth;
     const Ink *ink;
     uint32_t depths;        /* the general fillers': ROW_'s, 0 when no depth */
+    uint32_t colour;        /* flat: the pixel, or blended the colour through the ink */
+    const uint8_t *blend;   /* flat, blended into 8 bits: the colour's row of the blend table */
+    const uint32_t *tints;  /* flat, blended into a direct target: FillTints' pixels */
     int32_t wrap;           /* the general fillers': u repeats every wrap (16.16), 0 never */
     int32_t du, dv, dz;     /* affine: u and v 16.16 a pixel; depth's a pixel */
     float dpun, dpvn, dpzn; /* perspective: u/z, v/z and 1/z a run's, SCAN_SUBDIVP pixels */
@@ -104,6 +99,11 @@ typedef void RowAffine(
     int32_t v,
     int32_t z
 );
+/* Row y's pixels x0 up to x1 of a flat shape in r, its depth from z (16.16) at x0: one loop. */
+typedef void RowFlat(const Rows *r, int32_t y, int32_t x0, int32_t x1, int32_t z);
+/* The flat row filler for r's ink and depths, the colour through the ink once into r; blended
+   into a direct target, by tints, made first unless made already. */
+typedef RowFlat *FillFlat(Rows *r, uint32_t colour, FillTints *tints);
 /* As RowAffine, in perspective: u/z, v/z and 1/z at x0, a divide every SCAN_SUBDIVP pixels. */
 typedef void RowPersp(
     const Rows *r,
@@ -116,18 +116,18 @@ typedef void RowPersp(
     int32_t z
 );
 
-/* A format's, drawn into. The fused row fillers read texels of this format: affine and persp,
-   by FILL_OPAQUE, depth (ROW_) and, affine's, held: each texel held inside the picture. inked,
+/* A format's, drawn into. flat, a colour by depth (ROW_); pick_flat picks it, or a blended
+   one. The fused row fillers read texels of this format: affine and persp, by FILL_OPAQUE, depth
+   and, affine's, walk (ROW_PLAIN, HELD or WRAPPED). inked,
    by the source's format and the variant, draws an affine row inside its picture, no depth.
    general draws any other through the ink a pixel at a time, by Rows' depths and wrap; smooth,
    SMOOTH's. */
 typedef struct {
-    FillSpan *span;
+    FillFlat *pick_flat;
+    RowFlat *flat[ROW_DEPTHS];
     FillRow *row[FILL_VARIANTS];
     FillInk *ink;
-    FillPaint *paint;
     RowAffine *const (*inked)[FILL_INKS];
-    FillTint *tint;
     RowAffine *affine[FILL_OPAQUE + 1][ROW_DEPTHS][ROW_WALKS];
     RowPersp *persp[FILL_OPAQUE + 1][ROW_DEPTHS];
     RowAffine *general, *smooth;

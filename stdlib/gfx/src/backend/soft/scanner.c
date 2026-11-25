@@ -307,8 +307,24 @@ static bool edge_from(Edge *const ed, const Fx *const b, const Fx *const e, cons
     return ed->rows >= 0;
 }
 
-/* The left edge's u, v and 1/z from b to e, the edge a row or more high: met at the edge's first
-   row, as its x. */
+/* The left edge's 1/z from b to e, the edge a row or more high: met at the edge's first row, as
+   its x. */
+static void carried_depth(
+    Carried *const c,
+    const Fx *const b,
+    const Fx *const e,
+    const Grad *const g
+)
+{
+    const double r65536 = 0.0000152587890625;
+    const int32_t h = e->ky - b->ky, f = prestep(b->ky) - g->bias;
+    const double inv = 65536.0 / (double)h, diff = (double)f * r65536;
+
+    c->dz = real4(((double)e->kz - b->kz) * inv);
+    c->z = real4(diff * c->dz + b->kz);
+}
+
+/* carried_depth's, and u and v. */
 static void carried_from(
     Carried *const c,
     const Fx *const b,
@@ -321,8 +337,7 @@ static void carried_from(
     const int32_t h = e->ky - b->ky, f = prestep(b->ky) - g->bias;
     const double inv = 65536.0 / (double)h, diff = (double)f * r65536;
 
-    c->dz = real4(((double)e->kz - b->kz) * inv);
-    c->z = real4(diff * c->dz + b->kz);
+    carried_depth(c, b, e, g);
 
     if (persp) {
         c->dpu = real4(((double)e->fu - b->fu) * inv);
@@ -349,130 +364,6 @@ static void carried_on(Carried *const c, const bool persp)
     } else {
         c->u = add32(c->u, c->du);
         c->v = add32(c->v, c->dv);
-    }
-}
-
-/* Row y's span from the left edge's x to the right's, its u, v and 1/z taken at the first pixel
-   centre; then held in the clip, its values a pixel on for each it lost. False: none. */
-static bool span_of(
-    const Edge *const l,
-    const Edge *const r,
-    const Carried *const c,
-    const Grad *const g,
-    const bool persp,
-    const int16_t y,
-    const Rect clip,
-    ScanSpan *const sp
-)
-{
-    const double r65536 = 0.0000152587890625;
-    const int32_t into = prestep(l->x);
-    const int16_t x0 = (int16_t)FXFLOOR(l->x);
-    const int16_t width = (int16_t)(FXFLOOR(r->x) - FXFLOOR(l->x));
-    const double diff = (double)into * r65536;
-
-    if (width <= 0)
-        return false;
-
-    *sp = (ScanSpan){
-        .y = y,
-        .x0 = x0,
-        .x1 = x0 + width,
-        .z = scan_fistp_low((double)c->z * DEPTH_NEAR * 65536.0),
-        .dz = g->dzdx,
-    };
-
-    if (persp) {
-        sp->pu = (double)c->pu + (double)g->fdudx * diff;
-        sp->pv = (double)c->pv + (double)g->fdvdx * diff;
-        sp->pz = (double)c->z + (double)g->fdzdx * diff;
-        sp->dpu = g->fdudx;
-        sp->dpv = g->fdvdx;
-        sp->dpz = g->fdzdx;
-        sp->dpun = real4((double)g->fdudx * SCAN_SUBDIVP);
-        sp->dpvn = real4((double)g->fdvdx * SCAN_SUBDIVP);
-        sp->dpzn = real4((double)g->fdzdx * SCAN_SUBDIVP);
-    } else {
-        sp->u = add32(add32(c->u, 32768), FXMUL(into, g->dudx));
-        sp->v = add32(add32(c->v, 32768), FXMUL(into, g->dvdx));
-        sp->du = g->dudx;
-        sp->dv = g->dvdx;
-    }
-
-    const int32_t from = rect_max(sp->x0, clip.x), to = rect_min(sp->x1, clip.x + clip.w);
-    const int32_t lost = from - sp->x0;
-
-    if (y < clip.y || y >= clip.y + clip.h || from >= to)
-        return false;
-
-    sp->x0 = from;
-    sp->x1 = to;
-    sp->z = depth_on(sp->z, sp->dz, lost);
-    sp->u = (int32_t)(sp->u + (int64_t)lost * sp->du);
-    sp->v = (int32_t)(sp->v + (int64_t)lost * sp->dv);
-    sp->pu += sp->dpu * (double)lost;
-    sp->pv += sp->dpv * (double)lost;
-    sp->pz += sp->dpz * (double)lost;
-    return true;
-}
-
-/* qgl$drawA and qgl$drawP: the two chains down from fx[0], the topmost vertex, left the ring's
-   way back and right its way on, one span a row between them. */
-static void walk(
-    const Fx *const fx,
-    const int32_t cnt,
-    const Grad *const g,
-    const bool persp,
-    const Rect clip,
-    ScanFill *const fill,
-    void *const ctx
-)
-{
-    Edge l = {.s = 0, .e = cnt - 1}, r = {.s = 0, .e = 1};
-
-    Carried c = {};
-
-    int16_t height = 0, y = (int16_t)FXFLOOR(fx[0].ky);
-
-    for (;;) {
-        l.rows = (int16_t)(l.rows - height);
-        r.rows = (int16_t)(r.rows - height);
-
-        if (l.rows < 0)
-            return;
-
-        if (l.rows == 0) {
-            if (l.e <= 0 || !edge_from(&l, &fx[l.s], &fx[l.e], g))
-                return;
-
-            if (l.rows > 0)
-                carried_from(&c, &fx[l.s], &fx[l.e], g, persp);
-
-            l.s = l.e--;
-        }
-
-        if (r.rows < 0)
-            return;
-
-        if (r.rows == 0) {
-            if (r.e > cnt - 1 || !edge_from(&r, &fx[r.s], &fx[r.e], g))
-                return;
-
-            r.s = r.e++;
-        }
-
-        height = l.rows < r.rows ? l.rows : r.rows;
-
-        for (int16_t row = 0; row < height; row++, y++) {
-            ScanSpan sp;
-
-            if (span_of(&l, &r, &c, g, persp, y, clip, &sp))
-                fill(ctx, &sp);
-
-            l.x = add32(l.x, l.dx);
-            r.x = add32(r.x, r.dx);
-            carried_on(&c, persp);
-        }
     }
 }
 
@@ -582,20 +473,78 @@ static bool ring_of(
     return true;
 }
 
-void scan_poly(
+/* qgl$drawA's walk, the left edge carrying 1/z: each row's run from the left edge's pixel up to
+   the right's, its depth at its first pixel centre, held in the clip, filled by fill. */
+void scan_flat(
     const ScanVert *const v,
     const uint32_t n,
-    const ScanMode mode,
     const Rect clip,
-    ScanFill *const fill,
-    void *const ctx
+    Rows *const r,
+    RowFlat *const fill
 )
 {
-    const bool persp = mode == SCAN_PTEX;
     Ring ring;
 
-    if (ring_of(v, n, persp, clip, &ring))
-        walk(ring.fx, ring.cnt, &ring.g, persp, clip, fill, ctx);
+    if (!ring_of(v, n, false, clip, &ring))
+        return;
+
+    const Fx *const fx = ring.fx;
+    const int32_t cnt = ring.cnt;
+    const Grad *const g = &ring.g;
+
+    r->dz = g->dzdx;
+
+    Edge l = {.s = 0, .e = cnt - 1}, rt = {.s = 0, .e = 1};
+
+    Carried c = {};
+
+    int16_t height = 0, y = (int16_t)FXFLOOR(fx[0].ky);
+
+    for (;;) {
+        l.rows = (int16_t)(l.rows - height);
+        rt.rows = (int16_t)(rt.rows - height);
+
+        if (l.rows < 0)
+            return;
+
+        if (l.rows == 0) {
+            if (l.e <= 0 || !edge_from(&l, &fx[l.s], &fx[l.e], g))
+                return;
+
+            if (l.rows > 0)
+                carried_depth(&c, &fx[l.s], &fx[l.e], g);
+
+            l.s = l.e--;
+        }
+
+        if (rt.rows < 0)
+            return;
+
+        if (rt.rows == 0) {
+            if (rt.e > cnt - 1 || !edge_from(&rt, &fx[rt.s], &fx[rt.e], g))
+                return;
+
+            rt.s = rt.e++;
+        }
+
+        height = l.rows < rt.rows ? l.rows : rt.rows;
+
+        for (int16_t row = 0; row < height; row++, y++) {
+            const int32_t x0 = (int16_t)FXFLOOR(l.x);
+            const int32_t x1 = x0 + (int16_t)(FXFLOOR(rt.x) - FXFLOOR(l.x));
+            const int32_t from = rect_max(x0, clip.x), to = rect_min(x1, clip.x + clip.w);
+
+            if (x1 > x0 && y >= clip.y && y < clip.y + clip.h && from < to) {
+                const int32_t z = scan_fistp_low((double)c.z * DEPTH_NEAR * 65536.0);
+
+                fill(r, y, from, to, depth_on(z, g->dzdx, from - x0));
+            }
+
+            l.x = add32(l.x, l.dx);
+            rt.x = add32(rt.x, rt.dx);
+            c.z = real4((double)c.z + c.dz);
+        }
+    }
 }
 
 /* qgl$drawA: the two chains down from the topmost vertex, each row's run from the left edge's

@@ -186,8 +186,12 @@ TEST(gfx_fill_tint_draws_as_ink)
             for (uint32_t i = 0; i < N; i++)
                 texels[i] = colour;
 
+            Rows r = {.dst = {d.got, sizeof d.got, N, 1, f}, .ink = &k};
+
+            RowFlat *const fill = fill_formats[f]->pick_flat(&r, colour, &tints);
+
             fill_formats[f]->ink(d.want + at * b, texels, COUNT, &k);
-            fill_formats[f]->tint(d.got + at * b, COUNT, colour, &k, &tints);
+            fill(&r, 0, (int32_t)at, (int32_t)at + COUNT, 0);
             CHECK(!memcmp(d.want, d.got, sizeof d.want));
         }
 }
@@ -264,8 +268,10 @@ TEST(gfx_fill_spans_draw_their_colour)
             for (uint32_t i = 0; i < N; i++)
                 texels[i] = c;
 
+            const Rows r = {.dst = {d.got, sizeof d.got, N, 1, f}, .colour = c};
+
             stored(d.want + at * b, texels, COUNT, f, false);
-            fill_formats[f]->span(d.got + at * b, COUNT, c);
+            fill_formats[f]->flat[0](&r, 0, (int32_t)at, (int32_t)at + COUNT, 0);
             CHECK(!memcmp(d.want, d.got, sizeof d.want));
         }
 }

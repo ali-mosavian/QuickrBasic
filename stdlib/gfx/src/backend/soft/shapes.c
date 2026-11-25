@@ -6,14 +6,21 @@
 
 void soft_clear(const SoftTarget *const t, const uint32_t colour)
 {
+    const Flat f = span_flat_of(t, colour);
+
+    if (t->clip.w <= 0)
+        return;
+
     for (int32_t y = t->clip.y; y < t->clip.y + t->clip.h; y++)
-        span_flat(t, y, t->clip.x, t->clip.x + t->clip.w, colour);
+        f.fill(&f.r, y, t->clip.x, t->clip.x + t->clip.w, 0);
 }
 
 void soft_pset(const SoftTarget *const t, const float x, const float y, const uint32_t colour)
 {
     const int32_t px = cover_pixel(x), py = cover_pixel(y);
-    span_flat(t, py, px, px + 1, colour);
+    const Flat f = span_flat_of(t, colour);
+
+    span_flat(t, &f, py, px, px + 1);
 }
 
 /* The part of the line from a to b inside r widened by a pixel, Liang and Barsky's, in doubles: a
@@ -46,7 +53,7 @@ static bool cut(Vec *const a, Vec *const b, const Rect r)
 
 /* Bresenham's, from pixel to pixel, the end drawn when last. A line longer than LONG is cut to the
    clip first: its pixels in it may then fall a rounding apart. */
-static void walk(const SoftTarget *const t, Vec a, Vec b, const uint32_t colour, const bool last)
+static void walk(const SoftTarget *const t, const Flat *const f, Vec a, Vec b, const bool last)
 {
     const float LONG = 1 << 15;
 
@@ -63,7 +70,7 @@ static void walk(const SoftTarget *const t, Vec a, Vec b, const uint32_t colour,
         const bool end = x == to_x && y == to_y;
 
         if (!end || last)
-            span_flat(t, y, x, x + 1, colour);
+            span_flat(t, f, y, x, x + 1);
 
         if (end)
             return;
@@ -84,7 +91,9 @@ static void walk(const SoftTarget *const t, Vec a, Vec b, const uint32_t colour,
 
 void soft_line(const SoftTarget *const t, const Vec a, const Vec b, const uint32_t colour)
 {
-    walk(t, a, b, colour, true);
+    const Flat f = span_flat_of(t, colour);
+
+    walk(t, &f, a, b, true);
 }
 
 void soft_outline(
@@ -94,8 +103,10 @@ void soft_outline(
     const uint32_t colour
 )
 {
+    const Flat f = span_flat_of(t, colour);
+
     for (uint32_t i = 0; i < n; i++)
-        walk(t, p[i], p[(i + 1) % n], colour, false);
+        walk(t, &f, p[i], p[(i + 1) % n], false);
 }
 
 /* Row y's pixels within r of c (disc.h), [*x0, *x1): false, none. The square root's ends are the
@@ -169,7 +180,7 @@ static void ring_span(
     const void *const ctx
 )
 {
-    span_flat(t, y, x0, x1, *(const uint32_t *)ctx);
+    span_flat(t, ctx, y, x0, x1);
 }
 
 void soft_circle(
@@ -181,14 +192,16 @@ void soft_circle(
 )
 {
     const Disc k = disc_of(c, r, fill);
-    ring(t, &k, ring_span, &colour);
+    const Flat f = span_flat_of(t, colour);
+
+    ring(t, &k, ring_span, &f);
 }
 
-/* An arc's: its disc, sweep and colour. */
+/* An arc's: its disc, sweep and filler. */
 typedef struct {
     Disc k;
     Sweep w;
-    uint32_t colour;
+    Flat f;
 } Arc;
 
 /* The piece's runs in the sweep, a span each. */
@@ -212,7 +225,7 @@ static void arc_piece(
         while (x < x1 && swept(&a->w, (float)x - a->k.c.x, dy))
             x++;
 
-        span_flat(t, y, from, x, a->colour);
+        span_flat(t, &a->f, y, from, x);
     }
 }
 
@@ -225,7 +238,7 @@ void soft_arc(
     const uint32_t colour
 )
 {
-    const Arc a = {disc_of(c, r, false), sweep_of(start, finish), colour};
+    const Arc a = {disc_of(c, r, false), sweep_of(start, finish), span_flat_of(t, colour)};
 
     ring(t, &a.k, arc_piece, &a);
 }
@@ -246,10 +259,12 @@ void soft_rect(
     const int32_t x0 = cover_first(l), x1_ = cover_first(r), y0 = cover_first(top),
                   y1_ = cover_first(bottom);
 
-    /* scan_poly's pixels for these corners, without its edges at every row */
+    const Flat f = span_flat_of(t, colour);
+
+    /* scan_flat's pixels for these corners, without its edges at every row */
     if (fill) {
         for (int32_t y = rect_max(y0, t->clip.y); y < rect_min(y1_, t->clip.y + t->clip.h); y++)
-            span_flat(t, y, x0, x1_, colour);
+            span_flat(t, &f, y, x0, x1_);
 
         return;
     }
@@ -257,15 +272,15 @@ void soft_rect(
     if (x0 >= x1_ || y0 >= y1_)
         return;
 
-    span_flat(t, y0, x0, x1_, colour);
+    span_flat(t, &f, y0, x0, x1_);
 
     if (y1_ - 1 > y0)
-        span_flat(t, y1_ - 1, x0, x1_, colour);
+        span_flat(t, &f, y1_ - 1, x0, x1_);
 
     for (int32_t y = y0 + 1; y < y1_ - 1; y++) {
-        span_flat(t, y, x0, x0 + 1, colour);
+        span_flat(t, &f, y, x0, x0 + 1);
 
         if (x1_ - 1 > x0)
-            span_flat(t, y, x1_ - 1, x1_, colour);
+            span_flat(t, &f, y, x1_ - 1, x1_);
     }
 }

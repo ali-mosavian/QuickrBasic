@@ -1381,29 +1381,114 @@ static void tints_of(FillTints *const tints, const PxFormat f, const uint32_t c,
     tints->made = true;
 }
 
-/* ink_of's n texels all colour, blended: its colour inked once, into a direct target its tint
-   table made once. */
+/* RowFlat's, r's pixel: each shown only nearer and its depth set as z says. */
 [[gnu::always_inline]]
-static inline void tint_of(
+static inline void flat_row(
     const PxFormat f,
-    uint8_t *const d,
-    const int32_t n,
-    const uint32_t colour,
-    const Ink *const k,
-    FillTints *const tints
+    const uint32_t z,
+    const Rows *const r,
+    const int32_t y,
+    const int32_t x0,
+    const int32_t x1,
+    int32_t zd
 )
 {
-    const uint32_t c = ink_colour(f, k->source, FILL_ANY, k, colour);
-    Inputs in = {.ink = *k, .colour = c};
+    const uint32_t b = px_bytes(f), c = r->colour;
+    uint8_t *const d = r->dst.p + y * r->dst.pitch + (uint32_t)x0 * b;
 
-    if (f == PX_8)
-        in.blend = k->blend + (c << 8);
-    else {
-        tints_of(tints, f, c, k);
-        in.pixels = tints->pixels;
+    if (!z) {
+        span_of(f, d, x1 - x0, c);
+        return;
     }
 
-    fill_of(KIND_TINT, f, f, FILL_BLENDED, d, n, in);
+    uint16_t *const zp = r->depth.p + y * r->depth.row + x0;
+
+    for (int32_t i = 0; i < x1 - x0; i++, zd = depth_on(zd, r->dz, 1)) {
+        const uint16_t here = depth_of(zd);
+
+        if (z & ROW_TEST && !depth_shows(zp[i], here))
+            continue;
+
+        px_store(d + i * b, c, b);
+
+        if (z & ROW_WRITE)
+            zp[i] = here;
+    }
+}
+
+/* RowFlat's, r's colour blended over the pixels there; with depth, Rows' depths, in runs between
+   the pixels it hides. */
+[[gnu::always_inline]]
+static inline void tinted_row(
+    const PxFormat f,
+    const bool deep,
+    const Rows *const r,
+    const int32_t y,
+    const int32_t x0,
+    const int32_t x1,
+    int32_t zd
+)
+{
+    const uint32_t b = px_bytes(f), z = r->depths;
+    const int32_t n = x1 - x0;
+    uint8_t *const d = r->dst.p + y * r->dst.pitch + (uint32_t)x0 * b;
+    const Inputs in = {
+        .ink = *r->ink,
+        .colour = r->colour,
+        .blend = r->blend,
+        .pixels = r->tints,
+    };
+
+    if (!deep) {
+        fill_of(KIND_TINT, f, f, FILL_BLENDED, d, n, in);
+        return;
+    }
+
+    uint16_t *const zp = r->depth.p + y * r->depth.row + x0;
+    int32_t from = 0;
+
+    for (int32_t i = 0; i < n; i++, zd = depth_on(zd, r->dz, 1)) {
+        const uint16_t here = depth_of(zd);
+
+        if (z & ROW_TEST && !depth_shows(zp[i], here)) {
+            fill_of(KIND_TINT, f, f, FILL_BLENDED, d + from * b, i - from, in);
+            from = i + 1;
+        } else if (z & ROW_WRITE)
+            zp[i] = here;
+    }
+
+    fill_of(KIND_TINT, f, f, FILL_BLENDED, d + from * b, n - from, in);
+}
+
+/* FillFlat's: flat by depth, or tinted when the ink blends, deep with depth. */
+[[gnu::always_inline]]
+static inline RowFlat *flat_pick(
+    const PxFormat f,
+    Rows *const r,
+    const uint32_t colour,
+    FillTints *const tints,
+    RowFlat *const *const flat,
+    RowFlat *const tinted,
+    RowFlat *const deep
+)
+{
+    const Ink *const k = r->ink;
+
+    if (!(k->blend || k->mode)) {
+        r->colour = paint_of(f, colour, k);
+        return flat[r->depths];
+    }
+
+    r->colour = ink_colour(f, k->source, FILL_ANY, k, colour);
+
+    if (f == PX_8)
+        r->blend = k->blend + (r->colour << 8);
+    else {
+        tints_of(tints, f, r->colour, k);
+        r->tints = tints->pixels;
+    }
+
+    return r->depths ? deep : tinted;
 }
 
 /* Variant k s l b: keyed, SOLID, LUT, BLENDED, each 0 or 1. */
@@ -1510,6 +1595,20 @@ static RowAffine *const fill_inked[PX_FORMATS][PX_FORMATS][FILL_INKS] = {
 #define FILL_PERSP_O(name, o)                                                                      \
     {name##_persp_##o##0, name##_persp_##o##1, name##_persp_##o##2, name##_persp_##o##3}
 
+/* Format f's flat row filler, name's, by depth z. */
+#define FILL_FLAT(name, f, z)                                                                      \
+    static void name##_flat_##z(                                                                   \
+        const Rows *const r,                                                                       \
+        const int32_t y,                                                                           \
+        const int32_t x0,                                                                          \
+        const int32_t x1,                                                                          \
+        const int32_t zd                                                                           \
+    )                                                                                              \
+    {                                                                                              \
+        flat_row(f, z, r, y, x0, x1, zd);                                                          \
+    }
+#define FILL_FLAT_Z(name) {name##_flat_0, name##_flat_1, name##_flat_2, name##_flat_3}
+
 /* Format f's general and SMOOTH row fillers, name's. */
 #define FILL_GENERAL(name, f)                                                                      \
     static void name##_general(                                                                    \
@@ -1567,9 +1666,32 @@ static RowAffine *const fill_inked[PX_FORMATS][PX_FORMATS][FILL_INKS] = {
 #define FILL_TABLE(name, f)                                                                        \
     FILL_ROWS(name, f)                                                                             \
     FILL_GENERAL(name, f)                                                                          \
-    static void name##_span(uint8_t *const d, const int32_t n, const uint32_t c)                   \
+    FILL_DEPTHS(FILL_FLAT, name, f)                                                                \
+    static void name##_tinted(                                                                     \
+        const Rows *const r,                                                                       \
+        const int32_t y,                                                                           \
+        const int32_t x0,                                                                          \
+        const int32_t x1,                                                                          \
+        const int32_t z                                                                            \
+    )                                                                                              \
     {                                                                                              \
-        span_of(f, d, n, c);                                                                       \
+        tinted_row(f, false, r, y, x0, x1, z);                                                     \
+    }                                                                                              \
+    static void name##_tinted_deep(                                                                \
+        const Rows *const r,                                                                       \
+        const int32_t y,                                                                           \
+        const int32_t x0,                                                                          \
+        const int32_t x1,                                                                          \
+        const int32_t z                                                                            \
+    )                                                                                              \
+    {                                                                                              \
+        tinted_row(f, true, r, y, x0, x1, z);                                                      \
+    }                                                                                              \
+    static RowFlat *name##_pick_flat(Rows *const r, const uint32_t colour, FillTints *const tints) \
+    {                                                                                              \
+        static RowFlat *const flat[ROW_DEPTHS] = FILL_FLAT_Z(name);                                \
+                                                                                                   \
+        return flat_pick(f, r, colour, tints, flat, name##_tinted, name##_tinted_deep);            \
     }                                                                                              \
     static void name##_keyed(uint8_t *const d, const uint8_t *const s, const int32_t n)            \
     {                                                                                              \
@@ -1596,22 +1718,9 @@ static RowAffine *const fill_inked[PX_FORMATS][PX_FORMATS][FILL_INKS] = {
     {                                                                                              \
         ink_of(f, d, texels, n, k);                                                                \
     }                                                                                              \
-    static uint32_t name##_paint(const uint32_t texel, const Ink *const k)                         \
-    {                                                                                              \
-        return paint_of(f, texel, k);                                                              \
-    }                                                                                              \
-    static void name##_tint(                                                                       \
-        uint8_t *const d,                                                                          \
-        const int32_t n,                                                                           \
-        const uint32_t colour,                                                                     \
-        const Ink *const k,                                                                        \
-        FillTints *const tints                                                                     \
-    )                                                                                              \
-    {                                                                                              \
-        tint_of(f, d, n, colour, k, tints);                                                        \
-    }                                                                                              \
     const Fill name = {                                                                            \
-        .span = name##_span,                                                                       \
+        .pick_flat = name##_pick_flat,                                                             \
+        .flat = FILL_FLAT_Z(name),                                                                 \
         .row =                                                                                     \
             {                                                                                      \
                 [0] = name##_keyed,                                                                \
@@ -1620,9 +1729,7 @@ static RowAffine *const fill_inked[PX_FORMATS][PX_FORMATS][FILL_INKS] = {
                 [FILL_OPAQUE | FILL_FLIPX] = name##_opaque_flipped,                                \
             },                                                                                     \
         .ink = name##_ink,                                                                         \
-        .paint = name##_paint,                                                                     \
         .inked = fill_inked[f],                                                                    \
-        .tint = name##_tint,                                                                       \
         .affine = {FILL_AFFINE_O(name, 0), FILL_AFFINE_O(name, 1)},                                \
         .persp = {FILL_PERSP_O(name, 0), FILL_PERSP_O(name, 1)},                                   \
         .general = name##_general,                                                                 \

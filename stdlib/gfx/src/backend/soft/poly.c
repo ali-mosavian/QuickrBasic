@@ -9,6 +9,16 @@ static ScanVert qgl_corner(const float x, const float y, const float u, const fl
     return (ScanVert){x + 0.5f, y + 0.5f, 1, u - 0.5f, v - 0.5f};
 }
 
+/* The flags' depths (ROW_'s), none without a depth. */
+static uint32_t depths_of(const SoftTarget *const t, const int32_t flags)
+{
+    if (!t->depth.p)
+        return 0;
+
+    return (flags & GFX_DRAW_DEPTH_TEST ? ROW_TEST : 0) |
+           (flags & GFX_DRAW_DEPTH_WRITE ? ROW_WRITE : 0);
+}
+
 /* A picture's polygon: its row filler picked once, then scanned. The fused fillers when the ink
    has nothing to do and u does not wrap; an affine row inside the picture, no depth, by its inked
    filler; any other by the general one; SMOOTH's by its own. */
@@ -24,9 +34,7 @@ static void texture(
 {
     const Fill *const fill = t->fill;
     const uint32_t o = flags & GFX_DRAW_OPAQUE ? FILL_OPAQUE : 0;
-    const uint32_t z = t->depth.p ? (flags & GFX_DRAW_DEPTH_TEST ? ROW_TEST : 0) |
-                                        (flags & GFX_DRAW_DEPTH_WRITE ? ROW_WRITE : 0)
-                                  : 0;
+    const uint32_t z = depths_of(t, flags);
     Rows r = {
         .dst = t->px,
         .src = *s,
@@ -68,39 +76,6 @@ static void texture(
         scan_affine(v, n, t->clip, &r, fill->general, fill->general);
 }
 
-typedef struct {
-    const SoftTarget *t;
-    uint32_t colour;
-    bool test, set;
-} Flat;
-
-/* a flat span: the runs of it shown over the depth there, their depth set as asked */
-static void flat(void *const ctx, const ScanSpan *const sp)
-{
-    const Flat *const f = ctx;
-    const SoftTarget *const t = f->t;
-
-    if (!t->depth.p) {
-        span_fill(t, sp->y, sp->x0, sp->x1, f->colour);
-        return;
-    }
-
-    uint16_t *const d = t->depth.p + sp->y * t->depth.row;
-    int32_t z = sp->z, from = sp->x0;
-
-    for (int32_t x = sp->x0; x < sp->x1; x++, z = depth_on(z, sp->dz, 1)) {
-        const uint16_t here = depth_of(z);
-
-        if (f->test && !depth_shows(d[x], here)) {
-            span_fill(t, sp->y, from, x, f->colour);
-            from = x + 1;
-        } else if (f->set)
-            d[x] = here;
-    }
-
-    span_fill(t, sp->y, from, sp->x1, f->colour);
-}
-
 /* c as qgl's vertex (qgl_corner), 1/z its z; in perspective u and v by 1/z. */
 static ScanVert poly_corner(const Corner *const c, const bool persp)
 {
@@ -132,8 +107,15 @@ void soft_poly(
     if (s)
         texture(t, s, v, n, flags, wrap, persp);
     else {
-        const Flat f = {t, colour, flags & GFX_DRAW_DEPTH_TEST, flags & GFX_DRAW_DEPTH_WRITE};
+        Rows r = {
+            .dst = t->px,
+            .depth = t->depth,
+            .ink = &t->ink,
+            .depths = depths_of(t, flags),
+        };
 
-        scan_poly(v, n, SCAN_FLAT, t->clip, flat, (void *)&f);
+        RowFlat *const fill = t->fill->pick_flat(&r, colour, t->tints);
+
+        scan_flat(v, n, t->clip, &r, fill);
     }
 }
