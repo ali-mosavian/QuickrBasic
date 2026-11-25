@@ -10,6 +10,7 @@
 #ifndef GFX_BACKEND_H
 #define GFX_BACKEND_H
 #include "core/command.h"
+#include "core/shape.h"
 #include "core/surface.h"
 #include "gfx_qx.h"
 
@@ -73,6 +74,8 @@ typedef struct {
     void (*rect)(Gx *g, Vec a, Vec b, uint32_t colour, bool fill);
     /* Upright at its size, its top left texel at at. */
     void (*sprite)(Gx *g, const Source *p, Vec at, int32_t flags);
+    /* Turned or scaled by t (shape.h), as poly's of its corners. */
+    void (*turned)(Gx *g, const Source *p, const Turn *t, int32_t flags);
 } Backend;
 
 extern const Backend backend_soft, backend_gpu;

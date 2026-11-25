@@ -610,6 +610,13 @@ static void wrote(Gx *const g, const uint32_t h, const int32_t top, const int32_
 
 static void forget(Gx *const g, const uint32_t h) { gpu_forget(gpu(g), h); }
 
+static void turned(Gx *const g, const Source *const p, const Turn *const t, const int32_t flags)
+{
+    Corner v[4];
+    turn_corners(t, p->at.w, p->at.h, v);
+    poly(g, p, v, 4, 0, flags);
+}
+
 const Backend backend_gpu = {
     .has = GFX_DISPLAY_HAS_GPU | GFX_DISPLAY_HAS_SMOOTH,
     .open = screen_open,
@@ -633,4 +640,5 @@ const Backend backend_gpu = {
     .arc = arc,
     .rect = rect,
     .sprite = sprite,
+    .turned = turned,
 };

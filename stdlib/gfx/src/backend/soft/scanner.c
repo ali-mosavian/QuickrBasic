@@ -997,6 +997,182 @@ void scan_affine(
         affine_walk(v, n, clip, r, plain, held, false);
 }
 
+bool scan_turned(
+    const float atx,
+    const float aty,
+    const float ax,
+    const float ay,
+    const float dx,
+    const float dy,
+    const int32_t w,
+    const int32_t h,
+    const Rect clip,
+    Rows *const r,
+    RowTurned *const rows
+)
+{
+    /* 16.16 from here, each float's exact product rounded once: the host's and the x87's alike */
+    const float f[6] = {atx, aty, ax, ay, dx, dy};
+    int32_t k[6];
+
+    for (uint32_t i = 0; i < 6; i++) {
+        if (!(f[i] > -16384.0f && f[i] < 16384.0f))
+            return i < 2 ? !(f[i] == f[i]) : false;
+
+        k[i] = scan_fistp((double)f[i] * 65536.0);
+    }
+
+    const int64_t cx[4] = {k[0], k[0] + (int64_t)w * k[2], k[0] + (int64_t)w * k[2] + (int64_t)h * k[4],
+                           k[0] + (int64_t)h * k[4]};
+    const int64_t cy[4] = {k[1], k[1] + (int64_t)w * k[3], k[1] + (int64_t)w * k[3] + (int64_t)h * k[5],
+                           k[1] + (int64_t)h * k[5]};
+    int64_t lx = cx[0], hx = cx[0], ly = cy[0], hy = cy[0];
+
+    for (uint32_t i = 1; i < 4; i++) {
+        lx = cx[i] < lx ? cx[i] : lx;
+        hx = cx[i] > hx ? cx[i] : hx;
+        ly = cy[i] < ly ? cy[i] : ly;
+        hy = cy[i] > hy ? cy[i] : hy;
+    }
+
+    /* the clip's pixel centres' bounds, half a pixel out */
+    const int64_t x0 = (int64_t)clip.x * 65536 - 32768, x1 = (int64_t)(clip.x + clip.w) * 65536 - 32768;
+    const int64_t y0 = (int64_t)clip.y * 65536 - 32768, y1 = (int64_t)(clip.y + clip.h) * 65536 - 32768;
+
+    /* no pixel centre in the clip: nothing drawn; over its edge: the caller's, clipped once */
+    if (hx < x0 || lx > x1 || hy < y0 || ly > y1)
+        return true;
+
+    if (lx < x0 || hx > x1 || ly < y0 || hy > y1)
+        return false;
+
+    /* the map back, texels a pixel, 16.16: u = gux (x - atx) + guy (y - aty), v likewise. The
+       determinant 8.24, so one 64 by 32 divide each, its quotient checked to fit first; under
+       1/4096 of a pixel a texel, or over 128, the caller's. */
+    const int64_t det = ((int64_t)k[2] * k[5] - (int64_t)k[3] * k[4]) >> 8;
+    const int64_t num[4] = {k[5], -(int64_t)k[4], -(int64_t)k[3], k[2]};
+    const int64_t most = det < 0 ? -det : det;
+
+    if (most < 4096 || most >= INT32_MAX)
+        return det == 0;
+
+    int32_t g[4], rem;
+
+    for (uint32_t i = 0; i < 4; i++) {
+        if ((num[i] < 0 ? -num[i] : num[i]) >= most * 128)
+            return false;
+
+        g[i] = div_of(num[i] * 16777216, (int32_t)det, &rem);
+    }
+
+    const int32_t gux = g[0], guy = g[1], gvx = g[2], gvy = g[3];
+
+    /* every u and v over the box in 32 bits */
+    const int64_t span = ((hx - lx) >> 16) + ((hy - ly) >> 16) + 4;
+    int64_t steep = 0;
+
+    for (uint32_t i = 0; i < 4; i++)
+        steep = (g[i] < 0 ? -(int64_t)g[i] : g[i]) > steep ? (g[i] < 0 ? -(int64_t)g[i] : g[i]) : steep;
+
+    if (span * steep + ((int64_t)(w > h ? w : h) << 16) >= INT32_MAX / 2)
+        return false;
+
+    /* the ring from the topmost corner, the right chain its next: clockwise on the screen */
+    static const uint8_t order[2][4] = {{0, 1, 2, 3}, {0, 3, 2, 1}};
+    Fx fx[4];
+
+    for (uint32_t i = 0; i < 4; i++) {
+        const uint32_t c = order[det < 0][i];
+        fx[i] = (Fx){.kx = (int32_t)cx[c] + 65535, .ky = (int32_t)cy[c] + 65535};
+    }
+
+    uint32_t top = 0;
+
+    for (uint32_t i = 1; i < 4; i++)
+        if (fx[i].ky < fx[top].ky)
+            top = i;
+
+    Fx ring[4];
+
+    for (uint32_t i = 0; i < 4; i++)
+        ring[i] = fx[(top + i) & 3];
+
+    const int32_t ox = k[0], oy = k[1];
+    const Grad gr = {.bias = 1};
+
+    r->du = gux;
+    r->dv = gvx;
+    r->dz = 0;
+
+    Edge l = {.s = 0, .e = 3}, rt = {.s = 0, .e = 1};
+    int16_t height = 0, y = (int16_t)FXFLOOR(ring[0].ky);
+
+    for (;;) {
+        l.rows = (int16_t)(l.rows - height);
+        rt.rows = (int16_t)(rt.rows - height);
+
+        if (l.rows < 0)
+            return true;
+
+        if (l.rows == 0) {
+            if (l.e <= 0 || !edge_from(&l, &ring[l.s], &ring[l.e], &gr))
+                return true;
+
+            l.s = l.e--;
+        }
+
+        if (rt.rows < 0)
+            return true;
+
+        if (rt.rows == 0) {
+            if (rt.e > 3 || !edge_from(&rt, &ring[rt.s], &ring[rt.e], &gr))
+                return true;
+
+            rt.s = rt.e++;
+        }
+
+        height = l.rows < rt.rows ? l.rows : rt.rows;
+
+        if (height <= 0)
+            continue;
+
+        /* u and v at the first row's ends; a row down, the gradient down and across by the pixels
+           each edge moved */
+        const int32_t x0 = (int16_t)FXFLOOR(l.x), x1 = x0 + (int16_t)(FXFLOOR(rt.x) - FXFLOOR(l.x));
+        const int32_t px = x0 * 65536 - ox, py = y * 65536 - oy;
+        const int32_t u = (int32_t)(((int64_t)gux * px + (int64_t)guy * py) >> 16);
+        const int32_t v = (int32_t)(((int64_t)gvx * px + (int64_t)gvy * py) >> 16);
+        const int32_t il = l.dx >> 16, ir = rt.dx >> 16;
+        const TurnedRows t = {
+            .y = y,
+            .rows = height,
+            .x0 = x0,
+            .x1 = x1,
+            .fl = (uint32_t)l.x << 16,
+            .fdl = (uint32_t)l.dx << 16,
+            .fr = (uint32_t)rt.x << 16,
+            .fdr = (uint32_t)rt.dx << 16,
+            .il = il,
+            .ir = ir,
+            .u = u,
+            .v = v,
+            .ue = u + (x1 - 1 - x0) * gux,
+            .ve = v + (x1 - 1 - x0) * gvx,
+            .us = guy + il * gux,
+            .vs = gvy + il * gvx,
+            .ues = guy + ir * gux,
+            .ves = gvy + ir * gvx,
+            .gux = gux,
+            .gvx = gvx,
+        };
+
+        rows(r, &t);
+        l.x = add32(l.x, (int32_t)((uint32_t)l.dx * (uint32_t)height));
+        rt.x = add32(rt.x, (int32_t)((uint32_t)rt.dx * (uint32_t)height));
+        y = (int16_t)(y + height);
+    }
+}
+
 /* qgl$drawP: scan_affine's walk, the left edge carrying u/z, v/z and 1/z; each row's run filled
    by fill, which divides. */
 void scan_persp(

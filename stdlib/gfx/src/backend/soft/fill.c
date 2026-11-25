@@ -1284,6 +1284,73 @@ static inline void affine_row(
     run_at(f, key, z, walk != ROW_PLAIN, &w, 0, x1 - x0, st, zd);
 }
 
+/* RowTurned's, f's texels into f. The walk's steps are the sprite's, set once; a row's pixel and
+   texel places by its x0 and u and v, the rest additions. */
+[[gnu::always_inline]]
+static inline void turned_rows(
+    const PxFormat f,
+    const bool key,
+    const Rows *const r,
+    const TurnedRows *const t
+)
+{
+    const uint32_t b = px_bytes(f);
+    const uint32_t sw = (uint32_t)r->src.w << 16, sh = (uint32_t)r->src.h << 16;
+    const bool tiled = r->wrap_v;
+    uint8_t *row = r->dst.p + t->y * r->dst.pitch;
+    uint32_t fl = t->fl, fr = t->fr;
+    int32_t x0 = t->x0, x1 = t->x1, u = t->u, v = t->v, ue = t->ue, ve = t->ve;
+#if defined(__i386__)
+    const StepsBy by = steps_by(&r->src, (Steps){0, 0, r->du, r->dv, 0, 0}, b);
+    const uintptr_t texels = (uintptr_t)r->src.p / b;
+
+    walk_frame.dv = by.dv;
+    walk_frame.du = (uint32_t)by.du << 16;
+    walk_frame.steps[0] = (int32_t)(by.step + by.pitch);
+    walk_frame.steps[1] = (int32_t)by.step;
+#endif
+
+    for (int32_t k = 0; k < t->rows; k++, row += r->dst.pitch) {
+        int32_t a = x0, e = x1, ua = u, va = v, ub = ue, vb = ve;
+        const Row w = {row, nullptr, r->src, 0};
+
+        for (; a < e && ((uint32_t)ua >= sw || (uint32_t)va >= sh); a++, ua += r->du, va += r->dv) {
+            const Steps st = tiled ? steps_from(ua, va, r->du, r->dv, r->wrap, r->wrap_v)
+                                   : (Steps){ua, va, r->du, r->dv, 0, 0};
+            run_at(f, key, 0, true, &w, a, 1, st, 0);
+        }
+
+        for (; a < e && ((uint32_t)ub >= sw || (uint32_t)vb >= sh); e--, ub -= r->du, vb -= r->dv) {
+            const Steps st = tiled ? steps_from(ub, vb, r->du, r->dv, r->wrap, r->wrap_v)
+                                   : (Steps){ub, vb, r->du, r->dv, 0, 0};
+            run_at(f, key, 0, true, &w, e - 1, 1, st, 0);
+        }
+
+        if (a < e) {
+#if defined(__i386__)
+            const uintptr_t at = texels + (uintptr_t)(intptr_t)((va >> 16) * by.pitch + (ua >> 16));
+            uint8_t *const d = row + (uint32_t)a * b;
+            walk_plain(b, key, 0, at, (uint32_t)ua << 16, (uint32_t)va << 16, e - a, d, nullptr);
+#else
+            const Steps st = {ua, va, r->du, r->dv, 0, 0};
+            steps_of(f, row + (uint32_t)a * b, &r->src, st, e - a, key);
+#endif
+        }
+
+        const uint32_t nl = fl + t->fdl, nr = fr + t->fdr;
+        const bool cl = nl < fl, cr = nr < fr;
+
+        fl = nl;
+        fr = nr;
+        x0 += t->il + cl;
+        x1 += t->ir + cr;
+        u += t->us + (cl ? t->gux : 0);
+        v += t->vs + (cl ? t->gvx : 0);
+        ue += t->ues + (cr ? t->gux : 0);
+        ve += t->ves + (cr ? t->gvx : 0);
+    }
+}
+
 /* RowPersp's, f's texels into f: runs of SCAN_SUBDIVP, each a walk between two divides, held where
    it leaves the texture. */
 [[gnu::always_inline]]
@@ -2204,6 +2271,14 @@ static RowAffine *const fill_inked[PX_FORMATS][PX_FORMATS][FILL_INKS] = {
     {                                                                                              \
         row_of(f, d, s, n, -1, false);                                                             \
     }                                                                                              \
+    static void name##_turned_keyed(const Rows *const r, const TurnedRows *const t)                \
+    {                                                                                              \
+        turned_rows(f, true, r, t);                                                                \
+    }                                                                                              \
+    static void name##_turned_opaque(const Rows *const r, const TurnedRows *const t)               \
+    {                                                                                              \
+        turned_rows(f, false, r, t);                                                               \
+    }                                                                                              \
     static void name##_ink(                                                                        \
         uint8_t *const d,                                                                          \
         const uint32_t *const texels,                                                              \
@@ -2231,6 +2306,7 @@ static RowAffine *const fill_inked[PX_FORMATS][PX_FORMATS][FILL_INKS] = {
         .smooth = name##_smooth,                                                                   \
         .general_persp = name##_general_persp,                                                     \
         .smooth_persp = name##_smooth_persp,                                                       \
+        .turned = {name##_turned_keyed, name##_turned_opaque},                                     \
     }
 
 #define FILL_FORMAT(t, f, ...) FILL_TABLE(t, f);

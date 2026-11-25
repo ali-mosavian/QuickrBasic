@@ -47,6 +47,51 @@ void shape_sprite(
     }
 }
 
+Turn shape_turn(
+    const int32_t w,
+    const int32_t h,
+    const Vec anchor,
+    const Vec a,
+    const float angle,
+    const float scale,
+    const int32_t flags,
+    const Place *const where
+)
+{
+    float s, c;
+    gm_sincos(angle, &s, &c);
+    const float dx = (-0.5f - anchor.x) * scale, dy = (-0.5f - anchor.y) * scale;
+    const float cx = c * scale, sx = s * scale;
+    Turn t = {
+        .at = cmd_at(where, (Vec){a.x + c * dx - s * dy, a.y + s * dx + c * dy}),
+        .across = {where->m11 * cx + where->m12 * sx, where->m21 * cx + where->m22 * sx},
+        .down = {where->m12 * cx - where->m11 * sx, where->m22 * cx - where->m21 * sx},
+    };
+
+    if (flags & GFX_DRAW_FLIP_X) {
+        t.at = (Vec){t.at.x + (float)w * t.across.x, t.at.y + (float)w * t.across.y};
+        t.across = (Vec){-t.across.x, -t.across.y};
+    }
+
+    if (flags & GFX_DRAW_FLIP_Y) {
+        t.at = (Vec){t.at.x + (float)h * t.down.x, t.at.y + (float)h * t.down.y};
+        t.down = (Vec){-t.down.x, -t.down.y};
+    }
+
+    return t;
+}
+
+void turn_corners(const Turn *const t, const int32_t w, const int32_t h, Corner out[4])
+{
+    const float fw = (float)w, fh = (float)h;
+    const Vec a = {fw * t->across.x, fw * t->across.y}, d = {fh * t->down.x, fh * t->down.y};
+
+    out[0] = (Corner){.x = t->at.x, .y = t->at.y, .z = 1, .u = 0, .v = 0};
+    out[1] = (Corner){.x = t->at.x + a.x, .y = t->at.y + a.y, .z = 1, .u = fw, .v = 0};
+    out[2] = (Corner){.x = t->at.x + a.x + d.x, .y = t->at.y + a.y + d.y, .z = 1, .u = fw, .v = fh};
+    out[3] = (Corner){.x = t->at.x + d.x, .y = t->at.y + d.y, .z = 1, .u = 0, .v = fh};
+}
+
 void shape_quad(
     const int32_t w,
     const int32_t h,

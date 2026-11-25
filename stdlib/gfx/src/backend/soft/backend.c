@@ -248,6 +248,12 @@ static void sprite(Gx *const g, const Source *const p, const Vec at, const int32
     soft_sprite(call(g), &px, at.x, at.y, flags);
 }
 
+static void turned(Gx *const g, const Source *const p, const Turn *const t, const int32_t flags)
+{
+    const Pixels px = source_pixels(p);
+    soft_turned(call(g), &px, t, flags);
+}
+
 const Backend backend_soft = {
     .has = GFX_DISPLAY_HAS_SMOOTH,
     .open = screen_open,
@@ -271,4 +277,5 @@ const Backend backend_soft = {
     .arc = arc,
     .rect = rect,
     .sprite = sprite,
+    .turned = turned,
 };

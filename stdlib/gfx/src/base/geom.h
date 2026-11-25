@@ -18,6 +18,12 @@ typedef struct {
     float x, y, z, u, v;
 } Corner;
 
+/* A sprite's texels on the target, its turn: texel u, v, from the top left corner of its top left
+   texel, lands at at + u * across + v * down. */
+typedef struct {
+    Vec at, across, down;
+} Turn;
+
 /* A surface's camera: the world's point at its top left; or, centred, the world's point at its
    centre, the camera turned by angle and the world zoomed. Zeroed, the world as it is. */
 typedef struct {

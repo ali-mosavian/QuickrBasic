@@ -60,4 +60,7 @@ void soft_rect(
 );
 /* s with its top left texel at x, y; flags draw.FLIP_X, draw.FLIP_Y, draw.OPAQUE. */
 void soft_sprite(const SoftTarget *t, const Pixels *s, float x, float y, int32_t flags);
+/* s turned or scaled by turn, as soft_poly's of its corners: by scan_turned when it can,
+   uglPutRotScl's, which only the plain affine filler draws. */
+void soft_turned(const SoftTarget *t, const Pixels *s, const Turn *turn, int32_t flags);
 #endif

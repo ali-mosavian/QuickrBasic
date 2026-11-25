@@ -105,4 +105,21 @@ void scan_affine(
 );
 /* As scan_affine, in perspective: u and v by 1/z, each row's run filled by fill. */
 void scan_persp(const ScanVert *v, uint32_t n, Rect clip, Rows *r, RowPersp *fill);
+/* uglPutRotScl's: w by h texels, texel u, v at at + u * across + v * down, wholly inside clip:
+   its four edges walked as scan_affine's, u and v at each row's ends the map's, a row down by
+   additions; filled by rows, a pair of edges at a time. False, it is not wholly inside clip or
+   its gradients do not fit 16.16: the caller clips it as a polygon. */
+bool scan_turned(
+    float atx,
+    float aty,
+    float ax,
+    float ay,
+    float dx,
+    float dy,
+    int32_t w,
+    int32_t h,
+    Rect clip,
+    Rows *r,
+    RowTurned *rows
+);
 #endif

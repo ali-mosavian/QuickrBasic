@@ -421,3 +421,78 @@ TEST(gfx_tiles_turned_keep_every_cell_shown)
             CHECK(PX(i % 8, i / 8) == tiles[i]);
     }
 }
+
+static uint32_t turned_next(uint32_t *const seed)
+{
+    *seed = *seed * 1103515245u + 12345u;
+    return *seed >> 8;
+}
+
+/* Turned sprites against their map, worked in doubles: a pixel's centre maps back to texel u, v,
+   (u, v) = R(-angle) (centre - at) / scale + 1/2. Where that is a texel's inside, by more than
+   rounding, the pixel is that texel; outside the sprite by more, untouched. Sprites wholly in the
+   clip (scan_turned's) and over its edge (the polygon's), a texture held and one tiled, flipped
+   or not. */
+TEST(gfx_sprite_turned_by_its_map)
+{
+    enum { W = 64, H = 48, TW = 7, TH = 5 };
+    const double near = 1e-3;
+    uint32_t seed = 3;
+    int32_t checked = 0, wrong = 0;
+
+    for (uint32_t k = 0; k < 120; k++) {
+        CANVAS(W, H);
+        const int32_t tw = k & 1 ? TW : 8, th = k & 1 ? TH : 8;
+        const int32_t s = CALL("surface.new", I(tw), I(th)).result.i;
+        uint8_t bytes[64];
+
+        for (int32_t i = 0; i < tw * th; i++)
+            bytes[i] = (uint8_t)(2 + i);
+
+        QxArray a = gfx_array(bytes, (uint32_t)(tw * th), 1);
+        CALL("surface.write", I(s), I(0), I(0), I(tw), I(th), ARRAY(&a));
+
+        const double angle = (double)(turned_next(&seed) % 6283) / 1000.0;
+        const double scale = 0.5 + (double)(turned_next(&seed) % 3000) / 1000.0;
+        const double x = (double)(turned_next(&seed) % (W * 100)) / 100.0;
+        const double y = (double)(turned_next(&seed) % (H * 100)) / 100.0;
+        const int32_t flags = turned_next(&seed) & 1 ? GFX_DRAW_FLIP_X : 0;
+
+        CALL(
+            "draw.sprite_turned",
+            I(SURF_SCREEN),
+            F((float)x),
+            F((float)y),
+            F((float)angle),
+            F((float)scale),
+            I(s),
+            I(flags)
+        );
+
+        const double c = __builtin_cos(angle), sn = __builtin_sin(angle);
+
+        for (int32_t py = 0; py < H; py++)
+            for (int32_t px = 0; px < W; px++) {
+                double u = (c * (px - x) + sn * (py - y)) / scale + 0.5;
+                const double v = (-sn * (px - x) + c * (py - y)) / scale + 0.5;
+                u = flags ? tw - u : u;
+
+                const bool in = u > near && u < tw - near && v > near && v < th - near;
+                const bool out = u < -near || u > tw + near || v < -near || v > th + near;
+                const double fu = u - __builtin_floor(u), fv = v - __builtin_floor(v);
+                const bool edge = fu < near || fu > 1 - near || fv < near || fv > 1 - near;
+                const int32_t got = PX(px, py);
+
+                if (in && !edge) {
+                    checked++;
+                    wrong += got != 2 + (int32_t)v * tw + (int32_t)u;
+                } else if (out) {
+                    checked++;
+                    wrong += got != 1;
+                }
+            }
+    }
+
+    CHECK(checked > 100000);
+    CHECK(wrong == 0);
+}

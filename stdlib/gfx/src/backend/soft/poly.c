@@ -1,6 +1,7 @@
 /* Polygons (soft.h): flat, affine or in perspective, through the scanner (scanner.h). */
 #include "gfx_qx.h"
 #include "backend/soft/span.h"
+#include "core/shape.h"
 
 /* gfx's corner as qgl's: qgl's pixel i spans [i, i + 1) and its texel j is centred on j, where
    gfx centres pixel i on i and texel j on j + 0.5. */
@@ -122,4 +123,44 @@ void soft_poly(
 
         scan_flat(v, n, t->clip, &r, fill);
     }
+}
+
+void soft_turned(
+    const SoftTarget *const t,
+    const Pixels *const s,
+    const Turn *const turn,
+    const int32_t flags
+)
+{
+    if (!(flags & GFX_DRAW_SMOOTH) && !depths_of(t, flags) && span_fused(t, s) && s->w < 32768 &&
+        s->h < 32768) {
+        const uint32_t o = flags & GFX_DRAW_OPAQUE ? FILL_OPAQUE : 0;
+        const bool tiled = px_tiles(s->w, s->h);
+        Rows r = {
+            .dst = t->px,
+            .src = *s,
+            .depth = t->depth,
+            .ink = &t->ink,
+            .wrap = tiled ? s->w << 16 : 0,
+            .wrap_v = tiled ? s->h << 16 : 0,
+        };
+        if (scan_turned(
+                turn->at.x,
+                turn->at.y,
+                turn->across.x,
+                turn->across.y,
+                turn->down.x,
+                turn->down.y,
+                s->w,
+                s->h,
+                t->clip,
+                &r,
+                t->fill->turned[o]
+            ))
+            return;
+    }
+
+    Corner v[4];
+    turn_corners(turn, s->w, s->h, v);
+    soft_poly(t, s, v, 4, 0, flags, false);
 }

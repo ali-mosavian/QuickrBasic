@@ -305,9 +305,8 @@ static void draw_source(
         return;
     }
 
-    Corner v[4];
-    shape_sprite(p->at.w, p->at.h, anchor, a, angle, scale, flags, where, v);
-    b->poly(g, p, v, 4, 0, flags);
+    const Turn t = shape_turn(p->at.w, p->at.h, anchor, a, angle, scale, flags, where);
+    b->turned(g, p, &t, flags);
 }
 
 static void sprite(
@@ -646,31 +645,62 @@ void gfx_draw_tiles(
         !gx_begin(g, (uint32_t)dst, &c, &where))
         return;
 
-    const bool turned = !cmd_upright(&where);
-    const Turned t = turned ? turned_of(&where, (Vec){x, y}, w, h) : (Turned){};
+    if (cmd_upright(&where)) {
+        for (int32_t row = shown.y; row < shown.y + shown.h; row++)
+            for (int32_t col = shown.x; col < shown.x + shown.w; col++) {
+                const uint32_t cell = (uint32_t)cells[row * columns + col];
+
+                if (!cell)
+                    continue;
+
+                const Vec dx = {(float)(col * w), (float)(row * h)};
+                const Source p = surf_source(&g->surfaces, cell);
+
+                draw_source(
+                    g,
+                    &where,
+                    &p,
+                    (Vec){},
+                    (Vec){x + dx.x, y + dx.y},
+                    (Vec){at.x + dx.x, at.y + dx.y},
+                    0,
+                    1,
+                    flags
+                );
+            }
+
+        return;
+    }
+
+    /* each cell's turn the first's moved by whole cells; a source readied once a run of it */
+    const Turned shows = turned_of(&where, (Vec){x, y}, w, h);
+    const Turn first = shape_turn(w, h, (Vec){}, (Vec){x, y}, 0, 1, flags, &where);
+    const Turn step = shape_turn(w, h, (Vec){}, (Vec){x, y}, 0, 1, 0, &where);
+    const Vec across = {(float)w * step.across.x, (float)w * step.across.y};
+    const Vec down = {(float)h * step.down.x, (float)h * step.down.y};
+    const Backend *const b = g->backend;
+    uint32_t last = 0;
+    Source p = {};
 
     for (int32_t row = shown.y; row < shown.y + shown.h; row++)
         for (int32_t col = shown.x; col < shown.x + shown.w; col++) {
             const uint32_t cell = (uint32_t)cells[row * columns + col];
 
-            if (!cell || (turned && !turned_shows(&t, col, row)))
+            if (!cell || !turned_shows(&shows, col, row))
                 continue;
 
-            const Vec dx = {(float)(col * w), (float)(row * h)};
+            if (cell != last) {
+                p = surf_source(&g->surfaces, cell);
+                last = b->source(g, &p) ? cell : 0;
 
-            const Source p = surf_source(&g->surfaces, cell);
+                if (!last)
+                    continue;
+            }
 
-            draw_source(
-                g,
-                &where,
-                &p,
-                (Vec){},
-                (Vec){x + dx.x, y + dx.y},
-                (Vec){at.x + dx.x, at.y + dx.y},
-                0,
-                1,
-                flags
-            );
+            const float c = (float)col, r = (float)row;
+            Turn t = first;
+            t.at = (Vec){first.at.x + c * across.x + r * down.x, first.at.y + c * across.y + r * down.y};
+            b->turned(g, &p, &t, flags);
         }
 }
 

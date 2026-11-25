@@ -118,12 +118,28 @@ typedef void RowPersp(
     int32_t z
 );
 
+/* A turned sprite's rows between one pair of edges (scan_turned's): rows from y, each x0 up to
+   x1, u and v at x0 and ue and ve at x1 - 1, 16.16. A row down, each edge's fraction, at the top
+   of fl or fr, by its step's, and x0 or x1 by its whole step il or ir and the carry; u and v by us
+   and vs, and by gux and gvx too on the left's carry; ue and ve likewise on the right's. */
+typedef struct {
+    int32_t y, rows, x0, x1;
+    uint32_t fl, fdl, fr, fdr;
+    int32_t il, ir;
+    int32_t u, v, ue, ve;
+    int32_t us, vs, ues, ves;
+    int32_t gux, gvx;
+} TurnedRows;
+/* t's rows of a turned sprite in r: its texels inside the texture by the plain walk, a pixel at
+   either end whose texel is outside held or, tiled, wrapped. */
+typedef void RowTurned(const Rows *r, const TurnedRows *t);
+
 /* A format's, drawn into. flat, a colour by depth (ROW_); pick_flat picks it, or a blended
    one. The fused row fillers read texels of this format: affine and persp, by FILL_OPAQUE, depth
    and, affine's, walk (ROW_PLAIN, HELD or WRAPPED). inked,
    by the source's format and the variant, draws an affine row inside its texture, no depth.
    general draws any other through the ink a pixel at a time, by Rows' depths and wrap; smooth,
-   SMOOTH's. */
+   SMOOTH's. turned, by FILL_OPAQUE, a turned sprite's rows without depth. */
 typedef struct {
     FillFlat *pick_flat;
     RowFlat *flat[ROW_DEPTHS];
@@ -134,6 +150,7 @@ typedef struct {
     RowPersp *persp[FILL_OPAQUE + 1][ROW_DEPTHS];
     RowAffine *general, *smooth;
     RowPersp *general_persp, *smooth_persp;
+    RowTurned *turned[FILL_OPAQUE + 1];
 } Fill;
 
 /* k's variant for texels of format from into a target of format into. */

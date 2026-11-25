@@ -23,6 +23,19 @@ void shape_sprite(
     const Place *where,
     Corner out[4]
 );
+/* shape_sprite's sprite as its turn. */
+Turn shape_turn(
+    int32_t w,
+    int32_t h,
+    Vec anchor,
+    Vec a,
+    float angle,
+    float scale,
+    int32_t flags,
+    const Place *where
+);
+/* t's corners for w by h texels, top left round, each with its texel. */
+void turn_corners(const Turn *t, int32_t w, int32_t h, Corner out[4]);
 /* A sprite w by h onto four corners in the world, from its top left round. */
 void shape_quad(
     int32_t w,
