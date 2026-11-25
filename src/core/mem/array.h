@@ -13,15 +13,14 @@ enum { ADIMS = 64 }; /* the subscript buffers' words */
 static_assert(MAXDIMS <= ADIMS && MAXDIMS <= DIM_COUNT);
 
 typedef struct Arry {
-    Allo *allo;          /* the headers' region; the data from allo.bot up to allo.arrays */
+    Allo *allo;          /* the heap arrays, from allo.bot up to allo.arrays */
     Fault *fault;        /* Subscript out of range, Out of memory, ... */
     Symb *symb;          /* the arrays' variables */
     const Decl *decl;    /* the TYPEs' sizes, OPTION BASE */
     Strg *strg;          /* collected for room; a string element's block follows it */
     Vm *vm;              /* the run: its call's frame (vm.fp), the calls that own a heap's array */
-    Addr hdr;            /* past the headers (mm.ahd) */
-    Addr fcells;         /* the field cells' foot: they run to the headers' region's end */
-    uint32_t idle;       /* the data bytes of the dead arrays arry_relen left, not yet swept */
+    Addr fcells;         /* the newest live field cell's header, 0 none */
+    uint32_t idle;       /* the bytes of the dead arry_relen and field cells left, not yet swept */
     int32_t subs[ADIMS]; /* the subscripts (g_dimbuf) */
     uint32_t counts[ADIMS]; /* the counts (g_cntbuf) */
     int32_t lbounds[ADIMS]; /* the lower bounds (g_lbbuf) */
@@ -138,8 +137,8 @@ void arry_move(Arry *ay, Vm *vm, ArrSlot *d, ArrSlot *s);
 /* An array result emptied as its FUNCTION starts, ours: cell s's array freed, s dynamic and empty. */
 void arry_reset(Arry *ay, Vm *vm, ArrSlot *s);
 /* An array of et elements made in cell s, ours: arry.counts and arry.lbounds [0..n), its data
-   zeroed; on the running call's arena (vm/stack.c), else its header at arry.hdr, its owner s, its
-   data at allo.arrays; dyn a REDIM's. Returns the header. Out of memory. */
+   zeroed; on the running call's arena (vm/stack.c), else its header and data at allo.arrays, its
+   owner s; dyn a REDIM's. Returns the header. Out of memory. */
 Addr arry_make(Arry *ay, ArrSlot *s, uint32_t et, uint8_t n, bool dyn);
 /* arry_make for array id in its cell. */
 Addr arry_new(Arry *ay, uint32_t id, uint8_t n, bool dyn);
@@ -180,7 +179,7 @@ void arry_sweep(Arry *ay, Vm *vm);
 /* arry_sweep: where the heap address a moved to. */
 Addr arry_sweep_at(Arry *ay, Vm *vm, Addr a);
 /* Before a list grows by need bytes: arry_sweep_at when the dead arry_relen left are over half the
-   heap in use, or need or a map's headers do not fit, else a with nothing moved. A sweep moves the data and walks
+   heap in use, or need does not fit, else a with nothing moved. A sweep moves the data and walks
    every string block, so growth pays for one rarely. */
 Addr arry_tidy(Arry *ay, Vm *vm, Addr a, uint32_t need);
 /* Cell s's array dropped, s emptied: arry_kill, the arena's newest's room given back, then

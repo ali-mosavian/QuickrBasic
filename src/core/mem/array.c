@@ -1,13 +1,15 @@
 /* Arrays: their headers and data, made, indexed, freed and resized.
  *
  * # How it works
- * An array's cell (ArrSlot) holds its header (ArrayHdr) in the headers' region, from allo.hdr_base
- * to arry.hdr. The cell is the variable's own, a local's in its call's frame, a parameter's its
- * argument's (symbols.h symb_at). The header:
- * its dimensions, its data's Addr, the count when 1-D from 0 (else 0), the counts, then the lower
- * bounds. Its data is on the heap from allo.bot to allo.arrays, zeroed, 4-aligned: VS a number or an
- * INT, 8 a DOUBLE, DSZ a string, a TYPE's size a record. The first subscript varies the fastest, as
- * in QB 4.5.
+ * An array's cell (ArrSlot) holds its header's (ArrayHdr) Addr. The cell is the variable's own, a
+ * local's in its call's frame, a parameter's its argument's (symbols.h symb_at). The header: its
+ * dimensions, its data's Addr, the count when 1-D from 0 (else 0), the counts, then the lower
+ * bounds. Its data is zeroed: VS a number or an INT, 8 a DOUBLE, DSZ a string, a TYPE's size a
+ * record. The first subscript varies the fastest, as in QB 4.5.
+ *
+ * A heap array is one block, its header then its data (arry_block_of), packed from allo.bot up to
+ * allo.arrays: the headers take the heap as the data does, no room of their own. The byte after a
+ * heap header, in its padding, is the block's kind: an array's or a field cell's.
  *
  * A local array DIMmed with constant bounds has its header and data in its call's frame
  * (comp/frame.c), zeroed by PCALL, gone with the frame; never freed or REDIMmed.
@@ -18,10 +20,10 @@
  * new one under it, moves the elements, then slides it up into the old one's room. The arrays made
  * mid-statement, in a GOSUB, too big for the room, or in a caller's cell are the heap's.
  *
- * A fixed array field passed whole to an array parameter gets a field cell: the cell and a header
- * at the headers' region's top, growing down, the header's data the field. A call's field cells
- * lie above its arguments' stack: given back once vm.sp is above them, their call over. Their data
- * follows its record as the heap moves.
+ * A fixed array field passed whole to an array parameter gets a field cell: a heap block, a header
+ * whose data is the field, then the cell. A call's field cells lie above its arguments' stack: dead
+ * once vm.sp is above them, their call over, the newest first (arry.fcells); the heap's last
+ * block's room given back. Their data follows its record as the heap moves.
  *
  * A list (Quickr's) is a 1-D array from 0 with room to grow: its count its capacity, its fast its
  * length, which bounds its subscripts. A QBasic array's fast is its count, so it is unchanged.
@@ -29,14 +31,14 @@
  * A heap header names its owner, the cell holding it (ours): a variable's by its id, else the
  * cell's Addr, which may be a record's in the heap; an arena's names OWN_ARENA. arry_kill marks an
  * array dead (owner 0), and the arrays its records hold; arry_sweep removes the dead: each one's
- * header and data go and what follows moves down. The headers' data, their owners in the moved
- * data, the cells of the moved headers, the moved string blocks' owners and the parameters' cells
- * in the moved data follow.
+ * block goes and what follows moves down. The headers' data, their owners in the moved data, the
+ * cells of the moved headers, the field cells' links, the moved string blocks' owners and the
+ * parameters' cells in the moved data follow.
  *
  * # asm structure (retired/asm32/mem/arr.asm)
  * | asm | here | |
  * |---|---|---|
- * | mm.aend, mm.ahd | Arry.end, Arry.hdr | MIRROR |
+ * | mm.aend, mm.ahd | Allo.arrays: the headers with their data | MIRROR; D4 |
  * | g_dimbuf, g_cntbuf, g_lbbuf | Arry.subs, Arry.counts, Arry.lbounds (ADIMS) | MIRROR |
  * | AH_PTR AH_FAST AH_CNT | ArrayHdr (defs.h) .data .fast .count[] | MOVED: defs.h; D1 |
  * | arr_ref (EBX, narr, dimbuf -> EDI) | arry_ref(id, n) | MIRROR; D2 |
@@ -52,13 +54,14 @@
  *   old and fresh. The other scratch globals (mm.asz, g_afh, g_kn ...) are locals.
  * - D3. arry_free takes the cell; the asm's rep (AREP) and its scan of the cells are gone: the
  *   header's owner is its cell.
+ * - D4. No headers' region (HDRBASE .. HDRLIM): it fit about 360 arrays.
  */
 #include "mem/array.h"
 #include "mem/copy.h"
 #include "vm/flow.h"
 #include "vm/stack.h"
 
-enum { DATA_ALIGN = 4, BLOCK_ALIGN = 8 /* a frame's or the arena's: a cell */ };
+enum { BLOCK_ALIGN = 8 /* a block's in a frame, the arena or the heap: a cell */ };
 
 void arry_init(
     Arry *const ay,
@@ -80,11 +83,7 @@ void arry_init(
 
 static ArrayHdr *arry_hdr_at(const Addr h) { return (ArrayHdr *)at(h); }
 
-void arry_clear_heap(Arry *const ay)
-{
-    ay->hdr = ay->allo->hdr_base;
-    ay->fcells = ay->allo->hdr_base + HDRSZ;
-}
+void arry_clear_heap(Arry *const ay) { ay->fcells = 0; }
 
 ArrSlot *arry_slot(const Arry *const ay, const uint32_t id)
 {
@@ -132,12 +131,6 @@ static uint32_t arry_elem_count(const ArrayHdr *const a)
     return n;
 }
 
-/* size bytes from a, to the next DATA_ALIGN. */
-static uint64_t arry_aligned_end(const Addr a, const uint32_t size)
-{
-    return ((uint64_t)a + size + DATA_ALIGN - 1) & ~(uint64_t)(DATA_ALIGN - 1);
-}
-
 [[noreturn]]
 void arry_bad_sub(const Arry *const ay)
 {
@@ -160,47 +153,86 @@ static void arry_empty_recs(const Arry *const ay, const Addr h)
         arry_empty_cells(a->data, arry_elem_count(a), decl_type(ay->decl, a->et - ET_REC));
 }
 
-/* Header h is the heap's (arry_make's), not a frame's or an arena's. */
+/* A heap block's kind: the byte after its header, in the padding to its data. */
+enum : uint8_t { BLOCK_ARRAY, BLOCK_FCELL };
+static_assert(sizeof(ArrayHdr) % BLOCK_ALIGN);
+
+static uint8_t *arry_kind(const Addr h) { return at(h + arry_hdr_size(arry_hdr_at(h)->dims)); }
+
+static bool arry_in_heap(const Arry *const ay, const Addr h)
+{
+    return h >= ay->allo->bot && h < ay->allo->arrays;
+}
+
+/* Header h is a heap array's (arry_make's), not a frame's, an arena's or a field cell's. */
 static bool arry_heap(const Arry *const ay, const Addr h)
 {
-    return h >= ay->allo->hdr_base && h < ay->hdr;
+    return arry_in_heap(ay, h) && *arry_kind(h) == BLOCK_ARRAY;
 }
 
 static bool arry_arena(const Addr h) { return arry_hdr_at(h)->owner == OWN_ARENA; }
 
 bool arry_fixed(const Arry *const ay, const Addr h) { return !arry_heap(ay, h) && !arry_arena(h); }
 
-/* A field cell: the stack its call's arguments lie above, the cell, then its header. */
+/* A field cell, after its header: the cell, the stack its call's arguments lie above, the next
+   older one's header. */
 typedef struct {
-    Addr sp;
     ArrSlot slot;
+    Addr sp;
+    Addr older;
 } FieldCell;
 
-static Addr arry_fcells_end(const Arry *const ay) { return ay->allo->hdr_base + HDRSZ; }
-
-static ArrayHdr *arry_fcell_hdr(const Addr c) { return arry_hdr_at(c + sizeof(FieldCell)); }
+static FieldCell *arry_fcell_of(const Addr h)
+{
+    return (FieldCell *)at(h + arry_frame_hdr(arry_hdr_at(h)->dims));
+}
 
 static uint32_t arry_fcell_size(const uint8_t dims)
 {
-    return (sizeof(FieldCell) + arry_hdr_size(dims) + BLOCK_ALIGN - 1) &
-           ~(uint32_t)(BLOCK_ALIGN - 1);
+    static_assert(sizeof(FieldCell) % BLOCK_ALIGN == 0);
+    return arry_frame_hdr(dims) + sizeof(FieldCell);
 }
-
-static Addr arry_fcell_next(const Addr c) { return c + arry_fcell_size(arry_fcell_hdr(c)->dims); }
 
 /* Header h is a field cell's. */
 static bool arry_fcell(const Arry *const ay, const Addr h)
 {
-    return h >= ay->fcells && h < arry_fcells_end(ay);
+    return arry_in_heap(ay, h) && *arry_kind(h) == BLOCK_FCELL;
 }
 
-/* The field cells of the calls over given back: their stack under vm.sp. */
+/* A block's bytes: the header, then size bytes of data. */
+static uint64_t arry_block_of(const uint8_t n, const uint64_t size)
+{
+    return arry_frame_hdr(n) + ((size + BLOCK_ALIGN - 1) & ~(uint64_t)(BLOCK_ALIGN - 1));
+}
+
+static uint32_t arry_block(const Arry *const ay, const Addr h)
+{
+    return (uint32_t)arry_block_of(arry_hdr_at(h)->dims, arry_size(ay, h));
+}
+
+/* Heap block h's bytes. */
+static uint32_t arry_heap_block(const Arry *const ay, const Addr h)
+{
+    return *arry_kind(h) == BLOCK_FCELL ? arry_fcell_size(arry_hdr_at(h)->dims) : arry_block(ay, h);
+}
+
+/* The field cells of the calls over dead: their stack under vm.sp. The heap's last block's room
+   given back; the others' left to arry_sweep. */
 static void arry_fcells_drop(Arry *const ay)
 {
     const Addr sp = addr_of(ay->vm->sp);
 
-    while (ay->fcells < arry_fcells_end(ay) && ((const FieldCell *)at(ay->fcells))->sp <= sp)
-        ay->fcells = arry_fcell_next(ay->fcells);
+    while (ay->fcells && arry_fcell_of(ay->fcells)->sp <= sp) {
+        const Addr h = ay->fcells;
+        const uint32_t size = arry_fcell_size(arry_hdr_at(h)->dims);
+        ay->fcells = arry_fcell_of(h)->older;
+        arry_hdr_at(h)->owner = 0;
+
+        if (h + size == ay->allo->arrays)
+            ay->allo->arrays = h;
+        else
+            ay->idle += size;
+    }
 }
 
 /* Header h filled: arry.counts and arry.lbounds [0..n) its shape, its et elements at data. */
@@ -337,45 +369,24 @@ static void arry_own_call(const Arry *const ay, const Addr s)
     }
 }
 
-/* size bytes of data for cell s's array of n dimensions on the heap: its header's Addr, *data the
-   data's. Out of memory. */
-static Addr arry_heap_take(
-    Arry *const ay,
-    const ArrSlot *const s,
-    const uint8_t n,
-    const uint32_t size,
-    Addr *const data
-)
+/* A heap block of size bytes, its header's n dimensions and its kind set: its Addr. Out of
+   memory. */
+static Addr arry_heap_take(Arry *const ay, const uint8_t n, const uint64_t size, const uint8_t kind)
 {
     arry_fcells_drop(ay); /* their room first */
 
-    if (ay->hdr + arry_hdr_size(n) > ay->fcells)
-        fault_error(ay->fault, E_OM);
-    if (arry_aligned_end(ay->allo->arrays, size) > ay->allo->strings) {
+    if (ay->allo->strings - ay->allo->arrays < size) {
         strg_gc(ay->strg);
 
-        if (arry_aligned_end(ay->allo->arrays, size) > ay->allo->strings)
+        if (ay->allo->strings - ay->allo->arrays < size)
             fault_error(ay->fault, E_OM);
     }
 
-    arry_own_call(ay, addr_of(s));
-    *data = ay->allo->arrays;
-    ay->allo->arrays = (Addr)arry_aligned_end(*data, size);
-
-    const Addr h = ay->hdr;
-    ay->hdr = h + arry_hdr_size(n);
+    const Addr h = ay->allo->arrays;
+    ay->allo->arrays = h + (uint32_t)size;
+    arry_hdr_at(h)->dims = n;
+    *arry_kind(h) = kind;
     return h;
-}
-
-/* A block's bytes in a frame or the arena: the header, then size bytes of data. */
-static uint64_t arry_block_of(const uint8_t n, const uint64_t size)
-{
-    return arry_frame_hdr(n) + ((size + BLOCK_ALIGN - 1) & ~(uint64_t)(BLOCK_ALIGN - 1));
-}
-
-static uint32_t arry_block(const Arry *const ay, const Addr h)
-{
-    return (uint32_t)arry_block_of(arry_hdr_at(h)->dims, arry_size(ay, h));
 }
 
 /* arry_make's array; arena: on the running call's arena if it can be. */
@@ -400,10 +411,13 @@ static Addr arry_make_on(
     const uint64_t block = arry_block_of(n, size);
     Addr h =
         arena && block <= UINT32_MAX ? stack_arena_take(ay->vm, addr_of(s), (uint32_t)block) : 0;
-    Addr data = h + arry_frame_hdr(n);
 
-    if (!h)
-        h = arry_heap_take(ay, s, n, (uint32_t)size, &data);
+    if (!h) {
+        h = arry_heap_take(ay, n, block, BLOCK_ARRAY);
+        arry_own_call(ay, addr_of(s));
+    }
+
+    const Addr data = h + arry_frame_hdr(n);
 
     copy_zero(data, (uint32_t)size);
     arry_fill(ay, h, data, et, n, arry_heap(ay, h) ? arry_owner(ay, s) : OWN_ARENA);
@@ -439,11 +453,8 @@ uint32_t arry_size(const Arry *const ay, const Addr hdr)
 
 /* ---- freeing -------------------------------------------------------------------------------- */
 
-/* An array being removed: its header and the header's bytes, its data [data, data + size), the
-   data's old end. */
+/* A heap block being removed, [data, data + size), and the heap's old end. */
 typedef struct {
-    Addr hdr;
-    uint32_t hdr_size;
     Addr data;
     uint32_t size;
     Addr old_end;
@@ -477,30 +488,22 @@ static void arry_follow_owners(const Arry *const ay, const Freed *const fs, cons
     }
 }
 
-/* Dead header h's array removed: its header and data go and what follows moves down. The headers'
-   data, their owners in the moved data, the cells of the headers moved, the parameters' cells in
-   the moved data and *follow follow; the string blocks' owners are left to arry_follow_owners. */
+/* Dead heap block h removed: what follows moves down. The headers' data, their owners in the moved
+   data, the cells of the headers moved, the field cells' links, the parameters' cells in the moved
+   data and *follow follow; the string blocks' owners are left to arry_follow_owners. */
 static Freed arry_remove(Arry *const ay, Vm *const vm, const Addr h, Addr *const follow)
 {
-    const ArrayHdr *const a = arry_hdr_at(h);
-    const Freed f = {
-        .hdr = h,
-        .hdr_size = arry_hdr_size(a->dims),
-        .data = a->data,
-        .size = (uint32_t)(arry_aligned_end(a->data, arry_size(ay, h)) - a->data),
-        .old_end = ay->allo->arrays,
-    };
+    const Freed f = {.data = h, .size = arry_heap_block(ay, h), .old_end = ay->allo->arrays};
 
-    copy_mem(f.data, f.data + f.size, ay->allo->arrays - (f.data + f.size));
+    copy_mem(h, h + f.size, ay->allo->arrays - (h + f.size));
     ay->allo->arrays -= f.size;
-    copy_mem(h, h + f.hdr_size, ay->hdr - (h + f.hdr_size));
-    ay->hdr -= f.hdr_size;
 
-    for (Addr p = ay->allo->hdr_base; p < ay->hdr; p += arry_hdr_size(arry_hdr_at(p)->dims)) {
+    for (Addr p = ay->allo->bot; p < ay->allo->arrays; p += arry_heap_block(ay, p)) {
         ArrayHdr *const kept = arry_hdr_at(p);
+        kept->data = arry_moved_cell(&f, kept->data); /* a field cell's: its record's */
 
-        if (kept->data > f.data)
-            kept->data -= f.size;
+        if (*arry_kind(p) == BLOCK_FCELL)
+            arry_fcell_of(p)->older = arry_moved_cell(&f, arry_fcell_of(p)->older);
         if (!kept->owner) /* dead: removed next */
             continue;
         if (!(kept->owner & OWN_VAR) && arry_in_removed(&f, kept->owner)) { /* its cell gone */
@@ -515,9 +518,7 @@ static Freed arry_remove(Arry *const ay, Vm *const vm, const Addr h, Addr *const
     }
 
     *follow = arry_moved_cell(&f, *follow);
-
-    for (Addr c = ay->fcells; c < arry_fcells_end(ay); c = arry_fcell_next(c))
-        arry_fcell_hdr(c)->data = arry_moved_cell(&f, arry_fcell_hdr(c)->data);
+    ay->fcells = arry_moved_cell(&f, ay->fcells);
 
     for (uint32_t i = 0; i < vm_nframes(vm); i++) { /* the arguments: an element's address */
         const Call *const c = &vm->frames[i].call;
@@ -565,9 +566,9 @@ Addr arry_sweep_at(Arry *const ay, Vm *const vm, Addr a)
     Freed fs[BATCH];
     uint32_t n = 0;
 
-    for (Addr p = ay->allo->hdr_base; p < ay->hdr;) {
+    for (Addr p = ay->allo->bot; p < ay->allo->arrays;) {
         if (arry_hdr_at(p)->owner) {
-            p += arry_hdr_size(arry_hdr_at(p)->dims);
+            p += arry_heap_block(ay, p);
             continue;
         }
 
@@ -588,8 +589,7 @@ Addr arry_tidy(Arry *const ay, Vm *const vm, const Addr a, const uint32_t need)
 {
     const Allo *const al = ay->allo;
     const uint64_t used = (uint64_t)(al->arrays - al->bot) + (al->top - al->strings);
-    const bool room =
-        al->strings - al->arrays >= need && ay->fcells - ay->hdr >= 4 * arry_hdr_size(1);
+    const bool room = al->strings - al->arrays >= need;
     return ay->idle && (2 * (uint64_t)ay->idle > used || !room) ? arry_sweep_at(ay, vm, a) : a;
 }
 
@@ -659,16 +659,8 @@ ArrSlot *arry_field_cell(Arry *const ay, const Addr data, const uint32_t key)
 {
     const Field *const f = decl_keyfield(ay->decl, key);
     const FieldDim *const fd = decl_fielddim(ay->decl, f, 0);
-    const uint32_t size = arry_fcell_size(f->ndim);
-
-    arry_fcells_drop(ay);
-
-    if (ay->fcells - ay->hdr < size)
-        fault_error(ay->fault, E_OM);
-
-    ay->fcells -= size;
-    FieldCell *const c = (FieldCell *)at(ay->fcells);
-    const Addr h = ay->fcells + sizeof(FieldCell);
+    const Addr h = arry_heap_take(ay, f->ndim, arry_fcell_size(f->ndim), BLOCK_FCELL);
+    FieldCell *const c = arry_fcell_of(h);
 
     for (uint32_t i = 0; i < f->ndim; i++) {
         ay->counts[i] = fd[i].count;
@@ -676,7 +668,9 @@ ArrSlot *arry_field_cell(Arry *const ay, const Addr data, const uint32_t key)
     }
 
     arry_fill(ay, h, data, decl_fieldtype(f), f->ndim, addr_of(&c->slot));
-    *c = (FieldCell){addr_of(ay->vm->sp), {h, false}};
+    *c = (FieldCell){{h, false}, addr_of(ay->vm->sp), ay->fcells};
+
+    ay->fcells = h;
 
     return &c->slot;
 }

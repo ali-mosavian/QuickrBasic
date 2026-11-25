@@ -26318,6 +26318,64 @@ qb/log_exp_digits.bas L 4 00b4ef8e64d0
 qb/log_exp_digits.bas L 5 5f535f2d6b36
 qb/log_exp_digits.bas L 6 2f00b287ef36
 qb/log_exp_digits.bas L 7 e7fae5abba37
+qb/many_arrays.bas 0 fb96549631c8
+qb/many_arrays.bas 1 fb96549631c8
+qb/many_arrays.bas 2 fb96549631c8
+qb/many_arrays.bas 3 fb96549631c8
+qb/many_arrays.bas 4 fb96549631c8
+qb/many_arrays.bas 5 fb96549631c8
+qb/many_arrays.bas 6 fb96549631c8
+qb/many_arrays.bas 7 fb96549631c8
+qb/many_arrays.bas 8 fb96549631c8
+qb/many_arrays.bas 9 fb96549631c8
+qb/many_arrays.bas 10 fb96549631c8
+qb/many_arrays.bas 11 2320c2f5aca6
+qb/many_arrays.bas 12 4dd9ee1379ea
+qb/many_arrays.bas 13 8526ee30f611
+qb/many_arrays.bas 14 0bf2d748cdea
+qb/many_arrays.bas 15 1ae2f2a6bd05
+qb/many_arrays.bas 16 2c9c79d5e080
+qb/many_arrays.bas 17 46d0b18a1012
+qb/many_arrays.bas 18 bf4891abfc9c
+qb/many_arrays.bas 19 56631ab37e8b
+qb/many_arrays.bas 20 854ffb914ba1
+qb/many_arrays.bas 21 fb96549631c8
+qb/many_arrays.bas 22 648d5c04ccd9
+qb/many_arrays.bas 23 c2e84f3b12f0
+qb/many_arrays.bas 24 da82f8d97c89
+qb/many_arrays.bas 25 fb96549631c8
+qb/many_arrays.bas 26 9bb91d1626a8
+qb/many_arrays.bas 27 cfa2855efbc9
+qb/many_arrays.bas 28 647994ba53e8
+qb/many_arrays.bas L 0 2cc68e2cc985
+qb/many_arrays.bas L 1 989a4ed65090
+qb/many_arrays.bas L 2 2830f95c014c
+qb/many_arrays.bas L 3 3a6c69c57c67
+qb/many_arrays.bas L 4 11462b2d3552
+qb/many_arrays.bas L 5 6738c42bbca1
+qb/many_arrays.bas L 6 9e7bb51d418a
+qb/many_arrays.bas L 7 28a230c4b310
+qb/many_arrays.bas L 8 1bcf36e06ec9
+qb/many_arrays.bas L 9 df192e7a645b
+qb/many_arrays.bas L 10 e0f81a2d81bb
+qb/many_arrays.bas L 11 b1c046c2a019
+qb/many_arrays.bas L 12 7792f719222b
+qb/many_arrays.bas L 13 d8c9b560e2c4
+qb/many_arrays.bas L 14 372c2870b427
+qb/many_arrays.bas L 15 f6ee4604d64a
+qb/many_arrays.bas L 16 5ccee3b82219
+qb/many_arrays.bas L 17 3c5a34779357
+qb/many_arrays.bas L 18 429f423ebd7d
+qb/many_arrays.bas L 19 95c810190b0f
+qb/many_arrays.bas L 20 a04486923bbf
+qb/many_arrays.bas L 21 a999c6ff4483
+qb/many_arrays.bas L 22 b49c6f84b292
+qb/many_arrays.bas L 23 05e60b7696b8
+qb/many_arrays.bas L 24 4aa8e9fd3a75
+qb/many_arrays.bas L 25 c968ef214acc
+qb/many_arrays.bas L 26 2ddd133ca751
+qb/many_arrays.bas L 27 b329d88bf41c
+qb/many_arrays.bas L 28 ba9704144144
 qb/matrix.bas 0 fb96549631c8
 qb/matrix.bas 1 fb96549631c8
 qb/matrix.bas 2 fb96549631c8

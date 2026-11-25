@@ -7,8 +7,8 @@
 enum { NBLKH = 8 };                        /* blocks at most */
 enum { HCACHE = 0, HPROG = 1, HLMAP = 2 }; /* the code cache's, the store's, the editor's map's */
 enum {
-    HDRSZ = 0x2400, /* the arrays' headers (the asm's g_dsb+BC00h .. HDRLIM) */
-    CSSZ = 0x1C00,  /* the control stack, under cs_top (CSLIM .. CSTOP) */
+    OLDHDRSZ = 0x2400, /* the asm's headers' region, unused: the Addrs after it kept */
+    CSSZ = 0x1C00,     /* the control stack, under cs_top (CSLIM .. CSTOP) */
     POKESZ = 0x10000,
 };
 
@@ -32,14 +32,12 @@ typedef struct {
     Addr arrays;            /* the arrays' data from bot up to here (mm.aend) */
     Addr strings;           /* the strings' from here up to top (mm.sfr) */
     Addr cache;             /* the code cache's block, which never moves (mm.cachebase) */
-    Addr hdr_base;          /* the arrays' headers, to hdr_base + HDRSZ (HDRBASE, HDRLIM) */
     Addr cs_lim;            /* the control stack's floor (CSLIM) */
     Addr cs_top;            /* its top, frames down from it (CSTOP) */
     Addr poke;              /* the POKE memory, POKESZ bytes (g_pokeb) */
 } Allo;
 
-/* The arena [lo, hi): the heap all of it; then carves the headers, the control stack and the
-   POKE memory. */
+/* The arena [lo, hi): the heap all of it; then carves the control stack and the POKE memory. */
 void allo_init(Allo *al, Fault *f, Addr lo, Addr hi);
 /* A fixed region of size bytes, zeroed, 16-aligned, from the heap's bottom. Only before the
    first allo_new. Out of memory past HMIN left. */
