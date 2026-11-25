@@ -100,6 +100,24 @@ static inline uint32_t ink_pixel(
     return f == PX_8 ? k->blend[c << 8 | there] : direct(f, mixed(c, px_argb(f, there), v, k));
 }
 
+[[gnu::always_inline]]
+static inline void argb_of(
+    const PxFormat g,
+    uint32_t *const argb,
+    bool *const drawn,
+    const uint32_t *const texels,
+    const int32_t n,
+    const Ink *const k
+)
+{
+    const Ink ink = *k; /* a bool stored may be k's: its own copy is read once */
+
+    for (int32_t i = 0; i < n; i++) {
+        drawn[i] = !ink.keyed || !px_key(g, texels[i]);
+        argb[i] = ink_colour(PX_32, g, FILL_ANY, &ink, texels[i]);
+    }
+}
+
 void fill_argb(
     uint32_t *const argb,
     bool *const drawn,
@@ -108,9 +126,21 @@ void fill_argb(
     const Ink *const k
 )
 {
-    for (int32_t i = 0; i < n; i++) {
-        drawn[i] = !k->keyed || !px_key(k->source, texels[i]);
-        argb[i] = ink_colour(PX_32, k->source, FILL_ANY, k, texels[i]);
+    switch (k->source) {
+    case PX_8:
+        argb_of(PX_8, argb, drawn, texels, n, k);
+        break;
+
+    case PX_15:
+        argb_of(PX_15, argb, drawn, texels, n, k);
+        break;
+
+    case PX_16:
+        argb_of(PX_16, argb, drawn, texels, n, k);
+        break;
+
+    default:
+        argb_of(PX_32, argb, drawn, texels, n, k);
     }
 }
 

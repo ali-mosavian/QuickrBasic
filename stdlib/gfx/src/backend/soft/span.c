@@ -101,48 +101,6 @@ void span_fill(
         t->fill->span(span_at(t, x0, y), x1 - x0, t->fill->paint(colour, &t->ink));
 }
 
-/* n pixels a pixel at a time: each texel held inside, keyed, shown over the depth there, drawn,
-   its depth set. */
-static void each(
-    const Textured *const x,
-    const int32_t px,
-    const int32_t y,
-    const int32_t n,
-    Steps st,
-    int32_t z,
-    const int32_t dz
-)
-{
-    const SoftTarget *const t = x->t;
-    const Pixels *const s = x->s;
-    const uint32_t bytes = px_bytes(t->px.format);
-    const bool plain = span_fused(t, s);
-    uint16_t *const d = t->depth.p ? t->depth.p + y * t->depth.row + px : nullptr;
-    uint8_t *const out = span_at(t, px, y);
-    Ink k = t->ink;
-    k.keyed = false;
-    k.source = s->format;
-
-    for (int32_t i = 0; i < n; i++, z = depth_on(z, dz, 1), steps_on(&st)) {
-        const uint32_t texel = steps_texel(s, &st);
-        const uint16_t here = depth_of(z);
-
-        if (d && x->test && !depth_shows(d[i], here))
-            continue;
-
-        if (!x->opaque && px_key(s->format, texel))
-            continue;
-
-        if (plain)
-            px_store(out + i * bytes, texel, bytes);
-        else
-            t->fill->ink(out + i * bytes, &texel, 1, &k);
-
-        if (d && x->set)
-            d[i] = here;
-    }
-}
-
 /* The texel at u, v, whole texels, held inside s; u wrapped when it wraps. */
 static uint32_t texel_at(const Pixels *const s, const int32_t u, const int32_t v, const bool wrap)
 {
@@ -152,69 +110,142 @@ static uint32_t texel_at(const Pixels *const s, const int32_t u, const int32_t v
     return px_load(s->p + steps_held(v, s->h) * s->pitch + (uint32_t)across * bytes, bytes);
 }
 
+/* The four texels from u, v to u + 1, v + 1, whole texels, of s, g's: read from one place when
+   all are inside, else each held or wrapped. */
+[[gnu::always_inline]]
+static inline void corners(
+    uint32_t *const out,
+    const PxFormat g,
+    const Pixels *const s,
+    const int32_t u,
+    const int32_t v,
+    const bool wrap
+)
+{
+    const uint32_t bytes = px_bytes(g);
+
+    if ((uint32_t)u < (uint32_t)(s->w - 1) && (uint32_t)v < (uint32_t)(s->h - 1)) {
+        const uint8_t *const p = s->p + (uint32_t)v * s->pitch + (uint32_t)u * bytes;
+
+        out[0] = px_load(p, bytes);
+        out[1] = px_load(p + bytes, bytes);
+        out[2] = px_load(p + s->pitch, bytes);
+        out[3] = px_load(p + s->pitch + bytes, bytes);
+        return;
+    }
+
+    out[0] = texel_at(s, u, v, wrap);
+    out[1] = texel_at(s, u + 1, v, wrap);
+    out[2] = texel_at(s, u, v + 1, wrap);
+    out[3] = texel_at(s, u + 1, v + 1, wrap);
+}
+
 /* A colour's channels, 0 to 1, and its coverage: 1 drawn, 0 keyed. */
 typedef struct {
     float r, g, b, a;
 } Mix;
 
-static Mix mix_of(const uint32_t argb, const bool drawn)
-{
-    const float n = drawn ? 1.0f / 255 : 0;
+/* A channel, 0 to 1: c times a 255th, made once. */
+#define UNIT(c) (float)(c) * (1.0f / 255),
+#define UNITS4(c) UNIT(c) UNIT(c + 1) UNIT(c + 2) UNIT(c + 3)
+#define UNITS16(c) UNITS4(c) UNITS4(c + 4) UNITS4(c + 8) UNITS4(c + 12)
+#define UNITS64(c) UNITS16(c) UNITS16(c + 16) UNITS16(c + 32) UNITS16(c + 48)
+static const float units[256] = {UNITS64(0) UNITS64(64) UNITS64(128) UNITS64(192)};
 
-    return (Mix){(float)(argb >> 16 & 0xFF) * n,
-                 (float)(argb >> 8 & 0xFF) * n,
-                 (float)(argb & 0xFF) * n,
-                 drawn ? 1.0f : 0};
+[[gnu::always_inline]]
+static inline Mix mix_of(const uint32_t argb, const bool drawn)
+{
+    if (!drawn)
+        return (Mix){0, 0, 0, 0};
+
+    return (Mix){units[argb >> 16 & 0xFF], units[argb >> 8 & 0xFF], units[argb & 0xFF], 1};
 }
 
 /* GLSL's mix: a to b by f. */
-static Mix mix(const Mix a, const Mix b, const float f)
+[[gnu::always_inline]]
+static inline Mix mix(const Mix a, const Mix b, const float f)
 {
     const float e = 1 - f;
     return (Mix){a.r * e + b.r * f, a.g * e + b.g * f, a.b * e + b.b * f, a.a * e + b.a * f};
 }
 
-static uint32_t channel(const float c) { return (uint32_t)(c * 255 + 0.5f); }
-
-/* The four texels round the walk's place through k but its blend, mixed as the GPU's shader mixes
-   them: the place half a texel back, its fractions the weights; a keyed texel adds nothing. Into
-   *argb, the mix's colour divided by its coverage: false, under half covered, not drawn. */
-static bool mixed(
-    const Textured *const x,
-    const Steps *const st,
-    const Ink *const k,
-    uint32_t *argb
+/* Four texels' ARGB c, those drawn, mixed by fu across and fv down as the GPU's shader mixes
+   them: a keyed texel adds nothing. */
+[[gnu::always_inline]]
+static inline Mix mixed(
+    const uint32_t *const c,
+    const bool *const drawn,
+    const float fu,
+    const float fv
 )
 {
-    const int32_t pu = (int32_t)((uint32_t)st->u - 0x8000u),
-                  pv = (int32_t)((uint32_t)st->v - 0x8000u);
-    const int32_t u = pu >> 16, v = pv >> 16;
-    const float fu = (float)(pu & 0xFFFF) / 65536, fv = (float)(pv & 0xFFFF) / 65536;
-    const uint32_t texels[] = {
-        texel_at(x->s, u, v, x->wrap),
-        texel_at(x->s, u + 1, v, x->wrap),
-        texel_at(x->s, u, v + 1, x->wrap),
-        texel_at(x->s, u + 1, v + 1, x->wrap),
-    };
-
-    uint32_t c[4];
-    bool drawn[4];
-
-    fill_argb(c, drawn, texels, 4, k);
     const Mix top = mix(mix_of(c[0], drawn[0]), mix_of(c[1], drawn[1]), fu);
     const Mix under = mix(mix_of(c[2], drawn[2]), mix_of(c[3], drawn[3]), fu);
-    const Mix m = mix(top, under, fv);
+    return mix(top, under, fv);
+}
+
+static uint32_t channel(const float c) { return (uint32_t)(c * 255 + 0.5f); }
+
+static uint32_t opaque(const float r, const float g, const float b)
+{
+    return PX_OPAQUE | channel(r) << 16 | channel(g) << 8 | channel(b);
+}
+
+/* mixed's colour divided by its coverage into *argb: false, under half covered, not drawn. */
+static bool partly(
+    const uint32_t *const c,
+    const bool *const drawn,
+    const float fu,
+    const float fv,
+    uint32_t *const argb
+)
+{
+    const Mix m = mixed(c, drawn, fu, fv);
 
     if (m.a < 0.5f)
         return false;
 
-    *argb = PX_OPAQUE | channel(m.r / m.a) << 16 | channel(m.g / m.a) << 8 | channel(m.b / m.a);
+    *argb = opaque(m.r / m.a, m.g / m.a, m.b / m.a);
     return true;
 }
 
-/* n pixels SMOOTH's way, a pixel at a time: the mix shown over the depth there, drawn, its depth
-   set. A SOLID mix is its colour, where covered. */
-static void smooth(
+/* partly's, four drawn: they cover it all, exactly 1, so none is divided. */
+[[gnu::always_inline]]
+static inline bool covered(
+    const uint32_t *const c,
+    const bool *const drawn,
+    const float fu,
+    const float fv,
+    uint32_t *const argb
+)
+{
+    if (!(drawn[0] & drawn[1] & drawn[2] & drawn[3]))
+        return partly(c, drawn, fu, fv, argb);
+
+    const Mix m = mixed(c, (const bool[]){true, true, true, true}, fu, fv);
+
+    *argb = opaque(m.r, m.g, m.b);
+    return true;
+}
+
+/* The first of m pixels from i not shown: m, none. */
+static int32_t shown_to(const bool *const shown, int32_t i, const int32_t m)
+{
+    while (i < m && shown[i])
+        i++;
+
+    return i;
+}
+
+enum { SMOOTH_CHUNK = 64 };
+
+/* n pixels SMOOTH's way, g's texels, SMOOTH_CHUNK at a time: the four texels round each pixel's
+   place through k but its blend, mixed, the place half a texel back and its fractions the
+   weights; the mixes shown over the depth there drawn a run at a time, their depth set. A SOLID
+   mix is its colour, where covered. */
+[[gnu::always_inline]]
+static inline void smooth_of(
+    const PxFormat g,
     const Textured *const x,
     const int32_t px,
     const int32_t y,
@@ -228,29 +259,80 @@ static void smooth(
     const uint32_t bytes = px_bytes(t->px.format);
     uint16_t *const d = t->depth.p ? t->depth.p + y * t->depth.row + px : nullptr;
     uint8_t *const out = span_at(t, px, y);
-    Ink k = t->ink, drawn = t->ink;
-    k.source = x->s->format;
-    drawn.keyed = false;
+    Ink k = t->ink, ink = t->ink;
+    k.source = g;
+    ink.keyed = false;
 
     if (!k.solid) {
-        drawn.source = PX_32;
-        drawn.shade = PX_WHITE;
+        ink.source = PX_32;
+        ink.shade = PX_WHITE;
     }
 
-    for (int32_t i = 0; i < n; i++, z = depth_on(z, dz, 1), steps_on(&st)) {
-        const uint16_t here = depth_of(z);
-        uint32_t argb;
+    for (int32_t at = 0; at < n; at += SMOOTH_CHUNK) {
+        const int32_t m = n - at < SMOOTH_CHUNK ? n - at : SMOOTH_CHUNK;
+        uint32_t texels[4 * SMOOTH_CHUNK], c[4 * SMOOTH_CHUNK], argb[SMOOTH_CHUNK];
+        bool drawn[4 * SMOOTH_CHUNK], shown[SMOOTH_CHUNK];
+        float fu[SMOOTH_CHUNK], fv[SMOOTH_CHUNK];
 
-        if (d && x->test && !depth_shows(d[i], here))
-            continue;
+        for (int32_t i = 0; i < m; i++, steps_on(&st)) {
+            const int32_t pu = (int32_t)((uint32_t)st.u - 0x8000u),
+                          pv = (int32_t)((uint32_t)st.v - 0x8000u);
 
-        if (!mixed(x, &st, &k, &argb))
-            continue;
+            fu[i] = (float)(pu & 0xFFFF) / 65536;
+            fv[i] = (float)(pv & 0xFFFF) / 65536;
+            corners(texels + 4 * i, g, x->s, pu >> 16, pv >> 16, x->wrap);
+        }
 
-        t->fill->ink(out + i * bytes, &argb, 1, &drawn);
+        fill_argb(c, drawn, texels, 4 * m, &k);
 
-        if (d && x->set)
-            d[i] = here;
+        for (int32_t i = 0; i < m; i++, z = depth_on(z, dz, 1)) {
+            const uint16_t here = depth_of(z);
+            uint16_t *const there = d ? d + at + i : nullptr;
+
+            shown[i] = (!there || !x->test || depth_shows(*there, here)) &&
+                       covered(c + 4 * i, drawn + 4 * i, fu[i], fv[i], argb + i);
+
+            if (shown[i] && there && x->set)
+                *there = here;
+        }
+
+        for (int32_t i = 0; i < m;) {
+            const int32_t end = shown_to(shown, i, m);
+
+            if (end > i)
+                t->fill->ink(out + (at + i) * (int32_t)bytes, argb + i, end - i, &ink);
+
+            i = end + 1;
+        }
+    }
+}
+
+/* smooth_of, the source's body picked once. */
+static void smooth(
+    const Textured *const x,
+    const int32_t px,
+    const int32_t y,
+    const int32_t n,
+    const Steps st,
+    const int32_t z,
+    const int32_t dz
+)
+{
+    switch (x->s->format) {
+    case PX_8:
+        smooth_of(PX_8, x, px, y, n, st, z, dz);
+        break;
+
+    case PX_15:
+        smooth_of(PX_15, x, px, y, n, st, z, dz);
+        break;
+
+    case PX_16:
+        smooth_of(PX_16, x, px, y, n, st, z, dz);
+        break;
+
+    default:
+        smooth_of(PX_32, x, px, y, n, st, z, dz);
     }
 }
 
@@ -326,6 +408,114 @@ static void pieces(
         }
 }
 
+/* n pixels from px, y along st by the filler, held inside x's picture. */
+static void run(
+    const Textured *const x,
+    const int32_t px,
+    const int32_t y,
+    const int32_t n,
+    const Steps st
+)
+{
+    if (steps_inside(&st, x->s, n))
+        filled(x, px, y, n, st);
+    else
+        pieces(x, px, y, n, st);
+}
+
+/* Into out, whether each of n texels along st, g's, is drawn, not keyed: read by the walk when
+   inside s. */
+[[gnu::always_inline]]
+static inline void kept_of(
+    const PxFormat g,
+    bool *const out,
+    const Pixels *const s,
+    Steps st,
+    const int32_t n
+)
+{
+    if (!st.wrap && steps_inside(&st, s, n)) {
+        const StepsBy by = steps_by(s, st);
+        StepsRead r = steps_read(s, st, &by);
+
+        for (int32_t i = 0; i < n; i++)
+            out[i] = !px_key(g, steps_read_next(&r, px_bytes(g)));
+
+        return;
+    }
+
+    for (int32_t i = 0; i < n; i++, steps_on(&st))
+        out[i] = !px_key(g, steps_texel(s, &st));
+}
+
+/* kept_of, the source's body picked once. */
+static void kept(bool *const out, const Pixels *const s, const Steps st, const int32_t n)
+{
+    switch (s->format) {
+    case PX_8:
+        kept_of(PX_8, out, s, st, n);
+        break;
+
+    case PX_15:
+        kept_of(PX_15, out, s, st, n);
+        break;
+
+    case PX_16:
+        kept_of(PX_16, out, s, st, n);
+        break;
+
+    default:
+        kept_of(PX_32, out, s, st, n);
+    }
+}
+
+enum { DEEP_CHUNK = 64 };
+
+/* n pixels over the depth from z by dz, DEEP_CHUNK at a time: those in front, and drawn where a
+   keyed texel sets none, have their depth set, each run of them drawn as span_texels draws one. */
+static void deep(
+    const Textured *const x,
+    const int32_t px,
+    const int32_t y,
+    const int32_t n,
+    const Steps st,
+    int32_t z,
+    const int32_t dz
+)
+{
+    const SoftTarget *const t = x->t;
+    uint16_t *const d = t->depth.p + y * t->depth.row + px;
+    const bool keyed = x->set && !x->opaque; /* a run's filler keys its texels; their depth, here */
+
+    for (int32_t at = 0; at < n; at += DEEP_CHUNK) {
+        const int32_t m = n - at < DEEP_CHUNK ? n - at : DEEP_CHUNK;
+        const Steps from = steps_ahead(st, at);
+        bool shown[DEEP_CHUNK];
+
+        if (keyed)
+            kept(shown, x->s, from, m);
+
+        for (int32_t i = 0; i < m; i++, z = depth_on(z, dz, 1)) {
+            const uint16_t here = depth_of(z);
+            uint16_t *const there = d + at + i;
+
+            shown[i] = (!keyed || shown[i]) && (!x->test || depth_shows(*there, here));
+
+            if (shown[i] && x->set)
+                *there = here;
+        }
+
+        for (int32_t i = 0; i < m;) {
+            const int32_t end = shown_to(shown, i, m);
+
+            if (end > i)
+                run(x, px + at + i, y, end - i, steps_ahead(from, i));
+
+            i = end + 1;
+        }
+    }
+}
+
 void span_texels(
     const Textured *const x,
     const int32_t px,
@@ -336,16 +526,12 @@ void span_texels(
     const int32_t dz
 )
 {
-    const SoftTarget *const t = x->t;
-
     if (x->smooth)
         smooth(x, px, y, n, st, z, dz);
-    else if (t->depth.p)
-        each(x, px, y, n, st, z, dz);
-    else if (steps_inside(&st, x->s, n))
-        filled(x, px, y, n, st);
+    else if (x->t->depth.p)
+        deep(x, px, y, n, st, z, dz);
     else
-        pieces(x, px, y, n, st);
+        run(x, px, y, n, st);
 }
 
 typedef struct {
