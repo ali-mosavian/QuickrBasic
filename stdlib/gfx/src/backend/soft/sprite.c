@@ -1,4 +1,4 @@
-/* Upright sprites (soft.h): a picture's rows copied, or walked through the ink. */
+/* Upright sprites (soft.h): a surface's rows copied, or walked through the ink. */
 #include "base/cover.h"
 #include "gfx_qx.h"
 #include "backend/soft/span.h"

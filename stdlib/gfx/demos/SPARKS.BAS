@@ -28,7 +28,7 @@ const LIFE_LEAST = 1.2
 const LIFE_MORE = 1.0
 ' the sky's light kept a second, a share
 const AFTERGLOW = 0.0005
-' the glow's picture: its side; drawn this many units; a
+' the glow's sprite: its side; drawn this many units; a
 ' spark's alpha at its brightest
 const GLOW_SIDE = 16
 const SPARK_SIZE = 0.45

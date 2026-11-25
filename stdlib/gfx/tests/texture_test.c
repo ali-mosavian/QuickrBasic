@@ -84,7 +84,7 @@ TEST(gfx_quad_over_the_sprite)
     CHECK(CALL("draw.quad", I(SURF_SCREEN), ARRAY(&a), I(1), I(s), I(0)).error == 9);
 }
 
-/* A 2 by 2 picture, 5 6 above 7 8, along (0.5, 1.5), (4.5, 1.5), (8.5, 3.5): its top edge the
+/* A 2 by 2 texture, 5 6 above 7 8, along (0.5, 1.5), (4.5, 1.5), (8.5, 3.5): its top edge the
    line, u running with x and repeating, its texels upright down the slope. */
 TEST(gfx_strip_follows_the_points)
 {
@@ -173,7 +173,7 @@ TEST(gfx_fonts_refuse)
 }
 
 /* A trapezoid in perspective, pixel centres (1.5, -0.5) (5.5, -0.5) (7.5, 3.5) (-0.5, 3.5), z 1 down
-   to 0.5, over an 8 by 4 picture whose texel (u, v) is 10 + 8v + u, u 0.5 to 8.5 across and v 0.5
+   to 0.5, over an 8 by 4 texture whose texel (u, v) is 10 + 8v + u, u 0.5 to 8.5 across and v 0.5
    to 4.5 down. Worked by hand from the plane (1/z, u/z, v/z linear): rows 0 to 3 cover pixels 2-5,
    1-6, 1-6 and 0-7; a span's u is taken at its first centre and a whole run (16 pixels) on,
    unclamped, the step their difference over 16. The texture tiles (px_tiles): row 1's u past 8
@@ -252,7 +252,7 @@ TEST(gfx_soft_tiles_wrap)
             CHECK(dst[y * 16 + x] == (y < 12 && x < 12 ? tex[(y & 3) * 4 + (x & 3)] : 1));
 }
 
-/* Walks past a picture's edges, both ways, through the held filler: each texel held inside as
+/* Walks past a texture's edges, both ways, through the held filler: each texel held inside as
    steps_texel holds it. Wrong pixels here were a coordinate held at the wrong edge, or held while
    inside. */
 TEST(gfx_soft_walks_held_inside)

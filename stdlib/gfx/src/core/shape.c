@@ -1,4 +1,4 @@
-/* Pictures' corners (shape.h). */
+/* Sprites' corners (shape.h). */
 #include "core/shape.h"
 #include "gfx_qx.h"
 #include "base/gmath.h"

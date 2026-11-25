@@ -3,7 +3,7 @@
  * # How it works
  * A font names its sheet by handle, its cells w by h, row by row from its first code. The built-in
  * is the runtime's 8 by 8 font drawn into a sheet of its own on first use, 16 glyphs a row from
- * code 0, index 1 where a glyph's bit is set. Text draws each glyph as a picture, so a turned
+ * code 0, index 1 where a glyph's bit is set. Text draws each glyph as a sprite, so a turned
  * camera turns it.
  */
 #ifndef GFX_FONT_H

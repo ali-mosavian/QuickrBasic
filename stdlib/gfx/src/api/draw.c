@@ -248,10 +248,10 @@ void gfx_draw_poly(
     }
 
     if (s_) {
-        const Picture pic = surf_picture(&g->surfaces, (uint32_t)s_);
+        const Source src = surf_source(&g->surfaces, (uint32_t)s_);
 
-        if (b->source(g, &pic))
-            b->poly(g, &pic, placed, (uint32_t)n, (uint32_t)colour, flags);
+        if (b->source(g, &src))
+            b->poly(g, &src, placed, (uint32_t)n, (uint32_t)colour, flags);
 
         return;
     }
@@ -276,13 +276,13 @@ static bool whole(const Vec v)
     return (float)gm_floor(v.x) == v.x && (float)gm_floor(v.y) == v.y;
 }
 
-/* p's picture, its anchor at a in the world (placed: at), turned by angle and scaled: upright at
+/* Source p, its anchor at a in the world (placed: at), turned by angle and scaled: upright at
    its size, a sprite, unless SMOOTH between pixels mixes its texels; else filled through its
    corners. */
-static void picture(
+static void draw_source(
     Gx *const g,
     const Place *const where,
-    const Picture *const p,
+    const Source *const p,
     const Vec anchor,
     const Vec a,
     const Vec at,
@@ -334,9 +334,9 @@ static void sprite(
 
     const Vec anchor = {(float)s->ax, (float)s->ay};
 
-    const Picture p = surf_picture(&g->surfaces, (uint32_t)s_);
+    const Source p = surf_source(&g->surfaces, (uint32_t)s_);
 
-    picture(g, &where, &p, anchor, (Vec){x, y}, (Vec){c.x, c.y}, angle, scale, flags);
+    draw_source(g, &where, &p, anchor, (Vec){x, y}, (Vec){c.x, c.y}, angle, scale, flags);
 }
 
 void gfx_draw_sprite(
@@ -388,19 +388,19 @@ void gfx_draw_quad(
     if (!gx_draw(g, (uint32_t)dst, &c, SPRITE_FLAGS, &where))
         return;
 
-    const Picture pic = surf_picture(&g->surfaces, (uint32_t)s_);
+    const Source src = surf_source(&g->surfaces, (uint32_t)s_);
     const Backend *const b = g->backend;
     Corner v[4];
 
-    if (!b->source(g, &pic))
+    if (!b->source(g, &src))
         return;
 
     shape_quad(s->w, s->h, world, flags, &where, v);
-    b->poly(g, &pic, v, 3, 0, flags);
-    b->poly(g, &pic, (const Corner[]){v[0], v[2], v[3]}, 3, 0, flags);
+    b->poly(g, &src, v, 3, 0, flags);
+    b->poly(g, &src, (const Corner[]){v[0], v[2], v[3]}, 3, 0, flags);
 }
 
-/* x, y the first point, x2, y2 the last, after the camera. The picture repeats along the points,
+/* x, y the first point, x2, y2 the last, after the camera. The texture repeats along the points,
    their line its top edge, its texels upright: u runs with x from the first point. */
 void gfx_draw_strip(
     const int32_t dst,
@@ -439,9 +439,9 @@ void gfx_draw_strip(
     if (!gx_draw(g, (uint32_t)dst, &c, SPRITE_FLAGS, &where))
         return;
 
-    const Picture pic = surf_picture(&g->surfaces, (uint32_t)s_);
+    const Source src = surf_source(&g->surfaces, (uint32_t)s_);
 
-    if (!g->backend->source(g, &pic))
+    if (!g->backend->source(g, &src))
         return;
 
     for (int32_t i = 0; i + 1 < n; i++) {
@@ -449,7 +449,7 @@ void gfx_draw_strip(
         const Vec a = {p[i].x, p[i].y}, b = {p[i + 1].x, p[i + 1].y};
 
         shape_segment(s->w, s->h, a, b, p[i].x - p[0].x, flags, &where, v);
-        g->backend->poly(g, &pic, v, 4, 0, flags | POLY_WRAP);
+        g->backend->poly(g, &src, v, 4, 0, flags | POLY_WRAP);
     }
 }
 
@@ -658,9 +658,9 @@ void gfx_draw_tiles(
 
             const Vec dx = {(float)(col * w), (float)(row * h)};
 
-            const Picture p = surf_picture(&g->surfaces, cell);
+            const Source p = surf_source(&g->surfaces, cell);
 
-            picture(
+            draw_source(
                 g,
                 &where,
                 &p,
@@ -676,7 +676,7 @@ void gfx_draw_tiles(
 
 /* The style's font and its sheet, apart from dst: null, raised (its sheet freed or dst's, or no
    memory). */
-static const Font *style_font(Gx *const g, const uint32_t dst, Picture *const sheet)
+static const Font *style_font(Gx *const g, const uint32_t dst, Source *const sheet)
 {
     const Font *const f = font_get(&g->fonts, g->style.font);
 
@@ -684,7 +684,7 @@ static const Font *style_font(Gx *const g, const uint32_t dst, Picture *const sh
         if (font_builtin(&g->fonts, &sheet->root)) {
             sheet->at = (Rect){0, 0, sheet->root.w, sheet->root.h};
 
-            sheet->texture = PIC_FONT;
+            sheet->texture = SOURCE_FONT;
             sheet->version = 1;
             return f;
         }
@@ -698,11 +698,11 @@ static const Font *style_font(Gx *const g, const uint32_t dst, Picture *const sh
     if (!s || !gx_surface(g, dst) || !gx_apart(g, dst, f->sheet))
         return nullptr;
 
-    *sheet = surf_picture(&g->surfaces, f->sheet);
+    *sheet = surf_source(&g->surfaces, f->sheet);
     return f;
 }
 
-/* Each glyph a picture, in colour (SOLID's), or draw.AS_DRAWN its own texels. */
+/* Each glyph a sprite, in colour (SOLID's), or draw.AS_DRAWN its own texels. */
 void gfx_draw_text(
     const int32_t dst,
     const float x,
@@ -715,7 +715,7 @@ void gfx_draw_text(
     const bool own = colour == GFX_DRAW_AS_DRAWN;
     Command c = drawn(GFX_DISPLAY_DREW_TEXT, (Vec){x, y}, (Vec){x, y}, own ? 0 : colour, 0);
 
-    Picture sheet;
+    Source sheet;
     const Font *const f = g ? style_font(g, (uint32_t)dst, &sheet) : nullptr;
     Place where;
 
@@ -732,14 +732,14 @@ void gfx_draw_text(
         if (!font_glyph(f, (uint8_t)s.ptr[i], &cell))
             continue;
 
-        const Picture glyph = {
+        const Source glyph = {
             sheet.root,
             {sheet.at.x + cell.x, sheet.at.y + cell.y, cell.w, cell.h},
             sheet.texture,
             sheet.version,
         };
 
-        picture(g, &where, &glyph, (Vec){}, (Vec){x + dx, y}, (Vec){c.x + dx, c.y}, 0, 1, 0);
+        draw_source(g, &where, &glyph, (Vec){}, (Vec){x + dx, y}, (Vec){c.x + dx, c.y}, 0, 1, 0);
     }
 }
 

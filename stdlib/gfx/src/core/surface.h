@@ -33,18 +33,18 @@ typedef struct {
 /* The screen's surface. */
 enum : uint32_t { SURF_SCREEN = (uint32_t)HDL_SURFACE << HDL_KIND_SHIFT };
 
-/* A picture's own texture, with no surface: a handle is never so small. */
-enum { PIC_WHITE = 1, PIC_FONT = 2 };
+/* A source's own texture, with no surface: a handle is never so small. */
+enum { SOURCE_WHITE = 1, SOURCE_FONT = 2 };
 
 /* A surface's pixels as drawn from: its root's (the surface with memory, or the screen's page),
-   its rectangle in them; the root's handle, or a PIC_ texture's, and the root's version. */
+   its rectangle in them; the root's handle, or a SOURCE_ texture's, and the root's version. */
 typedef struct {
     Pixels root;
     Rect at;
     uint32_t texture, version;
-} Picture;
+} Source;
 
-static inline Pixels pic_pixels(const Picture *const p) { return px_cut(&p->root, p->at); }
+static inline Pixels source_pixels(const Source *const p) { return px_cut(&p->root, p->at); }
 
 typedef struct {
     HdlTable t;
@@ -74,8 +74,8 @@ uint32_t surf_new(
 uint32_t surf_view(Surfaces *ss, uint32_t parent, int32_t x, int32_t y, int32_t w, int32_t h);
 /* h's surface: null, none (freed, or not a surface). */
 Surface *surf_get(const Surfaces *ss, uint32_t h);
-/* h's picture, h a surface. */
-Picture surf_picture(const Surfaces *ss, uint32_t h);
+/* h's source, h a surface. */
+Source surf_source(const Surfaces *ss, uint32_t h);
 /* s's root; *h, s's handle, becomes the root's. */
 Surface *surf_root(const Surfaces *ss, Surface *s, uint32_t *h);
 /* s's clip, inside it. */

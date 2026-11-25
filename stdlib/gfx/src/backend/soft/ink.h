@@ -7,17 +7,17 @@
  *   fillers draw it.
  * - keyed: a texel 0, or 32 bits' alpha under a half, is not drawn.
  * - solid: every texel drawn is colour, the target's index or &HFFRRGGBB.
- * - smooth: SMOOTH's, a picture's four texels round a pixel mixed: argb and, at 8 bits, map made
+ * - smooth: SMOOTH's, a texture's four texels round a pixel mixed: argb and, at 8 bits, map made
    for any source, as the mix is a colour.
  * - An 8-bit target: lut, the index each index draws as; map, 5 bits a channel to the nearest
  *   index; blend, 256 rows by the index drawn and 256 by the one there.
- * - Another: argb, the colour each index draws as; SMOOTH's from a direct picture, each texel's
+ * - Another: argb, the colour each index draws as; SMOOTH's from a direct texture, each texel's
  *   by channel (fill_colours).
  * - shade: light and tint multiplied into a direct texel (&HFFFFFF none); mode and alpha, the
  *   blend of a direct target.
- * - pixels: px_table's, a picture's texel as the target's pixel by index or channel, for the
+ * - pixels: px_table's, a texture's texel as the target's pixel by index or channel, for the
  *   fillers; none when solid or 8 bits from 8 bits.
- * - mixes: fill_mixes', a picture's texels blended into a direct target, for the fillers.
+ * - mixes: fill_mixes', a texture's texels blended into a direct target, for the fillers.
  */
 #ifndef GFX_INK_H
 #define GFX_INK_H
@@ -39,7 +39,7 @@ typedef struct {
 /* The ink of a call's flags and the style p into a target of format, its texels a shape's colours:
    false, no memory. */
 bool ink_begin(Ink *k, Palette *pal, const Style *p, int32_t flags, PxFormat format);
-/* k readied for a picture's texels, of format from, into a target of format into: false, no
+/* k readied for a texture's texels, of format from, into a target of format into: false, no
    memory. */
 bool ink_source(Ink *k, Palette *pal, const Style *p, PxFormat into, PxFormat from);
 /* Every texel drawn is colour, a shape's, through the style: SOLID's. */

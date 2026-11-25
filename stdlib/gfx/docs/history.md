@@ -34,7 +34,7 @@ What was built in which order, as it was written at the time: the names are thos
 - **CHARLIE**: `tools/charlieart.py` writes `CHARLIE.BMP` and `barkley/assets/sheet.bas`, which cuts
   its views.
 - **Tests, native** (`stdlib/gfx/tests`, in the unit tests): each rule by its commands drawn and its
-  pixels read. A frame of CHARLIE's pictures by its commands, and against its steps pasted by hand.
+  pixels read. A frame of CHARLIE's sprites by its commands, and against its steps pasted by hand.
   `make gfx-shot` draws that frame in the Mac's window, and `QB_SHOT` takes it.
 
 ### The rest of 2D
@@ -46,8 +46,8 @@ Step 3, in parts:
   from the radius less a half, so radius 0 is a pixel. An arc runs clockwise on the screen from
   its start to its finish. An outline draws each pixel once. Under a turned or zoomed camera a
   rect is a polygon.
-- **Turned pictures**: `sprite_turned`, `quad` and `strip`, and sprites and tiles under a turned
-  camera. `shape` gives a picture's corners with their texels; software fills the polygon, each
+- **Turned sprites**: `sprite_turned`, `quad` and `strip`, and sprites and tiles under a turned
+  camera. `shape` gives a sprite's corners with their texels; software fills the polygon, each
   pixel taking the texel at its centre through the affine map three corners give. A quad is two
   triangles, as a GPU draws it. A strip's points are its top edge, its texels upright below,
   repeating along x.
@@ -61,19 +61,19 @@ Step 3, in parts:
 - **15, 16 and 32 bits**: the canvas at the depth asked, and the hosts' pages and frames too. A
   surface has a format: `surface.new` the canvas's (8 bits before a screen), a view its parent's.
   `fill16.c` is the 15 and 16-bit template, built twice; `fill32.c` its own. The fused fillers copy
-  a picture of the target's format; any other goes through the ink: an index through a palette
+  a texture of the target's format; any other goes through the ink: an index through a palette
   row, lit and tinted (`pal_argb`), a direct texel multiplied, then the blend in arithmetic. On an
-  8-bit canvas a direct picture is matched to row 0 through the map as it is drawn. A 15 or 16-bit
+  8-bit canvas a direct texture is matched to row 0 through the map as it is drawn. A 15 or 16-bit
   texel 0 is the key, as an index 0 is; a 32-bit one's alpha under a half. What is drawn into a
   32-bit surface is opaque, so a new one is clear until drawn on. `surface.point` gives
   `&HRRGGBB`; `read` and `write` the pixels' bytes.
 - **PNG**: `surface.load` reads a PNG of any type and depth, not interlaced. An indexed one with at
   most one transparent colour stays 8 bits, that colour swapped with index 0, the key's; the rest
   load at 32 bits, alpha the file's or tRNS's. `inflate.c` reads the zlib stream as zlib's `puff`
-  does, a code a bit at a time: small, and fast enough for a game's pictures.
+  does, a code a bit at a time: small, and fast enough for a game's images.
 - **Fonts**: `draw.new_font` cuts a sheet into w by h glyphs from code 32, row by row;
   `draw.set_font` picks one, 0 the built-in; `draw.free_font` frees one. The built-in is the runtime's 8 by 8 drawn into a sheet of its own on
-  first use. Each glyph is drawn as a picture, so text turns and zooms with the camera; in a colour
+  first use. Each glyph is drawn as a sprite, so text turns and zooms with the camera; in a colour
   it is `SOLID`, that colour through the style as a shape's.
 
 ### The GPU's players
@@ -94,16 +94,16 @@ Step 4, in parts:
   draws, cycled so the copy never waits on the frame drawing the last. `QB_GFX=soft` draws in
   pages; the offscreen driver has no GPU and does too.
 - **Batches**: a shape is `SOLID`, its texel unread, so it joins whatever batch is open, and a
-  batch of shapes takes the next picture's texture. A root drawn from, half a page or smaller, is
+  batch of shapes takes the next sprite's texture. A root drawn from, half a page or smaller, is
   packed into a 1024 by 1024 atlas page of its format (indices or RGBA), rows of places, a place
   freed with its root and a page empty again started over; drawn into, a root has a texture of
-  its own. So separate pictures draw as one batch once sent. A root keeps the rows written since
+  its own. So separate textures draw as one batch once sent. A root keeps the rows written since
   the GPU took it, and only those are sent again. `display.get_stats` gives the frame
   shown last's draws, batches, uploads and reads waited for. On the Mac, 300 sprites and 300
   rects interleaved went from 601 batches to 1 (1764 to 2891 frames a second); 1000 sprites from
-  16 pictures from 1000 batches to 1 (1371 to 1996).
+  16 textures from 1000 batches to 1 (1371 to 1996).
 - **`SMOOTH`**: the shader mixes the four texels round a pixel's centre, each kept in the
-  picture's rectangle, so a page's neighbours never bleed in; a keyed texel adds nothing, and a
+  texture's rectangle, so a page's neighbours never bleed in; a keyed texel adds nothing, and a
   pixel mostly keyed is not drawn. `display.features` gives `HAS_SMOOTH` on a GPU.
 - **The page's player** (`plat/wasm/player.c`, `web/gpu.mjs`): the module's thread copies each
   list and the memory it points at to the page, going on while the page is at most three behind;

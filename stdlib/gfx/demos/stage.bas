@@ -99,7 +99,7 @@ sub label ( _
 end sub
 
 ' :::::::::::
-' Draws text over its shadow, so it reads on any picture.
+' Draws text over its shadow, so it reads on any background.
 '
 '     Args:
 '       dst:

@@ -617,7 +617,7 @@ typedef struct {
     int32_t y, rows;          /* the row, and the rows left */
     int32_t cx0, cx1, cy0, cy1;
     int32_t dudx, dvdx;
-    uint32_t sw, sh; /* the picture's sides, 16.16 */
+    uint32_t sw, sh; /* the texture's sides, 16.16 */
     int32_t su;      /* the row's u at its first pixel */
     Rows *r;
     RowAffine *plain, *held;
@@ -710,7 +710,7 @@ RW_CHECK(held)
     "movl " RW(dvdx) ", %%edx\n\t"                                                                 \
     "imull %%esi, %%edx\n\t"                                                                       \
     "addl %%edx, %%eax\n\t"
-/* The filler in ebx: plain when the walk of to - from pixels stays inside the picture. */
+/* The filler in ebx: plain when the walk of to - from pixels stays inside the texture. */
 #define ROWS_PICK                                                                                  \
     "movl %%ecx, %%edx\n\t"                                                                        \
     "subl %%edi, %%edx\n\t"                                                                        \
@@ -791,7 +791,7 @@ static void rows_of(void)
 
 /* qgl$drawA: the two chains down from the topmost vertex, each row's run from the left edge's
    pixel up to the right's, its u, v and, when deep, depth at its first pixel centre, held in the
-   clip; filled by plain, or held where the walk leaves the picture. */
+   clip; filled by plain, or held where the walk leaves the texture. */
 [[gnu::always_inline]]
 static inline void affine_walk(
     const ScanVert *const v,

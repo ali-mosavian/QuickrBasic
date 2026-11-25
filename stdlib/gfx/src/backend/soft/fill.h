@@ -58,7 +58,7 @@ typedef struct {
 /* k's mix table into a target of direct format into, made in m unless made already. */
 const uint32_t *fill_mixes(FillMixes *m, PxFormat into, const Ink *k);
 
-/* SMOOTH's colours of a direct picture's texels, lit, by px_table's channels: made for the
+/* SMOOTH's colours of a direct texture's texels, lit, by px_table's channels: made for the
    source and shade, again only when one changes. */
 typedef struct {
     uint32_t table[PX_TABLE];
@@ -87,7 +87,7 @@ typedef struct {
 
 /* A row filler's depth: tested, written, both or neither. */
 enum { ROW_TEST = 1, ROW_WRITE = 2, ROW_DEPTHS = 4 };
-/* An affine row's walk: inside the picture, held inside it, or wrapping across it. */
+/* An affine row's walk: inside the texture, held inside it, or wrapping across it. */
 enum { ROW_PLAIN, ROW_HELD, ROW_WRAPPED, ROW_WALKS };
 
 /* Row y's pixels x0 up to x1 of a polygon in r, its texels from u, v (16.16) and its depth from z
@@ -121,7 +121,7 @@ typedef void RowPersp(
 /* A format's, drawn into. flat, a colour by depth (ROW_); pick_flat picks it, or a blended
    one. The fused row fillers read texels of this format: affine and persp, by FILL_OPAQUE, depth
    and, affine's, walk (ROW_PLAIN, HELD or WRAPPED). inked,
-   by the source's format and the variant, draws an affine row inside its picture, no depth.
+   by the source's format and the variant, draws an affine row inside its texture, no depth.
    general draws any other through the ink a pixel at a time, by Rows' depths and wrap; smooth,
    SMOOTH's. */
 typedef struct {

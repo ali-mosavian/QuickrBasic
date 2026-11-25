@@ -1,4 +1,4 @@
-' A cube turning in perspective at 32 bits, a picture on
+' A cube turning in perspective at 32 bits, a texture on
 ' each face, nearer faces hiding farther ones by depth.
 ' Sized by the screen (stage.bas): W and H may be any size.
 ' P turns perspective off and on, D depth, S smoothing.
@@ -58,10 +58,10 @@ declare sub show_options ( _
 
 canvas& = gfx.display.open(W, H, 32, gfx.display.VSYNC)
 back& = gfx.display.rgb(16, 16, 40)
-dim pictures(FACES - 1) as long
+dim textures(FACES - 1) as long
 
 for i = 0 to FACES - 1
-    pictures(i) = new_face(i)
+    textures(i) = new_face(i)
 next
 
 dim spun(CORNERS - 1) as Vec3
@@ -108,7 +108,7 @@ do
 
     for i = 0 to FACES - 1
         first = i * 4
-        src& = pictures(i)
+        src& = textures(i)
         gfx.draw.poly canvas&, quads(), first, 4, src&, 0, flags%
     next
 
@@ -123,7 +123,7 @@ loop
 
 gfx.display.close
 
-' Face n's picture: a checkerboard in its own colour, a
+' Face n's texture: a checkerboard in its own colour, a
 ' border and its number.
 function new_face (byval n as integer) as long
     s& = gfx.surface.new(SIDE, SIDE)

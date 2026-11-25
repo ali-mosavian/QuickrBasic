@@ -1,8 +1,8 @@
-/* Shapes: a picture's draw call to its corners on the target, each with the texel there, u and v
- * in texels from the picture's top left, z 1: the polygons a backend fills.
+/* Shapes: a sprite's draw call to its corners on the target, each with the texel there, u and v
+ * in texels from the sprite's top left, z 1: the polygons a backend fills.
  *
  * # How it works
- * A picture's anchor names a texel's centre, so its edges lie half a texel round it. Its corners
+ * A sprite's anchor names a texel's centre, so its edges lie half a texel round it. Its corners
  * are turned and scaled about the anchor, then placed by the camera (command.h). Flips swap u or
  * v; the texels stay affine over each shape, so three corners give the whole map.
  */
@@ -10,7 +10,7 @@
 #define GFX_SHAPE_H
 #include "core/command.h"
 
-/* A picture w by h: its anchor, a texel's centre, at a in the world, turned by angle (clockwise
+/* A sprite w by h: its anchor, a texel's centre, at a in the world, turned by angle (clockwise
    on the screen) and scaled; flags draw.FLIPX and FLIPY. Its corners, top left round. */
 void shape_sprite(
     int32_t w,
@@ -23,7 +23,7 @@ void shape_sprite(
     const Place *where,
     Corner out[4]
 );
-/* A picture w by h onto four corners in the world, from its top left round. */
+/* A sprite w by h onto four corners in the world, from its top left round. */
 void shape_quad(
     int32_t w,
     int32_t h,
@@ -32,7 +32,7 @@ void shape_quad(
     const Place *where,
     Corner out[4]
 );
-/* A strip's part from a to b, the picture h high hanging below; u its texel at a. */
+/* A strip's part from a to b, the sprite h high hanging below; u its texel at a. */
 void shape_segment(
     int32_t w,
     int32_t h,

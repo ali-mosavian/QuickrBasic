@@ -849,9 +849,9 @@ typedef struct {
     int32_t z, dz;      /* the depth, 16.16, and its step a pixel */
     int32_t n, done, m; /* a perspective row's pixels, those walked, and its run's */
     int32_t pu, pv;     /* u and v at the run's first pixel, 16.16 */
-    uint32_t sw, sh;    /* the picture's sides, 16.16; 0 when one reaches 32768: every run held */
+    uint32_t sw, sh;    /* the texture's sides, 16.16; 0 when one reaches 32768: every run held */
     int32_t pitch;      /* in texels */
-    uintptr_t at;       /* the picture's first texel's place, in texels */
+    uintptr_t at;       /* the texture's first texel's place, in texels */
     uint8_t *d;         /* the row's first pixel */
     uint16_t *zp;       /* and its depth */
     int32_t held[4];    /* the run left to held_of: its u, v, du and dv */
@@ -978,7 +978,7 @@ static inline void walk_plain(
 /* clang-format off */
 /* A perspective row's runs, from walk_frame's done, as persp_row's: u, v and w on the x87, its
    divide at each run's end as clang's, so the same bits; each run's steps and whether it stays
-   inside the picture as steps_inside's in 32 bits; a plain one walked, a held one stopping the
+   inside the texture as steps_inside's in 32 bits; a plain one walked, a held one stopping the
    walk with its steps in walk_frame's held, u, v and w kept in uvw. First, from u, v and w; again,
    past the held run, from uvw. */
 #define WALK_ENTRY                                                                                 \
@@ -1003,7 +1003,7 @@ static inline void walk_plain(
     "fldt " WF(uvw) "\n"                                                                           \
     "4:\n\t"
 /* m, the divide (u, v and w on: st0 u, st1 v, st2 w), du in eax and dv in ebx from pu in esi and
-   pv in edi, then whether the walk leaves the picture: 7f if it does. */
+   pv in edi, then whether the walk leaves the texture: 7f if it does. */
 #define WALK_DIVIDE                                                                                \
     "movl " WF(n) ", %%ecx\n\t"                                                                    \
     "subl " WF(done) ", %%ecx\n\t"                                                                 \
@@ -1227,7 +1227,7 @@ static inline void affine_row(
 }
 
 /* RowPersp's, f's texels into f: runs of SCAN_SUBDIVP, each a walk between two divides, held where
-   it leaves the picture. */
+   it leaves the texture. */
 [[gnu::always_inline]]
 static inline void persp_row(
     const PxFormat f,
@@ -1575,7 +1575,7 @@ static inline void smooth_row(
 }
 
 /* n pixels at x of row y along st, g's texels into f through the ink a pixel at a time: each texel
-   held inside the picture, u wrapped when it wraps; shown only nearer and its depth set as Rows'
+   held inside the texture, u wrapped when it wraps; shown only nearer and its depth set as Rows'
    depths say, a keyed texel neither. */
 [[gnu::always_inline]]
 static inline void general_of(

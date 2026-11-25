@@ -112,7 +112,7 @@ static void there_of(uint32_t *const seed, There *const t)
     memcpy(t->got, t->want, sizeof t->got);
 }
 
-/* The walk of COUNT pixels inside an N by N picture: u and v both step, v back across the rows, a
+/* The walk of COUNT pixels inside an N by N texture: u and v both step, v back across the rows, a
    fraction a pixel. */
 static const Steps WALK = {0x4000, (N - 1) << 16 | 0xE000, 0xC000, -0x9000, 0, 0};
 

@@ -45,7 +45,7 @@ static void drop_depth(Soft *const o, const uint32_t h)
 }
 
 /* p's depth, its root's made all far on first ask: p null, raised. */
-static Depth depth(Soft *const o, const Picture *const p)
+static Depth depth(Soft *const o, const Source *const p)
 {
     const uint32_t slot = hdl_slot(p->texture), row = (uint32_t)p->root.w;
 
@@ -127,14 +127,14 @@ static void forget(Gx *const g, const uint32_t h)
         drop_depth(g->own, h);
 }
 
-static bool begin(Gx *const g, const Command *const c, const Picture *const into, const Rect clip)
+static bool begin(Gx *const g, const Command *const c, const Source *const into, const Rect clip)
 {
     Soft *const o = own(g);
 
     if (!o)
         return false;
 
-    const Pixels px = pic_pixels(into);
+    const Pixels px = source_pixels(into);
     gx_wrote(g, c->target, (Rect){0, 0, px.w, px.h});
 
     o->call = (SoftTarget){
@@ -152,7 +152,7 @@ static bool begin(Gx *const g, const Command *const c, const Picture *const into
            gx_fail(ERR_MEMORY);
 }
 
-static bool clear_depth(Gx *const g, const Picture *const into)
+static bool clear_depth(Gx *const g, const Source *const into)
 {
     Soft *const o = own(g);
     const Depth d = o ? depth(o, into) : (Depth){};
@@ -166,7 +166,7 @@ static bool clear_depth(Gx *const g, const Picture *const into)
     return true;
 }
 
-static bool source(Gx *const g, const Picture *const p)
+static bool source(Gx *const g, const Source *const p)
 {
     Soft *const o = g->own;
     SoftTarget *const t = &o->call;
@@ -208,14 +208,14 @@ static void outline(Gx *const g, const Vec *const p, const uint32_t n, const uin
 
 static void poly(
     Gx *const g,
-    const Picture *const p,
+    const Source *const p,
     const Corner *const c,
     const uint32_t n,
     const uint32_t colour,
     const int32_t flags
 )
 {
-    const Pixels px = p ? pic_pixels(p) : (Pixels){};
+    const Pixels px = p ? source_pixels(p) : (Pixels){};
 
     soft_poly(call(g), p ? &px : nullptr, c, n, colour, flags & ~POLY_WRAP, flags & POLY_WRAP);
 }
@@ -242,9 +242,9 @@ static void rect(Gx *const g, const Vec a, const Vec b, const uint32_t colour, c
     soft_rect(call(g), a.x, a.y, b.x, b.y, colour, fill);
 }
 
-static void sprite(Gx *const g, const Picture *const p, const Vec at, const int32_t flags)
+static void sprite(Gx *const g, const Source *const p, const Vec at, const int32_t flags)
 {
-    const Pixels px = pic_pixels(p);
+    const Pixels px = source_pixels(p);
     soft_sprite(call(g), &px, at.x, at.y, flags);
 }
 

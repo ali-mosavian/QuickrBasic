@@ -101,7 +101,7 @@ Vec *gx_points(Gx *const g, const uint32_t n)
 
 void gx_wrote(Gx *const g, const uint32_t h, const Rect r)
 {
-    const Picture p = surf_picture(&g->surfaces, h);
+    const Source p = surf_source(&g->surfaces, h);
     const int32_t top = p.at.y + r.y;
 
     surf_wrote(&g->surfaces, surf_get(&g->surfaces, h));
@@ -151,7 +151,7 @@ bool gx_begin(Gx *const g, const uint32_t dst, Command *const c, const Place *co
     if (!cmd_log(&g->log, c))
         return gx_fail(ERR_MEMORY);
 
-    const Picture into = surf_picture(&g->surfaces, dst);
+    const Source into = surf_source(&g->surfaces, dst);
     return g->backend->begin(g, c, &into, where->clip);
 }
 

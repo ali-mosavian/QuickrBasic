@@ -1,10 +1,10 @@
-/* A GPU as a backend (backend.h): a call's shapes and pictures as triangles in the list
+/* A GPU as a backend (backend.h): a call's shapes and textures as triangles in the list
  * (backend/gpu/gpu.h), the style in their vertices.
  *
  * # How it works
  * A shape is SOLID, its colour in the vertices (an index through the style's palette row at 8 bits) lit
  * and tinted here as software's ink, so its texel does not matter and it joins any batch; alone it
- * draws from the white texel. SOLID's colour is worked here likewise. A picture's vertices carry its texels, its rectangle and its
+ * draws from the white texel. SOLID's colour is worked here likewise. A texture's vertices carry its texels, its rectangle and its
  * stages. Pixels are squares about whole numbers, so a shape's edges lie half a pixel round the
  * centres it covers, as software's. A line covers software's pixels, one a step along its longer
  * side. A circle or an arc is one box, the shader keeping the pixels disc.h's rule covers. A
@@ -19,7 +19,7 @@
 #include "backend/gpu/gpu.h"
 
 /* ALPHA: a pipeline's whole alpha. CALL_STAGES: the stages a call's flags set, kept for its
-   pictures. */
+   textures. */
 enum {
     ALPHA = 255,
     SHAPE_STAGES =
@@ -42,7 +42,7 @@ static void emit(const GpuCall *const t, const GpuVertex *const v, const uint32_
         gx_fail(ERR_MEMORY);
 }
 
-/* A vertex of the call at x, y in the target, the texel u, v in its picture. */
+/* A vertex of the call at x, y in the target, the texel u, v in its texture. */
 static GpuVertex vertex(
     const GpuCall *const t,
     const GpuVertex *const template,
@@ -153,7 +153,7 @@ static GpuCall *call(const Gx *const g) { return &((GpuState *)g->own)->call; }
    blank, the white texel, and the palette, its map too when map: false, no memory. */
 static bool aim(
     Gx *const g,
-    const Picture *const into,
+    const Source *const into,
     const Rect clip,
     const bool deep,
     const bool map,
@@ -162,7 +162,7 @@ static bool aim(
 )
 {
     Gpu *const gp = gpu(g);
-    const Picture white = {{(uint8_t *)&gp->white, 4, 1, 1, PX_32}, {0, 0, 1, 1}, PIC_WHITE, 1};
+    const Source white = {{(uint8_t *)&gp->white, 4, 1, 1, PX_32}, {0, 0, 1, 1}, SOURCE_WHITE, 1};
 
     const Rect in_root = {into->at.x + clip.x, into->at.y + clip.y, clip.w, clip.h};
 
@@ -175,7 +175,7 @@ static bool aim(
            gpu_palette(gp, &g->palette, map);
 }
 
-static bool begin(Gx *const g, const Command *const c, const Picture *const into, const Rect clip)
+static bool begin(Gx *const g, const Command *const c, const Source *const into, const Rect clip)
 {
     const Style *const style = &g->style;
     const PxFormat f = into->root.format;
@@ -235,7 +235,7 @@ static bool begin(Gx *const g, const Command *const c, const Picture *const into
     return true;
 }
 
-static bool source(Gx *const g, const Picture *const p)
+static bool source(Gx *const g, const Source *const p)
 {
     GpuCall *const t = call(g);
     GpuVertex *const k = &t->template;
@@ -362,7 +362,7 @@ static GpuVertex shape_corner(const GpuCall *const t, const void *const ctx, con
 
 static void poly(
     Gx *const g,
-    const Picture *const p,
+    const Source *const p,
     const Corner *const c,
     const uint32_t n,
     const uint32_t colour,
@@ -380,7 +380,7 @@ static void poly(
 }
 
 /* A box over into writing depth 0 and no colour; none when its depth texture is new, all 0. */
-static bool clear_depth(Gx *const g, const Picture *const into)
+static bool clear_depth(Gx *const g, const Source *const into)
 {
     const Rect all = {0, 0, into->at.w, into->at.h};
 
@@ -516,7 +516,7 @@ static void rect(Gx *const g, const Vec a, const Vec b, const uint32_t colour, c
     }
 }
 
-static void sprite(Gx *const g, const Picture *const p, const Vec at, const int32_t flags)
+static void sprite(Gx *const g, const Source *const p, const Vec at, const int32_t flags)
 {
     const GpuCall *const t = call(g);
     const float w = (float)p->at.w, h = (float)p->at.h;

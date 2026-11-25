@@ -120,12 +120,12 @@ declare sub set_alpha cdecl (byval level as integer)
 declare function get_alpha cdecl () as integer
 
 ' :::::::::::
-' Sets the palette row 8-bit pictures are drawn in.
+' Sets the palette row 8-bit surfaces are drawn in.
 '
 '     Args:
 '       row:
 '         0 to 15 (display.set_palette); 0 the
-'         pictures' own colours.
+'         surfaces' own colours.
 '
 '     Raises:
 '       Illegal function call: no such row.
@@ -133,7 +133,7 @@ declare function get_alpha cdecl () as integer
 declare sub set_palette_row cdecl (byval row as integer)
 
 ' :::::::::::
-' Gets the palette row 8-bit pictures are drawn in.
+' Gets the palette row 8-bit surfaces are drawn in.
 ' :::::::::::
 declare function get_palette_row cdecl () as integer
 

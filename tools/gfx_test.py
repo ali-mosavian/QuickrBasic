@@ -152,7 +152,7 @@ def extension_row() -> str:
 # perspective, with depth tested and set, their planes crossing; arcs, circles and lines. A
 # perspective row walked held, plain, then held: no row went on past a held run, so the DOS asm's
 # resume, its x87 state kept across it, was never drawn.
-# The picture's bytes make keyed holes at each depth: a 0, or at 32 bits an alpha under a half.
+# The texture's bytes make keyed holes at each depth: a 0, or at 32 bits an alpha under a half.
 SAME_PIXELS = """import gfx.display, gfx.draw, gfx.surface
 from gfx.draw import Vec2, Vertex
 canvas& = gfx.display.open(320, 200, {depth}, 0)
@@ -262,8 +262,8 @@ print sum&
 
 # The GPU's frame against pages', a feature to a 160 by 120 cell of a 640 by 480 screen, each drawn
 # in a view of its cell: shapes; sprites keyed, flipped, OPAQUE; turned and a strip; polygons flat,
-# affine, in perspective; by depth; pictures lit, tinted; shapes lit and tinted; SOLID; BLEND and
-# ADD, shapes and pictures; SMOOTH; palette rows (8 bits); text; a surface drawn into, then drawn;
+# affine, in perspective; by depth; sprites lit, tinted; shapes lit and tinted; SOLID; BLEND and
+# ADD, shapes and sprites; SMOOTH; palette rows (8 bits); text; a surface drawn into, then drawn;
 # a surface drawn into, its pixels read back and drawn as colours, two indices of one colour among
 # them. {depth}, {bytes} a pixel, {spread} a colour's step. The frame is drawn once, then shown.
 GPU_CELLS = (
@@ -342,7 +342,7 @@ for i = 0 to 11
     f% = gfx.draw.DEPTH_TEST + gfx.draw.DEPTH_WRITE + (i and 1) * gfx.draw.PERSPECTIVE
     gfx.draw.poly c&, q(), 0, 4, s&, 0, f%
 next
-' pictures lit, tinted
+' sprites lit, tinted
 for k = 5 to 6
     c& = cell&(k)
     for i = 0 to 7

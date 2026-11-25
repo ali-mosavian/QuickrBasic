@@ -40,7 +40,7 @@ static void by_hand(CharlieFrame *const f, const uint8_t *const atlas, const Cha
 
     for (uint32_t n = 0; n < charlie_nsteps; n++) {
         const CharlieStep *const s = &charlie_steps[n];
-        const CharlieCut *const c = &cuts[s->picture];
+        const CharlieCut *const c = &cuts[s->sprite];
         const bool opaque = s->flags & GFX_DRAW_OPAQUE, flip = s->flags & GFX_DRAW_FLIP_X;
 
         if (s->kind == CHARLIE_SPRITE)

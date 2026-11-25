@@ -3,9 +3,9 @@
  *
  * # How it works
  * A backend keeps what it needs in its own state (Gx.own), made when it first needs it and freed
- * by stop. begin readies a call into its target; source readies it for a picture's texels,
- * solid for one colour over the picture's shape. The rest draw: points name pixel centres
- * (cover.h), and a picture's corners carry its texels (shape.h).
+ * by stop. begin readies a call into its target; source readies it for a source's texels,
+ * solid for one colour over the source's shape. The rest draw: points name pixel centres
+ * (cover.h), and a source's corners carry its texels (shape.h).
  */
 #ifndef GFX_BACKEND_H
 #define GFX_BACKEND_H
@@ -42,10 +42,10 @@ typedef struct {
     void (*wrote)(Gx *g, uint32_t h, int32_t top, int32_t bottom);
     /* h, a surface, freed. */
     void (*forget)(Gx *g, uint32_t h);
-    /* c's call readied into its target, whose picture is into, within clip: false, raised. */
-    bool (*begin)(Gx *g, const Command *c, const Picture *into, Rect clip);
+    /* c's call readied into its target, whose pixels are into, within clip: false, raised. */
+    bool (*begin)(Gx *g, const Command *c, const Source *into, Rect clip);
     /* The call readied for p's texels: false, raised. */
-    bool (*source)(Gx *g, const Picture *p);
+    bool (*source)(Gx *g, const Source *p);
     /* Every texel drawn is colour, through the style as a shape's: SOLID's, with a colour of the
        call's. */
     void (*solid)(Gx *g, uint32_t colour);
@@ -59,20 +59,20 @@ typedef struct {
        tested and set by flags into the target's; POLY_WRAP, u repeats. */
     void (*poly)(
         Gx *g,
-        const Picture *p,
+        const Source *p,
         const Corner *c,
         uint32_t n,
         uint32_t colour,
         int32_t flags
     );
     /* into's depth, all far: false, raised. */
-    bool (*clear_depth)(Gx *g, const Picture *into);
+    bool (*clear_depth)(Gx *g, const Source *into);
     void (*circle)(Gx *g, Vec c, float r, uint32_t colour, bool fill);
     void (*arc)(Gx *g, Vec c, float r, float start, float finish, uint32_t colour);
     /* Upright, corners a and b drawn. */
     void (*rect)(Gx *g, Vec a, Vec b, uint32_t colour, bool fill);
     /* Upright at its size, its top left texel at at. */
-    void (*sprite)(Gx *g, const Picture *p, Vec at, int32_t flags);
+    void (*sprite)(Gx *g, const Source *p, Vec at, int32_t flags);
 } Backend;
 
 extern const Backend backend_soft, backend_gpu;

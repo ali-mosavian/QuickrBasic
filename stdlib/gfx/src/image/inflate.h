@@ -2,7 +2,7 @@
  *
  * # How it works
  * Stored, fixed and dynamic blocks; a code is read a bit at a time through its counts of each
- * length, as zlib's puff does: small, and fast enough for the pictures a game loads. The bytes go
+ * length, as zlib's puff does: small, and fast enough for the images a game loads. The bytes go
  * into the caller's buffer, its size known from the image; more is an error, as is a bad
  * Adler-32.
  */

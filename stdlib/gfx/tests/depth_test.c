@@ -1,6 +1,6 @@
 /* Canvases of 15, 16 and 32 bits: colours &HRRGGBB, packed and read back; the style's light and
-   blends by arithmetic; 8-bit pictures through the palette, 32-bit ones keyed by alpha; and a
-   32-bit picture on an 8-bit canvas, matched to the palette. Worked by hand. */
+   blends by arithmetic; 8-bit textures through the palette, 32-bit ones keyed by alpha; and a
+   32-bit texture on an 8-bit canvas, matched to the palette. Worked by hand. */
 #include "test.h"
 
 #define POINT(x, y) PX(x, y)
@@ -97,9 +97,9 @@ TEST(gfx_depths_light_text)
     CHECK(POINT(0, 0) == 0x7D3E00 && POINT(7, 0) == 0x7D3E00);
 }
 
-/* An 8-bit picture, made before the screen, drawn through row 0 (the VGA's: 1 &H0000AA, 4
+/* An 8-bit texture, made before the screen, drawn through row 0 (the VGA's: 1 &H0000AA, 4
    &HAA0000), lit: &HAA times 31/63 is &H53. */
-TEST(gfx_depths_draw_8_bit_pictures)
+TEST(gfx_depths_draw_8_bit_textures)
 {
     gfx_fresh(S);
     const int32_t s = CALL("surface.new", I(3), I(1)).result.i;
@@ -118,7 +118,7 @@ TEST(gfx_depths_draw_8_bit_pictures)
 }
 
 /* A 32-bit surface starts transparent: what is drawn into it is opaque, the rest keyed. */
-TEST(gfx_depths_key_32_bit_pictures_by_alpha)
+TEST(gfx_depths_key_32_bit_textures_by_alpha)
 {
     gfx_fresh(S);
     canvas(S, 8, 32);
@@ -139,7 +139,7 @@ TEST(gfx_depths_key_32_bit_pictures_by_alpha)
     CHECK(POINT(0, 0) == 0x0000FF && POINT(1, 0) == 0xFF0000);
 }
 
-/* A 32-bit picture on an 8-bit canvas: its colours matched to row 0 (red is index 4 here). */
+/* A 32-bit texture on an 8-bit canvas: its colours matched to row 0 (red is index 4 here). */
 TEST(gfx_depths_match_32_bits_to_the_palette)
 {
     gfx_fresh(S);

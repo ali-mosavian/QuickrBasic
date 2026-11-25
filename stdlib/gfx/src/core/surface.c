@@ -119,13 +119,13 @@ uint32_t surf_view(
 
 Surface *surf_get(const Surfaces *const ss, const uint32_t h) { return hdl_item(&ss->t, h); }
 
-Picture surf_picture(const Surfaces *const ss, const uint32_t h)
+Source surf_source(const Surfaces *const ss, const uint32_t h)
 {
     Surface *const s = surf_get(ss, h);
     const Rect all = {0, 0, s->w, s->h};
 
     if (s->own)
-        return (Picture){
+        return (Source){
             {s->own, (uint32_t)s->w * px_bytes(s->format), s->w, s->h, s->format},
             all,
             h,
@@ -133,9 +133,9 @@ Picture surf_picture(const Surfaces *const ss, const uint32_t h)
         };
 
     if (!s->parent)
-        return (Picture){ss->screen, all, h, s->version};
+        return (Source){ss->screen, all, h, s->version};
 
-    Picture p = surf_picture(ss, s->parent);
+    Source p = surf_source(ss, s->parent);
     p.at = (Rect){p.at.x + s->x, p.at.y + s->y, s->w, s->h};
 
     return p;

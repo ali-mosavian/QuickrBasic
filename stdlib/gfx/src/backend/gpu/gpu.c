@@ -16,7 +16,7 @@ static uint32_t depth_of(const uint32_t h) { return h | (uint32_t)GPU_DEPTH << H
 /* texture's entry: null, no memory. */
 static GpuTexture *entry(Gpu *const g, const uint32_t texture)
 {
-    if (texture <= PIC_FONT)
+    if (texture <= SOURCE_FONT)
         return &g->own[texture];
 
     const uint32_t slot = hdl_slot(texture), had = g->ntextures;
@@ -73,7 +73,7 @@ bool gpu_open(Gpu *const g, const QxScreen *const s, const bool eight)
 {
     mem_fill(g->textures, 0, g->ntextures * sizeof *g->textures);
 
-    for (uint32_t i = 0; i <= PIC_FONT; i++)
+    for (uint32_t i = 0; i <= SOURCE_FONT; i++)
         g->own[i] = (GpuTexture){};
 
     g->npages = 0;
@@ -124,7 +124,7 @@ void gpu_close(Gpu *const g)
     g->npages = g->cappages = 0;
 }
 
-bool gpu_texture(Gpu *const g, const Picture *const p, const bool into, GpuSource *const out)
+bool gpu_texture(Gpu *const g, const Source *const p, const bool into, GpuSource *const out)
 {
     GpuTexture *const e = entry(g, p->texture);
     const uint32_t name = p->texture;
@@ -207,7 +207,7 @@ bool gpu_texture(Gpu *const g, const Picture *const p, const bool into, GpuSourc
     return true;
 }
 
-bool gpu_depth(Gpu *const g, const Picture *const p, uint32_t *const id, bool *const fresh)
+bool gpu_depth(Gpu *const g, const Source *const p, uint32_t *const id, bool *const fresh)
 {
     GpuTexture *const e = entry(g, p->texture);
     const uint32_t made[] =

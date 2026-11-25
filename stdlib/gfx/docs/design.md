@@ -197,7 +197,7 @@ Each convenience of µGL and Allegro is kept, and given a shape a GPU draws in f
 
 | The program writes | The backend does |
 |---|---|
-| a picture loaded on its own | packs it into an atlas page as it loads: the handle is a view, and sprites of one page draw as one batch |
+| an image loaded on its own | packs it into an atlas page as it loads: the handle is a view, and sprites of one page draw as one batch |
 | `draw.pset`, `line`, `rect`, `circle` | draws them as triangles from a white texel kept in every page, so they join the sprites' batch |
 | a light, tint, palette or flip for one sprite | puts it in the sprite's vertices; a palette is a row of the palette texture, so a swap does not split the batch |
 | a surface made or freed mid-frame | takes it from a pool of views in pages; nothing is allocated on the GPU in the frame |
@@ -225,7 +225,7 @@ QB's dialect's.
 A view is a surface over another surface's pixels, as µGL's `uglNewView` and qgl's `qglNewView`: its
 own shape and clipping, no memory of its own, nothing copied.
 
-- A picture is a view of its sheet, with an anchor (`surface.set_anchor`). `surface.new_view` cuts
+- A sprite is a view of its sheet, with an anchor (`surface.set_anchor`). `surface.new_view` cuts
   one by hand; `surface.new_views` fills an array with a sheet's equal cells: tiles, glyphs, an
   animation.
 - Drawing into a view of a canvas draws into its rectangle, clipped to it: a split screen, a
@@ -262,7 +262,7 @@ Everything 2D is a textured quad or a strip of them, so the backends have one pr
   `surface.clear_depth s` makes s's depth all far. Software only so far: a GPU draws them affine,
   with no depth.
 - `draw.text dst, x, y, s$, colour` in `set_font`'s font: a sheet of glyphs (`draw.new_font`), or
-  the built-in 8 by 8. Its glyphs are pictures, in `colour`, or as the sheet has them with
+  the built-in 8 by 8. Its glyphs are sprites, in `colour`, or as the sheet has them with
   `draw.AS_DRAWN`.
 
 The software backend picks fast paths itself: an upright sprite at 1:1 is a keyed row copy, a tile

@@ -25,7 +25,7 @@ const MOON_ORBIT = 12
 const MOON_R = 2
 const ORBIT_COLOUR = &H1C2434
 const MOON_COLOUR = &HC8C8D0
-' the comet's picture, in its own pixels
+' the comet's sprite, in its own pixels
 const COMET_W = 24
 const COMET_H = 7
 ' its ellipse, in shares of the screen's width and height:

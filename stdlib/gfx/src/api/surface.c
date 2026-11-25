@@ -203,7 +203,7 @@ void gfx_surface_clear_depth(const int32_t s)
     if (!g || !gx_surface(g, (uint32_t)s))
         return;
 
-    const Picture into = surf_picture(&g->surfaces, (uint32_t)s);
+    const Source into = surf_source(&g->surfaces, (uint32_t)s);
     g->backend->clear_depth(g, &into);
 }
 

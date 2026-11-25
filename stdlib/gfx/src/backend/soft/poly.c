@@ -19,7 +19,7 @@ static uint32_t depths_of(const SoftTarget *const t, const int32_t flags)
            (flags & GFX_DRAW_DEPTH_WRITE ? ROW_WRITE : 0);
 }
 
-/* A picture's polygon: its row filler picked once, then scanned. The fused fillers when the ink
+/* A texture's polygon: its row filler picked once, then scanned. The fused fillers when the ink
    has nothing to do and u does not wrap for a strip, a row leaving a tiled texture (px_tiles)
    wrapped; an affine row inside the texture, no depth, by its inked filler; any other by the
    general one; SMOOTH's by its own. */

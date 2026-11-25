@@ -27,7 +27,7 @@ backend keeps are in [design.md](design.md).
 | Directory | Owns | Does |
 |---|---|---|
 | `src/api` | | The interfaces (`*.bas`) and their entries: arguments checked, a command made, the backend called |
-| `src/core` | `Gx`, `Surfaces`, `Fonts`, `Palette`, `Style`, `CmdLog` | The state, handles, surfaces and views, palette tables, fonts, `draw`'s settings, commands and the frame's log, pictures' corners |
+| `src/core` | `Gx`, `Surfaces`, `Fonts`, `Palette`, `Style`, `CmdLog` | The state, handles, surfaces and views, palette tables, fonts, `draw`'s settings, commands and the frame's log, sprites' corners |
 | `src/backend` | `Backend` | `backend.h`, the table every backend fills |
 | `src/backend/soft` | `Soft` | The software renderer: inks, the scanner's walkers, row fillers by format |
 | `src/backend/gpu` | `GpuState` | The GPU renderer: a frame recorded as a list the host plays, and the one shader |
@@ -78,7 +78,7 @@ backend keeps are in [design.md](design.md).
   filler with its values at the run's start. It keeps gfx's pixel rule (`base/cover.h`).
 - **The row fillers** (`fill.c`) are a table for each format, as µGL's `cfmt`. A call picks its
   filler once (`poly.c`, `span.c`), and each is one straight loop for its variant: masked or not,
-  each depth mode, held or not. An affine row inside the picture takes the plain loop, one that
+  each depth mode, held or not. An affine row inside the texture takes the plain loop, one that
   leaves it the held one, or the wrapped one when the texture tiles (`px_tiles`). A perspective row
   divides every 16 pixels. An ink with work to do has an inked filler for each source format and
   variant. With depth or perspective as well it goes through the general filler, a pixel at a time.
@@ -88,7 +88,7 @@ backend keeps are in [design.md](design.md).
 
 ## GPU
 
-- `backend.c` turns shapes and pictures into triangles. A shape is `SOLID`, so it joins any batch.
+- `backend.c` turns shapes and textures into triangles. A shape is `SOLID`, so it joins any batch.
 - A polygon's corners carry their depth, 1/z, and in perspective their z as w, so the GPU steps
   texels and depth as the scanner does. A surface drawn with depth gets a 16-bit depth texture.
 - `gpu.c` records the frame: textures made and sent, rows the CPU wrote sent again, pipelines,

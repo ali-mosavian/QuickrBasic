@@ -23,7 +23,7 @@ const FOREST = 4
 const ROCK = 5
 const SNOW = 6
 const KINDS = 7
-' the land's pictures, on one sheet
+' the land's tiles, on one sheet
 const LANDS = 5
 ' cells between the land's knots: its islands, its shores
 const COARSE_GAP = 8
@@ -80,7 +80,7 @@ declare function kind_of (byval high as single) as integer
 declare sub lay_map ( _
     map() as long, _
     ground() as integer, _
-    pictures() as long _
+    textures() as long _
 )
 declare function is_water ( _
     ground() as integer, _
@@ -128,20 +128,20 @@ world& = gfx.surface.new_view(canvas&, 0, 0, st.w, st.h)
 waves& = new_waves()
 sheet& = new_lands()
 hull& = new_boat()
-dim pictures(KINDS - 1) as long
-pictures(DEEP) = gfx.surface.new_view(waves&, 0, 0, TILE, TILE)
-pictures(SHALLOW) = gfx.surface.new_view(waves&, 0, TILE, TILE, TILE)
+dim textures(KINDS - 1) as long
+textures(DEEP) = gfx.surface.new_view(waves&, 0, 0, TILE, TILE)
+textures(SHALLOW) = gfx.surface.new_view(waves&, 0, TILE, TILE, TILE)
 dim cut(LANDS - 1) as long
 n% = gfx.surface.new_views(sheet&, TILE, TILE, cut())
 
 for i = 0 to LANDS - 1
-    pictures(SAND + i) = cut(i)
+    textures(SAND + i) = cut(i)
 next
 
 dim ground(COLS * ROWS - 1) as integer
 dim map(COLS * ROWS - 1) as long
 make_ground ground()
-lay_map map(), ground(), pictures()
+lay_map map(), ground(), textures()
 dim boats(FLEET - 1) as Boat
 launch boats(), ground()
 dim clouds(PUFFS - 1) as Puff
@@ -170,8 +170,8 @@ do
     if turning% then angle! = angle! + TURN * dt!
 
     swell% = int(t! * WAVE_PACE) mod TILE
-    gfx.surface.set_view pictures(DEEP), swell%, 0
-    gfx.surface.set_view pictures(SHALLOW), TILE - 1 - swell%, TILE
+    gfx.surface.set_view textures(DEEP), swell%, 0
+    gfx.surface.set_view textures(SHALLOW), TILE - 1 - swell%, TILE
     sail boats(), ground(), dt!
     drift clouds(), dt!
     span! = COLS * TILE
@@ -355,14 +355,14 @@ function kind_of (byval high as single) as integer
     if high < 0.44 then kind_of = DEEP
 end function
 
-' Each cell's picture, its kind's.
+' Each cell's tile, its kind's.
 sub lay_map ( _
     map() as long, _
     ground() as integer, _
-    pictures() as long _
+    textures() as long _
 )
     for i& = 0 to COLS * ROWS - 1
-        map(i&) = pictures(ground(i&))
+        map(i&) = textures(ground(i&))
     next
 end sub
 

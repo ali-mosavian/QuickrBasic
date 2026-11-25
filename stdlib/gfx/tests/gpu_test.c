@@ -538,9 +538,9 @@ TEST(gfx_gpu_blends_8_bits_read_a_copy_of_behind)
     CHECK(arg(QX_LIST_DRAW, 3, 7) == SURF_SCREEN && arg(QX_LIST_DRAW, 3, 5) == 2 * 6);
 }
 
-/* A shape's texel does not matter: it joins a picture's batch, before or after it, and a circle
+/* A shape's texel does not matter: it joins a texture's batch, before or after it, and a circle
    one of circles whatever their texture. */
-TEST(gfx_gpu_draws_shapes_and_pictures_in_one_batch)
+TEST(gfx_gpu_draws_shapes_and_textures_in_one_batch)
 {
     screen(S, 8, 8, 8);
     const int32_t s = GPU_CALL("surface.new", I(2), I(2)).result.i;
@@ -561,9 +561,9 @@ TEST(gfx_gpu_draws_shapes_and_pictures_in_one_batch)
     CHECK(vertices[4].stages == (GPU_STAGE_INDEXED | GPU_STAGE_KEYED | GPU_STAGE_EIGHT));
 }
 
-/* Pictures drawn from share a page, side by side in a row, and so a batch once sent; one larger
+/* Textures drawn from share a page, side by side in a row, and so a batch once sent; one larger
    than half a page has a texture of its own. A page empty again starts over. */
-TEST(gfx_gpu_packs_pictures_into_pages)
+TEST(gfx_gpu_packs_textures_into_pages)
 {
     screen(S, 8, 8, 32);
     const int32_t a = GPU_CALL("surface.new", I(2), I(2)).result.i;
@@ -599,7 +599,7 @@ TEST(gfx_gpu_packs_pictures_into_pages)
     CHECK(arg(QX_LIST_UPLOAD, 3, 4) == 4 && arg(QX_LIST_DRAW, 1, 7) == GPU_PAGE_FIRST + 1);
 }
 
-/* A picture written sends only the rows written since it was last sent, through a view as well;
+/* A texture written sends only the rows written since it was last sent, through a view as well;
    a new place sends it whole. */
 TEST(gfx_gpu_sends_the_rows_written)
 {
@@ -627,8 +627,8 @@ TEST(gfx_gpu_sends_the_rows_written)
     CHECK(ops(HEAD "PNCDSE"));
 }
 
-/* SMOOTH asks the shader to mix a picture's texels. */
-TEST(gfx_gpu_smooths_pictures)
+/* SMOOTH asks the shader to mix a texture's texels. */
+TEST(gfx_gpu_smooths_textures)
 {
     screen(S, 8, 8, 8);
     const int32_t s = GPU_CALL("surface.new", I(2), I(2)).result.i;
@@ -643,9 +643,9 @@ TEST(gfx_gpu_smooths_pictures)
     CHECK(vertices[4].stages == (GPU_STAGE_INDEXED | GPU_STAGE_KEYED | GPU_STAGE_EIGHT));
 }
 
-/* An 8-bit picture goes into an index page, sent once and again when written; its place freed
+/* An 8-bit texture goes into an index page, sent once and again when written; its place freed
    with it. */
-TEST(gfx_gpu_sends_a_picture_once)
+TEST(gfx_gpu_sends_a_texture_once)
 {
     screen(S, 8, 8, 8);
     const int32_t s = GPU_CALL("surface.new", I(2), I(2)).result.i;
@@ -810,7 +810,7 @@ TEST(gfx_gpu_reads_back)
 /* Root h's depth texture's id. */
 static uint32_t depth_of(const uint32_t h) { return h | (uint32_t)GPU_DEPTH << HDL_KIND_SHIFT; }
 
-/* A quad 1 near at its top, 4 at its foot, drawn from a 2 by 2 picture with flags. */
+/* A quad 1 near at its top, 4 at its foot, drawn from a 2 by 2 texture with flags. */
 static void deep_quad(Session *const S, const int32_t flags)
 {
     const int32_t s = GPU_CALL("surface.new", I(2), I(2)).result.i;

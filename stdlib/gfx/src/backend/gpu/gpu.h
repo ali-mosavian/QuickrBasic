@@ -3,14 +3,14 @@
  *
  * # How it works
  * The first list makes the canvas and the palette's texture; a pipeline is made when first drawn
- * with (pipelines.h). A root surface's pixels, or a PIC_ picture's (surface.h), are sent when first
+ * with (pipelines.h). A root surface's pixels, or a SOURCE_ texture's (surface.h), are sent when first
  * drawn from or into, and again when the CPU wrote them since (the root's version). A root drawn
  * from, half a page or smaller, is packed into an atlas page (atlas.h). Drawn into, a root has a
  * texture of its own, named by its handle; packed, it leaves its page. An 8-bit root is indices: a
  * byte a texel drawn from; drawn into, RGBA, its colour through row 0 and its index in alpha. An
  * 8-bit canvas is shown as it is, its colours made again at a flip after row 0 changed. The
  * palette's texture holds its rows, then row 0's map (palette.h), sent when a draw needs it. A root
- * drawn into is ahead on the GPU (drawn) until gpu_sync reads it back. A draw reads its picture and
+ * drawn into is ahead on the GPU (drawn) until gpu_sync reads it back. A draw reads its texture and
  * the palette. A texture keeps the rows the CPU wrote since it was sent (gpu_wrote), so it sends
  * only those. A root drawn into with depth has a depth texture too (gpu_depth), made on that first
  * draw, which every pass into it keeps after.
@@ -30,7 +30,7 @@
 /* The palette's texture, the copy of what is behind, the first atlas page's, a page's side; a
    root's depth texture is its handle with GPU_DEPTH's kind. */
 enum {
-    GPU_PALETTE = PIC_FONT + 1,
+    GPU_PALETTE = SOURCE_FONT + 1,
     GPU_BEHIND,
     GPU_PAGE_FIRST,
     GPU_PAGE = 1024,
@@ -65,7 +65,7 @@ typedef struct {
     uint16_t x, y, row;
 } GpuPage;
 
-/* Where a picture's root is: its texture, its place in it, whether it holds indices and them in
+/* Where a source's root is: its texture, its place in it, whether it holds indices and them in
    alpha, and its depth texture (0 none). */
 typedef struct {
     uint32_t id;
@@ -81,7 +81,7 @@ typedef struct {
 
 typedef struct {
     GpuList list;
-    GpuTexture own[PIC_FONT + 1]; /* the PIC_ textures */
+    GpuTexture own[SOURCE_FONT + 1]; /* the SOURCE_ textures */
     GpuTexture *textures;         /* by a root's slot */
     uint32_t ntextures;
     GpuPage *pages; /* the first's texture PAGE_FIRST */
@@ -114,7 +114,7 @@ typedef struct {
     Gpu *gpu;
     Vec at;             /* the target's place in its texture: a view's */
     Rect clip;          /* the target's */
-    GpuVertex template; /* its vertices': tint and light; a picture's rectangle, row and stages */
+    GpuVertex template; /* its vertices': tint and light; a texture's rectangle, row and stages */
     uint32_t texture;
     QxBlend blend;
     uint8_t depth; /* QxDepth */
@@ -123,7 +123,7 @@ typedef struct {
     bool eight;         /* the target is 8 bits: a shape's colour is an index */
     const uint8_t *lut; /* at 8 bits, the index each draws as (pal_lut); null each itself */
     uint32_t tint;
-    uint32_t paint; /* a picture's colour: the tint, or SOLID's */
+    uint32_t paint; /* a texture's colour: the tint, or SOLID's */
     bool solid;
     bool behind; /* its pixels read what is behind them */
 } GpuCall;
@@ -134,9 +134,9 @@ bool gpu_open(Gpu *g, const QxScreen *s, bool eight);
 void gpu_close(Gpu *g);
 /* p's root on the GPU, made and sent as it needs it; into, drawn into: RGBA, and ahead of the CPU
    till read back. False, no memory. */
-bool gpu_texture(Gpu *g, const Picture *p, bool into, GpuSource *out);
+bool gpu_texture(Gpu *g, const Source *p, bool into, GpuSource *out);
 /* p's root's depth texture, made, all 0, if it had none (*fresh then): false, no memory. */
-bool gpu_depth(Gpu *g, const Picture *p, uint32_t *id, bool *fresh);
+bool gpu_depth(Gpu *g, const Source *p, uint32_t *id, bool *fresh);
 /* Rows top to bottom of the root h written by the CPU. */
 void gpu_wrote(Gpu *g, uint32_t h, int32_t top, int32_t bottom);
 /* The draws after go into id, w by h, within clip, with depth texture deep (0 none): false, no

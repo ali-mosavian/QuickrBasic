@@ -24,7 +24,7 @@ const ROLL = 0.25
 const SWING = 1.2
 ' a ring of lit panels every few
 const LIT_EVERY = 6
-' a panel's picture: its side, and its rivets' inset
+' a panel's texture: its side, and its rivets' inset
 const SIDE = 64
 const INSET = 6
 const FULL = 63

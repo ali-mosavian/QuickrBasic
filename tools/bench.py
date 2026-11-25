@@ -873,7 +873,7 @@ OPEN "EACH.TXT" FOR OUTPUT AS #1
 """
 
 
-# A frame's draws besides its clear, on a 640 by 480 canvas; f the frame, s& a 32 by 32 picture drawn, pic&() 16
+# A frame's draws besides its clear, on a 640 by 480 canvas; f the frame, s& a 32 by 32 texture drawn, tex&() 16
 # written, m& a colour's mask: 255 at 8 bits; p() a polygon's points, their texels s&'s corners, ox() and oy() an
 # octagon's. calls: the shapes' loop with three calls that draw nothing, the interpreter's share.
 GFX_WORK = {
@@ -900,8 +900,8 @@ GFX_WORK = {
     "    gfx.draw.arc canvas&, 639 - x, y, 20, 0.3, 4, (i * 131) and m&\n"
     "next",
     "sprites": "for i = 0 to 999\n    gfx.draw.sprite canvas&, (i * 37 + f) mod 608, (i * 53 + f) mod 448, s&, 0\nnext",
-    "pictures": "for i = 0 to 999\n"
-    "    gfx.draw.sprite canvas&, (i * 37 + f) mod 608, (i * 53 + f) mod 448, pic&(i mod 16), 0\n"
+    "textures": "for i = 0 to 999\n"
+    "    gfx.draw.sprite canvas&, (i * 37 + f) mod 608, (i * 53 + f) mod 448, tex&(i mod 16), 0\n"
     "next",
     "turned": "for i = 0 to 99\n"
     "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
@@ -965,13 +965,13 @@ s& = gfx.surface.new(32, 32)
 gfx.draw.clear s&, 0
 gfx.draw.circle s&, 15, 15, 14, 2, gfx.draw.FILL
 dim px(32 * 32 * 4 - 1) as byte
-dim pic&(15)
+dim tex&(15)
 for k = 0 to 15
     for i = 0 to 32 * 32 * 4 - 1
         px(i) = (i * 7 + k * 40) and 255
     next
-    pic&(k) = gfx.surface.new(32, 32)
-    gfx.surface.write pic&(k), 0, 0, 32, 32, px()
+    tex&(k) = gfx.surface.new(32, 32)
+    gfx.surface.write tex&(k), 0, 0, 32, 32, px()
 next
 do
     if f = {warm} then t# = gfx.display.clock

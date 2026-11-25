@@ -1,5 +1,5 @@
 /* Atlas pages: a root drawn from, half a page or smaller, packed into a page of its format, so
- * pictures share a texture and their sprites a batch. A page is packed in rows, a place freed with
+ * sources share a texture and their sprites a batch. A page is packed in rows, a place freed with
  * its root, a page empty again started over.
  */
 #ifndef GFX_GPU_ATLAS_H

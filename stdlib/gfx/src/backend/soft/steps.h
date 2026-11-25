@@ -1,5 +1,5 @@
-/* Steps: a walk over a picture's texels, u and v 16.16, a constant step a pixel. Every textured
- * span walks one: the fillers along it unchecked, when it stays inside the picture; a pixel at a
+/* Steps: a walk over a texture's texels, u and v 16.16, a constant step a pixel. Every textured
+ * span walks one: the fillers along it unchecked, when it stays inside the texture; a pixel at a
  * time held inside (steps_texel), when it may not.
  */
 #ifndef GFX_STEPS_H
@@ -100,12 +100,12 @@ static inline uint32_t steps_texel(const Pixels *const s, const Steps *const st)
 }
 
 #if defined(__i386__) || defined(__x86_64__)
-/* x86's: a walk that does not wrap read texel by texel, inside its picture: the texel's address
+/* x86's: a walk that does not wrap read texel by texel, inside its texture: the texel's address
    stepped by the walk's whole texels and rows, then a row more when v's fraction carries and a
    texel more when u's does (Abrash's). No texel costs a multiply. The fractions share a register,
    uGL's halves: u's the low one, stepped by a 16-bit add, v's pre-shifted to the top, by a 32-bit
-   one. The address counts texels, so u's carry is one at every depth: a picture's texels and rows
-   are whole texels from 0. The address is a number: the last step may leave the picture. */
+   one. The address counts texels, so u's carry is one at every depth: a texture's texels and rows
+   are whole texels from 0. The address is a number: the last step may leave the texture. */
 
 typedef struct {
     intptr_t step, pitch; /* in texels */

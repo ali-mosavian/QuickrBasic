@@ -16,18 +16,18 @@ enum {
 };
 
 const CharlieStep charlie_steps[] = {
-    {.kind = CHARLIE_SPRITE, .picture = BACKDROP, .flags = GFX_DRAW_OPAQUE},
-    {.kind = CHARLIE_SPRITE, .picture = HILLS, .y = GROUND - 80},
-    {.kind = CHARLIE_TILES, .picture = LEDGE, .y = GROUND, .count = CHARLIE_W / 16},
-    {.kind = CHARLIE_SPRITE, .picture = TREE, .x = 200, .y = GROUND - 80},
-    {.kind = CHARLIE_SPRITE, .picture = CHARLIE, .x = 60, .y = GROUND - 32},
+    {.kind = CHARLIE_SPRITE, .sprite = BACKDROP, .flags = GFX_DRAW_OPAQUE},
+    {.kind = CHARLIE_SPRITE, .sprite = HILLS, .y = GROUND - 80},
+    {.kind = CHARLIE_TILES, .sprite = LEDGE, .y = GROUND, .count = CHARLIE_W / 16},
+    {.kind = CHARLIE_SPRITE, .sprite = TREE, .x = 200, .y = GROUND - 80},
+    {.kind = CHARLIE_SPRITE, .sprite = CHARLIE, .x = 60, .y = GROUND - 32},
     {.kind = CHARLIE_SPRITE,
-     .picture = CHARLIE,
+     .sprite = CHARLIE,
      .x = 100,
      .y = GROUND - 32,
      .flags = GFX_DRAW_FLIP_X},
-    {.kind = CHARLIE_SPRITE, .picture = BONE, .x = 150, .y = GROUND - 24},
-    {.kind = CHARLIE_SPRITE, .picture = TITLE, .x = 75, .y = 20},
+    {.kind = CHARLIE_SPRITE, .sprite = BONE, .x = 150, .y = GROUND - 24},
+    {.kind = CHARLIE_SPRITE, .sprite = TITLE, .x = 75, .y = 20},
     {.kind = CHARLIE_TEXT, .x = 8, .y = 8, .colour = WHITE, .text = "THE AMBER DOWNS"},
 };
 
@@ -134,7 +134,7 @@ uint8_t charlie_draw(const QxHost *const host, const CharlieCut *const cuts, int
 
     for (uint32_t i = 0; i < charlie_nsteps; i++) {
         const CharlieStep *const s = &charlie_steps[i];
-        const CharlieCut *const c = &cuts[s->picture];
+        const CharlieCut *const c = &cuts[s->sprite];
         views[i] = 0;
 
         if (s->kind != CHARLIE_TEXT) {

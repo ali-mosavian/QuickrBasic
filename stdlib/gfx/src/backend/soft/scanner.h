@@ -93,8 +93,8 @@ static inline int32_t scan_step(const int32_t from, const int32_t to)
 /* n vertices (3 up to SCAN_MAXV, either winding) of a flat polygon in r, clipped to clip, scanned
    top to bottom: each row's run filled by fill. r's depth step is set. */
 void scan_flat(const ScanVert *v, uint32_t n, Rect clip, Rows *r, RowFlat *fill);
-/* As scan_flat, a picture's, affine: each row's run filled by plain, or by held where its walk
-   leaves the picture. r's steps are set. */
+/* As scan_flat, a texture's, affine: each row's run filled by plain, or by held where its walk
+   leaves the texture. r's steps are set. */
 void scan_affine(
     const ScanVert *v,
     uint32_t n,
