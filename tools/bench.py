@@ -1266,7 +1266,7 @@ def cmd_demos(a: argparse.Namespace) -> int:
     qbx = (b.dos.parent / "lib/gfx.qbx").read_bytes()
     own = {n: (DEMOS / n).read_bytes() for n in ("stage.bas", "meter.bas")}
     if a.machine:
-        return demos_on(a, b.dos, qbx, own)
+        return demos_on(a, own)
     if a.profile:
         with tempfile.TemporaryDirectory() as d:
             com = profiled(b, Path(d))
@@ -1409,19 +1409,24 @@ def print_vm_profile(
             print(f"{c:>12,.0f} {c / total:6.1%}  +{off:#x}")
 
 
-def demos_on(a: argparse.Namespace, com: Path, qbx: bytes, own: dict[str, bytes]) -> int:
-    """demos --machine: each demo with every edit but vsync, then each EXE, on 86Box's machine."""
+def demos_on(a: argparse.Namespace, own: dict[str, bytes]) -> int:
+    """demos --machine: each demo as shipped but for vsync, built from each --rev and the tree, then
+    each EXE, on 86Box's machine. --profile: the tree's, by function."""
+    builds = [(rev, build(rev, True)) for rev in [*(a.rev or []), "."]]
+    libs = [{"lib/gfx.qbx": (b.dos.parent / "lib/gfx.qbx").read_bytes()} for _, b in builds]
     if a.profile:
         with tempfile.TemporaryDirectory() as d:
-            exe = profiled(build(".", True), Path(d))
+            exe = profiled(builds[-1][1], Path(d))
             for name in a.demo or DEMO_EDITS:
                 jobs = [(demo_program(name, t, False, a.edits or 0), "", "", own) for t in (a.seconds / 2, a.seconds)]
-                print_vm_profile(name, a.machine, exe, jobs, {"lib/gfx.qbx": qbx}, a.n, a.at or [])
+                print_vm_profile(name, a.machine, exe, jobs, libs[-1], a.n, a.at or [])
         return 0
     print(f"320x200 at 8 bits on 86Box ({a.machine}), frames a second over {a.seconds:g} s")
+    print(f"{'':12}" + "".join(f"{rev:>10}" for rev, _ in builds))
     for name in a.demo or DEMO_EDITS:
         job = (demo_program(name, a.seconds, False, 0), "", "", own)
-        print(f"{name:12}{vm_rate(a.machine, com, job, {'lib/gfx.qbx': qbx}):>10}", flush=True)
+        cells = [vm_rate(a.machine, b.dos, job, lib) for (_, b), lib in zip(builds, libs, strict=True)]
+        print(f"{name:12}" + "".join(f"{c:>10}" for c in cells), flush=True)
     for exe in map(Path, a.exes):
         print(f"{exe.name:12}{vm_rate(a.machine, exe, ('',), {}):>10}", flush=True)
     return 0
@@ -1680,6 +1685,7 @@ def main() -> int:
     p.add_argument("--cycles", type=int, default=25000, help="DOSBox's cycles a virtual ms")
     p.add_argument("--machine", choices=list(MACHINES), help="on 86Box's 486DX2-66, Pentium 100 or Pentium Pro 200")
     p.add_argument("--at", action="append", help="--machine --profile: this function's cycles by offset too")
+    p.add_argument("--rev", action="append", help="--machine: a revision's build timed too, before the tree's")
     p.add_argument("--demo", action="append", choices=list(DEMO_EDITS), help="a demo to time; all when none")
     p.add_argument("--seconds", type=float, default=10)
     p.add_argument("--profile", action="store_true", help="by function a frame, ours with every edit (normal core)")
