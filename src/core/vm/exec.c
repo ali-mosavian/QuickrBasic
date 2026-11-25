@@ -112,7 +112,7 @@ void exec_until(Session *const S, const uint8_t *const end)
 
     while (v->ip != end) {
         v->opip = v->ip;
-        exec_counted(v);
+        exec_counted(v, v->ip);
         ops[*v->ip++](S);
     }
 }
@@ -595,7 +595,7 @@ static void exec_loop(Session *const S)
     Status st;
 
 next: /* r.ip at the op: each label steps past it */
-    exec_counted(v);
+    exec_counted(v, r.ip);
     goto *at_op[*r.ip];
 
 /* An op's handler, from the ops table: vm.ip, vm.sp and vm.opip stored around it. cold is the
@@ -608,7 +608,7 @@ next: /* r.ip at the op: each label steps past it */
     v->opip = r.ip;                                                                                \
     ops[*r.ip](S);                                                                                 \
     r = (Regs){v->ip, v->sp, v->fp};                                                               \
-    exec_counted(v);                                                                               \
+    exec_counted(v, r.ip);                                                                         \
     goto *at_op[*r.ip];
 
 cold:

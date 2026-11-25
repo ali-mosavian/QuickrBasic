@@ -228,7 +228,9 @@ typedef struct Vm {
 
 #ifdef EXEC_COUNT
 
-    uint64_t count; /* the ops dispatched: the host build's instruction count */
+    uint64_t count;      /* the ops dispatched: the host build's instruction count */
+    uint64_t each[256];  /* those of each op, an X op's under O_X */
+    uint64_t xeach[256]; /* those of each X op */
 #endif
     bool running; /* exec_run's loop is on the C stack: vm.loop holds */
     jmp_buf loop; /* exec_run's: flow_trap comes back into the loop */
@@ -236,12 +238,18 @@ typedef struct Vm {
 
 static inline uint32_t vm_nframes(const Vm *const v) { return (uint32_t)(v->ftop - v->frames); }
 
-static inline void exec_counted(Vm *const vm)
+/* The op at op dispatched. */
+static inline void exec_counted(Vm *const vm, const uint8_t *const op)
 {
 #ifdef EXEC_COUNT
     vm->count++;
+    vm->each[op[0]]++;
+
+    if (op[0] == O_X)
+        vm->xeach[op[1]]++;
 #else
     (void)vm;
+    (void)op;
 #endif
 }
 

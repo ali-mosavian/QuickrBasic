@@ -2,11 +2,14 @@
 
     bench.py run FILE.bas | -e CODE [--dos]      one program: its output and cost
     bench.py iter -e BODY [--setup CODE] [--dos] one loop iteration's cost
-    bench.py cmp [REV...] [-e CODE] [--file F] [--dos]  the suite, or these programs, per build (HEAD .)
+    bench.py cmp [REV...] [-e CODE] [--file F] [--runs N] [--dos]  the suite, or these programs, per
+                                                 build (HEAD .)
     bench.py size [REV] [--functions]            the DOS executables' loaded bytes, REV's (default HEAD) and ours
     bench.py gate [--save]                       the suite and sizes against tools/bench/baseline.json
     bench.py qr [REV...]                         tools/bench/qr: each quickr/NAME.bas against its QBasic twin NAME.bas
     bench.py qbasic [--json F]                   qbasic/BENCH.BAS in QBasic 1.1 and our IDE under DOSBox
+    bench.py ops                                 each op's runs over the suite, the corpus, conformance's
+                                                 cases and Quickr's: which are cold
     bench.py profile FILE.bas | -e CODE [-n N] [--link | --ide]  DOS: the functions a program spends its
                                                  instructions in; --link: RUN's link alone
     bench.py engine                              docs/engine-design.md's Today table, measured on CHARLIE's source
@@ -230,7 +233,7 @@ def cmd_cmp(a: argparse.Namespace) -> int:
     names: list[str] = a.revs or ["HEAD", "."]
     progs = {f"e{i}": e for i, e in enumerate(a.e)} | {Path(f).stem: Path(f).read_text() for f in a.file} or suite()
     builds = [build(r, a.dos) for r in names]
-    res = [run_dos(b, progs) for b in builds] if a.dos else run_natives(builds, progs)
+    res = [run_dos(b, progs) for b in builds] if a.dos else run_natives(builds, progs, a.runs)
     heads = ["tree" if n == "." else n for n in names]
     print(f"{'':10}" + "".join(f"{n:>14}" for n in heads) + "".join(f"{n:>8}" for n in heads[1:]))
     for k in res[0]:
@@ -264,6 +267,51 @@ def cmd_qr(a: argparse.Namespace) -> int:
         same = all(q[k].out.split() == b[k].out.split() for q, b in pairs)
         print(f"{k:10}{row}" + ("" if same else "  OUTPUT DIFFERS"))
     return 0
+
+
+def each_op(jobs: dict[str, str | tuple], files: dict[str, bytes] | None = None) -> dict[str, int]:
+    """Each op's runs over the jobs (dosrun's) on the host build, by name; an X op's "X.NAME"."""
+    os.environ["QB_EACH_OP"] = "1"
+    dosrun.COM = Build(ROOT).counted
+    with tempfile.TemporaryDirectory() as d:
+        batches = [{"jobs": b, "limit_ms": 60000, "file": True, "files": files} for b in dosrun.split(jobs)]
+        res = dosrun.run_all(batches, Path(d))
+    total: dict[str, int] = {}
+    for r in res.values():
+        for kind, name, n in re.findall(r"^(x?op) (\w+) (\d+)$", r.screen, re.M):
+            key = f"X.{name}" if kind == "xop" else name
+            total[key] = total.get(key, 0) + int(n)
+    return total
+
+
+def cmd_ops(a: argparse.Namespace) -> int:
+    """Each op's runs per corpus, the least run by QBasic's programs first."""
+    import conformance
+
+    Build(ROOT).make(False)
+    bcg = sorted((ROOT / "tests/corpus/bcg").glob("*.bas"))
+    conf = conformance.cases()
+    quickr = sorted((QR / "quickr").glob("*.bas")) + sorted((ROOT / "tests/qr").glob("*.bas"))
+    cols = {
+        "suite": each_op({k: source(v).decode("latin-1") for k, v in suite().items()}),
+        "bcg": each_op({p.stem: (conformance.text(p), stdin(p)) for p in bcg}),
+        "conformance": each_op({k: v[0] for k, v in conf.items()}, conformance.COMPANIONS),
+        "quickr": each_op({p.stem: p.read_text() for p in quickr}),
+    }
+
+    def qbasic(n: str) -> int:
+        return sum(cols[c].get(n, 0) for c in cols if c != "quickr")
+
+    print(f"{'':14}" + "".join(f"{c:>16}" for c in cols))
+    for n in sorted(set().union(*cols.values()), key=lambda n: (n.startswith("X."), qbasic(n), n)):
+        print(f"{n:14}" + "".join(f"{cols[c].get(n, 0):>16,}" for c in cols))
+    return 0
+
+
+def stdin(bas: Path) -> str:
+    """The input beside bas, NAME.in, its lines ended by CR LF; none, ""."""
+    f = bas.with_suffix(".in")
+    return f.read_text(encoding="latin-1").replace("\r\n", "\n").replace("\n", "\r\n") if f.exists() else ""
 
 
 def functions(b: Build) -> dict[str, int]:
@@ -891,6 +939,7 @@ def main() -> int:
     p.add_argument("revs", nargs="*")
     p.add_argument("-e", action="append", default=[], help="a program instead of the suite")
     p.add_argument("--file", action="append", default=[], help="a .bas file instead of the suite")
+    p.add_argument("--runs", type=int, default=RUNS, help="native: the least of this many runs")
     p.add_argument("--dos", action="store_true")
     sub.add_parser("qr").add_argument("revs", nargs="*")
     p = sub.add_parser("size")
@@ -899,6 +948,7 @@ def main() -> int:
     p = sub.add_parser("gate")
     p.add_argument("--save", action="store_true")
     sub.add_parser("qbasic").add_argument("--json", type=Path, help="the timings to this file too")
+    sub.add_parser("ops")
     p = sub.add_parser("profile")
     p.add_argument("file", nargs="?")
     p.add_argument("-e")
@@ -926,6 +976,7 @@ def main() -> int:
         "gate": cmd_gate,
         "qr": cmd_qr,
         "qbasic": cmd_qbasic,
+        "ops": cmd_ops,
         "profile": cmd_profile,
         "fps": cmd_fps,
         "charlie": cmd_charlie,
