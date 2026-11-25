@@ -41,6 +41,7 @@
 #include "comp/bind.h"
 #include "comp/comp.h"
 #include "comp/dfa.h"
+#include "comp/export.h"
 #include "io/msg.h"
 #include "mem/program.h"
 #include "mem/scope.h"
@@ -627,11 +628,14 @@ static void decl_as(DeclScan *const ds, Binding *const b, const uint32_t n, cons
     ds->at = decl_item(ds->at);
 }
 
-/* ( [BYVAL] n[()] [AS type] {, ..} ): as DIM's. */
-static void decl_params(DeclScan *const ds)
+/* ( [BYVAL] n[()] [AS type] {, ..} ): as DIM's. The first one's why Quickr can't pass it
+   (comp/export.h), EW_NONE none. */
+static ExpWhy decl_params(DeclScan *const ds)
 {
+    ExpWhy why = EW_NONE;
+
     if (*ds->at != '(')
-        return;
+        return why;
 
     ds->at++;
 
@@ -639,12 +643,15 @@ static void decl_params(DeclScan *const ds)
         if (*ds->at == TK_BYVAL)
             ds->at++;
         if (*ds->at != M_VAR)
-            return;
+            return why;
 
-        decl_dim1(ds, decl_name(ds, nullptr));
+        const uint32_t n = decl_name(ds, nullptr);
+        const bool arr = *ds->at == '(';
+        decl_dim1(ds, n);
+        why = why ? why : expo_value_why(ds->d, scop_get(ds->sc, ds->d->scope, n), arr);
 
         if (*ds->at != ',')
-            return;
+            return why;
 
         ds->at++;
     }
@@ -1141,10 +1148,17 @@ static void decl_subfn(DeclScan *const ds, const uint8_t flag)
     scop_bind(ds->sc, ds->d->module, n)->flags |= BF_PROC;
     ds->d->proc = n;
     ds->d->scope = n;
-    decl_params(ds);
+    uint32_t verdict = decl_params(ds); /* as Quickr sees it (comp/export.h) */
 
-    if (flag == NM_FUNC)
+    if (flag == NM_FUNC) {
+        const uint8_t *const as = ds->at + (*ds->at == ')');
+        const bool arr = *as == TK_AS && *decl_item(as + 1) == '(';
         decl_result(ds, n, true);
+        const ExpWhy res = expo_value_why(ds->d, scop_get(ds->sc, n, n), arr);
+        verdict = verdict ? verdict : res * EXP_RESULT;
+    }
+
+    scop_get(ds->sc, ds->d->module, n)->val = (int32_t)verdict;
 }
 
 /* SHARED (BF_REF), STATIC (BF_STAT) n[()] [AS t] {, ..} */

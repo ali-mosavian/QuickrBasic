@@ -64,7 +64,7 @@ typedef struct {
 enum : uint8_t { DO_BASE1 = 1, DO_EXPLICIT = 2 };
 
 /* The program's declarations; its arena holds the tables. */
-typedef struct {
+typedef struct Decl {
     Arena arena;
     Fault *fault;
     uint32_t module; /* the module being entered: its scope (sc_module) */

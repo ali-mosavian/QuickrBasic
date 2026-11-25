@@ -56,9 +56,6 @@ static const char *expo_type_why(const Decl *const d, const uint32_t t)
     return nullptr;
 }
 
-/* Why a value has no type both dialects have: none, an array, a BYTE, a TYPE of one. */
-typedef enum : uint8_t { EW_NONE, EW_ARRAY, EW_BYTE, EW_TYPE } ExpWhy;
-
 static const char *const expo_param_why[] = {
     [EW_ARRAY] = "an array parameter",
     [EW_BYTE] = "a BYTE parameter",
@@ -71,28 +68,30 @@ static const char *const expo_result_why[] = {
     [EW_TYPE] = "a result of a TYPE Quickr can't use",
 };
 
-/* Variable id's type as a value's to *et; why it has none both dialects have. */
-static ExpWhy expo_var(const Comp *const C, const uint32_t id, uint32_t *const et)
+ExpWhy expo_value_why(const Decl *const d, const Binding *const b, const bool arr)
+{
+    if (arr)
+        return EW_ARRAY;
+    if (b->rec[0])
+        return expo_type_why(d, b->rec[0]) ? EW_TYPE : EW_NONE;
+
+    return b->et[0] == ET_BY ? EW_BYTE : EW_NONE;
+}
+
+/* Variable id's type as a value's, an array's or a BYTE's none, its verdict declared. */
+static uint32_t expo_var(const Comp *const C, const uint32_t id)
 {
     const Var *const v = symb_var(C->symb, id);
 
-    if (symb_is_record(C->symb, id)) {
-        *et = v->type;
-        return expo_type_why(C->decl, v->type - ET_REC) ? EW_TYPE : EW_NONE;
-    }
-
-    if (v->info & VI_ARR)
-        return EW_ARRAY;
-    if (v->type == ET_BY)
-        return EW_BYTE;
+    if (symb_is_record(C->symb, id))
+        return v->type;
 
     const uint8_t k = v->info & VK_MASK;
-    *et = v->type == ET_SH   ? ET_SH
-          : k == VK_INT      ? ET_I4
-          : k == VK_STR      ? ET_SD
-          : v->info & SK_DBL ? ET_R8
-                             : ET_R4;
-    return EW_NONE;
+    return v->type == ET_SH   ? ET_SH
+           : k == VK_INT      ? ET_I4
+           : k == VK_STR      ? ET_SD
+           : v->info & SK_DBL ? ET_R8
+                              : ET_R4;
 }
 
 /* Name n's text as first written, copied to a. */
@@ -115,18 +114,20 @@ static ExpProc expo_proc(const Comp *const C, Arena *const a, const Proc *const 
 
     for (uint32_t k = 0; k < p->npar; k++) {
         const uint32_t id = p->params[k].var;
-        const ExpWhy why = expo_var(C, id, &e.params[k].et);
+        e.params[k].et = expo_var(C, id);
         e.params[k].byref = !p->params[k].byval;
         e.params[k].name = expo_name(C, a, symb_var(C->symb, id)->name, &e.params[k].len);
-
-        if (why && !e.why)
-            e.why = k < e.npar ? expo_param_why[why] : expo_result_why[why];
     }
 
-    const ExpWhy res = p->kind == PK_FUNC && !e.resarg ? expo_var(C, p->result, &e.result.et) : 0;
+    if (p->kind == PK_FUNC && !e.resarg)
+        e.result.et = expo_var(C, p->result);
 
-    if (res && !e.why)
-        e.why = expo_result_why[res];
+    const Binding *const b = scop_get(C->scop, p->module, p->name);
+    const uint32_t why = b ? (uint32_t)b->val : 0;
+    e.why = why % EXP_RESULT ? expo_param_why[why % EXP_RESULT]
+            : why            ? expo_result_why[why / EXP_RESULT]
+                             : nullptr;
+
     if (e.resarg)
         e.result = e.params[e.npar];
 
@@ -184,8 +185,10 @@ bool expo_usable(const Comp *const C, const uint32_t t)
 {
     const Name *const n = symb_name(C->symb, t);
     const Binding *const b = scop_get(C->scop, sc_module(n->module), t);
+    const TypeDef *const td = n->rec ? decl_type(C->decl, n->rec) : nullptr;
 
-    return !(b && b->flags & BF_ALIEN) && !(n->rec && decl_type(C->decl, n->rec)->alien);
+    return !(b && b->flags & BF_PROC && (b->flags & BF_ALIEN || b->val)) &&
+           !(td && (td->alien || expo_type_why(C->decl, n->rec)));
 }
 
 /* Name n declared again by an export: the clash *clash records, the first. */

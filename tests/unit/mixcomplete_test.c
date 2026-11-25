@@ -58,6 +58,8 @@ static const char shapes[] = "TYPE Rect\n"
                              "SUB Show (a AS LONG)\n"
                              "    PRINT a\n"
                              "END SUB\n"
+                             "SUB Fill (a() AS LONG)\n"
+                             "END SUB\n"
                              "PRIVATE SUB Hidden\n"
                              "END SUB\n";
 
@@ -170,6 +172,16 @@ TEST(mixcomplete_qr_main_offers_a_qbasic_modules_exports)
     CHECK(fx_typed_over(S, fx_line_of(S, "print total"), "print total + 1"));
     CHECK(offers(S, "print total + 1", "shapes.", "Shown"));
     CHECK(offers(S, "print total + 1", "shapes.", "Area"));
+    fx_done(S, files);
+}
+
+/* After a QBasic module's name a Quickr program offered a SUB it can't call: an array
+   parameter. */
+TEST(mixcomplete_qr_main_leaves_out_what_it_cant_use)
+{
+    open_with(S, qr_main);
+    CHECK(offers(S, "print total", "shapes.", "Show"));
+    CHECK(!offers(S, "print total", "shapes.", "Fill"));
     fx_done(S, files);
 }
 

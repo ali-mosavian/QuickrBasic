@@ -1745,10 +1745,14 @@ static void qr_publics(const QrSugg *const g, const QProg *const p, const QMod *
     }
 }
 
-/* A QBasic module's export t, kinds k, as written, to the QrSugg ctx. */
+/* A QBasic module's export t, kinds k, as written, to the QrSugg ctx: one Quickr can use. */
 static void qr_qbexport(void *const ctx, const uint32_t t, const uint8_t k)
 {
     const QrSugg *const g = ctx;
+
+    if (!expo_usable(&g->S->comp, t))
+        return;
+
     const uint8_t *const text = symb_text(&g->S->symb, t);
     g->fn(g->ctx, (const char *)text + 1 + text[0], text[0], k & BIND_PROC ? DSG_FN : DSG_NAME, 0);
 }
