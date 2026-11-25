@@ -751,6 +751,7 @@ static inline void row_of(
     fill_of(KIND_ROW, f, f, key ? FILL_KEYED : 0, d + m * b, n - m, in);
 }
 
+#if !defined(__i386__)
 [[gnu::always_inline]]
 static inline void steps_of(
     const PxFormat f,
@@ -798,6 +799,8 @@ static inline void deep_of(
     }
 }
 
+#endif
+
 /* deep_of's, each texel held inside s: a walk that leaves it. */
 [[gnu::always_inline]]
 static inline void held_of(
@@ -833,6 +836,116 @@ static inline void held_of(
     }
 }
 
+#if defined(__i386__)
+/* The plain walk in asm, uGL's hlinet8 and hlinetp8_z: esi the texel's place and edx u's and v's
+   fractions (StepsRead's), ecx the pixel's index up from -n to the row's end in edi, its depth's
+   in ebp. A pixel's depth, z's high half, is tested before its texel is read; the place steps a
+   row on v's carry and a texel on u's. */
+#define WALK_TEXEL_1 "movzbl (%%esi), %%ebx\n\t"
+#define WALK_TEXEL_2 "movzwl (,%%esi,2), %%ebx\n\t"
+#define WALK_TEXEL_4 "movl (,%%esi,4), %%ebx\n\t"
+#define WALK_KEY_0_1 ""
+#define WALK_KEY_0_2 ""
+#define WALK_KEY_0_4 ""
+#define WALK_KEY_1_1 "testb %%bl, %%bl\n\tjz 2f\n\t"
+#define WALK_KEY_1_2 "testw %%bx, %%bx\n\tjz 2f\n\t"
+#define WALK_KEY_1_4 "testl %%ebx, %%ebx\n\tjns 2f\n\t"
+#define WALK_STORE_1 "movb %%bl, (%%edi,%%ecx)\n\t"
+#define WALK_STORE_2 "movw %%bx, (%%edi,%%ecx,2)\n\t"
+#define WALK_STORE_4 "movl %%ebx, (%%edi,%%ecx,4)\n\t"
+#define WALK_HERE "movw %[here], %%ax\n\tmovl %[dz], %%ebx\n\taddl %%ebx, %[z]\n\t"
+#define WALK_HERE_0 ""
+#define WALK_HERE_1 WALK_HERE
+#define WALK_HERE_2 WALK_HERE
+#define WALK_HERE_3 WALK_HERE
+#define WALK_TEST "cmpw %%ax, (%%ebp,%%ecx,2)\n\tjae 2f\n\t"
+#define WALK_TEST_0 ""
+#define WALK_TEST_1 WALK_TEST
+#define WALK_TEST_2 ""
+#define WALK_TEST_3 WALK_TEST
+#define WALK_WRITE "movw %%ax, (%%ebp,%%ecx,2)\n\t"
+#define WALK_WRITE_0 ""
+#define WALK_WRITE_1 ""
+#define WALK_WRITE_2 WALK_WRITE
+#define WALK_WRITE_3 WALK_WRITE
+#define WALK_STEP                                                                                  \
+    "2:\n\t"                                                                                       \
+    "addl %[dv], %%edx\n\t"                                                                        \
+    "sbbl %%ebx, %%ebx\n\t"                                                                        \
+    "andl %[pitch], %%ebx\n\t"                                                                     \
+    "addl %[step], %%ebx\n\t"                                                                      \
+    "addw %[du], %%dx\n\t"                                                                         \
+    "adcl %%ebx, %%esi\n\t"                                                                        \
+    "incl %%ecx\n\t"                                                                               \
+    "jnz 1b"
+#define WALK_LOOP(b, k, z)                                                                         \
+    "1:\n\t" WALK_HERE_##z WALK_TEST_##z WALK_TEXEL_##b WALK_KEY_##k##_##b WALK_STORE_##b          \
+        WALK_WRITE_##z WALK_STEP
+#define WALK_FLAT(B, K)                                                                            \
+    if (b == B && key == K && !z) {                                                                \
+        __asm__ volatile(WALK_LOOP(B, K, 0)                                                        \
+                         : "+S"(at), "+d"(uv), "+c"(i)                                             \
+                         : "D"(end),                                                               \
+                           [dv] "m"(by.dv),                                                        \
+                           [du] "m"(by.du),                                                        \
+                           [pitch] "m"(by.pitch),                                                  \
+                           [step] "m"(by.step)                                                     \
+                         : "ebx", "cc", "memory");                                                 \
+        return;                                                                                    \
+    }
+#define WALK_DEEP(B, Z, K)                                                                         \
+    if (b == B && key == K && z == Z) {                                                            \
+        __asm__ volatile("movl %[zp], %%ebp\n\t" WALK_LOOP(B, K, Z)                                \
+                         : "+S"(at), "+d"(uv), "+c"(i), [z] "+m"(acc.z)                            \
+                         : "D"(end),                                                               \
+                           [zp] "m"(zend),                                                         \
+                           [here] "m"(acc.half[1]),                                                \
+                           [dz] "m"(step_z),                                                       \
+                           [dv] "m"(by.dv),                                                        \
+                           [du] "m"(by.du),                                                        \
+                           [pitch] "m"(by.pitch),                                                  \
+                           [step] "m"(by.step)                                                     \
+                         : "eax", "ebx", "ebp", "cc", "memory");                                   \
+        return;                                                                                    \
+    }
+#define WALK_KEYS(X, ...) X(__VA_ARGS__, 0) X(__VA_ARGS__, 1)
+
+[[gnu::always_inline]]
+static inline void walk_asm_of(
+    const uint32_t b,
+    const bool key,
+    const uint32_t z,
+    uint8_t *const end,
+    uint16_t *const zend,
+    const StepsBy by,
+    StepsRead rd,
+    int32_t i,
+    const int32_t zd,
+    const int32_t step_z
+)
+{
+    uintptr_t at = rd.at;
+    uint32_t uv = rd.uv;
+    union {
+        int32_t z;
+        uint16_t half[2];
+    } acc = {.z = zd};
+
+    WALK_KEYS(WALK_FLAT, 1)
+    WALK_KEYS(WALK_FLAT, 2)
+    WALK_KEYS(WALK_FLAT, 4)
+    WALK_KEYS(WALK_DEEP, 1, 1)
+    WALK_KEYS(WALK_DEEP, 1, 2)
+    WALK_KEYS(WALK_DEEP, 1, 3)
+    WALK_KEYS(WALK_DEEP, 2, 1)
+    WALK_KEYS(WALK_DEEP, 2, 2)
+    WALK_KEYS(WALK_DEEP, 2, 3)
+    WALK_KEYS(WALK_DEEP, 4, 1)
+    WALK_KEYS(WALK_DEEP, 4, 2)
+    WALK_KEYS(WALK_DEEP, 4, 3)
+}
+#endif
+
 /* A run of n pixels at x of row y along st, f's texels: deep_of's, steps_of's without depth, or
    held_of's. */
 [[gnu::always_inline]]
@@ -855,6 +968,24 @@ static inline void run_at(
 
     if (held)
         held_of(f, key, z, d, zp, &r->src, st, n, zd, r->dz);
+#if defined(__i386__)
+    else if (n > 0) {
+        const StepsBy by = steps_by(&r->src, st, b);
+
+        walk_asm_of(
+            b,
+            key,
+            z,
+            d + n * b,
+            zp + n,
+            by,
+            steps_read(&r->src, st, &by, b),
+            -n,
+            zd,
+            r->dz
+        );
+    }
+#else
     else if (!z)
         steps_of(f, d, &r->src, st, n, key);
     else {
@@ -863,6 +994,7 @@ static inline void run_at(
 
         deep_of(f, key, z, d, zp, &rd, n, zd, r->dz);
     }
+#endif
 }
 
 /* RowAffine's, f's texels into f. */
