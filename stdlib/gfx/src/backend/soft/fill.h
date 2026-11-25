@@ -45,6 +45,25 @@ typedef struct {
     bool made;
 } FillTints;
 
+/* A blended direct target's mix by table: each channel a texel's share by px_table's entries,
+   then the pixel there's by the target's, their sum the channel; under ADD, the sums' entries
+   after, each held at 255 and a channel. An 8-bit texel's share is its colour's, as 32 bits'.
+   Made for the source, shade, target, mode and alpha, again only when one changes, so once a
+   shape. */
+enum { FILL_SUMS = 512, FILL_MIXES = 2 * PX_TABLE + 3 * FILL_SUMS };
+
+typedef struct {
+    uint32_t table[FILL_MIXES];
+    PxFormat from, into;
+    uint32_t shade;
+    BlendMode mode;
+    uint8_t alpha;
+    bool made;
+} FillMixes;
+
+/* k's mix table into a target of direct format into, made in m unless made already. */
+const uint32_t *fill_mixes(FillMixes *m, PxFormat into, const Ink *k);
+
 /* n pixels of a shape's colour through the ink, blended over those there; into a direct target,
    by tints, made first unless made already. */
 typedef void FillTint(uint8_t *d, int32_t n, uint32_t colour, const Ink *k, FillTints *tints);

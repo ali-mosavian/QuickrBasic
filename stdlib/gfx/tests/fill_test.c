@@ -36,7 +36,7 @@ typedef struct {
     uint32_t argb[256], pixels[PX_TABLE];
 } Tables;
 
-/* The ink of variant v from g into f over the tables, its pixel table made of them. */
+/* The ink of variant v from g into f over the tables, its pixel and mix tables made of them. */
 static Ink ink_of(
     uint32_t *const seed,
     Tables *const t,
@@ -48,10 +48,12 @@ static Ink ink_of(
     const bool eight = f == PX_8, blended = v & FILL_BLENDED;
     const uint32_t shade = next(seed) & PX_WHITE;
 
+    static FillMixes mixes;
+
     if (!eight || g != PX_8)
         px_table(t->pixels, g, f, t->argb, shade);
 
-    return (Ink){
+    Ink k = {
         .source = g,
         .keyed = v & FILL_KEYED,
         .solid = v & FILL_SOLID,
@@ -67,6 +69,11 @@ static Ink ink_of(
                                   : BLEND_MIX,
         .alpha = (uint8_t)(next(seed) % (PX_FULL + 1)),
     };
+
+    if (!eight && blended && !k.solid)
+        k.mixes = fill_mixes(&mixes, f, &k);
+
+    return k;
 }
 
 /* The texels of n pixels' walk from st over s, by its definition: u and v stepped, whole texels. */
@@ -249,5 +256,45 @@ TEST(gfx_fill_spans_draw_their_colour)
             stored(d.want + at * b, texels, COUNT, f, false);
             fill_formats[f]->span(d.got + at * b, COUNT, c);
             CHECK(!memcmp(d.want, d.got, sizeof d.want));
+        }
+}
+
+/* Every channel of a texel over every one there, at every alpha, mixed and added: a blended
+   texel's mix table divides a sum by a shift, exact only by its scale. With the scale rounded
+   down, a mix drew a channel 1 short. */
+TEST(gfx_fill_mixes_every_alpha)
+{
+    static FillMixes mixes;
+    static uint32_t src[256];
+    const Pixels s = {(uint8_t *)src, sizeof src, 256, 1, PX_32};
+
+    const Steps across = {0, 0, 1 << 16, 0, 0};
+
+    for (uint32_t i = 0; i < 256; i++)
+        src[i] = PX_OPAQUE | i * 0x010101u;
+
+    for (PxFormat f = PX_15; f < PX_FORMATS; f++)
+        for (uint32_t m = 0; m < 2 * (PX_FULL + 1); m++) {
+            const uint32_t b = px_bytes(f), step = f == PX_32 ? 1 : 4;
+            Ink k = {
+                .source = PX_32,
+                .shade = PX_WHITE,
+                .mode = m & 1 ? BLEND_ADD : BLEND_MIX,
+                .alpha = (uint8_t)(m / 2),
+            };
+
+            k.mixes = fill_mixes(&mixes, f, &k);
+
+            for (uint32_t j = 0; j < 256; j += step) {
+                uint8_t want[256 * 4], got[256 * 4];
+
+                for (uint32_t i = 0; i < 256; i++)
+                    px_store(want + i * b, px_pack(f, ((i + j) & 0xFF) * 0x010101u), b);
+
+                memcpy(got, want, sizeof got);
+                fill_formats[f]->ink(want, src, 256, &k);
+                fill_formats[f]->inked[PX_32][FILL_BLENDED](got, &s, across, 256, &k);
+                CHECK(!memcmp(want, got, 256 * b));
+            }
         }
 }

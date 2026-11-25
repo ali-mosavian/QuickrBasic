@@ -16,6 +16,7 @@ typedef struct {
     SoftDepth *depths;
     uint32_t ndepths;
     FillTints tints;
+    FillMixes mixes;
 } Soft;
 
 /* Software's own, made on first ask: null, raised. */
@@ -165,10 +166,16 @@ static bool clear_depth(Gx *const g, const Picture *const into)
 
 static bool source(Gx *const g, const Picture *const p)
 {
-    SoftTarget *const t = &((Soft *)g->own)->call;
+    Soft *const o = g->own;
+    SoftTarget *const t = &o->call;
 
-    return ink_source(&t->ink, &g->palette, &g->style, t->px.format, p->root.format) ||
-           gx_fail(ERR_MEMORY);
+    if (!ink_source(&t->ink, &g->palette, &g->style, t->px.format, p->root.format))
+        return gx_fail(ERR_MEMORY);
+
+    if (t->px.format != PX_8 && t->ink.mode && !t->ink.solid)
+        t->ink.mixes = fill_mixes(&o->mixes, t->px.format, &t->ink);
+
+    return true;
 }
 
 static void solid(Gx *const g, const uint32_t colour)

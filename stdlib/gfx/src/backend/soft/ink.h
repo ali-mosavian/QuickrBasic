@@ -16,6 +16,7 @@
  *   blend of a direct target.
  * - pixels: px_table's, a picture's texel as the target's pixel by index or channel, for the
  *   fillers; none when solid or 8 bits from 8 bits.
+ * - mixes: fill_mixes', a picture's texels blended into a direct target, for the fillers.
  */
 #ifndef GFX_INK_H
 #define GFX_INK_H
@@ -28,7 +29,7 @@ typedef struct {
     bool effects, keyed, solid, smooth;
     uint32_t colour;
     const uint8_t *lut, *map, *blend;
-    const uint32_t *argb, *pixels;
+    const uint32_t *argb, *pixels, *mixes;
     uint32_t shade;
     BlendMode mode;
     uint8_t alpha;

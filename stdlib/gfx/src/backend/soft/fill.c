@@ -12,6 +12,10 @@ static inline uint32_t direct(const PxFormat f, const uint32_t c)
     return px_pack(f, c | PX_OPAQUE);
 }
 
+/* A mix table's MIX share is scaled by 2^FILL_SCALE over its divisor, rounded up: two summed and
+   shifted down are their sum divided, exact for every sum two channels make. */
+enum { FILL_SCALE = 24 };
+
 /* Beside the variant's bits: ADDED, BLENDED's mode ADD into a direct target, so each filler's mode
    is a constant to px_mix; ANY, a variant not known before the ink is drawn, each bit read from
    the ink. */
@@ -36,6 +40,31 @@ static inline uint32_t mixed(
     return px_mix(c, d, has(v, FILL_ADDED, k->mode == BLEND_ADD) ? BLEND_ADD : BLEND_MIX, k->alpha);
 }
 
+/* Direct format g's channel ch, 0 red to 2 blue: its bits, and its lowest bit's place. */
+[[gnu::always_inline]]
+static inline uint32_t bits_of(const PxFormat g, const uint32_t ch)
+{
+    return g == PX_32 ? 8 : g == PX_16 && ch == 1 ? 6 : 5;
+}
+
+[[gnu::always_inline]]
+static inline uint32_t place_of(const PxFormat g, const uint32_t ch)
+{
+    return g == PX_32 ? 16 - 8 * ch : ch == 2 ? 0 : ch == 1 ? 5 : 5 + bits_of(g, 1);
+}
+
+/* The entry of pixel t's channel ch, g's, direct, in a table of px_table's: the channels' in
+   turn, each by its bits. */
+[[gnu::always_inline]]
+static inline uint32_t entry_of(const PxFormat g, const uint32_t ch, const uint32_t t)
+{
+    const uint32_t value = t >> place_of(g, ch) & ((1u << bits_of(g, ch)) - 1);
+
+    return ch == 0   ? value
+           : ch == 1 ? (1u << bits_of(g, 0)) + value
+                     : (1u << bits_of(g, 0)) + (1u << bits_of(g, 1)) + value;
+}
+
 /* Texel t, g's, through px_table's table p: by index from 8 bits, else its channels' entries
    or'd. */
 [[gnu::always_inline]]
@@ -44,13 +73,31 @@ static inline uint32_t tabled(const PxFormat g, const uint32_t *const p, const u
     if (g == PX_8)
         return p[t & 0xFF];
 
-    if (g == PX_32)
-        return p[t >> 16 & 0xFF] | p[256 + (t >> 8 & 0xFF)] | p[512 + (t & 0xFF)];
+    return p[entry_of(g, 0, t)] | p[entry_of(g, 1, t)] | p[entry_of(g, 2, t)];
+}
 
-    const uint32_t green = g == PX_16 ? 6 : 5;
+/* Texel t, h's, direct, blended over there, f's, by the mix table m (fill_mixes): each channel's
+   two shares summed, the sum the channel, under ADD the sum's entry. */
+[[gnu::always_inline]]
+static inline uint32_t mixed_by(
+    const PxFormat f,
+    const PxFormat h,
+    const uint32_t v,
+    const uint32_t *const m,
+    const uint32_t t,
+    const uint32_t there
+)
+{
+    uint32_t out = f == PX_32 ? PX_OPAQUE : 0;
 
-    return p[t >> (5 + green) & 31] | p[32 + (t >> 5 & ((1u << green) - 1))] |
-           p[32 + (1u << green) + (t & 31)];
+    for (uint32_t ch = 0; ch < 3; ch++) {
+        const uint32_t sum = m[entry_of(h, ch, t)] + m[PX_TABLE + entry_of(f, ch, there)];
+
+        out |= v & FILL_ADDED ? m[2 * PX_TABLE + FILL_SUMS * ch + sum]
+                              : sum >> FILL_SCALE << place_of(f, ch);
+    }
+
+    return out;
 }
 
 /* Texel t, g's, through the ink as variant v into f, not blended: an index at 8 bits, else
@@ -91,6 +138,16 @@ static inline uint32_t ink_pixel(
 {
     if (f != PX_8 && !(v & (FILL_ANY | FILL_SOLID | FILL_BLENDED)))
         return tabled(g, k->pixels, t);
+
+    if (f != PX_8 && v & FILL_BLENDED && !(v & (FILL_ANY | FILL_SOLID)))
+        return mixed_by(
+            f,
+            g == PX_8 ? PX_32 : g,
+            v,
+            k->mixes,
+            g == PX_8 ? k->argb[t & 0xFF] : t,
+            there
+        );
 
     const uint32_t c = ink_colour(f, g, v, k, t);
 
@@ -457,6 +514,48 @@ static inline void inked_of(
     fill_of(KIND_INKED, f, g, v, d, n, (Inputs){.ink = *k, .walk = steps_read(s, st, &by)});
 }
 
+const uint32_t *fill_mixes(FillMixes *const m, const PxFormat into, const Ink *const k)
+{
+    const PxFormat from = k->source == PX_8 ? PX_32 : k->source;
+    const uint32_t shade = k->source == PX_8 ? PX_WHITE : k->shade, alpha = k->alpha;
+    const bool add = k->mode == BLEND_ADD;
+
+    if (m->made && m->from == from && m->into == into && m->shade == shade && m->mode == k->mode &&
+        m->alpha == alpha)
+        return m->table;
+
+    for (uint32_t ch = 0; ch < 3; ch++) {
+        const uint32_t at = 16 - 8 * ch, drop = 8 - bits_of(into, ch);
+        const uint32_t divisor = PX_FULL << drop;
+        const uint32_t scale = ((1u << FILL_SCALE) + divisor - 1) / divisor;
+
+        for (uint32_t v = 0; v < 1u << bits_of(from, ch); v++) {
+            const uint32_t t = v << place_of(from, ch);
+            const uint32_t lit = px_channel(px_shade(px_argb(from, t), shade), at);
+            m->table[entry_of(from, ch, t)] = add ? lit * alpha / PX_FULL : lit * alpha * scale;
+        }
+
+        for (uint32_t v = 0; v < 1u << bits_of(into, ch); v++) {
+            const uint32_t there = v << place_of(into, ch);
+            const uint32_t b = px_channel(px_argb(into, there), at);
+            m->table[PX_TABLE + entry_of(into, ch, there)] =
+                add ? b : b * (PX_FULL - alpha) * scale;
+        }
+
+        for (uint32_t sum = 0; add && sum < FILL_SUMS; sum++)
+            m->table[2 * PX_TABLE + FILL_SUMS * ch + sum] =
+                (sum > 255 ? 255 : sum) >> drop << place_of(into, ch);
+    }
+
+    m->from = from;
+    m->into = into;
+    m->shade = shade;
+    m->mode = k->mode;
+    m->alpha = (uint8_t)alpha;
+    m->made = true;
+    return m->table;
+}
+
 /* tints made for c, ARGB, over each pixel of f there by the ink's mode and alpha, unless they
    are: a channel's mix and pixel are its own, so the table is exact. */
 static void tints_of(FillTints *const tints, const PxFormat f, const uint32_t c, const Ink *const k)
@@ -465,15 +564,12 @@ static void tints_of(FillTints *const tints, const PxFormat f, const uint32_t c,
         tints->format == f)
         return;
 
-    const uint32_t wide = f == PX_32 ? 8 : 5;
-    const uint32_t bits[3] = {wide, f == PX_16 ? 6 : wide, wide};
-
     uint32_t *at = tints->pixels;
 
     for (uint32_t ch = 0; ch < 3; ch++)
-        for (uint32_t v = 0; v < 1u << bits[ch]; v++) {
+        for (uint32_t v = 0; v < 1u << bits_of(f, ch); v++) {
             const uint32_t shift = 16 - 8 * ch;
-            const uint32_t mix = px_mix(c, px_widen(v, bits[ch]) << shift, k->mode, k->alpha);
+            const uint32_t mix = px_mix(c, px_widen(v, bits_of(f, ch)) << shift, k->mode, k->alpha);
             *at++ = px_pack(f, (mix & 0xFFu << shift) | (ch ? 0 : PX_OPAQUE));
         }
 
