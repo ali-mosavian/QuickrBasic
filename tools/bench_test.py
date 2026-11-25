@@ -245,6 +245,15 @@ def stdlib_absent() -> None:
         assert p.returncode == 0 and (Path(d) / "build/t/lib/.stdlib").exists(), p.stderr
 
 
+def vm_rate() -> None:
+    """A demo's rate on 86Box: DOS/32A's warning, no mouse driver, came first in its output and read as
+    no rate at all."""
+    out = "DOS/32A warning (9004): mouse initialization failed\r\n 42.93390490470216  131 \r\n"
+    assert bench.rate_of("", out) == "42.9", bench.rate_of("", out)
+    assert bench.rate_of("51.23 256 1 9000\r\n", out) == "51.2"
+    assert bench.rate_of("", "Out of memory\r\n") == ""
+
+
 def main() -> int:
     stdlib_absent()
     each_reps()
@@ -255,6 +264,7 @@ def main() -> int:
     profile_stop()
     broken_counter()
     fps_start_up()
+    vm_rate()
     b = bench.build(".", False)  # the tree's own instruments: copying them onto themselves raised
     demo_colours(b)
     try:

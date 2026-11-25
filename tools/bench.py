@@ -23,6 +23,7 @@
     bench.py demos [EXE...] [--cycles N]         stdlib/gfx's demos at 320x200x8 on DOS, frames a second: ours
                                                  shipped, then without vsync, text and perspective in turn; each
                                                  EXE a program built elsewhere, writing its rate to FPS.TXT
+                                                 --machine 486|p5|p6: on 86Box's (HL86_DIR), timed by its clock
 
 Native (the default) runs build/hostperf/basic for retired instructions, the least of RUNS runs less
 an empty program's, builds compared run interleaved; and build/host/basic for the ops dispatched,
@@ -1127,6 +1128,62 @@ def demo_program(name: str, seconds: float, vsync: bool, edits: int) -> str:
     return src
 
 
+# 86Box headless (github.com/86Box/86Box forked with a socket): its tree, VMs and ROMs; machine -> VM
+HL86 = Path(os.environ.get("HL86_DIR", Path.home() / "work/other/86box-headless"))
+HL86_VMS = Path(os.environ.get("HL86_VMS", HL86.parent / "86box-headless-vms"))
+HL86_ROMS = Path(os.environ.get("HL86_ROMS", Path.home() / "Library/Application Support/86Box/roms"))
+MACHINES = {"486": "qb-486", "p5": "qb-p100", "p6": "qb-ppro200"}
+
+
+def mtools(tool: str, image: Path, *args: str, check: bool = True) -> bytes:
+    """An mtools command on image's first partition."""
+    env = os.environ | {"MTOOLS_SKIP_CHECK": "1"}
+    r = subprocess.run([tool, "-i", f"{image}@@32256", *args], env=env, check=check, capture_output=True)
+    return r.stdout
+
+
+def vm_rate(machine: str, com: Path, job: tuple, files: dict[str, bytes]) -> str:
+    """Program com's frames a second on 86Box's machine, by its own clock: FPS.TXT's, or its output's.
+    com, the job's files and files go to C:\\QB on the VM's disk, removed after."""
+    sys.path.insert(0, str(HL86 / "src/headless"))
+    import hl86
+
+    image = HL86_VMS / MACHINES[machine] / "c.img"
+    prog, _, args, own = dosrun.job(job)
+    with tempfile.TemporaryDirectory() as d:
+        qb = Path(d) / "QB"
+        qb.mkdir()
+        shutil.copy(com, qb / com.name.upper())
+        if com.suffix.lower() == ".exe" and (com.parent / "DOS32A.EXE").exists():
+            shutil.copy(com.parent / "DOS32A.EXE", qb / "DOS32A.EXE")
+        for n, data in (files | {k: v.encode("latin-1") if isinstance(v, str) else v for k, v in own.items()}).items():
+            (qb / n.upper()).parent.mkdir(parents=True, exist_ok=True)
+            (qb / n.upper()).write_bytes(data)
+        run = f"{com.name.upper()} {'DEMO.BAS' if prog else ''} {args}".strip()
+        if prog:
+            (qb / "DEMO.BAS").write_bytes(prog.encode("latin-1"))
+        (qb / "J.IN").write_bytes(b"")
+        bat = Path(d) / "RUN.BAT"
+        bat.write_bytes(f"@ECHO OFF\r\nCD \\QB\r\n{run} < J.IN > OUT.TXT\r\nC:\\HLEXIT.COM 0\r\n".encode())
+        mtools("mdeltree", image, "::QB", check=False)
+        mtools("mcopy", image, "-s", "-o", str(qb), "::")
+        mtools("mcopy", image, "-o", str(HL86 / "src/headless/examples/hlexit.com"), "::HLEXIT.COM")
+        try:
+            r = hl86.run_dos(HL86 / "build/src/86Box-headless", image.parent, HL86_ROMS, bat, timeout=1800)
+            fps = mtools("mtype", image, "::QB/FPS.TXT", check=False).decode("latin-1")
+            out = mtools("mtype", image, "::QB/OUT.TXT", check=False).decode("latin-1")
+        finally:
+            mtools("mdeltree", image, "::QB", check=False)
+    return rate_of(fps, out) or f"exit {r.code}"
+
+
+def rate_of(fps: str, out: str) -> str:
+    """FPS.TXT's first number; else the output's rate and frames, a line of their own: DOS/32A may warn
+    ahead of them. Empty, neither."""
+    rates = fps.split()[:1] or re.findall(r"(?m)^\s*(\d+(?:\.\d+)?)\s+\d+\s*$", out)[-1:]
+    return f"{float(rates[0]):.1f}" if rates else ""
+
+
 def dos_rate(com: Path, job: tuple, cycles: int, files: dict[str, bytes]) -> str:
     """Program com's frames a second at cycles a virtual ms: FPS.TXT's first number, or its output's."""
     conf, was = dosrun.CONF, dosrun.COM
@@ -1205,6 +1262,8 @@ def cmd_demos(a: argparse.Namespace) -> int:
             jobs = [("", "", f"{s:g}") for s in DEMO_PROFILE_SECONDS]
             print_frame_profile(exe.name, exe, jobs, a.cycles, {}, a.n)
         return 0
+    if a.machine:
+        return demos_on(a, b.dos, qbx, own)
     print(f"320x200 at 8 bits on DOS (pentium), {a.cycles} cycles a ms, frames a second over {a.seconds:g} s")
     for name in a.demo or DEMO_EDITS:
         edits = DEMO_EDITS[name]
@@ -1217,6 +1276,17 @@ def cmd_demos(a: argparse.Namespace) -> int:
         print(f"{'':12}" + "".join(f"{c:>11}" for c in cells), flush=True)
     for exe in map(Path, a.exes):
         print(f"{exe.name:12}{dos_rate(exe, ('',), a.cycles, {}):>10}", flush=True)
+    return 0
+
+
+def demos_on(a: argparse.Namespace, com: Path, qbx: bytes, own: dict[str, bytes]) -> int:
+    """demos --machine: each demo with every edit but vsync, then each EXE, on 86Box's machine."""
+    print(f"320x200 at 8 bits on 86Box ({a.machine}), frames a second over {a.seconds:g} s")
+    for name in a.demo or DEMO_EDITS:
+        job = (demo_program(name, a.seconds, False, 0), "", "", own)
+        print(f"{name:12}{vm_rate(a.machine, com, job, {'lib/gfx.qbx': qbx}):>10}", flush=True)
+    for exe in map(Path, a.exes):
+        print(f"{exe.name:12}{vm_rate(a.machine, exe, ('',), {}):>10}", flush=True)
     return 0
 
 
@@ -1471,6 +1541,7 @@ def main() -> int:
     p = sub.add_parser("demos")
     p.add_argument("exes", nargs="*", help="a DOS program built elsewhere, writing its rate to FPS.TXT")
     p.add_argument("--cycles", type=int, default=25000, help="DOSBox's cycles a virtual ms")
+    p.add_argument("--machine", choices=list(MACHINES), help="on 86Box's 486DX2-66, Pentium 100 or Pentium Pro 200")
     p.add_argument("--demo", action="append", choices=list(DEMO_EDITS), help="a demo to time; all when none")
     p.add_argument("--seconds", type=float, default=10)
     p.add_argument("--profile", action="store_true", help="by function a frame, ours with every edit (normal core)")
