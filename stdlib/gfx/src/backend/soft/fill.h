@@ -12,6 +12,7 @@
  */
 #ifndef GFX_FILL_H
 #define GFX_FILL_H
+#include "base/depth.h"
 #include "base/pixels.h"
 #include "backend/soft/ink.h"
 #include "backend/soft/steps.h"
@@ -80,8 +81,44 @@ const uint32_t *fill_colours(FillColours *c, const Ink *k);
    by tints, made first unless made already. */
 typedef void FillTint(uint8_t *d, int32_t n, uint32_t colour, const Ink *k, FillTints *tints);
 
+/* A polygon's, read by its row fillers: set once a polygon, as uGL patches its fillers. */
+typedef struct {
+    Pixels dst, src;
+    Depth depth;
+    int32_t du, dv, dz;     /* affine: u and v 16.16 a pixel; depth's a pixel */
+    float dpun, dpvn, dpzn; /* perspective: u/z, v/z and 1/z a run's, SCAN_SUBDIVP pixels */
+} Rows;
+
+/* A row filler's depth: tested, written, both or neither. */
+enum { ROW_TEST = 1, ROW_WRITE = 2, ROW_DEPTHS = 4 };
+
+/* Row y's pixels x0 up to x1 of a polygon in r, its texels from u, v (16.16) and its depth from z
+   (16.16) at x0: one loop. */
+typedef void RowAffine(
+    const Rows *r,
+    int32_t y,
+    int32_t x0,
+    int32_t x1,
+    int32_t u,
+    int32_t v,
+    int32_t z
+);
+/* As RowAffine, in perspective: u/z, v/z and 1/z at x0, a divide every SCAN_SUBDIVP pixels. */
+typedef void RowPersp(
+    const Rows *r,
+    int32_t y,
+    int32_t x0,
+    int32_t x1,
+    double u,
+    double v,
+    double w,
+    int32_t z
+);
+
 /* A format's, drawn into. The fused row and step fillers read texels of this format; step's
-   variants are FILL_OPAQUE's. inked is by the source's format and the variant. */
+   variants are FILL_OPAQUE's. inked is by the source's format and the variant. affine and persp
+   are the fused row fillers, by FILL_OPAQUE, depth (ROW_) and, affine's, held: each texel held
+   inside the picture. */
 typedef struct {
     FillSpan *span;
     FillRow *row[FILL_VARIANTS];
@@ -90,6 +127,8 @@ typedef struct {
     FillPaint *paint;
     FillInked *const (*inked)[FILL_INKS];
     FillTint *tint;
+    RowAffine *affine[FILL_OPAQUE + 1][ROW_DEPTHS][2];
+    RowPersp *persp[FILL_OPAQUE + 1][ROW_DEPTHS];
 } Fill;
 
 /* k's variant for texels of format from into a target of format into. */

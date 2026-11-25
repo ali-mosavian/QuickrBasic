@@ -24,6 +24,7 @@
 #define GFX_SCANNER_H
 #include "base/depth.h"
 #include "base/pixels.h"
+#include "backend/soft/fill.h"
 
 /* qgl's QVert: z is 1/z; 2D calls pass 1. */
 typedef struct {
@@ -84,7 +85,41 @@ static inline int32_t scan_fistp_low(const double x)
     return (int32_t)(uint32_t)(uint64_t)scan_rint(x);
 }
 
+/* A perspective divide's: 65536 u/z and 65536 v/z rounded, and half a texel on this side of the
+   divide (qgl's PDIV). */
+typedef struct {
+    int32_t u, v;
+} ScanUV;
+
+static inline ScanUV scan_pdiv(const double u, const double v, const double z)
+{
+    const double zf = 65536.0 / z;
+
+    return (ScanUV){
+        (int32_t)((uint32_t)scan_fistp(zf * u) + 32768u),
+        (int32_t)((uint32_t)scan_fistp(zf * v) + 32768u),
+    };
+}
+
+/* A run's step a pixel, from one divide to the next, SCAN_SUBDIVP pixels on (qgl's PMKSTEP). */
+static inline int32_t scan_step(const int32_t from, const int32_t to)
+{
+    return (int32_t)((uint32_t)to - (uint32_t)from) >> SCAN_SUBDIVS;
+}
+
 /* n vertices (3 up to SCAN_MAXV, either winding) of mode, clipped to clip, a span to fill each
    row. */
 void scan_poly(const ScanVert *v, uint32_t n, ScanMode mode, Rect clip, ScanFill *fill, void *ctx);
+/* n vertices of a picture's polygon in r, affine, clipped to clip, scanned top to bottom: each
+   row's run filled by plain, or by held where its walk leaves the picture. r's steps are set. */
+void scan_affine(
+    const ScanVert *v,
+    uint32_t n,
+    Rect clip,
+    Rows *r,
+    RowAffine *plain,
+    RowAffine *held
+);
+/* As scan_affine, in perspective: u and v by 1/z, each row's run filled by fill. */
+void scan_persp(const ScanVert *v, uint32_t n, Rect clip, Rows *r, RowPersp *fill);
 #endif

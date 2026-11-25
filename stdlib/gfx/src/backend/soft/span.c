@@ -539,27 +539,6 @@ void span_texels(
         run(x, px, y, n, st);
 }
 
-typedef struct {
-    int32_t u, v;
-} UV;
-
-/* PDIV: 65536 u/z and 65536 v/z rounded, and half a texel on this side of the divide */
-static UV pdiv(const double u, const double v, const double z)
-{
-    const double zf = 65536.0 / z;
-
-    return (UV){
-        (int32_t)((uint32_t)scan_fistp(zf * u) + 32768u),
-        (int32_t)((uint32_t)scan_fistp(zf * v) + 32768u),
-    };
-}
-
-/* PMKSTEP: a run's step a pixel, its length SCAN_SUBDIVP */
-static int32_t step_of(const int32_t from, const int32_t to)
-{
-    return (int32_t)((uint32_t)to - (uint32_t)from) >> SCAN_SUBDIVS;
-}
-
 void span_persp(const Textured *const x, const ScanSpan *const sp)
 {
     const SoftTarget *const t = x->t;
@@ -569,7 +548,7 @@ void span_persp(const Textured *const x, const ScanSpan *const sp)
     uint8_t *const row = span_at(t, sp->x0, sp->y);
     const int32_t bytes = (int32_t)px_bytes(t->px.format);
     double u = sp->pu, v = sp->pv, z = sp->pz;
-    UV p = pdiv(u, v, z);
+    ScanUV p = scan_pdiv(u, v, z);
 
     for (int32_t done = 0; done < n; done += SCAN_SUBDIVP) {
         const int32_t m = rect_min(n - done, SCAN_SUBDIVP);
@@ -579,8 +558,8 @@ void span_persp(const Textured *const x, const ScanSpan *const sp)
         v += sp->dpvn;
         z += sp->dpzn;
 
-        const UV l = pdiv(u, v, z);
-        const Steps st = steps_from(p.u, p.v, step_of(p.u, l.u), step_of(p.v, l.v), wrap);
+        const ScanUV l = scan_pdiv(u, v, z);
+        const Steps st = steps_from(p.u, p.v, scan_step(p.u, l.u), scan_step(p.v, l.v), wrap);
 
         if (plain && steps_inside(&st, x->s, m))
             drawn(x, f, row + done * bytes, m, st);

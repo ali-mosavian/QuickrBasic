@@ -2,6 +2,7 @@
    variant constants, so no pixel tests a flag. FILL_TABLE binds them into a format's table. */
 #include "core/mem.h"
 #include "backend/soft/fill.h"
+#include "backend/soft/scanner.h"
 
 #if defined(__ARM_NEON)
 #include <arm_neon.h>
@@ -766,6 +767,164 @@ static inline void steps_of(
     fill_of(KIND_STEP, f, f, key ? FILL_KEYED : 0, d, n, in);
 }
 
+/* n pixels into d over the depth zp from z by dz along the read, f's texels: each shown only nearer
+   when z tests, and its depth set when z writes, a keyed texel neither. */
+[[gnu::always_inline]]
+static inline void deep_of(
+    const PxFormat f,
+    const bool key,
+    const uint32_t z,
+    uint8_t *const d,
+    uint16_t *const zp,
+    StepsRead *const rd,
+    const int32_t n,
+    int32_t zd,
+    const int32_t dz
+)
+{
+    const uint32_t b = px_bytes(f);
+
+    for (int32_t i = 0; i < n; i++, zd = depth_on(zd, dz, 1)) {
+        const uint32_t t = steps_read_next(rd, b);
+        const uint16_t here = depth_of(zd);
+
+        if ((z & ROW_TEST && !depth_shows(zp[i], here)) || (key && px_key(f, t)))
+            continue;
+
+        px_store(d + i * b, t, b);
+
+        if (z & ROW_WRITE)
+            zp[i] = here;
+    }
+}
+
+/* deep_of's, each texel held inside s: a walk that leaves it. */
+[[gnu::always_inline]]
+static inline void held_of(
+    const PxFormat f,
+    const bool key,
+    const uint32_t z,
+    uint8_t *const d,
+    uint16_t *const zp,
+    const Pixels *const s,
+    Steps st,
+    const int32_t n,
+    int32_t zd,
+    const int32_t dz
+)
+{
+    const uint32_t b = px_bytes(f);
+
+    for (int32_t i = 0; i < n; i++, steps_on(&st), zd = depth_on(zd, dz, 1)) {
+        const uint16_t here = depth_of(zd);
+
+        if (z & ROW_TEST && !depth_shows(zp[i], here))
+            continue;
+
+        const uint32_t t = steps_texel(s, &st);
+
+        if (key && px_key(f, t))
+            continue;
+
+        px_store(d + i * b, t, b);
+
+        if (z & ROW_WRITE)
+            zp[i] = here;
+    }
+}
+
+/* A run of n pixels at x of row y along st, f's texels: deep_of's, steps_of's without depth, or
+   held_of's. */
+[[gnu::always_inline]]
+static inline void run_at(
+    const PxFormat f,
+    const bool key,
+    const uint32_t z,
+    const bool held,
+    const Rows *const r,
+    const int32_t y,
+    const int32_t x,
+    const int32_t n,
+    const Steps st,
+    const int32_t zd
+)
+{
+    const uint32_t b = px_bytes(f);
+    uint8_t *const d = r->dst.p + y * r->dst.pitch + (uint32_t)x * b;
+    uint16_t *const zp = z ? r->depth.p + y * r->depth.row + x : nullptr;
+
+    if (held)
+        held_of(f, key, z, d, zp, &r->src, st, n, zd, r->dz);
+    else if (!z)
+        steps_of(f, d, &r->src, st, n, key);
+    else {
+        const StepsBy by = steps_by(&r->src, st, b);
+        StepsRead rd = steps_read(&r->src, st, &by, b);
+
+        deep_of(f, key, z, d, zp, &rd, n, zd, r->dz);
+    }
+}
+
+/* RowAffine's, f's texels into f. */
+[[gnu::always_inline]]
+static inline void affine_row(
+    const PxFormat f,
+    const bool key,
+    const uint32_t z,
+    const bool held,
+    const Rows *const r,
+    const int32_t y,
+    const int32_t x0,
+    const int32_t x1,
+    const int32_t u,
+    const int32_t v,
+    const int32_t zd
+)
+{
+    run_at(f, key, z, held, r, y, x0, x1 - x0, (Steps){u, v, r->du, r->dv, 0}, zd);
+}
+
+/* RowPersp's, f's texels into f: runs of SCAN_SUBDIVP, each a walk between two divides, held where
+   it leaves the picture. */
+[[gnu::always_inline]]
+static inline void persp_row(
+    const PxFormat f,
+    const bool key,
+    const uint32_t z,
+    const Rows *const r,
+    const int32_t y,
+    const int32_t x0,
+    const int32_t x1,
+    double u,
+    double v,
+    double w,
+    const int32_t zd
+)
+{
+    const int32_t n = x1 - x0;
+    ScanUV p = scan_pdiv(u, v, w);
+
+    for (int32_t done = 0; done < n; done += SCAN_SUBDIVP) {
+        const int32_t m = n - done < SCAN_SUBDIVP ? n - done : SCAN_SUBDIVP;
+
+        u += r->dpun;
+        v += r->dpvn;
+        w += r->dpzn;
+
+        const ScanUV l = scan_pdiv(u, v, w);
+        const Steps st = {p.u, p.v, scan_step(p.u, l.u), scan_step(p.v, l.v), 0};
+
+        const int32_t at = depth_on(zd, r->dz, done);
+
+        if (steps_inside(&st, &r->src, m))
+            run_at(f, key, z, false, r, y, x0 + done, m, st, at);
+        else
+            run_at(f, key, z, true, r, y, x0 + done, m, st, at);
+
+        p = l;
+    }
+}
+
 /* ink_of's texels fetched as drawn, from g into f as variant v. */
 [[gnu::always_inline]]
 static inline void inked_of(
@@ -946,8 +1105,55 @@ FILL_TARGETS(FILL_SOURCES, FILL_PAIR)
 static FillInked *const fill_inked[PX_FORMATS][PX_FORMATS][FILL_INKS] = {
     FILL_TARGETS(FILL_SOURCES, FILL_ROW)
 };
+/* Format f's row fillers, name's: affine by opacity o, held h and depth z; persp by o and z. */
+#define FILL_AFFINE(name, f, o, h, z)                                                              \
+    static void name##_affine_##o##z##h(                                                           \
+        const Rows *const r,                                                                       \
+        const int32_t y,                                                                           \
+        const int32_t x0,                                                                          \
+        const int32_t x1,                                                                          \
+        const int32_t u,                                                                           \
+        const int32_t v,                                                                           \
+        const int32_t zd                                                                           \
+    )                                                                                              \
+    {                                                                                              \
+        affine_row(f, !(o), z, h, r, y, x0, x1, u, v, zd);                                         \
+    }
+#define FILL_PERSP(name, f, o, z)                                                                  \
+    static void name##_persp_##o##z(                                                               \
+        const Rows *const r,                                                                       \
+        const int32_t y,                                                                           \
+        const int32_t x0,                                                                          \
+        const int32_t x1,                                                                          \
+        const double u,                                                                            \
+        const double v,                                                                            \
+        const double w,                                                                            \
+        const int32_t zd                                                                           \
+    )                                                                                              \
+    {                                                                                              \
+        persp_row(f, !(o), z, r, y, x0, x1, u, v, w, zd);                                          \
+    }
+/* X for each depth, ROW_'s. */
+#define FILL_DEPTHS(X, ...) X(__VA_ARGS__, 0) X(__VA_ARGS__, 1) X(__VA_ARGS__, 2) X(__VA_ARGS__, 3)
+#define FILL_ROWS(name, f)                                                                         \
+    FILL_DEPTHS(FILL_AFFINE, name, f, 0, 0)                                                        \
+    FILL_DEPTHS(FILL_AFFINE, name, f, 0, 1)                                                        \
+    FILL_DEPTHS(FILL_AFFINE, name, f, 1, 0)                                                        \
+    FILL_DEPTHS(FILL_AFFINE, name, f, 1, 1)                                                        \
+    FILL_DEPTHS(FILL_PERSP, name, f, 0)                                                            \
+    FILL_DEPTHS(FILL_PERSP, name, f, 1)
+#define FILL_AFFINE_Z(name, o, z) {name##_affine_##o##z##0, name##_affine_##o##z##1}
+#define FILL_AFFINE_O(name, o)                                                                     \
+    {FILL_AFFINE_Z(name, o, 0),                                                                    \
+     FILL_AFFINE_Z(name, o, 1),                                                                    \
+     FILL_AFFINE_Z(name, o, 2),                                                                    \
+     FILL_AFFINE_Z(name, o, 3)}
+#define FILL_PERSP_O(name, o)                                                                      \
+    {name##_persp_##o##0, name##_persp_##o##1, name##_persp_##o##2, name##_persp_##o##3}
+
 /* Format f's table, name: each body above bound to f. */
 #define FILL_TABLE(name, f)                                                                        \
+    FILL_ROWS(name, f)                                                                             \
     static void name##_span(uint8_t *const d, const int32_t n, const uint32_t c)                   \
     {                                                                                              \
         span_of(f, d, n, c);                                                                       \
@@ -1019,6 +1225,8 @@ static FillInked *const fill_inked[PX_FORMATS][PX_FORMATS][FILL_INKS] = {
         .paint = name##_paint,                                                                     \
         .inked = fill_inked[f],                                                                    \
         .tint = name##_tint,                                                                       \
+        .affine = {FILL_AFFINE_O(name, 0), FILL_AFFINE_O(name, 1)},                                \
+        .persp = {FILL_PERSP_O(name, 0), FILL_PERSP_O(name, 1)},                                   \
     }
 
 #define FILL_FORMAT(t, f, ...) FILL_TABLE(t, f);

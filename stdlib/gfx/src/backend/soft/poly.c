@@ -42,6 +42,19 @@ static void texture(
         .smooth = flags & GFX_DRAW_SMOOTH,
     };
 
+    if (span_fused(t, s) && !x.smooth && !wrap) {
+        const uint32_t o = x.opaque ? FILL_OPAQUE : 0;
+        const uint32_t z = t->depth.p ? (x.test ? ROW_TEST : 0) | (x.set ? ROW_WRITE : 0) : 0;
+        Rows r = {.dst = t->px, .src = *s, .depth = t->depth};
+
+        if (mode == SCAN_PTEX)
+            scan_persp(v, n, t->clip, &r, t->fill->persp[o][z]);
+        else
+            scan_affine(v, n, t->clip, &r, t->fill->affine[o][z][0], t->fill->affine[o][z][1]);
+
+        return;
+    }
+
     scan_poly(v, n, mode, t->clip, mode == SCAN_PTEX ? perspective : textured, (void *)&x);
 }
 

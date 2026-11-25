@@ -476,19 +476,25 @@ static void walk(
     }
 }
 
-void scan_poly(
+/* A polygon set up to walk: its ring of 16.16 vertices from the topmost, clipped, and its
+   gradients. */
+typedef struct {
+    Fx fx[SCAN_MAXV + 4];
+    int32_t cnt;
+    Grad g;
+} Ring;
+
+/* qglRsPoly's front half: n vertices to ring, false when culled or clipped away. */
+static bool ring_of(
     const ScanVert *const v,
     const uint32_t n,
-    const ScanMode mode,
+    const bool persp,
     const Rect clip,
-    ScanFill *const fill,
-    void *const ctx
+    Ring *const ring
 )
 {
     if (n < 3 || n > SCAN_MAXV)
-        return;
-
-    const bool persp = mode == SCAN_PTEX;
+        return false;
 
     /* the triple: the vertex furthest from v[0] (L1), then the furthest off that baseline */
     uint32_t b = 1, c = 2;
@@ -521,18 +527,19 @@ void scan_poly(
 
     /* by ring index, so the denominator's sign is the ring's winding */
     const uint32_t lo = b < c ? b : c, hi = b < c ? c : b;
-    Grad g = {};
+    Grad *const g = &ring->g;
+    *g = (Grad){};
 
-    if (!grad(&v[0], &v[lo], &v[hi], persp, &g))
-        return;
+    if (!grad(&v[0], &v[lo], &v[hi], persp, g))
+        return false;
 
     /* POLY_CULL: twice the area under 2 is too small to matter; its sign is the winding */
-    const double area2 = g.denom < 0 ? -g.denom : g.denom;
+    const double area2 = g->denom < 0 ? -g->denom : g->denom;
 
     if (!(area2 >= 2.0))
-        return;
+        return false;
 
-    const int32_t vstep = g.denom > 0 ? 1 : -1;
+    const int32_t vstep = g->denom > 0 ? 1 : -1;
     uint32_t top = 0;
 
     for (uint32_t i = 1; i < n; i++)
@@ -540,23 +547,23 @@ void scan_poly(
             top = i;
 
     /* the ring from the topmost vertex in the winding's direction, clipped */
-    ScanVert ring[SCAN_MAXV + 4], work[SCAN_MAXV + 4];
+    ScanVert from[SCAN_MAXV + 4], work[SCAN_MAXV + 4];
 
     for (uint32_t k = 0; k < n; k++)
-        ring[k] = v[((int32_t)top + vstep * (int32_t)k + (int32_t)n) % (int32_t)n];
+        from[k] = v[((int32_t)top + vstep * (int32_t)k + (int32_t)n) % (int32_t)n];
 
     ScanVert *clipped = nullptr;
-    const uint32_t cnt = clip_poly(ring, work, n, clip, &clipped);
+    const uint32_t cnt = clip_poly(from, work, n, clip, &clipped);
 
     if (cnt < 3)
-        return;
+        return false;
 
-    Fx fx[SCAN_MAXV + 4], ring_fx[SCAN_MAXV + 4];
+    Fx fx[SCAN_MAXV + 4];
 
     /* gfx's tie, a pixel centre on a top or left edge inside; qgl's are the bottom and right. The
        rows are a unit up, the edges met at the row itself (bias): a unit up there would move a
        steep edge more than the unit left. */
-    g.bias = 1;
+    g->bias = 1;
 
     for (uint32_t i = 0; i < cnt; i++)
         fx[i] = to_fixed(&clipped[i], persp);
@@ -569,7 +576,205 @@ void scan_poly(
             k = i;
 
     for (uint32_t i = 0; i < cnt; i++)
-        ring_fx[i] = fx[(i + k) % cnt];
+        ring->fx[i] = fx[(i + k) % cnt];
 
-    walk(ring_fx, (int32_t)cnt, &g, persp, clip, fill, ctx);
+    ring->cnt = (int32_t)cnt;
+    return true;
+}
+
+void scan_poly(
+    const ScanVert *const v,
+    const uint32_t n,
+    const ScanMode mode,
+    const Rect clip,
+    ScanFill *const fill,
+    void *const ctx
+)
+{
+    const bool persp = mode == SCAN_PTEX;
+    Ring ring;
+
+    if (ring_of(v, n, persp, clip, &ring))
+        walk(ring.fx, ring.cnt, &ring.g, persp, clip, fill, ctx);
+}
+
+/* qgl$drawA: the two chains down from the topmost vertex, each row's run from the left edge's
+   pixel up to the right's, its u, v and depth at its first pixel centre, held in the clip; filled
+   by plain, or held where the walk leaves the picture. */
+void scan_affine(
+    const ScanVert *const v,
+    const uint32_t n,
+    const Rect clip,
+    Rows *const r,
+    RowAffine *const plain,
+    RowAffine *const held
+)
+{
+    Ring ring;
+
+    if (!ring_of(v, n, false, clip, &ring))
+        return;
+
+    const Fx *const fx = ring.fx;
+    const int32_t cnt = ring.cnt;
+    const Grad *const g = &ring.g;
+
+    r->du = g->dudx;
+    r->dv = g->dvdx;
+    r->dz = g->dzdx;
+
+    Edge l = {.s = 0, .e = cnt - 1}, rt = {.s = 0, .e = 1};
+
+    Carried c = {};
+
+    int16_t height = 0, y = (int16_t)FXFLOOR(fx[0].ky);
+
+    for (;;) {
+        l.rows = (int16_t)(l.rows - height);
+        rt.rows = (int16_t)(rt.rows - height);
+
+        if (l.rows < 0)
+            return;
+
+        if (l.rows == 0) {
+            if (l.e <= 0 || !edge_from(&l, &fx[l.s], &fx[l.e], g))
+                return;
+
+            if (l.rows > 0)
+                carried_from(&c, &fx[l.s], &fx[l.e], g, false);
+
+            l.s = l.e--;
+        }
+
+        if (rt.rows < 0)
+            return;
+
+        if (rt.rows == 0) {
+            if (rt.e > cnt - 1 || !edge_from(&rt, &fx[rt.s], &fx[rt.e], g))
+                return;
+
+            rt.s = rt.e++;
+        }
+
+        height = l.rows < rt.rows ? l.rows : rt.rows;
+
+        for (int16_t row = 0; row < height; row++, y++) {
+            const int32_t into = prestep(l.x), x0 = (int16_t)FXFLOOR(l.x);
+            const int32_t x1 = x0 + (int16_t)(FXFLOOR(rt.x) - FXFLOOR(l.x));
+            const int32_t from = rect_max(x0, clip.x), to = rect_min(x1, clip.x + clip.w);
+
+            if (x1 > x0 && y >= clip.y && y < clip.y + clip.h && from < to) {
+                const int32_t lost = from - x0;
+                const int32_t u = add32(add32(c.u, 32768), FXMUL(into, g->dudx));
+                const int32_t vv = add32(add32(c.v, 32768), FXMUL(into, g->dvdx));
+                const int32_t z = scan_fistp_low((double)c.z * DEPTH_NEAR * 65536.0);
+                const Steps st = {
+                    (int32_t)(u + (int64_t)lost * g->dudx),
+                    (int32_t)(vv + (int64_t)lost * g->dvdx),
+                    g->dudx,
+                    g->dvdx,
+                    0,
+                };
+
+                RowAffine *const fill = steps_inside(&st, &r->src, to - from) ? plain : held;
+
+                fill(r, y, from, to, st.u, st.v, depth_on(z, g->dzdx, lost));
+            }
+
+            l.x = add32(l.x, l.dx);
+            rt.x = add32(rt.x, rt.dx);
+            carried_on(&c, false);
+        }
+    }
+}
+
+/* qgl$drawP: scan_affine's walk, the left edge carrying u/z, v/z and 1/z; each row's run filled
+   by fill, which divides. */
+void scan_persp(
+    const ScanVert *const v,
+    const uint32_t n,
+    const Rect clip,
+    Rows *const r,
+    RowPersp *const fill
+)
+{
+    const double r65536 = 0.0000152587890625;
+    Ring ring;
+
+    if (!ring_of(v, n, true, clip, &ring))
+        return;
+
+    const Fx *const fx = ring.fx;
+    const int32_t cnt = ring.cnt;
+    const Grad *const g = &ring.g;
+
+    r->dz = g->dzdx;
+    r->dpun = real4((double)g->fdudx * SCAN_SUBDIVP);
+    r->dpvn = real4((double)g->fdvdx * SCAN_SUBDIVP);
+    r->dpzn = real4((double)g->fdzdx * SCAN_SUBDIVP);
+
+    Edge l = {.s = 0, .e = cnt - 1}, rt = {.s = 0, .e = 1};
+
+    Carried c = {};
+
+    int16_t height = 0, y = (int16_t)FXFLOOR(fx[0].ky);
+
+    for (;;) {
+        l.rows = (int16_t)(l.rows - height);
+        rt.rows = (int16_t)(rt.rows - height);
+
+        if (l.rows < 0)
+            return;
+
+        if (l.rows == 0) {
+            if (l.e <= 0 || !edge_from(&l, &fx[l.s], &fx[l.e], g))
+                return;
+
+            if (l.rows > 0)
+                carried_from(&c, &fx[l.s], &fx[l.e], g, true);
+
+            l.s = l.e--;
+        }
+
+        if (rt.rows < 0)
+            return;
+
+        if (rt.rows == 0) {
+            if (rt.e > cnt - 1 || !edge_from(&rt, &fx[rt.s], &fx[rt.e], g))
+                return;
+
+            rt.s = rt.e++;
+        }
+
+        height = l.rows < rt.rows ? l.rows : rt.rows;
+
+        for (int16_t row = 0; row < height; row++, y++) {
+            const int32_t into = prestep(l.x), x0 = (int16_t)FXFLOOR(l.x);
+            const int32_t x1 = x0 + (int16_t)(FXFLOOR(rt.x) - FXFLOOR(l.x));
+            const int32_t from = rect_max(x0, clip.x), to = rect_min(x1, clip.x + clip.w);
+
+            if (x1 > x0 && y >= clip.y && y < clip.y + clip.h && from < to) {
+                const double diff = (double)into * r65536, lost = from - x0;
+                const int32_t z = scan_fistp_low((double)c.z * DEPTH_NEAR * 65536.0);
+                const double pu = (double)c.pu + (double)g->fdudx * diff;
+                const double pv = (double)c.pv + (double)g->fdvdx * diff;
+                const double pz = (double)c.z + (double)g->fdzdx * diff;
+
+                fill(
+                    r,
+                    y,
+                    from,
+                    to,
+                    pu + g->fdudx * lost,
+                    pv + g->fdvdx * lost,
+                    pz + g->fdzdx * lost,
+                    depth_on(z, g->dzdx, from - x0)
+                );
+            }
+
+            l.x = add32(l.x, l.dx);
+            rt.x = add32(rt.x, rt.dx);
+            carried_on(&c, true);
+        }
+    }
 }
