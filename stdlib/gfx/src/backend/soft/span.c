@@ -13,8 +13,41 @@ bool span_fused(const SoftTarget *const t, const Pixels *const s)
 
 static bool blends(const Ink *const k) { return k->blend || k->mode; }
 
-/* n pixels from x, y by the fillers: the fused one when the ink has nothing to do, else the inked
-   one for the source and the ink's variant. A wrapping walk is cut where u wraps, so none wraps. */
+/* A span's filler, picked once: the fused one when the ink has nothing to do, else the inked one
+   for the source and the ink's variant. */
+typedef struct {
+    FillStep *step;
+    FillInked *inked;
+} Filler;
+
+static Filler filler_of(const Textured *const x)
+{
+    const SoftTarget *const t = x->t;
+    const Pixels *const s = x->s;
+
+    if (span_fused(t, s))
+        return (Filler){.step = t->fill->step[x->opaque ? FILL_OPAQUE : 0]};
+
+    return (Filler){.inked =
+                        t->fill->inked[s->format][fill_variant(&t->ink, t->px.format, s->format)]};
+}
+
+/* n pixels into d by f along st, which does not wrap. */
+static void drawn(
+    const Textured *const x,
+    const Filler f,
+    uint8_t *const d,
+    const int32_t n,
+    const Steps st
+)
+{
+    if (f.step)
+        f.step(d, x->s, st, n);
+    else
+        f.inked(d, x->s, st, n, &x->t->ink);
+}
+
+/* n pixels from x, y by the span's filler. A wrapping walk is cut where u wraps, so none wraps. */
 static void filled(
     const Textured *const x,
     const int32_t px,
@@ -23,23 +56,12 @@ static void filled(
     Steps st
 )
 {
-    const SoftTarget *const t = x->t;
-    const Pixels *const s = x->s;
-    const bool fused = span_fused(t, s);
-    FillStep *const step = t->fill->step[x->opaque ? FILL_OPAQUE : 0];
-    FillInked *const inked =
-        t->fill->inked[s->format][fill_variant(&t->ink, t->px.format, s->format)];
+    const Filler f = filler_of(x);
 
     for (int32_t done = 0; done < n;) {
         const int32_t m = st.wrap ? steps_unwrapped(&st, n - done) : n - done;
-        const Steps piece = {st.u, st.v, st.du, st.dv, 0};
 
-        uint8_t *const d = span_at(t, px + done, y);
-
-        if (fused)
-            step(d, s, piece, m);
-        else
-            inked(d, s, piece, m, &t->ink);
+        drawn(x, f, span_at(x->t, px + done, y), m, (Steps){st.u, st.v, st.du, st.dv, 0});
 
         done += m;
         st.u = st.wrap ? steps_wrap(st.u + m * st.du, st.wrap) : st.u;
@@ -274,7 +296,12 @@ static int32_t step_of(const int32_t from, const int32_t to)
 
 void span_persp(const Textured *const x, const ScanSpan *const sp)
 {
+    const SoftTarget *const t = x->t;
     const int32_t n = sp->x1 - sp->x0, wrap = x->wrap ? x->s->w << 16 : 0;
+    const bool plain = !x->smooth && !t->depth.p && !wrap; /* runs the filler takes as they are */
+    const Filler f = filler_of(x);
+    uint8_t *const row = span_at(t, sp->x0, sp->y);
+    const int32_t bytes = (int32_t)px_bytes(t->px.format);
     double u = sp->pu, v = sp->pv, z = sp->pz;
     UV p = pdiv(u, v, z);
 
@@ -289,7 +316,11 @@ void span_persp(const Textured *const x, const ScanSpan *const sp)
         const UV l = pdiv(u, v, z);
         const Steps st = steps_from(p.u, p.v, step_of(p.u, l.u), step_of(p.v, l.v), wrap);
 
-        span_texels(x, sp->x0 + done, sp->y, m, st, depth_on(sp->z, sp->dz, done), sp->dz);
+        if (plain && steps_inside(&st, x->s, m))
+            drawn(x, f, row + done * bytes, m, st);
+        else
+            span_texels(x, sp->x0 + done, sp->y, m, st, depth_on(sp->z, sp->dz, done), sp->dz);
+
         p = l;
     }
 }
