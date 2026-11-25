@@ -61,13 +61,21 @@ static inline int64_t scan_rint(const double x)
 #endif
 }
 
-/* qgl's fistp: the nearest integer, ties to even; out of range, 80000000h. */
+/* qgl's fistp: the nearest integer, ties to even; out of range, 80000000h. On an x87, the fistp
+   itself: out of range it stores 80000000h. */
 static inline int32_t scan_fistp(const double x)
 {
+#ifdef __i386__
+    int32_t r;
+    __asm__("fistpl %0" : "=m"(r) : "t"(x) : "st");
+    return r;
+#else
+
     if (!(x > -2147483648.5 && x < 2147483647.5))
         return INT32_MIN;
 
     return (int32_t)scan_rint(x);
+#endif
 }
 
 /* x as qgl's fistp into a qword, its low dword: a span's depth, which runs to 65535 in 16.16. */
