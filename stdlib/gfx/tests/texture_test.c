@@ -3,6 +3,7 @@
    (where backends may round either way). */
 #include "base/gmath.h"
 #include "backend/soft/soft.h"
+#include "backend/soft/span.h"
 #include "test.h"
 
 /* A 3 by 2 sheet: 0 7 9 above 2 0 3. */
@@ -214,4 +215,42 @@ TEST(gfx_soft_perspective_trapezoid)
     for (uint32_t y = 0; y < 8; y++)
         for (uint32_t x = 0; x < 16; x++)
             CHECK(dst[y * 16 + x] == (y < 4 && x < 8 ? want[y][x] : 1));
+}
+
+/* Walks past a picture's edges, both ways, each texel held inside as steps_texel holds it: the
+   filler draws them in pieces, a coordinate held past its edge. Wrong pixels here were a piece cut
+   at the wrong pixel, a coordinate held at the wrong edge, or held while inside. */
+TEST(gfx_soft_walks_held_inside)
+{
+    enum { W = 8, H = 4, N = 48 };
+
+    uint8_t tex[W * H], dst[N];
+
+    for (uint32_t i = 0; i < W * H; i++)
+        tex[i] = (uint8_t)(10 + i);
+
+    const SoftTarget t = {.px = {dst, N, N, 1, PX_8}, .clip = {0, 0, N, 1}, .fill = &fill8};
+
+    const Pixels s = {tex, W, W, H, PX_8};
+
+    const Textured x = {.t = &t, .s = &s, .opaque = true};
+
+    static const Steps walks[] = {
+        {-3 * 65536, -2 * 65536, 0x5800, 0x2400, 0},
+        {(W + 2) << 16, (H + 1) << 16, -0x6000, -0x1C00, 0},
+        {0x8000, (H + 3) << 16, 0x3000, 0, 0},
+        {-0x10000, 0x8000, 0, 0x1800, 0},
+    };
+
+    for (uint32_t k = 0; k < sizeof walks / sizeof *walks; k++) {
+        const Steps st = walks[k];
+        memset(dst, 0, sizeof dst);
+        span_texels(&x, 0, 0, N, st, 0, 0);
+
+        for (int32_t i = 0; i < N; i++) {
+            const int32_t u = steps_held((st.u + i * st.du) >> 16, W);
+            const int32_t v = steps_held((st.v + i * st.dv) >> 16, H);
+            CHECK(dst[i] == tex[v * W + u]);
+        }
+    }
 }

@@ -48,7 +48,8 @@ static void drawn(
 }
 
 /* n pixels from x, y by the span's filler. A wrapping walk is cut where u wraps, so none wraps. */
-static void filled(
+[[gnu::always_inline]]
+static inline void filled(
     const Textured *const x,
     const int32_t px,
     const int32_t y,
@@ -253,6 +254,78 @@ static void smooth(
     }
 }
 
+/* st i pixels on; u wrapped by a divide, as i may be many widths. */
+static Steps steps_ahead(Steps st, const int32_t i)
+{
+    st.u += i * st.du;
+    st.v += i * st.dv;
+    st.u = st.wrap ? (st.u % st.wrap + st.wrap) % st.wrap : st.u;
+    return st;
+}
+
+/* The first of n pixels where c, stepped by dc a pixel, crosses limit (all 16.16): n, none. */
+static int32_t crossing(const int64_t c, const int64_t dc, const int64_t limit, const int32_t n)
+{
+    const int64_t i = c < limit && dc > 0    ? (limit - c + dc - 1) / dc
+                      : c >= limit && dc < 0 ? (c - limit) / -dc + 1
+                                             : n;
+
+    return i < n ? (int32_t)i : n;
+}
+
+/* c held inside [0, size) as steps_texel holds a texel: past an end, that end's texel, its step
+   0. */
+static void held(int32_t *const c, int32_t *const dc, const int32_t size)
+{
+    if (*c < 0 || (int64_t)*c >= (int64_t)size << 16) {
+        *c = *c < 0 ? 0 : (size - 1) << 16;
+        *dc = 0;
+    }
+}
+
+/* n pixels from px, y along st, each texel held inside x's picture as each holds it, by the
+   filler: cut where u or v crosses an edge, as it steps straight, a coordinate held in a piece
+   past its edge. */
+static void pieces(
+    const Textured *const x,
+    const int32_t px,
+    const int32_t y,
+    const int32_t n,
+    const Steps st
+)
+{
+    const Pixels *const s = x->s;
+    const int64_t w = (int64_t)s->w << 16, h = (int64_t)s->h << 16;
+    int32_t at[] = {
+        0,
+        n,
+        st.wrap ? n : crossing(st.u, st.du, 0, n),
+        st.wrap ? n : crossing(st.u, st.du, w, n),
+        crossing(st.v, st.dv, 0, n),
+        crossing(st.v, st.dv, h, n),
+    };
+
+    const int32_t cuts = sizeof at / sizeof *at;
+
+    for (int32_t i = 1; i < cuts; i++)
+        for (int32_t j = i; j > 0 && at[j] < at[j - 1]; j--) {
+            const int32_t a = at[j];
+            at[j] = at[j - 1];
+            at[j - 1] = a;
+        }
+
+    for (int32_t i = 0; i + 1 < cuts; i++)
+        if (at[i] < at[i + 1]) {
+            Steps p = steps_ahead(st, at[i]);
+
+            if (!st.wrap)
+                held(&p.u, &p.du, s->w);
+
+            held(&p.v, &p.dv, s->h);
+            filled(x, px + at[i], y, at[i + 1] - at[i], p);
+        }
+}
+
 void span_texels(
     const Textured *const x,
     const int32_t px,
@@ -267,10 +340,12 @@ void span_texels(
 
     if (x->smooth)
         smooth(x, px, y, n, st, z, dz);
-    else if (t->depth.p || !steps_inside(&st, x->s, n))
+    else if (t->depth.p)
         each(x, px, y, n, st, z, dz);
-    else
+    else if (steps_inside(&st, x->s, n))
         filled(x, px, y, n, st);
+    else
+        pieces(x, px, y, n, st);
 }
 
 typedef struct {
