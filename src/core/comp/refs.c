@@ -296,6 +296,8 @@ static RecRef path(Comp *const C, Node *const at, uint32_t t, const uint8_t *tex
     const Field *f;
 
     for (;;) {
+        if (!len) /* r. */
+            synerr(C);
         if (text[len - 1] < '.') /* a suffix is not the name's */
             len--;
 
