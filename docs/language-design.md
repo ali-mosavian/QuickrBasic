@@ -55,8 +55,7 @@ wend
   required in every Quickr file, modules too. Nothing else is guessed from a file's contents.
 - File > New asks which, and a Quickr program starts with that line, which the editor keeps as it
   is. The status bar shows the program's dialect. `basic` runs either.
-- A Quickr file importing a QBasic module is an error at the import. A QBasic file never imports
-  a Quickr one.
+- A file of either dialect imports modules of the other: see [Interop](#interop).
 
 ## What goes, what stays
 
@@ -874,8 +873,8 @@ end function
 ### Modules
 
 - A file is a module and a folder is a package, found as QBasic's `IMPORT` finds one (the main
-  file's folder, each folder of `BASICLIB`, then `lib/` beside the interpreter), as a `.bas`
-  whose first line says it is Quickr's.
+  file's folder, each folder of `BASICLIB`, then `lib/` beside the interpreter), as a `.bas`.
+  One whose first line is not Quickr's is a QBasic module: see [Interop](#interop).
 - `import m`, `import m as n`, `import a.b` (then `a.b.f()`), `from a.b import X, Y as Z`,
   `from pkg import m` (a package's module) and relative `from .feet import Land`: `.` is the
   importing file's folder, `..` its parent. An import goes at the top level.
@@ -893,6 +892,34 @@ end function
 - An error, at compile time or run time, names the module's own file and line.
 - **In the VM**, each module's lines are the program store's. The run goes through the modules
   in the order above, the main's last: each module's last line goes on to the next one's first.
+
+### Interop
+
+- A Quickr file imports a QBasic module as a Quickr one: `import shapes`, then `shapes.area(2, 3)`,
+  or `from shapes import area`. Its SUBs and FUNCTIONs are functions, its TYPEs records; not its
+  PRIVATE ones.
+- A QBasic name matches case aside and without its suffix: `FUNCTION Area!(w!)` is `shapes.area`.
+  Two that match one name are an error where it is used.
+- Types: INTEGER and LONG are `int`, both 32 bits; SHORT is `short`, SINGLE `single`, DOUBLE
+  `double`, STRING `string`, a TYPE a record of the same fields.
+- A parameter by reference takes a `var`'s place, and the `var` sees the change. Any other
+  argument, a `let`'s too, goes as a copy. A BYVAL parameter is by value.
+- What Quickr has no equal for is an error where it is used, naming why, never at the import: a
+  fixed-length string, an array, a TYPE's array field.
+- A QBasic module's code runs at its first import, as in QBasic.
+- A QBasic file imports a Quickr module: `IMPORT shapes`, then `shapes.area(2, 3)`, or `FROM
+  shapes IMPORT area`. Its public functions are SUBs and FUNCTIONs, its public records TYPEs. Its
+  methods are not seen.
+- Types back: `int` is LONG, `short` SHORT, `single`, `double` and `string` the same, `bool`
+  INTEGER, true -1 in both, a record a TYPE. A `mut` parameter is by reference, any other by value.
+- Any other type in a function's parameters or result, or in a record's fields, makes it an error
+  where QBasic uses it.
+- QBasic matches names case aside: two publics that differ only so are an error at the IMPORT.
+- A module of the other dialect imports only modules of its own dialect.
+- A runtime error names the file and line of the code it is in, either dialect's. QBasic's `ON
+  ERROR` catches one raised in the Quickr code it calls.
+- **In the VM**, a call across is a call within one dialect: the same PCALL, records and strings,
+  no conversion between.
 
 ### Tests
 
