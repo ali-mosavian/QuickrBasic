@@ -107,8 +107,12 @@ struct Dialect {
        by m, as guest_read finds them. */
     void (*guest_find)(Session *S, uint32_t m);
     /* Each of the QBasic program's modules of this dialect checked, their exports declared as
-       QBasic's, the link's hooks set (comp/link.h). */
-    void (*guest_declare)(Session *S);
+       QBasic's, the link's hooks set (comp/link.h). Lenient: an error leaves the exports out, not
+       raised nor said. */
+    void (*guest_declare)(Session *S, bool lenient);
+    /* The program's declarations made again after a line of another dialect's changed in it, that
+       one's errors lenient; null: nothing to make. */
+    void (*redeclare)(Session *S);
 };
 
 /* QBasic's: the core's own (io/repl.c). */

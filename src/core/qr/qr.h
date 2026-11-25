@@ -64,7 +64,7 @@ void qr_guest_find(Session *S, uint32_t m);
 /* Each Quickr module checked, every error reported (a file run's: then exit 1, else Syntax error
    raised); their records' TYPEs made, their exports declared as QBasic's, the link's hooks set. A
    module two of whose publics differ only by case: its ModuMod.clash. */
-void qr_guest_declare(Session *S);
+void qr_guest_declare(Session *S, bool lenient);
 /* Variable id's name as typed at d, DIAL_SPELL bytes at most (a block's over an outer one's,
    X'1's, too); its length, 0 not one of the kept program's. */
 uint32_t qr_spell(const Session *S, uint32_t id, char *d);

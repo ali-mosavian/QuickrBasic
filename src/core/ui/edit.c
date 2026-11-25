@@ -551,12 +551,19 @@ static bool text_error(Session *const S, const uint32_t line)
     return err;
 }
 
-/* edit_store's of a text dialect's line: as typed, then checked. */
+/* edit_store's of a text dialect's line: as typed, then checked; the program's declarations
+   after it. */
 static bool store_text(Session *const S, const uint32_t line, LineBuf *const b)
 {
     uimn.text.asis = false;
     text_repl(S, line, b->text, b->len);
-    return !text_error(S, line + uimn.text.first);
+    const bool err = text_error(S, line + uimn.text.first);
+    const Dialect *const d = dial_program(&S->prog);
+
+    if (d->redeclare)
+        d->redeclare(S);
+
+    return !err;
 }
 
 bool edit_store(Session *const S, const uint32_t line, LineBuf *const b)

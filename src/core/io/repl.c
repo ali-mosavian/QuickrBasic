@@ -616,6 +616,8 @@ static const char *message_qbasic(const Session *const S, const uint8_t code)
     return emsg_text(S->vm.err.user, code);
 }
 
+static void redeclare_qbasic(Session *S);
+
 const Dialect dialect_qbasic = {
     .name = "QBasic",
     .button = "Q&Basic",
@@ -624,6 +626,7 @@ const Dialect dialect_qbasic = {
     .run = run_qbasic,
     .report = report_qbasic,
     .message = message_qbasic,
+    .redeclare = redeclare_qbasic,
 };
 
 void repl_main(Session *const S)
@@ -1327,7 +1330,7 @@ static uint32_t next_line(const Prog *const pg, const uint32_t line)
    its file's DEFtypes and OPTIONs from its first line; when the main is another dialect's
    (guests), its QBasic modules alone, each after its LF_TOP. Then the main's again, for lines
    typed. */
-static void declare_program(Session *const S, const bool guests)
+static void declare_program(Session *const S, const bool guests, const bool lenient)
 {
     const uint32_t n = modu_count(&S->modu), *const order = modu_order(&S->modu);
 
@@ -1344,7 +1347,7 @@ static void declare_program(Session *const S, const bool guests)
             const uint32_t bit = 1u << dial_index(d);
 
             if (!(declared & bit))
-                d->guest_declare(S);
+                d->guest_declare(S, lenient);
 
             declared |= bit;
             continue;
@@ -1366,6 +1369,18 @@ static void declare_program(Session *const S, const bool guests)
     decl_main(&S->decl, &S->symb);
 }
 
+/* The declarations made again from none: declare_program's. */
+static void declare_again(Session *const S, const bool guests, const bool lenient)
+{
+    symb_vars_init(&S->symb);
+    decl_reset(&S->decl, &S->scop, &S->symb);
+    session_drop(S);
+    declare_program(S, guests, lenient);
+}
+
+/* Dialect.redeclare's: the program's own and its other dialects' modules', those lenient. */
+static void redeclare_qbasic(Session *const S) { declare_again(S, false, true); }
+
 void repl_load(Session *const S)
 {
     S->repl.loading = true;
@@ -1376,7 +1391,7 @@ void repl_load(Session *const S)
     modu_clear(&S->modu, S->repl.file);
     read_file(S, S->repl.file, SOURCE_FILENO, 0);
     read_modules(S, 1, 0);
-    declare_program(S, false);
+    declare_program(S, false, false);
     S->repl.loading = false;
 }
 
@@ -1400,7 +1415,7 @@ void repl_guests(
     }
 
     read_modules(S, 1, 0);
-    declare_program(S, true);
+    declare_program(S, true, false);
     S->repl.guests = false;
     S->repl.loading = false;
 }
@@ -1474,12 +1489,8 @@ void repl_guests_stored(
 
     S->repl.module = 0;
 
-    if (declare) {
-        symb_vars_init(&S->symb);
-        decl_reset(&S->decl, &S->scop, &S->symb);
-        session_drop(S);
-        declare_program(S, true);
-    }
+    if (declare)
+        declare_again(S, true, false);
 
     S->repl.guests = false;
     S->repl.loading = false;
@@ -1609,7 +1620,7 @@ static void reread(Session *const S, const bool lenient)
 static void relink(Session *const S, const bool lenient)
 {
     reread(S, lenient);
-    declare_program(S, false);
+    declare_program(S, false, false);
     S->repl.loading = false;
 }
 

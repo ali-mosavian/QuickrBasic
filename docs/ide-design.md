@@ -216,7 +216,9 @@ debugs either as it does a program of one dialect.
 - Completion goes by the line's file's dialect. After `m.` a QBasic line offers module `m`'s
   exports as `IMPORT` binds them (`bind_each_export`), a Quickr module's those QBasic sees.
 - A QBasic module a Quickr program no longer imports stays till the program is opened again.
-- In a QBasic program a Quickr module's changed exports reach completion at the next run.
+- A line stored in a QBasic program's module of another dialect declares the program again
+  (`Dialect.redeclare`): its exports reach completion at once. One with an error exports nothing
+  till it checks; the run says the error.
 
 ## Theme slots
 

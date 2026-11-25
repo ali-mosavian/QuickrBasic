@@ -220,3 +220,18 @@ TEST(mixcomplete_qr_main_offers_built_in_methods)
     CHECK(offers(S, "print total", "let a = s.", "x"));
     fx_done(S, files);
 }
+
+/* An edit to a Quickr module's exports reached a QBasic program's completion only at the next
+   run: helper made public was not offered; one made wrong kept the old exports. */
+TEST(mixcomplete_qb_main_follows_a_quickr_modules_edits)
+{
+    open_with(S, qb_main);
+    CHECK(!offers(S, "print total", "a = geo.", "helper"));
+    fx_typed_over(S, fx_line_of(S, "function helper() as int"), "public function helper() as int");
+    CHECK(offers(S, "print total", "a = geo.", "helper"));
+    fx_typed_over(S, fx_line_of(S, "    return 1"), "    return \"x\"");
+    CHECK(!offers(S, "print total", "a = geo.", "area")); /* an error: none till it checks */
+    fx_typed_over(S, fx_line_of(S, "    return \"x\""), "    return 1");
+    CHECK(offers(S, "print total", "a = geo.", "area"));
+    fx_done(S, files);
+}

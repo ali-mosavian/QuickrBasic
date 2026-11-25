@@ -1147,7 +1147,7 @@ static void qr_guest_forget(QrGuests *const g)
     g->prog = nullptr;
 }
 
-void qr_guest_declare(Session *const S)
+void qr_guest_declare(Session *const S, const bool lenient)
 {
     QrState *const q = qr_state(S);
     QrGuests *const G = &q->guests;
@@ -1189,6 +1189,11 @@ void qr_guest_declare(Session *const S)
 
     qsem_program(p, m);
     qast_sort(&p->errs);
+
+    if (p->errs.n && lenient) {
+        qr_guest_forget(G);
+        return;
+    }
 
     for (uint32_t i = 0; i < p->errs.n; i++)
         qr_say(S, p, &p->errs.at[i]);
