@@ -13,12 +13,14 @@
 #include "backend/soft/fill.h"
 #include "backend/soft/scanner.h"
 
-/* What is drawn into: its pixels, the clip in them, its depth's fillers; the call's ink. */
+/* What is drawn into: its pixels, the clip in them, its depth's fillers; the call's ink and the
+   tint table of its blended shapes. */
 typedef struct {
     Pixels px;
     Rect clip;
     const Fill *fill;
     Ink ink;
+    FillTints *tints;
     Depth depth; /* p null: none asked */
 } SoftTarget;
 

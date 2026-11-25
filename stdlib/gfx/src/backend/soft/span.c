@@ -95,7 +95,7 @@ void span_fill(
         return;
 
     if (blends(&t->ink))
-        t->fill->tint(span_at(t, x0, y), x1 - x0, colour, &t->ink);
+        t->fill->tint(span_at(t, x0, y), x1 - x0, colour, &t->ink, t->tints);
     else
         t->fill->span(span_at(t, x0, y), x1 - x0, t->fill->paint(colour, &t->ink));
 }

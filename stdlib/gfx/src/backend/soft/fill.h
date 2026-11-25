@@ -34,8 +34,20 @@ typedef void FillInk(uint8_t *d, const uint32_t *texels, int32_t n, const Ink *k
 typedef uint32_t FillPaint(uint32_t texel, const Ink *k);
 /* n texels of s along the walk, inside s, through the ink into d: fetch and ink as one. */
 typedef void FillInked(uint8_t *d, const Pixels *s, Steps st, int32_t n, const Ink *k);
-/* n pixels of a shape's colour through the ink, blended over those there. */
-typedef void FillTint(uint8_t *d, int32_t n, uint32_t colour, const Ink *k);
+/* A blended colour's pixel over each pixel there, by its channels as px_table's: made for its
+   colour, mode, alpha and format, again only when one changes, so once a shape. */
+typedef struct {
+    uint32_t pixels[PX_TABLE];
+    uint32_t colour;
+    BlendMode mode;
+    uint8_t alpha;
+    PxFormat format;
+    bool made;
+} FillTints;
+
+/* n pixels of a shape's colour through the ink, blended over those there; into a direct target,
+   by tints, made first unless made already. */
+typedef void FillTint(uint8_t *d, int32_t n, uint32_t colour, const Ink *k, FillTints *tints);
 
 /* A format's, drawn into. The fused row and step fillers read texels of this format; step's
    variants are FILL_OPAQUE's. inked is by the source's format and the variant. */

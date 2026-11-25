@@ -15,6 +15,7 @@ typedef struct {
     SoftTarget call;
     SoftDepth *depths;
     uint32_t ndepths;
+    FillTints tints;
 } Soft;
 
 /* Software's own, made on first ask: null, raised. */
@@ -137,6 +138,7 @@ static bool begin(Gx *const g, const Command *const c, const Picture *const into
         .px = px,
         .clip = clip,
         .fill = fill_formats[px.format],
+        .tints = &o->tints,
     };
 
     if (c->flags & (GFX_DRAW_DEPTH_TEST | GFX_DRAW_DEPTH_WRITE) &&

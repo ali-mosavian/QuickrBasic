@@ -181,12 +181,13 @@ typedef enum { KIND_SPAN, KIND_TINT, KIND_ROW, KIND_STEP, KIND_INKED } Kind;
 /* A filler's inputs, by kind. Copied in: through a pointer each store could change them, for all
    the compiler knows. */
 typedef struct {
-    Ink ink;              /* INKED's and TINT's */
-    StepsRead walk;       /* STEP's and INKED's */
-    const uint8_t *row;   /* ROW's next texel */
-    int32_t dir;          /* ROW's bytes to the texel after */
-    uint32_t colour;      /* SPAN's pixel; TINT's colour, ARGB into a direct target */
-    const uint8_t *blend; /* TINT's row of the blend table, into 8 bits */
+    Ink ink;                /* INKED's and TINT's */
+    StepsRead walk;         /* STEP's and INKED's */
+    const uint8_t *row;     /* ROW's next texel */
+    int32_t dir;            /* ROW's bytes to the texel after */
+    uint32_t colour;        /* SPAN's pixel */
+    const uint8_t *blend;   /* TINT's row of the blend table, into 8 bits */
+    const uint32_t *pixels; /* TINT's tint table, into a direct target */
 } Inputs;
 
 /* The next texel, g's: none, 0, for a colour's kinds. */
@@ -220,8 +221,7 @@ static inline uint32_t pixel_of(
         return in->colour;
 
     if (kind == KIND_TINT)
-        return f == PX_8 ? in->blend[there]
-                         : direct(f, mixed(in->colour, px_argb(f, there), v, &in->ink));
+        return f == PX_8 ? in->blend[there] : tabled(f, in->pixels, there);
 
     if (kind == KIND_INKED)
         return ink_pixel(f, g, v, &in->ink, t, there);
@@ -360,7 +360,7 @@ static inline void fill_of(
     const Inputs in
 )
 {
-    if (f != PX_8 && v & FILL_BLENDED && in.ink.mode == BLEND_ADD)
+    if (kind == KIND_INKED && f != PX_8 && v & FILL_BLENDED && in.ink.mode == BLEND_ADD)
         run_of(kind, f, g, v | FILL_ADDED, d, n, in);
     else
         run_of(kind, f, g, v, d, n, in);
@@ -427,23 +427,54 @@ static inline void inked_of(
     fill_of(KIND_INKED, f, g, v, d, n, (Inputs){.ink = *k, .walk = steps_read(s, st, &by)});
 }
 
-/* ink_of's n texels all colour, blended: its colour inked once. */
+/* tints made for c, ARGB, over each pixel of f there by the ink's mode and alpha, unless they
+   are: a channel's mix and pixel are its own, so the table is exact. */
+static void tints_of(FillTints *const tints, const PxFormat f, const uint32_t c, const Ink *const k)
+{
+    if (tints->made && tints->colour == c && tints->mode == k->mode && tints->alpha == k->alpha &&
+        tints->format == f)
+        return;
+
+    const uint32_t wide = f == PX_32 ? 8 : 5;
+    const uint32_t bits[3] = {wide, f == PX_16 ? 6 : wide, wide};
+
+    uint32_t *at = tints->pixels;
+
+    for (uint32_t ch = 0; ch < 3; ch++)
+        for (uint32_t v = 0; v < 1u << bits[ch]; v++) {
+            const uint32_t shift = 16 - 8 * ch;
+            const uint32_t mix = px_mix(c, px_widen(v, bits[ch]) << shift, k->mode, k->alpha);
+            *at++ = px_pack(f, (mix & 0xFFu << shift) | (ch ? 0 : PX_OPAQUE));
+        }
+
+    tints->colour = c;
+    tints->mode = k->mode;
+    tints->alpha = k->alpha;
+    tints->format = f;
+    tints->made = true;
+}
+
+/* ink_of's n texels all colour, blended: its colour inked once, into a direct target its tint
+   table made once. */
 [[gnu::always_inline]]
 static inline void tint_of(
     const PxFormat f,
     uint8_t *const d,
     const int32_t n,
     const uint32_t colour,
-    const Ink *const k
+    const Ink *const k,
+    FillTints *const tints
 )
 {
     const uint32_t c = ink_colour(f, k->source, FILL_ANY, k, colour);
-    Inputs in = {.ink = *k};
+    Inputs in = {};
 
     if (f == PX_8)
         in.blend = k->blend + (c << 8);
-    else
-        in.colour = c;
+    else {
+        tints_of(tints, f, c, k);
+        in.pixels = tints->pixels;
+    }
 
     fill_of(KIND_TINT, f, f, FILL_BLENDED, d, n, in);
 }
@@ -547,10 +578,15 @@ static FillInked *const fill_inked[PX_FORMATS][PX_FORMATS][FILL_INKS] = {
     {                                                                                              \
         return paint_of(f, texel, k);                                                              \
     }                                                                                              \
-    static void                                                                                    \
-    name##_tint(uint8_t *const d, const int32_t n, const uint32_t colour, const Ink *const k)      \
+    static void name##_tint(                                                                       \
+        uint8_t *const d,                                                                          \
+        const int32_t n,                                                                           \
+        const uint32_t colour,                                                                     \
+        const Ink *const k,                                                                        \
+        FillTints *const tints                                                                     \
+    )                                                                                              \
     {                                                                                              \
-        tint_of(f, d, n, colour, k);                                                               \
+        tint_of(f, d, n, colour, k, tints);                                                        \
     }                                                                                              \
     const Fill name = {                                                                            \
         .span = name##_span,                                                                       \

@@ -152,6 +152,7 @@ TEST(gfx_fill_inked_draws_as_ink)
 TEST(gfx_fill_tint_draws_as_ink)
 {
     static Tables t;
+    static FillTints tints;
     uint32_t seed = 2;
     noise(&seed, (uint8_t *)&t, sizeof t);
 
@@ -171,7 +172,7 @@ TEST(gfx_fill_tint_draws_as_ink)
                 texels[i] = colour;
 
             fill_formats[f]->ink(d.want + at * b, texels, COUNT, &k);
-            fill_formats[f]->tint(d.got + at * b, COUNT, colour, &k);
+            fill_formats[f]->tint(d.got + at * b, COUNT, colour, &k, &tints);
             CHECK(!memcmp(d.want, d.got, sizeof d.want));
         }
 }
