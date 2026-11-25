@@ -5,6 +5,9 @@
 
 #if defined(__ARM_NEON)
 #include <arm_neon.h>
+enum { FILL_VECTORS = 1 };
+#else
+enum { FILL_VECTORS = 0 };
 #endif
 
 /* ---- A texel through the ink ---- */
@@ -446,6 +449,86 @@ static inline uint8x16_t drawn_lanes(const PxFormat f, const uint8x16_t t)
     return vreinterpretq_u8_u16(vtstq_u16(h, h));
 }
 
+/* x divided by 63, exact for every x a mix makes (at most 255 * 63): a multiply and shifts. */
+[[gnu::always_inline]]
+static inline uint16x8_t by63(const uint16x8_t x)
+{
+    const uint32x4_t low = vmull_n_u16(vget_low_u16(x), 16645), high = vmull_high_n_u16(x, 16645);
+    return vshrq_n_u16(vcombine_u16(vshrn_n_u32(low, 16), vshrn_n_u32(high, 16)), 4);
+}
+
+/* px_mix's channel, 8 lanes of 16 bits: a's over b's by alpha, added or mixed. */
+[[gnu::always_inline]]
+static inline uint16x8_t mixed_lanes(
+    const bool added,
+    const uint16_t alpha,
+    const uint16x8_t a,
+    const uint16x8_t b
+)
+{
+    if (added)
+        return vminq_u16(vaddq_u16(b, by63(vmulq_n_u16(a, alpha))), vdupq_n_u16(255));
+
+    return by63(vmlaq_n_u16(vmulq_n_u16(b, (uint16_t)(PX_FULL - alpha)), a, alpha));
+}
+
+/* A 5- or 6-bit channel's lanes widened to 8 bits, as px_widen. */
+[[gnu::always_inline]]
+static inline uint16x8_t widened(const uint16x8_t c, const uint32_t bits)
+{
+    return bits == 5 ? vorrq_u16(vshlq_n_u16(c, 3), vshrq_n_u16(c, 2))
+                     : vorrq_u16(vshlq_n_u16(c, 2), vshrq_n_u16(c, 4));
+}
+
+/* The ARGB colours c, 16 bytes' pixels of them, over the pixels there, f's, direct: px_mix's
+   channels a vector at a time, f's pixels again. */
+[[gnu::always_inline]]
+static inline uint8x16_t mixed_vector(
+    const PxFormat f,
+    const bool added,
+    const uint16_t alpha,
+    const uint32_t *const c,
+    const uint8x16_t there
+)
+{
+    if (f == PX_32) {
+        const uint8x16_t s = vld1q_u8((const uint8_t *)c);
+        const uint16x8_t low =
+            mixed_lanes(added, alpha, vmovl_u8(vget_low_u8(s)), vmovl_u8(vget_low_u8(there)));
+        const uint16x8_t high = mixed_lanes(added, alpha, vmovl_high_u8(s), vmovl_high_u8(there));
+        const uint8x16_t out = vcombine_u8(vmovn_u16(low), vmovn_u16(high));
+
+        return vorrq_u8(out, vreinterpretq_u8_u32(vdupq_n_u32(PX_OPAQUE)));
+    }
+
+    const uint32_t green = f == PX_16 ? 6 : 5;
+    const uint8x8x4_t s = vld4_u8((const uint8_t *)c); /* blue, green, red, alpha */
+    const uint16x8_t d = vreinterpretq_u16_u8(there);
+    const uint16x8_t r = mixed_lanes(
+        added,
+        alpha,
+        vmovl_u8(s.val[2]),
+        widened(vandq_u16(vshlq_u16(d, vdupq_n_s16(-(int16_t)(5 + green))), vdupq_n_u16(31)), 5)
+    );
+    const uint16x8_t g = mixed_lanes(
+        added,
+        alpha,
+        vmovl_u8(s.val[1]),
+        widened(vandq_u16(vshrq_n_u16(d, 5), vdupq_n_u16((uint16_t)((1u << green) - 1))), green)
+    );
+    const uint16x8_t b =
+        mixed_lanes(added, alpha, vmovl_u8(s.val[0]), widened(vandq_u16(d, vdupq_n_u16(31)), 5));
+    const uint16x8_t out = vorrq_u16(
+        vorrq_u16(
+            vshlq_u16(vshrq_n_u16(r, 3), vdupq_n_s16((int16_t)(5 + green))),
+            vshlq_u16(vshlq_u16(g, vdupq_n_s16(-(int16_t)(8 - green))), vdupq_n_s16(5))
+        ),
+        vshrq_n_u16(b, 3)
+    );
+
+    return vreinterpretq_u8_u16(out);
+}
+
 /* 16 bytes of pixels at p, f's from g as variant v: built a pixel at a time into two 64-bit
    halves and stored at once, the keyed pixels kept by a select. A texel as wide as the pixel is
    keyed when 0, so a vector of them is keyed at once (drawn_lanes). */
@@ -461,22 +544,31 @@ static inline void vector_at(
 {
     const uint32_t b = px_bytes(f), bits = 8 * b, per = 8 / b;
     const uint64_t mask = (uint64_t)-1 >> (64 - bits);
-    const bool lanes = px_bytes(g) == b;
+    const bool lanes = px_bytes(g) == b, mixes = f != PX_8 && v & FILL_BLENDED;
     uint64_t word[2] = {}, texels[2] = {}, keyed[2] = {};
+
+    uint32_t colours[16 / 2]; /* a direct target's blended colours, mixed a vector at a time */
 
     for (uint32_t h = 0; h < 2; h++)
         for (uint32_t j = 0; j < per; j++) {
             const uint8_t *const at = p + (h * per + j) * b;
             const uint32_t t = texel_next(kind, g, in);
-            const uint32_t there = v & FILL_BLENDED ? px_load(at, b) : 0;
 
-            word[h] |= (uint64_t)pixel_of(kind, f, g, v, in, t, there) << bits * j;
+            if (mixes)
+                colours[h * per + j] =
+                    kind == KIND_TINT ? in->colour : ink_colour(f, g, v, &in->ink, t);
+            else
+                word[h] |=
+                    (uint64_t)pixel_of(kind, f, g, v, in, t, v & FILL_BLENDED ? px_load(at, b) : 0)
+                    << bits * j;
+
             texels[h] |= (t & mask) << bits * j;
             keyed[h] |= (v & FILL_KEYED && px_key(g, t) ? mask : 0) << bits * j;
         }
 
     const uint8x16_t got =
-        vreinterpretq_u8_u64(vcombine_u64(vcreate_u64(word[0]), vcreate_u64(word[1])));
+        mixes ? mixed_vector(f, v & FILL_ADDED, in->ink.alpha, colours, vld1q_u8(p))
+              : vreinterpretq_u8_u64(vcombine_u64(vcreate_u64(word[0]), vcreate_u64(word[1])));
 
     if (!(v & FILL_KEYED)) {
         vst1q_u8(p, got);
@@ -549,7 +641,10 @@ static inline void fill_of(
     const Inputs in
 )
 {
-    if (kind == KIND_INKED && f != PX_8 && v & FILL_BLENDED && in.ink.mode == BLEND_ADD)
+    /* A tint's pixels are tabled, add or mix alike; only its vectors mix. */
+    const bool mixes = kind == KIND_INKED || (FILL_VECTORS && kind == KIND_TINT);
+
+    if (mixes && f != PX_8 && v & FILL_BLENDED && in.ink.mode == BLEND_ADD)
         run_of(kind, f, g, v | FILL_ADDED, d, n, in);
     else
         run_of(kind, f, g, v, d, n, in);
@@ -789,7 +884,7 @@ static inline void tint_of(
 )
 {
     const uint32_t c = ink_colour(f, k->source, FILL_ANY, k, colour);
-    Inputs in = {};
+    Inputs in = {.ink = *k, .colour = c};
 
     if (f == PX_8)
         in.blend = k->blend + (c << 8);
