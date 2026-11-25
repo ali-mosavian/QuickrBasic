@@ -211,7 +211,17 @@ def quickr_push(b: bench.Build) -> None:
     assert ratio < 2.3, f"doubling the pushes cost {ratio:.2f}x the last doubling"
 
 
+def stdlib_absent() -> None:
+    """A rev before stdlib/ builds: cp with no files failed, so cmp and size couldn't build main."""
+    with tempfile.TemporaryDirectory() as d:
+        p = subprocess.run(
+            ["make", "-C", d, "-f", str(bench.ROOT / "Makefile"), "build/t/lib/.stdlib"], capture_output=True, text=True
+        )
+        assert p.returncode == 0 and (Path(d) / "build/t/lib/.stdlib").exists(), p.stderr
+
+
 def main() -> int:
+    stdlib_absent()
     each_reps()
     charlie_each()
     charlie_think()

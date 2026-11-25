@@ -242,7 +242,7 @@ HOST_SLICE := -shared -fPIC -ffreestanding -fvisibility=hidden $(if $(filter Lin
 # Quickr's standard library, stdlib/*.bas, in lib/ beside each interpreter: where a module is looked for last
 STDLIB := $(wildcard stdlib/*.bas)
 build/%/lib/.stdlib: $(STDLIB)
-	mkdir -p $(@D) && cp $^ $(@D) && touch $@
+	mkdir -p $(@D) && $(if $^,cp $^ $(@D) &&) touch $@
 
 host: build/host/basic
 build/host/basic: $(build/host_OBJ) build/host/obj/app/basic32.o build/host/obj/plat/host/app/term.o | build/host/lib/.stdlib
