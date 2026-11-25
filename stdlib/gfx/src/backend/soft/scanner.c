@@ -606,6 +606,189 @@ void scan_flat(
     }
 }
 
+#if defined(__i386__)
+/* affine_walk's rows without depth in asm, uGL's FILLSEL: each row's run and its u and v at its
+   first pixel as affine_walk's, the plain filler or the held one picked by steps_inside's 32-bit
+   test, then called. The filler takes every register but ebx, esi, edi and ebp, so the walk's
+   state is in rows_walk, at its absolute place. */
+typedef struct {
+    int32_t lx, ldx, rx, rdx; /* the edges' x, 16.16, and their steps a row */
+    int32_t u, du, v, dv;     /* the left edge's u and v, and their steps a row */
+    int32_t y, rows;          /* the row, and the rows left */
+    int32_t cx0, cx1, cy0, cy1;
+    int32_t dudx, dvdx;
+    uint32_t sw, sh; /* the picture's sides, 16.16 */
+    int32_t su;      /* the row's u at its first pixel */
+    Rows *r;
+    RowAffine *plain, *held;
+} RowsWalk;
+
+/* clang-format off */
+/* RowsWalk's places, the asm's names for them. */
+#define RW_lx 0
+#define RW_lxw 2
+#define RW_ldx 4
+#define RW_rx 8
+#define RW_rxw 10
+#define RW_rdx 12
+#define RW_u 16
+#define RW_du 20
+#define RW_v 24
+#define RW_dv 28
+#define RW_y 32
+#define RW_rows 36
+#define RW_cx0 40
+#define RW_cx1 44
+#define RW_cy0 48
+#define RW_cy1 52
+#define RW_dudx 56
+#define RW_dvdx 60
+#define RW_sw 64
+#define RW_sh 68
+#define RW_su 72
+#define RW_r 76
+#define RW_plain 80
+#define RW_held 84
+#define RW_CHECK(f) static_assert(__builtin_offsetof(RowsWalk, f) == RW_##f);
+RW_CHECK(lx) RW_CHECK(ldx) RW_CHECK(rx) RW_CHECK(rdx) RW_CHECK(u) RW_CHECK(du) RW_CHECK(v)
+RW_CHECK(dv) RW_CHECK(y) RW_CHECK(rows) RW_CHECK(cx0) RW_CHECK(cx1) RW_CHECK(cy0) RW_CHECK(cy1)
+RW_CHECK(dudx) RW_CHECK(dvdx) RW_CHECK(sw) RW_CHECK(sh) RW_CHECK(su) RW_CHECK(r) RW_CHECK(plain)
+RW_CHECK(held)
+#define RW_STR(n) #n
+#define RW_AT(n) RW_STR(n)
+/* Field f of rows_walk, operand [w]. */
+#define RW(f) RW_AT(RW_##f) "+%[w]"
+
+/* x0 in esi and x1 in ecx, as affine_walk's; from in edi and to in ecx, held in the clip: the
+   row skipped, 9f, unless it shows. */
+#define ROWS_RUN                                                                                   \
+    "movswl " RW(lxw) ", %%esi\n\t"                                                                \
+    "movw " RW(rxw) ", %%cx\n\t"                                                                   \
+    "subw " RW(lxw) ", %%cx\n\t"                                                                   \
+    "movswl %%cx, %%ecx\n\t"                                                                       \
+    "addl %%esi, %%ecx\n\t"                                                                        \
+    "cmpl %%esi, %%ecx\n\t"                                                                        \
+    "jle 9f\n\t"                                                                                   \
+    "movl " RW(y) ", %%eax\n\t"                                                                    \
+    "cmpl " RW(cy0) ", %%eax\n\t"                                                                  \
+    "jl 9f\n\t"                                                                                    \
+    "cmpl " RW(cy1) ", %%eax\n\t"                                                                  \
+    "jge 9f\n\t"                                                                                   \
+    "movl %%esi, %%edi\n\t"                                                                        \
+    "cmpl " RW(cx0) ", %%edi\n\t"                                                                  \
+    "jge 2f\n\t"                                                                                   \
+    "movl " RW(cx0) ", %%edi\n"                                                                    \
+    "2:\n\t"                                                                                       \
+    "cmpl " RW(cx1) ", %%ecx\n\t"                                                                  \
+    "jle 3f\n\t"                                                                                   \
+    "movl " RW(cx1) ", %%ecx\n"                                                                    \
+    "3:\n\t"                                                                                       \
+    "cmpl %%ecx, %%edi\n\t"                                                                        \
+    "jge 9f\n\t"
+/* u and v at from, ebx the prestep into the row and esi the pixels lost to the clip: su, and v in
+   eax. */
+#define ROWS_UV                                                                                    \
+    "movzwl " RW(lx) ", %%ebx\n\t"                                                                 \
+    "negl %%ebx\n\t"                                                                               \
+    "addl $65536, %%ebx\n\t"                                                                       \
+    "negl %%esi\n\t"                                                                               \
+    "addl %%edi, %%esi\n\t"                                                                        \
+    "movl " RW(dudx) ", %%eax\n\t"                                                                 \
+    "imull %%ebx\n\t"                                                                              \
+    "shrdl $16, %%edx, %%eax\n\t"                                                                  \
+    "addl " RW(u) ", %%eax\n\t"                                                                    \
+    "addl $32768, %%eax\n\t"                                                                       \
+    "movl " RW(dudx) ", %%edx\n\t"                                                                 \
+    "imull %%esi, %%edx\n\t"                                                                       \
+    "addl %%edx, %%eax\n\t"                                                                        \
+    "movl %%eax, " RW(su) "\n\t"                                                                   \
+    "movl " RW(dvdx) ", %%eax\n\t"                                                                 \
+    "imull %%ebx\n\t"                                                                              \
+    "shrdl $16, %%edx, %%eax\n\t"                                                                  \
+    "addl " RW(v) ", %%eax\n\t"                                                                    \
+    "addl $32768, %%eax\n\t"                                                                       \
+    "movl " RW(dvdx) ", %%edx\n\t"                                                                 \
+    "imull %%esi, %%edx\n\t"                                                                       \
+    "addl %%edx, %%eax\n\t"
+/* The filler in ebx: plain when the walk of to - from pixels stays inside the picture. */
+#define ROWS_PICK                                                                                  \
+    "movl %%ecx, %%edx\n\t"                                                                        \
+    "subl %%edi, %%edx\n\t"                                                                        \
+    "decl %%edx\n\t"                                                                               \
+    "movl " RW(held) ", %%ebx\n\t"                                                                 \
+    "movl " RW(dudx) ", %%esi\n\t"                                                                 \
+    "imull %%edx, %%esi\n\t"                                                                       \
+    "jo 4f\n\t"                                                                                    \
+    "addl " RW(su) ", %%esi\n\t"                                                                   \
+    "jo 4f\n\t"                                                                                    \
+    "cmpl " RW(sw) ", %%esi\n\t"                                                                   \
+    "jae 4f\n\t"                                                                                   \
+    "movl " RW(su) ", %%esi\n\t"                                                                   \
+    "cmpl " RW(sw) ", %%esi\n\t"                                                                   \
+    "jae 4f\n\t"                                                                                   \
+    "movl " RW(dvdx) ", %%esi\n\t"                                                                 \
+    "imull %%edx, %%esi\n\t"                                                                       \
+    "jo 4f\n\t"                                                                                    \
+    "addl %%eax, %%esi\n\t"                                                                        \
+    "jo 4f\n\t"                                                                                    \
+    "cmpl " RW(sh) ", %%esi\n\t"                                                                   \
+    "jae 4f\n\t"                                                                                   \
+    "cmpl " RW(sh) ", %%eax\n\t"                                                                   \
+    "jae 4f\n\t"                                                                                   \
+    "movl " RW(plain) ", %%ebx\n"                                                                  \
+    "4:\n\t"
+/* fill(r, y, from, to, u, v, 0), then the edges, u and v a row on. */
+#define ROWS_FILL                                                                                  \
+    "pushl $0\n\t"                                                                                 \
+    "pushl %%eax\n\t"                                                                              \
+    "pushl " RW(su) "\n\t"                                                                         \
+    "pushl %%ecx\n\t"                                                                              \
+    "pushl %%edi\n\t"                                                                              \
+    "pushl " RW(y) "\n\t"                                                                          \
+    "pushl " RW(r) "\n\t"                                                                          \
+    "call *%%ebx\n\t"                                                                              \
+    "addl $28, %%esp\n"                                                                            \
+    "9:\n\t"                                                                                       \
+    "movl " RW(ldx) ", %%eax\n\t"                                                                  \
+    "addl %%eax, " RW(lx) "\n\t"                                                                   \
+    "movl " RW(rdx) ", %%eax\n\t"                                                                  \
+    "addl %%eax, " RW(rx) "\n\t"                                                                   \
+    "movl " RW(du) ", %%eax\n\t"                                                                   \
+    "addl %%eax, " RW(u) "\n\t"                                                                    \
+    "movl " RW(dv) ", %%eax\n\t"                                                                   \
+    "addl %%eax, " RW(v) "\n\t"                                                                    \
+    "incl " RW(y) "\n\t"                                                                           \
+    "decl " RW(rows) "\n\t"                                                                        \
+    "jnz 1b"
+/* clang-format on */
+
+static RowsWalk rows_walk;
+
+/* rows_walk's rows, one or more. */
+static void rows_of(void)
+{
+    __asm__ volatile("1:\n\t" ROWS_RUN ROWS_UV ROWS_PICK ROWS_FILL
+                     : [w] "+m"(rows_walk)
+                     :
+                     : "eax",
+                       "ebx",
+                       "ecx",
+                       "edx",
+                       "esi",
+                       "edi",
+                       "cc",
+                       "memory",
+                       "st",
+                       "st(1)",
+                       "st(2)",
+                       "st(3)",
+                       "st(4)",
+                       "st(5)",
+                       "st(6)",
+                       "st(7)");
+}
+#endif
+
 /* qgl$drawA: the two chains down from the topmost vertex, each row's run from the left edge's
    pixel up to the right's, its u, v and, when deep, depth at its first pixel centre, held in the
    clip; filled by plain, or held where the walk leaves the picture. */
@@ -632,6 +815,24 @@ static inline void affine_walk(
     r->du = g->dudx;
     r->dv = g->dvdx;
     r->dz = g->dzdx;
+#if defined(__i386__)
+    /* in asm unless deep or a side reaches 32768, where steps_inside's test needs 64 bits */
+    const bool in_asm = !deep && r->src.w < 32768 && r->src.h < 32768;
+
+    if (in_asm) {
+        rows_walk.cx0 = clip.x;
+        rows_walk.cx1 = clip.x + clip.w;
+        rows_walk.cy0 = clip.y;
+        rows_walk.cy1 = clip.y + clip.h;
+        rows_walk.dudx = g->dudx;
+        rows_walk.dvdx = g->dvdx;
+        rows_walk.sw = (uint32_t)r->src.w << 16;
+        rows_walk.sh = (uint32_t)r->src.h << 16;
+        rows_walk.r = r;
+        rows_walk.plain = plain;
+        rows_walk.held = held;
+    }
+#endif
 
     Edge l = {.s = 0, .e = cnt - 1}, rt = {.s = 0, .e = 1};
 
@@ -667,6 +868,28 @@ static inline void affine_walk(
         }
 
         height = l.rows < rt.rows ? l.rows : rt.rows;
+#if defined(__i386__)
+
+        if (in_asm && height > 0) {
+            rows_walk.lx = l.x;
+            rows_walk.ldx = l.dx;
+            rows_walk.rx = rt.x;
+            rows_walk.rdx = rt.dx;
+            rows_walk.u = c.u;
+            rows_walk.du = c.du;
+            rows_walk.v = c.v;
+            rows_walk.dv = c.dv;
+            rows_walk.y = y;
+            rows_walk.rows = height;
+            rows_of();
+            l.x = rows_walk.lx;
+            rt.x = rows_walk.rx;
+            c.u = rows_walk.u;
+            c.v = rows_walk.v;
+            y = (int16_t)rows_walk.y;
+            continue;
+        }
+#endif
 
         for (int16_t row = 0; row < height; row++, y++) {
             const int32_t into = prestep(l.x), x0 = (int16_t)FXFLOOR(l.x);
