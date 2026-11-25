@@ -33,7 +33,7 @@ was arm64's alone once, and the x86-64 half stopped at the IMPORT. gfx's canvas 
 is shown in its colours: the frame once read each pixel as an index. Played on the GPU (a window of
 its own: the offscreen driver has none), an 8-bit scene is software's pixel for pixel: a diagonal
 line once covered two pixels a step. Each run ends unless drawn by the backend it asks for: a GPU
-fallen back to pages matched software unseen.
+fallen back to pages matched software unseen. A virtual Mac, CI's, has no GPU: not compared there.
 A Quickr program imports text, Quickr's library in the app's Resources/lib: once the app shipped
 none, and F5 stopped at the import unless BASICLIB was set.
 """
@@ -148,6 +148,33 @@ def pixel(w: int, pixels: bytes, x: int, y: int) -> tuple[int, ...]:
     return tuple(pixels[at : at + 3])
 
 
+def virtual() -> bool:
+    """A virtual Mac's, CI's: no GPU, its Metal device's frames not the GPU's to compare."""
+    got = subprocess.run(["sysctl", "-n", "kern.hv_vmm_present"], capture_output=True, text=True)
+    return got.stdout.strip() == "1"
+
+
+def scene_shown(soft: tuple[int, int, bytes], gpu: tuple[int, int, bytes] | None) -> bool:
+    """GFX_SCENE drawn at its size, and by the GPU the same; gpu None, no GPU here to compare."""
+    return soft[:2] == (160, 120) and (gpu is None or gpu == soft)
+
+
+def differ(a: tuple[int, int, bytes], b: tuple[int, int, bytes]) -> str:
+    """Where frames a and b differ: their sizes, else the pixels, their box and the first."""
+    if a[:2] != b[:2]:
+        return f"{a[0]}x{a[1]} against {b[0]}x{b[1]}"
+    w = a[0]
+    at = [i // 3 for i in range(0, len(a[2]), 3) if a[2][i : i + 3] != b[2][i : i + 3]]
+    if not at:
+        return "the same"
+    xs, ys = [i % w for i in at], [i // w for i in at]
+    x, y = xs[0], ys[0]
+    return (
+        f"{len(at)} pixels in ({min(xs)}, {min(ys)})-({max(xs)}, {max(ys)}), "
+        f"({x}, {y}) {pixel(w, a[2], x, y)} against {pixel(w, b[2], x, y)}"
+    )
+
+
 def text_rows(w: int, pixels: bytes) -> int:
     """The edit window's rows with text on them, its 17 above the scroll bar: 16 pixels a row from y 32."""
     return sum(
@@ -248,8 +275,10 @@ def main() -> None:
             gfx[depth] = (pixel(gw, px, 10, 10), pixel(gw, px, 50, 10))
         (Path(tmp) / "SCENE.BAS").write_text(GFX_SCENE.format(gpu=0))
         soft = frame(run, Path(tmp) / "SCENE.BAS", "3F00")
-        (Path(tmp) / "SCENE.BAS").write_text(GFX_SCENE.format(gpu=1))
-        gpu = frame(run, Path(tmp) / "SCENE.BAS", "3F00", {"SDL_VIDEO_DRIVER": "cocoa", "QB_GFX": "gpu"})
+        gpu = None
+        if not virtual():
+            (Path(tmp) / "SCENE.BAS").write_text(GFX_SCENE.format(gpu=1))
+            gpu = frame(run, Path(tmp) / "SCENE.BAS", "3F00", {"SDL_VIDEO_DRIVER": "cocoa", "QB_GFX": "gpu"})
         w, h, pixels = frame(run, program)
         _, _, menu = frame(run, program, "2100")
         box = Path(tmp) / "BOX.BAS"
@@ -382,10 +411,14 @@ def main() -> None:
         "50 rows in the 16-line font": rows50 == (720, 800),
         "132 x 50 in the 16-line font": cols132 == (1188, 800),
         "gfx's 16 and 32-bit frames in their colours": gfx == GFX_SHOWN,
-        "gfx's scene played on the GPU is software's": gpu == soft and soft[:2] == (160, 120),
+        "gfx's scene played on the GPU is software's": scene_shown(soft, gpu),
     }
     failed = [name for name, ok in checks.items() if not ok]
     print(f"mac {sys.argv[2] if len(sys.argv) > 2 else ''} " + ("ok" if not failed else "FAIL " + ", ".join(failed)))
+    if gpu is None:
+        print("  a virtual Mac, no GPU: the scene's GPU frame not compared")
+    elif "gfx's scene played on the GPU is software's" in failed:
+        print("  the scene, software's against the GPU's: " + differ(soft, gpu))
     sys.exit(1 if failed else 0)
 
 

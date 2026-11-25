@@ -10,7 +10,8 @@ renderer, the x87's arithmetic and the host's. --gpu [DEPTH...]: GPU_SCENE in th
 against pages, cell by cell: 32 bits' lights, tints, SOLID and ADD were the GPU's floats, a level or three off;
 BLEND, the blend constant's, a level off. At 8 bits every cell but shapes, sprites and text differed: the target
 held colours, read back as the nearest index, and lights, tints, rows and blends were worked as colours. At 15 and
-16 bits every cell was up to 7 off: the target kept 8 bits a channel."""
+16 bits every cell was up to 7 off: the target kept 8 bits a channel. A virtual Mac has no GPU: --gpu compares
+nothing there."""
 
 import os
 import subprocess
@@ -541,6 +542,11 @@ def gfx_lib() -> dict[str, bytes]:
 
 if __name__ == "__main__":
     if sys.argv[1:2] == ["--gpu"]:
+        from mac_test import virtual
+
+        if virtual():
+            print("a virtual Mac, no GPU: GPU_SCENE not compared")
+            sys.exit()
         wrong = []
         for depth in [int(d) for d in sys.argv[2:]] or [8, 15, 16, 32]:
             print(f"{depth} bits: pixels the GPU drew other than pages, the most a channel was off")
