@@ -18,8 +18,6 @@
 
 enum { FILL_OPAQUE = 1, FILL_FLIPX = 2, FILL_VARIANTS = 4 };
 
-enum { FILL_CHUNK = 256 }; /* pixels the ink takes at once */
-
 /* An inked filler's variant: texel 0 skipped, every texel the ink's colour, an 8-bit texel through
    the lut, blended over the pixel there. */
 enum { FILL_KEYED = 1, FILL_SOLID = 2, FILL_LUT = 4, FILL_BLENDED = 8, FILL_INKS = 16 };
@@ -67,6 +65,4 @@ extern const Fill fill8, fill15, fill16, fill32;
 /* The ARGB of n texels through the ink but its blend, and which are drawn: a direct target's
    first steps. */
 void fill_argb(uint32_t *argb, bool *drawn, const uint32_t *texels, int32_t n, const Ink *k);
-/* s drawn over d, both ARGB, by the ink's mode and alpha. */
-uint32_t fill_blend(uint32_t s, uint32_t d, const Ink *k);
 #endif
