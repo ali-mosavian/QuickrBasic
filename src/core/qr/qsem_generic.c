@@ -289,19 +289,7 @@ bool qsem_lambda(QSem *const S, QExpr *const e, QType *const t, const bool open)
    names. */
 static QExpr *qsem_capval(QSem *const S, const QCap *const c, const QTok *const tok)
 {
-    QVar *const v = c->var;
-
-    if (v->place) {
-        QExpr *const p = qast_alloc(S->mem, sizeof *p);
-        *p = *v->place;
-        p->tok = tok;
-        return p;
-    }
-
-    QExpr *const e = qast_expr(S->mem, QE_NAME, tok);
-    e->var = v;
-    e->type = v->type;
-    return e;
+    return qsem_nameof(S, c->var, tok);
 }
 
 /* The parameter of the fn checked whose variable v is; null none. */

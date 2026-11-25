@@ -267,12 +267,12 @@ static void qcg_larith(Code *const c, uint8_t *const right, const uint32_t k)
 
     static const uint8_t byte[] = {X_L_ADD_U8, X_L_SUB_U8};
 
-    if (qcg_right(c, right, O_D_LD_V, 1 + VCELL)) {
+    if (code_ends_op(c, right, O_D_LD_V, 1 + VCELL)) {
         right[0] = var[k];
         return;
     }
 
-    if (k != QA_MUL && qcg_right(c, right, O_D_LD_K, 1 + sizeof(Cell)) &&
+    if (k != QA_MUL && code_ends_op(c, right, O_D_LD_K, 1 + sizeof(Cell)) &&
         load32(right + 1) <= UINT8_MAX && !load32(right + 5)) { /* the X op, its low byte kept */
         right[2] = right[1];
         right[0] = O_X;

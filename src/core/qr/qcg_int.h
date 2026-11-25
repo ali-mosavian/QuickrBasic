@@ -33,7 +33,6 @@ uint8_t qcg_pick(QType t, uint8_t i, uint8_t f, uint8_t d, uint8_t s);
 bool qcg_par(const QVar *v);
 void qcg_load(Code *c, const QVar *v);
 void qcg_store(Code *c, const QVar *v);
-bool qcg_right(const Code *c, const uint8_t *right, uint8_t op, uint32_t size);
 void qcg_arith(Code *c, uint8_t *right, QType w, uint32_t k);
 void qcg_xint(Code *c, QrtIop op, QType t, bool wrap);
 void qcg_nconv(Code *c, QType from, QType to, bool wrap);

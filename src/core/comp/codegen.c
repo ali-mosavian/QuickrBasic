@@ -97,16 +97,6 @@ static uint8_t shortop(const uint8_t rel, const uint8_t lsh, const uint8_t rsh)
     return arith ? SH_SHORT : SH_NONE;
 }
 
-static bool isright(
-    Code *const c,
-    const uint8_t op,
-    const uint32_t size,
-    const uint8_t *const right
-)
-{
-    return (uint32_t)(c->out - right) == size && *right == op;
-}
-
 uint8_t *cg_lfloat(Code *const c, uint8_t *const left, uint8_t *const right)
 {
     if (left) {
@@ -131,9 +121,9 @@ void cg_icmp(Code *const c, const uint8_t rel, uint8_t *const right)
     const uint8_t m = rel & REL_MASK;
     uint8_t op;
 
-    if (isright(c, O_I_LD_V, 1 + VCELL, right))
+    if (code_ends_op(c, right, O_I_LD_V, 1 + VCELL))
         op = O_I_CMP_V;
-    else if (isright(c, O_I_LD_U8, 2, right))
+    else if (code_ends_op(c, right, O_I_LD_U8, 2))
         op = O_I_CMP_U8;
     else {
         c->cmp = c->out;
@@ -151,13 +141,13 @@ void cg_icmp(Code *const c, const uint8_t rel, uint8_t *const right)
 /* The right operand's load that folds: its form, farith's row, plus 1; 0 none. */
 static uint8_t fltkind(Code *const c, const uint8_t *const right)
 {
-    if (isright(c, O_F_LD_V, 1 + VCELL, right))
+    if (code_ends_op(c, right, O_F_LD_V, 1 + VCELL))
         return 1;
-    if (isright(c, O_F_LD_VI, 1 + VCELL, right))
+    if (code_ends_op(c, right, O_F_LD_VI, 1 + VCELL))
         return 2;
-    if (isright(c, O_F_LD_U8, 2, right))
+    if (code_ends_op(c, right, O_F_LD_U8, 2))
         return 3;
-    if (isright(c, O_F_LD_F32, 5, right))
+    if (code_ends_op(c, right, O_F_LD_F32, 5))
         return 4;
 
     return 0;

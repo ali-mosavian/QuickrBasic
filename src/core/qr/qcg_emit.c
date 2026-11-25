@@ -87,17 +87,6 @@ void qcg_store(Code *const c, const QVar *const v)
     code_opid(c, qcg_pick(v->type, O_I_ST_V, O_F_ST_V, O_D_ST_V, O_S_ST_V), v->id, qcg_par(v));
 }
 
-/* Is the code from right to the end one op, op, of size bytes? */
-bool qcg_right(
-    const Code *const c,
-    const uint8_t *const right,
-    const uint8_t op,
-    const uint32_t size
-)
-{
-    return (uint32_t)(c->out - right) == size && *right == op;
-}
-
 /* Operator k (QA_*) of type w after its operands: the right one's load, at right, folded in when
    one variable's or literal's. */
 void qcg_arith(Code *const c, uint8_t *const right, const QType w, const uint32_t k)
@@ -110,13 +99,13 @@ void qcg_arith(Code *const c, uint8_t *const right, const QType w, const uint32_
     }
 
     if (w == QY_SINGLE) {
-        form = qcg_right(c, right, O_F_LD_V, 1 + VCELL) ? 1
-               : qcg_right(c, right, O_F_LD_F32, 5)     ? 2
-                                                        : 0;
+        form = code_ends_op(c, right, O_F_LD_V, 1 + VCELL) ? 1
+               : code_ends_op(c, right, O_F_LD_F32, 5)     ? 2
+                                                           : 0;
     } else {
-        form = qcg_right(c, right, O_I_LD_V, 1 + VCELL) ? 1
-               : qcg_right(c, right, O_I_LD_U8, 2)      ? 2
-                                                        : 0;
+        form = code_ends_op(c, right, O_I_LD_V, 1 + VCELL) ? 1
+               : code_ends_op(c, right, O_I_LD_U8, 2)      ? 2
+                                                           : 0;
     }
 
     const uint8_t op = w == QY_SINGLE ? qcg_fops[form][k] : qcg_iops[form][k];

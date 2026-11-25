@@ -20,7 +20,7 @@
  * | cm_shv, cm_icmp, cm_fcmp, cm_lflt | code_shclass (code.c), cg_icmp, cg_fcmp, cg_lfloat (codegen.c) | MOVED |
  * | cm_p, cm_un | parse, parse_unary | D1 |
  * | cm_sop, cm_shid, cm_iop, cm_fop2, cm_fkind, cm_str | shortop, shortid, cg_binary, fltkind (codegen.c) | MOVED; D1 |
- * | cm_right | isright (codegen.c) | MOVED |
+ * | cm_right | code_ends_op (code.h) | MOVED |
  * | cm_nany | | D3 |
  * | cm_addr | ref_place (refs.c) | MOVED |
  * | cm_xfn, cm_xarg, cm_farg | xfn_at, xfn_node; xarg, farg (codegen.c) | D1 |

@@ -51,7 +51,17 @@ bool code_calling(Code *c, bool sweeps);
 /* The call's end: UNHOLD when code_calling held; its arguments' addresses taken by it. */
 void code_called(Code *c, bool waiting, bool sweeps);
 uint8_t *code_intleaf(Code *c); /* the code's last op if an INT load, else null */
-uint8_t code_shclass(Code *c);  /* cm_shv: the value's SH_*, to shclass too */
+/* Is the code from at to the end one op, op, of size bytes? */
+static inline bool code_ends_op(
+    const Code *const c,
+    const uint8_t *const at,
+    const uint8_t op,
+    const uint32_t size
+)
+{
+    return (uint32_t)(c->out - at) == size && *at == op;
+}
+uint8_t code_shclass(Code *c); /* cm_shv: the value's SH_*, to shclass too */
 
 /* The value (of code.type, a number) converted. */
 void code_toint(Code *c);

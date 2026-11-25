@@ -177,14 +177,7 @@ static QExpr *qsem_sort(QSem *const S, QExpr *const e)
 }
 
 /* Map m's keys, the list its record's first field. */
-QExpr *qsem_keysof(QSem *const S, QExpr *const m)
-{
-    QExpr *const f = qast_expr(S->mem, QE_FIELD, m->tok);
-    f->a = m;
-    f->field = 0;
-    f->type = qast_ty(S->prog, m->type)->fields[0].type;
-    return f;
-}
+QExpr *qsem_keysof(QSem *const S, QExpr *const m) { return qsem_part(S, m, 0); }
 
 /* m.keys(): a new list of map m's keys, in their order. */
 static QExpr *qsem_keys(QSem *const S, QExpr *const e)
