@@ -78,6 +78,18 @@ def broken_counter() -> None:
         raise AssertionError("bench counted a failed counter")
 
 
+def demo_colours(b: bench.Build) -> None:
+    """Each demo runs at 8 bits: ISLES' &H1E4E8C on an 8-bit surface raised Illegal function call, and every column of
+    its table read exit."""
+    with tempfile.TemporaryDirectory() as d:
+        for n in ("stage.bas", "meter.bas"):
+            shutil.copy(bench.DEMOS / n, d)
+        for name in bench.DEMO_EDITS:
+            (Path(d) / "DEMO.BAS").write_text(bench.demo_program(name, 0.5, False, 0))
+            r = subprocess.run([str(b.counted), "DEMO.BAS"], cwd=d, capture_output=True, text=True, timeout=60)
+            assert re.fullmatch(r"\s*[\d.]+\s*", r.stdout), f"{name}: {r.stdout}{r.stderr}"
+
+
 def fps_start_up() -> None:
     """fps --profile's baseline is the start-up alone: one frame logged. Without it the frames' profile held the
     start-up's sprites and tables, a third of a run (STR$'s digits 1.3M calls that no frame makes)."""
@@ -244,6 +256,7 @@ def main() -> int:
     broken_counter()
     fps_start_up()
     b = bench.build(".", False)  # the tree's own instruments: copying them onto themselves raised
+    demo_colours(b)
     try:
         r = bench.run_native(b, {"one": loop(1000000), "two": loop(2000000)}, runs=5)
     except bench.NoCounter:

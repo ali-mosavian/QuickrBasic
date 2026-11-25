@@ -59,6 +59,7 @@ type Puff
     size as single
 end type
 
+declare function tone (byval rrggbb as long) as long
 declare function new_waves () as long
 declare function new_lands () as long
 declare sub dots ( _
@@ -203,6 +204,15 @@ loop
 
 gfx.display.close
 
+' A colour for the screen from its &HRRGGBB: itself at 32
+' bits, the palette's nearest at 8.
+function tone (byval rrggbb as long) as long
+    r% = rrggbb \ &H10000
+    g% = (rrggbb \ &H100) and 255
+    b% = rrggbb and 255
+    tone = gfx.display.rgb(r%, g%, b%)
+end function
+
 ' A strip of waves two tiles across: deep water above,
 ' shallow below, crests every tile, so a tile's view at
 ' any place on it joins its neighbours.
@@ -210,17 +220,20 @@ function new_waves () as long
     s& = gfx.surface.new(2 * TILE, 2 * TILE)
     f% = gfx.draw.FILL
     right% = 2 * TILE - 1
-    gfx.draw.rect s&, 0, 0, right%, TILE - 1, &H1E4E8C, f%
-    gfx.draw.rect s&, 0, TILE, right%, 2 * TILE - 1, &H3A86C0, f%
+    gfx.draw.rect s&, 0, 0, right%, TILE - 1, tone(&H1E4E8C), f%
+    shoal& = tone(&H3A86C0)
+    gfx.draw.rect s&, 0, TILE, right%, 2 * TILE - 1, shoal&, f%
+    crest& = tone(&H3A70B0)
+    foam& = tone(&H8CC8E8)
 
     for x = 0 to 2 * TILE - 1
         a! = 2 * PI * x / TILE
         y1% = 4 + int(1.5 * sin(a!) + 0.5)
         y2% = 11 + int(1.5 * sin(a! + PI) + 0.5)
-        gfx.draw.pset s&, x, y1%, &H3A70B0
-        gfx.draw.pset s&, x, y2%, &H3A70B0
-        gfx.draw.pset s&, x, TILE + y1%, &H8CC8E8
-        gfx.draw.pset s&, x, TILE + y2%, &H8CC8E8
+        gfx.draw.pset s&, x, y1%, crest&
+        gfx.draw.pset s&, x, y2%, crest&
+        gfx.draw.pset s&, x, TILE + y1%, foam&
+        gfx.draw.pset s&, x, TILE + y2%, foam&
     next
 
     new_waves = s&
@@ -235,27 +248,28 @@ function new_lands () as long
     tones$ = "D8C27C4C9A3C3E8A34807A6CECF0F4"
 
     for i = 0 to LANDS - 1
-        c& = val("&H" + mid$(tones$, i * 6 + 1, 6))
+        c& = tone(val("&H" + mid$(tones$, i * 6 + 1, 6)))
         x0% = i * TILE
         gfx.draw.rect s&, x0%, 0, x0% + last%, last%, c&, f%
     next
 
-    dots s&, 0, 5, &HB8A060
-    dots s&, TILE, 7, &H3A7E2E
-    dots s&, 4 * TILE, 9, &HB8D0E8
+    dots s&, 0, 5, tone(&HB8A060)
+    dots s&, TILE, 7, tone(&H3A7E2E)
+    dots s&, 4 * TILE, 9, tone(&HB8D0E8)
     x0% = 2 * TILE
 
     for k = 0 to 1
         tx% = x0% + 4 + 8 * k
         ty% = 5 + 6 * k
-        gfx.draw.rect s&, tx%, ty% + 2, tx% + 1, ty% + 5, &H5A3A1E, f%
-        gfx.draw.circle s&, tx%, ty%, 3, &H1E5A22, f%
+        bark& = tone(&H5A3A1E)
+        gfx.draw.rect s&, tx%, ty% + 2, tx% + 1, ty% + 5, bark&, f%
+        gfx.draw.circle s&, tx%, ty%, 3, tone(&H1E5A22), f%
     next
 
     x0% = 3 * TILE
-    gfx.draw.line s&, x0% + 2, 4, x0% + 9, 9, &H5E584E
-    gfx.draw.line s&, x0% + 9, 9, x0% + 13, 6, &H5E584E
-    gfx.draw.line s&, x0% + 4, 13, x0% + 10, 12, &H9A9488
+    gfx.draw.line s&, x0% + 2, 4, x0% + 9, 9, tone(&H5E584E)
+    gfx.draw.line s&, x0% + 9, 9, x0% + 13, 6, tone(&H5E584E)
+    gfx.draw.line s&, x0% + 4, 13, x0% + 10, 12, tone(&H9A9488)
     new_lands = s&
 end function
 
@@ -410,10 +424,10 @@ end sub
 function new_boat () as long
     s& = gfx.surface.new(14, 10)
     f% = gfx.draw.FILL
-    gfx.draw.rect s&, 1, 6, 12, 8, &H6A4020, f%
-    gfx.draw.rect s&, 3, 5, 11, 6, &H8A5A30, f%
-    gfx.draw.line s&, 6, 0, 6, 5, &H40301C
-    gfx.draw.rect s&, 7, 1, 10, 4, &HF4F0E4, f%
+    gfx.draw.rect s&, 1, 6, 12, 8, tone(&H6A4020), f%
+    gfx.draw.rect s&, 3, 5, 11, 6, tone(&H8A5A30), f%
+    gfx.draw.line s&, 6, 0, 6, 5, tone(&H40301C)
+    gfx.draw.rect s&, 7, 1, 10, 4, tone(&HF4F0E4), f%
     gfx.surface.set_anchor s&, 7, 5
     new_boat = s&
 end function
@@ -470,9 +484,10 @@ sub puff ( _
     byval r as single _
 )
     f% = gfx.draw.FILL + gfx.draw.BLEND
+    white& = tone(&HFFFFFF)
 
     for k = 0 to 3
-        gfx.draw.circle dst, x, y, r * (1 - k * 0.2), &HFFFFFF, f%
+        gfx.draw.circle dst, x, y, r * (1 - k * 0.2), white&, f%
     next
 end sub
 
@@ -484,7 +499,7 @@ sub show_help ( _
     byval smooth as integer, _
     m as Meter _
 )
-    grey& = &HF0F0F0
+    grey& = tone(&HF0F0F0)
     z% = st.zoom
     edge% = MARGIN * z%
     t$ = "T turn " + on_off$(turning)
