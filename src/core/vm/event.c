@@ -6,8 +6,8 @@
  * SF_EV, so the check runs it (evnt_run): a GOSUB to its line that comes back to the op that
  * checked. One run mid-statement, the statement's values on the stack, holds sweeps till its
  * RETURN (mem/array.c). Its slot runs no other event till that RETURN (evnt_return). PLAY's happens
- * when the notes waiting in the background music fall below its n. COM, PEN and STRIG are accepted
- * and never fire.
+ * when the notes waiting in the background music fall below its n, seen on a tick or after PLAY(n)
+ * looks (vm/sound.c). COM, PEN and STRIG are accepted and never fire.
  *
  * # Example
  *   10 ON TIMER(5) GOSUB tick : TIMER ON      tick runs every 5 seconds, between statements

@@ -94,8 +94,7 @@ TEST(sound_out_of_range)
     CHECK(unit_run(S, lines) == E_USR);
 }
 
-/* ON PLAY(2) runs once, as the queue falls below 2 notes; PLAY ON, OFF, STOP compile. Each note
-   lasts a tick: shorter ones drain the queue between two polls, and no fall is seen. */
+/* ON PLAY(2) runs once, as the queue falls below 2 notes; PLAY ON, OFF, STOP compile. */
 TEST(on_play_fires_as_the_queue_drains)
 {
     static const char *const lines[] = {
@@ -109,4 +108,26 @@ TEST(on_play_fires_as_the_queue_drains)
 
     CHECK(unit_run(S, lines) == ST_OK);
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 1 \r");
+}
+
+/* ON PLAY sees the fall PLAY(n) shows. It looked only on the clock's tick, the music's another:
+   a program that saw the queue empty ended first and printed 0, 1 run in 40. Not in real time
+   the queue drains between two of the clock's ticks: always 0. */
+TEST(on_play_sees_the_fall_play_n_sees)
+{
+    static const char *const lines[] = {
+        "10 ON PLAY(2) GOSUB 100: PLAY ON",
+        "20 PLAY \"MB T255 L16 CDEFG\"",
+        "30 IF PLAY(0) THEN 30",
+        "40 PRINT n: END",
+        "100 n = n + 1: RETURN",
+        nullptr,
+    };
+
+    qbrt_realtime(false);
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 1 \r");
+    music_clear();
+    qbrt_realtime(true);
 }
