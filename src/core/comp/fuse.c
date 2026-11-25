@@ -119,7 +119,7 @@ static uint8_t *next(Tail *const t)
     return counted(t, countof(ops), op, ld + 1, step + 1, cmp + 1, back(t, 0));
 }
 
-/* Quickr's NEXT, its six ops (qr/qcg.c), of a step whose sign is known. */
+/* Quickr's NEXT, its six ops (qr/qcg_emit.c), of a step whose sign is known. */
 static uint8_t *count(Tail *const t)
 {
     static const uint8_t ops[] = {O_I_LD_V, O_I_LD_V, O_I_LD_V, O_X, O_I_ST_V, O_I_JT};

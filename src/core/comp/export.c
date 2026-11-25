@@ -3,7 +3,7 @@
  * # How it works
  * Both front ends compile to the same VM: a procedure is a Proc called by PCALL, a record a TYPE,
  * a string a Desc, whichever dialect wrote it. An export is described in the VM's types; each
- * front end binds the other's exports as its own names (qr/qsem.c, comp/declare.c), so a call
+ * front end binds the other's exports as its own names (qr/qsem_mod.c, comp/declare.c), so a call
  * across is a call within one dialect. What one dialect has and the other not is kept with why,
  * an error where the name is used.
  */

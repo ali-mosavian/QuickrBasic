@@ -9,7 +9,7 @@
  * of it (x, X) or a shadowed one, gets a ' and a number: each variable its own cell.
  *
  * Each line is one statement at most: its code is compiled with a statement map of the statement
- * (body 0), its labels (qr/qcg.c) and the line's end (BOFF), then placed in the cache
+ * (body 0), its labels (qr/qcg_emit.c) and the line's end (BOFF), then placed in the cache
  * (link_place). The
  * store moves when the cache grows, and a string literal's address with it: the lines are
  * compiled again until it stays. Then each procedure's frame is laid out and each line resolved

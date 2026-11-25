@@ -213,7 +213,8 @@ typedef struct QLam QLam;
 typedef struct QCap QCap;
 typedef struct QExpr QExpr;
 typedef struct QStmt QStmt;
-/* The names in sight at a statement, and qsem's own kept past its pass: the debugger's (qsem.c). */
+/* The names in sight at a statement, and qsem's own kept past its pass: the debugger's
+   (qsem_stmt.c). */
 typedef struct QScopeAt QScopeAt;
 typedef struct QSemKeep QSemKeep;
 typedef struct QIter QIter;
@@ -632,7 +633,7 @@ struct QIter {
     QExpr *init;   /* acc's first value: a sum's 0, fold's */
     QExpr *result; /* after the loop; null: built in acc, the QE_ITER's var */
     QVar **xs;     /* a for's names, each a part's */
-    uint32_t top;  /* the loop's start: its label's body, or its code's offset (qr/qcg.c) */
+    uint32_t top;  /* the loop's start: its label's body, or its code's offset (qr/qcg_emit.c) */
 };
 
 /* A match's case: one or more patterns, each a value, a to b, is op v, or an enum value with its
