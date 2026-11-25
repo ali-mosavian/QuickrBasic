@@ -30,22 +30,26 @@ static void texels_at(uint32_t *const seed, uint8_t *const p, const uint32_t n, 
         memset(p + i * b, 0, b);
 }
 
-/* An 8-bit target's lut, map and blend, a direct one's argb, all random. */
+/* An 8-bit target's lut, map and blend, a direct one's argb, all random; the ink's pixel table. */
 typedef struct {
     uint8_t lut[256], map[32768], blend[65536];
-    uint32_t argb[256];
+    uint32_t argb[256], pixels[PX_TABLE];
 } Tables;
 
-/* The ink of variant v from g into f over the tables. */
+/* The ink of variant v from g into f over the tables, its pixel table made of them. */
 static Ink ink_of(
     uint32_t *const seed,
-    const Tables *const t,
+    Tables *const t,
     const PxFormat f,
     const PxFormat g,
     const uint32_t v
 )
 {
     const bool eight = f == PX_8, blended = v & FILL_BLENDED;
+    const uint32_t shade = next(seed) & PX_WHITE;
+
+    if (!eight || g != PX_8)
+        px_table(t->pixels, g, f, t->argb, shade);
 
     return (Ink){
         .source = g,
@@ -56,7 +60,8 @@ static Ink ink_of(
         .map = t->map,
         .blend = eight && blended ? t->blend : nullptr,
         .argb = t->argb,
-        .shade = next(seed) & PX_WHITE,
+        .pixels = t->pixels,
+        .shade = shade,
         .mode = eight || !blended ? BLEND_NONE
                 : next(seed) & 1  ? BLEND_ADD
                                   : BLEND_MIX,

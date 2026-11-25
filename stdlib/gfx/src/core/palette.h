@@ -48,6 +48,9 @@ typedef struct {
     uint8_t *lut;   /* the last mix asked for: its row, light, tint and their rows' changes */
     uint32_t *argb; /* the last colours asked for, likewise */
     PalKey lut_key, argb_key;
+    uint32_t *pixels; /* the last pixel table asked for, likewise, and its formats */
+    PalKey pixels_key;
+    PxFormat pixels_from, pixels_into;
     uint32_t asked;
 } Palette;
 
@@ -71,4 +74,14 @@ const uint8_t *pal_map(Palette *p);
 /* The colours each index of row draws as, &HFFRRGGBB, lit by light and multiplied by tint: null,
    no memory. */
 const uint32_t *pal_argb(Palette *p, int32_t row, int32_t light, uint32_t tint);
+/* px_table's of texels of format from into into, lit by light and multiplied by tint, row's
+   colours from 8 bits: null, no memory. */
+const uint32_t *pal_pixels(
+    Palette *p,
+    int32_t row,
+    int32_t light,
+    uint32_t tint,
+    PxFormat from,
+    PxFormat into
+);
 #endif

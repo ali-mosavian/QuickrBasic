@@ -156,6 +156,39 @@ static inline uint32_t px_cell(const uint32_t rgb)
     return px_channel(rgb, 16) >> 3 << 10 | px_channel(rgb, 8) >> 3 << 5 | px_channel(rgb, 0) >> 3;
 }
 
+enum { PX_TABLE = 768 }; /* a pixel table's entries at most: 32 bits' three channels */
+
+/* A table of texels of format from as pixels of into, not blended, to out: from 8 bits by index,
+   argb's colours, into a direct format; from a direct format by channel, red's values then
+   green's then blue's, each shaded by shade, a texel's pixel its channels' entries or'd, into 8
+   bits px_cell's cell. A channel's shade and pixel are its own, so the table is exact. */
+static inline void px_table(
+    uint32_t *const out,
+    const PxFormat from,
+    const PxFormat into,
+    const uint32_t *const argb,
+    const uint32_t shade
+)
+{
+    if (from == PX_8) {
+        for (uint32_t i = 0; i < 256; i++)
+            out[i] = px_pack(into, argb[i] | PX_OPAQUE);
+
+        return;
+    }
+
+    const uint32_t wide = from == PX_32 ? 8 : 5;
+    const uint32_t bits[3] = {wide, from == PX_16 ? 6 : wide, wide};
+
+    uint32_t *at = out;
+
+    for (uint32_t c = 0; c < 3; c++)
+        for (uint32_t v = 0; v < 1u << bits[c]; v++) {
+            const uint32_t lit = px_shade(px_widen(v, bits[c]) << (16 - 8 * c), shade);
+            *at++ = into == PX_8 ? px_cell(lit) : px_pack(into, lit | (c ? 0 : PX_OPAQUE));
+        }
+}
+
 /* r's pixels of p, r inside it. */
 static inline Pixels px_cut(const Pixels *const p, const Rect r)
 {

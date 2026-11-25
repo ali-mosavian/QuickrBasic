@@ -57,6 +57,10 @@ bool ink_source(
     if (eight && colours && !k->map && !(k->map = pal_map(pal)))
         return false;
 
+    if (!k->solid && !(eight && from == PX_8) &&
+        !(k->pixels = pal_pixels(pal, p->palette_row, p->light, p->tint, from, into)))
+        return false;
+
     return (eight && !k->smooth) || from != PX_8 || k->argb ||
            (k->argb = pal_argb(pal, p->palette_row, p->light, p->tint));
 }

@@ -36,8 +36,25 @@ static inline uint32_t mixed(
     return px_mix(c, d, has(v, FILL_ADDED, k->mode == BLEND_ADD) ? BLEND_ADD : BLEND_MIX, k->alpha);
 }
 
+/* Texel t, g's, through px_table's table p: by index from 8 bits, else its channels' entries
+   or'd. */
+[[gnu::always_inline]]
+static inline uint32_t tabled(const PxFormat g, const uint32_t *const p, const uint32_t t)
+{
+    if (g == PX_8)
+        return p[t & 0xFF];
+
+    if (g == PX_32)
+        return p[t >> 16 & 0xFF] | p[256 + (t >> 8 & 0xFF)] | p[512 + (t & 0xFF)];
+
+    const uint32_t green = g == PX_16 ? 6 : 5;
+
+    return p[t >> (5 + green) & 31] | p[32 + (t >> 5 & ((1u << green) - 1))] |
+           p[32 + (1u << green) + (t & 31)];
+}
+
 /* Texel t, g's, through the ink as variant v into f, not blended: an index at 8 bits, else
-   ARGB. */
+   ARGB. A filler's direct texel into 8 bits is a cell by the ink's pixel table. */
 [[gnu::always_inline]]
 static inline uint32_t ink_colour(
     const PxFormat f,
@@ -54,12 +71,14 @@ static inline uint32_t ink_colour(
         return g == PX_8 ? k->argb[t & 0xFF] : px_shade(px_argb(g, t), k->shade);
 
     if (g != PX_8)
-        return k->map[px_cell(px_shade(px_argb(g, t), k->shade))];
+        return k->map
+            [v & FILL_ANY ? px_cell(px_shade(px_argb(g, t), k->shade)) : tabled(g, k->pixels, t)];
 
     return has(v, FILL_LUT, k->lut) ? k->lut[t] : t;
 }
 
-/* Texel t, g's, through the ink as variant v: f's pixel, blended over there when v is. */
+/* Texel t, g's, through the ink as variant v: f's pixel, blended over there when v is. A filler's
+   into a direct target, not blended, is the ink's pixel table's: colour and format at once. */
 [[gnu::always_inline]]
 static inline uint32_t ink_pixel(
     const PxFormat f,
@@ -70,6 +89,9 @@ static inline uint32_t ink_pixel(
     const uint32_t there
 )
 {
+    if (f != PX_8 && !(v & (FILL_ANY | FILL_SOLID | FILL_BLENDED)))
+        return tabled(g, k->pixels, t);
+
     const uint32_t c = ink_colour(f, g, v, k, t);
 
     if (!has(v, FILL_BLENDED, k->blend || k->mode))

@@ -48,8 +48,10 @@ void pal_done(Palette *const p)
     forget(p);
     mem_free(p->lut);
     mem_free(p->argb);
+    mem_free(p->pixels);
     p->lut = nullptr;
     p->argb = nullptr;
+    p->pixels = nullptr;
 }
 
 void pal_set(Palette *const p, const int32_t row, const uint32_t *const colours, const uint32_t n)
@@ -201,6 +203,33 @@ const uint32_t *pal_argb(Palette *const p, const int32_t row, const int32_t l, c
 
     p->argb_key = k;
     return p->argb;
+}
+
+const uint32_t *pal_pixels(
+    Palette *const p,
+    const int32_t row,
+    const int32_t l,
+    const uint32_t tint,
+    const PxFormat from,
+    const PxFormat into
+)
+{
+    const PalKey k = key(p, row, l, tint);
+
+    if (p->pixels && same(p->pixels_key, k) && p->pixels_from == from && p->pixels_into == into)
+        return p->pixels;
+
+    const uint32_t *const argb = from == PX_8 ? pal_argb(p, row, l, tint) : nullptr;
+
+    if ((from == PX_8 && !argb) ||
+        (!p->pixels && !(p->pixels = mem_alloc(PX_TABLE * sizeof *p->pixels))))
+        return nullptr;
+
+    px_table(p->pixels, from, into, argb, pal_shade(PAL_WHITE, l, tint));
+    p->pixels_key = k;
+    p->pixels_from = from;
+    p->pixels_into = into;
+    return p->pixels;
 }
 
 const uint8_t *pal_blend(Palette *const p, const BlendMode mode, const int32_t alpha)
