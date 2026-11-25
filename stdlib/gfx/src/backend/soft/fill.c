@@ -352,7 +352,9 @@ static inline void steps_of(
     const bool key
 )
 {
-    words_of(PUT_STEPPED, f, f, key ? FILL_KEYED : 0, d, n, (Source){.r = steps_read(s, st)});
+    const StepsBy by = steps_by(s, st);
+
+    words_of(PUT_STEPPED, f, f, key ? FILL_KEYED : 0, d, n, (Source){.r = steps_read(s, st, &by)});
 }
 
 /* ink_of's texels fetched as drawn, from g into f as variant v. */
@@ -368,7 +370,9 @@ static inline void inked_of(
     const Ink *const k
 )
 {
-    words_of(PUT_INKED, f, g, v, d, n, (Source){.r = steps_read(s, st), .ink = *k});
+    const StepsBy by = steps_by(s, st);
+
+    words_of(PUT_INKED, f, g, v, d, n, (Source){.r = steps_read(s, st, &by), .ink = *k});
 }
 
 /* ink_of's n texels all colour, blended: its colour made once. */

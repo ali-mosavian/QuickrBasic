@@ -78,44 +78,80 @@ static inline uint32_t steps_texel(const Pixels *const s, const Steps *const st)
 
 /* A walk that does not wrap read texel by texel, inside its picture: the texel's address stepped
    by the walk's whole texels and rows, then a row more when v's fraction carries and a texel more
-   when u's does (Abrash's). No texel costs a multiply. The address counts texels, so u's carry is
-   one at every depth: a picture's texels and rows are whole texels from 0. The address is a
-   number: the last step may leave the picture. */
+   when u's does (Abrash's). No texel costs a multiply. The fractions share a register, uGL's
+   halves: u's the low one, stepped by a 16-bit add, v's pre-shifted to the top, by a 32-bit one.
+   The address counts texels, so u's carry is one at every depth: a picture's texels and rows are
+   whole texels from 0. The address is a number: the last step may leave the picture. */
+typedef struct {
+    intptr_t step, pitch; /* in texels */
+    uint32_t dv;          /* its low half 0 */
+    uint16_t du;
+} StepsBy;
+
+/* The steps apart, uGL's immediates: the asm reads them where they are, and would keep the place
+   and fractions there too, stored a pixel, if they were beside them. */
 typedef struct {
     uintptr_t at;
-    uint32_t u, du, v, dv; /* the fractions and their steps', in the top 16 bits */
-    int32_t step, pitch;
+    uint32_t uv;
+    const StepsBy *by;
 } StepsRead;
 
 [[gnu::always_inline]]
-static inline StepsRead steps_read(const Pixels *const s, const Steps st)
+static inline StepsBy steps_by(const Pixels *const s, const Steps st)
+{
+    const int32_t pitch = (int32_t)(s->pitch / px_bytes(s->format));
+
+    return (StepsBy){
+        .step = (st.du >> 16) + (st.dv >> 16) * pitch,
+        .pitch = pitch,
+        .dv = (uint32_t)st.dv << 16,
+        .du = (uint16_t)st.du,
+    };
+}
+
+[[gnu::always_inline]]
+static inline StepsRead steps_read(const Pixels *const s, const Steps st, const StepsBy *const by)
 {
     const uint32_t bytes = px_bytes(s->format);
-    const int32_t pitch = (int32_t)(s->pitch / bytes);
+    const int32_t pitch = (int32_t)by->pitch;
 
     return (StepsRead){
         .at = (uintptr_t)s->p / bytes + (uintptr_t)(intptr_t)((st.v >> 16) * pitch + (st.u >> 16)),
-        .u = (uint32_t)st.u << 16,
-        .du = (uint32_t)st.du << 16,
-        .v = (uint32_t)st.v << 16,
-        .dv = (uint32_t)st.dv << 16,
-        .step = (st.du >> 16) + (st.dv >> 16) * pitch,
-        .pitch = pitch,
+        .uv = (uint32_t)st.v << 16 | (uint16_t)st.u,
+        .by = by,
     };
 }
 
 /* The texel at the read's place, bytes a texel, a constant for a format's own load; the read a
-   pixel on. The carries are the adds' own; the empty asm keeps u and v stepped one pixel at a
-   time, where the compiler would hold u + 2du and u + 3du too and run out of i386's registers. */
+   pixel on: v's add, its carry a row; u's 16-bit add, its carry a texel. On x86 in asm, as uGL's,
+   since a compiler will not add into a register's half in place. */
 [[gnu::always_inline]]
 static inline uint32_t steps_read_next(StepsRead *const r, const uint32_t bytes)
 {
     const uint32_t texel = px_load((const uint8_t *)(r->at * bytes), bytes);
-    const bool down = __builtin_add_overflow(r->v, r->dv, &r->v);
-    const bool across = __builtin_add_overflow(r->u, r->du, &r->u);
+#if defined(__i386__) || defined(__x86_64__)
+    intptr_t row;
 
-    r->at += (uintptr_t)(intptr_t)r->step + ((uint32_t)r->pitch & -(uint32_t)down) + across;
-    __asm__("" : "+r"(r->u), "+r"(r->v));
+    __asm__(
+        "addl %[dv], %[uv]\n\t"
+        "sbb %[row], %[row]\n\t"
+        "and %[pitch], %[row]\n\t"
+        "add %[step], %[row]\n\t"
+        "addw %[du], %w[uv]\n\t"
+        "adc %[row], %[at]"
+        : [uv] "+r"(r->uv), [at] "+r"(r->at), [row] "=&r"(row)
+        :
+        [dv] "m"(r->by->dv), [du] "m"(r->by->du), [pitch] "m"(r->by->pitch), [step] "m"(r->by->step)
+        : "cc"
+    );
+#else
+    const bool down = __builtin_add_overflow(r->uv, r->by->dv, &r->uv);
+    uint16_t u = (uint16_t)r->uv;
+    const bool across = __builtin_add_overflow(u, r->by->du, &u);
+
+    r->uv = (r->uv & 0xFFFF0000u) | u;
+    r->at += (uintptr_t)(r->by->step + (down ? r->by->pitch : 0)) + across;
+#endif
     return texel;
 }
 
