@@ -228,6 +228,24 @@ TEST(editor_drops_a_module_not_imported)
     fx_done(S, (const char *[]){"main.bas", "gfx.bas", "util.bas", nullptr});
 }
 
+/* A Quickr module imported before a QBasic one is stored after it: entered again, the QBasic
+   one's lines were taken for the Quickr one's: Name not exported. */
+TEST(editor_runs_a_module_stored_out_of_order)
+{
+    fx_open_program(S, "data 11, 22\r\nsub hi\r\nread a, b\r\nprint a; b\r\nend sub\r\n");
+    fx_write_file(
+        "q.bas",
+        "' OPTION DIALECT QUICKR\npublic function twice(n as int) as int\n"
+        "    return n * 2\nend function\n"
+    );
+    fx_write_file("main.bas", "import q\r\nimport gfx\r\nprint q.twice(4)\r\ngfx.hi\r\n");
+    uimn_open(S, fx_path_of("main.bas"));
+    fx_retype(S, fx_line_of(S, "print q.twice(4)"), "print q.twice(5)");
+    CHECK(run(S) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 10 \r 11  22 \r");
+    fx_done(S, (const char *[]){"main.bas", "gfx.bas", "q.bas", nullptr});
+}
+
 /* main.bas, its names defined in it and in gfx.bas, opened. */
 static void open_definitions(Session *const S)
 {

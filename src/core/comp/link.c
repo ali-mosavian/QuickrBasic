@@ -733,15 +733,16 @@ void link_walk(const uint8_t *code, void (*each)(uint8_t op, const uint8_t *at))
         each(*code, code);
 }
 
-/* Each module's LF_TOP line again, the k-th the k-th module's (io/repl.c read_modules): lines
-   typed before them moved them. */
+/* Each module's LF_TOP line again, by its file (io/repl.c read_modules): lines typed before them
+   moved them. The one past the last module's lines is the main's file: no top. */
 static void link_tops(Comp *const C)
 {
-    uint32_t m = 1;
+    for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len) {
+        const uint32_t m = modu_of(C->modu, prog_line(C->prog, l)->file);
 
-    for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
-        if (prog_line(C->prog, l)->flags & LF_TOP && m < modu_count(C->modu))
-            modu_top(C->modu, m++, l);
+        if (prog_line(C->prog, l)->flags & LF_TOP && m)
+            modu_top(C->modu, m, l);
+    }
 }
 
 /* Every QBasic line compiled: each module's after those it imports, the main's last, so a use of

@@ -1132,21 +1132,25 @@ static const uint8_t *restore(Session *const S, const uint32_t line)
 }
 
 /* An END, LF_TOP, past the lines read: where a run of a module's code stops, by any way to the
-   next line (comp/import.c). */
-static void module_end(Session *const S)
+   next line (comp/import.c). file: the module's whose lines follow, its own; 0 none. */
+static void module_end(Session *const S, const uint16_t file)
 {
     static const uint8_t end[] = {TK_END, 0};
 
     const uint8_t flags = S->prog.add_flags;
+    const uint16_t was = S->prog.add_file;
     S->prog.add_flags = flags | LF_TOP;
+    S->prog.add_file = file;
     prog_add(&S->prog, NONUM, end, sizeof end);
     S->prog.add_flags = flags;
+    S->prog.add_file = was;
 }
 
 /* The modules the program imports from module from on, after the store's lines, each once and in
-   the order first named; a module's own imports after it. An END ends each module's lines, the
-   main's too, its LF_TOP the next module's top. last: the LF_TOP past the lines of the modules
-   before from, cut first; 0 none. */
+   the order first named, a module's own imports after it; the Quickr ones last, so a top's place
+   is no module's number. An END ends each module's lines, the main's too, its LF_TOP the next
+   module's top, the file it reads next. last: the LF_TOP past the lines of the modules before
+   from, cut first; 0 none. */
 static void read_modules(Session *const S, const uint32_t from, const uint32_t last)
 {
     if (modu_count(&S->modu) == from)
@@ -1161,7 +1165,7 @@ static void read_modules(Session *const S, const uint32_t from, const uint32_t l
         char path[PFIL_PATH]; /* the table may move as it grows */
         strcpy(path, modu_module_path(&S->modu, m));
         modu_top(&S->modu, m, prog_at(&S->prog));
-        module_end(S);
+        module_end(S, S->repl.nfile);
         S->repl.module = m;
 
         if (!modu_mod(&S->modu, m)->native) {
@@ -1178,12 +1182,12 @@ static void read_modules(Session *const S, const uint32_t from, const uint32_t l
     for (uint32_t m = from; m < modu_count(&S->modu); m++) /* its imports Quickr's alone */
         if (modu_mod(&S->modu, m)->quickr) {
             modu_top(&S->modu, m, prog_at(&S->prog));
-            module_end(S);
+            module_end(S, S->repl.nfile);
             S->repl.module = m;
             qr_guest_read(S, m);
         }
 
-    module_end(S); /* the last module's */
+    module_end(S, 0); /* the last module's */
     S->repl.module = 0;
 }
 
@@ -1284,6 +1288,17 @@ static void redeclare(Session *const S, const uint32_t line)
     l->flags = (uint8_t)((l->flags & ~LF_NODEF) | (S->decl.deft ? 0 : LF_NODEF));
 }
 
+/* Past line's module: the program's end, or an LF_TOP, the next module's top. */
+static bool past_module(const Prog *const pg, const uint32_t line)
+{
+    return !prog_line(pg, line)->len || prog_line(pg, line)->flags & LF_TOP;
+}
+
+static uint32_t next_line(const Prog *const pg, const uint32_t line)
+{
+    return line + prog_line(pg, line)->len;
+}
+
 /* The program's lines read, declared: each module's after those it imports, the main's last,
    its file's DEFtypes and OPTIONs from its first line; the main's not when it is Quickr's (guests).
    Then the main's again, for lines typed. */
@@ -1307,11 +1322,10 @@ static void declare_program(Session *const S, const bool guests)
 
         const uint32_t m = order[i], top = modu_top_of(&S->modu, m);
         const uint32_t from = m ? top + prog_line(&S->prog, top)->len : PROGBASE;
-        const uint32_t to = m + 1 < n ? modu_top_of(&S->modu, m + 1) : prog_at(&S->prog);
         decl_module(&S->decl, &S->scop, &S->symb, sc_module(m), top);
         S->decl.native = modu_mod(&S->modu, m)->native;
 
-        for (uint32_t line = from; line < to; line += prog_line(&S->prog, line)->len)
+        for (uint32_t line = from; !past_module(&S->prog, line); line = next_line(&S->prog, line))
             redeclare(S, line);
 
         S->decl.native = false;
@@ -1378,9 +1392,20 @@ static void drop_module(Session *const S, const uint32_t m, const uint32_t n)
     modu_drop(&S->modu, m);
 }
 
+/* Each LF_TOP's file its module's number, as modu_relink numbers the modules' own files. */
+static void tops_numbered(Prog *const pg, const Modu *const mu)
+{
+    for (uint32_t line = PROGBASE; prog_line(pg, line)->len; line = next_line(pg, line)) {
+        Line *const l = prog_line(pg, line);
+
+        if (l->flags & LF_TOP)
+            l->file = (uint16_t)modu_of(mu, l->file);
+    }
+}
+
 /* The program's lines in the store, entered as loaded: the includes' read again, each module's own
-   lines its number's file (modu_relink). Lenient: an import not found skipped. A module no import
-   reaches is dropped (modu_unreached), then the lines entered again. */
+   lines, its LF_TOP's too, its number's file (modu_relink). Lenient: an import not found skipped.
+   A module no import reaches is dropped (modu_unreached), then the lines entered again. */
 static void walk(Session *const S, const bool lenient)
 {
     for (uint32_t line = PROGBASE; prog_line(&S->prog, line)->len;) /* the includes' out */
@@ -1389,6 +1414,7 @@ static void walk(Session *const S, const bool lenient)
         else
             line += prog_line(&S->prog, line)->len;
 
+    tops_numbered(&S->prog, &S->modu);
     S->repl.lenient = lenient;
     const uint32_t n = prog_modules(&S->prog);
     modu_relink(&S->modu, S->repl.file, n);
@@ -1403,9 +1429,10 @@ static void walk(Session *const S, const bool lenient)
         if (l->flags & LF_TOP) {
             last = line;
             line += l->len;
+            S->repl.module = l->file;
 
-            if (S->repl.module + 1 < n)
-                modu_top(&S->modu, ++S->repl.module, last);
+            if (S->repl.module)
+                modu_top(&S->modu, S->repl.module, last);
 
             S->repl.inproc = false;
             continue;

@@ -62,7 +62,7 @@ void modu_clear(Modu *mu, const char *main);
 /* The first n modules kept (n at most their count), the main's path main; their run's state kept;
    no imports; no files but each module's own, file m module m's. */
 void modu_relink(Modu *mu, const char *main, uint32_t n);
-/* Module m dropped, those after it a number down; no imports. */
+/* Module m dropped, those after it a number down, their files' too; no imports. */
 void modu_drop(Modu *mu, uint32_t m);
 /* The first module before n that no import reaches from the main's or an edited one's; 0 none. */
 uint32_t modu_unreached(Modu *mu, uint32_t n);
