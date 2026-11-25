@@ -583,6 +583,12 @@ void stmt_fcell(Session *const S)
     exec_pusha(&S->vm, addr_of(arry_field_cell(&S->arry, data, key)));
 }
 
+/* HOLD, UNHOLD: around a call that may sweep while addresses into the heap wait on the stack
+   (arry_hold). */
+void stmt_hold(Session *const S) { arry_hold(&S->arry); }
+
+void stmt_unhold(Session *const S) { arry_unhold(&S->arry); }
+
 /* ---- RUN, LIST, CONT, END, STOP ------------------------------------------------------------- */
 
 /* Back to READY, the frames kept. */

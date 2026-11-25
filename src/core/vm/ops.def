@@ -346,6 +346,8 @@ XOP(L_ADD_U8, oper_l_add_u8, 3, FX + FK)
 XOP(L_SUB_U8, oper_l_sub_u8, 3, FX + FK)
 /* Quickr's NEXT unfused ( n lim step -- go n' ): k (exec.h COUNT_*) */
 XOP(I_COUNT, flow_i_count, 3, 0)
+XOP(HOLD, stmt_hold, 2, 0) /* ours: a call while addresses into the heap wait on the stack */
+XOP(UNHOLD, stmt_unhold, 2, 0)
 #undef XOP
 #endif
 

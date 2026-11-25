@@ -217,6 +217,7 @@ void flow_drop_calls(Session *const S)
     S->vm.ftop = S->vm.frames;
     S->vm.fp = 0;
     stack_reset(S);
+    arry_unwound(&S->arry);
 }
 
 static Frame *top_frame(Vm *const vm) { return vm->ftop > vm->frames ? vm->ftop - 1 : nullptr; }
@@ -265,6 +266,8 @@ void flow_return(Session *const S)
         repl_error(S, E_RG);
     if (f->kind == FRAME_EVENT)
         evnt_return(&S->evnt, &S->vm, f->event);
+    if (f->kind == FRAME_EVENT && f->held)
+        arry_unhold(&S->arry);
 
     pop_to(&S->vm, f);
     drop_temps(&S->strg);
@@ -797,6 +800,7 @@ void flow_trap(Session *const S, const uint8_t code, const uint32_t handler)
 
     chnl_clear(&S->chnl);
     S->vm.sp = flow_stack_base(&S->vm);
+    arry_unwound(&S->arry);
     flow_jump(S, handler);
 
     if (S->vm.running)
@@ -847,6 +851,7 @@ void flow_resume(Session *const S)
     S->vm.err.active = false;
     S->vm.err.code = 0;
     S->vm.sp = flow_stack_base(&S->vm);
+    arry_unwound(&S->arry);
     const ResumeMode mode = exec_u8(&S->vm);
 
     if (mode == RESUME_LINE) {

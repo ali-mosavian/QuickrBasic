@@ -176,7 +176,10 @@ typedef struct {
     Place ret; /* where RETURN or the call's end goes */
     union {
         Call call;
-        uint8_t event; /* the event's slot */
+        struct {
+            uint8_t event; /* the event's slot */
+            bool held;     /* run mid-statement: sweeps held (mem/array.h arry_hold) */
+        };
     };
 } Frame;
 

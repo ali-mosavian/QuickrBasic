@@ -17,6 +17,7 @@ typedef struct {
     uint8_t *shend;    /* g_cshe */
     uint8_t shclass;   /* g_cshc: code_shclass's answer */
     bool fixdbl;       /* g_xdbl: FIX kept a DOUBLE */
+    bool held;         /* an address of the statement's may wait on the stack: a call is held */
 } Code;
 
 /* A byte past lim dropped, full set */

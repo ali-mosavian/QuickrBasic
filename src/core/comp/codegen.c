@@ -883,6 +883,8 @@ static void cg_ref(Code *const c, const Node *const n)
     } else
         code_opid(c, n->op, n->id, n->par);
 
+    c->held = true;
+
     for (const Node *x = n->a; x != nullptr; x = x->next) /* a fixed array field's, ours */
         if (x->kind == N_INT || x->kind == N_KCALL || x->kind == N_OP)
             gen(c, x);
@@ -908,7 +910,9 @@ static uint16_t field_off(Code *const c, const uint32_t off)
 /* A record's field's value: SF.LD off fix, FL.LD off et. */
 static void cg_field(Code *const c, const Node *const n)
 {
+    const bool held = c->held;
     gen(c, n->a);
+    c->held = held; /* its address taken by the load */
     const RecRef *const rec = &n->a->rec;
     const uint16_t off = field_off(c, rec->off);
 
@@ -987,7 +991,9 @@ static void cg_arg(Code *const c, const Node *const n)
 }
 
 /* A procedure's call: its arguments, PCALL, a record result's place; one DECLAREd only: ERROR, its
-   result's load; a native one's: its number, CALL NCALL, which pushes its result. */
+   result's load; a native one's: its number, CALL NCALL, which pushes its result. A call made while
+   the statement's addresses may wait on the stack is held, HOLD before its arguments and UNHOLD
+   after: a sweep in it would move what they point at (mem/array.c). */
 static void cg_call(Code *const c, const Node *const n)
 {
     if (n->mode == CALL_UNDEF) {
@@ -997,8 +1003,15 @@ static void cg_call(Code *const c, const Node *const n)
         return;
     }
 
+    const bool waiting = c->held, held = waiting && n->mode == CALL_PROC;
+
+    if (held)
+        code_xop(c, X_HOLD);
+
     for (const Node *a = n->b; a != nullptr; a = a->next)
         gen(c, a);
+
+    c->held = waiting; /* the arguments' taken by the call */
 
     if (n->mode == CALL_NATIVE) {
         code_int(c, n->num);
@@ -1016,6 +1029,8 @@ static void cg_call(Code *const c, const Node *const n)
     code_dword(c, n->jump.body);
     code_dword(c, n->jump.dest);
 
+    if (held)
+        code_xop(c, X_UNHOLD);
     if (n->a != nullptr) /* a record result's place, ours */
         gen(c, n->a);
 

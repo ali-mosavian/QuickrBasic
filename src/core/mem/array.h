@@ -21,6 +21,9 @@ typedef struct Arry {
     Vm *vm;              /* the run: its call's frame (vm.fp), the calls that own a heap's array */
     Addr fcells;         /* the newest live field cell's header, 0 none */
     uint32_t idle;       /* the bytes of the dead arry_relen and field cells left, not yet swept */
+    Addr *holds;         /* arry_hold's sp each, the newest last */
+    uint32_t nholds;     /* in use */
+    uint32_t holdcap;    /* holds' room */
     int32_t subs[ADIMS]; /* the subscripts (g_dimbuf) */
     uint32_t counts[ADIMS]; /* the counts (g_cntbuf) */
     int32_t lbounds[ADIMS]; /* the lower bounds (g_lbbuf) */
@@ -174,10 +177,18 @@ void arry_clear(Arry *ay, Vm *vm, const ArrView *v);
 void arry_kill(const Arry *ay, Addr h);
 /* The dead arrays removed, ours: what follows each moves down, and the headers' data, their
    owners in the moved data, the moved headers' cells, the moved string blocks' owners and the
-   parameters' cells in the moved data follow. A cell held in the heap moves: not to be used after. */
+   parameters' cells in the moved data follow. A cell held in the heap moves: not to be used after.
+   Held (arry_hold): nothing moves, the dead left to a later sweep. */
 void arry_sweep(Arry *ay, Vm *vm);
 /* arry_sweep: where the heap address a moved to. */
 Addr arry_sweep_at(Arry *ay, Vm *vm, Addr a);
+/* A call starts whose code may sweep while addresses into the heap wait on the stack above sp,
+   where no sweep can follow them: sweeps wait till arry_unhold, after the call, or till sp rises to
+   where it was (an error's unwinding, arry_unwound). Out of memory. */
+void arry_hold(Arry *ay);
+void arry_unhold(Arry *ay);
+/* The holds sp rose past dropped. */
+void arry_unwound(Arry *ay);
 /* Before a list grows by need bytes: arry_sweep_at when the dead arry_relen left are over half the
    heap in use, or need does not fit, else a with nothing moved. A sweep moves the data and walks
    every string block, so growth pays for one rarely. */

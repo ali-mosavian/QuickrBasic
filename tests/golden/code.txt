@@ -24938,6 +24938,232 @@ qb/harr.bas L 14 2d2dc97164fa
 qb/harr.bas L 15 7c7f4679b0c2
 qb/harr.bas L 16 ff2bfca042e8
 qb/harr.bas L 17 56b48ea714fe
+qb/held_element.bas 0 fb96549631c8
+qb/held_element.bas 1 fb96549631c8
+qb/held_element.bas 2 fb96549631c8
+qb/held_element.bas 3 fb96549631c8
+qb/held_element.bas 4 fb96549631c8
+qb/held_element.bas 5 fb96549631c8
+qb/held_element.bas 6 fb96549631c8
+qb/held_element.bas 7 fb96549631c8
+qb/held_element.bas 8 fb96549631c8
+qb/held_element.bas 9 fb96549631c8
+qb/held_element.bas 10 fb96549631c8
+qb/held_element.bas 11 06d9d34440a7
+qb/held_element.bas 12 13e9b4f754e7
+qb/held_element.bas 13 6a6b667e3e14
+qb/held_element.bas 14 66de38e0ec70
+qb/held_element.bas 15 74923a9d824e
+qb/held_element.bas 16 d730c4c2b37b
+qb/held_element.bas 17 91bf13783253
+qb/held_element.bas 18 fb96549631c8
+qb/held_element.bas 19 6ebd43d9e978
+qb/held_element.bas 20 1dc0ed9e108e
+qb/held_element.bas 21 53385ca86eba
+qb/held_element.bas 22 24334d80fcaa
+qb/held_element.bas 23 8bbc04cdc1ee
+qb/held_element.bas 24 df12d701a2aa
+qb/held_element.bas 25 a6a8de36b157
+qb/held_element.bas 26 3f786d7bad09
+qb/held_element.bas 27 aad8b47563dc
+qb/held_element.bas 28 3cde8b781d2c
+qb/held_element.bas 29 4556a44f40f1
+qb/held_element.bas 30 45455ce68ad1
+qb/held_element.bas 31 9902d25ec768
+qb/held_element.bas 32 b4dd7aee21b6
+qb/held_element.bas 33 647994ba53e8
+qb/held_element.bas 34 38d1da2b8bcb
+qb/held_element.bas 35 51d2e448b9aa
+qb/held_element.bas 36 4bf7d92e3fb6
+qb/held_element.bas 37 fb96549631c8
+qb/held_element.bas 38 6f2db2a1e772
+qb/held_element.bas 39 586708ecfe5f
+qb/held_element.bas 40 9724f942bfb7
+qb/held_element.bas 41 ffe9fdad7be6
+qb/held_element.bas 42 8a1cf14681f5
+qb/held_element.bas 43 7f2e906d4164
+qb/held_element.bas 44 b7cc80d690b6
+qb/held_element.bas 45 0bc0d03432ab
+qb/held_element.bas 46 2ea696fa2011
+qb/held_element.bas 47 ad91ae61e018
+qb/held_element.bas 48 7cfe74add25d
+qb/held_element.bas 49 fb96549631c8
+qb/held_element.bas 50 632087aad79a
+qb/held_element.bas 51 5362eb97178b
+qb/held_element.bas 52 b1e1376497d8
+qb/held_element.bas 53 fa5ad8ae93d5
+qb/held_element.bas 54 0b846816e85b
+qb/held_element.bas 55 ff725d172476
+qb/held_element.bas L 0 24ed5764a9b3
+qb/held_element.bas L 1 63a8697f6b9b
+qb/held_element.bas L 2 50d4d5640f2f
+qb/held_element.bas L 3 add6a231596f
+qb/held_element.bas L 4 1f7a78117b96
+qb/held_element.bas L 5 a6a89734af3f
+qb/held_element.bas L 6 1c66bc8b1989
+qb/held_element.bas L 7 35c22a178868
+qb/held_element.bas L 8 90d725bfe6d2
+qb/held_element.bas L 9 13bec8df1aec
+qb/held_element.bas L 10 86e68b39d568
+qb/held_element.bas L 11 71b77b854d06
+qb/held_element.bas L 12 3d8ce4f3fbbb
+qb/held_element.bas L 13 5867898eb7cf
+qb/held_element.bas L 14 9a8ae09fb952
+qb/held_element.bas L 15 133d2a0c2da2
+qb/held_element.bas L 16 a2ccac418a6d
+qb/held_element.bas L 17 b32084ba3908
+qb/held_element.bas L 18 7f551e1d80e5
+qb/held_element.bas L 19 3e59aca61285
+qb/held_element.bas L 20 8b7d84fe5833
+qb/held_element.bas L 21 fe24a217c777
+qb/held_element.bas L 22 3d4d4a1683b3
+qb/held_element.bas L 23 6964525caaa8
+qb/held_element.bas L 24 913388dd39e6
+qb/held_element.bas L 25 f8aa4d80f521
+qb/held_element.bas L 26 78d2f89b59d1
+qb/held_element.bas L 27 30d8129b40f1
+qb/held_element.bas L 28 95ebd725a699
+qb/held_element.bas L 29 289cb84c11b6
+qb/held_element.bas L 30 ccaa04d6afde
+qb/held_element.bas L 31 29708994bb62
+qb/held_element.bas L 32 440d1dd1adb8
+qb/held_element.bas L 33 e42489f2556c
+qb/held_element.bas L 34 cfb276793d7f
+qb/held_element.bas L 35 c861a1959fe0
+qb/held_element.bas L 36 f30c3c4d9c9a
+qb/held_element.bas L 37 15c6d4dcdb54
+qb/held_element.bas L 38 de36810703b9
+qb/held_element.bas L 39 1f77ec5ec777
+qb/held_element.bas L 40 93159c0b5fef
+qb/held_element.bas L 41 f06ffa455394
+qb/held_element.bas L 42 a9472cf3945c
+qb/held_element.bas L 43 2322b6ca3a97
+qb/held_element.bas L 44 6c9db339ca12
+qb/held_element.bas L 45 0a0cddecb80a
+qb/held_element.bas L 46 db3703d2f9bd
+qb/held_element.bas L 47 3a3da8ee1df4
+qb/held_element.bas L 48 8052642c3075
+qb/held_element.bas L 49 e0709124a366
+qb/held_element.bas L 50 08eca5f04d58
+qb/held_element.bas L 51 6e6cf32e6da1
+qb/held_element.bas L 52 d80b92256745
+qb/held_element.bas L 53 c5b37d265f46
+qb/held_element.bas L 54 e2712b187da3
+qb/held_element.bas L 55 b71136e133cf
+qb/held_event.bas 0 fb96549631c8
+qb/held_event.bas 1 fb96549631c8
+qb/held_event.bas 2 fb96549631c8
+qb/held_event.bas 3 fb96549631c8
+qb/held_event.bas 4 fb96549631c8
+qb/held_event.bas 5 fb96549631c8
+qb/held_event.bas 6 b9c1af5bf635
+qb/held_event.bas 7 895a49efa89f
+qb/held_event.bas 8 d59f6cdda350
+qb/held_event.bas 9 c5a61e5f264e
+qb/held_event.bas 10 7bcde8b73385
+qb/held_event.bas 11 7e83f458d3b4
+qb/held_event.bas 12 9e352bf3aa87
+qb/held_event.bas 13 0809c3fcdb6e
+qb/held_event.bas 14 8ee8b403a502
+qb/held_event.bas 15 fb96549631c8
+qb/held_event.bas 16 9aab61299edc
+qb/held_event.bas 17 558fe00745f0
+qb/held_event.bas 18 43e1e5826c4e
+qb/held_event.bas 19 deda124ce40e
+qb/held_event.bas 20 99cc6af467f5
+qb/held_event.bas 21 d97431bb0571
+qb/held_event.bas 22 5dc4faa26435
+qb/held_event.bas 23 9902d25ec768
+qb/held_event.bas 24 b4dd7aee21b6
+qb/held_event.bas 25 647994ba53e8
+qb/held_event.bas L 0 5469a6f75821
+qb/held_event.bas L 1 d750e60b78f3
+qb/held_event.bas L 2 87415b8ce079
+qb/held_event.bas L 3 e536093d80f1
+qb/held_event.bas L 4 2f6fb8056302
+qb/held_event.bas L 5 e39c8e45bbb6
+qb/held_event.bas L 6 23c473503140
+qb/held_event.bas L 7 dea89863e348
+qb/held_event.bas L 8 96a07c1cb4d7
+qb/held_event.bas L 9 663b30579b52
+qb/held_event.bas L 10 333e850bc157
+qb/held_event.bas L 11 03c763f10aec
+qb/held_event.bas L 12 9e1c7393bf56
+qb/held_event.bas L 13 86b26dcc69e6
+qb/held_event.bas L 14 447c5a9e7be0
+qb/held_event.bas L 15 9f9924b5582a
+qb/held_event.bas L 16 741e0cbfc5f2
+qb/held_event.bas L 17 46a8e52f3e9a
+qb/held_event.bas L 18 571ba7906a12
+qb/held_event.bas L 19 d6f4a78feafa
+qb/held_event.bas L 20 ec8c7d6236a3
+qb/held_event.bas L 21 148a82c758dc
+qb/held_event.bas L 22 fe810460cc6a
+qb/held_event.bas L 23 58912ea116c0
+qb/held_event.bas L 24 bf5576cf4546
+qb/held_event.bas L 25 ba9704144144
+qb/held_field_cell.bas 0 fb96549631c8
+qb/held_field_cell.bas 1 fb96549631c8
+qb/held_field_cell.bas 2 fb96549631c8
+qb/held_field_cell.bas 3 fb96549631c8
+qb/held_field_cell.bas 4 fb96549631c8
+qb/held_field_cell.bas 5 fb96549631c8
+qb/held_field_cell.bas 6 fb96549631c8
+qb/held_field_cell.bas 7 fb96549631c8
+qb/held_field_cell.bas 8 fb96549631c8
+qb/held_field_cell.bas 9 a5722fc9b71a
+qb/held_field_cell.bas 10 87901b646800
+qb/held_field_cell.bas 11 d8e6d9f1b1aa
+qb/held_field_cell.bas 12 36e1291247a6
+qb/held_field_cell.bas 13 afa5203f3768
+qb/held_field_cell.bas 14 b848eb9d83d5
+qb/held_field_cell.bas 15 94a2ecb9926b
+qb/held_field_cell.bas 16 4c64b9906a18
+qb/held_field_cell.bas 17 c6553f87e062
+qb/held_field_cell.bas 18 5cc81bda277f
+qb/held_field_cell.bas 19 d1b5e45401a8
+qb/held_field_cell.bas 20 485e76f62368
+qb/held_field_cell.bas 21 36dd093fed99
+qb/held_field_cell.bas 22 647994ba53e8
+qb/held_field_cell.bas 23 9b4ae52524e9
+qb/held_field_cell.bas 24 fb6083fe4bdd
+qb/held_field_cell.bas 25 8ca57e239c35
+qb/held_field_cell.bas 26 9ebc05d2dffc
+qb/held_field_cell.bas 27 de8389bcf36f
+qb/held_field_cell.bas 28 9587c4366ee6
+qb/held_field_cell.bas 29 1777692f2a4c
+qb/held_field_cell.bas 30 4bf7d92e3fb6
+qb/held_field_cell.bas L 0 2cc68e2cc985
+qb/held_field_cell.bas L 1 989a4ed65090
+qb/held_field_cell.bas L 2 16df49d7a196
+qb/held_field_cell.bas L 3 b879d4bca88e
+qb/held_field_cell.bas L 4 7c3a3311205f
+qb/held_field_cell.bas L 5 7618d61e97c7
+qb/held_field_cell.bas L 6 8cdf6f0cf676
+qb/held_field_cell.bas L 7 fd538adc88a1
+qb/held_field_cell.bas L 8 fb64214a32a2
+qb/held_field_cell.bas L 9 f784d15661ba
+qb/held_field_cell.bas L 10 7256f468a26a
+qb/held_field_cell.bas L 11 1994ed5a416f
+qb/held_field_cell.bas L 12 f0ee27d5b781
+qb/held_field_cell.bas L 13 c3f3466f84de
+qb/held_field_cell.bas L 14 c11c84d9b6be
+qb/held_field_cell.bas L 15 869be1582d76
+qb/held_field_cell.bas L 16 0f9fe4f83ae5
+qb/held_field_cell.bas L 17 76b31eef9f4e
+qb/held_field_cell.bas L 18 32518ab4b3dc
+qb/held_field_cell.bas L 19 9a567b2f1af3
+qb/held_field_cell.bas L 20 aaf1ab6de957
+qb/held_field_cell.bas L 21 5c25b87fa044
+qb/held_field_cell.bas L 22 e9e5a03b55ca
+qb/held_field_cell.bas L 23 314d3efbf60e
+qb/held_field_cell.bas L 24 c2903e126772
+qb/held_field_cell.bas L 25 a5c80e19e5c6
+qb/held_field_cell.bas L 26 a93298f46ad2
+qb/held_field_cell.bas L 27 a9001365cb9b
+qb/held_field_cell.bas L 28 49a2e23a9a86
+qb/held_field_cell.bas L 29 b2ca67735627
+qb/held_field_cell.bas L 30 35c22aa75a57
 qb/hex_oct_negative.bas 0 fb96549631c8
 qb/hex_oct_negative.bas 1 8ba905aa1573
 qb/hex_oct_negative.bas 2 1920e723089d

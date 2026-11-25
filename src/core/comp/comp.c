@@ -647,6 +647,7 @@ static void mapstmt(Comp *const C, const uint32_t bodyoff)
 static void mark(Comp *const C)
 {
     comp_flush(C); /* an IF's before its THEN's statement */
+    C->code->held = false;
     ast_reset(C->ast);
     mapstmt(C, (uint32_t)(C->p - C->body));
 }
