@@ -1238,11 +1238,14 @@ static inline void general_row(
     }
 }
 
-/* A perspective row as persp_row walks it, each run drawn by the general filler, or SMOOTH's. */
+/* A run of n pixels at x of row y along st, the general filler's or SMOOTH's: one body a format,
+   shared by its affine and perspective rows. */
+typedef void FillRun(const Rows *r, int32_t y, int32_t x, int32_t n, Steps st, int32_t z);
+
+/* A perspective row as persp_row walks it, each run drawn by run. */
 [[gnu::always_inline]]
 static inline void persp_runs(
-    const PxFormat f,
-    const bool smooth,
+    FillRun *const run,
     const Rows *const r,
     const int32_t y,
     const int32_t x0,
@@ -1267,11 +1270,7 @@ static inline void persp_runs(
         const Steps st = steps_from(p.u, p.v, scan_step(p.u, l.u), scan_step(p.v, l.v), r->wrap);
         const int32_t at = depth_on(zd, r->dz, done);
 
-        if (smooth)
-            smooth_row(f, r, y, x0 + done, m, st, at);
-        else
-            general_row(f, r, y, x0 + done, m, st, at);
-
+        run(r, y, x0 + done, m, st, at);
         p = l;
     }
 }
@@ -1611,6 +1610,30 @@ static RowAffine *const fill_inked[PX_FORMATS][PX_FORMATS][FILL_INKS] = {
 
 /* Format f's general and SMOOTH row fillers, name's. */
 #define FILL_GENERAL(name, f)                                                                      \
+    [[gnu::noinline]]                                                                              \
+    static void name##_general_run(                                                                \
+        const Rows *const r,                                                                       \
+        const int32_t y,                                                                           \
+        const int32_t x,                                                                           \
+        const int32_t n,                                                                           \
+        const Steps st,                                                                            \
+        const int32_t z                                                                            \
+    )                                                                                              \
+    {                                                                                              \
+        general_row(f, r, y, x, n, st, z);                                                         \
+    }                                                                                              \
+    [[gnu::noinline]]                                                                              \
+    static void name##_smooth_run(                                                                 \
+        const Rows *const r,                                                                       \
+        const int32_t y,                                                                           \
+        const int32_t x,                                                                           \
+        const int32_t n,                                                                           \
+        const Steps st,                                                                            \
+        const int32_t z                                                                            \
+    )                                                                                              \
+    {                                                                                              \
+        smooth_row(f, r, y, x, n, st, z);                                                          \
+    }                                                                                              \
     static void name##_general(                                                                    \
         const Rows *const r,                                                                       \
         const int32_t y,                                                                           \
@@ -1621,7 +1644,7 @@ static RowAffine *const fill_inked[PX_FORMATS][PX_FORMATS][FILL_INKS] = {
         const int32_t z                                                                            \
     )                                                                                              \
     {                                                                                              \
-        general_row(f, r, y, x0, x1 - x0, steps_from(u, v, r->du, r->dv, r->wrap), z);             \
+        name##_general_run(r, y, x0, x1 - x0, steps_from(u, v, r->du, r->dv, r->wrap), z);         \
     }                                                                                              \
     static void name##_general_persp(                                                              \
         const Rows *const r,                                                                       \
@@ -1634,7 +1657,7 @@ static RowAffine *const fill_inked[PX_FORMATS][PX_FORMATS][FILL_INKS] = {
         const int32_t z                                                                            \
     )                                                                                              \
     {                                                                                              \
-        persp_runs(f, false, r, y, x0, x1, u, v, w, z);                                            \
+        persp_runs(name##_general_run, r, y, x0, x1, u, v, w, z);                                  \
     }                                                                                              \
     static void name##_smooth(                                                                     \
         const Rows *const r,                                                                       \
@@ -1646,7 +1669,7 @@ static RowAffine *const fill_inked[PX_FORMATS][PX_FORMATS][FILL_INKS] = {
         const int32_t z                                                                            \
     )                                                                                              \
     {                                                                                              \
-        smooth_row(f, r, y, x0, x1 - x0, steps_from(u, v, r->du, r->dv, r->wrap), z);              \
+        name##_smooth_run(r, y, x0, x1 - x0, steps_from(u, v, r->du, r->dv, r->wrap), z);          \
     }                                                                                              \
     static void name##_smooth_persp(                                                               \
         const Rows *const r,                                                                       \
@@ -1659,7 +1682,7 @@ static RowAffine *const fill_inked[PX_FORMATS][PX_FORMATS][FILL_INKS] = {
         const int32_t z                                                                            \
     )                                                                                              \
     {                                                                                              \
-        persp_runs(f, true, r, y, x0, x1, u, v, w, z);                                             \
+        persp_runs(name##_smooth_run, r, y, x0, x1, u, v, w, z);                                   \
     }
 
 /* Format f's table, name: each body above bound to f. */
