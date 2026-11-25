@@ -4,6 +4,7 @@ Its DOS profile names static functions: the link map has globals alone, and the 
 read as lexr_line's, 19% of a load."""
 
 import os
+import random
 import re
 import shutil
 import subprocess
@@ -254,6 +255,15 @@ def vm_rate() -> None:
     assert bench.rate_of("", "Out of memory\r\n") == ""
 
 
+def vm_object_base() -> None:
+    """The program's place in a VM's memory, found by its code: a fixup changes the bytes it patches,
+    so the code's first window, patched, found nothing, and the profile mapped no sample."""
+    code = random.Random(1).randbytes(9000)
+    memory = bytearray(b"\0" * 70000) + bytearray(code) + bytearray(b"\0" * 5000)
+    memory[70000 + 4 : 70000 + 8] = b"\xff\xff\xff\xff"  # a fixup in the first window
+    assert bench.object_base(bytes(memory), code) == 70000, bench.object_base(bytes(memory), code)
+
+
 def main() -> int:
     stdlib_absent()
     each_reps()
@@ -265,6 +275,7 @@ def main() -> int:
     broken_counter()
     fps_start_up()
     vm_rate()
+    vm_object_base()
     b = bench.build(".", False)  # the tree's own instruments: copying them onto themselves raised
     demo_colours(b)
     try:

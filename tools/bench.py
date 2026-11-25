@@ -23,7 +23,8 @@
     bench.py demos [EXE...] [--cycles N]         stdlib/gfx's demos at 320x200x8 on DOS, frames a second: ours
                                                  shipped, then without vsync, text and perspective in turn; each
                                                  EXE a program built elsewhere, writing its rate to FPS.TXT
-                                                 --machine 486|p5|p6: on 86Box's (HL86_DIR), timed by its clock
+                                                 --machine 486|p5|p6: on 86Box's (HL86_DIR), timed by its clock;
+                                                 with --profile, cycles a frame by function sampled, --at F by offset
 
 Native (the default) runs build/hostperf/basic for retired instructions, the least of RUNS runs less
 an empty program's, builds compared run interleaved; and build/host/basic for the ops dispatched,
@@ -35,6 +36,7 @@ import os
 import re
 import sys
 import json
+import bisect
 import time
 import shutil
 import struct
@@ -1142,32 +1144,44 @@ def mtools(tool: str, image: Path, *args: str, check: bool = True) -> bytes:
     return r.stdout
 
 
-def vm_rate(machine: str, com: Path, job: tuple, files: dict[str, bytes]) -> str:
-    """Program com's frames a second on 86Box's machine, by its own clock: FPS.TXT's, or its output's.
-    com, the job's files and files go to C:\\QB on the VM's disk, removed after."""
+def vm_stage(image: Path, d: Path, com: Path, job: tuple, files: dict[str, bytes], last: str) -> Path:
+    """com, the job's files and files put in C:\\QB on image, d the scratch: RUN.BAT, which runs the job
+    there into OUT.TXT, then last, a DOS command."""
+    prog, _, args, own = dosrun.job(job)
+    qb = d / "QB"
+    qb.mkdir()
+    shutil.copy(com, qb / com.name.upper())
+    if com.suffix.lower() == ".exe" and (com.parent / "DOS32A.EXE").exists():
+        shutil.copy(com.parent / "DOS32A.EXE", qb / "DOS32A.EXE")
+    for n, data in (files | {k: v.encode("latin-1") if isinstance(v, str) else v for k, v in own.items()}).items():
+        (qb / n.upper()).parent.mkdir(parents=True, exist_ok=True)
+        (qb / n.upper()).write_bytes(data)
+    run = f"{com.name.upper()} {'DEMO.BAS' if prog else ''} {args}".strip()
+    if prog:
+        (qb / "DEMO.BAS").write_bytes(prog.encode("latin-1"))
+    (qb / "J.IN").write_bytes(b"")
+    bat = d / "RUN.BAT"
+    bat.write_bytes(f"@ECHO OFF\r\nCD \\QB\r\n{run} < J.IN > OUT.TXT\r\n{last}\r\n".encode())
+    mtools("mdeltree", image, "::QB", check=False)
+    mtools("mcopy", image, "-s", "-o", str(qb), "::")
+    mtools("mcopy", image, "-o", str(HL86 / "src/headless/examples/hlexit.com"), "::HLEXIT.COM")
+    return bat
+
+
+def hl86_module():  # noqa: ANN201
     sys.path.insert(0, str(HL86 / "src/headless"))
     import hl86
 
+    return hl86
+
+
+def vm_rate(machine: str, com: Path, job: tuple, files: dict[str, bytes]) -> str:
+    """Program com's frames a second on 86Box's machine, by its own clock: FPS.TXT's, or its output's.
+    com, the job's files and files go to C:\\QB on the VM's disk, removed after."""
+    hl86 = hl86_module()
     image = HL86_VMS / MACHINES[machine] / "c.img"
-    prog, _, args, own = dosrun.job(job)
     with tempfile.TemporaryDirectory() as d:
-        qb = Path(d) / "QB"
-        qb.mkdir()
-        shutil.copy(com, qb / com.name.upper())
-        if com.suffix.lower() == ".exe" and (com.parent / "DOS32A.EXE").exists():
-            shutil.copy(com.parent / "DOS32A.EXE", qb / "DOS32A.EXE")
-        for n, data in (files | {k: v.encode("latin-1") if isinstance(v, str) else v for k, v in own.items()}).items():
-            (qb / n.upper()).parent.mkdir(parents=True, exist_ok=True)
-            (qb / n.upper()).write_bytes(data)
-        run = f"{com.name.upper()} {'DEMO.BAS' if prog else ''} {args}".strip()
-        if prog:
-            (qb / "DEMO.BAS").write_bytes(prog.encode("latin-1"))
-        (qb / "J.IN").write_bytes(b"")
-        bat = Path(d) / "RUN.BAT"
-        bat.write_bytes(f"@ECHO OFF\r\nCD \\QB\r\n{run} < J.IN > OUT.TXT\r\nC:\\HLEXIT.COM 0\r\n".encode())
-        mtools("mdeltree", image, "::QB", check=False)
-        mtools("mcopy", image, "-s", "-o", str(qb), "::")
-        mtools("mcopy", image, "-o", str(HL86 / "src/headless/examples/hlexit.com"), "::HLEXIT.COM")
+        bat = vm_stage(image, Path(d), com, job, files, "C:\\HLEXIT.COM 0")
         try:
             r = hl86.run_dos(HL86 / "build/src/86Box-headless", image.parent, HL86_ROMS, bat, timeout=1800)
             fps = mtools("mtype", image, "::QB/FPS.TXT", check=False).decode("latin-1")
@@ -1251,6 +1265,8 @@ def cmd_demos(a: argparse.Namespace) -> int:
     b = build(".", True)
     qbx = (b.dos.parent / "lib/gfx.qbx").read_bytes()
     own = {n: (DEMOS / n).read_bytes() for n in ("stage.bas", "meter.bas")}
+    if a.machine:
+        return demos_on(a, b.dos, qbx, own)
     if a.profile:
         with tempfile.TemporaryDirectory() as d:
             com = profiled(b, Path(d))
@@ -1262,8 +1278,6 @@ def cmd_demos(a: argparse.Namespace) -> int:
             jobs = [("", "", f"{s:g}") for s in DEMO_PROFILE_SECONDS]
             print_frame_profile(exe.name, exe, jobs, a.cycles, {}, a.n)
         return 0
-    if a.machine:
-        return demos_on(a, b.dos, qbx, own)
     print(f"320x200 at 8 bits on DOS (pentium), {a.cycles} cycles a ms, frames a second over {a.seconds:g} s")
     for name in a.demo or DEMO_EDITS:
         edits = DEMO_EDITS[name]
@@ -1279,8 +1293,131 @@ def cmd_demos(a: argparse.Namespace) -> int:
     return 0
 
 
+def le_object(exe: Path, n: int = 1) -> bytes:
+    """LE executable exe's object n as its file holds it, before fixups: its pages in turn."""
+    b = exe.read_bytes()
+    le = b.find(b"LE\0\0")
+    pages, page, last = (struct.unpack_from("<I", b, le + at)[0] for at in (0x14, 0x28, 0x2C))
+    table, data = (struct.unpack_from("<I", b, le + at)[0] for at in (0x40, 0x80))
+    size, _, _, first, count = struct.unpack_from("<5I", b, le + table + 24 * (n - 1))
+    out = b"".join(
+        b[data + (p - 1) * page : data + (p - 1) * page + (last if p == pages else page)]
+        for p in range(first, first + count)
+    )
+    return out[:size]
+
+
+def object_base(memory: bytes, code: bytes) -> int:
+    """Where code lies in memory: windows of it found once each, voting for their place less their offset.
+    A fixup changes a window's bytes, so a window holding one finds nothing."""
+    votes: dict[int, int] = {}
+    for at in range(0, len(code) - 32, max(32, len(code) // 256)):
+        w = code[at : at + 32]
+        found = memory.find(w)
+        if len(set(w)) > 4 and found >= 0 and memory.find(w, found + 1) < 0:
+            votes[found - at] = votes.get(found - at, 0) + 1
+    base = max(votes, key=votes.__getitem__, default=-1)
+    if votes.get(base, 0) < 16:
+        sys.exit(f"profile: the program's code not found in memory ({votes.get(base, 0)} windows)")
+    return base
+
+
+def map_functions(listing: str) -> list[tuple[int, str]]:
+    """The map's functions in object 1, by offset."""
+    found = re.findall(r"(?m)^0001:([0-9a-f]{8})\*?\s+(\S+)", listing)
+    return sorted((int(at, 16), name) for at, name in found)
+
+
+@dataclass(frozen=True)
+class Samples:
+    by: dict[str, int]  # by function, "(outside)" the program's code
+    at: dict[tuple[str, int], int]  # by function and offset in it
+    frames: int
+    interval_us: int
+    mhz: float
+
+
+def vm_samples(machine: str, exe: Path, job: tuple, files: dict[str, bytes]) -> Samples:
+    """exe's job on 86Box's machine, its CPU's place sampled every 10 emulated us from boot: the samples
+    by function of the map beside exe, and the frames the job drew (its output's last number)."""
+    hl86 = hl86_module()
+    image = HL86_VMS / MACHINES[machine] / "c.img"
+    with tempfile.TemporaryDirectory() as d:
+        bat = vm_stage(image, Path(d), exe, job, files, "ECHO QB-DONE")
+        orig = hl86.dos_get(image, "AUTOEXEC.BAT")
+        auto = Path(d) / "AUTOEXEC.BAT"
+        auto.write_bytes(b"@ECHO OFF\r\nPATH C:\\DOS\r\nC:\\RUN.BAT\r\n")
+        hl86.dos_put(image, bat, "RUN.BAT")
+        hl86.dos_put(image, auto, "AUTOEXEC.BAT")
+        sock = Path(d) / "s"
+        proc = hl86.launch(HL86 / "build/src/86Box-headless", image.parent, HL86_ROMS, sock, unthrottled=True)
+        try:
+            with hl86.Client(sock, timeout=1800.0) as c:
+                c.profile_start(interval_us=10)
+                c.wait_text(r"QB-DONE", timeout=1800.0)
+                c.profile_stop(Path(d) / "pcs.json")
+                memory = c.mem_read(0, 16 << 20, Path(d) / "mem.bin")  # the VMs' 16 MB
+                mhz = float(c.status()["cpu_hz"]) / 1e6
+                c.quit()
+            proc.wait(timeout=60)
+            out = mtools("mtype", image, "::QB/OUT.TXT", check=False).decode("latin-1")
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+            auto.write_bytes(orig)
+            hl86.dos_put(image, auto, "AUTOEXEC.BAT")
+            mtools("mdeltree", image, "::QB", check=False)
+            mtools("mdel", image, "::RUN.BAT", check=False)
+        pcs = json.loads((Path(d) / "pcs.json").read_text())
+    code = le_object(exe)
+    base = object_base(memory, code)
+    funcs = map_functions(exe.with_suffix(".map").read_text())
+    starts = [at for at, _ in funcs]
+    by: dict[str, int] = {}
+    at: dict[tuple[str, int], int] = {}
+    for pc, n in pcs["pcs"].items():
+        off = int(pc, 16) - base
+        i = bisect.bisect_right(starts, off) - 1
+        name = funcs[i][1] if 0 <= off < len(code) and i >= 0 else "(outside)"
+        by[name] = by.get(name, 0) + n
+        if name != "(outside)":
+            at[name, off - funcs[i][0]] = at.get((name, off - funcs[i][0]), 0) + n
+    frames = re.findall(r"(?m)^\s*\d+(?:\.\d+)?\s+(\d+)\s*$", out)
+    if not frames:
+        sys.exit(f"profile: no frames in the output: {out[-200:]!r}")
+    return Samples(by, at, int(frames[-1]), int(pcs["interval_us"]), mhz)
+
+
+def print_vm_profile(
+    name: str, machine: str, exe: Path, jobs: list[tuple], files: dict[str, bytes], n: int, inside: list[str]
+) -> None:
+    """Each function's cycles a frame on 86Box's machine, by time sampled: the longer job's less the
+    shorter's, over the frames between, so the start-up drops out. Each of inside's functions by
+    offset too: a sample lands on its block's first instruction."""
+    a, b = (vm_samples(machine, exe, j, files) for j in jobs)
+    frames = b.frames - a.frames
+    per = b.interval_us * b.mhz / frames
+    cycles = {f: (b.by.get(f, 0) - a.by.get(f, 0)) * per for f in b.by}
+    total = sum(cycles.values())
+    print(f"{name} on {machine}: {total:,.0f} cycles a frame ({b.mhz * 1e6 / total:.1f} fps), {frames} frames")
+    for f, c in sorted(cycles.items(), key=lambda kv: -kv[1])[:n]:
+        print(f"{c:>12,.0f} {c / total:6.1%}  {f}")
+    for f in inside:
+        offs = {k[1]: (v - a.at.get(k, 0)) * per for k, v in b.at.items() if k[0] == f}
+        print(f"{f}, by offset:")
+        for off, c in sorted(offs.items(), key=lambda kv: -kv[1])[:n]:
+            print(f"{c:>12,.0f} {c / total:6.1%}  +{off:#x}")
+
+
 def demos_on(a: argparse.Namespace, com: Path, qbx: bytes, own: dict[str, bytes]) -> int:
     """demos --machine: each demo with every edit but vsync, then each EXE, on 86Box's machine."""
+    if a.profile:
+        with tempfile.TemporaryDirectory() as d:
+            exe = profiled(build(".", True), Path(d))
+            for name in a.demo or DEMO_EDITS:
+                jobs = [(demo_program(name, t, False, a.edits or 0), "", "", own) for t in (a.seconds / 2, a.seconds)]
+                print_vm_profile(name, a.machine, exe, jobs, {"lib/gfx.qbx": qbx}, a.n, a.at or [])
+        return 0
     print(f"320x200 at 8 bits on 86Box ({a.machine}), frames a second over {a.seconds:g} s")
     for name in a.demo or DEMO_EDITS:
         job = (demo_program(name, a.seconds, False, 0), "", "", own)
@@ -1542,6 +1679,7 @@ def main() -> int:
     p.add_argument("exes", nargs="*", help="a DOS program built elsewhere, writing its rate to FPS.TXT")
     p.add_argument("--cycles", type=int, default=25000, help="DOSBox's cycles a virtual ms")
     p.add_argument("--machine", choices=list(MACHINES), help="on 86Box's 486DX2-66, Pentium 100 or Pentium Pro 200")
+    p.add_argument("--at", action="append", help="--machine --profile: this function's cycles by offset too")
     p.add_argument("--demo", action="append", choices=list(DEMO_EDITS), help="a demo to time; all when none")
     p.add_argument("--seconds", type=float, default=10)
     p.add_argument("--profile", action="store_true", help="by function a frame, ours with every edit (normal core)")
