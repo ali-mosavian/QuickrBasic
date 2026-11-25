@@ -13,8 +13,10 @@
  * temporaries, so with a string on the stack it is CALL QJ by an offset instead (qr/qrt.c). Fusion
  * runs a segment at a time, ended where a jump lands or a QJ starts, so neither moves.
  *
- * A for loop is QBasic's FOR and NEXT: its limit made inclusive once the loop is entered, so its
- * next fuses to I.NEXT.UP or I.NEXT.DN; a step whose sign is known only when run, I.PAST.
+ * A for loop is QBasic's FOR, its limit made inclusive once the loop is entered. Its next steps
+ * only while the limit is a step or more away, so the counter stops at an int's last value:
+ * X.I.COUNT, fused to I.COUNT.UP or .DN when the step's sign is known. A step whose sign is known
+ * only when run enters by I.PAST.
  *
  * A string literal loads from its line's text in the program store; an escape is CHR$ of its
  * byte, joined on.
@@ -2677,17 +2679,21 @@ static void qcg_back(QCg *const g, const QrtWhen when, const uint32_t top)
     qcg_flush(g);
 }
 
-/* Counter i stepped by stp: I.STEP.V, or a resumable's, whose cells are refs, an add. */
-static void qcg_step(Code *const c, QVar *const i, QVar *const stp)
+/* Counter i's next, not past lim, by stp of sign by (0: known only when run): the flag to go on,
+   i stepped then. It stops at an int's last value; comp/fuse.c makes it I.COUNT.UP or .DN. */
+static void qcg_count(
+    Code *const c,
+    QVar *const i,
+    QVar *const lim,
+    QVar *const stp,
+    const int32_t by
+)
 {
     qcg_load(c, i);
-
-    if (qcg_par(stp)) {
-        qcg_load(c, stp);
-        code_op(c, O_I_ADD);
-    } else
-        code_opid(c, O_I_STEP_V, stp->id, false);
-
+    qcg_load(c, lim);
+    qcg_load(c, stp);
+    code_xop(c, X_I_COUNT);
+    code_byte(c, by > 0 ? COUNT_UP : by < 0 ? COUNT_DN : COUNT_BY);
     qcg_store(c, i);
 }
 
@@ -3099,19 +3105,17 @@ static void qcg_again(QCg *const g, const QIter *const it, const uint32_t line)
 {
     Code *const c = g->c;
 
-    if (it->from != QO_GEN) {
-        qcg_step(c, it->i, it->stp);
-        qcg_beyond(g, it);
-    }
+    if (it->from != QO_GEN)
+        qcg_count(c, it->i, it->lim, it->stp, it->rev ? -1 : 1);
 
-    const QrtWhen when = it->from == QO_GEN ? QJ_ALWAYS : QJ_FALSE;
+    const QrtWhen when = it->from == QO_GEN ? QJ_ALWAYS : QJ_TRUE;
 
     if (line == g->line) {
         qcg_back(g, when, it->top);
         return;
     }
 
-    static const uint8_t ops[] = {[QJ_ALWAYS] = O_JMP, [QJ_FALSE] = O_I_JF};
+    static const uint8_t ops[] = {[QJ_ALWAYS] = O_JMP, [QJ_TRUE] = O_I_JT};
 
     code_op(c, ops[when]);
     code_dword(c, line);
@@ -3291,7 +3295,7 @@ static const QStmt *qcg_endif(const QStmt *s)
 static QVar *qcg_counter(const QStmt *const s) { return s->each ? s->index : s->var; }
 
 /* The flag of for s's counter past its limit, its step's sign known (by) or not (I.PAST).
-   entered: the limit inclusive, as next has it; else the range's end, past when reached. */
+   entered: the limit inclusive; else the range's end, past when reached. */
 static void qcg_past(QCg *const g, const QStmt *const s, const bool entered)
 {
     Code *const c = g->c;
@@ -3867,7 +3871,7 @@ static void qcg_body(QCg *const g, const QStmt *const s)
 
         return;
 
-    case QS_ENDFOR: { /* NEXT's six ops (comp/fuse.c): I.NEXT.UP or I.NEXT.DN */
+    case QS_ENDFOR: { /* NEXT's six ops (comp/fuse.c): I.COUNT.UP or I.COUNT.DN */
         const QStmt *const f = s->link;
 
         if (f->fn) {
@@ -3890,9 +3894,8 @@ static void qcg_body(QCg *const g, const QStmt *const s)
             return;
         }
 
-        qcg_step(c, qcg_counter(f), f->stp);
-        qcg_past(g, f, true);
-        qcg_to(g, O_I_JF, f, BOFF, TO_STMT);
+        qcg_count(c, qcg_counter(f), f->lim, f->stp, f->by);
+        qcg_to(g, O_I_JT, f, BOFF, TO_STMT);
         return;
     }
 

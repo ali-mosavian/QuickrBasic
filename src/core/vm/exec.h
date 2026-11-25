@@ -79,6 +79,8 @@ enum { VID = 4 };
 enum { NEXT_SIZE = 1 + 3 * VCELL + sizeof(Jump) };
 /* E.NEXT: i, a and x cells, x's bytes (2; 0 a number's of 4 or 8 in a cell), the Jump back */
 enum { E_NEXT_SIZE = NEXT_SIZE + 2 };
+/* X.I.COUNT k's k: the step's sign, known (comp/fuse.c fuses those) or COUNT_BY the step's own. */
+enum : uint8_t { COUNT_BY, COUNT_UP, COUNT_DN };
 /* L.TO.V x k's k: x's operator; with LTO_INT the value popped an INT's. */
 enum : uint8_t { LTO_ADD, LTO_SUB, LTO_MUL, LTO_INT = 4 };
 /* EOL.TO: the next line, its code's offset in the cache */

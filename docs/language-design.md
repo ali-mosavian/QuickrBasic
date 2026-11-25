@@ -301,7 +301,6 @@ let sign = 1 if x >= 0 else -1
 - A slice is a new value: a string's a new string, a list's a new list of copies. Its ends are
   clamped to the elements, so `s[..100]` of a shorter `s` is all of it. `s[i]` past the end is a
   runtime error, Subscript out of range.
-- **Not yet:** a `for` stepping past an `int`'s last value stops with Overflow.
 
 ### Records
 
@@ -717,7 +716,7 @@ next
 - A generator's call in a chain is kept as a `var`'s would be: each element is a `next()`.
 - There are no comprehensions.
 - **In the VM**, a chain is a loop within its statement's line: its start a label, its counter
-  stepped and tested by the ops a `for`'s `next` uses, fused to one `I.NEXT`. With a string
+  stepped and tested by the ops a `for`'s `next` uses, fused to one `I.COUNT`. With a string
   on the stack under it, its jumps are `QJ`s. A `for` over a chain starts it and runs its steps
   on the `for`'s line; `next` steps its counter.
 
@@ -945,7 +944,7 @@ The rule: a spelling change costs nothing, and what the source does not ask for 
 | `print a; b` builds no string | each value is written as it is |
 | Owned values free deterministically | lists, dicts and records free with their owner; only strings are collected |
 | `for x in a` checks no bounds | the loop owns the range; `a[i]` checks. **In the VM:** `x` is a copy its loop's `next` loads, unchecked: a number, an enum, a record of them. A string, a record holding strings or lists, and a `for mut`'s `x` are `a(i)`, checked. A resumable generator's loop copies numbers of 4 or 8 bytes |
-| `for i = a to b` is QBasic's FOR | its `next` is one fused op, `I.NEXT.UP` or `I.NEXT.DN`; a step whose sign is known only when run, `I.PAST` |
+| `for i = a to b` is QBasic's FOR | its `next` is one fused op, `I.COUNT.UP` or `I.COUNT.DN`: it steps only while the limit is a step or more away, so it stops at an `int`'s last value. A step whose sign is known only when run is `X.I.COUNT`, and `I.PAST` on entry |
 | Errors are values | a tag and a value; no unwinding |
 | Heavily used library calls are ops | `math.sqrt` compiles to the VM's sqrt op, not a call |
 | Small functions inline | `Vec` arithmetic costs what the field arithmetic costs |

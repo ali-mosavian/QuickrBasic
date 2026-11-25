@@ -440,6 +440,20 @@ void flow_i_count_dn(Session *const S) { next(S, 0, false, hot_count_next); }
 void flow_i_count_up_l(Session *const S) { next(S, S->vm.fp, true, hot_count_next); }
 void flow_i_count_dn_l(Session *const S) { next(S, S->vm.fp, false, hot_count_next); }
 
+/* X.I.COUNT k ( n lim step -- go n' ): I.COUNT's of cells it cannot name, a generator's refs, or
+   of a step whose sign is known only when run (k COUNT_BY). */
+void flow_i_count(Session *const S)
+{
+    Vm *const v = &S->vm;
+    const uint8_t k = exec_u8(v);
+    const uint32_t step = exec_pop(v).u;
+    const uint32_t lim = exec_pop(v).u;
+    uint32_t n = exec_pop(v).u;
+    const bool up = k == COUNT_BY ? !(step >> 31) : k == COUNT_UP;
+    exec_pushi(v, hot_counted(&n, lim, step, up) ? -1 : 0);
+    exec_pushi(v, (int32_t)n);
+}
+
 /* I.JFC ... (comp/fuse.c): an INT compare, then JF's jump unless it is true. */
 #define X(name, src)                                                                               \
     void flow_##name(Session *const S)                                                             \

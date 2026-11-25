@@ -6085,7 +6085,7 @@ static void qsem_cond_of(QSem *const S, QStmt *const s)
 }
 
 /* for i = a to b [step s], for i in a..b: ints; a constant step not 0. Its limit and step are variables, as
-   I.NEXT's (qr/qcg.c); by its step if constant, else 0. */
+   I.COUNT's (qr/qcg.c); by its step if constant, else 0. */
 static void qsem_loop(QSem *const S, const QStmt *const s)
 {
     S->loops = qast_room(S->mem, S->loops, S->nloops, &S->caploops, sizeof *S->loops);

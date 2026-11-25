@@ -344,6 +344,8 @@ XOP(F_IF, oper_f_if, 2, 0)
 XOP(L_SUB, oper_l_sub, 2, FX + FK)
 XOP(L_ADD_U8, oper_l_add_u8, 3, FX + FK)
 XOP(L_SUB_U8, oper_l_sub_u8, 3, FX + FK)
+/* Quickr's NEXT unfused ( n lim step -- go n' ): k (exec.h COUNT_*) */
+XOP(I_COUNT, flow_i_count, 3, 0)
 #undef XOP
 #endif
 
