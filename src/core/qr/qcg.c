@@ -25,8 +25,10 @@
  * offset, a nested one's offsets added at compile time. A list is a dynamic array: an element
  * I.LD.A1 and its kin, a record's RA.ADDR, a field's list's FE.ADDR, a fixed array field's
  * FX.IDX; its methods and an f-string's specs are CALL QX (qr/qrt.c). A record or list result is
- * written through a last parameter, the caller's place. A select case is QBasic's: its value held,
- * each case's line its tests, past the case before's JMP to end select.
+ * written through a last parameter, the caller's place. A call, a fn value's, a native's, or a
+ * list's or a map's that may grow or shrink, is held as QBasic's is (comp/code.h code_calling). A
+ * select case is QBasic's: its value held, each case's line its tests, past the case before's JMP
+ * to end select.
  *
  * # Example
  *    while i < n          I.LD.V i, I.JFC.V n < (wend's line, BOFF)
@@ -1228,10 +1230,13 @@ static void qcg_elem(QCg *const g, const QExpr *const e)
     const QExpr *const a = e->a;
     const QTy *const y = qcg_ty(g, a->type);
 
-    if (y->kind == QT_MAP) {
+    if (y->kind == QT_MAP) { /* an insert may grow the map */
+        const bool waiting = code_calling(c, e->insert);
         qcg_mapargs(g, a, e->b);
         code_int(c, e->insert ? QM_SET : QM_READ);
         qcg_x(c, QX_MAPAT);
+        code_called(c, waiting, e->insert);
+        c->held = true;
         return;
     }
 
@@ -1395,8 +1400,17 @@ static bool qcg_byindex(const QCg *const g, const QExpr *const e)
     return e->kind == QE_INDEX && !qcg_held(g, e->a) && qcg_list(g, e->a->type);
 }
 
-/* Scalar place e's value pushed. */
+static void qcg_loadfrom(QCg *g, const QExpr *e);
+
+/* Scalar place e's value pushed: an address it pushes taken by the load. */
 static void qcg_loadat(QCg *const g, const QExpr *const e)
+{
+    const bool held = g->c->held;
+    qcg_loadfrom(g, e);
+    g->c->held = held;
+}
+
+static void qcg_loadfrom(QCg *const g, const QExpr *const e)
 {
     Code *const c = g->c;
 
@@ -1724,9 +1738,11 @@ static void qcg_set(QCg *const g, const QExpr *const p, const QExpr *const v)
     if (qcg_longto(g, p, v))
         return;
 
+    const bool held = g->c->held;
     const QCgPut put = qcg_before(g, p);
     qcg_as(g, v, p->type);
     qcg_put(g, p, put);
+    g->c->held = held; /* its address taken by the store */
 }
 
 /* Record, tuple or enum value e (QE_NEW) built in place dst, field by field: emptied first when
@@ -1857,6 +1873,7 @@ static void qcg_icall(QCg *const g, const QExpr *const e, const QExpr *const dst
 {
     const QTy *const y = qcg_ty(g, e->a->type);
     uint32_t held = 0;
+    const bool waiting = code_calling(g->c, true);
 
     for (uint32_t k = 0; k < e->nargv; k++)
         qcg_arg(g, e->argv[k], y->fields[k].type, &held);
@@ -1867,6 +1884,7 @@ static void qcg_icall(QCg *const g, const QExpr *const e, const QExpr *const dst
     qcg_expr(g, e->a);
     g->strings -= held;
     qcg_x(g->c, QX_FNCALL);
+    code_called(g->c, waiting, true);
 }
 
 /* Native fn call e: its entry's steps, each argument as its parameter's type. */
@@ -1875,6 +1893,7 @@ static void qcg_native(QCg *const g, const QExpr *const e)
     Code *const c = g->c;
     const QNat *const nat = e->fn->nat;
     uint32_t held = 0;
+    const bool waiting = code_calling(c, true); /* one may run a lambda */
 
     for (uint32_t i = 0; i < nat->n; i++) {
         const QNatStep st = nat->steps[i];
@@ -1915,6 +1934,7 @@ static void qcg_native(QCg *const g, const QExpr *const e)
     }
 
     g->strings -= held;
+    code_called(c, waiting, true);
 }
 
 /* Fn f called, its arguments pushed. */
@@ -1977,6 +1997,8 @@ static void qcg_call(QCg *const g, const QExpr *const e, const QExpr *const dst)
         return;
     }
 
+    const bool waiting = code_calling(g->c, true);
+
     for (uint32_t k = 0; k < f->npar; k++) {
         const QParam *const p = &f->params[k];
         const QExpr state = f->resumable ? qcg_fieldof(g, e->c, k) : (QExpr){};
@@ -2001,6 +2023,7 @@ static void qcg_call(QCg *const g, const QExpr *const e, const QExpr *const dst)
 
     g->strings -= held;
     qcg_pcall(g, f);
+    code_called(g->c, waiting, true);
 }
 
 /* Lambda application e's arguments, each stored to its parameter's temporary; those read where
@@ -2206,7 +2229,17 @@ static uint32_t qcg_elems(QCg *const g, const QExpr *const a)
     return QX_INLINE;
 }
 
+static void qcg_listdo(QCg *g, const QExpr *e, const QExpr *dst);
+
+/* A list's or a map's method: one may grow, shrink or sort by a lambda. */
 static void qcg_listop(QCg *const g, const QExpr *const e, const QExpr *const dst)
+{
+    const bool waiting = code_calling(g->c, true);
+    qcg_listdo(g, e, dst);
+    code_called(g->c, waiting, true);
+}
+
+static void qcg_listdo(QCg *const g, const QExpr *const e, const QExpr *const dst)
 {
     Code *const c = g->c;
     const QType elem = qcg_ty(g, e->a->type)->elem;
@@ -2444,10 +2477,12 @@ static void qcg_build(QCg *const g, const QExpr *const dst, const QExpr *const e
         }
 
         if (e->builtin == QB_SLICE) { /* the ends first: they may move the heap */
+            const bool waiting = code_calling(g->c, true);
             qcg_ends(g, e);
             qcg_cell(g, e->a);
             qcg_cell(g, dst);
             qcg_x(g->c, QX_LSLICE);
+            code_called(g->c, waiting, true);
             return;
         }
 
@@ -4009,6 +4044,7 @@ void qcg_stmt(QCg *const g, const QStmt *const s)
     g->seg = g->c->out;
     g->nlabels = g->hops = g->strings = 0;
     g->own = s->own;
+    g->c->held = false;
 
     if (g->env->dbg && qcg_stops(s))
         code_op(g->c, O_DBG);

@@ -37,7 +37,7 @@
  *
  * An address on the data stack outside a call's parameters does not follow: one an argument or a
  * field's element waits with while a FUNCTION later in the statement runs, or an event's handler
- * run mid-statement. The compiler holds such a call (comp/codegen.c cg_call): HOLD before it,
+ * run mid-statement. Both compilers hold such a call (comp/code.c code_calling): HOLD before it,
  * UNHOLD after; evnt_run holds such a handler till its RETURN. Meanwhile a sweep moves nothing, the
  * dead left to the next. A hold is sp at its start; an error's unwinding to above it drops it.
  *
@@ -567,19 +567,6 @@ void arry_kill(const Arry *const ay, const Addr h)
     arry_kill_recs(ay, a->data, arry_elem_count(a), a->et);
 }
 
-/* The holds sp is past dropped, past or at when at; any left? A held call runs under its hold, an
-   event's handler at it. */
-static bool arry_held_past(Arry *const ay, const bool at)
-{
-    const Addr sp = addr_of(ay->vm->sp);
-
-    while (ay->nholds &&
-           (ay->holds[ay->nholds - 1] < sp || (at && ay->holds[ay->nholds - 1] == sp)))
-        ay->nholds--;
-
-    return ay->nholds;
-}
-
 void arry_hold(Arry *const ay)
 {
     if (!GROW(ay->holds, ay->holdcap, ay->nholds + 1))
@@ -590,11 +577,17 @@ void arry_hold(Arry *const ay)
 
 void arry_unhold(Arry *const ay)
 {
-    if (arry_held_past(ay, false)) /* a record result pushes none: sp at its hold */
+    if (ay->nholds)
         ay->nholds--;
 }
 
-void arry_unwound(Arry *const ay) { arry_held_past(ay, true); }
+void arry_unwound(Arry *const ay)
+{
+    const Addr sp = addr_of(ay->vm->sp);
+
+    while (ay->nholds && ay->holds[ay->nholds - 1] <= sp)
+        ay->nholds--;
+}
 
 Addr arry_sweep_at(Arry *const ay, Vm *const vm, Addr a)
 {
@@ -602,7 +595,7 @@ Addr arry_sweep_at(Arry *const ay, Vm *const vm, Addr a)
     Freed fs[BATCH];
     uint32_t n = 0;
 
-    if (arry_held_past(ay, false))
+    if (ay->nholds)
         return a;
 
     for (Addr p = ay->allo->bot; p < ay->allo->arrays;) {

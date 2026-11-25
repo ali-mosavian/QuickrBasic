@@ -17,7 +17,7 @@ typedef struct {
     uint8_t *shend;    /* g_cshe */
     uint8_t shclass;   /* g_cshc: code_shclass's answer */
     bool fixdbl;       /* g_xdbl: FIX kept a DOUBLE */
-    bool held;         /* an address of the statement's may wait on the stack: a call is held */
+    bool held;         /* the statement pushed an address into the heap: code_calling holds */
 } Code;
 
 /* A byte past lim dropped, full set */
@@ -28,7 +28,11 @@ static inline void code_byte(Code *const c, const uint8_t b)
     else
         *c->out++ = b;
 }
-static inline void code_op(Code *const c, const uint8_t op) { code_byte(c, op); }
+/* op; one that pushes an address into the heap (code_heapop) holds the statement's calls after it
+   (code_calling) */
+void code_op(Code *c, uint8_t op);
+/* Does op push an address into the heap: R.ADDR, RA.ADDR, V.REF, FE.ADDR? */
+bool code_heapop(uint8_t op);
 void code_opb(Code *c, uint8_t op, uint8_t b);  /* op, a byte */
 void code_xop(Code *c, uint8_t x);              /* X op x: O_X, x */
 void code_opw(Code *c, uint8_t op, uint16_t w); /* op, a word */
@@ -40,6 +44,12 @@ void code_dword(Code *c, uint32_t d);
 void code_insert(Code *c, uint8_t b, uint8_t *at); /* b at at, the code after it moved up */
 void code_int(Code *c, uint32_t n);                /* an INT load: I.LD.U8, I.LD.I16 or I.LD.I32 */
 void code_call(Code *c, uint8_t k);                /* CALL k */
+/* A call's start, one whose code may sweep (sweeps): HOLD when an address into the heap that the
+   statement pushed (code_heapop, FCELL) may wait under it (mem/array.c arry_hold). What
+   code_called takes back. */
+bool code_calling(Code *c, bool sweeps);
+/* The call's end: UNHOLD when code_calling held; its arguments' addresses taken by it. */
+void code_called(Code *c, bool waiting, bool sweeps);
 uint8_t *code_intleaf(Code *c); /* the code's last op if an INT load, else null */
 uint8_t code_shclass(Code *c);  /* cm_shv: the value's SH_*, to shclass too */
 

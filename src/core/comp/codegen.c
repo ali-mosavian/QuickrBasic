@@ -883,8 +883,6 @@ static void cg_ref(Code *const c, const Node *const n)
     } else
         code_opid(c, n->op, n->id, n->par);
 
-    c->held = true;
-
     for (const Node *x = n->a; x != nullptr; x = x->next) /* a fixed array field's, ours */
         if (x->kind == N_INT || x->kind == N_KCALL || x->kind == N_OP)
             gen(c, x);
@@ -1003,19 +1001,15 @@ static void cg_call(Code *const c, const Node *const n)
         return;
     }
 
-    const bool waiting = c->held, held = waiting && n->mode == CALL_PROC;
-
-    if (held)
-        code_xop(c, X_HOLD);
+    const bool user = n->mode == CALL_PROC, waiting = code_calling(c, user);
 
     for (const Node *a = n->b; a != nullptr; a = a->next)
         gen(c, a);
 
-    c->held = waiting; /* the arguments' taken by the call */
-
     if (n->mode == CALL_NATIVE) {
         code_int(c, n->num);
         code_call(c, K_NCALL);
+        code_called(c, waiting, user);
         c->type = n->type;
         c->iload = c->iloadend = nullptr;
         return;
@@ -1029,8 +1023,8 @@ static void cg_call(Code *const c, const Node *const n)
     code_dword(c, n->jump.body);
     code_dword(c, n->jump.dest);
 
-    if (held)
-        code_xop(c, X_UNHOLD);
+    code_called(c, waiting, user);
+
     if (n->a != nullptr) /* a record result's place, ours */
         gen(c, n->a);
 
