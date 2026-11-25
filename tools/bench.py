@@ -599,6 +599,21 @@ FILLS_CASES: dict[str, tuple[str, str, int]] = {
     ),
     "rect": ("", "gfx.draw.rect canvas&, 0, 0, 319, 199, warm&, gfx.draw.FILL", 64000),
     "sprites": ("", "for k = 0 to 14\ngfx.draw.sprite canvas&, (k mod 5) * 64, (k \\ 5) * 64, tex&, 0\nnext", 61440),
+    "flipped": (
+        "",
+        "for k = 0 to 14\ngfx.draw.sprite canvas&, (k mod 5) * 64, (k \\ 5) * 64, tex&, gfx.draw.FLIP_X\nnext",
+        61440,
+    ),
+    "scaled": (
+        "",
+        "for k = 0 to 5\ngfx.draw.sprite_turned canvas&, 1 + (k mod 3) * 100, 1 + (k \\ 3) * 100, 0, 1.5, tex&, 0"
+        "\nnext",
+        55296,
+    ),
+    "blended": ("gfx.draw.set_alpha 32", "gfx.draw.poly canvas&, q(), 0, 4, tex&, 0, gfx.draw.BLEND", 64000),
+    "solid": ("gfx.draw.set_tint warm&", "gfx.draw.poly canvas&, q(), 0, 4, tex&, 0, gfx.draw.SOLID", 64000),
+    "smooth": ("", "gfx.draw.poly canvas&, q(), 0, 4, tex&, 0, gfx.draw.SMOOTH", 64000),
+    "depth": ("", "gfx.draw.poly canvas&, q(), 0, 4, tex&, 0, gfx.draw.DEPTH_WRITE", 64000),
 }
 FILLS_DRAWS = 4
 # the texture's two colours and the shapes', by depth
