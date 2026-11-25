@@ -91,6 +91,15 @@ def demo_colours(b: bench.Build) -> None:
             assert re.fullmatch(r"\s*[\d.]+\s+\d+\s*", r.stdout), f"{name}: {r.stdout}{r.stderr}"
 
 
+def demo_one_world() -> None:
+    """demos' runs draw one world and, by frames, one frame n. ISLES seeded its islands and boats from the timer, so
+    two builds profiled drew two worlds: a third of one's frame was circles the other never drew."""
+    for name in bench.DEMO_EDITS:
+        assert "randomize timer" not in bench.demo_program(name, 1, False, 0), name
+        framed = bench.demo_program(name, 0, False, 0, 5)
+        assert "gfx.display.clock" not in framed and "frames& >= 5" in framed, name
+
+
 def fps_start_up() -> None:
     """fps --profile's baseline is the start-up alone: one frame logged. Without it the frames' profile held the
     start-up's sprites and tables, a third of a run (STR$'s digits 1.3M calls that no frame makes)."""
@@ -267,6 +276,7 @@ def vm_object_base() -> None:
 def main() -> int:
     stdlib_absent()
     each_reps()
+    demo_one_world()
     charlie_each()
     charlie_think()
     kind_compares()

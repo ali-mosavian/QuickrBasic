@@ -1114,16 +1114,32 @@ DEMO_FLIP = """{i}gfx.display.flip
 {i}end if"""
 
 
-def demo_program(name: str, seconds: float, vsync: bool, edits: int) -> str:
-    """Demo name at 320x200x8, timed for seconds."""
-    src = (DEMOS / f"{name}.BAS").read_text()
+# a frame counted, the demo ended once it has drawn frames
+DEMO_FLIP_FRAMES = """{i}gfx.display.flip
+{i}frames& = frames& + 1
+{i}if frames& >= {frames} then
+{i}    gfx.display.close
+{i}    print 0; frames&
+{i}    end
+{i}end if"""
+# demos --machine --profile: each machine's frames in the shorter run, twice that in the longer
+MACHINE_FRAMES = {"486": 6, "p5": 24, "p6": 60}
+
+
+def demo_program(name: str, seconds: float, vsync: bool, edits: int, frames: int = 0) -> str:
+    """Demo name at 320x200x8, timed for seconds, its seed fixed so each run draws one world. frames: that many
+    drawn, the demo's clock the frames at 30 a second, so frame n is the same whatever the build's speed."""
+    src = (DEMOS / f"{name}.BAS").read_text().replace("randomize timer\n", "randomize 1\n")
+    if frames:
+        src = src.replace("gfx.display.clock", "(frames& / 30#)")
     src, w = re.subn(r"(?m)^const W = \d+$", "const W = 320", src)
     src, h = re.subn(r"(?m)^const H = \d+$", "const H = 200", src)
     flags = "gfx.display.VSYNC" if vsync else "0"
     src, o = re.subn(r"gfx\.display\.open\(W, H, \d+, gfx\.display\.VSYNC\)",
                      f"gfx.display.open(W, H, 8, {flags})", src)
+    flip = DEMO_FLIP_FRAMES if frames else DEMO_FLIP
     src, f = re.subn(r"(?m)^(\s*)gfx\.display\.flip$",
-                     lambda m: DEMO_FLIP.format(i=m[1], seconds=seconds), src)
+                     lambda m: flip.format(i=m[1], seconds=seconds, frames=frames), src)
     assert all(n == 1 for n in (w, h, o, f)), f"{name}: its size, open or flip not found once"
     for _, old, new in DEMO_EDITS[name][:edits]:
         assert src.count(old) == 1, f"{name}: {old!r} not found once"
@@ -1491,16 +1507,18 @@ def print_vm_profile(
 
 def demos_on(a: argparse.Namespace, own: dict[str, bytes]) -> int:
     """demos --machine: each demo as shipped but for vsync, built from each --rev and the tree, then
-    each EXE, on 86Box's machine. --profile: the tree's, by function."""
+    each EXE, on 86Box's machine. --profile: each build's, by function."""
     builds = [(rev, build(rev, True)) for rev in [*(a.rev or []), "."]]
     libs = [{"lib/gfx.qbx": (b.dos.parent / "lib/gfx.qbx").read_bytes()} for _, b in builds]
     if a.profile:
-        with tempfile.TemporaryDirectory() as d:
-            exe = profiled(builds[-1][1], Path(d))
-            for name in a.demo or DEMO_EDITS:
-                jobs = [(demo_program(name, t, False, a.edits or 0), "", "", own) for t in (a.seconds / 2, a.seconds)]
-                lined = builds[-1][1] if a.lines else None
-                print_vm_profile(name, a.machine, exe, jobs, libs[-1], a.n, a.at or [], lined)
+        for (rev, b), lib in zip(builds, libs, strict=True):
+            with tempfile.TemporaryDirectory() as d:
+                exe = profiled(b, Path(d))
+                for name in a.demo or DEMO_EDITS:
+                    f = a.frames or MACHINE_FRAMES[a.machine]
+                    jobs = [(demo_program(name, 0, False, a.edits or 0, n), "", "", own) for n in (f, 2 * f)]
+                    print(f"== {rev}")
+                    print_vm_profile(name, a.machine, exe, jobs, lib, a.n, a.at or [], b if a.lines else None)
         return 0
     print(f"320x200 at 8 bits on 86Box ({a.machine}), frames a second over {a.seconds:g} s")
     print(f"{'':12}" + "".join(f"{rev:>10}" for rev, _ in builds))
@@ -1767,6 +1785,7 @@ def main() -> int:
     p.add_argument("--machine", choices=list(MACHINES), help="on 86Box's 486DX2-66, Pentium 100 or Pentium Pro 200")
     p.add_argument("--at", action="append", help="--machine --profile: this function's cycles by offset too")
     p.add_argument("--lines", action="store_true", help="--at: by source line, not offset")
+    p.add_argument("--frames", type=int, help="--machine --profile: frames in the shorter run, twice in the longer")
     p.add_argument("--rev", action="append", help="--machine: a revision's build timed too, before the tree's")
     p.add_argument("--demo", action="append", choices=list(DEMO_EDITS), help="a demo to time; all when none")
     p.add_argument("--seconds", type=float, default=10)
