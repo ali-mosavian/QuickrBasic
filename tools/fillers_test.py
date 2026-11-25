@@ -12,8 +12,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 FILL = "build/c/gfx/stdlib/gfx/src/backend/soft/fill.obj"
 OBJDUMP = os.environ.get("OBJDUMP", "objdump")
-# inked, stepped, and rows keyed or flipped; a span's fill and an opaque row's copy are one call a span
-DRAWS = re.compile(r"_fill\d+_(from\d+_\d+|stepped_\w+|keyed\w*|opaque_flipped|affine_\d+|persp_\d+)$")
+# inked, and rows keyed or flipped; a span's fill and an opaque row's copy are one call a span
+DRAWS = re.compile(r"_fill\d+_(from\d+_\d+|keyed\w*|opaque_flipped|affine_\d+|persp_\d+)$")
 ROWS = re.compile(r"_fill\d+_(affine|persp)_\d+$")  # a polygon's row fillers, each format's
 CALL = re.compile(r"\b(?:call|jmp)\w*\s+\S+ <(\w+)")
 RELOC = re.compile(r"(?:IMAGE_REL_I386_REL32|DISP32)\s+(\S+)")  # a call's relocation, by LLVM's name and GNU's
@@ -38,7 +38,7 @@ def main() -> int:
     drawn = {f for f in re.findall(r"<(\w+)>:", listing) if DRAWS.search(f)}
     assert len(drawn) > 100, f"{len(drawn)} fillers found"
     rows = {f for f in drawn if ROWS.search(f)}
-    assert len(rows) == 4 * (16 + 8), f"{len(rows)} row fillers found"
+    assert len(rows) == 4 * (24 + 8), f"{len(rows)} row fillers found"
     assert not out, f"fillers that leave themselves: {sorted(out.items())[:4]} ({len(out)})"
     print("ok")
     return 0

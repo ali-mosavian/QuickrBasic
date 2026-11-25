@@ -24,15 +24,21 @@ void soft_sprite(
     const bool flip_x = flags & GFX_DRAW_FLIP_X, flip_y = flags & GFX_DRAW_FLIP_Y;
     const int32_t u = flip_x ? s->w - 1 - (drawn.x - left) : drawn.x - left;
     const bool plain = span_fused(t, s);
-    const Textured walk = {.t = t, .s = s, .opaque = flags & GFX_DRAW_OPAQUE};
+    RowAffine *const inked =
+        t->fill->inked[s->format][fill_variant(&t->ink, t->px.format, s->format)];
+    const Rows r = {
+        .dst = t->px,
+        .src = *s,
+        .ink = &t->ink,
+        .du = flip_x ? -65536 : 65536,
+    };
 
     for (int32_t y_ = drawn.y; y_ < drawn.y + drawn.h; y_++) {
         const int32_t v = flip_y ? s->h - 1 - (y_ - top) : y_ - top;
-        const Steps st = {u << 16, v << 16, flip_x ? -65536 : 65536, 0, 0};
 
         if (plain)
             row(span_at(t, drawn.x, y_), s->p + v * s->pitch + u * px_bytes(s->format), drawn.w);
         else
-            span_texels(&walk, drawn.x, y_, drawn.w, st, 0, 0);
+            inked(&r, y_, drawn.x, drawn.x + drawn.w, u << 16, v << 16, 0);
     }
 }

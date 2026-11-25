@@ -9,19 +9,9 @@ static ScanVert qgl_corner(const float x, const float y, const float u, const fl
     return (ScanVert){x + 0.5f, y + 0.5f, 1, u - 0.5f, v - 0.5f};
 }
 
-/* an affine span: its walk, u wrapped when it wraps */
-static void textured(void *const ctx, const ScanSpan *const sp)
-{
-    const Textured *const x = ctx;
-    const int32_t wrap = x->wrap ? x->s->w << 16 : 0;
-    const Steps st = steps_from(sp->u, sp->v, sp->du, sp->dv, wrap);
-
-    span_texels(x, sp->x0, sp->y, sp->x1 - sp->x0, st, sp->z, sp->dz);
-}
-
-/* a perspective span: span.h walks it in runs */
-static void perspective(void *const ctx, const ScanSpan *const sp) { span_persp(ctx, sp); }
-
+/* A picture's polygon: its row filler picked once, then scanned. The fused fillers when the ink
+   has nothing to do and u does not wrap; an affine row inside the picture, no depth, by its inked
+   filler; any other by the general one; SMOOTH's by its own. */
 static void texture(
     const SoftTarget *const t,
     const Pixels *const s,
@@ -29,33 +19,53 @@ static void texture(
     const uint32_t n,
     const int32_t flags,
     const bool wrap,
-    const ScanMode mode
+    const bool persp
 )
 {
-    const Textured x = {
-        .t = t,
-        .s = s,
-        .opaque = flags & GFX_DRAW_OPAQUE,
-        .wrap = wrap,
-        .test = flags & GFX_DRAW_DEPTH_TEST,
-        .set = flags & GFX_DRAW_DEPTH_WRITE,
-        .smooth = flags & GFX_DRAW_SMOOTH,
+    const Fill *const fill = t->fill;
+    const uint32_t o = flags & GFX_DRAW_OPAQUE ? FILL_OPAQUE : 0;
+    const uint32_t z = t->depth.p ? (flags & GFX_DRAW_DEPTH_TEST ? ROW_TEST : 0) |
+                                        (flags & GFX_DRAW_DEPTH_WRITE ? ROW_WRITE : 0)
+                                  : 0;
+    Rows r = {
+        .dst = t->px,
+        .src = *s,
+        .depth = t->depth,
+        .ink = &t->ink,
+        .depths = z,
+        .wrap = wrap ? s->w << 16 : 0,
     };
 
-    if (span_fused(t, s) && !x.smooth && !wrap) {
-        const uint32_t o = x.opaque ? FILL_OPAQUE : 0;
-        const uint32_t z = t->depth.p ? (x.test ? ROW_TEST : 0) | (x.set ? ROW_WRITE : 0) : 0;
-        Rows r = {.dst = t->px, .src = *s, .depth = t->depth};
-
-        if (mode == SCAN_PTEX)
-            scan_persp(v, n, t->clip, &r, t->fill->persp[o][z]);
+    if (flags & GFX_DRAW_SMOOTH) {
+        if (persp)
+            scan_persp(v, n, t->clip, &r, fill->smooth_persp);
         else
-            scan_affine(v, n, t->clip, &r, t->fill->affine[o][z][0], t->fill->affine[o][z][1]);
+            scan_affine(v, n, t->clip, &r, fill->smooth, fill->smooth);
+    } else if (span_fused(t, s) && !wrap) {
+        if (persp)
+            scan_persp(v, n, t->clip, &r, fill->persp[o][z]);
+        else
+            scan_affine(
+                v,
+                n,
+                t->clip,
+                &r,
+                fill->affine[o][z][ROW_PLAIN],
+                fill->affine[o][z][ROW_HELD]
+            );
+    } else if (span_fused(t, s) && !persp) {
+        RowAffine *const wrapped = fill->affine[o][z][ROW_WRAPPED];
 
-        return;
-    }
+        scan_affine(v, n, t->clip, &r, wrapped, wrapped);
+    } else if (persp)
+        scan_persp(v, n, t->clip, &r, fill->general_persp);
+    else if (!z && !wrap) {
+        RowAffine *const inked =
+            fill->inked[s->format][fill_variant(&t->ink, t->px.format, s->format)];
 
-    scan_poly(v, n, mode, t->clip, mode == SCAN_PTEX ? perspective : textured, (void *)&x);
+        scan_affine(v, n, t->clip, &r, inked, fill->general);
+    } else
+        scan_affine(v, n, t->clip, &r, fill->general, fill->general);
 }
 
 typedef struct {
@@ -120,7 +130,7 @@ void soft_poly(
         v[i] = poly_corner(&c[i], persp);
 
     if (s)
-        texture(t, s, v, n, flags, wrap, persp ? SCAN_PTEX : SCAN_TEX);
+        texture(t, s, v, n, flags, wrap, persp);
     else {
         const Flat f = {t, colour, flags & GFX_DRAW_DEPTH_TEST, flags & GFX_DRAW_DEPTH_WRITE};
 

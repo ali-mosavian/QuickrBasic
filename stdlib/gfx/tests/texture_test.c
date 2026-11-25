@@ -217,9 +217,9 @@ TEST(gfx_soft_perspective_trapezoid)
             CHECK(dst[y * 16 + x] == (y < 4 && x < 8 ? want[y][x] : 1));
 }
 
-/* Walks past a picture's edges, both ways, each texel held inside as steps_texel holds it: the
-   filler draws them in pieces, a coordinate held past its edge. Wrong pixels here were a piece cut
-   at the wrong pixel, a coordinate held at the wrong edge, or held while inside. */
+/* Walks past a picture's edges, both ways, through the held filler: each texel held inside as
+   steps_texel holds it. Wrong pixels here were a coordinate held at the wrong edge, or held while
+   inside. */
 TEST(gfx_soft_walks_held_inside)
 {
     enum { W = 8, H = 4, N = 48 };
@@ -229,11 +229,7 @@ TEST(gfx_soft_walks_held_inside)
     for (uint32_t i = 0; i < W * H; i++)
         tex[i] = (uint8_t)(10 + i);
 
-    const SoftTarget t = {.px = {dst, N, N, 1, PX_8}, .clip = {0, 0, N, 1}, .fill = &fill8};
-
     const Pixels s = {tex, W, W, H, PX_8};
-
-    const Textured x = {.t = &t, .s = &s, .opaque = true};
 
     static const Steps walks[] = {
         {-3 * 65536, -2 * 65536, 0x5800, 0x2400, 0},
@@ -245,8 +241,10 @@ TEST(gfx_soft_walks_held_inside)
 
     for (uint32_t k = 0; k < sizeof walks / sizeof *walks; k++) {
         const Steps st = walks[k];
+        const Rows r = {.dst = {dst, N, N, 1, PX_8}, .src = s, .du = st.du, .dv = st.dv};
+
         memset(dst, 0, sizeof dst);
-        span_texels(&x, 0, 0, N, st, 0, 0);
+        fill8.affine[FILL_OPAQUE][0][1](&r, 0, 0, N, st.u, st.v, 0);
 
         for (int32_t i = 0; i < N; i++) {
             const int32_t u = steps_held((st.u + i * st.du) >> 16, W);
@@ -256,8 +254,8 @@ TEST(gfx_soft_walks_held_inside)
     }
 }
 
-/* Walks that wrap both ways over a width a power of two, which the walk's mask wraps, and over one
-   that is not, cut where u wraps: each texel at u's place wrapped. v sits on a texel's edge, so a
+/* Walks through the general filler that wrap both ways over a width a power of two, which the
+   walk's mask wraps, and over one that is not: each texel at u's place wrapped. v sits on a texel's edge, so a
    borrow from u's half reads the row above. Wrong pixels here were a mask's wrap a texel off, or
    u's bias borrowing from v. */
 TEST(gfx_soft_walks_wrapped)
@@ -269,28 +267,62 @@ TEST(gfx_soft_walks_wrapped)
     for (uint32_t i = 0; i < PITCH * H; i++)
         tex[i] = (uint8_t)(10 + i);
 
-    const SoftTarget t = {.px = {dst, N, N, 1, PX_8}, .clip = {0, 0, N, 1}, .fill = &fill8};
+    const Ink ink = {.source = PX_8};
 
     static const int32_t steps[] = {0x5800, -0x6000, 0x29000, -0x31000};
 
     for (int32_t w = 6; w <= 8; w += 2)
         for (uint32_t k = 0; k < sizeof steps / sizeof *steps; k++) {
-            const Pixels s = {tex, PITCH, w, H, PX_8};
-
-            const Textured x = {
-                .t = &t,
-                .s = &s,
-                .opaque = true,
-                .wrap = true,
+            const int32_t u = 0x18000 + (int32_t)k * 0x7000;
+            const Rows r = {
+                .dst = {dst, N, N, 1, PX_8},
+                .src = {tex, PITCH, w, H, PX_8},
+                .ink = &ink,
+                .du = steps[k],
+                .wrap = w << 16,
             };
 
-            const Steps st =
-                steps_from(0x18000 + (int32_t)k * 0x7000, 2 << 16, steps[k], 0, w << 16);
+            const Steps st = steps_from(u, 2 << 16, steps[k], 0, w << 16);
 
             memset(dst, 0, sizeof dst);
-            span_texels(&x, 0, 0, N, st, 0, 0);
+            fill8.general(&r, 0, 0, N, u, 2 << 16, 0);
 
             for (int32_t i = 0; i < N; i++)
                 CHECK(dst[i] == tex[2 * PITCH + (steps_wrap(st.u + i * st.du, w << 16) >> 16)]);
         }
+}
+
+/* A wrapped strip at 32 bits with nothing to ink: each texel drawn as it is, its alpha byte too.
+   Through the general filler, each was made again from its colour: alpha 0x80 drawn 0xFF, which
+   moved the 15- and 32-bit sums. */
+TEST(gfx_soft_strip_keeps_texels)
+{
+    enum { W = 4, H = 2, N = 8 };
+
+    uint32_t tex[W * H], dst[N * H] = {0};
+
+    for (uint32_t i = 0; i < W * H; i++)
+        tex[i] = 0x80000000u | (0x10 + i) * 0x010101u;
+
+    const SoftTarget t = {
+        .px = {(uint8_t *)dst, N * 4, N, H, PX_32},
+        .clip = {0, 0, N, H},
+        .fill = &fill32,
+        .ink = {.source = PX_32, .shade = PX_WHITE},
+    };
+
+    const Pixels s = {(uint8_t *)tex, W * 4, W, H, PX_32};
+
+    const Corner c[] = {
+        {0, 0, 1, 0, 0},
+        {N, 0, 1, N, 0},
+        {N, H, 1, N, H},
+        {0, H, 1, 0, H},
+    };
+
+    soft_poly(&t, &s, c, 4, 0, GFX_DRAW_OPAQUE, true);
+
+    for (uint32_t y = 0; y < H; y++)
+        for (uint32_t x = 0; x < N; x++)
+            CHECK(dst[y * N + x] == tex[y * W + x % W]);
 }

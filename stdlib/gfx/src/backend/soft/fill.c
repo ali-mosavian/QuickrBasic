@@ -871,7 +871,7 @@ static inline void affine_row(
     const PxFormat f,
     const bool key,
     const uint32_t z,
-    const bool held,
+    const uint32_t walk,
     const Rows *const r,
     const int32_t y,
     const int32_t x0,
@@ -881,7 +881,10 @@ static inline void affine_row(
     const int32_t zd
 )
 {
-    run_at(f, key, z, held, r, y, x0, x1 - x0, (Steps){u, v, r->du, r->dv, 0}, zd);
+    const Steps st = walk == ROW_WRAPPED ? steps_from(u, v, r->du, r->dv, r->wrap)
+                                         : (Steps){u, v, r->du, r->dv, 0};
+
+    run_at(f, key, z, walk != ROW_PLAIN, r, y, x0, x1 - x0, st, zd);
 }
 
 /* RowPersp's, f's texels into f: runs of SCAN_SUBDIVP, each a walk between two divides, held where
@@ -920,6 +923,354 @@ static inline void persp_row(
             run_at(f, key, z, false, r, y, x0 + done, m, st, at);
         else
             run_at(f, key, z, true, r, y, x0 + done, m, st, at);
+
+        p = l;
+    }
+}
+
+/* ---- SMOOTH's and the general row fillers ---- */
+
+/* The texel at u, v, whole texels, held inside s; u wrapped when it wraps. */
+static uint32_t texel_at(const Pixels *const s, const int32_t u, const int32_t v, const bool wrap)
+{
+    const uint32_t bytes = px_bytes(s->format);
+    const int32_t across = wrap ? steps_wrap(u, s->w) : steps_held(u, s->w);
+
+    return px_load(s->p + steps_held(v, s->h) * s->pitch + (uint32_t)across * bytes, bytes);
+}
+
+/* The four texels from u, v to u + 1, v + 1, whole texels, of s, g's: read from one place when
+   all are inside, else each held or wrapped. */
+[[gnu::always_inline]]
+static inline void corners(
+    uint32_t *const out,
+    const PxFormat g,
+    const Pixels *const s,
+    const int32_t u,
+    const int32_t v,
+    const bool wrap
+)
+{
+    const uint32_t bytes = px_bytes(g);
+
+    if ((uint32_t)u < (uint32_t)(s->w - 1) && (uint32_t)v < (uint32_t)(s->h - 1)) {
+        const uint8_t *const p = s->p + (uint32_t)v * s->pitch + (uint32_t)u * bytes;
+
+        out[0] = px_load(p, bytes);
+        out[1] = px_load(p + bytes, bytes);
+        out[2] = px_load(p + s->pitch, bytes);
+        out[3] = px_load(p + s->pitch + bytes, bytes);
+        return;
+    }
+
+    out[0] = texel_at(s, u, v, wrap);
+    out[1] = texel_at(s, u + 1, v, wrap);
+    out[2] = texel_at(s, u, v + 1, wrap);
+    out[3] = texel_at(s, u + 1, v + 1, wrap);
+}
+
+/* A colour's channels, 0 to 1, and its coverage: 1 drawn, 0 keyed. */
+typedef struct {
+    float r, g, b, a;
+} Mix;
+
+/* A channel, 0 to 1: c times a 255th, made once. */
+#define UNIT(c) (float)(c) * (1.0f / 255),
+#define UNITS4(c) UNIT(c) UNIT(c + 1) UNIT(c + 2) UNIT(c + 3)
+#define UNITS16(c) UNITS4(c) UNITS4(c + 4) UNITS4(c + 8) UNITS4(c + 12)
+#define UNITS64(c) UNITS16(c) UNITS16(c + 16) UNITS16(c + 32) UNITS16(c + 48)
+static const float units[256] = {UNITS64(0) UNITS64(64) UNITS64(128) UNITS64(192)};
+
+[[gnu::always_inline]]
+static inline Mix mix_of(const uint32_t argb, const bool drawn)
+{
+    if (!drawn)
+        return (Mix){0, 0, 0, 0};
+
+    return (Mix){units[argb >> 16 & 0xFF], units[argb >> 8 & 0xFF], units[argb & 0xFF], 1};
+}
+
+/* GLSL's mix: a to b by f. */
+[[gnu::always_inline]]
+static inline Mix mix(const Mix a, const Mix b, const float f)
+{
+    const float e = 1 - f;
+    return (Mix){a.r * e + b.r * f, a.g * e + b.g * f, a.b * e + b.b * f, a.a * e + b.a * f};
+}
+
+/* Four texels' ARGB c, those drawn, mixed by fu across and fv down as the GPU's shader mixes
+   them: a keyed texel adds nothing. */
+[[gnu::always_inline]]
+static inline Mix mixed_four(
+    const uint32_t *const c,
+    const bool *const drawn,
+    const float fu,
+    const float fv
+)
+{
+    const Mix top = mix(mix_of(c[0], drawn[0]), mix_of(c[1], drawn[1]), fu);
+    const Mix under = mix(mix_of(c[2], drawn[2]), mix_of(c[3], drawn[3]), fu);
+    return mix(top, under, fv);
+}
+
+static uint32_t channel(const float c) { return (uint32_t)(c * 255 + 0.5f); }
+
+static uint32_t opaque(const float r, const float g, const float b)
+{
+    return PX_OPAQUE | channel(r) << 16 | channel(g) << 8 | channel(b);
+}
+
+/* mixed's colour divided by its coverage into *argb: false, under half covered, not drawn. */
+static bool partly(
+    const uint32_t *const c,
+    const bool *const drawn,
+    const float fu,
+    const float fv,
+    uint32_t *const argb
+)
+{
+    const Mix m = mixed_four(c, drawn, fu, fv);
+
+    if (m.a < 0.5f)
+        return false;
+
+    *argb = opaque(m.r / m.a, m.g / m.a, m.b / m.a);
+    return true;
+}
+
+/* partly's, four drawn: they cover it all, exactly 1, so none is divided. */
+[[gnu::always_inline]]
+static inline bool covered(
+    const uint32_t *const c,
+    const bool *const drawn,
+    const float fu,
+    const float fv,
+    uint32_t *const argb
+)
+{
+    if (!(drawn[0] & drawn[1] & drawn[2] & drawn[3]))
+        return partly(c, drawn, fu, fv, argb);
+
+    const Mix m = mixed_four(c, (const bool[]){true, true, true, true}, fu, fv);
+
+    *argb = opaque(m.r, m.g, m.b);
+    return true;
+}
+
+/* The first of m pixels from i not shown: m, none. */
+static int32_t shown_to(const bool *const shown, int32_t i, const int32_t m)
+{
+    while (i < m && shown[i])
+        i++;
+
+    return i;
+}
+
+enum { SMOOTH_CHUNK = 64 };
+
+/* n pixels at x of row y SMOOTH's way, g's texels into f, SMOOTH_CHUNK at a time: the four
+   texels round each pixel's place through the ink but its blend, mixed, the place half a texel
+   back and its fractions the weights; the mixes shown over the depth there drawn a run at a time,
+   their depth set. A SOLID mix is its colour, where covered. */
+[[gnu::always_inline]]
+static inline void smooth_of(
+    const PxFormat f,
+    const PxFormat g,
+    const Rows *const r,
+    const int32_t y,
+    const int32_t px,
+    const int32_t n,
+    Steps st,
+    int32_t z
+)
+{
+    const uint32_t bytes = px_bytes(f);
+    const int32_t dz = r->dz;
+    uint16_t *const d = r->depths ? r->depth.p + y * r->depth.row + px : nullptr;
+    uint8_t *const out = r->dst.p + y * r->dst.pitch + (uint32_t)px * bytes;
+    Ink k = *r->ink, ink = *r->ink;
+    k.source = g;
+    ink.keyed = false;
+
+    if (!k.solid) {
+        ink.source = PX_32;
+        ink.shade = PX_WHITE;
+    }
+
+    for (int32_t at = 0; at < n; at += SMOOTH_CHUNK) {
+        const int32_t m = n - at < SMOOTH_CHUNK ? n - at : SMOOTH_CHUNK;
+        uint32_t texels[4 * SMOOTH_CHUNK], c[4 * SMOOTH_CHUNK], argb[SMOOTH_CHUNK];
+        bool drawn[4 * SMOOTH_CHUNK], shown[SMOOTH_CHUNK];
+        float fu[SMOOTH_CHUNK], fv[SMOOTH_CHUNK];
+
+        for (int32_t i = 0; i < m; i++, steps_on(&st)) {
+            const int32_t pu = (int32_t)((uint32_t)st.u - 0x8000u),
+                          pv = (int32_t)((uint32_t)st.v - 0x8000u);
+
+            fu[i] = (float)(pu & 0xFFFF) / 65536;
+            fv[i] = (float)(pv & 0xFFFF) / 65536;
+            corners(texels + 4 * i, g, &r->src, pu >> 16, pv >> 16, r->wrap);
+        }
+
+        fill_argb(c, drawn, texels, 4 * m, &k);
+
+        for (int32_t i = 0; i < m; i++, z = depth_on(z, dz, 1)) {
+            const uint16_t here = depth_of(z);
+            uint16_t *const there = d ? d + at + i : nullptr;
+
+            shown[i] = (!there || !(r->depths & ROW_TEST) || depth_shows(*there, here)) &&
+                       covered(c + 4 * i, drawn + 4 * i, fu[i], fv[i], argb + i);
+
+            if (shown[i] && there && r->depths & ROW_WRITE)
+                *there = here;
+        }
+
+        for (int32_t i = 0; i < m;) {
+            const int32_t end = shown_to(shown, i, m);
+
+            if (end > i)
+                ink_of(f, out + (at + i) * (int32_t)bytes, argb + i, end - i, &ink);
+
+            i = end + 1;
+        }
+    }
+}
+
+/* smooth_of, the source's body picked once a row. */
+[[gnu::always_inline]]
+static inline void smooth_row(
+    const PxFormat f,
+    const Rows *const r,
+    const int32_t y,
+    const int32_t x,
+    const int32_t n,
+    const Steps st,
+    const int32_t z
+)
+{
+    switch (r->src.format) {
+    case PX_8:
+        smooth_of(f, PX_8, r, y, x, n, st, z);
+        break;
+
+    case PX_15:
+        smooth_of(f, PX_15, r, y, x, n, st, z);
+        break;
+
+    case PX_16:
+        smooth_of(f, PX_16, r, y, x, n, st, z);
+        break;
+
+    default:
+        smooth_of(f, PX_32, r, y, x, n, st, z);
+    }
+}
+
+/* n pixels at x of row y along st, g's texels into f through the ink a pixel at a time: each texel
+   held inside the picture, u wrapped when it wraps; shown only nearer and its depth set as Rows'
+   depths say, a keyed texel neither. */
+[[gnu::always_inline]]
+static inline void general_of(
+    const PxFormat f,
+    const PxFormat g,
+    const Rows *const r,
+    const int32_t y,
+    const int32_t x,
+    const int32_t n,
+    Steps st,
+    int32_t z
+)
+{
+    const uint32_t b = px_bytes(f), depths = r->depths;
+    const int32_t dz = r->dz;
+    const Ink k = *r->ink; /* a pixel stored may be the ink's, for all the compiler knows */
+    const bool blended = k.blend || k.mode;
+    uint8_t *const d = r->dst.p + y * r->dst.pitch + (uint32_t)x * b;
+    uint16_t *const zp = depths ? r->depth.p + y * r->depth.row + x : nullptr;
+
+    for (int32_t i = 0; i < n; i++, steps_on(&st), z = depth_on(z, dz, 1)) {
+        const uint16_t here = depth_of(z);
+
+        if (depths & ROW_TEST && !depth_shows(zp[i], here))
+            continue;
+
+        const uint32_t t = steps_texel(&r->src, &st);
+
+        if (k.keyed && px_key(g, t))
+            continue;
+
+        uint8_t *const p = d + i * (int32_t)b;
+
+        px_store(p, ink_pixel(f, g, FILL_ANY, &k, t, blended ? px_load(p, b) : 0), b);
+
+        if (depths & ROW_WRITE)
+            zp[i] = here;
+    }
+}
+
+/* general_of, the source's body picked once a row. */
+[[gnu::always_inline]]
+static inline void general_row(
+    const PxFormat f,
+    const Rows *const r,
+    const int32_t y,
+    const int32_t x,
+    const int32_t n,
+    const Steps st,
+    const int32_t z
+)
+{
+    switch (r->src.format) {
+    case PX_8:
+        general_of(f, PX_8, r, y, x, n, st, z);
+        break;
+
+    case PX_15:
+        general_of(f, PX_15, r, y, x, n, st, z);
+        break;
+
+    case PX_16:
+        general_of(f, PX_16, r, y, x, n, st, z);
+        break;
+
+    default:
+        general_of(f, PX_32, r, y, x, n, st, z);
+    }
+}
+
+/* A perspective row as persp_row walks it, each run drawn by the general filler, or SMOOTH's. */
+[[gnu::always_inline]]
+static inline void persp_runs(
+    const PxFormat f,
+    const bool smooth,
+    const Rows *const r,
+    const int32_t y,
+    const int32_t x0,
+    const int32_t x1,
+    double u,
+    double v,
+    double w,
+    const int32_t zd
+)
+{
+    const int32_t n = x1 - x0;
+    ScanUV p = scan_pdiv(u, v, w);
+
+    for (int32_t done = 0; done < n; done += SCAN_SUBDIVP) {
+        const int32_t m = n - done < SCAN_SUBDIVP ? n - done : SCAN_SUBDIVP;
+
+        u += r->dpun;
+        v += r->dpvn;
+        w += r->dpzn;
+
+        const ScanUV l = scan_pdiv(u, v, w);
+        const Steps st = steps_from(p.u, p.v, scan_step(p.u, l.u), scan_step(p.v, l.v), r->wrap);
+        const int32_t at = depth_on(zd, r->dz, done);
+
+        if (smooth)
+            smooth_row(f, r, y, x0 + done, m, st, at);
+        else
+            general_row(f, r, y, x0 + done, m, st, at);
 
         p = l;
     }
@@ -1062,14 +1413,19 @@ static inline void tint_of(
 /* name's inked filler of variant k s l b, from g into f; its slot in the table's row. */
 #define FILL_INKED(name, f, g, k, s, l, b)                                                         \
     static void name##_##k##s##l##b(                                                               \
-        uint8_t *const d,                                                                          \
-        const Pixels *const p,                                                                     \
-        const Steps st,                                                                            \
-        const int32_t n,                                                                           \
-        const Ink *const ink                                                                       \
+        const Rows *const r,                                                                       \
+        const int32_t y,                                                                           \
+        const int32_t x0,                                                                          \
+        const int32_t x1,                                                                          \
+        const int32_t u,                                                                           \
+        const int32_t v,                                                                           \
+        [[maybe_unused]] const int32_t z                                                           \
     )                                                                                              \
     {                                                                                              \
-        inked_of(f, g, FILL_VARIANT(k, s, l, b), d, p, st, n, ink);                                \
+        uint8_t *const d = r->dst.p + y * r->dst.pitch + (uint32_t)x0 * px_bytes(f);               \
+        const Steps st = {u, v, r->du, r->dv, 0};                                                  \
+                                                                                                   \
+        inked_of(f, g, FILL_VARIANT(k, s, l, b), d, &r->src, st, x1 - x0, r->ink);                 \
     }
 #define FILL_SLOT(name, f, g, k, s, l, b) [FILL_VARIANT(k, s, l, b)] = name##_##k##s##l##b,
 
@@ -1102,10 +1458,10 @@ static inline void tint_of(
 FILL_TARGETS(FILL_SOURCES, FILL_PAIR)
 
 /* By target, source and variant; a variant fill_variant never gives, null. */
-static FillInked *const fill_inked[PX_FORMATS][PX_FORMATS][FILL_INKS] = {
+static RowAffine *const fill_inked[PX_FORMATS][PX_FORMATS][FILL_INKS] = {
     FILL_TARGETS(FILL_SOURCES, FILL_ROW)
 };
-/* Format f's row fillers, name's: affine by opacity o, held h and depth z; persp by o and z. */
+/* Format f's row fillers, name's: affine by opacity o, walk h and depth z; persp by o and z. */
 #define FILL_AFFINE(name, f, o, h, z)                                                              \
     static void name##_affine_##o##z##h(                                                           \
         const Rows *const r,                                                                       \
@@ -1138,11 +1494,14 @@ static FillInked *const fill_inked[PX_FORMATS][PX_FORMATS][FILL_INKS] = {
 #define FILL_ROWS(name, f)                                                                         \
     FILL_DEPTHS(FILL_AFFINE, name, f, 0, 0)                                                        \
     FILL_DEPTHS(FILL_AFFINE, name, f, 0, 1)                                                        \
+    FILL_DEPTHS(FILL_AFFINE, name, f, 0, 2)                                                        \
     FILL_DEPTHS(FILL_AFFINE, name, f, 1, 0)                                                        \
     FILL_DEPTHS(FILL_AFFINE, name, f, 1, 1)                                                        \
+    FILL_DEPTHS(FILL_AFFINE, name, f, 1, 2)                                                        \
     FILL_DEPTHS(FILL_PERSP, name, f, 0)                                                            \
     FILL_DEPTHS(FILL_PERSP, name, f, 1)
-#define FILL_AFFINE_Z(name, o, z) {name##_affine_##o##z##0, name##_affine_##o##z##1}
+#define FILL_AFFINE_Z(name, o, z)                                                                  \
+    {name##_affine_##o##z##0, name##_affine_##o##z##1, name##_affine_##o##z##2}
 #define FILL_AFFINE_O(name, o)                                                                     \
     {FILL_AFFINE_Z(name, o, 0),                                                                    \
      FILL_AFFINE_Z(name, o, 1),                                                                    \
@@ -1151,9 +1510,63 @@ static FillInked *const fill_inked[PX_FORMATS][PX_FORMATS][FILL_INKS] = {
 #define FILL_PERSP_O(name, o)                                                                      \
     {name##_persp_##o##0, name##_persp_##o##1, name##_persp_##o##2, name##_persp_##o##3}
 
+/* Format f's general and SMOOTH row fillers, name's. */
+#define FILL_GENERAL(name, f)                                                                      \
+    static void name##_general(                                                                    \
+        const Rows *const r,                                                                       \
+        const int32_t y,                                                                           \
+        const int32_t x0,                                                                          \
+        const int32_t x1,                                                                          \
+        const int32_t u,                                                                           \
+        const int32_t v,                                                                           \
+        const int32_t z                                                                            \
+    )                                                                                              \
+    {                                                                                              \
+        general_row(f, r, y, x0, x1 - x0, steps_from(u, v, r->du, r->dv, r->wrap), z);             \
+    }                                                                                              \
+    static void name##_general_persp(                                                              \
+        const Rows *const r,                                                                       \
+        const int32_t y,                                                                           \
+        const int32_t x0,                                                                          \
+        const int32_t x1,                                                                          \
+        const double u,                                                                            \
+        const double v,                                                                            \
+        const double w,                                                                            \
+        const int32_t z                                                                            \
+    )                                                                                              \
+    {                                                                                              \
+        persp_runs(f, false, r, y, x0, x1, u, v, w, z);                                            \
+    }                                                                                              \
+    static void name##_smooth(                                                                     \
+        const Rows *const r,                                                                       \
+        const int32_t y,                                                                           \
+        const int32_t x0,                                                                          \
+        const int32_t x1,                                                                          \
+        const int32_t u,                                                                           \
+        const int32_t v,                                                                           \
+        const int32_t z                                                                            \
+    )                                                                                              \
+    {                                                                                              \
+        smooth_row(f, r, y, x0, x1 - x0, steps_from(u, v, r->du, r->dv, r->wrap), z);              \
+    }                                                                                              \
+    static void name##_smooth_persp(                                                               \
+        const Rows *const r,                                                                       \
+        const int32_t y,                                                                           \
+        const int32_t x0,                                                                          \
+        const int32_t x1,                                                                          \
+        const double u,                                                                            \
+        const double v,                                                                            \
+        const double w,                                                                            \
+        const int32_t z                                                                            \
+    )                                                                                              \
+    {                                                                                              \
+        persp_runs(f, true, r, y, x0, x1, u, v, w, z);                                             \
+    }
+
 /* Format f's table, name: each body above bound to f. */
 #define FILL_TABLE(name, f)                                                                        \
     FILL_ROWS(name, f)                                                                             \
+    FILL_GENERAL(name, f)                                                                          \
     static void name##_span(uint8_t *const d, const int32_t n, const uint32_t c)                   \
     {                                                                                              \
         span_of(f, d, n, c);                                                                       \
@@ -1173,20 +1586,6 @@ static FillInked *const fill_inked[PX_FORMATS][PX_FORMATS][FILL_INKS] = {
     static void name##_opaque_flipped(uint8_t *const d, const uint8_t *const s, const int32_t n)   \
     {                                                                                              \
         row_of(f, d, s, n, -1, false);                                                             \
-    }                                                                                              \
-    static void                                                                                    \
-    name##_stepped_keyed(uint8_t *const d, const Pixels *const s, const Steps st, const int32_t n) \
-    {                                                                                              \
-        steps_of(f, d, s, st, n, true);                                                            \
-    }                                                                                              \
-    static void name##_stepped_opaque(                                                             \
-        uint8_t *const d,                                                                          \
-        const Pixels *const s,                                                                     \
-        const Steps st,                                                                            \
-        const int32_t n                                                                            \
-    )                                                                                              \
-    {                                                                                              \
-        steps_of(f, d, s, st, n, false);                                                           \
     }                                                                                              \
     static void name##_ink(                                                                        \
         uint8_t *const d,                                                                          \
@@ -1220,13 +1619,16 @@ static FillInked *const fill_inked[PX_FORMATS][PX_FORMATS][FILL_INKS] = {
                 [FILL_OPAQUE] = name##_opaque,                                                     \
                 [FILL_OPAQUE | FILL_FLIPX] = name##_opaque_flipped,                                \
             },                                                                                     \
-        .step = {[0] = name##_stepped_keyed, [FILL_OPAQUE] = name##_stepped_opaque},               \
         .ink = name##_ink,                                                                         \
         .paint = name##_paint,                                                                     \
         .inked = fill_inked[f],                                                                    \
         .tint = name##_tint,                                                                       \
         .affine = {FILL_AFFINE_O(name, 0), FILL_AFFINE_O(name, 1)},                                \
         .persp = {FILL_PERSP_O(name, 0), FILL_PERSP_O(name, 1)},                                   \
+        .general = name##_general,                                                                 \
+        .smooth = name##_smooth,                                                                   \
+        .general_persp = name##_general_persp,                                                     \
+        .smooth_persp = name##_smooth_persp,                                                       \
     }
 
 #define FILL_FORMAT(t, f, ...) FILL_TABLE(t, f);

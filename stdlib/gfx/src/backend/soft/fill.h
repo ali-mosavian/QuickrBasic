@@ -27,14 +27,10 @@ enum { FILL_KEYED = 1, FILL_SOLID = 2, FILL_LUT = 4, FILL_BLENDED = 8, FILL_INKS
 typedef void FillSpan(uint8_t *d, int32_t n, uint32_t colour);
 /* n texels from s, its first read; FLIPX variants step back from it. */
 typedef void FillRow(uint8_t *d, const uint8_t *s, int32_t n);
-/* n texels of s along the walk, inside s. */
-typedef void FillStep(uint8_t *d, const Pixels *s, Steps st, int32_t n);
 /* n texels through the ink into d, of this format: the steps of uGL's tfx row pipeline. */
 typedef void FillInk(uint8_t *d, const uint32_t *texels, int32_t n, const Ink *k);
 /* One texel through the ink but its blend: this format's colour. */
 typedef uint32_t FillPaint(uint32_t texel, const Ink *k);
-/* n texels of s along the walk, inside s, through the ink into d: fetch and ink as one. */
-typedef void FillInked(uint8_t *d, const Pixels *s, Steps st, int32_t n, const Ink *k);
 /* A blended colour's pixel over each pixel there, by its channels as px_table's: made for its
    colour, mode, alpha and format, again only when one changes, so once a shape. */
 typedef struct {
@@ -85,12 +81,17 @@ typedef void FillTint(uint8_t *d, int32_t n, uint32_t colour, const Ink *k, Fill
 typedef struct {
     Pixels dst, src;
     Depth depth;
+    const Ink *ink;
+    uint32_t depths;        /* the general fillers': ROW_'s, 0 when no depth */
+    int32_t wrap;           /* the general fillers': u repeats every wrap (16.16), 0 never */
     int32_t du, dv, dz;     /* affine: u and v 16.16 a pixel; depth's a pixel */
     float dpun, dpvn, dpzn; /* perspective: u/z, v/z and 1/z a run's, SCAN_SUBDIVP pixels */
 } Rows;
 
 /* A row filler's depth: tested, written, both or neither. */
 enum { ROW_TEST = 1, ROW_WRITE = 2, ROW_DEPTHS = 4 };
+/* An affine row's walk: inside the picture, held inside it, or wrapping across it. */
+enum { ROW_PLAIN, ROW_HELD, ROW_WRAPPED, ROW_WALKS };
 
 /* Row y's pixels x0 up to x1 of a polygon in r, its texels from u, v (16.16) and its depth from z
    (16.16) at x0: one loop. */
@@ -115,20 +116,22 @@ typedef void RowPersp(
     int32_t z
 );
 
-/* A format's, drawn into. The fused row and step fillers read texels of this format; step's
-   variants are FILL_OPAQUE's. inked is by the source's format and the variant. affine and persp
-   are the fused row fillers, by FILL_OPAQUE, depth (ROW_) and, affine's, held: each texel held
-   inside the picture. */
+/* A format's, drawn into. The fused row fillers read texels of this format: affine and persp,
+   by FILL_OPAQUE, depth (ROW_) and, affine's, held: each texel held inside the picture. inked,
+   by the source's format and the variant, draws an affine row inside its picture, no depth.
+   general draws any other through the ink a pixel at a time, by Rows' depths and wrap; smooth,
+   SMOOTH's. */
 typedef struct {
     FillSpan *span;
     FillRow *row[FILL_VARIANTS];
-    FillStep *step[FILL_OPAQUE + 1];
     FillInk *ink;
     FillPaint *paint;
-    FillInked *const (*inked)[FILL_INKS];
+    RowAffine *const (*inked)[FILL_INKS];
     FillTint *tint;
-    RowAffine *affine[FILL_OPAQUE + 1][ROW_DEPTHS][2];
+    RowAffine *affine[FILL_OPAQUE + 1][ROW_DEPTHS][ROW_WALKS];
     RowPersp *persp[FILL_OPAQUE + 1][ROW_DEPTHS];
+    RowAffine *general, *smooth;
+    RowPersp *general_persp, *smooth_persp;
 } Fill;
 
 /* k's variant for texels of format from into a target of format into. */

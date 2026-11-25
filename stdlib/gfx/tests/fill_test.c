@@ -116,6 +116,12 @@ static void there_of(uint32_t *const seed, There *const t)
    fraction a pixel. */
 static const Steps WALK = {0x4000, (N - 1) << 16 | 0xE000, 0xC000, -0x9000, 0};
 
+/* WALK's row over s into d, a row of format f, inked by k. */
+static Rows walk_rows(uint8_t *const d, const Pixels *const s, const PxFormat f, const Ink *const k)
+{
+    return (Rows){.dst = {d, N * 4, N, 1, f}, .src = *s, .ink = k, .du = WALK.du, .dv = WALK.dv};
+}
+
 /* Wrong pixels here were drawn by a filler that tests a flag the variant settles, reads a table the
    ink does not use, walks the rows wrong, or misplaces a pixel in a word or the pixels round
    it. */
@@ -132,7 +138,7 @@ TEST(gfx_fill_inked_draws_as_ink)
                 if (v & FILL_LUT && (v & FILL_SOLID || f != PX_8 || g != PX_8))
                     continue; /* never a variant */
 
-                FillInked *const inked = fill_formats[f]->inked[g][v];
+                RowAffine *const inked = fill_formats[f]->inked[g][v];
                 CHECK(inked);
 
                 for (uint32_t at = 0; inked && at < STARTS; at++) {
@@ -148,7 +154,9 @@ TEST(gfx_fill_inked_draws_as_ink)
                     CHECK(fill_variant(&k, f, g) == v);
                     walked(texels, &s, WALK, COUNT);
                     fill_formats[f]->ink(d.want + at * b, texels, COUNT, &k);
-                    inked(d.got + at * b, &s, WALK, COUNT, &k);
+                    const Rows r = walk_rows(d.got, &s, f, &k);
+
+                    inked(&r, 0, (int32_t)at, (int32_t)at + COUNT, WALK.u, WALK.v, 0);
                     CHECK(!memcmp(d.want, d.got, sizeof d.want));
                 }
             }
@@ -231,7 +239,10 @@ TEST(gfx_fill_steps_draw_their_walk)
             there_of(&seed, &d);
             walked(texels, &s, WALK, COUNT);
             stored(d.want + at * b, texels, COUNT, f, key);
-            fill_formats[f]->step[key ? 0 : FILL_OPAQUE](d.got + at * b, &s, WALK, COUNT);
+            const Rows r = walk_rows(d.got, &s, f, nullptr);
+
+            fill_formats[f]->affine[key ? 0 : FILL_OPAQUE][0]
+                                   [0](&r, 0, (int32_t)at, (int32_t)at + COUNT, WALK.u, WALK.v, 0);
             CHECK(!memcmp(d.want, d.got, sizeof d.want));
         }
 }
@@ -268,8 +279,6 @@ TEST(gfx_fill_mixes_every_alpha)
     static uint32_t src[256];
     const Pixels s = {(uint8_t *)src, sizeof src, 256, 1, PX_32};
 
-    const Steps across = {0, 0, 1 << 16, 0, 0};
-
     for (uint32_t i = 0; i < 256; i++)
         src[i] = PX_OPAQUE | i * 0x010101u;
 
@@ -291,9 +300,12 @@ TEST(gfx_fill_mixes_every_alpha)
                 for (uint32_t i = 0; i < 256; i++)
                     px_store(want + i * b, px_pack(f, ((i + j) & 0xFF) * 0x010101u), b);
 
+                const Rows r =
+                    {.dst = {got, sizeof got, 256, 1, f}, .src = s, .ink = &k, .du = 1 << 16};
+
                 memcpy(got, want, sizeof got);
                 fill_formats[f]->ink(want, src, 256, &k);
-                fill_formats[f]->inked[PX_32][FILL_BLENDED](got, &s, across, 256, &k);
+                fill_formats[f]->inked[PX_32][FILL_BLENDED](&r, 0, 0, 256, 0, 0, 0);
                 CHECK(!memcmp(want, got, 256 * b));
             }
         }
