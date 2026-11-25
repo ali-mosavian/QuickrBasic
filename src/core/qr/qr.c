@@ -267,7 +267,13 @@ static const char *qr_untab(QMem *const m, const char *const text, const uint32_
     return out;
 }
 
-uint16_t qr_read(Session *const S, const char *const path, const uint16_t file)
+/* qr_read's, its lines before record at (0: at the store's end). */
+static uint16_t qr_read_at(
+    Session *const S,
+    const char *const path,
+    const uint16_t file,
+    const uint32_t at
+)
 {
     QMem m = {.fault = &S->fault};
 
@@ -282,7 +288,7 @@ uint16_t qr_read(Session *const S, const char *const path, const uint16_t file)
 
     S->prog.add_flags = LF_TEXT;
     S->prog.add_file = file;
-    S->prog.add_at = 0;
+    S->prog.add_at = at;
 
     for (uint32_t at = 0, src = 1; !e && (at < len || src == 1); src++) {
         const uint32_t start = at;
@@ -295,8 +301,24 @@ uint16_t qr_read(Session *const S, const char *const path, const uint16_t file)
     S->prog.add_flags = 0;
     S->prog.add_src = 0;
     S->prog.add_file = 0;
+    S->prog.add_at = 0;
     arena_reset(&m.arena);
     return e;
+}
+
+uint16_t qr_read(Session *const S, const char *const path, const uint16_t file)
+{
+    return qr_read_at(S, path, file, 0);
+}
+
+/* The store's first LF_TOP: its QBasic modules' lines from there, after the Quickr ones; 0 none. */
+static uint32_t qr_first_top(const Prog *const pg)
+{
+    for (uint32_t rec = PROGBASE; prog_line(pg, rec)->len; rec += prog_line(pg, rec)->len)
+        if (prog_line(pg, rec)->flags & LF_TOP)
+            return rec;
+
+    return 0;
 }
 
 /* Are paths a and b the same, case aside? */
@@ -309,17 +331,25 @@ static bool qr_same(const char *a, const char *b)
 }
 
 /* A program being loaded: its tree's, and whether its lines are the store's (the editor's), a
-   module read in after them; else each file's text is read into the arena. A QBasic program's
-   Quickr modules: guest, each read already; find, module from's imports found, each the
-   program's (mem/module.h). */
+   module read in after them, its QBasic modules declared when declare; else each file's text is
+   read into the arena. A QBasic program's Quickr modules: guest, each read already; find, module
+   from's imports found, each the program's (mem/module.h). */
 typedef struct {
     Session *S;
     QProg *p;
     QMem *m;
-    bool stored;
+    bool stored, declare;
     bool guest, find;
     uint32_t from;
 } QrLoad;
+
+/* A new module of p at path, QBasic's: its exports later (qr_exports). Its number. */
+static uint32_t qr_qbmod(QProg *const p, QMem *const m, const char *const path)
+{
+    const uint32_t k = qr_newmod(p, m, path);
+    p->mods[k].ex = qast_alloc(m, sizeof(Exports));
+    return k;
+}
 
 /* The module at path: p's of that path, else read in, a new module. Its number; QMOD_QBASIC when
    its file is not Quickr's, QMOD_NONE when the editor cannot read it. */
@@ -331,7 +361,7 @@ static uint32_t qr_load(const QrLoad *const L, const char *const path)
         if (qr_same(p->mods[i].path, path))
             return i;
 
-    if (!qr_is_file(path) && (L->stored || L->guest || L->find))
+    if (!qr_is_file(path) && (L->guest || L->find))
         return QMOD_QBASIC;
     if (L->guest)
         return QMOD_NONE;
@@ -344,21 +374,16 @@ static uint32_t qr_load(const QrLoad *const L, const char *const path)
         return QMOD_NONE;
     }
 
-    if (!qr_is_file(path)) { /* its lines the QBasic loader's: qr_guests */
-        const uint32_t k = qr_newmod(p, L->m, path);
-        p->mods[k].ex = qast_alloc(L->m, sizeof(Exports));
-        return k;
-    }
-
-    if (!L->stored)
-        return qr_module(L->S, p, L->m, path);
-
     Modu *const mu = &L->S->modu;
-    const uint32_t k = modu_module(mu, path);
+    const uint32_t k = L->stored ? modu_module(mu, path) : p->nmods;
 
     if (k < p->nmods) /* another spelling of its path */
         return k;
-    if (qr_read(L->S, path, (uint16_t)k)) {
+    if (!qr_is_file(path)) /* its lines the QBasic loader's: qr_guests, qr_qbasic */
+        return qr_qbmod(p, L->m, path);
+    if (!L->stored)
+        return qr_module(L->S, p, L->m, path);
+    if (qr_read_at(L->S, path, (uint16_t)k, qr_first_top(&L->S->prog))) {
         modu_drop(mu, k);
         return QMOD_NONE;
     }
@@ -378,20 +403,11 @@ static void qr_unloaded(
 {
     QProg *const p = L->p;
 
-    if (im->mod == QMOD_QBASIC && !L->stored)
+    if (im->mod == QMOD_QBASIC)
         qast_error(
             &p->errs,
             im->tok,
             "{} is a QBasic module: a Quickr module QBasic imports imports only Quickr ones",
-            name,
-            n
-        );
-    else if (im->mod == QMOD_QBASIC)
-        qast_error(
-            &p->errs,
-            im->tok,
-            "{} is a QBasic module: the editor runs a Quickr program that imports one only from "
-            "the command line",
             name,
             n
         );
@@ -573,9 +589,18 @@ static bool qr_guests(Session *const S, QProg *const p, QMem *const m)
     return true;
 }
 
-/* Each QBasic module's exports, its procedures' variables declared first (comp/link.h). */
+/* Each QBasic module's exports, its procedures' variables declared first (comp/link.h); none,
+   nothing. */
 static void qr_exports(Session *const S, QProg *const p, QMem *const m)
 {
+    bool any = false;
+
+    for (uint32_t k = 0; k < p->nmods; k++)
+        any |= p->mods[k].ex != nullptr;
+
+    if (!any)
+        return;
+
     link_prepare(&S->comp);
 
     for (uint32_t k = 0; k < p->nmods; k++) {
@@ -806,8 +831,8 @@ static void qr_unrun(Prog *const pg)
             rec += prog_line(pg, rec)->len;
 }
 
-/* Module d's lines out of the store, those of the files after it a number down; d out of the
-   modules. */
+/* Module d's lines out of the store, those of the files after it a number down, a QBasic
+   module's and its LF_TOP's too (each file its module's); d out of the modules. */
 static void qr_drop(Session *const S, const uint32_t d)
 {
     Prog *const pg = &S->prog;
@@ -820,7 +845,7 @@ static void qr_drop(Session *const S, const uint32_t d)
             continue;
         }
 
-        if (l->flags & LF_TEXT && l->file > d)
+        if (l->file > d)
             l->file--;
 
         rec += l->len;
@@ -830,10 +855,60 @@ static void qr_drop(Session *const S, const uint32_t d)
     modu_relink(&S->modu, S->repl.file, modu_count(&S->modu));
 }
 
-/* The store's program, repl.file the main's, as L's: the run's own lines out; each module's lines
-   gathered, then the modules their imports name read in after the rest; p->order each module after
-   those it imports, the main's last. A module no import reaches is dropped and the lot gathered
-   again, unless edited: that one is the program's still, before the main. */
+/* What the store holds of a module: nothing, Quickr's lines, a QBasic module's after its LF_TOP. */
+enum : uint8_t { QR_NONE, QR_LINES, QR_TOP };
+
+/* What the store holds of each module, by number: in the arena. */
+static uint8_t *qr_stored(Session *const S, QMem *const m)
+{
+    const Prog *const pg = &S->prog;
+    const uint32_t n = modu_count(&S->modu);
+    uint8_t *const held = qast_alloc(m, n);
+
+    for (uint32_t rec = PROGBASE; prog_line(pg, rec)->len; rec += prog_line(pg, rec)->len) {
+        const Line *const l = prog_line(pg, rec);
+
+        if (l->flags & LF_TOP && l->file && l->file < n)
+            held[l->file] = QR_TOP;
+        else if (qr_text(l, l->file) && l->file < n)
+            held[l->file] = QR_LINES;
+    }
+
+    return held;
+}
+
+/* p's QBasic modules (the editor's: each p's number its module's): read into the store when not
+   there, each's own imports with it, declared when L->declare (io/repl.c); each's code run from
+   its first line. */
+static void qr_qbasic(const QrLoad *const L)
+{
+    Session *const S = L->S;
+    QProg *const p = L->p;
+    uint32_t *const mods = qast_alloc(L->m, (p->nmods ? p->nmods : 1) * sizeof *mods);
+    uint32_t n = 0;
+
+    for (uint32_t k = 0; k < p->nmods; k++)
+        if (p->mods[k].ex)
+            mods[n++] = k;
+
+    if (!n && !qr_first_top(&S->prog))
+        return;
+
+    repl_guests_stored(S, mods, n, L->declare);
+
+    for (uint32_t i = 0; i < n; i++) {
+        QMod *const mod = &p->mods[mods[i]];
+        const uint32_t top = modu_top_of(&S->modu, mods[i]);
+        mod->modu = mods[i];
+        mod->start = top + prog_line(&S->prog, top)->len;
+    }
+}
+
+/* The store's program, repl.file the main's, as L's: the run's own lines out; each Quickr module's
+   lines gathered, then the modules their imports name read in after the rest, a Quickr one's
+   lines before the QBasic ones'; p->order each module after those it imports, the main's last. A
+   Quickr module no import reaches is dropped and the lot gathered again, unless edited: that one
+   is the program's still, before the main. A QBasic module is kept (qr_qbasic). */
 static void qr_enter(const QrLoad *const L)
 {
     Session *const S = L->S;
@@ -841,9 +916,17 @@ static void qr_enter(const QrLoad *const L)
     const QProg fresh = *p;
     qr_unrun(&S->prog);
     modu_relink(&S->modu, S->repl.file, modu_count(&S->modu));
+    const uint8_t *const held = qr_stored(S, L->m);
+    const uint32_t nheld = modu_count(&S->modu);
 
-    for (uint32_t k = 0; k < modu_count(&S->modu); k++)
-        qr_gather(S, p, L->m, k, modu_module_path(&S->modu, k));
+    for (uint32_t k = 0; k < nheld; k++) {
+        const char *const path = modu_module_path(&S->modu, k);
+
+        if (held[k] == QR_TOP || (k && held[k] == QR_NONE && !qr_is_file(path)))
+            qr_qbmod(p, L->m, path);
+        else
+            qr_gather(S, p, L->m, k, path);
+    }
 
     for (uint32_t k = 0; k < p->nmods; k++)
         qr_imports(L, k);
@@ -855,7 +938,7 @@ static void qr_enter(const QrLoad *const L)
     const uint32_t main = n - 1;
 
     for (uint32_t k = 1; k < p->nmods; k++)
-        if (!seen[k] && modu_mod(&S->modu, k)->edited)
+        if (!seen[k] && (modu_mod(&S->modu, k)->edited || (k < nheld && held[k] == QR_TOP)))
             qr_visit(p, seen, k, &n);
 
     for (uint32_t k = 1; k < p->nmods; k++)
@@ -868,6 +951,7 @@ static void qr_enter(const QrLoad *const L)
 
     memmove(p->order + main, p->order + main + 1, (n - main - 1) * sizeof *p->order);
     p->order[n - 1] = 0;
+    qr_qbasic(L);
 }
 
 /* Error e of p's to *out: its line's record, its column, its message. One past the lines: the
@@ -1186,9 +1270,10 @@ uint32_t qr_link(Session *const S, DialErr *const e)
     QProg *const p = qast_alloc(m, sizeof *p);
     *p = (QProg){.errs = {.mem = m}, .copies = {.mem = m}, .keep = true};
 
-    qr_enter(&(QrLoad){S, p, m, .stored = true});
+    qr_enter(&(QrLoad){S, p, m, .stored = true, .declare = true});
 
     session_drop(S);
+    qr_exports(S, p, m);
     qsem_program(p, m);
     qast_sort(&p->errs);
 

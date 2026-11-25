@@ -1577,7 +1577,7 @@ void decl_defevents(Decl *const d, Scop *const sc, Symb *const sy, const Prog *c
     memcpy(sy->deft, deft0, NLETTERS);
 
     for (uint32_t rec = PROGBASE, len; (len = prog_line(pg, rec)->len); rec += len) {
-        if (prog_line(pg, rec)->flags & (LF_ASIS | LF_NODEF))
+        if (prog_line(pg, rec)->flags & (LF_ASIS | LF_NODEF | LF_TEXT))
             continue;
 
         DeclScan scan = {

@@ -63,6 +63,31 @@ static void open_qb_with(Session *const S, const char *const gtext, const char *
 
 static void open_qb(Session *const S, const char *const body) { open_qb_with(S, geo, body); }
 
+static const char shapes[] = "TYPE Rect\n"
+                             "    W AS LONG\n"
+                             "    H AS LONG\n"
+                             "END TYPE\n"
+                             "FUNCTION Area& (r AS Rect)\n"
+                             "    a& = r.W * r.H\n"
+                             "    Area& = a&\n"
+                             "END FUNCTION\n"
+                             "FUNCTION Quot& (a AS LONG, b AS LONG)\n"
+                             "    Quot& = a \\ b\n"
+                             "END FUNCTION\n";
+
+/* main.bas, Quickr's, importing shapes.bas, QBasic's: shapes' text stext, main's body body. */
+static void open_qr_with(Session *const S, const char *const stext, const char *const body)
+{
+    char text[1024];
+    snprintf(text, sizeof text, DIALECT "import shapes\n%s", body);
+    fx_open_program(S, "");
+    fx_write_file("main.bas", text);
+    fx_write_file("shapes.bas", stext);
+    uimn_open(S, fx_path_of("main.bas"));
+}
+
+static void open_qr(Session *const S, const char *const body) { open_qr_with(S, shapes, body); }
+
 /* The run keys. */
 enum : uint16_t {
     K_F5 = 0x3F00,
@@ -281,5 +306,133 @@ TEST(mixide_qb_main_runtime_error_in_quickr_code)
     pressed(S, K_F5);
     CHECK(cursor_line() == fx_line_of(S, "    return a div b"));
     CHECK(!strcmp(uimn.errmsg, "Division by zero"));
+    fx_done(S, files);
+}
+
+/* ---- a Quickr main, a QBasic module */
+
+/* The editor refused a Quickr main importing a QBasic module: shapes not read, no run. */
+TEST(mixide_qr_main_opens_and_runs)
+{
+    open_qr(S, "var r = shapes.Rect(2, 3)\nprint shapes.area(r)\n");
+    CHECK(text_dialect(S) == &dialect_quickr);
+    const uint32_t a = fx_line_of(S, "    a& = r.W * r.H");
+    CHECK(a != ~0u && text_module(S, a) == 1);
+    CHECK(slot_at(S, "function Area& (r as Rect)", 0) == SL_KW);
+    CHECK(slot_at(S, "var r = shapes.Rect(2, 3)", 0) == SL_KW);
+    CHECK(strstr(pressed(S, K_F5), "6") != nullptr);
+    fx_done(S, files);
+}
+
+/* A QBasic line typed in shapes, and a run after: QBasic's tokens, checked as QBasic's. */
+TEST(mixide_qr_main_edits_a_qbasic_line)
+{
+    open_qr(S, "var r = shapes.Rect(2, 3)\nprint shapes.area(r)\n");
+    pressed(S, K_F5);
+    fx_retype(S, fx_line_of(S, "    a& = r.W * r.H"), "    a& = r.W * r.H + 1");
+    const uint32_t line = fx_line_of(S, "    a& = r.W * r.H + 1");
+    CHECK(line != ~0u && !(prog_line(&S->prog, lmap_off(S, line))->flags & LF_TEXT));
+    CHECK(strstr(pressed(S, K_F5), "7") != nullptr);
+    CHECK(!fx_typed_over(S, line, "    a& = [1]"));
+    CHECK(fx_typed_over(S, line, "    a& = r.W * r.H + 2"));
+    CHECK(strstr(pressed(S, K_F5), "8") != nullptr);
+    fx_done(S, files);
+}
+
+/* Into a QBasic function and out, as QBasic spells its names. */
+TEST(mixide_qr_main_debugs_qbasic_code)
+{
+    open_qr(S, "var r = shapes.Rect(2, 3)\nlet a = shapes.area(r)\nprint a\nprint 1\n");
+    break_at(S, "let a = shapes.area(r)");
+    pressed(S, K_F5);
+    CHECK(stopped_at(S, "let a = shapes.area(r)"));
+    pressed(S, K_F8);
+    CHECK(stopped_at(S, "    a& = r.W * r.H"));
+    pressed(S, K_F8);
+    CHECK(stopped_at(S, "    Area& = a&"));
+    CHECK(local_is(S, 0, "a& = 6"));
+    CHECK(frame_is(S, 0, "Area&"));
+    edit_load(S, view_goline(S, fx_line_of(S, "    Area& = a&")));
+    uimn.edline.col = 12;
+    uimn.tip_mouse = false;
+    CHECK(screen_has(S, " a& = 6 "));
+    CHECK(!strcmp(watched(S, "a& + 1"), "a& + 1 = 7"));
+    CHECK(strstr(immediate(S, "print 7 \\ 2"), "3") != nullptr);
+    pressed(S, K_SHIFT_F8);
+    CHECK(stopped_at(S, "print a"));
+    CHECK(local_is(S, 0, "a = 6"));
+    CHECK(strstr(immediate(S, "a + 1"), "7") != nullptr);
+    pressed(S, K_F10);
+    CHECK(stopped_at(S, "print 1"));
+    fx_done(S, files);
+}
+
+/* A breakpoint in shapes, run to the cursor there, restart. */
+TEST(mixide_qr_main_breaks_in_qbasic_code)
+{
+    open_qr(S, "var r = shapes.Rect(2, 3)\nprint shapes.area(r)\nprint shapes.quot(9, 3)\n");
+    break_at(S, "    Area& = a&");
+    pressed(S, K_F5);
+    CHECK(stopped_at(S, "    Area& = a&"));
+    edit_load(S, view_goline(S, fx_line_of(S, "    Quot& = a \\ b")));
+    pressed(S, K_CTRL_F7);
+    CHECK(stopped_at(S, "    Quot& = a \\ b") && local_is(S, 0, "a& = 9"));
+    restart(S);
+    CHECK(uimn.stopped);
+    pressed(S, K_F5);
+    CHECK(stopped_at(S, "    Area& = a&"));
+    pressed(S, K_F5);
+    CHECK(!uimn.stopped);
+    fx_done(S, files);
+}
+
+/* A run-time error in shapes: the cursor at its line. */
+TEST(mixide_qr_main_runtime_error_in_qbasic_code)
+{
+    open_qr(S, "print shapes.quot(1, 0)\n");
+    pressed(S, K_F5);
+    CHECK(cursor_line() == fx_line_of(S, "    Quot& = a \\ b"));
+    CHECK(!strcmp(uimn.errmsg, "Division by zero"));
+    fx_done(S, files);
+}
+
+/* A compile error in shapes, and one in main naming it: each at its line. */
+TEST(mixide_qr_main_compile_errors)
+{
+    open_qr(S, "print shapes.quot(4, 2)\n");
+    fx_retype(S, fx_line_of(S, "print shapes.quot(4, 2)"), "print shapes.nope(4, 2)");
+    pressed(S, K_F5);
+    CHECK(cursor_line() == fx_line_of(S, "print shapes.nope(4, 2)"));
+    CHECK(strstr(uimn.errmsg, "nope") != nullptr);
+    fx_retype(S, fx_line_of(S, "print shapes.nope(4, 2)"), "print shapes.quot(4, 2)");
+    fx_retype(S, fx_line_of(S, "    Quot& = a \\ b"), "    goto nowhere");
+    pressed(S, K_F5);
+    CHECK(cursor_line() == fx_line_of(S, "    goto nowhere"));
+    CHECK(!strcmp(uimn.errmsg, "Label not defined"));
+    fx_done(S, files);
+}
+
+static const char shapes_counts[] = "IMPORT counts\n"
+                                    "FUNCTION Twice& (x AS LONG)\n"
+                                    "    Twice& = counts.Plus&(x, x)\n"
+                                    "END FUNCTION\n";
+
+/* shapes importing counts, both QBasic's: read once, run twice. */
+TEST(mixide_qr_main_qbasic_imports)
+{
+    fx_open_program(S, "");
+    fx_write_file(
+        "counts.bas",
+        "FUNCTION Plus& (a AS LONG, b AS LONG)\n"
+        "    Plus& = a + b\n"
+        "END FUNCTION\n"
+    );
+    fx_write_file("main.bas", DIALECT "import shapes\nprint shapes.twice(3)\n");
+    fx_write_file("shapes.bas", shapes_counts);
+    uimn_open(S, fx_path_of("main.bas"));
+    CHECK(fx_line_of(S, "    Plus& = a + b") != ~0u);
+    CHECK(strstr(pressed(S, K_F5), "6") != nullptr);
+    fx_retype(S, fx_line_of(S, "print shapes.twice(3)"), "print shapes.twice(4)");
+    CHECK(strstr(pressed(S, K_F5), "8") != nullptr);
     fx_done(S, files);
 }

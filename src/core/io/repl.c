@@ -1324,8 +1324,9 @@ static uint32_t next_line(const Prog *const pg, const uint32_t line)
 }
 
 /* The program's lines read, declared: each module's after those it imports, the main's last,
-   its file's DEFtypes and OPTIONs from its first line; the main's not when it is another
-   dialect's (guests). Then the main's again, for lines typed. */
+   its file's DEFtypes and OPTIONs from its first line; when the main is another dialect's
+   (guests), its QBasic modules alone, each after its LF_TOP. Then the main's again, for lines
+   typed. */
 static void declare_program(Session *const S, const bool guests)
 {
     const uint32_t n = modu_count(&S->modu), *const order = modu_order(&S->modu);
@@ -1334,7 +1335,7 @@ static void declare_program(Session *const S, const bool guests)
     S->comp.guest = nullptr;
 
     for (uint32_t i = 0; i < n; i++) {
-        if (guests && !order[i])
+        if (guests && (!order[i] || !modu_top_of(&S->modu, order[i])))
             continue;
 
         const Dialect *const d = modu_mod(&S->modu, order[i])->dialect;
@@ -1400,6 +1401,86 @@ void repl_guests(
 
     read_modules(S, 1, 0);
     declare_program(S, true);
+    S->repl.guests = false;
+    S->repl.loading = false;
+}
+
+/* The editor's Quickr program's QBasic module m, not in the store: read in at its end, after its
+   LF_TOP, its file numbered as the module; *last, the LF_TOP past the modules' lines, cut first. */
+static void read_guest(Session *const S, const uint32_t m, uint32_t *const last)
+{
+    if (*last)
+        prog_cut(&S->prog, *last);
+
+    *last = 0;
+    char path[PFIL_PATH]; /* the table may move as it grows */
+    strcpy(path, modu_module_path(&S->modu, m));
+    modu_top(&S->modu, m, prog_at(&S->prog));
+    module_end(S, (uint16_t)m);
+    S->repl.module = m;
+    S->repl.nfile = (uint16_t)m;
+    read_file(S, path, SOURCE_FILENO, 0);
+}
+
+void repl_guests_stored(
+    Session *const S,
+    const uint32_t *const mods,
+    const uint32_t n,
+    const bool declare
+)
+{
+    Prog *const pg = &S->prog;
+    const uint32_t from = modu_count(&S->modu);
+    uint32_t last = 0;
+    S->repl.loading = true;
+    S->repl.guests = true;
+    S->repl.fline = 0;
+    S->repl.module = 0;
+
+    for (uint32_t i = 0; i < n; i++) {
+        modu_top(&S->modu, mods[i], 0);
+        modu_import(&S->modu, 0, mods[i]);
+    }
+
+    for (uint32_t line = PROGBASE; prog_line(pg, line)->len; line = next_line(pg, line)) {
+        const Line *const l = prog_line(pg, line);
+
+        if (l->flags & LF_TOP) {
+            last = line;
+            S->repl.module = l->file;
+            S->repl.inproc = false;
+
+            if (l->file)
+                modu_top(&S->modu, l->file, line);
+
+            continue;
+        }
+
+        if (!(l->flags & LF_TEXT) && S->repl.module) {
+            restore(S, line);
+            find_imports(S, modu_module_path(&S->modu, S->repl.module));
+        }
+    }
+
+    for (uint32_t i = 0; i < n; i++)
+        if (!modu_top_of(&S->modu, mods[i]))
+            read_guest(S, mods[i], &last);
+
+    for (uint32_t m = from; m < modu_count(&S->modu); m++)
+        read_guest(S, m, &last);
+
+    if (!last)
+        module_end(S, 0); /* the last module's */
+
+    S->repl.module = 0;
+
+    if (declare) {
+        symb_vars_init(&S->symb);
+        decl_reset(&S->decl, &S->scop, &S->symb);
+        session_drop(S);
+        declare_program(S, true);
+    }
+
     S->repl.guests = false;
     S->repl.loading = false;
 }
