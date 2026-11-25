@@ -240,6 +240,7 @@ TEST(gfx_soft_walks_held_inside)
         {(W + 2) << 16, (H + 1) << 16, -0x6000, -0x1C00, 0},
         {0x8000, (H + 3) << 16, 0x3000, 0, 0},
         {-0x10000, 0x8000, 0, 0x1800, 0},
+        {(W + 1) << 16, 0, -0x8000, 0x1000, 0}, /* on the edge at a pixel, still past it */
     };
 
     for (uint32_t k = 0; k < sizeof walks / sizeof *walks; k++) {

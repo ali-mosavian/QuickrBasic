@@ -345,14 +345,16 @@ static Steps steps_ahead(Steps st, const int32_t i)
     return st;
 }
 
-/* The first of n pixels where c, stepped by dc a pixel, crosses limit (all 16.16): n, none. */
-static int32_t crossing(const int64_t c, const int64_t dc, const int64_t limit, const int32_t n)
+/* The first of n pixels where c, stepped by dc a pixel, crosses limit (all 16.16): n, none. A
+   limit is at most a side's, 2^30, so each distance fits 32 bits, unsigned: no divide is 64
+   bits'. */
+static int32_t crossing(const int32_t c, const int32_t dc, const int32_t limit, const int32_t n)
 {
-    const int64_t i = c < limit && dc > 0    ? (limit - c + dc - 1) / dc
-                      : c >= limit && dc < 0 ? (c - limit) / -dc + 1
-                                             : n;
+    const bool up = c < limit && dc > 0, down = c >= limit && dc < 0;
+    const uint32_t far = up ? (uint32_t)limit - (uint32_t)c - 1 : (uint32_t)c - (uint32_t)limit;
+    const uint32_t i = up || down ? far / (up ? (uint32_t)dc : 0u - (uint32_t)dc) + 1 : (uint32_t)n;
 
-    return i < n ? (int32_t)i : n;
+    return i < (uint32_t)n ? (int32_t)i : n;
 }
 
 /* c held inside [0, size) as steps_texel holds a texel: past an end, that end's texel, its step
@@ -377,7 +379,7 @@ static void pieces(
 )
 {
     const Pixels *const s = x->s;
-    const int64_t w = (int64_t)s->w << 16, h = (int64_t)s->h << 16;
+    const int32_t w = s->w << 16, h = s->h << 16;
     int32_t at[] = {
         0,
         n,
