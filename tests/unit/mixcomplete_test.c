@@ -259,6 +259,8 @@ TEST(mixcomplete_qb_main_follows_a_quickr_modules_edits)
     CHECK(!offers(S, "print total", "a = geo.", "helper"));
     fx_typed_over(S, fx_line_of(S, "private function helper() as int"), "function helper() as int");
     CHECK(offers(S, "print total", "a = geo.", "helper"));
+    CHECK(offers(S, "print total", "a = shapes.", "Area"));
+    CHECK(offers(S, "print total", "a = shapes.", "MAXW"));
     fx_typed_over(S, fx_line_of(S, "    return 1"), "    return \"x\"");
     CHECK(!offers(S, "print total", "a = geo.", "area")); /* an error: none till it checks */
     fx_typed_over(S, fx_line_of(S, "    return \"x\""), "    return 1");

@@ -1375,6 +1375,7 @@ static void declare_again(Session *const S, const bool guests, const bool lenien
     symb_vars_init(&S->symb);
     decl_reset(&S->decl, &S->scop, &S->symb);
     session_drop(S);
+    link_tops(&S->comp);
     declare_program(S, guests, lenient);
 }
 

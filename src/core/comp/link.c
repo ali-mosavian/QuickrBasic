@@ -733,9 +733,8 @@ void link_walk(const uint8_t *code, void (*each)(uint8_t op, const uint8_t *at))
         each(*code, code);
 }
 
-/* Each module's LF_TOP line again, by its file (io/repl.c read_modules): lines typed before them
-   moved them. The one past the last module's lines is the main's file: no top. */
-static void link_tops(Comp *const C)
+/* The one past the last module's lines is the main's file: no top. */
+void link_tops(Comp *const C)
 {
     for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len) {
         const uint32_t m = modu_of(C->modu, prog_line(C->prog, l)->file);

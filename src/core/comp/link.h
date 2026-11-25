@@ -60,6 +60,9 @@ uint32_t link_report(Comp *C, LinkEach *each, void *ctx);
 void link_prepare(Comp *C);
 void link_lines_qb(Comp *C);
 void link_resolve_qb(Comp *C);
+/* Each module's LF_TOP line again, by its file (io/repl.c read_modules): lines typed before them
+   moved them. */
+void link_tops(Comp *C);
 /* link_start's compile errors raised, the first; none: nothing. */
 void link_raise(Comp *C);
 void link_compile(Comp *C, uint32_t line); /* cm_comp: line compiled to comp_xbuf */
