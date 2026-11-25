@@ -20,6 +20,9 @@
     bench.py gfx [REV...] [--depth D] [--seconds S] [--dos]  gfx's frames a second in the Mac app, drawn in
                                                  pages against played on the GPU, for each of GFX_WORK's
                                                  frames; --dos: in pages on DOS; REVs: in pages, per build
+    bench.py demos [EXE...] [--cycles N]         stdlib/gfx's demos at 320x200x8 on DOS, frames a second: ours
+                                                 shipped, then without vsync, text and perspective in turn; each
+                                                 EXE a program built elsewhere, writing its rate to FPS.TXT
 
 Native (the default) runs build/hostperf/basic for retired instructions, the least of RUNS runs less
 an empty program's, builds compared run interleaved; and build/host/basic for the ops dispatched,
@@ -1082,6 +1085,78 @@ def cmd_gfx_revs(a: argparse.Namespace) -> int:
     return 0
 
 
+DEMOS = ROOT / "stdlib/gfx/demos"
+# a demo's edits, each run with the ones before it: its text over the frame left out, then perspective
+DEMO_EDITS = {"CUBE": (("    show_options canvas&, st, o, fps\n", ""), ("o.perspective = -1\n", "o.perspective = 0\n"))}
+# a frame counted, and the rate since the first printed once seconds have passed
+DEMO_FLIP = """{i}gfx.display.flip
+{i}if frames& = 0 then t0# = gfx.display.clock
+{i}frames& = frames& + 1
+{i}if gfx.display.clock - t0# >= {seconds} then
+{i}    gfx.display.close
+{i}    print (frames& - 1) / (gfx.display.clock - t0#)
+{i}    end
+{i}end if"""
+
+
+def demo_program(name: str, seconds: float, vsync: bool, edits: int) -> str:
+    """Demo name at 320x200x8, timed for seconds."""
+    src = (DEMOS / f"{name}.BAS").read_text()
+    src, w = re.subn(r"(?m)^const W = \d+$", "const W = 320", src)
+    src, h = re.subn(r"(?m)^const H = \d+$", "const H = 200", src)
+    flags = "gfx.display.VSYNC" if vsync else "0"
+    src, o = re.subn(r"gfx\.display\.open\(W, H, \d+, gfx\.display\.VSYNC\)",
+                     f"gfx.display.open(W, H, 8, {flags})", src)
+    src, f = re.subn(r"(?m)^(\s*)gfx\.display\.flip$",
+                     lambda m: DEMO_FLIP.format(i=m[1], seconds=seconds), src)
+    assert all(n == 1 for n in (w, h, o, f)), f"{name}: its size, open or flip not found once"
+    for old, new in DEMO_EDITS[name][:edits]:
+        assert src.count(old) == 1, f"{name}: {old!r} not found once"
+        src = src.replace(old, new)
+    return src
+
+
+def dos_rate(com: Path, job: tuple, cycles: int, files: dict[str, bytes]) -> str:
+    """Program com's frames a second at cycles a virtual ms: FPS.TXT's first number, or its output's."""
+    conf, was = dosrun.CONF, dosrun.COM
+    dosrun.CONF = conf.replace("core=normal\ncputype=pentium\nvirtual time=true\nvirtual time rate=20000\n",
+                               f"core=dynamic\ncputype=pentium\nvirtual time=true\nvirtual time rate={cycles}\n")
+    assert dosrun.CONF != conf
+    dosrun.COM = com
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            r = dosrun.run({"demo": job}, Path(d) / "w", limit_ms=120000, file=True, mem=16, files=files)["demo"]
+            fps = Path(d) / "w" / "FPS.TXT"
+            out = fps.read_text() if fps.exists() else r.out
+    finally:
+        dosrun.CONF, dosrun.COM = conf, was
+    fields = out.split()
+    try:
+        return f"{float(fields[0]):.1f}"
+    except (IndexError, ValueError):
+        return r.reason
+
+
+def cmd_demos(a: argparse.Namespace) -> int:
+    """Each demo of DEMO_EDITS at 320x200x8 on DOS, at --cycles a virtual ms: ours as shipped, then without vsync, then
+    with each of its edits in turn; and each EXE, a DOS program built elsewhere."""
+    b = build(".", True)
+    qbx = (b.dos.parent / "lib/gfx.qbx").read_bytes()
+    own = {n: (DEMOS / n).read_bytes() for n in ("stage.bas", "meter.bas")}
+    print(f"320x200 at 8 bits on DOS (pentium), {a.cycles} cycles a ms, frames a second over {a.seconds:g} s")
+    print(f"{'':12}{'shipped':>10}{'no vsync':>10}{'no text':>10}{'affine':>10}")
+    for name, edits in DEMO_EDITS.items():
+        runs = [(True, 0)] + [(False, n) for n in range(len(edits) + 1)]
+        cells = [
+            dos_rate(b.dos, (demo_program(name, a.seconds, vsync, n), "", "", own), a.cycles, {"lib/gfx.qbx": qbx})
+            for vsync, n in runs
+        ]
+        print(f"{name:12}" + "".join(f"{c:>10}" for c in cells), flush=True)
+    for exe in map(Path, a.exes):
+        print(f"{exe.name:12}{dos_rate(exe, ('',), a.cycles, {}):>10}", flush=True)
+    return 0
+
+
 def cmd_gfx(a: argparse.Namespace) -> int:
     """Each GFX_WORK frame's rate in pages and on the GPU, in the app's window (the Mac's, or Linux's, off-screen with
     SDL_VIDEO_DRIVER=offscreen); with --vsync, each flip waiting for the refresh. --dos: in pages on DOS. With REVs:
@@ -1330,6 +1405,10 @@ def main() -> int:
     p.add_argument("--dos", action="store_true", help="pages under DOSBox-X")
     p.add_argument("--cpu", default="486", help="--dos: DOSBox's cputype")
     p.add_argument("--as-built", action="store_true", help="--dos: BASIC_EXE's build as it is, not made first")
+    p = sub.add_parser("demos")
+    p.add_argument("exes", nargs="*", help="a DOS program built elsewhere, writing its rate to FPS.TXT")
+    p.add_argument("--cycles", type=int, default=25000, help="DOSBox's cycles a virtual ms")
+    p.add_argument("--seconds", type=float, default=10)
     sub.add_parser("charlie")
     sub.add_parser("engine")
     a = ap.parse_args()
@@ -1346,6 +1425,7 @@ def main() -> int:
         "fills": cmd_fills,
         "fps": cmd_fps,
         "gfx": cmd_gfx,
+        "demos": cmd_demos,
         "charlie": cmd_charlie,
         "engine": cmd_engine,
     }[a.cmd](a)
