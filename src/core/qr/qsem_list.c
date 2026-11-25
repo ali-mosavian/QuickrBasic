@@ -477,15 +477,36 @@ static QExpr *qsem_valuecall(QSem *const S, QExpr *const e, QExpr *const r)
     return e;
 }
 
+/* A built-in method: its name, what has it, its check; none: qsem_listop's of op. */
+static const struct {
+    const char *name;
+    uint8_t on;
+    QBuiltin op;
+    QExpr *(*check)(QSem *S, QExpr *e);
+} qsem_builtins[] = {
+    {.name = "push", .on = QM_LIST, .op = QB_PUSH},
+    {.name = "pop", .on = QM_LIST, .op = QB_POP},
+    {.name = "insert", .on = QM_LIST, .op = QB_INSERT},
+    {.name = "remove", .on = QM_LIST | QM_DICT, .op = QB_REMOVE},
+    {.name = "swap", .on = QM_LIST | QM_ARRAY, .check = qsem_swap},
+    {.name = "sort", .on = QM_LIST | QM_ARRAY, .check = qsem_sort},
+    {.name = "keys", .on = QM_DICT, .check = qsem_keys},
+    {.name = "get", .on = QM_DICT, .check = qsem_get},
+};
+
+void qsem_methods(const uint8_t on, QsemMethodFn *const fn, void *const ctx)
+{
+    for (uint32_t i = 0; i < countof(qsem_builtins); i++)
+        if (qsem_builtins[i].on & on)
+            fn(ctx, qsem_builtins[i].name);
+
+    qsem_chain_methods(fn, ctx);
+}
+
 /* a.f(b): f of module a; a method of a's type; an enum's value with data; a list's, a dict's
    or a chain's method. */
 QExpr *qsem_method(QSem *const S, QExpr *const e)
 {
-    static const struct {
-        const char *name;
-        QBuiltin op;
-    } lists[] = {{"push", QB_PUSH}, {"pop", QB_POP}, {"insert", QB_INSERT}, {"remove", QB_REMOVE}};
-
     if (qsem_ismod(S, e->a)) { /* m.f(..): f of module m */
         QExpr name = {.kind = QE_NAME, .tok = e->tok, .a = e->a};
 
@@ -539,18 +560,10 @@ QExpr *qsem_method(QSem *const S, QExpr *const e)
             return qsem_next(S, e, b->var);
     }
 
-    for (uint32_t i = 0; i < countof(lists); i++)
-        if (qsem_is(e->tok, lists[i].name))
-            return qsem_listop(S, e, lists[i].op);
-
-    if (qsem_is(e->tok, "swap"))
-        return qsem_swap(S, e);
-    if (qsem_is(e->tok, "sort"))
-        return qsem_sort(S, e);
-    if (qsem_is(e->tok, "keys"))
-        return qsem_keys(S, e);
-    if (qsem_is(e->tok, "get"))
-        return qsem_get(S, e);
+    for (uint32_t i = 0; i < countof(qsem_builtins); i++)
+        if (qsem_is(e->tok, qsem_builtins[i].name))
+            return qsem_builtins[i].check ? qsem_builtins[i].check(S, e)
+                                          : qsem_listop(S, e, qsem_builtins[i].op);
 
     if (qsem_is(e->tok, "len")) {
         qsem_say(S, e->tok, "the length is len(x), not x.len()", nullptr);

@@ -183,7 +183,8 @@ QBasic's otherwise. The main file's is the program's; its modules may be of eith
 - Completion offers Quickr's keywords and the names in the file; after `m.` an imported module's
   public names, a QBasic module's SUBs, FUNCTIONs and TYPEs; after `m.E.` an enum's values; after
   `v.` the fields and methods of `v`'s record type, as declared (`v as T`), a QBasic TYPE's fields
-  too (`qr_suggest`). A Quickr module's names come from its parsed lines, a QBasic module's from
+  too, or a list's, a dict's or a string's methods, as the checker has them (`qsem_methods`)
+  (`qr_suggest`). A Quickr module's names come from its parsed lines, a QBasic module's from
   QBasic's own symbol table (`bind_each_export`).
 
 - F1 in a Quickr program looks up `quickr WORD` (`help/qr/`): a keyword, a module, a module's

@@ -123,6 +123,8 @@ struct QSemKeep {
 enum { QSEM_INSTS = 64 }; /* a generic's instances at most: past it, one calls itself growing */
 
 extern const char *const qsem_ends[];
+/* qsem_chain.c: each chain step's and end's name to fn with ctx. */
+void qsem_chain_methods(QsemMethodFn *fn, void *ctx);
 
 /* qsem_say.c */
 void qsem_say(QSem *S, const QTok *t, ...);

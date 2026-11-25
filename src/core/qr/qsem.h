@@ -9,6 +9,12 @@ void qsem_program(QProg *p, QMem *m);
 /* Statement s, a probe's, checked where the names at are in sight (QStmt.at; null the modules'
    alone), p checked with keep: false an error, to p->errs. Its new variables after p's. */
 bool qsem_probe(QProg *p, QMem *m, const QScopeAt *at, QStmt *s);
+/* What has a built-in method: a list, a fixed array, a dict, a string. */
+enum : uint8_t { QM_LIST = 1, QM_ARRAY = 2, QM_DICT = 4, QM_STRING = 8 };
+typedef void QsemMethodFn(void *ctx, const char *name);
+/* Each built-in method a value of the kinds on has, its name to fn with ctx: its own, then a
+   chain's. */
+void qsem_methods(uint8_t on, QsemMethodFn *fn, void *ctx);
 /* Module m's statement after s, past a fn's: null after its last. */
 QStmt *qsem_nextin(const QMod *m, QStmt *s);
 #endif

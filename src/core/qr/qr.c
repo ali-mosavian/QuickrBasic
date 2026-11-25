@@ -1747,37 +1747,81 @@ static void qr_members(const QrSugg *const g, const uint32_t k)
         );
 }
 
-/* Variable name's (n bytes) type as file declares it, x as [m.]T or let x = [m.]T(..): T's token,
-   nullptr none. */
-static const QTok *qr_type_of(
+/* A value's type as declared: a record's or an enum's name; else what built-in methods it has
+   (QM_*). */
+typedef struct {
+    const QTok *rec;
+    uint8_t on;
+} QrValue;
+
+/* The value of type tx: a list's, an array's, a dict's, a string's, a type's by name. */
+static QrValue qr_typed(const QTypeEx *const tx)
+{
+    if (!tx)
+        return (QrValue){};
+
+    switch (tx->kind) {
+    case QX_LIST:
+        return (QrValue){.on = QM_LIST};
+
+    case QX_ARRAY:
+        return (QrValue){.on = QM_ARRAY};
+
+    case QX_DICT:
+        return (QrValue){.on = QM_DICT};
+
+    case QX_GEN: /* Name[T]: Name's */
+        return qr_typed(tx->elem);
+
+    case QX_NAME:
+        return tx->tok->len == 6 && !memcmp(tx->tok->text, "string", 6) ? (QrValue){.on = QM_STRING}
+
+                                                                        : (QrValue){.rec = tx->tok};
+
+    default:
+        return (QrValue){};
+    }
+}
+
+/* The value e gives, as written: a string's, a call's of [m.]T(..). */
+static QrValue qr_given(const QExpr *const e)
+{
+    if (e && (e->kind == QE_FSTR || (e->kind == QE_CONST && e->type == QY_STRING)))
+        return (QrValue){.on = QM_STRING};
+
+    return e && e->kind == QE_CALL ? (QrValue){.rec = e->tok} : (QrValue){};
+}
+
+/* Variable name's (n bytes) value as file declares it: x as T, let x = T(..), a parameter x as
+   T; none found, neither part set. */
+static QrValue qr_value_of(
     const QrSugg *const g,
     const uint32_t file,
     const char *const name,
     const uint32_t n
 )
 {
-    for (uint32_t rec = qr_next_line(&g->S->prog, file, 0); rec;
+    QProg p;
+    const QMod *const mod = qr_parsed(g, file, &p);
 
-         rec = qr_next_line(&g->S->prog, file, rec)) {
-        const QTok *toks;
-        const uint32_t nt = qr_line_toks(g, rec, &toks);
+    for (const QStmt *s = mod ? mod->head : nullptr; s; s = s == mod->tail ? nullptr : s->next) {
+        for (const QDecl *d = s->kind == QS_DECL ? s->decls : nullptr; d; d = d->next)
+            if (qr_named(d->name, name, n))
+                return d->type ? qr_typed(d->type) : qr_given(d->value);
 
-        for (uint32_t i = 0; i + 2 < nt; i++) {
-            if (!qr_named(&toks[i], name, n) ||
-                (toks[i + 1].kind != QK_AS && toks[i + 1].kind != QK_EQ) ||
-                toks[i + 2].kind != QK_NAME)
-                continue;
-
-            uint32_t t = i + 2; /* m.T's T */
-
-            while (t + 2 < nt && toks[t + 1].kind == QK_DOT && toks[t + 2].kind == QK_NAME)
-                t += 2;
-
-            return &toks[t];
-        }
+        for (uint32_t i = 0; s->kind == QS_FN && i < s->fn->npar; i++)
+            if (qr_named(s->fn->params[i].name, name, n))
+                return qr_typed(s->fn->params[i].type);
     }
 
-    return nullptr;
+    return (QrValue){};
+}
+
+/* A built-in method's name to the QrSugg ctx. */
+static void qr_method(void *const ctx, const char *const name)
+{
+    const QrSugg *const g = ctx;
+    g->fn(g->ctx, name, (uint32_t)strlen(name), DSG_FN, 0);
 }
 
 /* Is token t the name text, n bytes, case aside? */
@@ -1946,12 +1990,14 @@ void qr_suggest(
             qr_fields(&g, file, text + b, e - b, false);
     } else if (b < e && !is_digit((uint8_t)text[b])) {
         const uint32_t k = qr_module_named(S, text + b, e - b);
-        const QTok *const t = qr_type_of(&g, file, text + b, e - b);
+        const QrValue v = qr_value_of(&g, file, text + b, e - b);
 
         if (k < modu_count(&S->modu) && e == n - 1)
             qr_members(&g, k);
-        else if (t)
-            qr_fields(&g, file, t->text, t->len, true);
+        else if (v.rec)
+            qr_fields(&g, file, v.rec->text, v.rec->len, true);
+        else if (v.on)
+            qsem_methods(v.on, qr_method, (void *)&g);
         else
             qr_fields(&g, file, text + b, e - b, false);
     }

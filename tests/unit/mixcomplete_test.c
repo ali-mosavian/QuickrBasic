@@ -201,3 +201,22 @@ TEST(mixcomplete_qr_main_offers_a_qbasic_lines_module_names)
     CHECK(!offers(S, "    Area& = r.W * r.H", "    a = ", "helper"));
     fx_done(S, files);
 }
+
+/* After a list's, a dict's or a string's dot, a Quickr program offered nothing: no built-in
+   method. */
+TEST(mixcomplete_qr_main_offers_built_in_methods)
+{
+    open_with(S, qr_main);
+    CHECK(offers(S, "print total", "xs.", "push"));
+    CHECK(offers(S, "print total", "xs.", "sort"));
+    CHECK(offers(S, "print total", "let a = xs.", "map"));
+    CHECK(!offers(S, "print total", "let a = xs.", "keys"));
+    CHECK(offers(S, "print total", "let a = d.", "keys"));
+    CHECK(offers(S, "print total", "let a = d.", "get"));
+    CHECK(!offers(S, "print total", "let a = d.", "push"));
+    CHECK(offers(S, "print total", "let a = w.", "count"));
+    CHECK(!offers(S, "print total", "let a = w.", "push"));
+    CHECK(offers(S, "print total", "let a = s.", "moved"));
+    CHECK(offers(S, "print total", "let a = s.", "x"));
+    fx_done(S, files);
+}

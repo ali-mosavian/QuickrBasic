@@ -6,6 +6,8 @@
  */
 #include "qr/qsem_int.h"
 
+enum { QI_REV = QI_ZIP + 1 }; /* rev(): the source counted down */
+
 /* A chain's steps' and ends' names, by QI_* and QZ_*. */
 static const char *const qsem_steps[] = {
     [QI_MAP] = "map",
@@ -13,6 +15,7 @@ static const char *const qsem_steps[] = {
     [QI_TAKE] = "take",
     [QI_SKIP] = "skip",
     [QI_ZIP] = "zip",
+    [QI_REV] = "rev",
 };
 
 const char *const qsem_ends[] = {
@@ -27,7 +30,14 @@ const char *const qsem_ends[] = {
     [QZ_COLLECT] = "collect",
 };
 
-enum { QI_REV = QI_ZIP + 1 }; /* rev(): the source counted down */
+void qsem_chain_methods(QsemMethodFn *const fn, void *const ctx)
+{
+    for (uint32_t i = 0; i < countof(qsem_steps); i++)
+        fn(ctx, qsem_steps[i]);
+
+    for (uint32_t i = 0; i < QZ_FOR; i++)
+        fn(ctx, qsem_ends[i]);
+}
 
 /* ---- chains */
 
@@ -57,15 +67,7 @@ bool qsem_method_of(
 /* Is e a chain's step, map(f) .. zip(b) or rev(): *k its QI_*. */
 bool qsem_step(QSem *const S, const QExpr *const e, uint32_t *const k)
 {
-    static const char *const rev[] = {"rev"};
-
-    if (qsem_method_of(S, e, qsem_steps, countof(qsem_steps), k))
-        return true;
-    if (!qsem_method_of(S, e, rev, 1, k))
-        return false;
-
-    *k = QI_REV;
-    return true;
+    return qsem_method_of(S, e, qsem_steps, countof(qsem_steps), k);
 }
 
 /* A checked value read again where it is: a copy of its node. */
