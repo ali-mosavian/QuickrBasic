@@ -87,7 +87,7 @@ static void dump_linked(Session *const S)
         const uint8_t *const last = end + flow_opsize(end);
 
         for (uint32_t size; b < last; b += size) {
-            size = named ? flow_opsize(b) : 1;
+            size = named ? link_opsize(b) : 1;
 
             if (named)
                 dump_op(b, size);
