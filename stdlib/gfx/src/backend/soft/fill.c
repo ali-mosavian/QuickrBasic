@@ -837,14 +837,16 @@ static inline void held_of(
 }
 
 #if defined(__i386__)
-/* The walks in asm, uGL's hlinet8 and hlinetp8_z. A plain walk's loop: esi the texel's place and
-   edx u's and v's fractions (StepsRead's), ecx the pixel's index up from -n to the row's end in
-   edi, its depth's in ebp. A pixel's depth, z's high half, is tested before its texel is read; the
-   place steps a row on v's borrow and a texel on u's carry. Every register is the loop's, so all
-   else it reads is in walk_frame, at its absolute place. */
+/* The walks in asm, uGL's hlinet8 and hlinetp8_z, for real CPUs: 32-bit operations, v's and u's
+   fractions each at the top of its own register, edx and ebp (no 66h prefix, no partial register
+   read on a P6), the place in esi stepping a row on v's carry and a texel on u's (Abrash's).
+   Without depth, ecx counts the pixels up from -n to the run's end in edi. With depth, ebx is z,
+   kept in the register, and ecx and edi the pixel's depth and the pixel, both stepped up to dend;
+   the depth, z's high half, is tested before the texel is read. Every register is the loop's, so
+   all else it reads is in walk_frame, at its absolute place. */
 typedef struct {
     uint32_t dv;        /* v's step's fraction, its low half 0 */
-    uint32_t du;        /* u's step's fraction, the low half */
+    uint32_t du;        /* u's step's fraction, its low half 0 */
     int32_t steps[2];   /* the place's step a pixel: a row more on v's borrow, or not */
     int32_t z, dz;      /* the depth, 16.16, and its step a pixel */
     int32_t n, done, m; /* a perspective row's pixels, those walked, and its run's */
@@ -856,7 +858,8 @@ typedef struct {
     uint16_t *zp;       /* and its depth */
     int32_t held[4];    /* the run left to held_of: its u, v, du and dv */
     float dpun, dpvn, dpzn, unit; /* unit: 65536 */
-    uint8_t uvw[30]; /* u/z, v/z and 1/z as the x87 holds them, 80 bits each, across a held run */
+    uint8_t uvw[40]; /* the x87's 65536 z, 1/z, u/z and v/z, 80 bits each, across a held run */
+    uint8_t *dend;   /* with depth, the run's end */
     double u, v, w;  /* u/z, v/z and 1/z at the row's first pixel */
 } WalkFrame;
 
@@ -867,7 +870,6 @@ typedef struct {
 #define WF_du 4
 #define WF_steps 8
 #define WF_z 16
-#define WF_here 18
 #define WF_dz 20
 #define WF_n 24
 #define WF_done 28
@@ -886,14 +888,15 @@ typedef struct {
 #define WF_dpzn 92
 #define WF_unit 96
 #define WF_uvw 100
-#define WF_u 136
-#define WF_v 144
-#define WF_w 152
+#define WF_dend 140
+#define WF_u 144
+#define WF_v 152
+#define WF_w 160
 #define WF_CHECK(f) static_assert(offsetof(WalkFrame, f) == WF_##f);
 WF_CHECK(dv) WF_CHECK(du) WF_CHECK(steps) WF_CHECK(z) WF_CHECK(dz) WF_CHECK(n) WF_CHECK(done)
 WF_CHECK(m) WF_CHECK(pu) WF_CHECK(pv) WF_CHECK(sw) WF_CHECK(sh) WF_CHECK(pitch) WF_CHECK(at)
 WF_CHECK(d) WF_CHECK(zp) WF_CHECK(held) WF_CHECK(dpun) WF_CHECK(dpvn) WF_CHECK(dpzn)
-WF_CHECK(unit) WF_CHECK(uvw) WF_CHECK(u) WF_CHECK(v) WF_CHECK(w)
+WF_CHECK(unit) WF_CHECK(uvw) WF_CHECK(dend) WF_CHECK(u) WF_CHECK(v) WF_CHECK(w)
 #define WF_STR(n) #n
 #define WF_AT(n) WF_STR(n)
 /* Field f of walk_frame, operand [f]; at + bytes past it. */
@@ -902,44 +905,77 @@ WF_CHECK(unit) WF_CHECK(uvw) WF_CHECK(u) WF_CHECK(v) WF_CHECK(w)
 
 static WalkFrame walk_frame = {.unit = 65536.0f};
 
-#define WALK_TEXEL_1 "movzbl (%%esi), %%ebx\n\t"
-#define WALK_TEXEL_2 "movzwl (,%%esi,2), %%ebx\n\t"
-#define WALK_TEXEL_4 "movl (,%%esi,4), %%ebx\n\t"
-#define WALK_KEY_0_1 ""
-#define WALK_KEY_0_2 ""
-#define WALK_KEY_0_4 ""
-#define WALK_KEY_1_1 "testb %%bl, %%bl\n\tjz 2f\n\t"
-#define WALK_KEY_1_2 "testw %%bx, %%bx\n\tjz 2f\n\t"
-#define WALK_KEY_1_4 "testl %%ebx, %%ebx\n\tjns 2f\n\t"
-#define WALK_STORE_1 "movb %%bl, (%%edi,%%ecx)\n\t"
-#define WALK_STORE_2 "movw %%bx, (%%edi,%%ecx,2)\n\t"
-#define WALK_STORE_4 "movl %%ebx, (%%edi,%%ecx,4)\n\t"
-#define WALK_HERE "movw " WF(here) ", %%ax\n\tmovl " WF(dz) ", %%ebx\n\taddl %%ebx, " WF(z) "\n\t"
-#define WALK_HERE_0 ""
-#define WALK_HERE_1 WALK_HERE
-#define WALK_HERE_2 WALK_HERE
-#define WALK_HERE_3 WALK_HERE
-#define WALK_TEST "cmpw %%ax, (%%ebp,%%ecx,2)\n\tjae 2f\n\t"
+/* By depth mode z, deep or not: the texel in bl, bx or ebx without depth; with it, in eax, cleared
+   first so a P6 reads eax whole after al without a stall. */
+#define WALK_DEEP_0 0
+#define WALK_DEEP_1 1
+#define WALK_DEEP_2 1
+#define WALK_DEEP_3 1
+#define WALK_TEXEL_0_1 "movb (%%esi), %%bl\n\t"
+#define WALK_TEXEL_0_2 "movw (,%%esi,2), %%bx\n\t"
+#define WALK_TEXEL_0_4 "movl (,%%esi,4), %%ebx\n\t"
+#define WALK_TEXEL_1_1 "xorl %%eax, %%eax\n\tmovb (%%esi), %%al\n\t"
+#define WALK_TEXEL_1_2 "xorl %%eax, %%eax\n\tmovw (,%%esi,2), %%ax\n\t"
+#define WALK_TEXEL_1_4 "movl (,%%esi,4), %%eax\n\t"
+#define WALK_KEY_0_0_1 ""
+#define WALK_KEY_0_0_2 ""
+#define WALK_KEY_0_0_4 ""
+#define WALK_KEY_0_1_1 ""
+#define WALK_KEY_0_1_2 ""
+#define WALK_KEY_0_1_4 ""
+#define WALK_KEY_1_0_1 "testb %%bl, %%bl\n\tjz 2f\n\t"
+#define WALK_KEY_1_0_2 "testw %%bx, %%bx\n\tjz 2f\n\t"
+#define WALK_KEY_1_0_4 "testl %%ebx, %%ebx\n\tjns 2f\n\t"
+#define WALK_KEY_1_1_1 "testb %%al, %%al\n\tjz 2f\n\t"
+#define WALK_KEY_1_1_2 "testw %%ax, %%ax\n\tjz 2f\n\t"
+#define WALK_KEY_1_1_4 "testl %%eax, %%eax\n\tjns 2f\n\t"
+#define WALK_STORE_0_1 "movb %%bl, (%%edi,%%ecx)\n\t"
+#define WALK_STORE_0_2 "movw %%bx, (%%edi,%%ecx,2)\n\t"
+#define WALK_STORE_0_4 "movl %%ebx, (%%edi,%%ecx,4)\n\t"
+#define WALK_STORE_1_1 "movb %%al, (%%edi)\n\t"
+#define WALK_STORE_1_2 "movw %%ax, (%%edi)\n\t"
+#define WALK_STORE_1_4 "movl %%eax, (%%edi)\n\t"
+#define WALK_HIGH "movl %%ebx, %%eax\n\tshrl $16, %%eax\n\t"
 #define WALK_TEST_0 ""
-#define WALK_TEST_1 WALK_TEST
+#define WALK_TEST_1 WALK_HIGH "cmpw %%ax, (%%ecx)\n\tjae 2f\n\t"
 #define WALK_TEST_2 ""
-#define WALK_TEST_3 WALK_TEST
-#define WALK_WRITE "movw %%ax, (%%ebp,%%ecx,2)\n\t"
+#define WALK_TEST_3 WALK_TEST_1
 #define WALK_WRITE_0 ""
 #define WALK_WRITE_1 ""
-#define WALK_WRITE_2 WALK_WRITE
-#define WALK_WRITE_3 WALK_WRITE
+#define WALK_WRITE_2 WALK_HIGH "movw %%ax, (%%ecx)\n\t"
+#define WALK_WRITE_3 WALK_WRITE_2
 #define WALK_STEP                                                                                  \
     "2:\n\t"                                                                                       \
     "addl " WF(dv) ", %%edx\n\t"                                                                   \
-    "sbbl %%ebx, %%ebx\n\t"                                                                        \
-    "addw " WF(du) ", %%dx\n\t"                                                                    \
-    "adcl " WFP(steps, 4) "(,%%ebx,4), %%esi\n\t"                                                  \
-    "incl %%ecx\n\t"                                                                               \
-    "jnz 1b\n\t"
+    "sbbl %%eax, %%eax\n\t"                                                                        \
+    "addl " WF(du) ", %%ebp\n\t"                                                                   \
+    "adcl " WFP(steps, 4) "(,%%eax,4), %%esi\n\t"
+#define WALK_ON_0_1 "incl %%ecx\n\tjnz 1b\n\t"
+#define WALK_ON_0_2 WALK_ON_0_1
+#define WALK_ON_0_4 WALK_ON_0_1
+#define WALK_ON_1(b)                                                                               \
+    "addl " WF(dz) ", %%ebx\n\taddl $2, %%ecx\n\taddl $" #b ", %%edi\n\tcmpl " WF(dend)           \
+    ", %%edi\n\tjb 1b\n\t"
+#define WALK_ON_1_1 WALK_ON_1(1)
+#define WALK_ON_1_2 WALK_ON_1(2)
+#define WALK_ON_1_4 WALK_ON_1(4)
+#define WALK_PICK(name, d, b) name##d##_##b
+#define WALK_BY(name, d, b) WALK_PICK(name, d, b)
+#define WALK_KEYED(k, d, b) WALK_PICK(WALK_KEY_##k##_, d, b)
+#define WALK_KEYED_BY(k, d, b) WALK_KEYED(k, d, b)
 #define WALK_LOOP(b, k, z)                                                                         \
-    "1:\n\t" WALK_HERE_##z WALK_TEST_##z WALK_TEXEL_##b WALK_KEY_##k##_##b WALK_STORE_##b          \
-        WALK_WRITE_##z WALK_STEP
+    "1:\n\t" WALK_TEST_##z WALK_BY(WALK_TEXEL_, WALK_DEEP_##z, b)                                  \
+        WALK_KEYED_BY(k, WALK_DEEP_##z, b) WALK_BY(WALK_STORE_, WALK_DEEP_##z, b) WALK_WRITE_##z   \
+            WALK_STEP WALK_BY(WALK_ON_, WALK_DEEP_##z, b)
+/* Into the loop: z into ebx with depth; out of it, back. */
+#define WALK_IN_0 ""
+#define WALK_IN_1 "movl " WF(z) ", %%ebx\n\t"
+#define WALK_IN_2 WALK_IN_1
+#define WALK_IN_3 WALK_IN_1
+#define WALK_OUT_0 ""
+#define WALK_OUT_1 "movl %%ebx, " WF(z) "\n\t"
+#define WALK_OUT_2 WALK_OUT_1
+#define WALK_OUT_3 WALK_OUT_1
 #define WALK_KEYS(X, ...) X(__VA_ARGS__, 0) X(__VA_ARGS__, 1)
 #define WALK_VARIANTS(X)                                                                           \
     WALK_KEYS(X, 1, 0) WALK_KEYS(X, 1, 1) WALK_KEYS(X, 1, 2) WALK_KEYS(X, 1, 3)                    \
@@ -948,62 +984,71 @@ static WalkFrame walk_frame = {.unit = 65536.0f};
 
 #define WALK_PLAIN(B, Z, K)                                                                        \
     if (b == B && key == K && z == Z) {                                                            \
-        __asm__ volatile("movl %[zend], %%ebp\n\t" WALK_LOOP(B, K, Z)                              \
-                         : "+S"(at), "+d"(uv), "+c"(i), "+D"(end), [f] "+m"(walk_frame)            \
-                         : [zend] "m"(zend)                                                        \
+        __asm__ volatile("movl %[uf], %%ebp\n\t" WALK_IN_##Z WALK_LOOP(B, K, Z)                    \
+                         : "+S"(at), "+d"(vf), "+c"(c), "+D"(p), [f] "+m"(walk_frame)              \
+                         : [uf] "m"(uf)                                                            \
                          : "eax", "ebx", "ebp", "cc", "memory");                                   \
         return;                                                                                    \
     }
 /* clang-format on */
 
-/* A plain walk of n >= 1 pixels from texel place at and fractions uv, keyed or not, in depth mode
-   z, to the pixels before end and depths before zend: walk_frame's steps and depth set. */
+/* A plain walk of n >= 1 pixels from texel place at and fractions uf and vf (their tops), keyed or
+   not, in depth mode z, from pixel d and depth zp: walk_frame's steps and depth set. */
 [[gnu::always_inline]]
 static inline void walk_plain(
     const uint32_t b,
     const bool key,
     const uint32_t z,
     uintptr_t at,
-    uint32_t uv,
+    const uint32_t uf,
+    uint32_t vf,
     const int32_t n,
-    uint8_t *end,
-    uint16_t *const zend
+    uint8_t *const d,
+    uint16_t *const zp
 )
 {
-    int32_t i = -n;
+    uintptr_t c = z ? (uintptr_t)zp : (uintptr_t)-n;
+    uint8_t *p = z ? d : d + (uint32_t)n * b;
 
+    walk_frame.dend = d + (uint32_t)n * b;
     WALK_VARIANTS(WALK_PLAIN)
 }
 
 /* clang-format off */
-/* A perspective row's runs, from walk_frame's done, as persp_row's: u, v and w on the x87, its
-   divide at each run's end as clang's, so the same bits; each run's steps and whether it stays
-   inside the texture as steps_inside's in 32 bits; a plain one walked, a held one stopping the
-   walk with its steps in walk_frame's held, u, v and w kept in uvw. First, from u, v and w; again,
-   past the held run, from uvw. */
+/* A perspective row's runs, from walk_frame's done, as persp_row's: u, v and w on the x87, each run
+   as clang's, so the same bits; each run's steps and whether it stays inside the texture as
+   steps_inside's in 32 bits; a plain one walked, a held one stopping the walk with its steps in
+   walk_frame's held, the x87's kept in uvw. The divide for a run's end is begun before the run
+   before it is walked, as Quake's: a 486 and a P5 walk while it divides. On the x87 at 4: the run's
+   end's 65536 / w, its end's w, its start's u and v. First, from u, v and w; again, past the held
+   run, from uvw. */
 #define WALK_ENTRY                                                                                 \
     "cmpl $0, " WF(done) "\n\t"                                                                    \
     "jne 6f\n\t"                                                                                   \
-    "fldl " WF(w) "\n\t"                                                                           \
     "fldl " WF(v) "\n\t"                                                                           \
     "fldl " WF(u) "\n\t"                                                                           \
-    "fld %%st(2)\n\t"                                                                              \
+    "fldl " WF(w) "\n\t"                                                                           \
+    "fld %%st(0)\n\t"                                                                              \
     "fdivrs " WF(unit) "\n\t"                                                                      \
-    "fld %%st(1)\n\t"                                                                              \
+    "fld %%st(2)\n\t"                                                                              \
     "fmul %%st(1), %%st\n\t"                                                                       \
     "fistpl " WF(pu) "\n\t"                                                                        \
-    "fmul %%st(2), %%st\n\t"                                                                       \
+    "fmul %%st(3), %%st\n\t"                                                                       \
     "fistpl " WF(pv) "\n\t"                                                                        \
     "addl $32768, " WF(pu) "\n\t"                                                                  \
     "addl $32768, " WF(pv) "\n\t"                                                                  \
+    "fadds " WF(dpzn) "\n\t"                                                                       \
+    "fld %%st(0)\n\t"                                                                              \
+    "fdivrs " WF(unit) "\n\t"                                                                      \
     "jmp 4f\n"                                                                                     \
     "6:\n\t"                                                                                       \
+    "fldt " WFP(uvw, 30) "\n\t"                                                                    \
     "fldt " WFP(uvw, 20) "\n\t"                                                                    \
     "fldt " WFP(uvw, 10) "\n\t"                                                                    \
     "fldt " WF(uvw) "\n"                                                                           \
     "4:\n\t"
-/* m, the divide (u, v and w on: st0 u, st1 v, st2 w), du in eax and dv in ebx from pu in esi and
-   pv in edi, then whether the walk leaves the texture: 7f if it does. */
+/* m, the run's end's u and v by its divide, the next run's divide begun, du in eax and dv in ebx
+   from pu in esi and pv in edi, then whether the walk leaves the texture: 7f if it does. */
 #define WALK_DIVIDE                                                                                \
     "movl " WF(n) ", %%ecx\n\t"                                                                    \
     "subl " WF(done) ", %%ecx\n\t"                                                                 \
@@ -1014,20 +1059,21 @@ static inline void walk_plain(
     "movl %%ecx, " WF(m) "\n\t"                                                                    \
     "movl " WF(pu) ", %%esi\n\t"                                                                   \
     "movl " WF(pv) ", %%edi\n\t"                                                                   \
-    "fadds " WF(dpun) "\n\t"                                                                       \
-    "fxch %%st(1)\n\t"                                                                             \
-    "fadds " WF(dpvn) "\n\t"                                                                       \
     "fxch %%st(2)\n\t"                                                                             \
+    "fadds " WF(dpun) "\n\t"                                                                       \
+    "fxch %%st(3)\n\t"                                                                             \
+    "fadds " WF(dpvn) "\n\t"                                                                       \
+    "fld %%st(3)\n\t"                                                                              \
+    "fmul %%st(3), %%st\n\t"                                                                       \
+    "fistpl " WF(pu) "\n\t"                                                                        \
+    "fld %%st(2)\n\t"                                                                              \
+    "fmul %%st(1), %%st\n\t"                                                                       \
+    "fistpl " WF(pv) "\n\t"                                                                        \
+    "fxch %%st(3)\n\t"                                                                             \
+    "fstp %%st(2)\n\t"                                                                             \
     "fadds " WF(dpzn) "\n\t"                                                                       \
     "fld %%st(0)\n\t"                                                                              \
     "fdivrs " WF(unit) "\n\t"                                                                      \
-    "fld %%st(2)\n\t"                                                                              \
-    "fmul %%st(1), %%st\n\t"                                                                       \
-    "fistpl " WF(pu) "\n\t"                                                                        \
-    "fmul %%st(3), %%st\n\t"                                                                       \
-    "fistpl " WF(pv) "\n\t"                                                                        \
-    "fxch %%st(2)\n\t"                                                                             \
-    "fxch %%st(1)\n\t"                                                                             \
     "movl " WF(pu) ", %%eax\n\t"                                                                   \
     "addl $32768, %%eax\n\t"                                                                       \
     "movl %%eax, " WF(pu) "\n\t"                                                                   \
@@ -1057,10 +1103,12 @@ static inline void walk_plain(
     "jae 7f\n\t"                                                                                   \
     "cmpl " WF(sh) ", %%edi\n\t"                                                                   \
     "jae 7f\n\t"
-/* A plain run's steps, place and fractions (steps_by's and steps_read's), done on by m, and the
-   ends of its b-byte pixels and its depths. */
-#define WALK_SETUP(b)                                                                              \
-    "movl %%eax, " WF(du) "\n\t"                                                                   \
+/* A plain run's steps, place and fractions (steps_by's and steps_read's), and done on by m: eax
+   the run's first pixel's index, ecx m. */
+#define WALK_SETUP                                                                                 \
+    "movl %%eax, %%edx\n\t"                                                                        \
+    "shll $16, %%edx\n\t"                                                                          \
+    "movl %%edx, " WF(du) "\n\t"                                                                   \
     "movl %%ebx, %%edx\n\t"                                                                        \
     "shll $16, %%edx\n\t"                                                                          \
     "movl %%edx, " WF(dv) "\n\t"                                                                   \
@@ -1080,24 +1128,33 @@ static inline void walk_plain(
     "addl %%edx, %%eax\n\t"                                                                        \
     "movl %%edi, %%edx\n\t"                                                                        \
     "shll $16, %%edx\n\t"                                                                          \
-    "movw %%si, %%dx\n\t"                                                                          \
+    "movl %%esi, %%ebp\n\t"                                                                        \
+    "shll $16, %%ebp\n\t"                                                                          \
     "movl %%eax, %%esi\n\t"                                                                        \
     "movl " WF(done) ", %%eax\n\t"                                                                 \
+    "addl %%ecx, " WF(done) "\n\t"
+/* The run's pixels of b bytes: without depth, ecx -m and edi their end; with it, edi and ecx the
+   first pixel and depth, dend the end. */
+#define WALK_RUN_0(b)                                                                              \
     "addl %%ecx, %%eax\n\t"                                                                        \
-    "movl %%eax, " WF(done) "\n\t"                                                                 \
     "negl %%ecx\n\t"                                                                               \
     "movl " WF(d) ", %%edi\n\t"                                                                    \
     "leal (%%edi,%%eax," #b "), %%edi\n\t"
-#define WALK_ZEND "movl " WF(zp) ", %%ebp\n\tleal (%%ebp,%%eax,2), %%ebp\n\t"
-#define WALK_ZEND_0 ""
-#define WALK_ZEND_1 WALK_ZEND
-#define WALK_ZEND_2 WALK_ZEND
-#define WALK_ZEND_3 WALK_ZEND
-/* The next run, or the row done: u, v and w popped. A held run: they kept, and its steps. */
+#define WALK_RUN_1(b)                                                                              \
+    "movl " WF(d) ", %%edi\n\t"                                                                    \
+    "leal (%%edi,%%eax," #b "), %%edi\n\t"                                                         \
+    "leal (%%edi,%%ecx," #b "), %%ebx\n\t"                                                         \
+    "movl %%ebx, " WF(dend) "\n\t"                                                                 \
+    "movl " WF(zp) ", %%ecx\n\t"                                                                   \
+    "leal (%%ecx,%%eax,2), %%ecx\n\t"
+#define WALK_RUN_PICK(d, b) WALK_RUN_##d(b)
+#define WALK_RUN(d, b) WALK_RUN_PICK(d, b)
+/* The next run, or the row done: the x87's popped. A held run: they kept, and its steps. */
 #define WALK_NEXT                                                                                  \
     "movl " WF(done) ", %%eax\n\t"                                                                 \
     "cmpl " WF(n) ", %%eax\n\t"                                                                    \
     "jl 4b\n\t"                                                                                    \
+    "fstp %%st(0)\n\t"                                                                             \
     "fstp %%st(0)\n\t"                                                                             \
     "fstp %%st(0)\n\t"                                                                             \
     "fstp %%st(0)\n\t"                                                                             \
@@ -1106,6 +1163,7 @@ static inline void walk_plain(
     "fstpt " WF(uvw) "\n\t"                                                                        \
     "fstpt " WFP(uvw, 10) "\n\t"                                                                   \
     "fstpt " WFP(uvw, 20) "\n\t"                                                                   \
+    "fstpt " WFP(uvw, 30) "\n\t"                                                                   \
     "movl %%esi, " WF(held) "\n\t"                                                                 \
     "movl %%edi, " WFP(held, 4) "\n\t"                                                             \
     "movl %%eax, " WFP(held, 8) "\n\t"                                                             \
@@ -1113,8 +1171,8 @@ static inline void walk_plain(
     "8:"
 #define WALK_PERSP(B, Z, K)                                                                        \
     if (b == B && key == K && z == Z) {                                                            \
-        __asm__ volatile(WALK_ENTRY WALK_DIVIDE WALK_SETUP(B) WALK_ZEND_##Z WALK_LOOP(B, K, Z)     \
-                             WALK_NEXT                                                             \
+        __asm__ volatile(WALK_ENTRY WALK_DIVIDE WALK_SETUP WALK_RUN(WALK_DEEP_##Z, B) WALK_IN_##Z  \
+                             WALK_LOOP(B, K, Z) WALK_OUT_##Z WALK_NEXT                             \
                          : [f] "+m"(walk_frame)                                                    \
                          : [p] "i"(SCAN_SUBDIVP),                                                  \
                            [s] "i"(SCAN_SUBDIVS)                                                   \
@@ -1183,12 +1241,12 @@ static inline void run_at(
         const StepsRead rd = steps_read(&w->src, st, &by, b);
 
         walk_frame.dv = by.dv;
-        walk_frame.du = by.du;
+        walk_frame.du = (uint32_t)by.du << 16;
         walk_frame.steps[0] = (int32_t)(by.step + by.pitch);
         walk_frame.steps[1] = (int32_t)by.step;
         walk_frame.z = zd;
         walk_frame.dz = w->dz;
-        walk_plain(b, key, z, rd.at, rd.uv, n, d + (uint32_t)n * b, z ? zp + n : nullptr);
+        walk_plain(b, key, z, rd.at, (uint32_t)st.u << 16, (uint32_t)st.v << 16, n, d, zp);
     }
 #else
     else if (!z)
