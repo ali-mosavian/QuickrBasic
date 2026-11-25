@@ -6,7 +6,8 @@
                                                  build (HEAD .)
     bench.py size [REV] [--functions]            the DOS executables' loaded bytes, REV's (default HEAD) and ours
     bench.py gate [--save]                       the suite and sizes against tools/bench/baseline.json
-    bench.py qr [REV...]                         tools/bench/qr: each quickr/NAME.bas against its QBasic twin NAME.bas
+    bench.py qr [REV...] [--ops]                 tools/bench/qr: each quickr/NAME.bas against its QBasic twin NAME.bas;
+                                                 --ops: each Quickr case's ops dispatched, exact, per build
     bench.py qbasic [--json F]                   qbasic/BENCH.BAS in QBasic 1.1 and our IDE under DOSBox
     bench.py ops                                 each op's runs over the suite, the corpus, conformance's
                                                  cases and Quickr's: which are cold
@@ -257,6 +258,11 @@ def cmd_qr(a: argparse.Namespace) -> int:
     qr = run_natives(builds, {p.stem: p.read_text() for p in cases}, quickr=True)
     qb = run_natives(builds, {p.stem: (QR / p.name).read_text() for p in cases})
     pairs = list(zip(qr, qb, strict=True))
+    if a.ops:
+        print(f"{'':10}" + "".join(f"{'tree' if n == '.' else n:>16}" for n in names))
+        for k in qr[0]:
+            print(f"{k:10}" + "".join(f"{q[k].ops:>16,}" for q in qr))
+        return 0
     print(f"{'':10}" + "".join(f"{'tree' if n == '.' else n:>40}" for n in names))
     print(f"{'':10}" + f"{'insns':>14}{'QBasic':>14}{'x':>6}{'ops x':>6}" * len(names))
     for k in qr[0]:
@@ -941,7 +947,9 @@ def main() -> int:
     p.add_argument("--file", action="append", default=[], help="a .bas file instead of the suite")
     p.add_argument("--runs", type=int, default=RUNS, help="native: the least of this many runs")
     p.add_argument("--dos", action="store_true")
-    sub.add_parser("qr").add_argument("revs", nargs="*")
+    p = sub.add_parser("qr")
+    p.add_argument("revs", nargs="*")
+    p.add_argument("--ops", action="store_true", help="each Quickr case's ops, exact")
     p = sub.add_parser("size")
     p.add_argument("rev", nargs="?", default="HEAD")
     p.add_argument("--functions", action="store_true", help="each function whose bytes changed")
