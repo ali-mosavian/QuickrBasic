@@ -14,7 +14,7 @@ def legend(s, y):
 
 
 def layers():
-    s = Svg(W, 800, "Layers", "Dependencies point down only. Upward calls go through hook structs the front end installs.")
+    s = Svg(W, 840, "Layers", "Dependencies point down only. Upward calls go through hook structs the front end installs.")
     L, R = 32, W - 32
     full = R - L
 
@@ -24,36 +24,46 @@ def layers():
     s.panel(L, 180, full, 84, "front", "ui", "IDE only")
     s.chips(L + 16, 220, ["widget tree", "editor", "windows", "menus", "dialogs", "debug pane", "themes"], "front")
 
-    s.panel(L, 290, full, 84, "engine", "session · io/repl", "every module's state · the READY loop")
-    s.chips(L + 16, 330, ["repl_call", "repl_run", "session_step", "session_until", "session_set_next",
-                          "session_frames", "session_eval"], "engine")
+    s.panel(L, 290, full, 84, "engine", "session · io/repl · io/dialect", "every module's state · the READY loop · the dialects")
+    s.chips(L + 16, 330, ["repl_call", "repl_run", "session_step", "session_frames", "session_eval",
+                          "Dialect", "dial_program", "dial_line"], "engine")
 
-    half = (full - 16) / 2
-    s.panel(L, 400, half, 112, "engine", "comp", "a line at a time")
-    s.chips(L + 16, 440, ["lexer", "automaton", "sema", "fold", "codegen", "fuse", "link", "listing"], "engine", maxw=half - 32)
-    s.panel(L + half + 16, 400, half, 112, "engine", "vm · io")
-    s.chips(L + half + 32, 440, ["exec_run", "ops.def", "frames", "events", "channels", "files"], "engine", maxw=half - 32)
+    third = (full - 32) / 3
+    s.panel(L, 400, third, 152, "engine", "comp", "QBasic, a line at a time")
+    s.chips(L + 16, 440, ["lexer", "automaton", "sema", "fold", "codegen", "fuse", "link", "export"], "engine",
+            maxw=third - 32)
+    s.panel(L + third + 16, 400, third, 152, "engine", "qr", "Quickr, a file at a time")
+    s.chips(L + third + 32, 440, ["qlex", "qpar", "qsem*", "qcg*", "qlink", "qrt"], "engine", maxw=third - 32)
+    s.panel(L + 2 * third + 32, 400, third, 152, "engine", "vm · io")
+    s.chips(L + 2 * third + 48, 440, ["exec_run", "ops.def", "frames", "events", "channels", "files"], "engine",
+            maxw=third - 32)
 
-    s.panel(L, 538, full, 64, "base", "mem · num · util", "no malloc")
-    s.chips(L + 210, 556, ["arena · Addr", "strings, arrays", "SINGLE, DOUBLE", "bump arenas"], "base")
+    s.panel(L, 578, full, 64, "base", "mem · num · util", "no malloc")
+    s.chips(L + 210, 596, ["arena · Addr", "strings, arrays", "SINGLE, DOUBLE", "bump arenas"], "base")
 
-    s.panel(L, 628, full, 120, "base", "plat", "plat/*.h interfaces")
-    s.chips(L + 16, 666, ["pscr", "pkey", "pmou", "pclk", "pfil", "psys", "pmem", "pfpu"], "base")
-    s.box(L + 16, 704, 200, 32, "base", r=6, dash=True)
-    s.text(L + 116, 725, "dos32/  the product", size=12, anchor="middle", mono=True)
-    s.box(L + 232, 704, 220, 32, "base", r=6, dash=True)
-    s.text(L + 342, 725, "host/  tests, natively", size=12, anchor="middle", mono=True)
+    s.panel(L, 668, full, 120, "base", "plat", "plat/*.h interfaces")
+    s.chips(L + 16, 706, ["pscr", "pkey", "pmou", "pclk", "pfil", "psys", "pmem", "pfpu"], "base")
+    s.box(L + 16, 744, 200, 32, "base", r=6, dash=True)
+    s.text(L + 116, 765, "dos32/  the product", size=12, anchor="middle", mono=True)
+    s.box(L + 232, 744, 220, 32, "base", r=6, dash=True)
+    s.text(L + 342, 765, "host/  tests, natively", size=12, anchor="middle", mono=True)
 
     cx = W / 2
-    for y0, y1 in [(154, 180), (264, 290), (512, 538), (602, 628)]:
+    for y0, y1 in [(154, 180), (264, 290), (642, 668)]:
         s.arrow([(cx, y0), (cx, y1 - 2)])
-    s.arrow([(cx - 120, 374), (cx - 120, 398)])
-    s.arrow([(cx + 120, 374), (cx + 120, 398)])
-    s.arrow([(L + half * 0.75, 512), (L + half * 0.75, 536)])
+    qx, vx = L + third + 16, L + 2 * third + 32
+    s.arrow([(L + third / 2, 374), (L + third / 2, 398)])
+    s.arrow([(vx + third / 2, 374), (vx + third / 2, 398)])
+    for x in (L + third / 2, qx + third / 2, vx + third / 2):
+        s.arrow([(x, 552), (x, 576)])
+    s.arrow([(qx, 470), (L + third + 2, 470)])
+    s.text(qx + 16, 538, "uses comp's code · fuse · link · export", size=12, fill=MUTED, italic=True)
     c = THEME["front"][1]
+    s.arrow([(qx + third / 2, 374), (qx + third / 2, 398)], color=c, dash=True)
+    s.text(qx + third / 2 + 8, 390, "its Dialect table", size=12, fill=c)
     s.arrow([(R - 60, 290), (R - 60, 266)], color=c, dash=True)
     s.text(R - 72, 284, "FrontEnd · DebugHooks", size=12, fill=c, anchor="end")
-    legend(s, 778)
+    legend(s, 818)
     s.save(f"{OUT}/layers.svg")
 
 
@@ -63,7 +73,7 @@ def ownership():
         ("comp", "engine", ["Lexr", "Comp", "Ast", "Expr", "Decl", "Ctrl", "Blok", "Link", "List", "Code"]),
         ("vm", "engine", ["Vm", "Flow", "StmtState", "Evnt", "Chai", "Usng", "Syst", "Rndm", "Dbug"]),
         ("mem", "base", ["Allo", "Arry", "Prog", "Scop", "Strg", "Symb"]),
-        ("io", "base", ["Chnl", "Cons", "File", "Repl", "Srcr", "Diag"]),
+        ("io", "base", ["Chnl", "Cons", "File", "Repl", "Srcr", "Diag", "Dial"]),
     ]
     s.panel(32, 90, 640, 372, "engine", "struct Session", "static, in main")
     y = 130
@@ -79,7 +89,7 @@ def ownership():
 
     s.panel(696, 226, 272, 236, "base", "rules")
     for i, r in enumerate(["one owner per piece of state", "the IDE's state is uimn", "headers expose calls, not fields",
-                           "memory is the arena only", "core never calls up: hooks"]):
+                           "memory is the arena only", "core never calls up: hooks", "a dialect's state: Dial, on use"]):
         s.text(712, 280 + i * 28, "•  " + r, size=13)
     legend(s, 488)
     s.save(f"{OUT}/ownership.svg")
@@ -218,8 +228,8 @@ def vm():
     for i, t in enumerate(["for (;;) {", "    vm.opip = vm.ip;", "    ops[*vm.ip++](S);", "}"]):
         ind = len(t) - len(t.lstrip())
         s.text(390 + ind * 8, 294 + i * 20, t.strip(), size=13, mono=True)
-    s.text(390, 392, "244 ops (ops.def); CALL k: 185", size=12, fill=MUTED)
-    s.text(390, 410, "routines (PRINT, INPUT, MID$ ...)", size=12, fill=MUTED)
+    s.text(390, 392, "256 ops, 68 X ops (ops.def); CALL k:", size=12, fill=MUTED)
+    s.text(390, 410, "200 routines (PRINT, INPUT, MID$ ...)", size=12, fill=MUTED)
 
     # data stack
     s.panel(690, 90, 278, 260, "engine", "data stack", "a push moves sp down")
@@ -274,4 +284,39 @@ def vm_trace():
     s.save(f"{OUT}/vm-trace.svg")
 
 
-layers(); ownership(); debugger(); widgets(); pipeline(); vm(); vm_trace()
+def dialects():
+    s = Svg(W, 600, "Dialects", "The core asks a Dialect table; each front end compiles to the same VM.")
+    fc, ec = THEME["front"], THEME["engine"]
+
+    s.panel(32, 90, 936, 118, "engine", "the core", "names no dialect but QBasic")
+    s.chips(48, 130, ["io/repl: open · run · report", "comp/suggest: suggest", "ui: colour · names · fn_at · syntax",
+                      "debugger: spell · print"], "engine", maxw=904)
+
+    s.panel(32, 240, 936, 80, "front", "io/dialect.h: struct Dialect", "io/dialect.c: DIALECTS(X)")
+    s.chips(48, 278, ["dial_of_file", "dial_program", "dial_line", "dial_state"], "front")
+    s.text(560, 296, "a file, the program, a line: by its first line's mark", size=12, fill=MUTED)
+
+    s.panel(32, 352, 452, 128, "engine", "dialect_qbasic", "io/repl.c")
+    for i, t in enumerate(["the core's own: lines stored as tokens,", "checked and compiled a line at a time",
+                           "(comp: automaton, sema, fold, codegen)"]):
+        s.text(48, 404 + i * 22, t, size=12)
+    s.panel(516, 352, 452, 128, "engine", "dialect_quickr", "qr/qr.c")
+    for i, t in enumerate(["a text dialect: lines stored as typed (LF_TEXT),", "checked a file at a time",
+                           "(qr: qlex, qpar, qsem*, qcg*, qlink)"]):
+        s.text(532, 404 + i * 22, t, size=12)
+
+    s.panel(32, 512, 936, 58, "base", "shared back end")
+    s.chips(220, 527, ["comp/code · fuse · link", "comp/export: interop", "vm: ops.def", "mem · runtime"], "base")
+
+    for x in (258, 742):
+        s.arrow([(x, 208), (x, 238)], color=fc[1], dash=True)
+        s.arrow([(x, 320), (x, 350)], color=fc[1], dash=True)
+        s.arrow([(x, 480), (x, 510)])
+    s.arrow([(516, 450), (486, 450)], color=ec[1])
+    s.arrow([(486, 466), (514, 466)], color=ec[1])
+    s.text(500, 500, "imports, both ways: comp/export", size=12, fill=ec[1], anchor="middle")
+    legend(s, 588)
+    s.save(f"{OUT}/dialects.svg")
+
+
+layers(); ownership(); dialects(); debugger(); widgets(); pipeline(); vm(); vm_trace()

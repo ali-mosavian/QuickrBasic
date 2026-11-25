@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="800" viewBox="0 0 1000 800"><defs><marker id="ah4f46e5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#4f46e5"/></marker><marker id="ah9ca3af" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9ca3af"/></marker></defs>
-<rect width="1000" height="800" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="840" viewBox="0 0 1000 840"><defs><marker id="ah4f46e5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#4f46e5"/></marker><marker id="ah9ca3af" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9ca3af"/></marker></defs>
+<rect width="1000" height="840" fill="#ffffff"/>
 <text x="32" y="40" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" font-weight="700" fill="#1f2937" text-anchor="start">Layers</text>
 <text x="32" y="64" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#6b7280" text-anchor="start">Dependencies point down only. Upward calls go through hook structs the front end installs.</text>
 <rect x="32" y="90" width="936" height="64" rx="10" fill="#eef2ff" stroke="#4f46e5" stroke-width="2"/>
@@ -27,100 +27,122 @@
 <rect x="577.5999999999999" y="220" width="67.6" height="28" rx="6" fill="#ffffff" stroke="#4f46e5" stroke-opacity="0.55"/>
 <text x="611.3999999999999" y="238.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#312e81" text-anchor="middle">themes</text>
 <rect x="32" y="290" width="936" height="84" rx="10" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
-<text x="48" y="316" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#064e3b" text-anchor="start">session · io/repl</text>
-<text x="952" y="316" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#059669" text-anchor="end" font-style="italic">every module&#x27;s state · the READY loop</text>
+<text x="48" y="316" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#064e3b" text-anchor="start">session · io/repl · io/dialect</text>
+<text x="952" y="316" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#059669" text-anchor="end" font-style="italic">every module&#x27;s state · the READY loop · the dialects</text>
 <rect x="48" y="330" width="90.39999999999999" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
 <text x="93.19999999999999" y="348.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">repl_call</text>
 <rect x="146.39999999999998" y="330" width="82.8" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
 <text x="187.79999999999998" y="348.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">repl_run</text>
 <rect x="237.2" y="330" width="113.19999999999999" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
 <text x="293.79999999999995" y="348.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">session_step</text>
-<rect x="358.4" y="330" width="120.8" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
-<text x="418.79999999999995" y="348.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">session_until</text>
-<rect x="487.2" y="330" width="143.6" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
-<text x="559.0" y="348.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">session_set_next</text>
-<rect x="638.8" y="330" width="128.39999999999998" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
-<text x="703.0" y="348.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">session_frames</text>
-<rect x="775.1999999999999" y="330" width="113.19999999999999" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
-<text x="831.8" y="348.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">session_eval</text>
-<rect x="32" y="400" width="460.0" height="112" rx="10" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
+<rect x="358.4" y="330" width="128.39999999999998" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
+<text x="422.59999999999997" y="348.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">session_frames</text>
+<rect x="494.79999999999995" y="330" width="113.19999999999999" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
+<text x="551.4" y="348.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">session_eval</text>
+<rect x="616.0" y="330" width="75.19999999999999" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
+<text x="653.6" y="348.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">Dialect</text>
+<rect x="699.2" y="330" width="113.19999999999999" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
+<text x="755.8000000000001" y="348.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">dial_program</text>
+<rect x="820.4000000000001" y="330" width="90.39999999999999" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
+<text x="865.6000000000001" y="348.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">dial_line</text>
+<rect x="32" y="400" width="301.3333333333333" height="152" rx="10" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
 <text x="48" y="426" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#064e3b" text-anchor="start">comp</text>
-<text x="476.0" y="426" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#059669" text-anchor="end" font-style="italic">a line at a time</text>
+<text x="317.3333333333333" y="426" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#059669" text-anchor="end" font-style="italic">QBasic, a line at a time</text>
 <rect x="48" y="440" width="60.0" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
 <text x="78.0" y="458.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">lexer</text>
 <rect x="116.0" y="440" width="90.39999999999999" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
 <text x="161.2" y="458.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">automaton</text>
 <rect x="214.39999999999998" y="440" width="52.4" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
 <text x="240.59999999999997" y="458.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">sema</text>
-<rect x="274.79999999999995" y="440" width="52.4" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
-<text x="300.99999999999994" y="458.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">fold</text>
-<rect x="335.19999999999993" y="440" width="75.19999999999999" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
-<text x="372.79999999999995" y="458.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">codegen</text>
-<rect x="418.3999999999999" y="440" width="52.4" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
-<text x="444.5999999999999" y="458.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">fuse</text>
 <rect x="48" y="476" width="52.4" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
-<text x="74.2" y="494.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">link</text>
+<text x="74.2" y="494.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">fold</text>
 <rect x="108.4" y="476" width="75.19999999999999" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
-<text x="146.0" y="494.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">listing</text>
-<rect x="508.0" y="400" width="460.0" height="112" rx="10" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
-<text x="524.0" y="426" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#064e3b" text-anchor="start">vm · io</text>
-<rect x="524.0" y="440" width="82.8" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
-<text x="565.4" y="458.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">exec_run</text>
-<rect x="614.8" y="440" width="75.19999999999999" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
-<text x="652.4" y="458.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">ops.def</text>
-<rect x="698.0" y="440" width="67.6" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
-<text x="731.8" y="458.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">frames</text>
-<rect x="773.6" y="440" width="67.6" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
-<text x="807.4" y="458.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">events</text>
-<rect x="849.2" y="440" width="82.8" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
-<text x="890.6" y="458.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">channels</text>
-<rect x="524.0" y="476" width="60.0" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
-<text x="554.0" y="494.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">files</text>
-<rect x="32" y="538" width="936" height="64" rx="10" fill="#f5f5f4" stroke="#78716c" stroke-width="2"/>
-<text x="48" y="564" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#292524" text-anchor="start">mem · num · util</text>
-<text x="952" y="564" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#78716c" text-anchor="end" font-style="italic">no malloc</text>
-<rect x="242" y="556" width="113.19999999999999" height="28" rx="6" fill="#ffffff" stroke="#78716c" stroke-opacity="0.55"/>
-<text x="298.6" y="574.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#292524" text-anchor="middle">arena · Addr</text>
-<rect x="363.2" y="556" width="136.0" height="28" rx="6" fill="#ffffff" stroke="#78716c" stroke-opacity="0.55"/>
-<text x="431.2" y="574.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#292524" text-anchor="middle">strings, arrays</text>
-<rect x="507.2" y="556" width="128.39999999999998" height="28" rx="6" fill="#ffffff" stroke="#78716c" stroke-opacity="0.55"/>
-<text x="571.4" y="574.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#292524" text-anchor="middle">SINGLE, DOUBLE</text>
-<rect x="643.5999999999999" y="556" width="105.6" height="28" rx="6" fill="#ffffff" stroke="#78716c" stroke-opacity="0.55"/>
-<text x="696.3999999999999" y="574.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#292524" text-anchor="middle">bump arenas</text>
-<rect x="32" y="628" width="936" height="120" rx="10" fill="#f5f5f4" stroke="#78716c" stroke-width="2"/>
-<text x="48" y="654" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#292524" text-anchor="start">plat</text>
-<text x="952" y="654" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#78716c" text-anchor="end" font-style="italic">plat/*.h interfaces</text>
-<rect x="48" y="666" width="52.4" height="28" rx="6" fill="#ffffff" stroke="#78716c" stroke-opacity="0.55"/>
-<text x="74.2" y="684.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#292524" text-anchor="middle">pscr</text>
-<rect x="108.4" y="666" width="52.4" height="28" rx="6" fill="#ffffff" stroke="#78716c" stroke-opacity="0.55"/>
-<text x="134.6" y="684.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#292524" text-anchor="middle">pkey</text>
-<rect x="168.8" y="666" width="52.4" height="28" rx="6" fill="#ffffff" stroke="#78716c" stroke-opacity="0.55"/>
-<text x="195.0" y="684.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#292524" text-anchor="middle">pmou</text>
-<rect x="229.20000000000002" y="666" width="52.4" height="28" rx="6" fill="#ffffff" stroke="#78716c" stroke-opacity="0.55"/>
-<text x="255.4" y="684.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#292524" text-anchor="middle">pclk</text>
-<rect x="289.6" y="666" width="52.4" height="28" rx="6" fill="#ffffff" stroke="#78716c" stroke-opacity="0.55"/>
-<text x="315.8" y="684.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#292524" text-anchor="middle">pfil</text>
-<rect x="350.0" y="666" width="52.4" height="28" rx="6" fill="#ffffff" stroke="#78716c" stroke-opacity="0.55"/>
-<text x="376.2" y="684.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#292524" text-anchor="middle">psys</text>
-<rect x="410.4" y="666" width="52.4" height="28" rx="6" fill="#ffffff" stroke="#78716c" stroke-opacity="0.55"/>
-<text x="436.59999999999997" y="684.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#292524" text-anchor="middle">pmem</text>
-<rect x="470.79999999999995" y="666" width="52.4" height="28" rx="6" fill="#ffffff" stroke="#78716c" stroke-opacity="0.55"/>
-<text x="496.99999999999994" y="684.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#292524" text-anchor="middle">pfpu</text>
-<rect x="48" y="704" width="200" height="32" rx="6" fill="#f5f5f4" stroke="#78716c" stroke-width="1.25" stroke-dasharray="6 4"/>
-<text x="148" y="725" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2937" text-anchor="middle">dos32/  the product</text>
-<rect x="264" y="704" width="220" height="32" rx="6" fill="#f5f5f4" stroke="#78716c" stroke-width="1.25" stroke-dasharray="6 4"/>
-<text x="374" y="725" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2937" text-anchor="middle">host/  tests, natively</text>
+<text x="146.0" y="494.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">codegen</text>
+<rect x="191.6" y="476" width="52.4" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
+<text x="217.79999999999998" y="494.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">fuse</text>
+<rect x="252.0" y="476" width="52.4" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
+<text x="278.2" y="494.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">link</text>
+<rect x="48" y="512" width="67.6" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
+<text x="81.8" y="530.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">export</text>
+<rect x="349.3333333333333" y="400" width="301.3333333333333" height="152" rx="10" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
+<text x="365.3333333333333" y="426" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#064e3b" text-anchor="start">qr</text>
+<text x="634.6666666666666" y="426" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#059669" text-anchor="end" font-style="italic">Quickr, a file at a time</text>
+<rect x="365.3333333333333" y="440" width="52.4" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
+<text x="391.5333333333333" y="458.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">qlex</text>
+<rect x="425.7333333333333" y="440" width="52.4" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
+<text x="451.9333333333333" y="458.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">qpar</text>
+<rect x="486.13333333333327" y="440" width="60.0" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
+<text x="516.1333333333332" y="458.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">qsem*</text>
+<rect x="554.1333333333332" y="440" width="52.4" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
+<text x="580.3333333333333" y="458.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">qcg*</text>
+<rect x="365.3333333333333" y="476" width="60.0" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
+<text x="395.3333333333333" y="494.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">qlink</text>
+<rect x="433.3333333333333" y="476" width="44.8" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
+<text x="455.7333333333333" y="494.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">qrt</text>
+<rect x="666.6666666666666" y="400" width="301.3333333333333" height="152" rx="10" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
+<text x="682.6666666666666" y="426" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#064e3b" text-anchor="start">vm · io</text>
+<rect x="682.6666666666666" y="440" width="82.8" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
+<text x="724.0666666666666" y="458.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">exec_run</text>
+<rect x="773.4666666666666" y="440" width="75.19999999999999" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
+<text x="811.0666666666666" y="458.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">ops.def</text>
+<rect x="856.6666666666665" y="440" width="67.6" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
+<text x="890.4666666666665" y="458.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">frames</text>
+<rect x="682.6666666666666" y="476" width="67.6" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
+<text x="716.4666666666666" y="494.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">events</text>
+<rect x="758.2666666666667" y="476" width="82.8" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
+<text x="799.6666666666666" y="494.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">channels</text>
+<rect x="849.0666666666666" y="476" width="60.0" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
+<text x="879.0666666666666" y="494.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">files</text>
+<rect x="32" y="578" width="936" height="64" rx="10" fill="#f5f5f4" stroke="#78716c" stroke-width="2"/>
+<text x="48" y="604" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#292524" text-anchor="start">mem · num · util</text>
+<text x="952" y="604" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#78716c" text-anchor="end" font-style="italic">no malloc</text>
+<rect x="242" y="596" width="113.19999999999999" height="28" rx="6" fill="#ffffff" stroke="#78716c" stroke-opacity="0.55"/>
+<text x="298.6" y="614.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#292524" text-anchor="middle">arena · Addr</text>
+<rect x="363.2" y="596" width="136.0" height="28" rx="6" fill="#ffffff" stroke="#78716c" stroke-opacity="0.55"/>
+<text x="431.2" y="614.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#292524" text-anchor="middle">strings, arrays</text>
+<rect x="507.2" y="596" width="128.39999999999998" height="28" rx="6" fill="#ffffff" stroke="#78716c" stroke-opacity="0.55"/>
+<text x="571.4" y="614.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#292524" text-anchor="middle">SINGLE, DOUBLE</text>
+<rect x="643.5999999999999" y="596" width="105.6" height="28" rx="6" fill="#ffffff" stroke="#78716c" stroke-opacity="0.55"/>
+<text x="696.3999999999999" y="614.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#292524" text-anchor="middle">bump arenas</text>
+<rect x="32" y="668" width="936" height="120" rx="10" fill="#f5f5f4" stroke="#78716c" stroke-width="2"/>
+<text x="48" y="694" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#292524" text-anchor="start">plat</text>
+<text x="952" y="694" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#78716c" text-anchor="end" font-style="italic">plat/*.h interfaces</text>
+<rect x="48" y="706" width="52.4" height="28" rx="6" fill="#ffffff" stroke="#78716c" stroke-opacity="0.55"/>
+<text x="74.2" y="724.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#292524" text-anchor="middle">pscr</text>
+<rect x="108.4" y="706" width="52.4" height="28" rx="6" fill="#ffffff" stroke="#78716c" stroke-opacity="0.55"/>
+<text x="134.6" y="724.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#292524" text-anchor="middle">pkey</text>
+<rect x="168.8" y="706" width="52.4" height="28" rx="6" fill="#ffffff" stroke="#78716c" stroke-opacity="0.55"/>
+<text x="195.0" y="724.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#292524" text-anchor="middle">pmou</text>
+<rect x="229.20000000000002" y="706" width="52.4" height="28" rx="6" fill="#ffffff" stroke="#78716c" stroke-opacity="0.55"/>
+<text x="255.4" y="724.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#292524" text-anchor="middle">pclk</text>
+<rect x="289.6" y="706" width="52.4" height="28" rx="6" fill="#ffffff" stroke="#78716c" stroke-opacity="0.55"/>
+<text x="315.8" y="724.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#292524" text-anchor="middle">pfil</text>
+<rect x="350.0" y="706" width="52.4" height="28" rx="6" fill="#ffffff" stroke="#78716c" stroke-opacity="0.55"/>
+<text x="376.2" y="724.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#292524" text-anchor="middle">psys</text>
+<rect x="410.4" y="706" width="52.4" height="28" rx="6" fill="#ffffff" stroke="#78716c" stroke-opacity="0.55"/>
+<text x="436.59999999999997" y="724.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#292524" text-anchor="middle">pmem</text>
+<rect x="470.79999999999995" y="706" width="52.4" height="28" rx="6" fill="#ffffff" stroke="#78716c" stroke-opacity="0.55"/>
+<text x="496.99999999999994" y="724.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#292524" text-anchor="middle">pfpu</text>
+<rect x="48" y="744" width="200" height="32" rx="6" fill="#f5f5f4" stroke="#78716c" stroke-width="1.25" stroke-dasharray="6 4"/>
+<text x="148" y="765" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2937" text-anchor="middle">dos32/  the product</text>
+<rect x="264" y="744" width="220" height="32" rx="6" fill="#f5f5f4" stroke="#78716c" stroke-width="1.25" stroke-dasharray="6 4"/>
+<text x="374" y="765" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2937" text-anchor="middle">host/  tests, natively</text>
 <path d="M500.0,154 L500.0,178" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
 <path d="M500.0,264 L500.0,288" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
-<path d="M500.0,512 L500.0,536" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
-<path d="M500.0,602 L500.0,626" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
-<path d="M380.0,374 L380.0,398" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
-<path d="M620.0,374 L620.0,398" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
-<path d="M377.0,512 L377.0,536" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<path d="M500.0,642 L500.0,666" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<path d="M182.66666666666666,374 L182.66666666666666,398" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<path d="M817.3333333333333,374 L817.3333333333333,398" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<path d="M182.66666666666666,552 L182.66666666666666,576" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<path d="M500.0,552 L500.0,576" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<path d="M817.3333333333333,552 L817.3333333333333,576" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<path d="M349.3333333333333,470 L335.3333333333333,470" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<text x="365.3333333333333" y="538" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start" font-style="italic">uses comp&#x27;s code · fuse · link · export</text>
+<path d="M500.0,374 L500.0,398" fill="none" stroke="#4f46e5" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#ah4f46e5)"/>
+<text x="508.0" y="390" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#4f46e5" text-anchor="start">its Dialect table</text>
 <path d="M908,290 L908,266" fill="none" stroke="#4f46e5" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#ah4f46e5)"/>
 <text x="896" y="284" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#4f46e5" text-anchor="end">FrontEnd · DebugHooks</text>
-<path d="M32,778 L72,778" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
-<text x="80" y="782" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">calls (depends on)</text>
-<path d="M232,778 L272,778" fill="none" stroke="#4f46e5" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#ah4f46e5)"/>
-<text x="280" y="782" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">reports up through a hook struct</text>
+<path d="M32,818 L72,818" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<text x="80" y="822" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">calls (depends on)</text>
+<path d="M232,818 L272,818" fill="none" stroke="#4f46e5" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#ah4f46e5)"/>
+<text x="280" y="822" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">reports up through a hook struct</text>
 </svg>

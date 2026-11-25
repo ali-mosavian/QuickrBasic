@@ -10,7 +10,7 @@ maps the asm it replaced.
 - **DRY:** each fact lives in one place.
 - **SRP:** a module or function does one job.
 - **Clean boundaries:** no mixing across them. See [Boundaries](#boundaries).
-- **Open/closed:** a new statement, op or widget is a new entry, not an edit to a switch.
+- **Open/closed:** a new statement, op, widget or dialect is a new entry, not an edit to a switch.
 - **Small and simple:** the rules above apply only as far as they keep the code smaller and clearer.
 - **Line at a time:** each line is checked as it is entered or edited.
 - **Idiomatic C23:** `const` on everything that does not change, indexed `for` loops, named
@@ -29,7 +29,7 @@ maps the asm it replaced.
 | `app` | the one `Session` | `basic32.c`, `ide32.c`: pick a `FrontEnd` and boot |
 | `core/ui` | `uimn`, `them` | The IDE: widget tree, editor, windows, menus, dialogs, debug pane, highlighting, completion, themes |
 | `core/session.c` | `Session` | Every module's state; the debugger's API |
-| `core/comp` | `Lexr`, `Comp`, `Ast`, `Expr`, `Decl`, `Ctrl`, `Blok`, `Link`, `List`, `Code` | Lexer, statement automaton, steps and trees, `sema`, fold, codegen, op fusion, link, lister |
+| `core/comp` | `Lexr`, `Comp`, `Ast`, `Expr`, `Decl`, `Ctrl`, `Blok`, `Link`, `List`, `Code` | Lexer, statement automaton, steps and trees, `sema`, fold, codegen, op fusion, link, lister; a module's exports to the other dialect (`export.c`) |
 | `core/vm` | `Vm`, `Flow`, `Dbug`, `Evnt`, `Chai`, `Usng`, `Syst`, `StmtState` | The loop, ops (`ops.def`), statements and functions, frames, events, CHAIN, PRINT USING, the debugger's stops |
 | `core/io` | `Chnl`, `Cons`, `File`, `Repl`, `Srcr`, `Diag`, `Dial` | Channels, console, files, the READY loop, loading source, error messages; the dialects (`dialect.h`), QBasic's the core's own |
 | `core/qr` | Quickr's state (`Dial`'s) | Quickr, a text dialect: its table (`qr.c`), lexer, parser, checker (`qsem*.c`), codegen (`qcg*.c`), link, runtime (`qrt.c`) |
@@ -55,6 +55,8 @@ Each stage does one job and hands the next a finished product. Nothing reaches a
 - **Folding rewrites the tree.** It never emits.
 - **Codegen alone writes bytes.** `cg_tree(Code *, const Node *)`: a checked tree in, bytes out. No
   `Session`, no symbol table, no errors.
+- **Quickr keeps the same stages:** `qlex`, `qpar` (a tree, nothing emitted), `qsem*` (every error),
+  `qcg*` (bytes alone), `qlink`.
 - **A function sits in one stage.** If it both parses and emits, split it.
 - **Only top-level functions take the `Session`.** A REPL command, a statement driver or a UI event
   handler takes it and passes each module just its own state, e.g. `blok_find(Blok *, ...)`.
@@ -109,6 +111,8 @@ sequenceDiagram
 
 ## Line at a time
 
+QBasic's lines; Quickr checks a file at a time (see [Dialects](#dialects)).
+
 ![A line at a time](img/pipeline.svg)
 
 - An edited line is tokenized (`lexr_line`) and compiled for its syntax alone (`comp_line`). An
@@ -120,6 +124,54 @@ sequenceDiagram
   into the code cache, sets each op's addressing mode and resolves every jump. A run compiles
   nothing but the direct line.
 - `listing` turns a stored line back into text.
+
+## Dialects
+
+![Dialects](img/dialects.svg)
+
+A dialect is a table of operations, `struct Dialect` (`io/dialect.h`). The core calls a dialect
+only through its table. `io/dialect.c` lists the tables in `DIALECTS(X)`, QBasic's first.
+
+- **QBasic's table is the core's own** (`io/repl.c`): its lines are stored as tokens and checked a
+  line at a time.
+- **Every other dialect is a text dialect:** its lines are stored as typed (`LF_TEXT`), so the
+  editor, an error's place and the debugger still work line by line. Quickr's table is in
+  `qr/qr.c`.
+- **Which dialect:** a text dialect's file starts with its mark, such as
+  `' OPTION DIALECT QUICKR`. `dial_of_file`, `dial_program` and `dial_line` read the mark from a
+  path, the program's first record, or a line's file. A QBasic program's module of another dialect
+  keeps a pointer to its table.
+- **State:** a dialect's state is `Dial`'s, made on first use from the C side's heap. `Session`
+  holds no dialect's types.
+- **What the core asks:**
+
+  | Need | Operations |
+  |---|---|
+  | Load and run | `open`, `read`, `link`, `go`, `run`, `report`, `message`, `errtext` |
+  | Editor | `syntax`, `flag`, `colour`, `names`, `fn_at`, `imports`, `suggest` |
+  | Debugger and Immediate | `direct`, `print`, `spell` |
+  | Interop | `guest_read`, `guest_declare` |
+  | State | `size`, `forget` |
+
+  A null hook is one QBasic has none of. No hook runs per VM op.
+- **One back end:** every dialect compiles to `ops.def` through `comp/code`, `fuse` and `link`,
+  and runs on the same VM, frames, arena and runtime. A dialect's ops are new entries in
+  `ops.def`, never a second VM.
+- **Interop:** `comp/export.h` describes a module's procedures and records in the VM's types. Each
+  front end exports its own modules and imports the other's. A QBasic program reads a module of
+  another dialect through `guest_read`, then declares its exports through `guest_declare`, which
+  sets the link's `LinkGuest` hooks. A call across is a plain `PCALL`, with no marshalling.
+
+**A new dialect** is:
+
+1. its front end in its own directory, compiling to `ops.def` through `comp/code`;
+2. a `Dialect` table, `dialect_NAME`;
+3. `X(NAME)` in `DIALECTS`;
+4. for interop, its exports through `comp/export.h`.
+
+It needs no edits to `repl.c`, `suggest.c` or `ui/`. Two gaps remain: `comp.guest` holds one
+dialect's guest modules at a time, and some message keys still name Quickr
+(`DG_DUPLICATE_DEFINITION_QUICKR`).
 
 ## The VM
 
@@ -151,8 +203,8 @@ rather than five:
 | `_A1`, `_A` | an array element: one or n subscripts | `I_LD_A1 a%` |
 
 `I` ops work on INTs, `F` on SINGLEs, `D` on DOUBLEs, `L` on Quickr's longs and `S` on strings.
-`CALL k` runs one of 185 routines (PRINT, INPUT, MID$ ...). `ops.def` defines all 256 one-byte ops
-and 66 X ops: the less hot ones, `X` and a second byte, run through a second table.
+`CALL k` runs one of 200 routines (PRINT, INPUT, MID$ ...). `ops.def` defines all 256 one-byte ops
+and 68 X ops: the less hot ones, `X` and a second byte, run through a second table.
 
 **Fusion.** After codegen, `fuse_code` turns common sequences into one op: a store of a literal is
 `I_SET_U8`, a loop's test and jump `I_JFC_V`, its step, test and jump `I_NEXT_UP` (Quickr's
@@ -257,6 +309,7 @@ engine, no event queue.
 
 New behaviour is a table entry, not a new switch case:
 
+- dialects: a `Dialect` table and its name in `DIALECTS` (`io/dialect.c`)
 - ops and CALL routines: `vm/ops.def`
 - statements' syntax: the automaton `tools/gen_dfa.py` generates
 - system calls (graphics, sound): `vm/syscalls.def`
@@ -278,6 +331,7 @@ Programs and tests can see these, so they do not change:
   - the unit tests (`tests/unit`, `TEST`, `CHECK`);
   - the golden code;
   - the regressions and QB 4.5 conformance. `HOST_SKIP` in `tools/regress_test.py` names what the
-    host cannot show as DOS does.
+    host cannot show as DOS does;
+  - Quickr's programs and their errors (`tests/qr`, `tools/qr_test.py`), interop's among them.
 - `make test` runs the DOS build under DOSBox-X: the regressions, conformance, folding, op costs,
   graphics and the IDE. It is the end-to-end gate.
