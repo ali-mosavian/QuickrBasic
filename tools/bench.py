@@ -1086,8 +1086,17 @@ def cmd_gfx_revs(a: argparse.Namespace) -> int:
 
 
 DEMOS = ROOT / "stdlib/gfx/demos"
-# a demo's edits, each run with the ones before it: its text over the frame left out, then perspective
-DEMO_EDITS = {"CUBE": (("    show_options canvas&, st, o, fps\n", ""), ("o.perspective = -1\n", "o.perspective = 0\n"))}
+# a demo's edits, each run with the ones before it: their names, and the lines they change
+DEMO_EDITS = {
+    "CUBE": (
+        ("no text", "    show_options canvas&, st, o, fps\n", ""),
+        ("affine", "o.perspective = -1\n", "o.perspective = 0\n"),
+    ),
+    "ISLES": (
+        ("no text", "    show_help canvas&, st, turning%, smooth%, fps\n", ""),
+        ("no clouds", "    draw_clouds world&, clouds()\n", ""),
+    ),
+}
 # a frame counted, and the rate since the first printed once seconds have passed
 DEMO_FLIP = """{i}gfx.display.flip
 {i}if frames& = 0 then t0# = gfx.display.clock
@@ -1110,7 +1119,7 @@ def demo_program(name: str, seconds: float, vsync: bool, edits: int) -> str:
     src, f = re.subn(r"(?m)^(\s*)gfx\.display\.flip$",
                      lambda m: DEMO_FLIP.format(i=m[1], seconds=seconds), src)
     assert all(n == 1 for n in (w, h, o, f)), f"{name}: its size, open or flip not found once"
-    for old, new in DEMO_EDITS[name][:edits]:
+    for _, old, new in DEMO_EDITS[name][:edits]:
         assert src.count(old) == 1, f"{name}: {old!r} not found once"
         src = src.replace(old, new)
     return src
@@ -1144,14 +1153,15 @@ def cmd_demos(a: argparse.Namespace) -> int:
     qbx = (b.dos.parent / "lib/gfx.qbx").read_bytes()
     own = {n: (DEMOS / n).read_bytes() for n in ("stage.bas", "meter.bas")}
     print(f"320x200 at 8 bits on DOS (pentium), {a.cycles} cycles a ms, frames a second over {a.seconds:g} s")
-    print(f"{'':12}{'shipped':>10}{'no vsync':>10}{'no text':>10}{'affine':>10}")
-    for name, edits in DEMO_EDITS.items():
+    for name in a.demo or DEMO_EDITS:
+        edits = DEMO_EDITS[name]
         runs = [(True, 0)] + [(False, n) for n in range(len(edits) + 1)]
+        print(f"{name:12}" + "".join(f"{t:>11}" for t in ("shipped", "no vsync", *(e[0] for e in edits))))
         cells = [
             dos_rate(b.dos, (demo_program(name, a.seconds, vsync, n), "", "", own), a.cycles, {"lib/gfx.qbx": qbx})
             for vsync, n in runs
         ]
-        print(f"{name:12}" + "".join(f"{c:>10}" for c in cells), flush=True)
+        print(f"{'':12}" + "".join(f"{c:>11}" for c in cells), flush=True)
     for exe in map(Path, a.exes):
         print(f"{exe.name:12}{dos_rate(exe, ('',), a.cycles, {}):>10}", flush=True)
     return 0
@@ -1408,6 +1418,7 @@ def main() -> int:
     p = sub.add_parser("demos")
     p.add_argument("exes", nargs="*", help="a DOS program built elsewhere, writing its rate to FPS.TXT")
     p.add_argument("--cycles", type=int, default=25000, help="DOSBox's cycles a virtual ms")
+    p.add_argument("--demo", action="append", choices=list(DEMO_EDITS), help="a demo to time; all when none")
     p.add_argument("--seconds", type=float, default=10)
     sub.add_parser("charlie")
     sub.add_parser("engine")
