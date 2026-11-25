@@ -52,14 +52,14 @@ static inline bool steps_in(const int64_t f, const int32_t n)
     return f >= 0 && f < (int64_t)n << 16;
 }
 
-/* Every texel of n pixels' walk inside s, the fillers' walk: u wrapping, or held. */
+/* Every texel of n pixels' walk inside s: the plain fillers' walk, not the held ones'. */
 static inline bool steps_inside(const Steps *const st, const Pixels *const s, const int32_t n)
 {
     const int64_t u1 = st->u + (int64_t)st->du * (n - 1);
     const int64_t v1 = st->v + (int64_t)st->dv * (n - 1);
 
-    return steps_in(st->v, s->h) && steps_in(v1, s->h) &&
-           (st->wrap || (steps_in(st->u, s->w) && steps_in(u1, s->w)));
+    return steps_in(st->v, s->h) && steps_in(v1, s->h) && steps_in(st->u, s->w) &&
+           steps_in(u1, s->w);
 }
 
 static inline int32_t steps_held(const int32_t i, const int32_t n)
@@ -82,9 +82,7 @@ static inline uint32_t steps_texel(const Pixels *const s, const Steps *const st)
    texel more when u's does (Abrash's). No texel costs a multiply. The fractions share a register,
    uGL's halves: u's the low one, stepped by a 16-bit add, v's pre-shifted to the top, by a 32-bit
    one. The address counts texels, so u's carry is one at every depth: a picture's texels and rows
-   are whole texels from 0. The address is a number: the last step may leave the picture. A walk
-   that wraps is cut where u wraps. */
-enum { STEPS_MASKED = 0 };
+   are whole texels from 0. The address is a number: the last step may leave the picture. */
 
 typedef struct {
     intptr_t step, pitch; /* in texels */
@@ -156,14 +154,10 @@ static inline uint32_t steps_read_next(StepsRead *const r, const uint32_t bytes)
 }
 #else
 /* Elsewhere, 64 bits a register: u and v 16.16 in one, v's pre-shifted to the top half, so one add
-   steps both; a texel's place their whole parts, u's masked, by the pitch. A wrap of a width a
-   power of two is u's mask (STEPS_MASKED), so its walk is not cut where u wraps; u is then biased
-   by 2^31, a multiple of the width's, so it neither borrows from v nor carries into it. On arm64
-   in asm: and, lsr, madd, add. */
-enum { STEPS_MASKED = 1 };
-
+   steps both; a texel's place their whole parts by the pitch. On arm64 in asm: ubfx, lsr, madd,
+   add. */
 typedef struct {
-    uint64_t duv, umask;
+    uint64_t duv;
     uint64_t pitch; /* in texels */
 } StepsBy;
 
@@ -180,7 +174,6 @@ static inline StepsBy steps_by(const Pixels *const s, const Steps st, const uint
 {
     return (StepsBy){
         .duv = ((uint64_t)(uint32_t)st.dv << 32) + (uint64_t)(int64_t)st.du,
-        .umask = st.wrap ? (uint32_t)(st.wrap >> 16) - 1 : 0xFFFF,
         .pitch = s->pitch / bytes,
     };
 }
@@ -193,11 +186,9 @@ static inline StepsRead steps_read(
     [[maybe_unused]] const uint32_t bytes
 )
 {
-    const uint32_t u = (uint32_t)st.u + (st.wrap ? 0x80000000u : 0);
-
     return (StepsRead){
         .p = s->p,
-        .uv = (uint64_t)(uint32_t)st.v << 32 | u,
+        .uv = (uint64_t)(uint32_t)st.v << 32 | (uint32_t)st.u,
         .by = *by,
     };
 }
@@ -211,36 +202,17 @@ static inline uint32_t steps_read_next(StepsRead *const r, const uint32_t bytes)
 #if defined(__aarch64__)
     uint64_t u;
 
-    __asm__("and %[u], %[mask], %[uv], lsr #16\n\t"
+    __asm__("ubfx %[u], %[uv], #16, #16\n\t"
             "lsr %[at], %[uv], #48\n\t"
             "madd %[at], %[at], %[pitch], %[u]\n\t"
             "add %[uv], %[uv], %[duv]"
             : [uv] "+r"(r->uv), [at] "=&r"(at), [u] "=&r"(u)
-            : [mask] "r"(r->by.umask), [pitch] "r"(r->by.pitch), [duv] "r"(r->by.duv));
+            : [pitch] "r"(r->by.pitch), [duv] "r"(r->by.duv));
 #else
-    at = (r->uv >> 48) * r->by.pitch + (r->uv >> 16 & r->by.umask);
+    at = (r->uv >> 48) * r->by.pitch + (r->uv >> 16 & 0xFFFF);
     r->uv += r->by.duv;
 #endif
     return px_load(r->p + at * bytes, bytes);
 }
 #endif
-
-/* The walk drawn whole, its wraps its mask: STEPS_MASKED, a wrap of a width a power of two, and u
-   travelling under 2^30, so its bias of 2^31 keeps it inside its half. */
-static inline bool steps_masked(const Steps *const st, const int32_t w, const int32_t n)
-{
-    const int64_t travel = (int64_t)(st->du < 0 ? -(int64_t)st->du : st->du) * n;
-
-    return STEPS_MASKED && st->wrap && !(w & (w - 1)) && travel < (int64_t)1 << 30;
-}
-
-/* The pixels from the walk's place up to where u wraps, at most n: those a walk that does not
-   wrap reads alike. */
-static inline int32_t steps_unwrapped(const Steps *const st, const int32_t n)
-{
-    const int32_t m = st->du > 0   ? (st->wrap - 1 - st->u) / st->du + 1
-                      : st->du < 0 ? st->u / -st->du + 1
-                                   : n;
-    return m < n ? m : n;
-}
 #endif
