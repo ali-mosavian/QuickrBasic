@@ -46,15 +46,6 @@ static inline void steps_on(Steps *const st)
         st->u = steps_wrap(st->u, st->wrap);
 }
 
-/* The walk n pixels on. */
-static inline Steps steps_skip(Steps st, const int32_t n)
-{
-    const int64_t u = st.u + (int64_t)st.du * n;
-    st.u = st.wrap ? steps_wrap((int32_t)(u % st.wrap), st.wrap) : (int32_t)u;
-    st.v = (int32_t)(st.v + (int64_t)st.dv * n);
-    return st;
-}
-
 /* f, 16.16, held a texel inside [0, n) texels. */
 static inline bool steps_in(const int64_t f, const int32_t n)
 {
@@ -85,14 +76,51 @@ static inline uint32_t steps_texel(const Pixels *const s, const Steps *const st)
     return px_load(s->p + v * s->pitch + (uint32_t)u * bytes, bytes);
 }
 
-/* The texel at the walk's place, inside s, bytes a texel; the walk a pixel on. A constant bytes
-   makes it a format's own load. */
-static inline uint32_t steps_next(const Pixels *const s, Steps *const st, const uint32_t bytes)
-{
-    const uint32_t texel =
-        px_load(s->p + (st->v >> 16) * (int32_t)s->pitch + (st->u >> 16) * (int32_t)bytes, bytes);
+/* A walk that does not wrap read texel by texel, inside its picture: its row's address stepped by
+   whole rows, v's fraction carried into it, so no texel costs a multiply. The address is a number:
+   the last step may leave the picture. */
+typedef struct {
+    uintptr_t row;
+    int32_t down, pitch;
+    uint32_t v, dv; /* v's fraction and its step's, in the top 16 bits */
+    int32_t u, du;
+} StepsRead;
 
-    steps_on(st);
+static inline StepsRead steps_read(const Pixels *const s, const Steps st)
+{
+    const int32_t pitch = (int32_t)s->pitch;
+
+    return (StepsRead){
+        .row = (uintptr_t)s->p + (uintptr_t)(intptr_t)((st.v >> 16) * pitch),
+        .down = (st.dv >> 16) * pitch,
+        .pitch = pitch,
+        .v = (uint32_t)st.v << 16,
+        .dv = (uint32_t)st.dv << 16,
+        .u = st.u,
+        .du = st.du,
+    };
+}
+
+/* The texel at the read's place, bytes a texel, a constant for a format's own load; the read a
+   pixel on. */
+static inline uint32_t steps_read_next(StepsRead *const r, const uint32_t bytes)
+{
+    const uint32_t texel = px_load((const uint8_t *)r->row + (r->u >> 16) * (int32_t)bytes, bytes);
+    const uint32_t was = r->v;
+
+    r->v += r->dv;
+    r->row += (uintptr_t)(intptr_t)(r->down + (-(int32_t)(r->v < was) & r->pitch));
+    r->u = (int32_t)((uint32_t)r->u + (uint32_t)r->du);
     return texel;
+}
+
+/* The pixels from the walk's place up to where u wraps, at most n: those a walk that does not
+   wrap reads alike. */
+static inline int32_t steps_unwrapped(const Steps *const st, const int32_t n)
+{
+    const int32_t m = st->du > 0   ? (st->wrap - 1 - st->u) / st->du + 1
+                      : st->du < 0 ? st->u / -st->du + 1
+                                   : n;
+    return m < n ? m : n;
 }
 #endif

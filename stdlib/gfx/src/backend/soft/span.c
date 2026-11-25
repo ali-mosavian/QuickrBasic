@@ -13,35 +13,37 @@ bool span_fused(const SoftTarget *const t, const Pixels *const s)
 
 static bool blends(const Ink *const k) { return k->blend || k->mode; }
 
-/* n pixels from x, y through the call's ink: s's texels along the walk, inside s, or colour when
-   s is null (drawn even when 0). */
-static void inked(
-    const SoftTarget *const t,
-    const int32_t x,
+/* n pixels from x, y by the fillers: the fused one when the ink has nothing to do, else the inked
+   one for the source and the ink's variant. A wrapping walk is cut where u wraps, so none wraps. */
+static void filled(
+    const Textured *const x,
+    const int32_t px,
     const int32_t y,
     const int32_t n,
-    const Pixels *const s,
-    Steps st,
-    const uint32_t colour
+    Steps st
 )
 {
-    uint32_t texels[FILL_CHUNK];
-    Ink k = t->ink;
-    k.keyed = k.keyed && s;
-    k.source = s ? s->format : k.source;
-    const uint32_t bytes = px_bytes(t->px.format);
+    const SoftTarget *const t = x->t;
+    const Pixels *const s = x->s;
+    const bool fused = span_fused(t, s);
+    FillStep *const step = t->fill->step[x->opaque ? FILL_OPAQUE : 0];
+    FillInked *const inked =
+        t->fill->inked[s->format][fill_variant(&t->ink, t->px.format, s->format)];
 
-    for (int32_t done = 0; done < n; done += FILL_CHUNK) {
-        const int32_t m = rect_min(n - done, FILL_CHUNK);
+    for (int32_t done = 0; done < n;) {
+        const int32_t m = st.wrap ? steps_unwrapped(&st, n - done) : n - done;
+        const Steps piece = {st.u, st.v, st.du, st.dv, 0};
 
-        if (s) {
-            fill_formats[s->format]->fetch(texels, s, st, m);
-            st = steps_skip(st, m);
-        } else
-            for (int32_t i = 0; i < m; i++)
-                texels[i] = colour;
+        uint8_t *const d = span_at(t, px + done, y);
 
-        t->fill->ink(span_at(t, x, y) + done * bytes, texels, m, &k);
+        if (fused)
+            step(d, s, piece, m);
+        else
+            inked(d, s, piece, m, &t->ink);
+
+        done += m;
+        st.u = st.wrap ? steps_wrap(st.u + m * st.du, st.wrap) : st.u;
+        st.v += m * st.dv;
     }
 }
 
@@ -71,7 +73,7 @@ void span_fill(
         return;
 
     if (blends(&t->ink))
-        inked(t, x0, y, x1 - x0, nullptr, (Steps){}, colour);
+        t->fill->tint(span_at(t, x0, y), x1 - x0, colour, &t->ink);
     else
         t->fill->span(span_at(t, x0, y), x1 - x0, t->fill->paint(colour, &t->ink));
 }
@@ -245,10 +247,8 @@ void span_texels(
         smooth(x, px, y, n, st, z, dz);
     else if (t->depth.p || !steps_inside(&st, x->s, n))
         each(x, px, y, n, st, z, dz);
-    else if (span_fused(t, x->s))
-        t->fill->step[x->opaque ? FILL_OPAQUE : 0](span_at(t, px, y), x->s, st, n);
     else
-        inked(t, px, y, n, x->s, st, 0);
+        filled(x, px, y, n, st);
 }
 
 typedef struct {

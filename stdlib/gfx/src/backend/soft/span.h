@@ -3,9 +3,9 @@
  *
  * # How it works
  * A textured span is a walk (steps.h): drawn by the target's fused filler when the ink has nothing
- * to do, else FILL_CHUNK texels at a time through it, when the walk stays inside the picture and
- * there is no depth; else a pixel at a time: its texel held inside, keyed, tested against the
- * depth there, drawn, its depth set. SMOOTH's span is a pixel at a time too: the four texels round
+ * to do, else by its inked filler (fill.h), a wrapping walk cut where u wraps, when the walk stays
+ * inside the picture and there is no depth; else a pixel at a time: its texel held inside, keyed,
+ * tested against the depth there, drawn, its depth set. SMOOTH's span is a pixel at a time too: the four texels round
  * its place mixed as the GPU's shader mixes them. A perspective span is runs of SCAN_SUBDIVP pixels, each a
  * walk between two divides (qgl's PTEX): a divide's u = (u/z) / (1/z) rounds (fistp) and takes
  * half a texel on its own side. A run's ends are not clamped, as the last run's end lies a whole
