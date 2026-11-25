@@ -10,6 +10,8 @@
 '     screen's, an image's, or new's.
 ' :::::::::::
 
+option disable width, point, read, write
+
 ' :::::::::::
 ' Makes a surface, all colour 0.
 '

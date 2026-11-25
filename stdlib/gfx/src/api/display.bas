@@ -8,6 +8,8 @@
 '     docs/gfx-extension-design.md has the design.
 ' :::::::::::
 
+option disable open, close
+
 ' open's flags: VSYNC, and how the screen is scaled to the
 ' window: whole multiples (none), FIT or STRETCH. NATIVE: a
 ' GPU draws at the window's own resolution.

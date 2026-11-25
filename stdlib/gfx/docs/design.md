@@ -49,10 +49,9 @@ procedure, record and constant, each procedure with its docstring.
 
 No module imports another; everything sits over `surface`.
 
-- **QuickrBasic's dialect.** It has no `SCREEN`, `PRINT`, `LINE`, `CIRCLE`, `PSET`, `OPEN` or
-  `CLOSE` statements: those are QB's dialect's, and here the standard library's extensions. So
-  `draw.line`, `display.open` and `surface.new_view` are plain names, and the interfaces are read in
-  this dialect.
+- **QB's words as names.** `OPTION DISABLE LINE, CIRCLE, ...` makes QB's statements for devices
+  names in a module's lines after it. Each interface disables the ones it names, so `draw.line` and
+  `display.open` are its procedures; a program keeps QB's `LINE` and `OPEN`.
 - **Names by rule.** The module is the noun, a procedure the verb: `surface.load`, `display.flip`,
   `draw.sprite`. A maker is `new_*` with a `free*`; a setting is `set_*` with a `get_*`. No
   metaphors, no abbreviations.
@@ -218,7 +217,7 @@ every draw, unseen, and its sprites batched only when held. Here where a surface
 backend's choice, and batching is always on.
 
 `PUT`'s `XOR`, `AND` and `OR` are not offered: Metal and WebGL2 have no logic operations. They stay
-QB's dialect's.
+QB's `PUT`'s.
 
 ## Views
 
@@ -420,13 +419,13 @@ void *(*file_read)(const char *path, uint32_t len, uint32_t *bytes);
 
 | Question | Decided |
 |---|---|
-| `SCREEN`'s page and a `gfx` canvas | `SCREEN` is QB's dialect's alone: one canvas, nothing layered |
+| `SCREEN`'s page and a `gfx` canvas | `SCREEN` is QB's alone: one canvas, nothing layered |
 | The program's own shaders | GLSL ES 3.0 as it is |
 | Depth in software | 1/z in 16 bits |
 | 15 bits | one template with 16 |
 | Vertex procedures | the interpreter in software; translated to a vertex shader on a GPU |
 | 3D worlds | meshes drawn nearest first with `ORDERED`; a scene-level call is weighed again at step 6 |
-| Names that are QB's keywords | QuickrBasic's dialect has none of them: they are plain names |
+| Names that are QB's keywords | names where a module's `OPTION DISABLE` lists them |
 | Where the GPU backends live | in the extension, its list played by the host's generic GPU |
 | A sprite's arguments | `sprite` and `sprite_turned`, as µGL's pairs |
 | Effects | flags on each draw call; `draw`'s settings hold their numbers |

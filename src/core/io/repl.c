@@ -846,13 +846,43 @@ static uint32_t keep_pre(Session *const S)
     return n;
 }
 
+/* The words a program line's OPTION DISABLE lists, its body at p: names in its module's lines
+   after it (comp/lexer.c). A bad list the declare pass reports. */
+static void disable(Session *const S, const uint8_t *p)
+{
+    if (*p == M_INT)
+        p += INT_TOKEN_SIZE;
+    if (*p != TK_OPTION)
+        return;
+
+    ModuMod *const mod = modu_mod(&S->modu, S->repl.module);
+    const uint8_t *bad;
+
+    if (lexr_disable(p, mod->off, &bad) == DISABLE_SET)
+        memcpy(S->lexr.off, mod->off, sizeof S->lexr.off);
+}
+
 uint8_t repl_enter(Session *const S, const uint32_t len)
 {
     S->cons.inbuf[len] = 0;
     const uint32_t pre = S->repl.loading && S->repl.keep_pre ? keep_pre(S) : 0;
     S->vm.line = DLINE;
+    /* a direct line, a command or the immediate window's, disables nothing: RUN, PRINT x */
+    const bool program = S->repl.loading || is_digit(*blanks(S->cons.inbuf, S->cons.inbuf + len));
+    uint64_t off[8];
+
+    if (!program) {
+        memcpy(off, S->lexr.off, sizeof off);
+        memset(S->lexr.off, 0, sizeof S->lexr.off);
+    }
+
     const uint8_t *const end = lexr_line(&S->lexr, S->cons.inbuf, S->comp.cbuf);
     const uint32_t place = prog_at(&S->prog);
+
+    if (!program)
+        memcpy(S->lexr.off, off, sizeof off);
+    else
+        disable(S, S->comp.cbuf);
 
     if (!S->comp.cbuf[0])
         return ENTER_EMPTY;
@@ -1224,6 +1254,7 @@ static void read_modules(Session *const S, const uint32_t from, const uint32_t l
         modu_top(&S->modu, m, prog_at(&S->prog));
         module_end(S, S->repl.nfile);
         S->repl.module = m;
+        memset(S->lexr.off, 0, sizeof S->lexr.off);
 
         if (!modu_mod(&S->modu, m)->native) {
             read_file(S, path, path, SOURCE_FILENO, 0);
@@ -1252,6 +1283,7 @@ static void read_modules(Session *const S, const uint32_t from, const uint32_t l
 
     module_end(S, 0); /* the last module's */
     S->repl.module = 0;
+    memcpy(S->lexr.off, modu_mod(&S->modu, 0)->off, sizeof S->lexr.off); /* the editor's lines */
 }
 
 /* An IMPORT or FROM statement's modules run, each to each. */
@@ -1428,6 +1460,7 @@ void repl_load(Session *const S)
     S->repl.nfile = 0;
     S->repl.module = 0;
     modu_clear(&S->modu, S->repl.file);
+    memset(S->lexr.off, 0, sizeof S->lexr.off);
     read_file(S, S->repl.file, S->repl.file, SOURCE_FILENO, 0);
     read_modules(S, 1, 0);
     declare_program(S, false, false);
@@ -1642,6 +1675,8 @@ static void walk(Session *const S, const bool lenient)
         }
 
         l->file = (uint16_t)S->repl.module;
+        const ModuMod *const mod = modu_mod(&S->modu, S->repl.module);
+        memcpy(S->lexr.off, mod->off, sizeof S->lexr.off); /* an include's */
         const uint8_t *body = restore(S, line);
         find_imports(S, modu_module_path(&S->modu, S->repl.module));
         const uint8_t tok = comp_peek(&body);

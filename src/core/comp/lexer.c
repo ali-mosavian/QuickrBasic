@@ -9,6 +9,10 @@
  * stays text. A keyword is a whole word (the scanner's automaton, kwstep), any other word a name.
  * FN is joined to its name; E and D of an exponent go upper case.
  *
+ * Lexr.off: the words a module's OPTION DISABLE made names (io/repl.c sets it), QB's statements
+ * and functions for devices (the screen, files, sound, ports, the clock), the standard library's
+ * to give: `line`, `open`, `print`. PRINT's off, ? is no PRINT. The language's own words stay.
+ *
  * Lexr.col: an item's column in the text, by its body offset (the editor's). A streamed text is
  * read through a window: its LexrSource refills it. Names come from a LexrNames. This file also
  * defines dfa.h's tables (DFA_DATA).
@@ -309,6 +313,34 @@ static void kw_dense(void)
                           : KW_NOT;
 }
 
+/* QB's words for devices: OPTION DISABLE's. */
+static const uint16_t device_words[] = {
+    TK_DATA,   TK_INPUT,  TK_READ,     TK_RUN,    TK_RES,      TK_WAIT,   TK_POKE,     TK_PRINT,
+    TK_CLR,    TK_OPEN,   TK_CLOSE,    TK_GET,    TK_TAB,      TK_SPC,    TK_FRE,      TK_POS,
+    TK_PEEK,   TK_CLS,    TK_LOCATE,   TK_COLOR,  TK_SYSTEM,   TK_INKEYS,
+#define X(t) 0x100 + TK1_##t
+    X(ACCESS), X(APPEND), X(BEEP),     X(BINARY), X(BLOAD),    X(BSAVE),  X(CHAIN),    X(CHDIR),
+    X(CIRCLE), X(COM),    X(COMMANDS), X(CSRLIN), X(DATES),    X(DRAW),   X(ENVIRON),  X(ENVIRONS),
+    X(EOF),    X(ERDEV),  X(ERDEVS),   X(FIELD),  X(FILEATTR), X(FILES),  X(FREEFILE), X(INP),
+    X(INPUTS), X(IOCTL),  X(IOCTLS),   X(KEY),    X(KILL),     X(LINE),   X(LOC),      X(LOCK),
+    X(LOF),    X(LPOS),   X(LPRINT),   X(LSET),   X(MKDIR),    X(NAME),   X(OFF),      X(OUT),
+    X(OUTPUT), X(PAINT),  X(PALETTE),  X(PCOPY),  X(PEN),      X(PLAY),   X(PMAP),     X(POINT),
+    X(PRESET), X(PSET),   X(PUT),      X(RANDOM), X(RESET),    X(RMDIR),  X(RSET),     X(SCREEN),
+    X(SEEK),   X(SETMEM), X(SHELL),    X(SIGNAL), X(SLEEP),    X(SOUND),  X(STICK),    X(STRIG),
+    X(TIMER),  X(TIMES),  X(TROFF),    X(TRON),   X(UEVENT),   X(UNLOCK), X(USING),    X(VIEW),
+    X(WIDTH),  X(WINDOW), X(WRITE),
+#undef X
+};
+
+static bool lexr_device(const uint16_t t)
+{
+    for (uint32_t i = 0; i < countof(device_words); i++)
+        if (device_words[i] == t)
+            return true;
+
+    return false;
+}
+
 static bool dense;
 
 /* lexr_keyword's, the tables made */
@@ -350,6 +382,74 @@ uint16_t lexr_keyword(const uint8_t **const at)
 {
     kw_made();
     return kw_scan(at);
+}
+
+/* The keyword at *at in a body, its token or a name that spells it (a word disabled before): its
+   token (100h + n for TK_X n), *at past it; 0 neither. */
+static uint16_t body_keyword(const uint8_t **const at)
+{
+    const uint8_t *p = *at;
+    uint16_t t = 0;
+
+    if (*p == TK_X) {
+        t = 0x100 + p[1];
+        p += 2;
+    } else if (*p >= 0x80) {
+        t = *p++;
+    } else if (*p == M_VAR) {
+        uint8_t text[256];
+        const uint8_t *q = text;
+        memcpy(text, p + 2, p[1]);
+        text[p[1]] = 0;
+        t = kw_scan(&q);
+        t = *q ? 0 : t;
+        p += 2 + p[1] + NAME_ID;
+    }
+
+    *at = p;
+    return t;
+}
+
+Disable lexr_disable(const uint8_t *p, uint64_t off[8], const uint8_t **const bad)
+{
+    static const char disable[] = "DISABLE";
+
+    if (*p++ != TK_OPTION || *p != M_VAR || p[1] != sizeof disable - 1)
+        return DISABLE_NONE;
+
+    for (uint32_t i = 0; disable[i]; i++)
+        if (upcase(p[2 + i]) != (uint8_t)disable[i])
+            return DISABLE_NONE;
+
+    kw_made();
+    p += 2 + p[1] + NAME_ID;
+    uint64_t words[8];
+    memcpy(words, off, sizeof words);
+
+    for (;;) {
+        *bad = p;
+        const uint16_t t = body_keyword(&p);
+
+        if (!t || !lexr_device(t))
+            return DISABLE_BAD;
+
+        words[t >> 6] |= 1ull << (t & 63);
+
+        if (*p == ',') {
+            p++;
+            continue;
+        }
+
+        if (*p && *p != ':' && *p != TK_REM) {
+            *bad = p;
+            return DISABLE_BAD;
+        }
+
+        break;
+    }
+
+    memcpy(off, words, sizeof words);
+    return DISABLE_SET;
 }
 
 /* The word from wstart to src is a name: M_VAR len name nam:4, a suffix in the text but not the
@@ -424,7 +524,7 @@ static bool lexr_public(Lexr *const lx, const uint32_t n)
 }
 
 /* Token t of the word of n characters at lexr.in, start where a statement starts, after DIM: 0
-   when the word is a keyword only in some places, and here a name. */
+   when the word is a keyword only in some places, or disabled, and here a name. */
 static uint16_t lexr_placed(
     Lexr *const lx,
     const uint16_t t,
@@ -433,6 +533,9 @@ static uint16_t lexr_placed(
     const bool dim
 )
 {
+    if (lexr_off(lx, t))
+        return 0;
+
     switch (t) {
     case 0x100 + TK1_CONTINUE:
         return start && lexr_continues(lx, n) ? t : 0;
@@ -662,7 +765,7 @@ uint8_t *lexr_line(Lexr *const lx, uint8_t *const text, uint8_t *const body)
             *lx->out++ = TK1_WHOLE;
         } else {
             const uint8_t t = lexr_char_token[c];
-            *lx->out++ = t ? t : c;
+            *lx->out++ = t && !lexr_off(lx, t) ? t : c; /* ? is PRINT's */
             lx->start = c == ':';
             lx->from &= !lx->start;
         }

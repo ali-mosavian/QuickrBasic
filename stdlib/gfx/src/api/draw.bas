@@ -15,6 +15,8 @@
 '     one. A GPU cannot draw a texture into itself.
 ' :::::::::::
 
+option disable reset, clear, pset, line, circle
+
 ' src mirrored left to right, top to bottom.
 const FLIP_X = 1
 const FLIP_Y = 2

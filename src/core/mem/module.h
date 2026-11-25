@@ -25,10 +25,12 @@ typedef struct {
 /* Each module's: its path, its LF_TOP line (the END before its lines; 0 the main's), as read and
    again at each link; a native module's (a .qbx's: io/native.c); the editor's: its lines changed
    since saved; its run's state: its code run by an IMPORT, its ON ERROR handler's line (0 none), its
-   READ place. */
+   READ place. off: the words its OPTION DISABLE lines made names so far (comp/lexer.h's
+   Lexr.off). */
 typedef struct {
     uint32_t path; /* an offset in Modu.text */
     uint32_t top;
+    uint64_t off[8];
     bool native;
     const struct Dialect
         *dialect;   /* a QBasic program's module of another (io/dialect.h); else null */

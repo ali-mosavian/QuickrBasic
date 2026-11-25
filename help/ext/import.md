@@ -27,9 +27,9 @@ code for this machine is an Advanced feature unavailable error.
 
 A native package is one `.qbx` holding several modules: `gfx.qbx`
 holds `gfx.draw`, `gfx.display` and others, imported as a folder's
-are, `IMPORT gfx.draw` or `FROM gfx IMPORT display`. In QB's dialect
-DRAW and OPEN are keywords, so `FROM gfx IMPORT draw` is a Syntax
-error there; `IMPORT gfx.draw` is not.
+are, `IMPORT gfx.draw` or `FROM gfx IMPORT display`. DRAW is a
+keyword, so `FROM gfx IMPORT draw` is a Syntax error unless
+`OPTION DISABLE DRAW` comes first; `IMPORT gfx.draw` is not.
 
 A module is looked for in the main program's folder, then in each
 folder of the BASICLIB environment variable, separated by `;`, then in
