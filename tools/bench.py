@@ -475,7 +475,7 @@ def with_statics(listing: str, objs: list[Path]) -> str:
     profiler counted a static's instructions under the global before it. A static's address is its
     module's code base, from a global the map and the object both place, plus its offset."""
     lines = listing.splitlines()
-    by_path = {str(o): o for o in objs}
+    by_path = {str(o.resolve()): o for o in objs}  # the map's paths are resolved
     out: list[str] = []
     i = 0
     while i < len(lines):

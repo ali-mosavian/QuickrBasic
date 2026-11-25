@@ -38,6 +38,19 @@ def profile_map() -> None:
         assert at.get(n) == at["_lexr_line"] - line + off, (n, at.get(n))
 
 
+def profile_map_slice() -> None:
+    """gfx's slice's statics are named too, from a directory behind a symlink as tempfile's is on the Mac: the map
+    gives each object's path resolved, and every filler read as fill_blend, the global before them."""
+    fill = bench.ROOT / "build/c/gfx/stdlib/gfx/src/backend/soft/fill.obj"
+    off = {n: o for o, k, n in bench.nm(fill)}
+    with tempfile.TemporaryDirectory() as real, tempfile.TemporaryDirectory() as d:
+        (Path(d) / "via").symlink_to(real)
+        listing = bench.profiled(bench.build(".", True), Path(d) / "via").with_suffix(".map").read_text()
+    at = {n: int(a, 16) for a, n in re.findall(r"^0001:([0-9a-f]{8})\*?\s+(\S+)$", listing, re.M)}
+    base = at["_slice_fill_argb"] - off["_fill_argb"]
+    assert at.get("_slice_fill8_tint") == base + off["_fill8_tint"], at.get("_slice_fill8_tint")
+
+
 # Counters that fail, as on the CI VMs: the first symbol found wins over the system's.
 BROKEN = """
 #include <stddef.h>
@@ -248,6 +261,7 @@ def main() -> int:
     if exe.exists():  # the loaded bytes, not the file's: its fixups moved with layout
         assert bench.image(exe) > 100_000 and bench.image(exe) != exe.stat().st_size, bench.image(exe)
         profile_map()
+        profile_map_slice()
     print("ok")
     return 0
 
