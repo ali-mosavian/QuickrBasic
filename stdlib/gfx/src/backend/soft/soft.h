@@ -1,10 +1,10 @@
 /* The software renderer: each command drawn as it comes, into memory.
  *
  * # How it works
- * Shapes are flat spans (shapes.c); polygons go through the scanner (scanner.h) to spans (span.h),
- * flat or along a picture's texels (poly.c). An upright sprite at 1:1 skips the scanner: its rows
- * are copied, keyed unless OPAQUE, read backward for FLIPX (sprite.c). Points are pixel centres,
- * as the scanner's.
+ * A call picks its row filler (fill.h) once. Shapes call it a row (shapes.c, span.h); a polygon's
+ * walker (scanner.h) calls it a row of the polygon (poly.c). An upright sprite at 1:1 skips the
+ * scanner: its rows are copied, keyed unless OPAQUE, read backward for FLIPX, or inked by the inked
+ * filler (sprite.c). Points are pixel centres, as the scanner's.
  */
 #ifndef GFX_SOFT_H
 #define GFX_SOFT_H

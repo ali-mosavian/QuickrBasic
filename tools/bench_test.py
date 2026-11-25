@@ -48,7 +48,7 @@ def profile_map_slice() -> None:
         listing = bench.profiled(bench.build(".", True), Path(d) / "via").with_suffix(".map").read_text()
     at = {n: int(a, 16) for a, n in re.findall(r"^0001:([0-9a-f]{8})\*?\s+(\S+)$", listing, re.M)}
     base = at["_slice_fill_argb"] - off["_fill_argb"]
-    assert at.get("_slice_fill8_tint") == base + off["_fill8_tint"], at.get("_slice_fill8_tint")
+    assert at.get("_slice_fill8_tinted") == base + off["_fill8_tinted"], at.get("_slice_fill8_tinted")
 
 
 # Counters that fail, as on the CI VMs: the first symbol found wins over the system's.

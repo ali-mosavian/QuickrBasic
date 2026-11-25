@@ -124,8 +124,8 @@ framebuffer, with banked modes for VBE 1.2 cards. A canvas shows in the mode of 
 most, by whole multiples, centred.
 
 In software the polygon scanner knows nothing of pixels and a filler knows nothing of polygons: one
-set of span fillers for each depth, as µGL's `cfmt/b8`, `b15`, `b16` and `b32`. A new depth is a new
-set of fillers, never a flag in the scanner.
+set of row fillers for each depth, as µGL's `cfmt/b8`, `b15`, `b16` and `b32`, picked once a call.
+A new depth is a new set of fillers, never a flag in the scanner.
 
 ## Displays and modes
 
@@ -430,5 +430,5 @@ void *(*file_read)(const char *path, uint32_t len, uint32_t *bytes);
 | The package | four modules, `display`, `surface`, `draw`, `scene`, in one `gfx.qbx` |
 | Software's frame | drawn in memory the host lends |
 | Images | BMP and PNG |
-| Software's pixels | fused fillers for the hot mixes, µGL's `tfx` rows for the rest |
+| Software's pixels | a row filler for each variant, picked once a call; a general one for an ink with depth or perspective |
 | Stages on a GPU | one shader a backend, the stages bits in the vertices |

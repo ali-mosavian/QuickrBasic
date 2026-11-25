@@ -5,10 +5,11 @@
  * # How it works
  * fill_formats[format] is the format's table, a row's filler picked once a call by its variant:
  * FILL_FLIPX reads the texels backward from the first, FILL_OPAQUE draws index 0 where keyed rows
- * skip it. A turned or scaled picture is a walk (steps.h), its flips already in its steps. A call
- * with an ink to go through (ink.h) has an inked filler, uGL's hlinet: by the source's format and
- * the ink's variant (fill_variant), fetch and ink fused, the ink's tables in registers and no flag
- * tested a texel. ink is the same a texel at a time, for the spans drawn so.
+ * skip it. A polygon's row is a walk (steps.h), its flips already in its steps, filled by one of
+ * the row fillers (RowFlat, RowAffine, RowPersp) its walker calls a row. A call with an ink to go
+ * through (ink.h) has an inked filler, uGL's hlinet: by the source's format and the ink's variant
+ * (fill_variant), fetch and ink fused, the ink's tables in registers and no flag tested a texel.
+ * ink is the same a texel at a time, SMOOTH's.
  */
 #ifndef GFX_FILL_H
 #define GFX_FILL_H

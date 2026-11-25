@@ -14,8 +14,8 @@ backend keeps are in [design.md](design.md).
   [Boundaries](#boundaries).
 - **Open/closed.** A backend is a new table. A draw call is an entry, a command kind and a backend
   op.
-- **DRY and SRP.** There is one edge walk, one span pipeline and one texel walk, and each module has
-  one job.
+- **DRY and SRP.** There is one walker for each kind of polygon and one body for each kind of row
+  filler, and each module has one job.
 - **Software is the reference.** It runs on every platform, and a GPU draws what it draws.
 
 ## Layers
@@ -29,7 +29,7 @@ backend keeps are in [design.md](design.md).
 | `src/api` | | The interfaces (`*.bas`) and their entries: arguments checked, a command made, the backend called |
 | `src/core` | `Gx`, `Surfaces`, `Fonts`, `Palette`, `Style`, `CmdLog` | The state, handles, surfaces and views, palette tables, fonts, `draw`'s settings, commands and the frame's log, pictures' corners |
 | `src/backend` | `Backend` | `backend.h`, the table every backend fills |
-| `src/backend/soft` | `Soft` | The software renderer: inks, the scanner, the span pipeline, fillers by format |
+| `src/backend/soft` | `Soft` | The software renderer: inks, the scanner's walkers, row fillers by format |
 | `src/backend/gpu` | `GpuState` | The GPU renderer: a frame recorded as a list the host plays, and the one shader |
 | `src/base` | | Pixel formats and colour maths, geometry, the pixel rule, discs, depth values, maths |
 | `src/image` | | BMP and PNG to pixels; PNG's inflate |
@@ -72,17 +72,17 @@ backend keeps are in [design.md](design.md).
 - **The ink** (`ink.c`) is made once a call, from its flags and the style. It says what a texel
   goes through: the key, a solid colour, at 8 bits the light, palette and blend tables, at 15 to 32
   bits a shade and a blend mode.
-- **The scanner** (`scanner.c`) walks a convex polygon's two edge chains down from its top vertex,
-  one walk for affine and perspective. It clips each span once and keeps gfx's pixel rule
-  (`base/cover.h`).
-- **The span pipeline** (`span.c`) draws every textured span along a walk over the picture's texels
-  (`steps.h`). The target's fused filler draws it when the ink has nothing to do. Otherwise chunks go
-  through the ink when the walk stays inside the picture and there is no depth. Otherwise it goes a
-  pixel at a time: the texel held inside, keyed, depth-tested, drawn, and its depth set. A
-  perspective span is runs of 16 pixels between two divides. `SMOOTH` goes a pixel at a time too,
-  mixing the four texels round it as the GPU's shader does.
-- **The fillers** (`fill.c`) are a table for each format: rows copied, keyed and flipped, flat
-  spans, and the ink's chunks. Each filler is one body, compiled for each format.
+- **The scanner** (`scanner.c`) sets a convex polygon up once: gradients, cull, mgl's outcodes and
+  the clip. Then one walker for its kind (`scan_flat`, `scan_affine`, `scan_persp`) goes down its
+  two edge chains from the top vertex, and hands each row's run, held in the clip, to one row
+  filler with its values at the run's start. It keeps gfx's pixel rule (`base/cover.h`).
+- **The row fillers** (`fill.c`) are a table for each format, as µGL's `cfmt`. A call picks its
+  filler once (`poly.c`, `span.c`), and each is one straight loop for its variant: masked or not,
+  each depth mode, held or not. An affine row inside the picture takes the plain loop, one that
+  leaves it the held one. A perspective row divides every 16 pixels. An ink with work to do has an
+  inked filler for each source format and variant. With depth or perspective as well it goes
+  through the general filler, a pixel at a time. `SMOOTH` has its own, which mixes the four texels
+  round each pixel as the GPU's shader does.
 - **Depth** is 1/z in 16 bits, a buffer for each root surface, made on its first `DEPTH_TEST` or
   `DEPTH_WRITE` draw.
 
