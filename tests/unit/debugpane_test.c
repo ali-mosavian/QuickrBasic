@@ -7,6 +7,7 @@
 #include "plat/pkey.h"
 #include "plat/pscr.h"
 #include "session.h"
+#include "ui/debugpane.h"
 #include "ui/debugui.h"
 #include "ui/debugwatch.h"
 #include "ui/draw.h"
@@ -1050,5 +1051,33 @@ TEST(debug_pane_shows_a_record_parameter_s_fields)
     shown(S);
     CHECK(rows_are("Locals", " \x1Fq as pt|    .x = 161.5|    .y = 4"));
     CHECK(rows_are("Call stack", "\x10show (q)        line 2| module          line 11"));
+    done(S);
+}
+
+/* A stop in a SUB the immediate window called, the screen drawn, then F5: the line's literal read
+   comp.cbuf, where the highlighter had lexed the comment, and printed "xxxx", not "tail". */
+TEST(debug_pane_continues_an_immediate_line_after_a_redraw)
+{
+    static const char *const lines[] =
+        {"stop ' xxxxxxxxxxxxxxxxxxxxxxxx", "sub s", "stop", "end sub", nullptr};
+
+    stopped_in(S, lines);
+    dpan_close(); /* it hides the immediate window */
+    wind_focus(S, W_IMM);
+    const char *const line = "call s: print \"tail\"";
+
+    for (uint32_t i = 0; line[i]; i++)
+        uimn_command(S, (uint8_t)line[i]);
+
+    uimn_command(S, K_ENTER);
+    CHECK(uimn.stopped && session_in_direct(S));
+    wind_focus(S, W_ED1);
+    shown(S);
+    S->cons.capture = CAP_SBUF;
+    S->cons.sblen = 0;
+    host_key_push(K_ENTER);
+    uimn_cont(S);
+    S->cons.capture = 0;
+    CHECK(S->cons.sblen >= 4 && !memcmp(S->cons.sbuf, "tail", 4));
     done(S);
 }

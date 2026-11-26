@@ -37,6 +37,8 @@ typedef struct Link {
     uint32_t nempty;
     uint32_t *lines; /* the numbered lines by number, hashed, while linked: ref_line's */
     uint32_t lmask;  /* its slots less 1; 0 none */
+    uint8_t *text;   /* the direct line's literals, which its S.LD.TXT read: link_texts' */
+    uint32_t textcap;
 } Link;
 
 /* A QBasic program's Quickr modules (qr/qr.c), linked in its link: their procedures and
@@ -71,6 +73,9 @@ void link_compile(Comp *C, uint32_t line); /* cm_comp: line compiled to comp_xbu
 void link_place(Comp *C, uint32_t line);
 bool link_xlate(Comp *C, Addr *at); /* comp_xbuf as a stream at *at, to its end; link.code its code;
                                     false: past link.lim */
+/* The direct line's stream's literals copied to link.text, its S.LD.TXT ops pointed there (how
+   it works: link.c). false: no memory. */
+bool link_texts(Comp *C);
 /* The jumps and line references in line's stream at code (an offset in the cache) set to their
    targets; one not found goes on the ledger. The direct line's (line DLINE) block jumps have none:
    they stay unset, an error if taken. */
