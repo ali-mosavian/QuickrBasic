@@ -17,7 +17,7 @@ const PEAK = 200
 const SCALE = 0.5
 const STEP_PARTS = 16
 ' a texel's light, 0 dark to LIGHTS - 1
-const LIGHTS = 24
+const LIGHTS = 16
 
 type Land
     heights() as integer

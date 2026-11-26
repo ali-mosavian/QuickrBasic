@@ -32,6 +32,8 @@ const FINE = 256
 const FINER = 65536
 const WHOLE = FINER * STEP_PARTS
 const WRAP = &HFFFFFF&
+' a fog step's palette rows
+const FOG_ROWS = GROUNDS * LIGHTS
 
 ' Its frame, its steps in stretches of one stride, each
 ' read from the land's level as coarse as its stride,
@@ -46,7 +48,7 @@ type Terrain
     bases() as long
     sides() as long
     reach() as single
-    fogs() as integer
+    fogs() as long
     tones() as integer
     stretches as integer
     sea as integer
@@ -54,9 +56,9 @@ end type
 
 ' A column's ray: where it is, in 65536ths of a texel, its
 ' move a texel ahead, the row of the horizon, the rows
-' above open still, and the height and light last drawn,
-' in 65536ths of a part and of a level; light -1 before
-' any.
+' above open still, and the height, light and fog last
+' drawn, in 65536ths of a part, a level and a step; light
+' -1 before any.
 type Ray
     x as long
     y as long
@@ -67,16 +69,19 @@ type Ray
     rows_open as integer
     height as long
     shade as long
+    fog as long
 end type
 
-' The fog's step at distance z: palette rows past ground's.
-function fog_at (byval z as single) as integer
-    dim s as integer
+' The fog at distance z, in 65536ths of a step: none
+' nearer than FOG_NEAR, the last step from FAR, the half
+' steps' edges where the steps change.
+function fog_at (byval z as single) as long
+    dim s as single
 
-    if z < FOG_NEAR then exit function
-    s = 1 + int((z - FOG_NEAR) * (FOG_STEPS - 1) / (FAR - FOG_NEAR))
+    s = (z - FOG_NEAR) * (FOG_STEPS - 1) / (FAR - FOG_NEAR) + 0.5
+    if s < 0 then s = 0
     if s > FOG_STEPS - 1 then s = FOG_STEPS - 1
-    fog_at = s * GROUNDS * LIGHTS
+    fog_at = s * FINER
 end function
 
 ' The stride after one of stride at distance z.
@@ -160,44 +165,46 @@ sub set_tones (tv as Terrain, byval sea as integer)
     tv.sea = sea
 end sub
 
-' Rows from top to the open ones' end filled, height hh
-' and light lit at top eased to those below at the end,
-' each pixel its height's tone through fog, lit.
+' Rows from top to the open ones' end filled, the height
+' hh, light lit and fog haze at top eased to those below
+' at the end: each pixel its height's tone, lit, fogged.
 sub fill_span ( _
     tv as Terrain, _
     r as Ray, _
     byval top as integer, _
-    byval fog as integer, _
     byval hh as long, _
-    byval lit as long _
+    byval lit as long, _
+    byval haze as long _
 )
     dim j as long
     dim rows as integer
-    dim height as long
     dim rise as long
-    dim shade as long
     dim change as long
+    dim thicken as long
 
     if r.shade < 0 then
-        r.shade = lit
         r.height = hh
+        r.shade = lit
+        r.fog = haze
     end if
 
     rows = r.rows_open - top
     rise = (r.height - hh) \ rows
     change = (r.shade - lit) \ rows
-    height = hh
-    shade = lit
+    thicken = (r.fog - haze) \ rows
+    r.height = hh
+    r.shade = lit
+    r.fog = haze
 
     for j = top * COLUMNS + r.column to _
             (r.rows_open - 1) * COLUMNS + r.column step COLUMNS
-        tv.pixels(j) = tv.tones(height \ WHOLE) + fog + shade \ FINER
-        height = height + rise
-        shade = shade + change
+        tv.pixels(j) = tv.tones(hh \ WHOLE) _
+            + (haze \ FINER) * FOG_ROWS + lit \ FINER
+        hh = hh + rise
+        lit = lit + change
+        haze = haze + thicken
     next
 
-    r.height = hh
-    r.shade = lit
     r.rows_open = top
 end sub
 
@@ -256,7 +263,7 @@ function march ( _
             b = b + _
                 (ld.lights(i + side + 1) - ld.lights(i + side)) * fx
             light = a * FINE + (b - a) * fy
-            fill_span tv, r, row, tv.fogs(k), hh, light
+            fill_span tv, r, row, hh, light, tv.fogs(k)
             if r.rows_open <= 0 then exit function
         end if
 

@@ -12,39 +12,39 @@ const SKY = 1
 const SKY_BANDS = 6
 const FOG = SKY + SKY_BANDS - 1
 ' the grounds, a ramp of LIGHTS tones each, and the fog's
-' steps, each a mix of a third more fog
+' steps, each a mix of a quarter more fog
 const GROUND = 8
 const WATER = 0
 const GRASS = 1
 const ROCK = 2
 const GROUNDS = 3
-const FOG_STEPS = 3
+const FOG_STEPS = 4
 ' the panel's colours
-const PANEL = 224
-const PANEL_EDGE = 225
-const SHADE = 226
-const AMBER = 227
-const FAINT = 228
-const HULL_BAR = 229
-const ALERT = 230
-const SCOPE = 231
-const SCOPE_GRID = 232
-const PALE = 233
-const TAPE = 234
-const TICK = 235
+const PANEL = 200
+const PANEL_EDGE = 201
+const SHADE = 202
+const AMBER = 203
+const FAINT = 204
+const HULL_BAR = 205
+const ALERT = 206
+const SCOPE = 207
+const SCOPE_GRID = 208
+const PALE = 209
+const TAPE = 210
+const TICK = 211
 ' the sprites' colours
-const METAL = 236
-const FOE_DARK = 237
-const FOE_RED = 238
-const BUNKER_DARK = 239
-const BUNKER = 240
-const FLAME = 241
-const FIRE = 242
-const HOT = 243
-const SMOKE = 244
-const SMOKE_DARK = 245
-const TRACER = 246
-const WHITE = 247
+const METAL = 212
+const FOE_DARK = 213
+const FOE_RED = 214
+const BUNKER_DARK = 215
+const BUNKER = 216
+const FLAME = 217
+const FIRE = 218
+const HOT = 219
+const SMOKE = 220
+const SMOKE_DARK = 221
+const TRACER = 222
+const WHITE = 223
 
 ' hues as &HRRGGBB, six digits each, in index order
 const SKY_HUES = "5A86C46C97CC80A8D395B8DAABC8DFC2D6E2"

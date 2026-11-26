@@ -1,8 +1,9 @@
 ' The land made by rule from a seed: heights by midpoint
 ' displacement on a grid that wraps, smoothed and shaped
 ' into valleys, rivers cut where a second such field
-' crosses its middle; light by slope and the water's
-' depth, grained, woods darker where a third runs high.
+' crosses its middle; light by slope, the sun's shadows
+' and the water's depth, woods darker where a third runs
+' high.
 option explicit
 
 from highvale.model.space import Point3
@@ -23,20 +24,22 @@ const SEA_LINE = 900
 ' and the most they cut, in values
 const BANK = 400
 const CUT = 700
-' the ground's grain, in lights either way
-const GRAIN = 1
 ' grass up to this height, in steps, rock over it
 const ROCK_LINE = 64
 ' woods where the second field is above this level, their
 ' light this much under the grass's
 const WOODS_LINE = 2400
-const WOODS_SHADE = 4
-' toward the sun, from the north-west and high, and the
-' light of ground turned from it, 0 to 1
-const SUN_X = -0.45
-const SUN_Y = -0.45
-const SUN_Z = 0.77
+const WOODS_SHADE = 3
+' toward the sun, from the north-west and 30 degrees up,
+' and the light of ground turned from it, 0 to 1
+const SUN_X = -0.612
+const SUN_Y = -0.612
+const SUN_Z = 0.5
 const AMBIENT = 0.3
+' a shadow darkens fully this many parts under its line,
+' and water a third as much as land
+const SOFT = 48
+const WATER_SHADOW = 3
 ' the relief's smoothing passes
 const SMOOTHING = 6
 ' points along a line of sight checked against the ground
@@ -188,9 +191,13 @@ function within_light (byval n as integer) as integer
 end function
 
 ' The light of ground rising dx parts of a step over two
-' texels east and dy south: the sun on it, in LIGHTS
-' levels.
-function sunlight (byval dx as long, byval dy as long) as integer
+' texels east and dy south, shaded 0 to 1 by shadow: the
+' sun on it, in LIGHTS levels.
+function sunlight ( _
+    byval dx as long, _
+    byval dy as long, _
+    byval shaded as single _
+) as integer
     dim gx as single
     dim gy as single
     dim lit as single
@@ -200,9 +207,41 @@ function sunlight (byval dx as long, byval dy as long) as integer
     lit = SUN_Z - gx * SUN_X - gy * SUN_Y
     lit = lit / sqr(gx * gx + gy * gy + 1)
     if lit < 0 then lit = 0
-    lit = AMBIENT + (1 - AMBIENT) * lit
+    lit = AMBIENT + (1 - AMBIENT) * lit * (1 - shaded)
     sunlight = int(lit * (LIGHTS - 1) + 0.5)
 end function
+
+' How deep each texel of the heights fine lies in the
+' shadow of ground toward the sun, 0 to 1: the line of
+' the sun's last touch swept from the north-west, falling
+' at the sun's angle each diagonal step, twice so it
+' carries over the map's wrap.
+sub cast_shadows (fine() as long, shade() as single)
+    dim edge(MAP * MAP - 1) as long
+    dim drop as long
+    dim pass as integer
+    dim x as long
+    dim y as long
+    dim i as long
+    dim over as long
+
+    drop = SUN_Z / sqr(SUN_X * SUN_X + SUN_Y * SUN_Y) _
+        * sqr(2) * STEP_PARTS / SCALE
+
+    for pass = 1 to 2
+        for y = 0 to MAP - 1
+            for x = 0 to MAP - 1
+                i = y * MAP + x
+                over = cell_of(edge(), x - 1, y - 1) - drop
+                shade(i) = (over - fine(i)) / SOFT
+                if shade(i) < 0 then shade(i) = 0
+                if shade(i) > 1 then shade(i) = 1
+                edge(i) = fine(i)
+                if over > fine(i) then edge(i) = over
+            next
+        next
+    next
+end sub
 
 ' Level m of the land from fields of its side, n: heights
 ' in parts of a step and lights; their last row and
@@ -273,11 +312,6 @@ sub cut_rivers (relief() as long, course() as long)
     next
 end sub
 
-' A random shift of the ground's light, GRAIN either way.
-function grained () as integer
-    grained = int(rnd * (2 * GRAIN + 1)) - GRAIN
-end function
-
 ' A field raised, smoothed and levelled.
 sub make_field (f() as long, byval rough as integer)
     dim i as integer
@@ -300,6 +334,7 @@ sub make_land (ld as Land, byval seed as integer)
     dim parts(VALUES - 1) as long
     dim fine(MAP * MAP - 1) as long
     dim lit(MAP * MAP - 1) as long
+    dim shade(MAP * MAP - 1) as single
     dim x as long
     dim y as long
     dim i as long
@@ -321,6 +356,8 @@ sub make_land (ld as Land, byval seed as integer)
         fine(i) = parts(relief(i))
     next
 
+    cast_shadows fine(), shade()
+
     for y = 0 to MAP - 1
         for x = 0 to MAP - 1
             i = y * MAP + x
@@ -328,14 +365,13 @@ sub make_land (ld as Land, byval seed as integer)
             east = east - cell_of(fine(), x - 1, y)
             south = cell_of(fine(), x, y + 1)
             south = south - cell_of(fine(), x, y - 1)
-            light = sunlight(east, south)
+            light = sunlight(east, south, shade(i))
 
             if relief(i) < SEA_LINE then
                 light = (LIGHTS - 1) * relief(i) \ SEA_LINE
+                light = light - shade(i) * LIGHTS / WATER_SHADOW
             elseif cover(i) > WOODS_LINE then
-                light = light - WOODS_SHADE + grained()
-            else
-                light = light + grained()
+                light = light - WOODS_SHADE
             end if
 
             lit(i) = within_light(light)

@@ -5,9 +5,11 @@ Flat land at a known height must fill each column from the row the farthest step
 the fogged tone that step's distance gives, the horizon turned by the roll. A step whose top rounded up onto
 the open row once divided by zero, easing its light over no rows. A slanting ramp's top edge must be where
 reading heights between texels puts it: read at the nearest texel, it stepped up to 12 rows a column, the
-blocky near ground first drawn. Each mission's land must rise from its sea without a cliff and place its
-foes on land, clear of the start; an autopilot must clear the first; a craft with no hull left by flak
-must be downed; and every screen must draw.
+blocky near ground first drawn. A spike's shadow must run as far as the sun's angle says. Each mission's
+land must rise from its sea without a cliff and place its foes on land, clear of the start. A pilot firing
+from a clear spot must clear the first: rounds moving 8 texels a frame passed through foes a 4-texel hit
+away, a flak site whole after 120 s. A craft with no hull left by flak must be downed, and every screen
+must draw.
 """
 
 import sys
@@ -24,11 +26,11 @@ GAME = DEMOS / "HIGHVALE.BAS"
 VIEW_W, VIEW_H = 320, 152
 FOCAL = 160 / math.tan(0.7)
 SCALE = 0.5
-FAR, FOG_NEAR, FOG_STEPS = 420, 150, 3
-GROUND, LIGHTS, GROUNDS, GRASS = 8, 24, 3, 1
-# The most the land may rise from the sea to its next texel, in 16ths of a step: the sea once lay at 0 while the
-# land rose from the sea's line, every shore a cliff of up to 506.
-SHORE = 48
+FAR, FOG_NEAR, FOG_STEPS = 420, 150, 4
+GROUND, LIGHTS, GROUNDS, GRASS = 8, 16, 3, 1
+# The most the land may rise from the sea to its next texel, in 16ths of a step, half the sea's own height: the sea
+# once lay at 0 while the land rose from the sea's line, every shore a cliff of up to 506.
+SHORE = 160
 
 HEAD = """option explicit
 import gfx.display, gfx.surface, gfx.draw
@@ -38,9 +40,10 @@ from highvale.model.game import CLEARED, DOWNED, VICTORY
 from highvale.model.foes import FLAK, DRONE
 from highvale.land.palette import set_colours
 from highvale.land.maps import allot_land, ground_at, wrapped
+from highvale.land.maps import clear_line, cast_shadows
+from highvale.model.space import Point3
 from highvale.land.maps import level_side, level_base
 from highvale.play.mission import start_mission, foes_left
-from highvale.play.combat import atan2_of, turned
 from highvale.view.eye import Camera, aim_camera, aim_fall
 from highvale.view.eye import VIEW_W, VIEW_H
 from highvale.view.terrain import Terrain, make_terrain, draw_terrain
@@ -119,6 +122,18 @@ draw_terrain cockpit, tv, ld, k
 tops cockpit
 """
 
+# A spike 20 texels high on flat land, the sun 30 degrees up from the north-west: its shadow runs
+# 20 / tan(30 deg) = 34.6 texels south-east, 24 whole diagonal steps, and none falls north-west.
+SHADOW = """dim fine(65535) as long
+dim shade(65535) as single
+dim d as integer
+fine(100 * 256& + 100) = 640
+cast_shadows fine(), shade()
+for d = 1 to 40
+    print "shadow"; d; sgn(shade((100 + d) * 256& + 100 + d)); sgn(shade((100 - d) * 256& + 100 - d))
+next
+"""
+
 MISSIONS = """dim g as Game
 allot_land g.vale
 dim n as integer
@@ -151,8 +166,8 @@ for n = 1 to 3
 next
 """
 
-# The pilot turns to the nearest foe, keeps the sight's ray on it by its height, closing in while the ground
-# holds it too high, and fires when lined up.
+# The pilot sets the craft still, 30 texels from the nearest foe, at the first of eight bearings whose line to it is
+# clear and whose height puts the sight on it, facing it, and holds the guns.
 PILOT = """dim g as Game
 dim a as Art
 dim t as single
@@ -161,8 +176,8 @@ dim best as single
 dim d as single
 dim dx as single
 dim dy as single
-dim want as single
-dim low as integer
+dim n as integer
+dim spot as Point3
 dim frames as long
 make_art a
 gfx.draw.set_font a.font
@@ -171,7 +186,9 @@ start_mission g, 1
 g.state = FLYING
 g.heli.hull = 30000
 g.heli.rounds = 30000
-do while g.state = FLYING and t < 400
+g.heli.tilt = 0
+aim_camera k, g.heli
+do while g.state = FLYING and t < 120
     best = 1e9
     for i = 0 to ubound(g.foes)
         if g.foes(i).kind = 0 or g.foes(i).hp <= 0 then continue for
@@ -180,17 +197,18 @@ do while g.state = FLYING and t < 400
         d = sqr(dx * dx + dy * dy)
         if d < best then best = d: near = i
     next
-    dx = wrapped(g.foes(near).place.x - g.heli.place.x)
-    dy = wrapped(g.foes(near).place.y - g.heli.place.y)
-    want = turned(atan2_of(dy, dx) - g.heli.heading)
-    g.asked.turn = sgn(want) * (abs(want) > 0.01)
-    g.asked.turn = -g.asked.turn
-    aim_camera k, g.heli
-    d = g.foes(near).place.z + 1 + aim_fall(k) * best - g.heli.place.z
-    low = g.heli.place.z < ground_at(g.vale, g.heli.place.x, g.heli.place.y) + 4
-    g.asked.pitch = -(best > 90 or (low and d < -1 and best > 12))
-    g.asked.climb = -sgn(d) * (abs(d) > 0.5)
-    g.asked.guns = abs(want) < 0.04 and best < 200
+    for n = 0 to 7
+        spot = g.foes(near).place
+        spot.x = spot.x - cos(n * 0.7854) * 30
+        spot.y = spot.y - sin(n * 0.7854) * 30
+        spot.z = spot.z + 1 + aim_fall(k) * 30
+        if spot.z < ground_at(g.vale, spot.x, spot.y) + 4 then continue for
+        if clear_line(g.vale, spot, g.foes(near).place) then exit for
+    next
+    g.heli.place = spot
+    g.heli.heading = n * 0.7854
+    g.heli.speed = 0
+    g.asked.guns = -1
     step_state g, k, canvas, 0, 1 / 30
     if frames mod 15 = 0 then
         draw_scene cockpit, k, tv, g.vale, g.foes(), g.shots(), g.blasts(), a, t
@@ -268,16 +286,22 @@ def steps() -> list[float]:
     return out
 
 
+def fog_of(z: float) -> int:
+    """The fog step at distance z: a quarter more each 90 texels past FOG_NEAR, changing half way."""
+    return max(0, min(int((z - FOG_NEAR) * (FOG_STEPS - 1) / (FAR - FOG_NEAR) + 0.5), FOG_STEPS - 1))
+
+
 def flat(exe: str, tmp: Path, roll: float) -> list[str]:
-    """Flat land 20 steps under the eye, lit 5: each column's top row and tones against the hand's."""
-    z = steps()[-1]
-    fog = min(1 + int((z - FOG_NEAR) * (FOG_STEPS - 1) / (FAR - FOG_NEAR)), FOG_STEPS - 1)
-    far = GROUND + (fog * GROUNDS + GRASS) * LIGHTS + 5
+    """Flat land 20 steps under the eye, lit 5: each column's top row against the farthest step's, its tone
+    the fog of the nearest step reaching that row, and the bottom's the clear tone."""
     near = GROUND + GRASS * LIGHTS + 5
     bad = []
     for f in run(exe, tmp, "FLAT", FLAT.replace("{roll}", repr(roll)), TOPS):
         x, top, colour, bottom = (int(v) for v in f[1:5])
-        want = max(0, math.ceil(50 + 20 * SCALE * FOCAL / z + (x - 159.5) * math.tan(roll) - 1e-4))
+        rows = [50 + 20 * SCALE * FOCAL / z + (x - 159.5) * math.tan(roll) for z in steps()]
+        want = max(0, math.ceil(rows[-1] - 1e-4))
+        first = next(z for z, row in zip(steps(), rows, strict=True) if math.ceil(row - 1e-4) <= want)
+        far = GROUND + (fog_of(first) * GROUNDS + GRASS) * LIGHTS + 5
         if (top, colour, bottom) != (want, far, near):
             bad.append(f"x {x}: top {top} {colour} bottom {bottom}, want {want} {far} {near}")
     return bad
@@ -324,6 +348,9 @@ def main() -> None:
         for roll in (0.0, math.atan(0.25)):
             bad += flat(exe, tmp, roll)[:4]
         bad += ramp(exe, tmp)[:4]
+        for f in run(exe, tmp, "SHADOW", SHADOW):
+            if (int(f[2]), int(f[3])) != (1 if int(f[1]) <= 24 else 0, 0):
+                bad.append(f"shadow at {f[1]} diagonal steps: south-east {f[2]}, north-west {f[3]}")
         lands = run(exe, tmp, "MISSIONS", MISSIONS)
         foes = [f for f in lands if f[0] == "foe"]
         for f in lands:

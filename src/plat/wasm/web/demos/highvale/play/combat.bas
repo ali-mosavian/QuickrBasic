@@ -201,7 +201,48 @@ function struck_foe ( _
     next
 end function
 
-' Every shot moved dt on; what it meets struck.
+' Whether shot s, just moved, met the ground, the craft
+' or a foe; what it met struck, the shot spent.
+function shot_met ( _
+    s as Shot, _
+    foes() as Foe, _
+    blasts() as Blast, _
+    c as Craft, _
+    ld as Land _
+) as integer
+    dim hostile as integer
+
+    shot_met = -1
+    hostile = s.kind = BURST or s.kind = BOLT
+
+    if s.place.z < ground_at(ld, s.place.x, s.place.y) then
+        if s.kind = ROCKET then
+            burst_rocket s.place, foes(), blasts()
+        else
+            set_blast blasts(), SPARK, s.place
+        end if
+        s.kind = 0
+        exit function
+    end if
+
+    if hostile and near_to(s.place, c.place) then
+        if s.kind = BURST then c.hull = c.hull - BURST_HARM
+        if s.kind = BOLT then c.hull = c.hull - BOLT_HARM
+        set_blast blasts(), SPARK, s.place
+        s.kind = 0
+        exit function
+    end if
+
+    if not hostile and struck_foe(s, foes(), blasts()) then
+        s.kind = 0
+        exit function
+    end if
+
+    shot_met = 0
+end function
+
+' Every shot moved dt on, in pieces no longer than a hit's
+' reach so none passes through what it meets.
 sub move_shots ( _
     shots() as Shot, _
     foes() as Foe, _
@@ -211,18 +252,15 @@ sub move_shots ( _
     byval dt as single _
 )
     dim i as integer
-    dim hostile as integer
+    dim j as integer
+    dim pieces as integer
+    dim part as single
+    dim speed as single
 
     for i = 0 to ubound(shots)
         if shots(i).kind = 0 then continue for
 
         shots(i).life = shots(i).life - dt
-        shots(i).place.x = on_map(shots(i).place.x + _
-            shots(i).motion.x * dt)
-        shots(i).place.y = on_map(shots(i).place.y + _
-            shots(i).motion.y * dt)
-        shots(i).place.z = shots(i).place.z + shots(i).motion.z * dt
-        hostile = shots(i).kind = BURST or shots(i).kind = BOLT
 
         if shots(i).life <= 0 then
             if shots(i).kind = BURST then
@@ -232,30 +270,21 @@ sub move_shots ( _
             continue for
         end if
 
-        if shots(i).place.z < ground_at(ld, shots(i).place.x, _
-                shots(i).place.y) then
-            if shots(i).kind = ROCKET then
-                burst_rocket shots(i).place, foes(), blasts()
-            else
-                set_blast blasts(), SPARK, shots(i).place
+        speed = sqr(shots(i).motion.x ^ 2 + shots(i).motion.y ^ 2)
+        pieces = int(speed * dt / HIT_REACH) + 1
+        part = dt / pieces
+
+        for j = 1 to pieces
+            shots(i).place.x = on_map(shots(i).place.x + _
+                shots(i).motion.x * part)
+            shots(i).place.y = on_map(shots(i).place.y + _
+                shots(i).motion.y * part)
+            shots(i).place.z = shots(i).place.z + _
+                shots(i).motion.z * part
+            if shot_met(shots(i), foes(), blasts(), c, ld) then
+                exit for
             end if
-            shots(i).kind = 0
-            continue for
-        end if
-
-        if hostile and near_to(shots(i).place, c.place) then
-            if shots(i).kind = BURST then c.hull = c.hull - BURST_HARM
-            if shots(i).kind = BOLT then c.hull = c.hull - BOLT_HARM
-            set_blast blasts(), SPARK, shots(i).place
-            shots(i).kind = 0
-            continue for
-        end if
-
-        if hostile then continue for
-        if not struck_foe(shots(i), foes(), blasts()) then
-            continue for
-        end if
-        shots(i).kind = 0
+        next
     next
 end sub
 
