@@ -35,17 +35,17 @@ end sub
 """
 
 
-def dll(imports: int = 0, machine: int = 0x14C) -> bytes:
+def dll(imports: int = 0, machine: int = 0x14C, export: bytes = b"qx_init_t") -> bytes:
     """An i386 DLL as lld-link lays one out, based at 10000000h: one section at 1000h, 300h bytes
-    stored of 2000h. Its word at 1000h points to qx_init_t at 1010h, relocated; its exports at
-    1100h, its relocations at 1200h."""
+    stored of 2000h. Its word at 1000h points to its export (qx_init_t) at 1010h, relocated; its
+    exports at 1100h, its relocations at 1200h."""
     base, va, opt = 0x10000000, 0x1000, 0x58
     sec = bytearray(0x300)
     struct.pack_into("<I", sec, 0, base + 0x1010)
     sec[0x10:0x14] = b"\x31\xc0\xc3\x90"
     struct.pack_into("<IIIIIIIIIII", sec, 0x100, 0, 0, 0, 0, 1, 1, 1, va + 0x140, va + 0x144, va + 0x148, 0)
     struct.pack_into("<IIH", sec, 0x140, va + 0x10, va + 0x150, 0)
-    sec[0x150:0x15A] = b"qx_init_t\0"
+    sec[0x150 : 0x151 + len(export)] = export + b"\0"
     struct.pack_into("<IIHH", sec, 0x200, va, 12, 0x3000, 0)
     head = bytearray(0x400)
     head[0:2] = b"MZ"
@@ -190,6 +190,23 @@ if __name__ == "__main__":
         try:
             qbx.image(data)
             bad.append(f"a DLL that {why} made an image")
+        except qbx.QbxError:
+            pass
+
+    # a driver file: "QXD" 1, the ABI, its cards' IDs, then the image of its DLL, entered at accel_init
+    data = qbx.driver(dll(export=b"accel_init"), [qbx.pci_id("121a:0001"), qbx.pci_id("121A:2")])
+    if data[:16] != b"QXD\x01" + struct.pack("<III", qbx.ACCEL_ABI, 2, 0x121A0001):
+        bad.append(f"a driver's header wrong: {data[:16].hex()}")
+    if data[16:20] != struct.pack("<I", 0x121A0002) or data[20:] != qbx.image(dll(export=b"accel_init"), b"accel_init"):
+        bad.append("a driver's second ID or its image wrong")
+    for why, call in (
+        ("exports no accel_init", lambda: qbx.driver(dll(), [1])),
+        ("drives no card", lambda: qbx.driver(dll(export=b"accel_init"), [])),
+        ("has an ID not in hex", lambda: qbx.pci_id("3dfx:0001")),
+    ):
+        try:
+            call()
+            bad.append(f"a driver that {why} was made")
         except qbx.QbxError:
             pass
 

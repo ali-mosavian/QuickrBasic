@@ -4,6 +4,8 @@
   qbx.py glue NAME OUTDIR INTERFACE...          the glue, from the BASIC interfaces
   qbx.py pack OUT [--minor N] INTERFACE... [TAG=SLICE]...  the .qbx: the interfaces and each
                                                           platform's slice; the host's minor it needs
+  qbx.py driver OUT DLL VENDOR:DEVICE...        a DOS accelerator's driver: the cards' PCI IDs, in hex,
+                                                then its DLL as an image whose entry is accel_init
 
 One interface is the module's own. Several are a package's parts, each named by its file: gfx's
 display.bas is gfx.display.
@@ -21,6 +23,9 @@ bytes, 0-padded), offset and bytes (u32 each); then a part each, its name ("" th
 the same way. The slices follow, each at a multiple of 16, then the parts, each followed by 1Ah:
 the loader reads one as a source file from its offset. A dos-i386 slice given as its DLL is packed
 as the image util/image.c reads.
+
+driver: "QXD" 1, the ABI (src/plat/dos32/accel/driver.h's ACCEL_ABI), the IDs' count, each ID as
+vendor << 16 | device, u32 each, then the image.
 """
 
 import re
@@ -475,10 +480,11 @@ IMAGE = struct.Struct("<4sIIII")
 I386, PE32, HIGHLOW, ABSOLUTE, DISCARDABLE = 0x14C, 0x10B, 3, 0, 0x02000000
 
 
-def image(dll: bytes) -> bytes:
+def image(dll: bytes, entry_name: bytes = b"qx_init_") -> bytes:
     """A DOS slice from an i386 DLL (lld-link /dll /noentry /nodefaultlib), as util/image.c reads
     it: its sections where they lie in memory, rebased to 0, its trailing zeros left to the loader;
-    the offsets of its 32-bit words to relocate; its entry, qx_init_NAME. It must import nothing."""
+    the offsets of its 32-bit words to relocate; its entry, the export named from entry_name
+    (qx_init_NAME). It must import nothing."""
     if dll[:2] != b"MZ" or len(dll) < 0x40:
         raise QbxError("dos-i386: not a DLL")
     pe = struct.unpack_from("<I", dll, 0x3C)[0]
@@ -507,10 +513,10 @@ def image(dll: bytes) -> bytes:
     entry = None
     for i in range(nnames):
         name = mem[struct.unpack_from("<I", mem, names + 4 * i)[0] :].split(b"\0")[0]
-        if name.lstrip(b"_").startswith(b"qx_init_"):
+        if name.lstrip(b"_").startswith(entry_name):
             entry = struct.unpack_from("<I", mem, funcs + 4 * struct.unpack_from("<H", mem, ords + 2 * i)[0])[0]
     if entry is None:
-        raise QbxError("dos-i386: the DLL exports no qx_init_NAME")
+        raise QbxError(f"dos-i386: the DLL exports no {entry_name.decode()}")
 
     relocs, at, end = [], dirs[5][0], dirs[5][0] + dirs[5][1]
     while at < end:
@@ -534,6 +540,25 @@ def image(dll: bytes) -> bytes:
         + padded
         + struct.pack(f"<{len(relocs)}I", *relocs)
     )
+
+
+ACCEL_ABI = 1
+
+
+def driver(dll: bytes, ids: list[int]) -> bytes:
+    """A DOS accelerator's driver file: its header, the cards' IDs, then its DLL's image."""
+    if not ids:
+        raise QbxError("driver: no card's ID")
+    return b"QXD\x01" + struct.pack(f"<II{len(ids)}I", ACCEL_ABI, len(ids), *ids) + image(dll, b"accel_init")
+
+
+def pci_id(text: str) -> int:
+    """VENDOR:DEVICE, in hex, as vendor << 16 | device."""
+    vendor, _, device = text.partition(":")
+    try:
+        return int(vendor, 16) << 16 | int(device, 16)
+    except ValueError:
+        raise QbxError(f"driver: {text!r} is not VENDOR:DEVICE in hex") from None
 
 
 def pack(parts: dict[str, bytes], slices: dict[str, bytes], minor: int = MINOR) -> bytes:
@@ -584,6 +609,9 @@ def main(argv: list[str]) -> int:
             pairs = [one.split("=", 1) for one in rest if "=" in one]
             slices = {tag: Path(file).read_bytes() for tag, file in pairs}
             Path(argv[2]).write_bytes(pack(parts, slices, minor))
+            return 0
+        if len(argv) >= 5 and argv[1] == "driver":
+            Path(argv[2]).write_bytes(driver(Path(argv[3]).read_bytes(), [pci_id(one) for one in argv[4:]]))
             return 0
     except QbxError as e:
         print(f"qbx.py {argv[1]}: {e}", file=sys.stderr)

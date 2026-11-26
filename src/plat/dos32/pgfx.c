@@ -119,20 +119,13 @@ static uint8_t *mapped(const uint32_t base)
     if (gfx.mapped && gfx.mapped_base == base)
         return gfx.mapped;
 
-    const uint32_t bytes = gfx.card.memory;
-    PdosRegs r = {
-        .eax = DPMI_MAP,
-        .ebx = base >> 16,
-        .ecx = base & 0xFFFF,
-        .esi = bytes >> 16,
-        .edi = bytes & 0xFFFF,
-    };
+    uint8_t *const at = (uint8_t *)pdos_map(base, gfx.card.memory);
 
-    if (!bytes || pdos_int(INT_DPMI, &r) & PDOS_CF)
+    if (!at)
         return nullptr;
 
     gfx.mapped_base = base;
-    gfx.mapped = (uint8_t *)(uintptr_t)(pdos_pair(r.ebx, r.ecx) - pdos_ds_base());
+    gfx.mapped = at;
     return gfx.mapped;
 }
 

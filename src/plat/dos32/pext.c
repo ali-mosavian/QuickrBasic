@@ -1,4 +1,5 @@
-/* Native code on DOS: an extension's image placed in the C side's heap and run where it lies.
+/* Native code on DOS: an extension's image, or a driver's (accel/load.c), placed in the C side's
+ * heap and run where it lies.
  *
  * # How it works
  * The slice is an image linked at 0 (util/image.c, made by tools/qbx.py pack). A block is taken
@@ -32,16 +33,11 @@ static bool runnable(const uint32_t at, const uint32_t n)
 const QxModule *QX_CALL qx_init_gfx(const QxHost *host);
 #endif
 
-QxInit *pext_load(const void *const slice, const uint32_t bytes, const char *const name)
+void *pdos_place(const void *const image, const uint32_t n)
 {
-#ifdef PEXT_LINKED
-    if (!strcmp(name, "gfx"))
-        return qx_init_gfx;
-#endif
-    (void)name; /* an image has the one entry */
     Image im;
 
-    if (!imag_read(slice, bytes, &im))
+    if (!imag_read(image, n, &im))
         return nullptr;
 
     uint8_t *const raw = pmem_resize(nullptr, im.size + ALIGN - 1);
@@ -57,5 +53,16 @@ QxInit *pext_load(const void *const slice, const uint32_t bytes, const char *con
     }
 
     imag_place(&im, (uint8_t *)(uintptr_t)at, at);
-    return (QxInit *)(uintptr_t)(at + im.entry);
+    return (void *)(uintptr_t)(at + im.entry);
+}
+
+QxInit *pext_load(const void *const slice, const uint32_t bytes, const char *const name)
+{
+#ifdef PEXT_LINKED
+    if (!strcmp(name, "gfx"))
+        return qx_init_gfx;
+#endif
+
+    (void)name; /* an image has the one entry */
+    return (QxInit *)pdos_place(slice, bytes);
 }

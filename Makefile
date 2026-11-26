@@ -81,6 +81,7 @@ QBRT_DOS_INC := -Isrc/qbrt/include $(addprefix -I$(QBRT)/qb/,dos/m32 . dev dev/d
 NAMES := $(B)/qbrt/names.h
 
 CORE_C := $(shell find src/core src/lib -name '*.c' -not -path 'src/core/ui/*') $(wildcard src/plat/dos32/*.c) \
+	$(wildcard src/plat/dos32/accel/*.c) \
 	src/plat/synth/synth.c src/plat/audio/paud.c src/boot.c
 UI_C := $(wildcard src/core/ui/*.c)
 DOS_ASM := $(wildcard src/plat/dos32/*.asm)
@@ -429,6 +430,7 @@ build/host/unit/%.o: tests/unit/%.c
 build/host/test.hlp: tools/mkhelp.py $(wildcard tests/help/*)
 	$(PY) tools/mkhelp.py tests/help -o $@
 build/host/unit_tests: $(build/host_OBJ) $(UNIT_UI_OBJ) $(UNIT_OBJ) $(GFX_UNIT_OBJ) build/host/obj/lib/div64.o build/host/obj/plat/dos32/vbe.o \
+	build/host/obj/plat/dos32/accel/file.o \
 	build/host/test.hlp
 	$(HOST_CC) $(filter-out %.hlp,$^) -lm $(HOST_DL) -o $@
 build/host/golden/dump.o: tests/golden/dump.c
