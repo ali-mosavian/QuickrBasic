@@ -342,3 +342,12 @@ TEST(swap_of_a_value_is_a_syntax_error)
 
     CHECK(unit_run(S, lines) == E_SN);
 }
+
+/* A REDIM whose line failed inside it left the compiler's REDIM flag on: the next line's DIM s()
+   AS LONG, checked alone, was a Syntax error. Completion's probe of REDIM after print 1: left it
+   so. */
+TEST(check_passes_dim_after_a_failed_redim)
+{
+    CHECK(check_errs(S, "redim a(1 to"));
+    CHECK(!check_errs(S, "dim s() as long"));
+}

@@ -112,7 +112,7 @@ TEST(blockends_quickr)
     fx_done(S, files);
 }
 
-/* Not put in: a block ended below already, Enter inside the line. */
+/* Not put in: a block ended below already, Enter inside the line, a line's IF. */
 TEST(blockends_only_when_missing)
 {
     fx_open_program(S, "FOR i = 1 TO 3\r\n    PRINT i\r\nNEXT\r\n");
@@ -131,6 +131,15 @@ TEST(blockends_only_when_missing)
     fx_key(S, FX_LEFT, 0);
     fx_key(S, FX_ENTER, 0);
     CHECK(fx_line_of(S, "next") == ~0u);
+    fx_done(S, files);
+
+    fx_open_program(S, "x = 1\r\n");
+    fx_cursor_on(S, "x = 1", "x");
+    fx_key(S, FX_END, 0);
+    fx_key(S, FX_ENTER, 0);
+    fx_type(S, "if x then print 1");
+    fx_key(S, FX_ENTER, 0);
+    CHECK(fx_line_of(S, "end if") == ~0u);
     fx_done(S, files);
 }
 
