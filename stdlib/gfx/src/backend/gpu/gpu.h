@@ -148,8 +148,8 @@ bool gpu_texture(Gpu *g, const Source *p, bool into, bool matched, GpuSource *ou
 bool gpu_depth(Gpu *g, const Source *p, uint32_t *id, bool *fresh);
 /* Rows top to bottom of the root h written by the CPU. */
 void gpu_wrote(Gpu *g, uint32_t h, int32_t top, int32_t bottom);
-/* The draws after go into id, w by h, within clip, with depth texture deep (0 none): false, no
-   memory. */
+/* The draws after go into id, w by h, within clip, with depth texture deep (0 none), the list
+   played first once it holds LIST_MOST bytes: false, no memory. */
 bool gpu_target(Gpu *g, uint32_t id, uint32_t deep, int32_t w, int32_t h, Rect clip);
 /* The palette sent, if it changed, and row 0's map when map; a fixed host's 8-bit canvas, row 0 as
    COLOURS: false, no memory. */

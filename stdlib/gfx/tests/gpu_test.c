@@ -23,6 +23,7 @@ static bool down;         /* its clip space's y runs down */
 static uint8_t offered;   /* the languages the last screen asked for */
 static uint8_t sent[64];  /* the last UPLOAD's first bytes */
 static uint32_t lookup[QX_LIST_INDICES], colours[QX_LIST_INDICES]; /* the last LOOKUP's, COLOURS' */
+static uint32_t most_vertices; /* the most bytes of vertices a play wrote */
 
 static bool QX_CALL fake_open(QxScreen *const s)
 {
@@ -55,9 +56,10 @@ static void QX_CALL fake_play(const uint32_t *const list, const uint32_t n)
     QxListEntry e;
 
     for (uint32_t at = 0; qx_list_next(list, n, &at, &e);)
-        if (e.op == QX_LIST_WRITE && e.arg[0] == LIST_VERTICES)
+        if (e.op == QX_LIST_WRITE && e.arg[0] == LIST_VERTICES) {
             copy(vertices, e.arg, sizeof *vertices);
-        else if (e.op == QX_LIST_WRITE && e.arg[0] == LIST_DISCS)
+            most_vertices = e.arg[1] > most_vertices ? e.arg[1] : most_vertices;
+        } else if (e.op == QX_LIST_WRITE && e.arg[0] == LIST_DISCS)
             copy(discs, e.arg, sizeof *discs);
         else if (e.op == QX_LIST_UNIFORMS && e.arg[0] == sizeof uniforms)
             memcpy(uniforms, qx_list_pointer(e.arg + 1), sizeof uniforms);
@@ -99,7 +101,7 @@ static void host_in(Session *const S, const QxShader shader, const bool y_down)
     fake.gpu_play = fake_play;
     fake.gpu_read = fake_read;
     qx_init_gfx(&fake)->stop();
-    nwords = plays = 0;
+    nwords = plays = most_vertices = 0;
     memset(pixels, 0, sizeof pixels);
 }
 
@@ -417,6 +419,30 @@ TEST(gfx_gpu_draws_a_circle_as_one_box)
     CHECK(arg(QX_LIST_DRAW, 0, 5) == 6);
     CHECK(discs[0].v.stages == (GPU_STAGE_SOLID | GPU_STAGE_DISC | GPU_STAGE_SWEEP));
     CHECK(covered(0, arc));
+}
+
+/* MOTHLITE's set-up drew thousands of shapes before its first flip, all kept for it: on a Voodoo 1,
+   2.7 MB of list and as much again in the player's copy, then out of memory. A list is played
+   once it holds LIST_MOST bytes. */
+TEST(gfx_gpu_plays_a_list_grown_long_before_the_flip)
+{
+    enum { RECTS = 3 * LIST_MOST / (4 * sizeof(GpuVertex)) };
+
+    screen(S, 8, 8, 32);
+
+    for (uint32_t i = 0; i < RECTS; i++)
+        GPU_CALL(
+            "draw.rect",
+            I(SURF_SCREEN),
+            F(1),
+            F(1),
+            F(2),
+            F(2),
+            I(0xFF0000),
+            I(GFX_DRAW_FILL)
+        );
+
+    CHECK(plays >= 2 && most_vertices <= LIST_MOST + 4 * sizeof(GpuVertex));
 }
 
 /* A clear and a rect are one batch from the white texel, its colour in the vertices; a pass's

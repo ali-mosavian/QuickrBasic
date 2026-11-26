@@ -74,8 +74,10 @@ void *list_keep(GpuList *const l, const uint32_t bytes)
 
     void *const p = mem_alloc(bytes ? bytes : 1);
 
-    if (p)
+    if (p) {
         l->kept[l->nkept++] = p;
+        l->bytes += bytes;
+    }
 
     return p;
 }
@@ -285,6 +287,7 @@ void list_reset(GpuList *const l)
         mem_free(l->kept[i]);
 
     l->nkept = 0;
+    l->bytes = 0;
     l->nvertices = 0;
     l->ndiscs = 0;
     l->draw = 0;
@@ -295,4 +298,10 @@ void list_reset(GpuList *const l)
 
     if (l->words)
         arrays(l);
+}
+
+uint32_t list_bytes(const GpuList *const l)
+{
+    return l->n * sizeof *l->words + l->nvertices * sizeof *l->vertices +
+           l->ndiscs * sizeof *l->discs + l->bytes;
 }

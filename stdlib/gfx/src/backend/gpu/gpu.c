@@ -394,6 +394,9 @@ bool gpu_target(
     const Rect clip
 )
 {
+    if (list_bytes(&g->list) >= LIST_MOST)
+        gpu_play(g, false);
+
     called(g);
     return aim(g, id, deep, w, h, clip);
 }
