@@ -34,7 +34,7 @@
  * - D1. The routines' register and global inputs and outputs are a Desc (.len, .ptr), return values
  *   and parameters.
  * - D2. Returns the Desc; empty is `.len == 0`.
- * - D3. FRE is `allo.strings - allo.arrays` after it, and what the heap can still add.
+ * - D3. FRE("") is allo_string_room after it; FRE(n) is allo_free, every region counted.
  * - D4. Length min(s.len, 255).
  * - D5. The position is an Addr in `*pos`; strg_span's start is `*p` before the call.
  */

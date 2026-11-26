@@ -119,7 +119,12 @@ static uint32_t allo_more(const Allo *const al)
     return room < refs ? room : refs;
 }
 
-uint32_t allo_free(const Allo *const al) { return al->strings - al->arrays + allo_more(al); }
+uint32_t allo_string_room(const Allo *const al) { return al->strings - al->arrays + allo_more(al); }
+
+uint32_t allo_free(const Allo *const al)
+{
+    return al->strings - al->arrays + (uint32_t)pmem_left(at(REF_ADDR));
+}
 
 uint32_t allo_extend(Allo *const al, const uint32_t need)
 {

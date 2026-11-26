@@ -2,10 +2,12 @@
 #include <stdio.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include "boot.h"
 #include "mem/table.h"
 #include "qr/qrt.h"
 #include "plat/pmem.h"
 #include "session.h"
+#include "ui/linemap.h"
 #include "unit.h"
 #include "util/heap.h"
 
@@ -97,6 +99,25 @@ TEST(heap_regions_low_and_high)
     CHECK(!heap_resize(&h, nullptr, 500)); /* full */
 }
 
+/* The free bytes of every region, those under the limit alone; a block taken is not. */
+TEST(heap_left_counts_every_region)
+{
+    enum : size_t { FIRST = 1024, SECOND = 4096 };
+
+    static alignas(16) uint8_t mem[FIRST + SECOND];
+    Heap h;
+    heap_init(&h);
+    heap_add(&h, mem, FIRST);
+    heap_add(&h, mem + FIRST, SECOND);
+    const size_t all = heap_left(&h, mem + sizeof mem);
+    CHECK(all == FIRST + SECOND - 2 * 16);
+    CHECK(heap_left(&h, mem + FIRST) == FIRST - 16);
+    void *const p = heap_resize(&h, nullptr, 500);
+    CHECK(heap_left(&h, mem + sizeof mem) == all - 512 - 16);
+    heap_free(&h, p);
+    CHECK(heap_left(&h, mem + sizeof mem) == all);
+}
+
 /* A platform's free blocks: spans of fake_mem, taken first fit from their bottoms. */
 typedef struct {
     uint8_t *at;
@@ -178,6 +199,50 @@ TEST(heap_blocks_leave_the_bottoms_region)
     CHECK(heap_after(&h, low) == room);
     uint8_t *const d = heap_resize(&h, nullptr, 500); /* the second is full: the first's top */
     CHECK(d > low + 1000 && d + 500 <= first + sizeof first);
+}
+
+void pmem_split(size_t low); /* plat/host/pmem.c's */
+
+/* lines run in a session of its own, its heap two regions as DOS's: low bytes and the rest. Its
+   output, want? In a child process: a fresh pmem. */
+static bool two_regions_print(const char *const *const lines, const char *const want)
+{
+    enum : size_t { LOW = 16u << 20 };
+
+    static Session child;
+    static const FrontEnd fe = {.regions = lmap_init};
+
+    fflush(stdout);
+    const pid_t pid = fork();
+
+    if (!pid) {
+        pmem_split(LOW);
+        boot(&child, &fe);
+        const bool ok = unit_run(&child, lines) == ST_OK && child.cons.sblen == strlen(want) &&
+                        !memcmp(child.cons.sbuf, want, child.cons.sblen);
+
+        if (!ok)
+            printf("%.*s|\n", (int)child.cons.sblen, (const char *)child.cons.sbuf);
+
+        fflush(stdout);
+        _exit(ok ? 0 : 1);
+    }
+
+    int status = 0;
+    waitpid(pid, &status, 0);
+    return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+}
+
+/* FRE(-1) counts every region's free bytes, FRE("") the strings' room. It counted the BASIC
+   heap's region alone: on DOS at 4 MB the 190 KB freed under 1 MB raised it 32 KB. */
+TEST(fre_counts_every_region)
+{
+    static const char *const lines[] = {
+        "10 PRINT FRE(-1) > 66000000; FRE(\"\") < 51000000",
+        nullptr,
+    };
+
+    CHECK(two_regions_print(lines, "-1 -1 \r"));
 }
 
 /* Calls nest past the frames' first room: each frame kept as more grow. */

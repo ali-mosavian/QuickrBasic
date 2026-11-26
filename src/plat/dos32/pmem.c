@@ -97,3 +97,5 @@ void *pmem_bottom(const size_t size) { return heap_bottom(&heap, size); }
 bool pmem_extend(void *const p, const size_t size) { return heap_extend(&heap, p, size); }
 
 size_t pmem_after(const void *const p) { return heap_after(&heap, p); }
+
+size_t pmem_left(const void *const below) { return heap_left(&heap, below); }

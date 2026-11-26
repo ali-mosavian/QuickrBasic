@@ -49,7 +49,9 @@ bool allo_grow(Allo *al, uint32_t h, uint32_t size);
 /* The BASIC heap's top raised by need bytes at least, a quarter of it more where there is room:
    the bytes added, past top; 0 no room. The caller moves top. */
 uint32_t allo_extend(Allo *al, uint32_t need);
-/* The BASIC heap's free bytes: between the arrays and the strings, and what it can still add. */
+/* The strings' room (FRE("")): the BASIC heap's free bytes, and what it can still add. */
+uint32_t allo_string_room(const Allo *al);
+/* The free bytes (FRE(-1)): the BASIC heap's, and every region's under REF_ADDR. */
 uint32_t allo_free(const Allo *al);
 /* The BASIC heap, empty, back to HEAP_FIRST bytes: the rest to pmem. */
 void allo_shrink(Allo *al);

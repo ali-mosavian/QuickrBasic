@@ -24,4 +24,6 @@ void *pmem_bottom(size_t size);
 bool pmem_extend(void *p, size_t size);
 /* The free bytes after p: what pmem_extend can add. */
 size_t pmem_after(const void *p);
+/* The free bytes under below, every region's: what blocks can still take, about. */
+size_t pmem_left(const void *below);
 #endif
