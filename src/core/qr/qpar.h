@@ -18,4 +18,17 @@ QExpr *qpar_reexpr(QProg *p, QMem *m, const QTok *t);
 /* The line at token t as one simple statement (a call, an assignment ..), on no list. Null after
    an error, to p->errs. */
 QStmt *qpar_line(QProg *p, QMem *m, const QTok *t);
+
+/* The editor's completion: what a line would make where a module's lines so far leave off. */
+typedef struct QParAt QParAt;
+typedef enum : uint8_t {
+    QFIT_NO,
+    QFIT_YES,
+    QFIT_CLOSES, /* it ends the innermost open block, or adds a clause: else, case */
+} QFit;
+/* Module mod's tokens parsed (p->loose), in m: where they leave off. */
+QParAt *qpar_upto(QProg *p, QMem *m, const QMod *mod);
+/* Tokens line, to a QK_NL then a QK_EOF, one statement parsed where a leaves off: whether its
+   token word fits, no error at or before it, and closes. a as it was after. */
+QFit qpar_fits(QParAt *a, const QTok *line, const QTok *word);
 #endif

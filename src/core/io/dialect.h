@@ -30,8 +30,9 @@ typedef enum : uint8_t {
     DHL_COMMENT,
 } DialColour;
 typedef void DialColourFn(void *ctx, uint32_t col, DialColour c);
-/* A completion's kind: a keyword, a fn (rec its line), another name. */
-typedef enum : uint8_t { DSG_KW, DSG_FN, DSG_NAME } DialSuggKind;
+/* A completion's kind: a keyword in a statement, one starting it, one closing the block open
+   there (or adding its clause: else, case); a fn (rec its line), another name. */
+typedef enum : uint8_t { DSG_KW, DSG_STMT, DSG_CLOSE, DSG_FN, DSG_NAME } DialSuggKind;
 typedef void DialSuggFn(void *ctx, const char *text, uint32_t len, DialSuggKind kind, uint32_t rec);
 typedef void DialNameFn(void *ctx, const uint8_t *name, uint32_t len);
 

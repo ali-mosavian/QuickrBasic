@@ -517,8 +517,8 @@ TEST(qride_completes_quickr_words)
                 "end type\n"
     );
     uimn_open(S, fx_path_of("main.bas"));
-    CHECK(offers(S, "re", "return"));
-    CHECK(!offers(S, "re", "RETURN"));
+    CHECK(offers(S, "pr", "print"));
+    CHECK(!offers(S, "pr", "PRINT"));
     CHECK(offers(S, "print to", "total"));
     CHECK(offers(S, "let a = util.t", "twice"));
     CHECK(offers(S, "let a = q.", "x"));
@@ -555,6 +555,117 @@ TEST(qride_completes_generic_records)
     CHECK(!offers(S, "let a = st.", "empty"));
     CHECK(offers(S, "let a = Stack[int].", "empty"));
     CHECK(!offers(S, "let a = Stack[int].", "push"));
+    fx_done(S, files);
+}
+
+/* What sugg_find offers first for text typed on line at, and whether it offers want. */
+static bool offered(
+    Session *const S,
+    const char *const at,
+    const char *const text,
+    const char *want
+)
+{
+    Suggs out = {};
+
+    const uint16_t n = (uint16_t)strlen(text);
+    const uint32_t rec = text_rec(S, fx_line_of(S, at));
+    bool found = false;
+
+    if (sugg_find(S, (const uint8_t *)text, n, n, rec, &out))
+        for (uint16_t i = 0; i < out.n; i++)
+            found |= !strcmp((const char *)out.list[i].text, want);
+
+    free(out.list);
+    return found;
+}
+
+/* sugg_find's first entry for text typed on line at, "" none. */
+static const char *first(Session *const S, const char *const at, const char *const text)
+{
+    static char got[4][SUGG_LEN + 1];
+    static uint32_t k;
+    Suggs out = {};
+
+    const uint16_t n = (uint16_t)strlen(text);
+    char *const g = got[k++ % countof(got)];
+    g[0] = 0;
+
+    if (sugg_find(S, (const uint8_t *)text, n, n, text_rec(S, fx_line_of(S, at)), &out))
+        strcpy(g, (const char *)out.list[0].text);
+
+    free(out.list);
+    return g;
+}
+
+/* want taken from what sugg_find offers for text typed on line at, as the editor takes it. */
+static void take(Session *const S, const char *const at, const char *const text, const char *want)
+{
+    Suggs out = {};
+
+    const uint16_t n = (uint16_t)strlen(text);
+
+    if (sugg_find(S, (const uint8_t *)text, n, n, text_rec(S, fx_line_of(S, at)), &out))
+        for (uint16_t i = 0; i < out.n; i++)
+            if (!strcmp((const char *)out.list[i].text, want))
+                sugg_used(&out.list[i]);
+
+    free(out.list);
+}
+
+static const char blocks[] = DIALECT "function f(x as int) as int\n"
+                                     "    for i in 0..9\n"
+                                     "        print i\n"
+                                     "    next\n"
+                                     "    if x > 0 then\n"
+                                     "        print x\n"
+                                     "    end if\n"
+                                     "    return x\n"
+                                     "end function\n"
+                                     "type Box\n"
+                                     "    w as int\n"
+                                     "end type\n"
+                                     "let total = f(1)\n"
+                                     "print total\n";
+
+/* A Quickr line's completion knew no open block: in a for it offered for first, not next, and
+   a for just taken outranked a closer; in an if, no else; end was not first in a function. */
+TEST(qride_completes_the_open_block)
+{
+    fx_open_program(S, "");
+    fx_write_file("main.bas", blocks);
+    uimn_open(S, fx_path_of("main.bas"));
+    CHECK(!strcmp(first(S, "        print i", "        "), "next"));
+    take(S, "print total", "fo", "for"); /* the for just typed: next still first */
+    CHECK(!strcmp(first(S, "        print i", "        "), "next"));
+    CHECK(!strcmp(first(S, "        print i", "        ne"), "next"));
+    CHECK(!offered(S, "print total", "ne", "next"));
+    CHECK(!offered(S, "print total", "wen", "wend"));
+    const char *const in_if = first(S, "        print x", "        ");
+    CHECK(!strcmp(in_if, "else") || !strcmp(in_if, "elseif") || !strcmp(in_if, "end"));
+    CHECK(offered(S, "        print x", "        el", "else"));
+    CHECK(!offered(S, "        print i", "        el", "else"));
+    CHECK(!strcmp(first(S, "    return x", "    "), "end"));
+    CHECK(offered(S, "        print x", "        end ", "if"));
+    CHECK(!offered(S, "        print x", "        end ", "function"));
+    CHECK(offered(S, "    return x", "    end ", "function"));
+    fx_done(S, files);
+}
+
+/* A Quickr line's completion offered every keyword anywhere: for after let a =, if in a type's
+   fields, no in after for i. */
+TEST(qride_completes_what_fits)
+{
+    fx_open_program(S, "");
+    fx_write_file("main.bas", blocks);
+    uimn_open(S, fx_path_of("main.bas"));
+    CHECK(!offered(S, "print total", "let a = f", "for"));
+    CHECK(offered(S, "print total", "let a = f", "false"));
+    CHECK(offered(S, "print total", "for i i", "in"));
+    CHECK(offered(S, "print total", "fo", "for"));
+    CHECK(!offered(S, "    w as int", "    fo", "for"));
+    CHECK(offered(S, "    w as int", "    f", "fn"));
+    CHECK(offered(S, "print total", "print to", "total"));
     fx_done(S, files);
 }
 

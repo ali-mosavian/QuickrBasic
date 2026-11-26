@@ -180,12 +180,16 @@ QBasic's otherwise. The main file's is the program's; its modules may be of eith
 
 - Highlighting lexes a Quickr line with Quickr's lexer (`qr_colour`): its keywords, a function's
   name and parameters, types after `as`, strings and f-strings, the comment past the last token.
-- Completion offers Quickr's keywords and the names in the file; after `m.` an imported module's
+- Completion offers the names in the file and the keywords that fit; after `m.` an imported module's
   exported names, a QBasic module's SUBs, FUNCTIONs and TYPEs; after `m.E.` an enum's values; after
   `v.` the fields and methods of `v`'s record type, as declared (`v as T`), a QBasic TYPE's fields
   too, or a list's, a dict's or a string's methods, as the checker has them (`qsem_methods`)
   (`qr_suggest`). A Quickr module's names come from its parsed lines, a QBasic module's from
   QBasic's own symbol table (`bind_each_export`).
+- The parser judges a keyword (`qr/qsugg.c`): the lines before the cursor's are parsed, then the
+  line so far and the keyword as one statement there. A keyword with an error at or before it is
+  left out. One that closes the open block or adds its clause (`next`, `else`, `case`, `end if`)
+  ranks first, above any keyword taken lately; one starting a line above one inside it.
 
 - F1 in a Quickr program looks up `quickr WORD` (`help/qr/`): a keyword, a module, a module's
   `m.name`, else the module before the dot; no topic opens the Quickr index. QBasic's topics are

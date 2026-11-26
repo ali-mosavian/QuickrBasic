@@ -251,6 +251,16 @@ static void sugg_before(const SuggSrc *const src, const uint8_t *const text, con
 
 /* ---- matching and ranking */
 
+/* A keyword's score by its place, every dialect's: one starting a statement over one inside it;
+   one closing the block open there over both, however lately the others were taken. */
+enum : int16_t {
+    RANK_OPERAND = 10,
+    RANK_FN = 15,
+    RANK_STATEMENT = 40,
+    RANK_RECENT = 60, /* the latest taken's bonus */
+    RANK_CLOSES = RANK_RECENT + 1,
+};
+
 /* word (n letters, capitals) against s: 2 its start, 1 its letters in order from the first, 0
    neither; s longer than the word. */
 static uint8_t sugg_match(
@@ -281,7 +291,7 @@ static int16_t sugg_recency(const uint8_t *const s)
 {
     for (uint8_t i = 0; i < sg.nrecent; i++)
         if (!strcmp((const char *)sg.recent[i], (const char *)s))
-            return (int16_t)(60 - 3 * i);
+            return (int16_t)(RANK_RECENT - 3 * i);
 
     return 0;
 }
@@ -435,10 +445,10 @@ static void sugg_keyword(
         n,
         fn ? SG_FN : SG_KW,
         match,
-        (int16_t)((fn        ? 15
-                   : operand ? 10
-                             : 40) +
-                  (closes ? 30 : 0))
+        (int16_t)((fn        ? RANK_FN
+                   : operand ? RANK_OPERAND
+                             : RANK_STATEMENT) +
+                  (closes ? RANK_CLOSES : 0))
     );
     s.tok = tok;
     sugg_add(out, &s);
@@ -1442,8 +1452,16 @@ static void sugg_text_one(
     if (!match)
         return;
 
-    const SuggKind k = kind == DSG_KW ? SG_KW : kind == DSG_FN ? SG_FN : SG_VAR;
-    Sugg s = sugg_make((const uint8_t *)text, (uint16_t)len, k, match, kind == DSG_KW ? 0 : 10);
+    static const int16_t ranks[] = {
+        [DSG_KW] = RANK_OPERAND,
+        [DSG_STMT] = RANK_STATEMENT,
+        [DSG_CLOSE] = RANK_STATEMENT + RANK_CLOSES,
+        [DSG_FN] = RANK_OPERAND,
+        [DSG_NAME] = RANK_OPERAND,
+    };
+
+    const SuggKind k = kind == DSG_FN ? SG_FN : kind == DSG_NAME ? SG_VAR : SG_KW;
+    Sugg s = sugg_make((const uint8_t *)text, (uint16_t)len, k, match, ranks[kind]);
     s.asis = s.len;
     s.rec = kind == DSG_FN ? rec : 0;
     sugg_add(q->out, &s);

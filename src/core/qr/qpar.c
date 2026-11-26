@@ -30,7 +30,7 @@ typedef struct {
     QStmt *clause;
 } QOpen;
 
-typedef struct {
+typedef struct QPar {
     QProg *prog;
     QMem *mem;
     const QTok *t; /* the next token */
@@ -1912,42 +1912,6 @@ static void qpar_unclosed(QPar *const P)
     }
 }
 
-void qpar_program(QProg *const p, QMem *const m, QMod *const mod)
-{
-    QPar P = {
-        .prog = p,
-        .mem = m,
-        .t = mod->toks,
-        .last = p->first,
-        .lastfn = p->fns,
-    };
-
-    while (P.last && P.last->next)
-        P.last = P.last->next;
-    while (P.lastfn && P.lastfn->next)
-        P.lastfn = P.lastfn->next;
-
-    const QStmt *const before = P.last;
-
-    while (P.t->kind != QK_EOF) {
-        if (!setjmp(P.fail)) {
-            qpar_statement(&P);
-
-            if (!qpar_is(&P, QK_NL))
-                qpar_expected(&P, "the line's end");
-        }
-
-        while (P.t->kind != QK_NL && P.t->kind != QK_EOF)
-            P.t++;
-
-        qpar_take(&P, QK_NL);
-    }
-
-    qpar_unclosed(&P);
-    mod->head = before ? before->next : p->first;
-    mod->tail = mod->head ? P.last : nullptr;
-}
-
 /* A parser at token t, appending to p's statements and fns. */
 static QPar qpar_at(QProg *const p, QMem *const m, const QTok *const t)
 {
@@ -1959,12 +1923,101 @@ static QPar qpar_at(QProg *const p, QMem *const m, const QTok *const t)
         .lastfn = p->fns,
     };
 
-    while (P.last->next)
+    while (P.last && P.last->next)
         P.last = P.last->next;
-    while (P.lastfn->next)
+    while (P.lastfn && P.lastfn->next)
         P.lastfn = P.lastfn->next;
 
     return P;
+}
+
+/* P's statements to the tokens' end: each error's skipped to its line's end. */
+static void qpar_lines(QPar *const P)
+{
+    while (P->t->kind != QK_EOF) {
+        if (!setjmp(P->fail)) {
+            qpar_statement(P);
+
+            if (!qpar_is(P, QK_NL))
+                qpar_expected(P, "the line's end");
+        }
+
+        while (P->t->kind != QK_NL && P->t->kind != QK_EOF)
+            P->t++;
+
+        qpar_take(P, QK_NL);
+    }
+}
+
+void qpar_program(QProg *const p, QMem *const m, QMod *const mod)
+{
+    QPar P = qpar_at(p, m, mod->toks);
+    const QStmt *const before = P.last;
+
+    qpar_lines(&P);
+    qpar_unclosed(&P);
+    mod->head = before ? before->next : p->first;
+    mod->tail = mod->head ? P.last : nullptr;
+}
+
+/* A parse stopped at its tokens' end: the blocks open there, each probe's start. */
+struct QParAt {
+    QPar P;
+    QOpen *open;
+    uint32_t nopen;
+};
+
+QParAt *qpar_upto(QProg *const p, QMem *const m, const QMod *const mod)
+{
+    QParAt *const a = qast_alloc(m, sizeof *a);
+    a->P = qpar_at(p, m, mod->toks);
+    qpar_lines(&a->P);
+    a->nopen = a->P.nopen;
+    a->open = qast_alloc(m, (a->nopen + 1) * sizeof *a->open);
+
+    if (a->nopen)
+        memcpy(a->open, a->P.open, a->nopen * sizeof *a->open);
+
+    return a;
+}
+
+QFit qpar_fits(QParAt *const a, const QTok *const line, const QTok *const word)
+{
+    QPar *const P = &a->P;
+    QProg *const p = P->prog;
+    QStmt *const last = P->last;
+    QFn *const lastfn = P->lastfn;
+    const uint32_t nerrs = p->errs.n;
+    const bool loose = p->loose;
+
+    if (a->nopen)
+        memcpy(P->open, a->open, a->nopen * sizeof *a->open);
+
+    P->nopen = a->nopen;
+    P->t = line;
+    p->loose = false; /* a block's lines unpaired: an error here */
+
+    if (!setjmp(P->fail)) {
+        qpar_statement(P);
+
+        if (!qpar_is(P, QK_NL))
+            qpar_expected(P, "the line's end");
+    }
+
+    bool fits = true;
+
+    for (uint32_t i = nerrs; i < p->errs.n; i++)
+        fits &= p->errs.at[i].col > word->col;
+
+    const uint32_t n = a->nopen;
+    const bool closes =
+        P->nopen < n || (n && P->nopen >= n && P->open[n - 1].clause != a->open[n - 1].clause);
+
+    p->errs.n = nerrs;
+    p->loose = loose;
+    P->last = last;
+    P->lastfn = lastfn;
+    return !fits ? QFIT_NO : closes ? QFIT_CLOSES : QFIT_YES;
 }
 
 QFn *qpar_again(QProg *const p, QMem *const m, const QFn *const f)
@@ -2016,18 +2069,7 @@ QExpr *qpar_reexpr(QProg *const p, QMem *const m, const QTok *const t)
 
 QStmt *qpar_line(QProg *const p, QMem *const m, const QTok *const t)
 {
-    QPar P = {
-        .prog = p,
-        .mem = m,
-        .t = t,
-        .last = p->first,
-        .lastfn = p->fns,
-    };
-
-    while (P.last && P.last->next)
-        P.last = P.last->next;
-    while (P.lastfn && P.lastfn->next)
-        P.lastfn = P.lastfn->next;
+    QPar P = qpar_at(p, m, t);
 
     if (setjmp(P.fail))
         return nullptr;
