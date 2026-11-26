@@ -116,6 +116,8 @@ void qrt_sorts_free(void **sorts);
    length. */
 uint32_t qrt_text(QrtKind kind, Cell v, uint8_t out[static QRT_TXT]);
 /* v of kind formatted by spec's n bytes, a Python format spec sema checked, to out (room for
-   SBMAX); its length. A string v is its Desc. */
+   qrt_format_room's); its length. A string v is its Desc. */
 uint32_t qrt_format(QrtKind kind, Cell v, Desc str, const uint8_t *spec, uint32_t n, uint8_t *out);
+/* The most qrt_format writes for spec's n bytes and string str (any for a number). */
+uint32_t qrt_format_room(Desc str, const uint8_t *spec, uint32_t n);
 #endif

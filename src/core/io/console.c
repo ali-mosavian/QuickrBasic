@@ -6,8 +6,9 @@
  * standard output is the screen, the runtime's console (qbrt) takes each character instead: it
  * keeps the cursor, the colours and the PRINT window, and its cursor is the column.
  *
- * inbuf and sbuf are carved from the arena (cons_init). strg reads INPUT's items and LINE INPUT's
- * line in inbuf by Addr. sbuf holds a line's LIST spelled; the rest is dropped past SBMAX.
+ * inbuf is carved from the arena (cons_init). strg reads INPUT's items and LINE INPUT's line in
+ * inbuf by Addr. sbuf holds a line's LIST spelled, grown as it is; the rest is dropped past SBMAX.
+ * A scratch past SBFIRST bytes takes its room first (cons_scratch).
  *
  * cons_getline reads a line from the keyboard key by key when standard input is the console, else
  * from the file or device; -1 is the end, or the STOP key.
@@ -53,6 +54,7 @@
 #include "io/channel.h"
 #include "io/repl.h"
 #include "mem/alloc.h"
+#include "util/grow.h"
 #include "vm/exec.h"
 #include "plat/pfil.h"
 #include "plat/pkey.h"
@@ -67,15 +69,30 @@ void cons_init(Cons *const co, Allo *const al, Chnl *const cl, Vm *const vm)
     co->chnl = cl;
     co->vm = vm;
     co->inbuf = at(allo_carve(al, INMAX + 1));
-    co->sbuf = at(allo_carve(al, SBMAX + 1));
+    co->fault = al->fault;
+    cons_scratch(co, SBFIRST);
     co->stdin_con = pfil_iscon(PFIL_STDIN);
     chnl_init(cl, co);
+}
+
+uint8_t *cons_scratch(Cons *const co, const uint32_t n)
+{
+    if (!GROW(co->sbuf, co->sbcap, n))
+        fault_error(co->fault, E_OM);
+
+    return co->sbuf;
+}
+
+/* sbuf's room for a byte captured and the 0 after it. */
+static bool cons_sbroom(Cons *const co)
+{
+    return co->sblen + 2 <= co->sbcap || GROW(co->sbuf, co->sbcap, co->sblen + 2);
 }
 
 void cons_putc(Cons *const co, const uint8_t c)
 {
     if (co->capture & CAP_SBUF) {
-        if (co->sblen < SBMAX) /* full: the rest dropped */
+        if (co->sblen < SBMAX && cons_sbroom(co)) /* full, or no memory: the rest dropped */
             co->sbuf[co->sblen++] = c;
 
         return;

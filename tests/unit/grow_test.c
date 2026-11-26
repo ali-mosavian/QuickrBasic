@@ -3,6 +3,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include "mem/table.h"
+#include "qr/qrt.h"
 #include "plat/pmem.h"
 #include "session.h"
 #include "unit.h"
@@ -417,4 +418,56 @@ TEST(a_long_typed_line_grows_comp_cbuf)
     CHECK(unit_typed(S, line) == ST_OK);
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 7000 \r");
     CHECK(S->comp.ccap > 7000);
+}
+
+/* cons.sbuf's scratch past its first bytes: LSET's string built in it. It takes its room first;
+   sbuf was SBMAX + 1 bytes from the start, 64 KB. */
+TEST(sbuf_scratch_takes_its_room)
+{
+    static const char *const lines[] = {
+        "10 a$ = STRING$(5000, \"-\"): LSET a$ = \"abc\"",
+        "20 PRINT LEN(a$); LEFT$(a$, 4); RIGHT$(a$, 1); \"|\"",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 5000 abc  |\r");
+}
+
+/* A Quickr format's text, written to sbuf, within the room qrt_format_room asks for it. */
+TEST(qrt_format_room_holds_the_text)
+{
+    static uint8_t out[8192];
+    static const char *const specs[] = {">2000,.100f", "^+#5000x", ".100e", "08,d", "=+3000"};
+
+    static const uint8_t left[] = "<3000";
+    uint8_t *const text = pmem_resize(nullptr, 3); /* an Addr's: the arena's */
+    memcpy(text, "abc", 3);
+    const Desc str = {.len = 3, .ptr = addr_of(text)};
+
+    const Cell d = {.d = -1.5e300}, i = {.i = -123456789};
+
+    CHECK(qrt_format(QRT_STRING, (Cell){}, str, left, 5, out) <= qrt_format_room(str, left, 5));
+
+    pmem_free(text);
+
+    for (uint32_t k = 0; k < countof(specs); k++) {
+        const uint8_t *const sp = (const uint8_t *)specs[k];
+        const uint32_t n = (uint32_t)strlen(specs[k]);
+        const uint32_t room = qrt_format_room((Desc){}, sp, n);
+
+        CHECK(qrt_format(QRT_DOUBLE, d, (Desc){}, sp, n, out) <= room);
+
+        CHECK(qrt_format(QRT_LONG, i, (Desc){}, sp, n, out) <= room);
+    }
+}
+
+/* Output captured past sbuf's first bytes: all of it kept as sbuf grows, its 0 after it. */
+TEST(sbuf_capture_grows)
+{
+    static const char *const lines[] = {"10 FOR i = 1 TO 1000: PRINT \"x\";: NEXT", nullptr};
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK(S->cons.sblen == 1000 && S->cons.sbcap > 1000);
+    CHECK(S->cons.sbuf[0] == 'x' && S->cons.sbuf[999] == 'x');
 }

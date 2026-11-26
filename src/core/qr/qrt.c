@@ -581,7 +581,7 @@ static void qrt_pop(Session *const S, const Addr cell, const uint32_t et)
     }
 
     const Desc d = strg_peek(e);
-    memcpy(S->cons.sbuf, at(d.ptr), d.len); /* copied out: the shrink frees its block */
+    memcpy(cons_scratch(&S->cons, d.len), at(d.ptr), d.len); /* copied out: the shrink frees it */
     qrt_shrink(S, cell, et);
     exec_pusha(&S->vm, strg_text(&S->strg, S->cons.sbuf, d.len));
 }
@@ -722,6 +722,7 @@ static uint32_t qrt_radix(uint64_t u, const uint32_t base, const bool upper, cha
 }
 
 enum { QRT_SIG = 17, QRT_PREC = 100 }; /* a double's digits known; a precision at most */
+enum { QRT_BODY = QRT_PREC + 512 };    /* qrt_format's digits, grouped, at most */
 
 /* m, finite and not below 0, to n significant digits, zeros kept: dig, and the first's power of
    ten. */
@@ -893,7 +894,7 @@ uint32_t qrt_format(
 )
 {
     const QrtSpec f = qrt_spec(spec, spec + n);
-    char body[QRT_PREC + 512];
+    char body[QRT_BODY];
     uint32_t len;
     const char *pre = "";
     bool neg = false;
@@ -964,6 +965,13 @@ uint32_t qrt_format(
     }
 
     return o;
+}
+
+uint32_t qrt_format_room(const Desc str, const uint8_t *const spec, const uint32_t n)
+{
+    const QrtSpec f = qrt_spec(spec, spec + n);
+    const uint32_t pad = f.width > 0 ? (uint32_t)f.width : 0;
+    return pad + (str.len > QRT_BODY ? str.len : QRT_BODY) + 4; /* a sign, 0x */
 }
 
 /* ---- slices */
@@ -1818,7 +1826,8 @@ void qrt_x(Session *const S)
         uint8_t sp[64];
         const uint32_t ns = spec.len < sizeof sp ? spec.len : sizeof sp;
         memcpy(sp, at(spec.ptr), ns);
-        const uint32_t n = qrt_format(kind, v, str, sp, ns, S->cons.sbuf);
+        uint8_t *const out = cons_scratch(&S->cons, qrt_format_room(str, sp, ns));
+        const uint32_t n = qrt_format(kind, v, str, sp, ns, out);
         exec_pusha(vm, strg_text(&S->strg, S->cons.sbuf, (uint16_t)n));
         return;
     }

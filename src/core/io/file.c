@@ -777,7 +777,7 @@ static void set(Session *const S, const bool right)
             justify(at(d->ptr), d->len, src, s.len, right);
         } else { /* built in sbuf, then stored */
             const uint16_t len = d->len;
-            justify(S->cons.sbuf, len, src, s.len, right);
+            justify(cons_scratch(&S->cons, len), len, src, s.len, right);
             strg_set(&S->strg, strg_text(&S->strg, S->cons.sbuf, len), addr);
         }
     }

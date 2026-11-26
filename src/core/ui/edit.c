@@ -354,8 +354,8 @@ bool edit_canon(Session *const S, uint8_t *const text, const uint16_t len, uint3
         }
     }
 
+    memcpy(cons_scratch(&S->cons, uc.n + 1), uc.src, uc.n);
     S->cons.sblen = uc.n; /* as typed */
-    memcpy(S->cons.sbuf, uc.src, uc.n);
     return true;
 }
 
