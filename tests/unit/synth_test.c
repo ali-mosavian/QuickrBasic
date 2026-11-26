@@ -30,7 +30,7 @@ void headless_run(long hundredths);
 
 enum { RATE = 44100, TICK_SAMPLES = RATE * 10 / 182 };
 
-static int16_t buf[RATE];
+static int16_t buf[2 * RATE];
 
 /* SID's first voice as PLAY's defaults set it, with `wave` and `envelope`. */
 static DevVoice note(const unsigned hertz, const unsigned wave, const unsigned envelope)
@@ -39,9 +39,15 @@ static DevVoice note(const unsigned hertz, const unsigned wave, const unsigned e
                       .wave = (unsigned char)wave, .volume = 15, .gate = 1, .trigger = 1};
 }
 
-/* `v` from silence, n samples of it in buf. */
+/* `v` from silence, n samples of it in buf. The tremolo's 1.5 s ran past buf's 1 s into the next
+   global, and its peaks were read from there. */
 static void sound(Synth *const s, const DevVoice v, const int n)
 {
+    CHECK(n <= (int)countof(buf));
+
+    if (n > (int)countof(buf))
+        return;
+
     synth_init(s, RATE);
     synth_voice(s, 0, &v);
     synth_render(s, buf, n);
