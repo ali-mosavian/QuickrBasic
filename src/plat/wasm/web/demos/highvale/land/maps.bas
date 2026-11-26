@@ -2,9 +2,9 @@
 ' displacement on a grid that wraps, smoothed and shaped
 ' into valleys, rivers cut where a second such field
 ' crosses its middle; light by slope, the sun's shadows
-' and the water's depth; the ground by slope, height and
-' bare patches where a third runs low, woods darker where
-' it runs high.
+' and the water's depth; rock on cliffs and over a
+' treeline a third field sways, woods darker where it
+' runs high.
 option explicit
 
 from highvale.model.space import Point3
@@ -26,16 +26,21 @@ const SEA_LINE = 900
 ' and the most they cut, in values
 const BANK = 400
 const CUT = 700
-' rock where a texel's slope over STEEP, in steps a
-' texel, its height over HIGH, in steps, and the cover
-' under its middle, each over its span, sum past 0; the
-' sum eased in over GROUND_SPREAD of a ground's values
-const STEEP = 1.6
-const STEEP_SPAN = 1.2
-const HIGH = 110
-const HIGH_SPAN = 80
-const BARE_SPAN = 0.5
+' rock where the slope, in steps a texel, is steeper than
+' CLIFF under the treeline, a slope that falls to none
+' over TREE_SPAN steps above it; the treeline at
+' TREELINE steps, swayed up to TREE_SWAY by the cover;
+' eased in over GROUND_SPREAD of a ground's values a
+' STEEP_SPAN of slope
+const CLIFF = 4
+const TREELINE = 100
+const TREE_SPAN = 70
+const TREE_SWAY = 20
+const STEEP_SPAN = 1
 const GROUND_SPREAD = 64
+' grass's least value, clear of water's, so only a
+' texel's height over the sea draws the shore
+const GRASS_MIDDLE = (GRASS_FROM + ROCK_FROM) \ 2
 ' woods where the second field is above this level, their
 ' light this much under the grass's
 const WOODS_LINE = 2400
@@ -191,24 +196,29 @@ function ground_of (byval v as integer) as integer
     if v < GRASS_FROM then ground_of = WATER
 end function
 
-' Land's ground value: rock by slope, a step's fall a
-' texel, height h, in parts, and cover; near the sea no
-' more than its parts over sea allow, so the shore keeps
-' to the sea's line.
+' Land's ground value: rock by slope, in steps a texel,
+' height h, in parts, and cover; near the sea no more
+' than its parts over sea allow, so the shore keeps to
+' the sea's line.
 function land_ground ( _
     byval slope as single, _
     byval h as long, _
     byval sea as long, _
     byval cover as long _
 ) as integer
-    dim stony as single
+    dim line_at as single
+    dim alpine as single
     dim v as single
 
-    stony = (slope - STEEP) / STEEP_SPAN _
-        + (h / STEP_PARTS - HIGH) / HIGH_SPAN _
-        + (0.5 - cover / (VALUES - 1)) / BARE_SPAN
-    v = ROCK_FROM + stony * GROUND_SPREAD
-    if v < GRASS_FROM then v = GRASS_FROM
+    line_at = TREELINE _
+        + (2 * cover / (VALUES - 1) - 1) * TREE_SWAY
+    alpine = (h / STEP_PARTS - line_at) / TREE_SPAN
+    if alpine < 0 then alpine = 0
+    if alpine > 1 then alpine = 1
+    v = ROCK_FROM _
+        + (slope - CLIFF * (1 - alpine)) / STEEP_SPAN _
+        * GROUND_SPREAD
+    if v < GRASS_MIDDLE then v = GRASS_MIDDLE
     if v > 255 then v = 255
     if v > (h - sea) * GRASS_FROM / STEP_PARTS then
         v = (h - sea) * GRASS_FROM / STEP_PARTS
