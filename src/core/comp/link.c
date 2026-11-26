@@ -176,12 +176,14 @@ void link_place(Comp *const C, const uint32_t line)
             return;
         }
 
-        /* half as much again, else room for the longest line's code */
-        const uint32_t need = C->link->end - C->allo->cache + XLIM + XSLK;
+        /* half as much again, else room for the longest line's code; the cache may move */
+        const uint32_t used = C->link->end - C->allo->cache, need = used + XLIM + XSLK;
 
         if (!allo_grow(C->allo, HCACHE, allo_cap(C->allo, HCACHE) + 1) &&
             !allo_grow(C->allo, HCACHE, need))
             fault_error(C->fault, E_OM);
+
+        C->link->end = C->allo->cache + used;
     }
 }
 

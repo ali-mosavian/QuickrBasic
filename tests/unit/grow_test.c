@@ -334,3 +334,34 @@ TEST(environ_grows)
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 200 \r");
     CHECK(S->syst.envcap > 200);
 }
+
+/* A program whose code outgrows the code cache, moved to grow: the link kept its end in the old
+   cache, never fit and grew it until Out of memory, for 100 nested IFs. */
+TEST(code_outgrows_a_moved_cache)
+{
+    enum { DEPTH = 100, NLINES = 2 * DEPTH + 3 };
+
+    static char text[NLINES][24];
+    const char *lines[NLINES + 1];
+    uint32_t n = 0;
+
+    snprintf(text[n++], sizeof text[0], "1 n = 0");
+
+    for (uint32_t i = 0; i < DEPTH; i++)
+        snprintf(text[n++], sizeof text[0], "%u IF n = 0 THEN", (unsigned)n + 1);
+
+    snprintf(text[n++], sizeof text[0], "%u n = 7", (unsigned)n + 1);
+
+    for (uint32_t i = 0; i < DEPTH; i++)
+        snprintf(text[n++], sizeof text[0], "%u END IF", (unsigned)n + 1);
+
+    snprintf(text[n++], sizeof text[0], "%u PRINT n", (unsigned)n + 1);
+
+    for (uint32_t i = 0; i < NLINES; i++)
+        lines[i] = text[i];
+
+    lines[NLINES] = nullptr;
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 7 \r");
+}
