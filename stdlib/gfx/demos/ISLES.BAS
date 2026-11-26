@@ -504,7 +504,8 @@ sub show_help ( _
     edge% = MARGIN * z%
     t$ = "T turn " + on_off$(turning)
     t$ = t$ + "  UP/DN zoom  S smooth " + on_off$(smooth)
-    label_shaded dst, edge%, edge%, t$, grey&, 0, z%
+    label_shaded dst, st.top, edge%, edge%, t$, grey&, 0, z%
     foot% = st.h - edge% - st.text_h
-    label_shaded dst, edge%, foot%, rate_text$(m), grey&, 0, z%
+    r$ = rate_text$(m)
+    label_shaded dst, st.foot, edge%, foot%, r$, grey&, 0, z%
 end sub

@@ -112,6 +112,37 @@ def demo_colours(b: bench.Build) -> None:
             assert re.fullmatch(r"\s*[\d.]+\s+\d+\s*", r.stdout), f"{name}: {r.stdout}{r.stderr}"
 
 
+# a label drawn and its surface marked, then drawn again with the same text: the zoom, then the marked pixel's bytes
+# as marked and as found after
+LABEL_KEPT = """import gfx.display, gfx.draw, gfx.surface
+from stage import Stage, measure, label
+canvas& = gfx.display.open(640, 480, 32, 0)
+dim st as Stage
+measure canvas&, st
+grey& = gfx.display.rgb(200, 200, 200)
+dim px(3) as byte
+label canvas&, st.top, 0, 0, "60 fps", grey&, st.zoom
+gfx.draw.clear st.top.surface, gfx.display.rgb(255, 0, 0)
+gfx.surface.read st.top.surface, 0, 0, 1, 1, px()
+print st.zoom; px(0); px(1); px(2); px(3);
+label canvas&, st.top, 0, 0, "60 fps", grey&, st.zoom
+gfx.surface.read st.top.surface, 0, 0, 1, 1, px()
+print px(0); px(1); px(2); px(3)
+gfx.display.close
+"""
+
+
+def demo_label_kept(b: bench.Build) -> None:
+    """A demo's scaled text keeps its surface while the text stays: made, drawn into and freed each frame, a 3D card
+    drew it, read it back and sent it again, and CUBE's text took 78% of a P100's frame on a Voodoo 1."""
+    with tempfile.TemporaryDirectory() as d:
+        shutil.copy(bench.DEMOS / "stage.bas", d)
+        (Path(d) / "KEPT.BAS").write_text(LABEL_KEPT)
+        r = subprocess.run([str(b.counted), "KEPT.BAS"], cwd=d, capture_output=True, text=True, timeout=60)
+        zoom, *px = r.stdout.split() or ["", ""]
+        assert zoom == "2" and len(px) == 8 and px[:4] == px[4:] and px[:4] != ["0"] * 4, f"{r.stdout}{r.stderr}"
+
+
 def demo_one_world() -> None:
     """demos' runs draw one world and, by frames, one frame n. ISLES seeded its islands and boats from the timer, so
     two builds profiled drew two worlds: a third of one's frame was circles the other never drew."""
@@ -327,6 +358,7 @@ def main() -> int:
         vm_window()
     b = bench.build(".", False)  # the tree's own instruments: copying them onto themselves raised
     demo_colours(b)
+    demo_label_kept(b)
     try:
         r = bench.run_native(b, {"one": loop(1000000), "two": loop(2000000)}, runs=5)
     except bench.NoCounter:
