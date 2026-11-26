@@ -71,9 +71,9 @@ uint32_t tdfx_get(const Tdfx *c, uint32_t reg);
 void tdfx_idle(Tdfx *c);
 /* The FBI idle, nothing written to the FIFO: as the PCI FIFO may take no writes. */
 void tdfx_idle_fbi(const Tdfx *c);
-/* Pixels x, y, w by h of colour buffer draw (0 front, 1 back) made black, and their depth 0 with
-   depth. */
-void tdfx_cleared(Tdfx *c, uint32_t draw, int32_t x, int32_t y, int32_t w, int32_t h, bool depth);
+/* Pixels r of colour buffer draw (0 front, 1 back) fast filled, as what has them: their colour
+   argb, their depth 0. */
+void tdfx_cleared(Tdfx *c, uint32_t draw, AccelRect r, uint32_t argb, uint8_t what);
 /* clutData's entries: the video output looks a channel up as its 5 or 6 bits with zeros below,
    between two entries. */
 enum { TDFX_CLUT = 33 };

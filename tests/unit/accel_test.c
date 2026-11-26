@@ -146,7 +146,7 @@ TEST(accel_cut_moves_each_period_of_a_wrap_into_the_first)
 enum { SCREEN_W = 320, SCREEN_H = 200, SLOTS = 8, TILE = 256 * 32, CALLS = 256 };
 
 /* A call a letter: Texture, Upload, Forget, tarGet, Drop, Aim, State, triangles (V), shoW,
-   Carry, Read. */
+   Carry, Read, cLear. */
 static struct {
     char calls[CALLS];
     uint32_t ncalls;
@@ -156,6 +156,8 @@ static struct {
     AccelVertex last[3];
     uint32_t room, held; /* the targets the card has room for, and holds */
     uint32_t sent;       /* texels uploaded */
+    uint32_t filled;     /* the last clear's colour */
+    uint8_t what;        /* and what it cleared */
 } fake;
 
 static void called(const char c)
@@ -260,6 +262,13 @@ static void ACCEL_CALL fake_read(uint32_t slot, AccelRect r, uint8_t *out)
     memset(out, 0x42, (size_t)r.w * r.h * 4);
 }
 
+static void ACCEL_CALL fake_clear(uint32_t argb, uint8_t what)
+{
+    called('L');
+    fake.filled = argb;
+    fake.what = what;
+}
+
 static const AccelDriver FAKE = {
     .size = sizeof(AccelDriver),
     .abi = ACCEL_ABI,
@@ -277,6 +286,7 @@ static const AccelDriver FAKE = {
     .show = fake_show,
     .carry = fake_carry,
     .read = fake_read,
+    .clear = fake_clear,
 };
 
 /* A vertex as the FIXED pipeline's attributes find it. */
@@ -301,6 +311,7 @@ static struct {
     uint32_t words[LIST], n;
     Vertex v[64];
     uint32_t nv, index[96], ni;
+    uint32_t depth; /* the pass's depth texture: 0, none */
 } list;
 
 static void put(const QxListOp op, const uint32_t *const a, const uint32_t n)
@@ -402,7 +413,7 @@ static bool played(const uint32_t into, const uint32_t draws_from, const bool sh
         INDICES,
         list.ni * 4,
         POINTER(list.index),
-        QX_LIST_PASS | 2 << QX_LIST_SIZE,
+        QX_LIST_PASS | (list.depth ? 3 : 2) << QX_LIST_SIZE,
         into,
     };
 
@@ -410,6 +421,10 @@ static bool played(const uint32_t into, const uint32_t draws_from, const bool sh
     n = draws_from;
     memcpy(words + n, head, sizeof head);
     n += sizeof head / 4;
+
+    if (list.depth)
+        words[n++] = list.depth;
+
     memcpy(words + n, list.words + draws_from, (list.n - draws_from) * 4);
     n += list.n - draws_from;
 
@@ -608,15 +623,15 @@ TEST(accel_player_makes_room_for_a_target_from_the_oldest)
     const uint32_t from = list.n;
 
     box(SOLID, 0, 0, 0, 1, 1, 0, 0);
-    CHECK(!played(ART, from, false) && calls_of('V') == 1);
+    CHECK(!played(ART, from, false) && calls_of('L') == 1);
 
     list.n = list.nv = list.ni = 0;
     box(SOLID, 0, 0, 0, 1, 1, 0, 0);
-    CHECK(!played(OTHER, 0, false) && calls_of('V') == 2 && calls_of('R') == 1);
+    CHECK(!played(OTHER, 0, false) && calls_of('L') == 2 && calls_of('R') == 1);
 
     list.n = list.nv = list.ni = 0;
     box(TEXTURED, ART, 0, 0, 8, 8, 0, 1);
-    CHECK(played(SHOWN, 0, true) && calls_of('V') == 3);
+    CHECK(played(SHOWN, 0, true) && calls_of('V') == 1);
     CHECK(fake.up[1][0] == (8 << 10 | 8 << 5 | 8)); /* the 0x42s read back, as 1555 */
     accel_close();
 }
@@ -637,5 +652,36 @@ TEST(accel_player_sends_only_the_texels_a_draw_reaches)
     box(TEXTURED, ART, 0, 0, 300, 10, 0, 300);
     CHECK(played(SHOWN, from, true));
     CHECK(fake.sent == (256 + 46) * 11);
+    accel_close();
+}
+
+/* A solid rectangle over the whole target is the card's fill, not two triangles: CUBE's clear,
+   a full-screen pass a frame, is 300K pixels at a Voodoo 1's pixel a clock. */
+TEST(accel_player_clears_by_the_cards_fill)
+{
+    opened();
+    begun(1, 1);
+
+    const uint32_t from = list.n;
+
+    box(SOLID, 0, 0, 0, SCREEN_W, SCREEN_H, 0, 0);
+    CHECK(played(SHOWN, from, true));
+    CHECK(calls_of('L') == 1 && calls_of('V') == 0 && calls_of('C') == 0);
+    CHECK(fake.what == ACCEL_CLEAR_COLOUR && fake.filled == 0xFFFF0000);
+    accel_close();
+}
+
+/* A pass's new depth buffer is cleared by the card's fill, not a full-screen quad. */
+TEST(accel_player_clears_depth_by_the_cards_fill)
+{
+    enum { DEPTH = 9 };
+
+    opened();
+    begun(1, 1);
+    PUT(QX_LIST_TEXTURE, DEPTH, SCREEN_W, SCREEN_H, QX_TEXTURE_DEPTH);
+    list.depth = DEPTH;
+    CHECK(played(SHOWN, list.n, true));
+    list.depth = 0;
+    CHECK(calls_of('L') == 1 && calls_of('V') == 0 && fake.what == ACCEL_CLEAR_DEPTH);
     accel_close();
 }

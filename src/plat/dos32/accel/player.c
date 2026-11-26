@@ -32,6 +32,7 @@ enum {
     ATTRIBUTES = 4,
     RECT = 4,
     QUAD = 4,
+    TWO = 6, /* a rectangle's two triangles' corners */
     OPAQUE = 255,
     BITS = 64,
     MILLI = 1000,
@@ -483,19 +484,9 @@ static void painted(Texture *const t, const AccelRect r)
 /* t's target's depth buffer made 0, far. */
 static void depth_cleared(const Texture *const t)
 {
-    const AccelState s = {
-        .source = ACCEL_COLOUR,
-        .blend = ACCEL_KEEP,
-        .alpha = OPAQUE,
-        .depth = ACCEL_DEPTH_WRITE,
-    };
-
-    AccelVertex v[QUAD];
-
     aimed(t->target, (AccelRect){0, 0, t->w, t->h});
-
-    quad(v, 0, 0, t->w, t->h, 0, 0);
-    drawn(&s, v, QUAD);
+    flushed();
+    p.d->clear(0, ACCEL_CLEAR_DEPTH);
 }
 
 /* t's target given back; the screen's is kept. */
@@ -681,7 +672,7 @@ static bool covers(
     const uint32_t count
 )
 {
-    enum { TWO = 6, CORNERS = 4 };
+    enum { CORNERS = 4 };
 
     const Texture *const into = p.pass;
 
@@ -729,6 +720,36 @@ static bool covers(
     }
 
     return (omitted[0] ^ omitted[1]) == 3;
+}
+
+/* The colour of a draw that is one solid rectangle over all of its target, written alone, to *argb:
+   false, it is not one. */
+static bool filled(
+    const Pipeline *const pl,
+    const Buffer *const vb,
+    const Buffer *const ib,
+    const uint32_t first,
+    const uint32_t count,
+    uint32_t *const argb
+)
+{
+    AccelVertex v;
+    uint16_t r[RECT];
+
+    if (count != TWO || pl->source != ACCEL_COLOUR || pl->depth ||
+        !covers(pl, vb, ib, first, count))
+        return false;
+
+    for (uint32_t i = 0; i < TWO; i++) {
+        fetched(pl, vb, index_at(ib, first + i), &v, r);
+
+        if (i && v.colour != *argb)
+            return false;
+
+        *argb = v.colour;
+    }
+
+    return true;
 }
 
 /* t's grid for a draw of flags, its wrap rectangle r: the card's own wrap where it can, the
@@ -958,6 +979,38 @@ static void op_clip(const QxListEntry *const e)
     p.clip = (AccelRect){x0, y0, x1 > x0 ? x1 - x0 : 0, y1 > y0 ? y1 - y0 : 0};
 }
 
+/* The draw's count indices from first, triangles of pipeline pl from texture t at alpha. */
+static void triangles_drawn(
+    const Pipeline *const pl,
+    const Buffer *const vb,
+    const Buffer *const ib,
+    const uint32_t first,
+    const uint32_t count,
+    const Texture *const t,
+    const uint8_t alpha
+)
+{
+    Pieces c = {t, {.source = pl->source, .blend = pl->blend, .alpha = alpha, .depth = pl->depth}};
+
+    for (uint32_t i = 0; i + 3 <= count; i += 3) {
+        AccelVertex v[3];
+        uint16_t r[3][RECT];
+
+        if (!fetched(pl, vb, index_at(ib, first + i), &v[0], r[0]) ||
+            !fetched(pl, vb, index_at(ib, first + i + 1), &v[1], r[1]) ||
+            !fetched(pl, vb, index_at(ib, first + i + 2), &v[2], r[2]))
+            continue;
+
+        if (!t) {
+            drawn(&c.s, v, 3);
+            continue;
+        }
+
+        const CutGrid g = gridded(t, pl->flags, r[0], &c.s.flags);
+        cut_triangle(&g, v, piece, &c);
+    }
+}
+
 static void op_draw(const QxListEntry *const e)
 {
     const uint32_t *const a = e->arg;
@@ -985,28 +1038,13 @@ static void op_draw(const QxListEntry *const e)
 
     aimed(into->target, p.clip);
 
-    Pieces c = {
-        t,
-        {.source = pl->source, .blend = pl->blend, .alpha = (uint8_t)alpha, .depth = pl->depth}
-    };
+    uint32_t argb;
 
-    for (uint32_t i = 0; i + 3 <= count; i += 3) {
-        AccelVertex v[3];
-        uint16_t r[3][RECT];
-
-        if (!fetched(pl, vb, index_at(ib, first + i), &v[0], r[0]) ||
-            !fetched(pl, vb, index_at(ib, first + i + 1), &v[1], r[1]) ||
-            !fetched(pl, vb, index_at(ib, first + i + 2), &v[2], r[2]))
-            continue;
-
-        if (!t) {
-            drawn(&c.s, v, 3);
-            continue;
-        }
-
-        const CutGrid g = gridded(t, pl->flags, r[0], &c.s.flags);
-        cut_triangle(&g, v, piece, &c);
-    }
+    if (!texel && filled(pl, vb, ib, first, count, &argb)) {
+        flushed();
+        p.d->clear(argb, ACCEL_CLEAR_COLOUR);
+    } else
+        triangles_drawn(pl, vb, ib, first, count, t, (uint8_t)alpha);
 
     if (pl->blend != ACCEL_KEEP) {
         into->ahead = true;

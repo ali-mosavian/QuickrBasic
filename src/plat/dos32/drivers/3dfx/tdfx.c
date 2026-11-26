@@ -141,18 +141,17 @@ static void sent(Tdfx *const c)
 void tdfx_cleared(
     Tdfx *const c,
     const uint32_t draw,
-    const int32_t x,
-    const int32_t y,
-    const int32_t w,
-    const int32_t h,
-    const bool depth
+    const AccelRect r,
+    const uint32_t argb,
+    const uint8_t what
 )
 {
-    const uint32_t writes = SST_RGB_WRITE | (depth ? SST_DEPTH | SST_AUX_WRITE : 0);
+    const uint32_t writes = (what & ACCEL_CLEAR_COLOUR ? SST_RGB_WRITE : 0) |
+                            (what & ACCEL_CLEAR_DEPTH ? SST_DEPTH | SST_AUX_WRITE : 0);
 
-    tdfx_put(c, SST_CLIP_X, (uint32_t)x << 16 | (uint32_t)(x + w));
-    tdfx_put(c, SST_CLIP_Y, (uint32_t)y << 16 | (uint32_t)(y + h));
-    tdfx_put(c, SST_COLOUR1, 0);
+    tdfx_put(c, SST_CLIP_X, (uint32_t)r.x << 16 | (uint32_t)(r.x + r.w));
+    tdfx_put(c, SST_CLIP_Y, (uint32_t)r.y << 16 | (uint32_t)(r.y + r.h));
+    tdfx_put(c, SST_COLOUR1, argb);
     tdfx_put(c, SST_ZA_COLOUR, 0);
     tdfx_put(c, SST_FBZ_MODE, SST_CLIPPED | draw << SST_DRAW_BUFFER | writes);
     tdfx_put(c, SST_FASTFILL, 0);
@@ -233,8 +232,10 @@ opened(const PciFunction *const pci, const uint16_t w, const uint16_t h, AccelCa
     tdfx_put(c, SST_FOG_MODE, 0);
     tdfx_put(c, SST_TMU0 + SST_TDETAIL, 0);
     tdfx_put(c, SST_TMU1 + SST_TLOD, LOD_OFF);
-    tdfx_cleared(c, FRONT, 0, 0, (int32_t)c->mode_w, (int32_t)c->mode_h, true);
-    tdfx_cleared(c, BACK, 0, 0, (int32_t)c->mode_w, (int32_t)c->mode_h, true);
+    const AccelRect mode = {0, 0, (int32_t)c->mode_w, (int32_t)c->mode_h};
+
+    tdfx_cleared(c, FRONT, mode, 0, ACCEL_CLEAR_COLOUR | ACCEL_CLEAR_DEPTH);
+    tdfx_cleared(c, BACK, mode, 0, ACCEL_CLEAR_COLOUR | ACCEL_CLEAR_DEPTH);
 
     *out = (AccelCard){
         .side = SIDE,
@@ -315,7 +316,13 @@ static bool ACCEL_CALL targeted(const uint32_t slot, const uint16_t w, const uin
         return false;
 
     c->targets[slot] = (TdfxTarget){c->mode_h + at, w, h, depth};
-    tdfx_cleared(c, buffer_of(c, slot), 0, (int32_t)(c->mode_h + at), w, h, depth);
+    tdfx_cleared(
+        c,
+        buffer_of(c, slot),
+        (AccelRect){0, (int32_t)(c->mode_h + at), w, h},
+        0,
+        ACCEL_CLEAR_COLOUR | (depth ? ACCEL_CLEAR_DEPTH : 0)
+    );
     return true;
 }
 
@@ -391,6 +398,20 @@ static void ACCEL_CALL shown(const bool vsync)
 
 static void ACCEL_CALL carried(void) { family->carry(&card); }
 
+static void ACCEL_CALL filled(const uint32_t argb, const uint8_t what)
+{
+    Tdfx *const c = &card;
+    const AccelRect clip = c->clip;
+
+    tdfx_cleared(
+        c,
+        c->draw,
+        (AccelRect){clip.x + (int32_t)c->ox, clip.y + (int32_t)c->oy, clip.w, clip.h},
+        argb,
+        what
+    );
+}
+
 static void ACCEL_CALL read_back(const uint32_t slot, const AccelRect r, uint8_t *const out)
 {
     Tdfx *const c = &card;
@@ -428,6 +449,7 @@ static AccelDriver table = {
     .show = shown,
     .carry = carried,
     .read = read_back,
+    .clear = filled,
 };
 
 const AccelDriver *tdfx_driver(const AccelHost *const host, const TdfxFamily *const f)

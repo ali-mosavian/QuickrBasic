@@ -56,6 +56,9 @@ typedef enum : uint8_t { ACCEL_NONE, ACCEL_MIX, ACCEL_ADD, ACCEL_KEEP } AccelBle
 /* TEST: drawn only where nearer than the target's depth; WRITE: the target's depth set. */
 enum { ACCEL_DEPTH_TEST = 1, ACCEL_DEPTH_WRITE = 2 };
 
+/* What a clear fills: the colour, the depth. */
+enum { ACCEL_CLEAR_COLOUR = 1, ACCEL_CLEAR_DEPTH = 2 };
+
 /* The draws': the texture, a slot (0 none), its source and flags, the blend, its share, depth. */
 typedef struct {
     uint32_t texture;
@@ -121,6 +124,9 @@ typedef struct {
     /* Pixels r of target slot, as drawn so far, into out: bytes R, G, B and A each, rows top
        first; A 255 where the target holds none. */
     void(ACCEL_CALL *read)(uint32_t slot, AccelRect r, uint8_t *out);
+    /* The aimed target's clip filled, as the card fills fastest: its colour argb, its depth 0,
+       far, as what has them. */
+    void(ACCEL_CALL *clear)(uint32_t argb, uint8_t what);
 } AccelDriver;
 
 typedef const AccelDriver *ACCEL_CALL AccelInit(const AccelHost *host);
