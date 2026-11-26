@@ -50,7 +50,10 @@ int32_t gfx_display_open(const int32_t w, const int32_t h, const int32_t depth, 
 
     PxFormat format;
 
-    if (gx_illegal(!gx_size(w, h) || !format_of(depth, &format) || flags & ~OPEN_FLAGS))
+    if (gx_illegal(
+            !gx_size(w, h) || !format_of(depth, &format) || flags & ~OPEN_FLAGS,
+            "a size, depth (8, 15, 16 or 32) or flag open does not take"
+        ))
         return 0;
 
     close_screen(g);
@@ -96,7 +99,7 @@ void gfx_display_flip(void)
     if (!g)
         return;
 
-    if (gx_illegal(!g->open))
+    if (gx_illegal(!g->open, "no screen is open"))
         return;
 
     g->backend->flip(g);
@@ -151,7 +154,8 @@ static Palette *palette_for(const int32_t row, const QxArray *const colours)
 {
     Gx *const g = gx_get();
 
-    if (!g || !gx_array(colours, sizeof(int32_t), 0) || gx_illegal(row < 0 || row >= PAL_ROWS))
+    if (!g || !gx_array(colours, sizeof(int32_t), 0) ||
+        gx_illegal(row < 0 || row >= PAL_ROWS, "no such palette row"))
         return nullptr;
 
     return &g->palette;
@@ -188,7 +192,7 @@ void gfx_display_set_palette_from(const int32_t row, const int32_t image)
     if (!s)
         return;
 
-    if (gx_illegal(row < 0 || row >= PAL_ROWS || !s->palette))
+    if (gx_illegal(row < 0 || row >= PAL_ROWS || !s->palette, "no such palette row, or no palette"))
         return;
 
     pal_set(&g->palette, row, s->palette, PAL_COLOURS);
@@ -202,7 +206,7 @@ int32_t gfx_display_rgb(const int32_t r, const int32_t g_, const int32_t b)
         return 0;
 
     if (r < 0 || g_ < 0 || b < 0 || r > RGB_MOST || g_ > RGB_MOST || b > RGB_MOST)
-        return gx_fail(ERR_ILLEGAL);
+        return gx_fail_why(ERR_ILLEGAL, "a channel outside 0 to 255");
 
     const uint32_t rgb = (uint32_t)(r << 16 | g_ << 8 | b);
     return g->surfaces.screen.format == PX_8 ? pal_nearest(g->palette.rows[0], rgb) : (int32_t)rgb;
@@ -262,7 +266,7 @@ int32_t gfx_display_monitors(void)
 /* monitor's modes: false, not one of the host's (an error raised). */
 static bool monitor_modes(const int32_t monitor, uint32_t *const n)
 {
-    if (gx_illegal(monitor < 1 || monitor > gfx_display_monitors()))
+    if (gx_illegal(monitor < 1 || monitor > gfx_display_monitors(), "no such monitor"))
         return false;
 
     *n = qx_host->gfx_modes((uint32_t)monitor, nullptr, 0);
@@ -319,7 +323,7 @@ static void shown_on(const uint32_t monitor, const uint32_t n)
     if (!g)
         return;
 
-    if (gx_illegal(!g->open))
+    if (gx_illegal(!g->open, "no screen is open"))
         return;
 
     if (!displays() || !qx_host->gfx_mode(monitor, n))
@@ -333,7 +337,7 @@ void gfx_display_set_fullscreen(const int32_t monitor, const int32_t n)
     if (!gx_get() || !monitor_modes(monitor, &modes))
         return;
 
-    if (gx_illegal(n < 0 || (uint32_t)n > modes))
+    if (gx_illegal(n < 0 || (uint32_t)n > modes, "no such mode on the monitor"))
         return;
 
     shown_on((uint32_t)monitor, (uint32_t)n);

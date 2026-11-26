@@ -258,7 +258,8 @@ float synth_beat(void) { ... }
 | an array, `x()` | `const QxArray *` |
 
 `qx_fail(code)` sets the running call's error. pybind11, nanobind and Cython do the same for
-Python.
+Python. `qx_fail_why(code, why)` sets it with a reason, which a host of minor 5 says on the line
+after the error's message.
 
 The VM does no translation of its own. A foreign call at run time would need assembly for i386,
 x86-64 and arm64. It could not reach wasm at all, whose indirect calls must name the exact

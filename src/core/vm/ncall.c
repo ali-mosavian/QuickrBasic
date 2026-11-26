@@ -113,13 +113,28 @@ void ncal_call(Session *const S)
         }
     }
 
-    NatvCall call = {.c = {.host = &S->natv.host, .arg = args}, .stop = &vm->stop};
+    NatvCall call = {
+        .c = {.host = &S->natv.host, .arg = args},
+        .stop = &vm->stop,
+        .why = S->natv.why,
+    };
 
+    S->natv.why[0] = 0; /* this call's reason, should it give one */
     p->native->fn(&call.c);
     vm->sp += 2 * npar;
 
     if (call.c.error)
-        fault_qberr(&S->fault, call.c.error);
+        fault_raise(
+            &S->fault,
+            (Failure){
+                .code = E_USR,
+                .at = FAULT_KEEP,
+                .line = FAULT_KEEP,
+                .user = call.c.error,
+                .why = call.why[0] ? call.why : nullptr,
+            }
+
+        );
 
     switch (p->nres) {
     case 0:

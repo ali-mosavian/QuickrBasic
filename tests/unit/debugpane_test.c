@@ -1112,3 +1112,24 @@ TEST(debug_pane_steps_on_a_gfx_screen)
     done(S);
     CHECK(!pgfx_page(&pitch)); /* the stop dropped: the run, its screen with it, ended */
 }
+
+/* A gfx call on a closed screen's surface: the box said only Illegal function call. It says gfx's
+   reason under it. */
+TEST(debug_pane_error_box_gives_the_reason)
+{
+    static const char *const lines[] = {
+        "import gfx.display, gfx.surface",
+        "s& = gfx.display.open(64, 48, 8, 0)",
+        "gfx.display.close",
+        "w% = gfx.surface.width(s&)",
+        nullptr,
+    };
+
+    host_key_push(K_ENTER); /* the box */
+    stopped_in(S, lines);
+    const char *const body =
+        uimn.errmsg + strlen(uimn.errmsg) + 1; /* the box's text, its title cut */
+    CHECK(!strcmp(uimn.errmsg, "Illegal function call"));
+    CHECK(!strcmp(body, "no such surface: freed, never made, or its|screen closed"));
+    done(S);
+}

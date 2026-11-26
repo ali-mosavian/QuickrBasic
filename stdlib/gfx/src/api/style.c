@@ -5,7 +5,8 @@
 static Style *style_for(const int32_t v, const int32_t lo, const int32_t hi)
 {
     Gx *const g = gx_get();
-    return g && !gx_illegal(v < lo || v > hi) ? &g->style : nullptr;
+    return g && !gx_illegal(v < lo || v > hi, "a value past the setting's range") ? &g->style
+                                                                                  : nullptr;
 }
 
 /* The style to read: null, no state (raised). */
@@ -75,7 +76,7 @@ void gfx_draw_set_font(const int32_t f)
 {
     Gx *const g = gx_get();
 
-    if (g && !gx_illegal(!font_get(&g->fonts, (uint32_t)f)))
+    if (g && !gx_illegal(!font_get(&g->fonts, (uint32_t)f), "no such font"))
         g->style.font = (uint32_t)f;
 }
 
@@ -103,7 +104,7 @@ int32_t gfx_draw_new_font(const int32_t sheet, const int32_t w, const int32_t h)
         return 0;
 
     if (w < 1 || h < 1 || w > s->w || h > s->h)
-        return gx_fail(ERR_ILLEGAL);
+        return gx_fail_why(ERR_ILLEGAL, "a glyph below 1 pixel, or larger than the sheet");
 
     const uint32_t f = font_new(&g->fonts, (uint32_t)sheet, s->w, s->h, w, h);
     return f ? (int32_t)f : gx_fail(ERR_MEMORY);
@@ -114,7 +115,7 @@ void gfx_draw_free_font(const int32_t f)
 {
     Gx *const g = gx_get();
 
-    if (!g || gx_illegal(!f || !font_get(&g->fonts, (uint32_t)f)))
+    if (!g || gx_illegal(!f || !font_get(&g->fonts, (uint32_t)f), "no such font, or the built-in"))
         return;
 
     font_free(&g->fonts, (uint32_t)f);

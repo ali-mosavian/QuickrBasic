@@ -44,6 +44,7 @@ typedef struct {
     bool guests;   /* loading a Quickr program's QBasic modules: Quickr's no import of theirs */
     char file[PFIL_PATH]; /* the command line's file name; CHAIN's */
     char incl[PFIL_PATH]; /* an '$INCLUDE's */
+    const char *why;      /* the last error's reason, said after its message: nullptr none */
 } Repl;
 
 /* Raise error code (E_*): never returns (above). */

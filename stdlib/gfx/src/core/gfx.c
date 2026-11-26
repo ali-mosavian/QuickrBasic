@@ -33,10 +33,16 @@ bool gx_fail(const uint8_t code)
     return false;
 }
 
-bool gx_illegal(const bool bad)
+bool gx_fail_why(const uint8_t code, const char *const why)
+{
+    qx_fail_why(code, why);
+    return false;
+}
+
+bool gx_illegal(const bool bad, const char *const why)
 {
     if (bad)
-        gx_fail(ERR_ILLEGAL);
+        gx_fail_why(ERR_ILLEGAL, why);
 
     return bad;
 }
@@ -60,7 +66,7 @@ Surface *gx_surface(Gx *const g, const uint32_t h)
     Surface *const s = surf_get(&g->surfaces, h);
 
     if (!s)
-        gx_fail(ERR_ILLEGAL);
+        gx_fail_why(ERR_ILLEGAL, "no such surface: freed, never made, or its screen closed");
 
     return s;
 }
@@ -68,7 +74,7 @@ Surface *gx_surface(Gx *const g, const uint32_t h)
 bool gx_array(const QxArray *const a, const uint32_t elem, const uint32_t need)
 {
     if (a->elem != elem)
-        return gx_fail(ERR_ILLEGAL);
+        return gx_fail_why(ERR_ILLEGAL, "the array's elements are not the kind this takes");
 
     return a->count >= need || gx_fail(ERR_SUBSCRIPT);
 }
@@ -81,7 +87,7 @@ const void *gx_elements(
 )
 {
     if (a->elem != elem || n < 0)
-        return gx_fail(ERR_ILLEGAL), nullptr;
+        return gx_fail_why(ERR_ILLEGAL, "an array of another kind, or a count below 0"), nullptr;
 
     const int64_t from = (int64_t)first - a->lbound;
 
@@ -114,7 +120,7 @@ bool gx_apart(Gx *const g, const uint32_t dst, const uint32_t src)
 
     surf_root(&g->surfaces, surf_get(&g->surfaces, dst), &a);
     surf_root(&g->surfaces, surf_get(&g->surfaces, src), &b);
-    return !gx_illegal(a == b);
+    return !gx_illegal(a == b, "the source is the surface drawn on, or shares its pixels");
 }
 
 bool gx_check(
@@ -133,9 +139,10 @@ bool gx_check(
     const uint32_t most = s->format == PX_8 ? COLOURS - 1 : PAL_WHITE;
 
     if (gx_illegal(
-            c->flags & ~allowed || (c->flags & GX_BLENDS) == GX_BLENDS || c->colour < 0 ||
-            (uint32_t)c->colour > most
-        ))
+            c->flags & ~allowed || (c->flags & GX_BLENDS) == GX_BLENDS,
+            "a flag this does not take, or BLEND with ADD"
+        ) ||
+        gx_illegal(c->colour < 0 || (uint32_t)c->colour > most, "a colour past the surface's"))
         return false;
 
     *where = cmd_where(&s->camera, s->w, s->h);

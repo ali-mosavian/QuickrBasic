@@ -1093,6 +1093,18 @@ static void run_error_words(Session *const S)
     uimn_selword(edit_dxerr(S, b->text, (const ErrOp *)S->vm.opip));
 }
 
+/* The error's reason, as a native module gave it: its own lines under the message. */
+static void error_why(const Session *const S)
+{
+    if (!S->repl.why)
+        return;
+
+    uint8_t *d = (uint8_t *)uimn.errmsg + strlen(uimn.errmsg);
+    *d++ = '|';
+    d = dlog_wrap(d, (const uint8_t *)S->repl.why, (uint32_t)strlen(S->repl.why), 0);
+    *d = 0;
+}
+
 /* ui_err: an error code (E_*), or E_BRK for BREAK and STOP: the cursor at its line, the message
    in a box, a stop's debug pane. The stacks are reset already (repl_call). */
 static void erred(Session *const S, const uint8_t code)
@@ -1130,6 +1142,7 @@ static void erred(Session *const S, const uint8_t code)
     } else {
         edit_emsg(S, ui.ecode);
         run_error_words(S);
+        error_why(S);
         dlog_err(S, uimn.errmsg);
     }
 }
