@@ -40,12 +40,52 @@ print synth.beat()
 
 ## On disk
 
+![A .qbx file](img/qbx-file.svg)
+
+A `.qbx` is little-endian: the header, the slice table, the slices, then the interface.
+`tools/qbx.py pack` writes it and `io/qbxfile.c` reads it.
+
 | Part | Holds |
 |---|---|
-| Header | `QBX` and 1Ah, the file format's version, the ABI's major and the minor it needs |
-| Interface | the module's BASIC source: TYPEs, CONSTs, native DECLAREs, procedures in BASIC |
-| Slices | a tag, an offset and a size each |
+| Header | 20 bytes: the magic, the versions, the slices' count, where the interface is |
+| Slice table | 24 bytes a slice: its tag, offset and size |
+| Slices | each platform's code, each from a 16-byte boundary |
+| Interface | the module's BASIC source: TYPEs, CONSTs, native DECLAREs, procedures in BASIC; last, so the loader reads it as a source file from its offset to the end |
 | Help (later) | pages for F1, in the help's Markdown |
+
+The header:
+
+| Offset | Bytes | Field |
+|---|---|---|
+| 0 | 4 | `QBX` and 1Ah |
+| 4 | 2 | the file format's version, 1 |
+| 6 | 2 | the ABI's major |
+| 8 | 2 | the ABI's minor it needs at least |
+| 10 | 2 | the slices' count |
+| 12 | 4 | the interface's offset |
+| 16 | 4 | the interface's bytes |
+
+A slice table entry, from offset 20:
+
+| Offset | Bytes | Field |
+|---|---|---|
+| 0 | 16 | the tag, `dos-i386`, `macos`, `linux-x86_64` or `wasm32`, 0-padded |
+| 16 | 4 | the slice's offset |
+| 20 | 4 | the slice's bytes |
+
+The reader checks the magic and the format's version, and that every part lies inside the file: a
+`.qbx` is read from wherever the program is. It takes the slice tagged `pext_tag`, this build's.
+
+The DOS slice is an image linked at 0 (`util/image.c`), made by `pack` from an `lld-link` DLL:
+
+| Offset | Bytes | Field |
+|---|---|---|
+| 0 | 4 | `QXI` and its version, 1 |
+| 4 | 4 | the bytes stored |
+| 8 | 4 | the image's size in memory, the bss past the bytes stored |
+| 12 | 4 | the entry's offset, `qx_init_<name>` |
+| 16 | 4 | the relocations' count |
+| 20 | | the bytes stored, padded to 4; then each relocation, the offset of a 32-bit word |
 
 | Slice | Holds | Loaded by |
 |---|---|---|
@@ -276,9 +316,23 @@ stops it, and the process's end closes them all.
 
 ## Loading, step by step
 
-`io/qbxfile.c` and `io/native.c` are shared. They read the header and check the magic, the format's
-version and the ABI's major. It takes the slice whose tag is this build's, hands it to `pext_load` (`plat/pext.h`), then
-calls `qx_init_<name>`. A file is loaded once in a process, kept by its path and hash.
+![Loading a .qbx](img/qbx-load.svg)
+
+`io/qbxfile.c` and `io/native.c` are shared by every platform and both dialects.
+
+1. `locate` finds the module (see [Finding one](#finding-one)).
+2. `natv_open` reads the file whole, once a process, and keeps it by its path. It checks the header
+   and the ABI: another major, or a minor newer than the host's, is Advanced feature unavailable at
+   the IMPORT.
+3. `read_module` (`io/repl.c`) reads the interface as the module's lines, stored `LF_NATIVE`. Each
+   `DECLARE ... CDECL` is a `Proc` with `PF_NATIVE` and no body.
+4. When the program links, `link_natives` asks `natv_module` for the module. It hands this build's
+   slice to `pext_load` (`plat/pext.h`), once a process, and calls `qx_init_<name>` with the host's
+   table. The `QxModule` it gives lists the entries; each DECLARE's is found and its kinds checked.
+5. A run calls each module's `start`, then `stop` at its end. A call is `CALL NCALL`
+   (`vm/ncall.c`).
+
+Each platform's `pext_load`:
 
 **DOS** (`plat/dos32/pext.c`, `util/image.c`). `tools/qbx.py pack` makes the DLL an image at 0:
 its sections where they lie, its relocations' offsets and its entry's offset. The loader:
@@ -318,8 +372,11 @@ That thread instantiates the same module, without relocations or constructors (`
 
 ## Building one
 
+![Building a .qbx](img/qbx-build.svg)
+
 `tools/qbx.py glue` writes the glue, each slice is built with it, and `tools/qbx.py pack` puts the
-interface and the slices in a `.qbx`. The flags, as the prototype used them:
+interface and the slices in a `.qbx`. `pack` makes a DOS DLL its image. The flags, as the
+prototype used them:
 
 | Slice | Compile | Link |
 |---|---|---|

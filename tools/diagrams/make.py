@@ -319,4 +319,147 @@ def dialects():
     s.save(f"{OUT}/dialects.svg")
 
 
-layers(); ownership(); dialects(); debugger(); widgets(); pipeline(); vm(); vm_trace()
+def bar(s, x, y, per, fields, theme="base", h=40):
+    """A byte layout: each field (bytes, label) a box per px a byte wide, its offset above it."""
+    at = 0
+    for n, label in fields:
+        w = n * per
+        s.box(x, y, w, h, theme, r=3)
+        s.text(x + w / 2, y + h / 2 + 4, label, size=11, anchor="middle", mono=True)
+        s.text(x + 2, y - 6, str(at), size=10, fill=MUTED, mono=True)
+        x += w
+        at += n
+    s.text(x + 2, y - 6, str(at), size=10, fill=MUTED, mono=True)
+
+
+def qbx_file():
+    s = Svg(W, 600, "A .qbx file", "Little-endian. The slices start on 16-byte boundaries; the interface is last, read to the end.")
+    fc, ec, wc = THEME["front"], THEME["engine"], THEME["warn"]
+
+    parts = [("header", "20 bytes", "front", 44), ("slice table", "24 bytes a slice", "front", 44),
+             ("slice dos-i386", "a QXI image", "engine", 40), ("slice macos", "a universal dylib", "engine", 40),
+             ("slice linux-x86_64", "an ELF .so", "engine", 40), ("slice wasm32", "a side module", "engine", 40),
+             ("interface", "BASIC text, to the end", "warn", 56)]
+    y, at = 96, {}
+    for name, note, theme, h in parts:
+        s.box(32, y, 300, h, theme, r=6)
+        s.text(48, y + h / 2 + 5, name, size=13, weight=700, fill=THEME[theme][2])
+        s.text(316, y + h / 2 + 5, note, size=11, fill=THEME[theme][1], anchor="end")
+        at[name] = (y, h)
+        y += h + 6
+
+    s.text(440, 104, "header", size=14, weight=700, fill=fc[2])
+    bar(s, 440, 126, 26.4, [(4, 'QBX 1Ah'), (2, "format"), (2, "abi"), (2, "minor"), (2, "slices"),
+                            (4, "iface at"), (4, "iface bytes")], "front")
+    s.text(440, 188, "16 bits each: format 1; abi, the ABI's major; minor, the least the host needs.", size=11, fill=MUTED)
+    s.text(440, 204, "32 bits each: the interface's offset and bytes.", size=11, fill=MUTED)
+
+    s.text(440, 238, "slice table entry, one a slice", size=14, weight=700, fill=fc[2])
+    bar(s, 440, 260, 22, [(16, "tag, 0-padded"), (4, "at"), (4, "bytes")], "front")
+    s.text(440, 318, "the slice whose tag is this build's pext_tag is loaded; the rest are skipped", size=11, fill=MUTED)
+
+    s.text(440, 348, "dos-i386 slice: an image linked at 0 (util/image.c)", size=14, weight=700, fill=ec[2])
+    bar(s, 440, 370, 26.4, [(3, "QXI"), (1, "1"), (4, "stored"), (4, "size"), (4, "entry"), (4, "relocs")], "engine")
+    s.box(440, 422, 300, 32, "engine", r=3)
+    s.text(590, 442, "stored bytes, padded to 4", size=11, anchor="middle", mono=True)
+    s.box(746, 422, 222, 32, "engine", r=3)
+    s.text(857, 442, "relocs × 4-byte offset", size=11, anchor="middle", mono=True)
+    s.text(440, 476, "placed: zeroed past stored up to size (the bss), the block's address added", size=11, fill=MUTED)
+    s.text(440, 492, "to the 32-bit word at each offset, entry called (qx_init_<name>)", size=11, fill=MUTED)
+
+    hy, hh = at["header"]
+    s.arrow([(332, hy + hh / 2), (436, 146)], color=fc[1])
+    ty, th = at["slice table"]
+    s.arrow([(332, ty + th / 2), (436, 280)], color=fc[1])
+    dy, dh = at["slice dos-i386"]
+    s.arrow([(332, dy + dh / 2), (436, 390)], color=ec[1])
+
+    s.box(32, 528, 936, 48, "base")
+    s.text(48, 557, "io/qbxfile.c reads it: every part must lie inside the file. tools/qbx.py pack writes it; "
+           "qbx.py strip keeps some slices.", size=12)
+    s.save(f"{OUT}/qbx-file.svg")
+
+
+def qbx_build():
+    s = Svg(W, 470, "Building a .qbx", "tools/qbx.py writes the glue from the interface, each slice is built with it, then pack puts them in one file.")
+    fc, ec, wc = THEME["front"], THEME["engine"], THEME["warn"]
+
+    s.panel(32, 96, 220, 96, "warn", "synth.bas", "the interface")
+    s.text(48, 146, "TYPEs, CONSTs, DECLARE", size=12, mono=True)
+    s.text(48, 166, "... CDECL, BASIC procs", size=12, mono=True)
+    s.panel(32, 222, 220, 76, "base", "synth.c", "plain C")
+    s.text(48, 272, "one C function a DECLARE", size=12)
+
+    s.panel(292, 96, 200, 96, "front", "qbx.py glue")
+    s.text(308, 146, "synth_qx.h: the TYPEs", size=12, mono=True)
+    s.text(308, 166, "synth_qx.c: the entries", size=12, mono=True)
+    s.arrow([(252, 144), (290, 144)], color=wc[1])
+
+    rows = [("dos-i386", "clang i386-pc-win32 · lld-link /dll"), ("macos", "clang -arch arm64 -arch x86_64"),
+            ("linux-x86_64", "clang x86_64-linux-gnu · ld.lld -shared"), ("wasm32", "clang wasm32 · wasm-ld -shared")]
+    for i, (tag, how) in enumerate(rows):
+        y = 96 + i * 52
+        s.box(532, y, 258, 44, "engine", r=6)
+        s.text(546, y + 19, tag, size=12, weight=700, fill=ec[2])
+        s.text(546, y + 35, how, size=10, fill=ec[1], mono=True)
+        s.arrow([(492, 144), (512, 144), (512, y + 22), (530, y + 22)], color=fc[1])
+        s.arrow([(790, y + 22), (822, 222)], color=ec[1])
+    s.arrow([(252, 260), (512, 260)], color=LINE)
+
+    s.panel(824, 172, 144, 100, "front", "qbx.py pack")
+    s.text(840, 222, "a DOS DLL made", size=11)
+    s.text(840, 238, "its QXI image;", size=11)
+    s.text(840, 254, "the interface last", size=11)
+    s.arrow([(252, 120), (272, 120), (272, 84), (896, 84), (896, 170)], color=wc[1], dash=True)
+    s.box(824, 300, 144, 44, "warn", strong=True)
+    s.text(896, 327, "synth.qbx", size=14, weight=700, fill=wc[2], anchor="middle", mono=True)
+    s.arrow([(896, 272), (896, 298)], color=fc[1])
+
+    s.box(32, 384, 936, 60, "base")
+    s.text(48, 408, "One Mac builds all four with clang and lld; make builds each module for every target. "
+           "A slice imports nothing:", size=12)
+    s.text(48, 428, "what it needs of the host comes through the table qx_init_<name> is given.", size=12)
+    s.save(f"{OUT}/qbx-build.svg")
+
+
+def qbx_load():
+    s = Svg(W, 600, "Loading a .qbx", "Found and opened at the IMPORT, its interface read as the module, its slice loaded when the program links.")
+    fc, ec, wc = THEME["front"], THEME["engine"], THEME["warn"]
+    steps = [
+        ("front", "1  find", "io/locate.c", ["IMPORT synth: synth.bas, else synth.qbx, in the program's folder,",
+                                              "BASICLIB, then lib/; the same for a Quickr import"]),
+        ("front", "2  open", "io/native.c natv_open", ["read whole once a process, kept by its path; qbxf_read checks it.",
+                                                        "Another ABI major or a newer minor: Advanced feature unavailable, at the IMPORT"]),
+        ("warn", "3  read", "io/repl.c read_module", ["the interface is the module's lines, stored LF_NATIVE;",
+                                                       "each DECLARE ... CDECL a Proc with PF_NATIVE and no body (comp/blocks.c)"]),
+        ("engine", "4  link", "comp/link.c link_natives", ["natv_module: this build's slice to pext_load (plat/pext.h), then",
+                                                            "qx_init_<name>(&host) gives the QxModule; each DECLARE's entry found, kinds checked"]),
+        ("base", "5  run", "vm/ncall.c", ["start() at the run's start; a call is CALL NCALL: its arguments laid out",
+                                           "as qx/qx.h says, the entry called, its result pushed; stop() at the end"]),
+    ]
+    y = 92
+    for theme, name, where, lines in steps:
+        s.panel(32, y, 640, 88, theme, name, where)
+        for i, t in enumerate(lines):
+            s.text(48, y + 52 + i * 18, t, size=12)
+        if y > 92:
+            s.arrow([(352, y - 12), (352, y - 2)], color=LINE)
+        y += 100
+
+    s.panel(704, 392, 264, 188, "engine", "pext_load", "once a process")
+    loaders = [("DOS", "a heap block, relocated"), ("Mac", "cached dylib, dlopen"),
+               ("Linux", "memfd_create, dlopen"), ("wasm", "side module instantiated")]
+    for i, (k, v) in enumerate(loaders):
+        s.chip(720, 430 + i * 36, k, "engine", w=60)
+        s.text(790, 449 + i * 36, v, size=12)
+    s.arrow([(672, 436), (702, 436)], color=ec[1])
+
+    s.panel(704, 92, 264, 140, "base", "the file, kept")
+    for i, t in enumerate(["NatvFile: path, bytes, its QbxFile", "(abi, minor, interface, slice);",
+                           "module: the QxModule, once", "CHAIN and RUN find it again"]):
+        s.text(720, 140 + i * 20, t, size=12)
+    s.arrow([(672, 236), (702, 200)], color=LINE, dash=True)
+    s.save(f"{OUT}/qbx-load.svg")
+
+
+layers(); ownership(); dialects(); debugger(); widgets(); pipeline(); vm(); vm_trace(); qbx_file(); qbx_build(); qbx_load()
