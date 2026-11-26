@@ -26,11 +26,12 @@ static void *expo_room(const Comp *const C, Arena *const a, const uint32_t n, co
 
 static const char *expo_type_why(const Decl *d, uint32_t t);
 
-/* Why field f has no type both dialects have; null it has. */
+/* Why field f has no type both dialects have; null it has. An array of one dimension from 0, or a
+   dynamic one, is a fixed array or a list of its elements. */
 static const char *expo_field_why(const Decl *const d, const Field *const f)
 {
-    if (f->ndim || f->dyn)
-        return "an array field";
+    if (f->ndim > 1 || (f->ndim && decl_fielddim(d, f, 0)->lb))
+        return "an array field of more than one dimension, or not from 0";
     if (f->sub)
         return expo_type_why(d, f->sub) ? "a field of a TYPE Quickr can't use" : nullptr;
     if (f->et == ET_SD && f->fix)
@@ -220,7 +221,12 @@ Exports expo_qbasic(const Comp *const C, const uint32_t m, Arena *const a)
         for (uint32_t k = 0; k < td->nfld; k++) {
             const Field *const f = &td->fields[k];
             ExpField *const ef = &e->fields[k];
-            *ef = (ExpField){.et = decl_fieldtype(f), .off = f->off};
+            *ef = (ExpField){
+                .et = decl_fieldtype(f),
+                .off = f->off,
+                .count = f->ndim ? decl_fielddim(C->decl, f, 0)->count : 0,
+                .list = f->dyn,
+            };
 
             ef->name = expo_name(C, a, f->name, &ef->len);
         }

@@ -230,7 +230,9 @@ static void qsem_qbnames(QSem *const S, const uint32_t k)
 
         for (uint32_t f = 0; f < e->nfields; f++) {
             const ExpField *const ef = &e->fields[f];
-            const QType ft = qsem_qbtype(S, ef->et);
+            const QType et = qsem_qbtype(S, ef->et);
+            const QType ft =
+                (ef->list || ef->count) && et != QY_ERROR ? qsem_listof(S, et, ef->count) : et;
             why = why || ft != QY_ERROR ? why : unseen;
             y->fields[f] = (QField){
                 .name = qsem_qbtok(S, ef->name, ef->len),

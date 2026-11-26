@@ -1114,9 +1114,11 @@ static bool qr_et(const QProg *const p, const QType t, uint32_t *const et)
         return false;
 
     for (uint32_t k = 0; k < y->nfields; k++) {
+        const QType ft = y->fields[k].type;
+        const QType elem = qast_array(p, ft) ? qast_ty(p, ft)->elem : ft; /* a TYPE's array field */
         uint32_t f;
 
-        if (y->fields[k].priv || !qr_et(p, y->fields[k].type, &f) || f == ET_IMP)
+        if (y->fields[k].priv || qast_array(p, elem) || !qr_et(p, elem, &f) || f == ET_IMP)
             return false;
     }
 

@@ -2,7 +2,7 @@ TYPE Fixed
     Code AS STRING * 4
 END TYPE
 TYPE Arr
-    V(0 TO 3) AS LONG
+    V(1 TO 3) AS LONG
 END TYPE
 TYPE Box
     F AS Fixed

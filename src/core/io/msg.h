@@ -228,7 +228,7 @@ static const char diag_msgs[] =
     "keep the function's parameters and result to int, short, single, double, string, bool and records of them\0"
     "Type mismatch /quickr\0"
     "`{name}` is a Quickr record with a field QBasic has no equal for, or a private one\0"
-    "keep the record's fields public, and to int, short, single, double, string, bool and records of them\0"
+    "keep the record's fields public, and to int, short, single, double, string, bool, records of them and fixed arrays and lists of those\0"
     "Duplicate definition /quickr\0"
     "this Quickr module has two public names spelled `{other}` but for case, and QBasic matches names case aside\0"
     "rename one of them\0"

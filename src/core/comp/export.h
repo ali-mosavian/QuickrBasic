@@ -41,12 +41,15 @@ typedef struct {
     const char *why;
 } ExpProc;
 
-/* A record's field: its name, its type (an ExpVal's), its bytes into the record. */
+/* A record's field: its name, its type (an ExpVal's), an array's its elements'; its bytes into the
+   record; a fixed array's count elements from 0, or a list (a dynamic array). */
 typedef struct {
     const char *name;
     uint32_t len;
     uint32_t et;
     uint32_t off;
+    uint32_t count;
+    bool list;
 } ExpField;
 
 /* A record: its name, its TYPE (comp/declare.h), its fields and bytes, whether it holds strings;
