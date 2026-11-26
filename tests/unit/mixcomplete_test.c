@@ -60,7 +60,7 @@ static const char shapes[] = "TYPE Rect\n"
                              "SUB Show (a AS LONG)\n"
                              "    PRINT a\n"
                              "END SUB\n"
-                             "SUB Fill (a() AS BYTE)\n"
+                             "SUB Fill (a AS BYTE)\n"
                              "END SUB\n"
                              "PRIVATE SUB Hidden\n"
                              "END SUB\n";

@@ -76,10 +76,10 @@ ExpWhy expo_value_why(const Decl *const d, const Binding *const b, const bool ar
     if (b->fix[arr])
         return EW_FIXED;
 
-    return b->et[arr] == ET_BY ? EW_BYTE : EW_NONE;
+    return b->et[arr] == ET_BY && !arr ? EW_BYTE : EW_NONE; /* a BYTE array: a ubyte list */
 }
 
-/* Variable id's type as a value's, an array's or a BYTE's none, its verdict declared. */
+/* Variable id's type as a value's, an array's its elements'; a BYTE scalar's verdict declared. */
 static uint32_t expo_var(const Comp *const C, const uint32_t id)
 {
     const Var *const v = symb_var(C->symb, id);
@@ -88,11 +88,11 @@ static uint32_t expo_var(const Comp *const C, const uint32_t id)
         return v->type;
 
     const uint8_t k = v->info & VK_MASK;
-    return v->type == ET_SH   ? ET_SH
-           : k == VK_INT      ? ET_I4
-           : k == VK_STR      ? ET_SD
-           : v->info & SK_DBL ? ET_R8
-                              : ET_R4;
+    return v->type == ET_SH || v->type == ET_BY ? v->type
+           : k == VK_INT                        ? ET_I4
+           : k == VK_STR                        ? ET_SD
+           : v->info & SK_DBL                   ? ET_R8
+                                                : ET_R4;
 }
 
 /* Name n's text as first written, copied to a. */

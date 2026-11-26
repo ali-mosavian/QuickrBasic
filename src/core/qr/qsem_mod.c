@@ -164,6 +164,9 @@ static QType qsem_qbtype(const QSem *const S, const uint32_t et)
     case ET_SH:
         return QY_SHORT;
 
+    case ET_BY:
+        return QY_UBYTE;
+
     case ET_R4:
         return QY_SINGLE;
 

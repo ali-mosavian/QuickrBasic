@@ -10,7 +10,7 @@ END TYPE
 TYPE Same
     A AS LONG
 END TYPE
-SUB Fill (a() AS BYTE)
+SUB Fill (a() AS BYTE, b AS BYTE)
 END SUB
 SUB Bytes (b AS BYTE)
 END SUB

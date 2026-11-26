@@ -907,9 +907,10 @@ end function
 - A parameter by reference takes a `var`'s place, and the `var` sees the change. Any other
   argument, a `let`'s too, goes as a copy. A BYVAL parameter is by value.
 - An array parameter takes a list by reference. QBasic sees the list's length as its bounds, from 0,
-  and a REDIM of it changes the list.
+  and a REDIM of it changes the list. A BYTE array is a `ubyte` list. A native's takes a fixed
+  array too, `var px as ubyte[16]`, as it can't REDIM.
 - What Quickr has no equal for is an error where it is used, naming why, never at the import: a
-  fixed-length string, a BYTE, an array field of two dimensions or not from 0.
+  fixed-length string, a BYTE that is not an array, an array field of two dimensions or not from 0.
 - A native module, a `.qbx`, is imported as a QBasic one: `from synth import note`.
 - A QBasic module's code runs at its first import, as in QBasic.
 - A QBasic file imports a Quickr module: `IMPORT shapes`, then `shapes.area(2, 3)`, or `FROM
