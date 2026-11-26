@@ -1126,6 +1126,19 @@ static bool qr_et(const QProg *const p, const QType t, uint32_t *const et)
     return true;
 }
 
+/* Parameter type t as a QBasic parameter's, v's et and array: a list one of an array, by
+   reference; false QBasic has no equal for it. */
+static bool qr_param(const QProg *const p, const QType t, ExpVal *const v)
+{
+    const QTy *const y = qast_array(p, t) ? qast_ty(p, t) : nullptr;
+    v->array = y && y->kind == QT_LIST;
+
+    if (y && (!v->array || qast_array(p, y->elem)))
+        return false;
+
+    return qr_et(p, v->array ? y->elem : t, &v->et) && v->et != ET_IMP;
+}
+
 /* The module token t is in. */
 static uint32_t qr_modof(const QProg *const p, const QTok *const t)
 {
@@ -1231,8 +1244,8 @@ static Exports qr_exported(const QProg *const p, const uint32_t k, QMem *const m
 
         for (uint32_t j = 0; j < f->npar; j++) { /* a generic's have no var: ok false before */
             ExpVal *const v = &e->params[j];
-            ok = ok && qr_et(p, f->params[j].var->type, &v->et) && v->et != ET_IMP;
-            v->byref = f->params[j].mut;
+            ok = ok && qr_param(p, f->params[j].var->type, v);
+            v->byref = f->params[j].mut || v->array;
             v->name = f->params[j].name->text;
             v->len = f->params[j].name->len;
         }

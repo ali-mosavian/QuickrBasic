@@ -765,6 +765,19 @@ static Node *arrayarg(Comp *const C, const uint32_t par)
     return argnode(C, PA_ARRAY, call ? call : ref_cell(C, id), id);
 }
 
+/* Array argument a, at at, for a Quickr list parameter, byval when not mut: its shape checked when
+   run. A fixed array field's to a mut one: Parameter type mismatch, as it can't grow. */
+static void listarg(Comp *const C, Node *const a, const bool byval, const uint8_t *const at)
+{
+    if (a->op == PA_FIELD && !byval) {
+        C->p = at;
+        C->dg = DG_PARAMETER_TYPE_MISMATCH_GROW;
+        fault_error(C->fault, E_PTM);
+    }
+
+    a->mode = 1;
+}
+
 /* A record parameter's argument, by P.REF: a record, an element of a record array, a record field,
    of its TYPE. */
 static Node *recarg(Comp *const C, const uint32_t par)
@@ -962,8 +975,14 @@ static void args(Comp *const C, Node *const n, const Proc *const pr)
             C->p++;
         }
 
+        const uint8_t *const at = C->p;
         const bool byval = pr->params[i].byval || def;
-        ast_link(n, &last, arg(C, pr->params[i].var, byval));
+        Node *const a = arg(C, pr->params[i].var, byval);
+
+        if (pr->flags & PF_FOREIGN && symb_is_array(C->symb, pr->params[i].var))
+            listarg(C, a, byval, at);
+
+        ast_link(n, &last, a);
     }
 }
 

@@ -979,6 +979,9 @@ static void cg_arg(Code *const c, const Node *const n)
         gen(c, n->a);
         code_call(c, K_FCELL);
     }
+
+    if (n->mode) /* a Quickr list's */
+        code_xop(c, X_QLIST);
 }
 
 /* A procedure's call: its arguments, PCALL, a record result's place; one DECLAREd only: ERROR, its

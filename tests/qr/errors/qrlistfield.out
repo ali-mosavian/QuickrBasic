@@ -1,0 +1,5 @@
+qrlistfield.bas:7: Parameter type mismatch
+  rows.grow r.V()
+            ^
+`r.V` is a fixed array field, which can't grow, and this Quickr list parameter is mut.
+Pass a dynamic array, or drop the parameter's mut.

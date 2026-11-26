@@ -917,7 +917,11 @@ end function
   the private ones aside. Its methods are not seen. A string const longer than 255 bytes is not
   exported.
 - Types back: `int` is LONG, `short` SHORT, `single`, `double` and `string` the same, `bool`
-  INTEGER, true -1 in both, a record a TYPE, its fixed arrays and lists array fields. A `mut` parameter is by reference, any other by value.
+  INTEGER, true -1 in both, a record a TYPE, its fixed arrays and lists array fields. A `mut`
+  parameter is by reference, any other by value.
+- A list parameter takes an array of one dimension from 0, by reference: a `mut` one's push and
+  pop change its bounds. Any other array is Subscript out of range where passed; a fixed array
+  field can't go to a `mut` one.
 - Any other type in a function's parameters or result, or in a record's fields, makes it an error
   where QBasic uses it.
 - QBasic matches names case aside: two exports that differ only so are an error at the IMPORT.
