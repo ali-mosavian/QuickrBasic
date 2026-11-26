@@ -149,7 +149,9 @@ be shown in any mode.
 | Mac, Linux, Windows | `SDL_GetFullscreenDisplayModes` | `SDL_SetWindowFullscreenMode`, or a window |
 | The browser | one, the page's | none; full screen by the Fullscreen API, after a click or a key |
 
-On DOS a mode is the whole screen and the one display.
+On DOS a mode is the whole screen and the one display. A 3D card shows the screen centred in the
+smallest mode that holds it: a Voodoo 1 or 2 in a timing of its own, from Glide's tables; a Banshee
+or Voodoo 3 in the VESA mode its BIOS sets.
 
 ## Colour
 
@@ -401,7 +403,7 @@ void *(*file_read)(const char *path, uint32_t len, uint32_t *bytes);
 
 | | Gives | Shows by | Clock |
 |---|---|---|---|
-| DOS | pages in memory | a copy to the VBE page not shown, which 4F07h shows at the retrace; else to the one shown, linear or bank by bank; mode 13h's at the retrace | the PIT's count |
+| DOS | pages in memory; a 3D card, lists played by its driver | a copy to the VBE page not shown, which 4F07h shows at the retrace; else to the one shown, linear or bank by bank; mode 13h's at the retrace. A card's frame by its swap (Voodoo 1, 2) or its desktop's start address (Banshee, 3), at the retrace | the PIT's count |
 | Mac, Linux, Windows | a GPU, lists played by SDL_GPU on the interpreter's thread; with no device, pages | the texture `SHOW` names, copied to one SDL's GPU renderer draws; a page as today's frame | `SDL_GetTicksNS` |
 | The browser | a GPU, lists copied to the page and played there with WebGL2; else pages | `requestAnimationFrame` | `performance.now` |
 | `basic` in a terminal, unit tests | pages | nothing: `surface.read` is the tests' eye | `pclk` |
