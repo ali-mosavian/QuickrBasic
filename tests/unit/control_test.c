@@ -1,6 +1,7 @@
 /* Blocks compiled (comp/control): the IDE's check of a line alone. */
 #include "session.h"
 #include "unit.h"
+#include "vm/flow.h"
 
 static bool erred;
 
@@ -261,6 +262,18 @@ TEST(check_passes_field_array)
         typed[n] = lines[n];
         CHECK(!typed_errs(S, typed));
     }
+}
+
+/* A field array element's ops, their operands within a node's: FX.IDX's 12 bytes and FE.ADDR's 9
+   were written past its 8. */
+TEST(field_array_ops_fit_their_node)
+{
+    static const uint8_t ops[] = {O_FX_IDX, O_FE_ADDR};
+
+    const Node n = {};
+
+    for (size_t k = 0; k < countof(ops); k++)
+        CHECK(flow_op_sizes[ops[k]] - 1u <= sizeof n.lit);
 }
 
 /* A dynamic array in a TYPE, ours, typed one line at a time before any link: its field line, its
