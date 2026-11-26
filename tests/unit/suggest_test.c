@@ -325,3 +325,43 @@ TEST(suggest_underscore_name)
     CHECK(suggest(S, "print max_c"));
     CHECK(place("MAX_COUNT") >= 0 && place("COUNT_B") < 0);
 }
+
+/* Completion counted the blocks open by kind: in a FOR inside a DO, LOOP ranked with NEXT, and a
+   block IF, a SUB or a TYPE had no closer: ELSE, END and END IF ranked as any statement. */
+TEST(suggest_closes_the_innermost_block)
+{
+    static const char *const fordo[] = {"10 DO", "20 FOR i = 1 TO 2", nullptr};
+
+    static const char *const ifs[] = {"10 x = 1", "20 IF x THEN", nullptr};
+
+    static const char *const sub[] = {"10 x = 1", "20 SUB s", "30 x = 2", nullptr};
+
+    unit_store(S, fordo);
+    CHECK(suggest(S, "") && place("NEXT") == 0);
+    CHECK(suggest(S, "lo") && place("LOOP") < 0);
+    unit_store(S, ifs);
+    CHECK(suggest(S, "") && (place("END") == 0 || place("ELSE") == 0));
+    CHECK(suggest(S, "el") && place("ELSE") == 0);
+    CHECK(suggest(S, "end ") && place("IF") == 0 && place("SUB") < 0);
+    unit_store(S, sub);
+    CHECK(suggest(S, "") && place("END") == 0);
+    CHECK(suggest(S, "end ") && place("SUB") == 0 && place("FUNCTION") < 0);
+}
+
+/* NEXT, CASE, ELSE and LOOP were offered with no block of theirs open, and a TYPE's lines were
+   offered statements: each a compile error. */
+TEST(suggest_leaves_out_what_closes_nothing)
+{
+    static const char *const top[] = {"10 x = 1", nullptr};
+
+    static const char *const type[] = {"10 TYPE t", "20 a AS INTEGER", nullptr};
+
+    unit_store(S, top);
+    CHECK(suggest(S, "n") && place("NEXT") < 0);
+    CHECK(suggest(S, "c") && place("CASE") < 0);
+    CHECK(suggest(S, "el") ? place("ELSE") < 0 : true);
+    CHECK(suggest(S, "lo") && place("LOOP") < 0 && place("LOCATE") >= 0);
+    CHECK(suggest(S, "for j = 1 to 2: ne") && place("NEXT") == 0);
+    unit_store(S, type);
+    CHECK(suggest(S, "e") && place("END") == 0 && place("ERASE") < 0);
+}

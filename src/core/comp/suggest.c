@@ -12,6 +12,11 @@
  * order, the first the same. A candidate ranks by how often and how near the word its name is
  * used, a keyword or a name taken lately, and the open FOR's variable after NEXT.
  *
+ * The blocks open at the word are a stack, innermost last (sugg_events). A keyword that ends the
+ * innermost or adds its clause (sugg_closers: NEXT, ELSE, CASE, END IF ..) ranks above any other,
+ * however lately that was taken; one that would close a block not innermost is left out, as is a
+ * statement in a TYPE.
+ *
  * Verdicts are kept while the line before the word stays the same: typing on in a word compiles
  * nothing new.
  *
@@ -51,6 +56,7 @@ enum {
     NVERDICT = 512, /* the verdicts kept for one line before the word */
     NRECENT = 16,   /* the suggestions taken lately */
     NFOR = 16,      /* open FORs kept */
+    NBLOCK = 32,    /* open blocks kept */
     NPROCS = 128,   /* procedures kept */
     TEXT_MAX = 600, /* a probe's text */
 };
@@ -103,6 +109,8 @@ static struct {
     bool num_ok;  /* a number fits after it */
     bool jump;    /* a line number alone fits: a jump's target */
     uint8_t last; /* its last statement's keyword */
+    bool start;   /* the word starts a statement */
+    bool second;  /* the word follows END alone: END IF's IF */
     uint8_t text[TEXT_MAX];
     uint8_t body[TEXT_MAX];
     Verdict *verdict; /* NVERDICT, made at the first find */
@@ -116,7 +124,8 @@ static struct {
     uint16_t nprocs;
     SuggName open[NFOR]; /* the open FORs' variables, innermost last */
     uint8_t nopen;
-    uint8_t ndo, nwhile, nsel; /* DO, WHILE, SELECT CASE open at the word */
+    uint8_t blocks[NBLOCK]; /* the blocks open at the word by opener (TK_FOR ..), innermost last */
+    uint8_t nblocks;
 } sg;
 
 static uint32_t sugg_hash(const uint8_t *const s, const uint32_t n) { return fnv(FNV_SEED, s, n); }
@@ -203,14 +212,21 @@ static void sugg_tail(const uint8_t *const body, const uint32_t len)
     const uint8_t *p = body;
     const uint8_t *last = nullptr; /* its last item */
     bool on = false;
+    uint32_t items = 0; /* its last statement's */
+    uint8_t first = 0;
     sg.last = 0;
 
     for (uint8_t c; p < body + len && (c = *p);) {
         if (c == ':') {
             on = false;
             sg.last = 0;
-        } else if (!sg.last && c >= TK_END)
-            sg.last = c;
+            items = 0;
+        } else {
+            first = items++ ? first : c;
+
+            if (!sg.last && c >= TK_END)
+                sg.last = c;
+        }
 
         if (c == TK_ON)
             on = true;
@@ -220,6 +236,8 @@ static void sugg_tail(const uint8_t *const body, const uint32_t len)
     }
 
     const uint8_t c = last ? *last : 0;
+    sg.start = !items;
+    sg.second = items == 1 && first == TK_END;
     const bool resume = c == TK_X && last[1] == TK1_RESUME;
     sg.either = c == TK_THEN || c == TK_ELSE;
     sg.as = c == TK_AS;
@@ -409,6 +427,60 @@ static uint8_t sugg_lexed(const SuggSrc *const src, const uint8_t *const s, cons
     return *last;
 }
 
+/* What ends a block or adds its clause: word, then (0 none) after it, in a block opened by open. */
+static const struct {
+    uint8_t open, word, then;
+    bool ends;
+} sugg_closers[] = {
+    {TK_FOR, TK_NEXT, 0, true},
+    {TK_DO, TK_LOOP, 0, true},
+    {TK_WHILE, TK_WEND, 0, true},
+    {TK_SELECT, TK_CASE, 0, false},
+    {TK_SELECT, TK_END, TK_SELECT, true},
+    {TK_IF, TK_ELSE, 0, false},
+    {TK_IF, TK_ELSEIF, 0, false},
+    {TK_IF, TK_ENDIF, 0, true},
+    {TK_IF, TK_END, TK_IF, true},
+    {TK_SUB, TK_END, TK_SUB, true},
+    {TK_FUNCTION, TK_END, TK_FUNCTION, true},
+    {TK_TYPE, TK_END, TK_TYPE, true},
+};
+
+/* The innermost open block's opener, 0 none. */
+static uint8_t sugg_top(void) { return sg.nblocks ? sg.blocks[sg.nblocks - 1] : 0; }
+
+/* Keyword tok where the word is: it closes the innermost block or adds its clause; it closes
+   another's, or the line is a TYPE's field, out of place; else neither. */
+typedef enum : uint8_t { SPOT_ANY, SPOT_CLOSES, SPOT_OUT } Spot;
+
+static Spot sugg_spot(const uint16_t tok)
+{
+    if (!sg.start && !sg.second)
+        return SPOT_ANY;
+
+    const uint8_t top = sugg_top();
+    const uint16_t word = sg.second ? TK_END : tok, then = sg.second ? tok : 0;
+    bool other = top == TK_TYPE && sg.start && tok != TK_END;
+
+    for (uint32_t i = 0; i < countof(sugg_closers); i++) {
+        const uint8_t open = sugg_closers[i].open;
+
+        if (sugg_closers[i].word != word)
+            continue;
+        if (!then && sugg_closers[i].then) { /* END alone, a statement too: never out */
+            if (open == top)
+                return SPOT_CLOSES;
+        } else if (sugg_closers[i].then == then) {
+            if (open == top)
+                return SPOT_CLOSES;
+
+            other = true;
+        }
+    }
+
+    return other ? SPOT_OUT : SPOT_ANY;
+}
+
 /* Keyword w (n characters) of token tok, matched: to the list when it fits. A function, or one
    wanting more, in an operand gives what its suffix says. */
 static void sugg_keyword(
@@ -420,6 +492,11 @@ static void sugg_keyword(
     const uint8_t match
 )
 {
+    const Spot spot = sugg_spot(tok);
+
+    if (spot == SPOT_OUT)
+        return;
+
     const Probe bare = sugg_probe(src, w, n);
 
     if (bare == PROBE_NO || sugg_lexed(src, w, n) == M_VAR) /* there a name, not the keyword */
@@ -438,8 +515,7 @@ static void sugg_keyword(
             return;
     }
 
-    const bool closes = (tok == TK_LOOP && sg.ndo) || (tok == TK_WEND && sg.nwhile) ||
-                        (tok == TK_CASE && sg.nsel) || (tok == TK_NEXT && sg.nopen);
+    const bool closes = spot == SPOT_CLOSES;
     Sugg s = sugg_make(
         w,
         n,
@@ -728,34 +804,63 @@ static void sugg_names(
     }
 }
 
-/* ---- FOR and NEXT */
+/* ---- the open blocks */
 
-/* Body p's FORs and NEXTs on sg.open; till end. A NEXT ending it, naming none yet, is the one being
-   written: it closes nothing. */
-static void sugg_events(const uint8_t *const body, const uint8_t *const end)
+/* Is c a block's opener at a statement's start: a closer's (sugg_closers)? A block IF opens by
+   its line's end instead. */
+static bool sugg_opens(const uint8_t c)
+{
+    for (uint32_t i = 0; i < countof(sugg_closers); i++)
+        if (sugg_closers[i].open == c && c != TK_IF)
+            return true;
+
+    return false;
+}
+
+/* The innermost block opened by open closed, those inside it too; none open: nothing. */
+static void sugg_close(const uint8_t open)
+{
+    uint8_t i = sg.nblocks;
+
+    while (i && sg.blocks[i - 1] != open)
+        i--;
+
+    sg.nblocks = i ? i - 1 : sg.nblocks;
+}
+
+/* The block word, then the item c2 after it, ends at a statement's start: its opener, 0 none. */
+static uint8_t sugg_ends(const uint8_t word, const uint8_t c2)
+{
+    for (uint32_t i = 0; i < countof(sugg_closers); i++)
+        if (sugg_closers[i].ends && sugg_closers[i].word == word &&
+            (!sugg_closers[i].then || sugg_closers[i].then == c2))
+            return sugg_closers[i].open;
+
+    return 0;
+}
+
+/* Body p's blocks opened and closed, its FORs' names on sg.open; till end, whole the line's.
+   A closer ending a line not whole, naming none yet, is the one being written: it closes
+   nothing. */
+static void sugg_events(const uint8_t *const body, const uint8_t *const end, const bool whole)
 {
     const uint8_t *p = body;
     bool start = true; /* at a statement's start */
+    bool ifs = false;  /* the statement an IF */
+    uint8_t last = 0;  /* the last item */
 
     for (uint8_t c; p < end && (c = *p) && c != TK_REM && c != TK_DATA;) {
         p = decl_step(p);
         const bool first = start;
         start = c == ':';
+        ifs = first ? c == TK_IF : ifs && !start;
+        last = c;
 
-        if (c == TK_DO)
-            sg.ndo++;
-        else if (c == TK_LOOP && sg.ndo)
-            sg.ndo--;
-        else if (c == TK_WHILE && first)
-            sg.nwhile++;
-        else if (c == TK_WEND && sg.nwhile)
-            sg.nwhile--;
-        else if (c == TK_SELECT)
-            sg.nsel++;
-        else if (c == TK_END && p < end && *p == TK_SELECT) {
-            p = decl_step(p);
-            sg.nsel -= sg.nsel > 0;
-        }
+        if (first && sugg_opens(c) && sg.nblocks < NBLOCK)
+            sg.blocks[sg.nblocks++] = c;
+
+        const uint8_t open = first ? sugg_ends(c, p < end ? *p : 0) : 0;
+        uint8_t times = open && (whole || p < end);
 
         if (c == TK_FOR && *p == M_VAR) {
             SuggName n;
@@ -768,10 +873,16 @@ static void sugg_events(const uint8_t *const body, const uint8_t *const end)
             for (; p < end && (*p == M_VAR || *p == ','); p = decl_step(p))
                 k += *p == M_VAR;
 
-            const uint8_t closed = k ? k : (p < end && *p ? 1 : 0);
-            sg.nopen = closed < sg.nopen ? sg.nopen - closed : 0;
+            times = k ? k : (p < end && *p ? 1 : 0);
+            sg.nopen = times < sg.nopen ? sg.nopen - times : 0;
         }
+
+        for (uint8_t i = 0; i < times; i++)
+            sugg_close(open);
     }
+
+    if (whole && ifs && last == TK_THEN && sg.nblocks < NBLOCK) /* a block IF */
+        sg.blocks[sg.nblocks++] = TK_IF;
 }
 
 /* ---- a scan of the program */
@@ -864,13 +975,13 @@ typedef struct {
     uint8_t prior;  /* the line before's last statement's keyword */
 } SuggAt;
 
-/* Pass one: the word's line and procedure, the open FORs before it. */
+/* Pass one: the word's line and procedure, the blocks and FORs open before it. */
 static void sugg_where(const SuggSrc *const src, SuggAt *const w)
 {
     const Prog *const pg = src->prog;
     uint32_t scope = 0;
     uint8_t prior = 0;
-    sg.nopen = sg.ndo = sg.nwhile = sg.nsel = 0;
+    sg.nopen = sg.nblocks = 0;
     uint32_t ord = 0;
 
     for (uint32_t rec = PROGBASE; prog_line(pg, rec)->len; rec += prog_line(pg, rec)->len, ord++) {
@@ -882,7 +993,7 @@ static void sugg_where(const SuggSrc *const src, SuggAt *const w)
 
         if (kind == PK_SUB || kind == PK_FUNC) {
             scope = comp_nameof(name);
-            sg.nopen = sg.ndo = sg.nwhile = sg.nsel = 0;
+            sg.nopen = sg.nblocks = 0;
         }
 
         if (rec == w->rec) {
@@ -892,10 +1003,10 @@ static void sugg_where(const SuggSrc *const src, SuggAt *const w)
         }
 
         if (ours)
-            sugg_events(body, body + ln->len - HDR);
+            sugg_events(body, body + ln->len - HDR, true);
         if (kind == PK_END) {
             scope = 0;
-            sg.nopen = sg.ndo = sg.nwhile = sg.nsel = 0;
+            sg.nopen = sg.nblocks = 0;
         }
 
         const uint8_t *t = body;
@@ -1542,7 +1653,7 @@ bool sugg_find(
     SuggAt w = {.rec = rec};
 
     sugg_where(&src, &w);
-    sugg_events(sg.body, sg.body + blen);
+    sugg_events(sg.body, sg.body + blen, false);
     sugg_before(&src, text, start);
 
     if (sg.either) /* THEN 0: a line number, not an operand */
