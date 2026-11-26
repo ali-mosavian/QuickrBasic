@@ -11,9 +11,9 @@ against pages, cell by cell: 32 bits' lights, tints, SOLID and ADD were the GPU'
 BLEND, the blend constant's, a level off. At 8 bits every cell but shapes, sprites and text differed: the target
 held colours, read back as the nearest index, and lights, tints, rows and blends were worked as colours. At 15 and
 16 bits every cell was up to 7 off: the target kept 8 bits a channel. A virtual Mac has no GPU: --gpu compares
-nothing there. --card CARD [--set NAME=VALUE]... [DEPTH...]: GPU_SCENE drawn by the DOS build on 86Box's 3D card,
-its driver's, against the Mac app's pages, cell by cell, as --gpu is. A Banshee's overlay, its CLUT bypassed,
-showed 565 with zeros below: flat colours up to 7 off."""
+nothing there. --card CARD [--set NAME=VALUE]... [--shot FILE] [DEPTH...]: GPU_SCENE drawn by the DOS build on
+86Box's 3D card, its driver's, against the Mac app's pages, cell by cell, as --gpu is; the card's screenshot kept in
+FILE. A Banshee's overlay, its CLUT bypassed, showed 565 with zeros below: flat colours up to 7 off."""
 
 import os
 import subprocess
@@ -492,9 +492,10 @@ def gpu_shot(depth: int, how: str) -> tuple[int, bytes]:
 CARD_SHOT_MS = 20000  # emulated: booted, and the scene drawn and shown
 
 
-def card_shot(card: str, depth: int, sets: tuple[str, ...] = ()) -> tuple[int, bytes]:
+def card_shot(card: str, depth: int, sets: tuple[str, ...] = (), keep: str = "") -> tuple[int, bytes]:
     """GPU_SCENE drawn by the DOS build on 86Box's card, through lib/drivers/: its width and RGB rows,
-    the emulator's screenshot once CARD_SHOT_MS have run. sets: NAME=VALUE, in DOS's environment."""
+    the emulator's screenshot once CARD_SHOT_MS have run. sets: NAME=VALUE, in DOS's environment; keep: a
+    file the screenshot is copied to, a PPM."""
     import bench
 
     hl86 = bench.hl86_module()
@@ -536,6 +537,8 @@ def card_shot(card: str, depth: int, sets: tuple[str, ...] = ()) -> tuple[int, b
             bat.write_bytes(was)
             hl86.dos_put(image, bat, "AUTOEXEC.BAT")
             bench.mtools("mdeltree", image, "::QB", check=False)
+        if keep:
+            Path(keep).write_bytes(shot.read_bytes())
         head, pixels = ppm(shot.read_bytes())
     return head, pixels
 
@@ -547,11 +550,11 @@ def ppm(data: bytes) -> tuple[int, bytes]:
     return int(w), pixels[: int(w) * int(h) * 3]
 
 
-def gpu_parity(depth: int, card: str = "", sets: tuple[str, ...] = ()) -> list[tuple[str, int, int]]:
+def gpu_parity(depth: int, card: str = "", sets: tuple[str, ...] = (), keep: str = "") -> list[tuple[str, int, int]]:
     """Each GPU_CELLS cell: the pixels the GPU drew other than pages did, and the most a channel was off;
     the GPU the Mac app's, or 86Box's card's, sets in DOS's environment."""
     w, soft = gpu_shot(depth, "soft")
-    _, gpu = card_shot(card, depth, sets) if card else gpu_shot(depth, "gpu")
+    _, gpu = card_shot(card, depth, sets, keep) if card else gpu_shot(depth, "gpu")
     out = []
     for k, name in enumerate(GPU_CELLS):
         x0, y0 = k % 4 * 160, k // 4 * 120
@@ -577,8 +580,12 @@ if __name__ == "__main__":
 
         card = sys.argv.pop(2) if sys.argv[1] == "--card" else ""
         sets = []
-        while sys.argv[2:3] == ["--set"]:
-            sets.append(sys.argv.pop(3))
+        keep = ""
+        while sys.argv[2:3] in (["--set"], ["--shot"]):
+            if sys.argv[2] == "--shot":
+                keep = sys.argv.pop(3)
+            else:
+                sets.append(sys.argv.pop(3))
             sys.argv.pop(2)
         if not card and virtual():
             print("a virtual Mac, no GPU: GPU_SCENE not compared")
@@ -586,7 +593,7 @@ if __name__ == "__main__":
         wrong = []
         for depth in [int(d) for d in sys.argv[2:]] or [8, 15, 16, 32]:
             print(f"{depth} bits: pixels the GPU drew other than pages, the most a channel was off")
-            for name, n, most in gpu_parity(depth, card, tuple(sets)):
+            for name, n, most in gpu_parity(depth, card, tuple(sets), keep):
                 print(f"  {name:12}{n:7}{most:5}")
                 near = most <= (0 if card and name in CARD_EXACT else
                                 max(GPU_NEAR.get((name, depth), 0), CARD_NEAR if card else 0))
