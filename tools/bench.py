@@ -1445,8 +1445,9 @@ def hl86_module():  # noqa: ANN201
 
 def vm_rate(vm: str, com: Path, job: tuple, files: dict[str, bytes], realtime: bool = False) -> str:
     """Program com's frames a second on 86Box's VM vm, by its own clock: FPS.TXT's, or its output's.
-    com, the job's files and files go to C:\\QB on the VM's disk, removed after. realtime: the emulator
-    held to the host's clock, as a 3D card wants: its pixels are drawn at the host's pace, not timed."""
+    com, the job's files and files go to C:\\QB on the VM's disk, removed after; what it writes to port 0xE9,
+    printed. realtime: the emulator held to the host's clock, as a 3D card wants: its pixels are drawn at the
+    host's pace, not timed."""
     hl86 = hl86_module()
     image = HL86_VMS / vm / "c.img"
     with tempfile.TemporaryDirectory() as d:
@@ -1454,6 +1455,8 @@ def vm_rate(vm: str, com: Path, job: tuple, files: dict[str, bytes], realtime: b
         try:
             r = hl86.run_dos(HL86 / "build/src/86Box-headless", image.parent, HL86_ROMS, bat, timeout=1800,
                              unthrottled=not realtime)
+            if r.debug:
+                print(r.debug, end="", flush=True)
             fps = mtools("mtype", image, "::QB/FPS.TXT", check=False).decode("latin-1")
             out = mtools("mtype", image, "::QB/OUT.TXT", check=False).decode("latin-1")
         finally:
