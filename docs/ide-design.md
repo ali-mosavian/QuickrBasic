@@ -96,6 +96,14 @@ Backspace between an empty pair deletes both. Inside a string or a comment nothi
 
 Built on a new `ui/closers.c`; the string and comment test is the highlighter's.
 
+Enter at the end of a line that opens a block puts the block's end on a line below, at the
+opener's column, the cursor a step in on the line between: `NEXT` after `FOR`, `END IF` after a
+block `IF`, `end fn` after a Quickr method or a lambda's header. Closing brackets after the cursor
+go after the end: `fn(x)|)` gives `end fn)`. Nothing is put in when a line below already ends the
+block at the opener's column, or when Enter splits the line.
+
+Built on a new `ui/blockends.c`, over the line's block keywords (`Dialect.blocks`).
+
 ## 7. Matches lit
 
 With the cursor on a bracket, it and its partner are drawn in SL_MATCH. On a block's keyword, every
@@ -107,7 +115,8 @@ The blocks are IF/ELSEIF/ELSE/END IF (not a one-line IF), FOR/NEXT, DO/LOOP, WHI
 SELECT/CASE/END SELECT, SUB/END SUB, FUNCTION/END FUNCTION and TYPE/END TYPE. Ctrl+] goes to the next
 keyword of the block, or the partner bracket.
 
-Built on a new `ui/pairs.c`: brackets over the highlighter's slots, blocks over `ui/indent.c`'s keywords.
+Built on a new `ui/pairs.c`: brackets over the highlighter's slots, blocks over the line's block
+keywords (`indt_blocks`: QBasic's `ui/indent.c`'s, a text dialect's `Dialect.blocks`).
 
 ## 8. The name at the cursor
 
@@ -180,12 +189,16 @@ QBasic's otherwise. The main file's is the program's; its modules may be of eith
 
 - Highlighting lexes a Quickr line with Quickr's lexer (`qr_colour`): its keywords, a function's
   name and parameters, types after `as`, strings and f-strings, the comment past the last token.
-- Completion offers Quickr's keywords and the names in the file; after `m.` an imported module's
+- Completion offers the names in the file and the keywords that fit; after `m.` an imported module's
   exported names, a QBasic module's SUBs, FUNCTIONs and TYPEs; after `m.E.` an enum's values; after
   `v.` the fields and methods of `v`'s record type, as declared (`v as T`), a QBasic TYPE's fields
   too, or a list's, a dict's or a string's methods, as the checker has them (`qsem_methods`)
   (`qr_suggest`). A Quickr module's names come from its parsed lines, a QBasic module's from
   QBasic's own symbol table (`bind_each_export`).
+- The parser judges a keyword (`qr/qsugg.c`): the lines before the cursor's are parsed, then the
+  line so far and the keyword as one statement there. A keyword with an error at or before it is
+  left out. One that closes the open block or adds its clause (`next`, `else`, `case`, `end if`)
+  ranks first, above any keyword taken lately; one starting a line above one inside it.
 
 - F1 in a Quickr program looks up `quickr WORD` (`help/qr/`): a keyword, a module, a module's
   `m.name`, else the module before the dot; no topic opens the Quickr index. QBasic's topics are

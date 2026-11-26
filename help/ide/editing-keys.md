@@ -14,7 +14,8 @@ See also [selecting text](selecting text), [completion](completion),
     Ctrl+Left, Right  one word back, forward
     PgUp, PgDn        a screen up, down
     Ctrl+Home, End    first, last line of the program
-    Enter             split the line; indent follows the block
+    Enter             split the line; indent follows the block;
+                      after a block's start, its end put below
     Backspace         delete before the cursor
     Del               delete at the cursor
     Ctrl+Backspace    delete to the word's start

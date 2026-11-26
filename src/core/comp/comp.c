@@ -921,6 +921,7 @@ static Status comp_try(Comp *const C, const uint8_t *const body)
     C->nstmt = 0;
     C->nextkw = nullptr;
     C->oneif = false;
+    C->redim = 0; /* a REDIM's, left by an error inside it */
     C->dg = 0;
     C->dfa = 0xFFFF;
     C->code->iload = C->code->iloadend = C->code->cmpend = nullptr;

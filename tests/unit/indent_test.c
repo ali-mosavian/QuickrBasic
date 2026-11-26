@@ -23,7 +23,9 @@ static bool enter(
 {
     uint16_t s, x;
     lines = above;
-    indt_enter(get, nullptr, n, (const uint8_t *)text, (uint16_t)strlen(text), &s, &x);
+    const IndtLines ls = {.d = &dialect_qbasic, .get = get};
+
+    indt_enter(&ls, n, (const uint8_t *)text, (uint16_t)strlen(text), &s, &x);
     return s == self && x == next;
 }
 

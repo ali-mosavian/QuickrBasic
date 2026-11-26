@@ -349,6 +349,7 @@ typedef struct {
 
     LineBuf line;     /* bf.uc_line: a line got from the text, a copy the lexer may change */
     LineBuf build;    /* bf.sy_buf: a line being built */
+    LineBuf split;    /* Enter's new line, kept while edit_commit's hooks use build */
     char file[80];    /* bf.ui_fn: the file's name, "" none */
     char chosen[80];  /* bf.dl_name: the file a dialog chose */
     char errmsg[600]; /* bf.ui_ebuf: an error's message, '|' between lines */

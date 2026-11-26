@@ -30,10 +30,25 @@ typedef enum : uint8_t {
     DHL_COMMENT,
 } DialColour;
 typedef void DialColourFn(void *ctx, uint32_t col, DialColour c);
-/* A completion's kind: a keyword, a fn (rec its line), another name. */
-typedef enum : uint8_t { DSG_KW, DSG_FN, DSG_NAME } DialSuggKind;
+/* A completion's kind: a keyword in a statement, one starting it, one closing the block open
+   there (or adding its clause: else, case); a fn (rec its line), another name. */
+typedef enum : uint8_t { DSG_KW, DSG_STMT, DSG_CLOSE, DSG_FN, DSG_NAME } DialSuggKind;
 typedef void DialSuggFn(void *ctx, const char *text, uint32_t len, DialSuggKind kind, uint32_t rec);
 typedef void DialNameFn(void *ctx, const uint8_t *name, uint32_t len);
+
+/* A line's block keyword, as the editor's indent, pairs and block ends read it: its block's
+   kind (the dialect's own), whether it opens the block, is a middle (ELSE, CASE) or ends it; in
+   the line's first statement; a middle a step in from its start (CASE); its columns (END IF's
+   both words); an opener's end as typed (NEXT). */
+typedef enum : int8_t { DBK_END = -1, DBK_MID = 0, DBK_OPEN = 1 } DialBlockWhat;
+typedef struct {
+    uint8_t kind;
+    DialBlockWhat what;
+    bool lead, inset;
+    uint16_t col, len;
+    const char *end;
+} DialBlock;
+enum { DIAL_NBLOCK = 32 }; /* a line's block keywords at most */
 
 /* A dialect's operations. QBasic's are the core's own; a null hook is one QBasic has none of. */
 typedef struct Dialect Dialect;
@@ -81,6 +96,9 @@ struct Dialect {
     void (*colour)(Fault *f, const char *text, uint32_t len, DialColourFn *fn, void *ctx);
     /* The 0-ended line text's names, strings and a comment skipped, each to fn with ctx. */
     void (*names)(const uint8_t *text, DialNameFn *fn, void *ctx);
+    /* The line text, len bytes: its block keywords, in order, to ev (DIAL_NBLOCK at most); their
+       count. Out of memory raises through f. */
+    uint32_t (*blocks)(Fault *f, const char *text, uint32_t len, DialBlock *ev);
     /* Is the line text, len bytes, a function's first: its name's column and length to *at, *n. */
     bool (*fn_at)(const char *text, uint32_t len, uint32_t *at, uint32_t *n);
     /* Does the line text, len bytes, import modules? */
