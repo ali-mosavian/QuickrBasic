@@ -93,7 +93,7 @@ def test_map_fits_its_size() -> None:
 
 def test_explored_ground_not_dark() -> None:
     """Ground the Coalition has seen but no longer sees was drawn under fog; it stays lit, only the unseen is dark."""
-    assert not re.search(r"\.vis = 0 THEN (PUT|c = FOG)", BAS.read_text())
+    assert not re.search(r"\.vis = 0 THEN (gfx\.draw\.|Shape |c = FOG)", BAS.read_text())
 
 
 def field_program(w: int, h: int, builds: int, bas: str = "", body: str = "") -> str:
@@ -132,7 +132,8 @@ FOR y = 0 TO MAPH - 1: FOR x = 0 TO MAPW - 1: sum = sum + fd(0, x, y): NEXT: NEX
 PRINT "built"; sum'''
     }
 """
-    i, j = src.index("\nSetup g, tune()\n") + 1, src.index("\nWIDTH 80\nEND\n") + len("\nWIDTH 80\nEND\n")
+    end = "\ngfx.display.close\nEND\n"
+    i, j = src.index("\nSetup g, tune()\n") + 1, src.index(end) + len(end)
     return src[:i] + main + "END\n" + src[j:]
 
 
@@ -204,7 +205,6 @@ def profile_program(w: int, h: int, until: float, nf: int = 24) -> str:
     src = re.sub(r"CONST MAPW = \d+, MAPH = \d+", f"CONST MAPW = {w}, MAPH = {h}", BAS.read_text())
     msc = max(-(-w // 72), -(-h // 57))  # the minimap fits the sidebar above its buttons
     src = src.replace("CONST MSC = 1,", f"CONST MSC = {msc},")
-    src = src.replace("ABACK = AMINI + 19,", f"ABACK = AMINI + {w * h // msc // msc // 260 + 2},")
     src = src.replace("    DO: t = TIMER: LOOP WHILE t - lastT < .015 AND t >= lastT\n", "    t = TIMER\n")
     # a tick each 4th frame, not each TIMER step: started just after a step, a part shorter than
     # the step reads 0
