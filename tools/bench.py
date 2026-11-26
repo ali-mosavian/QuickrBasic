@@ -4,6 +4,8 @@
     bench.py iter -e BODY [--setup CODE] [--dos] one loop iteration's cost
     bench.py cmp [REV...] [-e CODE] [--file F] [--runs N] [--dos]  the suite, or these programs, per
                                                  build (HEAD .)
+    bench.py mem [REV...] [--mb N...]            DOS: FRE(-1), FRE("") and the largest array REDIM takes, KB,
+                                                 per build (HEAD .) and DOSBox's memory (4 32)
     bench.py size [REV] [--functions]            the DOS executables' loaded bytes, REV's (default HEAD) and ours
     bench.py gate [--save]                       the suite and sizes against tools/bench/baseline.json
     bench.py qr [REV...] [--ops]                 tools/bench/qr: each quickr/NAME.bas against its QBasic twin NAME.bas;
@@ -344,6 +346,37 @@ def functions(b: Build) -> dict[str, int]:
         for (start, name), end in zip(fns, ends, strict=True):
             res[f"{o.relative_to(objs)}:{name}"] = end - start
     return res
+
+
+# FRE(-1), FRE("") and the largest REDIM by halving, in KB: the BASIC heap's room, whatever FRE counts.
+MEM_PROGRAM = """on error goto none
+print fre(-1) \\ 1024; fre("") \\ 1024;
+lo& = 0: hi& = 64000000
+do while hi& - lo& > 256
+    m& = (lo& + hi&) \\ 2
+    ok% = -1
+    redim a&(m&)
+    if ok% then lo& = m& else hi& = m&
+    erase a&
+loop
+print lo& \\ 256
+end
+none: ok% = 0: resume next
+"""
+
+
+def cmd_mem(a: argparse.Namespace) -> int:
+    names: list[str] = a.revs or ["HEAD", "."]
+    print(f"{'':12}{'MB':>4}{'FRE(-1)':>12}{'FRE("")':>12}{'REDIM':>12}")
+    for n in names:
+        dosrun.COM = build(n, True).dos
+        for mb in a.mb:
+            with tempfile.TemporaryDirectory() as d:
+                r = dosrun.run({"m": MEM_PROGRAM}, Path(d) / "w", file=True, mem=mb)["m"]
+            if r.reason != "exit":
+                sys.exit(f"{n} at {mb} MB: {r.reason} under DOS\n{r.out}")
+            print(f"{'tree' if n == '.' else n:12}{mb:>4}" + "".join(f"{v:>12}" for v in r.out.split()))
+    return 0
 
 
 def cmd_size(a: argparse.Namespace) -> int:
@@ -1746,6 +1779,9 @@ def main() -> int:
     p = sub.add_parser("qr")
     p.add_argument("revs", nargs="*")
     p.add_argument("--ops", action="store_true", help="each Quickr case's ops, exact")
+    p = sub.add_parser("mem")
+    p.add_argument("revs", nargs="*")
+    p.add_argument("--mb", type=int, nargs="+", default=[4, 32], help="DOSBox's memory, MB")
     p = sub.add_parser("size")
     p.add_argument("rev", nargs="?", default="HEAD")
     p.add_argument("--functions", action="store_true", help="each function whose bytes changed")
@@ -1803,6 +1839,7 @@ def main() -> int:
         "run": cmd_run,
         "iter": cmd_iter,
         "cmp": cmd_cmp,
+        "mem": cmd_mem,
         "size": cmd_size,
         "gate": cmd_gate,
         "qr": cmd_qr,
