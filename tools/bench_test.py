@@ -304,7 +304,8 @@ def vm_window() -> None:
     lib = {"lib/gfx.qbx": (b.dos.parent / "lib/gfx.qbx").read_bytes()}
     with tempfile.TemporaryDirectory() as d:
         exe = bench.profiled(b, Path(d))
-        soon, late = (sum(bench.vm_samples("486", exe, job, lib, s).by.values()) for s in (0.0, 2.0))
+        vm = bench.MACHINES["486"]
+        soon, late = (sum(bench.vm_samples(vm, exe, job, lib, s).by.values()) for s in (0.0, 2.0))
     assert abs(late - soon) < soon * 0.001, (soon, late)
 
 
