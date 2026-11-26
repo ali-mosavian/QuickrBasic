@@ -155,6 +155,7 @@ static struct {
     uint16_t up[SLOTS][TILE];
     AccelVertex last[3];
     uint32_t room, held; /* the targets the card has room for, and holds */
+    uint32_t sent;       /* texels uploaded */
 } fake;
 
 static void called(const char c)
@@ -202,12 +203,17 @@ static bool ACCEL_CALL fake_texture(uint32_t slot, uint16_t w, uint16_t h)
 }
 
 static void ACCEL_CALL
-fake_upload(uint32_t slot, uint16_t y, uint16_t h, const uint16_t *texels, uint32_t pitch)
+fake_upload(uint32_t slot, AccelRect r, const uint16_t *texels, uint32_t pitch)
 {
     called('U');
+    fake.sent += (uint32_t)(r.w * r.h);
 
-    for (uint32_t r = 0; r < h; r++)
-        memcpy(fake.up[slot] + (y + r) * fake.texture_w[slot], texels + r * pitch, pitch * 2);
+    for (int32_t y = 0; y < r.h; y++)
+        memcpy(
+            fake.up[slot] + (r.y + y) * fake.texture_w[slot] + r.x,
+            texels + y * pitch,
+            (size_t)r.w * 2
+        );
 }
 
 static void ACCEL_CALL fake_forget(uint32_t slot) { (void)slot, called('F'); }
@@ -456,7 +462,7 @@ TEST(accel_player_keys_texels_from_half_alpha)
 }
 
 /* A texture wider than the card's side: two tiles of 256 by 32 (its aspect at most 8), the
-   second repeating the texture's last column and row past them. */
+   second repeating the texture's last column and row once past them. */
 TEST(accel_player_tiles_a_texture_wider_than_the_card)
 {
     static uint8_t texels[300 * 10 * 4];
@@ -475,8 +481,8 @@ TEST(accel_player_tiles_a_texture_wider_than_the_card)
     box(TEXTURED, ART, 0, 0, 300, 10, 0, 300);
     CHECK(played(SHOWN, from, true));
     CHECK(fake.textures == 2 && fake.texture_w[1] == 256 && fake.texture_h[1] == 32);
-    CHECK(fake.up[2][43] == 31 && fake.up[2][255] == 31 && fake.up[2][42] == 0);
-    CHECK(fake.up[2][31 * 256 + 255] == (31 << 5 | 31));
+    CHECK(fake.up[2][43] == 31 && fake.up[2][44] == 31 && fake.up[2][42] == 0);
+    CHECK(fake.up[2][10 * 256 + 44] == (31 << 5 | 31));
     accel_close();
 }
 
@@ -612,5 +618,24 @@ TEST(accel_player_makes_room_for_a_target_from_the_oldest)
     box(TEXTURED, ART, 0, 0, 8, 8, 0, 1);
     CHECK(played(SHOWN, 0, true) && calls_of('V') == 3);
     CHECK(fake.up[1][0] == (8 << 10 | 8 << 5 | 8)); /* the 0x42s read back, as 1555 */
+    accel_close();
+}
+
+/* A 300 by 10 texture in two 256 by 32 tiles sends the card its texels and the row and column a
+   filter reads past them, rounded to even: 256 + 46 columns by 11 rows. The tiles whole were 6x
+   that, read back and sent again for each text a frame: CUBE's text took 78% of a P100's frame. */
+TEST(accel_player_sends_only_the_texels_a_draw_reaches)
+{
+    static uint8_t texels[300 * 10 * 4];
+
+    opened();
+    begun(300, 10);
+    PUT(QX_LIST_UPLOAD, ART, 0, 0, 300, 10, 1200, POINTER(texels));
+
+    const uint32_t from = list.n;
+
+    box(TEXTURED, ART, 0, 0, 300, 10, 0, 300);
+    CHECK(played(SHOWN, from, true));
+    CHECK(fake.sent == (256 + 46) * 11);
     accel_close();
 }

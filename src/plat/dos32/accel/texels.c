@@ -84,6 +84,13 @@ void texels_to_rgba(
     }
 }
 
+uint32_t texels_reached(const uint32_t n, const uint32_t at, const uint32_t size)
+{
+    const uint32_t most = n - at + 1;
+
+    return most < size ? most : size;
+}
+
 void texels_tile(
     const uint16_t *const texels,
     const uint16_t w,
@@ -93,6 +100,7 @@ void texels_tile(
     const uint32_t row,
     const uint32_t y0,
     const uint32_t y1,
+    const uint32_t wide,
     uint16_t *const out
 )
 {
@@ -101,9 +109,9 @@ void texels_tile(
     for (uint32_t y = y0; y < y1; y++) {
         const uint32_t ty = top + y < h ? top + y : h - 1u;
         const uint16_t *const in = texels + (size_t)ty * w;
-        uint16_t *const to = out + (size_t)(y - y0) * g->tile_w;
+        uint16_t *const to = out + (size_t)(y - y0) * wide;
 
-        for (uint32_t x = 0; x < g->tile_w; x++)
+        for (uint32_t x = 0; x < wide; x++)
             to[x] = in[left + x < w ? left + x : w - 1u];
     }
 }

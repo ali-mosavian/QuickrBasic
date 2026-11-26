@@ -226,7 +226,7 @@ TEST(tdfx_driver_places_a_texture_past_the_levels_above_it)
 
     CHECK(d && d->open(&(PciFunction){}, 320, 240, &card) && card.memory == 2 << 20);
     CHECK(d->texture(1, 64, 64));
-    d->upload(1, 5, 2, texels, 64);
+    d->upload(1, (AccelRect){0, 5, 64, 2}, texels, 64);
     CHECK(word_at(SST_TMU0 + SST_TEX_BASE) == (((0u - 163840) >> 3) & 0x7FFFF));
     CHECK(word_at(SST_TMU0 + SST_TLOD) == 0x208);
     CHECK(word_at(SST_TEXELS + (2 << 17) + (5 << 9) + (2 << 1)) == (3u << 16 | 2));

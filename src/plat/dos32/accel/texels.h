@@ -24,7 +24,11 @@ void texels_from_rgba(
 );
 /* h rows of w texels from from, from_pitch texels a row, into bytes R, G, B and A, w a row. */
 void texels_to_rgba(uint8_t *to, const uint16_t *from, uint32_t from_pitch, uint32_t w, uint32_t h);
-/* Rows y0 up to y1 of tile column, row of a w by h texture's texels into out, g's tile_w a row. */
+/* Of size texels from at, those a draw reaches of n: its own, and the one past its last a filter
+   reads. */
+uint32_t texels_reached(uint32_t n, uint32_t at, uint32_t size);
+/* Rows y0 up to y1 of tile column, row of a w by h texture's texels into out, wide across from the
+   tile's left: past the texture, its last column and row repeated. */
 void texels_tile(
     const uint16_t *texels,
     uint16_t w,
@@ -34,6 +38,7 @@ void texels_tile(
     uint32_t row,
     uint32_t y0,
     uint32_t y1,
+    uint32_t wide,
     uint16_t *out
 );
 #endif

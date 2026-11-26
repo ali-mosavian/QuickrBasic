@@ -275,13 +275,8 @@ static bool ACCEL_CALL textured(const uint32_t slot, const uint16_t w, const uin
     return true;
 }
 
-static void ACCEL_CALL uploaded(
-    const uint32_t slot,
-    const uint16_t y,
-    const uint16_t h,
-    const uint16_t *const texels,
-    const uint32_t pitch
-)
+static void ACCEL_CALL
+uploaded(const uint32_t slot, const AccelRect r, const uint16_t *const texels, const uint32_t pitch)
 {
     Tdfx *const c = &card;
     const TdfxTexture *const t = &c->textures[slot];
@@ -291,12 +286,12 @@ static void ACCEL_CALL uploaded(
     tdfx_put(c, SST_TMU0 + SST_TEXTURE_MODE, SST_ARGB1555 << SST_FORMAT | SST_LOCAL);
     placed(c, slot);
 
-    for (uint32_t r = 0; r < h; r++) {
-        const uint16_t *const row = texels + (size_t)r * pitch;
-        volatile uint8_t *const to = level + ((uint32_t)(y + r) << ROW_AT);
+    for (uint32_t y = 0; y < (uint32_t)r.h; y++) {
+        const uint16_t *const row = texels + (size_t)y * pitch;
+        volatile uint8_t *const to = level + ((uint32_t)(r.y + (int32_t)y) << ROW_AT);
 
-        for (uint32_t s = 0; s < t->w; s += 2)
-            stored(c, to + (s << TEXEL_AT), row[s] | (uint32_t)row[s + 1] << 16);
+        for (uint32_t s = 0; s < (uint32_t)r.w; s += 2)
+            stored(c, to + ((r.x + s) << TEXEL_AT), row[s] | (uint32_t)row[s + 1] << 16);
     }
 
     /* the draws' texture as it was */

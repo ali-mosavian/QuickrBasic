@@ -101,9 +101,9 @@ typedef struct {
     void(ACCEL_CALL *close)(void);
     /* Texture slot made w by h, within the card's limits, its texels undefined: false, no room. */
     bool(ACCEL_CALL *texture)(uint32_t slot, uint16_t w, uint16_t h);
-    /* Rows y up to y + h of texture slot from texels, ARGB1555 (A, KEY's), pitch texels a row. */
-    void(ACCEL_CALL *
-             upload)(uint32_t slot, uint16_t y, uint16_t h, const uint16_t *texels, uint32_t pitch);
+    /* Texels r of texture slot from texels, ARGB1555 (A, KEY's), pitch texels a row; r.x and
+       r.w even. */
+    void(ACCEL_CALL *upload)(uint32_t slot, AccelRect r, const uint16_t *texels, uint32_t pitch);
     void(ACCEL_CALL *forget)(uint32_t slot);
     /* Target slot made w by h, black, a depth buffer with it, cleared, when depth: false, no room. */
     bool(ACCEL_CALL *target)(uint32_t slot, uint16_t w, uint16_t h, bool depth);

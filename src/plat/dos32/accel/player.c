@@ -369,8 +369,11 @@ static bool tiled(Texture *const t)
     for (uint32_t row = 0; row < g->down; row++)
         for (uint32_t column = 0; column < g->across; column++) {
             uint32_t *const slot = &t->tiles[row * g->across + column];
-            const int32_t top = (int32_t)(row * g->tile_h), tall = g->tile_h;
+            const int32_t top = (int32_t)(row * g->tile_h);
             const bool made = !*slot, last = row + 1 == g->down;
+            /* the texels a draw reaches, the driver's words two texels wide */
+            const uint32_t wide = (texels_reached(t->w, column * g->tile_w, g->tile_w) + 1) & ~1u;
+            const int32_t tall = (int32_t)texels_reached(t->h, (uint32_t)top, g->tile_h);
 
             if (!made && t->top >= t->bottom)
                 continue;
@@ -378,7 +381,6 @@ static bool tiled(Texture *const t)
             if (made && !(*slot = tile_made(g->tile_w, g->tile_h)))
                 return false;
 
-            /* past the texture, a tile repeats its last row */
             const int32_t from = t->top - top,
                           to = last && t->bottom >= t->h ? tall : t->bottom - top;
             const int32_t y0 = made || from < 0 ? 0 : from, y1 = made || to > tall ? tall : to;
@@ -386,14 +388,25 @@ static bool tiled(Texture *const t)
             if (y0 >= y1)
                 continue;
 
-            uint16_t *const rows = scratch((size_t)g->tile_w * (uint32_t)(y1 - y0) * sizeof *rows);
+            uint16_t *const rows = scratch((size_t)wide * (uint32_t)(y1 - y0) * sizeof *rows);
 
             if (!rows)
                 return false;
 
-            texels_tile(t->texels, t->w, t->h, g, column, row, (uint32_t)y0, (uint32_t)y1, rows);
+            texels_tile(
+                t->texels,
+                t->w,
+                t->h,
+                g,
+                column,
+                row,
+                (uint32_t)y0,
+                (uint32_t)y1,
+                wide,
+                rows
+            );
             flushed();
-            p.d->upload(*slot, (uint16_t)y0, (uint16_t)(y1 - y0), rows, g->tile_w);
+            p.d->upload(*slot, (AccelRect){0, y0, (int32_t)wide, y1 - y0}, rows, wide);
         }
 
     t->top = t->bottom = 0;
