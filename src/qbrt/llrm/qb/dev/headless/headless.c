@@ -1,5 +1,4 @@
 #define _POSIX_C_SOURCE 200809L
-#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -25,8 +24,8 @@ static unsigned char keys[KEY_BYTES];
 static size_t key_head, key_tail;
 static int scan_pending, end_of_input;
 
-/* The sounds' logs, grown as they fill, up to TONE_LOG and VOICE_LOG records. The tick's thread records too, so
-   libc's heap, not the runtime's, and no Out of memory: a log that cannot grow is full. */
+/* The sounds' logs, grown as they fill, up to TONE_LOG and VOICE_LOG records, in headless_log_resize's memory: a
+   log that cannot grow is full. */
 static HeadlessTone *tones;
 static size_t tone_count, tone_cap;
 static HeadlessVoice *voice_log;
@@ -46,7 +45,7 @@ static int log_room(void *log, size_t *cap, size_t count, size_t size, size_t mo
     want = *cap ? 2 * *cap : 64;
     want = want < most ? want : most;
     memcpy(&was, log, sizeof was);
-    now = realloc(was, want * size);
+    now = headless_log_resize(was, want * size);
 
     if (!now)
         return 0;
@@ -102,8 +101,8 @@ void headless_reset(void)
     key_head = key_tail = 0;
     scan_pending = 0;
     end_of_input = 0;
-    free(tones);
-    free(voice_log);
+    headless_log_free(tones);
+    headless_log_free(voice_log);
     tones = NULL;
     voice_log = NULL;
     tone_count = tone_cap = voice_count = voice_cap = 0;

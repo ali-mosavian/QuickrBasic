@@ -2,6 +2,7 @@
    speaker that is a log. Standard output stays a stream: the screen is the framebuffer only where a
    test says so, or a display shows it (QBRT_SCREEN, plat/view). The music's tick is a thread in real time; else each wait for it is a tick. */
 #define _POSIX_C_SOURCE 200809L
+#include <stdlib.h>
 #include <time.h>
 #include "qbrt/qbrt.h"
 #include "headless.h"
@@ -15,6 +16,11 @@ enum { HUNDREDTHS_A_TICK = 6, WAIT_NANOSECONDS = 1000000 };
 
 static bool realtime = true;
 static bool polled; /* PLAY(n) looked at since the last wait */
+
+/* libc's: the tick's thread logs too, and the runtime's heap stays the program's. */
+void *headless_log_resize(void *const log, const size_t bytes) { return realloc(log, bytes); }
+
+void headless_log_free(void *const log) { free(log); }
 
 void qbrt_clock_set(const PclkTime *const t)
 {

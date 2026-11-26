@@ -37,6 +37,10 @@ typedef struct HeadlessVoice {
 size_t headless_voice_count(void);
 HeadlessVoice headless_voice(size_t index);
 void headless_voice_forget(void);
+/* The logs' memory, the platform's: log as bytes, null when there is none; given back. From the tick's thread
+   too. */
+void *headless_log_resize(void *log, size_t bytes);
+void headless_log_free(void *log);
 
 /* The clock, in hundredths of a second since midnight. `step` is added to it by each dev_clock call, so a wait
    loop ends; 0 stops it. */
