@@ -1572,6 +1572,10 @@ void uimn_init(Session *const S)
     S->repl.keep_pre = true; /* a module's lines shown as typed */
     uimn.rows = 25;          /* till uimn_size */
     uimn.cols = 80;
+
+    if (!scrn_size(PSCR_80X25))
+        fault_error(&S->fault, E_OM);
+
     uimn.nsizes = pscr_sizes(uimn.sizes);
     menu_sizes();
     build_tree();
@@ -1638,10 +1642,16 @@ static uint16_t cmdline_file(bool *const most)
 void uimn_size(const PscrSize size)
 {
     const PscrSize s = pscr_text(size);
+
+    if (!scrn_size(s)) { /* no memory for its cells: the size kept */
+        pscr_text((PscrSize){uimn.cols, uimn.rows});
+        them_in();
+        return;
+    }
+
     uimn.rows = s.rows;
     uimn.cols = s.cols;
     them_in(); /* the mode's change loaded VGA's colours */
-    scrn_size(s);
     uimn.tree.screen.rect = (Rect){0, 0, uimn.rows, uimn.cols};
 
     uimn.tree.menubar.rect.cols = uimn.cols;
