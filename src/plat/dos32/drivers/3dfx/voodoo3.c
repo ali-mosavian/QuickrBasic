@@ -3,9 +3,10 @@
  *
  * # How it works
  * Frame memory holds colour buffers 0 and 1, the depth buffer, then textures, each buffer the
- * mode's rows of its stride and more for targets, linear. The desktop shows a colour buffer by its
- * start address, written in the retrace with vsync, once the card is idle; colBufferAddr sets the
- * one drawn in. The triangle registers are SST-1's at BAR0's 3D window, the command FIFO off.
+ * mode's rows of its stride and more for targets, linear. A 565 overlay over the whole mode shows
+ * a colour buffer through a CLUT that widens it as gfx does, swapbufferCMD moving it to leftOverlayBuf's behind the draws in the FIFO, at the
+ * retrace with vsync; colBufferAddr sets the one drawn in. The triangle registers are SST-1's at
+ * BAR0's 3D window, the command FIFO off.
  * Texels go through TMU0's texture port, linear from texBaseAddr, the texture cache flushed after
  * as Glide does; pixels are read through BAR1, its tiling moved past memory.
  */
@@ -29,13 +30,40 @@ enum : uint32_t {
     TILE_BASE = 0x1FFF,
     DRAM_INIT0 = 0x18,
     DRAM_INIT1 = 0x1C,
-    DESKTOP_START = 0xE4,
+    DAC_ADDR = 0x50,
+    DAC_DATA = 0x54,
+    VID_PROC = 0x5C,
+    OVERLAY_START = 0x9C,
+    OVERLAY_END = 0xA0,
+    OVERLAY_DUDX = 0xA4,
+    OVERLAY_WIDTH = 0xA8,
+    OVERLAY_DVDY = 0xAC,
+    OVERLAY_DVDY_OFFSET = 0xE0,
+    STRIDES = 0xE8, /* vidDesktopOverlayStride: the desktop's below, the overlay's from */
+    OVERLAY_STRIDE = 16,
+    OVERLAY_STRIDE_BITS = 0x7FFFu << OVERLAY_STRIDE,
+    /* vidProcCfg's: the overlay on, its CLUT bypassed, its CLUT's upper half, scaled, filtered, its
+       format (565), tiled */
+    OVERLAY = 1u << 8,
+    OVERLAY_BYPASS = 1u << 11,
+    OVERLAY_UPPER = 1u << 13,
+    OVERLAY_SCALED = 3u << 14,
+    FILTER = 3u << 16,
+    OVERLAY_FORMAT = 7u << 21,
+    OVERLAY_565 = 1u << 21,
+    OVERLAY_TILED = 1u << 25,
+    END_Y = 12,        /* vidOverlayEndScreenCoord's y */
+    SOURCE_WIDTH = 19, /* vidOverlayDudxOffsetSrcWidth's bytes a row */
+    ONE = 1u << 20,    /* a step of a pixel, unscaled */
+    CLUT = 256,
     /* dramInit's straps: SDRAM, 16 MB; else SGRAM, 8 chips not 4, of 16 Mbit not 8 */
     SDRAM = 1u << 30,
     EIGHT_CHIPS = 1u << 26,
     SIXTEEN_MBIT = 1u << 27,
     MB = 1 << 20,
     /* 3D registers */
+    SWAP_PENDING = 0x24C,
+    LEFT_OVERLAY = 0x250,
     COLOUR_AT = 0x1EC,
     COLOUR_STRIDE = 0x1F0,
     AUX_AT = 0x1F4,
@@ -58,9 +86,9 @@ enum : uint32_t {
 
 static struct {
     volatile uint8_t *io;
-    uint32_t at[BUFFERS]; /* colour buffers 0 and 1 and the depth buffer's first bytes */
-    uint32_t textures;    /* texture memory's first byte */
-    uint32_t tiles;       /* lfbMemoryConfig as it was */
+    uint32_t at[BUFFERS];           /* colour buffers 0 and 1 and the depth buffer's first bytes */
+    uint32_t textures;              /* texture memory's first byte */
+    uint32_t tiles, video, strides; /* lfbMemoryConfig, vidProcCfg, the strides as they were */
 } h3;
 
 static uint32_t io_get(const uint32_t reg) { return *(const volatile uint32_t *)(h3.io + reg); }
@@ -177,14 +205,45 @@ static volatile uint8_t *pixels(Tdfx *const c, const uint32_t buffer)
 
 static void shown(Tdfx *const c, const bool vsync)
 {
-    uint64_t at;
+    tdfx_pending(c);
+    tdfx_put(c, LEFT_OVERLAY, h3.at[c->shown ^ 1]);
+    tdfx_put(c, SWAP_PENDING, 0);
+    tdfx_put(c, SST_SWAP, vsync);
+}
 
-    tdfx_idle(c);
+/* CLUT entry i: a channel looked up as its 5 or 6 bits with zeros below, or repeated below as gfx
+   widens it, shown as gfx widens it. */
+static uint32_t widened(const uint32_t i)
+{
+    const uint32_t five = i | i >> 5, six = i | i >> 6;
 
-    if (vsync)
-        retraced(c, &at);
+    return five << 16 | six << 8 | five;
+}
 
-    io_put(DESKTOP_START, h3.at[c->shown ^ 1]);
+/* The overlay over the whole mode m, unscaled, showing buffer 0. */
+static void overlaid(Tdfx *const c, const AccelMode *const m)
+{
+    for (uint32_t i = 0; i < CLUT; i++) {
+        io_put(DAC_ADDR, i);
+        io_get(DAC_ADDR); /* tdfxfb's: the address taken before the data */
+        io_put(DAC_DATA, widened(i));
+    }
+
+    io_put(OVERLAY_START, 0);
+    io_put(OVERLAY_END, (m->h - 1u) << END_Y | (m->w - 1u));
+    io_put(OVERLAY_DUDX, ONE);
+    io_put(OVERLAY_WIDTH, (uint32_t)m->w * PIXEL << SOURCE_WIDTH);
+    io_put(OVERLAY_DVDY, ONE);
+    io_put(OVERLAY_DVDY_OFFSET, 0);
+    io_put(STRIDES, (h3.strides & ~OVERLAY_STRIDE_BITS) | m->pitch << OVERLAY_STRIDE);
+    tdfx_put(c, LEFT_OVERLAY, h3.at[0]);
+    tdfx_put(c, SST_SWAP, 0);
+    io_put(
+        VID_PROC,
+        (h3.video & ~(OVERLAY_BYPASS | OVERLAY_UPPER | OVERLAY_SCALED | FILTER | OVERLAY_FORMAT |
+                      OVERLAY_TILED)) |
+            OVERLAY | OVERLAY_565
+    );
 }
 
 /* Through BAR1, a pair of pixels at a time. */
@@ -228,8 +287,10 @@ static bool opened(Tdfx *const c, const uint16_t w, const uint16_t h)
     c->texels = regs + PORT;
     c->lfb = frame;
     h3.tiles = io_get(LFB_MEMORY);
+    h3.video = io_get(VID_PROC);
+    h3.strides = io_get(STRIDES);
     io_put(LFB_MEMORY, h3.tiles | TILE_BASE);
-    io_put(DESKTOP_START, h3.at[0]);
+    overlaid(c, &m);
     tdfx_put(c, COLOUR_STRIDE, m.pitch);
     tdfx_put(c, AUX_STRIDE, m.pitch);
     tdfx_put(c, AUX_AT, h3.at[DEPTH]);
@@ -237,11 +298,12 @@ static bool opened(Tdfx *const c, const uint16_t w, const uint16_t h)
     return true;
 }
 
-/* The desktop at buffer 0 and BAR1's tiling as they were: the host's mode set does the rest. */
+/* The video and BAR1's tiling as they were: the host's mode set does the rest. */
 static void closed(Tdfx *const c)
 {
     (void)c;
-    io_put(DESKTOP_START, h3.at[0]);
+    io_put(VID_PROC, h3.video);
+    io_put(STRIDES, h3.strides);
     io_put(LFB_MEMORY, h3.tiles);
 }
 

@@ -13,6 +13,9 @@ enum : uint32_t {
     PIXEL_AT = 1, /* the frame buffer window's: a pixel */
     CALM = 3,     /* status reads idle in a row: a read can pass the FIFO's last write */
     FBI_CALM = 6,
+    PENDING = 28, /* status's swaps pending */
+    SWAPS = 7,
+    AHEAD = 1,                    /* swaps let pend */
     LOD_OFF = 8 * 4 << 6 | 8 * 4, /* a TMU's lodmax and lodmin past every level: not drawn from */
     FIVE = 0x1F,
     SIX = 0x3F,
@@ -68,6 +71,14 @@ void tdfx_idle(Tdfx *const c)
         calm = tdfx_get(c, SST_STATUS) & SST_BUSY ? 0 : calm + 1;
 
     c->room = 0;
+}
+
+void tdfx_pending(const Tdfx *const c)
+{
+    const uint64_t until = c->host->clock_us() + TDFX_WAIT_US;
+
+    while ((tdfx_get(c, SST_STATUS) >> PENDING & SWAPS) > AHEAD && c->host->clock_us() < until)
+        ;
 }
 
 void tdfx_idle_fbi(const Tdfx *const c)

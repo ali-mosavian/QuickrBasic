@@ -12,7 +12,8 @@ BLEND, the blend constant's, a level off. At 8 bits every cell but shapes, sprit
 held colours, read back as the nearest index, and lights, tints, rows and blends were worked as colours. At 15 and
 16 bits every cell was up to 7 off: the target kept 8 bits a channel. A virtual Mac has no GPU: --gpu compares
 nothing there. --card CARD [DEPTH...]: GPU_SCENE drawn by the DOS build on 86Box's 3D card,
-its driver's, against the Mac app's pages, cell by cell, as --gpu is."""
+its driver's, against the Mac app's pages, cell by cell, as --gpu is. A Banshee's overlay, its CLUT bypassed,
+showed 565 with zeros below: flat colours up to 7 off."""
 
 import os
 import subprocess
@@ -245,6 +246,8 @@ GPU_NEAR = {("blend", 32): 1} | {(name, depth): 255 for name in ("blend", "add")
 # truncating, a 5-bit step; a line a pixel wide has its corners at 1/16 pixel, each emulator sampling its own way.
 CARD_NEAR = 8
 CARD_LOOSE = ("shapes",)
+# A card's cells of flat colours: exact, as it shows 565 widened as gfx widens it.
+CARD_EXACT = ("lit shapes", "solid", "rows")
 GPU_SCENE = """import gfx.display, gfx.draw, gfx.surface
 from gfx.draw import Vec2, Vertex
 canvas& = gfx.display.open(640, 480, {depth}, 0)
@@ -580,7 +583,8 @@ if __name__ == "__main__":
             print(f"{depth} bits: pixels the GPU drew other than pages, the most a channel was off")
             for name, n, most in gpu_parity(depth, card):
                 print(f"  {name:12}{n:7}{most:5}")
-                near = most <= max(GPU_NEAR.get((name, depth), 0), CARD_NEAR if card else 0)
+                near = most <= (0 if card and name in CARD_EXACT else
+                                max(GPU_NEAR.get((name, depth), 0), CARD_NEAR if card else 0))
                 loose = GPU_LOOSE + (CARD_LOOSE if card else ())
                 wrong += [f"{name} at {depth} bits"] if not near and name not in loose else []
         sys.exit(f"GPU differs: {', '.join(wrong)}" if wrong else None)

@@ -25,9 +25,6 @@ enum : uint32_t {
     PIXEL_AT = 1,
     LFB_READ = 6, /* lfbMode's buffers read and written */
     LFB_WRITE = 4,
-    PENDING = 28, /* status's swaps pending */
-    SWAPS = 7,
-    AHEAD = 1, /* swaps let pend */
 };
 
 const SstMode *sst_mode_for(
@@ -175,11 +172,7 @@ static volatile uint8_t *pixels(Tdfx *const c, const uint32_t buffer)
 
 static void shown(Tdfx *const c, const bool vsync)
 {
-    const uint64_t until = c->host->clock_us() + TDFX_WAIT_US;
-
-    while ((tdfx_get(c, SST_STATUS) >> PENDING & SWAPS) > AHEAD && c->host->clock_us() < until)
-        ;
-
+    tdfx_pending(c);
     tdfx_put(c, SST_SWAP, vsync);
 }
 

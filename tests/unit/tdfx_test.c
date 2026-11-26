@@ -253,7 +253,11 @@ enum : uint32_t {
     H3_FRAME = 16 << 20,
     H3_3D = 0x200000,
     H3_PORT = 0x600000,
-    H3_DESKTOP = 0xE4,
+    H3_VID_PROC = 0x5C,
+    H3_OVERLAY_END = 0xA0,
+    H3_STRIDES = 0xE8,
+    H3_LEFT_OVERLAY = 0x250,
+    H3_SWAP = 0x128,
     H3_COLOUR_AT = 0x1EC,
     H3_COLOUR_STRIDE = 0x1F0,
     H3_AUX_AT = 0x1F4,
@@ -348,23 +352,41 @@ TEST(tdfx_h3_lays_its_buffers_out_in_frame_memory)
     CHECK(card.memory == H3_FRAME - 3 * H3_BUFFER);
     CHECK(h3_word(h3.regs + H3_3D + H3_COLOUR_STRIDE) == 1280);
     CHECK(h3_word(h3.regs + H3_3D + H3_AUX_AT) == 2 * H3_BUFFER);
-    CHECK(h3_word(h3.regs + H3_DESKTOP) == 0);
     CHECK(h3_word(h3.regs + H3_3D + H3_COLOUR_AT) == H3_BUFFER);
     h3_closed(d);
 }
 
-/* The desktop shows the buffer drawn; the screen is drawn in the other, a target in buffer 0. */
+/* A 565 overlay over the whole mode, through the CLUT, its rows the mode's pitch, shows buffer 0
+   at first. */
+TEST(tdfx_h3_shows_an_overlay_over_the_mode)
+{
+    AccelCard card;
+    const AccelDriver *const d = h3_opened(&card);
+    const uint32_t on = 1u << 8, bypass = 1u << 11, rgb565 = 1u << 21;
+
+    CHECK(d);
+    CHECK((h3_word(h3.regs + H3_VID_PROC) & (on | bypass | 7u << 21)) == (on | rgb565));
+    CHECK(h3_word(h3.regs + H3_OVERLAY_END) == (479u << 12 | 639));
+    CHECK(h3_word(h3.regs + H3_STRIDES) >> 16 == 1280);
+    CHECK(h3_word(h3.regs + H3_3D + H3_LEFT_OVERLAY) == 0);
+    h3_closed(d);
+}
+
+/* The overlay shows the buffer drawn, swapped at the retrace with vsync; the screen is drawn in
+   the other, a target in buffer 0. */
 TEST(tdfx_h3_shows_the_buffer_drawn_and_draws_in_the_other)
 {
     AccelCard card;
     const AccelDriver *const d = h3_opened(&card);
 
     CHECK(d);
-    d->show(false);
-    CHECK(h3_word(h3.regs + H3_DESKTOP) == H3_BUFFER);
+    d->show(true);
+    CHECK(h3_word(h3.regs + H3_3D + H3_LEFT_OVERLAY) == H3_BUFFER);
+    CHECK(h3_word(h3.regs + H3_3D + H3_SWAP) == 1);
     CHECK(h3_word(h3.regs + H3_3D + H3_COLOUR_AT) == 0);
     d->show(false);
-    CHECK(h3_word(h3.regs + H3_DESKTOP) == 0);
+    CHECK(h3_word(h3.regs + H3_3D + H3_LEFT_OVERLAY) == 0);
+    CHECK(h3_word(h3.regs + H3_3D + H3_SWAP) == 0);
     CHECK(h3_word(h3.regs + H3_3D + H3_COLOUR_AT) == H3_BUFFER);
     CHECK(d->target(1, 64, 64, false));
     d->aim(1, (AccelRect){0, 0, 64, 64});
@@ -406,5 +428,22 @@ TEST(tdfx_h3_reads_the_screen_back_through_frame_memory)
     memcpy(h3.frame + H3_BUFFER + 120 * 1280 + 160 * 2, &red, sizeof red);
     d->read(ACCEL_SCREEN, (AccelRect){0, 0, 1, 1}, rgba);
     CHECK(rgba[0] == 255 && rgba[1] == 0 && rgba[2] == 0 && rgba[3] == 255);
+    h3_closed(d);
+}
+
+/* A frame is queued behind the card's draws, not shown once it is idle: waiting cost 310k of
+   CUBE's 528k cycles a frame on 86Box's Banshee. */
+TEST(tdfx_h3_shows_a_frame_without_waiting_for_the_card)
+{
+    AccelCard card;
+    const AccelDriver *const d = h3_opened(&card);
+    const uint32_t drawing = 0x1F | 1u << 6 | 0x380;
+
+    CHECK(d);
+    memcpy(h3.regs + H3_3D + SST_STATUS, &drawing, sizeof drawing);
+    const uint64_t from = h3.us;
+
+    d->show(false);
+    CHECK(h3.us - from < TDFX_WAIT_US);
     h3_closed(d);
 }

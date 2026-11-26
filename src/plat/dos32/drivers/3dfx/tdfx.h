@@ -98,6 +98,9 @@ void tdfx_put_float(Tdfx *c, uint32_t reg, float v);
 uint32_t tdfx_get(const Tdfx *c, uint32_t reg);
 /* The card idle: its FIFO empty and nothing drawing. */
 void tdfx_idle(Tdfx *c);
+/* Swaps pending few enough for another: one may wait on the retrace while the next frame is
+   drawn. */
+void tdfx_pending(const Tdfx *c);
 /* The FBI idle, nothing written to the FIFO: as the PCI FIFO may take no writes. */
 void tdfx_idle_fbi(const Tdfx *c);
 /* Pixels r of colour buffer `buffer` fast filled, as what has them: their colour argb, their depth
