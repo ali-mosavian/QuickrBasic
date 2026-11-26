@@ -2,7 +2,10 @@
 ' to back, each step's height and light read between
 ' texels, its span drawn up from the lowest row still
 ' open, its height and light eased from the step drawn
-' below it, so each pixel takes its own ground's tone. The
+' below it, so each pixel takes its own ground's tone.
+' Past an edge, the steps before it hidden, the height is
+' eased from the step just before and the light and fog
+' are not: the nearer ground's would bleed up over it. The
 ' frame is built in an array, written to a surface and
 ' stretched over the view; index 0, the sky, is not drawn.
 option explicit
@@ -58,7 +61,8 @@ end type
 ' move a texel ahead, the row of the horizon, the rows
 ' above open still, and the height, light and fog last
 ' drawn, in 65536ths of a part, a level and a step; light
-' -1 before any.
+' -1 before any; the step last drawn, and the height of
+' the step before.
 type Ray
     x as long
     y as long
@@ -70,6 +74,8 @@ type Ray
     height as long
     shade as long
     fog as long
+    drawn as integer
+    before as long
 end type
 
 ' The fog at distance z, in 65536ths of a step: none
@@ -226,6 +232,7 @@ function march ( _
     dim a as long
     dim b as long
     dim hh as long
+    dim before as long
     dim top as single
     dim row as integer
     dim light as long
@@ -238,6 +245,7 @@ function march ( _
     sy = r.dy * tv.strides(s)
     shrink = tv.shrinks(s) * FINE
     side = tv.sides(s)
+    before = r.before
 
     for k = tv.firsts(s) to tv.firsts(s + 1) - 1
         u = (r.x and WRAP) \ shrink
@@ -263,15 +271,24 @@ function march ( _
             b = b + _
                 (ld.lights(i + side + 1) - ld.lights(i + side)) * fx
             light = a * FINE + (b - a) * fy
+            if k - 1 <> r.drawn and r.shade >= 0 then
+                r.height = before
+                r.shade = light
+                r.fog = tv.fogs(k)
+            end if
             fill_span tv, r, row, hh, light, tv.fogs(k)
             if r.rows_open <= 0 then exit function
+            r.drawn = k
         end if
+
+        before = hh
 
         if r.horizon + rise * tv.reach(k) >= r.rows_open then
             exit function
         end if
     next
 
+    r.before = before
     march = -1
 end function
 
@@ -314,6 +331,7 @@ sub draw_terrain ( _
         r.horizon = k.horizon + (x - MID_X) * slope
         r.rows_open = VIEW_H
         r.shade = -1
+        r.drawn = -1
         r.x = k.x * FINER + r.dx * FIRST
         r.y = k.y * FINER + r.dy * FIRST
 

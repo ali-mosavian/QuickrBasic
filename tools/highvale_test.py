@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """highvale_test.py [EXE]: HIGHVALE.BAS's terrain, missions and play on the host build.
 
-Flat land at a known height must fill each column from the row the farthest step projects to, down, in
-the fogged tone that step's distance gives, the horizon turned by the roll. A step whose top rounded up onto
-the open row once divided by zero, easing its light over no rows. A slanting ramp's top edge must be where
-reading heights between texels puts it: read at the nearest texel, it stepped up to 12 rows a column, the
-blocky near ground first drawn. A spike's shadow must run as far as the sun's angle says. Each mission's
-land must rise from its sea without a cliff and place its foes on land, clear of the start. A pilot firing
-from a clear spot must clear the first: rounds moving 8 texels a frame passed through foes a 4-texel hit
-away, a flak site whole after 120 s. A craft with no hull left by flak must be downed, and every screen
-must draw.
+Flat land at a known height must fill each column from the row the farthest step projects to, down, in the fogged tone
+that step's distance gives, the horizon turned by the roll. A step whose top rounded up onto the open row once divided
+by zero, easing its light over no rows. A slanting ramp's top edge must be where reading heights between texels puts
+it: read at the nearest texel, it stepped up to 12 rows a column, the blocky near ground first drawn. Ground seen over
+a nearer ridge must keep its own tone: eased from the ridge's height, the ridge's rock rose up to 7 rows into the
+grass behind it, teeth along every ridge. A spike's shadow must run as far as the sun's angle says. Each mission's
+land must rise from its sea without a cliff and place its foes on land, clear of the start. A pilot firing from a
+clear spot must clear the first: rounds moving 8 texels a frame passed through foes a 4-texel hit away, a flak site
+whole after 120 s. A craft with no hull left by flak must be downed, and every screen must draw.
 """
 
 import sys
@@ -34,11 +34,11 @@ SHORE = 160
 
 HEAD = """option explicit
 import gfx.display, gfx.surface, gfx.draw
-from highvale.model.land import Land, STEP_PARTS, LEVELS
+from highvale.model.land import Land, STEP_PARTS, LEVELS, LIGHTS
 from highvale.model.game import Game, TITLE, BRIEFING, FLYING
 from highvale.model.game import CLEARED, DOWNED, VICTORY
 from highvale.model.foes import FLAK, DRONE
-from highvale.land.palette import set_colours
+from highvale.land.palette import set_colours, GROUND, GROUNDS
 from highvale.land.maps import allot_land, ground_at, wrapped
 from highvale.land.maps import clear_line, cast_shadows
 from highvale.model.space import Point3
@@ -120,6 +120,54 @@ k.horizon = 140
 gfx.draw.clear cockpit, 0
 draw_terrain cockpit, tv, ld, k
 tops cockpit
+"""
+
+# Each column's ground kinds by row, sky ".".
+KINDS = """
+sub kinds (byval cockpit as long)
+    dim x as integer
+    dim y as integer
+    dim p as integer
+    dim s as string
+    for x = 0 to VIEW_W - 1
+        s = ""
+        for y = 0 to VIEW_H - 1
+            p = gfx.surface.point(cockpit, x, y)
+            if p = 0 then s = s + "." else s = s + chr$(48 + ((p - GROUND) \\ LIGHTS) mod GROUNDS)
+        next
+        print "kinds"; x; s
+    next
+end sub
+"""
+
+# A rock ridge 90 steps high 22 to 26 texels ahead, grass at 40 behind it, and a grass wall 60 high from 128
+# texels on, where a stretch begins, the sea at 30, the eye at 100 and the horizon on row 50. The ridge's top is row
+# ceil(50 + 10 * 0.5 * FOCAL / 26) = 87; the wall shows over it, its top row 50 + 40 * 0.5 * FOCAL / 128 = 79.6;
+# rows 81 to 86 are wall.
+RIDGE = """dim m as integer
+dim n as long
+dim t as single
+for m = 0 to LEVELS - 1
+    n = level_side(m) - 1
+    for y = 0 to n
+        for x = 0 to n
+            i = level_base(m) + y * (n + 1) + x
+            t = x * 2 ^ m
+            ld.heights(i) = 40 * STEP_PARTS
+            if t >= 42 and t <= 46 then ld.heights(i) = 90 * STEP_PARTS
+            if t >= 148 then ld.heights(i) = 60 * STEP_PARTS
+            ld.lights(i) = 5
+        next
+    next
+next
+ld.sea = 30
+k.x = 20
+k.y = 128
+k.height = 100
+k.horizon = 50
+gfx.draw.clear cockpit, 0
+draw_terrain cockpit, tv, ld, k
+kinds cockpit
 """
 
 # A spike 20 texels high on flat land, the sun 30 degrees up from the north-west: its shadow runs
@@ -348,6 +396,9 @@ def main() -> None:
         for roll in (0.0, math.atan(0.25)):
             bad += flat(exe, tmp, roll)[:4]
         bad += ramp(exe, tmp)[:4]
+        for f in run(exe, tmp, "RIDGE", RIDGE, KINDS):
+            if f[2][81:87] != str(GRASS) * 6:
+                bad.append(f"ridge x {f[1]}: rows 81-86 {f[2][81:87]}, want grass {GRASS}")
         for f in run(exe, tmp, "SHADOW", SHADOW):
             if (int(f[2]), int(f[3])) != (1 if int(f[1]) <= 24 else 0, 0):
                 bad.append(f"shadow at {f[1]} diagonal steps: south-east {f[2]}, north-west {f[3]}")
