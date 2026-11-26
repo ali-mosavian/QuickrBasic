@@ -100,6 +100,26 @@ TEST(vbe_picks_the_mode_a_canvas_fills)
     CHECK(!vbe_fit(&modes[0], 321, 200).k);
 }
 
+/* An accelerator draws at the canvas's own size: the smallest linear mode holding it. */
+TEST(vbe_holds_a_canvas_in_the_smallest_linear_mode)
+{
+    (void)S;
+    const VbeMode modes[] = {
+        {.number = 0x10E, .w = 320, .h = 200, .pitch = 640, .depth = 16},
+        {.number = 0x114, .w = 800, .h = 600, .pitch = 1600, .depth = 16, .linear = true},
+        {.number = 0x111, .w = 640, .h = 480, .pitch = 1280, .depth = 16, .linear = true},
+        {.number = 0x110, .w = 640, .h = 480, .pitch = 1280, .depth = 15, .linear = true},
+    };
+
+    const uint32_t n = sizeof modes / sizeof modes[0];
+
+    CHECK(vbe_holding(modes, n, 320, 200, 16) == 2); /* not the banked one */
+    CHECK(vbe_holding(modes, n, 640, 480, 16) == 2);
+    CHECK(vbe_holding(modes, n, 640, 481, 16) == 1);
+    CHECK(vbe_holding(modes, n, 801, 600, 16) == -1);
+    CHECK(vbe_holding(modes, n, 320, 240, 15) == 3);
+}
+
 TEST(vbe_widens_rows_and_splits_them_at_windows)
 {
     (void)S;

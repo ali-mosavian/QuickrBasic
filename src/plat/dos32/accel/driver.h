@@ -77,8 +77,15 @@ typedef struct {
     uint32_t colour;
 } AccelVertex;
 
+/* A VESA mode: its size, its bytes a row, its frame buffer's physical address. */
+typedef struct {
+    uint16_t w, h;
+    uint32_t pitch, base;
+} AccelMode;
+
 /* What the host lends a driver: a card's configuration space, physical memory mapped (null, not;
-   each card's once), I/O ports, memory (zeroed; null, none left) and a clock in microseconds. */
+   each card's once), I/O ports, memory (zeroed; null, none left), a clock in microseconds, and the
+   VGA's VESA modes. */
 typedef struct {
     uint32_t size, abi;
     uint32_t(ACCEL_CALL *pci_read)(const PciFunction *card, uint8_t reg);
@@ -91,14 +98,17 @@ typedef struct {
     void *(ACCEL_CALL *alloc)(uint32_t bytes);
     void(ACCEL_CALL *free)(void *p);
     uint64_t(ACCEL_CALL *clock_us)(void);
+    /* The smallest mode of bits a pixel with a linear frame buffer holding w by h set, to *out:
+       false, none. The host's text screen is shown again after close, or an open that fails. */
+    bool(ACCEL_CALL *vesa)(uint16_t w, uint16_t h, uint8_t bits, AccelMode *out);
 } AccelHost;
 
 typedef struct {
     uint32_t size, abi;
     const char *name;
     /* The card readied, showing a w by h screen in the VGA's place, black, its depth buffer
-       cleared: what it is to *out. False, it cannot, the VGA's as it was: no mode holds w by h, or
-       it does not answer. */
+       cleared: what it is to *out. False, it cannot: no mode holds w by h, or it does not
+       answer. */
     bool(ACCEL_CALL *open)(const PciFunction *card, uint16_t w, uint16_t h, AccelCard *out);
     /* The VGA's screen shown again, the card stopped. */
     void(ACCEL_CALL *close)(void);

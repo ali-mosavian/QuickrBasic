@@ -54,6 +54,21 @@ static void ACCEL_CALL host_free(void *const p) { pmem_free(p); }
 
 static uint64_t ACCEL_CALL host_clock_us(void) { return pclk_us(); }
 
+static bool ACCEL_CALL
+host_vesa(const uint16_t w, const uint16_t h, const uint8_t bits, AccelMode *const out)
+{
+    uint32_t n;
+    PdosVbe card;
+    const VbeMode *const modes = pdos_vbe_list(&n, &card);
+    const int32_t i = vbe_holding(modes, n, w, h, bits);
+
+    if (i < 0 || !pdos_vbe_set(&modes[i]))
+        return false;
+
+    *out = (AccelMode){modes[i].w, modes[i].h, modes[i].pitch, modes[i].base};
+    return true;
+}
+
 static const AccelHost host = {
     .size = sizeof(AccelHost),
     .abi = ACCEL_ABI,
@@ -67,6 +82,7 @@ static const AccelHost host = {
     .alloc = host_alloc,
     .free = host_free,
     .clock_us = host_clock_us,
+    .vesa = host_vesa,
 };
 
 /* The search's: done once, and the driver and its card it found. */

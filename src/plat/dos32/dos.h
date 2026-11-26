@@ -1,6 +1,7 @@
 /* The DOS32 layer's own: software interrupts and the BIOS data area. Only plat/dos32 includes it. */
 #ifndef PLAT_DOS32_DOS_H
 #define PLAT_DOS32_DOS_H
+#include "vbe.h"
 #include <cdecl.h>
 #include <stdint.h>
 
@@ -125,6 +126,11 @@ typedef struct {
 uint32_t pdos_vbe_modes(const PdosBlock *b, PdosVbe *card, uint16_t *modes, uint32_t most);
 /* Mode's information (4F01h), in b: false, none. */
 bool pdos_vbe_mode(const PdosBlock *b, uint16_t mode);
+/* The modes gfx shows in, 13h's first, listed the first time asked: their count to *n, the
+   controller to *card; null, no memory. */
+const VbeMode *pdos_vbe_list(uint32_t *n, PdosVbe *card);
+/* Mode m set, linear where it can be, the BIOS's cursors kept: false, the card would not. */
+bool pdos_vbe_set(const VbeMode *m);
 
 /* Physical bytes from phys mapped (DPMI 0800h), kept for the process: their DS address; null, not
    mapped. A host's mappings are few: map each card once. */
