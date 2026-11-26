@@ -39,8 +39,9 @@ typedef struct {
     uint32_t millihz;
 } AccelCard;
 
-/* What a pixel is: the colour alone, or the texture's texel times the colour. */
-typedef enum : uint8_t { ACCEL_COLOUR = 1, ACCEL_TEXEL } AccelSource;
+/* What a pixel is: the colour alone; the texture's texel times the colour; or the colour, its
+   alpha the texel's times its own (MASK). */
+typedef enum : uint8_t { ACCEL_COLOUR = 1, ACCEL_TEXEL, ACCEL_MASK } AccelSource;
 
 /* KEY: drawn where the texel's alpha is set, the colour alone too; LINEAR: the four texels round
    the point mixed; WRAP_S, WRAP_T: texels repeat across the texture, else its edge's are kept past

@@ -915,6 +915,20 @@ TEST(gfx_gpu_draws_a_fixed_hosts_pipeline_and_own_textures)
     CHECK(arg(QX_LIST_PIPELINE, 1, FLAGS) == (QX_FIXED_KEY | QX_FIXED_LINEAR));
 }
 
+/* On a fixed host text is its glyphs' texels in the colour (MASK), as a shader keys SOLID: once
+   COLOUR, it drew each glyph's whole cell, a bar. */
+TEST(gfx_gpu_draws_a_fixed_hosts_text_through_its_glyphs)
+{
+    enum { SOURCE = QX_FIXED_SOURCE + 1, FLAGS = QX_FIXED_FLAGS + 1 };
+
+    fixed_screen(S, 8, 8, 16);
+    GPU_CALL("draw.text", I(SURF_SCREEN), F(0), F(0), STR("A"), I(0xFF8000));
+    GPU_CALL("display.flip");
+    CHECK(arg(QX_LIST_PIPELINE, 0, SOURCE) == QX_FIXED_MASK);
+    CHECK(arg(QX_LIST_PIPELINE, 0, FLAGS) == QX_FIXED_KEY);
+    CHECK(arg(QX_LIST_DRAW, 0, 7) != 0);
+}
+
 /* On a fixed host a texel's colour is lit in its vertices as the shader lights it, the tint by the
    light over 63, alpha whole; a shape's is as it was. ADD's share is the draw's alpha, as BLEND's:
    the shader once took it. */

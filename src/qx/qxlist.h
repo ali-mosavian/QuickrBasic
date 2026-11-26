@@ -94,10 +94,11 @@ typedef enum : uint8_t { QX_BLEND_NONE, QX_BLEND_MIX, QX_BLEND_ADD, QX_BLEND_KEE
 typedef enum : uint8_t { QX_DEPTH_TEST = 1, QX_DEPTH_WRITE = 2 } QxDepth;
 
 /* A FIXED pipeline's (minor 5). What a pixel is: COLOUR, the vertices' colour; TEXEL, the texel
-   times it. Its flags: KEY, drawn where the texel's alpha is at least a half; LINEAR, the four
-   texels round the point mixed, else the one under it; WRAP_U, WRAP_V, texels repeat across the
-   rectangle, else the texture's edge's are kept past it. */
-typedef enum : uint8_t { QX_FIXED_COLOUR = 1, QX_FIXED_TEXEL } QxFixedSource;
+   times it; MASK, the colour, its alpha the texel's times its own. Its flags: KEY, drawn where the
+   texel's alpha is at least a half; LINEAR, the four texels round the point mixed, else the one
+   under it; WRAP_U, WRAP_V, texels repeat across the rectangle, else the texture's edge's are
+   kept past it. */
+typedef enum : uint8_t { QX_FIXED_COLOUR = 1, QX_FIXED_TEXEL, QX_FIXED_MASK } QxFixedSource;
 
 enum { QX_FIXED_KEY = 1, QX_FIXED_LINEAR = 2, QX_FIXED_WRAP_U = 4, QX_FIXED_WRAP_V = 8 };
 

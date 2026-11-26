@@ -270,7 +270,16 @@ typedef struct {
     uint8_t r, g, b, a;
 } Vertex;
 
-enum { SHOWN = 100, ART = 7, SOLID = 1, TEXTURED = 2, VERTICES = 1, INDICES = 2, LIST = 1024 };
+enum {
+    SHOWN = 100,
+    ART = 7,
+    SOLID = 1,
+    TEXTURED = 2,
+    MASKED = 3,
+    VERTICES = 1,
+    INDICES = 2,
+    LIST = 1024
+};
 
 static struct {
     uint32_t words[LIST], n;
@@ -324,6 +333,7 @@ static void begun(const uint32_t w, const uint32_t h)
     PUT(QX_LIST_TEXTURE, ART, w, h, QX_TEXTURE_RGBA);
     pipeline(SOLID, QX_FIXED_COLOUR, 0);
     pipeline(TEXTURED, QX_FIXED_TEXEL, 0);
+    pipeline(MASKED, QX_FIXED_MASK, QX_FIXED_KEY);
 }
 
 /* A quad over pixels x0 to x1, y0 to y1, texels u0 to u1 across, drawn with pipeline from
@@ -548,5 +558,22 @@ TEST(accel_player_draws_into_the_screen_before_its_first_show)
     list.n = list.nv = list.ni = 0;
     CHECK(played(SHOWN, 0, true));
     CHECK(calls_of('G') == 0 && calls_of('R') == 0 && calls_of('V') == 1 && calls_of('W') == 1);
+    accel_close();
+}
+
+/* A MASK draw is drawn from its texture, as TEXEL's: the card keys the colour by its texels. */
+TEST(accel_player_draws_a_mask_from_its_texture)
+{
+    const uint8_t texel[] = {0, 0, 0, 255};
+
+    opened();
+    begun(1, 1);
+    PUT(QX_LIST_UPLOAD, ART, 0, 0, 1, 1, 4, POINTER(texel));
+
+    const uint32_t from = list.n;
+
+    box(MASKED, ART, 0, 0, 8, 8, 0, 1);
+    CHECK(played(SHOWN, from, true));
+    CHECK(calls_of('T') == 1 && calls_of('U') == 1 && calls_of('V') == 1);
     accel_close();
 }

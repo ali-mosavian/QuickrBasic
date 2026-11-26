@@ -47,7 +47,10 @@ static bool made(
     if (pipeline_known(g, *id))
         return true;
 
-    args[QX_FIXED_SOURCE] = stages & GPU_STAGE_SOLID ? QX_FIXED_COLOUR : QX_FIXED_TEXEL;
+    /* a keyed SOLID draws its texels' shape in the colour: text, a sprite in one colour */
+    args[QX_FIXED_SOURCE] = !(stages & GPU_STAGE_SOLID) ? QX_FIXED_TEXEL
+                            : stages & GPU_STAGE_KEYED  ? QX_FIXED_MASK
+                                                        : QX_FIXED_COLOUR;
     args[QX_FIXED_FLAGS] = (stages & GPU_STAGE_KEYED ? QX_FIXED_KEY : 0) |
                            (stages & GPU_STAGE_SMOOTH ? QX_FIXED_LINEAR : 0) |
                            (tile || stages & GPU_STAGE_WRAP ? QX_FIXED_WRAP_U : 0) |

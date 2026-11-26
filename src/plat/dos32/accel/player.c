@@ -38,6 +38,7 @@ enum {
 };
 
 static_assert((int)ACCEL_COLOUR == QX_FIXED_COLOUR && (int)ACCEL_TEXEL == QX_FIXED_TEXEL);
+static_assert((int)ACCEL_MASK == QX_FIXED_MASK);
 static_assert((int)ACCEL_NONE == QX_BLEND_NONE && (int)ACCEL_KEEP == QX_BLEND_KEEP);
 static_assert((int)ACCEL_MIX == QX_BLEND_MIX && (int)ACCEL_ADD == QX_BLEND_ADD);
 static_assert(ACCEL_DEPTH_TEST == QX_DEPTH_TEST && ACCEL_DEPTH_WRITE == QX_DEPTH_WRITE);
@@ -848,7 +849,7 @@ static void op_pipeline(const QxListEntry *const e)
         .at = {NONE, NONE, NONE, NONE},
     };
 
-    if ((pl.source != ACCEL_COLOUR && pl.source != ACCEL_TEXEL) || pl.blend > ACCEL_KEEP)
+    if (pl.source < ACCEL_COLOUR || pl.source > ACCEL_MASK || pl.blend > ACCEL_KEEP)
         return;
 
     for (uint32_t i = 0; i < attributes; i++) {
@@ -918,7 +919,7 @@ static void op_draw(const QxListEntry *const e)
     const Pipeline *const pl = id_get(&p.pipelines, a[0]);
     const Buffer *const vb = id_get(&p.buffers, a[1]), *const ib = id_get(&p.buffers, a[2]);
     const uint32_t first = a[3], count = a[QX_DRAW_COUNT], alpha = a[5];
-    const bool texel = pl && pl->source == ACCEL_TEXEL;
+    const bool texel = pl && pl->source != ACCEL_COLOUR;
     Texture *const into = p.pass;
     Texture *const t =
         texel && e->args > QX_DRAW_TEXTURES ? id_get(&p.textures, a[QX_DRAW_TEXTURES]) : nullptr;
