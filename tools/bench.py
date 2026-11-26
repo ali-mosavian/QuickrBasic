@@ -6,7 +6,8 @@
                                                  build (HEAD .)
     bench.py mem [REV...] [--mb N...]            DOS: FRE(-1), FRE("") and the largest array REDIM takes, KB,
                                                  per build (HEAD .) and DOSBox's memory (4 32)
-    bench.py size [REV] [--functions]            the DOS executables' loaded bytes, REV's (default HEAD) and ours
+    bench.py size [REV] [--functions | --parts]  the DOS executables' loaded bytes, REV's (default HEAD) and ours;
+                                                 --parts: ours by source directory, code, constants, data, BSS
     bench.py gate [--save]                       the suite and sizes against tools/bench/baseline.json
     bench.py qr [REV...] [--ops]                 tools/bench/qr: each quickr/NAME.bas against its QBasic twin NAME.bas;
                                                  --ops: each Quickr case's ops dispatched, exact, per build
@@ -216,6 +217,19 @@ def image(exe: Path) -> int:
     return sum(struct.unpack_from("<I", b, le + table + 24 * i)[0] for i in range(n))
 
 
+def objects(exe: Path) -> dict[str, int]:
+    """An LE executable's loaded bytes by kind: code (executable objects), data, and the stack (ESP's object)."""
+    b = exe.read_bytes()
+    le = b.find(b"LE\0\0")
+    table, n = struct.unpack_from("<II", b, le + 0x40)
+    esp = struct.unpack_from("<I", b, le + 0x20)[0]
+    res = dict.fromkeys(("code", "data", "stack"), 0)
+    for i in range(n):
+        size, _, flags = struct.unpack_from("<III", b, le + table + 24 * i)
+        res["stack" if i + 1 == esp else "code" if flags & 4 else "data"] += size
+    return res
+
+
 def sizes(b: Build) -> dict[str, int]:
     return {e: image(b.root / e) for e in EXES}
 
@@ -380,6 +394,9 @@ def cmd_mem(a: argparse.Namespace) -> int:
 
 
 def cmd_size(a: argparse.Namespace) -> int:
+    if a.parts:
+        print_parts(build(".", True))
+        return 0
     was, now = build(a.rev, True), build(".", True)
     old, new = sizes(was), sizes(now)
     for e in EXES:
@@ -552,8 +569,8 @@ def apart(objs: list[Path], d: Path) -> list[Path]:
     return out
 
 
-def profiled(b: Build, d: Path, ide: bool = False) -> Path:
-    """b's basic32 (ide: ide32) relinked in d with a map that names its static functions too."""
+def link_objects(b: Build, ide: bool) -> tuple[list[str], list[str]]:
+    """The objects b's basic32 (ide: ide32) links, and gfx's, by make's own lists."""
     var = "IDE_OBJ" if ide else "BASIC_OBJ"
     db = subprocess.run(
         ["make", "-pnq", "build/c/ide32.exe" if ide else "build/c/basic32.exe"],
@@ -564,13 +581,56 @@ def profiled(b: Build, d: Path, ide: bool = False) -> Path:
     m = re.search(rf"^{var} := (.*)$", db, re.M)
     g = re.search(r"^GFX_DOS_OBJ := (.*)$", db, re.M)
     if not m or not g:
-        sys.exit(f"profile: make printed no {var} or GFX_DOS_OBJ")
+        sys.exit(f"make printed no {var} or GFX_DOS_OBJ")
+    return m[1].split(), g[1].split()
+
+
+def sections(o: Path) -> dict[str, int]:
+    """An object's code, constants, data and BSS bytes, by its sections' types; debug sections left out."""
+    heads = subprocess.run([os.environ.get("OBJDUMP", "objdump"), "-h", o], capture_output=True, text=True).stdout
+    res = dict.fromkeys(("code", "const", "data", "bss"), 0)
+    for name, size, kind in re.findall(r"^\s*\d+ (\S+)\s+([0-9a-f]+) [0-9a-f]+ ?(.*)$", heads, re.M):
+        if "DEBUG" in kind or name.startswith(".debug"):
+            continue
+        part = {"TEXT": "code", "BSS": "bss"}.get(kind.split(",")[0], "const" if name.startswith(".rdata") else "data")
+        if kind:
+            res[part] += int(size, 16)
+    return res
+
+
+def parts(b: Build, ide: bool) -> dict[str, dict[str, int]]:
+    """b's basic32 (ide: ide32) by source directory: each one's objects' sections summed."""
+    res: dict[str, dict[str, int]] = {}
+    for o in link_objects(b, ide)[0]:
+        rel = Path(o).relative_to("build/c")
+        rel = rel.relative_to("obj") if rel.parts[0] == "obj" else rel
+        group = "/".join(rel.parts[:2]) if len(rel.parts) > 2 else rel.parts[0]
+        for k, v in sections(b.root / o).items():
+            res.setdefault(group, dict.fromkeys(("code", "const", "data", "bss"), 0))[k] += v
+    return res
+
+
+def print_parts(b: Build) -> None:
+    for ide, exe in ((False, "basic32.exe"), (True, "ide32.exe")):
+        p = parts(b, ide)
+        total = {k: sum(g[k] for g in p.values()) for k in ("code", "const", "data", "bss")}
+        le = objects(b.root / "build/c" / exe)
+        print(f"\n{exe}: loads {sum(le.values()):,}: " + ", ".join(f"{k} {v:,}" for k, v in le.items()))
+        print(f"{'':16}{'code':>10}{'const':>10}{'data':>10}{'bss':>10}{'all':>10}")
+        for name, g in sorted([*p.items(), ("all", total)], key=lambda kv: -sum(kv[1].values())):
+            cells = "".join(f"{g[k]:>10,}" for k in ("code", "const", "data", "bss"))
+            print(f"{name:16}{cells}{sum(g.values()):>10,}")
+
+
+def profiled(b: Build, d: Path, ide: bool = False) -> Path:
+    """b's basic32 (ide: ide32) relinked in d with a map that names its static functions too."""
+    core, gfx = link_objects(b, ide)
     # gfx's slice linked in, its loader's PEXT_LINKED pext.c taking it: the map names gfx's code too. Its own C library
     # bits are the program's.
     linked = b.root / "build/c/prof/pext.obj"
     subprocess.run(["make", str(linked.relative_to(b.root))], cwd=b.root, check=True, capture_output=True)
-    objs = [linked if o.endswith("plat/dos32/pext.obj") else b.root / o for o in m.group(1).split()]
-    objs += apart([b.root / o for o in g.group(1).split()], d)
+    objs = [linked if o.endswith("plat/dos32/pext.obj") else b.root / o for o in core]
+    objs += apart([b.root / o for o in gfx], d)
     exe = d / ("ide32.exe" if ide else "basic32.exe")
     listing = exe.with_suffix(".map")
     doslink.link(exe, objs, listing)
@@ -1785,6 +1845,7 @@ def main() -> int:
     p = sub.add_parser("size")
     p.add_argument("rev", nargs="?", default="HEAD")
     p.add_argument("--functions", action="store_true", help="each function whose bytes changed")
+    p.add_argument("--parts", action="store_true", help="ours by source directory: code, constants, data, BSS")
     p = sub.add_parser("gate")
     p.add_argument("--save", action="store_true")
     sub.add_parser("qbasic").add_argument("--json", type=Path, help="the timings to this file too")
