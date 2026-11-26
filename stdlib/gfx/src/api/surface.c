@@ -22,7 +22,7 @@ int32_t gfx_surface_new(const int32_t w, const int32_t h)
 {
     Gx *const g = gx_get();
 
-    if (!g || gx_illegal(!gx_size(w, h)))
+    if (!g || gx_illegal(!gx_size(w, h), "a size below 1, or too large"))
         return 0;
 
     const PxFormat f = g->open ? g->surfaces.screen.format : PX_8;
@@ -47,7 +47,8 @@ int32_t gfx_surface_load(const QxStr file)
     mem_free(data);
 
     if (status != IMG_OK)
-        return gx_fail(status == IMG_NO_MEMORY ? ERR_MEMORY : ERR_ILLEGAL);
+        return status == IMG_NO_MEMORY ? gx_fail(ERR_MEMORY)
+                                       : gx_fail_why(ERR_ILLEGAL, "not a BMP or PNG gfx reads");
 
     return (int32_t)made(surf_new(&g->surfaces, img.w, img.h, img.format, img.pixels, img.palette));
 }
@@ -67,7 +68,7 @@ int32_t gfx_surface_new_view(
         return 0;
 
     if (!inside(p, x, y, w, h))
-        return gx_fail(ERR_ILLEGAL);
+        return gx_fail_why(ERR_ILLEGAL, "the view is not inside its surface");
 
     return (int32_t)made(surf_view(&g->surfaces, (uint32_t)parent, x, y, w, h));
 }
@@ -86,7 +87,7 @@ int32_t gfx_surface_new_views(
         return 0;
 
     if (!inside(p, 0, 0, w, h))
-        return gx_fail(ERR_ILLEGAL);
+        return gx_fail_why(ERR_ILLEGAL, "the views are not inside their surface");
 
     const int32_t across = p->w / w, down = p->h / h;
 
@@ -118,7 +119,7 @@ void gfx_surface_set_view(const int32_t v, const int32_t x, const int32_t y)
 
     const Surface *const p = s->parent ? surf_get(&g->surfaces, s->parent) : nullptr;
 
-    if (gx_illegal(!p || !inside(p, x, y, s->w, s->h)))
+    if (gx_illegal(!p || !inside(p, x, y, s->w, s->h), "not a view, or it leaves its surface"))
         return;
 
     s->x = x;
@@ -162,7 +163,7 @@ void gfx_surface_set_clip(
 {
     Surface *const s = any(s_);
 
-    if (s && !gx_illegal(w < 0 || h < 0)) {
+    if (s && !gx_illegal(w < 0 || h < 0, "a clip's width or height below 0")) {
         s->clip = (Rect){x, y, w, h};
 
         s->clipped = true;
@@ -225,7 +226,7 @@ void gfx_surface_set_camera_turned(
 {
     Surface *const s = any(s_);
 
-    if (s && !gx_illegal(!(zoom > 0)))
+    if (s && !gx_illegal(!(zoom > 0), "a zoom not above 0"))
         s->camera = (Camera){
             .x = x,
             .y = y,
@@ -261,7 +262,7 @@ void gfx_surface_free(const int32_t s)
     if (!g || !gx_surface(g, (uint32_t)s))
         return;
 
-    if (gx_illegal((uint32_t)s == SURF_SCREEN))
+    if (gx_illegal((uint32_t)s == SURF_SCREEN, "the screen's surface goes with display.close"))
         return;
 
     g->backend->forget(g, (uint32_t)s);
@@ -287,7 +288,7 @@ static Pixels region(
         return (Pixels){};
 
     if (!inside(s, x, y, w, h))
-        return gx_fail(ERR_ILLEGAL), (Pixels){};
+        return gx_fail_why(ERR_ILLEGAL, "the rectangle is not inside the surface"), (Pixels){};
 
     if (pixels && !gx_array(pixels, 1, (uint32_t)(w * h) * px_bytes(s->format)))
         return (Pixels){};

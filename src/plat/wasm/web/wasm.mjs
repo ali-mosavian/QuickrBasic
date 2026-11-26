@@ -230,6 +230,7 @@ export function imports(memory, host) {
     },
     gpu_open: (w, h) => (host.gpu?.open(w, h) ? 1 : 0),
     gpu_close: () => host.gpu?.close(),
+    gpu_hide: (hidden) => host.gpu?.hide(hidden !== 0),
     gpu_play: (list, words) => (host.gpu?.play(list, words) ? 1 : 0),
     gpu_read: (id, x, y, w, h, out) => host.gpu?.read(id, x, y, w, h, out),
     fullscreen: (on) => host.fullscreen?.(!!on),

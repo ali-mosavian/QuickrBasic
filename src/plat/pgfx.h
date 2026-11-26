@@ -13,6 +13,8 @@
  * A screen opened with vsync, as it shows a frame, waits for the display to show one after: at
  * most a tenth of a second, as a hidden window shows none.
  *
+ * The editor hides an open screen at a stop and shows it again when the run goes on.
+ *
  * A display also sets its monitors and their modes; a screen it shows full screen is in a window
  * again when it closes. What the display saw waits for the program (plat/host/host.h's events).
  */
@@ -40,6 +42,7 @@ typedef struct {
     void (*close)(void);
     bool (*play)(const uint32_t *list, uint32_t words);
     void (*read)(uint32_t texture, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t *out);
+    void (*hide)(bool hidden); /* the text screen shown in its place, or it again */
 } PgfxPlayer;
 
 /* A display's monitors and modes, as QxHost's gfx_monitors, gfx_modes and gfx_mode. Called from the
@@ -61,6 +64,11 @@ const PgfxPlayer *pgfx_playing(void);
    memory. Open, it is closed first. */
 bool pgfx_open(uint16_t w, uint16_t h, uint8_t depth, bool vsync);
 void pgfx_close(void);
+/* The open screen hidden, the text screen shown in its place (the editor's, at a stop), its page and
+   what it draws kept: false, none open or hidden already. */
+bool pgfx_hide(void);
+/* The hidden screen shown again, its last frame: false, none hidden. */
+bool pgfx_unhide(void);
 /* The page to draw in, *pitch bytes a row: null, no screen open. */
 uint8_t *pgfx_page(uint32_t *pitch);
 void pgfx_show(const uint32_t *palette);

@@ -83,6 +83,7 @@ static struct {
     SDL_GPUTexture *retired; /* a shown texture the window's thread is to release */
     uint32_t w, h;
     bool showing; /* shown since open */
+    bool hidden;  /* the text screen shown in its place */
 } p;
 
 /* t's item with id: null, none. */
@@ -795,7 +796,7 @@ static bool player_open(const uint16_t w, const uint16_t h)
 
     SDL_LockMutex(p.lock);
     p.shown = shown;
-    p.showing = false;
+    p.showing = p.hidden = false;
     SDL_UnlockMutex(p.lock);
     return true;
 }
@@ -821,9 +822,19 @@ static void player_close(void)
     SDL_LockMutex(p.lock);
     p.retired = p.shown;
     p.shown = nullptr;
-    p.showing = false;
+    p.showing = p.hidden = false;
     SDL_UnlockMutex(p.lock);
 }
+
+static void player_hide(const bool hidden)
+{
+    SDL_LockMutex(p.lock);
+    p.hidden = hidden;
+    SDL_UnlockMutex(p.lock);
+}
+
+/* A frame shown and not hidden: p.lock held. */
+static bool on_view(void) { return p.showing && !p.hidden; }
 
 bool sdl_player_init(SDL_GPUDevice *const dev)
 {
@@ -834,6 +845,7 @@ bool sdl_player_init(SDL_GPUDevice *const dev)
         .close = player_close,
         .play = player_play,
         .read = player_read,
+        .hide = player_hide,
     };
 
     static const PgfxPlayer spirv = {
@@ -843,6 +855,7 @@ bool sdl_player_init(SDL_GPUDevice *const dev)
         .close = player_close,
         .play = player_play,
         .read = player_read,
+        .hide = player_hide,
     };
 
     const SDL_GPUShaderFormat formats = SDL_GetGPUShaderFormats(dev);
@@ -871,7 +884,7 @@ bool sdl_player_init(SDL_GPUDevice *const dev)
 bool sdl_player_size(uint32_t *const w, uint32_t *const h)
 {
     SDL_LockMutex(p.lock);
-    const bool shown = p.showing;
+    const bool shown = on_view();
 
     if (shown) {
         *w = p.w;
@@ -912,7 +925,7 @@ void sdl_player_draw(SDL_Renderer *const r)
         SDL_SetTextureBlendMode(wrapper, SDL_BLENDMODE_NONE);
     }
 
-    if (p.showing && wrapper) {
+    if (on_view() && wrapper) {
         SDL_RenderTexture(r, wrapper, nullptr, nullptr);
         SDL_FlushRenderer(r);
     }
@@ -923,7 +936,7 @@ void sdl_player_draw(SDL_Renderer *const r)
 bool sdl_player_pixels(uint8_t **const rgba, uint32_t *const w, uint32_t *const h)
 {
     SDL_LockMutex(p.lock);
-    const bool shown = p.showing && (*rgba = malloc((size_t)p.w * p.h * RGBA));
+    const bool shown = on_view() && (*rgba = malloc((size_t)p.w * p.h * RGBA));
 
     if (shown) {
         *w = p.w;

@@ -43,9 +43,10 @@ IMPORT(voice) void js_voice(uint32_t voice, const void *v, uint32_t count);
    index, 0 none (plat/wasm/pext.c). */
 IMPORT(ext_load) uint32_t js_ext_load(const void *slice, uint32_t bytes, const char *name, size_t len);
 /* The page's GPU, plat/pgfx.h's PgfxPlayer (web/gpu.mjs): a screen w by h opened, 0 none; closed;
-   a list played; pixels read. */
+   a list played; pixels read; hidden or shown again. */
 IMPORT(gpu_open) int js_gpu_open(uint32_t w, uint32_t h);
 IMPORT(gpu_close) void js_gpu_close(void);
+IMPORT(gpu_hide) void js_gpu_hide(bool hidden);
 IMPORT(gpu_play) bool js_gpu_play(const uint32_t *list, uint32_t words);
 IMPORT(gpu_read)
 void js_gpu_read(uint32_t texture, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t *out);

@@ -74,8 +74,11 @@
 #include "vm/flow.h"
 #include "vm/stmts.h"
 
-void repl_error(Session *const S, uint8_t code)
+/* repl_error's code, why its reason (nullptr none): it outlives the raise. */
+[[noreturn]]
+static void raise_why(Session *const S, const uint8_t code, const char *const why)
 {
+    S->repl.why = why;
     S->lexr.source = nullptr; /* a streamed line's lexing ended */
     fmth_clear();
 
@@ -92,6 +95,8 @@ void repl_error(Session *const S, uint8_t code)
     S->repl.err = code;
     longjmp(*S->repl.top, REPL_ERROR);
 }
+
+void repl_error(Session *const S, const uint8_t code) { raise_why(S, code, nullptr); }
 
 /* An error found off the code (the block pass, a declaration) set as if an ERR op at body offset
    at of line (a program store offset; FAULT_KEEP the current one) raised it. vm.opip is set to an
@@ -121,7 +126,7 @@ static void place(Session *const S, const Failure *const e)
 static void repl_raise_at(Session *const S, const Failure *const e)
 {
     place(S, e);
-    repl_error(S, e->code);
+    raise_why(S, e->code, e->why);
 }
 
 void repl_fault(Fault *const f, const Failure *const e)
@@ -135,7 +140,7 @@ void repl_fault(Fault *const f, const Failure *const e)
     if (e->line != FAULT_KEEP)
         S->vm.line = e->line;
 
-    repl_error(S, e->code);
+    raise_why(S, e->code, e->why);
 }
 
 void repl_ready(Session *const S) { longjmp(*S->repl.top, REPL_READY); }
@@ -364,9 +369,16 @@ static void report(Session *const S, const uint8_t code)
         return;
     }
 
-    flow_drop_calls(S);
-    S->vm.cont.line = 0;
+    session_drop_stop(S);
     (line != DLINE ? dial_line(&S->prog, line) : &dialect_qbasic)->report(S, code);
+
+    if (!S->repl.why)
+        return;
+
+    if (S->cons.col)
+        cons_nl(&S->cons);
+
+    cons_puts(&S->cons, S->repl.why);
 }
 
 /* The input's end in a file run, or at READY: files closed, exit. */
@@ -403,12 +415,16 @@ void repl_cont(Session *const S)
     exec_run(S);
 }
 
-/* An error's end: the stacks reset, the console's channels again. */
+/* An error's end: the stacks reset, the console's channels again. A stop (E_BRK) can continue: its
+   extensions run on till the stop is dropped (session_drop_stop). */
 static void reset(Session *const S)
 {
     S->vm.err.active = false;
     S->vm.running = false; /* its loop's frame is gone */
-    natv_stop(&S->natv);
+
+    if (S->repl.err != E_BRK)
+        natv_stop(&S->natv);
+
     chnl_clear(&S->chnl);
     cons_fresh(&S->cons);
     S->vm.sp = flow_stack_base(&S->vm); /* below a stop's frames, which CONT and probes keep */

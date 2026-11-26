@@ -38,6 +38,31 @@ TEST(pgfx_lends_a_page_and_shows_a_copy)
     CHECK(!h->gfx_open(&s));
 }
 
+/* The editor at a stop: the screen hidden, its page kept and drawn on, then shown again. */
+TEST(pgfx_hides_for_the_editor)
+{
+    const QxHost *const h = &S->natv.host;
+    QxScreen s = {.w = 4, .h = 2, .depth = 8};
+
+    uint32_t pitch, palette[256] = {};
+
+    PgfxFrame f;
+
+    CHECK(!pgfx_hide() && h->gfx_open(&s));
+    h->gfx_show(palette);
+    CHECK(pgfx_hide() && !pgfx_hide() && !pgfx_shown(&f));
+
+    uint8_t *const page = h->gfx_page(&pitch);
+    page[0] = 5;
+    h->gfx_show(palette); /* an immediate line's frame */
+    CHECK(page && !pgfx_shown(&f));
+    CHECK(pgfx_unhide() && !pgfx_unhide() && pgfx_shown(&f) && f.pixels[0] == 5);
+
+    pgfx_hide();
+    h->gfx_close();
+    CHECK(!pgfx_unhide());
+}
+
 /* 16 bits: two bytes a pixel, the page's pitch and the frame shown its depth's. */
 TEST(pgfx_lends_pages_of_each_depth)
 {

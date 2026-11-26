@@ -31,7 +31,7 @@
 #endif
 
 /* Minor 4 adds the GPU list's depth (qxlist.h). */
-enum { QX_ABI = 1, QX_MINOR = 4 };
+enum { QX_ABI = 1, QX_MINOR = 5 };
 
 typedef struct QxCall QxCall;
 typedef void QX_CALL QxFn(QxCall *c);
@@ -153,6 +153,8 @@ typedef struct QxHost {
     /* The next thing the host saw since gfx_open: false, none. A window closed ends the run, unless
        the extension has asked since gfx_open: then it is QUIT. */
     bool(QX_CALL *gfx_event)(QxEvent *e);
+    /* Minor 5. The call's error (QxCall's) and why: text, said after the error's message. */
+    void(QX_CALL *error_why)(QxCall *c, uint8_t error, const char *text);
 } QxHost;
 
 /* One call: its arguments; a FUNCTION's result; an error raised at the calling line once the
@@ -182,7 +184,7 @@ typedef struct {
     const QxType *types;
     uint32_t ntypes;
     void(QX_CALL *start)(void); /* a run starts */
-    void(QX_CALL *stop)(void);  /* it ends: END, an error, Break, CHAIN, an edit */
+    void(QX_CALL *stop)(void);  /* it ends: END, an error, CHAIN, its stop dropped (an edit) */
 } QxModule;
 
 typedef const QxModule *QX_CALL QxInit(const QxHost *host);

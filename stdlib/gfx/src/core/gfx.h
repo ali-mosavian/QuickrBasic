@@ -44,8 +44,10 @@ typedef struct Gx {
 Gx *gx_get(void);
 /* code raised: false. */
 bool gx_fail(uint8_t code);
-/* An illegal function call raised when bad: bad. */
-bool gx_illegal(bool bad);
+/* code raised, why said after its message: false. */
+bool gx_fail_why(uint8_t code, const char *why);
+/* An illegal function call raised when bad, why said after it: bad. */
+bool gx_illegal(bool bad, const char *why);
 /* A size w by h a surface or a screen may have. */
 bool gx_size(int32_t w, int32_t h);
 /* b draws from now on: the last backend stopped. */
