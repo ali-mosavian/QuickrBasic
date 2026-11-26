@@ -13,9 +13,7 @@ enum : uint32_t {
     PIXEL_AT = 1, /* the frame buffer window's: a pixel */
     CALM = 3,     /* status reads idle in a row: a read can pass the FIFO's last write */
     FBI_CALM = 6,
-    PENDING = 28, /* status's swaps pending */
-    SWAPS = 7,
-    AHEAD = 1,                    /* swaps let pend */
+    CORNERS = 6,                  /* fvertex' registers, A's to C's x and y, before the starts */
     LOD_OFF = 8 * 4 << 6 | 8 * 4, /* a TMU's lodmax and lodmin past every level: not drawn from */
     FIVE = 0x1F,
     SIX = 0x3F,
@@ -25,33 +23,24 @@ enum : uint32_t {
 static Tdfx card;
 static const TdfxFamily *family;
 
-void tdfx_store(Tdfx *const c, volatile uint8_t *const at, const uint32_t v)
-{
-    while (!c->room)
-        c->room = tdfx_get(c, SST_STATUS) & c->chip->room;
+static_assert(SST_FVERTEX + CORNERS * 4 == SST_FSTART);
 
-    c->room--;
-    *(volatile uint32_t *)at = v;
-}
-
-void tdfx_put(Tdfx *const c, const uint32_t reg, const uint32_t v)
-{
-    tdfx_store(c, c->regs + reg, v);
-}
+void tdfx_put(Tdfx *const c, const uint32_t reg, const uint32_t v) { c->chip->put(c, reg, &v, 1); }
 
 void tdfx_put_init(const Tdfx *const c, const uint32_t reg, const uint32_t v)
 {
     *(volatile uint32_t *)(c->regs + reg) = v;
 }
 
-void tdfx_put_float(Tdfx *const c, const uint32_t reg, const float v)
+/* A float's bits, as the float registers take them. */
+static uint32_t bits(const float v)
 {
     const union {
         float f;
         uint32_t bits;
     } u = {.f = v};
 
-    tdfx_put(c, reg, u.bits);
+    return u.bits;
 }
 
 uint32_t tdfx_get(const Tdfx *const c, const uint32_t reg)
@@ -68,17 +57,7 @@ void tdfx_idle(Tdfx *const c)
     tdfx_put(c, SST_NOP, 0);
 
     while (calm < CALM && c->host->clock_us() < until)
-        calm = tdfx_get(c, SST_STATUS) & SST_BUSY ? 0 : calm + 1;
-
-    c->room = 0;
-}
-
-void tdfx_pending(const Tdfx *const c)
-{
-    const uint64_t until = c->host->clock_us() + TDFX_WAIT_US;
-
-    while ((tdfx_get(c, SST_STATUS) >> PENDING & SWAPS) > AHEAD && c->host->clock_us() < until)
-        ;
+        calm = tdfx_get(c, SST_STATUS) & c->chip->busy ? 0 : calm + 1;
 }
 
 void tdfx_idle_fbi(const Tdfx *const c)
@@ -342,17 +321,23 @@ static void ACCEL_CALL drawn(const AccelVertex *const v, const uint32_t n)
         if (!tdfx_setup(v + i, (float)c->ox, (float)c->oy, scale, c->state.alpha, &t))
             continue;
 
+        uint32_t corners[CORNERS + TDFX_PARAMS], dx[TDFX_PARAMS], dy[TDFX_PARAMS];
+
         for (uint32_t k = 0; k < 3; k++) {
-            tdfx_put_float(c, SST_FVERTEX + 8 * k, t.x[k]);
-            tdfx_put_float(c, SST_FVERTEX + 8 * k + 4, t.y[k]);
+            corners[2 * k] = bits(t.x[k]);
+            corners[2 * k + 1] = bits(t.y[k]);
         }
 
         for (uint32_t p = 0; p < params; p++) {
-            tdfx_put_float(c, SST_FSTART + 4 * p, t.start[p]);
-            tdfx_put_float(c, SST_FDX + 4 * p, t.dx[p]);
-            tdfx_put_float(c, SST_FDY + 4 * p, t.dy[p]);
+            corners[CORNERS + p] = bits(t.start[p]);
+            dx[p] = bits(t.dx[p]);
+            dy[p] = bits(t.dy[p]);
         }
 
+        /* the corners and the starts after them are one run, each gradient's another */
+        c->chip->put(c, SST_FVERTEX, corners, CORNERS + params);
+        c->chip->put(c, SST_FDX, dx, params);
+        c->chip->put(c, SST_FDY, dy, params);
         tdfx_put(c, SST_FTRIANGLE, t.command);
     }
 }

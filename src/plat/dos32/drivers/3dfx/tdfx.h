@@ -6,7 +6,7 @@
  * mode shown is the top rows of one colour buffer, drawn in the other, the screen centred in it; a
  * target is rows below the mode in buffer 0, drawn in it whether shown or not, its depth the same
  * rows of the depth buffer. A texture is one LOD of TMU0's memory. Registers are written as the
- * FIFO has room.
+ * chip takes them: a triangle as three runs of them.
  */
 #ifndef TDFX_TDFX_H
 #define TDFX_TDFX_H
@@ -25,7 +25,8 @@ typedef struct {
 } TdfxTexture;
 
 /* A chip's (SST-1's and CVG's, sst.c; H3's, voodoo3.c):
-   - room: status' FIFO entries free;
+   - busy: status' bits while it works;
+   - put: n registers from reg written, v's words in order;
    - based: texBaseAddr's word for texture memory's byte at;
    - upload: texels r of texture t from texels, pitch a row, TMU0 placing t;
    - drawn_in: the draws aimed at colour buffer `buffer`, fbzMode's draw buffer for it;
@@ -33,7 +34,8 @@ typedef struct {
    - show: buffer shown ^ 1 shown, at the retrace with vsync;
    - carry: the next frame made the shown one's. */
 typedef struct {
-    uint32_t room;
+    uint32_t busy;
+    void (*put)(Tdfx *c, uint32_t reg, const uint32_t *v, uint32_t n);
     uint32_t (*based)(const Tdfx *c, uint32_t at);
     void (*upload)(
         Tdfx *c,
@@ -75,7 +77,6 @@ struct Tdfx {
 
     uint16_t w, h, left, top; /* the screen, and its place in the mode */
     uint32_t shown;           /* the colour buffer shown */
-    uint32_t room;            /* FIFO entries known free */
     TdfxSpace memory, below;  /* texture memory's bytes; buffer 0's rows below the screen */
     TdfxTexture textures[ACCEL_TEXTURES];
     TdfxTarget targets[ACCEL_TARGETS];
@@ -88,19 +89,13 @@ struct Tdfx {
     uint32_t placed; /* the texture TMU0's registers place: ACCEL_TEXTURES, none */
 };
 
-/* A word to a window's at, as the FIFO has room. */
-void tdfx_store(Tdfx *c, volatile uint8_t *at, uint32_t v);
 void tdfx_put(Tdfx *c, uint32_t reg, uint32_t v);
 /* An init register's (fbiInit, the video timing, clutData, dacData): not the FIFO's, written
    with the card idle. */
 void tdfx_put_init(const Tdfx *c, uint32_t reg, uint32_t v);
-void tdfx_put_float(Tdfx *c, uint32_t reg, float v);
 uint32_t tdfx_get(const Tdfx *c, uint32_t reg);
 /* The card idle: its FIFO empty and nothing drawing. */
 void tdfx_idle(Tdfx *c);
-/* Swaps pending few enough for another: one may wait on the retrace while the next frame is
-   drawn. */
-void tdfx_pending(const Tdfx *c);
 /* The FBI idle, nothing written to the FIFO: as the PCI FIFO may take no writes. */
 void tdfx_idle_fbi(const Tdfx *c);
 /* Pixels r of colour buffer `buffer` fast filled, as what has them: their colour argb, their depth

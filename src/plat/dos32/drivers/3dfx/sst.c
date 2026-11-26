@@ -25,7 +25,12 @@ enum : uint32_t {
     PIXEL_AT = 1,
     LFB_READ = 6, /* lfbMode's buffers read and written */
     LFB_WRITE = 4,
+    PENDING = 28, /* status's swaps pending */
+    SWAPS = 7,
+    AHEAD = 1, /* swaps let pend */
 };
+
+static uint32_t room; /* the PCI FIFO's entries known free */
 
 const SstMode *sst_mode_for(
     const SstMode *const modes,
@@ -80,6 +85,7 @@ bool sst_mapped(Tdfx *const c)
     if (!regs)
         return false;
 
+    room = 0;
     c->regs = regs;
     c->lfb = regs + SST_LFB;
     c->lfb_row = LFB_ROW;
@@ -131,6 +137,22 @@ void sst_stopped(const Tdfx *const c)
     c->host->pci_write(&c->pci, SST_INIT_ENABLE, 0);
 }
 
+/* A word to a window's at, as the PCI FIFO has room. */
+static void stored(Tdfx *const c, volatile uint8_t *const at, const uint32_t v)
+{
+    while (!room)
+        room = tdfx_get(c, SST_STATUS) & SST_ROOM;
+
+    room--;
+    *(volatile uint32_t *)at = v;
+}
+
+static void put(Tdfx *const c, const uint32_t reg, const uint32_t *const v, const uint32_t n)
+{
+    for (uint32_t i = 0; i < n; i++)
+        stored(c, c->regs + reg + 4 * i, v[i]);
+}
+
 static uint32_t based(const Tdfx *const c, const uint32_t at)
 {
     (void)c;
@@ -152,7 +174,7 @@ static void uploaded(
         volatile uint8_t *const to = level + ((uint32_t)(r.y + (int32_t)y) << ROW_AT);
 
         for (uint32_t s = 0; s < (uint32_t)r.w; s += 2)
-            tdfx_store(c, to + ((r.x + s) << TEXEL_AT), row[s] | (uint32_t)row[s + 1] << 16);
+            stored(c, to + ((r.x + s) << TEXEL_AT), row[s] | (uint32_t)row[s + 1] << 16);
     }
 }
 
@@ -170,9 +192,14 @@ static volatile uint8_t *pixels(Tdfx *const c, const uint32_t buffer)
     return c->lfb;
 }
 
+/* At most AHEAD swaps pending, one waiting on the retrace while the next frame is drawn. */
 static void shown(Tdfx *const c, const bool vsync)
 {
-    tdfx_pending(c);
+    const uint64_t until = c->host->clock_us() + TDFX_WAIT_US;
+
+    while ((tdfx_get(c, SST_STATUS) >> PENDING & SWAPS) > AHEAD && c->host->clock_us() < until)
+        ;
+
     tdfx_put(c, SST_SWAP, vsync);
 }
 
@@ -185,8 +212,8 @@ static void carried(Tdfx *const c)
     for (uint32_t y = c->top; y < c->top + c->h; y++)
         for (uint32_t x = c->left & ~1u; x < c->left + c->w; x += 2) {
             volatile uint8_t *const at = c->lfb + y * LFB_ROW + (x << PIXEL_AT);
-            tdfx_store(c, at, *(const volatile uint32_t *)at);
+            stored(c, at, *(const volatile uint32_t *)at);
         }
 }
 
-const TdfxChip sst_chip = {SST_ROOM, based, uploaded, drawn_in, pixels, shown, carried};
+const TdfxChip sst_chip = {SST_BUSY, put, based, uploaded, drawn_in, pixels, shown, carried};

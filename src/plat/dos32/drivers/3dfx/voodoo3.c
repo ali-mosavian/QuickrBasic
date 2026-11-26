@@ -2,14 +2,16 @@
  * of 16 bits from the card's BIOS, its frame memory then drawn in by the 3D unit.
  *
  * # How it works
- * Frame memory holds colour buffers 0 and 1, the depth buffer, then textures, each buffer the
- * mode's rows of its stride and more for targets, linear. A 565 overlay over the whole mode shows
- * a colour buffer through a CLUT that widens it as gfx does, swapbufferCMD moving it to leftOverlayBuf's behind the draws in the FIFO, at the
- * retrace with vsync; colBufferAddr sets the one drawn in. The triangle registers are SST-1's at
- * BAR0's 3D window, the command FIFO off.
- * Texels go through TMU0's texture port, linear from texBaseAddr, the texture cache flushed after
- * as Glide does; pixels are read through BAR1, its tiling moved past memory.
+ * Frame memory holds colour buffers 0 and 1, the depth buffer, the command FIFO, then textures,
+ * each buffer the mode's rows of its stride and more for targets, linear. Registers and texels go
+ * through the command FIFO (cmdfifo.h), as Glide sends them; texels to TMU0's texture port, linear
+ * from texBaseAddr, the texture cache flushed after as Glide does. A 565 overlay over the whole
+ * mode shows a colour buffer through a CLUT that widens it as gfx does: swapbufferCMD, in the
+ * FIFO, moves it to leftOverlayBuf's, at the retrace with vsync; a show waits until the card has
+ * read the last. colBufferAddr sets the buffer drawn in. Pixels are read through BAR1, its tiling
+ * past memory.
  */
+#include "plat/dos32/drivers/3dfx/cmdfifo.h"
 #include "plat/dos32/drivers/3dfx/regs.h"
 #include "plat/dos32/drivers/3dfx/setup.h"
 #include "plat/dos32/drivers/3dfx/tdfx.h"
@@ -22,9 +24,8 @@ enum : uint8_t { COMMAND = 0x04, BAR0 = 0x10, BAR1 = 0x14 };
 enum : uint32_t {
     MEMORY = 2, /* PCI command's memory decode */
     BAR_MASK = 0xFFFFFFF0,
-    REGS_BYTES = 8 << 20, /* BAR0's io and 3D registers, and TMU0's texture port */
+    REGS_BYTES = 4 << 20, /* BAR0's io, command FIFO and 3D registers */
     THREE_D = 0x200000,
-    PORT = 0x600000,
     /* io registers */
     LFB_MEMORY = 0x0C, /* lfbMemoryConfig: its tile base's 13 bits, in pages */
     TILE_BASE = 0x1FFF,
@@ -61,14 +62,13 @@ enum : uint32_t {
     EIGHT_CHIPS = 1u << 26,
     SIXTEEN_MBIT = 1u << 27,
     MB = 1 << 20,
+    BANSHEE = 3, /* PCI's device */
     /* 3D registers */
-    SWAP_PENDING = 0x24C,
     LEFT_OVERLAY = 0x250,
     COLOUR_AT = 0x1EC,
     COLOUR_STRIDE = 0x1F0,
     AUX_AT = 0x1F4,
     AUX_STRIDE = 0x1F8,
-    ROOM = 0x1F,
     OUTSIDE = 1u << 6, /* status: not in the vertical retrace */
     BASE = 0xFFFFF0,
     /* frame memory */
@@ -87,8 +87,10 @@ enum : uint32_t {
 static struct {
     volatile uint8_t *io;
     uint32_t at[BUFFERS];           /* colour buffers 0 and 1 and the depth buffer's first bytes */
-    uint32_t textures;              /* texture memory's first byte */
+    uint32_t fifo, textures;        /* the command FIFO's and texture memory's first bytes */
     uint32_t tiles, video, strides; /* lfbMemoryConfig, vidProcCfg, the strides as they were */
+    CmdFifo queue;
+    uint32_t swap; /* the queue's mark after the last swap */
 } h3;
 
 static uint32_t io_get(const uint32_t reg) { return *(const volatile uint32_t *)(h3.io + reg); }
@@ -109,8 +111,8 @@ static uint32_t memory_of(const uint32_t dram0, const uint32_t dram1)
 /* The buffers and textures placed in bytes of frame memory for mode m: false, they do not fit. */
 static bool laid_out(Tdfx *const c, const AccelMode *const m, const uint32_t bytes)
 {
-    const uint32_t most =
-        bytes > TEXTURES_LEAST ? (bytes - TEXTURES_LEAST) / BUFFERS & ~(PAGE - 1) : 0;
+    const uint32_t least = TEXTURES_LEAST + CMDFIFO_BYTES;
+    const uint32_t most = bytes > least ? (bytes - least) / BUFFERS & ~(PAGE - 1) : 0;
     const uint32_t fit = m->pitch ? most / m->pitch : 0;
     const uint32_t rows = fit < ROWS_MOST ? fit : ROWS_MOST;
     const uint32_t buffer = (rows * m->pitch + PAGE - 1) & ~(PAGE - 1);
@@ -121,7 +123,8 @@ static bool laid_out(Tdfx *const c, const AccelMode *const m, const uint32_t byt
     for (uint32_t b = 0; b < BUFFERS; b++)
         h3.at[b] = b * buffer;
 
-    h3.textures = BUFFERS * buffer;
+    h3.fifo = BUFFERS * buffer;
+    h3.textures = h3.fifo + CMDFIFO_BYTES;
     c->lfb_row = m->pitch;
     c->stride = m->pitch / PIXEL;
     c->rows = rows;
@@ -161,6 +164,12 @@ static uint32_t timed(const Tdfx *const c)
     return (uint32_t)(FRAMES * 1e9f / (float)(uint32_t)(to - from));
 }
 
+static void put(Tdfx *const c, const uint32_t reg, const uint32_t *const v, const uint32_t n)
+{
+    (void)c;
+    cmdfifo_registers(&h3.queue, reg, v, n);
+}
+
 static uint32_t based(const Tdfx *const c, const uint32_t at)
 {
     (void)c;
@@ -176,14 +185,12 @@ static void uploaded(
 )
 {
     /* the port is texBaseAddr's: its level past the ones above it */
-    volatile uint8_t *const level = c->texels + tdfx_skipped(t->w, t->h);
+    const uint32_t level = tdfx_skipped(t->w, t->h);
 
     for (uint32_t y = 0; y < (uint32_t)r.h; y++) {
-        const uint16_t *const row = texels + (size_t)y * pitch;
-        volatile uint8_t *const to = level + ((uint32_t)(r.y + (int32_t)y) * t->w + r.x) * TEXEL;
+        const uint32_t at = level + ((uint32_t)(r.y + (int32_t)y) * t->w + (uint32_t)r.x) * TEXEL;
 
-        for (uint32_t s = 0; s < (uint32_t)r.w; s += 2)
-            tdfx_store(c, to + s * TEXEL, row[s] | (uint32_t)row[s + 1] << 16);
+        cmdfifo_texels(&h3.queue, at, texels + (size_t)y * pitch, (uint32_t)r.w);
     }
 
     /* the texture cache is flushed by a change of base */
@@ -203,12 +210,21 @@ static volatile uint8_t *pixels(Tdfx *const c, const uint32_t buffer)
     return c->lfb + h3.at[buffer];
 }
 
+/* The overlay moved to buffer's, at the retrace with vsync, once the card has drawn what is
+   queued before it. */
+static void swapped(Tdfx *const c, const uint32_t buffer, const bool vsync)
+{
+    tdfx_put(c, LEFT_OVERLAY, h3.at[buffer]);
+    tdfx_put(c, SST_SWAP, vsync);
+    h3.swap = cmdfifo_mark(&h3.queue);
+}
+
+/* The last swap read before another is queued: one may wait on the retrace while the next frame
+   is drawn. */
 static void shown(Tdfx *const c, const bool vsync)
 {
-    tdfx_pending(c);
-    tdfx_put(c, LEFT_OVERLAY, h3.at[c->shown ^ 1]);
-    tdfx_put(c, SWAP_PENDING, 0);
-    tdfx_put(c, SST_SWAP, vsync);
+    cmdfifo_read_to(&h3.queue, h3.swap);
+    swapped(c, c->shown ^ 1, vsync);
 }
 
 /* CLUT entry i: a channel looked up as its 5 or 6 bits with zeros below, or repeated below as gfx
@@ -236,8 +252,7 @@ static void overlaid(Tdfx *const c, const AccelMode *const m)
     io_put(OVERLAY_DVDY, ONE);
     io_put(OVERLAY_DVDY_OFFSET, 0);
     io_put(STRIDES, (h3.strides & ~OVERLAY_STRIDE_BITS) | m->pitch << OVERLAY_STRIDE);
-    tdfx_put(c, LEFT_OVERLAY, h3.at[0]);
-    tdfx_put(c, SST_SWAP, 0);
+    swapped(c, 0, false);
     io_put(
         VID_PROC,
         (h3.video & ~(OVERLAY_BYPASS | OVERLAY_UPPER | OVERLAY_SCALED | FILTER | OVERLAY_FORMAT |
@@ -261,11 +276,21 @@ static void carried(Tdfx *const c)
         }
 }
 
-static const TdfxChip H3 = {ROOM, based, uploaded, drawn_in, pixels, shown, carried};
+static const TdfxChip H3 = {
+    SST_BUSY | CMDFIFO_BUSY,
+    put,
+    based,
+    uploaded,
+    drawn_in,
+    pixels,
+    shown,
+    carried,
+};
 
 static bool opened(Tdfx *const c, const uint16_t w, const uint16_t h)
 {
     const AccelHost *const host = c->host;
+    const bool banshee = host->pci_read(&c->pci, 0) >> 16 == BANSHEE;
 
     host->pci_write(&c->pci, COMMAND, host->pci_read(&c->pci, COMMAND) | MEMORY);
 
@@ -284,8 +309,8 @@ static bool opened(Tdfx *const c, const uint16_t w, const uint16_t h)
         return false;
 
     c->regs = regs + THREE_D;
-    c->texels = regs + PORT;
     c->lfb = frame;
+    cmdfifo_open(&h3.queue, host, regs, frame, h3.fifo, banshee);
     h3.tiles = io_get(LFB_MEMORY);
     h3.video = io_get(VID_PROC);
     h3.strides = io_get(STRIDES);
@@ -298,10 +323,12 @@ static bool opened(Tdfx *const c, const uint16_t w, const uint16_t h)
     return true;
 }
 
-/* The video and BAR1's tiling as they were: the host's mode set does the rest. */
+/* The command FIFO off, the video and BAR1's tiling as they were: the host's mode set does the
+   rest. */
 static void closed(Tdfx *const c)
 {
     (void)c;
+    cmdfifo_close(&h3.queue);
     io_put(VID_PROC, h3.video);
     io_put(STRIDES, h3.strides);
     io_put(LFB_MEMORY, h3.tiles);
