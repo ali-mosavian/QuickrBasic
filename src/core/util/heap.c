@@ -25,6 +25,11 @@ static size_t needed(const size_t size) { return sizeof(Block) + rounded(size ? 
 
 static Block *next(Block *const b) { return (Block *)((uint8_t *)b + b->size); }
 
+static const Block *next_of(const Block *const b)
+{
+    return (const Block *)((const uint8_t *)b + b->size);
+}
+
 /* b with the free blocks after it, in region r. */
 static void join(const HeapRegion *const r, Block *const b)
 {
@@ -209,6 +214,24 @@ void *heap_bottom(Heap *const h, const size_t size)
     split(best, need);
     best->used = true;
     return best + 1;
+}
+
+size_t heap_left(const Heap *const h, const void *const below)
+{
+    size_t n = 0;
+
+    for (uint32_t i = 0; i < h->n; i++) {
+        const HeapRegion *const r = &h->region[i];
+        const uintptr_t end =
+            (uintptr_t)r->hi < (uintptr_t)below ? (uintptr_t)r->hi : (uintptr_t)below;
+
+        for (const Block *b = (const Block *)r->lo; (uintptr_t)b < end; b = next_of(b)) {
+            const size_t to = end - (uintptr_t)b;
+            n += b->used ? 0 : b->size < to ? b->size : to;
+        }
+    }
+
+    return n;
 }
 
 size_t heap_after(const Heap *const h, const void *const p)

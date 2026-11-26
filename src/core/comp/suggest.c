@@ -142,7 +142,7 @@ static bool sugg_compile(
     uint8_t *const err
 )
 {
-    const uint8_t *const end = lexr_line(lx, sg.text, C->cbuf);
+    const uint8_t *const end = lexr_line(lx, sg.text);
     *len = (uint32_t)(end - C->cbuf - 1);
     C->check = true;
     (void)comp_line(C);
@@ -417,8 +417,8 @@ static uint8_t sugg_lexed(const SuggSrc *const src, const uint8_t *const s, cons
     if (!sugg_compose(s, n))
         return 0;
 
+    const uint8_t *const end = lexr_line(src->lexr, sg.text) - 1;
     const uint8_t *const buf = src->comp->cbuf;
-    const uint8_t *const end = lexr_line(src->lexr, sg.text, src->comp->cbuf) - 1;
     const uint8_t *last = buf;
 
     for (const uint8_t *p = buf; p < end && *p; p = decl_step(p))
@@ -1629,7 +1629,7 @@ bool sugg_find(
 
     memcpy(sg.body, text, start); /* the line before the word: not in a string, a REM or DATA */
     sg.body[start] = 0;
-    uint8_t *const end = lexr_line(&S->lexr, sg.body, S->comp.cbuf);
+    uint8_t *const end = lexr_line(&S->lexr, sg.body);
     const uint32_t blen = (uint32_t)(end - S->comp.cbuf - 1);
     memcpy(sg.body, S->comp.cbuf, blen + 1);
     const uint8_t *tail = sg.body;

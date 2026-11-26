@@ -293,7 +293,8 @@ static bool tokenize(Session *const S, const uint32_t n, uint32_t *const len)
 {
     memcpy(edit_lb_need(S, &uimn.line, n), uc.pre, n + 1);
     S->vm.line = DLINE;
-    *len = (uint32_t)(lexr_line(&S->lexr, uimn.line.text, S->comp.cbuf) - S->comp.cbuf);
+    const uint8_t *const end = lexr_line(&S->lexr, uimn.line.text); /* comp.cbuf moved maybe */
+    *len = (uint32_t)(end - S->comp.cbuf);
     ErrOp op;
 
     if (repl_declare_check(S, S->comp.cbuf, &op) ==
@@ -353,8 +354,8 @@ bool edit_canon(Session *const S, uint8_t *const text, const uint16_t len, uint3
         }
     }
 
+    memcpy(cons_scratch(&S->cons, uc.n + 1), uc.src, uc.n);
     S->cons.sblen = uc.n; /* as typed */
-    memcpy(S->cons.sbuf, uc.src, uc.n);
     return true;
 }
 
@@ -395,9 +396,10 @@ uint16_t edit_dxerr(Session *const S, const uint8_t *const text, const ErrOp *co
 {
     const uint8_t *const body = edit_body((uint8_t *)text);
     const uint32_t bodycol = (uint32_t)(body - text);
-    memcpy(S->cons.inbuf, body, strlen((const char *)body) + 1);
+    const uint32_t size = (uint32_t)strlen((const char *)body) + 1;
+    memcpy(cons_inroom(&S->cons, size), body, size);
     S->lexr.all = true; /* the body's bytes to columns */
-    lexr_line(&S->lexr, S->cons.inbuf, S->comp.cbuf);
+    lexr_line(&S->lexr, S->cons.inbuf);
     S->lexr.all = false;
     const uint16_t col = lexr_colof(&S->lexr, op->at);
     const uint32_t at = diag_at(
@@ -1163,7 +1165,7 @@ uint16_t edit_imm_next(Session *const S)
 {
     imm_store();
     const uint16_t len = uimn.immline.len;
-    memcpy(S->cons.inbuf, uimn.immline.text, len);
+    memcpy(cons_inroom(&S->cons, len + 1u), uimn.immline.text, len); /* repl_enter's 0 after */
     uint16_t i = uimn.imm.cur + 1;
 
     if (i >= uimn.imm.n) {

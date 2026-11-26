@@ -9,18 +9,12 @@
    graphics mode is on; the operations that change the function or the mask put
    them back.
 
-   Modes 04h, 06h, 12h and 13h have one page on the adapter, the visible one;
-   their other is `hidden`, in memory. It has the screen's layout in 04h, 06h
-   and 13h, drawn by the same routines with `screen` pointing at it; in 12h a
-   byte a pixel, drawn by pixmem.c. A change of the visible page swaps the two;
-   PCOPY copies one over the other. In 04h, 06h and 13h a copy of the visible
-   page is kept while nothing draws on it: a swap copies the hidden page out
-   and takes the copy as the hidden one. */
+   Drawing goes to the adapter's memory, nothing to memory of ours: a mode has
+   the pages its adapter holds (QBasic's), 0Dh 8, 0Eh 4, 10h 2, the others 1. */
 #include <string.h>
 
 #include "device.h"
 #include "gfxdev.h"
-#include "pixmem.h"
 
 enum {
     GC_PORT = 0x3CE,
@@ -44,13 +38,6 @@ enum {
     SEQ_MAP_MASK = 2,
     ALL_PLANES = 0x0F,
     WRITE_MODE_0 = 0,
-    PLANAR_WIDTH = 640,
-    PLANAR_HEIGHT = 480,
-    PLANAR_ROW = PLANAR_WIDTH / 8,
-    LINEAR_BYTES = 320 * 200,
-    CGA_BYTES = 0x4000,
-    SOFT_PAGES = 2,
-    SWAP_CHUNK = 0x400,
     SET_PAGE = 0x0500,
     MODE_LINEAR = 0x13,
     SET_COLOR_SELECT = 0x0B00,
@@ -72,21 +59,10 @@ enum {
 typedef volatile u8 QB_FAR Video;
 static Video *screen = (Video *)QB_VIDEO_MEMORY(0xA000);
 static unsigned pitch = 80; /* bytes of a row of one plane */
-static unsigned page_count = 1, page_paragraphs; /* the pages the mode holds, and the paragraphs of one */
+static unsigned page_count = 1,
+                page_paragraphs; /* the pages the mode holds, and the paragraphs of one */
 
-static Video *adapter;                         /* the adapter's screen */
-static u8 hidden_store[PLANAR_WIDTH * PLANAR_HEIGHT], shown_store[LINEAR_BYTES];
-static u8 *hidden = hidden_store;              /* the page not on the adapter */
-static u8 *shown_copy = shown_store;           /* the adapter's page, while shown_ok */
-static int shown_ok;
-static unsigned soft_mode;                     /* the mode's: 0, or 04h, 06h, 12h or 13h */
-static unsigned shown;                         /* the page on the adapter, where soft_mode */
-static int in_memory;                          /* drawing goes to `hidden` through pixmem.c (12h) */
-
-static void controller(unsigned index, unsigned value)
-{
-    dev_outw(GC_PORT, index | value << 8);
-}
+static void controller(unsigned index, unsigned value) { dev_outw(GC_PORT, index | value << 8); }
 
 static Video *byte_of(unsigned x, unsigned y)
 {
@@ -132,16 +108,6 @@ int gd_set_mode(unsigned mode)
         screen = (Video *)QB_VIDEO_MEMORY(0xB800);
     else
         screen = (Video *)QB_VIDEO_MEMORY(0xA000);
-    adapter = screen;
-    soft_mode = mode == MODE_CGA4 || mode == MODE_CGA2 || mode == MODE_640_480 || mode == MODE_LINEAR ? mode : 0;
-    if (soft_mode)
-        page_count = SOFT_PAGES;
-    shown = 0;
-    in_memory = 0;
-    hidden = hidden_store;
-    shown_copy = shown_store;
-    shown_ok = 0;
-    memset(hidden, 0, sizeof hidden_store);
     if ((r.rax & 0x7F) != (mode & 0x7F))
         return 0;
 
@@ -150,167 +116,25 @@ int gd_set_mode(unsigned mode)
     return 1;
 }
 
-static void no_touch(unsigned top, unsigned count)
-{
-}
-
-/* The bytes of a page in the adapter's layout (04h, 06h, 13h). */
-static unsigned soft_bytes(void)
-{
-    return soft_mode == MODE_LINEAR ? LINEAR_BYTES : CGA_BYTES;
-}
-
-static void seq_map(unsigned planes)
-{
-    dev_outw(SEQ_PORT, SEQ_MAP_MASK | planes << 8);
-}
-
 /* The 4 bits of a nibble as 4 bytes, each 0xFF where its bit is set, the high bit first. */
-static const u32 nibble_bytes[16] = {0x00000000UL, 0xFF000000UL, 0x00FF0000UL, 0xFFFF0000UL,
-                                     0x0000FF00UL, 0xFF00FF00UL, 0x00FFFF00UL, 0xFFFFFF00UL,
-                                     0x000000FFUL, 0xFF0000FFUL, 0x00FF00FFUL, 0xFFFF00FFUL,
-                                     0x0000FFFFUL, 0xFF00FFFFUL, 0x00FFFFFFUL, 0xFFFFFFFFUL};
-
-/* 12h's row between the adapter and pixels, a byte a pixel, eight pixels in a word: byte m holds pixel m in its
-   high nibble and pixel m + 4 in its low. A swap converts every row twice, so a plane's byte of a word is a table
-   or a product, not a loop over its bits. */
-
-/* A plane's byte as bit 0 of each nibble of a word. */
-static u32 plane_bits(unsigned byte)
-{
-    return (nibble_bytes[byte >> 4] & 0x10101010) | (nibble_bytes[byte & 0x0F] & 0x01010101);
-}
-
-/* Bit 0 of each nibble of a word as a plane's byte: the product moves byte m's to bits 31 - m and 27 - m, and
-   the other terms land above bit 31 or below bit 24. */
-static unsigned plane_byte(u32 bits)
-{
-    return (unsigned)((bits & 0x11111111) * 0x08040201u >> 24);
-}
-
-static void planar_row_in(unsigned y, u8 *pixels)
-{
-    u32 eights[PLANAR_ROW] = {0}, words[PLANAR_WIDTH / 4];
-    unsigned plane, at;
-
-    for (plane = 0; plane < PLANES; plane++) {
-        Video *const from = adapter + y * PLANAR_ROW;
-
-        controller(GC_READ_MAP, plane);
-        for (at = 0; at < PLANAR_ROW; at++)
-            eights[at] |= plane_bits(from[at]) << plane;
-    }
-    controller(GC_READ_MAP, 0);
-    for (at = 0; at < PLANAR_ROW; at++) {
-        words[2 * at] = eights[at] >> 4 & 0x0F0F0F0F;
-        words[2 * at + 1] = eights[at] & 0x0F0F0F0F;
-    }
-    memcpy(pixels, words, PLANAR_WIDTH);
-}
-
-/* Write mode 0, a plane at a time; the controller back as it rests after. */
-static void planar_row_out(unsigned y, const u8 *pixels)
-{
-    u32 eights[PLANAR_ROW], words[PLANAR_WIDTH / 4];
-    unsigned plane, at;
-
-    memcpy(words, pixels, PLANAR_WIDTH);
-    for (at = 0; at < PLANAR_ROW; at++)
-        eights[at] = words[2 * at] << 4 | words[2 * at + 1];
-    controller(GC_MODE, WRITE_MODE_0);
-    controller(GC_SET_RESET_ENABLE, 0);
-    for (plane = 0; plane < PLANES; plane++) {
-        Video *const to = adapter + y * PLANAR_ROW;
-
-        seq_map(1u << plane);
-        for (at = 0; at < PLANAR_ROW; at++)
-            to[at] = (u8)plane_byte(eights[at] >> plane);
-    }
-    seq_map(ALL_PLANES);
-    controller(GC_MODE, WRITE_MODE_2);
-}
-
-static void move(void *to, const void *from, unsigned count)
-{
-    BlockOp op;
-
-    op.dst = to;
-    op.src = from;
-    op.count = count;
-    op.value = 0;
-    dev_move(&op);
-}
-
-/* The adapter's page and the hidden one change places. */
-static void soft_swap(void)
-{
-    if (soft_mode == MODE_640_480) {
-        u8 row[PLANAR_WIDTH];
-        unsigned y;
-
-        for (y = 0; y < PLANAR_HEIGHT; y++) {
-            planar_row_in(y, row);
-            planar_row_out(y, hidden + y * PLANAR_WIDTH);
-            memcpy(hidden + y * PLANAR_WIDTH, row, PLANAR_WIDTH);
-        }
-    } else if (soft_bytes() <= sizeof shown_store) {
-        u8 *const was = hidden;
-
-        if (!shown_ok)
-            move(shown_copy, (const void *)adapter, soft_bytes());
-        move((void *)adapter, hidden, soft_bytes());
-        hidden = shown_copy;
-        shown_copy = was;
-        shown_ok = 1;
-    } else {
-        u8 held[SWAP_CHUNK];
-        unsigned at, n = soft_bytes();
-
-        for (at = 0; at < n; at += SWAP_CHUNK) {
-            const unsigned count = n - at < SWAP_CHUNK ? n - at : SWAP_CHUNK;
-
-            move(held, (const void *)(adapter + at), count);
-            move((void *)(adapter + at), hidden + at, count);
-            move(hidden + at, held, count);
-        }
-    }
-}
-
-/* One of the two pages copied over the other: the adapter's to `hidden`, or back. */
-static void soft_copy(int to_hidden)
-{
-    unsigned y;
-
-    if (soft_mode != MODE_640_480) {
-        BlockOp op;
-
-        shown_ok = shown_ok && to_hidden;
-        op.dst = to_hidden ? (void *)hidden : (void *)adapter;
-        op.src = to_hidden ? (const void *)adapter : (const void *)hidden;
-        op.count = soft_bytes();
-        op.value = 0;
-        dev_move(&op);
-        return;
-    }
-    for (y = 0; y < PLANAR_HEIGHT; y++)
-        if (to_hidden)
-            planar_row_in(y, hidden + y * PLANAR_WIDTH);
-        else
-            planar_row_out(y, hidden + y * PLANAR_WIDTH);
-}
-
-static void soft_draw_on(unsigned active)
-{
-    int on_hidden = active != shown;
-
-    if (!on_hidden)
-        shown_ok = 0; /* the adapter's page drawn on */
-
-    screen = on_hidden && soft_mode != MODE_640_480 ? (Video *)hidden : adapter;
-    in_memory = on_hidden && soft_mode == MODE_640_480;
-    if (in_memory)
-        pm_use(hidden, PLANAR_WIDTH, PLANAR_HEIGHT, PM_PLANAR, no_touch);
-}
+static const u32 nibble_bytes[16] = {
+    0x00000000UL,
+    0xFF000000UL,
+    0x00FF0000UL,
+    0xFFFF0000UL,
+    0x0000FF00UL,
+    0xFF00FF00UL,
+    0x00FFFF00UL,
+    0xFFFFFF00UL,
+    0x000000FFUL,
+    0xFF0000FFUL,
+    0x00FF00FFUL,
+    0xFFFF00FFUL,
+    0x0000FFFFUL,
+    0xFF00FFFFUL,
+    0x00FFFFFFUL,
+    0xFFFFFFFFUL
+};
 
 int gd_set_pages(unsigned active, unsigned visible)
 {
@@ -318,14 +142,7 @@ int gd_set_pages(unsigned active, unsigned visible)
 
     if (active >= page_count || visible >= page_count)
         return 0;
-    if (soft_mode) {
-        if (visible != shown) {
-            soft_swap();
-            shown = visible;
-        }
-        soft_draw_on(active);
-        return 1;
-    }
+
     screen = (Video *)QB_VIDEO_MEMORY(0xA000 + active * page_paragraphs);
     r.rax = SET_PAGE | visible;
     dev_int10(&r);
@@ -342,10 +159,7 @@ int gd_copy_page(unsigned from, unsigned to)
         return 0;
     if (from == to)
         return 1;
-    if (soft_mode) {
-        soft_copy(to != shown);
-        return 1;
-    }
+
     src = (Video *)QB_VIDEO_MEMORY(0xA000 + from * page_paragraphs);
     dst = (Video *)QB_VIDEO_MEMORY(0xA000 + to * page_paragraphs);
     controller(GC_MODE, WRITE_MODE_1);
@@ -572,36 +386,21 @@ static const GdOps planar_ops = {planar_plot, planar_read, planar_search, planar
 
 void gd_plot(unsigned x, unsigned y, unsigned color, unsigned operation)
 {
-    if (in_memory)
-        pm_plot(x, y, color, operation);
-    else
-        ops->plot(x, y, color, operation);
+    ops->plot(x, y, color, operation);
 }
 
-unsigned gd_read(unsigned x, unsigned y)
-{
-    return in_memory ? pm_read(x, y) : ops->read(x, y);
-}
+unsigned gd_read(unsigned x, unsigned y) { return ops->read(x, y); }
 
 int gd_search(int x, int last, unsigned y, unsigned c1, unsigned c2, int match)
 {
-    return in_memory ? pm_search(x, last, y, c1, c2, match) : ops->search(x, last, y, c1, c2, match);
+    return ops->search(x, last, y, c1, c2, match);
 }
 
-void gd_move_rows(unsigned to, unsigned from, unsigned count)
-{
-    if (in_memory)
-        pm_move_rows(to, from, count);
-    else
-        ops->move_rows(to, from, count);
-}
+void gd_move_rows(unsigned to, unsigned from, unsigned count) { ops->move_rows(to, from, count); }
 
 void gd_glyph(unsigned x, unsigned y, const u8 QB_FAR *bits, unsigned height, unsigned foreground)
 {
-    if (in_memory)
-        pm_glyph(x, y, bits, height, foreground);
-    else
-        ops->glyph(x, y, bits, height, foreground);
+    ops->glyph(x, y, bits, height, foreground);
 }
 
 /* The CGA modes: pixels packed in bytes, `bits` each with the leftmost in the
@@ -666,8 +465,6 @@ int gd_run(int x, int last, unsigned y, unsigned edge, unsigned paint, int limit
     FillScan scan;
     int open, l, r;
 
-    if (in_memory)
-        return pm_run(x, last, y, edge, paint, limit, left, right);
     if (kind == KIND_PACKED4 || kind == KIND_PACKED2) {
         scan.at = packed_row(y);
         scan.x = (unsigned)x;
@@ -1142,13 +939,13 @@ static void (*const lines[KINDS])(const GdFill *fill, unsigned x, unsigned y, un
 
 void gd_dots_begin(const GdFill *fill)
 {
-    if (kind == KIND_PLANAR && !in_memory && fill->operation)
+    if (kind == KIND_PLANAR && fill->operation)
         controller(GC_DATA_ROTATE, fill->operation << FUNCTION_SHIFT);
 }
 
 void gd_dots_end(const GdFill *fill)
 {
-    if (kind == KIND_PLANAR && !in_memory) {
+    if (kind == KIND_PLANAR) {
         controller(GC_BIT_MASK, 0xFF);
         if (fill->operation)
             controller(GC_DATA_ROTATE, 0);
@@ -1159,10 +956,6 @@ void gd_fill_select(GdFill *fill, unsigned color, unsigned operation)
 {
     unsigned byte = color & 0xFF;
 
-    if (in_memory) {
-        pm_fill_select(fill, color, operation);
-        return;
-    }
     switch (kind) {
     case KIND_PACKED4:
         byte = (color & 3) * 0x55;
@@ -1215,7 +1008,7 @@ int gd_solid_box(unsigned x, unsigned y, unsigned count, unsigned rows, unsigned
 {
     SolidBox box;
 
-    if (kind != KIND_LINEAR || in_memory)
+    if (kind != KIND_LINEAR)
         return 0;
     box.dst = (void *)pixel_at(x, y);
     box.count = count;
@@ -1230,10 +1023,6 @@ void gd_get(unsigned x, unsigned y, unsigned width, unsigned rows, u8 QB_FAR *ou
 {
     unsigned row;
 
-    if (in_memory) {
-        pm_get(x, y, width, rows, out);
-        return;
-    }
     if (kind == KIND_LINEAR) {
         linear_blit(out, (const u8 *)pixel_at(x, y), width, rows, (int)width, (int)pitch, 0);
     } else {
@@ -1270,7 +1059,7 @@ void gd_get(unsigned x, unsigned y, unsigned width, unsigned rows, u8 QB_FAR *ou
 int gd_put_step(unsigned x, unsigned y, unsigned width, unsigned rows, const u8 QB_FAR *in, unsigned step,
                 unsigned operation, unsigned invert)
 {
-    if (kind != KIND_LINEAR || in_memory)
+    if (kind != KIND_LINEAR)
         return 0;
 
     linear_blit((void *)pixel_at(x, y), in, width, rows, (int)pitch, (int)step, invert ? LINEAR_NOT : operation);
@@ -1282,13 +1071,16 @@ void gd_put(unsigned x, unsigned y, unsigned width, unsigned rows, const u8 QB_F
 {
     unsigned row;
 
-    if (in_memory) {
-        pm_put(x, y, width, rows, in, operation, invert);
-        return;
-    }
     if (kind == KIND_LINEAR) {
-        linear_blit((void *)pixel_at(x, y), in, width, rows, (int)pitch, (int)width,
-                    invert ? LINEAR_NOT : operation);
+        linear_blit(
+            (void *)pixel_at(x, y),
+            in,
+            width,
+            rows,
+            (int)pitch,
+            (int)width,
+            invert ? LINEAR_NOT : operation
+        );
     } else {
         /* a plane (or the CGA modes' one) at a time, a pass of rows with the
          * bits shifted into place */

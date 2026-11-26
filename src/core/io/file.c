@@ -35,7 +35,7 @@
  * | g_recb | file.recs | D1 |
  * | fx_*, g_rwdir, g_dosfn, g_rwbase, g_rwtmp, g_fldch, g_fn2, g_dta, g_omodes, u_* | static | D2 |
  *
- * - D1. Carved from the arena by file_init (allo_carve): NCH * RECMAX.
+ * - D1. Carved (allo_carve) at a record's first use: NCH * RECMAX.
  * - D2. Helpers and scratch are static, or file's fields (field_chan, name2, bname).
  */
 #include "io/file.h"
@@ -66,7 +66,7 @@ void file_init(
     fi->strg = sg;
     fi->cons = co;
     fi->fault = f;
-    fi->recs = allo_carve(al, NCH * RECMAX);
+    fi->allo = al;
 }
 
 /* An INT kept in 2 bytes, widened. */
@@ -104,9 +104,12 @@ static const char *file_bas_name(File *const fi, const Addr s)
     return fi->bname;
 }
 
-/* c's record buffer. */
-static Addr file_record(const File *const fi, const Chan *const c)
+/* c's record buffer. Out of memory. */
+static Addr file_record(File *const fi, const Chan *const c)
 {
+    if (!fi->recs)
+        fi->recs = allo_carve(fi->allo, NCH * RECMAX);
+
     return fi->recs + (uint32_t)(c - fi->chnl->ch) * RECMAX;
 }
 
@@ -770,11 +773,11 @@ static void set(Session *const S, const bool right)
     } else {
         const Desc *const d = (const Desc *)at(addr);
 
-        if (d->ptr >= S->file.recs && d->ptr < S->file.recs + NCH * RECMAX) {
+        if (S->file.recs && d->ptr >= S->file.recs && d->ptr < S->file.recs + NCH * RECMAX) {
             justify(at(d->ptr), d->len, src, s.len, right);
         } else { /* built in sbuf, then stored */
             const uint16_t len = d->len;
-            justify(S->cons.sbuf, len, src, s.len, right);
+            justify(cons_scratch(&S->cons, len), len, src, s.len, right);
             strg_set(&S->strg, strg_text(&S->strg, S->cons.sbuf, len), addr);
         }
     }

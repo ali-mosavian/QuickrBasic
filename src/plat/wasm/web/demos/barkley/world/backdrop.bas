@@ -2,7 +2,7 @@
 defint A-Z
 option explicit
 
-from engine.video import Blit, SH, Store, SW
+from engine.video import Blit, Paste, SH, Store, SW
 from barkley.model.images import IAC, IAE, IAF, IAL, IAS, IAU, IDK
 from barkley.model.images import IWET, IWS, IWT, IZS, IZU
 from barkley.model.level import Level, Realm, TS
@@ -43,18 +43,14 @@ sub DrawBack (zn as Realm, art as Store, cx as integer, cy as integer)
     dim o as integer, y as integer
 
     o = (cx \ 8) mod SW
-    put (-o, 0), art.img(art.at(zn.back)), pset
-    if o then put (SW - o, 0), art.img(art.at(zn.back)), pset
+    Paste art, -o, 0, zn.back
+    if o then Paste art, SW - o, 0, zn.back
     o = (cx \ 2) mod SW
     y = 132 - cy \ 6
     if y >= SH then exit sub
 
-    put (-o, y), art.img(art.at(zn.back + 2)), and
-    put (-o, y), art.img(art.at(zn.back + 1)), or
-    if o = 0 then exit sub
-
-    put (SW - o, y), art.img(art.at(zn.back + 2)), and
-    put (SW - o, y), art.img(art.at(zn.back + 1)), or
+    Blit art, -o, y, zn.back + 1, SW, SH - y
+    if o then Blit art, SW - o, y, zn.back + 1, SW, SH - y
 end sub
 
 ' Each column in view: its top tile, then its earth in
@@ -101,7 +97,7 @@ private sub DeckColumn ( _
     v = lv.vis(tx)
 
     if y > -TS and v <= 2 then
-        put (x, y), art.img(art.at(IDK + (tx and 3))), pset
+        Paste art, x, y, IDK + (tx and 3)
     end if
 
     if y > -TS and v > 2 then
@@ -114,7 +110,7 @@ private sub DeckColumn ( _
 
     do while (r and 7) <> 0 and y < SH
         if y > -TS then
-            put (x, y), art.img(art.at(IWT + k + (r and 7))), pset
+            Paste art, x, y, IWT + k + (r and 7)
         end if
 
         r = r + 1
@@ -123,7 +119,7 @@ private sub DeckColumn ( _
 
     do while y < SH
         if y > -128 then
-            put (x, y), art.img(art.at(IWS + (tx and 3))), pset
+            Paste art, x, y, IWS + (tx and 3)
         end if
 
         y = y + 128
@@ -165,16 +161,14 @@ private sub CombColumn ( _
     end if
 
     if y > -TS and v > 0 and v <= 2 then
-        put (x, y), art.img(art.at(IAF + w + k + r mod 3)), pset
+        Paste art, x, y, IAF + w + k + r mod 3
     end if
 
     y = y + TS
 
     if v > 2 and y < SH then
         if y > -TS then
-            put (x, y), _
-                art.img(art.at(IAU + w + (v - 4) * 12 + k _
-                + r mod 3)), pset
+            Paste art, x, y, IAU + w + (v - 4) * 12 + k + r mod 3
         end if
 
         y = y + TS
@@ -185,7 +179,7 @@ private sub CombColumn ( _
 
     do while r mod 3 <> 0 and y < SH
         if y > -TS then
-            put (x, y), art.img(art.at(IAC + w + k + r mod 3)), pset
+            Paste art, x, y, IAC + w + k + r mod 3
         end if
 
         r = r + 1
@@ -194,7 +188,7 @@ private sub CombColumn ( _
 
     do while y < SH
         if y > -STRIPH then
-            put (x, y), art.img(art.at(IAL + w + (tx and 3))), pset
+            Paste art, x, y, IAL + w + (tx and 3)
         end if
 
         y = y + STRIPH

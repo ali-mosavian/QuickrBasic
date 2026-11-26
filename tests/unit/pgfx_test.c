@@ -218,3 +218,18 @@ TEST(pgfx_clock_and_file)
     h->free(text);
     CHECK(!h->file_read("nosuch.bmp", 10, &n));
 }
+
+/* The host's pages are sized to the mode, and those it cannot name given back: SCREEN 7's are
+   320x200 and up to eight, text mode's 640x400 and up to two. Each was 640x480 whatever the mode,
+   and kept: SCREEN 7's eight took 2.4 MB. */
+size_t host_page_bytes(void);
+
+TEST(host_pages_fit_the_mode)
+{
+    enum : size_t { EGA = 320 * 200, TEXT = 640 * 400 };
+
+    CHECK(unit_typed(S, "SCREEN 7, , 7, 0") == ST_OK);
+    CHECK(host_page_bytes() % EGA == 0 && host_page_bytes() >= 2 * EGA);
+    CHECK(unit_typed(S, "SCREEN 0") == ST_OK);
+    CHECK(host_page_bytes() % TEXT == 0 && host_page_bytes() <= 2 * TEXT);
+}

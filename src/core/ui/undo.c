@@ -48,9 +48,10 @@ typedef struct {
     uint8_t *data;
 } Step;
 
+/* Its steps, the oldest first: grown as pushed, NSTEP at most. */
 typedef struct {
-    Step s[NSTEP];
-    uint32_t n;
+    Step *s;
+    uint32_t n, cap;
 } Stack;
 
 /* What a line step's command did, for its next to run into it. */
@@ -101,11 +102,16 @@ static void empty(Stack *const st)
         take_out(st, st->n - 1);
 }
 
-/* s on st, the oldest out past NSTEP, or past KEEP bytes done. */
-static void push(Stack *const st, const Step s)
+/* s on st, the oldest out past NSTEP, or past KEEP bytes done. No memory: s not kept. */
+static void push(Stack *const st, Step s)
 {
     if (st->n == NSTEP)
         take_out(st, 0);
+
+    if (!GROW(st->s, st->cap, st->n + 1)) {
+        drop_step(&s);
+        return;
+    }
 
     st->s[st->n++] = s;
 

@@ -876,7 +876,7 @@ uint8_t repl_enter(Session *const S, const uint32_t len)
         memset(S->lexr.off, 0, sizeof S->lexr.off);
     }
 
-    const uint8_t *const end = lexr_line(&S->lexr, S->cons.inbuf, S->comp.cbuf);
+    const uint8_t *const end = lexr_line(&S->lexr, S->cons.inbuf);
     const uint32_t place = prog_at(&S->prog);
 
     if (!program)
@@ -916,7 +916,7 @@ uint8_t repl_enter(Session *const S, const uint32_t len)
    (comp/link.c, the store's size) within twice it. Short, or no room: they grow as they fill. */
 static void reserve(Session *const S, const uint32_t len)
 {
-    allo_grow(&S->allo, HCACHE, CACHE0 + len * 2 + XLIM + XSLK);
+    allo_grow(&S->allo, HCACHE, CACHE0 + len * 2 + XSLK);
     allo_grow(&S->allo, HPROG, PROGBASE + len / 4 * 7);
 }
 
@@ -1189,16 +1189,15 @@ static void read_file(
 static const uint8_t *restore(Session *const S, const uint32_t line)
 {
     S->vm.line = line;
-    uint8_t *d = S->comp.cbuf;
     const uint32_t num = prog_line(&S->prog, line)->num;
+    const uint32_t at = num != NONUM ? INT_TOKEN_SIZE : 0;
+    comp_body(&S->comp, line, at);
 
-    if (num != NONUM) {
-        *d = M_INT;
-        store32(d + 1, num);
-        d += INT_TOKEN_SIZE;
+    if (at) {
+        S->comp.cbuf[0] = M_INT;
+        store32(S->comp.cbuf + 1, num);
     }
 
-    prog_body(&S->prog, line, d);
     return numbered(S);
 }
 

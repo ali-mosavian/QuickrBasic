@@ -1,8 +1,11 @@
 ' MOTHLIGHT: a little moth's big day out.
 ' Space, Enter or Up flaps; M mutes; Esc quits.
-' SCREEN 13 on two pages: one drawn, one shown.
+' Drawn with gfx into its screen, shown at each flip.
 ' Each subsystem owns a record; World holds them
 ' all. The loop reads input, updates, then draws.
+
+option disable draw
+from gfx import display, surface, draw
 
 TYPE Moth
     x AS SINGLE
@@ -83,7 +86,6 @@ TYPE World
     fx AS Fx
     sky AS Sky
     song AS Song
-    page AS INTEGER
 END TYPE
 
 TYPE Pad
@@ -156,11 +158,11 @@ CONST CHIND = 8, CHINDE = 9, CSPARK = 10
 CONST CSKY = 16, NSKY = 48, CTITLE = 80
 CONST CPANEL = 88, CPANEL2 = 89, CSUN = 90
 CONST CRAY = 91, CCHEEK = 92, CCLOUD = 93
-CONST CCLOUDLO = 94, CMASK = 255, CMTN = 128
+CONST CCLOUDLO = 94, CMTN = 128
 CONST CFAR = 144, CNEAR = 160, CTREE = 176
 CONST CSTONE = 180, CMOSS = 188, CRUNE = 189
 CONST CSHROOM = 190, CVINE = 191, WATER = 64
-' The pictures drawn once and PUT after: the top of
+' The pictures drawn once and drawn after: the top of
 ' the screen (sky, clouds; the sun and a moth behind
 ' it go over), the parallax ridges as two halves of
 ' their 640 columns, each at both column parities.
@@ -171,17 +173,15 @@ CONST C1Y = 109, C1H = 61, R1H = 35
 CONST R1OY = 144, R1OH = 26
 CONST R2Y = 130, R2H = 40, R2OY = 170, R2OH = 14
 CONST CLOUDW = 39, CLOUDH = 22, SUNW = 33, SUNH = 27
-' A GET's LONGs: of a row 320 wide, of the sprites.
-CONST R0N = 80 * R0H + 2, R1N = 80 * R1H + 2
-CONST R1ON = 80 * R1OH + 2, R2N = 80 * R2H + 2
-CONST R2ON = 80 * R2OH + 2
-CONST CLOUDN = (CLOUDW * CLOUDH + 7) \ 4
-CONST SUNN = (SUNW * SUNH + 7) \ 4
+' The lake's mirror: the columns it takes of each row.
+CONST LAKEX = 6, LAKEW = SW - 2 * LAKEX
+' Rows dotted by a LINE style kept, a colour and style
+' each.
+CONST NDOTS = 8
 
 DECLARE SUB Main ()
 DECLARE SUB OpenScreen ()
 DECLARE SUB CloseScreen ()
-DECLARE SUB Flip (page AS INTEGER)
 DECLARE SUB LoadTables ()
 DECLARE SUB LoadSongs ()
 DECLARE SUB LoadSfx ()
@@ -241,12 +241,9 @@ DECLARE SUB BuildLand ()
 DECLARE SUB LoadMoth ()
 DECLARE SUB BuildSprites ()
 DECLARE SUB SunFace ()
-DECLARE SUB Shot (y AS INTEGER, h AS INTEGER, c AS INTEGER)
-DECLARE SUB Keep (a() AS LONG, s AS LONG, y AS INTEGER, h AS INTEGER)
-DECLARE SUB Masked (id AS INTEGER, o AS INTEGER, y AS INTEGER, h AS INTEGER, im() AS LONG, mk() AS LONG, s AS LONG)
 DECLARE SUB Layer0 (id AS INTEGER, o AS INTEGER)
-DECLARE SUB Pano (a() AS LONG, n AS LONG, y AS INTEGER, o AS INTEGER, id AS INTEGER, how AS INTEGER)
-DECLARE FUNCTION Ik% (c AS INTEGER)
+DECLARE SUB Pano (a() AS LONG, y AS INTEGER, o AS INTEGER, _
+    id AS INTEGER, flags AS INTEGER)
 DECLARE FUNCTION Offset% (scroll AS SINGLE, id AS INTEGER)
 DECLARE SUB DrawCloud (x AS INTEGER, y AS INTEGER)
 DECLARE SUB DrawSun (t AS SINGLE)
@@ -267,7 +264,8 @@ DECLARE SUB Runes (x AS INTEGER, y1 AS INTEGER, y2 AS INTEGER, t AS SINGLE)
 DECLARE SUB RuneCol (x AS INTEGER, y1 AS INTEGER, y2 AS INTEGER, c AS INTEGER)
 DECLARE SUB ShaftAt (x AS INTEGER, y1 AS INTEGER, y2 AS INTEGER)
 DECLARE SUB StonePart (k AS INTEGER)
-DECLARE SUB KeepPart (k AS INTEGER, x1 AS INTEGER, x2 AS INTEGER, h AS INTEGER, im() AS LONG, s AS LONG, mk() AS LONG, ms AS LONG)
+declare function PartPic& (k as integer, x1 as integer, _
+    x2 as integer, h as integer)
 DECLARE SUB BuildStoneArt ()
 DECLARE SUB Wets (c() AS LONG, i0 AS INTEGER, i1 AS INTEGER, lake AS LONG)
 DECLARE SUB BuildVines ()
@@ -287,7 +285,7 @@ DECLARE SUB Disc (cx AS INTEGER, cy AS INTEGER, r AS INTEGER, c AS INTEGER)
 DECLARE SUB Dither (y1 AS INTEGER, y2 AS INTEGER, c AS INTEGER, level AS INTEGER)
 DECLARE SUB Txt (t AS STRING, x AS INTEGER, y AS INTEGER, id AS INTEGER)
 DECLARE SUB TxtC (t AS STRING, y AS INTEGER, id AS INTEGER)
-DECLARE FUNCTION TxtSprite% (t AS STRING, id AS INTEGER)
+DECLARE FUNCTION TxtSprite& (t AS STRING, id AS INTEGER)
 DECLARE SUB GlyphRow (b AS INTEGER, x AS INTEGER, y AS INTEGER, sc AS INTEGER, c AS INTEGER)
 DECLARE FUNCTION NextTime! (last AS SINGLE)
 DECLARE FUNCTION Elapsed! (a AS SINGLE, b AS SINGLE)
@@ -300,9 +298,20 @@ DECLARE FUNCTION Lit& (c AS LONG)
 DECLARE FUNCTION Pack& (r AS SINGLE, g AS SINGLE, b AS SINGLE)
 DECLARE FUNCTION Chan% (c AS LONG, j AS INTEGER)
 DECLARE FUNCTION Dac& (c AS LONG, f AS SINGLE)
+declare function DacRgb& (d as long)
+declare function ByteOf% (v as long, j as integer)
+declare function NewPic& (x as integer, y as integer, _
+    w as integer, h as integer)
+declare sub Clip (x1 as integer, y1 as integer, _
+    x2 as integer, y2 as integer)
+declare sub Styled (x1 as integer, x2 as integer, _
+    y as integer, c as integer, style as long)
+declare function DotRow& (c as integer, style as long)
 
 '$DYNAMIC
 ' Assets: built once at the start, only read after.
+' Spr: the moth's sprites and masks as GET keeps
+' them, made into MothPic.
 DIM SHARED Spr(SPRSZ * NSPR * 2 - 1) AS LONG
 DIM SHARED Glyph(126, 7) AS INTEGER, Bit(7) AS INTEGER
 DIM SHARED Crest(NRIDGE - 1, 639) AS INTEGER
@@ -329,66 +338,61 @@ DIM SHARED Bursts(NBURST - 1) AS Burst
 DIM SHARED SkyKey(NSKIES - 1, NKEY - 1) AS LONG
 DIM SHARED Fixed(255) AS LONG
 ' The palette last shaded, its keys, whether it was;
-' what the DAC holds; 256 ^ 0 .. 2.
+' what the DAC holds, and as gfx's colours; 256 ^ 0
+' .. 2.
 DIM SHARED Shaded(255) AS LONG, ShadeKey(NKEY - 1) AS LONG, Shaped AS INTEGER
 DIM SHARED DacNow(255) AS LONG, Pow256(2) AS LONG
+dim shared Rgb(255) as long
 ' The sky eased since the frame before: its palette
 ' is set once, before the frame is drawn. A channel's
 ' DAC value at the fade DacFade.
 DIM SHARED PalDirty AS INTEGER, DacOf(255) AS LONG, DacFade AS SINGLE
 DIM SHARED DirtyA(31) AS INTEGER, DirtyB(31) AS INTEGER, NDirty AS INTEGER
-DIM SHARED Tinter(SW * LAKEH \ 4) AS LONG
-' Scratch for drawing.
-DIM SHARED Strip(80) AS LONG, Frame(SW * SH \ 4) AS LONG
-' The pictures kept (see TOPH), each a GET's: images
-' over 0 for OR, masks 0 under them over 255 for AND.
-' A panorama's slot is parity * 2 + half. Ink: when
-' not -1, the colour every part of a picture takes.
-DIM SHARED SkyImg(80 * TOPH + 1) AS LONG
-DIM SHARED R0TI(R0N * 4) AS LONG, R0TM(R0N * 4) AS LONG
-DIM SHARED R0B(R1N * 4) AS LONG
-DIM SHARED R1I(R1N * 4) AS LONG, R1M(R1N * 4) AS LONG
-DIM SHARED R1O(R1ON * 4) AS LONG, LandImg(80 * C1H + 1) AS LONG
-DIM SHARED R2I(R2N * 2) AS LONG, R2M(R2N * 2) AS LONG
-DIM SHARED R2O(R2ON * 2) AS LONG, LandKey(1) AS INTEGER
-DIM SHARED CloudI(CLOUDN) AS LONG, CloudM(CLOUDN) AS LONG
-DIM SHARED SunI(SUNN) AS LONG, SunM(SUNN) AS LONG
-DIM SHARED Ink AS INTEGER
+' The screen, the surface drawn into (the screen but
+' while a picture is made), and a copy of the screen
+' for it to shake.
+dim shared Canvas as long, Dst as long, Back as long
+' The rows the lake mirrors, and each row a view.
+dim shared Mirror as long, MirrorRow(LAKEH - 1) as long
+dim shared Above(LAKEW * LAKEH - 1) as byte
+' Rows dotted as LINE's styles draw them.
+dim shared DotKey(NDOTS - 1) as long, DotPic(NDOTS - 1) as long
+dim shared NDot as integer
+' The pictures kept (see TOPH), each a surface whose
+' colour 0 is not drawn. A panorama's slot is parity
+' * 2 + half.
+dim shared SkyPic as long, LandPic as long, LandKey(1) as integer
+dim shared R0T(3) as long, R0B(3) as long
+dim shared R1(3) as long, R1O(3) as long
+dim shared R2(1) as long, R2O(1) as long
+dim shared CloudPic as long, SunPic as long
+dim shared MothPic(NSPR - 1) as long
 ' A spark as it was emitted and the tick it was; at
 ' n ticks old, from the paths of a spark moving at 1
 ' each way: there it is, its age, gravity's part.
 CONST NAGE = 140
 ' A stone's parts drawn once: a shaft (rows from its
 ' top), a cap; moss, drips, a broken cap at each
-' column mod 4, the runes in either colour, each with
-' its mask.
+' column mod 4, the runes in either colour.
 CONST CAPW = STONEW + 2 * OVERHANG
-CONST SHAFTN = (STONEW * GROUNDY + 7) \ 4, CAPN = (CAPW * CAPH + 7) \ 4
-CONST MOSSN = (CAPW * 3 + 7) \ 4, DRIPN = (CAPW * 6 + 7) \ 4
-CONST RUNEN = (3 * 180 + 7) \ 4
-DIM SHARED ShaftImg(SHAFTN) AS LONG, CapImg(CAPN) AS LONG
-DIM SHARED MossI(MOSSN) AS LONG, MossM(MOSSN) AS LONG
-DIM SHARED DripI(DRIPN) AS LONG, DripM(DRIPN) AS LONG
-DIM SHARED BrokeI(CAPN * 4 + 3) AS LONG, BrokeM(CAPN * 4 + 3) AS LONG
-DIM SHARED RuneI(RUNEN * 2 + 1) AS LONG, RuneM(RUNEN) AS LONG
+dim shared ShaftPic as long, CapPic as long
+dim shared MossPic as long, DripPic as long
+dim shared BrokePic(3) as long, RunePic(1) as long
 ' A vine's rows from y are at the angle a + .16 * row:
 ' the same rows of a strip at a's remainder of .16,
 ' shifted by its quotient. The strip is one of its
 ' NVINT between the sine's thresholds, each with the
 ' moss on each row mod 6; VSEG rows of vine a strip.
 CONST VSEG = 56, VSK = 96, VSW = 6, NVINT = 15, NVBIN = 64
-CONST VSTRIPN = (VSW * VSK + 7) \ 4
-DIM SHARED VStripI(NVINT * 6 * (VSTRIPN + 1)) AS LONG
-DIM SHARED VStripM(NVINT * 6 * (VSTRIPN + 1)) AS LONG
+dim shared VStrip(NVINT * 6 - 1) as long
 DIM SHARED VBnd(NVINT) AS DOUBLE, VBin(NVBIN) AS INTEGER
 DIM SHARED Ticks AS LONG, SparkTop AS INTEGER, PathX(NAGE) AS SINGLE, PathY(NAGE) AS SINGLE
 DIM SHARED PathG(NAGE) AS SINGLE, PathAge(NAGE) AS SINGLE
-' Text drawn once in each look, image then mask, in
-' Pool from TxtAt; all forgotten when it is full.
-CONST NTXT = 24, TXTPOOL = 16000
-DIM SHARED TxtKey(NTXT - 1) AS STRING, TxtAt(NTXT - 1) AS LONG
-DIM SHARED TxtLen(NTXT - 1) AS LONG, Pool(TXTPOOL) AS LONG
-DIM SHARED TxtN AS INTEGER, TxtTop AS LONG
+' Text drawn once in each look; all forgotten when
+' NTXT are kept.
+CONST NTXT = 24
+DIM SHARED TxtKey(NTXT - 1) AS STRING, TxtPic(NTXT - 1) AS LONG
+DIM SHARED TxtN AS INTEGER
 
 Main
 END
@@ -865,10 +869,12 @@ SUB AgeMoth (m AS Moth)
 END SUB
 
 ' The colours shaded again only when a key moved; a
-' DAC entry set only when it changed.
+' DAC entry set only when it changed, and gfx's row
+' then once.
 SUB ApplyPalette (s AS Sky, cur() AS SINGLE)
     DIM k(NKEY - 1) AS LONG, kc(NKEY - 1) AS INTEGER
     DIM i AS INTEGER, r AS INTEGER, d AS LONG, c AS LONG
+    DIM moved AS INTEGER
     FOR i = 0 TO NKEY - 1
         k(i) = Pack&(cur(i, 0), cur(i, 1), cur(i, 2))
         kc(i) = k(i) <> ShadeKey(i)
@@ -894,12 +900,26 @@ SUB ApplyPalette (s AS Sky, cur() AS SINGLE)
             c = Shaded(i)
             d = DacOf(c MOD 256) + DacOf((c \ 256) MOD 256) * 256 + DacOf((c \ 65536) MOD 256) * 65536
             IF d <> DacNow(i) THEN
-                PALETTE i, d
                 DacNow(i) = d
+                Rgb(i) = DacRgb&(d)
+                moved = -1
             END IF
         NEXT
     NEXT
+    IF moved THEN display.set_palette 0, Rgb()
 END SUB
+
+' A DAC entry, red + green * 256 + blue * 65536 of 0
+' to 63 each, as gfx's &HRRGGBB: each channel widened
+' as the VGA shows it.
+function DacRgb& (d as long)
+    dim j as integer, v as long, c as long
+    for j = 0 to 2
+        v = Chan%(d, j)
+        c = c + (v * 4 + v \ 16) * Pow256(2 - j)
+    next
+    DacRgb& = c
+end function
 
 SUB BackToTitle (w AS World)
     w.g.toTitle = 0
@@ -917,41 +937,43 @@ SUB Broken (x AS INTEGER, cy AS INTEGER)
     b = cy + CAPH - 1
     FOR dx = 0 TO STONEW - 1 + 2 * OVERHANG
         h = CAPH - ((dx \ 3) * 5 + x) MOD 4
-        LINE (c1 + dx, b + 1 - h)-(c1 + dx, b), Ik%(StoneCol(dx))
-        PSET (c1 + dx, b + 1 - h), Ik%(CINK)
+        draw.line Dst, c1 + dx, b + 1 - h, c1 + dx, b, StoneCol(dx)
+        draw.pset Dst, c1 + dx, b + 1 - h, CINK
     NEXT
-    LINE (c1, b)-(x + STONEW - 1 + OVERHANG, b), Ik%(CINK)
+    draw.line Dst, c1, b, x + STONEW - 1 + OVERHANG, b, CINK
 END SUB
 
-' The ROM font's rows, read back off the screen.
-SUB BuildGlyphs
-    DIM c AS INTEGER, r AS INTEGER, x AS INTEGER
-    DIM b AS INTEGER
-    FOR x = 0 TO 7
+' The ROM font's rows, as gfx's text draws them, read
+' back.
+sub BuildGlyphs
+    dim c as integer, r as integer, x as integer
+    dim b as integer, s as long, px(63) as byte
+    for x = 0 to 7
         Bit(x) = 2 ^ (7 - x)
-    NEXT
-    COLOR CWHITE
-    FOR c = 32 TO 126
-        LOCATE 1, 1
-        PRINT CHR$(c);
-        FOR r = 0 TO 7
+    next
+    s = surface.new(8, 8)
+    for c = 32 to 126
+        draw.clear s, 0
+        draw.text s, 0, 0, chr$(c), CWHITE
+        surface.read s, 0, 0, 8, 8, px()
+        for r = 0 to 7
             b = 0
-            FOR x = 0 TO 7
-                IF POINT(x, r) THEN b = b OR Bit(x)
-            NEXT
+            for x = 0 to 7
+                if px(r * 8 + x) then b = b or Bit(x)
+            next
             Glyph(c, r) = b
-        NEXT
-    NEXT
-END SUB
+        next
+    next
+    surface.free s
+end sub
 
-' The lake's tint: an image its size, every pixel 64.
-SUB BuildLake
-    DIM i AS INTEGER
-    Tinter(0) = SW * 8 + LAKEH * 65536
-    FOR i = 1 TO SW * LAKEH \ 4
-        Tinter(i) = &H40404040
-    NEXT
-END SUB
+' The lake's mirror: a picture of the rows it takes,
+' and each of its rows a view.
+sub BuildLake
+    dim n as integer
+    Mirror = surface.new(LAKEW, LAKEH)
+    n = surface.new_views(Mirror, LAKEW, 1, MirrorRow())
+end sub
 
 ' A stone's columns: lit a quarter in, shaded right;
 ' and its runes, 3 by 5 dots.
@@ -1001,8 +1023,7 @@ END FUNCTION
 
 SUB CloseScreen
     SOUND 37, 0
-    SCREEN 0
-    WIDTH 80
+    display.close
 END SUB
 
 SUB Control (w AS World, k AS Pad)
@@ -1061,24 +1082,24 @@ SUB Disc (cx AS INTEGER, cy AS INTEGER, r AS INTEGER, c AS INTEGER)
     ry = r / ASPECT
     FOR dy = -ry TO ry
         hw = r * SQR(1 - (dy / (ry + .5)) ^ 2)
-        LINE (cx - hw, cy + dy)-(cx + hw, cy + dy), Ik%(c)
+        draw.line Dst, cx - hw, cy + dy, cx + hw, cy + dy, c
     NEXT
 END SUB
 
 ' Dots of c over rows y1 to y2: a quarter (level 1),
 ' half (2) or three quarters (3).
 SUB Dither (y1 AS INTEGER, y2 AS INTEGER, c AS INTEGER, level AS INTEGER)
-    DIM p0 AS INTEGER, p1 AS INTEGER, y AS INTEGER
+    DIM p0 AS LONG, p1 AS LONG, y AS INTEGER
     SELECT CASE level
-    CASE 1: p0 = &H8888: p1 = &H2222
-    CASE 2: p0 = &HAAAA: p1 = &H5555
-    CASE ELSE: p0 = &HEEEE: p1 = &HBBBB
+    CASE 1: p0 = &H8888&: p1 = &H2222&
+    CASE 2: p0 = &HAAAA&: p1 = &H5555&
+    CASE ELSE: p0 = &HEEEE&: p1 = &HBBBB&
     END SELECT
     FOR y = y1 TO y2
         IF y AND 1 THEN
-            LINE (0, y)-(SW - 1, y), c, , p1
+            Styled 0, SW - 1, y, c, p1
         ELSE
-            LINE (0, y)-(SW - 1, y), c, , p0
+            Styled 0, SW - 1, y, c, p0
         END IF
     NEXT
 END SUB
@@ -1090,17 +1111,17 @@ SUB DrawCastle (o AS INTEGER)
     cx = 215 - o
     IF cx < -20 THEN cx = cx + 640
     b = Crest(0, 215) + 3
-    c = Ik%(CMTN + 2)
-    l = Ik%(CSPARK + 1)
-    LINE (cx - 12, b - 15)-(cx - 6, b), c, BF
-    LINE (cx - 6, b - 9)-(cx + 7, b), c, BF
-    LINE (cx + 7, b - 12)-(cx + 12, b), c, BF
+    c = CMTN + 2
+    l = CSPARK + 1
+    draw.rect Dst, cx - 12, b - 15, cx - 6, b, c, draw.FILL
+    draw.rect Dst, cx - 6, b - 9, cx + 7, b, c, draw.FILL
+    draw.rect Dst, cx + 7, b - 12, cx + 12, b, c, draw.FILL
     FOR k = 0 TO 3
-        PSET (cx - 12 + k * 2, b - 16), c
-        PSET (cx + 6 + k * 2, b - 13), c
+        draw.pset Dst, cx - 12 + k * 2, b - 16, c
+        draw.pset Dst, cx + 6 + k * 2, b - 13, c
     NEXT
-    PSET (cx - 9, b - 10), l
-    PSET (cx + 1, b - 4), l
+    draw.pset Dst, cx - 9, b - 10, l
+    draw.pset Dst, cx + 1, b - 4, l
 END SUB
 
 SUB DrawCloud (x AS INTEGER, y AS INTEGER)
@@ -1109,7 +1130,7 @@ SUB DrawCloud (x AS INTEGER, y AS INTEGER)
     Disc x, y, 11, CCLOUD
     Disc x - 10, y + 1, 7, CCLOUD
     Disc x + 10, y + 1, 7, CCLOUD
-    LINE (x - 16, y + 6)-(x + 16, y + 6), Ik%(CCLOUDLO)
+    draw.line Dst, x - 16, y + 6, x + 16, y + 6, CCLOUDLO
 END SUB
 
 SUB DrawFx (f AS Fx)
@@ -1131,71 +1152,68 @@ SUB DrawHud (w AS World)
 END SUB
 
 ' The lake mirrors the rows above it, each shifted by
-' its ripple, then ORs in 64: the water's tint.
-SUB DrawLake (t AS SINGLE)
-    DIM d AS INTEGER, o AS INTEGER, k AS INTEGER
-    DIM x AS INTEGER, y AS INTEGER, hw AS INTEGER
-    LINE (0, GROUNDY)-(SW - 1, SH - 1), CFAR + 10, BF
-    FOR d = 0 TO LAKEH - 1
-        o = INT((1 + d / 4) * SIN(t * 2.2 + d * .9))
-        y = GROUNDY - 1 - d
-        GET (6, y)-(SW - 7, y), Strip
-        PUT (6 + o, GROUNDY + d), Strip, PSET
-    NEXT
-    PUT (0, GROUNDY), Tinter, OR
-    LINE (0, GROUNDY)-(SW - 1, GROUNDY), CWHITE, , &HAAAA
-    FOR d = 2 TO LAKEH - 1 STEP 2
-        hw = 7 - d \ 3 + INT(2 * SIN(t * 5 + d))
+' its ripple, 64 ORed into them: the water's tint.
+sub DrawLake (t as single)
+    dim d as integer, o as integer, k as integer
+    dim x as integer, y as integer, hw as integer
+    dim i as integer
+    surface.read Dst, LAKEX, GROUNDY - LAKEH, LAKEW, LAKEH, Above()
+    for i = 0 to LAKEW * LAKEH - 1
+        Above(i) = Above(i) or WATER
+    next
+    surface.write Mirror, 0, 0, LAKEW, LAKEH, Above()
+    x = (CFAR + 10) or WATER
+    draw.rect Dst, 0, GROUNDY, SW - 1, SH - 1, x, draw.FILL
+    for d = 0 to LAKEH - 1
+        o = int((1 + d / 4) * sin(t * 2.2 + d * .9))
         y = GROUNDY + d
-        LINE (SUNX - hw, y)-(SUNX + hw, y), CSUN, , &HAAAA
-    NEXT
-    FOR k = 0 TO 9
-        x = (k * 37 + INT(t * 9)) MOD SW
-        y = GROUNDY + 2 + (k * 5) MOD 13
-        LINE (x, y)-(x + 2 + k MOD 3, y), CWHITE
-    NEXT
-END SUB
+        k = LAKEH - 1 - d
+        draw.sprite Dst, LAKEX + o, y, MirrorRow(k), draw.OPAQUE
+    next
+    Styled 0, SW - 1, GROUNDY, CWHITE, &HAAAA&
+    for d = 2 to LAKEH - 1 step 2
+        hw = 7 - d \ 3 + int(2 * sin(t * 5 + d))
+        y = GROUNDY + d
+        Styled SUNX - hw, SUNX + hw, y, CSUN, &HAAAA&
+    next
+    for k = 0 to 9
+        x = (k * 37 + int(t * 9)) mod SW
+        y = GROUNDY + 2 + (k * 5) mod 13
+        draw.line Dst, x, y, x + 2 + k mod 3, y, CWHITE
+    next
+end sub
 
-' Ridges 0 and 1 kept in LandImg till either moves; the
+' Ridges 0 and 1 kept in LandPic till either moves; the
 ' seeds; ridge 2 over them.
 SUB DrawLand (g AS Game)
     DIM o0 AS INTEGER, o1 AS INTEGER, o2 AS INTEGER
     o0 = Offset%(g.scroll, 0)
     o1 = Offset%(g.scroll, 1)
     IF o0 <> LandKey(0) OR o1 <> LandKey(1) THEN
-        Pano R0B(), R1N, C1Y, o0, 0, 0
-        Pano R1M(), R1N, C1Y, o1, 1, 1
-        Pano R1I(), R1N, C1Y, o1, 1, 2
-        Pano R1O(), R1ON, R1OY, o1, 1, 0
-        GET (0, C1Y)-(SW - 1, C1Y + C1H - 1), LandImg
+        Dst = LandPic
+        Pano R0B(), C1Y, o0, 0, draw.OPAQUE
+        Pano R1(), C1Y, o1, 1, 0
+        Pano R1O(), R1OY, o1, 1, draw.OPAQUE
+        Dst = Canvas
         LandKey(0) = o0: LandKey(1) = o1
-    ELSE
-        PUT (0, C1Y), LandImg, PSET
     END IF
+    draw.sprite Dst, 0, C1Y, LandPic, draw.OPAQUE
     DrawSeeds g
     o2 = Offset%(g.scroll, 2)
-    Pano R2M(), R2N, R2Y, o2, 2, 1
-    Pano R2I(), R2N, R2Y, o2, 2, 2
-    Pano R2O(), R2ON, R2OY, o2, 2, 0
+    Pano R2(), R2Y, o2, 2, 0
+    Pano R2O(), R2OY, o2, 2, draw.OPAQUE
 END SUB
 
-' A panorama's two halves at offset o: PSET (how 0),
-' AND (1) or OR (2).
-SUB Pano (a() AS LONG, n AS LONG, y AS INTEGER, o AS INTEGER, id AS INTEGER, how AS INTEGER)
+' A panorama's two halves at offset o, drawn with
+' flags: draw.OPAQUE, or 0 its colour 0 not drawn.
+SUB Pano (a() AS LONG, y AS INTEGER, o AS INTEGER, _
+    id AS INTEGER, flags AS INTEGER)
     DIM h AS INTEGER, x AS INTEGER, par AS INTEGER
-    DIM s AS LONG
     par = o MOD Ridges(id).stp
     FOR h = 0 TO 1
         x = 320 * h + par - o
         IF x <= -320 THEN x = x + 640
-        IF x < SW THEN
-            s = (par * 2 + h) * n
-            SELECT CASE how
-            CASE 0: PUT (x, y), a(s), PSET
-            CASE 1: PUT (x, y), a(s), AND
-            CASE ELSE: PUT (x, y), a(s), OR
-            END SELECT
-        END IF
+        IF x < SW THEN draw.sprite Dst, x, y, a(par * 2 + h), flags
     NEXT
 END SUB
 
@@ -1203,18 +1221,12 @@ FUNCTION Offset% (scroll AS SINGLE, id AS INTEGER)
     Offset% = INT(scroll * Ridges(id).speed) MOD 640
 END FUNCTION
 
-' The colour drawn: c, or Ink when it is set.
-FUNCTION Ik% (c AS INTEGER)
-    IF Ink < 0 THEN Ik% = c ELSE Ik% = Ink
-END FUNCTION
-
 SUB DrawMoth (m AS Moth, mode AS INTEGER)
     DIM k AS INTEGER, x AS INTEGER, y AS INTEGER
     k = MothFrame%(m, mode)
     x = INT(m.x) - SPRW \ 2
     y = INT(m.y) - SPRH \ 2
-    PUT (x, y), Spr((NSPR + k) * SPRSZ), AND
-    PUT (x, y), Spr(k * SPRSZ), OR
+    draw.sprite Dst, x, y, MothPic(k), 0
 END SUB
 
 ' A ridge: lit along its crest, shading below it.
@@ -1225,15 +1237,14 @@ SUB DrawRidge (id AS INTEGER, o AS INTEGER)
     r = Ridges(id).stp - 1
     c = Ridges(id).c
     b = Ridges(id).band
-    d1 = Ik%(c + Ridges(id).d1)
-    d2 = Ik%(c + Ridges(id).d2)
-    c = Ik%(c)
+    d1 = c + Ridges(id).d1
+    d2 = c + Ridges(id).d2
     bot = Ridges(id).bottom
     FOR x = 0 TO SW - 1 STEP Ridges(id).stp
         y = Crest(id, (x + o) MOD 640)
-        LINE (x, y)-(x + r, y + 1), c, BF
-        LINE (x, y + 2)-(x + r, y + b), d1, BF
-        LINE (x, y + b + 1)-(x + r, bot), d2, BF
+        draw.rect Dst, x, y, x + r, y + 1, c, draw.FILL
+        draw.rect Dst, x, y + 2, x + r, y + b, d1, draw.FILL
+        draw.rect Dst, x, y + b + 1, x + r, bot, d2, draw.FILL
     NEXT
 END SUB
 
@@ -1247,11 +1258,11 @@ SUB DrawSeeds (g AS Game)
             x = FlyX(k) - o
             IF x < 0 THEN x = x + 640
             y = FlyY(k) + 3 * SIN(g.clock * .8 + FlyPh(k))
-            PSET (x, y), CWHITE
-            PSET (x - 1, y), CSPARK + 1
-            PSET (x + 1, y), CSPARK + 1
-            PSET (x, y - 1), CSPARK + 1
-            PSET (x, y + 1), CSPARK + 1
+            draw.pset Dst, x, y, CWHITE
+            draw.pset Dst, x - 1, y, CSPARK + 1
+            draw.pset Dst, x + 1, y, CSPARK + 1
+            draw.pset Dst, x, y - 1, CSPARK + 1
+            draw.pset Dst, x, y + 1, CSPARK + 1
         END IF
     NEXT
 END SUB
@@ -1259,13 +1270,12 @@ END SUB
 ' The sky, a shade a band of rows, and its clouds.
 SUB DrawSky (g AS Game)
     DIM i AS INTEGER, x AS INTEGER, y AS INTEGER
-    PUT (0, 0), SkyImg, PSET
+    draw.sprite Dst, 0, 0, SkyPic, draw.OPAQUE
     FOR i = 0 TO NCLOUD - 1
         x = CloudX(i) + INT(g.clock * 4)
         x = (x + INT(g.scroll * .03)) MOD 450 - 65
         y = CloudY(i)
-        PUT (x - 19, y - 10), CloudM, AND
-        PUT (x - 19, y - 10), CloudI, OR
+        draw.sprite Dst, x - 19, y - 10, CloudPic, 0
     NEXT
 END SUB
 
@@ -1277,7 +1287,9 @@ SUB SkyBands (y1 AS INTEGER, y2 AS INTEGER)
         b = (k + 1) * GROUNDY \ NSKY - 1
         IF a < y1 THEN a = y1
         IF b > y2 THEN b = y2
-        IF a <= b THEN LINE (0, a)-(SW - 1, b), CSKY + k, BF
+        IF a <= b THEN
+            draw.rect Dst, 0, a, SW - 1, b, CSKY + k, draw.FILL
+        END IF
     NEXT
 END SUB
 
@@ -1286,18 +1298,7 @@ END SUB
 SUB DrawTop (w AS World)
     DIM o AS INTEGER
     o = Offset%(w.g.scroll, 0)
-    Pano R0TM(), R0N, R0Y, o, 0, 1
-    Pano R0TI(), R0N, R0Y, o, 0, 2
-END SUB
-
-' Rows y to y + h - 1 filled with c.
-SUB Shot (y AS INTEGER, h AS INTEGER, c AS INTEGER)
-    LINE (0, y)-(SW - 1, y + h - 1), c, BF
-END SUB
-
-' Rows y to y + h - 1 kept in a() from s.
-SUB Keep (a() AS LONG, s AS LONG, y AS INTEGER, h AS INTEGER)
-    GET (0, y)-(SW - 1, y + h - 1), a(s)
+    Pano R0T(), R0Y, o, 0, 0
 END SUB
 
 ' Ridge id at offset o, and what stands on it.
@@ -1307,55 +1308,49 @@ SUB Layer0 (id AS INTEGER, o AS INTEGER)
     IF id = 2 THEN DrawTrees o
 END SUB
 
-' Rows y to y + h - 1 of a ridge kept twice from s:
-' its colours over 0, and 0 over 255 as its mask.
-SUB Masked (id AS INTEGER, o AS INTEGER, y AS INTEGER, h AS INTEGER, im() AS LONG, mk() AS LONG, s AS LONG)
-    Shot y, h, 0
-    Layer0 id, o
-    Keep im(), s, y, h
-    Shot y, h, CMASK
-    Ink = 0
-    Layer0 id, o
-    Ink = -1
-    Keep mk(), s, y, h
-END SUB
-
-' Each ridge's halves at each parity of its columns.
-SUB BuildLand
-    DIM id AS INTEGER, par AS INTEGER, h AS INTEGER
-    DIM o AS INTEGER, s AS LONG
-    Ink = -1
-    SkyBands 0, GROUNDY - 1
-    GET (0, 0)-(SW - 1, TOPH - 1), SkyImg
-    FOR id = 0 TO NRIDGE - 1
-        FOR par = 0 TO Ridges(id).stp - 1
-            FOR h = 0 TO 1
+' Each ridge's halves at each parity of its columns,
+' and the picture ridges 0 and 1 are kept in.
+sub BuildLand
+    dim id as integer, par as integer, h as integer
+    dim o as integer, s as integer
+    SkyPic = NewPic&(0, 0, SW, TOPH)
+    SkyBands 0, TOPH - 1
+    for id = 0 to NRIDGE - 1
+        for par = 0 to Ridges(id).stp - 1
+            for h = 0 to 1
                 o = par + 320 * h
                 s = par * 2 + h
-                SELECT CASE id
-                CASE 0
-                    Masked 0, o, R0Y, R0H, R0TI(), R0TM(), s * R0N
+                select case id
+                case 0
+                    R0T(s) = NewPic&(0, R0Y, SW, R0H)
+                    Layer0 0, o
+                    R0B(s) = NewPic&(0, C1Y, SW, R1H)
                     SkyBands C1Y, C1Y + R1H - 1
                     Layer0 0, o
-                    Keep R0B(), s * R1N, C1Y, R1H
-                CASE 1
-                    Masked 1, o, C1Y, R1H, R1I(), R1M(), s * R1N
+                case 1
+                    R1(s) = NewPic&(0, C1Y, SW, R1H)
                     Layer0 1, o
-                    Keep R1O(), s * R1ON, R1OY, R1OH
-                CASE ELSE
-                    Masked 2, o, R2Y, R2H, R2I(), R2M(), s * R2N
+                    R1O(s) = NewPic&(0, R1OY, SW, R1OH)
+                    Layer0 1, o
+                case else
+                    R2(s) = NewPic&(0, R2Y, SW, R2H)
                     Layer0 2, o
-                    Keep R2O(), s * R2ON, R2OY, R2OH
-                END SELECT
-            NEXT
-        NEXT
-    NEXT
+                    R2O(s) = NewPic&(0, R2OY, SW, R2OH)
+                    Layer0 2, o
+                end select
+            next
+        next
+    next
+    LandPic = NewPic&(0, C1Y, SW, C1H)
+    Dst = Canvas
     LandKey(0) = -1
-END SUB
+end sub
 
-' The moth's sprites and masks, from MothArt.
+' The moth's sprites, from MothArt's GET images; their
+' masks are colour 0's pixels, not drawn.
 SUB LoadMoth
     DIM i AS INTEGER, e AS INTEGER, n AS INTEGER, v AS LONG
+    DIM k AS INTEGER, a AS LONG, px(SPRW * SPRH - 1) AS BYTE
     RESTORE MothArt
     READ n
     DO WHILE n
@@ -1369,27 +1364,34 @@ SUB LoadMoth
         i = i + n
         READ n
     LOOP
+    FOR k = 0 TO NSPR - 1
+        ' past the image's size, in its first LONG
+        a = k * SPRSZ + 1
+        FOR i = 0 TO SPRW * SPRH - 1
+            px(i) = ByteOf%(Spr(a + i \ 4), i MOD 4)
+        NEXT
+        MothPic(k) = surface.new(SPRW, SPRH)
+        surface.write MothPic(k), 0, 0, SPRW, SPRH, px()
+    NEXT
 END SUB
 
-' A cloud and the sun's face, each with its mask.
-SUB BuildSprites
-    DIM x AS INTEGER, y AS INTEGER
+' Byte j, 0 to 3, of v as it lies in memory.
+function ByteOf% (v as long, j as integer)
+    ByteOf% = asc(mid$(mkl$(v), j + 1, 1))
+end function
+
+' A cloud and the sun's face.
+sub BuildSprites
+    dim x as integer, y as integer
     BuildStoneArt
-    Ink = -1
-    x = SW \ 2: y = 50
-    LINE (x - 19, y - 10)-(x + 19, y + 11), 0, BF
+    x = SW \ 2
+    y = 50
+    CloudPic = NewPic&(x - 19, y - 10, CLOUDW, CLOUDH)
     DrawCloud x, y
-    GET (x - 19, y - 10)-(x + 19, y + 11), CloudI
-    LINE (x - 19, y - 10)-(x + 19, y + 11), CMASK, BF
-    Ink = 0: DrawCloud x, y: Ink = -1
-    GET (x - 19, y - 10)-(x + 19, y + 11), CloudM
-    LINE (SUNX - 16, SUNY - 13)-(SUNX + 16, SUNY + 13), 0, BF
+    SunPic = NewPic&(SUNX - 16, SUNY - 13, SUNW, SUNH)
     SunFace
-    GET (SUNX - 16, SUNY - 13)-(SUNX + 16, SUNY + 13), SunI
-    LINE (SUNX - 16, SUNY - 13)-(SUNX + 16, SUNY + 13), CMASK, BF
-    Ink = 0: SunFace: Ink = -1
-    GET (SUNX - 16, SUNY - 13)-(SUNX + 16, SUNY + 13), SunM
-END SUB
+    Dst = Canvas
+end sub
 
 ' The sparks to SparkTop, the last alive.
 SUB DrawSparks (sp() AS Spark)
@@ -1404,8 +1406,8 @@ SUB DrawSparks (sp() AS Spark)
             IF n < sp(i).hot THEN c = CSPARK
             x = INT(sp(i).x + sp(i).vx * PathX(n))
             y = INT(sp(i).y + sp(i).vy * PathY(n) + PathG(n))
-            PSET (x, y), c
-            IF n < sp(i).wide THEN PSET (x + 1, y), c
+            draw.pset Dst, x, y, c
+            IF n < sp(i).wide THEN draw.pset Dst, x + 1, y, c
             top = i + 1
         END IF
     NEXT
@@ -1430,23 +1432,22 @@ END FUNCTION
 ' 2 vines, 3 a broken top, 4 mushrooms.
 SUB DrawStone (st() AS Stone, i AS INTEGER, t AS SINGLE)
     DIM x AS INTEGER, top AS INTEGER, bot AS INTEGER
+    DIM c1 AS INTEGER
     x = INT(st(i).x)
     top = st(i).gap - GAP \ 2
     bot = st(i).gap + GAP \ 2
+    c1 = x - OVERHANG
     ShaftAt x, 0, top
     ShaftAt x, bot, GROUNDY - 1
-    PUT (x - OVERHANG, top - CAPH + 1), CapImg, PSET
-    PUT (x - OVERHANG, top + 1), DripM, AND
-    PUT (x - OVERHANG, top + 1), DripI, OR
+    draw.sprite Dst, c1, top - CAPH + 1, CapPic, draw.OPAQUE
+    draw.sprite Dst, c1, top + 1, DripPic, 0
     IF st(i).kind <> 3 THEN
-        PUT (x - OVERHANG, bot), CapImg, PSET
-        PUT (x - OVERHANG, bot - 2), MossM, AND
-        PUT (x - OVERHANG, bot - 2), MossI, OR
+        draw.sprite Dst, c1, bot, CapPic, draw.OPAQUE
+        draw.sprite Dst, c1, bot - 2, MossPic, 0
     ELSEIF x < 0 THEN
         Broken x, bot
     ELSE
-        PUT (x - OVERHANG, bot), BrokeM((x MOD 4) * (CAPN + 1)), AND
-        PUT (x - OVERHANG, bot), BrokeI((x MOD 4) * (CAPN + 1)), OR
+        draw.sprite Dst, c1, bot, BrokePic(x MOD 4), 0
     END IF
     Decorate st(), i, t
 END SUB
@@ -1472,10 +1473,9 @@ SUB DrawSun (t AS SINGLE)
         ca = COS(a): sa = SIN(a) / ASPECT
         x1 = SUNX + 17 * ca: y1 = SUNY + 17 * sa
         x2 = SUNX + 23 * ca: y2 = SUNY + 23 * sa
-        LINE (x1, y1)-(x2, y2), CRAY
+        draw.line Dst, x1, y1, x2, y2, CRAY
     NEXT
-    PUT (SUNX - 16, SUNY - 13), SunM, AND
-    PUT (SUNX - 16, SUNY - 13), SunI, OR
+    draw.sprite Dst, SUNX - 16, SUNY - 13, SunPic, 0
 END SUB
 
 SUB SunFace
@@ -1483,14 +1483,16 @@ SUB SunFace
     DIM x AS INTEGER, y AS INTEGER
     Disc SUNX, SUNY, 15, CRAY
     Disc SUNX, SUNY, 14, CSUN
-    c = Ik%(CINK)
-    LINE (SUNX - 5, SUNY - 4)-(SUNX - 4, SUNY - 3), c, BF
-    LINE (SUNX + 4, SUNY - 4)-(SUNX + 5, SUNY - 3), c, BF
+    c = CINK
+    x = SUNX - 5
+    y = SUNY - 4
+    draw.rect Dst, x, y, x + 1, y + 1, c, draw.FILL
+    draw.rect Dst, x + 9, y, x + 10, y + 1, c, draw.FILL
     FOR i = 0 TO 8
         a = .5 + i * .27
         x = SUNX + 7 * COS(a)
         y = SUNY + 1 + 6 * SIN(a) / ASPECT
-        PSET (x, y), c
+        draw.pset Dst, x, y, c
     NEXT
     Disc SUNX - 9, SUNY + 3, 2, CCHEEK
     Disc SUNX + 9, SUNY + 3, 2, CCHEEK
@@ -1501,7 +1503,7 @@ SUB DrawTrees (o AS INTEGER)
     DIM h AS INTEGER, b AS INTEGER, r AS INTEGER
     DIM hw AS INTEGER, y AS INTEGER, q AS INTEGER
     DIM c2 AS INTEGER, c3 AS INTEGER
-    c0 = Ik%(CTREE): c2 = Ik%(CTREE + 2): c3 = Ik%(CTREE + 3)
+    c0 = CTREE: c2 = CTREE + 2: c3 = CTREE + 3
     FOR k = 0 TO NTREE - 1
         x = TreeX(k) - o
         IF x < -10 THEN x = x + 640
@@ -1509,12 +1511,12 @@ SUB DrawTrees (o AS INTEGER)
             h = TreeH(k)
             q = h \ 2 + 1
             b = Crest(2, TreeX(k)) + 2
-            LINE (x, b - 2)-(x, b + 1), c3
+            draw.line Dst, x, b - 2, x, b + 1, c3
             FOR r = 0 TO h
                 hw = 1 + (r MOD q) * 3 \ q + r \ 5
                 y = b - h + r
-                LINE (x - hw, y)-(x, y), c0
-                LINE (x + 1, y)-(x + hw, y), c2
+                draw.line Dst, x - hw, y, x, y, c0
+                draw.line Dst, x + 1, y, x + hw, y, c2
             NEXT
         END IF
     NEXT
@@ -1542,7 +1544,7 @@ SUB Drips (x AS INTEGER, y AS INTEGER)
     c1 = x - OVERHANG
     FOR m = c1 + 2 TO x + STONEW - 3 + OVERHANG STEP 4
         n = 1 + ((m - c1) * 7) MOD 5
-        LINE (m, y)-(m, y + n), Ik%(CVINE)
+        draw.line Dst, m, y, m, y + n, CVINE
     NEXT
 END SUB
 
@@ -1647,12 +1649,6 @@ SUB Flap (m AS Moth, sp() AS Spark)
     PlaySfx SFXFLAP
 END SUB
 
-' Shows the page just drawn, draws on the other.
-SUB Flip (page AS INTEGER)
-    SCREEN , , 1 - page, page
-    page = 1 - page
-END SUB
-
 SUB Fly (w AS World, k AS Pad, st() AS Stone, sp() AS Spark)
     DIM i AS INTEGER
     IF k.flap THEN Flap w.m, sp()
@@ -1685,7 +1681,8 @@ SUB GlyphRow (b AS INTEGER, x AS INTEGER, y AS INTEGER, sc AS INTEGER, c AS INTE
                 IF (b AND Bit(cx)) = 0 THEN EXIT DO
                 cx = cx + 1
             LOOP
-            LINE (x + s * sc, y)-(x + cx * sc - 1, e), c, BF
+            draw.rect Dst, x + s * sc, y, x + cx * sc - 1, e, c, _
+                draw.FILL
         ELSE
             cx = cx + 1
         END IF
@@ -1789,11 +1786,11 @@ SUB Lintel (x AS INTEGER, cy AS INTEGER)
     c1 = x - OVERHANG
     c2 = x + STONEW - 1 + OVERHANG
     b = cy + CAPH - 1
-    LINE (c1, cy)-(c2, b), CSTONE + 2, BF
-    LINE (c1 + 2, cy)-(c1 + 8, b), CSTONE, BF
-    LINE (c2 - 8, cy)-(c2, b), CSTONE + 5, BF
-    LINE (c1 + 1, cy + 1)-(c2 - 1, cy + 1), CSTONE
-    LINE (c1, cy)-(c2, b), CINK, B
+    draw.rect Dst, c1, cy, c2, b, CSTONE + 2, draw.FILL
+    draw.rect Dst, c1 + 2, cy, c1 + 8, b, CSTONE, draw.FILL
+    draw.rect Dst, c2 - 8, cy, c2, b, CSTONE + 5, draw.FILL
+    draw.line Dst, c1 + 1, cy + 1, c2 - 1, cy + 1, CSTONE
+    draw.rect Dst, c1, cy, c2, b, CINK, 0
 END SUB
 
 FUNCTION Lit& (c AS LONG)
@@ -1982,9 +1979,9 @@ SUB Moss (x AS INTEGER, cy AS INTEGER)
     DIM m AS INTEGER, c1 AS INTEGER, c2 AS INTEGER
     c1 = x - OVERHANG
     c2 = x + STONEW - 1 + OVERHANG
-    LINE (c1 + 1, cy)-(c2 - 1, cy), Ik%(CMOSS)
+    draw.line Dst, c1 + 1, cy, c2 - 1, cy, CMOSS
     FOR m = c1 + 1 TO c2 - 1 STEP 3
-        LINE (m, cy - 1 - (m - c1) MOD 2)-(m, cy), Ik%(CMOSS)
+        draw.line Dst, m, cy - 1 - (m - c1) MOD 2, m, cy, CMOSS
     NEXT
 END SUB
 
@@ -2069,7 +2066,6 @@ END SUB
 
 SUB NewWorld (w AS World, cur() AS SINGLE)
     DIM i AS INTEGER, j AS INTEGER
-    w.page = 1
     w.g.mode = TITLE
     w.sky.phase = DAY
     w.sky.fade = 0
@@ -2104,9 +2100,59 @@ FUNCTION NextTime! (last AS SINGLE)
     NextTime! = t
 END FUNCTION
 
-SUB OpenScreen
-    SCREEN 13, , 1, 0
-END SUB
+' The screen, drawn into, and a copy of it.
+sub OpenScreen
+    Canvas = display.open(SW, SH, 8, 0)
+    Dst = Canvas
+    Back = surface.new(SW, SH)
+end sub
+
+' A new picture w by h, all colour 0, its top left
+' the screen's x, y; drawn into from now on.
+function NewPic& (x as integer, y as integer, _
+    w as integer, h as integer)
+    Dst = surface.new(w, h)
+    surface.set_camera Dst, x, y
+    NewPic& = Dst
+end function
+
+' Drawing kept to x1, y1 to x2, y2, as VIEW SCREEN
+' keeps it, till surface.unclip.
+sub Clip (x1 as integer, y1 as integer, _
+    x2 as integer, y2 as integer)
+    surface.set_clip Dst, x1, y1, x2 - x1 + 1, y2 - y1 + 1
+end sub
+
+' Row y from x1 to x2 dotted in c, as LINE's style
+' dots it: the first pixel bit 15's.
+sub Styled (x1 as integer, x2 as integer, _
+    y as integer, c as integer, style as long)
+    Clip x1, y, x2, y
+    draw.sprite Dst, x1, y, DotRow&(c, style), 0
+    surface.unclip Dst
+end sub
+
+' A row the screen's width dotted in c by style, made
+' the first time.
+function DotRow& (c as integer, style as long)
+    dim k as integer, x as integer, tag as long, was as long
+    tag = c * 65536 + style
+    for k = 0 to NDot - 1
+        if DotKey(k) = tag then
+            DotRow& = DotPic(k)
+            exit function
+        end if
+    next
+    was = Dst
+    DotPic(NDot) = NewPic&(0, 0, SW, 1)
+    for x = 0 to SW - 1
+        if style and 2 ^ (15 - x mod 16) then draw.pset Dst, x, 0, c
+    next
+    Dst = was
+    DotKey(NDot) = tag
+    DotRow& = DotPic(NDot)
+    NDot = NDot + 1
+end function
 
 ' Circling the sun, behind it on the lower half.
 SUB Orbit (w AS World, k AS Pad, st() AS Stone, sp() AS Spark)
@@ -2140,10 +2186,10 @@ SUB Panel (g AS Game)
     f = g.modeT / .35
     IF f > 1 THEN f = 1
     y = 40 - INT((1 - f) ^ 3 * 200)
-    LINE (54, y + 3)-(273, y + 103), CINK, BF
-    LINE (50, y)-(270, y + 100), CPANEL, BF
-    LINE (50, y)-(270, y + 100), CPANEL2, B
-    LINE (52, y + 2)-(268, y + 98), CWHITE, B
+    draw.rect Dst, 54, y + 3, 273, y + 103, CINK, draw.FILL
+    draw.rect Dst, 50, y, 270, y + 100, CPANEL, draw.FILL
+    draw.rect Dst, 50, y, 270, y + 100, CPANEL2, 0
+    draw.rect Dst, 52, y + 2, 268, y + 98, CWHITE, 0
     TxtC "WHAT A FLIGHT!", y + 10, LHEAD
     TxtC "SCORE" + STR$(g.score), y + 26, LBIGW
     TxtC "BEST" + STR$(g.best), y + 48, LBIGG
@@ -2204,7 +2250,7 @@ SUB ReadPad (k AS Pad)
 END SUB
 
 ' Back to front, then the screen's effects, then the
-' drawn page is shown.
+' frame is shown.
 SUB Render (w AS World, st() AS Stone, sp() AS Spark)
     DrawSky w.g
     IF w.m.behind THEN DrawMoth w.m, w.g.mode
@@ -2217,19 +2263,18 @@ SUB Render (w AS World, st() AS Stone, sp() AS Spark)
     DrawSparks sp()
     DrawHud w
     DrawFx w.fx
-    Flip w.page
+    display.flip
 END SUB
 
 ' Runes down a shaft, glowing on and off.
 SUB Runes (x AS INTEGER, y1 AS INTEGER, y2 AS INTEGER, t AS SINGLE)
-    DIM k AS LONG, b AS INTEGER
+    DIM k AS INTEGER, b AS INTEGER
     IF y2 < y1 THEN EXIT SUB
-    IF SIN(t * 3 + x * .05) > 0 THEN k = RUNEN + 1
+    IF SIN(t * 3 + x * .05) > 0 THEN k = 1
     b = y1 + ((y2 - y1) \ 10) * 10 + 4
-    VIEW SCREEN (0, y1)-(SW - 1, b)
-    PUT (x + 13, y1), RuneM, AND
-    PUT (x + 13, y1), RuneI(k), OR
-    VIEW
+    Clip 0, y1, SW - 1, b
+    draw.sprite Dst, x + 13, y1, RunePic(k), 0
+    surface.unclip Dst
 END SUB
 
 ' Runes in c from row y1, one each 10 rows to y2.
@@ -2238,7 +2283,7 @@ SUB RuneCol (x AS INTEGER, y1 AS INTEGER, y2 AS INTEGER, c AS INTEGER)
     FOR y = y1 TO y2 STEP 10
         FOR n = 0 TO 14
             IF MID$(Rune(j MOD 4), n + 1, 1) = "1" THEN
-                PSET (x + 13 + n MOD 3, y + n \ 3), Ik%(c)
+                draw.pset Dst, x + 13 + n MOD 3, y + n \ 3, c
             END IF
         NEXT
         j = j + 1
@@ -2248,11 +2293,11 @@ END SUB
 ' Shaft x from y1 to y2, as Shaft drew it: its mortar
 ' row's lower line one past y2 when it falls there.
 SUB ShaftAt (x AS INTEGER, y1 AS INTEGER, y2 AS INTEGER)
-    VIEW SCREEN (0, y1)-(SW - 1, y2)
-    PUT (x, y1), ShaftImg, PSET
-    VIEW
+    Clip 0, y1, SW - 1, y2
+    draw.sprite Dst, x, y1, ShaftPic, draw.OPAQUE
+    surface.unclip Dst
     IF y2 >= y1 + 4 AND (y2 - y1 - 4) MOD 9 = 0 THEN
-        LINE (x + 2, y2 + 1)-(x + 8, y2 + 1), CSTONE
+        draw.line Dst, x + 2, y2 + 1, x + 8, y2 + 1, CSTONE
     END IF
 END SUB
 
@@ -2268,33 +2313,30 @@ SUB StonePart (k AS INTEGER)
     END SELECT
 END SUB
 
-' Part k's columns x1 to x2 of rows 0 to h - 1 kept
-' over 0 and, as its mask, 0 over 255.
-SUB KeepPart (k AS INTEGER, x1 AS INTEGER, x2 AS INTEGER, h AS INTEGER, im() AS LONG, s AS LONG, mk() AS LONG, ms AS LONG)
-    LINE (x1, 0)-(x2, h - 1), 0, BF
+' Part k's columns x1 to x2 of rows 0 to h - 1, a
+' picture.
+function PartPic& (k as integer, x1 as integer, _
+    x2 as integer, h as integer)
+    PartPic& = NewPic&(x1, 0, x2 - x1 + 1, h)
     StonePart k
-    GET (x1, 0)-(x2, h - 1), im(s)
-    LINE (x1, 0)-(x2, h - 1), CMASK, BF
-    Ink = 0: StonePart k: Ink = -1
-    GET (x1, 0)-(x2, h - 1), mk(ms)
-END SUB
+end function
 
-SUB BuildStoneArt
-    DIM k AS INTEGER
-    Ink = -1
+sub BuildStoneArt
+    dim k as integer
+    ShaftPic = NewPic&(0, 0, STONEW, GROUNDY)
     Shaft 0, 0, GROUNDY - 1
-    GET (0, 0)-(STONEW - 1, GROUNDY - 1), ShaftImg
+    CapPic = NewPic&(0, 0, CAPW, CAPH)
     Lintel OVERHANG, 0
-    GET (0, 0)-(CAPW - 1, CAPH - 1), CapImg
-    KeepPart 0, 0, CAPW - 1, 3, MossI(), 0, MossM(), 0
-    KeepPart 1, 0, CAPW - 1, 6, DripI(), 0, DripM(), 0
-    FOR k = 0 TO 3
-        KeepPart k + 2, k + 1, k + CAPW, CAPH, BrokeI(), k * (CAPN + 1), BrokeM(), k * (CAPN + 1)
-    NEXT
-    KeepPart 6, 0, 2, 180, RuneI(), 0, RuneM(), 0
-    KeepPart 7, 0, 2, 180, RuneI(), RUNEN + 1, RuneM(), 0
+    MossPic = PartPic&(0, 0, CAPW - 1, 3)
+    DripPic = PartPic&(1, 0, CAPW - 1, 6)
+    for k = 0 to 3
+        BrokePic(k) = PartPic&(k + 2, k + 1, k + CAPW, CAPH)
+    next
+    RunePic(0) = PartPic&(6, 0, 2, 180)
+    RunePic(1) = PartPic&(7, 0, 2, 180)
     BuildVines
-END SUB
+    Dst = Canvas
+end sub
 
 SUB Scored (w AS World, sp() AS Spark)
     w.g.score = w.g.score + 1
@@ -2383,18 +2425,18 @@ SUB Shaft (x AS INTEGER, y1 AS INTEGER, y2 AS INTEGER)
     FOR dx = 1 TO STONEW
         c = StoneCol(s + OVERHANG)
         IF dx = STONEW THEN
-            LINE (x + s, y1)-(x + dx - 1, y2), c, BF
+            draw.rect Dst, x + s, y1, x + dx - 1, y2, c, draw.FILL
         ELSEIF StoneCol(dx + OVERHANG) <> c THEN
-            LINE (x + s, y1)-(x + dx - 1, y2), c, BF
+            draw.rect Dst, x + s, y1, x + dx - 1, y2, c, draw.FILL
             s = dx
         END IF
     NEXT
     FOR y = y1 + 4 TO y2 STEP 9
-        LINE (x + 1, y)-(r - 1, y), CSTONE + 6
-        LINE (x + 2, y + 1)-(x + 8, y + 1), CSTONE
+        draw.line Dst, x + 1, y, r - 1, y, CSTONE + 6
+        draw.line Dst, x + 2, y + 1, x + 8, y + 1, CSTONE
     NEXT
-    LINE (x, y1)-(x, y2), CINK
-    LINE (r, y1)-(r, y2), CINK
+    draw.line Dst, x, y1, x, y2, CINK
+    draw.line Dst, r, y1, r, y2, CINK
 END SUB
 
 ' The whole frame moved down and right.
@@ -2402,10 +2444,10 @@ SUB Shake (amount AS SINGLE)
     DIM dx AS INTEGER, dy AS INTEGER
     dx = 1 + INT(RND * amount * 10)
     dy = 1 + INT(RND * amount * 10)
-    GET (0, 0)-(SW - 1 - dx, SH - 1 - dy), Frame
-    LINE (0, 0)-(SW - 1, dy - 1), CINK, BF
-    LINE (0, 0)-(dx - 1, SH - 1), CINK, BF
-    PUT (dx, dy), Frame, PSET
+    draw.sprite Back, 0, 0, Dst, draw.OPAQUE
+    draw.rect Dst, 0, 0, SW - 1, dy - 1, CINK, draw.FILL
+    draw.rect Dst, 0, 0, dx - 1, SH - 1, CINK, draw.FILL
+    draw.sprite Dst, dx, dy, Back, draw.OPAQUE
 END SUB
 
 ' Mushrooms on a cap.
@@ -2413,10 +2455,10 @@ SUB Shrooms (x AS INTEGER, cy AS INTEGER)
     DIM j AS INTEGER, m AS INTEGER
     FOR j = 0 TO 2
         m = x - OVERHANG + 5 + j * 12
-        LINE (m, cy - 3)-(m, cy - 1), CWHITE
-        LINE (m - 2, cy - 4)-(m + 2, cy - 4), CSHROOM
-        LINE (m - 1, cy - 5)-(m + 1, cy - 5), CSHROOM
-        PSET (m - 1, cy - 4), CWHITE
+        draw.line Dst, m, cy - 3, m, cy - 1, CWHITE
+        draw.line Dst, m - 2, cy - 4, m + 2, cy - 4, CSHROOM
+        draw.line Dst, m - 1, cy - 5, m + 1, cy - 5, CSHROOM
+        draw.pset Dst, m - 1, cy - 4, CWHITE
     NEXT
 END SUB
 
@@ -2462,15 +2504,14 @@ SUB Tick (w AS World, k AS Pad, st() AS Stone, sp() AS Spark)
 END SUB
 
 SUB TitleText (g AS Game)
-    DIM x AS INTEGER, h AS STRING, k AS INTEGER
+    DIM x AS INTEGER, h AS STRING
     TxtC "MOTHLIGHT", 14, LNAME
     ' a gleam sweeps across the name
     x = INT(g.clock * 140) MOD 560 - 100
     IF x >= 52 AND x <= 260 THEN
-        k = TxtSprite%("MOTHLIGHT", LGLEAM) ' drawn unclipped
-        VIEW SCREEN (x, 14)-(x + 10, 38)
+        Clip x, 14, x + 10, 38
         TxtC "MOTHLIGHT", 14, LGLEAM
-        VIEW
+        surface.unclip Dst
     END IF
     TxtC "a little moth's big day out", 44, LSMALL
     IF INT(g.clock * 2) MOD 2 = 0 THEN
@@ -2531,7 +2572,7 @@ SUB Txt (t AS STRING, x AS INTEGER, y AS INTEGER, id AS INTEGER)
                     c = CINK
                     IF pass THEN c = c1 + r * span \ 8
                     gy = y + r * sc + o
-                    GlyphRow Glyph(ch, r), gx, gy, sc, Ik%(c)
+                    GlyphRow Glyph(ch, r), gx, gy, sc, c
                 NEXT
             NEXT
         END IF
@@ -2539,53 +2580,47 @@ SUB Txt (t AS STRING, x AS INTEGER, y AS INTEGER, id AS INTEGER)
 END SUB
 
 SUB TxtC (t AS STRING, y AS INTEGER, id AS INTEGER)
-    DIM x AS INTEGER, k AS INTEGER
+    DIM x AS INTEGER
     x = (SW - LEN(t) * 8 * Looks(id).sc) \ 2
-    k = TxtSprite%(t, id)
-    PUT (x, y), Pool(TxtAt(k) + TxtLen(k)), AND
-    PUT (x, y), Pool(TxtAt(k)), OR
+    draw.sprite Dst, x, y, TxtSprite&(t, id), 0
 END SUB
 
-' Text t's picture in look id: drawn at the top left
-' the first time, what was there put back.
-FUNCTION TxtSprite% (t AS STRING, id AS INTEGER)
-    DIM k AS INTEGER, w AS INTEGER, h AS INTEGER
-    DIM n AS LONG, tk AS STRING
-    tk = CHR$(id) + t
-    FOR k = 0 TO TxtN - 1
-        IF TxtKey(k) = tk THEN
-            TxtSprite% = k
-            EXIT FUNCTION
-        END IF
-    NEXT
-    w = LEN(t) * 8 * Looks(id).sc + Looks(id).sh
+' Text t's picture in look id, drawn the first time.
+function TxtSprite& (t as string, id as integer)
+    dim k as integer, w as integer, h as integer
+    dim tk as string, was as long
+    tk = chr$(id) + t
+    for k = 0 to TxtN - 1
+        if TxtKey(k) = tk then
+            TxtSprite& = TxtPic(k)
+            exit function
+        end if
+    next
+    if TxtN = NTXT then
+        for k = 0 to NTXT - 1
+            surface.free TxtPic(k)
+        next
+        TxtN = 0
+    end if
+    w = len(t) * 8 * Looks(id).sc + Looks(id).sh
     h = 8 * Looks(id).sc + Looks(id).sh
-    n = (CLNG(w) * h + 7) \ 4
-    IF TxtN = NTXT OR TxtTop + 2 * n > TXTPOOL THEN
-        TxtN = 0: TxtTop = 0
-    END IF
-    GET (0, 0)-(w - 1, h - 1), Frame
-    LINE (0, 0)-(w - 1, h - 1), 0, BF
+    was = Dst
+    TxtPic(TxtN) = NewPic&(0, 0, w, h)
     Txt t, 0, 0, id
-    GET (0, 0)-(w - 1, h - 1), Pool(TxtTop)
-    LINE (0, 0)-(w - 1, h - 1), CMASK, BF
-    Ink = 0: Txt t, 0, 0, id: Ink = -1
-    GET (0, 0)-(w - 1, h - 1), Pool(TxtTop + n)
-    PUT (0, 0), Frame, PSET
-    TxtKey(TxtN) = tk: TxtAt(TxtN) = TxtTop: TxtLen(TxtN) = n
-    TxtTop = TxtTop + 2 * n
-    TxtSprite% = TxtN
+    Dst = was
+    TxtKey(TxtN) = tk
+    TxtSprite& = TxtPic(TxtN)
     TxtN = TxtN + 1
-END FUNCTION
+end function
 
 ' Vines hang from the top and sway, leaves on them.
 SUB Vines (x AS INTEGER, y2 AS INTEGER, t AS SINGLE)
     CONST TAU = 6.283185307179586#
     DIM j AS INTEGER, ys AS INTEGER, m AS INTEGER, i AS INTEGER
-    DIM u AS INTEGER, s AS LONG, tb AS SINGLE
+    DIM u AS INTEGER, s AS INTEGER, tb AS SINGLE
     DIM d AS DOUBLE, r AS DOUBLE, px(2) AS INTEGER
     tb = t * 1.7
-    VIEW SCREEN (0, 0)-(SW - 1, y2)
+    Clip 0, 0, SW - 1, y2
     FOR j = 0 TO 2
         ys = 0
         DO
@@ -2603,29 +2638,29 @@ SUB Vines (x AS INTEGER, y2 AS INTEGER, t AS SINGLE)
             LOOP
             u = (ys - m + 2 * j) MOD 6
             IF u < 0 THEN u = u + 6
-            s = (i * 6 + u) * (VSTRIPN + 1)
-            PUT (x + 2 + 9 * j, ys - m), VStripM(s), AND
-            PUT (x + 2 + 9 * j, ys - m), VStripI(s), OR
+            s = i * 6 + u
+            draw.sprite Dst, x + 2 + 9 * j, ys - m, VStrip(s), 0
             ys = ys + VSEG
         LOOP WHILE ys - VSEG - m + VSK - 1 < y2
         px(j) = x + 5 + j * 9 + INT(1.5 * SIN(CDBL(tb) + y2 * CDBL(.16!) + j))
     NEXT
-    VIEW
+    surface.unclip Dst
     ' the moss below the last row
     FOR j = 0 TO 2
-        IF (y2 + j * 2) MOD 6 = 0 THEN PSET (px(j) - 1, y2 + 1), CMOSS
+        IF (y2 + j * 2) MOD 6 = 0 THEN
+            draw.pset Dst, px(j) - 1, y2 + 1, CMOSS
+        END IF
     NEXT
 END SUB
 
 ' The vine strips: the thresholds' remainders of .16
 ' sorted into VBnd, VBin the first past each bin's
-' start; each strip's moss then vine, over 0 and as a
-' mask.
+' start; each strip's moss then vine.
 SUB BuildVines
     CONST TAU = 6.283185307179586#
     DIM th(5) AS DOUBLE, b AS DOUBLE, v AS DOUBLE, mid AS DOUBLE
     DIM n AS INTEGER, i AS INTEGER, q AS INTEGER, k AS INTEGER
-    DIM u AS INTEGER, c AS INTEGER, s AS LONG, col(VSK) AS INTEGER
+    DIM u AS INTEGER, col(VSK) AS INTEGER
     v = ATN(2 / SQR(5))
     th(0) = v: th(1) = TAU / 2 - v: th(2) = TAU / 2
     th(3) = TAU / 2 + v: th(4) = TAU - v: th(5) = TAU
@@ -2661,26 +2696,17 @@ SUB BuildVines
             col(k) = 3 + INT(1.5 * SIN(mid + k * CDBL(.16!)))
         NEXT
         FOR u = 0 TO 5
-            s = (i * 6 + u) * (VSTRIPN + 1)
-            FOR c = 0 TO 1
-                IF c = 0 THEN Ink = -1 ELSE Ink = 0
-                LINE (0, 0)-(VSW - 1, VSK), CMASK * c, BF
-                FOR k = 0 TO VSK - 1
-                    IF (k + u) MOD 6 = 0 THEN
-                        PSET (col(k) + 1, k), Ik%(CMOSS)
-                        PSET (col(k) - 1, k + 1), Ik%(CMOSS)
-                    END IF
-                NEXT
-                FOR k = 0 TO VSK - 1
-                    PSET (col(k), k), Ik%(CVINE)
-                NEXT
-                IF c = 0 THEN
-                    GET (0, 0)-(VSW - 1, VSK - 1), VStripI(s)
-                ELSE
-                    GET (0, 0)-(VSW - 1, VSK - 1), VStripM(s)
+            VStrip(i * 6 + u) = NewPic&(0, 0, VSW, VSK)
+            FOR k = 0 TO VSK - 1
+                IF (k + u) MOD 6 = 0 THEN
+                    draw.pset Dst, col(k) + 1, k, CMOSS
+                    draw.pset Dst, col(k) - 1, k + 1, CMOSS
                 END IF
+            NEXT
+            FOR k = 0 TO VSK - 1
+                draw.pset Dst, col(k), k, CVINE
             NEXT
         NEXT
     NEXT
-    Ink = -1
+    Dst = Canvas
 END SUB

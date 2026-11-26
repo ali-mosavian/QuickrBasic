@@ -2,7 +2,8 @@
 defint A-Z
 option explicit
 
-from engine.video import Regrab, Store
+from engine.video import Checker, DrawBox, PicFill, PicPaste, Store
+from engine.video import Txt
 from barkley.model.images import IGLYPH, IHUD, NGLYPH
 from barkley.model.hero import Hero
 from barkley.model.level import NGOLD
@@ -15,11 +16,9 @@ const PIPX = 84
 const PIPY = 22
 
 ' The score, time, bones and lives, top left over the scene:
-' a picture and its mask, put together from the characters
-' when a number moves. Called before the frame is drawn: it
-' draws on the page's corner. gold: the act's golden bones
-' found, a bit each, a pip each after the bones; under 0, it
-' has none.
+' a picture put together from the characters when a number
+' moves. gold: the act's golden bones found, a bit each, a
+' pip each after the bones; under 0, it has none.
 sub Hud (art as Store, g as Game, gold as integer)
     dim s as integer, sig as long, i as integer, x as integer
     dim bit as integer
@@ -30,8 +29,7 @@ sub Hud (art as Store, g as Game, gold as integer)
     if sig = g.sig then exit sub
 
     g.sig = sig
-    line (0, 0)-(HUDW - 1, HUDH - 1), 0, BF
-    line (0, 100)-(HUDW - 1, 100 + HUDH - 1), 255, BF
+    PicFill art, IHUD, 0, 0, HUDW - 1, HUDH - 1, 0
     HudLine art, 0, "SCORE " + Num$(g.score, 6), 6
     HudLine art, 1, _
         "TIME  " + ltrim$(str$(s \ 60)) + ":" _
@@ -44,22 +42,19 @@ sub Hud (art as Store, g as Game, gold as integer)
         if gold < 0 then exit for
 
         x = PIPX + i * 8
-        line (x, PIPY)-(x + 6, PIPY + 6), CINK, BF
+        PicFill art, IHUD, x, PIPY, x + 6, PIPY + 6, CINK
 
         if gold and bit then
-            line (x + 1, PIPY + 1)-(x + 5, PIPY + 5), CYELLOW, BF
+            PicFill art, IHUD, x + 1, PIPY + 1, x + 5, PIPY + 5, _
+                CYELLOW
         end if
 
-        line (x, 100 + PIPY)-(x + 6, 106 + PIPY), 0, BF
         bit = bit * 2
     next
-
-    Regrab art, 0, 0, HUDW - 1, HUDH - 1, IHUD
-    Regrab art, 0, 100, HUDW - 1, 100 + HUDH - 1, IHUD + 1
 end sub
 
-' A row of the HUD's picture and mask: s, its first n
-' characters yellow.
+' A row of the HUD's picture: s, its first n characters
+' yellow.
 private sub HudLine ( _
     art as Store, _
     row as integer, _
@@ -73,13 +68,18 @@ private sub HudLine ( _
         if k < 0 then continue for
 
         k = IGLYPH + (k - NGLYPH * (i > n)) * 2
-        put (i * 9 - 9, row * 10), art.img(art.at(k)), pset
-        put (i * 9 - 9, 100 + row * 10), art.img(art.at(k + 1)), pset
+        PicPaste art, IHUD, i * 9 - 9, row * 10, k
     next
 end sub
 
 ' What Charlie says, in a box over its head.
-sub Say (p as Hero, cx as integer, cy as integer, s as string)
+sub Say ( _
+    art as Store, _
+    p as Hero, _
+    cx as integer, _
+    cy as integer, _
+    s as string _
+)
     dim row as integer, col as integer
 
     col = (cint(p.at.x) - cx) \ 8 - len(s) \ 2 + 1
@@ -88,36 +88,27 @@ sub Say (p as Hero, cx as integer, cy as integer, s as string)
     if col > 39 - len(s) then col = 39 - len(s)
     if row < 3 then row = 3
     if row > 23 then row = 23
-    Panel col * 8 - 12, row * 8 - 12, (col + len(s)) * 8 - 5, _
+    Panel art, col * 8 - 12, row * 8 - 12, (col + len(s)) * 8 - 5, _
         row * 8 + 3
-    Txt row, col, s, CWHITE
+    Txt art, row, col, s, CWHITE
 end sub
 
 ' A dark box with a gold edge, for words: every other pixel
 ' of it, the scene through the rest.
-sub Panel (x1 as integer, y1 as integer, x2 as integer, y2 as integer)
-    dim y as integer
-
-    for y = y1 to y2
-        if (x1 + y) and 1 then
-            line (x1, y)-(x2, y), CHUD, , &H5555
-        else
-            line (x1, y)-(x2, y), CHUD, , &HAAAA
-        end if
-    next
-
-    line (x1, y1)-(x2, y2), CGOLD + 2, B
-end sub
-
-sub Txt (row as integer, col as integer, s as string, c as integer)
-    color c
-    locate row, col
-    print s;
+sub Panel ( _
+    art as Store, _
+    x1 as integer, _
+    y1 as integer, _
+    x2 as integer, _
+    y2 as integer _
+)
+    Checker art, x1, y1, x2, y2, CHUD
+    DrawBox art, x1, y1, x2, y2, CGOLD + 2
 end sub
 
 ' s centred on row.
-sub Banner (row as integer, s as string, c as integer)
-    Txt row, 21 - len(s) \ 2, s, c
+sub Banner (art as Store, row as integer, s as string, c as integer)
+    Txt art, row, 21 - len(s) \ 2, s, c
 end sub
 
 ' v in w digits, 0s first.

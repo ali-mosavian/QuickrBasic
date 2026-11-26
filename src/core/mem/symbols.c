@@ -42,9 +42,9 @@
 #include "mem/symbols.h"
 
 enum {
-    VINIT = 1024, /* the first variables' room */
-    NINIT = 1024, /*   names' */
-    LINIT = 256,  /*   procedures' locals' heads */
+    VINIT = 256,  /* the first variables' room; the first compile sizes it */
+    NINIT = 256,  /*   names' */
+    LINIT = 64,   /*   procedures' locals' heads */
     VSLACK = 256, /* variables past the program's: direct lines' */
     NAME_HASH_MUL = 31,
 };

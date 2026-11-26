@@ -22,6 +22,8 @@ typedef struct {
     Fault *fault;
     LexrNames *names;
     LexrSource *source; /* g_lxfill: streamed text's, null none */
+    uint8_t **body;     /* the body's buffer (comp.cbuf), a byte before it: grown, moved maybe */
+    uint32_t *cap;      /* its bytes */
     const uint8_t *src; /* lxsrc: lexr_line's text, body: for the columns */
     uint8_t *dst;       /* lxdst */
     uint8_t *end;       /* g_lxend: the body's limit, a line's record */
@@ -43,10 +45,11 @@ typedef struct {
     uint64_t off[8];     /* OPTION DISABLE's words, by token (100h + n for TK_X n): names */
 } Lexr;
 
-/* Errors raise through f; words become names through names. */
-void lexr_init(Lexr *lx, Fault *f, LexrNames *names);
-/* Text, 0-ended, to body; past its 0. The text is changed: FN joined, E and D upper case. */
-uint8_t *lexr_line(Lexr *lx, uint8_t *text, uint8_t *body);
+/* Errors raise through f; words become names through names; bodies go to *body, of *cap bytes. */
+void lexr_init(Lexr *lx, Fault *f, LexrNames *names, uint8_t **body, uint32_t *cap);
+/* Text, 0-ended, to the body's buffer, grown as it fills: past its 0. The text is changed: FN
+   joined, E and D upper case. Out of memory past LMAX. */
+uint8_t *lexr_line(Lexr *lx, uint8_t *text);
 /* lx_kw: the keyword the word at *at spells, stepped past: its token (100h + n for TK_X n), 0 a
    name. */
 uint16_t lexr_keyword(const uint8_t **at);

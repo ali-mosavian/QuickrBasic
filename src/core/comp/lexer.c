@@ -49,7 +49,10 @@
 #include "comp/dfa.h"
 #include "num/single.h"
 
-enum { LXAHEAD = 128 }; /* ahead: a word's, a number's bytes in the window */
+enum {
+    LXAHEAD = 128,                        /* ahead: a word's, a number's bytes in the window */
+    LXITEM = 2 + UINT8_MAX + 1 + NAME_ID, /* the most an item writes past its room's check */
+};
 
 static void kw_made(void);
 
@@ -59,17 +62,42 @@ static void lexr_fail(const Lexr *const lx)
     fault_error(lx->fault, E_OM);
 }
 
-void lexr_init(Lexr *const lx, Fault *const f, LexrNames *const names)
+void lexr_init(
+    Lexr *const lx,
+    Fault *const f,
+    LexrNames *const names,
+    uint8_t **const body,
+    uint32_t *const cap
+)
 {
     lx->fault = f;
     lx->names = names;
+    lx->body = body;
+    lx->cap = cap;
     kw_made();
 }
 
+/* lexr.end: LXITEM bytes before the buffer's end, LMAX at most. */
+static void lexr_ends(Lexr *const lx)
+{
+    const uint32_t room = *lx->cap > LXITEM ? *lx->cap - LXITEM : 0;
+    lx->end = lx->dst + (room < LMAX ? room : LMAX);
+}
+
+/* LXITEM bytes at lexr.out: the buffer grown, moved maybe. Out of memory past LMAX. */
 static void lexr_room(Lexr *const lx)
 {
-    if (lx->out >= lx->end)
+    if (lx->out < lx->end)
+        return;
+
+    const uint32_t off = (uint32_t)(lx->out - lx->dst);
+
+    if (off >= LMAX || !grow_after(lx->body, lx->cap, off + LXITEM))
         lexr_fail(lx);
+
+    lx->dst = *lx->body;
+    lx->out = lx->dst + off;
+    lexr_ends(lx);
 }
 
 /* lexr.near: LXAHEAD before the window's end while the source may have more, else never met. */
@@ -79,13 +107,14 @@ static void lexr_near(Lexr *const lx)
 }
 
 /* Streamed text: the window's end at src; the window slid, its bytes from src on kept, and read
-   on. False: the line has no more. */
+   on: moved, grown maybe. False: the line has no more. */
 static bool lexr_more(Lexr *const lx)
 {
     if (!lx->source || lx->drained)
         return false;
 
     const uint8_t *keep = lx->in;
+    const ptrdiff_t src = lx->src - lx->in, word = lx->word - lx->in;
 
     if (!lx->source->more(lx->source, &keep)) {
         lx->drained = true; /* asked again before each item: a call each */
@@ -93,9 +122,8 @@ static bool lexr_more(Lexr *const lx)
         return false;
     }
 
-    const ptrdiff_t moved = lx->in - keep;
-    lx->src -= moved;
-    lx->word -= moved;
+    lx->src = keep + src;
+    lx->word = keep + word;
     lx->in = (uint8_t *)keep;
     lexr_near(lx);
     return true;
@@ -196,7 +224,7 @@ static void lexr_number(Lexr *const lx)
     if (lexr_int(lx))
         return;
 
-    uint8_t *const start = lx->out;
+    const uint32_t start = (uint32_t)(lx->out - lx->dst); /* the body may move */
     int64_t v = 0;
     bool text = false;
 
@@ -261,7 +289,7 @@ static void lexr_number(Lexr *const lx)
     if (*lx->in == '%' || *lx->in == '&') /* an INTEGER's, a LONG's: one type */
         lx->in++;
 
-    lx->out = start;
+    lx->out = lx->dst + start;
     *lx->out++ = M_INT;
     store32(lx->out, (uint32_t)v);
     lx->out += 4;
@@ -688,13 +716,12 @@ static uint8_t *lexr_copy_rest(Lexr *const lx)
     }
 }
 
-uint8_t *lexr_line(Lexr *const lx, uint8_t *const text, uint8_t *const body)
+uint8_t *lexr_line(Lexr *const lx, uint8_t *const text)
 {
     lx->in = text;
-    lx->out = body;
     lx->src = text;
-    lx->dst = body;
-    lx->end = body + LMAX;
+    lx->out = lx->dst = *lx->body;
+    lexr_ends(lx);
     lx->last = -1;
     lx->drained = false;
     lx->escaped = false;
@@ -723,8 +750,9 @@ uint8_t *lexr_line(Lexr *const lx, uint8_t *const text, uint8_t *const body)
 
         if (lx->in > lx->near)
             lexr_ahead(lx);
-        if (lx->out >= lx->end) /* lexr_markcol's, end the body's LMAX */
-            lexr_fail(lx);
+
+        lexr_room(lx);
+
         if (lx->cols)
             lexr_markcol_kept(lx);
 

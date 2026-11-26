@@ -72,7 +72,7 @@ endif
 QBRT := src/qbrt/llrm
 QBRT_PORTABLE := $(addprefix qb/,console.c cntext.c cngfx.c gfx.c gline.c gcirc.c gpaint.c gputget.c gdraw.c play.c music.c song.c \
 	screen.c scrfn.c sleep.c sticks.c timer.c varptr.c error.c rtinit.c nhstutil.c nheap.c)
-QBRT_DOS_C := $(QBRT_PORTABLE) $(addprefix qb/,dos/m32/ad.c posix/block.c dev/pixmem.c dev/dos/gfxdev.c \
+QBRT_DOS_C := $(QBRT_PORTABLE) $(addprefix qb/,dos/m32/ad.c posix/block.c dev/dos/gfxdev.c \
 	$(addprefix dev/dos/m32/,clock.c con.c key.c prn.c sb.c text.c tone.c))
 QBRT_DOS_ASM := $(addprefix qb/dev/dos/m32/,bios.asm gdblit.asm gdcirc.asm gdfill.asm gdline.asm gdscan.asm gdxfer.asm ports.asm \
 	sbisr.asm tick.asm) qb/dos/m32/block.asm
@@ -159,6 +159,7 @@ test: $(DOS_EXE) | $(DOSBOX_BIN)
 	BASIC_EXE=$(B)/basic32.exe $(PY) tools/cost_test.py $(B)/basic32.exe
 	BASIC_EXE=$(B)/basic32.exe $(PY) tools/gfx_test.py
 	IDE_EXE=$(B)/ide32.exe $(PY) tools/ide_test.py
+	IDE_EXE=$(B)/ide32.exe $(PY) tools/lowmem_test.py
 
 # the native ABI's test extension (tests/ext): its glue, then a slice for each platform; native.sh packs them
 build/ext/qxtest_qx.c: tests/ext/qxtest.bas tools/qbx.py
@@ -246,8 +247,12 @@ $(B)/lib/gfx.qbx: $(GFX_PARTS) $(B)/ext/gfx.dll tools/qbx.py
 -include $(GFX_DOS_OBJ:%=%.d)
 
 host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/hostperf/basic build/host/ext/qxtest.so \
-		build/host/lib/gfx.qbx
+		build/host/lib/gfx.qbx $(NAMES)
 	for t in $(TOOLS_TEST); do $(PY) $$t || exit 1; done
+	CLANG=$(CLANG) $(PY) tools/rtstatic_test.py $(NAMES) $(addprefix $(QBRT)/,$(QBRT_DOS_C)) src/qbrt/qbrt.c src/qbrt/qbrt_dos.c
+	CLANG=$(CLANG) $(PY) tools/rtstatic_test.py --objects $(QBRT_HOST_C:%.c=build/host/qbrt/%.o) \
+		build/host/obj/qbrt/qbrt.o build/host/obj/qbrt/qbrt_host.o \
+		build/host/obj/core/ui/debuglocals.o build/host/obj/core/ui/spelling.o
 	build/host/unit_tests
 	sh tests/host/longpath.sh build/host/basic
 	sh tests/host/dosname.sh build/host/basic

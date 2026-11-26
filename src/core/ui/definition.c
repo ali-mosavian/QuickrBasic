@@ -162,13 +162,13 @@ typedef bool LinePred(Session *S, uint32_t rec, uint32_t t);
 
 static bool line_declares(Session *const S, const uint32_t rec, const uint32_t t)
 {
-    prog_body(&S->prog, rec, S->comp.cbuf);
+    comp_body(&S->comp, rec, 0);
     return declares(S->comp.cbuf, t);
 }
 
 static bool line_names(Session *const S, const uint32_t rec, const uint32_t t)
 {
-    prog_body(&S->prog, rec, S->comp.cbuf);
+    comp_body(&S->comp, rec, 0);
     return names(S->comp.cbuf, t);
 }
 

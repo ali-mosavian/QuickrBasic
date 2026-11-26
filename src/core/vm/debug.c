@@ -196,7 +196,7 @@ static void restore(Session *const S, const Saved *const s)
 /* The direct line's code from cons.inbuf's QBasic statement. */
 static void comp_code(Session *const S)
 {
-    lexr_line(&S->lexr, S->cons.inbuf, S->comp.cbuf);
+    lexr_line(&S->lexr, S->cons.inbuf);
     comp_line(&S->comp);
 }
 
@@ -209,9 +209,9 @@ static Status run_probe(
     const char *const text
 )
 {
-    const size_t n = strlen(pre);
-    memcpy(S->cons.inbuf, pre, n);
-    memcpy(S->cons.inbuf + n, text, strlen(text) + 1);
+    const uint32_t n = (uint32_t)strlen(pre), k = (uint32_t)strlen(text) + 1;
+    memcpy(cons_inroom(&S->cons, n + k), pre, n);
+    memcpy(S->cons.inbuf + n, text, k);
     S->vm.line = DLINE;
     Catch c;
     fault_push(&S->fault, &c);

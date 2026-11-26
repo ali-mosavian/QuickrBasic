@@ -3,7 +3,8 @@
 defint A-Z
 option explicit
 
-from engine.video import Blit, SH, Store, SW
+from engine.video import Blit, DrawDot, DrawLine, FillBox, SH, Store
+from engine.video import SW
 from engine.events import Events
 from barkley.model.images import IGOAT, IGOATR, ILOAD, ISNOWBALL
 from barkley.model.hero import Hero
@@ -165,9 +166,9 @@ sub DrawAvalanche ( _
         if d < 64 then h = cint(AVALH * sqr(d / 64))
         h = h + cint(4 * sin((wx + se.ticks * 3) / 11))
         y = SnowTop%(lv, wx) - cy - h
-        line (x, y + 22)-(x + 3, SH - 1), CFLAKE, BF
-        line (x, y)-(x + 3, y + 21), CSNOW, BF
-        line (x, y)-(x + 3, y + 1), CWHITE, BF
+        FillBox art, x, y + 22, x + 3, SH - 1, CFLAKE
+        FillBox art, x, y, x + 3, y + 21, CSNOW
+        FillBox art, x, y, x + 3, y + 1, CWHITE
         ' a ball on its top every 36 along, turning
         j = wx \ 36
         if wx mod 36 >= 4 or d <= 24 then continue for
@@ -191,8 +192,8 @@ sub DrawAvalanche ( _
             + (se.ticks * (2 + j)) mod 16
         y = SnowTop%(lv, wx) - cy - 6 _
             - abs((se.ticks * (4 + j) + j * 13) mod 36 - 18)
-        line (wx - cx, y)-(wx - cx + 3, y + 3), CICE, BF
-        line (wx - cx, y)-(wx - cx + 3, y), CWHITE
+        FillBox art, wx - cx, y, wx - cx + 3, y + 3, CICE
+        DrawLine art, wx - cx, y, wx - cx + 3, y, CWHITE
     next
 end sub
 
@@ -207,14 +208,14 @@ end function
 
 ' The blizzard over the view: flakes aslant always; a gust's
 ' streaks of snow from the right, fewer as it rises.
-sub DrawGale (lv as Level, se as Session)
+sub DrawGale (lv as Level, art as Store, se as Session)
     dim j as integer, x as integer, y as integer, n as integer
 
     for j = 0 to 23
         x = SW - (se.ticks * (2 + (j and 3)) + j * 61) mod (SW + 16)
         y = (se.ticks * (1 + (j and 1)) + j * 37) mod SH
-        pset (x, y), CWHITE
-        pset (x + 1, y - 1), CFLAKE
+        DrawDot art, x, y, CWHITE
+        DrawDot art, x + 1, y - 1, CFLAKE
     next
 
     if Lull%(lv, se) > GUSTTELL then exit sub
@@ -226,9 +227,10 @@ sub DrawGale (lv as Level, se as Session)
         x = SW + 40 _
             - (se.ticks * (9 + j mod 5) + j * 71) mod (SW + 80)
         y = (j * 47 + (se.ticks \ 2) * 3) mod SH
-        line (x, y)-(x + 8 + (j mod 3) * 6, y - 2 - j mod 3), CWHITE
-        line (x + 4, y + 1)-(x + 10 + (j mod 3) * 6, _
-            y - 1 - j mod 3), CFLAKE
+        DrawLine art, x, y, x + 8 + (j mod 3) * 6, y - 2 - j mod 3, _
+            CWHITE
+        DrawLine art, x + 4, y + 1, x + 10 + (j mod 3) * 6, _
+            y - 1 - j mod 3, CFLAKE
     next
 end sub
 

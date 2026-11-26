@@ -4,7 +4,7 @@
 defint A-Z
 option explicit
 
-from engine.video import Blit, Store, SW
+from engine.video import Blit, DrawLine, FillBox, Store, SW
 from engine.clock import STEPT
 from engine.events import Events
 from barkley.model.images import IBURST, ICAT, ICATF, IFLOWER, IMORTAR
@@ -153,7 +153,12 @@ end sub
 ' A way out's smoke, from its pot's top at x, y on the
 ' screen: three puffs, each rising, drifting and growing in
 ' its turn.
-sub DrawSmoke (se as Session, x as integer, y as integer)
+sub DrawSmoke ( _
+    art as Store, _
+    se as Session, _
+    x as integer, _
+    y as integer _
+)
     dim f as integer, t as integer, r as integer, px as integer
     dim py as integer
 
@@ -162,8 +167,8 @@ sub DrawSmoke (se as Session, x as integer, y as integer)
         r = 1 + t \ 12
         px = x + t \ 4
         py = y - 3 - t
-        line (px - r, py - r + 1)-(px + r, py + r - 1), CSOOT, BF
-        line (px - r + 1, py - r)-(px + r - 1, py + r), CSOOT, BF
+        FillBox art, px - r, py - r + 1, px + r, py + r - 1, CSOOT
+        FillBox art, px - r + 1, py - r, px + r - 1, py + r, CSOOT
     next
 end sub
 
@@ -327,18 +332,18 @@ sub DrawMortar ( _
     q = Fired&(lv, se, i)
 
     if q < FLASHP then
-        line (x - 3, y - 21)-(x - 2, y - 13), CWHITE, BF
-        line (x - 7, y - 18)-(x + 2, y - 17), CWHITE, BF
+        FillBox art, x - 3, y - 21, x - 2, y - 13, CWHITE
+        FillBox art, x - 7, y - 18, x + 2, y - 17, CWHITE
     end if
 
     if q >= (MORTARBAR - 1) * PULSES and (se.ticks and 4) then
-        line (x - 3, y - 16)-(x - 2, y - 15), CLANT, BF
+        FillBox art, x - 3, y - 16, x - 2, y - 15, CLANT
     end if
 
     if q < PULSES then
         h = SHELLUP * q \ PULSES
-        line (x - 3, y - 18 - h)-(x - 2, y - 15 - h), CLANT, BF
-        line (x - 3, y - 14 - h)-(x - 2, y - 12 - h), CLANT + 1, BF
+        FillBox art, x - 3, y - 18 - h, x - 2, y - 15 - h, CLANT
+        FillBox art, x - 3, y - 14 - h, x - 2, y - 12 - h, CLANT + 1
     elseif q < 2 * PULSES then
         f = (q - PULSES) * 3 \ PULSES
         Blit art, x - 26, y - 40 - SHELLUP, _
@@ -377,13 +382,13 @@ sub DrawLines ( _
         if x >= SW or x + lv.ropes(i).w < 0 then continue for
 
         y = lv.ropes(i).at.y - cy
-        DrawPost x, y, lv.top(lv.ropes(i).at.x \ TS) * TS - cy
-        DrawPost x + lv.ropes(i).w, y + lv.ropes(i).fall, _
+        DrawPost art, x, y, lv.top(lv.ropes(i).at.x \ TS) * TS - cy
+        DrawPost art, x + lv.ropes(i).w, y + lv.ropes(i).fall, _
             lv.top((lv.ropes(i).at.x + lv.ropes(i).w) \ TS) * TS - cy
 
         if lv.ropes(i).fall then
-            line (x, y)-(x + lv.ropes(i).w, y + lv.ropes(i).fall), _
-                CQINK
+            DrawLine art, x, y, x + lv.ropes(i).w, _
+                y + lv.ropes(i).fall, CQINK
             Lanterns lv.ropes(i), art, cx, cy
             continue for
         end if
@@ -391,7 +396,7 @@ sub DrawLines ( _
         for u = 8 to lv.ropes(i).w + 7 step 8
             if u > lv.ropes(i).w then u = lv.ropes(i).w
             y1 = LineY%(lv.ropes(i), u) - cy
-            line (x + u - 8, y)-(x + u, y1), CLINEN
+            DrawLine art, x + u - 8, y, x + u, y1, CLINEN
             y = y1
         next
 
@@ -417,19 +422,24 @@ end sub
 ' A line's end at x, y on the screen, the roof under it at
 ' y1: a post up from the roof, its crossbar under its top;
 ' where the roof is no lower, a hook in the wall.
-private sub DrawPost (x as integer, y as integer, y1 as integer)
+private sub DrawPost ( _
+    art as Store, _
+    x as integer, _
+    y as integer, _
+    y1 as integer _
+)
     if y1 < y + 6 then
-        line (x - 1, y - 1)-(x + 1, y + 1), CQINK, BF
+        FillBox art, x - 1, y - 1, x + 1, y + 1, CQINK
         exit sub
     end if
 
-    line (x - 2, y - 3)-(x + 2, y1 - 1), CQINK, BF
-    line (x - 1, y - 2)-(x + 1, y1 - 1), CPOLE + 1, BF
-    line (x - 1, y - 2)-(x - 1, y1 - 1), CPOLE
-    line (x + 1, y - 2)-(x + 1, y1 - 1), CPOLE + 2
-    line (x - 5, y + 1)-(x + 5, y + 4), CQINK, BF
-    line (x - 4, y + 2)-(x + 4, y + 3), CPOLE + 1, BF
-    line (x - 4, y + 2)-(x + 4, y + 2), CPOLE
+    FillBox art, x - 2, y - 3, x + 2, y1 - 1, CQINK
+    FillBox art, x - 1, y - 2, x + 1, y1 - 1, CPOLE + 1
+    DrawLine art, x - 1, y - 2, x - 1, y1 - 1, CPOLE
+    DrawLine art, x + 1, y - 2, x + 1, y1 - 1, CPOLE + 2
+    FillBox art, x - 5, y + 1, x + 5, y + 4, CQINK
+    FillBox art, x - 4, y + 2, x + 4, y + 3, CPOLE + 1
+    DrawLine art, x - 4, y + 2, x + 4, y + 2, CPOLE
 end sub
 
 ' Line r's washing, pegged every WASH along it and hung as

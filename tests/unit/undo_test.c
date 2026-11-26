@@ -1,4 +1,5 @@
 /* Undo and Redo through the editor's keys. */
+#include <stdio.h>
 #include "edfix.h"
 #include "plat/pkey.h"
 #include "ui/text.h"
@@ -115,5 +116,32 @@ TEST(undo_a_change_ends_redo)
     fx_key(S, FX_CTRL_Y, PKEY_CTRL);
     redo(S);
     CHECK(fx_line_of(S, "print 10") != ~0u && fx_line_of(S, "print 2") == ~0u);
+    fx_done(S, files);
+}
+
+/* NSTEP steps kept, the oldest out past them, its stack grown as steps came: 300 lines deleted,
+   the last 256 back. */
+TEST(undo_keeps_the_last_nstep_steps)
+{
+    static char text[8192];
+    uint32_t n = (uint32_t)snprintf(text, sizeof text, "sub hi\r\n");
+
+    for (uint32_t i = 0; i < 300; i++)
+        n += (uint32_t)snprintf(text + n, sizeof text - n, "print %u\r\n", (unsigned)i);
+
+    snprintf(text + n, sizeof text - n, "end sub\r\n");
+    fx_open_program(S, text);
+    fx_cursor_on(S, "print 0", "print");
+
+    for (uint32_t i = 0; i < 300; i++)
+        fx_key(S, FX_CTRL_Y, PKEY_CTRL);
+
+    CHECK(fx_line_of(S, "print 299") == ~0u);
+
+    for (uint32_t i = 0; i < 300; i++)
+        undo(S);
+
+    CHECK(fx_line_of(S, "print 44") != ~0u && fx_line_of(S, "print 299") != ~0u);
+    CHECK(fx_line_of(S, "print 43") == ~0u);
     fx_done(S, files);
 }

@@ -6,7 +6,9 @@
                                                  build (HEAD .)
     bench.py mem [REV...] [--mb N...]            DOS: FRE(-1), FRE("") and the largest array REDIM takes, KB,
                                                  per build (HEAD .) and DOSBox's memory (4 32)
-    bench.py size [REV] [--functions]            the DOS executables' loaded bytes, REV's (default HEAD) and ours
+    bench.py size [REV] [--functions | --parts | --reach DIR]  the DOS executables' loaded bytes, REV's
+                                                 (default HEAD) and ours; --parts: ours by source directory, code,
+                                                 constants, data, BSS; --reach: how much of DIR the rest reaches
     bench.py gate [--save]                       the suite and sizes against tools/bench/baseline.json
     bench.py qr [REV...] [--ops]                 tools/bench/qr: each quickr/NAME.bas against its QBasic twin NAME.bas;
                                                  --ops: each Quickr case's ops dispatched, exact, per build
@@ -50,6 +52,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import mkhelp  # noqa: E402
+from dataclasses import field
 from dataclasses import dataclass
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # run with -I too
@@ -99,17 +102,17 @@ class Build:
         return self.root / "build/c/basic32.exe"
 
     def make(self, dos: bool) -> None:
-        """The builds, by our Makefile and instruments: an older rev may lack them, or count otherwise."""
+        """The host builds by our Makefile and instruments: an older rev may lack them, or count otherwise.
+        The DOS executables by the rev's own: its sources are its Makefile's to list."""
         if self.root != ROOT:
             for src in INSTRUMENT_SRC:
                 shutil.copy(ROOT / src, self.root / src)
-        targets = ["build/hostperf/basic", "build/host/basic"] + ["all"] * dos
-        p = subprocess.run(
-            ["nice", "-n", "10", "make", "-f", str(ROOT / "Makefile"), "-j4", *targets],
-            cwd=self.root,
-            capture_output=True,
-            text=True,
-        )
+        self.run_make(["-f", str(ROOT / "Makefile"), "build/hostperf/basic", "build/host/basic"])
+        if dos:
+            self.run_make(["all"])
+
+    def run_make(self, args: list[str]) -> None:
+        p = subprocess.run(["nice", "-n", "10", "make", "-j4", *args], cwd=self.root, capture_output=True, text=True)
         if p.returncode:
             sys.exit(f"make in {self.root} failed\n{p.stdout[-2000:]}{p.stderr[-2000:]}")
 
@@ -214,6 +217,19 @@ def image(exe: Path) -> int:
         sys.exit(f"{exe}: not an LE executable")
     table, n = struct.unpack_from("<II", b, le + 0x40)
     return sum(struct.unpack_from("<I", b, le + table + 24 * i)[0] for i in range(n))
+
+
+def objects(exe: Path) -> dict[str, int]:
+    """An LE executable's loaded bytes by kind: code (executable objects), data, and the stack (ESP's object)."""
+    b = exe.read_bytes()
+    le = b.find(b"LE\0\0")
+    table, n = struct.unpack_from("<II", b, le + 0x40)
+    esp = struct.unpack_from("<I", b, le + 0x20)[0]
+    res = dict.fromkeys(("code", "data", "stack"), 0)
+    for i in range(n):
+        size, _, flags = struct.unpack_from("<III", b, le + table + 24 * i)
+        res["stack" if i + 1 == esp else "code" if flags & 4 else "data"] += size
+    return res
 
 
 def sizes(b: Build) -> dict[str, int]:
@@ -380,6 +396,12 @@ def cmd_mem(a: argparse.Namespace) -> int:
 
 
 def cmd_size(a: argparse.Namespace) -> int:
+    if a.parts:
+        print_parts(build(".", True))
+        return 0
+    if a.reach:
+        print_reach(build(".", True), a.reach)
+        return 0
     was, now = build(a.rev, True), build(".", True)
     old, new = sizes(was), sizes(now)
     for e in EXES:
@@ -552,8 +574,8 @@ def apart(objs: list[Path], d: Path) -> list[Path]:
     return out
 
 
-def profiled(b: Build, d: Path, ide: bool = False) -> Path:
-    """b's basic32 (ide: ide32) relinked in d with a map that names its static functions too."""
+def link_objects(b: Build, ide: bool) -> tuple[list[str], list[str]]:
+    """The objects b's basic32 (ide: ide32) links, and gfx's, by make's own lists."""
     var = "IDE_OBJ" if ide else "BASIC_OBJ"
     db = subprocess.run(
         ["make", "-pnq", "build/c/ide32.exe" if ide else "build/c/basic32.exe"],
@@ -564,13 +586,204 @@ def profiled(b: Build, d: Path, ide: bool = False) -> Path:
     m = re.search(rf"^{var} := (.*)$", db, re.M)
     g = re.search(r"^GFX_DOS_OBJ := (.*)$", db, re.M)
     if not m or not g:
-        sys.exit(f"profile: make printed no {var} or GFX_DOS_OBJ")
+        sys.exit(f"make printed no {var} or GFX_DOS_OBJ")
+    return m[1].split(), g[1].split()
+
+
+def sections(o: Path) -> dict[str, int]:
+    """An object's code, constants, data and BSS bytes, by its sections' types; debug sections left out."""
+    heads = subprocess.run([os.environ.get("OBJDUMP", "objdump"), "-h", o], capture_output=True, text=True).stdout
+    res = dict.fromkeys(("code", "const", "data", "bss"), 0)
+    for name, size, kind in re.findall(r"^\s*\d+ (\S+)\s+([0-9a-f]+) [0-9a-f]+ ?(.*)$", heads, re.M):
+        if "DEBUG" in kind or name.startswith(".debug"):
+            continue
+        part = {"TEXT": "code", "BSS": "bss"}.get(kind.split(",")[0], "const" if name.startswith(".rdata") else "data")
+        if kind:
+            res[part] += int(size, 16)
+    return res
+
+
+def parts(b: Build, ide: bool) -> dict[str, dict[str, int]]:
+    """b's basic32 (ide: ide32) by source directory: each one's objects' sections summed."""
+    res: dict[str, dict[str, int]] = {}
+    for o in link_objects(b, ide)[0]:
+        rel = Path(o).relative_to("build/c")
+        rel = rel.relative_to("obj") if rel.parts[0] == "obj" else rel
+        group = "/".join(rel.parts[:2]) if len(rel.parts) > 2 else rel.parts[0]
+        for k, v in sections(b.root / o).items():
+            res.setdefault(group, dict.fromkeys(("code", "const", "data", "bss"), 0))[k] += v
+    return res
+
+
+def print_parts(b: Build) -> None:
+    for ide, exe in ((False, "basic32.exe"), (True, "ide32.exe")):
+        p = parts(b, ide)
+        total = {k: sum(g[k] for g in p.values()) for k in ("code", "const", "data", "bss")}
+        le = objects(b.root / "build/c" / exe)
+        print(f"\n{exe}: loads {sum(le.values()):,}: " + ", ".join(f"{k} {v:,}" for k, v in le.items()))
+        print(f"{'':16}{'code':>10}{'const':>10}{'data':>10}{'bss':>10}{'all':>10}")
+        for name, g in sorted([*p.items(), ("all", total)], key=lambda kv: -sum(kv[1].values())):
+            cells = "".join(f"{g[k]:>10,}" for k in ("code", "const", "data", "bss"))
+            print(f"{name:16}{cells}{sum(g.values()):>10,}")
+
+
+@dataclass
+class Piece:
+    """A function or a variable of one object: a symbol's bytes to the next symbol's, by kind."""
+
+    obj: str
+    name: str
+    kind: str  # code, const, data, bss
+    size: int
+    refs: set[str] = field(default_factory=set)  # the names it reaches: relocations and direct branches
+
+
+@dataclass(frozen=True)
+class Sym:
+    name: str
+    value: int
+    sec: int
+    typ: int
+    scl: int  # 2 external, 3 static
+
+
+def coff_symbols(raw: bytes) -> list[Sym]:
+    """A COFF object's symbols by table index, each auxiliary record an empty one."""
+    symtab, nsym = struct.unpack_from("<II", raw, 8)
+    strtab = symtab + 18 * nsym
+    syms: list[Sym] = []
+    while len(syms) < nsym:
+        name_b, value, sec, typ, scl, aux = struct.unpack_from("<8sIhHBB", raw, symtab + 18 * len(syms))
+        if name_b[:4] == b"\0\0\0\0":
+            off = strtab + struct.unpack_from("<I", name_b, 4)[0]
+            name = raw[off : raw.index(b"\0", off)].decode()
+        else:
+            name = name_b.rstrip(b"\0").decode()
+        syms += [Sym(name, value, sec, typ, scl)] + [Sym("", 0, 0, 0, 0)] * aux
+    return syms
+
+
+def branches(o: Path, section: str) -> list[tuple[int, int]]:
+    """The direct branches in o's section the assembler resolved (no relocation): from, to."""
+    dis = subprocess.run(
+        [os.environ.get("OBJDUMP", "objdump"), "-dr", "--no-show-raw-insn", f"--section={section}", o],
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    res = []
+    for n, line in enumerate(dis):
+        m = re.match(r"\s+([0-9a-f]+):\s+(?:call|j)\w*\s+0x([0-9a-f]+)", line)
+        if m and not (n + 1 < len(dis) and "IMAGE_REL" in dis[n + 1]):
+            res.append((int(m[1], 16), int(m[2], 16)))
+    return res
+
+
+def coff_pieces(o: Path, rel: str) -> list[Piece]:
+    """o's pieces with their references: each symbol's bytes to the next's, a section's start before its first
+    symbol one more, an assembly file's code one piece. A static's name is rel:name."""
+    raw = o.read_bytes()
+    if raw[0] == 0x80:
+        return [omf_piece(raw, rel)]
+    syms = coff_symbols(raw)
+
+    def key(k: int) -> str:
+        y = syms[k]
+        return y.name if y.scl == 2 else f"{rel}:{y.name}@{y.sec}" if y.name.startswith(".") else f"{rel}:{y.name}"
+
+    pieces: list[Piece] = []
+    for s_i in range(struct.unpack_from("<H", raw, 2)[0]):
+        name_b, _, _, size, _, rel_at, _, nrel, _, flags = struct.unpack_from("<8sIIIIIIHHI", raw, 20 + 40 * s_i)
+        sec, section = s_i + 1, name_b.rstrip(b"\0").decode()
+        if flags & 0x02000800 or not size:  # discardable (debug) or removed (addrsig)
+            continue
+        data = "const" if section.startswith(".rdata") else "data"
+        kind = "code" if flags & 0x20 else "bss" if flags & 0x80 else data
+        own = [k for k, y in enumerate(syms) if y.sec == sec and y.name]
+        asm = kind == "code" and not any(syms[k].typ == 0x20 for k in own)
+        heads = sorted({(syms[k].value, k) for k in own if syms[k].scl in (2, 3) and not syms[k].name.startswith(".")})
+        whole = next(k for k in own if syms[k].name.startswith("."))
+        heads = [] if asm else heads
+        if not heads or heads[0][0]:
+            heads = [(0, whole), *heads]
+        offs = [v for v, _ in heads]
+        ends = [*offs[1:], size]
+        here = [Piece(rel, key(k), kind, end - v) for (v, k), end in zip(heads, ends, strict=True)]
+
+        def at(off: int, here: list[Piece] = here, offs: list[int] = offs) -> Piece:
+            return here[bisect.bisect_right(offs, off) - 1]
+
+        for r in range(nrel):
+            off, k, _ = struct.unpack_from("<IIH", raw, rel_at + 10 * r)
+            at(off).refs.add(key(k))
+        for src, dst in [] if kind != "code" or asm else branches(o, section):
+            if at(dst) is not at(src):
+                at(src).refs.add(at(dst).name)
+        if key(whole) != here[0].name:  # the section's own symbol: its start
+            pieces.append(Piece(rel, key(whole), kind, 0, {here[0].name}))
+        pieces += here
+    return pieces
+
+
+def omf_piece(raw: bytes, rel: str) -> Piece:
+    """An OMF object (our assembly) as one piece of no counted bytes, named by its first public: what it references."""
+    refs: set[str] = set()
+    names: list[str] = []
+    i = 0
+    while i + 3 <= len(raw):
+        kind, n = raw[i], struct.unpack_from("<H", raw, i + 1)[0]
+        body = raw[i + 3 : i + 2 + n]  # less the checksum
+        if kind == 0x8C:  # EXTDEF: name, type index
+            j = 0
+            while j < len(body):
+                refs.add(body[j + 1 : j + 1 + body[j]].decode("latin-1"))
+                j += 2 + body[j]
+        elif kind in (0x90, 0x91):  # PUBDEF: group, segment (a frame if 0), then name, offset, type
+            j, wide = 2 + (body[1] == 0) * 2, 4 if kind == 0x91 else 2
+            while j < len(body):
+                names.append(body[j + 1 : j + 1 + body[j]].decode("latin-1"))
+                j += 2 + body[j] + wide
+        i += 3 + n
+    return Piece(rel, names[0] if names else rel, "code", 0, refs)
+
+
+def reach(b: Build, ide: bool, inside: str) -> list[tuple[Piece, bool]]:
+    """Each piece of the objects under build/c/.../inside, and whether the others' pieces reach it."""
+    pieces = [p for o in link_objects(b, ide)[0] for p in coff_pieces(b.root / o, str(Path(o).relative_to("build/c")))]
+    by_name: dict[str, list[Piece]] = {}
+    for p in pieces:
+        by_name.setdefault(p.name, []).append(p)
+    seen: set[int] = set()
+    todo = [p for p in pieces if not p.obj.startswith((inside, f"obj/{inside}"))]
+    while todo:
+        p = todo.pop()
+        if id(p) in seen:
+            continue
+        seen.add(id(p))
+        todo += [q for r in p.refs for q in by_name.get(r, [])]
+    return [(p, id(p) in seen) for p in pieces if p.obj.startswith((inside, f"obj/{inside}"))]
+
+
+def print_reach(b: Build, inside: str) -> None:
+    for ide, exe in ((False, "basic32.exe"), (True, "ide32.exe")):
+        r = reach(b, ide, inside)
+        print(f"\n{exe}: {inside}'s bytes reached of all")
+        for k in ("code", "const", "data", "bss"):
+            used = sum(p.size for p, u in r if u and p.kind == k)
+            print(f"  {k:6}{used:>10,} of {sum(p.size for p, _ in r if p.kind == k):>10,}")
+        print("  the largest unreached:")
+        for p, _ in sorted((x for x in r if not x[1] and x[0].size), key=lambda x: -x[0].size)[:12]:
+            print(f"    {p.size:>9,}  {p.kind:6}{p.obj}  {p.name.split(':')[-1]}")
+
+
+def profiled(b: Build, d: Path, ide: bool = False) -> Path:
+    """b's basic32 (ide: ide32) relinked in d with a map that names its static functions too."""
+    core, gfx = link_objects(b, ide)
     # gfx's slice linked in, its loader's PEXT_LINKED pext.c taking it: the map names gfx's code too. Its own C library
     # bits are the program's.
     linked = b.root / "build/c/prof/pext.obj"
     subprocess.run(["make", str(linked.relative_to(b.root))], cwd=b.root, check=True, capture_output=True)
-    objs = [linked if o.endswith("plat/dos32/pext.obj") else b.root / o for o in m.group(1).split()]
-    objs += apart([b.root / o for o in g.group(1).split()], d)
+    objs = [linked if o.endswith("plat/dos32/pext.obj") else b.root / o for o in core]
+    objs += apart([b.root / o for o in gfx], d)
     exe = d / ("ide32.exe" if ide else "basic32.exe")
     listing = exe.with_suffix(".map")
     doslink.link(exe, objs, listing)
@@ -741,7 +954,7 @@ END SUB
 FPS_PARTS = ("ReadPad joy", "Tick w, joy, stones(), sparks()", "Fly w, k, st(), sp()", "Orbit w, k, st(), sp()",
              "Trail w, sp()", "EaseSky w.sky, cur()", "FeedSong w.song", "DrawSky w.g", "DrawSun w.g.clock", "DrawTop w",
              "DrawLand w.g", "DrawStones st(), w.g.clock", "DrawMoth w.m, w.g.mode", "DrawLake w.g.clock", "DrawSparks sp()",
-             "DrawHud w", "DrawFx w.fx", "Flip w.page")
+             "DrawHud w", "DrawFx w.fx", "display.flip")
 
 
 def timed(s: str) -> str:
@@ -783,7 +996,7 @@ FPS_EACH = ("Tick w, joy, st(), sp()", "cur(0, 0) = (n + q) MOD 2 * 9: ApplyPale
             "DrawSun w.g.clock", "DrawTop w", "DrawLand w.g", "DrawStones st(), w.g.clock",
             "DrawStone st(), 0, w.g.clock", "DrawStone st(), 1, w.g.clock", "DrawStone st(), 2, w.g.clock",
             "DrawStone st(), 3, w.g.clock", "DrawMoth w.m, w.g.mode", "DrawLake w.g.clock", "DrawSparks sp()",
-            "DrawHud w", "Flip w.page", "Render w, st(), sp()")
+            "DrawHud w", "display.flip", "Render w, st(), sp()")
 EACH = """OpenScreen
 LoadTables
 LoadTerrain
@@ -824,7 +1037,7 @@ def each_program() -> str:
 
 def cmd_fps(a: argparse.Namespace) -> int:
     """Frames a second in each mode (title, play, dying, over), with the longest frame, from the frames' own TIMER readings."""
-    build(".", True)
+    gfx = {"lib/gfx.qbx": (build(".", True).dos.parent / "lib/gfx.qbx").read_bytes()}
     conf = dosrun.CONF
     dosrun.CONF = conf.replace("core=normal\ncputype=pentium\nvirtual time=true\nvirtual time rate=20000\n",
                                FPS_REAL if a.real else FPS_CPU)
@@ -837,7 +1050,7 @@ def cmd_fps(a: argparse.Namespace) -> int:
         if a.profile:
             dosrun.COM = profiled(build(".", True), Path(d))
         if a.each:
-            dosrun.run({"each": each_program()}, Path(d) / "w", limit_ms=600000, file=True, mem=16)
+            dosrun.run({"each": each_program()}, Path(d) / "w", limit_ms=600000, file=True, files=gfx, mem=16)
             rows = [ln.split() for ln in (Path(d) / "w/EACH.TXT").read_text().splitlines()]
             got = [(float(ms), int(n)) for ms, n in rows]
             dosrun.CONF = conf
@@ -846,7 +1059,7 @@ def cmd_fps(a: argparse.Namespace) -> int:
             return 0
         # the start-up's first: the game's FPS.TXT is the one left
         jobs = ({"start": fps_program(one=True)} if a.profile else {}) | {"moth": fps_program(a.parts)}
-        r = dosrun.run(jobs, Path(d) / "w", limit_ms=600000, file=True, mem=16, profile=a.profile)
+        r = dosrun.run(jobs, Path(d) / "w", limit_ms=600000, file=True, files=gfx, mem=16, profile=a.profile)
         log, parts = Path(d) / "w/FPS.TXT", Path(d) / "w/PARTS.TXT"
         rows = [ln.split() for ln in log.read_text().splitlines()] if log.exists() else []
         if a.parts and parts.exists():
@@ -878,7 +1091,7 @@ CHARLIE_STEP = "Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k, wd.pilot: Tick wd, g, p,
 CHARLIE_EACH = (CHARLIE_STEP, "DrawBack wd.zn, wd.art, cx, cy",
                 "DrawThings wd.lv, wd.zn, wd.art, wd.kinds, wd.se, cx, cy, -1", "DrawTiles wd.lv, wd.zn, wd.art, cx, cy",
                 "DrawThings wd.lv, wd.zn, wd.art, wd.kinds, wd.se, cx, cy, 0", "DrawHero wd.gr, wd.art, wd.se, p, cx, cy",
-                "DrawParts pt(), cx, cy", "Blit wd.art, 6, 5, IHUD, HUDW, HUDH", "Flip g.page", "Render wd, g, p, lo(), pt()")
+                "DrawParts wd.art, pt(), cx, cy", "Blit wd.art, 6, 5, IHUD, HUDW, HUDH", "Flip", "Render wd, g, p, lo(), pt()")
 CHARLIE_IMPORTS = "".join(f"FROM {'' if m.startswith('engine.') else 'barkley.'}{m} IMPORT {n}\n" for m, n in (
     ("engine.video", "Blit, Flip, OpenScreen"),
     ("model.images", "IHUD"),
@@ -895,7 +1108,7 @@ CHARLIE_IMPORTS = "".join(f"FROM {'' if m.startswith('engine.') else 'barkley.'}
     ("control.pilot", "Pilot"),
     ("flow.states", "StartGame, Tick"),
 ))
-CHARLIE_SETUP = """OpenScreen
+CHARLIE_SETUP = """OpenScreen wd.art
 LoadTables wd.lv
 BuildArt wd.art, wd.tn
 LoadKinds wd.kinds, wd.dat
@@ -904,7 +1117,6 @@ DIM g AS Game, p AS Hero, k AS Pad, lo(NLOOSE - 1) AS Loose, pt(NPART - 1) AS Pa
 DIM q AS INTEGER, n AS LONG, t0 AS SINGLE, cx AS INTEGER, cy AS INTEGER
 LoadSongs wd.mu
 wd.mu.muted = -1
-g.page = 1
 StartGame wd, g, p, lo(), pt()
 OPEN "EACH.TXT" FOR OUTPUT AS #1
 """
@@ -1626,7 +1838,7 @@ def cmd_charlie(a: argparse.Namespace) -> int:
     cost = {call: ms - got[0][0] for call, (ms, _) in zip(CHARLIE_EACH, got[1:], strict=True)}
     for call, ms in cost.items():
         print(f"{ms:>8.2f} ms  {call}")
-    frame = cost[CHARLIE_EACH[-1]] + cost["Flip g.page"]
+    frame = cost[CHARLIE_EACH[-1]] + cost["Flip"]
     print(f"{1000 / frame:.1f} fps drawn; a tick's {cost[CHARLIE_EACH[0]]:.2f} ms sixty times a second on top")
     return 0
 
@@ -1785,6 +1997,8 @@ def main() -> int:
     p = sub.add_parser("size")
     p.add_argument("rev", nargs="?", default="HEAD")
     p.add_argument("--functions", action="store_true", help="each function whose bytes changed")
+    p.add_argument("--parts", action="store_true", help="ours by source directory: code, constants, data, BSS")
+    p.add_argument("--reach", metavar="DIR", help="ours: how much of DIR (as qbrt) the other objects reach")
     p = sub.add_parser("gate")
     p.add_argument("--save", action="store_true")
     sub.add_parser("qbasic").add_argument("--json", type=Path, help="the timings to this file too")

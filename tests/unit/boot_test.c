@@ -5,6 +5,7 @@
 #include "boot.h"
 #include "mem/alloc.h"
 #include "session.h"
+#include "ui/linemap.h"
 #include "unit.h"
 
 /* Regions no arena holds. */
@@ -38,4 +39,68 @@ TEST(boot_short_of_arena_says_out_of_memory)
     waitpid(pid, &status, 0);
     CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 1);
     CHECK(n > 0 && strstr(text, "Out of memory"));
+}
+
+/* Boot takes no memory a feature may never use: the POKE memory (64 KB) waits for the first SYS,
+   the file records (NCH * RECMAX) for the first record. Both were carved at every start. */
+TEST(boot_leaves_poke_memory_and_records_for_first_use)
+{
+    static Session child;
+    static const FrontEnd fe = {};
+
+    fflush(stdout);
+    const pid_t pid = fork();
+
+    if (!pid) {
+        boot(&child, &fe);
+        _exit(child.allo.poke || child.file.recs ? 1 : 0);
+    }
+
+    int status = 0;
+    waitpid(pid, &status, 0);
+    CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+}
+
+/* What boot keeps from BASIC, in a child of its own: the heap's bytes FRE does not count. */
+static uint32_t boot_keeps(void)
+{
+    static Session child;
+    static const FrontEnd fe = {.regions = lmap_init};
+
+    int out[2];
+    CHECK(pipe(out) == 0);
+    fflush(stdout);
+    const pid_t pid = fork();
+
+    if (!pid) {
+        boot(&child, &fe);
+        const uint32_t keeps = (64u << 20) - 0x1000 - allo_free(&child.allo);
+        CHECK(write(out[1], &keeps, sizeof keeps) == sizeof keeps);
+        _exit(0);
+    }
+
+    close(out[1]);
+    uint32_t keeps = 0;
+    CHECK(read(out[0], &keeps, sizeof keeps) == sizeof keeps);
+    close(out[0]);
+    waitpid(pid, nullptr, 0);
+    return keeps;
+}
+
+/* Boot keeps from BASIC what it needs at first, at most the bytes below: on DOS the rest of a 2 MB
+   machine is BASIC's. The code cache and the store were 64 KB each at first, the symbol tables sized
+   for 1024 names and the data stack's first segment 64 KB: 587 KB kept. comp.cbuf carved at
+   LMAX + 64: 351 KB; cons.sbuf at SBMAX + 1: 257 KB; cons.inbuf at INMAX + 1: 192 KB. */
+TEST(boot_keeps_little) { CHECK(boot_keeps() <= 164000); }
+
+/* The session is static: its bytes are the executable's, kept from BASIC whether used or not. A
+   link's caches, comp.memo and scop.look (41 KB), were its own: 69,616 bytes in this build. Now
+   taken for a link and given back after it. */
+TEST(session_static_is_small)
+{
+    static const char *const lines[] = {"10 a = 1: PRINT a", nullptr};
+
+    CHECK(sizeof(Session) <= 29000);
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK(!S->comp.memo && !S->scop.look);
 }

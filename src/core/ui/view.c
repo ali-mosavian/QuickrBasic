@@ -152,7 +152,7 @@ static uint8_t kind_of(Session *const S, const uint32_t rec, const uint8_t **con
     if (prog_line(&S->prog, rec)->flags & LF_TEXT)
         return 0;
 
-    prog_body(&S->prog, rec, S->comp.cbuf);
+    comp_body(&S->comp, rec, 0);
     const uint8_t *nm = nullptr;
     const uint8_t k = decl_proc(S->comp.cbuf, &nm);
 
@@ -604,7 +604,7 @@ static void imports(Session *const S, const uint32_t line)
         return;
 
     if (!d->text) {
-        prog_body(&S->prog, lmap_off(S, line), S->comp.cbuf);
+        comp_body(&S->comp, lmap_off(S, line), 0);
 
         if (!impt_line(S->comp.cbuf, nullptr, nullptr))
             return;

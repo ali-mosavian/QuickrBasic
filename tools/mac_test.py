@@ -50,7 +50,7 @@ RESTART = "3F00 120:FFFF 180:5800"  # F5, Ctrl+Break, Shift+F5
 PEN = "SCREEN 9\nPEN ON\nDO\nIF PEN(0) THEN x = PEN(1): y = PEN(2): LINE (x - 5, y - 5)-(x + 5, y + 5), 4, BF\nLOOP\n"
 CLICK = "2s:300,200 2.2s:300,200:1 2.4s:300,200"  # after F5 at 1s
 HIDDEN = {
-    "graphics": "SCREEN 13, , 1, 0\nLINE (0, 0)-(100, 100), 4, BF\n",
+    "graphics": "SCREEN 7, , 1, 0\nLINE (0, 0)-(100, 100), 4, BF\n",
     "text": "SCREEN 0, , 1, 0\nCOLOR 4, 4\nCLS\n",
 }
 LOOP = "DO\nLOOP\n"

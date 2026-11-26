@@ -2,9 +2,12 @@
 #include <stdio.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include "boot.h"
 #include "mem/table.h"
+#include "qr/qrt.h"
 #include "plat/pmem.h"
 #include "session.h"
+#include "ui/linemap.h"
 #include "unit.h"
 #include "util/heap.h"
 
@@ -96,6 +99,29 @@ TEST(heap_regions_low_and_high)
     CHECK(!heap_resize(&h, nullptr, 500)); /* full */
 }
 
+/* The free bytes of every region, those under the limit alone; a block taken is not, its header
+   neither. Each run of free blocks less a header, FRE(-1) fell 16 bytes as a hole came and went. */
+TEST(heap_left_counts_every_region)
+{
+    enum : size_t { FIRST = 1024, SECOND = 4096 };
+
+    static alignas(16) uint8_t mem[FIRST + SECOND];
+    Heap h;
+    heap_init(&h);
+    heap_add(&h, mem, FIRST);
+    heap_add(&h, mem + FIRST, SECOND);
+    const size_t all = heap_left(&h, mem + sizeof mem);
+    CHECK(all == FIRST + SECOND);
+    CHECK(heap_left(&h, mem + FIRST) == FIRST);
+    void *const p = heap_resize(&h, nullptr, 500);
+    void *const q = heap_resize(&h, nullptr, 500);
+    CHECK(heap_left(&h, mem + sizeof mem) == all - 2 * (512 + 16));
+    heap_free(&h, p); /* a hole above q */
+    CHECK(heap_left(&h, mem + sizeof mem) == all - (512 + 16));
+    heap_free(&h, q);
+    CHECK(heap_left(&h, mem + sizeof mem) == all);
+}
+
 /* A platform's free blocks: spans of fake_mem, taken first fit from their bottoms. */
 typedef struct {
     uint8_t *at;
@@ -179,6 +205,156 @@ TEST(heap_blocks_leave_the_bottoms_region)
     CHECK(d > low + 1000 && d + 500 <= first + sizeof first);
 }
 
+void pmem_split(size_t low); /* plat/host/pmem.c's */
+
+/* lines run in a session of its own, its heap two regions as DOS's: low bytes and the rest. Its
+   output, want? In a child process: a fresh pmem. */
+static bool two_regions_print(const char *const *const lines, const char *const want)
+{
+    enum : size_t { LOW = 16u << 20 };
+
+    static Session child;
+    static const FrontEnd fe = {.regions = lmap_init};
+
+    fflush(stdout);
+    const pid_t pid = fork();
+
+    if (!pid) {
+        pmem_split(LOW);
+        boot(&child, &fe);
+        const bool ok = unit_run(&child, lines) == ST_OK && child.cons.sblen == strlen(want) &&
+                        !memcmp(child.cons.sbuf, want, child.cons.sblen);
+
+        if (!ok)
+            printf("%.*s|\n", (int)child.cons.sblen, (const char *)child.cons.sbuf);
+
+        fflush(stdout);
+        _exit(ok ? 0 : 1);
+    }
+
+    int status = 0;
+    waitpid(pid, &status, 0);
+    return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+}
+
+/* FRE(-1) counts every region's free bytes, FRE("") the strings' room. It counted the BASIC
+   heap's region alone: on DOS at 4 MB the 190 KB freed under 1 MB raised it 32 KB. */
+TEST(fre_counts_every_region)
+{
+    static const char *const lines[] = {
+        "10 PRINT FRE(-1) > 66000000; FRE(\"\") < 51000000",
+        nullptr,
+    };
+
+    CHECK(two_regions_print(lines, "-1 -1 \r"));
+}
+
+/* Arrays together past the BASIC heap's region fit: each is a block of its own, in any region.
+   Packed in the heap's region alone, the fourth of 14 MB was Out of memory with 16 MB free in
+   the other, as DOS's memory under 1 MB was BASIC's for none. */
+TEST(arrays_fit_in_every_region)
+{
+    static const char *const lines[] = {
+        "10 REDIM a#(1750000): REDIM b#(1750000): REDIM c#(1750000): REDIM d#(1750000)",
+        "20 a#(0) = 1: d#(1750000) = 2: PRINT a#(0) + d#(1750000)",
+        nullptr,
+    };
+
+    CHECK(two_regions_print(lines, " 3 \r"));
+}
+
+/* REDIM PRESERVE into another region keeps the elements, a STRING's too: 14 MB in the low one
+   grown to 20 MB, which only the other has. */
+TEST(redim_preserve_across_regions_keeps_elements)
+{
+    static const char *const lines[] = {
+        "10 REDIM a#(1750000): a#(7) = 3: a#(1750000) = 5",
+        "20 REDIM s$(1750000): s$(9) = \"ab\" + \"c\": REDIM PRESERVE s$(2500000)",
+        "30 REDIM PRESERVE a#(2500000): PRINT a#(7); a#(1750000); a#(2500000); s$(9)",
+        nullptr,
+    };
+
+    CHECK(two_regions_print(lines, " 3  5  0 abc\r"));
+}
+
+/* A record's arrays are blocks of their own, in either region, and ERASE gives them back. */
+TEST(record_arrays_take_every_region)
+{
+    static const char *const lines[] = {
+        "10 TYPE R",
+        "20 n AS INTEGER",
+        "30 a() AS DOUBLE",
+        "40 END TYPE",
+        "50 DIM r(3) AS R: f& = FRE(-1)",
+        "60 FOR i = 0 TO 3: REDIM r(i).a(1750000): r(i).a(i) = i + 1: NEXT",
+        "70 PRINT r(0).a(0); r(3).a(3); f& - FRE(-1) > 56000000",
+        "80 ERASE r: PRINT f& - FRE(-1) < 1000",
+        nullptr,
+    };
+
+    CHECK(two_regions_print(lines, " 1  4 -1 \r-1 \r"));
+}
+
+/* An array past pmem's free room takes the strings' heap's spare: 42 MB of strings grew it, and
+   gone, a 40 MB array fits only in what they had. */
+TEST(strings_heap_gives_its_room_to_an_array)
+{
+    static const char *const lines[] = {
+        "10 DIM a$(1400): FOR i = 1 TO 1400: a$(i) = STRING$(30000, 120): NEXT",
+        "20 s$ = a$(5) + \"y\": ERASE a$: REDIM b#(5000000): b#(5000000) = 1",
+        "30 PRINT b#(5000000); LEN(s$); RIGHT$(s$, 2)",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 1  30001 xy\r");
+}
+
+/* The largest array takes all the strings' heap's unused room. Keeping HEAP_FIRST for the strings,
+   DOS's largest REDIM fell 60 KB below FRE(""). */
+TEST(largest_array_takes_the_strings_room)
+{
+    static const char *const lines[] = {
+        "10 f& = FRE(\"\"): REDIM a&(f& \\ 4 - 8192): a&(1) = 7: PRINT a&(1): ERASE a&",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 7 \r");
+}
+
+/* ERASE gives an array's block back: FRE(-1) as before it. */
+TEST(erase_gives_an_arrays_block_back)
+{
+    static const char *const lines[] = {
+        "10 f& = FRE(-1): REDIM a#(100000): g& = FRE(-1): ERASE a#",
+        "20 PRINT f& - g& > 800000; FRE(-1) - f&",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, "-1  0 \r");
+}
+
+/* A field cell is given back once its call is over: 2000 calls take no more than one. */
+TEST(field_cells_are_given_back)
+{
+    static const char *const lines[] = {
+        "10 TYPE T",
+        "20 g(4) AS LONG",
+        "30 END TYPE",
+        "40 DIM t AS T: s t.g(): f& = FRE(-1)",
+        "50 FOR i = 1 TO 2000: s t.g(): NEXT: PRINT t.g(2); f& - FRE(-1)",
+        "60 SUB s (x() AS LONG)",
+        "70 x(2) = x(2) + 1",
+        "80 END SUB",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 2001  0 \r");
+}
+
 /* Calls nest past the frames' first room: each frame kept as more grow. */
 TEST(frames_grow_as_calls_nest)
 {
@@ -248,6 +424,22 @@ TEST(arrays_grow_the_heap)
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 7  100 \r");
 }
 
+/* Each level of a string recursion holds a temporary: 3000 deep fit. With the temporaries tied to
+   a 16 KB first stack segment, String formula too complex. */
+TEST(deep_string_recursion_has_its_temporaries)
+{
+    static const char *const lines[] = {
+        "10 PRINT LEN(g$(3000))",
+        "20 FUNCTION g$ (n%)",
+        "30 IF n% = 0 THEN g$ = \"\" ELSE g$ = \"x\" + g$(n% - 1)",
+        "40 END FUNCTION",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 3000 \r");
+}
+
 TEST(endless_calls_end_out_of_stack_space)
 {
     static const char *const lines[] = {
@@ -298,7 +490,7 @@ TEST(lexer_columns_grow)
         n += (uint32_t)snprintf((char *)text + n, sizeof text - n, ": PRINT 1");
 
     S->lexr.cols = true;
-    lexr_line(&S->lexr, text, S->comp.cbuf);
+    lexr_line(&S->lexr, text);
     S->lexr.cols = false;
     CHECK(S->lexr.ncol > (uint32_t)S->lexr.last);
     CHECK(lexr_colof(&S->lexr, (uint32_t)S->lexr.last) == n); /* the end, past the last 1 */
@@ -317,4 +509,140 @@ TEST(environ_grows)
     CHECK(unit_run(S, lines) == ST_OK);
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 200 \r");
     CHECK(S->syst.envcap > 200);
+}
+
+/* A program whose code outgrows the code cache, moved to grow: the link kept its end in the old
+   cache, never fit and grew it until Out of memory, for 100 nested IFs. */
+TEST(code_outgrows_a_moved_cache)
+{
+    enum { DEPTH = 100, NLINES = 2 * DEPTH + 3 };
+
+    static char text[NLINES][24];
+    const char *lines[NLINES + 1];
+    uint32_t n = 0;
+
+    snprintf(text[n++], sizeof text[0], "1 n = 0");
+
+    for (uint32_t i = 0; i < DEPTH; i++)
+        snprintf(text[n++], sizeof text[0], "%u IF n = 0 THEN", (unsigned)n + 1);
+
+    snprintf(text[n++], sizeof text[0], "%u n = 7", (unsigned)n + 1);
+
+    for (uint32_t i = 0; i < DEPTH; i++)
+        snprintf(text[n++], sizeof text[0], "%u END IF", (unsigned)n + 1);
+
+    snprintf(text[n++], sizeof text[0], "%u PRINT n", (unsigned)n + 1);
+
+    for (uint32_t i = 0; i < NLINES; i++)
+        lines[i] = text[i];
+
+    lines[NLINES] = nullptr;
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 7 \r");
+}
+
+/* text lexed into a buffer of its own, from none, grown as it fills: its body to out; its length. */
+static uint32_t lexed_from_none(Session *const S, const char *const text, uint8_t *const out)
+{
+    static uint8_t copy[2048];
+    uint8_t *body = nullptr;
+    uint32_t cap = 0;
+    Lexr lx = S->lexr;
+    lx.body = &body;
+    lx.cap = &cap;
+    strcpy((char *)copy, text);
+    const uint32_t len = (uint32_t)(lexr_line(&lx, copy) - body);
+    memcpy(out, body, len);
+    pmem_free(body - 1);
+    return len;
+}
+
+/* A body grown at any byte as it is lexed, in a name, a number or a string: the bytes as lexed
+   into a buffer with room. A whole number read past its first 9 digits across a growth was put
+   back where the body had been. */
+TEST(lexed_body_grows_at_any_byte)
+{
+    static char text[2048];
+    static uint8_t copy[2048], grown[2048];
+
+    for (uint32_t k = 0; k < 600; k++) {
+        int n = snprintf(text, sizeof text, "PRINT \"%*s\"; %020d; %0200d; ", (int)k, "", 1, 0);
+        memset(text + n, 'v', 250);
+        n += 250;
+        snprintf(text + n, sizeof text - (size_t)n, "; 1.25E+10: REM %*s", (int)k, "");
+        const uint32_t len = lexed_from_none(S, text, grown);
+        strcpy((char *)copy, text);
+        comp_room(&S->comp, sizeof grown);
+        const uint8_t *const end = lexr_line(&S->lexr, copy);
+        CHECK(len == (uint32_t)(end - S->comp.cbuf) && !memcmp(grown, S->comp.cbuf, len));
+    }
+}
+
+/* A typed line many times comp.cbuf's first bytes: its string literals whole from the grown
+   buffer. comp.cbuf was LMAX + 64 bytes from the start, 94 KB. */
+TEST(a_long_typed_line_grows_comp_cbuf)
+{
+    static char line[8192];
+    int n = snprintf(line, sizeof line, "PRINT LEN(\"\"");
+
+    for (uint32_t i = 0; i < 35; i++)
+        n += snprintf(line + n, sizeof line - (size_t)n, " + \"%0200d\"", 0);
+
+    snprintf(line + n, sizeof line - (size_t)n, ")");
+    CHECK(unit_typed(S, line) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 7000 \r");
+    CHECK(S->comp.ccap > 7000);
+}
+
+/* cons.sbuf's scratch past its first bytes: LSET's string built in it. It takes its room first;
+   sbuf was SBMAX + 1 bytes from the start, 64 KB. */
+TEST(sbuf_scratch_takes_its_room)
+{
+    static const char *const lines[] = {
+        "10 a$ = STRING$(5000, \"-\"): LSET a$ = \"abc\"",
+        "20 PRINT LEN(a$); LEFT$(a$, 4); RIGHT$(a$, 1); \"|\"",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 5000 abc  |\r");
+}
+
+/* A Quickr format's text, written to sbuf, within the room qrt_format_room asks for it. */
+TEST(qrt_format_room_holds_the_text)
+{
+    static uint8_t out[8192];
+    static const char *const specs[] = {">2000,.100f", "^+#5000x", ".100e", "08,d", "=+3000"};
+
+    static const uint8_t left[] = "<3000";
+    uint8_t *const text = pmem_resize(nullptr, 3); /* an Addr's: the arena's */
+    memcpy(text, "abc", 3);
+    const Desc str = {.len = 3, .ptr = addr_of(text)};
+
+    const Cell d = {.d = -1.5e300}, i = {.i = -123456789};
+
+    CHECK(qrt_format(QRT_STRING, (Cell){}, str, left, 5, out) <= qrt_format_room(str, left, 5));
+
+    pmem_free(text);
+
+    for (uint32_t k = 0; k < countof(specs); k++) {
+        const uint8_t *const sp = (const uint8_t *)specs[k];
+        const uint32_t n = (uint32_t)strlen(specs[k]);
+        const uint32_t room = qrt_format_room((Desc){}, sp, n);
+
+        CHECK(qrt_format(QRT_DOUBLE, d, (Desc){}, sp, n, out) <= room);
+
+        CHECK(qrt_format(QRT_LONG, i, (Desc){}, sp, n, out) <= room);
+    }
+}
+
+/* Output captured past sbuf's first bytes: all of it kept as sbuf grows, its 0 after it. */
+TEST(sbuf_capture_grows)
+{
+    static const char *const lines[] = {"10 FOR i = 1 TO 1000: PRINT \"x\";: NEXT", nullptr};
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK(S->cons.sblen == 1000 && S->cons.sbcap > 1000);
+    CHECK(S->cons.sbuf[0] == 'x' && S->cons.sbuf[999] == 'x');
 }

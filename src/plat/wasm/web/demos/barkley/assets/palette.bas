@@ -4,6 +4,7 @@ defint A-Z
 option explicit
 
 from engine.datafile import DataFile, Word
+from engine.video import SetColours
 from barkley.model.level import NSTAGE, Realm
 from barkley.model.game import Session, Tones
 
@@ -46,12 +47,18 @@ private const CCHASE = 213
 
 ' Colour k is c, shown dusk sixteenths as bright.
 sub Tint (tn as Tones, k as integer, c as long)
+    Mix tn, k, c
+    SetColours tn.shown()
+end sub
+
+' Colour k is c, shown when the colours next are.
+private sub Mix (tn as Tones, k as integer, c as long)
     dim d as integer
 
     tn.now(k) = c
     d = tn.dusk
-    palette k, _
-        (c and 63) * d \ 16 + 256& * ((c \ 256 and 63) * d \ 16) _
+    tn.shown(k) = (c and 63) * d \ 16 _
+        + 256& * ((c \ 256 and 63) * d \ 16) _
         + 65536 * ((c \ 65536) * d \ 16)
 end sub
 
@@ -62,31 +69,35 @@ sub Cycle (tn as Tones, se as Session)
 
     for i = 0 to 3
         if i = (se.ticks \ 8 and 3) then
-            Tint tn, CCHASE + i, 4144952
+            Mix tn, CCHASE + i, 4144952
         else
-            Tint tn, CCHASE + i, 3550218
+            Mix tn, CCHASE + i, 3550218
         end if
 
         if (i + se.ticks \ 4) and 2 then
-            Tint tn, CCHASE + 4 + i, 2235666
+            Mix tn, CCHASE + 4 + i, 2235666
         else
-            Tint tn, CCHASE + 4 + i, 525317
+            Mix tn, CCHASE + 4 + i, 525317
         end if
 
         if i = (se.ticks \ 4 and 3) then
-            Tint tn, CCHASE + 8 + i, 2242111
+            Mix tn, CCHASE + 8 + i, 2242111
         else
-            Tint tn, CCHASE + 8 + i, 991026
+            Mix tn, CCHASE + 8 + i, 991026
         end if
     next
+
+    SetColours tn.shown()
 end sub
 
 sub Shade (tn as Tones)
     dim k as integer
 
     for k = 0 to 255
-        Tint tn, k, tn.now(k)
+        Mix tn, k, tn.now(k)
     next
+
+    SetColours tn.shown()
 end sub
 
 ' The Downs' lake glints: its three tones change places,
@@ -97,9 +108,10 @@ sub Shimmer (zn as Realm, tn as Tones, se as Session)
     if zn.id <> 0 or (se.ticks and 15) <> 0 then exit sub
 
     i = se.ticks \ 16
-    Tint tn, CWATER + 1, tn.glint(i mod 3)
-    Tint tn, CWATER + 2, tn.glint((i + 1) mod 3)
-    Tint tn, CWATER + 3, tn.glint((i + 2) mod 3)
+    Mix tn, CWATER + 1, tn.glint(i mod 3)
+    Mix tn, CWATER + 2, tn.glint((i + 1) mod 3)
+    Mix tn, CWATER + 3, tn.glint((i + 2) mod 3)
+    SetColours tn.shown()
 end sub
 
 ' A stage's own colours sized, stage by stage.
@@ -119,8 +131,10 @@ sub ReadTones (tn as Tones, dat as DataFile)
 
     for i = 1 to n
         k = Word&(dat)
-        Tint tn, k, Word&(dat)
+        Mix tn, k, Word&(dat)
     next
+
+    SetColours tn.shown()
 
     for k = 0 to NSTAGE - 1
         tn.n(k) = Word&(dat)

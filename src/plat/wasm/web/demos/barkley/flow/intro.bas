@@ -3,7 +3,7 @@
 defint A-Z
 option explicit
 
-from engine.video import Blit, SH, SW
+from engine.video import Blit, FillBox, SH, SW
 from engine.clock import STEPT
 from barkley.model.images import IBOXES, ICRATE, IHEDGE, IHOUSE
 from barkley.model.hero import Hero, Pad
@@ -319,8 +319,8 @@ sub IntroDraw (wd as World, g as Game, p as Hero, cu() as Cue)
         i = i + 1
     loop
 
-    line (0, 0)-(SW - 1, BARH - 1), 0, BF
-    line (0, SH - BARH)-(SW - 1, SH - 1), 0, BF
+    FillBox wd.art, 0, 0, SW - 1, BARH - 1, 0
+    FillBox wd.art, 0, SH - BARH, SW - 1, SH - 1, 0
 end sub
 
 ' Cue i's picture at beat `now`, the view at cx, cy: its
@@ -365,13 +365,13 @@ private sub DrawCue ( _
     case QBASKET
         DrawKeep wd.zn, wd.art, x, y
     case QEYES
-        DrawEyes wd.se, x, y, a
+        DrawEyes wd.art, wd.se, x, y, a
     case QHERO
         Pose wd.lv, wd.gr, wd.se, p, wx, wy, a, _
             cu(i).finish.x < cu(i).start.x
         DrawHero wd.gr, wd.art, wd.se, p, cx, cy
     case QWOOF
         Woof p, wx, wy, a, BARKT - (now - cu(i).t0) / BEATS
-        DrawBark p, cx, cy
+        DrawBark wd.art, p, cx, cy
     end select
 end sub

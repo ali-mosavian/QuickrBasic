@@ -3,7 +3,7 @@
 defint A-Z
 option explicit
 
-from engine.video import Blit, Store
+from engine.video import Blit, FillBox, PicH, PicW, Store
 from barkley.model.images import FAMF, IBALL, IBARON, IBASKET, ICAMERA
 from barkley.model.images import ICAT, IDOOR, IFAM, IFLOAT, IGUITAR
 from barkley.model.images import IPEEK, ITEDDY, ITOOLS, IVAN, IWHEEL
@@ -94,8 +94,7 @@ function BaronPic% (se as Session, aim as integer)
     BaronPic% = IBARON + f * 2
 end function
 
-' Who meets Charlie, the middle one's feet at x, y. A
-' picture's first LONG holds its size, as GET left it: each
+' Who meets Charlie, the middle one's feet at x, y. Each
 ' stands with its middle column on its place in the line and
 ' its last row on the ground.
 sub DrawFamily ( _
@@ -109,8 +108,8 @@ sub DrawFamily ( _
 
     for n = 0 to NFAM - 1
         k = FamPic%(se, n, cheer)
-        w = (art.img(art.at(k)) and 65535) \ 8
-        h = art.img(art.at(k)) \ 65536
+        w = PicW%(art, k)
+        h = PicH%(art, k)
         Blit art, x + (n - NFAM \ 2) * FAMSTEP - w \ 2, y - h + 1, _
             k, w, h
     next
@@ -151,17 +150,23 @@ end sub
 
 ' Pairs of eyes in a hedge, n of them from x, y, each in a
 ' gap of its leaves and blinking in its turn.
-sub DrawEyes (se as Session, x as integer, y as integer, n as integer)
+sub DrawEyes ( _
+    art as Store, _
+    se as Session, _
+    x as integer, _
+    y as integer, _
+    n as integer _
+)
     dim i as integer, ex as integer, ey as integer
 
     for i = 0 to n - 1
         ex = x + i * 26
         ey = y - (i and 1) * 9
-        line (ex - 1, ey - 2)-(ex + 7, ey + 3), CHEDGE, BF
-        line (ex - 2, ey - 1)-(ex + 8, ey + 2), CHEDGE, BF
+        FillBox art, ex - 1, ey - 2, ex + 7, ey + 3, CHEDGE
+        FillBox art, ex - 2, ey - 1, ex + 8, ey + 2, CHEDGE
         if (se.ticks + i * 37) mod 90 < 6 then continue for
 
-        line (ex, ey)-(ex + 1, ey + 1), CYELLOW, BF
-        line (ex + 5, ey)-(ex + 6, ey + 1), CYELLOW, BF
+        FillBox art, ex, ey, ex + 1, ey + 1, CYELLOW
+        FillBox art, ex + 5, ey, ex + 6, ey + 1, CYELLOW
     next
 end sub

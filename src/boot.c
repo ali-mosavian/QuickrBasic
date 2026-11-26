@@ -48,7 +48,7 @@ void boot(Session *const S, const FrontEnd *const fe)
     decl_init(&S->decl, &S->fault);
     S->names.intern = repl_intern;
     S->impt.find = repl_runs;
-    lexr_init(&S->lexr, &S->fault, &S->names);
+    lexr_init(&S->lexr, &S->fault, &S->names, &S->comp.cbuf, &S->comp.ccap);
     stmt_usng_init(S);
 
     if (!pmem_init())
@@ -62,12 +62,12 @@ void boot(Session *const S, const FrontEnd *const fe)
 
     scop_init(&S->scop, &S->fault); /* its arena's first block from the C side's heap */
 
-    allo_init(&S->allo, &S->fault); /* the arrays' headers, the control stack, the POKE memory */
+    allo_init(&S->allo, &S->fault); /* the BASIC heap, the control stack */
     qbrt_init(&S->fault, &S->vm.stop, at(allo_carve(&S->allo, QBRT_HEAP)), QBRT_HEAP);
     strg_init(&S->strg, &S->allo, &S->fault, &S->prog);
     arry_init(&S->arry, &S->allo, &S->fault, &S->symb, &S->decl, &S->strg, &S->vm);
     exec_init(S);
-    cons_init(&S->cons, &S->allo, &S->chnl, &S->vm);
+    cons_init(&S->cons, &S->fault, &S->chnl, &S->vm);
     diag_init(&S->diag, &S->cons);
     srcr_init(&S->srcr, &S->cons, &S->chnl, &S->repl.fline);
     file_init(&S->file, &S->allo, &S->chnl, &S->strg, &S->cons, &S->fault);
@@ -96,7 +96,8 @@ void boot(Session *const S, const FrontEnd *const fe)
     comp_init(&S->comp);
     flow_init(S);
     stmt_init(S);
-    S->allo.cache = allo_base(&S->allo, allo_new(&S->allo, 0x10000, nullptr)); /* then the store */
+    S->allo.cache =
+        allo_base(&S->allo, allo_new(&S->allo, CACHE_FIRST, nullptr)); /* then the store */
     prog_new(&S->prog, &S->allo, &S->fault, session_prog_user(S));
 
     if (fe->regions)

@@ -40,6 +40,7 @@
  * - D6. A program has a module per file it imports, each with its own labels.
  */
 #include "mem/scope.h"
+#include "plat/pmem.h"
 
 static const Binding none; /* a binding of nothing */
 
@@ -56,9 +57,26 @@ static void scop_fail(const Scop *const sc, const uint8_t code)
 
 void scop_init(Scop *const sc, Fault *const f)
 {
-    arena_init(&sc->arena, 0x4000);
+    arena_init(&sc->arena, 0x2000);
     sc->fault = f;
     scop_reset(sc);
+}
+
+void scop_look_on(Scop *const sc)
+{
+    if (!sc->look)
+        sc->look = pmem_resize(nullptr, NLOOK * sizeof *sc->look);
+    if (!sc->look)
+        fault_error(sc->fault, E_OM);
+
+    memset(sc->look, 0, NLOOK * sizeof *sc->look);
+    sc->gen++;
+}
+
+void scop_look_off(Scop *const sc)
+{
+    pmem_free(sc->look);
+    sc->look = nullptr;
 }
 
 void scop_reset(Scop *const sc)
@@ -163,12 +181,12 @@ const Binding *scop_look(const Scop *const sc, const uint32_t name, uint32_t *co
 {
     const uint32_t top = sc->stack[sc->depth - 1].name;
 
-    if (!sc->look_on || sc->depth > 2) /* a DEF FN's: the stack more than its top */
+    if (!sc->look || sc->depth > 2) /* a DEF FN's: the stack more than its top */
         return look(sc, name, scope);
 
     /* kept in a const Scop: an answer, not a binding */
     ScopLook *const m =
-        (ScopLook *)&sc->look[(name * 2654435761u ^ top * 40503u) >> 23 & (countof(sc->look) - 1)];
+        (ScopLook *)&sc->look[(name * 2654435761u ^ top * 40503u) >> 23 & (NLOOK - 1)];
 
     if (m->name != name || m->top != top || m->depth != sc->depth || m->gen != sc->gen || !m->b) {
         m->b = look(sc, name, &m->scope);

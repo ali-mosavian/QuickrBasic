@@ -21,6 +21,8 @@ enum : uint8_t {
     POINTER = 0x77
 }; /* the mouse's text cursor: the cell's colours inverted, as INT 33h's */
 
+void host_state_lock(void);
+void host_state_unlock(void);
 unsigned host_width(void);
 unsigned host_height(void);
 const uint8_t *host_pixels(void);
@@ -66,7 +68,9 @@ static void graphics(void)
     for (uint32_t i = 0; i < 256; i++)
         colours[i] = rgba(rgb[i][0], rgb[i][1], rgb[i][2]);
 
+    host_state_lock(); /* the page may be replaced by a new mode's */
     indexed(host_pixels(), host_width(), host_height(), colours);
+    host_state_unlock();
 }
 
 static uint32_t rgb_rgba(const uint32_t c)

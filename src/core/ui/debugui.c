@@ -73,7 +73,7 @@ static void hlset(Session *const S, const DebugPos *const pos)
     uint8_t *const text = uimn.line.text;
     text[len] = 0;
     uint8_t *const body = edit_body(text);
-    lexr_line(&S->lexr, body, S->comp.cbuf);
+    lexr_line(&S->lexr, body);
     const uint32_t bc = (uint32_t)(body - text);
     const uint32_t c0 = lexr_colof(&S->lexr, pos->from) + bc;
     const uint32_t c1 =

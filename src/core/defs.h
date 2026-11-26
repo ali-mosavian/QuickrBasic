@@ -209,7 +209,7 @@ typedef struct PACKED {
     uint32_t et; /* ours: its elements' ET_*, ET_REC + t a TYPE's */
     Addr data;
     uint32_t fast;
-    Addr owner; /* ours: its cell (mem/array.c), 0 dead */
+    Addr next; /* ours: a dead heap array's, the next dead (mem/array.c), 0 none */
     uint32_t count[];
 } ArrayHdr;
 /* An array's cell: its header (0 none) and whether REDIM made it (ERASE frees it). */
@@ -316,15 +316,18 @@ enum {
     HSIZE = 1024,      /* the symbols' hash chains */
     DCODE = 0x0100,    /* the direct line's stream */
     CACHE0 = DCODE + 1536,
-    HEAP_FIRST = 0x10000,      /* the BASIC heap at first; it grows */
-    STKSZ = 0x10000,           /* the data stack */
-    STKROOM = 0x8000,          /* its room for the run */
-    STKEVAL = STKSZ - STKROOM, /* under vm.stklim: a statement's own values */
-    CPROOM = 0x4000,           /* the compiler's frames */
-    OBSZ = 256,                /* the output buffer */
+    CACHE_FIRST = CACHE0 + 0x1000,  /* the code cache at first; it grows */
+    PROG_FIRST = PROGBASE + 0x1000, /* the store at first; it grows */
+    HEAP_FIRST = 0x10000,           /* the BASIC heap at first; it grows */
+    STKSZ = 0x8000,                 /* the data stack's first segment */
+    STKROOM = 0x4000,               /* its room for the run */
+    STKEVAL = STKSZ - STKROOM,      /* under vm.stklim: a statement's own values */
+    CPROOM = 0x4000,                /* the compiler's frames */
+    OBSZ = 256,                     /* the output buffer */
 };
-/* String temporaries: one per cell of the data stack's first room, 48 over. */
-enum { NTMP = STKROOM / sizeof(Cell) + 48 };
+/* String temporaries: 4144, what a 32 KB room's cells were. Fewer, a 3000-deep string recursion
+   was String formula too complex. */
+enum { NTMP = 0x8000 / sizeof(Cell) + 48 };
 
 /* Block statements (comp/block), procedures, TYPEs: their records are comp's. */
 enum : uint8_t {

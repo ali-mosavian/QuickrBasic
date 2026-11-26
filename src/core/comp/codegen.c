@@ -827,12 +827,15 @@ static void cg_fn(Code *const c, const Node *const n)
         return;
     }
 
+    const bool str = c->type & T_STR;
     farg(c, f);
 
     if (f == TK_VAL - TK_SGN) { /* VAL: a DOUBLE, as BC's */
         c->type = T_DBL;
         code_call(c, K_DVAL);
-    } else
+    } else if (f == TK_FRE - TK_SGN && str)
+        code_xop(c, X_FRES);
+    else
         code_call(c, K_FN + f);
 }
 

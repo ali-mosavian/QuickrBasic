@@ -7,7 +7,6 @@
 enum { NBLKH = 8 };                        /* blocks at most */
 enum { HCACHE = 0, HPROG = 1, HLMAP = 2 }; /* the code cache's, the store's, the editor's map's */
 enum {
-    OLDHDRSZ = 0x2400, /* the asm's headers' region, unused: the Addrs after it kept */
     CSSZ = 0x1C00,     /* the control stack, under cs_top (CSLIM .. CSTOP) */
     POKESZ = 0x10000,
 };
@@ -29,30 +28,42 @@ typedef struct {
     uint32_t nblocks;
     AlloBlock block[NBLKH]; /* by handle */
     Addr bot, top;          /* the BASIC heap (mm.hbot, mm.htop): a block of pmem's, grown up */
-    Addr arrays;            /* the arrays' data from bot up to here (mm.aend) */
     Addr strings;           /* the strings' from here up to top (mm.sfr) */
+    Addr taken;             /* allo_take's newest block, 0 none */
     Addr cache;             /* the code cache's block, which never moves (mm.cachebase) */
     Addr cs_lim;            /* the control stack's floor (CSLIM) */
     Addr cs_top;            /* its top, frames down from it (CSTOP) */
-    Addr poke;              /* the POKE memory, POKESZ bytes (g_pokeb) */
+    Addr poke;              /* the POKE memory, POKESZ bytes (g_pokeb); 0 till the first SYS */
 } Allo;
 
 /* The BASIC heap, HEAP_FIRST bytes at the bottom of pmem's largest room; then carves the
-   control stack and the POKE memory. Out of memory. */
+   control stack. Out of memory. */
 void allo_init(Allo *al, Fault *f);
 /* A fixed region of size bytes, zeroed, 16-aligned: it never moves. Out of memory. */
 Addr allo_carve(Allo *al, uint32_t size);
 /* A block of size bytes, zeroed. Returns its handle. Out of memory: no room, or NBLKH made. */
 uint32_t allo_new(Allo *al, uint32_t size, AlloOwner *owner);
-/* Block h to size bytes at least, half as many again: in place or moved, its owner told. false:
-   no room. */
+/* Block h to size bytes at least, half as many again where there is room: in place or moved, its
+   owner told. false: no room. */
 bool allo_grow(Allo *al, uint32_t h, uint32_t size);
 /* The BASIC heap's top raised by need bytes at least, a quarter of it more where there is room:
    the bytes added, past top; 0 no room. The caller moves top. */
 uint32_t allo_extend(Allo *al, uint32_t need);
-/* The BASIC heap's free bytes: between the arrays and the strings, and what it can still add. */
+/* The strings' room (FRE("")): the BASIC heap's free bytes, and what it can still add. */
+uint32_t allo_string_room(const Allo *al);
+/* The free bytes (FRE(-1)): the BASIC heap's, and every region's under REF_ADDR. */
 uint32_t allo_free(const Allo *al);
-/* The BASIC heap, empty, back to HEAP_FIRST bytes: the rest to pmem. */
+/* A heap array's block of size bytes, 8-aligned, not zeroed, in any region, under REF_ADDR: its
+   Addr; 0 no room. It never moves. */
+Addr allo_take(Allo *al, uint32_t size);
+/* Block a (allo_take's) back to pmem. */
+void allo_give(Allo *al, Addr a);
+/* The bytes the BASIC heap can give back: all but its strings'. */
+uint32_t allo_spare(const Allo *al);
+/* The BASIC heap cut to top, the bytes past it to pmem: the caller lowered top and the strings. */
+void allo_cut(Allo *al);
+/* The BASIC heap, empty, back to HEAP_FIRST bytes, the rest to pmem; allo_take's blocks given
+   back. */
 void allo_shrink(Allo *al);
 
 static inline Addr allo_base(const Allo *const al, uint32_t h) { return al->block[h].base; }

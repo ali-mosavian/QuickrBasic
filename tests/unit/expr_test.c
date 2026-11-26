@@ -35,7 +35,7 @@ TEST(numeric_functions_of_folded_arguments)
 TEST(not_a_function_marked_at_itself)
 {
     uint8_t text[] = "x = MKDIR";
-    lexr_line(&S->lexr, text, S->comp.cbuf);
+    lexr_line(&S->lexr, text);
     S->comp.check = true;
     (void)comp_line(&S->comp);
     S->comp.check = false;
@@ -62,7 +62,7 @@ TEST(parameter_mismatch_marked_at_its_argument)
 
     (void)unit_run(S, lines); /* linked: the call checked against its parameters */
     uint8_t text[] = "x = sum%(a, b)";
-    lexr_line(&S->lexr, text, S->comp.cbuf);
+    lexr_line(&S->lexr, text);
     S->comp.check = true;
     (void)comp_line(&S->comp);
     S->comp.check = false;
@@ -90,7 +90,7 @@ TEST(function_result_passes_the_line_check)
 
     CHECK(unit_run(S, lines) == ST_OK);
     uint8_t text[] = "sum% = a + b";
-    lexr_line(&S->lexr, text, S->comp.cbuf);
+    lexr_line(&S->lexr, text);
     S->comp.check = true;
     (void)comp_line(&S->comp);
     S->comp.check = false;

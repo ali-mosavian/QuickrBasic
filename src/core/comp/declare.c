@@ -49,7 +49,7 @@
 #include "mem/symbols.h"
 #include "num/double.h"
 
-enum { DECL_CHUNK = 0x2000 };
+enum { DECL_CHUNK = 0x1000 };
 
 /* decl_line's scan: where declarations go, and the body's cursor. */
 typedef struct {

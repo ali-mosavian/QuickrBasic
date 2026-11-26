@@ -13,14 +13,14 @@ enum { ADIMS = 64 }; /* the subscript buffers' words */
 static_assert(MAXDIMS <= ADIMS && MAXDIMS <= DIM_COUNT);
 
 typedef struct Arry {
-    Allo *allo;          /* the heap arrays, from allo.bot up to allo.arrays */
+    Allo *allo;          /* the heap arrays' blocks */
     Fault *fault;        /* Subscript out of range, Out of memory, ... */
     Symb *symb;          /* the arrays' variables */
     const Decl *decl;    /* the TYPEs' sizes, OPTION BASE */
     Strg *strg;          /* collected for room; a string element's block follows it */
     Vm *vm;              /* the run: its call's frame (vm.fp), the calls that own a heap's array */
     Addr fcells;         /* the newest live field cell's header, 0 none */
-    uint32_t idle;       /* the bytes of the dead arry_relen and field cells left, not yet swept */
+    Addr dead;           /* the newest dead heap array's header, 0 none: arry_sweep's */
     Addr *holds;         /* arry_hold's sp each, the newest last */
     uint32_t nholds;     /* in use */
     uint32_t holdcap;    /* holds' room */
@@ -31,7 +31,7 @@ typedef struct Arry {
 
 /* ay's links set. */
 void arry_init(Arry *ay, Allo *al, Fault *f, Symb *sy, const Decl *d, Strg *sg, Vm *vm);
-/* No heap headers, no field cells. */
+/* No heap arrays, no field cells: their blocks gone with the heap (allo_shrink). */
 void arry_clear_heap(Arry *ay);
 /* Array id's cell in the running call: its own, a local's in the frame, a parameter's its
    argument's. */
@@ -95,9 +95,6 @@ static inline uint32_t arry_esize(const Arry *const ay, const uint32_t id)
 enum { ARRY_FRAME_HDR1 = (sizeof(ArrayHdr) + 2 * sizeof(uint32_t) + 7) & ~7 };
 /* A header of dims dimensions in a frame: its bytes to the data, 8-aligned. */
 uint32_t arry_frame_hdr(uint8_t dims);
-/* Header h is a frame's, its local's DIMmed with constant bounds (comp/frame.c), or a field cell's:
-   REDIM never. */
-bool arry_fixed(const Arry *ay, Addr h);
 /* arry.counts[0..n): arry.subs' + 1. Illegal function call: a subscript under 0. */
 void arry_counts(Arry *ay, uint8_t n);
 /* DIM: array id made, its counts arry.subs[0..n) + 1. Illegal function call: a subscript under 0.
@@ -108,8 +105,7 @@ void arry_dim(Arry *ay, uint32_t id, uint8_t n);
    one. Subscript out of range: keep, n not its dimensions. Illegal function call, Out of memory. */
 void arry_redim(Arry *ay, ArrSlot *s, uint32_t et, uint8_t n, bool keep);
 /* A list's array, ours: cell s's made cap elements of et, its first len (fast) its elements, the
-   old ones kept, the old array dead for arry_sweep (an arena's till its return): nothing moves
-   yet. Out of memory. */
+   old ones kept, the old array dead for arry_sweep (an arena's till its return). Out of memory. */
 void arry_relen(Arry *ay, ArrSlot *s, uint32_t et, uint32_t cap, uint32_t len);
 /* The array fields of the n records of TYPE td at data dynamic and empty, ours. */
 void arry_empty_cells(Addr data, uint32_t n, const TypeDef *td);
@@ -118,30 +114,30 @@ void arry_empty_cells(Addr data, uint32_t n, const TypeDef *td);
 void arry_empty(Arry *ay, uint32_t id, bool keep);
 /* a(:) = b(:), ours: cell d gets s's bounds and a copy of its elements, a dynamic array after, its
    old one freed. Duplicate definition: d a DIM's with elements. Out of memory. */
-void arry_copy(Arry *ay, Vm *vm, ArrSlot *d, const ArrSlot *s);
+void arry_copy(Arry *ay, ArrSlot *d, const ArrSlot *s);
 /* Cell d's array, ours, a list of n copies of s's elements from from: d's old one freed, which
    may be s's. */
-void arry_copy_part(Arry *ay, Vm *vm, ArrSlot *d, const ArrSlot *s, uint32_t from, uint32_t n);
-/* arry_copy's copy into the empty cell d, ours: made at the heap's end, nothing moves. */
+void arry_copy_part(Arry *ay, ArrSlot *d, const ArrSlot *s, uint32_t from, uint32_t n);
+/* arry_copy's copy into the empty cell d, ours. */
 void arry_copy_into(Arry *ay, ArrSlot *d, const ArrSlot *s);
 /* A record of TYPE td copied from src to dst, ours: dst's STRINGs and arrays made its own (its old
-   ones the caller's to kill). Nothing moves. */
+   ones the caller's to kill). */
 void arry_copy_rec(Arry *ay, Addr dst, Addr src, const TypeDef *td);
-/* A record of TYPE td moved from src to dst, ours: its STRINGs' and arrays' owners follow; src's
-   cells let go. */
+/* A record of TYPE td moved from src to dst, ours: its STRINGs' owners follow, its heap arrays
+   dst's call's to free; src's cells let go. */
 void arry_move_rec(const Arry *ay, Addr dst, Addr src, const TypeDef *td);
-/* SWAP a, b of records of TYPE td: their bytes swapped, their STRINGs' and arrays' owners
-   following; their arrays in a frame or on the arena first copied to the heap. Out of memory. */
+/* SWAP a, b of records of TYPE td: their bytes swapped, their STRINGs' owners following; their
+   arrays in a frame or on the arena first copied to the heap. Out of memory. */
 void arry_swap_rec(Arry *ay, Addr a, Addr b, const TypeDef *td);
 /* a() = b() or f(..), ours: cell d takes the array of cell s, its old one freed; s is left empty.
    s's array in a frame or on the arena, d a cell its call may outlive: copied to the heap first.
    s a field cell's: copied, s kept. Duplicate definition: d a DIM's with elements. Out of memory. */
-void arry_move(Arry *ay, Vm *vm, ArrSlot *d, ArrSlot *s);
+void arry_move(Arry *ay, ArrSlot *d, ArrSlot *s);
 /* An array result emptied as its FUNCTION starts, ours: cell s's array freed, s dynamic and empty. */
-void arry_reset(Arry *ay, Vm *vm, ArrSlot *s);
+void arry_reset(Arry *ay, ArrSlot *s);
 /* An array of et elements made in cell s, ours: arry.counts and arry.lbounds [0..n), its data
-   zeroed; on the running call's arena (vm/stack.c), else its header and data at allo.arrays, its
-   owner s; dyn a REDIM's. Returns the header. Out of memory. */
+   zeroed; on the running call's arena (vm/stack.c), else its header and data a block of the
+   heap's (allo_take); dyn a REDIM's. Returns the header. Out of memory. */
 Addr arry_make(Arry *ay, ArrSlot *s, uint32_t et, uint8_t n, bool dyn);
 /* arry_make for array id in its cell. */
 Addr arry_new(Arry *ay, uint32_t id, uint8_t n, bool dyn);
@@ -167,36 +163,28 @@ uint32_t arry_view_elems(const ArrView *v);
 uint32_t arry_view_size(const Arry *ay, const ArrView *v);
 /* A cell for the fixed array field key names (decl_fieldkey) at data, passed whole to an array
    parameter, ours: its header the field's shape. It lives while the call does, its arguments
-   above vm.sp, and follows its record as the heap moves. Out of memory. */
+   above vm.sp. Out of memory. */
 ArrSlot *arry_field_cell(Arry *ay, Addr data, uint32_t key);
 /* ERASE of a DIM'd array or a fixed array field: its elements zeroed, its records' arrays freed and
    emptied (ours). */
-void arry_clear(Arry *ay, Vm *vm, const ArrView *v);
-/* Header h's array dead, ours, and the arrays its records hold: arry_sweep removes them. A frame's
+void arry_clear(Arry *ay, const ArrView *v);
+/* Header h's array dead, ours, and the arrays its records hold: arry_sweep frees them. A frame's
    or an arena's is not the heap's: it goes with the frame, its records' arrays here. */
-void arry_kill(const Arry *ay, Addr h);
-/* The dead arrays removed, ours: what follows each moves down, and the headers' data, their
-   owners in the moved data, the moved headers' cells, the moved string blocks' owners and the
-   parameters' cells in the moved data follow. A cell held in the heap moves: not to be used after.
-   Held (arry_hold): nothing moves, the dead left to a later sweep. */
-void arry_sweep(Arry *ay, Vm *vm);
-/* arry_sweep: where the heap address a moved to. */
-Addr arry_sweep_at(Arry *ay, Vm *vm, Addr a);
-/* Code starts that may sweep while addresses into the heap wait on the stack at or above sp, where
-   no sweep can follow them: sweeps wait till its arry_unhold, which drops the newest hold, or till
-   an error's unwinding takes sp up to it (arry_unwound). Out of memory. */
+void arry_kill(Arry *ay, Addr h);
+/* The dead arrays' blocks given back, ours, their strings' blocks dead and collected first.
+   Held (arry_hold): nothing freed, the dead left to a later sweep. */
+void arry_sweep(Arry *ay);
+/* Code starts that may kill arrays while addresses into them wait on the stack at or above sp:
+   sweeps wait till its arry_unhold, which drops the newest hold, or till an error's unwinding
+   takes sp up to it (arry_unwound). Out of memory. */
 void arry_hold(Arry *ay);
 void arry_unhold(Arry *ay);
 /* The holds at or under sp dropped: the stack unwound past them. */
 void arry_unwound(Arry *ay);
-/* Before a list grows by need bytes: arry_sweep_at when the dead arry_relen left are over half the
-   heap in use, or need does not fit, else a with nothing moved. A sweep moves the data and walks
-   every string block, so growth pays for one rarely. */
-Addr arry_tidy(Arry *ay, Vm *vm, Addr a, uint32_t need);
 /* Cell s's array dropped, s emptied: arry_kill, the arena's newest's room given back, then
    arry_sweep. */
-void arry_free(Arry *ay, Vm *vm, ArrSlot *s);
+void arry_free(Arry *ay, ArrSlot *s);
 /* REDIM PRESERVE: each element of the header old that fresh has too, by its subscripts, copied;
-   a string's block moved (vm's ls_mov), a record's STRINGs' and arrays' owners too. */
+   a string's block moved (vm's ls_mov), a record's STRINGs' too. */
 void arry_keep(Arry *ay, Addr old, Addr fresh);
 #endif

@@ -46,9 +46,12 @@ Addr strg_new(Strg *sg, Addr chars, uint16_t len);
 void strg_own(Addr chars, uint16_t len, Addr owner);
 /* Collect the heap: the live blocks slide up, their owners follow, the dead go; low set. */
 void strg_gc(Strg *sg);
-/* size bytes free between the arrays and the strings: collected, else the heap grown and the
-   strings slid up. false: no room. */
+/* size bytes free under the strings: collected, else the heap grown and the strings slid up.
+   false: no room. */
 bool strg_room(Strg *sg, uint32_t size);
+/* The heap's free bytes given back to pmem for an array: the strings collected, slid down to its
+   bottom and the heap cut to them. false: none to give. */
+bool strg_give(Strg *sg);
 /* Store value in the Desc at desc: pointed at when empty or in the program store, a temporary's
    own block taken over, else copied. Out of memory. */
 void strg_set(Strg *sg, Addr value, Addr desc);

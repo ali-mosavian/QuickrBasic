@@ -24,10 +24,36 @@ static unsigned char keys[KEY_BYTES];
 static size_t key_head, key_tail;
 static int scan_pending, end_of_input;
 
-static HeadlessTone tones[TONE_LOG];
-static size_t tone_count;
-static HeadlessVoice voice_log[VOICE_LOG];
-static size_t voice_count;
+/* The sounds' logs, grown as they fill, up to TONE_LOG and VOICE_LOG records, in headless_log_resize's memory: a
+   log that cannot grow is full. */
+static HeadlessTone *tones;
+static size_t tone_count, tone_cap;
+static HeadlessVoice *voice_log;
+static size_t voice_count, voice_cap;
+
+/* *log, of *cap records of size bytes, holds count + 1, grown by doubling; false: most reached, or no memory. */
+static int log_room(void *log, size_t *cap, size_t count, size_t size, size_t most)
+{
+    void *was, *now;
+    size_t want;
+
+    if (count < *cap)
+        return 1;
+    if (count >= most)
+        return 0;
+
+    want = *cap ? 2 * *cap : 64;
+    want = want < most ? want : most;
+    memcpy(&was, log, sizeof was);
+    now = headless_log_resize(was, want * size);
+
+    if (!now)
+        return 0;
+
+    memcpy(log, &now, sizeof now);
+    *cap = want;
+    return 1;
+}
 
 static long clock_now, clock_step;
 /* In real time the clock is what it was set to plus the time since: a program that times itself (NIBBLES' speed loop)
@@ -75,8 +101,11 @@ void headless_reset(void)
     key_head = key_tail = 0;
     scan_pending = 0;
     end_of_input = 0;
-    tone_count = 0;
-    voice_count = 0;
+    headless_log_free(tones);
+    headless_log_free(voice_log);
+    tones = NULL;
+    voice_log = NULL;
+    tone_count = tone_cap = voice_count = voice_cap = 0;
     clock_now = 12L * HUNDREDTHS_PER_HOUR;
     clock_step = 0;
     date_year = 2000;
@@ -144,7 +173,7 @@ void dev_key_discard(void)
 
 void dev_tone(unsigned hertz)
 {
-    if (tone_count < TONE_LOG) {
+    if (log_room(&tones, &tone_cap, tone_count, sizeof *tones, TONE_LOG)) {
         tones[tone_count].hertz = hertz;
         tones[tone_count].clock = clock_now;
         tones[tone_count].tick = ticks_run;
@@ -154,7 +183,7 @@ void dev_tone(unsigned hertz)
 
 void dev_voice(unsigned voice, const DevVoice *v)
 {
-    if (voice_count < VOICE_LOG) {
+    if (log_room(&voice_log, &voice_cap, voice_count, sizeof *voice_log, VOICE_LOG)) {
         voice_log[voice_count].voice = voice;
         memcpy(voice_log[voice_count].v, v, (1 + v->layers) * sizeof *v);
         voice_log[voice_count].tick = ticks_run;

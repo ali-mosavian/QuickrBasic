@@ -10,6 +10,8 @@
 enum {
     INMAX = 32767,  /* an input line's characters at most, as QBasic's */
     SBMAX = 0xFFF0, /* sbuf: a line's LIST spelled, the rest dropped */
+    SBFIRST = 256,  /* sbuf's bytes at first: a scratch of up to them needs no cons_scratch */
+    INFIRST = 256,  /* inbuf's: a keyed line's and its 0 */
 };
 
 /* cons.capture */
@@ -24,20 +26,28 @@ typedef struct Cons {
     Vm *vm;             /* its stop flag: STOP while a line is read */
     uint8_t capture;    /* CAP_* */
     uint8_t col;        /* the output channel's column */
+    Fault *fault;       /* Out of memory */
     uint32_t sblen;     /* sbuf's bytes, to SBMAX */
+    uint32_t sbcap;     /* sbuf's room, sblen's byte too */
     uint32_t inlen;     /* inbuf's line, its length */
     int32_t inpos;      /* INPUT: the end of the last field, -1 before the first */
     bool from_file;     /* INPUT#: no prompts, a field past the line reads the next */
     bool stdin_con;     /* standard input is the console, read key by key */
     uint8_t status;     /* the I/O status (I.LD.ST), always 0 */
     uint16_t oblen;     /* obuf's bytes */
-    uint8_t *inbuf;     /* INMAX+1: a line read, 0 after; srcr's window */
-    uint8_t *sbuf;      /* SBMAX+1: output captured (CAP_SBUF), LIST's text, scratch */
+    uint32_t incap;     /* inbuf's room */
+    uint8_t *inbuf;     /* a line read, 0 after; srcr's window: grown to them */
+    uint8_t *sbuf;      /* output captured (CAP_SBUF), LIST's text, scratch: grown to them */
     uint8_t obuf[OBSZ]; /* standard output's, flushed on NL, before a read, at the exit */
 } Cons;
 
-/* inbuf and sbuf carved (allo_carve); standard input's kind; the console the only channel. */
-void cons_init(Cons *co, Allo *al, Chnl *cl, Vm *vm);
+/* inbuf's and sbuf's first bytes; standard input's kind; the console the only channel. Out of
+   memory raised through f. */
+void cons_init(Cons *co, Fault *f, Chnl *cl, Vm *vm);
+/* cons.inbuf, n bytes at least: grown, moved maybe. Out of memory. */
+uint8_t *cons_inroom(Cons *co, uint32_t n);
+/* cons.sbuf, n bytes at least: grown, moved maybe. Out of memory. */
+uint8_t *cons_scratch(Cons *co, uint32_t n);
 
 /* A character to the output, its column kept; NL ends the line. */
 void cons_putc(Cons *co, uint8_t c);

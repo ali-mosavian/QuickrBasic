@@ -1,5 +1,5 @@
-/* SCREEN's active and visible pages and PCOPY in every mode: drawing on a hidden page leaves the screen
-   shown as it was (beyond QB 4.5, which had one page in modes 1, 2, 12 and 13, and no PCOPY here). */
+/* SCREEN's active and visible pages and PCOPY where the adapter holds pages, as QBasic: drawing on
+   a hidden page leaves the screen shown as it was. Modes 1, 2, 12 and 13 have the one page. */
 #include <stdio.h>
 
 #include "session.h"
@@ -10,7 +10,7 @@ const uint8_t *host_pixels(void);
 void headless_set_stdout_is_screen(int yes);
 void host_text_row(unsigned row, char out[81]);
 
-static const int graphics[] = {1, 2, 7, 8, 9, 12, 13};
+static const int graphics[] = {7, 8, 9};
 
 /* SCREEN mode, , 1, 0, a dot on page 1, then tail; the pixel shown at the dot. */
 static unsigned dot_shown(Session *const S, const int mode, const char *const tail)
@@ -40,13 +40,13 @@ TEST(pages_hidden_in_every_mode)
     }
 }
 
-/* Every mode has 2 pages at least; QB 4.5's counts where it has more; a page past them is Illegal function
-   call. */
+/* QBasic's page counts, the adapter's; a page past them is Illegal function call. Modes 1, 2, 12 and
+   13 had a second page in memory, taken from the heap: 300 KB for SCREEN 12's. */
 TEST(pages_out_of_range)
 {
     static const struct {
         int mode, pages;
-    } counts[] = {{1, 2}, {2, 2}, {7, 8}, {8, 4}, {9, 2}, {12, 2}, {13, 2}};
+    } counts[] = {{1, 1}, {2, 1}, {7, 8}, {8, 4}, {9, 2}, {12, 1}, {13, 1}};
 
     for (size_t i = 0; i < sizeof counts / sizeof counts[0]; i++) {
         char ok[80], active[80], visible[80], copy[80];

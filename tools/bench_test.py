@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import unittest.mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -18,6 +19,26 @@ import bench
 
 def loop(n: int) -> str:
     return f"FOR i& = 1 TO {n}: a& = a& + 1: NEXT: PRINT a&"
+
+
+def dos_by_its_own_rules() -> None:
+    """A rev's DOS executables made by its own Makefile: ours, its source list a newer tree's, left main's
+    gfxdev.c without the pixmem.c it called, and its link failed."""
+    calls: list[list[str]] = []
+
+    def run(cmd: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    with tempfile.TemporaryDirectory() as d, unittest.mock.patch.object(bench.subprocess, "run", run):
+        root = Path(d)
+        for src in bench.INSTRUMENT_SRC:
+            (root / src).parent.mkdir(parents=True, exist_ok=True)
+        bench.Build(root).make(True)
+    ours = str(bench.ROOT / "Makefile")
+    dos = [c for c in calls if "all" in c]
+    assert dos and all(ours not in c for c in dos), calls
+    assert all(ours in c for c in calls if "build/host/basic" in c), calls
 
 
 def profile_cycles() -> None:
@@ -178,7 +199,8 @@ def kind_compares() -> None:
 
 # Instructions a pass on arm64 macOS, with room over what they measured; past one, a regression.
 # A string's allocation over a literal's store: strg_gc inlined into strg_alloc saved and set up
-# its registers on every allocation, 238 (217 out of line).
+# its registers on every allocation, 238 (217 out of line). The collector asking the stack whether
+# each dead block's owner was popped before checking its pointer, 251.
 ALLOC_BUDGET = 228
 # A SUB with a fixed local array over an empty SUB: its return looped over its locals and swept
 # the arrays, 457 (402 by the inline PRET).
@@ -287,6 +309,7 @@ def vm_window() -> None:
 
 
 def main() -> int:
+    dos_by_its_own_rules()
     stdlib_absent()
     each_reps()
     demo_one_world()

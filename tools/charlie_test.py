@@ -71,9 +71,11 @@ OWNERS = {
 # changes them from then on.
 MAKERS = dict.fromkeys(("thing", "swarm", "bird", "runner", "rover", "front", "rope"), ("world/level", "world/layout"))
 # The fields assigned outside their owner today: the count may only fall.
-OUTSIDE = 42
+OUTSIDE = 41
 
-DRIVER = """from engine.video import Blit, OpenScreen, SH, SW
+DRIVER = """option disable point
+from gfx import surface
+from engine.video import Blit, FillBox, OpenScreen, PicH, PicW, SH, SW
 from engine.clock import Clock, Pace, Steps, STEPT
 from engine.audio import Beat, Half, NBAR, NextHalf, NSLOT, NVOICE, Song, StartSong
 from barkley.model.images import FAMF, IBARON, ICISTERN, IFAM, ITANK, ITREE, NFAM
@@ -88,7 +90,7 @@ from barkley.model.game import CLEARED, Cue, Game, INTRO, Loose, NCUE, NLOOSE, N
 from barkley.model.game import Found, Gild, PULSES, TITLE
 from barkley.assets.palette import CBEE, CFLY, CGOLD, CINK, CNUT, CSEA, CVINE, CVINED, CWHITE, CYELLOW
 from barkley.assets.palette import CCLAY, CLINEN, CPOLE, CQINK, CSOOT
-from barkley.assets.store import BuildArt
+from barkley.assets.store import BuildArt, HUDH, HUDW
 from barkley.assets.cast import BaronPic, FamPic
 from barkley.assets.tunes import CHASETUNE, CAUGHT, CAUGHTUP, EndBeat, LEFTBEHIND, LoadSongs, PACKING, SCLANK, _
     Sfx, SHURT
@@ -158,7 +160,9 @@ declare function Uneven% (hz as single, grain as integer, per as integer, most a
 if Uneven%(59.94, 128, 1, 1, 600) + Uneven%(60.1, 256, 1, 1, 600) = 0 then print "paced 60 ok"
 if Uneven%(119.88, 128, 2, 1, 300) = 0 then print "paced 120 ok"
 if Uneven%(75, 256, 0, 2, 480) + Uneven%(20000, 128, 0, 1, 2) = 0 then print "paced by time ok"
-OpenScreen
+dim shared canvas as long
+OpenScreen wd.art
+canvas = wd.art.canvas
 LoadTables wd.lv
 BuildArt wd.art, wd.tn
 LoadKinds wd.kinds, wd.dat
@@ -604,8 +608,8 @@ for c = 0 to NFAM - 1
     next
     if v = 7 and m = 504 then was = was + 1
     j = IFAM + (c * FAMF + FAMF - 1) * 2
-    line (0, 0)-(99, 99), 0, BF
-    Blit wd.art, 0, 0, j, (wd.art.img(wd.art.at(j)) and 65535) \\ 8, wd.art.img(wd.art.at(j)) \\ 65536
+    FillBox wd.art, 0, 0, 99, 99, 0
+    Blit wd.art, 0, 0, j, PicW%(wd.art, j), PicH%(wd.art, j)
     print "fam"; Pix&(0, 100, 0, 99)
 next
 v = 0
@@ -615,7 +619,7 @@ for i = 0 to 400
     v = v or 2 ^ (((BaronPic%(fs, 0) - IBARON) \\ 2) and 7)
     m = m or 2 ^ (((BaronPic%(fs, 1) - IBARON) \\ 2) and 7)
 next
-line (0, 0)-(99, 99), 0, BF
+FillBox wd.art, 0, 0, 99, 99, 0
 Blit wd.art, 0, 0, IBARON + 10, 40, 44
 print "baron"; Pix&(0, 100, 0, 99)
 if was = NFAM and v = 15 and m = 48 then print "cast ok"
@@ -830,15 +834,15 @@ was = 0
 ' a zone's own pictures are in the store only while it is played, where the last zone's were: after the Downs the
 ' works' tank is as the art tool drew it, after the works the Downs' tree, and the store no fuller for the change
 GoStage wd, 0, g, p, lo(), pt()
-hid = wd.art.next_at
+hid = wd.art.held
 GoStage wd, 2, g, p, lo(), pt()
-line (0, 0)-(63, 79), 0, BF
+FillBox wd.art, 0, 0, 63, 79, 0
 Blit wd.art, 0, 0, ITANK, 32, 40
 print "zonetank"; Pix&(0, 32, 0, 39)
 GoStage wd, 0, g, p, lo(), pt()
-line (0, 0)-(63, 79), 0, BF
+FillBox wd.art, 0, 0, 63, 79, 0
 Blit wd.art, 0, 0, ITREE, 64, 80
-print "zonetree"; Pix&(0, 64, 0, 79); wd.art.next_at - hid; wd.art.zone_at > 0
+print "zonetree"; Pix&(0, 64, 0, 79); wd.art.held - hid; wd.art.sealed > 0
 ' the sands have their own tune in the zone's slot, at 120: its kit, its voicings and its first half bar played.
 ' They had the Downs'
 GoStage wd, 4, g, p, lo(), pt()
@@ -1429,7 +1433,7 @@ g.shake = 0
 Render wd, g, p, lo(), pt()
 c = 100
 m = wd.lv.things(j).at.y - int(g.cam.y)
-if was and point(c + 40, m + 42) = point(c + 95, m + 77) and wd.art.at(ICISTERN) > 0 then print "flume ok"
+if was and point(c + 40, m + 42) = point(c + 95, m + 77) and wd.art.pic(ICISTERN) <> 0 then print "flume ok"
 ' a works' sweeper hurts whoever meets its hood, a rolling Charlie too; rolled into from behind it is beaten, and
 ' landed on, with a bounce. Jumped at 50 pixels like a cat, its hood caught the pilot rising
 GoStage wd, 2, g, p, lo(), pt()
@@ -4084,7 +4088,8 @@ if was and i < 300 and abs(wd.lv.things(m).state) = 1 _
 ' the dusk's blizzard, none on the morning: of every 192 ticks it blows the last 72. In its calm he stands where
 ' he is. In a gust, on his feet, 600 against his friction's 280 bears him back to 200 a second: 165 to 190 by
 ' its end; crouched he keeps his place; curled at 200 he rolls on 88 to 97 in half a second, as in a calm; a jump
-' begun as it starts is carried back 150 to 175 by its landing, 900 to 200 a second. Its snow streams as it blows
+' begun as it starts is carried back 150 to 175 by its landing, 900 to 200 a second. Its snow streams as it blows,
+' counted in the sky round the HUD, whose characters hide the snow under them and change with its clock
 GoStage wd, 6, g, p, lo(), pt()
 was = wd.lv.gale = 0
 GoStage wd, 7, g, p, lo(), pt()
@@ -4102,9 +4107,9 @@ next
 was = was and abs(p.at.x - j) < 1 and Lull%(wd.lv, wd.se) = 20
 Render wd, g, p, lo(), pt()
 hid = 0
-for i = 0 to 39
+for i = 0 to 79
     for c = 0 to SW - 1
-        if point(c, i) = CWHITE then hid = hid - 1
+        if point(c, i) = CWHITE and (c < 6 or c >= 6 + HUDW or i >= 5 + HUDH) then hid = hid - 1
     next
 next
 wd.se.ticks = 2040
@@ -4120,15 +4125,15 @@ for i = 1 to 36
     Tick wd, g, p, k, lo(), pt()
 next
 Render wd, g, p, lo(), pt()
-for i = 0 to 39
+for i = 0 to 79
     for c = 0 to SW - 1
-        if point(c, i) = CWHITE then hid = hid + 1
+        if point(c, i) = CWHITE and (c < 6 or c >= 6 + HUDW or i >= 5 + HUDH) then hid = hid + 1
     next
 next
 for i = 1 to 36
     Tick wd, g, p, k, lo(), pt()
 next
-was = was and abs(p.at.x - j) < 1 and hid > 20
+was = was and abs(p.at.x - j) < 1 and hid > 12
 wd.se.ticks = 2040
 Stand wd.lv, wd.gr, p, j - 150, 200
 for i = 1 to 30
@@ -4536,6 +4541,12 @@ function Fur% (x as integer, w as integer, y0 as integer, y1 as integer)
         next
     next
     Fur% = n
+end function
+
+' The screen's pixel at x, y, -1 off it, as POINT's: the game draws through gfx, and the driver reads its canvas.
+function point% (byval x as integer, byval y as integer)
+    point% = -1
+    if x >= 0 and x < SW and y >= 0 and y < SH then point% = surface.point(canvas, x, y)
 end function
 
 ' The screen's pixels from x, w wide, from y0 to y1, summed by place: the same for the same picture.

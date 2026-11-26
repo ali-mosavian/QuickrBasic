@@ -2,7 +2,7 @@
 defint A-Z
 option explicit
 
-from engine.video import AllotStore, Flip, OpenScreen
+from engine.video import AllotStore, CloseScreen, Flip, OpenScreen
 from engine.input import Poll
 from engine.clock import Clock, Elapsed, Pace, Steps, STEPT
 from engine.audio import AllotDeck, FeedSong, PickSong
@@ -12,7 +12,7 @@ from barkley.model.game import Cue, Game, INTRO, Loose, NCUE, NLOOSE
 from barkley.model.game import NPART, Part
 from barkley.model.world import World
 from barkley.model.kinds import LoadKinds
-from barkley.model.images import IMGSZ, NIMG
+from barkley.model.images import NIMG
 from barkley.model.level import ZONES
 from barkley.assets.store import BuildArt
 from barkley.assets.tunes import LoadSongs, SongFor, Sudden
@@ -37,7 +37,7 @@ sub Allot (wd as World)
     NameData wd.art.dat, wd.dat.path, wd.dat.lack
     AllotLevel wd.lv
     AllotGround wd.gr
-    AllotStore wd.art, IMGSZ, NIMG, ZONES
+    AllotStore wd.art, NIMG, ZONES
     AllotTones wd.tn
     AllotDeck wd.mu
 end sub
@@ -48,11 +48,10 @@ sub Main (wd as World)
     dim cu(NCUE) as Cue
     dim now as single, last as single, c as Clock, n as integer
 
-    OpenScreen
+    OpenScreen wd.art
     LoadTables wd.lv
     BuildArt wd.art, wd.tn
     LoadKinds wd.kinds, wd.dat
-    g.page = 1
     StartIntro wd, g, cu()
     LoadSongs wd.mu
     LoadSave wd.se
@@ -61,21 +60,21 @@ sub Main (wd as World)
     c.span = STEPT
 
     do
-        ' the next frame on the screen (port 3DAh's retrace;
-        ' with no display, the next look), the keys read
-        ' meanwhile
-        do
-            Poll wd.kb
-        loop until inp(&H3DA) and 8
-
+        ' the keys, read once a frame: Flip waits for the
+        ' screen's next (with no display, the next look)
+        Poll wd.kb
         now = timer
         Pace Elapsed!(last, now), c
         last = now
         ReadPad wd.kb, wd.mu, k
-        ' a picture for each step, none for a frame between
-        ' two
+        ' a picture for each step; a frame between two shows
+        ' the last again
         n = Steps%(c)
-        if n = 0 then continue do
+
+        if n = 0 then
+            Flip
+            continue do
+        end if
 
         do while n
             Advance wd, g, p, k, lo(), pt(), cu()
@@ -91,11 +90,10 @@ sub Main (wd as World)
             Render wd, g, p, lo(), pt()
         end if
 
-        Flip g.page
+        Flip
     loop until g.quitting
 
-    screen 0
-    width 80
+    CloseScreen
 end sub
 
 ' A step: of the intro, and on to the title once it is over;

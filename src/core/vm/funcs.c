@@ -47,7 +47,7 @@ static uint32_t f_usr(Session *const S, const uint32_t)
     repl_error(S, E_IQ);
 } /* no routine is set */
 
-/* FRE: the heap's free bytes. */
+/* FRE(n): the free bytes; FRE(s$) is func_fres. */
 static uint32_t f_fre(Session *const S, const uint32_t)
 {
     strg_gc(&S->strg);
@@ -105,6 +105,13 @@ void func_fn1(Session *const S)
 {
     const uint8_t k = S->vm.ip[-1];
     exec_pusha(&S->vm, fns[k - K_FN](S, exec_pop(&S->vm).u));
+}
+
+void func_fres(Session *const S)
+{
+    strg_get(&S->strg, exec_popa(&S->vm));
+    strg_gc(&S->strg);
+    exec_pusha(&S->vm, fmth_from_i32((int32_t)allo_string_room(&S->allo)));
 }
 
 /* ---- substrings ----------------------------------------------------------------------------- */

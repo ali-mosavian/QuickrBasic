@@ -1,6 +1,7 @@
 /* The speaker's statements on llrm's music queue (comp/sndstmt.c, vm/sound.c, ON PLAY in
    vm/event.c), the headless speaker's log read. */
 #include "session.h"
+#include "mem/alloc.h"
 #include "qbrt/qbrt.h"
 #include "unit.h"
 
@@ -130,4 +131,23 @@ TEST(on_play_sees_the_fall_play_n_sees)
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 1 \r");
     music_clear();
     qbrt_realtime(true);
+}
+
+/* The headless device's (its header needs the runtime's include paths). */
+void headless_reset(void);
+void dev_tone(unsigned hertz);
+size_t headless_tone_count(void);
+
+/* The headless device's sound logs grow from libc's heap, not the runtime's: taken from the
+   runtime's, the tone log's 96 KB went at every run's end, from the tick's thread too. */
+TEST(sound_logs_leave_the_heap_alone)
+{
+    headless_reset();
+    const uint32_t before = allo_free(&S->allo);
+
+    for (unsigned i = 0; i < 100; i++)
+        dev_tone(440 + i);
+
+    CHECK(allo_free(&S->allo) == before);
+    CHECK(headless_tone_count() == 100);
 }

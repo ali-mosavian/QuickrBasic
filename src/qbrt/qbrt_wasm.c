@@ -18,6 +18,11 @@ void qbrt_clock_set(const PclkTime *const t)
     headless_set_real_time(1);
 }
 
+/* No logs: the page plays the sounds, and no test reads them here. */
+void *headless_log_resize(void *const log, const size_t bytes) { return nullptr; }
+
+void headless_log_free(void *const log) {}
+
 void qbrt_device(void)
 {
     headless_reset();

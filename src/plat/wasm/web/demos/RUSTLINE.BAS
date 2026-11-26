@@ -2,18 +2,19 @@
 ' Lead the Coalition: mine ore, build a base, destroy the Scorch Legion.
 ' Mouse: left drags a box to select, right orders (move, attack, harvest); the sidebar builds.
 ' Arrows or the screen's edges scroll; H home, A all army, S stop, M sound, Esc leaves.
-' PEN reads the mouse. SCREEN 13, 256 colours, on two pages: one drawn while the other is shown
-' (QB 4.5's SCREEN 13 has one; QuickrBasic's has two).
+' PEN reads the mouse. The screen is gfx's (stdlib/gfx), 320 by 200 in 256 colours: a frame is
+' drawn into it and shown by its flip.
 ' Driven by TIMER: the same speed on any machine.
 '
 ' No shared state: the game is a GameT and the collections the main module owns, passed down.
 ' The rules (hit points, costs) are functions of a kind.
+IMPORT gfx.display, gfx.surface, gfx.draw
 DEFINT A-Z
 
 ' TS: a tile's side in the world's pixels. The screen shows the world isometric: a tile is a
 ' diamond 32 by 16; the plane's x is the world's x - y, its y half x + y. The map's view is
-' VX0, VY0 to SBX, VIEWB on the screen, the camera in the plane's pixels, by half tiles; PUT clips
-' to the VIEW, so what spills past its edges is cut there.
+' VX0, VY0 to SBX, VIEWB on the screen, the camera in the plane's pixels, by half tiles; the
+' screen's clip cuts what spills past its edges.
 CONST MAPW = 64, MAPH = 48, TS = 16, SBX = 240, VIEWH = 192
 CONST VX0 = 0, VY0 = 0, VIEWB = 192, VWP = SBX - VX0, VHP = VIEWB - VY0
 ' STEPH: a level's height in pixels; MAXH the highest level
@@ -34,24 +35,33 @@ CONST MSC = 1, MMW = MAPW \ MSC, MMH = MAPH \ MSC
 ' the units (harvester, rifleman, rocketeer, buggy, tank, artillery), a cell of CELLW by CELLH each
 CONST NITEM = 11, NBITEM = 5, CELLW = 26, CELLH = 27
 ' the palette: 0 to 103 the land's, units' and buildings' (from 32 the art tool's), 104 on the
-' water's, turned round to move it (WATERC), 112 on fire's;
+' water's (WATERC: its pictures, their colours turned round, move it), 112 on fire's;
 ' in play 128 to 255 the same in the fog (FOG OR c), on the title and the end their ramps
 CONST WATERC = 104, NWATER = 8, FOG = 128, FIRE = 112, SKY = 128, PLANET = 160, LOGOC = 192
-' the art, one array of IMG-element slots: images of 16 by 16 (a unit's sprite, mask and shadow),
-' the minimap, the full screen.
-' Past 64 KB: QB 4.5 needs /AH.
-' a unit's sprite, mask and shade, a slot each: by kind, side, heading, frame.
-' the land, diamonds of 2 slots: 16 of sand at each of 3 levels, a 4 by 4 piece of it each; the
-' diamond's mask; the fog; what lies on the sand, an image and a mask each: dirt, scrub, ore thin
-' to thick, water by which of its 4 sides go on (OWATER + sides); rock, raised, by its sides:
-' image, mask, fog, 3 slots each; a palm's image, mask, fog and shade, 2 slots each; a cliff's
-' left and right faces, a level high: image, mask, fog, 2 slots each; the shade at a cliff's foot
-' by its left and right back edges; the ramps (rising north from level 0, 1, then west): image,
-' mask, fog, 4 slots each; the buildings' image, mask and fog, BLDW slots each
-CONST OWATER = 5, NOVL = 21, BLDW = 15
-CONST IMG = 130, NSPR = NUNIT * 32, ASPR = 0, AMSK = NSPR, ASHD = 2 * NSPR, AGRS = 3 * NSPR, ADIA = AGRS + 96, AFOG = ADIA + 2
-CONST AOVL = AFOG + 2, AROK = AOVL + NOVL * 4, ATREE = AROK + 16 * 9, AFACE = ATREE + 8, ASHA = AFACE + 12
-CONST ARMP = ASHA + 2, ABLD = ARMP + 48, AICN = ABLD + NBLD * 6 * BLDW, AMINI = AICN + NBLD - 1, ABACK = AMINI + 19, NSLOT = ABACK + 247
+' a shade: what is under it mixed SHADEA of 63 toward SHADEC, near
+' its colours' copies in the fog
+CONST SHADEC = &H20&
+CONST SHADEA = 38
+' the parts of a picture Picture& makes a surface of
+CONST PCOLOURS = 0, PSHADE = 1, PBLACK = 2
+' the art, a surface a slot: a unit's sprite and the shade it casts,
+' by kind, side, heading, frame; the land, diamonds: 16 of sand at
+' each of 3 levels, a 4 by 4 piece of it each; what lies on the sand:
+' dirt, scrub, ore thin to thick, then water by which of its 4 sides
+' go on (OWATER + sides), at AWAT in each of its colours' NWATER
+' turns; rock, raised, by its sides; a palm and its shade; a cliff's
+' left and right faces, a level high; the shade at a cliff's foot by
+' its left and right back edges; the ramps (rising north from level
+' 0, 1, then west); the buildings by kind and side, then their black
+' (0 none: a sprite's colour 0 is clear); the sidebar's icons; the
+' minimap; the title's or the end's screen
+CONST OWATER = 5, NOVL = 21, NSPR = NUNIT * 32
+CONST ASPR = 0, ASHD = NSPR, AGRS = 2 * NSPR, AOVL = AGRS + 48
+CONST AWAT = AOVL + OWATER, AROK = AWAT + (NOVL - OWATER) * NWATER
+CONST ATREE = AROK + 16, AFACE = ATREE + 2, ASHA = AFACE + 2
+CONST ARMP = ASHA + 2, ABLD = ARMP + 4, ABLK = ABLD + NBLD * 2
+CONST AICN = ABLK + NBLD * 2, AMINI = AICN + NBLD - 1
+CONST ABACK = AMINI + 1, NSLOT = ABACK + 1
 
 TYPE CellT
     terr AS BYTE
@@ -174,7 +184,7 @@ END TYPE
 TYPE ViewT
     camX AS INTEGER  ' the plane's pixel at the view's top left
     camY AS INTEGER
-    page AS INTEGER  ' the page being drawn
+    scr AS LONG      ' the screen's surface
     orePh AS INTEGER
     waterF AS INTEGER  ' the water's colours' turn
     miniDirty AS INTEGER
@@ -229,17 +239,17 @@ END TYPE
 
 DECLARE SUB Setup (g AS GameT, tune() AS STRING)
 DECLARE SUB BuildGlyphs (gl() AS INTEGER)
-DECLARE SUB BuildArt (art() AS INTEGER, gl() AS INTEGER)
-DECLARE SUB Progress (n AS INTEGER, total AS INTEGER, gl() AS INTEGER)
+DECLARE SUB BuildArt (scr AS LONG, art() AS LONG, gl() AS INTEGER)
+DECLARE SUB Progress (dst AS LONG, n AS INTEGER, total AS INTEGER, gl() AS INTEGER)
 DECLARE FUNCTION Overlay% (g AS GameT, m() AS CellT, x AS INTEGER, y AS INTEGER)
 DECLARE FUNCTION Sides% (m() AS CellT, x AS INTEGER, y AS INTEGER)
 DECLARE SUB NewGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fk() AS FieldT)
-DECLARE SUB GoTitle (g AS GameT, art() AS INTEGER, gl() AS INTEGER)
-DECLARE SUB GoEnd (g AS GameT, tm() AS TeamT, won AS INTEGER, art() AS INTEGER, gl() AS INTEGER)
+DECLARE SUB GoTitle (g AS GameT, art() AS LONG, gl() AS INTEGER)
+DECLARE SUB GoEnd (g AS GameT, tm() AS TeamT, won AS INTEGER, art() AS LONG, gl() AS INTEGER)
 DECLARE SUB ReadMouse (ms AS MouseT)
-DECLARE SUB Keys (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fk() AS FieldT, art() AS INTEGER, gl() AS INTEGER)
+DECLARE SUB Keys (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fk() AS FieldT, art() AS LONG, gl() AS INTEGER)
 DECLARE SUB Controls (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fk() AS FieldT, dt AS SINGLE)
-DECLARE SUB Tick (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fd() AS SHORT, fk() AS FieldT, art() AS INTEGER, gl() AS INTEGER)
+DECLARE SUB Tick (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fd() AS SHORT, fk() AS FieldT, art() AS LONG, gl() AS INTEGER)
 DECLARE SUB UnitTick (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fd() AS SHORT, fk() AS FieldT, i AS INTEGER, dt AS SINGLE)
 DECLARE SUB TurretTick (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fk() AS FieldT, b AS INTEGER, dt AS SINGLE)
 DECLARE SUB Produce (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, ti AS INTEGER, dt AS SINGLE)
@@ -261,34 +271,34 @@ DECLARE SUB Order (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() A
 DECLARE SUB SelectBox (g AS GameT, m() AS CellT, u() AS UnitT, x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER)
 DECLARE SUB ButtonClick (g AS GameT, tm() AS TeamT, bl() AS BldgT, k AS INTEGER, rightButton AS INTEGER)
 DECLARE SUB CenterOn (cam AS ViewT, x AS INTEGER, y AS INTEGER)
-DECLARE SUB RenderGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, art() AS INTEGER, gl() AS INTEGER)
-DECLARE SUB DrawObjects (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS INTEGER, tx() AS INTEGER, ty() AS INTEGER, nt AS INTEGER)
+DECLARE SUB RenderGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, art() AS LONG, gl() AS INTEGER)
+DECLARE SUB DrawObjects (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS LONG, tx() AS INTEGER, ty() AS INTEGER, nt AS INTEGER)
 DECLARE SUB DrawFx (g AS GameT, m() AS CellT, fx() AS FxT)
-DECLARE SUB DrawSidebar (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS INTEGER, gl() AS INTEGER)
-DECLARE SUB DrawMinimap (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS INTEGER)
+DECLARE SUB DrawSidebar (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS LONG, gl() AS INTEGER)
+DECLARE SUB DrawMinimap (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS LONG)
 DECLARE SUB DrawCursor (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT)
-DECLARE SUB Arrow (x AS INTEGER, y AS INTEGER)
-DECLARE SUB DrawTitleBack (art() AS INTEGER, gl() AS INTEGER)
-DECLARE SUB DrawEndBack (g AS GameT, tm() AS TeamT, art() AS INTEGER, gl() AS INTEGER)
-DECLARE SUB RenderTitle (g AS GameT, pt() AS PartT, art() AS INTEGER, gl() AS INTEGER)
-DECLARE SUB RenderEnd (g AS GameT, pt() AS PartT, art() AS INTEGER, gl() AS INTEGER)
+DECLARE SUB Arrow (dst AS LONG, x AS INTEGER, y AS INTEGER)
+DECLARE SUB DrawTitleBack (art() AS LONG, gl() AS INTEGER)
+DECLARE SUB DrawEndBack (g AS GameT, tm() AS TeamT, art() AS LONG, gl() AS INTEGER)
+DECLARE SUB RenderTitle (g AS GameT, pt() AS PartT, art() AS LONG, gl() AS INTEGER)
+DECLARE SUB RenderEnd (g AS GameT, pt() AS PartT, art() AS LONG, gl() AS INTEGER)
 DECLARE SUB Particles (pt() AS PartT, falling AS INTEGER, dt AS SINGLE)
-DECLARE SUB Bar (x AS INTEGER, y AS INTEGER, w AS INTEGER, f AS SINGLE, c AS INTEGER)
-DECLARE SUB Txt (gl() AS INTEGER, t AS STRING, x AS INTEGER, y AS INTEGER, sc AS INTEGER, c AS INTEGER)
-DECLARE SUB TxtC (gl() AS INTEGER, t AS STRING, y AS INTEGER, sc AS INTEGER, c AS INTEGER)
-DECLARE SUB Logo (gl() AS INTEGER, t AS STRING, y AS INTEGER, bw AS INTEGER, bh AS INTEGER)
-DECLARE SUB Dither (x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER, c AS INTEGER)
-DECLARE SUB Sprite (art() AS INTEGER, idx AS INTEGER, x AS INTEGER, y AS INTEGER)
+DECLARE SUB Bar (dst AS LONG, x AS INTEGER, y AS INTEGER, w AS INTEGER, f AS SINGLE, c AS INTEGER)
+DECLARE SUB Txt (dst AS LONG, gl() AS INTEGER, t AS STRING, x AS INTEGER, y AS INTEGER, sc AS INTEGER, c AS INTEGER)
+DECLARE SUB TxtC (dst AS LONG, gl() AS INTEGER, t AS STRING, y AS INTEGER, sc AS INTEGER, c AS INTEGER)
+DECLARE SUB Logo (dst AS LONG, gl() AS INTEGER, t AS STRING, y AS INTEGER, bw AS INTEGER, bh AS INTEGER)
+DECLARE SUB Dither (dst AS LONG, x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER, c AS INTEGER)
+DECLARE SUB Sprite (dst AS LONG, art() AS LONG, idx AS INTEGER, x AS INTEGER, y AS INTEGER)
 DECLARE SUB Say (g AS GameT, t AS STRING)
 DECLARE SUB Sfx (g AS GameT, k AS INTEGER)
 DECLARE SUB Music (g AS GameT, tune() AS STRING)
-DECLARE SUB Flip (cam AS ViewT)
 DECLARE SUB Enqueue (t AS TeamT, k AS INTEGER, n AS INTEGER)
 DECLARE FUNCTION Queued% (t AS TeamT, k AS INTEGER)
 DECLARE FUNCTION Rgb& (r AS INTEGER, g AS INTEGER, b AS INTEGER)
 DECLARE SUB GamePalette ()
 DECLARE SUB WaterColours (t AS INTEGER)
 DECLARE SUB Ramp (c0 AS INTEGER, n AS INTEGER, r0 AS INTEGER, g0 AS INTEGER, b0 AS INTEGER, r1 AS INTEGER, g1 AS INTEGER, b1 AS INTEGER)
+DECLARE SUB Colour (c AS INTEGER, r AS INTEGER, g AS INTEGER, b AS INTEGER)
 DECLARE SUB Shade (c AS INTEGER, r AS INTEGER, g AS INTEGER, b AS INTEGER)
 DECLARE SUB IsoUV (px AS INTEGER, py AS INTEGER, u AS SINGLE, v AS SINGLE)
 DECLARE SUB ScreenTile (cam AS ViewT, sx AS INTEGER, sy AS INTEGER, wx AS INTEGER, wy AS INTEGER)
@@ -297,8 +307,15 @@ DECLARE FUNCTION PickUnit% (g AS GameT, m() AS CellT, u() AS UnitT, sx AS INTEGE
 DECLARE FUNCTION PickBld% (g AS GameT, m() AS CellT, bl() AS BldgT, sx AS INTEGER, sy AS INTEGER)
 DECLARE FUNCTION IsoDir% (d AS INTEGER)
 DECLARE FUNCTION BldH% (bt AS INTEGER)
-DECLARE SUB MaskFog (mx AS INTEGER, fx AS INTEGER, w AS INTEGER, h AS INTEGER)
-DECLARE SUB Unpack (ox AS INTEGER, mx AS INTEGER, hx AS INTEGER, oy AS INTEGER)
+DECLARE SUB Unpack (px() AS INTEGER, w AS INTEGER, h AS INTEGER)
+DECLARE FUNCTION Picture& (px() AS INTEGER, w AS INTEGER, h AS INTEGER, part AS INTEGER)
+DECLARE SUB TurnWater (px() AS INTEGER, n AS INTEGER)
+DECLARE SUB Segment (dst AS LONG, x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER, c AS INTEGER)
+DECLARE SUB Shape (dst AS LONG, x AS INTEGER, y AS INTEGER, s AS LONG, colour AS LONG, flags AS INTEGER)
+DECLARE SUB StyleLine (dst AS LONG, x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER, c AS INTEGER, style AS LONG, phase AS INTEGER)
+DECLARE FUNCTION Outside% (x AS LONG, y AS LONG, l AS INTEGER, t AS INTEGER, r AS INTEGER, b AS INTEGER)
+DECLARE FUNCTION Cut& (af AS LONG, of AS LONG, at AS LONG, ot AS LONG, edge AS LONG)
+DECLARE FUNCTION Turned& (style AS LONG)
 DECLARE FUNCTION Passable% (m() AS CellT, x AS INTEGER, y AS INTEGER)
 DECLARE FUNCTION Walk% (m() AS CellT, x AS INTEGER, y AS INTEGER, d AS INTEGER)
 DECLARE FUNCTION Lift% (m() AS CellT, x AS INTEGER, y AS INTEGER)
@@ -358,12 +375,12 @@ DECLARE FUNCTION KMakes% (k AS INTEGER)
 DIM g AS GameT, tm(1) AS TeamT, m(MAPW - 1, MAPH - 1) AS CellT
 DIM u(1 TO MAXU) AS UnitT, bl(1 TO MAXB) AS BldgT, fx(1 TO MAXFX) AS FxT, pt(1 TO NPART) AS PartT
 DIM fd(NF - 1, MAPW - 1, MAPH - 1) AS SHORT, fk(NF - 1) AS FieldT
-DIM art(IMG - 1, NSLOT - 1), gl(126, 7), tune(1 TO 4, 511) AS STRING
+DIM art(NSLOT - 1) AS LONG, gl(126, 7), tune(1 TO 4, 511) AS STRING
 DIM t AS SINGLE, lastT AS SINGLE, dt AS SINGLE, acc AS SINGLE
 
 Setup g, tune()
 BuildGlyphs gl()
-BuildArt art(), gl()
+BuildArt g.vw.scr, art(), gl()
 PEN ON
 PLAY "MB"
 GoTitle g, art(), gl()
@@ -396,12 +413,11 @@ DO
         RenderEnd g, pt(), art(), gl()
     END SELECT
     Music g, tune()
-    Flip g.vw
+    gfx.display.flip
 LOOP UNTIL g.quitting
 
 SOUND 37, 0
-SCREEN 0
-WIDTH 80
+gfx.display.close
 END
 
 ' The map, a row to a string: . , ground, : dirt, # rock, ~ water, m ore, T palm.
@@ -2670,12 +2686,12 @@ FUNCTION Ang! (dx AS SINGLE, dy AS SINGLE)
     Ang! = a
 END FUNCTION
 
-SUB Bar (x AS INTEGER, y AS INTEGER, w AS INTEGER, f AS SINGLE, c AS INTEGER)
+SUB Bar (dst AS LONG, x AS INTEGER, y AS INTEGER, w AS INTEGER, f AS SINGLE, c AS INTEGER)
     DIM n AS INTEGER
-    LINE (x - 1, y - 1)-(x + w, y + 2), 0, BF
+    gfx.draw.rect dst, x - 1, y - 1, x + w, y + 2, 0, gfx.draw.FILL
     n = INT(f * w)
     IF n > w THEN n = w
-    IF n > 0 THEN LINE (x, y)-(x + n - 1, y + 1), c, BF
+    IF n > 0 THEN gfx.draw.rect dst, x, y, x + n - 1, y + 1, c, gfx.draw.FILL
 END SUB
 
 FUNCTION BHp% (k AS INTEGER)
@@ -2693,21 +2709,12 @@ FUNCTION BldH% (bt AS INTEGER)
     IF bt = BTUR THEN BldH% = 22 ELSE BldH% = 28
 END FUNCTION
 
-' The fog for the mask w by h at mx, 0, drawn at fx, 0: FOG where the mask's picture is.
-SUB MaskFog (mx AS INTEGER, fx AS INTEGER, w AS INTEGER, h AS INTEGER)
-    DIM x AS INTEGER, y AS INTEGER
-    FOR y = 0 TO h - 1: FOR x = 0 TO w - 1
-        IF POINT(mx + x, y) THEN PSET (fx + x, y), 0 ELSE PSET (fx + x, y), FOG
-    NEXT: NEXT
-END SUB
-
-' The next picture from the DATA: drawn at ox, oy, its mask at mx, oy (0 where it is, 255 not), the
-' shade it casts at hx, oy (FOG). Its width and height, then strings of symbols to an empty one: a
-' colour below 64 CHR$(35 + c), from 64 "!" and CHR$(35 + c - 64), 99 nothing, 32 shade, from 100
-' a run of the next symbol, CODE - 97 long.
-SUB Unpack (ox AS INTEGER, mx AS INTEGER, hx AS INTEGER, oy AS INTEGER)
-    DIM w AS INTEGER, h AS INTEGER, x AS INTEGER, y AS INTEGER, i AS INTEGER, c AS INTEGER, n AS INTEGER
-    DIM k AS INTEGER, row AS STRING
+' The next picture from the DATA into px(), w by h: a colour, -1 nothing, -2 the shade it casts.
+' Its width and height, then strings of symbols to an empty one: a colour below 64 CHR$(35 + c),
+' from 64 "!" and CHR$(35 + c - 64), 99 nothing, 32 shade, from 100 a run of the next symbol,
+' CODE - 97 long.
+SUB Unpack (px() AS INTEGER, w AS INTEGER, h AS INTEGER)
+    DIM i AS INTEGER, c AS INTEGER, n AS INTEGER, k AS INTEGER, p AS INTEGER, row AS STRING
     READ w, h
     DO
         READ row
@@ -2727,127 +2734,143 @@ SUB Unpack (ox AS INTEGER, mx AS INTEGER, hx AS INTEGER, oy AS INTEGER)
                 c = c - 35
             END IF
             FOR k = 1 TO n
-                IF c < 0 THEN
-                    PSET (ox + x, oy + y), 0: PSET (mx + x, oy + y), 255
-                ELSE
-                    PSET (ox + x, oy + y), c: PSET (mx + x, oy + y), 0
-                END IF
-                IF c = -2 THEN PSET (hx + x, oy + y), FOG ELSE PSET (hx + x, oy + y), 0
-                x = x + 1: IF x = w THEN x = 0: y = y + 1
+                px(p) = c
+                p = p + 1
             NEXT
             i = i + 1
         LOOP
     LOOP
 END SUB
 
+' A part of picture px(), w by h, as a surface: PCOLOURS its colours
+' (0 clear); PSHADE the shade it casts, PBLACK its pixels of colour 0
+' (which its colours leave clear), 0 when it has none.
+FUNCTION Picture& (px() AS INTEGER, w AS INTEGER, h AS INTEGER, part AS INTEGER)
+    DIM i AS INTEGER, n AS INTEGER, c AS INTEGER, s AS LONG
+    DIM b(w * h - 1) AS BYTE
+    FOR i = 0 TO w * h - 1
+        c = px(i)
+        SELECT CASE part
+        CASE PCOLOURS
+            IF c > 0 THEN b(i) = c
+        CASE PSHADE
+            IF c = -2 THEN b(i) = 1
+        CASE ELSE
+            IF c = 0 THEN b(i) = 1
+        END SELECT
+        IF b(i) THEN n = n + 1
+    NEXT
+    Picture& = 0
+    IF n = 0 AND part <> PCOLOURS THEN EXIT FUNCTION
+    s = gfx.surface.new(w, h)
+    gfx.surface.write s, 0, 0, w, h, b()
+    Picture& = s
+END FUNCTION
+
+' The water's colours in px()'s n pixels a turn on: a swell moved on
+' as the turn of their colours moved it.
+SUB TurnWater (px() AS INTEGER, n AS INTEGER)
+    DIM i AS INTEGER, c AS INTEGER
+    FOR i = 0 TO n - 1
+        c = px(i) - WATERC
+        IF c >= 0 AND c < NWATER THEN px(i) = WATERC + (c + 1) MOD NWATER
+    NEXT
+END SUB
+
 FUNCTION BSize% (k AS INTEGER)
     IF k = BTUR THEN BSize% = 1 ELSE BSize% = 2
 END FUNCTION
 
-' The tiles, the units in 8 headings and 2 frames each, the buildings by the tile, the icons.
-' Units and buildings are drawn at 24 pixels a tile and sampled at TS.
-SUB BuildArt (art() AS INTEGER, gl() AS INTEGER)
-    DIM k AS INTEGER, x AS INTEGER, y AS INTEGER, tmi AS INTEGER, a AS SINGLE, ca AS SINGLE
-    DIM c AS INTEGER, bt AS INTEGER, q AS INTEGER, sz AS INTEGER, n AS INTEGER, total AS INTEGER
+' The tiles, the units in 8 headings and 2 frames each, the buildings by the tile, the icons, a
+' surface each. Units and buildings are drawn at 24 pixels a tile and sampled at TS. The
+' minimap's land and the title's or the end's screen, drawn later.
+SUB BuildArt (scr AS LONG, art() AS LONG, gl() AS INTEGER)
+    DIM k AS INTEGER, x AS INTEGER, y AS INTEGER, tmi AS INTEGER, t AS INTEGER, c AS INTEGER
+    DIM bt AS INTEGER, q AS INTEGER, sz AS INTEGER, n AS INTEGER, total AS INTEGER, w AS INTEGER
+    DIM h AS INTEGER, i AS INTEGER, px(64 * 60 - 1) AS INTEGER, ic(TS * TS - 1) AS INTEGER
     total = 12 + NOVL + 16 + 1 + 2 + 4 + NBLD * 2 + NSPR \ 4
     RESTORE ArtData
     ' the grass at its 3 levels, as diamonds
     FOR k = 0 TO 47
-        Unpack 100, 140, 180, 0
-        GET (100, 0)-(131, 15), art(0, AGRS + k * 2)
-        IF k MOD 4 = 3 THEN n = n + 1: Progress n, total, gl()
+        Unpack px(), w, h
+        art(AGRS + k) = Picture&(px(), w, h, PCOLOURS)
+        IF k MOD 4 = 3 THEN n = n + 1: Progress scr, n, total, gl()
     NEXT
-    ' the diamond's mask; the fog, OR'd over the land: its colours' dark copies
-    FOR y = 0 TO 15: FOR x = 0 TO 31
-        IsoUV x, y, a, ca
-        IF a >= 0 AND a < 1 AND ca >= 0 AND ca < 1 THEN
-            PSET (100 + x, y), 0: PSET (140 + x, y), FOG
-        ELSE
-            PSET (100 + x, y), 255: PSET (140 + x, y), 0
-        END IF
-    NEXT: NEXT
-    GET (100, 0)-(131, 15), art(0, ADIA)
-    GET (140, 0)-(171, 15), art(0, AFOG)
-    ' what lies on the grass: image, mask
+    ' what lies on the grass; the water in each turn of its colours
     FOR k = 0 TO NOVL - 1
-        Unpack 100, 140, 180, 0
-        GET (100, 0)-(131, 15), art(0, AOVL + k * 4)
-        GET (140, 0)-(171, 15), art(0, AOVL + k * 4 + 2)
-        n = n + 1: Progress n, total, gl()
+        Unpack px(), w, h
+        IF k < OWATER THEN
+            art(AOVL + k) = Picture&(px(), w, h, PCOLOURS)
+        ELSE
+            FOR t = 0 TO NWATER - 1
+                art(AWAT + (k - OWATER) * NWATER + t) = Picture&(px(), w, h, PCOLOURS)
+                TurnWater px(), w * h
+            NEXT
+        END IF
+        n = n + 1: Progress scr, n, total, gl()
     NEXT
-    ' rock, raised: image, mask, fog
+    ' rock, raised
     FOR k = 0 TO 15
-        Unpack 100, 140, 180, 0
-        MaskFog 140, 180, 32, 16 + ROCKH
-        GET (100, 0)-(131, 15 + ROCKH), art(0, AROK + k * 9)
-        GET (140, 0)-(171, 15 + ROCKH), art(0, AROK + k * 9 + 3)
-        GET (180, 0)-(211, 15 + ROCKH), art(0, AROK + k * 9 + 6)
-        n = n + 1: Progress n, total, gl()
+        Unpack px(), w, h
+        art(AROK + k) = Picture&(px(), w, h, PCOLOURS)
+        n = n + 1: Progress scr, n, total, gl()
     NEXT
-    ' the tree: image, mask, fog, the shade it casts
-    Unpack 100, 120, 140, 0
-    GET (100, 0)-(115, 23), art(0, ATREE)
-    GET (120, 0)-(135, 23), art(0, ATREE + 2)
-    GET (140, 0)-(155, 23), art(0, ATREE + 6)
-    MaskFog 120, 140, 16, 24
-    GET (140, 0)-(155, 23), art(0, ATREE + 4)
-    n = n + 1: Progress n, total, gl()
-    ' a cliff's step: its left and right faces' image, mask, fog
+    ' the tree and the shade it casts
+    Unpack px(), w, h
+    art(ATREE) = Picture&(px(), w, h, PCOLOURS)
+    art(ATREE + 1) = Picture&(px(), w, h, PSHADE)
+    n = n + 1: Progress scr, n, total, gl()
+    ' a cliff's step: its left and right faces
     FOR k = 0 TO 1
-        Unpack 100, 120, 140, 0
-        MaskFog 120, 140, 16, 8 + STEPH
-        GET (100, 0)-(115, 7 + STEPH), art(0, AFACE + k * 6)
-        GET (120, 0)-(135, 7 + STEPH), art(0, AFACE + k * 6 + 2)
-        GET (140, 0)-(155, 7 + STEPH), art(0, AFACE + k * 6 + 4)
+        Unpack px(), w, h
+        art(AFACE + k) = Picture&(px(), w, h, PCOLOURS)
         ' the shade under a back edge: k 0 the left, 1 the right, every other pixel darkened
-        LINE (100, 0)-(115, 11), 0, BF
+        FOR i = 0 TO 16 * 12 - 1
+            px(i) = -1
+        NEXT
         FOR x = 0 TO 15
             IF k = 0 THEN c = 8 - (x + 1) \ 2 ELSE c = x \ 2
             FOR y = c TO c + 3
-                IF (x + y) MOD 2 = 0 OR y = c THEN PSET (100 + x, y), FOG
+                IF (x + y) MOD 2 = 0 OR y = c THEN px(y * 16 + x) = -2
             NEXT
         NEXT
-        GET (100, 0)-(115, 11), art(0, ASHA + k)
-        n = n + 1: Progress n, total, gl()
+        art(ASHA + k) = Picture&(px(), 16, 12, PSHADE)
+        n = n + 1: Progress scr, n, total, gl()
     NEXT
-    ' the ramps: image, mask, fog
+    ' the ramps
     FOR k = 0 TO 3
-        Unpack 100, 140, 180, 0
-        MaskFog 140, 180, 32, 16 + STEPH
-        GET (100, 0)-(131, 15 + STEPH), art(0, ARMP + k * 12)
-        GET (140, 0)-(171, 15 + STEPH), art(0, ARMP + k * 12 + 4)
-        GET (180, 0)-(211, 15 + STEPH), art(0, ARMP + k * 12 + 8)
-        n = n + 1: Progress n, total, gl()
+        Unpack px(), w, h
+        art(ARMP + k) = Picture&(px(), w, h, PCOLOURS)
+        n = n + 1: Progress scr, n, total, gl()
     NEXT
 
-    ' the buildings: image, mask, fog
+    ' the buildings and their black
     FOR bt = 1 TO NBLD: FOR tmi = 0 TO 1
         sz = BSize%(bt) * 32: q = BldH%(bt) + sz \ 2
-        Unpack 100, 170, 240, 0
-        k = ABLD + ((bt - 1) * 2 + tmi) * 3 * BLDW
-        GET (100, 0)-(100 + sz - 1, q - 1), art(0, k)
-        GET (170, 0)-(170 + sz - 1, q - 1), art(0, k + BLDW)
+        Unpack px(), w, h
+        k = (bt - 1) * 2 + tmi
+        art(ABLD + k) = Picture&(px(), w, h, PCOLOURS)
+        art(ABLK + k) = Picture&(px(), w, h, PBLACK)
         ' the sidebar's icons: the Coalition's buildings but its HQ, sampled small
         IF tmi = 0 AND bt > 1 THEN
             FOR y = 0 TO TS - 1: FOR x = 0 TO TS - 1
-                c = POINT(100 + x * sz \ TS, y * q \ TS)
-                IF POINT(170 + x * sz \ TS, y * q \ TS) THEN c = 2
-                PSET (250 + x, y), c
+                c = px((y * q \ TS) * sz + x * sz \ TS)
+                IF c < 0 THEN c = 2
+                ic(y * TS + x) = c
             NEXT: NEXT
-            GET (250, 0)-(250 + TS - 1, TS - 1), art(0, AICN + bt - 2)
+            art(AICN + bt - 2) = Picture&(ic(), TS, TS, PCOLOURS)
         END IF
-        MaskFog 170, 100, sz, q
-        GET (100, 0)-(100 + sz - 1, q - 1), art(0, k + 2 * BLDW)
-        n = n + 1: Progress n, total, gl()
+        n = n + 1: Progress scr, n, total, gl()
     NEXT: NEXT
-    ' the units: image, mask, the shade they cast
+    ' the units and the shade they cast
     FOR k = 0 TO NSPR - 1
-        Unpack 100, 120, 140, 0
-        GET (100, 0)-(115, 15), art(0, ASPR + k)
-        GET (120, 0)-(135, 15), art(0, AMSK + k)
-        GET (140, 0)-(155, 15), art(0, ASHD + k)
-        IF k MOD 4 = 3 THEN n = n + 1: Progress n, total, gl()
+        Unpack px(), w, h
+        art(ASPR + k) = Picture&(px(), w, h, PCOLOURS)
+        art(ASHD + k) = Picture&(px(), w, h, PSHADE)
+        IF k MOD 4 = 3 THEN n = n + 1: Progress scr, n, total, gl()
     NEXT
+    art(AMINI) = gfx.surface.new(MMW, MMH)
+    art(ABACK) = gfx.surface.new(320, 200)
 END SUB
 
 ' The flow field to goal: each tile's steps to it, FAR where there is no way. Units ignored.
@@ -2880,22 +2903,26 @@ SUB BuildField (m() AS CellT, fd() AS SHORT, fi AS INTEGER, goal AS INTEGER)
     LOOP
 END SUB
 
-' Each character's 8 rows as bits, read back from the screen: text drawn see-through.
+' Each character's 8 rows as bits, read back from gfx's font: big text drawn see-through.
 SUB BuildGlyphs (gl() AS INTEGER)
-    DIM c AS INTEGER, r AS INTEGER, b AS INTEGER, mask AS INTEGER
-    SCREEN , , 1, 0
-    COLOR 15
+    DIM c AS INTEGER, r AS INTEGER, b AS INTEGER, mask AS INTEGER, t AS STRING, s AS LONG
+    DIM px(95 * 8 * 8 - 1) AS BYTE
     FOR c = 32 TO 126
-        LOCATE 1, 1: PRINT CHR$(c);
+        t = t + CHR$(c)
+    NEXT
+    s = gfx.surface.new(95 * 8, 8)
+    gfx.draw.text s, 0, 0, t, 1
+    gfx.surface.read s, 0, 0, 95 * 8, 8, px()
+    gfx.surface.free s
+    FOR c = 32 TO 126
         FOR r = 0 TO 7
             mask = 0
             FOR b = 0 TO 7
-                IF POINT(b, r) THEN mask = mask OR 2 ^ (7 - b)
+                IF px(r * 95 * 8 + (c - 32) * 8 + b) THEN mask = mask OR 2 ^ (7 - b)
             NEXT
             gl(c, r) = mask
         NEXT
     NEXT
-    CLS
 END SUB
 
 ' A box of the sidebar, 0 to 5, clicked: build, train, or place what is ready; right cancels.
@@ -3159,17 +3186,20 @@ FUNCTION DirOf% (dx AS SINGLE, dy AS SINGLE)
     DirOf% = ((d MOD 8) + 8) MOD 8
 END FUNCTION
 
-' Every other pixel of the box in colour c.
-SUB Dither (x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER, c AS INTEGER)
-    DIM y AS INTEGER
+' Every other pixel of the box in colour c: on an odd row from x1, on an even one from x1 + 1.
+SUB Dither (dst AS LONG, x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER, c AS INTEGER)
+    DIM x AS INTEGER, y AS INTEGER
     FOR y = y1 TO y2
-        IF y MOD 2 THEN LINE (x1, y)-(x2, y), c, , &HAAAA ELSE LINE (x1, y)-(x2, y), c, , &H5555
+        FOR x = x1 + 1 - (y AND 1) TO x2 STEP 2
+            gfx.draw.pset dst, x, y, c
+        NEXT
     NEXT
 END SUB
 
 ' The pointer: a sight over an enemy while units are selected, else an arrow.
 SUB DrawCursor (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT)
-    DIM e AS INTEGER, i AS INTEGER, x AS INTEGER, y AS INTEGER
+    DIM e AS INTEGER, i AS INTEGER, x AS INTEGER, y AS INTEGER, dst AS LONG
+    dst = g.vw.scr
     x = g.ms.x: y = g.ms.y
     IF g.state = GPLAY AND x < SBX AND y < VIEWB AND g.placeKind < 0 THEN
         IF PickUnit%(g, m(), u(), x, y, 1) THEN e = 1
@@ -3185,60 +3215,67 @@ SUB DrawCursor (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT)
         END IF
     END IF
     IF e THEN
-        CIRCLE (x, y), 5, 0: CIRCLE (x, y), 4, 29
-        LINE (x - 7, y)-(x - 2, y), 29: LINE (x + 2, y)-(x + 7, y), 29
-        LINE (x, y - 6)-(x, y - 2), 29: LINE (x, y + 2)-(x, y + 6), 29
+        gfx.draw.circle dst, x, y, 5, 0, 0
+        gfx.draw.circle dst, x, y, 4, 29, 0
+        gfx.draw.line dst, x - 7, y, x - 2, y, 29
+        gfx.draw.line dst, x + 2, y, x + 7, y, 29
+        gfx.draw.line dst, x, y - 6, x, y - 2, 29
+        gfx.draw.line dst, x, y + 2, x, y + 6, 29
     ELSE
-        Arrow x, y
+        Arrow dst, x, y
     END IF
 END SUB
 
-SUB Arrow (x AS INTEGER, y AS INTEGER)
-    LINE (x + 1, y + 1)-(x + 1, y + 9), 0: LINE (x + 1, y + 1)-(x + 7, y + 7), 0
-    LINE (x + 1, y + 9)-(x + 7, y + 7), 0
-    LINE (x, y)-(x, y + 8), 15: LINE (x, y)-(x + 6, y + 6), 15
-    LINE (x, y + 8)-(x + 3, y + 6), 15: LINE (x + 3, y + 6)-(x + 6, y + 6), 15
-    LINE (x + 1, y + 3)-(x + 1, y + 6), 11
+SUB Arrow (dst AS LONG, x AS INTEGER, y AS INTEGER)
+    gfx.draw.line dst, x + 1, y + 1, x + 1, y + 9, 0
+    gfx.draw.line dst, x + 1, y + 1, x + 7, y + 7, 0
+    gfx.draw.line dst, x + 1, y + 9, x + 7, y + 7, 0
+    gfx.draw.line dst, x, y, x, y + 8, 15
+    gfx.draw.line dst, x, y, x + 6, y + 6, 15
+    gfx.draw.line dst, x, y + 8, x + 3, y + 6, 15
+    gfx.draw.line dst, x + 3, y + 6, x + 6, y + 6, 15
+    gfx.draw.line dst, x + 1, y + 3, x + 1, y + 6, 11
 END SUB
 
-SUB DrawEndBack (g AS GameT, tm() AS TeamT, art() AS INTEGER, gl() AS INTEGER)
-    DIM y AS INTEGER, t AS STRING, i AS INTEGER, x AS INTEGER, h AS INTEGER
+SUB DrawEndBack (g AS GameT, tm() AS TeamT, art() AS LONG, gl() AS INTEGER)
+    DIM y AS INTEGER, t AS STRING, i AS INTEGER, x AS INTEGER, h AS INTEGER, dst AS LONG
+    dst = art(ABACK)
     IF g.won THEN Ramp SKY, 32, 0, 2, 8, 0, 26, 30 ELSE Ramp SKY, 32, 2, 0, 4, 34, 6, 4
     Ramp LOGOC, 8, 63, 60, 50, 50, 16, 6
     FOR y = 0 TO 199
-        LINE (0, y)-(319, y), SKY + y * 32 \ 200
+        gfx.draw.line dst, 0, y, 319, y, SKY + y * 32 \ 200
     NEXT
     FOR i = 1 TO 90
-        PSET (RND * 319, RND * 120), 15
+        gfx.draw.pset dst, RND * 319, RND * 120, 15
     NEXT
     ' the land: ore glowing for the Coalition, fires for the Legion
     FOR x = 0 TO 319
         h = 166 + 7 * SIN(x / 30 + 1) + 3 * SIN(x / 11)
-        IF g.won THEN LINE (x, h)-(x, 199), 1 ELSE LINE (x, h)-(x, 199), 4
+        IF g.won THEN gfx.draw.line dst, x, h, x, 199, 1 ELSE gfx.draw.line dst, x, h, x, 199, 4
     NEXT
     FOR i = 1 TO 120
         x = RND * 318: y = 172 + RND * 27
-        IF g.won THEN PSET (x, y), 22 ELSE PSET (x, y), FIRE + 2 + INT(RND * 6)
+        IF g.won THEN gfx.draw.pset dst, x, y, 22 ELSE gfx.draw.pset dst, x, y, FIRE + 2 + INT(RND * 6)
     NEXT
     IF g.won THEN
-        Logo gl(), "VICTORY", 22, 4, 4
-        TxtC gl(), "The Scorch Legion is broken.", 70, 1, 15
-        TxtC gl(), "The red ore of Kesh is the Coalition's.", 82, 1, 15
+        Logo dst, gl(), "VICTORY", 22, 4, 4
+        TxtC dst, gl(), "The Scorch Legion is broken.", 70, 1, 15
+        TxtC dst, gl(), "The red ore of Kesh is the Coalition's.", 82, 1, 15
     ELSE
-        Logo gl(), "DEFEAT", 22, 4, 4
-        TxtC gl(), "The Coalition's line has fallen.", 70, 1, 15
-        TxtC gl(), "The Legion takes the ore.", 82, 1, 15
+        Logo dst, gl(), "DEFEAT", 22, 4, 4
+        TxtC dst, gl(), "The Coalition's line has fallen.", 70, 1, 15
+        TxtC dst, gl(), "The Legion takes the ore.", 82, 1, 15
     END IF
     t = "Time " + Clock2$(g.now) + "   Trained" + STR$(tm(0).built) + "   Lost" + STR$(g.losses)
-    TxtC gl(), t, 108, 1, 13
+    TxtC dst, gl(), t, 108, 1, 13
     t = "Destroyed" + STR$(g.kills) + "   Ore" + STR$(tm(0).harvested)
-    TxtC gl(), t, 120, 1, 13
-    GET (0, 0)-(319, 199), art(0, ABACK)
+    TxtC dst, gl(), t, 120, 1, 13
 END SUB
 
 SUB DrawFx (g AS GameT, m() AS CellT, fx() AS FxT)
     DIM i AS INTEGER, p AS SINGLE, x AS INTEGER, y AS INTEGER, x2 AS INTEGER, y2 AS INTEGER, r AS INTEGER
-    DIM c AS INTEGER, k AS INTEGER, ox AS INTEGER, oy AS INTEGER
+    DIM c AS INTEGER, k AS INTEGER, ox AS INTEGER, oy AS INTEGER, dst AS LONG
+    dst = g.vw.scr
     ox = MAPH * 16 - g.vw.camX + VX0: oy = VY0 - g.vw.camY
     FOR i = 1 TO MAXFX
         IF fx(i).alive THEN
@@ -3250,44 +3287,50 @@ SUB DrawFx (g AS GameT, m() AS CellT, fx() AS FxT)
             CASE FXBOOM, FXBIG
                 r = 2 + p * 5: IF fx(i).kind = FXBIG THEN r = 3 + p * 10
                 c = FIRE + INT(p * 15)
-                CIRCLE (x, y), r, c
+                gfx.draw.circle dst, x, y, r, c, 0
                 IF p < .6 THEN
                     FOR k = r * .6 TO 1 STEP -1
-                        CIRCLE (x, y), k, c - 5 + k
+                        gfx.draw.circle dst, x, y, k, c - 5 + k, 0
                     NEXT
-                    PSET (x, y), FIRE
+                    gfx.draw.pset dst, x, y, FIRE
                 END IF
                 IF fx(i).kind = FXBIG THEN
                     FOR k = 0 TO 5
-                        PSET (x + COS(k * 1.05 + i) * r * 1.3, y + SIN(k * 1.05 + i) * r * 1.3), FIRE + 4
+                        gfx.draw.pset dst, x + COS(k * 1.05 + i) * r * 1.3, y + SIN(k * 1.05 + i) * r * 1.3, FIRE + 4
                     NEXT
                 END IF
             CASE FXTRACE
-                LINE (x, y)-(x2, y2), 13
-                PSET (x2, y2), 15
+                Segment dst, x, y, x2, y2, 13
+                gfx.draw.pset dst, x2, y2, 15
             CASE FXSHELL
                 x = x + (x2 - x) * p: y = y + (y2 - y) * p
-                LINE (x - 1, y - 1)-(x + 1, y + 1), FIRE + 2, BF
-                PSET (x, y), 15
+                gfx.draw.rect dst, x - 1, y - 1, x + 1, y + 1, FIRE + 2, gfx.draw.FILL
+                gfx.draw.pset dst, x, y, 15
             CASE FXBEAM
                 c = 11: IF fx(i).x2 < 0 THEN c = 13
-                LINE (x, y)-((x + x2) \ 2 + 2, (y + y2) \ 2 - 1), c
-                LINE -(x2, y2), c
-                LINE (x, y)-(x2, y2), 15
+                ' through a point off the middle
+                k = (x + x2) \ 2 + 2
+                r = (y + y2) \ 2 - 1
+                Segment dst, x, y, k, r, c
+                Segment dst, k, r, x2, y2, c
+                Segment dst, x, y, x2, y2, 15
             CASE FXSMOKE
-                CIRCLE (x, y - p * 10), 1 + p * 3, 23
+                ' at whole pixels, as QB's CIRCLE
+                gfx.draw.circle dst, x, CINT(y - p * 10), INT(1 + p * 3 + .5), 23, 0
             CASE FXMARK
                 r = 6 - p * 4
-                LINE (x - r, y - r)-(x + r, y + r), 8, B
+                gfx.draw.rect dst, x - r, y - r, x + r, y + r, 8, 0
             END SELECT
         END IF
     NEXT
 END SUB
 
-' The minimap, 2 pixels a tile: the land drawn again when it changed, else put back; the units
-' and buildings on it.
-SUB DrawMinimap (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS INTEGER)
+' The minimap, MSC tiles a pixel: its land (art(AMINI)) drawn again when it changed, put on the
+' screen; the units and buildings on it.
+SUB DrawMinimap (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS LONG)
     DIM x AS INTEGER, y AS INTEGER, c AS INTEGER, i AS INTEGER, b AS INTEGER, s AS INTEGER
+    DIM dst AS LONG, px(MMW * MMH - 1) AS BYTE, cx(3) AS INTEGER, cy(3) AS INTEGER
+    dst = g.vw.scr
     IF g.vw.miniDirty AND g.vw.miniT <= 0 THEN
         FOR y = 0 TO MMH - 1
             FOR x = 0 TO MMW - 1
@@ -3304,91 +3347,94 @@ SUB DrawMinimap (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS
                     CASE ELSE: c = 27
                     END SELECT
                 END IF
-                PSET (MINIX + x, MINIY + y), c
+                px(y * MMW + x) = c
             NEXT
         NEXT
-        GET (MINIX, MINIY)-(MINIX + MMW - 1, MINIY + MMH - 1), art(0, AMINI)
+        gfx.surface.write art(AMINI), 0, 0, MMW, MMH, px()
         g.vw.miniDirty = 0: g.vw.miniT = 1
-    ELSE
-        PUT (MINIX, MINIY), art(0, AMINI), PSET
     END IF
+    gfx.draw.sprite dst, MINIX, MINIY, art(AMINI), gfx.draw.OPAQUE
     FOR b = 1 TO MAXB
         IF bl(b).alive THEN
             IF m(bl(b).x, bl(b).y).seen THEN
                 s = BSize%(bl(b).kind)
-                LINE (MINIX + bl(b).x \ MSC, MINIY + bl(b).y \ MSC)-STEP((s - 1) \ MSC, (s - 1) \ MSC), 11 + bl(b).team * 2, BF
+                x = MINIX + bl(b).x \ MSC: y = MINIY + bl(b).y \ MSC
+                gfx.draw.rect dst, x, y, x + (s - 1) \ MSC, y + (s - 1) \ MSC, 11 + bl(b).team * 2, gfx.draw.FILL
             END IF
         END IF
     NEXT
     FOR i = 1 TO MAXU
         IF u(i).alive THEN
             IF u(i).team = 0 OR m(u(i).x, u(i).y).vis THEN
-                PSET (MINIX + u(i).x \ MSC, MINIY + u(i).y \ MSC), 15 - u(i).team * 2
+                gfx.draw.pset dst, MINIX + u(i).x \ MSC, MINIY + u(i).y \ MSC, 15 - u(i).team * 2
             END IF
         END IF
     NEXT
-    ScreenTile g.vw, VX0, VY0, x, y: ScreenTile g.vw, SBX - 1, VY0, i, b
-    VIEW SCREEN (MINIX, MINIY)-(MINIX + MMW - 1, MINIY + MMH - 1)
-    LINE (MINIX + x \ MSC, MINIY + y \ MSC)-(MINIX + i \ MSC, MINIY + b \ MSC), 15
-    ScreenTile g.vw, SBX - 1, VIEWB - 1, x, y
-    LINE -(MINIX + x \ MSC, MINIY + y \ MSC), 15
-    ScreenTile g.vw, VX0, VIEWB - 1, i, b
-    LINE -(MINIX + i \ MSC, MINIY + b \ MSC), 15
-    ScreenTile g.vw, VX0, VY0, x, y
-    LINE -(MINIX + x \ MSC, MINIY + y \ MSC), 15
-    VIEW
+    ' the view: the tiles at its corners, joined
+    ScreenTile g.vw, VX0, VY0, cx(0), cy(0)
+    ScreenTile g.vw, SBX - 1, VY0, cx(1), cy(1)
+    ScreenTile g.vw, SBX - 1, VIEWB - 1, cx(2), cy(2)
+    ScreenTile g.vw, VX0, VIEWB - 1, cx(3), cy(3)
+    gfx.surface.set_clip dst, MINIX, MINIY, MMW, MMH
+    FOR i = 0 TO 3
+        b = (i + 1) MOD 4
+        Segment dst, MINIX + cx(i) \ MSC, MINIY + cy(i) \ MSC, MINIX + cx(b) \ MSC, MINIY + cy(b) \ MSC, 15
+    NEXT
+    gfx.surface.unclip dst
 END SUB
 
-SUB DrawSidebar (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS INTEGER, gl() AS INTEGER)
+SUB DrawSidebar (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS LONG, gl() AS INTEGER)
     DIM k AS INTEGER, y AS INTEGER, s AS STRING, c AS INTEGER, i AS INTEGER, n AS INTEGER, one AS INTEGER
     DIM ok AS INTEGER, prog AS SINGLE, qn AS INTEGER, x AS INTEGER, hov AS INTEGER, inf AS INTEGER, veh AS INTEGER
-    LINE (SBX, 0)-(319, 199), 0, BF
-    LINE (0, VIEWH)-(SBX - 1, 199), 0, BF
-    LINE (SBX, 0)-(SBX, VIEWH - 1), 23
-    Txt gl(), "$", SBX + 3, 1, 1, 13
-    s = LTRIM$(STR$(tm(0).cash)): Txt gl(), s, 319 - LEN(s) * 8, 1, 1, 15
+    DIM dst AS LONG
+    dst = g.vw.scr
+    gfx.draw.rect dst, SBX, 0, 319, 199, 0, gfx.draw.FILL
+    gfx.draw.rect dst, 0, VIEWH, SBX - 1, 199, 0, gfx.draw.FILL
+    gfx.draw.line dst, SBX, 0, SBX, VIEWH - 1, 23
+    Txt dst, gl(), "$", SBX + 3, 1, 1, 13
+    s = LTRIM$(STR$(tm(0).cash)): Txt dst, gl(), s, 319 - LEN(s) * 8, 1, 1, 15
     DrawMinimap g, m(), u(), bl(), art()
-    LINE (SBX + 1, MINIY - 1)-(319, MINIY - 1), 23
-    LINE (SBX + 1, MINIY + MMH)-(319, MINIY + MMH), 23
+    gfx.draw.line dst, SBX + 1, MINIY - 1, 319, MINIY - 1, 23
+    gfx.draw.line dst, SBX + 1, MINIY + MMH, 319, MINIY + MMH, 23
     hov = -1
     FOR k = 0 TO NITEM - 1
         x = SBX + 1 + (k MOD 3) * CELLW: y = BTNY + (k \ 3) * CELLH
         ok = Allowed%(bl(), 0, k)
-        LINE (x, y)-(x + CELLW - 2, y + CELLH - 2), 4, B
+        gfx.draw.rect dst, x, y, x + CELLW - 2, y + CELLH - 2, 4, 0
         IF k < NBITEM THEN
-            PUT (x + 4, y + 1), art(0, AICN + KMakes%(k) - 2), PSET
+            gfx.draw.sprite dst, x + 4, y + 1, art(AICN + KMakes%(k) - 2), gfx.draw.OPAQUE
         ELSE
-            LINE (x + 4, y + 1)-STEP(TS - 1, TS - 1), 2, BF
-            Sprite art(), ((KMakes%(k) - 1) * 2) * 16, x + 4, y + 1
+            gfx.draw.rect dst, x + 4, y + 1, x + 4 + TS - 1, y + 1 + TS - 1, 2, gfx.draw.FILL
+            Sprite dst, art(), ((KMakes%(k) - 1) * 2) * 16, x + 4, y + 1
         END IF
         c = 13: IF tm(0).cash < KCost%(k) THEN c = 23
-        s = LTRIM$(STR$(KCost%(k))): Txt gl(), s, x + 12 - LEN(s) * 4, y + 18, 1, c
+        s = LTRIM$(STR$(KCost%(k))): Txt dst, gl(), s, x + 12 - LEN(s) * 4, y + 18, 1, c
         prog = -1
         IF k < NBITEM THEN
             IF tm(0).sKind = k THEN prog = tm(0).sProg
         ELSE
             IF LineKind%(tm(0), KLine%(k)) = k THEN prog = LineProg!(tm(0), KLine%(k))
             qn = Queued%(tm(0), k)
-            IF qn > 0 THEN Txt gl(), LTRIM$(STR$(qn)), x + 17, y + 1, 1, 11
+            IF qn > 0 THEN Txt dst, gl(), LTRIM$(STR$(qn)), x + 17, y + 1, 1, 11
         END IF
         IF g.ms.x >= x AND g.ms.x < x + CELLW - 1 AND g.ms.y >= y AND g.ms.y < y + CELLH - 1 THEN
-            hov = k: LINE (x, y)-(x + CELLW - 2, y + CELLH - 2), 15, B
+            hov = k: gfx.draw.rect dst, x, y, x + CELLW - 2, y + CELLH - 2, 15, 0
         END IF
         IF prog >= 0 THEN
             IF k < NBITEM AND tm(0).sReady THEN
                 ' ready to place: its frame flashes
                 IF INT(g.clock * 3) MOD 2 = 0 OR g.placeKind = k THEN
-                    LINE (x, y)-(x + CELLW - 2, y + CELLH - 2), 8, B
-                    LINE (x + 1, y + 1)-(x + CELLW - 3, y + CELLH - 3), 8, B
+                    gfx.draw.rect dst, x, y, x + CELLW - 2, y + CELLH - 2, 8, 0
+                    gfx.draw.rect dst, x + 1, y + 1, x + CELLW - 3, y + CELLH - 3, 8, 0
                 END IF
             ELSE
-                Bar x + 2, y + 14, 20, prog, 11
+                Bar dst, x + 2, y + 14, 20, prog, 11
             END IF
         END IF
-        IF ok = 0 THEN Dither x + 1, y + 1, x + CELLW - 3, y + CELLH - 3, 0
+        IF ok = 0 THEN Dither dst, x + 1, y + 1, x + CELLW - 3, y + CELLH - 3, 0
     NEXT
-    Txt gl(), Clock2$(g.now), SBX + 3, 182, 1, 23
-    IF g.snd.enabled = 0 THEN Txt gl(), "MUTED", SBX + 40, 182, 1, 23
+    Txt dst, gl(), Clock2$(g.now), SBX + 3, 182, 1, 23
+    IF g.snd.enabled = 0 THEN Txt dst, gl(), "MUTED", SBX + 40, 182, 1, 23
 
     ' the status line: a message, the item under the mouse, the selection, or the army and power
     FOR i = 1 TO MAXU
@@ -3398,38 +3444,41 @@ SUB DrawSidebar (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS 
         END IF
     NEXT
     IF g.msgT > 0 THEN
-        Txt gl(), LEFT$(RTRIM$(g.msg), 39), 2, 192, 1, 15
+        Txt dst, gl(), LEFT$(RTRIM$(g.msg), 39), 2, 192, 1, 15
     ELSEIF hov >= 0 THEN
         s = MID$("QWERTZXCVBN", hov + 1, 1) + " " + KName$(hov) + STR$(KCost%(hov))
         IF Allowed%(bl(), 0, hov) THEN
-            Txt gl(), s, 2, 192, 1, 15
+            Txt dst, gl(), s, 2, 192, 1, 15
         ELSE
-            Txt gl(), s + ": needs a " + BName$(NeedB%(bl(), 0, hov)), 2, 192, 1, 29
+            Txt dst, gl(), s + ": needs a " + BName$(NeedB%(bl(), 0, hov)), 2, 192, 1, 29
         END IF
     ELSEIF n = 1 THEN
         s = KName$(UItem%(u(one).kind)) + "  health" + STR$(u(one).hp) + " of" + STR$(UHp%(u(one).kind))
         IF u(one).kind = UHARV THEN s = s + "  ore" + STR$(u(one).load)
-        Txt gl(), s, 2, 192, 1, 11
+        Txt dst, gl(), s, 2, 192, 1, 11
     ELSEIF n > 1 THEN
-        Txt gl(), LTRIM$(STR$(n)) + " selected: right click orders", 2, 192, 1, 11
+        Txt dst, gl(), LTRIM$(STR$(n)) + " selected: right click orders", 2, 192, 1, 11
     ELSE
         s = "Infantry" + STR$(inf) + "  Vehicles" + STR$(veh) + "  Power" + STR$(tm(0).pu) + "/" + LTRIM$(STR$(tm(0).pw))
         c = 14: IF tm(0).low THEN c = 29
-        Txt gl(), s, 2, 192, 1, c
+        Txt dst, gl(), s, 2, 192, 1, c
     END IF
 END SUB
 
-SUB DrawTitleBack (art() AS INTEGER, gl() AS INTEGER)
+SUB DrawTitleBack (art() AS LONG, gl() AS INTEGER)
     DIM y AS INTEGER, x AS INTEGER, i AS INTEGER, h AS INTEGER, c AS INTEGER, r AS INTEGER, l AS SINGLE
+    DIM dst AS LONG
+    dst = art(ABACK)
     ' dusk over the desert: deep blue down into the sun's orange
     Ramp SKY, 32, 2, 3, 14, 60, 30, 10
     Ramp LOGOC, 8, 63, 60, 50, 50, 16, 6
     Ramp PLANET, 16, 44, 12, 6, 63, 58, 34
     FOR y = 0 TO 199
-        LINE (0, y)-(319, y), SKY + y * 32 \ 200
+        gfx.draw.line dst, 0, y, 319, y, SKY + y * 32 \ 200
     NEXT
     FOR i = 1 TO 60
-        PSET (RND * 319, RND * 60), 15 - (i MOD 3) * 9
+        ' a third of them -3: colour 253, as QB's PSET took it
+        gfx.draw.pset dst, RND * 319, RND * 60, (15 - (i MOD 3) * 9) AND 255
     NEXT
     ' the sun going down behind the dunes, brightest at its heart
     FOR y = -34 TO 34
@@ -3437,45 +3486,46 @@ SUB DrawTitleBack (art() AS INTEGER, gl() AS INTEGER)
         FOR x = -h TO h
             l = 1 - (x * x + y * y) / 1156
             c = INT(l * 12 + 4): IF c > 15 THEN c = 15
-            PSET (236 + x, 126 + y), PLANET + c
+            gfx.draw.pset dst, 236 + x, 126 + y, PLANET + c
         NEXT
     NEXT
     ' the hills, far and near
     FOR x = 0 TO 319
         h = 136 + 10 * SIN(x / 35) + 5 * SIN(x / 12 + 1)
-        LINE (x, h)-(x, 199), 3
+        gfx.draw.line dst, x, h, x, 199, 3
         h = 158 + 8 * SIN(x / 25 + 2) + 3 * SIN(x / 9)
-        LINE (x, h)-(x, 199), 1
+        gfx.draw.line dst, x, h, x, 199, 1
     NEXT
     ' ore glowing on the near hill
     FOR i = 1 TO 160
         x = RND * 318: y = 168 + RND * 31
-        PSET (x, y), 9: IF RND < .3 THEN PSET (x + 1, y), 22
+        gfx.draw.pset dst, x, y, 9: IF RND < .3 THEN gfx.draw.pset dst, x + 1, y, 22
     NEXT
     ' the Coalition's units on the hill, the Legion's beyond
-    Sprite art(), 32 + 7 * 2, 116, 164
-    Sprite art(), 32 + 7 * 2 + 1, 134, 170
-    Sprite art(), 7 * 2, 98, 172
-    Sprite art(), 4 * 16 + 7 * 2, 150, 176
-    Sprite art(), 9 * 16 + 3 * 2, 244, 166
-    Sprite art(), 5 * 16 + 3 * 2, 262, 158
-    Sprite art(), 3 * 16 + 3 * 2, 284, 164
-    Logo gl(), "RUSTLINE", 12, 4, 4
-    TxtC gl(), "THE WAR FOR THE RED ORE OF KESH", 52, 1, 13
-    Dither 14, 70, 305, 108, 0
-    TxtC gl(), "Lead the Coalition: mine ore, build,", 74, 1, 15
-    TxtC gl(), "and break the Scorch Legion.", 84, 1, 15
-    TxtC gl(), "Drag selects, right click orders", 98, 1, 11
-    GET (0, 0)-(319, 199), art(0, ABACK)
+    Sprite dst, art(), 32 + 7 * 2, 116, 164
+    Sprite dst, art(), 32 + 7 * 2 + 1, 134, 170
+    Sprite dst, art(), 7 * 2, 98, 172
+    Sprite dst, art(), 4 * 16 + 7 * 2, 150, 176
+    Sprite dst, art(), 9 * 16 + 3 * 2, 244, 166
+    Sprite dst, art(), 5 * 16 + 3 * 2, 262, 158
+    Sprite dst, art(), 3 * 16 + 3 * 2, 284, 164
+    Logo dst, gl(), "RUSTLINE", 12, 4, 4
+    TxtC dst, gl(), "THE WAR FOR THE RED ORE OF KESH", 52, 1, 13
+    Dither dst, 14, 70, 305, 108, 0
+    TxtC dst, gl(), "Lead the Coalition: mine ore, build,", 74, 1, 15
+    TxtC dst, gl(), "and break the Scorch Legion.", 84, 1, 15
+    TxtC dst, gl(), "Drag selects, right click orders", 98, 1, 11
 END SUB
 
 ' The units, buildings and the n trees at tx(), ty() in the view, back to front by their feet's
 ' x + y.
-SUB DrawObjects (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS INTEGER, tx() AS INTEGER, ty() AS INTEGER, nt AS INTEGER)
+SUB DrawObjects (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS LONG, tx() AS INTEGER, ty() AS INTEGER, nt AS INTEGER)
     DIM id(MAXU + MAXB + 200) AS INTEGER, dp(MAXU + MAXB + 200) AS SINGLE, n AS INTEGER
     DIM i AS INTEGER, j AS INTEGER, k AS INTEGER, b AS INTEGER, sx AS INTEGER, sy AS INTEGER, f AS INTEGER
     DIM c AS INTEGER, mh AS INTEGER, x0 AS INTEGER, y0 AS INTEGER, w AS INTEGER, h AS INTEGER, d AS SINGLE
-    DIM ox AS INTEGER, oy AS INTEGER, ax AS SINGLE, ay AS SINGLE
+    DIM ox AS INTEGER, oy AS INTEGER, ax AS SINGLE, ay AS SINGLE, gx AS INTEGER, gy AS INTEGER
+    DIM dst AS LONG
+    dst = g.vw.scr
     ox = MAPH * 16 - g.vw.camX + VX0: oy = VY0 - g.vw.camY
     ' units 1 to MAXU, buildings 1000 on, trees 2000 on
     FOR i = 1 TO MAXU
@@ -3510,23 +3560,26 @@ SUB DrawObjects (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS
                 f = 0
                 IF u(i).nx <> u(i).x OR u(i).ny <> u(i).y OR u(i).st = SGATHER THEN f = INT(u(i).anim * 8) MOD 2
                 k = ((u(i).kind - 1) * 2 + u(i).team) * 16 + IsoDir%(u(i).dir) * 2 + f
-                PUT (x0, y0), art(0, ASHD + k), OR
-                Sprite art(), k, x0, y0
+                Shape dst, x0, y0, art(ASHD + k), SHADEC, gfx.draw.BLEND
+                Sprite dst, art(), k, x0, y0
                 IF u(i).kind = UHARV AND u(i).load > 0 THEN
-                    PSET (sx, sy - 5), 22: PSET (sx + 1, sy - 4), 22
-                    IF u(i).load > 5 THEN PSET (sx + 1, sy - 5), 31
+                    gfx.draw.pset dst, sx, sy - 5, 22
+                    gfx.draw.pset dst, sx + 1, sy - 4, 22
+                    IF u(i).load > 5 THEN gfx.draw.pset dst, sx + 1, sy - 5, 31
                 END IF
                 IF u(i).sel THEN
-                    LINE (x0, y0)-STEP(3, 0), 15: LINE (x0, y0)-STEP(0, 3), 15
-                    LINE (x0 + 15, y0)-STEP(-3, 0), 15: LINE (x0 + 15, y0)-STEP(0, 3), 15
-                    LINE (x0, y0 + 15)-STEP(3, 0), 15: LINE (x0, y0 + 15)-STEP(0, -3), 15
-                    LINE (x0 + 15, y0 + 15)-STEP(-3, 0), 15: LINE (x0 + 15, y0 + 15)-STEP(0, -3), 15
+                    ' its corners
+                    FOR f = 0 TO 3
+                        gx = x0 + (f AND 1) * 15: gy = y0 + (f \ 2) * 15
+                        gfx.draw.line dst, gx, gy, gx + 3 - (f AND 1) * 6, gy, 15
+                        gfx.draw.line dst, gx, gy, gx, gy + 3 - (f \ 2) * 6, 15
+                    NEXT
                 END IF
                 mh = UHp%(u(i).kind)
                 IF (u(i).sel OR u(i).hp < mh) AND y0 >= 2 THEN
                     c = 8: IF u(i).hp * 2 < mh THEN c = 13
                     IF u(i).hp * 4 < mh THEN c = 29
-                    Bar x0 + 2, y0 - 2, 12, u(i).hp / mh, c
+                    Bar dst, x0 + 2, y0 - 2, 12, u(i).hp / mh, c
                 END IF
             END IF
         ELSEIF k < 2000 THEN
@@ -3534,34 +3587,34 @@ SUB DrawObjects (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS
             w = 32 * BSize%(bl(b).kind): h = BldH%(bl(b).kind) + w \ 2
             x0 = (bl(b).x - bl(b).y) * 16 + ox - w \ 2: y0 = (bl(b).x + bl(b).y) * 8 + oy - BldH%(bl(b).kind) - Lift%(m(), bl(b).x, bl(b).y)
             IF x0 > -64 AND y0 > -64 AND x0 < SBX AND y0 < VIEWB THEN
-                k = ABLD + ((bl(b).kind - 1) * 2 + bl(b).team) * 3 * BLDW
-                PUT (x0, y0), art(0, k + BLDW), AND
-                PUT (x0, y0), art(0, k), OR
+                k = (bl(b).kind - 1) * 2 + bl(b).team
+                gfx.draw.sprite dst, x0, y0, art(ABLD + k), 0
+                Shape dst, x0, y0, art(ABLK + k), 0, 0
                 IF bl(b).kind = BTUR THEN
-                    ' the gun turns in the world; drawn as the screen sees it
+                    ' the gun turns in the world; drawn as the screen sees it, to a whole pixel
                     sx = x0 + 16: sy = y0 + 14
                     ax = COS(bl(b).ang): ay = SIN(bl(b).ang)
-                    LINE (sx, sy)-(sx + (ax - ay) * 6, sy + (ax + ay) * 3), 0
-                    LINE (sx, sy - 1)-(sx + (ax - ay) * 6, sy - 1 + (ax + ay) * 3), 24
+                    gx = sx + CINT((ax - ay) * 6): gy = sy + CINT((ax + ay) * 3)
+                    Segment dst, sx, sy, gx, gy, 0
+                    Segment dst, sx, sy - 1, gx, gy - 1, 24
                     c = 11 + bl(b).team * 2: IF bl(b).cool > .8 THEN c = 15
-                    PSET (sx + (ax - ay) * 6, sy + (ax + ay) * 3), c
+                    gfx.draw.pset dst, gx, gy, c
                 ELSEIF INT(g.clock * 2 + b) MOD 3 = 0 THEN
-                    PSET (x0 + w \ 2 + 1, y0 + BldH%(bl(b).kind) - 2), 11 + bl(b).team * 2
+                    gfx.draw.pset dst, x0 + w \ 2 + 1, y0 + BldH%(bl(b).kind) - 2, 11 + bl(b).team * 2
                 END IF
                 mh = BHp%(bl(b).kind)
                 IF bl(b).hp < mh AND y0 >= 2 THEN
                     c = 8: IF bl(b).hp * 2 < mh THEN c = 13
                     IF bl(b).hp * 4 < mh THEN c = 29
-                    Bar x0 + 6, y0 - 2, w - 12, bl(b).hp / mh, c
+                    Bar dst, x0 + 6, y0 - 2, w - 12, bl(b).hp / mh, c
                 END IF
             END IF
         ELSE
             i = k - 2000
             x0 = (tx(i) - ty(i)) * 16 + ox - 8: y0 = (tx(i) + ty(i)) * 8 + oy - 13 - Lift%(m(), tx(i), ty(i))
             IF x0 > -64 AND y0 > -64 AND x0 < SBX AND y0 < VIEWB THEN
-                PUT (x0, y0), art(0, ATREE + 6), OR
-                PUT (x0, y0), art(0, ATREE + 2), AND
-                PUT (x0, y0), art(0, ATREE), OR
+                Shape dst, x0, y0, art(ATREE + 1), SHADEC, gfx.draw.BLEND
+                gfx.draw.sprite dst, x0, y0, art(ATREE), 0
             END IF
         END IF
     NEXT
@@ -3583,15 +3636,23 @@ FUNCTION StepY% (d AS INTEGER)
     END SELECT
 END FUNCTION
 
-' A VGA colour: red, green, blue 0 to 63.
+' A VGA colour, red, green, blue 0 to 63, as gfx's &HRRGGBB.
 FUNCTION Rgb& (r AS INTEGER, g AS INTEGER, b AS INTEGER)
-    Rgb& = r + g * 256& + b * 65536
+    Rgb& = (r * 4 + r \ 16) * 65536 + (g * 4 + g \ 16) * 256& + b * 4 + b \ 16
 END FUNCTION
+
+' Colour c of the palette: red, green, blue 0 to 63.
+SUB Colour (c AS INTEGER, r AS INTEGER, g AS INTEGER, b AS INTEGER)
+    DIM p(255) AS LONG
+    gfx.display.get_palette 0, p()
+    p(c) = Rgb&(r, g, b)
+    gfx.display.set_palette 0, p()
+END SUB
 
 ' Colour c and its fog's copy, darker and bluer.
 SUB Shade (c AS INTEGER, r AS INTEGER, g AS INTEGER, b AS INTEGER)
-    PALETTE c, Rgb&(r, g, b)
-    PALETTE FOG OR c, Rgb&(r * 4 \ 10, g * 4 \ 10, b * 5 \ 10 + 3)
+    Colour c, r, g, b
+    Colour FOG OR c, r * 4 \ 10, g * 4 \ 10, b * 5 \ 10 + 3
 END SUB
 
 ' The water's colours at turn t: WATERC + k a swell's height, a crest every NWATER; the art tool
@@ -3652,7 +3713,7 @@ END SUB
 SUB Ramp (c0 AS INTEGER, n AS INTEGER, r0 AS INTEGER, g0 AS INTEGER, b0 AS INTEGER, r1 AS INTEGER, g1 AS INTEGER, b1 AS INTEGER)
     DIM i AS INTEGER
     FOR i = 0 TO n - 1
-        PALETTE c0 + i, Rgb&(r0 + (r1 - r0) * i \ (n - 1), g0 + (g1 - g0) * i \ (n - 1), b0 + (b1 - b0) * i \ (n - 1))
+        Colour c0 + i, r0 + (r1 - r0) * i \ (n - 1), g0 + (g1 - g0) * i \ (n - 1), b0 + (b1 - b0) * i \ (n - 1)
     NEXT
 END SUB
 
@@ -3749,11 +3810,6 @@ SUB Fire (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fk
     NEXT
 END SUB
 
-SUB Flip (cam AS ViewT)
-    SCREEN , , 1 - cam.page, cam.page
-    cam.page = 1 - cam.page
-END SUB
-
 SUB FxTick (fx() AS FxT, dt AS SINGLE)
     DIM i AS INTEGER
     FOR i = 1 TO MAXFX
@@ -3767,7 +3823,7 @@ SUB FxTick (fx() AS FxT, dt AS SINGLE)
     NEXT
 END SUB
 
-SUB GoEnd (g AS GameT, tm() AS TeamT, won AS INTEGER, art() AS INTEGER, gl() AS INTEGER)
+SUB GoEnd (g AS GameT, tm() AS TeamT, won AS INTEGER, art() AS LONG, gl() AS INTEGER)
     g.won = won
     IF won THEN g.state = GWIN ELSE g.state = GLOSE
     g.endT = 0
@@ -3778,7 +3834,7 @@ SUB GoEnd (g AS GameT, tm() AS TeamT, won AS INTEGER, art() AS INTEGER, gl() AS 
     g.snd.beat = 0
 END SUB
 
-SUB GoTitle (g AS GameT, art() AS INTEGER, gl() AS INTEGER)
+SUB GoTitle (g AS GameT, art() AS LONG, gl() AS INTEGER)
     g.state = GTITLE
     RANDOMIZE 5
     DrawTitleBack art(), gl()
@@ -3803,7 +3859,7 @@ SUB Hit (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fk(
     END IF
 END SUB
 
-SUB Keys (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fk() AS FieldT, art() AS INTEGER, gl() AS INTEGER)
+SUB Keys (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fk() AS FieldT, art() AS LONG, gl() AS INTEGER)
     DIM k AS STRING, i AS INTEGER, n AS INTEGER
     DO
         k = UCASE$(INKEY$)
@@ -3934,7 +3990,7 @@ FUNCTION KSecs! (k AS INTEGER)
 END FUNCTION
 
 ' Big letters for the title and the end, each pixel a block of bw by bh: lit from above, shadowed.
-SUB Logo (gl() AS INTEGER, t AS STRING, y AS INTEGER, bw AS INTEGER, bh AS INTEGER)
+SUB Logo (dst AS LONG, gl() AS INTEGER, t AS STRING, y AS INTEGER, bw AS INTEGER, bh AS INTEGER)
     DIM x0 AS INTEGER, i AS INTEGER, r AS INTEGER, b AS INTEGER, mask AS INTEGER
     DIM x AS INTEGER, yy AS INTEGER, pass AS INTEGER
     x0 = (320 - LEN(t) * 8 * bw) \ 2
@@ -3946,9 +4002,9 @@ SUB Logo (gl() AS INTEGER, t AS STRING, y AS INTEGER, bw AS INTEGER, bh AS INTEG
                     IF mask AND 2 ^ (7 - b) THEN
                         x = x0 + ((i - 1) * 8 + b) * bw: yy = y + r * bh
                         SELECT CASE pass
-                        CASE 0: LINE (x + 3, yy + 3)-STEP(bw - 1, bh - 1), 0, BF
-                        CASE 1: LINE (x - 1, yy - 1)-STEP(bw + 1, bh + 1), 25, BF
-                        CASE ELSE: LINE (x, yy)-STEP(bw - 1, bh - 1), LOGOC + r, BF
+                        CASE 0: gfx.draw.rect dst, x + 3, yy + 3, x + bw + 2, yy + bh + 2, 0, gfx.draw.FILL
+                        CASE 1: gfx.draw.rect dst, x - 1, yy - 1, x + bw, yy + bh, 25, gfx.draw.FILL
+                        CASE ELSE: gfx.draw.rect dst, x, yy, x + bw - 1, yy + bh - 1, LOGOC + r, gfx.draw.FILL
                         END SELECT
                     END IF
                 NEXT
@@ -4105,17 +4161,16 @@ SUB Produce (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bldg
     Train g, tm(), m(), u(), bl(), ti, BFAC, tm(ti).l2Kind, tm(ti).l2Prog, rate
 END SUB
 
-' The loading screen's bar, on the page shown.
-SUB Progress (n AS INTEGER, total AS INTEGER, gl() AS INTEGER)
-    SCREEN , , 0, 0
+' The loading screen's bar, shown.
+SUB Progress (dst AS LONG, n AS INTEGER, total AS INTEGER, gl() AS INTEGER)
     IF n = 1 THEN
-        CLS
-        TxtC gl(), "RUSTLINE", 70, 2, 8
-        TxtC gl(), "the ore is waiting", 94, 1, 9
-        LINE (109, 109)-(210, 116), 4, B
+        gfx.draw.clear dst, 0
+        TxtC dst, gl(), "RUSTLINE", 70, 2, 8
+        TxtC dst, gl(), "the ore is waiting", 94, 1, 9
+        gfx.draw.rect dst, 109, 109, 210, 116, 4, 0
     END IF
-    LINE (110, 110)-(110 + 99 * n \ total, 115), 8, BF
-    SCREEN , , 1, 0
+    gfx.draw.rect dst, 110, 110, 110 + 99 * n \ total, 115, 8, gfx.draw.FILL
+    gfx.display.flip
 END SUB
 
 FUNCTION Queued% (t AS TeamT, k AS INTEGER)
@@ -4138,33 +4193,34 @@ SUB ReadMouse (ms AS MouseT)
     IF ms.rHit THEN ms.rX = PEN(11): ms.rY = PEN(12)
 END SUB
 
-SUB RenderEnd (g AS GameT, pt() AS PartT, art() AS INTEGER, gl() AS INTEGER)
-    DIM i AS INTEGER, c AS INTEGER
-    PUT (0, 0), art(0, ABACK), PSET
+SUB RenderEnd (g AS GameT, pt() AS PartT, art() AS LONG, gl() AS INTEGER)
+    DIM i AS INTEGER, c AS INTEGER, dst AS LONG
+    dst = g.vw.scr
+    gfx.draw.sprite dst, 0, 0, art(ABACK), gfx.draw.OPAQUE
     FOR i = 1 TO NPART
         IF g.won THEN c = 22 ELSE c = FIRE + 6
         IF i MOD 3 = 0 THEN
             IF g.won THEN c = 13 ELSE c = FIRE + 2
         END IF
-        PSET (pt(i).x, pt(i).y), c
+        gfx.draw.pset dst, pt(i).x, pt(i).y, c
     NEXT
-    IF g.endT > 1 AND INT(g.clock * 2) MOD 2 THEN TxtC gl(), "CLICK TO CONTINUE", 156, 2, 15
-    Arrow g.ms.x, g.ms.y
+    IF g.endT > 1 AND INT(g.clock * 2) MOD 2 THEN TxtC dst, gl(), "CLICK TO CONTINUE", 156, 2, 15
+    Arrow dst, g.ms.x, g.ms.y
 END SUB
 
-SUB RenderGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, art() AS INTEGER, gl() AS INTEGER)
+SUB RenderGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, art() AS LONG, gl() AS INTEGER)
     DIM wx AS INTEGER, wy AS INTEGER, sx AS INTEGER, sy AS INTEGER, t AS INTEGER, lo AS INTEGER, hi AS INTEGER
     DIM k AS INTEGER, sz AS INTEGER, c AS INTEGER, ph AS INTEGER, k0 AS INTEGER, k1 AS INTEGER
     DIM tx(200) AS INTEGER, ty(200) AS INTEGER, nt AS INTEGER, x(3) AS INTEGER, y(3) AS INTEGER
-    DIM l AS INTEGER, h AS INTEGER, j AS INTEGER, y0 AS INTEGER, lip(1) AS INTEGER
-    ' the water's colours turned a step: its swells roll on
-    k = INT(g.clock * 6) MOD NWATER
-    IF k <> g.vw.waterF THEN g.vw.waterF = k: WaterColours k
+    DIM l AS INTEGER, h AS INTEGER, j AS INTEGER, y0 AS INTEGER, lip(1) AS INTEGER, dst AS LONG
+    dst = g.vw.scr
+    ' the water's pictures by the turn of its colours: its swells roll on
+    g.vw.waterF = INT(g.clock * 6) MOD NWATER
     g.vw.miniT = g.vw.miniT - .016
 
     ' the land a row of equal x + y at a time, from the back; the diamonds a half tile apart
-    VIEW SCREEN (VX0, VY0)-(SBX - 1, VIEWB - 1)
-    LINE (0, 0)-(SBX - 1, VIEWH - 1), 0, BF
+    gfx.surface.set_clip dst, VX0, VY0, SBX - VX0, VIEWB - VY0
+    gfx.draw.rect dst, 0, 0, SBX - 1, VIEWH - 1, 0, gfx.draw.FILL
     k0 = g.vw.camX \ 16 - 1: k1 = (g.vw.camX + VWP) \ 16 - 1
     ' the rows below the view too: their raised tops come up into it
     FOR t = (g.vw.camY - 8) \ 8 TO (g.vw.camY + VHP + MAXH * STEPH) \ 8
@@ -4186,37 +4242,31 @@ SUB RenderGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS B
                     FOR j = 1 TO h \ STEPH
                         y0 = sy + 8 - l + (j - 1) * STEPH
                         IF y0 < VIEWB THEN
-                            PUT (sx + k * 16, y0), art(0, AFACE + k * 6 + 2), AND
-                            PUT (sx + k * 16, y0), art(0, AFACE + k * 6), OR
+                            gfx.draw.sprite dst, sx + k * 16, y0, art(AFACE + k), 0
                         END IF
                     NEXT
                 NEXT
             END IF
             sy = sy - l
             IF m(wx, wy).seen AND sx > -32 AND sx < SBX AND sy > -16 AND sy < VIEWB + STEPH AND m(wx, wy).rmp > 0 THEN
-                k = ARMP + ((m(wx, wy).rmp - 1) * 2 + m(wx, wy).hgt) * 12
-                PUT (sx, sy - STEPH), art(0, k + 4), AND
-                PUT (sx, sy - STEPH), art(0, k), OR
+                k = ARMP + (m(wx, wy).rmp - 1) * 2 + m(wx, wy).hgt
+                gfx.draw.sprite dst, sx, sy - STEPH, art(k), 0
             ELSEIF m(wx, wy).seen AND sx > -32 AND sx < SBX AND sy > -16 AND sy < VIEWB + ROCKH THEN
-                PUT (sx, sy), art(0, ADIA), AND
-                PUT (sx, sy), art(0, AGRS + ((wx MOD 4) + (wy MOD 4) * 4 + 16 * m(wx, wy).hgt) * 2), OR
+                gfx.draw.sprite dst, sx, sy, art(AGRS + (wx MOD 4) + (wy MOD 4) * 4 + 16 * m(wx, wy).hgt), 0
                 k = Overlay%(g, m(), wx, wy)
-                IF k >= 0 THEN
-                    PUT (sx, sy), art(0, AOVL + k * 4 + 2), AND
-                    PUT (sx, sy), art(0, AOVL + k * 4), OR
+                IF k >= OWATER THEN
+                    gfx.draw.sprite dst, sx, sy, art(AWAT + (k - OWATER) * NWATER + g.vw.waterF), 0
+                ELSEIF k >= 0 THEN
+                    gfx.draw.sprite dst, sx, sy, art(AOVL + k), 0
                 END IF
                 ' in the shade of a cliff behind
-                IF Lift%(m(), wx - 1, wy) > l THEN PUT (sx, sy), art(0, ASHA), OR
-                IF Lift%(m(), wx, wy - 1) > l THEN PUT (sx + 16, sy), art(0, ASHA + 1), OR
+                IF Lift%(m(), wx - 1, wy) > l THEN Shape dst, sx, sy, art(ASHA), SHADEC, gfx.draw.BLEND
+                IF Lift%(m(), wx, wy - 1) > l THEN Shape dst, sx + 16, sy, art(ASHA + 1), SHADEC, gfx.draw.BLEND
                 ' a cliff's lip, where the light catches it
                 c = 17
-                IF lip(0) THEN LINE (sx + 1, sy + 8)-(sx + 15, sy + 15), c
-                IF lip(1) THEN LINE (sx + 16, sy + 15)-(sx + 30, sy + 8), c
-                IF m(wx, wy).terr = TROCK THEN
-                    k = AROK + Sides%(m(), wx, wy) * 9
-                    PUT (sx, sy - ROCKH), art(0, k + 3), AND
-                    PUT (sx, sy - ROCKH), art(0, k), OR
-                END IF
+                IF lip(0) THEN gfx.draw.line dst, sx + 1, sy + 8, sx + 15, sy + 15, c
+                IF lip(1) THEN gfx.draw.line dst, sx + 16, sy + 15, sx + 30, sy + 8, c
+                IF m(wx, wy).terr = TROCK THEN gfx.draw.sprite dst, sx, sy - ROCKH, art(AROK + Sides%(m(), wx, wy)), 0
                 IF m(wx, wy).terr = TTREE AND nt < 200 THEN nt = nt + 1: tx(nt) = wx: ty(nt) = wy
             END IF
             sy = sy + l
@@ -4235,31 +4285,39 @@ SUB RenderGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS B
         x(2) = sx: y(2) = sy + sz * 16
         x(3) = sx - sz * 16: y(3) = sy + sz * 8
         FOR k = 0 TO 3
-            LINE (x(k), y(k))-(x((k + 1) MOD 4), y((k + 1) MOD 4)), c
+            Segment dst, x(k), y(k), x((k + 1) MOD 4), y((k + 1) MOD 4), c
         NEXT
         FOR k = 2 TO sz * 16 - 2 STEP 3
-            LINE (x(0) - k, y(0) + k \ 2)-(x(1) - k, y(1) + k \ 2), c, , &HAAAA
+            StyleLine dst, x(0) - k, y(0) + k \ 2, x(1) - k, y(1) + k \ 2, c, &HAAAA&, 0
         NEXT
     END IF
-    IF g.ms.dragOn THEN LINE (g.ms.dX0, g.ms.dY0)-(g.ms.x, g.ms.y), 15, B, &HF0F0
-    VIEW
+    ' the box dragged: its edges in QB's order, bottom, top, right, left
+    IF g.ms.dragOn THEN
+        ph = 0
+        StyleLine dst, g.ms.dX0, g.ms.y, g.ms.x, g.ms.y, 15, &HF0F0&, ph
+        StyleLine dst, g.ms.dX0, g.ms.dY0, g.ms.x, g.ms.dY0, 15, &HF0F0&, ph
+        StyleLine dst, g.ms.x, g.ms.dY0, g.ms.x, g.ms.y, 15, &HF0F0&, ph
+        StyleLine dst, g.ms.dX0, g.ms.dY0, g.ms.dX0, g.ms.y, 15, &HF0F0&, ph
+    END IF
+    gfx.surface.unclip dst
     DrawSidebar g, tm(), m(), u(), bl(), art(), gl()
     DrawCursor g, m(), u(), bl()
 END SUB
 
-SUB RenderTitle (g AS GameT, pt() AS PartT, art() AS INTEGER, gl() AS INTEGER)
-    DIM i AS INTEGER, c AS INTEGER
-    PUT (0, 0), art(0, ABACK), PSET
+SUB RenderTitle (g AS GameT, pt() AS PartT, art() AS LONG, gl() AS INTEGER)
+    DIM i AS INTEGER, c AS INTEGER, dst AS LONG
+    dst = g.vw.scr
+    gfx.draw.sprite dst, 0, 0, art(ABACK), gfx.draw.OPAQUE
     FOR i = 1 TO NPART
         ' embers on the wind
         c = 22: IF i MOD 4 = 0 THEN c = 13
-        PSET (pt(i).x, pt(i).y), c
+        gfx.draw.pset dst, pt(i).x, pt(i).y, c
     NEXT
     IF INT(g.clock * 2) MOD 2 THEN c = 13 ELSE c = 15
-    TxtC gl(), "CLICK TO BEGIN", 128, 2, c
-    TxtC gl(), "QWERT build  ZXCVBN train  A army  H HQ", 150, 1, 14
-    TxtC gl(), "Esc leaves", 190, 1, 23
-    Arrow g.ms.x, g.ms.y
+    TxtC dst, gl(), "CLICK TO BEGIN", 128, 2, c
+    TxtC dst, gl(), "QWERT build  ZXCVBN train  A army  H HQ", 150, 1, 14
+    TxtC dst, gl(), "Esc leaves", 190, 1, 23
+    Arrow dst, g.ms.x, g.ms.y
 END SUB
 
 SUB Say (g AS GameT, t AS STRING)
@@ -4333,11 +4391,11 @@ SUB SelectBox (g AS GameT, m() AS CellT, u() AS UnitT, x1 AS INTEGER, y1 AS INTE
     IF n THEN Sfx g, 6
 END SUB
 
-' The screen, its pages, the palette, the music.
+' The screen (gfx's, drawn with shades at SHADEA), the palette, the music.
 SUB Setup (g AS GameT, tune() AS STRING)
     DIM i AS INTEGER, j AS INTEGER, v AS INTEGER, pre(3) AS STRING, bar(3) AS STRING
-    SCREEN 13, , 1, 0
-    g.vw.page = 1
+    g.vw.scr = gfx.display.open(320, 200, 8, 0)
+    gfx.draw.set_alpha SHADEA
     g.snd.enabled = -1
     GamePalette
     RESTORE Tunes
@@ -4412,7 +4470,7 @@ FUNCTION SpawnUnit% (tm() AS TeamT, m() AS CellT, u() AS UnitT, ti AS INTEGER, u
 END FUNCTION
 
 ' One step of the game, 30 a second.
-SUB Tick (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fd() AS SHORT, fk() AS FieldT, art() AS INTEGER, gl() AS INTEGER)
+SUB Tick (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fd() AS SHORT, fk() AS FieldT, art() AS LONG, gl() AS INTEGER)
     DIM i AS INTEGER, b AS INTEGER, dt AS SINGLE, pb AS INTEGER, eb AS INTEGER
     dt = STEPT
     g.now = g.now + dt
@@ -4505,9 +4563,14 @@ SUB Train (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT,
     kind = -1: prog = 0
 END SUB
 
-' Text in the glyphs, each pixel sc square, see-through; TxtC centres it over a shadow.
-SUB Txt (gl() AS INTEGER, t AS STRING, x AS INTEGER, y AS INTEGER, sc AS INTEGER, c AS INTEGER)
+' Text, each pixel sc square, see-through: gfx's font, its glyphs' bits past 1; TxtC centres it
+' over a shadow.
+SUB Txt (dst AS LONG, gl() AS INTEGER, t AS STRING, x AS INTEGER, y AS INTEGER, sc AS INTEGER, c AS INTEGER)
     DIM i AS INTEGER, r AS INTEGER, b AS INTEGER, mask AS INTEGER, px AS INTEGER, py AS INTEGER
+    IF sc = 1 THEN
+        gfx.draw.text dst, x, y, t, c
+        EXIT SUB
+    END IF
     FOR i = 1 TO LEN(t)
         FOR r = 0 TO 7
             mask = gl(ASC(MID$(t, i, 1)), r)
@@ -4515,7 +4578,7 @@ SUB Txt (gl() AS INTEGER, t AS STRING, x AS INTEGER, y AS INTEGER, sc AS INTEGER
                 FOR b = 0 TO 7
                     IF mask AND 2 ^ (7 - b) THEN
                         px = x + ((i - 1) * 8 + b) * sc: py = y + r * sc
-                        IF sc = 1 THEN PSET (px, py), c ELSE LINE (px, py)-STEP(sc - 1, sc - 1), c, BF
+                        gfx.draw.rect dst, px, py, px + sc - 1, py + sc - 1, c, gfx.draw.FILL
                     END IF
                 NEXT
             END IF
@@ -4523,9 +4586,9 @@ SUB Txt (gl() AS INTEGER, t AS STRING, x AS INTEGER, y AS INTEGER, sc AS INTEGER
     NEXT
 END SUB
 
-SUB TxtC (gl() AS INTEGER, t AS STRING, y AS INTEGER, sc AS INTEGER, c AS INTEGER)
-    Txt gl(), t, (320 - LEN(t) * 8 * sc) \ 2 + 1, y + 1, sc, 0
-    Txt gl(), t, (320 - LEN(t) * 8 * sc) \ 2, y, sc, c
+SUB TxtC (dst AS LONG, gl() AS INTEGER, t AS STRING, y AS INTEGER, sc AS INTEGER, c AS INTEGER)
+    Txt dst, gl(), t, (320 - LEN(t) * 8 * sc) \ 2 + 1, y + 1, sc, 0
+    Txt dst, gl(), t, (320 - LEN(t) * 8 * sc) \ 2, y, sc, c
 END SUB
 
 FUNCTION UDmg% (k AS INTEGER)
@@ -4981,7 +5044,143 @@ SUB NewGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bldg
     Sfx g, 5
 END SUB
 
-SUB Sprite (art() AS INTEGER, idx AS INTEGER, x AS INTEGER, y AS INTEGER)
-    PUT (x, y), art(0, AMSK + idx), AND
-    PUT (x, y), art(0, ASPR + idx), OR
+SUB Sprite (dst AS LONG, art() AS LONG, idx AS INTEGER, x AS INTEGER, y AS INTEGER)
+    gfx.draw.sprite dst, x, y, art(ASPR + idx), 0
 END SUB
+
+' A line from its left end, as QB's LINE: a 2 by 1 slope then falls
+' on QB's pixels (others may step a pixel apart).
+SUB Segment (dst AS LONG, x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER, c AS INTEGER)
+    IF x1 > x2 THEN
+        gfx.draw.line dst, x2, y2, x1, y1, c
+    ELSE
+        gfx.draw.line dst, x1, y1, x2, y2, c
+    END IF
+END SUB
+
+' Surface s's shape at x, y in colour (&HRRGGBB), with flags' BLEND
+' mixed SHADEA of 63 into what is there; s 0 draws nothing.
+SUB Shape (dst AS LONG, x AS INTEGER, y AS INTEGER, s AS LONG, colour AS LONG, flags AS INTEGER)
+    IF s = 0 THEN EXIT SUB
+    gfx.draw.set_tint colour
+    gfx.draw.sprite dst, x, y, s, gfx.draw.SOLID OR flags
+    gfx.draw.set_tint &HFFFFFF
+END SUB
+
+' QB's LINE with a style: cut to dst's clip, then from its left end
+' a pixel a step along its longer side, the other side stepped when
+' a sum of 4 times the shorter less the longer is not below 0; drawn
+' where style's bits, the high one first turned on by phase, are
+' set. phase moves on by the pixels stepped, for the next edge.
+SUB StyleLine (dst AS LONG, x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER, c AS INTEGER, style AS LONG, phase AS INTEGER)
+    DIM l AS INTEGER, t AS INTEGER, r AS INTEGER, b AS INTEGER
+    DIM ax AS LONG, ay AS LONG, bx AS LONG, by AS LONG
+    DIM oa AS INTEGER, ob AS INTEGER, e AS LONG, s AS LONG
+    DIM dx AS LONG, dy AS LONG, sy AS INTEGER, lg AS LONG
+    DIM sh AS LONG, d AS LONG, i AS LONG
+    gfx.surface.get_clip dst, l, t, r, b
+    r = l + r - 1
+    b = t + b - 1
+    ax = x1: ay = y1: bx = x2: by = y2
+    ' the end outside moved onto the edge it is past: left, right,
+    ' above, below; it is then the one drawn from
+    DO
+        oa = Outside%(ax, ay, l, t, r, b)
+        ob = Outside%(bx, by, l, t, r, b)
+        IF (oa OR ob) = 0 THEN EXIT DO
+        IF oa AND ob THEN EXIT SUB
+        IF oa = 0 THEN
+            SWAP ax, bx
+            SWAP ay, by
+            SWAP oa, ob
+        END IF
+        IF oa AND 3 THEN
+            e = r
+            IF oa AND 1 THEN e = l
+            ay = Cut&(ax, ay, bx, by, e)
+            ax = e
+        ELSE
+            e = b
+            IF oa AND 4 THEN e = t
+            ax = Cut&(ay, ax, by, bx, e)
+            ay = e
+        END IF
+    LOOP
+    IF ax > bx THEN
+        SWAP ax, bx
+        SWAP ay, by
+    END IF
+    dx = bx - ax
+    dy = ABS(by - ay)
+    sy = -1
+    IF by > ay THEN sy = 1
+    lg = dx
+    sh = dy
+    IF dy >= dx THEN
+        lg = dy
+        sh = dx
+    END IF
+    s = style AND &HFFFF&
+    FOR i = 1 TO phase AND 15
+        s = Turned&(s)
+    NEXT
+    phase = phase + lg + 1
+    d = 4 * sh - lg
+    FOR i = 0 TO lg
+        IF s AND &H8000& THEN gfx.draw.pset dst, ax, ay, c
+        s = Turned&(s)
+        IF dx = 0 THEN
+            ay = ay + sy
+        ELSEIF dx > dy THEN
+            ax = ax + 1
+            IF d >= 0 THEN
+                d = d + 4 * (sh - lg)
+                ay = ay + sy
+            ELSE
+                d = d + 4 * sh
+            END IF
+        ELSE
+            ay = ay + sy
+            IF d >= 0 THEN
+                d = d + 4 * (sh - lg)
+                ax = ax + 1
+            ELSE
+                d = d + 4 * sh
+            END IF
+        END IF
+    NEXT
+END SUB
+
+' Which sides of the clip l, t to r, b x, y is past: 1 left, 2
+' right, 4 above, 8 below.
+FUNCTION Outside% (x AS LONG, y AS LONG, l AS INTEGER, t AS INTEGER, r AS INTEGER, b AS INTEGER)
+    DIM o AS INTEGER
+    IF x < l THEN o = 1
+    IF x > r THEN o = o OR 2
+    IF y < t THEN o = o OR 4
+    IF y > b THEN o = o OR 8
+    Outside% = o
+END FUNCTION
+
+' The other coordinate where the line from af, of to at, ot reaches
+' edge on the first, rounded to the nearest, a half away from of.
+FUNCTION Cut& (af AS LONG, of AS LONG, at AS LONG, ot AS LONG, edge AS LONG)
+    DIM n AS LONG, d AS LONG, sg AS LONG
+    n = (ot - of) * (edge - af)
+    d = at - af
+    IF d < 0 THEN
+        d = -d
+        n = -n
+    END IF
+    sg = 1
+    IF n < 0 THEN
+        n = -n
+        sg = -1
+    END IF
+    Cut& = of + sg * ((2 * n + d) \ (2 * d))
+END FUNCTION
+
+' A line style turned a bit: its high bit round to the low.
+FUNCTION Turned& (style AS LONG)
+    Turned& = (style * 2 + style \ &H8000&) AND &HFFFF&
+END FUNCTION

@@ -29,7 +29,8 @@ What changes between modes
 - Where the graphics cursor and [coordinates](WINDOW) are: (0,0) is
   the top left; the right and bottom edges are one less than the width
   and height.
-- How many [video pages](video pages) exist: these work in every mode.
+- How many [video pages](video pages) exist: 8 in mode 7, 4 in 8,
+  2 in 9, one in 1, 2, 12 and 13.
 - Which statements apply: PSET, LINE, CIRCLE, PAINT, DRAW, GET and PUT
   need a graphics mode.
 

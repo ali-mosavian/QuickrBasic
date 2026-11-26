@@ -14,14 +14,16 @@
  * | sc_box, sc_sep, sc_attr, sc_shadow | scrn_box, scrn_sep, scrn_attr, scrn_shadow | MIRROR |
  * | sc_cur, sc_shape, sc_flip | scrn_cursor, scrn_shape, scrn_flip | MIRROR |
  * | sc_at | cell | MIRROR |
- * | g_scrb | cells (static) | MIRROR |
+ * | g_scrb | cells, sized to the screen (scrn_size) | MIRROR |
  */
 #include "ui/screen.h"
 #include "ui/theme.h"
 #include "plat/pscr.h"
+#include "util/grow.h"
 
-static PscrCell cells[PSCR_ROWS_MAX * PSCR_COLS_MAX]; /* the screen as drawn, then shown */
-static PscrSize size = PSCR_80X25;                    /* the screen's (scrn_size) */
+static PscrCell *cells; /* the screen as drawn, then shown: ncells, its size's at least */
+static uint32_t ncells;
+static PscrSize size = PSCR_80X25; /* the screen's (scrn_size) */
 
 enum { SHADOW_COLS = 2 }; /* a shadow's columns right of a box */
 enum { LIGHT_GRAY = 0x07, DARK_GRAY = 0x08 };
@@ -194,7 +196,14 @@ void scrn_cursor(const uint8_t row, const uint8_t col) { pscr_cursor(0, row, col
 
 void scrn_shape(const uint16_t lines) { pscr_shape(lines); }
 
-void scrn_size(const PscrSize s) { size = s; }
+bool scrn_size(const PscrSize s)
+{
+    if (!GROW(cells, ncells, (uint32_t)s.rows * s.cols))
+        return false;
+
+    size = s;
+    return true;
+}
 
 void scrn_flip(void)
 {

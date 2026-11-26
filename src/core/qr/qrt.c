@@ -10,10 +10,9 @@
  *
  * QX is the rest, by its operand. A list has room to grow (mem/array.c): a push past it doubles
  * the room (arry_relen), so a push is amortized O(1); a pop frees nothing until the list is
- * empty. Insert and remove move an element by swaps, which keep its strings' and
- * arrays' owners. Either may move the heap, the list's cell with it, so each routine takes the
- * cell afresh. A growth sweeps the dead only now and then (arry_tidy), before it, following the
- * cell. An f-string's spec is parsed when it runs, as Python's format() does.
+ * empty. Insert and remove move an element by swaps, which keep its strings' owners. A growth
+ * sweeps the dead first, the array the last growth left among them. An f-string's spec is parsed
+ * when it runs, as Python's format() does.
  *
  * A fn value is its procedure's number: QX.CALL makes the call PCALL makes, into the body past
  * its first line's JMP, found from the procedure when it runs.
@@ -21,8 +20,7 @@
  * A map is a record of three lists (qsem_mapof): its keys and its values in the order they came,
  * and its slots, a power of 2 of them, each an entry's index + 1 or 0 free. A key's slot is its
  * hash's, probing on; half the slots at most are in use. A remove empties its slot, moving back
- * the run after it, then moves the last entry into its place. Nothing sweeps between a map's
- * lists' changes, so its address holds till the value's is returned.
+ * the run after it, then moves the last entry into its place.
  *
  * # Example
  *    a and b     a, I.LD.I32 n|FALSE, CALL QJ, b, I.LD.I32 m|ALWAYS, CALL QJ, I.LD.U8 0
@@ -277,7 +275,7 @@ static uint32_t qrt_len(const Addr cell, Addr *const data)
 }
 
 /* The list at cell one longer: within its room, else in twice the room, its elements kept, the
-   old array dead till a sweep: nothing moves. */
+   old array dead till a sweep. */
 static void qrt_lengthen(Session *const S, const Addr cell, const uint32_t et)
 {
     ArrSlot *const s = (ArrSlot *)at(cell);
@@ -292,18 +290,10 @@ static void qrt_lengthen(Session *const S, const Addr cell, const uint32_t et)
     arry_relen(&S->arry, s, et, n ? 2 * n : 4, n + 1);
 }
 
-/* The bytes a list at cell of et needs to grow: twice its room. */
-static uint32_t qrt_need(Session *const S, const Addr cell, const uint32_t et)
+/* qrt_lengthen, the dead swept first: an element the push waits with is the live array's. */
+static void qrt_grow(Session *const S, const Addr cell, const uint32_t et)
 {
-    Addr data;
-    const uint32_t n = qrt_len(cell, &data);
-    return 2 * (n ? n : 2) * arry_et_size(&S->decl, et);
-}
-
-/* qrt_lengthen, the dead swept first now and then (arry_tidy): the cell may move with the heap. */
-static void qrt_grow(Session *const S, Addr cell, const uint32_t et)
-{
-    cell = arry_tidy(&S->arry, &S->vm, cell, qrt_need(S, cell, et));
+    arry_sweep(&S->arry);
     qrt_lengthen(S, cell, et);
 }
 
@@ -330,11 +320,11 @@ static void qrt_cut(Session *const S, const Addr cell, const uint32_t et)
     memset(at(e), 0, size);
 }
 
-/* qrt_cut, then the dead swept: the cell may move with the heap. */
+/* qrt_cut, then the dead swept. */
 static void qrt_shrink(Session *const S, const Addr cell, const uint32_t et)
 {
     qrt_cut(S, cell, et);
-    arry_sweep(&S->arry, &S->vm);
+    arry_sweep(&S->arry);
 }
 
 /* Elements a and b of et swapped, a string's and a record's owners following. */
@@ -581,7 +571,7 @@ static void qrt_pop(Session *const S, const Addr cell, const uint32_t et)
     }
 
     const Desc d = strg_peek(e);
-    memcpy(S->cons.sbuf, at(d.ptr), d.len); /* copied out: the shrink frees its block */
+    memcpy(cons_scratch(&S->cons, d.len), at(d.ptr), d.len); /* copied out: the shrink frees it */
     qrt_shrink(S, cell, et);
     exec_pusha(&S->vm, strg_text(&S->strg, S->cons.sbuf, d.len));
 }
@@ -722,6 +712,7 @@ static uint32_t qrt_radix(uint64_t u, const uint32_t base, const bool upper, cha
 }
 
 enum { QRT_SIG = 17, QRT_PREC = 100 }; /* a double's digits known; a precision at most */
+enum { QRT_BODY = QRT_PREC + 512 };    /* qrt_format's digits, grouped, at most */
 
 /* m, finite and not below 0, to n significant digits, zeros kept: dig, and the first's power of
    ten. */
@@ -893,7 +884,7 @@ uint32_t qrt_format(
 )
 {
     const QrtSpec f = qrt_spec(spec, spec + n);
-    char body[QRT_PREC + 512];
+    char body[QRT_BODY];
     uint32_t len;
     const char *pre = "";
     bool neg = false;
@@ -964,6 +955,13 @@ uint32_t qrt_format(
     }
 
     return o;
+}
+
+uint32_t qrt_format_room(const Desc str, const uint8_t *const spec, const uint32_t n)
+{
+    const QrtSpec f = qrt_spec(spec, spec + n);
+    const uint32_t pad = f.width > 0 ? (uint32_t)f.width : 0;
+    return pad + (str.len > QRT_BODY ? str.len : QRT_BODY) + 4; /* a sign, 0x */
 }
 
 /* ---- slices */
@@ -1076,19 +1074,16 @@ static void qrt_mrehash(Session *const S, const Addr map, const uint32_t ket, co
         qrt_mplace(map, ket, i);
 }
 
-/* key's entry made in map, its value empty: the value's address. The map may move first. */
+/* key's entry made in map, its value empty: the value's address. The dead swept first. */
 static Addr qrt_minsert(
     Session *const S,
-    Addr map,
+    const Addr map,
     const uint32_t ket,
     const uint32_t vet,
     const Cell key
 )
 {
-    const uint32_t need = qrt_need(S, qrt_mcell(map, QM_KEYS), ket) +
-                          qrt_need(S, qrt_mcell(map, QM_VALS), vet) +
-                          qrt_need(S, qrt_mcell(map, QM_SLOTS), ET_I4);
-    map = arry_tidy(&S->arry, &S->vm, map, need);
+    arry_sweep(&S->arry);
     Addr data;
     const uint32_t n = qrt_len(qrt_mcell(map, QM_KEYS), &data);
     Addr slots;
@@ -1170,7 +1165,7 @@ static void qrt_mremove(
 
     qrt_cut(S, qrt_mcell(map, QM_KEYS), ket);
     qrt_cut(S, qrt_mcell(map, QM_VALS), vet);
-    arry_sweep(&S->arry, &S->vm);
+    arry_sweep(&S->arry);
 }
 
 /* QX_MAPAT: key's value's address in map, by how; QM_FIND's 0 when key is not there. */
@@ -1760,7 +1755,7 @@ void qrt_x(Session *const S)
         Addr data;
         const uint32_t n = qrt_len(src, &data);
         const uint32_t from = qrt_clamp(a, n), to = qrt_clamp(b, n);
-        arry_copy_part(&S->arry, vm, d, (const ArrSlot *)at(src), from, to > from ? to - from : 0);
+        arry_copy_part(&S->arry, d, (const ArrSlot *)at(src), from, to > from ? to - from : 0);
         return;
     }
 
@@ -1818,7 +1813,8 @@ void qrt_x(Session *const S)
         uint8_t sp[64];
         const uint32_t ns = spec.len < sizeof sp ? spec.len : sizeof sp;
         memcpy(sp, at(spec.ptr), ns);
-        const uint32_t n = qrt_format(kind, v, str, sp, ns, S->cons.sbuf);
+        uint8_t *const out = cons_scratch(&S->cons, qrt_format_room(str, sp, ns));
+        const uint32_t n = qrt_format(kind, v, str, sp, ns, out);
         exec_pusha(vm, strg_text(&S->strg, S->cons.sbuf, (uint16_t)n));
         return;
     }
