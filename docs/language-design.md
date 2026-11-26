@@ -908,7 +908,7 @@ end function
   and a REDIM of it changes the list.
 - What Quickr has no equal for is an error where it is used, naming why, never at the import: a
   fixed-length string, a BYTE, a TYPE's array field.
-- A native module, a `.qbx`, is imported as a QBasic one: `from qxtest import add`.
+- A native module, a `.qbx`, is imported as a QBasic one: `from synth import note`.
 - A QBasic module's code runs at its first import, as in QBasic.
 - A QBasic file imports a Quickr module: `IMPORT shapes`, then `shapes.area(2, 3)`, or `FROM
   shapes IMPORT area`. Its functions are SUBs and FUNCTIONs, its records TYPEs, the private ones
@@ -1063,7 +1063,8 @@ dicts and iterables. Everything else is in a module.
 - `io.read_line` echoes the line's end, as LINE INPUT does. `io.at(row, col)` counts from 1.
   `io.color(fg, bg = 0)`.
 
-**Not yet:** `gfx` waits on the graphics extension; `synth` on `lib/synth.qbx`.
+**Not yet:** `gfx` and `synth`. Each is a native module, which Quickr imports as QBasic does, so
+each waits only on its extension: `lib/gfx.qbx`, `lib/synth.qbx`.
 
 ## Building it
 
