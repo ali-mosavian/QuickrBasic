@@ -140,12 +140,12 @@ static const uint8_t *light(Palette *const p)
 }
 
 /* The key of row, light and tint as the rows are now. */
-static PalKey key(const Palette *const p, const int32_t row, const int32_t l, const uint32_t tint)
+PalKey pal_key(const Palette *const p, const int32_t row, const int32_t l, const uint32_t tint)
 {
     return (PalKey){row, l, tint, {p->changed[0], p->changed[row]}};
 }
 
-static bool same(const PalKey a, const PalKey b)
+bool pal_same(const PalKey a, const PalKey b)
 {
     return a.row == b.row && a.light == b.light && a.tint == b.tint &&
            a.changed[0] == b.changed[0] && a.changed[1] == b.changed[1];
@@ -170,9 +170,9 @@ bool pal_lut(
         return table;
     }
 
-    const PalKey k = key(p, row, l, tint);
+    const PalKey k = pal_key(p, row, l, tint);
 
-    if (!p->lut || !same(p->lut_key, k)) {
+    if (!p->lut || !pal_same(p->lut_key, k)) {
         const uint8_t *const m = pal_map(p);
 
         if (!m || (!p->lut && !(p->lut = mem_alloc(PAL_COLOURS))))
@@ -190,9 +190,9 @@ bool pal_lut(
 
 const uint32_t *pal_argb(Palette *const p, const int32_t row, const int32_t l, const uint32_t tint)
 {
-    const PalKey k = key(p, row, l, tint);
+    const PalKey k = pal_key(p, row, l, tint);
 
-    if (p->argb && same(p->argb_key, k))
+    if (p->argb && pal_same(p->argb_key, k))
         return p->argb;
 
     if (!p->argb && !(p->argb = mem_alloc(PAL_COLOURS * sizeof *p->argb)))
@@ -214,9 +214,9 @@ const uint32_t *pal_pixels(
     const PxFormat into
 )
 {
-    const PalKey k = key(p, row, l, tint);
+    const PalKey k = pal_key(p, row, l, tint);
 
-    if (p->pixels && same(p->pixels_key, k) && p->pixels_from == from && p->pixels_into == into)
+    if (p->pixels && pal_same(p->pixels_key, k) && p->pixels_from == from && p->pixels_into == into)
         return p->pixels;
 
     const uint32_t *const argb = from == PX_8 ? pal_argb(p, row, l, tint) : nullptr;

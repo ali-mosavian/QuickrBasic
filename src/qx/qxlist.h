@@ -37,15 +37,25 @@
  *   draw's.
  *   Its texel is its draw's first texture's. It reads no uniforms. A host may hold fewer bits of
  *   a channel than the texture: what it reads back is what it holds. It may show only the
- *   first RGBA texture made of the screen's size.
- * - PASS id, depth: the RGBA texture the draws after go into, its pixels kept; depth, if given and
- *   not 0, the DEPTH texture of its size they test and set.
+ *   first RGBA texture made of the screen's size, or (minor 6) INDEX one.
+ *   Minor 6: an INDEX texel i draws as LOOKUP's word i. Into an INDEX texture a pixel is an
+ *   index: a texel's word's low byte, a colour's red; MIX and ADD there are the host's nearest.
+ *   An INDEX texture is shown, and may be held, as COLOURS' colours: read back, a pixel held so
+ *   is the index nearest its colour.
+ * - PASS id, depth: the RGBA texture, or a FIXED pipeline's INDEX one (minor 6), the draws after
+ *   go into, its pixels kept; depth, if given and not 0, the DEPTH texture of its size they test
+ *   and set.
  * - CLIP x, y, w, h: the pass's pixels the draws after may touch.
  * - UNIFORMS bytes, pointer: the vertex code's uniform block, for the draws after.
  * - DRAW pipeline, vertices, indices, first, count, alpha, textures: count indices from first of
  *   buffer indices, triangles of buffer vertices' vertices, through the pipeline; the textures,
  *   a word each, its samplers'; alpha 0 to 255.
  * - SHOW id: the texture is shown.
+ * - LOOKUP pointer (minor 6, FIXED): 256 words, what an INDEX texel draws as after: into an INDEX
+ *   texture, an index; into an RGBA one, &HRRGGBB times the vertex's colour. Each is its own
+ *   index until given.
+ * - COLOURS pointer (minor 6, FIXED): 256 words, &HRRGGBB, an INDEX texture's indices' colours
+ *   for the draws and SHOWs after. Black until given.
  * - END.
  */
 #ifndef QX_LIST_H
@@ -79,7 +89,12 @@ typedef enum : uint8_t {
     QX_LIST_UNIFORMS,
     QX_LIST_DRAW,
     QX_LIST_SHOW,
+    QX_LIST_LOOKUP,
+    QX_LIST_COLOURS,
 } QxListOp;
+
+/* LOOKUP's and COLOURS' words. */
+enum { QX_LIST_INDICES = 256 };
 
 typedef enum : uint8_t { QX_BUFFER_VERTEX = 1, QX_BUFFER_INDEX } QxBuffer;
 

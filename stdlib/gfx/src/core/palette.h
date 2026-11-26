@@ -71,6 +71,9 @@ const uint8_t *pal_blend(Palette *p, BlendMode mode, int32_t alpha);
 uint32_t pal_shade(uint32_t rgb, int32_t light, uint32_t tint);
 /* The map of row 0: null, no memory. */
 const uint8_t *pal_map(Palette *p);
+/* What row lit by light and multiplied by tint is made from. */
+PalKey pal_key(const Palette *p, int32_t row, int32_t light, uint32_t tint);
+bool pal_same(PalKey a, PalKey b);
 /* The colours each index of row draws as, &HFFRRGGBB, lit by light and multiplied by tint: null,
    no memory. */
 const uint32_t *pal_argb(Palette *p, int32_t row, int32_t light, uint32_t tint);

@@ -98,8 +98,9 @@ backend keeps are in [design.md](design.md).
 - The one shader is in `shaders/`. `make shaders` crosses it into SPIR-V, MSL and ESSL
   (`shaders.h`).
 - `fixed.c` draws on a host with no shaders (the list's FIXED): each draw's stages as a fixed
-  pipeline, its vertices lit on the CPU. Each root is its own texture, an 8-bit one baked through
-  its row; a disc is drawn as its rows (`base/disc.c`).
+  pipeline, its vertices lit on the CPU. Each root is its own texture, an 8-bit one INDEX, drawn
+  through LOOKUP; an 8-bit canvas is shown through COLOURS; a disc is drawn as its rows
+  (`base/disc.c`).
 - The host plays the list on the interpreter's thread (SDL_GPU, DOS's 3D card) or on the page's
   (WebGL2).
   [design.md](design.md#backends) says why gfx records a list.

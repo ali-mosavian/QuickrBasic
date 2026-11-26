@@ -13,8 +13,13 @@
  *
  * Triangles go to the driver in batches, sent before any other call, which might change what they
  * draw. State and aim are sent when they change.
+ *
+ * An INDEX texture's tiles are the driver's indexed ones, drawn through the card's palette: made
+ * for the target as indices.h holds it, and sent when another than the card's. Into a target
+ * holding codes, its texel alone, and a blend drawn where its alpha is at least a half.
  */
 #include "plat/dos32/accel/accel.h"
+#include "plat/dos32/accel/indices.h"
 #include "plat/dos32/accel/texels.h"
 #include "plat/pmem.h"
 #include "qx/qxlist.h"
@@ -36,6 +41,7 @@ enum {
     OPAQUE = 255,
     BITS = 64,
     MILLI = 1000,
+    HALF = 128,
 };
 
 static_assert((int)ACCEL_COLOUR == QX_FIXED_COLOUR && (int)ACCEL_TEXEL == QX_FIXED_TEXEL);
@@ -70,6 +76,7 @@ typedef struct {
     uint16_t *texels; /* w by h: null, none yet, every texel 0 */
     uint16_t w, h;
     bool depth; /* a depth texture: no texels */
+    bool index; /* INDEX: a texel's low byte its index */
     CutGrid grid;
     uint32_t *tiles;     /* the grid's texture slots, a row across: 0, not made */
     int32_t top, bottom; /* the texel rows its tiles lack: none, top not under bottom */
@@ -88,6 +95,13 @@ typedef struct {
     const Texture *t;
     AccelState s;
 } Pieces;
+
+/* What the card's palette was made of: the target's hold, LOOKUP's words of that count (0, each
+   index itself) and COLOURS' of that count (0, not read). */
+typedef struct {
+    IndicesHeld held;
+    uint32_t lookups, colourings;
+} Paletted;
 
 static struct {
     const AccelDriver *d; /* null, none open */
@@ -116,6 +130,15 @@ static struct {
     Texture *target_of[ACCEL_TARGETS];                                    /* each target's */
     void *scratch; /* a tile's rows, or a band read back */
     size_t scratch_n;
+
+    /* LOOKUP's and COLOURS' words, each counted as given; the card's palette and what of (sent,
+       none before); the nearest index of each 565 word, of COLOURS' count memo_of */
+    uint32_t lookup[INDICES], colours[INDICES], lookups, colourings;
+    uint32_t palette[INDICES];
+    Paletted paletted;
+    bool sent_palette;
+    uint16_t *memo;
+    uint32_t memo_of;
 } p;
 
 static void *zeroed(const size_t bytes)
@@ -327,15 +350,16 @@ static void evicted(void *const object)
         forgotten(t);
 }
 
-/* A texture slot made w by h, with every other texture's given back if not: 0, no room. */
-static uint32_t tile_made(const uint16_t w, const uint16_t h)
+/* A texture slot made w by h, indexed or not, with every other texture's given back if not: 0, no
+   room. */
+static uint32_t tile_made(const uint16_t w, const uint16_t h, const bool indexed)
 {
     for (uint32_t tries = 0; tries < 2; tries++) {
         const uint32_t slot = taken(p.slots, ACCEL_TEXTURES);
 
         flushed();
 
-        if (slot && p.d->texture(slot, w, h))
+        if (slot && (indexed ? p.d->indexed(slot, w, h) : p.d->texture(slot, w, h)))
             return slot;
 
         if (slot)
@@ -372,14 +396,16 @@ static bool tiled(Texture *const t)
             uint32_t *const slot = &t->tiles[row * g->across + column];
             const int32_t top = (int32_t)(row * g->tile_h);
             const bool made = !*slot, last = row + 1 == g->down;
-            /* the texels a draw reaches, the driver's words two texels wide */
-            const uint32_t wide = (texels_reached(t->w, column * g->tile_w, g->tile_w) + 1) & ~1u;
+            /* the texels a draw reaches, the driver's words two texels wide, or four indices */
+            const uint32_t word = t->index ? TEXELS_INDEXED : 2;
+            const uint32_t reached = texels_reached(t->w, column * g->tile_w, g->tile_w);
+            const uint32_t wide = (reached + word - 1) & ~(word - 1);
             const int32_t tall = (int32_t)texels_reached(t->h, (uint32_t)top, g->tile_h);
 
             if (!made && t->top >= t->bottom)
                 continue;
 
-            if (made && !(*slot = tile_made(g->tile_w, g->tile_h)))
+            if (made && !(*slot = tile_made(g->tile_w, g->tile_h, t->index)))
                 return false;
 
             const int32_t from = t->top - top,
@@ -414,6 +440,65 @@ static bool tiled(Texture *const t)
     return true;
 }
 
+/* What t's target holds (indices.h): the screen's indices COLOURS' colours. */
+static IndicesHeld held_by(const Texture *const t)
+{
+    return !t->index ? HELD_COLOURS : t->target == ACCEL_SCREEN ? HELD_SHOWN : HELD_CODES;
+}
+
+/* The nearest indices' memo, of COLOURS as they are: null, no memory. */
+static uint16_t *memo(void)
+{
+    if (!p.memo)
+        p.memo = zeroed(INDICES_CELLS * sizeof *p.memo);
+    else if (p.memo_of != p.colourings)
+        memset(p.memo, 0, INDICES_CELLS * sizeof *p.memo);
+
+    p.memo_of = p.colourings;
+    return p.memo;
+}
+
+/* n pixels read back from INDEX texture t's target made their indices in place, each in every
+   byte: false, no memory. */
+static bool as_indices(const Texture *const t, uint8_t *const rgba, const uint32_t n)
+{
+    const bool shown = held_by(t) == HELD_SHOWN;
+    uint16_t *const m = shown ? memo() : nullptr;
+
+    if (shown && !m)
+        return false;
+
+    for (uint32_t i = 0; i < n; i++) {
+        uint8_t *const c = rgba + (size_t)i * RGBA;
+        memset(c, shown ? indices_nearest(c, p.colours, m) : indices_of_code(c), RGBA);
+    }
+
+    return true;
+}
+
+/* The card's palette for INDEX texels into a target holding held, through LOOKUP or, own, each
+   index itself: sent when it is another than the card's. */
+static void paletted(const IndicesHeld held, const bool own)
+{
+    const Paletted k = {held, own ? 0 : p.lookups, held == HELD_SHOWN ? p.colourings : 0};
+    uint32_t words[INDICES];
+
+    if (p.sent_palette && k.held == p.paletted.held && k.lookups == p.paletted.lookups &&
+        k.colourings == p.paletted.colourings)
+        return;
+
+    indices_palette(words, own ? nullptr : p.lookup, p.colours, held);
+    p.paletted = k;
+
+    if (p.sent_palette && !memcmp(words, p.palette, sizeof words))
+        return;
+
+    flushed();
+    p.d->palette(words);
+    memcpy(p.palette, words, sizeof words);
+    p.sent_palette = true;
+}
+
 /* t's texels made its target's pixels, if ahead: false, no memory. */
 static bool pulled(Texture *const t)
 {
@@ -431,9 +516,16 @@ static bool pulled(Texture *const t)
 
     for (uint32_t y = 0; y < t->h; y += BAND) {
         const uint32_t n = t->h - y < BAND ? t->h - y : BAND;
+        uint16_t *const row = texels + (size_t)y * t->w;
         p.d->read(t->target, (AccelRect){0, (int32_t)y, t->w, (int32_t)n}, band);
 
-        texels_from_rgba(texels + (size_t)y * t->w, t->w, band, (uint32_t)t->w * RGBA, t->w, n);
+        if (!t->index)
+            texels_from_rgba(row, t->w, band, (uint32_t)t->w * RGBA, t->w, n);
+        else if (!as_indices(t, band, (uint32_t)t->w * n))
+            return false;
+        else
+            for (uint32_t i = 0; i < (uint32_t)t->w * n; i++)
+                row[i] = band[(size_t)i * RGBA];
     }
 
     t->ahead = t->blank = false;
@@ -446,7 +538,12 @@ static void painted(Texture *const t, const AccelRect r)
 {
     const CutGrid *const g = &t->grid;
 
-    AccelState s = {.source = ACCEL_TEXEL, .blend = ACCEL_NONE, .alpha = OPAQUE};
+    AccelState s = {
+        .source = ACCEL_TEXEL,
+        .flags = t->index ? ACCEL_REPLACE : 0,
+        .blend = ACCEL_NONE,
+        .alpha = OPAQUE,
+    };
 
     AccelVertex v[QUAD];
 
@@ -455,6 +552,9 @@ static void painted(Texture *const t, const AccelRect r)
 
     touched(t);
     aimed(t->target, r);
+
+    if (t->index)
+        paletted(held_by(t), true);
 
     for (uint32_t row = 0; row < g->down; row++)
         for (uint32_t column = 0; column < g->across; column++) {
@@ -749,6 +849,7 @@ static bool filled(
         *argb = v.colour;
     }
 
+    *argb = indices_colour(*argb, p.colours, held_by(p.pass));
     return true;
 }
 
@@ -826,11 +927,12 @@ static void op_texture(const QxListEntry *const e)
 {
     const uint32_t *const a = e->arg;
     const uint32_t id = a[0], w = a[1], h = a[2];
-    const bool depth = a[3] == QX_TEXTURE_DEPTH;
+    const bool depth = a[3] == QX_TEXTURE_DEPTH, index = a[3] == QX_TEXTURE_INDEX;
 
     texture_freed(id);
 
-    if (!w || !h || w > UINT16_MAX || h > UINT16_MAX || (!depth && a[3] != QX_TEXTURE_RGBA))
+    if (!w || !h || w > UINT16_MAX || h > UINT16_MAX ||
+        (!depth && !index && a[3] != QX_TEXTURE_RGBA))
         return;
 
     Texture *const t = zeroed(sizeof *t);
@@ -842,6 +944,7 @@ static void op_texture(const QxListEntry *const e)
         .w = (uint16_t)w,
         .h = (uint16_t)h,
         .depth = depth,
+        .index = index,
         .target = NONE,
         .blank = true,
     };
@@ -849,7 +952,7 @@ static void op_texture(const QxListEntry *const e)
     if (depth) {
         t->serial = ++p.serials;
     } else {
-        t->grid = texels_grid(t->w, t->h, &p.card);
+        t->grid = texels_grid(t->w, t->h, index, &p.card);
         t->tiles = zeroed(tiles_of(t) * sizeof *t->tiles);
         dirtied(t, 0, t->h);
     }
@@ -882,7 +985,13 @@ static void op_upload(const QxListEntry *const e)
     if (!texels)
         return;
 
-    texels_from_rgba(texels + (size_t)y * t->w + x, t->w, qx_list_pointer(a + 6), a[5], w, h);
+    uint16_t *const to = texels + (size_t)y * t->w + x;
+
+    if (t->index)
+        texels_from_indices(to, t->w, qx_list_pointer(a + 6), a[5], w, h);
+    else
+        texels_from_rgba(to, t->w, qx_list_pointer(a + 6), a[5], w, h);
+
     t->blank = false;
     dirtied(t, (int32_t)y, (int32_t)(y + h));
 
@@ -979,7 +1088,9 @@ static void op_clip(const QxListEntry *const e)
     p.clip = (AccelRect){x0, y0, x1 > x0 ? x1 - x0 : 0, y1 > y0 ? y1 - y0 : 0};
 }
 
-/* The draw's count indices from first, triangles of pipeline pl from texture t at alpha. */
+/* The draw's count indices from first, triangles of pipeline pl from texture t at alpha, into the
+   pass holding held, blending as blend. An INDEX texel's alone unless blended, LINEAR not across
+   a key a filter would mix; a colour as the pass holds it. */
 static void triangles_drawn(
     const Pipeline *const pl,
     const Buffer *const vb,
@@ -987,10 +1098,19 @@ static void triangles_drawn(
     const uint32_t first,
     const uint32_t count,
     const Texture *const t,
-    const uint8_t alpha
+    const uint8_t alpha,
+    const AccelBlend blend
 )
 {
-    Pieces c = {t, {.source = pl->source, .blend = pl->blend, .alpha = alpha, .depth = pl->depth}};
+    const IndicesHeld held = held_by(p.pass);
+    const bool index = t && t->index, texel = pl->source == ACCEL_TEXEL;
+    const bool alone = index && texel && (blend == ACCEL_NONE || blend == ACCEL_KEEP);
+    const uint8_t cut = index && pl->flags & QX_FIXED_KEY ? ACCEL_LINEAR : 0;
+
+    Pieces c = {t, {.source = pl->source, .blend = blend, .alpha = alpha, .depth = pl->depth}};
+
+    if (index && (texel || !p.sent_palette))
+        paletted(held, false);
 
     for (uint32_t i = 0; i + 3 <= count; i += 3) {
         AccelVertex v[3];
@@ -1001,12 +1121,16 @@ static void triangles_drawn(
             !fetched(pl, vb, index_at(ib, first + i + 2), &v[2], r[2]))
             continue;
 
+        for (uint32_t k = 0; k < 3 && !texel; k++)
+            v[k].colour = indices_colour(v[k].colour, p.colours, held);
+
         if (!t) {
             drawn(&c.s, v, 3);
             continue;
         }
 
-        const CutGrid g = gridded(t, pl->flags, r[0], &c.s.flags);
+        const CutGrid g = gridded(t, (uint8_t)(pl->flags & ~cut), r[0], &c.s.flags);
+        c.s.flags |= alone ? ACCEL_REPLACE : 0;
         cut_triangle(&g, v, piece, &c);
     }
 }
@@ -1026,7 +1150,13 @@ static void op_draw(const QxListEntry *const e)
         ((uint64_t)first + count) * sizeof(uint32_t) > ib->n)
         return;
 
-    if (texel && (!t || t->depth || !pulled(t) || !tiled(t)))
+    /* into codes a blend is drawn where its alpha is at least a half, as itself */
+    const bool coded = held_by(into) == HELD_CODES,
+               blended = pl->blend == ACCEL_MIX || pl->blend == ACCEL_ADD;
+    const AccelBlend blend = coded && blended ? ACCEL_NONE : pl->blend;
+
+    if ((coded && blended && alpha < HALF) ||
+        (texel && (!t || t->depth || !pulled(t) || !tiled(t))))
         return;
 
     if (pl->blend != ACCEL_KEEP && into->target == ACCEL_SCREEN && p.owed) {
@@ -1044,7 +1174,7 @@ static void op_draw(const QxListEntry *const e)
         flushed();
         p.d->clear(argb, ACCEL_CLEAR_COLOUR);
     } else
-        triangles_drawn(pl, vb, ib, first, count, t, (uint8_t)alpha);
+        triangles_drawn(pl, vb, ib, first, count, t, (uint8_t)alpha, blend);
 
     if (pl->blend != ACCEL_KEEP) {
         into->ahead = true;
@@ -1065,6 +1195,24 @@ static void op_show(const QxListEntry *const e)
     p.owed = p.shown = true;
 }
 
+/* 256 words from a pointer's into to. */
+static void words_taken(uint32_t *const to, const uint32_t *const a)
+{
+    memcpy(to, qx_list_pointer(a), INDICES * sizeof *to);
+}
+
+static void op_lookup(const QxListEntry *const e)
+{
+    words_taken(p.lookup, e->arg);
+    p.lookups++;
+}
+
+static void op_colours(const QxListEntry *const e)
+{
+    words_taken(p.colours, e->arg);
+    p.colourings++;
+}
+
 typedef void Op(const QxListEntry *e);
 
 /* Each op's, and its arguments at least; UNIFORMS, none: a fixed pipeline reads none. */
@@ -1082,6 +1230,8 @@ static const struct {
     [QX_LIST_CLIP] = {op_clip, 4},
     [QX_LIST_DRAW] = {op_draw, QX_DRAW_TEXTURES},
     [QX_LIST_SHOW] = {op_show, 1},
+    [QX_LIST_LOOKUP] = {op_lookup, 2},
+    [QX_LIST_COLOURS] = {op_colours, 2},
 };
 
 bool accel_open(
@@ -1105,6 +1255,11 @@ bool accel_open(
     p.h = h;
     p.vsync = vsync;
     p.screen = p.aimed = NONE;
+    p.lookups = p.colourings = 1;
+
+    for (uint32_t i = 0; i < INDICES; i++)
+        p.lookup[i] = i;
+
     return true;
 }
 
@@ -1119,6 +1274,7 @@ void accel_close(void)
     walked(p.buffers.root, LEVELS, buffer_discarded, true);
     walked(p.pipelines.root, LEVELS, pmem_free, true);
     pmem_free(p.scratch);
+    pmem_free(p.memo);
     memset(&p, 0, sizeof p);
 }
 
@@ -1161,13 +1317,22 @@ void accel_read(
     }
 
     if (!t->ahead) {
-        texels_to_rgba(out, t->texels + (size_t)y * t->w + x, t->w, (uint32_t)w, (uint32_t)h);
+        const uint16_t *const from = t->texels + (size_t)y * t->w + x;
+
+        if (t->index)
+            texels_to_indices(out, from, t->w, (uint32_t)w, (uint32_t)h);
+        else
+            texels_to_rgba(out, from, t->w, (uint32_t)w, (uint32_t)h);
+
         return;
     }
 
     touched(t);
     flushed();
     p.d->read(t->target, (AccelRect){x, y, w, h}, out);
+
+    if (t->index && !as_indices(t, out, (uint32_t)w * (uint32_t)h))
+        memset(out, 0, (size_t)w * (uint32_t)h * RGBA);
 }
 
 float accel_hz(void) { return p.d ? (float)p.card.millihz / MILLI : 0; }

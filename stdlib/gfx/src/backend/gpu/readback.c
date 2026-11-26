@@ -29,29 +29,20 @@ bool gpu_sync(Gpu *const g, const Pixels px, const uint32_t h)
     qx_host->gpu_read(h, 0, 0, px.w, px.h, rgba);
     g->count.waits++;
     const uint32_t bytes = px_bytes(px.format);
-    bool mapped = true;
 
+    /* an 8-bit root's index is in alpha: the shader's, or each byte a fixed host's */
     for (int32_t y = 0; y < px.h; y++)
         for (int32_t x = 0; x < px.w; x++) {
             const uint8_t *const c = rgba + (y * px.w + x) * RGBA;
             const uint32_t rgb = (uint32_t)c[0] << 16 | (uint32_t)c[1] << 8 | c[2];
-            uint8_t nearest = 0;
-
-            /* a fixed host's 8-bit root holds colours: each read back as the index nearest */
-            mapped = mapped && (!g->fixed || px.format != PX_8 || pal_index(g->pal, rgb, &nearest));
-
-            const uint32_t v = px.format == PX_8    ? g->fixed ? nearest : c[3]
-                                  : px.format == PX_32 ? (uint32_t)c[3] << 24 | rgb
+            const uint32_t v = px.format == PX_8    ? c[3]
+                               : px.format == PX_32 ? (uint32_t)c[3] << 24 | rgb
                                : c[3] < HALF        ? 0
                                                     : px_pack(px.format, rgb);
             px_store(px.p + y * px.pitch + (uint32_t)x * bytes, v, bytes);
         }
 
     mem_free(rgba);
-
-    if (!mapped)
-        return false;
-
     e->drawn = false;
     return true;
 }

@@ -2,6 +2,7 @@
 #include "backend/gpu/fixed.h"
 #include "backend/gpu/pipelines.h"
 #include "core/mem.h"
+#include "core/palette.h"
 
 enum { ATTRIBUTES = 4, WRAPS = 3, QUAD = 4 };
 
@@ -64,11 +65,15 @@ static bool made(
     return true;
 }
 
-/* v's colour lit as the shader lights it: SOLID's as it is, a texel's tint by light over 63; its
-   alpha whole. */
+/* v's colour lit as the shader lights it: SOLID's as it is, a texel's tint by light over 63, an
+   index's white (LOOKUP's lit); its alpha whole. */
 static GpuVertex lit(GpuVertex v)
 {
-    if (!(v.stages & GPU_STAGE_SOLID)) {
+    const bool solid = v.stages & GPU_STAGE_SOLID, index = v.stages & GPU_STAGE_INDEXED;
+
+    if (!solid && index)
+        v.r = v.g = v.b = 0xFF;
+    else if (!solid) {
         v.r = (uint8_t)(v.r * v.light / PAL_FULL);
         v.g = (uint8_t)(v.g * v.light / PAL_FULL);
         v.b = (uint8_t)(v.b * v.light / PAL_FULL);
@@ -78,14 +83,46 @@ static GpuVertex lit(GpuVertex v)
     return v;
 }
 
+/* LOOKUP for t's index texels sent, if they draw as other words than it last gave: into an 8-bit
+   target, the lut's indices; else the row's colours lit and tinted. False, no memory. */
+static bool looked_up(Gpu *const g, const GpuCall *const t)
+{
+    const int32_t row = t->template.row, light = t->template.light;
+    const PalKey k = pal_key(g->pal, row, light, t->tint);
+
+    if (g->looked_up && g->looked_eight == t->eight && pal_same(g->looked, k))
+        return true;
+
+    const uint32_t *const argb = t->eight ? nullptr : pal_argb(g->pal, row, light, t->tint);
+    uint32_t *const words = list_keep(&g->list, QX_LIST_INDICES * sizeof *words);
+    uint32_t args[2];
+
+    if (!words || (!t->eight && !argb))
+        return false;
+
+    for (uint32_t i = 0; i < QX_LIST_INDICES; i++)
+        words[i] = !t->eight ? argb[i] & PAL_WHITE : t->lut ? t->lut[i] : i;
+
+    list_pointer(args, words);
+
+    if (!list_op(&g->list, QX_LIST_LOOKUP, args, 2))
+        return false;
+
+    g->looked = k;
+    g->looked_eight = t->eight;
+    g->looked_up = true;
+    return true;
+}
+
 bool fixed_draw(Gpu *const g, const GpuCall *const t, const GpuVertex *const v, const uint32_t n)
 {
     const uint32_t textures[LIST_TEXTURES] = {t->texture};
+    const bool index = (v->stages & (GPU_STAGE_INDEXED | GPU_STAGE_SOLID)) == GPU_STAGE_INDEXED;
 
     GpuVertex out[QUAD];
     uint32_t id;
 
-    if (!made(g, v->stages, t->blend, t->depth, &id))
+    if ((index && !looked_up(g, t)) || !made(g, v->stages, t->blend, t->depth, &id))
         return false;
 
     for (uint32_t at = 0; at < n; at += QUAD) {

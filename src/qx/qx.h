@@ -30,8 +30,9 @@
 #define QX_EXPORT __attribute__((visibility("default")))
 #endif
 
-/* Minor 4 adds the GPU list's depth (qxlist.h); minor 5 its fixed pipeline (QX_SHADER_FIXED). */
-enum { QX_ABI = 1, QX_MINOR = 5 };
+/* Minor 4 adds the GPU list's depth (qxlist.h); minor 5 its fixed pipeline (QX_SHADER_FIXED);
+   minor 6 a fixed pipeline's INDEX targets, LOOKUP and COLOURS. */
+enum { QX_ABI = 1, QX_MINOR = 6 };
 
 typedef struct QxCall QxCall;
 typedef void QX_CALL QxFn(QxCall *c);
@@ -145,7 +146,7 @@ typedef struct QxHost {
        host is done with the list's memory. */
     void(QX_CALL *gpu_play)(const uint32_t *list, uint32_t words);
     /* w by h pixels at x, y of a texture, as played so far, into out: bytes R, G, B and A, rows
-       top first. */
+       top first; an INDEX texture's index in each (minor 6). */
     void(QX_CALL
              *gpu_read)(uint32_t texture, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t *out);
     /* Minor 3. The monitors, numbered from 1. */

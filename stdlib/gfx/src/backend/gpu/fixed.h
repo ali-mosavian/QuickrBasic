@@ -5,10 +5,11 @@
  * A draw's stages become a pipeline's fixed state: SOLID, the colour alone, else the texel times
  * it; KEYED, the texel's alpha tested; SMOOTH, linear; WRAP, u repeated across the rectangle,
  * TILE, u and v. A vertex's colour is lit here: SOLID's as it is, a texel's by the tint times the
- * light over 63, as the shader's lit does. A root's texture is its own, never a page's, and an
- * 8-bit root's texels are its row's colours (gpu.c). A disc is drawn as its rows (backend.c). An
- * 8-bit target holds colours: an index drawn as its colour through row 0, read back as the index
- * nearest it.
+ * light over 63, as the shader's lit does. A root's texture is its own, never a page's; an 8-bit
+ * root's is INDEX, drawn from and into (gpu.c). An index texel draws through LOOKUP, sent here
+ * when its words change: into an 8-bit target the lut's indices, else the row's colours lit and
+ * tinted, its vertex white. Into an 8-bit target a colour is an index, in r, g and b; SMOOTH is
+ * nearest; MIX and ADD are the host's (backend.c). A disc is drawn as its rows (backend.c).
  */
 #ifndef GFX_GPU_FIXED_H
 #define GFX_GPU_FIXED_H

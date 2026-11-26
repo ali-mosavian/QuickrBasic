@@ -146,12 +146,15 @@ TEST(accel_cut_moves_each_period_of_a_wrap_into_the_first)
 enum { SCREEN_W = 320, SCREEN_H = 200, SLOTS = 8, TILE = 256 * 32, CALLS = 256 };
 
 /* A call a letter: Texture, Upload, Forget, tarGet, Drop, Aim, State, triangles (V), shoW,
-   Carry, Read, cLear. */
+   Carry, Read, cLear, Indexed, Palette. */
 static struct {
     char calls[CALLS];
     uint32_t ncalls;
     uint16_t texture_w[SLOTS], texture_h[SLOTS];
+    bool indexed[SLOTS];
     uint32_t textures;
+    AccelState state;      /* the last sent */
+    uint32_t palette[256]; /* the last sent */
     uint16_t up[SLOTS][TILE];
     AccelVertex last[3];
     uint32_t room, held; /* the targets the card has room for, and holds */
@@ -243,7 +246,29 @@ static void ACCEL_CALL fake_aim(uint32_t slot, AccelRect clip)
     (void)slot, (void)clip, called('A');
 }
 
-static void ACCEL_CALL fake_state(const AccelState *s) { (void)s, called('S'); }
+static void ACCEL_CALL fake_state(const AccelState *s)
+{
+    called('S');
+    fake.state = *s;
+}
+
+static bool ACCEL_CALL fake_indexed(uint32_t slot, uint16_t w, uint16_t h)
+{
+    const bool made = fake_texture(slot, w, h);
+
+    fake.calls[fake.ncalls - 1] = 'I';
+
+    if (made)
+        fake.indexed[slot] = true;
+
+    return made;
+}
+
+static void ACCEL_CALL fake_palette(const uint32_t *colours)
+{
+    called('P');
+    memcpy(fake.palette, colours, sizeof fake.palette);
+}
 
 static void ACCEL_CALL fake_triangles(const AccelVertex *v, uint32_t n)
 {
@@ -287,6 +312,8 @@ static const AccelDriver FAKE = {
     .carry = fake_carry,
     .read = fake_read,
     .clear = fake_clear,
+    .indexed = fake_indexed,
+    .palette = fake_palette,
 };
 
 /* A vertex as the FIXED pipeline's attributes find it. */
@@ -325,11 +352,16 @@ static void put(const QxListOp op, const uint32_t *const a, const uint32_t n)
     put(op, (const uint32_t[]){__VA_ARGS__}, sizeof((const uint32_t[]){__VA_ARGS__}) / 4)
 #define POINTER(p) (uint32_t)(uintptr_t)(p), (uint32_t)((uint64_t)(uintptr_t)(p) >> 32)
 
-static void pipeline(const uint32_t id, const QxFixedSource source, const uint32_t flags)
+static void blended(
+    const uint32_t id,
+    const QxFixedSource source,
+    const uint32_t flags,
+    const QxBlend blend
+)
 {
     PUT(QX_LIST_PIPELINE,
         id,
-        QX_BLEND_NONE,
+        blend,
         sizeof(Vertex),
         1,
         source,
@@ -352,6 +384,11 @@ static void pipeline(const uint32_t id, const QxFixedSource source, const uint32
         offsetof(Vertex, rx));
 }
 
+static void pipeline(const uint32_t id, const QxFixedSource source, const uint32_t flags)
+{
+    blended(id, source, flags, QX_BLEND_NONE);
+}
+
 /* A new list: the screen's texture, two pipelines, the art's texture w by h. */
 static void begun(const uint32_t w, const uint32_t h)
 {
@@ -364,7 +401,36 @@ static void begun(const uint32_t w, const uint32_t h)
 }
 
 /* A quad over pixels x0 to x1, y0 to y1, texels u0 to u1 across, drawn with pipeline from
-   texture. */
+   texture at alpha, its colour red. */
+static void box_at(
+    const uint32_t pipe,
+    const uint32_t texture,
+    const float x0,
+    const float y0,
+    const float x1,
+    const float y1,
+    const float u0,
+    const float u1,
+    const uint8_t red,
+    const uint32_t alpha
+)
+{
+    const uint32_t at = list.nv, first = list.ni;
+    const float xs[] = {x0, x1, x1, x0}, ys[] = {y0, y0, y1, y1}, us[] = {u0, u1, u1, u0};
+
+    const uint32_t corners[] = {0, 1, 2, 0, 2, 3};
+
+    for (uint32_t i = 0; i < 4; i++)
+        list.v[list.nv++] =
+            (Vertex){xs[i] - 0.5f, ys[i] - 0.5f, 0, 1, us[i], 0, .r = red, .a = 255};
+
+    for (uint32_t i = 0; i < 6; i++)
+        list.index[list.ni++] = at + corners[i];
+
+    PUT(QX_LIST_DRAW, pipe, VERTICES, INDICES, first, 6, alpha, texture);
+}
+
+/* A quad as box_at's, red and opaque. */
 static void box(
     const uint32_t pipe,
     const uint32_t texture,
@@ -376,19 +442,7 @@ static void box(
     const float u1
 )
 {
-    const uint32_t at = list.nv, first = list.ni;
-    const float xs[] = {x0, x1, x1, x0}, ys[] = {y0, y0, y1, y1}, us[] = {u0, u1, u1, u0};
-
-    const uint32_t corners[] = {0, 1, 2, 0, 2, 3};
-
-    for (uint32_t i = 0; i < 4; i++)
-        list.v[list.nv++] =
-            (Vertex){xs[i] - 0.5f, ys[i] - 0.5f, 0, 1, us[i], 0, .r = 255, .a = 255};
-
-    for (uint32_t i = 0; i < 6; i++)
-        list.index[list.ni++] = at + corners[i];
-
-    PUT(QX_LIST_DRAW, pipe, VERTICES, INDICES, first, 6, 255, texture);
+    box_at(pipe, texture, x0, y0, x1, y1, u0, u1, 255, 255);
 }
 
 /* The list ended: its buffers, a pass into into before its draws, shown when show. */
@@ -683,5 +737,104 @@ TEST(accel_player_clears_depth_by_the_cards_fill)
     CHECK(played(SHOWN, list.n, true));
     list.depth = 0;
     CHECK(calls_of('L') == 1 && calls_of('V') == 0 && fake.what == ACCEL_CLEAR_DEPTH);
+    accel_close();
+}
+
+/* ---- INDEX textures (indices.h) ---- */
+
+enum { INDEXED = 11, OTHER = 12, MIXED = 4 };
+
+/* A new list: the screen INDEX, an INDEX art w by h holding 0 up, OTHER an INDEX target 2 by 2,
+   COLOURS index i i times &H010101 but 3 &H424242, LOOKUP index i i + 1. */
+static void indexed_begun(const uint32_t w, const uint32_t h)
+{
+    static uint8_t art[64];
+    static uint32_t colours[256], lookup[256];
+
+    for (uint32_t i = 0; i < 256; i++) {
+        colours[i] = i * 0x010101;
+        lookup[i] = (i + 1) & 0xFF;
+    }
+
+    for (uint32_t i = 0; i < sizeof art; i++)
+        art[i] = (uint8_t)i;
+
+    colours[3] = 0x424242;
+    list.n = list.nv = list.ni = 0;
+    PUT(QX_LIST_TEXTURE, SHOWN, SCREEN_W, SCREEN_H, QX_TEXTURE_INDEX);
+    PUT(QX_LIST_TEXTURE, INDEXED, w, h, QX_TEXTURE_INDEX);
+    PUT(QX_LIST_TEXTURE, OTHER, 2, 2, QX_TEXTURE_INDEX);
+    PUT(QX_LIST_UPLOAD, INDEXED, 0, 0, w, h, w, POINTER(art));
+    PUT(QX_LIST_COLOURS, POINTER(colours));
+    PUT(QX_LIST_LOOKUP, POINTER(lookup));
+    pipeline(SOLID, QX_FIXED_COLOUR, 0);
+    pipeline(TEXTURED, QX_FIXED_TEXEL, QX_FIXED_KEY | QX_FIXED_LINEAR);
+    blended(MIXED, QX_FIXED_COLOUR, 0, QX_BLEND_MIX);
+}
+
+/* An INDEX texture's tile is the driver's indexed one, at least four texels across, its texels
+   its indices. Into the screen it draws through COLOURS of LOOKUP's index, its texel alone, keyed
+   but not filtered across the key; the palette sent once while the same. */
+TEST(accel_player_draws_an_index_texture_through_the_shown_colours)
+{
+    opened();
+    indexed_begun(3, 1);
+
+    const uint32_t from = list.n;
+
+    box(TEXTURED, INDEXED, 0, 0, 3, 1, 0, 3);
+    box(TEXTURED, INDEXED, 4, 0, 7, 1, 0, 3);
+    CHECK(played(SHOWN, from, true));
+    CHECK(calls_of('I') == 1 && fake.indexed[1] && fake.texture_w[1] == 4);
+    CHECK(fake.up[1][1] == 1 && fake.up[1][2] == 2 && fake.up[1][3] == 2);
+    CHECK(calls_of('P') == 1 && fake.palette[2] == 0x424242 && fake.palette[0] == 0x010101);
+    CHECK(fake.state.flags == (ACCEL_KEY | ACCEL_REPLACE));
+    accel_close();
+}
+
+/* Off the screen an INDEX target holds codes: a colour's red its index as the 565 word index
+   times &H0101, a texel's palette their codes, read back as their low byte. A blend is drawn
+   where its alpha is at least a half, as itself. */
+TEST(accel_player_codes_indices_off_the_screen)
+{
+    uint8_t out[4];
+
+    opened();
+    indexed_begun(1, 1);
+
+    const uint32_t from = list.n;
+
+    box_at(SOLID, 0, 0, 0, 1, 1, 0, 0, 5, 255);
+    CHECK(!played(OTHER, from, false) && fake.last[0].colour == 0xFF00A028);
+
+    list.n = list.nv = list.ni = 0;
+    box(TEXTURED, INDEXED, 0, 0, 1, 1, 0, 1);
+    box_at(MIXED, 0, 0, 0, 1, 1, 0, 0, 7, 127);
+    CHECK(!played(OTHER, 0, false) && calls_of('V') == 2 && fake.palette[0] == 0x002008);
+
+    list.n = list.nv = list.ni = 0;
+    box_at(MIXED, 0, 0, 0, 1, 1, 0, 0, 7, 128);
+    CHECK(!played(OTHER, 0, false) && calls_of('V') == 3 && fake.state.blend == ACCEL_NONE);
+
+    accel_read(OTHER, 0, 0, 1, 1, out);
+    CHECK(out[0] == 0x08 && out[1] == 0x08 && out[2] == 0x08 && out[3] == 0x08);
+    accel_close();
+}
+
+/* The screen read back: each pixel the index of COLOURS nearest its colour. */
+TEST(accel_player_reads_the_shown_index_texture_as_the_nearest_indices)
+{
+    uint8_t out[4];
+
+    opened();
+    indexed_begun(1, 1);
+
+    const uint32_t from = list.n;
+
+    box_at(SOLID, 0, 0, 0, 1, 1, 0, 0, 3, 255);
+    CHECK(played(SHOWN, from, true) && fake.last[0].colour == 0xFF424242);
+
+    accel_read(SHOWN, 0, 0, 1, 1, out);
+    CHECK(out[0] == 3 && out[3] == 3);
     accel_close();
 }

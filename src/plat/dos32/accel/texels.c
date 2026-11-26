@@ -14,13 +14,19 @@ static uint32_t rounded_up(const uint32_t n)
     return p;
 }
 
-CutGrid texels_grid(const uint16_t w, const uint16_t h, const AccelCard *const c)
+CutGrid texels_grid(
+    const uint16_t w,
+    const uint16_t h,
+    const bool indexed,
+    const AccelCard *const c
+)
 {
     uint32_t tw = rounded_up(w), th = rounded_up(h);
 
-    const uint32_t least = 1u << c->least;
+    const uint32_t least = 1u << c->least,
+                   across = indexed && least < TEXELS_INDEXED ? TEXELS_INDEXED : least;
 
-    tw = tw > c->side ? c->side : tw < least ? least : tw;
+    tw = tw > c->side ? c->side : tw < across ? across : tw;
     th = th > c->side ? c->side : th < least ? least : th;
 
     while (tw > th << c->aspect)
@@ -114,4 +120,32 @@ void texels_tile(
         for (uint32_t x = 0; x < wide; x++)
             to[x] = in[left + x < w ? left + x : w - 1u];
     }
+}
+
+void texels_from_indices(
+    uint16_t *const to,
+    const uint32_t to_pitch,
+    const uint8_t *const from,
+    const uint32_t from_pitch,
+    const uint32_t w,
+    const uint32_t h
+)
+{
+    for (uint32_t y = 0; y < h; y++)
+        for (uint32_t x = 0; x < w; x++)
+            to[(size_t)y * to_pitch + x] = from[(size_t)y * from_pitch + x];
+}
+
+void texels_to_indices(
+    uint8_t *const to,
+    const uint16_t *const from,
+    const uint32_t from_pitch,
+    const uint32_t w,
+    const uint32_t h
+)
+{
+    for (uint32_t y = 0; y < h; y++)
+        for (uint32_t x = 0; x < w; x++)
+            for (uint32_t k = 0; k < RGBA; k++)
+                to[((size_t)y * w + x) * RGBA + k] = (uint8_t)from[(size_t)y * from_pitch + x];
 }

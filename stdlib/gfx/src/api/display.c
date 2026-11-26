@@ -59,9 +59,9 @@ int32_t gfx_display_open(const int32_t w, const int32_t h, const int32_t depth, 
         .h = (uint16_t)h,
         .depth = (uint8_t)depth,
         .flags = (uint8_t)flags,
-        /* a fixed host draws no indices: an 8-bit screen's are the shader's */
+        /* a fixed host draws indices from minor 6 */
         .shaders = 1 << QX_SHADER_MSL | 1 << QX_SHADER_ESSL | 1 << QX_SHADER_SPIRV |
-                   (depth != 8 ? 1 << QX_SHADER_FIXED : 0),
+                   (depth != 8 || qx_host->minor >= 6 ? 1 << QX_SHADER_FIXED : 0),
     };
 
     if (!qx_host->gfx_open(&s) || !format_of(s.depth, &format))

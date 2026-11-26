@@ -6,7 +6,7 @@
 #include "backend/gpu/pipelines.h"
 #include "core/mem.h"
 
-enum { RGBA = 4, OPAQUE = 0xFF };
+enum { RGBA = 4, OPAQUE = 0xFF, HALF = 0x80 };
 
 /* A box none. */
 static constexpr GpuBox NONE = {0, 0, 0, 0};
@@ -29,13 +29,9 @@ static GpuTexture *entry(Gpu *const g, const uint32_t texture)
     return &g->textures[slot];
 }
 
-/* A texel as ARGB, a keyed one's alpha 0; an index, its colour in colours unless null, else itself
-   in every channel. */
-static uint32_t argb(const PxFormat f, const uint32_t v, const uint32_t *const colours)
+/* A texel as ARGB, a keyed one's alpha 0; an index, itself in every channel. */
+static uint32_t argb(const PxFormat f, const uint32_t v)
 {
-    if (f == PX_8 && colours)
-        return (colours[v] & PX_WHITE) | (v ? (uint32_t)OPAQUE << 24 : 0);
-
     if (f == PX_8)
         return v * 0x01010101u;
 
@@ -46,17 +42,24 @@ static uint32_t argb(const PxFormat f, const uint32_t v, const uint32_t *const c
     return px_key(f, v) ? c & PX_WHITE : c;
 }
 
-/* px's texels in format, an 8-bit one's through colours unless null, in the list's kept memory,
+/* A direct texel's index: 0 keyed, else the one nearest its colour. False, no memory. */
+static bool nearest(Palette *const pal, const uint32_t c, uint8_t *const index)
+{
+    *index = 0;
+    return c >> 24 < HALF || pal_index(pal, c & PX_WHITE, index);
+}
+
+/* px's texels in format, a direct one's as INDEX matched through pal, in the list's kept memory,
    *pitch bytes a row: null, no memory. */
 static const uint8_t *texels(
     GpuList *const l,
     const Pixels *const px,
     const QxTextureFormat format,
-    const uint32_t *const colours,
+    Palette *const pal,
     uint32_t *const pitch
 )
 {
-    const bool index = format == QX_TEXTURE_INDEX;
+    const bool index = format == QX_TEXTURE_INDEX, direct = px->format != PX_8;
     const uint32_t bytes = px_bytes(px->format);
     *pitch = (uint32_t)px->w * (index ? 1 : RGBA);
     uint8_t *const out = list_keep(l, *pitch * (uint32_t)px->h);
@@ -65,11 +68,14 @@ static const uint8_t *texels(
         for (int32_t x = 0; x < px->w; x++) {
             uint8_t *const o = out + y * *pitch + x * (index ? 1 : RGBA);
             const uint32_t v = px_load(px->p + y * px->pitch + (uint32_t)x * bytes, bytes);
-            const uint32_t c = argb(px->format, v, colours);
+            const uint32_t c = argb(px->format, v);
 
-            if (index)
+            if (index && direct && !nearest(pal, c, o))
+                return nullptr;
+
+            if (index && !direct)
                 o[0] = (uint8_t)v;
-            else
+            else if (!index)
                 mem_copy(o, (const uint8_t[]){c >> 16, c >> 8, c, c >> 24}, RGBA);
         }
 
@@ -94,6 +100,9 @@ bool gpu_open(Gpu *const g, const QxScreen *const s, const bool eight, Palette *
     g->mapped = 0;
     g->row0 = 1;
     g->coloured = 1; /* all index 0, black in the palette as it starts */
+    g->colours = 0;
+    g->looked_up = false;
+
     g->eight = eight;
     g->screen_w = (int32_t)s->w;
     g->screen_h = (int32_t)s->h;
@@ -107,8 +116,9 @@ bool gpu_open(Gpu *const g, const QxScreen *const s, const bool eight, Palette *
     mem_fill(g->made, 0, sizeof g->made);
 
     GpuTexture *const canvas = entry(g, SURF_SCREEN);
+    const QxTextureFormat format = g->fixed && eight ? QX_TEXTURE_INDEX : QX_TEXTURE_RGBA;
     const uint32_t made[][4] = {
-        {SURF_SCREEN, s->w, s->h, QX_TEXTURE_RGBA},
+        {SURF_SCREEN, s->w, s->h, format},
         {GPU_PALETTE, PAL_COLOURS, GPU_PALETTE_ROWS, QX_TEXTURE_RGBA},
     };
 
@@ -118,7 +128,7 @@ bool gpu_open(Gpu *const g, const QxScreen *const s, const bool eight, Palette *
         (!g->fixed && !list_op(&g->list, QX_LIST_TEXTURE, made[1], 4)))
         return false;
 
-    *canvas = (GpuTexture){.handle = SURF_SCREEN, .format = QX_TEXTURE_RGBA};
+    *canvas = (GpuTexture){.handle = SURF_SCREEN, .format = format};
 
     return true;
 }
@@ -134,27 +144,40 @@ void gpu_close(Gpu *const g)
     g->npages = g->cappages = 0;
 }
 
-/* e, of an 8-bit root drawn from on a fixed host, sent again whole when its row is another, or
-   changed since. */
-static void bake(const Gpu *const g, GpuTexture *const e, const Source *const p, const int32_t row)
+/* e, a direct root's indices on a fixed host, sent again whole when row 0 changed since. */
+static void rematched(const Gpu *const g, GpuTexture *const e, const Source *const p)
 {
-    const uint32_t baked = g->pal->changed[row] + 1;
+    const uint32_t row0 = g->pal->changed[0] + 1;
 
-    if (e->row == row && e->baked == baked)
+    if (e->matched == row0)
         return;
 
-    e->row = row;
-    e->baked = baked;
+    e->matched = row0;
     e->version = ~p->version;
     e->top = 0;
     e->bottom = p->root.h;
+}
+
+/* The format p's root wants: a fixed host's indices for an 8-bit root or a matched one, a shader's
+   for an 8-bit root drawn from; else RGBA. */
+static QxTextureFormat wanted(
+    const Gpu *const g,
+    const Source *const p,
+    const bool into,
+    const bool matched
+)
+{
+    const bool eight = p->root.format == PX_8;
+    const bool index = g->fixed ? eight || (matched && !into) : eight && !into;
+
+    return index ? QX_TEXTURE_INDEX : QX_TEXTURE_RGBA;
 }
 
 bool gpu_texture(
     Gpu *const g,
     const Source *const p,
     const bool into,
-    const int32_t row,
+    const bool matched,
     GpuSource *const out
 )
 {
@@ -162,13 +185,15 @@ bool gpu_texture(
     const uint32_t name = p->texture;
     const Pixels *const px = &p->root;
     const bool eight = px->format == PX_8, indices = eight && !g->fixed;
-    const QxTextureFormat want = into || !indices ? QX_TEXTURE_RGBA : QX_TEXTURE_INDEX;
 
     if (!e)
         return false;
 
     if (e->handle != p->texture)
         *e = (GpuTexture){.handle = p->texture, .bottom = px->h};
+
+    /* a direct root drawn into is ahead on the GPU: drawn from as it is there */
+    const QxTextureFormat want = e->drawn && !eight ? QX_TEXTURE_RGBA : wanted(g, p, into, matched);
 
     if (e->page && into) {
         atlas_unpack(g, e);
@@ -184,7 +209,7 @@ bool gpu_texture(
         e->version = ~p->version; /* the place may hold another's */
         e->top = 0;
         e->bottom = px->h;
-    } else if (!e->format || (want == QX_TEXTURE_RGBA && e->format == QX_TEXTURE_INDEX)) {
+    } else if (!e->format || (want != e->format && (g->fixed || want == QX_TEXTURE_RGBA))) {
         const bool had = e->format;
         const uint32_t args[] = {name, (uint32_t)px->w, (uint32_t)px->h, want};
 
@@ -201,19 +226,18 @@ bool gpu_texture(
     }
 
     /* drawn into, the GPU's are ahead of the CPU's: not sent again */
-    if (g->fixed && eight && !into && !e->drawn)
-        bake(g, e, p, row);
+    if (want == QX_TEXTURE_INDEX && !eight && !e->drawn)
+        rematched(g, e, p);
 
     const uint32_t id = e->page ? e->page : name;
     const int32_t top = e->top, h = e->bottom - e->top;
-    const uint32_t *const colours = g->fixed && eight ? g->pal->rows[into ? 0 : row] : nullptr;
 
     if (e->version != p->version && h > 0) {
         const Pixels cut = px_cut(px, (Rect){0, top, px->w, h});
 
         uint32_t pitch, args[8] = {id, e->x, e->y + (uint32_t)top, (uint32_t)px->w, (uint32_t)h};
 
-        const uint8_t *const bytes = texels(&g->list, &cut, e->format, colours, &pitch);
+        const uint8_t *const bytes = texels(&g->list, &cut, e->format, g->pal, &pitch);
 
         if (!bytes)
             return false;
@@ -238,7 +262,7 @@ bool gpu_texture(
         id,
         e->x,
         e->y,
-        indices,
+        indices || e->format == QX_TEXTURE_INDEX,
         indices && e->format == QX_TEXTURE_RGBA,
         e->depth ? depth_of(name) : 0,
     };
@@ -567,8 +591,8 @@ void gpu_play(Gpu *const g, const bool show)
 
     called(g);
 
-    const bool ready =
-        !show || ((!g->eight || recolour(g)) && list_op(&g->list, QX_LIST_SHOW, &shown, 1));
+    const bool ready = !show || ((!g->eight || g->fixed || recolour(g)) &&
+                                 list_op(&g->list, QX_LIST_SHOW, &shown, 1));
     const uint32_t *const words = ready ? list_end(&g->list, &n) : nullptr;
 
     if (words)

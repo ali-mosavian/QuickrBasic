@@ -7,8 +7,9 @@
  * drawn from or into, and again when the CPU wrote them since (the root's version). A root drawn
  * from, half a page or smaller, is packed into an atlas page (atlas.h). Drawn into, a root has a
  * texture of its own, named by its handle; packed, it leaves its page. An 8-bit root is indices: a
- * byte a texel drawn from; drawn into, RGBA, its colour through row 0 and its index in alpha. An
- * 8-bit canvas is shown as it is, its colours made again at a flip after row 0 changed. The
+ * byte a texel drawn from; drawn into, RGBA, its colour through row 0 and its index in alpha, or
+ * on a fixed host indices still. An 8-bit canvas is shown as it is, its colours made again at a
+ * flip after row 0 changed; a fixed host's through COLOURS, sent when row 0 changed. The
  * palette's texture holds its rows, then row 0's map (palette.h), sent when a draw needs it. A root
  * drawn into is ahead on the GPU (drawn) until gpu_sync reads it back. A draw reads its texture and
  * the palette. A texture keeps the rows the CPU wrote since it was sent (gpu_wrote), so it sends
@@ -57,8 +58,7 @@ typedef struct {
     int32_t top, bottom;    /* the rows the CPU wrote since version was sent */
     bool drawn;             /* the GPU drew in it since it was read back */
     bool depth;             /* its depth texture made */
-    int32_t row;            /* fixed, an 8-bit root drawn from: the palette's row its texels are */
-    uint32_t baked;         /* that row's changes when they were sent, and 1; 0 not yet */
+    uint32_t matched;       /* fixed, a direct root's indices: row 0's changes they are of, and 1 */
 } GpuTexture;
 
 /* An atlas page: the next place, x along the row at y, row the row's height so far. */
@@ -93,17 +93,20 @@ typedef struct {
     uint32_t pass, deep; /* its texture and depth texture */
     int32_t w, h;        /* its size */
     Rect clip;
-    uint32_t behind;            /* the texture GPU_BEHIND copies; 0 none */
-    int32_t behind_w, behind_h; /* GPU_BEHIND's size; 0 not made */
-    GpuBox dirty[GPU_DIRTY];    /* drawn in behind since the copy, by calls before this one */
-    uint32_t ndirty;            /* past GPU_DIRTY, more */
-    GpuBox call;                /* drawn in the pass by this call */
-    uint32_t palette;           /* the palette's changes when sent, and 1; 0 not yet */
-    uint32_t mapped;            /* row 0's changes when the map was sent, and 1; 0 not yet */
-    uint32_t row0;              /* row 0's changes when the palette was last sent, and 1 */
-    uint32_t coloured;          /* those an 8-bit canvas's colours are of; 0 none */
-    bool eight;                 /* the canvas is 8 bits */
-    int32_t screen_w, screen_h; /* its size */
+    uint32_t behind;              /* the texture GPU_BEHIND copies; 0 none */
+    int32_t behind_w, behind_h;   /* GPU_BEHIND's size; 0 not made */
+    GpuBox dirty[GPU_DIRTY];      /* drawn in behind since the copy, by calls before this one */
+    uint32_t ndirty;              /* past GPU_DIRTY, more */
+    GpuBox call;                  /* drawn in the pass by this call */
+    uint32_t palette;             /* the palette's changes when sent, and 1; 0 not yet */
+    uint32_t mapped;              /* row 0's changes when the map was sent, and 1; 0 not yet */
+    uint32_t row0;                /* row 0's changes when the palette was last sent, and 1 */
+    uint32_t coloured;            /* those an 8-bit canvas's colours are of; 0 none */
+    uint32_t colours;             /* fixed: those COLOURS last sent; 0 none */
+    PalKey looked;                /* fixed: what LOOKUP's last words were made from */
+    bool looked_eight, looked_up; /* into an 8-bit target; sent */
+    bool eight;                   /* the canvas is 8 bits */
+    int32_t screen_w, screen_h;   /* its size */
     float down;      /* the shader's: 1 where clip space's y runs down a texture's rows, else -1 */
     uint32_t white;  /* the white texel shapes draw from */
     uint8_t *page;   /* the canvas's pixels, read back */
@@ -138,9 +141,9 @@ typedef struct {
 bool gpu_open(Gpu *g, const QxScreen *s, bool eight, Palette *pal);
 void gpu_close(Gpu *g);
 /* p's root on the GPU, made and sent as it needs it; into, drawn into: RGBA, and ahead of the CPU
-   till read back. On a fixed host an 8-bit root's texels are row's colours, row 0's drawn into.
-   False, no memory. */
-bool gpu_texture(Gpu *g, const Source *p, bool into, int32_t row, GpuSource *out);
+   till read back. On a fixed host an 8-bit root is INDEX, and a direct one too when matched: its
+   texels the indices nearest them. False, no memory. */
+bool gpu_texture(Gpu *g, const Source *p, bool into, bool matched, GpuSource *out);
 /* p's root's depth texture, made, all 0, if it had none (*fresh then): false, no memory. */
 bool gpu_depth(Gpu *g, const Source *p, uint32_t *id, bool *fresh);
 /* Rows top to bottom of the root h written by the CPU. */
@@ -148,7 +151,8 @@ void gpu_wrote(Gpu *g, uint32_t h, int32_t top, int32_t bottom);
 /* The draws after go into id, w by h, within clip, with depth texture deep (0 none): false, no
    memory. */
 bool gpu_target(Gpu *g, uint32_t id, uint32_t deep, int32_t w, int32_t h, Rect clip);
-/* The palette sent, if it changed, and row 0's map when map: false, no memory. */
+/* The palette sent, if it changed, and row 0's map when map; a fixed host's 8-bit canvas, row 0 as
+   COLOURS: false, no memory. */
 bool gpu_palette(Gpu *g, Palette *pal, bool map);
 /* n vertices, four a quad, drawn as t's call: false, no memory. */
 bool gpu_draw(Gpu *g, const GpuCall *t, const GpuVertex *v, uint32_t n);
