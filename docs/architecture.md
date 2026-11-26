@@ -148,7 +148,7 @@ only through its table. `io/dialect.c` lists the tables in `DIALECTS(X)`, QBasic
   | Need | Operations |
   |---|---|
   | Load and run | `open`, `read`, `link`, `go`, `run`, `report`, `message`, `errtext` |
-  | Editor | `syntax`, `flag`, `colour`, `names`, `fn_at`, `imports`, `suggest` |
+  | Editor | `syntax`, `flag`, `colour`, `blocks`, `names`, `fn_at`, `imports`, `suggest` |
   | Debugger and Immediate | `direct`, `print`, `spell` |
   | Interop | `guest_read`, `guest_find`, `guest_declare` |
   | State | `size`, `forget` |

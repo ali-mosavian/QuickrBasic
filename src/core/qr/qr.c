@@ -1895,6 +1895,7 @@ const Dialect dialect_quickr = {
     .syntax = qr_syntax,
     .flag = qr_flag,
     .colour = qr_colour,
+    .blocks = qr_blocks,
     .names = qr_names,
     .fn_at = qr_fn_at,
     .imports = qr_imports_line,

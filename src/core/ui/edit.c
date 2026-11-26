@@ -44,6 +44,7 @@
  */
 #include "ui/edit.h"
 #include "util/grow.h"
+#include "ui/blockends.h"
 #include "ui/indent.h"
 #include "session.h"
 #include "comp/comp.h"
@@ -726,6 +727,50 @@ static void reindent(LineBuf *const b, const uint16_t n)
     b->dirty = true;
 }
 
+/* Enter's block ends (ui/blockends.h): the lines put in below the new one, at the line's indent;
+   the line past the cursor, the last one's. */
+typedef struct {
+    const char *end[DIAL_NBLOCK];
+    uint32_t n;
+    uint16_t at;
+    uint8_t rest[LNBUF];
+    uint16_t nrest;
+} Ends;
+
+/* The ends Enter in b puts in; the line past the cursor taken from b to the last. */
+static void ends_take(const IndtLines *const ls, LineBuf *const b, Ends *const e)
+{
+    e->n = bend_missing(ls, uimn.ed.line, uimn.text.n, b->text, b->len, b->col, e->end);
+    e->at = indent(b);
+
+    if (!e->n)
+        return;
+
+    const uint16_t skip = spaces(b->text + b->col, b->len - b->col);
+    e->nrest = (uint16_t)(b->len - b->col - skip);
+    memcpy(e->rest, b->text + b->col + skip, e->nrest);
+    edit_lb_cut(b, b->col, b->len);
+}
+
+/* e's ends as text lines from line on. */
+static void ends_put(Session *const S, const uint32_t line, const Ends *const e)
+{
+    for (uint32_t i = 0; i < e->n; i++) {
+        const uint16_t ne = (uint16_t)strlen(e->end[i]);
+        const uint16_t nr = i + 1 == e->n ? e->nrest : 0;
+        const uint16_t len = (uint16_t)(e->at + ne + nr);
+
+        if (len > LNMAX)
+            return;
+
+        uint8_t *const d = edit_lb_need(S, &uimn.build, len);
+        memset(d, ' ', e->at);
+        memcpy(d + e->at, e->end[i], ne);
+        memcpy(d + e->at + ne, e->rest, nr);
+        text_insert(S, line + i, d, len);
+    }
+}
+
 void edit_enter(Session *const S)
 {
     LineBuf *const b = &uimn.edline;
@@ -744,11 +789,20 @@ void edit_enter(Session *const S)
 
     const uint16_t lead = indent(b);
     uint16_t ind = lead > b->col ? b->col : lead;
+    Ends ends = {};
 
-    if (b->col > lead) { /* past the indent: by the blocks (indent.h) */
+    if (b->col > lead) { /* past the indent: by the blocks (indent.h), their ends (blockends.h) */
+        const IndtLines ls = {
+            .d = text_dialect_at(S, uimn.text.first + uimn.ed.line),
+            .f = &S->fault,
+            .get = text_line,
+            .ctx = S,
+        };
+
         uint16_t self;
-        indt_enter(text_line, S, uimn.ed.line, b->text, b->col, &self, &ind);
+        indt_enter(&ls, uimn.ed.line, b->text, b->col, &self, &ind);
         reindent(b, self);
+        ends_take(&ls, b, &ends);
     }
 
     uimn.ed.indent = ind;
@@ -761,6 +815,8 @@ void edit_enter(Session *const S)
 
     const uint32_t line = uimn.ed.line + 1;
     text_insert(S, line, uimn.build.text, uimn.ed.nlen);
+
+    ends_put(S, line + 1, &ends);
     changed();
     edit_load(S, line);
     b->col = uimn.ed.indent;

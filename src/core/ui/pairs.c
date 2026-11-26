@@ -11,6 +11,7 @@
  * again only when one of those changed.
  */
 #include "ui/pairs.h"
+#include "session.h"
 #include "plat/pscr.h"
 #include "ui/edit.h"
 #include "ui/highlight.h"
@@ -69,30 +70,32 @@ static void bracket(const uint16_t i)
 }
 
 /* View line line's block events to ev; their count. */
-static uint32_t events(Session *const S, const uint32_t line, IndtEv *const ev)
+static uint32_t events(Session *const S, const uint32_t line, DialBlock *const ev)
 {
+    const IndtLines ls = {.d = text_dialect_at(S, uimn.text.first + line), .f = &S->fault};
+
     if (line == uimn.ed.line)
-        return indt_events(uimn.edline.text, uimn.edline.len, ev);
+        return indt_blocks(&ls, uimn.edline.text, uimn.edline.len, ev);
 
     const uint16_t n = (uint16_t)text_get(S, line, &pr.line);
-    return indt_events(pr.line.text, n, ev);
+    return indt_blocks(&ls, pr.line.text, n, ev);
 }
 
 /* Up from event e of line, its block's opening one's line to *line, its event to *e. */
 static bool opening(Session *const S, uint32_t *const line, uint32_t *const e)
 {
-    IndtEv ev[INDT_NEV];
-    const IndtKind kind = events(S, *line, ev) ? ev[*e].kind : K_FOR;
+    DialBlock ev[DIAL_NBLOCK];
+    const uint8_t kind = events(S, *line, ev) ? ev[*e].kind : 0;
     uint32_t depth = 0;
 
     for (uint32_t l = *line + 1; l--;) {
         const uint32_t n = events(S, l, ev);
 
         for (uint32_t i = l == *line ? *e + 1 : n; i--;) {
-            if (ev[i].kind != kind || ev[i].what == EV_MID ||
-                (l == *line && i == *e && ev[i].what == EV_END))
+            if (ev[i].kind != kind || ev[i].what == DBK_MID ||
+                (l == *line && i == *e && ev[i].what == DBK_END))
                 continue;
-            if (ev[i].what == EV_END)
+            if (ev[i].what == DBK_END)
                 depth++;
             else if (depth)
                 depth--;
@@ -110,9 +113,9 @@ static bool opening(Session *const S, uint32_t *const line, uint32_t *const e)
 /* Down from the opening event e of line: it, its block's middles and its end, kept. */
 static void block(Session *const S, const uint32_t line, const uint32_t e)
 {
-    IndtEv ev[INDT_NEV];
+    DialBlock ev[DIAL_NBLOCK];
     events(S, line, ev);
-    const IndtKind kind = ev[e].kind;
+    const uint8_t kind = ev[e].kind;
     uint32_t depth = 0;
     add(line, ev[e].col, ev[e].len);
 
@@ -122,14 +125,14 @@ static void block(Session *const S, const uint32_t line, const uint32_t e)
         for (uint32_t i = l == line ? e + 1 : 0; i < n; i++) {
             if (ev[i].kind != kind)
                 continue;
-            if (ev[i].what == EV_OPEN)
+            if (ev[i].what == DBK_OPEN)
                 depth++;
-            else if (depth && ev[i].what == EV_END)
+            else if (depth && ev[i].what == DBK_END)
                 depth--;
             else if (!depth) {
                 add(l, ev[i].col, ev[i].len);
 
-                if (ev[i].what == EV_END)
+                if (ev[i].what == DBK_END)
                     return;
             }
         }
@@ -141,7 +144,7 @@ static void block(Session *const S, const uint32_t line, const uint32_t e)
 /* The cursor's block keyword's block. */
 static void keyword(Session *const S)
 {
-    IndtEv ev[INDT_NEV];
+    DialBlock ev[DIAL_NBLOCK];
     const uint16_t col = uimn.edline.col;
     const uint32_t n = events(S, uimn.ed.line, ev);
 
@@ -151,7 +154,7 @@ static void keyword(Session *const S)
 
         uint32_t line = uimn.ed.line, at = e;
 
-        if (ev[e].what == EV_OPEN || opening(S, &line, &at))
+        if (ev[e].what == DBK_OPEN || opening(S, &line, &at))
             block(S, line, at);
 
         return;

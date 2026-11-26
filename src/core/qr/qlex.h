@@ -6,6 +6,9 @@
 /* src's lines from first on to new tokens, src->toks: a QK_NL ending each statement and a QK_EOF
    the last; each error to e. */
 void qlex_source(QSrc *src, uint32_t first, QMem *m, QErrs *e);
+/* Do tokens first to n end in a lambda's header, fn(..) [as T], its fn not a type's (after as)?
+   Its fn's index, n not. */
+uint32_t qlex_header(const QTok *toks, uint32_t first, uint32_t n);
 /* Keyword k's spelling (QK_AND .. QK_FUNCTION); nullptr another kind. */
 const char *qlex_keyword(QKind k);
 #endif

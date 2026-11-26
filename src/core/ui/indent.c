@@ -2,6 +2,7 @@
  * starting with a block's end back at the block's start.
  *
  * # How it works
+ * A line's block keywords are its dialect's (Dialect.blocks); QBasic's are read here (indt_events).
  * A line's statements are read by their first words as events: a block opened (FOR, DO, WHILE,
  * an IF ending in THEN, SELECT, SUB, FUNCTION, TYPE, a DEF FN with no '='), a middle (ELSE,
  * ELSEIF, CASE) or an end (NEXT, LOOP, WEND, END IF and the other ENDs). An IF ending other than
@@ -24,11 +25,11 @@
 #include "ui/indent.h"
 #include "ui/ui.h"
 
-typedef IndtKind Kind;
-typedef IndtWhat What;
-typedef IndtEv Ev;
+/* QBasic's blocks' kinds. */
+typedef enum : uint8_t { K_FOR, K_DO, K_WHILE, K_IF, K_SEL, K_SUB, K_FUNC, K_TYPE, K_DEF } Kind;
+typedef DialBlock Ev;
 
-enum { NEV = INDT_NEV, WORD = 12 };
+enum { NEV = DIAL_NBLOCK, WORD = 12 };
 
 typedef struct {
     const uint8_t *p, *end;
@@ -105,43 +106,50 @@ static bool indt_then(Cur c)
     return !strcmp(last, "THEN");
 }
 
-/* An event of the keyword from at to the cursor in text. */
+/* Event e, of the keyword from at to the cursor in text: ev's next. */
 static uint32_t indt_add(
     Ev *const ev,
     uint32_t n,
-    const Kind k,
-    const What what,
+    Ev e,
     const bool lead,
     const uint8_t *const text,
     const uint8_t *const at,
     const Cur *const c
 )
 {
+    e.lead = lead;
+    e.col = (uint16_t)(at - text);
+    e.len = (uint16_t)(c->p - at);
+
     if (n < NEV)
-        ev[n++] = (Ev){k, what, lead, (uint16_t)(at - text), (uint16_t)(c->p - at)};
+        ev[n++] = e;
 
     return n;
 }
 
-uint32_t indt_events(const uint8_t *const text, const uint16_t len, Ev *const ev)
+/* A block IF's opener, a DEF FN's. */
+static const Ev if_open = {.kind = K_IF, .what = DBK_OPEN, .end = "END IF"};
+static const Ev def_open = {.kind = K_DEF, .what = DBK_OPEN, .end = "END DEF"};
+
+/* QBasic's line's block keywords (indt_blocks). */
+static uint32_t indt_events(const uint8_t *const text, const uint16_t len, Ev *const ev)
 {
     static const struct {
         char word[WORD];
-        Kind kind;
-        What what;
+        Ev ev;
     } plain[] = {
-        {"FOR", K_FOR, EV_OPEN},
-        {"DO", K_DO, EV_OPEN},
-        {"LOOP", K_DO, EV_END},
-        {"WHILE", K_WHILE, EV_OPEN},
-        {"WEND", K_WHILE, EV_END},
-        {"SELECT", K_SEL, EV_OPEN},
-        {"CASE", K_SEL, EV_MID},
-        {"SUB", K_SUB, EV_OPEN},
-        {"FUNCTION", K_FUNC, EV_OPEN},
-        {"TYPE", K_TYPE, EV_OPEN},
-        {"ELSE", K_IF, EV_MID},
-        {"ENDIF", K_IF, EV_END},
+        {"FOR", {.kind = K_FOR, .what = DBK_OPEN, .end = "NEXT"}},
+        {"DO", {.kind = K_DO, .what = DBK_OPEN, .end = "LOOP"}},
+        {"LOOP", {.kind = K_DO, .what = DBK_END}},
+        {"WHILE", {.kind = K_WHILE, .what = DBK_OPEN, .end = "WEND"}},
+        {"WEND", {.kind = K_WHILE, .what = DBK_END}},
+        {"SELECT", {.kind = K_SEL, .what = DBK_OPEN, .end = "END SELECT"}},
+        {"CASE", {.kind = K_SEL, .what = DBK_MID, .inset = true}},
+        {"SUB", {.kind = K_SUB, .what = DBK_OPEN, .end = "END SUB"}},
+        {"FUNCTION", {.kind = K_FUNC, .what = DBK_OPEN, .end = "END FUNCTION"}},
+        {"TYPE", {.kind = K_TYPE, .what = DBK_OPEN, .end = "END TYPE"}},
+        {"ELSE", {.kind = K_IF, .what = DBK_MID}},
+        {"ENDIF", {.kind = K_IF, .what = DBK_END}},
     };
 
     static const struct {
@@ -175,11 +183,11 @@ uint32_t indt_events(const uint8_t *const text, const uint16_t len, Ev *const ev
 
         if (!strcmp(w, "IF") || !strcmp(w, "ELSEIF")) { /* the line's rest is its own */
             if (*w == 'E')
-                return indt_add(ev, n, K_IF, EV_MID, lead, text, c.word, &c);
+                return indt_add(ev, n, (Ev){.kind = K_IF, .what = DBK_MID}, lead, text, c.word, &c);
 
             const uint8_t *const at = c.word;
             const Cur word = c;
-            return indt_then(c) ? indt_add(ev, n, K_IF, EV_OPEN, lead, text, at, &word) : n;
+            return indt_then(c) ? indt_add(ev, n, if_open, lead, text, at, &word) : n;
         }
 
         const uint8_t *const at = c.word;
@@ -190,14 +198,22 @@ uint32_t indt_events(const uint8_t *const text, const uint16_t len, Ev *const ev
 
             for (uint32_t i = 0; i < countof(ends); i++)
                 if (!strcmp(w2, ends[i].word))
-                    n = indt_add(ev, n, ends[i].kind, EV_END, lead, text, at, &c);
+                    n = indt_add(
+                        ev,
+                        n,
+                        (Ev){.kind = ends[i].kind, .what = DBK_END},
+                        lead,
+                        text,
+                        at,
+                        &c
+                    );
         } else if (!strcmp(w, "NEXT")) {
             const Cur word = c;
             indt_skip(&c, &commas);
             c = word;
 
             for (uint32_t i = 0; i <= commas; i++)
-                n = indt_add(ev, n, K_FOR, EV_END, lead, text, at, &word);
+                n = indt_add(ev, n, (Ev){.kind = K_FOR, .what = DBK_END}, lead, text, at, &word);
         } else if (!strcmp(w, "DEF")) {
             const Cur word = c;
             bool eq = false;
@@ -208,11 +224,11 @@ uint32_t indt_events(const uint8_t *const text, const uint16_t len, Ev *const ev
             c = word;
 
             if (!eq)
-                n = indt_add(ev, n, K_DEF, EV_OPEN, lead, text, at, &word);
+                n = indt_add(ev, n, def_open, lead, text, at, &word);
         } else {
             for (uint32_t i = 0; i < countof(plain); i++)
                 if (!strcmp(w, plain[i].word))
-                    n = indt_add(ev, n, plain[i].kind, plain[i].what, lead, text, at, &c);
+                    n = indt_add(ev, n, plain[i].ev, lead, text, at, &c);
         }
 
         commas = 0;
@@ -224,7 +240,20 @@ uint32_t indt_events(const uint8_t *const text, const uint16_t len, Ev *const ev
     }
 }
 
-static uint16_t indt_lead(const uint8_t *const text, const uint16_t n)
+uint32_t indt_blocks(
+    const IndtLines *const ls,
+    const uint8_t *const text,
+    const uint16_t n,
+    DialBlock *const ev
+)
+{
+    if (!ls->d->text)
+        return indt_events(text, n, ev);
+
+    return ls->d->blocks(ls->f, (const char *)text, n, ev);
+}
+
+uint16_t indt_lead(const uint8_t *const text, const uint16_t n)
 {
     uint16_t i = 0;
 
@@ -235,19 +264,19 @@ static uint16_t indt_lead(const uint8_t *const text, const uint16_t n)
 }
 
 /* The indent of the start of the block of kind k that line's lead ends, up from line; -1 none. */
-static int32_t indt_start(IndtGet *const get, void *const ctx, const uint32_t line, const Kind k)
+static int32_t indt_start(const IndtLines *const ls, const uint32_t line, const uint8_t k)
 {
     uint8_t text[LNBUF];
     uint32_t depth = 0;
 
     for (uint32_t i = line; i--;) {
-        const uint16_t len = get(ctx, i, text);
+        const uint16_t len = ls->get(ls->ctx, i, text);
         Ev ev[NEV];
 
-        for (uint32_t e = indt_events(text, len, ev); e--;) {
-            if (ev[e].kind != k || ev[e].what == EV_MID)
+        for (uint32_t e = indt_blocks(ls, text, len, ev); e--;) {
+            if (ev[e].kind != k || ev[e].what == DBK_MID)
                 continue;
-            if (ev[e].what == EV_END)
+            if (ev[e].what == DBK_END)
                 depth++;
             else if (!depth)
                 return indt_lead(text, len);
@@ -260,8 +289,7 @@ static int32_t indt_start(IndtGet *const get, void *const ctx, const uint32_t li
 }
 
 void indt_enter(
-    IndtGet *const get,
-    void *const ctx,
+    const IndtLines *const ls,
     const uint32_t line,
     const uint8_t *const text,
     const uint16_t n,
@@ -270,14 +298,14 @@ void indt_enter(
 )
 {
     Ev ev[NEV];
-    const uint32_t nev = indt_events(text, n, ev);
+    const uint32_t nev = indt_blocks(ls, text, n, ev);
     *self = indt_lead(text, n);
 
-    if (nev && ev[0].lead && ev[0].what != EV_OPEN) { /* an end, a middle: back to its start */
-        const int32_t at = indt_start(get, ctx, line, ev[0].kind);
+    if (nev && ev[0].lead && ev[0].what != DBK_OPEN) { /* an end, a middle: back to its start */
+        const int32_t at = indt_start(ls, line, ev[0].kind);
 
         if (at >= 0)
-            *self = (uint16_t)(at + (ev[0].kind == K_SEL && ev[0].what == EV_MID ? INDT_STEP : 0));
+            *self = (uint16_t)(at + (ev[0].inset && ev[0].what == DBK_MID ? INDT_STEP : 0));
     }
 
     int32_t level = 0;
@@ -285,9 +313,9 @@ void indt_enter(
     for (uint32_t i = 0; i < nev; i++) {
         const bool first = !i && ev[i].lead; /* its block's start's place taken already */
 
-        if (ev[i].what == EV_OPEN || (ev[i].what == EV_MID && first))
+        if (ev[i].what == DBK_OPEN || (ev[i].what == DBK_MID && first))
             level++;
-        else if (ev[i].what == EV_END && !first)
+        else if (ev[i].what == DBK_END && !first)
             level--;
     }
 

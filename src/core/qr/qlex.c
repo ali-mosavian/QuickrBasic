@@ -558,50 +558,48 @@ static bool qlex_typetok(const QKind k, const int32_t d)
            k == QK_FUNCTION || k == QK_AS || (k == QK_COMMA && d > 0);
 }
 
-/* Do the tokens from first to the last end in a lambda's header: fn(..) [as T], its fn not a
-   type's (after as)? */
-static bool qlex_header(const QSrc *const s, const uint32_t first)
+uint32_t qlex_header(const QTok *const toks, const uint32_t first, const uint32_t n)
 {
-    uint32_t f = s->ntoks;
+    uint32_t f = n;
 
-    for (uint32_t i = s->ntoks; i-- > first;)
-        if (s->toks[i].kind == QK_FN && i + 1 < s->ntoks && s->toks[i + 1].kind == QK_LPAREN &&
-            (!i || s->toks[i - 1].kind != QK_AS)) {
+    for (uint32_t i = n; i-- > first;)
+        if (toks[i].kind == QK_FN && i + 1 < n && toks[i + 1].kind == QK_LPAREN &&
+            (!i || toks[i - 1].kind != QK_AS)) {
             f = i;
             break;
         }
 
-    if (f == s->ntoks)
-        return false;
+    if (f == n)
+        return n;
 
     int32_t d = 0;
     uint32_t i = f + 1;
 
-    for (; i < s->ntoks; i++) {
-        d += s->toks[i].kind == QK_LPAREN;
-        d -= s->toks[i].kind == QK_RPAREN;
+    for (; i < n; i++) {
+        d += toks[i].kind == QK_LPAREN;
+        d -= toks[i].kind == QK_RPAREN;
 
         if (!d)
             break;
     }
 
-    if (i == s->ntoks)
-        return false;
-    if (++i == s->ntoks)
-        return true;
-    if (s->toks[i].kind != QK_AS)
-        return false;
+    if (i == n)
+        return n;
+    if (++i == n)
+        return f;
+    if (toks[i].kind != QK_AS)
+        return n;
 
-    for (d = 0; i < s->ntoks; i++) {
-        const QKind k = s->toks[i].kind;
+    for (d = 0; i < n; i++) {
+        const QKind k = toks[i].kind;
         d += k == QK_LPAREN || k == QK_LBRACK;
         d -= k == QK_RPAREN || k == QK_RBRACK;
 
         if (d < 0 || !qlex_typetok(k, d))
-            return false;
+            return n;
     }
 
-    return !d;
+    return d ? n : f;
 }
 
 /* Does the line start with end fn? */
@@ -645,7 +643,7 @@ static void qlex_line(QLex *const L, const uint32_t i)
     const QSrc *const s = L->src;
     const bool open = s->ntoks && s->toks[s->ntoks - 1].kind != QK_NL;
 
-    if (L->depth && open && qlex_header(s, first)) {
+    if (L->depth && open && qlex_header(s->toks, first, s->ntoks) < s->ntoks) {
         L->lams = qast_room(L->mem, L->lams, L->nlams, &L->caplams, sizeof *L->lams);
         L->lams[L->nlams++] = L->depth;
         L->depth = 0;

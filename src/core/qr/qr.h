@@ -93,6 +93,8 @@ void qr_go(Session *S);
 bool qr_syntax(Session *S, uint32_t rec, DialErr *e);
 /* Each stored Quickr line LF_ASIS when qr_syntax finds an error in it, else not. */
 void qr_flag(Session *S);
+/* The line text, len bytes: its block keywords to ev (Dialect.blocks); their count. */
+uint32_t qr_blocks(Fault *f, const char *text, uint32_t len, DialBlock *ev);
 /* Is the line text, len bytes, a function's first: its name's column and length (an operator's with its
    sign) to *at, *n. */
 bool qr_fn_at(const char *text, uint32_t len, uint32_t *at, uint32_t *n);
