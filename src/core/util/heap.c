@@ -66,6 +66,29 @@ bool heap_add(Heap *const h, void *const mem, const size_t size)
     return true;
 }
 
+void heap_take_all(Heap *const h, const HeapSource *const s)
+{
+    uint32_t held = 0;
+
+    if (!s->take(s->keep, &held))
+        return;
+
+    for (size_t size = s->largest(); size >= s->least; size = s->largest()) {
+        uint32_t handle = 0;
+        void *const mem = s->take(size, &handle);
+
+        if (!mem)
+            break;
+
+        if (!heap_add(h, mem, size)) {
+            s->give(handle);
+            break;
+        }
+    }
+
+    s->give(held);
+}
+
 static const HeapRegion *region_of(const Heap *const h, const void *const p)
 {
     for (uint32_t i = 0; i < h->n; i++)

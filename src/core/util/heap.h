@@ -15,10 +15,22 @@ typedef struct {
     uint32_t n;
 } Heap;
 
+/* Where regions come from: the platform's memory (DOS's, DPMI's). */
+typedef struct {
+    size_t (*largest)(void); /* its largest free block's bytes, rounded down to a block's */
+    void *(*take)(size_t size, uint32_t *handle); /* a block; null none */
+    void (*give)(uint32_t handle);
+    size_t keep;  /* the bytes held back while the blocks are taken */
+    size_t least; /* a block smaller is left */
+} HeapSource;
+
 /* No regions. */
 void heap_init(Heap *h);
 /* All of [mem, mem + size) free, a region after the others; false: HEAP_REGIONS already. */
 bool heap_add(Heap *h, void *mem, size_t size);
+/* Every block of s at least s.least bytes a region, the largest first, s.keep bytes held back
+   meanwhile and given back after. */
+void heap_take_all(Heap *h, const HeapSource *s);
 /* p (from h, or null) as size bytes, its first bytes kept, aligned for any object: in place, or
    moved to the top of the first region with room; 16-aligned. Null: no room, p kept. */
 void *heap_resize(Heap *h, void *p, size_t size);

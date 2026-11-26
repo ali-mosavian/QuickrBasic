@@ -76,6 +76,7 @@ enum : uint16_t {
     DPMI_RM_INT = 0x0300,
     DPMI_MEM_INFO = 0x0500,
     DPMI_MEM_ALLOC = 0x0501,
+    DPMI_MEM_FREE = 0x0502,
     DPMI_MAP = 0x0800,
 };
 

@@ -49,6 +49,75 @@ TEST(heap_regions_low_and_high)
     CHECK(!heap_resize(&h, nullptr, 500)); /* full */
 }
 
+/* A platform's free blocks: spans of fake_mem, taken first fit from their bottoms. */
+typedef struct {
+    uint8_t *at;
+    size_t size;
+    bool taken;
+} Span;
+
+static alignas(16) uint8_t fake_mem[64 << 10];
+static Span spans[8];
+static uint32_t nspans;
+
+static size_t fake_largest(void)
+{
+    size_t most = 0;
+
+    for (uint32_t i = 0; i < nspans; i++)
+        if (!spans[i].taken && spans[i].size > most)
+            most = spans[i].size;
+
+    return most;
+}
+
+static void *fake_take(const size_t size, uint32_t *const handle)
+{
+    for (uint32_t i = 0; i < nspans; i++) {
+        Span *const s = &spans[i];
+
+        if (s->taken || s->size < size)
+            continue;
+        if (s->size > size)
+            spans[nspans++] = (Span){s->at + size, s->size - size, false};
+
+        *s = (Span){s->at, size, true};
+
+        *handle = i;
+        return s->at;
+    }
+
+    return nullptr;
+}
+
+static void fake_give(const uint32_t handle) { spans[handle].taken = false; }
+
+/* Every block of the platform's at least least bytes is a region, the largest first; the kept
+   block is given back, and the small one is left. */
+TEST(heap_takes_every_block)
+{
+    enum : size_t { K = 1024 };
+
+    static const HeapSource src = {fake_largest, fake_take, fake_give, 16 * K, 4 * K};
+
+    spans[0] = (Span){fake_mem, 40 * K, false};
+
+    spans[1] = (Span){fake_mem + 40 * K, 2 * K, true}; /* another program's */
+    spans[2] = (Span){fake_mem + 42 * K, 20 * K, false};
+
+    spans[3] = (Span){fake_mem + 62 * K, 2 * K, false};
+
+    nspans = 4;
+    Heap h;
+    heap_init(&h);
+    heap_take_all(&h, &src);
+    CHECK(h.n == 2);
+    CHECK(h.region[0].lo == fake_mem + 16 * K && h.region[0].hi == fake_mem + 40 * K);
+    CHECK(h.region[1].lo == fake_mem + 42 * K && h.region[1].hi == fake_mem + 62 * K);
+    CHECK(!spans[0].taken && spans[0].size == 16 * K); /* the kept block, given back */
+    CHECK(!spans[3].taken);
+}
+
 /* Calls nest past the frames' first room: each frame kept as more grow. */
 TEST(frames_grow_as_calls_nest)
 {

@@ -1,71 +1,91 @@
 /* The platform's memory on DOS32.
  *
  * # How it works
- * The flat segment from 0. The heap's regions: DOS's largest free block under 1 MB, less what
- * SHELL's program and the sound card's buffer need (DOS_KEEP), then DPMI's largest free block,
- * less what DOS/32A keeps (HOST_ROOM). The first takes the C side's blocks before the second, whose
- * bottom is the BASIC heap's.
+ * The flat segment from 0. The heap's regions: every free DOS block under 1 MB, then every DPMI
+ * block, each source's largest first. While a source's blocks are taken, a block of its own is
+ * held back and then given back: DOS_KEEP for SHELL's program and the sound card's buffer,
+ * HOST_ROOM for DOS/32A. The DOS blocks take the C side's blocks before the others; the largest
+ * room's bottom is the BASIC heap's.
  */
 #include "dos.h"
 #include "plat/pmem.h"
 #include "util/heap.h"
 
-enum {
-    HOST_ROOM = 0x10000,
+enum : uint32_t {
     PAGE_MASK = 0xFFF,
-    DOS_KEEP = 0x1000,  /* paragraphs: 64K */
-    DOS_LEAST = 0x100,  /* paragraphs: a block smaller is left to DOS */
     PARAGRAPH = 16,
+    HOST_ROOM = 0x10000,
+    DPMI_LEAST = 0x1000, /* a block smaller is left to DOS/32A */
+    DOS_KEEP = 0x10000,
+    DOS_LEAST = 0x1000, /* a block smaller is left to DOS */
 };
 
 static Heap heap;
 
 static uint32_t dpmi_info[12]; /* DPMI 0500h's buffer: the largest free block first */
 
-/* DOS's largest free block, less DOS_KEEP paragraphs, a region. */
-static void dos_block(void)
+static size_t dos_largest(void)
 {
     PdosRegs r = {.eax = DPMI_DOS_ALLOC, .ebx = 0xFFFF};
+
     pdos_int(INT_DPMI, &r); /* fails: ebx the most there is */
-    const uint32_t most = r.ebx & 0xFFFF;
-
-    if (most < DOS_KEEP + DOS_LEAST)
-        return;
-
-    r = (PdosRegs){.eax = DPMI_DOS_ALLOC, .ebx = most - DOS_KEEP};
-
-    if (pdos_int(INT_DPMI, &r) & PDOS_CF)
-        return;
-
-    const uint32_t linear = (r.eax & 0xFFFF) * PARAGRAPH;
-    heap_add(&heap, at(linear - pdos_ds_base()), (most - DOS_KEEP) * PARAGRAPH);
+    return (r.ebx & 0xFFFF) * PARAGRAPH;
 }
 
-/* DPMI's largest free block, less HOST_ROOM, a region. */
-static bool dpmi_block(void)
+static void *dos_take(const size_t size, uint32_t *const handle)
+{
+    PdosRegs r = {.eax = DPMI_DOS_ALLOC, .ebx = (uint32_t)size / PARAGRAPH};
+
+    if (pdos_int(INT_DPMI, &r) & PDOS_CF)
+        return nullptr;
+
+    *handle = r.edx & 0xFFFF; /* its selector */
+    return at((r.eax & 0xFFFF) * PARAGRAPH - pdos_ds_base());
+}
+
+static void dos_give(const uint32_t handle)
+{
+    PdosRegs r = {.eax = DPMI_DOS_FREE, .edx = handle};
+
+    pdos_int(INT_DPMI, &r);
+}
+
+static size_t dpmi_largest(void)
 {
     PdosRegs r = {.eax = DPMI_MEM_INFO, .edi = (uint32_t)(uintptr_t)dpmi_info};
 
     pdos_int(INT_DPMI, &r);
-    const uint32_t largest = dpmi_info[0];
+    return dpmi_info[0] & ~PAGE_MASK;
+}
 
-    if (largest <= HOST_ROOM)
-        return false;
-
-    const uint32_t size = (largest - HOST_ROOM) & ~(uint32_t)PAGE_MASK;
-    r = (PdosRegs){.eax = DPMI_MEM_ALLOC, .ebx = size >> 16, .ecx = size & 0xFFFF};
+static void *dpmi_take(const size_t size, uint32_t *const handle)
+{
+    PdosRegs r = {.eax = DPMI_MEM_ALLOC, .ebx = (uint32_t)size >> 16, .ecx = size & 0xFFFF};
 
     if (pdos_int(INT_DPMI, &r) & PDOS_CF)
-        return false;
+        return nullptr;
 
-    return heap_add(&heap, at(pdos_pair(r.ebx, r.ecx) - pdos_ds_base()), size);
+    *handle = pdos_pair(r.esi, r.edi);
+    return at(pdos_pair(r.ebx, r.ecx) - pdos_ds_base());
+}
+
+static void dpmi_give(const uint32_t handle)
+{
+    PdosRegs r = {.eax = DPMI_MEM_FREE, .esi = handle >> 16, .edi = handle & 0xFFFF};
+
+    pdos_int(INT_DPMI, &r);
 }
 
 bool pmem_init(void)
 {
+    static const HeapSource dos = {dos_largest, dos_take, dos_give, DOS_KEEP, DOS_LEAST};
+
+    static const HeapSource dpmi = {dpmi_largest, dpmi_take, dpmi_give, HOST_ROOM, DPMI_LEAST};
+
     heap_init(&heap);
-    dos_block();
-    return dpmi_block() || heap.n;
+    heap_take_all(&heap, &dos);
+    heap_take_all(&heap, &dpmi);
+    return heap.n;
 }
 
 void *pmem_resize(void *const p, const size_t size) { return heap_resize(&heap, p, size); }
