@@ -38,4 +38,18 @@ static inline bool grow_room(
 
 /* grow_room for p, a T *, and its cap. */
 #define GROW(p, cap, n) grow_room(&(p), &(cap), (n), sizeof *(p))
+
+/* grow_room for *p, *cap bytes with a byte of its own before them: n bytes at least. */
+static inline bool grow_after(uint8_t **const p, uint32_t *const cap, const uint32_t n)
+{
+    uint8_t *block = *p ? *p - 1 : nullptr;
+    uint32_t size = *p ? *cap + 1 : 0;
+
+    if (!GROW(block, size, n + 1))
+        return false;
+
+    *p = block + 1;
+    *cap = size - 1;
+    return true;
+}
 #endif

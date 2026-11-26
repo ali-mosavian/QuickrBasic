@@ -241,7 +241,7 @@ static void line(
         return;
     }
 
-    lexr_line(&S->lexr, line, S->comp.cbuf);
+    lexr_line(&S->lexr, line);
     const uint8_t *p = S->comp.cbuf;
 
     for (;;) {

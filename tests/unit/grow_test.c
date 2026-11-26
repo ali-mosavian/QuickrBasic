@@ -314,7 +314,7 @@ TEST(lexer_columns_grow)
         n += (uint32_t)snprintf((char *)text + n, sizeof text - n, ": PRINT 1");
 
     S->lexr.cols = true;
-    lexr_line(&S->lexr, text, S->comp.cbuf);
+    lexr_line(&S->lexr, text);
     S->lexr.cols = false;
     CHECK(S->lexr.ncol > (uint32_t)S->lexr.last);
     CHECK(lexr_colof(&S->lexr, (uint32_t)S->lexr.last) == n); /* the end, past the last 1 */
@@ -364,4 +364,57 @@ TEST(code_outgrows_a_moved_cache)
 
     CHECK(unit_run(S, lines) == ST_OK);
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 7 \r");
+}
+
+/* text lexed into a buffer of its own, from none, grown as it fills: its body to out; its length. */
+static uint32_t lexed_from_none(Session *const S, const char *const text, uint8_t *const out)
+{
+    static uint8_t copy[2048];
+    uint8_t *body = nullptr;
+    uint32_t cap = 0;
+    Lexr lx = S->lexr;
+    lx.body = &body;
+    lx.cap = &cap;
+    strcpy((char *)copy, text);
+    const uint32_t len = (uint32_t)(lexr_line(&lx, copy) - body);
+    memcpy(out, body, len);
+    pmem_free(body - 1);
+    return len;
+}
+
+/* A body grown at any byte as it is lexed, in a name, a number or a string: the bytes as lexed
+   into a buffer with room. A whole number read past its first 9 digits across a growth was put
+   back where the body had been. */
+TEST(lexed_body_grows_at_any_byte)
+{
+    static char text[2048];
+    static uint8_t copy[2048], grown[2048];
+
+    for (uint32_t k = 0; k < 600; k++) {
+        int n = snprintf(text, sizeof text, "PRINT \"%*s\"; %020d; %0200d; ", (int)k, "", 1, 0);
+        memset(text + n, 'v', 250);
+        n += 250;
+        snprintf(text + n, sizeof text - (size_t)n, "; 1.25E+10: REM %*s", (int)k, "");
+        const uint32_t len = lexed_from_none(S, text, grown);
+        strcpy((char *)copy, text);
+        comp_room(&S->comp, sizeof grown);
+        const uint8_t *const end = lexr_line(&S->lexr, copy);
+        CHECK(len == (uint32_t)(end - S->comp.cbuf) && !memcmp(grown, S->comp.cbuf, len));
+    }
+}
+
+/* A typed line many times comp.cbuf's first bytes: its string literals whole from the grown
+   buffer. comp.cbuf was LMAX + 64 bytes from the start, 94 KB. */
+TEST(a_long_typed_line_grows_comp_cbuf)
+{
+    static char line[8192];
+    int n = snprintf(line, sizeof line, "PRINT LEN(\"\"");
+
+    for (uint32_t i = 0; i < 35; i++)
+        n += snprintf(line + n, sizeof line - (size_t)n, " + \"%0200d\"", 0);
+
+    snprintf(line + n, sizeof line - (size_t)n, ")");
+    CHECK(unit_typed(S, line) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 7000 \r");
+    CHECK(S->comp.ccap > 7000);
 }

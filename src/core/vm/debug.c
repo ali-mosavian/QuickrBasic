@@ -196,7 +196,7 @@ static void restore(Session *const S, const Saved *const s)
 /* The direct line's code from cons.inbuf's QBasic statement. */
 static void comp_code(Session *const S)
 {
-    lexr_line(&S->lexr, S->cons.inbuf, S->comp.cbuf);
+    lexr_line(&S->lexr, S->cons.inbuf);
     comp_line(&S->comp);
 }
 

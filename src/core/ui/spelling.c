@@ -131,8 +131,8 @@ static void view_names(Session *const S, const uint32_t v, const SpelKind kind)
     const Dialect *d = nullptr; /* a text file's, from its first line */
 
     for (uint32_t line = w->first; line < w->first + w->n; line++) {
+        comp_body(&S->comp, lmap_off(S, line), 0);
         const uint8_t *p = S->comp.cbuf;
-        prog_body(&S->prog, lmap_off(S, line), S->comp.cbuf);
 
         if (prog_line(&S->prog, lmap_off(S, line))->flags & LF_TEXT) {
             if (!d)

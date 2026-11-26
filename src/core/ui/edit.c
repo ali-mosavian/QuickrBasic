@@ -293,7 +293,8 @@ static bool tokenize(Session *const S, const uint32_t n, uint32_t *const len)
 {
     memcpy(edit_lb_need(S, &uimn.line, n), uc.pre, n + 1);
     S->vm.line = DLINE;
-    *len = (uint32_t)(lexr_line(&S->lexr, uimn.line.text, S->comp.cbuf) - S->comp.cbuf);
+    const uint8_t *const end = lexr_line(&S->lexr, uimn.line.text); /* comp.cbuf moved maybe */
+    *len = (uint32_t)(end - S->comp.cbuf);
     ErrOp op;
 
     if (repl_declare_check(S, S->comp.cbuf, &op) ==
@@ -397,7 +398,7 @@ uint16_t edit_dxerr(Session *const S, const uint8_t *const text, const ErrOp *co
     const uint32_t bodycol = (uint32_t)(body - text);
     memcpy(S->cons.inbuf, body, strlen((const char *)body) + 1);
     S->lexr.all = true; /* the body's bytes to columns */
-    lexr_line(&S->lexr, S->cons.inbuf, S->comp.cbuf);
+    lexr_line(&S->lexr, S->cons.inbuf);
     S->lexr.all = false;
     const uint16_t col = lexr_colof(&S->lexr, op->at);
     const uint32_t at = diag_at(

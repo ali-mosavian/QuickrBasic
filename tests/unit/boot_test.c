@@ -89,5 +89,6 @@ static uint32_t boot_keeps(void)
 
 /* Boot keeps from BASIC what it needs at first, at most the bytes below: on DOS the rest of a 2 MB
    machine is BASIC's. The code cache and the store were 64 KB each at first, the symbol tables sized
-   for 1024 names and the data stack's first segment 64 KB: 587 KB kept. */
-TEST(boot_keeps_little) { CHECK(boot_keeps() <= 356000); }
+   for 1024 names and the data stack's first segment 64 KB: 587 KB kept. comp.cbuf carved at
+   LMAX + 64: 351 KB. */
+TEST(boot_keeps_little) { CHECK(boot_keeps() <= 260000); }

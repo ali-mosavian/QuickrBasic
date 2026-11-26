@@ -110,9 +110,10 @@ typedef struct Comp {
     uint16_t dfa; /* cdfa: the automaton's state it failed in, FFFFh none */
 
     uint64_t dmask; /* dimsubs: bit i, subscript i its hi only */
-    /* A typed line's body, LMAX+64 bytes after the byte before it (Line.sep's place), carved
-       from the arena at start: a literal's Addr points into it. */
+    /* A typed line's body, ccap bytes after the byte before it (Line.sep's place), grown as
+       a line needs: a literal's Addr points into it. */
     uint8_t *cbuf;
+    uint32_t ccap;
     /* The compiled code, before link_xlate streams it into the cache: xcap bytes, grown to
        XLIM + COMP_TAIL as a line needs. */
     uint8_t *xbuf;
@@ -149,7 +150,11 @@ static inline uint8_t comp_suffixof(const uint8_t *const p)
 }
 
 /* Compiling */
-void comp_init(Comp *C); /* comp_cbuf carved (allo_carve), comp_xbuf's first bytes */
+void comp_init(Comp *C); /* comp_cbuf's, comp_xbuf's first bytes */
+/* comp.cbuf, n bytes at least: grown, moved maybe. Out of memory. */
+uint8_t *comp_room(Comp *C, uint32_t n);
+/* Stored line's body to comp.cbuf, from its byte at: past it. Out of memory. */
+uint8_t *comp_body(Comp *C, uint32_t line, uint32_t at);
 /* Procedure proc compiled, 0 none (comp.module's top level): its scopes seen. */
 void comp_proc(Comp *C, uint32_t proc);
 /* The module line is in: its scope (sc_module); the direct line's the main's. */

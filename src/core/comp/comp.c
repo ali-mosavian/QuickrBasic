@@ -48,14 +48,14 @@
  * | g_dlprc, g_lmod | comp.dlproc, comp.modlabel | MIRROR |
  * | g_psexp, g_psor, g_pscm, g_dmask | statics; comp.dmask | MIRROR |
  * | g_state.cm (TCOMP) | Comp; each field's comment names its asm field | D5 |
- * | (new) | comp_init: carves comp.cbuf (allo_carve); main.c calls it | |
+ * | (new) | comp_init: comp.cbuf's first bytes, grown by comp_room; main.c calls it | |
  * | (new) | comp_cur, comp_curn, comp_end: st_get, st_getn, st_eos at comp.p | |
  * | (new) | comp_rd16, comp_rd32: load16, load32 (base.h), unaligned reads | |
  *
  * - D1. comp_text takes the body; the asm's SI is before it.
  * - D2. The asm picks by kind inline.
  * - D3. The actions are static, in one table.
- * - D4. comp.cbuf is an arena block with its byte before it.
+ * - D4. comp.cbuf is a pmem block with its byte before it, grown as a line needs.
  * - D5. ctxlin is gone: a literal is addr_of its text. cst is a local of act_list. csp is busy and
  *   unwind (a jmp_buf). rn.cplim is depth, cm_p's stack check as a nesting count (COMP_MAXDEPTH,
  *   to calibrate). wv is lnum, and comp_opw's word.
@@ -85,15 +85,29 @@
 #include "vm/debug.h"
 
 enum { XINIT = 0x1000, XMAX = XLIM + COMP_TAIL }; /* comp.xbuf's bytes at first, at most */
+enum { CINIT = 0x200 };                           /* comp.cbuf's at first */
 
 const uint8_t comp_etkind[8] = {0, 1, 1, 0, SK_DBL, 2, 1, 1};
 
 bool comp_end(Comp *const C) { return comp_eos(C, &C->p); }
 
+uint8_t *comp_room(Comp *const C, const uint32_t n)
+{
+    if (!grow_after(&C->cbuf, &C->ccap, n))
+        fault_error(C->fault, E_OM);
+
+    return C->cbuf;
+}
+
+uint8_t *comp_body(Comp *const C, const uint32_t line, const uint32_t at)
+{
+    return prog_body(C->prog, line, comp_room(C, at + prog_body_size(C->prog, line)) + at);
+}
+
 void comp_init(Comp *const C)
 {
-    C->cbuf = at(allo_carve(C->allo, 1 + LMAX + 64)) +
-              1; /* the byte before: lexr's line before the body */
+    comp_room(C, CINIT);
+
     if (!GROW(C->xbuf, C->xcap, XINIT))
         fault_error(C->fault, E_OM);
 

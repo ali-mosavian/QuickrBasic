@@ -129,7 +129,7 @@ static bool typed_errs(Session *const S, const char *const *const lines)
         uint8_t text[256];
         memcpy(text, *l, strlen(*l) + 1);
         S->vm.line = DLINE;
-        lexr_line(&S->lexr, text, S->comp.cbuf);
+        lexr_line(&S->lexr, text);
         repl_declare(S, S->comp.cbuf);
         S->comp.check = true;
         comp_line(&S->comp);
@@ -300,7 +300,7 @@ static void declare_big_field(Session *const S)
 {
     uint8_t text[] = "c(1 TO 17000000) AS BYTE";
     S->vm.line = DLINE;
-    lexr_line(&S->lexr, text, S->comp.cbuf);
+    lexr_line(&S->lexr, text);
     declared = repl_declare_check(S, S->comp.cbuf, &declared_op);
 }
 

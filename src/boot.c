@@ -48,7 +48,7 @@ void boot(Session *const S, const FrontEnd *const fe)
     decl_init(&S->decl, &S->fault);
     S->names.intern = repl_intern;
     S->impt.find = repl_runs;
-    lexr_init(&S->lexr, &S->fault, &S->names);
+    lexr_init(&S->lexr, &S->fault, &S->names, &S->comp.cbuf, &S->comp.ccap);
     stmt_usng_init(S);
 
     if (!pmem_init())

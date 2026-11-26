@@ -197,8 +197,7 @@ void prog_add(Prog *const pg, const uint16_t num, const uint8_t *const body, con
 
 uint8_t *prog_body(const Prog *const pg, const uint32_t line, uint8_t *const dst)
 {
-    const Line *const p = prog_line(pg, line);
-    const uint32_t n = p->len - p->pre - HDR;
+    const uint32_t n = prog_body_size(pg, line);
     memcpy(dst, at(prog_addr(pg, line + HDR)), n);
     return dst + n;
 }

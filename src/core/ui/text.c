@@ -184,7 +184,7 @@ bool text_marker(Session *const S, const uint32_t line)
    LF_ASIS too when uimn.text.asis (used up), a syntax error's. */
 static Made make_text(Session *const S, const uint8_t *const src, const uint32_t len)
 {
-    memmove(S->comp.cbuf, src, len);
+    memmove(comp_room(&S->comp, len + 1), src, len);
     S->comp.cbuf[len] = 0;
     S->prog.pre_len = 0;
     const uint8_t flags = LF_TEXT | (uimn.text.asis ? LF_ASIS : 0);
@@ -212,7 +212,8 @@ static Made make(Session *const S, const uint8_t *const src, const uint32_t len,
     S->prog.pre_len = (uint32_t)(body - text);
     m.num = number(text, S->prog.pre_len);
     S->vm.line = DLINE;
-    m.len = (uint32_t)(lexr_line(&S->lexr, body, S->comp.cbuf) - S->comp.cbuf);
+    const uint8_t *const end = lexr_line(&S->lexr, body); /* comp.cbuf moved maybe */
+    m.len = (uint32_t)(end - S->comp.cbuf);
     const bool asis = uimn.text.asis;
     uimn.text.asis = false;
 

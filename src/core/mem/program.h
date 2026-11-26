@@ -59,6 +59,12 @@ uint32_t prog_at(const Prog *pg);
 uint32_t prog_lineof(const Prog *pg, uint32_t pos, uint32_t *off);
 /* The same, searched from the line at from, at or before pos's. */
 uint32_t prog_lineof_from(const Prog *pg, uint32_t from, uint32_t pos, uint32_t *off);
+/* Line's body's bytes, its 0 too. */
+static inline uint32_t prog_body_size(const Prog *const pg, const uint32_t line)
+{
+    const Line *const p = prog_line(pg, line);
+    return p->len - p->pre - HDR;
+}
 /* Line's body copied to dst; returns past it. */
 uint8_t *prog_body(const Prog *pg, uint32_t line, uint8_t *dst);
 /* The modules with lines in the store: one before each LF_TOP but the last, the main's. */

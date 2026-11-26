@@ -18,7 +18,7 @@ static void listed(Session *const S, const char *const text)
 {
     uint8_t buf[100];
     strcpy((char *)buf, text);
-    lexr_line(&S->lexr, buf, S->comp.cbuf);
+    lexr_line(&S->lexr, buf);
     S->cons.capture = CAP_SBUF;
     S->cons.sblen = 0;
     list_body(&S->comp, S->comp.cbuf);
