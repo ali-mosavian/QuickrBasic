@@ -659,9 +659,16 @@ ArrView arry_view_field(const Arry *const ay, const Addr data, const uint32_t ke
                      .fdims = decl_fielddim(ay->decl, f, 0)};
 }
 
+/* Dimension i's count as the program sees it: a 1-D from 0's fast, a list's length, not its
+   room. */
+static uint32_t arry_len(const ArrayHdr *const a, const uint32_t i)
+{
+    return a->dims == 1 && a->fast ? a->fast : arry_count(a, i);
+}
+
 uint32_t arry_view_count(const ArrView *const v, const uint32_t i)
 {
-    return v->hdr ? arry_count(v->hdr, i) : v->fdims[i].count;
+    return v->hdr ? arry_len(v->hdr, i) : v->fdims[i].count;
 }
 
 int32_t arry_view_lbound(const ArrView *const v, const uint32_t i)
@@ -671,13 +678,10 @@ int32_t arry_view_lbound(const ArrView *const v, const uint32_t i)
 
 uint32_t arry_view_elems(const ArrView *const v)
 {
-    if (v->hdr)
-        return arry_elem_count(v->hdr);
-
     uint32_t n = 1;
 
     for (uint32_t i = 0; i < v->dims; i++)
-        n *= v->fdims[i].count;
+        n *= arry_view_count(v, i);
 
     return n;
 }

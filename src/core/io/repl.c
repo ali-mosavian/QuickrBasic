@@ -948,8 +948,23 @@ static void not_found(Session *const S)
         fault_qberr(&S->fault, QB_FILE_NOT_FOUND);
 }
 
-/* The module at path imported by the one being read: loaded once, declared before it. A .qbx's
-   header is read now, so an error in it is at the IMPORT. */
+/* The module at path, of dialect d: its number. A .qbx's header is read now, so an error in it is
+   at the line naming it. */
+static uint32_t module_at(Session *const S, const char *const path, const Dialect *const d)
+{
+    const uint32_t m = modu_module(&S->modu, path);
+
+    if (d->text)
+        modu_mod(&S->modu, m)->dialect = d;
+    if (natv_is(path)) {
+        const char *file;
+        natv_open(&S->natv, path, &file);
+    }
+
+    return m;
+}
+
+/* The module at path imported by the one being read: loaded once, declared before it. */
 static void import(Session *const S, const char *const path)
 {
     const Dialect *const d = dial_of_file(path);
@@ -965,17 +980,7 @@ static void import(Session *const S, const char *const path)
 
         );
 
-    const uint32_t m = modu_module(&S->modu, path);
-
-    if (d->text)
-        modu_mod(&S->modu, m)->dialect = d;
-    if (natv_is(path)) {
-        const char *file;
-        natv_open(&S->natv, path, &file);
-        modu_mod(&S->modu, m)->native = true;
-    }
-
-    modu_import(&S->modu, S->repl.module, m);
+    modu_import(&S->modu, S->repl.module, module_at(S, path, d));
 }
 
 /* FROM's module n to path: a package's folder, or a .qbx of parts alone, sets in_package. false:
@@ -985,27 +990,6 @@ static bool from_module(Imports *const im, const ImptName *const n, char path[st
     const bool found = locate(&im->where, n, path, &im->in_package);
     im->in_package = im->in_package || (found && natv_package(&im->S->natv, path));
     return found;
-}
-
-/* A module of FROM's package, name n, to path: a folder's file, or a .qbx's part. false: none. */
-static bool member(const Imports *const im, const ImptName *const n, char path[static PFIL_PATH])
-{
-    if (!natv_is(im->package))
-        return locate_in(im->package, n, nullptr, path);
-
-    const uint32_t len = (uint32_t)strlen(im->package);
-
-    if (len + 1 + n->len >= PFIL_PATH)
-        return false;
-
-    memcpy(path, im->package, len);
-    path[len] = '/';
-
-    for (uint32_t i = 0; i < n->len; i++)
-        path[len + 1 + i] = (char)downcase(n->text[i]);
-
-    path[len + 1 + n->len] = 0;
-    return true;
 }
 
 /* One name the line gives: a module's file added to those to load, once. */
@@ -1036,7 +1020,7 @@ static void imported(void *const ctx, const ImptKind kind, const ImptName *const
     case IMPT_NAME: /* a module's export: its file is there already */
         if (!im->in_package)
             return;
-        if (!n->sfx && member(im, n, path))
+        if (!n->sfx && locate_in(im->package, n, nullptr, path))
             import(im->S, path);
         else
             not_found(im->S);
@@ -1100,7 +1084,7 @@ static void bound(void *const ctx, const ImptKind kind, const ImptName *const n)
             return;
         }
 
-        member(im, n, path);
+        locate_in(im->package, n, nullptr, path);
         clashed(S, modu_module(&S->modu, path));
         bind_module(&S->scop, &S->symb, &S->fault, m, n, modu_module(&S->modu, path));
         return;
@@ -1233,6 +1217,24 @@ static void module_end(Session *const S, const uint16_t file)
     S->prog.add_file = was;
 }
 
+/* QBasic module m's file at path read as its lines: a .qbx's or a package part's its interface,
+   LF_NATIVE, the module native. */
+static void read_module(Session *const S, const uint32_t m, const char *const path)
+{
+    if (!natv_is(path)) {
+        read_file(S, path, path, SOURCE_FILENO, 0);
+        return;
+    }
+
+    modu_mod(&S->modu, m)->native = true;
+    const uint8_t flags = S->prog.add_flags;
+    const char *file;
+    const uint32_t at = natv_open(&S->natv, path, &file);
+    S->prog.add_flags = flags | LF_NATIVE;
+    read_file(S, file, path, SOURCE_FILENO, at);
+    S->prog.add_flags = flags;
+}
+
 /* The modules the program imports from module from on, after the store's lines, each once and in
    the order first named, a module's own imports after it; another dialect's last, so a top's place
    is no module's number. An END ends each module's lines, the main's too, its LF_TOP the next
@@ -1255,18 +1257,7 @@ static void read_modules(Session *const S, const uint32_t from, const uint32_t l
         module_end(S, S->repl.nfile);
         S->repl.module = m;
         memset(S->lexr.off, 0, sizeof S->lexr.off);
-
-        if (!modu_mod(&S->modu, m)->native) {
-            read_file(S, path, path, SOURCE_FILENO, 0);
-            continue;
-        }
-
-        const uint8_t flags = S->prog.add_flags; /* a .qbx: the module's interface in it */
-        const char *file;
-        const uint32_t at = natv_open(&S->natv, path, &file);
-        S->prog.add_flags = flags | LF_NATIVE;
-        read_file(S, file, path, SOURCE_FILENO, at);
-        S->prog.add_flags = flags;
+        read_module(S, m, path);
     }
 
     for (uint32_t m = from; m < modu_count(&S->modu); m++) { /* its imports its dialect's alone */
@@ -1482,7 +1473,7 @@ void repl_guests(
     S->repl.module = 0;
 
     for (uint32_t i = 0; i < n; i++) {
-        mods[i] = modu_module(&S->modu, paths[i]);
+        mods[i] = module_at(S, paths[i], dial_of_file(paths[i]));
         modu_import(&S->modu, 0, mods[i]);
     }
 
@@ -1506,7 +1497,7 @@ static void read_guest(Session *const S, const uint32_t m, uint32_t *const last)
     module_end(S, (uint16_t)m);
     S->repl.module = m;
     S->repl.nfile = (uint16_t)m;
-    read_file(S, path, path, SOURCE_FILENO, 0);
+    read_module(S, m, path);
 }
 
 /* repl_guests_found's: each stored QBasic line's imports found, each LF_TOP its module's; the last

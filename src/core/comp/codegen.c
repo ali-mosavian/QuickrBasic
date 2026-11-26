@@ -997,8 +997,7 @@ static void cg_call(Code *const c, const Node *const n)
         gen(c, a);
 
     if (n->mode == CALL_NATIVE) {
-        code_int(c, n->num);
-        code_call(c, K_NCALL);
+        code_ncall(c, n->num);
         code_called(c, waiting, user);
         c->type = n->type;
         c->iload = c->iloadend = nullptr;

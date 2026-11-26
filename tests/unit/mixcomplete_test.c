@@ -5,6 +5,7 @@
 
 #include "session.h"
 #include "comp/suggest.h"
+#include "io/qbxfile.h"
 #include "ui/linemap.h"
 #include "ui/uimain.h"
 #include "edfix.h"
@@ -58,7 +59,7 @@ static const char shapes[] = "TYPE Rect\n"
                              "SUB Show (a AS LONG)\n"
                              "    PRINT a\n"
                              "END SUB\n"
-                             "SUB Fill (a() AS LONG)\n"
+                             "SUB Fill (a() AS BYTE)\n"
                              "END SUB\n"
                              "PRIVATE SUB Hidden\n"
                              "END SUB\n";
@@ -175,7 +176,45 @@ TEST(mixcomplete_qr_main_offers_a_qbasic_modules_exports)
     fx_done(S, files);
 }
 
-/* After a QBasic module's name a Quickr program offered a SUB it can't call: an array
+/* qxt.qbx as tools/qbx.py pack lays it out: a slice for no machine, empty, and the module's own
+   interface iface, both at 64, the interface followed by 1Ah. */
+static void write_qbx(const char *const iface)
+{
+    uint8_t f[256] = {};
+
+    const uint32_t n = (uint32_t)strlen(iface);
+    memcpy(f, "QBX\x1a", 4);
+    store16(f + 4, QBXF_FORMAT);
+    store16(f + 6, 1);
+    store16(f + 10, 1);
+    store16(f + 12, 1);
+    strcpy((char *)f + 16, "nosuch"); /* the slice: tag, at, bytes */
+    store32(f + 32, 64);
+    store32(f + 56, 64); /* the part "": its name all 0, at, bytes */
+    store32(f + 60, n);
+    memcpy(f + 64, iface, n);
+    f[64 + n] = 0x1a;
+
+    FILE *const out = fopen(fx_path_of("qxt.qbx"), "wb");
+    fwrite(f, 1, 64 + n + 1, out);
+    fclose(out);
+}
+
+/* After a native module's name the IDE's Quickr program offered nothing: its .qbx was read as
+   text, its DECLAREs lost. */
+TEST(mixcomplete_qr_main_offers_a_native_modules_exports)
+{
+    static const char *const names[] = {"main.bas", "qxt.qbx", nullptr};
+
+    fx_open_program(S, "");
+    fx_write_file("main.bas", DIALECT "import qxt\nlet total = 1\nprint total\n");
+    write_qbx("declare function add% cdecl (byval a%, byval b%)\n");
+    uimn_open(S, fx_path_of("main.bas"));
+    CHECK(offers(S, "print total", "let a = qxt.", "add"));
+    fx_done(S, names);
+}
+
+/* After a QBasic module's name a Quickr program offered a SUB it can't call: a BYTE array
    parameter. */
 TEST(mixcomplete_qr_main_leaves_out_what_it_cant_use)
 {

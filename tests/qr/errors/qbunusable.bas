@@ -12,3 +12,4 @@ odd.same()
 var s as short = 1
 odd.inc(s)
 let g = odd.inc
+odd.codes()

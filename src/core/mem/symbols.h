@@ -129,6 +129,11 @@ static inline bool symb_is_record(const Symb *const sy, const uint32_t id)
     const Var *const v = symb_var(sy, id);
     return v->type >= ET_REC && (v->info & (VI_ARR | VK_MASK)) == VI_RECARR;
 }
+/* An array, of records too. */
+static inline bool symb_is_array(const Symb *const sy, const uint32_t id)
+{
+    return symb_var(sy, id)->info & VI_ARR && !symb_is_record(sy, id);
+}
 static inline FrameArr *symb_farr(const Symb *const sy, const uint32_t id)
 {
     return (FrameArr *)at(sy->vars.at[5]) + id;

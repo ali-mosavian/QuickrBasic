@@ -21,7 +21,8 @@ print synth.beat()
 - `synth.qbx` is found as `synth.bas` is: the program's folder, each folder of `BASICLIB`, then
   `lib/` beside the interpreter. The synthesizer ships in that `lib/`.
 - No flag, no path and no step for a platform: the same file is copied everywhere.
-- Its names follow the rules of any module's: `synth.note`, or `FROM synth IMPORT note`.
+- Its names follow the rules of any module's: `synth.note`, or `FROM synth IMPORT note`. A Quickr
+  file imports it as it imports a QBasic module.
 - A platform the file has no code for still opens, checks and completes the program. A run stops
   at the IMPORT line with a new error: Native code not built for this machine.
 
@@ -39,19 +40,60 @@ print synth.beat()
 
 ## On disk
 
+![A .qbx file](img/qbx-file.svg)
+
+A `.qbx` is little-endian: the header, the entries, the slices, then the parts. `tools/qbx.py
+pack` writes it and `io/qbxfile.c` reads it.
+
 | Part | Holds |
 |---|---|
-| Header | `QBX` and 1Ah, the file format's version (2), the ABI's major and the minor it needs |
-| Slices | a tag, an offset and a size each |
-| Parts | a name, an offset and a size each: the module's own interface, named "", or a package's modules |
-| Interfaces | BASIC source: TYPEs, CONSTs, native DECLAREs, procedures in BASIC; each followed by 1Ah |
+| Header | 16 bytes: `QBX` and 1Ah, the file format's version (2), the ABI's major and the minor it needs, the slices' and the parts' counts |
+| Entries | 24 bytes each, the slices' then the parts': a tag or a name, an offset and a size |
+| Slices | each platform's code, each from a 16-byte boundary |
+| Parts | interfaces, BASIC source: TYPEs, CONSTs, native DECLAREs, procedures in BASIC; each followed by 1Ah, so the loader reads one as a source file from its offset. The module's own is named "" |
 | Help (later) | pages for F1, in the help's Markdown |
+
+The header:
+
+| Offset | Bytes | Field |
+|---|---|---|
+| 0 | 4 | `QBX` and 1Ah |
+| 4 | 2 | the file format's version, 2 |
+| 6 | 2 | the ABI's major |
+| 8 | 2 | the ABI's minor it needs at least |
+| 10 | 2 | the slices' count |
+| 12 | 2 | the parts' count |
+| 14 | 2 | 0 |
+
+An entry, the slices' from offset 16, the parts' after them:
+
+| Offset | Bytes | Field |
+|---|---|---|
+| 0 | 16 | a slice's tag (`dos-i386`, `macos`, `linux-x86_64`, `wasm32`) or a part's name, 0-padded |
+| 16 | 4 | its offset |
+| 20 | 4 | its bytes, a part's without its 1Ah |
+
+The reader checks the magic and the format's version, and that every entry lies inside the file: a
+`.qbx` is read from wherever the program is. It takes the slice tagged `pext_tag`, this build's,
+and finds a part by its name, case aside. Version 1 is still read: no parts' count, the interface's
+offset and bytes at 12 and 16, its slices' entries from 20, the interface last.
 
 A package's `.qbx` holds its modules' interfaces over the same slices, as
 [gfx's architecture](../stdlib/gfx/docs/architecture.md#the-package) has it. Its modules are
 named as a folder's: `gfx.draw` is the part `draw` of `gfx.qbx`, whose path `locate.c` gives as
 `gfx.qbx/draw`, as Python's zipimport names a module in a zip. Its DECLAREs bind to the entries
-named `draw.NAME`. Version 1 held one interface, last.
+named `draw.NAME`. A module's own `.qbx` has the part "" alone.
+
+The DOS slice is an image linked at 0 (`util/image.c`), made by `pack` from an `lld-link` DLL:
+
+| Offset | Bytes | Field |
+|---|---|---|
+| 0 | 4 | `QXI` and its version, 1 |
+| 4 | 4 | the bytes stored |
+| 8 | 4 | the image's size in memory, the bss past the bytes stored |
+| 12 | 4 | the entry's offset, `qx_init_<name>` |
+| 16 | 4 | the relocations' count |
+| 20 | | the bytes stored, padded to 4; then each relocation, the offset of a 32-bit word |
 
 | Slice | Holds | Loaded by |
 |---|---|---|
@@ -288,9 +330,24 @@ stops it, and the process's end closes them all.
 
 ## Loading, step by step
 
-`io/qbxfile.c` and `io/native.c` are shared. They read the header and check the magic, the format's
-version and the ABI's major. It takes the slice whose tag is this build's, hands it to `pext_load` (`plat/pext.h`), then
-calls `qx_init_<name>`. A file is loaded once in a process, kept by its path and hash.
+![Loading a .qbx](img/qbx-load.svg)
+
+`io/qbxfile.c` and `io/native.c` are shared by every platform and both dialects.
+
+1. `locate` finds the module (see [Finding one](#finding-one)).
+2. `natv_open` reads the file whole, once a process, and keeps it by its path. It checks the header
+   and the ABI: another major, or a minor newer than the host's, is Advanced feature unavailable at
+   the IMPORT.
+3. `read_module` (`io/repl.c`) reads the module's part, its interface, as the module's lines,
+   stored `LF_NATIVE`. Each `DECLARE ... CDECL` is a `Proc` with `PF_NATIVE` and no body.
+4. When the program links, `link_natives` asks `natv_module` for the module. It hands this build's
+   slice to `pext_load` (`plat/pext.h`), once a file, and calls `qx_init_<file's name>` with the
+   host's table. The `QxModule` it gives lists the entries; each DECLARE's is found, `draw.rect` in
+   a package's part `draw`, and its kinds checked.
+5. A run calls each module's `start`, then `stop` at its end. A call is `CALL NCALL`
+   (`vm/ncall.c`).
+
+Each platform's `pext_load`:
 
 **DOS** (`plat/dos32/pext.c`, `util/image.c`). `tools/qbx.py pack` makes the DLL an image at 0:
 its sections where they lie, its relocations' offsets and its entry's offset. The loader:
@@ -331,8 +388,11 @@ tests need no loader.
 
 ## Building one
 
+![Building a .qbx](img/qbx-build.svg)
+
 `tools/qbx.py glue` writes the glue, each slice is built with it, and `tools/qbx.py pack` puts the
-interfaces and the slices in a `.qbx`. The flags, as the prototype used them:
+interfaces and the slices in a `.qbx`. `pack` makes a DOS DLL its image. The flags, as the
+prototype used them:
 
 | Slice | Compile | Link |
 |---|---|---|

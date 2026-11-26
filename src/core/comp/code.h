@@ -44,6 +44,7 @@ void code_dword(Code *c, uint32_t d);
 void code_insert(Code *c, uint8_t b, uint8_t *at); /* b at at, the code after it moved up */
 void code_int(Code *c, uint32_t n);                /* an INT load: I.LD.U8, I.LD.I16 or I.LD.I32 */
 void code_call(Code *c, uint8_t k);                /* CALL k */
+void code_ncall(Code *c, uint32_t proc);           /* native procedure proc called: CALL NCALL */
 /* A call's start, one whose code may sweep (sweeps): HOLD when an address into the heap that the
    statement pushed (code_heapop, FCELL) may wait under it (mem/array.c arry_hold). What
    code_called takes back. */

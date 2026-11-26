@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="600" viewBox="0 0 1000 600"><defs><marker id="ah059669" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#059669"/></marker><marker id="ah9ca3af" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9ca3af"/></marker></defs>
+<rect width="1000" height="600" fill="#ffffff"/>
+<text x="32" y="40" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" font-weight="700" fill="#1f2937" text-anchor="start">Loading a .qbx</text>
+<text x="32" y="64" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#6b7280" text-anchor="start">Found and opened at the IMPORT, its interface read as the module, its slice loaded when the program links.</text>
+<rect x="32" y="92" width="640" height="88" rx="10" fill="#eef2ff" stroke="#4f46e5" stroke-width="2"/>
+<text x="48" y="118" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#312e81" text-anchor="start">1  find</text>
+<text x="656" y="118" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#4f46e5" text-anchor="end" font-style="italic">io/locate.c</text>
+<text x="48" y="144" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">synth: synth.bas, else synth.qbx; gfx.draw: else the part gfx.qbx/draw.</text>
+<text x="48" y="162" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">In the program&#x27;s folder, BASICLIB, then lib/; the same for Quickr</text>
+<rect x="32" y="192" width="640" height="88" rx="10" fill="#eef2ff" stroke="#4f46e5" stroke-width="2"/>
+<text x="48" y="218" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#312e81" text-anchor="start">2  open</text>
+<text x="656" y="218" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#4f46e5" text-anchor="end" font-style="italic">io/native.c natv_open</text>
+<text x="48" y="244" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">the file read whole once a process, kept by its path; qbxf_read checks it.</text>
+<text x="48" y="262" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">Another ABI major or a newer minor: Advanced feature unavailable</text>
+<path d="M352,180 L352,190" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<rect x="32" y="292" width="640" height="88" rx="10" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
+<text x="48" y="318" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#7c2d12" text-anchor="start">3  read</text>
+<text x="656" y="318" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#ea580c" text-anchor="end" font-style="italic">io/repl.c read_module</text>
+<text x="48" y="344" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">the part&#x27;s interface is the module&#x27;s lines, stored LF_NATIVE;</text>
+<text x="48" y="362" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">each DECLARE ... CDECL a Proc with PF_NATIVE and no body (comp/blocks.c)</text>
+<path d="M352,280 L352,290" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<rect x="32" y="392" width="640" height="88" rx="10" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
+<text x="48" y="418" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#064e3b" text-anchor="start">4  link</text>
+<text x="656" y="418" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#059669" text-anchor="end" font-style="italic">comp/link.c link_natives</text>
+<text x="48" y="444" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">natv_module: this build&#x27;s slice to pext_load (plat/pext.h), then</text>
+<text x="48" y="462" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">qx_init_&lt;file&gt;(&amp;host) gives the QxModule; each DECLARE&#x27;s entry found (draw.rect)</text>
+<path d="M352,380 L352,390" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<rect x="32" y="492" width="640" height="88" rx="10" fill="#f5f5f4" stroke="#78716c" stroke-width="2"/>
+<text x="48" y="518" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#292524" text-anchor="start">5  run</text>
+<text x="656" y="518" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#78716c" text-anchor="end" font-style="italic">vm/ncall.c</text>
+<text x="48" y="544" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">start() at the run&#x27;s start; a call is CALL NCALL: its arguments laid out</text>
+<text x="48" y="562" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">as qx/qx.h says, the entry called, its result pushed; stop() at the end</text>
+<path d="M352,480 L352,490" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<rect x="704" y="392" width="264" height="188" rx="10" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
+<text x="720" y="418" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#064e3b" text-anchor="start">pext_load</text>
+<text x="952" y="418" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#059669" text-anchor="end" font-style="italic">once a process</text>
+<rect x="720" y="430" width="60" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
+<text x="750.0" y="448.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">DOS</text>
+<text x="790" y="449" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">a heap block, relocated</text>
+<rect x="720" y="466" width="60" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
+<text x="750.0" y="484.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">Mac</text>
+<text x="790" y="485" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">cached dylib, dlopen</text>
+<rect x="720" y="502" width="60" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
+<text x="750.0" y="520.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">Linux</text>
+<text x="790" y="521" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">memfd_create, dlopen</text>
+<rect x="720" y="538" width="60" height="28" rx="6" fill="#ffffff" stroke="#059669" stroke-opacity="0.55"/>
+<text x="750.0" y="556.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="middle">wasm</text>
+<text x="790" y="557" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">side module instantiated</text>
+<path d="M672,436 L702,436" fill="none" stroke="#059669" stroke-width="1.6" marker-end="url(#ah059669)"/>
+<rect x="704" y="92" width="264" height="140" rx="10" fill="#f5f5f4" stroke="#78716c" stroke-width="2"/>
+<text x="720" y="118" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#292524" text-anchor="start">the file, kept</text>
+<text x="720" y="140" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">NatvFile: path, bytes, its QbxFile</text>
+<text x="720" y="160" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">(abi, minor, this build&#x27;s slice);</text>
+<text x="720" y="180" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">module: the QxModule, once</text>
+<text x="720" y="200" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">CHAIN and RUN find it again</text>
+<path d="M672,236 L702,200" fill="none" stroke="#9ca3af" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#ah9ca3af)"/>
+</svg>

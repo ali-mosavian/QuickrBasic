@@ -48,6 +48,9 @@ a list or a map.
 Modules: import m, import m as n, from m import a, b. A top-level
 name, a type's field or method is seen outside its file unless
 private. A type with a private field is built in its file.
+A QBasic module, or a native one (a .qbx), is imported the same way:
+its SUBs and FUNCTIONs are functions, its TYPEs records, and a list
+is passed to an array parameter by reference.
 
 print a; b, c: ; joins, , to the next 14-column zone, a separator
 last holds the line; print alone, an empty line.

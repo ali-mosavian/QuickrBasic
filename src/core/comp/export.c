@@ -57,9 +57,9 @@ static const char *expo_type_why(const Decl *const d, const uint32_t t)
 }
 
 static const char *const expo_param_why[] = {
-    [EW_ARRAY] = "an array parameter",
     [EW_BYTE] = "a BYTE parameter",
     [EW_TYPE] = "a parameter of a TYPE Quickr can't use",
+    [EW_FIXED] = "a fixed-length string parameter",
 };
 
 static const char *const expo_result_why[] = {
@@ -70,12 +70,12 @@ static const char *const expo_result_why[] = {
 
 ExpWhy expo_value_why(const Decl *const d, const Binding *const b, const bool arr)
 {
-    if (arr)
-        return EW_ARRAY;
-    if (b->rec[0])
-        return expo_type_why(d, b->rec[0]) ? EW_TYPE : EW_NONE;
+    if (b->rec[arr])
+        return expo_type_why(d, b->rec[arr]) ? EW_TYPE : EW_NONE;
+    if (b->fix[arr])
+        return EW_FIXED;
 
-    return b->et[0] == ET_BY ? EW_BYTE : EW_NONE;
+    return b->et[arr] == ET_BY ? EW_BYTE : EW_NONE;
 }
 
 /* Variable id's type as a value's, an array's or a BYTE's none, its verdict declared. */
@@ -107,7 +107,12 @@ static const char *expo_name(const Comp *const C, Arena *const a, const uint32_t
 /* Procedure p, QBasic's, as an export. */
 static ExpProc expo_proc(const Comp *const C, Arena *const a, const Proc *const p, const uint32_t i)
 {
-    ExpProc e = {.proc = i, .npar = blok_nargs(p), .resarg = p->flags & PF_RESARG};
+    ExpProc e = {
+        .proc = i,
+        .npar = blok_nargs(p),
+        .resarg = p->flags & PF_RESARG,
+        .native = p->flags & PF_NATIVE,
+    };
 
     e.name = expo_name(C, a, p->name, &e.len);
     e.params = expo_room(C, a, p->npar, sizeof *e.params);
@@ -116,6 +121,7 @@ static ExpProc expo_proc(const Comp *const C, Arena *const a, const Proc *const 
         const uint32_t id = p->params[k].var;
         e.params[k].et = expo_var(C, id);
         e.params[k].byref = !p->params[k].byval;
+        e.params[k].array = symb_is_array(C->symb, id);
         e.params[k].name = expo_name(C, a, symb_var(C->symb, id)->name, &e.params[k].len);
     }
 

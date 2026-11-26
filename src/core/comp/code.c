@@ -131,6 +131,12 @@ void code_call(Code *const c, const uint8_t k)
     code_opb(c, O_CALL, k);
 }
 
+void code_ncall(Code *const c, const uint32_t proc)
+{
+    code_int(c, proc);
+    code_call(c, K_NCALL);
+}
+
 /* cm_vop: X.LD.V or X.ST.V of a scalar parameter: V.LD, V.ST id kind (kind 0 4 bytes, 1 8, 2 a
    Desc); false: op not one of them. */
 static bool parop(Code *const c, const uint8_t op, const uint32_t id)

@@ -10,7 +10,7 @@ END TYPE
 TYPE Same
     A AS LONG
 END TYPE
-SUB Fill (a() AS LONG)
+SUB Fill (a() AS BYTE)
 END SUB
 SUB Bytes (b AS BYTE)
 END SUB
@@ -19,4 +19,6 @@ END FUNCTION
 SUB same
 END SUB
 SUB Inc (n AS LONG)
+END SUB
+SUB Codes (a() AS STRING * 4)
 END SUB

@@ -10,6 +10,7 @@
  */
 #include "io/locate.h"
 #include "io/path.h"
+#include "io/qbxfile.h"
 #include "plat/psys.h"
 #include <string.h>
 
@@ -57,8 +58,26 @@ static bool folder(char *const out)
     return true;
 }
 
-/* Name m's last part in the .qbx its others name, under the root's n bytes: FILE.qbx/part, in
-   lower case as the parts are named, to out. false: no such .qbx. */
+/* out, a .qbx's path, its part of the len bytes at text added: FILE.qbx/part, in lower case as
+   the parts are named. false: too long. */
+static bool add_part(char *const out, const uint8_t *const text, const uint32_t len)
+{
+    const uint32_t at = (uint32_t)strlen(out);
+
+    if (at + 1 + len >= PFIL_PATH)
+        return false;
+
+    out[at] = '/';
+
+    for (uint32_t i = 0; i < len; i++)
+        out[at + 1 + i] = (char)downcase(text[i]);
+
+    out[at + 1 + len] = 0;
+    return true;
+}
+
+/* Name m's last part in the .qbx its others name, under the root's n bytes, to out. false: no
+   such .qbx. */
 static bool part(const char *const root, const uint32_t n, const ImptName *const m, char *const out)
 {
     uint32_t dot = m->len;
@@ -68,21 +87,8 @@ static bool part(const char *const root, const uint32_t n, const ImptName *const
 
     const ImptName head = {.text = m->text, .len = (uint8_t)(dot - 1)};
 
-    if (dot < 2 || !place(out, root, n, &head, ".qbx") || !path_exists(out))
-        return false;
-
-    const uint32_t at = (uint32_t)strlen(out), len = m->len - dot;
-
-    if (at + 1 + len >= PFIL_PATH)
-        return false;
-
-    out[at] = '/';
-
-    for (uint32_t i = 0; i < len; i++)
-        out[at + 1 + i] = (char)downcase(m->text[dot + i]);
-
-    out[at + 1 + len] = 0;
-    return true;
+    return dot >= 2 && place(out, root, n, &head, ".qbx") && path_exists(out) &&
+           add_part(out, m->text + dot, m->len - dot);
 }
 
 /* Name n under the root's n bytes: its file, of extension ext, else a .bas, a .qbx, then a
@@ -176,5 +182,13 @@ bool locate_in(
     char out[static PFIL_PATH]
 )
 {
-    return under(dir, (uint32_t)strlen(dir), m, ext, out, nullptr);
+    const uint32_t n = (uint32_t)strlen(dir);
+
+    if (!qbxf_is(dir))
+        return under(dir, n, m, ext, out, nullptr);
+    if (n >= PFIL_PATH)
+        return false;
+
+    memcpy(out, dir, n + 1);
+    return add_part(out, m->text, m->len);
 }

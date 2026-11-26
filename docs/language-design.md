@@ -904,8 +904,11 @@ end function
   `double`, STRING `string`, a TYPE a record of the same fields.
 - A parameter by reference takes a `var`'s place, and the `var` sees the change. Any other
   argument, a `let`'s too, goes as a copy. A BYVAL parameter is by value.
+- An array parameter takes a list by reference. QBasic sees the list's length as its bounds, from 0,
+  and a REDIM of it changes the list.
 - What Quickr has no equal for is an error where it is used, naming why, never at the import: a
-  fixed-length string, an array, a TYPE's array field.
+  fixed-length string, a BYTE, a TYPE's array field.
+- A native module, a `.qbx`, is imported as a QBasic one: `from synth import note`.
 - A QBasic module's code runs at its first import, as in QBasic.
 - A QBasic file imports a Quickr module: `IMPORT shapes`, then `shapes.area(2, 3)`, or `FROM
   shapes IMPORT area`. Its functions are SUBs and FUNCTIONs, its records TYPEs, the private ones
@@ -1060,7 +1063,9 @@ dicts and iterables. Everything else is in a module.
 - `io.read_line` echoes the line's end, as LINE INPUT does. `io.at(row, col)` counts from 1.
   `io.color(fg, bg = 0)`.
 
-**Not yet:** `gfx` waits on the graphics extension; `synth` on `lib/synth.qbx`.
+`gfx` is the native package `lib/gfx.qbx`, imported as QBasic imports it: `from gfx import
+display, draw`. Its CONSTs are not seen from Quickr. **Not yet:** `synth`, which waits on
+`lib/synth.qbx`.
 
 ## Building it
 

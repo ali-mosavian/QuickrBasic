@@ -902,6 +902,12 @@ static void qcg_native(QCg *const g, const QExpr *const e)
 void qcg_pcall(QCg *const g, const QFn *const f)
 {
     Code *const c = g->c;
+
+    if (f->ncall) {
+        code_ncall(c, f->proc);
+        return;
+    }
+
     code_op(c, O_PCALL); /* the procedure, its locals' cells, its parameters (link's), its body */
     code_dword(c, f->proc);
     code_dword(c, 0);
