@@ -2,14 +2,16 @@
 ' displacement on a grid that wraps, smoothed and shaped
 ' into valleys, rivers cut where a second such field
 ' crosses its middle; light by slope, the sun's shadows
-' and the water's depth, woods darker where a third runs
-' high.
+' and the water's depth; the ground by slope, height and
+' bare patches where a third runs low, woods darker where
+' it runs high.
 option explicit
 
 from highvale.model.space import Point3
 from highvale.model.land import Land, MAP, MAP_MASK, SIDE
 from highvale.model.land import LEVELS, PEAK, LIGHTS, SCALE
-from highvale.model.land import STEP_PARTS
+from highvale.model.land import STEP_PARTS, GRASS_FROM
+from highvale.model.land import ROCK_FROM
 from highvale.land.palette import WATER, GRASS, ROCK
 
 ' a field's first swing, and its swing kept each halving,
@@ -24,8 +26,16 @@ const SEA_LINE = 900
 ' and the most they cut, in values
 const BANK = 400
 const CUT = 700
-' grass up to this height, in steps, rock over it
-const ROCK_LINE = 64
+' rock where a texel's slope over STEEP, in steps a
+' texel, its height over HIGH, in steps, and the cover
+' under its middle, each over its span, sum past 0; the
+' sum eased in over GROUND_SPREAD of a ground's values
+const STEEP = 1.6
+const STEEP_SPAN = 1.2
+const HIGH = 110
+const HIGH_SPAN = 80
+const BARE_SPAN = 0.5
+const GROUND_SPREAD = 64
 ' woods where the second field is above this level, their
 ' light this much under the grass's
 const WOODS_LINE = 2400
@@ -66,6 +76,7 @@ end function
 sub allot_land (ld as Land)
     redim ld.heights(level_base(LEVELS) - 1)
     redim ld.lights(level_base(LEVELS) - 1)
+    redim ld.grounds(level_base(LEVELS) - 1)
 end sub
 
 ' A field of midpoint displacement over the wrapping grid,
@@ -173,14 +184,36 @@ sub shape_table (parts() as long)
     next
 end sub
 
-' The ground at height h, in height steps, sea the sea's.
-function ground_of ( _
-    byval h as integer, _
-    byval sea as integer _
-) as integer
+' The ground a texel's ground value v names.
+function ground_of (byval v as integer) as integer
     ground_of = ROCK
-    if h < ROCK_LINE then ground_of = GRASS
-    if h <= sea then ground_of = WATER
+    if v < ROCK_FROM then ground_of = GRASS
+    if v < GRASS_FROM then ground_of = WATER
+end function
+
+' Land's ground value: rock by slope, a step's fall a
+' texel, height h, in parts, and cover; near the sea no
+' more than its parts over sea allow, so the shore keeps
+' to the sea's line.
+function land_ground ( _
+    byval slope as single, _
+    byval h as long, _
+    byval sea as long, _
+    byval cover as long _
+) as integer
+    dim stony as single
+    dim v as single
+
+    stony = (slope - STEEP) / STEEP_SPAN _
+        + (h / STEP_PARTS - HIGH) / HIGH_SPAN _
+        + (0.5 - cover / (VALUES - 1)) / BARE_SPAN
+    v = ROCK_FROM + stony * GROUND_SPREAD
+    if v < GRASS_FROM then v = GRASS_FROM
+    if v > 255 then v = 255
+    if v > (h - sea) * GRASS_FROM / STEP_PARTS then
+        v = (h - sea) * GRASS_FROM / STEP_PARTS
+    end if
+    land_ground = v
 end function
 
 ' n kept within 0 to LIGHTS - 1.
@@ -244,13 +277,14 @@ sub cast_shadows (fine() as long, shade() as single)
 end sub
 
 ' Level m of the land from fields of its side, n: heights
-' in parts of a step and lights; their last row and
-' column the first again.
+' in parts of a step, lights and grounds; their last row
+' and column the first again.
 sub put_level ( _
     ld as Land, _
     byval m as integer, _
     hs() as long, _
-    ls() as long _
+    ls() as long, _
+    gs() as long _
 )
     dim n as long
     dim first as long
@@ -268,6 +302,7 @@ sub put_level ( _
             j = (y and (n - 1)) * n + (x and (n - 1))
             ld.heights(i) = hs(j)
             ld.lights(i) = ls(j)
+            ld.grounds(i) = gs(j)
         next
     next
 end sub
@@ -325,8 +360,8 @@ sub make_field (f() as long, byval rough as integer)
     level_field f()
 end sub
 
-' The land of seed: its heights and its light, at every
-' level.
+' The land of seed: its heights, its light and its
+' ground, at every level.
 sub make_land (ld as Land, byval seed as integer)
     dim relief(MAP * MAP - 1) as long
     dim course(MAP * MAP - 1) as long
@@ -334,6 +369,7 @@ sub make_land (ld as Land, byval seed as integer)
     dim parts(VALUES - 1) as long
     dim fine(MAP * MAP - 1) as long
     dim lit(MAP * MAP - 1) as long
+    dim ground(MAP * MAP - 1) as long
     dim shade(MAP * MAP - 1) as single
     dim x as long
     dim y as long
@@ -342,6 +378,7 @@ sub make_land (ld as Land, byval seed as integer)
     dim east as long
     dim south as long
     dim light as integer
+    dim slope as single
 
     randomize seed
     make_field relief(), RELIEF_ROUGH
@@ -366,11 +403,17 @@ sub make_land (ld as Land, byval seed as integer)
             south = cell_of(fine(), x, y + 1)
             south = south - cell_of(fine(), x, y - 1)
             light = sunlight(east, south, shade(i))
+            slope = sqr(east * east + south * south) _
+                / (2 * STEP_PARTS)
+            ground(i) = land_ground(slope, fine(i), parts(0), _
+                cover(i))
 
             if relief(i) < SEA_LINE then
+                ground(i) = 0
                 light = (LIGHTS - 1) * relief(i) \ SEA_LINE
                 light = light - shade(i) * LIGHTS / WATER_SHADOW
-            elseif cover(i) > WOODS_LINE then
+            elseif ground(i) < ROCK_FROM _
+                    and cover(i) > WOODS_LINE then
                 light = light - WOODS_SHADE
             end if
 
@@ -379,9 +422,10 @@ sub make_land (ld as Land, byval seed as integer)
     next
 
     for m = 0 to LEVELS - 1
-        put_level ld, m, fine(), lit()
+        put_level ld, m, fine(), lit(), ground()
         halve fine(), level_side(m) - 1
         halve lit(), level_side(m) - 1
+        halve ground(), level_side(m) - 1
     next
 end sub
 

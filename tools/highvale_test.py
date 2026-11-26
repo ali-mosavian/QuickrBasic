@@ -6,10 +6,12 @@ that step's distance gives, the horizon turned by the roll. A step whose top rou
 by zero, easing its light over no rows. A slanting ramp's top edge must be where reading heights between texels puts
 it: read at the nearest texel, it stepped up to 12 rows a column, the blocky near ground first drawn. Ground seen over
 a nearer ridge must keep its own tone: eased from the ridge's height, the ridge's rock rose up to 7 rows into the
-grass behind it, teeth along every ridge. A spike's shadow must run as far as the sun's angle says. Each mission's
-land must rise from its sea without a cliff and place its foes on land, clear of the start. A pilot firing from a
-clear spot must clear the first: rounds moving 8 texels a frame passed through foes a 4-texel hit away, a flak site
-whole after 120 s. A craft with no hull left by flak must be downed, and every screen must draw.
+grass behind it, teeth along every ridge. A texel's ground must come from its own map, not its height: taken from
+height, every mountain wore a band of rock from 64 steps up and none under it. A spike's shadow must run as far as the
+sun's angle says. Each mission's land must rise from its sea without a cliff and place its foes on land, clear of the
+start. A pilot firing from a clear spot must clear the first: rounds moving 8 texels a frame passed through foes a
+4-texel hit away, a flak site whole after 120 s. A craft with no hull left by flak must be downed, and every screen
+must draw.
 """
 
 import sys
@@ -34,11 +36,12 @@ SHORE = 160
 
 HEAD = """option explicit
 import gfx.display, gfx.surface, gfx.draw
-from highvale.model.land import Land, STEP_PARTS, LEVELS, LIGHTS
+from highvale.model.land import Land, STEP_PARTS, LEVELS, LIGHTS, GRASS_FROM
+from highvale.land.maps import ground_of
 from highvale.model.game import Game, TITLE, BRIEFING, FLYING
 from highvale.model.game import CLEARED, DOWNED, VICTORY
 from highvale.model.foes import FLAK, DRONE
-from highvale.land.palette import set_colours, GROUND, GROUNDS
+from highvale.land.palette import set_colours, GROUND, GROUNDS, ROCK
 from highvale.land.maps import allot_land, ground_at, wrapped
 from highvale.land.maps import clear_line, cast_shadows
 from highvale.model.space import Point3
@@ -84,6 +87,7 @@ end sub
 FLAT = """for i = 0 to ubound(ld.heights)
     ld.heights(i) = 40 * STEP_PARTS
     ld.lights(i) = 5
+    ld.grounds(i) = 100
 next
 k.x = 128
 k.y = 128
@@ -110,6 +114,7 @@ for m = 0 to LEVELS - 1
             if r > 1 then r = 1
             ld.heights(i) = (10 + 30 * r) * STEP_PARTS
             ld.lights(i) = 5
+            ld.grounds(i) = 100
         next
     next
 next
@@ -141,7 +146,7 @@ end sub
 """
 
 # A rock ridge 90 steps high 22 to 26 texels ahead, grass at 40 behind it, and a grass wall 60 high from 128
-# texels on, where a stretch begins, the sea at 30, the eye at 100 and the horizon on row 50. The ridge's top is row
+# texels on, where a stretch begins, the eye at 100 and the horizon on row 50. The ridge's top is row
 # ceil(50 + 10 * 0.5 * FOCAL / 26) = 87; the wall shows over it, its top row 50 + 40 * 0.5 * FOCAL / 128 = 79.6;
 # rows 81 to 86 are wall.
 RIDGE = """dim m as integer
@@ -154,13 +159,16 @@ for m = 0 to LEVELS - 1
             i = level_base(m) + y * (n + 1) + x
             t = x * 2 ^ m
             ld.heights(i) = 40 * STEP_PARTS
-            if t >= 42 and t <= 46 then ld.heights(i) = 90 * STEP_PARTS
+            ld.grounds(i) = 100
+            if t >= 42 and t <= 46 then
+                ld.heights(i) = 90 * STEP_PARTS
+                ld.grounds(i) = 200
+            end if
             if t >= 148 then ld.heights(i) = 60 * STEP_PARTS
             ld.lights(i) = 5
         next
     next
 next
-ld.sea = 30
 k.x = 20
 k.y = 128
 k.height = 100
@@ -179,6 +187,30 @@ fine(100 * 256& + 100) = 640
 cast_shadows fine(), shade()
 for d = 1 to 40
     print "shadow"; d; sgn(shade((100 + d) * 256& + 100 + d)); sgn(shade((100 - d) * 256& + 100 - d))
+next
+"""
+
+# Each mission's land texels and rock texels by height, in tens of steps.
+BANDS = """dim g as Game
+dim n as integer
+dim b as integer
+dim texels(20) as long
+dim rocks(20) as long
+allot_land g.vale
+for n = 1 to 3
+    start_mission g, n
+    for y = 0 to 255
+        for x = 0 to 255
+            i = y * 257& + x
+            if g.vale.grounds(i) < GRASS_FROM then continue for
+            b = g.vale.heights(i) \\ (10 * STEP_PARTS)
+            texels(b) = texels(b) + 1
+            if ground_of(g.vale.grounds(i)) = ROCK then rocks(b) = rocks(b) + 1
+        next
+    next
+next
+for b = 0 to 20
+    print "height"; b * 10; texels(b); rocks(b)
 next
 """
 
@@ -402,6 +434,10 @@ def main() -> None:
         for f in run(exe, tmp, "SHADOW", SHADOW):
             if (int(f[2]), int(f[3])) != (1 if int(f[1]) <= 24 else 0, 0):
                 bad.append(f"shadow at {f[1]} diagonal steps: south-east {f[2]}, north-west {f[3]}")
+        for f in run(exe, tmp, "BANDS", BANDS):
+            height, land, rock = (int(v) for v in f[1:4])
+            if 30 <= height <= 150 and land >= 200 and not 0.02 < rock / land < 0.98:
+                bad.append(f"grounds {height} steps up: {rock} of {land} texels rock, a band")
         lands = run(exe, tmp, "MISSIONS", MISSIONS)
         foes = [f for f in lands if f[0] == "foe"]
         for f in lands:

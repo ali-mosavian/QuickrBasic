@@ -1,11 +1,10 @@
 ' The vale as a voxel terrain: a ray a column cast front
-' to back, each step's height and light read between
-' texels, its span drawn up from the lowest row still
-' open, its height and light eased from the step drawn
-' below it, so each pixel takes its own ground's tone.
-' Past an edge, the steps before it hidden, the height is
-' eased from the step just before and the light and fog
-' are not: the nearer ground's would bleed up over it. The
+' to back, each step's height, light and ground read
+' between texels, its span drawn up from the lowest row
+' still open, its ground and light eased from the step
+' drawn below it, so each pixel takes its own tone. Past
+' an edge, the steps before it hidden, nothing is eased:
+' the nearer ground's would bleed up over it. The
 ' frame is built in an array, written to a surface and
 ' stretched over the view; index 0, the sky, is not drawn.
 option explicit
@@ -54,15 +53,13 @@ type Terrain
     fogs() as long
     tones() as integer
     stretches as integer
-    sea as integer
 end type
 
 ' A column's ray: where it is, in 65536ths of a texel, its
 ' move a texel ahead, the row of the horizon, the rows
-' above open still, and the height, light and fog last
-' drawn, in 65536ths of a part, a level and a step; light
-' -1 before any; the step last drawn, and the height of
-' the step before.
+' above open still, the ground, light and fog last drawn,
+' in 65536ths of a ground value, a level and a step, light
+' -1 before any, and the step last drawn.
 type Ray
     x as long
     y as long
@@ -71,11 +68,10 @@ type Ray
     horizon as single
     column as integer
     rows_open as integer
-    height as long
+    ground as long
     shade as long
     fog as long
     drawn as integer
-    before as long
 end type
 
 ' The fog at distance z, in 65536ths of a step: none
@@ -119,12 +115,17 @@ sub make_terrain (tv as Terrain)
     dim n as integer
     dim s as integer
     dim m as integer
+    dim g as integer
 
     tv.surface = gfx.surface.new(COLUMNS, VIEW_H)
     redim tv.pixels(COLUMNS * VIEW_H - 1)
     redim tv.blank(COLUMNS * VIEW_H - 1)
     redim tv.tones(255)
-    tv.sea = -1
+
+    for g = 0 to 255
+        tv.tones(g) = ground_tone(ground_of(g), 0, 0)
+    next
+
     z = FIRST
     stride = FIRST_STRIDE
     s = -1
@@ -160,53 +161,42 @@ sub make_terrain (tv as Terrain)
     tv.firsts(tv.stretches) = n
 end sub
 
-' Each height's tone, unlit and clear, for the sea's level.
-sub set_tones (tv as Terrain, byval sea as integer)
-    dim h as integer
-
-    for h = 0 to 255
-        tv.tones(h) = ground_tone(ground_of(h, sea), 0, 0)
-    next
-
-    tv.sea = sea
-end sub
-
-' Rows from top to the open ones' end filled, the height
-' hh, light lit and fog haze at top eased to those below
-' at the end: each pixel its height's tone, lit, fogged.
+' Rows from top to the open ones' end filled, the ground
+' gv, light lit and fog haze at top eased to those below
+' at the end: each pixel its ground's tone, lit, fogged.
 sub fill_span ( _
     tv as Terrain, _
     r as Ray, _
     byval top as integer, _
-    byval hh as long, _
+    byval gv as long, _
     byval lit as long, _
     byval haze as long _
 )
     dim j as long
     dim rows as integer
-    dim rise as long
+    dim turn as long
     dim change as long
     dim thicken as long
 
     if r.shade < 0 then
-        r.height = hh
+        r.ground = gv
         r.shade = lit
         r.fog = haze
     end if
 
     rows = r.rows_open - top
-    rise = (r.height - hh) \ rows
+    turn = (r.ground - gv) \ rows
     change = (r.shade - lit) \ rows
     thicken = (r.fog - haze) \ rows
-    r.height = hh
+    r.ground = gv
     r.shade = lit
     r.fog = haze
 
     for j = top * COLUMNS + r.column to _
             (r.rows_open - 1) * COLUMNS + r.column step COLUMNS
-        tv.pixels(j) = tv.tones(hh \ WHOLE) _
+        tv.pixels(j) = tv.tones(gv \ FINER) _
             + (haze \ FINER) * FOG_ROWS + lit \ FINER
-        hh = hh + rise
+        gv = gv + turn
         lit = lit + change
         haze = haze + thicken
     next
@@ -232,7 +222,7 @@ function march ( _
     dim a as long
     dim b as long
     dim hh as long
-    dim before as long
+    dim gv as long
     dim top as single
     dim row as integer
     dim light as long
@@ -245,7 +235,6 @@ function march ( _
     sy = r.dy * tv.strides(s)
     shrink = tv.shrinks(s) * FINE
     side = tv.sides(s)
-    before = r.before
 
     for k = tv.firsts(s) to tv.firsts(s + 1) - 1
         u = (r.x and WRAP) \ shrink
@@ -271,24 +260,24 @@ function march ( _
             b = b + _
                 (ld.lights(i + side + 1) - ld.lights(i + side)) * fx
             light = a * FINE + (b - a) * fy
-            if k - 1 <> r.drawn and r.shade >= 0 then
-                r.height = before
-                r.shade = light
-                r.fog = tv.fogs(k)
-            end if
-            fill_span tv, r, row, hh, light, tv.fogs(k)
+            a = ld.grounds(i) * FINE
+            a = a + (ld.grounds(i + 1) - ld.grounds(i)) * fx
+            b = ld.grounds(i + side) * FINE
+            b = b + _
+                (ld.grounds(i + side + 1) - ld.grounds(i + side)) _
+                * fx
+            gv = a * FINE + (b - a) * fy
+            if k - 1 <> r.drawn then r.shade = -1
+            fill_span tv, r, row, gv, light, tv.fogs(k)
             if r.rows_open <= 0 then exit function
             r.drawn = k
         end if
-
-        before = hh
 
         if r.horizon + rise * tv.reach(k) >= r.rows_open then
             exit function
         end if
     next
 
-    r.before = before
     march = -1
 end function
 
@@ -312,7 +301,6 @@ sub draw_terrain ( _
     dim x as single
     dim across as single
 
-    if tv.sea <> ld.sea then set_tones tv, ld.sea
     tv.pixels = tv.blank
     f = focal()
     ca = cos(k.angle)
