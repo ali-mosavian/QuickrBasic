@@ -20,7 +20,8 @@
 
 #define ACCEL_CALL QX_CALL
 
-enum { ACCEL_ABI = 1, ACCEL_HEAD = 12 };
+/* ABI 2 adds indexed textures and their palette. */
+enum { ACCEL_ABI = 2, ACCEL_HEAD = 12 };
 
 /* The target shown, made by open; the slots a driver takes, 1 up to these, textures' and
    targets' each their own. */
@@ -44,10 +45,11 @@ typedef struct {
    alpha the texel's times its own (MASK). */
 typedef enum : uint8_t { ACCEL_COLOUR = 1, ACCEL_TEXEL, ACCEL_MASK } AccelSource;
 
-/* KEY: drawn where the texel's alpha is set, the colour alone too; LINEAR: the four texels round
-   the point mixed; WRAP_S, WRAP_T: texels repeat across the texture, else its edge's are kept past
-   it. */
-enum { ACCEL_KEY = 1, ACCEL_LINEAR = 2, ACCEL_WRAP_S = 4, ACCEL_WRAP_T = 8 };
+/* KEY: drawn where the texel's alpha is set, or an indexed texel's index is not 0, the colour
+   alone too; LINEAR: the four texels round the point mixed; WRAP_S, WRAP_T: texels repeat across
+   the texture, else its edge's are kept past it; REPLACE: TEXEL's texel alone, not times the
+   colour. */
+enum { ACCEL_KEY = 1, ACCEL_LINEAR = 2, ACCEL_WRAP_S = 4, ACCEL_WRAP_T = 8, ACCEL_REPLACE = 16 };
 
 /* A pixel's colour c goes in as c; c times alpha a over what is there (MIX); c times a added
    (ADD); KEEP writes none. a is the state's alpha times the colour's, each over 255. */
@@ -117,7 +119,8 @@ typedef struct {
     /* Texture slot made w by h, within the card's limits, its texels undefined: false, no room. */
     bool(ACCEL_CALL *texture)(uint32_t slot, uint16_t w, uint16_t h);
     /* Texels r of texture slot from texels, ARGB1555 (A, KEY's), pitch texels a row; r.x and
-       r.w even. */
+       r.w even. An indexed slot's texel is its index, the low byte; r.x and r.w multiples of
+       4. */
     void(ACCEL_CALL *upload)(uint32_t slot, AccelRect r, const uint16_t *texels, uint32_t pitch);
     void(ACCEL_CALL *forget)(uint32_t slot);
     /* Target slot made w by h, black, a depth buffer with it, cleared, when depth: false, no room. */
@@ -139,6 +142,11 @@ typedef struct {
     /* The aimed target's clip filled, as the card fills fastest: its colour argb, its depth 0,
        far, as what has them. */
     void(ACCEL_CALL *clear)(uint32_t argb, uint8_t what);
+    /* Texture slot made w by h, a byte a texel: drawn as the palette's colour for its index.
+       False, no room. */
+    bool(ACCEL_CALL *indexed)(uint32_t slot, uint16_t w, uint16_t h);
+    /* The 256 colours, &HRRGGBB, an indexed texel draws as from now on. */
+    void(ACCEL_CALL *palette)(const uint32_t *colours);
 } AccelDriver;
 
 typedef const AccelDriver *ACCEL_CALL AccelInit(const AccelHost *host);

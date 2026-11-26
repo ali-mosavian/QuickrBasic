@@ -70,10 +70,19 @@ static void uploaded(
 )
 {
     (void)c;
-    const uint32_t at =
-        t->level << SST_LEVEL_AT | (uint32_t)r.y << SST_ROW_AT | (uint32_t)r.x << SST_TEXEL_AT;
+    const uint32_t x = (uint32_t)r.x << (t->indexed ? 0 : SST_TEXEL_AT);
+    const uint32_t at = t->level << SST_LEVEL_AT | (uint32_t)r.y << SST_ROW_AT | x;
 
-    cmdfifo_texels(&queue, at, 1u << SST_ROW_AT, texels, pitch, (uint32_t)r.w, (uint32_t)r.h);
+    cmdfifo_texels(
+        &queue,
+        at,
+        1u << SST_ROW_AT,
+        texels,
+        pitch,
+        (uint32_t)r.w,
+        (uint32_t)r.h,
+        t->indexed
+    );
 }
 
 /* The last swap read before another is queued: one may wait on the retrace while the next frame
@@ -102,6 +111,7 @@ static const TdfxChip chip = {
     sst_pixels,
     shown,
     carried,
+    sst_paletted,
 };
 
 void cvg_queued(Tdfx *const c, const uint32_t pages)

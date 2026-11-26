@@ -1,4 +1,5 @@
 #include "plat/dos32/drivers/3dfx/cmdfifo.h"
+#include "plat/dos32/drivers/3dfx/setup.h"
 #include "plat/dos32/drivers/3dfx/tdfx.h"
 #include <stddef.h>
 
@@ -90,10 +91,11 @@ void cmdfifo_texels(
     const uint16_t *const texels,
     const uint32_t pitch,
     const uint32_t w,
-    const uint32_t h
+    const uint32_t h,
+    const bool indexed
 )
 {
-    const uint32_t words = w / 2;
+    const uint32_t a_word = indexed ? 4 : 2, words = w / a_word;
 
     for (uint32_t y = 0; y < h; y++) {
         const uint16_t *const row = texels + (size_t)y * pitch;
@@ -102,8 +104,8 @@ void cmdfifo_texels(
         word(f, words << TEXEL_WORDS | TEXELS);
         word(f, at + y * stride);
 
-        for (uint32_t x = 0; x < w; x += 2)
-            word(f, row[x] | (uint32_t)row[x + 1] << 16);
+        for (uint32_t x = 0; x < w; x += a_word)
+            word(f, indexed ? tdfx_indices(row + x) : row[x] | (uint32_t)row[x + 1] << 16);
     }
 }
 

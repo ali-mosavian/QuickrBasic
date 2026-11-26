@@ -208,6 +208,14 @@ static uint32_t based(const Tdfx *const c, const uint32_t at)
     return (h3.textures + at) & BASE;
 }
 
+/* The texture cache flushed by a change of base. */
+static void flushed(Tdfx *const c, const uint32_t base)
+{
+    tdfx_put(c, SST_TMU0 + SST_TEX_BASE, ~base & BASE);
+    tdfx_put(c, SST_NOP, 0);
+    tdfx_put(c, SST_TMU0 + SST_TEX_BASE, base);
+}
+
 static void uploaded(
     Tdfx *const c,
     const TdfxTexture *const t,
@@ -217,14 +225,29 @@ static void uploaded(
 )
 {
     /* the port is texBaseAddr's: its level past the ones above it */
-    const uint32_t at = tdfx_skipped(t->w, t->h) + ((uint32_t)r.y * t->w + (uint32_t)r.x) * TEXEL;
+    const uint32_t texel = t->indexed ? 1 : TEXEL;
+    const uint32_t at =
+        tdfx_skipped(t->w, t->h, texel) + ((uint32_t)r.y * t->w + (uint32_t)r.x) * texel;
 
-    cmdfifo_texels(&h3.queue, at, t->w * TEXEL, texels, pitch, (uint32_t)r.w, (uint32_t)r.h);
+    cmdfifo_texels(
+        &h3.queue,
+        at,
+        t->w * texel,
+        texels,
+        pitch,
+        (uint32_t)r.w,
+        (uint32_t)r.h,
+        t->indexed
+    );
+    flushed(c, t->base);
+}
 
-    /* the texture cache is flushed by a change of base */
-    tdfx_put(c, SST_TMU0 + SST_TEX_BASE, ~t->base & BASE);
-    tdfx_put(c, SST_NOP, 0);
-    tdfx_put(c, SST_TMU0 + SST_TEX_BASE, t->base);
+/* The texture cache holds texels looked up in the palette: 86Box's drew an indexed texture
+   through the palette before, all 0, in 2 of 4 runs. */
+static void paletted(Tdfx *const c)
+{
+    if (c->placed < ACCEL_TEXTURES)
+        flushed(c, c->textures[c->placed].base);
 }
 
 static uint32_t drawn_in(Tdfx *const c, const uint32_t buffer)
@@ -313,6 +336,7 @@ static const TdfxChip H3 = {
     pixels,
     shown,
     carried,
+    paletted,
 };
 
 static bool opened(Tdfx *const c, const uint16_t w, const uint16_t h)

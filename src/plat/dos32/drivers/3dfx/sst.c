@@ -1,6 +1,7 @@
 /* The SST-1's and CVG's bring-up and chip shared (sst.h). */
 #include "plat/dos32/drivers/3dfx/sst.h"
 #include "plat/dos32/drivers/3dfx/regs.h"
+#include "plat/dos32/drivers/3dfx/setup.h"
 #include <stddef.h>
 
 enum : uint32_t {
@@ -222,10 +223,15 @@ static void uploaded(
         const uint16_t *const row = texels + (size_t)y * pitch;
         volatile uint8_t *const to = level + ((uint32_t)(r.y + (int32_t)y) << SST_ROW_AT);
 
-        for (uint32_t s = 0; s < (uint32_t)r.w; s += 2)
-            stored(c, to + ((r.x + s) << SST_TEXEL_AT), row[s] | (uint32_t)row[s + 1] << 16);
+        for (uint32_t s = 0; s < (uint32_t)r.w; s += t->indexed ? 4 : 2)
+            if (t->indexed)
+                stored(c, to + r.x + s, tdfx_indices(row + s));
+            else
+                stored(c, to + ((r.x + s) << SST_TEXEL_AT), row[s] | (uint32_t)row[s + 1] << 16);
     }
 }
+
+void sst_paletted(Tdfx *const c) { (void)c; }
 
 /* Colour buffer `buffer` as fbzMode and lfbMode name it. */
 static uint32_t side_of(const Tdfx *const c, const uint32_t buffer)
@@ -274,4 +280,5 @@ const TdfxChip sst_chip = {
     sst_pixels,
     shown,
     sst_carried,
+    sst_paletted,
 };

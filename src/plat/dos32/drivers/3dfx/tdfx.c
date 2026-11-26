@@ -18,6 +18,12 @@ enum : uint32_t {
     FIVE = 0x1F,
     SIX = 0x3F,
     OPAQUE = 255,
+    COLOURS = 256, /* a palette's */
+    RUN = 8,       /* palette entries a run of registers */
+    PALETTE_WRITE = 1u << 31,
+    INDEX_AT = 23, /* a palette entry's index, less its low bit the register's */
+    RGB = 0xFFFFFF,
+    DROPPED = 0x070307, /* the bits of a colour a 565 pixel drops */
 };
 
 static Tdfx card;
@@ -101,7 +107,8 @@ static void placed(Tdfx *const c, const uint32_t slot)
 static void sent(Tdfx *const c)
 {
     const AccelState *const s = &c->state;
-    const TdfxWords w = tdfx_words(s, c->draw);
+    const bool texel = s->source != ACCEL_COLOUR && s->texture && s->texture < ACCEL_TEXTURES;
+    const TdfxWords w = tdfx_words(s, c->draw, texel && c->textures[s->texture].indexed);
     const uint32_t x0 = (uint32_t)c->clip.x + c->ox, y0 = (uint32_t)c->clip.y + c->oy;
 
     tdfx_put(c, SST_CLIP_X, x0 << 16 | (x0 + (uint32_t)c->clip.w));
@@ -110,7 +117,7 @@ static void sent(Tdfx *const c)
     tdfx_put(c, SST_ALPHA_MODE, w.alpha_mode);
     tdfx_put(c, SST_FBZ_MODE, w.fbz_mode);
 
-    if (s->source != ACCEL_COLOUR && s->texture && s->texture < ACCEL_TEXTURES) {
+    if (texel) {
         tdfx_put(c, SST_TMU0 + SST_TEXTURE_MODE, w.texture_mode);
         placed(c, s->texture);
     }
@@ -219,11 +226,13 @@ static void ACCEL_CALL closed(void)
     family->close(&card);
 }
 
-static bool ACCEL_CALL textured(const uint32_t slot, const uint16_t w, const uint16_t h)
+/* Texture slot made w by h, a byte a texel when indexed: false, no room. */
+static bool made(const uint32_t slot, const uint16_t w, const uint16_t h, const bool indexed)
 {
     Tdfx *const c = &card;
+    const uint32_t texel = indexed ? 1 : TEXEL;
     const uint32_t at =
-        slot < ACCEL_TEXTURES ? tdfx_take(&c->memory, (uint32_t)w * h * TEXEL, ALIGN) : TDFX_NONE;
+        slot < ACCEL_TEXTURES ? tdfx_take(&c->memory, (uint32_t)w * h * texel, ALIGN) : TDFX_NONE;
 
     if (at == TDFX_NONE)
         return false;
@@ -232,13 +241,24 @@ static bool ACCEL_CALL textured(const uint32_t slot, const uint16_t w, const uin
         .at = at,
         .w = w,
         .h = h,
+        .indexed = indexed,
         .level = tdfx_level(w, h),
         .lod = tdfx_lod(w, h),
-        .base = c->chip->based(c, at - tdfx_skipped(w, h)),
+        .base = c->chip->based(c, at - tdfx_skipped(w, h, texel)),
     };
 
     c->placed = c->placed == slot ? ACCEL_TEXTURES : c->placed;
     return true;
+}
+
+static bool ACCEL_CALL textured(const uint32_t slot, const uint16_t w, const uint16_t h)
+{
+    return made(slot, w, h, false);
+}
+
+static bool ACCEL_CALL indexed(const uint32_t slot, const uint16_t w, const uint16_t h)
+{
+    return made(slot, w, h, true);
 }
 
 static void ACCEL_CALL
@@ -246,8 +266,11 @@ uploaded(const uint32_t slot, const AccelRect r, const uint16_t *const texels, c
 {
     Tdfx *const c = &card;
 
-    /* the texels are placed as TMU0's registers are as they come */
-    tdfx_put(c, SST_TMU0 + SST_TEXTURE_MODE, SST_ARGB1555 << SST_FORMAT | SST_LOCAL);
+    /* the texels are placed, and their format taken, as TMU0's registers are as they come */
+    const AccelState placing = {.texture = slot, .source = ACCEL_TEXEL};
+    const TdfxWords w = tdfx_words(&placing, 0, c->textures[slot].indexed);
+
+    tdfx_put(c, SST_TMU0 + SST_TEXTURE_MODE, w.texture_mode);
     placed(c, slot);
     c->chip->upload(c, &c->textures[slot], r, texels, pitch);
 
@@ -361,6 +384,42 @@ static void ACCEL_CALL shown(const bool vsync)
 
 static void ACCEL_CALL carried(void) { card.chip->carry(&card); }
 
+/* Index 0's colour, its dropped bits unlike every other colour's: the chroma key's. */
+static uint32_t keyed(const uint32_t *const colours)
+{
+    const uint32_t top = colours[0] & RGB & ~DROPPED;
+
+    for (uint32_t low = DROPPED;; low = (low - 1) & DROPPED) {
+        uint32_t i = 1;
+
+        while (i < COLOURS && (colours[i] & RGB) != (top | low))
+            i++;
+
+        if (i == COLOURS || !low)
+            return top | low;
+    }
+}
+
+static void ACCEL_CALL paletted(const uint32_t *const colours)
+{
+    Tdfx *const c = &card;
+    const uint32_t key = keyed(colours);
+
+    for (uint32_t i = 0; i < COLOURS; i += RUN) {
+        uint32_t run[RUN];
+
+        for (uint32_t k = 0; k < RUN; k++) {
+            const uint32_t at = i + k, rgb = at ? colours[at] & RGB : key;
+            run[k] = PALETTE_WRITE | (at & ~1u) << INDEX_AT | rgb;
+        }
+
+        c->chip->put(c, SST_TMU0 + SST_PALETTE, run, RUN);
+    }
+
+    tdfx_put(c, SST_CHROMA_KEY, key);
+    c->chip->paletted(c);
+}
+
 static void ACCEL_CALL filled(const uint32_t argb, const uint8_t what)
 {
     Tdfx *const c = &card;
@@ -414,6 +473,8 @@ static AccelDriver table = {
     .carry = carried,
     .read = read_back,
     .clear = filled,
+    .indexed = indexed,
+    .palette = paletted,
 };
 
 const AccelDriver *tdfx_driver(const AccelHost *const host, const TdfxFamily *const f)

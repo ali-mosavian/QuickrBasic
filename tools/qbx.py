@@ -542,7 +542,7 @@ def image(dll: bytes, entry_name: bytes = b"qx_init_") -> bytes:
     )
 
 
-ACCEL_ABI = 1
+ACCEL_ABI = 2
 
 
 def driver(dll: bytes, ids: list[int]) -> bytes:

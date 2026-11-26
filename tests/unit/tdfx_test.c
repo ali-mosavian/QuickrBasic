@@ -73,7 +73,7 @@ TEST(tdfx_words_of_a_keyed_texel_mixed)
         .alpha = 255,
     };
 
-    const TdfxWords w = tdfx_words(&s, 1);
+    const TdfxWords w = tdfx_words(&s, 1, false);
 
     CHECK(w.colour_path == 0x0C482405 && w.alpha_mode == 0x5119);
     CHECK(w.fbz_mode == 0x4201 && w.texture_mode == 0x08241BC1);
@@ -89,17 +89,17 @@ TEST(tdfx_words_test_depth_greater_nearer)
     const AccelState written =
         {.source = ACCEL_COLOUR, .blend = ACCEL_KEEP, .depth = ACCEL_DEPTH_WRITE};
 
-    CHECK(tdfx_words(&tested, 0).fbz_mode == (0x0001 | 0x0010 | 4 << 5 | 0x0200 | 0x0400));
-    CHECK(tdfx_words(&written, 0).fbz_mode == (0x0001 | 0x0010 | 7 << 5 | 0x0400));
+    CHECK(tdfx_words(&tested, 0, false).fbz_mode == (0x0001 | 0x0010 | 4 << 5 | 0x0200 | 0x0400));
+    CHECK(tdfx_words(&written, 0, false).fbz_mode == (0x0001 | 0x0010 | 7 << 5 | 0x0400));
 }
 
 /* 64 by 64 is level 2 (0x208), past LODs 0 and 1's 128 KB and 32 KB; 256 by 32 level 0, S wider
    by 8. */
 TEST(tdfx_textures_are_placed_by_level_and_aspect)
 {
-    CHECK(tdfx_lod(64, 64) == 0x208 && tdfx_skipped(64, 64) == 131072 + 32768);
+    CHECK(tdfx_lod(64, 64) == 0x208 && tdfx_skipped(64, 64, 2) == 131072 + 32768);
     CHECK(tdfx_level(64, 64) == 2 && tdfx_level(256, 32) == 0);
-    CHECK(tdfx_lod(256, 32) == (1u << 20 | 3u << 21) && tdfx_skipped(256, 32) == 0);
+    CHECK(tdfx_lod(256, 32) == (1u << 20 | 3u << 21) && tdfx_skipped(256, 32, 2) == 0);
     CHECK(tdfx_lod(8, 64) == (0x104 * 2 | 3u << 21));
 }
 
@@ -175,10 +175,35 @@ TEST(tdfx_gamma_shows_565_as_gfx_widens_it)
 TEST(tdfx_words_of_a_keyed_mask)
 {
     const AccelState s = {.source = ACCEL_MASK, .flags = ACCEL_KEY, .texture = 1, .alpha = 255};
-    const TdfxWords w = tdfx_words(&s, 1);
+    const TdfxWords w = tdfx_words(&s, 1, false);
 
     CHECK(w.colour_path == (0x08480004 | 0x04000000));
     CHECK(w.alpha_mode == (1 | 4 << 1));
+}
+
+/* An indexed texel alone, keyed: P_8 written in order, index 0 cut by the chroma key, not the
+   alpha test; as a mask, the iterated colour, the texel's colour what the key tests. */
+TEST(tdfx_words_of_an_indexed_texel_keyed_by_chroma)
+{
+    const AccelState s = {
+        .texture = 1,
+        .source = ACCEL_TEXEL,
+        .flags = ACCEL_KEY | ACCEL_REPLACE,
+        .alpha = 255,
+    };
+    const AccelState mask = {.texture = 1, .source = ACCEL_MASK, .flags = ACCEL_KEY, .alpha = 255};
+    const TdfxWords w = tdfx_words(&s, 1, true), m = tdfx_words(&mask, 1, true);
+
+    CHECK(w.colour_path == (0x08000005 | 0x04000000) && w.alpha_mode == 0);
+    CHECK(w.fbz_mode == (0x4201 | 0x0002));
+    CHECK(w.texture_mode == (0x08241000 | 5u << 8 | 1u << 31 | 0xC1));
+    CHECK(m.colour_path == (0x08824101 | 0x04000000) && m.fbz_mode == w.fbz_mode);
+}
+
+/* An indexed texture's levels are a byte a texel: half a 16-bit one's. */
+TEST(tdfx_indexed_textures_skip_a_byte_a_texel)
+{
+    CHECK(tdfx_skipped(64, 64, 1) == (131072 + 32768) / 2);
 }
 
 /* ---- the shared driver (tdfx.c) on a card that is memory ---- */
@@ -270,6 +295,30 @@ TEST(tdfx_driver_places_a_texture_past_the_levels_above_it)
     d->close();
 }
 
+/* An indexed 64 by 64 texture: its base 80 KB before it, a row's indices four a word in order
+   through level 2's window, the format P_8 written in order. */
+TEST(tdfx_driver_sends_indexed_texels_four_a_word)
+{
+    static const TdfxFamily fake = {"fake", &sst_chip, fake_open, fake_close};
+    static uint16_t texels[64];
+
+    const AccelDriver *const d = tdfx_driver(&FAKE_HOST, &fake);
+
+    AccelCard card;
+
+    for (uint32_t i = 0; i < 64; i++)
+        texels[i] = (uint16_t)(0x8000 | i);
+
+    CHECK(d && d->open(&(PciFunction){}, 320, 240, &card));
+    CHECK(d->indexed(1, 64, 64));
+    d->upload(1, (AccelRect){0, 5, 64, 1}, texels, 64);
+    CHECK(word_at(SST_TMU0 + SST_TEX_BASE) == (((0u - 81920) >> 3) & 0x7FFFF));
+    CHECK((word_at(SST_TMU0 + SST_TEXTURE_MODE) & (0xFu << 8 | 1u << 31)) == (5u << 8 | 1u << 31));
+    CHECK(word_at(SST_TEXELS + (2 << 17) + (5 << 9)) == 0x03020100);
+    CHECK(word_at(SST_TEXELS + (2 << 17) + (5 << 9) + 60) == 0x3F3E3D3C);
+    d->close();
+}
+
 /* A triangle of a solid colour. */
 static const AccelState SOLID = {.source = ACCEL_COLOUR, .alpha = 255};
 static const AccelVertex TRIANGLE[3] = {
@@ -293,6 +342,7 @@ static void stored_at(uint8_t *const at, const uint32_t v) { memcpy(at, &v, size
 typedef struct {
     uint8_t *ring, *read, *registers, *texels;
     uint32_t at, ported;
+    uint32_t written[4096][2], writes; /* each register written and its word, in order */
 } Fifo;
 
 /* The word at the ring's *at, taken: cleared, so a zero is a word not written. */
@@ -322,8 +372,16 @@ static void played(Fifo *const f)
         if ((head & 7) == 1) {
             uint32_t reg = (head & 0x7FF8) >> 1;
 
-            for (uint32_t n = head >> 16; n--; reg += head >> 15 & 1 ? 4 : 0)
-                stored_at(f->registers + reg, taken(f, &at));
+            for (uint32_t n = head >> 16; n--; reg += head >> 15 & 1 ? 4 : 0) {
+                const uint32_t v = taken(f, &at);
+
+                stored_at(f->registers + reg, v);
+
+                if (f->writes < sizeof f->written / sizeof *f->written) {
+                    f->written[f->writes][0] = reg;
+                    f->written[f->writes++][1] = v;
+                }
+            }
         } else if ((head & 7) == 5) {
             uint32_t to = taken(f, &at);
 
@@ -424,12 +482,11 @@ static const AccelDriver *h3_opened(AccelCard *const card)
     h3.regs = calloc(1, H3_REGS);
     h3.frame = calloc(1, H3_FRAME);
     h3.fifo = (Fifo){
-        h3.frame + 3 * H3_BUFFER,
-        h3.regs + H3_CMD + H3_READ,
-        h3.regs + H3_3D,
-        h3.regs + H3_PORT,
-        3 * H3_BUFFER,
-        0,
+        .ring = h3.frame + 3 * H3_BUFFER,
+        .read = h3.regs + H3_CMD + H3_READ,
+        .registers = h3.regs + H3_3D,
+        .texels = h3.regs + H3_PORT,
+        .at = 3 * H3_BUFFER,
     };
     memcpy(h3.regs + 0x1C, &sdram, sizeof sdram);
     memcpy(h3.regs + H3_3D + SST_STATUS, &status, sizeof status);
@@ -523,6 +580,76 @@ TEST(tdfx_h3_sends_texels_through_the_port_from_the_base)
     CHECK(loaded(h3.regs + H3_3D + SST_TMU0 + SST_TEX_BASE) == 3 * H3_BUFFER + H3_FIFO - skipped);
     CHECK(loaded(h3.regs + H3_PORT + skipped + (5 * 64 + 2) * 2) == (3u << 16 | 2));
     CHECK(loaded(h3.regs + H3_PORT + skipped + (6 * 64 + 62) * 2) == (127u << 16 | 126));
+    h3_closed(d);
+}
+
+/* The palette eight entries a run to nccTable0's I and Q, an entry's index less its low bit above
+   its colour. Index 0's colour is the chroma key: its own top bits, low bits no other colour has.
+   Index 1 takes the first low bits tried. */
+TEST(tdfx_h3_palettes_index_0_by_a_colour_no_other_has)
+{
+    static uint32_t colours[256];
+
+    AccelCard card;
+    const AccelDriver *const d = h3_opened(&card);
+
+    for (uint32_t i = 0; i < 256; i++)
+        colours[i] = i * 0x010101;
+
+    colours[0] = 0x804020;
+    colours[1] = 0x804020 | 0x070307;
+    h3.fifo.writes = 0;
+    d->palette(colours);
+    h3_played();
+
+    uint32_t entries = 0, key = 0;
+
+    for (uint32_t k = 0; k < h3.fifo.writes; k++) {
+        const uint32_t reg = h3.fifo.written[k][0], v = h3.fifo.written[k][1];
+
+        if (reg >= SST_TMU0 + SST_PALETTE && reg < SST_TMU0 + SST_PALETTE + 32) {
+            const uint32_t at = (v >> 23 & 0xFE) | (reg - SST_TMU0 - SST_PALETTE) / 4 % 2;
+
+            CHECK(v >> 31 && at == entries);
+            CHECK(at ? (v & 0xFFFFFF) == colours[at] : (v & 0xF8FCF8) == 0x804020);
+            key = at ? key : v & 0xFFFFFF;
+            entries++;
+        }
+    }
+
+    CHECK(entries == 256 && key != colours[1]);
+    CHECK(loaded(h3.regs + H3_3D + SST_CHROMA_KEY) == key);
+    h3_closed(d);
+}
+
+/* After the palette the texture cache is flushed, texBaseAddr moved off the texture placed and
+   back: 86Box's drew an indexed texture as index 0 in 2 of 4 runs without. */
+TEST(tdfx_h3_flushes_its_texture_cache_after_the_palette)
+{
+    static uint16_t texels[64];
+    static uint32_t colours[256];
+
+    AccelCard card;
+    const AccelDriver *const d = h3_opened(&card);
+
+    CHECK(d && d->indexed(1, 64, 64));
+    d->upload(1, (AccelRect){0, 0, 64, 1}, texels, 64);
+    h3_played();
+    const uint32_t base = loaded(h3.regs + H3_3D + SST_TMU0 + SST_TEX_BASE);
+
+    h3.fifo.writes = 0;
+    d->palette(colours);
+    h3_played();
+
+    uint32_t moved = 0, back = 0;
+
+    for (uint32_t k = 0; k < h3.fifo.writes; k++)
+        if (h3.fifo.written[k][0] == SST_TMU0 + SST_TEX_BASE) {
+            moved += h3.fifo.written[k][1] != base;
+            back = h3.fifo.written[k][1] == base;
+        }
+
+    CHECK(moved && back);
     h3_closed(d);
 }
 
@@ -700,12 +827,11 @@ static bool cvg_open(Tdfx *const c, const uint16_t w, const uint16_t h)
 
     if (cvg_asked)
         cvg_fifo = (Fifo){
-            card_memory + CVG_WINDOW,
-            card_memory + 0x1E8,
-            card_memory,
-            card_memory + SST_TEXELS,
-            CVG_AT,
-            0,
+            .ring = card_memory + CVG_WINDOW,
+            .read = card_memory + 0x1E8,
+            .registers = card_memory,
+            .texels = card_memory + SST_TEXELS,
+            .at = CVG_AT,
         };
     return true;
 }

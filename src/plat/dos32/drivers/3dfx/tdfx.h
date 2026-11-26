@@ -5,8 +5,10 @@
  * The frame buffer is colour buffers 0 and 1 and one of depth, a row each of the same stride. The
  * mode shown is the top rows of one colour buffer, drawn in the other, the screen centred in it; a
  * target is rows below the mode in buffer 0, drawn in it whether shown or not, its depth the same
- * rows of the depth buffer. A texture is one LOD of TMU0's memory. Registers are written as the
- * chip takes them: a triangle as three runs of them.
+ * rows of the depth buffer. A texture is one LOD of TMU0's memory; an indexed one's texels are
+ * looked up in TMU0's palette, index 0 keyed by the chroma key: the palette's colour for it, its
+ * low bits, which a 565 pixel drops, made unlike every other's. Registers are written as the chip
+ * takes them: a triangle as three runs of them.
  */
 #ifndef TDFX_TDFX_H
 #define TDFX_TDFX_H
@@ -21,6 +23,7 @@ typedef struct Tdfx Tdfx;
 typedef struct {
     uint32_t at; /* its texels' first byte in TMU0's memory */
     uint16_t w, h;
+    bool indexed;              /* a byte a texel, P_8: else two, ARGB1555 */
     uint32_t level, lod, base; /* setup.h's; tLOD's and texBaseAddr's words */
 } TdfxTexture;
 
@@ -28,11 +31,13 @@ typedef struct {
    - busy: status' bits while it works;
    - put: n registers from reg written, v's words in order;
    - based: texBaseAddr's word for texture memory's byte at;
-   - upload: texels r of texture t from texels, pitch a row, TMU0 placing t;
+   - upload: texels r of texture t from texels, pitch a row, TMU0 placing t and taking its
+     format;
    - drawn_in: the draws aimed at colour buffer `buffer`, fbzMode's draw buffer for it;
    - pixels: where buffer's row 0 is read, lfb_row bytes a row, once the card is idle;
    - show: buffer shown ^ 1 shown, at the retrace with vsync;
-   - carry: the next frame made the shown one's. */
+   - carry: the next frame made the shown one's;
+   - paletted: after TMU0's palette is written, what holds texels looked up in it flushed. */
 typedef struct {
     uint32_t busy;
     void (*put)(Tdfx *c, uint32_t reg, const uint32_t *v, uint32_t n);
@@ -48,6 +53,7 @@ typedef struct {
     volatile uint8_t *(*pixels)(Tdfx *c, uint32_t buffer);
     void (*show)(Tdfx *c, bool vsync);
     void (*carry)(Tdfx *c);
+    void (*paletted)(Tdfx *c);
 } TdfxChip;
 
 /* A family's: its chip; its card (Tdfx's pci) readied, showing a mode holding w by h (Tdfx's to

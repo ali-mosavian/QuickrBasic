@@ -34,14 +34,17 @@ bool tdfx_setup(
     uint8_t share,
     TdfxTriangle *out
 );
-/* s's words, drawn into buffer draw (0 front, 1 back). */
-TdfxWords tdfx_words(const AccelState *s, uint32_t draw);
+/* s's words, drawn into buffer draw (0 front, 1 back), its texture indexed or not: an indexed one
+   keyed by the chroma key, its index 0's colour. */
+TdfxWords tdfx_words(const AccelState *s, uint32_t draw, bool indexed);
 /* A w by h texture's tLOD: its sides powers of two up to 256, the longer at most 8 times the
    shorter. */
 uint32_t tdfx_lod(uint16_t w, uint16_t h);
 /* Its level: 0 its longer side 256, 8 one texel; its texels times 1 << level are LOD 0's. */
 uint32_t tdfx_level(uint16_t w, uint16_t h);
-/* The bytes LODs 0 up to its own of its aspect would take: its base is its texels' place less
-   these, as the card finds a level past the larger ones. */
-uint32_t tdfx_skipped(uint16_t w, uint16_t h);
+/* The bytes LODs 0 up to its own of its aspect would take, texel bytes a texel: its base is its
+   texels' place less these, as the card finds a level past the larger ones. */
+uint32_t tdfx_skipped(uint16_t w, uint16_t h, uint32_t texel);
+/* Four indexed texels' indices, their low bytes, as a word takes them: the first lowest. */
+uint32_t tdfx_indices(const uint16_t *texels);
 #endif

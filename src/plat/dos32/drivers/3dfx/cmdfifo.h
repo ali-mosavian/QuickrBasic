@@ -34,7 +34,7 @@ void cmdfifo_begin(
 /* n words to the 3D registers from reg's byte on. */
 void cmdfifo_registers(CmdFifo *f, uint32_t reg, const uint32_t *v, uint32_t n);
 /* w by h texels, w even, to texture space: row y from its byte at + y * stride, from texels'
-   row y * pitch. */
+   row y * pitch; indexed, w a multiple of 4, a byte each, their low bytes. */
 void cmdfifo_texels(
     CmdFifo *f,
     uint32_t at,
@@ -42,7 +42,8 @@ void cmdfifo_texels(
     const uint16_t *texels,
     uint32_t pitch,
     uint32_t w,
-    uint32_t h
+    uint32_t h,
+    bool indexed
 );
 /* A fence after the words written so far. */
 void cmdfifo_fenced(CmdFifo *f);

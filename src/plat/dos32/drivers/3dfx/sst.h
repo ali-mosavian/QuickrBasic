@@ -6,7 +6,7 @@
  * frame buffer is two colour buffers and the depth buffer, each a third of the memory a FIFO
  * leaves, up to the rows a clip reaches: the rows past the mode are targets'. fbzMode and lfbMode
  * name the colour buffers front, the one shown, and back; swapbufferCMD swaps them. Texels go
- * through the texture window by level, row and texel; pixels through the frame buffer's, 1024 a
+ * through the texture window by level, row and texel, an indexed texture's four a word in order; pixels through the frame buffer's, 1024 a
  * row. A FIFO takes the frame buffer past the buffers: the Voodoo Graphics' memory FIFO, the PCI
  * FIFO's overflow, or, asked for, the Voodoo 2's command FIFO (cvg.h).
  */
@@ -86,6 +86,7 @@ uint32_t sst_based(const Tdfx *c, uint32_t at);
 uint32_t sst_drawn_in(Tdfx *c, uint32_t buffer);
 volatile uint8_t *sst_pixels(Tdfx *c, uint32_t buffer);
 void sst_carried(Tdfx *c);
+void sst_paletted(Tdfx *c);
 
 /* A mode, w by h of the frame buffer's: its timing's words, its tiles across (32 pixels each),
    the video FIFO's threshold, its family's flags (scan doubling) and its pixel clock. */

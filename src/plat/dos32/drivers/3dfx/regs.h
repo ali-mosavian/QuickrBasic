@@ -25,6 +25,7 @@ enum : uint32_t {
     SST_FASTFILL = 0x124,
     SST_SWAP = 0x128,
     SST_ZA_COLOUR = 0x130,
+    SST_CHROMA_KEY = 0x134,
     SST_COLOUR1 = 0x148,
     SST_FBI_INIT4 = 0x200,
     SST_BACK_PORCH = 0x208,
@@ -44,6 +45,7 @@ enum : uint32_t {
     SST_TLOD = 0x304,
     SST_TDETAIL = 0x308,
     SST_TEX_BASE = 0x30C,
+    SST_PALETTE = 0x334, /* nccTable0's I and Q, entries 4 to 11: eight of the palette a run */
 
     /* the chip a write goes to: none, all */
     SST_FBI = 0x400,
@@ -58,9 +60,10 @@ enum : uint32_t {
 /* status: the FIFO's room, and what is busy. */
 enum : uint32_t { SST_ROOM = 0x3F, SST_FBI_BUSY = 0x80, SST_BUSY = 0x380 };
 
-/* fbzMode. */
+/* fbzMode; CHROMA, the chroma key's test: a pixel whose texel is its colour not drawn. */
 enum : uint32_t {
     SST_CLIPPED = 1u << 0,
+    SST_CHROMA = 1u << 1,
     SST_DEPTH = 1u << 4,
     SST_DEPTH_FUNCTION = 5, /* the shift of its 3 bits */
     SST_RGB_WRITE = 1u << 9,
@@ -71,19 +74,24 @@ enum : uint32_t {
 /* A depth or alpha test's function. */
 enum : uint32_t { SST_GREATER = 4, SST_ALWAYS = 7 };
 
-/* fbzColorPath: the texel times the iterated colour, its alpha too; the iterated colour, its
-   alpha the texel's times the iterated; the parameters moved to the first pixel's centre. */
+/* fbzColorPath: the texel times the iterated colour, its alpha too; the texel alone; the iterated
+   colour, its alpha the texel's times the iterated, or, the texel indexed, the iterated's alone
+   with the texel's colour the chroma key tests; the parameters moved to the first pixel's
+   centre. */
 enum : uint32_t {
     SST_PATH_TEXEL = 0x08482405,
+    SST_PATH_REPLACE = 0x08000005,
     SST_PATH_MASK = 0x08480004,
+    SST_PATH_INDEX_MASK = 0x08824101,
     SST_PATH_ADJUST = 0x04000000,
 };
 
 /* alphaMode: the test, its function's shift; blending src times alpha over the rest, or added. */
 enum : uint32_t { SST_ALPHA_TEST = 1, SST_ALPHA_FUNCTION = 1, SST_MIX = 0x5110, SST_ADD = 0x4110 };
 
-/* textureMode: in perspective, minified and magnified linearly, S and T clamped, the format's shift
-   and ARGB1555's, and TMU0 combining its own texel alone. */
+/* textureMode: in perspective, minified and magnified linearly, S and T clamped, the format's shift,
+   ARGB1555's and P_8's (an index through the palette), TMU0 combining its own texel alone, and
+   8-bit texels written four a word in order. */
 enum : uint32_t {
     SST_PERSPECTIVE = 1u << 0,
     SST_LINEAR = 3u << 1,
@@ -91,7 +99,9 @@ enum : uint32_t {
     SST_CLAMP_T = 1u << 7,
     SST_FORMAT = 8,
     SST_ARGB1555 = 11,
+    SST_P8 = 5,
     SST_LOCAL = 0x08241000,
+    SST_SEQUENTIAL = 1u << 31,
 };
 
 /* tLOD: the LOD's shift, 4 a level; S the wider; the aspect's shift. */
