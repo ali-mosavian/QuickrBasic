@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 import dosrun  # noqa: E402
 
 BEGIN, END = "' MothArt's begin.\n", "' MothArt's end.\n"
-DRIVER = """OpenScreen
+DRIVER = """SCREEN 13
 LoadTables
 BuildMoth
 OPEN "SPR.BIN" FOR BINARY AS #1
@@ -43,10 +43,17 @@ def art_program(demo: str) -> str:
 
 def drawn() -> list[int]:
     """Spr as the art draws it, in DOSBox: the host build's screen is not the DOS one's."""
+    gfx = {"lib/gfx.qbx": (ROOT / "build/c/lib/gfx.qbx").read_bytes()}
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp) / "w"
         res = dosrun.run(
-            {"art": (art_program(DEMO.read_text()), "")}, work, limit_ms=600000, file=True, mem=16, screen=True
+            {"art": (art_program(DEMO.read_text()), "")},
+            work,
+            limit_ms=600000,
+            file=True,
+            files=gfx,
+            mem=16,
+            screen=True,
         )["art"]
         data = (work / "SPR.BIN").read_bytes() if (work / "SPR.BIN").exists() else b""
         if not data:

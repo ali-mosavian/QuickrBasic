@@ -954,7 +954,7 @@ END SUB
 FPS_PARTS = ("ReadPad joy", "Tick w, joy, stones(), sparks()", "Fly w, k, st(), sp()", "Orbit w, k, st(), sp()",
              "Trail w, sp()", "EaseSky w.sky, cur()", "FeedSong w.song", "DrawSky w.g", "DrawSun w.g.clock", "DrawTop w",
              "DrawLand w.g", "DrawStones st(), w.g.clock", "DrawMoth w.m, w.g.mode", "DrawLake w.g.clock", "DrawSparks sp()",
-             "DrawHud w", "DrawFx w.fx", "Flip w.page")
+             "DrawHud w", "DrawFx w.fx", "display.flip")
 
 
 def timed(s: str) -> str:
@@ -996,7 +996,7 @@ FPS_EACH = ("Tick w, joy, st(), sp()", "cur(0, 0) = (n + q) MOD 2 * 9: ApplyPale
             "DrawSun w.g.clock", "DrawTop w", "DrawLand w.g", "DrawStones st(), w.g.clock",
             "DrawStone st(), 0, w.g.clock", "DrawStone st(), 1, w.g.clock", "DrawStone st(), 2, w.g.clock",
             "DrawStone st(), 3, w.g.clock", "DrawMoth w.m, w.g.mode", "DrawLake w.g.clock", "DrawSparks sp()",
-            "DrawHud w", "Flip w.page", "Render w, st(), sp()")
+            "DrawHud w", "display.flip", "Render w, st(), sp()")
 EACH = """OpenScreen
 LoadTables
 LoadTerrain
@@ -1037,7 +1037,7 @@ def each_program() -> str:
 
 def cmd_fps(a: argparse.Namespace) -> int:
     """Frames a second in each mode (title, play, dying, over), with the longest frame, from the frames' own TIMER readings."""
-    build(".", True)
+    gfx = {"lib/gfx.qbx": (build(".", True).dos.parent / "lib/gfx.qbx").read_bytes()}
     conf = dosrun.CONF
     dosrun.CONF = conf.replace("core=normal\ncputype=pentium\nvirtual time=true\nvirtual time rate=20000\n",
                                FPS_REAL if a.real else FPS_CPU)
@@ -1050,7 +1050,7 @@ def cmd_fps(a: argparse.Namespace) -> int:
         if a.profile:
             dosrun.COM = profiled(build(".", True), Path(d))
         if a.each:
-            dosrun.run({"each": each_program()}, Path(d) / "w", limit_ms=600000, file=True, mem=16)
+            dosrun.run({"each": each_program()}, Path(d) / "w", limit_ms=600000, file=True, files=gfx, mem=16)
             rows = [ln.split() for ln in (Path(d) / "w/EACH.TXT").read_text().splitlines()]
             got = [(float(ms), int(n)) for ms, n in rows]
             dosrun.CONF = conf
@@ -1059,7 +1059,7 @@ def cmd_fps(a: argparse.Namespace) -> int:
             return 0
         # the start-up's first: the game's FPS.TXT is the one left
         jobs = ({"start": fps_program(one=True)} if a.profile else {}) | {"moth": fps_program(a.parts)}
-        r = dosrun.run(jobs, Path(d) / "w", limit_ms=600000, file=True, mem=16, profile=a.profile)
+        r = dosrun.run(jobs, Path(d) / "w", limit_ms=600000, file=True, files=gfx, mem=16, profile=a.profile)
         log, parts = Path(d) / "w/FPS.TXT", Path(d) / "w/PARTS.TXT"
         rows = [ln.split() for ln in log.read_text().splitlines()] if log.exists() else []
         if a.parts and parts.exists():

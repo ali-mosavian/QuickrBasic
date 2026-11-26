@@ -10,7 +10,7 @@ Subscript out of range mid-game. Then each song's beats, layers and sound effect
 bird call written in octave 7 was an Illegal function call once the sky's mood reached it.
 The frames' digest is the procedural drawing's, from before the sky and ridges were kept as
 pictures: a picture cut at a wrong row or column changes it. The palette's is the one shaded in
-full at every step, each entry set by PALETTE.
+full at every step, as gfx's palette holds it, in the DAC's 6 bits a channel.
 """
 
 import sys
@@ -25,6 +25,7 @@ DEMO = ROOT / "src/plat/wasm/web/demos/MOTHLITE.BAS"
 DRIVER = """OpenScreen
 LoadTables
 LoadTerrain
+BuildSprites
 DIM st(0) AS Stone, kind AS INTEGER, x AS INTEGER
 FOR kind = 0 TO NKIND - 1
     FOR x = -STONEW - 6 TO 645
@@ -109,17 +110,22 @@ Scrolls:
 DATA 0,1,2.5,5,13,100,799,1597.5,1600,2400,4266.7,6400,8533,12790,12800,12817,25000,-1
 """
 
-# The frames' MD5, from the drawing at 66c90a5 (seeded alike).
-FRAMES_MD5 = "ca7941b583e76e4b7fb124d023276d12"
+# The frames' MD5, from the drawing at 66c90a5 (seeded alike) with its text, then drawn by gfx. Its
+# own was ca7941b5, taken with no text: PRINT drew nothing on a screen with no window, so BuildGlyphs
+# read blank glyphs. gfx's lines step other pixels than QB's: of the sun's rays, 589 pixels in the 33
+# frames are a pixel aside, their count the same.
+FRAMES_MD5 = "cdf7d424a7993d4f134b6b71a3a31588"
+# Title text's colours, in the first frame.
+GOLD = range(80, 88)
 
 
 def frames_program() -> str:
     head, rest = DEMO.read_text().split("\nMain\nEND\n", 1)
     rest = rest.replace("RANDOMIZE TIMER", "RANDOMIZE 5").replace(
-        "    Flip w.page\n", "    Dump\n    Flip w.page\n"
+        "    display.flip\n", "    Dump\n    display.flip\n"
     )
-    dump = "\nSUB Dump\n    DIM a(8001) AS LONG, y AS INTEGER, i AS INTEGER\n    FOR y = 0 TO 100 STEP 100\n"
-    dump += "        GET (0, y)-(319, y + 99), a\n        FOR i = 1 TO 8000: PUT #1, , a(i): NEXT\n    NEXT\nEND SUB\n"
+    dump = "\nSUB Dump\n    DIM a(SW * SH - 1) AS BYTE, i AS LONG\n    surface.read Canvas, 0, 0, SW, SH, a()\n"
+    dump += "    FOR i = 0 TO SW * SH - 1: PUT #1, , a(i): NEXT\nEND SUB\n"
     return "DECLARE SUB Dump ()\n" + head + "\n" + FRAMES + rest + dump
 
 
@@ -129,12 +135,16 @@ def frames(exe: str, tmp: str) -> str:
     run = subprocess.run([exe, path.name], cwd=tmp, capture_output=True, timeout=120)
     if "frames ok" not in run.stdout.decode(errors="replace"):
         return "FAIL " + (run.stdout + run.stderr).decode(errors="replace")[-600:]
-    return hashlib.md5((Path(tmp) / "FRAMES.BIN").read_bytes()).hexdigest()
+    data = (Path(tmp) / "FRAMES.BIN").read_bytes()
+    if not any(b in GOLD for b in data[: 320 * 200]):
+        return "FAIL no title text drawn"
+    return hashlib.md5(data).hexdigest()
 
 
 PALETTES = """OpenScreen
 LoadTables
 DIM w AS World, cur(NKEY - 1, 2) AS SINGLE, p AS INTEGER, n AS INTEGER, q AS INTEGER
+DIM pal(255) AS LONG, c AS LONG, d AS LONG
 OPEN "PAL.BIN" FOR BINARY AS #1
 NewWorld w, cur()
 FOR p = 0 TO 2 * NSKIES
@@ -145,7 +155,14 @@ FOR p = 0 TO 2 * NSKIES
         EaseSky w.sky, cur()
         IF PalDirty THEN ApplyPalette w.sky, cur(): PalDirty = 0
         IF n MOD 4 = 0 THEN
-            FOR q = 0 TO 255: PUT #1, , Dacs(q): NEXT
+            display.get_palette 0, pal()
+            FOR q = 0 TO 255
+                c = pal(q)
+                d = ((c \\ 65536) AND 255) \\ 4
+                d = d + (((c \\ 256) AND 255) \\ 4) * 256
+                d = d + ((c AND 255) \\ 4) * 65536
+                PUT #1, , d
+            NEXT
         END IF
     NEXT
 NEXT
@@ -160,12 +177,8 @@ PALETTES_MD5 = "5466934f815a3ff955d663c4ac091b3e"
 
 def palettes(exe: str, tmp: str) -> str:
     head, rest = DEMO.read_text().split("\nMain\nEND\n", 1)
-    assert "PALETTE i, " in rest
-    rest = rest.replace("PALETTE i, ", "SetDac i, ")
-    sub = "\nSUB SetDac (i AS INTEGER, d AS LONG)\n    Dacs(i) = d\n    PALETTE i, d\nEND SUB\n"
     path = Path(tmp) / "PAL.BAS"
-    decl = "DECLARE SUB SetDac (i AS INTEGER, d AS LONG)\nDIM SHARED Dacs(255) AS LONG\n"
-    path.write_text(head.replace("\nDECLARE ", "\n" + decl + "DECLARE ", 1) + "\n" + PALETTES + rest + sub)
+    path.write_text(head + "\n" + PALETTES + rest)
     run = subprocess.run([exe, path.name], cwd=tmp, capture_output=True, timeout=120)
     if "palettes ok" not in run.stdout.decode(errors="replace"):
         return "FAIL " + (run.stdout + run.stderr).decode(errors="replace")[-600:]
@@ -232,18 +245,19 @@ def sparks(exe: str, tmp: str) -> tuple[int, int]:
 VINES = """OpenScreen
 BuildVines
 DIM t AS SINGLE, k AS INTEGER, x AS INTEGER, y AS INTEGER, h AS INTEGER, bad AS LONG, seen AS LONG
+DIM px(200 * 112 - 1) AS BYTE
 RANDOMIZE 7
 FOR k = 1 TO 400
     t = RND * 30000
     h = 20 + INT(RND * 90)
-    LINE (0, 0)-(99, h + 1), 0, BF
-    LINE (100, 0)-(199, h + 1), 0, BF
+    draw.rect Canvas, 0, 0, 199, h + 1, 0, draw.FILL
     Vines 20, h, t
     VinesRow 120, h, t
+    surface.read Canvas, 0, 0, 200, h + 2, px()
     FOR y = 0 TO h + 1
         FOR x = 20 TO 50
-            IF POINT(x, y) <> POINT(x + 100, y) THEN bad = bad + 1
-            IF POINT(x + 100, y) THEN seen = seen + 1
+            IF px(y * 200 + x) <> px(y * 200 + x + 100) THEN bad = bad + 1
+            IF px(y * 200 + x + 100) THEN seen = seen + 1
         NEXT
     NEXT
 NEXT
@@ -258,10 +272,10 @@ SUB VinesRow (x AS INTEGER, y2 AS INTEGER, t AS SINGLE)
         FOR y = 0 TO y2
             px = x + 5 + j * 9
             px = px + INT(1.5 * SIN(CDBL(tb) + y * CDBL(.16!) + j))
-            PSET (px, y), CVINE
+            draw.pset Canvas, px, y, CVINE
             IF (y + j * 2) MOD 6 = 0 THEN
-                PSET (px + 1, y), CMOSS
-                PSET (px - 1, y + 1), CMOSS
+                draw.pset Canvas, px + 1, y, CMOSS
+                draw.pset Canvas, px - 1, y + 1, CMOSS
             END IF
         NEXT
     NEXT
