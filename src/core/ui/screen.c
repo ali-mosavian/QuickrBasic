@@ -32,6 +32,16 @@ static PscrCell *cell(const uint8_t row, const uint8_t col)
 {
     return &cells[row * size.cols + col];
 }
+/* The cells from row, col that n may take: the row's rest at most, none off the screen. */
+static uint16_t room(const uint8_t row, const uint8_t col, const uint16_t n)
+{
+    if (row >= size.rows || col >= size.cols)
+        return 0;
+
+    const uint16_t left = (uint16_t)(size.cols - col);
+    return n < left ? n : left;
+}
+
 static PscrCell make(const uint8_t ch, const uint8_t attr) { return (PscrCell)(attr << 8 | ch); }
 
 uint8_t scrn_fill(
@@ -44,8 +54,9 @@ uint8_t scrn_fill(
 {
     const PscrCell c = make(ch, them_attr(slot));
     PscrCell *const p = cell(row, col);
+    const uint16_t fit = room(row, col, n);
 
-    for (uint16_t i = 0; i < n; i++)
+    for (uint16_t i = 0; i < fit; i++)
         p[i] = c;
 
     return col + n;
@@ -61,12 +72,15 @@ uint8_t scrn_str(
 {
     const uint8_t attr = them_attr(slot), hattr = them_attr(hot);
     PscrCell *const p = cell(row, col);
+    const uint16_t fit = room(row, col, scrn_slen(s));
     uint32_t n = 0;
 
     for (uint32_t i = 0; s[i]; i++, n++) {
         const bool hotkey = s[i] == '&';
         i += hotkey;
-        p[n] = make(s[i], hotkey ? hattr : attr);
+
+        if (n < fit)
+            p[n] = make(s[i], hotkey ? hattr : attr);
     }
 
     return (uint8_t)(col + n);
@@ -82,8 +96,9 @@ uint8_t scrn_strn(
 {
     const uint8_t attr = them_attr(slot);
     PscrCell *const p = cell(row, col);
+    const uint16_t fit = room(row, col, n);
 
-    for (uint16_t i = 0; i < n; i++)
+    for (uint16_t i = 0; i < fit; i++)
         p[i] = make(s[i], attr);
 
     return col + n;
@@ -94,8 +109,9 @@ uint8_t scrn_dim(const uint8_t row, const uint8_t col, const uint8_t *const s, c
     const uint8_t bg = them_attr(SL_ED) & 0xF0;
     const uint8_t attr = bg | (bg == DARK_GRAY << 4 ? LIGHT_GRAY : DARK_GRAY);
     PscrCell *const p = cell(row, col);
+    const uint16_t fit = room(row, col, n);
 
-    for (uint16_t i = 0; i < n; i++)
+    for (uint16_t i = 0; i < fit; i++)
         p[i] = make(s[i], attr);
 
     return col + n;
@@ -172,8 +188,9 @@ void scrn_attr(const uint8_t row, const uint8_t col, const uint16_t n, const uin
 {
     const uint8_t attr = them_attr(slot);
     PscrCell *const p = cell(row, col);
+    const uint16_t fit = room(row, col, n);
 
-    for (uint16_t i = 0; i < n; i++)
+    for (uint16_t i = 0; i < fit; i++)
         p[i] = (PscrCell)((p[i] & 0xFF) | attr << 8);
 }
 
