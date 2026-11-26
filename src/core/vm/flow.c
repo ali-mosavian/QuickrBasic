@@ -601,8 +601,7 @@ void flow_call(Session *const S, const uint32_t proc, const uint32_t line, uint8
 }
 
 /* End call f, the innermost, and drop the frames above it: its local arrays on the heap freed
-   (CALL_X's, while its frame is there for arry_free to fix), its frame popped, its arguments with
-   it. */
+   (CALL_X's), its frame popped, its arguments with it. */
 static void end_call(Session *const S, const Frame *const f)
 {
     Vm *const vm = &S->vm;
@@ -619,7 +618,7 @@ static void end_call(Session *const S, const Frame *const f)
                 s->hdr = 0;
             }
 
-        arry_sweep(ar, vm);
+        arry_sweep(ar);
     }
 
     pop_to(vm, f);

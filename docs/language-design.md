@@ -669,8 +669,7 @@ next
   element's cell, as a record holding a list does; a dict of lists keeps its values so.
 - **In the VM**, a dict is a record of three lists: its keys, its values and its hash slots, each
   an entry's index. A key is found by its hash and a probe, half the slots at most in use. A
-  list's growth on the heap leaves its old array for a sweep, which walks every string block, so
-  the sweep waits until the dead arrays are half the heap in use or room runs short.
+  list's growth on the heap leaves its old array dead, given back by the next growth's sweep.
 - **In the VM**, `sort` is C. With a lambda it is a natural merge sort over the elements' indexes:
   its ascending runs found, n - 1 compares, then merged; the order found is applied by swaps.
   Each compare runs the lambda's code, compiled after `CALL QX` and jumped over, on the two

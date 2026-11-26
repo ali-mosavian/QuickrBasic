@@ -2,9 +2,9 @@
  *
  * # How it works
  * pmem_init sets mem_base (Addr 0) and makes every block the host gives a region of the heap:
- * the C side's buffers, the runtime's, the arena's regions and blocks, and at the bottom of the
- * largest the BASIC heap, which grows up into the room after it (pmem_bottom, pmem_extend). Each
- * block is an Addr's. DOS32: DPMI's largest block, less what DOS/32A keeps, and DOS's largest
+ * the C side's buffers, the runtime's, the arena's regions and blocks, the heap arrays, and at the
+ * bottom of the largest the BASIC heap, which grows up into the room after it (pmem_bottom,
+ * pmem_extend). Each block is an Addr's. DOS32: DPMI's largest block, less what DOS/32A keeps, and DOS's largest
  * block under 1 MB, less what SHELL and the sound card's buffer need.
  */
 #ifndef PLAT_PMEM_H

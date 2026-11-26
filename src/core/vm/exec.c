@@ -1278,7 +1278,7 @@ void exec_r_copys(Session *const S)
 
     copy_mem(a, b, td->size);
     arry_copy_rec(&S->arry, a, b, td);
-    arry_sweep(&S->arry, &S->vm);
+    arry_sweep(&S->arry);
 }
 
 /* SWAP a, b of records of a TYPE ( a b t -- ). */
@@ -1304,7 +1304,7 @@ void exec_r_clear(Session *const S)
     arry_empty_cells(a, 1, td);
 
     if (td->nslot)
-        arry_sweep(&S->arry, &S->vm);
+        arry_sweep(&S->arry);
 }
 
 /* ---- record fields -------------------------------------------------------------------------- */

@@ -184,7 +184,7 @@ static Span vgfx_array(Session *const S)
 static void vgfx_lend(Session *const S)
 {
     strg_gc(&S->strg);
-    qbrt_lend(at(S->allo.arrays), S->allo.strings - S->allo.arrays);
+    qbrt_lend(at(S->allo.bot), S->allo.strings - S->allo.bot);
 }
 
 void vgfx_paint(Session *const S)

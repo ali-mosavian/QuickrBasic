@@ -8,7 +8,8 @@
  * The heap's strings run down from allo.top to low; a block is the chars, then a StrTail (len,
  * owner: the Desc's Addr), live while that Desc points at the chars. At most SMAX chars. When the
  * heap is full strg_gc slides the live blocks up and their owners follow; still full, the heap
- * grows (mem/alloc.c) and the strings slide up to its new top.
+ * grows (mem/alloc.c) and the strings slide up to its new top. An array short of room has them
+ * slid down to its bottom instead, and the heap cut to them (strg_give).
  *
  * # asm structure (retired/asm32/mem/str.asm)
  * | asm | here | |
@@ -98,7 +99,8 @@ Addr strg_new(Strg *const sg, const Addr chars, const uint16_t len)
 
 Addr strg_alloc(Strg *const sg, const uint16_t len)
 {
-    if (sg->allo->strings - sg->allo->arrays <= (uint32_t)len + BHDR && !strg_room(sg, len + BHDR + 1u))
+    if (sg->allo->strings - sg->allo->bot <= (uint32_t)len + BHDR &&
+        !strg_room(sg, len + BHDR + 1u))
         fault_error(sg->fault, E_OM);
 
     const Addr c = sg->allo->strings - len - BHDR;
@@ -158,11 +160,11 @@ bool strg_room(Strg *const sg, const uint32_t size)
 {
     Allo *const al = sg->allo;
 
-    if (al->strings - al->arrays >= size)
+    if (al->strings - al->bot >= size)
         return true;
 
     strg_gc(sg);
-    const uint32_t free = al->strings - al->arrays;
+    const uint32_t free = al->strings - al->bot;
 
     if (free >= size)
         return true;
@@ -173,6 +175,19 @@ bool strg_room(Strg *const sg, const uint32_t size)
         return false;
 
     strg_slide(sg, (int32_t)add);
+    return true;
+}
+
+bool strg_give(Strg *const sg)
+{
+    strg_gc(sg);
+    const uint32_t spare = allo_spare(sg->allo);
+
+    if (!spare)
+        return false;
+
+    strg_slide(sg, -(int32_t)spare);
+    allo_cut(sg->allo);
     return true;
 }
 

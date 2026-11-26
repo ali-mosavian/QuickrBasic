@@ -224,20 +224,11 @@ size_t heap_left(const Heap *const h, const void *const below)
         const HeapRegion *const r = &h->region[i];
         const uintptr_t end =
             (uintptr_t)r->hi < (uintptr_t)below ? (uintptr_t)r->hi : (uintptr_t)below;
-        size_t run = 0; /* free blocks back to back: one header */
 
         for (const Block *b = (const Block *)r->lo; (uintptr_t)b < end; b = next_of(b)) {
-            if (b->used) {
-                n += run > sizeof(Block) ? run - sizeof(Block) : 0;
-                run = 0;
-                continue;
-            }
-
             const size_t to = end - (uintptr_t)b;
-            run += b->size < to ? b->size : to;
+            n += b->used ? 0 : b->size < to ? b->size : to;
         }
-
-        n += run > sizeof(Block) ? run - sizeof(Block) : 0;
     }
 
     return n;

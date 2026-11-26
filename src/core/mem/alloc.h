@@ -28,8 +28,8 @@ typedef struct {
     uint32_t nblocks;
     AlloBlock block[NBLKH]; /* by handle */
     Addr bot, top;          /* the BASIC heap (mm.hbot, mm.htop): a block of pmem's, grown up */
-    Addr arrays;            /* the arrays' data from bot up to here (mm.aend) */
     Addr strings;           /* the strings' from here up to top (mm.sfr) */
+    Addr taken;             /* allo_take's newest block, 0 none */
     Addr cache;             /* the code cache's block, which never moves (mm.cachebase) */
     Addr cs_lim;            /* the control stack's floor (CSLIM) */
     Addr cs_top;            /* its top, frames down from it (CSTOP) */
@@ -53,7 +53,17 @@ uint32_t allo_extend(Allo *al, uint32_t need);
 uint32_t allo_string_room(const Allo *al);
 /* The free bytes (FRE(-1)): the BASIC heap's, and every region's under REF_ADDR. */
 uint32_t allo_free(const Allo *al);
-/* The BASIC heap, empty, back to HEAP_FIRST bytes: the rest to pmem. */
+/* A heap array's block of size bytes, 8-aligned, not zeroed, in any region, under REF_ADDR: its
+   Addr; 0 no room. It never moves. */
+Addr allo_take(Allo *al, uint32_t size);
+/* Block a (allo_take's) back to pmem. */
+void allo_give(Allo *al, Addr a);
+/* The bytes the BASIC heap can give back: past its strings, and HEAP_FIRST. */
+uint32_t allo_spare(const Allo *al);
+/* The BASIC heap cut to top, the bytes past it to pmem: the caller lowered top and the strings. */
+void allo_cut(Allo *al);
+/* The BASIC heap, empty, back to HEAP_FIRST bytes, the rest to pmem; allo_take's blocks given
+   back. */
 void allo_shrink(Allo *al);
 
 static inline Addr allo_base(const Allo *const al, uint32_t h) { return al->block[h].base; }

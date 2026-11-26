@@ -1,15 +1,19 @@
 /* The arena: fixed regions, blocks and the BASIC heap, all pmem's.
  *
  * # How it works
- * The BASIC heap is a block at the bottom of pmem's largest room: arrays up from bot (allo.arrays),
- * strings down from top (allo.strings). It grows up in place into the room after it, the strings
- * slid up into what it gained (mem/string.c): nothing else in it moves, and a statement may hold
- * an array's Addr. Empty (session_clear), it shrinks back to HEAP_FIRST bytes.
+ * The BASIC heap is the strings' block, at the bottom of pmem's largest room: strings down from top
+ * (allo.strings) to bot. It grows up in place into the room after it, the strings slid up into what
+ * it gained (mem/string.c); an array short of room has it cut back to them (strg_give). Empty
+ * (session_clear), it shrinks back to HEAP_FIRST bytes.
  *
- * A fixed region (allo_carve: the arrays' headers and the control stack, the POKE memory, and any
- * other module's region a stored Addr can reach) is a pmem block that never moves. A block (allo_new:
- * the code cache, the program store, the editor's line map, the symbol tables) is one that may:
- * it is reached by its handle, never by a stored Addr, and allo_grow tells its owner when it moves.
+ * A heap array is a block of its own (allo_take), wherever pmem has room, in any region, as
+ * QBasic's far heap: it never moves, and a statement may hold its Addr. Each lies after a link to
+ * the others taken (AlloLink), so that session_clear gives them all back.
+ *
+ * A fixed region (allo_carve: the control stack, the POKE memory, and any other module's region a
+ * stored Addr can reach) is a pmem block that never moves. A block (allo_new: the code cache, the
+ * program store, the editor's line map, the symbol tables) is one that may: it is reached by its
+ * handle, never by a stored Addr, and allo_grow tells its owner when it moves.
  *
  * # asm structure (retired/asm32/mem/alloc.asm, retired/asm32/regions.asm)
  * | asm | here | |
@@ -44,6 +48,13 @@
 /* The control stack's region keeps the asm's tail above CSTOP (g_dsb+FC00h .. 10000h). */
 enum { CSTAIL = 0x400, ALIGN = 16 };
 
+/* Before each block allo_take gave: the others', 0 none. */
+typedef struct {
+    Addr prev, next;
+} AlloLink;
+
+static AlloLink *allo_link(const Addr a) { return (AlloLink *)at(a - sizeof(AlloLink)); }
+
 static uint32_t allo_align(const uint32_t n) { return (n + ALIGN - 1) & ~(uint32_t)(ALIGN - 1); }
 
 void allo_init(Allo *const al, Fault *const f)
@@ -54,7 +65,7 @@ void allo_init(Allo *const al, Fault *const f)
     if (!heap || addr_of(heap) > REF_ADDR - HEAP_FIRST) /* a ref's tag bits above REF_ADDR */
         fault_error(f, E_OM);
 
-    al->bot = al->arrays = addr_of(heap);
+    al->bot = addr_of(heap);
     al->top = al->strings = al->bot + HEAP_FIRST;
     al->cs_lim = allo_carve(al, CSSZ + CSTAIL);
     al->cs_top = al->cs_lim + CSSZ;
@@ -119,12 +130,61 @@ static uint32_t allo_more(const Allo *const al)
     return room < refs ? room : refs;
 }
 
-uint32_t allo_string_room(const Allo *const al) { return al->strings - al->arrays + allo_more(al); }
+uint32_t allo_string_room(const Allo *const al) { return al->strings - al->bot + allo_more(al); }
 
 uint32_t allo_free(const Allo *const al)
 {
-    return al->strings - al->arrays + (uint32_t)pmem_left(at(REF_ADDR));
+    return al->strings - al->bot + (uint32_t)pmem_left(at(REF_ADDR));
 }
+
+Addr allo_take(Allo *const al, const uint32_t size)
+{
+    const uint32_t need = sizeof(AlloLink) + size;
+
+    if (size > REF_ADDR - sizeof(AlloLink))
+        return 0;
+
+    uint8_t *const p = pmem_resize(nullptr, need);
+
+    if (!p)
+        return 0;
+    if (addr_of(p) > REF_ADDR - need) { /* a ref's tag bits above REF_ADDR */
+        pmem_free(p);
+        return 0;
+    }
+
+    const Addr a = addr_of(p) + sizeof(AlloLink);
+    *allo_link(a) = (AlloLink){.next = al->taken};
+
+    if (al->taken)
+        allo_link(al->taken)->prev = a;
+
+    al->taken = a;
+    return a;
+}
+
+void allo_give(Allo *const al, const Addr a)
+{
+    const AlloLink link = *allo_link(a);
+
+    if (link.prev)
+        allo_link(link.prev)->next = link.next;
+    else
+        al->taken = link.next;
+    if (link.next)
+        allo_link(link.next)->prev = link.prev;
+
+    pmem_free(allo_link(a));
+}
+
+uint32_t allo_spare(const Allo *const al)
+{
+    const uint32_t used = allo_align(al->top - al->strings);
+    const uint32_t keep = used > HEAP_FIRST ? used : HEAP_FIRST;
+    return al->top - al->bot > keep ? al->top - al->bot - keep : 0;
+}
+
+void allo_cut(Allo *const al) { pmem_extend(at(al->bot), al->top - al->bot); /* in place */ }
 
 uint32_t allo_extend(Allo *const al, const uint32_t need)
 {
@@ -144,7 +204,9 @@ uint32_t allo_extend(Allo *const al, const uint32_t need)
 
 void allo_shrink(Allo *const al)
 {
-    pmem_extend(at(al->bot), HEAP_FIRST); /* smaller: in place */
-    al->arrays = al->bot;
+    while (al->taken)
+        allo_give(al, al->taken);
+
     al->top = al->strings = al->bot + HEAP_FIRST;
+    allo_cut(al);
 }

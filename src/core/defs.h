@@ -209,7 +209,7 @@ typedef struct PACKED {
     uint32_t et; /* ours: its elements' ET_*, ET_REC + t a TYPE's */
     Addr data;
     uint32_t fast;
-    Addr owner; /* ours: its cell (mem/array.c), 0 dead */
+    Addr next; /* ours: a dead heap array's, the next dead (mem/array.c), 0 none */
     uint32_t count[];
 } ArrayHdr;
 /* An array's cell: its header (0 none) and whether REDIM made it (ERASE frees it). */

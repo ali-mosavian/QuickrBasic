@@ -541,14 +541,14 @@ void stmt_aempty(Session *const S)
 void stmt_acopy(Session *const S)
 {
     ArrSlot *const d = (ArrSlot *)at(exec_popa(&S->vm));
-    arry_copy(&S->arry, &S->vm, d, (const ArrSlot *)at(exec_popa(&S->vm)));
+    arry_copy(&S->arry, d, (const ArrSlot *)at(exec_popa(&S->vm)));
 }
 
 /* a() = b() or f(..) ( src dst -- ), ours, their cells: as arry_move. */
 void stmt_amove(Session *const S)
 {
     ArrSlot *const d = (ArrSlot *)at(exec_popa(&S->vm));
-    arry_move(&S->arry, &S->vm, d, (ArrSlot *)at(exec_popa(&S->vm)));
+    arry_move(&S->arry, d, (ArrSlot *)at(exec_popa(&S->vm)));
 }
 
 /* A fixed array field's element ( addr s lb count stride -- addr ), ours: s's place in its
@@ -556,7 +556,7 @@ void stmt_amove(Session *const S)
 /* An array result's start ( id -- ), ours: as arry_reset. */
 void stmt_areset(Session *const S)
 {
-    arry_reset(&S->arry, &S->vm, arry_slot(&S->arry, exec_pop(&S->vm).u));
+    arry_reset(&S->arry, arry_slot(&S->arry, exec_pop(&S->vm).u));
 }
 
 /* ERASE ( array -- ), an operand (exec_arrayop): REDIM's array freed, another's elements zeroed. */
@@ -568,11 +568,11 @@ void stmt_erase(Session *const S)
     if (s && !s->hdr)
         return;
     if (s && s->dyn) {
-        arry_free(&S->arry, &S->vm, s);
+        arry_free(&S->arry, s);
         return;
     }
 
-    arry_clear(&S->arry, &S->vm, &v);
+    arry_clear(&S->arry, &v);
 }
 
 /* FCELL ( place key -- cell ): a fixed array field's cell for an array parameter (arry_field_cell). */

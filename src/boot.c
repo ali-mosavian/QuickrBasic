@@ -62,7 +62,7 @@ void boot(Session *const S, const FrontEnd *const fe)
 
     scop_init(&S->scop, &S->fault); /* its arena's first block from the C side's heap */
 
-    allo_init(&S->allo, &S->fault); /* the arrays' headers, the control stack, the POKE memory */
+    allo_init(&S->allo, &S->fault); /* the BASIC heap, the control stack */
     qbrt_init(&S->fault, &S->vm.stop, at(allo_carve(&S->allo, QBRT_HEAP)), QBRT_HEAP);
     strg_init(&S->strg, &S->allo, &S->fault, &S->prog);
     arry_init(&S->arry, &S->allo, &S->fault, &S->symb, &S->decl, &S->strg, &S->vm);

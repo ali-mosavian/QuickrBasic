@@ -41,8 +41,8 @@ void heap_free(Heap *h, void *p); /* p from h, or null */
 void *heap_bottom(Heap *h, size_t size);
 /* p as size bytes, in place only; false: no room after it, p kept. */
 bool heap_extend(Heap *h, void *p, size_t size);
-/* The free bytes under below in every region, a header less a run of free blocks: what blocks
-   can still take, about. */
+/* The free blocks' bytes under below in every region, their headers too: the same however they
+   lie, what blocks can still take about. */
 size_t heap_left(const Heap *h, const void *below);
 /* The free bytes after p: what heap_extend can add. */
 size_t heap_after(const Heap *h, const void *p);
