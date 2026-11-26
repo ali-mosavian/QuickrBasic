@@ -486,9 +486,6 @@ def gpu_shot(depth: int, how: str) -> tuple[int, bytes]:
     return int(head.split()[1]), pixels
 
 
-# 86Box's VMs with each 3D card: qb-p100's, the card added in 86box.cfg
-CARDS = {"voodoo1": "qb-p100-voodoo1", "voodoo2": "qb-p100-voodoo2", "banshee": "qb-p100-banshee",
-         "voodoo3": "qb-p100-voodoo3"}
 CARD_SHOT_MS = 20000  # emulated: booted, and the scene drawn and shown
 
 
@@ -498,7 +495,7 @@ def card_shot(card: str, depth: int) -> tuple[int, bytes]:
     import bench
 
     hl86 = bench.hl86_module()
-    vm = bench.HL86_VMS / CARDS[card]
+    vm = bench.HL86_VMS / bench.CARDS[card]
     image, built = vm / "c.img", dosrun.COM.parent
     with tempfile.TemporaryDirectory() as tmp:
         d = Path(tmp)

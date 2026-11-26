@@ -27,7 +27,7 @@ enum : uint32_t {
     SWAPS = 7,
     AHEAD = 1, /* swaps let pend */
     WAIT_US = 100000,
-    LOD_OFF = 8 * 4, /* a TMU's lodmin past every level: not drawn from */
+    LOD_OFF = 8 * 4 << 6 | 8 * 4, /* a TMU's lodmax and lodmin past every level: not drawn from */
     FIVE = 0x1F,
     SIX = 0x3F,
     OPAQUE = 255,
@@ -213,7 +213,7 @@ opened(const PciFunction *const pci, const uint16_t w, const uint16_t h, AccelCa
     c->host = host;
     c->pci = *pci;
 
-    if (!family->open(c, pci, w, h))
+    if (!family->open(c, w, h))
         return false;
 
     c->w = w;

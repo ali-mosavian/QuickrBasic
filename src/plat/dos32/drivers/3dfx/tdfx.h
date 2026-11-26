@@ -15,12 +15,11 @@
 
 typedef struct Tdfx Tdfx;
 
-/* A family's: its card readied, showing a mode holding w by h (Tdfx's to fill named there), false,
-   it cannot;
-   stopped, the VGA's screen shown; the next frame made the shown one's. */
+/* A family's: its card (Tdfx's pci) readied, showing a mode holding w by h (Tdfx's to fill named
+   there), false, it cannot; stopped, the VGA's screen shown; the next frame made the shown one's. */
 typedef struct {
     const char *name;
-    bool (*open)(Tdfx *c, const PciFunction *card, uint16_t w, uint16_t h);
+    bool (*open)(Tdfx *c, uint16_t w, uint16_t h);
     void (*close)(Tdfx *c);
     void (*carry)(Tdfx *c);
 } TdfxFamily;

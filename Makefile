@@ -90,7 +90,7 @@ CORE_OBJ := $(CORE_C:src/%.c=$(B)/obj/%.obj) $(QBRT_DOS_C:%.c=$(B)/qbrt/%.obj) $
 	$(B)/obj/qbrt/qbrt_dos.obj $(ASM_OBJ)
 BASIC_OBJ := $(CORE_OBJ) $(B)/obj/app/basic32.obj
 IDE_OBJ := $(CORE_OBJ) $(UI_C:src/%.c=$(B)/obj/%.obj) $(B)/obj/app/ide32.obj
-DOS_DRIVERS := $(B)/lib/drivers/VOODOO1.DRV
+DOS_DRIVERS := $(B)/lib/drivers/VOODOO1.DRV $(B)/lib/drivers/VOODOO2.DRV
 DOS_EXE := $(B)/basic32.exe $(B)/ide32.exe $(B)/DOS32A.EXE $(B)/BASIC.HLP $(B)/lib/gfx.qbx $(DOS_DRIVERS)
 # the release: the programs by their DOS names, with the games (src/plat/wasm/web/demos)
 DOS_GAMES := $(addprefix src/plat/wasm/web/demos/,GORILLA.BAS NIBBLES.BAS MOTHLITE.BAS RUSTLINE.BAS CHARLIE.BAS CHARLIE.DAT)
@@ -251,16 +251,21 @@ $(B)/lib/gfx.qbx: $(GFX_PARTS) $(B)/ext/gfx.dll tools/qbx.py
 # DOS's accelerator drivers (src/plat/dos32/drivers), in lib/drivers/ beside basic32.exe: each an
 # i386 DLL as gfx's slice is, its header the PCI IDs it drives (qbx.py driver); 3dfx's share all
 # but their family's file
-TDFX_SHARED := $(filter-out %/voodoo1.c %/voodoo2.c %/voodoo3.c,$(wildcard src/plat/dos32/drivers/3dfx/*.c)) \
+TDFX_SHARED := $(filter-out %/voodoo1.c %/voodoo2.c %/voodoo3.c %/sst.c,$(wildcard src/plat/dos32/drivers/3dfx/*.c)) \
 	src/plat/dos32/drivers/crt.c
 $(B)/drivers/%.obj: src/plat/dos32/drivers/%.c
 	@mkdir -p $(@D)
 	$(DOS_SLICE_CC) -Isrc $(DEPFLAGS) -c $< -o $@
 $(B)/drivers/%.dll: $(TDFX_SHARED:src/plat/dos32/drivers/%.c=$(B)/drivers/%.obj) $(B)/drivers/3dfx/%.obj
 	$(LLD_LINK) /dll /noentry /nodefaultlib /safeseh:no /out:$@ $^
+# the Voodoo Graphics and Voodoo 2 share their FBI's bring-up
+$(B)/drivers/voodoo1.dll $(B)/drivers/voodoo2.dll: $(B)/drivers/3dfx/sst.obj
 $(B)/lib/drivers/VOODOO1.DRV: $(B)/drivers/voodoo1.dll tools/qbx.py
 	@mkdir -p $(@D)
 	$(PY) tools/qbx.py driver $@ $< 121a:0001
+$(B)/lib/drivers/VOODOO2.DRV: $(B)/drivers/voodoo2.dll tools/qbx.py
+	@mkdir -p $(@D)
+	$(PY) tools/qbx.py driver $@ $< 121a:0002
 
 host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/hostperf/basic build/host/ext/qxtest.so \
 		build/host/lib/gfx.qbx $(NAMES)

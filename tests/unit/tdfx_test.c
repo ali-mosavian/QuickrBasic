@@ -179,9 +179,8 @@ static uint8_t *card_memory;
 
 static uint64_t ACCEL_CALL fake_clock(void) { return 0; }
 
-static bool fake_open(Tdfx *const c, const PciFunction *const pci, const uint16_t w, const uint16_t h)
+static bool fake_open(Tdfx *const c, const uint16_t w, const uint16_t h)
 {
-    (void)pci;
     card_memory = calloc(1, CARD_BYTES);
     card_memory[SST_STATUS] = SST_ROOM; /* room, nothing busy */
     c->regs = card_memory;
