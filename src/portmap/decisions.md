@@ -9,7 +9,8 @@
 3. Handler names: `ops.def` uses the names each module's header declares (io's `file.h`, num's
    `dubl.h`, mem's ...). vm reconciles `ops.def` with them; the owners' names win.
 4. Arena regions: each owner carves its own in its init with `allo_carve` (strg: temporaries'
-   Descs; exec: data stack, save stack; cons: inbuf, sbuf; file: record buffers; comp: cbuf).
+   Descs; exec: data stack, save stack; file: record buffers). cons's inbuf and sbuf and comp's
+   cbuf grow to what they hold.
    `main.c` (io) calls `pmem_init`, `allo_init`, then every carving init, then the blocks (cache,
    program store, symbols), in the asm's order.
 5. FRE: the suites never compare its value; the regions inside the heap are fine.
