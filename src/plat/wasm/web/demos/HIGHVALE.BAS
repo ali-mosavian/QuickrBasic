@@ -1,5 +1,5 @@
 ' HIGHVALE: a helicopter over valleys made by rule, its
-' land drawn by gfx's terrain, a ray a column. Clear each
+' land drawn a ray a column. Clear each
 ' mission's vale of flak sites and drones. Arrows turn
 ' and tilt (tilt forward to fly forward), A and Z climb
 ' and sink, Space fires the guns, X a rocket; Enter goes
