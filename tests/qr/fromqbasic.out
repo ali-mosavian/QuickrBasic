@@ -7,8 +7,12 @@ main
 hi bob
 -1  0 
  7  2.5 made
+ 4  100000  .5  6.283185307179586 -1  8 
+geo	map
+ 4 
+ 40 geo	map
  3 
 caught 11 
 after
-geo.bas:53: Division by zero
+geo.bas:62: Division by zero
       return a div b

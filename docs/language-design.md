@@ -897,6 +897,8 @@ end function
 - A Quickr file imports a QBasic module as a Quickr one: `import shapes`, then `shapes.area(2, 3)`,
   or `from shapes import area`. Its SUBs and FUNCTIONs are functions, its TYPEs records; not its
   PRIVATE ones.
+- A QBasic CONST is a const when its value is a whole number known as declared. Any other is a
+  `let` its module's code sets: a SINGLE, a DOUBLE or a string reads as that code left it.
 - A QBasic name matches case aside and without its suffix: `FUNCTION Area!(w!)` is `shapes.area`.
   Two that match one name are an error where it is used.
 - Types: INTEGER and LONG are `int`, both 32 bits; SHORT is `short`, SINGLE `single`, DOUBLE
@@ -910,8 +912,9 @@ end function
 - A native module, a `.qbx`, is imported as a QBasic one: `from synth import note`.
 - A QBasic module's code runs at its first import, as in QBasic.
 - A QBasic file imports a Quickr module: `IMPORT shapes`, then `shapes.area(2, 3)`, or `FROM
-  shapes IMPORT area`. Its functions are SUBs and FUNCTIONs, its records TYPEs, the private ones
-  aside. Its methods are not seen.
+  shapes IMPORT area`. Its functions are SUBs and FUNCTIONs, its records TYPEs, its consts CONSTs,
+  the private ones aside. Its methods are not seen. A string const longer than 255 bytes is not
+  exported.
 - Types back: `int` is LONG, `short` SHORT, `single`, `double` and `string` the same, `bool`
   INTEGER, true -1 in both, a record a TYPE. A `mut` parameter is by reference, any other by value.
 - Any other type in a function's parameters or result, or in a record's fields, makes it an error

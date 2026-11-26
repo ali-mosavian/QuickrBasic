@@ -140,6 +140,48 @@ static ExpProc expo_proc(const Comp *const C, Arena *const a, const Proc *const 
     return e;
 }
 
+/* Is name t QBasic module m's CONST, exported? */
+static bool expo_is_const(const Comp *const C, const uint32_t m, const uint32_t t)
+{
+    return symb_name(C->symb, t)->module == m && bind_exports(C->scop, C->symb, t) & BIND_CONST;
+}
+
+/* Module m's variable of name t, a scalar of type et (comp_var's). */
+static uint32_t expo_scalar(
+    const Comp *const C,
+    const uint32_t m,
+    const uint32_t t,
+    const uint32_t et
+)
+{
+    return symb_find_var(C->symb, t, et, comp_etkind[et], sc_module(m), false);
+}
+
+/* QBasic module m's CONSTs into x: an integer's value known as declared, any other's variable. */
+static void expo_consts(const Comp *const C, const uint32_t m, Arena *const a, Exports *const x)
+{
+    uint32_t n = 0;
+
+    for (uint32_t t = 1; t < C->symb->nnames; t++)
+        n += expo_is_const(C, m, t);
+
+    x->consts = expo_room(C, a, n, sizeof *x->consts);
+
+    for (uint32_t t = 1; t < C->symb->nnames; t++) {
+        if (!expo_is_const(C, m, t))
+            continue;
+
+        const Binding *const b = scop_get(C->scop, sc_module(m), t);
+        ExpConst *const e = &x->consts[x->nconsts++];
+        *e = (ExpConst){.et = b->et[0], .known = b->flags & BF_VAL, .i = b->val};
+
+        e->name = expo_name(C, a, t, &e->len);
+
+        if (!e->known)
+            e->var = expo_scalar(C, m, t, e->et);
+    }
+}
+
 Exports expo_qbasic(const Comp *const C, const uint32_t m, Arena *const a)
 {
     const Blok *const b = C->blok;
@@ -184,6 +226,7 @@ Exports expo_qbasic(const Comp *const C, const uint32_t m, Arena *const a)
         }
     }
 
+    expo_consts(C, m, a, &x);
     return x;
 }
 
@@ -197,12 +240,18 @@ bool expo_usable(const Comp *const C, const uint32_t t)
            !(td && (td->alien || expo_type_why(C->decl, n->rec)));
 }
 
-/* Name n declared again by an export: the clash *clash records, the first. */
-static void expo_again(const Symb *const sy, const uint32_t n, uint32_t *const clash)
+/* Name n of module m declared again by an export: the clash *clash records, the first. */
+static void expo_again(
+    const Comp *const C,
+    const uint32_t m,
+    const uint32_t n,
+    uint32_t *const clash
+)
 {
-    const Name *const nm = symb_name(sy, n);
+    const Name *const nm = symb_name(C->symb, n);
+    const Binding *const b = scop_get(C->scop, sc_module(m), n);
 
-    if (!*clash && (nm->flags & (NM_SUB | NM_FUNC) || nm->rec))
+    if (!*clash && (nm->flags & (NM_SUB | NM_FUNC) || nm->rec || (b && b->flags & BF_CON)))
         *clash = n;
 }
 
@@ -215,7 +264,7 @@ uint32_t expo_declare(Comp *const C, const uint32_t m, const Exports *const x)
         const ExpProc *const e = &x->procs[i];
         const uint32_t n = symb_find_name(sy, m, (const uint8_t *)e->name, (uint8_t)e->len);
         const bool fn = e->result.et != ET_IMP;
-        expo_again(sy, n, &clash);
+        expo_again(C, m, n, &clash);
         symb_name(sy, n)->flags |= fn ? NM_FUNC : NM_SUB;
         scop_bind(C->scop, sc_module(m), n)->flags |= BF_PROC | (e->why ? BF_ALIEN : 0);
 
@@ -235,11 +284,52 @@ uint32_t expo_declare(Comp *const C, const uint32_t m, const Exports *const x)
     for (uint32_t i = 0; i < x->ntypes; i++) {
         const ExpType *const e = &x->types[i];
         const uint32_t n = symb_find_name(sy, m, (const uint8_t *)e->name, (uint8_t)e->len);
-        expo_again(sy, n, &clash);
+        expo_again(C, m, n, &clash);
 
         symb_name(sy, n)->rec = e->td;
         ((TypeDef *)btab_at(&C->decl->types, e->td))->alien = e->why;
     }
 
+    for (uint32_t i = 0; i < x->nconsts; i++) {
+        const ExpConst *const e = &x->consts[i];
+        const uint32_t n = symb_find_name(sy, m, (const uint8_t *)e->name, (uint8_t)e->len);
+        expo_again(C, m, n, &clash);
+
+        Binding *const b = scop_bind(C->scop, sc_module(m), n);
+        const bool whole = e->et != ET_R4 && e->et != ET_R8 && e->et != ET_SD;
+        b->flags |= BF_CON | BF_SHR | (whole ? BF_VAL : 0); /* decl_int's: a TYPE's, a DIM's */
+        b->et[0] = (uint8_t)e->et;
+        b->val = whole ? (int32_t)e->i : 0;
+    }
+
     return clash;
+}
+
+void expo_literals(Comp *const C, const uint32_t m, const Exports *const x, Arena *const a)
+{
+    for (uint32_t i = 0; i < x->nconsts; i++) {
+        const ExpConst *const e = &x->consts[i];
+        const uint32_t n = symb_find_name(C->symb, m, (const uint8_t *)e->name, (uint8_t)e->len);
+        const uint32_t id = expo_scalar(C, m, n, e->et);
+        uint8_t *const k = symb_kval(C->symb, id);
+        uint8_t op = O_I_LD_I32;
+        uint64_t raw = (uint32_t)e->i;
+
+        if (e->et == ET_R4)
+            op = O_F_LD_F32, raw = (Cell){.f = (float)e->d}.u;
+        else if (e->et == ET_R8)
+            op = O_D_LD_K, raw = (Cell){.d = e->d}.raw;
+
+        if (e->et == ET_SD) { /* S.LD.TXT len, its text's Addr: a room that stays */
+            char *const text = expo_room(C, a, e->slen, 1);
+            memcpy(text, e->s, e->slen);
+            op = O_S_LD_TXT;
+            raw = (uint8_t)e->slen | (uint64_t)addr_of(text) << 8;
+        }
+
+        for (uint32_t b = 0; b < 8; b++)
+            k[b] = (uint8_t)(raw >> 8 * b);
+
+        symb_varx(C->symb, id)->kop = op;
+    }
 }

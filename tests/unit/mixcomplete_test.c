@@ -145,14 +145,15 @@ TEST(mixcomplete_qb_main_offers_a_qbasic_modules_exports)
     fx_done(S, files);
 }
 
-/* After a Quickr module's name, a QBasic program offered its own names, not the module's. */
+/* After a Quickr module's name, a QBasic program offered its own names, not the module's: its
+   functions, records and consts. */
 TEST(mixcomplete_qb_main_offers_a_quickr_modules_exports)
 {
     open_with(S, qb_main);
     CHECK(offers(S, "print total", "a = geo.", "area"));
     CHECK(offers(S, "print total", "dim q as geo.", "Spot"));
     CHECK(!offers(S, "print total", "a = geo.", "helper"));
-    CHECK(!offers(S, "print total", "a = geo.", "limit")); /* QBasic sees no const */
+    CHECK(offers(S, "print total", "a = geo.", "limit")); /* its consts CONSTs */
     CHECK(!offers(S, "print total", "a = geo.", "Area"));
     CHECK(!offers(S, "print total", "a = geo.", "total"));
     fx_done(S, files);

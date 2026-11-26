@@ -1,4 +1,6 @@
 ' A QBasic module a Quickr program imports: its code runs at the first import
+CONST SIDES = 4, DIAGS = SIDES * 2
+CONST SHARE! = .5, TAU# = 6.283185307179586#, TITLE$ = "shapes"
 IMPORT counts
 TYPE Rect
     W AS SINGLE
