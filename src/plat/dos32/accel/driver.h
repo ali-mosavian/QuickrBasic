@@ -84,8 +84,8 @@ typedef struct {
 } AccelMode;
 
 /* What the host lends a driver: a card's configuration space, physical memory mapped (null, not;
-   each card's once), I/O ports, memory (zeroed; null, none left), a clock in microseconds, and the
-   VGA's VESA modes. */
+   each card's once), I/O ports, memory (zeroed; null, none left), a clock in microseconds, the
+   VGA's VESA modes, and the environment's variables. */
 typedef struct {
     uint32_t size, abi;
     uint32_t(ACCEL_CALL *pci_read)(const PciFunction *card, uint8_t reg);
@@ -101,6 +101,8 @@ typedef struct {
     /* The smallest mode of bits a pixel with a linear frame buffer holding w by h set, to *out:
        false, none. The host's text screen is shown again after close, or an open that fails. */
     bool(ACCEL_CALL *vesa)(uint16_t w, uint16_t h, uint8_t bits, AccelMode *out);
+    /* Variable name's value to out, as cap allows with its 0: its length; 0, unset. */
+    uint32_t(ACCEL_CALL *env)(const char *name, char *out, uint32_t cap);
 } AccelHost;
 
 typedef struct {

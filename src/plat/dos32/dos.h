@@ -148,6 +148,9 @@ CDECL void pdos_outd(uint16_t port, uint32_t v);
 
 /* The environment block (index 0) copied to buf, at most cap bytes; its length. */
 CDECL uint32_t pdos_environ(uint32_t index, uint8_t *buf, uint32_t cap);
+/* Environment variable name's value to out, as cap allows with its 0: its length; 0, unset
+   (psys.c). */
+uint32_t pdos_env(const char *name, char *out, uint32_t cap);
 
 /* DS's selector. */
 CDECL uint16_t pdos_ds(void);

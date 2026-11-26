@@ -69,6 +69,11 @@ host_vesa(const uint16_t w, const uint16_t h, const uint8_t bits, AccelMode *con
     return true;
 }
 
+static uint32_t ACCEL_CALL host_env(const char *const name, char *const out, const uint32_t cap)
+{
+    return pdos_env(name, out, cap);
+}
+
 static const AccelHost host = {
     .size = sizeof(AccelHost),
     .abi = ACCEL_ABI,
@@ -83,6 +88,7 @@ static const AccelHost host = {
     .free = host_free,
     .clock_us = host_clock_us,
     .vesa = host_vesa,
+    .env = host_env,
 };
 
 /* The search's: done once, and the driver and its card it found. */

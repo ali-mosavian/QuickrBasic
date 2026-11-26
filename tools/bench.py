@@ -1410,9 +1410,10 @@ def mtools(tool: str, image: Path, *args: str, check: bool = True) -> bytes:
     return r.stdout
 
 
-def vm_stage(image: Path, d: Path, com: Path, job: tuple, files: dict[str, bytes], last: str) -> Path:
+def vm_stage(image: Path, d: Path, com: Path, job: tuple, files: dict[str, bytes], last: str,
+             sets: tuple[str, ...] = ()) -> Path:
     """com, the job's files and files put in C:\\QB on image, d the scratch: RUN.BAT, which runs the job
-    there into OUT.TXT inside HLPROF's profile window, then last, a DOS command."""
+    there into OUT.TXT inside HLPROF's profile window, then last, a DOS command. sets: NAME=VALUE, SET first."""
     prog, _, args, own = dosrun.job(job)
     qb = d / "QB"
     qb.mkdir()
@@ -1427,7 +1428,8 @@ def vm_stage(image: Path, d: Path, com: Path, job: tuple, files: dict[str, bytes
         (qb / "DEMO.BAS").write_bytes(prog.encode("latin-1"))
     (qb / "J.IN").write_bytes(b"")
     bat = d / "RUN.BAT"
-    lines = ["@ECHO OFF", "CD \\QB", "C:\\HLPROF.COM 1", f"{run} < J.IN > OUT.TXT", "C:\\HLPROF.COM 0", last]
+    lines = ["@ECHO OFF", *(f"SET {v}" for v in sets), "CD \\QB", "C:\\HLPROF.COM 1", f"{run} < J.IN > OUT.TXT",
+             "C:\\HLPROF.COM 0", last]
     bat.write_bytes("".join(f"{n}\r\n" for n in lines).encode())
     mtools("mdeltree", image, "::QB", check=False)
     mtools("mcopy", image, "-s", "-o", str(qb), "::")
@@ -1443,15 +1445,16 @@ def hl86_module():  # noqa: ANN201
     return hl86
 
 
-def vm_rate(vm: str, com: Path, job: tuple, files: dict[str, bytes], realtime: bool = False) -> str:
+def vm_rate(vm: str, com: Path, job: tuple, files: dict[str, bytes], realtime: bool = False,
+            sets: tuple[str, ...] = ()) -> str:
     """Program com's frames a second on 86Box's VM vm, by its own clock: FPS.TXT's, or its output's.
     com, the job's files and files go to C:\\QB on the VM's disk, removed after; what it writes to port 0xE9,
     printed. realtime: the emulator held to the host's clock, as a 3D card wants: its pixels are drawn at the
-    host's pace, not timed."""
+    host's pace, not timed. sets: NAME=VALUE, in its environment."""
     hl86 = hl86_module()
     image = HL86_VMS / vm / "c.img"
     with tempfile.TemporaryDirectory() as d:
-        bat = vm_stage(image, Path(d), com, job, files, "C:\\HLEXIT.COM 0")
+        bat = vm_stage(image, Path(d), com, job, files, "C:\\HLEXIT.COM 0", sets)
         try:
             r = hl86.run_dos(HL86 / "build/src/86Box-headless", image.parent, HL86_ROMS, bat, timeout=1800,
                              unthrottled=not realtime)
@@ -1819,8 +1822,8 @@ def demos_on_card(a: argparse.Namespace, own: dict[str, bytes]) -> int:
     print(f"{'':12}" + "".join(f"{t:>10}" for t in ("pages", a.card, "no vsync")))
     for name in a.demo or DEMO_EDITS:
         runs = ((pages, True), (card, True), (card, False))
-        cells = [vm_rate(vm, b.dos, (demo_program(name, a.seconds, v, 0, card=True), "", "", own), lib, True)
-                 for lib, v in runs]
+        cells = [vm_rate(vm, b.dos, (demo_program(name, a.seconds, v, 0, card=True), "", "", own), lib, True,
+                         tuple(a.set or ())) for lib, v in runs]
         print(f"{name:12}" + "".join(f"{c:>10}" for c in cells), flush=True)
     return 0
 
@@ -2087,6 +2090,7 @@ def main() -> int:
     p.add_argument("--frames", type=int, help="--machine --profile: frames in the shorter run, twice in the longer")
     p.add_argument("--rev", action="append", help="--machine: a revision's build timed too, before the tree's")
     p.add_argument("--card", choices=list(CARDS), help="on 86Box's Pentium 100 with this 3D card, at 16 bits")
+    p.add_argument("--set", action="append", metavar="NAME=VALUE", help="--card: in DOS's environment")
     p.add_argument("--demo", action="append", choices=list(DEMO_EDITS), help="a demo to time; all when none")
     p.add_argument("--seconds", type=float, default=10)
     p.add_argument("--profile", action="store_true", help="by function a frame, ours with every edit (normal core)")
