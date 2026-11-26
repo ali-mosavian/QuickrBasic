@@ -110,10 +110,12 @@ Addr strg_alloc(Strg *const sg, const uint16_t len)
 
 /* Is the block at chars live: its owner a Desc still pointing at them? */
 
+/* The owner's pointer first: most dead blocks fail it, and popped's segment search cost a string's
+   allocation 35 instructions. A popped owner's bytes are still the heap's, so readable. */
 static bool strg_is_live(const Strg *const sg, const Addr chars, const Addr owner)
 {
-    return owner && !strg_is_popped_tmp(sg, owner) && !(sg->popped && sg->popped(sg->vm, owner)) &&
-           strg_peek(owner).ptr == chars;
+    return owner && strg_peek(owner).ptr == chars && !strg_is_popped_tmp(sg, owner) &&
+           !(sg->popped && sg->popped(sg->vm, owner));
 }
 
 /* Out of line: inlined into strg_alloc, every allocation saved and set up its registers. */

@@ -199,7 +199,8 @@ def kind_compares() -> None:
 
 # Instructions a pass on arm64 macOS, with room over what they measured; past one, a regression.
 # A string's allocation over a literal's store: strg_gc inlined into strg_alloc saved and set up
-# its registers on every allocation, 238 (217 out of line).
+# its registers on every allocation, 238 (217 out of line). The collector asking the stack whether
+# each dead block's owner was popped before checking its pointer, 251.
 ALLOC_BUDGET = 228
 # A SUB with a fixed local array over an empty SUB: its return looped over its locals and swept
 # the arrays, 457 (402 by the inline PRET).
