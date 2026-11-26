@@ -1241,6 +1241,18 @@ def dos_output(com: Path, job: tuple, cycles: int, files: dict[str, bytes]) -> t
     return out, r.reason
 
 
+def host_ops(exe: Path, frames: int) -> int:
+    """The ops the counting host build exe dispatches flying HIGHVALE for frames frames: exact, as the clock
+    on a loaded machine is not."""
+    with tempfile.TemporaryDirectory() as d:
+        for name, data in highvale_files().items():
+            (Path(d) / name).parent.mkdir(parents=True, exist_ok=True)
+            (Path(d) / name).write_bytes(data)
+        bas = Path(d) / "DRIVER.BAS"
+        bas.write_text(HIGHVALE_DRIVER.replace("{until}", f"frames >= {frames}"))
+        return count(exe, bas, "QB_OPS", b"ops")[0]
+
+
 def dos_rate(com: Path, job: tuple, cycles: int, files: dict[str, bytes]) -> str:
     """Program com's frames a second at cycles a virtual ms: FPS.TXT's first number, or its output's."""
     out, reason = dos_output(com, job, cycles, files)
@@ -1660,7 +1672,7 @@ do
     gfx.display.flip
     frames = frames + 1
     t = t + 1 / 30
-loop until gfx.display.clock - t0 >= {seconds}
+loop until {until}
 t = gfx.display.clock - t0
 gfx.display.close
 f = freefile
@@ -1681,14 +1693,22 @@ def highvale_files() -> dict[str, bytes]:
 
 def cmd_highvale(a: argparse.Namespace) -> int:
     """HIGHVALE flown for --seconds on DOS at 320x200x8: frames a second, and the seconds its first vale took
-    to make. Under DOSBox at --cycles a virtual ms, or --machine on 86Box's, by its own clock. --profile: by
-    function a frame, the --n most."""
-    b = build(".", True)
+    to make. Under DOSBox at --cycles a virtual ms, or --machine on 86Box's, by its own clock; --host: the ops a
+    frame on the host's counting build. --profile: by function a frame, the --n most."""
+    b = build(".", not a.host)
+    if a.host:
+        ops = [host_ops(b.counted, n) for n in (10, 70)]
+        print(f"HIGHVALE on the host: {(ops[1] - ops[0]) / 60 / 1e6:.2f} M ops a frame, flying")
+        return 0
+    until = f"gfx.display.clock - t0 >= {a.seconds:g}"
+    job = (HIGHVALE_DRIVER.replace("{until}", until), "", "", highvale_files())
     lib = {"lib/gfx.qbx": (b.dos.parent / "lib/gfx.qbx").read_bytes()}
-    job = (HIGHVALE_DRIVER.replace("{seconds}", f"{a.seconds:g}"), "", "", highvale_files())
     if a.profile:
         with tempfile.TemporaryDirectory() as d:
-            jobs = [(HIGHVALE_DRIVER.replace("{seconds}", f"{s:g}"), "", "", highvale_files()) for s in (4, 12)]
+            jobs = [
+                (HIGHVALE_DRIVER.replace("{until}", f"gfx.display.clock - t0 >= {s}"), "", "", highvale_files())
+                for s in (4, 12)
+            ]
             print_frame_profile("HIGHVALE", profiled(b, Path(d)), jobs, a.cycles, lib, a.n)
         return 0
     if a.machine:
@@ -1911,6 +1931,7 @@ def main() -> int:
     p.add_argument("--seconds", type=float, default=10)
     p.add_argument("--profile", action="store_true")
     p.add_argument("--n", type=int, default=25)
+    p.add_argument("--host", action="store_true", help="on the host build, headless")
     sub.add_parser("engine")
     a = ap.parse_args()
     return {
