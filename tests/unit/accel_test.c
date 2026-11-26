@@ -5,6 +5,11 @@
 #include <stddef.h>
 #include "unit.h"
 #include <string.h>
+#ifdef __APPLE__
+#include <malloc/malloc.h>
+#else
+#include <malloc.h>
+#endif
 
 /* A driver file of Voodoo 1 and 2's IDs, its image's four bytes after them. */
 static const uint8_t VOODOO[] = {
@@ -496,5 +501,52 @@ TEST(accel_player_carries_a_frame_only_when_not_drawn_over)
     list.n = list.nv = list.ni = 0;
     box(SOLID, 0, 0, 0, SCREEN_W, SCREEN_H, 0, 0);
     CHECK(played(SHOWN, 0, true) && calls_of('C') == 1);
+    accel_close();
+}
+
+/* Bytes the C heap holds. */
+static size_t heap_used(void)
+{
+#ifdef __APPLE__
+    malloc_statistics_t s;
+    malloc_zone_statistics(nullptr, &s);
+    return s.size_in_use;
+#else
+    return mallinfo2().uordblks;
+#endif
+}
+
+/* The screen is drawn by the card and never drawn from, so it holds no texels here: held, a 640 by
+   480 screen's 600K did not fit a 16 MB machine's heap, and nothing was shown. */
+TEST(accel_player_holds_no_texels_for_the_screen)
+{
+    const size_t before = heap_used();
+
+    opened();
+    begun(1, 1);
+
+    const uint32_t from = list.n;
+
+    box(SOLID, 0, 0, 0, 8, 8, 0, 0);
+    CHECK(played(SHOWN, from, true));
+    CHECK(heap_used() - before < SCREEN_W * SCREEN_H * sizeof(uint16_t));
+    accel_close();
+}
+
+/* A list may draw into the screen before its first SHOW, as gfx's does when it reads back: the
+   draws go to the card's screen. Found only by that SHOW, the screen was a target first, which a
+   card's spare rows did not hold, and read back once found. */
+TEST(accel_player_draws_into_the_screen_before_its_first_show)
+{
+    opened();
+    begun(1, 1);
+
+    const uint32_t from = list.n;
+
+    box(SOLID, 0, 0, 0, 8, 8, 0, 0);
+    CHECK(!played(SHOWN, from, false));
+    list.n = list.nv = list.ni = 0;
+    CHECK(played(SHOWN, 0, true));
+    CHECK(calls_of('G') == 0 && calls_of('R') == 0 && calls_of('V') == 1 && calls_of('W') == 1);
     accel_close();
 }

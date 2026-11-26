@@ -1,12 +1,13 @@
 /* gfx's GPU lists (qx/qxlist.h's FIXED) played through an accelerator's driver (accel.h).
  *
  * # How it works
- * A texture's texels are kept here as a card takes them (texels.h); the card holds them as tiles,
+ * A texture's texels are kept here as a card takes them (texels.h), from when they are first
+ * written or drawn from: the screen's never are. The card holds them as tiles,
  * sent as they are drawn from, and the rows changed since. A texture drawn into is a target of the
  * card's too, whose pixels are then ahead of the texels: read back before it is drawn from. A
  * texture written to while a target is painted onto it from its tiles.
  *
- * The screen is the texture the first SHOW shows, drawn in the card's screen. Once a frame is
+ * The screen is the first RGBA texture made of the screen's size, drawn in the card's screen. Once a frame is
  * shown, the card's next one is undefined: carried from the shown one as it is first drawn in,
  * unless that draw covers all of it opaque.
  *
@@ -64,8 +65,9 @@ typedef struct {
 } Pipeline;
 
 typedef struct {
-    uint16_t *texels; /* w by h: null, a depth texture */
+    uint16_t *texels; /* w by h: null, none yet, every texel 0 */
     uint16_t w, h;
+    bool depth; /* a depth texture: no texels */
     CutGrid grid;
     uint32_t *tiles;     /* the grid's texture slots, a row across: 0, not made */
     int32_t top, bottom; /* the texel rows its tiles lack: none, top not under bottom */
@@ -342,10 +344,22 @@ static uint32_t tile_made(const uint16_t w, const uint16_t h)
     return 0;
 }
 
+/* t's texels, made 0 as first needed: null, no memory. */
+static uint16_t *texels_of(Texture *const t)
+{
+    if (!t->texels)
+        t->texels = zeroed((size_t)t->w * t->h * sizeof *t->texels);
+
+    return t->texels;
+}
+
 /* t's tiles made and holding its texels: false, no room. */
 static bool tiled(Texture *const t)
 {
     const CutGrid *const g = &t->grid;
+
+    if (!texels_of(t))
+        return false;
 
     t->used = p.plays;
 
@@ -389,9 +403,10 @@ static bool pulled(Texture *const t)
     if (!t->ahead)
         return true;
 
+    uint16_t *const texels = texels_of(t);
     uint8_t *const band = scratch((size_t)t->w * BAND * RGBA);
 
-    if (!band)
+    if (!texels || !band)
         return false;
 
     touched(t);
@@ -401,7 +416,7 @@ static bool pulled(Texture *const t)
         const uint32_t n = t->h - y < BAND ? t->h - y : BAND;
         p.d->read(t->target, (AccelRect){0, (int32_t)y, t->w, (int32_t)n}, band);
 
-        texels_from_rgba(t->texels + (size_t)y * t->w, t->w, band, (uint32_t)t->w * RGBA, t->w, n);
+        texels_from_rgba(texels + (size_t)y * t->w, t->w, band, (uint32_t)t->w * RGBA, t->w, n);
     }
 
     t->ahead = t->blank = false;
@@ -761,6 +776,7 @@ static void op_texture(const QxListEntry *const e)
     *t = (Texture){
         .w = (uint16_t)w,
         .h = (uint16_t)h,
+        .depth = depth,
         .target = NONE,
         .blank = true,
     };
@@ -769,15 +785,17 @@ static void op_texture(const QxListEntry *const e)
         t->serial = ++p.serials;
     } else {
         t->grid = texels_grid(t->w, t->h, &p.card);
-        t->texels = zeroed((size_t)w * h * sizeof *t->texels);
         t->tiles = zeroed(tiles_of(t) * sizeof *t->tiles);
         dirtied(t, 0, t->h);
     }
 
-    if ((!depth && (!t->texels || !t->tiles)) || !id_put(&p.textures, id, t)) {
+    if ((!depth && !t->tiles) || !id_put(&p.textures, id, t)) {
         discarded(t);
         return;
     }
+
+    if (p.screen == NONE && !depth && w == p.w && h == p.h)
+        p.screen = id;
 
     if (id == p.screen)
         bound(t);
@@ -791,10 +809,15 @@ static void op_upload(const QxListEntry *const e)
     const uint32_t x = a[1], y = a[2], w = a[3], h = a[4];
     Texture *const t = id_get(&p.textures, a[0]);
 
-    if (!t || !t->texels || !w || !h || x > t->w || w > t->w - x || y > t->h || h > t->h - y)
+    uint16_t *const texels =
+        t && !t->depth && w && h && x <= t->w && w <= t->w - x && y <= t->h && h <= t->h - y
+            ? texels_of(t)
+            : nullptr;
+
+    if (!texels)
         return;
 
-    texels_from_rgba(t->texels + (size_t)y * t->w + x, t->w, qx_list_pointer(a + 6), a[5], w, h);
+    texels_from_rgba(texels + (size_t)y * t->w + x, t->w, qx_list_pointer(a + 6), a[5], w, h);
     t->blank = false;
     dirtied(t, (int32_t)y, (int32_t)(y + h));
 
@@ -858,11 +881,11 @@ static void op_pass(const QxListEntry *const e)
     const uint32_t *const a = e->arg;
     Texture *const t = id_get(&p.textures, a[0]);
     const Texture *const depth = t && e->args > 1 && a[1] ? id_get(&p.textures, a[1]) : nullptr;
-    const bool deep = depth && !depth->texels && depth->w == t->w && depth->h == t->h;
+    const bool deep = depth && depth->depth && depth->w == t->w && depth->h == t->h;
 
     p.pass = nullptr;
 
-    if (!t || !t->texels || !targeted(t, deep))
+    if (!t || t->depth || !targeted(t, deep))
         return;
 
     if (deep && t->held != depth->serial) {
@@ -904,7 +927,7 @@ static void op_draw(const QxListEntry *const e)
         ((uint64_t)first + count) * sizeof(uint32_t) > ib->n)
         return;
 
-    if (texel && (!t || !t->texels || !pulled(t) || !tiled(t)))
+    if (texel && (!t || t->depth || !pulled(t) || !tiled(t)))
         return;
 
     if (pl->blend != ACCEL_KEEP && into->target == ACCEL_SCREEN && p.owed) {
@@ -977,19 +1000,6 @@ static const struct {
     [QX_LIST_SHOW] = {op_show, 1},
 };
 
-/* The texture the list shows first: NONE, none. */
-static uint32_t shown_by(const uint32_t *const list, const uint32_t words)
-{
-    QxListEntry e;
-    uint32_t at = 0;
-
-    while (qx_list_next(list, words, &at, &e) && e.op != QX_LIST_END)
-        if (e.op == QX_LIST_SHOW && e.args)
-            return e.arg[0];
-
-    return NONE;
-}
-
 bool accel_open(
     const AccelDriver *const d,
     const PciFunction *const card,
@@ -1039,13 +1049,6 @@ bool accel_play(const uint32_t *const list, const uint32_t words)
     p.plays++;
     p.shown = false;
 
-    if (p.screen == NONE && (p.screen = shown_by(list, words)) != NONE) {
-        Texture *const t = id_get(&p.textures, p.screen);
-
-        if (t)
-            bound(t);
-    }
-
     while (qx_list_next(list, words, &at, &e) && e.op != QX_LIST_END)
         if (e.op < sizeof OPS / sizeof *OPS && OPS[e.op].run && e.args >= OPS[e.op].args)
             OPS[e.op].run(&e);
@@ -1065,8 +1068,13 @@ void accel_read(
 {
     const Texture *const t = p.d ? id_get(&p.textures, texture) : nullptr;
 
-    if (!t || !t->texels || x < 0 || y < 0 || w <= 0 || h <= 0 || x + w > t->w || y + h > t->h)
+    if (!t || t->depth || x < 0 || y < 0 || w <= 0 || h <= 0 || x + w > t->w || y + h > t->h)
         return;
+
+    if (!t->ahead && !t->texels) {
+        memset(out, 0, (size_t)w * (uint32_t)h * RGBA);
+        return;
+    }
 
     if (!t->ahead) {
         texels_to_rgba(out, t->texels + (size_t)y * t->w + x, t->w, (uint32_t)w, (uint32_t)h);

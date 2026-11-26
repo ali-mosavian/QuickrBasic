@@ -37,7 +37,7 @@
  *   draw's.
  *   Its texel is its draw's first texture's. It reads no uniforms. A host may hold fewer bits of
  *   a channel than the texture: what it reads back is what it holds. It may show only the
- *   texture the first SHOW shows.
+ *   first RGBA texture made of the screen's size.
  * - PASS id, depth: the RGBA texture the draws after go into, its pixels kept; depth, if given and
  *   not 0, the DEPTH texture of its size they test and set.
  * - CLIP x, y, w, h: the pass's pixels the draws after may touch.
