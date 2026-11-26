@@ -2,16 +2,20 @@
  *
  * # How it works
  * IMPORT finds foo.qbx (io/locate.c) and the loader reads it whole (natv_open): the header is
- * checked, and the interface, its last part, is read as the module's lines from its offset
- * (io/repl.c). Its code is loaded only when the program links (natv_module): this build's slice
- * goes to the platform (plat/pext.h), whose qx_init_foo is called with the host's table. A file
- * stays read and its code loaded for the process, as Python keeps an extension: CHAIN and RUN
- * find them again by path. docs/native-extensions-design.md is the design.
+ * checked, and its own interface is read as the module's lines from its offset (io/repl.c). A
+ * package's module is a part of its file, named as a file in a folder: gfx.draw is gfx.qbx/draw,
+ * as Python's zipimport names one in a zip; its DECLAREs bind to the entries named draw.NAME.
+ * The code is loaded only when the program links (natv_module): this build's slice goes to the
+ * platform (plat/pext.h), whose qx_init_foo is called with the host's table. A file stays read
+ * and its code loaded for the process, as Python keeps an extension: CHAIN and RUN find them
+ * again by path. docs/native-extensions-design.md is the design.
  */
 #include "io/native.h"
 #include "plat/paud.h"
+#include "plat/pclk.h"
 #include "plat/pext.h"
 #include "plat/pfil.h"
+#include "plat/pgfx.h"
 #include "util/grow.h"
 
 static void *QX_CALL host_alloc(const uint32_t bytes)
@@ -46,33 +50,68 @@ static bool QX_CALL host_stopped(QxCall *const c)
     return *container_of(c, NatvCall, c)->stop & SF_BRK;
 }
 
-void natv_init(Natv *const n, Fault *const f)
+/* The display's player's, else pages in memory. */
+static bool QX_CALL host_gfx_open(QxScreen *const s)
 {
-    *n = (Natv){
-        .fault = f,
-        .host = {
-            .size = sizeof(QxHost),
-            .abi = QX_ABI,
-            .minor = QX_MINOR,
-            .alloc = host_alloc,
-            .free = host_free,
-            .result_str = host_result_str,
-            .stopped = host_stopped,
-            .audio_open = host_audio,
-            .audio_lock = host_lock,
-            .audio_unlock = host_unlock,
-        },
-    };
+    const bool vsync = s->flags & QX_SCREEN_VSYNC;
+    const PgfxPlayer *const p = pgfx_open_played(s->w, s->h, s->shaders, vsync);
+
+    s->out_w = s->w;
+    s->out_h = s->h;
+    s->gpu = p;
+
+    if (p) {
+        s->shader = (QxShader)__builtin_ctz(s->shaders & p->shaders);
+        s->y_down = p->y_down;
+    }
+
+    const bool opened = s->gpu || pgfx_open(s->w, s->h, s->depth, vsync);
+    s->hz = pgfx_hz(); /* DOS's, timed as its mode is set */
+    return opened;
 }
 
-static NatvFile *find(Natv *const n, const char *const path)
+static void QX_CALL host_gpu_play(const uint32_t *const list, const uint32_t words)
 {
-    for (uint32_t i = 0; i < n->nfiles; i++)
-        if (!strcmp(n->files[i].path, path))
-            return &n->files[i];
-
-    return nullptr;
+    pgfx_play(list, words);
 }
+
+static void QX_CALL host_gpu_read(
+    const uint32_t texture,
+    const int32_t x,
+    const int32_t y,
+    const int32_t w,
+    const int32_t h,
+    uint8_t *const out
+)
+{
+    const PgfxPlayer *const p = pgfx_playing();
+
+    if (p)
+        p->read(texture, x, y, w, h, out);
+}
+
+static void QX_CALL host_gfx_close(void) { pgfx_close(); }
+
+static void *QX_CALL host_gfx_page(uint32_t *const pitch) { return pgfx_page(pitch); }
+
+static void QX_CALL host_gfx_show(const uint32_t *const palette) { pgfx_show(palette); }
+
+static uint64_t QX_CALL host_clock_us(void) { return pclk_us(); }
+
+static uint32_t QX_CALL host_gfx_monitors(void) { return pgfx_monitors(); }
+
+static uint32_t QX_CALL
+host_gfx_modes(const uint32_t monitor, QxMode *const out, const uint32_t most)
+{
+    return pgfx_modes(monitor, out, most);
+}
+
+static bool QX_CALL host_gfx_mode(const uint32_t monitor, const uint32_t n)
+{
+    return pgfx_mode(monitor, n);
+}
+
+static bool QX_CALL host_gfx_event(QxEvent *const e) { return pgfx_event(e); }
 
 /* The file at path whole, into the C heap: its bytes, *size; null when it cannot be read. */
 static uint8_t *slurp(const char *const path, uint32_t *const size)
@@ -98,41 +137,154 @@ static uint8_t *slurp(const char *const path, uint32_t *const size)
     return nullptr;
 }
 
-uint32_t natv_open(Natv *const n, const char *const path)
+static void *QX_CALL
+host_file_read(const char *const path, const uint32_t len, uint32_t *const bytes)
+{
+    char name[PFIL_PATH];
+
+    if (len >= sizeof name)
+        return nullptr;
+
+    memcpy(name, path, len);
+    name[len] = 0;
+    return slurp(name, bytes);
+}
+
+void natv_init(Natv *const n, Fault *const f)
+{
+    *n = (Natv){
+        .fault = f,
+        .host = {
+            .size = sizeof(QxHost),
+            .abi = QX_ABI,
+            .minor = QX_MINOR,
+            .alloc = host_alloc,
+            .free = host_free,
+            .result_str = host_result_str,
+            .stopped = host_stopped,
+            .audio_open = host_audio,
+            .audio_lock = host_lock,
+            .audio_unlock = host_unlock,
+            .gfx_open = host_gfx_open,
+            .gfx_close = host_gfx_close,
+            .gfx_page = host_gfx_page,
+            .gfx_show = host_gfx_show,
+            .clock_us = host_clock_us,
+            .file_read = host_file_read,
+            .gpu_play = host_gpu_play,
+            .gpu_read = host_gpu_read,
+            .gfx_monitors = host_gfx_monitors,
+            .gfx_modes = host_gfx_modes,
+            .gfx_mode = host_gfx_mode,
+            .gfx_event = host_gfx_event,
+        },
+    };
+}
+
+static NatvFile *find(Natv *const n, const char *const path)
+{
+    for (uint32_t i = 0; i < n->nfiles; i++)
+        if (!strcmp(n->files[i].path, path))
+            return &n->files[i];
+
+    return nullptr;
+}
+
+/* The end of path's .qbx, a separator after it: null, none. The last, so a folder named x.qbx
+   above it is a folder. */
+static const char *package_end(const char *const path)
+{
+    const char *end = nullptr;
+
+    for (const char *p = path; *p; p++)
+        if (p > path && p[0] == '.' && upcase((uint8_t)p[1]) == 'Q' &&
+            upcase((uint8_t)p[2]) == 'B' && upcase((uint8_t)p[3]) == 'X' &&
+            (p[4] == '/' || p[4] == '\\') && p[5])
+            end = p + 4;
+
+    return end;
+}
+
+bool natv_is(const char *const path) { return qbxf_is(path) || package_end(path); }
+
+const char *natv_part(const char *const path)
+{
+    const char *const end = package_end(path);
+    return end ? end + 1 : path + strlen(path);
+}
+
+/* path's file: the .qbx itself, or a part's. */
+static void file_of(const char *const path, char out[static PFIL_PATH])
+{
+    const char *const end = package_end(path);
+    const size_t n = end ? (size_t)(end - path) : strlen(path);
+
+    memcpy(out, path, n);
+    out[n] = 0;
+}
+
+/* The .qbx at path, read once and its header checked (valid false: not a .qbx). Raised: File not
+   found; Out of memory. */
+static NatvFile *opened(Natv *const n, const char *const path)
 {
     NatvFile *f = find(n, path);
 
-    if (!f) {
-        uint32_t size;
-        uint8_t *const data = slurp(path, &size);
-        const uint32_t len = (uint32_t)strlen(path) + 1;
-        char *const name = pmem_resize(nullptr, len);
+    if (f)
+        return f;
 
-        if (!data || !name) {
-            pmem_free(data);
-            pmem_free(name);
+    uint32_t size;
+    uint8_t *const data = slurp(path, &size);
+    const uint32_t len = (uint32_t)strlen(path) + 1;
+    char *const name = pmem_resize(nullptr, len);
 
-            if (data)
-                fault_error(n->fault, E_OM);
+    if (!data || !name) {
+        pmem_free(data);
+        pmem_free(name);
 
-            fault_qberr(n->fault, QB_FILE_NOT_FOUND);
-        }
-
-        if (!GROW(n->files, n->filecap, n->nfiles + 1))
+        if (data)
             fault_error(n->fault, E_OM);
 
-        memcpy(name, path, len);
-        f = &n->files[n->nfiles++];
-        *f = (NatvFile){.path = name, .bytes = data, .size = size};
-
-        if (!qbxf_read(data, size, pext_tag, &f->qbx))
-            f->qbx = (QbxFile){};
+        fault_qberr(n->fault, QB_FILE_NOT_FOUND);
     }
 
-    if (!f->qbx.interface || f->qbx.abi != QX_ABI || f->qbx.minor > QX_MINOR)
+    if (!GROW(n->files, n->filecap, n->nfiles + 1))
+        fault_error(n->fault, E_OM);
+
+    memcpy(name, path, len);
+    f = &n->files[n->nfiles++];
+    *f = (NatvFile){.path = name, .bytes = data, .size = size};
+
+    f->valid = qbxf_read(data, size, pext_tag, &f->qbx);
+    return f;
+}
+
+uint32_t natv_open(Natv *const n, const char *const path, const char **const file)
+{
+    char name[PFIL_PATH];
+    file_of(path, name);
+    const NatvFile *const f = opened(n, name);
+
+    if (!f->valid || f->qbx.abi != QX_ABI || f->qbx.minor > QX_MINOR)
         fault_qberr(n->fault, QB_NO_ADVANCED);
 
-    return (uint32_t)(f->qbx.interface - f->bytes);
+    uint32_t bytes;
+    const uint8_t *const text = qbxf_part(f->bytes, f->size, natv_part(path), &bytes);
+
+    if (!text)
+        fault_qberr(n->fault, QB_FILE_NOT_FOUND);
+
+    *file = f->path;
+    return (uint32_t)(text - f->bytes);
+}
+
+bool natv_package(Natv *const n, const char *const path)
+{
+    if (!qbxf_is(path))
+        return false;
+
+    const NatvFile *const f = opened(n, path);
+    uint32_t bytes;
+    return f->valid && !qbxf_part(f->bytes, f->size, "", &bytes);
 }
 
 /* path's file name, no folder nor extension, lower case: its entry's qx_init_<name>. */
@@ -154,15 +306,16 @@ static void stem(const char *const path, char *const out, const uint32_t cap)
 
 const QxModule *natv_module(Natv *const n, const char *const path)
 {
-    natv_open(n, path);
-    NatvFile *const f = find(n, path);
+    const char *file;
+    natv_open(n, path, &file);
+    NatvFile *const f = find(n, file);
 
     if (f->tried)
         return f->module;
 
     f->tried = true;
     char name[64];
-    stem(path, name, sizeof name);
+    stem(file, name, sizeof name);
     QxInit *const init = f->qbx.slice ? pext_load(f->qbx.slice, f->qbx.nslice, name) : nullptr;
     const QxModule *const m = init ? init(&n->host) : nullptr;
 
@@ -192,30 +345,57 @@ void natv_stop(Natv *const n)
     for (uint32_t i = 0; i < n->nfiles; i++)
         if (n->files[i].module && n->files[i].module->stop)
             n->files[i].module->stop();
+
+    pgfx_close(); /* a screen an extension left open ends with the run */
 }
 
-static bool same(const char *const a, const char *const b, const uint32_t len)
+/* a, an entry's or a type's name, is part.name (part "": name), compared without case. */
+static bool same(
+    const char *const a,
+    const char *const part,
+    const char *const name,
+    const uint32_t len
+)
 {
-    for (uint32_t i = 0; i < len; i++)
-        if (upcase((uint8_t)a[i]) != upcase((uint8_t)b[i]) || !a[i])
+    const uint32_t plen = (uint32_t)strlen(part), at = plen ? plen + 1 : 0;
+
+    for (uint32_t i = 0; i < plen; i++)
+        if (upcase((uint8_t)a[i]) != upcase((uint8_t)part[i]) || !a[i])
             return false;
 
-    return !a[len];
+    if (plen && a[plen] != '.')
+        return false;
+
+    for (uint32_t i = 0; i < len; i++)
+        if (upcase((uint8_t)a[at + i]) != upcase((uint8_t)name[i]) || !a[at + i])
+            return false;
+
+    return !a[at + len];
 }
 
-const QxEntry *natv_entry(const QxModule *const m, const char *const name, const uint32_t len)
+const QxEntry *natv_entry(
+    const QxModule *const m,
+    const char *const part,
+    const char *const name,
+    const uint32_t len
+)
 {
     for (uint32_t i = 0; i < m->nentries; i++)
-        if (same(m->entries[i].name, name, len))
+        if (same(m->entries[i].name, part, name, len))
             return &m->entries[i];
 
     return nullptr;
 }
 
-uint32_t natv_type(const QxModule *const m, const char *const name, const uint32_t len)
+uint32_t natv_type(
+    const QxModule *const m,
+    const char *const part,
+    const char *const name,
+    const uint32_t len
+)
 {
     for (uint32_t i = 0; i < m->ntypes; i++)
-        if (same(m->types[i].name, name, len))
+        if (same(m->types[i].name, part, name, len))
             return m->types[i].bytes;
 
     return 0;

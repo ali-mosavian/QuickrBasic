@@ -10,6 +10,7 @@
 #include "plat/pext.h"
 #include "plat/pmem.h"
 #include "util/image.h"
+#include <string.h>
 
 enum { ALIGN = 16 };
 
@@ -26,8 +27,17 @@ static bool runnable(const uint32_t at, const uint32_t n)
     return pdos_pair(r.ecx, r.edx) == pdos_ds_base() && pdos_limit(pdos_cs()) >= at + n - 1;
 }
 
+#ifdef PEXT_LINKED
+/* bench.py profile's build: gfx's slice linked into the program, so the program's map names it. */
+const QxModule *QX_CALL qx_init_gfx(const QxHost *host);
+#endif
+
 QxInit *pext_load(const void *const slice, const uint32_t bytes, const char *const name)
 {
+#ifdef PEXT_LINKED
+    if (!strcmp(name, "gfx"))
+        return qx_init_gfx;
+#endif
     (void)name; /* an image has the one entry */
     Image im;
 

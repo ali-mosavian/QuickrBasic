@@ -7,6 +7,7 @@
 #include "plat/pfil.h"
 
 enum { IOCTL_CON = 0x03 /* console input, output */, IOCTL_DEVICE = 0x80, NO_DRIVE = 0xFFFF };
+enum : uint32_t { IO_MOST = 0xFFFF }; /* a read's or a write's bytes: CX's */
 
 static uint32_t ptr(const void *const p) { return (uint32_t)(uintptr_t)p; }
 
@@ -34,32 +35,52 @@ uint16_t pfil_create(const char *const name, PfilHandle *const h)
     return err;
 }
 
+/* n bytes at p read (DOS_READ) or written (DOS_WRITE), DOS's 64 KB less a byte at a time: *done
+   bytes, short at the file's end or a full disk; 0 on an error. n 0 still calls DOS: a write of
+   none truncates the file there. */
+static uint16_t moved(
+    const uint8_t fn,
+    const PfilHandle h,
+    const uint32_t p,
+    const uint32_t n,
+    uint32_t *const done
+)
+{
+    *done = 0;
+
+    do {
+        const uint32_t ask = n - *done < IO_MOST ? n - *done : IO_MOST;
+        PdosRegs r = {
+            .eax = pdos_fn(fn, 0),
+            .ebx = h,
+            .ecx = ask,
+            .edx = p + *done,
+        };
+
+        const uint16_t err = dos(&r);
+
+        if (err) {
+            *done = 0;
+            return err;
+        }
+
+        *done += r.eax & 0xFFFF;
+
+        if ((r.eax & 0xFFFF) < ask)
+            break;
+    } while (*done < n);
+
+    return PFIL_OK;
+}
+
 uint16_t pfil_read(const PfilHandle h, void *const p, const uint32_t n, uint32_t *const got)
 {
-    PdosRegs r = {
-        .eax = pdos_fn(DOS_READ, 0),
-        .ebx = h,
-        .ecx = n,
-        .edx = ptr(p),
-    };
-
-    const uint16_t err = dos(&r);
-    *got = err ? 0 : r.eax & 0xFFFF;
-    return err;
+    return moved(DOS_READ, h, ptr(p), n, got);
 }
 
 uint16_t pfil_write(const PfilHandle h, const void *const p, const uint32_t n, uint32_t *const put)
 {
-    PdosRegs r = {
-        .eax = pdos_fn(DOS_WRITE, 0),
-        .ebx = h,
-        .ecx = n,
-        .edx = ptr(p),
-    };
-
-    const uint16_t err = dos(&r);
-    *put = err ? 0 : r.eax & 0xFFFF;
-    return err;
+    return moved(DOS_WRITE, h, ptr(p), n, put);
 }
 
 uint16_t pfil_seek(const PfilHandle h, const int32_t off, const uint8_t origin, uint32_t *const pos)

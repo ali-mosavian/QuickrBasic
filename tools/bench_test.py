@@ -4,6 +4,7 @@ Its DOS profile names static functions: the link map has globals alone, and the 
 read as lexr_line's, 19% of a load."""
 
 import os
+import random
 import re
 import shutil
 import subprocess
@@ -38,6 +39,19 @@ def profile_map() -> None:
         assert at.get(n) == at["_lexr_line"] - line + off, (n, at.get(n))
 
 
+def profile_map_slice() -> None:
+    """gfx's slice's statics are named too, from a directory behind a symlink as tempfile's is on the Mac: the map
+    gives each object's path resolved, and every filler read as fill_blend, the global before them."""
+    fill = bench.ROOT / "build/c/gfx/stdlib/gfx/src/backend/soft/fill.obj"
+    off = {n: o for o, k, n in bench.nm(fill)}
+    with tempfile.TemporaryDirectory() as real, tempfile.TemporaryDirectory() as d:
+        (Path(d) / "via").symlink_to(real)
+        listing = bench.profiled(bench.build(".", True), Path(d) / "via").with_suffix(".map").read_text()
+    at = {n: int(a, 16) for a, n in re.findall(r"^0001:([0-9a-f]{8})\*?\s+(\S+)$", listing, re.M)}
+    base = at["_slice_fill_argb"] - off["_fill_argb"]
+    assert at.get("_slice_fill8_tinted") == base + off["_fill8_tinted"], at.get("_slice_fill8_tinted")
+
+
 # Counters that fail, as on the CI VMs: the first symbol found wins over the system's.
 BROKEN = """
 #include <stddef.h>
@@ -63,6 +77,27 @@ def broken_counter() -> None:
         except bench.NoCounter:
             return
         raise AssertionError("bench counted a failed counter")
+
+
+def demo_colours(b: bench.Build) -> None:
+    """Each demo runs at 8 bits: ISLES' &H1E4E8C on an 8-bit surface raised Illegal function call, and every column of
+    its table read exit."""
+    with tempfile.TemporaryDirectory() as d:
+        for n in ("stage.bas", "meter.bas"):
+            shutil.copy(bench.DEMOS / n, d)
+        for name in bench.DEMO_EDITS:
+            (Path(d) / "DEMO.BAS").write_text(bench.demo_program(name, 0.5, False, 0))
+            r = subprocess.run([str(b.counted), "DEMO.BAS"], cwd=d, capture_output=True, text=True, timeout=60)
+            assert re.fullmatch(r"\s*[\d.]+\s+\d+\s*", r.stdout), f"{name}: {r.stdout}{r.stderr}"
+
+
+def demo_one_world() -> None:
+    """demos' runs draw one world and, by frames, one frame n. ISLES seeded its islands and boats from the timer, so
+    two builds profiled drew two worlds: a third of one's frame was circles the other never drew."""
+    for name in bench.DEMO_EDITS:
+        assert "randomize timer" not in bench.demo_program(name, 1, False, 0), name
+        framed = bench.demo_program(name, 0, False, 0, 5)
+        assert "gfx.display.clock" not in framed and "frames& >= 5" in framed, name
 
 
 def fps_start_up() -> None:
@@ -220,9 +255,41 @@ def stdlib_absent() -> None:
         assert p.returncode == 0 and (Path(d) / "build/t/lib/.stdlib").exists(), p.stderr
 
 
+def vm_rate() -> None:
+    """A demo's rate on 86Box: DOS/32A's warning, no mouse driver, came first in its output and read as
+    no rate at all."""
+    out = "DOS/32A warning (9004): mouse initialization failed\r\n 42.93390490470216  131 \r\n"
+    assert bench.rate_of("", out) == "42.9", bench.rate_of("", out)
+    assert bench.rate_of("51.23 256 1 9000\r\n", out) == "51.2"
+    assert bench.rate_of("", "Out of memory\r\n") == ""
+
+
+def vm_object_base() -> None:
+    """The program's place in a VM's memory, found by its code: a fixup changes the bytes it patches,
+    so the code's first window, patched, found nothing, and the profile mapped no sample."""
+    code = random.Random(1).randbytes(9000)
+    memory = bytearray(b"\0" * 70000) + bytearray(code) + bytearray(b"\0" * 5000)
+    memory[70000 + 4 : 70000 + 8] = b"\xff\xff\xff\xff"  # a fixup in the first window
+    assert bench.object_base(bytes(memory), code) == 70000, bench.object_base(bytes(memory), code)
+
+
+def vm_window() -> None:
+    """A VM's profile samples the job alone. It sampled from boot until the host stopped it, so the host's delay in
+    seeing the end read as frame time: one build's ISLES on the 486, 14.8M cycles a frame, then 11.9M."""
+    b = bench.build(".", True)
+    own = {n: (bench.DEMOS / n).read_bytes() for n in ("stage.bas", "meter.bas")}
+    job = (bench.demo_program("ISLES", 0, False, 0, 2), "", "", own)
+    lib = {"lib/gfx.qbx": (b.dos.parent / "lib/gfx.qbx").read_bytes()}
+    with tempfile.TemporaryDirectory() as d:
+        exe = bench.profiled(b, Path(d))
+        soon, late = (sum(bench.vm_samples("486", exe, job, lib, s).by.values()) for s in (0.0, 2.0))
+    assert abs(late - soon) < soon * 0.001, (soon, late)
+
+
 def main() -> int:
     stdlib_absent()
     each_reps()
+    demo_one_world()
     charlie_each()
     charlie_think()
     kind_compares()
@@ -230,7 +297,12 @@ def main() -> int:
     profile_stop()
     broken_counter()
     fps_start_up()
+    vm_rate()
+    vm_object_base()
+    if (bench.HL86 / "build/src/86Box-headless").exists():
+        vm_window()
     b = bench.build(".", False)  # the tree's own instruments: copying them onto themselves raised
+    demo_colours(b)
     try:
         r = bench.run_native(b, {"one": loop(1000000), "two": loop(2000000)}, runs=5)
     except bench.NoCounter:
@@ -248,6 +320,7 @@ def main() -> int:
     if exe.exists():  # the loaded bytes, not the file's: its fixups moved with layout
         assert bench.image(exe) > 100_000 and bench.image(exe) != exe.stat().st_size, bench.image(exe)
         profile_map()
+        profile_map_slice()
     print("ok")
     return 0
 

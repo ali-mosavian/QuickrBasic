@@ -1,8 +1,8 @@
-"""libcalls_test.py: no C object at -Os calls a compiler helper the DOS link lacks: src/lib/crt.c's
+"""libcalls_test.py: no C object at -Os calls a compiler helper the DOS link lacks: src/lib/lldiv.c's
 division helpers it has, and they call none.
 
 At -Os clang called __aulldiv for dubl_digits's 64-bit /10 and the link failed; the CONSTs' folding
-called __alldiv and __allrem before crt.c had them.
+called __alldiv and __allrem before lib/crt.c had them.
 """
 
 import os
@@ -33,7 +33,7 @@ FLAGS = [
     "-Isrc",
     "-Isrc/core",
 ]
-HAVE = {f"__{n}" for n in re.findall(r"^HELPER\(\w+, (\w+)\);", (ROOT / "src/lib/crt.c").read_text(), re.M)}
+HAVE = {f"__{n}" for n in re.findall(r"^HELPER\(\w+, (\w+)\);", (ROOT / "src/lib/lldiv.c").read_text(), re.M)}
 HELPER = re.compile(r"__(a(ll|ull)(div|rem|shl|shr|mul)|u?(div|mod|udivmod)di3|udivmoddi4)\b")
 
 

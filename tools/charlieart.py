@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """charlieart.py [--check] [--sheet PNG]: CHARLIE.BAS's palette and pictures (Charlie, tiles, things, props),
 drawn here in flat tones and written to CHARLIE.DAT beside the game, a little-endian LONG a value:
-drawn by the game they would cost its start-up a pixel at a time. --check: fail when the file is
+drawn by the game they would cost its start-up a pixel at a time. --check: fail when a file is
 stale. --sheet: every picture to a PNG, to look at. The game's tunes, tools/charliesong.txt, go in after them,
 then the kinds' rows.
+
+For gfx (stdlib/gfx/docs/design.md), the pictures packed in one 8-bit image too, CHARLIE.BMP in the Downs'
+colours, and barkley/assets/sheet.bas, which cuts each picture's view of it at its index in the game's img
+array. A mirror is the picture drawn with FLIPX: none is packed.
 
 A picture in the file: its index, width, height, masked, mirror's index (-1 none), then its GET buffer's
 LONGs and, masked, its mask's: a count n then n values; -n then one value n times; 0 the end."""
@@ -22,9 +26,11 @@ from collections.abc import Callable
 
 ROOT = Path(__file__).resolve().parents[1]
 DAT = ROOT / "src/plat/wasm/web/demos/CHARLIE.DAT"
+ATLAS = DAT.with_suffix(".BMP")
 SONG = ROOT / "tools/charliesong.txt"
 LEVELS = ROOT / "tools/charlielevels.txt"
 GAME = ROOT / "src/plat/wasm/web/demos/barkley"  # the game's package
+SHEET = GAME / "assets/sheet.bas"
 ENGINE = GAME.with_name("engine")  # the engine it runs on
 INK, WHITE = 2, 1
 PAL: dict[int, tuple[int, int, int]] = {0: (2, 2, 8), 1: (63, 63, 63), 2: (5, 3, 8), 3: (63, 56, 20), 4: (60, 14, 12)}
@@ -5900,11 +5906,10 @@ def kinds() -> list[int]:
     return [len(rows), *(v for r in rows for v in r)]
 
 
-def blob() -> bytes:
+def blob(pics: list[tuple[int, Pic, bool, int]]) -> bytes:
     """CHARLIE.DAT: the 1-based bytes its tunes, its levels and its kinds start at, the palette, each stage's own, the
     1-based byte each zone's own pictures start at, the pictures every zone shows, each zone's own, the levels, the
     tunes, the kinds; each value a little-endian LONG."""
-    pics = pictures()
     audit(pics)
     vals = [len(PAL)]
     for i, (r, g, b) in sorted(PAL.items()):
@@ -5921,6 +5926,59 @@ def blob() -> bytes:
     head = (start + len(lv), start, start + len(lv) + len(tunes))
     kd = kinds()
     return struct.pack(f"<{len(vals) + 3}i", *head, *vals) + lv + tunes + struct.pack(f"<{len(kd)}i", *kd)
+
+
+ATLAS_W = 1024  # the atlas's width: pictures in shelves across it, a pixel apart
+
+
+def atlas(pics: list[tuple[int, Pic, bool, int]]) -> tuple[int, list[bytearray], dict[int, tuple[int, int, int, int]]]:
+    """The pictures packed in shelves, tallest first: the atlas's height, its rows, each picture's x, y, w, h."""
+    at: dict[int, tuple[int, int, int, int]] = {}
+    x = y = shelf = 0
+    for i, p, _, _ in sorted(pics, key=lambda one: (-one[1].h, one[0])):
+        if x + p.w > ATLAS_W:
+            x, y, shelf = 0, y + shelf + 1, 0
+        at[i] = (x, y, p.w, p.h)
+        x, shelf = x + p.w + 1, max(shelf, p.h)
+    rows = [bytearray(ATLAS_W) for _ in range(y + shelf)]
+    for i, p, _, _ in pics:
+        px, py, _, _ = at[i]
+        for j in range(p.h):
+            rows[py + j][px : px + p.w] = bytes(p.p[j])
+    return y + shelf, rows, at
+
+
+def bmp(w: int, rows: list[bytearray], colours: dict[int, tuple[int, int, int]]) -> bytes:
+    """An 8-bit BMP of rows, w wide, its 256 colours of 6 bits a channel (the VGA's) made 8: its rows bottom
+    first, each padded to 4 bytes."""
+    pitch = (w + 3) & ~3
+    eight = [(c << 2 | c >> 4) for c in range(64)]
+    palette = b"".join(
+        bytes((eight[b], eight[g], eight[r], 0)) for r, g, b in (colours.get(i, (0, 0, 0)) for i in range(256))
+    )
+    pixels = b"".join(bytes(row) + bytes(pitch - w) for row in reversed(rows))
+    at = 14 + 40 + len(palette)
+    head = struct.pack("<2sIHHI", b"BM", at + len(pixels), 0, 0, at)
+    info = struct.pack("<IiiHHIIiiII", 40, w, len(rows), 1, 8, 0, len(pixels), 0, 0, 256, 0)
+    return head + info + palette + pixels
+
+
+def cuts(at: dict[int, tuple[int, int, int, int]]) -> str:
+    """barkley/assets/sheet.bas: a view of the atlas for each picture."""
+    lines = [
+        "' The pictures as views of CHARLIE.BMP, for gfx: each at its",
+        "' index in the game's img array. Written by",
+        "' tools/charlieart.py: do not edit.",
+        "",
+        f"const PICTURES = {max(at) + 1}",
+        "",
+        "' views() from 0 to PICTURES - 1, 0 where no picture is.",
+        "sub cut (byval sheet as long, views() as long)",
+        *(f"    views({i}) = surface.view(sheet, {x}, {y}, {w}, {h})" for i, (x, y, w, h) in sorted(at.items())),
+        "end sub",
+        "",
+    ]
+    return "\n".join(lines)
 
 
 def sheet(path: Path) -> None:
@@ -5950,12 +6008,15 @@ def main() -> None:
     if a.sheet:
         sheet(a.sheet)
         return
-    new = blob()
+    pics = pictures()
+    height, rows, at = atlas(pics)
+    files = {DAT: blob(pics), ATLAS: bmp(ATLAS_W, rows, pal(0)), SHEET: cuts(at).encode()}
     if a.check:
-        fresh = DAT.exists() and DAT.read_bytes() == new
-        sys.exit(0 if fresh else "charlieart: CHARLIE.DAT is stale; run tools/charlieart.py")
-    DAT.write_bytes(new)
-    print(f"charlieart: {len(pictures())} pictures, {len(new)} bytes")
+        stale = [f.name for f, data in files.items() if not f.exists() or f.read_bytes() != data]
+        sys.exit(f"charlieart: {', '.join(stale)} stale; run tools/charlieart.py" if stale else 0)
+    for f, data in files.items():
+        f.write_bytes(data)
+    print(f"charlieart: {len(pics)} pictures, {len(files[DAT])} bytes; an atlas of {ATLAS_W} by {height}")
 
 
 if __name__ == "__main__":

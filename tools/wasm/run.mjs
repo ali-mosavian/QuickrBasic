@@ -29,7 +29,7 @@ if (isMainThread) {
   let irq, timer;
   worker.on('message', (m) => {
     if ('irq' in m) {
-      irq = new Irq(memory, m.irq, m.scans, m.frames);
+      irq = new Irq(memory, m.irq, m.scans, m.display);
       for (let n = Number(process.env.QB_FRAMES ?? 0); n > 0; n--) irq.frame();
       for (const code of (process.env.QB_SCANS ?? '').split(',').filter(Boolean)) irq.scan(parseInt(code, 16));
       const tick = sidecar(module, memory, tone, voice);
@@ -72,7 +72,7 @@ if (isMainThread) {
     },
   };
   const ex = (host.ex = new WebAssembly.Instance(module, imports(memory, host)).exports);
-  parentPort.postMessage({ irq: ex.irq(), scans: ex.scans(), frames: ex.frames() });
+  parentPort.postMessage({ irq: ex.irq(), scans: ex.scans(), display: ex.display() });
   let code = 0;
   try {
     ex.__wasm_call_ctors();

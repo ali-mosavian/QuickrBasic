@@ -39,12 +39,11 @@ void host_scan_push(const uint8_t scan)
     atomic_store(&scans.pushed, at + 1);
 }
 
-/* The frames a display has shown. */
-static _Atomic uint32_t frames;
+static HostDisplay display;
 
-_Atomic uint32_t *host_frames(void) { return &frames; }
+HostDisplay *host_display(void) { return &display; }
 
-void host_frame_shown(void) { atomic_fetch_add(&frames, 1); }
+void host_frame_shown(void) { atomic_fetch_add(&display.frames, 1); }
 
 uint8_t psys_inp(const uint16_t port)
 {
@@ -66,7 +65,7 @@ uint8_t psys_inp(const uint16_t port)
     }
 
     case PORT_STATUS: {
-        const uint32_t shown = atomic_load(&frames);
+        const uint32_t shown = atomic_load(&display.frames);
 
         if (!shown) /* no display: retrace starts and ends at each look, so a wait for either ends */
             return ports.status ^= RETRACE;

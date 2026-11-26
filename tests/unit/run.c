@@ -144,6 +144,7 @@ Status unit_run_bytes(Session *const S, const char *const src, const size_t n)
     session_new(S);
     snprintf(S->repl.file, sizeof S->repl.file, "%s", path);
     Status st = repl_call(S, repl_load);
+    S->repl.loading = false; /* an error ended the load: the IDE's (ui/uimain.c) */
     remove(path);
 
     if (st != ST_OK)

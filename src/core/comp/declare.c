@@ -42,6 +42,7 @@
 #include "comp/comp.h"
 #include "comp/dfa.h"
 #include "comp/export.h"
+#include "comp/lexer.h"
 #include "io/msg.h"
 #include "mem/program.h"
 #include "mem/scope.h"
@@ -404,6 +405,20 @@ static void decl_fail_at(const DeclScan *const ds, const uint8_t *const p, const
 {
     const uint32_t at = ds->body ? (uint32_t)(p - ds->body) : FAULT_KEEP;
     fault_raise(ds->d->fault, (Failure){.code = code, .at = at, .line = FAULT_KEEP});
+}
+
+/* OPTION DISABLE's words QB's for devices, the reader's to apply (io/repl.c). */
+static void decl_disable(const DeclScan *const ds)
+{
+    uint64_t off[8] = {};
+    const uint8_t *bad;
+
+    if (lexr_disable(ds->at, off, &bad) != DISABLE_BAD)
+        return;
+
+    const uint32_t at = ds->body ? (uint32_t)(bad - ds->body) : FAULT_KEEP;
+    const Failure e = {.code = E_SN, .dg = DG_SYNTAX_ERROR_DISABLE, .at = at, .line = FAULT_KEEP};
+    fault_raise(ds->d->fault, e);
 }
 
 /* Error code at the scan's cursor. */
@@ -1030,9 +1045,11 @@ static uint8_t *decl_opt(DeclScan *const ds)
     return &d->opts[m];
 }
 
-/* OPTION BASE n, OPTION EXPLICIT: the file's. */
+/* OPTION BASE n, OPTION EXPLICIT: the file's. OPTION DISABLE: the reader's, checked. */
 static void decl_option(DeclScan *const ds)
 {
+    decl_disable(ds);
+
     if (ds->at[1] == TK_X && ds->at[2] == TK1_EXPLICIT) {
         *decl_opt(ds) |= DO_EXPLICIT;
         return;

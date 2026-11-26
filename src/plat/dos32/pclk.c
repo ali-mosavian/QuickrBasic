@@ -2,9 +2,14 @@
  *
  * # How it works
  * Time and date are INT 21h's, the ticks the BIOS count; the tick is INT 1Ch (ptick.asm).
+ *
+ * Microseconds are the ticks and the timer chip's count within one, read together: a tick between
+ * the two reads is read again. The chip is in square-wave mode, counting down by two from 65536 to
+ * 0 in each half of the tick; the status's output pin says which half.
  */
 #include "dos.h"
 #include "plat/pclk.h"
+#include "plat/psys.h"
 
 extern volatile uint8_t *ptick_flag;
 extern uint8_t ptick_bit;
@@ -84,3 +89,33 @@ static uint32_t jiffies(void)
 uint32_t pclk_jiffies(void) { return (jiffies() + toff) % JDAY; }
 
 void pclk_set_jiffies(const uint32_t j) { toff = j - jiffies() + JDAY; }
+
+enum : uint16_t { PIT_COUNT0 = 0x40, PIT_CONTROL = 0x43 };
+enum : uint8_t { PIT_READ_BACK0 = 0xC2, PIT_OUT_HIGH = 0x80 };
+enum : uint32_t { PIT_STEPS = 65536, PIT_HZ = 1193182, TICK_US = 54925, MICRO = 1000000 };
+
+/* Forward until midnight. */
+uint64_t pclk_us(void)
+{
+    static uint64_t last;
+    uint32_t ticks, status, left;
+
+    do {
+        ticks = pclk_ticks();
+        psys_outp(PIT_CONTROL, PIT_READ_BACK0);
+        status = psys_inp(PIT_COUNT0);
+        left = psys_inp(PIT_COUNT0);
+        left |= (uint32_t)psys_inp(PIT_COUNT0) << 8;
+    } while (ticks != pclk_ticks());
+
+    const uint32_t half = status & PIT_OUT_HIGH ? 0 : PIT_STEPS;
+    const uint32_t steps = (half + PIT_STEPS - (left ? left : PIT_STEPS)) / 2;
+    uint64_t now = ((uint64_t)ticks * PIT_STEPS + steps) * MICRO / PIT_HZ;
+
+    /* the chip reloads before the tick's interrupt counts it: that moment reads a tick behind */
+    if (now < last)
+        now = last - now > TICK_US / 2 ? now + TICK_US : last;
+
+    last = now;
+    return now;
+}

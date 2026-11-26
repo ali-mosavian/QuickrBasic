@@ -61,7 +61,10 @@ void link_compile(Comp *const C, const uint32_t line)
 
     /* the line before's procedure, most often: lines compile in order */
     C->module = comp_module(C, line);
-    comp_proc(C, in && line >= in->first && line <= in->last ? C->proc : blok_procof(C->blok, line));
+    comp_proc(
+        C,
+        in && line >= in->first && line <= in->last ? C->proc : blok_procof(C->blok, line)
+    );
     decl_deftype(C->decl, C->symb, line);
     comp_text(C, (const uint8_t *)prog_line(C->prog, line) + HDR);
 }
@@ -818,18 +821,27 @@ static uint32_t native_kind(
     return 1 + ref;
 }
 
-/* The entry's name: the DECLARE's ALIAS, else the procedure's own; its text to *name. */
-static uint32_t native_name(const Comp *const C, const Proc *const p, const uint8_t **const name)
+/* The entry's name: the DECLARE's ALIAS, as it is (*part ""); else the procedure's own, in its
+   module's part of a package (natv_part); its text to *name. */
+static uint32_t native_name(
+    const Comp *const C,
+    const Proc *const p,
+    const char *const path,
+    const char **const part,
+    const uint8_t **const name
+)
 {
     const uint8_t *q = decl_item(at(C->prog->base + p->at)) + 2; /* past its name and CDECL */
 
     if (q[0] == TK_X && q[1] == TK1_ALIAS && q[2] == '"') {
         const uint8_t *const end = decl_item(q + 2);
+        *part = "";
         *name = q + 3;
         return (uint32_t)(end - q - 3 - (end[-1] == '"'));
     }
 
     const uint8_t *const t = symb_text(C->symb, p->name);
+    *part = natv_part(path);
     *name = t + 1;
     return t[0];
 }
@@ -845,14 +857,16 @@ static void link_natives(Comp *const C)
             continue;
 
         const uint32_t m = modu_of(C->modu, prog_line(C->prog, p->first)->file);
-        const QxModule *const mod = natv_module(C->natv, modu_module_path(C->modu, m));
+        const char *const path = modu_module_path(C->modu, m);
+        const QxModule *const mod = natv_module(C->natv, path);
 
         if (!mod)
             native_fail(C, p, E_USR, QB_NO_ADVANCED, 0);
 
+        const char *part;
         const uint8_t *name;
-        const uint32_t len = native_name(C, p, &name);
-        const QxEntry *const e = natv_entry(mod, (const char *)name, len);
+        const uint32_t len = native_name(C, p, path, &part, &name);
+        const QxEntry *const e = natv_entry(mod, part, (const char *)name, len);
 
         if (!e)
             native_fail(C, p, E_SND, 0, DG_SUBPROGRAM_NOT_DEFINED_NATIVE);
@@ -876,7 +890,7 @@ static void link_natives(Comp *const C)
             if (v->type >= ET_REC) {
                 const TypeDef *const t = decl_type(C->decl, v->type - ET_REC);
                 const uint8_t *const tn = symb_text(C->symb, t->name);
-                const uint32_t bytes = natv_type(mod, (const char *)tn + 1, tn[0]);
+                const uint32_t bytes = natv_type(mod, natv_part(path), (const char *)tn + 1, tn[0]);
 
                 if (bytes && bytes != t->size)
                     native_fail(C, p, E_PTM, 0, DG_PARAMETER_TYPE_MISMATCH_NATIVE);

@@ -3,7 +3,8 @@
  * # How it works
  * The IDE runs on its own thread, as on wasm's worker: its keys come down a pipe (host_term_feed),
  * its mouse is set as the window's moves (host_mouse_set), its tones are audio.c's. The main
- * thread is SDL's: each frame it draws plat/view's frame of the screen. SIGINT and SIGALRM are the
+ * thread is SDL's: each frame it draws plat/view's frame of the screen, or gfx's canvas the GPU
+ * drew (player.c; QB_GFX=soft draws it in pages instead). SIGINT and SIGALRM are the
  * IDE thread's, the STOP key and the tick, as on the host; Ctrl+C in the window is SIGINT too.
  * Started from Finder (in /), it works in ~/Documents/QuickrBasic, the demos copied there.
  * A test's, a time T a frame's number or seconds as Ns (1.5s):
@@ -16,6 +17,7 @@
 #include <dirent.h>
 #include <pthread.h>
 #include <signal.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,7 +45,21 @@ enum {
     KEY_STOP = 0xFFFF,
 };
 
+/* A loop's pace where vsync sets none (an occluded window, no display): a little under the
+   refresh's, so vsync's sets it where there is one. */
+static constexpr float PACE_NS = 0.95e9F, DEFAULT_HZ = 60, MILLI = 1000;
+
 static void *run(void *const arg) { exit(qb_main()); }
+
+/* The refresh of w's display, for gfx (host.h): the loop's pace. */
+static uint64_t refresh(SDL_Window *const w)
+{
+    const SDL_DisplayMode *const m = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(w));
+    const float hz = m ? m->refresh_rate : 0;
+
+    atomic_store(&host_display()->millihz, (uint32_t)(hz * MILLI + 0.5F));
+    return (uint64_t)(PACE_NS / (hz > 0 ? hz : DEFAULT_HZ));
+}
 
 static int keys_out = -1;
 
@@ -95,15 +111,15 @@ static uint32_t keys(const char *k, const uint32_t now)
     return last;
 }
 
+/* What the window shows, for its mouse: the view's frame, or gfx's canvas (cell_h 0). */
+typedef struct {
+    uint32_t width, height, cell_h;
+} Shown;
+
 /* The window's mouse: the cell and the pixel under it, its buttons as INT 33h's (left, right,
    middle). A text mode's pixel is the cell's times 8, a graphics mode's its own; a graphics mode's
    cell is 8 wide and as high as its height has it (8, 14 or 16). */
-static void mouse_at(
-    const ViewFrame *const f,
-    const float fx,
-    const float fy,
-    const uint8_t buttons
-)
+static void mouse_at(const Shown *const f, const float fx, const float fy, const uint8_t buttons)
 {
     if (!f->width || !f->height)
         return;
@@ -126,7 +142,7 @@ static void mouse_at(
     );
 }
 
-static void point(SDL_Renderer *const r, SDL_Event *const e, const ViewFrame *const f)
+static void point(SDL_Renderer *const r, SDL_Event *const e, const Shown *const f)
 {
     SDL_ConvertEventToRenderCoordinates(r, e);
     const SDL_MouseButtonFlags b = SDL_GetMouseState(nullptr, nullptr);
@@ -140,7 +156,7 @@ static void point(SDL_Renderer *const r, SDL_Event *const e, const ViewFrame *co
 }
 
 /* QB_MOUSE's moves due at frame now made. */
-static void mouse(const char *m, const uint32_t now, const ViewFrame *const f)
+static void mouse(const char *m, const uint32_t now, const Shown *const f)
 {
     while (m && *m) {
         char *end;
@@ -228,24 +244,28 @@ static void home(void)
     copy_demos(at, to);
 }
 
-/* The frame to path as a PPM. */
+/* The frame to path as a PPM: gfx's canvas, if the GPU shows one. */
 static void shot(const char *const path, const ViewFrame *const f)
 {
+    uint8_t *gpu = nullptr;
+    uint32_t w = f->width, h = f->height;
+    const bool canvas = sdl_player_pixels(&gpu, &w, &h);
     FILE *const out = fopen(path, "wb");
 
-    if (!out)
-        return;
+    if (out)
+        fprintf(out, "P6 %u %u 255\n", w, h);
 
-    fprintf(out, "P6 %u %u 255\n", f->width, f->height);
-
-    for (uint32_t i = 0; i < f->width * f->height; i++) {
-        const uint32_t p = f->rgba[i];
+    for (uint32_t i = 0; out && i < w * h; i++) {
+        const uint32_t p = canvas ? 0 : f->rgba[i];
         const uint8_t rgb[3] = {(uint8_t)p, (uint8_t)(p >> 8), (uint8_t)(p >> 16)};
 
-        fwrite(rgb, 1, 3, out);
+        fwrite(canvas ? gpu + i * 4 : rgb, 1, 3, out);
     }
 
-    fclose(out);
+    if (out)
+        fclose(out);
+
+    free(gpu);
 }
 
 /* QB_SHOT's shots due at frame now taken, at dflt those with no time; true when none is left. */
@@ -275,6 +295,32 @@ static bool shots(const char *s, const uint32_t now, const uint32_t dflt, const 
     }
 
     return done;
+}
+
+/* The GPU's renderer, w's; the offscreen driver's, which can show nothing, into a texture (Vulkan's:
+   Metal's needs a window). */
+static SDL_Renderer *gpu_renderer(SDL_Window *const w)
+{
+    if (strcmp(SDL_GetCurrentVideoDriver(), "offscreen"))
+        return SDL_CreateGPURenderer(nullptr, w);
+
+    SDL_Renderer *const r = SDL_CreateGPURenderer(nullptr, nullptr);
+    SDL_Texture *const into = r ? SDL_CreateTexture(
+                                      r,
+                                      SDL_PIXELFORMAT_RGBA32,
+                                      SDL_TEXTUREACCESS_TARGET,
+                                      VIEW_MAX_W,
+                                      VIEW_MAX_H
+                                  )
+                                : nullptr;
+
+    if (into && SDL_SetRenderTarget(r, into))
+        return r;
+
+    if (r)
+        SDL_DestroyRenderer(r);
+
+    return nullptr;
 }
 
 int sdl_main(void)
@@ -315,7 +361,23 @@ int sdl_main(void)
         START_H,
         SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY
     );
-    SDL_Renderer *const r = SDL_CreateRenderer(w, nullptr);
+    /* QB_GFX: soft, gfx draws in pages; gpu, the GPU or exit. Unset, the GPU where SDL has one, else
+       pages. Asked first: a GPU renderer that fails takes the window with it. */
+    const char *const gfx = getenv("QB_GFX");
+    SDL_Renderer *const gpu =
+        (gfx && !strcmp(gfx, "soft")) || !SDL_GPUSupportsShaderFormats(
+                                             SDL_GPU_SHADERFORMAT_MSL | SDL_GPU_SHADERFORMAT_SPIRV,
+                                             nullptr
+                                         )
+            ? nullptr
+            : gpu_renderer(w);
+    const bool played = gpu && sdl_player_init(SDL_GetGPURendererDevice(gpu));
+    sdl_display_open(w);
+    SDL_Renderer *const r = gpu ? gpu : SDL_CreateRenderer(w, nullptr);
+
+    if (gfx && !strcmp(gfx, "gpu") && !played)
+        return 1;
+
     SDL_Texture *const t = SDL_CreateTexture(
         r,
         SDL_PIXELFORMAT_RGBA32,
@@ -329,23 +391,27 @@ int sdl_main(void)
 
     const ViewFrame *f = view_frame(true, (ViewPointer){});
 
+    Shown on = {f->width, f->height, f->cell_h};
+
     uint32_t shown_w = 0, shown_h = 0;
     uint64_t alt_up = 0; /* when a released Alt's flags are due, 0 none */
 
-    for (uint64_t next = SDL_GetTicks();; next += FRAME_MS) {
-        SDL_Event e;
-        const uint64_t now = SDL_GetTicks();
+    uint64_t pace = refresh(w);
 
-        if (now < next) /* vsync's pace where there is none: an occluded window, no display */
-            SDL_Delay((uint32_t)(next - now));
+    for (uint64_t next = SDL_GetTicksNS();; next += pace) {
+        SDL_Event e;
+        const uint64_t now = SDL_GetTicksNS();
+
+        if (now < next)
+            SDL_DelayNS(next - now);
         else
             next = now;
 
-        while (SDL_PollEvent(&e))
-            switch (e.type) {
-            case SDL_EVENT_QUIT:
+        while (SDL_PollEvent(&e)) {
+            if (!sdl_display_saw(&e))
                 exit(0);
 
+            switch (e.type) {
             case SDL_EVENT_KEY_DOWN: {
                 host_term_set_shift(sdl_shift(e.key.mod));
                 scan(e.key.scancode, false);
@@ -379,38 +445,49 @@ int sdl_main(void)
                 host_term_set_shift(0);
                 break;
 
+            case SDL_EVENT_WINDOW_DISPLAY_CHANGED:
+            case SDL_EVENT_DISPLAY_CURRENT_MODE_CHANGED:
+                pace = refresh(w);
+                break;
+
             case SDL_EVENT_MOUSE_MOTION:
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
             case SDL_EVENT_MOUSE_BUTTON_UP:
-                point(r, &e, f);
+                point(r, &e, &on);
 
                 break;
 
             default:
                 break;
             }
+        }
 
         if (alt_up && SDL_GetTicks() >= alt_up) {
             alt_up = 0;
             host_term_set_shift(sdl_shift(SDL_GetModState()));
         }
 
-        const bool blink = shot_to || SDL_GetTicks() / BLINK_MS % 2 == 0; /* a shot's cursor shown */
+        const bool blink =
+            shot_to || SDL_GetTicks() / BLINK_MS % 2 == 0; /* a shot's cursor shown */
         const PmouState m = pmou_state();
         const ViewPointer pointer = {.shown = host_mouse_shown(), .row = m.row, .col = m.col};
 
         f = view_frame(blink, pointer);
+        on = (Shown){f->width, f->height, f->cell_h};
+
+        const bool canvas = sdl_player_size(&on.width, &on.height);
+        on.cell_h = canvas ? 0 : on.cell_h;
 
         const uint32_t last = keys(getenv("QB_KEYS"), ++frames);
-        mouse(getenv("QB_MOUSE"), frames, f);
+        mouse(getenv("QB_MOUSE"), frames, &on);
 
         if (shot_to &&
             shots(shot_to, frames, last > KEYS_FRAMES ? last + SHOT_AFTER : SHOT_FRAMES, f))
             exit(0);
 
-        if (f->width != shown_w || f->height != shown_h) {
-            shown_w = f->width;
-            shown_h = f->height;
+        if (on.width != shown_w || on.height != shown_h) {
+            shown_w = on.width;
+            shown_h = on.height;
             SDL_SetRenderLogicalPresentation(
                 r,
                 (int)shown_w,
@@ -422,15 +499,20 @@ int sdl_main(void)
         /* a graphics mode's program draws its own (PEN) */
         pointer.shown || !f->cell_h ? SDL_HideCursor() : SDL_ShowCursor();
 
-        SDL_UpdateTexture(
-            t,
-            &(SDL_Rect){0, 0, (int)shown_w, (int)shown_h},
-            f->rgba,
-            (int)shown_w * 4
-        );
+        if (!canvas)
+            SDL_UpdateTexture(
+                t,
+                &(SDL_Rect){0, 0, (int)shown_w, (int)shown_h},
+                f->rgba,
+                (int)shown_w * 4
+            );
 
         SDL_RenderClear(r);
-        SDL_RenderTexture(r, t, &(SDL_FRect){0, 0, (float)shown_w, (float)shown_h}, nullptr);
+
+        if (canvas)
+            sdl_player_draw(r);
+        else
+            SDL_RenderTexture(r, t, &(SDL_FRect){0, 0, (float)shown_w, (float)shown_h}, nullptr);
 
         SDL_RenderPresent(r);
         host_frame_shown(); /* port 3DAh's retrace */

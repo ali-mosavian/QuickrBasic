@@ -214,6 +214,7 @@ export function imports(memory, host) {
       return index < names.length ? put(buf, cap, names[index]) : -1;
     }),
     now: () => Date.now(),
+    clock: () => performance.timeOrigin + performance.now(),
     tz: (ms) => -new Date(ms).getTimezoneOffset(),
     args: (buf, cap) => put(buf, cap - 1, host.args),
     exit: (code) => host.exit(code),
@@ -227,6 +228,11 @@ export function imports(memory, host) {
         return 0;
       }
     },
+    gpu_open: (w, h) => (host.gpu?.open(w, h) ? 1 : 0),
+    gpu_close: () => host.gpu?.close(),
+    gpu_play: (list, words) => (host.gpu?.play(list, words) ? 1 : 0),
+    gpu_read: (id, x, y, w, h, out) => host.gpu?.read(id, x, y, w, h, out),
+    fullscreen: (on) => host.fullscreen?.(!!on),
     audio_open: (render, out, stack, lock) => {
       const ext = loaded.find((x) => render >= x.tableBase && render < x.tableBase + x.need.table);
       if (!host.audio || !ext) return 0;
@@ -266,21 +272,63 @@ export function sidecar(module, memory, tone, voice) {
 }
 
 // The module's memory: shared, so the page's thread can write irq's block while it runs.
+const REFRESH_GAPS = 31;
+const EVENTS = 16; // host.h's HOST_EVENTS
+export const EVENT = { RESIZED: 1, FOCUS: 3 }; // qx.h's QxEventKind
+
 export const memory = () => new WebAssembly.Memory({ initial: 512, maximum: 16384, shared: true });
 
-// The shared block (wasm.h's WasmIrq) at the address irq() returns, and port 60h's bytes (host.h's
-// HostScans) at the one scans() returns, the count of frames shown (host_frames) at the one frames() does.
+// The shared block (wasm.h's WasmIrq) at the address irq() returns, port 60h's bytes (host.h's
+// HostScans) at the one scans() returns, what the page shows (HostDisplay) at the one display() does, and
+// what it saw (HostEvents) at events()'s.
 export class Irq {
-  constructor(memory, at, scans = 0, frames = 0) {
+  constructor(memory, at, scans = 0, display = 0, events = 0) {
     this.memory = memory;
     this.at = at;
     this.scans = scans;
-    this.frames = frames;
+    this.display = display;
+    this.events = events;
+    this.gaps = []; // between the last frames drawn, in ms
+    this.last = 0;
   }
 
-  // A frame is on the screen: port 3DAh's vertical retrace, once.
-  frame() {
-    if (this.frames) Atomics.add(this.i32, this.frames >> 2, 1);
+  // A frame is on the screen: port 3DAh's vertical retrace, once. Drawn at now (a refresh's time), the
+  // refresh is the median gap of each REFRESH_GAPS.
+  frame(now) {
+    if (!this.display) return;
+    const i32 = this.i32, frames = this.display >> 2;
+    Atomics.add(i32, frames, 1);
+    Atomics.notify(i32, frames);
+    if (now === undefined) return;
+    if (this.last) this.gaps.push(now - this.last);
+    this.last = now;
+    if (this.gaps.length < REFRESH_GAPS) return;
+    const gap = this.gaps.sort((a, b) => a - b)[REFRESH_GAPS >> 1];
+    this.gaps = [];
+    if (gap > 0) Atomics.store(i32, frames + 1, Math.round(1e6 / gap));
+  }
+
+  // The page's screen, w by h pixels: its one mode.
+  screen(w, h) {
+    if (!this.display) return;
+    const i32 = this.i32, at = this.display >> 2;
+    Atomics.store(i32, at + 2, w);
+    Atomics.store(i32, at + 3, h);
+  }
+
+  // What the page saw, for gfx's poll (qx.h's QxEvent, 8 bytes): dropped while EVENTS wait.
+  event(kind, { w = 0, h = 0, monitor = 0, focused = false } = {}) {
+    if (!this.events) return;
+    const i32 = this.i32, pushed = (this.events + EVENTS * 8) >> 2;
+    const at = Atomics.load(i32, pushed);
+    if (((at - Atomics.load(i32, pushed + 1)) >>> 0) >= EVENTS) return;
+    const e = new DataView(this.memory.buffer, this.events + (at % EVENTS) * 8, 8);
+    e.setUint8(0, kind);
+    e.setUint8(1, monitor);
+    e.setUint8(2, focused ? 1 : 0);
+    e.setUint16(4, w, true);
+    e.setUint16(6, h, true);
+    Atomics.store(i32, pushed, at + 1);
   }
 
   // A byte to port 60h: a key's scan code as it goes down, with 80h as it comes up.

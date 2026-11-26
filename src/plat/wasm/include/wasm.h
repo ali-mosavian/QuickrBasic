@@ -28,6 +28,8 @@ IMPORT(fs_readdir) int js_fs_readdir(const char *path, uint32_t index, char *buf
 
 /* The time in ms since 1970, and the local time's offset from it then, in minutes. */
 IMPORT(now) double js_now(void);
+/* A steady clock in ms, finer than one, the same on every thread. */
+IMPORT(clock) double js_clock(void);
 IMPORT(tz) double js_tz(double ms);
 /* The process: its arguments (space separated, cap bytes), its exit. */
 IMPORT(args) int js_args(char *buf, size_t cap);
@@ -40,6 +42,15 @@ IMPORT(voice) void js_voice(uint32_t voice, const void *v, uint32_t count);
 /* A native extension's side module, bytes at slice, instantiated here: qx_init_<name>'s table
    index, 0 none (plat/wasm/pext.c). */
 IMPORT(ext_load) uint32_t js_ext_load(const void *slice, uint32_t bytes, const char *name, size_t len);
+/* The page's GPU, plat/pgfx.h's PgfxPlayer (web/gpu.mjs): a screen w by h opened, 0 none; closed;
+   a list played; pixels read. */
+IMPORT(gpu_open) int js_gpu_open(uint32_t w, uint32_t h);
+IMPORT(gpu_close) void js_gpu_close(void);
+IMPORT(gpu_play) bool js_gpu_play(const uint32_t *list, uint32_t words);
+IMPORT(gpu_read)
+void js_gpu_read(uint32_t texture, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t *out);
+/* gfx's screen full screen, on the page's next click or key (the Fullscreen API's rule), or not. */
+IMPORT(fullscreen) void js_fullscreen(int on);
 /* An extension's render (its table index) played on the device's thread, its stereo frames written
    at out, on its own stack (its top), under the lock word at lock: the rate, 0 no device. */
 IMPORT(audio_open) uint32_t js_audio_open(uint32_t render, void *out, void *stack, volatile int32_t *lock);

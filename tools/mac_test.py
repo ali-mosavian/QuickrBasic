@@ -29,7 +29,11 @@ them too: a fixed list of files once left CHARLIE.BAS without its barkley packag
 50 rows are drawn in the 16-line font, 720x800: once in the 8-line one, 720x400, its strokes doubled
 and its rows touching. 132 x 50 is 1188x800: the frame was 80 columns wide once.
 QBX, tests/ext's qxtest packed for macos: a program imports it and draws if its add%(2, 3) is 5. Its slice
-was arm64's alone once, and the x86-64 half stopped at the IMPORT.
+was arm64's alone once, and the x86-64 half stopped at the IMPORT. gfx's canvas at 16 and 32 bits
+is shown in its colours: the frame once read each pixel as an index. Played on the GPU (a window of
+its own: the offscreen driver has none), an 8-bit scene is software's pixel for pixel: a diagonal
+line once covered two pixels a step. Each run ends unless drawn by the backend it asks for: a GPU
+fallen back to pages matched software unseen. A virtual Mac, CI's, has no GPU: not compared there.
 A Quickr program imports text, Quickr's library in the app's Resources/lib: once the app shipped
 none, and F5 stopped at the import unless BASICLIB was set.
 """
@@ -52,6 +56,24 @@ HIDDEN = {
 LOOP = "DO\nLOOP\n"
 QUICKR = "' OPTION DIALECT QUICKR\nimport text\nprint text.upper(\"ok\")\nwhile true\nwend\n"
 NATIVE = "from qxtest import *\nSCREEN 9\nIF add%(2, 3) = 5 THEN LINE (0, 0)-(100, 100), 4, BF\n" + LOOP
+GFX = (
+    "import gfx.display, gfx.draw\ncanvas& = gfx.display.open(64, 48, {depth}, 0)\n"
+    "gfx.draw.clear canvas&, &H123456\ngfx.draw.rect canvas&, 0, 0, 31, 47, &HFF8000, gfx.draw.FILL\n"
+    "gfx.display.flip\n" + LOOP
+)
+# its halves at 32 bits, and at 16 (565: each channel's top bits repeated below)
+GFX_SHOWN = {32: ((0xFF, 0x80, 0), (0x12, 0x34, 0x56)), 16: ((0xFF, 0x82, 0), (0x10, 0x34, 0x52))}
+# shapes, a surface drawn into and drawn, text: indexed textures, the palette, passes; circles off the pixel grid
+GFX_SCENE = (
+    "import gfx.display, gfx.draw, gfx.surface\ncanvas& = gfx.display.open(160, 120, 8, 0)\n"
+    "if (gfx.display.features and gfx.display.HAS_GPU) <> {gpu} then end\n"
+    "gfx.draw.clear canvas&, 1\ngfx.draw.rect canvas&, 4, 4, 60, 40, 4, gfx.draw.FILL\n"
+    "gfx.draw.line canvas&, 0, 119, 159, 0, 14\ngfx.draw.circle canvas&, 100, 60, 20, 2, gfx.draw.FILL\n"
+    "s& = gfx.surface.new(16, 16)\ngfx.draw.clear s&, 9\ngfx.draw.rect s&, 0, 0, 7, 7, 12, gfx.draw.FILL\n"
+    'gfx.draw.sprite canvas&, 120, 90, s&, 0\ngfx.draw.text canvas&, 4, 100, "GPU", 15\n'
+    "gfx.draw.circle canvas&, 40, 80, 15.3, 10, 0\ngfx.draw.arc canvas&, 130.5, 30, 18, 0.5, 4, 13\n"
+    "gfx.draw.circle canvas&, 70.25, 70.5, 6.5, 11, gfx.draw.FILL\ngfx.display.flip\n" + LOOP
+)
 HELP = "60:3B00"  # F1
 HELP_ESC = "60:3B00 70:011B"  # F1, Esc
 HELP_BACK = "60:3B00 70:0F09 80:1C0D 90:6800"  # F1, Tab, Enter (Index), Alt+F1
@@ -75,19 +97,28 @@ COLS132 = "60:1800 80:2C7A 100:0837"  # 7 (132 x 50)
 
 
 def frames(
-    run: list[str], program: Path, keys: str = "", at: tuple[str, ...] = ("",), mouse: str = ""
+    run: list[str],
+    program: Path,
+    keys: str = "",
+    at: tuple[str, ...] = ("",),
+    mouse: str = "",
+    more: dict[str, str] | None = None,
 ) -> list[tuple[int, int, bytes]]:
     """A shot at each of at's times ("" the default), one run."""
     with tempfile.TemporaryDirectory() as tmp:
         shots = [Path(tmp) / f"shot{i}.ppm" for i in range(len(at))]
         # by its name: the editor's file field takes a DOS-length path, not a temporary one
-        env = os.environ | {
-            "QB_SHOT": ",".join(f"{shot}@{t}" if t else str(shot) for shot, t in zip(shots, at)),
-            "QB_KEYS": keys,
-            "QB_MOUSE": mouse,
-            "SDL_VIDEO_DRIVER": "offscreen",
-            "SDL_AUDIO_DRIVER": "dummy",
-        }
+        env = (
+            os.environ
+            | {
+                "QB_SHOT": ",".join(f"{shot}@{t}" if t else str(shot) for shot, t in zip(shots, at)),
+                "QB_KEYS": keys,
+                "QB_MOUSE": mouse,
+                "SDL_VIDEO_DRIVER": "offscreen",
+                "SDL_AUDIO_DRIVER": "dummy",
+            }
+            | (more or {})
+        )
         subprocess.run([*run, program.name], env=env, timeout=30, check=True, cwd=program.parent)
         data = [shot.read_bytes() for shot in shots]
     out = []
@@ -98,8 +129,8 @@ def frames(
     return out
 
 
-def frame(run: list[str], program: Path, keys: str = "") -> tuple[int, int, bytes]:
-    return frames(run, program, keys)[0]
+def frame(run: list[str], program: Path, keys: str = "", more: dict[str, str] | None = None) -> tuple[int, int, bytes]:
+    return frames(run, program, keys, more=more)[0]
 
 
 def blue_cells(w: int, pixels: bytes) -> int:
@@ -115,6 +146,33 @@ def green_cells(w: int, pixels: bytes, y0: int, y1: int, x0: int, x1: int) -> in
 def pixel(w: int, pixels: bytes, x: int, y: int) -> tuple[int, ...]:
     at = (y * w + x) * 3
     return tuple(pixels[at : at + 3])
+
+
+def virtual() -> bool:
+    """A virtual Mac's, CI's: no GPU, its Metal device's frames not the GPU's to compare."""
+    got = subprocess.run(["sysctl", "-n", "kern.hv_vmm_present"], capture_output=True, text=True)
+    return got.stdout.strip() == "1"
+
+
+def scene_shown(soft: tuple[int, int, bytes], gpu: tuple[int, int, bytes] | None) -> bool:
+    """GFX_SCENE drawn at its size, and by the GPU the same; gpu None, no GPU here to compare."""
+    return soft[:2] == (160, 120) and (gpu is None or gpu == soft)
+
+
+def differ(a: tuple[int, int, bytes], b: tuple[int, int, bytes]) -> str:
+    """Where frames a and b differ: their sizes, else the pixels, their box and the first."""
+    if a[:2] != b[:2]:
+        return f"{a[0]}x{a[1]} against {b[0]}x{b[1]}"
+    w = a[0]
+    at = [i // 3 for i in range(0, len(a[2]), 3) if a[2][i : i + 3] != b[2][i : i + 3]]
+    if not at:
+        return "the same"
+    xs, ys = [i % w for i in at], [i // w for i in at]
+    x, y = xs[0], ys[0]
+    return (
+        f"{len(at)} pixels in ({min(xs)}, {min(ys)})-({max(xs)}, {max(ys)}), "
+        f"({x}, {y}) {pixel(w, a[2], x, y)} against {pixel(w, b[2], x, y)}"
+    )
 
 
 def text_rows(w: int, pixels: bytes) -> int:
@@ -210,6 +268,17 @@ def main() -> None:
         quickr = Path(tmp) / "QUICKR.BAS"
         quickr.write_text(QUICKR)
         qw, _, imported = frame(run, quickr, "3F00")
+        gfx = {}
+        for depth in GFX_SHOWN:
+            (Path(tmp) / "GFX.BAS").write_text(GFX.format(depth=depth))
+            gw, _, px = frame(run, Path(tmp) / "GFX.BAS", "3F00")
+            gfx[depth] = (pixel(gw, px, 10, 10), pixel(gw, px, 50, 10))
+        (Path(tmp) / "SCENE.BAS").write_text(GFX_SCENE.format(gpu=0))
+        soft = frame(run, Path(tmp) / "SCENE.BAS", "3F00")
+        gpu = None
+        if not virtual():
+            (Path(tmp) / "SCENE.BAS").write_text(GFX_SCENE.format(gpu=1))
+            gpu = frame(run, Path(tmp) / "SCENE.BAS", "3F00", {"SDL_VIDEO_DRIVER": "cocoa", "QB_GFX": "gpu"})
         w, h, pixels = frame(run, program)
         _, _, menu = frame(run, program, "2100")
         box = Path(tmp) / "BOX.BAS"
@@ -341,10 +410,17 @@ def main() -> None:
         "a native module runs": native is not False,
         "50 rows in the 16-line font": rows50 == (720, 800),
         "132 x 50 in the 16-line font": cols132 == (1188, 800),
+        "gfx's 16 and 32-bit frames in their colours": gfx == GFX_SHOWN,
+        "gfx's scene played on the GPU is software's": scene_shown(soft, gpu),
     }
     failed = [name for name, ok in checks.items() if not ok]
     print(f"mac {sys.argv[2] if len(sys.argv) > 2 else ''} " + ("ok" if not failed else "FAIL " + ", ".join(failed)))
+    if gpu is None:
+        print("  a virtual Mac, no GPU: the scene's GPU frame not compared")
+    elif "gfx's scene played on the GPU is software's" in failed:
+        print("  the scene, software's against the GPU's: " + differ(soft, gpu))
     sys.exit(1 if failed else 0)
 
 
-main()
+if __name__ == "__main__":
+    main()

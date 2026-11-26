@@ -13,6 +13,7 @@ declare sub fail cdecl (byval code%)
 declare function runs% cdecl ()
 declare function audio% cdecl ()
 declare function played& cdecl ()
+declare function fraction% cdecl ()
 
 function twice% (n%)
     twice% = add%(n%, n%)

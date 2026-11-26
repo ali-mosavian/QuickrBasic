@@ -26,7 +26,7 @@ DOSBOX_BIN ?= $(DEPS)/dosbox-x
 DOS32A ?= third_party/dos32a
 export JWASM JWLINK DOSBOX_BIN DOS32A
 
-.PHONY: all test host host-test wasm wasm-test web mac mac-zip mac-test dos-zip lto format clean
+.PHONY: all test host host-test wasm wasm-test web mac mac-zip mac-test linux-app linux-test dos-zip lto format clean shaders
 all:
 
 # one run builds both: two would clone into the same directory at once under -j
@@ -35,6 +35,13 @@ $(DEPS)/jwasm: tools/deps.sh
 $(DEPS)/jwlink: $(DEPS)/jwasm
 $(DEPS)/dosbox-x: tools/deps.sh
 	sh tools/deps.sh dosbox
+$(DEPS)/glslang: tools/deps.sh
+	sh tools/deps.sh shaders
+$(DEPS)/spirv-cross: $(DEPS)/glslang
+
+# gfx's shader for each host's GPU, committed: run after an edit of src/plat/gpu/draw.*
+shaders: $(DEPS)/spirv-cross
+	python3 tools/shaders.py
 
 # ---- The DOS build: clang for i386 (COFF), the start-up and OS layer by jwasm, linked by jwlink ----
 
@@ -82,7 +89,7 @@ CORE_OBJ := $(CORE_C:src/%.c=$(B)/obj/%.obj) $(QBRT_DOS_C:%.c=$(B)/qbrt/%.obj) $
 	$(B)/obj/qbrt/qbrt_dos.obj $(ASM_OBJ)
 BASIC_OBJ := $(CORE_OBJ) $(B)/obj/app/basic32.obj
 IDE_OBJ := $(CORE_OBJ) $(UI_C:src/%.c=$(B)/obj/%.obj) $(B)/obj/app/ide32.obj
-DOS_EXE := $(B)/basic32.exe $(B)/ide32.exe $(B)/DOS32A.EXE $(B)/BASIC.HLP
+DOS_EXE := $(B)/basic32.exe $(B)/ide32.exe $(B)/DOS32A.EXE $(B)/BASIC.HLP $(B)/lib/gfx.qbx
 # the release: the programs by their DOS names, with the games (src/plat/wasm/web/demos)
 DOS_GAMES := $(addprefix src/plat/wasm/web/demos/,GORILLA.BAS NIBBLES.BAS MOTHLITE.BAS RUSTLINE.BAS CHARLIE.BAS CHARLIE.DAT)
 # CHARLIE.BAS imports its package and the engine, the barkley and engine folders beside it
@@ -127,17 +134,19 @@ dos-zip: $(DOS_EXE) $(DOS_GAMES) $(DOS_MODULES)
 	mkdir -p $(B)/release
 	cp $(B)/ide32.exe $(B)/release/IDE32.EXE
 	cp $(B)/basic32.exe $(B)/release/BASIC32.EXE
-	cp $(B)/DOS32A.EXE $(B)/BASIC.HLP $(DOS_GAMES) $(B)/release/
-	rm -rf $(B)/release/barkley $(B)/release/engine
+	cp $(B)/DOS32A.EXE $(B)/BASIC.HLP $(DOS_GAMES) $(GFX_DEMOS) $(B)/release/
+	rm -rf $(B)/release/barkley $(B)/release/engine $(B)/release/lib
+	mkdir -p $(B)/release/lib
+	cp $(B)/lib/gfx.qbx $(B)/release/lib/
 	cp -R src/plat/wasm/web/demos/barkley $(B)/release/barkley
 	cp -R src/plat/wasm/web/demos/engine $(B)/release/engine
-	cd $(B)/release && zip -q -X -r ../QuickrBasic-dos.zip IDE32.EXE BASIC32.EXE DOS32A.EXE BASIC.HLP GORILLA.BAS NIBBLES.BAS MOTHLITE.BAS RUSTLINE.BAS CHARLIE.BAS CHARLIE.DAT barkley engine
+	cd $(B)/release && zip -q -X -r ../QuickrBasic-dos.zip IDE32.EXE BASIC32.EXE DOS32A.EXE BASIC.HLP GORILLA.BAS NIBBLES.BAS MOTHLITE.BAS RUSTLINE.BAS CHARLIE.BAS CHARLIE.DAT GFXDEMO.BAS barkley engine lib
 
 -include $(shell find $(B) -name '*.d' 2>/dev/null)
 
 # ---- The tests ----
 
-TOOLS_TEST := tools/cfmt_test.py tools/basic_src_test.py tools/libcalls_test.py tools/gas2coff_test.py tools/conformance_test.py tools/mkhelp_test.py tools/golden_test.py tools/qbx_test.py
+TOOLS_TEST := tools/cfmt_test.py tools/basic_src_test.py tools/libcalls_test.py tools/gas2coff_test.py tools/conformance_test.py tools/mkhelp_test.py tools/golden_test.py tools/qbx_test.py tools/fillers_test.py tools/mac_test_test.py
 test: $(DOS_EXE) | $(DOSBOX_BIN)
 	sh tests/gen/dfa.sh
 	sh tests/gen/messages.sh
@@ -154,9 +163,9 @@ test: $(DOS_EXE) | $(DOSBOX_BIN)
 # the native ABI's test extension (tests/ext): its glue, then a slice for each platform; native.sh packs them
 build/ext/qxtest_qx.c: tests/ext/qxtest.bas tools/qbx.py
 	@mkdir -p $(@D)
-	$(PY) tools/qbx.py glue $< qxtest $(@D)
+	$(PY) tools/qbx.py glue qxtest $(@D) $<
 QXTEST := tests/ext/qxtest.c build/ext/qxtest_qx.c
-QX_CFLAGS := -std=c23 -O2 -Wall -Wextra -ffreestanding -Isrc/qx -Ibuild/ext
+QX_CFLAGS := -std=c23 -O2 -Wall -Wextra -ffreestanding -fno-math-errno -Isrc/qx -Ibuild/ext
 build/host/ext/qxtest.so: $(QXTEST) src/qx/qx.h
 	@mkdir -p $(@D)
 	$(HOST_CC) $(QX_CFLAGS) $(HOST_SLICE) $(QXTEST) -o $@
@@ -170,13 +179,74 @@ build/wasm/ext/qxtest.wasm: $(QXTEST) src/qx/qx.h
 		-c build/ext/qxtest_qx.c -o $(@D)/qxtest_qx.o
 	$(WASM_LD) -shared --experimental-pic --shared-memory --features=$(WASM_FEATURES) -o $@ $(@D)/qxtest.o $(@D)/qxtest_qx.o
 LLD_LINK ?= $(firstword $(wildcard /opt/homebrew/opt/lld/bin/lld-link) lld-link)
-DOS_SLICE_CC = $(CLANG) --target=i386-pc-win32 -march=i386 -fno-asynchronous-unwind-tables $(QX_CFLAGS)
+# no stack probes: __chkstk is the C library's, and a slice has none
+DOS_SLICE_CC = $(CLANG) --target=i386-pc-win32 -march=i386 -fno-asynchronous-unwind-tables -mno-stack-arg-probe $(QX_CFLAGS)
 $(B)/ext/qxtest.dll: $(QXTEST) src/qx/qx.h
 	@mkdir -p $(@D)
 	$(DOS_SLICE_CC) -c tests/ext/qxtest.c -o $(@D)/qxtest.obj
 	$(DOS_SLICE_CC) -c build/ext/qxtest_qx.c -o $(@D)/qxtest_qx.obj
 	$(LLD_LINK) /dll /noentry /nodefaultlib /out:$@ $(@D)/qxtest.obj $(@D)/qxtest_qx.obj
-host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/hostperf/basic build/host/ext/qxtest.so
+# gfx (stdlib/gfx): its glue from its parts' interfaces, scene's to come with 3D. Its core is linked
+# into the unit tests with its tests; the runtime's font and palette (vgadata.c) are already there
+GFX_PARTS := $(addprefix stdlib/gfx/src/api/,display.bas surface.bas draw.bas)
+GFX_C := $(shell find stdlib/gfx/src -name '*.c' -not -path 'stdlib/gfx/src/platform/*')
+GFX_INC := -Istdlib/gfx/src -Isrc
+build/ext/gfx_qx.c: $(GFX_PARTS) tools/qbx.py
+	@mkdir -p $(@D)
+	$(PY) tools/qbx.py glue gfx $(@D) $(GFX_PARTS)
+GFX_UNIT_OBJ := $(GFX_C:stdlib/gfx/src/%.c=build/host/gfx/%.o) build/host/gfx/gfx_qx.o \
+	$(patsubst stdlib/gfx/tests/%.c,build/host/gfx/test/%.o,$(wildcard stdlib/gfx/tests/*.c))
+build/host/gfx/%.o: stdlib/gfx/src/%.c | build/ext/gfx_qx.c
+	@mkdir -p $(@D)
+	$(HOST_CC) $(QX_CFLAGS) -g $(GFX_INC) $(DEPFLAGS) -c $< -o $@
+build/host/gfx/gfx_qx.o: build/ext/gfx_qx.c
+	@mkdir -p $(@D)
+	$(HOST_CC) $(QX_CFLAGS) -g $(DEPFLAGS) -c $< -o $@
+build/host/gfx/test/%.o: stdlib/gfx/tests/%.c | build/ext/gfx_qx.c
+	@mkdir -p $(@D)
+	$(HOST_CC) $(HOST_CFLAGS) -Isrc/qx -Ibuild/ext $(GFX_INC) -Itests/unit $(DEPFLAGS) -c $< -o $@
+
+# gfx.qbx for this machine, in lib/ beside basic: its slice the core, its glue and its own font; it
+# needs the host's minor 1
+GFX_SLICE_C := $(GFX_C) build/ext/gfx_qx.c $(QBRT)/qb/dev/host/vgadata.c
+build/host/ext/gfx.so: $(GFX_SLICE_C) $(shell find stdlib/gfx/src -name '*.h') src/qx/qx.h src/qx/qxlist.h
+	@mkdir -p $(@D)
+	$(HOST_CC) $(QX_CFLAGS) $(HOST_SLICE) $(GFX_INC) $(GFX_SLICE_C) -o $@
+build/host/lib/gfx.qbx: $(GFX_PARTS) build/host/ext/gfx.so tools/qbx.py
+	@mkdir -p $(@D)
+	$(PY) tools/qbx.py pack $@ --minor 1 $(GFX_PARTS) $(HOST_TAG)=build/host/ext/gfx.so
+# and for the page, in its lib/: its slice a wasm side module
+GFX_WASM_OBJ := $(GFX_SLICE_C:%.c=build/wasm/gfx/%.o)
+build/wasm/gfx/%.o: %.c | build/ext/gfx_qx.c
+	@mkdir -p $(@D)
+	$(CLANG) --target=wasm32-unknown-unknown -matomics -mbulk-memory -fPIC -fvisibility=hidden $(QX_CFLAGS) \
+		$(GFX_INC) $(DEPFLAGS) -c $< -o $@
+build/wasm/ext/gfx.wasm: $(GFX_WASM_OBJ)
+	@mkdir -p $(@D)
+	$(WASM_LD) -shared --experimental-pic --shared-memory --features=$(WASM_FEATURES) -o $@ $^
+build/web/lib/gfx.qbx: $(GFX_PARTS) build/wasm/ext/gfx.wasm tools/qbx.py
+	@mkdir -p $(@D)
+	$(PY) tools/qbx.py pack $@ --minor 1 $(GFX_PARTS) wasm32=build/wasm/ext/gfx.wasm
+# and for DOS, in lib/ beside basic32.exe: its slice an i386 DLL, which imports nothing, so it brings
+# its own copies and fills and the runtime's 64-bit division
+GFX_DOS_OBJ := $(patsubst %.c,$(B)/gfx/%.obj,$(GFX_SLICE_C) stdlib/gfx/src/platform/dos/crt.c src/lib/lldiv.c src/lib/div64.c)
+$(B)/gfx/%.obj: %.c | build/ext/gfx_qx.c
+	@mkdir -p $(@D)
+	$(DOS_SLICE_CC) $(GFX_INC) $(DEPFLAGS) -c $< -o $@
+# bench.py profile's pext.c: gfx's slice linked in beside the program, which then names it
+$(B)/prof/pext.obj: src/plat/dos32/pext.c
+	@mkdir -p $(@D)
+	$(call compile,$(CFLAGS) -DPEXT_LINKED)
+$(B)/ext/gfx.dll: $(GFX_DOS_OBJ)
+	@mkdir -p $(@D)
+	$(LLD_LINK) /dll /noentry /nodefaultlib /safeseh:no /out:$@ $^
+$(B)/lib/gfx.qbx: $(GFX_PARTS) $(B)/ext/gfx.dll tools/qbx.py
+	@mkdir -p $(@D)
+	$(PY) tools/qbx.py pack $@ --minor 1 $(GFX_PARTS) dos-i386=$(B)/ext/gfx.dll
+-include $(GFX_DOS_OBJ:%=%.d)
+
+host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/hostperf/basic build/host/ext/qxtest.so \
+		build/host/lib/gfx.qbx
 	for t in $(TOOLS_TEST); do $(PY) $$t || exit 1; done
 	build/host/unit_tests
 	sh tests/host/longpath.sh build/host/basic
@@ -184,6 +254,7 @@ host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/h
 	sh tests/host/check.sh build/host/basic
 	sh tests/host/import.sh build/host/basic
 	PY=$(PY) sh tests/host/native.sh build/host/basic build/host/ext/qxtest.so $(HOST_TAG)
+	sh tests/host/gfx.sh build/host/basic
 	$(PY) tools/golden.py
 	BASIC_EXE=build/host/basic $(PY) tools/regress_test.py build/host/basic
 	BASIC_EXE=build/host/basic $(PY) tools/conformance.py
@@ -244,58 +315,92 @@ STDLIB := $(wildcard stdlib/*.bas)
 build/%/lib/.stdlib: $(STDLIB)
 	mkdir -p $(@D) && $(if $^,cp $^ $(@D) &&) touch $@
 
-host: build/host/basic
+host: build/host/basic build/host/lib/gfx.qbx
 build/host/basic: $(build/host_OBJ) build/host/obj/app/basic32.o build/host/obj/plat/host/app/term.o | build/host/lib/.stdlib
 	$(HOST_CC) $^ -lm $(HOST_DL) -o $@
 build/hostperf/basic: $(build/hostperf_OBJ) build/hostperf/obj/app/basic32.o build/hostperf/obj/plat/host/app/insns.o | build/hostperf/lib/.stdlib
 	$(HOST_CC) $^ -lm $(HOST_DL) -o $@
 
-# ---- The Mac's: the IDE in a window, build/mac/QuickrBasic.app, universal (arm64 and x86-64, macOS 13 on); mac-zip,
-# the app zipped. SDL 3 is linked in, built by tools/deps.sh sdl. The display is plat/view's, as the browser's; wrap.h
-# is ld's --wrap ----
+# ---- The window's: the IDE in a window. The Mac's build/mac/QuickrBasic.app, universal (arm64 and x86-64, macOS 13
+# on); mac-zip, the app zipped. Linux's build/linux/app (linux-app): QuickrBasic with its help, gfx and demos beside
+# it; linux-test, its window off-screen. SDL 3 is linked in, built by tools/deps.sh sdl. The display is plat/view's, as the browser's; wrap.h is ld's
+# --wrap ----
 
 SDL_DIR := build/deps/sdl3
 SDL_LIB := $(SDL_DIR)/lib/libSDL3.a
 $(SDL_LIB): tools/deps.sh
 	sh tools/deps.sh sdl
 SDL_LIBS = $(SDL_LIB) $(shell PKG_CONFIG_PATH=$(SDL_DIR)/lib/pkgconfig pkg-config --static --libs-only-other sdl3 2>/dev/null)
-MAC := build/mac
-MAC_ARCH := -arch arm64 -arch x86_64 -mmacosx-version-min=13.0
-MAC_CFLAGS := $(filter-out -O1 -DEXEC_COUNT,$(HOST_CFLAGS)) -O2 -DAC=$(AC) $(MAC_ARCH)
-$(eval $(call host_rules,$(MAC),$(MAC_CFLAGS),$(MAC_ARCH) -include src/plat/view/wrap.h -DQBRT_SCREEN=1))
-$(MAC)/qbrt/qb/dev/host/video.o: VIEW_REAL := -DVIEW_REAL_TEXT
-$(MAC)/qbrt/qb/dev/headless/headless.o: VIEW_REAL := -DVIEW_REAL_TONE
-$(MAC)/obj/plat/sdl/%.o: APP_FLAGS := -isystem $(SDL_DIR)/include
-$(patsubst src/%.c,$(MAC)/obj/%.o,$(wildcard src/plat/sdl/*.c src/plat/sdl/app/*.c)): | $(SDL_LIB)
-$(MAC)/obj/app/ide32.o: APP_FLAGS := -Dmain=qb_main
-MAC_OBJ := $($(MAC)_OBJ) $(patsubst src/%.c,$(MAC)/obj/%.o,$(filter-out src/core/ui/tree.c src/core/ui/indent.c,\
-	$(wildcard src/core/ui/*.c)) $(wildcard src/plat/view/*.c) $(wildcard src/plat/sdl/*.c)) $(MAC)/obj/app/ide32.o
+GUI := build/$(if $(filter Darwin,$(HOST_OS)),mac,linux)
+GUI_ARCH := $(if $(filter Darwin,$(HOST_OS)),-arch arm64 -arch x86_64 -mmacosx-version-min=13.0)
+GUI_CFLAGS := $(filter-out -O1 -DEXEC_COUNT,$(HOST_CFLAGS)) -O2 -DAC=$(AC) $(GUI_ARCH)
+$(eval $(call host_rules,$(GUI),$(GUI_CFLAGS),$(GUI_ARCH) -include src/plat/view/wrap.h -DQBRT_SCREEN=1))
+$(GUI)/qbrt/qb/dev/host/video.o: VIEW_REAL := -DVIEW_REAL_TEXT
+$(GUI)/qbrt/qb/dev/headless/headless.o: VIEW_REAL := -DVIEW_REAL_TONE
+$(GUI)/obj/plat/sdl/%.o: APP_FLAGS := -isystem $(SDL_DIR)/include
+$(patsubst src/%.c,$(GUI)/obj/%.o,$(wildcard src/plat/sdl/*.c src/plat/sdl/app/*.c)): | $(SDL_LIB)
+$(GUI)/obj/app/ide32.o: APP_FLAGS := -Dmain=qb_main
+GUI_OBJ := $($(GUI)_OBJ) $(patsubst src/%.c,$(GUI)/obj/%.o,$(filter-out src/core/ui/tree.c src/core/ui/indent.c,\
+	$(wildcard src/core/ui/*.c)) $(wildcard src/plat/view/*.c) $(wildcard src/plat/sdl/*.c)) $(GUI)/obj/app/ide32.o
 
-APP := $(MAC)/QuickrBasic.app
+APP := $(GUI)/QuickrBasic.app
 DEMOS := $(shell find src/plat/wasm/web/demos -type f)
 
 mac: $(APP)/Contents/Info.plist
-$(MAC)/QuickrBasic: $(MAC_OBJ) $(MAC)/obj/plat/sdl/app/main.o $(SDL_LIB)
-	$(HOST_CC) $(MAC_ARCH) $(filter %.o,$^) $(SDL_LIBS) -lm -o $@
+$(GUI)/QuickrBasic: $(GUI_OBJ) $(GUI)/obj/plat/sdl/app/main.o $(SDL_LIB)
+	$(HOST_CC) $(GUI_ARCH) $(filter %.o,$^) $(SDL_LIBS) -lm -o $@
 # the bundle, signed ad hoc (Apple silicon runs nothing unsigned)
+# gfx's demos, and the modules they import beside them
+GFX_DEMOS := $(wildcard stdlib/gfx/demos/*.BAS stdlib/gfx/demos/*.bas)
 # Quickr's library in Resources/lib: psys_self puts the app there, and codesign takes only code in MacOS
-$(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(MAC)/QuickrBasic $(HELP) $(DEMOS) $(STDLIB)
+$(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(GUI)/QuickrBasic $(HELP) $(DEMOS) $(STDLIB) build/host/lib/gfx.qbx $(GFX_DEMOS)
 	rm -rf $(APP)/Contents/Resources/demos $(APP)/Contents/Resources/lib
 	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources/demos $(APP)/Contents/Resources/lib
-	cp $(MAC)/QuickrBasic $(APP)/Contents/MacOS/
+	cp $(GUI)/QuickrBasic $(APP)/Contents/MacOS/
+	cp build/host/lib/gfx.qbx $(APP)/Contents/Resources/lib/
 	cp $(HELP) $(APP)/Contents/Resources/BASIC.HLP
-	cp -R src/plat/wasm/web/demos/. $(APP)/Contents/Resources/demos/
+	cp -R src/plat/wasm/web/demos/. $(GFX_DEMOS) $(APP)/Contents/Resources/demos/
 	cp $(STDLIB) $(APP)/Contents/Resources/lib/
 	cp $< $@
 	codesign --force -s - $(APP)
+# gfx's first slice in the Mac's window: stdlib/gfx/tests/show.c draws CHARLIE's frame in the IDE's place,
+# the core linked in beside the runtime's font (vgadata.c); gfx-shot runs it from here, QB_SHOT takes it
+GFX_GUI_OBJ := $(GFX_C:stdlib/gfx/src/%.c=$(GUI)/gfx/%.o) $(GUI)/gfx/gfx_qx.o $(GUI)/gfx/test/charlie.o \
+	$(GUI)/gfx/test/show.o
+$(GUI)/gfx/%.o: stdlib/gfx/src/%.c | build/ext/gfx_qx.c
+	@mkdir -p $(@D)
+	$(HOST_CC) $(GUI_ARCH) $(QX_CFLAGS) $(GFX_INC) $(DEPFLAGS) -c $< -o $@
+$(GUI)/gfx/gfx_qx.o: build/ext/gfx_qx.c
+	@mkdir -p $(@D)
+	$(HOST_CC) $(GUI_ARCH) $(QX_CFLAGS) $(DEPFLAGS) -c $< -o $@
+$(GUI)/gfx/test/%.o: stdlib/gfx/tests/%.c | build/ext/gfx_qx.c
+	@mkdir -p $(@D)
+	$(HOST_CC) $(GUI_CFLAGS) -Isrc/qx -Ibuild/ext $(GFX_INC) $(DEPFLAGS) -c $< -o $@
+$(GUI)/gfxshow: $(filter-out $(GUI)/obj/app/ide32.o,$(GUI_OBJ)) $(GFX_GUI_OBJ) $(GUI)/obj/plat/sdl/app/main.o $(SDL_LIB)
+	$(HOST_CC) $(GUI_ARCH) $(filter %.o,$^) $(SDL_LIBS) -lm -o $@
+gfx-shot: $(GUI)/gfxshow
+	QB_SHOT=$(GUI)/charlie.ppm@30 $<
+
+linux-app: $(GUI)/app/QuickrBasic
+linux-test: linux-app
+	$(PY) tools/linux_test.py $(GUI)/app/QuickrBasic
+$(GUI)/app/QuickrBasic: $(GUI)/QuickrBasic $(HELP) $(DEMOS) build/host/lib/gfx.qbx $(GFX_DEMOS)
+	rm -rf $(@D)
+	mkdir -p $(@D)/demos $(@D)/lib
+	cp build/host/lib/gfx.qbx $(@D)/lib/
+	cp $(HELP) $(@D)/BASIC.HLP
+	cp -R src/plat/wasm/web/demos/. $(GFX_DEMOS) $(@D)/demos/
+	cp $< $@
+
 mac-zip: mac
-	cd $(MAC) && ditto -c -k --keepParent QuickrBasic.app QuickrBasic-mac.zip
+	cd $(GUI) && ditto -c -k --keepParent QuickrBasic.app QuickrBasic-mac.zip
 # each architecture's half (x86-64's under Rosetta, where there is one)
-mac-test: mac $(MAC)/ext/qxtest.qbx
-	$(PY) tools/mac_test.py $(APP)/Contents/MacOS/QuickrBasic arm64 $(MAC)/ext/qxtest.qbx
+mac-test: mac $(GUI)/ext/qxtest.qbx
+	$(PY) tools/mac_test.py $(APP)/Contents/MacOS/QuickrBasic arm64 $(GUI)/ext/qxtest.qbx
+	$(PY) tools/gfx_test.py --gpu
 	if arch -x86_64 /usr/bin/true 2>/dev/null; then \
-		$(PY) tools/mac_test.py $(APP)/Contents/MacOS/QuickrBasic x86_64 $(MAC)/ext/qxtest.qbx; fi
-$(MAC)/ext/qxtest.qbx: tests/ext/qxtest.bas build/host/ext/qxtest.so tools/qbx.py
+		$(PY) tools/mac_test.py $(APP)/Contents/MacOS/QuickrBasic x86_64 $(GUI)/ext/qxtest.qbx; fi
+$(GUI)/ext/qxtest.qbx: tests/ext/qxtest.bas build/host/ext/qxtest.so tools/qbx.py
 	@mkdir -p $(@D)
 	$(PY) tools/qbx.py pack $@ $< macos=build/host/ext/qxtest.so
 
@@ -318,7 +423,8 @@ build/host/unit/%.o: tests/unit/%.c
 	$(HOST_CC) $(HOST_CFLAGS) $(DEPFLAGS) -c $< -o $@
 build/host/test.hlp: tools/mkhelp.py $(wildcard tests/help/*)
 	$(PY) tools/mkhelp.py tests/help -o $@
-build/host/unit_tests: $(build/host_OBJ) $(UNIT_UI_OBJ) $(UNIT_OBJ) build/host/obj/lib/div64.o build/host/test.hlp
+build/host/unit_tests: $(build/host_OBJ) $(UNIT_UI_OBJ) $(UNIT_OBJ) $(GFX_UNIT_OBJ) build/host/obj/lib/div64.o build/host/obj/plat/dos32/vbe.o \
+	build/host/test.hlp
 	$(HOST_CC) $(filter-out %.hlp,$^) -lm $(HOST_DL) -o $@
 build/host/golden/dump.o: tests/golden/dump.c
 	@mkdir -p $(@D)
@@ -338,7 +444,7 @@ WASM_CFLAGS := $(WASM_TARGET) -std=c23 -O2 -g -Wall -Wextra -Wno-unused-paramete
 	-DPFIL_PATH=1024 -DAC=$(AC) -isystem src/plat/wasm/include -isystem src/lib/include -Isrc -Isrc/core
 # -MD, not -MMD: the shim's headers are -isystem, and -MMD leaves those out of the dependencies
 WASM_DEPFLAGS = -MD -MP -MF $@.d -MT $@
-WASM_C := $(filter-out src/plat/host/% src/plat/synth/% src/plat/audio/%,$(HOST_C)) $(addprefix src/plat/host/,pclk.c pfil.c pfpu.c pkey.c pscr.c ports.c) $(wildcard src/plat/wasm/*.c) \
+WASM_C := $(filter-out src/plat/host/% src/plat/synth/% src/plat/audio/%,$(HOST_C)) $(addprefix src/plat/host/,pclk.c pfil.c pfpu.c pgfx.c pkey.c pscr.c ports.c) $(wildcard src/plat/wasm/*.c) \
 	$(wildcard src/plat/view/*.c)
 WASM_QBRT_C := $(filter-out shared/posix/os.c,$(QBRT_HOST_C))
 WASM_OBJ := $(WASM_C:src/%.c=build/wasm/obj/%.o) $(WASM_QBRT_C:%.c=build/wasm/qbrt/%.o) build/wasm/obj/qbrt/qbrt.o \
@@ -378,17 +484,22 @@ build/wasm/basic: build/wasm/basic.wasm
 # The IDE's page, for GitHub Pages or tools/wasm/serve.py: its scripts, the module, the help, the demos
 WEB_SRC := $(wildcard src/plat/wasm/web/*.mjs src/plat/wasm/web/*.js src/plat/wasm/web/*.html) \
 	$(shell find src/plat/wasm/web/demos -type f)
+GFX_WEB_DEMOS := $(GFX_DEMOS:stdlib/gfx/demos/%=build/web/demos/%)
 web: build/web/ide.wasm build/web/synth.wasm build/web/BASIC.HLP build/web/demos/MODULES build/web/lib/MODULES \
-	$(WEB_SRC:src/plat/wasm/web/%=build/web/%)
+	$(WEB_SRC:src/plat/wasm/web/%=build/web/%) build/web/lib/gfx.qbx $(GFX_WEB_DEMOS)
 # Quickr's library, fetched to /lib beside C:\BASIC.EXE, where a module is looked for last; one name a line
 build/web/lib/MODULES: $(STDLIB)
 	@mkdir -p $(@D)
 	cp $^ $(@D)
 	cd stdlib && ls *.bas > $(CURDIR)/$@
-# the demos' modules, one path a line: the page fetches them from here, as the folders cannot be listed
-build/web/demos/MODULES: $(shell find src/plat/wasm/web/demos -mindepth 2 -name '*.bas')
+$(GFX_WEB_DEMOS): build/web/demos/%: stdlib/gfx/demos/%
 	@mkdir -p $(@D)
-	cd src/plat/wasm/web/demos && find . -mindepth 2 -name '*.bas' | sed 's|^\./||' | sort > $(CURDIR)/$@
+	cp $< $@
+# the demos' modules, one path a line: the page fetches them from here, as the folders cannot be listed
+build/web/demos/MODULES: $(shell find src/plat/wasm/web/demos -mindepth 2 -name '*.bas') $(filter %.bas,$(GFX_DEMOS))
+	@mkdir -p $(@D)
+	{ cd src/plat/wasm/web/demos && find . -mindepth 2 -name '*.bas' | sed 's|^\./||'; \
+		printf '%s\n' $(notdir $(filter %.bas,$(GFX_DEMOS))); } | sort > $(CURDIR)/$@
 # the synthesizer alone, for the page's AudioWorklet (web/synth.mjs)
 build/web/synth.wasm: src/plat/wasm/worklet/worklet.c src/plat/synth/synth.c src/plat/synth/synth.h
 	@mkdir -p $(@D)
@@ -412,6 +523,7 @@ wasm-test: build/wasm/basic build/wasm/ide.wasm build/wasm/ext/qxtest.wasm
 	node tools/wasm/play_test.mjs build/wasm/basic.wasm
 	node tools/wasm/scan_test.mjs build/wasm/basic.wasm
 	node tools/wasm/upload_test.mjs
+	node tools/wasm/gpu_test.mjs
 	node tools/wasm/retrace_test.mjs build/wasm/basic.wasm
 	BASIC_EXE=$< $(PY) tools/conformance.py
 

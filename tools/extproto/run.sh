@@ -8,7 +8,7 @@ LLVM=${LLVM:-/opt/homebrew/opt/llvm/bin}
 LLD=${LLD:-/opt/homebrew/opt/lld/bin}
 O=../../build/extproto
 mkdir -p $O
-python3 ../qbx.py glue ext.bas ext $O
+python3 ../qbx.py glue ext $O ext.bas
 EXT="ext.c $O/ext_qx.c"
 C="-std=c23 -O2 -I. -I$O"
 WASM="--target=wasm32-unknown-unknown -ffreestanding -matomics -mbulk-memory $C"

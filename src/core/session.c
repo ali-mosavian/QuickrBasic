@@ -315,6 +315,7 @@ void session_new(Session *const S)
 {
     dial_forget(S);
     S->prog.end = PROGBASE;
+    memset(S->lexr.off, 0, sizeof S->lexr.off); /* no OPTION DISABLE yet */
     symb_reset(&S->symb);
     decl_reset(&S->decl, &S->scop, &S->symb);
     session_drop(S);

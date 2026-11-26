@@ -2,7 +2,8 @@
  *
  * # How it works
  * The flat segment from 0, and DPMI's largest free block, less what the host keeps (64K) and the
- * C side's heap (util/heap.h) at its top.
+ * C side's heap (util/heap.h) at its top: the front end's ask, or a quarter of the block where
+ * that is more, as a native extension's memory is the C side's (gfx's canvas and pictures).
  */
 #include "dos.h"
 #include "plat/pmem.h"
@@ -25,8 +26,10 @@ bool pmem_init(const uint32_t least, const uint32_t heap, Addr *const lo, Addr *
         return false;
 
     const uint32_t size = (largest - HOST_ROOM) & ~(uint32_t)PAGE_MASK;
+    const uint32_t quarter = size / 4 & ~(uint32_t)PAGE_MASK;
+    const uint32_t c_side = heap > quarter ? heap : quarter;
 
-    if (size < least + heap)
+    if (size < least + c_side)
         return false;
 
     r = (PdosRegs){.eax = DPMI_MEM_ALLOC, .ebx = size >> 16, .ecx = size & 0xFFFF};
@@ -36,8 +39,8 @@ bool pmem_init(const uint32_t least, const uint32_t heap, Addr *const lo, Addr *
 
     const uint32_t linear = pdos_pair(r.ebx, r.ecx);
     *lo = linear - pdos_ds_base();
-    *hi = *lo + size - heap;
-    heap_init(&c_heap, at(*hi), heap);
+    *hi = *lo + size - c_side;
+    heap_init(&c_heap, at(*hi), c_side);
     return true;
 }
 

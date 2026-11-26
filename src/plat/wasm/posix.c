@@ -129,7 +129,7 @@ enum { DAY = 86400 };
 
 int clock_gettime(const int clock, struct timespec *const ts)
 {
-    const double ms = js_now();
+    const double ms = clock == CLOCK_MONOTONIC ? js_clock() : js_now();
     ts->tv_sec = (time_t)(ms / 1000);
     ts->tv_nsec = (long)((ms - (double)ts->tv_sec * 1000) * 1e6);
     return 0;
