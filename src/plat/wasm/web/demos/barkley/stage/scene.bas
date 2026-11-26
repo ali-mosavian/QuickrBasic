@@ -2,7 +2,8 @@
 defint A-Z
 option explicit
 
-from engine.video import Blit, SH, Store, SW
+from engine.video import Blit, DrawDot, DrawLine, FillBox, SH, Store
+from engine.video import SW, Txt
 from barkley.model.images import IAM, IAP, IBIN, IBONE, ICHAIR
 from barkley.model.images import ICHIMNEY, IDASH, IFORT, IGEYSER
 from barkley.model.images import IGOAL, IGOLD, IHEAP, IHUD, IICICLE
@@ -51,7 +52,7 @@ from barkley.stage.zones.quarter import DrawPouncer, DrawSmoke
 from barkley.stage.zones.quarter import DrawTipper, SnatchPic
 from barkley.stage.hero.modes import FLUEH
 from barkley.stage.zones.chase import DrawChase
-from barkley.stage.hud import Banner, Hud, Num, Panel, Say, Txt
+from barkley.stage.hud import Banner, Hud, Num, Panel, Say
 from barkley.stage.things.wood import SQAIM
 from barkley.stage.things.pass import Fallen, Risen, TREMBLE
 
@@ -74,13 +75,13 @@ sub Render ( _
     if g.shake > 0 then cy = cy + ((wd.se.ticks and 2) - 1) * 2
     if g.mode <> TITLE then Hud wd.art, g, GoldFound%(wd)
     DrawBack wd.zn, wd.art, cx, cy
-    if wd.lv.tide <> NONE then DrawSea wd.lv, cx, cy
+    if wd.lv.tide <> NONE then DrawSea wd.lv, wd.art, cx, cy
     DrawThings wd.lv, wd.zn, wd.art, wd.kinds, wd.se, cx, cy, -1
     DrawTiles wd.lv, wd.zn, wd.art, cx, cy
     DrawThings wd.lv, wd.zn, wd.art, wd.kinds, wd.se, cx, cy, 0
     if wd.lv.n_ropes then DrawLines wd.lv, wd.art, cx, cy
     if wd.lv.stray.st = 2 then DrawStray wd.lv, wd.art, wd.se, cx, cy
-    if wd.lv.n_movers then DrawCables wd.lv, cx, cy
+    if wd.lv.n_movers then DrawCables wd.lv, wd.art, cx, cy
     if wd.se.loose_n then DrawLoose wd.art, wd.se, cx, cy, lo()
     DrawChase wd.lv, wd.zn, wd.art, wd.se, cx, cy
     DrawHero wd.gr, wd.art, wd.se, p, cx, cy
@@ -89,15 +90,15 @@ sub Render ( _
         DrawAvalanche wd.lv, wd.art, wd.se, cx, cy
     end if
 
-    if wd.lv.gale then DrawGale wd.lv, wd.se
-    if wd.lv.murk then DrawFlies wd.lv, wd.se, cx
+    if wd.lv.gale then DrawGale wd.lv, wd.art, wd.se
+    if wd.lv.murk then DrawFlies wd.lv, wd.art, wd.se, cx
     if wd.lv.n_gulls then DrawGulls wd.lv, wd.art, wd.se, cx, cy
-    if wd.lv.n_swarms then DrawBees wd.lv, wd.se, cx, cy
+    if wd.lv.n_swarms then DrawBees wd.lv, wd.art, wd.se, cx, cy
     if wd.lv.n_lobs then DrawLobs wd.lv, wd.art, cx, cy
     if wd.lv.tide <> NONE then DrawSurf wd.lv, wd.art, cx, cy
     DrawOver wd.lv, wd.zn, wd.art, cx, cy
-    if p.bark_t > BARKT - .2 then DrawBark p, cx, cy
-    if wd.se.part_n then DrawParts pt(), cx, cy
+    if p.bark_t > BARKT - .2 then DrawBark wd.art, p, cx, cy
+    if wd.se.part_n then DrawParts wd.art, pt(), cx, cy
 
     select case g.mode
     case TITLE
@@ -107,7 +108,7 @@ sub Render ( _
         if wd.se.reached then
             ' the zone a game starts at, an arrow each way
             ' there is another to pick
-            Panel 0, 165, SW - 1, SH - 1
+            Panel wd.art, 0, 165, SW - 1, SH - 1
             s = ZoneName$(wd.se.pick)
             if wd.se.pick > 0 then s = "< " + s else s = "  " + s
 
@@ -117,54 +118,55 @@ sub Render ( _
                 s = s + "  "
             end if
 
-            Banner 22, s, CWHITE
+            Banner wd.art, 22, s, CWHITE
         else
-            Panel 0, 181, SW - 1, SH - 1
+            Panel wd.art, 0, 181, SW - 1, SH - 1
         end if
 
         if (wd.se.ticks \ 30) and 1 then
-            Banner 24, "PRESS SPACE", CYELLOW
+            Banner wd.art, 24, "PRESS SPACE", CYELLOW
         else
-            Banner 24, "SPACE JUMPS  DOWN ROLLS  X BARKS", CWHITE
+            Banner wd.art, 24, "SPACE JUMPS  DOWN ROLLS  X BARKS", _
+                CWHITE
         end if
     case PLAYING
         Blit wd.art, 6, 5, IHUD, HUDW, HUDH
 
         if p.stun then
-            Say p, cx, cy, "HEY!"
+            Say wd.art, p, cx, cy, "HEY!"
         elseif p.idle_t > 5 then
-            Say p, cx, cy, "C'MON!"
+            Say wd.art, p, cx, cy, "C'MON!"
         elseif p.idle_t > 3 then
-            Say p, cx, cy, "..."
+            Say wd.art, p, cx, cy, "..."
         end if
 
         if g.mode_t < 2.6 then
             x = cint(g.mode_t * 900) - SW
             if x > 0 then x = 0
             if g.mode_t > 2.2 then x = cint((g.mode_t - 2.2) * 900)
-            line (x, 84)-(x + SW - 1, 110), CSCARF, BF
-            line (x, 84)-(x + SW - 1, 85), CGOLD + 3, BF
-            line (x, 109)-(x + SW - 1, 110), CGOLD + 3, BF
+            FillBox wd.art, x, 84, x + SW - 1, 110, CSCARF
+            FillBox wd.art, x, 84, x + SW - 1, 85, CGOLD + 3
+            FillBox wd.art, x, 109, x + SW - 1, 110, CGOLD + 3
             Blit wd.art, x + (SW - 178) \ 2, 89, wd.zn.card, 178, 18
 
             if (wd.zn.stage and 1) and x = 0 then
-                Txt 14, 17, "ACT 2", CYELLOW
+                Txt wd.art, 14, 17, "ACT 2", CYELLOW
             end if
         end if
     case CLEARED
         Blit wd.art, 6, 5, IHUD, HUDW, HUDH
         ' up and to the right: under it Charlie meets its
         ' family
-        Panel 116, 4, 315, 36
-        Txt 2, 27 - (len(ZoneName$(wd.zn.id)) + 8) \ 2, _
+        Panel wd.art, 116, 4, 315, 36
+        Txt wd.art, 2, 27 - (len(ZoneName$(wd.zn.id)) + 8) \ 2, _
             ZoneName$(wd.zn.id) + " CLEARED", CYELLOW
-        Txt 3, 22, "BONUS " + Num$(g.bonus, 6), CWHITE
-        Txt 4, 22, "SCORE " + Num$(g.score, 6), CWHITE
-        if p.win then Say p, cx, cy, "WOOF!"
+        Txt wd.art, 3, 22, "BONUS " + Num$(g.bonus, 6), CWHITE
+        Txt wd.art, 4, 22, "SCORE " + Num$(g.score, 6), CWHITE
+        if p.win then Say wd.art, p, cx, cy, "WOOF!"
     case OVER
         Blit wd.art, 6, 5, IHUD, HUDW, HUDH
-        Panel 108, 68, 211, 92
-        Banner 10, "GAME OVER", CYELLOW
+        Panel wd.art, 108, 68, 211, 92
+        Banner wd.art, 10, "GAME OVER", CYELLOW
     end select
 end sub
 
@@ -268,9 +270,11 @@ sub DrawThings ( _
         case KCHIMNEY
             ' the way out smokes
             Blit art, x - 9, y - 31, ICHIMNEY, 18, 32
-            if lv.things(i).state = 0 then DrawSmoke se, x, y - FLUEH
+            if lv.things(i).state = 0 then
+                DrawSmoke art, se, x, y - FLUEH
+            end if
         case KVINE
-            DrawVine x, y, lv.things(i).state / 100
+            DrawVine art, x, y, lv.things(i).state / 100
         case KGOAL
             f = 0
             if lv.things(i).state then f = (se.ticks \ 4) and 3
@@ -376,12 +380,12 @@ sub DrawThings ( _
             Blit art, x - 8, y - 18 + ((se.ticks \ 20) and 1), _
                 IJELLY - 2 * (lv.things(i).state > 1), 16, 18
         case KSPIN
-            line (x - 1, y - SPINH)-(x, y - 1), CINK, BF
+            FillBox art, x - 1, y - SPINH, x, y - 1, CINK
             a = se.ticks * .06 + lv.things(i).at.x
 
             for f = 1 to 3
-                pset (x + cint(SPINR * f / 4 * cos(a)), _
-                    y - SPINH + cint(SPINR * f / 4 * sin(a))), CWHITE
+                DrawDot art, x + cint(SPINR * f / 4 * cos(a)), _
+                    y - SPINH + cint(SPINR * f / 4 * sin(a)), CWHITE
             next
 
             Blit art, x - 4, y - SPINH - 4, ISPIN + 2, 8, 8
@@ -397,7 +401,12 @@ end sub
 
 ' The cables, their posts, and what hangs from them: a
 ' basket by its two lines, a chair by its hanger and grip.
-private sub DrawCables (lv as Level, cx as integer, cy as integer)
+private sub DrawCables ( _
+    lv as Level, _
+    art as Store, _
+    cx as integer, _
+    cy as integer _
+)
     dim m as integer, x as integer, y as integer, x1 as integer
     dim bx as integer, by as integer, i as integer
     dim d as integer
@@ -412,23 +421,23 @@ private sub DrawCables (lv as Level, cx as integer, cy as integer)
         d = Dip%(lv, m)
         if x >= SW or x1 < 0 then continue for
 
-        line (x, y)-(x1, y + d), CINK
-        line (x, y + 1)-(x1, y + d + 1), CYELLOW
-        line (x - 1, y - 2)-(x, y + CABLEH), CINK, BF
-        line (x1, y + d - 2)-(x1 + 1, y + d + CABLEH), CINK, BF
+        DrawLine art, x, y, x1, y + d, CINK
+        DrawLine art, x, y + 1, x1, y + d + 1, CYELLOW
+        FillBox art, x - 1, y - 2, x, y + CABLEH, CINK
+        FillBox art, x1, y + d - 2, x1 + 1, y + d + CABLEH, CINK
         bx = lv.things(lv.movers(m).thing).at.x - cx
         by = lv.things(lv.movers(m).thing).at.y - cy
 
         if lv.movers(m).kind = 3 then
             for i = 4 to MOVEW - 4 step MOVEW - 8
-                line (bx + i, by)-(bx + i, _
-                    y + 1 + clng(bx + i - x) * d \ (x1 - x)), CINK
+                DrawLine art, bx + i, by, bx + i, _
+                    y + 1 + clng(bx + i - x) * d \ (x1 - x), CINK
             next
         else
             bx = bx + MOVEW \ 2
             i = y + clng(bx - x) * d \ (x1 - x)
-            line (bx - 1, i)-(bx, by - SEATH), CINK, BF
-            line (bx - 3, i - 1)-(bx + 2, i + 2), CINK, BF
+            FillBox art, bx - 1, i, bx, by - SEATH, CINK
+            FillBox art, bx - 3, i - 1, bx + 2, i + 2, CINK
         end if
     next
 end sub
@@ -454,7 +463,12 @@ private sub DrawLoose ( _
     next
 end sub
 
-sub DrawParts (pt() as Part, cx as integer, cy as integer)
+sub DrawParts ( _
+    art as Store, _
+    pt() as Part, _
+    cx as integer, _
+    cy as integer _
+)
     dim i as integer, x as integer, y as integer
 
     for i = 0 to NPART - 1
@@ -465,8 +479,8 @@ sub DrawParts (pt() as Part, cx as integer, cy as integer)
         if x < 0 or x >= SW - 1 or y < 0 _
             or y >= SH - 1 then continue for
 
-        pset (x, y), pt(i).c
-        if pt(i).t > .25 then pset (x + 1, y), pt(i).c
+        DrawDot art, x, y, pt(i).c
+        if pt(i).t > .25 then DrawDot art, x + 1, y, pt(i).c
     next
 end sub
 

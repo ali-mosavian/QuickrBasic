@@ -3,6 +3,7 @@
 defint A-Z
 option explicit
 
+from engine.video import DrawCircle, DrawDot, DrawLine, FillBox, Store
 from engine.video import SW
 from engine.events import Events
 from barkley.model.hero import Hero
@@ -202,6 +203,7 @@ end sub
 ' its own, its wings over it.
 sub DrawBees ( _
     lv as Level, _
+    art as Store, _
     se as Session, _
     cx as integer, _
     cy as integer _
@@ -217,10 +219,10 @@ sub DrawBees ( _
                 + cint(13 * sin(se.ticks * .21 + j * 2.4)) - 2
             y = cint(lv.swarms(i).at.y) - cy _
                 + cint(9 * cos(se.ticks * .17 + j * 1.7))
-            line (x, y)-(x + 3, y + 1), CBEE, BF
-            line (x + 1, y)-(x + 1, y + 1), CINK
-            line (x + 3, y)-(x + 3, y + 1), CINK
-            line (x + 1, y - 2)-(x + 2, y - 1), CWING, BF
+            FillBox art, x, y, x + 3, y + 1, CBEE
+            DrawLine art, x + 1, y, x + 1, y + 1, CINK
+            DrawLine art, x + 3, y, x + 3, y + 1, CINK
+            FillBox art, x + 1, y - 2, x + 2, y - 1, CWING
         next
     next
 end sub
@@ -228,28 +230,33 @@ end sub
 ' A vine hung from x, y on the screen, swung a radians from
 ' straight down: two strands, a leaf to each side turn
 ' about, a loop at its end.
-sub DrawVine (x as integer, y as integer, a as single)
+sub DrawVine (art as Store, x as integer, y as integer, a as single)
     dim j as integer, u as integer, v as integer
 
     for j = 0 to VINELEN
         u = x + cint(j * sin(a))
         v = y + cint(j * cos(a))
-        pset (u, v), CVINE
-        pset (u + 1, v), CVINED
+        DrawDot art, u, v, CVINE
+        DrawDot art, u + 1, v, CVINED
 
         if j mod 7 <> 3 then continue for
 
-        line (u + 2 - 5 * ((j \ 7) and 1), v) _
-            -(u + 3 - 5 * ((j \ 7) and 1), v + 1), CVINE, bf
+        FillBox art, u + 2 - 5 * ((j \ 7) and 1), v, _
+            u + 3 - 5 * ((j \ 7) and 1), v + 1, CVINE
     next
 
-    circle (u, v + 3), 3, CVINE
+    DrawCircle art, u, v + 3, 3, CVINE
 end sub
 
 ' The wood's fireflies over the view, drifting, each dark a
 ' moment in turn: a few at rest, and all of them, haloed,
 ' while a bark's light lasts.
-sub DrawFlies (lv as Level, se as Session, cx as integer)
+sub DrawFlies ( _
+    lv as Level, _
+    art as Store, _
+    se as Session, _
+    cx as integer _
+)
     dim j as integer, x as integer, y as integer
 
     for j = 0 to FLYREST + (NFLY - FLYREST) * lv.glow_at \ GLOWN - 1
@@ -261,14 +268,14 @@ sub DrawFlies (lv as Level, se as Session, cx as integer)
             + cint(4 * sin(se.ticks * .031 + j * 2))
 
         if lv.glow_at = 0 then
-            pset (x, y), CFLY
+            DrawDot art, x, y, CFLY
             continue for
         end if
 
-        pset (x, y), CFLY + 1
-        pset (x - 1, y), CFLY
-        pset (x + 1, y), CFLY
-        pset (x, y - 1), CFLY
-        pset (x, y + 1), CFLY
+        DrawDot art, x, y, CFLY + 1
+        DrawDot art, x - 1, y, CFLY
+        DrawDot art, x + 1, y, CFLY
+        DrawDot art, x, y - 1, CFLY
+        DrawDot art, x, y + 1, CFLY
     next
 end sub

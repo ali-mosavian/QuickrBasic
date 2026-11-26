@@ -24,7 +24,6 @@ type Game
     mode_t as single
     shake as single
     home as Spot
-    page as integer
     quitting as integer
 end type
 
@@ -61,10 +60,11 @@ end type
 
 ' The colours: the shared ones as built, each stage's own
 ' over them (how many, which, what), and those shown, dusk
-' sixteenths of them.
+' sixteenths of them, as the VGA's.
 type Tones
     day(255) as long
     now(255) as long
+    shown(255) as long
     n() as integer
     which() as integer
     own() as long

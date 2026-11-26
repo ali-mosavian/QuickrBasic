@@ -3,7 +3,7 @@
 defint A-Z
 option explicit
 
-from engine.video import Blit, Store, SW
+from engine.video import Blit, FillBox, Store, SW
 from engine.events import Events
 from barkley.model.images import IBRACKET, ICART, ICARTW, ICAT, ICRANE
 from barkley.model.images import IDUNKED, IFROST, IKNOT, ILIMB, IOAK
@@ -286,8 +286,8 @@ private sub DrawRelay ( _
     Blit art, x + a - 10, y - 17 - up, k, 20, 18
 
     for i = leg to NLEG - 1
-        line (x - 18 + i * 8, y - 40)-(x - 14 + i * 8, y - 36), _
-            CYELLOW, BF
+        FillBox art, x - 18 + i * 8, y - 40, x - 14 + i * 8, _
+            y - 36, CYELLOW
     next
 end sub
 
@@ -416,8 +416,8 @@ private sub DrawTwins ( _
     DrawKeep zn, art, bx, by
 
     for i = lv.cart.hits to NBUMP - 1
-        line (bx - 10 + i * 8, by - 22)-(bx - 6 + i * 8, by - 18), _
-            CYELLOW, BF
+        FillBox art, bx - 10 + i * 8, by - 22, bx - 6 + i * 8, _
+            by - 18, CYELLOW
     next
 end sub
 
@@ -450,8 +450,8 @@ private sub DrawFrost ( _
         + 2) * 2, 34, 65
 
     for i = lv.cart.hits to NBUMP - 1
-        line (x - 10 + i * 8, y - 40)-(x - 6 + i * 8, y - 36), _
-            CYELLOW, BF
+        FillBox art, x - 10 + i * 8, y - 40, x - 6 + i * 8, y - 36, _
+            CYELLOW
     next
 end sub
 
@@ -494,8 +494,8 @@ private sub DrawPedalo ( _
     Blit art, x - 26, y - 22, IPEDAL - 2 * (lv.cart.t > BOLTS), 52, 34
 
     for i = lv.cart.hits to NBUMP - 1
-        line (x - 10 + i * 8, y - 34)-(x - 6 + i * 8, y - 30), _
-            CYELLOW, BF
+        FillBox art, x - 10 + i * 8, y - 34, x - 6 + i * 8, y - 30, _
+            CYELLOW
     next
 end sub
 
@@ -540,8 +540,8 @@ private sub DrawCart ( _
     DrawWheels lv, art, x, cy
 
     for i = lv.cart.hits to NBUMP - 1
-        line (x - 10 + i * 8, y - 50)-(x - 6 + i * 8, y - 46), _
-            CYELLOW, BF
+        FillBox art, x - 10 + i * 8, y - 50, x - 6 + i * 8, y - 46, _
+            CYELLOW
     next
 end sub
 
@@ -656,8 +656,8 @@ private sub DrawCrane ( _
     end if
 
     for i = lv.cart.hits to NBUMP - 1
-        line (x - 10 + i * 8, y - 7)-(x - 6 + i * 8, y - 3), _
-            CYELLOW, BF
+        FillBox art, x - 10 + i * 8, y - 7, x - 6 + i * 8, y - 3, _
+            CYELLOW
     next
 
     if lv.box.st = 0 and lv.box.t > 0 then exit sub

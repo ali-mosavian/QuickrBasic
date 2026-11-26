@@ -3,7 +3,7 @@
 defint A-Z
 option explicit
 
-from engine.video import Blit, SH, Store, SW
+from engine.video import Blit, FillBox, SH, Store, SW
 from engine.events import Events
 from barkley.model.images import IBONE, ICRAB, IGULL, IRUNNEL, ISPOUT
 from barkley.model.images import ISURF
@@ -181,7 +181,7 @@ end sub
 ' The sea in each column whose ground is under it: bands of
 ' water from its surface down behind the column's top tile,
 ' a run of columns alike at a time.
-sub DrawSea (lv as Level, cx as integer, cy as integer)
+sub DrawSea (lv as Level, art as Store, cx as integer, cy as integer)
     dim tx as integer, tx0 as integer, tx1 as integer, y0 as integer
     dim y1 as integer, x0 as integer, x1 as integer
 
@@ -203,10 +203,10 @@ sub DrawSea (lv as Level, cx as integer, cy as integer)
             y1 = (lv.top(tx0) + 1) * TS - 1 - cy
             x0 = tx0 * TS - cx
             x1 = tx * TS + TS - 1 - cx
-            SeaBand x0, x1, y0, y0 + 1, y1, CSEA + 1
-            SeaBand x0, x1, y0 + 2, y0 + 7, y1, CSEA + 2
-            SeaBand x0, x1, y0 + 8, y0 + 25, y1, CSEA + 3
-            SeaBand x0, x1, y0 + 26, SH - 1, y1, CSEA + 4
+            SeaBand art, x0, x1, y0, y0 + 1, y1, CSEA + 1
+            SeaBand art, x0, x1, y0 + 2, y0 + 7, y1, CSEA + 2
+            SeaBand art, x0, x1, y0 + 8, y0 + 25, y1, CSEA + 3
+            SeaBand art, x0, x1, y0 + 26, SH - 1, y1, CSEA + 4
         end if
 
         tx = tx + 1
@@ -216,6 +216,7 @@ end sub
 ' Rows a to b of a band of the sea, of colour c, no lower
 ' than row last or the screen's foot.
 private sub SeaBand ( _
+    art as Store, _
     x0 as integer, _
     x1 as integer, _
     a as integer, _
@@ -230,7 +231,7 @@ private sub SeaBand ( _
     if y0 < 0 then y0 = 0
     if y1 > last then y1 = last
     if y1 > SH - 1 then y1 = SH - 1
-    if y0 <= y1 then line (x0, y0)-(x1, y1), c, BF
+    if y0 <= y1 then FillBox art, x0, y0, x1, y1, c
 end sub
 
 ' The water's edge over what is in it: foam and the first of
@@ -253,8 +254,8 @@ sub DrawSurf (lv as Level, art as Store, cx as integer, cy as integer)
         if deep >= 7 then
             Blit art, tx * TS - cx, y, ISURF, TS, 8
         else
-            line (tx * TS - cx, y + 1)-(tx * TS - cx + TS - 1, _
-                y + 1), CSEA, BF
+            FillBox art, tx * TS - cx, y + 1, _
+                tx * TS - cx + TS - 1, y + 1, CSEA
         end if
     next
 end sub

@@ -2,7 +2,7 @@
 defint A-Z
 option explicit
 
-from engine.video import Blit, Store, SW
+from engine.video import Blit, DrawArc, DrawLine, Store, SW
 from barkley.model.images import IGOATR, IHERO, ILOG, ISLED, ISNOWBALL
 from barkley.model.images import ITILT, ITW, NF
 from barkley.model.hero import Hero
@@ -127,8 +127,9 @@ end sub
 
 ' The bark, seen: two arcs before his muzzle, wider as it
 ' goes.
-sub DrawBark (p as Hero, cx as integer, cy as integer)
+sub DrawBark (art as Store, p as Hero, cx as integer, cy as integer)
     dim x as integer, y as integer, r as integer, a as single
+    dim b as single
 
     x = cint(p.at.x) - cx + (1 - 2 * p.face) * 12
     y = cint(p.at.y) - cy - 18
@@ -136,9 +137,9 @@ sub DrawBark (p as Hero, cx as integer, cy as integer)
     ' a quarter turn about the way he faces: to the right
     ' through 0, to the left about PI
     a = PI * (7 / 4 - p.face)
-    circle (x, y), r, CWHITE, a, a + PI / 2 - 2 * PI * (1 - p.face)
-    circle (x, y), r + 4, CWHITE, a, _
-        a + PI / 2 - 2 * PI * (1 - p.face)
+    b = a + PI / 2 - 2 * PI * (1 - p.face)
+    DrawArc art, x, y, r, a, b, CWHITE
+    DrawArc art, x, y, r + 4, a, b, CWHITE
 end sub
 
 sub DrawHero ( _
@@ -163,7 +164,7 @@ sub DrawHero ( _
     if p.ground then v = p.gsp
 
     if abs(v) > 400 and not p.dead then
-        SpeedLines se, x, y - cint(14 * hu), sgn(v)
+        SpeedLines art, se, x, y - cint(14 * hu), sgn(v)
     end if
 
     f = HeroFrame%(se, p)
@@ -228,6 +229,7 @@ end sub
 ' The air he cuts at speed: four lines behind him, d the way
 ' he goes, about height y.
 private sub SpeedLines ( _
+    art as Store, _
     se as Session, _
     x as integer, _
     y as integer, _
@@ -238,7 +240,7 @@ private sub SpeedLines ( _
     for j = 0 to 3
         sy = y - 12 + (se.ticks * 7 + j * 11) mod 22
         n = 12 + (se.ticks * 5 + j * 9) mod 18
-        line (x - d * 14, sy)-(x - d * (14 + n), sy), CWHITE
+        DrawLine art, x - d * 14, sy, x - d * (14 + n), sy, CWHITE
     next
 end sub
 

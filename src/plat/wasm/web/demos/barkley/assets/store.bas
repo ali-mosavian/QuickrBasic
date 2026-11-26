@@ -4,8 +4,8 @@ defint A-Z
 option explicit
 
 from engine.datafile import OpenData, Word
-from engine.video import Flop, Grab, MaskGrab, Mirror, ReadZones
-from engine.video import Reuse, Seal, Store, Unpack
+from engine.video import Flop, Mirror, NewPic, PicText, ReadZones
+from engine.video import Reuse, Seal, SkipPic, Store, Unpack
 from barkley.model.images import IGLYPH, IHUD, ITILT, NGLYPH
 from barkley.model.game import Tones
 from barkley.assets.palette import CINK, CWHITE, CYELLOW, KeepDay
@@ -15,18 +15,17 @@ const HUDW = 108
 const HUDH = 40
 
 ' The pictures every zone shows: CHARLIE.DAT's, then those
-' built from them or drawn here on the hidden page. A zone's
-' own come after them with its level.
+' built from them or drawn here. A zone's own come after
+' them with its level.
 sub BuildArt (art as Store, tn as Tones)
     dim i as integer
 
-    cls
     LoadArt art, tn
 
     ' the turned run, as drawn and mirrored: each upside
     ' down too, for the far side of a loop
     for i = 0 to 159
-        Flop art, ITILT + i, ITILT + 160 + i, 32, 32
+        Flop art, ITILT + i, ITILT + 160 + i
     next
 
     BuildGlyphs art
@@ -48,27 +47,23 @@ private sub LoadArt (art as Store, tn as Tones)
 end sub
 
 ' A group of CHARLIE.DAT's pictures, from where the file is,
-' to the store: their count, then each, its mask and its
-' mirror with it.
+' to the store: their count, then each and its mirror. A
+' picture's colour 0 is clear, so its mask is passed over.
 private sub ReadPics (art as Store)
-    dim n as integer, i as integer, k as integer, w as integer
-    dim h as integer, masked as integer, k2 as integer
+    dim n as integer, i as integer, k as integer
+    dim masked as integer, k2 as integer
 
     n = Word&(art.dat)
 
     for i = 1 to n
         k = Word&(art.dat)
-        w = Word&(art.dat)
-        h = Word&(art.dat)
+        ' its width and height, which its picture holds
+        seek #art.dat.num, seek(art.dat.num) + 8
         masked = Word&(art.dat)
         k2 = Word&(art.dat)
         Unpack art, k
-        if masked then Unpack art, k + 1
-
-        if k2 < 0 then continue for
-
-        Mirror art, k, k2, w, h
-        Mirror art, k + 1, k2 + 1, w, h
+        if masked then SkipPic art
+        if k2 >= 0 then Mirror art, k, k2
     next
 end sub
 
@@ -85,41 +80,23 @@ sub LoadZoneArt (art as Store, z as integer)
 end sub
 
 ' The HUD's characters, each 9 by 9 over a shadow: yellow,
-' then white. And room for the HUD's picture and mask.
+' then white. And the HUD's picture.
 private sub BuildGlyphs (art as Store)
-    dim i as integer, x as integer, y as integer, c as integer
-    dim ink as integer
+    dim i as integer, c as integer, ink as integer, k as integer
+    dim ch as string
 
     for c = 0 to 1
         ink = CYELLOW
         if c then ink = CWHITE
 
         for i = 0 to NGLYPH - 1
-            line (0, 0)-(8, 8), 0, BF
-            color CWHITE
-            locate 24, 1
-            print mid$("0123456789:xABCDEHILMNOPRST", i + 1, 1);
-
-            for y = 0 to 7
-                for x = 0 to 7
-                    if point(x, 184 + y) = 0 then continue for
-
-                    pset (x + 1, y + 1), CINK
-                next
-            next
-
-            for y = 0 to 7
-                for x = 0 to 7
-                    if point(x, 184 + y) then pset (x, y), ink
-                next
-            next
-
-            MaskGrab art, 0, 0, 9, 9, 20, 0, _
-                IGLYPH + (c * NGLYPH + i) * 2
+            k = IGLYPH + (c * NGLYPH + i) * 2
+            ch = mid$("0123456789:xABCDEHILMNOPRST", i + 1, 1)
+            NewPic art, k, 9, 9
+            PicText art, k, 1, 1, ch, CINK
+            PicText art, k, 0, 0, ch, ink
         next
     next
 
-    line (0, 184)-(8, 191), 0, BF
-    Grab art, 0, 0, HUDW - 1, HUDH - 1, IHUD
-    Grab art, 0, 0, HUDW - 1, HUDH - 1, IHUD + 1
+    NewPic art, IHUD, HUDW, HUDH
 end sub

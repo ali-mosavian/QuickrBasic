@@ -30,8 +30,8 @@ a small engine any demo can use, and a game over it.
 | Subsystem | Record | Module | Does |
 |---|---|---|---|
 | Clock | `Clock` | `engine/clock` | Turns the time that passed into steps of 1/60 s |
-| Screen | none: the display | `engine/video` | Mode 13 on two pages, and the flip |
-| Pictures | `Store` | `engine/video` | Unpacks pictures from the data file; grabs, mirrors and blits them |
+| Screen | none: the display | `engine/video` | A 320x200 gfx canvas, and the flip |
+| Pictures | `Store` | `engine/video` | Unpacks pictures from the data file into gfx surfaces; blits them, mirrored or flipped |
 | Keys | `Keys` | `engine/input` | Held keys from the port, or from `INKEY$`'s repeats |
 | Sound | `Deck` | `engine/audio` | Songs from the data file, fed to `PLAY` half a bar at a time |
 | Data | `DataFile` | `engine/datafile` | Words and strings from the data file |
