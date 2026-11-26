@@ -58,6 +58,8 @@ export class GpuLink {
 
   close() { this.post({ gpu: null }); }
 
+  hide(hidden) { this.post({ gpuHidden: hidden }); }
+
   // The list posted: true when it shows a texture.
   play(list, words) {
     const w = new Uint32Array(this.memory.buffer, list, words);
@@ -120,7 +122,7 @@ export class Gpu {
     this.canvas.height = this.h = h;
     this.state();
     this.shown = this.made(w, h, RGBA);
-    this.showing = false;
+    this.showing = this.hidden = false;
   }
 
   close() {
@@ -133,7 +135,7 @@ export class Gpu {
     this.buffers.clear();
     this.pipelines.clear();
     this.shown = null;
-    this.showing = false;
+    this.showing = this.hidden = false;
   }
 
   // What the draws last bound, none.

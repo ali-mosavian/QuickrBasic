@@ -138,6 +138,8 @@ worker.onmessage = ({ data }) => {
   } else if ('gpu' in data) {
     if (data.gpu) gpu.open(data.gpu.w, data.gpu.h);
     else gpu.close();
+  } else if ('gpuHidden' in data) {
+    gpu.hidden = data.gpuHidden; // the text screen shown in its place
   } else if ('fullscreen' in data) {
     fullscreen(data.fullscreen);
   } else if ('file' in data) {
@@ -196,7 +198,7 @@ canvas.addEventListener('pointerup', (e) => {
 });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 function draw(now) {
-  const played = gpu?.showing;
+  const played = gpu?.showing && !gpu.hidden;
   const at = played ? 0 : display.frame(Math.floor(now / BLINK_MS) % 2 === 0 ? 1 : 0);
   const [w, h, cellH] = played ? [gpu.w, gpu.h, 0] : new Uint32Array(memory.buffer, at, 3);
   cell = cellH;

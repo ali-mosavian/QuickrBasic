@@ -295,14 +295,15 @@ TEST(record_arrays_take_every_region)
     CHECK(two_regions_print(lines, " 1  4 -1 \r-1 \r"));
 }
 
-/* An array past pmem's free room takes the strings' heap's spare: 42 MB of strings grew it, and
-   gone, a 40 MB array fits only in what they had. */
+/* An array past pmem's free room takes the strings' heap's spare: 37.5 MB of strings grew it, and
+   gone, a 36 MB array fits only in what they had. Room is left for an extension an earlier test
+   loaded: at 42 MB and 40 MB, gfx's 1.2 MB made it Out of memory. */
 TEST(strings_heap_gives_its_room_to_an_array)
 {
     static const char *const lines[] = {
-        "10 DIM a$(1400): FOR i = 1 TO 1400: a$(i) = STRING$(30000, 120): NEXT",
-        "20 s$ = a$(5) + \"y\": ERASE a$: REDIM b#(5000000): b#(5000000) = 1",
-        "30 PRINT b#(5000000); LEN(s$); RIGHT$(s$, 2)",
+        "10 DIM a$(1250): FOR i = 1 TO 1250: a$(i) = STRING$(30000, 120): NEXT",
+        "20 s$ = a$(5) + \"y\": ERASE a$: REDIM b#(4500000): b#(4500000) = 1",
+        "30 PRINT b#(4500000); LEN(s$); RIGHT$(s$, 2)",
         nullptr,
     };
 

@@ -364,8 +364,7 @@ static void report(Session *const S, const uint8_t code)
         return;
     }
 
-    flow_drop_calls(S);
-    S->vm.cont.line = 0;
+    session_drop_stop(S);
     (line != DLINE ? dial_line(&S->prog, line) : &dialect_qbasic)->report(S, code);
 }
 
@@ -403,12 +402,16 @@ void repl_cont(Session *const S)
     exec_run(S);
 }
 
-/* An error's end: the stacks reset, the console's channels again. */
+/* An error's end: the stacks reset, the console's channels again. A stop (E_BRK) can continue: its
+   extensions run on till the stop is dropped (session_drop_stop). */
 static void reset(Session *const S)
 {
     S->vm.err.active = false;
     S->vm.running = false; /* its loop's frame is gone */
-    natv_stop(&S->natv);
+
+    if (S->repl.err != E_BRK)
+        natv_stop(&S->natv);
+
     chnl_clear(&S->chnl);
     cons_fresh(&S->cons);
     S->vm.sp = flow_stack_base(&S->vm); /* below a stop's frames, which CONT and probes keep */

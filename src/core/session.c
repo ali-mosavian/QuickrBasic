@@ -67,6 +67,7 @@ void session_drop_stop(Session *const S)
 {
     flow_drop_calls(S);
     S->vm.cont.line = 0;
+    natv_stop(&S->natv);
 }
 
 bool session_set_next(Session *const S, const uint32_t line)
@@ -300,6 +301,7 @@ void session_clear(Session *const S)
 
 void session_drop(Session *const S)
 {
+    natv_stop(&S->natv); /* a stop's run ends */
     S->vm.cont.line = 0;
     S->link.cursor = 0;
     S->link.linked = false;

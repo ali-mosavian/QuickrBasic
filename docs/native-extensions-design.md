@@ -153,7 +153,7 @@ typedef struct {
     const QxEntry *entries; uint32_t nentries;
     const QxType *types; uint32_t ntypes;
     void (QX_CALL *start)(void);  /* a run starts: RUN's defaults */
-    void (QX_CALL *stop)(void);   /* it ends: END, an error, Break, CHAIN, an edit */
+    void (QX_CALL *stop)(void);   /* it ends: END, an error, CHAIN, its stop dropped (an edit) */
 } QxModule;
 
 typedef struct QxHost {
