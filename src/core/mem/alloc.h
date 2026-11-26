@@ -7,7 +7,6 @@
 enum { NBLKH = 8 };                        /* blocks at most */
 enum { HCACHE = 0, HPROG = 1, HLMAP = 2 }; /* the code cache's, the store's, the editor's map's */
 enum {
-    OLDHDRSZ = 0x2400, /* the asm's headers' region, unused: the Addrs after it kept */
     CSSZ = 0x1C00,     /* the control stack, under cs_top (CSLIM .. CSTOP) */
     POKESZ = 0x10000,
 };

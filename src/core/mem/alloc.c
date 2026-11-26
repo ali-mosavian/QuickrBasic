@@ -23,7 +23,7 @@
  * | alloc_grow (EAX, ECX; CF) | allo_grow(h, size) | MIRROR; D2 |
  * | alloc_sel, sel_set, mm.peekseg | | D1 |
  * | plt_heap's hbot/htop | pmem_init, then allo_init | MIRROR |
- * | g_dsb+0BC00h HDRBASE, HDRLIM | OLDHDRSZ, unused | MOVED: mem/array.c's heap blocks |
+ * | g_dsb+0BC00h HDRBASE, HDRLIM | | MOVED: mem/array.c's heap blocks |
  * | CSLIM, CSTOP | Allo.cs_lim, Allo.cs_top | MIRROR |
  * | g_pokeb | Allo.poke (POKESZ), taken at the first SYS | MIRROR |
  * | g_tmpd, sg.tmplin | Strg.tmp | MOVED: strg_init (mem/string.c) |
@@ -56,7 +56,7 @@ void allo_init(Allo *const al, Fault *const f)
 
     al->bot = al->arrays = addr_of(heap);
     al->top = al->strings = al->bot + HEAP_FIRST;
-    al->cs_lim = allo_carve(al, OLDHDRSZ + CSSZ + CSTAIL) + OLDHDRSZ;
+    al->cs_lim = allo_carve(al, CSSZ + CSTAIL);
     al->cs_top = al->cs_lim + CSSZ;
 }
 
