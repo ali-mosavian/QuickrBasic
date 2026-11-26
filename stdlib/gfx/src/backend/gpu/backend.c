@@ -9,7 +9,9 @@
  * centres it covers, as software's. A line covers software's pixels, one a step along its longer
  * side. A circle or an arc is one box, the shader keeping the pixels disc.h's rule covers. A
  * polygon's corners carry their depth, 1/z, and, in perspective, their z as w, so the GPU steps
- * texels and depth as software's scanner does; clear_depth draws depth 0 and no colour.
+ * texels and depth as software's scanner does; clear_depth draws depth 0 and no colour. On a
+ * fixed host (fixed.h) an index is drawn as its colour through row 0, and a circle or an arc as
+ * its rows.
  */
 #include "base/disc.h"
 #include "core/gfx.h"
@@ -120,15 +122,19 @@ static void box(
     quad(t, template, (const Vec[]){{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}}, nullptr);
 }
 
-/* An index as a vertex's r, g and b. */
-static uint32_t spread(const uint32_t index) { return (index & 0xFF) * 0x010101u; }
+/* An index as a vertex's r, g and b: for the shader, itself in each; on a fixed host, its colour
+   through row 0. */
+static uint32_t spread(const Gpu *const g, const uint32_t index)
+{
+    return g->fixed ? g->pal->rows[0][index & 0xFF] & PAL_WHITE : (index & 0xFF) * 0x010101u;
+}
 
 /* A shape's template: its colour lit and tinted as software's ink draws a texel of it; at 8 bits, an
    index through the lut. */
 static GpuVertex shape(const GpuCall *const t, const uint32_t colour)
 {
     const uint32_t light = t->template.light, index = colour & 0xFF;
-    const uint32_t rgb = t->eight ? spread(t->lut ? t->lut[index] : index)
+    const uint32_t rgb = t->eight ? spread(t->gpu, t->lut ? t->lut[index] : index)
                                   : px_shade(colour, pal_shade(PAL_WHITE, (int32_t)light, t->tint));
     return (GpuVertex){
         .w = 1,
@@ -168,9 +174,9 @@ static bool aim(
 
     GpuSource target;
 
-    return gpu_texture(gp, into, true, &target) &&
+    return gpu_texture(gp, into, true, 0, &target) &&
            (!deep || gpu_depth(gp, into, &target.depth, fresh)) &&
-           gpu_texture(gp, &white, false, blank) &&
+           gpu_texture(gp, &white, false, 0, blank) &&
            gpu_target(gp, target.id, target.depth, into->root.w, into->root.h, in_root) &&
            gpu_palette(gp, &g->palette, map);
 }
@@ -179,7 +185,8 @@ static bool begin(Gx *const g, const Command *const c, const Source *const into,
 {
     const Style *const style = &g->style;
     const PxFormat f = into->root.format;
-    const bool eight = f == PX_8;
+    /* an 8-bit target's colours are indices; the shader works in them, a fixed host in colours */
+    const bool eight = f == PX_8, indices = eight && !gpu(g)->fixed;
     const bool add = c->flags & GFX_DRAW_ADD, mix = !add && c->flags & GFX_DRAW_BLEND;
     /* the pipeline's blend is not narrowed after */
     const bool kept = !add && !mix;
@@ -193,8 +200,8 @@ static bool begin(Gx *const g, const Command *const c, const Source *const into,
 
     /* at 8 bits: the lut, SOLID's index, and the map for a blend or a lut */
     if ((eight && !pal_lut(&g->palette, style->palette_row, style->light, style->tint, &lut)) ||
-        (eight && c->flags & GFX_DRAW_SOLID && !pal_index(&g->palette, paint, &index)) ||
-        !aim(g, into, clip, depth, eight && (add || mix || lut), &fresh, &blank))
+        (indices && c->flags & GFX_DRAW_SOLID && !pal_index(&g->palette, paint, &index)) ||
+        !aim(g, into, clip, depth, indices && (add || mix || lut), &fresh, &blank))
         return gx_fail(ERR_MEMORY);
 
     *call(g) = (GpuCall){
@@ -210,26 +217,28 @@ static bool begin(Gx *const g, const Command *const c, const Source *const into,
                 .stages =
                     (uint16_t)((c->flags & GFX_DRAW_OPAQUE ? 0 : GPU_STAGE_KEYED) |
                                (c->flags & GFX_DRAW_SMOOTH ? GPU_STAGE_SMOOTH : 0) |
-                               (add ? GPU_STAGE_ADD : 0) | (mix && eight ? GPU_STAGE_MIX : 0) |
-                               (eight ? GPU_STAGE_EIGHT : 0) |
+                               (add ? GPU_STAGE_ADD : 0) | (mix && indices ? GPU_STAGE_MIX : 0) |
+                               (indices ? GPU_STAGE_EIGHT : 0) |
                                (kept && f == PX_15 ? GPU_STAGE_FIFTEEN : 0) |
                                (kept && f == PX_16 ? GPU_STAGE_SIXTEEN : 0)),
             },
         .texture = blank.id,
-        .blend = eight ? QX_BLEND_NONE
-                 : add ? QX_BLEND_ADD
-                 : mix ? QX_BLEND_MIX
-                       : QX_BLEND_NONE,
+        .blend = indices ? QX_BLEND_NONE
+                 : add   ? QX_BLEND_ADD
+                 : mix   ? QX_BLEND_MIX
+                         : QX_BLEND_NONE,
         .depth = depth,
         .perspective = c->flags & GFX_DRAW_PERSPECTIVE,
-        .alpha =
-            mix && !eight ? (uint8_t)((style->alpha * ALPHA + PAL_FULL / 2) / PAL_FULL) : ALPHA,
+        /* the shader takes ADD's share itself; a fixed host, the draw's alpha */
+        .alpha = !indices && (mix || (add && gpu(g)->fixed))
+                     ? (uint8_t)((style->alpha * ALPHA + PAL_FULL / 2) / PAL_FULL)
+                     : ALPHA,
         .eight = eight,
         .lut = lut,
         .tint = style->tint,
         .solid = c->flags & GFX_DRAW_SOLID,
-        .paint = eight ? spread(index) : paint,
-        .behind = eight && (mix || add),
+        .paint = indices ? spread(gpu(g), index) : paint,
+        .behind = indices && (mix || add),
     };
 
     return true;
@@ -242,7 +251,7 @@ static bool source(Gx *const g, const Source *const p)
     GpuSource from;
 
     /* at 8 bits, a colour drawn matched by the map */
-    if (!gpu_texture(gpu(g), p, false, &from) ||
+    if (!gpu_texture(gpu(g), p, false, k->row, &from) ||
         (t->eight && (!from.indexed || k->stages & GPU_STAGE_SMOOTH) &&
          !gpu_palette(gpu(g), &g->palette, true)))
         return gx_fail(ERR_MEMORY);
@@ -267,7 +276,7 @@ static void solid(Gx *const g, const uint32_t colour)
     GpuCall *const t = call(g);
     const uint32_t index = colour & 0xFF;
     t->solid = true;
-    t->paint = t->eight ? spread(t->lut ? t->lut[index] : index)
+    t->paint = t->eight ? spread(t->gpu, t->lut ? t->lut[index] : index)
                         : pal_shade(colour, t->template.light, t->tint);
 }
 
@@ -416,8 +425,21 @@ static bool clear_depth(Gx *const g, const Source *const into)
     return true;
 }
 
+/* A disc's rows drawn: the call and their template. */
+typedef struct {
+    const GpuCall *t;
+    GpuVertex template;
+} Rows;
+
+static void row(void *const ctx, const int32_t y, const int32_t x0, const int32_t x1)
+{
+    const Rows *const r = ctx;
+    box(r->t, &r->template, (float)x0 - 0.5f, (float)y - 0.5f, (float)x1 - 0.5f, (float)y + 0.5f);
+}
+
 /* k's pixels, in sweep w unless null: a box past its outer edge, of which the shader keeps those
-   k covers (disc.h). Its centre is the root's: in a view, exact when on a whole or half pixel. */
+   k covers (disc.h); on a fixed host, its rows' runs. Its centre is the root's: in a view, exact
+   when on a whole or half pixel. */
 static void disc(
     const GpuCall *const t,
     const uint32_t colour,
@@ -431,6 +453,13 @@ static void disc(
 
     if (!(k->outer > 0))
         return;
+
+    if (t->gpu->fixed) {
+        Rows rows = {t, d.v};
+
+        disc_runs(k, part ? w : nullptr, t->clip.y, t->clip.y + t->clip.h, row, &rows);
+        return;
+    }
 
     d.v.stages |= (uint16_t)(GPU_STAGE_DISC | (part ? GPU_STAGE_SWEEP : 0) |
                              (part && w->wide ? GPU_STAGE_WIDE : 0));
@@ -538,7 +567,7 @@ static bool screen_open(Gx *const g, const QxScreen *const s, const PxFormat f)
 
     g->own = o;
 
-    if (!page || !o || !gpu_open(&o->gpu, s, f == PX_8) ||
+    if (!page || !o || !gpu_open(&o->gpu, s, f == PX_8, &g->palette) ||
         !surf_open(&g->surfaces, (Pixels){page, pitch, s->w, s->h, f})) {
         if (o)
             gpu_close(&o->gpu);

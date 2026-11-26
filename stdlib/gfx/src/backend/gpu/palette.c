@@ -44,6 +44,9 @@ static bool send_map(Gpu *const g, Palette *const pal)
 
 bool gpu_palette(Gpu *const g, Palette *const pal, const bool map)
 {
+    if (g->fixed) /* its texels carry their colours */
+        return true;
+
     const uint32_t row0 = pal->changed[0] + 1;
     uint32_t changes = 1;
 

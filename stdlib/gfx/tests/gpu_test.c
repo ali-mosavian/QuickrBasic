@@ -20,9 +20,12 @@ static float uniforms[4]; /* the last UNIFORMS' */
 static uint8_t pixels[MOST_PIXELS * 4];
 static QxShader language; /* the one the host takes */
 static bool down;         /* its clip space's y runs down */
+static uint8_t offered;   /* the languages the last screen asked for */
+static uint8_t sent[64];  /* the last UPLOAD's first bytes */
 
 static bool QX_CALL fake_open(QxScreen *const s)
 {
+    offered = s->shaders;
     s->gpu = true;
     s->shader = language;
     s->y_down = down;
@@ -57,6 +60,10 @@ static void QX_CALL fake_play(const uint32_t *const list, const uint32_t n)
             copy(discs, e.arg, sizeof *discs);
         else if (e.op == QX_LIST_UNIFORMS && e.arg[0] == sizeof uniforms)
             memcpy(uniforms, qx_list_pointer(e.arg + 1), sizeof uniforms);
+        else if (e.op == QX_LIST_UPLOAD) {
+            const uint32_t bytes = e.arg[4] * e.arg[5];
+            memcpy(sent, qx_list_pointer(e.arg + 6), bytes < sizeof sent ? bytes : sizeof sent);
+        }
 
     plays++;
 }
@@ -76,6 +83,22 @@ static void QX_CALL fake_read(
 
 #define GPU_CALL(name, ...) CALL_ON(&fake, name __VA_OPT__(, ) __VA_ARGS__)
 
+/* A fake host taking shader, y down or not, the state fresh and no screen open. */
+static void host_in(Session *const S, const QxShader shader, const bool y_down)
+{
+    language = shader;
+    down = y_down;
+    fake = S->natv.host;
+    fake.minor = 5;
+    fake.gfx_open = fake_open;
+    fake.gfx_close = fake_close;
+    fake.gpu_play = fake_play;
+    fake.gpu_read = fake_read;
+    qx_init_gfx(&fake)->stop();
+    nwords = plays = 0;
+    memset(pixels, 0, sizeof pixels);
+}
+
 /* A w by h screen of depth on a fake host taking shader, y down or not, the state fresh. */
 static void screen_in(
     Session *const S,
@@ -86,17 +109,7 @@ static void screen_in(
     const bool y_down
 )
 {
-    language = shader;
-    down = y_down;
-    fake = S->natv.host;
-    fake.minor = 4;
-    fake.gfx_open = fake_open;
-    fake.gfx_close = fake_close;
-    fake.gpu_play = fake_play;
-    fake.gpu_read = fake_read;
-    qx_init_gfx(&fake)->stop();
-    nwords = plays = 0;
-    memset(pixels, 0, sizeof pixels);
+    host_in(S, shader, y_down);
     CHECK(!GPU_CALL("display.open", I(w), I(h), I(depth), I(0)).error);
     CHECK(GPU_CALL("display.features").result.i == (GFX_DISPLAY_HAS_GPU | GFX_DISPLAY_HAS_SMOOTH));
 }
@@ -853,4 +866,150 @@ TEST(gfx_gpu_clears_depth)
     CHECK(arg(QX_LIST_PIPELINE, 0, 2) == (QX_BLEND_KEEP | QX_DEPTH_WRITE << 8));
     CHECK(arg(QX_LIST_DRAW, 0, 5) == 6 && vertices[0].z == 0);
     CHECK(placed(&vertices[0], -0.5f, -0.5f) && placed(&vertices[2], 7.5f, 7.5f));
+}
+
+/* A screen on a host with a fixed-function pipeline. */
+static void fixed_screen(Session *const S, const int32_t w, const int32_t h, const int32_t depth)
+{
+    screen_in(S, w, h, depth, QX_SHADER_FIXED, false);
+}
+
+/* A fixed host is offered at 15, 16 and 32 bits; at 8 none is, as only a shader draws indices. */
+TEST(gfx_gpu_offers_a_fixed_host_direct_colours)
+{
+    for (int32_t depth = 15; depth <= 32; depth = depth == 16 ? 32 : depth + 1) {
+        fixed_screen(S, 8, 8, depth);
+        CHECK(offered & 1 << QX_SHADER_FIXED);
+    }
+
+    screen(S, 8, 8, 8);
+    CHECK(!(offered & 1 << QX_SHADER_FIXED));
+}
+
+/* On a fixed host a keyed sprite's pipeline is state, not code: the texel times the colour, its
+   alpha tested, its attributes known by location. Its root has a texture of its own, and there
+   is no palette's: the list once made the palette's texture and drew from a page. */
+TEST(gfx_gpu_draws_a_fixed_hosts_pipeline_and_own_textures)
+{
+    enum { SOURCE = QX_FIXED_SOURCE + 1, FLAGS = QX_FIXED_FLAGS + 1, AT = QX_PIPELINE_ATTRIBUTES };
+
+    fixed_screen(S, 8, 8, 16);
+    const int32_t a = GPU_CALL("surface.new", I(2), I(2)).result.i;
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(a), I(0));
+    GPU_CALL("display.flip");
+    CHECK(ops(HEAD "TTUPNCTLDSE"));
+    CHECK(arg(QX_LIST_PIPELINE, 0, SOURCE) == QX_FIXED_TEXEL);
+    CHECK(arg(QX_LIST_PIPELINE, 0, FLAGS) == QX_FIXED_KEY);
+    CHECK(arg(QX_LIST_PIPELINE, 0, AT + 1) == QX_FIXED_AT_POSITION);
+    CHECK(arg(QX_LIST_PIPELINE, 0, AT + 7) == QX_FIXED_AT_COLOUR);
+    CHECK(arg(QX_LIST_PIPELINE, 0, AT + 8) == QX_ATTRIBUTE_UBYTE4);
+    CHECK(arg(QX_LIST_PIPELINE, 0, AT + 10) == QX_FIXED_AT_RECT);
+    CHECK(arg(QX_LIST_TEXTURE, 2, 1) == (uint32_t)a && arg(QX_LIST_DRAW, 0, 7) == (uint32_t)a);
+    CHECK(vertices[0].u == 0 && vertices[2].u == 2 && vertices[0].rx == 0);
+
+    GPU_CALL("draw.rect", I(SURF_SCREEN), F(0), F(0), F(1), F(1), I(1), I(GFX_DRAW_FILL));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(a), I(GFX_DRAW_SMOOTH));
+    GPU_CALL("display.flip");
+    CHECK(arg(QX_LIST_PIPELINE, 0, SOURCE) == QX_FIXED_COLOUR);
+    CHECK(arg(QX_LIST_PIPELINE, 0, FLAGS) == 0);
+    CHECK(arg(QX_LIST_PIPELINE, 1, FLAGS) == (QX_FIXED_KEY | QX_FIXED_LINEAR));
+}
+
+/* On a fixed host a texel's colour is lit in its vertices as the shader lights it, the tint by the
+   light over 63, alpha whole; a shape's is as it was. ADD's share is the draw's alpha, as BLEND's:
+   the shader once took it. */
+TEST(gfx_gpu_lights_a_fixed_hosts_vertices)
+{
+    fixed_screen(S, 8, 8, 32);
+    const int32_t a = GPU_CALL("surface.new", I(2), I(2)).result.i;
+    GPU_CALL("draw.set_light", I(31));
+    GPU_CALL("draw.set_tint", I(0x8040FF));
+    GPU_CALL("draw.set_alpha", I(32));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(a), I(GFX_DRAW_ADD));
+    GPU_CALL("display.flip");
+    CHECK(vertices[0].r == 0x80 * 31 / 63 && vertices[0].g == 0x40 * 31 / 63);
+    CHECK(vertices[0].b == 0xFF * 31 / 63 && vertices[0].light == 0xFF);
+    CHECK(arg(QX_LIST_PIPELINE, 0, 2) == QX_BLEND_ADD && arg(QX_LIST_DRAW, 0, 6) == 130);
+}
+
+/* On a fixed host an 8-bit root drawn from is its row's colours, index 0 keyed by alpha, sent
+   again when that row changes or another is drawn through; the shader's took indices. */
+TEST(gfx_gpu_sends_a_fixed_host_8_bit_roots_coloured)
+{
+    uint8_t indices[2] = {0, 5};
+
+    int32_t row[256] = {[5] = 0x102030};
+
+    QxArray in = gfx_array(indices, 2, 1), colours = gfx_array(row, 256, 4);
+
+    host_in(S, QX_SHADER_FIXED, false);
+    const int32_t a = GPU_CALL("surface.new", I(2), I(1)).result.i;
+    CHECK(!GPU_CALL("surface.write", I(a), I(0), I(0), I(2), I(1), ARRAY(&in)).error);
+    CHECK(!GPU_CALL("display.open", I(8), I(8), I(16), I(0)).error);
+    GPU_CALL("display.set_palette", I(0), ARRAY(&colours));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(a), I(0));
+    GPU_CALL("display.flip");
+    CHECK(arg(QX_LIST_TEXTURE, 2, 4) == QX_TEXTURE_RGBA);
+    CHECK(!memcmp(sent, (const uint8_t[]){0, 0, 0, 0, 0x10, 0x20, 0x30, 0xFF}, 8));
+
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(a), I(0));
+    GPU_CALL("display.flip");
+    CHECK(ops(HEAD "PNCDSE"));
+
+    row[5] = 0x405060;
+    GPU_CALL("display.set_palette", I(0), ARRAY(&colours));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(a), I(0));
+    GPU_CALL("display.flip");
+    CHECK(ops(HEAD "PNCUDSE") && !memcmp(sent + 4, (const uint8_t[]){0x40, 0x50, 0x60}, 3));
+
+    GPU_CALL("display.set_palette", I(1), ARRAY(&colours));
+    GPU_CALL("draw.set_palette_row", I(1));
+    GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(a), I(0));
+    GPU_CALL("display.flip");
+    CHECK(ops(HEAD "PNCUDSE"));
+}
+
+/* On a fixed host a circle is its rows, a box each, covering software's pixels: no disc's
+   shader keeps them. */
+TEST(gfx_gpu_draws_a_fixed_hosts_circle_as_its_rows)
+{
+    static const char *const disc[8] = {
+        "........",
+        "..###...",
+        ".#####..",
+        ".#####..",
+        ".#####..",
+        "..###...",
+        "........",
+        "........",
+    };
+
+    fixed_screen(S, 8, 8, 16);
+    GPU_CALL("draw.circle", I(SURF_SCREEN), F(3), F(3), F(2), I(0xFFFFFF), I(GFX_DRAW_FILL));
+    GPU_CALL("display.flip");
+    CHECK(ops(HEAD "TTUPNCLDSE") && arg(QX_LIST_DRAW, 0, 2) == LIST_VERTICES);
+    CHECK(arg(QX_LIST_DRAW, 0, 5) == 5 * 6 && covered(0, disc));
+}
+
+/* On a fixed host an 8-bit surface drawn into holds colours, an index drawn as its colour in row
+   0, read back as the index nearest: the shader's held the index in alpha. */
+TEST(gfx_gpu_reads_a_fixed_hosts_8_bit_surface_as_nearest_indices)
+{
+    int32_t row[256] = {[4] = 0xFF0000, [9] = 0x00FF00};
+
+    QxArray colours = gfx_array(row, 256, 4);
+
+    host_in(S, QX_SHADER_FIXED, false);
+    const int32_t a = GPU_CALL("surface.new", I(2), I(1)).result.i;
+    CHECK(!GPU_CALL("display.open", I(8), I(8), I(32), I(0)).error);
+    GPU_CALL("display.set_palette", I(0), ARRAY(&colours));
+    GPU_CALL("draw.pset", I(a), F(0), F(0), I(4));
+    GPU_CALL("display.flip");
+    CHECK(vertices[0].r == 0xFF && vertices[0].g == 0 && vertices[0].b == 0);
+
+    GPU_CALL("draw.pset", I(a), F(0), F(0), I(4));
+    memcpy(pixels, (const uint8_t[]){0xF8, 0, 0, 0xFF, 0, 0xFC, 0, 0xFF}, 8);
+
+    CHECK(GPU_CALL("surface.point", I(a), I(0), I(0)).result.i == 4);
+    CHECK(GPU_CALL("surface.point", I(a), I(1), I(0)).result.i == 9);
 }

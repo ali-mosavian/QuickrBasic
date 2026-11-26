@@ -2,6 +2,7 @@
 #include "backend/gpu/gpu.h"
 #include "gfx_qx.h"
 #include "backend/gpu/atlas.h"
+#include "backend/gpu/fixed.h"
 #include "backend/gpu/pipelines.h"
 #include "core/mem.h"
 
@@ -28,9 +29,13 @@ static GpuTexture *entry(Gpu *const g, const uint32_t texture)
     return &g->textures[slot];
 }
 
-/* A texel as ARGB, a keyed one's alpha 0; an index, itself in every channel. */
-static uint32_t argb(const PxFormat f, const uint32_t v)
+/* A texel as ARGB, a keyed one's alpha 0; an index, its colour in colours unless null, else itself
+   in every channel. */
+static uint32_t argb(const PxFormat f, const uint32_t v, const uint32_t *const colours)
 {
+    if (f == PX_8 && colours)
+        return (colours[v] & PX_WHITE) | (v ? (uint32_t)OPAQUE << 24 : 0);
+
     if (f == PX_8)
         return v * 0x01010101u;
 
@@ -41,11 +46,13 @@ static uint32_t argb(const PxFormat f, const uint32_t v)
     return px_key(f, v) ? c & PX_WHITE : c;
 }
 
-/* px's texels in format, in the list's kept memory, *pitch bytes a row: null, no memory. */
+/* px's texels in format, an 8-bit one's through colours unless null, in the list's kept memory,
+   *pitch bytes a row: null, no memory. */
 static const uint8_t *texels(
     GpuList *const l,
     const Pixels *const px,
     const QxTextureFormat format,
+    const uint32_t *const colours,
     uint32_t *const pitch
 )
 {
@@ -58,7 +65,7 @@ static const uint8_t *texels(
         for (int32_t x = 0; x < px->w; x++) {
             uint8_t *const o = out + y * *pitch + x * (index ? 1 : RGBA);
             const uint32_t v = px_load(px->p + y * px->pitch + (uint32_t)x * bytes, bytes);
-            const uint32_t c = argb(px->format, v);
+            const uint32_t c = argb(px->format, v, colours);
 
             if (index)
                 o[0] = (uint8_t)v;
@@ -69,7 +76,7 @@ static const uint8_t *texels(
     return out;
 }
 
-bool gpu_open(Gpu *const g, const QxScreen *const s, const bool eight)
+bool gpu_open(Gpu *const g, const QxScreen *const s, const bool eight, Palette *const pal)
 {
     mem_fill(g->textures, 0, g->ntextures * sizeof *g->textures);
 
@@ -95,7 +102,9 @@ bool gpu_open(Gpu *const g, const QxScreen *const s, const bool eight)
     g->count = (GpuCount){};
 
     g->shader = s->shader;
-    g->made = 0;
+    g->fixed = s->shader == QX_SHADER_FIXED;
+    g->pal = pal;
+    mem_fill(g->made, 0, sizeof g->made);
 
     GpuTexture *const canvas = entry(g, SURF_SCREEN);
     const uint32_t made[][4] = {
@@ -103,9 +112,10 @@ bool gpu_open(Gpu *const g, const QxScreen *const s, const bool eight)
         {GPU_PALETTE, PAL_COLOURS, GPU_PALETTE_ROWS, QX_TEXTURE_RGBA},
     };
 
+    /* a fixed host takes no palette: its texels are colours */
     if (!canvas || !pipeline_speaks(s->shader) || !list_init(&g->list) ||
         !list_op(&g->list, QX_LIST_TEXTURE, made[0], 4) ||
-        !list_op(&g->list, QX_LIST_TEXTURE, made[1], 4))
+        (!g->fixed && !list_op(&g->list, QX_LIST_TEXTURE, made[1], 4)))
         return false;
 
     *canvas = (GpuTexture){.handle = SURF_SCREEN, .format = QX_TEXTURE_RGBA};
@@ -124,12 +134,35 @@ void gpu_close(Gpu *const g)
     g->npages = g->cappages = 0;
 }
 
-bool gpu_texture(Gpu *const g, const Source *const p, const bool into, GpuSource *const out)
+/* e, of an 8-bit root drawn from on a fixed host, sent again whole when its row is another, or
+   changed since. */
+static void bake(const Gpu *const g, GpuTexture *const e, const Source *const p, const int32_t row)
+{
+    const uint32_t baked = g->pal->changed[row] + 1;
+
+    if (e->row == row && e->baked == baked)
+        return;
+
+    e->row = row;
+    e->baked = baked;
+    e->version = ~p->version;
+    e->top = 0;
+    e->bottom = p->root.h;
+}
+
+bool gpu_texture(
+    Gpu *const g,
+    const Source *const p,
+    const bool into,
+    const int32_t row,
+    GpuSource *const out
+)
 {
     GpuTexture *const e = entry(g, p->texture);
     const uint32_t name = p->texture;
     const Pixels *const px = &p->root;
-    const QxTextureFormat want = into || px->format != PX_8 ? QX_TEXTURE_RGBA : QX_TEXTURE_INDEX;
+    const bool eight = px->format == PX_8, indices = eight && !g->fixed;
+    const QxTextureFormat want = into || !indices ? QX_TEXTURE_RGBA : QX_TEXTURE_INDEX;
 
     if (!e)
         return false;
@@ -142,7 +175,8 @@ bool gpu_texture(Gpu *const g, const Source *const p, const bool into, GpuSource
         e->format = 0;
     }
 
-    if (!e->format && !into && px->w <= GPU_PAGE / 2 && px->h <= GPU_PAGE / 2) {
+    /* a fixed host's textures are a root's own: its texture changes cost little */
+    if (!e->format && !into && !g->fixed && px->w <= GPU_PAGE / 2 && px->h <= GPU_PAGE / 2) {
         if (!atlas_pack(g, e, want, (uint16_t)px->w, (uint16_t)px->h))
             return false;
 
@@ -166,15 +200,20 @@ bool gpu_texture(Gpu *const g, const Source *const p, const bool into, GpuSource
         e->bottom = px->h;
     }
 
+    /* drawn into, the GPU's are ahead of the CPU's: not sent again */
+    if (g->fixed && eight && !into && !e->drawn)
+        bake(g, e, p, row);
+
     const uint32_t id = e->page ? e->page : name;
     const int32_t top = e->top, h = e->bottom - e->top;
+    const uint32_t *const colours = g->fixed && eight ? g->pal->rows[into ? 0 : row] : nullptr;
 
     if (e->version != p->version && h > 0) {
         const Pixels cut = px_cut(px, (Rect){0, top, px->w, h});
 
         uint32_t pitch, args[8] = {id, e->x, e->y + (uint32_t)top, (uint32_t)px->w, (uint32_t)h};
 
-        const uint8_t *const bytes = texels(&g->list, &cut, e->format, &pitch);
+        const uint8_t *const bytes = texels(&g->list, &cut, e->format, colours, &pitch);
 
         if (!bytes)
             return false;
@@ -199,8 +238,8 @@ bool gpu_texture(Gpu *const g, const Source *const p, const bool into, GpuSource
         id,
         e->x,
         e->y,
-        px->format == PX_8,
-        px->format == PX_8 && e->format == QX_TEXTURE_RGBA,
+        indices,
+        indices && e->format == QX_TEXTURE_RGBA,
         e->depth ? depth_of(name) : 0,
     };
 
@@ -333,12 +372,6 @@ bool gpu_target(
 {
     called(g);
     return aim(g, id, deep, w, h, clip);
-}
-
-/* v's colour is the tint's alone, never keyed: its texel does not matter. */
-static bool shared(const GpuVertex *const v)
-{
-    return (v->stages & (GPU_STAGE_SOLID | GPU_STAGE_KEYED)) == GPU_STAGE_SOLID;
 }
 
 /* The box of n vertices, stride bytes apart. */
@@ -475,6 +508,9 @@ bool gpu_draw(Gpu *const g, const GpuCall *const t, const GpuVertex *const v, co
 
     const PipelineKind k = pipeline_kind(v);
 
+    if (g->fixed)
+        return drawing(g, t, box_of(v, sizeof *v, n)) && fixed_draw(g, t, v, n);
+
     return drawing(g, t, box_of(v, sizeof *v, n)) && pipeline_made(g, k, t->blend, t->depth) &&
            list_draw(
                &g->list,
@@ -483,7 +519,7 @@ bool gpu_draw(Gpu *const g, const GpuCall *const t, const GpuVertex *const v, co
                pipeline_id(k, t->blend, t->depth),
                textures,
                t->alpha,
-               shared(v)
+               gpu_shared(v)
            );
 }
 
@@ -501,7 +537,7 @@ bool gpu_discs(Gpu *const g, const GpuCall *const t, const GpuDisc *const v, con
                pipeline_id(PIPELINE_ROUND, t->blend, 0),
                textures,
                t->alpha,
-               shared(&v->v)
+               gpu_shared(&v->v)
            );
 }
 

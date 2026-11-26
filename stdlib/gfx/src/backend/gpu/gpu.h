@@ -40,8 +40,9 @@ enum {
 /* The palette's texture's rows: the palette's, then the map's, four cells a texel. */
 enum { GPU_MAP_ROWS = PAL_CELLS / 4 / PAL_COLOURS, GPU_PALETTE_ROWS = PAL_ROWS + GPU_MAP_ROWS };
 
-/* The boxes drawn in since the copy kept apart; past them, it is made again before the next read. */
-enum { GPU_DIRTY = 16 };
+/* The boxes drawn in since the copy kept apart; past them, it is made again before the next read.
+   The pipelines' ids, a bit of Gpu.made each. */
+enum { GPU_DIRTY = 16, GPU_PIPELINES = 384 };
 
 /* A box of a target's pixels, its edges at half pixels: none when x0 is not under x1. */
 typedef struct {
@@ -56,6 +57,8 @@ typedef struct {
     int32_t top, bottom;    /* the rows the CPU wrote since version was sent */
     bool drawn;             /* the GPU drew in it since it was read back */
     bool depth;             /* its depth texture made */
+    int32_t row;            /* fixed, an 8-bit root drawn from: the palette's row its texels are */
+    uint32_t baked;         /* that row's changes when they were sent, and 1; 0 not yet */
 } GpuTexture;
 
 /* An atlas page: the next place, x along the row at y, row the row's height so far. */
@@ -82,7 +85,7 @@ typedef struct {
 typedef struct {
     GpuList list;
     GpuTexture own[SOURCE_FONT + 1]; /* the SOURCE_ textures */
-    GpuTexture *textures;         /* by a root's slot */
+    GpuTexture *textures;            /* by a root's slot */
     uint32_t ntextures;
     GpuPage *pages; /* the first's texture PAGE_FIRST */
     uint32_t npages, cappages;
@@ -105,8 +108,10 @@ typedef struct {
     uint32_t white;  /* the white texel shapes draw from */
     uint8_t *page;   /* the canvas's pixels, read back */
     uint32_t shader; /* the language (QxShader) */
-    uint64_t made;   /* the pipelines made, a bit each */
-    GpuCount count;  /* since gpu_counted */
+    bool fixed;      /* it is FIXED: none (fixed.h) */
+    Palette *pal;    /* gfx's, for a fixed host's colours */
+    uint64_t made[GPU_PIPELINES / 64]; /* the pipelines made, a bit each */
+    GpuCount count;                    /* since gpu_counted */
 } Gpu;
 
 /* What a call's vertices share. */
@@ -128,13 +133,14 @@ typedef struct {
     bool behind; /* its pixels read what is behind them */
 } GpuCall;
 
-/* The canvas, s's size, 8 bits when eight, the palette and the pipelines, in the language s gave:
-   false, no memory. */
-bool gpu_open(Gpu *g, const QxScreen *s, bool eight);
+/* The canvas, s's size, 8 bits when eight, the palette pal and the pipelines, in the language s
+   gave: false, no memory. */
+bool gpu_open(Gpu *g, const QxScreen *s, bool eight, Palette *pal);
 void gpu_close(Gpu *g);
 /* p's root on the GPU, made and sent as it needs it; into, drawn into: RGBA, and ahead of the CPU
-   till read back. False, no memory. */
-bool gpu_texture(Gpu *g, const Source *p, bool into, GpuSource *out);
+   till read back. On a fixed host an 8-bit root's texels are row's colours, row 0's drawn into.
+   False, no memory. */
+bool gpu_texture(Gpu *g, const Source *p, bool into, int32_t row, GpuSource *out);
 /* p's root's depth texture, made, all 0, if it had none (*fresh then): false, no memory. */
 bool gpu_depth(Gpu *g, const Source *p, uint32_t *id, bool *fresh);
 /* Rows top to bottom of the root h written by the CPU. */
@@ -146,6 +152,12 @@ bool gpu_target(Gpu *g, uint32_t id, uint32_t deep, int32_t w, int32_t h, Rect c
 bool gpu_palette(Gpu *g, Palette *pal, bool map);
 /* n vertices, four a quad, drawn as t's call: false, no memory. */
 bool gpu_draw(Gpu *g, const GpuCall *t, const GpuVertex *v, uint32_t n);
+/* v's colour is the tint's alone, never keyed: its texel does not matter. */
+static inline bool gpu_shared(const GpuVertex *const v)
+{
+    return (v->stages & (GPU_STAGE_SOLID | GPU_STAGE_KEYED)) == GPU_STAGE_SOLID;
+}
+
 /* n disc vertices, four a quad, drawn as t's call: false, no memory. */
 bool gpu_discs(Gpu *g, const GpuCall *t, const GpuDisc *v, uint32_t n);
 /* The list played, the canvas shown after it when show. */
