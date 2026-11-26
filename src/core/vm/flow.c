@@ -120,7 +120,7 @@ uint8_t *flow_dcode(Session *const S)
     Addr stream = S->allo.cache + DCODE;
     S->link.lim = stream + DCODE_SIZE;
 
-    if (!link_xlate(&S->comp, &stream))
+    if (!link_xlate(&S->comp, &stream) || !link_texts(&S->comp))
         repl_error(S, E_OM);
 
     S->link.nmiss = 0;

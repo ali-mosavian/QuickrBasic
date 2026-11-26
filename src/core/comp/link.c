@@ -12,6 +12,10 @@
  * found goes on the ledger, whose first error link_check raises before the run starts. A run compiles and
  * resolves nothing but the direct line.
  *
+ * The direct line's literals are copied to link.text (link_texts): its text, in comp.cbuf or
+ * cons.inbuf, is reused (the editor's highlighter, the next line typed) while a stop in a
+ * procedure it called is kept, and CONT runs the rest of it.
+ *
  * # asm structure (retired/asm32/comp/link.asm)
  * | asm | here | |
  * |---|---|---|
@@ -51,6 +55,7 @@
 #include "mem/scope.h"
 #include "mem/symbols.h"
 #include "plat/pmem.h"
+#include "util/grow.h"
 #include "vm/exec.h"
 #include "vm/flow.h"
 
@@ -328,6 +333,30 @@ bool link_xlate(Comp *const C, Addr *where)
         wr32(C->link->inbeg, C->link->eol - C->allo->cache);
 
     *where = a;
+    return true;
+}
+
+bool link_texts(Comp *const C)
+{
+    uint8_t *const code = at(C->link->code);
+    uint32_t n = 0;
+
+    for (const uint8_t *op = code; *op != O_EOL; op += flow_opsize(op))
+        if (*op == O_S_LD_TXT)
+            n += op[1];
+
+    if (!GROW(C->link->text, C->link->textcap, n + 1)) /* "" too: never null */
+        return false;
+
+    uint32_t used = 0;
+
+    for (uint8_t *op = code; *op != O_EOL; op += flow_opsize(op))
+        if (*op == O_S_LD_TXT) {
+            memcpy(C->link->text + used, at(load32(op + 2)), op[1]);
+            store32(op + 2, addr_of(C->link->text + used));
+            used += op[1];
+        }
+
     return true;
 }
 
