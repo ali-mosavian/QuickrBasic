@@ -107,13 +107,14 @@ static void lexr_near(Lexr *const lx)
 }
 
 /* Streamed text: the window's end at src; the window slid, its bytes from src on kept, and read
-   on. False: the line has no more. */
+   on: moved, grown maybe. False: the line has no more. */
 static bool lexr_more(Lexr *const lx)
 {
     if (!lx->source || lx->drained)
         return false;
 
     const uint8_t *keep = lx->in;
+    const ptrdiff_t src = lx->src - lx->in, word = lx->word - lx->in;
 
     if (!lx->source->more(lx->source, &keep)) {
         lx->drained = true; /* asked again before each item: a call each */
@@ -121,9 +122,8 @@ static bool lexr_more(Lexr *const lx)
         return false;
     }
 
-    const ptrdiff_t moved = lx->in - keep;
-    lx->src -= moved;
-    lx->word -= moved;
+    lx->src = keep + src;
+    lx->word = keep + word;
     lx->in = (uint8_t *)keep;
     lexr_near(lx);
     return true;

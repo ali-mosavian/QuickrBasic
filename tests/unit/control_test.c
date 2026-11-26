@@ -13,7 +13,7 @@ static void each([[maybe_unused]] const uint8_t op, const uint8_t *const at)
 static bool check_errs(Session *const S, const char *const text)
 {
     const uint32_t n = (uint32_t)strlen(text);
-    memcpy(S->cons.inbuf, text, n);
+    memcpy(cons_inroom(&S->cons, n + 1), text, n);
     CHECK(repl_enter(S, n) == ENTER_DIRECT);
     S->comp.check = true;
     comp_line(&S->comp);

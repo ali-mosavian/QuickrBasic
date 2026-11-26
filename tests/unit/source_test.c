@@ -1,4 +1,9 @@
 /* A program file's lines as loaded: whole ones copied, the rest byte by byte (io/source.c). */
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include "io/source.h"
+#include "plat/pmem.h"
 #include "session.h"
 #include "unit.h"
 
@@ -26,4 +31,58 @@ TEST(a_files_lines_read_the_same_whole_or_byte_by_byte)
 #undef PUT
     CHECK(unit_run_bytes(S, src, n) == ST_OK);
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 3 \r 3 \r 4 \r 5 \r 2 \r 7 \r");
+}
+
+/* cons.inbuf back to its first bytes, as boot leaves it. */
+static void inbuf_first(Session *const S)
+{
+    pmem_free(S->cons.inbuf);
+    S->cons.inbuf = nullptr;
+    S->cons.incap = 0;
+    cons_inroom(&S->cons, INFIRST);
+}
+
+/* Lines past the window's first bytes: joined ones, a line past SRCAP that slides it, blanks
+   held in a joined line. The window grows as it fills; it was INMAX + 1 bytes from the start. */
+TEST(a_files_long_lines_grow_the_window)
+{
+    static char src[60000];
+    size_t n = (size_t)snprintf(src, sizeof src, "a = 0 _\n");
+
+    for (uint32_t i = 0; i < 1000; i++)
+        n += (size_t)snprintf(src + n, sizeof src - n, "+ 1 _\n");
+
+    n += (size_t)snprintf(src + n, sizeof src - n, "\nPRINT a\nPRINT 9 ' ");
+    memset(src + n, 'r', 40000);
+    n += 40000;
+    n += (size_t)snprintf(src + n, sizeof src - n, "\nPRINT 3;%300s4 _\n; 5\n", "");
+    inbuf_first(S);
+    CHECK(unit_run_bytes(S, src, n) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 1000 \r 9 \r 3  4  5 \r");
+}
+
+/* LINE INPUT # of a line past INMAX: its first INMAX characters, then the next line whole, the
+   line in inbuf's room as it grew. */
+TEST(line_input_reads_a_line_past_inmax)
+{
+    static char text[40010], line[128];
+    char path[] = "/tmp/qb_unit_XXXXXX";
+    FILE *const f = fdopen(mkstemp(path), "wb");
+    memset(text, 'i', 40000);
+    memcpy(text + 40000, "\nabc\n", 5);
+    CHECK(f && fwrite(text, 1, 40005, f) == 40005);
+    fclose(f);
+    snprintf(line, sizeof line, "10 OPEN \"%s\" FOR INPUT AS #1", path);
+    const char *const lines[] = {
+        line,
+        "20 LINE INPUT #1, a$: LINE INPUT #1, b$: CLOSE #1",
+        "30 PRINT LEN(a$); RIGHT$(a$, 1); b$",
+        nullptr,
+    };
+
+    inbuf_first(S);
+    CHECK(unit_run(S, lines) == ST_OK);
+    remove(path);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 32767 iabc\r");
+    CHECK(S->cons.incap > INMAX); /* the line was in inbuf's own room */
 }

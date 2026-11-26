@@ -961,7 +961,7 @@ static void text_line(Session *const S, const Dialect *const d, const uint16_t l
     if (!(uimn_stopped() && d->linked(S)) && !built(S))
         return;
 
-    memcpy(S->cons.inbuf, line, len + 1u);
+    memcpy(cons_inroom(&S->cons, len + 1u), line, len + 1u);
     S->vm.line = DLINE;
     const Status st = repl_call(S, session_text_line);
 

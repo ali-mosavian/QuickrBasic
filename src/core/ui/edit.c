@@ -396,7 +396,8 @@ uint16_t edit_dxerr(Session *const S, const uint8_t *const text, const ErrOp *co
 {
     const uint8_t *const body = edit_body((uint8_t *)text);
     const uint32_t bodycol = (uint32_t)(body - text);
-    memcpy(S->cons.inbuf, body, strlen((const char *)body) + 1);
+    const uint32_t size = (uint32_t)strlen((const char *)body) + 1;
+    memcpy(cons_inroom(&S->cons, size), body, size);
     S->lexr.all = true; /* the body's bytes to columns */
     lexr_line(&S->lexr, S->cons.inbuf);
     S->lexr.all = false;
@@ -1164,7 +1165,7 @@ uint16_t edit_imm_next(Session *const S)
 {
     imm_store();
     const uint16_t len = uimn.immline.len;
-    memcpy(S->cons.inbuf, uimn.immline.text, len);
+    memcpy(cons_inroom(&S->cons, len + 1u), uimn.immline.text, len); /* repl_enter's 0 after */
     uint16_t i = uimn.imm.cur + 1;
 
     if (i >= uimn.imm.n) {

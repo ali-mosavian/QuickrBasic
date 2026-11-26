@@ -16,8 +16,8 @@ every `jmp rpl_ready` (ex_end, ex_ready) is `repl_ready()`, a longjmp there.
 
 | asm | C |
 |---|---|
-| `g_inbuf` | `cons.inbuf` (INMAX+1, `cons_init`; strg_item, strg_tods read it by Addr) |
-| `g_sbuf` | `cons.sbuf` (SBMAX+1, `cons_init`) |
+| `g_inbuf` | `cons.inbuf` (grown to a line, `cons_inroom`; strg_item, strg_tods read it by Addr) |
+| `g_sbuf` | `cons.sbuf` (grown to what it holds, `cons_scratch`) |
 | `g_recb` | `file.recs` (NCH*RECMAX, `file_init`: FIELD's Descs point in) |
 | `g_cbuf` | comp's `comp_cbuf` (comp.h) |
 | `g_obuf` | `cons.obuf` (plain array) |

@@ -28,7 +28,7 @@ void unit_fail(const char *const file, const int line, const char *const what)
 static uint8_t entered(Session *const S, const char *const text)
 {
     const uint32_t n = (uint32_t)strlen(text);
-    memcpy(S->cons.inbuf, text, n);
+    memcpy(cons_inroom(&S->cons, n + 1), text, n);
     return repl_enter(S, n);
 }
 

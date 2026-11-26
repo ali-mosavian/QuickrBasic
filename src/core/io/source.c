@@ -93,6 +93,17 @@ bool srcr_phys_end(SrcrCont *const cn)
     return cn->st != IN_COMMENT && cn->under; /* '_' in a comment: the comment's */
 }
 
+/* The window's room for n bytes at d: d where it is now. */
+static uint8_t *srcr_room(Srcr *const sr, uint8_t *const d, const uint32_t n)
+{
+    const uint32_t off = (uint32_t)(d - sr->cons->inbuf);
+
+    if (off + n <= sr->cons->incap)
+        return d;
+
+    return cons_inroom(sr->cons, off + n) + off;
+}
+
 /* The window filled on from end: to the logical line's end (done set) or SRCAP; 0 after. */
 static void srcr_fill(Srcr *const sr)
 {
@@ -136,12 +147,15 @@ static void srcr_fill(Srcr *const sr)
             continue;
         }
 
+        d = srcr_room(sr, d, sr->pend + 2); /* the 0 after them */
+
         for (; sr->pend; sr->pend--)
             *d++ = ' ';
 
         *d++ = (uint8_t)b;
     }
 
+    d = srcr_room(sr, d, 1);
     *d = 0;
     sr->src.end = d;
 }
@@ -166,7 +180,7 @@ static bool srcr_whole(Srcr *const sr)
         (k && (is_blank(p[k - 1]) || p[k - 1] == '_')))
         return false;
 
-    memcpy(sr->cons->inbuf, p, k);
+    memcpy(cons_inroom(sr->cons, k + 1), p, k);
     sr->cons->inbuf[k] = 0;
     sr->src.end = sr->cons->inbuf + k;
     const bool cr = p[k] == '\r';

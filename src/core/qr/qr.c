@@ -1447,10 +1447,10 @@ static bool qr_alone(const QProg *const p)
 static void qr_printed(Session *const S)
 {
     static const char pre[] = "print ";
-    uint8_t *const b = S->cons.inbuf;
-    const size_t n = strlen((const char *)b);
+    const size_t n = strlen((const char *)S->cons.inbuf);
     const size_t room = INMAX - (sizeof pre - 1) - 1;
     const size_t k = n < room ? n : room;
+    uint8_t *const b = cons_inroom(&S->cons, (uint32_t)(sizeof pre + k));
     memmove(b + sizeof pre - 1, b, k);
     memcpy(b, pre, sizeof pre - 1);
     b[sizeof pre - 1 + k] = 0;

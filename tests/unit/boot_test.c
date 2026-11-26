@@ -90,8 +90,8 @@ static uint32_t boot_keeps(void)
 /* Boot keeps from BASIC what it needs at first, at most the bytes below: on DOS the rest of a 2 MB
    machine is BASIC's. The code cache and the store were 64 KB each at first, the symbol tables sized
    for 1024 names and the data stack's first segment 64 KB: 587 KB kept. comp.cbuf carved at
-   LMAX + 64: 351 KB; cons.sbuf at SBMAX + 1: 257 KB. */
-TEST(boot_keeps_little) { CHECK(boot_keeps() <= 196000); }
+   LMAX + 64: 351 KB; cons.sbuf at SBMAX + 1: 257 KB; cons.inbuf at INMAX + 1: 192 KB. */
+TEST(boot_keeps_little) { CHECK(boot_keeps() <= 164000); }
 
 /* The session is static: its bytes are the executable's, kept from BASIC whether used or not. A
    link's caches, comp.memo and scop.look (41 KB), were its own: 69,616 bytes in this build. Now
