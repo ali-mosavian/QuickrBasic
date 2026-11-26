@@ -72,7 +72,7 @@ endif
 QBRT := src/qbrt/llrm
 QBRT_PORTABLE := $(addprefix qb/,console.c cntext.c cngfx.c gfx.c gline.c gcirc.c gpaint.c gputget.c gdraw.c play.c music.c song.c \
 	screen.c scrfn.c sleep.c sticks.c timer.c varptr.c error.c rtinit.c nhstutil.c nheap.c)
-QBRT_DOS_C := $(QBRT_PORTABLE) $(addprefix qb/,dos/m32/ad.c posix/block.c dev/pixmem.c dev/dos/gfxdev.c \
+QBRT_DOS_C := $(QBRT_PORTABLE) $(addprefix qb/,dos/m32/ad.c posix/block.c dev/dos/gfxdev.c \
 	$(addprefix dev/dos/m32/,clock.c con.c key.c prn.c sb.c text.c tone.c))
 QBRT_DOS_ASM := $(addprefix qb/dev/dos/m32/,bios.asm gdblit.asm gdcirc.asm gdfill.asm gdline.asm gdscan.asm gdxfer.asm ports.asm \
 	sbisr.asm tick.asm) qb/dos/m32/block.asm

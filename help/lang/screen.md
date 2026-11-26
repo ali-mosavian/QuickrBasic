@@ -21,9 +21,6 @@ Sets the screen mode and clears the screen.
   apage         the page that output draws on.
   vpage         the page you see. Both default to 0.
 
-Video pages work in every mode, not only the text ones QBasic allowed;
-see [video pages](video pages).
-
 Giving a mode the adapter lacks, or a page it lacks, is an Illegal
 function call. SCREEN with the mode already set still clears it.
 

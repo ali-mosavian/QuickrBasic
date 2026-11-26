@@ -335,7 +335,8 @@ int gd_set_mode(unsigned requested)
     }
 
     palette = dac ? dac : dev_take(DAC_COLORS * sizeof *dac);
-    count = number == MODE_320 ? 8 : number == MODE_640 ? 4 : 2;
+    /* a VGA's: 0Dh holds 8, 0Eh 4, 10h 2, the others 1; text's own pages are text_store's */
+    count = number == MODE_320 ? 8 : number == MODE_640 ? 4 : number == MODE_350 ? 2 : 1;
     pages_fit((size_t)new_width * new_height, count);
     text_page(0);
     host_state_lock();

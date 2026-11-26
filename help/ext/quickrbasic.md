@@ -32,8 +32,6 @@ Language
                            [play voices](play voices)
     PEN(n)                 the mouse: left button n, right n + 10
                            [PEN](PEN)
-    Video pages            pages and PCOPY in every SCREEN mode
-                           [video pages](video pages)
     No 64 KB walls         programs, arrays, strings grow
                            [no limits](no limits)
 

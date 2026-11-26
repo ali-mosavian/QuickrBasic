@@ -5,8 +5,9 @@ Syntax
     SCREEN mode, , apage, vpage
     PCOPY source, destination
 
-A video page is a whole screen held in memory. Drawing goes to the
-active page (apage); the visible page (vpage) is on the display.
+A video page is a whole screen held in the display adapter's memory.
+Drawing goes to the active page (apage); the visible page (vpage) is on
+the display.
 
 See also [SCREEN](SCREEN), [PCOPY](PCOPY), [SCREEN modes](SCREEN modes)
 
@@ -14,13 +15,13 @@ See also [SCREEN](SCREEN), [PCOPY](PCOPY), [SCREEN modes](SCREEN modes)
 Draw on a hidden page, then show it: the viewer never sees a
 half-drawn picture.
 
-QuickrBasic has at least two pages in every SCREEN mode, so PCOPY works
-everywhere. QBasic had a single page in modes 1, 2, 12 and 13.
+A mode has the pages its adapter holds, as in QBasic.
 
 Page counts
     SCREEN 7             8 pages
     SCREEN 8             4 pages
-    SCREEN 1, 2, 9, 12, 13   at least 2 (0 and 1)
+    SCREEN 9             2 pages
+    SCREEN 1, 2, 12, 13  1 page
     SCREEN 0 (text)      8 pages at 25 rows, 4 at 43 or 50 rows
 
 A page number past the mode's count is an Illegal function call, in
@@ -34,7 +35,7 @@ Rules
  - PCOPY copies page source over page destination.
 
 ## Example
-    SCREEN 13, , 1, 0           ' draw on page 1, show page 0
+    SCREEN 7, , 1, 0            ' draw on page 1, show page 0
     FOR x = 0 TO 300
       CLS
       CIRCLE (x, 100), 20, 12

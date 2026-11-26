@@ -49,7 +49,7 @@ WHOLE = "\r\n".join([
 
 def pages(mode: int, dot: str, shown: int, hidden: int, sees: int) -> str:
     """A dot drawn on page 1 while page 0 shows: the memory shown (PEEK at `shown`) unchanged until the flip,
-    then a PCOPY. Modes 1, 2, 12 and 13 have one page on the adapter, the other in memory."""
+    then a PCOPY. A mode has the adapter's pages only, as QBasic: 1, 2, 12 and 13 one."""
     return "\r\n".join([
         f"SCREEN {mode}, , 1, 0",
         f"{dot}: a = PEEK({shown}): h = PEEK({hidden})",
@@ -62,53 +62,16 @@ def pages(mode: int, dot: str, shown: int, hidden: int, sees: int) -> str:
     ])
 
 
-# mode, the dot, the page shown's byte, the hidden page's (the adapter's, or the shown one's where it is in
-# memory), the byte seen after the flip; then the bytes PRINTed
+# mode, the dot, the page shown's byte, the hidden page's, the byte seen after the flip; then the bytes PRINTed.
+# The one-page modes' second page is Illegal function call: it was a page in memory, 300 KB in 12's.
 PAGES = {
-    "pages13": (pages(13, "PSET (5, 0), 9", 0xA0005, 0xA0005, 0xA0005), " 0  0  9  0  9 "),
-    "pages12": (pages(12, "PSET (0, 0), 1", 0xA0000, 0xA0000, 0xA0000), " 0  0  128  0  128 "),
-    "pages1": (pages(1, "PSET (0, 0), 3", 0xB8000, 0xB8000, 0xB8000), " 0  0  192  0  192 "),
-    "pages2": (pages(2, "PSET (0, 0), 1", 0xB8000, 0xB8000, 0xB8000), " 0  0  128  0  128 "),
     "pages7": (pages(7, "PSET (0, 0), 1", 0xA0000, 0xA2000, 0xA2000), " 0  128  128  0  128 "),
+    **{f"pages{m}": (f"SCREEN {m}, , 1, 0\r\n", "Illegal function call") for m in (1, 2, 12, 13)},
 }
 
 # Text mode's: standard output the screen, so CLS draws (on page 1, attribute 17h); the bytes to a file.
 TEXT = pages(0, "COLOR 7, 1: CLS", 0xB8001, 0xB9001, 0x462).replace(
     "PRINT a; h; b; c; d", 'OPEN "R.TXT" FOR OUTPUT AS 1: PRINT #1, a; h; b; c; d: CLOSE')
-
-
-def flip12(flips: int) -> str:
-    """A circle on SCREEN 12's page 1 and a row of every colour, the pages swapped `flips` times; then the circle's
-    top and bottom rows read from the adapter, and the row's pixels wrong once page 1 is back in memory."""
-    return "\r\n".join([
-        "SCREEN 12, , 1, 0",
-        "CIRCLE (320, 240), 100, 15",
-        "FOR x = 0 TO 639: PSET (x, 5), (x * 7 + x \\ 16) MOD 16: NEXT",
-        f"FOR i = 1 TO {flips}: SCREEN , , 1, i MOD 2: NEXT",
-        "a = PEEK(&HA0000 + 140 * 80 + 40): b = PEEK(&HA0000 + 340 * 80 + 40)",
-        "SCREEN , , 1, 0",
-        "wrong = 0",
-        "FOR x = 0 TO 639",
-        "IF POINT(x, 5) <> (x * 7 + x \\ 16) MOD 16 THEN wrong = wrong + 1",
-        "NEXT",
-        "SCREEN 0",
-        "PRINT a; b; wrong",
-        "",
-    ])
-
-
-# A hand count of a swap: 480 rows, each converted both ways, 320 plane bytes at about 12 instructions.
-SWAP_MOST = 5_000_000
-
-
-def flip_cost() -> float:
-    """Instructions a SCREEN 12 swap takes. It converted a pixel's bit at a time, 13.1M instructions (650 ms at
-    the suites' 20 MIPS); a look while one ran saw only the top of a circle, as if the rest were not drawn."""
-    jobs = {"one": (flip12(1), ""), "many": (flip12(21), "")}
-    got = dosrun.run(jobs, Path(tempfile.mkdtemp()) / "w", 120000, file=True, mem=8)
-    for name, result in got.items():
-        assert " 255  255  0 " in result.out, (name, result.out[-400:])
-    return (got["many"].instructions - got["one"].instructions) / 20
 
 
 def screen_error() -> str:
@@ -580,8 +543,6 @@ if __name__ == "__main__":
     text = (work / "R.TXT").read_text() if (work / "R.TXT").exists() else "(none)"
     assert " 7  23  1  7  23 " in text, text
     if not dosrun.is_host(dosrun.COM):
-        cost = flip_cost()
-        assert cost < SWAP_MOST, cost
         shown = screen_error()
         assert "Illegal function call" in shown, shown
     print("ok")

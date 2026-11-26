@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""lowmem_test.py: the IDE (IDE_EXE) in a 3 MB machine without EMS runs a program with SCREEN 12's
+"""lowmem_test.py: the IDE (IDE_EXE) in a 3 MB machine without EMS runs a program with SCREEN 9's
 two pages, SCREEN 13, PLAY and a 500 KB array. The array was Out of memory: boot took the IDE's
 screen copy, the POKE memory and the file records (280 KB) up front, leaving FRE(-1) 419 KB."""
 
@@ -17,13 +17,12 @@ IDE = Path(os.environ.get("IDE_EXE", ROOT / "build/c/ide32.exe"))
 F5 = 0x3F
 PROGRAM = "\r\n".join(
     [
-        "screen 12, , 1, 0",
-        "circle (320, 240), 100, 14",
+        "screen 9, , 1, 0",
+        "circle (320, 175), 100, 14",
         "screen , , 1, 1",
         "pcopy 1, 0",
-        "screen 13, , 1, 0",
+        "screen 13",
         "line (0, 0)-(319, 199), 4, bf",
-        "screen , , 1, 1",
         'play "T200 L16 CDE"',
         "screen 0",
         "redim a&(125000): a&(125000) = 7",

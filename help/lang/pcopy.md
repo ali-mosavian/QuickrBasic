@@ -11,8 +11,8 @@ See also [SCREEN](SCREEN), [video pages](video pages)
 
 ## Details
 Page numbers run from 0 up to the last page of the current SCREEN
-mode. QuickrBasic has pages in every SCREEN mode. A page number
-outside the mode's range is "Illegal function call".
+mode. A page number outside the mode's range is "Illegal function
+call".
 
 Use it to draw a frame unseen on one page and show it with SCREEN's
 active and visual page arguments, or to keep a copy of a picture.
