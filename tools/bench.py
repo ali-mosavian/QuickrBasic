@@ -102,17 +102,17 @@ class Build:
         return self.root / "build/c/basic32.exe"
 
     def make(self, dos: bool) -> None:
-        """The builds, by our Makefile and instruments: an older rev may lack them, or count otherwise."""
+        """The host builds by our Makefile and instruments: an older rev may lack them, or count otherwise.
+        The DOS executables by the rev's own: its sources are its Makefile's to list."""
         if self.root != ROOT:
             for src in INSTRUMENT_SRC:
                 shutil.copy(ROOT / src, self.root / src)
-        targets = ["build/hostperf/basic", "build/host/basic"] + ["all"] * dos
-        p = subprocess.run(
-            ["nice", "-n", "10", "make", "-f", str(ROOT / "Makefile"), "-j4", *targets],
-            cwd=self.root,
-            capture_output=True,
-            text=True,
-        )
+        self.run_make(["-f", str(ROOT / "Makefile"), "build/hostperf/basic", "build/host/basic"])
+        if dos:
+            self.run_make(["all"])
+
+    def run_make(self, args: list[str]) -> None:
+        p = subprocess.run(["nice", "-n", "10", "make", "-j4", *args], cwd=self.root, capture_output=True, text=True)
         if p.returncode:
             sys.exit(f"make in {self.root} failed\n{p.stdout[-2000:]}{p.stderr[-2000:]}")
 
@@ -1091,7 +1091,7 @@ CHARLIE_STEP = "Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k, wd.pilot: Tick wd, g, p,
 CHARLIE_EACH = (CHARLIE_STEP, "DrawBack wd.zn, wd.art, cx, cy",
                 "DrawThings wd.lv, wd.zn, wd.art, wd.kinds, wd.se, cx, cy, -1", "DrawTiles wd.lv, wd.zn, wd.art, cx, cy",
                 "DrawThings wd.lv, wd.zn, wd.art, wd.kinds, wd.se, cx, cy, 0", "DrawHero wd.gr, wd.art, wd.se, p, cx, cy",
-                "DrawParts pt(), cx, cy", "Blit wd.art, 6, 5, IHUD, HUDW, HUDH", "Flip g.page", "Render wd, g, p, lo(), pt()")
+                "DrawParts wd.art, pt(), cx, cy", "Blit wd.art, 6, 5, IHUD, HUDW, HUDH", "Flip", "Render wd, g, p, lo(), pt()")
 CHARLIE_IMPORTS = "".join(f"FROM {'' if m.startswith('engine.') else 'barkley.'}{m} IMPORT {n}\n" for m, n in (
     ("engine.video", "Blit, Flip, OpenScreen"),
     ("model.images", "IHUD"),
@@ -1108,7 +1108,7 @@ CHARLIE_IMPORTS = "".join(f"FROM {'' if m.startswith('engine.') else 'barkley.'}
     ("control.pilot", "Pilot"),
     ("flow.states", "StartGame, Tick"),
 ))
-CHARLIE_SETUP = """OpenScreen
+CHARLIE_SETUP = """OpenScreen wd.art
 LoadTables wd.lv
 BuildArt wd.art, wd.tn
 LoadKinds wd.kinds, wd.dat
@@ -1117,7 +1117,6 @@ DIM g AS Game, p AS Hero, k AS Pad, lo(NLOOSE - 1) AS Loose, pt(NPART - 1) AS Pa
 DIM q AS INTEGER, n AS LONG, t0 AS SINGLE, cx AS INTEGER, cy AS INTEGER
 LoadSongs wd.mu
 wd.mu.muted = -1
-g.page = 1
 StartGame wd, g, p, lo(), pt()
 OPEN "EACH.TXT" FOR OUTPUT AS #1
 """
@@ -1839,7 +1838,7 @@ def cmd_charlie(a: argparse.Namespace) -> int:
     cost = {call: ms - got[0][0] for call, (ms, _) in zip(CHARLIE_EACH, got[1:], strict=True)}
     for call, ms in cost.items():
         print(f"{ms:>8.2f} ms  {call}")
-    frame = cost[CHARLIE_EACH[-1]] + cost["Flip g.page"]
+    frame = cost[CHARLIE_EACH[-1]] + cost["Flip"]
     print(f"{1000 / frame:.1f} fps drawn; a tick's {cost[CHARLIE_EACH[0]]:.2f} ms sixty times a second on top")
     return 0
 
