@@ -255,6 +255,7 @@ static void qsem_qbnames(QSem *const S, const uint32_t k)
             .sig = true,
             .checked = true,
             .foreign = true,
+            .ncall = e->native,
             .proc = e->proc,
         };
 
@@ -263,11 +264,12 @@ static void qsem_qbnames(QSem *const S, const uint32_t k)
         for (uint32_t j = 0; j < e->npar; j++) {
             const ExpVal *const v = &e->params[j];
             const QTok *const name = qsem_qbtok(S, v->name, v->len);
-            const QType pt = qsem_qbtype(S, v->et);
+            const QType et = qsem_qbtype(S, v->et);
+            const QType pt = v->array && et != QY_ERROR ? qsem_listof(S, et, 0) : et;
             QVar *const var = qast_alloc(S->mem, sizeof *var);
             *var = (QVar){.name = name, .type = pt, .kind = QV_PARAM};
 
-            f->params[j] = (QParam){.name = name, .var = var, .ref = v->byref};
+            f->params[j] = (QParam){.name = name, .var = var, .ref = v->byref || v->array};
 
             why = why || pt != QY_ERROR ? why : unseen;
         }

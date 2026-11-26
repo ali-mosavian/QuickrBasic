@@ -163,7 +163,7 @@ only through its table. `io/dialect.c` lists the tables in `DIALECTS(X)`, QBasic
   sets the link's `LinkGuest` hooks; the editor's relink finds its imports again through
   `guest_find`. A Quickr program's QBasic modules are read and declared by `repl_guests` (a file
   run) or `repl_guests_stored` (the editor's). A call across is a plain `PCALL`, with no
-  marshalling.
+  marshalling; a native procedure's is `CALL NCALL` (see [Native extensions](#native-extensions)).
 
 **A new dialect** is:
 
@@ -175,6 +175,33 @@ only through its table. `io/dialect.c` lists the tables in `DIALECTS(X)`, QBasic
 It needs no edits to `repl.c`, `suggest.c` or `ui/`. Two gaps remain: `comp.guest` holds one
 dialect's guest modules at a time, and some message keys still name Quickr
 (`DG_DUPLICATE_DEFINITION_QUICKR`).
+
+## Native extensions
+
+A native module is a `.qbx` file: a header, a code slice for each platform, and its interface, the
+QBasic `DECLARE ... CDECL` lines of its procedures. `tools/qbx.py pack` builds one, and
+`docs/native-extensions-design.md` is the design. Both dialects load one the same way.
+
+- **Found** by `locate` (`io/locate.c`): a module's name is its `.bas`, else its `.qbx`, in the
+  importer's folder, `BASICLIB`, then `lib/`.
+- **Opened** by `module_at` (`io/repl.c`): `natv_open` (`io/native.c`) reads the file once a
+  process and checks its header, so a bad file is an error at the line that imports it.
+- **Read** by `read_module` (`io/repl.c`): the interface is the module's lines, stored
+  `LF_NATIVE`, and the module is marked native. A Quickr program's `.qbx` is one of its QBasic
+  modules, read the same way, in a file run (`repl_guests`) and in the editor
+  (`repl_guests_stored`).
+- **Declared:** each `DECLARE ... CDECL` is a `Proc` with `PF_NATIVE` and no body
+  (`comp/blocks.c`). Its export (`comp/export.h`) is marked `native`.
+- **Linked** by `link_natives` (`comp/link.c`): `natv_module` loads this platform's slice
+  (`plat/pext.h`), and each entry is found and its kinds checked against its `DECLARE`.
+- **Called:** the arguments go as for a `PCALL`, then `code_ncall` (`comp/code.c`) emits the
+  procedure's number and `CALL NCALL`. Both dialects emit it. `vm/ncall.c` lays out each argument
+  as `qx/qx.h` says, calls the entry and pushes its result. An error the entry raises is reported
+  at the calling line.
+- **Arrays:** an array argument is its `ArrSlot`. A Quickr list is a dynamic array whose header
+  keeps its length in `fast` and its room in `count[0]`. A view of an array (`arry_view_count`,
+  `mem/array.c`) reads the length, so a list passes by reference to any QBasic or native array
+  parameter.
 
 ## The VM
 
@@ -316,6 +343,7 @@ New behaviour is a table entry, not a new switch case:
 - ops and CALL routines: `vm/ops.def`
 - statements' syntax: the automaton `tools/gen_dfa.py` generates
 - system calls (graphics, sound): `vm/syscalls.def`
+- native modules: a `.qbx` file, no core change
 - platform: the `plat/*.h` interfaces
 - UI: `WidgetOps`, the key and menu tables, themes
 

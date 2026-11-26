@@ -647,7 +647,7 @@ static ExpWhy decl_params(DeclScan *const ds)
 
         const uint32_t n = decl_name(ds, nullptr);
         const bool arr = *ds->at == '(';
-        decl_dim1(ds, n);
+        decl_dim1(ds, n); /* an array by its elements: a Quickr list is a dynamic array */
         why = why ? why : expo_value_why(ds->d, scop_get(ds->sc, ds->d->scope, n), arr);
 
         if (*ds->at != ',')
@@ -1154,7 +1154,7 @@ static void decl_subfn(DeclScan *const ds, const uint8_t flag)
         const uint8_t *const as = ds->at + (*ds->at == ')');
         const bool arr = *as == TK_AS && *decl_item(as + 1) == '(';
         decl_result(ds, n, true);
-        const ExpWhy res = expo_value_why(ds->d, scop_get(ds->sc, n, n), arr);
+        const ExpWhy res = arr ? EW_ARRAY : expo_value_why(ds->d, scop_get(ds->sc, n, n), false);
         verdict = verdict ? verdict : res * EXP_RESULT;
     }
 

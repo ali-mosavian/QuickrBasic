@@ -41,6 +41,8 @@ float total(const QxArray *const a)
     return sum;
 }
 
+int32_t items(const QxArray *const a) { return (int32_t)a->count; }
+
 void fail(const int32_t code) { qx_fail((uint8_t)code); }
 
 int32_t runs(void) { return started; }

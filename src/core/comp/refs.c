@@ -807,11 +807,9 @@ static Node *fieldarg(Comp *const C, Node *const r, const uint32_t par, const ui
    number field by P.REF, else the value. A CONST, BYVAL's, a DEF FN's: the value. */
 static Node *arg(Comp *const C, const uint32_t par, const bool byval)
 {
-    const Var *const pv = symb_var(C->symb, par);
-
     if (symb_is_record(C->symb, par))
         return recarg(C, par);
-    if (pv->info & VI_ARR)
+    if (symb_is_array(C->symb, par))
         return arrayarg(C, par);
     if (!byval && comp_cur(C) == M_VAR) {
         const uint32_t name = comp_nameof(C->p);

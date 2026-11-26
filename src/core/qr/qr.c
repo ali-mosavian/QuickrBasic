@@ -455,7 +455,6 @@ static void qr_find(const QrLoad *const L, const uint32_t k, QImport *const im, 
         .main = S->repl.file,
         .lib = syst_env(&S->syst, "BASICLIB"),
         .from = p->mods[k].path,
-        .ext = ".bas",
     };
 
     bool dir = false;
@@ -487,7 +486,7 @@ static void qr_part(
     char path[PFIL_PATH];
     const ImptName name = {.text = (const uint8_t *)im->tok->text, .len = (uint8_t)im->tok->len};
 
-    if (!locate_in(dir, &name, ".bas", path)) {
+    if (!locate_in(dir, &name, nullptr, path)) {
         qast_error(&p->errs, im->tok, "no module {} in the package", im->tok->text, im->tok->len);
         return;
     }

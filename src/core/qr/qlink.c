@@ -752,12 +752,15 @@ static void qlink_stmts(const QProg *const p, const QStmt **const of)
     }
 }
 
-/* Each QBasic procedure's PCALL Jump (comp/control.h), from its entry. */
+/* Each QBasic procedure's PCALL Jump (comp/control.h), from its entry; a native one has none. */
 static void qlink_foreign(Comp *const C, const QProg *const p)
 {
     C->line = DLINE;
 
     for (QFn *f = p->foreign; f; f = f->next) {
+        if (f->ncall)
+            continue;
+
         const Jump j = ctrl_jump(C, blok_proc(C->blok, f->proc)->entry);
         f->entry[0] = j.line;
         f->entry[1] = j.body;

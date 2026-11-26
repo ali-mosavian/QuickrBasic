@@ -1,4 +1,4 @@
-qbunusable.bas:5:5: fill is not usable from Quickr: an array parameter
+qbunusable.bas:5:5: fill is not usable from Quickr: a BYTE parameter
   odd.fill()
       ^
 qbunusable.bas:6:10: Fixed is not usable from Quickr: a fixed-length string field
@@ -25,3 +25,6 @@ qbunusable.bas:13:9: n is by reference: pass a var of its type, an int
 qbunusable.bas:14:13: Inc is no value: it is QBasic's
   let g = odd.inc
               ^
+qbunusable.bas:15:5: codes is not usable from Quickr: a fixed-length string parameter
+  odd.codes()
+      ^

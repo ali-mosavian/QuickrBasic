@@ -438,6 +438,7 @@ struct QFn {
     bool idle;     /* a generic record instance's method not called: unchecked, no code */
     bool checked;  /* its body checked, sema's */
     bool foreign;  /* a QBasic module's procedure, proc: no body; entry its PCALL's Jump, qlink's */
+    bool ncall;    /* foreign, a native module's: called by CALL NCALL, no entry */
     uint32_t entry[3];
 };
 

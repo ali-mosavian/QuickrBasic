@@ -21,7 +21,8 @@ print synth.beat()
 - `synth.qbx` is found as `synth.bas` is: the program's folder, each folder of `BASICLIB`, then
   `lib/` beside the interpreter. The synthesizer ships in that `lib/`.
 - No flag, no path and no step for a platform: the same file is copied everywhere.
-- Its names follow the rules of any module's: `synth.note`, or `FROM synth IMPORT note`.
+- Its names follow the rules of any module's: `synth.note`, or `FROM synth IMPORT note`. A Quickr
+  file imports it as it imports a QBasic module.
 - A platform the file has no code for still opens, checks and completes the program. A run stops
   at the IMPORT line with a new error: Native code not built for this machine.
 
