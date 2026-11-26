@@ -154,6 +154,7 @@ static struct {
     uint32_t textures;
     uint16_t up[SLOTS][TILE];
     AccelVertex last[3];
+    uint32_t room, held; /* the targets the card has room for, and holds */
 } fake;
 
 static void called(const char c)
@@ -215,10 +216,19 @@ static bool ACCEL_CALL fake_target(uint32_t slot, uint16_t w, uint16_t h, bool d
 {
     (void)slot, (void)w, (void)h, (void)depth;
     called('G');
+
+    if (fake.held == fake.room)
+        return false;
+
+    fake.held++;
     return true;
 }
 
-static void ACCEL_CALL fake_drop(uint32_t slot) { (void)slot, called('D'); }
+static void ACCEL_CALL fake_drop(uint32_t slot)
+{
+    (void)slot, called('D');
+    fake.held--;
+}
 
 static void ACCEL_CALL fake_aim(uint32_t slot, AccelRect clip)
 {
@@ -408,7 +418,7 @@ static bool played(const uint32_t into, const uint32_t draws_from, const bool sh
 
 static void opened(void)
 {
-    fake = (typeof(fake)){};
+    fake = (typeof(fake)){.room = ACCEL_TARGETS};
 
     CHECK(accel_open(&FAKE, &(PciFunction){}, SCREEN_W, SCREEN_H, true));
 }
@@ -575,5 +585,32 @@ TEST(accel_player_draws_a_mask_from_its_texture)
     box(MASKED, ART, 0, 0, 8, 8, 0, 1);
     CHECK(played(SHOWN, from, true));
     CHECK(calls_of('T') == 1 && calls_of('U') == 1 && calls_of('V') == 1);
+    accel_close();
+}
+
+/* With room for one target, a second is made by pulling the first's pixels into its texels and
+   giving its room back. Not, the second's draws were lost: CUBE showed one face of six. */
+TEST(accel_player_makes_room_for_a_target_from_the_oldest)
+{
+    enum { OTHER = 8 };
+
+    opened();
+    fake.room = 1;
+    begun(1, 1);
+    PUT(QX_LIST_TEXTURE, OTHER, 1, 1, QX_TEXTURE_RGBA);
+
+    const uint32_t from = list.n;
+
+    box(SOLID, 0, 0, 0, 1, 1, 0, 0);
+    CHECK(!played(ART, from, false) && calls_of('V') == 1);
+
+    list.n = list.nv = list.ni = 0;
+    box(SOLID, 0, 0, 0, 1, 1, 0, 0);
+    CHECK(!played(OTHER, 0, false) && calls_of('V') == 2 && calls_of('R') == 1);
+
+    list.n = list.nv = list.ni = 0;
+    box(TEXTURED, ART, 0, 0, 8, 8, 0, 1);
+    CHECK(played(SHOWN, 0, true) && calls_of('V') == 3);
+    CHECK(fake.up[1][0] == (8 << 10 | 8 << 5 | 8)); /* the 0x42s read back, as 1555 */
     accel_close();
 }

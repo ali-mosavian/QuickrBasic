@@ -79,6 +79,7 @@ typedef struct {
     uint32_t serial;     /* a depth texture's, none other's the same */
     uint32_t held;       /* the depth texture's serial the target's depth buffer holds: 0, none */
     uint32_t used;       /* the play it was last drawn from */
+    uint32_t passed;     /* the pass it was last drawn into */
 } Texture;
 
 /* A draw's pieces: its texture and state. */
@@ -96,7 +97,7 @@ static struct {
     uint32_t screen; /* the texture shown: NONE, none yet */
     bool owed;       /* shown since the card's next frame was carried or drawn over */
     bool shown;      /* by this play */
-    uint32_t plays, serials;
+    uint32_t plays, serials, passes;
 
     Texture *pass; /* the draws' target: null, none */
     bool pass_deep;
@@ -111,6 +112,7 @@ static struct {
     uint32_t batched;
 
     uint64_t slots[ACCEL_TEXTURES / BITS], targets[ACCEL_TARGETS / BITS]; /* taken */
+    Texture *target_of[ACCEL_TARGETS];                                    /* each target's */
     void *scratch; /* a tile's rows, or a band read back */
     size_t scratch_n;
 } p;
@@ -492,11 +494,33 @@ static void dropped(Texture *const t)
     flushed();
     p.d->drop(t->target);
     given_back(p.targets, t->target);
+    p.target_of[t->target] = nullptr;
     p.aimed = p.aimed == t->target ? NONE : p.aimed;
     t->target = NONE;
 }
 
-/* t a target, with a depth buffer when deep, its pixels its texels: false, no room. */
+/* The target drawn into longest ago given back, its pixels pulled into its texels: false, none,
+   or no memory. */
+static bool target_evicted(void)
+{
+    Texture *oldest = nullptr;
+
+    for (uint32_t i = 1; i < ACCEL_TARGETS; i++) {
+        Texture *const t = p.target_of[i];
+
+        if (t && (!oldest || t->passed < oldest->passed))
+            oldest = t;
+    }
+
+    if (!oldest || !pulled(oldest))
+        return false;
+
+    dropped(oldest);
+    return true;
+}
+
+/* t a target, with a depth buffer when deep, its pixels its texels, the oldest others given back
+   for room: false, no room. */
 static bool targeted(Texture *const t, const bool deep)
 {
     if (t->target != NONE && (t->deep || !deep))
@@ -507,17 +531,23 @@ static bool targeted(Texture *const t, const bool deep)
 
     dropped(t);
 
-    const uint32_t slot = taken(p.targets, ACCEL_TARGETS);
+    uint32_t slot;
 
-    flushed();
+    for (;;) {
+        slot = taken(p.targets, ACCEL_TARGETS);
+        flushed();
 
-    if (!slot || !p.d->target(slot, t->w, t->h, deep)) {
+        if (slot && p.d->target(slot, t->w, t->h, deep))
+            break;
+
         if (slot)
             given_back(p.targets, slot);
 
-        return false;
+        if (!target_evicted())
+            return false;
     }
 
+    p.target_of[slot] = t;
     t->target = slot;
     t->deep = deep;
     t->held = 0;
@@ -888,6 +918,8 @@ static void op_pass(const QxListEntry *const e)
 
     if (!t || t->depth || !targeted(t, deep))
         return;
+
+    t->passed = ++p.passes;
 
     if (deep && t->held != depth->serial) {
         depth_cleared(t);
