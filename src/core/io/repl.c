@@ -846,13 +846,43 @@ static uint32_t keep_pre(Session *const S)
     return n;
 }
 
+/* The words a program line's OPTION DISABLE lists, its body at p: names in its module's lines
+   after it (comp/lexer.c). A bad list the declare pass reports. */
+static void disable(Session *const S, const uint8_t *p)
+{
+    if (*p == M_INT)
+        p += INT_TOKEN_SIZE;
+    if (*p != TK_OPTION)
+        return;
+
+    ModuMod *const mod = modu_mod(&S->modu, S->repl.module);
+    const uint8_t *bad;
+
+    if (lexr_disable(p, mod->off, &bad) == DISABLE_SET)
+        memcpy(S->lexr.off, mod->off, sizeof S->lexr.off);
+}
+
 uint8_t repl_enter(Session *const S, const uint32_t len)
 {
     S->cons.inbuf[len] = 0;
     const uint32_t pre = S->repl.loading && S->repl.keep_pre ? keep_pre(S) : 0;
     S->vm.line = DLINE;
+    /* a direct line, a command or the immediate window's, disables nothing: RUN, PRINT x */
+    const bool program = S->repl.loading || is_digit(*blanks(S->cons.inbuf, S->cons.inbuf + len));
+    uint64_t off[8];
+
+    if (!program) {
+        memcpy(off, S->lexr.off, sizeof off);
+        memset(S->lexr.off, 0, sizeof S->lexr.off);
+    }
+
     const uint8_t *const end = lexr_line(&S->lexr, S->cons.inbuf, S->comp.cbuf);
     const uint32_t place = prog_at(&S->prog);
+
+    if (!program)
+        memcpy(S->lexr.off, off, sizeof off);
+    else
+        disable(S, S->comp.cbuf);
 
     if (!S->comp.cbuf[0])
         return ENTER_EMPTY;
@@ -926,8 +956,10 @@ static uint32_t module_at(Session *const S, const char *const path, const Dialec
 
     if (d->text)
         modu_mod(&S->modu, m)->dialect = d;
-    if (qbxf_is(path))
-        natv_open(&S->natv, path);
+    if (natv_is(path)) {
+        const char *file;
+        natv_open(&S->natv, path, &file);
+    }
 
     return m;
 }
@@ -951,6 +983,15 @@ static void import(Session *const S, const char *const path)
     modu_import(&S->modu, S->repl.module, module_at(S, path, d));
 }
 
+/* FROM's module n to path: a package's folder, or a .qbx of parts alone, sets in_package. false:
+   not found. */
+static bool from_module(Imports *const im, const ImptName *const n, char path[static PFIL_PATH])
+{
+    const bool found = locate(&im->where, n, path, &im->in_package);
+    im->in_package = im->in_package || (found && natv_package(&im->S->natv, path));
+    return found;
+}
+
 /* One name the line gives: a module's file added to those to load, once. */
 static void imported(void *const ctx, const ImptKind kind, const ImptName *const n)
 {
@@ -967,7 +1008,7 @@ static void imported(void *const ctx, const ImptKind kind, const ImptName *const
         return;
 
     case IMPT_FROM:
-        if (!locate(&im->where, n, path, &im->in_package))
+        if (!from_module(im, n, path))
             not_found(im->S);
         else if (im->in_package)
             strcpy(im->package, path);
@@ -1028,7 +1069,7 @@ static void bound(void *const ctx, const ImptKind kind, const ImptName *const n)
         return;
 
     case IMPT_FROM:
-        locate(&im->where, n, path, &im->in_package);
+        from_module(im, n, path);
 
         if (im->in_package)
             strcpy(im->package, path);
@@ -1080,10 +1121,12 @@ static void find_imports(Session *const S, const char *const path)
     impt_line(body, imported, &im);
 }
 
-/* Enter the lines of file name from offset from on, read as file number num; an include's on the
-   number below, in place. Then the console's again. */
+/* Enter the lines of the file at disk from offset from on as the lines of name (a package's part
+   names its module, not its .qbx), read as file number num; an include's on the number below, in
+   place. Then the console's again. */
 static void read_file(
     Session *const S,
+    const char *const disk,
     const char *const name,
     const int32_t num,
     const uint32_t from
@@ -1091,7 +1134,7 @@ static void read_file(
 {
     Chnl *const cl = &S->chnl;
     Chan *c;
-    fault_check(&S->fault, chnl_open(cl, num, name, FM_IN, RECLEN_DEFAULT, &c));
+    fault_check(&S->fault, chnl_open(cl, num, disk, FM_IN, RECLEN_DEFAULT, &c));
 
     if (from)
         fault_check(&S->fault, chnl_seek(c, from));
@@ -1127,7 +1170,8 @@ static void read_file(
 
         if (inc) { /* its lines next */
             char path[PFIL_PATH];
-            read_file(S, include_path(name, S->repl.incl, path), num - 1, 0);
+            include_path(name, S->repl.incl, path);
+            read_file(S, path, path, num - 1, 0);
             fault_check(&S->fault, chnl_find(cl, num, &c));
             fault_check(&S->fault, chnl_in(cl, c));
         }
@@ -1173,19 +1217,21 @@ static void module_end(Session *const S, const uint16_t file)
     S->prog.add_file = was;
 }
 
-/* QBasic module m's file at path read as its lines: a .qbx's its interface, its last part,
+/* QBasic module m's file at path read as its lines: a .qbx's or a package part's its interface,
    LF_NATIVE, the module native. */
 static void read_module(Session *const S, const uint32_t m, const char *const path)
 {
-    if (!qbxf_is(path)) {
-        read_file(S, path, SOURCE_FILENO, 0);
+    if (!natv_is(path)) {
+        read_file(S, path, path, SOURCE_FILENO, 0);
         return;
     }
 
     modu_mod(&S->modu, m)->native = true;
     const uint8_t flags = S->prog.add_flags;
+    const char *file;
+    const uint32_t at = natv_open(&S->natv, path, &file);
     S->prog.add_flags = flags | LF_NATIVE;
-    read_file(S, path, SOURCE_FILENO, natv_open(&S->natv, path));
+    read_file(S, file, path, SOURCE_FILENO, at);
     S->prog.add_flags = flags;
 }
 
@@ -1210,6 +1256,7 @@ static void read_modules(Session *const S, const uint32_t from, const uint32_t l
         modu_top(&S->modu, m, prog_at(&S->prog));
         module_end(S, S->repl.nfile);
         S->repl.module = m;
+        memset(S->lexr.off, 0, sizeof S->lexr.off);
         read_module(S, m, path);
     }
 
@@ -1227,6 +1274,7 @@ static void read_modules(Session *const S, const uint32_t from, const uint32_t l
 
     module_end(S, 0); /* the last module's */
     S->repl.module = 0;
+    memcpy(S->lexr.off, modu_mod(&S->modu, 0)->off, sizeof S->lexr.off); /* the editor's lines */
 }
 
 /* An IMPORT or FROM statement's modules run, each to each. */
@@ -1403,7 +1451,8 @@ void repl_load(Session *const S)
     S->repl.nfile = 0;
     S->repl.module = 0;
     modu_clear(&S->modu, S->repl.file);
-    read_file(S, S->repl.file, SOURCE_FILENO, 0);
+    memset(S->lexr.off, 0, sizeof S->lexr.off);
+    read_file(S, S->repl.file, S->repl.file, SOURCE_FILENO, 0);
     read_modules(S, 1, 0);
     declare_program(S, false, false);
     S->repl.loading = false;
@@ -1617,6 +1666,8 @@ static void walk(Session *const S, const bool lenient)
         }
 
         l->file = (uint16_t)S->repl.module;
+        const ModuMod *const mod = modu_mod(&S->modu, S->repl.module);
+        memcpy(S->lexr.off, mod->off, sizeof S->lexr.off); /* an include's */
         const uint8_t *body = restore(S, line);
         find_imports(S, modu_module_path(&S->modu, S->repl.module));
         const uint8_t tok = comp_peek(&body);
@@ -1634,7 +1685,8 @@ static void walk(Session *const S, const bool lenient)
         S->prog.add_flags = LF_INC;
         char path[PFIL_PATH];
         const char *const from = modu_module_path(&S->modu, S->repl.module);
-        read_file(S, include_path(from, S->repl.incl, path), SOURCE_FILENO - 1, 0);
+        include_path(from, S->repl.incl, path);
+        read_file(S, path, path, SOURCE_FILENO - 1, 0);
         line = S->prog.add_at;
         S->prog.add_at = 0;
         S->prog.add_flags = 0;

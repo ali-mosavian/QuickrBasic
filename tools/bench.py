@@ -17,6 +17,14 @@
     bench.py fps [--real] [--profile | --parts]  MOTHLITE.BAS played by an autopilot on a 486 at 10k cycles/ms
                                                  with the Sound Blaster: its frame rate in each mode;
                                                  --parts: each step of its loop's ms a frame
+    bench.py gfx [REV...] [--depth D] [--seconds S] [--dos]  gfx's frames a second in the Mac app, drawn in
+                                                 pages against played on the GPU, for each of GFX_WORK's
+                                                 frames; --dos: in pages on DOS; REVs: in pages, per build
+    bench.py demos [EXE...] [--cycles N]         stdlib/gfx's demos at 320x200x8 on DOS, frames a second: ours
+                                                 shipped, then without vsync, text and perspective in turn; each
+                                                 EXE a program built elsewhere, writing its rate to FPS.TXT
+                                                 --machine 486|p5|p6: on 86Box's (HL86_DIR), timed by its clock;
+                                                 with --profile, cycles a frame by function sampled, --at F by offset
 
 Native (the default) runs build/hostperf/basic for retired instructions, the least of RUNS runs less
 an empty program's, builds compared run interleaved; and build/host/basic for the ops dispatched,
@@ -28,6 +36,7 @@ import os
 import re
 import sys
 import json
+import bisect
 import time
 import shutil
 import struct
@@ -458,6 +467,10 @@ def cmd_qbasic(a: argparse.Namespace) -> int:
     return 0
 
 
+OBJCOPY = os.environ.get("OBJCOPY", shutil.which("llvm-objcopy") or "/opt/homebrew/opt/llvm/bin/llvm-objcopy")
+LLVM_OBJDUMP = os.environ.get("LLVM_OBJDUMP", shutil.which("llvm-objdump") or "/opt/homebrew/opt/llvm/bin/llvm-objdump")
+
+
 def nm(o: Path) -> list[tuple[int, str, str]]:
     """Object o's defined symbols: offset, kind (t local, T global, ...), name."""
     out = subprocess.run([os.environ.get("NM", "nm"), "-n", "--defined-only", o], capture_output=True, text=True).stdout
@@ -469,7 +482,7 @@ def with_statics(listing: str, objs: list[Path]) -> str:
     profiler counted a static's instructions under the global before it. A static's address is its
     module's code base, from a global the map and the object both place, plus its offset."""
     lines = listing.splitlines()
-    by_path = {str(o): o for o in objs}
+    by_path = {str(o.resolve()): o for o in objs}  # the map's paths are resolved
     out: list[str] = []
     i = 0
     while i < len(lines):
@@ -493,6 +506,19 @@ def with_statics(listing: str, objs: list[Path]) -> str:
     return "\n".join(out) + "\n"
 
 
+def apart(objs: list[Path], d: Path) -> list[Path]:
+    """objs copied into d, each name they define but the entry renamed in all of them: jwlink binds a static by its
+    name, so the slice's call to its gfx_init ran cngfx.c's static one, and display.open failed."""
+    clash = {n for o in objs for _, _, n in nm(o) if n != "_qx_init_gfx" and not n.startswith(("@", ".", "__real@", "??_C@"))}
+    renames = [a for n in sorted(clash) for a in ("--redefine-sym", f"{n}=_slice{n}")]
+    (d / "slice").mkdir(exist_ok=True)
+    out = []
+    for i, o in enumerate(objs):
+        out.append(d / "slice" / f"{i}_{o.name}")
+        subprocess.run([OBJCOPY, *renames, str(o), str(out[-1])], check=True)
+    return out
+
+
 def profiled(b: Build, d: Path, ide: bool = False) -> Path:
     """b's basic32 (ide: ide32) relinked in d with a map that names its static functions too."""
     var = "IDE_OBJ" if ide else "BASIC_OBJ"
@@ -503,9 +529,15 @@ def profiled(b: Build, d: Path, ide: bool = False) -> Path:
         text=True,
     ).stdout
     m = re.search(rf"^{var} := (.*)$", db, re.M)
-    if not m:
-        sys.exit(f"profile: make printed no {var}")
-    objs = [b.root / o for o in m.group(1).split()]
+    g = re.search(r"^GFX_DOS_OBJ := (.*)$", db, re.M)
+    if not m or not g:
+        sys.exit(f"profile: make printed no {var} or GFX_DOS_OBJ")
+    # gfx's slice linked in, its loader's PEXT_LINKED pext.c taking it: the map names gfx's code too. Its own C library
+    # bits are the program's.
+    linked = b.root / "build/c/prof/pext.obj"
+    subprocess.run(["make", str(linked.relative_to(b.root))], cwd=b.root, check=True, capture_output=True)
+    objs = [linked if o.endswith("plat/dos32/pext.obj") else b.root / o for o in m.group(1).split()]
+    objs += apart([b.root / o for o in g.group(1).split()], d)
     exe = d / ("ide32.exe" if ide else "basic32.exe")
     listing = exe.with_suffix(".map")
     doslink.link(exe, objs, listing)
@@ -534,10 +566,13 @@ def cmd_profile(a: argparse.Namespace) -> int:
     text = program(a)
     jobs: dict[str, str | tuple] = {"": text, "prog": text + "\nRUN\n"} if a.link else {"": "", "prog": text}
     with tempfile.TemporaryDirectory() as d:
-        dosrun.COM = profiled(build(".", True), Path(d), a.ide)
+        b = build(".", True)
+        gfx = b.dos.parent / "lib/gfx.qbx"
+        dosrun.COM = profiled(b, Path(d), a.ide)
         r = dosrun.run(
             jobs,
             Path(d) / "w",
+            files={"lib/gfx.qbx": gfx.read_bytes()} if gfx.exists() else None,
             limit_ms=a.ms if a.ide else 600000,
             file=not a.link,
             profile=True,
@@ -556,6 +591,90 @@ def cmd_profile(a: argparse.Namespace) -> int:
     for f, n in sorted(own.items(), key=lambda kv: -kv[1])[: a.n]:
         calls = r["prog"].calls.get(f, 0) - r[""].calls.get(f, 0)
         print(f"{n:>12,} {n / total:6.1%} {calls:>9,} calls  {f}")
+    return 0
+
+
+# fills: each case's draw, a statement on canvas& from tex& (64 by 64) or q(), and the pixels it covers. The quad is the
+# whole screen, its texels a turned parallelogram inside tex&, so u and v both step along a row.
+FILLS_CASES: dict[str, tuple[str, str, int]] = {
+    "textured": ("", "gfx.draw.poly canvas&, q(), 0, 4, tex&, 0, 0", 64000),
+    "lit": ("gfx.draw.set_light 31", "gfx.draw.poly canvas&, q(), 0, 4, tex&, 0, 0", 64000),
+    "lit opaque": ("gfx.draw.set_light 31", "gfx.draw.poly canvas&, q(), 0, 4, tex&, 0, gfx.draw.OPAQUE", 64000),
+    "lit persp": ("gfx.draw.set_light 31", "gfx.draw.poly canvas&, q(), 0, 4, tex&, 0, gfx.draw.PERSPECTIVE", 64000),
+    "added": (
+        "gfx.draw.set_alpha 32", "gfx.draw.rect canvas&, 0, 0, 319, 199, warm&, gfx.draw.FILL + gfx.draw.ADD", 64000
+    ),
+    "rect": ("", "gfx.draw.rect canvas&, 0, 0, 319, 199, warm&, gfx.draw.FILL", 64000),
+    "sprites": ("", "for k = 0 to 14\ngfx.draw.sprite canvas&, (k mod 5) * 64, (k \\ 5) * 64, tex&, 0\nnext", 61440),
+    "flipped": (
+        "",
+        "for k = 0 to 14\ngfx.draw.sprite canvas&, (k mod 5) * 64, (k \\ 5) * 64, tex&, gfx.draw.FLIP_X\nnext",
+        61440,
+    ),
+    "scaled": (
+        "",
+        "for k = 0 to 5\ngfx.draw.sprite_turned canvas&, 1 + (k mod 3) * 100, 1 + (k \\ 3) * 100, 0, 1.5, tex&, 0"
+        "\nnext",
+        55296,
+    ),
+    "blended": ("gfx.draw.set_alpha 32", "gfx.draw.poly canvas&, q(), 0, 4, tex&, 0, gfx.draw.BLEND", 64000),
+    "solid": ("gfx.draw.set_tint warm&", "gfx.draw.poly canvas&, q(), 0, 4, tex&, 0, gfx.draw.SOLID", 64000),
+    "smooth": ("", "gfx.draw.poly canvas&, q(), 0, 4, tex&, 0, gfx.draw.SMOOTH", 64000),
+    "depth": ("", "gfx.draw.poly canvas&, q(), 0, 4, tex&, 0, gfx.draw.DEPTH_WRITE", 64000),
+}
+FILLS_DRAWS = 4
+# the texture's two colours and the shapes', by depth
+FILLS_COLOURS = {8: (7, 15, 42), 16: (0x808080, 0xC0C0C0, 0xFF9030)}
+
+
+def fills_program(bits: int, case: str, draws: int) -> str:
+    """case's draw a warm-up and draws more times at bits; its z far at the foot for PERSPECTIVE."""
+    setup, draw, _ = FILLS_CASES[case]
+    plain, band, warm = FILLS_COLOURS[bits]
+    corners = ((0, 0, 8, 0), (320, 0, 63, 8), (320, 200, 55, 63), (0, 200, 0, 55))
+    lines = [
+        "import gfx.display, gfx.surface, gfx.draw",
+        "from gfx.draw import Vertex",
+        "dim q(3) as Vertex",
+        f"canvas& = gfx.display.open(320, 200, {bits}, 0)",
+        "tex& = gfx.surface.new(64, 64)",
+        f"gfx.draw.clear tex&, {plain}",
+        f"gfx.draw.rect tex&, 8, 8, 55, 55, {band}, gfx.draw.FILL",
+        f"warm& = {warm}",
+    ]
+    for i, (x, y, u, v) in enumerate(corners):
+        lines += [f"q({i}).x = {x}", f"q({i}).y = {y}", f"q({i}).z = {1 + i // 2}"]
+        lines += [f"q({i}).u = {u}", f"q({i}).v = {v}"]
+    return "\n".join([*lines, setup, f"for i = 0 to {draws}", draw, "next", "gfx.display.close", ""])
+
+
+def cmd_fills(a: argparse.Namespace) -> int:
+    """Each FILLS_CASES draw's instructions a pixel on DOS, at 8 and 16 bits: all of them, and each function's own
+    among the top. A case is run with FILLS_DRAWS more draws and with none, the same warm-up in both, so all else
+    cancels."""
+    cases, depths = a.case or list(FILLS_CASES), a.bits or list(FILLS_COLOURS)
+    jobs = {f"{bits} {case} {n}": fills_program(bits, case, n) for bits in depths for case in cases
+            for n in (0, FILLS_DRAWS)}
+    with tempfile.TemporaryDirectory() as d:
+        b = build(".", True)
+        dosrun.COM = profiled(b, Path(d))
+        qbx = (b.dos.parent / "lib/gfx.qbx").read_bytes()
+        batches = [{"jobs": {k: v}, "limit_ms": 600000, "file": True, "files": {"lib/gfx.qbx": qbx}, "mem": 16,
+                    "profile": True} for k, v in jobs.items()]
+        r = dosrun.run_all(batches, Path(d))
+    print(f"{'':16}{'a pixel':>8}  its own, the top {a.n}")
+    for bits in depths:
+        for case in cases:
+            base, got = r[f"{bits} {case} 0"], r[f"{bits} {case} {FILLS_DRAWS}"]
+            if stopped(got):
+                print(f"{bits:>2} {case:13}{stopped(got)}")
+                continue
+            own = {f: n - base.selfs.get(f, 0) for f, n in got.selfs.items() if n > base.selfs.get(f, 0)}
+            pixels = FILLS_CASES[case][2] * FILLS_DRAWS
+            top = sorted(own.items(), key=lambda kv: -kv[1])[: a.n]
+            calls = {f: got.calls.get(f, 0) - base.calls.get(f, 0) for f, _ in top}
+            parts = "  ".join(f"{f.removeprefix('_slice_')} {n / pixels:.1f} ({calls[f]:,})" for f, n in top)
+            print(f"{bits:>2} {case:13}{sum(own.values()) / pixels:8.1f}  {parts}")
     return 0
 
 
@@ -756,6 +875,683 @@ g.page = 1
 StartGame wd, g, p, lo(), pt()
 OPEN "EACH.TXT" FOR OUTPUT AS #1
 """
+
+
+# A frame's draws besides its clear, on a 640 by 480 canvas; f the frame, s& a 32 by 32 texture drawn, tex&() 16
+# written, m& a colour's mask: 255 at 8 bits; p() a polygon's points, their texels s&'s corners, ox() and oy() an
+# octagon's. calls: the shapes' loop with three calls that draw nothing, the interpreter's share.
+GFX_WORK = {
+    "flip": "",
+    "calls": "for i = 0 to 299\n"
+    "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
+    "    gfx.draw.set_light 63\n    gfx.draw.set_light 63\n    gfx.draw.set_light 63\n"
+    "next",
+    "fill": "for i = 0 to 9\n    gfx.draw.rect canvas&, i, i, 629 + i, 469 + i, (i * 4099) and m&, gfx.draw.FILL\nnext",
+    "rects": "for i = 0 to 299\n"
+    "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
+    "    gfx.draw.rect canvas&, x, y, x + 39, y + 39, (i * 4099) and m&, gfx.draw.FILL\n"
+    "next",
+    "lines": "for i = 0 to 299\n"
+    "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
+    "    gfx.draw.line canvas&, x, y, 639 - x, 479 - y, (i * 977) and m&\n"
+    "next",
+    "circles": "for i = 0 to 299\n"
+    "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
+    "    gfx.draw.circle canvas&, 639 - x, y, 12, (i * 131) and m&, gfx.draw.FILL\n"
+    "next",
+    "arcs": "for i = 0 to 299\n"
+    "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
+    "    gfx.draw.arc canvas&, 639 - x, y, 20, 0.3, 4, (i * 131) and m&\n"
+    "next",
+    "sprites": "for i = 0 to 999\n    gfx.draw.sprite canvas&, (i * 37 + f) mod 608, (i * 53 + f) mod 448, s&, 0\nnext",
+    "textures": "for i = 0 to 999\n"
+    "    gfx.draw.sprite canvas&, (i * 37 + f) mod 608, (i * 53 + f) mod 448, tex&(i mod 16), 0\n"
+    "next",
+    "turned": "for i = 0 to 99\n"
+    "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
+    "    gfx.draw.sprite_turned canvas&, x + 16, y + 16, (i + f) * 0.05, 2, s&, 0\n"
+    "next",
+    "tris": "for i = 0 to 299\n"
+    "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
+    "    p(0).x = x: p(0).y = y: p(1).x = x + 40: p(1).y = y + 8: p(2).x = x + 12: p(2).y = y + 40\n"
+    "    gfx.draw.poly canvas&, p(), 0, 3, 0, (i * 4099) and m&, gfx.draw.FILL\n"
+    "next",
+    "octagons": "for i = 0 to 299\n"
+    "    x = (i * 37 + f) mod 600 + 20: y = (i * 53) mod 440 + 20\n"
+    "    for k = 0 to 7: p(k).x = x + ox(k): p(k).y = y + oy(k): next\n"
+    "    gfx.draw.poly canvas&, p(), 0, 8, 0, (i * 4099) and m&, gfx.draw.FILL\n"
+    "next",
+    "mixed": "for i = 0 to 299\n"
+    "    x = (i * 37 + f) mod 600: y = (i * 53) mod 440\n"
+    "    gfx.draw.sprite canvas&, x, y, s&, 0\n"
+    "    gfx.draw.rect canvas&, x, y, x + 7, y + 7, (i * 4099) and m&, gfx.draw.FILL\n"
+    "next",
+}
+# draw.poly's modes: 300 squares turned, 40 pixels across, their far edge twice as far; flat, or s&'s texels affine
+# or in perspective; with no depth, depth set, or tested and set, at five depths; or blended, or added, at half
+# alpha. poly_loop: their loop, no poly, the interpreter's share.
+POLY_LOOP = (
+    "for i = 0 to 299\n"
+    "    x = (i * 37 + f) mod 600 + 20: y = (i * 53) mod 440 + 20: zb = 1 + i mod 5\n"
+    "    cs = cos((i + f) * 0.05) * 20: sn = sin((i + f) * 0.05) * 20\n"
+    "    p(0).x = x + cs: p(0).y = y + sn: p(1).x = x - sn: p(1).y = y + cs\n"
+    "    p(2).x = x - cs: p(2).y = y - sn: p(3).x = x + sn: p(3).y = y - cs\n"
+    "    p(0).z = zb: p(1).z = zb: p(2).z = zb * 2: p(3).z = zb * 2\n"
+    "{draw}"
+    "next"
+)
+GFX_WORK["poly_loop"] = POLY_LOOP.format(draw="")
+for kind, s_, how in (("flat", "0", "gfx.draw.FILL"), ("affine", "s&", "0"), ("persp", "s&", "gfx.draw.PERSPECTIVE")):
+    for mode, z in (
+        ("", ""),
+        ("_zset", " + gfx.draw.DEPTH_WRITE"),
+        ("_ztest", " + gfx.draw.DEPTH_TEST + gfx.draw.DEPTH_WRITE"),
+        ("_blend", " + gfx.draw.BLEND"),
+        ("_add", " + gfx.draw.ADD"),
+    ):
+        draw = f"    gfx.draw.poly canvas&, p(), 0, 4, {s_}, (i * 4099) and m&, {how}{z}\n"
+        depth, blends = "DEPTH_WRITE" in z, "BLEND" in z or "ADD" in z
+        first = "gfx.surface.clear_depth canvas&\n" if depth else "gfx.draw.set_alpha 32\n" if blends else ""
+        GFX_WORK[f"poly_{kind}{mode}"] = first + POLY_LOOP.format(draw=draw)
+GFX_PROGRAM = """import gfx.display, gfx.draw, gfx.surface
+from gfx.display import FrameStats
+from gfx.draw import Vertex
+dim st as FrameStats
+dim p(7) as Vertex
+dim ox(7), oy(7)
+for k = 0 to 7
+    ox(k) = cos(k * 0.7853982) * 20: oy(k) = sin(k * 0.7853982) * 20: p(k).z = 1
+next
+p(1).u = 32: p(2).u = 32: p(2).v = 32: p(3).v = 32
+canvas& = gfx.display.open(640, 480, {depth}, {flags})
+m& = {mask}
+s& = gfx.surface.new(32, 32)
+gfx.draw.clear s&, 0
+gfx.draw.circle s&, 15, 15, 14, 2, gfx.draw.FILL
+dim px(32 * 32 * 4 - 1) as byte
+dim tex&(15)
+for k = 0 to 15
+    for i = 0 to 32 * 32 * 4 - 1
+        px(i) = (i * 7 + k * 40) and 255
+    next
+    tex&(k) = gfx.surface.new(32, 32)
+    gfx.surface.write tex&(k), 0, 0, 32, 32, px()
+next
+do
+    if f = {warm} then t# = gfx.display.clock
+    gfx.draw.clear canvas&, 1
+{work}
+    gfx.display.flip
+    f = f + 1
+loop until f > {warm} and gfx.display.clock - t# >= {seconds}
+t# = gfx.display.clock - t#
+rate# = (f - {warm}) / t#
+gfx.display.get_stats st
+f = 0
+gfx.draw.clear canvas&, 1
+{work}
+gfx.display.flip
+for y = 0 to 479 step 16
+    for x = 0 to 639 step 16
+        sum& = (sum& * 31 + gfx.surface.point(canvas&, x, y)) and &HFFFFF
+    next
+next
+{report}
+"""
+# the app's: a file it is killed after; DOS's: standard output, and the program ends
+GFX_REPORT = 'open "GFX.TXT" for output as #1\nprint #1, {line}\nclose #1\ndo\nloop'
+GFX_REPORT_DOS = "gfx.display.close\nprint {line}"
+GFX_LINE = "rate#; sum&; st.batches; gfx.display.refresh"
+
+
+def gfx_program(work: str, depth: int, seconds: float, vsync: bool, report: str, warm: int = 30) -> str:
+    body = "\n".join("    " + line for line in GFX_WORK[work].splitlines())
+    return GFX_PROGRAM.format(depth=depth, work=body, seconds=seconds, flags=int(vsync), warm=warm,
+                              mask=255 if depth == 8 else "&HFFFFFF", report=report.format(line=GFX_LINE))
+
+
+def gfx_rate(app: Path, work: str, depth: int, seconds: float, how: str, vsync: bool) -> tuple[float, int, int, float]:
+    """Frames a second after 30 warming up, a checksum of frame 0's pixels drawn after (equal for both ways, or one of
+    them drew something else), the last timed frame's batches, and the display's refresh."""
+    with tempfile.TemporaryDirectory() as tmp:
+        prog, out = Path(tmp) / "GFX.BAS", Path(tmp) / "GFX.TXT"
+        prog.write_text(gfx_program(work, depth, seconds, vsync, GFX_REPORT))
+        env = os.environ | {"QB_GFX": how, "QB_KEYS": "3F00", "SDL_AUDIO_DRIVER": "dummy"}
+        p = subprocess.Popen([str(app), prog.name], env=env, cwd=tmp)
+        try:
+            until = time.monotonic() + seconds + 60
+            while not out.exists() or not out.read_text().endswith("\n"):
+                if time.monotonic() > until or p.poll() is not None:
+                    raise SystemExit(f"gfx {work} {how}: no GFX.TXT")
+                time.sleep(0.2)
+        finally:
+            p.kill()
+            p.wait()
+        rate, total, batches, hz = out.read_text().split()
+        return float(rate), int(total), int(batches), float(hz)
+
+
+def cmd_gfx_dos(a: argparse.Namespace) -> int:
+    """Each GFX_WORK frame's rate in pages on DOS, --cpu (a 486) at 10k cycles/ms (as fps's) with an S3's VBE, after 3
+    frames, a DOSBox a frame."""
+    if not a.as_built:
+        build(".", True)
+    qbx = (dosrun.COM.parent / "lib/gfx.qbx").read_bytes()
+    conf = dosrun.CONF
+    dosrun.CONF = conf.replace("core=normal\ncputype=pentium\nvirtual time=true\nvirtual time rate=20000\n",
+                               FPS_CPU.replace("cputype=486", f"cputype={a.cpu}"))
+    assert dosrun.CONF != conf
+    print(f"640x480 at {a.depth} bits on DOS ({a.cpu}), frames a second")
+    print(f"{'':18}{'fps':>8}{'refresh':>9}")
+    try:
+        for work in a.work or GFX_WORK:
+            job = (gfx_program(work, a.depth, a.seconds, a.vsync, GFX_REPORT_DOS, warm=3),)
+            with tempfile.TemporaryDirectory() as d:
+                r = dosrun.run({work: job}, Path(d) / "w", limit_ms=600000, file=True, mem=16,
+                               files={"lib/gfx.qbx": qbx})[work]
+            fields = r.out.split()
+            if len(fields) == 4:
+                print(f"{work:18}{float(fields[0]):8.1f}{float(fields[3]):9.2f}", flush=True)
+            else:
+                print(f"{work:18}  {r.out.strip().splitlines()[-1] if r.out.strip() else r.reason}", flush=True)
+    finally:
+        dosrun.CONF = conf
+    return 0
+
+
+def gfx_app(rev: str) -> Path:
+    """The app of rev (. the working tree), made: a REV's in its own worktree, by its own Makefile."""
+    mac = sys.platform == "darwin"
+    root = ROOT
+    if rev != ".":
+        root = REVS / f"{git('rev-parse', '--short', rev)}-app"
+        if not root.exists():
+            git("worktree", "add", "-q", "--detach", str(root), rev)
+    subprocess.run(["make", "-j8", "mac" if mac else "linux-app"], cwd=root, check=True, capture_output=True)
+    return root / ("build/mac/QuickrBasic.app/Contents/MacOS/QuickrBasic" if mac else "build/linux/app/QuickrBasic")
+
+
+def cmd_gfx_revs(a: argparse.Namespace) -> int:
+    """Each GFX_WORK frame's rate in pages per build, the builds run in turn, the best of -n; and whether frame 0's
+    pixels differ from the first build's."""
+    apps = [gfx_app(rev) for rev in a.revs]
+    print(f"640x480 at {a.depth} bits in pages, frames a second, the best of {a.n}")
+    print(f"{'':16}" + "".join(f"{rev:>10}" for rev in a.revs) + f"{'last/first':>12}")
+    for work in a.work or GFX_WORK:
+        best, sums = [0.0] * len(apps), [0] * len(apps)
+        for _ in range(a.n):
+            for i, app in enumerate(apps):
+                rate, sums[i], _, _ = gfx_rate(app, work, a.depth, a.seconds, "soft", a.vsync)
+                best[i] = max(best[i], rate)
+        same = "" if len(set(sums)) == 1 else "  frames differ"
+        cells = "".join(f"{r:10.0f}" for r in best)
+        print(f"{work:16}{cells}{best[-1] / best[0]:11.2f}x{same}", flush=True)
+    return 0
+
+
+DEMOS = ROOT / "stdlib/gfx/demos"
+# a demo's edits, each run with the ones before it: their names, and the lines they change
+DEMO_EDITS = {
+    "CUBE": (
+        ("no text", "    show_options canvas&, st, o, fps\n", ""),
+        ("affine", "o.perspective = -1\n", "o.perspective = 0\n"),
+    ),
+    "ISLES": (
+        ("no text", "    show_help canvas&, st, turning%, smooth%, fps\n", ""),
+        ("no clouds", "    draw_clouds world&, clouds()\n", ""),
+    ),
+}
+# demos --profile: each run's seconds; the longer one's counts less the shorter's are frames alone
+DEMO_PROFILE_SECONDS = (2.0, 4.0)
+# a frame counted, and the rate since the first and the frames printed once seconds have passed
+DEMO_FLIP = """{i}gfx.display.flip
+{i}if frames& = 0 then t0# = gfx.display.clock
+{i}frames& = frames& + 1
+{i}if gfx.display.clock - t0# >= {seconds} then
+{i}    gfx.display.close
+{i}    print (frames& - 1) / (gfx.display.clock - t0#); frames&
+{i}    end
+{i}end if"""
+
+
+# a frame counted, the demo ended once it has drawn frames
+DEMO_FLIP_FRAMES = """{i}gfx.display.flip
+{i}frames& = frames& + 1
+{i}if frames& >= {frames} then
+{i}    gfx.display.close
+{i}    print 0; frames&
+{i}    end
+{i}end if"""
+# demos --machine --profile: each machine's frames in the shorter run, twice that in the longer
+MACHINE_FRAMES = {"486": 6, "p5": 24, "p6": 60}
+
+
+def demo_program(name: str, seconds: float, vsync: bool, edits: int, frames: int = 0) -> str:
+    """Demo name at 320x200x8, timed for seconds, its seed fixed so each run draws one world. frames: that many
+    drawn, the demo's clock the frames at 30 a second, so frame n is the same whatever the build's speed."""
+    src = (DEMOS / f"{name}.BAS").read_text().replace("randomize timer\n", "randomize 1\n")
+    if frames:
+        src = src.replace("gfx.display.clock", "(frames& / 30#)")
+    src, w = re.subn(r"(?m)^const W = \d+$", "const W = 320", src)
+    src, h = re.subn(r"(?m)^const H = \d+$", "const H = 200", src)
+    flags = "gfx.display.VSYNC" if vsync else "0"
+    src, o = re.subn(r"gfx\.display\.open\(W, H, \d+, gfx\.display\.VSYNC\)",
+                     f"gfx.display.open(W, H, 8, {flags})", src)
+    flip = DEMO_FLIP_FRAMES if frames else DEMO_FLIP
+    src, f = re.subn(r"(?m)^(\s*)gfx\.display\.flip$",
+                     lambda m: flip.format(i=m[1], seconds=seconds, frames=frames), src)
+    assert all(n == 1 for n in (w, h, o, f)), f"{name}: its size, open or flip not found once"
+    for _, old, new in DEMO_EDITS[name][:edits]:
+        assert src.count(old) == 1, f"{name}: {old!r} not found once"
+        src = src.replace(old, new)
+    return src
+
+
+# 86Box headless (github.com/86Box/86Box forked with a socket): its tree, VMs and ROMs; machine -> VM
+HL86 = Path(os.environ.get("HL86_DIR", Path.home() / "work/other/86box-headless"))
+HL86_VMS = Path(os.environ.get("HL86_VMS", HL86.parent / "86box-headless-vms"))
+HL86_ROMS = Path(os.environ.get("HL86_ROMS", Path.home() / "Library/Application Support/86Box/roms"))
+MACHINES = {"486": "qb-486", "p5": "qb-p100", "p6": "qb-ppro200"}
+
+
+def mtools(tool: str, image: Path, *args: str, check: bool = True) -> bytes:
+    """An mtools command on image's first partition."""
+    env = os.environ | {"MTOOLS_SKIP_CHECK": "1"}
+    r = subprocess.run([tool, "-i", f"{image}@@32256", *args], env=env, check=check, capture_output=True)
+    return r.stdout
+
+
+def vm_stage(image: Path, d: Path, com: Path, job: tuple, files: dict[str, bytes], last: str) -> Path:
+    """com, the job's files and files put in C:\\QB on image, d the scratch: RUN.BAT, which runs the job
+    there into OUT.TXT inside HLPROF's profile window, then last, a DOS command."""
+    prog, _, args, own = dosrun.job(job)
+    qb = d / "QB"
+    qb.mkdir()
+    shutil.copy(com, qb / com.name.upper())
+    if com.suffix.lower() == ".exe" and (com.parent / "DOS32A.EXE").exists():
+        shutil.copy(com.parent / "DOS32A.EXE", qb / "DOS32A.EXE")
+    for n, data in (files | {k: v.encode("latin-1") if isinstance(v, str) else v for k, v in own.items()}).items():
+        (qb / n.upper()).parent.mkdir(parents=True, exist_ok=True)
+        (qb / n.upper()).write_bytes(data)
+    run = f"{com.name.upper()} {'DEMO.BAS' if prog else ''} {args}".strip()
+    if prog:
+        (qb / "DEMO.BAS").write_bytes(prog.encode("latin-1"))
+    (qb / "J.IN").write_bytes(b"")
+    bat = d / "RUN.BAT"
+    lines = ["@ECHO OFF", "CD \\QB", "C:\\HLPROF.COM 1", f"{run} < J.IN > OUT.TXT", "C:\\HLPROF.COM 0", last]
+    bat.write_bytes("".join(f"{n}\r\n" for n in lines).encode())
+    mtools("mdeltree", image, "::QB", check=False)
+    mtools("mcopy", image, "-s", "-o", str(qb), "::")
+    for n in ("hlexit", "hlprof"):
+        mtools("mcopy", image, "-o", str(HL86 / f"src/headless/examples/{n}.com"), f"::{n.upper()}.COM")
+    return bat
+
+
+def hl86_module():  # noqa: ANN201
+    sys.path.insert(0, str(HL86 / "src/headless"))
+    import hl86
+
+    return hl86
+
+
+def vm_rate(machine: str, com: Path, job: tuple, files: dict[str, bytes]) -> str:
+    """Program com's frames a second on 86Box's machine, by its own clock: FPS.TXT's, or its output's.
+    com, the job's files and files go to C:\\QB on the VM's disk, removed after."""
+    hl86 = hl86_module()
+    image = HL86_VMS / MACHINES[machine] / "c.img"
+    with tempfile.TemporaryDirectory() as d:
+        bat = vm_stage(image, Path(d), com, job, files, "C:\\HLEXIT.COM 0")
+        try:
+            r = hl86.run_dos(HL86 / "build/src/86Box-headless", image.parent, HL86_ROMS, bat, timeout=1800)
+            fps = mtools("mtype", image, "::QB/FPS.TXT", check=False).decode("latin-1")
+            out = mtools("mtype", image, "::QB/OUT.TXT", check=False).decode("latin-1")
+        finally:
+            mtools("mdeltree", image, "::QB", check=False)
+    return rate_of(fps, out) or f"exit {r.code}"
+
+
+def rate_of(fps: str, out: str) -> str:
+    """FPS.TXT's first number; else the output's rate and frames, a line of their own: DOS/32A may warn
+    ahead of them. Empty, neither."""
+    rates = fps.split()[:1] or re.findall(r"(?m)^\s*(\d+(?:\.\d+)?)\s+\d+\s*$", out)[-1:]
+    return f"{float(rates[0]):.1f}" if rates else ""
+
+
+def dos_rate(com: Path, job: tuple, cycles: int, files: dict[str, bytes]) -> str:
+    """Program com's frames a second at cycles a virtual ms: FPS.TXT's first number, or its output's."""
+    conf, was = dosrun.CONF, dosrun.COM
+    dosrun.CONF = conf.replace("core=normal\ncputype=pentium\nvirtual time=true\nvirtual time rate=20000\n",
+                               f"core=dynamic\ncputype=pentium\nvirtual time=true\nvirtual time rate={cycles}\n")
+    assert dosrun.CONF != conf
+    dosrun.COM = com
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            r = dosrun.run({"demo": job}, Path(d) / "w", limit_ms=120000, file=True, mem=16, files=files)["demo"]
+            fps = Path(d) / "w" / "FPS.TXT"
+            out = fps.read_text() if fps.exists() else r.out
+    finally:
+        dosrun.CONF, dosrun.COM = conf, was
+    fields = out.split()
+    try:
+        return f"{float(fields[0]):.1f}"
+    except (IndexError, ValueError):
+        return r.reason
+
+
+def dos_profile(com: Path, job: tuple, cycles: int, files: dict[str, bytes]) -> tuple[dosrun.Result, int]:
+    """Program com's job profiled by the map beside it, at cycles a virtual ms, and the frames it drew: FPS.TXT's second
+    number, or its output's."""
+    conf, was = dosrun.CONF, dosrun.COM
+    dosrun.CONF = conf.replace("virtual time rate=20000\n", f"virtual time rate={cycles}\n")
+    assert conf != dosrun.CONF
+    dosrun.COM = com
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            r = dosrun.run({"demo": job}, Path(d) / "w", limit_ms=600000, file=True, mem=16, files=files, profile=True)
+            fps = Path(d) / "w" / "FPS.TXT"
+            out = fps.read_text() if fps.exists() else r["demo"].out
+    finally:
+        dosrun.CONF, dosrun.COM = conf, was
+    try:
+        return r["demo"], int(float(out.split()[1]))
+    except (IndexError, ValueError):
+        sys.exit(f"{com.name}: {r['demo'].reason}: {out.strip()[-300:]}")
+
+
+def print_frame_profile(name: str, com: Path, jobs: list[tuple], cycles: int, files: dict[str, bytes], n: int) -> None:
+    """The cycles, instructions and each function's instructions, memory operands and calls a frame: the longer job's
+    less the shorter's, over the frames between, so the start-up drops out. A rep is one instruction and none of its
+    memory operands; the cycles count each of its turns."""
+    (a, fa), (b, fb) = (dos_profile(com, j, cycles, files) for j in jobs)
+    frames = fb - fa
+    spent = (b.ms - a.ms) * cycles / frames
+    run = (b.instructions - a.instructions) / frames
+    own = {
+        f: tuple((after.get(f, 0) - before.get(f, 0)) / frames for before, after in
+                 ((a.selfs, b.selfs), (a.memory, b.memory), (a.calls, b.calls)))
+        for f in b.selfs
+    }
+    print(f"{name}: {spent:,.0f} cycles a frame, {run:,.0f} instructions ({run / spent:.0%}), {frames} frames")
+    print(f"{'instructions':>12} {'':6} {'memory':>10} {'calls':>8}")
+    for f, (insns, memory, calls) in sorted(own.items(), key=lambda kv: -kv[1][0])[:n]:
+        print(f"{insns:>12,.0f} {insns / run:6.1%} {memory:>10,.0f} {calls:>8,.0f}  {f}")
+
+
+def cmd_demos(a: argparse.Namespace) -> int:
+    """Each demo of DEMO_EDITS at 320x200x8 on DOS, at --cycles a virtual ms: ours as shipped, then without vsync, then
+    with each of its edits in turn; and each EXE, a DOS program built elsewhere. --profile: ours with --edits (all when
+    none), and each EXE, a map beside it and its seconds its last argument, by function a frame."""
+    b = build(".", True)
+    qbx = (b.dos.parent / "lib/gfx.qbx").read_bytes()
+    own = {n: (DEMOS / n).read_bytes() for n in ("stage.bas", "meter.bas")}
+    if a.machine:
+        return demos_on(a, own)
+    if a.profile:
+        with tempfile.TemporaryDirectory() as d:
+            com = profiled(b, Path(d))
+            for name in a.demo or DEMO_EDITS:
+                edits = len(DEMO_EDITS[name]) if a.edits is None else a.edits
+                jobs = [(demo_program(name, s, False, edits), "", "", own) for s in DEMO_PROFILE_SECONDS]
+                print_frame_profile(name, com, jobs, a.cycles, {"lib/gfx.qbx": qbx}, a.n)
+        for exe in map(Path, a.exes):
+            jobs = [("", "", f"{s:g}") for s in DEMO_PROFILE_SECONDS]
+            print_frame_profile(exe.name, exe, jobs, a.cycles, {}, a.n)
+        return 0
+    print(f"320x200 at 8 bits on DOS (pentium), {a.cycles} cycles a ms, frames a second over {a.seconds:g} s")
+    for name in a.demo or DEMO_EDITS:
+        edits = DEMO_EDITS[name]
+        runs = [(True, 0)] + [(False, n) for n in range(len(edits) + 1)]
+        print(f"{name:12}" + "".join(f"{t:>11}" for t in ("shipped", "no vsync", *(e[0] for e in edits))))
+        cells = [
+            dos_rate(b.dos, (demo_program(name, a.seconds, vsync, n), "", "", own), a.cycles, {"lib/gfx.qbx": qbx})
+            for vsync, n in runs
+        ]
+        print(f"{'':12}" + "".join(f"{c:>11}" for c in cells), flush=True)
+    for exe in map(Path, a.exes):
+        print(f"{exe.name:12}{dos_rate(exe, ('',), a.cycles, {}):>10}", flush=True)
+    return 0
+
+
+def le_object(exe: Path, n: int = 1) -> bytes:
+    """LE executable exe's object n as its file holds it, before fixups: its pages in turn."""
+    b = exe.read_bytes()
+    le = b.find(b"LE\0\0")
+    pages, page, last = (struct.unpack_from("<I", b, le + at)[0] for at in (0x14, 0x28, 0x2C))
+    table, data = (struct.unpack_from("<I", b, le + at)[0] for at in (0x40, 0x80))
+    size, _, _, first, count = struct.unpack_from("<5I", b, le + table + 24 * (n - 1))
+    out = b"".join(
+        b[data + (p - 1) * page : data + (p - 1) * page + (last if p == pages else page)]
+        for p in range(first, first + count)
+    )
+    return out[:size]
+
+
+def object_base(memory: bytes, code: bytes) -> int:
+    """Where code lies in memory: windows of it found once each, voting for their place less their offset.
+    A fixup changes a window's bytes, so a window holding one finds nothing."""
+    votes: dict[int, int] = {}
+    for at in range(0, len(code) - 32, max(32, len(code) // 256)):
+        w = code[at : at + 32]
+        found = memory.find(w)
+        if len(set(w)) > 4 and found >= 0 and memory.find(w, found + 1) < 0:
+            votes[found - at] = votes.get(found - at, 0) + 1
+    base = max(votes, key=votes.__getitem__, default=-1)
+    if votes.get(base, 0) < 16:
+        sys.exit(f"profile: the program's code not found in memory ({votes.get(base, 0)} windows)")
+    return base
+
+
+def map_functions(listing: str) -> list[tuple[int, str]]:
+    """The map's functions in object 1, by offset."""
+    found = re.findall(r"(?m)^0001:([0-9a-f]{8})\*?\s+(\S+)", listing)
+    return sorted((int(at, 16), name) for at, name in found)
+
+
+@dataclass(frozen=True)
+class Samples:
+    by: dict[str, int]  # by function, "(outside)" the program's code
+    at: dict[tuple[str, int], int]  # by function and offset in it
+    frames: int
+    interval_us: int
+    mhz: float
+
+
+def vm_samples(machine: str, exe: Path, job: tuple, files: dict[str, bytes], late: float = 0.0) -> Samples:
+    """exe's job on 86Box's machine, its CPU's place sampled every 10 emulated us over the job alone: the samples
+    by function of the map beside exe, and the frames the job drew (its output's last number). late: the
+    host's seconds in seeing the job end."""
+    hl86 = hl86_module()
+    image = HL86_VMS / MACHINES[machine] / "c.img"
+    with tempfile.TemporaryDirectory() as d:
+        bat = vm_stage(image, Path(d), exe, job, files, "ECHO QB-DONE")
+        orig = hl86.dos_get(image, "AUTOEXEC.BAT")
+        auto = Path(d) / "AUTOEXEC.BAT"
+        auto.write_bytes(b"@ECHO OFF\r\nPATH C:\\DOS\r\nC:\\RUN.BAT\r\n")
+        hl86.dos_put(image, bat, "RUN.BAT")
+        hl86.dos_put(image, auto, "AUTOEXEC.BAT")
+        sock = Path(d) / "s"
+        proc = hl86.launch(HL86 / "build/src/86Box-headless", image.parent, HL86_ROMS, sock, unthrottled=True)
+        try:
+            with hl86.Client(sock, timeout=1800.0) as c:
+                c.profile_start(interval_us=10)
+                c.wait_text(r"QB-DONE", timeout=1800.0)
+                time.sleep(late)
+                c.profile_stop(Path(d) / "pcs.json")
+                memory = c.mem_read(0, 16 << 20, Path(d) / "mem.bin")  # the VMs' 16 MB
+                mhz = float(c.status()["cpu_hz"]) / 1e6
+                c.quit()
+            proc.wait(timeout=60)
+            out = mtools("mtype", image, "::QB/OUT.TXT", check=False).decode("latin-1")
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+            auto.write_bytes(orig)
+            hl86.dos_put(image, auto, "AUTOEXEC.BAT")
+            mtools("mdeltree", image, "::QB", check=False)
+            mtools("mdel", image, "::RUN.BAT", check=False)
+        pcs = json.loads((Path(d) / "pcs.json").read_text())
+    code = le_object(exe)
+    base = object_base(memory, code)
+    funcs = map_functions(exe.with_suffix(".map").read_text())
+    starts = [at for at, _ in funcs]
+    by: dict[str, int] = {}
+    at: dict[tuple[str, int], int] = {}
+    for pc, n in pcs["pcs"].items():
+        off = int(pc, 16) - base
+        i = bisect.bisect_right(starts, off) - 1
+        name = funcs[i][1] if 0 <= off < len(code) and i >= 0 else "(outside)"
+        by[name] = by.get(name, 0) + n
+        if name != "(outside)":
+            at[name, off - funcs[i][0]] = at.get((name, off - funcs[i][0]), 0) + n
+    frames = re.findall(r"(?m)^\s*\d+(?:\.\d+)?\s+(\d+)\s*$", out)
+    if not frames:
+        sys.exit(f"profile: no frames in the output: {out[-200:]!r}")
+    return Samples(by, at, int(frames[-1]), int(pcs["interval_us"]), mhz)
+
+
+def gfx_objects(b: Build) -> list[Path]:
+    """The DOS gfx slice's objects, in the order profiled links them (apart's slice/{i}_ names)."""
+    db = subprocess.run(["make", "-pnq", "build/c/basic32.exe"], cwd=b.root, capture_output=True, text=True).stdout
+    g = re.search(r"^GFX_DOS_OBJ := (.*)$", db, re.M)
+    if not g:
+        sys.exit("profile: make printed no GFX_DOS_OBJ")
+    return [b.root / o for o in g.group(1).split()]
+
+
+def by_line(b: Build, listing: str, name: str, offsets: dict[int, float], d: Path) -> dict[str, float]:
+    """name's cycles by offset as by source line, inlined callees' lines their own. Its object, the
+    map's module for it, is built again with DWARF line tables, the same code; a sample is the
+    block that ran, charged to its first instruction's line."""
+    module = ""
+    for row in listing.splitlines():
+        if m := re.match(r"Module: (.*?)\(", row):
+            module = m[1]
+        elif re.match(rf"0001:[0-9a-f]{{8}}\*?\s+{re.escape(name)}$", row):
+            break
+    else:
+        return {}
+    at = re.search(r"slice/(\d+)_[^/]*$", module)
+    if not at:
+        return {}
+    obj = gfx_objects(b)[int(at[1])]
+    rel = str(obj.relative_to(b.root))
+    made = subprocess.run(["make", "-n", "-B", rel], cwd=b.root, capture_output=True, text=True).stdout
+    cmd = next(c for c in made.splitlines() if f"-o {rel}" in c)
+    lined = d / f"{obj.stem}.lines.obj"
+    subprocess.run(cmd.replace(f"-o {rel}", f"-gdwarf-4 -o {lined}"), shell=True, cwd=b.root, check=True)
+    sym = name.removeprefix("_slice")
+
+    def listing_of(o: Path, lines: bool) -> str:
+        flags = ["-d", "--no-show-raw-insn", *(["-l"] if lines else []), f"--disassemble-symbols={sym}"]
+        return subprocess.run([LLVM_OBJDUMP, *flags, str(o)], capture_output=True, text=True).stdout
+
+    def code(text: str) -> list[str]:
+        return [row.split(":", 1)[1] for row in text.splitlines() if re.match(r"\s*[0-9a-f]+:", row)]
+
+    text = listing_of(lined, True)
+    if code(text) != code(listing_of(obj, False)):
+        print(f"  {name}: the lined build's code differs; its lines are a guess")
+    where, start, lines = "?", -1, {}
+    for row in text.splitlines():
+        if m := re.match(r"; (\S+):(\d+)", row):
+            where = f"{Path(m[1]).name}:{m[2]}"
+        elif m := re.match(r"\s*([0-9a-f]+):", row):
+            start = int(m[1], 16) if start < 0 else start
+            lines[int(m[1], 16) - start] = where
+    out: dict[str, float] = {}
+    for off, c in offsets.items():
+        key = lines.get(max((o for o in lines if o <= off), default=-1), "?")
+        out[key] = out.get(key, 0) + c
+    return out
+
+
+def source_text(b: Build, where: str) -> str:
+    """The source line file:line names, under stdlib/gfx/src; empty when not found."""
+    name, _, line = where.partition(":")
+    found = next(iter((b.root / "stdlib/gfx/src").rglob(name)), None)
+    rows = found.read_text().splitlines() if found and line.isdigit() else []
+    return rows[int(line) - 1].strip() if rows and int(line) <= len(rows) else ""
+
+
+def print_vm_profile(
+    name: str,
+    machine: str,
+    exe: Path,
+    jobs: list[tuple],
+    files: dict[str, bytes],
+    n: int,
+    inside: list[str],
+    lined: Build | None = None,
+) -> None:
+    """Each function's cycles a frame on 86Box's machine, by time sampled: the longer job's less the
+    shorter's, over the frames between, so the start-up drops out. Each of inside's functions by
+    offset too, a sample landing on its block's first instruction; with lined, the build, by source
+    line instead."""
+    a, b = (vm_samples(machine, exe, j, files) for j in jobs)
+    frames = b.frames - a.frames
+    per = b.interval_us * b.mhz / frames
+    cycles = {f: (b.by.get(f, 0) - a.by.get(f, 0)) * per for f in b.by}
+    total = sum(cycles.values())
+    print(f"{name} on {machine}: {total:,.0f} cycles a frame ({b.mhz * 1e6 / total:.1f} fps), {frames} frames")
+    for f, c in sorted(cycles.items(), key=lambda kv: -kv[1])[:n]:
+        print(f"{c:>12,.0f} {c / total:6.1%}  {f}")
+    for f in inside:
+        offs = {k[1]: (v - a.at.get(k, 0)) * per for k, v in b.at.items() if k[0] == f}
+        if lined:
+            with tempfile.TemporaryDirectory() as d:
+                lines = by_line(lined, exe.with_suffix(".map").read_text(), f, offs, Path(d))
+            print(f"{f}, {cycles.get(f, 0):,.0f} cycles, by line:")
+            for where, c in sorted(lines.items(), key=lambda kv: -kv[1])[:n]:
+                print(f"{c:>12,.0f} {c / total:6.1%}  {where:16} {source_text(lined, where)[:70]}")
+            continue
+        print(f"{f}, by offset:")
+        for off, c in sorted(offs.items(), key=lambda kv: -kv[1])[:n]:
+            print(f"{c:>12,.0f} {c / total:6.1%}  +{off:#x}")
+
+
+def demos_on(a: argparse.Namespace, own: dict[str, bytes]) -> int:
+    """demos --machine: each demo as shipped but for vsync, built from each --rev and the tree, then
+    each EXE, on 86Box's machine. --profile: each build's, by function."""
+    builds = [(rev, build(rev, True)) for rev in [*(a.rev or []), "."]]
+    libs = [{"lib/gfx.qbx": (b.dos.parent / "lib/gfx.qbx").read_bytes()} for _, b in builds]
+    if a.profile:
+        for (rev, b), lib in zip(builds, libs, strict=True):
+            with tempfile.TemporaryDirectory() as d:
+                exe = profiled(b, Path(d))
+                for name in a.demo or DEMO_EDITS:
+                    f = a.frames or MACHINE_FRAMES[a.machine]
+                    jobs = [(demo_program(name, 0, False, a.edits or 0, n), "", "", own) for n in (f, 2 * f)]
+                    print(f"== {rev}")
+                    print_vm_profile(name, a.machine, exe, jobs, lib, a.n, a.at or [], b if a.lines else None)
+        return 0
+    print(f"320x200 at 8 bits on 86Box ({a.machine}), frames a second over {a.seconds:g} s")
+    print(f"{'':12}" + "".join(f"{rev:>10}" for rev, _ in builds))
+    for name in a.demo or DEMO_EDITS:
+        job = (demo_program(name, a.seconds, False, 0), "", "", own)
+        cells = [vm_rate(a.machine, b.dos, job, lib) for (_, b), lib in zip(builds, libs, strict=True)]
+        print(f"{name:12}" + "".join(f"{c:>10}" for c in cells), flush=True)
+    for exe in map(Path, a.exes):
+        print(f"{exe.name:12}{vm_rate(a.machine, exe, ('',), {}):>10}", flush=True)
+    return 0
+
+
+def cmd_gfx(a: argparse.Namespace) -> int:
+    """Each GFX_WORK frame's rate in pages and on the GPU, in the app's window (the Mac's, or Linux's, off-screen with
+    SDL_VIDEO_DRIVER=offscreen); with --vsync, each flip waiting for the refresh. --dos: in pages on DOS. With REVs:
+    in pages alone, per build."""
+    if a.dos:
+        return cmd_gfx_dos(a)
+    if a.revs:
+        return cmd_gfx_revs(a)
+    app = gfx_app(".")
+    print(f"640x480 at {a.depth} bits, frames a second")
+    print(f"{'':10}{'pages':>10}{'GPU':>10}{'GPU/pages':>11}{'batches':>9}{'refresh':>9}")
+    for work in a.work or GFX_WORK:
+        runs = (gfx_rate(app, work, a.depth, a.seconds, how, a.vsync) for how in ("soft", "gpu"))
+        (soft, ssum, _, _), (gpu, gsum, batches, hz) = runs
+        same = "" if ssum == gsum else "  frames differ"
+        print(f"{work:10}{soft:10.0f}{gpu:10.0f}{gpu / soft:10.1f}x{batches:9}{hz:9.2f}{same}")
+    return 0
 
 
 def charlie_modules() -> dict[str, bytes]:
@@ -966,6 +1762,10 @@ def main() -> int:
     p.add_argument("--inclusive", action="store_true", help="each function's instructions with its callees'")
     p.add_argument("--ms", type=int, default=30000, help="--ide: the emulated time each run is given")
     p.add_argument("--mem", type=int, default=4, help="DOSBox's MB")
+    p = sub.add_parser("fills")
+    p.add_argument("--case", action="append", choices=list(FILLS_CASES), help="a draw to count; all when none")
+    p.add_argument("--bits", type=int, action="append", choices=list(FILLS_COLOURS), help="a depth; 8 and 16 when none")
+    p.add_argument("-n", type=int, default=3)
     p = sub.add_parser("fps")
     p.add_argument("--real", action="store_true", help="the host's clock at cycles=fixed 10000, not virtual time")
     p.add_argument("--profile", action="store_true", help="the functions it spends its instructions in (normal core)")
@@ -973,6 +1773,29 @@ def main() -> int:
     p.add_argument("--each", action="store_true", help="each FPS_EACH call's ms on its own")
     p.add_argument("--nosb", action="store_true", help="no Sound Blaster: the PC speaker's music")
     p.add_argument("-n", type=int, default=30)
+    p = sub.add_parser("gfx")
+    p.add_argument("revs", nargs="*", help="builds to time in pages against each other (. the working tree)")
+    p.add_argument("--depth", type=int, default=32)
+    p.add_argument("-n", type=int, default=2, help="REVs: runs of each, the best kept")
+    p.add_argument("--seconds", type=float, default=3)
+    p.add_argument("--work", action="append", choices=list(GFX_WORK), help="a frame to time; all when none")
+    p.add_argument("--vsync", action="store_true", help="each flip waits for the refresh")
+    p.add_argument("--dos", action="store_true", help="pages under DOSBox-X")
+    p.add_argument("--cpu", default="486", help="--dos: DOSBox's cputype")
+    p.add_argument("--as-built", action="store_true", help="--dos: BASIC_EXE's build as it is, not made first")
+    p = sub.add_parser("demos")
+    p.add_argument("exes", nargs="*", help="a DOS program built elsewhere, writing its rate to FPS.TXT")
+    p.add_argument("--cycles", type=int, default=25000, help="DOSBox's cycles a virtual ms")
+    p.add_argument("--machine", choices=list(MACHINES), help="on 86Box's 486DX2-66, Pentium 100 or Pentium Pro 200")
+    p.add_argument("--at", action="append", help="--machine --profile: this function's cycles by offset too")
+    p.add_argument("--lines", action="store_true", help="--at: by source line, not offset")
+    p.add_argument("--frames", type=int, help="--machine --profile: frames in the shorter run, twice in the longer")
+    p.add_argument("--rev", action="append", help="--machine: a revision's build timed too, before the tree's")
+    p.add_argument("--demo", action="append", choices=list(DEMO_EDITS), help="a demo to time; all when none")
+    p.add_argument("--seconds", type=float, default=10)
+    p.add_argument("--profile", action="store_true", help="by function a frame, ours with every edit (normal core)")
+    p.add_argument("-n", type=int, default=20, help="--profile: the functions shown")
+    p.add_argument("--edits", type=int, help="--profile: ours with its first so many edits; all when none")
     sub.add_parser("charlie")
     sub.add_parser("engine")
     a = ap.parse_args()
@@ -986,7 +1809,10 @@ def main() -> int:
         "qbasic": cmd_qbasic,
         "ops": cmd_ops,
         "profile": cmd_profile,
+        "fills": cmd_fills,
         "fps": cmd_fps,
+        "gfx": cmd_gfx,
+        "demos": cmd_demos,
         "charlie": cmd_charlie,
         "engine": cmd_engine,
     }[a.cmd](a)

@@ -464,7 +464,7 @@ static void qr_find(const QrLoad *const L, const uint32_t k, QImport *const im, 
         return;
     }
 
-    if (dir) {
+    if (dir || (folder && natv_package(&S->natv, folder))) { /* a folder, or a .qbx of parts */
         im->folder = true;
         return;
     }

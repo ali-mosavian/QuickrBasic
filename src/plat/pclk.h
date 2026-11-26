@@ -38,4 +38,6 @@ bool pclk_set_date(const PclkDate *d);
    (a day of 60 Hz jiffies, as the asm's plt_rdtim). */
 uint32_t pclk_jiffies(void);
 void pclk_set_jiffies(uint32_t j);
+/* Microseconds, only ever forward: gfx's clock. */
+uint64_t pclk_us(void);
 #endif

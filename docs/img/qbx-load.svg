@@ -5,25 +5,25 @@
 <rect x="32" y="92" width="640" height="88" rx="10" fill="#eef2ff" stroke="#4f46e5" stroke-width="2"/>
 <text x="48" y="118" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#312e81" text-anchor="start">1  find</text>
 <text x="656" y="118" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#4f46e5" text-anchor="end" font-style="italic">io/locate.c</text>
-<text x="48" y="144" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">IMPORT synth: synth.bas, else synth.qbx, in the program&#x27;s folder,</text>
-<text x="48" y="162" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">BASICLIB, then lib/; the same for a Quickr import</text>
+<text x="48" y="144" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">synth: synth.bas, else synth.qbx; gfx.draw: else the part gfx.qbx/draw.</text>
+<text x="48" y="162" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">In the program&#x27;s folder, BASICLIB, then lib/; the same for Quickr</text>
 <rect x="32" y="192" width="640" height="88" rx="10" fill="#eef2ff" stroke="#4f46e5" stroke-width="2"/>
 <text x="48" y="218" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#312e81" text-anchor="start">2  open</text>
 <text x="656" y="218" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#4f46e5" text-anchor="end" font-style="italic">io/native.c natv_open</text>
-<text x="48" y="244" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">read whole once a process, kept by its path; qbxf_read checks it.</text>
-<text x="48" y="262" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">Another ABI major or a newer minor: Advanced feature unavailable, at the IMPORT</text>
+<text x="48" y="244" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">the file read whole once a process, kept by its path; qbxf_read checks it.</text>
+<text x="48" y="262" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">Another ABI major or a newer minor: Advanced feature unavailable</text>
 <path d="M352,180 L352,190" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
 <rect x="32" y="292" width="640" height="88" rx="10" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
 <text x="48" y="318" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#7c2d12" text-anchor="start">3  read</text>
 <text x="656" y="318" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#ea580c" text-anchor="end" font-style="italic">io/repl.c read_module</text>
-<text x="48" y="344" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">the interface is the module&#x27;s lines, stored LF_NATIVE;</text>
+<text x="48" y="344" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">the part&#x27;s interface is the module&#x27;s lines, stored LF_NATIVE;</text>
 <text x="48" y="362" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">each DECLARE ... CDECL a Proc with PF_NATIVE and no body (comp/blocks.c)</text>
 <path d="M352,280 L352,290" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
 <rect x="32" y="392" width="640" height="88" rx="10" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
 <text x="48" y="418" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#064e3b" text-anchor="start">4  link</text>
 <text x="656" y="418" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#059669" text-anchor="end" font-style="italic">comp/link.c link_natives</text>
 <text x="48" y="444" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">natv_module: this build&#x27;s slice to pext_load (plat/pext.h), then</text>
-<text x="48" y="462" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">qx_init_&lt;name&gt;(&amp;host) gives the QxModule; each DECLARE&#x27;s entry found, kinds checked</text>
+<text x="48" y="462" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">qx_init_&lt;file&gt;(&amp;host) gives the QxModule; each DECLARE&#x27;s entry found (draw.rect)</text>
 <path d="M352,380 L352,390" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
 <rect x="32" y="492" width="640" height="88" rx="10" fill="#f5f5f4" stroke="#78716c" stroke-width="2"/>
 <text x="48" y="518" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#292524" text-anchor="start">5  run</text>
@@ -50,7 +50,7 @@
 <rect x="704" y="92" width="264" height="140" rx="10" fill="#f5f5f4" stroke="#78716c" stroke-width="2"/>
 <text x="720" y="118" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#292524" text-anchor="start">the file, kept</text>
 <text x="720" y="140" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">NatvFile: path, bytes, its QbxFile</text>
-<text x="720" y="160" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">(abi, minor, interface, slice);</text>
+<text x="720" y="160" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">(abi, minor, this build&#x27;s slice);</text>
 <text x="720" y="180" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">module: the QxModule, once</text>
 <text x="720" y="200" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#1f2937" text-anchor="start">CHAIN and RUN find it again</text>
 <path d="M672,236 L702,200" fill="none" stroke="#9ca3af" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#ah9ca3af)"/>

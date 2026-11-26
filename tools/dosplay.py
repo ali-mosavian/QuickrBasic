@@ -246,3 +246,29 @@ class Session:
     def close(self) -> None:
         self.process.kill()
         self.process.wait()
+
+
+def main(argv: list[str]) -> None:
+    """dosplay.py FOLDER COMMAND [KEYS]: COMMAND typed at C:, FOLDER; at each of its first KEYS
+    key reads (1 by default) a screenshot, FOLDER/shotN.png, and its video mode, then a space; the
+    text screen once the prompt is back."""
+    work, command = Path(argv[1]).resolve(), argv[2]
+    s = Session(work)
+    try:
+        s.keys_in_lockstep(["space" if c == " " else c for c in command], 3000)
+        prompts = s.screen().count("C:\\>")
+        s.keys_in_lockstep(["enter"], 60000, waiting=3)  # a poll of the keyboard is not a wait
+        for n in range(1, (int(argv[3]) if len(argv) > 3 else 1) + 1):
+            s.snap(work / f"shot{n}.png")
+            print(f"shot{n}.png: video mode {s.video_mode()}")
+            s.keys_in_lockstep(["space"], 60000, waiting=3)
+        s.run_until(lambda: s.screen().count("C:\\>") > prompts, 60000, "the prompt")
+    finally:
+        print(s.screen())
+        s.close()
+
+
+if __name__ == "__main__":
+    import sys
+
+    main(sys.argv)

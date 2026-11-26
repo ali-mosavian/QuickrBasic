@@ -47,6 +47,7 @@ class Result:
     calls: dict[str, int] = field(default_factory=dict)  # profile: each function run, its calls
     selfs: dict[str, int] = field(default_factory=dict)  # profile: each function's own instructions
     incls: dict[str, int] = field(default_factory=dict)  # profile: and its callees' (a recursion's twice)
+    memory: dict[str, int] = field(default_factory=dict)  # profile: each function's own memory operands, a rep's each
 
 
 def messages() -> list[str]:
@@ -111,7 +112,9 @@ def run(jobs: dict[str, str | tuple], work: Path, limit_ms: int = 60000, file: b
     (work / "job.conf").write_text(CONF.format(mem=mem).replace("[dos]", f"{fpu}[dos]"))
     (work / "jobs.txt").write_text("\n".join(lines) + "\n")
     with open(work / "events.txt", "wb") as ev, open(work / "jobs.txt", "rb") as jin:
-        env = dict(os.environ, SDL_VIDEODRIVER="dummy", DOSRUN_FD=str(ev.fileno()))
+        env = dict(os.environ, DOSRUN_FD=str(ev.fileno()))
+        if os.environ.get("DOSRUN_SHOW") != "1":  # DOSRUN_SHOW=1: DOSBox's window shown
+            env["SDL_VIDEODRIVER"] = "dummy"
         subprocess.run(
             [str(DOSBOX), "-nolog", "-conf", str(work / "job.conf")],
             stdin=jin,
@@ -127,12 +130,14 @@ def run(jobs: dict[str, str | tuple], work: Path, limit_ms: int = 60000, file: b
     calls: list[dict[str, int]] = [{} for _ in names]
     selfs: list[dict[str, int]] = [{} for _ in names]
     incls: list[dict[str, int]] = [{} for _ in names]
+    memory: list[dict[str, int]] = [{} for _ in names]
     k = 0
     for e in evs:
         if e.get("ev") == "profile" and k < len(names):
             calls[k] = {f["name"]: f["calls"] for f in e["functions"] if f["calls"] or f["self"]}
             selfs[k] = {f["name"]: f["self"] for f in e["functions"] if f["self"]}
             incls[k] = {f["name"]: f["inclusive"] for f in e["functions"] if f.get("inclusive")}
+            memory[k] = {f["name"]: f["self_memory"] for f in e["functions"] if f.get("self_memory")}
         if e.get("ev") == "end":
             k += 1
         elif e.get("ev") == "line" and k < len(names):
@@ -143,7 +148,7 @@ def run(jobs: dict[str, str | tuple], work: Path, limit_ms: int = 60000, file: b
         f = work / f"J{i}.TXT"
         text = f.read_bytes().decode("latin-1") if f.exists() else ""
         out[name] = Result(name, text, e.get("reason", "none"), e.get("instructions", 0), e.get("ms", 0),
-                           "\n".join(screens[i]), calls[i], selfs[i], incls[i])
+                           "\n".join(screens[i]), calls[i], selfs[i], incls[i], memory[i])
     return out
 
 

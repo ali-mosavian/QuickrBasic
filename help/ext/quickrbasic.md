@@ -16,6 +16,8 @@ Language
                            [CONTINUE](CONTINUE), [EXIT](EXIT)
     IMPORT gfx             modules and packages, from files and folders
                            [IMPORT](IMPORT)
+    OPTION DISABLE LINE    QB's words for devices as names
+                           [OPTION DISABLE](OPTION DISABLE)
     FUNCTION f () AS Vec   a result's type by AS; records, arrays
                            [FUNCTION](FUNCTION)
     b() = a(), b(:) = a(:) an array moved; copied

@@ -1063,8 +1063,9 @@ dicts and iterables. Everything else is in a module.
 - `io.read_line` echoes the line's end, as LINE INPUT does. `io.at(row, col)` counts from 1.
   `io.color(fg, bg = 0)`.
 
-**Not yet:** `gfx` and `synth`. Each is a native module, which Quickr imports as QBasic does, so
-each waits only on its extension: `lib/gfx.qbx`, `lib/synth.qbx`.
+`gfx` is the native package `lib/gfx.qbx`, imported as QBasic imports it: `from gfx import
+display, draw`. Its CONSTs are not seen from Quickr. **Not yet:** `synth`, which waits on
+`lib/synth.qbx`.
 
 ## Building it
 

@@ -1,14 +1,16 @@
 /* Where a module's file is.
  *
  * # How it works
- * A module's name `lib.gfx` is the file `lib/gfx.bas`, else the native module `lib/gfx.qbx`, or for
- * FROM the package folder `lib/gfx/`, under the first root that has it: the main program's folder,
+ * A module's name `lib.gfx` is the file `lib/gfx.bas`, else the native module `lib/gfx.qbx`, else
+ * the part `gfx` of the native package `lib.qbx` (`lib.qbx/gfx`, io/native.c), or for FROM the
+ * package folder `lib/gfx/`, under the first root that has it: the main program's folder,
  * each of BASICLIB's folders (';'-separated), then `lib/` beside the interpreter. FROM's leading
  * dots name one root instead: the importing file's folder, a folder up for each dot past the first.
  * A Quickr module is a `.bas` alone, its first line saying so (qr/qr.h).
  */
 #include "io/locate.h"
 #include "io/path.h"
+#include "io/qbxfile.h"
 #include "plat/psys.h"
 #include <string.h>
 
@@ -56,8 +58,41 @@ static bool folder(char *const out)
     return true;
 }
 
-/* Name n under the root's n bytes: its file, of extension ext, else a .bas then a .qbx; else (dir
-   not null) its folder. */
+/* out, a .qbx's path, its part of the len bytes at text added: FILE.qbx/part, in lower case as
+   the parts are named. false: too long. */
+static bool add_part(char *const out, const uint8_t *const text, const uint32_t len)
+{
+    const uint32_t at = (uint32_t)strlen(out);
+
+    if (at + 1 + len >= PFIL_PATH)
+        return false;
+
+    out[at] = '/';
+
+    for (uint32_t i = 0; i < len; i++)
+        out[at + 1 + i] = (char)downcase(text[i]);
+
+    out[at + 1 + len] = 0;
+    return true;
+}
+
+/* Name m's last part in the .qbx its others name, under the root's n bytes, to out. false: no
+   such .qbx. */
+static bool part(const char *const root, const uint32_t n, const ImptName *const m, char *const out)
+{
+    uint32_t dot = m->len;
+
+    while (dot && m->text[dot - 1] != '.')
+        dot--;
+
+    const ImptName head = {.text = m->text, .len = (uint8_t)(dot - 1)};
+
+    return dot >= 2 && place(out, root, n, &head, ".qbx") && path_exists(out) &&
+           add_part(out, m->text + dot, m->len - dot);
+}
+
+/* Name n under the root's n bytes: its file, of extension ext, else a .bas, a .qbx, then a
+   package's part; else (dir not null) its folder. */
 static bool under(
     const char *const root,
     const uint32_t n,
@@ -72,6 +107,8 @@ static bool under(
     if (!ext && m->len && place(out, root, n, m, ".bas") && path_exists(out))
         return true;
     if (!ext && m->len && place(out, root, n, m, ".qbx") && path_exists(out))
+        return true;
+    if (!ext && part(root, n, m, out))
         return true;
 
     return dir && place(out, root, n, m, "") && (*dir = folder(out));
@@ -145,5 +182,13 @@ bool locate_in(
     char out[static PFIL_PATH]
 )
 {
-    return under(dir, (uint32_t)strlen(dir), m, ext, out, nullptr);
+    const uint32_t n = (uint32_t)strlen(dir);
+
+    if (!qbxf_is(dir))
+        return under(dir, n, m, ext, out, nullptr);
+    if (n >= PFIL_PATH)
+        return false;
+
+    memcpy(out, dir, n + 1);
+    return add_part(out, m->text, m->len);
 }

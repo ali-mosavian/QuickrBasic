@@ -76,6 +76,7 @@ enum : uint16_t {
     DPMI_RM_INT = 0x0300,
     DPMI_MEM_INFO = 0x0500,
     DPMI_MEM_ALLOC = 0x0501,
+    DPMI_MAP = 0x0800,
 };
 
 /* The BIOS data area's: the shift flags, the video mode, the tick count, a character's scan lines. */
@@ -112,6 +113,17 @@ bool pdos_alloc(uint32_t size, PdosBlock *b);
 void pdos_free(const PdosBlock *b);
 /* Real-mode interrupt `vector` with rm's registers, which it returns: whether DPMI ran it. */
 bool pdos_rm_int(uint8_t vector, PdosRmRegs *rm);
+
+/* VBE's controller (dosvbe.c), asked through a DOS block of PDOS_VBE_BLOCK bytes. */
+enum { PDOS_VBE_BLOCK = 512 };
+typedef struct {
+    uint16_t version;
+    uint32_t memory; /* video memory's bytes */
+} PdosVbe;
+/* The controller (4F00h), its modes' numbers to modes, at most most: how many; 0, no VBE. */
+uint32_t pdos_vbe_modes(const PdosBlock *b, PdosVbe *card, uint16_t *modes, uint32_t most);
+/* Mode's information (4F01h), in b: false, none. */
+bool pdos_vbe_mode(const PdosBlock *b, uint16_t mode);
 
 /* The environment block (index 0) copied to buf, at most cap bytes; its length. */
 CDECL uint32_t pdos_environ(uint32_t index, uint8_t *buf, uint32_t cap);

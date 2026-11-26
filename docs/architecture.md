@@ -178,15 +178,18 @@ dialect's guest modules at a time, and some message keys still name Quickr
 
 ## Native extensions
 
-A native module is a `.qbx` file: a header, a code slice for each platform, and its interface, the
-QBasic `DECLARE ... CDECL` lines of its procedures. `tools/qbx.py pack` builds one, and
+A native module is a `.qbx` file: a header, a code slice for each platform, and its interfaces,
+the QBasic `DECLARE ... CDECL` lines of its procedures. A package's `.qbx` holds an interface for
+each of its modules, its parts. `tools/qbx.py pack` builds one, and
 `docs/native-extensions-design.md` is the design. Both dialects load one the same way.
 
-- **Found** by `locate` (`io/locate.c`): a module's name is its `.bas`, else its `.qbx`, in the
-  importer's folder, `BASICLIB`, then `lib/`.
+- **Found** by `locate` (`io/locate.c`): a module's name is its `.bas`, else its `.qbx`, else a
+  package's part (`gfx.draw` is `gfx.qbx/draw`), in the importer's folder, `BASICLIB`, then
+  `lib/`. FROM's package is a folder or a `.qbx` of parts (`natv_package`); `locate_in` finds a
+  member of either.
 - **Opened** by `module_at` (`io/repl.c`): `natv_open` (`io/native.c`) reads the file once a
   process and checks its header, so a bad file is an error at the line that imports it.
-- **Read** by `read_module` (`io/repl.c`): the interface is the module's lines, stored
+- **Read** by `read_module` (`io/repl.c`): the part's interface is the module's lines, stored
   `LF_NATIVE`, and the module is marked native. A Quickr program's `.qbx` is one of its QBasic
   modules, read the same way, in a file run (`repl_guests`) and in the editor
   (`repl_guests_stored`).

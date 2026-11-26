@@ -24,11 +24,19 @@ HostScans *scans(void)
     return host_scans();
 }
 
-/* The frames shown (host.h), for the page to count each it draws: port 3DAh's retrace. */
-[[clang::export_name("frames")]]
-_Atomic uint32_t *frames(void)
+/* What the page shows (host.h): each frame it draws, port 3DAh's retrace, its refresh and its
+   screen. */
+[[clang::export_name("display")]]
+HostDisplay *display(void)
 {
-    return host_frames();
+    return host_display();
+}
+
+/* What the page saw (host.h), for gfx's poll. */
+[[clang::export_name("events")]]
+HostEvents *events(void)
+{
+    return host_events();
 }
 
 void host_term_open(void) {}

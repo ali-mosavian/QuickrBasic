@@ -12,9 +12,9 @@ void qxtest_start(void) { started++; }
 
 void qxtest_stop(void) {}
 
-int32_t add(const int32_t a, const int32_t b) { return a + b; }
+int32_t qxtest_add(const int32_t a, const int32_t b) { return a + b; }
 
-double half(const double d) { return d / 2; }
+double qxtest_half(const double d) { return d / 2; }
 
 QxStr shout_text(const QxStr s)
 {
@@ -26,11 +26,11 @@ QxStr shout_text(const QxStr s)
     return (QxStr){shouted, n};
 }
 
-void bump(int32_t *const n) { ++*n; }
+void qxtest_bump(int32_t *const n) { ++*n; }
 
-void move(qxtest_pt *const p, const int32_t dx) { p->x = (int16_t)(p->x + dx); }
+void qxtest_move(qxtest_pt *const p, const int32_t dx) { p->x = (int16_t)(p->x + dx); }
 
-float total(const QxArray *const a)
+float qxtest_total(const QxArray *const a)
 {
     const float *const f = a->data;
     float sum = 0;
@@ -41,11 +41,11 @@ float total(const QxArray *const a)
     return sum;
 }
 
-int32_t items(const QxArray *const a) { return (int32_t)a->count; }
+int32_t qxtest_items(const QxArray *const a) { return (int32_t)a->count; }
 
-void fail(const int32_t code) { qx_fail((uint8_t)code); }
+void qxtest_fail(const int32_t code) { qx_fail((uint8_t)code); }
 
-int32_t runs(void) { return started; }
+int32_t qxtest_runs(void) { return started; }
 
 /* Silence, its frames counted. */
 static void QX_CALL render(int16_t *const out, const int32_t n)
@@ -56,7 +56,7 @@ static void QX_CALL render(int16_t *const out, const int32_t n)
     frames += n;
 }
 
-int32_t audio(void)
+int32_t qxtest_audio(void)
 {
     QxAudio a = {.rate = 22050, .render = render};
 
@@ -67,10 +67,13 @@ int32_t audio(void)
     return -1;
 }
 
-int32_t played(void)
+int32_t qxtest_played(void)
 {
     const uint32_t token = qx_host->audio_lock();
     const int32_t n = frames;
     qx_host->audio_unlock(token);
     return n;
 }
+
+/* The clock's microseconds past its millisecond. */
+int32_t qxtest_fraction(void) { return (int32_t)(qx_host->clock_us() % 1000); }

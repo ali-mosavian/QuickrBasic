@@ -1,14 +1,18 @@
 // The page: the IDE's screen on a canvas, the keyboard and the speaker. The module runs in a worker
 // (worker.mjs); this thread is its VGA card and its interrupts: it renders the screen from the
 // shared memory in an instance of its own, ORs in the tick, types the keys.
+import { gpu as newGpu } from './gpu.mjs';
 import { biosKey, scanCode, shiftFlags } from './keys.mjs';
 import { uploadAs } from './upload.mjs';
-import { memory as newMemory, Irq, sidecar, ticker, MUSIC_HZ, AUDIO_RATE } from './wasm.mjs';
+import { memory as newMemory, Irq, sidecar, ticker, EVENT, MUSIC_HZ, AUDIO_RATE } from './wasm.mjs';
 
 const BLINK_MS = 267;
-const DEMOS = ['WELCOME.BAS', 'GORILLA.BAS', 'NIBBLES.BAS', 'MOTHLITE.BAS', 'RUSTLINE.BAS', 'CHARLIE.BAS'];
+const DEMOS = ['WELCOME.BAS', 'GORILLA.BAS', 'NIBBLES.BAS', 'MOTHLITE.BAS', 'RUSTLINE.BAS', 'CHARLIE.BAS',
+  'GFXDEMO.BAS', 'CUBE.BAS', 'ORBITS.BAS', 'PLASMA.BAS', 'TUNNEL.BAS', 'SPARKS.BAS', 'ISLES.BAS'];
 // F1's help file and a game's pictures, beside the programs, as on DOS
 const SUPPORT = ['BASIC.HLP', 'demos/CHARLIE.DAT'];
+// the native modules that ship, in lib/ beside the interpreter (C:\)
+const LIB = ['lib/gfx.qbx'];
 const STORE = 'qb:'; // localStorage: STORE + path -> the file in base64
 
 const canvas = document.getElementById('screen');
@@ -27,7 +31,8 @@ const unb64 = (text) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
 async function files() {
   const out = new Map();
   // [where from, the path in the file system]: a demo's modules sit in a folder beside it, listed in demos/MODULES
-  const wanted = [...DEMOS.map((n) => [`demos/${n}`, `/${n}`]), ...SUPPORT.map((s) => [s, '/' + s.split('/').pop()])];
+  const wanted = [...DEMOS.map((n) => [`demos/${n}`, `/${n}`]), ...SUPPORT.map((s) => [s, '/' + s.split('/').pop()]),
+    ...LIB.map((s) => [s, `/${s}`])];
   // Quickr's library in /lib, beside the interpreter (C:\BASIC.EXE), listed in lib/MODULES
   for (const list of ['demos', 'lib']) {
     try {
@@ -110,19 +115,31 @@ const F5 = 0x3f00;
 let begun = !run; // ?run= waits for a key or click, a browser's leave to sound: its title would be silent
 const module = await WebAssembly.compileStreaming(fetch('ide.wasm'));
 const memory = newMemory();
+// The GPU gfx plays its lists on (gpu.mjs), the module's counters of them: none, ?gfx=soft.
+const gpu = params.get('gfx') === 'soft' ? null : newGpu(memory, new Int32Array(new SharedArrayBuffer(8)));
 const worker = new Worker(new URL('./worker.mjs', import.meta.url), { type: 'module' });
 let irq, display;
 
 worker.onmessage = ({ data }) => {
   if ('irq' in data) {
-    irq = new Irq(memory, data.irq, data.scans, data.frames);
+    irq = new Irq(memory, data.irq, data.scans, data.display, data.events);
+    resized();
     // a hidden page draws nothing: its retraces from a timer, so a program waiting for one goes on
     setInterval(() => document.hidden && irq.frame(), 1000 / 60);
     display = sidecar(module, memory, tone, voice);
-    window.quickr = { display, irq, memory }; // for a look from the console, and the tests
+    window.quickr = { display, irq, memory, gpu }; // for a look from the console, and the tests
     setInterval(ticker(irq, display), 1000 / MUSIC_HZ);
     requestAnimationFrame(draw);
     status.textContent = '';
+  } else if ('list' in data) {
+    gpu.play(data.list);
+  } else if ('read' in data) {
+    gpu.read(...data.read);
+  } else if ('gpu' in data) {
+    if (data.gpu) gpu.open(data.gpu.w, data.gpu.h);
+    else gpu.close();
+  } else if ('fullscreen' in data) {
+    fullscreen(data.fullscreen);
   } else if ('file' in data) {
     keep(data.file, data.bytes);
   } else if ('tone' in data) {
@@ -145,9 +162,10 @@ worker.onerror = (e) => {
   status.textContent = 'QuickrBasic did not start: ' + e.message;
   console.error(e);
 };
-worker.postMessage({ module, memory, args: open, files: await files() });
+worker.postMessage({ module, memory, args: open, files: await files(), gpu: gpu?.sync });
 
 let image, cell = 16;
+let onGpu = false; // the canvas has the GPU's frame: drawn again only when it shows another
 
 // The pointer's cell and pixel: the canvas is scaled to fit (object-fit: contain), so the screen's
 // own pixels are found first. A text mode's pixel is the cell's times 8 (INT 33h's); a graphics
@@ -178,21 +196,51 @@ canvas.addEventListener('pointerup', (e) => {
 });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 function draw(now) {
-  const at = display.frame(Math.floor(now / BLINK_MS) % 2 === 0 ? 1 : 0);
-  const [w, h, cellH] = new Uint32Array(memory.buffer, at, 3);
+  const played = gpu?.showing;
+  const at = played ? 0 : display.frame(Math.floor(now / BLINK_MS) % 2 === 0 ? 1 : 0);
+  const [w, h, cellH] = played ? [gpu.w, gpu.h, 0] : new Uint32Array(memory.buffer, at, 3);
   cell = cellH;
   if (curtain && hidden(now, w, h)) return requestAnimationFrame(draw);
   canvas.style.cursor = cell ? '' : 'none'; // a graphics mode's program draws its own (PEN)
-  if (canvas.width !== w || canvas.height !== h || !image) {
+  const sized = canvas.width !== w || canvas.height !== h || !image;
+  if (sized) {
     canvas.width = w;
     canvas.height = h;
     image = ctx.createImageData(w, h);
   }
-  image.data.set(new Uint8Array(memory.buffer, at + 16, w * h * 4));
-  ctx.putImageData(image, 0, 0);
-  irq.frame();
+  if (played) {
+    if (gpu.present(sized || !onGpu)) ctx.drawImage(gpu.canvas, 0, 0);
+  } else {
+    image.data.set(new Uint8Array(memory.buffer, at + 16, w * h * 4));
+    ctx.putImageData(image, 0, 0);
+  }
+  onGpu = played;
+  irq.frame(now);
   requestAnimationFrame(draw);
 }
+
+// Full screen as gfx asks: the Fullscreen API's, which takes a click or a key, so at the next.
+let fullAsked = false;
+function fullscreen(on) {
+  fullAsked = on;
+  if (!on && document.fullscreenElement) document.exitFullscreen();
+}
+function gesture() {
+  if (fullAsked && !document.fullscreenElement) canvas.requestFullscreen().catch(() => {});
+  fullAsked = false;
+}
+
+// The screen's pixels, gfx's one mode, and the canvas's as shown: a RESIZED for gfx's poll.
+function resized() {
+  if (!irq) return;
+  const dpr = devicePixelRatio, r = canvas.getBoundingClientRect();
+  const scale = Math.min(r.width / canvas.width, r.height / canvas.height) * dpr;
+  irq.screen(Math.round(screen.width * dpr), Math.round(screen.height * dpr));
+  irq.event(EVENT.RESIZED, { w: Math.round(canvas.width * scale), h: Math.round(canvas.height * scale) });
+}
+addEventListener('resize', resized);
+document.addEventListener('fullscreenchange', resized);
+addEventListener('focus', () => irq?.event(EVENT.FOCUS, { focused: true }));
 
 // ?run='s program, started at the first key or click: true as it starts.
 function begin() {
@@ -210,6 +258,7 @@ let curtain = run ? Infinity : 0, ide;
 function hidden(now, w, h) {
   ide ??= `${w}x${h}`;
   if (begun && (now > curtain || ide !== `${w}x${h}`)) return !!(curtain = 0);
+  onGpu = false;
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   if (!begun) {
@@ -228,6 +277,7 @@ function release(code) {
 }
 addEventListener('keydown', (e) => {
   wake();
+  gesture();
   if (!irq || e.metaKey) return;
   if (begin()) return e.preventDefault();
   irq.shift = shiftFlags(e);
@@ -249,11 +299,13 @@ addEventListener('keyup', (e) => {
 });
 addEventListener('blur', () => {
   if (!irq) return;
+  irq.event(EVENT.FOCUS, { focused: false });
   irq.shift = 0;
   for (const code of [...held]) release(code); // no key comes up for a page that lost the keyboard
 });
 addEventListener('pointerdown', () => {
   wake();
+  gesture();
   if (irq) begin();
 });
 

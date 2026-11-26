@@ -176,7 +176,8 @@ TEST(mixcomplete_qr_main_offers_a_qbasic_modules_exports)
     fx_done(S, files);
 }
 
-/* qxt.qbx as tools/qbx.py pack lays it out: its interface iface at 64, a slice for no machine. */
+/* qxt.qbx as tools/qbx.py pack lays it out: a slice for no machine, empty, and the module's own
+   interface iface, both at 64, the interface followed by 1Ah. */
 static void write_qbx(const char *const iface)
 {
     uint8_t f[256] = {};
@@ -186,14 +187,16 @@ static void write_qbx(const char *const iface)
     store16(f + 4, QBXF_FORMAT);
     store16(f + 6, 1);
     store16(f + 10, 1);
-    store32(f + 12, 64);
-    store32(f + 16, n);
-    strcpy((char *)f + 20, "nosuch");
-    store32(f + 36, 64 + n);
+    store16(f + 12, 1);
+    strcpy((char *)f + 16, "nosuch"); /* the slice: tag, at, bytes */
+    store32(f + 32, 64);
+    store32(f + 56, 64); /* the part "": its name all 0, at, bytes */
+    store32(f + 60, n);
     memcpy(f + 64, iface, n);
+    f[64 + n] = 0x1a;
 
     FILE *const out = fopen(fx_path_of("qxt.qbx"), "wb");
-    fwrite(f, 1, 64 + n, out);
+    fwrite(f, 1, 64 + n + 1, out);
     fclose(out);
 }
 

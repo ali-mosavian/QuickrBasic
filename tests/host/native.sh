@@ -1,9 +1,9 @@
 #!/bin/sh
 # A native module (tests/ext/qxtest): each kind of argument and result through its code, its error
-# at the calling line, its start once a run, its audio stream refused with no device; the same from
-# Quickr, a list passed where it takes an array. Then the .qbx files that cannot bind: no slice for
-# this machine, not a .qbx, an entry its code lacks, a DECLARE its code's kinds disagree with. With
-# audio, a device (QB_AUDIO) plays its stream.
+# at the calling line, its start once a run, its clock finer than a millisecond, its audio stream
+# refused with no device; the same from Quickr, a list passed where it takes an array. Then the
+# .qbx files that cannot bind: no slice for this machine, not a .qbx, an entry its code lacks, a
+# DECLARE its code's kinds disagree with. With audio, a device (QB_AUDIO) plays its stream.
 # Usage: native.sh BASIC SLICE TAG [audio], the slice qxtest's for this machine's tag.
 set -e
 B=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
@@ -46,6 +46,11 @@ EOF
 want=$(printf ' 5  2.5 \nHI THERE\n 42 \n 10 \n 6.5 \n 42  1 \n 0  0 \nerr 5 \nafter')
 out=$(run)
 [ "$out" = "$want" ] || { echo "native: got '$out'"; exit 1; }
+
+# the clock resolves below a millisecond: the web's stepped by whole ones
+printf 'from qxtest import *\nfor i%% = 1 to 100\nif fraction%%() then f%% = -1\nnext\nprint f%%\n' > "$D/c.bas"
+out=$(cd "$D" && "$B" c.bas < /dev/null 2>&1 | tr -d '\r')
+[ "$out" = "-1 " ] || { echo "native: clock: got '$out'"; exit 1; }
 
 cat > "$D/q.bas" << 'EOF'
 ' OPTION DIALECT QUICKR

@@ -333,65 +333,69 @@ def bar(s, x, y, per, fields, theme="base", h=40):
 
 
 def qbx_file():
-    s = Svg(W, 600, "A .qbx file", "Little-endian. The slices start on 16-byte boundaries; the interface is last, read to the end.")
+    s = Svg(W, 640, "A .qbx file, version 2", "Little-endian. The slices start on 16-byte boundaries; each interface ends with 1Ah, as a source file does.")
     fc, ec, wc = THEME["front"], THEME["engine"], THEME["warn"]
 
-    parts = [("header", "20 bytes", "front", 44), ("slice table", "24 bytes a slice", "front", 44),
-             ("slice dos-i386", "a QXI image", "engine", 40), ("slice macos", "a universal dylib", "engine", 40),
-             ("slice linux-x86_64", "an ELF .so", "engine", 40), ("slice wasm32", "a side module", "engine", 40),
-             ("interface", "BASIC text, to the end", "warn", 56)]
+    parts = [("header", "16 bytes", "front", 40), ("entries", "24 bytes each: slices, then parts", "front", 40),
+             ("slice dos-i386", "a QXI image", "engine", 34), ("slice macos", "a universal dylib", "engine", 34),
+             ("slice linux-x86_64", "an ELF .so", "engine", 34), ("slice wasm32", "a side module", "engine", 34),
+             ('part ""', "the module's own interface", "warn", 34), ('part "display"', "a package's module", "warn", 34),
+             ('part "draw"', "and so on, each + 1Ah", "warn", 34)]
     y, at = 96, {}
     for name, note, theme, h in parts:
-        s.box(32, y, 300, h, theme, r=6)
+        s.box(32, y, 310, h, theme, r=6)
         s.text(48, y + h / 2 + 5, name, size=13, weight=700, fill=THEME[theme][2])
-        s.text(316, y + h / 2 + 5, note, size=11, fill=THEME[theme][1], anchor="end")
+        s.text(326, y + h / 2 + 5, note, size=11, fill=THEME[theme][1], anchor="end")
         at[name] = (y, h)
         y += h + 6
+    s.text(48, y + 14, 'a module\'s .qbx has part "" alone; a package\'s, its modules', size=11, fill=MUTED)
 
     s.text(440, 104, "header", size=14, weight=700, fill=fc[2])
-    bar(s, 440, 126, 26.4, [(4, 'QBX 1Ah'), (2, "format"), (2, "abi"), (2, "minor"), (2, "slices"),
-                            (4, "iface at"), (4, "iface bytes")], "front")
-    s.text(440, 188, "16 bits each: format 1; abi, the ABI's major; minor, the least the host needs.", size=11, fill=MUTED)
-    s.text(440, 204, "32 bits each: the interface's offset and bytes.", size=11, fill=MUTED)
+    bar(s, 440, 126, 33, [(4, 'QBX 1Ah'), (2, "format"), (2, "abi"), (2, "minor"), (2, "slices"),
+                          (2, "parts"), (2, "0")], "front")
+    s.text(440, 188, "16 bits each: format 2; abi, the ABI's major; minor, the least the host needs;", size=11, fill=MUTED)
+    s.text(440, 204, "the slices' and the parts' counts. Version 1 had no parts: one interface, last.", size=11, fill=MUTED)
 
-    s.text(440, 238, "slice table entry, one a slice", size=14, weight=700, fill=fc[2])
-    bar(s, 440, 260, 22, [(16, "tag, 0-padded"), (4, "at"), (4, "bytes")], "front")
-    s.text(440, 318, "the slice whose tag is this build's pext_tag is loaded; the rest are skipped", size=11, fill=MUTED)
+    s.text(440, 242, "entry: a slice's or a part's", size=14, weight=700, fill=fc[2])
+    bar(s, 440, 264, 22, [(16, "tag or name, 0-padded"), (4, "at"), (4, "bytes")], "front")
+    s.text(440, 326, "a slice's tag: this build's pext_tag is loaded, the rest skipped;", size=11, fill=MUTED)
+    s.text(440, 342, 'a part\'s name: "" the module\'s own, else gfx.qbx/draw is "draw"', size=11, fill=MUTED)
 
-    s.text(440, 348, "dos-i386 slice: an image linked at 0 (util/image.c)", size=14, weight=700, fill=ec[2])
-    bar(s, 440, 370, 26.4, [(3, "QXI"), (1, "1"), (4, "stored"), (4, "size"), (4, "entry"), (4, "relocs")], "engine")
-    s.box(440, 422, 300, 32, "engine", r=3)
-    s.text(590, 442, "stored bytes, padded to 4", size=11, anchor="middle", mono=True)
-    s.box(746, 422, 222, 32, "engine", r=3)
-    s.text(857, 442, "relocs × 4-byte offset", size=11, anchor="middle", mono=True)
-    s.text(440, 476, "placed: zeroed past stored up to size (the bss), the block's address added", size=11, fill=MUTED)
-    s.text(440, 492, "to the 32-bit word at each offset, entry called (qx_init_<name>)", size=11, fill=MUTED)
+    s.text(440, 380, "dos-i386 slice: an image linked at 0 (util/image.c)", size=14, weight=700, fill=ec[2])
+    bar(s, 440, 402, 26.4, [(3, "QXI"), (1, "1"), (4, "stored"), (4, "size"), (4, "entry"), (4, "relocs")], "engine")
+    s.box(440, 454, 300, 32, "engine", r=3)
+    s.text(590, 474, "stored bytes, padded to 4", size=11, anchor="middle", mono=True)
+    s.box(746, 454, 222, 32, "engine", r=3)
+    s.text(857, 474, "relocs × 4-byte offset", size=11, anchor="middle", mono=True)
+    s.text(440, 508, "placed: zeroed past stored up to size (the bss), the block's address added", size=11, fill=MUTED)
+    s.text(440, 524, "to the 32-bit word at each offset, entry called (qx_init_<name>)", size=11, fill=MUTED)
 
     hy, hh = at["header"]
-    s.arrow([(332, hy + hh / 2), (436, 146)], color=fc[1])
-    ty, th = at["slice table"]
-    s.arrow([(332, ty + th / 2), (436, 280)], color=fc[1])
+    s.arrow([(342, hy + hh / 2), (436, 146)], color=fc[1])
+    ty, th = at["entries"]
+    s.arrow([(342, ty + th / 2), (436, 284)], color=fc[1])
     dy, dh = at["slice dos-i386"]
-    s.arrow([(332, dy + dh / 2), (436, 390)], color=ec[1])
+    s.arrow([(342, dy + dh / 2), (436, 422)], color=ec[1])
 
-    s.box(32, 528, 936, 48, "base")
-    s.text(48, 557, "io/qbxfile.c reads it: every part must lie inside the file. tools/qbx.py pack writes it; "
+    s.box(32, 568, 936, 48, "base")
+    s.text(48, 597, "io/qbxfile.c reads it: every part must lie inside the file. tools/qbx.py pack writes it; "
            "qbx.py strip keeps some slices.", size=12)
     s.save(f"{OUT}/qbx-file.svg")
 
 
 def qbx_build():
-    s = Svg(W, 470, "Building a .qbx", "tools/qbx.py writes the glue from the interface, each slice is built with it, then pack puts them in one file.")
+    s = Svg(W, 470, "Building a .qbx", "tools/qbx.py writes the glue from the interfaces, each slice is built with it, then pack puts them in one file.")
     fc, ec, wc = THEME["front"], THEME["engine"], THEME["warn"]
 
-    s.panel(32, 96, 220, 96, "warn", "synth.bas", "the interface")
+    s.panel(32, 96, 220, 96, "warn", "synth.bas", "an interface")
     s.text(48, 146, "TYPEs, CONSTs, DECLARE", size=12, mono=True)
-    s.text(48, 166, "... CDECL, BASIC procs", size=12, mono=True)
+    s.text(48, 166, "... CDECL; a package's: one a part", size=11)
     s.panel(32, 222, 220, 76, "base", "synth.c", "plain C")
-    s.text(48, 272, "one C function a DECLARE", size=12)
+    s.text(48, 264, "a function a DECLARE,", size=12)
+    s.text(48, 282, "synth_note; gfx_draw_rect", size=12, mono=True)
 
     s.panel(292, 96, 200, 96, "front", "qbx.py glue")
-    s.text(308, 146, "synth_qx.h: the TYPEs", size=12, mono=True)
+    s.text(308, 146, "synth_qx.h: CONSTs, TYPEs", size=12, mono=True)
     s.text(308, 166, "synth_qx.c: the entries", size=12, mono=True)
     s.arrow([(252, 144), (290, 144)], color=wc[1])
 
@@ -409,7 +413,7 @@ def qbx_build():
     s.panel(824, 172, 144, 100, "front", "qbx.py pack")
     s.text(840, 222, "a DOS DLL made", size=11)
     s.text(840, 238, "its QXI image;", size=11)
-    s.text(840, 254, "the interface last", size=11)
+    s.text(840, 254, "the parts after", size=11)
     s.arrow([(252, 120), (272, 120), (272, 84), (896, 84), (896, 170)], color=wc[1], dash=True)
     s.box(824, 300, 144, 44, "warn", strong=True)
     s.text(896, 327, "synth.qbx", size=14, weight=700, fill=wc[2], anchor="middle", mono=True)
@@ -426,14 +430,14 @@ def qbx_load():
     s = Svg(W, 600, "Loading a .qbx", "Found and opened at the IMPORT, its interface read as the module, its slice loaded when the program links.")
     fc, ec, wc = THEME["front"], THEME["engine"], THEME["warn"]
     steps = [
-        ("front", "1  find", "io/locate.c", ["IMPORT synth: synth.bas, else synth.qbx, in the program's folder,",
-                                              "BASICLIB, then lib/; the same for a Quickr import"]),
-        ("front", "2  open", "io/native.c natv_open", ["read whole once a process, kept by its path; qbxf_read checks it.",
-                                                        "Another ABI major or a newer minor: Advanced feature unavailable, at the IMPORT"]),
-        ("warn", "3  read", "io/repl.c read_module", ["the interface is the module's lines, stored LF_NATIVE;",
+        ("front", "1  find", "io/locate.c", ["synth: synth.bas, else synth.qbx; gfx.draw: else the part gfx.qbx/draw.",
+                                              "In the program's folder, BASICLIB, then lib/; the same for Quickr"]),
+        ("front", "2  open", "io/native.c natv_open", ["the file read whole once a process, kept by its path; qbxf_read checks it.",
+                                                        "Another ABI major or a newer minor: Advanced feature unavailable"]),
+        ("warn", "3  read", "io/repl.c read_module", ["the part's interface is the module's lines, stored LF_NATIVE;",
                                                        "each DECLARE ... CDECL a Proc with PF_NATIVE and no body (comp/blocks.c)"]),
         ("engine", "4  link", "comp/link.c link_natives", ["natv_module: this build's slice to pext_load (plat/pext.h), then",
-                                                            "qx_init_<name>(&host) gives the QxModule; each DECLARE's entry found, kinds checked"]),
+                                                            "qx_init_<file>(&host) gives the QxModule; each DECLARE's entry found (draw.rect)"]),
         ("base", "5  run", "vm/ncall.c", ["start() at the run's start; a call is CALL NCALL: its arguments laid out",
                                            "as qx/qx.h says, the entry called, its result pushed; stop() at the end"]),
     ]
@@ -455,7 +459,7 @@ def qbx_load():
     s.arrow([(672, 436), (702, 436)], color=ec[1])
 
     s.panel(704, 92, 264, 140, "base", "the file, kept")
-    for i, t in enumerate(["NatvFile: path, bytes, its QbxFile", "(abi, minor, interface, slice);",
+    for i, t in enumerate(["NatvFile: path, bytes, its QbxFile", "(abi, minor, this build's slice);",
                            "module: the QxModule, once", "CHAIN and RUN find it again"]):
         s.text(720, 140 + i * 20, t, size=12)
     s.arrow([(672, 236), (702, 200)], color=LINE, dash=True)

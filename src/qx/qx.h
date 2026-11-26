@@ -30,7 +30,8 @@
 #define QX_EXPORT __attribute__((visibility("default")))
 #endif
 
-enum { QX_ABI = 1, QX_MINOR = 0 };
+/* Minor 4 adds the GPU list's depth (qxlist.h). */
+enum { QX_ABI = 1, QX_MINOR = 4 };
 
 typedef struct QxCall QxCall;
 typedef void QX_CALL QxFn(QxCall *c);
@@ -65,6 +66,49 @@ typedef struct {
     void(QX_CALL *render)(int16_t *out, int32_t frames);
 } QxAudio;
 
+/* A shading language a GPU's host takes (qxlist.h's PIPELINE): MSL 2.0, ESSL 3.00 (WebGL2's),
+   SPIR-V 1.0 (Vulkan's). */
+typedef enum : uint8_t { QX_SHADER_MSL = 1, QX_SHADER_ESSL, QX_SHADER_SPIRV } QxShader;
+
+/* A screen's flag the host reads: gfx_show and a list's SHOW wait for the display's refresh. */
+enum { QX_SCREEN_VSYNC = 1 };
+
+/* A screen asked for (gfx_open), then what the host gives. */
+typedef struct {
+    uint16_t w, h;         /* the canvas */
+    uint8_t depth, flags;  /* 8 bits a pixel; gfx.display's flags, QX_SCREEN_VSYNC among them */
+    uint8_t shaders;       /* the languages the extension brings, 1 << QxShader each */
+    bool gpu;              /* given: the host plays GPU lists (qxlist.h), else it lends pages */
+    QxShader shader;       /* given with gpu: the language its pipelines are in */
+    bool y_down;           /* given with gpu: clip space's y runs down a texture's rows, else up */
+    uint16_t out_w, out_h; /* given: the pixels the canvas is shown at */
+    float hz;              /* given: the refresh, 0 unknown */
+} QxScreen;
+
+/* A monitor's full-screen mode: w by h pixels, bits a pixel, its refresh (0 unknown). */
+typedef struct {
+    uint16_t w, h;
+    uint8_t bits;
+    float hz;
+} QxMode;
+
+/* What the host saw: the canvas shown at w by h pixels; the window moved to monitor; focused or
+   not; the GPU's textures lost, to be sent again; the window closed. */
+typedef enum : uint8_t {
+    QX_EVENT_RESIZED = 1,
+    QX_EVENT_MOVED,
+    QX_EVENT_FOCUS,
+    QX_EVENT_LOST,
+    QX_EVENT_QUIT,
+} QxEventKind;
+
+typedef struct {
+    QxEventKind kind;
+    uint8_t monitor;
+    bool focused;
+    uint16_t w, h;
+} QxEvent;
+
 typedef struct QxHost {
     uint32_t size, abi, minor;
     /* Memory the extension keeps: zeroed, null when none is left. */
@@ -80,6 +124,35 @@ typedef struct QxHost {
     /* render held off while what it reads changes, till audio_unlock with the token: nests. */
     uint32_t(QX_CALL *audio_lock)(void);
     void(QX_CALL *audio_unlock)(uint32_t token);
+    /* Minor 1. A screen shown in the runtime's place until gfx_close or the run's end: false,
+       none of that depth. */
+    bool(QX_CALL *gfx_open)(QxScreen *s);
+    void(QX_CALL *gfx_close)(void);
+    /* The page to draw the next frame in, pitch bytes a row; the last frame's pixels still in it. */
+    void *(QX_CALL *gfx_page)(uint32_t *pitch);
+    /* The page is shown: at 8 bits with these 256 colours, &HRRGGBB. */
+    void(QX_CALL *gfx_show)(const uint32_t *palette);
+    /* Microseconds, only ever forward. */
+    uint64_t(QX_CALL *clock_us)(void);
+    /* The file at path (len bytes) whole, in alloc's memory, *bytes of it: null, none. */
+    void *(QX_CALL *file_read)(const char *path, uint32_t len, uint32_t *bytes);
+    /* Minor 2, for a screen gfx_open gave a GPU. The list played (qxlist.h): it returns when the
+       host is done with the list's memory. */
+    void(QX_CALL *gpu_play)(const uint32_t *list, uint32_t words);
+    /* w by h pixels at x, y of a texture, as played so far, into out: bytes R, G, B and A, rows
+       top first. */
+    void(QX_CALL
+             *gpu_read)(uint32_t texture, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t *out);
+    /* Minor 3. The monitors, numbered from 1. */
+    uint32_t(QX_CALL *gfx_monitors)(void);
+    /* A monitor's full-screen modes, numbered from 1, the first most into out: their count. */
+    uint32_t(QX_CALL *gfx_modes)(uint32_t monitor, QxMode *out, uint32_t most);
+    /* The screen full screen on monitor, n 0 in the desktop's mode, else in its nth; monitor 0, in
+       a window again: false, it could not. Back in a window when the screen closes. */
+    bool(QX_CALL *gfx_mode)(uint32_t monitor, uint32_t n);
+    /* The next thing the host saw since gfx_open: false, none. A window closed ends the run, unless
+       the extension has asked since gfx_open: then it is QUIT. */
+    bool(QX_CALL *gfx_event)(QxEvent *e);
 } QxHost;
 
 /* One call: its arguments; a FUNCTION's result; an error raised at the calling line once the

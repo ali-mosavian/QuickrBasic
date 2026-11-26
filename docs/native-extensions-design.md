@@ -42,15 +42,15 @@ print synth.beat()
 
 ![A .qbx file](img/qbx-file.svg)
 
-A `.qbx` is little-endian: the header, the slice table, the slices, then the interface.
-`tools/qbx.py pack` writes it and `io/qbxfile.c` reads it.
+A `.qbx` is little-endian: the header, the entries, the slices, then the parts. `tools/qbx.py
+pack` writes it and `io/qbxfile.c` reads it.
 
 | Part | Holds |
 |---|---|
-| Header | 20 bytes: the magic, the versions, the slices' count, where the interface is |
-| Slice table | 24 bytes a slice: its tag, offset and size |
+| Header | 16 bytes: `QBX` and 1Ah, the file format's version (2), the ABI's major and the minor it needs, the slices' and the parts' counts |
+| Entries | 24 bytes each, the slices' then the parts': a tag or a name, an offset and a size |
 | Slices | each platform's code, each from a 16-byte boundary |
-| Interface | the module's BASIC source: TYPEs, CONSTs, native DECLAREs, procedures in BASIC; last, so the loader reads it as a source file from its offset to the end |
+| Parts | interfaces, BASIC source: TYPEs, CONSTs, native DECLAREs, procedures in BASIC; each followed by 1Ah, so the loader reads one as a source file from its offset. The module's own is named "" |
 | Help (later) | pages for F1, in the help's Markdown |
 
 The header:
@@ -58,23 +58,31 @@ The header:
 | Offset | Bytes | Field |
 |---|---|---|
 | 0 | 4 | `QBX` and 1Ah |
-| 4 | 2 | the file format's version, 1 |
+| 4 | 2 | the file format's version, 2 |
 | 6 | 2 | the ABI's major |
 | 8 | 2 | the ABI's minor it needs at least |
 | 10 | 2 | the slices' count |
-| 12 | 4 | the interface's offset |
-| 16 | 4 | the interface's bytes |
+| 12 | 2 | the parts' count |
+| 14 | 2 | 0 |
 
-A slice table entry, from offset 20:
+An entry, the slices' from offset 16, the parts' after them:
 
 | Offset | Bytes | Field |
 |---|---|---|
-| 0 | 16 | the tag, `dos-i386`, `macos`, `linux-x86_64` or `wasm32`, 0-padded |
-| 16 | 4 | the slice's offset |
-| 20 | 4 | the slice's bytes |
+| 0 | 16 | a slice's tag (`dos-i386`, `macos`, `linux-x86_64`, `wasm32`) or a part's name, 0-padded |
+| 16 | 4 | its offset |
+| 20 | 4 | its bytes, a part's without its 1Ah |
 
-The reader checks the magic and the format's version, and that every part lies inside the file: a
-`.qbx` is read from wherever the program is. It takes the slice tagged `pext_tag`, this build's.
+The reader checks the magic and the format's version, and that every entry lies inside the file: a
+`.qbx` is read from wherever the program is. It takes the slice tagged `pext_tag`, this build's,
+and finds a part by its name, case aside. Version 1 is still read: no parts' count, the interface's
+offset and bytes at 12 and 16, its slices' entries from 20, the interface last.
+
+A package's `.qbx` holds its modules' interfaces over the same slices, as
+[gfx's architecture](../stdlib/gfx/docs/architecture.md#the-package) has it. Its modules are
+named as a folder's: `gfx.draw` is the part `draw` of `gfx.qbx`, whose path `locate.c` gives as
+`gfx.qbx/draw`, as Python's zipimport names a module in a zip. Its DECLAREs bind to the entries
+named `draw.NAME`. A module's own `.qbx` has the part "" alone.
 
 The DOS slice is an image linked at 0 (`util/image.c`), made by `pack` from an `lld-link` DLL:
 
@@ -175,6 +183,9 @@ const QxModule *QX_CALL qx_init_synth(const QxHost *host);
   core's flags.
 - **The extension's memory is the host's** (`host->alloc`): the C heap (`pmem_resize`), on wasm
   in the shared memory.
+- **The host's services are generic**: audio, pages to draw in, a GPU that plays lists
+  (`qx/qxlist.h`). It knows no extension; one shipped with QuickrBasic lives in `stdlib/` and brings
+  the rest itself, gfx its shaders.
 
 ## Binding: QB 4.5's DECLARE
 
@@ -214,21 +225,23 @@ Elsewhere CDECL changes nothing.
 ## Writing one: plain C
 
 ```c
-#include "synth_qx.h" /* tools/qbx.py glue synth.bas synth OUTDIR */
+#include "synth_qx.h" /* tools/qbx.py glue synth OUTDIR synth.bas */
 
 void synth_init(void) { qx_host->audio_open(&audio); }
 void synth_start(void) { ... }
 void synth_stop(void) { ... }
 
-void note(int32_t n, int32_t pitch, int32_t length, int32_t loud) { ... }
-void music(const QxArray *events, int32_t loop_from) { const synth_event *e = events->data; ... }
-float beat(void) { ... }
+void synth_note(int32_t n, int32_t pitch, int32_t length, int32_t loud) { ... }
+void synth_music(const QxArray *events, int32_t loop_from) { const synth_event *e = events->data; ... }
+float synth_beat(void) { ... }
 ```
 
 `tools/qbx.py glue` reads the interface and writes two files:
 
-- `NAME_qx.h`: each TYPE as a packed struct, its size asserted as BASIC lays it out; each native
-  DECLARE as a C prototype. A function that does not match its DECLARE is a compile error.
+- `NAME_qx.h`: each numeric CONST as C's; each TYPE as a packed struct, its size asserted as BASIC
+  lays it out; each native DECLARE as a C prototype, named with the module (and a package's part:
+  gfx's `draw.sprite` is `gfx_draw_sprite`), or as its ALIAS. A function that does not match its
+  DECLARE is a compile error. A DECLARE's `_` lines are one.
 - `NAME_qx.c`: a wrapper for each, which lays out the `QxCall`'s arguments for the function; the
   entry table with its kinds; `qx_init_NAME`, which calls `NAME_init`.
 
@@ -306,7 +319,8 @@ stops it, and the process's end closes them all.
 
 ## Finding one
 
-- `locate.c` looks for `name.bas`, then `name.qbx`, under each root. A `.bas` at the same root wins.
+- `locate.c` looks for `name.bas`, then `name.qbx`, then a package's part, under each root. A `.bas`
+  at the same root wins.
 - A FROM package's folder may hold `.qbx` modules as it holds `.bas` ones.
 - `lib/` beside the interpreter: `LIB\SYNTH.QBX` beside `IDE32.EXE`; in the app,
   `Contents/Resources/lib` (locate's root moves there in a bundle); `C:\LIB\` in the page's file
@@ -324,11 +338,12 @@ stops it, and the process's end closes them all.
 2. `natv_open` reads the file whole, once a process, and keeps it by its path. It checks the header
    and the ABI: another major, or a minor newer than the host's, is Advanced feature unavailable at
    the IMPORT.
-3. `read_module` (`io/repl.c`) reads the interface as the module's lines, stored `LF_NATIVE`. Each
-   `DECLARE ... CDECL` is a `Proc` with `PF_NATIVE` and no body.
+3. `read_module` (`io/repl.c`) reads the module's part, its interface, as the module's lines,
+   stored `LF_NATIVE`. Each `DECLARE ... CDECL` is a `Proc` with `PF_NATIVE` and no body.
 4. When the program links, `link_natives` asks `natv_module` for the module. It hands this build's
-   slice to `pext_load` (`plat/pext.h`), once a process, and calls `qx_init_<name>` with the host's
-   table. The `QxModule` it gives lists the entries; each DECLARE's is found and its kinds checked.
+   slice to `pext_load` (`plat/pext.h`), once a file, and calls `qx_init_<file's name>` with the
+   host's table. The `QxModule` it gives lists the entries; each DECLARE's is found, `draw.rect` in
+   a package's part `draw`, and its kinds checked.
 5. A run calls each module's `start`, then `stop` at its end. A call is `CALL NCALL`
    (`vm/ncall.c`).
 
@@ -368,14 +383,15 @@ the page to the AudioWorklet (`synth.mjs`), or in node to `tools/wasm/device.mjs
 That thread instantiates the same module, without relocations or constructors (`wasm.mjs`'s
 `stream`), and calls `render` each quantum.
 
-**Unit tests** link an extension in, through the inittab: its tests need no loader.
+**Unit tests** link an extension in and call its `qx_init_NAME`, as gfx's do (`stdlib/gfx/tests`): its
+tests need no loader.
 
 ## Building one
 
 ![Building a .qbx](img/qbx-build.svg)
 
 `tools/qbx.py glue` writes the glue, each slice is built with it, and `tools/qbx.py pack` puts the
-interface and the slices in a `.qbx`. `pack` makes a DOS DLL its image. The flags, as the
+interfaces and the slices in a `.qbx`. `pack` makes a DOS DLL its image. The flags, as the
 prototype used them:
 
 | Slice | Compile | Link |

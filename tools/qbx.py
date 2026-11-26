@@ -1,19 +1,26 @@
 #!/usr/bin/env python3
 """qbx.py: native extensions' files (docs/native-extensions-design.md).
 
-  qbx.py glue INTERFACE NAME OUTDIR         the glue, from the BASIC interface
-  qbx.py pack OUT INTERFACE [TAG=SLICE]...  the .qbx: the interface and each platform's slice
+  qbx.py glue NAME OUTDIR INTERFACE...          the glue, from the BASIC interfaces
+  qbx.py pack OUT [--minor N] INTERFACE... [TAG=SLICE]...  the .qbx: the interfaces and each
+                                                          platform's slice; the host's minor it needs
 
-glue: the interface's TYPEs become packed C structs, and each native DECLARE (one with CDECL, as
-the host binds it) a C prototype and a wrapper that lays out QxCall's arguments for it. The author
-writes plain C functions; NAME_qx.h declares them and NAME_qx.c holds the wrappers, the entry
-table and qx_init_NAME.
+One interface is the module's own. Several are a package's parts, each named by its file: gfx's
+display.bas is gfx.display.
+
+glue: numeric CONSTs become C's, GFX_DRAW_FLIP_X; the TYPEs packed C structs; each native DECLARE
+(one with CDECL, as the host binds it) a C prototype and a wrapper that lays out QxCall's arguments
+for it. The author writes plain C functions, named with the module and part: gfx's draw.sprite is
+gfx_draw_sprite, its TYPE scene.vertex gfx_scene_vertex; an ALIAS is the name as it is.
+NAME_qx.h declares them and NAME_qx.c holds the wrappers, the entry table and qx_init_NAME. An
+entry is named as BASIC calls it: draw.sprite, or sprite in a module's own interface.
 
 pack: a .qbx is little-endian: "QBX" 1Ah; the format's version, the ABI's major and the minor it
-needs, the slices' count (u16 each); the interface's offset and bytes (u32 each); then a slice
-each, its tag (16 bytes, 0-padded), offset and bytes (u32 each). The slices follow, each at a
-multiple of 16, then the interface, last: the loader reads it as a source file from its offset.
-A dos-i386 slice given as its DLL is packed as the image util/image.c reads.
+needs, the slices' and the parts' counts (u16 each), 2 bytes 0; then a slice each, its tag (16
+bytes, 0-padded), offset and bytes (u32 each); then a part each, its name ("" the module's own)
+the same way. The slices follow, each at a multiple of 16, then the parts, each followed by 1Ah:
+the loader reads one as a source file from its offset. A dos-i386 slice given as its DLL is packed
+as the image util/image.c reads.
 """
 
 import re
@@ -129,7 +136,8 @@ class Param:
 
 @dataclass(frozen=True)
 class Native:
-    name: str  # the C function's and the entry's: ALIAS's, else the BASIC name
+    name: str  # the BASIC name, lower case
+    alias: str  # ALIAS's: the C function's and the entry's name as it is; "" none
     params: tuple[Param, ...]
     result: Kind | None  # a SUB's None
 
@@ -138,6 +146,32 @@ class Native:
 class Interface:
     records: tuple[Record, ...]
     natives: tuple[Native, ...]
+    consts: tuple[tuple[str, int], ...] = ()
+
+
+@dataclass(frozen=True)
+class Part:
+    """An interface glued into a module: its part's name, "" the module's own."""
+
+    module: str
+    name: str
+    face: Interface
+
+    @property
+    def prefix(self) -> str:
+        return f"{self.module}_{self.name}" if self.name else self.module
+
+    def entry(self, n: Native) -> str:
+        return n.alias or (f"{self.name}.{n.name}" if self.name else n.name)
+
+    def c(self, n: Native) -> str:
+        return n.alias or f"{self.prefix}_{n.name.replace('.', '_')}"
+
+    def record(self, name: str) -> str:
+        return f"{self.prefix}_{name}"
+
+    def const(self, name: str) -> str:
+        return f"{self.prefix}_{name}".upper()
 
 
 NAME = r"[a-z][a-z0-9_.]*"
@@ -149,6 +183,7 @@ DECLARE = re.compile(
 PARAM = re.compile(rf"(byval\s+)?({NAME})([%&!#$]?)\s*(\(\s*\))?\s*(?:as\s+({NAME}))?$", re.IGNORECASE)
 FIELD = re.compile(rf"({NAME})\s+as\s+({NAME})(?:\s*\*\s*(\d+))?$", re.IGNORECASE)
 DEFINED = re.compile(rf"(?:private\s+)?(?:sub|function)\s+({NAME})", re.IGNORECASE)
+CONST = re.compile(rf"const\s+({NAME})\s*=\s*(-?)(?:&h([0-9a-f]+)|(\d+))[%&]?$", re.IGNORECASE)
 
 
 def code(line: str) -> str:
@@ -219,21 +254,43 @@ def params(at: int, text: str | None, records: dict[str, Record]) -> tuple[Param
     return tuple(out)
 
 
+def joined(text: str) -> list[tuple[int, str]]:
+    """The text's lines without comments, each numbered by its first: a line ending in " _" goes
+    on in the next."""
+    out: list[tuple[int, str]] = []
+    going = False
+    for at, raw in enumerate(text.splitlines(), 1):
+        line = code(raw)
+        if going:
+            out[-1] = (out[-1][0], f"{out[-1][1]} {line}")
+        else:
+            out.append((at, line))
+        going = bool(re.search(r"(^|\s)_$", out[-1][1]))
+        if going:
+            out[-1] = (out[-1][0], out[-1][1][:-1].rstrip())
+    return out
+
+
 def read(text: str) -> Interface:
     """The interface's records and native procedures."""
-    lines = [code(line) for line in text.splitlines()]
-    defined = {m.group(1).lower() for line in lines if (m := DEFINED.match(line))}
+    lines = joined(text)
+    defined = {m.group(1).lower() for _, line in lines if (m := DEFINED.match(line))}
     records: dict[str, Record] = {}
     natives: list[Native] = []
+    consts: list[tuple[str, int]] = []
     open_type: tuple[str, list[Field]] | None = None
 
-    for at, line in enumerate(lines, 1):
+    for at, line in lines:
         if open_type:
             if re.fullmatch(r"end\s+type", line, re.IGNORECASE):
                 records[open_type[0]] = Record(open_type[0], tuple(open_type[1]))
                 open_type = None
             elif line:
                 open_type[1].append(field(at, line, records))
+        elif m := CONST.match(line):
+            sign, hexa, decimal = m.group(2), m.group(3), m.group(4)
+            value = int(hexa, 16) if hexa else int(decimal)
+            consts.append((m.group(1).lower(), -value if sign else value))
         elif m := re.fullmatch(rf"type\s+({NAME})", line, re.IGNORECASE):
             open_type = (m.group(1).lower(), [])
         elif m := DECLARE.match(line):
@@ -249,48 +306,52 @@ def read(text: str) -> Interface:
                     raise QbxError(f"line {at}: a record result")
             elif suffix or as_type:
                 raise QbxError(f"line {at}: a SUB with a type")
-            native = alias or cname(name)
-            if native.lower().startswith("qx_"):
-                raise QbxError(f"line {at}: {native}: names starting qx_ are the glue's")
-            natives.append(Native(native, params(at, plist, records), result))
+            if (alias or "").lower().startswith("qx_"):
+                raise QbxError(f"line {at}: {alias}: names starting qx_ are the glue's")
+            natives.append(Native(name.lower(), alias or "", params(at, plist, records), result))
         elif line.lower().startswith("declare"):
             raise QbxError(f"line {at}: not a DECLARE the glue knows: {line}")
 
     if open_type:
         raise QbxError(f"TYPE {open_type[0]} without END TYPE")
-    return Interface(tuple(records.values()), tuple(natives))
+    return Interface(tuple(records.values()), tuple(natives), tuple(consts))
 
 
-def c_param(module: str, p: Param) -> str:
+def c_param(part: Part, p: Param) -> str:
     if p.array:
         return f"const QxArray *{p.name}"
     if p.kind is None:
-        return f"{module}_{p.record} *{p.name}"
+        return f"{part.record(p.record)} *{p.name}"
     if p.byval or p.kind.letter == "S":  # a string is read-only, by reference or not
         return f"{p.kind.c} {p.name}"
     return f"{p.kind.c} *{p.name}"
 
 
-def c_arg(module: str, i: int, p: Param) -> str:
+def c_arg(part: Part, i: int, p: Param) -> str:
     a = f"qx_c->arg[{i}]"
     if p.array:
         return f"{a}.a"
     if p.kind is None:
-        return f"({module}_{p.record} *){a}.ref"
+        return f"({part.record(p.record)} *){a}.ref"
     if p.byval or p.kind.letter == "S":
         cast = f"({p.kind.c})" if p.kind.letter in "WU" else ""
         return f"{cast}{a}.{p.kind.member}"
     return f"({p.kind.c} *){a}.ref"
 
 
-def prototype(module: str, n: Native) -> str:
-    ps = ", ".join(c_param(module, p) for p in n.params) or "void"
-    return f"{n.result.c if n.result else 'void'} {n.name}({ps});"
+def prototype(part: Part, n: Native) -> str:
+    ps = ", ".join(c_param(part, p) for p in n.params) or "void"
+    return f"{n.result.c if n.result else 'void'} {part.c(n)}({ps});"
 
 
-def header(module: str, face: Interface) -> str:
-    own = {f"{module}_{hook}" for hook in ("init", "start", "stop")} | {f"{module}_{r.name}" for r in face.records}
-    if taken := sorted(own & {n.name for n in face.natives}):
+def natives(parts: list[Part]) -> list[tuple[Part, Native]]:
+    return [(part, n) for part in parts for n in part.face.natives]
+
+
+def header(module: str, parts: list[Part]) -> str:
+    own = {f"{module}_{hook}" for hook in ("init", "start", "stop")}
+    own |= {part.record(r.name) for part in parts for r in part.face.records}
+    if taken := sorted(own & {part.c(n) for part, n in natives(parts)}):
         raise QbxError(f"{', '.join(taken)}: the glue's names for the hooks and the TYPEs")
     out = [
         f"/* {module}'s glue: generated by tools/qbx.py from its interface. Do not edit. */",
@@ -305,22 +366,27 @@ def header(module: str, face: Interface) -> str:
         f"void {module}_init(void);",
         f"void {module}_start(void);",
         f"void {module}_stop(void);",
+        "/* The host's call at load: the module. */",
+        f"QX_EXPORT const QxModule *QX_CALL qx_init_{module}(const QxHost *host);",
     ]
-    for r in face.records:
-        out += ["", "typedef struct __attribute__((packed)) {"]
-        for f in r.fields:
-            c = f.c or f"{module}_{f.record}"
-            out.append(f"    {c} {f.name}[{f.count}];" if f.count else f"    {c} {f.name};")
-        out += [
-            f"}} {module}_{r.name};",
-            f'static_assert(sizeof({module}_{r.name}) == {r.bytes}, "TYPE {r.name}\'s bytes");',
-        ]
-    out += ["", *(prototype(module, n) for n in face.natives), "#endif", ""]
+    for part in parts:
+        if part.face.consts:
+            out += ["", "enum {", *(f"    {part.const(n)} = {v}," for n, v in part.face.consts), "};"]
+        for r in part.face.records:
+            out += ["", "typedef struct __attribute__((packed)) {"]
+            for f in r.fields:
+                c = f.c or part.record(f.record)
+                out.append(f"    {c} {f.name}[{f.count}];" if f.count else f"    {c} {f.name};")
+            out += [
+                f"}} {part.record(r.name)};",
+                f'static_assert(sizeof({part.record(r.name)}) == {r.bytes}, "TYPE {r.name}\'s bytes");',
+            ]
+    out += ["", *(prototype(part, n) for part, n in natives(parts)), "#endif", ""]
     return "\n".join(out)
 
 
-def wrapper(module: str, i: int, n: Native) -> str:
-    call = f"{n.name}({', '.join(c_arg(module, i, p) for i, p in enumerate(n.params))})"
+def wrapper(part: Part, i: int, n: Native) -> str:
+    call = f"{part.c(n)}({', '.join(c_arg(part, k, p) for k, p in enumerate(n.params))})"
     if not n.result:
         body = f"{call};"
     elif n.result.letter == "S":
@@ -330,12 +396,15 @@ def wrapper(module: str, i: int, n: Native) -> str:
     return f"static void QX_CALL qx_entry_{i}(QxCall *const qx_c)\n{{\n    qx_now = qx_c;\n    {body}\n}}\n"
 
 
-def source(module: str, face: Interface) -> str:
+def source(module: str, parts: list[Part]) -> str:
     entries = "".join(
-        f'\n    {{"{n.name}", "{"".join(p.letters for p in n.params)}", qx_entry_{i}}},'
-        for i, n in enumerate(face.natives)
+        f'\n    {{"{part.entry(n)}", "{"".join(p.letters for p in n.params)}", qx_entry_{i}}},'
+        for i, (part, n) in enumerate(natives(parts))
     )
-    types = ", ".join(f'{{"{r.name}", sizeof({module}_{r.name})}}' for r in face.records)
+    records = [(part, r) for part in parts for r in part.face.records]
+    types = ", ".join(
+        f'{{"{f"{part.name}." if part.name else ""}{r.name}", sizeof({part.record(r.name)})}}' for part, r in records
+    )
     out = [
         f"/* {module}'s glue: generated by tools/qbx.py from its interface. Do not edit. */",
         f'#include "{module}_qx.h"',
@@ -348,18 +417,18 @@ def source(module: str, face: Interface) -> str:
         "",
         "void qx_fail(const uint8_t code) { qx_now->error = code; }",
         "",
-        *(wrapper(module, i, n) for i, n in enumerate(face.natives)),
+        *(wrapper(part, i, n) for i, (part, n) in enumerate(natives(parts))),
         f"static void QX_CALL qx_start(void) {{ {module}_start(); }}",
         f"static void QX_CALL qx_stop(void) {{ {module}_stop(); }}",
         "",
         f"static const QxEntry qx_entries[] = {{{entries}\n}};",
-        f"static const QxType qx_types[] = {{{types}}};" if face.records else "",
+        f"static const QxType qx_types[] = {{{types}}};" if records else "",
         "static const QxModule qx_module = {",
         "    .size = sizeof qx_module,",
         "    .abi = QX_ABI,",
         "    .entries = qx_entries,",
         "    .nentries = sizeof qx_entries / sizeof *qx_entries,",
-        *(["    .types = qx_types,", "    .ntypes = sizeof qx_types / sizeof *qx_types,"] if face.records else []),
+        *(["    .types = qx_types,", "    .ntypes = sizeof qx_types / sizeof *qx_types,"] if records else []),
         "    .start = qx_start,",
         "    .stop = qx_stop,",
         "};",
@@ -375,18 +444,27 @@ def source(module: str, face: Interface) -> str:
     return "\n".join(out)
 
 
-def glue(interface: Path, module: str, out: Path) -> None:
-    face = read(interface.read_text(encoding="utf-8"))
+def part_names(interfaces: list[Path]) -> list[str]:
+    """One interface is the module's own, "": several are its parts, each named by its file."""
+    return [path.stem.lower() if len(interfaces) > 1 else "" for path in interfaces]
+
+
+def glue(module: str, out: Path, interfaces: list[Path]) -> None:
+    parts = [
+        Part(module, name, read(path.read_text(encoding="utf-8")))
+        for name, path in zip(part_names(interfaces), interfaces, strict=True)
+    ]
     out.mkdir(parents=True, exist_ok=True)
-    (out / f"{module}_qx.h").write_text(header(module, face), encoding="utf-8")
-    (out / f"{module}_qx.c").write_text(source(module, face), encoding="utf-8")
+    (out / f"{module}_qx.h").write_text(header(module, parts), encoding="utf-8")
+    (out / f"{module}_qx.c").write_text(source(module, parts), encoding="utf-8")
 
 
 MAGIC = b"QBX\x1a"
-FORMAT, ABI, MINOR = 1, 1, 0
+FORMAT, ABI, MINOR = 2, 1, 0
 TAGS = frozenset(["dos-i386", "macos", "linux-x86_64", "wasm32"])
-HEAD = struct.Struct("<4sHHHHII")
-SLICE = struct.Struct("<16sII")
+HEAD = struct.Struct("<4sHHHHH2x")
+ENTRY = struct.Struct("<16sII")  # a slice's tag or a part's name, 0-padded; its offset and bytes
+EOF_MARK = b"\x1a"  # ends a part: the loader reads a source file to it
 
 
 def align(n: int) -> int:
@@ -458,47 +536,54 @@ def image(dll: bytes) -> bytes:
     )
 
 
-def pack(interface: bytes, slices: dict[str, bytes]) -> bytes:
-    """The .qbx of an interface and its slices, by tag: the interface last, so the loader reads it
-    as a source file from its offset to the end. A DOS slice given as its DLL is made its image."""
+def pack(parts: dict[str, bytes], slices: dict[str, bytes], minor: int = MINOR) -> bytes:
+    """The .qbx of its parts ("" the module's own interface) and its slices, by tag, needing the
+    host's minor. A DOS slice given as its DLL is made its image."""
     for tag in slices:
         if tag not in TAGS:
             raise QbxError(f"no platform {tag}: one of {', '.join(sorted(TAGS))}")
+    for name in parts:
+        if len(name) >= ENTRY.size - 8:
+            raise QbxError(f"a part's name of {ENTRY.size - 9} letters at most: {name}")
     if slices.get("dos-i386", b"")[:2] == b"MZ":
         slices = {**slices, "dos-i386": image(slices["dos-i386"])}
-    at = align(HEAD.size + SLICE.size * len(slices))
+    at = align(HEAD.size + ENTRY.size * (len(slices) + len(parts)))
     table, body = [], bytearray()
     for tag, data in slices.items():
-        table.append(SLICE.pack(tag.encode(), at + len(body), len(data)))
+        table.append(ENTRY.pack(tag.encode(), at + len(body), len(data)))
         body.extend(data)
         body.extend(bytes(align(len(body)) - len(body)))
-    head = HEAD.pack(MAGIC, FORMAT, ABI, MINOR, len(slices), at + len(body), len(interface)) + b"".join(table)
-    return head + bytes(at - len(head)) + bytes(body) + interface
+    for name, text in parts.items():
+        table.append(ENTRY.pack(name.encode(), at + len(body), len(text)))
+        body.extend(text + EOF_MARK)
+    head = HEAD.pack(MAGIC, FORMAT, ABI, minor, len(slices), len(parts)) + b"".join(table)
+    return head + bytes(at - len(head)) + bytes(body)
 
 
-def unpack(data: bytes) -> tuple[bytes, dict[str, bytes]]:
-    """A .qbx's interface and slices: pack's inverse."""
-    magic, _, _, _, n, at, size = HEAD.unpack_from(data)
+def unpack(data: bytes) -> tuple[dict[str, bytes], dict[str, bytes]]:
+    """A .qbx's parts and slices: pack's inverse."""
+    magic, _, _, _, nslices, nparts = HEAD.unpack_from(data)
     if magic != MAGIC:
         raise QbxError("not a .qbx")
-    slices = {}
-    for i in range(n):
-        tag, where, bytes_ = SLICE.unpack_from(data, HEAD.size + i * SLICE.size)
-        slices[tag.rstrip(b"\0").decode()] = data[where : where + bytes_]
-    return data[at : at + size], slices
+    tables: list[dict[str, bytes]] = [{}, {}]
+    for i in range(nslices + nparts):
+        name, where, n = ENTRY.unpack_from(data, HEAD.size + i * ENTRY.size)
+        tables[i >= nslices][name.rstrip(b"\0").decode()] = data[where : where + n]
+    return tables[1], tables[0]
 
 
 def main(argv: list[str]) -> int:
     try:
-        if len(argv) == 5 and argv[1] == "glue":
-            glue(Path(argv[2]), argv[3], Path(argv[4]))
+        if len(argv) >= 5 and argv[1] == "glue":
+            glue(argv[2], Path(argv[3]), [Path(one) for one in argv[4:]])
             return 0
         if len(argv) >= 4 and argv[1] == "pack":
-            pairs = [one.split("=", 1) for one in argv[4:]]
-            if any(len(pair) != 2 for pair in pairs):
-                raise QbxError("a slice is TAG=FILE")
+            minor, rest = (int(argv[4]), argv[5:]) if argv[3] == "--minor" else (MINOR, argv[3:])
+            faces = [Path(one) for one in rest if "=" not in one]
+            parts = {name: face.read_bytes() for name, face in zip(part_names(faces), faces, strict=True)}
+            pairs = [one.split("=", 1) for one in rest if "=" in one]
             slices = {tag: Path(file).read_bytes() for tag, file in pairs}
-            Path(argv[2]).write_bytes(pack(Path(argv[3]).read_bytes(), slices))
+            Path(argv[2]).write_bytes(pack(parts, slices, minor))
             return 0
     except QbxError as e:
         print(f"qbx.py {argv[1]}: {e}", file=sys.stderr)

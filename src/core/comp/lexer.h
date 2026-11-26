@@ -40,6 +40,7 @@ typedef struct {
     bool start;          /* the next item starts a statement: the line's, after ':', THEN, ELSE */
     bool from;           /* in a FROM statement: its IMPORT a keyword */
     bool dim;            /* the last item DIM: PUBLIC a keyword */
+    uint64_t off[8];     /* OPTION DISABLE's words, by token (100h + n for TK_X n): names */
 } Lexr;
 
 /* Errors raise through f; words become names through names. */
@@ -49,6 +50,16 @@ uint8_t *lexr_line(Lexr *lx, uint8_t *text, uint8_t *body);
 /* lx_kw: the keyword the word at *at spells, stepped past: its token (100h + n for TK_X n), 0 a
    name. */
 uint16_t lexr_keyword(const uint8_t **at);
+/* The statement at p in a body: OPTION DISABLE and QB's words for devices (LINE, OPEN, PRINT...),
+   a comma between each. SET: each added to off. BAD: *bad the first item that is not one, off
+   unchanged. NONE: another statement. */
+typedef enum : uint8_t { DISABLE_NONE, DISABLE_SET, DISABLE_BAD } Disable;
+Disable lexr_disable(const uint8_t *p, uint64_t off[8], const uint8_t **bad);
+/* Token t read as a name: its word disabled. */
+static inline bool lexr_off(const Lexr *const lx, const uint16_t t)
+{
+    return lx->off[t >> 6] >> (t & 63) & 1;
+}
 /* The text's column of the body's byte off, lx->all set. */
 uint16_t lexr_colof(const Lexr *lx, uint32_t off);
 #endif
