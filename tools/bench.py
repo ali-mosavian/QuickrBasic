@@ -1371,17 +1371,18 @@ DEMO_FLIP_FRAMES = """{i}gfx.display.flip
 MACHINE_FRAMES = {"486": 6, "p5": 24, "p6": 60}
 
 
-def demo_program(name: str, seconds: float, vsync: bool, edits: int, frames: int = 0) -> str:
+def demo_program(name: str, seconds: float, vsync: bool, edits: int, frames: int = 0, card: bool = False) -> str:
     """Demo name at 320x200x8, timed for seconds, its seed fixed so each run draws one world. frames: that many
-    drawn, the demo's clock the frames at 30 a second, so frame n is the same whatever the build's speed."""
+    drawn, the demo's clock the frames at 30 a second, so frame n is the same whatever the build's speed. card: at
+    its own size at 16 bits, as a 3D card draws it."""
     src = (DEMOS / f"{name}.BAS").read_text().replace("randomize timer\n", "randomize 1\n")
     if frames:
         src = src.replace("gfx.display.clock", "(frames& / 30#)")
-    src, w = re.subn(r"(?m)^const W = \d+$", "const W = 320", src)
-    src, h = re.subn(r"(?m)^const H = \d+$", "const H = 200", src)
+    src, w = re.subn(r"(?m)^const W = \d+$", "const W = 320", src) if not card else (src, 1)
+    src, h = re.subn(r"(?m)^const H = \d+$", "const H = 200", src) if not card else (src, 1)
     flags = "gfx.display.VSYNC" if vsync else "0"
     src, o = re.subn(r"gfx\.display\.open\(W, H, \d+, gfx\.display\.VSYNC\)",
-                     f"gfx.display.open(W, H, 8, {flags})", src)
+                     f"gfx.display.open(W, H, {16 if card else 8}, {flags})", src)
     flip = DEMO_FLIP_FRAMES if frames else DEMO_FLIP
     src, f = re.subn(r"(?m)^(\s*)gfx\.display\.flip$",
                      lambda m: flip.format(i=m[1], seconds=seconds, frames=frames), src)
@@ -1397,6 +1398,9 @@ HL86 = Path(os.environ.get("HL86_DIR", Path.home() / "work/other/86box-headless"
 HL86_VMS = Path(os.environ.get("HL86_VMS", HL86.parent / "86box-headless-vms"))
 HL86_ROMS = Path(os.environ.get("HL86_ROMS", Path.home() / "Library/Application Support/86Box/roms"))
 MACHINES = {"486": "qb-486", "p5": "qb-p100", "p6": "qb-ppro200"}
+# each 3D card's VM: qb-p100's, the card added in its 86box.cfg
+CARDS = {"voodoo1": "qb-p100-voodoo1", "voodoo2": "qb-p100-voodoo2", "banshee": "qb-p100-banshee",
+         "voodoo3": "qb-p100-voodoo3"}
 
 
 def mtools(tool: str, image: Path, *args: str, check: bool = True) -> bytes:
@@ -1439,15 +1443,17 @@ def hl86_module():  # noqa: ANN201
     return hl86
 
 
-def vm_rate(machine: str, com: Path, job: tuple, files: dict[str, bytes]) -> str:
-    """Program com's frames a second on 86Box's machine, by its own clock: FPS.TXT's, or its output's.
-    com, the job's files and files go to C:\\QB on the VM's disk, removed after."""
+def vm_rate(vm: str, com: Path, job: tuple, files: dict[str, bytes], realtime: bool = False) -> str:
+    """Program com's frames a second on 86Box's VM vm, by its own clock: FPS.TXT's, or its output's.
+    com, the job's files and files go to C:\\QB on the VM's disk, removed after. realtime: the emulator
+    held to the host's clock, as a 3D card wants: its pixels are drawn at the host's pace, not timed."""
     hl86 = hl86_module()
-    image = HL86_VMS / MACHINES[machine] / "c.img"
+    image = HL86_VMS / vm / "c.img"
     with tempfile.TemporaryDirectory() as d:
         bat = vm_stage(image, Path(d), com, job, files, "C:\\HLEXIT.COM 0")
         try:
-            r = hl86.run_dos(HL86 / "build/src/86Box-headless", image.parent, HL86_ROMS, bat, timeout=1800)
+            r = hl86.run_dos(HL86 / "build/src/86Box-headless", image.parent, HL86_ROMS, bat, timeout=1800,
+                             unthrottled=not realtime)
             fps = mtools("mtype", image, "::QB/FPS.TXT", check=False).decode("latin-1")
             out = mtools("mtype", image, "::QB/OUT.TXT", check=False).decode("latin-1")
         finally:
@@ -1529,7 +1535,7 @@ def cmd_demos(a: argparse.Namespace) -> int:
     b = build(".", True)
     qbx = (b.dos.parent / "lib/gfx.qbx").read_bytes()
     own = {n: (DEMOS / n).read_bytes() for n in ("stage.bas", "meter.bas")}
-    if a.machine:
+    if a.machine or a.card:
         return demos_on(a, own)
     if a.profile:
         with tempfile.TemporaryDirectory() as d:
@@ -1601,12 +1607,14 @@ class Samples:
     mhz: float
 
 
-def vm_samples(machine: str, exe: Path, job: tuple, files: dict[str, bytes], late: float = 0.0) -> Samples:
-    """exe's job on 86Box's machine, its CPU's place sampled every 10 emulated us over the job alone: the samples
+def vm_samples(
+    vm: str, exe: Path, job: tuple, files: dict[str, bytes], late: float = 0.0, realtime: bool = False
+) -> Samples:
+    """exe's job on 86Box's VM vm, its CPU's place sampled every 10 emulated us over the job alone: the samples
     by function of the map beside exe, and the frames the job drew (its output's last number). late: the
-    host's seconds in seeing the job end."""
+    host's seconds in seeing the job end. realtime: as vm_rate's."""
     hl86 = hl86_module()
-    image = HL86_VMS / MACHINES[machine] / "c.img"
+    image = HL86_VMS / vm / "c.img"
     with tempfile.TemporaryDirectory() as d:
         bat = vm_stage(image, Path(d), exe, job, files, "ECHO QB-DONE")
         orig = hl86.dos_get(image, "AUTOEXEC.BAT")
@@ -1615,7 +1623,7 @@ def vm_samples(machine: str, exe: Path, job: tuple, files: dict[str, bytes], lat
         hl86.dos_put(image, bat, "RUN.BAT")
         hl86.dos_put(image, auto, "AUTOEXEC.BAT")
         sock = Path(d) / "s"
-        proc = hl86.launch(HL86 / "build/src/86Box-headless", image.parent, HL86_ROMS, sock, unthrottled=True)
+        proc = hl86.launch(HL86 / "build/src/86Box-headless", image.parent, HL86_ROMS, sock, unthrottled=not realtime)
         try:
             with hl86.Client(sock, timeout=1800.0) as c:
                 c.profile_start(interval_us=10)
@@ -1720,24 +1728,25 @@ def source_text(b: Build, where: str) -> str:
 
 def print_vm_profile(
     name: str,
-    machine: str,
+    vm: str,
     exe: Path,
     jobs: list[tuple],
     files: dict[str, bytes],
     n: int,
     inside: list[str],
     lined: Build | None = None,
+    realtime: bool = False,
 ) -> None:
-    """Each function's cycles a frame on 86Box's machine, by time sampled: the longer job's less the
+    """Each function's cycles a frame on 86Box's VM vm, by time sampled: the longer job's less the
     shorter's, over the frames between, so the start-up drops out. Each of inside's functions by
     offset too, a sample landing on its block's first instruction; with lined, the build, by source
     line instead."""
-    a, b = (vm_samples(machine, exe, j, files) for j in jobs)
+    a, b = (vm_samples(vm, exe, j, files, realtime=realtime) for j in jobs)
     frames = b.frames - a.frames
     per = b.interval_us * b.mhz / frames
     cycles = {f: (b.by.get(f, 0) - a.by.get(f, 0)) * per for f in b.by}
     total = sum(cycles.values())
-    print(f"{name} on {machine}: {total:,.0f} cycles a frame ({b.mhz * 1e6 / total:.1f} fps), {frames} frames")
+    print(f"{name} on {vm}: {total:,.0f} cycles a frame ({b.mhz * 1e6 / total:.1f} fps), {frames} frames")
     for f, c in sorted(cycles.items(), key=lambda kv: -kv[1])[:n]:
         print(f"{c:>12,.0f} {c / total:6.1%}  {f}")
     for f in inside:
@@ -1754,9 +1763,17 @@ def print_vm_profile(
             print(f"{c:>12,.0f} {c / total:6.1%}  +{off:#x}")
 
 
+def drivers_of(b: Build) -> dict[str, bytes]:
+    """Build b's accelerator drivers, by their place beside basic32.exe."""
+    return {f"lib/drivers/{f.name}": f.read_bytes() for f in (b.dos.parent / "lib/drivers").glob("*.DRV")}
+
+
 def demos_on(a: argparse.Namespace, own: dict[str, bytes]) -> int:
     """demos --machine: each demo as shipped but for vsync, built from each --rev and the tree, then
-    each EXE, on 86Box's machine. --profile: each build's, by function."""
+    each EXE, on 86Box's machine. --card: on the card's VM, drawn in pages and by the card. --profile:
+    each build's, by function."""
+    if a.card:
+        return demos_on_card(a, own)
     builds = [(rev, build(rev, True)) for rev in [*(a.rev or []), "."]]
     libs = [{"lib/gfx.qbx": (b.dos.parent / "lib/gfx.qbx").read_bytes()} for _, b in builds]
     if a.profile:
@@ -1767,16 +1784,41 @@ def demos_on(a: argparse.Namespace, own: dict[str, bytes]) -> int:
                     f = a.frames or MACHINE_FRAMES[a.machine]
                     jobs = [(demo_program(name, 0, False, a.edits or 0, n), "", "", own) for n in (f, 2 * f)]
                     print(f"== {rev}")
-                    print_vm_profile(name, a.machine, exe, jobs, lib, a.n, a.at or [], b if a.lines else None)
+                    vm = MACHINES[a.machine]
+                    print_vm_profile(name, vm, exe, jobs, lib, a.n, a.at or [], b if a.lines else None)
         return 0
     print(f"320x200 at 8 bits on 86Box ({a.machine}), frames a second over {a.seconds:g} s")
     print(f"{'':12}" + "".join(f"{rev:>10}" for rev, _ in builds))
     for name in a.demo or DEMO_EDITS:
         job = (demo_program(name, a.seconds, False, 0), "", "", own)
-        cells = [vm_rate(a.machine, b.dos, job, lib) for (_, b), lib in zip(builds, libs, strict=True)]
+        cells = [vm_rate(MACHINES[a.machine], b.dos, job, lib) for (_, b), lib in zip(builds, libs, strict=True)]
         print(f"{name:12}" + "".join(f"{c:>10}" for c in cells), flush=True)
     for exe in map(Path, a.exes):
-        print(f"{exe.name:12}{vm_rate(a.machine, exe, ('',), {}):>10}", flush=True)
+        print(f"{exe.name:12}{vm_rate(MACHINES[a.machine], exe, ('',), {}):>10}", flush=True)
+    return 0
+
+
+def demos_on_card(a: argparse.Namespace, own: dict[str, bytes]) -> int:
+    """demos --card: each demo at its own size at 16 bits on the card's VM, in pages and by the card, with vsync and
+    without, the emulator held to the host's clock. --profile: by the card, by function a frame."""
+    b, vm = build(".", True), CARDS[a.card]
+    pages = {"lib/gfx.qbx": (b.dos.parent / "lib/gfx.qbx").read_bytes()}
+    card = pages | drivers_of(b)
+    if a.profile:
+        with tempfile.TemporaryDirectory() as d:
+            exe = profiled(b, Path(d))
+            for name in a.demo or DEMO_EDITS:
+                f = a.frames or MACHINE_FRAMES["p5"]
+                jobs = [(demo_program(name, 0, False, a.edits or 0, n, True), "", "", own) for n in (f, 2 * f)]
+                print_vm_profile(name, vm, exe, jobs, card, a.n, a.at or [], b if a.lines else None, True)
+        return 0
+    print(f"at their own size at 16 bits on 86Box ({vm}), frames a second over {a.seconds:g} s")
+    print(f"{'':12}" + "".join(f"{t:>10}" for t in ("pages", a.card, "no vsync")))
+    for name in a.demo or DEMO_EDITS:
+        runs = ((pages, True), (card, True), (card, False))
+        cells = [vm_rate(vm, b.dos, (demo_program(name, a.seconds, v, 0, card=True), "", "", own), lib, True)
+                 for lib, v in runs]
+        print(f"{name:12}" + "".join(f"{c:>10}" for c in cells), flush=True)
     return 0
 
 
@@ -2041,6 +2083,7 @@ def main() -> int:
     p.add_argument("--lines", action="store_true", help="--at: by source line, not offset")
     p.add_argument("--frames", type=int, help="--machine --profile: frames in the shorter run, twice in the longer")
     p.add_argument("--rev", action="append", help="--machine: a revision's build timed too, before the tree's")
+    p.add_argument("--card", choices=list(CARDS), help="on 86Box's Pentium 100 with this 3D card, at 16 bits")
     p.add_argument("--demo", action="append", choices=list(DEMO_EDITS), help="a demo to time; all when none")
     p.add_argument("--seconds", type=float, default=10)
     p.add_argument("--profile", action="store_true", help="by function a frame, ours with every edit (normal core)")
