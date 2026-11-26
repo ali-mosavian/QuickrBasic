@@ -33,18 +33,13 @@ static bool QX_CALL fake_open(QxScreen *const s)
 
 static void QX_CALL fake_close(void) {}
 
-static const void *pointer(const uint32_t *const a)
-{
-    return (const void *)(uintptr_t)((uint64_t)a[1] << 32 | a[0]);
-}
-
 /* A WRITE's bytes, of size an element, into out: MOST_VERTICES of them at most. */
 static void copy(void *const out, const uint32_t *const a, const size_t size)
 {
     const uint32_t n = a[1] / (uint32_t)size;
 
     if (n)
-        memcpy(out, pointer(a + 2), (n < MOST_VERTICES ? n : MOST_VERTICES) * size);
+        memcpy(out, qx_list_pointer(a + 2), (n < MOST_VERTICES ? n : MOST_VERTICES) * size);
 }
 
 /* The vertices and discs its WRITEs give, and its uniforms. */
@@ -53,13 +48,15 @@ static void QX_CALL fake_play(const uint32_t *const list, const uint32_t n)
     nwords = n < MOST_WORDS ? n : MOST_WORDS;
     memcpy(words, list, nwords * sizeof *words);
 
-    for (uint32_t at = 0; at < n && list[at] >> QX_LIST_SIZE; at += list[at] >> QX_LIST_SIZE)
-        if ((list[at] & 0xFF) == QX_LIST_WRITE && list[at + 1] == LIST_VERTICES)
-            copy(vertices, list + at + 1, sizeof *vertices);
-        else if ((list[at] & 0xFF) == QX_LIST_WRITE && list[at + 1] == LIST_DISCS)
-            copy(discs, list + at + 1, sizeof *discs);
-        else if ((list[at] & 0xFF) == QX_LIST_UNIFORMS && list[at + 1] == sizeof uniforms)
-            memcpy(uniforms, pointer(list + at + 2), sizeof uniforms);
+    QxListEntry e;
+
+    for (uint32_t at = 0; qx_list_next(list, n, &at, &e);)
+        if (e.op == QX_LIST_WRITE && e.arg[0] == LIST_VERTICES)
+            copy(vertices, e.arg, sizeof *vertices);
+        else if (e.op == QX_LIST_WRITE && e.arg[0] == LIST_DISCS)
+            copy(discs, e.arg, sizeof *discs);
+        else if (e.op == QX_LIST_UNIFORMS && e.arg[0] == sizeof uniforms)
+            memcpy(uniforms, qx_list_pointer(e.arg + 1), sizeof uniforms);
 
     plays++;
 }
@@ -123,13 +120,10 @@ static bool ops(const char *const want)
     char got[64];
     uint32_t n = 0;
 
-    for (uint32_t at = 0; at < nwords && n < sizeof got; at += words[at] >> QX_LIST_SIZE) {
-        const uint32_t op = words[at] & 0xFF;
-        got[n++] = op < sizeof letters - 1 ? letters[op] : '?';
+    QxListEntry e;
 
-        if (!(words[at] >> QX_LIST_SIZE))
-            break;
-    }
+    for (uint32_t at = 0; n < sizeof got && qx_list_next(words, nwords, &at, &e);)
+        got[n++] = e.op < sizeof letters - 1 ? letters[e.op] : '?';
 
     const bool same = n == strlen(want) && !memcmp(got, want, n);
 
@@ -144,9 +138,11 @@ static uint32_t arg(const QxListOp op, const uint32_t k, const uint32_t i)
 {
     uint32_t seen = 0;
 
-    for (uint32_t at = 0; at < nwords && words[at] >> QX_LIST_SIZE; at += words[at] >> QX_LIST_SIZE)
-        if ((words[at] & 0xFF) == op && seen++ == k)
-            return words[at + i];
+    QxListEntry e;
+
+    for (uint32_t at = 0; qx_list_next(words, nwords, &at, &e);)
+        if (e.op == op && seen++ == k)
+            return e.arg[i - 1];
 
     return 0xDEAD;
 }
@@ -468,8 +464,8 @@ TEST(gfx_gpu_speaks_the_hosts_language)
     const uint32_t fragment[] = {arg(QX_LIST_PIPELINE, 0, 9), arg(QX_LIST_PIPELINE, 0, 10)};
 
     CHECK(ops(FIRST "TUPNCULDSE"));
-    CHECK(!memcmp(pointer(vertex), "#version 300 es", 15));
-    CHECK(!memcmp(pointer(fragment), "#version 300 es", 15));
+    CHECK(!memcmp(qx_list_pointer(vertex), "#version 300 es", 15));
+    CHECK(!memcmp(qx_list_pointer(fragment), "#version 300 es", 15));
 
     CHECK(uniforms[2] == 1);
 }

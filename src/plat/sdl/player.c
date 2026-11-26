@@ -282,20 +282,15 @@ static void buffer(const uint32_t id, const uint32_t bytes, const uint32_t kind)
         b->cap = 0;
 }
 
-static const void *pointer(const uint32_t *const a)
+/* The bytes e's data takes staged, to ALIGN; copied to to unless null. */
+static uint32_t staged(const QxListEntry *const e, uint8_t *const to)
 {
-    return (const void *)(uintptr_t)((uint64_t)a[1] << 32 | a[0]);
-}
-
-/* The bytes op's data takes staged, to ALIGN; copied to to unless null. */
-static uint32_t staged(const uint32_t *const op, uint8_t *const to)
-{
-    const uint32_t *const a = op + 1;
-    const QxListOp code = (QxListOp)(op[0] & 0xFF);
-    const uint32_t bytes = code == QX_LIST_WRITE ? a[1] : code == QX_LIST_UPLOAD ? a[4] * a[5] : 0;
+    const uint32_t *const a = e->arg;
+    const bool write = e->op == QX_LIST_WRITE;
+    const uint32_t bytes = write ? a[1] : e->op == QX_LIST_UPLOAD ? a[4] * a[5] : 0;
 
     if (to && bytes)
-        memcpy(to, pointer(code == QX_LIST_WRITE ? a + 2 : a + 6), bytes);
+        memcpy(to, qx_list_pointer(write ? a + 2 : a + 6), bytes);
 
     return (bytes + ALIGN - 1) / ALIGN * ALIGN;
 }
@@ -304,9 +299,10 @@ static uint32_t staged(const uint32_t *const op, uint8_t *const to)
 static uint32_t stage(const uint32_t *const list, const uint32_t words, uint8_t *const to)
 {
     uint32_t bytes = 0;
+    QxListEntry e;
 
-    for (uint32_t at = 0, size; at < words && (size = list[at] >> QX_LIST_SIZE); at += size)
-        bytes += staged(list + at, to ? to + bytes : nullptr);
+    for (uint32_t at = 0; qx_list_next(list, words, &at, &e);)
+        bytes += staged(&e, to ? to + bytes : nullptr);
 
     return bytes;
 }
@@ -395,7 +391,7 @@ static SDL_GPUShader *shader(
         p.dev,
         &(SDL_GPUShaderCreateInfo){
             .code_size = code[0],
-            .code = pointer(code + 1),
+            .code = qx_list_pointer(code + 1),
             .entrypoint = p.format == SDL_GPU_SHADERFORMAT_MSL ? "main0" : "main",
             .format = p.format,
             .stage = stage,
@@ -635,11 +631,13 @@ static bool player_play(const uint32_t *const list, const uint32_t words)
 
     s.data = staging(list, words);
 
-    for (uint32_t at = 0, size; at < words && (size = list[at] >> QX_LIST_SIZE); at += size) {
-        const uint32_t *const a = list + at + 1;
-        const uint32_t n = size - 1;
+    QxListEntry e;
 
-        switch ((QxListOp)(list[at] & 0xFF)) {
+    for (uint32_t at = 0; qx_list_next(list, words, &at, &e);) {
+        const uint32_t *const a = e.arg;
+        const uint32_t n = e.args;
+
+        switch (e.op) {
         case QX_LIST_BUFFER:
             buffer(a[0], a[1], a[2]);
             break;
@@ -686,7 +684,7 @@ static bool player_play(const uint32_t *const list, const uint32_t words)
             break;
 
         case QX_LIST_UNIFORMS:
-            SDL_PushGPUVertexUniformData(s.cb, 0, pointer(a + 1), a[0]);
+            SDL_PushGPUVertexUniformData(s.cb, 0, qx_list_pointer(a + 1), a[0]);
             break;
 
         case QX_LIST_DRAW:
@@ -702,7 +700,7 @@ static bool player_play(const uint32_t *const list, const uint32_t words)
             break;
         }
 
-        s.staged += staged(list + at, nullptr);
+        s.staged += staged(&e, nullptr);
     }
 
     end(&s);
