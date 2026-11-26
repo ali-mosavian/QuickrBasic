@@ -159,6 +159,7 @@ test: $(DOS_EXE) | $(DOSBOX_BIN)
 	BASIC_EXE=$(B)/basic32.exe $(PY) tools/cost_test.py $(B)/basic32.exe
 	BASIC_EXE=$(B)/basic32.exe $(PY) tools/gfx_test.py
 	IDE_EXE=$(B)/ide32.exe $(PY) tools/ide_test.py
+	IDE_EXE=$(B)/ide32.exe $(PY) tools/lowmem_test.py
 
 # the native ABI's test extension (tests/ext): its glue, then a slice for each platform; native.sh packs them
 build/ext/qxtest_qx.c: tests/ext/qxtest.bas tools/qbx.py

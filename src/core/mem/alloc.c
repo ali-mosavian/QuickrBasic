@@ -25,7 +25,7 @@
  * | plt_heap's hbot/htop | pmem_init, then allo_init | MIRROR |
  * | g_dsb+0BC00h HDRBASE, HDRLIM | OLDHDRSZ, unused | MOVED: mem/array.c's heap blocks |
  * | CSLIM, CSTOP | Allo.cs_lim, Allo.cs_top | MIRROR |
- * | g_pokeb | Allo.poke (POKESZ) | MIRROR |
+ * | g_pokeb | Allo.poke (POKESZ), taken at the first SYS | MIRROR |
  * | g_tmpd, sg.tmplin | Strg.tmp | MOVED: strg_init (mem/string.c) |
  * | g_stkb, g_lsav, g_inbuf, g_clpb | | MOVED: each owner's init carves its own |
  * | alloc_new for the cache and the program store, prg_place | | MOVED: boot (boot.c) |
@@ -58,7 +58,6 @@ void allo_init(Allo *const al, Fault *const f)
     al->top = al->strings = al->bot + HEAP_FIRST;
     al->cs_lim = allo_carve(al, OLDHDRSZ + CSSZ + CSTAIL) + OLDHDRSZ;
     al->cs_top = al->cs_lim + CSSZ;
-    al->poke = allo_carve(al, POKESZ);
 }
 
 Addr allo_carve(Allo *const al, const uint32_t size)

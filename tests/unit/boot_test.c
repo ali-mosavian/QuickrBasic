@@ -39,3 +39,23 @@ TEST(boot_short_of_arena_says_out_of_memory)
     CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 1);
     CHECK(n > 0 && strstr(text, "Out of memory"));
 }
+
+/* Boot takes no memory a feature may never use: the POKE memory (64 KB) waits for the first SYS,
+   the file records (NCH * RECMAX) for the first record. Both were carved at every start. */
+TEST(boot_leaves_poke_memory_and_records_for_first_use)
+{
+    static Session child;
+    static const FrontEnd fe = {};
+
+    fflush(stdout);
+    const pid_t pid = fork();
+
+    if (!pid) {
+        boot(&child, &fe);
+        _exit(child.allo.poke || child.file.recs ? 1 : 0);
+    }
+
+    int status = 0;
+    waitpid(pid, &status, 0);
+    CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+}

@@ -34,11 +34,11 @@ typedef struct {
     Addr cache;             /* the code cache's block, which never moves (mm.cachebase) */
     Addr cs_lim;            /* the control stack's floor (CSLIM) */
     Addr cs_top;            /* its top, frames down from it (CSTOP) */
-    Addr poke;              /* the POKE memory, POKESZ bytes (g_pokeb) */
+    Addr poke;              /* the POKE memory, POKESZ bytes (g_pokeb); 0 till the first SYS */
 } Allo;
 
 /* The BASIC heap, HEAP_FIRST bytes at the bottom of pmem's largest room; then carves the
-   control stack and the POKE memory. Out of memory. */
+   control stack. Out of memory. */
 void allo_init(Allo *al, Fault *f);
 /* A fixed region of size bytes, zeroed, 16-aligned: it never moves. Out of memory. */
 Addr allo_carve(Allo *al, uint32_t size);

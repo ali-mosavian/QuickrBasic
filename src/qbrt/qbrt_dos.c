@@ -112,7 +112,6 @@ typedef struct {
     uint8_t pixels[];       /* the page, plane by plane */
 } Shot;
 
-uint32_t qbrt_shot_size(void) { return sizeof(Shot) + PLANES * PLANE_MOST; }
 
 static void reg(const unsigned port, const unsigned index, const unsigned value)
 {
@@ -145,6 +144,12 @@ static uint32_t page_bytes(const Layout l)
         return gfx_current->width * gfx_current->height;
 
     return l == LAYOUT_CGA ? CGA_BYTES : gfx_current->width / 8 * gfx_current->height;
+}
+
+uint32_t qbrt_shot_size(void)
+{
+    const Layout l = layout();
+    return sizeof(Shot) + (l == LAYOUT_PLANAR ? PLANES : 1u) * page_bytes(l);
 }
 
 static uint8_t *video(const Layout l, const uint16_t start)
