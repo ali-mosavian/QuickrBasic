@@ -7,7 +7,7 @@ import { uploadAs } from './upload.mjs';
 import { memory as newMemory, Irq, sidecar, ticker, EVENT, MUSIC_HZ, AUDIO_RATE } from './wasm.mjs';
 
 const BLINK_MS = 267;
-const DEMOS = ['WELCOME.BAS', 'GORILLA.BAS', 'NIBBLES.BAS', 'MOTHLITE.BAS', 'RUSTLINE.BAS', 'CHARLIE.BAS',
+const DEMOS = ['WELCOME.BAS', 'GORILLA.BAS', 'NIBBLES.BAS', 'MOTHLITE.BAS', 'RUSTLINE.BAS', 'CHARLIE.BAS', 'HIGHVALE.BAS',
   'GFXDEMO.BAS', 'CUBE.BAS', 'ORBITS.BAS', 'PLASMA.BAS', 'TUNNEL.BAS', 'SPARKS.BAS', 'ISLES.BAS'];
 // F1's help file and a game's pictures, beside the programs, as on DOS
 const SUPPORT = ['BASIC.HLP', 'demos/CHARLIE.DAT'];
