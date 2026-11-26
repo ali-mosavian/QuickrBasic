@@ -251,15 +251,17 @@ $(B)/lib/gfx.qbx: $(GFX_PARTS) $(B)/ext/gfx.dll tools/qbx.py
 # DOS's accelerator drivers (src/plat/dos32/drivers), in lib/drivers/ beside basic32.exe: each an
 # i386 DLL as gfx's slice is, its header the PCI IDs it drives (qbx.py driver); 3dfx's share all
 # but their family's files
-TDFX_SHARED := $(filter-out %/voodoo1.c %/voodoo2.c %/voodoo3.c %/sst.c %/dac.c %/cmdfifo.c,$(wildcard src/plat/dos32/drivers/3dfx/*.c)) \
+TDFX_SHARED := $(filter-out %/voodoo1.c %/voodoo2.c %/voodoo3.c %/sst.c %/dac.c %/cmdfifo.c %/cvg.c,$(wildcard src/plat/dos32/drivers/3dfx/*.c)) \
 	src/plat/dos32/drivers/crt.c
 $(B)/drivers/%.obj: src/plat/dos32/drivers/%.c
 	@mkdir -p $(@D)
 	$(DOS_SLICE_CC) -Isrc $(DEPFLAGS) -c $< -o $@
 $(B)/drivers/%.dll: $(TDFX_SHARED:src/plat/dos32/drivers/%.c=$(B)/drivers/%.obj) $(B)/drivers/3dfx/%.obj
 	$(LLD_LINK) /dll /noentry /nodefaultlib /safeseh:no /out:$@ $^
-# the Voodoo Graphics and Voodoo 2 share their FBI's bring-up and DAC
+# the Voodoo Graphics and Voodoo 2 share their FBI's bring-up and DAC; the Voodoo 2, Banshee and
+# Voodoo 3 the command FIFO
 $(B)/drivers/voodoo1.dll $(B)/drivers/voodoo2.dll: $(B)/drivers/3dfx/sst.obj $(B)/drivers/3dfx/dac.obj
+$(B)/drivers/voodoo2.dll: $(B)/drivers/3dfx/cvg.obj $(B)/drivers/3dfx/cmdfifo.obj
 $(B)/drivers/voodoo3.dll: $(B)/drivers/3dfx/cmdfifo.obj
 $(B)/lib/drivers/VOODOO1.DRV: $(B)/drivers/voodoo1.dll tools/qbx.py
 	@mkdir -p $(@D)
@@ -456,7 +458,8 @@ build/host/test.hlp: tools/mkhelp.py $(wildcard tests/help/*)
 	$(PY) tools/mkhelp.py tests/help -o $@
 build/host/unit_tests: $(build/host_OBJ) $(UNIT_UI_OBJ) $(UNIT_OBJ) $(GFX_UNIT_OBJ) build/host/obj/lib/div64.o build/host/obj/plat/dos32/vbe.o \
 	$(patsubst src/%.c,build/host/obj/%.o,$(filter-out %/load.c,$(wildcard src/plat/dos32/accel/*.c))) \
-	build/host/obj/plat/dos32/drivers/3dfx/cmdfifo.o build/host/obj/plat/dos32/drivers/3dfx/dac.o \
+	build/host/obj/plat/dos32/drivers/3dfx/cmdfifo.o build/host/obj/plat/dos32/drivers/3dfx/cvg.o \
+	build/host/obj/plat/dos32/drivers/3dfx/dac.o \
 	build/host/obj/plat/dos32/drivers/3dfx/setup.o \
 	build/host/obj/plat/dos32/drivers/3dfx/space.o build/host/obj/plat/dos32/drivers/3dfx/sst.o \
 	build/host/obj/plat/dos32/drivers/3dfx/tdfx.o build/host/obj/plat/dos32/drivers/3dfx/voodoo3.o \

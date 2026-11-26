@@ -2,11 +2,13 @@
  * the FBI's init registers, a mode's timing and frame buffer, and the VGA's screen given back.
  *
  * # How it works
- * A mode's frame buffer is two colour buffers and the depth buffer, each a third of the memory
- * up to the rows a clip reaches: the rows past the mode are targets'. fbzMode and lfbMode name the
- * colour buffers front, the one shown, and back; swapbufferCMD swaps them. Texels go through the
- * texture window by level, row and texel; pixels through the frame buffer's, 1024 a row. The
- * memory FIFO is off, so every write waits for the PCI FIFO's room.
+ * A card is taken as 2 MB of frame buffer and 2 MB of textures, every board's least. A mode's
+ * frame buffer is two colour buffers and the depth buffer, each a third of the memory a FIFO
+ * leaves, up to the rows a clip reaches: the rows past the mode are targets'. fbzMode and lfbMode
+ * name the colour buffers front, the one shown, and back; swapbufferCMD swaps them. Texels go
+ * through the texture window by level, row and texel; pixels through the frame buffer's, 1024 a
+ * row. A FIFO takes the frame buffer past the buffers: the Voodoo Graphics' memory FIFO, the PCI
+ * FIFO's overflow, or, asked for, the Voodoo 2's command FIFO (cvg.h).
  */
 #ifndef TDFX_SST_H
 #define TDFX_SST_H
@@ -60,6 +62,12 @@ enum : uint32_t {
     SST_FT_BITS = 0xFu << 13,
     /* fbiInit4: LFB reads ahead */
     SST_READ_AHEAD = 1u << 1,
+    /* a card's frame buffer, and its texture memory */
+    SST_BYTES = 2 << 20,
+    /* the texture window's: a level, a row, a texel */
+    SST_LEVEL_AT = 17,
+    SST_ROW_AT = 9,
+    SST_TEXEL_AT = 1,
     /* a TMU's trexInit0 and 1, and their values as Glide writes them */
     SST_TREX_INIT0 = 0x31C,
     SST_TREX_INIT1 = 0x320,
@@ -70,7 +78,14 @@ enum : uint32_t {
     SST_TF_BITS = 0xFu << 12,
 };
 
+/* The Voodoo Graphics': registers, texels and pixels through their windows, as the FIFO has
+   room. */
 extern const TdfxChip sst_chip;
+/* Of it, what the Voodoo 2's shares (TdfxChip). */
+uint32_t sst_based(const Tdfx *c, uint32_t at);
+uint32_t sst_drawn_in(Tdfx *c, uint32_t buffer);
+volatile uint8_t *sst_pixels(Tdfx *c, uint32_t buffer);
+void sst_carried(Tdfx *c);
 
 /* A mode, w by h of the frame buffer's: its timing's words, its tiles across (32 pixels each),
    the video FIFO's threshold, its family's flags (scan doubling) and its pixel clock. */
@@ -81,14 +96,8 @@ typedef struct {
     float mhz;
 } SstMode;
 
-/* The smallest of n modes holding w by h whose buffers fit bytes of frame buffer: null, none. */
-const SstMode *sst_mode_for(
-    const SstMode *modes,
-    uint32_t n,
-    uint16_t w,
-    uint16_t h,
-    uint32_t bytes
-);
+/* The smallest of n modes holding w by h whose buffers fit: null, none. */
+const SstMode *sst_mode_for(const SstMode *modes, uint32_t n, uint16_t w, uint16_t h);
 /* Init register reg's clear bits cleared and set's set, the FBI idle after. */
 void sst_changed(const Tdfx *c, uint32_t reg, uint32_t clear, uint32_t set);
 /* A few status reads: what Glide waits after a PCI configuration write. */
@@ -99,8 +108,13 @@ void sst_reset(const Tdfx *c);
 bool sst_mapped(Tdfx *c);
 /* Mode m's timing written, the video unit in reset. */
 void sst_timed(const Tdfx *c, const SstMode *m);
-/* A buffer's 4K pages for mode m in bytes of frame buffer, up to the rows a clip reaches. */
-uint32_t sst_pages(const SstMode *m, uint32_t bytes);
+/* A buffer's 4K pages for mode m, up to the rows a clip reaches. */
+uint32_t sst_pages(const SstMode *m);
+/* The frame buffer's first byte past the buffers of pages each. */
+uint32_t sst_after_buffers(uint32_t pages);
+/* sst1InitVideo's memory FIFO, the frame buffer past the buffers of pages each: the room for
+   writes after read from it. */
+void sst_queued_in_memory(const Tdfx *c, uint32_t pages);
 /* Mode m shown at clock, its buffers pages each: the frame buffer's shape and rate set. */
 void sst_laid_out(Tdfx *c, const SstMode *m, uint32_t pages, float clock);
 /* The VGA's screen shown again: the video in reset, blank, the refresh off, the units reset;

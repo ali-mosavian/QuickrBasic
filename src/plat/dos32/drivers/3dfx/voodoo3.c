@@ -62,7 +62,25 @@ enum : uint32_t {
     EIGHT_CHIPS = 1u << 26,
     SIXTEEN_MBIT = 1u << 27,
     MB = 1 << 20,
-    BANSHEE = 3, /* PCI's device */
+    /* the command FIFO's registers, from CMD: its base page, its pages less one and its switch, its
+       reader's place and the high half of it, the bounds of what is written, the words in it, the
+       holes in them; when it fetches */
+    CMD = 0x80000,
+    FIFO_BASE = 0x20,
+    FIFO_SIZE = 0x24,
+    FIFO_READ = 0x2C,
+    FIFO_READ_HIGH = 0x30,
+    FIFO_MIN = 0x34,
+    FIFO_MAX = 0x3C,
+    FIFO_DEPTH = 0x44,
+    FIFO_HOLES = 0x48,
+    FIFO_THRESH = 0x80,
+    FIFO_ON = 1u << 8,
+    FIFO_BYTES = 256 << 10,
+    FIFO_BUSY = 1u << 11, /* status: words in the command FIFO */
+    BANSHEE = 3,          /* PCI's device: its thresholds Glide's, and the Voodoo 3's */
+    BANSHEE_THRESH = 9u << 5 | 2,
+    VOODOO3_THRESH = 0xFu << 5 | 8,
     /* 3D registers */
     LEFT_OVERLAY = 0x250,
     COLOUR_AT = 0x1EC,
@@ -90,7 +108,6 @@ static struct {
     uint32_t fifo, textures;        /* the command FIFO's and texture memory's first bytes */
     uint32_t tiles, video, strides; /* lfbMemoryConfig, vidProcCfg, the strides as they were */
     CmdFifo queue;
-    uint32_t swap; /* the queue's mark after the last swap */
 } h3;
 
 static uint32_t io_get(const uint32_t reg) { return *(const volatile uint32_t *)(h3.io + reg); }
@@ -111,7 +128,7 @@ static uint32_t memory_of(const uint32_t dram0, const uint32_t dram1)
 /* The buffers and textures placed in bytes of frame memory for mode m: false, they do not fit. */
 static bool laid_out(Tdfx *const c, const AccelMode *const m, const uint32_t bytes)
 {
-    const uint32_t least = TEXTURES_LEAST + CMDFIFO_BYTES;
+    const uint32_t least = TEXTURES_LEAST + FIFO_BYTES;
     const uint32_t most = bytes > least ? (bytes - least) / BUFFERS & ~(PAGE - 1) : 0;
     const uint32_t fit = m->pitch ? most / m->pitch : 0;
     const uint32_t rows = fit < ROWS_MOST ? fit : ROWS_MOST;
@@ -124,7 +141,7 @@ static bool laid_out(Tdfx *const c, const AccelMode *const m, const uint32_t byt
         h3.at[b] = b * buffer;
 
     h3.fifo = BUFFERS * buffer;
-    h3.textures = h3.fifo + CMDFIFO_BYTES;
+    h3.textures = h3.fifo + FIFO_BYTES;
     c->lfb_row = m->pitch;
     c->stride = m->pitch / PIXEL;
     c->rows = rows;
@@ -164,6 +181,21 @@ static uint32_t timed(const Tdfx *const c)
     return (uint32_t)(FRAMES * 1e9f / (float)(uint32_t)(to - from));
 }
 
+/* The command FIFO on and empty after the buffers: Glide's hwcInitFifo. */
+static void queued(const bool banshee)
+{
+    io_put(CMD + FIFO_SIZE, 0);
+    io_put(CMD + FIFO_BASE, h3.fifo / PAGE);
+    io_put(CMD + FIFO_READ, h3.fifo);
+    io_put(CMD + FIFO_READ_HIGH, 0);
+    io_put(CMD + FIFO_MIN, h3.fifo - 4);
+    io_put(CMD + FIFO_MAX, h3.fifo - 4);
+    io_put(CMD + FIFO_DEPTH, 0);
+    io_put(CMD + FIFO_HOLES, 0);
+    io_put(CMD + FIFO_THRESH, banshee ? BANSHEE_THRESH : VOODOO3_THRESH);
+    io_put(CMD + FIFO_SIZE, (FIFO_BYTES / PAGE - 1) | FIFO_ON);
+}
+
 static void put(Tdfx *const c, const uint32_t reg, const uint32_t *const v, const uint32_t n)
 {
     (void)c;
@@ -185,13 +217,9 @@ static void uploaded(
 )
 {
     /* the port is texBaseAddr's: its level past the ones above it */
-    const uint32_t level = tdfx_skipped(t->w, t->h);
+    const uint32_t at = tdfx_skipped(t->w, t->h) + ((uint32_t)r.y * t->w + (uint32_t)r.x) * TEXEL;
 
-    for (uint32_t y = 0; y < (uint32_t)r.h; y++) {
-        const uint32_t at = level + ((uint32_t)(r.y + (int32_t)y) * t->w + (uint32_t)r.x) * TEXEL;
-
-        cmdfifo_texels(&h3.queue, at, texels + (size_t)y * pitch, (uint32_t)r.w);
-    }
+    cmdfifo_texels(&h3.queue, at, t->w * TEXEL, texels, pitch, (uint32_t)r.w, (uint32_t)r.h);
 
     /* the texture cache is flushed by a change of base */
     tdfx_put(c, SST_TMU0 + SST_TEX_BASE, ~t->base & BASE);
@@ -216,14 +244,14 @@ static void swapped(Tdfx *const c, const uint32_t buffer, const bool vsync)
 {
     tdfx_put(c, LEFT_OVERLAY, h3.at[buffer]);
     tdfx_put(c, SST_SWAP, vsync);
-    h3.swap = cmdfifo_mark(&h3.queue);
+    cmdfifo_fenced(&h3.queue);
 }
 
 /* The last swap read before another is queued: one may wait on the retrace while the next frame
    is drawn. */
 static void shown(Tdfx *const c, const bool vsync)
 {
-    cmdfifo_read_to(&h3.queue, h3.swap);
+    cmdfifo_waited(&h3.queue);
     swapped(c, c->shown ^ 1, vsync);
 }
 
@@ -277,7 +305,7 @@ static void carried(Tdfx *const c)
 }
 
 static const TdfxChip H3 = {
-    SST_BUSY | CMDFIFO_BUSY,
+    SST_BUSY | FIFO_BUSY,
     put,
     based,
     uploaded,
@@ -310,7 +338,15 @@ static bool opened(Tdfx *const c, const uint16_t w, const uint16_t h)
 
     c->regs = regs + THREE_D;
     c->lfb = frame;
-    cmdfifo_open(&h3.queue, host, regs, frame, h3.fifo, banshee);
+    queued(banshee);
+    cmdfifo_begin(
+        &h3.queue,
+        host,
+        frame + h3.fifo,
+        (const volatile uint32_t *)(regs + CMD + FIFO_READ),
+        h3.fifo,
+        FIFO_BYTES
+    );
     h3.tiles = io_get(LFB_MEMORY);
     h3.video = io_get(VID_PROC);
     h3.strides = io_get(STRIDES);
@@ -328,7 +364,7 @@ static bool opened(Tdfx *const c, const uint16_t w, const uint16_t h)
 static void closed(Tdfx *const c)
 {
     (void)c;
-    cmdfifo_close(&h3.queue);
+    io_put(CMD + FIFO_SIZE, 0);
     io_put(VID_PROC, h3.video);
     io_put(STRIDES, h3.strides);
     io_put(LFB_MEMORY, h3.tiles);

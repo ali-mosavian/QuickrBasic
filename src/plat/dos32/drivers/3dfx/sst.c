@@ -18,9 +18,6 @@ enum : uint32_t {
     BACK = 1,
     BASE = 0x7FFFF, /* texBaseAddr's: 8 bytes a unit */
     BASE_UNIT = 3,
-    LEVEL_AT = 17, /* the texture window's: a level, a row, a texel */
-    ROW_AT = 9,
-    TEXEL_AT = 1,
     LFB_ROW = 2048, /* the frame buffer window's bytes a row */
     PIXEL_AT = 1,
     LFB_READ = 6, /* lfbMode's buffers read and written */
@@ -28,23 +25,41 @@ enum : uint32_t {
     PENDING = 28, /* status's swaps pending */
     SWAPS = 7,
     AHEAD = 1, /* swaps let pend */
+    /* the memory FIFO's: fbiInit4's first and last rows, its low-water mark; fbiInit0's high-water
+       mark in 32 entries, its burst's; status' entries free; an entry's bytes, the most entries;
+       the room Glide keeps over the high-water mark */
+    ROW_BASE = 8,
+    ROW_ROLL = 18,
+    ROWS_BITS = 0xFFFFFu << ROW_BASE,
+    MEMORY_LWM = 23u << 2,
+    MEMORY_LWM_BITS = 0x3Fu << 2,
+    HWM = 14,
+    HWM_BITS = 0x7FFu << HWM,
+    HWM_UNIT = 5,
+    BURST = 54u << 25,
+    BURST_BITS = 0x3Fu << 25,
+    MEMORY_FREE = 12,
+    ENTRY = 8,
+    ENTRIES_MOST = 57344,
+    MARGIN = 0x100,
+    FIFO_LEAST = 32 << 10, /* the frame buffer a FIFO keeps past the buffers */
 };
 
-static uint32_t room; /* the PCI FIFO's entries known free */
+static uint32_t room; /* the FIFO's entries known free */
+static uint32_t lwm;  /* the memory FIFO's entries free kept: 0, it is off */
 
 const SstMode *sst_mode_for(
     const SstMode *const modes,
     const uint32_t n,
     const uint16_t w,
-    const uint16_t h,
-    const uint32_t bytes
+    const uint16_t h
 )
 {
     const SstMode *best = nullptr;
 
     for (uint32_t i = 0; i < n; i++) {
         const SstMode *const m = &modes[i];
-        const bool fits = sst_pages(m, bytes) * PAGE / (m->tiles * TILE * 2u) >= m->h;
+        const bool fits = sst_pages(m) * PAGE / (m->tiles * TILE * 2u) >= m->h;
         const bool holds = m->w >= w && m->h >= h;
 
         if (fits && holds && (!best || (uint32_t)m->w * m->h < (uint32_t)best->w * best->h))
@@ -85,7 +100,7 @@ bool sst_mapped(Tdfx *const c)
     if (!regs)
         return false;
 
-    room = 0;
+    room = lwm = 0;
     c->regs = regs;
     c->lfb = regs + SST_LFB;
     c->lfb_row = LFB_ROW;
@@ -103,10 +118,11 @@ void sst_timed(const Tdfx *const c, const SstMode *const m)
     tdfx_idle_fbi(c);
 }
 
-uint32_t sst_pages(const SstMode *const m, const uint32_t bytes)
+uint32_t sst_pages(const SstMode *const m)
 {
     const uint32_t row_bytes = m->tiles * TILE * 2;
-    const uint32_t most = bytes / PAGE / BUFFERS, by_rows = ROWS_MOST * row_bytes / PAGE;
+    const uint32_t most = (SST_BYTES - FIFO_LEAST) / PAGE / BUFFERS,
+                   by_rows = ROWS_MOST * row_bytes / PAGE;
 
     return most < by_rows ? most : by_rows;
 }
@@ -137,11 +153,44 @@ void sst_stopped(const Tdfx *const c)
     c->host->pci_write(&c->pci, SST_INIT_ENABLE, 0);
 }
 
-/* A word to a window's at, as the PCI FIFO has room. */
+uint32_t sst_after_buffers(const uint32_t pages) { return BUFFERS * pages * PAGE; }
+
+void sst_queued_in_memory(const Tdfx *const c, const uint32_t pages)
+{
+    const uint32_t first = sst_after_buffers(pages) / PAGE, rows = SST_BYTES / PAGE;
+    const uint32_t spare = (rows - first - 1) * PAGE / ENTRY;
+    const uint32_t entries = spare < ENTRIES_MOST ? spare : ENTRIES_MOST;
+    const uint32_t hwm = (HALF - entries + (1u << HWM_UNIT) - 1) >> HWM_UNIT;
+
+    sst_changed(
+        c,
+        SST_FBI_INIT4,
+        ROWS_BITS | MEMORY_LWM_BITS,
+        first << ROW_BASE | (rows - 1) << ROW_ROLL | MEMORY_LWM
+    );
+    sst_changed(
+        c,
+        SST_FBI_INIT0,
+        SST_MEMORY_FIFO | HWM_BITS | SST_PCI_LWM_BITS | BURST_BITS,
+        hwm << HWM | SST_PCI_LWM | BURST | SST_MEMORY_FIFO
+    );
+    lwm = (hwm << HWM_UNIT | ((1u << HWM_UNIT) - 1)) + MARGIN;
+}
+
+/* The entries a write may take: the memory FIFO's free over its low-water mark, as Glide's
+   _grReCacheFifo; else the PCI FIFO's. */
+static uint32_t room_in(const uint32_t status)
+{
+    const uint32_t free = status >> MEMORY_FREE & HALF;
+
+    return !lwm ? status & SST_ROOM : free > lwm ? free - lwm : 0;
+}
+
+/* A word to a window's at, as the FIFO has room. */
 static void stored(Tdfx *const c, volatile uint8_t *const at, const uint32_t v)
 {
     while (!room)
-        room = tdfx_get(c, SST_STATUS) & SST_ROOM;
+        room = room_in(tdfx_get(c, SST_STATUS));
 
     room--;
     *(volatile uint32_t *)at = v;
@@ -153,7 +202,7 @@ static void put(Tdfx *const c, const uint32_t reg, const uint32_t *const v, cons
         stored(c, c->regs + reg + 4 * i, v[i]);
 }
 
-static uint32_t based(const Tdfx *const c, const uint32_t at)
+uint32_t sst_based(const Tdfx *const c, const uint32_t at)
 {
     (void)c;
     return at >> BASE_UNIT & BASE;
@@ -167,14 +216,14 @@ static void uploaded(
     const uint32_t pitch
 )
 {
-    volatile uint8_t *const level = c->texels + (t->level << LEVEL_AT);
+    volatile uint8_t *const level = c->texels + (t->level << SST_LEVEL_AT);
 
     for (uint32_t y = 0; y < (uint32_t)r.h; y++) {
         const uint16_t *const row = texels + (size_t)y * pitch;
-        volatile uint8_t *const to = level + ((uint32_t)(r.y + (int32_t)y) << ROW_AT);
+        volatile uint8_t *const to = level + ((uint32_t)(r.y + (int32_t)y) << SST_ROW_AT);
 
         for (uint32_t s = 0; s < (uint32_t)r.w; s += 2)
-            stored(c, to + ((r.x + s) << TEXEL_AT), row[s] | (uint32_t)row[s + 1] << 16);
+            stored(c, to + ((r.x + s) << SST_TEXEL_AT), row[s] | (uint32_t)row[s + 1] << 16);
     }
 }
 
@@ -184,9 +233,9 @@ static uint32_t side_of(const Tdfx *const c, const uint32_t buffer)
     return buffer == c->shown ? FRONT : BACK;
 }
 
-static uint32_t drawn_in(Tdfx *const c, const uint32_t buffer) { return side_of(c, buffer); }
+uint32_t sst_drawn_in(Tdfx *const c, const uint32_t buffer) { return side_of(c, buffer); }
 
-static volatile uint8_t *pixels(Tdfx *const c, const uint32_t buffer)
+volatile uint8_t *sst_pixels(Tdfx *const c, const uint32_t buffer)
 {
     tdfx_put(c, SST_LFB_MODE, side_of(c, buffer) << LFB_READ);
     return c->lfb;
@@ -204,7 +253,7 @@ static void shown(Tdfx *const c, const bool vsync)
 }
 
 /* Through the frame buffer's window, pixel by pixel. */
-static void carried(Tdfx *const c)
+void sst_carried(Tdfx *const c)
 {
     tdfx_put(c, SST_LFB_MODE, FRONT << LFB_READ | BACK << LFB_WRITE);
     tdfx_idle(c);
@@ -216,4 +265,13 @@ static void carried(Tdfx *const c)
         }
 }
 
-const TdfxChip sst_chip = {SST_BUSY, put, based, uploaded, drawn_in, pixels, shown, carried};
+const TdfxChip sst_chip = {
+    SST_BUSY,
+    put,
+    sst_based,
+    uploaded,
+    sst_drawn_in,
+    sst_pixels,
+    shown,
+    sst_carried,
+};

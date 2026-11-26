@@ -3,8 +3,8 @@
  *
  * # How it works
  * Its modes are Glide's: 512x384, 640x400 and 640x480, the screen centred in the smallest holding
- * it. Its memory is taken as 2 MB of frame buffer and 2 MB of textures, every board's least. A
- * board whose fbiInit3 bit 12 is set at power-on shows the VGA with fbiInit0 bit 0 set, not clear.
+ * it. The memory FIFO, past the buffers, takes the PCI FIFO's overflow. A board whose fbiInit3
+ * bit 12 is set at power-on shows the VGA with fbiInit0 bit 0 set, not clear.
  */
 #include "plat/dos32/drivers/3dfx/dac.h"
 #include "plat/dos32/drivers/3dfx/regs.h"
@@ -12,7 +12,6 @@
 #include "qx/qx.h"
 
 enum : uint32_t {
-    MB2 = 2 << 20,
     POLARITY = 1u << 12, /* fbiInit3's, read at power-on */
     /* fbiInit1's: the outputs on, 16 bits a pixel out, the clock's out delay */
     OUTPUTS = 0xFu << 13,
@@ -114,7 +113,7 @@ static bool shown_in(
         SST_VIDEO_FIFO_BITS | SST_FT_BITS,
         (uint32_t)m->video_fifo << SST_VIDEO_FIFO | ft << SST_FT_DELAY
     );
-    sst_changed(c, SST_FBI_INIT0, SST_PCI_LWM_BITS | SST_MEMORY_FIFO, SST_PCI_LWM);
+    sst_queued_in_memory(c, pages);
     sst_changed(c, SST_FBI_INIT1, SST_VIDEO_BITS, OUTPUTS | VIDEO_16BPP | out_delay << OUT_DELAY);
     tdfx_dac_graphics(c, sst.dac, &graphics);
     tdfx_dac_video(c, sst.dac, &pixel);
@@ -127,13 +126,13 @@ static bool shown_in(
 
 static bool opened(Tdfx *const c, const uint16_t w, const uint16_t h)
 {
-    const SstMode *const m = sst_mode_for(MODES, sizeof MODES / sizeof *MODES, w, h, MB2);
+    const SstMode *const m = sst_mode_for(MODES, sizeof MODES / sizeof *MODES, w, h);
 
     if (!m || !sst_mapped(c))
         return false;
 
     const uint32_t revision = c->host->pci_read(&c->pci, SST_REVISION) & 0xFF;
-    const uint32_t pages = sst_pages(m, MB2);
+    const uint32_t pages = sst_pages(m);
 
     sst.shows = tdfx_get(c, SST_FBI_INIT3) & POLARITY && revision > 0 ? 0 : SST_SHOWN;
 
@@ -142,7 +141,7 @@ static bool opened(Tdfx *const c, const uint16_t w, const uint16_t h)
 
     sst_changed(c, SST_FBI_INIT0, SST_SHOWN, sst.shows);
     sst_changed(c, SST_FBI_INIT1, SST_BLANK, 0);
-    c->texture_bytes = MB2;
+    c->texture_bytes = SST_BYTES;
     return true;
 }
 

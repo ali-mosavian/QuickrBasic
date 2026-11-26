@@ -1,4 +1,5 @@
 /* plat/dos32/drivers/3dfx: what an SST card is sent, against values worked by hand. */
+#include "plat/dos32/drivers/3dfx/cvg.h"
 #include "plat/dos32/drivers/3dfx/dac.h"
 #include "plat/dos32/drivers/3dfx/regs.h"
 #include "plat/dos32/drivers/3dfx/setup.h"
@@ -188,14 +189,41 @@ static uint8_t *card_memory;
 
 static uint64_t ACCEL_CALL fake_clock(void) { return 0; }
 
+static uint32_t ACCEL_CALL fake_pci_read(const PciFunction *const card, const uint8_t reg)
+{
+    (void)card, (void)reg;
+    return 0;
+}
+
+static void ACCEL_CALL
+fake_pci_write(const PciFunction *const card, const uint8_t reg, const uint32_t v)
+{
+    (void)card, (void)reg, (void)v;
+}
+
+static volatile uint8_t *ACCEL_CALL fake_map(const uint32_t phys, const uint32_t bytes)
+{
+    (void)phys;
+    return bytes <= CARD_BYTES ? card_memory : nullptr;
+}
+
+static const AccelHost FAKE_HOST = {
+    .size = sizeof(AccelHost),
+    .abi = ACCEL_ABI,
+    .pci_read = fake_pci_read,
+    .pci_write = fake_pci_write,
+    .map = fake_map,
+    .clock_us = fake_clock,
+};
+
+static void status_is(const uint32_t v) { memcpy(card_memory + SST_STATUS, &v, sizeof v); }
+
+/* The card mapped as the drivers map it, its status room and nothing busy. */
 static bool fake_open(Tdfx *const c, const uint16_t w, const uint16_t h)
 {
     card_memory = calloc(1, CARD_BYTES);
-    card_memory[SST_STATUS] = SST_ROOM; /* room, nothing busy */
-    c->regs = card_memory;
-    c->lfb = card_memory + SST_LFB;
-    c->lfb_row = 2048;
-    c->texels = card_memory + SST_TEXELS;
+    status_is(SST_ROOM);
+    sst_mapped(c);
     c->stride = 640;
     c->rows = 544;
     c->mode_w = w;
@@ -223,11 +251,9 @@ static uint32_t word_at(const uint32_t at)
 TEST(tdfx_driver_places_a_texture_past_the_levels_above_it)
 {
     static const TdfxFamily fake = {"fake", &sst_chip, fake_open, fake_close};
-    static const AccelHost host =
-        {.size = sizeof(AccelHost), .abi = ACCEL_ABI, .clock_us = fake_clock};
     static uint16_t texels[64 * 2];
 
-    const AccelDriver *const d = tdfx_driver(&host, &fake);
+    const AccelDriver *const d = tdfx_driver(&FAKE_HOST, &fake);
 
     AccelCard card;
 
@@ -242,6 +268,73 @@ TEST(tdfx_driver_places_a_texture_past_the_levels_above_it)
     CHECK(word_at(SST_TEXELS + (2 << 17) + (5 << 9) + (2 << 1)) == (3u << 16 | 2));
     CHECK(word_at(SST_TEXELS + (2 << 17) + (6 << 9) + (62 << 1)) == (127u << 16 | 126));
     d->close();
+}
+
+/* A triangle of a solid colour. */
+static const AccelState SOLID = {.source = ACCEL_COLOUR, .alpha = 255};
+static const AccelVertex TRIANGLE[3] = {
+    {0, 0, 0.5f, 1, 0, 0, 0xFF204060},
+    {64, 0, 0.5f, 1, 0, 0, 0xFF204060},
+    {0, 64, 0.25f, 1, 0, 0, 0xFF608020},
+};
+
+static uint32_t loaded(const uint8_t *const at)
+{
+    uint32_t v;
+
+    memcpy(&v, at, sizeof v);
+    return v;
+}
+
+static void stored_at(uint8_t *const at, const uint32_t v) { memcpy(at, &v, sizeof v); }
+
+/* A fake card's command FIFO: the ring as the CPU writes it, its first byte in frame memory, the
+   read pointer, where PKT1's registers and PKT5's texels land; the words of texels taken. */
+typedef struct {
+    uint8_t *ring, *read, *registers, *texels;
+    uint32_t at, ported;
+} Fifo;
+
+/* The word at the ring's *at, taken: cleared, so a zero is a word not written. */
+static uint32_t taken(const Fifo *const f, uint32_t *const at)
+{
+    uint8_t *const word = f->ring + (*at - f->at);
+    const uint32_t v = loaded(word);
+
+    memset(word, 0, 4);
+    *at += 4;
+    return v;
+}
+
+/* The packets the driver wrote from the read pointer on, done as the card does: PKT1's register
+   writes, PKT5's texels, PKT0's jumps; the read pointer left past them. None, the FIFO not yet
+   placed. */
+static void played(Fifo *const f)
+{
+    if (!f->ring)
+        return;
+
+    uint32_t at = loaded(f->read);
+
+    while (loaded(f->ring + (at - f->at))) {
+        const uint32_t head = taken(f, &at);
+
+        if ((head & 7) == 1) {
+            uint32_t reg = (head & 0x7FF8) >> 1;
+
+            for (uint32_t n = head >> 16; n--; reg += head >> 15 & 1 ? 4 : 0)
+                stored_at(f->registers + reg, taken(f, &at));
+        } else if ((head & 7) == 5) {
+            uint32_t to = taken(f, &at);
+
+            for (uint32_t n = head >> 3 & 0x7FFFF; n--; to += 4, f->ported++)
+                stored_at(f->texels + to, taken(f, &at));
+        } else if ((head & 0x3F) == 3 << 3) {
+            at = head >> 4 & 0xFFFFFC;
+        }
+    }
+
+    stored_at(f->read, at);
 }
 
 /* The Banshee's and Voodoo 3's (voodoo3.c): a card of 16 MB of SDRAM, its BIOS's VESA mode
@@ -272,7 +365,7 @@ const AccelDriver *ACCEL_CALL accel_init(const AccelHost *host);
 static struct {
     uint8_t *regs, *frame;
     uint64_t us;
-    uint32_t ported; /* the words of texels the port took */
+    Fifo fifo;
     uint16_t w, h;
     uint8_t bits;
 } h3;
@@ -296,53 +389,7 @@ static volatile uint8_t *ACCEL_CALL h3_map(const uint32_t phys, const uint32_t b
                                                   : nullptr;
 }
 
-static uint32_t h3_word(const uint8_t *const at)
-{
-    uint32_t v;
-
-    memcpy(&v, at, sizeof v);
-    return v;
-}
-
-/* The command FIFO's word at *at, taken: cleared, so a zero is a word not written. */
-static uint32_t h3_taken(uint32_t *const at)
-{
-    const uint32_t v = h3_word(h3.frame + *at);
-
-    memset(h3.frame + *at, 0, 4);
-    *at += 4;
-    return v;
-}
-
-static void h3_stored(const uint32_t at, const uint32_t v) { memcpy(h3.regs + at, &v, sizeof v); }
-
-/* The packets the driver wrote to its command FIFO from the read pointer on, done as the card does:
-   PKT1's register writes to the 3D window, PKT5's texels to the port, PKT0's jumps; the read
-   pointer left past them. */
-static void h3_played(void)
-{
-    uint32_t at = h3_word(h3.regs + H3_CMD + H3_READ);
-
-    while (h3_word(h3.frame + at)) {
-        const uint32_t head = h3_taken(&at);
-
-        if ((head & 7) == 1) {
-            uint32_t reg = (head & 0x7FF8) >> 1;
-
-            for (uint32_t n = head >> 16; n--; reg += head >> 15 & 1 ? 4 : 0)
-                h3_stored(H3_3D + reg, h3_taken(&at));
-        } else if ((head & 7) == 5) {
-            uint32_t to = h3_taken(&at);
-
-            for (uint32_t n = head >> 3 & 0x7FFFF; n--; to += 4, h3.ported++)
-                h3_stored(H3_PORT + to, h3_taken(&at));
-        } else if ((head & 0x3F) == 3 << 3) {
-            at = head >> 4 & 0xFFFFFC;
-        }
-    }
-
-    h3_stored(H3_CMD + H3_READ, at);
-}
+static void h3_played(void) { played(&h3.fifo); }
 
 /* A millisecond a read, the card reading its command FIFO as the driver waits. */
 static uint64_t ACCEL_CALL h3_clock(void)
@@ -376,7 +423,14 @@ static const AccelDriver *h3_opened(AccelCard *const card)
 
     h3.regs = calloc(1, H3_REGS);
     h3.frame = calloc(1, H3_FRAME);
-    h3.ported = 0;
+    h3.fifo = (Fifo){
+        h3.frame + 3 * H3_BUFFER,
+        h3.regs + H3_CMD + H3_READ,
+        h3.regs + H3_3D,
+        h3.regs + H3_PORT,
+        3 * H3_BUFFER,
+        0,
+    };
     memcpy(h3.regs + 0x1C, &sdram, sizeof sdram);
     memcpy(h3.regs + H3_3D + SST_STATUS, &status, sizeof status);
 
@@ -402,9 +456,9 @@ TEST(tdfx_h3_lays_its_buffers_out_in_frame_memory)
     CHECK(d && h3.w == 320 && h3.h == 240 && h3.bits == 16);
     CHECK(card.memory == H3_FRAME - 3 * H3_BUFFER - H3_FIFO);
     h3_played();
-    CHECK(h3_word(h3.regs + H3_3D + H3_COLOUR_STRIDE) == 1280);
-    CHECK(h3_word(h3.regs + H3_3D + H3_AUX_AT) == 2 * H3_BUFFER);
-    CHECK(h3_word(h3.regs + H3_3D + H3_COLOUR_AT) == H3_BUFFER);
+    CHECK(loaded(h3.regs + H3_3D + H3_COLOUR_STRIDE) == 1280);
+    CHECK(loaded(h3.regs + H3_3D + H3_AUX_AT) == 2 * H3_BUFFER);
+    CHECK(loaded(h3.regs + H3_3D + H3_COLOUR_AT) == H3_BUFFER);
     h3_closed(d);
 }
 
@@ -417,11 +471,11 @@ TEST(tdfx_h3_shows_an_overlay_over_the_mode)
     const uint32_t on = 1u << 8, bypass = 1u << 11, rgb565 = 1u << 21;
 
     CHECK(d);
-    CHECK((h3_word(h3.regs + H3_VID_PROC) & (on | bypass | 7u << 21)) == (on | rgb565));
-    CHECK(h3_word(h3.regs + H3_OVERLAY_END) == (479u << 12 | 639));
-    CHECK(h3_word(h3.regs + H3_STRIDES) >> 16 == 1280);
+    CHECK((loaded(h3.regs + H3_VID_PROC) & (on | bypass | 7u << 21)) == (on | rgb565));
+    CHECK(loaded(h3.regs + H3_OVERLAY_END) == (479u << 12 | 639));
+    CHECK(loaded(h3.regs + H3_STRIDES) >> 16 == 1280);
     h3_played();
-    CHECK(h3_word(h3.regs + H3_3D + H3_LEFT_OVERLAY) == 0);
+    CHECK(loaded(h3.regs + H3_3D + H3_LEFT_OVERLAY) == 0);
     h3_closed(d);
 }
 
@@ -435,18 +489,18 @@ TEST(tdfx_h3_shows_the_buffer_drawn_and_draws_in_the_other)
     CHECK(d);
     d->show(true);
     h3_played();
-    CHECK(h3_word(h3.regs + H3_3D + H3_LEFT_OVERLAY) == H3_BUFFER);
-    CHECK(h3_word(h3.regs + H3_3D + H3_SWAP) == 1);
-    CHECK(h3_word(h3.regs + H3_3D + H3_COLOUR_AT) == 0);
+    CHECK(loaded(h3.regs + H3_3D + H3_LEFT_OVERLAY) == H3_BUFFER);
+    CHECK(loaded(h3.regs + H3_3D + H3_SWAP) == 1);
+    CHECK(loaded(h3.regs + H3_3D + H3_COLOUR_AT) == 0);
     d->show(false);
     h3_played();
-    CHECK(h3_word(h3.regs + H3_3D + H3_LEFT_OVERLAY) == 0);
-    CHECK(h3_word(h3.regs + H3_3D + H3_SWAP) == 0);
-    CHECK(h3_word(h3.regs + H3_3D + H3_COLOUR_AT) == H3_BUFFER);
+    CHECK(loaded(h3.regs + H3_3D + H3_LEFT_OVERLAY) == 0);
+    CHECK(loaded(h3.regs + H3_3D + H3_SWAP) == 0);
+    CHECK(loaded(h3.regs + H3_3D + H3_COLOUR_AT) == H3_BUFFER);
     CHECK(d->target(1, 64, 64, false));
     d->aim(1, (AccelRect){0, 0, 64, 64});
     h3_played();
-    CHECK(h3_word(h3.regs + H3_3D + H3_COLOUR_AT) == 0);
+    CHECK(loaded(h3.regs + H3_3D + H3_COLOUR_AT) == 0);
     h3_closed(d);
 }
 
@@ -466,9 +520,9 @@ TEST(tdfx_h3_sends_texels_through_the_port_from_the_base)
     CHECK(d && d->texture(1, 64, 64));
     d->upload(1, (AccelRect){0, 5, 64, 2}, texels, 64);
     h3_played();
-    CHECK(h3_word(h3.regs + H3_3D + SST_TMU0 + SST_TEX_BASE) == 3 * H3_BUFFER + H3_FIFO - skipped);
-    CHECK(h3_word(h3.regs + H3_PORT + skipped + (5 * 64 + 2) * 2) == (3u << 16 | 2));
-    CHECK(h3_word(h3.regs + H3_PORT + skipped + (6 * 64 + 62) * 2) == (127u << 16 | 126));
+    CHECK(loaded(h3.regs + H3_3D + SST_TMU0 + SST_TEX_BASE) == 3 * H3_BUFFER + H3_FIFO - skipped);
+    CHECK(loaded(h3.regs + H3_PORT + skipped + (5 * 64 + 2) * 2) == (3u << 16 | 2));
+    CHECK(loaded(h3.regs + H3_PORT + skipped + (6 * 64 + 62) * 2) == (127u << 16 | 126));
     h3_closed(d);
 }
 
@@ -505,14 +559,6 @@ TEST(tdfx_h3_shows_a_frame_without_waiting_for_the_card)
     h3_closed(d);
 }
 
-/* A triangle of a solid colour. */
-static const AccelState H3_SOLID = {.source = ACCEL_COLOUR, .alpha = 255};
-static const AccelVertex H3_TRIANGLE[3] = {
-    {0, 0, 0.5f, 1, 0, 0, 0xFF204060},
-    {64, 0, 0.5f, 1, 0, 0, 0xFF204060},
-    {0, 64, 0.25f, 1, 0, 0, 0xFF608020},
-};
-
 /* Registers go through the command FIFO in frame memory, Glide's way, not the 3D window: written
    there, each waited on the PCI FIFO's 31 entries, 10,000 status reads a frame of CUBE on 86Box. */
 TEST(tdfx_h3_writes_registers_through_the_command_fifo)
@@ -521,10 +567,10 @@ TEST(tdfx_h3_writes_registers_through_the_command_fifo)
     TdfxTriangle t;
     const AccelDriver *const d = h3_opened(&card);
 
-    CHECK(d && tdfx_setup(H3_TRIANGLE, 160, 120, 1, 255, &t));
-    d->state(&H3_SOLID);
-    d->triangles(H3_TRIANGLE, 3);
-    CHECK(h3_word(h3.regs + H3_3D + SST_FVERTEX) == 0);
+    CHECK(d && tdfx_setup(TRIANGLE, 160, 120, 1, 255, &t));
+    d->state(&SOLID);
+    d->triangles(TRIANGLE, 3);
+    CHECK(loaded(h3.regs + H3_3D + SST_FVERTEX) == 0);
     h3_played();
     CHECK(!memcmp(
         h3.regs + H3_3D + SST_FVERTEX,
@@ -534,7 +580,7 @@ TEST(tdfx_h3_writes_registers_through_the_command_fifo)
     CHECK(!memcmp(h3.regs + H3_3D + SST_FSTART, t.start, TDFX_S * 4));
     CHECK(!memcmp(h3.regs + H3_3D + SST_FDX, t.dx, TDFX_S * 4));
     CHECK(!memcmp(h3.regs + H3_3D + SST_FDY, t.dy, TDFX_S * 4));
-    CHECK(h3_word(h3.regs + H3_3D + SST_FTRIANGLE) == t.command);
+    CHECK(loaded(h3.regs + H3_3D + SST_FTRIANGLE) == t.command);
     h3_closed(d);
 }
 
@@ -557,7 +603,7 @@ TEST(tdfx_h3_wraps_its_command_fifo_as_the_card_reads)
     }
 
     h3_played();
-    CHECK(h3.ported == 3 * sizeof texels / 4);
+    CHECK(h3.fifo.ported == 3 * sizeof texels / 4);
     CHECK(!memcmp(h3.regs + H3_PORT, texels, sizeof texels));
     h3_closed(d);
 }
@@ -572,8 +618,222 @@ TEST(tdfx_h3_writes_registers_without_reading_the_clock)
     CHECK(d);
     const uint64_t from = h3.us;
 
-    d->state(&H3_SOLID);
-    d->triangles(H3_TRIANGLE, 3);
+    d->state(&SOLID);
+    d->triangles(TRIANGLE, 3);
     CHECK(h3.us == from);
     h3_closed(d);
+}
+
+/* The memory FIFO past buffers of 150 pages in 2 MB, as Glide's 640x480 table has it: 31,232
+   entries, fbiInit0's high-water mark 0x430, its rows from 450 to the last. */
+static bool memory_fifo_open(Tdfx *const c, const uint16_t w, const uint16_t h)
+{
+    fake_open(c, w, h);
+    status_is(0xFFFFu << 12 | SST_ROOM); /* both FIFOs empty */
+    sst_queued_in_memory(c, 150);
+    return true;
+}
+
+TEST(tdfx_sst_queues_in_frame_memory_as_glide_does)
+{
+    static const TdfxFamily fake = {"fake", &sst_chip, memory_fifo_open, fake_close};
+
+    const AccelDriver *const d = tdfx_driver(&FAKE_HOST, &fake);
+
+    AccelCard card;
+
+    CHECK(d && d->open(&(PciFunction){}, 320, 240, &card));
+    CHECK((word_at(SST_FBI_INIT0) >> 14 & 0x7FF) == 0x430 && word_at(SST_FBI_INIT0) & 1u << 13);
+    CHECK((word_at(SST_FBI_INIT4) >> 8 & 0x3FF) == 450);
+    CHECK((word_at(SST_FBI_INIT4) >> 18 & 0x3FF) == 0x1FF);
+    d->close();
+}
+
+/* Writes go by the memory FIFO's room, as Glide's _grReCacheFifo: the PCI FIFO full, the memory
+   FIFO empty, ten triangles are written, more than the PCI FIFO's 63 entries; by the PCI FIFO's
+   room, they waited for ever. */
+TEST(tdfx_sst_writes_by_the_memory_fifos_room)
+{
+    static const TdfxFamily fake = {"fake", &sst_chip, memory_fifo_open, fake_close};
+    static AccelVertex ten[10 * 3];
+
+    const AccelDriver *const d = tdfx_driver(&FAKE_HOST, &fake);
+
+    AccelCard card;
+
+    for (uint32_t i = 0; i < 10 * 3; i++)
+        ten[i] = TRIANGLE[i % 3];
+
+    CHECK(d && d->open(&(PciFunction){}, 320, 240, &card));
+    status_is(0xFFFFu << 12);
+    d->state(&SOLID);
+    d->triangles(ten, 10 * 3);
+    CHECK(loaded(card_memory + SST_FVERTEX) != 0);
+    d->close();
+}
+
+/* ---- the Voodoo 2's command FIFO (cvg.c), past buffers of 160 pages ---- */
+
+enum : uint32_t { CVG_AT = 3 * 160 * 4096, CVG_WINDOW = 0x200000, CVG_PAGES = 0x1E0 };
+
+static Fifo cvg_fifo;
+static uint64_t cvg_us;
+static bool cvg_asked; /* SSTV2_CMDFIFO set, to "1" */
+
+static uint32_t ACCEL_CALL cvg_env(const char *const name, char *const out, const uint32_t cap)
+{
+    (void)out, (void)cap;
+    return cvg_asked && !strcmp(name, "SSTV2_CMDFIFO");
+}
+
+/* A millisecond a read, the card reading its command FIFO as the driver waits. */
+static uint64_t ACCEL_CALL cvg_clock(void)
+{
+    played(&cvg_fifo);
+    return cvg_us += 1000;
+}
+
+static bool cvg_open(Tdfx *const c, const uint16_t w, const uint16_t h)
+{
+    fake_open(c, w, h);
+    cvg_queued(c, 160);
+
+    if (cvg_asked)
+        cvg_fifo = (Fifo){
+            card_memory + CVG_WINDOW,
+            card_memory + 0x1E8,
+            card_memory,
+            card_memory + SST_TEXELS,
+            CVG_AT,
+            0,
+        };
+    return true;
+}
+
+static void cvg_close(Tdfx *const c)
+{
+    cvg_unqueued(c);
+    cvg_fifo = (Fifo){};
+    fake_close(c);
+}
+
+/* The fake Voodoo 2 open, its command FIFO asked for or not. */
+static const AccelDriver *cvg_opened(AccelCard *const card, const bool asked)
+{
+    static const TdfxFamily family = {"fake Voodoo 2", &sst_chip, cvg_open, cvg_close};
+    static const AccelHost host = {
+        .size = sizeof(AccelHost),
+        .abi = ACCEL_ABI,
+        .pci_read = fake_pci_read,
+        .pci_write = fake_pci_write,
+        .map = fake_map,
+        .clock_us = cvg_clock,
+        .env = cvg_env,
+    };
+
+    cvg_asked = asked;
+    const AccelDriver *const d = tdfx_driver(&host, &family);
+
+    return d && d->open(&(PciFunction){}, 320, 240, card) ? d : nullptr;
+}
+
+/* The ring, 128 KB past the three buffers, on as Glide's sst1InitCmdFifoDirect turns it on: in
+   memory past the buffers, holes counted. */
+TEST(tdfx_cvg_places_its_command_fifo_past_the_buffers)
+{
+    AccelCard card;
+    const AccelDriver *const d = cvg_opened(&card, true);
+
+    CHECK(d);
+    CHECK(word_at(CVG_PAGES) == ((CVG_AT + (128 << 10) - 1) / 4096 << 16 | CVG_AT / 4096));
+    CHECK((word_at(SST_FBI_INIT7) & 7u << 8) == 3u << 8);
+    CHECK(!(word_at(SST_FBI_INIT0) & 1u << 13));
+    d->close();
+    CHECK(!(word_at(SST_FBI_INIT7) & 1u << 8));
+}
+
+/* Unless SSTV2_CMDFIFO asks for the command FIFO, registers go straight to the 3D window and the
+   FIFO stays off: 86Box shows a fifth fewer frames through it. */
+TEST(tdfx_cvg_writes_directly_unless_asked_for_its_command_fifo)
+{
+    AccelCard card;
+    TdfxTriangle t;
+    const AccelDriver *const d = cvg_opened(&card, false);
+
+    CHECK(d && tdfx_setup(TRIANGLE, 0, 0, 1, 255, &t));
+    CHECK(!(word_at(SST_FBI_INIT7) & 1u << 8));
+    d->state(&SOLID);
+    d->triangles(TRIANGLE, 3);
+    CHECK(!memcmp(
+        card_memory + SST_FVERTEX,
+        (float[]){t.x[0], t.y[0], t.x[1], t.y[1], t.x[2], t.y[2]},
+        24
+    ));
+    d->close();
+}
+
+/* Registers go through the command FIFO, Glide 3's way on the Voodoo 2, not the 3D window. */
+TEST(tdfx_cvg_writes_registers_through_the_command_fifo)
+{
+    AccelCard card;
+    TdfxTriangle t;
+    const AccelDriver *const d = cvg_opened(&card, true);
+
+    CHECK(d && tdfx_setup(TRIANGLE, 0, 0, 1, 255, &t));
+    d->state(&SOLID);
+    d->triangles(TRIANGLE, 3);
+    CHECK(word_at(SST_FVERTEX) == 0);
+    played(&cvg_fifo);
+    CHECK(!memcmp(
+        card_memory + SST_FVERTEX,
+        (float[]){t.x[0], t.y[0], t.x[1], t.y[1], t.x[2], t.y[2]},
+        24
+    ));
+    CHECK(!memcmp(card_memory + SST_FSTART, t.start, TDFX_S * 4));
+    CHECK(word_at(SST_FTRIANGLE) == t.command);
+    d->close();
+}
+
+/* Texels go in packets to texture space at the addresses the texture window takes them: the same
+   words as the Voodoo Graphics' direct writes. */
+TEST(tdfx_cvg_sends_texels_to_texture_space)
+{
+    static uint16_t texels[64 * 2];
+
+    AccelCard card;
+    const AccelDriver *const d = cvg_opened(&card, true);
+
+    for (uint32_t i = 0; i < 64 * 2; i++)
+        texels[i] = (uint16_t)i;
+
+    CHECK(d && d->texture(1, 64, 64));
+    d->upload(1, (AccelRect){0, 5, 64, 2}, texels, 64);
+    CHECK(word_at(SST_TEXELS + (2 << 17) + (5 << 9) + (2 << 1)) == 0);
+    played(&cvg_fifo);
+    CHECK(word_at(SST_TEXELS + (2 << 17) + (5 << 9) + (2 << 1)) == (3u << 16 | 2));
+    CHECK(word_at(SST_TEXELS + (2 << 17) + (6 << 9) + (62 << 1)) == (127u << 16 | 126));
+    d->close();
+}
+
+/* A frame's swap goes through the command FIFO, behind the draws before it. */
+TEST(tdfx_cvg_shows_through_the_command_fifo)
+{
+    AccelCard card;
+    const AccelDriver *const d = cvg_opened(&card, true);
+
+    CHECK(d);
+    d->show(true);
+    CHECK(word_at(SST_SWAP) == 0);
+    played(&cvg_fifo);
+    CHECK(word_at(SST_SWAP) == 1);
+    d->close();
+}
+
+/* 640x480 in 2 MB keeps rows for the scene's 70 by 50 target past the screen: a FIFO of 128 KB
+   left 32, and the target did not fit. */
+TEST(tdfx_sst_keeps_rows_for_targets_past_the_fifo)
+{
+    const SstMode mode = {640, 480, 0, 0, 0, 20, 23, 0, 25.175f};
+
+    CHECK(sst_pages(&mode) * 4096 / (640 * 2) >= 480 + 50);
 }

@@ -3,18 +3,18 @@
  *
  * # How it works
  * Its modes are Glide's tables, 320x200 to 640x480, the small ones scan doubled; the screen goes
- * centred in the smallest holding it whose buffers fit. Its memory is taken as 2 MB of frame
- * buffer and 2 MB of textures, every board's least. Only TMU0 draws. The TMUs are reset after
- * each clock change. PCI register 0xC0 is written once the mode is set: DOSBox-X shows nothing
- * without it, and sizes its window then.
+ * centred in the smallest holding it whose buffers fit. Only TMU0 draws. The TMUs are reset after
+ * each clock change. Registers and texels are written directly, or through the command FIFO when
+ * SSTV2_CMDFIFO is set (cvg.h), on once the mode is shown. PCI register 0xC0 is written once the
+ * mode is set: DOSBox-X shows nothing without it, and sizes its window then.
  */
+#include "plat/dos32/drivers/3dfx/cvg.h"
 #include "plat/dos32/drivers/3dfx/dac.h"
 #include "plat/dos32/drivers/3dfx/regs.h"
 #include "plat/dos32/drivers/3dfx/sst.h"
 #include "qx/qx.h"
 
 enum : uint32_t {
-    MB2 = 2 << 20,
     TMUS = 2,
     /* fbiInit1's: the top tiles bit, the video's bits for 16 bits a pixel out */
     TILES_TOP = 24,
@@ -238,7 +238,7 @@ static bool shown_in(Tdfx *const c, const SstMode *const m, const uint32_t pages
 
 static bool opened(Tdfx *const c, const uint16_t w, const uint16_t h)
 {
-    const SstMode *const m = sst_mode_for(MODES, sizeof MODES / sizeof *MODES, w, h, MB2);
+    const SstMode *const m = sst_mode_for(MODES, sizeof MODES / sizeof *MODES, w, h);
 
     if (!m || !sst_mapped(c))
         return false;
@@ -247,19 +247,23 @@ static bool opened(Tdfx *const c, const uint16_t w, const uint16_t h)
 
     cvg.grx = GRAPHICS_MHZ + (float)strap;
 
-    if (!registered(c) || !shown_in(c, m, sst_pages(m, MB2)))
+    const uint32_t pages = sst_pages(m);
+
+    if (!registered(c) || !shown_in(c, m, pages))
         return false;
 
     c->host->pci_write(&c->pci, SST_VIDEO_ON, 0);
     sst_changed(c, SST_FBI_INIT0, 0, SST_SHOWN);
     sst_changed(c, SST_FBI_INIT1, SST_BLANK, 0);
-    c->texture_bytes = MB2;
+    cvg_queued(c, pages);
+    c->texture_bytes = SST_BYTES;
     return true;
 }
 
 /* sst1InitShutdown: the VGA's screen shown again, the graphics clock Glide leaves. */
 static void closed(Tdfx *const c)
 {
+    cvg_unqueued(c);
     sst_closed(c, SST_SHOWN);
     clocked(c, SHUTDOWN_MHZ, SST_TREX1);
     sst_stopped(c);
