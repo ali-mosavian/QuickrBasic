@@ -1578,7 +1578,7 @@ void uimn_init(Session *const S)
     undo_init();
     jumps_init(); /* after undo's hook */
     uimn.on = true;
-    LineBuf *const lines[] = {&uimn.edline, &uimn.line, &uimn.build};
+    LineBuf *const lines[] = {&uimn.edline, &uimn.line, &uimn.build, &uimn.split};
 
     for (uint32_t i = 0; i < sizeof lines / sizeof lines[0]; i++) {
         lines[i]->grows = true;

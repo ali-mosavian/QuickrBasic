@@ -31,8 +31,8 @@ static const char *text_at(Session *const S, const uint32_t line, uint16_t *cons
     return t;
 }
 
-/* Typed on a new line below the line spelled after, then Enter: the cursor a step in on an
-   empty line, below it end at the typed line's indent, and the line after that next. */
+/* Typed on a new line below the line spelled after, then Enter: the cursor a step in on a blank
+   line, below it end at the typed line's indent, and the line after that next. */
 static bool ends(
     Session *const S,
     const char *const after,
@@ -49,7 +49,8 @@ static bool ends(
     const uint32_t cur = uimn.text.first + uimn.ed.line;
     uint16_t open, at, past;
     text_at(S, cur - 1, &open);
-    const bool body = uimn.edline.col == open + 4 && uimn.edline.len == open + 4;
+    const bool body = uimn.edline.col == open + 4 && uimn.edline.len == open + 4 &&
+                      strspn(fx_line(), " ") == open + 4u;
     const bool closed = !strcmp(text_at(S, cur + 1, &at), end) && at == open;
     const bool rest = !strcmp(text_at(S, cur + 2, &past), next);
     return body && closed && rest;
@@ -76,7 +77,8 @@ TEST(blockends_qbasic)
 }
 
 /* The same in Quickr: its ends as it spells them; a method's, a block lambda's, its brackets
-   after it. */
+   after it. Enter's new line was the typed line's first characters (for i in 0..9 gave "for "):
+   committing a Quickr line read its imports through the buffer holding the new line. */
 TEST(blockends_quickr)
 {
     static const char *const openers[][2] = {

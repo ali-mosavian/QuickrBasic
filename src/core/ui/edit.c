@@ -678,11 +678,11 @@ void edit_ensure(void)
 }
 
 /* edit_enter's: the line split at the cursor, the rest (its spaces dropped) after ind spaces in
-   uimn.build; its length. */
+   uimn.split; its length. */
 static uint16_t split(Session *const S, LineBuf *const b, const uint16_t ind)
 {
     uint8_t *const build =
-        edit_lb_need(S, &uimn.build, ind + (b->col < b->len ? b->len - b->col : 0));
+        edit_lb_need(S, &uimn.split, ind + (b->col < b->len ? b->len - b->col : 0));
     memset(build, ' ', ind);
     const uint16_t at = b->col;
 
@@ -727,37 +727,33 @@ static void reindent(LineBuf *const b, const uint16_t n)
     b->dirty = true;
 }
 
-/* Enter's block ends (ui/blockends.h): the lines put in below the new one, at the line's indent;
-   the line past the cursor, the last one's. */
+/* Enter's block ends (ui/blockends.h): the lines put in below the new one, at the line's
+   indent. */
 typedef struct {
     const char *end[DIAL_NBLOCK];
     uint32_t n;
     uint16_t at;
-    uint8_t rest[LNBUF];
-    uint16_t nrest;
 } Ends;
 
-/* The ends Enter in b puts in; the line past the cursor taken from b to the last. */
-static void ends_take(const IndtLines *const ls, LineBuf *const b, Ends *const e)
+/* The ends Enter in b puts in. */
+static void ends_find(const IndtLines *const ls, const LineBuf *const b, Ends *const e)
 {
     e->n = bend_missing(ls, uimn.ed.line, uimn.text.n, b->text, b->len, b->col, e->end);
     e->at = indent(b);
-
-    if (!e->n)
-        return;
-
-    const uint16_t skip = spaces(b->text + b->col, b->len - b->col);
-    e->nrest = (uint16_t)(b->len - b->col - skip);
-    memcpy(e->rest, b->text + b->col + skip, e->nrest);
-    edit_lb_cut(b, b->col, b->len);
 }
 
-/* e's ends as text lines from line on. */
-static void ends_put(Session *const S, const uint32_t line, const Ends *const e)
+/* e's ends as text lines from line on, the last followed by the n characters of rest. */
+static void ends_put(
+    Session *const S,
+    const uint32_t line,
+    const Ends *const e,
+    const uint8_t *const rest,
+    const uint16_t n
+)
 {
     for (uint32_t i = 0; i < e->n; i++) {
         const uint16_t ne = (uint16_t)strlen(e->end[i]);
-        const uint16_t nr = i + 1 == e->n ? e->nrest : 0;
+        const uint16_t nr = i + 1 == e->n ? n : 0;
         const uint16_t len = (uint16_t)(e->at + ne + nr);
 
         if (len > LNMAX)
@@ -766,7 +762,7 @@ static void ends_put(Session *const S, const uint32_t line, const Ends *const e)
         uint8_t *const d = edit_lb_need(S, &uimn.build, len);
         memset(d, ' ', e->at);
         memcpy(d + e->at, e->end[i], ne);
-        memcpy(d + e->at + ne, e->rest, nr);
+        memcpy(d + e->at + ne, rest, nr);
         text_insert(S, line + i, d, len);
     }
 }
@@ -802,7 +798,7 @@ void edit_enter(Session *const S)
         uint16_t self;
         indt_enter(&ls, uimn.ed.line, b->text, b->col, &self, &ind);
         reindent(b, self);
-        ends_take(&ls, b, &ends);
+        ends_find(&ls, b, &ends);
     }
 
     uimn.ed.indent = ind;
@@ -814,9 +810,10 @@ void edit_enter(Session *const S)
         return;
 
     const uint32_t line = uimn.ed.line + 1;
-    text_insert(S, line, uimn.build.text, uimn.ed.nlen);
-
-    ends_put(S, line + 1, &ends);
+    const uint16_t rest = uimn.ed.nlen; /* past the cursor: the last end's when ends follow */
+    uimn.ed.nlen = ends.n ? ind : rest;
+    text_insert(S, line, uimn.split.text, uimn.ed.nlen);
+    ends_put(S, line + 1, &ends, uimn.split.text + ind, rest - uimn.ed.nlen);
     changed();
     edit_load(S, line);
     b->col = uimn.ed.indent;
