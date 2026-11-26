@@ -5,7 +5,11 @@
 #include "qx/qx.h"
 #include "wasm.h"
 
-static bool player_open(const uint16_t w, const uint16_t h) { return js_gpu_open(w, h); }
+static bool player_open(const uint16_t w, const uint16_t h, const bool vsync)
+{
+    (void)vsync;
+    return js_gpu_open(w, h);
+}
 
 static void player_read(
     const uint32_t texture,

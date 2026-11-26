@@ -22,20 +22,22 @@
 
 enum { ACCEL_ABI = 1, ACCEL_HEAD = 12 };
 
-/* The target shown, made by open. */
-enum { ACCEL_SCREEN = 0 };
+/* The target shown, made by open; the slots a driver takes, 1 up to these, textures' and
+   targets' each their own. */
+enum { ACCEL_SCREEN = 0, ACCEL_TEXTURES = 1024, ACCEL_TARGETS = 64 };
 
 typedef struct {
     int32_t x, y, w, h;
 } AccelRect;
 
-/* What a card's textures may be: sides powers of two up to side, the longer at most 1 << aspect
-   times the shorter; memory, their bytes in all. */
+/* An open card: its textures' sides powers of two up to side, the longer at most 1 << aspect
+   times the shorter, memory their bytes in all; its screen's refresh in millihertz, 0 unknown. */
 typedef struct {
     uint16_t side;
     uint8_t aspect;
     uint32_t memory;
-} AccelLimits;
+    uint32_t millihz;
+} AccelCard;
 
 /* What a pixel is: the colour alone, or the texture's texel times the colour. */
 typedef enum : uint8_t { ACCEL_COLOUR = 1, ACCEL_TEXEL } AccelSource;
@@ -89,18 +91,19 @@ typedef struct {
 typedef struct {
     uint32_t size, abi;
     const char *name;
-    /* The card readied, showing a w by h screen in the VGA's place, its depth buffer cleared: its
-       limits to *out. False, it cannot: no mode holds w by h, or the card does not answer. */
-    bool(ACCEL_CALL *open)(const PciFunction *card, uint16_t w, uint16_t h, AccelLimits *out);
+    /* The card readied, showing a w by h screen in the VGA's place, black, its depth buffer
+       cleared: what it is to *out. False, it cannot, the VGA's as it was: no mode holds w by h, or
+       it does not answer. */
+    bool(ACCEL_CALL *open)(const PciFunction *card, uint16_t w, uint16_t h, AccelCard *out);
     /* The VGA's screen shown again, the card stopped. */
     void(ACCEL_CALL *close)(void);
-    /* Texture slot (1 up) made w by h, within the limits, its texels undefined: false, no room. */
+    /* Texture slot made w by h, within the card's limits, its texels undefined: false, no room. */
     bool(ACCEL_CALL *texture)(uint32_t slot, uint16_t w, uint16_t h);
-    /* Rows y up to y + h of texture slot from texels, ARGB1555, pitch texels a row. */
+    /* Rows y up to y + h of texture slot from texels, ARGB1555 (A, KEY's), pitch texels a row. */
     void(ACCEL_CALL *
              upload)(uint32_t slot, uint16_t y, uint16_t h, const uint16_t *texels, uint32_t pitch);
     void(ACCEL_CALL *forget)(uint32_t slot);
-    /* Target slot (1 up) made w by h, a depth buffer with it when depth: false, no room. */
+    /* Target slot made w by h, black, a depth buffer with it, cleared, when depth: false, no room. */
     bool(ACCEL_CALL *target)(uint32_t slot, uint16_t w, uint16_t h, bool depth);
     void(ACCEL_CALL *drop)(uint32_t slot);
     /* The draws after go into target slot, within clip. */
@@ -113,8 +116,8 @@ typedef struct {
     void(ACCEL_CALL *show)(bool vsync);
     /* The next frame's pixels made the shown one's. */
     void(ACCEL_CALL *carry)(void);
-    /* Pixels r of target slot, as drawn so far, into out: bytes R, G, B and 255 each, rows top
-       first. */
+    /* Pixels r of target slot, as drawn so far, into out: bytes R, G, B and A each, rows top
+       first; A 255 where the target holds none. */
     void(ACCEL_CALL *read)(uint32_t slot, AccelRect r, uint8_t *out);
 } AccelDriver;
 

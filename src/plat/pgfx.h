@@ -30,13 +30,13 @@ typedef struct {
 } PgfxFrame;
 
 /* A GPU's screen: the shading languages it takes (1 << QxShader each), and whether clip space's y
-   runs down a texture's rows; opened w by h, closed; a list played; w by h pixels at x, y of a
-   texture read, bytes R, G, B and A; play true when the list showed one. Called from the
-   interpreter's thread. */
+   runs down a texture's rows; opened w by h, vsync its own if it shows at the retrace itself (the
+   host waits for the others), closed; a list played; w by h pixels at x, y of a texture read,
+   bytes R, G, B and A; play true when the list showed one. Called from the interpreter's thread. */
 typedef struct {
     uint8_t shaders;
     bool y_down;
-    bool (*open)(uint16_t w, uint16_t h);
+    bool (*open)(uint16_t w, uint16_t h, bool vsync);
     void (*close)(void);
     bool (*play)(const uint32_t *list, uint32_t words);
     void (*read)(uint32_t texture, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t *out);

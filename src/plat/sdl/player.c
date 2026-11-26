@@ -776,8 +776,10 @@ static void player_read(
     download(t ? t->t : nullptr, x, y, w, h, out);
 }
 
-static bool player_open(const uint16_t w, const uint16_t h)
+static bool player_open(const uint16_t w, const uint16_t h, const bool vsync)
 {
+    (void)vsync; /* the host waits */
+
     SDL_GPUCommandBuffer *const cb = SDL_AcquireGPUCommandBuffer(p.dev);
     SDL_GPUTexture *const shown = make(w, h, SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM);
     Pass s = {.cb = cb};

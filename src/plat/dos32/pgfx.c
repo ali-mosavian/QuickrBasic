@@ -11,7 +11,11 @@
  * closes. Its cursors are put back in the BIOS's data as each mode is set, which zeroes them, and
  * carried over the closing's mode set as they are then: the runtime moves the BIOS's lazily, when a
  * key is waited for. A program's graphics SCREEN is not kept.
+ *
+ * A screen played is a 3D accelerator's, its driver's for the card found (accel/accel.h): it plays
+ * gfx's FIXED lists, the text screen kept the same.
  */
+#include "accel/accel.h"
 #include "dos.h"
 #include "plat/pclk.h"
 #include "plat/pgfx.h"
@@ -72,6 +76,8 @@ static struct {
     uint8_t *kept;
     PscrSize size;
     uint8_t bios[BDA_CURSOR_BYTES]; /* the cursors, their shape and the page shown */
+
+    const PgfxPlayer *playing; /* the screen open, an accelerator's: null, none */
 } gfx;
 
 /* A VBE function with registers BX, CX, DX: whether it did it. */
@@ -299,6 +305,23 @@ static void restored(void)
     gfx.kept = nullptr;
 }
 
+static bool played_open(const uint16_t w, const uint16_t h, const bool vsync)
+{
+    PciFunction card;
+    const AccelDriver *const d = accel_driver(&card);
+
+    return d && accel_open(d, &card, w, h, vsync);
+}
+
+static const PgfxPlayer played = {
+    .shaders = 1 << QX_SHADER_FIXED,
+    .y_down = true,
+    .open = played_open,
+    .close = accel_close,
+    .play = accel_play,
+    .read = accel_read,
+};
+
 void pgfx_set_player(const PgfxPlayer *const p) { (void)p; }
 
 void pgfx_set_display(const PgfxDisplay *const d) { (void)d; }
@@ -310,12 +333,22 @@ const PgfxPlayer *pgfx_open_played(
     const bool vsync
 )
 {
-    (void)w, (void)h, (void)shaders, (void)vsync;
     pgfx_close();
+
+    if (!(played.shaders & shaders) || !kept())
+        return nullptr;
+
+    if (played.open(w, h, vsync)) {
+        gfx.playing = &played;
+        return gfx.playing;
+    }
+
+    pmem_free(gfx.kept);
+    gfx.kept = nullptr;
     return nullptr;
 }
 
-const PgfxPlayer *pgfx_playing(void) { return nullptr; }
+const PgfxPlayer *pgfx_playing(void) { return gfx.playing; }
 
 bool pgfx_open(const uint16_t w, const uint16_t h, const uint8_t depth, const bool vsync)
 {
@@ -352,6 +385,12 @@ bool pgfx_open(const uint16_t w, const uint16_t h, const uint8_t depth, const bo
 
 void pgfx_close(void)
 {
+    if (gfx.playing) {
+        gfx.playing->close();
+        gfx.playing = nullptr;
+        restored();
+    }
+
     if (!gfx.page)
         return;
 
@@ -390,9 +429,13 @@ void pgfx_show(const uint32_t *const palette)
         gfx.drawn = !p;
 }
 
-void pgfx_play(const uint32_t *const list, const uint32_t words) { (void)list, (void)words; }
+void pgfx_play(const uint32_t *const list, const uint32_t words)
+{
+    if (gfx.playing)
+        gfx.playing->play(list, words);
+}
 
-float pgfx_hz(void) { return gfx.page ? gfx.hz : 0; }
+float pgfx_hz(void) { return gfx.playing ? accel_hz() : gfx.page ? gfx.hz : 0; }
 
 bool pgfx_shown(PgfxFrame *const f)
 {

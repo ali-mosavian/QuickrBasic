@@ -430,7 +430,7 @@ build/host/unit/%.o: tests/unit/%.c
 build/host/test.hlp: tools/mkhelp.py $(wildcard tests/help/*)
 	$(PY) tools/mkhelp.py tests/help -o $@
 build/host/unit_tests: $(build/host_OBJ) $(UNIT_UI_OBJ) $(UNIT_OBJ) $(GFX_UNIT_OBJ) build/host/obj/lib/div64.o build/host/obj/plat/dos32/vbe.o \
-	build/host/obj/plat/dos32/accel/file.o \
+	$(patsubst src/%.c,build/host/obj/%.o,$(filter-out %/load.c,$(wildcard src/plat/dos32/accel/*.c))) \
 	build/host/test.hlp
 	$(HOST_CC) $(filter-out %.hlp,$^) -lm $(HOST_DL) -o $@
 build/host/golden/dump.o: tests/golden/dump.c

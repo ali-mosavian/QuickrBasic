@@ -69,7 +69,7 @@ const PgfxPlayer *pgfx_open_played(
 {
     pgfx_close();
 
-    if (screen.player && screen.player->shaders & shaders && screen.player->open(w, h)) {
+    if (screen.player && screen.player->shaders & shaders && screen.player->open(w, h, vsync)) {
         screen.playing = screen.player;
         opened(vsync);
     }

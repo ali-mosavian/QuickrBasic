@@ -36,7 +36,8 @@
  *   x, y, w and h of the texels a wrap repeats, else the texture's. A pixel's alpha is a times the
  *   draw's.
  *   Its texel is its draw's first texture's. It reads no uniforms. A host may hold fewer bits of
- *   a channel than the texture: what it reads back is what it holds.
+ *   a channel than the texture: what it reads back is what it holds. It may show only the
+ *   texture the first SHOW shows.
  * - PASS id, depth: the RGBA texture the draws after go into, its pixels kept; depth, if given and
  *   not 0, the DEPTH texture of its size they test and set.
  * - CLIP x, y, w, h: the pass's pixels the draws after may touch.
