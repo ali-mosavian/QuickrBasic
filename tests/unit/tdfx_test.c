@@ -3,6 +3,7 @@
 #include "plat/dos32/drivers/3dfx/regs.h"
 #include "plat/dos32/drivers/3dfx/setup.h"
 #include "plat/dos32/drivers/3dfx/space.h"
+#include "plat/dos32/drivers/3dfx/sst.h"
 #include "plat/dos32/drivers/3dfx/tdfx.h"
 #include "unit.h"
 #include <stdlib.h>
@@ -32,8 +33,10 @@ TEST(tdfx_setup_sorts_corners_and_finds_gradients)
 /* The same corners mirrored: the card's area's sign the other way. */
 TEST(tdfx_setup_signs_a_mirrored_triangle)
 {
-    const AccelVertex right[3] = {{0, 0, 0, 1, 0, 0, 0}, {10, 0, 0, 1, 0, 0, 0}, {0, 10, 0, 1, 0, 0, 0}};
-    const AccelVertex left[3] = {{0, 0, 0, 1, 0, 0, 0}, {-10, 0, 0, 1, 0, 0, 0}, {0, 10, 0, 1, 0, 0, 0}};
+    const AccelVertex right[3] =
+        {{0, 0, 0, 1, 0, 0, 0}, {10, 0, 0, 1, 0, 0, 0}, {0, 10, 0, 1, 0, 0, 0}};
+    const AccelVertex left[3] =
+        {{0, 0, 0, 1, 0, 0, 0}, {-10, 0, 0, 1, 0, 0, 0}, {0, 10, 0, 1, 0, 0, 0}};
 
     TdfxTriangle a, b;
 
@@ -78,8 +81,12 @@ TEST(tdfx_words_of_a_keyed_texel_mixed)
 /* Depth tested and written: greater passes; written alone, always. */
 TEST(tdfx_words_test_depth_greater_nearer)
 {
-    const AccelState tested = {.source = ACCEL_COLOUR, .depth = ACCEL_DEPTH_TEST | ACCEL_DEPTH_WRITE};
-    const AccelState written = {.source = ACCEL_COLOUR, .blend = ACCEL_KEEP, .depth = ACCEL_DEPTH_WRITE};
+    const AccelState tested = {
+        .source = ACCEL_COLOUR,
+        .depth = ACCEL_DEPTH_TEST | ACCEL_DEPTH_WRITE
+    };
+    const AccelState written =
+        {.source = ACCEL_COLOUR, .blend = ACCEL_KEEP, .depth = ACCEL_DEPTH_WRITE};
 
     CHECK(tdfx_words(&tested, 0).fbz_mode == (0x0001 | 0x0010 | 4 << 5 | 0x0200 | 0x0400));
     CHECK(tdfx_words(&written, 0).fbz_mode == (0x0001 | 0x0010 | 7 << 5 | 0x0400));
@@ -102,7 +109,9 @@ TEST(tdfx_space_gives_the_first_room_aligned)
 
     CHECK(tdfx_take(&s, 10, 1) == 0 && tdfx_take(&s, 10, 16) == 16 && tdfx_take(&s, 5, 1) == 10);
     tdfx_give(&s, 0);
-    CHECK(tdfx_take(&s, 8, 8) == 0 && tdfx_take(&s, 70, 1) == 26 && tdfx_take(&s, 5, 1) == TDFX_NONE);
+    CHECK(
+        tdfx_take(&s, 8, 8) == 0 && tdfx_take(&s, 70, 1) == 26 && tdfx_take(&s, 5, 1) == TDFX_NONE
+    );
 }
 
 /* The PLLs Glide picks (sst1InitComputeClkParams), worked by its loop: m, n, p and the AT&T's
@@ -185,6 +194,7 @@ static bool fake_open(Tdfx *const c, const uint16_t w, const uint16_t h)
     card_memory[SST_STATUS] = SST_ROOM; /* room, nothing busy */
     c->regs = card_memory;
     c->lfb = card_memory + SST_LFB;
+    c->lfb_row = 2048;
     c->texels = card_memory + SST_TEXELS;
     c->stride = 640;
     c->rows = 544;
@@ -212,8 +222,9 @@ static uint32_t word_at(const uint32_t at)
    levels 0 and 1 would be; its rows written to level 2's window, two texels a word. */
 TEST(tdfx_driver_places_a_texture_past_the_levels_above_it)
 {
-    static const TdfxFamily fake = {"fake", fake_open, fake_close, tdfx_carried};
-    static const AccelHost host = {.size = sizeof(AccelHost), .abi = ACCEL_ABI, .clock_us = fake_clock};
+    static const TdfxFamily fake = {"fake", &sst_chip, fake_open, fake_close};
+    static const AccelHost host =
+        {.size = sizeof(AccelHost), .abi = ACCEL_ABI, .clock_us = fake_clock};
     static uint16_t texels[64 * 2];
 
     const AccelDriver *const d = tdfx_driver(&host, &fake);
@@ -231,4 +242,169 @@ TEST(tdfx_driver_places_a_texture_past_the_levels_above_it)
     CHECK(word_at(SST_TEXELS + (2 << 17) + (5 << 9) + (2 << 1)) == (3u << 16 | 2));
     CHECK(word_at(SST_TEXELS + (2 << 17) + (6 << 9) + (62 << 1)) == (127u << 16 | 126));
     d->close();
+}
+
+/* The Banshee's and Voodoo 3's (voodoo3.c): a card of 16 MB of SDRAM, its BIOS's VESA mode
+   640x480. */
+enum : uint32_t {
+    H3_BAR0 = 0x10000000,
+    H3_BAR1 = 0x20000000,
+    H3_REGS = 8 << 20,
+    H3_FRAME = 16 << 20,
+    H3_3D = 0x200000,
+    H3_PORT = 0x600000,
+    H3_DESKTOP = 0xE4,
+    H3_COLOUR_AT = 0x1EC,
+    H3_COLOUR_STRIDE = 0x1F0,
+    H3_AUX_AT = 0x1F4,
+    H3_BUFFER = 2048 * 1280, /* the clip's rows of the mode's pitch */
+};
+
+const AccelDriver *ACCEL_CALL accel_init(const AccelHost *host);
+
+static struct {
+    uint8_t *regs, *frame;
+    uint64_t us;
+    uint16_t w, h;
+    uint8_t bits;
+} h3;
+
+static uint32_t ACCEL_CALL h3_pci_read(const PciFunction *const card, const uint8_t reg)
+{
+    (void)card;
+    return reg == 0x10 ? H3_BAR0 : reg == 0x14 ? H3_BAR1 : 0;
+}
+
+static void ACCEL_CALL
+h3_pci_write(const PciFunction *const card, const uint8_t reg, const uint32_t v)
+{
+    (void)card, (void)reg, (void)v;
+}
+
+static volatile uint8_t *ACCEL_CALL h3_map(const uint32_t phys, const uint32_t bytes)
+{
+    return phys == H3_BAR0 && bytes <= H3_REGS    ? h3.regs
+           : phys == H3_BAR1 && bytes <= H3_FRAME ? h3.frame
+                                                  : nullptr;
+}
+
+static uint64_t ACCEL_CALL h3_clock(void) { return h3.us += 1000; }
+
+static bool ACCEL_CALL
+h3_vesa(const uint16_t w, const uint16_t h, const uint8_t bits, AccelMode *const out)
+{
+    h3.w = w, h3.h = h, h3.bits = bits;
+    *out = (AccelMode){640, 480, 1280, H3_BAR1};
+    return true;
+}
+
+static const AccelHost H3_HOST = {
+    .size = sizeof(AccelHost),
+    .abi = ACCEL_ABI,
+    .pci_read = h3_pci_read,
+    .pci_write = h3_pci_write,
+    .map = h3_map,
+    .clock_us = h3_clock,
+    .vesa = h3_vesa,
+};
+
+static uint32_t h3_word(const uint8_t *const at)
+{
+    uint32_t v;
+
+    memcpy(&v, at, sizeof v);
+    return v;
+}
+
+/* The driver open at 320x240 on the fake card. */
+static const AccelDriver *h3_opened(AccelCard *const card)
+{
+    const uint32_t sdram = 1u << 30, status = 0x1F | 1u << 6; /* room, idle, not in a retrace */
+
+    h3.regs = calloc(1, H3_REGS);
+    h3.frame = calloc(1, H3_FRAME);
+    memcpy(h3.regs + 0x1C, &sdram, sizeof sdram);
+    memcpy(h3.regs + H3_3D + SST_STATUS, &status, sizeof status);
+
+    const AccelDriver *const d = accel_init(&H3_HOST);
+
+    return d && d->open(&(PciFunction){}, 320, 240, card) ? d : nullptr;
+}
+
+static void h3_closed(const AccelDriver *const d)
+{
+    d->close();
+    free(h3.regs);
+    free(h3.frame);
+}
+
+/* Colour buffers 0 and 1 and the depth buffer, each the clip's 2048 rows, then textures. */
+TEST(tdfx_h3_lays_its_buffers_out_in_frame_memory)
+{
+    AccelCard card;
+    const AccelDriver *const d = h3_opened(&card);
+
+    CHECK(d && h3.w == 320 && h3.h == 240 && h3.bits == 16);
+    CHECK(card.memory == H3_FRAME - 3 * H3_BUFFER);
+    CHECK(h3_word(h3.regs + H3_3D + H3_COLOUR_STRIDE) == 1280);
+    CHECK(h3_word(h3.regs + H3_3D + H3_AUX_AT) == 2 * H3_BUFFER);
+    CHECK(h3_word(h3.regs + H3_DESKTOP) == 0);
+    CHECK(h3_word(h3.regs + H3_3D + H3_COLOUR_AT) == H3_BUFFER);
+    h3_closed(d);
+}
+
+/* The desktop shows the buffer drawn; the screen is drawn in the other, a target in buffer 0. */
+TEST(tdfx_h3_shows_the_buffer_drawn_and_draws_in_the_other)
+{
+    AccelCard card;
+    const AccelDriver *const d = h3_opened(&card);
+
+    CHECK(d);
+    d->show(false);
+    CHECK(h3_word(h3.regs + H3_DESKTOP) == H3_BUFFER);
+    CHECK(h3_word(h3.regs + H3_3D + H3_COLOUR_AT) == 0);
+    d->show(false);
+    CHECK(h3_word(h3.regs + H3_DESKTOP) == 0);
+    CHECK(h3_word(h3.regs + H3_3D + H3_COLOUR_AT) == H3_BUFFER);
+    CHECK(d->target(1, 64, 64, false));
+    d->aim(1, (AccelRect){0, 0, 64, 64});
+    CHECK(h3_word(h3.regs + H3_3D + H3_COLOUR_AT) == 0);
+    h3_closed(d);
+}
+
+/* A 64 by 64 texture first in texture memory: texBaseAddr its byte address less levels 0 and 1,
+   its texels through the port from there, a row of 64 after another. */
+TEST(tdfx_h3_sends_texels_through_the_port_from_the_base)
+{
+    static uint16_t texels[64 * 2];
+
+    AccelCard card;
+    const AccelDriver *const d = h3_opened(&card);
+    const uint32_t skipped = 163840;
+
+    for (uint32_t i = 0; i < 64 * 2; i++)
+        texels[i] = (uint16_t)i;
+
+    CHECK(d && d->texture(1, 64, 64));
+    d->upload(1, (AccelRect){0, 5, 64, 2}, texels, 64);
+    CHECK(h3_word(h3.regs + H3_3D + SST_TMU0 + SST_TEX_BASE) == 3 * H3_BUFFER - skipped);
+    CHECK(h3_word(h3.regs + H3_PORT + skipped + (5 * 64 + 2) * 2) == (3u << 16 | 2));
+    CHECK(h3_word(h3.regs + H3_PORT + skipped + (6 * 64 + 62) * 2) == (127u << 16 | 126));
+    h3_closed(d);
+}
+
+/* The screen drawn is buffer 1's, centred in the mode: read through BAR1. */
+TEST(tdfx_h3_reads_the_screen_back_through_frame_memory)
+{
+    AccelCard card;
+    const AccelDriver *const d = h3_opened(&card);
+    const uint16_t red = 0xF800;
+
+    uint8_t rgba[4];
+
+    CHECK(d);
+    memcpy(h3.frame + H3_BUFFER + 120 * 1280 + 160 * 2, &red, sizeof red);
+    d->read(ACCEL_SCREEN, (AccelRect){0, 0, 1, 1}, rgba);
+    CHECK(rgba[0] == 255 && rgba[1] == 0 && rgba[2] == 0 && rgba[3] == 255);
+    h3_closed(d);
 }

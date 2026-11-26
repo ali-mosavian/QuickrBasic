@@ -5,28 +5,14 @@
 #include <stddef.h>
 
 enum : uint32_t {
-    FRONT = 0,
-    BACK = 1,
     SIDE = 256,
     LEAST = 2, /* sides of 4 up: smaller levels are padded on some cards */
     ASPECT = 3,
-    ALIGN = 8,
+    ALIGN = 16, /* texBaseAddr's: 8 bytes on SST-1 and CVG, 16 on H3 */
     TEXEL = 2,
-    BASE = 0x7FFFF, /* texBaseAddr's: 8 bytes a unit */
-    BASE_UNIT = 3,
-    LEVEL_AT = 17, /* the texture window's: a level, a row, a texel */
-    ROW_AT = 9,
-    TEXEL_AT = 1,
-    PIXEL_ROW = 11, /* the frame buffer window's: a row, a pixel */
-    PIXEL_AT = 1,
-    LFB_READ = 6, /* lfbMode's buffers read and written */
-    LFB_WRITE = 4,
-    CALM = 3, /* status reads idle in a row: a read can pass the FIFO's last write */
+    PIXEL_AT = 1, /* the frame buffer window's: a pixel */
+    CALM = 3,     /* status reads idle in a row: a read can pass the FIFO's last write */
     FBI_CALM = 6,
-    PENDING = 28, /* status's swaps pending */
-    SWAPS = 7,
-    AHEAD = 1, /* swaps let pend */
-    WAIT_US = 100000,
     LOD_OFF = 8 * 4 << 6 | 8 * 4, /* a TMU's lodmax and lodmin past every level: not drawn from */
     FIVE = 0x1F,
     SIX = 0x3F,
@@ -36,16 +22,19 @@ enum : uint32_t {
 static Tdfx card;
 static const TdfxFamily *family;
 
-static void stored(Tdfx *const c, volatile uint8_t *const at, const uint32_t v)
+void tdfx_store(Tdfx *const c, volatile uint8_t *const at, const uint32_t v)
 {
     while (!c->room)
-        c->room = tdfx_get(c, SST_STATUS) & SST_ROOM;
+        c->room = tdfx_get(c, SST_STATUS) & c->chip->room;
 
     c->room--;
     *(volatile uint32_t *)at = v;
 }
 
-void tdfx_put(Tdfx *const c, const uint32_t reg, const uint32_t v) { stored(c, c->regs + reg, v); }
+void tdfx_put(Tdfx *const c, const uint32_t reg, const uint32_t v)
+{
+    tdfx_store(c, c->regs + reg, v);
+}
 
 void tdfx_put_init(const Tdfx *const c, const uint32_t reg, const uint32_t v)
 {
@@ -69,7 +58,7 @@ uint32_t tdfx_get(const Tdfx *const c, const uint32_t reg)
 
 void tdfx_idle(Tdfx *const c)
 {
-    const uint64_t until = c->host->clock_us() + WAIT_US;
+    const uint64_t until = c->host->clock_us() + TDFX_WAIT_US;
 
     uint32_t calm = 0;
 
@@ -83,17 +72,16 @@ void tdfx_idle(Tdfx *const c)
 
 void tdfx_idle_fbi(const Tdfx *const c)
 {
-    const uint64_t until = c->host->clock_us() + WAIT_US;
+    const uint64_t until = c->host->clock_us() + TDFX_WAIT_US;
 
     for (uint32_t calm = 0; calm < FBI_CALM && c->host->clock_us() < until;)
         calm = tdfx_get(c, SST_STATUS) & SST_FBI_BUSY ? 0 : calm + 1;
 }
 
-/* The colour buffer slot's draws go to: the screen's, the one not shown; a target's, buffer 0 as
-   front or back. */
+/* The colour buffer slot's draws go to: the screen's, the one not shown; a target's, 0. */
 static uint32_t buffer_of(const Tdfx *const c, const uint32_t slot)
 {
-    return slot == ACCEL_SCREEN ? BACK : c->shown == 0 ? FRONT : BACK;
+    return slot == ACCEL_SCREEN ? c->shown ^ 1 : 0;
 }
 
 static uint32_t row_of(const Tdfx *const c, const uint32_t slot)
@@ -140,12 +128,13 @@ static void sent(Tdfx *const c)
 
 void tdfx_cleared(
     Tdfx *const c,
-    const uint32_t draw,
+    const uint32_t buffer,
     const AccelRect r,
     const uint32_t argb,
     const uint8_t what
 )
 {
+    const uint32_t draw = c->chip->drawn_in(c, buffer);
     const uint32_t writes = (what & ACCEL_CLEAR_COLOUR ? SST_RGB_WRITE : 0) |
                             (what & ACCEL_CLEAR_DEPTH ? SST_DEPTH | SST_AUX_WRITE : 0);
 
@@ -155,6 +144,7 @@ void tdfx_cleared(
     tdfx_put(c, SST_ZA_COLOUR, 0);
     tdfx_put(c, SST_FBZ_MODE, SST_CLIPPED | draw << SST_DRAW_BUFFER | writes);
     tdfx_put(c, SST_FASTFILL, 0);
+    c->draw = c->chip->drawn_in(c, c->buffer);
     sent(c);
 }
 
@@ -167,23 +157,6 @@ static void spread(const uint32_t p, uint8_t *const out)
     out[1] = (uint8_t)(g << 2 | g >> 4);
     out[2] = (uint8_t)(b << 3 | b >> 2);
     out[3] = OPAQUE;
-}
-
-static volatile uint8_t *pixel_at(const Tdfx *const c, const uint32_t x, const uint32_t y)
-{
-    return c->lfb + (y << PIXEL_ROW) + (x << PIXEL_AT);
-}
-
-void tdfx_carried(Tdfx *const c)
-{
-    tdfx_put(c, SST_LFB_MODE, FRONT << LFB_READ | BACK << LFB_WRITE);
-    tdfx_idle(c);
-
-    for (uint32_t y = c->top; y < c->top + c->h; y++)
-        for (uint32_t x = c->left & ~1u; x < c->left + c->w; x += 2) {
-            volatile uint8_t *const at = pixel_at(c, x, y);
-            stored(c, at, *(const volatile uint32_t *)at);
-        }
 }
 
 uint32_t tdfx_clut(const uint32_t i)
@@ -211,6 +184,7 @@ opened(const PciFunction *const pci, const uint16_t w, const uint16_t h, AccelCa
 
     __builtin_memset(c, 0, sizeof *c); /* a driver has no C library: crt.c's */
     c->host = host;
+    c->chip = family->chip;
     c->pci = *pci;
 
     if (!family->open(c, w, h))
@@ -224,7 +198,8 @@ opened(const PciFunction *const pci, const uint16_t w, const uint16_t h, AccelCa
     c->below.size = c->rows - c->mode_h;
     c->placed = ACCEL_TEXTURES;
     c->aimed = ACCEL_SCREEN;
-    c->draw = BACK;
+    c->buffer = buffer_of(c, ACCEL_SCREEN);
+    c->draw = c->chip->drawn_in(c, c->buffer);
     c->clip = (AccelRect){0, 0, w, h};
     c->ox = c->left;
     c->oy = c->top;
@@ -234,8 +209,8 @@ opened(const PciFunction *const pci, const uint16_t w, const uint16_t h, AccelCa
     tdfx_put(c, SST_TMU1 + SST_TLOD, LOD_OFF);
     const AccelRect mode = {0, 0, (int32_t)c->mode_w, (int32_t)c->mode_h};
 
-    tdfx_cleared(c, FRONT, mode, 0, ACCEL_CLEAR_COLOUR | ACCEL_CLEAR_DEPTH);
-    tdfx_cleared(c, BACK, mode, 0, ACCEL_CLEAR_COLOUR | ACCEL_CLEAR_DEPTH);
+    tdfx_cleared(c, 0, mode, 0, ACCEL_CLEAR_COLOUR | ACCEL_CLEAR_DEPTH);
+    tdfx_cleared(c, 1, mode, 0, ACCEL_CLEAR_COLOUR | ACCEL_CLEAR_DEPTH);
 
     *out = (AccelCard){
         .side = SIDE,
@@ -257,8 +232,8 @@ static void ACCEL_CALL closed(void)
 static bool ACCEL_CALL textured(const uint32_t slot, const uint16_t w, const uint16_t h)
 {
     Tdfx *const c = &card;
-    const uint32_t at = slot < ACCEL_TEXTURES ? tdfx_take(&c->memory, (uint32_t)w * h * TEXEL, ALIGN)
-                                              : TDFX_NONE;
+    const uint32_t at =
+        slot < ACCEL_TEXTURES ? tdfx_take(&c->memory, (uint32_t)w * h * TEXEL, ALIGN) : TDFX_NONE;
 
     if (at == TDFX_NONE)
         return false;
@@ -269,7 +244,7 @@ static bool ACCEL_CALL textured(const uint32_t slot, const uint16_t w, const uin
         .h = h,
         .level = tdfx_level(w, h),
         .lod = tdfx_lod(w, h),
-        .base = (at - tdfx_skipped(w, h)) >> BASE_UNIT & BASE,
+        .base = c->chip->based(c, at - tdfx_skipped(w, h)),
     };
 
     c->placed = c->placed == slot ? ACCEL_TEXTURES : c->placed;
@@ -280,20 +255,11 @@ static void ACCEL_CALL
 uploaded(const uint32_t slot, const AccelRect r, const uint16_t *const texels, const uint32_t pitch)
 {
     Tdfx *const c = &card;
-    const TdfxTexture *const t = &c->textures[slot];
-    volatile uint8_t *const level = c->texels + (t->level << LEVEL_AT);
 
     /* the texels are placed as TMU0's registers are as they come */
     tdfx_put(c, SST_TMU0 + SST_TEXTURE_MODE, SST_ARGB1555 << SST_FORMAT | SST_LOCAL);
     placed(c, slot);
-
-    for (uint32_t y = 0; y < (uint32_t)r.h; y++) {
-        const uint16_t *const row = texels + (size_t)y * pitch;
-        volatile uint8_t *const to = level + ((uint32_t)(r.y + (int32_t)y) << ROW_AT);
-
-        for (uint32_t s = 0; s < (uint32_t)r.w; s += 2)
-            stored(c, to + ((r.x + s) << TEXEL_AT), row[s] | (uint32_t)row[s + 1] << 16);
-    }
+    c->chip->upload(c, &c->textures[slot], r, texels, pitch);
 
     /* the draws' texture as it was */
     if (c->state.source != ACCEL_COLOUR)
@@ -306,11 +272,12 @@ static void ACCEL_CALL forgotten(const uint32_t slot)
     card.placed = card.placed == slot ? ACCEL_TEXTURES : card.placed;
 }
 
-static bool ACCEL_CALL targeted(const uint32_t slot, const uint16_t w, const uint16_t h, const bool depth)
+static bool ACCEL_CALL
+targeted(const uint32_t slot, const uint16_t w, const uint16_t h, const bool depth)
 {
     Tdfx *const c = &card;
-    const uint32_t at = slot && slot < ACCEL_TARGETS && w <= c->stride ? tdfx_take(&c->below, h, 1)
-                                                                       : TDFX_NONE;
+    const uint32_t at =
+        slot && slot < ACCEL_TARGETS && w <= c->stride ? tdfx_take(&c->below, h, 1) : TDFX_NONE;
 
     if (at == TDFX_NONE)
         return false;
@@ -337,7 +304,8 @@ static void ACCEL_CALL aimed(const uint32_t slot, const AccelRect clip)
     Tdfx *const c = &card;
 
     c->aimed = slot;
-    c->draw = buffer_of(c, slot);
+    c->buffer = buffer_of(c, slot);
+    c->draw = c->chip->drawn_in(c, c->buffer);
     c->ox = column_of(c, slot);
     c->oy = row_of(c, slot);
     c->clip = clip;
@@ -381,22 +349,21 @@ static void ACCEL_CALL drawn(const AccelVertex *const v, const uint32_t n)
 static void ACCEL_CALL shown(const bool vsync)
 {
     Tdfx *const c = &card;
-    const uint64_t until = c->host->clock_us() + WAIT_US;
 
-    while ((tdfx_get(c, SST_STATUS) >> PENDING & SWAPS) > AHEAD && c->host->clock_us() < until)
-        ;
-
-    tdfx_put(c, SST_SWAP, vsync);
+    c->chip->show(c, vsync);
     c->shown ^= 1;
 
-    /* a target's buffer is front or back as shown */
-    if (c->aimed != ACCEL_SCREEN) {
-        c->draw = buffer_of(c, c->aimed);
+    /* the screen's buffer is the other now; a target's stays, its draw buffer as shown */
+    c->buffer = buffer_of(c, c->aimed);
+    const uint32_t draw = c->chip->drawn_in(c, c->buffer);
+
+    if (draw != c->draw) {
+        c->draw = draw;
         sent(c);
     }
 }
 
-static void ACCEL_CALL carried(void) { family->carry(&card); }
+static void ACCEL_CALL carried(void) { card.chip->carry(&card); }
 
 static void ACCEL_CALL filled(const uint32_t argb, const uint8_t what)
 {
@@ -405,7 +372,7 @@ static void ACCEL_CALL filled(const uint32_t argb, const uint8_t what)
 
     tdfx_cleared(
         c,
-        c->draw,
+        c->buffer,
         (AccelRect){clip.x + (int32_t)c->ox, clip.y + (int32_t)c->oy, clip.w, clip.h},
         argb,
         what
@@ -417,15 +384,16 @@ static void ACCEL_CALL read_back(const uint32_t slot, const AccelRect r, uint8_t
     Tdfx *const c = &card;
     const uint32_t top = row_of(c, slot) + (uint32_t)r.y, x0 = column_of(c, slot) + (uint32_t)r.x;
     const uint32_t x1 = x0 + (uint32_t)r.w;
+    const volatile uint8_t *const pixels = c->chip->pixels(c, buffer_of(c, slot));
 
-    tdfx_put(c, SST_LFB_MODE, buffer_of(c, slot) << LFB_READ);
     tdfx_idle(c);
 
     for (uint32_t y = 0; y < (uint32_t)r.h; y++) {
         uint8_t *to = out + (size_t)y * (uint32_t)r.w * 4;
 
         for (uint32_t x = x0; x < x1;) {
-            const uint32_t pair = *(const volatile uint32_t *)pixel_at(c, x & ~1u, top + y);
+            const uint32_t pair = *(const volatile uint32_t *)(pixels + (top + y) * c->lfb_row +
+                                                               ((x & ~1u) << PIXEL_AT));
 
             for (uint32_t k = x & 1; k < 2 && x < x1; k++, x++, to += 4)
                 spread(pair >> (16 * k) & 0xFFFF, to);

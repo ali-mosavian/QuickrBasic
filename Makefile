@@ -90,7 +90,7 @@ CORE_OBJ := $(CORE_C:src/%.c=$(B)/obj/%.obj) $(QBRT_DOS_C:%.c=$(B)/qbrt/%.obj) $
 	$(B)/obj/qbrt/qbrt_dos.obj $(ASM_OBJ)
 BASIC_OBJ := $(CORE_OBJ) $(B)/obj/app/basic32.obj
 IDE_OBJ := $(CORE_OBJ) $(UI_C:src/%.c=$(B)/obj/%.obj) $(B)/obj/app/ide32.obj
-DOS_DRIVERS := $(B)/lib/drivers/VOODOO1.DRV $(B)/lib/drivers/VOODOO2.DRV
+DOS_DRIVERS := $(B)/lib/drivers/VOODOO1.DRV $(B)/lib/drivers/VOODOO2.DRV $(B)/lib/drivers/VOODOO3.DRV
 DOS_EXE := $(B)/basic32.exe $(B)/ide32.exe $(B)/DOS32A.EXE $(B)/BASIC.HLP $(B)/lib/gfx.qbx $(DOS_DRIVERS)
 # the release: the programs by their DOS names, with the games (src/plat/wasm/web/demos)
 DOS_GAMES := $(addprefix src/plat/wasm/web/demos/,GORILLA.BAS NIBBLES.BAS MOTHLITE.BAS RUSTLINE.BAS CHARLIE.BAS CHARLIE.DAT)
@@ -266,6 +266,10 @@ $(B)/lib/drivers/VOODOO1.DRV: $(B)/drivers/voodoo1.dll tools/qbx.py
 $(B)/lib/drivers/VOODOO2.DRV: $(B)/drivers/voodoo2.dll tools/qbx.py
 	@mkdir -p $(@D)
 	$(PY) tools/qbx.py driver $@ $< 121a:0002
+# the Banshee and the Voodoo 3
+$(B)/lib/drivers/VOODOO3.DRV: $(B)/drivers/voodoo3.dll tools/qbx.py
+	@mkdir -p $(@D)
+	$(PY) tools/qbx.py driver $@ $< 121a:0003 121a:0005
 
 host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/hostperf/basic build/host/ext/qxtest.so \
 		build/host/lib/gfx.qbx $(NAMES)
@@ -452,8 +456,8 @@ build/host/test.hlp: tools/mkhelp.py $(wildcard tests/help/*)
 build/host/unit_tests: $(build/host_OBJ) $(UNIT_UI_OBJ) $(UNIT_OBJ) $(GFX_UNIT_OBJ) build/host/obj/lib/div64.o build/host/obj/plat/dos32/vbe.o \
 	$(patsubst src/%.c,build/host/obj/%.o,$(filter-out %/load.c,$(wildcard src/plat/dos32/accel/*.c))) \
 	build/host/obj/plat/dos32/drivers/3dfx/dac.o build/host/obj/plat/dos32/drivers/3dfx/setup.o \
-	build/host/obj/plat/dos32/drivers/3dfx/space.o \
-	build/host/obj/plat/dos32/drivers/3dfx/tdfx.o \
+	build/host/obj/plat/dos32/drivers/3dfx/space.o build/host/obj/plat/dos32/drivers/3dfx/sst.o \
+	build/host/obj/plat/dos32/drivers/3dfx/tdfx.o build/host/obj/plat/dos32/drivers/3dfx/voodoo3.o \
 	build/host/test.hlp
 	$(HOST_CC) $(filter-out %.hlp,$^) -lm $(HOST_DL) -o $@
 build/host/golden/dump.o: tests/golden/dump.c

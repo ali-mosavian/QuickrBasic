@@ -1,10 +1,12 @@
-/* What the Voodoo Graphics (SST-1) and the Voodoo 2 (CVG) share of their bring-up: the FBI's init
- * registers, a mode's timing and frame buffer, and the VGA's screen given back.
+/* What the Voodoo Graphics (SST-1) and the Voodoo 2 (CVG) share: their chip, and of their bring-up
+ * the FBI's init registers, a mode's timing and frame buffer, and the VGA's screen given back.
  *
  * # How it works
  * A mode's frame buffer is two colour buffers and the depth buffer, each a third of the memory
- * up to the rows a clip reaches: the rows past the mode are targets'. The memory FIFO is off, so
- * every write waits for the PCI FIFO's room.
+ * up to the rows a clip reaches: the rows past the mode are targets'. fbzMode and lfbMode name the
+ * colour buffers front, the one shown, and back; swapbufferCMD swaps them. Texels go through the
+ * texture window by level, row and texel; pixels through the frame buffer's, 1024 a row. The
+ * memory FIFO is off, so every write waits for the PCI FIFO's room.
  */
 #ifndef TDFX_SST_H
 #define TDFX_SST_H
@@ -67,6 +69,8 @@ enum : uint32_t {
     SST_TF_DELAY = 12,
     SST_TF_BITS = 0xFu << 12,
 };
+
+extern const TdfxChip sst_chip;
 
 /* A mode, w by h of the frame buffer's: its timing's words, its tiles across (32 pixels each),
    the video FIFO's threshold, its family's flags (scan doubling) and its pixel clock. */

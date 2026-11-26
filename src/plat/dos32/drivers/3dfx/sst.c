@@ -1,6 +1,7 @@
-/* The SST-1's and CVG's bring-up shared (sst.h). */
+/* The SST-1's and CVG's bring-up and chip shared (sst.h). */
 #include "plat/dos32/drivers/3dfx/sst.h"
 #include "plat/dos32/drivers/3dfx/regs.h"
+#include <stddef.h>
 
 enum : uint32_t {
     MEMORY = 2, /* PCI command's memory decode */
@@ -13,6 +14,20 @@ enum : uint32_t {
     BUFFERS = 3,
     HALF = 0xFFFF,
     HALF_AT = 16,
+    FRONT = 0, /* fbzMode's and lfbMode's buffers: the one shown, the other */
+    BACK = 1,
+    BASE = 0x7FFFF, /* texBaseAddr's: 8 bytes a unit */
+    BASE_UNIT = 3,
+    LEVEL_AT = 17, /* the texture window's: a level, a row, a texel */
+    ROW_AT = 9,
+    TEXEL_AT = 1,
+    LFB_ROW = 2048, /* the frame buffer window's bytes a row */
+    PIXEL_AT = 1,
+    LFB_READ = 6, /* lfbMode's buffers read and written */
+    LFB_WRITE = 4,
+    PENDING = 28, /* status's swaps pending */
+    SWAPS = 7,
+    AHEAD = 1, /* swaps let pend */
 };
 
 const SstMode *sst_mode_for(
@@ -70,6 +85,7 @@ bool sst_mapped(Tdfx *const c)
 
     c->regs = regs;
     c->lfb = regs + SST_LFB;
+    c->lfb_row = LFB_ROW;
     c->texels = regs + SST_TEXELS;
     return true;
 }
@@ -117,3 +133,67 @@ void sst_stopped(const Tdfx *const c)
     c->host->pci_write(&c->pci, SST_VIDEO_OFF, 0);
     c->host->pci_write(&c->pci, SST_INIT_ENABLE, 0);
 }
+
+static uint32_t based(const Tdfx *const c, const uint32_t at)
+{
+    (void)c;
+    return at >> BASE_UNIT & BASE;
+}
+
+static void uploaded(
+    Tdfx *const c,
+    const TdfxTexture *const t,
+    const AccelRect r,
+    const uint16_t *const texels,
+    const uint32_t pitch
+)
+{
+    volatile uint8_t *const level = c->texels + (t->level << LEVEL_AT);
+
+    for (uint32_t y = 0; y < (uint32_t)r.h; y++) {
+        const uint16_t *const row = texels + (size_t)y * pitch;
+        volatile uint8_t *const to = level + ((uint32_t)(r.y + (int32_t)y) << ROW_AT);
+
+        for (uint32_t s = 0; s < (uint32_t)r.w; s += 2)
+            tdfx_store(c, to + ((r.x + s) << TEXEL_AT), row[s] | (uint32_t)row[s + 1] << 16);
+    }
+}
+
+/* Colour buffer `buffer` as fbzMode and lfbMode name it. */
+static uint32_t side_of(const Tdfx *const c, const uint32_t buffer)
+{
+    return buffer == c->shown ? FRONT : BACK;
+}
+
+static uint32_t drawn_in(Tdfx *const c, const uint32_t buffer) { return side_of(c, buffer); }
+
+static volatile uint8_t *pixels(Tdfx *const c, const uint32_t buffer)
+{
+    tdfx_put(c, SST_LFB_MODE, side_of(c, buffer) << LFB_READ);
+    return c->lfb;
+}
+
+static void shown(Tdfx *const c, const bool vsync)
+{
+    const uint64_t until = c->host->clock_us() + TDFX_WAIT_US;
+
+    while ((tdfx_get(c, SST_STATUS) >> PENDING & SWAPS) > AHEAD && c->host->clock_us() < until)
+        ;
+
+    tdfx_put(c, SST_SWAP, vsync);
+}
+
+/* Through the frame buffer's window, pixel by pixel. */
+static void carried(Tdfx *const c)
+{
+    tdfx_put(c, SST_LFB_MODE, FRONT << LFB_READ | BACK << LFB_WRITE);
+    tdfx_idle(c);
+
+    for (uint32_t y = c->top; y < c->top + c->h; y++)
+        for (uint32_t x = c->left & ~1u; x < c->left + c->w; x += 2) {
+            volatile uint8_t *const at = c->lfb + y * LFB_ROW + (x << PIXEL_AT);
+            tdfx_store(c, at, *(const volatile uint32_t *)at);
+        }
+}
+
+const TdfxChip sst_chip = {SST_ROOM, based, uploaded, drawn_in, pixels, shown, carried};

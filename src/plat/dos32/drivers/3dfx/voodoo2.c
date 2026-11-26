@@ -265,7 +265,7 @@ static void closed(Tdfx *const c)
     sst_stopped(c);
 }
 
-static const TdfxFamily CVG = {"Voodoo 2", opened, closed, tdfx_carried};
+static const TdfxFamily CVG = {"Voodoo 2", &sst_chip, opened, closed};
 
 QX_EXPORT const AccelDriver *ACCEL_CALL accel_init(const AccelHost *const host)
 {
