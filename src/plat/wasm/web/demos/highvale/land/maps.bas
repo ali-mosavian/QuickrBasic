@@ -1,7 +1,7 @@
-' The land made by rule from a seed: heights by midpoint
-' displacement on a grid that wraps, smoothed and shaped
-' into valleys, rivers cut where a second such field
-' crosses its middle; light by slope, the sun's shadows
+' The land made by rule from a seed: the relief's heights
+' shaped into valleys, rivers cut where a field of
+' midpoint displacement crosses its middle, the sea set
+' by its share; light by slope, the sun's shadows
 ' and the water's depth; rock on cliffs and over a
 ' treeline a third field sways, snow on the heights' gentle
 ' slopes, lower in shade, woods darker where the field
@@ -14,15 +14,18 @@ from highvale.model.land import LEVELS, PEAK, LIGHTS, SCALE
 from highvale.model.land import STEP_PARTS, GRASS_FROM
 from highvale.model.land import ROCK_FROM, SNOW_FROM
 from highvale.land.palette import WATER, GRASS, ROCK, SNOW
+from highvale.land.relief import make_relief
 
 ' a field's first swing, and its swing kept each halving,
-' in hundredths: the relief's, and the rivers' course's
+' in hundredths: the cover's, and the rivers' course's
 const FIRST_SWING = 16384
-const RELIEF_ROUGH = 40
+const COVER_ROUGH = 40
 const COURSE_ROUGH = 25
-' a field's values, and the sea's
+' a field's values, and the sea's; the share of the
+' relief under it
 const VALUES = 4096
 const SEA_LINE = 900
+const SEA_SHARE = 0.12
 ' rivers: their banks' reach from the course's middle,
 ' and the most they cut, in values
 const BANK = 400
@@ -389,6 +392,34 @@ sub cut_rivers (relief() as long, course() as long)
     next
 end sub
 
+' The relief's values remapped in place: the lowest
+' SEA_SHARE of them under the sea's line, the rest over
+' it, each part stretched evenly.
+sub set_sea (relief() as long)
+    dim counts(VALUES - 1) as long
+    dim i as long
+    dim v as long
+    dim under as long
+
+    for i = 0 to MAP * MAP - 1
+        counts(relief(i)) = counts(relief(i)) + 1
+    next
+
+    do while under < SEA_SHARE * MAP * MAP
+        under = under + counts(v)
+        v = v + 1
+    loop
+
+    for i = 0 to MAP * MAP - 1
+        if relief(i) < v then
+            relief(i) = relief(i) * SEA_LINE \ v
+        else
+            relief(i) = SEA_LINE + (relief(i) - v) _
+                * (VALUES - 1 - SEA_LINE) \ (VALUES - v)
+        end if
+    next
+end sub
+
 ' A field raised, smoothed and levelled.
 sub make_field (f() as long, byval rough as integer)
     dim i as integer
@@ -406,6 +437,7 @@ end sub
 ' ground, at every level.
 sub make_land (ld as Land, byval seed as integer)
     dim relief(MAP * MAP - 1) as long
+    dim shape(MAP * MAP - 1) as single
     dim course(MAP * MAP - 1) as long
     dim cover(MAP * MAP - 1) as long
     dim parts(VALUES - 1) as long
@@ -424,10 +456,16 @@ sub make_land (ld as Land, byval seed as integer)
     dim slope as single
 
     randomize seed
-    make_field relief(), RELIEF_ROUGH
+    make_relief shape()
+
+    for i = 0 to MAP * MAP - 1
+        relief(i) = shape(i) * (VALUES - 1)
+    next
+
     make_field course(), COURSE_ROUGH
     cut_rivers relief(), course()
-    raise_field cover(), RELIEF_ROUGH
+    set_sea relief()
+    raise_field cover(), COVER_ROUGH
     level_field cover()
     shape_table parts()
     ld.sea = parts(0) \ STEP_PARTS
