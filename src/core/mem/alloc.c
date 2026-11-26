@@ -179,8 +179,7 @@ void allo_give(Allo *const al, const Addr a)
 
 uint32_t allo_spare(const Allo *const al)
 {
-    const uint32_t used = allo_align(al->top - al->strings);
-    const uint32_t keep = used > HEAP_FIRST ? used : HEAP_FIRST;
+    const uint32_t keep = allo_align(al->top - al->strings);
     return al->top - al->bot > keep ? al->top - al->bot - keep : 0;
 }
 

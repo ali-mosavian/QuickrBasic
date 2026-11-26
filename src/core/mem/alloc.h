@@ -58,7 +58,7 @@ uint32_t allo_free(const Allo *al);
 Addr allo_take(Allo *al, uint32_t size);
 /* Block a (allo_take's) back to pmem. */
 void allo_give(Allo *al, Addr a);
-/* The bytes the BASIC heap can give back: past its strings, and HEAP_FIRST. */
+/* The bytes the BASIC heap can give back: all but its strings'. */
 uint32_t allo_spare(const Allo *al);
 /* The BASIC heap cut to top, the bytes past it to pmem: the caller lowered top and the strings. */
 void allo_cut(Allo *al);

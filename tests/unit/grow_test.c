@@ -310,6 +310,19 @@ TEST(strings_heap_gives_its_room_to_an_array)
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 1  30001 xy\r");
 }
 
+/* The largest array takes all the strings' heap's unused room. Keeping HEAP_FIRST for the strings,
+   DOS's largest REDIM fell 60 KB below FRE(""). */
+TEST(largest_array_takes_the_strings_room)
+{
+    static const char *const lines[] = {
+        "10 f& = FRE(\"\"): REDIM a&(f& \\ 4 - 8192): a&(1) = 7: PRINT a&(1): ERASE a&",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 7 \r");
+}
+
 /* ERASE gives an array's block back: FRE(-1) as before it. */
 TEST(erase_gives_an_arrays_block_back)
 {
