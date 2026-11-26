@@ -1,20 +1,15 @@
-/* The data stack's segments and the frames' room, from the heap's top.
+/* The data stack's segments and the frames' room, each a block of the shared heap.
  *
  * # How it works
- * The frames and the data stack's segments are taken from the heap's top, the strings slid down
- * under them (strg_take_top). A call whose frame does not fit above vm.stklim gets the next
- * segment, its arguments copied there; its return goes back to the caller's, the one its frame
- * names. A segment never moves: stack cells' addresses are kept in refs, in strings' owners and in
- * values on the stack. The frames sit under the segments and move as segments come and go and as
- * the frames grow. Each segment has twice its caller's room, or what is left, so deep recursion
- * slides the strings a few times, not once a segment.
+ * A call whose frame does not fit above vm.stklim gets the next segment, its arguments copied
+ * there; its return goes back to the caller's, the one its frame names. A segment never moves:
+ * stack cells' addresses are kept in refs, in strings' owners and in values on the stack. The
+ * frames' block moves as it grows. Each segment has twice its caller's room, or what is left.
  *
- *   strings | frames | segment n-1 | .. | segment 1 | segment 0 | (arena's end)
- *
- * The segments are contiguous, each call's below its caller's, so a Desc in the data stack is
- * popped exactly when it lies under sp: from the strings' start up to sp nothing is live
- * (strg_is_popped_frame). The segment past sp's stays for the next call, so calls at a segment's
- * edge do not slide the strings each time.
+ * Segments lie anywhere, so depth is the segment's index, then the address within it: a Desc is
+ * popped when it lies in segment cur under sp or in a segment past cur (stack_popped). The strings
+ * are collected before a segment is given back, so no string's owner is left in freed memory. The
+ * segment past sp's stays for the next call, so calls at a segment's edge do not give and take.
  *
  * A call's arena is the stack under its locals: its dynamic arrays (mem/array.c), taken at a
  * statement's start, when nothing is on the stack, while its frame is the top one (no GOSUB's
@@ -23,6 +18,7 @@
  */
 #include "vm/stack.h"
 #include "mem/string.h"
+#include "plat/pmem.h"
 #include "util/grow.h"
 #include <string.h>
 
@@ -32,28 +28,19 @@ static uint32_t align_up(const uint32_t n) { return (n + ALIGN - 1) & ~(uint32_t
 
 static uint32_t frames_first(void) { return align_up(FRAMES_FIRST * sizeof(Frame)); }
 
-static Frame *frames_floor(const Vm *const vm) { return vm->frames - 1; }
-
-/* The frames moved by delta bytes. */
-static void frames_move(Vm *const vm, const int32_t delta)
+/* The frames' room as size bytes, moved or not: false, no memory. */
+static bool frames_resize(Vm *const vm, const uint32_t size)
 {
-    Frame *const floor = frames_floor(vm);
-    const uint32_t n = (uint32_t)(vm->ftop - vm->frames);
-    Frame *const to = (Frame *)at(addr_of(floor) + (uint32_t)delta);
+    const uint32_t n = vm->frames ? (uint32_t)(vm->ftop - vm->frames) : 0;
+    Frame *const floor = pmem_resize(vm->frames ? vm->frames - 1 : nullptr, size);
 
-    memmove(to, floor, (n + 1) * sizeof(Frame));
-    vm->frames = to + 1;
-    vm->ftop = vm->frames + n;
-    vm->fend = to + vm->fbytes / sizeof(Frame);
-}
-
-/* size bytes more under the segments, the frames moved down to their foot. */
-static bool take(Session *const S, const uint32_t size)
-{
-    if (!strg_take_top(&S->strg, size))
+    if (!floor)
         return false;
 
-    frames_move(&S->vm, -(int32_t)size);
+    vm->frames = floor + 1;
+    vm->ftop = vm->frames + n;
+    vm->fend = floor + size / sizeof(Frame);
+    vm->fbytes = size;
     return true;
 }
 
@@ -62,16 +49,19 @@ static bool add_seg(Session *const S, const uint32_t size)
 {
     Stak *const k = &S->vm.stak;
 
-    if (!GROW(k->seg, k->cap, k->n + 1) || !take(S, size))
+    if (!GROW(k->seg, k->cap, k->n + 1))
         return false;
 
-    const Addr base = addr_of(frames_floor(&S->vm)) + S->vm.fbytes; /* the bytes taken */
-    k->seg[k->n++] = (StakSeg){base, base + size};
+    void *const p = pmem_resize(nullptr, size);
 
+    if (!p)
+        return false;
+
+    k->seg[k->n++] = (StakSeg){addr_of(p), addr_of(p) + size};
     return true;
 }
 
-/* Segments from i on back to the heap, the frames moved up over them. */
+/* Segments from i on back to the heap, the strings they owned collected first. */
 static void give_from(Session *const S, const uint32_t i)
 {
     Stak *const k = &S->vm.stak;
@@ -79,31 +69,42 @@ static void give_from(Session *const S, const uint32_t i)
     if (k->n <= i)
         return;
 
-    const uint32_t size = k->seg[i].end - k->seg[k->n - 1].base;
-    k->n = i;
-    frames_move(&S->vm, (int32_t)size);
-    strg_give_top(&S->strg, size);
+    strg_gc(&S->strg);
+
+    while (k->n > i)
+        pmem_free(at(k->seg[--k->n].base));
+}
+
+uint32_t stack_seg_of(const Vm *const vm, const Addr a)
+{
+    const Stak *const k = &vm->stak;
+
+    for (uint32_t i = 0; i < k->n; i++)
+        if (a >= k->seg[i].base && a < k->seg[i].end)
+            return i;
+
+    return k->n;
+}
+
+bool stack_popped(const void *const v, const Addr d)
+{
+    const Vm *const vm = v;
+    const uint32_t i = stack_seg_of(vm, d);
+
+    return i < vm->stak.n && (i > vm->stak.cur || (i == vm->stak.cur && d < addr_of(vm->sp)));
 }
 
 void stack_init(Session *const S)
 {
     Vm *const vm = &S->vm;
 
-    S->allo.top &= ~(Addr)(ALIGN - 1);
-    S->allo.strings = S->allo.top;
-    vm->fbytes = frames_first();
+    S->strg.popped = stack_popped;
+    S->strg.vm = vm;
 
-    if (!strg_take_top(&S->strg, vm->fbytes))
+    if (!frames_resize(vm, frames_first()) || !add_seg(S, STKSZ))
         fault_error(&S->fault, E_OM);
 
-    Frame *const floor = (Frame *)at(S->allo.top);
-    floor->kind = FRAME_NONE;
-    vm->frames = vm->ftop = floor + 1;
-    vm->fend = floor + vm->fbytes / sizeof(Frame);
-
-    if (!add_seg(S, STKSZ))
-        fault_error(&S->fault, E_OM);
-
+    vm->frames[-1].kind = FRAME_NONE;
     vm->sp = vm->rsp = (Cell *)at(vm->stak.seg[0].end - STACK_TOP);
     stack_back(S, 0, 0);
 }
@@ -121,14 +122,7 @@ bool stack_frames(Session *const S, const uint32_t n)
     if (want > UINT32_MAX / 2)
         return false;
 
-    const uint32_t size = align_up((uint32_t)(want > half_again ? want : half_again));
-
-    if (!take(S, size - vm->fbytes))
-        return false;
-
-    vm->fbytes = size;
-    vm->fend = frames_floor(vm) + vm->fbytes / sizeof(Frame);
-    return true;
+    return frames_resize(vm, align_up((uint32_t)(want > half_again ? want : half_again)));
 }
 
 bool stack_call(Session *const S, const uint16_t npar, const uint32_t n)
@@ -169,10 +163,14 @@ void stack_reset(Session *const S)
     if (vm->fbytes == frames_first())
         return;
 
-    const uint32_t size = vm->fbytes - frames_first();
-    vm->fbytes = frames_first();
-    frames_move(vm, (int32_t)size);
-    strg_give_top(&S->strg, size);
+    /* Given back and taken anew: shrunk in place, a block at its room's top keeps its tail apart. */
+    pmem_free(vm->frames - 1);
+    vm->frames = vm->ftop = nullptr;
+
+    if (!frames_resize(vm, frames_first()))
+        fault_error(&S->fault, E_OM);
+
+    vm->frames[-1].kind = FRAME_NONE;
 }
 
 void stack_back(Session *const S, const uint32_t cur, const uint32_t spare)

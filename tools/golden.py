@@ -22,8 +22,9 @@ def programs() -> list[tuple[str, Path]]:
 
 
 def dump(path: Path, *mode: str) -> list[str]:
-    args = [str(DUMP), *mode, str(path)]
-    return subprocess.run(args, capture_output=True, text=True, check=True, timeout=30).stdout.splitlines()
+    # relative to the checkout: the path takes heap ahead of the variables
+    args = [str(DUMP), *mode, str(path.relative_to(ROOT))]
+    return subprocess.run(args, cwd=ROOT, capture_output=True, text=True, check=True, timeout=30).stdout.splitlines()
 
 
 def rows(key: str, lines: list[str]) -> dict[str, tuple[str, str]]:

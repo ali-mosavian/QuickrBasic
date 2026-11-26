@@ -2,7 +2,8 @@
  *
  * # How it works
  * boot sets the error handler, takes the arena from the platform (exiting with "Out of memory" when
- * it gives too little), then runs each module's init in the asm's order (main.asm's rt_start):
+ * it gives too little, or when the regions do not fit it: an error then has no REPL to land in),
+ * then runs each module's init in the asm's order (main.asm's rt_start):
  * fixed regions first, then the blocks (code cache, program store), the front end's regions, and
  * the symbol tables last, as they grow while code holds their cells. The front end's regions are
  * placed with the program's.
@@ -31,6 +32,15 @@
 #include "vm/stmts.h"
 #include "vm/system.h"
 
+[[noreturn]]
+static void out_of_memory(void)
+{
+    static const char msg[] = "Out of memory\r\n";
+    uint32_t put;
+    pfil_write(PFIL_STDERR, msg, sizeof msg - 1, &put);
+    psys_exit(1);
+}
+
 void boot(Session *const S, const FrontEnd *const fe)
 {
     S->repl.fe = fe;
@@ -40,26 +50,19 @@ void boot(Session *const S, const FrontEnd *const fe)
     S->impt.find = repl_runs;
     lexr_init(&S->lexr, &S->fault, &S->names);
     stmt_usng_init(S);
-    Addr lo, hi;
 
-    if (!pmem_init(HMIN, fe->heap ? fe->heap : C_HEAP, &lo, &hi)) {
-        static const char msg[] = "Out of memory\r\n";
-        uint32_t put;
-        pfil_write(PFIL_STDERR, msg, sizeof msg - 1, &put);
-        psys_exit(1);
-    }
+    if (!pmem_init())
+        out_of_memory();
 
-    if (hi > REF_ADDR) /* a ref's tag bits above it */
-        hi = REF_ADDR;
+    Catch c;
+    fault_push(&S->fault, &c);
+
+    if (setjmp(c.jb))
+        out_of_memory();
 
     scop_init(&S->scop, &S->fault); /* its arena's first block from the C side's heap */
 
-    allo_init(
-        &S->allo,
-        &S->fault,
-        lo,
-        hi
-    ); /* the arrays' headers, the control stack, the POKE memory */
+    allo_init(&S->allo, &S->fault); /* the arrays' headers, the control stack, the POKE memory */
     qbrt_init(&S->fault, &S->vm.stop, at(allo_carve(&S->allo, QBRT_HEAP)), QBRT_HEAP);
     strg_init(&S->strg, &S->allo, &S->fault, &S->prog);
     arry_init(&S->arry, &S->allo, &S->fault, &S->symb, &S->decl, &S->strg, &S->vm);
@@ -107,4 +110,5 @@ void boot(Session *const S, const FrontEnd *const fe)
     psys_init(&S->vm.stop, SF_BRK);
     syst_init(&S->syst);
     session_new(S);
+    fault_pop(&S->fault);
 }

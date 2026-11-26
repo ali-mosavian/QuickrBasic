@@ -119,7 +119,6 @@ void exec_until(Session *const S, const uint8_t *const end)
 
 void exec_init(Session *const S)
 {
-    S->strg.sp = &S->vm.sp;
     stack_init(S);
     pkey_init(&S->vm.stop, SF_TICK);
     pclk_init(&S->vm.stop, SF_TICK);

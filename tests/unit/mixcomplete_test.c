@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "plat/pmem.h"
 #include "session.h"
 #include "comp/suggest.h"
 #include "io/qbxfile.h"
@@ -88,7 +89,7 @@ static bool offers(Session *const S, const char *const at, const char *const tex
         for (uint16_t i = 0; i < out.n; i++)
             found |= !strcmp((const char *)out.list[i].text, want);
 
-    free(out.list);
+    pmem_free(out.list);
     return found;
 }
 
