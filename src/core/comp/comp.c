@@ -565,14 +565,14 @@ uint32_t comp_var(Comp *const C, const uint8_t shape, const uint32_t et)
     C->p = comp_skipname(q);
     uint8_t kind = shape > 1 || (!shape && *C->p == '(') ? VI_ARR : 0;
     uint32_t type = et;
-    typeof(C->memo[0]) *m = nullptr;
+    CompMemo *m = nullptr;
     MemoKey key = {};
 
-    if (C->memo_on && !et && C->line != DLINE && !C->check) {
+    if (C->memo && !et && C->line != DLINE && !C->check) {
         const uint32_t own = C->proc ? C->proc : C->module;
         key = (MemoKey){name, own, sfx, !!kind, C->symb->deft[upcase(first) - 'A'], 1};
 
-        m = &C->memo[(name * 2654435761u ^ own * 40503u) >> 22 & (countof(C->memo) - 1)];
+        m = &C->memo[(name * 2654435761u ^ own * 40503u) >> 22 & (NMEMO - 1)];
 
         if (!memcmp(&m->key, &key, sizeof key)) {
             if (!(m->how & VM_PARAM)) {
@@ -591,7 +591,7 @@ uint32_t comp_var(Comp *const C, const uint8_t shape, const uint32_t et)
 
         if (comp_param(C, name, kind, &id)) { /* no suffix: a parameter's own type */
             if (m)
-                *m = (typeof(*m)){.key = key, .id = id, .how = VM_PARAM};
+                *m = (CompMemo){.key = key, .id = id, .how = VM_PARAM};
 
             return id;
         }
@@ -615,7 +615,7 @@ uint32_t comp_var(Comp *const C, const uint8_t shape, const uint32_t et)
     symb_varx(C->symb, id)->base = decl_base(C->decl, sc_is_proc(C->scope) ? C->module : C->scope);
 
     if (m)
-        *m = (typeof(*m)){
+        *m = (CompMemo){
             .key = key,
             .id = id,
             .scope = C->scope,
@@ -971,6 +971,22 @@ Status comp_text(Comp *const C, const uint8_t *const body)
         if (!C->code->full || C->xcap >= XMAX || !GROW(C->xbuf, C->xcap, twice))
             return st;
     }
+}
+
+void comp_memo_on(Comp *const C)
+{
+    if (!C->memo)
+        C->memo = pmem_resize(nullptr, NMEMO * sizeof *C->memo);
+    if (!C->memo)
+        fault_error(C->fault, E_OM);
+
+    memset(C->memo, 0, NMEMO * sizeof *C->memo);
+}
+
+void comp_memo_off(Comp *const C)
+{
+    pmem_free(C->memo);
+    C->memo = nullptr;
 }
 
 void comp_proc(Comp *const C, const uint32_t proc)

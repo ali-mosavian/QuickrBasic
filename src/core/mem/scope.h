@@ -23,6 +23,7 @@ struct Binding {
 enum {
     NSCS = 4,
     SCHASH = 1024,
+    NLOOK = 512, /* scop.look's answers */
 };
 
 /* A scope on the stack: its name (a module's key at the bottom), and whether a DEF FN's. */
@@ -45,14 +46,18 @@ typedef struct {
     uint32_t depth; /* the stack's scopes */
     ScopFrame stack[NSCS];
     Binding **heads; /* SCHASH, from the arena */
-    /* scop_look's answers by name and the stack (its depth and top) while look_on: a link's
-       compile (comp/link.c), which binds nothing. gen counts the bindings made and look_on's
-       starts, an answer of another gen stale. A link asked 12K times. */
-    bool look_on;
+    /* scop_look's answers by name and the stack (its depth and top), NLOOK of them, while a
+       link compiles (comp/link.c), which binds nothing: scop_look_on to scop_look_off, nullptr
+       else. gen counts the bindings made and the answers' starts, an answer of another gen
+       stale. A link asked 12K times. */
     uint32_t gen;
-    ScopLook look[512];
+    ScopLook *look;
 } Scop;
 
+/* scop_look's answers kept from here on, none yet: their room taken. Out of memory. */
+void scop_look_on(Scop *sc);
+/* No answers kept: their room given back. */
+void scop_look_off(Scop *sc);
 /* Errors raise through f. No bindings. */
 void scop_init(Scop *sc, Fault *f);
 /* No bindings. */

@@ -92,3 +92,15 @@ static uint32_t boot_keeps(void)
    for 1024 names and the data stack's first segment 64 KB: 587 KB kept. comp.cbuf carved at
    LMAX + 64: 351 KB. */
 TEST(boot_keeps_little) { CHECK(boot_keeps() <= 260000); }
+
+/* The session is static: its bytes are the executable's, kept from BASIC whether used or not. A
+   link's caches, comp.memo and scop.look (41 KB), were its own: 69,616 bytes in this build. Now
+   taken for a link and given back after it. */
+TEST(session_static_is_small)
+{
+    static const char *const lines[] = {"10 a = 1: PRINT a", nullptr};
+
+    CHECK(sizeof(Session) <= 29000);
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK(!S->comp.memo && !S->scop.look);
+}

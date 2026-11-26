@@ -35,6 +35,15 @@ typedef struct {
     uint8_t sfx, arr, deft, set; /* set 0: no entry */
 } MemoKey;
 
+enum { NMEMO = 1024 }; /* comp.memo's entries */
+
+typedef struct {
+    MemoKey key;
+    uint32_t id;
+    uint32_t scope;
+    uint8_t how; /* VM_PARAM a parameter (no scope set), VM_STATIC */
+} CompMemo;
+
 typedef struct Comp {
     /* what it works with, set before comp_init */
     Fault *fault;
@@ -119,17 +128,12 @@ typedef struct Comp {
     uint8_t *xbuf;
     uint32_t xcap;
 
+    bool errs; /* an ERR compiled since link.c's build began: its error walk needed */
     /* comp_var's variables while a link compiles every line (link.c's build): what it found by
        procedure, name, suffix, array or not and the line's DEFtype letter's, its scope and STATIC
-       too. A name's scopes, its parameters and the variable's hash each a lookup once a link. */
-    bool memo_on;
-    bool errs; /* an ERR compiled since link.c's build began: its error walk needed */
-    struct {
-        MemoKey key; /* set 0: none */
-        uint32_t id;
-        uint32_t scope;
-        uint8_t how; /* VM_PARAM a parameter (no scope set), VM_STATIC */
-    } memo[1024];
+       too. A name's scopes, its parameters and the variable's hash each a lookup once a link.
+       NMEMO of them, taken for the link (comp_memo_on); nullptr else. */
+    CompMemo *memo;
 } Comp;
 /* TVAR.info's ET_* to its kind: 0 FLOAT, 1 INT, 2 STRING, SK_DBL DOUBLE. */
 extern const uint8_t comp_etkind[8];
@@ -155,6 +159,10 @@ void comp_init(Comp *C); /* comp_cbuf's, comp_xbuf's first bytes */
 uint8_t *comp_room(Comp *C, uint32_t n);
 /* Stored line's body to comp.cbuf, from its byte at: past it. Out of memory. */
 uint8_t *comp_body(Comp *C, uint32_t line, uint32_t at);
+/* comp_var's memo from here on, empty: its entries taken. Out of memory. */
+void comp_memo_on(Comp *C);
+/* No memo: its entries given back. */
+void comp_memo_off(Comp *C);
 /* Procedure proc compiled, 0 none (comp.module's top level): its scopes seen. */
 void comp_proc(Comp *C, uint32_t proc);
 /* The module line is in: its scope (sc_module); the direct line's the main's. */

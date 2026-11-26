@@ -924,10 +924,6 @@ void link_prepare(Comp *const C)
     decl_defevents(C->decl, C->scop, C->symb, C->prog); /* the typed lines' DEFtypes too */
     link_procvars(C);
     link_natives(C);
-    memset(C->memo, 0, sizeof C->memo);
-    C->memo_on = true;
-    C->scop->look_on = true;
-    C->scop->gen++;
 
     /* room for the code first, by the store's size (a large program's code is about 0.9 of it):
        grown as it compiled, the store moved and every line compiled twice. Short, or no room: the
@@ -936,6 +932,9 @@ void link_prepare(Comp *const C)
 
     if (allo_cap(C->allo, HCACHE) < guess)
         allo_grow(C->allo, HCACHE, guess);
+
+    comp_memo_on(C); /* after the cache's room: not in its way */
+    scop_look_on(C->scop);
 
     C->errs = false;
     C->link->nempty = 0;
@@ -954,8 +953,8 @@ void link_lines_qb(Comp *const C)
 
 void link_resolve_qb(Comp *const C)
 {
-    C->memo_on = false;
-    C->scop->look_on = false;
+    comp_memo_off(C);
+    scop_look_off(C->scop);
     index_lines(C);
 
     for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
