@@ -17,12 +17,13 @@ const PEAK = 200
 const SCALE = 0.5
 const STEP_PARTS = 16
 ' a texel's light, 0 dark to LIGHTS - 1
-const LIGHTS = 16
+const LIGHTS = 14
 ' a texel's ground, 0 to 255, read between texels as a
 ' height is: water under GRASS_FROM, grass under
-' ROCK_FROM, rock from it
+' ROCK_FROM, rock under SNOW_FROM, snow from it
 const GRASS_FROM = 16
 const ROCK_FROM = 128
+const SNOW_FROM = 200
 
 type Land
     heights() as integer

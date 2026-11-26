@@ -17,39 +17,41 @@ const GROUND = 8
 const WATER = 0
 const GRASS = 1
 const ROCK = 2
-const GROUNDS = 3
+const SNOW = 3
+const GROUNDS = 4
 const FOG_STEPS = 4
 ' the panel's colours
-const PANEL = 200
-const PANEL_EDGE = 201
-const SHADE = 202
-const AMBER = 203
-const FAINT = 204
-const HULL_BAR = 205
-const ALERT = 206
-const SCOPE = 207
-const SCOPE_GRID = 208
-const PALE = 209
-const TAPE = 210
-const TICK = 211
+const PANEL = 232
+const PANEL_EDGE = 233
+const SHADE = 234
+const AMBER = 235
+const FAINT = 236
+const HULL_BAR = 237
+const ALERT = 238
+const SCOPE = 239
+const SCOPE_GRID = 240
+const PALE = 241
+const TAPE = 242
+const TICK = 243
 ' the sprites' colours
-const METAL = 212
-const FOE_DARK = 213
-const FOE_RED = 214
-const BUNKER_DARK = 215
-const BUNKER = 216
-const FLAME = 217
-const FIRE = 218
-const HOT = 219
-const SMOKE = 220
-const SMOKE_DARK = 221
-const TRACER = 222
-const WHITE = 223
+const METAL = 244
+const FOE_DARK = 245
+const FOE_RED = 246
+const BUNKER_DARK = 247
+const BUNKER = 248
+const FLAME = 249
+const FIRE = 250
+const HOT = 251
+const SMOKE = 252
+const SMOKE_DARK = 253
+const TRACER = 254
+const WHITE = 255
 
 ' hues as &HRRGGBB, six digits each, in index order
 const SKY_HUES = "5A86C46C97CC80A8D395B8DAABC8DFC2D6E2"
 ' each ground's shade and light
-const GROUND_HUES = "163A5C6AAAD01C2E16AECC743830289C9080"
+const GROUND_HUES = "163A5C6AAAD01C2E16AECC743830289C9080" + _
+    "7E8CA8F4F6F2"
 const PANEL_HUES = "2B2F2A4A5146171A17F2C14E8C7A457FB069" + _
     "E8743B1F3A2E2A4D3CE6F2D81D2A338FD4C8"
 const SPRITE_HUES = "2A2A335B2230A8323A4A3B3F8C6A55E8743B" + _

@@ -8,11 +8,12 @@ it: read at the nearest texel, it stepped up to 12 rows a column, the blocky nea
 a nearer ridge must keep its own tone: eased from the ridge's height, the ridge's rock rose up to 7 rows into the
 grass behind it, teeth along every ridge. A texel's ground must come from its own map, not its height: taken from
 height, every mountain wore a band of rock from 64 steps up and none under it. Gentle low ground must hold no rock: a
-patch field once laid bald spots on it. A shore must keep to the sea's line: grass held at water's value drew it along
-the texels, jagged. A spike's shadow must run as far as the sun's angle says. Each mission's land must rise from its
-sea without a cliff and place its foes on land, clear of the start. A pilot firing from a clear spot must clear the
-first: rounds moving 8 texels a frame passed through foes a 4-texel hit away, a flak site whole after 120 s. A craft
-with no hull left by flak must be downed, and every screen must draw.
+patch field once laid bald spots on it. Mountain tops must be snow, and no snow lie low. A shore must keep to the
+sea's line: grass held at water's value drew it along the texels, jagged. A spike's shadow must run as far as the
+sun's angle says. Each mission's land must rise from its sea without a cliff and place its foes on land, clear of the
+start. A pilot firing from a clear spot must clear the first: rounds moving 8 texels a frame passed through foes a
+4-texel hit away, a flak site whole after 120 s. A craft with no hull left by flak must be downed, and every screen
+must draw.
 """
 
 import sys
@@ -30,7 +31,7 @@ VIEW_W, VIEW_H = 320, 152
 FOCAL = 160 / math.tan(0.7)
 SCALE = 0.5
 FAR, FOG_NEAR, FOG_STEPS = 420, 150, 4
-GROUND, LIGHTS, GROUNDS, GRASS = 8, 16, 3, 1
+GROUND, LIGHTS, GROUNDS, GRASS = 8, 14, 4, 1
 # The most the land may rise from the sea to its next texel, in 16ths of a step, half the sea's own height: the sea
 # once lay at 0 while the land rose from the sea's line, every shore a cliff of up to 506.
 SHORE = 160
@@ -42,7 +43,7 @@ from highvale.land.maps import ground_of
 from highvale.model.game import Game, TITLE, BRIEFING, FLYING
 from highvale.model.game import CLEARED, DOWNED, VICTORY
 from highvale.model.foes import FLAK, DRONE
-from highvale.land.palette import set_colours, GROUND, GROUNDS, ROCK
+from highvale.land.palette import set_colours, GROUND, GROUNDS, ROCK, SNOW
 from highvale.land.maps import allot_land, ground_at, wrapped
 from highvale.land.maps import clear_line, cast_shadows
 from highvale.model.space import Point3
@@ -191,14 +192,16 @@ for d = 1 to 40
 next
 """
 
-# Each mission's land texels and rock texels by height, in tens of steps; rock texels under 80 steps, under the lowest
-# treeline, whose slope is under 3 steps a texel, not a cliff; and the farthest a shore by the ground map lies from
-# where the height crosses a step over the sea, in texels, between each land texel and a water neighbour.
+# Each mission's land texels, rock texels and snow texels by height, in tens of steps; rock texels under 80 steps,
+# under the lowest treeline, whose slope is under 3 steps a texel, not a cliff; and the farthest a shore by the ground
+# map lies from where the height crosses a step over the sea, in texels, between each land texel and a water
+# neighbour.
 BANDS = """dim g as Game
 dim n as integer
 dim b as integer
 dim texels(20) as long
 dim rocks(20) as long
+dim snows(20) as long
 dim bald as long
 dim e as single
 dim s as single
@@ -221,6 +224,7 @@ for n = 1 to 3
                 s = (g.vale.heights(i + 257) - g.vale.heights(i - 257)) / (2 * STEP_PARTS)
                 if b < 8 and e * e + s * s < 9 then bald = bald + 1
             end if
+            if ground_of(g.vale.grounds(i)) = SNOW then snows(b) = snows(b) + 1
             for d = 0 to 3
                 j = i + 1
                 if d = 1 then j = i - 1
@@ -234,7 +238,7 @@ for n = 1 to 3
     next
 next
 for b = 0 to 20
-    print "height"; b * 10; texels(b); rocks(b)
+    print "height"; b * 10; texels(b); rocks(b); snows(b)
 next
 print "bald"; bald
 print "shore"; most
@@ -465,7 +469,13 @@ def main() -> None:
         for f in run(exe, tmp, "SHADOW", SHADOW):
             if (int(f[2]), int(f[3])) != (1 if int(f[1]) <= 24 else 0, 0):
                 bad.append(f"shadow at {f[1]} diagonal steps: south-east {f[2]}, north-west {f[3]}")
-        for f in run(exe, tmp, "BANDS", BANDS):
+        bands = run(exe, tmp, "BANDS", BANDS)
+        tops = [f for f in bands if f[0] == "height" and int(f[1]) >= 170]
+        if sum(int(f[4]) for f in tops) * 2 < sum(int(f[2]) for f in tops):
+            bad.append("snow: under half the land from 170 steps up")
+        if any(int(f[4]) for f in bands if f[0] == "height" and int(f[1]) < 120):
+            bad.append("snow under 120 steps")
+        for f in bands:
             if f[0] == "bald" and int(f[1]):
                 bad.append(f"bald spots: {f[1]} rock texels under 80 steps, short of a cliff")
             elif f[0] == "shore" and float(f[1]) > 0.25:

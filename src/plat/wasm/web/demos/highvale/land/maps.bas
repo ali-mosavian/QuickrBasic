@@ -3,7 +3,8 @@
 ' into valleys, rivers cut where a second such field
 ' crosses its middle; light by slope, the sun's shadows
 ' and the water's depth; rock on cliffs and over a
-' treeline a third field sways, woods darker where it
+' treeline a third field sways, snow on the heights' gentle
+' slopes, lower in shade, woods darker where the field
 ' runs high.
 option explicit
 
@@ -11,8 +12,8 @@ from highvale.model.space import Point3
 from highvale.model.land import Land, MAP, MAP_MASK, SIDE
 from highvale.model.land import LEVELS, PEAK, LIGHTS, SCALE
 from highvale.model.land import STEP_PARTS, GRASS_FROM
-from highvale.model.land import ROCK_FROM
-from highvale.land.palette import WATER, GRASS, ROCK
+from highvale.model.land import ROCK_FROM, SNOW_FROM
+from highvale.land.palette import WATER, GRASS, ROCK, SNOW
 
 ' a field's first swing, and its swing kept each halving,
 ' in hundredths: the relief's, and the rivers' course's
@@ -41,6 +42,18 @@ const GROUND_SPREAD = 64
 ' grass's least value, clear of water's, so only a
 ' texel's height over the sea draws the shore
 const GRASS_MIDDLE = (GRASS_FROM + ROCK_FROM) \ 2
+' snow over SNOWLINE steps, swayed by the cover as the
+' treeline is and lower by up to SHADE_DROP in shade,
+' eased in over SNOW_SPAN steps; a slope of SNOW_GRIP,
+' in steps a texel, sheds a SNOW_SPAN of it
+const SNOWLINE = 150
+const SNOW_SPAN = 20
+const SHADE_DROP = 25
+const SNOW_GRIP = 3
+' the snow's depth in thousandths, smoothed this many
+' times, so its edge does not follow each texel's slope
+const DEPTH_PARTS = 1000
+const SNOW_SMOOTHING = 2
 ' woods where the second field is above this level, their
 ' light this much under the grass's
 const WOODS_LINE = 2400
@@ -191,39 +204,58 @@ end sub
 
 ' The ground a texel's ground value v names.
 function ground_of (byval v as integer) as integer
-    ground_of = ROCK
+    ground_of = SNOW
+    if v < SNOW_FROM then ground_of = ROCK
     if v < ROCK_FROM then ground_of = GRASS
     if v < GRASS_FROM then ground_of = WATER
 end function
 
-' Land's ground value: rock by slope, in steps a texel,
-' height h, in parts, and cover; near the sea no more
-' than its parts over sea allow, so the shore keeps to
-' the sea's line.
+' The cover's sway of the tree and snow lines, -1 to 1.
+function sway_of (byval cover as long) as single
+    sway_of = 2 * cover / (VALUES - 1) - 1
+end function
+
+' Land's ground value, grass or rock, by slope, in steps
+' a texel, height h, in parts, and cover; near the sea no
+' more than its parts over sea allow, so the shore keeps
+' to the sea's line.
 function land_ground ( _
     byval slope as single, _
     byval h as long, _
     byval sea as long, _
     byval cover as long _
 ) as integer
-    dim line_at as single
     dim alpine as single
     dim v as single
 
-    line_at = TREELINE _
-        + (2 * cover / (VALUES - 1) - 1) * TREE_SWAY
-    alpine = (h / STEP_PARTS - line_at) / TREE_SPAN
+    alpine = (h / STEP_PARTS - TREELINE _
+        - sway_of(cover) * TREE_SWAY) / TREE_SPAN
     if alpine < 0 then alpine = 0
     if alpine > 1 then alpine = 1
     v = ROCK_FROM _
         + (slope - CLIFF * (1 - alpine)) / STEEP_SPAN _
         * GROUND_SPREAD
     if v < GRASS_MIDDLE then v = GRASS_MIDDLE
-    if v > 255 then v = 255
+    if v > SNOW_FROM - 1 then v = SNOW_FROM - 1
     if v > (h - sea) * GRASS_FROM / STEP_PARTS then
         v = (h - sea) * GRASS_FROM / STEP_PARTS
     end if
     land_ground = v
+end function
+
+' The snow's depth by slope, height h, in parts, cover
+' and light, in DEPTH_PARTS a SNOW_SPAN of height; none
+' under 0.
+function snow_depth ( _
+    byval slope as single, _
+    byval h as long, _
+    byval cover as long, _
+    byval light as integer _
+) as long
+    snow_depth = ((h / STEP_PARTS - SNOWLINE _
+        - sway_of(cover) * TREE_SWAY _
+        + SHADE_DROP * (1 - light / (LIGHTS - 1))) / SNOW_SPAN _
+        - slope / SNOW_GRIP) * DEPTH_PARTS
 end function
 
 ' n kept within 0 to LIGHTS - 1.
@@ -380,6 +412,7 @@ sub make_land (ld as Land, byval seed as integer)
     dim fine(MAP * MAP - 1) as long
     dim lit(MAP * MAP - 1) as long
     dim ground(MAP * MAP - 1) as long
+    dim depth(MAP * MAP - 1) as long
     dim shade(MAP * MAP - 1) as single
     dim x as long
     dim y as long
@@ -417,6 +450,7 @@ sub make_land (ld as Land, byval seed as integer)
                 / (2 * STEP_PARTS)
             ground(i) = land_ground(slope, fine(i), parts(0), _
                 cover(i))
+            depth(i) = snow_depth(slope, fine(i), cover(i), light)
 
             if relief(i) < SEA_LINE then
                 ground(i) = 0
@@ -429,6 +463,18 @@ sub make_land (ld as Land, byval seed as integer)
 
             lit(i) = within_light(light)
         next
+    next
+
+    for m = 1 to SNOW_SMOOTHING
+        smooth_field depth()
+    next
+
+    for i = 0 to MAP * MAP - 1
+        if depth(i) > 0 and ground(i) >= GRASS_FROM then
+            ground(i) = SNOW_FROM _
+                + depth(i) * GROUND_SPREAD \ DEPTH_PARTS
+            if ground(i) > 255 then ground(i) = 255
+        end if
     next
 
     for m = 0 to LEVELS - 1
