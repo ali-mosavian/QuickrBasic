@@ -18,8 +18,10 @@ CutGrid texels_grid(const uint16_t w, const uint16_t h, const AccelCard *const c
 {
     uint32_t tw = rounded_up(w), th = rounded_up(h);
 
-    tw = tw > c->side ? c->side : tw;
-    th = th > c->side ? c->side : th;
+    const uint32_t least = 1u << c->least;
+
+    tw = tw > c->side ? c->side : tw < least ? least : tw;
+    th = th > c->side ? c->side : th < least ? least : th;
 
     while (tw > th << c->aspect)
         th <<= 1;

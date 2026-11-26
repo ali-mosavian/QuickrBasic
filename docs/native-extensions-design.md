@@ -184,7 +184,7 @@ const QxModule *QX_CALL qx_init_synth(const QxHost *host);
 - **The extension's memory is the host's** (`host->alloc`): the C heap (`pmem_resize`), on wasm
   in the shared memory.
 - **The host's services are generic**: audio, pages to draw in, a GPU that plays lists
-  (`qx/qxlist.h`). It knows no extension; one shipped with QuickrBasic lives in `stdlib/` and brings
+  (`qx/qxlist.h`), with shaders or, from minor 5, a fixed pipeline. It knows no extension; one shipped with QuickrBasic lives in `stdlib/` and brings
   the rest itself, gfx its shaders.
 
 ## Binding: QB 4.5's DECLARE

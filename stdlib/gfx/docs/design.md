@@ -324,7 +324,7 @@ pixel: too slow in software. Shaders come in three kinds, by where they can run.
 
 | Platform | Backend |
 |---|---|
-| DOS | software, VGA and VBE |
+| DOS | software, VGA and VBE; a 3D card's fixed-function pipeline: 3dfx's Voodoo 1, 2, Banshee and 3 |
 | Mac, Linux, Windows | SDL_GPU: Metal, Vulkan, Direct3D 12 |
 | The browser | WebGL2 |
 | Tests, and a machine with no GPU | software in C, drawing into a texture the host shows |
@@ -351,6 +351,13 @@ twice: for plain vertices and, with `DISC`, for a circle's. `make shaders` cross
 and SPIRV-Cross, pinned in `tools/deps.sh`, to SPIR-V for SDL_GPU's Vulkan, MSL for its Metal and
 ESSL 3.00 for WebGL2 (`shaders.h`), committed so a build needs neither. `display.open` names the
 languages it brings, and the host answers with the one it takes.
+
+A card of DOS's time has no shaders: its pipeline is fixed, a texel times a colour, keyed, blended
+and depth tested. The list names that pipeline too (minor 5), and gfx works out on the CPU what its
+shader would: a vertex's colour lit, an 8-bit root's texels as its row's colours, a disc as its rows.
+gfx offers it at 15, 16 and 32 bits; an 8-bit screen needs a shader, or pages. DOS plays the list
+through the driver for the card on the bus, loaded from `lib/drivers/` as the screen opens: only
+that one (`src/plat/dos32/accel`).
 
 ## The host's side
 

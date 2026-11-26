@@ -90,7 +90,8 @@ CORE_OBJ := $(CORE_C:src/%.c=$(B)/obj/%.obj) $(QBRT_DOS_C:%.c=$(B)/qbrt/%.obj) $
 	$(B)/obj/qbrt/qbrt_dos.obj $(ASM_OBJ)
 BASIC_OBJ := $(CORE_OBJ) $(B)/obj/app/basic32.obj
 IDE_OBJ := $(CORE_OBJ) $(UI_C:src/%.c=$(B)/obj/%.obj) $(B)/obj/app/ide32.obj
-DOS_EXE := $(B)/basic32.exe $(B)/ide32.exe $(B)/DOS32A.EXE $(B)/BASIC.HLP $(B)/lib/gfx.qbx
+DOS_DRIVERS := $(B)/lib/drivers/VOODOO1.DRV
+DOS_EXE := $(B)/basic32.exe $(B)/ide32.exe $(B)/DOS32A.EXE $(B)/BASIC.HLP $(B)/lib/gfx.qbx $(DOS_DRIVERS)
 # the release: the programs by their DOS names, with the games (src/plat/wasm/web/demos)
 DOS_GAMES := $(addprefix src/plat/wasm/web/demos/,GORILLA.BAS NIBBLES.BAS MOTHLITE.BAS RUSTLINE.BAS CHARLIE.BAS CHARLIE.DAT)
 # CHARLIE.BAS imports its package and the engine, the barkley and engine folders beside it
@@ -137,8 +138,9 @@ dos-zip: $(DOS_EXE) $(DOS_GAMES) $(DOS_MODULES)
 	cp $(B)/basic32.exe $(B)/release/BASIC32.EXE
 	cp $(B)/DOS32A.EXE $(B)/BASIC.HLP $(DOS_GAMES) $(GFX_DEMOS) $(B)/release/
 	rm -rf $(B)/release/barkley $(B)/release/engine $(B)/release/lib
-	mkdir -p $(B)/release/lib
+	mkdir -p $(B)/release/lib/drivers
 	cp $(B)/lib/gfx.qbx $(B)/release/lib/
+	cp $(DOS_DRIVERS) $(B)/release/lib/drivers/
 	cp -R src/plat/wasm/web/demos/barkley $(B)/release/barkley
 	cp -R src/plat/wasm/web/demos/engine $(B)/release/engine
 	cd $(B)/release && zip -q -X -r ../QuickrBasic-dos.zip IDE32.EXE BASIC32.EXE DOS32A.EXE BASIC.HLP GORILLA.BAS NIBBLES.BAS MOTHLITE.BAS RUSTLINE.BAS CHARLIE.BAS CHARLIE.DAT GFXDEMO.BAS barkley engine lib
@@ -246,6 +248,19 @@ $(B)/lib/gfx.qbx: $(GFX_PARTS) $(B)/ext/gfx.dll tools/qbx.py
 	@mkdir -p $(@D)
 	$(PY) tools/qbx.py pack $@ --minor 1 $(GFX_PARTS) dos-i386=$(B)/ext/gfx.dll
 -include $(GFX_DOS_OBJ:%=%.d)
+# DOS's accelerator drivers (src/plat/dos32/drivers), in lib/drivers/ beside basic32.exe: each an
+# i386 DLL as gfx's slice is, its header the PCI IDs it drives (qbx.py driver); 3dfx's share all
+# but their family's file
+TDFX_SHARED := $(filter-out %/voodoo1.c %/voodoo2.c %/voodoo3.c,$(wildcard src/plat/dos32/drivers/3dfx/*.c)) \
+	src/plat/dos32/drivers/crt.c
+$(B)/drivers/%.obj: src/plat/dos32/drivers/%.c
+	@mkdir -p $(@D)
+	$(DOS_SLICE_CC) -Isrc $(DEPFLAGS) -c $< -o $@
+$(B)/drivers/%.dll: $(TDFX_SHARED:src/plat/dos32/drivers/%.c=$(B)/drivers/%.obj) $(B)/drivers/3dfx/%.obj
+	$(LLD_LINK) /dll /noentry /nodefaultlib /safeseh:no /out:$@ $^
+$(B)/lib/drivers/VOODOO1.DRV: $(B)/drivers/voodoo1.dll tools/qbx.py
+	@mkdir -p $(@D)
+	$(PY) tools/qbx.py driver $@ $< 121a:0001
 
 host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/hostperf/basic build/host/ext/qxtest.so \
 		build/host/lib/gfx.qbx $(NAMES)
@@ -431,6 +446,9 @@ build/host/test.hlp: tools/mkhelp.py $(wildcard tests/help/*)
 	$(PY) tools/mkhelp.py tests/help -o $@
 build/host/unit_tests: $(build/host_OBJ) $(UNIT_UI_OBJ) $(UNIT_OBJ) $(GFX_UNIT_OBJ) build/host/obj/lib/div64.o build/host/obj/plat/dos32/vbe.o \
 	$(patsubst src/%.c,build/host/obj/%.o,$(filter-out %/load.c,$(wildcard src/plat/dos32/accel/*.c))) \
+	build/host/obj/plat/dos32/drivers/3dfx/dac.o build/host/obj/plat/dos32/drivers/3dfx/setup.o \
+	build/host/obj/plat/dos32/drivers/3dfx/space.o \
+	build/host/obj/plat/dos32/drivers/3dfx/tdfx.o \
 	build/host/test.hlp
 	$(HOST_CC) $(filter-out %.hlp,$^) -lm $(HOST_DL) -o $@
 build/host/golden/dump.o: tests/golden/dump.c

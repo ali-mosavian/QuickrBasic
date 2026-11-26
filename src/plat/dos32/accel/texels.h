@@ -1,8 +1,8 @@
 /* Texels as a card takes them: ARGB1555, A a key's bit, in tiles of the card's sides.
  *
  * # How it works
- * A texture's tile is its sides each rounded up to a power of two, at most the card's side, then
- * the shorter doubled until the card's aspect holds. Its tiles go across and down from its top
+ * A texture's tile is its sides each rounded up to a power of two, within the card's least and
+ * most, then the shorter doubled until the card's aspect holds. Its tiles go across and down from its top
  * left; past the texture's right or bottom edge, a tile repeats the edge's texels, so the card
  * holding a tile's edge holds the texture's.
  */

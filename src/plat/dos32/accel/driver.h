@@ -30,11 +30,12 @@ typedef struct {
     int32_t x, y, w, h;
 } AccelRect;
 
-/* An open card: its textures' sides powers of two up to side, the longer at most 1 << aspect
-   times the shorter, memory their bytes in all; its screen's refresh in millihertz, 0 unknown. */
+/* An open card: its textures' sides powers of two from 1 << least up to side, the longer at most
+   1 << aspect times the shorter, memory their bytes in all; its screen's refresh in millihertz, 0
+   unknown. */
 typedef struct {
     uint16_t side;
-    uint8_t aspect;
+    uint8_t least, aspect;
     uint32_t memory;
     uint32_t millihz;
 } AccelCard;
