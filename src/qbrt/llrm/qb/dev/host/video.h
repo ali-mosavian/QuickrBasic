@@ -40,6 +40,8 @@ unsigned host_width(void);
 unsigned host_height(void);
 unsigned host_mode(void);
 const uint8_t *host_pixels(void);
+/* The bytes the graphics pages hold. */
+size_t host_page_bytes(void);
 /* Counts the mode changes: a presenter that sees it move starts a frame of the new size. */
 unsigned host_mode_serial(void);
 

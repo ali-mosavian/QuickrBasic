@@ -34,11 +34,13 @@ _Atomic uint8_t host_dirty[HOST_MAX_HEIGHT];
 /* A weak no-op, not a weak undefined reference: Mach-O's linker rejects the latter. */
 __attribute__((weak)) void host_video_mode_changed(void) {}
 
-/* The pages SCREEN can name (mode 0Dh has eight), each taken when first used and kept: the presenter may still read
-   one. Drawing goes to `pixels`, the page being drawn, and the presenter reads `shown`. A page is taken before the
-   state lock, as dev_take may raise Out of memory. */
-enum { MAX_PAGES = 8, TEXT_PAGES = 8, PAGE_BYTES = HOST_MAX_WIDTH * HOST_MAX_HEIGHT };
+/* The pages SCREEN can name (mode 0Dh has eight), each taken when first used, sized to the mode, and replaced by a
+   larger one when a mode needs it: the presenters read `shown` under the state lock, so an old page is given back
+   after it. Drawing goes to `pixels`, the page being drawn. A page is taken before the state lock, as dev_take may
+   raise Out of memory. */
+enum { MAX_PAGES = 8, TEXT_PAGES = 8 };
 static uint8_t *page_store[MAX_PAGES];
+static size_t page_bytes[MAX_PAGES];
 static uint8_t *pixels;
 static _Atomic(const uint8_t *) shown;
 static unsigned page_count = 1;
@@ -90,11 +92,52 @@ static void touch_all(void)
     touch(0, height);
 }
 
+/* Page number, of the mode's width * height bytes. */
 static uint8_t *page(unsigned number)
 {
-    if (!page_store[number])
-        page_store[number] = dev_take(PAGE_BYTES);
+    if (!page_store[number]) {
+        page_bytes[number] = (size_t)width * height;
+        page_store[number] = dev_take(page_bytes[number]);
+    }
+
     return page_store[number];
+}
+
+/* Pages 0 to count - 1 held, page 0 always, each of need bytes: one of another size replaced, taken before the lock
+   and swapped in under it, the old given back after it. An Out of memory leaves the ones done resized. */
+static void pages_fit(size_t need, unsigned count)
+{
+    unsigned at;
+
+    for (at = 0; at < count; at++)
+        if ((at == 0 || page_store[at]) && page_bytes[at] != need) {
+            uint8_t *const fresh = dev_take(need), *was;
+
+            host_state_lock();
+            was = page_store[at];
+            page_store[at] = fresh;
+            page_bytes[at] = need;
+
+            if (pixels == was)
+                pixels = fresh;
+            if (atomic_load_explicit(&shown, memory_order_relaxed) == was)
+                atomic_store_explicit(&shown, fresh, memory_order_release);
+
+            host_state_unlock();
+            dev_give(was);
+        }
+}
+
+/* The pages past count given back: the mode cannot name them, and neither draws nor shows them. */
+static void pages_drop(unsigned count)
+{
+    unsigned at;
+
+    for (at = count; at < MAX_PAGES; at++) {
+        dev_give(page_store[at]);
+        page_store[at] = 0;
+        page_bytes[at] = 0;
+    }
 }
 
 static void text_blank(TextRow *rows)
@@ -137,9 +180,17 @@ unsigned host_mode(void)
     return mode;
 }
 
-const uint8_t *host_pixels(void)
+const uint8_t *host_pixels(void) { return atomic_load_explicit(&shown, memory_order_acquire); }
+
+size_t host_page_bytes(void)
 {
-    return atomic_load_explicit(&shown, memory_order_acquire);
+    size_t bytes = 0;
+    unsigned at;
+
+    for (at = 0; at < MAX_PAGES; at++)
+        bytes += page_bytes[at];
+
+    return bytes;
 }
 
 unsigned host_mode_serial(void)
@@ -250,7 +301,7 @@ void host_video_reset(void)
 int gd_set_mode(unsigned requested)
 {
     unsigned number = requested & ~(unsigned)MODE_BIT_KEEP_SCREEN;
-    unsigned new_kind, new_width, new_height, at;
+    unsigned new_kind, new_width, new_height, at, count;
     uint8_t (*palette)[3];
 
     switch (number) {
@@ -282,8 +333,10 @@ int gd_set_mode(unsigned requested)
     default:
         return 0;
     }
+
     palette = dac ? dac : dev_take(DAC_COLORS * sizeof *dac);
-    page(0);
+    count = number == MODE_320 ? 8 : number == MODE_640 ? 4 : 2;
+    pages_fit((size_t)new_width * new_height, count);
     text_page(0);
     host_state_lock();
     dac = palette;
@@ -292,10 +345,12 @@ int gd_set_mode(unsigned requested)
     width = new_width;
     height = new_height;
     reset_palette();
-    for (at = 0; at < MAX_PAGES; at++)
+
+    for (at = 0; at < count; at++) /* the pages past it are dropped below, smaller maybe */
         if (page_store[at])
             memset(page_store[at], 0, (size_t)width * height);
-    page_count = number == MODE_320 ? 8 : number == MODE_640 ? 4 : 2;
+
+    page_count = count;
     draw_on(0);
     atomic_store_explicit(&shown, page_store[0], memory_order_release);
     if (kind == KIND_TEXT) {
@@ -310,6 +365,7 @@ int gd_set_mode(unsigned requested)
     serial++;
     touch_all();
     host_state_unlock();
+    pages_drop(count);
     host_video_mode_changed();
     return 1;
 }
