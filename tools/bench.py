@@ -6,8 +6,9 @@
                                                  build (HEAD .)
     bench.py mem [REV...] [--mb N...]            DOS: FRE(-1), FRE("") and the largest array REDIM takes, KB,
                                                  per build (HEAD .) and DOSBox's memory (4 32)
-    bench.py size [REV] [--functions | --parts]  the DOS executables' loaded bytes, REV's (default HEAD) and ours;
-                                                 --parts: ours by source directory, code, constants, data, BSS
+    bench.py size [REV] [--functions | --parts | --reach DIR]  the DOS executables' loaded bytes, REV's
+                                                 (default HEAD) and ours; --parts: ours by source directory, code,
+                                                 constants, data, BSS; --reach: how much of DIR the rest reaches
     bench.py gate [--save]                       the suite and sizes against tools/bench/baseline.json
     bench.py qr [REV...] [--ops]                 tools/bench/qr: each quickr/NAME.bas against its QBasic twin NAME.bas;
                                                  --ops: each Quickr case's ops dispatched, exact, per build
@@ -51,6 +52,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import mkhelp  # noqa: E402
+from dataclasses import field
 from dataclasses import dataclass
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # run with -I too
@@ -397,6 +399,9 @@ def cmd_size(a: argparse.Namespace) -> int:
     if a.parts:
         print_parts(build(".", True))
         return 0
+    if a.reach:
+        print_reach(build(".", True), a.reach)
+        return 0
     was, now = build(a.rev, True), build(".", True)
     old, new = sizes(was), sizes(now)
     for e in EXES:
@@ -620,6 +625,154 @@ def print_parts(b: Build) -> None:
         for name, g in sorted([*p.items(), ("all", total)], key=lambda kv: -sum(kv[1].values())):
             cells = "".join(f"{g[k]:>10,}" for k in ("code", "const", "data", "bss"))
             print(f"{name:16}{cells}{sum(g.values()):>10,}")
+
+
+@dataclass
+class Piece:
+    """A function or a variable of one object: a symbol's bytes to the next symbol's, by kind."""
+
+    obj: str
+    name: str
+    kind: str  # code, const, data, bss
+    size: int
+    refs: set[str] = field(default_factory=set)  # the names it reaches: relocations and direct branches
+
+
+@dataclass(frozen=True)
+class Sym:
+    name: str
+    value: int
+    sec: int
+    typ: int
+    scl: int  # 2 external, 3 static
+
+
+def coff_symbols(raw: bytes) -> list[Sym]:
+    """A COFF object's symbols by table index, each auxiliary record an empty one."""
+    symtab, nsym = struct.unpack_from("<II", raw, 8)
+    strtab = symtab + 18 * nsym
+    syms: list[Sym] = []
+    while len(syms) < nsym:
+        name_b, value, sec, typ, scl, aux = struct.unpack_from("<8sIhHBB", raw, symtab + 18 * len(syms))
+        if name_b[:4] == b"\0\0\0\0":
+            off = strtab + struct.unpack_from("<I", name_b, 4)[0]
+            name = raw[off : raw.index(b"\0", off)].decode()
+        else:
+            name = name_b.rstrip(b"\0").decode()
+        syms += [Sym(name, value, sec, typ, scl)] + [Sym("", 0, 0, 0, 0)] * aux
+    return syms
+
+
+def branches(o: Path, section: str) -> list[tuple[int, int]]:
+    """The direct branches in o's section the assembler resolved (no relocation): from, to."""
+    dis = subprocess.run(
+        [os.environ.get("OBJDUMP", "objdump"), "-dr", "--no-show-raw-insn", f"--section={section}", o],
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    res = []
+    for n, line in enumerate(dis):
+        m = re.match(r"\s+([0-9a-f]+):\s+(?:call|j)\w*\s+0x([0-9a-f]+)", line)
+        if m and not (n + 1 < len(dis) and "IMAGE_REL" in dis[n + 1]):
+            res.append((int(m[1], 16), int(m[2], 16)))
+    return res
+
+
+def coff_pieces(o: Path, rel: str) -> list[Piece]:
+    """o's pieces with their references: each symbol's bytes to the next's, a section's start before its first
+    symbol one more, an assembly file's code one piece. A static's name is rel:name."""
+    raw = o.read_bytes()
+    if raw[0] == 0x80:
+        return [omf_piece(raw, rel)]
+    syms = coff_symbols(raw)
+
+    def key(k: int) -> str:
+        y = syms[k]
+        return y.name if y.scl == 2 else f"{rel}:{y.name}@{y.sec}" if y.name.startswith(".") else f"{rel}:{y.name}"
+
+    pieces: list[Piece] = []
+    for s_i in range(struct.unpack_from("<H", raw, 2)[0]):
+        name_b, _, _, size, _, rel_at, _, nrel, _, flags = struct.unpack_from("<8sIIIIIIHHI", raw, 20 + 40 * s_i)
+        sec, section = s_i + 1, name_b.rstrip(b"\0").decode()
+        if flags & 0x02000800 or not size:  # discardable (debug) or removed (addrsig)
+            continue
+        data = "const" if section.startswith(".rdata") else "data"
+        kind = "code" if flags & 0x20 else "bss" if flags & 0x80 else data
+        own = [k for k, y in enumerate(syms) if y.sec == sec and y.name]
+        asm = kind == "code" and not any(syms[k].typ == 0x20 for k in own)
+        heads = sorted({(syms[k].value, k) for k in own if syms[k].scl in (2, 3) and not syms[k].name.startswith(".")})
+        whole = next(k for k in own if syms[k].name.startswith("."))
+        heads = [] if asm else heads
+        if not heads or heads[0][0]:
+            heads = [(0, whole), *heads]
+        offs = [v for v, _ in heads]
+        ends = [*offs[1:], size]
+        here = [Piece(rel, key(k), kind, end - v) for (v, k), end in zip(heads, ends, strict=True)]
+
+        def at(off: int, here: list[Piece] = here, offs: list[int] = offs) -> Piece:
+            return here[bisect.bisect_right(offs, off) - 1]
+
+        for r in range(nrel):
+            off, k, _ = struct.unpack_from("<IIH", raw, rel_at + 10 * r)
+            at(off).refs.add(key(k))
+        for src, dst in [] if kind != "code" or asm else branches(o, section):
+            if at(dst) is not at(src):
+                at(src).refs.add(at(dst).name)
+        if key(whole) != here[0].name:  # the section's own symbol: its start
+            pieces.append(Piece(rel, key(whole), kind, 0, {here[0].name}))
+        pieces += here
+    return pieces
+
+
+def omf_piece(raw: bytes, rel: str) -> Piece:
+    """An OMF object (our assembly) as one piece of no counted bytes, named by its first public: what it references."""
+    refs: set[str] = set()
+    names: list[str] = []
+    i = 0
+    while i + 3 <= len(raw):
+        kind, n = raw[i], struct.unpack_from("<H", raw, i + 1)[0]
+        body = raw[i + 3 : i + 2 + n]  # less the checksum
+        if kind == 0x8C:  # EXTDEF: name, type index
+            j = 0
+            while j < len(body):
+                refs.add(body[j + 1 : j + 1 + body[j]].decode("latin-1"))
+                j += 2 + body[j]
+        elif kind in (0x90, 0x91):  # PUBDEF: group, segment (a frame if 0), then name, offset, type
+            j, wide = 2 + (body[1] == 0) * 2, 4 if kind == 0x91 else 2
+            while j < len(body):
+                names.append(body[j + 1 : j + 1 + body[j]].decode("latin-1"))
+                j += 2 + body[j] + wide
+        i += 3 + n
+    return Piece(rel, names[0] if names else rel, "code", 0, refs)
+
+
+def reach(b: Build, ide: bool, inside: str) -> list[tuple[Piece, bool]]:
+    """Each piece of the objects under build/c/.../inside, and whether the others' pieces reach it."""
+    pieces = [p for o in link_objects(b, ide)[0] for p in coff_pieces(b.root / o, str(Path(o).relative_to("build/c")))]
+    by_name: dict[str, list[Piece]] = {}
+    for p in pieces:
+        by_name.setdefault(p.name, []).append(p)
+    seen: set[int] = set()
+    todo = [p for p in pieces if not p.obj.startswith((inside, f"obj/{inside}"))]
+    while todo:
+        p = todo.pop()
+        if id(p) in seen:
+            continue
+        seen.add(id(p))
+        todo += [q for r in p.refs for q in by_name.get(r, [])]
+    return [(p, id(p) in seen) for p in pieces if p.obj.startswith((inside, f"obj/{inside}"))]
+
+
+def print_reach(b: Build, inside: str) -> None:
+    for ide, exe in ((False, "basic32.exe"), (True, "ide32.exe")):
+        r = reach(b, ide, inside)
+        print(f"\n{exe}: {inside}'s bytes reached of all")
+        for k in ("code", "const", "data", "bss"):
+            used = sum(p.size for p, u in r if u and p.kind == k)
+            print(f"  {k:6}{used:>10,} of {sum(p.size for p, _ in r if p.kind == k):>10,}")
+        print("  the largest unreached:")
+        for p, _ in sorted((x for x in r if not x[1] and x[0].size), key=lambda x: -x[0].size)[:12]:
+            print(f"    {p.size:>9,}  {p.kind:6}{p.obj}  {p.name.split(':')[-1]}")
 
 
 def profiled(b: Build, d: Path, ide: bool = False) -> Path:
@@ -1846,6 +1999,7 @@ def main() -> int:
     p.add_argument("rev", nargs="?", default="HEAD")
     p.add_argument("--functions", action="store_true", help="each function whose bytes changed")
     p.add_argument("--parts", action="store_true", help="ours by source directory: code, constants, data, BSS")
+    p.add_argument("--reach", metavar="DIR", help="ours: how much of DIR (as qbrt) the other objects reach")
     p = sub.add_parser("gate")
     p.add_argument("--save", action="store_true")
     sub.add_parser("qbasic").add_argument("--json", type=Path, help="the timings to this file too")
