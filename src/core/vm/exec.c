@@ -208,14 +208,14 @@ static inline bool fe_addr(Regs *const r)
 /* FX.IDX ( a s -- e ) of a fixed array field, ours, s in range; false: out of it. */
 static inline bool fx_idx(Regs *const r)
 {
-    const uint32_t k = (uint32_t)r->sp->i - load32(r->ip + 1); /* past count when under lb */
+    const uint32_t k = (uint32_t)r->sp->i - load32(r->ip + 5); /* past count when under lb */
 
-    if (k >= load32(r->ip + 5))
+    if (k >= load32(r->ip + 9))
         return false;
 
     r->sp++;
-    r->sp->a += k * load32(r->ip + 9);
-    r->ip += 13;
+    r->sp->a += load32(r->ip + 1) + k * load32(r->ip + 13);
+    r->ip += 17;
     return true;
 }
 

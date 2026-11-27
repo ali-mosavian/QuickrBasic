@@ -429,11 +429,13 @@ static bool jump_dest(const Comp *const C, Jump *const j)
     j->dest = dest;
 
     /* Jump threading: a target that only ends its line is the next line's start. A jump does the
-       line end's STOP check and drops the temporaries itself. */
+       line end's STOP check and drops the temporaries itself. Not into another file's lines: what
+       runs after a module's last is the link's (qr/qlink.c's chain), not the store's order. */
     while (j->line != DLINE && line_end(rd8(C->allo->cache + j->dest))) {
         const uint32_t next = j->line + prog_line(C->prog, j->line)->len;
+        const Line *const to = prog_line(C->prog, next);
 
-        if (!prog_line(C->prog, next)->len) /* the program's end: END's */
+        if (!to->len || to->file != prog_line(C->prog, j->line)->file) /* the end: END's */
             break;
 
         j->line = next;

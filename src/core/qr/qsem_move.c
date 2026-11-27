@@ -414,7 +414,7 @@ QExpr *qsem_owned(QSem *const S, QExpr *const e, const bool returned)
     S->moves[S->nmoves++] = (QMove){
         .e = e,
         .var = v,
-        .at = qsem_at(S, e->tok),
+        .at = qsem_useat(S, e->tok),
         .loop = S->nloops ? S->loops[S->nloops - 1] : UINT32_MAX,
     };
 

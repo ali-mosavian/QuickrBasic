@@ -5,6 +5,10 @@ option dialect quickr
 type R
     m as ubyte[3, 2]
 end type
+type W
+    w as int
+    m as ubyte[3, 2]
+end type
 var g as int[]
 g = int[3, 2]
 g[2, 1] = 7
@@ -33,4 +37,11 @@ var e as int[]
 print len(e); " "; e.shape()[0]
 let b = string[2, 2]
 print len(b[1, 1])
+' a T[n, m] field past its record's start, in a list's element:
+' the first subscript's FX.IDX adds the field's offset, once
+var ws as list[W]
+ws.push(W(9))
+ws[0].m[2, 1] = 6
+ws[0].m[0, 1] = 4
+print ws[0].w; " "; ws[0].m[2, 1]; " "; ws[0].m[0, 1]; " "; ws[0].m[1, 1]
 g[4, 0] = 1
