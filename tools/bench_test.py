@@ -33,7 +33,7 @@ with tempfile.TemporaryDirectory() as d:
     bench.hl86_module = lambda: None
     bench.vm_stage = staged
     a = argparse.Namespace(card="voodoo2", machine="486", profile=True, demo=["MEADOW"], frames=None, edits=None,
-                           depth=16, n=20, at=None, lines=False, set=["SSTV2_CMDFIFO=1"])
+                           depth=16, n=20, at=None, lines=False, set=["SSTV2_CMDFIFO=1"], show=False)
     try:
         bench.demos_on_card(a, {})
         raise AssertionError("no job staged")
