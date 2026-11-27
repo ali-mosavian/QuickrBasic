@@ -447,6 +447,25 @@ def vm_profile_runs_disagree() -> None:
         assert bool(named) == said and all("_put" in line for line in named), out.getvalue()
 
 
+def vm_profile_driver_lines() -> None:
+    """A driver's function by line, with each line's text: _tdfx_corners printed no lines, the program's map alone
+    searched, and a line outside gfx's files no text."""
+    b = bench.build(".", True)
+    dll = bench.driver_dll(b, "voodoo3")
+    runs = [bench.Samples({"_tdfx_corners": k}, {("_tdfx_corners", 0): k}, k, 10, 100.0) for k in (10, 20)]
+    out = io.StringIO()
+    with (
+        tempfile.TemporaryDirectory() as d,
+        unittest.mock.patch.object(bench, "vm_samples", side_effect=runs),
+        unittest.mock.patch.object(sys, "stdout", out),
+    ):
+        exe = Path(d) / "p.exe"
+        exe.with_suffix(".map").write_text("")
+        bench.print_vm_profile("M", "vm", exe, [(), ()], {}, 4, ["_tdfx_corners"], b, dlls=(dll,))
+    rows = out.getvalue().split("by line:\n")[1].splitlines()
+    assert rows and "setup.c:" in rows[0] and rows[0].split("setup.c:")[1].split()[1:], out.getvalue()
+
+
 def vm_window() -> None:
     """A VM's profile samples the job alone. It sampled from boot until the host stopped it, so the host's delay in
     seeing the end read as frame time: one build's ISLES on the 486, 14.8M cycles a frame, then 11.9M."""
@@ -480,6 +499,7 @@ def main() -> int:
     vm_bios_prompt()
     games_images_with_drivers()
     vm_profile_runs_disagree()
+    vm_profile_driver_lines()
     if (bench.HL86 / "build/src/86Box-headless").exists():
         vm_window()
     b = bench.build(".", False)  # the tree's own instruments: copying them onto themselves raised

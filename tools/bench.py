@@ -1694,9 +1694,14 @@ def dll_functions(listing: str) -> list[tuple[int, str]]:
     return sorted((int(at, 16), f"{n} ({o})" if names.count(n) > 1 else n) for at, n, o in found)
 
 
+def driver_dll(b: Build, card: str) -> Path:
+    """Build b's driver for card, as the DLL its .DRV is made from."""
+    return b.dos.parent / "drivers" / f"{CARD_DRIVERS[card]}.dll"
+
+
 def driver_images(b: Build, card: str) -> tuple[tuple[bytes, list[tuple[int, str]]], ...]:
     """Build b's driver for card: its code and functions, from its DLL and map."""
-    dll = b.dos.parent / "drivers" / f"{CARD_DRIVERS[card]}.dll"
+    dll = driver_dll(b, card)
     return ((dll_code(dll), dll_functions(dll.with_suffix(".map").read_text())),)
 
 
@@ -1814,28 +1819,44 @@ def gfx_objects(b: Build) -> list[Path]:
     return [b.root / o for o in g.group(1).split()]
 
 
-def by_line(b: Build, listing: str, name: str, offsets: dict[int, float], d: Path) -> dict[str, float]:
-    """name's cycles by offset as by source line, inlined callees' lines their own. Its object, the
-    map's module for it, gfx's slice's or the program's own, is built again with DWARF line tables,
-    the same code; a sample is the block that ran, charged to its first instruction's line."""
+def object_of(b: Build, listing: str, name: str, dlls: tuple[Path, ...]) -> tuple[Path, str] | None:
+    """The object name's code is from, and its symbol there: the program map's module for it, gfx's
+    slice's or the program's own; else a driver's, by its DLL's map and link. None, in neither."""
     module = ""
     for row in listing.splitlines():
         if m := re.match(r"Module: (.*?)\(", row):
             module = m[1]
         elif re.match(rf"0001:[0-9a-f]{{8}}\*?\s+{re.escape(name)}$", row):
-            break
-    else:
+            at = re.search(r"slice/(\d+)_[^/]*$", module)
+            obj = gfx_objects(b)[int(at[1])] if at else Path(module)
+            return obj.resolve(), name.removeprefix("_slice") if at else name
+    sym, _, mod = name.removesuffix(")").partition(" (")  # dll_functions' name two modules share
+    for dll in dlls:
+        found = re.search(rf"(?m)^\s*0001:[0-9a-f]{{8}}\s+{re.escape(sym)}\s+[0-9a-f]+\s+({mod or r'\S+'}\.obj)$",
+                          dll.with_suffix(".map").read_text())
+        if found:
+            rel = str(dll.resolve().relative_to(b.root.resolve()))
+            made = subprocess.run(["make", "-n", "-B", rel], cwd=b.root, capture_output=True, text=True).stdout
+            link = next(c for c in made.splitlines() if f"/out:{rel}" in c)
+            return (b.root / next(o for o in link.split() if Path(o).name == found[1])).resolve(), sym
+    return None
+
+
+def by_line(
+    b: Build, listing: str, name: str, offsets: dict[int, float], d: Path, dlls: tuple[Path, ...] = ()
+) -> dict[str, float]:
+    """name's cycles by offset as by source line, path:line, inlined callees' lines their own. Its
+    object (object_of) is built again with DWARF line tables, the same code; a sample is the block
+    that ran, charged to its first instruction's line."""
+    found = object_of(b, listing, name, dlls)
+    if not found or not found[0].is_relative_to(b.root.resolve()):
         return {}
-    at = re.search(r"slice/(\d+)_[^/]*$", module)
-    obj = (gfx_objects(b)[int(at[1])] if at else Path(module)).resolve()
-    if not obj.is_relative_to(b.root.resolve()):
-        return {}
+    obj, sym = found
     rel = str(obj.relative_to(b.root.resolve()))
     made = subprocess.run(["make", "-n", "-B", rel], cwd=b.root, capture_output=True, text=True).stdout
     cmd = next(c for c in made.splitlines() if f"-o {rel}" in c)
     lined = d / f"{obj.stem}.lines.obj"
     subprocess.run(cmd.replace(f"-o {rel}", f"-gdwarf-4 -o {lined}"), shell=True, cwd=b.root, check=True)
-    sym = name.removeprefix("_slice") if at else name
 
     def listing_of(o: Path, lines: bool) -> str:
         flags = ["-d", "--no-show-raw-insn", *(["-l"] if lines else []), f"--disassemble-symbols={sym}"]
@@ -1850,7 +1871,7 @@ def by_line(b: Build, listing: str, name: str, offsets: dict[int, float], d: Pat
     where, start, lines = "?", -1, {}
     for row in text.splitlines():
         if m := re.match(r"; (\S+):(\d+)", row):
-            where = f"{Path(m[1]).name}:{m[2]}"
+            where = f"{m[1]}:{m[2]}"
         elif m := re.match(r"\s*([0-9a-f]+):", row):
             start = int(m[1], 16) if start < 0 else start
             lines[int(m[1], 16) - start] = where
@@ -1862,10 +1883,10 @@ def by_line(b: Build, listing: str, name: str, offsets: dict[int, float], d: Pat
 
 
 def source_text(b: Build, where: str) -> str:
-    """The source line file:line names, under stdlib/gfx/src; empty when not found."""
-    name, _, line = where.partition(":")
-    found = next(iter((b.root / "stdlib/gfx/src").rglob(name)), None)
-    rows = found.read_text().splitlines() if found and line.isdigit() else []
+    """The source line path:line names, a path under b's root or absolute; empty when not found."""
+    name, _, line = where.rpartition(":")
+    found = b.root / name
+    rows = found.read_text().splitlines() if found.is_file() and line.isdigit() else []
     return rows[int(line) - 1].strip() if rows and int(line) <= len(rows) else ""
 
 
@@ -1880,6 +1901,7 @@ def print_vm_profile(
     lined: Build | None = None,
     realtime: bool = False,
     images: tuple[tuple[bytes, list[tuple[int, str]]], ...] = (),
+    dlls: tuple[Path, ...] = (),
 ) -> None:
     """Each function's cycles a frame on 86Box's VM vm, by time sampled: the longer job's less the
     shorter's, over the frames between, so the start-up drops out. Each of inside's functions by
@@ -1901,10 +1923,10 @@ def print_vm_profile(
         offs = {k[1]: (v - a.at.get(k, 0)) * per for k, v in b.at.items() if k[0] == f}
         if lined:
             with tempfile.TemporaryDirectory() as d:
-                lines = by_line(lined, exe.with_suffix(".map").read_text(), f, offs, Path(d))
+                lines = by_line(lined, exe.with_suffix(".map").read_text(), f, offs, Path(d), dlls)
             print(f"{f}, {cycles.get(f, 0):,.0f} cycles, by line:")
             for where, c in sorted(lines.items(), key=lambda kv: -kv[1])[:n]:
-                print(f"{c:>12,.0f} {c / total:6.1%}  {where:16} {source_text(lined, where)[:70]}")
+                print(f"{c:>12,.0f} {c / total:6.1%}  {Path(where).name:16} {source_text(lined, where)[:70]}")
             continue
         print(f"{f}, by offset:")
         for off, c in sorted(offs.items(), key=lambda kv: -kv[1])[:n]:
@@ -1967,7 +1989,7 @@ def demos_on_card(a: argparse.Namespace, own: dict[str, bytes]) -> int:
                     for n in (f, 2 * f)
                 ]
                 print_vm_profile(name, vm, exe, jobs, card, a.n, a.at or [], b if a.lines else None, True,
-                                 driver_images(b, a.card))
+                                 driver_images(b, a.card), (driver_dll(b, a.card),))
         return 0
     print(f"at their own size at 16 bits on 86Box ({vm}), frames a second over {a.seconds:g} s")
     print(f"{'':12}" + "".join(f"{t:>10}" for t in ("pages", a.card, "no vsync")))
