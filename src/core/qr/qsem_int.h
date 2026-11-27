@@ -106,6 +106,7 @@ struct QSem {
     QScopeAt *at;    /* the last statement's names in sight, QProg.keep */
     QType inst;      /* a generic record's instance being made, its errors named for it */
     const QFn *body; /* the method whose body is inlined, its errors named for it; null none */
+    uint32_t site;   /* the call body is inlined at: where its uses and moves are (qsem_useat) */
 };
 
 /* The names in sight at a statement: its fn's, a block's, the modules' (QSemKeep's). */
@@ -154,6 +155,8 @@ void qsem_bindty(QSem *S, const QTok *name, QType t);
 QVar *qsem_var(QSem *S, const QTok *name, QType type, QVarKind kind);
 QVar *qsem_root(const QExpr *e);
 uint32_t qsem_at(const QSem *S, const QTok *t);
+/* Where a use or a move at t is: t's place, or an inlined body's call's. */
+uint32_t qsem_useat(const QSem *S, const QTok *t);
 
 /* qsem_type.c */
 QType qsem_scalar(const QTok *t);
