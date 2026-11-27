@@ -40,8 +40,8 @@ void qr_forget(QrKeep *k);
 
 /* A QBasic program's Quickr modules (io/repl.c): read, then checked when its QBasic modules are
    declared, then linked in its link (comp/link.h), each's code run by its first IMPORT. Their
-   tree, each line's statement and each module's exports, kept till the next load; the link's
-   hooks, set by qr_guest_declare. */
+   tree, each line's statement and each module's exports, kept till the next load, or a batch
+   run's link (LinkGuest.done). The link's hooks, set by qr_guest_declare. */
 typedef struct {
     LinkGuest link;
     const bool *emit; /* the session's dbug.emit */
@@ -56,6 +56,7 @@ typedef struct {
 typedef struct {
     QrKeep keep;
     QrGuests guests;
+    Arena lits; /* the run's: the consts' texts QBasic loads, till the next link (qlink.h) */
 } QrState;
 /* S's, made on first use. Out of memory. */
 QrState *qr_state(Session *S);

@@ -1030,6 +1030,15 @@ static void build(Comp *const C)
 
 void link_raise(Comp *const C) { each_error(C, raise_one, C->fault); }
 
+void link_final(Comp *const C)
+{
+    LinkGuest *const g = C->guest;
+    C->guest = nullptr;
+
+    if (g)
+        g->done(g);
+}
+
 void link_start(Comp *const C)
 {
     C->check = false; /* a check an error left */

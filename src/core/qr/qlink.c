@@ -794,6 +794,7 @@ void qlink_program(
     QProg *const p,
     QMem *const m,
     const Exports *const ex,
+    Arena *const lits,
     const bool dbg
 )
 {
@@ -809,7 +810,7 @@ void qlink_program(
 
     qlink_foreign(C, p);
     qlink_types(C, p, m);
-    const QStmt *const *const of = qlink_guest_made(C, p, m, ex);
+    const QStmt *const *const of = qlink_guest_made(C, p, m, ex, lits);
 
     if (qb) /* each QBasic import's name of a Quickr fn: its procedure */
         bind_procs(C->symb);
@@ -841,11 +842,11 @@ void qlink_guest_types(Comp *const C, const QProg *const p, QMem *const m) { qli
 
 /* The exports ex of each module QBasic calls (by number): its consts literals; each fn QBasic
    can't call a procedure of no entry, an error where called (comp/refs.c). */
-static void qlink_exports(Comp *const C, const QProg *const p, QMem *const m, const Exports *ex)
+static void qlink_exports(Comp *const C, const QProg *const p, Arena *const lits, const Exports *ex)
 {
     for (uint32_t k = 1; k < p->nmods; k++)
         if (p->mods[k].called)
-            expo_literals(C, p->mods[k].modu, &ex[k], &m->arena);
+            expo_literals(C, p->mods[k].modu, &ex[k], lits);
 
     for (uint32_t k = 1; k < p->nmods; k++)
         for (uint32_t i = 0; p->mods[k].called && i < ex[k].nprocs; i++) {
@@ -867,14 +868,16 @@ const QStmt *const *qlink_guest_made(
     Comp *const C,
     const QProg *const p,
     QMem *const m,
-    const Exports *const ex
+    const Exports *const ex,
+    Arena *const lits
 )
 {
     qlink_foreign(C, p); /* its QBasic imports' procedures */
     qlink_procs(C, p);
     qlink_vars(C, p);
     symb_size(C->symb, 0);
-    qlink_exports(C, p, m, ex);
+    arena_free(lits); /* the link before's */
+    qlink_exports(C, p, lits, ex);
 
     const QStmt **const of = qast_alloc(m, (p->src.nlines ? p->src.nlines : 1) * sizeof *of);
 
