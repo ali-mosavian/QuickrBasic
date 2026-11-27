@@ -248,6 +248,12 @@ static void sprite(Gx *const g, const Source *const p, const Vec at, const int32
     soft_sprite(call(g), &px, at.x, at.y, flags);
 }
 
+static void quad(Gx *const g, const Source *const p, const Corner c[4], const int32_t flags)
+{
+    poly(g, p, c, 3, 0, flags);
+    poly(g, p, (const Corner[]){c[0], c[2], c[3]}, 3, 0, flags);
+}
+
 static void turned(Gx *const g, const Source *const p, const Turn *const t, const int32_t flags)
 {
     const Pixels px = source_pixels(p);
@@ -278,4 +284,5 @@ const Backend backend_soft = {
     .rect = rect,
     .sprite = sprite,
     .turned = turned,
+    .quad = quad,
 };

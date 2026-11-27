@@ -72,7 +72,7 @@ static GpuVertex vertex(
 }
 
 /* Corners a, b, c, d round; uv their texels, or null the white texel's. */
-static void quad(
+static void emit_quad(
     const GpuCall *const t,
     const GpuVertex *const template,
     const Vec *const p,
@@ -128,7 +128,7 @@ static void box(
     const float y1
 )
 {
-    quad(t, template, (const Vec[]){{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}}, nullptr);
+    emit_quad(t, template, (const Vec[]){{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}}, nullptr);
 }
 
 /* An index as a vertex's r, g and b: itself in each. */
@@ -343,7 +343,7 @@ static void segment(
     };
 
     if (from != to)
-        quad(t, template, p, nullptr);
+        emit_quad(t, template, p, nullptr);
 }
 
 static void line(Gx *const g, const Vec a, const Vec b, const uint32_t colour)
@@ -574,7 +574,7 @@ static void sprite(Gx *const g, const Source *const p, const Vec at, const int32
 
     const Vec uv[] = {{u0, v0}, {u1, v0}, {u1, v1}, {u0, v1}};
 
-    quad(t, &t->template, corners, uv);
+    emit_quad(t, &t->template, corners, uv);
 }
 
 static bool screen_open(Gx *const g, const QxScreen *const s, const PxFormat f)
@@ -658,6 +658,12 @@ static void wrote(Gx *const g, const uint32_t h, const int32_t top, const int32_
 
 static void forget(Gx *const g, const uint32_t h) { gpu_forget(gpu(g), h); }
 
+/* A fan of c's corners: the two triangles. */
+static void quad(Gx *const g, const Source *const p, const Corner c[4], const int32_t flags)
+{
+    poly(g, p, c, 4, 0, flags);
+}
+
 static void turned(Gx *const g, const Source *const p, const Turn *const t, const int32_t flags)
 {
     Corner v[4];
@@ -689,4 +695,5 @@ const Backend backend_gpu = {
     .rect = rect,
     .sprite = sprite,
     .turned = turned,
+    .quad = quad,
 };

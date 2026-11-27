@@ -76,6 +76,8 @@ typedef struct {
     void (*sprite)(Gx *g, const Source *p, Vec at, int32_t flags);
     /* Turned or scaled by t (shape.h), as poly's of its corners. */
     void (*turned)(Gx *g, const Source *p, const Turn *t, int32_t flags);
+    /* c's two triangles, as a GPU draws a quad: c[0], c[1] and c[2]; c[0], c[2] and c[3]. */
+    void (*quad)(Gx *g, const Source *p, const Corner c[4], int32_t flags);
 } Backend;
 
 extern const Backend backend_soft, backend_gpu;

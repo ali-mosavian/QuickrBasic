@@ -395,8 +395,7 @@ void gfx_draw_quad(
         return;
 
     shape_quad(s->w, s->h, world, flags, &where, v);
-    b->poly(g, &src, v, 3, 0, flags);
-    b->poly(g, &src, (const Corner[]){v[0], v[2], v[3]}, 3, 0, flags);
+    b->quad(g, &src, v, flags);
 }
 
 /* x, y the first point, x2, y2 the last, after the camera. The texture repeats along the points,

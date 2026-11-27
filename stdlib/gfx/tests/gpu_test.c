@@ -877,6 +877,22 @@ static void deep_quad(Session *const S, const int32_t flags)
     GPU_CALL("display.flip");
 }
 
+/* A quad is its two triangles from one fan of its four corners. It was two polys of three, each
+   sent as four vertices and an empty triangle: twice the vertices through each layer. */
+TEST(gfx_gpu_draws_a_quad_as_one_fan)
+{
+    screen(S, 8, 8, 32);
+
+    const int32_t s = GPU_CALL("surface.new", I(2), I(2)).result.i;
+    gfx_draw_vec2 c[4] = {{0, 0}, {6, 0}, {7, 5}, {1, 7}};
+
+    QxArray a = gfx_array(c, 4, sizeof *c);
+    GPU_CALL("draw.quad", I(SURF_SCREEN), ARRAY(&a), I(0), I(s), I(0));
+    GPU_CALL("display.flip");
+    CHECK(ops(FIRST "TUPNCUULDSE") && arg(QX_LIST_DRAW, 0, 5) == 6);
+    CHECK(vertices[3].x - vertices[0].x == 1 && vertices[3].y - vertices[0].y == 7);
+}
+
 /* With depth, the target's depth texture is made and its pass draws into it, through a pipeline
    testing and setting depth; a corner's depth is 1/z, and in perspective its w is z, so the GPU
    steps texels and depth as software's scanner. The GPU drew polys affine and without depth: a
