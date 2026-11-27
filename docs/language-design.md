@@ -897,23 +897,32 @@ end function
 - A Quickr file imports a QBasic module as a Quickr one: `import shapes`, then `shapes.area(2, 3)`,
   or `from shapes import area`. Its SUBs and FUNCTIONs are functions, its TYPEs records; not its
   PRIVATE ones.
+- A QBasic CONST is a const when its value is a whole number known as declared. Any other is a
+  `let` its module's code sets: a SINGLE, a DOUBLE or a string reads as that code left it.
 - A QBasic name matches case aside and without its suffix: `FUNCTION Area!(w!)` is `shapes.area`.
   Two that match one name are an error where it is used.
 - Types: INTEGER and LONG are `int`, both 32 bits; SHORT is `short`, SINGLE `single`, DOUBLE
-  `double`, STRING `string`, a TYPE a record of the same fields.
+  `double`, STRING `string`, a TYPE a record of the same fields. A TYPE's array field from 0 is a
+  fixed array, `heights(7) AS INTEGER` an `int[8]`; a dynamic one, `tags() AS STRING`, a list.
 - A parameter by reference takes a `var`'s place, and the `var` sees the change. Any other
   argument, a `let`'s too, goes as a copy. A BYVAL parameter is by value.
 - An array parameter takes a list by reference. QBasic sees the list's length as its bounds, from 0,
-  and a REDIM of it changes the list.
+  and a REDIM of it changes the list. A BYTE array is a `ubyte` list. A native's takes a fixed
+  array too, `var px as ubyte[16]`, as it can't REDIM.
 - What Quickr has no equal for is an error where it is used, naming why, never at the import: a
-  fixed-length string, a BYTE, a TYPE's array field.
+  fixed-length string, a BYTE that is not an array, an array field of two dimensions or not from 0.
 - A native module, a `.qbx`, is imported as a QBasic one: `from synth import note`.
 - A QBasic module's code runs at its first import, as in QBasic.
 - A QBasic file imports a Quickr module: `IMPORT shapes`, then `shapes.area(2, 3)`, or `FROM
-  shapes IMPORT area`. Its functions are SUBs and FUNCTIONs, its records TYPEs, the private ones
-  aside. Its methods are not seen.
+  shapes IMPORT area`. Its functions are SUBs and FUNCTIONs, its records TYPEs, its consts CONSTs,
+  the private ones aside. Its methods are not seen. A string const longer than 255 bytes is not
+  exported.
 - Types back: `int` is LONG, `short` SHORT, `single`, `double` and `string` the same, `bool`
-  INTEGER, true -1 in both, a record a TYPE. A `mut` parameter is by reference, any other by value.
+  INTEGER, true -1 in both, a record a TYPE, its fixed arrays and lists array fields. A `mut`
+  parameter is by reference, any other by value.
+- A list parameter takes an array of one dimension from 0, by reference: a `mut` one's push and
+  pop change its bounds. Any other array is Subscript out of range where passed; a fixed array
+  field can't go to a `mut` one.
 - Any other type in a function's parameters or result, or in a record's fields, makes it an error
   where QBasic uses it.
 - QBasic matches names case aside: two exports that differ only so are an error at the IMPORT.

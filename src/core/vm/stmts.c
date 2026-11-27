@@ -583,6 +583,32 @@ void stmt_fcell(Session *const S)
     exec_pusha(&S->vm, addr_of(arry_field_cell(&S->arry, data, key)));
 }
 
+/* QLIST ( cell -- cell ): an array for a Quickr list parameter: none, or of one dimension from 0,
+   else Subscript out of range. */
+void stmt_qlist(Session *const S)
+{
+    const Addr cell = exec_popa(&S->vm);
+    const Addr h = ((const ArrSlot *)at(cell))->hdr;
+    exec_pusha(&S->vm, cell);
+
+    if (!h)
+        return;
+
+    const ArrView v = arry_view(h);
+
+    if (v.dims > 1 || (v.dims && arry_view_lbound(&v, 0)))
+        fault_raise(
+            &S->fault,
+            (Failure){
+                .code = E_BS,
+                .at = FAULT_KEEP,
+                .line = FAULT_KEEP,
+                .why = "a Quickr list takes an array of one dimension from 0",
+            }
+
+        );
+}
+
 /* HOLD, UNHOLD: around a call that may sweep while addresses into the heap wait on the stack
    (arry_hold). */
 void stmt_hold(Session *const S) { arry_hold(&S->arry); }

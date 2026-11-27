@@ -1,0 +1,7 @@
+ 7 
+ 1  3 
+ 2  7  4  1 imp
+orcelfimp
+ 11 
+Subscript out of range in line No line number in module QRLISTS  at address 00000BDA
+a Quickr list takes an array of one dimension from 0

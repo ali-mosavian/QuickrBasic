@@ -58,6 +58,29 @@ check 'quickr' "$(printf '5 1\n5')" \
     'print gfx.surface.point(canvas, 2, 2); " "; display.draws()' \
     'print gfx.surface.point(canvas, 3, 2)'
 
+# pixels() AS BYTE: a ubyte list, and to a native a fixed ubyte array, a record's too
+check 'quickr pixels' "$(printf '7 7 9 200')" \
+    "' OPTION DIALECT QUICKR" \
+    'from gfx import surface' \
+    'type Tile' \
+    '    px as ubyte[4]' \
+    'end type' \
+    'let s = surface.new(2, 2)' \
+    'var px as ubyte[4]' \
+    'px[3] = 7' \
+    'surface.write(s, 0, 0, 2, 2, px)' \
+    'var back as ubyte[]' \
+    'for i in 0..4' \
+    '    back.push(0)' \
+    'next' \
+    'surface.read(s, 0, 0, 2, 2, back)' \
+    'back[0] = 9' \
+    'back[1] = 200' \
+    'surface.write(s, 0, 0, 2, 2, back)' \
+    'var t as Tile' \
+    'surface.read(s, 0, 0, 2, 2, t.px)' \
+    'print back[3]; " "; surface.point(s, 1, 1); " "; t.px[0]; " "; t.px[1]'
+
 check 'no such part' "$(printf 't.bas:1: File not found\n  import gfx.nosuch\n  ^')" \
     'import gfx.nosuch'
 echo ok

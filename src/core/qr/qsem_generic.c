@@ -655,10 +655,20 @@ static bool qsem_varplace(QSem *const S, const QExpr *const e)
     return v && (v->kind == QV_VAR || v->kind == QV_MUT || (v->kind == QV_EACH && v->mut));
 }
 
-/* Var place v for QBasic by-reference parameter p: of its type, so the var sees the change. */
-static QExpr *qsem_refarg(QSem *const S, QExpr *const v, const QParam *const p)
+/* Is t a fixed array of list type l's elements, which a native takes as l: it can't REDIM? */
+static bool qsem_fixedof(const QSem *const S, const QType t, const QType l)
 {
-    if (v->type != p->var->type && v->type != QY_ERROR) {
+    return qast_array(S->prog, t) && qast_array(S->prog, l) &&
+           qast_ty(S->prog, t)->kind == QT_ARRAY && qast_ty(S->prog, l)->kind == QT_LIST &&
+           qast_ty(S->prog, t)->elem == qast_ty(S->prog, l)->elem;
+}
+
+/* Var place v for QBasic procedure f's by-reference parameter p: of its type, so the var sees the
+   change; a native's list a fixed array too. */
+static QExpr *qsem_refarg(QSem *const S, QExpr *const v, const QFn *const f, const QParam *const p)
+{
+    if (v->type != p->var->type && v->type != QY_ERROR &&
+        !(f->ncall && qsem_fixedof(S, v->type, p->var->type))) {
         qsem_say(
             S,
             v->tok,
@@ -764,7 +774,7 @@ QExpr *qsem_fncall(QSem *const S, QExpr *const e, QFn *f)
         if ((p->mut || ref) && !lend)
             v->type = QY_ERROR;
 
-        e->argv[k] = ref      ? qsem_refarg(S, v, p)
+        e->argv[k] = ref      ? qsem_refarg(S, v, f, p)
                      : p->mut ? qsem_mutarg(S, v, p)
                               : qsem_addressed(S, qsem_coerce(S, v, p->var->type));
 

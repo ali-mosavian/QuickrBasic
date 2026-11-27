@@ -1,4 +1,4 @@
 ' OPTION DIALECT QUICKR
 type Bag
-    items as int[]
+    items as int[][]
 end type

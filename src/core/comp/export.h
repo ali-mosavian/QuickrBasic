@@ -41,12 +41,15 @@ typedef struct {
     const char *why;
 } ExpProc;
 
-/* A record's field: its name, its type (an ExpVal's), its bytes into the record. */
+/* A record's field: its name, its type (an ExpVal's), an array's its elements'; its bytes into the
+   record; a fixed array's count elements from 0, or a list (a dynamic array). */
 typedef struct {
     const char *name;
     uint32_t len;
     uint32_t et;
     uint32_t off;
+    uint32_t count;
+    bool list;
 } ExpField;
 
 /* A record: its name, its TYPE (comp/declare.h), its fields and bytes, whether it holds strings;
@@ -62,21 +65,41 @@ typedef struct {
     const char *why;
 } ExpType;
 
+/* A CONST: its name, its type (an ExpVal's); its value when known before the run: an integer's
+   in i, a SINGLE's or a DOUBLE's in d, a string's slen bytes at s; else var, the variable its
+   CONST statement sets as its module's code runs. */
+typedef struct {
+    const char *name;
+    uint32_t len;
+    uint32_t et;
+    bool known;
+    int64_t i;
+    double d;
+    const char *s;
+    uint32_t slen;
+    uint32_t var;
+} ExpConst;
+
 typedef struct Exports {
     ExpProc *procs;
     uint32_t nprocs;
     ExpType *types;
     uint32_t ntypes;
+    ExpConst *consts;
+    uint32_t nconsts;
 } Exports;
 
-/* QBasic module m's SUBs, FUNCTIONs and TYPEs but the PRIVATE ones, after link_prepare: each
+/* QBasic module m's SUBs, FUNCTIONs, TYPEs and CONSTs but the PRIVATE ones, after link_prepare: each
    value's type one both dialects have (ET_I2, ET_I4, ET_SH, ET_R4, ET_R8, ET_SD, a TYPE of them),
    else why not. In a's room; Out of memory through C's fault. */
 Exports expo_qbasic(const Comp *C, uint32_t m, Arena *a);
 /* Quickr module m's exports x, declared as QBasic's in module m: each procedure a SUB, or a
-   FUNCTION of its result's type; each record usable a TYPE. The first name two of them spell,
-   case aside; 0 none. */
+   FUNCTION of its result's type; each record usable a TYPE; each const a CONST. The first name
+   two of them spell, case aside; 0 none. */
 uint32_t expo_declare(Comp *C, uint32_t m, const Exports *x);
+/* Quickr module m's consts, x's, loaded as literals where QBasic uses them: after link_prepare,
+   before the QBasic lines compile. A string's text in a's room. */
+void expo_literals(Comp *C, uint32_t m, const Exports *x, Arena *a);
 /* Why the value bound by b, its array's elements when arr, has no type both dialects have. */
 ExpWhy expo_value_why(const Decl *d, const Binding *b, bool arr);
 /* Can the other dialect use name t, a module's export: not a procedure or a TYPE whose verdict,

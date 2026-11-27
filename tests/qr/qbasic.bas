@@ -3,7 +3,7 @@
 ' reference into a var, as a copy from anything else
 import twice
 import shapes
-from shapes import area, Rect, Pt
+from shapes import area, Rect, Pt, SIDES, TITLE
 print "main"
 print twice.quad(3); " "; shapes.total()
 var r = Rect(2, 3, "r")
@@ -33,3 +33,6 @@ print shapes.greet("ann")
 print shapes.half(5)
 let q = shapes.square(4)
 print q.w; " "; q.h; " "; q.label
+' its CONSTs: whole numbers consts, the rest read as its code set them
+const MORE = SIDES + 1
+print SIDES; " "; shapes.DIAGS; " "; MORE; " "; shapes.SHARE; " "; shapes.TAU; " "; TITLE

@@ -164,6 +164,9 @@ static QType qsem_qbtype(const QSem *const S, const uint32_t et)
     case ET_SH:
         return QY_SHORT;
 
+    case ET_BY:
+        return QY_UBYTE;
+
     case ET_R4:
         return QY_SINGLE;
 
@@ -212,8 +215,8 @@ static void qsem_qbrecords(QSem *const S, const uint32_t k)
     }
 }
 
-/* QBasic module k's TYPEs' fields, its procedures functions: each bound in its scope, why one
-   is not usable kept. */
+/* QBasic module k's TYPEs' fields, its procedures functions, its CONSTs consts: each bound in its
+   scope, why one is not usable kept. */
 static void qsem_qbnames(QSem *const S, const uint32_t k)
 {
     static const char unseen[] = "a TYPE no module it imports exports";
@@ -230,7 +233,9 @@ static void qsem_qbnames(QSem *const S, const uint32_t k)
 
         for (uint32_t f = 0; f < e->nfields; f++) {
             const ExpField *const ef = &e->fields[f];
-            const QType ft = qsem_qbtype(S, ef->et);
+            const QType et = qsem_qbtype(S, ef->et);
+            const QType ft =
+                (ef->list || ef->count) && et != QY_ERROR ? qsem_listof(S, et, ef->count) : et;
             why = why || ft != QY_ERROR ? why : unseen;
             y->fields[f] = (QField){
                 .name = qsem_qbtok(S, ef->name, ef->len),
@@ -277,6 +282,22 @@ static void qsem_qbnames(QSem *const S, const uint32_t k)
         f->next = S->prog->foreign;
         S->prog->foreign = f;
         qsem_qbbind(S, k, (QBind){.name = f->name, .fn = f, .why = why});
+    }
+
+    for (uint32_t i = 0; i < x->nconsts; i++) { /* known: a const; else its CONST's variable */
+        const ExpConst *const e = &x->consts[i];
+        QVar *const v = qast_alloc(S->mem, sizeof *v);
+        *v = (QVar){
+            .name = qsem_qbtok(S, e->name, e->len),
+            .type = qsem_qbtype(S, e->et),
+            .kind = e->known ? QV_CONST : QV_LET,
+            .val = {.i = e->i},
+            .constant = e->known,
+            .shared = true,
+            .id = e->var,
+        };
+
+        qsem_qbbind(S, k, (QBind){.name = v->name, .var = v});
     }
 }
 

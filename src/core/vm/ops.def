@@ -349,6 +349,7 @@ XOP(I_COUNT, flow_i_count, 3, 0)
 XOP(HOLD, stmt_hold, 2, 0) /* ours: a call while addresses into the heap wait on the stack */
 XOP(UNHOLD, stmt_unhold, 2, 0)
 XOP(FRES, func_fres, 2, FX) /* FRE(s$) ( s -- n ): the strings' room */
+XOP(QLIST, stmt_qlist, 2, 0) /* ( cell -- cell ): an array for a Quickr list parameter, ours */
 #undef XOP
 #endif
 

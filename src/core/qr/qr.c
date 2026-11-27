@@ -1114,9 +1114,11 @@ static bool qr_et(const QProg *const p, const QType t, uint32_t *const et)
         return false;
 
     for (uint32_t k = 0; k < y->nfields; k++) {
+        const QType ft = y->fields[k].type;
+        const QType elem = qast_array(p, ft) ? qast_ty(p, ft)->elem : ft; /* a TYPE's array field */
         uint32_t f;
 
-        if (y->fields[k].priv || !qr_et(p, y->fields[k].type, &f) || f == ET_IMP)
+        if (y->fields[k].priv || qast_array(p, elem) || !qr_et(p, elem, &f) || f == ET_IMP)
             return false;
     }
 
@@ -1124,10 +1126,87 @@ static bool qr_et(const QProg *const p, const QType t, uint32_t *const et)
     return true;
 }
 
+/* Parameter type t as a QBasic parameter's, v's et and array: a list one of an array, by
+   reference; false QBasic has no equal for it. */
+static bool qr_param(const QProg *const p, const QType t, ExpVal *const v)
+{
+    const QTy *const y = qast_array(p, t) ? qast_ty(p, t) : nullptr;
+    v->array = y && y->kind == QT_LIST;
+
+    if (y && (!v->array || qast_array(p, y->elem)))
+        return false;
+
+    return qr_et(p, v->array ? y->elem : t, &v->et) && v->et != ET_IMP;
+}
+
 /* The module token t is in. */
 static uint32_t qr_modof(const QProg *const p, const QTok *const t)
 {
     return t->line < p->src.nlines ? p->src.lines[t->line].mod : 0;
+}
+
+/* String constant s's text, its escapes made their characters, in m's room: false longer than a
+   QBasic literal's 255 bytes. */
+static bool qr_const_text(
+    const QPiece *s,
+    QMem *const m,
+    const char **const text,
+    uint32_t *const len
+)
+{
+    uint32_t n = 0;
+
+    for (const QPiece *q = s; q; q = q->next)
+        n += q->lit->len;
+
+    char *const t = qast_alloc(m, n ? n : 1);
+    n = 0;
+
+    for (; s; s = s->next)
+        for (uint32_t i = 0; i < s->lit->len; i++) {
+            const char c = s->lit->text[i];
+            const char e = c == '\\' ? s->lit->text[++i] : 0;
+            t[n++] = !e ? c : e == 'n' ? '\n' : e == 't' ? '\t' : e;
+        }
+
+    *text = t;
+    *len = n;
+    return n <= UINT8_MAX;
+}
+
+/* Module k's public consts into x, each of a type QBasic has: an integer's, a bool's -1 or 0, a
+   float's, a string's of 255 bytes at most. */
+static void qr_consts(const QProg *const p, const uint32_t k, QMem *const m, Exports *const x)
+{
+    const QMod *const mod = &p->mods[k];
+    uint32_t n = 0;
+
+    for (QStmt *s = mod->head; s; s = qsem_nextin(mod, s))
+        for (const QDecl *d = s->kind == QS_DECL && s->op == QK_CONST ? s->decls : nullptr; d;
+
+             d = d->next)
+            n++;
+
+    x->consts = qast_alloc(m, (n ? n : 1) * sizeof *x->consts);
+
+    for (QStmt *s = mod->head; s; s = qsem_nextin(mod, s)) {
+        if (s->kind != QS_DECL || s->op != QK_CONST || s->priv)
+            continue;
+
+        for (const QDecl *d = s->decls; d; d = d->next) {
+            const QVar *const v = d->var;
+            ExpConst e = {.name = d->name->text, .len = d->name->len, .known = true};
+
+            if (!v || !v->constant || !qr_et(p, v->type, &e.et) || e.et == ET_IMP || e.et >= ET_REC)
+                continue;
+            if (e.et == ET_SD && !qr_const_text(v->val.s, m, &e.s, &e.slen))
+                continue;
+
+            e.i = v->type == QY_BOOL ? -(int64_t)(v->val.i != 0) : v->val.i;
+            e.d = qast_integer(v->type) ? (double)v->val.i : v->val.d;
+            x->consts[x->nconsts++] = e;
+        }
+    }
 }
 
 /* Module k's public functions, methods aside, and records, as QBasic sees them. */
@@ -1165,8 +1244,8 @@ static Exports qr_exported(const QProg *const p, const uint32_t k, QMem *const m
 
         for (uint32_t j = 0; j < f->npar; j++) { /* a generic's have no var: ok false before */
             ExpVal *const v = &e->params[j];
-            ok = ok && qr_et(p, f->params[j].var->type, &v->et) && v->et != ET_IMP;
-            v->byref = f->params[j].mut;
+            ok = ok && qr_param(p, f->params[j].var->type, v);
+            v->byref = f->params[j].mut || v->array;
             v->name = f->params[j].name->text;
             v->len = f->params[j].name->len;
         }
@@ -1192,6 +1271,7 @@ static Exports qr_exported(const QProg *const p, const uint32_t k, QMem *const m
     }
 
     x.ntypes = nt;
+    qr_consts(p, k, m, &x);
     return x;
 }
 
@@ -1286,6 +1366,9 @@ static void qr_guest_made(LinkGuest *const g, Comp *const C)
     QrGuests *const G = container_of(g, QrGuests, link);
     const QProg *const p = G->prog;
     G->of = qlink_guest_made(C, p, &G->mem);
+
+    for (uint32_t k = 1; k < p->nmods; k++)
+        expo_literals(C, p->mods[k].modu, &G->ex[k], &G->mem.arena);
 
     for (uint32_t k = 1; k < p->nmods; k++)
         for (uint32_t i = 0; i < G->ex[k].nprocs; i++) {
