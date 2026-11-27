@@ -1369,6 +1369,15 @@ DEMO_EDITS = {
         ("no text", "    show_help canvas&, st, turning%, smooth%, fps\n", ""),
         ("no clouds", "    draw_clouds world&, clouds()\n", ""),
     ),
+    # each draw gone, the BASIC working it out kept
+    "MEADOW": (
+        ("no text", "    gfx.draw.text canvas&, MARGIN, y%, t$, ink&\n", ""),
+        ("no sky", "    gfx.draw.quad dst, c(), 0, s, gfx.draw.OPAQUE\n", ""),
+        ("no hills", "            gfx.draw.quad dst, c(), 0, hills(r), 0\n", ""),
+        ("no floor", "    gfx.draw.poly dst, q(), 0, 4, s, 0, gfx.draw.PERSPECTIVE\n", ""),
+        ("no blossoms", "        gfx.draw.sprite_turned dst, x!, y!, turn!, size!, p&, 0\n", ""),
+        ("no glows", "        gfx.draw.sprite_turned dst, x!, y!, 0, glows(i).size, s, f%\n", ""),
+    ),
 }
 # demos --profile: each run's seconds; the longer one's counts less the shorter's are frames alone
 DEMO_PROFILE_SECONDS = (2.0, 4.0)
@@ -1955,8 +1964,8 @@ def demos_on_card(a: argparse.Namespace, own: dict[str, bytes]) -> int:
     print(f"{'':12}" + "".join(f"{t:>10}" for t in ("pages", a.card, "no vsync")))
     for name in a.demo or DEMO_EDITS:
         runs = ((pages, True), (card, True), (card, False))
-        cells = [vm_rate(vm, b.dos, (demo_program(name, a.seconds, v, 0, depth=16, sized=True), "", "", own), lib, True,
-                         tuple(a.set or ())) for lib, v in runs]
+        cells = [vm_rate(vm, b.dos, (demo_program(name, a.seconds, v, a.edits or 0, depth=16, sized=True), "", "", own),
+                         lib, True, tuple(a.set or ())) for lib, v in runs]
         print(f"{name:12}" + "".join(f"{c:>10}" for c in cells), flush=True)
     return 0
 
@@ -2300,7 +2309,8 @@ def main() -> int:
     p.add_argument("--seconds", type=float, default=10)
     p.add_argument("--profile", action="store_true", help="by function a frame, ours with every edit (normal core)")
     p.add_argument("-n", type=int, default=20, help="--profile: the functions shown")
-    p.add_argument("--edits", type=int, help="--profile: ours with its first so many edits; all when none")
+    p.add_argument("--edits", type=int, help="ours with its first so many edits: --profile, all when none; --card, "
+                   "none")
     sub.add_parser("charlie")
     p = sub.add_parser("games")
     p.add_argument("--card", choices=list(CARD_DRIVERS), help="on --machine's VM with this 3D card")
