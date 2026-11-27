@@ -11,6 +11,9 @@ private native function file_close(n as int)
 private native function file_list(pattern as string) as string
 private native function error_text(err as int) as string
 
+private const string_max = 32767 ' a string's bytes at most
+private const too_long = 15      ' String too long's number
+
 ' an open file: its number, as OPEN's; 0 closed
 type File
     private n as int
@@ -55,9 +58,12 @@ type File
 end type
 
 ' the whole file as a string
+' the file at path whole; an Error past a string's length
 function read_text(path as string) as string or Error
     let f = File.open(path)?
-    return f.read(f.size())
+    let n = f.size()
+    if n > string_max then return Error(too_long, f"{path}: {error_text(too_long)}")
+    return f.read(n)
 end function
 
 function write_text(path as string, s as string) as bool or Error
