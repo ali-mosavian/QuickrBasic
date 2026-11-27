@@ -19,6 +19,7 @@
  * holding codes, its texel alone, and a blend drawn where its alpha is at least a half.
  */
 #include "plat/dos32/accel/accel.h"
+#include "lib/reciprocal.h"
 #include "plat/dos32/accel/indices.h"
 #include "plat/dos32/accel/texels.h"
 #include "plat/pmem.h"
@@ -721,7 +722,7 @@ static uint32_t index_at(const Buffer *const ib, const uint32_t i)
 }
 
 /* The draw's vertex at index into *v, its wrap's rectangle to r: false, past the buffer, or its
-   w not above 0. */
+   w not above 0. A w of 1, a 2D draw's, is not divided. */
 static bool fetched(
     const Pipeline *const pl,
     const Buffer *const vb,
@@ -758,7 +759,7 @@ static bool fetched(
 
     const uint32_t argb = (uint32_t)c[3] << 24 | (uint32_t)c[0] << 16 | (uint32_t)c[1] << 8 | c[2];
 
-    *v = (AccelVertex){xyzw[0], xyzw[1], xyzw[2], 1 / xyzw[3], st[0], st[1], argb};
+    *v = (AccelVertex){xyzw[0], xyzw[1], xyzw[2], reciprocal(xyzw[3]), st[0], st[1], argb};
 
     return true;
 }

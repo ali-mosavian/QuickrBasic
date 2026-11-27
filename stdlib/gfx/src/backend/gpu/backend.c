@@ -361,7 +361,7 @@ static GpuVertex shape_corner(const GpuCall *const t, const void *const ctx, con
         s->flat ? s->template.v : c->v
     );
 
-    v.z = 1 / c->z;
+    v.z = gm_reciprocal(c->z);
     v.w = s->perspective ? c->z : 1;
     return v;
 }

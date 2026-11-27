@@ -13,6 +13,16 @@
 
 static inline float gm_sqrt(const float x) { return __builtin_sqrtf(x); }
 
+/* 1 / x, without the divide where x is 1, as a 2D draw's z is: an x87 divide costs a 486 73
+   cycles. Told by the bits, as clang folds a float compare with 1 away, 1 / 1 being 1. */
+static inline float gm_reciprocal(const float x)
+{
+    uint32_t bits;
+
+    __builtin_memcpy(&bits, &x, sizeof bits);
+    return bits == 0x3F800000u ? 1 : 1 / x;
+}
+
 static inline int32_t gm_floor(const float x)
 {
     const int32_t i = (int32_t)x;

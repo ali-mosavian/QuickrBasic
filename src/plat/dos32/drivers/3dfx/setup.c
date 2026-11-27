@@ -1,6 +1,7 @@
 /* A triangle and its state as an SST card takes them (setup.h). */
 #include "plat/dos32/drivers/3dfx/setup.h"
 #include "plat/dos32/drivers/3dfx/regs.h"
+#include "lib/reciprocal.h"
 
 enum { CHANNEL = 255, DEPTH = 65535, SIDE = 256, LEVEL = 4, SIGN = 1u << 31 };
 
@@ -56,7 +57,7 @@ static float w_scale(const AccelVertex v[3])
     for (uint32_t i = 1; i < 3; i++)
         most = v[i].q > most ? v[i].q : most;
 
-    return most == 1 ? 1 : 1 / most;
+    return reciprocal(most);
 }
 
 static float depth_of(const float z) { return (z < 0 ? 0 : z > 1 ? 1 : z) * DEPTH; }
