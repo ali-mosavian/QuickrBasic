@@ -271,6 +271,8 @@ static void closed(Tdfx *const c)
 
 static const TdfxFamily CVG = {"Voodoo 2", &sst_chip, opened, closed};
 
+QX_EXPORT const uint32_t accel_ids[] = {ACCEL_ID(TDFX_VENDOR, 0x0002), 0};
+
 QX_EXPORT const AccelDriver *ACCEL_CALL accel_init(const AccelHost *const host)
 {
     return tdfx_driver(host, &CVG);

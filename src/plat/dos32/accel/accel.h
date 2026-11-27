@@ -8,10 +8,8 @@
 /* The driver for an accelerator on the bus, loaded the first time it is asked for, its card to
    *card: null, none, or no driver for any. */
 const AccelDriver *accel_driver(PciFunction *card);
-/* A driver file's first n bytes say it drives card f (file.c). */
-bool accel_drives(const uint8_t *head, uint32_t n, const PciFunction *f);
-/* A driver file's n bytes: its image's first byte and their count; false, not a driver file. */
-bool accel_image(const uint8_t *file, uint32_t n, const uint8_t **image, uint32_t *bytes);
+/* A driver file's n bytes, a DLL, drive card f: its accel_ids holds f's (file.c). */
+bool accel_drives(const uint8_t *file, uint32_t n, const PciFunction *f);
 
 /* gfx's lists played through driver d on card (player.c), as plat/pgfx.h's PgfxPlayer: a w by h
    screen opened, shown at the retrace with vsync; false, the card could not. Open, the screen is

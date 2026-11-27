@@ -2,10 +2,9 @@
  * card's driver, a .DRV file in lib/drivers/ that is loaded only for the card found (accel/load.c).
  *
  * # How it works
- * A driver file is a header, then an image (util/image.h) whose entry is accel_init. The header
- * is "QXD" and 1, the ABI, the count of the PCI IDs it drives, then each as vendor << 16 | device,
- * a double word each, little-endian. accel_init is given the host's services (AccelHost) and
- * returns the driver's table (AccelDriver).
+ * A driver file is an i386 DLL (util/image.h) with two exports. accel_ids is the PCI IDs it
+ * drives, each ACCEL_ID's double word, 0 after the last. accel_init is given the host's services
+ * (AccelHost) and returns the driver's table (AccelDriver).
  *
  * The player turns gfx's GPU list (qx/qxlist.h's FIXED) into the table's calls. It keeps each
  * texture's texels and gives the driver textures of its sizes only, cutting triangles where they
@@ -21,7 +20,10 @@
 #define ACCEL_CALL QX_CALL
 
 /* ABI 2 adds indexed textures and their palette. */
-enum { ACCEL_ABI = 2, ACCEL_HEAD = 12 };
+enum { ACCEL_ABI = 2 };
+
+/* A card's PCI ID as accel_ids holds it. */
+#define ACCEL_ID(vendor, device) ((uint32_t)(vendor) << 16 | (uint32_t)(device))
 
 /* The target shown, made by open; the slots a driver takes, 1 up to these, textures' and
    targets' each their own. */

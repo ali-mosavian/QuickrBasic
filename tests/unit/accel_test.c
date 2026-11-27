@@ -1,8 +1,9 @@
-/* plat/dos32/accel/file.c: a driver file's header read, as the loader reads one for each card. */
+/* plat/dos32/accel/file.c: a driver file's IDs read, as the loader reads one for each card. */
 #include "plat/dos32/accel/accel.h"
 #include "plat/dos32/accel/cut.h"
 #include "qx/qxlist.h"
 #include <stddef.h>
+#include "dll.h"
 #include "unit.h"
 #include <string.h>
 #ifdef __APPLE__
@@ -11,13 +12,19 @@
 #include <malloc.h>
 #endif
 
-/* A driver file of Voodoo 1 and 2's IDs, its image's four bytes after them. */
-static const uint8_t VOODOO[] = {
-    'Q',  'X',  'D',  1,    ACCEL_ABI, 0,    0,    0,    2,   0,   0,   0,
-    0x01, 0x00, 0x1A, 0x12, 0x02,      0x00, 0x1A, 0x12, 'Q', 'X', 'I', 1,
-};
+static const char *const DRIVER[] = {"accel_init", "accel_ids"};
+static const uint32_t DRIVER_AT[] = {0x1004, DLL_DATA};
 
-/* A header names the cards it drives by vendor and device: a Banshee's is not among them. */
+/* A driver file of Voodoo 1 and 2's IDs in file: its bytes. */
+static uint32_t voodoo(uint8_t *const file)
+{
+    const uint32_t n = dll_make(file, DRIVER, DRIVER_AT, 2);
+    store32(dll_at(file, DLL_DATA), ACCEL_ID(0x121A, 0x0001));
+    store32(dll_at(file, DLL_DATA + 4), ACCEL_ID(0x121A, 0x0002));
+    return n;
+}
+
+/* A driver names the cards it drives by vendor and device: a Banshee's is not among them. */
 TEST(accel_driver_files_name_their_cards)
 {
     const PciFunction one = {.vendor_id = 0x121A, .device_id = 0x0001};
@@ -26,34 +33,28 @@ TEST(accel_driver_files_name_their_cards)
 
     const PciFunction banshee = {.vendor_id = 0x121A, .device_id = 0x0003};
 
-    CHECK(accel_drives(VOODOO, sizeof VOODOO, &one) && accel_drives(VOODOO, sizeof VOODOO, &two));
-    CHECK(!accel_drives(VOODOO, sizeof VOODOO, &banshee));
+    uint8_t file[DLL_BYTES];
+    const uint32_t n = voodoo(file);
+
+    CHECK(accel_drives(file, n, &one) && accel_drives(file, n, &two));
+    CHECK(!accel_drives(file, n, &banshee));
 }
 
-/* A header read short names only the IDs it holds; another magic or ABI names none. */
+/* A file read short, or a DLL without accel_ids, names none; the IDs end at the first 0. */
 TEST(accel_driver_files_are_read_whole_or_not_at_all)
 {
     const PciFunction two = {.vendor_id = 0x121A, .device_id = 0x0002};
 
-    uint8_t other[sizeof VOODOO];
+    const PciFunction banshee = {.vendor_id = 0x121A, .device_id = 0x0003};
 
-    CHECK(!accel_drives(VOODOO, ACCEL_HEAD + 4, &two));
-    memcpy(other, VOODOO, sizeof other);
-    other[4] = ACCEL_ABI + 1;
-    CHECK(!accel_drives(other, sizeof other, &two));
-    other[4] = ACCEL_ABI;
-    other[3] = 2;
-    CHECK(!accel_drives(other, sizeof other, &two));
-}
+    uint8_t file[DLL_BYTES];
+    const uint32_t n = voodoo(file);
 
-/* The image follows the IDs; a file whose IDs run past it has none. */
-TEST(accel_driver_files_hold_their_image_after_the_ids)
-{
-    const uint8_t *image;
-    uint32_t n;
-
-    CHECK(accel_image(VOODOO, sizeof VOODOO, &image, &n) && n == 4 && !memcmp(image, "QXI", 3));
-    CHECK(!accel_image(VOODOO, ACCEL_HEAD + 8, &image, &n));
+    CHECK(!accel_drives(file, n - 1, &two));
+    store32(dll_at(file, DLL_DATA + 12), ACCEL_ID(0x121A, 0x0003));
+    CHECK(!accel_drives(file, n, &banshee));
+    dll_make(file, DRIVER, DRIVER_AT, 1);
+    CHECK(!accel_drives(file, n, &two));
 }
 
 /* ---- the triangle cut at tiles and wraps (cut.c) ---- */

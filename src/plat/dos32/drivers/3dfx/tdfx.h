@@ -18,6 +18,9 @@
 /* How long a wait for the card lasts. */
 enum : uint32_t { TDFX_WAIT_US = 100000 };
 
+/* 3dfx's PCI vendor ID. */
+enum { TDFX_VENDOR = 0x121A };
+
 typedef struct Tdfx Tdfx;
 
 typedef struct {

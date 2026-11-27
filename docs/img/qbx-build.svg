@@ -40,8 +40,8 @@
 <path d="M252,260 L512,260" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
 <rect x="824" y="172" width="144" height="100" rx="10" fill="#eef2ff" stroke="#4f46e5" stroke-width="2"/>
 <text x="840" y="198" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#312e81" text-anchor="start">qbx.py pack</text>
-<text x="840" y="222" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#1f2937" text-anchor="start">a DOS DLL made</text>
-<text x="840" y="238" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#1f2937" text-anchor="start">its QXI image;</text>
+<text x="840" y="222" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#1f2937" text-anchor="start">a DOS DLL</text>
+<text x="840" y="238" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#1f2937" text-anchor="start">checked;</text>
 <text x="840" y="254" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#1f2937" text-anchor="start">the parts after</text>
 <path d="M252,120 L272,120 L272,84 L896,84 L896,170" fill="none" stroke="#ea580c" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#ahea580c)"/>
 <rect x="824" y="300" width="144" height="44" rx="10" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>

@@ -1,5 +1,5 @@
-/* The accelerator's driver (accel.h): the bus searched once, then the headers in lib/drivers/
- * read until one names a card found (file.c). Only that driver is read whole, placed and kept.
+/* The accelerator's driver (accel.h): the bus searched once, then the files in lib/drivers/ read
+ * until one names a card found (file.c). Only that driver is placed and kept.
  */
 #include "plat/dos32/accel/accel.h"
 #include "base.h"
@@ -11,7 +11,7 @@
 #include "plat/psys.h"
 #include <string.h>
 
-enum { CARDS = 8, MOST_IDS = 64, HEAD_MOST = ACCEL_HEAD + 4 * MOST_IDS };
+enum { CARDS = 8 };
 
 static const char FOLDER[] = "lib/drivers/";
 static const char PATTERN[] = "*.DRV";
@@ -114,19 +114,38 @@ static uint32_t read_up_to(const char *const path, uint8_t *const buf, const uin
     return got;
 }
 
-/* The driver file at path, of bytes, placed, its table asked for: null, it could not be. */
-static const AccelDriver *placed(const char *const path, const uint32_t bytes)
+/* The driver file's n bytes placed, its table asked for: null, it could not be. */
+static const AccelDriver *placed(const uint8_t *const file, const uint32_t n)
 {
-    uint8_t *const file = pmem_resize(nullptr, bytes);
-    const uint8_t *image;
-    uint32_t n;
-    const bool whole = file && read_up_to(path, file, bytes) == bytes;
-    AccelInit *const init =
-        whole && accel_image(file, bytes, &image, &n) ? (AccelInit *)pdos_place(image, n) : nullptr;
+    AccelInit *const init = (AccelInit *)pdos_place(file, n, "accel_init");
     const AccelDriver *const d = init ? init(&host) : nullptr;
 
-    pmem_free(file);
     return d && d->size >= sizeof(AccelDriver) && d->abi == ACCEL_ABI ? d : nullptr;
+}
+
+/* The driver file at path, of bytes, placed if it drives one of cards' n, its card to *card: null,
+   it drives none or could not be placed. */
+static const AccelDriver *driving(
+    const char *const path,
+    const uint32_t bytes,
+    const PciFunction *const cards,
+    const uint32_t n,
+    PciFunction *const card
+)
+{
+    uint8_t *const file = pmem_resize(nullptr, bytes);
+    const bool whole = file && read_up_to(path, file, bytes) == bytes;
+    const AccelDriver *d = nullptr;
+
+    for (uint32_t i = 0; whole && !d && i < n; i++) {
+        d = accel_drives(file, bytes, &cards[i]) ? placed(file, bytes) : nullptr;
+
+        if (d)
+            *card = cards[i];
+    }
+
+    pmem_free(file);
+    return d;
 }
 
 /* path, cap bytes, the folder of driver files under the interpreter's: its length; 0, too long. */
@@ -152,7 +171,6 @@ static const AccelDriver *search(
 )
 {
     char path[PFIL_PATH];
-    uint8_t head[HEAD_MOST];
     PfilFind f;
     const uint32_t at = folder(path, sizeof path);
 
@@ -168,17 +186,10 @@ static const AccelDriver *search(
             continue;
 
         memcpy(path + at, f.name, name + 1);
-        const uint32_t got = read_up_to(path, head, sizeof head);
+        const AccelDriver *const d = driving(path, f.size, cards, n, card);
 
-        for (uint32_t i = 0; i < n; i++) {
-            const AccelDriver *const d =
-                accel_drives(head, got, &cards[i]) ? placed(path, f.size) : nullptr;
-
-            if (d) {
-                *card = cards[i];
-                return d;
-            }
-        }
+        if (d)
+            return d;
     }
 
     return nullptr;

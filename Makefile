@@ -173,7 +173,7 @@ QX_CFLAGS := -std=c23 -O2 -Wall -Wextra -ffreestanding -fno-math-errno -Isrc/qx 
 build/host/ext/qxtest.so: $(QXTEST) src/qx/qx.h
 	@mkdir -p $(@D)
 	$(HOST_CC) $(QX_CFLAGS) $(HOST_SLICE) $(QXTEST) -o $@
-# wasm's a side module, with the IDE's features; DOS's a DLL, made an image by qbx.py pack
+# wasm's a side module, with the IDE's features; DOS's a DLL, checked by qbx.py pack
 WASM_FEATURES := atomics,bulk-memory,bulk-memory-opt,mutable-globals,sign-ext,call-indirect-overlong,nontrapping-fptoint,reference-types,multivalue
 build/wasm/ext/qxtest.wasm: $(QXTEST) src/qx/qx.h
 	@mkdir -p $(@D)
@@ -249,7 +249,7 @@ $(B)/lib/gfx.qbx: $(GFX_PARTS) $(B)/ext/gfx.dll tools/qbx.py
 	$(PY) tools/qbx.py pack $@ --minor 1 $(GFX_PARTS) dos-i386=$(B)/ext/gfx.dll
 -include $(GFX_DOS_OBJ:%=%.d)
 # DOS's accelerator drivers (src/plat/dos32/drivers), in lib/drivers/ beside basic32.exe: each an
-# i386 DLL as gfx's slice is, its header the PCI IDs it drives (qbx.py driver); 3dfx's share all
+# i386 DLL as gfx's slice is, exporting the PCI IDs it drives (qbx.py driver); 3dfx's share all
 # but their family's files
 TDFX_SHARED := $(filter-out %/voodoo1.c %/voodoo2.c %/voodoo3.c %/sst.c %/dac.c %/cmdfifo.c %/cvg.c,$(wildcard src/plat/dos32/drivers/3dfx/*.c)) \
 	src/plat/dos32/drivers/crt.c
@@ -263,16 +263,13 @@ $(B)/drivers/%.dll: $(TDFX_SHARED:src/plat/dos32/drivers/%.c=$(B)/drivers/%.obj)
 $(B)/drivers/voodoo1.dll $(B)/drivers/voodoo2.dll: $(B)/drivers/3dfx/sst.obj $(B)/drivers/3dfx/dac.obj
 $(B)/drivers/voodoo2.dll: $(B)/drivers/3dfx/cvg.obj $(B)/drivers/3dfx/cmdfifo.obj
 $(B)/drivers/voodoo3.dll: $(B)/drivers/3dfx/cmdfifo.obj
-$(B)/lib/drivers/VOODOO1.DRV: $(B)/drivers/voodoo1.dll tools/qbx.py
+$(DOS_DRIVERS): tools/qbx.py
 	@mkdir -p $(@D)
-	$(PY) tools/qbx.py driver $@ $< 121a:0001
-$(B)/lib/drivers/VOODOO2.DRV: $(B)/drivers/voodoo2.dll tools/qbx.py
-	@mkdir -p $(@D)
-	$(PY) tools/qbx.py driver $@ $< 121a:0002
+	$(PY) tools/qbx.py driver $@ $(filter %.dll,$^)
+$(B)/lib/drivers/VOODOO1.DRV: $(B)/drivers/voodoo1.dll
+$(B)/lib/drivers/VOODOO2.DRV: $(B)/drivers/voodoo2.dll
 # the Banshee and the Voodoo 3
-$(B)/lib/drivers/VOODOO3.DRV: $(B)/drivers/voodoo3.dll tools/qbx.py
-	@mkdir -p $(@D)
-	$(PY) tools/qbx.py driver $@ $< 121a:0003 121a:0005
+$(B)/lib/drivers/VOODOO3.DRV: $(B)/drivers/voodoo3.dll
 
 host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/hostperf/basic build/host/ext/qxtest.so \
 		build/host/lib/gfx.qbx $(NAMES)

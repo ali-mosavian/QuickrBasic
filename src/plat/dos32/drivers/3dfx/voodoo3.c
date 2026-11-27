@@ -396,6 +396,13 @@ static void closed(Tdfx *const c)
 
 static const TdfxFamily FAMILY = {"Banshee and Voodoo 3", &H3, opened, closed};
 
+/* The Banshee's and the Voodoo 3's. */
+QX_EXPORT const uint32_t accel_ids[] = {
+    ACCEL_ID(TDFX_VENDOR, 0x0003),
+    ACCEL_ID(TDFX_VENDOR, 0x0005),
+    0,
+};
+
 QX_EXPORT const AccelDriver *ACCEL_CALL accel_init(const AccelHost *const host)
 {
     return tdfx_driver(host, &FAMILY);

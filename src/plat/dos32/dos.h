@@ -136,9 +136,10 @@ bool pdos_vbe_set(const VbeMode *m);
    mapped. A host's mappings are few: map each card once. */
 volatile uint8_t *pdos_map(uint32_t phys, uint32_t bytes);
 
-/* An image (util/image.h) of n bytes placed in the heap, its memory the process's: its entry's
-   address; null, not an image, no memory, or CS cannot run it there (pext.c). */
-void *pdos_place(const void *image, uint32_t n);
+/* The DLL (util/image.h) of n bytes placed in the heap, its memory the process's: its export
+   entry's address; null, not a DLL, no such export, no memory, or CS cannot run it there
+   (pext.c). */
+void *pdos_place(const void *dll, uint32_t n, const char *entry);
 
 /* An I/O port's word and double word, beside psys_inp's byte. */
 CDECL uint16_t pdos_inw(uint16_t port);

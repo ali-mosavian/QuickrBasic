@@ -1,48 +1,26 @@
-/* A driver file (driver.h): its header's IDs and its image. It calls nothing of DOS's, so unit
- * tests run it.
+/* A driver file (driver.h): the PCI IDs its DLL exports. It calls nothing of DOS's, so unit tests
+ * run it.
  */
 #include "base.h"
 #include "plat/dos32/accel/accel.h"
-#include <string.h>
+#include "util/image.h"
 
-/* The header's IDs' count, of a file of n bytes: false, not a driver file of this ABI. */
-static bool ids_of(const uint8_t *const file, const uint32_t n, uint32_t *const ids)
+bool accel_drives(const uint8_t *const file, const uint32_t n, const PciFunction *const f)
 {
-    if (n < ACCEL_HEAD || memcmp(file, "QXD\1", 4) || load32(file + 4) != ACCEL_ABI)
-        return false;
-
-    *ids = load32(file + 8);
-    return true;
-}
-
-bool accel_drives(const uint8_t *const head, const uint32_t n, const PciFunction *const f)
-{
-    const uint32_t want = (uint32_t)f->vendor_id << 16 | f->device_id;
+    const uint32_t want = ACCEL_ID(f->vendor_id, f->device_id);
+    Image im;
     uint32_t ids;
 
-    if (!ids_of(head, n, &ids))
+    if (!imag_read(file, n, &im) || !imag_export(&im, "accel_ids", &ids))
         return false;
 
-    for (uint32_t i = 0; i < ids && i < (n - ACCEL_HEAD) / 4; i++)
-        if (load32(head + ACCEL_HEAD + 4 * i) == want)
+    for (uint32_t i = 0;; i++) {
+        const uint8_t *const id = imag_bytes(&im, ids + 4 * i, 4);
+
+        if (!id || !load32(id))
+            return false;
+
+        if (load32(id) == want)
             return true;
-
-    return false;
-}
-
-bool accel_image(
-    const uint8_t *const file,
-    const uint32_t n,
-    const uint8_t **const image,
-    uint32_t *const bytes
-)
-{
-    uint32_t ids;
-
-    if (!ids_of(file, n, &ids) || ids >= (n - ACCEL_HEAD) / 4)
-        return false;
-
-    *image = file + ACCEL_HEAD + 4 * ids;
-    *bytes = n - ACCEL_HEAD - 4 * ids;
-    return true;
+    }
 }
