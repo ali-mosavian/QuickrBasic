@@ -267,6 +267,12 @@ bool scop_conval(
 
 bool scop_known(const Scop *const sc, const uint32_t name) { return scop_seen(sc, name) != &none; }
 
+bool scop_known_scalar(const Scop *const sc, const uint32_t name)
+{
+    const Binding *const b = scop_seen(sc, name);
+    return b != &none && b->shapes != BS_ARRAY;
+}
+
 bool scop_mshr(const Scop *const sc, const uint32_t module, const uint32_t name)
 {
     const Binding *const b = scop_get(sc, module, name);
