@@ -92,6 +92,8 @@ typedef struct {
     void (*close)(Tdfx *c);
 } TdfxFamily;
 
+enum { TDFX_COLOURS = 256 }; /* TMU0's palette's */
+
 /* The registers the state sets, each one's word held: put again unchanged, it is not sent. */
 typedef enum {
     TDFX_HELD_CLIP_X,
@@ -146,6 +148,10 @@ struct Tdfx {
     uint32_t colour0;
     uint32_t placed;                 /* the texture TMU0's registers place: ACCEL_TEXTURES, none */
     uint32_t held[TDFX_HELD], known; /* the held registers' words, those known a bit each */
+    /* TMU0's palette's colours as set, index 0's sent as the chroma key; the key; it sent; the
+       palette set since a texture was placed or chip's paletted ran */
+    uint32_t palette[TDFX_COLOURS], key;
+    bool keyed, repaletted;
 };
 
 /* mask's picks. */

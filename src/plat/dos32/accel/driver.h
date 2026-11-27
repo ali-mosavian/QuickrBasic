@@ -19,8 +19,9 @@
 
 #define ACCEL_CALL QX_CALL
 
-/* ABI 2 adds indexed textures and their palette; 3, write combining. */
-enum { ACCEL_ABI = 4 };
+/* ABI 2 adds indexed textures and their palette; 3, write combining; 4, polygons; 5, a palette's
+   entries set in part. */
+enum { ACCEL_ABI = 5 };
 
 /* A card's PCI ID as accel_ids holds it. */
 #define ACCEL_ID(vendor, device) ((uint32_t)(vendor) << 16 | (uint32_t)(device))
@@ -157,8 +158,9 @@ typedef struct {
     /* Texture slot made w by h, a byte a texel: drawn as the palette's colour for its index.
        False, no room. */
     bool(ACCEL_CALL *indexed)(uint32_t slot, uint16_t w, uint16_t h);
-    /* The 256 colours, &HRRGGBB, an indexed texel draws as from now on. */
-    void(ACCEL_CALL *palette)(const uint32_t *colours);
+    /* Of the 256 colours, &HRRGGBB, an indexed texel draws as, n from first set from colours',
+       the others kept. */
+    void(ACCEL_CALL *palette)(const uint32_t *colours, uint32_t first, uint32_t n);
 } AccelDriver;
 
 typedef const AccelDriver *ACCEL_CALL AccelInit(const AccelHost *host);

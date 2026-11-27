@@ -1079,7 +1079,7 @@ TEST(tdfx_h3_palettes_index_0_by_a_colour_no_other_has)
     colours[0] = 0x804020;
     colours[1] = 0x804020 | 0x070307;
     h3.fifo.writes = 0;
-    d->palette(colours);
+    d->palette(colours, 0, 256);
     h3_played();
 
     uint32_t entries = 0, key = 0;
@@ -1102,34 +1102,111 @@ TEST(tdfx_h3_palettes_index_0_by_a_colour_no_other_has)
     h3_closed(d);
 }
 
-/* After the palette the texture cache is flushed, texBaseAddr moved off the texture placed and
-   back: 86Box's drew an indexed texture as index 0 in 2 of 4 runs without. */
-TEST(tdfx_h3_flushes_its_texture_cache_after_the_palette)
+/* Palette writes: each entry's index, and the register its low three bits pick. */
+static uint32_t palette_written(uint32_t *const at, uint32_t *const reg, uint32_t *const keys)
+{
+    uint32_t n = 0;
+
+    *keys = 0;
+
+    for (uint32_t k = 0; k < h3.fifo.writes; k++) {
+        const uint32_t r = h3.fifo.written[k][0], v = h3.fifo.written[k][1];
+
+        *keys += r == SST_CHROMA_KEY;
+
+        if (r >= SST_TMU0 + SST_PALETTE && r < SST_TMU0 + SST_PALETTE + 32 && n < 8) {
+            reg[n] = (r - SST_TMU0 - SST_PALETTE) / 4;
+            at[n] = (v >> 23 & 0xFE) | reg[n] % 2;
+            n++;
+        }
+    }
+
+    return n;
+}
+
+/* The palette set in part writes its entries alone, each in the register of its low three bits;
+   index 0 and the key again only once an entry took the key. All 256 were written each time. */
+TEST(tdfx_h3_sets_the_palette_in_part)
+{
+    static uint32_t colours[256];
+
+    AccelCard card;
+    const AccelDriver *const d = h3_opened(&card);
+    uint32_t at[8], reg[8], keys;
+
+    for (uint32_t i = 0; i < 256; i++)
+        colours[i] = i * 0x010101;
+
+    colours[0] = 0x804020;
+    d->palette(colours, 0, 256);
+    h3_played();
+    const uint32_t key = loaded(h3.regs + H3_3D + SST_CHROMA_KEY);
+
+    colours[9] = 0x123456;
+    colours[10] = 0x654321;
+    h3.fifo.writes = 0;
+    d->palette(colours, 9, 2);
+    h3_played();
+    CHECK(palette_written(at, reg, &keys) == 2 && !keys);
+    CHECK(at[0] == 9 && reg[0] == 1 && at[1] == 10 && reg[1] == 2);
+
+    colours[5] = key;
+    h3.fifo.writes = 0;
+    d->palette(colours, 5, 1);
+    h3_played();
+    CHECK(palette_written(at, reg, &keys) == 2 && keys == 1 && at[0] == 0 && at[1] == 5);
+
+    const uint32_t now = loaded(h3.regs + H3_3D + SST_CHROMA_KEY);
+
+    CHECK(now != key && (now & 0xF8FCF8) == 0x804020);
+    h3_closed(d);
+}
+
+/* texBaseAddr's writes since the count was cleared: those off base, and whether the last was
+   base. */
+static uint32_t bases_moved(const uint32_t base, bool *const back)
+{
+    uint32_t moved = 0;
+
+    *back = false;
+
+    for (uint32_t k = 0; k < h3.fifo.writes; k++)
+        if (h3.fifo.written[k][0] == SST_TMU0 + SST_TEX_BASE) {
+            moved += h3.fifo.written[k][1] != base;
+            *back = h3.fifo.written[k][1] == base;
+        }
+
+    return moved;
+}
+
+/* Before the first draw after the palette is set, once however often it was, the texture cache is
+   flushed, texBaseAddr moved off the texture placed and back: 86Box's drew an indexed texture as
+   index 0 in 2 of 4 runs without. Each set flushed it, a blossom's light three flushes. */
+TEST(tdfx_h3_flushes_its_texture_cache_before_a_draw_after_the_palette)
 {
     static uint16_t texels[64];
     static uint32_t colours[256];
 
     AccelCard card;
     const AccelDriver *const d = h3_opened(&card);
+    bool back;
 
     CHECK(d && d->indexed(1, 64, 64));
     d->upload(1, (AccelRect){0, 0, 64, 1}, texels, 64);
+    d->state(&SOLID);
     h3_played();
     const uint32_t base = loaded(h3.regs + H3_3D + SST_TMU0 + SST_TEX_BASE);
 
     h3.fifo.writes = 0;
-    d->palette(colours);
+    d->palette(colours, 0, 256);
+    d->palette(colours, 3, 2);
     h3_played();
+    CHECK(!bases_moved(base, &back));
 
-    uint32_t moved = 0, back = 0;
-
-    for (uint32_t k = 0; k < h3.fifo.writes; k++)
-        if (h3.fifo.written[k][0] == SST_TMU0 + SST_TEX_BASE) {
-            moved += h3.fifo.written[k][1] != base;
-            back = h3.fifo.written[k][1] == base;
-        }
-
-    CHECK(moved && back);
+    d->fans(TRIANGLE, (const uint8_t[]){3}, 1);
+    d->fans(TRIANGLE, (const uint8_t[]){3}, 1);
+    h3_played();
+    CHECK(bases_moved(base, &back) == 1 && back);
     h3_closed(d);
 }
 

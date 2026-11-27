@@ -17,8 +17,8 @@ enum : uint32_t {
     FIVE = 0x1F,
     SIX = 0x3F,
     OPAQUE = 255,
-    COLOURS = 256, /* a palette's */
-    RUN = 8,       /* palette entries a run of registers */
+    COLOURS = TDFX_COLOURS,
+    RUN = 8, /* palette entries a run of registers */
     PALETTE_WRITE = 1u << 31,
     INDEX_AT = 23, /* a palette entry's index, less its low bit the register's */
     RGB = 0xFFFFFF,
@@ -156,6 +156,7 @@ static void placed(Tdfx *const c, const uint32_t slot)
     tdfx_put(c, SST_TMU0 + SST_TLOD, t->lod);
     tdfx_put(c, SST_TMU0 + SST_TEX_BASE, t->base);
     c->placed = slot;
+    c->repaletted = false; /* placed, its texels are looked up afresh */
 }
 
 /* The state's way, of one colour or not, to w: only the picks it sends worked out. */
@@ -567,6 +568,11 @@ static void ACCEL_CALL drawn(const AccelVertex *v, const uint8_t *const sides, c
 
     Tdfx *const c = &card;
 
+    if (c->repaletted) {
+        c->repaletted = false;
+        c->chip->paletted(c);
+    }
+
     if (family->unit) {
         unit_drawn(c, v, sides, n);
         return;
@@ -627,24 +633,54 @@ static uint32_t keyed(const uint32_t *const colours)
     }
 }
 
-static void ACCEL_CALL paletted(const uint32_t *const colours)
+/* Palette entries from up to to sent as set, index 0's colour as the key: each in the register
+   its index's low three bits pick. */
+static void entries_sent(Tdfx *const c, const uint32_t from, const uint32_t to)
 {
-    Tdfx *const c = &card;
-    const uint32_t key = keyed(colours);
-
-    for (uint32_t i = 0; i < COLOURS; i += RUN) {
+    for (uint32_t at = from; at < to;) {
+        const uint32_t k = at % RUN, n = to - at < RUN - k ? to - at : RUN - k;
         uint32_t run[RUN];
 
-        for (uint32_t k = 0; k < RUN; k++) {
-            const uint32_t at = i + k, rgb = at ? colours[at] & RGB : key;
-            run[k] = PALETTE_WRITE | (at & ~1u) << INDEX_AT | rgb;
+        for (uint32_t j = 0; j < n; j++) {
+            const uint32_t i = at + j;
+            run[j] = PALETTE_WRITE | (i & ~1u) << INDEX_AT | (i ? c->palette[i] : c->key);
         }
 
-        tdfx_put_run(c, SST_TMU0 + SST_PALETTE, run, RUN);
+        tdfx_put_run(c, SST_TMU0 + SST_PALETTE + k * 4, run, n);
+        at += n;
+    }
+}
+
+/* n entries from first set and sent; the key found again, and sent with index 0, once one of them
+   took it or index 0's top bits changed. What holds texels looked up in the palette is flushed
+   before the next draw. */
+static void ACCEL_CALL
+paletted(const uint32_t *const colours, const uint32_t first, const uint32_t n)
+{
+    Tdfx *const c = &card;
+    const uint32_t to = first < COLOURS && n <= COLOURS - first ? first + n : COLOURS;
+
+    bool taken = !c->keyed;
+
+    for (uint32_t i = first; i < to; i++) {
+        c->palette[i] = colours[i] & RGB;
+        taken |= i ? c->palette[i] == c->key : ((c->palette[0] ^ c->key) & ~DROPPED) != 0;
     }
 
-    tdfx_put(c, SST_CHROMA_KEY, key);
-    c->chip->paletted(c);
+    const uint32_t key = taken ? keyed(c->palette) : c->key;
+    const bool rekeyed = !c->keyed || key != c->key;
+
+    c->key = key;
+    c->keyed = true;
+    c->repaletted = true;
+
+    if (rekeyed && first)
+        entries_sent(c, 0, 1);
+
+    entries_sent(c, first, to);
+
+    if (rekeyed)
+        tdfx_put(c, SST_CHROMA_KEY, key);
 }
 
 static void ACCEL_CALL filled(const uint32_t argb, const uint8_t what)

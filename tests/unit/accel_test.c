@@ -182,7 +182,8 @@ static struct {
     bool indexed[SLOTS];
     uint32_t textures;
     AccelState state;      /* the last sent */
-    uint32_t palette[256]; /* the last sent */
+    uint32_t palette[256]; /* as set */
+    uint32_t entries;      /* palette entries set */
     uint16_t up[SLOTS][TILE];
     AccelVertex last[3]; /* the last polygon's last triangle */
     uint8_t sides;       /* its corners */
@@ -293,10 +294,11 @@ static bool ACCEL_CALL fake_indexed(uint32_t slot, uint16_t w, uint16_t h)
     return made;
 }
 
-static void ACCEL_CALL fake_palette(const uint32_t *colours)
+static void ACCEL_CALL fake_palette(const uint32_t *colours, uint32_t first, uint32_t n)
 {
     called('P');
-    memcpy(fake.palette, colours, sizeof fake.palette);
+    memcpy(fake.palette + first, colours + first, n * sizeof *colours);
+    fake.entries += n;
 }
 
 static void ACCEL_CALL fake_fans(const AccelVertex *v, const uint8_t *sides, uint32_t n)
@@ -841,7 +843,7 @@ static void indexed_begun(const uint32_t w, const uint32_t h)
     PUT(QX_LIST_TEXTURE, OTHER, 2, 2, QX_TEXTURE_INDEX);
     PUT(QX_LIST_UPLOAD, INDEXED, 0, 0, w, h, w, POINTER(art));
     PUT(QX_LIST_COLOURS, POINTER(colours));
-    PUT(QX_LIST_LOOKUP, POINTER(lookup));
+    PUT(QX_LIST_LOOKUP, 1, POINTER(lookup));
     pipeline(SOLID, QX_FIXED_COLOUR, 0);
     pipeline(TEXTURED, QX_FIXED_TEXEL, QX_FIXED_KEY | QX_FIXED_LINEAR);
     blended(MIXED, QX_FIXED_COLOUR, 0, QX_BLEND_MIX);
@@ -864,6 +866,43 @@ TEST(accel_player_draws_an_index_texture_through_the_shown_colours)
     CHECK(fake.up[1][1] == 1 && fake.up[1][2] == 2 && fake.up[1][3] == 2);
     CHECK(calls_of('P') == 1 && fake.palette[2] == 0x424242 && fake.palette[0] == 0x010101);
     CHECK(fake.state.flags == (ACCEL_KEY | ACCEL_REPLACE));
+    accel_close();
+}
+
+/* An INDEX texture's draw sends the card the palette entries its texels hold where the card's
+   are other: through another lookup, those it changes; chosen again, those back. Each change of
+   lookup sent all 256: MEADOW's 48 blossoms, 12,288 palette writes a frame. */
+TEST(accel_player_sends_only_the_palette_entries_a_texture_holds)
+{
+    static uint32_t other[256];
+
+    for (uint32_t i = 0; i < 256; i++)
+        other[i] = (i + 1) & 0xFF;
+
+    other[2] = 9;
+    opened();
+    indexed_begun(3, 1);
+
+    uint32_t from = list.n;
+
+    box(TEXTURED, INDEXED, 0, 0, 3, 1, 0, 3);
+    CHECK(played(SHOWN, from, true) && fake.entries == 3 && fake.palette[2] == 0x424242);
+
+    list.n = list.nv = list.ni = 0;
+    PUT(QX_LIST_LOOKUP, 2, POINTER(other));
+    from = list.n;
+    box(TEXTURED, INDEXED, 0, 0, 3, 1, 0, 3);
+    CHECK(played(SHOWN, from, true) && fake.entries == 4 && fake.palette[2] == 0x090909);
+
+    list.n = list.nv = list.ni = 0;
+    PUT(QX_LIST_LOOKUP, 1, 0, 0);
+    from = list.n;
+    box(TEXTURED, INDEXED, 0, 0, 3, 1, 0, 3);
+    CHECK(played(SHOWN, from, true) && fake.entries == 5 && fake.palette[2] == 0x424242);
+
+    list.n = list.nv = list.ni = 0;
+    box(TEXTURED, INDEXED, 0, 0, 3, 1, 0, 3);
+    CHECK(played(SHOWN, 0, true) && fake.entries == 5 && calls_of('P') == 3);
     accel_close();
 }
 

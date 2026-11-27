@@ -43,6 +43,8 @@ enum {
     TWO = 6, /* a rectangle's two triangles' corners */
     OPAQUE = 255,
     BITS = 64,
+    ENTRY_BITS = 32, /* a palette's entries a word, as the CPU's */
+    ENTRY_WORDS = INDICES / ENTRY_BITS,
     MILLI = 1000,
     HALF = 128,
 };
@@ -92,6 +94,7 @@ typedef struct {
     uint32_t held;       /* the depth texture's serial the target's depth buffer holds: 0, none */
     uint32_t used;       /* the play it was last drawn from */
     uint32_t passed;     /* the pass it was last drawn into */
+    uint32_t indices[ENTRY_WORDS]; /* INDEX: the indices its texels may hold, a bit each */
 } Texture;
 
 /* A draw's pieces: its texture and state. */
@@ -100,8 +103,8 @@ typedef struct {
     AccelState s;
 } Pieces;
 
-/* What the card's palette was made of: the target's hold, LOOKUP's words of that count (0, each
-   index itself) and COLOURS' of that count (0, not read). */
+/* What the card's palette is made of: the target's hold, the lookup's giving (0, each index
+   itself) and COLOURS' of that count (0, not read). */
 typedef struct {
     IndicesHeld held;
     uint32_t lookups, colourings;
@@ -136,12 +139,16 @@ static struct {
     void *scratch; /* a tile's rows, or a band read back */
     size_t scratch_n;
 
-    /* LOOKUP's and COLOURS' words, each counted as given; the card's palette and what of (sent,
-       none before); the nearest index of each 565 word, of COLOURS' count memo_of */
-    uint32_t lookup[INDICES], colours[INDICES], lookups, colourings;
+    /* the lookups' words, null until one is given, each's giving counted (0, each index itself),
+       the one drawn through; COLOURS' words, counted as given; the card's palette, its entries sent
+       and those right for what it is made of, a bit each; the nearest index of each 565 word, of
+       COLOURS' count memo_of */
+    uint32_t (*lookups)[INDICES];
+    uint32_t given[QX_LIST_LOOKUPS], gives, looked;
+    uint32_t colours[INDICES], colourings;
     uint32_t palette[INDICES];
+    uint32_t sent_entries[ENTRY_WORDS], made[ENTRY_WORDS];
     Paletted paletted;
-    bool sent_palette;
     uint16_t *memo;
     uint32_t memo_of;
 } p;
@@ -504,27 +511,63 @@ static bool as_indices(const Texture *const t, uint8_t *const rgba, const uint32
     return true;
 }
 
-/* The card's palette for INDEX texels into a target holding held, through LOOKUP or, own, each
-   index itself: sent when it is another than the card's. */
-static void paletted(const IndicesHeld held, const bool own)
+/* The palette's run of n entries from first sent, the draws before it first. */
+static void entries_sent(const uint32_t first, const uint32_t n, bool *const sent)
 {
-    const Paletted k = {held, own ? 0 : p.lookups, held == HELD_SHOWN ? p.colourings : 0};
-    uint32_t words[INDICES];
+    if (!*sent)
+        flushed();
 
-    if (p.sent_palette && k.held == p.paletted.held && k.lookups == p.paletted.lookups &&
-        k.colourings == p.paletted.colourings)
-        return;
+    *sent = true;
+    p.d->palette(p.palette, first, n);
+}
 
-    indices_palette(words, own ? nullptr : p.lookup, p.colours, held);
-    p.paletted = k;
+/* The card's palette for t's INDEX texels into a target holding held, through the lookup drawn
+   through or, own, each index itself: the entries its texels hold sent where another than the
+   card's, in runs. */
+static void paletted(const IndicesHeld held, const bool own, const Texture *const t)
+{
+    const Paletted k = {held, own ? 0 : p.given[p.looked], held == HELD_SHOWN ? p.colourings : 0};
 
-    if (p.sent_palette && !memcmp(words, p.palette, sizeof words))
-        return;
+    if (k.held != p.paletted.held || k.lookups != p.paletted.lookups ||
+        k.colourings != p.paletted.colourings) {
+        p.paletted = k;
+        memset(p.made, 0, sizeof p.made);
+    }
 
-    flushed();
-    p.d->palette(words);
-    memcpy(p.palette, words, sizeof words);
-    p.sent_palette = true;
+    const uint32_t *const lookup = k.lookups ? p.lookups[p.looked] : nullptr;
+    uint32_t first = 0, n = 0; /* the run of entries changed, not yet sent */
+    bool sent = false;
+
+    for (uint32_t w = 0; w < ENTRY_WORDS; w++) {
+        uint32_t b = t->indices[w] & ~p.made[w];
+
+        p.made[w] |= b;
+
+        for (; b; b &= b - 1) {
+            const uint32_t at = (uint32_t)__builtin_ctz(b), i = w * ENTRY_BITS + at;
+            const uint32_t e = indices_entry(i, lookup, p.colours, held);
+
+            if (p.sent_entries[w] >> at & 1 && p.palette[i] == e)
+                continue;
+
+            p.palette[i] = e;
+            p.sent_entries[w] |= 1u << at;
+
+            if (n && first + n == i) {
+                n++;
+                continue;
+            }
+
+            if (n)
+                entries_sent(first, n, &sent);
+
+            first = i;
+            n = 1;
+        }
+    }
+
+    if (n)
+        entries_sent(first, n, &sent);
 }
 
 /* t's texels made its target's pixels, if ahead: false, no memory. */
@@ -582,7 +625,7 @@ static void painted(Texture *const t, const AccelRect r)
     aimed(t->target, r);
 
     if (t->index)
-        paletted(held_by(t), true);
+        paletted(held_by(t), true, t);
 
     for (uint32_t row = 0; row < g->down; row++)
         for (uint32_t column = 0; column < g->across; column++) {
@@ -1034,6 +1077,7 @@ static void op_texture(const QxListEntry *const e)
         .index = index,
         .target = NONE,
         .blank = true,
+        .indices = {1},
     };
 
     if (depth) {
@@ -1058,6 +1102,22 @@ static void op_texture(const QxListEntry *const e)
 
 static void op_free(const QxListEntry *const e) { texture_freed(e->arg[0]); }
 
+/* The indices h rows of w, pitch bytes apart, hold: among those INDEX texture t's texels may. */
+static void marked(
+    Texture *const t,
+    const uint8_t *const from,
+    const uint32_t pitch,
+    const uint32_t w,
+    const uint32_t h
+)
+{
+    for (uint32_t y = 0; y < h; y++)
+        for (uint32_t x = 0; x < w; x++) {
+            const uint8_t i = from[(size_t)y * pitch + x];
+            t->indices[i / ENTRY_BITS] |= 1u << i % ENTRY_BITS;
+        }
+}
+
 static void op_upload(const QxListEntry *const e)
 {
     const uint32_t *const a = e->arg;
@@ -1074,9 +1134,10 @@ static void op_upload(const QxListEntry *const e)
 
     uint16_t *const to = texels + (size_t)y * t->w + x;
 
-    if (t->index)
+    if (t->index) {
         texels_from_indices(to, t->w, qx_list_pointer(a + 6), a[5], w, h);
-    else
+        marked(t, qx_list_pointer(a + 6), a[5], w, h);
+    } else
         texels_from_rgba(to, t->w, qx_list_pointer(a + 6), a[5], w, h);
 
     t->blank = false;
@@ -1203,8 +1264,8 @@ static void triangles_drawn(
     uint16_t gridded_for[RECT] = {};
     bool grid = false, whole = false, ready = false;
 
-    if (index && (texel || !p.sent_palette))
-        paletted(held, false);
+    if (index)
+        paletted(held, false, t);
 
     for (uint32_t i = 0; i + 3 <= count;) {
         const uint32_t at = first + i;
@@ -1327,6 +1388,9 @@ static void op_draw(const QxListEntry *const e)
     if (pl->blend != ACCEL_KEEP) {
         into->ahead = true;
         into->blank = false;
+
+        if (into->index)
+            memset(into->indices, 0xFF, sizeof into->indices);
     }
 }
 
@@ -1352,8 +1416,21 @@ static void words_taken(uint32_t *const to, const uint32_t *const a)
 
 static void op_lookup(const QxListEntry *const e)
 {
-    words_taken(p.lookup, e->arg);
-    p.lookups++;
+    const uint32_t id = e->arg[0];
+    const uint32_t *const words = qx_list_pointer(e->arg + 1);
+
+    if (id >= QX_LIST_LOOKUPS)
+        return;
+
+    if (words) {
+        if (!p.lookups && !(p.lookups = zeroed(QX_LIST_LOOKUPS * sizeof *p.lookups)))
+            return;
+
+        words_taken(p.lookups[id], e->arg + 1);
+        p.given[id] = ++p.gives;
+    }
+
+    p.looked = id;
 }
 
 static void op_colours(const QxListEntry *const e)
@@ -1379,7 +1456,7 @@ static const struct {
     [QX_LIST_CLIP] = {op_clip, 4},
     [QX_LIST_DRAW] = {op_draw, QX_DRAW_TEXTURES},
     [QX_LIST_SHOW] = {op_show, 1},
-    [QX_LIST_LOOKUP] = {op_lookup, 2},
+    [QX_LIST_LOOKUP] = {op_lookup, 3},
     [QX_LIST_COLOURS] = {op_colours, 2},
 };
 
@@ -1405,10 +1482,7 @@ bool accel_open(
     p.vsync = flags & QX_SCREEN_VSYNC;
     p.discard = flags & QX_SCREEN_DISCARD;
     p.screen = p.aimed = NONE;
-    p.lookups = p.colourings = 1;
-
-    for (uint32_t i = 0; i < INDICES; i++)
-        p.lookup[i] = i;
+    p.colourings = 1;
 
     return true;
 }
@@ -1425,6 +1499,7 @@ void accel_close(void)
     walked(p.pipelines.root, LEVELS, pmem_free, true);
     pmem_free(p.scratch);
     pmem_free(p.memo);
+    pmem_free(p.lookups);
     memset(&p, 0, sizeof p);
 }
 

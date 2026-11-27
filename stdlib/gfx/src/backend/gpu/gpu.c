@@ -105,7 +105,8 @@ bool gpu_open(Gpu *const g, const QxScreen *const s, const bool eight, Palette *
     g->row0 = 1;
     g->coloured = 1; /* all index 0, black in the palette as it starts */
     g->colours = 0;
-    g->looked_up = false;
+    mem_fill(g->lookups, 0, sizeof g->lookups);
+    g->looked = 0;
 
     g->eight = eight;
     g->screen_w = (int32_t)s->w;

@@ -105,34 +105,52 @@ static void lit(GpuVertex *const v, Lit *const k)
     mem_copy(&v->r, &k->to, sizeof k->to);
 }
 
-/* LOOKUP for t's index texels sent, if they draw as other words than it last gave: into an 8-bit
-   target, the lut's indices; else the row's colours lit and tinted. False, no memory. */
+/* The lookup k's words go in: a light its own, row and tint spread over the rest. */
+static uint32_t lookup_of(const PalKey k)
+{
+    enum : uint32_t { SPREAD = 0x9E3779B1, TOP = 26 };
+
+    static_assert(QX_LIST_LOOKUPS == 1 << (32 - TOP));
+
+    return ((uint32_t)k.light + (uint32_t)k.row * 7 + (k.tint * SPREAD >> TOP)) &
+           (QX_LIST_LOOKUPS - 1);
+}
+
+/* LOOKUP for t's index texels sent, if they draw through another than the last: the host's
+   lookup for its row, light and tint, its words given unless it holds them. Into an 8-bit target
+   they are the lut's indices; else the row's colours lit and tinted. False, no memory. */
 static bool looked_up(Gpu *const g, const GpuCall *const t)
 {
     const int32_t row = t->template.row, light = t->template.light;
     const PalKey k = pal_key(g->pal, row, light, t->tint);
+    const uint32_t at = lookup_of(k);
 
-    if (g->looked_up && g->looked_eight == t->eight && pal_same(g->looked, k))
+    GpuLookup *const l = &g->lookups[at];
+    const bool held = l->given && l->eight == t->eight && pal_same(l->key, k);
+
+    if (held && g->looked == at)
         return true;
 
-    const uint32_t *const argb = t->eight ? nullptr : pal_argb(g->pal, row, light, t->tint);
-    uint32_t *const words = list_keep(&g->list, QX_LIST_INDICES * sizeof *words);
-    uint32_t args[2];
+    uint32_t args[3] = {at};
 
-    if (!words || (!t->eight && !argb))
+    if (!held) {
+        const uint32_t *const argb = t->eight ? nullptr : pal_argb(g->pal, row, light, t->tint);
+        uint32_t *const words = list_keep(&g->list, QX_LIST_INDICES * sizeof *words);
+
+        if (!words || (!t->eight && !argb))
+            return false;
+
+        for (uint32_t i = 0; i < QX_LIST_INDICES; i++)
+            words[i] = !t->eight ? argb[i] & PAL_WHITE : t->lut ? t->lut[i] : i;
+
+        list_pointer(args + 1, words);
+    }
+
+    if (!list_op(&g->list, QX_LIST_LOOKUP, args, 3))
         return false;
 
-    for (uint32_t i = 0; i < QX_LIST_INDICES; i++)
-        words[i] = !t->eight ? argb[i] & PAL_WHITE : t->lut ? t->lut[i] : i;
-
-    list_pointer(args, words);
-
-    if (!list_op(&g->list, QX_LIST_LOOKUP, args, 2))
-        return false;
-
-    g->looked = k;
-    g->looked_eight = t->eight;
-    g->looked_up = true;
+    *l = (GpuLookup){k, t->eight, true};
+    g->looked = at;
     return true;
 }
 

@@ -23,7 +23,9 @@ static bool down;         /* its clip space's y runs down */
 static uint8_t offered;   /* the languages the last screen asked for */
 static uint8_t flagged;   /* its flags */
 static uint8_t sent[64];  /* the last UPLOAD's first bytes */
-static uint32_t lookup[QX_LIST_INDICES], colours[QX_LIST_INDICES]; /* the last LOOKUP's, COLOURS' */
+/* the words the last LOOKUP chose, each lookup's, COLOURS' last; the LOOKUPs giving words */
+static uint32_t lookup[QX_LIST_INDICES], lookups[QX_LIST_LOOKUPS][QX_LIST_INDICES];
+static uint32_t colours[QX_LIST_INDICES], given;
 static uint32_t most_vertices; /* the most bytes of vertices a play wrote */
 
 static bool QX_CALL fake_open(QxScreen *const s)
@@ -68,9 +70,15 @@ static void QX_CALL fake_play(const uint32_t *const list, const uint32_t n)
         else if (e.op == QX_LIST_UPLOAD) {
             const uint32_t bytes = e.arg[4] * e.arg[5];
             memcpy(sent, qx_list_pointer(e.arg + 6), bytes < sizeof sent ? bytes : sizeof sent);
-        } else if (e.op == QX_LIST_LOOKUP)
-            memcpy(lookup, qx_list_pointer(e.arg), sizeof lookup);
-        else if (e.op == QX_LIST_COLOURS)
+        } else if (e.op == QX_LIST_LOOKUP && e.arg[0] < QX_LIST_LOOKUPS) {
+            const uint32_t *const w = qx_list_pointer(e.arg + 1);
+
+            if (w)
+                memcpy(lookups[e.arg[0]], w, sizeof lookup);
+
+            given += !!w;
+            memcpy(lookup, lookups[e.arg[0]], sizeof lookup);
+        } else if (e.op == QX_LIST_COLOURS)
             memcpy(colours, qx_list_pointer(e.arg), sizeof colours);
 
     plays++;
@@ -103,7 +111,11 @@ static void host_in(Session *const S, const QxShader shader, const bool y_down)
     fake.gpu_play = fake_play;
     fake.gpu_read = fake_read;
     qx_init_gfx(&fake)->stop();
-    nwords = plays = most_vertices = 0;
+    nwords = plays = most_vertices = given = 0;
+
+    for (uint32_t k = 0; k < QX_LIST_LOOKUPS; k++)
+        for (uint32_t i = 0; i < QX_LIST_INDICES; i++)
+            lookups[k][i] = i;
     memset(pixels, 0, sizeof pixels);
 }
 
@@ -1087,6 +1099,38 @@ TEST(gfx_gpu_draws_a_fixed_hosts_8_bit_roots_through_lookup)
     GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(a), I(0));
     GPU_CALL("display.flip");
     CHECK(ops(HEAD "PNCKDSE") && lookup[5] == 0x708090);
+}
+
+/* On a fixed host each light an 8-bit root is drawn at has its lookup, its words given once:
+   they were given at each change of light, MEADOW's 48 blossoms 48 lots of 256 words a frame. */
+TEST(gfx_gpu_gives_a_fixed_hosts_lookup_once_a_light)
+{
+    uint8_t indices[2] = {0, 5};
+
+    int32_t row[256] = {[5] = 0x102030};
+
+    QxArray in = gfx_array(indices, 2, 1), rows = gfx_array(row, 256, 4);
+
+    fixed_screen(S, 8, 8, 8);
+    const int32_t a = GPU_CALL("surface.new", I(2), I(1)).result.i;
+    CHECK(!GPU_CALL("surface.write", I(a), I(0), I(0), I(2), I(1), ARRAY(&in)).error);
+    GPU_CALL("display.set_palette", I(0), ARRAY(&rows));
+
+    uint32_t first[QX_LIST_INDICES];
+
+    for (uint32_t frame = 0; frame < 2; frame++) {
+        for (int32_t k = 0; k < 3; k++) {
+            GPU_CALL("draw.set_light", I(20 + 20 * (k & 1)));
+            GPU_CALL("draw.sprite", I(SURF_SCREEN), F(0), F(0), I(a), I(0));
+        }
+
+        GPU_CALL("display.flip");
+
+        if (!frame)
+            memcpy(first, lookup, sizeof first);
+    }
+
+    CHECK(given == 2 && !memcmp(first, lookup, sizeof first));
 }
 
 /* On a fixed host from minor 6 an 8-bit canvas is INDEX: row 0 sent as COLOURS when it changed,

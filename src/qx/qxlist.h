@@ -38,7 +38,7 @@
  *   Its texel is its draw's first texture's. It reads no uniforms. A host may hold fewer bits of
  *   a channel than the texture: what it reads back is what it holds. It may show only the
  *   first RGBA texture made of the screen's size, or (minor 6) INDEX one.
- *   Minor 6: an INDEX texel i draws as LOOKUP's word i. Into an INDEX texture a pixel is an
+ *   Minor 6: an INDEX texel i draws as its LOOKUP's word i. Into an INDEX texture a pixel is an
  *   index: a texel's word's low byte, a colour's red; MIX and ADD there are the host's nearest.
  *   An INDEX texture is shown, and may be held, as COLOURS' colours: read back, a pixel held so
  *   is the index nearest its colour.
@@ -51,9 +51,10 @@
  *   buffer indices, triangles of buffer vertices' vertices, through the pipeline; the textures,
  *   a word each, its samplers'; alpha 0 to 255.
  * - SHOW id: the texture is shown.
- * - LOOKUP pointer (minor 6, FIXED): 256 words, what an INDEX texel draws as after: into an INDEX
- *   texture, an index; into an RGBA one, &HRRGGBB times the vertex's colour. Each is its own
- *   index until given.
+ * - LOOKUP id, pointer (minor 6, FIXED): the draws after draw an INDEX texel i as lookup id's word
+ *   i: into an INDEX texture, an index; into an RGBA one, &HRRGGBB times the vertex's colour. The
+ *   pointer, unless null, gives its 256 words first. A lookup, id under QX_LIST_LOOKUPS, is each
+ *   index itself until given; the draws, through lookup 0 until a LOOKUP.
  * - COLOURS pointer (minor 6, FIXED): 256 words, &HRRGGBB, an INDEX texture's indices' colours
  *   for the draws and SHOWs after. Black until given.
  * - END.
@@ -93,8 +94,8 @@ typedef enum : uint8_t {
     QX_LIST_COLOURS,
 } QxListOp;
 
-/* LOOKUP's and COLOURS' words. */
-enum { QX_LIST_INDICES = 256 };
+/* LOOKUP's and COLOURS' words; the lookups. */
+enum { QX_LIST_INDICES = 256, QX_LIST_LOOKUPS = 64 };
 
 typedef enum : uint8_t { QX_BUFFER_VERTEX = 1, QX_BUFFER_INDEX } QxBuffer;
 

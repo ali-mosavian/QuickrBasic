@@ -31,22 +31,6 @@ uint32_t indices_code(const uint32_t j)
 
 uint8_t indices_of_code(const uint8_t *const rgba) { return (uint8_t)word_read(rgba); }
 
-void indices_palette(
-    uint32_t out[INDICES],
-    const uint32_t *const lookup,
-    const uint32_t colours[INDICES],
-    const IndicesHeld held
-)
-{
-    for (uint32_t i = 0; i < INDICES; i++) {
-        const uint32_t w = lookup ? lookup[i] : i;
-
-        out[i] = held == HELD_COLOURS ? w & RGB
-                 : held == HELD_SHOWN ? colours[w & BYTE] & RGB
-                                      : indices_code(w);
-    }
-}
-
 uint32_t indices_colour(
     const uint32_t argb,
     const uint32_t colours[INDICES],

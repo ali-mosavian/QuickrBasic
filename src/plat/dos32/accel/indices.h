@@ -13,7 +13,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-enum { INDICES = 256, INDICES_CELLS = 1 << 16 };
+enum { INDICES = 256, INDICES_CELLS = 1 << 16, INDICES_RGB = 0xFFFFFF };
 
 typedef enum : uint8_t { HELD_COLOURS, HELD_SHOWN, HELD_CODES } IndicesHeld;
 
@@ -21,14 +21,21 @@ typedef enum : uint8_t { HELD_COLOURS, HELD_SHOWN, HELD_CODES } IndicesHeld;
 uint32_t indices_code(uint32_t j);
 /* The index a code read back as R, G and B (accel/driver.h's read) is. */
 uint8_t indices_of_code(const uint8_t *rgba);
-/* The palette, &HRRGGBB, an INDEX texel draws through into a target holding held: lookup's words,
-   or each index itself when null, through colours when shown. */
-void indices_palette(
-    uint32_t out[INDICES],
-    const uint32_t *lookup,
+/* Palette entry i, &HRRGGBB, an INDEX texel draws through into a target holding held: lookup's
+   word, or i itself when null, through colours when shown. */
+static inline uint32_t indices_entry(
+    const uint32_t i,
+    const uint32_t *const lookup,
     const uint32_t colours[INDICES],
-    IndicesHeld held
-);
+    const IndicesHeld held
+)
+{
+    const uint32_t w = lookup ? lookup[i] : i;
+
+    return held == HELD_COLOURS ? w & INDICES_RGB
+           : held == HELD_SHOWN ? colours[(uint8_t)w] & INDICES_RGB
+                                : indices_code(w);
+}
 /* A vertex's colour argb into a target holding held: an index target's index, red, as what it
    holds; its alpha kept. */
 uint32_t indices_colour(uint32_t argb, const uint32_t colours[INDICES], IndicesHeld held);

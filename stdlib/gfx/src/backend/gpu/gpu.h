@@ -77,6 +77,12 @@ typedef struct {
     uint32_t depth;
 } GpuSource;
 
+/* A lookup the host holds (fixed): what its words were made from, into an 8-bit target; given. */
+typedef struct {
+    PalKey key;
+    bool eight, given;
+} GpuLookup;
+
 /* What the GPU was asked: draws (batches), texture uploads, and reads waited for. */
 typedef struct {
     uint32_t batches, uploads, waits;
@@ -93,20 +99,20 @@ typedef struct {
     uint32_t pass, deep; /* its texture and depth texture */
     int32_t w, h;        /* its size */
     Rect clip;
-    uint32_t behind;              /* the texture GPU_BEHIND copies; 0 none */
-    int32_t behind_w, behind_h;   /* GPU_BEHIND's size; 0 not made */
-    GpuBox dirty[GPU_DIRTY];      /* drawn in behind since the copy, by calls before this one */
-    uint32_t ndirty;              /* past GPU_DIRTY, more */
-    GpuBox call;                  /* drawn in the pass by this call */
-    uint32_t palette;             /* the palette's changes when sent, and 1; 0 not yet */
-    uint32_t mapped;              /* row 0's changes when the map was sent, and 1; 0 not yet */
-    uint32_t row0;                /* row 0's changes when the palette was last sent, and 1 */
-    uint32_t coloured;            /* those an 8-bit canvas's colours are of; 0 none */
-    uint32_t colours;             /* fixed: those COLOURS last sent; 0 none */
-    PalKey looked;                /* fixed: what LOOKUP's last words were made from */
-    bool looked_eight, looked_up; /* into an 8-bit target; sent */
-    bool eight;                   /* the canvas is 8 bits */
-    int32_t screen_w, screen_h;   /* its size */
+    uint32_t behind;            /* the texture GPU_BEHIND copies; 0 none */
+    int32_t behind_w, behind_h; /* GPU_BEHIND's size; 0 not made */
+    GpuBox dirty[GPU_DIRTY];    /* drawn in behind since the copy, by calls before this one */
+    uint32_t ndirty;            /* past GPU_DIRTY, more */
+    GpuBox call;                /* drawn in the pass by this call */
+    uint32_t palette;           /* the palette's changes when sent, and 1; 0 not yet */
+    uint32_t mapped;            /* row 0's changes when the map was sent, and 1; 0 not yet */
+    uint32_t row0;              /* row 0's changes when the palette was last sent, and 1 */
+    uint32_t coloured;          /* those an 8-bit canvas's colours are of; 0 none */
+    uint32_t colours;           /* fixed: those COLOURS last sent; 0 none */
+    GpuLookup lookups[QX_LIST_LOOKUPS]; /* fixed: each the host holds */
+    uint32_t looked;                    /* the one the draws go through */
+    bool eight;                         /* the canvas is 8 bits */
+    int32_t screen_w, screen_h;         /* its size */
     float down;      /* the shader's: 1 where clip space's y runs down a texture's rows, else -1 */
     uint32_t white;  /* the white texel shapes draw from */
     uint8_t *page;   /* the canvas's pixels, read back */
