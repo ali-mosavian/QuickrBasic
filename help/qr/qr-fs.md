@@ -11,7 +11,7 @@ Files, each error a value.
     f.seek(at) as bool or Error      its place to byte at, from 0
     f.size() as int                  its bytes
     f.close()                        closed
-    read_text(path) as string or Error  the whole file
+    read_text(path) as string or Error  the whole file; an Error past 32K
     write_text(path, s) as bool or Error  the file made s
     list(pattern = "*.*") as list[string]  names matching * and ?, sorted
 
