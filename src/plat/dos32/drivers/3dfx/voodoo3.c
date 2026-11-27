@@ -208,10 +208,15 @@ static void queued(const bool banshee)
     io_put(CMD + FIFO_SIZE, (FIFO_BYTES / PAGE - 1) | FIFO_ON);
 }
 
-static void put(Tdfx *const c, const uint32_t reg, const uint32_t *const v, const uint32_t n)
+static void put(
+    Tdfx *const c,
+    const uint32_t reg,
+    const TdfxPicks *const p,
+    const uint32_t *const v
+)
 {
     (void)c;
-    cmdfifo_registers(&h3.queue, reg, v, n);
+    cmdfifo_registers(&h3.queue, reg, p->mask, v);
 }
 
 static uint32_t based(const Tdfx *const c, const uint32_t at)
@@ -335,10 +340,10 @@ static void carried(Tdfx *const c)
     const uint32_t from[] = {format, size, at};
     const uint32_t to[] = {size, at, BLIT};
 
-    put(c, BLIT_CLIP, clip, sizeof clip / sizeof *clip);
-    put(c, BLIT_SOURCE, source, sizeof source / sizeof *source);
-    put(c, BLIT_FROM, from, sizeof from / sizeof *from);
-    put(c, BLIT_TO, to, sizeof to / sizeof *to);
+    tdfx_put_run(c, BLIT_CLIP, clip, sizeof clip / sizeof *clip);
+    tdfx_put_run(c, BLIT_SOURCE, source, sizeof source / sizeof *source);
+    tdfx_put_run(c, BLIT_FROM, from, sizeof from / sizeof *from);
+    tdfx_put_run(c, BLIT_TO, to, sizeof to / sizeof *to);
 }
 
 static const TdfxChip H3 = {

@@ -13,7 +13,6 @@ enum : uint32_t {
     PIXEL_AT = 1, /* the frame buffer window's: a pixel */
     CALM = 3,     /* status reads idle in a row: a read can pass the FIFO's last write */
     FBI_CALM = 6,
-    CORNERS = 6,                  /* fvertex' registers, A's to C's x and y, before the starts */
     LOD_OFF = 8 * 4 << 6 | 8 * 4, /* a TMU's lodmax and lodmin past every level: not drawn from */
     FIVE = 0x1F,
     SIX = 0x3F,
@@ -29,24 +28,39 @@ enum : uint32_t {
 static Tdfx card;
 static const TdfxFamily *family;
 
-static_assert(SST_FVERTEX + CORNERS * 4 == SST_FSTART);
+static_assert(
+    SST_FVERTEX + TDFX_START * 4 == SST_FSTART && SST_FVERTEX + TDFX_DX * 4 == SST_FDX &&
+    SST_FVERTEX + TDFX_DY * 4 == SST_FDY && SST_FVERTEX + TDFX_COMMAND * 4 == SST_FTRIANGLE
+);
 
-void tdfx_put(Tdfx *const c, const uint32_t reg, const uint32_t v) { c->chip->put(c, reg, &v, 1); }
+TdfxPicks tdfx_picks(const uint32_t mask)
+{
+    TdfxPicks p = {mask, 0, {}};
+
+    for (uint32_t i = 0, left = mask; left; i++, left >>= 1)
+        if (left & 1)
+            p.at[p.n++] = (uint8_t)i;
+
+    return p;
+}
+
+void tdfx_put(Tdfx *const c, const uint32_t reg, const uint32_t v)
+{
+    static const TdfxPicks one = {1, 1, {0}};
+
+    c->chip->put(c, reg, &one, &v);
+}
+
+void tdfx_put_run(Tdfx *const c, const uint32_t reg, const uint32_t *const v, const uint32_t n)
+{
+    const TdfxPicks p = tdfx_picks((1u << n) - 1);
+
+    c->chip->put(c, reg, &p, v);
+}
 
 void tdfx_put_init(const Tdfx *const c, const uint32_t reg, const uint32_t v)
 {
     *(volatile uint32_t *)(c->regs + reg) = v;
-}
-
-/* A float's bits, as the float registers take them. */
-static uint32_t bits(const float v)
-{
-    const union {
-        float f;
-        uint32_t bits;
-    } u = {.f = v};
-
-    return u.bits;
 }
 
 uint32_t tdfx_get(const Tdfx *const c, const uint32_t reg)
@@ -111,6 +125,8 @@ static void sent(Tdfx *const c)
     const TdfxWords w = tdfx_words(s, c->draw, texel && c->textures[s->texture].indexed);
     const uint32_t x0 = (uint32_t)c->clip.x + c->ox, y0 = (uint32_t)c->clip.y + c->oy;
 
+    c->params = tdfx_params(s, texel);
+    c->sent = tdfx_picks(tdfx_sent(c->params));
     tdfx_put(c, SST_CLIP_X, x0 << 16 | (x0 + (uint32_t)c->clip.w));
     tdfx_put(c, SST_CLIP_Y, y0 << 16 | (y0 + (uint32_t)c->clip.h));
     tdfx_put(c, SST_FBZ_COLOUR_PATH, w.colour_path);
@@ -334,34 +350,15 @@ static void ACCEL_CALL stated(const AccelState *const s)
 static void ACCEL_CALL drawn(const AccelVertex *const v, const uint32_t n)
 {
     Tdfx *const c = &card;
-    const bool texel = c->state.source != ACCEL_COLOUR && c->state.texture;
-    const uint32_t params = texel ? TDFX_PARAMS : TDFX_S;
+    const bool texel = c->params >> TDFX_S & 1;
     const float scale = texel ? (float)(1u << c->textures[c->state.texture].level) : 1;
+    const TdfxDraw d = {(float)c->ox, (float)c->oy, scale, c->params, c->state.alpha};
 
     for (uint32_t i = 0; i + 3 <= n; i += 3) {
         TdfxTriangle t;
 
-        if (!tdfx_setup(v + i, (float)c->ox, (float)c->oy, scale, c->state.alpha, &t))
-            continue;
-
-        uint32_t corners[CORNERS + TDFX_PARAMS], dx[TDFX_PARAMS], dy[TDFX_PARAMS];
-
-        for (uint32_t k = 0; k < 3; k++) {
-            corners[2 * k] = bits(t.x[k]);
-            corners[2 * k + 1] = bits(t.y[k]);
-        }
-
-        for (uint32_t p = 0; p < params; p++) {
-            corners[CORNERS + p] = bits(t.start[p]);
-            dx[p] = bits(t.dx[p]);
-            dy[p] = bits(t.dy[p]);
-        }
-
-        /* the corners and the starts after them are one run, each gradient's another */
-        c->chip->put(c, SST_FVERTEX, corners, CORNERS + params);
-        c->chip->put(c, SST_FDX, dx, params);
-        c->chip->put(c, SST_FDY, dy, params);
-        tdfx_put(c, SST_FTRIANGLE, t.command);
+        if (tdfx_setup(v + i, &d, &t))
+            c->chip->put(c, SST_FVERTEX, &c->sent, t.word);
     }
 }
 
@@ -413,7 +410,7 @@ static void ACCEL_CALL paletted(const uint32_t *const colours)
             run[k] = PALETTE_WRITE | (at & ~1u) << INDEX_AT | rgb;
         }
 
-        c->chip->put(c, SST_TMU0 + SST_PALETTE, run, RUN);
+        tdfx_put_run(c, SST_TMU0 + SST_PALETTE, run, RUN);
     }
 
     tdfx_put(c, SST_CHROMA_KEY, key);

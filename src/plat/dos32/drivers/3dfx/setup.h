@@ -5,35 +5,60 @@
  * and gradients, moving them to the first pixel's centre itself; its pixels' centres are at halves.
  * S and T are a texture's texels at LOD 0, 256 across, each over w, and W is 1 over w: the card
  * divides back per pixel. W is scaled to at most 1, the card's range, which the division undoes.
+ * Only the parameters a state's path reads are worked out and sent: the card keeps the rest.
  */
 #ifndef TDFX_SETUP_H
 #define TDFX_SETUP_H
 #include "plat/dos32/accel/driver.h"
 
 /* A triangle's parameters, in the card's float registers' order. */
-typedef enum { TDFX_R, TDFX_G, TDFX_B, TDFX_Z, TDFX_A, TDFX_S, TDFX_T, TDFX_W, TDFX_PARAMS } TdfxParam;
+typedef enum {
+    TDFX_R,
+    TDFX_G,
+    TDFX_B,
+    TDFX_Z,
+    TDFX_A,
+    TDFX_S,
+    TDFX_T,
+    TDFX_W,
+    TDFX_PARAMS
+} TdfxParam;
+
+/* A triangle as the card's registers from fvertex take it, a word each: A's, B's and C's x and y;
+   each parameter's start, then its x gradient, then its y gradient; triangleCMD's, the area's
+   sign. */
+enum {
+    TDFX_CORNERS = 6,
+    TDFX_START = TDFX_CORNERS,
+    TDFX_DX = TDFX_START + TDFX_PARAMS,
+    TDFX_DY = TDFX_DX + TDFX_PARAMS,
+    TDFX_COMMAND = TDFX_DY + TDFX_PARAMS,
+    TDFX_WORDS,
+};
 
 typedef struct {
-    float x[3], y[3]; /* A, B, C */
-    float start[TDFX_PARAMS], dx[TDFX_PARAMS], dy[TDFX_PARAMS];
-    uint32_t command; /* triangleCMD's: the area's sign */
+    uint32_t word[TDFX_WORDS];
 } TdfxTriangle;
+
+/* What a draw's triangles share: their move; their texels' scale; the parameters sent, a bit
+   each; their alpha's share over 255. */
+typedef struct {
+    float ox, oy, scale;
+    uint32_t params;
+    uint8_t share;
+} TdfxDraw;
 
 /* The registers' words for a state: its texture's place aside. */
 typedef struct {
     uint32_t colour_path, alpha_mode, fbz_mode, texture_mode;
 } TdfxWords;
 
-/* v's triangle moved by ox, oy, its texels times scale, its alpha times share over 255: false, no
-   area. */
-bool tdfx_setup(
-    const AccelVertex v[3],
-    float ox,
-    float oy,
-    float scale,
-    uint8_t share,
-    TdfxTriangle *out
-);
+/* The parameters s's path reads, a bit each: a texture's when texel. */
+uint32_t tdfx_params(const AccelState *s, bool texel);
+/* A triangle's words sent for params, a bit each: the corners, the parameters' and the command. */
+uint32_t tdfx_sent(uint32_t params);
+/* v's triangle as d draws it, the words tdfx_sent picks: false, no area. */
+bool tdfx_setup(const AccelVertex v[3], const TdfxDraw *d, TdfxTriangle *out);
 /* s's words, drawn into buffer draw (0 front, 1 back), its texture indexed or not: an indexed one
    keyed by the chroma key, its index 0's colour. */
 TdfxWords tdfx_words(const AccelState *s, uint32_t draw, bool indexed);

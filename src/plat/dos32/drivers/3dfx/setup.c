@@ -3,6 +3,13 @@
 #include "plat/dos32/drivers/3dfx/regs.h"
 
 enum { CHANNEL = 255, DEPTH = 65535, SIDE = 256, LEVEL = 4, SIGN = 1u << 31 };
+
+enum : uint32_t {
+    COLOUR = 1u << TDFX_R | 1u << TDFX_G | 1u << TDFX_B,
+    TEXEL = 1u << TDFX_S | 1u << TDFX_T | 1u << TDFX_W,
+    CORNERS = (1u << TDFX_CORNERS) - 1,
+};
+
 /* Alpha's share as a multiply, a divide being 39 cycles on a Pentium: the float is above 1/255, so a
    whole alpha stays whole as the card truncates it. */
 static const float FADE = 1.0f / CHANNEL;
@@ -19,14 +26,34 @@ static uint32_t log2_of(uint32_t n)
     return l;
 }
 
-bool tdfx_setup(
-    const AccelVertex v[3],
-    const float ox,
-    const float oy,
-    const float scale,
-    const uint8_t share,
-    TdfxTriangle *const out
-)
+/* A float's bits, as the float registers take them. */
+static uint32_t bits(const float v)
+{
+    const union {
+        float f;
+        uint32_t bits;
+    } u = {.f = v};
+
+    return u.bits;
+}
+
+/* The colour unless the texel alone or no colour written; alpha for a blend or the key's test. */
+uint32_t tdfx_params(const AccelState *const s, const bool texel)
+{
+    const bool alone = texel && s->source == ACCEL_TEXEL && s->flags & ACCEL_REPLACE;
+    const bool alpha = s->blend == ACCEL_MIX || s->blend == ACCEL_ADD || s->flags & ACCEL_KEY;
+
+    return (alone || s->blend == ACCEL_KEEP ? 0 : COLOUR) | (alone || !alpha ? 0 : 1u << TDFX_A) |
+           (s->depth ? 1u << TDFX_Z : 0) | (texel ? TEXEL : 0);
+}
+
+uint32_t tdfx_sent(const uint32_t params)
+{
+    return CORNERS | params << TDFX_START | params << TDFX_DX | params << TDFX_DY |
+           1u << TDFX_COMMAND;
+}
+
+bool tdfx_setup(const AccelVertex v[3], const TdfxDraw *const d, TdfxTriangle *const out)
 {
     const AccelVertex *p[3] = {&v[0], &v[1], &v[2]};
     const AccelVertex *swap;
@@ -40,51 +67,78 @@ bool tdfx_setup(
     if (p[1]->y < p[0]->y)
         swap = p[0], p[0] = p[1], p[1] = swap;
 
-    float most = p[0]->q;
+    const uint32_t params = d->params;
 
-    for (uint32_t i = 1; i < 3; i++)
-        most = p[i]->q > most ? p[i]->q : most;
+    /* W's scale: the largest q made 1, a 2D draw's q of 1 left undivided */
+    float k = 1;
 
-    const float k = 1 / most;
+    if (params & TEXEL) {
+        float most = p[0]->q;
 
-    float at[3][TDFX_PARAMS];
+        for (uint32_t i = 1; i < 3; i++)
+            most = p[i]->q > most ? p[i]->q : most;
+
+        if (most != 1)
+            k = 1 / most;
+    }
+
+    float x[3], y[3], at[3][TDFX_PARAMS];
 
     for (uint32_t i = 0; i < 3; i++) {
         const AccelVertex *const c = p[i];
-        const float z = c->z < 0 ? 0 : c->z > 1 ? 1 : c->z, w = c->q * k;
 
-        out->x[i] = c->x + 0.5f + ox;
-        out->y[i] = c->y + 0.5f + oy;
-        at[i][TDFX_R] = (float)(c->colour >> 16 & CHANNEL);
-        at[i][TDFX_G] = (float)(c->colour >> 8 & CHANNEL);
-        at[i][TDFX_B] = (float)(c->colour & CHANNEL);
-        at[i][TDFX_A] = (float)((c->colour >> 24) * share) * FADE;
-        at[i][TDFX_Z] = z * DEPTH;
-        at[i][TDFX_S] = c->s * scale * w;
-        at[i][TDFX_T] = c->t * scale * w;
-        at[i][TDFX_W] = w;
+        x[i] = c->x + 0.5f + d->ox;
+        y[i] = c->y + 0.5f + d->oy;
+
+        if (params & COLOUR) {
+            at[i][TDFX_R] = (float)(c->colour >> 16 & CHANNEL);
+            at[i][TDFX_G] = (float)(c->colour >> 8 & CHANNEL);
+            at[i][TDFX_B] = (float)(c->colour & CHANNEL);
+        }
+
+        if (params & 1u << TDFX_Z)
+            at[i][TDFX_Z] = (c->z < 0 ? 0 : c->z > 1 ? 1 : c->z) * DEPTH;
+
+        if (params & 1u << TDFX_A)
+            at[i][TDFX_A] = (float)((c->colour >> 24) * d->share) * FADE;
+
+        if (params & TEXEL) {
+            const float w = c->q * k, texels = d->scale * w;
+
+            at[i][TDFX_S] = c->s * texels;
+            at[i][TDFX_T] = c->t * texels;
+            at[i][TDFX_W] = w;
+        }
     }
 
-    const float *const x = out->x, *const y = out->y;
-    const float area = (x[1] - x[0]) * (y[2] - y[0]) - (x[2] - x[0]) * (y[1] - y[0]);
+    const float x1 = x[1] - x[0], x2 = x[2] - x[0], y1 = y[1] - y[0], y2 = y[2] - y[0];
+    const float area = x1 * y2 - x2 * y1;
 
     if (area == 0)
         return false;
 
-    const float per = 1 / area;
+    /* B's and C's differences from A weighed in each gradient: a parameter's are its own times
+       these */
+    const float per = 1 / area, xb = y2 * per, xc = y1 * per, yb = x2 * per, yc = x1 * per;
 
     for (uint32_t n = 0; n < TDFX_PARAMS; n++) {
+        if (!(params >> n & 1))
+            continue;
+
         const float b = at[1][n] - at[0][n], c = at[2][n] - at[0][n];
 
-        out->start[n] = at[0][n];
-        out->dx[n] = (b * (y[2] - y[0]) - c * (y[1] - y[0])) * per;
-        out->dy[n] = (c * (x[1] - x[0]) - b * (x[2] - x[0])) * per;
+        out->word[TDFX_START + n] = bits(at[0][n]);
+        out->word[TDFX_DX + n] = bits(b * xb - c * xc);
+        out->word[TDFX_DY + n] = bits(c * yc - b * yb);
     }
 
-    /* the card's own area: B left of A to C, negative */
-    const float card = (x[0] - x[1]) * (y[1] - y[2]) - (x[1] - x[2]) * (y[0] - y[1]);
+    for (uint32_t i = 0; i < 3; i++) {
+        out->word[2 * i] = bits(x[i]);
+        out->word[2 * i + 1] = bits(y[i]);
+    }
 
-    out->command = card < 0 ? SIGN : 0;
+    /* the card's own area, the same: B left of A to C, negative */
+    out->word[TDFX_COMMAND] = area < 0 ? SIGN : 0;
     return true;
 }
 
@@ -93,16 +147,20 @@ TdfxWords tdfx_words(const AccelState *const s, const uint32_t draw, const bool 
     const bool texel = s->source != ACCEL_COLOUR, test = s->depth & ACCEL_DEPTH_TEST;
     const bool keyed = texel && s->flags & ACCEL_KEY;
     const uint32_t mask = indexed ? SST_PATH_INDEX_MASK : SST_PATH_MASK;
-    const uint32_t path = s->source == ACCEL_MASK         ? mask
-                          : !texel                        ? 0
-                          : s->flags & ACCEL_REPLACE      ? SST_PATH_REPLACE
-                                                          : SST_PATH_TEXEL;
-    const uint32_t format = indexed ? SST_P8 << SST_FORMAT | SST_SEQUENTIAL : SST_ARGB1555 << SST_FORMAT;
+    const uint32_t path = s->source == ACCEL_MASK    ? mask
+                          : !texel                   ? 0
+                          : s->flags & ACCEL_REPLACE ? SST_PATH_REPLACE
+                                                     : SST_PATH_TEXEL;
+    const uint32_t format =
+        indexed ? SST_P8 << SST_FORMAT | SST_SEQUENTIAL : SST_ARGB1555 << SST_FORMAT;
 
     TdfxWords w = {
         .colour_path = path | SST_PATH_ADJUST,
-        .alpha_mode = s->blend == ACCEL_MIX ? SST_MIX : s->blend == ACCEL_ADD ? SST_ADD : 0,
-        .fbz_mode = SST_CLIPPED | draw << SST_DRAW_BUFFER | (s->blend != ACCEL_KEEP ? SST_RGB_WRITE : 0) |
+        .alpha_mode = s->blend == ACCEL_MIX   ? SST_MIX
+                      : s->blend == ACCEL_ADD ? SST_ADD
+                                              : 0,
+        .fbz_mode = SST_CLIPPED | draw << SST_DRAW_BUFFER |
+                    (s->blend != ACCEL_KEEP ? SST_RGB_WRITE : 0) |
                     (keyed && indexed ? SST_CHROMA : 0),
         .texture_mode = SST_PERSPECTIVE | format | SST_LOCAL |
                         (s->flags & ACCEL_LINEAR ? SST_LINEAR : 0) |

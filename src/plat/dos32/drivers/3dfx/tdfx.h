@@ -8,7 +8,7 @@
  * rows of the depth buffer. A texture is one LOD of TMU0's memory; an indexed one's texels are
  * looked up in TMU0's palette, index 0 keyed by the chroma key: the palette's colour for it, its
  * low bits, which a 565 pixel drops, made unlike every other's. Registers are written as the chip
- * takes them: a triangle as three runs of them.
+ * takes them, those a write picks: a triangle as the words its state reads.
  */
 #ifndef TDFX_TDFX_H
 #define TDFX_TDFX_H
@@ -23,6 +23,12 @@ enum { TDFX_VENDOR = 0x121A };
 
 typedef struct Tdfx Tdfx;
 
+/* The registers a put writes, its first's on: a bit each in mask, and their places in order. */
+typedef struct {
+    uint32_t mask, n;
+    uint8_t at[32];
+} TdfxPicks;
+
 typedef struct {
     uint32_t at; /* its texels' first byte in TMU0's memory */
     uint16_t w, h;
@@ -32,7 +38,7 @@ typedef struct {
 
 /* A chip's (SST-1's and CVG's, sst.c; H3's, voodoo3.c):
    - busy: status' bits while it works;
-   - put: n registers from reg written, v's words in order;
+   - put: the registers p picks from reg written, v's word at each one's place;
    - based: texBaseAddr's word for texture memory's byte at;
    - upload: texels r of texture t from texels, pitch a row, TMU0 placing t and taking its
      format;
@@ -43,7 +49,7 @@ typedef struct {
    - paletted: after TMU0's palette is written, what holds texels looked up in it flushed. */
 typedef struct {
     uint32_t busy;
-    void (*put)(Tdfx *c, uint32_t reg, const uint32_t *v, uint32_t n);
+    void (*put)(Tdfx *c, uint32_t reg, const TdfxPicks *p, const uint32_t *v);
     uint32_t (*based)(const Tdfx *c, uint32_t at);
     void (*upload)(
         Tdfx *c,
@@ -96,10 +102,16 @@ struct Tdfx {
     uint32_t ox, oy;              /* its place in the buffer */
     AccelRect clip;
     AccelState state;
+    uint32_t params; /* setup.h's: those the state reads */
+    TdfxPicks sent;  /* a triangle's words sent for them */
     uint32_t placed; /* the texture TMU0's registers place: ACCEL_TEXTURES, none */
 };
 
+/* mask's picks. */
+TdfxPicks tdfx_picks(uint32_t mask);
 void tdfx_put(Tdfx *c, uint32_t reg, uint32_t v);
+/* n registers from reg written v's words in order, n under 32. */
+void tdfx_put_run(Tdfx *c, uint32_t reg, const uint32_t *v, uint32_t n);
 /* An init register's (fbiInit, the video timing, clutData, dacData): not the FIFO's, written
    with the card idle. */
 void tdfx_put_init(const Tdfx *c, uint32_t reg, uint32_t v);

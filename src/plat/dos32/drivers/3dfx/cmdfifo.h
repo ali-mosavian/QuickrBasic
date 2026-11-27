@@ -3,9 +3,10 @@
  *
  * # How it works
  * The card reads from its read pointer up to the last word written, hole counting finding that
- * word. A run of registers is a PKT1, texels a PKT5 to texture space; a word is kept at the ring's
- * end for a jump back to its start. The CPU waits only when it would write over what the card has
- * yet to read. Each card's bring-up places the ring and turns it on; this module only writes it.
+ * word. Registers are a PKT4 for each 14 a mask spans, texels a PKT5 to texture space; a word is
+ * kept at the ring's end for a jump back to its start. The CPU waits only when it would write over
+ * what the card has yet to read. Each card's bring-up places the ring and turns it on; this module
+ * only writes it.
  */
 #ifndef TDFX_CMDFIFO_H
 #define TDFX_CMDFIFO_H
@@ -31,8 +32,8 @@ void cmdfifo_begin(
     uint32_t at,
     uint32_t bytes
 );
-/* n words to the 3D registers from reg's byte on. */
-void cmdfifo_registers(CmdFifo *f, uint32_t reg, const uint32_t *v, uint32_t n);
+/* The registers from reg's byte that mask picks, a bit each, written v's word at each's place. */
+void cmdfifo_registers(CmdFifo *f, uint32_t reg, uint32_t mask, const uint32_t *v);
 /* w by h texels, w even, to texture space: row y from its byte at + y * stride, from texels'
    row y * pitch; indexed, w a multiple of 4, a byte each, their low bytes. */
 void cmdfifo_texels(

@@ -4,13 +4,13 @@
 #include <stddef.h>
 
 enum : uint32_t {
-    /* packets: registers, from the 2nd bit their place, its words from the 16th, the place
-       incremented; texels to texture space, their words from the 3rd bit; a jump in frame memory,
-       its place from the 4th */
-    REGISTERS = 1,
+    /* packets: registers, from the 2nd bit the first's place, from the 16th a bit for each of the
+       PICKED after it written; texels to texture space, their words from the 3rd bit; a jump in
+       frame memory, its place from the 4th */
+    REGISTERS = 4,
     REGISTER_AT = 1,
-    WORDS = 16,
-    INCREMENTED = 1u << 15,
+    MASK_AT = 15,
+    PICKED = 14,
     TEXELS = 5 | 3u << 30,
     TEXEL_WORDS = 3,
     JUMP = 3 << 3,
@@ -70,18 +70,37 @@ static void reserved(CmdFifo *const f, const uint32_t n)
     }
 }
 
+/* Each packet's words stored from a local: a store through the ring could alias f's. */
 void cmdfifo_registers(
     CmdFifo *const f,
     const uint32_t reg,
-    const uint32_t *const v,
-    const uint32_t n
+    const uint32_t mask,
+    const uint32_t *const v
 )
 {
-    reserved(f, n + 1);
-    word(f, n << WORDS | INCREMENTED | reg << REGISTER_AT | REGISTERS);
+    for (uint32_t from = 0; from < 32 && mask >> from; from += PICKED) {
+        const uint32_t picked = mask >> from & ((1u << PICKED) - 1);
 
-    for (uint32_t i = 0; i < n; i++)
-        word(f, v[i]);
+        uint32_t n = 0;
+
+        for (uint32_t left = picked; left; left &= left - 1)
+            n++;
+
+        if (!n)
+            continue;
+
+        reserved(f, n + 1);
+
+        volatile uint32_t *to = (volatile uint32_t *)(f->ring + written(f));
+
+        *to++ = picked << MASK_AT | (reg + WORD * from) << REGISTER_AT | REGISTERS;
+
+        for (uint32_t i = 0; picked >> i; i++)
+            if (picked >> i & 1)
+                *to++ = v[from + i];
+
+        f->sent += WORD * (n + 1);
+    }
 }
 
 void cmdfifo_texels(

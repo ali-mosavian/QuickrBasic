@@ -198,32 +198,50 @@ static uint32_t room_in(const uint32_t status)
     return !lwm ? status & SST_ROOM : free > lwm ? free - lwm : 0;
 }
 
-/* Up to n of the FIFO's entries, at least one, as it has room: how many. */
-static uint32_t taken(Tdfx *const c, const uint32_t n)
+/* The FIFO's entries known free, free, else waited for: at least one. */
+static uint32_t roomy(Tdfx *const c, uint32_t free)
 {
-    while (!room)
-        room = room_in(tdfx_get(c, SST_STATUS));
+    while (!free)
+        free = room_in(tdfx_get(c, SST_STATUS));
 
-    const uint32_t k = n < room ? n : room;
-
-    room -= k;
-    return k;
+    return free;
 }
 
 /* A word to a window's at, as the FIFO has room. */
 static void stored(Tdfx *const c, volatile uint8_t *const at, const uint32_t v)
 {
-    taken(c, 1);
+    room = roomy(c, room) - 1;
     *(volatile uint32_t *)at = v;
 }
 
-static void put(Tdfx *const c, const uint32_t reg, const uint32_t *const v, const uint32_t n)
+/* As many words at a time as the FIFO has room for, counted in locals: a store through the
+   window could alias room and p's count, read again each word. */
+static void put(
+    Tdfx *const c,
+    const uint32_t reg,
+    const TdfxPicks *const p,
+    const uint32_t *const v
+)
 {
     volatile uint32_t *const to = (volatile uint32_t *)(c->regs + reg);
+    const uint32_t n = p->n;
+    uint32_t free = room;
 
-    for (uint32_t i = 0; i < n;)
-        for (const uint32_t end = i + taken(c, n - i); i < end; i++)
+    for (uint32_t k = 0; k < n;) {
+        free = roomy(c, free);
+
+        const uint32_t end = n - k < free ? n : k + free;
+
+        free -= end - k;
+
+        for (; k < end; k++) {
+            const uint32_t i = p->at[k];
+
             to[i] = v[i];
+        }
+    }
+
+    room = free;
 }
 
 uint32_t sst_based(const Tdfx *const c, const uint32_t at)
@@ -299,8 +317,8 @@ static void blitted(
     };
     const uint32_t places[] = {at, at, (h - 1) << HALF_AT | (w - 1), BLIT_COPY};
 
-    c->chip->put(c, BLIT_BASES, bases, sizeof bases / sizeof *bases);
-    c->chip->put(c, BLIT_PLACES, places, sizeof places / sizeof *places);
+    tdfx_put_run(c, BLIT_BASES, bases, sizeof bases / sizeof *bases);
+    tdfx_put_run(c, BLIT_PLACES, places, sizeof places / sizeof *places);
     tdfx_put(c, BLIT_COMMAND, BLIT);
 }
 

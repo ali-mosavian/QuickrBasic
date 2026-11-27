@@ -12,6 +12,17 @@
 
 static bool near(const float a, const float b) { return a - b < 1e-4f && b - a < 1e-4f; }
 
+enum : uint32_t { EVERY = (1u << TDFX_PARAMS) - 1 };
+
+/* Word i of t, the float it holds. */
+static float word_of(const TdfxTriangle *const t, const uint32_t i)
+{
+    float f;
+
+    memcpy(&f, &t->word[i], sizeof f);
+    return f;
+}
+
 /* Corners given bottom first: sorted top first, moved to the card's pixel centres, red's
    gradients 10 across and 5 down whatever the order. */
 TEST(tdfx_setup_sorts_corners_and_finds_gradients)
@@ -22,13 +33,15 @@ TEST(tdfx_setup_sorts_corners_and_finds_gradients)
         {10, 0, 0, 1, 0, 0, 0xFF640000},
     };
 
+    const TdfxDraw d = {0, 0, 1, EVERY, 255};
+
     TdfxTriangle t;
 
-    CHECK(tdfx_setup(v, 0, 0, 1, 255, &t));
-    CHECK(near(t.y[0], 0.5f) && near(t.y[2], 10.5f) && near(t.x[2], 0.5f));
-    CHECK(near(t.x[0], 0.5f) && near(t.start[TDFX_R], 0));
-    CHECK(near(t.dx[TDFX_R], 10) && near(t.dy[TDFX_R], 5));
-    CHECK(near(t.start[TDFX_A], 255) && near(t.dx[TDFX_A], 0));
+    CHECK(tdfx_setup(v, &d, &t));
+    CHECK(near(word_of(&t, 1), 0.5f) && near(word_of(&t, 5), 10.5f) && near(word_of(&t, 4), 0.5f));
+    CHECK(near(word_of(&t, 0), 0.5f) && near(word_of(&t, TDFX_START + TDFX_R), 0));
+    CHECK(near(word_of(&t, TDFX_DX + TDFX_R), 10) && near(word_of(&t, TDFX_DY + TDFX_R), 5));
+    CHECK(near(word_of(&t, TDFX_START + TDFX_A), 255) && near(word_of(&t, TDFX_DX + TDFX_A), 0));
 }
 
 /* The same corners mirrored: the card's area's sign the other way. */
@@ -39,10 +52,12 @@ TEST(tdfx_setup_signs_a_mirrored_triangle)
     const AccelVertex left[3] =
         {{0, 0, 0, 1, 0, 0, 0}, {-10, 0, 0, 1, 0, 0, 0}, {0, 10, 0, 1, 0, 0, 0}};
 
+    const TdfxDraw d = {0, 0, 1, EVERY, 255};
+
     TdfxTriangle a, b;
 
-    CHECK(tdfx_setup(right, 0, 0, 1, 255, &a) && tdfx_setup(left, 0, 0, 1, 255, &b));
-    CHECK(a.command != b.command);
+    CHECK(tdfx_setup(right, &d, &a) && tdfx_setup(left, &d, &b));
+    CHECK(a.word[TDFX_COMMAND] != b.word[TDFX_COMMAND]);
 }
 
 /* q of 2 and 4 scaled so the larger is 1; S, T over w with them; alpha times the share. */
@@ -54,12 +69,74 @@ TEST(tdfx_setup_scales_w_into_the_cards_range)
         {0, 10, 0, 2, 8, 4, 0xFF000000},
     };
 
+    const TdfxDraw d = {0, 0, 4, EVERY, 128};
+
     TdfxTriangle t;
 
-    CHECK(tdfx_setup(v, 0, 0, 4, 128, &t));
-    CHECK(near(t.start[TDFX_W], 0.5f) && near(t.start[TDFX_S], 8 * 4 * 0.5f));
-    CHECK(near(t.start[TDFX_T], 4 * 4 * 0.5f) && near(t.dx[TDFX_W], 0.05f));
-    CHECK(near(t.start[TDFX_A], 128));
+    CHECK(tdfx_setup(v, &d, &t));
+    CHECK(
+        near(word_of(&t, TDFX_START + TDFX_W), 0.5f) &&
+        near(word_of(&t, TDFX_START + TDFX_S), 8 * 4 * 0.5f)
+    );
+    CHECK(
+        near(word_of(&t, TDFX_START + TDFX_T), 4 * 4 * 0.5f) &&
+        near(word_of(&t, TDFX_DX + TDFX_W), 0.05f)
+    );
+    CHECK(near(word_of(&t, TDFX_START + TDFX_A), 128));
+}
+
+/* Only the parameters a draw sends are worked out: an untextured one's S, T and W, and Z and A
+   unread, cost a fifth of a triangle's setup each and were sent for nothing. */
+TEST(tdfx_setup_works_out_only_the_parameters_sent)
+{
+    const AccelVertex v[3] = {
+        {0, 0, 0.5f, 2, 8, 4, 0x80FF0000},
+        {10, 0, 0.5f, 4, 8, 4, 0x80FF0000},
+        {0, 10, 0.5f, 2, 8, 4, 0x80FF0000},
+    };
+    const uint32_t colour = 1u << TDFX_R | 1u << TDFX_G | 1u << TDFX_B;
+    const TdfxDraw d = {0, 0, 1, colour, 255};
+    const uint32_t sent = tdfx_sent(colour);
+
+    TdfxTriangle t;
+
+    memset(&t, 0xA5, sizeof t);
+    CHECK(tdfx_setup(v, &d, &t) && near(word_of(&t, TDFX_START + TDFX_R), 255));
+
+    for (uint32_t i = 0; i < TDFX_WORDS; i++)
+        CHECK((t.word[i] == 0xA5A5A5A5) == !(sent >> i & 1));
+}
+
+/* What each path reads: a solid colour its colour alone; a keyed texel mixed its colour, alpha and
+   texel; a texel alone depth tested its depth and texel; depth written alone its depth; a texel
+   without its texture the colour. */
+TEST(tdfx_params_are_what_a_path_reads)
+{
+    const uint32_t colour = 1u << TDFX_R | 1u << TDFX_G | 1u << TDFX_B;
+    const uint32_t texel = 1u << TDFX_S | 1u << TDFX_T | 1u << TDFX_W;
+    const AccelState solid = {.source = ACCEL_COLOUR, .alpha = 255};
+    const AccelState mixed = {
+        .texture = 1,
+        .source = ACCEL_TEXEL,
+        .flags = ACCEL_KEY,
+        .blend = ACCEL_MIX,
+        .alpha = 255,
+    };
+    const AccelState alone = {
+        .texture = 1,
+        .source = ACCEL_TEXEL,
+        .flags = ACCEL_REPLACE,
+        .alpha = 255,
+        .depth = ACCEL_DEPTH_TEST,
+    };
+    const AccelState depth =
+        {.source = ACCEL_COLOUR, .blend = ACCEL_KEEP, .depth = ACCEL_DEPTH_WRITE};
+
+    CHECK(tdfx_params(&solid, false) == colour);
+    CHECK(tdfx_params(&mixed, true) == (colour | 1u << TDFX_A | texel));
+    CHECK(tdfx_params(&alone, true) == (1u << TDFX_Z | texel));
+    CHECK(tdfx_params(&depth, false) == 1u << TDFX_Z);
+    CHECK(tdfx_params(&alone, false) == (colour | 1u << TDFX_Z));
 }
 
 /* A keyed texel mixed into the back buffer, without depth, as worked from the register bits. */
@@ -335,6 +412,29 @@ static uint32_t loaded(const uint8_t *const at)
     return v;
 }
 
+/* TRIANGLE drawn SOLID, moved by ox, oy, as the card is sent it. */
+static TdfxTriangle solid_at(const float ox, const float oy)
+{
+    const TdfxDraw d = {ox, oy, 1, tdfx_params(&SOLID, false), SOLID.alpha};
+
+    TdfxTriangle t;
+
+    tdfx_setup(TRIANGLE, &d, &t);
+    return t;
+}
+
+/* regs from fvertex on hold t's words that SOLID sends, and nothing where the rest go. */
+static bool solid_in(const uint8_t *const regs, const TdfxTriangle *const t)
+{
+    const uint32_t sent = tdfx_sent(tdfx_params(&SOLID, false));
+
+    for (uint32_t i = 0; i < TDFX_WORDS; i++)
+        if (loaded(regs + SST_FVERTEX + 4 * i) != (sent >> i & 1 ? t->word[i] : 0))
+            return false;
+
+    return true;
+}
+
 static void stored_at(uint8_t *const at, const uint32_t v) { memcpy(at, &v, sizeof v); }
 
 /* A fake card's command FIFO: the ring as the CPU writes it, its first byte in frame memory, the
@@ -384,6 +484,20 @@ static void blitted_2d(const Fifo *const f)
 /* The packets the driver wrote from the read pointer on, done as the card does: PKT1's register
    writes, PKT5's texels, PKT0's jumps; the read pointer left past them. None, the FIFO not yet
    placed. */
+/* Register reg written v, as the card takes a packet's word. */
+static void register_written(Fifo *const f, const uint32_t reg, const uint32_t v)
+{
+    stored_at(f->registers + reg, v);
+
+    if (f->writes < sizeof f->written / sizeof *f->written) {
+        f->written[f->writes][0] = reg;
+        f->written[f->writes++][1] = v;
+    }
+
+    if (f->frame && reg == 0x2070)
+        blitted_2d(f);
+}
+
 static void played(Fifo *const f)
 {
     if (!f->ring)
@@ -397,19 +511,14 @@ static void played(Fifo *const f)
         if ((head & 7) == 1) {
             uint32_t reg = (head & 0x7FF8) >> 1;
 
-            for (uint32_t n = head >> 16; n--; reg += head >> 15 & 1 ? 4 : 0) {
-                const uint32_t v = taken(f, &at);
+            for (uint32_t n = head >> 16; n--; reg += head >> 15 & 1 ? 4 : 0)
+                register_written(f, reg, taken(f, &at));
+        } else if ((head & 7) == 4) {
+            uint32_t reg = (head & 0x7FF8) >> 1;
 
-                stored_at(f->registers + reg, v);
-
-                if (f->writes < sizeof f->written / sizeof *f->written) {
-                    f->written[f->writes][0] = reg;
-                    f->written[f->writes++][1] = v;
-                }
-
-                if (f->frame && reg == 0x2070)
-                    blitted_2d(f);
-            }
+            for (uint32_t m = head >> 15 & 0x3FFF; m; m >>= 1, reg += 4)
+                if (m & 1)
+                    register_written(f, reg, taken(f, &at));
         } else if ((head & 7) == 5) {
             uint32_t to = taken(f, &at);
 
@@ -740,23 +849,15 @@ TEST(tdfx_h3_shows_a_frame_without_waiting_for_the_card)
 TEST(tdfx_h3_writes_registers_through_the_command_fifo)
 {
     AccelCard card;
-    TdfxTriangle t;
+    const TdfxTriangle t = solid_at(160, 120);
     const AccelDriver *const d = h3_opened(&card);
 
-    CHECK(d && tdfx_setup(TRIANGLE, 160, 120, 1, 255, &t));
+    CHECK(d);
     d->state(&SOLID);
     d->triangles(TRIANGLE, 3);
     CHECK(loaded(h3.regs + H3_3D + SST_FVERTEX) == 0);
     h3_played();
-    CHECK(!memcmp(
-        h3.regs + H3_3D + SST_FVERTEX,
-        (float[]){t.x[0], t.y[0], t.x[1], t.y[1], t.x[2], t.y[2]},
-        24
-    ));
-    CHECK(!memcmp(h3.regs + H3_3D + SST_FSTART, t.start, TDFX_S * 4));
-    CHECK(!memcmp(h3.regs + H3_3D + SST_FDX, t.dx, TDFX_S * 4));
-    CHECK(!memcmp(h3.regs + H3_3D + SST_FDY, t.dy, TDFX_S * 4));
-    CHECK(loaded(h3.regs + H3_3D + SST_FTRIANGLE) == t.command);
+    CHECK(solid_in(h3.regs + H3_3D, &t));
     h3_closed(d);
 }
 
@@ -932,18 +1033,13 @@ TEST(tdfx_cvg_places_its_command_fifo_past_the_buffers)
 TEST(tdfx_cvg_writes_directly_unless_asked_for_its_command_fifo)
 {
     AccelCard card;
-    TdfxTriangle t;
+    const TdfxTriangle t = solid_at(0, 0);
     const AccelDriver *const d = cvg_opened(&card, false);
 
-    CHECK(d && tdfx_setup(TRIANGLE, 0, 0, 1, 255, &t));
-    CHECK(!(word_at(SST_FBI_INIT7) & 1u << 8));
+    CHECK(d && !(word_at(SST_FBI_INIT7) & 1u << 8));
     d->state(&SOLID);
     d->triangles(TRIANGLE, 3);
-    CHECK(!memcmp(
-        card_memory + SST_FVERTEX,
-        (float[]){t.x[0], t.y[0], t.x[1], t.y[1], t.x[2], t.y[2]},
-        24
-    ));
+    CHECK(solid_in(card_memory, &t));
     d->close();
 }
 
@@ -951,21 +1047,15 @@ TEST(tdfx_cvg_writes_directly_unless_asked_for_its_command_fifo)
 TEST(tdfx_cvg_writes_registers_through_the_command_fifo)
 {
     AccelCard card;
-    TdfxTriangle t;
+    const TdfxTriangle t = solid_at(0, 0);
     const AccelDriver *const d = cvg_opened(&card, true);
 
-    CHECK(d && tdfx_setup(TRIANGLE, 0, 0, 1, 255, &t));
+    CHECK(d);
     d->state(&SOLID);
     d->triangles(TRIANGLE, 3);
     CHECK(word_at(SST_FVERTEX) == 0);
     played(&cvg_fifo);
-    CHECK(!memcmp(
-        card_memory + SST_FVERTEX,
-        (float[]){t.x[0], t.y[0], t.x[1], t.y[1], t.x[2], t.y[2]},
-        24
-    ));
-    CHECK(!memcmp(card_memory + SST_FSTART, t.start, TDFX_S * 4));
-    CHECK(word_at(SST_FTRIANGLE) == t.command);
+    CHECK(solid_in(card_memory, &t));
     d->close();
 }
 

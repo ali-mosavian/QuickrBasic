@@ -55,10 +55,15 @@ static uint32_t ring_in(const uint32_t spare)
     return bytes;
 }
 
-static void put(Tdfx *const c, const uint32_t reg, const uint32_t *const v, const uint32_t n)
+static void put(
+    Tdfx *const c,
+    const uint32_t reg,
+    const TdfxPicks *const p,
+    const uint32_t *const v
+)
 {
     (void)c;
-    cmdfifo_registers(&queue, reg, v, n);
+    cmdfifo_registers(&queue, reg, p->mask, v);
 }
 
 static void uploaded(
