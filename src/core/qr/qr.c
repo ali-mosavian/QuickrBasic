@@ -1101,6 +1101,7 @@ static bool qr_et(const QProg *const p, const QType t, uint32_t *const et)
         [QY_STRING] = ET_SD,
         [QY_BOOL] = ET_I2,
         [QY_SHORT] = ET_SH,
+        [QY_UBYTE] = ET_BY,
     };
 
     if (t < countof(ets) && (ets[t] || t == QY_VOID)) {
@@ -1136,7 +1137,8 @@ static bool qr_param(const QProg *const p, const QType t, ExpVal *const v)
     if (y && (!v->array || qast_array(p, y->elem)))
         return false;
 
-    return qr_et(p, v->array ? y->elem : t, &v->et) && v->et != ET_IMP;
+    return qr_et(p, v->array ? y->elem : t, &v->et) && v->et != ET_IMP &&
+           (v->array || v->et != ET_BY); /* a BYTE parameter is an array's, as QBasic's */
 }
 
 /* The module token t is in. */
@@ -1237,7 +1239,8 @@ static Exports qr_exported(const QProg *const p, const uint32_t k, QMem *const m
             .resarg = f->byarg,
         };
 
-        bool ok = !f->ntp && !f->ytx && !f->native && qr_et(p, f->result, &e->result.et);
+        bool ok = !f->ntp && !f->ytx && !f->native && qr_et(p, f->result, &e->result.et) &&
+                  e->result.et != ET_BY;
 
         if (!ok && f->rtype) /* a FUNCTION still, an error where called */
             e->result.et = ET_I4;
