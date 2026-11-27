@@ -32,3 +32,11 @@ let names = fs.list("libfs.*")
 print len(names); " "; text.upper(names[0])
 let bad = File.open("x.txt", "q")
 print bad.message
+' a file past a string's length: an Error, not the file cut short
+let big = File.open("libfs.big", "w")
+if big is not Error then
+    let half = f"{0:>30000}"
+    print big.write(half) is Error; " "; big.write(half) is Error
+end if
+let whole = fs.read_text("libfs.big")
+print whole is Error; " "; whole.message

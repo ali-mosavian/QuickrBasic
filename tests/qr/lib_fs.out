@@ -8,3 +8,5 @@ true written, closed by its drop
 true closed twice
 3 LIBFS.BIN
 x.txt: Bad file mode
+false false
+true libfs.big: String too long

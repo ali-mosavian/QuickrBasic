@@ -1082,7 +1082,8 @@ dicts and iterables. Everything else is in a module.
   BLOAD does; it gives the whole elements read, fewer at the end. `f.write(s)` and `f.seek(at)` give a
   `bool or Error`. `f.size() as int`. `f.close()` closes it sooner than its `drop` does.
 - A `File`'s number is private. A file's error is a value, its `code` QBasic's ERR.
-- `read_text(path) as string or Error` reads at most 32767 bytes, a string's most.
+- `read_text(path) as string or Error` reads the whole file; past 32767 bytes, a string's most,
+  an Error: String too long.
   `write_text(path, s)`. `list(pattern = "*.*")` gives the platform's DOS names, sorted, upper
   case on the host.
 
