@@ -1854,7 +1854,9 @@ def by_line(
     obj, sym = found
     rel = str(obj.relative_to(b.root.resolve()))
     made = subprocess.run(["make", "-n", "-B", rel], cwd=b.root, capture_output=True, text=True).stdout
-    cmd = next(c for c in made.splitlines() if f"-o {rel}" in c)
+    cmd = next((c for c in made.splitlines() if f"-o {rel}" in c), None)
+    if not cmd:  # not C's: assembled, without line tables
+        return {}
     lined = d / f"{obj.stem}.lines.obj"
     subprocess.run(cmd.replace(f"-o {rel}", f"-gdwarf-4 -o {lined}"), shell=True, cwd=b.root, check=True)
 
@@ -1921,14 +1923,14 @@ def print_vm_profile(
         print(f"{c:>12,.0f} {c / total:6.1%}  {f}")
     for f in inside:
         offs = {k[1]: (v - a.at.get(k, 0)) * per for k, v in b.at.items() if k[0] == f}
-        if lined:
-            with tempfile.TemporaryDirectory() as d:
-                lines = by_line(lined, exe.with_suffix(".map").read_text(), f, offs, Path(d), dlls)
+        with tempfile.TemporaryDirectory() as d:
+            lines = by_line(lined, exe.with_suffix(".map").read_text(), f, offs, Path(d), dlls) if lined else {}
+        if lines and lined:
             print(f"{f}, {cycles.get(f, 0):,.0f} cycles, by line:")
             for where, c in sorted(lines.items(), key=lambda kv: -kv[1])[:n]:
                 print(f"{c:>12,.0f} {c / total:6.1%}  {Path(where).name:16} {source_text(lined, where)[:70]}")
             continue
-        print(f"{f}, by offset:")
+        print(f"{f}, by offset{', no lines found' if lined else ''}:")
         for off, c in sorted(offs.items(), key=lambda kv: -kv[1])[:n]:
             print(f"{c:>12,.0f} {c / total:6.1%}  +{off:#x}")
 

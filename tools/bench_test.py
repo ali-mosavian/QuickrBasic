@@ -449,10 +449,12 @@ def vm_profile_runs_disagree() -> None:
 
 def vm_profile_driver_lines() -> None:
     """A driver's function by line, with each line's text: _tdfx_corners printed no lines, the program's map alone
-    searched, and a line outside gfx's files no text."""
+    searched, and a line outside gfx's files no text. An assembled function, without lines, by offset: _memcpy's
+    profile stopped at it."""
     b = bench.build(".", True)
     dll = bench.driver_dll(b, "voodoo3")
-    runs = [bench.Samples({"_tdfx_corners": k}, {("_tdfx_corners", 0): k}, k, 10, 100.0) for k in (10, 20)]
+    at = {"_tdfx_corners": 0, "_memcpy": 0}
+    runs = [bench.Samples(dict.fromkeys(at, k), {(f, 0): k for f in at}, k, 10, 100.0) for k in (10, 20)]
     out = io.StringIO()
     with (
         tempfile.TemporaryDirectory() as d,
@@ -461,9 +463,10 @@ def vm_profile_driver_lines() -> None:
     ):
         exe = Path(d) / "p.exe"
         exe.with_suffix(".map").write_text("")
-        bench.print_vm_profile("M", "vm", exe, [(), ()], {}, 4, ["_tdfx_corners"], b, dlls=(dll,))
+        bench.print_vm_profile("M", "vm", exe, [(), ()], {}, 4, list(at), b, dlls=(dll,))
     rows = out.getvalue().split("by line:\n")[1].splitlines()
     assert rows and "setup.c:" in rows[0] and rows[0].split("setup.c:")[1].split()[1:], out.getvalue()
+    assert re.search(r"_memcpy, by offset.*:\n.*\+0x0", out.getvalue()), out.getvalue()
 
 
 def vm_window() -> None:
