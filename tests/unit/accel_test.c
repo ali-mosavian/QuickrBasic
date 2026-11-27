@@ -850,8 +850,9 @@ static void indexed_begun(const uint32_t w, const uint32_t h)
 }
 
 /* An INDEX texture's tile is the driver's indexed one, at least four texels across, its texels
-   its indices. Into the screen it draws through COLOURS of LOOKUP's index, its texel alone, keyed
-   but not filtered across the key; the palette sent once while the same. */
+   its indices. Through a lookup into the screen a tile of its own holds them looked up, keyed
+   index 0 kept, drawn through COLOURS, its texel alone, keyed but not filtered across the key;
+   the palette sent once while the same. */
 TEST(accel_player_draws_an_index_texture_through_the_shown_colours)
 {
     opened();
@@ -862,31 +863,105 @@ TEST(accel_player_draws_an_index_texture_through_the_shown_colours)
     box(TEXTURED, INDEXED, 0, 0, 3, 1, 0, 3);
     box(TEXTURED, INDEXED, 4, 0, 7, 1, 0, 3);
     CHECK(played(SHOWN, from, true));
-    CHECK(calls_of('I') == 1 && fake.indexed[1] && fake.texture_w[1] == 4);
+    CHECK(calls_of('I') == 2 && fake.indexed[1] && fake.indexed[2] && fake.texture_w[2] == 4);
     CHECK(fake.up[1][1] == 1 && fake.up[1][2] == 2 && fake.up[1][3] == 2);
-    CHECK(calls_of('P') == 1 && fake.palette[2] == 0x424242 && fake.palette[0] == 0x010101);
-    CHECK(fake.state.flags == (ACCEL_KEY | ACCEL_REPLACE));
+    CHECK(fake.up[2][0] == 0 && fake.up[2][1] == 2 && fake.up[2][2] == 3 && fake.up[2][3] == 3);
+    CHECK(calls_of('P') == 2 && fake.palette[3] == 0x424242 && fake.palette[2] == 0x020202);
+    CHECK(fake.state.texture == 2 && fake.state.flags == (ACCEL_KEY | ACCEL_REPLACE));
     accel_close();
 }
 
-/* An INDEX texture's draw sends the card the palette entries its texels hold where the card's
-   are other: through another lookup, those it changes; chosen again, those back. Each change of
-   lookup sent all 256: MEADOW's 48 blossoms, 12,288 palette writes a frame. */
-TEST(accel_player_sends_only_the_palette_entries_a_texture_holds)
+/* Through each lookup an INDEX texture drawn into indices has a tile of its own, made once: a
+   change of lookup changes the tile drawn, not the palette. Keyed, with a texel but 0 looked up
+   as 0, the key's, it draws through the palette. The palette changed at each lookup: MEADOW's
+   48 blossoms, 48 times a frame. */
+TEST(accel_player_draws_an_index_texture_through_each_lookup_from_its_own_tile)
 {
-    static uint32_t other[256];
+    static uint32_t other[256], dark[256];
 
     for (uint32_t i = 0; i < 256; i++)
-        other[i] = (i + 1) & 0xFF;
+        other[i] = dark[i] = (i + 1) & 0xFF;
 
     other[2] = 9;
+    dark[1] = 0;
     opened();
     indexed_begun(3, 1);
 
     uint32_t from = list.n;
 
     box(TEXTURED, INDEXED, 0, 0, 3, 1, 0, 3);
-    CHECK(played(SHOWN, from, true) && fake.entries == 3 && fake.palette[2] == 0x424242);
+    CHECK(played(SHOWN, from, true) && fake.state.texture == 2);
+    const uint32_t made = calls_of('I'), palettes = calls_of('P');
+
+    list.n = list.nv = list.ni = 0;
+    PUT(QX_LIST_LOOKUP, 2, POINTER(other));
+    from = list.n;
+    box(TEXTURED, INDEXED, 0, 0, 3, 1, 0, 3);
+    CHECK(played(SHOWN, from, true) && fake.state.texture == 3 && fake.up[3][2] == 9);
+    CHECK(calls_of('I') == made + 1 && calls_of('P') == palettes + 1);
+    CHECK(fake.palette[9] == 0x090909);
+
+    list.n = list.nv = list.ni = 0;
+    PUT(QX_LIST_LOOKUP, 1, 0, 0);
+    from = list.n;
+    box(TEXTURED, INDEXED, 0, 0, 3, 1, 0, 3);
+    CHECK(played(SHOWN, from, true) && fake.state.texture == 2);
+    CHECK(calls_of('I') == made + 1 && calls_of('P') == palettes + 1);
+
+    list.n = list.nv = list.ni = 0;
+    PUT(QX_LIST_LOOKUP, 3, POINTER(dark));
+    from = list.n;
+    box(TEXTURED, INDEXED, 0, 0, 3, 1, 0, 3);
+    CHECK(played(SHOWN, from, true) && fake.state.texture == 1 && calls_of('I') == made + 1);
+    CHECK(fake.palette[1] == 0 && fake.palette[2] == 0x424242);
+    accel_close();
+}
+
+/* A mask drawn from an INDEX texture keeps the palette while its indices are on the card: its
+   texels' colours are not drawn. It changed the palette, and the next draw back, each frame
+   MEADOW drew its text. */
+TEST(accel_player_draws_an_index_mask_through_the_palette_as_it_is)
+{
+    opened();
+    indexed_begun(3, 1);
+    pipeline(MASKED, QX_FIXED_MASK, QX_FIXED_KEY);
+
+    const uint32_t from = list.n;
+
+    box(MASKED, INDEXED, 0, 0, 3, 1, 0, 3);
+    box(TEXTURED, INDEXED, 0, 0, 3, 1, 0, 3);
+    CHECK(played(SHOWN, from, true));
+    const uint32_t palettes = calls_of('P');
+
+    list.n = list.nv = list.ni = 0;
+    box(MASKED, INDEXED, 0, 0, 3, 1, 0, 3);
+    box(TEXTURED, INDEXED, 0, 0, 3, 1, 0, 3);
+    CHECK(played(SHOWN, 0, true) && calls_of('P') == palettes);
+    accel_close();
+}
+
+/* An INDEX texture's draw into colours sends the card the palette entries its texels hold where
+   the card's are other: through another lookup, those it changes; chosen again, those back. Each
+   change of lookup sent all 256: MEADOW's 48 blossoms, 12,288 palette writes a frame. */
+TEST(accel_player_sends_only_the_palette_entries_a_texture_holds)
+{
+    static uint8_t art[3] = {0, 1, 2};
+    static uint32_t one[256], other[256];
+
+    for (uint32_t i = 0; i < 256; i++)
+        one[i] = other[i] = i * 0x010101;
+
+    other[2] = 0x090909;
+    opened();
+    begun(16, 16);
+    PUT(QX_LIST_TEXTURE, INDEXED, 3, 1, QX_TEXTURE_INDEX);
+    PUT(QX_LIST_UPLOAD, INDEXED, 0, 0, 3, 1, 3, POINTER(art));
+    PUT(QX_LIST_LOOKUP, 1, POINTER(one));
+
+    uint32_t from = list.n;
+
+    box(TEXTURED, INDEXED, 0, 0, 3, 1, 0, 3);
+    CHECK(played(SHOWN, from, true) && fake.entries == 3 && fake.palette[2] == 0x020202);
 
     list.n = list.nv = list.ni = 0;
     PUT(QX_LIST_LOOKUP, 2, POINTER(other));
@@ -898,7 +973,7 @@ TEST(accel_player_sends_only_the_palette_entries_a_texture_holds)
     PUT(QX_LIST_LOOKUP, 1, 0, 0);
     from = list.n;
     box(TEXTURED, INDEXED, 0, 0, 3, 1, 0, 3);
-    CHECK(played(SHOWN, from, true) && fake.entries == 5 && fake.palette[2] == 0x424242);
+    CHECK(played(SHOWN, from, true) && fake.entries == 5 && fake.palette[2] == 0x020202);
 
     list.n = list.nv = list.ni = 0;
     box(TEXTURED, INDEXED, 0, 0, 3, 1, 0, 3);
@@ -907,14 +982,14 @@ TEST(accel_player_sends_only_the_palette_entries_a_texture_holds)
 }
 
 /* Off the screen an INDEX target holds codes: a colour's red its index as the 565 word index
-   times &H0101, a texel's palette their codes, read back as their low byte. A blend is drawn
-   where its alpha is at least a half, as itself. */
+   times &H0101, a texel's looked up, the palette their codes, read back as their low byte. A
+   blend is drawn where its alpha is at least a half, as itself. */
 TEST(accel_player_codes_indices_off_the_screen)
 {
     uint8_t out[4];
 
     opened();
-    indexed_begun(1, 1);
+    indexed_begun(2, 1);
 
     const uint32_t from = list.n;
 
@@ -924,7 +999,8 @@ TEST(accel_player_codes_indices_off_the_screen)
     list.n = list.nv = list.ni = 0;
     box(TEXTURED, INDEXED, 0, 0, 1, 1, 0, 1);
     box_at(MIXED, 0, 0, 0, 1, 1, 0, 0, 7, 127);
-    CHECK(!played(OTHER, 0, false) && calls_of('V') == 2 && fake.palette[0] == 0x002008);
+    CHECK(!played(OTHER, 0, false) && calls_of('V') == 2 && fake.up[2][1] == 2);
+    CHECK(fake.palette[2] == 0x004010);
 
     list.n = list.nv = list.ni = 0;
     box_at(MIXED, 0, 0, 0, 1, 1, 0, 0, 7, 128);

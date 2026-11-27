@@ -27,7 +27,7 @@
 #include <stddef.h>
 #include <string.h>
 
-enum : uint32_t { NONE = UINT32_MAX, WHITE = 0xFFFFFFFF };
+enum : uint32_t { NONE = UINT32_MAX, WHITE = 0xFFFFFFFF, BYTE = 0xFF };
 
 enum {
     RADIX = 8,
@@ -95,11 +95,25 @@ typedef struct {
     uint32_t used;       /* the play it was last drawn from */
     uint32_t passed;     /* the pass it was last drawn into */
     uint32_t indices[ENTRY_WORDS]; /* INDEX: the indices its texels may hold, a bit each */
+    bool any;                      /* INDEX: drawn into, its texels may hold any */
+    uint32_t changes;              /* its texels', counted */
+    struct Looked *looked;         /* a one-tile INDEX texture's, by lookup: null, none made */
 } Texture;
 
-/* A draw's pieces: its texture and state. */
+/* A one-tile INDEX texture's tile with its texels through a lookup, drawn through the palette
+   as it is: its slot (0, none); the lookup's giving, the texels' changes and the key it is of;
+   none, it cannot be (a texel but 0 looked up as 0, the key); the indices it holds. */
+typedef struct Looked {
+    uint32_t slot, giving, changes;
+    bool keyed, none;
+    uint32_t indices[ENTRY_WORDS];
+} Looked;
+
+/* A draw's pieces: its texture, the tiles drawn from (its own, or one through a lookup), and
+   state. */
 typedef struct {
     const Texture *t;
+    const uint32_t *tiles;
     AccelState s;
 } Pieces;
 
@@ -356,11 +370,29 @@ static void dirtied(Texture *const t, const int32_t top, const int32_t bottom)
 {
     const bool none = t->top >= t->bottom;
 
+    t->changes++;
+
     t->top = none || top < t->top ? top : t->top;
     t->bottom = none || bottom > t->bottom ? bottom : t->bottom;
 }
 
 static uint32_t tiles_of(const Texture *const t) { return (uint32_t)t->grid.across * t->grid.down; }
+
+/* t's tiles through lookups given back. */
+static void unlooked(void *const object)
+{
+    Texture *const t = object;
+
+    for (uint32_t i = 0; t->looked && i < QX_LIST_LOOKUPS; i++) {
+        if (!t->looked[i].slot)
+            continue;
+
+        flushed();
+        p.d->forget(t->looked[i].slot);
+        given_back(p.slots, t->looked[i].slot);
+        t->looked[i] = (Looked){};
+    }
+}
 
 /* t's tiles given back. */
 static void forgotten(Texture *const t)
@@ -374,6 +406,8 @@ static void forgotten(Texture *const t)
         given_back(p.slots, t->tiles[i]);
         t->tiles[i] = 0;
     }
+
+    unlooked(t);
 }
 
 /* A texture not drawn from in this play: its tiles given back, for room. */
@@ -385,11 +419,12 @@ static void evicted(void *const object)
         forgotten(t);
 }
 
-/* A texture slot made w by h, indexed or not, with every other texture's given back if not: 0, no
-   room. */
-static uint32_t tile_made(const uint16_t w, const uint16_t h, const bool indexed)
+/* A texture slot made w by h, indexed or not; if no room, the tiles of each texture not drawn
+   from in this play given back, then, unless for a lookup's, each tile through a lookup: 0, no
+   room still. */
+static uint32_t tile_made(const uint16_t w, const uint16_t h, const bool indexed, const bool looked)
 {
-    for (uint32_t tries = 0; tries < 2; tries++) {
+    for (uint32_t tries = 0; tries < (looked ? 2u : 3u); tries++) {
         const uint32_t slot = taken(p.slots, ACCEL_TEXTURES);
 
         flushed();
@@ -400,8 +435,7 @@ static uint32_t tile_made(const uint16_t w, const uint16_t h, const bool indexed
         if (slot)
             given_back(p.slots, slot);
 
-        if (!tries)
-            walked(p.textures.root, LEVELS, evicted, false);
+        walked(p.textures.root, LEVELS, tries ? unlooked : evicted, false);
     }
 
     return 0;
@@ -440,7 +474,7 @@ static bool tiled(Texture *const t)
             if (!made && t->top >= t->bottom)
                 continue;
 
-            if (made && !(*slot = tile_made(g->tile_w, g->tile_h, t->index)))
+            if (made && !(*slot = tile_made(g->tile_w, g->tile_h, t->index, false)))
                 return false;
 
             const int32_t from = t->top - top,
@@ -473,6 +507,66 @@ static bool tiled(Texture *const t)
 
     t->top = t->bottom = 0;
     return true;
+}
+
+/* t's tile through the lookup drawn through, into a target holding held, keyed or not: made, and
+   its texels looked up, if not. Null, t draws through the palette's lookup: into colours, through
+   each index itself, a target, of more tiles, no room or memory, or a texel but 0 keyed. */
+static const Looked *looked_through(Texture *const t, const IndicesHeld held, const bool keyed)
+{
+    const uint32_t id = p.looked, giving = p.given[id];
+    const CutGrid *const g = &t->grid;
+
+    if (held == HELD_COLOURS || !giving || t->target != NONE || g->across != 1 || g->down != 1 ||
+        (!t->looked && !(t->looked = zeroed(QX_LIST_LOOKUPS * sizeof *t->looked))))
+        return nullptr;
+
+    Looked *const l = &t->looked[id];
+
+    if (l->giving == giving && l->changes == t->changes && l->keyed == keyed)
+        return l->none ? nullptr : l;
+
+    /* each index's through the lookup, keyed index 0 kept, the key's; the indices t's texels may
+       hold, through it */
+    const uint32_t *const lookup = p.lookups[id];
+    uint8_t to[INDICES];
+    uint32_t indices[ENTRY_WORDS] = {};
+    bool none = false;
+
+    for (uint32_t i = 0; i < INDICES; i++)
+        to[i] = (uint8_t)(i || !keyed ? lookup[i] : 0);
+
+    for (uint32_t w = 0; w < ENTRY_WORDS; w++)
+        for (uint32_t b = t->indices[w]; b; b &= b - 1) {
+            const uint32_t i = w * ENTRY_BITS + (uint32_t)__builtin_ctz(b);
+
+            none |= i && keyed && !to[i];
+            indices[to[i] / ENTRY_BITS] |= 1u << to[i] % ENTRY_BITS;
+        }
+
+    const uint32_t reached = texels_reached(t->w, 0, g->tile_w);
+    const uint32_t wide = (reached + TEXELS_INDEXED - 1) & ~(TEXELS_INDEXED - 1);
+    const uint32_t tall = texels_reached(t->h, 0, g->tile_h);
+    const uint32_t slot = l->slot || none ? l->slot : tile_made(g->tile_w, g->tile_h, true, true);
+
+    *l = (Looked){slot, giving, t->changes, keyed, none || !slot, {}};
+
+    uint16_t *const rows = l->none ? nullptr : scratch((size_t)wide * tall * sizeof *rows);
+
+    if (!rows) {
+        l->giving = l->none ? giving : 0; /* no memory: tried again */
+        return nullptr;
+    }
+
+    texels_tile(t->texels, t->w, t->h, g, 0, 0, 0, tall, wide, rows);
+    memcpy(l->indices, indices, sizeof indices);
+
+    for (uint32_t i = 0; i < wide * tall; i++)
+        rows[i] = (uint16_t)((rows[i] & ~BYTE) | to[rows[i] & BYTE]);
+
+    flushed();
+    p.d->upload(slot, (AccelRect){0, 0, (int32_t)wide, (int32_t)tall}, rows, wide);
+    return l;
 }
 
 /* What t's target holds (indices.h): the screen's indices COLOURS' colours. */
@@ -521,10 +615,22 @@ static void entries_sent(const uint32_t first, const uint32_t n, bool *const sen
     p.d->palette(p.palette, first, n);
 }
 
-/* The card's palette for t's INDEX texels into a target holding held, through the lookup drawn
-   through or, own, each index itself: the entries its texels hold sent where another than the
+/* Whether the card's palette has had each of indices sent: drawn as a mask, a texel's colour is
+   not drawn, and the driver keys index 0 alone. */
+static bool sent_all(const uint32_t *const indices)
+{
+    uint32_t unsent = 0;
+
+    for (uint32_t w = 0; w < ENTRY_WORDS; w++)
+        unsent |= indices[w] & ~p.sent_entries[w];
+
+    return !unsent;
+}
+
+/* The card's palette for INDEX texels holding indices into a target holding held, through the
+   lookup drawn through or, own, each index itself: those entries sent where another than the
    card's, in runs. */
-static void paletted(const IndicesHeld held, const bool own, const Texture *const t)
+static void paletted(const IndicesHeld held, const bool own, const uint32_t *const indices)
 {
     const Paletted k = {held, own ? 0 : p.given[p.looked], held == HELD_SHOWN ? p.colourings : 0};
 
@@ -534,12 +640,20 @@ static void paletted(const IndicesHeld held, const bool own, const Texture *cons
         memset(p.made, 0, sizeof p.made);
     }
 
+    uint32_t need = 0;
+
+    for (uint32_t w = 0; w < ENTRY_WORDS; w++)
+        need |= indices[w] & ~p.made[w];
+
+    if (!need)
+        return;
+
     const uint32_t *const lookup = k.lookups ? p.lookups[p.looked] : nullptr;
     uint32_t first = 0, n = 0; /* the run of entries changed, not yet sent */
     bool sent = false;
 
     for (uint32_t w = 0; w < ENTRY_WORDS; w++) {
-        uint32_t b = t->indices[w] & ~p.made[w];
+        uint32_t b = indices[w] & ~p.made[w];
 
         p.made[w] |= b;
 
@@ -625,7 +739,7 @@ static void painted(Texture *const t, const AccelRect r)
     aimed(t->target, r);
 
     if (t->index)
-        paletted(held_by(t), true, t);
+        paletted(held_by(t), true, t->indices);
 
     for (uint32_t row = 0; row < g->down; row++)
         for (uint32_t column = 0; column < g->across; column++) {
@@ -757,6 +871,7 @@ static void discarded(void *const object)
 
     pmem_free(t->texels);
     pmem_free(t->tiles);
+    pmem_free(t->looked);
     pmem_free(t);
 }
 
@@ -1021,7 +1136,7 @@ static void piece(
 {
     Pieces *const c = ctx;
 
-    c->s.texture = c->t->tiles[row * c->t->grid.across + column];
+    c->s.texture = c->tiles[row * c->t->grid.across + column];
     drawn(&c->s, v, n);
 }
 
@@ -1236,9 +1351,9 @@ static void op_clip(const QxListEntry *const e)
     p.clip = (AccelRect){x0, y0, x1 > x0 ? x1 - x0 : 0, y1 > y0 ? y1 - y0 : 0};
 }
 
-/* The draw's count indices from first, triangles of pipeline pl from texture t at alpha, into the
-   pass holding held, blending as blend. An INDEX texel's alone unless blended, LINEAR not across
-   a key a filter would mix; a colour as the pass holds it. */
+/* The draw's count indices from first, triangles of pipeline pl from texture t, or its tile l
+   through a lookup, at alpha, into the pass holding held, blending as blend. An INDEX texel's alone
+   unless blended, LINEAR not across a key a filter would mix; a colour as the pass holds it. */
 static void triangles_drawn(
     const Pipeline *const pl,
     const Buffer *const vb,
@@ -1246,26 +1361,33 @@ static void triangles_drawn(
     const uint32_t first,
     const uint32_t count,
     const Texture *const t,
+    const Looked *const l,
     const uint8_t alpha,
-    const AccelBlend blend
+    const AccelBlend blend,
+    const IndicesHeld held
 )
 {
-    const IndicesHeld held = held_by(p.pass);
     const bool index = t && t->index, texel = pl->source == ACCEL_TEXEL;
     const bool alone = index && texel && (blend == ACCEL_NONE || blend == ACCEL_KEEP);
     const uint8_t cut = index && pl->flags & QX_FIXED_KEY ? ACCEL_LINEAR : 0;
 
     const Vertices f = vertices_of(pl, vb);
 
-    Pieces c = {t, {.source = pl->source, .blend = blend, .alpha = alpha, .depth = pl->depth}};
+    Pieces c = {
+        t,
+        l   ? &l->slot
+        : t ? t->tiles
+            : nullptr,
+        {.source = pl->source, .blend = blend, .alpha = alpha, .depth = pl->depth},
+    };
     /* the grid of the wrap's rectangle last met: a draw's triangles share it; whole, a triangle
        needs no cut; ready, the state sent is theirs */
     CutGrid g = {};
     uint16_t gridded_for[RECT] = {};
     bool grid = false, whole = false, ready = false;
 
-    if (index)
-        paletted(held, false, t);
+    if (index && (texel || !sent_all(t->indices)))
+        paletted(held, l, l ? l->indices : t->indices);
 
     for (uint32_t i = 0; i + 3 <= count;) {
         const uint32_t at = first + i;
@@ -1296,7 +1418,7 @@ static void triangles_drawn(
             g = gridded(t, (uint8_t)(pl->flags & ~cut), r, &flags);
             memcpy(gridded_for, r, sizeof r);
             c.s.flags = flags | (alone ? ACCEL_REPLACE : 0);
-            c.s.texture = t->tiles[0];
+            c.s.texture = c.tiles[0];
             grid = true;
             whole = g.across == 1 && g.down == 1 && !g.wrap_s && !g.wrap_t;
             ready = false;
@@ -1360,7 +1482,8 @@ static void op_draw(const QxListEntry *const e)
         return;
 
     /* into codes a blend is drawn where its alpha is at least a half, as itself */
-    const bool coded = held_by(into) == HELD_CODES,
+    const IndicesHeld held = held_by(into);
+    const bool coded = held == HELD_CODES,
                blended = pl->blend == ACCEL_MIX || pl->blend == ACCEL_ADD;
     const AccelBlend blend = coded && blended ? ACCEL_NONE : pl->blend;
 
@@ -1382,15 +1505,22 @@ static void op_draw(const QxListEntry *const e)
     if (!texel && filled(pl, vb, ib, first, count, &argb)) {
         flushed();
         p.d->clear(argb, ACCEL_CLEAR_COLOUR);
-    } else
-        triangles_drawn(pl, vb, ib, first, count, t, (uint8_t)alpha, blend);
+    } else {
+        const bool looked = t && t->index && pl->source == ACCEL_TEXEL;
+        const Looked *const l =
+            looked ? looked_through(t, held, pl->flags & QX_FIXED_KEY) : nullptr;
+
+        triangles_drawn(pl, vb, ib, first, count, t, l, (uint8_t)alpha, blend, held);
+    }
 
     if (pl->blend != ACCEL_KEEP) {
         into->ahead = true;
         into->blank = false;
 
-        if (into->index)
+        if (into->index && !into->any) {
             memset(into->indices, 0xFF, sizeof into->indices);
+            into->any = true;
+        }
     }
 }
 
