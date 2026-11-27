@@ -1419,15 +1419,16 @@ def demo_modules() -> dict[str, bytes]:
 
 
 def demo_program(name: str, seconds: float, vsync: bool, edits: int, *, frames: int = 0, depth: int = 8,
-                 sized: bool = False) -> str:
+                 sized: bool = False, size: tuple[int, int] | None = None) -> str:
     """Demo name at 320x200 and depth bits (its DEPTH too, if it has one), timed for seconds, its seed fixed so each
     run draws one world. frames: that many drawn, the demo's clock the frames at 30 a second, so frame n is the same
-    whatever the build's speed. sized: at its own size."""
+    whatever the build's speed. sized: at its own size; size: at this one."""
     src = (DEMOS / f"{name}.BAS").read_text().replace("randomize timer\n", "randomize 1\n")
     if frames:
         src = src.replace("gfx.display.clock", "(frames& / 30#)")
-    src, w = re.subn(r"(?m)^const W = \d+$", "const W = 320", src) if not sized else (src, 1)
-    src, h = re.subn(r"(?m)^const H = \d+$", "const H = 200", src) if not sized else (src, 1)
+    w_h = size or (None if sized else (320, 200))
+    src, w = re.subn(r"(?m)^const W = \d+$", f"const W = {w_h[0]}", src) if w_h else (src, 1)
+    src, h = re.subn(r"(?m)^const H = \d+$", f"const H = {w_h[1]}", src) if w_h else (src, 1)
     src = re.sub(r"(?m)^const DEPTH = \d+$", f"const DEPTH = {depth}", src)
     src, o = re.subn(r"gfx\.display\.open\(W, H, \w+, ", f"gfx.display.open(W, H, {depth}, ", src)
     src, v = (src, 1) if vsync else re.subn(r"gfx\.display\.VSYNC\b", "0", src)
@@ -1994,7 +1995,8 @@ def demos_on_card(a: argparse.Namespace, own: dict[str, bytes]) -> int:
     pages = {"lib/gfx.qbx": (b.dos.parent / "lib/gfx.qbx").read_bytes()}
     card = pages | drivers_of(b)
     if a.show:
-        prog = demo_program((a.demo or ["CUBE"])[0], a.seconds, False, 0, depth=a.depth, sized=True)
+        size = tuple(int(n) for n in a.size.split("x")) if a.size else None
+        prog = demo_program((a.demo or ["CUBE"])[0], a.seconds, False, 0, depth=a.depth, sized=True, size=size)
         vm_shown(vm, b.dos, (prog, "", "", own), card)
         return 0
     if a.profile:
@@ -2358,6 +2360,7 @@ def main() -> int:
     p.add_argument("--set", action="append", metavar="NAME=VALUE", help="--card: in DOS's environment, --profile's too")
     p.add_argument("--show", action="store_true", help="--card: --demo's first (CUBE when none) without vsync, "
                    "--seconds long, in 86Box's own window")
+    p.add_argument("--size", metavar="WxH", help="--show: the demo at this size, not its own")
     p.add_argument("--demo", action="append", choices=list(DEMO_EDITS), help="a demo to time; all when none")
     p.add_argument("--seconds", type=float, default=10)
     p.add_argument("--profile", action="store_true", help="by function a frame, ours with every edit (normal core)")
