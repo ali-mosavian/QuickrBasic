@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' strings' bytes and slices, lists' slices
 let s = "hello, world"
 print s[0]; " "; s[4]; " "; len(s)

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' an account: its balance private, changed by its methods alone
 type Account
     name as string

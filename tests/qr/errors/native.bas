@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' native functions: an entry's name, plain values by value, no body
 type P
     x as int

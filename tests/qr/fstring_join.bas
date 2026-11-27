@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' an f-string joined once, its parts sized first; past 255 parts in
 ' rounds
 let a = "x"

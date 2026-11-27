@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' fn is a method's and a lambda's: a function, its end and its type
 ' are written function
 fn twice(x as int) as int

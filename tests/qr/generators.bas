@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' generators: for over one inlined, a var's resumed by next(), each owning its arguments
 type P
     x as int

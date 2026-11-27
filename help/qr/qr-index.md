@@ -2,7 +2,7 @@
 keys: ~quickr, ~quickr index, ~quickr help
 
 Quickr is QuickrBasic's modern dialect. A file is Quickr's when its
-first line is ' OPTION DIALECT QUICKR; any other file is QBasic's.
+first statement is option dialect quickr; any other file is QBasic's.
 
   [The language](quickr language)
 
@@ -27,6 +27,6 @@ A module is imported by name: import text, then text.upper(s). print
 needs no import.
 
 ## Example
-    ' OPTION DIALECT QUICKR
+    option dialect quickr
     import text
     print text.upper("hello")

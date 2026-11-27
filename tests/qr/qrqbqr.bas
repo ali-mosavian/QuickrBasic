@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' Quickr imports a QBasic module that imports a Quickr one: leaf's
 ' record crosses to QBasic and back, its code run once
 import twice

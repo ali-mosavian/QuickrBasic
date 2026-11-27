@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' a Quickr module importing a QBasic one its main imports too: its code runs once
 import shapes
 

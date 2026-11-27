@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' records, enums, lists: their errors
 type Vec
     x as single

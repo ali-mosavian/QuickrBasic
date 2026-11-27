@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' integer types: byte short int long, ubyte ushort uint ulong
 var b as byte = -128
 var s as short = 32767

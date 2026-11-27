@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' a list's room past its length is out of range
 var a as int[]
 a.push(1)

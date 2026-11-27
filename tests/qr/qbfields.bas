@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' A QBasic TYPE's array fields: a fixed one from 0 a fixed array, a dynamic one a list
 from bland import BLand, fillb, sumb
 var b = BLand()

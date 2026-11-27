@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' lambdas and function values: their errors
 function apply(f as function(int) as int, x as int) as int
     return f(x)

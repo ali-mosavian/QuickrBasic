@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' literals, comments and lines continued inside brackets
 print 0xff; " "; 0XFF; " "; 0x7fffffff; " "; 0b1010; " "; 0b0
 print 1_000; " "; 1_000_000; " "; 0xff_ff; " "; 0b1111_0000

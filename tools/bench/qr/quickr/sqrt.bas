@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 import math
 var t = 0.0
 for i in 0..200000

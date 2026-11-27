@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' random: numbers from one seeded sequence, RND's
 native function seed(n as double)
 private native function unit() as double

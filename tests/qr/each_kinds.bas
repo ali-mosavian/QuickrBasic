@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' for x in a copies each element E.NEXT loads: narrow ints, enums,
 ' records of numbers, field words; a kept generator's loop too
 enum Dir

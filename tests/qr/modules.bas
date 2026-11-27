@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' modules: import, from, as, packages, public, cycles and their vars' start
 import gfx
 import pkg.a

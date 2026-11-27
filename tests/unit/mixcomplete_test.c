@@ -19,7 +19,7 @@ static const char *const files[] = {
     nullptr,
 };
 
-#define DIALECT "' OPTION DIALECT QUICKR\n"
+#define DIALECT "option dialect quickr\n"
 
 static const char geo[] = DIALECT "type Spot\n"
                                   "    x as int\n"

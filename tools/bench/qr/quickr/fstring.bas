@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 let s = "abc"
 var n = 0
 for i in 0..200000

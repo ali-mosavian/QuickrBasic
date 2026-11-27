@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' test blocks and assert: --test runs every test of the file and its modules; a run, none
 import helper
 type Res

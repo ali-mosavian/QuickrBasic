@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' chains: map, filter, take, skip, zip, rev; sum .. collect; one loop each, a for's too
 function upto(n as int) yields int
     var i = 0

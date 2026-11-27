@@ -24,7 +24,7 @@ to_int reads digits with an optional - first; anything else, spaces
 too, is Error 5, and a number past an int Error 6.
 
 ## Example
-    ' OPTION DIALECT QUICKR
+    option dialect quickr
     import text
     let words = text.split("a,b,c", ",")
     print text.join(words, " ")

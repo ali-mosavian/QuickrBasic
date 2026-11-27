@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' enums, plain and with data; select case with values, ranges, is, else
 enum Mode
     walk

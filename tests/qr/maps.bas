@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' maps: set, read, in, remove, len, keys, for; records, enums, copies
 var ages as dict[string, int]
 ages["ada"] = 36

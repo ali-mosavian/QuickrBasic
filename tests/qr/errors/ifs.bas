@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' a one-line if: one statement after then, one after else
 var x = 1
 if x = 1 then x = 2 else

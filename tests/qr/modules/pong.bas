@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 import ping
 function pong(n as int) as int
     return 0 if n = 0 else ping.ping(n - 1) + 10

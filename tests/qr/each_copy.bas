@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' for x in a: x a copy each step loads, a list a parameter's, a
 ' global's or a local's; the copy read as a[i] is
 var g as double[]

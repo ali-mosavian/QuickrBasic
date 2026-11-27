@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' a call can't borrow a module record or list the callee, or a function it
 ' reaches, writes; a number passes by value
 var count = 0

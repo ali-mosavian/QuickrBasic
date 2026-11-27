@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' type rules
 var i as int = 2.5
 var s as string = 1

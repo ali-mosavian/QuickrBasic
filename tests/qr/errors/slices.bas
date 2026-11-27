@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' slices: their errors
 var s = "abc"
 s[0] = 65

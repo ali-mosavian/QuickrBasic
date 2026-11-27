@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 from .b import twice
 function quad(n as int) as int
     return twice(twice(n))

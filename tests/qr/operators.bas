@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' function operator: + - * / = < on records, inlined when one return; one
 ' an operator and pair of types, the record on either side; unary -
 from shapes import Size

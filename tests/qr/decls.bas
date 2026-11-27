@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' let, var, const: typed or inferred, module and local
 let a = 1
 let b as double = 2

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' A QBasic TYPE of BYTE fields, an array, a dynamic one and one
 ' alone, is a record of ubyte fields.
 from bl import BL, fill

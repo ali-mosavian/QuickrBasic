@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' numbers, bools, plain enums and strings pass by value: a call changing
 ' the variable passed leaves its parameter as it was
 var count = 0

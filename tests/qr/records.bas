@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' records: defaults, construction by position and name, fields, mut fields, results
 type Vec
     x as single

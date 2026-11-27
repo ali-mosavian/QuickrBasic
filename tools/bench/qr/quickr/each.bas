@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 function total(a as int[]) as int
     var s = 0
     for k in 0..4000

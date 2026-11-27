@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' Addresses into the heap on the stack while a call later in
 ' the statement sweeps: what they point at moved. Stale values:
 ' a mut element, a mut field, a field stored to, a held list's

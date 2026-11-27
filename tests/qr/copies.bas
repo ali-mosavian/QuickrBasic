@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' assignment copies; a source used nowhere after moves
 type Bag
     items as int[]

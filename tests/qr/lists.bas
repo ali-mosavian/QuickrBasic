@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' lists and fixed arrays: methods, for over them, x in a, fresh lists
 type Ball
     r as int

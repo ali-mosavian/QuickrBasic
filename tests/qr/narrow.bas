@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' narrow fields and elements: each type's range kept, by value and by mut
 type Narrow
     b as byte

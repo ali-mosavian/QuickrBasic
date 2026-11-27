@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' optionals and errors: their errors
 function f(x as int or none) as int
     if x is none then return 0

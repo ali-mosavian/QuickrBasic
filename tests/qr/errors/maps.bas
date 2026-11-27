@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' maps: their errors
 var a as dict[double, int]
 var m as dict[string, int]

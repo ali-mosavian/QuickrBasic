@@ -1,4 +1,4 @@
-/* Quickr, the modern dialect: a Quickr file (its first line qr_dialect) and the modules it imports loaded, checked, linked and
+/* Quickr, the modern dialect: a Quickr file (its first statement qr_dialect) and the modules it imports loaded, checked, linked and
  * run.
  *
  * # How it works
@@ -11,7 +11,7 @@
  *     print y
  *           ^
  *
- * Each import loads its module's file once (found by io/locate.c, a .bas whose first line is qr_dialect): its lines, its own
+ * Each import loads its module's file once (found by io/locate.c, a .bas whose first statement is qr_dialect): its lines, its own
  * tokens and its statements, after the main file's. The store holds a module's lines before those
  * of the modules importing it, the main's last, so the modules' vars start in that order.
  *
@@ -45,25 +45,11 @@
 
 enum { QR_CHUNK = 0x10000 }; /* the front end's arena's blocks at least */
 
-const char qr_dialect[] = "' OPTION DIALECT QUICKR";
+const char qr_dialect[] = QLEX_MARK;
 
-bool qr_marker(const char *const text, const uint32_t len)
-{
-    const uint32_t n = sizeof qr_dialect - 1;
+bool qr_marker(const char *const text, const uint32_t len) { return qlex_mark(text, len); }
 
-    if (len < n)
-        return false;
-
-    for (uint32_t i = 0; i < n; i++)
-        if (upcase((uint8_t)text[i]) != (uint8_t)qr_dialect[i])
-            return false;
-
-    for (uint32_t i = n; i < len; i++)
-        if (text[i] != ' ' && text[i] != '\r' && text[i] != '\n')
-            return false;
-
-    return true;
-}
+bool qr_blank(const char *const text, const uint32_t len) { return qlex_blank(text, len); }
 
 bool qr_is_file(const char *const path)
 {
@@ -72,16 +58,26 @@ bool qr_is_file(const char *const path)
     if (pfil_open(path, PFIL_READ, &h))
         return false;
 
-    char head[sizeof qr_dialect + 2];
-    uint32_t got = 0;
-    pfil_read(h, head, sizeof head, &got);
+    char buf[512], line[2 * sizeof qr_dialect]; /* a line's first bytes: enough for the mark */
+    uint32_t got = 0, n = 0;
+    bool stated = false, marked = false; /* a statement met, and is it the mark? */
+
+    while (!stated && !pfil_read(h, buf, sizeof buf, &got) && got)
+        for (uint32_t i = 0; i < got && !stated; i++) {
+            if (buf[i] != '\n') {
+                if (n < sizeof line)
+                    line[n++] = buf[i];
+
+                continue;
+            }
+
+            stated = !qlex_blank(line, n);
+            marked = stated && qlex_mark(line, n);
+            n = 0;
+        }
+
     pfil_close(h);
-    uint32_t n = 0;
-
-    while (n < got && head[n] != '\n')
-        n++;
-
-    return qr_marker(head, n);
+    return stated ? marked : qlex_mark(line, n); /* the last line's, no LF after it */
 }
 
 /* A platform error dos, if any, raised as QBasic's. */
@@ -2088,6 +2084,7 @@ const Dialect dialect_quickr = {
     .help = "QUICKR",
     .size = sizeof(QrState),
     .marker = qr_marker,
+    .blank = qr_blank,
     .is_file = qr_is_file,
     .read = qr_read,
     .link = qr_link,

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' a field list's room past its length is out of range
 type Bag
     items as int[]

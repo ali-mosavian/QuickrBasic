@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' A QBasic BYTE array is a ubyte list.
 import pal
 var a as ubyte[]

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 type Shelf[T]
     things as T[]
     private count as int

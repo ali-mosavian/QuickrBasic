@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' functions: called as a value or a statement, recursion, mut, defaults, names
 function fact(n as int) as int
     if n <= 1 then return 1

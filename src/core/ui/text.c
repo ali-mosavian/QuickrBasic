@@ -170,14 +170,40 @@ const Dialect *text_dialect_at(Session *const S, const uint32_t line)
     return dial_line(&S->prog, lmap_off(S, line));
 }
 
+/* Line line's text, its length to *len. */
+static const char *text_of(Session *const S, const uint32_t line, uint32_t *const len)
+{
+    const char *const text = (const char *)at(prog_addr(&S->prog, lmap_off(S, line)) + HDR);
+    *len = (uint32_t)strlen(text);
+    return text;
+}
+
 bool text_marker(Session *const S, const uint32_t line)
 {
     if (line >= uimn.text.all)
         return false;
 
     const Line *const l = prog_line(&S->prog, lmap_off(S, line));
-    return l->flags & LF_TEXT &&
-           (!line || prog_line(&S->prog, lmap_off(S, line - 1))->file != l->file);
+    const Dialect *const d = text_dialect_at(S, line);
+    uint32_t len;
+    const char *text = text_of(S, line, &len);
+
+    if (!(l->flags & LF_TEXT) || !d->text || !d->marker(text, len))
+        return false;
+
+    for (uint32_t i = line; i-- > 0;) { /* its file's lines before it */
+        const Line *const b = prog_line(&S->prog, lmap_off(S, i));
+
+        if (!(b->flags & LF_TEXT) || b->file != l->file)
+            break;
+
+        text = text_of(S, i, &len);
+
+        if (!d->blank(text, len)) /* a statement before it: not the mark */
+            return false;
+    }
+
+    return true;
 }
 
 /* A text dialect's line of len characters at src made a record's: its text the body, in comp_cbuf;

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' a key not in the map is out of range
 var ages as dict[string, int]
 ages["ada"] = 36

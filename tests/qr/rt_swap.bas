@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' a.swap(i, j): numbers, strings, records with strings, a fixed
 ' array field and variable; an index past the end out of range
 type P

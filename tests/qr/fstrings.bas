@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' f-strings: Python's format specs
 let n = 42
 let x = 3.14159
