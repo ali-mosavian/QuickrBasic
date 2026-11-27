@@ -1081,8 +1081,8 @@ dicts and iterables. Everything else is in a module.
   `bool or Error`. `f.size() as int`. `f.close()` closes it sooner than its `drop` does.
 - A `File`'s number is private. A file's error is a value, its `code` QBasic's ERR.
 - `read_text(path) as string or Error` reads at most 32767 bytes, a string's most.
-  `write_text(path, s)`. `list(pattern = "*.*")` gives the platform's DOS names, upper case on
-  the host.
+  `write_text(path, s)`. `list(pattern = "*.*")` gives the platform's DOS names, sorted, upper
+  case on the host.
 
 `keys`:
 

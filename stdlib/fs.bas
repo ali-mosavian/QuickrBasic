@@ -68,9 +68,10 @@ function write_text(path as string, s as string) as bool or Error
     return true
 end function
 
-' the names of the files matching pattern, wildcards * and ?
+' the names of the files matching pattern, wildcards * and ?, in order
 function list(pattern as string = "*.*") as list[string]
     var names = text.split(file_list(pattern), text.chr(10))
     names.pop()
+    names.sort() ' the directory's order differs by platform
     return names
 end function
