@@ -37,15 +37,13 @@ void cmdfifo_begin(
 );
 /* The registers from reg's byte that mask picks, a bit each, written v's word at each's place. */
 void cmdfifo_registers(CmdFifo *f, uint32_t reg, uint32_t mask, const uint32_t *v);
-/* n corners to the setup unit, at most 15, stride words apart in v, each its words at at's places,
-   the colour packed: mode, sSetupMode's; three a triangle, or one fan. */
+/* n corners to the setup unit, at most 15, packed in v, words each, the colour packed: mode,
+   sSetupMode's; three a triangle, or one fan. */
 void cmdfifo_corners(
     CmdFifo *f,
     uint32_t mode,
-    const uint8_t *at,
     uint32_t words,
     const uint32_t *v,
-    uint32_t stride,
     uint32_t n,
     bool fan
 );

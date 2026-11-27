@@ -77,7 +77,7 @@ typedef struct {
     void (*show)(Tdfx *c, bool vsync);
     void (*carry)(Tdfx *c);
     void (*paletted)(Tdfx *c);
-    void (*cornered)(Tdfx *c, const TdfxVertex *v, uint32_t n, bool fan);
+    void (*cornered)(Tdfx *c, const uint32_t *v, uint32_t n, bool fan);
 } TdfxChip;
 
 /* A family's: its chip; whether it has the setup unit; its card (Tdfx's pci) readied, showing a
@@ -143,7 +143,7 @@ struct Tdfx {
     bool coloured;
     const TdfxWay *way;
     uint32_t colour0;
-    uint32_t placed; /* the texture TMU0's registers place: ACCEL_TEXTURES, none */
+    uint32_t placed;                 /* the texture TMU0's registers place: ACCEL_TEXTURES, none */
     uint32_t held[TDFX_HELD], known; /* the held registers' words, those known a bit each */
 };
 

@@ -454,14 +454,23 @@ static void ACCEL_CALL stated(const AccelState *const s)
     sent(&card);
 }
 
-/* n corners to the setup unit's registers, each its words and a command: the first of three
-   beginning a triangle, the others drawing it. */
-static void cornered(Tdfx *const c, const TdfxVertex *const v, const uint32_t n, const bool fan)
+/* n corners, packed in v, to the setup unit's registers, each its words at their places and a
+   command: the first of three beginning a triangle, the others drawing it. */
+static void cornered(Tdfx *const c, const uint32_t *const v, const uint32_t n, const bool fan)
 {
     const TdfxWay *const w = c->way;
+    const uint32_t words = w->corner.n;
 
-    for (uint32_t i = 0; i < n; i++)
-        c->chip->put(c, SST_CORNER, (fan ? i : i % 3) ? &w->draws : &w->begins, v[i].word);
+    TdfxVertex at; /* put reads only the words it picks */
+
+    at.word[TDFX_VDRAW] = at.word[TDFX_VBEGIN] = 0;
+
+    for (uint32_t i = 0; i < n; i++) {
+        for (uint32_t k = 0; k < words; k++)
+            at.word[w->corner.at[k]] = v[i * words + k];
+
+        c->chip->put(c, SST_CORNER, (fan ? i : i % 3) ? &w->draws : &w->begins, at.word);
+    }
 }
 
 /* Whether corners a and b are the same, word for word: as integers, not the FPU's compares. */
@@ -507,10 +516,11 @@ static void drawn_by(
         return;
     }
 
-    void (*const to)(Tdfx *, const TdfxVertex *, uint32_t, bool) =
+    void (*const to)(Tdfx *, const uint32_t *, uint32_t, bool) =
         c->chip->cornered ? c->chip->cornered : cornered;
+    const uint32_t words = w->corner.n;
 
-    TdfxVertex corners[3 * BATCH];
+    uint32_t corners[3 * BATCH * TDFX_CORNER_WORDS];
     uint32_t k = 0;
 
     for (uint32_t i = 0; i < n;) {
@@ -518,7 +528,7 @@ static void drawn_by(
 
         if (i + 1 < n && quad_of(t)) {
             const AccelVertex quad[4] = {t[0], t[1], t[2], t[5]};
-            TdfxVertex fan[4];
+            uint32_t fan[4 * TDFX_CORNER_WORDS];
 
             if (k)
                 to(c, corners, 3 * k, false);
@@ -530,7 +540,7 @@ static void drawn_by(
             continue;
         }
 
-        tdfx_corners(t, 3, &d, &corners[3 * k++]);
+        tdfx_corners(t, 3, &d, &corners[3 * words * k++]);
         i++;
 
         if (k == BATCH) {

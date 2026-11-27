@@ -124,28 +124,24 @@ void cmdfifo_registers(
 void cmdfifo_corners(
     CmdFifo *const f,
     const uint32_t mode,
-    const uint8_t *const at,
     const uint32_t words,
     const uint32_t *const v,
-    const uint32_t stride,
     const uint32_t n,
     const bool fan
 )
 {
-    reserved(f, n * words + 1);
+    const uint32_t all = n * words;
+
+    reserved(f, all + 1);
 
     volatile uint32_t *to = (volatile uint32_t *)(f->ring + written(f));
 
     *to++ = n << CORNERS_AT | (mode & 0xFF) << MODE_AT | (fan ? FAN : 0) | PACKED | CORNERS;
 
-    for (uint32_t k = 0; k < n; k++) {
-        const uint32_t *const corner = v + k * stride;
+    for (uint32_t i = 0; i < all; i++)
+        to[i] = v[i];
 
-        for (uint32_t i = 0; i < words; i++)
-            *to++ = corner[at[i]];
-    }
-
-    f->sent += WORD * (n * words + 1);
+    f->sent += WORD * (all + 1);
 }
 
 void cmdfifo_texels(

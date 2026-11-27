@@ -281,31 +281,32 @@ void tdfx_corners(
     const AccelVertex *const v,
     const uint32_t n,
     const TdfxDraw *const d,
-    TdfxVertex *const out
+    uint32_t *out
 )
 {
     const uint32_t params = d->params;
     const bool even = params & TEXEL && flat(v, n);
+    const bool argb = params & (COLOUR | 1u << TDFX_A);
     const float k = params & TEXEL && !even ? w_scale(v, n) : 1;
 
     for (uint32_t i = 0; i < n; i++) {
         const AccelVertex *const c = &v[i];
-        uint32_t *const w = out[i].word;
 
-        w[TDFX_VX] = bits(c->x + 0.5f + d->ox);
-        w[TDFX_VY] = bits(c->y + 0.5f + d->oy);
-        w[TDFX_VARGB] = tdfx_argb(c->colour, d->share);
-        w[TDFX_VDRAW] = w[TDFX_VBEGIN] = 0;
+        *out++ = bits(c->x + 0.5f + d->ox);
+        *out++ = bits(c->y + 0.5f + d->oy);
+
+        if (argb)
+            *out++ = tdfx_argb(c->colour, d->share);
 
         if (params & 1u << TDFX_Z)
-            w[TDFX_VZ] = bits(depth_of(c->z));
+            *out++ = bits(depth_of(c->z));
 
         if (params & TEXEL) {
             const Texel t = even ? (Texel){c->s * d->scale, c->t * d->scale, 1} : texel_of(c, d, k);
 
-            w[TDFX_VW] = bits(t.w);
-            w[TDFX_VS] = bits(t.s);
-            w[TDFX_VT] = bits(t.t);
+            *out++ = bits(t.w);
+            *out++ = bits(t.s);
+            *out++ = bits(t.t);
         }
     }
 }

@@ -107,8 +107,12 @@ TEST(tdfx_setup_works_out_only_the_parameters_sent)
         CHECK((t.word[i] == 0xA5A5A5A5) == !(sent >> i & 1));
 }
 
+/* A corner's words packed for EVERY: in its registers' order. */
+enum { PX, PY, PARGB, PZ, PW, PS, PT, PACKED_WORDS };
+
 /* The setup unit is sent each corner in the order given, moved to the card's pixel centres, its
-   colour packed with alpha times the share, and S, T and W scaled as the CPU's starts are. */
+   colour packed with alpha times the share, and S, T and W scaled as the CPU's starts are: each
+   corner's words packed after the last's. */
 TEST(tdfx_corners_move_and_pack_each_corner)
 {
     const AccelVertex v[3] = {
@@ -120,18 +124,18 @@ TEST(tdfx_corners_move_and_pack_each_corner)
     const TdfxDraw d = {1, 2, 4, EVERY, 128};
 
     TdfxTriangle t;
-    TdfxVertex c[3];
+    uint32_t c[3][PACKED_WORDS];
 
-    tdfx_corners(v, 3, &d, c);
+    CHECK(tdfx_picks(tdfx_corner_sent(EVERY)).n == PACKED_WORDS);
+    tdfx_corners(v, 3, &d, c[0]);
     CHECK(tdfx_setup(v, &d, &t));
-    CHECK(c[0].word[TDFX_VX] == t.word[4] && c[0].word[TDFX_VY] == t.word[5]);
-    CHECK(c[2].word[TDFX_VX] == t.word[0] && c[2].word[TDFX_VY] == t.word[1]);
-    CHECK(c[2].word[TDFX_VARGB] == 0x80123456);
-    CHECK(c[2].word[TDFX_VZ] == t.word[TDFX_START + TDFX_Z]);
-    CHECK(c[2].word[TDFX_VW] == t.word[TDFX_START + TDFX_W]);
-    CHECK(c[2].word[TDFX_VS] == t.word[TDFX_START + TDFX_S]);
-    CHECK(c[2].word[TDFX_VT] == t.word[TDFX_START + TDFX_T]);
-    CHECK(!c[1].word[TDFX_VBEGIN] && !c[1].word[TDFX_VDRAW]);
+    CHECK(c[0][PX] == t.word[4] && c[0][PY] == t.word[5]);
+    CHECK(c[2][PX] == t.word[0] && c[2][PY] == t.word[1]);
+    CHECK(c[2][PARGB] == 0x80123456);
+    CHECK(c[2][PZ] == t.word[TDFX_START + TDFX_Z]);
+    CHECK(c[2][PW] == t.word[TDFX_START + TDFX_W]);
+    CHECK(c[2][PS] == t.word[TDFX_START + TDFX_S]);
+    CHECK(c[2][PT] == t.word[TDFX_START + TDFX_T]);
 }
 
 /* Alpha times the share, worked by shifts, is the integer a * share / 255 for every pair. */
@@ -147,10 +151,10 @@ TEST(tdfx_corners_share_alpha_exactly)
             };
             const TdfxDraw d = {0, 0, 1, 1u << TDFX_A, (uint8_t)share};
 
-            TdfxVertex c[3];
+            uint32_t c[3][3]; /* x, y and ARGB */
 
-            tdfx_corners(v, 3, &d, c);
-            CHECK(c[0].word[TDFX_VARGB] >> 24 == a * share / 255);
+            tdfx_corners(v, 3, &d, c[0]);
+            CHECK(c[0][2] >> 24 == a * share / 255);
         }
 }
 
@@ -563,15 +567,22 @@ static uint32_t loaded(const uint8_t *const at)
     return v;
 }
 
-/* TRIANGLE's last corner drawn SOLID, moved by ox, oy, as the setup unit is sent it. */
+/* TRIANGLE's last corner drawn SOLID, moved by ox, oy, as the setup unit is sent it: each word at
+   its register's place. */
 static TdfxVertex solid_at(const float ox, const float oy)
 {
     const TdfxDraw d = {ox, oy, 1, tdfx_params(&SOLID, false), SOLID.alpha};
+    const TdfxPicks p = tdfx_picks(tdfx_corner_sent(d.params));
 
-    TdfxVertex v[3];
+    uint32_t v[3 * TDFX_CORNER_WORDS];
+    TdfxVertex c = {};
 
     tdfx_corners(TRIANGLE, 3, &d, v);
-    return v[2];
+
+    for (uint32_t k = 0; k < p.n; k++)
+        c.word[p.at[k]] = v[2 * p.n + k];
+
+    return c;
 }
 
 /* regs hold the setup unit's mode and corner c's words that SOLID sends, nothing where the rest
