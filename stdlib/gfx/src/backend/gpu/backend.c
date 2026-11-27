@@ -190,7 +190,9 @@ static bool begin(Gx *const g, const Command *const c, const Source *const into,
     const bool kept = !add && !mix;
     const uint8_t depth = (c->flags & GFX_DRAW_DEPTH_TEST ? QX_DEPTH_TEST : 0) |
                           (c->flags & GFX_DRAW_DEPTH_WRITE ? QX_DEPTH_WRITE : 0);
-    const uint32_t paint = pal_shade(style->tint, style->light, PAL_WHITE);
+    /* read by a SOLID draw's texels alone (source) */
+    const uint32_t paint =
+        c->flags & GFX_DRAW_SOLID ? pal_shade(style->tint, style->light, PAL_WHITE) : 0;
     const uint8_t *lut = nullptr;
     uint8_t index = 0;
     GpuSource blank;

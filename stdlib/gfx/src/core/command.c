@@ -6,7 +6,13 @@
 Place cmd_where(const Camera *const camera, const int32_t w, const int32_t h)
 {
     if (!camera->centred)
-        return (Place){.m11 = 1, .m22 = 1, .move = {-camera->x, -camera->y}, .zoom = 1};
+        return (Place){
+            .m11 = 1,
+            .m22 = 1,
+            .move = {-camera->x, -camera->y},
+            .zoom = 1,
+            .shifted = true,
+        };
 
     float s, c;
     gm_sincos(camera->angle, &s, &c);
@@ -24,6 +30,7 @@ Place cmd_where(const Camera *const camera, const int32_t w, const int32_t h)
     const Vec at = cmd_at(&p, (Vec){camera->x, camera->y});
 
     p.move = (Vec){(float)(w - 1) / 2 - at.x, (float)(h - 1) / 2 - at.y};
+    p.shifted = p.m11 == 1 && p.m12 == 0 && p.m21 == 0 && p.m22 == 1;
 
     return p;
 }

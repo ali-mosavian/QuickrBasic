@@ -17,13 +17,14 @@ typedef struct {
     int32_t alpha, palette_row;
 } Command;
 
-/* The camera over one target: a world point p lands at m p + move; a command turns by angle more
-   and scales by zoom. clip: the target's. */
+/* The camera over one target: a world point p lands at m p + move, m the identity where shifted; a
+   command turns by angle more and scales by zoom. clip: the target's. */
 typedef struct {
     float m11, m12, m21, m22;
     Vec move;
     float angle, zoom;
     Rect clip;
+    bool shifted;
 } Place;
 
 typedef struct {
@@ -34,8 +35,12 @@ typedef struct {
 /* The camera over a target w by h. */
 Place cmd_where(const Camera *camera, int32_t w, int32_t h);
 
+/* Where world point v lands: shifted, by two adds, not the multiplies. */
 static inline Vec cmd_at(const Place *const p, const Vec v)
 {
+    if (p->shifted)
+        return (Vec){v.x + p->move.x, v.y + p->move.y};
+
     return (Vec){
         p->m11 * v.x + p->m12 * v.y + p->move.x,
         p->m21 * v.x + p->m22 * v.y + p->move.y,
