@@ -4,6 +4,7 @@
 #include <time.h>
 
 #include "plat/host/host.h"
+#include "plat/pclk.h"
 #include "plat/pgfx.h"
 #include "qx/qxlist.h"
 #include "session.h"
@@ -100,37 +101,63 @@ TEST(pgfx_closes_with_the_run)
     CHECK(!pgfx_shown(&f));
 }
 
-/* A display's frame, shown 20 ms from now on another thread. */
+enum { LATE_US = 20000, STARVED_US = 150000, HALF_WAIT_US = 50000, TRIES = 20, MEGA = 1000000 };
+
+/* A display's frame, shown late_us on on another thread, and when it showed. */
+typedef struct {
+    uint64_t late_us;
+    uint64_t at;
+} Display;
+
 static void *display_frame(void *const arg)
 {
-    (void)arg;
-    nanosleep(&(const struct timespec){.tv_nsec = 20000000}, nullptr);
+    Display *const d = arg;
+    nanosleep(
+        &(const struct timespec){.tv_sec = d->late_us / MEGA, .tv_nsec = d->late_us % MEGA * 1000},
+        nullptr
+    );
 
+    d->at = pclk_us();
     host_frame_shown();
     return nullptr;
 }
 
 static const uint32_t SHOWS[] = {QX_LIST_SHOW | 2 << QX_LIST_SIZE, 1, QX_LIST_END};
 
-/* The frames shown once a page, or a list, is shown, a display counting them and showing one 20 ms
-   on. */
-static uint32_t shown_after(const QxHost *const h, const bool list)
+/* The frames shown once a page, or a list, is shown, a display counting them and showing one
+   first_us on, then 20 ms on. A run that proves nothing is run again: with vsync, the display
+   starved past half the show's 100 ms wait; without, the show back after the display's frame. */
+static uint32_t shown_after(
+    const QxHost *const h,
+    const bool list,
+    const bool vsync,
+    const uint64_t first_us
+)
 {
-    host_display()->frames = 1;
-    pthread_t t;
+    Display d = {.late_us = first_us};
 
-    if (pthread_create(&t, nullptr, display_frame, nullptr))
-        return 0;
+    for (uint32_t i = 0; i < TRIES; i++, d.late_us = LATE_US) {
+        host_display()->frames = 1;
+        const uint64_t t0 = pclk_us();
+        pthread_t t;
 
-    if (list)
-        h->gpu_play(SHOWS, sizeof SHOWS / sizeof SHOWS[0]);
-    else
-        h->gfx_show((const uint32_t[256]){});
+        if (pthread_create(&t, nullptr, display_frame, &d))
+            return 0;
 
-    const uint32_t n = host_display()->frames;
-    pthread_join(t, nullptr);
-    host_display()->frames = 0; /* no display again, for the tests after */
-    return n;
+        if (list)
+            h->gpu_play(SHOWS, sizeof SHOWS / sizeof SHOWS[0]);
+        else
+            h->gfx_show((const uint32_t[256]){});
+
+        const uint32_t n = host_display()->frames;
+        const uint64_t t1 = pclk_us();
+        pthread_join(t, nullptr);
+        host_display()->frames = 0; /* no display again, for the tests after */
+        if (vsync ? d.at - t0 < HALF_WAIT_US : t1 < d.at)
+            return n;
+    }
+
+    return 0;
 }
 
 static bool fake_open(const uint16_t w, const uint16_t h) { return (void)w, (void)h, true; }
@@ -161,10 +188,10 @@ TEST(pgfx_vsync_waits_for_the_display)
     };
 
     CHECK(h->gfx_open(&s) && !s.gpu);
-    CHECK(shown_after(h, false) == 2);
+    CHECK(shown_after(h, false, true, LATE_US) == 2);
     s.flags = 0;
     CHECK(h->gfx_open(&s));
-    CHECK(shown_after(h, false) == 1);
+    CHECK(shown_after(h, false, false, LATE_US) == 1);
 
     pgfx_set_player(&fake);
     s = (QxScreen){
@@ -176,12 +203,29 @@ TEST(pgfx_vsync_waits_for_the_display)
     };
 
     CHECK(h->gfx_open(&s) && s.gpu);
-    CHECK(shown_after(h, true) == 2);
+    CHECK(shown_after(h, true, true, LATE_US) == 2);
     s.flags = 0;
     CHECK(h->gfx_open(&s));
-    CHECK(shown_after(h, true) == 1);
+    CHECK(shown_after(h, true, false, LATE_US) == 1);
     h->gfx_close();
     pgfx_set_player(nullptr);
+}
+
+/* VSYNC's check with the display starved past the show's wait once, as on a loaded CI runner: it
+   read 1 frame, not 2, and failed. */
+TEST(pgfx_vsync_check_runs_again_past_a_starved_display)
+{
+    const QxHost *const h = &S->natv.host;
+    QxScreen s = {
+        .w = 2,
+        .h = 2,
+        .depth = 8,
+        .flags = QX_SCREEN_VSYNC,
+    };
+
+    CHECK(h->gfx_open(&s));
+    CHECK(shown_after(h, false, true, STARVED_US) == 2);
+    h->gfx_close();
 }
 
 /* The refresh the display gives, in Hz. */
