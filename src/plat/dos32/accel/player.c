@@ -764,23 +764,23 @@ static Vertices vertices_of(const Pipeline *const pl, const Buffer *const vb)
 /* Whether a float's bits are above 0, +inf too: as w > 0 reads them, no NaN. */
 static bool above_zero(const uint32_t bits) { return (int32_t)bits > 0 && bits <= 0x7F800000u; }
 
-/* The draw's vertex at index into *v: false, past the vertices, or its w not above 0. A w of 1, a
-   2D draw's, is not divided. The words only moved are moved as integers: a float through a 486's
-   FPU costs 10 cycles to load and store. */
-static bool fetched(const Vertices *const f, const uint32_t index, AccelVertex *const v)
+/* The bytes of the draw's vertex at index: null, past the vertices. */
+static const uint8_t *vertex_at(const Vertices *const f, const uint32_t index)
+{
+    return index < f->n ? f->bytes + index * f->pl->stride : nullptr;
+}
+
+/* The vertex of pl's layout at b into *v: false, its w not above 0. A w of 1, a 2D draw's, is not
+   divided. The words only moved are moved as integers: a float through a 486's FPU costs 10
+   cycles to load and store. */
+static bool fetched(const Pipeline *const pl, const uint8_t *const b, AccelVertex *const v)
 {
     static_assert(offsetof(AccelVertex, z) == 2 * sizeof(float));
     static_assert(offsetof(AccelVertex, t) == offsetof(AccelVertex, s) + sizeof(float));
 
-    const Pipeline *const pl = f->pl;
-
     uint32_t w, rgba = WHITE;
     float q;
 
-    if (index >= f->n)
-        return false;
-
-    const uint8_t *const b = f->bytes + index * pl->stride;
     const uint8_t *const at = b + pl->at[QX_FIXED_AT_POSITION];
 
     memcpy(&w, at + 3 * sizeof(float), sizeof w);
@@ -805,34 +805,33 @@ static bool fetched(const Vertices *const f, const uint32_t index, AccelVertex *
     return true;
 }
 
-/* The wrap's rectangle of the draw's vertex at index to r: false, past the vertices. */
-static bool rect_of(const Vertices *const f, const uint32_t index, uint16_t r[RECT])
+/* The wrap's rectangle of the vertex of pl's layout at b to r. */
+static void rect_of(const Pipeline *const pl, const uint8_t *const b, uint16_t r[RECT])
 {
-    const Pipeline *const pl = f->pl;
-
-    if (index >= f->n)
-        return false;
-
     if (pl->at[QX_FIXED_AT_RECT] != NONE)
-        memcpy(r, f->bytes + index * pl->stride + pl->at[QX_FIXED_AT_RECT], RECT * sizeof *r);
+        memcpy(r, b + pl->at[QX_FIXED_AT_RECT], RECT * sizeof *r);
     else
         memset(r, 0, RECT * sizeof *r);
-
-    return true;
 }
 
-/* The corners at indices into v, a bit each fetched. */
+/* The corners at indices into v, the first's bytes at b, a bit each fetched: one following the
+   last found by an add, not a 486's multiply, as a quad's do. */
 static uint32_t fetched_all(
     const Vertices *const f,
     const uint32_t *const indices,
     const uint32_t n,
+    const uint8_t *b,
     AccelVertex *const v
 )
 {
-    uint32_t ok = 0;
+    uint32_t ok = b && fetched(f->pl, b, &v[0]);
 
-    for (uint32_t i = 0; i < n; i++)
-        ok |= fetched(f, indices[i], &v[i]) ? 1u << i : 0;
+    for (uint32_t i = 1; i < n; i++) {
+        const bool next = b && indices[i] == indices[i - 1] + 1 && indices[i] < f->n;
+
+        b = next ? b + f->pl->stride : vertex_at(f, indices[i]);
+        ok |= b && fetched(f->pl, b, &v[i]) ? 1u << i : 0;
+    }
 
     return ok;
 }
@@ -869,9 +868,12 @@ static bool covers(
         pl->depth & ACCEL_DEPTH_TEST || !same_rect(p.clip, (AccelRect){0, 0, into->w, into->h}))
         return false;
 
-    for (uint32_t i = 0; i < TWO; i++)
-        if (!fetched(&f, index_at(ib, first + i), &v[i]))
+    for (uint32_t i = 0; i < TWO; i++) {
+        const uint8_t *const b = vertex_at(&f, index_at(ib, first + i));
+
+        if (!b || !fetched(pl, b, &v[i]))
             return false;
+    }
 
     float x0 = v[0].x, x1 = x0, y0 = v[0].y, y1 = y0;
 
@@ -927,7 +929,7 @@ static bool filled(
         return false;
 
     for (uint32_t i = 0; i < TWO; i++) {
-        fetched(&f, index_at(ib, first + i), &v);
+        fetched(pl, vertex_at(&f, index_at(ib, first + i)), &v); /* covers fetched each */
 
         if (i && v.colour != *argb)
             return false;
@@ -1217,12 +1219,16 @@ static void triangles_drawn(
             index_at(ib, at + 2),
             four ? index_at(ib, at + 5) : 0,
         };
+        const uint8_t *const b = vertex_at(&f, corner[0]);
         uint16_t r[RECT]; /* the first corner's: the wrap's */
 
         i += four ? TWO : 3;
 
-        if (t && !rect_of(&f, corner[0], r))
+        if (!b)
             continue;
+
+        if (t)
+            rect_of(pl, b, r);
 
         if (t && (!grid || !same_rect_words(r, gridded_for))) {
             uint8_t flags;
@@ -1243,7 +1249,7 @@ static void triangles_drawn(
 
         AccelVertex kept[QUAD];
         AccelVertex *const v = t && !whole ? kept : room(n);
-        const uint32_t ok = fetched_all(&f, corner, n, v);
+        const uint32_t ok = fetched_all(&f, corner, n, b, v);
 
         for (uint32_t k = 0; k < n && !texel; k++)
             v[k].colour = indices_colour(v[k].colour, p.colours, held);
