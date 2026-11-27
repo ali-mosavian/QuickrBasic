@@ -1687,11 +1687,12 @@ def dll_code(dll: Path) -> bytes:
     sys.exit(f"profile: {dll.name} has no .text")
 
 
-def dll_functions(listing: str) -> list[tuple[int, str]]:
-    """lld-link's map's functions in .text by offset, statics too; a name two modules share told by its module."""
+def dll_functions(listing: str, taken: frozenset[str] = frozenset()) -> list[tuple[int, str]]:
+    """lld-link's map's functions in .text by offset, statics too; a name two modules share, or one of taken's (the
+    program's), told by its module."""
     found = re.findall(r"(?m)^\s*0001:([0-9a-f]{8})\s+(\S+)\s+[0-9a-f]+\s+(\S+)\.obj$", listing)
     names = [n for _, n, _ in found]
-    return sorted((int(at, 16), f"{n} ({o})" if names.count(n) > 1 else n) for at, n, o in found)
+    return sorted((int(at, 16), f"{n} ({o})" if names.count(n) > 1 or n in taken else n) for at, n, o in found)
 
 
 def driver_dll(b: Build, card: str) -> Path:
@@ -1699,10 +1700,12 @@ def driver_dll(b: Build, card: str) -> Path:
     return b.dos.parent / "drivers" / f"{CARD_DRIVERS[card]}.dll"
 
 
-def driver_images(b: Build, card: str) -> tuple[tuple[bytes, list[tuple[int, str]]], ...]:
-    """Build b's driver for card: its code and functions, from its DLL and map."""
+def driver_images(b: Build, card: str, exe: Path) -> tuple[tuple[bytes, list[tuple[int, str]]], ...]:
+    """Build b's driver for card: its code and functions, from its DLL and map; one named as a function of exe's map
+    is, told by its module."""
     dll = driver_dll(b, card)
-    return ((dll_code(dll), dll_functions(dll.with_suffix(".map").read_text())),)
+    taken = frozenset(n.partition(" (")[0] for _, n in map_functions(exe.with_suffix(".map").read_text()))
+    return ((dll_code(dll), dll_functions(dll.with_suffix(".map").read_text(), taken)),)
 
 
 def map_functions(listing: str) -> list[tuple[int, str]]:
@@ -2000,7 +2003,7 @@ def demos_on_card(a: argparse.Namespace, own: dict[str, bytes]) -> int:
                     for n in (f, 2 * f)
                 ]
                 print_vm_profile(name, vm, exe, jobs, card, a.n, a.at or [], b if a.lines else None, True,
-                                 driver_images(b, a.card), (driver_dll(b, a.card),), tuple(a.set or ()))
+                                 driver_images(b, a.card, exe), (driver_dll(b, a.card),), tuple(a.set or ()))
         return 0
     print(f"at their own size at {a.depth} bits on 86Box ({vm}), frames a second over {a.seconds:g} s")
     print(f"{'':12}" + "".join(f"{t:>10}" for t in ("pages", a.card, "no vsync")))
@@ -2049,9 +2052,9 @@ def cmd_games(a: argparse.Namespace) -> int:
         vm_shown(card_vm(a.card, a.machine), b.dos, job(a.seconds), files | libs[a.card])
         return 0
     if a.profile:
-        images = () if a.dosbox else driver_images(b, a.card)  # with the drivers run: a later build's misnamed them
         with tempfile.TemporaryDirectory() as d:
             exe = profiled(b, Path(d))
+            images = () if a.dosbox else driver_images(b, a.card, exe)
             for name in a.game or jobs:
                 job, files, _ = jobs[name]
                 runs = [job(0), job(a.seconds)] if name == "MOTHLITE" else [job(a.seconds), job(2 * a.seconds)]
