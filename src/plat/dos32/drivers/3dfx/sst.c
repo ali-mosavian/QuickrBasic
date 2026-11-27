@@ -198,20 +198,32 @@ static uint32_t room_in(const uint32_t status)
     return !lwm ? status & SST_ROOM : free > lwm ? free - lwm : 0;
 }
 
-/* A word to a window's at, as the FIFO has room. */
-static void stored(Tdfx *const c, volatile uint8_t *const at, const uint32_t v)
+/* Up to n of the FIFO's entries, at least one, as it has room: how many. */
+static uint32_t taken(Tdfx *const c, const uint32_t n)
 {
     while (!room)
         room = room_in(tdfx_get(c, SST_STATUS));
 
-    room--;
+    const uint32_t k = n < room ? n : room;
+
+    room -= k;
+    return k;
+}
+
+/* A word to a window's at, as the FIFO has room. */
+static void stored(Tdfx *const c, volatile uint8_t *const at, const uint32_t v)
+{
+    taken(c, 1);
     *(volatile uint32_t *)at = v;
 }
 
 static void put(Tdfx *const c, const uint32_t reg, const uint32_t *const v, const uint32_t n)
 {
-    for (uint32_t i = 0; i < n; i++)
-        stored(c, c->regs + reg + 4 * i, v[i]);
+    volatile uint32_t *const to = (volatile uint32_t *)(c->regs + reg);
+
+    for (uint32_t i = 0; i < n;)
+        for (const uint32_t end = i + taken(c, n - i); i < end; i++)
+            to[i] = v[i];
 }
 
 uint32_t sst_based(const Tdfx *const c, const uint32_t at)

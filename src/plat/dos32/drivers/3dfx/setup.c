@@ -3,6 +3,9 @@
 #include "plat/dos32/drivers/3dfx/regs.h"
 
 enum { CHANNEL = 255, DEPTH = 65535, SIDE = 256, LEVEL = 4, SIGN = 1u << 31 };
+/* Alpha's share as a multiply, a divide being 39 cycles on a Pentium: the float is above 1/255, so a
+   whole alpha stays whole as the card truncates it. */
+static const float FADE = 1.0f / CHANNEL;
 
 static uint32_t log2_of(uint32_t n)
 {
@@ -55,7 +58,7 @@ bool tdfx_setup(
         at[i][TDFX_R] = (float)(c->colour >> 16 & CHANNEL);
         at[i][TDFX_G] = (float)(c->colour >> 8 & CHANNEL);
         at[i][TDFX_B] = (float)(c->colour & CHANNEL);
-        at[i][TDFX_A] = (float)((c->colour >> 24) * share) / CHANNEL;
+        at[i][TDFX_A] = (float)((c->colour >> 24) * share) * FADE;
         at[i][TDFX_Z] = z * DEPTH;
         at[i][TDFX_S] = c->s * scale * w;
         at[i][TDFX_T] = c->t * scale * w;
@@ -68,12 +71,14 @@ bool tdfx_setup(
     if (area == 0)
         return false;
 
+    const float per = 1 / area;
+
     for (uint32_t n = 0; n < TDFX_PARAMS; n++) {
         const float b = at[1][n] - at[0][n], c = at[2][n] - at[0][n];
 
         out->start[n] = at[0][n];
-        out->dx[n] = (b * (y[2] - y[0]) - c * (y[1] - y[0])) / area;
-        out->dy[n] = (c * (x[1] - x[0]) - b * (x[2] - x[0])) / area;
+        out->dx[n] = (b * (y[2] - y[0]) - c * (y[1] - y[0])) * per;
+        out->dy[n] = (c * (x[1] - x[0]) - b * (x[2] - x[0])) * per;
     }
 
     /* the card's own area: B left of A to C, negative */
