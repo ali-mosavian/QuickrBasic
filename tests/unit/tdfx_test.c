@@ -198,6 +198,36 @@ TEST(tdfx_setup_sends_what_the_corners_share_without_gradients)
     CHECK(near(word_of(&t, TDFX_DX + TDFX_S), 0.8f) && near(word_of(&t, TDFX_DY + TDFX_T), 0.4f));
 }
 
+/* Runs: two triangles of more than one colour; two of one; one of another; alpha apart only where
+   the state reads it; one run of all, no colour read. */
+TEST(tdfx_run_splits_triangles_by_their_colour)
+{
+    enum : uint32_t { RED = 0xFFFF0000, BLUE = 0xFF0000FF };
+
+    const uint32_t colour = 1u << TDFX_R | 1u << TDFX_G | 1u << TDFX_B;
+    const uint32_t colours[6][3] = {
+        {RED, BLUE, RED},
+        {BLUE, BLUE, RED},
+        {RED, RED, RED},
+        {RED, RED, RED},
+        {BLUE, BLUE, BLUE},
+        {0x80FF0000, RED, RED},
+    };
+
+    AccelVertex v[18] = {};
+    bool one;
+
+    for (uint32_t i = 0; i < 18; i++)
+        v[i].colour = colours[i / 3][i % 3];
+
+    CHECK(tdfx_run(v, 6, colour, &one) == 2 && !one);
+    CHECK(tdfx_run(v + 6, 4, colour, &one) == 2 && one);
+    CHECK(tdfx_run(v + 12, 2, colour, &one) == 1 && one);
+    CHECK(tdfx_run(v + 15, 1, colour, &one) == 1 && one);
+    CHECK(tdfx_run(v + 15, 1, colour | 1u << TDFX_A, &one) == 1 && !one);
+    CHECK(tdfx_run(v, 6, 1u << TDFX_Z, &one) == 6 && !one);
+}
+
 /* What each path reads: a solid colour its colour alone; a keyed texel mixed its colour, alpha and
    texel; a texel alone depth tested its depth and texel; depth written alone its depth; a texel
    without its texture the colour. */
@@ -339,14 +369,27 @@ TEST(tdfx_gamma_shows_565_as_gfx_widens_it)
     CHECK(shown(63 << 2, 8) == 253);
 }
 
-/* A mask is the iterated colour, its alpha the texel's times the iterated: keyed by the texel. */
+/* A mask is the colour, as the local, its alpha the texel's times the colour's: keyed by the
+   texel. */
 TEST(tdfx_words_of_a_keyed_mask)
 {
     const AccelState s = {.source = ACCEL_MASK, .flags = ACCEL_KEY, .texture = 1, .alpha = 255};
     const TdfxWords w = tdfx_words(&s, 1, false);
 
-    CHECK(w.colour_path == (0x08480004 | 0x04000000));
+    CHECK(w.colour_path == (0x08484104 | 0x04000000));
     CHECK(w.alpha_mode == (1 | 4 << 1));
+}
+
+/* A solid colour is the local alone, its other zeroed and the local added, alpha too: color0 can
+   stand in for it. */
+TEST(tdfx_words_of_a_solid_colour_take_it_as_local)
+{
+    const AccelState s = {.source = ACCEL_COLOUR, .alpha = 255};
+
+    CHECK(
+        tdfx_words(&s, 0, false).colour_path ==
+        (1u << 8 | 1u << 14 | 1u << 17 | 1u << 23 | 0x04000000)
+    );
 }
 
 /* An indexed texel alone, keyed: P_8 written in order, index 0 cut by the chroma key, not the
@@ -1213,6 +1256,87 @@ TEST(tdfx_cvg_writes_registers_through_the_command_fifo)
     CHECK(word_at(SST_FVERTEX) == 0);
     played(&cvg_fifo);
     CHECK(solid_in(card_memory, &t));
+    d->close();
+}
+
+/* TRIANGLE's corners all of one colour, its alpha half; the state mixing it. */
+static const AccelVertex ONE_COLOUR[3] = {
+    {0, 0, 0.5f, 1, 0, 0, 0x80608020},
+    {64, 0, 0.5f, 1, 0, 0, 0x80608020},
+    {0, 64, 0.25f, 1, 0, 0, 0x80608020},
+};
+static const AccelState MIXED = {.source = ACCEL_COLOUR, .blend = ACCEL_MIX, .alpha = 255};
+
+/* Whether regs's colour parameters, starts and gradients, are all unwritten. */
+static bool colour_unsent(const uint8_t *const regs)
+{
+    static const uint32_t params[] = {TDFX_R, TDFX_G, TDFX_B, TDFX_A};
+
+    for (uint32_t i = 0; i < 4; i++) {
+        const uint32_t at = 4 * params[i];
+
+        if (loaded(regs + SST_FSTART + at) || loaded(regs + SST_FDX + at) ||
+            loaded(regs + SST_FDY + at))
+            return false;
+    }
+
+    return true;
+}
+
+/* Triangles of one colour worked out on the CPU send it once, as color0's, the path's local: the 12
+   words of its parameters a triangle not sent. One of three colours iterates them again. */
+TEST(tdfx_driver_sends_one_colour_as_colour0)
+{
+    static const TdfxFamily fake = {"fake", &sst_chip, false, fake_open, fake_close};
+
+    AccelCard card;
+    const AccelDriver *const d = tdfx_driver(&FAKE_HOST, &fake);
+
+    CHECK(d && d->open(&(PciFunction){}, 320, 240, &card));
+    d->state(&MIXED);
+    d->triangles(ONE_COLOUR, 3);
+    CHECK(word_at(SST_COLOUR0) == 0x80608020 && colour_unsent(card_memory));
+    CHECK(word_at(SST_FBZ_COLOUR_PATH) == (SST_PATH_COLOUR | SST_PATH_COLOUR0 | SST_PATH_ADJUST));
+    d->triangles(TRIANGLE, 3);
+    CHECK(word_at(SST_FBZ_COLOUR_PATH) == (SST_PATH_COLOUR | SST_PATH_ADJUST));
+    CHECK(word_at(SST_FSTART + 4 * TDFX_R) == 0x42000000); /* 32, A's red */
+    d->close();
+}
+
+/* By the setup unit, each corner's colour, one or not: the mode and corners carry it, color0 left
+   alone, as the unit works out a colour's gradients itself. */
+TEST(tdfx_cvg_sends_one_colour_by_its_corners)
+{
+    AccelCard card;
+    const AccelDriver *const d = cvg_opened(&card, false);
+
+    CHECK(d);
+    d->state(&MIXED);
+    d->triangles(ONE_COLOUR, 3);
+    CHECK(word_at(SST_SETUP_MODE) == (SST_UNIT_RGB | SST_UNIT_ALPHA) && word_at(SST_COLOUR0) == 0);
+    CHECK(word_at(SST_CORNER + 4 * TDFX_VARGB) == 0x80608020);
+    CHECK(word_at(SST_FBZ_COLOUR_PATH) == (SST_PATH_COLOUR | SST_PATH_ADJUST));
+    d->close();
+}
+
+/* A draw's one-colour triangles go through color0 though others in it are not: the last one's
+   colour parameters left as the first's sent them. Sprites of different tints come batched in one
+   draw; as a whole it is not one colour. */
+TEST(tdfx_driver_sends_a_run_of_one_colour_in_a_draw_as_colour0)
+{
+    static const TdfxFamily fake = {"fake", &sst_chip, false, fake_open, fake_close};
+
+    AccelVertex both[6];
+    AccelCard card;
+    const AccelDriver *const d = tdfx_driver(&FAKE_HOST, &fake);
+
+    memcpy(both, TRIANGLE, sizeof TRIANGLE);
+    memcpy(both + 3, ONE_COLOUR, sizeof ONE_COLOUR);
+    CHECK(d && d->open(&(PciFunction){}, 320, 240, &card));
+    d->state(&MIXED);
+    d->triangles(both, 6);
+    CHECK(word_at(SST_COLOUR0) == 0x80608020 && word_at(SST_FSTART + 4 * TDFX_R) == 0x42000000);
+    CHECK(word_at(SST_FBZ_COLOUR_PATH) == (SST_PATH_COLOUR | SST_PATH_COLOUR0 | SST_PATH_ADJUST));
     d->close();
 }
 

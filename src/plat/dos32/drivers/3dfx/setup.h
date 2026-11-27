@@ -25,6 +25,9 @@ typedef enum {
     TDFX_PARAMS
 } TdfxParam;
 
+/* The parameters of a corner's colour. */
+enum : uint32_t { TDFX_COLOURED = 1u << TDFX_R | 1u << TDFX_G | 1u << TDFX_B | 1u << TDFX_A };
+
 /* A triangle as the card's registers from fvertex take it, a word each: A's, B's and C's x and y;
    each parameter's start, then its x gradient, then its y gradient; triangleCMD's, the area's
    sign. */
@@ -87,6 +90,12 @@ uint32_t tdfx_corner_sent(uint32_t params);
 /* v's corners as d draws them, for the setup unit: the words tdfx_corner_sent picks, the commands'
    0. */
 void tdfx_corners(const AccelVertex v[3], const TdfxDraw *d, TdfxVertex out[3]);
+/* colour as the card takes it, ARGB, its alpha times share over 255. */
+uint32_t tdfx_argb(uint32_t colour, uint8_t share);
+/* The triangles from v's first, of n, sent one way: all of the first's colour, as params reads
+   it, if its corners are of one, *one then; else each of more than one; all, params reading no
+   colour. */
+uint32_t tdfx_run(const AccelVertex *v, uint32_t n, uint32_t params, bool *one);
 /* s's words, drawn into buffer draw (0 front, 1 back), its texture indexed or not: an indexed one
    keyed by the chroma key, its index 0's colour. */
 TdfxWords tdfx_words(const AccelState *s, uint32_t draw, bool indexed);

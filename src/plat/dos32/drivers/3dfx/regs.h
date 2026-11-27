@@ -26,6 +26,7 @@ enum : uint32_t {
     SST_SWAP = 0x128,
     SST_ZA_COLOUR = 0x130,
     SST_CHROMA_KEY = 0x134,
+    SST_COLOUR0 = 0x144,
     SST_COLOUR1 = 0x148,
     SST_FBI_INIT4 = 0x200,
     SST_BACK_PORCH = 0x208,
@@ -87,15 +88,17 @@ enum : uint32_t {
 /* A depth or alpha test's function. */
 enum : uint32_t { SST_GREATER = 4, SST_ALWAYS = 7 };
 
-/* fbzColorPath: the texel times the iterated colour, its alpha too; the texel alone; the iterated
-   colour, its alpha the texel's times the iterated, or, the texel indexed, the iterated's alone
-   with the texel's colour the chroma key tests; the parameters moved to the first pixel's
-   centre. */
+/* fbzColorPath, each path taking the draw's colour as its local: the colour alone; the texel times
+   it, its alpha too; the texel alone; the colour, its alpha the texel's times the colour's, or, the
+   texel indexed, the colour's alone with the texel's colour the chroma key tests; COLOUR0, the
+   local color0's, not iterated; the parameters moved to the first pixel's centre. */
 enum : uint32_t {
+    SST_PATH_COLOUR = 0x00824100,
     SST_PATH_TEXEL = 0x08482405,
     SST_PATH_REPLACE = 0x08000005,
-    SST_PATH_MASK = 0x08480004,
+    SST_PATH_MASK = 0x08484104,
     SST_PATH_INDEX_MASK = 0x08824101,
+    SST_PATH_COLOUR0 = 0x00000030,
     SST_PATH_ADJUST = 0x04000000,
 };
 

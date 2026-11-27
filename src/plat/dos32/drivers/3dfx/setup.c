@@ -227,6 +227,42 @@ static uint32_t shared(const uint32_t a, const uint8_t share)
     return share == CHANNEL ? a : (x + 1 + (x >> 8)) >> 8;
 }
 
+uint32_t tdfx_argb(const uint32_t colour, const uint8_t share)
+{
+    return (colour & RGB) | shared(colour >> 24, share) << 24;
+}
+
+/* Whether t's three corners are colour, as read reads them. */
+static bool all(const AccelVertex t[3], const uint32_t read, const uint32_t colour)
+{
+    return (t[0].colour & read) == colour && (t[1].colour & read) == colour &&
+           (t[2].colour & read) == colour;
+}
+
+uint32_t tdfx_run(
+    const AccelVertex *const v,
+    const uint32_t n,
+    const uint32_t params,
+    bool *const one
+)
+{
+    const uint32_t read = (params & COLOUR ? RGB : 0) | (params & 1u << TDFX_A ? ~RGB : 0);
+    const uint32_t first = v[0].colour & read;
+    const bool same = read && all(v, read, first);
+
+    uint32_t k = read ? 1 : n;
+
+    if (same)
+        while (k < n && all(v + 3 * k, read, first))
+            k++;
+    else
+        while (k < n && !all(v + 3 * k, read, v[3 * k].colour & read))
+            k++;
+
+    *one = same;
+    return k;
+}
+
 void tdfx_corners(const AccelVertex v[3], const TdfxDraw *const d, TdfxVertex out[3])
 {
     const uint32_t params = d->params;
@@ -238,7 +274,7 @@ void tdfx_corners(const AccelVertex v[3], const TdfxDraw *const d, TdfxVertex ou
 
         w[TDFX_VX] = bits(c->x + 0.5f + d->ox);
         w[TDFX_VY] = bits(c->y + 0.5f + d->oy);
-        w[TDFX_VARGB] = (c->colour & RGB) | shared(c->colour >> 24, d->share) << 24;
+        w[TDFX_VARGB] = tdfx_argb(c->colour, d->share);
         w[TDFX_VDRAW] = w[TDFX_VBEGIN] = 0;
 
         if (params & 1u << TDFX_Z)
@@ -260,7 +296,7 @@ TdfxWords tdfx_words(const AccelState *const s, const uint32_t draw, const bool 
     const bool keyed = texel && s->flags & ACCEL_KEY;
     const uint32_t mask = indexed ? SST_PATH_INDEX_MASK : SST_PATH_MASK;
     const uint32_t path = s->source == ACCEL_MASK    ? mask
-                          : !texel                   ? 0
+                          : !texel                   ? SST_PATH_COLOUR
                           : s->flags & ACCEL_REPLACE ? SST_PATH_REPLACE
                                                      : SST_PATH_TEXEL;
     const uint32_t format =

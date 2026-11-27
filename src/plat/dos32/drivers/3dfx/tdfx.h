@@ -9,7 +9,7 @@
  * looked up in TMU0's palette, index 0 keyed by the chroma key: the palette's colour for it, its
  * low bits, which a 565 pixel drops, made unlike every other's. Registers are written as the chip
  * takes them, those a write picks: a triangle as the words its state reads, or as its corners
- * to a setup unit.
+ * to a setup unit. Worked out here, a run of triangles of one colour sends it once, as color0's.
  */
 #ifndef TDFX_TDFX_H
 #define TDFX_TDFX_H
@@ -31,6 +31,14 @@ typedef struct {
     uint8_t at[32];
 } TdfxPicks;
 
+/* How a draw's triangles are sent: the parameters read; fbzColorPath's word; their words, worked out
+   on the CPU, or by the setup unit: sSetupMode's, a corner's words, and those written register by
+   register, with the command beginning a triangle or drawing one. */
+typedef struct {
+    uint32_t params, path, mode;
+    TdfxPicks sent, corner, begins, draws;
+} TdfxWay;
+
 typedef struct {
     uint32_t at; /* its texels' first byte in TMU0's memory */
     uint16_t w, h;
@@ -49,8 +57,8 @@ typedef struct {
    - show: buffer shown ^ 1 shown, at the retrace with vsync;
    - carry: the next frame made the shown one's;
    - paletted: after TMU0's palette is written, what holds texels looked up in it flushed;
-   - cornered: n corners to the setup unit, three a triangle, each the words Tdfx's corner picks:
-     null, written to its registers. */
+   - cornered: n corners to the setup unit, three a triangle, each the words Tdfx's way's corner
+     picks: null, written to its registers. */
 typedef struct {
     uint32_t busy;
     void (*put)(Tdfx *c, uint32_t reg, const TdfxPicks *p, const uint32_t *v);
@@ -112,12 +120,13 @@ struct Tdfx {
     uint32_t ox, oy;              /* its place in the buffer */
     AccelRect clip;
     AccelState state;
-    uint32_t params; /* setup.h's: those the state reads */
-    TdfxPicks sent;  /* a triangle's words sent for them, worked out on the CPU */
-    /* or by the setup unit: sSetupMode's; a corner's words; written register by register, with
-       the command beginning a triangle or drawing one */
-    uint32_t mode;
-    TdfxPicks corner, begins, draws;
+    uint32_t params, path; /* setup.h's parameters the state reads; fbzColorPath's word */
+    /* its ways: by the corners' colours, or of one colour, color0's, its parameters not sent, once
+       worked out, coloured; the way the registers are set for; color0's word */
+    TdfxWay ways[2];
+    bool coloured;
+    const TdfxWay *way;
+    uint32_t colour0;
     uint32_t placed; /* the texture TMU0's registers place: ACCEL_TEXTURES, none */
 };
 

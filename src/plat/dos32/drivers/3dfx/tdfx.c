@@ -117,42 +117,91 @@ static void placed(Tdfx *const c, const uint32_t slot)
     c->placed = slot;
 }
 
-/* The state's words and the aim's clip sent. */
+/* The state's way, of one colour or not, to w: only the picks it sends worked out. */
+static void way_of(const Tdfx *const c, const bool one, TdfxWay *const w)
+{
+    const uint32_t params = one ? c->params & ~TDFX_COLOURED : c->params;
+
+    w->params = params;
+    w->path = one ? c->path | SST_PATH_COLOUR0 : c->path;
+
+    if (!family->unit) {
+        w->sent = tdfx_picks(tdfx_sent(params));
+        return;
+    }
+
+    const uint32_t corner = tdfx_corner_sent(params);
+
+    w->mode = tdfx_unit_mode(params);
+    w->corner = tdfx_picks(corner);
+
+    if (!c->chip->cornered) {
+        w->begins = tdfx_picks(corner | 1u << TDFX_VBEGIN);
+        w->draws = tdfx_picks(corner | 1u << TDFX_VDRAW);
+    }
+}
+
+/* The state's words and the aim's clip sent, with its way by the corners' colours: its ways kept
+   while its parameters and path are, as a texture's change keeps them. */
 static void sent(Tdfx *const c)
 {
     const AccelState *const s = &c->state;
     const bool texel = s->source != ACCEL_COLOUR && s->texture && s->texture < ACCEL_TEXTURES;
     const TdfxWords w = tdfx_words(s, c->draw, texel && c->textures[s->texture].indexed);
     const uint32_t x0 = (uint32_t)c->clip.x + c->ox, y0 = (uint32_t)c->clip.y + c->oy;
+    const uint32_t params = tdfx_params(s, texel);
 
-    c->params = tdfx_params(s, texel);
-
-    if (family->unit) {
-        const uint32_t corner = tdfx_corner_sent(c->params);
-
-        c->mode = tdfx_unit_mode(c->params);
-        c->corner = tdfx_picks(corner);
-
-        if (!c->chip->cornered) {
-            c->begins = tdfx_picks(corner | 1u << TDFX_VBEGIN);
-            c->draws = tdfx_picks(corner | 1u << TDFX_VDRAW);
-        }
-
-        tdfx_put(c, SST_SETUP_MODE, c->mode);
-    } else {
-        c->sent = tdfx_picks(tdfx_sent(c->params));
+    if (!c->way || params != c->params || w.colour_path != c->path) {
+        c->params = params;
+        c->path = w.colour_path;
+        way_of(c, false, &c->ways[0]);
+        c->coloured = false;
     }
+
+    c->way = &c->ways[0];
 
     tdfx_put(c, SST_CLIP_X, x0 << 16 | (x0 + (uint32_t)c->clip.w));
     tdfx_put(c, SST_CLIP_Y, y0 << 16 | (y0 + (uint32_t)c->clip.h));
-    tdfx_put(c, SST_FBZ_COLOUR_PATH, w.colour_path);
+    tdfx_put(c, SST_FBZ_COLOUR_PATH, c->path);
     tdfx_put(c, SST_ALPHA_MODE, w.alpha_mode);
     tdfx_put(c, SST_FBZ_MODE, w.fbz_mode);
+
+    if (family->unit)
+        tdfx_put(c, SST_SETUP_MODE, c->way->mode);
 
     if (texel) {
         tdfx_put(c, SST_TMU0 + SST_TEXTURE_MODE, w.texture_mode);
         placed(c, s->texture);
     }
+}
+
+/* The way a run of triangles worked out here is drawn, the registers set for it: color0 the colour,
+   theirs if one the state reads; the one-colour way worked out when first taken. */
+static const TdfxWay *way_for(Tdfx *const c, const bool one_colour, const uint32_t colour)
+{
+    const bool one = one_colour && c->params & TDFX_COLOURED;
+    TdfxWay *const w = &c->ways[one];
+
+    if (one && !c->coloured) {
+        way_of(c, true, w);
+        c->coloured = true;
+    }
+
+    if (one) {
+        const uint32_t argb = tdfx_argb(colour, c->state.alpha);
+
+        if (argb != c->colour0) {
+            tdfx_put(c, SST_COLOUR0, argb);
+            c->colour0 = argb;
+        }
+    }
+
+    if (c->way != w) {
+        tdfx_put(c, SST_FBZ_COLOUR_PATH, w->path);
+        c->way = w;
+    }
+
+    return w;
 }
 
 void tdfx_cleared(
@@ -234,6 +283,7 @@ opened(const PciFunction *const pci, const uint16_t w, const uint16_t h, AccelCa
     c->oy = c->top;
 
     tdfx_put(c, SST_FOG_MODE, 0);
+    tdfx_put(c, SST_COLOUR0, 0);
     tdfx_put(c, SST_TMU0 + SST_TDETAIL, 0);
     tdfx_put(c, SST_TMU1 + SST_TLOD, LOD_OFF);
     const AccelRect mode = {0, 0, (int32_t)c->mode_w, (int32_t)c->mode_h};
@@ -367,26 +417,33 @@ static void ACCEL_CALL stated(const AccelState *const s)
    beginning a triangle, the others drawing it. */
 static void cornered(Tdfx *const c, const TdfxVertex *const v, const uint32_t n)
 {
+    const TdfxWay *const w = c->way;
+
     for (uint32_t i = 0; i < n; i++)
-        c->chip->put(c, SST_CORNER, i % 3 ? &c->draws : &c->begins, v[i].word);
+        c->chip->put(c, SST_CORNER, i % 3 ? &w->draws : &w->begins, v[i].word);
 }
 
-/* By the setup unit, BATCH triangles a time, as many as a PKT3 takes; else worked out here. */
-static void ACCEL_CALL drawn(const AccelVertex *const v, const uint32_t n)
+/* n triangles from v drawn w's way: by the setup unit, BATCH a time, as many as a PKT3 takes; else
+   worked out here. */
+static void drawn_by(
+    Tdfx *const c,
+    const TdfxWay *const w,
+    const AccelVertex *const v,
+    const uint32_t n
+)
 {
     enum { BATCH = 5 };
 
-    Tdfx *const c = &card;
-    const bool texel = c->params >> TDFX_S & 1;
+    const bool texel = w->params >> TDFX_S & 1;
     const float scale = texel ? (float)(1u << c->textures[c->state.texture].level) : 1;
-    const TdfxDraw d = {(float)c->ox, (float)c->oy, scale, c->params, c->state.alpha};
+    const TdfxDraw d = {(float)c->ox, (float)c->oy, scale, w->params, c->state.alpha};
 
     if (!family->unit) {
-        for (uint32_t i = 0; i + 3 <= n; i += 3) {
+        for (uint32_t i = 0; i < n; i++) {
             TdfxTriangle t;
 
-            if (tdfx_setup(v + i, &d, &t))
-                c->chip->put(c, SST_FVERTEX, &c->sent, t.word);
+            if (tdfx_setup(v + 3 * i, &d, &t))
+                c->chip->put(c, SST_FVERTEX, &w->sent, t.word);
         }
 
         return;
@@ -395,14 +452,38 @@ static void ACCEL_CALL drawn(const AccelVertex *const v, const uint32_t n)
     void (*const to)(Tdfx *, const TdfxVertex *, uint32_t) =
         c->chip->cornered ? c->chip->cornered : cornered;
 
-    for (uint32_t i = 0; i + 3 <= n;) {
+    for (uint32_t i = 0; i < n;) {
         TdfxVertex corners[3 * BATCH];
         uint32_t k = 0;
 
-        for (; k < BATCH && i + 3 <= n; k++, i += 3)
-            tdfx_corners(v + i, &d, &corners[3 * k]);
+        for (; k < BATCH && i < n; k++, i++)
+            tdfx_corners(v + 3 * i, &d, &corners[3 * k]);
 
         to(c, corners, 3 * k);
+    }
+}
+
+/* Worked out here, each run of triangles that is one colour through color0, the rest iterated. The
+   setup unit is sent each corner's: it works out the colour's gradients itself, and runs would break
+   its batches. */
+static void ACCEL_CALL drawn(const AccelVertex *const v, const uint32_t n)
+{
+    Tdfx *const c = &card;
+    const uint32_t triangles = n / 3;
+
+    if (family->unit) {
+        drawn_by(c, c->way, v, triangles);
+        return;
+    }
+
+    for (uint32_t i = 0; i < triangles;) {
+        const AccelVertex *const run = v + 3 * i;
+
+        bool one;
+        const uint32_t k = tdfx_run(run, triangles - i, c->params, &one);
+
+        drawn_by(c, way_for(c, one, run->colour), run, k);
+        i += k;
     }
 }
 
