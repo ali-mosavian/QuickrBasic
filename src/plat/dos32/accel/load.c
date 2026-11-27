@@ -16,15 +16,33 @@ enum { CARDS = 8 };
 static const char FOLDER[] = "lib/drivers/";
 static const char PATTERN[] = "*.DRV";
 
+static uint8_t inb(const uint16_t port) { return psys_inp(port); }
+
+static void outb(const uint16_t port, const uint8_t v) { psys_outp(port, v); }
+
+static uint32_t ind(const uint16_t port) { return pdos_ind(port); }
+
+static void outd(const uint16_t port, const uint32_t v) { pdos_outd(port, v); }
+
+static const PciPorts ports = {inb, outb, ind, outd};
+
+/* The search's: done once, the bus it was done on, and the driver and its card it found. */
+static struct {
+    bool searched;
+    PciBus bus;
+    const AccelDriver *driver;
+    PciFunction card;
+} found;
+
 static uint32_t ACCEL_CALL host_pci_read(const PciFunction *const card, const uint8_t reg)
 {
-    return pci_read(card, reg);
+    return pci_read(&found.bus, card, reg);
 }
 
 static void ACCEL_CALL
 host_pci_write(const PciFunction *const card, const uint8_t reg, const uint32_t v)
 {
-    pci_write(card, reg, v);
+    pci_write(&found.bus, card, reg, v);
 }
 
 static volatile uint8_t *ACCEL_CALL host_map(const uint32_t phys, const uint32_t bytes)
@@ -32,13 +50,13 @@ static volatile uint8_t *ACCEL_CALL host_map(const uint32_t phys, const uint32_t
     return pdos_map(phys, bytes);
 }
 
-static uint8_t ACCEL_CALL host_inb(const uint16_t port) { return psys_inp(port); }
+static uint8_t ACCEL_CALL host_inb(const uint16_t port) { return inb(port); }
 
-static void ACCEL_CALL host_outb(const uint16_t port, const uint8_t v) { psys_outp(port, v); }
+static void ACCEL_CALL host_outb(const uint16_t port, const uint8_t v) { outb(port, v); }
 
-static uint32_t ACCEL_CALL host_ind(const uint16_t port) { return pdos_ind(port); }
+static uint32_t ACCEL_CALL host_ind(const uint16_t port) { return ind(port); }
 
-static void ACCEL_CALL host_outd(const uint16_t port, const uint32_t v) { pdos_outd(port, v); }
+static void ACCEL_CALL host_outd(const uint16_t port, const uint32_t v) { outd(port, v); }
 
 static void *ACCEL_CALL host_alloc(const uint32_t bytes)
 {
@@ -90,13 +108,6 @@ static const AccelHost host = {
     .vesa = host_vesa,
     .env = host_env,
 };
-
-/* The search's: done once, and the driver and its card it found. */
-static struct {
-    bool searched;
-    const AccelDriver *driver;
-    PciFunction card;
-} found;
 
 /* Up to cap bytes of the file at path into buf: how many read; 0, none. */
 static uint32_t read_up_to(const char *const path, uint8_t *const buf, const uint32_t cap)
@@ -199,7 +210,8 @@ const AccelDriver *accel_driver(PciFunction *const card)
 {
     if (!found.searched) {
         PciFunction cards[CARDS];
-        const uint32_t n = pci_cards(cards, CARDS);
+        found.bus = pci_bus(&ports);
+        const uint32_t n = pci_cards(&found.bus, cards, CARDS);
 
         found.searched = true;
         found.driver = n ? search(cards, n, &found.card) : nullptr;
