@@ -1683,6 +1683,19 @@ class Samples:
     mhz: float
 
 
+BIOS_PROMPT = "Press F1 to continue"
+
+
+def vm_waited(c, text: str, timeout: float) -> None:  # noqa: ANN001
+    """Until VM client c's screen shows text, the BIOS's prompt answered: a VM a killed run left boots to it, its
+    CMOS lost."""
+    deadline = time.monotonic() + timeout
+    while BIOS_PROMPT in c.wait_text(f"{text}|{BIOS_PROMPT}", timeout=deadline - time.monotonic()):
+        c.keys(keys=["F1"])
+        while BIOS_PROMPT in c.screen_text() and time.monotonic() < deadline:
+            c.sleep(100)
+
+
 def vm_samples(
     vm: str, exe: Path, job: tuple, files: dict[str, bytes], late: float = 0.0, realtime: bool = False,
     images: tuple[tuple[bytes, list[tuple[int, str]]], ...] = (),
@@ -1704,7 +1717,7 @@ def vm_samples(
         try:
             with hl86.Client(sock, timeout=1800.0) as c:
                 c.profile_start(interval_us=10)
-                c.wait_text(r"QB-DONE", timeout=1800.0)
+                vm_waited(c, "QB-DONE", 1800.0)
                 time.sleep(late)
                 c.profile_stop(Path(d) / "pcs.json")
                 memory = c.mem_read(0, 16 << 20, Path(d) / "mem.bin")  # the VMs' 16 MB

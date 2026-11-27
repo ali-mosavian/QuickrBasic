@@ -352,6 +352,35 @@ def vm_object_base() -> None:
     assert bench.object_base(bytes(memory), code) == 70000, bench.object_base(bytes(memory), code)
 
 
+def vm_bios_prompt() -> None:
+    """A VM a killed run left boots to the BIOS's F1 prompt, its CMOS lost: answered, the job runs. Unanswered, a
+    profile waited out its 1800 s at it."""
+
+    class Vm:
+        def __init__(self) -> None:
+            self.screen, self.pressed = f"CMOS checksum error - Defaults loaded\n{bench.BIOS_PROMPT}", []
+
+        def wait_text(self, pattern: str, timeout: float) -> str:
+            if bench.BIOS_PROMPT not in self.screen:
+                self.screen = "QB-DONE"
+            assert re.search(pattern, self.screen), f"{pattern!r} waited out"
+            return self.screen
+
+        def keys(self, keys: list[str]) -> None:
+            self.pressed += keys
+            self.screen = "Starting MS-DOS..."
+
+        def screen_text(self) -> str:
+            return self.screen
+
+        def sleep(self, ms: float) -> None:
+            pass
+
+    vm = Vm()
+    bench.vm_waited(vm, "QB-DONE", 5.0)
+    assert vm.pressed == ["F1"] and vm.screen == "QB-DONE", (vm.pressed, vm.screen)
+
+
 def vm_window() -> None:
     """A VM's profile samples the job alone. It sampled from boot until the host stopped it, so the host's delay in
     seeing the end read as frame time: one build's ISLES on the 486, 14.8M cycles a frame, then 11.9M."""
@@ -382,6 +411,7 @@ def main() -> int:
     fps_start_up()
     vm_rate()
     vm_object_base()
+    vm_bios_prompt()
     if (bench.HL86 / "build/src/86Box-headless").exists():
         vm_window()
     b = bench.build(".", False)  # the tree's own instruments: copying them onto themselves raised
