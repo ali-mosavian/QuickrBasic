@@ -91,6 +91,18 @@ typedef struct {
     void (*close)(Tdfx *c);
 } TdfxFamily;
 
+/* The registers the state sets, each one's word held: put again unchanged, it is not sent. */
+typedef enum {
+    TDFX_HELD_CLIP_X,
+    TDFX_HELD_CLIP_Y,
+    TDFX_HELD_PATH,
+    TDFX_HELD_ALPHA,
+    TDFX_HELD_FBZ,
+    TDFX_HELD_SETUP,
+    TDFX_HELD_TEXTURE_MODE,
+    TDFX_HELD,
+} TdfxHeld;
+
 typedef struct {
     uint32_t y; /* buffer 0's row: 0, none */
     uint16_t w, h;
@@ -132,6 +144,7 @@ struct Tdfx {
     const TdfxWay *way;
     uint32_t colour0;
     uint32_t placed; /* the texture TMU0's registers place: ACCEL_TEXTURES, none */
+    uint32_t held[TDFX_HELD], known; /* the held registers' words, those known a bit each */
 };
 
 /* mask's picks. */

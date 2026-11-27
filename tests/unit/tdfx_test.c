@@ -1643,6 +1643,48 @@ static bool unpacked_open(Tdfx *const c, const uint16_t w, const uint16_t h)
     return opened;
 }
 
+/* A state that changes only the texture writes only its place: MEADOW16's blossoms, four textures
+   in turn, wrote the clip, the paths and the modes again each time, 40k cycles of a 486 frame. */
+TEST(tdfx_h3_writes_only_the_state_registers_that_change)
+{
+    static const uint32_t same[] = {
+        SST_CLIP_X,
+        SST_CLIP_Y,
+        SST_FBZ_COLOUR_PATH,
+        SST_ALPHA_MODE,
+        SST_FBZ_MODE,
+        SST_TMU0 + SST_TEXTURE_MODE,
+    };
+
+    AccelState second = TEXTURED;
+    AccelCard card;
+    const AccelDriver *const d = h3_opened(&card);
+
+    second.texture = 2;
+    CHECK(d && d->texture(1, 64, 64) && d->texture(2, 64, 64));
+    d->state(&TEXTURED);
+    d->triangles(TRIANGLE, 3);
+    h3_played();
+    h3.fifo.writes = 0;
+    d->state(&second);
+    d->triangles(TRIANGLE, 3);
+    h3_played();
+
+    bool placed = false;
+
+    for (uint32_t k = 0; k < h3.fifo.writes; k++) {
+        const uint32_t reg = h3.fifo.written[k][0];
+
+        placed = placed || reg == SST_TMU0 + SST_TEX_BASE;
+
+        for (uint32_t i = 0; i < sizeof same / sizeof *same; i++)
+            CHECK(reg != same[i]);
+    }
+
+    CHECK(placed);
+    h3_closed(d);
+}
+
 /* The SST-1's PCI packer flushed on each side of writes to TMU0's own registers, as Glide flushes
    it, fenced combined: unflushed, a real card may send a write to the chip the last went to, and
    lose a texture's mode or place. */

@@ -124,6 +124,28 @@ static uint32_t column_of(const Tdfx *const c, const uint32_t slot)
 }
 
 /* TMU0's registers placing texture slot. */
+/* Each held register's place. */
+static const uint32_t HELD_AT[TDFX_HELD] = {
+    SST_CLIP_X,
+    SST_CLIP_Y,
+    SST_FBZ_COLOUR_PATH,
+    SST_ALPHA_MODE,
+    SST_FBZ_MODE,
+    SST_SETUP_MODE,
+    SST_TMU0 + SST_TEXTURE_MODE,
+};
+
+/* Held register which put v, unless it holds v: a state change sends only what it changes. */
+static void held_put(Tdfx *const c, const TdfxHeld which, const uint32_t v)
+{
+    if (c->known >> which & 1 && c->held[which] == v)
+        return;
+
+    tdfx_put(c, HELD_AT[which], v);
+    c->held[which] = v;
+    c->known |= 1u << which;
+}
+
 static void placed(Tdfx *const c, const uint32_t slot)
 {
     const TdfxTexture *const t = &c->textures[slot];
@@ -179,17 +201,17 @@ static void sent(Tdfx *const c)
 
     c->way = &c->ways[0];
 
-    tdfx_put(c, SST_CLIP_X, x0 << 16 | (x0 + (uint32_t)c->clip.w));
-    tdfx_put(c, SST_CLIP_Y, y0 << 16 | (y0 + (uint32_t)c->clip.h));
-    tdfx_put(c, SST_FBZ_COLOUR_PATH, c->path);
-    tdfx_put(c, SST_ALPHA_MODE, w.alpha_mode);
-    tdfx_put(c, SST_FBZ_MODE, w.fbz_mode);
+    held_put(c, TDFX_HELD_CLIP_X, x0 << 16 | (x0 + (uint32_t)c->clip.w));
+    held_put(c, TDFX_HELD_CLIP_Y, y0 << 16 | (y0 + (uint32_t)c->clip.h));
+    held_put(c, TDFX_HELD_PATH, c->path);
+    held_put(c, TDFX_HELD_ALPHA, w.alpha_mode);
+    held_put(c, TDFX_HELD_FBZ, w.fbz_mode);
 
     if (family->unit) /* a fan's corners and three a triangle alike: each triangle begins */
-        tdfx_put(c, SST_SETUP_MODE, c->way->mode | SST_UNIT_FAN);
+        held_put(c, TDFX_HELD_SETUP, c->way->mode | SST_UNIT_FAN);
 
     if (texel) {
-        tdfx_put(c, SST_TMU0 + SST_TEXTURE_MODE, w.texture_mode);
+        held_put(c, TDFX_HELD_TEXTURE_MODE, w.texture_mode);
         placed(c, s->texture);
     }
 }
@@ -216,7 +238,7 @@ static const TdfxWay *way_for(Tdfx *const c, const bool one_colour, const uint32
     }
 
     if (c->way != w) {
-        tdfx_put(c, SST_FBZ_COLOUR_PATH, w->path);
+        held_put(c, TDFX_HELD_PATH, w->path);
         c->way = w;
     }
 
@@ -235,11 +257,11 @@ void tdfx_cleared(
     const uint32_t writes = (what & ACCEL_CLEAR_COLOUR ? SST_RGB_WRITE : 0) |
                             (what & ACCEL_CLEAR_DEPTH ? SST_DEPTH | SST_AUX_WRITE : 0);
 
-    tdfx_put(c, SST_CLIP_X, (uint32_t)r.x << 16 | (uint32_t)(r.x + r.w));
-    tdfx_put(c, SST_CLIP_Y, (uint32_t)r.y << 16 | (uint32_t)(r.y + r.h));
+    held_put(c, TDFX_HELD_CLIP_X, (uint32_t)r.x << 16 | (uint32_t)(r.x + r.w));
+    held_put(c, TDFX_HELD_CLIP_Y, (uint32_t)r.y << 16 | (uint32_t)(r.y + r.h));
     tdfx_put(c, SST_COLOUR1, argb);
     tdfx_put(c, SST_ZA_COLOUR, 0);
-    tdfx_put(c, SST_FBZ_MODE, SST_CLIPPED | draw << SST_DRAW_BUFFER | writes);
+    held_put(c, TDFX_HELD_FBZ, SST_CLIPPED | draw << SST_DRAW_BUFFER | writes);
     tdfx_put(c, SST_FASTFILL, 0);
     c->draw = c->chip->drawn_in(c, c->buffer);
     sent(c);
@@ -371,7 +393,7 @@ uploaded(const uint32_t slot, const AccelRect r, const uint16_t *const texels, c
     const AccelState placing = {.texture = slot, .source = ACCEL_TEXEL};
     const TdfxWords w = tdfx_words(&placing, 0, c->textures[slot].indexed);
 
-    tdfx_put(c, SST_TMU0 + SST_TEXTURE_MODE, w.texture_mode);
+    held_put(c, TDFX_HELD_TEXTURE_MODE, w.texture_mode);
     placed(c, slot);
     c->chip->upload(c, &c->textures[slot], r, texels, pitch);
 
