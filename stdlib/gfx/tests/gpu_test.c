@@ -848,6 +848,21 @@ TEST(gfx_gpu_reads_back)
     CHECK(GPU_CALL("surface.point", I(SURF_SCREEN), I(1), I(0)).result.i == 201);
 }
 
+/* A draw after a read is read back too. The target's texture kept from the draw before the read
+   left it unmarked as drawn into: the second read gave the first's pixels, unplayed. */
+TEST(gfx_gpu_reads_back_a_draw_after_a_read)
+{
+    screen(S, 4, 1, 32);
+    GPU_CALL("draw.pset", I(SURF_SCREEN), F(0), F(0), I(0x123456));
+    memcpy(pixels, (const uint8_t[]){0x12, 0x34, 0x56, 0xFF}, 4);
+    CHECK(GPU_CALL("surface.point", I(SURF_SCREEN), I(0), I(0)).result.i == 0x123456);
+
+    GPU_CALL("draw.pset", I(SURF_SCREEN), F(0), F(0), I(0x654321));
+    memcpy(pixels, (const uint8_t[]){0x65, 0x43, 0x21, 0xFF}, 4);
+    CHECK(GPU_CALL("surface.point", I(SURF_SCREEN), I(0), I(0)).result.i == 0x654321);
+    CHECK(plays == 2);
+}
+
 /* Root h's depth texture's id. */
 static uint32_t depth_of(const uint32_t h) { return h | (uint32_t)GPU_DEPTH << HDL_KIND_SHIFT; }
 

@@ -44,5 +44,6 @@ bool gpu_sync(Gpu *const g, const Pixels px, const uint32_t h)
 
     mem_free(rgba);
     e->drawn = false;
+    g->epoch++;
     return true;
 }

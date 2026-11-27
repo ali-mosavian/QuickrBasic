@@ -29,10 +29,19 @@ enum {
     CALL_STAGES = GPU_STAGE_KEYED | GPU_STAGE_SMOOTH | SHAPE_STAGES,
 };
 
-/* The GPU's own (Gx.own): its recorder and the call readied. */
+/* The textures an aim found, kept while the target's texture and version and the GPU's epoch hold:
+   each draw found them again, 30k cycles of MEADOW's 486 frame. */
+typedef struct {
+    bool held;
+    uint32_t epoch, texture, version;
+    GpuSource target, blank;
+} Aimed;
+
+/* The GPU's own (Gx.own): its recorder, the call readied and the textures last aimed at. */
 typedef struct {
     Gpu gpu;
     GpuCall call;
+    Aimed aimed;
 } GpuState;
 
 enum { QUAD = 4 };
@@ -164,16 +173,26 @@ static bool aim(
 )
 {
     Gpu *const gp = gpu(g);
-    const Source white = {{(uint8_t *)&gp->white, 4, 1, 1, PX_32}, {0, 0, 1, 1}, SOURCE_WHITE, 1};
-
+    Aimed *const k = &((GpuState *)g->own)->aimed;
     const Rect in_root = {into->at.x + clip.x, into->at.y + clip.y, clip.w, clip.h};
 
-    GpuSource target;
+    const bool kept = k->held && k->epoch == gp->epoch && k->texture == into->texture &&
+                      k->version == into->version;
+    const Source white = {{(uint8_t *)&gp->white, 4, 1, 1, PX_32}, {0, 0, 1, 1}, SOURCE_WHITE, 1};
 
-    return gpu_texture(gp, into, true, false, &target) &&
-           (!deep || gpu_depth(gp, into, &target.depth, fresh)) &&
-           gpu_texture(gp, &white, false, false, blank) &&
-           gpu_target(gp, target.id, target.depth, into->root.w, into->root.h, in_root) &&
+    k->held = kept;
+
+    if (!(kept || gpu_texture(gp, into, true, false, &k->target)) ||
+        (deep && !gpu_depth(gp, into, &k->target.depth, fresh)) ||
+        !(kept || gpu_texture(gp, &white, false, false, &k->blank)))
+        return false;
+
+    k->held = true;
+    k->epoch = gp->epoch;
+    k->texture = into->texture;
+    k->version = into->version;
+    *blank = k->blank;
+    return gpu_target(gp, k->target.id, k->target.depth, into->root.w, into->root.h, in_root) &&
            gpu_palette(gp, &g->palette, map);
 }
 
@@ -578,6 +597,7 @@ static bool screen_open(Gx *const g, const QxScreen *const s, const PxFormat f)
     }
 
     o->gpu.page = page;
+    o->aimed = (Aimed){};
     return true;
 }
 

@@ -93,6 +93,7 @@ bool gpu_open(Gpu *const g, const QxScreen *const s, const bool eight, Palette *
         g->own[i] = (GpuTexture){};
 
     g->npages = 0;
+    g->epoch++;
 
     g->passing = false;
     g->behind = 0;
@@ -176,7 +177,8 @@ static QxTextureFormat wanted(
     return index ? QX_TEXTURE_INDEX : QX_TEXTURE_RGBA;
 }
 
-bool gpu_texture(
+/* gpu_texture's work, the epoch moved where its entry changes. */
+static bool textured(
     Gpu *const g,
     const Source *const p,
     const bool into,
@@ -192,7 +194,9 @@ bool gpu_texture(
     if (!e)
         return false;
 
-    if (e->handle != p->texture)
+    const bool reset = e->handle != p->texture;
+
+    if (reset)
         *e = (GpuTexture){.handle = p->texture, .bottom = px->h};
 
     /* a direct root drawn into is ahead on the GPU: drawn from as it is there */
@@ -255,6 +259,9 @@ bool gpu_texture(
         g->coloured = id == SURF_SCREEN ? 0 : g->coloured;
     }
 
+    /* each make, match and upload leaves e's version not p's */
+    g->epoch += reset || e->version != p->version || (into && !e->drawn);
+
     if (e->version != p->version)
         e->top = e->bottom = 0;
 
@@ -273,6 +280,20 @@ bool gpu_texture(
     return true;
 }
 
+bool gpu_texture(
+    Gpu *const g,
+    const Source *const p,
+    const bool into,
+    const bool matched,
+    GpuSource *const out
+)
+{
+    const bool done = textured(g, p, into, matched, out);
+
+    g->epoch += !done; /* its entry left part made */
+    return done;
+}
+
 bool gpu_depth(Gpu *const g, const Source *const p, uint32_t *const id, bool *const fresh)
 {
     GpuTexture *const e = entry(g, p->texture);
@@ -288,6 +309,7 @@ bool gpu_depth(Gpu *const g, const Source *const p, uint32_t *const id, bool *co
     if (e->depth)
         return true;
 
+    g->epoch++;
     e->depth = list_op(&g->list, QX_LIST_TEXTURE, made, 4);
     return e->depth;
 }
@@ -629,6 +651,7 @@ void gpu_wrote(Gpu *const g, const uint32_t h, const int32_t top, const int32_t 
     if (!e)
         return;
 
+    g->epoch++;
     e->top = none || top < e->top ? top : e->top;
     e->bottom = none || bottom > e->bottom ? bottom : e->bottom;
 }
@@ -646,6 +669,8 @@ void gpu_forget(Gpu *const g, const uint32_t h)
     GpuTexture *const e = gpu_made(g, h);
 
     const uint32_t deep = depth_of(h);
+
+    g->epoch++;
 
     if (e && e->page)
         atlas_unpack(g, e);

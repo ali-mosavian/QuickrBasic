@@ -115,6 +115,8 @@ typedef struct {
     Palette *pal;    /* gfx's, for a fixed host's colours */
     uint64_t made[GPU_PIPELINES / 64]; /* the pipelines made, a bit each */
     GpuCount count;                    /* since gpu_counted */
+    /* moved by each change to a texture's entry: what gpu_texture gave holds while it stays */
+    uint32_t epoch;
 } Gpu;
 
 /* What a call's vertices share. */
