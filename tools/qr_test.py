@@ -30,6 +30,16 @@ def cases() -> dict[str, Path]:
     return {str(p.relative_to(CASES).with_suffix("")): p for p in found if p.with_suffix(".out").exists()}
 
 
+def differs(got: str, want: str) -> str:
+    """Where got first differs from want: its line's number, then both lines; "" the same."""
+    a, b = got.split("\n"), want.split("\n")
+    for i in range(max(len(a), len(b))):
+        g, w = a[i] if i < len(a) else None, b[i] if i < len(b) else None
+        if g != w:
+            return f"line {i + 1}: got {g!r}, want {w!r}"
+    return ""
+
+
 def named(text: str, name: str) -> str:
     """The output, its job file's name (J0\\NAME.BAS) as the case's own and its folder (J0\\) dropped
     from a module's, its lines ended by \\n."""
@@ -123,7 +133,8 @@ def main() -> None:
         if "--update" in sys.argv:
             update(k, prog, got)
             continue
-        why = "" if got == prog.with_suffix(".out").read_text() else f"{res[k].reason} {got[:60]!r}"
+        diff = differs(got, prog.with_suffix(".out").read_text())
+        why = diff and f"{res[k].reason}, {diff}"
         why = why or check(k, prog) or tested(prog) or copied(prog)
         ok += not why
         print(f"pass {k}" if not why else f"FAIL {k}: {why}")

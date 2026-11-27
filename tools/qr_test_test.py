@@ -31,7 +31,16 @@ def unchanged_unwritten() -> None:
         assert out.stat().st_mtime_ns == before, "an unchanged NAME.out was written"
 
 
+def differs_past_the_start() -> None:
+    """A case's output differing past its first 60 characters showed those alone, the same as wanted."""
+    want = "".join(f"line {i}\n" for i in range(20))
+    got = want.replace("line 15", "line 51")
+    assert qr_test.differs(got, want) == "line 16: got 'line 51', want 'line 15'", qr_test.differs(got, want)
+    assert qr_test.differs(want, want) == ""
+
+
 def main() -> None:
+    differs_past_the_start()
     kept_endings()
     unchanged_unwritten()
     print("ok")
