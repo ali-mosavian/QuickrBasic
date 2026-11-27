@@ -280,11 +280,15 @@ void tdfx_started(
 }
 
 /* Whether, of floats' bits p0 to p3, 3 is where the plane of 0, 1 and 2 puts it, as a
-   parallelogram's is: 0 and 2 summed as 1 and 3, within 2 to the -CLOSE of the largest, many
-   times the floats' rounding. */
+   parallelogram's is: exactly, alike along two opposite sides, as a rectangle of texels and an
+   unturned sprite's corners are; else 0 and 2 summed as 1 and 3, within 2 to the -CLOSE of the
+   largest, many times the floats' rounding. */
 static bool parallel(const uint32_t p0, const uint32_t p1, const uint32_t p2, const uint32_t p3)
 {
     enum : uint32_t { CLOSE = 18, MAGNITUDE = 0x7FFFFFFF, EXPONENT = 23 };
+
+    if ((p0 == p3 && p1 == p2) || (p0 == p1 && p2 == p3))
+        return true;
 
     const float f0 = of_bits(p0), f1 = of_bits(p1), f2 = of_bits(p2), f3 = of_bits(p3);
     const uint32_t gap = bits(f0 + f2 - (f1 + f3)) & MAGNITUDE;
@@ -299,15 +303,9 @@ bool tdfx_planar(const TdfxCorner c[4], const uint32_t params)
     if (!parallel(c[0].x, c[1].x, c[2].x, c[3].x) || !parallel(c[0].y, c[1].y, c[2].y, c[3].y))
         return false;
 
-    for (uint32_t n = 0; n < TDFX_PARAMS; n++) {
-        const uint32_t at = c[0].p[n];
-
-        if (!(params >> n & 1) || (c[1].p[n] == at && c[2].p[n] == at && c[3].p[n] == at))
-            continue;
-
-        if (!parallel(at, c[1].p[n], c[2].p[n], c[3].p[n]))
+    for (uint32_t n = 0; n < TDFX_PARAMS; n++)
+        if (params >> n & 1 && !parallel(c[0].p[n], c[1].p[n], c[2].p[n], c[3].p[n]))
             return false;
-    }
 
     return true;
 }
