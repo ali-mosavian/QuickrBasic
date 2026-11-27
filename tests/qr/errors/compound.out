@@ -34,7 +34,7 @@ compound.bas:26:24: c is borrowed by the for mut over it: reach it through x
 compound.bas:31:1: the select misses jump: give it a case, or add case else
   end select
   ^
-compound.bas:41:3: an array's size is fixed
+compound.bas:41:3: only a list has push()
   n.push(1)
     ^
 compound.bas:42:9: the index is past the elements

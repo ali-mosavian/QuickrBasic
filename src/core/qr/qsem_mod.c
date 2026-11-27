@@ -235,8 +235,9 @@ static void qsem_qbnames(QSem *const S, const uint32_t k)
         for (uint32_t f = 0; f < e->nfields; f++) {
             const ExpField *const ef = &e->fields[f];
             const QType et = qsem_qbtype(S, ef->et);
-            const QType ft =
-                (ef->list || ef->count) && et != QY_ERROR ? qsem_listof(S, et, ef->count) : et;
+            const QType ft = (ef->list || ef->count) && et != QY_ERROR
+                                 ? qsem_arrayof(S, et, ef->count, false)
+                                 : et;
             why = why || ft != QY_ERROR ? why : unseen;
             y->fields[f] = (QField){
                 .name = qsem_qbtok(S, ef->name, ef->len),
@@ -271,7 +272,7 @@ static void qsem_qbnames(QSem *const S, const uint32_t k)
             const ExpVal *const v = &e->params[j];
             const QTok *const name = qsem_qbtok(S, v->name, v->len);
             const QType et = qsem_qbtype(S, v->et);
-            const QType pt = v->array && et != QY_ERROR ? qsem_listof(S, et, 0) : et;
+            const QType pt = v->array && et != QY_ERROR ? qsem_arrayof(S, et, 0, false) : et;
             QVar *const var = qast_alloc(S->mem, sizeof *var);
             *var = (QVar){.name = name, .type = pt, .kind = QV_PARAM};
 

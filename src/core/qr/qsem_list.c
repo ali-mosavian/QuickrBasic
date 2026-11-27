@@ -8,17 +8,19 @@
 
 /* ---- lists */
 
-/* A list's method: a.push(x), a.pop(), a.insert(i, x), a.remove(i); a mutable list. */
+/* A list's method: a.push(x), a.pop(), a.insert(i, x), a.remove(i); a T[]'s a.resize(n); of a
+   mutable one. */
 static QExpr *qsem_listop(QSem *const S, QExpr *const e, const QBuiltin op)
 {
     static const uint32_t counts[] =
-        {[QB_PUSH] = 1, [QB_POP] = 0, [QB_INSERT] = 2, [QB_REMOVE] = 1};
+        {[QB_PUSH] = 1, [QB_POP] = 0, [QB_INSERT] = 2, [QB_REMOVE] = 1, [QB_RESIZE] = 1};
 
     static const char *const say[] = {
         [QB_PUSH] = "push() takes a value",
         [QB_POP] = "pop() takes no values",
         [QB_INSERT] = "insert() takes an index and a value",
         [QB_REMOVE] = "remove() takes an index",
+        [QB_RESIZE] = "resize() takes a size",
     };
 
     const bool ok = qsem_changes(S, e->a, e->tok);
@@ -43,16 +45,14 @@ static QExpr *qsem_listop(QSem *const S, QExpr *const e, const QBuiltin op)
         return e;
     }
 
-    if (!qast_compound(a->type) || qast_ty(S->prog, a->type)->kind != QT_LIST) {
-        const bool array = qast_array(S->prog, a->type);
-        qsem_say(
-            S,
-            e->tok,
-            array ? "an array's size is fixed" : "only a list has ",
-            array ? "" : qsem_text(S, e->tok),
-            array ? "" : "()",
-            nullptr
-        );
+    const QTy *const y = qast_array(S->prog, a->type) ? qast_ty(S->prog, a->type) : nullptr;
+    const bool list = op != QB_RESIZE;
+
+    if (!y || y->kind != QT_DYN || y->grows != list) { /* what has it said */
+        const char *const has = !y || y->kind == QT_ARRAY
+                                    ? (list ? "a list" : "an array T[]")
+                                    : qsem_aname(S, qsem_arrayof(S, y->elem, 0, list));
+        qsem_say(S, e->tok, "only ", has, " has ", qsem_text(S, e->tok), "()", nullptr);
         return e;
     }
 
@@ -61,19 +61,25 @@ static QExpr *qsem_listop(QSem *const S, QExpr *const e, const QBuiltin op)
         return e;
     }
 
-    const QType elem = qast_ty(S->prog, a->type)->elem;
+    const QType elem = y->elem;
+
+    if (op == QB_RESIZE && qast_drops(S->prog, elem)) {
+        qsem_say(S, e->tok, "resize() can't cut ", qsem_aname(S, elem), ": it has drop", nullptr);
+        return e;
+    }
+
     e->argv = qast_alloc(S->mem, 2 * sizeof *e->argv);
     e->nargv = n;
     const QArg *x = e->args;
 
-    if (op == QB_INSERT || op == QB_REMOVE) {
+    if (op == QB_INSERT || op == QB_REMOVE || op == QB_RESIZE) {
         e->argv[0] = qsem_coerce(S, qsem_expr(S, x->e, QY_INT), QY_INT);
         x = x->next;
     }
 
     if (op == QB_PUSH || op == QB_INSERT)
         e->argv[n - 1] = qsem_held(S, qsem_value(S, x->e, elem));
-    else
+    else if (op != QB_RESIZE)
         qsem_dropix(S, elem); /* remove's, a pop's dropped when not kept */
 
     e->type = op == QB_POP ? elem : QY_VOID;
@@ -325,7 +331,7 @@ QType qsem_peek(QSem *const S, const QExpr *const e)
     case QE_INDEX: {
         const QType t = qsem_peek(S, e->a);
         const QTy *const y = qast_compound(t) ? qast_ty(S->prog, t) : nullptr;
-        const bool elems = y && (y->kind == QT_LIST || y->kind == QT_ARRAY || y->kind == QT_MAP);
+        const bool elems = y && (y->kind == QT_DYN || y->kind == QT_ARRAY || y->kind == QT_MAP);
         return elems ? y->elem : QY_VOID;
     }
 
@@ -488,8 +494,9 @@ static const struct {
     {.name = "pop", .on = QM_LIST, .op = QB_POP},
     {.name = "insert", .on = QM_LIST, .op = QB_INSERT},
     {.name = "remove", .on = QM_LIST | QM_DICT, .op = QB_REMOVE},
-    {.name = "swap", .on = QM_LIST | QM_ARRAY, .check = qsem_swap},
-    {.name = "sort", .on = QM_LIST | QM_ARRAY, .check = qsem_sort},
+    {.name = "resize", .on = QM_DYN, .op = QB_RESIZE},
+    {.name = "swap", .on = QM_LIST | QM_ARRAY | QM_DYN, .check = qsem_swap},
+    {.name = "sort", .on = QM_LIST | QM_ARRAY | QM_DYN, .check = qsem_sort},
     {.name = "keys", .on = QM_DICT, .check = qsem_keys},
     {.name = "get", .on = QM_DICT, .check = qsem_get},
 };

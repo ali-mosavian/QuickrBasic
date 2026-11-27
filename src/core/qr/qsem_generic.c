@@ -57,9 +57,10 @@ bool qsem_unify(
     const QTy *const y = qast_compound(t) ? qast_ty(S->prog, t) : nullptr;
 
     switch (x->kind) {
+    case QX_DYN:
     case QX_LIST:
     case QX_ARRAY:
-        return !y || (y->kind != QT_LIST && y->kind != QT_ARRAY) ||
+        return !y || (y->kind != QT_DYN && y->kind != QT_ARRAY) ||
                qsem_unify(S, tp, ntp, x->elem, y->elem, targs);
 
     case QX_OPT:
@@ -659,7 +660,7 @@ static bool qsem_varplace(QSem *const S, const QExpr *const e)
 static bool qsem_fixedof(const QSem *const S, const QType t, const QType l)
 {
     return qast_array(S->prog, t) && qast_array(S->prog, l) &&
-           qast_ty(S->prog, t)->kind == QT_ARRAY && qast_ty(S->prog, l)->kind == QT_LIST &&
+           qast_ty(S->prog, t)->kind == QT_ARRAY && qast_ty(S->prog, l)->kind == QT_DYN &&
            qast_ty(S->prog, t)->elem == qast_ty(S->prog, l)->elem;
 }
 

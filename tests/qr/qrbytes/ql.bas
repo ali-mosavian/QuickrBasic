@@ -15,5 +15,6 @@ function sum(p as ubyte[]) as int
 end function
 
 function bump(mut p as ubyte[])
-    p.push(255)
+    p.resize(len(p) + 1)
+    p[len(p) - 1] = 255
 end function

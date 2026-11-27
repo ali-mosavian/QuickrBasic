@@ -17,20 +17,20 @@ end function
 function pass_on(f as function(int) as int, x as int) as int
     return apply(f, x) + 1
 end function
-function each(a as int[], f as function(int))
+function each(a as list[int], f as function(int))
     for x in a
         f(x)
     next
 end function
-function total(a as int[], f as function(int) as int) as int
+function total(a as list[int], f as function(int) as int) as int
     var t = 0
     for x in a
         t += f(x)
     next
     return t
 end function
-function map_all[T, U](a as T[], f as function(T) as U) as U[]
-    var r as U[]
+function map_all[T, U](a as list[T], f as function(T) as U) as list[U]
+    var r as list[U]
     for x in a
         r.push(f(x))
     next
@@ -39,7 +39,7 @@ end function
 function vmap(v as Vec, f as function(Vec) as Vec) as Vec
     return f(v)
 end function
-function join(a as string[], f as function(string) as string) as string
+function join(a as list[string], f as function(string) as string) as string
     var s = ""
     for x in a
         s = s + f(x) + ","
@@ -58,7 +58,7 @@ end function
 function run()
     var k = 10
     print apply(fn(v) v + k, 5); " "; twice(fn(v) v * k, 3); " "; apply(double_it, 21)
-    var xs as int[]
+    var xs as list[int]
     for i in 0..5
         xs.push(i)
     next
@@ -82,7 +82,7 @@ function run()
     print pass_on(fn(v) v - xs[1], 10); " "; apply(fn(a) apply(fn(b) a * b + xs[4], 2), 3)
     let w = vmap(Vec(1, 2), fn(p) Vec(p.y + xs[3], p.x))
     print w.x; " "; w.y
-    var words as string[]
+    var words as list[string]
     words.push("a")
     words.push("bc")
     print join(words, fn(s) s + s); " "; join(words, shout)
@@ -94,7 +94,7 @@ let sh = shout
 print sh("hey") + sh("x")
 var b = Button("go", double_it)
 print b.label; " "; b.on(5)
-var zs as int[]
+var zs as list[int]
 zs.push(7)
 for z in zs
     print apply(fn(v) v + z, 1)

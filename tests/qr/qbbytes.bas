@@ -1,9 +1,6 @@
 option dialect quickr
-' A QBasic BYTE array is a ubyte list.
+' A QBasic BYTE array is a ubyte[].
 import pal
-var a as ubyte[]
-for i in 0..3
-    a.push(0)
-next
+var a = ubyte[3]
 pal.ramp(a)
 print a[0]; " "; a[2]

@@ -222,18 +222,18 @@ QExpr *qsem_slice(QSem *const S, QExpr *const e)
         return e;
 
     if (a->type != QY_STRING &&
-        (!qast_compound(a->type) || qast_ty(S->prog, a->type)->kind != QT_LIST)) {
+        (!qast_compound(a->type) || qast_ty(S->prog, a->type)->kind != QT_DYN)) {
         qsem_say(
             S,
             e->tok,
-            "a slice takes a string or a list, not ",
+            "a slice takes a string, a list or a T[], not ",
             qsem_aname(S, a->type),
             nullptr
         );
         return e;
     }
 
-    e->type = a->type == QY_STRING ? QY_STRING : qsem_listof(S, qast_ty(S->prog, a->type)->elem, 0);
+    e->type = a->type; /* a new string, a new list or array */
     return e;
 }
 
@@ -259,8 +259,30 @@ static int32_t qsem_byteof(const QPiece *s, int64_t i)
     return -1;
 }
 
+/* T[n]: a new array of n elements of elem, each empty. */
+static QExpr *qsem_newarray(QSem *const S, QExpr *const e, const QType elem)
+{
+    QExpr *const n = qsem_coerce(S, qsem_expr(S, e->b, QY_INT), QY_INT);
+    e->kind = QE_CALL;
+    e->builtin = QB_ARRAY;
+    e->argv = qast_alloc(S->mem, sizeof *e->argv);
+    e->argv[0] = n;
+    e->nargv = 1;
+    e->type = n->type == QY_ERROR ? QY_ERROR : qsem_arrayof(S, elem, 0, false);
+
+    if (qsem_isconst(n) && n->val.i < 0)
+        qsem_say(S, n->tok, "an array's size is 0 or more", nullptr);
+
+    return e;
+}
+
 QExpr *qsem_index(QSem *const S, QExpr *const e)
 {
+    const QType elem = e->b ? qsem_typevalue(S, e->a) : QY_VOID;
+
+    if (elem != QY_VOID && elem != QY_ERROR)
+        return qsem_newarray(S, e, elem);
+
     const QBind *const b = e->a->kind == QE_NAME ? qsem_find(S, e->a->tok) : nullptr;
 
     if ((e->tx && !e->b) || (b && qsem_model(S, b->ty))) { /* Name[T] alone: a type */

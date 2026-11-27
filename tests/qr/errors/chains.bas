@@ -1,7 +1,7 @@
 option dialect quickr
 ' chains: used up where made, steps' and ends' values, rev's place, a block
 ' lambda's result, borrowing
-var a as int[]
+var a as list[int]
 a.push(1)
 let it = a.map(fn(x) x * 2)
 print a.map(fn(x) x).sum(1)
@@ -14,7 +14,7 @@ print a.map(fn(x)
 end fn).sum()
 let r = (0..3)
 print a.map(fn(x) a.pop()).sum()
-var s as string[]
+var s as list[string]
 print s.sum()
 print a.zip(a).sum()
 print 5.sum()

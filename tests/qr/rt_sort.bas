@@ -10,7 +10,7 @@ end type
 function shorter(x as string, y as string) as bool
     return len(x) < len(y)
 end function
-var ps as P[]
+var ps as list[P]
 ps.push(P(name: "c", v: 1))
 ps.push(P(name: "a", v: 2))
 ps.push(P(name: "e", v: 1))
@@ -21,7 +21,7 @@ ps.sort(fn(x, y) x.v < y.v)
 for p in ps
     print p.name; " "; p.v
 next
-var s as string[]
+var s as list[string]
 s.push("ccc")
 s.push("b")
 s.push("aa")
@@ -36,25 +36,25 @@ end fn)
 print s[0]; " "; s[1]; " "; s[2]; " "; s[3]
 s.sort()
 print s[0]; " "; s[1]; " "; s[2]; " "; s[3]
-var a as int[]
+var a as list[int]
 for k in 0..10
     a.push((k * 7) mod 10 - 5)
 next
 a.sort()
 print a[0]; " "; a[1]; " "; a[5]; " "; a[9]
-var u as uint[]
+var u as list[uint]
 u.push(uint(3000000000))
 u.push(uint(1))
 u.push(uint(2147483648))
 u.sort()
 print u[0]; " "; u[1]; " "; u[2]
-var l as long[]
+var l as list[long]
 l.push(long(5000000000))
 l.push(long(-5000000000))
 l.push(long(0))
 l.sort()
 print l[0]; " "; l[1]; " "; l[2]
-var d as double[]
+var d as list[double]
 d.push(2.5)
 d.push(-1.0)
 d.push(0.25)

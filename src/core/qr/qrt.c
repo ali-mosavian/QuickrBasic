@@ -327,6 +327,32 @@ static void qrt_shrink(Session *const S, const Addr cell, const uint32_t et)
     arry_sweep(&S->arry);
 }
 
+/* The array at cell n long: those past n cut, new ones empty. Illegal function call: n under 0;
+   Duplicate definition: a fixed array's. */
+static void qrt_resize(Session *const S, const Addr cell, const uint32_t et, const int32_t n)
+{
+    ArrSlot *const s = (ArrSlot *)at(cell);
+    Addr data;
+    uint32_t len = qrt_len(cell, &data);
+
+    if (n < 0)
+        fault_error(&S->fault, E_IQ);
+    if (s->hdr && arry_fixed(s->hdr))
+        fault_error(&S->fault, E_RD);
+
+    for (; len > (uint32_t)n; len--)
+        qrt_cut(S, cell, et);
+
+    ArrayHdr *const a = s->hdr ? (ArrayHdr *)at(s->hdr) : nullptr;
+
+    if (a && a->count[0] >= (uint32_t)n) /* cut ones are emptied */
+        a->fast = (uint32_t)n;
+    else if (len < (uint32_t)n)
+        arry_relen(&S->arry, s, et, (uint32_t)n, (uint32_t)n);
+
+    arry_sweep(&S->arry);
+}
+
 /* Elements a and b of et swapped, a string's and a record's owners following. */
 static void qrt_swap(Session *const S, const uint32_t et, const Addr a, const Addr b)
 {
@@ -1696,6 +1722,13 @@ void qrt_x(Session *const S)
     case QX_SORT:
         qrt_sort(S, word);
         return;
+
+    case QX_RESIZE: {
+        const int32_t n = exec_popi(vm);
+        const uint32_t et = exec_pop(vm).u;
+        qrt_resize(S, exec_popa(vm), et, n);
+        return;
+    }
 
     case QX_HAS: {
         const Cell v = exec_pop(vm);

@@ -1,0 +1,18 @@
+arrays.bas:10:3: only a list[int] has push()
+  a.push(1)
+    ^
+arrays.bas:12:3: only an int[] has resize()
+  l.resize(3)
+    ^
+arrays.bas:14:3: only an array T[] has resize()
+  f.resize(2)
+    ^
+arrays.bas:15:3: only a list has push()
+  f.push(1)
+    ^
+arrays.bas:16:13: an array's size is 0 or more
+  var b = int[-1]
+              ^
+arrays.bas:18:4: resize() can't cut a Res: it has drop
+  rs.resize(2)
+     ^

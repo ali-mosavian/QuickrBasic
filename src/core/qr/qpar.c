@@ -878,6 +878,11 @@ static QTypeEx *qpar_base(QPar *const P)
 
         if (x->n == 1)
             x = x->items[0];
+    } else if (qpar_named(P->t, "list") && P->t[1].kind == QK_LBRACK) {
+        x = qpar_typex(P, QX_LIST, qpar_next(P));
+        qpar_next(P);
+        x->elem = qpar_type(P);
+        qpar_need(P, QK_RBRACK, "]");
     } else if (qpar_named(P->t, "dict") && P->t[1].kind == QK_LBRACK) {
         x = qpar_typex(P, QX_DICT, qpar_next(P));
         qpar_next(P);
@@ -902,7 +907,7 @@ static QTypeEx *qpar_base(QPar *const P)
 
     while (qpar_is(P, QK_LBRACK)) {
         const QTok *const at = qpar_next(P);
-        QTypeEx *const y = qpar_typex(P, QX_LIST, at);
+        QTypeEx *const y = qpar_typex(P, QX_DYN, at);
         y->elem = x;
 
         if (!qpar_is(P, QK_RBRACK)) {

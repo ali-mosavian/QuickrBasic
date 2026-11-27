@@ -228,12 +228,13 @@ typedef struct {
     uint32_t nix;
 } QOwners;
 
-/* A type as written: a name, T[], T[n], (T, U), T or none, T or Error, function(T) as U,
+/* A type as written: a name, T[], T[n], list[T], (T, U), T or none, T or Error, function(T) as U,
    dict[K, V], Name[T, U] (a generic record's, or Name[N] an array's when Name is not generic). */
 typedef enum : uint8_t {
     QX_NAME,
-    QX_LIST,
+    QX_DYN,
     QX_ARRAY,
+    QX_LIST,
     QX_TUPLE,
     QX_OPT,
     QX_RES,
@@ -275,7 +276,7 @@ typedef struct {
 typedef enum : uint8_t {
     QT_REC,
     QT_ENUM,
-    QT_LIST,
+    QT_DYN, /* T[], or list[T] when it grows: the VM's array, on the heap */
     QT_ARRAY,
     QT_TUPLE,
     QT_MAP,
@@ -303,6 +304,7 @@ typedef struct {
     uint32_t nvars, capvars;
     uint8_t state; /* a record's fields: 0 not typed, 1 being typed, 2 typed */
     bool data;     /* an enum some of whose values carry data */
+    bool grows;    /* a QT_DYN's: list[T], push and pop; else T[], resize */
     bool owns;     /* holds a list: moved, never copied by itself */
     bool laid;     /* qlink's: its TYPE's fields made */
     bool deep;     /* qlink's: its TYPE holds strings or lists (comp/declare.h decl_dynamic) */
@@ -521,12 +523,14 @@ typedef enum : uint8_t {
     QB_POP,
     QB_INSERT,
     QB_REMOVE,
-    QB_BYTE,  /* s[i]: a, b */
-    QB_SLICE, /* a[b..c] of a string or a list: b, c null for its ends */
-    QB_GET,   /* m.get(k): a, b; its value's address in temps[0] */
-    QB_ICALL, /* a(argv): a call through fn value a */
-    QB_SWAP,  /* a.swap(i, j): argv */
-    QB_SORT,  /* a.sort(): by value; a.sort(lam): argv[0] the lambda on a[temps[0]], a[temps[1]] */
+    QB_RESIZE, /* a.resize(n): argv[0] */
+    QB_ARRAY,  /* T[n]: a new array of n elements, argv[0] */
+    QB_BYTE,   /* s[i]: a, b */
+    QB_SLICE,  /* a[b..c] of a string or a list: b, c null for its ends */
+    QB_GET,    /* m.get(k): a, b; its value's address in temps[0] */
+    QB_ICALL,  /* a(argv): a call through fn value a */
+    QB_SWAP,   /* a.swap(i, j): argv */
+    QB_SORT,   /* a.sort(): by value; a.sort(lam): argv[0] the lambda on a[temps[0]], a[temps[1]] */
     QB_NONETEXT, /* "none", a T or none's text */
 } QBuiltin;
 
@@ -834,10 +838,10 @@ static inline bool qast_record(const QProg *const p, const QType t)
     return y->kind == QT_REC || y->kind == QT_TUPLE || y->kind == QT_MAP || y->kind == QT_OPT ||
            y->kind == QT_RES || (y->kind == QT_ENUM && y->data);
 }
-/* Is t a list or a fixed array: the VM's array? */
+/* Is t an array or a list: the VM's array? */
 static inline bool qast_array(const QProg *const p, const QType t)
 {
-    return qast_compound(t) && (qast_ty(p, t)->kind == QT_LIST || qast_ty(p, t)->kind == QT_ARRAY);
+    return qast_compound(t) && (qast_ty(p, t)->kind == QT_DYN || qast_ty(p, t)->kind == QT_ARRAY);
 }
 /* Is t a plain enum: an int? */
 static inline bool qast_tag(const QProg *const p, const QType t)

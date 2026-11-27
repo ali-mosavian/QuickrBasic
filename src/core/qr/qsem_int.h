@@ -159,7 +159,9 @@ uint32_t qsem_at(const QSem *S, const QTok *t);
 QType qsem_scalar(const QTok *t);
 bool qsem_owns(const QSem *S, QType t);
 QType qsem_newty(QSem *S, QTyKind kind);
-QType qsem_listof(QSem *S, QType elem, uint32_t count);
+QType qsem_arrayof(QSem *S, QType elem, uint32_t count, bool grows);
+/* The type e names where a value is written: Name, m.Name, int, Name[T]; QY_VOID none. */
+QType qsem_typevalue(QSem *S, const QExpr *e);
 QType qsem_tupleof(QSem *S, const QType *items, uint32_t n);
 QType qsem_wrapof(QSem *S, QTyKind kind, QType val);
 QType qsem_fnof(QSem *S, const QType *params, uint32_t n, QType result);

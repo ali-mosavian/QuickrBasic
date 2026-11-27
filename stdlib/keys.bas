@@ -73,7 +73,7 @@ enum Key
     end fn
 end enum
 
-private var waiting as int[]
+private var waiting as list[int]
 private var seen as double[512]
 private var fresh as bool[512]
 

@@ -208,7 +208,7 @@ static void qcg_elem(QCg *const g, const QExpr *const e)
     if (qcg_held(g, a)) {
         const uint32_t off = qcg_heldat(g, a);
 
-        if (y->kind == QT_LIST) {
+        if (y->kind == QT_DYN) {
             qcg_expr(g, e->b);
             code_op(c, O_FE_ADDR);
             code_dword(c, off);
@@ -1145,6 +1145,13 @@ static void qcg_listdo(QCg *const g, const QExpr *const e, const QExpr *const ds
         qcg_x(c, dst || qcg_typed(g, elem) ? QX_DROP : QX_POP);
         return;
 
+    case QB_RESIZE:
+        qcg_cell(g, e->a);
+        code_int(c, et);
+        qcg_expr(g, e->argv[0]);
+        qcg_x(c, QX_RESIZE);
+        return;
+
     default: /* remove: moved last, then dropped */
         qcg_cell(g, e->a);
         code_int(c, et);
@@ -1230,6 +1237,21 @@ static void qcg_build(QCg *const g, const QExpr *const dst, const QExpr *const e
     default: /* a call's */
         if (e->builtin == QB_GET) {
             qcg_get(g, dst, e);
+            return;
+        }
+
+        if (e->builtin == QB_ARRAY) { /* emptied, then n long */
+            const bool waiting = code_calling(g->c, true);
+            const uint32_t et = qcg_et(g, qcg_ty(g, e->type)->elem);
+            qcg_cell(g, dst);
+            code_int(g->c, et);
+            code_int(g->c, 0);
+            qcg_x(g->c, QX_RESIZE);
+            qcg_cell(g, dst);
+            code_int(g->c, et);
+            qcg_expr(g, e->argv[0]);
+            qcg_x(g->c, QX_RESIZE);
+            code_called(g->c, waiting, true);
             return;
         }
 

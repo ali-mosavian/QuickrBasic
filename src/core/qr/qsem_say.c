@@ -101,8 +101,9 @@ static const char *qsem_tyname(QSem *const S, const QType t)
         return y->of ? qsem_join(S, n, "]", "") : n;
     }
 
-    case QT_LIST:
-        return qsem_join(S, qsem_tyname(S, y->elem), "[]", "");
+    case QT_DYN:
+        return y->grows ? qsem_join(S, "list[", qsem_tyname(S, y->elem), "]")
+                        : qsem_join(S, qsem_tyname(S, y->elem), "[]", "");
 
     case QT_ARRAY:
         return qsem_join(

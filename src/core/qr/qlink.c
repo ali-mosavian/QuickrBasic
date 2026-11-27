@@ -172,7 +172,7 @@ static void qlink_field(Comp *const C, const QProg *const p, const uint32_t td, 
     const QType t = f->type;
     const bool list = qast_array(p, t);
     const QType elem = list ? qast_ty(p, t)->elem : t;
-    const bool dyn = list && qast_ty(p, t)->kind == QT_LIST;
+    const bool dyn = list && qast_ty(p, t)->kind == QT_DYN;
 
     if ((qast_record(p, elem) || qast_array(p, elem)) && !dyn)
         qlink_lay(C, p, elem);

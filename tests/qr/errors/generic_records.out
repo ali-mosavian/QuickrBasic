@@ -28,9 +28,9 @@ generic_records.bas:28:13: a type is no value: build one with (..)
 generic_records.bas:29:15: T is already declared in Twice[int, int]
   type Twice[T, T]
                 ^
-generic_records.bas:34:13: Grow has too many instances: does it hold itself with ever new types?
-      more as Grow[T[]][]
-              ^
+generic_records.bas:34:18: Grow has too many instances: does it hold itself with ever new types?
+      more as list[Grow[list[T]]]
+                   ^
 generic_records.bas:38:5: me holds its own type: hold it in a list in Self[int]
       me as Self[T]
       ^

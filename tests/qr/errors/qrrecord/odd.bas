@@ -1,4 +1,4 @@
 option dialect quickr
 type Bag
-    items as int[][]
+    items as list[list[int]]
 end type
