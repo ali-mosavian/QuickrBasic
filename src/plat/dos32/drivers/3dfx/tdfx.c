@@ -477,9 +477,9 @@ static void cornered(Tdfx *const c, const uint32_t *const v, const uint32_t n, c
 static TdfxDraw draw_of(const Tdfx *const c, const TdfxWay *const w)
 {
     const bool texel = w->params >> TDFX_S & 1;
-    const float scale = texel ? (float)(1u << c->textures[c->state.texture].level) : 1;
+    const uint32_t level = texel ? c->textures[c->state.texture].level : 0;
 
-    return (TdfxDraw){(float)c->ox, (float)c->oy, scale, w->params, c->state.alpha};
+    return (TdfxDraw){(float)c->ox, (float)c->oy, level, w->params, c->state.alpha};
 }
 
 /* n triangles from v drawn w's way, worked out here. */

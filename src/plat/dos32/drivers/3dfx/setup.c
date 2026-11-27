@@ -39,6 +39,38 @@ static uint32_t bits(const float v)
     return u.bits;
 }
 
+/* The float of bits b. */
+static float of_bits(const uint32_t b)
+{
+    float f;
+
+    __builtin_memcpy(&f, &b, sizeof f);
+    return f;
+}
+
+enum : uint32_t { ONE = 0x3F800000 }; /* 1.0f's bits */
+
+/* The bits of float b times 2 to the k, by the FPU. Apart, so that scaled's b is not loaded as a
+   float for it. */
+[[gnu::noinline]]
+static uint32_t multiplied(const uint32_t b, const uint32_t k)
+{
+    return bits(of_bits(b) * (float)(int32_t)(1u << k));
+}
+
+/* The bits of float b times 2 to the k, by its exponent: off a 486's FPU, whose load, multiply
+   and store cost 20 cycles a texel. A zero is itself, half a sprite's texels; a denormal or a
+   result out of range is the FPU's. */
+static uint32_t scaled(const uint32_t b, const uint32_t k)
+{
+    const uint32_t e = b >> 23 & 0xFF;
+
+    if (e - 1 < 0xFEu - k)
+        return b + (k << 23);
+
+    return b << 1 ? multiplied(b, k) : b;
+}
+
 /* The colour unless the texel alone or no colour written; alpha for a blend or the key's test. */
 uint32_t tdfx_params(const AccelState *const s, const bool texel)
 {
@@ -64,8 +96,6 @@ static float w_scale(const AccelVertex *const v, const uint32_t n)
 /* Whether each of v's n corners has a q of 1, a 2D draw's: its w 1, its texels only scaled. */
 static bool flat(const AccelVertex *const v, const uint32_t n)
 {
-    enum : uint32_t { ONE = 0x3F800000 }; /* 1.0f's bits */
-
     for (uint32_t i = 0; i < n; i++)
         if (bits(v[i].q) != ONE)
             return false;
@@ -82,7 +112,7 @@ typedef struct {
 /* c's texel over w, w scaled by k. */
 static Texel texel_of(const AccelVertex *const c, const TdfxDraw *const d, const float k)
 {
-    const float w = c->q * k, texels = d->scale * w;
+    const float w = c->q * k, texels = of_bits(scaled(bits(w), d->level));
 
     return (Texel){c->s * texels, c->t * texels, w};
 }
@@ -307,8 +337,12 @@ void tdfx_corners(
         if (params & 1u << TDFX_Z)
             *out++ = bits(depth_of(c->z));
 
-        if (params & TEXEL) {
-            const Texel t = even ? (Texel){c->s * d->scale, c->t * d->scale, 1} : texel_of(c, d, k);
+        if (params & TEXEL && even) {
+            *out++ = ONE;
+            *out++ = scaled(bits(c->s), d->level);
+            *out++ = scaled(bits(c->t), d->level);
+        } else if (params & TEXEL) {
+            const Texel t = texel_of(c, d, k);
 
             *out++ = bits(t.w);
             *out++ = bits(t.s);

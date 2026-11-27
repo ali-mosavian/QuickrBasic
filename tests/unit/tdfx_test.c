@@ -33,7 +33,7 @@ TEST(tdfx_setup_sorts_corners_and_finds_gradients)
         {10, 0, 0, 1, 0, 0, 0xFF640000},
     };
 
-    const TdfxDraw d = {0, 0, 1, EVERY, 255};
+    const TdfxDraw d = {0, 0, 0, EVERY, 255};
 
     TdfxTriangle t;
 
@@ -52,7 +52,7 @@ TEST(tdfx_setup_signs_a_mirrored_triangle)
     const AccelVertex left[3] =
         {{0, 0, 0, 1, 0, 0, 0}, {-10, 0, 0, 1, 0, 0, 0}, {0, 10, 0, 1, 0, 0, 0}};
 
-    const TdfxDraw d = {0, 0, 1, EVERY, 255};
+    const TdfxDraw d = {0, 0, 0, EVERY, 255};
 
     TdfxTriangle a, b;
 
@@ -69,7 +69,7 @@ TEST(tdfx_setup_scales_w_into_the_cards_range)
         {0, 10, 0, 2, 8, 4, 0xFF000000},
     };
 
-    const TdfxDraw d = {0, 0, 4, EVERY, 128};
+    const TdfxDraw d = {0, 0, 2, EVERY, 128};
 
     TdfxTriangle t;
 
@@ -95,7 +95,7 @@ TEST(tdfx_setup_works_out_only_the_parameters_sent)
         {0, 10, 0.5f, 2, 8, 4, 0x80FF0000},
     };
     const uint32_t colour = 1u << TDFX_R | 1u << TDFX_G | 1u << TDFX_B;
-    const TdfxDraw d = {0, 0, 1, colour, 255};
+    const TdfxDraw d = {0, 0, 0, colour, 255};
     const uint32_t sent = tdfx_sent(colour);
 
     TdfxTriangle t;
@@ -121,7 +121,7 @@ TEST(tdfx_corners_move_and_pack_each_corner)
         {0, -5, 0.25f, 2, 8, 4, 0xFF123456},
     };
 
-    const TdfxDraw d = {1, 2, 4, EVERY, 128};
+    const TdfxDraw d = {1, 2, 2, EVERY, 128};
 
     TdfxTriangle t;
     uint32_t c[3][PACKED_WORDS];
@@ -149,13 +149,40 @@ TEST(tdfx_corners_share_alpha_exactly)
                 {1, 0, 0, 1, 0, 0, colour},
                 {0, 1, 0, 1, 0, 0, colour},
             };
-            const TdfxDraw d = {0, 0, 1, 1u << TDFX_A, (uint8_t)share};
+            const TdfxDraw d = {0, 0, 0, 1u << TDFX_A, (uint8_t)share};
 
             uint32_t c[3][3]; /* x, y and ARGB */
 
             tdfx_corners(v, 3, &d, c[0]);
             CHECK(c[0][2] >> 24 == a * share / 255);
         }
+}
+
+/* A 2D draw's texels times 2 to the level, by their exponents, are the multiply's: zeros, a
+   denormal, the largest kept and the first out of range too. */
+TEST(tdfx_corners_scale_texels_as_a_multiply)
+{
+    const float st[4][2] = {{0, -0.0f}, {1e-40f, 1.5f}, {-2.25f, 4e37f}, {5e37f, 3e38f}};
+    const TdfxDraw d = {0, 0, 3, EVERY, 255};
+
+    AccelVertex v[4];
+    uint32_t c[4][PACKED_WORDS];
+
+    for (uint32_t i = 0; i < 4; i++)
+        v[i] = (AccelVertex){(float)i, 0, 0, 1, st[i][0], st[i][1], 0xFF000000};
+
+    tdfx_corners(v, 4, &d, c[0]);
+
+    for (uint32_t i = 0; i < 4; i++) {
+        const volatile float eight = 8;
+        const float s = st[i][0] * eight, t = st[i][1] * eight;
+
+        uint32_t bs, bt;
+
+        memcpy(&bs, &s, sizeof bs);
+        memcpy(&bt, &t, sizeof bt);
+        CHECK(c[i][PS] == bs && c[i][PT] == bt);
+    }
 }
 
 /* The unit's mode and the corner's words follow what a draw reads: alpha packed with the colour,
@@ -187,7 +214,7 @@ TEST(tdfx_setup_sends_what_the_corners_share_without_gradients)
         {0, 10, 0.5f, 1, 0, 4, 0x80FF8040},
     };
 
-    const TdfxDraw d = {0, 0, 1, EVERY, 255};
+    const TdfxDraw d = {0, 0, 0, EVERY, 255};
     const uint32_t alike[] = {TDFX_R, TDFX_G, TDFX_B, TDFX_Z, TDFX_A, TDFX_W};
 
     TdfxTriangle t;
@@ -571,7 +598,7 @@ static uint32_t loaded(const uint8_t *const at)
    its register's place. */
 static TdfxVertex solid_at(const float ox, const float oy)
 {
-    const TdfxDraw d = {ox, oy, 1, tdfx_params(&SOLID, false), SOLID.alpha};
+    const TdfxDraw d = {ox, oy, 0, tdfx_params(&SOLID, false), SOLID.alpha};
     const TdfxPicks p = tdfx_picks(tdfx_corner_sent(d.params));
 
     uint32_t v[3 * TDFX_CORNER_WORDS];

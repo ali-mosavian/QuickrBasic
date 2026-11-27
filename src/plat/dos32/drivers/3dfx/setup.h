@@ -65,11 +65,11 @@ typedef struct {
     uint32_t word[TDFX_VERTEX_WORDS];
 } TdfxVertex;
 
-/* What a draw's triangles share: their move; their texels' scale; the parameters sent, a bit
-   each; their alpha's share over 255. */
+/* What a draw's triangles share: their move; their texels' scale, 2 to the level; the parameters
+   sent, a bit each; their alpha's share over 255. */
 typedef struct {
-    float ox, oy, scale;
-    uint32_t params;
+    float ox, oy;
+    uint32_t level, params;
     uint8_t share;
 } TdfxDraw;
 
