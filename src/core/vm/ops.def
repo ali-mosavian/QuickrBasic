@@ -350,6 +350,12 @@ XOP(HOLD, stmt_hold, 2, 0) /* ours: a call while addresses into the heap wait on
 XOP(UNHOLD, stmt_unhold, 2, 0)
 XOP(FRES, func_fres, 2, FX) /* FRE(s$) ( s -- n ): the strings' room */
 XOP(QLIST, stmt_qlist, 2, 0) /* ( cell -- cell ): an array for a Quickr T[] parameter, ours */
+XOP(N_ABS, qrt_nabs, 3, FX + FK) /* math's, of any number: its QrtNum (qr/qrt.h) */
+XOP(N_MIN, qrt_nmin, 3, FX + FK)
+XOP(N_MAX, qrt_nmax, 3, FX + FK)
+XOP(N_CLAMP, qrt_nclamp, 3, FX + FK)
+XOP(D_ATAN2, dubl_atan2, 2, FX + FK) /* math's ( y x -- r ) */
+XOP(D_LERP, dubl_lerp, 2, FX + FK)   /* math's ( a b t -- r ) */
 #undef XOP
 #endif
 

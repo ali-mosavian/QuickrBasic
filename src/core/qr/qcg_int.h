@@ -35,6 +35,7 @@ void qcg_load(Code *c, const QVar *v);
 void qcg_store(Code *c, const QVar *v);
 void qcg_arith(Code *c, uint8_t *right, QType w, uint32_t k);
 void qcg_xint(Code *c, QrtIop op, QType t, bool wrap);
+QrtNum qcg_num(QType t); /* number type t as QX.INT, N.CONV and math's X ops take it */
 void qcg_nconv(Code *c, QType from, QType to, bool wrap);
 bool qcg_icell(QType t);
 void qcg_compare(Code *c, QType w, QKind op, uint8_t *right);

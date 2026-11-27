@@ -1459,6 +1459,75 @@ void qrt_conv(Session *const S)
     exec_push(vm, qrt_cell(to, x));
 }
 
+/* Is a below b, both numbers of n? */
+static bool qrt_below(const QrtNum n, const Cell a, const Cell b)
+{
+    if (n == QN_F32)
+        return a.f < b.f;
+    if (n == QN_F64)
+        return a.d < b.d;
+
+    const uint64_t x = qrt_get(n, a), y = qrt_get(n, b);
+    return qrt_unsigned(n) ? x < y : (int64_t)x < (int64_t)y;
+}
+
+/* X N.ABS n ( x -- r ): -x if x < 0 else x; Overflow past n's range. */
+void qrt_nabs(Session *const S)
+{
+    Vm *const vm = &S->vm;
+    const QrtNum n = (QrtNum)exec_u8(vm);
+    Cell x = exec_pop(vm);
+
+    if (qrt_below(n, x, (Cell){}))
+        switch (n) {
+        case QN_F32:
+            x.f = -x.f;
+            break;
+
+        case QN_F64:
+            x.d = -x.d;
+            break;
+
+        default: {
+            const uint64_t r = 0 - qrt_get(n, x);
+
+            if (!qrt_fits(n, r, true))
+                fault_error(&S->fault, E_OV);
+
+            x = qrt_cell(n, r);
+        }
+        }
+
+    exec_push(vm, x);
+}
+
+/* X N.MIN n ( a b -- r ): b if b < a else a. */
+void qrt_nmin(Session *const S)
+{
+    Vm *const vm = &S->vm;
+    const QrtNum n = (QrtNum)exec_u8(vm);
+    const Cell b = exec_pop(vm), a = exec_pop(vm);
+    exec_push(vm, qrt_below(n, b, a) ? b : a);
+}
+
+/* X N.MAX n ( a b -- r ): b if b > a else a. */
+void qrt_nmax(Session *const S)
+{
+    Vm *const vm = &S->vm;
+    const QrtNum n = (QrtNum)exec_u8(vm);
+    const Cell b = exec_pop(vm), a = exec_pop(vm);
+    exec_push(vm, qrt_below(n, a, b) ? b : a);
+}
+
+/* X N.CLAMP n ( x lo hi -- r ): lo if x < lo, else hi if x > hi, else x. */
+void qrt_nclamp(Session *const S)
+{
+    Vm *const vm = &S->vm;
+    const QrtNum n = (QrtNum)exec_u8(vm);
+    const Cell hi = exec_pop(vm), lo = exec_pop(vm), x = exec_pop(vm);
+    exec_push(vm, qrt_below(n, x, lo) ? lo : qrt_below(n, hi, x) ? hi : x);
+}
+
 /* ---- files, for the fs module: each error a value, its ERR negated */
 
 /* Status st's ERR, negated; 0 none. */

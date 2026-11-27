@@ -3,10 +3,11 @@
 
 tests/qr/NAME.bas, a Quickr file, must print NAME.out; tests/qr/errors/NAME.bas its compile errors, NAME.out, and run
 nothing. A folder NAME/ beside a case holds the modules it imports, put beside it; NAME.in is its
-standard input, NAME.args its command line. --check must
-list the same errors, exit 1 on them and 0 on a clean program; --test must print NAME.test, if
-there, and exit 1 when a test fails; --copies must print NAME.copies, if there. NAME picks cases; -v prints a failure's output;
---update writes each picked case's NAME.out and NAME.copies, if there, as it prints them."""
+standard input, NAME.args its command line. --check must list the same errors, exit 1 on them
+and 0 on a clean program; --test must print NAME.test, if there, and exit 1 when a test fails;
+--copies must print NAME.copies, if there. NAME picks cases; -v prints a failure's output;
+--update writes each picked case's NAME.out and NAME.copies, if there, as it prints them, line
+endings kept."""
 
 import os
 import re
@@ -92,12 +93,23 @@ def check(name: str, prog: Path) -> str:
     return "" if p.returncode == (1 if want else 0) else f"--check exited {p.returncode}"
 
 
+def rewrite(path: Path, text: str) -> bool:
+    """path's text as text, its line endings kept; False, and not written, when it is the same."""
+    old = path.read_bytes() if path.exists() else b""
+    if old.decode("latin-1").replace("\r\n", "\n") == text:
+        return False
+    path.write_text(text, encoding="latin-1", newline="\r\n" if b"\r\n" in old else "\n")
+    return True
+
+
 def update(name: str, prog: Path, out: str) -> None:
     """prog's NAME.out and NAME.copies, if there, as it prints them."""
-    prog.with_suffix(".out").write_text(out)
-    if prog.with_suffix(".copies").exists():
-        prog.with_suffix(".copies").write_text(named(flagged("--copies", prog).stdout.decode("latin-1"), prog.stem))
-    print(f"updated {name}")
+    changed = rewrite(prog.with_suffix(".out"), out)
+    copies = prog.with_suffix(".copies")
+    if copies.exists():
+        changed |= rewrite(copies, named(flagged("--copies", prog).stdout.decode("latin-1"), prog.stem))
+    if changed:
+        print(f"updated {name}")
 
 
 def main() -> None:

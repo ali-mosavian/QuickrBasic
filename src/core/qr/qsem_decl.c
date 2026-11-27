@@ -603,13 +603,32 @@ static bool qsem_nativeok(const QType t)
     return qast_numeric(t) || t == QY_BOOL || t == QY_STRING || t == QY_ERROR;
 }
 
-/* Native fn f's entry, and its types: numbers, bools and strings, by value. */
+/* Does entry n's code take its arguments' numbers, whichever they are (QN_NUM)? */
+static bool qsem_bynumber(const QNat *const n)
+{
+    for (uint32_t i = 0; i < n->n; i++)
+        if (n->steps[i].kind == QN_NUM)
+            return true;
+
+    return false;
+}
+
+/* Native fn f's entry, and its types: numbers, bools and strings, by value; a generic's entry
+   takes numbers, any of them. */
 static void qsem_native(QSem *const S, QFn *const f)
 {
     f->nat = qnat_find(f->name->text, f->name->len);
 
     if (!f->nat)
         qsem_say(S, f->name, "no native entry is named ", qsem_text(S, f->name), nullptr);
+    else if (qsem_bynumber(f->nat)) {
+        for (uint32_t k = 0; k < f->npar; k++)
+            if (!qast_numeric(f->params[k].var->type) && f->params[k].var->type != QY_ERROR) {
+                qsem_say(S, f->name, qsem_text(S, f->name), " takes numbers", nullptr);
+                break;
+            }
+    } else if (f->of)
+        qsem_say(S, f->name, qsem_text(S, f->name), "'s native entry is not generic", nullptr);
 
     const bool plain = f->result == QY_VOID || f->result == QY_ERROR || qsem_nativeok(f->result);
 

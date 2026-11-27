@@ -1046,7 +1046,9 @@ dicts and iterables. Everything else is in a module.
   double) as double`. A native function has no body; its entry, by its name, is in
   `src/core/qr/qnat.c`. A call compiles to the entry's code, which is what QBasic's statement
   compiles to, so a library call costs what the built-in does. A native takes and gives numbers,
-  bools and strings, by value. It is a top-level function, never a method; a method calls it.
+  bools and strings, by value. It is a top-level function, never a method; a method calls it. A
+  generic native, `native function abs[T](x as T) as T`, has an entry that takes any number: its
+  op is told the number's type.
 - `math.sqrt` against `SQR`, and `text.find` against `INSTR`, run the same ops as QBasic (benches
   sqrt and find); host instructions are 4% and 5% more.
 
@@ -1061,7 +1063,7 @@ dicts and iterables. Everything else is in a module.
 
 `math`:
 
-- `abs`, `min`, `max` and `clamp` are generic functions.
+- Every function is a VM op. `abs`, `min`, `max` and `clamp` are generic natives, of any number.
 - `Vec` is `x` and `y`, `double`s. It has `+`, `-` and `=`, `*` and `/` by a `double`, `double *
   Vec`, unary `-`, and the methods `dot(b)`, `length()` and `text()`.
 
