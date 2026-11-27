@@ -1983,8 +1983,8 @@ def demos_on(a: argparse.Namespace, own: dict[str, bytes]) -> int:
 
 
 def demos_on_card(a: argparse.Namespace, own: dict[str, bytes]) -> int:
-    """demos --card: each demo at its own size at 16 bits on the card's VM, in pages and by the card, with vsync and
-    without, the emulator held to the host's clock. --profile: by the card, by function a frame."""
+    """demos --card: each demo at its own size at --depth bits on the card's VM, in pages and by the card, with vsync
+    and without, the emulator held to the host's clock. --profile: by the card, by function a frame."""
     b, vm = build(".", True), card_vm(a.card, a.machine)
     pages = {"lib/gfx.qbx": (b.dos.parent / "lib/gfx.qbx").read_bytes()}
     card = pages | drivers_of(b)
@@ -1994,18 +1994,19 @@ def demos_on_card(a: argparse.Namespace, own: dict[str, bytes]) -> int:
             for name in a.demo or DEMO_EDITS:
                 f = a.frames or MACHINE_FRAMES["p5"]
                 jobs = [
-                    (demo_program(name, 0, False, a.edits or 0, frames=n, depth=16, sized=True), "", "", own)
+                    (demo_program(name, 0, False, a.edits or 0, frames=n, depth=a.depth, sized=True), "", "", own)
                     for n in (f, 2 * f)
                 ]
                 print_vm_profile(name, vm, exe, jobs, card, a.n, a.at or [], b if a.lines else None, True,
                                  driver_images(b, a.card), (driver_dll(b, a.card),))
         return 0
-    print(f"at their own size at 16 bits on 86Box ({vm}), frames a second over {a.seconds:g} s")
+    print(f"at their own size at {a.depth} bits on 86Box ({vm}), frames a second over {a.seconds:g} s")
     print(f"{'':12}" + "".join(f"{t:>10}" for t in ("pages", a.card, "no vsync")))
     for name in a.demo or DEMO_EDITS:
         runs = ((pages, True), (card, True), (card, False))
-        cells = [vm_rate(vm, b.dos, (demo_program(name, a.seconds, v, a.edits or 0, depth=16, sized=True), "", "", own),
-                         lib, True, tuple(a.set or ())) for lib, v in runs]
+        programs = [demo_program(name, a.seconds, v, a.edits or 0, depth=a.depth, sized=True) for _, v in runs]
+        cells = [vm_rate(vm, b.dos, (prog, "", "", own), lib, True, tuple(a.set or ()))
+                 for (lib, _), prog in zip(runs, programs, strict=True)]
         print(f"{name:12}" + "".join(f"{c:>10}" for c in cells), flush=True)
     return 0
 
@@ -2343,7 +2344,8 @@ def main() -> int:
     p.add_argument("--lines", action="store_true", help="--at: by source line, not offset")
     p.add_argument("--frames", type=int, help="--machine --profile: frames in the shorter run, twice in the longer")
     p.add_argument("--rev", action="append", help="--machine: a revision's build timed too, before the tree's")
-    p.add_argument("--card", choices=list(CARD_DRIVERS), help="on --machine's VM with this 3D card, at 16 bits")
+    p.add_argument("--card", choices=list(CARD_DRIVERS), help="on --machine's VM with this 3D card, at --depth bits")
+    p.add_argument("--depth", type=int, choices=(8, 16), default=16, help="--card: the demos' bits a pixel")
     p.add_argument("--set", action="append", metavar="NAME=VALUE", help="--card: in DOS's environment")
     p.add_argument("--demo", action="append", choices=list(DEMO_EDITS), help="a demo to time; all when none")
     p.add_argument("--seconds", type=float, default=10)
