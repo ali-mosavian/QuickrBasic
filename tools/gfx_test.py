@@ -572,8 +572,10 @@ def card_shot(
                     if said := (said + c.debug_out()).replace(CARD_DRAWN, ""):
                         print(said)
                     c.quit()
+                proc.wait(timeout=60)  # killed sooner, it leaves the VM's CMOS empty
             finally:
-                proc.kill()
+                if proc.poll() is None:
+                    proc.kill()
         finally:
             bat.write_bytes(was)
             hl86.dos_put(image, bat, "AUTOEXEC.BAT")
