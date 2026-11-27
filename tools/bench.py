@@ -1763,15 +1763,16 @@ def vm_shown(vm: str, com: Path, job: tuple, files: dict[str, bytes]) -> None:
 
 def vm_samples(
     vm: str, exe: Path, job: tuple, files: dict[str, bytes], late: float = 0.0, realtime: bool = False,
-    images: tuple[tuple[bytes, list[tuple[int, str]]], ...] = (),
+    images: tuple[tuple[bytes, list[tuple[int, str]]], ...] = (), sets: tuple[str, ...] = (),
 ) -> Samples:
     """exe's job on 86Box's VM vm, its CPU's place sampled every 10 emulated us over the job alone: the samples
     by function of the map beside exe, or of images' (code, functions) found placed in memory; and the frames the
-    job drew (its output's last number). late: the host's seconds in seeing the job end. realtime: as vm_rate's."""
+    job drew (its output's last number). late: the host's seconds in seeing the job end. realtime: as vm_rate's.
+    sets: NAME=VALUE in DOS's environment."""
     hl86 = hl86_module()
     image = HL86_VMS / vm / "c.img"
     with tempfile.TemporaryDirectory() as d:
-        orig = vm_autorun(image, vm_stage(image, Path(d), exe, job, files, "ECHO QB-DONE"))
+        orig = vm_autorun(image, vm_stage(image, Path(d), exe, job, files, "ECHO QB-DONE", sets))
         auto = Path(d) / "AUTOEXEC.BAT"
         sock = Path(d) / "s"
         proc = hl86.launch(HL86 / "build/src/86Box-headless", image.parent, HL86_ROMS, sock, unthrottled=not realtime)
@@ -1911,12 +1912,13 @@ def print_vm_profile(
     realtime: bool = False,
     images: tuple[tuple[bytes, list[tuple[int, str]]], ...] = (),
     dlls: tuple[Path, ...] = (),
+    sets: tuple[str, ...] = (),
 ) -> None:
     """Each function's cycles a frame on 86Box's VM vm, by time sampled: the longer job's less the
     shorter's, over the frames between, so the start-up drops out. Each of inside's functions by
     offset too, a sample landing on its block's first instruction; with lined, the build, by source
     line instead."""
-    a, b = (vm_samples(vm, exe, j, files, realtime=realtime, images=images) for j in jobs)
+    a, b = (vm_samples(vm, exe, j, files, realtime=realtime, images=images, sets=sets) for j in jobs)
     frames = b.frames - a.frames
     per = b.interval_us * b.mhz / frames
     cycles = {f: (b.by.get(f, 0) - a.by.get(f, 0)) * per for f in b.by}
@@ -1998,7 +2000,7 @@ def demos_on_card(a: argparse.Namespace, own: dict[str, bytes]) -> int:
                     for n in (f, 2 * f)
                 ]
                 print_vm_profile(name, vm, exe, jobs, card, a.n, a.at or [], b if a.lines else None, True,
-                                 driver_images(b, a.card), (driver_dll(b, a.card),))
+                                 driver_images(b, a.card), (driver_dll(b, a.card),), tuple(a.set or ()))
         return 0
     print(f"at their own size at {a.depth} bits on 86Box ({vm}), frames a second over {a.seconds:g} s")
     print(f"{'':12}" + "".join(f"{t:>10}" for t in ("pages", a.card, "no vsync")))
@@ -2346,7 +2348,7 @@ def main() -> int:
     p.add_argument("--rev", action="append", help="--machine: a revision's build timed too, before the tree's")
     p.add_argument("--card", choices=list(CARD_DRIVERS), help="on --machine's VM with this 3D card, at --depth bits")
     p.add_argument("--depth", type=int, choices=(8, 16), default=16, help="--card: the demos' bits a pixel")
-    p.add_argument("--set", action="append", metavar="NAME=VALUE", help="--card: in DOS's environment")
+    p.add_argument("--set", action="append", metavar="NAME=VALUE", help="--card: in DOS's environment, --profile's too")
     p.add_argument("--demo", action="append", choices=list(DEMO_EDITS), help="a demo to time; all when none")
     p.add_argument("--seconds", type=float, default=10)
     p.add_argument("--profile", action="store_true", help="by function a frame, ours with every edit (normal core)")
