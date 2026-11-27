@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' methods: their names, self, and calls on a value or on the type
 type Vec
     x as double

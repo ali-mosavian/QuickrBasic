@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' fs: whole files, a File's read, write and seek, errors as values
 import fs
 from fs import File

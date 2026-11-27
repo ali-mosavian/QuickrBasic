@@ -12,9 +12,11 @@ extern const Dialect dialect_quickr;
 
 /* A Quickr file's first line, its dialect's mark; any other file is QBasic's. */
 extern const char qr_dialect[];
-/* Is the line text, len bytes, qr_dialect: case aside, spaces after it? */
+/* Is the line text, len bytes, qr_dialect: case aside, spaces around it? */
 bool qr_marker(const char *text, uint32_t len);
-/* Is the file at path Quickr's: its first line qr_dialect? */
+/* Is the line text, len bytes, no statement: spaces, a comment? */
+bool qr_blank(const char *text, uint32_t len);
+/* Is the file at path Quickr's: its first statement qr_dialect? */
 bool qr_is_file(const char *path);
 /* Load repl.file, Quickr's, and report its compile errors; none: link it, ready to run. The errors'
    count. */
@@ -46,7 +48,8 @@ typedef struct {
     QMem mem;
     QProg *prog;
     const QStmt *const *of;
-    const struct Exports *ex; /* by QProg.mods */
+    struct Exports *ex; /* by QProg.mods */
+    struct QSem *sem;   /* the check, by stages */
 } QrGuests;
 
 /* Quickr's state in a session (Dial). */
@@ -61,10 +64,11 @@ QrState *qr_state(Session *S);
 void qr_guest_read(Session *S, uint32_t m);
 /* The same, its lines in the store: each module its imports name the program's, imported by m. */
 void qr_guest_find(Session *S, uint32_t m);
-/* Each Quickr module checked, every error reported (a file run's: then exit 1, else Syntax error
-   raised); their records' TYPEs made, their exports declared as QBasic's, the link's hooks set. A
-   module two of whose publics differ only by case: its ModuMod.clash. */
-void qr_guest_declare(Session *S, bool lenient);
+/* Dialect.guest_declare's: stage stage's Quickr modules checked, every error reported (a file
+   run's: then exit 1, else Syntax error raised); their records' TYPEs made, their exports declared
+   as QBasic's; after top, the link's hooks set. A module two of whose publics differ only by
+   case: its ModuMod.clash. */
+void qr_guest_declare(Session *S, uint32_t stage, uint32_t top, bool lenient);
 /* Variable id's name as typed at d, DIAL_SPELL bytes at most (a block's over an outer one's,
    X'1's, too); its length, 0 not one of the kept program's. */
 uint32_t qr_spell(const Session *S, uint32_t id, char *d);

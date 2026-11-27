@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' print is a statement: print a, b
 print(1, 2)
 print()

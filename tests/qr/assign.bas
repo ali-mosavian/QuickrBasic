@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' assignment and compound assignment
 var a = 10
 a = a + 5

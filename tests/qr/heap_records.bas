@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' records with strings and lists in cells: their parts owned as a
 ' box's were, through calls, copies, recursion, the heap's moves; a
 ' record over 256 bytes, its fields past them read by address

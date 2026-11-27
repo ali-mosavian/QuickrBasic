@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' blocks closed wrongly; break and continue outside a loop; return outside a function, one-line too
 if true then
     print 1

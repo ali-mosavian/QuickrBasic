@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' print: each value spelled; ; joins, , moves to the next 14-column zone, a newline after
 print 1; " "; 2.5; " "; "x"; " "; true
 print

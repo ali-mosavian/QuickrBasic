@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' math: numbers' functions; sqrt .. floor are the VM's ops
 const pi = 3.141592653589793
 

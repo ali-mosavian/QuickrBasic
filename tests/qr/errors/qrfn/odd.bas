@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 function fine() as int
     return 1
 end function

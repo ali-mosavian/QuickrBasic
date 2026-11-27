@@ -29,7 +29,7 @@ void headless_set_stdout_is_screen(int yes);
 
 static const char *const files[] = {"main.bas", "gfx.bas", "util.bas", nullptr};
 
-#define DIALECT "' OPTION DIALECT QUICKR\n"
+#define DIALECT "option dialect quickr\n"
 
 /* main.bas, importing util.bas, both Quickr's, opened. */
 static void open_quickr(Session *const S)
@@ -93,7 +93,7 @@ TEST(qride_keeps_a_line_as_typed)
     CHECK(uimn_save(S));
     CHECK(!strcmp(
         fx_file_text("main.bas"),
-        "' OPTION DIALECT QUICKR\r\nimport util\r\nlet n = util.twice(2)\r\nprint n + 1\r\n"
+        "option dialect quickr\r\nimport util\r\nlet n = util.twice(2)\r\nprint n + 1\r\n"
     ));
     fx_done(S, files);
 }
@@ -108,12 +108,33 @@ TEST(qride_keeps_the_dialect_line)
     edit_load(S, view_goline(S, 1));
     fx_key(S, FX_BACKSPACE, 0);
     edit_commit(S);
-    CHECK(fx_line_of(S, "' OPTION DIALECT QUICKR") == 0);
+    CHECK(fx_line_of(S, "option dialect quickr") == 0);
     CHECK(fx_line_of(S, "import util") == 1);
     edit_load(S, view_goline(S, 0));
     fx_key(S, FX_END, 0);
     fx_key(S, FX_ENTER, 0);
     CHECK(uimn.ed.line == 1 && fx_line_of(S, "") == 1);
+    fx_done(S, files);
+}
+
+/* A Quickr file whose doc comment went before its mark was QBasic's, in the editor too: the mark
+   was the first line, and a comment. */
+TEST(qride_marks_a_file_past_its_doc_comment)
+{
+    fx_open_program(S, "");
+    fx_write_file("main.bas", "' doc\n\n" DIALECT "import util\nlet n = util.twice(2)\nprint n\n");
+    fx_write_file(
+        "util.bas",
+        "' doc\n" DIALECT "function twice(x as int) as int\n    return x * 2\nend function\n"
+    );
+    uimn_open(S, fx_path_of("main.bas"));
+    CHECK(text_dialect(S) == &dialect_quickr);
+    CHECK(text_dialect_at(S, fx_line_of(S, "import util")) == &dialect_quickr);
+    const uint32_t mark = fx_line_of(S, "option dialect quickr");
+    CHECK(!text_marker(S, uimn.text.first + 0) && text_marker(S, uimn.text.first + mark));
+    CHECK(fx_typed_over(S, 0, "' the doc"));
+    fx_typed_over(S, mark, "x");
+    CHECK(fx_line_of(S, "option dialect quickr") == mark);
     fx_done(S, files);
 }
 
@@ -198,7 +219,7 @@ TEST(qride_new_asks_the_dialect)
     uimn_act(S, ACT_NEW);
     pkey_flush();
     CHECK(text_dialect(S) == &dialect_quickr);
-    CHECK(fx_line_of(S, "' OPTION DIALECT QUICKR") == 0);
+    CHECK(fx_line_of(S, "option dialect quickr") == 0);
     CHECK(uimn.ed.line == 1);
     fx_shown(S);
     CHECK(strstr(fx_row(24), "Quickr") != nullptr);

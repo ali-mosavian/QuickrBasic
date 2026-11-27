@@ -6,10 +6,11 @@
  * dialect is a text dialect: its lines are stored as typed (LF_TEXT) and the core asks it, by its
  * hooks, whatever it would do itself for QBasic's.
  *
- * A text dialect's file says so by its first line, its mark. So does the store: the first record
- * of each file of a text dialect's lines is its mark, and the program's first record says what
- * the program is. A dialect's state in a session (Dial) is made on first use, from the C side's
- * heap, so the session holds none of its types.
+ * A text dialect's file says so by its first statement, its mark: before it, only lines that are
+ * none to it (Dialect.blank). So does the store: each file of a text dialect's lines has its mark
+ * among its first records, and the program's first file says what the program is. A dialect's
+ * state in a session (Dial) is made on first use, from the C side's heap, so the session holds
+ * none of its types.
  *
  * A new dialect is its table and its name in DIALECTS.
  */
@@ -38,20 +39,37 @@ const Dialect *dial_of_file(const char *const path)
     return &dialect_qbasic;
 }
 
-/* The text dialect record rec, a file's first, marks; the first text dialect when none. */
+/* The text dialect file file's lines from record rec, its first, mark: the first that is a
+   statement to each (Dialect.blank), the mark one's; the first text dialect when none. */
 static const Dialect *marked(const Prog *const pg, const uint32_t rec)
 {
-    const char *const text = (const char *)at(prog_addr(pg, rec) + HDR);
-    const uint32_t len = (uint32_t)strlen(text);
+    const uint16_t file = prog_line(pg, rec)->file;
     const Dialect *first = nullptr;
 
-    for (uint32_t i = 0; i < countof(dialects); i++) {
-        if (!dialects[i]->text)
+    for (uint32_t i = 0; i < countof(dialects) && !first; i++)
+        first = dialects[i]->text ? dialects[i] : nullptr;
+
+    for (uint32_t r = rec; prog_line(pg, r)->len; r += prog_line(pg, r)->len) {
+        const Line *const l = prog_line(pg, r);
+
+        if ((l->flags & (LF_TEXT | LF_INC)) != LF_TEXT || l->file != file)
             continue;
-        if (dialects[i]->marker(text, len))
-            return dialects[i];
-        if (!first)
-            first = dialects[i];
+
+        const char *const text = (const char *)at(prog_addr(pg, r) + HDR);
+        const uint32_t len = (uint32_t)strlen(text);
+        bool blank = false; /* to a dialect: the mark may come after it */
+
+        for (uint32_t i = 0; i < countof(dialects); i++) {
+            if (!dialects[i]->text)
+                continue;
+            if (dialects[i]->marker(text, len))
+                return dialects[i];
+
+            blank |= dialects[i]->blank(text, len);
+        }
+
+        if (!blank)
+            break;
     }
 
     return first;

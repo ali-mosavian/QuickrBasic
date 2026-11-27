@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' long, ulong and uint on their own ops: a loop's sum, compares that branch
 var t as long = 0
 for i in 0..1000

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' generators: yield's type, loops over itself, used as a value, let, next(), a kept one's mut
 function upto(n as int) yields int
     var i = 0

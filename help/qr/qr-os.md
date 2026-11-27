@@ -17,7 +17,7 @@ gives no exit code; a command that could not start is Illegal function
 call.
 
 ## Example
-    ' OPTION DIALECT QUICKR
+    option dialect quickr
     import os
     for a in os.args()
         print a

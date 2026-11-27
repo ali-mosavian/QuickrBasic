@@ -60,6 +60,9 @@ uint32_t link_report(Comp *C, LinkEach *each, void *ctx);
    compiled into the cache, from its start; then, every procedure's frame laid out, each QBasic
    line resolved. */
 void link_prepare(Comp *C);
+/* link_prepare's first part alone: the blocks paired, the procedures' variables declared; enough
+   to take a module's exports (comp/export.h) while declarations go on. */
+void link_paired(Comp *C);
 void link_lines_qb(Comp *C);
 void link_resolve_qb(Comp *C);
 /* Each module's LF_TOP line again, by its file (io/repl.c read_modules): lines typed before them

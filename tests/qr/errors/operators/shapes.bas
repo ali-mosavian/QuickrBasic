@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' a module's operators: public ones used where its type is
 type Size
     w as int

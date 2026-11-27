@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' the parser's errors, each line's first
 let = 3
 print 1 +

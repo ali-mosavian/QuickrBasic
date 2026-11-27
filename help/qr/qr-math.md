@@ -19,7 +19,7 @@ Vec has x and y, both double, and the operators + - (two Vecs),
 a.dot(b), a.length(), and a.text(), which print spells it by.
 
 ## Example
-    ' OPTION DIALECT QUICKR
+    option dialect quickr
     import math
     let v = math.Vec(3, 4)
     print v.length()

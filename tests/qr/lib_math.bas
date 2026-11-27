@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' math: sqrt .. floor the VM's ops; generics and Vec in Quickr
 import math
 from math import Vec, sqrt

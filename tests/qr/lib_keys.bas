@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' keys: codes; nothing waits headless, and no mouse
 import keys
 from keys import Key

@@ -50,7 +50,7 @@ check 'interface words its own' ' 3 ' \
     'print x'
 
 check 'quickr' "$(printf '5 1\n5')" \
-    "' OPTION DIALECT QUICKR" \
+    "option dialect quickr" \
     'from gfx import display, draw' \
     'import gfx.surface' \
     'let canvas = display.open(8, 4, 8, 0)' \
@@ -60,7 +60,7 @@ check 'quickr' "$(printf '5 1\n5')" \
 
 # pixels() AS BYTE: a ubyte list, and to a native a fixed ubyte array, a record's too
 check 'quickr pixels' "$(printf '7 7 9 200')" \
-    "' OPTION DIALECT QUICKR" \
+    "option dialect quickr" \
     'from gfx import surface' \
     'type Tile' \
     '    px as ubyte[4]' \
@@ -80,6 +80,14 @@ check 'quickr pixels' "$(printf '7 7 9 200')" \
     'var t as Tile' \
     'surface.read(s, 0, 0, 2, 2, t.px)' \
     'print back[3]; " "; surface.point(s, 1, 1); " "; t.px[0]; " "; t.px[1]'
+
+# a Quickr module QBasic imports imports gfx
+printf '%s\n' "option dialect quickr" 'import gfx.display' 'from gfx import surface, draw' \
+    'function paint() as int' '    let c = gfx.display.open(8, 4, 8, 0)' \
+    '    draw.rect(c, 1, 1, 3, 2, 5, 4)' '    return surface.point(c, 2, 2)' 'end function' > "$D/qg.bas"
+check 'quickr module of qbasic' ' 5 ' \
+    'import qg' \
+    'print qg.paint()'
 
 check 'no such part' "$(printf 't.bas:1: File not found\n  import gfx.nosuch\n  ^')" \
     'import gfx.nosuch'

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' time: the clock, TIMER's, and the date
 ' seconds since midnight
 native function ticks() as double

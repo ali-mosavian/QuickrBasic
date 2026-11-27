@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' generic functions: monomorphized per use, checked at instantiation
 type Vec
     x as int

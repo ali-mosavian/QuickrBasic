@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' io: the console; print needs no import
 native function read_line() as string
 ' the cursor to a row and a column, each from 1

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' kept generators as values: copied, passed mut, returned, used by a
 ' lambda, looped; return x the last yield; an inline one's mut
 function upto(n as int) yields int

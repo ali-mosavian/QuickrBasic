@@ -72,7 +72,7 @@ typedef struct {
     QFn *in;
 } QLend;
 
-typedef struct {
+struct QSem {
     QProg *prog;
     QMem *mem;
     QBind *binds;
@@ -106,7 +106,7 @@ typedef struct {
     QScopeAt *at;    /* the last statement's names in sight, QProg.keep */
     QType inst;      /* a generic record's instance being made, its errors named for it */
     const QFn *body; /* the method whose body is inlined, its errors named for it; null none */
-} QSem;
+};
 
 /* The names in sight at a statement: its fn's, a block's, the modules' (QSemKeep's). */
 struct QScopeAt {
@@ -343,7 +343,7 @@ void qsem_stmt(QSem *S, QStmt *s);
 
 /* qsem_decl.c */
 void qsem_consts(QSem *S, const QMod *m);
-void qsem_types(QSem *S);
+void qsem_types(QSem *S, const bool *in);
 void qsem_typed(QSem *S, QType t);
 void qsem_signature(QSem *S, QFn *f);
 bool qsem_isdrop(const QFn *f);
@@ -356,7 +356,8 @@ QType qsem_given_types(QSem *S, QType g, QTypeEx *const *items, uint32_t n, cons
 
 /* qsem_mod.c */
 void qsem_module(QSem *S, uint32_t k);
-void qsem_scopes(QSem *S);
+void qsem_newscopes(QSem *S);
+void qsem_scopes(QSem *S, const bool *in);
 void qsem_exports(QSem *S);
 
 #endif

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' chains: rev() after take, skip and zip; block lambdas
 var a as int[]
 for i in 0..8

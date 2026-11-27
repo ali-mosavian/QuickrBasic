@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 function largest[T](a as T[1000]) as T
     var best = a[0]
     for x in a

@@ -67,12 +67,14 @@ struct Dialect {
 
     /* A text dialect: its lines stored as typed (LF_TEXT), each hook below its own. */
     bool text;
-    const char *mark; /* a file's first line, which makes it this dialect's */
+    const char *mark; /* a file's first statement, which makes it this dialect's */
     const char *help; /* its words' help topics: "KEY word"; KEY alone its own */
     size_t size;      /* its state's bytes in a session (dial_state) */
-    /* Is the line text, len bytes, mark: case aside, spaces after it? */
+    /* Is the line text, len bytes, mark: case aside, spaces around it? */
     bool (*marker)(const char *text, uint32_t len);
-    /* Is the file at path this dialect's: its first line mark? */
+    /* Is the line text, len bytes, no statement: blank, a comment? Only such go before mark. */
+    bool (*blank)(const char *text, uint32_t len);
+    /* Is the file at path this dialect's: its first statement mark? */
     bool (*is_file)(const char *path);
     /* The file at path's lines after the store's, of file file. PFIL_OK, else the DOS error. */
     uint16_t (*read)(Session *S, const char *path, uint16_t file);
@@ -124,10 +126,11 @@ struct Dialect {
     /* The same, its lines in the store: each module its imports name the program's, imported
        by m, as guest_read finds them. */
     void (*guest_find)(Session *S, uint32_t m);
-    /* Each of the QBasic program's modules of this dialect checked, their exports declared as
-       QBasic's, the link's hooks set (comp/link.h). Lenient: an error leaves the exports out, not
-       raised nor said. */
-    void (*guest_declare)(Session *S, bool lenient);
+    /* The QBasic program's modules of this dialect of stage stage (mem/module.h) checked, their
+       exports declared as QBasic's, once those of the stages before are, the QBasic ones' too;
+       after the last, top, the link's hooks set (comp/link.h). Lenient: an error leaves the
+       exports out, not raised nor said. */
+    void (*guest_declare)(Session *S, uint32_t stage, uint32_t top, bool lenient);
     /* The program's declarations made again after a line of another dialect's changed in it;
        null: nothing to make. */
     void (*redeclare)(Session *S);

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' methods: self, mut self, the type's own, enums', generic ones, as values
 type Vec
     x as double

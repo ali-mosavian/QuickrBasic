@@ -64,7 +64,7 @@ Tests: test "name" ... end test; assert c. basic --test FILE.BAS runs
 them.
 
 ## Example
-    ' OPTION DIALECT QUICKR
+    option dialect quickr
     type P
         x as int
         y as int

@@ -180,11 +180,16 @@ bool impt_line(const uint8_t *body, ImptEach *const each, void *const ctx)
     return ok && (impt_scan(body, each, ctx, &ok), true);
 }
 
-/* IMPORT module line: module's code run from its first line, past its LF_TOP. */
+/* IMPORT module line: module's code run from its first line, past its LF_TOP. None: its code
+   runs with the program's own (a Quickr program's Quickr module: qr/qr.c qr_store). */
 static void run(void *const ctx, const uint32_t module)
 {
     Comp *const C = ctx;
     const uint32_t top = modu_top_of(C->modu, module);
+
+    if (!top)
+        return;
+
     Node *const n = comp_xop(C, X_IMPORT);
     comp_dword(n, module);
     comp_dword(n, top + prog_line(C->prog, top)->len);

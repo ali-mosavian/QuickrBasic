@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' text: INSTR, UCASE$, LTRIM$ .. as entries; split, join, Builder in Quickr
 import text
 let s = "  Hello, World  "

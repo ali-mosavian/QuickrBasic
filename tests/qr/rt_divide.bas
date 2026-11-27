@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' a runtime error: its line and message
 var zero = 0
 print "before"

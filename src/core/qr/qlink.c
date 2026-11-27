@@ -16,9 +16,11 @@
  * (link_resolve): its variables placed, its jumps found.
  */
 #include "qr/qlink.h"
+#include "comp/bind.h"
 #include "comp/blocks.h"
 #include "comp/control.h"
 #include "comp/declare.h"
+#include "comp/export.h"
 #include "comp/frame.h"
 #include "comp/link.h"
 #include "mem/alloc.h"
@@ -242,8 +244,8 @@ static void qlink_wordsof(
 /* Each record, tuple and enum with data a TYPE: each numbered, then laid out, its words found. */
 static void qlink_types(Comp *const C, const QProg *const p, QMem *const m)
 {
-    for (uint32_t i = 0; i < p->tys.n; i++)
-        if (qast_record(p, QY_FIRST + i) && !p->tys.at[i].foreign)
+    for (uint32_t i = 0; i < p->tys.n; i++) /* a stage's before have theirs (qr/qr.c) */
+        if (qast_record(p, QY_FIRST + i) && !p->tys.at[i].foreign && !p->tys.at[i].td)
             p->tys.at[i].td =
                 decl_newtype(C->decl, C->symb, qlink_name(C->symb, p->tys.at[i].name));
 
@@ -267,7 +269,7 @@ static void qlink_types(Comp *const C, const QProg *const p, QMem *const m)
     for (uint32_t i = 0; i < p->tys.n; i++) {
         QTy *const y = &p->tys.at[i];
 
-        if (!qast_record(p, QY_FIRST + i) || y->kind == QT_MAP)
+        if (!qast_record(p, QY_FIRST + i) || y->kind == QT_MAP || y->word)
             continue;
 
         y->word = qast_alloc(m, QAST_WORDS);
@@ -293,21 +295,28 @@ static bool qlink_none(const QProg *const p, const QFn *const f)
            (f->test && !p->testing);
 }
 
-/* The module token t is in: a QBasic program's guest's (mem/module.h), else 0. */
+/* Does QBasic call the fn token t names (QMod.called)? */
+static bool qlink_called(const QProg *const p, const QTok *const t)
+{
+    return t && t->line < p->src.nlines && p->mods[p->src.lines[t->line].mod].called;
+}
+
+/* The module of the fn token t names: one QBasic calls's (mem/module.h), else 0. */
 static uint32_t qlink_modu(const QProg *const p, const QTok *const t)
 {
-    return p->guest && t && t->line < p->src.nlines ? p->mods[p->src.lines[t->line].mod].modu : 0;
+    return qlink_called(p, t) ? p->mods[p->src.lines[t->line].mod].modu : 0;
 }
 
 /* Each fn checked a procedure, a generic's instances but not it; its parameters and result
-   linked in qlink_vars. A QBasic program's guest's: named in its module, called as a FUNCTION
-   or a SUB from its first line (PF_FOREIGN), a record's result its last parameter (PF_RESARG). */
+   linked in qlink_vars. One QBasic calls: named in its module, called as a FUNCTION or a SUB from
+   its first line (PF_FOREIGN), a record's result its last parameter (PF_RESARG). */
 static void qlink_procs(Comp *const C, const QProg *const p)
 {
     for (QFn *f = p->fns; f; f = f->next) {
         if (qlink_none(p, f))
             continue;
 
+        const bool qb = qlink_called(p, f->name);
         Proc *const pr = blok_add_proc(C->blok, C->fault);
         const uint32_t m = qlink_modu(p, f->name);
         f->proc = C->blok->procs.n - 1;
@@ -316,13 +325,13 @@ static void qlink_procs(Comp *const C, const QProg *const p)
         symb_name(C->symb, name)->proc = f->proc;
         *pr = (Proc){
             .name = name,
-            .kind = f->result == QY_VOID || (f->byarg && !p->guest) ? PK_SUB : PK_FUNC,
+            .kind = f->result == QY_VOID || (f->byarg && !qb) ? PK_SUB : PK_FUNC,
             .first = p->src.lines[f->def->line].at,
             .last = p->src.lines[f->end->line].at,
             .npar = (uint16_t)(qlink_npar(f) + f->byarg),
         };
 
-        if (p->guest)
+        if (qb)
             *pr = (Proc){
                 .name = pr->name,
                 .kind = pr->kind,
@@ -459,6 +468,7 @@ static void qlink_vars(Comp *const C, const QProg *const p)
             continue;
 
         Proc *const pr = btab_at(&C->blok->procs, f->proc);
+        const bool qb = qlink_called(p, f->name);
         const uint32_t n = pr->npar;
         pr->result = f->res && !f->byarg ? f->res->id : 0;
         pr->params = arena_alloc(&C->blok->arena, (n ? n : 1) * sizeof *pr->params);
@@ -471,10 +481,9 @@ static void qlink_vars(Comp *const C, const QProg *const p)
                 at++;
 
             const uint32_t id = at < f->npar ? f->params[at].var->id : f->res->id;
-            pr->params[k] =
-                (Param){.var = id, .byval = p->guest && at < f->npar && !f->params[at].mut};
+            pr->params[k] = (Param){.var = id, .byval = qb && at < f->npar && !f->params[at].mut};
 
-            if (p->guest && at < f->npar) /* QBasic's by reference: its variable's type exactly */
+            if (qb && at < f->npar) /* QBasic's by reference: its variable's type exactly */
                 qlink_typed(symb_var(sy, id), f->params[at].var->type);
 
             symb_varx(sy, id)->par = 1;
@@ -779,19 +788,31 @@ static void qlink_resolve(Comp *const C, const QProg *const p)
     }
 }
 
-void qlink_program(Comp *const C, QProg *const p, QMem *const m, const bool dbg)
+void qlink_program(
+    Comp *const C,
+    QProg *const p,
+    QMem *const m,
+    const Exports *const ex,
+    const bool dbg
+)
 {
     bool qb = false; /* QBasic modules: blocks paired, procedures made (comp/link.h link_prepare) */
 
     for (uint32_t k = 0; k < p->nmods; k++)
         qb |= p->mods[k].ex != nullptr;
 
-    if (!qb)
+    if (qb)
+        link_prepare(C);
+    else
         blok_reset(C->blok, C->fault);
 
     qlink_foreign(C, p);
     qlink_types(C, p, m);
-    const QStmt *const *const of = qlink_guest_made(C, p, m);
+    const QStmt *const *const of = qlink_guest_made(C, p, m, ex);
+
+    if (qb) /* each QBasic import's name of a Quickr fn: its procedure */
+        bind_procs(C->symb);
+
     qlink_lines(C, p, m, of, dbg, qb);
 
     if (qb)
@@ -817,11 +838,42 @@ void qlink_program(Comp *const C, QProg *const p, QMem *const m, const bool dbg)
 
 void qlink_guest_types(Comp *const C, const QProg *const p, QMem *const m) { qlink_types(C, p, m); }
 
-const QStmt *const *qlink_guest_made(Comp *const C, const QProg *const p, QMem *const m)
+/* The exports ex of each module QBasic calls (by number): its consts literals; each fn QBasic
+   can't call a procedure of no entry, an error where called (comp/refs.c). */
+static void qlink_exports(Comp *const C, const QProg *const p, QMem *const m, const Exports *ex)
 {
+    for (uint32_t k = 1; k < p->nmods; k++)
+        if (p->mods[k].called)
+            expo_literals(C, p->mods[k].modu, &ex[k], &m->arena);
+
+    for (uint32_t k = 1; k < p->nmods; k++)
+        for (uint32_t i = 0; p->mods[k].called && i < ex[k].nprocs; i++) {
+            const ExpProc *const e = &ex[k].procs[i];
+
+            if (!e->why)
+                continue;
+
+            const uint32_t n =
+                symb_find_name(C->symb, p->mods[k].modu, (const uint8_t *)e->name, (uint8_t)e->len);
+            Proc *const pr = blok_add_proc(C->blok, C->fault);
+            *pr = (Proc){.name = n, .kind = PK_SUB, .flags = PF_FOREIGN};
+
+            symb_name(C->symb, n)->proc = C->blok->procs.n - 1;
+        }
+}
+
+const QStmt *const *qlink_guest_made(
+    Comp *const C,
+    const QProg *const p,
+    QMem *const m,
+    const Exports *const ex
+)
+{
+    qlink_foreign(C, p); /* its QBasic imports' procedures */
     qlink_procs(C, p);
     qlink_vars(C, p);
     symb_size(C->symb, 0);
+    qlink_exports(C, p, m, ex);
 
     const QStmt **const of = qast_alloc(m, (p->src.nlines ? p->src.nlines : 1) * sizeof *of);
 

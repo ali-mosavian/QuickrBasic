@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 function steps(n as int) yields int
     var x = n
     while x <> 1

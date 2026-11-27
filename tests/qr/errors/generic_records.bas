@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' generic records: their errors; a method is checked for an instance once called
 type Vec
     x as int

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' a cycle: ping and pong call each other
 import pong
 function ping(n as int) as int

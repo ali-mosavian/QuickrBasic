@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' records holding lists: built, copied, in lists, returned
 type Bag
     name as string

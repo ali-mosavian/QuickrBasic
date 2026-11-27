@@ -62,7 +62,7 @@ import basic_src
 
 ROOT = Path(__file__).resolve().parent.parent
 SUITE = ROOT / "tools/bench"
-QUICKR = "' OPTION DIALECT QUICKR\n"  # a Quickr file's first line
+QUICKR = "option dialect quickr\n"  # a Quickr file's first line
 QR = SUITE / "qr"  # QBasic twins, NAME.bas, of Quickr's cases, quickr/NAME.bas
 BASELINE = SUITE / "baseline.json"
 REVS = ROOT / "build/bench"

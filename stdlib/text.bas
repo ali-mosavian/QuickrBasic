@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' text: searching, cases, splitting and joining strings
 native function find(s as string, sub as string) as int
 native function find_from(s as string, sub as string, start as int) as int

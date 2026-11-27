@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 var m as dict[int, int]
 for i in 0..4000
     m[i * 7919] = i

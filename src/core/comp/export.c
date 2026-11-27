@@ -49,8 +49,6 @@ static const char *expo_field_why(const Decl *const d, const Field *const f, con
 
     if (f->et == ET_SD && f->fix)
         return "a fixed-length string field";
-    if (f->et == ET_BY)
-        return "a BYTE field";
 
     return nullptr;
 }

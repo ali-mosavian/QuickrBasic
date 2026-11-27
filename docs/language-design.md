@@ -12,7 +12,7 @@ the note says what.
 ## A program
 
 ```basic
-' OPTION DIALECT QUICKR
+option dialect quickr
 from keys import Key
 from math import Vec
 import keys
@@ -50,9 +50,10 @@ wend
 
 ## Choosing the dialect
 
-- Files are `.bas` in both dialects. A Quickr file's first line is `' OPTION DIALECT QUICKR`
-  (case aside), a comment to QBasic; a file without it is QBasic's. The line is the file's line 1,
-  required in every Quickr file, modules too. Nothing else is guessed from a file's contents.
+- Files are `.bas` in both dialects. A Quickr file's first statement is `option dialect quickr`
+  (case aside): a statement, not a comment. Only blank lines and comments go before it. A file
+  without it is QBasic's. It is required in every Quickr file, modules too. Nothing else is guessed
+  from a file's contents.
 - File > New asks which, and a Quickr program starts with that line, which the editor keeps as it
   is. The status bar shows the program's dialect. `basic` runs either.
 - A file of either dialect imports modules of the other: see [Interop](#interop).
@@ -873,7 +874,7 @@ end function
 
 - A file is a module and a folder is a package, found as QBasic's `IMPORT` finds one (the main
   file's folder, each folder of `BASICLIB`, then `lib/` beside the interpreter), as a `.bas`.
-  One whose first line is not Quickr's is a QBasic module: see [Interop](#interop).
+  One whose first statement is not Quickr's mark is a QBasic module: see [Interop](#interop).
 - `import m`, `import m as n`, `import a.b` (then `a.b.f()`), `from a.b import X, Y as Z`,
   `from pkg import m` (a package's module) and relative `from .feet import Land`: `.` is the
   importing file's folder, `..` its parent. An import goes at the top level.
@@ -902,23 +903,26 @@ end function
 - A QBasic name matches case aside and without its suffix: `FUNCTION Area!(w!)` is `shapes.area`.
   Two that match one name are an error where it is used.
 - Types: INTEGER and LONG are `int`, both 32 bits; SHORT is `short`, SINGLE `single`, DOUBLE
-  `double`, STRING `string`, a TYPE a record of the same fields. A TYPE's array field from 0 is a
+  `double`, STRING `string`, BYTE `ubyte` in a field or an array, a TYPE a record of the same
+  fields. A TYPE's array field from 0 is a
   fixed array, `heights(7) AS INTEGER` an `int[8]`; a dynamic one, `tags() AS STRING`, a list.
 - A parameter by reference takes a `var`'s place, and the `var` sees the change. Any other
   argument, a `let`'s too, goes as a copy. A BYVAL parameter is by value.
 - An array parameter takes a list by reference. QBasic sees the list's length as its bounds, from 0,
-  and a REDIM of it changes the list. A BYTE array is a `ubyte` list. A native's takes a fixed
+  and a REDIM of it changes the list. A native's takes a fixed
   array too, `var px as ubyte[16]`, as it can't REDIM.
 - What Quickr has no equal for is an error where it is used, naming why, never at the import: a
-  fixed-length string, a BYTE that is not an array, an array field of two dimensions or not from 0.
+  fixed-length string, a BYTE parameter or result that is not an array, an array field of two
+  dimensions or not from 0.
 - A native module, a `.qbx`, is imported as a QBasic one: `from synth import note`.
 - A QBasic module's code runs at its first import, as in QBasic.
 - A QBasic file imports a Quickr module: `IMPORT shapes`, then `shapes.area(2, 3)`, or `FROM
   shapes IMPORT area`. Its functions are SUBs and FUNCTIONs, its records TYPEs, its consts CONSTs,
   the private ones aside. Its methods are not seen. A string const longer than 255 bytes is not
   exported.
-- Types back: `int` is LONG, `short` SHORT, `single`, `double` and `string` the same, `bool`
-  INTEGER, true -1 in both, a record a TYPE, its fixed arrays and lists array fields. A `mut`
+- Types back: `int` is LONG, `short` SHORT, `ubyte` BYTE in a field or a list, `single`, `double`
+  and `string` the same, `bool` INTEGER, true -1 in both, a record a TYPE, its fixed arrays and
+  lists array fields. A `mut`
   parameter is by reference, any other by value.
 - A list parameter takes an array of one dimension from 0, by reference: a `mut` one's push and
   pop change its bounds. Any other array is Subscript out of range where passed; a fixed array
@@ -926,7 +930,9 @@ end function
 - Any other type in a function's parameters or result, or in a record's fields, makes it an error
   where QBasic uses it.
 - QBasic matches names case aside: two exports that differ only so are an error at the IMPORT.
-- A module of the other dialect imports only modules of its own dialect.
+- Modules of either dialect import modules of either, in a program of either: the dialects cross
+  any number of times on a path. A module is checked once every module it imports is, so a record
+  crosses both ways.
 - A runtime error names the file and line of the code it is in, either dialect's. QBasic's `ON
   ERROR` catches one raised in the Quickr code it calls.
 - **In the VM**, a call across is a call within one dialect: the same PCALL, records and strings,

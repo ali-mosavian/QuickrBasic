@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' a runtime error in an instance: the generic's own line
 function at[T](a as T[], i as int) as T
     return a[i]

@@ -945,13 +945,18 @@ static void link_natives(Comp *const C)
     }
 }
 
-void link_prepare(Comp *const C)
+void link_paired(Comp *const C)
 {
     fold_clear(C);
     blok_pair(C->blok, C->prog, C->symb, C->fault);
     symb_size(C->symb, C->blok->nnames);
     decl_defevents(C->decl, C->scop, C->symb, C->prog); /* the typed lines' DEFtypes too */
     link_procvars(C);
+}
+
+void link_prepare(Comp *const C)
+{
+    link_paired(C);
     link_natives(C);
 
     /* room for the code first, by the store's size (a large program's code is about 0.9 of it):

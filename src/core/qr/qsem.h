@@ -4,8 +4,14 @@
 #include "qr/qast.h"
 
 /* p's tree made valid: each name resolved, each type checked, conversions made explicit, constants
-   folded; its variables on p->vars. Each error to p->errs: a tree without one compiles. */
-void qsem_program(QProg *p, QMem *m);
+   folded; its variables on p->vars. Each error to p->errs: a tree without one compiles. By stages,
+   for modules of two dialects that import each other's: begun, then each stage's modules (in, by
+   module number) checked once the stages' before are, a QBasic one's exports bound (QMod.ex),
+   then ended. */
+typedef struct QSem QSem;
+QSem *qsem_start(QProg *p, QMem *m);
+void qsem_check(QSem *S, const bool *in);
+void qsem_finish(QSem *S);
 /* Statement s, a probe's, checked where the names at are in sight (QStmt.at; null the modules'
    alone), p checked with keep: false an error, to p->errs. Its new variables after p's. */
 bool qsem_probe(QProg *p, QMem *m, const QScopeAt *at, QStmt *s);

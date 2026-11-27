@@ -1,3 +1,0 @@
-quick.bas:2:8: plain is a QBasic module: a Quickr module QBasic imports imports only Quickr ones
-  import plain
-         ^

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' while, for to b and b included, for over a range (not including its end), do; break and continue
 var i = 0
 while i < 3

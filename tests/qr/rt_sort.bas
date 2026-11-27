@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' a.sort(less): records by a field, stable, by a block lambda
 ' and a function; a.sort() by value: ints, uints, longs, doubles,
 ' strings, a fixed array field; a compare's error raised

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' keys: the keyboard, as INKEY$ reads it, and the mouse, as PEN does
 ' The platforms report presses and their repeats, never a release: down(k) holds for
 ' held_for seconds after k's last press or repeat.

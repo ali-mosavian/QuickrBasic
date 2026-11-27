@@ -15,7 +15,7 @@ The same seed gives the same numbers, run after run. Seed with
 time.ticks() for a different sequence each run.
 
 ## Example
-    ' OPTION DIALECT QUICKR
+    option dialect quickr
     import random
     import time
     random.seed(time.ticks())

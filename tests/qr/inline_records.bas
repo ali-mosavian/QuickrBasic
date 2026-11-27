@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' records in cells: a frame's own in each call, a module's, fields
 ' at every offset, copies and borrows by address; fields after a
 ' narrow one; a record whose fields are all strings; narrow fields

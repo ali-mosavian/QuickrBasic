@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' chains: used up where made, steps' and ends' values, rev's place, a block
 ' lambda's result, borrowing
 var a as int[]

@@ -137,9 +137,10 @@ only through its table. `io/dialect.c` lists the tables in `DIALECTS(X)`, QBasic
 - **Every other dialect is a text dialect:** its lines are stored as typed (`LF_TEXT`), so the
   editor, an error's place and the debugger still work line by line. Quickr's table is in
   `qr/qr.c`.
-- **Which dialect:** a text dialect's file starts with its mark, such as
-  `' OPTION DIALECT QUICKR`. `dial_of_file`, `dial_program` and `dial_line` read the mark from a
-  path, the program's first record, or a line's file. A QBasic program's module of another dialect
+- **Which dialect:** a text dialect's file's first statement is its mark, such as
+  `option dialect quickr`; only blank lines and comments go before it. `dial_of_file`,
+  `dial_program` and `dial_line` read the mark from a path, the program's first file, or a line's
+  file. A QBasic program's module of another dialect
   keeps a pointer to its table.
 - **State:** a dialect's state is `Dial`'s, made on first use from the C side's heap. `Session`
   holds no dialect's types.
@@ -161,8 +162,11 @@ only through its table. `io/dialect.c` lists the tables in `DIALECTS(X)`, QBasic
   front end exports its own modules and imports the other's. A QBasic program reads a module of
   another dialect through `guest_read`, then declares its exports through `guest_declare`, which
   sets the link's `LinkGuest` hooks; the editor's relink finds its imports again through
-  `guest_find`. A Quickr program's QBasic modules are read and declared by `repl_guests` (a file
-  run) or `repl_guests_stored` (the editor's). A call across is a plain `PCALL`, with no
+  `guest_find`. A Quickr program's QBasic modules are read by `repl_guests` (a file run) or
+  `repl_guests_stored` (the editor's), and declared by `repl_declare_stage`. Either way the
+  program is declared by stages (`modu_stages`): a module's stage is the most dialect crossings on
+  its imports' paths, and a stage's modules are declared and checked after the stage before's
+  exports are declared. A call across is a plain `PCALL`, with no
   marshalling; a native procedure's is `CALL NCALL` (see [Native extensions](#native-extensions)).
 
 **A new dialect** is:

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' one-line if and block if / elseif / else
 function grade(n as int) as string
     if n >= 90 then

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' tuples: results, let q, r = .., a, b = b, a
 function divmod(a as int, b as int) as (int, int)
     return a div b, a mod b
