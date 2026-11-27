@@ -11,9 +11,11 @@ enum : uint32_t {
     REGISTER_AT = 1,
     MASK_AT = 15,
     PICKED = 14,
-    /* triangles' corners: three each, their count from the 7th bit, sSetupMode's from the 11th,
-       the colour packed */
+    /* triangles' corners: three each, or a fan's, its first corner beginning it and sSetupMode's
+       fan bit from the 23rd; their count from the 7th bit, sSetupMode's from the 11th, the colour
+       packed */
     CORNERS = 3,
+    FAN = 1u << 3 | 1u << 22,
     CORNERS_AT = 6,
     MODE_AT = 10,
     PACKED = 1u << 28,
@@ -126,14 +128,15 @@ void cmdfifo_corners(
     const uint32_t words,
     const uint32_t *const v,
     const uint32_t stride,
-    const uint32_t n
+    const uint32_t n,
+    const bool fan
 )
 {
     reserved(f, n * words + 1);
 
     volatile uint32_t *to = (volatile uint32_t *)(f->ring + written(f));
 
-    *to++ = n << CORNERS_AT | mode << MODE_AT | PACKED | CORNERS;
+    *to++ = n << CORNERS_AT | (mode & 0xFF) << MODE_AT | (fan ? FAN : 0) | PACKED | CORNERS;
 
     for (uint32_t k = 0; k < n; k++) {
         const uint32_t *const corner = v + k * stride;

@@ -72,6 +72,8 @@ enum : uint32_t {
     SST_UNIT_Z = 1u << 2,
     SST_UNIT_W0 = 1u << 4,
     SST_UNIT_ST0 = 1u << 5,
+    SST_UNIT_FAN =
+        1u << 16, /* a fan: its first corner kept, each corner after drawn with the last */
 };
 
 /* status: the FIFO's room, and what is busy. */

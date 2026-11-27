@@ -122,7 +122,7 @@ TEST(tdfx_corners_move_and_pack_each_corner)
     TdfxTriangle t;
     TdfxVertex c[3];
 
-    tdfx_corners(v, &d, c);
+    tdfx_corners(v, 3, &d, c);
     CHECK(tdfx_setup(v, &d, &t));
     CHECK(c[0].word[TDFX_VX] == t.word[4] && c[0].word[TDFX_VY] == t.word[5]);
     CHECK(c[2].word[TDFX_VX] == t.word[0] && c[2].word[TDFX_VY] == t.word[1]);
@@ -149,7 +149,7 @@ TEST(tdfx_corners_share_alpha_exactly)
 
             TdfxVertex c[3];
 
-            tdfx_corners(v, &d, c);
+            tdfx_corners(v, 3, &d, c);
             CHECK(c[0].word[TDFX_VARGB] >> 24 == a * share / 255);
         }
 }
@@ -570,7 +570,7 @@ static TdfxVertex solid_at(const float ox, const float oy)
 
     TdfxVertex v[3];
 
-    tdfx_corners(TRIANGLE, &d, v);
+    tdfx_corners(TRIANGLE, 3, &d, v);
     return v[2];
 }
 
@@ -589,7 +589,7 @@ static bool solid_in(const uint8_t *const regs, const TdfxVertex *const c)
         if (loaded(regs + SST_FVERTEX + 4 * i))
             return false;
 
-    return loaded(regs + SST_SETUP_MODE) == tdfx_unit_mode(params);
+    return (loaded(regs + SST_SETUP_MODE) & ~SST_UNIT_FAN) == tdfx_unit_mode(params);
 }
 
 static void stored_at(uint8_t *const at, const uint32_t v) { memcpy(at, &v, sizeof v); }
@@ -601,7 +601,42 @@ typedef struct {
     uint8_t *ring, *read, *registers, *texels, *frame;
     uint32_t at, ported;
     uint32_t written[4096][2], writes; /* each register written and its word, in order */
+    /* the setup unit's: its corners' x, how old each, the next's age and those taken; each
+       triangle it drew, its corners' x; the corners sent */
+    uint32_t corner[3], age[3], next, taken;
+    uint32_t drawn[64][3], triangles, corners;
 } Fifo;
+
+/* Corner x to the setup unit, beginning or drawing, as 86Box takes it: a strip's replacing its
+   oldest, a fan's its second oldest, its first kept; a triangle drawn of each three. */
+static void cornered_unit(Fifo *const f, const uint32_t x, const bool begins, const bool fan)
+{
+    uint32_t at = f->next;
+
+    f->corners++;
+
+    if (begins) {
+        f->corner[0] = f->corner[1] = f->corner[2] = x;
+        f->next = f->age[0] = 0;
+        f->next++;
+        f->taken = 1;
+        return;
+    }
+
+    if (at >= 3) {
+        const uint32_t *const a = f->age;
+        const uint32_t oldest = a[0] < a[1] && a[0] < a[2] ? 0 : a[1] < a[2] ? 1 : 2;
+        const uint32_t youngest = a[0] > a[1] && a[0] > a[2] ? 0 : a[1] > a[2] ? 1 : 2;
+
+        at = fan ? 3 - oldest - youngest : oldest;
+    }
+
+    f->corner[at] = x;
+    f->age[at] = f->next++;
+
+    if (++f->taken >= 3 && f->triangles < 64)
+        memcpy(f->drawn[f->triangles++], f->corner, sizeof f->corner);
+}
 
 /* The word at the ring's *at, taken: cleared, so a zero is a word not written. */
 static uint32_t taken(const Fifo *const f, uint32_t *const at)
@@ -661,14 +696,18 @@ static void corners_written(Fifo *const f, const uint32_t head, uint32_t *const 
 {
     enum : uint32_t { MODE = 0x260, X = 0x264, ARGB = 0x26C, Z = 0x280, W0 = 0x288, DRAW = 0x2A0 };
 
-    const uint32_t mode = head >> 10 & 0xFF;
+    const uint32_t mode = head >> 10 & 0xFF, smode = head >> 22 & 0xF, kind = head >> 3 & 7;
 
-    CHECK(head & 1u << 28 && !(mode & ~0x37u));
-    register_written(f, MODE, mode);
+    CHECK(head & 1u << 28 && !(mode & ~0x37u) && kind <= 1 && smode <= 1);
+    register_written(f, MODE, mode | smode << 16);
 
     for (uint32_t k = 0; k < (head >> 6 & 0xF); k++) {
-        register_written(f, X, taken(f, at));
+        const uint32_t x = taken(f, at);
+        const bool begins = kind ? !k : !(k % 3);
+
+        register_written(f, X, x);
         register_written(f, X + 4, taken(f, at));
+        cornered_unit(f, x, begins, smode & 1);
 
         if (mode & 1)
             register_written(f, ARGB, taken(f, at));
@@ -679,7 +718,7 @@ static void corners_written(Fifo *const f, const uint32_t head, uint32_t *const 
         for (uint32_t i = 0; mode & 0x30 && i < 3; i++)
             register_written(f, W0 + 4 * i, taken(f, at));
 
-        register_written(f, k % 3 ? DRAW : DRAW + 4, 0);
+        register_written(f, begins ? DRAW + 4 : DRAW, 0);
     }
 }
 
@@ -1114,6 +1153,61 @@ TEST(tdfx_h3_writes_registers_through_the_command_fifo)
     h3_closed(d);
 }
 
+/* A quad's two triangles, a, b, c and a, c, d, as gfx draws a sprite. */
+static const AccelVertex QUAD[6] = {
+    {10, 10, 0, 1, 0, 0, 0xFFFFFFFF},
+    {50, 10, 0, 1, 0, 0, 0xFFFFFFFF},
+    {50, 40, 0, 1, 0, 0, 0xFFFFFFFF},
+    {10, 10, 0, 1, 0, 0, 0xFFFFFFFF},
+    {50, 40, 0, 1, 0, 0, 0xFFFFFFFF},
+    {10, 40, 0, 1, 0, 0, 0xFFFFFFFF},
+};
+
+/* Whether the setup unit drew corners x a, b and c, in any order. */
+static bool drew(const uint32_t t[3], const uint32_t a, const uint32_t b, const uint32_t c)
+{
+    const uint32_t want[3] = {a, b, c};
+
+    uint32_t seen = 0;
+
+    for (uint32_t i = 0; i < 3; i++)
+        for (uint32_t k = 0; k < 3; k++)
+            if (!(seen >> k & 1) && t[i] == want[k]) {
+                seen |= 1u << k;
+                break;
+            }
+
+    return seen == 7;
+}
+
+/* A quad's two triangles go to the setup unit as one fan of four corners: the same two drawn
+   from two thirds of the corners, each corner packed and written once. */
+TEST(tdfx_h3_sends_a_quad_as_one_fan)
+{
+    AccelCard card;
+    const AccelDriver *const d = h3_opened(&card);
+
+    CHECK(d);
+    d->state(&SOLID);
+    h3_played();
+    h3.fifo.triangles = h3.fifo.corners = 0;
+    d->triangles(QUAD, 6);
+    h3_played();
+
+    union {
+        float f;
+        uint32_t u;
+    } x[3];
+
+    x[0].f = 10 + 0.5f + 160;
+    x[1].f = 50 + 0.5f + 160;
+    x[2].f = 10 + 0.5f + 160;
+    CHECK(h3.fifo.corners == 4 && h3.fifo.triangles == 2);
+    CHECK(drew(h3.fifo.drawn[0], x[0].u, x[1].u, x[1].u));
+    CHECK(drew(h3.fifo.drawn[1], x[0].u, x[1].u, x[2].u));
+    h3_closed(d);
+}
+
 /* Its frame memory write-combined, the card reads the ring's words only once fenced: each wait on
    it fences first. A frame shown waits on the last's swap; unfenced, it would wait till the time
    out, 100 ms a frame. */
@@ -1388,7 +1482,8 @@ TEST(tdfx_cvg_sends_one_colour_by_its_corners)
     CHECK(d);
     d->state(&MIXED);
     d->triangles(ONE_COLOUR, 3);
-    CHECK(word_at(SST_SETUP_MODE) == (SST_UNIT_RGB | SST_UNIT_ALPHA) && word_at(SST_COLOUR0) == 0);
+    CHECK(word_at(SST_SETUP_MODE) == (SST_UNIT_RGB | SST_UNIT_ALPHA | SST_UNIT_FAN));
+    CHECK(word_at(SST_COLOUR0) == 0);
     CHECK(word_at(SST_CORNER + 4 * TDFX_VARGB) == 0x80608020);
     CHECK(word_at(SST_FBZ_COLOUR_PATH) == (SST_PATH_COLOUR | SST_PATH_ADJUST));
     d->close();

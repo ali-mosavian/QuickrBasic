@@ -220,11 +220,20 @@ static void put(
     cmdfifo_registers(&h3.queue, reg, p->mask, v);
 }
 
-static void cornered(Tdfx *const c, const TdfxVertex *const v, const uint32_t n)
+static void cornered(Tdfx *const c, const TdfxVertex *const v, const uint32_t n, const bool fan)
 {
     const TdfxWay *const w = c->way;
 
-    cmdfifo_corners(&h3.queue, w->mode, w->corner.at, w->corner.n, v->word, TDFX_VERTEX_WORDS, n);
+    cmdfifo_corners(
+        &h3.queue,
+        w->mode,
+        w->corner.at,
+        w->corner.n,
+        v->word,
+        TDFX_VERTEX_WORDS,
+        n,
+        fan
+    );
 }
 
 static uint32_t based(const Tdfx *const c, const uint32_t at)

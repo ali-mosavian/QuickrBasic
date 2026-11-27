@@ -49,12 +49,12 @@ uint32_t tdfx_params(const AccelState *const s, const bool texel)
            (s->depth ? 1u << TDFX_Z : 0) | (texel ? TEXEL : 0);
 }
 
-/* W's scale for v's corners: the largest q made 1, a 2D draw's q of 1 left undivided. */
-static float w_scale(const AccelVertex v[3])
+/* W's scale for v's n corners: the largest q made 1, a 2D draw's q of 1 left undivided. */
+static float w_scale(const AccelVertex *const v, const uint32_t n)
 {
     float most = v[0].q;
 
-    for (uint32_t i = 1; i < 3; i++)
+    for (uint32_t i = 1; i < n; i++)
         most = v[i].q > most ? v[i].q : most;
 
     return reciprocal(most);
@@ -139,7 +139,7 @@ bool tdfx_setup(const AccelVertex v[3], const TdfxDraw *const d, TdfxTriangle *c
         swap = p[0], p[0] = p[1], p[1] = swap;
 
     const uint32_t params = d->params, still = alike(v, params);
-    const float k = params & TEXEL ? w_scale(v) : 1;
+    const float k = params & TEXEL ? w_scale(v, 3) : 1;
 
     float x[3], y[3], at[3][TDFX_PARAMS];
 
@@ -264,12 +264,17 @@ uint32_t tdfx_run(
     return k;
 }
 
-void tdfx_corners(const AccelVertex v[3], const TdfxDraw *const d, TdfxVertex out[3])
+void tdfx_corners(
+    const AccelVertex *const v,
+    const uint32_t n,
+    const TdfxDraw *const d,
+    TdfxVertex *const out
+)
 {
     const uint32_t params = d->params;
-    const float k = params & TEXEL ? w_scale(v) : 1;
+    const float k = params & TEXEL ? w_scale(v, n) : 1;
 
-    for (uint32_t i = 0; i < 3; i++) {
+    for (uint32_t i = 0; i < n; i++) {
         const AccelVertex *const c = &v[i];
         uint32_t *const w = out[i].word;
 

@@ -87,9 +87,9 @@ bool tdfx_setup(const AccelVertex v[3], const TdfxDraw *d, TdfxTriangle *out);
 uint32_t tdfx_unit_mode(uint32_t params);
 /* A corner's words sent for params, a bit each, its commands aside. */
 uint32_t tdfx_corner_sent(uint32_t params);
-/* v's corners as d draws them, for the setup unit: the words tdfx_corner_sent picks, the commands'
-   0. */
-void tdfx_corners(const AccelVertex v[3], const TdfxDraw *d, TdfxVertex out[3]);
+/* v's n corners as d draws them, for the setup unit, w scaled alike: the words tdfx_corner_sent
+   picks, the commands' 0. */
+void tdfx_corners(const AccelVertex *v, uint32_t n, const TdfxDraw *d, TdfxVertex *out);
 /* colour as the card takes it, ARGB, its alpha times share over 255. */
 uint32_t tdfx_argb(uint32_t colour, uint8_t share);
 /* The triangles from v's first, of n, sent one way: all of the first's colour, as params reads

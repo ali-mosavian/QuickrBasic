@@ -185,8 +185,8 @@ static void sent(Tdfx *const c)
     tdfx_put(c, SST_ALPHA_MODE, w.alpha_mode);
     tdfx_put(c, SST_FBZ_MODE, w.fbz_mode);
 
-    if (family->unit)
-        tdfx_put(c, SST_SETUP_MODE, c->way->mode);
+    if (family->unit) /* a fan's corners and three a triangle alike: each triangle begins */
+        tdfx_put(c, SST_SETUP_MODE, c->way->mode | SST_UNIT_FAN);
 
     if (texel) {
         tdfx_put(c, SST_TMU0 + SST_TEXTURE_MODE, w.texture_mode);
@@ -434,16 +434,33 @@ static void ACCEL_CALL stated(const AccelState *const s)
 
 /* n corners to the setup unit's registers, each its words and a command: the first of three
    beginning a triangle, the others drawing it. */
-static void cornered(Tdfx *const c, const TdfxVertex *const v, const uint32_t n)
+static void cornered(Tdfx *const c, const TdfxVertex *const v, const uint32_t n, const bool fan)
 {
     const TdfxWay *const w = c->way;
 
     for (uint32_t i = 0; i < n; i++)
-        c->chip->put(c, SST_CORNER, i % 3 ? &w->draws : &w->begins, v[i].word);
+        c->chip->put(c, SST_CORNER, (fan ? i : i % 3) ? &w->draws : &w->begins, v[i].word);
 }
 
-/* n triangles from v drawn w's way: by the setup unit, BATCH a time, as many as a PKT3 takes; else
-   worked out here. */
+/* Whether corners a and b are the same, word for word: as integers, not the FPU's compares. */
+static bool same(const AccelVertex *const a, const AccelVertex *const b)
+{
+    enum { WORDS = sizeof *a / sizeof(uint32_t) };
+
+    const uint32_t *const x = (const uint32_t *)a, *const y = (const uint32_t *)b;
+
+    for (uint32_t i = 0; i < WORDS; i++)
+        if (x[i] != y[i])
+            return false;
+
+    return true;
+}
+
+/* Whether triangles t and the next are a quad, a, b, c and a, c, d: one fan of four corners. */
+static bool quad_of(const AccelVertex t[6]) { return same(&t[3], &t[0]) && same(&t[4], &t[2]); }
+
+/* n triangles from v drawn w's way: by the setup unit, a quad's two as a fan, the rest BATCH a
+   time, as many as a PKT3 takes; else worked out here. */
 static void drawn_by(
     Tdfx *const c,
     const TdfxWay *const w,
@@ -468,18 +485,40 @@ static void drawn_by(
         return;
     }
 
-    void (*const to)(Tdfx *, const TdfxVertex *, uint32_t) =
+    void (*const to)(Tdfx *, const TdfxVertex *, uint32_t, bool) =
         c->chip->cornered ? c->chip->cornered : cornered;
 
+    TdfxVertex corners[3 * BATCH];
+    uint32_t k = 0;
+
     for (uint32_t i = 0; i < n;) {
-        TdfxVertex corners[3 * BATCH];
-        uint32_t k = 0;
+        const AccelVertex *const t = v + 3 * i;
 
-        for (; k < BATCH && i < n; k++, i++)
-            tdfx_corners(v + 3 * i, &d, &corners[3 * k]);
+        if (i + 1 < n && quad_of(t)) {
+            const AccelVertex quad[4] = {t[0], t[1], t[2], t[5]};
+            TdfxVertex fan[4];
 
-        to(c, corners, 3 * k);
+            if (k)
+                to(c, corners, 3 * k, false);
+
+            k = 0;
+            tdfx_corners(quad, 4, &d, fan);
+            to(c, fan, 4, true);
+            i += 2;
+            continue;
+        }
+
+        tdfx_corners(t, 3, &d, &corners[3 * k++]);
+        i++;
+
+        if (k == BATCH) {
+            to(c, corners, 3 * k, false);
+            k = 0;
+        }
     }
+
+    if (k)
+        to(c, corners, 3 * k, false);
 }
 
 /* Worked out here, each run of triangles that is one colour through color0, the rest iterated. The
