@@ -6,7 +6,9 @@
  * word. Registers are a PKT4 for each 14 a mask spans, a setup unit's corners a PKT3, texels a
  * PKT5 to texture space; a word is kept at the ring's end for a jump back to its start. The CPU
  * waits only when it would write over what the card has yet to read. Each card's bring-up places
- * the ring and turns it on; this module only writes it.
+ * the ring and turns it on; this module only writes it. A write-combined ring is fenced either side
+ * of a jump and before each wait, as Glide fences it: hole counting takes words in any order, but
+ * not those still in the CPU.
  */
 #ifndef TDFX_CMDFIFO_H
 #define TDFX_CMDFIFO_H
@@ -19,7 +21,8 @@ typedef struct {
     const volatile uint32_t *read; /* the card's read pointer, a byte of frame memory */
     uint32_t at, bytes;            /* the ring's first byte in frame memory, its size */
     uint32_t sent, free;           /* the bytes written, a jump's skip too; those free */
-    uint32_t fence;                /* sent at the last fence */
+    uint32_t mark;                 /* sent at the last mark */
+    void(ACCEL_CALL *fence)(void); /* the host's, the ring write-combined: null, it is not */
 } CmdFifo;
 
 /* The ring of bytes, a power of two, at byte at of frame memory, empty: ring where the CPU writes
@@ -57,10 +60,10 @@ void cmdfifo_texels(
     uint32_t h,
     bool indexed
 );
-/* A fence after the words written so far. */
-void cmdfifo_fenced(CmdFifo *f);
-/* Waits, up to TDFX_WAIT_US, until the card has read the words before the last fence; before all
-   of them. */
+/* A mark after the words written so far. */
+void cmdfifo_marked(CmdFifo *f);
+/* Waits, up to TDFX_WAIT_US, until the card has read the words before the last mark; before all
+   of them. Write-combined words are fenced first, as the card reads only those that reach it. */
 void cmdfifo_waited(const CmdFifo *f);
 void cmdfifo_drained(const CmdFifo *f);
 #endif

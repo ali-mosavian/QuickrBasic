@@ -33,7 +33,13 @@ void cmdfifo_begin(
     const uint32_t bytes
 )
 {
-    *f = (CmdFifo){host, ring, read, at, bytes, 0, bytes - WORD, 0};
+    *f = (CmdFifo){host, ring, read, at, bytes, 0, bytes - WORD, 0, nullptr};
+}
+
+static void fenced(const CmdFifo *const f)
+{
+    if (f->fence)
+        f->fence();
 }
 
 static uint32_t written(const CmdFifo *const f) { return f->sent & (f->bytes - 1); }
@@ -64,6 +70,8 @@ static void reserved(CmdFifo *const f, const uint32_t n)
     if (f->free < need) {
         const uint64_t until = f->host->clock_us() + TDFX_WAIT_US;
 
+        fenced(f);
+
         while ((f->free = room(f)) < need && f->host->clock_us() < until)
             ;
     }
@@ -71,7 +79,9 @@ static void reserved(CmdFifo *const f, const uint32_t n)
     f->free = f->free > need ? f->free - need : 0;
 
     if (back) {
+        fenced(f);
         word(f, f->at << JUMP_AT | JUMP);
+        fenced(f);
         f->sent += tail - WORD;
     }
 }
@@ -169,17 +179,19 @@ void cmdfifo_texels(
     }
 }
 
-void cmdfifo_fenced(CmdFifo *const f) { f->fence = f->sent; }
+void cmdfifo_marked(CmdFifo *const f) { f->mark = f->sent; }
 
 /* Waits, up to TDFX_WAIT_US, until the card has read the words before mark. */
 static void read_to(const CmdFifo *const f, const uint32_t mark)
 {
     const uint64_t until = f->host->clock_us() + TDFX_WAIT_US;
 
+    fenced(f);
+
     while (unread(f) > f->sent - mark && f->host->clock_us() < until)
         ;
 }
 
-void cmdfifo_waited(const CmdFifo *const f) { read_to(f, f->fence); }
+void cmdfifo_waited(const CmdFifo *const f) { read_to(f, f->mark); }
 
 void cmdfifo_drained(const CmdFifo *const f) { read_to(f, f->sent); }

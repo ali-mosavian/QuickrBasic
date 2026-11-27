@@ -103,7 +103,7 @@ static void shown(Tdfx *const c, const bool vsync)
 {
     cmdfifo_waited(&queue);
     tdfx_put(c, SST_SWAP, vsync);
-    cmdfifo_fenced(&queue);
+    cmdfifo_marked(&queue);
 }
 
 /* As the Voodoo Graphics carries; by the frame buffer's window, the card idle after: its writes
@@ -161,6 +161,7 @@ void cvg_queued(Tdfx *const c, const uint32_t pages)
         at,
         bytes
     );
+    queue.fence = tdfx_combined(c, sst_window(c) + WINDOW, WINDOW) ? c->fence : nullptr;
     c->chip = &chip;
 }
 
@@ -171,6 +172,8 @@ void cvg_unqueued(Tdfx *const c)
 
     cmdfifo_drained(&queue);
     tdfx_idle_fbi(c);
+    tdfx_uncombined(c);
+    queue.fence = nullptr;
     sst_changed(c, SST_FBI_INIT7, FIFO_ON, 0);
     sst_changed(c, SST_FBI_INIT0, 0, SST_GRAPHICS_RESET | LFB_MEMORY | TEXTURE_MEMORY);
     sst_stalled(c);

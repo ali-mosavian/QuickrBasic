@@ -454,6 +454,23 @@ static const AccelHost FAKE_HOST = {
 
 static void status_is(const uint32_t v) { memcpy(card_memory + SST_STATUS, &v, sizeof v); }
 
+/* A combining host's: refusing or not; the window asked for; its fences, and at each the triangle
+   command's and red's start registers; its uncombines. */
+static struct {
+    bool refuse;
+    uint32_t phys, bytes, fences, uncombines;
+    uint32_t command[64], red[64];
+} wc;
+
+static bool ACCEL_CALL wc_combine(const uint32_t phys, const uint32_t bytes)
+{
+    wc.phys = phys;
+    wc.bytes = bytes;
+    return !wc.refuse;
+}
+
+static void ACCEL_CALL wc_uncombine(void) { wc.uncombines++; }
+
 /* The card mapped as the drivers map it, its status room and nothing busy. */
 static bool fake_open(Tdfx *const c, const uint16_t w, const uint16_t h)
 {
@@ -730,6 +747,7 @@ const AccelDriver *ACCEL_CALL accel_init(const AccelHost *host);
 
 static struct {
     uint8_t *regs, *frame;
+    uint8_t *seen; /* the ring write-combined: what the card reads, the CPU's words fenced there */
     uint64_t us, drawn; /* drawn: when the card has drawn what it was queued, 0 done */
     Fifo fifo;
     uint16_t w, h;
@@ -791,15 +809,49 @@ static const AccelHost H3_HOST = {
     .vesa = h3_vesa,
 };
 
+/* The CPU's combined words of the ring reaching the card: moved to what it reads. */
+static void ACCEL_CALL h3_fence(void)
+{
+    uint8_t *const ring = h3.frame + 3 * H3_BUFFER;
+
+    wc.fences++;
+
+    for (uint32_t i = 0; i < H3_FIFO; i += 4)
+        if (loaded(ring + i)) {
+            memcpy(h3.seen + i, ring + i, 4);
+            memset(ring + i, 0, 4);
+        }
+}
+
+static const AccelHost H3_COMBINED = {
+    .size = sizeof(AccelHost),
+    .abi = ACCEL_ABI,
+    .pci_read = h3_pci_read,
+    .pci_write = h3_pci_write,
+    .map = h3_map,
+    .clock_us = h3_clock,
+    .vesa = h3_vesa,
+    .combine = wc_combine,
+    .uncombine = wc_uncombine,
+    .fence = h3_fence,
+};
+
+static const AccelDriver *h3_opened_by(const AccelHost *host, AccelCard *card);
+
 /* The driver open at 320x240 on the fake card. */
-static const AccelDriver *h3_opened(AccelCard *const card)
+static const AccelDriver *h3_opened(AccelCard *const card) { return h3_opened_by(&H3_HOST, card); }
+
+/* The same, by host: the ring write-combined if it combines. */
+static const AccelDriver *h3_opened_by(const AccelHost *const host, AccelCard *const card)
 {
     const uint32_t sdram = 1u << 30, status = 0x1F | 1u << 6; /* room, idle, not in a retrace */
 
     h3.regs = calloc(1, H3_REGS);
     h3.frame = calloc(1, H3_FRAME);
+    h3.seen = calloc(1, H3_FIFO);
+    wc = (typeof(wc)){};
     h3.fifo = (Fifo){
-        .ring = h3.frame + 3 * H3_BUFFER,
+        .ring = host->combine ? h3.seen : h3.frame + 3 * H3_BUFFER,
         .read = h3.regs + H3_CMD + H3_READ,
         .registers = h3.regs + H3_3D,
         .texels = h3.regs + H3_PORT,
@@ -809,7 +861,7 @@ static const AccelDriver *h3_opened(AccelCard *const card)
     memcpy(h3.regs + 0x1C, &sdram, sizeof sdram);
     memcpy(h3.regs + H3_3D + SST_STATUS, &status, sizeof status);
 
-    const AccelDriver *const d = accel_init(&H3_HOST);
+    const AccelDriver *const d = accel_init(host);
 
     return d && d->open(&(PciFunction){}, 320, 240, card) ? d : nullptr;
 }
@@ -820,6 +872,7 @@ static void h3_closed(const AccelDriver *const d)
     h3.drawn = 0;
     free(h3.regs);
     free(h3.frame);
+    free(h3.seen);
 }
 
 /* Colour buffers 0 and 1 and the depth buffer, each the clip's 2048 rows, then the command FIFO,
@@ -1059,6 +1112,28 @@ TEST(tdfx_h3_writes_registers_through_the_command_fifo)
     h3_played();
     CHECK(solid_in(h3.regs + H3_3D, &t));
     h3_closed(d);
+}
+
+/* Its frame memory write-combined, the card reads the ring's words only once fenced: each wait on
+   it fences first. A frame shown waits on the last's swap; unfenced, it would wait till the time
+   out, 100 ms a frame. */
+TEST(tdfx_h3_fences_its_combined_ring_before_waiting_on_the_card)
+{
+    AccelCard card;
+    const AccelDriver *const d = h3_opened_by(&H3_COMBINED, &card);
+
+    CHECK(d && wc.phys == H3_BAR1 && wc.bytes && !(wc.bytes & (wc.bytes - 1)));
+
+    const uint64_t from = h3.us;
+
+    d->state(&SOLID);
+    d->triangles(TRIANGLE, 3);
+    d->show(false);
+    d->show(false);
+    d->show(false);
+    CHECK(h3.us - from < TDFX_WAIT_US && wc.fences);
+    h3_closed(d);
+    CHECK(wc.uncombines == 1);
 }
 
 /* The command FIFO goes back to its start by a jump, the driver waiting on the card for room:
@@ -1338,6 +1413,86 @@ TEST(tdfx_driver_sends_a_run_of_one_colour_in_a_draw_as_colour0)
     CHECK(word_at(SST_COLOUR0) == 0x80608020 && word_at(SST_FSTART + 4 * TDFX_R) == 0x42000000);
     CHECK(word_at(SST_FBZ_COLOUR_PATH) == (SST_PATH_COLOUR | SST_PATH_COLOUR0 | SST_PATH_ADJUST));
     d->close();
+}
+
+static void ACCEL_CALL wc_fence(void)
+{
+    if (wc.fences < 64) {
+        wc.command[wc.fences] = word_at(SST_FTRIANGLE);
+        wc.red[wc.fences] = word_at(SST_FSTART + 4 * TDFX_R);
+    }
+
+    wc.fences++;
+}
+
+static const AccelHost WC_HOST = {
+    .size = sizeof(AccelHost),
+    .abi = ACCEL_ABI,
+    .pci_read = fake_pci_read,
+    .pci_write = fake_pci_write,
+    .map = fake_map,
+    .clock_us = fake_clock,
+    .combine = wc_combine,
+    .uncombine = wc_uncombine,
+    .fence = wc_fence,
+};
+
+/* The fake card, its window write-combined as the Voodoo Graphics' family asks. */
+static bool wc_open(Tdfx *const c, const uint16_t w, const uint16_t h)
+{
+    const bool opened = fake_open(c, w, h);
+
+    tdfx_combined(c, 0x10000000, SST_WINDOW_BYTES);
+    return opened;
+}
+
+static void wc_close(Tdfx *const c)
+{
+    tdfx_uncombined(c);
+    fake_close(c);
+}
+
+/* Write-combined, a triangle's command is fenced on each side: its parameters reach the card
+   before it, else it draws from the last triangle's; it before the next's, else they overwrite
+   its own. */
+TEST(tdfx_driver_fences_a_command_written_combined)
+{
+    static const TdfxFamily fake = {"fake", &sst_chip, false, wc_open, wc_close};
+    static const uint32_t unsent = 0xDEADBEEF;
+
+    AccelCard card;
+    const AccelDriver *const d = tdfx_driver(&WC_HOST, &fake);
+
+    wc = (typeof(wc)){};
+    CHECK(d && d->open(&(PciFunction){}, 320, 240, &card));
+    CHECK(wc.phys == 0x10000000 && wc.bytes == SST_WINDOW_BYTES);
+    d->state(&SOLID);
+    stored_at(card_memory + SST_FTRIANGLE, unsent);
+
+    const uint32_t before = wc.fences;
+
+    d->triangles(TRIANGLE, 3);
+    CHECK(wc.fences == before + 2 && before + 2 <= 64);
+    CHECK(wc.command[before] == unsent && wc.red[before] == 0x42000000);
+    CHECK(wc.command[before + 1] != unsent);
+    d->close();
+    CHECK(wc.uncombines == 1);
+}
+
+/* A host that cannot combine: nothing fenced, nothing to put back. */
+TEST(tdfx_driver_fences_nothing_uncombined)
+{
+    static const TdfxFamily fake = {"fake", &sst_chip, false, wc_open, wc_close};
+
+    AccelCard card;
+    const AccelDriver *const d = tdfx_driver(&WC_HOST, &fake);
+
+    wc = (typeof(wc)){.refuse = true};
+    CHECK(d && d->open(&(PciFunction){}, 320, 240, &card));
+    d->state(&SOLID);
+    d->triangles(TRIANGLE, 3);
+    d->close();
+    CHECK(wc.fences == 0 && wc.uncombines == 0);
 }
 
 /* Texels go in packets to texture space at the addresses the texture window takes them: the same

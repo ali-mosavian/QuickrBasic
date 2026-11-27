@@ -292,7 +292,7 @@ static void swapped(Tdfx *const c, const uint32_t buffer, const bool vsync)
 {
     tdfx_put(c, LEFT_OVERLAY, h3.at[buffer]);
     tdfx_put(c, SST_SWAP, vsync);
-    cmdfifo_fenced(&h3.queue);
+    cmdfifo_marked(&h3.queue);
 }
 
 /* The last swap read before another is queued: one may wait on the retrace while the next frame
@@ -381,7 +381,8 @@ static bool opened(Tdfx *const c, const uint16_t w, const uint16_t h)
 
     h3.io = regs;
     const uint32_t bytes = memory_of(io_get(DRAM_INIT0), io_get(DRAM_INIT1));
-    volatile uint8_t *const frame = host->map(host->pci_read(&c->pci, BAR1) & BAR_MASK, bytes);
+    const uint32_t frame_at = host->pci_read(&c->pci, BAR1) & BAR_MASK;
+    volatile uint8_t *const frame = host->map(frame_at, bytes);
 
     AccelMode m;
 
@@ -409,6 +410,7 @@ static bool opened(Tdfx *const c, const uint16_t w, const uint16_t h)
     tdfx_put(c, AUX_STRIDE, m.pitch);
     tdfx_put(c, AUX_AT, h3.at[DEPTH]);
     c->millihz = timed(c);
+    h3.queue.fence = tdfx_combined(c, frame_at, bytes) ? c->fence : nullptr;
     return true;
 }
 
@@ -416,7 +418,8 @@ static bool opened(Tdfx *const c, const uint16_t w, const uint16_t h)
    rest. */
 static void closed(Tdfx *const c)
 {
-    (void)c;
+    tdfx_uncombined(c);
+    h3.queue.fence = nullptr;
     io_put(CMD + FIFO_SIZE, 0);
     io_put(VID_PROC, h3.video);
     io_put(STRIDES, h3.strides);

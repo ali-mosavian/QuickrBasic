@@ -19,8 +19,8 @@
 
 #define ACCEL_CALL QX_CALL
 
-/* ABI 2 adds indexed textures and their palette. */
-enum { ACCEL_ABI = 2 };
+/* ABI 2 adds indexed textures and their palette; 3, write combining. */
+enum { ACCEL_ABI = 3 };
 
 /* A card's PCI ID as accel_ids holds it. */
 #define ACCEL_ID(vendor, device) ((uint32_t)(vendor) << 16 | (uint32_t)(device))
@@ -107,6 +107,12 @@ typedef struct {
     bool(ACCEL_CALL *vesa)(uint16_t w, uint16_t h, uint8_t bits, AccelMode *out);
     /* Variable name's value to out, as cap allows with its 0: its length; 0, unset. */
     uint32_t(ACCEL_CALL *env)(const char *name, char *out, uint32_t cap);
+    /* Physical bytes from phys write-combined, one range at a time: false, the CPU cannot. Writes
+       to them then reach the card late, merged and in any order, until fence sends those made so
+       far on, in order. uncombine puts the range back as it was. */
+    bool(ACCEL_CALL *combine)(uint32_t phys, uint32_t bytes);
+    void(ACCEL_CALL *uncombine)(void);
+    void(ACCEL_CALL *fence)(void);
 } AccelHost;
 
 typedef struct {

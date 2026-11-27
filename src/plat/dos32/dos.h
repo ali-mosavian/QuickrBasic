@@ -1,6 +1,7 @@
 /* The DOS32 layer's own: software interrupts and the BIOS data area. Only plat/dos32 includes it. */
 #ifndef PLAT_DOS32_DOS_H
 #define PLAT_DOS32_DOS_H
+#include "mtrr.h"
 #include "vbe.h"
 #include <cdecl.h>
 #include <stdint.h>
@@ -135,6 +136,21 @@ bool pdos_vbe_set(const VbeMode *m);
 /* Physical bytes from phys mapped (DPMI 0800h), kept for the process: their DS address; null, not
    mapped. A host's mappings are few: map each card once. */
 volatile uint8_t *pdos_map(uint32_t phys, uint32_t bytes);
+
+/* Physical bytes from phys write-combined, by a variable-range MTRR: false, they cannot be (no
+   MTRRs or none with write combining, CS not at privilege 0, none free, or a range overlapping
+   theirs), and are left as they were. One range at a time; uncombined, it is put back as it was
+   (dosmem.c). */
+bool pdos_combine(uint32_t phys, uint32_t bytes);
+void pdos_uncombine(void);
+
+/* CPUID's leaf: EAX, EBX, ECX and EDX to out; false, no CPUID. */
+CDECL bool pdos_cpuid(uint32_t leaf, uint32_t out[4]);
+CDECL uint64_t pdos_rdmsr(uint32_t msr);
+/* Variable-range MTRR n's pair written as Intel's manual changes one. */
+CDECL void pdos_mtrr_write(uint32_t n, const MtrrPair *pair);
+/* Write-combined writes made so far sent on, in order: a locked instruction. */
+CDECL void pdos_fence(void);
 
 /* The DLL (util/image.h) of n bytes placed in the heap, its memory the process's: its export
    entry's address; null, not a DLL, no such export, no memory, or CS cannot run it there

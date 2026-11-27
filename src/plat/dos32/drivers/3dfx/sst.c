@@ -7,7 +7,6 @@
 enum : uint32_t {
     MEMORY = 2, /* PCI command's memory decode */
     BAR_MASK = 0xFF000000,
-    CARD_BYTES = 16 << 20,
     STALLS = 3,
     PAGE = 4096,
     TILE = 32,
@@ -53,6 +52,11 @@ enum : uint32_t {
     BLIT_COPY = 0xCCCC,
     BLIT = 3u << 14 | 1u << 31,
     MARK = 0x5A5AA5A5, /* two pixels the blitter is tried on */
+    /* a register's place less its chip's; the setup unit's commands; the palette's run */
+    REGISTER = 0x3FF,
+    DRAW_COMMAND = SST_CORNER + 4 * TDFX_VDRAW,
+    BEGIN_COMMAND = SST_CORNER + 4 * TDFX_VBEGIN,
+    PALETTE_RUN = 8 * 4,
 };
 
 static uint32_t room;         /* the FIFO's entries known free */
@@ -99,14 +103,15 @@ void sst_reset(const Tdfx *const c)
     sst_changed(c, SST_FBI_INIT0, SST_GRAPHICS_RESET, 0);
 }
 
+uint32_t sst_window(const Tdfx *const c) { return c->host->pci_read(&c->pci, SST_BAR0) & BAR_MASK; }
+
 bool sst_mapped(Tdfx *const c)
 {
     const AccelHost *const host = c->host;
 
     host->pci_write(&c->pci, SST_COMMAND, host->pci_read(&c->pci, SST_COMMAND) | MEMORY);
 
-    volatile uint8_t *const regs =
-        host->map(host->pci_read(&c->pci, SST_BAR0) & BAR_MASK, CARD_BYTES);
+    volatile uint8_t *const regs = host->map(sst_window(c), SST_WINDOW_BYTES);
 
     if (!regs)
         return false;
@@ -215,8 +220,20 @@ static void stored(Tdfx *const c, volatile uint8_t *const at, const uint32_t v)
     *(volatile uint32_t *)at = v;
 }
 
+/* Whether a write to reg acts rather than being held: a command, or the palette's port. */
+static bool acts(const uint32_t reg)
+{
+    const uint32_t r = reg & REGISTER;
+
+    return r == SST_FTRIANGLE || (r >= SST_NOP && r <= SST_SWAP) || r == DRAW_COMMAND ||
+           r == BEGIN_COMMAND || r == BLIT_COMMAND ||
+           (r >= SST_PALETTE && r < SST_PALETTE + PALETTE_RUN);
+}
+
 /* As many words at a time as the FIFO has room for, counted in locals: a store through the
-   window could alias room and p's count, read again each word. */
+   window could alias room and p's count, read again each word. Write-combined, a last word that
+   acts is fenced on each side, as Glide's P6FENCE_CMD: the words before it reach the card first,
+   and the next to its register is not merged with it. */
 static void put(
     Tdfx *const c,
     const uint32_t reg,
@@ -225,13 +242,15 @@ static void put(
 )
 {
     volatile uint32_t *const to = (volatile uint32_t *)(c->regs + reg);
-    const uint32_t n = p->n;
+    const uint32_t n = p->n, last = n ? p->at[n - 1] : 0;
+    const bool fenced = c->fence && n && acts(reg + 4 * last);
+    const uint32_t held = fenced ? n - 1 : n;
     uint32_t free = room;
 
-    for (uint32_t k = 0; k < n;) {
+    for (uint32_t k = 0; k < held;) {
         free = roomy(c, free);
 
-        const uint32_t end = n - k < free ? n : k + free;
+        const uint32_t end = held - k < free ? held : k + free;
 
         free -= end - k;
 
@@ -240,6 +259,13 @@ static void put(
 
             to[i] = v[i];
         }
+    }
+
+    if (fenced) {
+        free = roomy(c, free) - 1;
+        c->fence();
+        to[last] = v[last];
+        c->fence();
     }
 
     room = free;

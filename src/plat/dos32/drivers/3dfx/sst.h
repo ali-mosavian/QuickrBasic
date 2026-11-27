@@ -62,8 +62,9 @@ enum : uint32_t {
     SST_FT_BITS = 0xFu << 13,
     /* fbiInit4: LFB reads ahead */
     SST_READ_AHEAD = 1u << 1,
-    /* a card's frame buffer, and its texture memory */
+    /* a card's frame buffer, and its texture memory; its window's bytes */
     SST_BYTES = 2 << 20,
+    SST_WINDOW_BYTES = 16 << 20,
     /* the texture window's: a level, a row, a texel */
     SST_LEVEL_AT = 17,
     SST_ROW_AT = 9,
@@ -110,6 +111,8 @@ void sst_stalled(const Tdfx *c);
 void sst_reset(const Tdfx *c);
 /* The card's memory decoded and mapped, its windows found: false, it cannot be. */
 bool sst_mapped(Tdfx *c);
+/* The physical address of the card's window: its registers, frame buffer and texels. */
+uint32_t sst_window(const Tdfx *c);
 /* Mode m's timing written, the video unit in reset. */
 void sst_timed(const Tdfx *c, const SstMode *m);
 /* A buffer's 4K pages for mode m, up to the rows a clip reaches. */

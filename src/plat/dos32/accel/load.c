@@ -92,6 +92,15 @@ static uint32_t ACCEL_CALL host_env(const char *const name, char *const out, con
     return pdos_env(name, out, cap);
 }
 
+static bool ACCEL_CALL host_combine(const uint32_t phys, const uint32_t bytes)
+{
+    return pdos_combine(phys, bytes);
+}
+
+static void ACCEL_CALL host_uncombine(void) { pdos_uncombine(); }
+
+static void ACCEL_CALL host_fence(void) { pdos_fence(); }
+
 static const AccelHost host = {
     .size = sizeof(AccelHost),
     .abi = ACCEL_ABI,
@@ -107,6 +116,9 @@ static const AccelHost host = {
     .clock_us = host_clock_us,
     .vesa = host_vesa,
     .env = host_env,
+    .combine = host_combine,
+    .uncombine = host_uncombine,
+    .fence = host_fence,
 };
 
 /* Up to cap bytes of the file at path into buf: how many read; 0, none. */

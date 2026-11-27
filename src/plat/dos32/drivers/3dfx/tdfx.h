@@ -10,6 +10,8 @@
  * low bits, which a 565 pixel drops, made unlike every other's. Registers are written as the chip
  * takes them, those a write picks: a triangle as the words its state reads, or as its corners
  * to a setup unit. Worked out here, a run of triangles of one colour sends it once, as color0's.
+ * Where the CPU can, the window written most is write-combined, as Glide has it, and fenced
+ * where the card must see writes whole and in order.
  */
 #ifndef TDFX_TDFX_H
 #define TDFX_TDFX_H
@@ -107,6 +109,7 @@ struct Tdfx {
        its render threads have drawn what they were queued; its 3D ones read idle before */
     const volatile uint32_t *status;
     uint32_t lfb_row, stride, rows, mode_w, mode_h, texture_bytes, millihz;
+    void(ACCEL_CALL *fence)(void); /* the host's, a window write-combined: null, none is */
 
     uint16_t w, h, left, top; /* the screen, and its place in the mode */
     uint32_t shown;           /* the colour buffer shown */
@@ -139,6 +142,19 @@ void tdfx_put_run(Tdfx *c, uint32_t reg, const uint32_t *v, uint32_t n);
    with the card idle. */
 void tdfx_put_init(const Tdfx *c, uint32_t reg, uint32_t v);
 uint32_t tdfx_get(const Tdfx *c, uint32_t reg);
+/* phys up to bytes, the window written most, write-combined if the CPU can, until uncombined:
+   false, not. The family's open asks once the card is brought up, as init writes go one at a
+   time. */
+bool tdfx_combined(Tdfx *c, uint32_t phys, uint32_t bytes);
+void tdfx_uncombined(Tdfx *c);
+
+/* The writes combined so far sent on, in order: nothing, none combined. */
+static inline void tdfx_fenced(const Tdfx *const c)
+{
+    if (c->fence)
+        c->fence();
+}
+
 /* The card idle: its FIFO empty and nothing drawing. */
 void tdfx_idle(Tdfx *c);
 /* The FBI idle, nothing written to the FIFO: as the PCI FIFO may take no writes. */

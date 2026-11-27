@@ -23,4 +23,5 @@ assert gfx_test.most_off("add", 8, True) == 255, "the card's own blends"
 assert gfx_test.most_off("solid", 8, False) == 0, "the Mac's GPU"
 # --card read bench's map of cards to VMs, gone once a card's VM became a machine's: every card run raised
 assert gfx_test.card_vm("voodoo1").name == "qb-p100-voodoo1"
+assert gfx_test.card_vm("voodoo1", "p6").name == "qb-ppro200-voodoo1", "--machine's VM"
 print("gfx_test_test ok")

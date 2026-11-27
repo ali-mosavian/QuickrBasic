@@ -68,6 +68,22 @@ uint32_t tdfx_get(const Tdfx *const c, const uint32_t reg)
     return *(const volatile uint32_t *)(c->regs + reg);
 }
 
+bool tdfx_combined(Tdfx *const c, const uint32_t phys, const uint32_t bytes)
+{
+    const AccelHost *const host = c->host;
+
+    c->fence = host->combine && host->combine(phys, bytes) ? host->fence : nullptr;
+    return c->fence;
+}
+
+void tdfx_uncombined(Tdfx *const c)
+{
+    if (c->fence)
+        c->host->uncombine();
+
+    c->fence = nullptr;
+}
+
 void tdfx_idle(Tdfx *const c)
 {
     const uint64_t until = c->host->clock_us() + TDFX_WAIT_US;
@@ -75,6 +91,7 @@ void tdfx_idle(Tdfx *const c)
     uint32_t calm = 0;
 
     tdfx_put(c, SST_NOP, 0);
+    tdfx_fenced(c);
 
     while (calm < CALM && c->host->clock_us() < until)
         calm = *c->status & c->chip->busy ? 0 : calm + 1;
@@ -83,6 +100,8 @@ void tdfx_idle(Tdfx *const c)
 void tdfx_idle_fbi(const Tdfx *const c)
 {
     const uint64_t until = c->host->clock_us() + TDFX_WAIT_US;
+
+    tdfx_fenced(c);
 
     for (uint32_t calm = 0; calm < FBI_CALM && c->host->clock_us() < until;)
         calm = tdfx_get(c, SST_STATUS) & SST_FBI_BUSY ? 0 : calm + 1;
@@ -492,6 +511,7 @@ static void ACCEL_CALL shown(const bool vsync)
     Tdfx *const c = &card;
 
     c->chip->show(c, vsync);
+    tdfx_fenced(c); /* the swap sent now, not when the CPU's buffers next fill */
     c->shown ^= 1;
 
     /* the screen's buffer is the other now; a target's stays, its draw buffer as shown */

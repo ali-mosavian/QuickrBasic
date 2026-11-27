@@ -142,6 +142,7 @@ static bool opened(Tdfx *const c, const uint16_t w, const uint16_t h)
     sst_changed(c, SST_FBI_INIT0, SST_SHOWN, sst.shows);
     sst_changed(c, SST_FBI_INIT1, SST_BLANK, 0);
     c->texture_bytes = SST_BYTES;
+    tdfx_combined(c, sst_window(c), SST_WINDOW_BYTES); /* the whole window, as sst1InitCachingOn */
     return true;
 }
 
@@ -150,6 +151,7 @@ static void closed(Tdfx *const c)
 {
     TdfxClock shutdown;
 
+    tdfx_uncombined(c);
     sst_closed(c, sst.shows);
 
     if (tdfx_clock(SHUTDOWN_MHZ, &shutdown))
