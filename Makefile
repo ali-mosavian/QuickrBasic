@@ -257,7 +257,7 @@ $(B)/drivers/%.obj: src/plat/dos32/drivers/%.c
 	@mkdir -p $(@D)
 	$(DOS_SLICE_CC) -Isrc $(DEPFLAGS) -c $< -o $@
 $(B)/drivers/%.dll: $(TDFX_SHARED:src/plat/dos32/drivers/%.c=$(B)/drivers/%.obj) $(B)/drivers/3dfx/%.obj
-	$(LLD_LINK) /dll /noentry /nodefaultlib /safeseh:no /out:$@ $^
+	$(LLD_LINK) /dll /noentry /nodefaultlib /safeseh:no /out:$@ /map:$(@:.dll=.map) $^
 # the Voodoo Graphics and Voodoo 2 share their FBI's bring-up and DAC; the Voodoo 2, Banshee and
 # Voodoo 3 the command FIFO
 $(B)/drivers/voodoo1.dll $(B)/drivers/voodoo2.dll: $(B)/drivers/3dfx/sst.obj $(B)/drivers/3dfx/dac.obj

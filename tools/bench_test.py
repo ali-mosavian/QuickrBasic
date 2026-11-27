@@ -148,8 +148,16 @@ def demo_one_world() -> None:
     two builds profiled drew two worlds: a third of one's frame was circles the other never drew."""
     for name in bench.DEMO_EDITS:
         assert "randomize timer" not in bench.demo_program(name, 1, False, 0), name
-        framed = bench.demo_program(name, 0, False, 0, 5)
+        framed = bench.demo_program(name, 0, False, 0, frames=5)
         assert "gfx.display.clock" not in framed and "frames& >= 5" in framed, name
+
+
+def games_meadow16_at_16_bits() -> None:
+    """games' MEADOW16 is MEADOW at 16 bits and its own size. Its job gave 16 and True as frames and depth: its screen
+    opened at depth True, an Illegal function call on DOS before its first frame."""
+    program = bench.game_jobs()["MEADOW16"][0](4)[0]
+    assert "const DEPTH = 16\n" in program and "gfx.display.open(W, H, 16, 0)" in program, "not at 16 bits"
+    assert "const W = 640\n" in program and "(frames& / 30#)" not in program, "not at its size, or by frames"
 
 
 def fps_start_up() -> None:
@@ -331,7 +339,7 @@ def vm_window() -> None:
     seeing the end read as frame time: one build's ISLES on the 486, 14.8M cycles a frame, then 11.9M."""
     b = bench.build(".", True)
     own = {n: (bench.DEMOS / n).read_bytes() for n in ("stage.bas", "meter.bas")}
-    job = (bench.demo_program("ISLES", 0, False, 0, 2), "", "", own)
+    job = (bench.demo_program("ISLES", 0, False, 0, frames=2), "", "", own)
     lib = {"lib/gfx.qbx": (b.dos.parent / "lib/gfx.qbx").read_bytes()}
     with tempfile.TemporaryDirectory() as d:
         exe = bench.profiled(b, Path(d))
@@ -345,6 +353,7 @@ def main() -> int:
     stdlib_absent()
     each_reps()
     demo_one_world()
+    games_meadow16_at_16_bits()
     charlie_each()
     charlie_think()
     kind_compares()
