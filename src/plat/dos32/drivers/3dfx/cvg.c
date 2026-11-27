@@ -66,11 +66,11 @@ static void put(
     cmdfifo_registers(&queue, reg, p->mask, v);
 }
 
-static void cornered(Tdfx *const c, const uint32_t *const v, const uint32_t n, const bool fan)
+static uint32_t *corners(Tdfx *const c, const uint32_t n, const bool fan)
 {
     const TdfxWay *const w = c->way;
 
-    cmdfifo_corners(&queue, w->mode, w->corner.n, v, n, fan);
+    return cmdfifo_corners(&queue, w->mode, w->corner.n, n, fan);
 }
 
 static void uploaded(
@@ -126,7 +126,7 @@ static const TdfxChip chip = {
     shown,
     carried,
     sst_paletted,
-    cornered,
+    corners,
 };
 
 void cvg_queued(Tdfx *const c, const uint32_t pages)

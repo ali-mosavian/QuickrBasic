@@ -37,16 +37,10 @@ void cmdfifo_begin(
 );
 /* The registers from reg's byte that mask picks, a bit each, written v's word at each's place. */
 void cmdfifo_registers(CmdFifo *f, uint32_t reg, uint32_t mask, const uint32_t *v);
-/* n corners to the setup unit, at most 15, packed in v, words each, the colour packed: mode,
-   sSetupMode's; three a triangle, or one fan. */
-void cmdfifo_corners(
-    CmdFifo *f,
-    uint32_t mode,
-    uint32_t words,
-    const uint32_t *v,
-    uint32_t n,
-    bool fan
-);
+/* Room for n corners to the setup unit, at most 15, words each, the colour packed, their
+   packet's header written: mode, sSetupMode's; three a triangle, or one fan. The caller writes
+   their words there, packed, the card reading them as they come. */
+uint32_t *cmdfifo_corners(CmdFifo *f, uint32_t mode, uint32_t words, uint32_t n, bool fan);
 /* w by h texels, w even, to texture space: row y from its byte at + y * stride, from texels'
    row y * pitch; indexed, w a multiple of 4, a byte each, their low bytes. */
 void cmdfifo_texels(

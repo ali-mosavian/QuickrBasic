@@ -176,7 +176,7 @@ static void way_of(const Tdfx *const c, const bool one, TdfxWay *const w)
     w->mode = tdfx_unit_mode(params);
     w->corner = tdfx_picks(corner);
 
-    if (!c->chip->cornered) {
+    if (!c->chip->corners) {
         w->begins = tdfx_picks(corner | 1u << TDFX_VBEGIN);
         w->draws = tdfx_picks(corner | 1u << TDFX_VDRAW);
     }
@@ -511,40 +511,37 @@ static void unit_drawn(
 {
     enum { BATCH = 5 };
 
-    static_assert(ACCEL_SIDES <= 15); /* a PKT3's corners */
+    static_assert(ACCEL_SIDES <= 3 * BATCH); /* a PKT3's corners, 15, and packed's */
 
     const TdfxWay *const w = c->way;
     const TdfxDraw d = draw_of(c, w);
-    void (*const to)(Tdfx *, const uint32_t *, uint32_t, bool) =
-        c->chip->cornered ? c->chip->cornered : cornered;
     const uint32_t words = w->corner.n;
 
-    uint32_t corners[3 * BATCH * TDFX_CORNER_WORDS];
-    uint32_t k = 0;
+    for (uint32_t i = 0; i < n;) {
+        const bool fan = sides[i] > 3;
 
-    for (uint32_t i = 0; i < n; v += sides[i++]) {
-        if (sides[i] > 3) {
-            uint32_t fan[ACCEL_SIDES * TDFX_CORNER_WORDS];
+        uint32_t k = 1; /* the triangles of one packet */
 
-            if (k)
-                to(c, corners, 3 * k, false);
+        while (!fan && k < BATCH && i + k < n && sides[i + k] == 3)
+            k++;
 
-            k = 0;
-            tdfx_corners(v, sides[i], &d, fan);
-            to(c, fan, sides[i], true);
-            continue;
-        }
+        const uint32_t m = fan ? sides[i] : 3 * k;
 
-        tdfx_corners(v, 3, &d, &corners[3 * words * k++]);
+        uint32_t packed[3 * BATCH * TDFX_CORNER_WORDS];
+        uint32_t *const to = c->chip->corners ? c->chip->corners(c, m, fan) : packed;
 
-        if (k == BATCH) {
-            to(c, corners, 3 * k, false);
-            k = 0;
-        }
+        if (fan)
+            tdfx_corners(v, m, &d, to);
+
+        for (uint32_t j = 0; !fan && j < k; j++)
+            tdfx_corners(v + 3 * j, 3, &d, to + 3 * words * j);
+
+        if (!c->chip->corners)
+            cornered(c, packed, m, fan);
+
+        v += m;
+        i += fan ? 1 : k;
     }
-
-    if (k)
-        to(c, corners, 3 * k, false);
 }
 
 /* n triangles from v worked out here, each run that is one colour through color0, the rest

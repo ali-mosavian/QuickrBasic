@@ -59,8 +59,9 @@ typedef struct {
    - show: buffer shown ^ 1 shown, at the retrace with vsync;
    - carry: the next frame made the shown one's;
    - paletted: after TMU0's palette is written, what holds texels looked up in it flushed;
-   - cornered: n corners to the setup unit, three a triangle or one fan, each the words Tdfx's way's corner
-     picks: null, written to its registers. */
+   - corners: room for n corners to the setup unit, three a triangle or one fan, each the words
+     Tdfx's way's corner picks, read by the card as they are written there: null, written to its
+     registers after. */
 typedef struct {
     uint32_t busy;
     void (*put)(Tdfx *c, uint32_t reg, const TdfxPicks *p, const uint32_t *v);
@@ -77,7 +78,7 @@ typedef struct {
     void (*show)(Tdfx *c, bool vsync);
     void (*carry)(Tdfx *c);
     void (*paletted)(Tdfx *c);
-    void (*cornered)(Tdfx *c, const uint32_t *v, uint32_t n, bool fan);
+    uint32_t *(*corners)(Tdfx *c, uint32_t n, bool fan);
 } TdfxChip;
 
 /* A family's: its chip; whether it has the setup unit; its card (Tdfx's pci) readied, showing a

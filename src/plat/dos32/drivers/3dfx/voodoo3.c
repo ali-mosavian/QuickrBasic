@@ -220,11 +220,11 @@ static void put(
     cmdfifo_registers(&h3.queue, reg, p->mask, v);
 }
 
-static void cornered(Tdfx *const c, const uint32_t *const v, const uint32_t n, const bool fan)
+static uint32_t *corners(Tdfx *const c, const uint32_t n, const bool fan)
 {
     const TdfxWay *const w = c->way;
 
-    cmdfifo_corners(&h3.queue, w->mode, w->corner.n, v, n, fan);
+    return cmdfifo_corners(&h3.queue, w->mode, w->corner.n, n, fan);
 }
 
 static uint32_t based(const Tdfx *const c, const uint32_t at)
@@ -364,7 +364,7 @@ static const TdfxChip H3 = {
     shown,
     carried,
     paletted,
-    cornered,
+    corners,
 };
 
 static bool opened(Tdfx *const c, const uint16_t w, const uint16_t h)

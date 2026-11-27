@@ -121,11 +121,10 @@ void cmdfifo_registers(
     }
 }
 
-void cmdfifo_corners(
+uint32_t *cmdfifo_corners(
     CmdFifo *const f,
     const uint32_t mode,
     const uint32_t words,
-    const uint32_t *const v,
     const uint32_t n,
     const bool fan
 )
@@ -134,14 +133,11 @@ void cmdfifo_corners(
 
     reserved(f, all + 1);
 
-    volatile uint32_t *to = (volatile uint32_t *)(f->ring + written(f));
+    volatile uint32_t *const to = (volatile uint32_t *)(f->ring + written(f));
 
-    *to++ = n << CORNERS_AT | (mode & 0xFF) << MODE_AT | (fan ? FAN : 0) | PACKED | CORNERS;
-
-    for (uint32_t i = 0; i < all; i++)
-        to[i] = v[i];
-
+    *to = n << CORNERS_AT | (mode & 0xFF) << MODE_AT | (fan ? FAN : 0) | PACKED | CORNERS;
     f->sent += WORD * (all + 1);
+    return (uint32_t *)(to + 1); /* hole counting takes the words in any order */
 }
 
 void cmdfifo_texels(
