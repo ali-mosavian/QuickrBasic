@@ -1761,8 +1761,66 @@ TEST(tdfx_driver_fences_nothing_uncombined)
     CHECK(wc.fences == 0 && wc.uncombines == 0);
 }
 
-/* At each fence, S's x gradient as the card holds it, then a mark written over it. */
 enum : uint32_t { MARKED = 0x7F7F7F7F };
+
+/* At each fence, the setup unit's command written since the last: 'b' beginning, 'd' drawing,
+   '.' none; both then marked. */
+static struct {
+    uint32_t fences;
+    char command[64];
+} unit_commands;
+
+static void ACCEL_CALL command_fence(void)
+{
+    const uint32_t begin = SST_CORNER + 4 * TDFX_VBEGIN, draw = SST_CORNER + 4 * TDFX_VDRAW;
+    const char seen = !word_at(begin) ? 'b' : !word_at(draw) ? 'd' : '.';
+
+    if (unit_commands.fences < 63)
+        unit_commands.command[unit_commands.fences] = seen;
+
+    stored_at(card_memory + begin, MARKED);
+    stored_at(card_memory + draw, MARKED);
+    unit_commands.fences++;
+}
+
+static const AccelHost COMMAND_HOST = {
+    .size = sizeof(AccelHost),
+    .abi = ACCEL_ABI,
+    .pci_read = fake_pci_read,
+    .pci_write = fake_pci_write,
+    .map = fake_map,
+    .clock_us = fake_clock,
+    .combine = wc_combine,
+    .uncombine = wc_uncombine,
+    .fence = command_fence,
+};
+
+/* Written straight to the Voodoo 2's setup unit, each corner its words, then its command fenced:
+   a fan's first corner begins it and the rest draw; each three corners of triangles begin at
+   their first. */
+TEST(tdfx_cvg_sends_each_corner_its_command)
+{
+    static const TdfxFamily fake = {"fake Voodoo 2", &sst_chip, true, wc_open, wc_close};
+    static const uint8_t fan[] = {4}, triangles[] = {3, 3};
+
+    AccelCard card;
+    const AccelDriver *const d = tdfx_driver(&COMMAND_HOST, &fake);
+
+    wc = (typeof(wc)){};
+    CHECK(d && d->open(&(PciFunction){}, 320, 240, &card));
+    d->state(&SOLID);
+    stored_at(card_memory + SST_CORNER + 4 * TDFX_VBEGIN, MARKED);
+    stored_at(card_memory + SST_CORNER + 4 * TDFX_VDRAW, MARKED);
+    unit_commands = (typeof(unit_commands)){};
+    d->fans(QUAD, fan, 1);
+    CHECK(!strcmp(unit_commands.command, ".b.d.d.d"));
+    unit_commands = (typeof(unit_commands)){};
+    d->fans(QUAD, triangles, 2);
+    CHECK(!strcmp(unit_commands.command, ".b.d.d.b.d.d"));
+    d->close();
+}
+
+/* At each fence, S's x gradient as the card holds it, then a mark written over it. */
 
 static struct {
     uint32_t fences, gradient[64];

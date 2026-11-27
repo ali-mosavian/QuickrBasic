@@ -177,11 +177,6 @@ static void way_of(const Tdfx *const c, const bool one, TdfxWay *const w)
 
     w->mode = tdfx_unit_mode(params);
     w->corner = tdfx_picks(corner);
-
-    if (!c->chip->corners) {
-        w->begins = tdfx_picks(corner | 1u << TDFX_VBEGIN);
-        w->draws = tdfx_picks(corner | 1u << TDFX_VDRAW);
-    }
 }
 
 /* The state's words and the aim's clip sent, with its way by the corners' colours: its ways kept
@@ -456,25 +451,6 @@ static void ACCEL_CALL stated(const AccelState *const s)
     sent(&card);
 }
 
-/* n corners, packed in v, to the setup unit's registers, each its words at their places and a
-   command: the first of three beginning a triangle, the others drawing it. */
-static void cornered(Tdfx *const c, const uint32_t *const v, const uint32_t n, const bool fan)
-{
-    const TdfxWay *const w = c->way;
-    const uint32_t words = w->corner.n;
-
-    TdfxVertex at; /* put reads only the words it picks */
-
-    at.word[TDFX_VDRAW] = at.word[TDFX_VBEGIN] = 0;
-
-    for (uint32_t i = 0; i < n; i++) {
-        for (uint32_t k = 0; k < words; k++)
-            at.word[w->corner.at[k]] = v[i * words + k];
-
-        c->chip->put(c, SST_CORNER, (fan ? i : i % 3) ? &w->draws : &w->begins, at.word);
-    }
-}
-
 /* A draw's: its move, texels' scale, parameters and alpha's share, w's way. */
 static TdfxDraw draw_of(const Tdfx *const c, const TdfxWay *const w)
 {
@@ -521,7 +497,7 @@ static void unit_drawn(
             tdfx_corners(v + 3 * j, 3, &d, to + 3 * words * j);
 
         if (!c->chip->corners)
-            cornered(c, packed, m, fan);
+            c->chip->put_corners(c, packed, m, fan);
 
         v += m;
         i += fan ? 1 : k;

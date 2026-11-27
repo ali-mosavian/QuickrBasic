@@ -34,12 +34,11 @@ typedef struct {
 } TdfxPicks;
 
 /* How a draw's triangles are sent: the parameters read; fbzColorPath's word; their words, worked out
-   on the CPU, and those of one after another of its plane, or by the setup unit: sSetupMode's, a
-   corner's words, and those written register by register, with the command beginning a triangle
-   or drawing one. */
+   on the CPU, and those of one after another of its plane, or by the setup unit: sSetupMode's and
+   a corner's words. */
 typedef struct {
     uint32_t params, path, mode;
-    TdfxPicks sent, started, corner, begins, draws;
+    TdfxPicks sent, started, corner;
 } TdfxWay;
 
 typedef struct {
@@ -61,8 +60,10 @@ typedef struct {
    - carry: the next frame made the shown one's;
    - paletted: after TMU0's palette is written, what holds texels looked up in it flushed;
    - corners: room for n corners to the setup unit, three a triangle or one fan, each the words
-     Tdfx's way's corner picks, read by the card as they are written there: null, written to its
-     registers after. */
+     Tdfx's way's corner picks, read by the card as they are written there: null, put_corners
+     writes them to its registers;
+   - put_corners: n corners packed as corners has them, to the setup unit's registers, each then
+     its command: a fan's first and each triangle's first beginning it, the rest drawing it. */
 typedef struct {
     uint32_t busy;
     void (*put)(Tdfx *c, uint32_t reg, const TdfxPicks *p, const uint32_t *v);
@@ -80,6 +81,7 @@ typedef struct {
     void (*carry)(Tdfx *c);
     void (*paletted)(Tdfx *c);
     uint32_t *(*corners)(Tdfx *c, uint32_t n, bool fan);
+    void (*put_corners)(Tdfx *c, const uint32_t *v, uint32_t n, bool fan);
 } TdfxChip;
 
 /* A family's: its chip; whether it has the setup unit; its card (Tdfx's pci) readied, showing a

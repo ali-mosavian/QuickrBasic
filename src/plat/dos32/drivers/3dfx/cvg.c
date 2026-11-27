@@ -127,6 +127,7 @@ static const TdfxChip chip = {
     carried,
     sst_paletted,
     corners,
+    nullptr,
 };
 
 void cvg_queued(Tdfx *const c, const uint32_t pages)
