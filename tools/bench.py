@@ -24,9 +24,11 @@
     bench.py gfx [REV...] [--depth D] [--seconds S] [--dos]  gfx's frames a second in the Mac app, drawn in
                                                  pages against played on the GPU, for each of GFX_WORK's
                                                  frames; --dos: in pages on DOS; REVs: in pages, per build
-    bench.py games --card CARD [--game G]...    MEADOW at 640x480, 8 and 16 bits, then PLASMA, MOTHLITE and
-                                                 CHARLIE at 320x200x8, on the card's VM: frames a second in
-                                                 pages and by the card, without vsync
+    bench.py games --card CARD [--machine M] [--game G]...
+                                                 MEADOW at 640x480, 8 and 16 bits, then PLASMA, MOTHLITE and
+                                                 CHARLIE at 320x200x8, on the card's VM (the machine's, the
+                                                 Pentium 100's when none): frames a second in pages and by
+                                                 the card, without vsync
     bench.py demos [EXE...] [--cycles N]         stdlib/gfx's demos at 320x200x8 on DOS, frames a second: ours
                                                  shipped, then without vsync, text and perspective in turn; each
                                                  EXE a program built elsewhere, writing its rate to FPS.TXT
@@ -1426,11 +1428,13 @@ HL86 = Path(os.environ.get("HL86_DIR", Path.home() / "work/other/86box-headless"
 HL86_VMS = Path(os.environ.get("HL86_VMS", HL86.parent / "86box-headless-vms"))
 HL86_ROMS = Path(os.environ.get("HL86_ROMS", Path.home() / "Library/Application Support/86Box/roms"))
 MACHINES = {"486": "qb-486", "p5": "qb-p100", "p6": "qb-ppro200"}
-# each 3D card's VM: qb-p100's, the card added in its 86box.cfg
-CARDS = {"voodoo1": "qb-p100-voodoo1", "voodoo2": "qb-p100-voodoo2", "banshee": "qb-p100-banshee",
-         "voodoo3": "qb-p100-voodoo3"}
-# each card's driver, its DLL's name: the drivers share code, so the profiler looks for the card's alone
+# each 3D card's driver, its DLL's name: the drivers share code, so the profiler looks for the card's alone
 CARD_DRIVERS = {"voodoo1": "voodoo1", "voodoo2": "voodoo2", "banshee": "voodoo3", "voodoo3": "voodoo3"}
+
+
+def card_vm(card: str, machine: str | None) -> str:
+    """card's VM: machine's (the Pentium 100's when none), the card added in its 86box.cfg."""
+    return f"{MACHINES[machine or 'p5']}-{card}"
 
 
 def mtools(tool: str, image: Path, *args: str, check: bool = True) -> bytes:
@@ -1910,7 +1914,7 @@ def demos_on(a: argparse.Namespace, own: dict[str, bytes]) -> int:
 def demos_on_card(a: argparse.Namespace, own: dict[str, bytes]) -> int:
     """demos --card: each demo at its own size at 16 bits on the card's VM, in pages and by the card, with vsync and
     without, the emulator held to the host's clock. --profile: by the card, by function a frame."""
-    b, vm = build(".", True), CARDS[a.card]
+    b, vm = build(".", True), card_vm(a.card, a.machine)
     pages = {"lib/gfx.qbx": (b.dos.parent / "lib/gfx.qbx").read_bytes()}
     card = pages | drivers_of(b)
     if a.profile:
@@ -1978,10 +1982,10 @@ def cmd_games(a: argparse.Namespace) -> int:
                         print_frame_profile(f"{name} in {how} on DOSBox-X", exe, runs, a.cycles, files | lib, a.n,
                                             DOSBOX_VOODOO)
                     else:
-                        print_vm_profile(f"{name} in {how}", CARDS[a.card], exe, runs, files | lib, a.n, [], None,
-                                         True, images)
+                        print_vm_profile(f"{name} in {how}", card_vm(a.card, a.machine), exe, runs, files | lib, a.n,
+                                         [], None, True, images)
         return 0
-    vm = CARDS[a.card]
+    vm = card_vm(a.card, a.machine)
     print(f"8 bits on 86Box ({vm}), frames a second")
     print(f"{'':12}{'pages':>10}{a.card:>10}")
     for name in a.game or jobs:
@@ -2264,7 +2268,7 @@ def main() -> int:
     p.add_argument("--lines", action="store_true", help="--at: by source line, not offset")
     p.add_argument("--frames", type=int, help="--machine --profile: frames in the shorter run, twice in the longer")
     p.add_argument("--rev", action="append", help="--machine: a revision's build timed too, before the tree's")
-    p.add_argument("--card", choices=list(CARDS), help="on 86Box's Pentium 100 with this 3D card, at 16 bits")
+    p.add_argument("--card", choices=list(CARD_DRIVERS), help="on --machine's VM with this 3D card, at 16 bits")
     p.add_argument("--set", action="append", metavar="NAME=VALUE", help="--card: in DOS's environment")
     p.add_argument("--demo", action="append", choices=list(DEMO_EDITS), help="a demo to time; all when none")
     p.add_argument("--seconds", type=float, default=10)
@@ -2273,7 +2277,9 @@ def main() -> int:
     p.add_argument("--edits", type=int, help="--profile: ours with its first so many edits; all when none")
     sub.add_parser("charlie")
     p = sub.add_parser("games")
-    p.add_argument("--card", choices=list(CARDS), help="on 86Box's Pentium 100 with this 3D card")
+    p.add_argument("--card", choices=list(CARD_DRIVERS), help="on --machine's VM with this 3D card")
+    p.add_argument("--machine", choices=list(MACHINES), help="--card: 86Box's 486DX2-66, Pentium 100 (the default) "
+                   "or Pentium Pro 200")
     p.add_argument("--game", action="append", choices=("MEADOW", "MEADOW16", "PLASMA", "MOTHLITE", "CHARLIE"),
                    help="all when none")
     p.add_argument("--seconds", type=float, default=10, help="PLASMA's and CHARLIE's")
