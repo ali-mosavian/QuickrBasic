@@ -44,6 +44,7 @@ static const struct {
     {12, "Illegal in direct mode"},
     {13, "Type mismatch"},
     {14, "Out of string space"},
+    {15, "String too long"},
     {16, "String formula too complex"},
     {17, "Cannot continue"},
     {18, "Function not defined"},
