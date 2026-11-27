@@ -24,6 +24,7 @@
 #include "plat/dos32/accel/texels.h"
 #include "plat/pmem.h"
 #include "qx/qxlist.h"
+#include <stddef.h>
 #include <string.h>
 
 enum : uint32_t { NONE = UINT32_MAX, WHITE = 0xFFFFFFFF };
@@ -275,16 +276,21 @@ static bool same_state(const AccelState *const a, const AccelState *const b)
            a->blend == b->blend && a->alpha == b->alpha && a->depth == b->depth;
 }
 
-/* Polygon v, n corners round, drawn with state s: a fan of triangles. */
-static void drawn(const AccelState *const s, const AccelVertex *const v, const uint32_t n)
+/* The driver's state s, sent if it is not. */
+static void stated(const AccelState *const s)
 {
-    if (!p.stated || !same_state(s, &p.sent)) {
-        flushed();
-        p.d->state(s);
-        p.sent = *s;
-        p.stated = true;
-    }
+    if (p.stated && same_state(s, &p.sent))
+        return;
 
+    flushed();
+    p.d->state(s);
+    p.sent = *s;
+    p.stated = true;
+}
+
+/* Polygon v, n corners round, in the state sent: a fan of triangles. */
+static void appended(const AccelVertex *const v, const uint32_t n)
+{
     for (uint32_t i = 1; i + 1 < n; i++) {
         if (p.batched + 3 > BATCH)
             flushed();
@@ -293,6 +299,13 @@ static void drawn(const AccelState *const s, const AccelVertex *const v, const u
         p.batch[p.batched++] = v[i];
         p.batch[p.batched++] = v[i + 1];
     }
+}
+
+/* Polygon v, n corners round, drawn with state s: a fan of triangles. */
+static void drawn(const AccelState *const s, const AccelVertex *const v, const uint32_t n)
+{
+    stated(s);
+    appended(v, n);
 }
 
 /* A quad over pixels x0 up to x1, y0 up to y1, its texels s0, t0 on, at depth 0. */
@@ -733,8 +746,12 @@ static Vertices vertices_of(const Pipeline *const pl, const Buffer *const vb)
     return (Vertices){pl, vb->bytes, pl->stride ? vb->n / pl->stride : 0};
 }
 
+/* Whether a float's bits are above 0, +inf too: as w > 0 reads them, no NaN. */
+static bool above_zero(const uint32_t bits) { return (int32_t)bits > 0 && bits <= 0x7F800000u; }
+
 /* The draw's vertex at index into *v, its wrap's rectangle to r: false, past the vertices, or its
-   w not above 0. A w of 1, a 2D draw's, is not divided. */
+   w not above 0. A w of 1, a 2D draw's, is not divided. The words only moved are moved as
+   integers: a float through a 486's FPU costs 10 cycles to load and store. */
 static bool fetched(
     const Vertices *const f,
     const uint32_t index,
@@ -742,66 +759,84 @@ static bool fetched(
     uint16_t r[RECT]
 )
 {
+    static_assert(offsetof(AccelVertex, z) == 2 * sizeof(float));
+    static_assert(offsetof(AccelVertex, t) == offsetof(AccelVertex, s) + sizeof(float));
+
     const Pipeline *const pl = f->pl;
 
-    float xyzw[4], st[2] = {0, 0};
-
-    uint8_t c[4] = {OPAQUE, OPAQUE, OPAQUE, OPAQUE};
+    uint32_t w, rgba = WHITE;
+    float q;
 
     if (index >= f->n)
         return false;
 
     const uint8_t *const b = f->bytes + index * pl->stride;
+    const uint8_t *const at = b + pl->at[QX_FIXED_AT_POSITION];
 
-    memcpy(xyzw, b + pl->at[QX_FIXED_AT_POSITION], sizeof xyzw);
+    memcpy(&w, at + 3 * sizeof(float), sizeof w);
+
+    if (!above_zero(w))
+        return false;
+
+    memcpy(&q, &w, sizeof q);
+    memcpy(&v->x, at, 3 * sizeof(float)); /* x, y and z */
+    v->q = reciprocal(q);
 
     if (pl->at[QX_FIXED_AT_TEXEL] != NONE)
-        memcpy(st, b + pl->at[QX_FIXED_AT_TEXEL], sizeof st);
+        memcpy(&v->s, b + pl->at[QX_FIXED_AT_TEXEL], 2 * sizeof(float));
+    else
+        memset(&v->s, 0, 2 * sizeof(float));
 
     if (pl->at[QX_FIXED_AT_COLOUR] != NONE)
-        memcpy(c, b + pl->at[QX_FIXED_AT_COLOUR], sizeof c);
+        memcpy(&rgba, b + pl->at[QX_FIXED_AT_COLOUR], sizeof rgba);
 
     if (pl->at[QX_FIXED_AT_RECT] != NONE)
         memcpy(r, b + pl->at[QX_FIXED_AT_RECT], RECT * sizeof *r);
     else
         memset(r, 0, RECT * sizeof *r);
 
-    if (!(xyzw[3] > 0))
-        return false;
-
-    const uint32_t argb = (uint32_t)c[3] << 24 | (uint32_t)c[0] << 16 | (uint32_t)c[1] << 8 | c[2];
-    const float q = reciprocal(xyzw[3]);
-
-    *v = (AccelVertex){xyzw[0], xyzw[1], xyzw[2], q, st[0], st[1], argb};
-
+    /* R, G, B, A bytes in order to ARGB: red and blue swapped */
+    v->colour = (rgba & 0xFF00FF00) | (rgba >> 16 & 0xFF) | (rgba & 0xFF) << 16;
     return true;
 }
 
-/* A vertex fetched, by its index: kept by the index's low bits, so a quad's corners 0 and 2,
-   in both its triangles, are fetched once. */
-typedef struct {
-    uint32_t index;
-    bool ok;
-    AccelVertex v;
-    uint16_t r[RECT];
-} Fetched;
-
+/* A draw's vertices fetched, by their index: kept by its low bits, so a quad's corners 0 and 2,
+   in both its triangles, are fetched once. A vertex and its index are 32 bytes: a slot is found
+   by a shift, not a 486's multiply. */
 enum { KEPT = 4 };
 
-static const Fetched *fetched_once(
-    Fetched kept[KEPT],
-    const Vertices *const f,
-    const uint32_t index
-)
-{
-    Fetched *const k = &kept[index & (KEPT - 1)];
+typedef struct {
+    struct {
+        AccelVertex v;
+        uint32_t index;
+    } at[KEPT];
+    uint16_t r[KEPT][RECT];
+    uint32_t ok; /* a bit a slot */
+} Kept;
 
-    if (k->index != index) {
-        k->index = index;
-        k->ok = fetched(f, index, &k->v, k->r);
+static_assert(sizeof((Kept *)nullptr)->at[0] == 32);
+
+/* The slot holding the vertex at index, fetched unless kept. */
+static uint32_t fetched_once(Kept *const k, const Vertices *const f, const uint32_t index)
+{
+    const uint32_t slot = index & (KEPT - 1), bit = 1u << slot;
+
+    if (k->at[slot].index != index) {
+        k->at[slot].index = index;
+        k->ok = fetched(f, index, &k->at[slot].v, k->r[slot]) ? k->ok | bit : k->ok & ~bit;
     }
 
-    return k;
+    return slot;
+}
+
+/* Whether rectangles a and b are the same, as words. */
+static bool same_rect_words(const uint16_t a[RECT], const uint16_t b[RECT])
+{
+    uint64_t x, y;
+
+    memcpy(&x, a, sizeof x);
+    memcpy(&y, b, sizeof y);
+    return x == y;
 }
 
 /* The draw's first two triangles are a rectangle over all of the pass, drawn opaque. */
@@ -1155,10 +1190,17 @@ static void triangles_drawn(
     const Vertices f = vertices_of(pl, vb);
 
     Pieces c = {t, {.source = pl->source, .blend = blend, .alpha = alpha, .depth = pl->depth}};
-    Fetched kept[KEPT];
+    Kept kept; /* not zeroed whole: its slots' indices are enough */
+    /* the grid of the wrap's rectangle last met: a draw's triangles share it; whole, a triangle
+       needs no cut; ready, the state sent is theirs */
+    CutGrid g = {};
+    uint16_t gridded_for[RECT] = {};
+    bool grid = false, whole = false, ready = false;
+
+    kept.ok = 0;
 
     for (uint32_t k = 0; k < KEPT; k++)
-        kept[k] = (Fetched){.index = NONE}; /* past any vertices: not fetched */
+        kept.at[k].index = NONE; /* past any vertices: not fetched */
 
     if (index && (texel || !p.sent_palette))
         paletted(held, false);
@@ -1169,15 +1211,15 @@ static void triangles_drawn(
         uint32_t k = 0;
 
         for (; k < 3; k++) {
-            const Fetched *const got = fetched_once(kept, &f, index_at(ib, first + i + k));
+            const uint32_t slot = fetched_once(&kept, &f, index_at(ib, first + i + k));
 
-            if (!got->ok)
+            if (!(kept.ok >> slot & 1))
                 break;
 
-            v[k] = got->v;
+            v[k] = kept.at[slot].v;
 
             if (!k)
-                memcpy(r, got->r, sizeof r);
+                memcpy(r, kept.r[slot], sizeof r);
         }
 
         if (k < 3)
@@ -1186,14 +1228,30 @@ static void triangles_drawn(
         for (uint32_t k = 0; k < 3 && !texel; k++)
             v[k].colour = indices_colour(v[k].colour, p.colours, held);
 
-        if (!t) {
-            drawn(&c.s, v, 3);
+        if (t && (!grid || !same_rect_words(r, gridded_for))) {
+            uint8_t flags;
+
+            g = gridded(t, (uint8_t)(pl->flags & ~cut), r, &flags);
+            memcpy(gridded_for, r, sizeof r);
+            c.s.flags = flags | (alone ? ACCEL_REPLACE : 0);
+            c.s.texture = t->tiles[0];
+            grid = true;
+            whole = g.across == 1 && g.down == 1 && !g.wrap_s && !g.wrap_t;
+            ready = false;
+        }
+
+        if (t && !whole) {
+            cut_triangle(&g, v, piece, &c);
+            ready = false; /* a piece's tile may be another's */
             continue;
         }
 
-        const CutGrid g = gridded(t, (uint8_t)(pl->flags & ~cut), r, &c.s.flags);
-        c.s.flags |= alone ? ACCEL_REPLACE : 0;
-        cut_triangle(&g, v, piece, &c);
+        if (!ready) {
+            stated(&c.s);
+            ready = true;
+        }
+
+        appended(v, 3);
     }
 }
 

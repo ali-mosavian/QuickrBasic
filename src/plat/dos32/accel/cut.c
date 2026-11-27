@@ -225,15 +225,18 @@ void cut_triangle(
     void *const ctx
 )
 {
-    CutGrid k = *g;
+    const bool wrap_s = g->wrap_s && !within(v, S, (float)g->wrap.x, (float)g->wrap.w);
+    const bool wrap_t = g->wrap_t && !within(v, T, (float)g->wrap.y, (float)g->wrap.h);
 
-    k.wrap_s = g->wrap_s && !within(v, S, (float)g->wrap.x, (float)g->wrap.w);
-    k.wrap_t = g->wrap_t && !within(v, T, (float)g->wrap.y, (float)g->wrap.h);
-
-    if (!k.wrap_s && !k.wrap_t && g->across == 1 && g->down == 1) {
+    if (!wrap_s && !wrap_t && g->across == 1 && g->down == 1) {
         piece(ctx, 0, 0, v, 3);
         return;
     }
+
+    CutGrid k = *g;
+
+    k.wrap_s = wrap_s;
+    k.wrap_t = wrap_t;
 
     const Cut c = {&k, piece, ctx};
 
