@@ -1495,6 +1495,109 @@ TEST(tdfx_driver_fences_nothing_uncombined)
     CHECK(wc.fences == 0 && wc.uncombines == 0);
 }
 
+/* The SST-1's packer word: Glide's packerFixAddress, texture space's 3 << 21 | 1 << 17; armed,
+   unwritten. At each fence, whether it was written since the last, and TMU0's textureMode then. */
+enum : uint32_t { PACKER = 0x800000 + (3u << 21) + (1u << 17), ARMED = 0xA5A5A5A5 };
+
+static const AccelState TEXTURED = {.texture = 1, .source = ACCEL_TEXEL, .alpha = 255};
+
+static struct {
+    uint32_t fences, flushed[64], mode[64];
+} packer;
+
+static void ACCEL_CALL packer_fence(void)
+{
+    if (packer.fences < 64) {
+        packer.flushed[packer.fences] = word_at(PACKER) != ARMED;
+        packer.mode[packer.fences] = word_at(SST_TMU0 + SST_TEXTURE_MODE);
+    }
+
+    stored_at(card_memory + PACKER, ARMED);
+    packer.fences++;
+}
+
+static const AccelHost PACKER_HOST = {
+    .size = sizeof(AccelHost),
+    .abi = ACCEL_ABI,
+    .pci_read = fake_pci_read,
+    .pci_write = fake_pci_write,
+    .map = fake_map,
+    .clock_us = fake_clock,
+    .combine = wc_combine,
+    .uncombine = wc_uncombine,
+    .fence = packer_fence,
+};
+
+/* The fake card, as the Voodoo Graphics' family opens it, its packer's word armed. */
+static bool sst1_open(Tdfx *const c, const uint16_t w, const uint16_t h)
+{
+    const bool opened = fake_open(c, w, h);
+
+    c->packer = c->texels + SST_PACKER;
+    stored_at(card_memory + PACKER, ARMED);
+    tdfx_combined(c, 0x10000000, SST_WINDOW_BYTES);
+    return opened;
+}
+
+/* The fake card without a packer, as the Voodoo 2's PCI path has it. */
+static bool unpacked_open(Tdfx *const c, const uint16_t w, const uint16_t h)
+{
+    const bool opened = fake_open(c, w, h);
+
+    stored_at(card_memory + PACKER, ARMED);
+    return opened;
+}
+
+/* The SST-1's PCI packer flushed on each side of writes to TMU0's own registers, as Glide flushes
+   it, fenced combined: unflushed, a real card may send a write to the chip the last went to, and
+   lose a texture's mode or place. */
+TEST(tdfx_driver_flushes_the_sst1_packer_around_tmu_registers)
+{
+    static const TdfxFamily fake = {"fake", &sst_chip, false, sst1_open, wc_close};
+
+    AccelCard card;
+    const AccelDriver *const d = tdfx_driver(&PACKER_HOST, &fake);
+
+    wc = (typeof(wc)){};
+    CHECK(d && d->open(&(PciFunction){}, 320, 240, &card) && d->texture(1, 64, 64));
+    packer.fences = 0;
+    d->state(&TEXTURED);
+    d->triangles(TRIANGLE, 3);
+
+    uint32_t flushes = 0, first = 0, last = 0;
+
+    for (uint32_t i = 0; i < packer.fences && i < 64; i++)
+        if (packer.flushed[i]) {
+            first = flushes++ ? first : i;
+            last = i;
+        }
+
+    const uint32_t mode = word_at(SST_TMU0 + SST_TEXTURE_MODE);
+
+    CHECK(flushes == 2 && mode);
+    CHECK(packer.mode[first] == 0 && packer.mode[last] == mode);
+    d->close();
+}
+
+/* Uncombined, the SST-1's packer still flushed; a card without one, the Voodoo 2, not. */
+TEST(tdfx_driver_flushes_a_packer_only_where_the_chip_has_one)
+{
+    static const TdfxFamily sst1 = {"fake", &sst_chip, false, sst1_open, wc_close};
+    static const TdfxFamily cvg = {"fake", &sst_chip, false, unpacked_open, fake_close};
+
+    for (uint32_t k = 0; k < 2; k++) {
+        AccelCard card;
+        const AccelDriver *const d = tdfx_driver(&FAKE_HOST, k ? &cvg : &sst1);
+
+        CHECK(d && d->open(&(PciFunction){}, 320, 240, &card) && d->texture(1, 64, 64));
+        stored_at(card_memory + PACKER, ARMED);
+        d->state(&TEXTURED);
+        d->triangles(TRIANGLE, 3);
+        CHECK((word_at(PACKER) == ARMED) == (k == 1));
+        d->close();
+    }
+}
+
 /* Texels go in packets to texture space at the addresses the texture window takes them: the same
    words as the Voodoo Graphics' direct writes. */
 TEST(tdfx_cvg_sends_texels_to_texture_space)

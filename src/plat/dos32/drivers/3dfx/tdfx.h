@@ -110,6 +110,7 @@ struct Tdfx {
     const volatile uint32_t *status;
     uint32_t lfb_row, stride, rows, mode_w, mode_h, texture_bytes, millihz;
     void(ACCEL_CALL *fence)(void); /* the host's, a window write-combined: null, none is */
+    volatile uint8_t *packer; /* the SST-1's: the word its PCI packer is flushed by, null none */
 
     uint16_t w, h, left, top; /* the screen, and its place in the mode */
     uint32_t shown;           /* the colour buffer shown */

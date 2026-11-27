@@ -56,10 +56,13 @@ enum : uint32_t {
     SST_FBI = 0x400,
     SST_TMU0 = 0x800,
     SST_TMU1 = 0x1000,
+    SST_TMUS = 0x3800,
 
-    /* the windows: the frame buffer's pixels, and textures' texels */
+    /* the windows: the frame buffer's pixels, and textures' texels; in texture space, a word no TMU
+       takes, which flushes the SST-1's PCI packer: Glide's packerFixAddress */
     SST_LFB = 0x400000,
     SST_TEXELS = 0x800000,
+    SST_PACKER = 3u << 21 | 1u << 17,
 };
 
 /* sSetupMode's: the setup unit works out the colour, alpha, z, and TMU0's w, s and t. */

@@ -142,6 +142,7 @@ static bool opened(Tdfx *const c, const uint16_t w, const uint16_t h)
     sst_changed(c, SST_FBI_INIT0, SST_SHOWN, sst.shows);
     sst_changed(c, SST_FBI_INIT1, SST_BLANK, 0);
     c->texture_bytes = SST_BYTES;
+    c->packer = c->texels + SST_PACKER;
     tdfx_combined(c, sst_window(c), SST_WINDOW_BYTES); /* the whole window, as sst1InitCachingOn */
     return true;
 }

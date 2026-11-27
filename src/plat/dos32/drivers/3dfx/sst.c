@@ -59,8 +59,9 @@ enum : uint32_t {
     PALETTE_RUN = 8 * 4,
 };
 
-static uint32_t room;         /* the FIFO's entries known free */
-static uint32_t lwm;          /* the memory FIFO's entries free kept: 0, it is off */
+static uint32_t room; /* the FIFO's entries known free */
+static uint32_t tmus; /* the TMUs the last write went to alone, by the chip field: 0, none */
+static uint32_t lwm;  /* the memory FIFO's entries free kept: 0, it is off */
 static uint32_t buffer_pages; /* a colour buffer's */
 
 const SstMode *sst_mode_for(
@@ -116,7 +117,7 @@ bool sst_mapped(Tdfx *const c)
     if (!regs)
         return false;
 
-    room = lwm = 0;
+    room = lwm = tmus = 0;
     c->regs = regs;
     c->status = (const volatile uint32_t *)(regs + SST_STATUS);
     c->lfb = regs + SST_LFB;
@@ -220,6 +221,20 @@ static void stored(Tdfx *const c, volatile uint8_t *const at, const uint32_t v)
     *(volatile uint32_t *)at = v;
 }
 
+/* Before a write to the TMUs `to` alone (0, to every chip, the FBI or a window), the SST-1's PCI
+   packer flushed if the last went elsewhere, as Glide brackets TMU writes, by a word no TMU takes:
+   fenced on each side combined. */
+static void unpacked(Tdfx *const c, const uint32_t to)
+{
+    if (!c->packer || to == tmus)
+        return;
+
+    tmus = to;
+    tdfx_fenced(c);
+    stored(c, c->packer, 0);
+    tdfx_fenced(c);
+}
+
 /* Whether a write to reg acts rather than being held: a command, or the palette's port. */
 static bool acts(const uint32_t reg)
 {
@@ -245,6 +260,9 @@ static void put(
     const uint32_t n = p->n, last = n ? p->at[n - 1] : 0;
     const bool fenced = c->fence && n && acts(reg + 4 * last);
     const uint32_t held = fenced ? n - 1 : n;
+
+    unpacked(c, reg & SST_TMUS);
+
     uint32_t free = room;
 
     for (uint32_t k = 0; k < held;) {
@@ -288,6 +306,9 @@ static void uploaded(
     const uint32_t a_word = t->indexed ? 4 : 2, words = (uint32_t)r.w / a_word;
     const uint32_t x = t->indexed ? (uint32_t)r.x : (uint32_t)r.x << SST_TEXEL_AT;
     volatile uint8_t *const level = c->texels + (t->level << SST_LEVEL_AT) + x;
+
+    unpacked(c, 0);
+
     uint32_t free = room;
 
     for (uint32_t y = 0; y < (uint32_t)r.h; y++) {
