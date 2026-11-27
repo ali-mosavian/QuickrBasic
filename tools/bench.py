@@ -1855,6 +1855,10 @@ def print_vm_profile(
     cycles = {f: (b.by.get(f, 0) - a.by.get(f, 0)) * per for f in b.by}
     total = sum(cycles.values())
     print(f"{name} on {vm}: {total:,.0f} cycles a frame ({b.mhz * 1e6 / total:.1f} fps), {frames} frames")
+    # each run its own boot, held to the host's clock; under 1%, a start-up's sampling noise
+    if fewer := sorted((c, f) for f, c in cycles.items() if c < -0.01 * total):
+        print("  the runs disagree, a frame's cycles unsure; the shorter's more: "
+              + ", ".join(f"{f} {c:,.0f}" for c, f in fewer))
     for f, c in sorted(cycles.items(), key=lambda kv: -kv[1])[:n]:
         print(f"{c:>12,.0f} {c / total:6.1%}  {f}")
     for f in inside:

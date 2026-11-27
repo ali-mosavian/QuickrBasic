@@ -406,6 +406,26 @@ def games_images_with_drivers() -> None:
     assert len(ran) == 1 and {i for _, i in named} == {next(iter(ran)) + 1}, named
 
 
+def vm_profile_runs_disagree() -> None:
+    """A VM's profile says when its two runs disagree. Each row is the longer run less the shorter, each its own
+    boot held to the host's clock, so a loaded host's waits in the shorter went negative: MEADOW16's Voodoo 1 lost
+    its _put and _tdfx_get rows and read 105.9 fps, not 77. A start-up's sampling noise, under 1%, is no
+    disagreement: every profile had some."""
+    def runs(by: dict[str, int], frames: int) -> bench.Samples:
+        return bench.Samples(by, {}, frames, 10, 100.0)
+
+    for shorter, longer, said in (({"_put": 90, "_draw": 50}, {"_put": 40, "_draw": 300}, True),
+                                  ({"_put": 10, "_draw": 50, "_lex": 1}, {"_put": 40, "_draw": 300, "_lex": 0}, False)):
+        out = io.StringIO()
+        with (
+            unittest.mock.patch.object(bench, "vm_samples", side_effect=[runs(shorter, 10), runs(longer, 20)]),
+            unittest.mock.patch.object(sys, "stdout", out),
+        ):
+            bench.print_vm_profile("M", "vm", Path("p.exe"), [(), ()], {}, 1, [])
+        named = [line for line in out.getvalue().splitlines() if "disagree" in line]
+        assert bool(named) == said and all("_put" in line for line in named), out.getvalue()
+
+
 def vm_window() -> None:
     """A VM's profile samples the job alone. It sampled from boot until the host stopped it, so the host's delay in
     seeing the end read as frame time: one build's ISLES on the 486, 14.8M cycles a frame, then 11.9M."""
@@ -438,6 +458,7 @@ def main() -> int:
     vm_object_base()
     vm_bios_prompt()
     games_images_with_drivers()
+    vm_profile_runs_disagree()
     if (bench.HL86 / "build/src/86Box-headless").exists():
         vm_window()
     b = bench.build(".", False)  # the tree's own instruments: copying them onto themselves raised
