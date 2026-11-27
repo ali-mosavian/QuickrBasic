@@ -6,6 +6,7 @@ Files, each error a value.
     File.open(path, mode = "r") as File or Error
                                      "r", "w" anew, "a" to its end, "rw"
     f.read(count) as string          count bytes at most from its place
+    f.read_into(a) as int or Error   a, numbers, filled: the elements read
     f.write(s) as bool or Error      s at its place
     f.seek(at) as bool or Error      its place to byte at, from 0
     f.size() as int                  its bytes

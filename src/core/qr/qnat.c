@@ -22,6 +22,7 @@
 #define SYS(s) {QN_SYS, SC_##s, 0}
 #define X(r) {QN_X, 0, QX_##r}
 #define NUM(x, k) {QN_NUM, X_##x, k}
+#define ET(k) {QN_ET, 0, k}
 #define NAT(name, ...)                                                                             \
     {name,                                                                                         \
      (const QNatStep[]){__VA_ARGS__},                                                              \
@@ -98,6 +99,7 @@ static const QNat qnat_all[] = {
     /* fs: a file by its number, as OPEN's; an error its negative ERR */
     NAT("file_open", ARG(0), ARG(1), X(FOPEN)),
     NAT("file_read", ARG(0), ARG(1), X(FREAD)),
+    NAT("file_read_into", ARG(0), ARG(1), ET(1), X(FINTO)),
     NAT("file_write", ARG(0), ARG(1), X(FWRITE)),
     NAT("file_seek", ARG(0), ARG(1), X(FSEEK)),
     NAT("file_size", ARG(0), X(FSIZE)),

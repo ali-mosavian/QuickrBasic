@@ -1077,7 +1077,9 @@ dicts and iterables. Everything else is in a module.
 
 - `File.open(path, mode = "r") as File or Error`: mode `"r"` to read, `"w"` to write it anew,
   `"a"` to add to its end, `"rw"` both.
-- `f.read(count) as string` gives `count` bytes at most. `f.write(s)` and `f.seek(at)` give a
+- `f.read(count) as string` gives `count` bytes at most. `f.read_into(a) as int or Error` fills
+  `a`, an array of numbers, with its elements' bytes as they lie in memory (little-endian), as
+  BLOAD does; it gives the whole elements read, fewer at the end. `f.write(s)` and `f.seek(at)` give a
   `bool or Error`. `f.size() as int`. `f.close()` closes it sooner than its `drop` does.
 - A `File`'s number is private. A file's error is a value, its `code` QBasic's ERR.
 - `read_text(path) as string or Error` reads at most 32767 bytes, a string's most.

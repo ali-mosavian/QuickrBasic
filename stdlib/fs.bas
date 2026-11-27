@@ -4,6 +4,7 @@ import text
 
 private native function file_open(path as string, mode as string) as int
 private native function file_read(n as int, count as int) as string
+private native function file_read_into[T](n as int, mut a as T[]) as int
 private native function file_write(n as int, s as string) as int
 private native function file_seek(n as int, at as int) as int
 private native function file_size(n as int) as int
@@ -25,6 +26,14 @@ type File
     ' count bytes at most from the file's place, fewer at its end
     fn read(self, count as int) as string
         return file_read(self.n, count)
+    end fn
+
+    ' a filled from the file's place, its elements' bytes as they lie in memory (little-endian):
+    ' the whole elements read, fewer at its end
+    fn read_into[T](self, mut a as T[]) as int or Error
+        let n = file_read_into(self.n, a)
+        if n < 0 then return Error(-n, f"read: {error_text(-n)}")
+        return n
     end fn
 
     fn write(self, s as string) as bool or Error

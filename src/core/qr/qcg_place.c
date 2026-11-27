@@ -919,6 +919,12 @@ static void qcg_native(QCg *const g, const QExpr *const e)
         switch (st.kind) {
         case QN_ARG: {
             const QType t = e->fn->params[st.n].var->type;
+
+            if (qcg_list(g, t)) {
+                qcg_lend(g, e->argv[st.n], t);
+                break;
+            }
+
             qcg_as(g, e->argv[st.n], t);
             qcg_hold(g, t, 1);
             held += t == QY_STRING;
@@ -953,6 +959,11 @@ static void qcg_native(QCg *const g, const QExpr *const e)
         case QN_NUM:
             code_xop(c, st.op);
             code_byte(c, qcg_num(e->fn->params[st.n].var->type));
+            break;
+
+        case QN_ET:
+            code_int(c, qcg_et(g, qcg_ty(g, e->fn->params[st.n].var->type)->elem));
+            break;
         }
     }
 
