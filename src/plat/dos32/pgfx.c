@@ -273,12 +273,12 @@ static void restored(void)
     gfx.kept = nullptr;
 }
 
-static bool played_open(const uint16_t w, const uint16_t h, const bool vsync)
+static bool played_open(const uint16_t w, const uint16_t h, const uint8_t flags)
 {
     PciFunction card;
     const AccelDriver *const d = accel_driver(&card);
 
-    return d && accel_open(d, &card, w, h, vsync);
+    return d && accel_open(d, &card, w, h, flags);
 }
 
 static const PgfxPlayer played = {
@@ -298,7 +298,7 @@ const PgfxPlayer *pgfx_open_played(
     const uint16_t w,
     const uint16_t h,
     const uint8_t shaders,
-    const bool vsync
+    const uint8_t flags
 )
 {
     pgfx_close();
@@ -306,7 +306,7 @@ const PgfxPlayer *pgfx_open_played(
     if (!(played.shaders & shaders) || !kept())
         return nullptr;
 
-    if (played.open(w, h, vsync)) {
+    if (played.open(w, h, flags)) {
         gfx.playing = &played;
         return gfx.playing;
     }

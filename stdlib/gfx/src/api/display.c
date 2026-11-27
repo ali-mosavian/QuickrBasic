@@ -3,10 +3,12 @@
 #include "core/mem.h"
 
 enum {
-    OPEN_FLAGS = GFX_DISPLAY_VSYNC | GFX_DISPLAY_NATIVE | GFX_DISPLAY_FIT | GFX_DISPLAY_STRETCH,
+    OPEN_FLAGS = GFX_DISPLAY_VSYNC | GFX_DISPLAY_NATIVE | GFX_DISPLAY_FIT | GFX_DISPLAY_STRETCH |
+                 GFX_DISPLAY_DISCARD,
     RGB_MOST = 255,
 };
 static_assert(GFX_DISPLAY_VSYNC == QX_SCREEN_VSYNC);
+static_assert(GFX_DISPLAY_DISCARD == QX_SCREEN_DISCARD);
 
 static void close_screen(Gx *const g)
 {

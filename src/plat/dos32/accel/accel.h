@@ -12,9 +12,16 @@ const AccelDriver *accel_driver(PciFunction *card);
 bool accel_drives(const uint8_t *file, uint32_t n, const PciFunction *f);
 
 /* gfx's lists played through driver d on card (player.c), as plat/pgfx.h's PgfxPlayer: a w by h
-   screen opened, shown at the retrace with vsync; false, the card could not. Open, the screen is
-   closed first. */
-bool accel_open(const AccelDriver *d, const PciFunction *card, uint16_t w, uint16_t h, bool vsync);
+   screen opened with QxScreen's flags, shown at the retrace with QX_SCREEN_VSYNC, its frame shown
+   not carried into the next with QX_SCREEN_DISCARD; false, the card could not. Open, the screen
+   is closed first. */
+bool accel_open(
+    const AccelDriver *d,
+    const PciFunction *card,
+    uint16_t w,
+    uint16_t h,
+    uint8_t flags
+);
 void accel_close(void);
 /* The list played: true, it showed a frame. A FIXED host's (qx/qxlist.h): only the texture the first
    SHOW shows is shown. */

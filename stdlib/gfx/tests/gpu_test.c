@@ -21,6 +21,7 @@ static uint8_t pixels[MOST_PIXELS * 4];
 static QxShader language; /* the one the host takes */
 static bool down;         /* its clip space's y runs down */
 static uint8_t offered;   /* the languages the last screen asked for */
+static uint8_t flagged;   /* its flags */
 static uint8_t sent[64];  /* the last UPLOAD's first bytes */
 static uint32_t lookup[QX_LIST_INDICES], colours[QX_LIST_INDICES]; /* the last LOOKUP's, COLOURS' */
 static uint32_t most_vertices; /* the most bytes of vertices a play wrote */
@@ -28,6 +29,7 @@ static uint32_t most_vertices; /* the most bytes of vertices a play wrote */
 static bool QX_CALL fake_open(QxScreen *const s)
 {
     offered = s->shaders;
+    flagged = s->flags;
     s->gpu = true;
     s->shader = language;
     s->y_down = down;
@@ -902,6 +904,16 @@ TEST(gfx_gpu_clears_depth)
 static void fixed_screen(Session *const S, const int32_t w, const int32_t h, const int32_t depth)
 {
     screen_in(S, w, h, depth, QX_SHADER_FIXED, false);
+}
+
+/* DISCARD reaches the host, which then need not keep the screen past a flip: a Voodoo 1 spent two
+   thirds of MEADOW's frame copying back the frame it had just shown. */
+TEST(gfx_gpu_tells_the_host_a_screen_is_discarded)
+{
+    host_in(S, QX_SHADER_FIXED, true);
+    CHECK(!GPU_CALL("display.open", I(8), I(8), I(16), I(QX_SCREEN_DISCARD)).error);
+    CHECK(flagged == QX_SCREEN_DISCARD);
+    CHECK(GPU_CALL("display.open", I(8), I(8), I(16), I(QX_SCREEN_DISCARD << 1)).error == 5);
 }
 
 /* A fixed host is offered at every depth; before minor 6, which draws indices, not at 8 bits. */

@@ -108,9 +108,9 @@ static uint32_t shown_after(const QxHost *const h, const bool list)
     return n;
 }
 
-static bool fake_open(const uint16_t w, const uint16_t h, const bool vsync)
+static bool fake_open(const uint16_t w, const uint16_t h, const uint8_t flags)
 {
-    return (void)w, (void)h, (void)vsync, true;
+    return (void)w, (void)h, (void)flags, true;
 }
 
 static void fake_close(void) {}

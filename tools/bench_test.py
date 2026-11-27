@@ -157,7 +157,8 @@ def games_meadow16_at_16_bits() -> None:
     """games' MEADOW16 is MEADOW at 16 bits and its own size. Its job gave 16 and True as frames and depth: its screen
     opened at depth True, an Illegal function call on DOS before its first frame."""
     program = bench.game_jobs()["MEADOW16"][0](4)[0]
-    assert "const DEPTH = 16\n" in program and "gfx.display.open(W, H, 16, 0)" in program, "not at 16 bits"
+    assert "const DEPTH = 16\n" in program and "gfx.display.open(W, H, 16, " in program, "not at 16 bits"
+    assert "gfx.display.VSYNC" not in program, "at the retrace"
     assert "const W = 640\n" in program and "(frames& / 30#)" not in program, "not at its size, or by frames"
 
 

@@ -53,8 +53,7 @@ static bool QX_CALL host_stopped(QxCall *const c)
 /* The display's player's, else pages in memory. */
 static bool QX_CALL host_gfx_open(QxScreen *const s)
 {
-    const bool vsync = s->flags & QX_SCREEN_VSYNC;
-    const PgfxPlayer *const p = pgfx_open_played(s->w, s->h, s->shaders, vsync);
+    const PgfxPlayer *const p = pgfx_open_played(s->w, s->h, s->shaders, s->flags);
 
     s->out_w = s->w;
     s->out_h = s->h;
@@ -65,7 +64,7 @@ static bool QX_CALL host_gfx_open(QxScreen *const s)
         s->y_down = p->y_down;
     }
 
-    const bool opened = s->gpu || pgfx_open(s->w, s->h, s->depth, vsync);
+    const bool opened = s->gpu || pgfx_open(s->w, s->h, s->depth, s->flags & QX_SCREEN_VSYNC);
     s->hz = pgfx_hz(); /* DOS's, timed as its mode is set */
     return opened;
 }

@@ -109,7 +109,10 @@ declare sub draw_glows ( _
 )
 
 randomize timer
-canvas& = gfx.display.open(W, H, DEPTH, gfx.display.VSYNC)
+' shown at the retrace; drawn whole each frame, so nothing
+' kept past a flip
+flags% = gfx.display.VSYNC or gfx.display.DISCARD
+canvas& = gfx.display.open(W, H, DEPTH, flags%)
 dim colours(255) as long
 set_colours colours()
 ink& = WHITE

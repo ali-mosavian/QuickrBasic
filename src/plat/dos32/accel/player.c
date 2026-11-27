@@ -107,7 +107,7 @@ static struct {
     const AccelDriver *d; /* null, none open */
     AccelCard card;
     uint16_t w, h;
-    bool vsync;
+    bool vsync, discard; /* the screen's QX_SCREEN_VSYNC and QX_SCREEN_DISCARD */
     Ids buffers, textures, pipelines;
     uint32_t screen; /* the texture shown: NONE, none yet */
     bool owed;       /* shown since the card's next frame was carried or drawn over */
@@ -1192,7 +1192,8 @@ static void op_show(const QxListEntry *const e)
     carried(); /* shown again undrawn: the next frame, undefined till carried */
     flushed();
     p.d->show(p.vsync);
-    p.owed = p.shown = true;
+    p.owed = !p.discard;
+    p.shown = true;
 }
 
 /* 256 words from a pointer's into to. */
@@ -1239,7 +1240,7 @@ bool accel_open(
     const PciFunction *const card,
     const uint16_t w,
     const uint16_t h,
-    const bool vsync
+    const uint8_t flags
 )
 {
     AccelCard c = {};
@@ -1253,7 +1254,8 @@ bool accel_open(
     p.card = c;
     p.w = w;
     p.h = h;
-    p.vsync = vsync;
+    p.vsync = flags & QX_SCREEN_VSYNC;
+    p.discard = flags & QX_SCREEN_DISCARD;
     p.screen = p.aimed = NONE;
     p.lookups = p.colourings = 1;
 

@@ -120,6 +120,10 @@ window: by whole multiples, to fit (`FIT`), or stretched (`STRETCH`). With `NATI
 backend draws at the window's resolution instead: the same commands, more pixels, and sprites turn
 smoothly rather than a canvas pixel at a time. Software ignores it.
 
+With `DISCARD` the canvas's pixels are undefined after a flip, for a program that draws all of it
+each frame. A 3D card then draws the next frame without first copying the one it shows. Software
+keeps them anyway.
+
 On DOS, 320×200 at 8 bits is VGA's mode 13h; the rest are VBE 2.0 modes through a linear
 framebuffer, with banked modes for VBE 1.2 cards. A canvas shows in the mode of its depth it fills
 most, by whole multiples, centred.

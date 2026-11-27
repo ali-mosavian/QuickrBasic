@@ -5,9 +5,9 @@
 #include "qx/qx.h"
 #include "wasm.h"
 
-static bool player_open(const uint16_t w, const uint16_t h, const bool vsync)
+static bool player_open(const uint16_t w, const uint16_t h, const uint8_t flags)
 {
-    (void)vsync;
+    (void)flags;
     return js_gpu_open(w, h);
 }
 

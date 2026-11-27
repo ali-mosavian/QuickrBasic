@@ -76,13 +76,14 @@ typedef enum : uint8_t {
     QX_SHADER_FIXED,
 } QxShader;
 
-/* A screen's flag the host reads: gfx_show and a list's SHOW wait for the display's refresh. */
-enum { QX_SCREEN_VSYNC = 1 };
+/* A screen's flags the host reads. VSYNC: gfx_show and a list's SHOW wait for the display's
+   refresh. DISCARD: after a SHOW the screen's pixels are undefined, so a host need not keep them. */
+enum { QX_SCREEN_VSYNC = 1, QX_SCREEN_DISCARD = 16 };
 
 /* A screen asked for (gfx_open), then what the host gives. */
 typedef struct {
     uint16_t w, h;         /* the canvas */
-    uint8_t depth, flags;  /* 8 bits a pixel; gfx.display's flags, QX_SCREEN_VSYNC among them */
+    uint8_t depth, flags;  /* 8 bits a pixel; gfx.display's flags, QX_SCREEN_'s among them */
     uint8_t shaders;       /* the languages the extension brings, 1 << QxShader each */
     bool gpu;              /* given: the host plays GPU lists (qxlist.h), else it lends pages */
     QxShader shader;       /* given with gpu: the language its pipelines are in */

@@ -1409,13 +1409,12 @@ def demo_program(name: str, seconds: float, vsync: bool, edits: int, *, frames: 
     src, w = re.subn(r"(?m)^const W = \d+$", "const W = 320", src) if not sized else (src, 1)
     src, h = re.subn(r"(?m)^const H = \d+$", "const H = 200", src) if not sized else (src, 1)
     src = re.sub(r"(?m)^const DEPTH = \d+$", f"const DEPTH = {depth}", src)
-    flags = "gfx.display.VSYNC" if vsync else "0"
-    src, o = re.subn(r"gfx\.display\.open\(W, H, \w+, gfx\.display\.VSYNC\)",
-                     f"gfx.display.open(W, H, {depth}, {flags})", src)
+    src, o = re.subn(r"gfx\.display\.open\(W, H, \w+, ", f"gfx.display.open(W, H, {depth}, ", src)
+    src, v = (src, 1) if vsync else re.subn(r"gfx\.display\.VSYNC\b", "0", src)
     flip = DEMO_FLIP_FRAMES if frames else DEMO_FLIP
     src, f = re.subn(r"(?m)^(\s*)gfx\.display\.flip$",
                      lambda m: flip.format(i=m[1], seconds=seconds, frames=frames), src)
-    assert all(n == 1 for n in (w, h, o, f)), f"{name}: its size, open or flip not found once"
+    assert all(n == 1 for n in (w, h, o, v, f)), f"{name}: its size, open, VSYNC or flip not found once"
     for _, old, new in DEMO_EDITS.get(name, ())[:edits]:
         assert src.count(old) == 1, f"{name}: {old!r} not found once"
         src = src.replace(old, new)

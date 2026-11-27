@@ -492,12 +492,15 @@ static bool played(const uint32_t into, const uint32_t draws_from, const bool sh
     return accel_play(words, n);
 }
 
-static void opened(void)
+/* The fake card opened, its screen's flags QxScreen's. */
+static void opened_as(const uint8_t flags)
 {
     fake = (typeof(fake)){.room = ACCEL_TARGETS};
 
-    CHECK(accel_open(&FAKE, &(PciFunction){}, SCREEN_W, SCREEN_H, true));
+    CHECK(accel_open(&FAKE, &(PciFunction){}, SCREEN_W, SCREEN_H, flags));
 }
+
+static void opened(void) { opened_as(QX_SCREEN_VSYNC); }
 
 /* Two draws alike: the state sent once, before the first's triangles. */
 TEST(accel_player_sends_state_only_as_it_changes)
@@ -597,6 +600,24 @@ TEST(accel_player_carries_a_frame_only_when_not_drawn_over)
     list.n = list.nv = list.ni = 0;
     box(SOLID, 0, 0, 0, SCREEN_W, SCREEN_H, 0, 0);
     CHECK(played(SHOWN, 0, true) && calls_of('C') == 1);
+    accel_close();
+}
+
+/* A screen opened with DISCARD keeps nothing past a SHOW: its next frame is never carried. MEADOW
+   drew all of its screen each frame and spent two thirds of a Voodoo 1's frame carrying the last. */
+TEST(accel_player_carries_nothing_on_a_discarded_screen)
+{
+    opened_as(QX_SCREEN_VSYNC | QX_SCREEN_DISCARD);
+    begun(1, 1);
+
+    const uint32_t from = list.n;
+
+    box(SOLID, 0, 0, 0, 8, 8, 0, 0);
+    CHECK(played(SHOWN, from, true));
+
+    list.n = list.nv = list.ni = 0;
+    box(SOLID, 0, 0, 0, 8, 8, 0, 0);
+    CHECK(played(SHOWN, 0, true) && calls_of('C') == 0);
     accel_close();
 }
 
