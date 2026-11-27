@@ -1873,8 +1873,8 @@ static void qpar_native(QPar *const P)
     f->native = true;
     f->end = f->def;
 
-    if (f->ntp || f->ytx)
-        qpar_fail(P, t, "a native function is not generic and yields nothing");
+    if (f->ytx)
+        qpar_fail(P, t, "a native function yields nothing");
 }
 
 /* private, or public (the default, nothing), before a module's function, type, enum, const,
@@ -2041,7 +2041,7 @@ QFit qpar_fits(QParAt *const a, const QTok *const line, const QTok *const word)
 
 QFn *qpar_again(QProg *const p, QMem *const m, const QFn *const f)
 {
-    QPar P = qpar_at(p, m, f->def->tok);
+    QPar P = qpar_at(p, m, f->def->tok - f->native); /* a native's from its native */
     P.in = f->in;
     const QStmt *const before = P.last;
 

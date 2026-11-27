@@ -240,16 +240,36 @@ static void qcg_convert(Code *const c, const QType from, const QType to)
     qcg_conv(c, from, to, false);
 }
 
+/* e's value as type to, or wrapped: an int variable's or byte's load as a single's in its place
+   (F.LD.VI, F.LD.U8), as QBasic's. */
+static void qcg_exprto(QCg *const g, const QExpr *const e, const QType to, const bool wrap)
+{
+    Code *const c = g->c;
+    uint8_t *const at = c->out;
+    qcg_expr(g, e);
+
+    if (to == QY_SINGLE && qcg_icell(e->type)) {
+        if (code_ends_op(c, at, O_I_LD_V, 1 + VCELL)) {
+            *at = O_F_LD_VI;
+            return;
+        }
+
+        if (code_ends_op(c, at, O_I_LD_U8, 2)) {
+            *at = O_F_LD_U8;
+            return;
+        }
+    }
+
+    qcg_conv(c, e->type, to, wrap);
+}
+
 /* e's value as type w: a constant made so, else converted. */
 void qcg_as(QCg *const g, const QExpr *const e, const QType w)
 {
-    if (e->kind == QE_CONST) {
+    if (e->kind == QE_CONST)
         qcg_const(g, e, w);
-        return;
-    }
-
-    qcg_expr(g, e);
-    qcg_convert(g->c, e->type, w);
+    else
+        qcg_exprto(g, e, w, false);
 }
 
 /* e's value pushed, held under what follows: a string counted (qcg_hop). */
@@ -811,8 +831,7 @@ void qcg_expr(QCg *const g, const QExpr *const e)
         return;
 
     case QE_CONV:
-        qcg_expr(g, e->a);
-        qcg_conv(g->c, e->a->type, e->type, e->wrap);
+        qcg_exprto(g, e->a, e->type, e->wrap);
         return;
 
     case QE_FIELD:

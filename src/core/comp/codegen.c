@@ -17,7 +17,7 @@
  * |---|---|---|
  * | cm_icmp, cm_fcmp, cm_lflt | cg_icmp, cg_fcmp, cg_lfloat | MIRROR |
  * | cm_shid, cm_sop | shortid, shortop | MIRROR |
- * | cm_fkind | fltkind | MIRROR |
+ * | cm_fkind | cg_fltkind | MIRROR |
  * | cm_iop, cm_fop2 | cg_binary | D1 |
  * | cm_un | cg_unary | D1 |
  * | cm_xfn, cm_xarg, cm_farg | cg_xfn, xarg, farg | D1 |
@@ -138,8 +138,7 @@ void cg_icmp(Code *const c, const uint8_t rel, uint8_t *const right)
     c->cmpend = c->out;
 }
 
-/* The right operand's load that folds: its form, farith's row, plus 1; 0 none. */
-static uint8_t fltkind(Code *const c, const uint8_t *const right)
+uint8_t cg_fltkind(Code *const c, const uint8_t *const right)
 {
     if (code_ends_op(c, right, O_F_LD_V, 1 + VCELL))
         return 1;
@@ -157,7 +156,7 @@ void cg_fcmp(Code *const c, const uint8_t rel, uint8_t *const right)
 {
     c->type = T_INT;
     const uint8_t m = rel & REL_MASK;
-    const uint8_t k = fltkind(c, right);
+    const uint8_t k = cg_fltkind(c, right);
 
     if (k) {
         c->cmp = right;
@@ -1178,14 +1177,24 @@ static uint8_t cmpif(const uint8_t op)
             return pairs[i][1];
 }
 
+bool cg_cmpif(Code *const c)
+{
+    if (!c->cmp || c->out != c->cmpend)
+        return false;
+
+    *c->cmp = cmpif(*c->cmp);
+    return true;
+}
+
 /* A one-line IF's test of the value made: a compare just made becomes its CMPIF, else X.IF. */
 static void cg_if(Code *const c)
 {
     code_dtest(c);
 
-    if (c->out == c->cmpend)
-        *c->cmp = cmpif(*c->cmp);
-    else if (c->type == T_STR)
+    if (cg_cmpif(c))
+        return;
+
+    if (c->type == T_STR)
         code_xop(c, X_S_IF);
     else if (c->type == T_FLT)
         code_xop(c, X_F_IF);

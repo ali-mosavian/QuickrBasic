@@ -19,7 +19,7 @@
  * | cm_paren, cm_subs0, cm_load, cm_lval | expr_paren, expr_target's N_TARGET, expr_load, expr_target | MIRROR |
  * | cm_shv, cm_icmp, cm_fcmp, cm_lflt | code_shclass (code.c), cg_icmp, cg_fcmp, cg_lfloat (codegen.c) | MOVED |
  * | cm_p, cm_un | parse, parse_unary | D1 |
- * | cm_sop, cm_shid, cm_iop, cm_fop2, cm_fkind, cm_str | shortop, shortid, cg_binary, fltkind (codegen.c) | MOVED; D1 |
+ * | cm_sop, cm_shid, cm_iop, cm_fop2, cm_fkind, cm_str | shortop, shortid, cg_binary, cg_fltkind (codegen.c) | MOVED; D1 |
  * | cm_right | code_ends_op (code.h) | MOVED |
  * | cm_nany | | D3 |
  * | cm_addr | ref_place (refs.c) | MOVED |

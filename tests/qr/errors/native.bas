@@ -9,4 +9,8 @@ native function floor(p as P) as P
 native function find[T](s as T) as int
 native type Q
 native function upper(s as string) as string
+native function abs[T](x as T) as T
+native function sin() yields int
 print upper("ok")
+print find(1)
+print abs("a")

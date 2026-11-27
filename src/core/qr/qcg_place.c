@@ -948,6 +948,11 @@ static void qcg_native(QCg *const g, const QExpr *const e)
         case QN_X:
             code_int(c, (uint32_t)st.n);
             code_call(c, K_QX);
+            break;
+
+        case QN_NUM:
+            code_xop(c, st.op);
+            code_byte(c, qcg_num(e->fn->params[st.n].var->type));
         }
     }
 
