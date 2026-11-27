@@ -381,6 +381,28 @@ def vm_bios_prompt() -> None:
     assert vm.pressed == ["F1"] and vm.screen == "QB-DONE", (vm.pressed, vm.screen)
 
 
+def games_images_with_drivers() -> None:
+    """A card's profile names the driver the runs were given: it read the driver's DLL and map as each profile
+    began, so a build in between named MEADOW16's Voodoo 1 frames by the Voodoo 2's _sst_blits."""
+    built = iter(range(100))
+    named = []
+    a = bench.argparse.Namespace(card="voodoo1", dosbox=False, profile=True, game=["MEADOW16", "MEADOW"], seconds=1,
+                                 n=1)
+    with (
+        tempfile.TemporaryDirectory() as d,
+        unittest.mock.patch.object(bench, "build", return_value=unittest.mock.Mock(dos=Path(d) / "basic32.exe")),
+        unittest.mock.patch.object(bench, "drivers_of", side_effect=lambda _: {"lib/drivers/V.DRV": next(built)}),
+        unittest.mock.patch.object(bench, "driver_images", side_effect=lambda *_: next(built)),
+        unittest.mock.patch.object(bench, "profiled", return_value=Path("/none/p.exe")),
+        unittest.mock.patch.object(bench, "print_vm_profile", side_effect=lambda *x: named.append((x[4], x[-1]))),
+    ):
+        (Path(d) / "lib").mkdir()
+        (Path(d) / "lib/gfx.qbx").write_bytes(b"")
+        bench.cmd_games(a)
+    ran = {f.get("lib/drivers/V.DRV") for f, _ in named} - {None}
+    assert len(ran) == 1 and {i for _, i in named} == {next(iter(ran)) + 1}, named
+
+
 def vm_window() -> None:
     """A VM's profile samples the job alone. It sampled from boot until the host stopped it, so the host's delay in
     seeing the end read as frame time: one build's ISLES on the 486, 14.8M cycles a frame, then 11.9M."""
@@ -412,6 +434,7 @@ def main() -> int:
     vm_rate()
     vm_object_base()
     vm_bios_prompt()
+    games_images_with_drivers()
     if (bench.HL86 / "build/src/86Box-headless").exists():
         vm_window()
     b = bench.build(".", False)  # the tree's own instruments: copying them onto themselves raised

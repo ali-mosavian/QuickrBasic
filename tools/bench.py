@@ -1958,6 +1958,7 @@ def cmd_games(a: argparse.Namespace) -> int:
     jobs = game_jobs()
     libs = {"pages": pages, a.card or "voodoo2": pages | drivers_of(b) | (driver_maps(b) if a.dosbox else {})}
     if a.profile:
+        images = () if a.dosbox else driver_images(b, a.card)  # with the drivers run: a later build's misnamed them
         with tempfile.TemporaryDirectory() as d:
             exe = profiled(b, Path(d))
             for name in a.game or jobs:
@@ -1969,7 +1970,7 @@ def cmd_games(a: argparse.Namespace) -> int:
                                             DOSBOX_VOODOO)
                     else:
                         print_vm_profile(f"{name} in {how}", CARDS[a.card], exe, runs, files | lib, a.n, [], None,
-                                         True, driver_images(b, a.card))
+                                         True, images)
         return 0
     vm = CARDS[a.card]
     print(f"8 bits on 86Box ({vm}), frames a second")
