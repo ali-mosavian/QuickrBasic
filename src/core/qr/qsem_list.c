@@ -20,7 +20,7 @@ static QExpr *qsem_listop(QSem *const S, QExpr *const e, const QBuiltin op)
         [QB_POP] = "pop() takes no values",
         [QB_INSERT] = "insert() takes an index and a value",
         [QB_REMOVE] = "remove() takes an index",
-        [QB_RESIZE] = "resize() takes a size",
+        [QB_RESIZE] = "resize() takes a size for each dimension",
     };
 
     const bool ok = qsem_changes(S, e->a, e->tok);
@@ -56,7 +56,9 @@ static QExpr *qsem_listop(QSem *const S, QExpr *const e, const QBuiltin op)
         return e;
     }
 
-    if (n != counts[op] || !qsem_plain(S, e, ~0u)) {
+    const bool fits = op == QB_RESIZE ? n && n <= MAXDIMS : n == counts[op];
+
+    if (!fits || !qsem_plain(S, e, ~0u)) {
         qsem_say(S, e->tok, say[op], nullptr);
         return e;
     }
@@ -68,11 +70,19 @@ static QExpr *qsem_listop(QSem *const S, QExpr *const e, const QBuiltin op)
         return e;
     }
 
-    e->argv = qast_alloc(S->mem, 2 * sizeof *e->argv);
+    e->argv = qast_alloc(S->mem, (n > 2 ? n : 2) * sizeof *e->argv);
     e->nargv = n;
     const QArg *x = e->args;
 
-    if (op == QB_INSERT || op == QB_REMOVE || op == QB_RESIZE) {
+    if (op == QB_RESIZE) {
+        for (uint32_t k = 0; k < n; k++, x = x->next)
+            e->argv[k] = qsem_coerce(S, qsem_expr(S, x->e, QY_INT), QY_INT);
+
+        e->type = QY_VOID;
+        return e;
+    }
+
+    if (op == QB_INSERT || op == QB_REMOVE) {
         e->argv[0] = qsem_coerce(S, qsem_expr(S, x->e, QY_INT), QY_INT);
         x = x->next;
     }
@@ -83,6 +93,27 @@ static QExpr *qsem_listop(QSem *const S, QExpr *const e, const QBuiltin op)
         qsem_dropix(S, elem); /* remove's, a pop's dropped when not kept */
 
     e->type = op == QB_POP ? elem : QY_VOID;
+    return e;
+}
+
+/* a.shape(): a new int[], each of a's dimensions' size: a T[]'s its descriptor's. */
+static QExpr *qsem_shape(QSem *const S, QExpr *const e)
+{
+    QExpr *const a = e->a = qsem_addressed(S, qsem_expr(S, e->a, QY_VOID));
+    e->kind = QE_CALL;
+    e->builtin = QB_SHAPE;
+    e->type = QY_ERROR;
+
+    if (a->type == QY_ERROR)
+        return e;
+
+    if (!qast_array(S->prog, a->type))
+        qsem_say(S, e->tok, "only an array has shape()", nullptr);
+    else if (e->args)
+        qsem_say(S, e->tok, "shape() takes no values", nullptr);
+    else
+        e->type = qsem_arrayof(S, QY_INT, 0, false);
+
     return e;
 }
 
@@ -495,6 +526,7 @@ static const struct {
     {.name = "insert", .on = QM_LIST, .op = QB_INSERT},
     {.name = "remove", .on = QM_LIST | QM_DICT, .op = QB_REMOVE},
     {.name = "resize", .on = QM_DYN, .op = QB_RESIZE},
+    {.name = "shape", .on = QM_LIST | QM_ARRAY | QM_DYN, .check = qsem_shape},
     {.name = "swap", .on = QM_LIST | QM_ARRAY | QM_DYN, .check = qsem_swap},
     {.name = "sort", .on = QM_LIST | QM_ARRAY | QM_DYN, .check = qsem_sort},
     {.name = "keys", .on = QM_DICT, .check = qsem_keys},

@@ -182,7 +182,8 @@ static void qlink_field(Comp *const C, const QProg *const p, const uint32_t td, 
         td,
         qlink_name(C->symb, f->name),
         qlink_et(p, elem),
-        list && !dyn ? qast_ty(p, t)->count : 0,
+        list && !dyn ? qast_ty(p, t)->dims : 0,
+        list && !dyn ? qast_ty(p, t)->counts : nullptr,
         dyn
     );
 }

@@ -82,8 +82,9 @@ typedef enum : uint8_t {
     QX_FAILED,  /* ( name -- ): FAIL name, where and why the error being handled was raised */
     QX_TALLY,   /* ( passes fails -- ): the tests' tally said, the exit 1 when one failed */
     QX_SWAP,    /* ( elems et i j -- ): elements i and j exchanged, each checked */
-    QX_SORT,   /* ( elems et kind -- ): in order by value; with QX_BY ( elems et -- ) by a lambda */
-    QX_RESIZE, /* ( cell et n -- ): n elements, those past n cut, new ones empty */
+    QX_SORT, /* ( elems et kind -- ): in order by value; with QX_BY ( elems et -- ) by a lambda */
+    QX_RESIZE, /* ( n.. cell et k -- ): k dimensions of sizes n.., the elements kept, new ones empty */
+    QX_SHAPE, /* ( src dst -- ): dst an int[] of the array at cell src's dimensions' sizes */
 } QrtX;
 
 /* A failed assert's ERR: no QBasic error's. */

@@ -228,7 +228,7 @@ typedef struct {
     uint32_t nix;
 } QOwners;
 
-/* A type as written: a name, T[], T[n], list[T], (T, U), T or none, T or Error, function(T) as U,
+/* A type as written: a name, T[], T[n], T[n, m], list[T], (T, U), T or none, T or Error, function(T) as U,
    dict[K, V], Name[T, U] (a generic record's, or Name[N] an array's when Name is not generic). */
 typedef enum : uint8_t {
     QX_NAME,
@@ -248,7 +248,8 @@ struct QTypeEx {
     const QTok *tok; /* its first token: a name's its name */
     QTypeEx *elem;   /* a list's, an array's, an or's T, a dict's V; a fn's result, null none; a
                         generic's name */
-    QExpr *count;    /* an array's */
+    QExpr **sizes;   /* a T[n, m]'s, each dimension's */
+    uint8_t ndims;   /* a T[n, m]'s dimensions */
     QTypeEx **items; /* a tuple's; a fn's parameters'; a dict's K; a generic's types */
     uint32_t n;
     const QTok **quals; /* a name's modules before it: gfx.Window's gfx */
@@ -295,9 +296,11 @@ typedef struct {
     QTyKind kind;
     const QTok *name; /* a record's, an enum's */
     QStmt *def;
-    QType elem;     /* a list's, an array's, a map's values' */
-    QType key;      /* a map's */
-    uint32_t count; /* an array's */
+    QType elem;             /* a list's, an array's, a map's values' */
+    QType key;              /* a map's */
+    uint32_t count;         /* a T[n, m]'s elements: its counts' product */
+    const uint32_t *counts; /* a T[n, m]'s, each dimension's, the first the fastest */
+    uint8_t dims;   /* a T[n, m]'s dimensions; a list's 1; a T[]'s 1, its own its descriptor's */
     QField *fields; /* a record's, a tuple's; an enum's with data */
     uint32_t nfields, capfields;
     QVariant *vars; /* an enum's */
@@ -486,21 +489,21 @@ typedef enum : uint8_t {
     QE_CHAIN,  /* items[0] ops[0] items[1] ..: comparisons, each pair's type works[k] */
     QE_AND,
     QE_OR,
-    QE_COND, /* a if c else b */
-    QE_IN,   /* a in b..c, not in when neg; work the three's type */
-    QE_CALL,  /* tok's fn or built-in with args, a the receiver of a.f(args); argv by parameter */
-    QE_CONV,  /* a converted to type */
-    QE_FIELD, /* a.tok: field n of a record, tuple or enum */
-    QE_INDEX, /* a[b]: a list's element, a map's value by its key */
-    QE_NEW,   /* a record, tuple or enum value of type: argv by field, null its default */
-    QE_TUPLE, /* (items) as written: return a, b */
-    QE_FSTR,  /* f"..": items its parts, a string's or a value's, specs each value's */
-    QE_LIST,  /* a list's built-in: builtin, a the list, argv */
-    QE_HAS,   /* a in b, b a list; not in when neg */
-    QE_SLICE, /* a[b..c], b or c null when left out */
-    QE_NONE,  /* none */
-    QE_IS,    /* a is none, a is Error (op QK_NONE or QK_NAME); is not when neg */
-    QE_TRY,   /* a?: a's value, or its error returned from fn */
+    QE_COND,   /* a if c else b */
+    QE_IN,     /* a in b..c, not in when neg; work the three's type */
+    QE_CALL,   /* tok's fn or built-in with args, a the receiver of a.f(args); argv by parameter */
+    QE_CONV,   /* a converted to type */
+    QE_FIELD,  /* a.tok: field n of a record, tuple or enum */
+    QE_INDEX,  /* a[b]: an array's element, a map's value by its key; a[i, j]'s each in argv */
+    QE_NEW,    /* a record, tuple or enum value of type: argv by field, null its default */
+    QE_TUPLE,  /* (items) as written: return a, b */
+    QE_FSTR,   /* f"..": items its parts, a string's or a value's, specs each value's */
+    QE_LIST,   /* a list's built-in: builtin, a the list, argv */
+    QE_HAS,    /* a in b, b a list; not in when neg */
+    QE_SLICE,  /* a[b..c], b or c null when left out */
+    QE_NONE,   /* none */
+    QE_IS,     /* a is none, a is Error (op QK_NONE or QK_NAME); is not when neg */
+    QE_TRY,    /* a?: a's value, or its error returned from fn */
     QE_LAMBDA, /* lam, a value only for a fn's parameter */
     QE_APPLY,  /* one-line lam inlined: argv each stored to temps[k] (null: a place, read there),
                   then a */
@@ -524,7 +527,8 @@ typedef enum : uint8_t {
     QB_INSERT,
     QB_REMOVE,
     QB_RESIZE, /* a.resize(n): argv[0] */
-    QB_ARRAY,  /* T[n]: a new array of n elements, argv[0] */
+    QB_ARRAY,  /* T[n] or T[n, m]: a new T[], argv its sizes */
+    QB_SHAPE,  /* a.shape(): a new int[] of a's dimensions' sizes */
     QB_BYTE,   /* s[i]: a, b */
     QB_SLICE,  /* a[b..c] of a string or a list: b, c null for its ends */
     QB_GET,    /* m.get(k): a, b; its value's address in temps[0] */

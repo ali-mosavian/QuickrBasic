@@ -74,6 +74,8 @@ QExpr qcg_tried(QCg *g, const QExpr *e);
 void qcg_ends(QCg *g, const QExpr *e);
 void qcg_set(QCg *g, const QExpr *place, const QExpr *v);
 void qcg_ref(QCg *g, const QExpr *a);
+/* Array place a's descriptor, its cell's address pushed (a fixed array's made). */
+void qcg_descriptor(QCg *g, const QExpr *a);
 void qcg_pcall(QCg *g, const QFn *f);
 void qcg_imports(QCg *g, const QStmt *s);
 void qcg_call(QCg *g, const QExpr *e, const QExpr *dst);

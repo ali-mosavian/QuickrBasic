@@ -259,19 +259,39 @@ static int32_t qsem_byteof(const QPiece *s, int64_t i)
     return -1;
 }
 
-/* T[n]: a new array of n elements of elem, each empty. */
+/* a[i] or a[i, j]: its subscripts, ints, in argv; b the first. Any an error: false. */
+static bool qsem_subscripts(QSem *const S, QExpr *const e)
+{
+    if (!e->nargv) {
+        e->argv = qast_alloc(S->mem, sizeof *e->argv);
+        e->argv[e->nargv++] = e->b;
+    }
+
+    bool ok = true;
+
+    for (uint32_t k = 0; k < e->nargv; k++) {
+        e->argv[k] = qsem_coerce(S, qsem_expr(S, e->argv[k], QY_INT), QY_INT);
+        ok = ok && e->argv[k]->type != QY_ERROR;
+    }
+
+    e->b = e->argv[0];
+    return ok;
+}
+
+/* T[n] or T[n, m]: a new T[], each dimension's size its subscript's, each element empty. */
 static QExpr *qsem_newarray(QSem *const S, QExpr *const e, const QType elem)
 {
-    QExpr *const n = qsem_coerce(S, qsem_expr(S, e->b, QY_INT), QY_INT);
+    const bool ok = qsem_subscripts(S, e);
     e->kind = QE_CALL;
     e->builtin = QB_ARRAY;
-    e->argv = qast_alloc(S->mem, sizeof *e->argv);
-    e->argv[0] = n;
-    e->nargv = 1;
-    e->type = n->type == QY_ERROR ? QY_ERROR : qsem_arrayof(S, elem, 0, false);
+    e->type = QY_ERROR;
 
-    if (qsem_isconst(n) && n->val.i < 0)
-        qsem_say(S, n->tok, "an array's size is 0 or more", nullptr);
+    for (uint32_t k = 0; k < e->nargv; k++)
+        if (qsem_isconst(e->argv[k]) && e->argv[k]->val.i < 0)
+            qsem_say(S, e->argv[k]->tok, "an array's size is 0 or more", nullptr);
+
+    if (ok && qsem_dimsfit(S, e->tok, e->nargv))
+        e->type = qsem_arrayof(S, elem, 0, false);
 
     return e;
 }
@@ -292,6 +312,16 @@ QExpr *qsem_index(QSem *const S, QExpr *const e)
     }
 
     const QExpr *const a = e->a = qsem_addressed(S, qsem_expr(S, e->a, QY_VOID));
+    const bool array = qast_array(S->prog, a->type);
+
+    if (e->nargv && !array) {
+        e->type = QY_ERROR;
+
+        if (a->type != QY_ERROR)
+            qsem_say(S, e->argv[1]->tok, qsem_aname(S, a->type), " takes one index", nullptr);
+
+        return e;
+    }
 
     if (a->type == QY_STRING) { /* a byte, read only */
         e->b = qsem_coerce(S, qsem_expr(S, e->b, QY_INT), QY_INT);
@@ -318,21 +348,38 @@ QExpr *qsem_index(QSem *const S, QExpr *const e)
         return e;
     }
 
-    const QExpr *const i = e->b = qsem_coerce(S, qsem_expr(S, e->b, QY_INT), QY_INT);
+    const bool ok = qsem_subscripts(S, e);
     e->type = QY_ERROR;
 
-    if (a->type == QY_ERROR || i->type == QY_ERROR)
+    if (a->type == QY_ERROR || !ok)
         return e;
 
-    if (!qast_array(S->prog, a->type)) {
+    if (!array) {
         qsem_say(S, e->tok, qsem_aname(S, a->type), " has no elements", nullptr);
         return e;
     }
 
     const QTy *const y = qast_ty(S->prog, a->type);
 
-    if (qsem_isconst(i) && (i->val.i < 0 || (y->count && i->val.i >= y->count)))
-        qsem_say(S, i->tok, "the index is past the elements", nullptr);
+    if ((y->kind == QT_ARRAY || y->grows) && e->nargv != y->dims) { /* a T[]'s: its descriptor's */
+        qsem_say(
+            S,
+            e->tok,
+            qsem_aname(S, a->type),
+            " takes ",
+            qsem_uint(S, y->dims),
+            y->dims == 1 ? " index" : " indexes",
+            nullptr
+        );
+        return e;
+    }
+
+    for (uint32_t k = 0; k < e->nargv; k++) {
+        const QExpr *const i = e->argv[k];
+
+        if (qsem_isconst(i) && (i->val.i < 0 || (y->counts && i->val.i >= y->counts[k])))
+            qsem_say(S, i->tok, "the index is past the elements", nullptr);
+    }
 
     e->type = y->elem;
     return e;

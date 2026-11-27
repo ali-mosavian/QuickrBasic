@@ -16,3 +16,10 @@ f.push(1)
 var b = int[-1]
 var rs as Res[]
 rs.resize(2)
+var g as int[3, 2]
+print g[1]
+let s = "ab"
+print s[0, 1]
+print g.shape(1)
+g.resize()
+var t as int[,]
