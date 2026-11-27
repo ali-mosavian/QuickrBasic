@@ -2,7 +2,7 @@ option dialect quickr
 type Land
     heights as int[8]
     sea as int
-    names as list[string]
+    names as string[]
     marks as single[3]
 end type
 

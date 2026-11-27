@@ -222,18 +222,18 @@ QExpr *qsem_slice(QSem *const S, QExpr *const e)
         return e;
 
     if (a->type != QY_STRING &&
-        (!qast_compound(a->type) || qast_ty(S->prog, a->type)->kind != QT_DYN)) {
+        (!qast_compound(a->type) || qast_ty(S->prog, a->type)->kind != QT_LIST)) {
         qsem_say(
             S,
             e->tok,
-            "a slice takes a string, a list or a T[], not ",
+            "a slice takes a string or a list, not ",
             qsem_aname(S, a->type),
             nullptr
         );
         return e;
     }
 
-    e->type = a->type; /* a new string, a new list or array */
+    e->type = a->type == QY_STRING ? QY_STRING : qsem_listof(S, qast_ty(S->prog, a->type)->elem, 0);
     return e;
 }
 
@@ -259,50 +259,8 @@ static int32_t qsem_byteof(const QPiece *s, int64_t i)
     return -1;
 }
 
-/* a[i] or a[i, j]: its subscripts, ints, in argv; b the first. Any an error: false. */
-static bool qsem_subscripts(QSem *const S, QExpr *const e)
-{
-    if (!e->nargv) {
-        e->argv = qast_alloc(S->mem, sizeof *e->argv);
-        e->argv[e->nargv++] = e->b;
-    }
-
-    bool ok = true;
-
-    for (uint32_t k = 0; k < e->nargv; k++) {
-        e->argv[k] = qsem_coerce(S, qsem_expr(S, e->argv[k], QY_INT), QY_INT);
-        ok = ok && e->argv[k]->type != QY_ERROR;
-    }
-
-    e->b = e->argv[0];
-    return ok;
-}
-
-/* T[n] or T[n, m]: a new T[], each dimension's size its subscript's, each element empty. */
-static QExpr *qsem_newarray(QSem *const S, QExpr *const e, const QType elem)
-{
-    const bool ok = qsem_subscripts(S, e);
-    e->kind = QE_CALL;
-    e->builtin = QB_ARRAY;
-    e->type = QY_ERROR;
-
-    for (uint32_t k = 0; k < e->nargv; k++)
-        if (qsem_isconst(e->argv[k]) && e->argv[k]->val.i < 0)
-            qsem_say(S, e->argv[k]->tok, "an array's size is 0 or more", nullptr);
-
-    if (ok && qsem_dimsfit(S, e->tok, e->nargv))
-        e->type = qsem_arrayof(S, elem, 0, false);
-
-    return e;
-}
-
 QExpr *qsem_index(QSem *const S, QExpr *const e)
 {
-    const QType elem = e->b ? qsem_typevalue(S, e->a) : QY_VOID;
-
-    if (elem != QY_VOID && elem != QY_ERROR)
-        return qsem_newarray(S, e, elem);
-
     const QBind *const b = e->a->kind == QE_NAME ? qsem_find(S, e->a->tok) : nullptr;
 
     if ((e->tx && !e->b) || (b && qsem_model(S, b->ty))) { /* Name[T] alone: a type */
@@ -312,16 +270,6 @@ QExpr *qsem_index(QSem *const S, QExpr *const e)
     }
 
     const QExpr *const a = e->a = qsem_addressed(S, qsem_expr(S, e->a, QY_VOID));
-    const bool array = qast_array(S->prog, a->type);
-
-    if (e->nargv && !array) {
-        e->type = QY_ERROR;
-
-        if (a->type != QY_ERROR)
-            qsem_say(S, e->argv[1]->tok, qsem_aname(S, a->type), " takes one index", nullptr);
-
-        return e;
-    }
 
     if (a->type == QY_STRING) { /* a byte, read only */
         e->b = qsem_coerce(S, qsem_expr(S, e->b, QY_INT), QY_INT);
@@ -348,38 +296,21 @@ QExpr *qsem_index(QSem *const S, QExpr *const e)
         return e;
     }
 
-    const bool ok = qsem_subscripts(S, e);
+    const QExpr *const i = e->b = qsem_coerce(S, qsem_expr(S, e->b, QY_INT), QY_INT);
     e->type = QY_ERROR;
 
-    if (a->type == QY_ERROR || !ok)
+    if (a->type == QY_ERROR || i->type == QY_ERROR)
         return e;
 
-    if (!array) {
+    if (!qast_array(S->prog, a->type)) {
         qsem_say(S, e->tok, qsem_aname(S, a->type), " has no elements", nullptr);
         return e;
     }
 
     const QTy *const y = qast_ty(S->prog, a->type);
 
-    if ((y->kind == QT_ARRAY || y->grows) && e->nargv != y->dims) { /* a T[]'s: its descriptor's */
-        qsem_say(
-            S,
-            e->tok,
-            qsem_aname(S, a->type),
-            " takes ",
-            qsem_uint(S, y->dims),
-            y->dims == 1 ? " index" : " indexes",
-            nullptr
-        );
-        return e;
-    }
-
-    for (uint32_t k = 0; k < e->nargv; k++) {
-        const QExpr *const i = e->argv[k];
-
-        if (qsem_isconst(i) && (i->val.i < 0 || (y->counts && i->val.i >= y->counts[k])))
-            qsem_say(S, i->tok, "the index is past the elements", nullptr);
-    }
+    if (qsem_isconst(i) && (i->val.i < 0 || (y->count && i->val.i >= y->count)))
+        qsem_say(S, i->tok, "the index is past the elements", nullptr);
 
     e->type = y->elem;
     return e;

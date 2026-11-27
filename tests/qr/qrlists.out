@@ -3,6 +3,5 @@
  2  7  4  1 imp
 orcelfimp
  11 
- 3 
-Subscript out of range in line No line number in module QRLISTS  at address 00000C73
-a Quickr T[] takes an array from 0 in each dimension
+Subscript out of range in line No line number in module QRLISTS  at address 00000BDA
+a Quickr list takes an array of one dimension from 0

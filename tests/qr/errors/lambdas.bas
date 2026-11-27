@@ -3,7 +3,7 @@ option dialect quickr
 function apply(f as function(int) as int, x as int) as int
     return f(x)
 end function
-function each(a as list[int], f as function(int))
+function each(a as int[], f as function(int))
     for x in a
         f(x)
     next
@@ -21,7 +21,7 @@ function keep(f as function(int) as int) as int
 end function
 function run()
     let k = 1
-    var xs as list[int]
+    var xs as int[]
     print apply(fn(a, b) a, 1)
     print apply(fn(v) v + "s", 1)
     print apply(twoargs, 1)

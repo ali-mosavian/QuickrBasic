@@ -172,7 +172,7 @@ static void qlink_field(Comp *const C, const QProg *const p, const uint32_t td, 
     const QType t = f->type;
     const bool list = qast_array(p, t);
     const QType elem = list ? qast_ty(p, t)->elem : t;
-    const bool dyn = list && qast_ty(p, t)->kind == QT_DYN;
+    const bool dyn = list && qast_ty(p, t)->kind == QT_LIST;
 
     if ((qast_record(p, elem) || qast_array(p, elem)) && !dyn)
         qlink_lay(C, p, elem);
@@ -182,8 +182,7 @@ static void qlink_field(Comp *const C, const QProg *const p, const uint32_t td, 
         td,
         qlink_name(C->symb, f->name),
         qlink_et(p, elem),
-        list && !dyn ? qast_ty(p, t)->dims : 0,
-        list && !dyn ? qast_ty(p, t)->counts : nullptr,
+        list && !dyn ? qast_ty(p, t)->count : 0,
         dyn
     );
 }

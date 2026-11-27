@@ -4,7 +4,7 @@ qbunusable.bas:5:5: fill is not usable from Quickr: a BYTE parameter
 qbunusable.bas:6:10: Fixed is not usable from Quickr: a fixed-length string field
   var f as Fixed
            ^
-qbunusable.bas:7:14: Arr is not usable from Quickr: an array field not from 0
+qbunusable.bas:7:14: Arr is not usable from Quickr: an array field of more than one dimension, or not from 0
   var a as odd.Arr
                ^
 qbunusable.bas:8:14: Box is not usable from Quickr: a field of a TYPE Quickr can't use

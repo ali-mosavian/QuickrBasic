@@ -14,7 +14,7 @@ m.push(1)
 print m.keys(1)
 let o as dict[string, int]
 o["a"] = 1
-var l as list[int]
+var l as int[]
 print l.keys()
 print m
 var r as dict[string, int or Error]

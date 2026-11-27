@@ -12,6 +12,6 @@ fn third(x as int) as int
 end fn
 native fn sqrt(x as double) as double
 var f as fn(int) as int = twice
-var a as list[int]
+var a as int[]
 a.sort(function(x, y) x < y)
 print twice(2); " "; half(4); " "; third(9)

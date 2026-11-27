@@ -149,7 +149,9 @@ static bool arry_heap(const Addr h) { return *arry_kind(h) == KIND_HEAP; }
 
 static bool arry_arena(const Addr h) { return *arry_kind(h) == KIND_ARENA; }
 
-bool arry_fixed(const Addr h) { return !arry_heap(h) && !arry_arena(h); }
+/* Header h is a frame's, its local's DIMmed with constant bounds (comp/frame.c), or a field cell's:
+   REDIM never. */
+static bool arry_fixed(const Addr h) { return !arry_heap(h) && !arry_arena(h); }
 
 /* A field cell, after its header: the cell, the stack its call's arguments lie above and its
    segment, the next older one's header. */

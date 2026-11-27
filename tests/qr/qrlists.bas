@@ -1,6 +1,6 @@
-' A QBasic program passes its arrays to Quickr functions taking T[]s:
+' A QBasic program passes its arrays to Quickr functions taking lists:
 ' by reference, a mut one's growth and shrinking seen; a fixed array
-' field's and one of two dimensions too. One not from 0 is no T[].
+' field's too. An array not of one dimension from 0 is no list.
 IMPORT foes
 TYPE Row
     V(2) AS LONG
@@ -20,7 +20,4 @@ DIM r AS Row
 r.V(1) = 5: r.V(2) = 6
 PRINT foes.total(r.V())
 DIM g(2, 2) AS LONG
-g(2, 1) = 3
 PRINT foes.total(g())
-DIM h(1 TO 3) AS LONG
-PRINT foes.total(h())

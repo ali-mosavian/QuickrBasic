@@ -3,7 +3,7 @@ function fine() as int
     return 1
 end function
 
-function list(xs as list[int]) as int
+function list(xs as int[]) as int
     return len(xs)
 end function
 

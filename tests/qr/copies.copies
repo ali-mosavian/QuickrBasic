@@ -1,24 +1,24 @@
-copies.bas:8:9: a list[int] copied
+copies.bas:8:9: an int[] copied
   var b = a
           ^
 copies.bas:13:12: a Bag copied
   var bag2 = bag
              ^
-copies.bas:16:15: a list[int] copied
+copies.bas:16:15: an int[] copied
   var its = bag.items
                 ^
-copies.bas:20:14: a list[int] copied
+copies.bas:20:14: an int[] copied
       var ys = xs
                ^
-copies.bas:28:13: a list[int] copied
+copies.bas:28:13: an int[] copied
       var t = ss
               ^
-copies.bas:36:10: a list[int] copied
+copies.bas:36:10: an int[] copied
   var l3 = l1 if len(l2) > 0 else l2
            ^
 copies.bas:40:9: a dict[string, int] copied
   let n = m
           ^
-copies.bas:47:12: a list[int] copied
+copies.bas:47:12: an int[] copied
   var mine = seen
              ^

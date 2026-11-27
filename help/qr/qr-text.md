@@ -12,7 +12,7 @@ Searching, cases, splitting and joining strings.
     hex(n) as string               n in hexadecimal
     number(s) as double            the number s spells
     to_int(s) as int or Error      s as a whole int, else an Error
-    split(s, sep) as list[string]  the parts between seps
+    split(s, sep) as string[]      the parts between seps
     join(parts, sep) as string     the parts, sep between them
 
 See also [Quickr](quickr index), [io](quickr io)

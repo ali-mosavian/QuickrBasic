@@ -999,8 +999,7 @@ void decl_newfield(
     const uint32_t t,
     const uint32_t name,
     const uint32_t et,
-    const uint8_t ndim,
-    const uint32_t *const counts,
+    const uint32_t count,
     const bool dyn
 )
 {
@@ -1017,12 +1016,9 @@ void decl_newfield(
         .dyn = dyn,
     };
 
-    FieldDim dims[MAXDIMS];
+    const FieldDim dim = {.count = count};
 
-    for (uint8_t k = 0; k < ndim; k++)
-        dims[k] = (FieldDim){.count = counts[k]};
-
-    const uint32_t elems = ndim ? decl_fielddims(&ds, f, dims, ndim, nullptr) : 1;
+    const uint32_t elems = count ? decl_fielddims(&ds, f, &dim, 1, nullptr) : 1;
     const uint32_t size = dyn              ? sizeof(ArrSlot)
                           : f->sub         ? decl_type(d, f->sub)->size
                           : f->et == ET_SD ? DSZ

@@ -7,19 +7,19 @@ end type
 
 type Bag
     n as int
-    items as list[int]
+    items as int[]
     corners as single[4]
 end type
 
-function squares(n as int) as list[int]
-    var r as list[int]
+function squares(n as int) as int[]
+    var r as int[]
     for i in 0..n
         r.push(i * i)
     next
     return r
 end function
 
-function total(a as list[int]) as int
+function total(a as int[]) as int
     var t = 0
     for x in a
         t += x
@@ -27,7 +27,7 @@ function total(a as list[int]) as int
     return t
 end function
 
-function bump(mut a as list[int])
+function bump(mut a as int[])
     for mut x in a
         x += 1
     next
@@ -48,7 +48,7 @@ for x in a
     print x
 next
 print 5 in a; " "; 99 in a; " "; 7 not in a
-var balls as list[Ball]
+var balls as Ball[]
 balls.push(Ball(1, "a"))
 balls.push(Ball(2, "b"))
 balls[1].r = 20
@@ -65,7 +65,7 @@ bag.items.push(4)
 bag.items.push(5)
 bag.corners[2] = 1.5
 print len(bag.items); " "; bag.items[1]; " "; bag.corners[2]
-var names as list[string]
+var names as string[]
 names.push("x")
 names.push("y")
 names.insert(1, "m")
@@ -74,8 +74,8 @@ for n in names
 next
 let c = a
 print len(c)
-function three() as list[string]
-    var r as list[string]
+function three() as string[]
+    var r as string[]
     r.push("a")
     r.push("bb")
     r.push("c")

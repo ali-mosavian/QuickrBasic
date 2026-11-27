@@ -20,7 +20,7 @@ enum Mode
     end fn
 end enum
 type Node
-    kids as list[Node]
+    kids as Node[]
     r as Res
 end type
 enum Shape

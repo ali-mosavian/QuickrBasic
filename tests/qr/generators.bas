@@ -19,7 +19,7 @@ function three() yields string
     yield "two"
     yield "three"
 end function
-function evens[T](a as list[T]) yields T
+function evens[T](a as T[]) yields T
     for i, x in a
         if i mod 2 = 0 then yield x
     next
@@ -31,7 +31,7 @@ function grid(n as int) yields P
         next
     next
 end function
-function until_neg(a as list[int]) yields int
+function until_neg(a as int[]) yields int
     for x in a
         if x < 0 then return
         yield x * 10
@@ -101,7 +101,7 @@ function run(k as int)
     for v in mapped(3, fn(x) x + k)
         print v
     next
-    var names as list[string]
+    var names as string[]
     names.push("ann")
     names.push("bo")
     var nm = evens(names)
@@ -114,7 +114,7 @@ next
 for s in three()
     print s
 next
-var nums as list[int]
+var nums as int[]
 nums.push(5)
 nums.push(6)
 nums.push(-7)

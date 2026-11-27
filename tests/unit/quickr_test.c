@@ -73,9 +73,9 @@ TEST(quickr_parameter_fields_by_ref)
    assignment copied, and copies nothing. */
 TEST(quickr_assignment_moves_a_dead_source)
 {
-    CHECK(!build(S, "var a as list[int]\na.push(1)\nvar b = a\nprint len(b)\n"));
+    CHECK(!build(S, "var a as int[]\na.push(1)\nvar b = a\nprint len(b)\n"));
     CHECK(unit_calls(S, K_AMOVE) == 1 && !unit_calls(S, K_ACOPY));
-    CHECK(!build(S, "var a as list[int]\na.push(1)\nvar b = a\nprint len(a); len(b)\n"));
+    CHECK(!build(S, "var a as int[]\na.push(1)\nvar b = a\nprint len(a); len(b)\n"));
     CHECK(!unit_calls(S, K_AMOVE) && unit_calls(S, K_ACOPY) == 1);
 }
 

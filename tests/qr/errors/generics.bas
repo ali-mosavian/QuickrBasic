@@ -3,7 +3,7 @@ option dialect quickr
 type Vec
     x as int
 end type
-function largest[T](a as list[T]) as T
+function largest[T](a as T[]) as T
     var best = a[0]
     for x in a
         if x > best then
@@ -18,7 +18,7 @@ end function
 function none_of[T]() as int
     return 0
 end function
-var vs as list[Vec]
+var vs as Vec[]
 print largest(vs).x
 print pair(1, "a")
 print none_of()

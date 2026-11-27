@@ -58,7 +58,7 @@ check 'quickr' "$(printf '5 1\n5')" \
     'print gfx.surface.point(canvas, 2, 2); " "; display.draws()' \
     'print gfx.surface.point(canvas, 3, 2)'
 
-# pixels() AS BYTE: a ubyte[], and to a native a fixed ubyte array, a record's too
+# pixels() AS BYTE: a ubyte list, and to a native a fixed ubyte array, a record's too
 check 'quickr pixels' "$(printf '7 7 9 200')" \
     "option dialect quickr" \
     'from gfx import surface' \
@@ -69,7 +69,10 @@ check 'quickr pixels' "$(printf '7 7 9 200')" \
     'var px as ubyte[4]' \
     'px[3] = 7' \
     'surface.write(s, 0, 0, 2, 2, px)' \
-    'var back = ubyte[4]' \
+    'var back as ubyte[]' \
+    'for i in 0..4' \
+    '    back.push(0)' \
+    'next' \
     'surface.read(s, 0, 0, 2, 2, back)' \
     'back[0] = 9' \
     'back[1] = 200' \

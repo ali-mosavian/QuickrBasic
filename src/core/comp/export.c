@@ -34,14 +34,12 @@ struct Within {
 static const char *expo_within_why(const Decl *d, uint32_t t, const Within *up);
 static const char expo_holds_itself[] = "a TYPE that holds itself";
 
-/* Why field f has no type both dialects have; null it has. A fixed array from 0 in each dimension
-   is a T[n, m], a dynamic one a T[]. */
+/* Why field f has no type both dialects have; null it has. An array of one dimension from 0, or a
+   dynamic one, is a fixed array or a list of its elements. */
 static const char *expo_field_why(const Decl *const d, const Field *const f, const Within *const up)
 {
-    for (uint8_t i = 0; i < f->ndim; i++)
-        if (decl_fielddim(d, f, i)->lb)
-            return "an array field not from 0";
-
+    if (f->ndim > 1 || (f->ndim && decl_fielddim(d, f, 0)->lb))
+        return "an array field of more than one dimension, or not from 0";
     if (f->sub) {
         const char *const why = expo_within_why(d, f->sub, up);
         return why == expo_holds_itself ? why
@@ -246,16 +244,10 @@ Exports expo_qbasic(const Comp *const C, const uint32_t m, Arena *const a)
         for (uint32_t k = 0; k < td->nfld; k++) {
             const Field *const f = &td->fields[k];
             ExpField *const ef = &e->fields[k];
-            uint32_t *const counts = expo_room(C, a, f->ndim, sizeof *counts);
-
-            for (uint8_t i = 0; i < f->ndim; i++)
-                counts[i] = decl_fielddim(C->decl, f, i)->count;
-
             *ef = (ExpField){
                 .et = decl_fieldtype(f),
                 .off = f->off,
-                .ndim = f->ndim,
-                .counts = counts,
+                .count = f->ndim ? decl_fielddim(C->decl, f, 0)->count : 0,
                 .list = f->dyn,
             };
 

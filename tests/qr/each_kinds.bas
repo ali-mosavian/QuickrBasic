@@ -17,20 +17,20 @@ type Two
     n as short
 end type
 
-function of(xs as list[long]) yields long
+function of(xs as long[]) yields long
     for x in xs
         yield x * long(2)
     next
 end function
 
-function points(ps as list[Pt]) yields int
+function points(ps as Pt[]) yields int
     for p in ps
         yield p.x + p.tag
     next
 end function
 
-var bs as list[byte]
-var us as list[ushort]
+var bs as byte[]
+var us as ushort[]
 for i in 0..5
     bs.push(byte(i - 2))
     us.push(ushort(60000 + i))
@@ -44,14 +44,14 @@ for w in us
     u += w - 60000
 next
 print t; " "; u
-var ds as list[Dir]
+var ds as Dir[]
 ds.push(Dir.south)
 ds.push(Dir.north)
 for d in ds
     print d = Dir.south
 next
-var ps as list[Pt]
-var twos as list[Two]
+var ps as Pt[]
+var twos as Two[]
 for i in 0..4
     ps.push(Pt(tag: byte(i), x: i * 10, y: 0.5))
     twos.push(Two(a: Pt(tag: byte(1), x: i, y: 1.0), n: short(i)))
@@ -65,7 +65,7 @@ for tw in twos
     n += tw.a.x + tw.n + tw.a.tag
 next
 print s; " "; n
-var ls as list[long]
+var ls as long[]
 ls.push(long(5))
 ls.push(long(7))
 var it = of(ls)

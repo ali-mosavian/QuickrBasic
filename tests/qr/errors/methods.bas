@@ -50,7 +50,7 @@ let v = Vec(3, 4)
 v.scale(2)
 print Vec.length(v); " "; v.polar(1).x; " "; v.nothing(); " "; Vec.nothing(1)
 print v.length2(); " "; v.length
-var a as list[int]
+var a as int[]
 print a.len()
 let s = Vec.scale
 print self

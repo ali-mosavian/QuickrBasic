@@ -16,7 +16,7 @@ let w = Vec(z: 1)
 print v.z
 v.x = 2
 print v
-var c as list[int]
+var c as int[]
 for x in c
     c.push(x)
     x = 2

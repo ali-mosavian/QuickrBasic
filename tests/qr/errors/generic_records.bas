@@ -31,7 +31,7 @@ type Twice[T, T]
 end type
 var tw as Twice[int, int]
 type Grow[T]
-    more as list[Grow[list[T]]]
+    more as Grow[T[]][]
 end type
 var g as Grow[int]
 type Self[T]

@@ -235,10 +235,10 @@ TEST(qride_new_asks_the_dialect)
 /* The cursor's text line. */
 static uint32_t cursor_line(void) { return uimn.text.first + uimn.ed.line; }
 
-static const char generic[] = DIALECT "function at[T](a as list[T], i as int) as T\n"
+static const char generic[] = DIALECT "function at[T](a as T[], i as int) as T\n"
                                       "    return a[i]\n"
                                       "end function\n"
-                                      "var xs as list[int]\n"
+                                      "var xs as int[]\n"
                                       "xs.push(1)\n"
                                       "print at(xs, %d)\n"
                                       "print 2\n";
@@ -565,7 +565,7 @@ TEST(qride_completes_generic_records)
     fx_open_program(S, "");
     fx_write_file(
         "main.bas",
-        DIALECT "type Stack[T]\n    items as list[T]\n"
+        DIALECT "type Stack[T]\n    items as T[]\n"
                 "    fn push(mut self, x as T)\n        self.items.push(x)\n    end fn\n"
                 "    fn empty() as Stack[T]\n        var s as Stack[T]\n        return s\n"
                 "    end fn\nend type\n"

@@ -69,7 +69,7 @@ function write_text(path as string, s as string) as bool or Error
 end function
 
 ' the names of the files matching pattern, wildcards * and ?
-function list(pattern as string = "*.*") as list[string]
+function list(pattern as string = "*.*") as string[]
     var names = text.split(file_list(pattern), text.chr(10))
     names.pop()
     return names

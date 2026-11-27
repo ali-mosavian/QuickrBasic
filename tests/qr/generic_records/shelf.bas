@@ -1,6 +1,6 @@
 option dialect quickr
 type Shelf[T]
-    things as list[T]
+    things as T[]
     private count as int
 
     fn put(mut self, x as T)

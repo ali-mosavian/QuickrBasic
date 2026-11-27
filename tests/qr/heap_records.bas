@@ -9,7 +9,7 @@ end type
 
 type Bag
     n as int
-    tags as list[int]
+    tags as int[]
     name as string
     pair as Pair
 end type
@@ -61,7 +61,7 @@ let r = parse("")
 if r is Error then print r.message; " "; r.code
 let q = parse("four")
 print q or else 0
-var all as list[Bag]
+var all as Bag[]
 for i in 0..6
     all.push(make(i))
     churn()

@@ -45,7 +45,7 @@ print names[150]; " "; len(names)
 type Pet
     name as string
     legs as int
-    tags as list[string]
+    tags as string[]
 end type
 type Zoo
     pets as dict[string, Pet]

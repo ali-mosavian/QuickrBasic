@@ -259,8 +259,7 @@ void qrt_str(Session *const S)
 
 /* ---- lists */
 
-/* The array at cell: its elements' count, its fast, all its dimensions' when it has no fast (a
-   QBasic array's of more than one); *data their first's address. */
+/* The list at cell: its elements' count, its array's fast; *data their first's address. */
 static uint32_t qrt_len(const Addr cell, Addr *const data)
 {
     const ArrSlot *const s = (const ArrSlot *)at(cell);
@@ -271,14 +270,8 @@ static uint32_t qrt_len(const Addr cell, Addr *const data)
     }
 
     const ArrayHdr *const a = (const ArrayHdr *)at(s->hdr);
-    uint32_t n = a->fast;
     *data = a->data;
-
-    if (!n && a->dims > 1)
-        for (uint8_t i = n = 1; i <= a->dims; i++)
-            n *= a->count[i - 1];
-
-    return n;
+    return a->fast;
 }
 
 /* The list at cell one longer: within its room, else in twice the room, its elements kept, the
@@ -331,91 +324,6 @@ static void qrt_cut(Session *const S, const Addr cell, const uint32_t et)
 static void qrt_shrink(Session *const S, const Addr cell, const uint32_t et)
 {
     qrt_cut(S, cell, et);
-    arry_sweep(&S->arry);
-}
-
-/* The array at cell n long, of one dimension: those past n cut, new ones empty. */
-static void qrt_relength(Session *const S, const Addr cell, const uint32_t et, const uint32_t n)
-{
-    ArrSlot *const s = (ArrSlot *)at(cell);
-    Addr data;
-
-    for (uint32_t len = qrt_len(cell, &data); len > n; len--)
-        qrt_cut(S, cell, et);
-
-    ArrayHdr *const a = s->hdr ? (ArrayHdr *)at(s->hdr) : nullptr;
-
-    if (a && a->count[0] >= n) /* cut ones are emptied */
-        a->fast = n;
-    else if (n)
-        arry_relen(&S->arry, s, et, n, n);
-}
-
-/* The array at cell k dimensions of the sizes on the stack, the first the deepest: one of one
-   dimension relengthened; else REDIM PRESERVE's, its fast its elements' count. None 0: emptied.
-   Illegal function call: a size under 0; Duplicate definition: a fixed array's; Subscript out
-   of range: another count of dimensions than its. */
-static void qrt_resize(Session *const S, const Addr cell, const uint32_t et, const uint8_t k)
-{
-    Arry *const ay = &S->arry;
-    ArrSlot *const s = (ArrSlot *)at(cell);
-    uint32_t elems = 1;
-
-    for (uint8_t i = k; i-- > 0;) {
-        const int32_t n = exec_popi(&S->vm);
-
-        if (n < 0)
-            fault_error(&S->fault, E_IQ);
-
-        ay->subs[i] = n - 1;
-        ay->lbounds[i] = 0;
-        elems *= (uint32_t)n;
-    }
-
-    if (s->hdr && arry_fixed(s->hdr))
-        fault_raise(
-            &S->fault,
-            (Failure){
-                .code = E_RD,
-                .at = FAULT_KEEP,
-                .line = FAULT_KEEP,
-                .why = "a fixed array keeps its size",
-            }
-
-        );
-
-    if (!elems || (k == 1 && (!s->hdr || ((const ArrayHdr *)at(s->hdr))->dims == 1)))
-        qrt_relength(S, cell, et, k == 1 ? elems : 0);
-    else {
-        arry_redim(ay, s, et, k, s->hdr != 0);
-        ((ArrayHdr *)at(s->hdr))->fast = elems;
-    }
-
-    arry_sweep(ay);
-}
-
-/* The int[] at cell dst each dimension's size of the array at cell src, read first: a field
-   cell's goes with the next allocation. A list's its length. */
-static void qrt_shape(Session *const S, const Addr src, const Addr dst)
-{
-    const Addr h = ((const ArrSlot *)at(src))->hdr;
-    const ArrView v = h ? arry_view(h) : (ArrView){};
-
-    const uint8_t dims = h ? v.dims : 1;
-    uint32_t counts[MAXDIMS] = {};
-
-    Addr data;
-
-    for (uint8_t i = 0; h && i < dims; i++)
-        counts[i] = dims == 1 ? qrt_len(src, &data) : arry_view_count(&v, i);
-
-    qrt_relength(S, dst, ET_I4, 0);
-    qrt_relength(S, dst, ET_I4, dims);
-    qrt_len(dst, &data);
-
-    for (uint8_t i = 0; i < dims; i++)
-        wr32(data + 4 * i, counts[i]);
-
     arry_sweep(&S->arry);
 }
 
@@ -1788,20 +1696,6 @@ void qrt_x(Session *const S)
     case QX_SORT:
         qrt_sort(S, word);
         return;
-
-    case QX_SHAPE: {
-        const Addr dst = exec_popa(vm);
-        qrt_shape(S, exec_popa(vm), dst);
-        return;
-    }
-
-    case QX_RESIZE: { /* the sizes under the cell's place */
-        const uint8_t k = (uint8_t)exec_pop(vm).u;
-        const uint32_t et = exec_pop(vm).u;
-        const Addr cell = exec_popa(vm);
-        qrt_resize(S, cell, et, k);
-        return;
-    }
 
     case QX_HAS: {
         const Cell v = exec_pop(vm);

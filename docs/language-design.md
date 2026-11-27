@@ -32,7 +32,7 @@ type Ball
 end type
 
 let size = Vec(320, 200)
-var balls as list[Ball]
+var balls as Ball[]
 for i = 1 to 10
     let vel = Vec(random.real(-80, 80), random.real(-80, 80))
     balls.push(Ball(at: Vec(160, 100), vel: vel))
@@ -105,9 +105,8 @@ that is not a loop.
 | `ubyte` `ushort` `uint` `ulong` | the same widths, unsigned |
 | `single` `double` | 32-bit and 64-bit floating point |
 | `string` | bytes, immutable; `s[i]` is a `ubyte`, `s[1..3]` a slice |
-| `T[]` | an array: zero-based, made by `T[n]` or `T[w, h]`, `n` any `int`; any array's reference |
-| `T[n]`, `T[w, h]` | a fixed array, its sizes constants; inline in its record |
-| `list[T]` | a list: grows, zero-based |
+| `T[]` | a list: grows, zero-based |
+| `T[n]` | a fixed array of `n`, a constant; inline in its record |
 | `dict[K, V]` | a map from `K` to `V` |
 | `(T, U)` | a tuple |
 | `T or none` | a `T` or `none` |
@@ -117,12 +116,12 @@ that is not a loop.
 | an `enum`'s name | named values, each with or without data |
 | `Name[T]` | a generic record with its type given |
 
-- In a type, `or` binds last: `list[int] or none` is a list or none, `list[int or none]` a list
-  of optionals, and `function(int) as int or none` a function whose result is optional. A type has
+- In a type, `or` binds last: `int[] or none` is a list or none, `(int or none)[]` a list of
+  optionals, and `function(int) as int or none` a function whose result is optional. A type has
   one `or`.
-- Inside `[ ]` after a type's name, constants make a fixed array and a type fills a generic.
+- Inside `[ ]` after a type's name, a constant makes a fixed array and a type fills a generic.
   Only a generic type takes a type.
-- `list[list[T]]` is a list of lists; any type can be an element or a dict's value.
+- `T[][]` is a list of lists; any type can be an element or a dict's value.
 - `int` is the native int, 32 bits on every target. Every size is the same on every target, so a
   record laid out for a file reads the same everywhere.
 - An operator takes two values of one type and gives that type: `byte + byte` is a `byte`.
@@ -300,8 +299,7 @@ let sign = 1 if x >= 0 else -1
   `a[..n]`, `a[n..]`), `in`'s and a chain's source. It has no step and counts up; `(a..b).rev()`
   counts down. A range may hold any `int`s: `(0..low).rev()` with `low` an `int`'s first value
   is empty, and `take`, `skip` and `zip` over a range wider than an `int` count right.
-- A slice is a new value: a string's a new string, a list's a new list and a `T[]`'s a new `T[]`
-  of copies. Its ends are
+- A slice is a new value: a string's a new string, a list's a new list of copies. Its ends are
   clamped to the elements, so `s[..100]` of a shorter `s` is all of it. `s[i]` past the end is a
   runtime error, Subscript out of range.
 
@@ -477,7 +475,7 @@ end function
 
 ```basic
 type Stack[T]
-    items as list[T]
+    items as T[]
 
     fn push(mut self, x as T)
         self.items.push(x)
@@ -502,7 +500,7 @@ s.push(3)
   wherever it is written. A copy's method is checked and compiled when it is first called, so a
   `Stack[Vec]` holds even if `sorted()` needs `<` of a `Vec`, until it is called. An error in a
   copy is named for it: `can't compare a Vec with a Vec in Box[Vec]`.
-- A type that holds itself with ever new types, `more as list[Grow[list[T]]]`, is an error past 64
+- A type that holds itself with ever new types, `more as Grow[T[]][]`, is an error past 64
   copies.
 - **In the VM**, each copy is the type's block parsed again with `T` bound, its methods compiled
   onto copies of its lines, as a generic function's are. A `Stack[int]`'s fields and methods
@@ -604,7 +602,7 @@ end fn).collect()
   code address.
 - A function taking functions is compiled once for each lambda or named function passed to it,
   as a generic is for each type. A lambda's result may type the generic: `map_all(xs, fn(x)
-  f"{x}")` is a `list[string]`.
+  f"{x}")` is a `string[]`.
 - A lambda can't call another lambda its caller was given: it passes it on, `apply(f, x)`.
 - **In the VM**, a one-line lambda's body is checked again and inlined at each call of its
   parameter. A block lambda is a hidden function: each call of its parameter calls it. A
@@ -652,32 +650,12 @@ next
 - The link threads every jump and line end past what only passes control on: a line with no
   statement, a line that only jumps. A `yield` and its loop's `next` cost no op.
 
-### Arrays, lists and dicts
+### Lists and dicts
 
-```basic
-var g as int[]        ' empty
-g = int[w, h]         ' w * h elements, each 0
-g[x, y] = 1           ' the first subscript the fastest
-g.resize(w, h + 1)    ' its elements kept
-let s = g.shape()     ' an int[]: s[0] is w, s[1] is h + 1
-```
-
-- An array's size is set where it is made: `T[n]`, `T[w, h]`, or a fixed array's type. `len(a)`
-  is its elements' count, `a.shape()` each dimension's size. `a[i]` of one of more dimensions is
-  its `i`-th element, flat, as `for` reads it.
-- `a.resize(n)` or `a.resize(w, h)` changes a `T[]`'s size: the elements kept, new ones empty,
-  those past it cut. A `T[]` of values with `drop` can't resize. A fixed array's size never
-  changes.
-- A `T[]` parameter takes any array of its elements: a `T[]`, a `T[n]`, a `T[w, h]`. The callee
-  reads each the same; a `resize()` of a fixed one is a runtime error, Duplicate definition.
-  A `T[n]` parameter takes a `T[n]` alone, and a list is no array.
-- **In the VM**, an array is passed by its descriptor, the cell QBasic passes an array by: a
-  `T[]`'s own, a fixed array's a field cell made for the call. Quickr's arrays are from 0, so one
-  subscript reaches each element: the header's fast is the elements' count.
 - A list's methods: `a.push(x)`, `a.pop()` (the last, taken), `a.insert(i, x)`, `a.remove(i)`,
   `a.swap(i, j)`, `a.sort()` and `a.sort(fn(x, y) x < y)`. `len(a)` is its length and `x in a`
   searches it. `a[i]` outside its elements is a runtime error, Subscript out of range.
-- An array has `swap` and `sort`.
+- A fixed array has `swap` and `sort`; its size never changes.
 - `a.sort(fn(x, y) …)` orders by a "less than" lambda and is stable. `a.sort()` orders numbers
   and strings by value.
 - A dict's methods: `d.get(k)` gives a `V or none`, a copy of the value; when `V` is a `T or
@@ -745,7 +723,7 @@ next
 ### Ownership
 
 ```basic
-var a as list[int]
+var a as int[]
 a.push(1)
 var b = a           ' a copy: a is used below
 b.push(2)
@@ -927,27 +905,28 @@ end function
 - Types: INTEGER and LONG are `int`, both 32 bits; SHORT is `short`, SINGLE `single`, DOUBLE
   `double`, STRING `string`, BYTE `ubyte` in a field or an array, a TYPE a record of the same
   fields. A TYPE's array field from 0 is a
-  fixed array, `heights(7) AS INTEGER` an `int[8]`, `m(3, 1) AS LONG` an `int[4, 2]`; a dynamic
-  one, `tags() AS STRING`, a `string[]`.
+  fixed array, `heights(7) AS INTEGER` an `int[8]`; a dynamic one, `tags() AS STRING`, a list.
 - A parameter by reference takes a `var`'s place, and the `var` sees the change. Any other
   argument, a `let`'s too, goes as a copy. A BYVAL parameter is by value.
-- An array parameter takes any array by its descriptor: QBasic sees its bounds, from 0, in each
-  dimension, and a REDIM of a `T[]` changes it. A fixed array's REDIM is Duplicate definition.
+- An array parameter takes a list by reference. QBasic sees the list's length as its bounds, from 0,
+  and a REDIM of it changes the list. A native's takes a fixed
+  array too, `var px as ubyte[16]`, as it can't REDIM.
 - What Quickr has no equal for is an error where it is used, naming why, never at the import: a
-  fixed-length string, a BYTE parameter or result that is not an array, an array field not from 0.
+  fixed-length string, a BYTE parameter or result that is not an array, an array field of two
+  dimensions or not from 0.
 - A native module, a `.qbx`, is imported as a QBasic one: `from synth import note`.
 - A QBasic module's code runs at its first import, as in QBasic.
 - A QBasic file imports a Quickr module: `IMPORT shapes`, then `shapes.area(2, 3)`, or `FROM
   shapes IMPORT area`. Its functions are SUBs and FUNCTIONs, its records TYPEs, its consts CONSTs,
   the private ones aside. Its methods are not seen. A string const longer than 255 bytes is not
   exported.
-- Types back: `int` is LONG, `short` SHORT, `ubyte` BYTE in a field or an array, `single`,
-  `double` and `string` the same, `bool` INTEGER, true -1 in both, a record a TYPE, its arrays
-  array fields. A `mut` parameter is by reference, any other by value. A list has no QBasic
-  equal.
-- A `T[]` parameter takes an array from 0 in each dimension, by reference: a `mut` one's
-  `resize()` changes its bounds, a fixed array field's is Duplicate definition. Any other array
-  is Subscript out of range where passed.
+- Types back: `int` is LONG, `short` SHORT, `ubyte` BYTE in a field or a list, `single`, `double`
+  and `string` the same, `bool` INTEGER, true -1 in both, a record a TYPE, its fixed arrays and
+  lists array fields. A `mut`
+  parameter is by reference, any other by value.
+- A list parameter takes an array of one dimension from 0, by reference: a `mut` one's push and
+  pop change its bounds. Any other array is Subscript out of range where passed; a fixed array
+  field can't go to a `mut` one.
 - Any other type in a function's parameters or result, or in a record's fields, makes it an error
   where QBasic uses it.
 - QBasic matches names case aside: two exports that differ only so are an error at the IMPORT.

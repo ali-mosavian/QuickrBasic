@@ -244,7 +244,7 @@ uint32_t qast_parts(const QTy *const y)
     case QT_TUPLE:
         return y->nfields;
 
-    case QT_DYN:
+    case QT_LIST:
     case QT_ARRAY:
     case QT_OPT:
     case QT_RES:
@@ -257,9 +257,9 @@ uint32_t qast_parts(const QTy *const y)
 
 QType qast_part(const QTy *const y, const uint32_t k)
 {
-    return y->kind == QT_DYN || y->kind == QT_ARRAY ? y->elem
-           : y->kind == QT_OPT || y->kind == QT_RES ? y->fields[QF_VAL].type
-                                                    : y->fields[k].type;
+    return y->kind == QT_LIST || y->kind == QT_ARRAY ? y->elem
+           : y->kind == QT_OPT || y->kind == QT_RES  ? y->fields[QF_VAL].type
+                                                     : y->fields[k].type;
 }
 
 bool qast_drops(const QProg *const p, const QType t)
@@ -303,5 +303,5 @@ uint32_t qast_dropdepth(const QProg *const p, const QType t)
     }
 
     y->seen = false;
-    return most + (y->kind == QT_DYN || y->kind == QT_ARRAY);
+    return most + (y->kind == QT_LIST || y->kind == QT_ARRAY);
 }

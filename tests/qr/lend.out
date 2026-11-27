@@ -1,7 +1,0 @@
-8
-6 2 9
-15 4
-2 9
-lend.bas:25: Duplicate definition
-      a.resize(len(a) + 1)
-a fixed array keeps its size

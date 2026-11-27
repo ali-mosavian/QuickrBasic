@@ -12,7 +12,7 @@ Files, each error a value.
     f.close()                        closed
     read_text(path) as string or Error  the whole file
     write_text(path, s) as bool or Error  the file made s
-    list(pattern = "*.*") as list[string]  the names matching * and ?
+    list(pattern = "*.*") as string[]  the names matching * and ?
 
 See also [Quickr](quickr index), [os](quickr os)
 

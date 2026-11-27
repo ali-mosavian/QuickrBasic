@@ -1,7 +1,7 @@
 option dialect quickr
 ' a field list's room past its length is out of range
 type Bag
-    items as list[int]
+    items as int[]
 end type
 var bag as Bag
 for i in 0..5

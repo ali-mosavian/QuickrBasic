@@ -1,6 +1,6 @@
 option dialect quickr
 ' a list's room past its length is out of range
-var a as list[int]
+var a as int[]
 a.push(1)
 a.push(2)
 a.push(3)

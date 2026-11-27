@@ -33,8 +33,8 @@ low(n.bs[2])
 n.uss[1] = 0
 high(n.uss[0])
 print n.bs[2]; " "; n.uss[0]; " "; n.uss[1]
-var bs as list[byte]
-var uss as list[ushort]
+var bs as byte[]
+var uss as ushort[]
 bs.push(-128)
 bs.push(127)
 uss.push(65535)

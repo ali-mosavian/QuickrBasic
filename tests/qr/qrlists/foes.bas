@@ -16,8 +16,7 @@ function hurt(mut foes as Foe[], by as int)
     for i in 0..len(foes)
         foes[i].hp -= by
     next
-    foes.resize(len(foes) + 1)
-    foes[len(foes) - 1] = Foe(hp: 1, tag: "imp")
+    foes.push(Foe(hp: 1, tag: "imp"))
 end function
 
 function names(foes as Foe[]) as string
@@ -29,5 +28,5 @@ function names(foes as Foe[]) as string
 end function
 
 function shrink(mut a as int[])
-    a.resize(len(a) - 1)
+    a.pop()
 end function

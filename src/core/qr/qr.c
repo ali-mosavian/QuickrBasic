@@ -1177,7 +1177,7 @@ static bool qr_et(const QProg *const p, const QType t, uint32_t *const et)
 static bool qr_param(const QProg *const p, const QType t, ExpVal *const v)
 {
     const QTy *const y = qast_array(p, t) ? qast_ty(p, t) : nullptr;
-    v->array = y && y->kind == QT_DYN && !y->grows;
+    v->array = y && y->kind == QT_LIST;
 
     if (y && (!v->array || qast_array(p, y->elem)))
         return false;

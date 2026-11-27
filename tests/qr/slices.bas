@@ -15,9 +15,9 @@ next
 print n
 type P
     name as string
-    tags as list[string]
+    tags as string[]
 end type
-var a as list[int]
+var a as int[]
 for i in 0..10
     a.push(i * i)
 next
@@ -28,7 +28,7 @@ c.push(7)
 print len(c); " "; c[3]; " "; len(a); " "; len(a[8..]); " "; len(a[20..])
 a = a[5..]
 print len(a); " "; a[0]
-var ps as list[P]
+var ps as P[]
 ps.push(P("x"))
 ps[0].tags.push("t1")
 ps[0].tags.push("t2")

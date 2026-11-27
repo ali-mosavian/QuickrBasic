@@ -14,33 +14,33 @@ type P
 end type
 
 type Box
-    items as list[int]
+    items as int[]
 end type
 
-var spacers as list[list[int]]
+var spacers as int[][]
 for i = 1 to 8
-    var s as list[int]
+    var s as int[]
     for k = 1 to 50
         s.push(k)
     next
     spacers.push(s)
 next
-var xs as list[int]
+var xs as int[]
 xs.push(10)
 xs.push(20)
-var ps as list[P]
+var ps as P[]
 ps.push(P(1, 2))
 ps.push(P(3, 4))
 var bx as Box
 bx.items.push(5)
 bx.items.push(6)
-var boxes as list[Box]
+var boxes as Box[]
 boxes.push(bx)
 var turn = 0
 
 ' A spacer before the lists emptied, the heap swept: they move.
 function churn(n as int) as int
-    var gone as list[int]
+    var gone as int[]
     spacers[turn] = gone
     turn += 1
     return n

@@ -12,7 +12,7 @@ for i in 0..2000
     if r < low then low = r
 next
 print seen.all(fn(x) x); " "; low < -1.9
-var xs as list[string]
+var xs as string[]
 xs.push("a")
 xs.push("b")
 print random.pick(xs) in xs

@@ -1,9 +1,0 @@
-6 2 3 2 5 7
-12
-12 7 5 0
-4 9 2
-7 3
-0 0
-0
-arrays2d.bas:36: Subscript out of range
-  g[4, 0] = 1

@@ -19,11 +19,11 @@ print int(gfx.Shade.light); " "; gfx.Shade.dark = gfx.Shade.dark
 print pkg.a.quad(3); " "; dbl(5); " "; bee.twice(1)
 gfx.plotted = 10
 print gfx.plotted
-var xs as list[int]
+var xs as int[]
 xs.push(3)
 xs.push(9)
 xs.push(4)
-var ss as list[string]
+var ss as string[]
 ss.push("b")
 ss.push("c")
 print largest(xs); " "; gfx.largest(ss)
