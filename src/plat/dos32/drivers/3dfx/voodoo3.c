@@ -9,7 +9,7 @@
  * mode shows a colour buffer through a CLUT that widens it as gfx does: swapbufferCMD, in the
  * FIFO, moves it to leftOverlayBuf's, at the retrace with vsync; a show waits until the card has
  * read the last. colBufferAddr sets the buffer drawn in. Pixels are read through BAR1, its tiling
- * past memory.
+ * past memory; a frame is carried by the 2D engine.
  */
 #include "plat/dos32/drivers/3dfx/cmdfifo.h"
 #include "plat/dos32/drivers/3dfx/regs.h"
@@ -89,6 +89,18 @@ enum : uint32_t {
     AUX_STRIDE = 0x1F8,
     OUTSIDE = 1u << 6, /* status: not in the vertical retrace */
     BASE = 0xFFFFF0,
+    /* 2D registers, PKT1's from TWO_D: clip0Min, clip0Max, dstBaseAddr and dstFormat;
+       srcBaseAddr and commandExtra; srcFormat, srcSize and srcXY; dstSize, dstXY and command.
+       Clip 0 the most, 16 bits a pixel; a copy of the source, screen to screen, launched. */
+    TWO_D = 0x2000,
+    BLIT_CLIP = TWO_D + 0x08,
+    BLIT_SOURCE = TWO_D + 0x34,
+    BLIT_FROM = TWO_D + 0x54,
+    BLIT_TO = TWO_D + 0x68,
+    CLIP_MOST = 0x0FFF0FFF,
+    SIXTEEN_BITS = 3u << 16,
+    BLIT = 1 | 1u << 8 | 0xCCu << 24,
+    Y_AT = 16,
     /* frame memory */
     BUFFERS = 3,
     DEPTH = 2,
@@ -312,19 +324,21 @@ static void overlaid(Tdfx *const c, const AccelMode *const m)
     );
 }
 
-/* Through BAR1, a pair of pixels at a time. */
+/* By the 2D engine, behind the swap in the command FIFO. */
 static void carried(Tdfx *const c)
 {
-    const volatile uint8_t *const from = c->lfb + h3.at[c->shown];
-    volatile uint8_t *const to = c->lfb + h3.at[c->shown ^ 1];
+    const uint32_t format = c->lfb_row | SIXTEEN_BITS;
+    const uint32_t at = (uint32_t)c->top << Y_AT | c->left;
+    const uint32_t size = (uint32_t)c->h << Y_AT | c->w;
+    const uint32_t clip[] = {0, CLIP_MOST, h3.at[c->shown ^ 1], format};
+    const uint32_t source[] = {h3.at[c->shown], 0};
+    const uint32_t from[] = {format, size, at};
+    const uint32_t to[] = {size, at, BLIT};
 
-    tdfx_idle(c);
-
-    for (uint32_t y = c->top; y < c->top + c->h; y++)
-        for (uint32_t x = c->left & ~1u; x < c->left + c->w; x += 2) {
-            const uint32_t at = y * c->lfb_row + x * PIXEL;
-            *(volatile uint32_t *)(to + at) = *(const volatile uint32_t *)(from + at);
-        }
+    put(c, BLIT_CLIP, clip, sizeof clip / sizeof *clip);
+    put(c, BLIT_SOURCE, source, sizeof source / sizeof *source);
+    put(c, BLIT_FROM, from, sizeof from / sizeof *from);
+    put(c, BLIT_TO, to, sizeof to / sizeof *to);
 }
 
 static const TdfxChip H3 = {

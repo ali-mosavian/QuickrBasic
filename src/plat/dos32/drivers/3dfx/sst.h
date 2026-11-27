@@ -87,6 +87,9 @@ uint32_t sst_drawn_in(Tdfx *c, uint32_t buffer);
 volatile uint8_t *sst_pixels(Tdfx *c, uint32_t buffer);
 void sst_carried(Tdfx *c);
 void sst_paletted(Tdfx *c);
+/* Whether the Voodoo 2's blitter copies between the colour buffers, tried on two pixels of each:
+   DOSBox-X's has none. Once the mode is laid out. */
+bool sst_blits(Tdfx *c);
 
 /* A mode, w by h of the frame buffer's: its timing's words, its tiles across (32 pixels each),
    the video FIFO's threshold, its family's flags (scan doubling) and its pixel clock. */

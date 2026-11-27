@@ -338,9 +338,10 @@ static uint32_t loaded(const uint8_t *const at)
 static void stored_at(uint8_t *const at, const uint32_t v) { memcpy(at, &v, sizeof v); }
 
 /* A fake card's command FIFO: the ring as the CPU writes it, its first byte in frame memory, the
-   read pointer, where PKT1's registers and PKT5's texels land; the words of texels taken. */
+   read pointer, where PKT1's registers and PKT5's texels land, frame memory for the H3's 2D
+   engine (null, none); the words of texels taken. */
 typedef struct {
-    uint8_t *ring, *read, *registers, *texels;
+    uint8_t *ring, *read, *registers, *texels, *frame;
     uint32_t at, ported;
     uint32_t written[4096][2], writes; /* each register written and its word, in order */
 } Fifo;
@@ -354,6 +355,30 @@ static uint32_t taken(const Fifo *const f, uint32_t *const at)
     memset(word, 0, 4);
     *at += 4;
     return v;
+}
+
+/* The H3's 2D register reg, as the FIFO left it. */
+static uint32_t blit_word(const Fifo *const f, const uint32_t reg)
+{
+    return loaded(f->registers + 0x2000 + reg);
+}
+
+/* The 2D engine's command, as 86Box does it: a copy screen to screen, 16 bits a pixel. */
+static void blitted_2d(const Fifo *const f)
+{
+    const uint32_t from = blit_word(f, 0x34), from_row = blit_word(f, 0x54) & 0x1FFF;
+    const uint32_t to = blit_word(f, 0x10), to_row = blit_word(f, 0x14) & 0x1FFF;
+    const uint32_t xy = blit_word(f, 0x5C), dxy = blit_word(f, 0x6C), size = blit_word(f, 0x68);
+
+    if (blit_word(f, 0x70) != (1 | 1u << 8 | 0xCCu << 24))
+        return;
+
+    for (uint32_t y = 0; y < size >> 16; y++)
+        memcpy(
+            f->frame + to + ((dxy >> 16) + y) * to_row + (dxy & 0xFFFF) * 2,
+            f->frame + from + ((xy >> 16) + y) * from_row + (xy & 0xFFFF) * 2,
+            (size & 0xFFFF) * 2
+        );
 }
 
 /* The packets the driver wrote from the read pointer on, done as the card does: PKT1's register
@@ -381,6 +406,9 @@ static void played(Fifo *const f)
                     f->written[f->writes][0] = reg;
                     f->written[f->writes++][1] = v;
                 }
+
+                if (f->frame && reg == 0x2070)
+                    blitted_2d(f);
             }
         } else if ((head & 7) == 5) {
             uint32_t to = taken(f, &at);
@@ -486,6 +514,7 @@ static const AccelDriver *h3_opened(AccelCard *const card)
         .read = h3.regs + H3_CMD + H3_READ,
         .registers = h3.regs + H3_3D,
         .texels = h3.regs + H3_PORT,
+        .frame = h3.frame,
         .at = 3 * H3_BUFFER,
     };
     memcpy(h3.regs + 0x1C, &sdram, sizeof sdram);
@@ -558,6 +587,26 @@ TEST(tdfx_h3_shows_the_buffer_drawn_and_draws_in_the_other)
     d->aim(1, (AccelRect){0, 0, 64, 64});
     h3_played();
     CHECK(loaded(h3.regs + H3_3D + H3_COLOUR_AT) == 0);
+    h3_closed(d);
+}
+
+/* The frame shown is carried to the next by the 2D engine, through the command FIFO: the CPU
+   copied it through BAR1, the card idle first. */
+TEST(tdfx_h3_carries_a_frame_on_the_card)
+{
+    AccelCard card;
+    const AccelDriver *const d = h3_opened(&card);
+    const uint16_t red = 0xF800;
+    const uint32_t first = 120 * 1280 + 160 * 2, last = (120 + 239) * 1280 + (160 + 319) * 2;
+
+    CHECK(d);
+    memcpy(h3.frame + H3_BUFFER + first, &red, sizeof red);
+    memcpy(h3.frame + H3_BUFFER + last, &red, sizeof red);
+    d->show(false);
+    d->carry();
+    CHECK(loaded(h3.frame + first) == 0);
+    h3_played();
+    CHECK(!memcmp(h3.frame + first, &red, 2) && !memcmp(h3.frame + last, &red, 2));
     h3_closed(d);
 }
 
@@ -952,6 +1001,72 @@ TEST(tdfx_cvg_shows_through_the_command_fifo)
     CHECK(word_at(SST_SWAP) == 0);
     played(&cvg_fifo);
     CHECK(word_at(SST_SWAP) == 1);
+    d->close();
+}
+
+/* The fake Voodoo 2 laid out in buffers of 160 pages, 20 tiles across, 640x480. */
+static void laid_out(Tdfx *const c, const uint16_t w, const uint16_t h)
+{
+    static const SstMode mode = {640, 480, 1, 1, 0, 20, 0, 0, 25.175f};
+
+    fake_open(c, w, h);
+    sst_laid_out(c, &mode, 160, 25.175f);
+}
+
+/* Its blitter found, as on 86Box. */
+static bool blitter_open(Tdfx *const c, const uint16_t w, const uint16_t h)
+{
+    laid_out(c, w, h);
+    c->blits = true;
+    return true;
+}
+
+static bool blitter_found; /* what sst_blits found */
+
+/* Its blitter tried. */
+static bool tried_open(Tdfx *const c, const uint16_t w, const uint16_t h)
+{
+    laid_out(c, w, h);
+    c->blits = blitter_found = sst_blits(c);
+    return true;
+}
+
+static bool blitted_at(const uint32_t reg) { return word_at(reg) != 0; }
+
+/* A frame is carried by the blitter, in order with the draws: buffer 1's screen, shown, copied to
+   buffer 0, at 160 pages a buffer and 20 tiles a row, the screen 320 by 240 centred in 640x480.
+   The CPU copied it through the frame buffer's window, as the Voodoo 1 still does: 68% of
+   MEADOW16's frame on 86Box. */
+TEST(tdfx_cvg_carries_a_frame_by_its_blitter)
+{
+    static const TdfxFamily family = {"fake Voodoo 2", &sst_chip, blitter_open, fake_close};
+
+    AccelCard card;
+    const AccelDriver *const d = tdfx_driver(&FAKE_HOST, &family);
+
+    CHECK(d && d->open(&(PciFunction){}, 320, 240, &card));
+    d->show(false);
+    d->carry();
+    CHECK(word_at(0x2C0) == 160 && word_at(0x2C4) == 0 && word_at(0x2C8) == (20u << 16 | 20));
+    CHECK(word_at(0x2E0) == (120u << 16 | 160) && word_at(0x2E4) == (120u << 16 | 160));
+    CHECK(word_at(0x2E8) == (239u << 16 | 319) && word_at(0x2EC) == 0xCCCC);
+    CHECK(word_at(0x2F8) == (3u << 14 | 1u << 31));
+    d->close();
+}
+
+/* A blitter that copies nothing, as DOSBox-X's Voodoo 2, is found missing: the CPU carries. */
+TEST(tdfx_cvg_carries_by_the_cpu_without_a_blitter)
+{
+    static const TdfxFamily family = {"fake Voodoo 2", &sst_chip, tried_open, fake_close};
+
+    AccelCard card;
+    const AccelDriver *const d = tdfx_driver(&FAKE_HOST, &family);
+
+    CHECK(d && d->open(&(PciFunction){}, 320, 240, &card) && !blitter_found);
+    memset(card_memory + 0x2C0, 0, 0x40);
+    d->show(false);
+    d->carry();
+    CHECK(!blitted_at(0x2C0) && !blitted_at(0x2E8) && !blitted_at(0x2F8));
     d->close();
 }
 

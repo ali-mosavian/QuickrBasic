@@ -86,6 +86,7 @@ struct Tdfx {
 
     uint16_t w, h, left, top; /* the screen, and its place in the mode */
     uint32_t shown;           /* the colour buffer shown */
+    bool blits;               /* the family's open finds: a carry is the card's blit (sst.c) */
     TdfxSpace memory, below;  /* texture memory's bytes; buffer 0's rows below the screen */
     TdfxTexture textures[ACCEL_TEXTURES];
     TdfxTarget targets[ACCEL_TARGETS];

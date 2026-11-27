@@ -44,10 +44,20 @@ enum : uint32_t {
     ENTRIES_MOST = 57344,
     MARGIN = 0x100,
     FIFO_LEAST = 32 << 10, /* the frame buffer a FIFO keeps past the buffers */
+    /* the Voodoo 2's blitter: bltSrcBaseAddr, bltDstBaseAddr and bltXYStrides; bltSrcXY,
+       bltDstXY, bltSize and bltRop; bltCommand. A copy of the source, screen to screen between
+       tiled buffers, launched. */
+    BLIT_BASES = 0x2C0,
+    BLIT_PLACES = 0x2E0,
+    BLIT_COMMAND = 0x2F8,
+    BLIT_COPY = 0xCCCC,
+    BLIT = 3u << 14 | 1u << 31,
+    MARK = 0x5A5AA5A5, /* two pixels the blitter is tried on */
 };
 
-static uint32_t room; /* the FIFO's entries known free */
-static uint32_t lwm;  /* the memory FIFO's entries free kept: 0, it is off */
+static uint32_t room;         /* the FIFO's entries known free */
+static uint32_t lwm;          /* the memory FIFO's entries free kept: 0, it is off */
+static uint32_t buffer_pages; /* a colour buffer's */
 
 const SstMode *sst_mode_for(
     const SstMode *const modes,
@@ -133,6 +143,7 @@ void sst_laid_out(Tdfx *const c, const SstMode *const m, const uint32_t pages, c
     const uint32_t across = (m->hsync & HALF) + (m->hsync >> HALF_AT);
     const uint32_t down = (m->vsync & HALF) + (m->vsync >> HALF_AT);
 
+    buffer_pages = pages;
     c->stride = m->tiles * TILE;
     c->rows = pages * PAGE / (c->stride * 2);
     c->mode_w = m->w;
@@ -258,9 +269,48 @@ static void shown(Tdfx *const c, const bool vsync)
     tdfx_put(c, SST_SWAP, vsync);
 }
 
-/* Through the frame buffer's window, pixel by pixel. */
+/* w by h pixels at x, y of the shown buffer copied to the other's by the Voodoo 2's blitter, in
+   order with the draws. */
+static void blitted(
+    Tdfx *const c,
+    const uint32_t x,
+    const uint32_t y,
+    const uint32_t w,
+    const uint32_t h
+)
+{
+    const uint32_t tiles = c->stride / TILE, at = y << HALF_AT | x;
+    const uint32_t bases[] = {
+        c->shown * buffer_pages,
+        (c->shown ^ 1) * buffer_pages,
+        tiles << HALF_AT | tiles,
+    };
+    const uint32_t places[] = {at, at, (h - 1) << HALF_AT | (w - 1), BLIT_COPY};
+
+    c->chip->put(c, BLIT_BASES, bases, sizeof bases / sizeof *bases);
+    c->chip->put(c, BLIT_PLACES, places, sizeof places / sizeof *places);
+    tdfx_put(c, BLIT_COMMAND, BLIT);
+}
+
+bool sst_blits(Tdfx *const c)
+{
+    tdfx_put(c, SST_LFB_MODE, FRONT << LFB_WRITE);
+    stored(c, c->lfb, MARK);
+    tdfx_put(c, SST_LFB_MODE, BACK << LFB_READ | BACK << LFB_WRITE);
+    stored(c, c->lfb, ~MARK);
+    blitted(c, 0, 0, 2, 1);
+    tdfx_idle(c);
+    return *(const volatile uint32_t *)c->lfb == MARK;
+}
+
+/* By the blitter; else through the frame buffer's window, pixel by pixel. */
 void sst_carried(Tdfx *const c)
 {
+    if (c->blits) {
+        blitted(c, c->left, c->top, c->w, c->h);
+        return;
+    }
+
     tdfx_put(c, SST_LFB_MODE, FRONT << LFB_READ | BACK << LFB_WRITE);
     tdfx_idle(c);
 

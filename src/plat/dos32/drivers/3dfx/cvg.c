@@ -94,12 +94,14 @@ static void shown(Tdfx *const c, const bool vsync)
     cmdfifo_fenced(&queue);
 }
 
-/* As the Voodoo Graphics copies, the card idle after: the frame buffer window's writes go by the
-   PCI FIFO, not the command FIFO the draws after them do. */
+/* As the Voodoo Graphics carries; by the frame buffer's window, the card idle after: its writes
+   go by the PCI FIFO, not the command FIFO the draws after them do. */
 static void carried(Tdfx *const c)
 {
     sst_carried(c);
-    tdfx_idle(c);
+
+    if (!c->blits)
+        tdfx_idle(c);
 }
 
 static const TdfxChip chip = {

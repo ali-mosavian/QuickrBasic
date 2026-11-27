@@ -6,7 +6,8 @@
  * centred in the smallest holding it whose buffers fit. Only TMU0 draws. The TMUs are reset after
  * each clock change. Registers and texels are written directly, or through the command FIFO when
  * SSTV2_CMDFIFO is set (cvg.h), on once the mode is shown. PCI register 0xC0 is written once the
- * mode is set: DOSBox-X shows nothing without it, and sizes its window then.
+ * mode is set: DOSBox-X shows nothing without it, and sizes its window then. A frame is carried
+ * by the blitter, once tried; DOSBox-X has none, and the CPU copies.
  */
 #include "plat/dos32/drivers/3dfx/cvg.h"
 #include "plat/dos32/drivers/3dfx/dac.h"
@@ -255,6 +256,7 @@ static bool opened(Tdfx *const c, const uint16_t w, const uint16_t h)
     c->host->pci_write(&c->pci, SST_VIDEO_ON, 0);
     sst_changed(c, SST_FBI_INIT0, 0, SST_SHOWN);
     sst_changed(c, SST_FBI_INIT1, SST_BLANK, 0);
+    c->blits = sst_blits(c);
     cvg_queued(c, pages);
     c->texture_bytes = SST_BYTES;
     return true;
