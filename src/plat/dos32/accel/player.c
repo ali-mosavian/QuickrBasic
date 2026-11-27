@@ -721,29 +721,39 @@ static uint32_t index_at(const Buffer *const ib, const uint32_t i)
     return v;
 }
 
-/* The draw's vertex at index into *v, its wrap's rectangle to r: false, past the buffer, or its
+/* A draw's vertices: its pipeline's layout, its buffer's bytes, and the whole vertices they hold. */
+typedef struct {
+    const Pipeline *pl;
+    const uint8_t *bytes;
+    uint32_t n;
+} Vertices;
+
+static Vertices vertices_of(const Pipeline *const pl, const Buffer *const vb)
+{
+    return (Vertices){pl, vb->bytes, pl->stride ? vb->n / pl->stride : 0};
+}
+
+/* The draw's vertex at index into *v, its wrap's rectangle to r: false, past the vertices, or its
    w not above 0. A w of 1, a 2D draw's, is not divided. */
 static bool fetched(
-    const Pipeline *const pl,
-    const Buffer *const vb,
+    const Vertices *const f,
     const uint32_t index,
     AccelVertex *const v,
     uint16_t r[RECT]
 )
 {
-    const uint64_t at = (uint64_t)index * pl->stride;
+    const Pipeline *const pl = f->pl;
 
     float xyzw[4], st[2] = {0, 0};
 
     uint8_t c[4] = {OPAQUE, OPAQUE, OPAQUE, OPAQUE};
 
-    if (at + pl->stride > vb->n)
+    if (index >= f->n)
         return false;
 
-    const uint8_t *const b = vb->bytes + at;
+    const uint8_t *const b = f->bytes + index * pl->stride;
 
     memcpy(xyzw, b + pl->at[QX_FIXED_AT_POSITION], sizeof xyzw);
-    memset(r, 0, RECT * sizeof *r);
 
     if (pl->at[QX_FIXED_AT_TEXEL] != NONE)
         memcpy(st, b + pl->at[QX_FIXED_AT_TEXEL], sizeof st);
@@ -753,15 +763,45 @@ static bool fetched(
 
     if (pl->at[QX_FIXED_AT_RECT] != NONE)
         memcpy(r, b + pl->at[QX_FIXED_AT_RECT], RECT * sizeof *r);
+    else
+        memset(r, 0, RECT * sizeof *r);
 
     if (!(xyzw[3] > 0))
         return false;
 
     const uint32_t argb = (uint32_t)c[3] << 24 | (uint32_t)c[0] << 16 | (uint32_t)c[1] << 8 | c[2];
+    const float q = reciprocal(xyzw[3]);
 
-    *v = (AccelVertex){xyzw[0], xyzw[1], xyzw[2], reciprocal(xyzw[3]), st[0], st[1], argb};
+    *v = (AccelVertex){xyzw[0], xyzw[1], xyzw[2], q, st[0], st[1], argb};
 
     return true;
+}
+
+/* A vertex fetched, by its index: kept by the index's low bits, so a quad's corners 0 and 2,
+   in both its triangles, are fetched once. */
+typedef struct {
+    uint32_t index;
+    bool ok;
+    AccelVertex v;
+    uint16_t r[RECT];
+} Fetched;
+
+enum { KEPT = 4 };
+
+static const Fetched *fetched_once(
+    Fetched kept[KEPT],
+    const Vertices *const f,
+    const uint32_t index
+)
+{
+    Fetched *const k = &kept[index & (KEPT - 1)];
+
+    if (k->index != index) {
+        k->index = index;
+        k->ok = fetched(f, index, &k->v, k->r);
+    }
+
+    return k;
 }
 
 /* The draw's first two triangles are a rectangle over all of the pass, drawn opaque. */
@@ -777,6 +817,8 @@ static bool covers(
 
     const Texture *const into = p.pass;
 
+    const Vertices f = vertices_of(pl, vb);
+
     AccelVertex v[TWO];
     uint16_t r[RECT];
     uint32_t omitted[2];
@@ -786,7 +828,7 @@ static bool covers(
         return false;
 
     for (uint32_t i = 0; i < TWO; i++)
-        if (!fetched(pl, vb, index_at(ib, first + i), &v[i], r))
+        if (!fetched(&f, index_at(ib, first + i), &v[i], r))
             return false;
 
     float x0 = v[0].x, x1 = x0, y0 = v[0].y, y1 = y0;
@@ -834,6 +876,8 @@ static bool filled(
     uint32_t *const argb
 )
 {
+    const Vertices f = vertices_of(pl, vb);
+
     AccelVertex v;
     uint16_t r[RECT];
 
@@ -842,7 +886,7 @@ static bool filled(
         return false;
 
     for (uint32_t i = 0; i < TWO; i++) {
-        fetched(pl, vb, index_at(ib, first + i), &v, r);
+        fetched(&f, index_at(ib, first + i), &v, r);
 
         if (i && v.colour != *argb)
             return false;
@@ -1108,18 +1152,35 @@ static void triangles_drawn(
     const bool alone = index && texel && (blend == ACCEL_NONE || blend == ACCEL_KEEP);
     const uint8_t cut = index && pl->flags & QX_FIXED_KEY ? ACCEL_LINEAR : 0;
 
+    const Vertices f = vertices_of(pl, vb);
+
     Pieces c = {t, {.source = pl->source, .blend = blend, .alpha = alpha, .depth = pl->depth}};
+    Fetched kept[KEPT];
+
+    for (uint32_t k = 0; k < KEPT; k++)
+        kept[k] = (Fetched){.index = NONE}; /* past any vertices: not fetched */
 
     if (index && (texel || !p.sent_palette))
         paletted(held, false);
 
     for (uint32_t i = 0; i + 3 <= count; i += 3) {
         AccelVertex v[3];
-        uint16_t r[3][RECT];
+        uint16_t r[RECT]; /* the first corner's: the wrap's */
+        uint32_t k = 0;
 
-        if (!fetched(pl, vb, index_at(ib, first + i), &v[0], r[0]) ||
-            !fetched(pl, vb, index_at(ib, first + i + 1), &v[1], r[1]) ||
-            !fetched(pl, vb, index_at(ib, first + i + 2), &v[2], r[2]))
+        for (; k < 3; k++) {
+            const Fetched *const got = fetched_once(kept, &f, index_at(ib, first + i + k));
+
+            if (!got->ok)
+                break;
+
+            v[k] = got->v;
+
+            if (!k)
+                memcpy(r, got->r, sizeof r);
+        }
+
+        if (k < 3)
             continue;
 
         for (uint32_t k = 0; k < 3 && !texel; k++)
@@ -1130,7 +1191,7 @@ static void triangles_drawn(
             continue;
         }
 
-        const CutGrid g = gridded(t, (uint8_t)(pl->flags & ~cut), r[0], &c.s.flags);
+        const CutGrid g = gridded(t, (uint8_t)(pl->flags & ~cut), r, &c.s.flags);
         c.s.flags |= alone ? ACCEL_REPLACE : 0;
         cut_triangle(&g, v, piece, &c);
     }
