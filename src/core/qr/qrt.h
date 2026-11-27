@@ -85,6 +85,7 @@ typedef enum : uint8_t {
     QX_SORT, /* ( elems et kind -- ): in order by value; with QX_BY ( elems et -- ) by a lambda */
     QX_RESIZE, /* ( n.. cell et k -- ): k dimensions of sizes n.., the elements kept, new ones empty */
     QX_SHAPE, /* ( src dst -- ): dst an int[] of the array at cell src's dimensions' sizes */
+    QX_FINTO, /* ( n 0 cell et -- count ): cell's array filled from n's place, -ERR an error */
 } QrtX;
 
 /* A failed assert's ERR: no QBasic error's. */

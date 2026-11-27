@@ -603,18 +603,34 @@ static bool qsem_nativeok(const QType t)
     return qast_numeric(t) || t == QY_BOOL || t == QY_STRING || t == QY_ERROR;
 }
 
-/* Does entry n's code take its arguments' numbers, whichever they are (QN_NUM)? */
+/* Does entry n's code take its arguments' numbers, whichever they are (QN_NUM, QN_ET)? */
 static bool qsem_bynumber(const QNat *const n)
 {
     for (uint32_t i = 0; i < n->n; i++)
-        if (n->steps[i].kind == QN_NUM)
+        if (n->steps[i].kind == QN_NUM || n->steps[i].kind == QN_ET)
             return true;
 
     return false;
 }
 
-/* Native fn f's entry, and its types: numbers, bools and strings, by value; a generic's entry
-   takes numbers, any of them. */
+/* Does entry n take its argument k as an array (QN_ET)? */
+static bool qsem_natarray(const QNat *const n, const uint32_t k)
+{
+    for (uint32_t i = 0; i < n->n; i++)
+        if (n->steps[i].kind == QN_ET && n->steps[i].n == (int32_t)k)
+            return true;
+
+    return false;
+}
+
+/* Is t an array or a list of numbers? */
+static bool qsem_numbers(const QSem *const S, const QType t)
+{
+    return qast_array(S->prog, t) && qast_numeric(qast_ty(S->prog, t)->elem);
+}
+
+/* Native fn f's entry, and its types: numbers, bools and strings, by value; an array of numbers,
+   mut too, where the entry takes one; a generic's entry takes numbers, any of them. */
 static void qsem_native(QSem *const S, QFn *const f)
 {
     f->nat = qnat_find(f->name->text, f->name->len);
@@ -622,11 +638,14 @@ static void qsem_native(QSem *const S, QFn *const f)
     if (!f->nat)
         qsem_say(S, f->name, "no native entry is named ", qsem_text(S, f->name), nullptr);
     else if (qsem_bynumber(f->nat)) {
-        for (uint32_t k = 0; k < f->npar; k++)
-            if (!qast_numeric(f->params[k].var->type) && f->params[k].var->type != QY_ERROR) {
+        for (uint32_t k = 0; k < f->npar; k++) {
+            const QType t = f->params[k].var->type;
+
+            if (!qast_numeric(t) && !qsem_numbers(S, t) && t != QY_ERROR) {
                 qsem_say(S, f->name, qsem_text(S, f->name), " takes numbers", nullptr);
                 break;
             }
+        }
     } else if (f->of)
         qsem_say(S, f->name, qsem_text(S, f->name), "'s native entry is not generic", nullptr);
 
@@ -634,8 +653,12 @@ static void qsem_native(QSem *const S, QFn *const f)
 
     for (uint32_t k = 0; k < f->npar; k++) {
         const QParam *const p = &f->params[k];
+        const QType t = p->var->type;
 
-        if (p->mut || !qsem_nativeok(p->var->type))
+        if (f->nat && qsem_natarray(f->nat, k)) {
+            if (!qsem_numbers(S, t) && t != QY_ERROR)
+                qsem_say(S, p->name, "this native function takes an array of numbers", nullptr);
+        } else if (p->mut || !qsem_nativeok(t))
             qsem_say(
                 S,
                 p->name,
