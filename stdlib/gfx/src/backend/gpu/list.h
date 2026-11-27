@@ -55,6 +55,12 @@ bool list_draw(
     uint8_t alpha,
     bool shared
 );
+/* The last n vertices drawn, to change in place until the list is played. */
+static inline GpuVertex *list_last(const GpuList *const l, const uint32_t n)
+{
+    return l->vertices + l->nvertices - n;
+}
+
 /* n disc vertices drawn, as list_draw's. */
 bool list_discs(
     GpuList *l,

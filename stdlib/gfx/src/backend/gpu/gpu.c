@@ -22,6 +22,9 @@ static GpuTexture *entry(Gpu *const g, const uint32_t texture)
 
     const uint32_t slot = hdl_slot(texture), had = g->ntextures;
 
+    if (slot < had)
+        return &g->textures[slot];
+
     if (!mem_grow((void **)&g->textures, &g->ntextures, slot + 1, sizeof *g->textures))
         return nullptr;
 

@@ -4,7 +4,7 @@
 #include "core/mem.h"
 #include "core/palette.h"
 
-enum { ATTRIBUTES = 4, WRAPS = 3, QUAD = 4 };
+enum { ATTRIBUTES = 4, WRAPS = 3 };
 
 /* A pipeline's fixed state as a kind of pipeline_id's: what it draws, then its flags. */
 static uint32_t kind_of(const uint32_t stages)
@@ -65,36 +65,44 @@ static bool made(
     return true;
 }
 
-/* The last colour and light lit, and the colour they made: a draw's corners share theirs. */
+/* The last colour and light lit, and the word they made: a draw's corners share their stages and
+   mostly their colour and light. */
 typedef struct {
     bool known;
     uint32_t from, to;
 } Lit;
 
+/* Word rgb's channel at shift lit by light over 63, as the vertex's byte holds it. */
+static uint32_t channel_lit(const uint32_t rgb, const uint32_t shift, const uint32_t light)
+{
+    return ((rgb >> shift & 0xFF) * light / PAL_FULL & 0xFF) << shift;
+}
+
 /* v's colour lit as the shader lights it: SOLID's as it is, a texel's tint by light over 63, an
-   index's white (LOOKUP's lit); its alpha whole. */
+   index's white (LOOKUP's lit); its alpha whole. r, g, b and light read and written as one word,
+   not four bytes. */
 static void lit(GpuVertex *const v, Lit *const k)
 {
-    const bool solid = v->stages & GPU_STAGE_SOLID, index = v->stages & GPU_STAGE_INDEXED;
-    const uint32_t from = v->r | v->g << 8 | v->b << 16 | (uint32_t)v->light << 24;
+    static_assert(offsetof(GpuVertex, light) == offsetof(GpuVertex, r) + 3);
 
-    if (!solid && index)
-        v->r = v->g = v->b = 0xFF;
-    else if (!solid) {
-        if (!k->known || from != k->from) {
-            k->known = true;
-            k->from = from;
-            k->to = (uint32_t)(v->r * v->light / PAL_FULL) |
-                    (uint32_t)(v->g * v->light / PAL_FULL) << 8 |
-                    (uint32_t)(v->b * v->light / PAL_FULL) << 16;
-        }
+    enum : uint32_t { WHOLE = 0xFFu << 24, RGB = 0xFFFFFF };
 
-        v->r = (uint8_t)k->to;
-        v->g = (uint8_t)(k->to >> 8);
-        v->b = (uint8_t)(k->to >> 16);
+    uint32_t from;
+
+    mem_copy(&from, &v->r, sizeof from);
+
+    if (!k->known || from != k->from) {
+        const uint32_t light = from >> 24;
+        const bool solid = v->stages & GPU_STAGE_SOLID, index = v->stages & GPU_STAGE_INDEXED;
+        const uint32_t tint = channel_lit(from, 0, light) | channel_lit(from, 8, light) |
+                              channel_lit(from, 16, light);
+
+        k->known = true;
+        k->from = from;
+        k->to = (solid ? from & RGB : index ? RGB : tint) | WHOLE;
     }
 
-    v->light = 0xFF;
+    mem_copy(&v->r, &k->to, sizeof k->to);
 }
 
 /* LOOKUP for t's index texels sent, if they draw as other words than it last gave: into an 8-bit
@@ -133,24 +141,18 @@ bool fixed_draw(Gpu *const g, const GpuCall *const t, const GpuVertex *const v, 
     const uint32_t textures[LIST_TEXTURES] = {t->texture};
     const bool index = (v->stages & (GPU_STAGE_INDEXED | GPU_STAGE_SOLID)) == GPU_STAGE_INDEXED;
 
-    GpuVertex out[QUAD];
     Lit k = {};
     uint32_t id;
 
-    if ((index && !looked_up(g, t)) || !made(g, v->stages, t->blend, t->depth, &id))
+    if ((index && !looked_up(g, t)) || !made(g, v->stages, t->blend, t->depth, &id) ||
+        !list_draw(&g->list, v, n, id, textures, t->alpha, gpu_shared(v)))
         return false;
 
-    for (uint32_t at = 0; at < n; at += QUAD) {
-        const uint32_t m = n - at < QUAD ? n - at : QUAD;
+    /* lit where the list holds them: not copied once more */
+    GpuVertex *const in = list_last(&g->list, n);
 
-        for (uint32_t i = 0; i < m; i++) {
-            out[i] = v[at + i];
-            lit(&out[i], &k);
-        }
-
-        if (!list_draw(&g->list, out, m, id, textures, t->alpha, gpu_shared(v)))
-            return false;
-    }
+    for (uint32_t i = 0; i < n; i++)
+        lit(&in[i], &k);
 
     return true;
 }
