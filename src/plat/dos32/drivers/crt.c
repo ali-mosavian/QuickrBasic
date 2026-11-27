@@ -1,29 +1,4 @@
-/* What clang's code asks of a C library, in a driver, which imports nothing: copies, fills, and
- * _fltused, which a function using floating point refers to.
+/* What clang's code asks of a C library, in a driver, which imports nothing: _fltused, which a
+ * function using floating point refers to. Copies and fills are the runtime's mem.asm.
  */
-#include <stddef.h>
-#include <stdint.h>
-
 int _fltused;
-
-void *memcpy(void *const d, const void *const s, const size_t n)
-{
-    void *to = d;
-    const void *from = s;
-    size_t words = n >> 2, bytes = n & 3;
-
-    __asm__ volatile("rep movsl" : "+D"(to), "+S"(from), "+c"(words) : : "memory");
-    __asm__ volatile("rep movsb" : "+D"(to), "+S"(from), "+c"(bytes) : : "memory");
-    return d;
-}
-
-void *memset(void *const d, const int v, const size_t n)
-{
-    void *to = d;
-    size_t words = n >> 2, bytes = n & 3;
-    const uint32_t fill = (uint8_t)v * 0x01010101u;
-
-    __asm__ volatile("rep stosl" : "+D"(to), "+c"(words) : "a"(fill) : "memory");
-    __asm__ volatile("rep stosb" : "+D"(to), "+c"(bytes) : "a"(fill) : "memory");
-    return d;
-}

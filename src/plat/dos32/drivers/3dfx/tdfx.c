@@ -179,7 +179,7 @@ opened(const PciFunction *const pci, const uint16_t w, const uint16_t h, AccelCa
     Tdfx *const c = &card;
     const AccelHost *const host = c->host;
 
-    __builtin_memset(c, 0, sizeof *c); /* a driver has no C library: crt.c's */
+    __builtin_memset(c, 0, sizeof *c); /* a driver has no C library: mem.asm's */
     c->host = host;
     c->chip = family->chip;
     c->pci = *pci;

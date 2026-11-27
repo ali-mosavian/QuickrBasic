@@ -33,7 +33,6 @@ backend keeps are in [design.md](design.md).
 | `src/backend/gpu` | `GpuState` | The GPU renderer: a frame recorded as a list the host plays, and the one shader |
 | `src/base` | | Pixel formats and colour maths, geometry, the pixel rule, discs, depth values, maths |
 | `src/image` | | BMP and PNG to pixels; PNG's inflate |
-| `src/platform/dos` | | What the DOS slice lacks: `memcpy` and `memset` |
 
 ## Boundaries
 

@@ -156,6 +156,7 @@ test: $(DOS_EXE) | $(DOSBOX_BIN)
 	$(PY) tools/dosrun_test.py
 	$(PY) tools/sb_test.py
 	$(PY) tools/libcalls_test.py
+	JWASM=$(JWASM) uv run --quiet --no-project --script tools/mem_asm_test.py
 	BASIC_EXE=$(B)/basic32.exe $(PY) tools/regress_test.py $(B)/basic32.exe
 	BASIC_EXE=$(B)/basic32.exe $(PY) tools/conformance.py
 	BASIC_EXE=$(B)/basic32.exe $(PY) tools/fold_test.py $(B)/basic32.exe
@@ -232,8 +233,12 @@ build/web/lib/gfx.qbx: $(GFX_PARTS) build/wasm/ext/gfx.wasm tools/qbx.py
 	@mkdir -p $(@D)
 	$(PY) tools/qbx.py pack $@ --minor 1 $(GFX_PARTS) wasm32=build/wasm/ext/gfx.wasm
 # and for DOS, in lib/ beside basic32.exe: its slice an i386 DLL, which imports nothing, so it brings
-# its own copies and fills and the runtime's 64-bit division
-GFX_DOS_OBJ := $(patsubst %.c,$(B)/gfx/%.obj,$(GFX_SLICE_C) stdlib/gfx/src/platform/dos/crt.c src/lib/lldiv.c src/lib/div64.c)
+# the runtime's copies and fills (mem.asm, cdecl) and 64-bit division
+GFX_DOS_OBJ := $(patsubst %.c,$(B)/gfx/%.obj,$(GFX_SLICE_C) src/lib/lldiv.c src/lib/div64.c) $(B)/cdecl/mem.obj
+# the runtime's memcpy and memset for what takes its arguments on the stack: gfx's slice and the drivers
+$(B)/cdecl/mem.obj: src/plat/dos32/mem.asm | $(JWASM)
+	@mkdir -p $(@D)
+	$(JWASM) -q -coff -DCDECL -Fo$@ $<
 $(B)/gfx/%.obj: %.c | build/ext/gfx_qx.c
 	@mkdir -p $(@D)
 	$(DOS_SLICE_CC) $(GFX_INC) $(DEPFLAGS) -c $< -o $@
@@ -256,7 +261,8 @@ TDFX_SHARED := $(filter-out %/voodoo1.c %/voodoo2.c %/voodoo3.c %/sst.c %/dac.c 
 $(B)/drivers/%.obj: src/plat/dos32/drivers/%.c
 	@mkdir -p $(@D)
 	$(DOS_SLICE_CC) -Isrc $(DEPFLAGS) -c $< -o $@
-$(B)/drivers/%.dll: $(TDFX_SHARED:src/plat/dos32/drivers/%.c=$(B)/drivers/%.obj) $(B)/drivers/3dfx/%.obj
+$(B)/drivers/%.dll: $(TDFX_SHARED:src/plat/dos32/drivers/%.c=$(B)/drivers/%.obj) $(B)/drivers/3dfx/%.obj \
+		$(B)/cdecl/mem.obj
 	$(LLD_LINK) /dll /noentry /nodefaultlib /safeseh:no /out:$@ /map:$(@:.dll=.map) $^
 # the Voodoo Graphics and Voodoo 2 share their FBI's bring-up and DAC; the Voodoo 2, Banshee and
 # Voodoo 3 the command FIFO
