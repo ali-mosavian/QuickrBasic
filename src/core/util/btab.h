@@ -25,6 +25,9 @@ static inline void *btab_at(const BTab *const t, const uint32_t id)
     return t->blocks[id >> BTAB_SHIFT] + (size_t)(id & BTAB_MASK) * t->size;
 }
 
+/* Entry id of a table of T, as btab_at: T's size a constant, so a 486 takes no multiply. */
+#define BTAB_AT(T, t, id) ((T *)(void *)(t)->blocks[(id) >> BTAB_SHIFT] + ((id) & BTAB_MASK))
+
 /* A new entry, zeroed, its id t->n - 1. Null: no memory. */
 void *btab_add(BTab *t, Arena *a);
 #endif

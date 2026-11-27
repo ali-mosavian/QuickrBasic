@@ -129,7 +129,7 @@ void decl_newfield(Decl *d, uint32_t t, uint32_t name, uint32_t et, uint32_t cou
 /* TYPE t. */
 static inline const TypeDef *decl_type(const Decl *const d, const uint32_t t)
 {
-    return btab_at(&d->types, t);
+    return BTAB_AT(const TypeDef, &d->types, t);
 }
 /* The next statement from *at with no effect in 32-bit mode (DEF SEG, VARSEG, SSEG): its name,
    *at past it; null none. */

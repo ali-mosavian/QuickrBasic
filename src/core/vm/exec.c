@@ -260,7 +260,7 @@ static inline bool ra_addr1(Regs *const r, const Arry *const ar)
     if ((uint32_t)r->sp->i >= a->fast)
         return false;
 
-    r->sp->a = a->data + (uint32_t)r->sp->i * arry_esize(ar, load32(r->ip + 1));
+    r->sp->a = a->data + (uint32_t)r->sp->i * arry_et_size(ar->decl, a->et); /* its own et */
     r->ip += 2 + VID + VCELL;
     return true;
 }
