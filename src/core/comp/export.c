@@ -109,7 +109,7 @@ static uint32_t expo_var(const Comp *const C, const uint32_t id)
 {
     const Var *const v = symb_var(C->symb, id);
 
-    if (symb_is_record(C->symb, id))
+    if (v->type >= ET_REC) /* a record, or an array of them */
         return v->type;
 
     const uint8_t k = v->info & VK_MASK;
