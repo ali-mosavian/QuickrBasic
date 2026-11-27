@@ -25,3 +25,9 @@ mutability.bas:29:3: mut n is an int, not a double
 mutability.bas:30:3: mut is written on the parameter only: pass v as it is
   g(mut v)
     ^
+mutability.bas:38:14: two is lent mut in this call
+  h(two.a, two.a)
+               ^
+mutability.bas:39:12: two is lent mut in this call
+  m(two, two.b)
+             ^
