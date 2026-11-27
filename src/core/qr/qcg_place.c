@@ -217,9 +217,9 @@ static void qcg_elem(QCg *const g, const QExpr *const e)
             return;
         }
 
-        qcg_offset(g, off);
         qcg_expr(g, e->b);
         code_op(c, O_FX_IDX);
+        code_dword(c, off);
         code_dword(c, 0);
         code_dword(c, y->count);
         code_dword(c, qcg_size(g, y->elem));

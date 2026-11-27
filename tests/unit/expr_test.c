@@ -101,3 +101,30 @@ TEST(function_result_passes_the_line_check)
 
     CHECK(*op == O_EOL);
 }
+
+/* A fixed array field's element at a field's offset past 64K is one FX.IDX, its offset an operand.
+   It took I.LD.I32 and I.ADD besides, +2.7% of HIGHVALE's ops a frame. */
+TEST(fixed_array_field_offset_in_its_index)
+{
+    static const char *const lines[] = {
+        "10 DEFINT A-Z",
+        "20 TYPE P",
+        "30 x AS INTEGER",
+        "40 y AS INTEGER",
+        "50 END TYPE",
+        "60 TYPE G",
+        "70 H(16383) AS LONG",
+        "80 L(3) AS P",
+        "90 END TYPE",
+        "100 DIM g AS G",
+        "110 i = 2",
+        "120 g.L(i).y = 7",
+        "130 PRINT g.L(i).y",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 7 \r");
+    CHECK(unit_ops(S, O_FX_IDX) == 2);
+    CHECK(!unit_ops(S, O_I_ADD) && !unit_ops(S, O_I_ADD_I16) && !unit_ops(S, O_I_LD_I32));
+}

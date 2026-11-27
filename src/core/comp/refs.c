@@ -190,7 +190,7 @@ static Node *subscripts(Comp *const C, uint32_t *const n)
 
 /* An element of fixed array field f, ours, its ( s {, s} ) at comp.p, the first subscript the
    fastest: its offset in f by the constant subscripts; for the others, at's index steps ( addr s --
-   addr ) FX.IDX lb count stride. Subscript out of range: a constant past its bounds, a count not
+   addr ) FX.IDX 0 lb count stride. Subscript out of range: a constant past its bounds, a count not
    f's. */
 static uint32_t element(Comp *const C, Node *const at, const Field *const f)
 {
@@ -224,6 +224,7 @@ static uint32_t element(Comp *const C, Node *const at, const Field *const f)
         } else {
             step(&end, s);
             Node *const x = step_op(C, &end, O_FX_IDX);
+            comp_dword(x, 0);
             comp_dword(x, (uint32_t)d->lb);
             comp_dword(x, d->count);
             comp_dword(x, (uint32_t)stride);
@@ -234,6 +235,21 @@ static uint32_t element(Comp *const C, Node *const at, const Field *const f)
     }
 
     return (uint32_t)off;
+}
+
+/* off bytes on from at's place: into its last step's offset if an FX.IDX, 0 left; else off. */
+static uint32_t indexed(Node *const at, const uint32_t off)
+{
+    Node *last = at->a;
+
+    while (last && last->next)
+        last = last->next;
+
+    if (!last || last->kind != N_OP || last->op != O_FX_IDX)
+        return off;
+
+    store32(last->lit, load32(last->lit) + off);
+    return 0;
 }
 
 /* An element of dynamic array field f, ours, its cell off bytes into at's place: its ( s {, s} ) at
@@ -347,7 +363,7 @@ static RecRef path(Comp *const C, Node *const at, uint32_t t, const uint8_t *tex
         C->p = decl_item(C->p + 1);
     }
 
-    return fieldref(C, f, off);
+    return fieldref(C, f, indexed(at, off));
 }
 
 /* An N_REF of op and variable id; an element's subscripts follow at comp.p. */
