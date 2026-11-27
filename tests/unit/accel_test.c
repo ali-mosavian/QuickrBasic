@@ -184,7 +184,8 @@ static struct {
     AccelState state;      /* the last sent */
     uint32_t palette[256]; /* the last sent */
     uint16_t up[SLOTS][TILE];
-    AccelVertex last[3];
+    AccelVertex last[3]; /* the last polygon's last triangle */
+    uint8_t sides;       /* its corners */
     uint32_t room, held; /* the targets the card has room for, and holds */
     uint32_t sent;       /* texels uploaded */
     uint32_t filled;     /* the last clear's colour */
@@ -298,10 +299,19 @@ static void ACCEL_CALL fake_palette(const uint32_t *colours)
     memcpy(fake.palette, colours, sizeof fake.palette);
 }
 
-static void ACCEL_CALL fake_triangles(const AccelVertex *v, uint32_t n)
+static void ACCEL_CALL fake_fans(const AccelVertex *v, const uint8_t *sides, uint32_t n)
 {
     called('V');
-    memcpy(fake.last, v + n - 3, sizeof fake.last);
+
+    for (uint32_t i = 0; i + 1 < n; i++)
+        v += sides[i];
+
+    const uint8_t k = sides[n - 1];
+
+    fake.last[0] = v[0];
+    fake.last[1] = v[k - 2];
+    fake.last[2] = v[k - 1];
+    fake.sides = k;
 }
 
 static void ACCEL_CALL fake_show(bool vsync) { (void)vsync, called('W'); }
@@ -335,7 +345,7 @@ static const AccelDriver FAKE = {
     .drop = fake_drop,
     .aim = fake_aim,
     .state = fake_state,
-    .triangles = fake_triangles,
+    .fans = fake_fans,
     .show = fake_show,
     .carry = fake_carry,
     .read = fake_read,
@@ -541,6 +551,23 @@ TEST(accel_player_sends_state_only_as_it_changes)
     box(TEXTURED, ART, 20, 0, 36, 16, 0, 16);
     CHECK(played(SHOWN, from, true));
     CHECK(calls_of('S') == 1 && calls_of('T') == 1 && calls_of('W') == 1);
+    accel_close();
+}
+
+/* A quad's two triangles, a, b, c and a, c, d by their indices, go to the driver as one polygon:
+   sent as two, each corner was copied twice more and the driver found the quad again by comparing
+   corners word by word, 50k cycles of MEADOW's 486 frame. */
+TEST(accel_player_sends_a_quads_two_triangles_as_one_polygon)
+{
+    opened();
+    begun(16, 16);
+
+    const uint32_t from = list.n;
+
+    box_at(SOLID, 0, 2, 4, 10, 12, 0, 0, 5, 255);
+    CHECK(played(SHOWN, from, true) && calls_of('V') == 1 && fake.sides == 4);
+    CHECK(fake.last[1].x == 10 - 0.5f && fake.last[1].y == 12 - 0.5f);
+    CHECK(fake.last[2].x == 2 - 0.5f && fake.last[2].y == 12 - 0.5f);
     accel_close();
 }
 

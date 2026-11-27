@@ -20,7 +20,7 @@
 #define ACCEL_CALL QX_CALL
 
 /* ABI 2 adds indexed textures and their palette; 3, write combining. */
-enum { ACCEL_ABI = 3 };
+enum { ACCEL_ABI = 4 };
 
 /* A card's PCI ID as accel_ids holds it. */
 #define ACCEL_ID(vendor, device) ((uint32_t)(vendor) << 16 | (uint32_t)(device))
@@ -28,6 +28,9 @@ enum { ACCEL_ABI = 3 };
 /* The target shown, made by open; the slots a driver takes, 1 up to these, textures' and
    targets' each their own. */
 enum { ACCEL_SCREEN = 0, ACCEL_TEXTURES = 1024, ACCEL_TARGETS = 64 };
+
+/* A polygon's corners at most. */
+enum { ACCEL_SIDES = 12 };
 
 typedef struct {
     int32_t x, y, w, h;
@@ -137,8 +140,9 @@ typedef struct {
     /* The draws after go into target slot, within clip. */
     void(ACCEL_CALL *aim)(uint32_t slot, AccelRect clip);
     void(ACCEL_CALL *state)(const AccelState *s);
-    /* n vertices, three a triangle. */
-    void(ACCEL_CALL *triangles)(const AccelVertex *v, uint32_t n);
+    /* n polygons from v, polygon i sides[i] corners round, from 3 to ACCEL_SIDES, each drawn as a fan
+       from its first corner. */
+    void(ACCEL_CALL *fans)(const AccelVertex *v, const uint8_t *sides, uint32_t n);
     /* The screen's pixels drawn shown, at the display's retrace with vsync; the draws after go into
        the next frame's, whose pixels are undefined. */
     void(ACCEL_CALL *show)(bool vsync);

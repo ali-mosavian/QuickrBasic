@@ -473,49 +473,48 @@ static void cornered(Tdfx *const c, const uint32_t *const v, const uint32_t n, c
     }
 }
 
-/* Whether corners a and b are the same, word for word: as integers, not the FPU's compares. */
-static bool same(const AccelVertex *const a, const AccelVertex *const b)
+/* A draw's: its move, texels' scale, parameters and alpha's share, w's way. */
+static TdfxDraw draw_of(const Tdfx *const c, const TdfxWay *const w)
 {
-    enum { WORDS = sizeof *a / sizeof(uint32_t) };
+    const bool texel = w->params >> TDFX_S & 1;
+    const float scale = texel ? (float)(1u << c->textures[c->state.texture].level) : 1;
 
-    const uint32_t *const x = (const uint32_t *)a, *const y = (const uint32_t *)b;
-
-    for (uint32_t i = 0; i < WORDS; i++)
-        if (x[i] != y[i])
-            return false;
-
-    return true;
+    return (TdfxDraw){(float)c->ox, (float)c->oy, scale, w->params, c->state.alpha};
 }
 
-/* Whether triangles t and the next are a quad, a, b, c and a, c, d: one fan of four corners. */
-static bool quad_of(const AccelVertex t[6]) { return same(&t[3], &t[0]) && same(&t[4], &t[2]); }
-
-/* n triangles from v drawn w's way: by the setup unit, a quad's two as a fan, the rest BATCH a
-   time, as many as a PKT3 takes; else worked out here. */
-static void drawn_by(
+/* n triangles from v drawn w's way, worked out here. */
+static void worked(
     Tdfx *const c,
     const TdfxWay *const w,
     const AccelVertex *const v,
     const uint32_t n
 )
 {
+    const TdfxDraw d = draw_of(c, w);
+
+    for (uint32_t i = 0; i < n; i++) {
+        TdfxTriangle t;
+
+        if (tdfx_setup(v + 3 * i, &d, &t))
+            c->chip->put(c, SST_FVERTEX, &w->sent, t.word);
+    }
+}
+
+/* n polygons from v, polygon i sides[i] corners round, to the setup unit: each of more than three
+   one fan, the triangles BATCH a time, as many as a PKT3 takes. */
+static void unit_drawn(
+    Tdfx *const c,
+    const AccelVertex *v,
+    const uint8_t *const sides,
+    const uint32_t n
+)
+{
     enum { BATCH = 5 };
 
-    const bool texel = w->params >> TDFX_S & 1;
-    const float scale = texel ? (float)(1u << c->textures[c->state.texture].level) : 1;
-    const TdfxDraw d = {(float)c->ox, (float)c->oy, scale, w->params, c->state.alpha};
+    static_assert(ACCEL_SIDES <= 15); /* a PKT3's corners */
 
-    if (!family->unit) {
-        for (uint32_t i = 0; i < n; i++) {
-            TdfxTriangle t;
-
-            if (tdfx_setup(v + 3 * i, &d, &t))
-                c->chip->put(c, SST_FVERTEX, &w->sent, t.word);
-        }
-
-        return;
-    }
-
+    const TdfxWay *const w = c->way;
+    const TdfxDraw d = draw_of(c, w);
     void (*const to)(Tdfx *, const uint32_t *, uint32_t, bool) =
         c->chip->cornered ? c->chip->cornered : cornered;
     const uint32_t words = w->corner.n;
@@ -523,25 +522,20 @@ static void drawn_by(
     uint32_t corners[3 * BATCH * TDFX_CORNER_WORDS];
     uint32_t k = 0;
 
-    for (uint32_t i = 0; i < n;) {
-        const AccelVertex *const t = v + 3 * i;
-
-        if (i + 1 < n && quad_of(t)) {
-            const AccelVertex quad[4] = {t[0], t[1], t[2], t[5]};
-            uint32_t fan[4 * TDFX_CORNER_WORDS];
+    for (uint32_t i = 0; i < n; v += sides[i++]) {
+        if (sides[i] > 3) {
+            uint32_t fan[ACCEL_SIDES * TDFX_CORNER_WORDS];
 
             if (k)
                 to(c, corners, 3 * k, false);
 
             k = 0;
-            tdfx_corners(quad, 4, &d, fan);
-            to(c, fan, 4, true);
-            i += 2;
+            tdfx_corners(v, sides[i], &d, fan);
+            to(c, fan, sides[i], true);
             continue;
         }
 
-        tdfx_corners(t, 3, &d, &corners[3 * words * k++]);
-        i++;
+        tdfx_corners(v, 3, &d, &corners[3 * words * k++]);
 
         if (k == BATCH) {
             to(c, corners, 3 * k, false);
@@ -553,28 +547,51 @@ static void drawn_by(
         to(c, corners, 3 * k, false);
 }
 
-/* Worked out here, each run of triangles that is one colour through color0, the rest iterated. The
-   setup unit is sent each corner's: it works out the colour's gradients itself, and runs would break
-   its batches. */
-static void ACCEL_CALL drawn(const AccelVertex *const v, const uint32_t n)
+/* n triangles from v worked out here, each run that is one colour through color0, the rest
+   iterated. */
+static void runs_drawn(Tdfx *const c, const AccelVertex *const v, const uint32_t n)
 {
-    Tdfx *const c = &card;
-    const uint32_t triangles = n / 3;
-
-    if (family->unit) {
-        drawn_by(c, c->way, v, triangles);
-        return;
-    }
-
-    for (uint32_t i = 0; i < triangles;) {
+    for (uint32_t i = 0; i < n;) {
         const AccelVertex *const run = v + 3 * i;
 
         bool one;
-        const uint32_t k = tdfx_run(run, triangles - i, c->params, &one);
+        const uint32_t k = tdfx_run(run, n - i, c->params, &one);
 
-        drawn_by(c, way_for(c, one, run->colour), run, k);
+        worked(c, way_for(c, one, run->colour), run, k);
         i += k;
     }
+}
+
+/* By the setup unit, each polygon's corners: it works out the colour's gradients itself, and runs
+   would break its batches. Else each polygon's triangles, a fan's, worked out here. */
+static void ACCEL_CALL drawn(const AccelVertex *v, const uint8_t *const sides, const uint32_t n)
+{
+    enum { TRIANGLES = 32 };
+
+    Tdfx *const c = &card;
+
+    if (family->unit) {
+        unit_drawn(c, v, sides, n);
+        return;
+    }
+
+    AccelVertex t[3 * TRIANGLES];
+    uint32_t k = 0;
+
+    for (uint32_t i = 0; i < n; v += sides[i++])
+        for (uint32_t j = 1; j + 1 < sides[i]; j++) {
+            t[3 * k] = v[0];
+            t[3 * k + 1] = v[j];
+            t[3 * k + 2] = v[j + 1];
+
+            if (++k == TRIANGLES) {
+                runs_drawn(c, t, k);
+                k = 0;
+            }
+        }
+
+    if (k)
+        runs_drawn(c, t, k);
 }
 
 static void ACCEL_CALL shown(const bool vsync)
@@ -681,7 +698,7 @@ static AccelDriver table = {
     .drop = dropped,
     .aim = aimed,
     .state = stated,
-    .triangles = drawn,
+    .fans = drawn,
     .show = shown,
     .carry = carried,
     .read = read_back,

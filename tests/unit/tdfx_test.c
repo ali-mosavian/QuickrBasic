@@ -603,6 +603,17 @@ static bool solid_in(const uint8_t *const regs, const TdfxVertex *const c)
     return (loaded(regs + SST_SETUP_MODE) & ~SST_UNIT_FAN) == tdfx_unit_mode(params);
 }
 
+/* n corners from v to d, three a triangle. */
+static void triangles_to(const AccelDriver *const d, const AccelVertex *const v, const uint32_t n)
+{
+    uint8_t sides[64];
+
+    for (uint32_t i = 0; i < n / 3; i++)
+        sides[i] = 3;
+
+    d->fans(v, sides, n / 3);
+}
+
 static void stored_at(uint8_t *const at, const uint32_t v) { memcpy(at, &v, sizeof v); }
 
 /* A fake card's command FIFO: the ring as the CPU writes it, its first byte in frame memory, the
@@ -1157,7 +1168,7 @@ TEST(tdfx_h3_writes_registers_through_the_command_fifo)
 
     CHECK(d);
     d->state(&SOLID);
-    d->triangles(TRIANGLE, 3);
+    triangles_to(d, TRIANGLE, 3);
     CHECK(loaded(h3.regs + H3_3D + SST_FVERTEX) == 0);
     h3_played();
     CHECK(solid_in(h3.regs + H3_3D, &t));
@@ -1191,9 +1202,9 @@ static bool drew(const uint32_t t[3], const uint32_t a, const uint32_t b, const 
     return seen == 7;
 }
 
-/* A quad's two triangles go to the setup unit as one fan of four corners: the same two drawn
-   from two thirds of the corners, each corner packed and written once. */
-TEST(tdfx_h3_sends_a_quad_as_one_fan)
+/* A polygon of four corners goes to the setup unit as one fan: a quad's two triangles from two
+   thirds of the corners, each corner packed and written once. */
+TEST(tdfx_h3_sends_a_polygon_as_one_fan)
 {
     AccelCard card;
     const AccelDriver *const d = h3_opened(&card);
@@ -1202,7 +1213,7 @@ TEST(tdfx_h3_sends_a_quad_as_one_fan)
     d->state(&SOLID);
     h3_played();
     h3.fifo.triangles = h3.fifo.corners = 0;
-    d->triangles(QUAD, 6);
+    d->fans((const AccelVertex[]){QUAD[0], QUAD[1], QUAD[2], QUAD[5]}, (const uint8_t[]){4}, 1);
     h3_played();
 
     union {
@@ -1232,7 +1243,7 @@ TEST(tdfx_h3_fences_its_combined_ring_before_waiting_on_the_card)
     const uint64_t from = h3.us;
 
     d->state(&SOLID);
-    d->triangles(TRIANGLE, 3);
+    triangles_to(d, TRIANGLE, 3);
     d->show(false);
     d->show(false);
     d->show(false);
@@ -1276,7 +1287,7 @@ TEST(tdfx_h3_writes_registers_without_reading_the_clock)
     const uint64_t from = h3.us;
 
     d->state(&SOLID);
-    d->triangles(TRIANGLE, 3);
+    triangles_to(d, TRIANGLE, 3);
     CHECK(h3.us == from);
     h3_closed(d);
 }
@@ -1324,7 +1335,7 @@ TEST(tdfx_sst_writes_by_the_memory_fifos_room)
     CHECK(d && d->open(&(PciFunction){}, 320, 240, &card));
     status_is(0xFFFFu << 12);
     d->state(&SOLID);
-    d->triangles(ten, 10 * 3);
+    triangles_to(d, ten, 10 * 3);
     CHECK(loaded(card_memory + SST_FVERTEX) != 0);
     d->close();
 }
@@ -1418,7 +1429,7 @@ TEST(tdfx_cvg_writes_directly_unless_asked_for_its_command_fifo)
 
     CHECK(d && !(word_at(SST_FBI_INIT7) & 1u << 8));
     d->state(&SOLID);
-    d->triangles(TRIANGLE, 3);
+    triangles_to(d, TRIANGLE, 3);
     CHECK(solid_in(card_memory, &t));
     d->close();
 }
@@ -1432,7 +1443,7 @@ TEST(tdfx_cvg_writes_registers_through_the_command_fifo)
 
     CHECK(d);
     d->state(&SOLID);
-    d->triangles(TRIANGLE, 3);
+    triangles_to(d, TRIANGLE, 3);
     CHECK(word_at(SST_FVERTEX) == 0);
     played(&cvg_fifo);
     CHECK(solid_in(card_memory, &t));
@@ -1474,10 +1485,10 @@ TEST(tdfx_driver_sends_one_colour_as_colour0)
 
     CHECK(d && d->open(&(PciFunction){}, 320, 240, &card));
     d->state(&MIXED);
-    d->triangles(ONE_COLOUR, 3);
+    triangles_to(d, ONE_COLOUR, 3);
     CHECK(word_at(SST_COLOUR0) == 0x80608020 && colour_unsent(card_memory));
     CHECK(word_at(SST_FBZ_COLOUR_PATH) == (SST_PATH_COLOUR | SST_PATH_COLOUR0 | SST_PATH_ADJUST));
-    d->triangles(TRIANGLE, 3);
+    triangles_to(d, TRIANGLE, 3);
     CHECK(word_at(SST_FBZ_COLOUR_PATH) == (SST_PATH_COLOUR | SST_PATH_ADJUST));
     CHECK(word_at(SST_FSTART + 4 * TDFX_R) == 0x42000000); /* 32, A's red */
     d->close();
@@ -1492,7 +1503,7 @@ TEST(tdfx_cvg_sends_one_colour_by_its_corners)
 
     CHECK(d);
     d->state(&MIXED);
-    d->triangles(ONE_COLOUR, 3);
+    triangles_to(d, ONE_COLOUR, 3);
     CHECK(word_at(SST_SETUP_MODE) == (SST_UNIT_RGB | SST_UNIT_ALPHA | SST_UNIT_FAN));
     CHECK(word_at(SST_COLOUR0) == 0);
     CHECK(word_at(SST_CORNER + 4 * TDFX_VARGB) == 0x80608020);
@@ -1515,7 +1526,7 @@ TEST(tdfx_driver_sends_a_run_of_one_colour_in_a_draw_as_colour0)
     memcpy(both + 3, ONE_COLOUR, sizeof ONE_COLOUR);
     CHECK(d && d->open(&(PciFunction){}, 320, 240, &card));
     d->state(&MIXED);
-    d->triangles(both, 6);
+    triangles_to(d, both, 6);
     CHECK(word_at(SST_COLOUR0) == 0x80608020 && word_at(SST_FSTART + 4 * TDFX_R) == 0x42000000);
     CHECK(word_at(SST_FBZ_COLOUR_PATH) == (SST_PATH_COLOUR | SST_PATH_COLOUR0 | SST_PATH_ADJUST));
     d->close();
@@ -1577,7 +1588,7 @@ TEST(tdfx_driver_fences_a_command_written_combined)
 
     const uint32_t before = wc.fences;
 
-    d->triangles(TRIANGLE, 3);
+    triangles_to(d, TRIANGLE, 3);
     CHECK(wc.fences == before + 2 && before + 2 <= 64);
     CHECK(wc.command[before] == unsent && wc.red[before] == 0x42000000);
     CHECK(wc.command[before + 1] != unsent);
@@ -1596,7 +1607,7 @@ TEST(tdfx_driver_fences_nothing_uncombined)
     wc = (typeof(wc)){.refuse = true};
     CHECK(d && d->open(&(PciFunction){}, 320, 240, &card));
     d->state(&SOLID);
-    d->triangles(TRIANGLE, 3);
+    triangles_to(d, TRIANGLE, 3);
     d->close();
     CHECK(wc.fences == 0 && wc.uncombines == 0);
 }
@@ -1674,11 +1685,11 @@ TEST(tdfx_h3_writes_only_the_state_registers_that_change)
     second.texture = 2;
     CHECK(d && d->texture(1, 64, 64) && d->texture(2, 64, 64));
     d->state(&TEXTURED);
-    d->triangles(TRIANGLE, 3);
+    triangles_to(d, TRIANGLE, 3);
     h3_played();
     h3.fifo.writes = 0;
     d->state(&second);
-    d->triangles(TRIANGLE, 3);
+    triangles_to(d, TRIANGLE, 3);
     h3_played();
 
     bool placed = false;
@@ -1710,7 +1721,7 @@ TEST(tdfx_driver_flushes_the_sst1_packer_around_tmu_registers)
     CHECK(d && d->open(&(PciFunction){}, 320, 240, &card) && d->texture(1, 64, 64));
     packer.fences = 0;
     d->state(&TEXTURED);
-    d->triangles(TRIANGLE, 3);
+    triangles_to(d, TRIANGLE, 3);
 
     uint32_t flushes = 0, first = 0, last = 0;
 
@@ -1740,7 +1751,7 @@ TEST(tdfx_driver_flushes_a_packer_only_where_the_chip_has_one)
         CHECK(d && d->open(&(PciFunction){}, 320, 240, &card) && d->texture(1, 64, 64));
         stored_at(card_memory + PACKER, ARMED);
         d->state(&TEXTURED);
-        d->triangles(TRIANGLE, 3);
+        triangles_to(d, TRIANGLE, 3);
         CHECK((word_at(PACKER) == ARMED) == (k == 1));
         d->close();
     }

@@ -34,7 +34,8 @@ enum {
     FAN = 1 << RADIX,
     LEVELS = 32 / RADIX - 1, /* the trie's below its root */
     BATCH = 3 * 64,
-    BAND = 16, /* rows read back at once */
+    FANS = BATCH / 3, /* a polygon three corners at least */
+    BAND = 16,        /* rows read back at once */
     RGBA = 4,
     ATTRIBUTES = 4,
     RECT = 4,
@@ -52,6 +53,7 @@ static_assert((int)ACCEL_NONE == QX_BLEND_NONE && (int)ACCEL_KEEP == QX_BLEND_KE
 static_assert((int)ACCEL_MIX == QX_BLEND_MIX && (int)ACCEL_ADD == QX_BLEND_ADD);
 static_assert(ACCEL_DEPTH_TEST == QX_DEPTH_TEST && ACCEL_DEPTH_WRITE == QX_DEPTH_WRITE);
 static_assert(ACCEL_KEY == QX_FIXED_KEY && ACCEL_LINEAR == QX_FIXED_LINEAR);
+static_assert(CUT_CORNERS <= ACCEL_SIDES && QUAD <= ACCEL_SIDES);
 
 /* The list's objects by their ids: a byte of an id a level, so each is found in four steps. */
 typedef struct {
@@ -126,7 +128,8 @@ static struct {
     AccelState sent;
     bool stated;
     AccelVertex batch[BATCH];
-    uint32_t batched;
+    uint8_t sides[FANS]; /* each polygon's corners */
+    uint32_t batched, fans;
 
     uint64_t slots[ACCEL_TEXTURES / BITS], targets[ACCEL_TARGETS / BITS]; /* taken */
     Texture *target_of[ACCEL_TARGETS];                                    /* each target's */
@@ -230,10 +233,10 @@ static void *scratch(const size_t bytes)
 
 static void flushed(void)
 {
-    if (p.batched)
-        p.d->triangles(p.batch, p.batched);
+    if (p.fans)
+        p.d->fans(p.batch, p.sides, p.fans);
 
-    p.batched = 0;
+    p.batched = p.fans = 0;
 }
 
 /* The screen's next frame made the shown one's, if owed. */
@@ -288,20 +291,32 @@ static void stated(const AccelState *const s)
     p.stated = true;
 }
 
-/* Polygon v, n corners round, in the state sent: a fan of triangles. */
-static void appended(const AccelVertex *const v, const uint32_t n)
+/* A polygon of n corners in the batch, in the state sent: its corners' place. */
+static AccelVertex *room(const uint32_t n)
 {
-    for (uint32_t i = 1; i + 1 < n; i++) {
-        if (p.batched + 3 > BATCH)
-            flushed();
+    if (p.batched + n > BATCH || p.fans == FANS)
+        flushed();
 
-        p.batch[p.batched++] = v[0];
-        p.batch[p.batched++] = v[i];
-        p.batch[p.batched++] = v[i + 1];
-    }
+    AccelVertex *const at = &p.batch[p.batched];
+
+    p.batched += n;
+    p.sides[p.fans++] = (uint8_t)n;
+    return at;
 }
 
-/* Polygon v, n corners round, drawn with state s: a fan of triangles. */
+/* The polygon room last gave taken back. */
+static void unroomed(void) { p.batched -= p.sides[--p.fans]; }
+
+/* Polygon v, n corners round, in the state sent. */
+static void appended(const AccelVertex *const v, const uint32_t n)
+{
+    AccelVertex *const at = room(n);
+
+    for (uint32_t i = 0; i < n; i++)
+        at[i] = v[i];
+}
+
+/* Polygon v, n corners round, drawn with state s. */
 static void drawn(const AccelState *const s, const AccelVertex *const v, const uint32_t n)
 {
     stated(s);
@@ -749,15 +764,10 @@ static Vertices vertices_of(const Pipeline *const pl, const Buffer *const vb)
 /* Whether a float's bits are above 0, +inf too: as w > 0 reads them, no NaN. */
 static bool above_zero(const uint32_t bits) { return (int32_t)bits > 0 && bits <= 0x7F800000u; }
 
-/* The draw's vertex at index into *v, its wrap's rectangle to r: false, past the vertices, or its
-   w not above 0. A w of 1, a 2D draw's, is not divided. The words only moved are moved as
-   integers: a float through a 486's FPU costs 10 cycles to load and store. */
-static bool fetched(
-    const Vertices *const f,
-    const uint32_t index,
-    AccelVertex *const v,
-    uint16_t r[RECT]
-)
+/* The draw's vertex at index into *v: false, past the vertices, or its w not above 0. A w of 1, a
+   2D draw's, is not divided. The words only moved are moved as integers: a float through a 486's
+   FPU costs 10 cycles to load and store. */
+static bool fetched(const Vertices *const f, const uint32_t index, AccelVertex *const v)
 {
     static_assert(offsetof(AccelVertex, z) == 2 * sizeof(float));
     static_assert(offsetof(AccelVertex, t) == offsetof(AccelVertex, s) + sizeof(float));
@@ -790,43 +800,41 @@ static bool fetched(
     if (pl->at[QX_FIXED_AT_COLOUR] != NONE)
         memcpy(&rgba, b + pl->at[QX_FIXED_AT_COLOUR], sizeof rgba);
 
-    if (pl->at[QX_FIXED_AT_RECT] != NONE)
-        memcpy(r, b + pl->at[QX_FIXED_AT_RECT], RECT * sizeof *r);
-    else
-        memset(r, 0, RECT * sizeof *r);
-
     /* R, G, B, A bytes in order to ARGB: red and blue swapped */
     v->colour = (rgba & 0xFF00FF00) | (rgba >> 16 & 0xFF) | (rgba & 0xFF) << 16;
     return true;
 }
 
-/* A draw's vertices fetched, by their index: kept by its low bits, so a quad's corners 0 and 2,
-   in both its triangles, are fetched once. A vertex and its index are 32 bytes: a slot is found
-   by a shift, not a 486's multiply. */
-enum { KEPT = 4 };
-
-typedef struct {
-    struct {
-        AccelVertex v;
-        uint32_t index;
-    } at[KEPT];
-    uint16_t r[KEPT][RECT];
-    uint32_t ok; /* a bit a slot */
-} Kept;
-
-static_assert(sizeof((Kept *)nullptr)->at[0] == 32);
-
-/* The slot holding the vertex at index, fetched unless kept. */
-static uint32_t fetched_once(Kept *const k, const Vertices *const f, const uint32_t index)
+/* The wrap's rectangle of the draw's vertex at index to r: false, past the vertices. */
+static bool rect_of(const Vertices *const f, const uint32_t index, uint16_t r[RECT])
 {
-    const uint32_t slot = index & (KEPT - 1), bit = 1u << slot;
+    const Pipeline *const pl = f->pl;
 
-    if (k->at[slot].index != index) {
-        k->at[slot].index = index;
-        k->ok = fetched(f, index, &k->at[slot].v, k->r[slot]) ? k->ok | bit : k->ok & ~bit;
-    }
+    if (index >= f->n)
+        return false;
 
-    return slot;
+    if (pl->at[QX_FIXED_AT_RECT] != NONE)
+        memcpy(r, f->bytes + index * pl->stride + pl->at[QX_FIXED_AT_RECT], RECT * sizeof *r);
+    else
+        memset(r, 0, RECT * sizeof *r);
+
+    return true;
+}
+
+/* The corners at indices into v, a bit each fetched. */
+static uint32_t fetched_all(
+    const Vertices *const f,
+    const uint32_t *const indices,
+    const uint32_t n,
+    AccelVertex *const v
+)
+{
+    uint32_t ok = 0;
+
+    for (uint32_t i = 0; i < n; i++)
+        ok |= fetched(f, indices[i], &v[i]) ? 1u << i : 0;
+
+    return ok;
 }
 
 /* Whether rectangles a and b are the same, as words. */
@@ -855,7 +863,6 @@ static bool covers(
     const Vertices f = vertices_of(pl, vb);
 
     AccelVertex v[TWO];
-    uint16_t r[RECT];
     uint32_t omitted[2];
 
     if (count < TWO || pl->blend != ACCEL_NONE || pl->flags & QX_FIXED_KEY ||
@@ -863,7 +870,7 @@ static bool covers(
         return false;
 
     for (uint32_t i = 0; i < TWO; i++)
-        if (!fetched(&f, index_at(ib, first + i), &v[i], r))
+        if (!fetched(&f, index_at(ib, first + i), &v[i]))
             return false;
 
     float x0 = v[0].x, x1 = x0, y0 = v[0].y, y1 = y0;
@@ -914,14 +921,13 @@ static bool filled(
     const Vertices f = vertices_of(pl, vb);
 
     AccelVertex v;
-    uint16_t r[RECT];
 
     if (count != TWO || pl->source != ACCEL_COLOUR || pl->depth ||
         !covers(pl, vb, ib, first, count))
         return false;
 
     for (uint32_t i = 0; i < TWO; i++) {
-        fetched(&f, index_at(ib, first + i), &v, r);
+        fetched(&f, index_at(ib, first + i), &v);
 
         if (i && v.colour != *argb)
             return false;
@@ -1190,43 +1196,33 @@ static void triangles_drawn(
     const Vertices f = vertices_of(pl, vb);
 
     Pieces c = {t, {.source = pl->source, .blend = blend, .alpha = alpha, .depth = pl->depth}};
-    Kept kept; /* not zeroed whole: its slots' indices are enough */
     /* the grid of the wrap's rectangle last met: a draw's triangles share it; whole, a triangle
        needs no cut; ready, the state sent is theirs */
     CutGrid g = {};
     uint16_t gridded_for[RECT] = {};
     bool grid = false, whole = false, ready = false;
 
-    kept.ok = 0;
-
-    for (uint32_t k = 0; k < KEPT; k++)
-        kept.at[k].index = NONE; /* past any vertices: not fetched */
-
     if (index && (texel || !p.sent_palette))
         paletted(held, false);
 
-    for (uint32_t i = 0; i + 3 <= count; i += 3) {
-        AccelVertex v[3];
+    for (uint32_t i = 0; i + 3 <= count;) {
+        const uint32_t at = first + i;
+        /* triangles a, b, c and a, c, d, as gfx draws a quad: one polygon */
+        const bool four = i + 6 <= count && index_at(ib, at + 3) == index_at(ib, at) &&
+                          index_at(ib, at + 4) == index_at(ib, at + 2);
+        const uint32_t n = four ? QUAD : 3;
+        const uint32_t corner[QUAD] = {
+            index_at(ib, at),
+            index_at(ib, at + 1),
+            index_at(ib, at + 2),
+            four ? index_at(ib, at + 5) : 0,
+        };
         uint16_t r[RECT]; /* the first corner's: the wrap's */
-        uint32_t k = 0;
 
-        for (; k < 3; k++) {
-            const uint32_t slot = fetched_once(&kept, &f, index_at(ib, first + i + k));
+        i += four ? TWO : 3;
 
-            if (!(kept.ok >> slot & 1))
-                break;
-
-            v[k] = kept.at[slot].v;
-
-            if (!k)
-                memcpy(r, kept.r[slot], sizeof r);
-        }
-
-        if (k < 3)
+        if (t && !rect_of(&f, corner[0], r))
             continue;
-
-        for (uint32_t k = 0; k < 3 && !texel; k++)
-            v[k].colour = indices_colour(v[k].colour, p.colours, held);
 
         if (t && (!grid || !same_rect_words(r, gridded_for))) {
             uint8_t flags;
@@ -1240,18 +1236,45 @@ static void triangles_drawn(
             ready = false;
         }
 
-        if (t && !whole) {
-            cut_triangle(&g, v, piece, &c);
-            ready = false; /* a piece's tile may be another's */
-            continue;
-        }
-
-        if (!ready) {
+        if (!ready && (!t || whole)) {
             stated(&c.s);
             ready = true;
         }
 
-        appended(v, 3);
+        AccelVertex kept[QUAD];
+        AccelVertex *const v = t && !whole ? kept : room(n);
+        const uint32_t ok = fetched_all(&f, corner, n, v);
+
+        for (uint32_t k = 0; k < n && !texel; k++)
+            v[k].colour = indices_colour(v[k].colour, p.colours, held);
+
+        if (v != kept && ok == (1u << n) - 1)
+            continue;
+
+        if (v != kept) { /* a corner not fetched: each triangle whose are, alone */
+            unroomed();
+            memcpy(kept, v, n * sizeof *v);
+        }
+
+        for (uint32_t k = 0; k < n - 2; k++) {
+            const uint32_t need = k ? 0xD : 0x7; /* a, b, c; a, c, d */
+
+            if ((ok & need) != need)
+                continue;
+
+            if (k)
+                kept[1] = kept[0];
+
+            const AccelVertex *const tri = kept + k; /* a, b, c; then a, c, d */
+
+            if (t && !whole) {
+                cut_triangle(&g, tri, piece, &c);
+                ready = false; /* a piece's tile may be another's */
+                continue;
+            }
+
+            appended(tri, 3);
+        }
     }
 }
 
