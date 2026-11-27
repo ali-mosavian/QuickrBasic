@@ -169,6 +169,7 @@ static void way_of(const Tdfx *const c, const bool one, TdfxWay *const w)
 
     if (!family->unit) {
         w->sent = tdfx_picks(tdfx_sent(params));
+        w->started = tdfx_picks(tdfx_started_sent(params));
         return;
     }
 
@@ -483,24 +484,6 @@ static TdfxDraw draw_of(const Tdfx *const c, const TdfxWay *const w)
     return (TdfxDraw){(float)c->ox, (float)c->oy, level, w->params, c->state.alpha};
 }
 
-/* n triangles from v drawn w's way, worked out here. */
-static void worked(
-    Tdfx *const c,
-    const TdfxWay *const w,
-    const AccelVertex *const v,
-    const uint32_t n
-)
-{
-    const TdfxDraw d = draw_of(c, w);
-
-    for (uint32_t i = 0; i < n; i++) {
-        TdfxTriangle t;
-
-        if (tdfx_setup(v + 3 * i, &d, &t))
-            c->chip->put(c, SST_FVERTEX, &w->sent, t.word);
-    }
-}
-
 /* n polygons from v, polygon i sides[i] corners round, to the setup unit: each of more than three
    one fan, the triangles BATCH a time, as many as a PKT3 takes. */
 static void unit_drawn(
@@ -545,18 +528,54 @@ static void unit_drawn(
     }
 }
 
-/* n triangles from v worked out here, each run that is one colour through color0, the rest
-   iterated. */
-static void runs_drawn(Tdfx *const c, const AccelVertex *const v, const uint32_t n)
+/* Whether v's n corners are one colour as params reads it: not, none read. */
+static bool one_colour(const AccelVertex *const v, const uint32_t n, const uint32_t params)
 {
-    for (uint32_t i = 0; i < n;) {
-        const AccelVertex *const run = v + 3 * i;
+    const uint32_t read =
+        (params & 1u << TDFX_R ? 0xFFFFFF : 0) | (params & 1u << TDFX_A ? 0xFF000000 : 0);
+    const uint32_t first = v[0].colour & read;
 
-        bool one;
-        const uint32_t k = tdfx_run(run, n - i, c->params, &one);
+    for (uint32_t i = 1; i < n; i++)
+        if ((v[i].colour & read) != first)
+            return false;
 
-        worked(c, way_for(c, one, run->colour), run, k);
-        i += k;
+    return read;
+}
+
+/* n polygons from v worked out here, polygon i sides[i] corners round, as a fan's triangles: one
+   of one colour through color0, else iterated. A quad of one plane, as a sprite, is sent its
+   gradients once, as Glide's grDrawPlanarPolygon: its second triangle its corners and starts. */
+static void fans_drawn(
+    Tdfx *const c,
+    const AccelVertex *v,
+    const uint8_t *const sides,
+    const uint32_t n
+)
+{
+    TdfxDraw d = draw_of(c, c->way);
+    TdfxCorner at[ACCEL_SIDES];
+    TdfxTriangle t;
+
+    for (uint32_t i = 0; i < n; v += sides[i++]) {
+        const uint32_t m = sides[i];
+        const TdfxWay *const w = way_for(c, one_colour(v, m, c->params), v->colour);
+
+        d.params = w->params;
+        tdfx_cornered(v, m, &d, at);
+
+        if (m == 4 && tdfx_planar(at, d.params)) {
+            if (!tdfx_triangle(&at[0], &at[1], &at[2], d.params, &t))
+                continue;
+
+            c->chip->put(c, SST_FVERTEX, &w->sent, t.word);
+            tdfx_started(&at[0], &at[2], &at[3], d.params, t.turn, &t);
+            c->chip->put(c, SST_FVERTEX, &w->started, t.word);
+            continue;
+        }
+
+        for (uint32_t j = 1; j + 1 < m; j++)
+            if (tdfx_triangle(&at[0], &at[j], &at[j + 1], d.params, &t))
+                c->chip->put(c, SST_FVERTEX, &w->sent, t.word);
     }
 }
 
@@ -564,8 +583,6 @@ static void runs_drawn(Tdfx *const c, const AccelVertex *const v, const uint32_t
    would break its batches. Else each polygon's triangles, a fan's, worked out here. */
 static void ACCEL_CALL drawn(const AccelVertex *v, const uint8_t *const sides, const uint32_t n)
 {
-    enum { TRIANGLES = 32 };
-
     Tdfx *const c = &card;
 
     if (c->repaletted) {
@@ -573,28 +590,10 @@ static void ACCEL_CALL drawn(const AccelVertex *v, const uint8_t *const sides, c
         c->chip->paletted(c);
     }
 
-    if (family->unit) {
+    if (family->unit)
         unit_drawn(c, v, sides, n);
-        return;
-    }
-
-    AccelVertex t[3 * TRIANGLES];
-    uint32_t k = 0;
-
-    for (uint32_t i = 0; i < n; v += sides[i++])
-        for (uint32_t j = 1; j + 1 < sides[i]; j++) {
-            t[3 * k] = v[0];
-            t[3 * k + 1] = v[j];
-            t[3 * k + 2] = v[j + 1];
-
-            if (++k == TRIANGLES) {
-                runs_drawn(c, t, k);
-                k = 0;
-            }
-        }
-
-    if (k)
-        runs_drawn(c, t, k);
+    else
+        fans_drawn(c, v, sides, n);
 }
 
 static void ACCEL_CALL shown(const bool vsync)

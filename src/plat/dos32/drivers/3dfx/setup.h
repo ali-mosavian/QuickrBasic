@@ -42,7 +42,14 @@ enum {
 
 typedef struct {
     uint32_t word[TDFX_WORDS];
+    uint32_t turn; /* the area's sign, its corners as given: a fan's triangles share it */
 } TdfxTriangle;
+
+/* A corner as the card takes it, a float's bits a word: x and y moved, each parameter sent at its
+   place. */
+typedef struct {
+    uint32_t x, y, p[TDFX_PARAMS];
+} TdfxCorner;
 
 /* A corner as the setup unit's registers from sVx take it, a word each: x and y; the colour,
    ARGB, alpha times the share; z; TMU0's w, s and t; then the commands drawing a triangle with
@@ -82,6 +89,33 @@ typedef struct {
 uint32_t tdfx_params(const AccelState *s, bool texel);
 /* A triangle's words sent for params, a bit each: the corners, the parameters' and the command. */
 uint32_t tdfx_sent(uint32_t params);
+/* A triangle's words sent after another of its plane: the corners, the parameters' starts and the
+   command, the card keeping the gradients. */
+uint32_t tdfx_started_sent(uint32_t params);
+/* v's n corners as d draws them, w scaled alike, into out. */
+void tdfx_cornered(const AccelVertex *v, uint32_t n, const TdfxDraw *d, TdfxCorner *out);
+/* Triangle a, b, c, as its parameters params, the words tdfx_sent picks: false, no area. */
+bool tdfx_triangle(
+    const TdfxCorner *a,
+    const TdfxCorner *b,
+    const TdfxCorner *c,
+    uint32_t params,
+    TdfxTriangle *out
+);
+/* Triangle a, b, c of the plane tdfx_triangle last sent, turn that one's, as a fan's triangles
+   share it: the words tdfx_started_sent picks. */
+void tdfx_started(
+    const TdfxCorner *a,
+    const TdfxCorner *b,
+    const TdfxCorner *c,
+    uint32_t params,
+    uint32_t turn,
+    TdfxTriangle *out
+);
+/* Whether quad c, a fan of 0, 1, 2 and 0, 2, 3, is one plane in x, y and each of params: a
+   parallelogram, as a sprite is, its parameters' gradients its triangles share, as Glide's
+   grDrawPlanarPolygon sends them once. */
+bool tdfx_planar(const TdfxCorner c[4], uint32_t params);
 /* v's triangle as d draws it, the words tdfx_sent picks: false, no area. */
 bool tdfx_setup(const AccelVertex v[3], const TdfxDraw *d, TdfxTriangle *out);
 /* sSetupMode's for params: what the setup unit works out. */
@@ -93,10 +127,6 @@ uint32_t tdfx_corner_sent(uint32_t params);
 void tdfx_corners(const AccelVertex *v, uint32_t n, const TdfxDraw *d, uint32_t *out);
 /* colour as the card takes it, ARGB, its alpha times share over 255. */
 uint32_t tdfx_argb(uint32_t colour, uint8_t share);
-/* The triangles from v's first, of n, sent one way: all of the first's colour, as params reads
-   it, if its corners are of one, *one then; else each of more than one; all, params reading no
-   colour. */
-uint32_t tdfx_run(const AccelVertex *v, uint32_t n, uint32_t params, bool *one);
 /* s's words, drawn into buffer draw (0 front, 1 back), its texture indexed or not: an indexed one
    keyed by the chroma key, its index 0's colour. */
 TdfxWords tdfx_words(const AccelState *s, uint32_t draw, bool indexed);

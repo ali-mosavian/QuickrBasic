@@ -117,133 +117,207 @@ static Texel texel_of(const AccelVertex *const c, const TdfxDraw *const d, const
     return (Texel){c->s * texels, c->t * texels, w};
 }
 
-/* The parameters of params alike at v's corners, their gradients 0: told by the bits, without the
-   FPU. */
-static uint32_t alike(const AccelVertex v[3], const uint32_t params)
-{
-    const uint32_t differ = (v[0].colour ^ v[1].colour) | (v[0].colour ^ v[2].colour);
-    const uint32_t z = bits(v[0].z), q = bits(v[0].q);
-    const bool flat = z == bits(v[1].z) && z == bits(v[2].z);
-    const bool even = q == bits(v[1].q) && q == bits(v[2].q);
-
-    return params & ((differ & RGB ? 0 : COLOUR) | (differ >> 24 ? 0 : 1u << TDFX_A) |
-                     (flat ? 1u << TDFX_Z : 0) | (even ? 1u << TDFX_W : 0));
-}
-
-/* B's and C's differences from A weighed in each gradient: a parameter's are its own times these. */
-typedef struct {
-    float xb, xc, yb, yc;
-} Weights;
-
-/* Parameters first to last of at sent: their starts, and their gradients, 0 if alike. Inlined at
-   each group, so that each group's alike is its own branch, as steady as the draws. */
-static inline void graded(
-    TdfxTriangle *const out,
-    const uint32_t first,
-    const uint32_t last,
-    const bool alike,
-    const float at[3][TDFX_PARAMS],
-    const Weights *const w
-)
-{
-    for (uint32_t n = first; n <= last; n++) {
-        out->word[TDFX_START + n] = bits(at[0][n]);
-
-        if (alike) {
-            out->word[TDFX_DX + n] = out->word[TDFX_DY + n] = 0;
-            continue;
-        }
-
-        const float b = at[1][n] - at[0][n], c = at[2][n] - at[0][n];
-
-        out->word[TDFX_DX + n] = bits(b * w->xb - c * w->xc);
-        out->word[TDFX_DY + n] = bits(c * w->yc - b * w->yb);
-    }
-}
-
 uint32_t tdfx_sent(const uint32_t params)
 {
     return CORNERS | params << TDFX_START | params << TDFX_DX | params << TDFX_DY |
            1u << TDFX_COMMAND;
 }
 
-bool tdfx_setup(const AccelVertex v[3], const TdfxDraw *const d, TdfxTriangle *const out)
+uint32_t tdfx_started_sent(const uint32_t params)
 {
-    const AccelVertex *p[3] = {&v[0], &v[1], &v[2]};
-    const AccelVertex *swap;
+    return CORNERS | params << TDFX_START | 1u << TDFX_COMMAND;
+}
 
-    if (p[1]->y < p[0]->y)
-        swap = p[0], p[0] = p[1], p[1] = swap;
+void tdfx_cornered(
+    const AccelVertex *const v,
+    const uint32_t n,
+    const TdfxDraw *const d,
+    TdfxCorner *out
+)
+{
+    const uint32_t params = d->params;
+    const bool texel = params & TEXEL, even = texel && flat(v, n);
+    const float k = texel && !even ? w_scale(v, n) : 1;
+    const bool moved = (bits(d->ox) | bits(d->oy)) << 1; /* told by the bits: -0 is 0 */
 
-    if (p[2]->y < p[1]->y)
-        swap = p[1], p[1] = p[2], p[2] = swap;
+    for (uint32_t i = 0; i < n; i++, out++) {
+        const AccelVertex *const c = &v[i];
 
-    if (p[1]->y < p[0]->y)
-        swap = p[0], p[0] = p[1], p[1] = swap;
+        out->x = moved ? bits(c->x + d->ox) : bits(c->x);
+        out->y = moved ? bits(c->y + d->oy) : bits(c->y);
 
-    const uint32_t params = d->params, still = alike(v, params);
-    const float k = params & TEXEL ? w_scale(v, 3) : 1;
-    float x[3], y[3], at[3][TDFX_PARAMS];
-
-    for (uint32_t i = 0; i < 3; i++) {
-        const AccelVertex *const c = p[i];
-        const uint32_t need = i ? params & ~still : params; /* the alike only at A */
-
-        x[i] = c->x + d->ox;
-        y[i] = c->y + d->oy;
-
-        if (need & COLOUR) {
-            at[i][TDFX_R] = (float)(c->colour >> 16 & CHANNEL);
-            at[i][TDFX_G] = (float)(c->colour >> 8 & CHANNEL);
-            at[i][TDFX_B] = (float)(c->colour & CHANNEL);
+        if (params & COLOUR) {
+            out->p[TDFX_R] = bits((float)(c->colour >> 16 & CHANNEL));
+            out->p[TDFX_G] = bits((float)(c->colour >> 8 & CHANNEL));
+            out->p[TDFX_B] = bits((float)(c->colour & CHANNEL));
         }
 
-        if (need & 1u << TDFX_Z)
-            at[i][TDFX_Z] = depth_of(c->z);
+        if (params & 1u << TDFX_Z)
+            out->p[TDFX_Z] = bits(depth_of(c->z));
 
-        if (need & 1u << TDFX_A)
-            at[i][TDFX_A] = (float)((c->colour >> 24) * d->share) * FADE;
+        if (params & 1u << TDFX_A)
+            out->p[TDFX_A] = bits((float)((c->colour >> 24) * d->share) * FADE);
 
-        if (need & TEXEL) {
+        if (even) {
+            out->p[TDFX_S] = scaled(bits(c->s), d->level);
+            out->p[TDFX_T] = scaled(bits(c->t), d->level);
+            out->p[TDFX_W] = ONE;
+        } else if (texel) {
             const Texel t = texel_of(c, d, k);
 
-            at[i][TDFX_S] = t.s;
-            at[i][TDFX_T] = t.t;
-            at[i][TDFX_W] = t.w;
+            out->p[TDFX_S] = bits(t.s);
+            out->p[TDFX_T] = bits(t.t);
+            out->p[TDFX_W] = bits(t.w);
         }
     }
+}
 
-    const float x1 = x[1] - x[0], x2 = x[2] - x[0], y1 = y[1] - y[0], y2 = y[2] - y[0];
-    const float area = x1 * y2 - x2 * y1;
+/* A float's bits, ordered as it is when compared as integers: Glide's sort, off a 486's slow
+   compares. */
+static int32_t ordered(const uint32_t b)
+{
+    return (int32_t)b < 0 ? (int32_t)(b ^ 0x7FFFFFFF) : (int32_t)b;
+}
 
-    if (area == 0)
-        return false;
+/* a, b and c sorted top first, into t: true if an odd number of swaps did it. */
+static bool sorted(
+    const TdfxCorner *a,
+    const TdfxCorner *b,
+    const TdfxCorner *c,
+    const TdfxCorner *t[3]
+)
+{
+    const TdfxCorner *swap;
+    bool odd = false;
 
-    const float per = 1 / area;
-    const Weights w = {y2 * per, y1 * per, x2 * per, x1 * per};
+    if (ordered(b->y) < ordered(a->y))
+        swap = a, a = b, b = swap, odd = !odd;
 
-    if (params & COLOUR)
-        graded(out, TDFX_R, TDFX_B, still & COLOUR, at, &w);
+    if (ordered(c->y) < ordered(b->y))
+        swap = b, b = c, c = swap, odd = !odd;
 
-    if (params & 1u << TDFX_Z)
-        graded(out, TDFX_Z, TDFX_Z, still >> TDFX_Z & 1, at, &w);
+    if (ordered(b->y) < ordered(a->y))
+        swap = a, a = b, b = swap, odd = !odd;
 
-    if (params & 1u << TDFX_A)
-        graded(out, TDFX_A, TDFX_A, still >> TDFX_A & 1, at, &w);
+    t[0] = a, t[1] = b, t[2] = c;
+    return odd;
+}
 
-    if (params & TEXEL) {
-        graded(out, TDFX_S, TDFX_T, false, at, &w);
-        graded(out, TDFX_W, TDFX_W, still >> TDFX_W & 1, at, &w);
+/* t's corners and each parameter's start, A's: the words every triangle sends. */
+static void started(const TdfxCorner *const t[3], const uint32_t params, TdfxTriangle *const out)
+{
+    for (uint32_t i = 0; i < 3; i++) {
+        out->word[2 * i] = t[i]->x;
+        out->word[2 * i + 1] = t[i]->y;
     }
 
-    for (uint32_t i = 0; i < 3; i++) {
-        out->word[2 * i] = bits(x[i]);
-        out->word[2 * i + 1] = bits(y[i]);
+    for (uint32_t n = 0; n < TDFX_PARAMS; n++)
+        if (params >> n & 1)
+            out->word[TDFX_START + n] = t[0]->p[n];
+}
+
+bool tdfx_triangle(
+    const TdfxCorner *const a,
+    const TdfxCorner *const b,
+    const TdfxCorner *const c,
+    const uint32_t params,
+    TdfxTriangle *const out
+)
+{
+    const TdfxCorner *t[3];
+    const bool odd = sorted(a, b, c, t);
+    const float x0 = of_bits(t[0]->x), y0 = of_bits(t[0]->y);
+    const float x1 = of_bits(t[1]->x) - x0, x2 = of_bits(t[2]->x) - x0;
+    const float y1 = of_bits(t[1]->y) - y0, y2 = of_bits(t[2]->y) - y0;
+    const uint32_t area = bits(x1 * y2 - x2 * y1);
+
+    if (!(area << 1))
+        return false;
+
+    const float per = reciprocal(of_bits(area));
+    const float xb = y2 * per, xc = y1 * per, yb = x2 * per, yc = x1 * per;
+
+    started(t, params, out);
+
+    for (uint32_t n = 0; n < TDFX_PARAMS; n++) {
+        if (!(params >> n & 1))
+            continue;
+
+        const uint32_t at = t[0]->p[n];
+
+        /* alike at each corner, as a sprite's tint, depth and q are: without the FPU */
+        if (t[1]->p[n] == at && t[2]->p[n] == at) {
+            out->word[TDFX_DX + n] = out->word[TDFX_DY + n] = 0;
+            continue;
+        }
+
+        const float p0 = of_bits(at), pb = of_bits(t[1]->p[n]) - p0, pc = of_bits(t[2]->p[n]) - p0;
+
+        out->word[TDFX_DX + n] = bits(pb * xb - pc * xc);
+        out->word[TDFX_DY + n] = bits(pc * yc - pb * yb);
     }
 
     /* the card's own area, the same: B left of A to C, negative */
-    out->word[TDFX_COMMAND] = area < 0 ? SIGN : 0;
+    out->word[TDFX_COMMAND] = area & SIGN;
+    out->turn = (area ^ (odd ? SIGN : 0)) & SIGN;
     return true;
+}
+
+void tdfx_started(
+    const TdfxCorner *const a,
+    const TdfxCorner *const b,
+    const TdfxCorner *const c,
+    const uint32_t params,
+    const uint32_t turn,
+    TdfxTriangle *const out
+)
+{
+    const TdfxCorner *t[3];
+    const bool odd = sorted(a, b, c, t);
+
+    started(t, params, out);
+    out->word[TDFX_COMMAND] = turn ^ (odd ? SIGN : 0);
+}
+
+/* Whether, of floats' bits p0 to p3, 3 is where the plane of 0, 1 and 2 puts it, as a
+   parallelogram's is: 0 and 2 summed as 1 and 3, within 2 to the -CLOSE of the largest, many
+   times the floats' rounding. */
+static bool parallel(const uint32_t p0, const uint32_t p1, const uint32_t p2, const uint32_t p3)
+{
+    enum : uint32_t { CLOSE = 18, MAGNITUDE = 0x7FFFFFFF, EXPONENT = 23 };
+
+    const float f0 = of_bits(p0), f1 = of_bits(p1), f2 = of_bits(p2), f3 = of_bits(p3);
+    const uint32_t gap = bits(f0 + f2 - (f1 + f3)) & MAGNITUDE;
+    const uint32_t a = p0 & MAGNITUDE, b = p1 & MAGNITUDE, c = p2 & MAGNITUDE, d = p3 & MAGNITUDE;
+    const uint32_t ab = a > b ? a : b, cd = c > d ? c : d, most = ab > cd ? ab : cd;
+
+    return !gap || (gap >> EXPONENT) + CLOSE <= most >> EXPONENT;
+}
+
+bool tdfx_planar(const TdfxCorner c[4], const uint32_t params)
+{
+    if (!parallel(c[0].x, c[1].x, c[2].x, c[3].x) || !parallel(c[0].y, c[1].y, c[2].y, c[3].y))
+        return false;
+
+    for (uint32_t n = 0; n < TDFX_PARAMS; n++) {
+        const uint32_t at = c[0].p[n];
+
+        if (!(params >> n & 1) || (c[1].p[n] == at && c[2].p[n] == at && c[3].p[n] == at))
+            continue;
+
+        if (!parallel(at, c[1].p[n], c[2].p[n], c[3].p[n]))
+            return false;
+    }
+
+    return true;
+}
+
+bool tdfx_setup(const AccelVertex v[3], const TdfxDraw *const d, TdfxTriangle *const out)
+{
+    TdfxCorner c[3];
+
+    tdfx_cornered(v, 3, d, c);
+    return tdfx_triangle(&c[0], &c[1], &c[2], d->params, out);
 }
 
 /* The colour or alpha sent packed, ARGB a word: the unit then works out the colour too. */
@@ -273,37 +347,6 @@ static uint32_t shared(const uint32_t a, const uint8_t share)
 uint32_t tdfx_argb(const uint32_t colour, const uint8_t share)
 {
     return (colour & RGB) | shared(colour >> 24, share) << 24;
-}
-
-/* Whether t's three corners are colour, as read reads them. */
-static bool all(const AccelVertex t[3], const uint32_t read, const uint32_t colour)
-{
-    return (t[0].colour & read) == colour && (t[1].colour & read) == colour &&
-           (t[2].colour & read) == colour;
-}
-
-uint32_t tdfx_run(
-    const AccelVertex *const v,
-    const uint32_t n,
-    const uint32_t params,
-    bool *const one
-)
-{
-    const uint32_t read = (params & COLOUR ? RGB : 0) | (params & 1u << TDFX_A ? ~RGB : 0);
-    const uint32_t first = v[0].colour & read;
-    const bool same = read && all(v, read, first);
-
-    uint32_t k = read ? 1 : n;
-
-    if (same)
-        while (k < n && all(v + 3 * k, read, first))
-            k++;
-    else
-        while (k < n && !all(v + 3 * k, read, v[3 * k].colour & read))
-            k++;
-
-    *one = same;
-    return k;
 }
 
 void tdfx_corners(

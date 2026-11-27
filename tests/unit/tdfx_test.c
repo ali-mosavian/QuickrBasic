@@ -229,34 +229,79 @@ TEST(tdfx_setup_sends_what_the_corners_share_without_gradients)
     CHECK(near(word_of(&t, TDFX_DX + TDFX_S), 0.8f) && near(word_of(&t, TDFX_DY + TDFX_T), 0.4f));
 }
 
-/* Runs: two triangles of more than one colour; two of one; one of another; alpha apart only where
-   the state reads it; one run of all, no colour read. */
-TEST(tdfx_run_splits_triangles_by_their_colour)
+/* A 64 texel sprite's quad turned a twelfth, centred at x, y, its corners rounded as gfx's. */
+static void sprite_at(const float x, const float y, AccelVertex q[4])
 {
-    enum : uint32_t { RED = 0xFFFF0000, BLUE = 0xFF0000FF };
+    const float ax = 27.712813f, ay = 16, bx = -16, by = 27.712813f;
+    const float st[4][2] = {{0, 0}, {64, 0}, {64, 64}, {0, 64}};
+    const float sa[4] = {-1, 1, 1, -1}, sb[4] = {-1, -1, 1, 1};
 
-    const uint32_t colour = 1u << TDFX_R | 1u << TDFX_G | 1u << TDFX_B;
-    const uint32_t colours[6][3] = {
-        {RED, BLUE, RED},
-        {BLUE, BLUE, RED},
-        {RED, RED, RED},
-        {RED, RED, RED},
-        {BLUE, BLUE, BLUE},
-        {0x80FF0000, RED, RED},
-    };
+    for (uint32_t i = 0; i < 4; i++)
+        q[i] = (AccelVertex){
+            x + sa[i] * ax + sb[i] * bx,
+            y + sa[i] * ay + sb[i] * by,
+            0.5f,
+            1,
+            st[i][0],
+            st[i][1],
+            0xFFFFFFFF,
+        };
+}
 
-    AccelVertex v[18] = {};
-    bool one;
+enum : uint32_t { TEXEL_PARAMS = 1u << TDFX_S | 1u << TDFX_T | 1u << TDFX_W };
 
-    for (uint32_t i = 0; i < 18; i++)
-        v[i].colour = colours[i / 3][i % 3];
+/* A turned sprite, its corners rounded, is one plane: its triangles share their gradients. A
+   trapezoid is not, nor a parallelogram whose texels are not one: each triangle has its own. */
+TEST(tdfx_planar_tells_a_quad_of_one_plane)
+{
+    const TdfxDraw d = {0, 0, 2, TEXEL_PARAMS, 255};
 
-    CHECK(tdfx_run(v, 6, colour, &one) == 2 && !one);
-    CHECK(tdfx_run(v + 6, 4, colour, &one) == 2 && one);
-    CHECK(tdfx_run(v + 12, 2, colour, &one) == 1 && one);
-    CHECK(tdfx_run(v + 15, 1, colour, &one) == 1 && one);
-    CHECK(tdfx_run(v + 15, 1, colour | 1u << TDFX_A, &one) == 1 && !one);
-    CHECK(tdfx_run(v, 6, 1u << TDFX_Z, &one) == 6 && !one);
+    AccelVertex q[4], trapezoid[4], skewed[4];
+    TdfxCorner c[4];
+
+    sprite_at(100.3f, 80.7f, q);
+    memcpy(trapezoid, q, sizeof q);
+    memcpy(skewed, q, sizeof q);
+    trapezoid[2].x += 9;
+    skewed[3].s = 8;
+    tdfx_cornered(q, 4, &d, c);
+    CHECK(tdfx_planar(c, d.params));
+    tdfx_cornered(trapezoid, 4, &d, c);
+    CHECK(!tdfx_planar(c, d.params));
+    tdfx_cornered(skewed, 4, &d, c);
+    CHECK(!tdfx_planar(c, d.params));
+}
+
+/* A fan's second triangle sent after its first: its corners sorted, A's starts and the command's
+   sign as its own setup's, either way round; its gradients the first's. */
+TEST(tdfx_started_sends_what_a_triangle_of_the_plane_needs)
+{
+    const TdfxDraw d = {0, 0, 2, TEXEL_PARAMS, 255};
+    const TdfxPicks p = tdfx_picks(tdfx_started_sent(TEXEL_PARAMS));
+
+    AccelVertex q[4];
+    TdfxCorner c[4];
+    TdfxTriangle first, second, own;
+
+    sprite_at(100.3f, 80.7f, q);
+
+    for (uint32_t way = 0; way < 2; way++) {
+        if (way) /* mirrored: the other turn */
+            for (uint32_t i = 0; i < 4; i++)
+                q[i].x = 300 - q[i].x;
+
+        tdfx_cornered(q, 4, &d, c);
+        CHECK(tdfx_triangle(&c[0], &c[1], &c[2], d.params, &first));
+        tdfx_started(&c[0], &c[2], &c[3], d.params, first.turn, &second);
+        CHECK(tdfx_triangle(&c[0], &c[2], &c[3], d.params, &own));
+        CHECK(p.n == 6 + 3 + 1);
+
+        for (uint32_t k = 0; k < p.n; k++)
+            CHECK(second.word[p.at[k]] == own.word[p.at[k]]);
+
+        CHECK(near(word_of(&first, TDFX_DX + TDFX_S), word_of(&own, TDFX_DX + TDFX_S)));
+        CHECK(near(word_of(&first, TDFX_DY + TDFX_T), word_of(&own, TDFX_DY + TDFX_T)));
+    }
 }
 
 /* What each path reads: a solid colour its colour alone; a keyed texel mixed its colour, alpha and
@@ -1716,11 +1761,86 @@ TEST(tdfx_driver_fences_nothing_uncombined)
     CHECK(wc.fences == 0 && wc.uncombines == 0);
 }
 
+/* At each fence, S's x gradient as the card holds it, then a mark written over it. */
+enum : uint32_t { MARKED = 0x7F7F7F7F };
+
+static struct {
+    uint32_t fences, gradient[64];
+} held;
+
+static void ACCEL_CALL gradient_fence(void)
+{
+    if (held.fences < 64)
+        held.gradient[held.fences] = word_at(SST_FDX + 4 * TDFX_S);
+
+    stored_at(card_memory + SST_FDX + 4 * TDFX_S, MARKED);
+    held.fences++;
+}
+
+static const AccelHost GRADIENT_HOST = {
+    .size = sizeof(AccelHost),
+    .abi = ACCEL_ABI,
+    .pci_read = fake_pci_read,
+    .pci_write = fake_pci_write,
+    .map = fake_map,
+    .clock_us = fake_clock,
+    .combine = wc_combine,
+    .uncombine = wc_uncombine,
+    .fence = gradient_fence,
+};
+
+static const AccelState TEXTURED = {.texture = 1, .source = ACCEL_TEXEL, .alpha = 255};
+
+/* A sprite's quad, one plane, is sent its gradients once, as Glide's grDrawPlanarPolygon: its
+   second triangle only its corners and starts, 10 words of 16. Each triangle's own setup was a
+   quarter of MEADOW's frame on a 486 with the Voodoo Graphics. A trapezoid's two planes are each
+   sent theirs. */
+TEST(tdfx_driver_sends_a_planar_quads_gradients_once)
+{
+    static const TdfxFamily fake = {"fake", &sst_chip, false, wc_open, wc_close};
+    static const uint8_t sides[] = {4};
+
+    const TdfxDraw draw = {0, 0, tdfx_level(64, 64), TEXEL_PARAMS, 255};
+    const TdfxPicks sent = tdfx_picks(tdfx_sent(TEXEL_PARAMS));
+
+    AccelVertex quad[4], trapezoid[4];
+    AccelCard card;
+    const AccelDriver *const d = tdfx_driver(&GRADIENT_HOST, &fake);
+
+    sprite_at(100.3f, 80.7f, quad);
+    memcpy(trapezoid, quad, sizeof quad);
+    trapezoid[2].x += 9;
+    wc = (typeof(wc)){};
+    CHECK(d && d->open(&(PciFunction){}, 320, 240, &card) && d->texture(1, 64, 64));
+    d->state(&TEXTURED);
+
+    const AccelVertex second[3] = {quad[0], quad[2], quad[3]};
+
+    TdfxTriangle t;
+
+    CHECK(tdfx_setup(second, &draw, &t));
+    held.fences = 0;
+    d->fans(quad, sides, 1);
+    CHECK(held.fences == 4 && held.gradient[2] == MARKED);
+
+    for (uint32_t k = 0; k < sent.n; k++) {
+        const uint32_t i = sent.at[k];
+
+        CHECK(i >= TDFX_DX && i < TDFX_COMMAND || word_at(SST_FVERTEX + 4 * i) == t.word[i]);
+    }
+
+    const AccelVertex other[3] = {trapezoid[0], trapezoid[2], trapezoid[3]};
+
+    CHECK(tdfx_setup(other, &draw, &t));
+    held.fences = 0;
+    d->fans(trapezoid, sides, 1);
+    CHECK(held.fences == 4 && held.gradient[2] == t.word[TDFX_DX + TDFX_S]);
+    d->close();
+}
+
 /* The SST-1's packer word: Glide's packerFixAddress, texture space's 3 << 21 | 1 << 17; armed,
    unwritten. At each fence, whether it was written since the last, and TMU0's textureMode then. */
 enum : uint32_t { PACKER = 0x800000 + (3u << 21) + (1u << 17), ARMED = 0xA5A5A5A5 };
-
-static const AccelState TEXTURED = {.texture = 1, .source = ACCEL_TEXEL, .alpha = 255};
 
 static struct {
     uint32_t fences, flushed[64], mode[64];

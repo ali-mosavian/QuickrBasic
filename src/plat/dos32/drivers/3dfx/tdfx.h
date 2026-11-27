@@ -34,11 +34,12 @@ typedef struct {
 } TdfxPicks;
 
 /* How a draw's triangles are sent: the parameters read; fbzColorPath's word; their words, worked out
-   on the CPU, or by the setup unit: sSetupMode's, a corner's words, and those written register by
-   register, with the command beginning a triangle or drawing one. */
+   on the CPU, and those of one after another of its plane, or by the setup unit: sSetupMode's, a
+   corner's words, and those written register by register, with the command beginning a triangle
+   or drawing one. */
 typedef struct {
     uint32_t params, path, mode;
-    TdfxPicks sent, corner, begins, draws;
+    TdfxPicks sent, started, corner, begins, draws;
 } TdfxWay;
 
 typedef struct {
