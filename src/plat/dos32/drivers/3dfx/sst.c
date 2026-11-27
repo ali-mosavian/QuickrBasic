@@ -113,6 +113,7 @@ bool sst_mapped(Tdfx *const c)
 
     room = lwm = 0;
     c->regs = regs;
+    c->status = (const volatile uint32_t *)(regs + SST_STATUS);
     c->lfb = regs + SST_LFB;
     c->lfb_row = LFB_ROW;
     c->texels = regs + SST_TEXELS;

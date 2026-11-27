@@ -24,7 +24,8 @@ enum : uint8_t { COMMAND = 0x04, BAR0 = 0x10, BAR1 = 0x14 };
 enum : uint32_t {
     MEMORY = 2, /* PCI command's memory decode */
     BAR_MASK = 0xFFFFFFF0,
-    REGS_BYTES = 4 << 20, /* BAR0's io, command FIFO and 3D registers */
+    REGS_BYTES = 4 << 20,    /* BAR0's io, command FIFO, 2D and 3D registers */
+    TWO_D_STATUS = 0x100000, /* status, in the 2D registers' window */
     THREE_D = 0x200000,
     /* io registers */
     LFB_MEMORY = 0x0C, /* lfbMemoryConfig: its tile base's 13 bits, in pages */
@@ -380,6 +381,7 @@ static bool opened(Tdfx *const c, const uint16_t w, const uint16_t h)
         return false;
 
     c->regs = regs + THREE_D;
+    c->status = (const volatile uint32_t *)(regs + TWO_D_STATUS);
     c->lfb = frame;
     queued(banshee);
     cmdfifo_begin(

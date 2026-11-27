@@ -539,6 +539,7 @@ enum : uint32_t {
     H3_BAR1 = 0x20000000,
     H3_REGS = 8 << 20,
     H3_FRAME = 16 << 20,
+    H3_2D = 0x100000,
     H3_3D = 0x200000,
     H3_PORT = 0x600000,
     H3_VID_PROC = 0x5C,
@@ -559,7 +560,7 @@ const AccelDriver *ACCEL_CALL accel_init(const AccelHost *host);
 
 static struct {
     uint8_t *regs, *frame;
-    uint64_t us;
+    uint64_t us, drawn; /* drawn: when the card has drawn what it was queued, 0 done */
     Fifo fifo;
     uint16_t w, h;
     uint8_t bits;
@@ -589,7 +590,16 @@ static void h3_played(void) { played(&h3.fifo); }
 /* A millisecond a read, the card reading its command FIFO as the driver waits. */
 static uint64_t ACCEL_CALL h3_clock(void)
 {
+    const uint16_t red = 0xF800;
+
     h3_played();
+
+    if (h3.drawn && h3.us >= h3.drawn) {
+        memcpy(h3.frame + H3_BUFFER + 120 * 1280 + 160 * 2, &red, sizeof red);
+        memset(h3.regs + H3_2D + SST_STATUS, 0, 4);
+        h3.drawn = 0;
+    }
+
     return h3.us += 1000;
 }
 
@@ -637,6 +647,7 @@ static const AccelDriver *h3_opened(AccelCard *const card)
 static void h3_closed(const AccelDriver *const d)
 {
     d->close();
+    h3.drawn = 0;
     free(h3.regs);
     free(h3.frame);
 }
@@ -822,6 +833,25 @@ TEST(tdfx_h3_reads_the_screen_back_through_frame_memory)
 
     CHECK(d);
     memcpy(h3.frame + H3_BUFFER + 120 * 1280 + 160 * 2, &red, sizeof red);
+    d->read(ACCEL_SCREEN, (AccelRect){0, 0, 1, 1}, rgba);
+    CHECK(rgba[0] == 255 && rgba[1] == 0 && rgba[2] == 0 && rgba[3] == 255);
+    h3_closed(d);
+}
+
+/* 86Box's Banshee and Voodoo 3 read idle in the 3D registers' status while triangles wait for a
+   render thread to start, and busy in the 2D registers' until drawn: read back by the 3D one, a
+   target's first band came back undrawn in 3 of 8 scenes with the setup unit. */
+TEST(tdfx_h3_reads_back_what_the_card_has_drawn)
+{
+    AccelCard card;
+    const AccelDriver *const d = h3_opened(&card);
+    const uint32_t busy = 0x780;
+
+    uint8_t rgba[4];
+
+    CHECK(d);
+    memcpy(h3.regs + H3_2D + SST_STATUS, &busy, sizeof busy);
+    h3.drawn = h3.us + 5000;
     d->read(ACCEL_SCREEN, (AccelRect){0, 0, 1, 1}, rgba);
     CHECK(rgba[0] == 255 && rgba[1] == 0 && rgba[2] == 0 && rgba[3] == 255);
     h3_closed(d);

@@ -88,6 +88,9 @@ struct Tdfx {
        buffer window's bytes a row; a buffer's stride in pixels and rows; the mode shown's size;
        texture memory's bytes; the refresh */
     volatile uint8_t *regs, *lfb, *texels;
+    /* the status tdfx_idle reads: H3's through its 2D registers, as 86Box answers it only once
+       its render threads have drawn what they were queued; its 3D ones read idle before */
+    const volatile uint32_t *status;
     uint32_t lfb_row, stride, rows, mode_w, mode_h, texture_bytes, millihz;
 
     uint16_t w, h, left, top; /* the screen, and its place in the mode */

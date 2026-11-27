@@ -77,7 +77,7 @@ void tdfx_idle(Tdfx *const c)
     tdfx_put(c, SST_NOP, 0);
 
     while (calm < CALM && c->host->clock_us() < until)
-        calm = tdfx_get(c, SST_STATUS) & c->chip->busy ? 0 : calm + 1;
+        calm = *c->status & c->chip->busy ? 0 : calm + 1;
 }
 
 void tdfx_idle_fbi(const Tdfx *const c)
