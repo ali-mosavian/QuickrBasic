@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' d.get(k) for any value type: a V or none
 type Pet
     name as string

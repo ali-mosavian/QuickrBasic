@@ -12,7 +12,7 @@ static uint32_t build(Session *const S, const char *const src)
 {
     char path[] = "/tmp/qb_unit_XXXXXX.bas";
     FILE *const f = fdopen(mkstemps(path, 4), "wb");
-    CHECK(f && fputs("' OPTION DIALECT QUICKR\n", f) >= 0 && fputs(src, f) >= 0);
+    CHECK(f && fputs("option dialect quickr\n", f) >= 0 && fputs(src, f) >= 0);
     fclose(f);
     session_new(S);
     snprintf(S->repl.file, sizeof S->repl.file, "%s", path);

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 import text
 let s = "the quick brown fox jumps over the lazy dog"
 var n = 0

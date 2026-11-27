@@ -67,12 +67,14 @@ struct Dialect {
 
     /* A text dialect: its lines stored as typed (LF_TEXT), each hook below its own. */
     bool text;
-    const char *mark; /* a file's first line, which makes it this dialect's */
+    const char *mark; /* a file's first statement, which makes it this dialect's */
     const char *help; /* its words' help topics: "KEY word"; KEY alone its own */
     size_t size;      /* its state's bytes in a session (dial_state) */
-    /* Is the line text, len bytes, mark: case aside, spaces after it? */
+    /* Is the line text, len bytes, mark: case aside, spaces around it? */
     bool (*marker)(const char *text, uint32_t len);
-    /* Is the file at path this dialect's: its first line mark? */
+    /* Is the line text, len bytes, no statement: blank, a comment? Only such go before mark. */
+    bool (*blank)(const char *text, uint32_t len);
+    /* Is the file at path this dialect's: its first statement mark? */
     bool (*is_file)(const char *path);
     /* The file at path's lines after the store's, of file file. PFIL_OK, else the DOS error. */
     uint16_t (*read)(Session *S, const char *path, uint16_t file);

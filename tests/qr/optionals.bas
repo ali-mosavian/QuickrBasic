@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' T or none, T or Error, or else, x?, is narrowing, dict get
 const EMPTY = 1
 const BIG = 2

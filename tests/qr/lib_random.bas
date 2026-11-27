@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' random: int(a, b) within its ends, each value met; real(a, b) below b
 import random
 random.seed(7)

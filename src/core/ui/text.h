@@ -11,7 +11,8 @@ void text_init(Session *S, const Dialect *d);
 const Dialect *text_dialect(const Session *S);
 /* Text line line's dialect (the whole text's line): its file's. */
 const Dialect *text_dialect_at(Session *S, uint32_t line);
-/* Text line line (the whole text's) a text dialect's file's first, its mark: never changed. */
+/* Text line line (the whole text's) a text dialect's file's mark, its first statement: never
+   changed. */
 bool text_marker(Session *S, uint32_t line);
 /* tx_whole: the whole text the view. */
 void text_whole(void);

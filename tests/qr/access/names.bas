@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' public is the default: written or not, a name is exported
 public function said() as int
     return 1

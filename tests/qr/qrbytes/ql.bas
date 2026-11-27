@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 type L
     a as ubyte[4]
     g as ubyte[]

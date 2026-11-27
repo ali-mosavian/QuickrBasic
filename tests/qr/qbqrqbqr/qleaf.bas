@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 type Cell
     v as int
 end type

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 type Foe
     hp as int
     tag as string

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' a module: declarations alone, public ones exported
 const MAXW = 319
 var plotted = 0

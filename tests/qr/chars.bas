@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' character constants: a string constant indexed by a constant, a ubyte
 const ZERO = "0"[0]
 const NL = "a\n"[1]

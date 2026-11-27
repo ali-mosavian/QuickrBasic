@@ -12,7 +12,7 @@ the note says what.
 ## A program
 
 ```basic
-' OPTION DIALECT QUICKR
+option dialect quickr
 from keys import Key
 from math import Vec
 import keys
@@ -50,9 +50,10 @@ wend
 
 ## Choosing the dialect
 
-- Files are `.bas` in both dialects. A Quickr file's first line is `' OPTION DIALECT QUICKR`
-  (case aside), a comment to QBasic; a file without it is QBasic's. The line is the file's line 1,
-  required in every Quickr file, modules too. Nothing else is guessed from a file's contents.
+- Files are `.bas` in both dialects. A Quickr file's first statement is `option dialect quickr`
+  (case aside): a statement, not a comment. Only blank lines and comments go before it. A file
+  without it is QBasic's. It is required in every Quickr file, modules too. Nothing else is guessed
+  from a file's contents.
 - File > New asks which, and a Quickr program starts with that line, which the editor keeps as it
   is. The status bar shows the program's dialect. `basic` runs either.
 - A file of either dialect imports modules of the other: see [Interop](#interop).
@@ -873,7 +874,7 @@ end function
 
 - A file is a module and a folder is a package, found as QBasic's `IMPORT` finds one (the main
   file's folder, each folder of `BASICLIB`, then `lib/` beside the interpreter), as a `.bas`.
-  One whose first line is not Quickr's is a QBasic module: see [Interop](#interop).
+  One whose first statement is not Quickr's mark is a QBasic module: see [Interop](#interop).
 - `import m`, `import m as n`, `import a.b` (then `a.b.f()`), `from a.b import X, Y as Z`,
   `from pkg import m` (a package's module) and relative `from .feet import Land`: `.` is the
   importing file's folder, `..` its parent. An import goes at the top level.

@@ -22,7 +22,7 @@ An error is returned, not raised: test it with is Error, or pass it
 on with ?.
 
 ## Example
-    ' OPTION DIALECT QUICKR
+    option dialect quickr
     import fs
     let r = fs.read_text("notes.txt")
     if r is Error then

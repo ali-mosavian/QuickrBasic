@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' QBasic's loops: next, wend, loop; other endings name them
 for i = 1 to 3
 end for

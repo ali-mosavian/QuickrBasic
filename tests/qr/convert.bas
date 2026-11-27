@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' conversions: widening by itself, the rest written out; a literal typed by its place
 let n = 7
 let s as single = 1.5

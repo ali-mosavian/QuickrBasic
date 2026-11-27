@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' private: a field or a method its module's alone
 from bank import Account, Tag
 var a = Account.open("ann")

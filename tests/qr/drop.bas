@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' drop: run when an owner of a value with drop ends
 type Res
     name as string

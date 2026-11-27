@@ -53,7 +53,7 @@ out=$(cd "$D" && "$B" c.bas < /dev/null 2>&1 | tr -d '\r')
 [ "$out" = "-1 " ] || { echo "native: clock: got '$out'"; exit 1; }
 
 cat > "$D/q.bas" << 'EOF'
-' OPTION DIALECT QUICKR
+option dialect quickr
 from qxtest import add, half, shout, bump, move, pt, total, items, twice, runs, fail
 print add(2, 3); " "; half(5)
 print shout("hi there")

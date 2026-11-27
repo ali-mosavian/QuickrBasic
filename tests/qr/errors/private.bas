@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' private: out of its module, not read, written, called or built
 from bank import Account
 var a = Account.open("bo")

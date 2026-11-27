@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 from geom import Pt, scale, TOP
 import geom
 import tally

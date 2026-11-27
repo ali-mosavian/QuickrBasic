@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' generics: their errors, an instance's named
 type Vec
     x as int

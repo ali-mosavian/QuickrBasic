@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' lists of lists, lists as dict values: each its own, copied whole
 type Board
     name as string

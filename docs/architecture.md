@@ -137,9 +137,10 @@ only through its table. `io/dialect.c` lists the tables in `DIALECTS(X)`, QBasic
 - **Every other dialect is a text dialect:** its lines are stored as typed (`LF_TEXT`), so the
   editor, an error's place and the debugger still work line by line. Quickr's table is in
   `qr/qr.c`.
-- **Which dialect:** a text dialect's file starts with its mark, such as
-  `' OPTION DIALECT QUICKR`. `dial_of_file`, `dial_program` and `dial_line` read the mark from a
-  path, the program's first record, or a line's file. A QBasic program's module of another dialect
+- **Which dialect:** a text dialect's file's first statement is its mark, such as
+  `option dialect quickr`; only blank lines and comments go before it. `dial_of_file`,
+  `dial_program` and `dial_line` read the mark from a path, the program's first file, or a line's
+  file. A QBasic program's module of another dialect
   keeps a pointer to its table.
 - **State:** a dialect's state is `Dial`'s, made on first use from the C side's heap. `Session`
   holds no dialect's types.

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 var b as int[]
 for i in 0..4000
     b.push(i)

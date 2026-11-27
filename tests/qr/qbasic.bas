@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' A QBasic module's SUBs, FUNCTIONs and TYPEs: numbers, strings and records each way, by
 ' reference into a var, as a copy from anything else
 import twice

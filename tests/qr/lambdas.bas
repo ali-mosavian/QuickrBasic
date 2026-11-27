@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' lambdas inlined per call, captures by reference, function values
 type Vec
     x as int

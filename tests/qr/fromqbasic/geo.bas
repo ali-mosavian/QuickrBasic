@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 import util
 
 const SIDES = 4

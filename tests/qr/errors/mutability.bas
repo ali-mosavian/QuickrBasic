@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' what can't change: a let, a const, a parameter, a loop's counter;
 ' a call writes no mut
 let a = 1

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' for to an int's last value ends there: next once stepped past
 ' it first, Illegal function call
 let top = 2147483647

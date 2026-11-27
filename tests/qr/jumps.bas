@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' jumps within a line: labels, and QJ where a string is on the stack
 var x = 3
 let s = "m"

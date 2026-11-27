@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' other languages' operators name Quickr's; a bool and an int never mix
 var x = 6
 print 2 ** 3

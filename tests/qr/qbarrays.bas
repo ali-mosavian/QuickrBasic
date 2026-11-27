@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' A list passed whole to a QBasic array parameter: by reference, its length its bounds, a
 ' REDIM of it the list's
 import sums

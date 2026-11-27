@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' unknown and doubled names
 print nope
 let a = 1

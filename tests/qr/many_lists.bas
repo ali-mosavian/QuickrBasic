@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' 1,000 live lists, a list of lists. The arrays' headers had a
 ' fixed room of about 360: Out of memory partway.
 var big as int[][]

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' a fixed array inline, a record's or a list's element: assigned and passed whole
 type R
     v as int[3]

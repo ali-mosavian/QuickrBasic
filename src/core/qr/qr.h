@@ -12,9 +12,11 @@ extern const Dialect dialect_quickr;
 
 /* A Quickr file's first line, its dialect's mark; any other file is QBasic's. */
 extern const char qr_dialect[];
-/* Is the line text, len bytes, qr_dialect: case aside, spaces after it? */
+/* Is the line text, len bytes, qr_dialect: case aside, spaces around it? */
 bool qr_marker(const char *text, uint32_t len);
-/* Is the file at path Quickr's: its first line qr_dialect? */
+/* Is the line text, len bytes, no statement: spaces, a comment? */
+bool qr_blank(const char *text, uint32_t len);
+/* Is the file at path Quickr's: its first statement qr_dialect? */
 bool qr_is_file(const char *path);
 /* Load repl.file, Quickr's, and report its compile errors; none: link it, ready to run. The errors'
    count. */

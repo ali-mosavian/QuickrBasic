@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' generic records: one copy of the type and its methods per types given
 import shelf
 from shelf import Shelf

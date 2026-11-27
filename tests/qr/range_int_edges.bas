@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' chains over ranges at an int's ends: an empty range ending at its
 ' first value, and a window or zip wider than an int, stopped with
 ' Overflow (the end less one, the span) before the fix

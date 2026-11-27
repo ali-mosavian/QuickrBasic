@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' function operator: its errors
 from shapes import Size
 type Vec

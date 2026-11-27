@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' io: read_line from standard input, its end echoed as LINE INPUT's; at, color and clear
 ' print nothing here
 import io

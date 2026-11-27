@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' spelling: print and f-strings spell a record or an enum by its text(), a plain enum by
 ' its name, a T or none as none or its T
 type Vec

@@ -1,4 +1,4 @@
-' OPTION DIALECT QUICKR
+option dialect quickr
 ' fs: files, each error a value. A File closes itself when it ends, or at close().
 import text
 
