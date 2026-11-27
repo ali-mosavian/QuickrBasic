@@ -73,6 +73,50 @@ static Texel texel_of(const AccelVertex *const c, const TdfxDraw *const d, const
     return (Texel){c->s * texels, c->t * texels, w};
 }
 
+/* The parameters of params alike at v's corners, their gradients 0: told by the bits, without the
+   FPU. */
+static uint32_t alike(const AccelVertex v[3], const uint32_t params)
+{
+    const uint32_t differ = (v[0].colour ^ v[1].colour) | (v[0].colour ^ v[2].colour);
+    const uint32_t z = bits(v[0].z), q = bits(v[0].q);
+    const bool flat = z == bits(v[1].z) && z == bits(v[2].z);
+    const bool even = q == bits(v[1].q) && q == bits(v[2].q);
+
+    return params & ((differ & RGB ? 0 : COLOUR) | (differ >> 24 ? 0 : 1u << TDFX_A) |
+                     (flat ? 1u << TDFX_Z : 0) | (even ? 1u << TDFX_W : 0));
+}
+
+/* B's and C's differences from A weighed in each gradient: a parameter's are its own times these. */
+typedef struct {
+    float xb, xc, yb, yc;
+} Weights;
+
+/* Parameters first to last of at sent: their starts, and their gradients, 0 if alike. Inlined at
+   each group, so that each group's alike is its own branch, as steady as the draws. */
+static inline void graded(
+    TdfxTriangle *const out,
+    const uint32_t first,
+    const uint32_t last,
+    const bool alike,
+    const float at[3][TDFX_PARAMS],
+    const Weights *const w
+)
+{
+    for (uint32_t n = first; n <= last; n++) {
+        out->word[TDFX_START + n] = bits(at[0][n]);
+
+        if (alike) {
+            out->word[TDFX_DX + n] = out->word[TDFX_DY + n] = 0;
+            continue;
+        }
+
+        const float b = at[1][n] - at[0][n], c = at[2][n] - at[0][n];
+
+        out->word[TDFX_DX + n] = bits(b * w->xb - c * w->xc);
+        out->word[TDFX_DY + n] = bits(c * w->yc - b * w->yb);
+    }
+}
+
 uint32_t tdfx_sent(const uint32_t params)
 {
     return CORNERS | params << TDFX_START | params << TDFX_DX | params << TDFX_DY |
@@ -93,30 +137,31 @@ bool tdfx_setup(const AccelVertex v[3], const TdfxDraw *const d, TdfxTriangle *c
     if (p[1]->y < p[0]->y)
         swap = p[0], p[0] = p[1], p[1] = swap;
 
-    const uint32_t params = d->params;
+    const uint32_t params = d->params, still = alike(v, params);
     const float k = params & TEXEL ? w_scale(v) : 1;
 
     float x[3], y[3], at[3][TDFX_PARAMS];
 
     for (uint32_t i = 0; i < 3; i++) {
         const AccelVertex *const c = p[i];
+        const uint32_t need = i ? params & ~still : params; /* the alike only at A */
 
         x[i] = c->x + 0.5f + d->ox;
         y[i] = c->y + 0.5f + d->oy;
 
-        if (params & COLOUR) {
+        if (need & COLOUR) {
             at[i][TDFX_R] = (float)(c->colour >> 16 & CHANNEL);
             at[i][TDFX_G] = (float)(c->colour >> 8 & CHANNEL);
             at[i][TDFX_B] = (float)(c->colour & CHANNEL);
         }
 
-        if (params & 1u << TDFX_Z)
+        if (need & 1u << TDFX_Z)
             at[i][TDFX_Z] = depth_of(c->z);
 
-        if (params & 1u << TDFX_A)
+        if (need & 1u << TDFX_A)
             at[i][TDFX_A] = (float)((c->colour >> 24) * d->share) * FADE;
 
-        if (params & TEXEL) {
+        if (need & TEXEL) {
             const Texel t = texel_of(c, d, k);
 
             at[i][TDFX_S] = t.s;
@@ -131,19 +176,21 @@ bool tdfx_setup(const AccelVertex v[3], const TdfxDraw *const d, TdfxTriangle *c
     if (area == 0)
         return false;
 
-    /* B's and C's differences from A weighed in each gradient: a parameter's are its own times
-       these */
-    const float per = 1 / area, xb = y2 * per, xc = y1 * per, yb = x2 * per, yc = x1 * per;
+    const float per = 1 / area;
+    const Weights w = {y2 * per, y1 * per, x2 * per, x1 * per};
 
-    for (uint32_t n = 0; n < TDFX_PARAMS; n++) {
-        if (!(params >> n & 1))
-            continue;
+    if (params & COLOUR)
+        graded(out, TDFX_R, TDFX_B, still & COLOUR, at, &w);
 
-        const float b = at[1][n] - at[0][n], c = at[2][n] - at[0][n];
+    if (params & 1u << TDFX_Z)
+        graded(out, TDFX_Z, TDFX_Z, still >> TDFX_Z & 1, at, &w);
 
-        out->word[TDFX_START + n] = bits(at[0][n]);
-        out->word[TDFX_DX + n] = bits(b * xb - c * xc);
-        out->word[TDFX_DY + n] = bits(c * yc - b * yb);
+    if (params & 1u << TDFX_A)
+        graded(out, TDFX_A, TDFX_A, still >> TDFX_A & 1, at, &w);
+
+    if (params & TEXEL) {
+        graded(out, TDFX_S, TDFX_T, false, at, &w);
+        graded(out, TDFX_W, TDFX_W, still >> TDFX_W & 1, at, &w);
     }
 
     for (uint32_t i = 0; i < 3; i++) {

@@ -173,6 +173,31 @@ TEST(tdfx_unit_is_sent_only_what_a_draw_reads)
     CHECK(tdfx_corner_sent(texel) == (place | wst));
 }
 
+/* A parameter alike at every corner, as a sprite's tint, depth and q are, is sent its start with no
+   gradient: its gradients are not worked out. S and T, which differ, still are. */
+TEST(tdfx_setup_sends_what_the_corners_share_without_gradients)
+{
+    const AccelVertex v[3] = {
+        {0, 0, 0.5f, 1, 0, 0, 0x80FF8040},
+        {10, 0, 0.5f, 1, 8, 0, 0x80FF8040},
+        {0, 10, 0.5f, 1, 0, 4, 0x80FF8040},
+    };
+
+    const TdfxDraw d = {0, 0, 1, EVERY, 255};
+    const uint32_t alike[] = {TDFX_R, TDFX_G, TDFX_B, TDFX_Z, TDFX_A, TDFX_W};
+
+    TdfxTriangle t;
+
+    CHECK(tdfx_setup(v, &d, &t));
+
+    for (uint32_t i = 0; i < sizeof alike / sizeof *alike; i++)
+        CHECK(!t.word[TDFX_DX + alike[i]] && !t.word[TDFX_DY + alike[i]]);
+
+    CHECK(near(word_of(&t, TDFX_START + TDFX_G), 128) && near(word_of(&t, TDFX_START + TDFX_W), 1));
+    CHECK(near(word_of(&t, TDFX_START + TDFX_A), 128));
+    CHECK(near(word_of(&t, TDFX_DX + TDFX_S), 0.8f) && near(word_of(&t, TDFX_DY + TDFX_T), 0.4f));
+}
+
 /* What each path reads: a solid colour its colour alone; a keyed texel mixed its colour, alpha and
    texel; a texel alone depth tested its depth and texel; depth written alone its depth; a texel
    without its texture the colour. */
