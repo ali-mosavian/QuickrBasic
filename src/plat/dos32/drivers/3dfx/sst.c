@@ -259,18 +259,33 @@ static void uploaded(
     const uint32_t pitch
 )
 {
-    volatile uint8_t *const level = c->texels + (t->level << SST_LEVEL_AT);
+    const uint32_t a_word = t->indexed ? 4 : 2, words = (uint32_t)r.w / a_word;
+    const uint32_t x = t->indexed ? (uint32_t)r.x : (uint32_t)r.x << SST_TEXEL_AT;
+    volatile uint8_t *const level = c->texels + (t->level << SST_LEVEL_AT) + x;
+    uint32_t free = room;
 
     for (uint32_t y = 0; y < (uint32_t)r.h; y++) {
         const uint16_t *const row = texels + (size_t)y * pitch;
-        volatile uint8_t *const to = level + ((uint32_t)(r.y + (int32_t)y) << SST_ROW_AT);
+        volatile uint32_t *const to =
+            (volatile uint32_t *)(level + ((uint32_t)(r.y + (int32_t)y) << SST_ROW_AT));
 
-        for (uint32_t s = 0; s < (uint32_t)r.w; s += t->indexed ? 4 : 2)
+        for (uint32_t k = 0; k < words;) {
+            free = roomy(c, free);
+
+            const uint32_t end = words - k < free ? words : k + free;
+
+            free -= end - k;
+
             if (t->indexed)
-                stored(c, to + r.x + s, tdfx_indices(row + s));
+                for (; k < end; k++)
+                    to[k] = tdfx_indices(row + 4 * k);
             else
-                stored(c, to + ((r.x + s) << SST_TEXEL_AT), row[s] | (uint32_t)row[s + 1] << 16);
+                for (; k < end; k++)
+                    to[k] = tdfx_pair(row + 2 * k);
+        }
     }
+
+    room = free;
 }
 
 void sst_paletted(Tdfx *const c) { (void)c; }

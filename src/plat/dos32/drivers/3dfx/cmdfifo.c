@@ -152,11 +152,20 @@ void cmdfifo_texels(
         const uint16_t *const row = texels + (size_t)y * pitch;
 
         reserved(f, words + 2);
-        word(f, words << TEXEL_WORDS | TEXELS);
-        word(f, at + y * stride);
 
-        for (uint32_t x = 0; x < w; x += a_word)
-            word(f, indexed ? tdfx_indices(row + x) : row[x] | (uint32_t)row[x + 1] << 16);
+        volatile uint32_t *to = (volatile uint32_t *)(f->ring + written(f));
+
+        *to++ = words << TEXEL_WORDS | TEXELS;
+        *to++ = at + y * stride;
+
+        if (indexed)
+            for (uint32_t k = 0; k < words; k++)
+                *to++ = tdfx_indices(row + 4 * k);
+        else
+            for (uint32_t k = 0; k < words; k++)
+                *to++ = tdfx_pair(row + 2 * k);
+
+        f->sent += WORD * (words + 2);
     }
 }
 

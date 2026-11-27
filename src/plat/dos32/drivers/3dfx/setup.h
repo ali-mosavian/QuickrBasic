@@ -99,5 +99,15 @@ uint32_t tdfx_level(uint16_t w, uint16_t h);
    texels' place less these, as the card finds a level past the larger ones. */
 uint32_t tdfx_skipped(uint16_t w, uint16_t h, uint32_t texel);
 /* Four indexed texels' indices, their low bytes, as a word takes them: the first lowest. */
-uint32_t tdfx_indices(const uint16_t *texels);
+static inline uint32_t tdfx_indices(const uint16_t *const texels)
+{
+    return (texels[0] & 0xFFu) | (texels[1] & 0xFFu) << 8 | (texels[2] & 0xFFu) << 16 |
+           (uint32_t)(texels[3] & 0xFF) << 24;
+}
+
+/* Two texels as a word takes them: the first low. */
+static inline uint32_t tdfx_pair(const uint16_t *const texels)
+{
+    return texels[0] | (uint32_t)texels[1] << 16;
+}
 #endif

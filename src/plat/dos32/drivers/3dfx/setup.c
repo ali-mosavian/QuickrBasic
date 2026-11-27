@@ -318,9 +318,3 @@ uint32_t tdfx_skipped(const uint16_t w, const uint16_t h, const uint32_t texel)
 
     return bytes;
 }
-
-uint32_t tdfx_indices(const uint16_t *const texels)
-{
-    return (texels[0] & 0xFFu) | (texels[1] & 0xFFu) << 8 | (texels[2] & 0xFFu) << 16 |
-           (uint32_t)(texels[3] & 0xFF) << 24;
-}
