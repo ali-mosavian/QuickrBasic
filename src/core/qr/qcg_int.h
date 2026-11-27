@@ -35,6 +35,7 @@ void qcg_load(Code *c, const QVar *v);
 void qcg_store(Code *c, const QVar *v);
 void qcg_arith(Code *c, uint8_t *right, QType w, uint32_t k);
 void qcg_xint(Code *c, QrtIop op, QType t, bool wrap);
+QrtNum qcg_num(QType t); /* number type t as QX.INT, N.CONV and math's X ops take it */
 void qcg_nconv(Code *c, QType from, QType to, bool wrap);
 bool qcg_icell(QType t);
 void qcg_compare(Code *c, QType w, QKind op, uint8_t *right);
@@ -74,6 +75,8 @@ QExpr qcg_tried(QCg *g, const QExpr *e);
 void qcg_ends(QCg *g, const QExpr *e);
 void qcg_set(QCg *g, const QExpr *place, const QExpr *v);
 void qcg_ref(QCg *g, const QExpr *a);
+/* Array place a's descriptor, its cell's address pushed (a fixed array's made). */
+void qcg_descriptor(QCg *g, const QExpr *a);
 void qcg_pcall(QCg *g, const QFn *f);
 void qcg_imports(QCg *g, const QStmt *s);
 void qcg_call(QCg *g, const QExpr *e, const QExpr *dst);

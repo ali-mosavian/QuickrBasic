@@ -187,8 +187,37 @@ static void qcg_mapargs(QCg *const g, const QExpr *const m, const QExpr *const k
     qcg_offset(g, qcg_addr(g, m));
 }
 
-/* Element place e, a[i]: its address pushed. A field's list's by FE.ADDR, its fixed array's by
-   FX.IDX; a variable's by RA.ADDR; a map's value by QX.MAPAT. */
+/* Element place e's subscripts: a[i, j]'s each, else its one, b. A compiler's a[i] of an array
+   of more dimensions is its i-th element, the first subscript the fastest. */
+static uint32_t qcg_nsubs(const QExpr *const e) { return e->nargv ? e->nargv : 1; }
+
+static void qcg_subs(QCg *const g, const QExpr *const e)
+{
+    for (uint32_t k = 0; k < qcg_nsubs(e); k++)
+        qcg_expr(g, e->nargv ? e->argv[k] : e->b);
+}
+
+/* Fixed array place e's element, its record's address pushed, the array off bytes in: FX.IDX for
+   each subscript, the first's adding off. */
+static void qcg_fixedidx(QCg *const g, const QExpr *const e, const QTy *const y, const uint32_t off)
+{
+    const bool each = e->nargv == y->dims;
+    uint32_t stride = qcg_size(g, y->elem);
+
+    for (uint32_t k = 0; k < qcg_nsubs(e); k++) {
+        const uint32_t count = each ? y->counts[k] : y->count;
+        qcg_expr(g, e->nargv ? e->argv[k] : e->b);
+        code_op(g->c, O_FX_IDX);
+        code_dword(g->c, k ? 0 : off);
+        code_dword(g->c, 0);
+        code_dword(g->c, count);
+        code_dword(g->c, stride);
+        stride *= count;
+    }
+}
+
+/* Element place e, a[i] or a[i, j]: its address pushed. A field's T[]'s by FE.ADDR, its fixed
+   array's by FX.IDX; a variable's by RA.ADDR; a map's value by QX.MAPAT. */
 static void qcg_elem(QCg *const g, const QExpr *const e)
 {
     Code *const c = g->c;
@@ -208,28 +237,23 @@ static void qcg_elem(QCg *const g, const QExpr *const e)
     if (qcg_held(g, a)) {
         const uint32_t off = qcg_heldat(g, a);
 
-        if (y->kind == QT_LIST) {
-            qcg_expr(g, e->b);
+        if (y->kind == QT_DYN) {
+            qcg_subs(g, e);
             code_op(c, O_FE_ADDR);
             code_dword(c, off);
-            code_byte(c, 1);
+            code_byte(c, (uint8_t)qcg_nsubs(e));
             code_dword(c, qcg_size(g, y->elem));
             return;
         }
 
-        qcg_expr(g, e->b);
-        code_op(c, O_FX_IDX);
-        code_dword(c, off);
-        code_dword(c, 0);
-        code_dword(c, y->count);
-        code_dword(c, qcg_size(g, y->elem));
+        qcg_fixedidx(g, e, y, off);
         return;
     }
 
     const QVar *const v = qcg_listvar(g, a);
-    qcg_expr(g, e->b);
+    qcg_subs(g, e);
     code_opid(c, O_RA_ADDR, v->id, false);
-    code_byte(c, 1);
+    code_byte(c, (uint8_t)qcg_nsubs(e));
 }
 
 /* Record place e's address pushed; the bytes returned still to add, a field's. */
@@ -362,7 +386,8 @@ static void qcg_pfieldop(
 /* Is element place e a variable's list's, loaded and stored by I.LD.A1 and its kin? */
 static bool qcg_byindex(const QCg *const g, const QExpr *const e)
 {
-    return e->kind == QE_INDEX && !qcg_held(g, e->a) && qcg_list(g, e->a->type);
+    return e->kind == QE_INDEX && qcg_nsubs(e) == 1 && !qcg_held(g, e->a) &&
+           qcg_list(g, e->a->type);
 }
 
 /* Scalar place e's value pushed: an address it pushes taken by the load. */
@@ -749,13 +774,7 @@ void qcg_ref(QCg *const g, const QExpr *const a)
 
     if (qcg_list(g, a->type)) {
         code_int(c, 0);
-        qcg_cell(g, a);
-
-        if (qcg_held(g, a) && qcg_ty(g, a->type)->kind == QT_ARRAY) { /* inline: a cell made */
-            code_int(c, (int32_t)(ARR_FIELD | decl_fieldkey(qcg_ty(g, a->type)->td, 0)));
-            code_call(c, K_FCELL);
-        }
-
+        qcg_descriptor(g, a);
         return;
     }
 
@@ -778,6 +797,25 @@ void qcg_ref(QCg *const g, const QExpr *const a)
 
     code_op(c, O_P_REF);
     code_word(c, (uint16_t)off);
+}
+
+/* Fixed array type t's field cell for its elements at the address on top: FCELL, then QLIST's
+   fast, so one subscript reaches each element. */
+static void qcg_fieldcell(QCg *const g, const QType t)
+{
+    code_int(g->c, (int32_t)(ARR_FIELD | decl_fieldkey(qcg_ty(g, t)->td, 0)));
+    code_call(g->c, K_FCELL);
+    code_xop(g->c, X_QLIST);
+}
+
+/* Array place a's descriptor, its cell's address pushed: a fixed array's held inline made, as
+   QBasic's for a fixed array field passed whole. */
+void qcg_descriptor(QCg *const g, const QExpr *const a)
+{
+    qcg_cell(g, a);
+
+    if (qcg_held(g, a) && qcg_ty(g, a->type)->kind == QT_ARRAY)
+        qcg_fieldcell(g, a->type);
 }
 
 /* Is e the string " "? */
@@ -813,10 +851,30 @@ static void qcg_print(QCg *const g, const QExpr *const e)
         code_call(c, K_PNL);
 }
 
+/* Array place a by reference for a parameter of type t: a fixed one's for a T[] its own
+   descriptor, a field cell, which no REDIM or resize() takes. */
+static void qcg_lend(QCg *const g, const QExpr *const a, const QType t)
+{
+    if (!qcg_list(g, a->type) || !qcg_list(g, t) || qcg_ty(g, a->type)->kind != QT_ARRAY ||
+        qcg_ty(g, t)->kind != QT_DYN) {
+        qcg_ref(g, a);
+        return;
+    }
+
+    code_int(g->c, 0);
+    qcg_fixedat(g, a);
+    qcg_fieldcell(g, a->type);
+}
+
 /* Argument a for a parameter of type t: by reference where it has a place the call can't change,
    else a value cell and its ref; a string's counted held, on the stack under the rest. */
 static void qcg_arg(QCg *const g, const QExpr *const a, const QType t, uint32_t *const held)
 {
+    if (qcg_list(g, t)) {
+        qcg_lend(g, a, t);
+        return;
+    }
+
     if (qcg_byplace(g, t) || (!qast_fresh(a) && a->type == t && !a->byval)) {
         qcg_ref(g, a);
         return;
@@ -891,6 +949,11 @@ static void qcg_native(QCg *const g, const QExpr *const e)
         case QN_X:
             code_int(c, (uint32_t)st.n);
             code_call(c, K_QX);
+            break;
+
+        case QN_NUM:
+            code_xop(c, st.op);
+            code_byte(c, qcg_num(e->fn->params[st.n].var->type));
         }
     }
 
@@ -978,7 +1041,7 @@ void qcg_call(QCg *const g, const QExpr *const e, const QExpr *const dst)
             continue;
 
         if (p->mut) {
-            qcg_ref(g, a);
+            qcg_lend(g, a, p->var->type);
             continue;
         }
 
@@ -1009,6 +1072,22 @@ void qcg_x(Code *const c, const QrtX op)
 {
     code_int(c, op);
     code_call(c, K_QX);
+}
+
+/* Array place p made k dimensions of the sizes pushed before, its elements kept: QX.RESIZE. */
+static void qcg_sized(QCg *const g, const QExpr *const p, const uint32_t k)
+{
+    qcg_cell(g, p);
+    code_int(g->c, qcg_et(g, qcg_ty(g, p->type)->elem));
+    code_int(g->c, k);
+    qcg_x(g->c, QX_RESIZE);
+}
+
+/* Array place p emptied, its elements cut. */
+static void qcg_emptied(QCg *const g, const QExpr *const p)
+{
+    code_int(g->c, 0);
+    qcg_sized(g, p, 1);
 }
 
 /* A list's method; a record's pop copied to dst. */
@@ -1145,6 +1224,13 @@ static void qcg_listdo(QCg *const g, const QExpr *const e, const QExpr *const ds
         qcg_x(c, dst || qcg_typed(g, elem) ? QX_DROP : QX_POP);
         return;
 
+    case QB_RESIZE:
+        for (uint32_t k = 0; k < e->nargv; k++)
+            qcg_expr(g, e->argv[k]);
+
+        qcg_sized(g, e->a, e->nargv);
+        return;
+
     default: /* remove: moved last, then dropped */
         qcg_cell(g, e->a);
         code_int(c, et);
@@ -1233,6 +1319,27 @@ static void qcg_build(QCg *const g, const QExpr *const dst, const QExpr *const e
             return;
         }
 
+        if (e->builtin == QB_ARRAY) { /* emptied, then sized */
+            const bool waiting = code_calling(g->c, true);
+            qcg_emptied(g, dst);
+
+            for (uint32_t k = 0; k < e->nargv; k++)
+                qcg_expr(g, e->argv[k]);
+
+            qcg_sized(g, dst, e->nargv);
+            code_called(g->c, waiting, true);
+            return;
+        }
+
+        if (e->builtin == QB_SHAPE) {
+            const bool waiting = code_calling(g->c, true);
+            qcg_descriptor(g, e->a);
+            qcg_cell(g, dst);
+            qcg_x(g->c, QX_SHAPE);
+            code_called(g->c, waiting, true);
+            return;
+        }
+
         if (e->builtin == QB_SLICE) { /* the ends first: they may move the heap */
             const bool waiting = code_calling(g->c, true);
             qcg_ends(g, e);
@@ -1310,14 +1417,13 @@ void qcg_fresh(QCg *const g, QVar *const v)
 
     const QTy *const y = qcg_ty(g, v->type);
 
-    if (y->kind == QT_ARRAY) { /* REDIM v(0 TO count - 1): DIM's ( lo hi mlo mhi id flags ) */
-        code_int(c, 0);
-        code_int(c, y->count - 1);
-        code_int(c, 0);
-        code_int(c, 0);
-        code_int(c, v->id);
-        code_int(c, DIM_REDIM | 1);
-        code_call(c, K_DIM);
+    if (y->kind == QT_ARRAY) { /* emptied, then its counts */
+        qcg_emptied(g, &p);
+
+        for (uint8_t k = 0; k < y->dims; k++)
+            code_int(c, y->counts[k]);
+
+        qcg_sized(g, &p, y->dims);
         return;
     }
 

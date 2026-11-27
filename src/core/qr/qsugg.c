@@ -168,6 +168,9 @@ static QrValue qr_typed(const QTypeEx *const tx)
     case QX_LIST:
         return (QrValue){.on = QM_LIST};
 
+    case QX_DYN:
+        return (QrValue){.on = QM_DYN};
+
     case QX_ARRAY:
         return (QrValue){.on = QM_ARRAY};
 

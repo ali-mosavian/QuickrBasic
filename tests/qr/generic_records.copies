@@ -1,10 +1,10 @@
-generic_records.bas:13:25: an int[] copied
+generic_records.bas:13:25: a list[int] copied
           self.items.push(x)
                           ^
 generic_records.bas:13:25: a Stack[int] copied
           self.items.push(x)
                           ^
-generic_records.bas:43:22: an int[] copied
+generic_records.bas:43:22: a list[int] copied
           var a = self.items
                        ^
 generic_records.bas:109:12: a Stack[Vec] copied

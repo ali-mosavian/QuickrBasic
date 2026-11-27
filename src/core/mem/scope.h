@@ -13,12 +13,16 @@ struct Binding {
     uint32_t name;   /* the name, or the line number */
     Binding *next;   /* its hash chain's next */
     uint16_t flags;  /* BF_* */
+    uint8_t shapes;  /* BS_*: the shapes a DIM or parameter declared; in flags' padding */
     uint32_t et[2];  /* the declared type: the scalar's, the array's */
     uint32_t rec[2]; /* the record's TYPE: the scalar's, the array's */
     uint16_t fix[2]; /* STRING * n: the scalar's, the array's */
     uint32_t line;   /* a label's line */
     int32_t val;     /* BF_VAL: a CONST's value; BF_PROC: its verdict (comp/export.h) */
 };
+
+/* Binding.shapes: a scalar's, an array's. */
+enum : uint8_t { BS_SCALAR = 1, BS_ARRAY = 2 };
 
 enum {
     NSCS = 4,
@@ -92,6 +96,8 @@ bool scop_conname(const Scop *sc, uint32_t name);
 bool scop_conval(const Scop *sc, uint32_t module, uint32_t proc, uint32_t name, int32_t *v);
 /* Name bound, as the procedure compiled sees it? */
 bool scop_known(const Scop *sc, uint32_t name);
+/* Name known as a scalar: not only its array declared (BS_ARRAY alone). */
+bool scop_known_scalar(const Scop *sc, uint32_t name);
 /* Name a variable module shares: DIM SHARED, not a CONST? */
 bool scop_mshr(const Scop *sc, uint32_t module, uint32_t name);
 /* Label key (a name, or a line number when scope has SC_NUM) of scope, which is module's, at

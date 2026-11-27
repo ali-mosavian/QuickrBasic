@@ -3,9 +3,11 @@
 
 tests/qr/NAME.bas, a Quickr file, must print NAME.out; tests/qr/errors/NAME.bas its compile errors, NAME.out, and run
 nothing. A folder NAME/ beside a case holds the modules it imports, put beside it; NAME.in is its
-standard input, NAME.args its command line. --check must
-list the same errors, exit 1 on them and 0 on a clean program; --test must print NAME.test, if
-there, and exit 1 when a test fails; --copies must print NAME.copies, if there. NAME picks cases; -v prints a failure's output."""
+standard input, NAME.args its command line. --check must list the same errors, exit 1 on them
+and 0 on a clean program; --test must print NAME.test, if there, and exit 1 when a test fails;
+--copies must print NAME.copies, if there. NAME picks cases; -v prints a failure's output;
+--update writes each picked case's NAME.out and NAME.copies, if there, as it prints them, line
+endings kept."""
 
 import os
 import re
@@ -91,22 +93,45 @@ def check(name: str, prog: Path) -> str:
     return "" if p.returncode == (1 if want else 0) else f"--check exited {p.returncode}"
 
 
+def rewrite(path: Path, text: str) -> bool:
+    """path's text as text, its line endings kept; False, and not written, when it is the same."""
+    old = path.read_bytes() if path.exists() else b""
+    if old.decode("latin-1").replace("\r\n", "\n") == text:
+        return False
+    path.write_text(text, encoding="latin-1", newline="\r\n" if b"\r\n" in old else "\n")
+    return True
+
+
+def update(name: str, prog: Path, out: str) -> None:
+    """prog's NAME.out and NAME.copies, if there, as it prints them."""
+    changed = rewrite(prog.with_suffix(".out"), out)
+    copies = prog.with_suffix(".copies")
+    if copies.exists():
+        changed |= rewrite(copies, named(flagged("--copies", prog).stdout.decode("latin-1"), prog.stem))
+    if changed:
+        print(f"updated {name}")
+
+
 def main() -> None:
-    args = [a for a in sys.argv[1:] if a != "-v"]
+    args = [a for a in sys.argv[1:] if a not in ("-v", "--update")]
     pick = {k: v for k, v in cases().items() if not args or k in args}
     jobs = {k: (v.read_text(), beside(v, ".in"), beside(v, ".args").strip(), modules(v)) for k, v in pick.items()}
     res = dosrun.run_host(jobs, Path(tempfile.mkdtemp()), 10000, True)
     ok = 0
     for k, prog in pick.items():
         got = named(res[k].out, k)
+        if "--update" in sys.argv:
+            update(k, prog, got)
+            continue
         why = "" if got == prog.with_suffix(".out").read_text() else f"{res[k].reason} {got[:60]!r}"
         why = why or check(k, prog) or tested(prog) or copied(prog)
         ok += not why
         print(f"pass {k}" if not why else f"FAIL {k}: {why}")
         if why and "-v" in sys.argv:
             print(got)
-    print(f"{ok}/{len(pick)}")
-    sys.exit(ok != len(pick))
+    if "--update" not in sys.argv:
+        print(f"{ok}/{len(pick)}")
+        sys.exit(ok != len(pick))
 
 
 if __name__ == "__main__":

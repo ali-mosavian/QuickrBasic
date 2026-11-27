@@ -21,13 +21,14 @@
 #define CALL(k) {QN_CALL, K_##k, 0}
 #define SYS(s) {QN_SYS, SC_##s, 0}
 #define X(r) {QN_X, 0, QX_##r}
+#define NUM(x, k) {QN_NUM, X_##x, k}
 #define NAT(name, ...)                                                                             \
     {name,                                                                                         \
      (const QNatStep[]){__VA_ARGS__},                                                              \
      sizeof((const QNatStep[]){__VA_ARGS__}) / sizeof(QNatStep)}
 
 static const QNat qnat_all[] = {
-    /* math: D_FN, as SQR(x#) .. */
+    /* math: D_FN, as SQR(x#) ..; X ops */
     NAT("sqrt", ARG(0), OPB(D_FN, DF_SQR)),
     NAT("sin", ARG(0), OPB(D_FN, DF_SIN)),
     NAT("cos", ARG(0), OPB(D_FN, DF_COS)),
@@ -36,7 +37,14 @@ static const QNat qnat_all[] = {
     NAT("exp", ARG(0), OPB(D_FN, DF_EXP)),
     NAT("log", ARG(0), OPB(D_FN, DF_LOG)),
     NAT("floor", ARG(0), OPB(D_FN, DF_INT)),
-    NAT("ceil", ARG(0), OP(D_NEG), OPB(D_FN, DF_INT), OP(D_NEG)),
+    NAT("ceil", ARG(0), OPB(D_FN, DF_CEIL)),
+    NAT("round", ARG(0), OPB(D_FN, DF_ROUND)),
+    NAT("atan2", ARG(0), ARG(1), XOP(D_ATAN2)),
+    NAT("lerp", ARG(0), ARG(1), ARG(2), XOP(D_LERP)),
+    NAT("abs", ARG(0), NUM(N_ABS, 0)),
+    NAT("min", ARG(0), ARG(1), NUM(N_MIN, 0)),
+    NAT("max", ARG(0), ARG(1), NUM(N_MAX, 0)),
+    NAT("clamp", ARG(0), ARG(1), ARG(2), NUM(N_CLAMP, 0)),
     /* text */
     NAT("find", ARG(0), ARG(1), X(FIND)),
     NAT("find_from", ARG(0), ARG(1), ARG(2), {QN_X, 0, QX_FIND | QX_FROM}),

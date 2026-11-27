@@ -1,0 +1,4 @@
+ 7 
+rows.bas:7: Duplicate definition
+      a.resize(len(a) + 1)
+a fixed array keeps its size

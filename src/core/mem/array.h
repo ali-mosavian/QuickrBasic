@@ -104,6 +104,9 @@ void arry_dim(Arry *ay, uint32_t id, uint8_t n);
    lower bounds arry.lbounds; keep: the old one's elements moved in. Duplicate definition: a fixed
    one. Subscript out of range: keep, n not its dimensions. Illegal function call, Out of memory. */
 void arry_redim(Arry *ay, ArrSlot *s, uint32_t et, uint8_t n, bool keep);
+/* Header h is a frame's, its local's DIMmed with constant bounds (comp/frame.c), or a field cell's:
+   REDIM never. */
+bool arry_fixed(Addr h);
 /* A list's array, ours: cell s's made cap elements of et, its first len (fast) its elements, the
    old ones kept, the old array dead for arry_sweep (an arena's till its return). Out of memory. */
 void arry_relen(Arry *ay, ArrSlot *s, uint32_t et, uint32_t cap, uint32_t len);

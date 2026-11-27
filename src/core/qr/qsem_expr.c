@@ -827,7 +827,8 @@ QExpr *qsem_mutarg(QSem *const S, QExpr *const v, const QParam *const p)
         return v;
     }
 
-    if (v->type != p->var->type && v->type != QY_ERROR) {
+    if (v->type != p->var->type && v->type != QY_ERROR &&
+        !qsem_lendable(S, v->type, p->var->type)) {
         qsem_say(
             S,
             v->tok,

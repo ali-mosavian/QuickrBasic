@@ -54,23 +54,68 @@ QType qsem_newty(QSem *const S, const QTyKind kind)
     return QY_FIRST + ts->n++;
 }
 
-/* The list of elem (count 0), or its array of count; interned. */
-QType qsem_listof(QSem *const S, const QType elem, const uint32_t count)
+/* Do y's dimensions' counts match counts', null a dynamic array's? */
+static bool qsem_counted(const QTy *const y, const uint8_t dims, const uint32_t *const counts)
 {
-    const QTyKind kind = count ? QT_ARRAY : QT_LIST;
+    if (!y->counts || !counts)
+        return !y->counts && !counts;
+
+    for (uint8_t k = 0; k < dims; k++)
+        if (y->counts[k] != counts[k])
+            return false;
+
+    return true;
+}
+
+QType qsem_shapedof(
+    QSem *const S,
+    const QType elem,
+    const uint8_t dims,
+    const uint32_t *const counts,
+    const bool grows
+)
+{
+    const QTyKind kind = counts ? QT_ARRAY : QT_DYN;
     const QTys *const ts = &S->prog->tys;
 
     for (uint32_t i = 0; i < ts->n; i++)
-        if (ts->at[i].kind == kind && ts->at[i].elem == elem && ts->at[i].count == count)
+        if (ts->at[i].kind == kind && ts->at[i].elem == elem && ts->at[i].dims == dims &&
+            ts->at[i].grows == grows && qsem_counted(&ts->at[i], dims, counts))
             return QY_FIRST + i;
 
-    const bool owns = !count || qsem_owns(S, elem);
+    const bool owns = !counts || qsem_owns(S, elem);
     const QType t = qsem_newty(S, kind);
     QTy *const y = qast_ty(S->prog, t);
     y->elem = elem;
-    y->count = count;
+    y->dims = dims;
+    y->grows = grows;
     y->owns = owns;
+
+    if (counts) {
+        uint32_t *const own = qast_alloc(S->mem, dims * sizeof *own);
+        y->count = 1;
+
+        for (uint8_t k = 0; k < dims; k++)
+            y->count *= own[k] = counts[k];
+
+        y->counts = own;
+    }
+
     return t;
+}
+
+bool qsem_lendable(const QSem *const S, const QType t, const QType param)
+{
+    if (t == param || !qast_array(S->prog, t) || !qast_array(S->prog, param))
+        return false;
+
+    const QTy *const a = qast_ty(S->prog, t), *const p = qast_ty(S->prog, param);
+    return p->kind == QT_DYN && !p->grows && !a->grows && a->elem == p->elem;
+}
+
+QType qsem_arrayof(QSem *const S, const QType elem, const uint32_t count, const bool grows)
+{
+    return qsem_shapedof(S, elem, 1, count ? &count : nullptr, grows);
 }
 
 /* The tuple of n items' types; interned. */
@@ -115,8 +160,11 @@ static QType qsem_mapof(QSem *const S, const QType key, const QType val)
         if (ts->at[i].kind == QT_MAP && ts->at[i].key == key && ts->at[i].elem == val)
             return QY_FIRST + i;
 
-    const QType lists[] =
-        {qsem_listof(S, key, 0), qsem_listof(S, val, 0), qsem_listof(S, QY_INT, 0)};
+    const QType lists[] = {
+        qsem_arrayof(S, key, 0, true),
+        qsem_arrayof(S, val, 0, true),
+        qsem_arrayof(S, QY_INT, 0, true)
+    };
 
     QField *const fields = qast_alloc(S->mem, countof(lists) * sizeof *fields);
 
@@ -292,20 +340,23 @@ static QType qsem_qualtype(
     return QY_ERROR;
 }
 
-/* Does T[e] name a type, the old spelling of dict[e, T]? */
-static bool qsem_keyed(QSem *const S, const QExpr *const e)
+QType qsem_typevalue(QSem *const S, const QExpr *const e)
 {
-    if (e->kind == QE_FIELD && qsem_ismod(S, e->a)) {
-        const QBind *const b = qsem_qual(S, e);
-        return b && b->ty;
-    }
+    if (e->kind == QE_INDEX)
+        return qsem_typeat(S, e);
+    if (e->kind != QE_NAME && (e->kind != QE_FIELD || !qsem_ismod(S, e->a)))
+        return QY_VOID;
 
-    if (e->kind != QE_NAME)
-        return false;
+    const QBind *const b = e->kind == QE_NAME ? qsem_find(S, e->tok) : qsem_qual(S, e);
 
-    const QBind *const b = qsem_find(S, e->tok);
-    return (b && b->ty) || qsem_scalar(e->tok) != QY_VOID;
+    if (b)
+        return b->ty && !qsem_model(S, b->ty) ? b->ty : QY_VOID;
+
+    return e->kind == QE_NAME ? qsem_scalar(e->tok) : QY_VOID;
 }
+
+/* Does T[e] name a type, the old spelling of dict[e, T]? */
+static bool qsem_keyed(QSem *const S, const QExpr *const e) { return qsem_typevalue(S, e); }
 
 /* dict[K, V]: K an int, a string or a plain enum. */
 static QType qsem_maptype(QSem *const S, const QTypeEx *const x, const QType val)
@@ -339,16 +390,46 @@ static uint32_t qsem_count(QSem *const S, QExpr *const e)
     return (uint32_t)n->val.i;
 }
 
-/* T[n], count n as written, at at. */
-static QType qsem_arrayof(QSem *const S, const QTok *const at, const QType elem, QExpr *const count)
+bool qsem_dimsfit(QSem *const S, const QTok *const at, const uint32_t n)
 {
-    if (qsem_keyed(S, count)) {
+    if (n <= MAXDIMS)
+        return true;
+
+    qsem_say(S, at, "an array has ", qsem_uint(S, MAXDIMS), " dimensions at most", nullptr);
+    return false;
+}
+
+/* T[n, m], its n dimensions' sizes as written, at at. */
+static QType qsem_sized(
+    QSem *const S,
+    const QTok *const at,
+    const QType elem,
+    QExpr *const *const sizes,
+    const uint32_t n
+)
+{
+    if (n == 1 && qsem_keyed(S, sizes[0])) {
         qsem_say(S, at, "V[K] is written dict[K, V]", nullptr);
         return QY_ERROR;
     }
 
-    const uint32_t n = qsem_count(S, count);
-    return n ? qsem_listof(S, elem, n) : QY_ERROR;
+    if (!qsem_dimsfit(S, at, n))
+        return QY_ERROR;
+
+    uint32_t counts[MAXDIMS];
+    uint64_t elems = 1;
+
+    for (uint32_t k = 0; k < n; k++) {
+        if (!(counts[k] = qsem_count(S, sizes[k])))
+            return QY_ERROR;
+
+        if ((elems *= counts[k]) > INT32_MAX) {
+            qsem_say(S, sizes[k]->tok, "the array is too big", nullptr);
+            return QY_ERROR;
+        }
+    }
+
+    return qsem_shapedof(S, elem, (uint8_t)n, counts, false);
 }
 
 /* Name[x]'s x, a name, as the value it names: an array's count. */
@@ -365,7 +446,7 @@ static QExpr *qsem_countof(QSem *const S, const QTypeEx *const x)
     return e;
 }
 
-/* Name[T, U] as written: a generic record's instance; Name[N] an array, when Name is not
+/* Name[T, U] as written: a generic record's instance; Name[N, M] an array, when Name is not
    generic. */
 static QType qsem_gentyped(QSem *const S, const QTypeEx *const x)
 {
@@ -374,8 +455,15 @@ static QType qsem_gentyped(QSem *const S, const QTypeEx *const x)
 
     if (t == QY_ERROR || qsem_model(S, t))
         return t == QY_ERROR ? t : qsem_given_types(S, t, x->items, x->n, n->tok);
-    if (x->n == 1 && x->items[0]->kind == QX_NAME)
-        return qsem_arrayof(S, x->tok, t, qsem_countof(S, x->items[0]));
+
+    QExpr **const sizes = qast_alloc(S->mem, x->n * sizeof *sizes);
+    uint32_t k = 0;
+
+    for (; k < x->n && x->items[k]->kind == QX_NAME; k++)
+        sizes[k] = qsem_countof(S, x->items[k]);
+
+    if (k == x->n)
+        return qsem_sized(S, x->tok, t, sizes, x->n);
 
     qsem_say(S, n->tok, qsem_text(S, n->tok), " is not generic: it takes no types", nullptr);
     return QY_ERROR;
@@ -428,10 +516,10 @@ QType qsem_type(QSem *const S, const QTypeEx *const x)
 
     if (x->kind == QX_DICT)
         return qsem_maptype(S, x, elem);
-    if (x->kind == QX_LIST)
-        return qsem_listof(S, elem, 0);
+    if (x->kind == QX_DYN || x->kind == QX_LIST)
+        return qsem_arrayof(S, elem, 0, x->kind == QX_LIST);
 
-    return qsem_arrayof(S, x->tok, elem, x->count);
+    return qsem_sized(S, x->tok, elem, x->sizes, x->ndims);
 }
 
 /* ---- constants */

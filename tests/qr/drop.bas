@@ -15,7 +15,7 @@ type Pair
 end type
 
 type Pool
-    items as Res[]
+    items as list[Res]
     first as Res or none
 end type
 
@@ -107,7 +107,7 @@ var w as Res
 w = make("w")
 make("discarded")
 let moved = got
-var list as Res[]
+var list as list[Res]
 list.push(Res("l0"))
 list.push(moved)
 for i in 0..2

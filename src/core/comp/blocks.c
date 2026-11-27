@@ -196,31 +196,72 @@ BlockEnt *blok_find(const Blok *const b, const uint32_t line, const uint32_t at)
 
 const Proc blok_noproc;
 
-/* The last procedure whose first line is at or before pos, 0 none: they are in the program's
-   order, as blok_pair's scan met them. */
-static uint32_t proc_before(const Blok *const b, const uint32_t pos)
+/* bylines made again when procedures were added since: blok_pair's in the program's order, then
+   Quickr's (qr/qlink.c), each module's lines elsewhere in it, and placeholders of no line. Null:
+   no memory, the procedures searched one by one. */
+static void index_lines(Blok *const b)
 {
-    uint32_t lo = 0, hi = b->procs.n;
+    if (b->indexed == b->procs.n)
+        return;
 
-    while (hi - lo > 1) {
+    b->indexed = b->procs.n;
+    b->nbylines = 0;
+    b->bylines = arena_alloc(&b->arena, b->procs.n * sizeof *b->bylines);
+
+    for (uint32_t i = 1; b->bylines && i < b->procs.n; i++) {
+        const uint32_t first = blok_proc(b, i)->first;
+        uint32_t k = b->nbylines++;
+
+        if (!first) {
+            b->nbylines--;
+            continue;
+        }
+
+        for (; k && blok_proc(b, b->bylines[k - 1])->first > first; k--)
+            b->bylines[k] = b->bylines[k - 1];
+
+        b->bylines[k] = i;
+    }
+}
+
+/* The last procedure whose first line is at or before pos, 0 none. */
+static uint32_t proc_before(Blok *const b, const uint32_t pos)
+{
+    index_lines(b);
+    uint32_t best = 0;
+
+    if (!b->bylines) {
+        for (uint32_t i = 1; i < b->procs.n; i++) {
+            const uint32_t first = blok_proc(b, i)->first;
+
+            if (first && first <= pos && first >= blok_proc(b, best)->first)
+                best = i;
+        }
+
+        return best;
+    }
+
+    uint32_t lo = 0, hi = b->nbylines;
+
+    while (lo < hi) {
         const uint32_t mid = (lo + hi) / 2;
 
-        if (blok_proc(b, mid)->first <= pos)
-            lo = mid;
+        if (blok_proc(b, b->bylines[mid])->first <= pos)
+            lo = mid + 1;
         else
             hi = mid;
     }
 
-    return lo;
+    return lo ? b->bylines[lo - 1] : 0;
 }
 
-uint32_t blok_procof(const Blok *const b, const uint32_t line)
+uint32_t blok_procof(Blok *const b, const uint32_t line)
 {
     const uint32_t i = proc_before(b, line);
     return i && line <= blok_proc(b, i)->last ? i : 0;
 }
 
-uint32_t blok_line_before(const Blok *const b, const uint32_t pos)
+uint32_t blok_line_before(Blok *const b, const uint32_t pos)
 {
     const uint32_t i = proc_before(b, pos);
     return i ? blok_proc(b, i)->first : PROGBASE;

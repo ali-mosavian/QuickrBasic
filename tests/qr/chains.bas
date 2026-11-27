@@ -15,10 +15,10 @@ end function
 function twice(x as int) as int
     return x * 2
 end function
-function total(a as int[], f as function(int) as int) as int
+function total(a as list[int], f as function(int) as int) as int
     return a.map(f).sum()
 end function
-function evens(a as int[]) yields int
+function evens(a as list[int]) yields int
     for x in a.filter(fn(x) x mod 2 = 0).rev()
         yield x
     next
@@ -28,7 +28,7 @@ function sums(n as int) yields int
         yield (0..i).sum()
     next
 end function
-var a as int[]
+var a as list[int]
 for i in 0..10
     a.push(i)
 next
@@ -54,7 +54,7 @@ next
 print a.zip(0..3).count(); " "; a.zip(s).map(fn(x, b) x + b).sum()
 let sq = a.map(fn(x) x * x).collect()
 print len(sq); " "; sq[9]
-var names as string[]
+var names as list[string]
 names.push("bo")
 names.push("ann")
 print names.min() or else ""; " "; names.max() or else ""; " "; names.map(fn(n) n + "!").collect()[1]
@@ -81,18 +81,18 @@ for b in "hi"
     print b
 next
 let k = 3
-var xs as int[]
+var xs as list[int]
 for i in 0..5
     xs.push(i)
 next
 print f"{xs.filter(fn(x) x > k).sum()} and {xs.map(fn(x) x * k).max() or else 0}"
 print "n=" + string(xs.sum()); " "; xs.map(fn(x) xs.filter(fn(y) y < x).count()).sum()
 print total(xs, fn(x) x + k); " "; total(xs, twice)
-var words as string[]
+var words as list[string]
 words.push("x")
 words.push("yy")
 print "w: " + (words.map(fn(w) w + w).max() or else "") + "!"
-var a3 as int[]
+var a3 as list[int]
 for i in 0..7
     a3.push(i)
 next

@@ -21,6 +21,8 @@ enum : uint8_t {
     DF_ATN,
     DF_LOG,
     DF_EXP,
+    DF_CEIL,  /* math's: -INT(-x) */
+    DF_ROUND, /* math's: INT(x + 0.5) */
 };
 
 /* D.CMP's mask: the relations that give -1. */
@@ -65,6 +67,8 @@ void dubl_tof(Session *S);   /* D.TOF ( d -- f ) rounded; infinity past the rang
 void dubl_toi(Session *S);   /* D.TOI ( d -- i ) a half to even; ?OVERFLOW past an INT */
 void dubl_fn(Session *S); /* D.FN k ( d -- d ) DF_*; ?ILLEGAL QUANTITY as fmth's, SQR under 0 NaN */
 void dubl_pow(Session *S);   /* D.POW ( a b -- a^b ) as fmth_pow */
+void dubl_atan2(Session *S); /* X D.ATAN2 ( y x -- r ): math's, by ATN */
+void dubl_lerp(Session *S);  /* X D.LERP ( a b t -- a + (b - a) * t ) */
 void dubl_print(Session *S); /* DPR ( d -- ) as PRINT, a space after */
 void dubl_str(Session *S);   /* DSTR ( d -- s ) STR$ */
 #endif

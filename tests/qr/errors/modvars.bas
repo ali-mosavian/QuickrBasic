@@ -6,7 +6,7 @@ type Point
     x as int
 end type
 var pt = Point(x: 1)
-var items as int[]
+var items as list[int]
 function bump(n as int)
     count += 1
 end function
@@ -16,7 +16,7 @@ end function
 function grow(mut p as Point)
     pt.x += 1
 end function
-function add(xs as int[])
+function add(xs as list[int])
     items.push(1)
 end function
 grow(pt)

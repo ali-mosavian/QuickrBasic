@@ -58,7 +58,23 @@ check 'quickr' "$(printf '5 1\n5')" \
     'print gfx.surface.point(canvas, 2, 2); " "; display.draws()' \
     'print gfx.surface.point(canvas, 3, 2)'
 
-# pixels() AS BYTE: a ubyte list, and to a native a fixed ubyte array, a record's too
+# a record array to a native: corners() AS Vec2 takes a Quickr Vec2[4]; its elements were singles
+check 'quickr quad of Vec2' '5 0 2' \
+    "option dialect quickr" \
+    'from gfx import display, surface, draw' \
+    'from gfx.draw import Vec2' \
+    'let c = display.open(8, 8, 8, 0)' \
+    'let s = surface.new(4, 4)' \
+    'draw.rect(s, 0, 0, 3, 3, 5, 4)' \
+    'var p as Vec2[4]' \
+    'p[1].x = 6' \
+    'p[2].x = 6' \
+    'p[2].y = 6' \
+    'p[3].y = 6' \
+    'draw.quad(c, p, 0, s, 0)' \
+    'print surface.point(c, 3, 3); " "; surface.point(c, 7, 7); " "; display.draws()'
+
+# pixels() AS BYTE: a ubyte[], and to a native a fixed ubyte array, a record's too
 check 'quickr pixels' "$(printf '7 7 9 200')" \
     "option dialect quickr" \
     'from gfx import surface' \
@@ -69,10 +85,7 @@ check 'quickr pixels' "$(printf '7 7 9 200')" \
     'var px as ubyte[4]' \
     'px[3] = 7' \
     'surface.write(s, 0, 0, 2, 2, px)' \
-    'var back as ubyte[]' \
-    'for i in 0..4' \
-    '    back.push(0)' \
-    'next' \
+    'var back = ubyte[4]' \
     'surface.read(s, 0, 0, 2, 2, back)' \
     'back[0] = 9' \
     'back[1] = 200' \

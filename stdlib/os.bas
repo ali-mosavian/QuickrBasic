@@ -10,8 +10,8 @@ native function exit()
 native function run(cmd as string)
 
 ' the words after the program's name on its command line
-function args() as string[]
-    var words as string[]
+function args() as list[string]
+    var words as list[string]
     for w in text.split(command(), " ")
         if len(w) > 0 then words.push(w)
     next

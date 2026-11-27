@@ -1,12 +1,12 @@
-nested.bas:46:12: an int[][] copied
+nested.bas:46:12: a list[list[int]] copied
   var copy = grid
              ^
 nested.bas:67:9: a Board copied
   var c = b
           ^
-nested.bas:87:14: an int[] copied
+nested.bas:87:14: a list[int] copied
   d["a"] = grid[0]
                ^
-nested.bas:95:10: a dict[string, int[]] copied
+nested.bas:95:10: a dict[string, list[int]] copied
   var d2 = d
            ^
