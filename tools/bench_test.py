@@ -74,6 +74,27 @@ def profile_map_slice() -> None:
     assert at.get("_slice_fill8_tinted") == base + off["_fill8_tinted"], at.get("_slice_fill8_tinted")
 
 
+def profile_map_all_static() -> None:
+    """A module with no global function has its statics named too, its code after the module before it: gfx's GPU
+    backend.c, all static, read as atlas_unpack, 177k of a 486 frame. Checked against the module after it."""
+    backend = bench.ROOT / "build/c/gfx/stdlib/gfx/src/backend/gpu/backend.obj"
+    off = {n: o for o, k, n in bench.nm(backend)}
+    with tempfile.TemporaryDirectory() as d:
+        b = bench.build(".", True)
+        listing = bench.profiled(b, Path(d)).with_suffix(".map").read_text()
+        order = [o.resolve() for o in bench.gfx_objects(b)]
+        ours = (Path(d) / "slice" / f"{order.index(backend.resolve())}_backend.obj").resolve()
+        at = {n: int(a, 16) for a, n in re.findall(r"^0001:([0-9a-f]{8})\*?\s+(\S+)$", listing, re.M)}
+        mods = re.split(r"(?m)^Module: ", listing)
+        i = next(k for k, m in enumerate(mods) if m.startswith(f"{ours}("))
+        after = next(m for m in mods[i + 1 :] if re.search(r"(?m)^0001:", m))
+        name = re.search(r"(?m)^0001:[0-9a-f]{8}\*?\s+(\S+)$", after)[1]
+        next_base = at[name] - {n: o for o, k, n in bench.nm(Path(re.match(r"(.*?)\(", after)[1]))}[name]
+    size = bench.sections(backend)["code"]
+    assert "_slice_aim" in at, "the GPU backend's statics unnamed"
+    assert at["_slice_aim"] - off["_aim"] + size == next_base, (at["_slice_aim"], next_base)
+
+
 # Counters that fail, as on the CI VMs: the first symbol found wins over the system's.
 BROKEN = """
 #include <stddef.h>
@@ -482,6 +503,7 @@ def main() -> int:
         assert bench.image(exe) > 100_000 and bench.image(exe) != exe.stat().st_size, bench.image(exe)
         profile_map()
         profile_map_slice()
+        profile_map_all_static()
     print("ok")
     return 0
 

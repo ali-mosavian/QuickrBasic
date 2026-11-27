@@ -537,19 +537,27 @@ def nm(o: Path) -> list[tuple[int, str, str]]:
     return [(int(f[0], 16), f[1], f[2]) for f in (ln.split() for ln in out.splitlines()) if len(f) == 3]
 
 
+CODE_ALIGN = 16  # a module's code's alignment in a link
+
+
 def with_statics(listing: str, objs: list[Path]) -> str:
     """The link map, each module's static functions added: the map lists globals alone, so the
     profiler counted a static's instructions under the global before it. A static's address is its
-    module's code base, from a global the map and the object both place, plus its offset."""
+    module's code base, from a global the map and the object both place, plus its offset; a module
+    with no global function's, the module before it's end, aligned as the linker lays code."""
     lines = listing.splitlines()
     by_path = {str(o.resolve()): o for o in objs}  # the map's paths are resolved
     out: list[str] = []
+    end: int | None = None  # the last module's code's end: None, unknown
     i = 0
     while i < len(lines):
         out.append(lines[i])
         m = re.match(r"Module: (.*?)\(", lines[i])
         i += 1
-        if not m or m[1] not in by_path:
+        if not m:
+            continue
+        if m[1] not in by_path:
+            end = None
             continue
         placed: dict[str, int] = {}
         while i < len(lines) and re.match(r"[0-9a-f]{4}:", lines[i]):
@@ -560,9 +568,10 @@ def with_statics(listing: str, objs: list[Path]) -> str:
             i += 1
         syms = nm(by_path[m[1]])
         bases = {placed[n] - off for off, k, n in syms if k == "T" and n in placed}
-        if len(bases) == 1:
-            base = bases.pop()
+        base = bases.pop() if len(bases) == 1 else None if bases or end is None else -(-end // CODE_ALIGN) * CODE_ALIGN
+        if base is not None:
             out += [f"0001:{base + off:08x}  {n}" for off, k, n in syms if k == "t"]
+        end = None if base is None else base + sections(by_path[m[1]])["code"]
     return "\n".join(out) + "\n"
 
 
