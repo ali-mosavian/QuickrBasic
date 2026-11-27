@@ -337,7 +337,7 @@ static uint16_t qr_read_at(
     S->prog.add_src = 0;
     S->prog.add_file = 0;
     S->prog.add_at = 0;
-    arena_reset(&m.arena);
+    arena_free(&m.arena);
     return e;
 }
 
@@ -858,7 +858,7 @@ uint32_t qr_build(Session *const S)
         qlink_program(&S->comp, &p, &m, ex, S->dbug.emit);
     }
 
-    arena_reset(&m.arena);
+    arena_free(&m.arena);
     return p.errs.n;
 }
 
@@ -1084,7 +1084,7 @@ void qr_open(Session *const S)
     qr_enter(&(QrLoad){S, &p, &m, .stored = true});
 
     qr_stages(S, &p, &m, true);
-    arena_reset(&m.arena);
+    arena_free(&m.arena);
 }
 
 /* The run's end past the main's last line: an empty line of the run's own, p->end. */
@@ -1096,7 +1096,7 @@ static void qr_end(Session *const S, QProg *const p, QMem *const m)
 
 void qr_forget(QrKeep *const k)
 {
-    arena_reset(&k->mem.arena);
+    arena_free(&k->mem.arena);
     qrt_sorts_free(&k->sorts);
     k->prog = nullptr;
     k->said[0] = 0;
@@ -1114,7 +1114,7 @@ static void qr_finds(Session *const S, const uint32_t k, const uint16_t file, co
 
     qr_gather(S, &p, &m, file, path);
     qr_imports(&(const QrLoad){S, &p, &m, .find = true, .from = k}, 0); /* errors: the check's */
-    arena_reset(&m.arena);
+    arena_free(&m.arena);
 }
 
 void qr_guest_find(Session *const S, const uint32_t m)
@@ -1327,7 +1327,7 @@ static Exports qr_exported(const QProg *const p, const uint32_t k, QMem *const m
 static void qr_guest_forget(QrGuests *const g)
 {
     if (g->prog)
-        arena_reset(&g->mem.arena);
+        arena_free(&g->mem.arena);
 
     g->prog = nullptr;
 }
@@ -1711,7 +1711,7 @@ void qr_direct_code(Session *const S, const uint32_t rec)
     p->src = src;
     p->tys = tys;
     p->errs = errs;
-    arena_reset(&m.arena);
+    arena_free(&m.arena);
 
     if (!ok)
         fault_error(&S->fault, E_SN);
@@ -1739,7 +1739,7 @@ bool qr_syntax(Session *const S, const uint32_t rec, DialErr *const e)
             found = true;
         }
 
-    arena_reset(&m.arena);
+    arena_free(&m.arena);
     return found;
 }
 
@@ -1765,7 +1765,7 @@ void qr_flag(Session *const S)
                 prog_line(&S->prog, p.src.lines[p.errs.at[i].line].at)->flags |= LF_ASIS;
     }
 
-    arena_reset(&m.arena);
+    arena_free(&m.arena);
 }
 
 bool qr_namec(const char c) { return is_letter((uint8_t)c) || is_digit((uint8_t)c) || c == '_'; }
@@ -1862,7 +1862,7 @@ uint32_t qr_tokens(
         end = toks[i].col + toks[i].len;
     }
 
-    arena_reset(&m.arena);
+    arena_free(&m.arena);
 
     while (end < len && text[end] != '\'')
         end++;

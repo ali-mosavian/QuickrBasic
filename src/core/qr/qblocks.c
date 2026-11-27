@@ -129,6 +129,6 @@ uint32_t qr_blocks(Fault *const f, const char *const text, const uint32_t len, D
     if (fn < n)
         k = qr_add(ev, k, qr_lambda, &toks[fn], &toks[fn]);
 
-    arena_reset(&m.arena);
+    arena_free(&m.arena);
     return k;
 }
