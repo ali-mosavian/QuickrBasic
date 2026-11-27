@@ -1427,6 +1427,7 @@ def demo_program(name: str, seconds: float, vsync: bool, edits: int, *, frames: 
 HL86 = Path(os.environ.get("HL86_DIR", Path.home() / "work/other/86box-headless"))
 HL86_VMS = Path(os.environ.get("HL86_VMS", HL86.parent / "86box-headless-vms"))
 HL86_ROMS = Path(os.environ.get("HL86_ROMS", Path.home() / "Library/Application Support/86Box/roms"))
+SHOW_86BOX = Path(os.environ.get("SHOW_86BOX", "/Applications/86Box.app"))  # with its window, for the eye
 MACHINES = {"486": "qb-486", "p5": "qb-p100", "p6": "qb-ppro200"}
 # each 3D card's driver, its DLL's name: the drivers share code, so the profiler looks for the card's alone
 CARD_DRIVERS = {"voodoo1": "voodoo1", "voodoo2": "voodoo2", "banshee": "voodoo3", "voodoo3": "voodoo3"}
@@ -1709,6 +1710,27 @@ def vm_waited(c, text: str, timeout: float) -> None:  # noqa: ANN001
             c.sleep(100)
 
 
+def vm_autorun(image: Path, bat: Path) -> bytes:
+    """bat run, as RUN.BAT, once image boots: the AUTOEXEC.BAT it had, to put back."""
+    hl86 = hl86_module()
+    was = hl86.dos_get(image, "AUTOEXEC.BAT")
+    auto = bat.with_name("AUTOEXEC.BAT")
+    auto.write_bytes(b"@ECHO OFF\r\nPATH C:\\DOS\r\nC:\\RUN.BAT\r\n")
+    hl86.dos_put(image, bat, "RUN.BAT")
+    hl86.dos_put(image, auto, "AUTOEXEC.BAT")
+    return was
+
+
+def vm_shown(vm: str, com: Path, job: tuple, files: dict[str, bytes]) -> None:
+    """Program com's job on a copy of 86Box's VM vm, in 86Box's own window: the copy in a directory left to it."""
+    d = Path(tempfile.mkdtemp(prefix="qb-show-"))
+    shutil.copytree(HL86_VMS / vm, d / vm)
+    image = d / vm / "c.img"
+    vm_autorun(image, vm_stage(image, d, com, job, files, "ECHO QB-DONE"))
+    subprocess.run(["open", "-n", "-a", SHOW_86BOX, "--args", "-P", d / vm, "-R", HL86_ROMS], check=True)
+    print(f"{vm} in 86Box's window, from {d}")
+
+
 def vm_samples(
     vm: str, exe: Path, job: tuple, files: dict[str, bytes], late: float = 0.0, realtime: bool = False,
     images: tuple[tuple[bytes, list[tuple[int, str]]], ...] = (),
@@ -1719,12 +1741,8 @@ def vm_samples(
     hl86 = hl86_module()
     image = HL86_VMS / vm / "c.img"
     with tempfile.TemporaryDirectory() as d:
-        bat = vm_stage(image, Path(d), exe, job, files, "ECHO QB-DONE")
-        orig = hl86.dos_get(image, "AUTOEXEC.BAT")
+        orig = vm_autorun(image, vm_stage(image, Path(d), exe, job, files, "ECHO QB-DONE"))
         auto = Path(d) / "AUTOEXEC.BAT"
-        auto.write_bytes(b"@ECHO OFF\r\nPATH C:\\DOS\r\nC:\\RUN.BAT\r\n")
-        hl86.dos_put(image, bat, "RUN.BAT")
-        hl86.dos_put(image, auto, "AUTOEXEC.BAT")
         sock = Path(d) / "s"
         proc = hl86.launch(HL86 / "build/src/86Box-headless", image.parent, HL86_ROMS, sock, unthrottled=not realtime)
         try:
@@ -1974,6 +1992,10 @@ def cmd_games(a: argparse.Namespace) -> int:
     pages = {"lib/gfx.qbx": (b.dos.parent / "lib/gfx.qbx").read_bytes()}
     jobs = game_jobs()
     libs = {"pages": pages, a.card or "voodoo2": pages | drivers_of(b) | (driver_maps(b) if a.dosbox else {})}
+    if a.show:
+        job, files, _ = jobs[(a.game or ["MEADOW16"])[0]]
+        vm_shown(card_vm(a.card, a.machine), b.dos, job(a.seconds), files | libs[a.card])
+        return 0
     if a.profile:
         images = () if a.dosbox else driver_images(b, a.card)  # with the drivers run: a later build's misnamed them
         with tempfile.TemporaryDirectory() as d:
@@ -2288,6 +2310,8 @@ def main() -> int:
                    help="all when none")
     p.add_argument("--seconds", type=float, default=10, help="PLASMA's and CHARLIE's")
     p.add_argument("--set", action="append", metavar="NAME=VALUE", help="in DOS's environment")
+    p.add_argument("--show", action="store_true", help="--card: --game's first (MEADOW16 when none), --seconds "
+                   "long, in 86Box's own window")
     p.add_argument("--profile", action="store_true", help="by function a frame, in pages and by the card")
     p.add_argument("--dosbox", action="store_true", help="--profile: on our DOSBox-X instead, its card a Voodoo 2")
     p.add_argument("--cycles", type=int, default=25000, help="--dosbox: DOSBox's cycles a virtual ms")
