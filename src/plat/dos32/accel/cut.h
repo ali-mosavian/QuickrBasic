@@ -26,7 +26,7 @@ typedef struct {
 /* A piece, in the tile at column and row: n corners round, a convex polygon, s and t the tile's. */
 typedef void CutPiece(void *ctx, uint32_t column, uint32_t row, const AccelVertex *v, uint32_t n);
 
-/* Triangle v's pieces to piece: the triangle itself when it lies in one tile and wraps in none.
-   Each corner's q is above 0. */
+/* Triangle v's pieces to piece: the triangle itself when it lies in one tile and its texels in one
+   period of each wrap. Each corner's q is above 0. */
 void cut_triangle(const CutGrid *g, const AccelVertex v[3], CutPiece *piece, void *ctx);
 #endif

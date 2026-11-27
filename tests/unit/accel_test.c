@@ -142,6 +142,33 @@ TEST(accel_cut_moves_each_period_of_a_wrap_into_the_first)
             CHECK(cut.v[k][i].s > 4 - 1e-3f && cut.v[k][i].s < 12 + 1e-3f);
 }
 
+/* MEADOW's sky: a texture 4 wide, a tile of 8 for the card's aspect, its wrap the player's. A
+   triangle whose texels stay in one period is drawn as it is, its texels exact: cut, each corner's
+   went through s q / q, 1.7 coming back 1.7000002, and the sky cost 35k cycles of a 486 frame. */
+TEST(accel_cut_leaves_a_wrap_in_one_period_whole)
+{
+    const CutGrid g = {
+        .tile_w = 8,
+        .tile_h = 64,
+        .across = 1,
+        .down = 1,
+        .wrap_s = true,
+        .wrap_t = true,
+        .wrap = {0, 0, 4, 64},
+    };
+
+    const AccelVertex v[3] = {
+        {0, 0, 0, 0.7f, 1.7f, 0, 0xFFFFFFFF},
+        {24, 0, 0, 0.7f, 4, 0, 0xFFFFFFFF},
+        {0, 8, 0, 0.7f, 1.7f, 64, 0xFFFFFFFF},
+    };
+
+    cut = (typeof(cut)){};
+
+    cut_triangle(&g, v, collected, nullptr);
+    CHECK(cut.n == 1 && cut.corners[0] == 3 && !memcmp(cut.v[0], v, sizeof v));
+}
+
 /* ---- the player against a driver that records its calls (player.c) ---- */
 
 enum { SCREEN_W = 320, SCREEN_H = 200, SLOTS = 8, TILE = 256 * 32, CALLS = 256 };

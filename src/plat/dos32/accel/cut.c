@@ -204,6 +204,20 @@ static void stepped(
     }
 }
 
+/* Whether v's texels along axis lie from `from` to from + size: in one period, a wrap's none to cut.
+   Its corners' bound the triangle's, in perspective too. */
+static bool within(const AccelVertex v[3], const uint32_t axis, const float from, const float size)
+{
+    for (uint32_t i = 0; i < 3; i++) {
+        const float f = axis == S ? v[i].s : v[i].t;
+
+        if (f < from || f > from + size)
+            return false;
+    }
+
+    return true;
+}
+
 void cut_triangle(
     const CutGrid *const g,
     const AccelVertex v[3],
@@ -211,12 +225,17 @@ void cut_triangle(
     void *const ctx
 )
 {
-    if (!g->wrap_s && !g->wrap_t && g->across == 1 && g->down == 1) {
+    CutGrid k = *g;
+
+    k.wrap_s = g->wrap_s && !within(v, S, (float)g->wrap.x, (float)g->wrap.w);
+    k.wrap_t = g->wrap_t && !within(v, T, (float)g->wrap.y, (float)g->wrap.h);
+
+    if (!k.wrap_s && !k.wrap_t && g->across == 1 && g->down == 1) {
         piece(ctx, 0, 0, v, 3);
         return;
     }
 
-    const Cut c = {g, piece, ctx};
+    const Cut c = {&k, piece, ctx};
 
     const Poly p = {{corner(&v[0]), corner(&v[1]), corner(&v[2])}, 3};
 
