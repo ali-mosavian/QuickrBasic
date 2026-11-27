@@ -22,3 +22,9 @@ native.bas:12:17: abs takes numbers in abs[string]
 native.bas:13:1: a native function yields nothing
   native function sin() yields int
   ^
+native.bas:14:17: file_read_into takes numbers
+  native function file_read_into(n as int, mut a as string[]) as int
+                  ^
+native.bas:14:46: this native function takes an array of numbers
+  native function file_read_into(n as int, mut a as string[]) as int
+                                               ^

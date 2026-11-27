@@ -261,6 +261,9 @@ void chai_chain(Session *const S)
     session_drop(S);
     link_start(&S->comp);
 
+    if (S->repl.batch)
+        link_final(&S->comp);
+
     if (!prog_line(&S->prog, PROGBASE)->len)
         flow_end(S);
 

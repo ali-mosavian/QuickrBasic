@@ -494,5 +494,5 @@ void qr_suggest(
             qr_fields(&g, file, text + b, e - b, false);
     }
 
-    arena_reset(&m.arena);
+    arena_free(&m.arena);
 }

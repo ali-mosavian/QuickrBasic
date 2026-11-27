@@ -18,5 +18,6 @@ void *arena_alloc(Arena *a, size_t size); /* zeroed, aligned for any object; nul
 /* old's size bytes as newsize (larger), the new ones zeroed: in place when old is the last
    allocation and there is room, else a copy. Null: no memory left, old kept. */
 void *arena_grow(Arena *a, void *old, size_t size, size_t newsize);
-void arena_reset(Arena *a); /* every allocation freed */
+void arena_reset(Arena *a); /* every allocation freed, the blocks kept */
+void arena_free(Arena *a);  /* every block given back */
 #endif

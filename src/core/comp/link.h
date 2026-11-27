@@ -43,14 +43,17 @@ typedef struct Link {
 
 /* A QBasic program's Quickr modules (qr/qr.c), linked in its link: their procedures and
    variables made, QBasic's made; their lines compiled into the cache from link.end; their lines
-   resolved, every frame laid out. */
+   resolved, every frame laid out. Done: what they kept for the link given back. */
 typedef struct LinkGuest LinkGuest;
 struct LinkGuest {
     void (*made)(LinkGuest *g, Comp *C);
     void (*lines)(LinkGuest *g, Comp *C);
     void (*resolve)(LinkGuest *g, Comp *C);
+    void (*done)(LinkGuest *g);
 };
 void link_start(Comp *C); /* cm_link: before a run: blocks paired, every line compiled */
+/* A batch run's, linked: the guest's done, none after; nothing links again till a load. */
+void link_final(Comp *C);
 typedef void LinkEach(void *ctx, const Failure *f);
 /* link_start's work, unlinked: each compile error, then each label not found, to each, raising none
    (a block's pairing still raises its first); how many. */

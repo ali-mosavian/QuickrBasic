@@ -1606,6 +1606,22 @@ static void qrt_fread(Session *const S)
     exec_pusha(&S->vm, strg_new(&S->strg, chars, (uint16_t)got));
 }
 
+/* QX.FINTO ( n 0 cell et -- count ): the elements' bytes as they lie in memory, from the file's
+   place; the whole elements read, fewer at its end. */
+static void qrt_finto(Session *const S)
+{
+    const uint32_t et = exec_pop(&S->vm).u;
+    const Addr cell = exec_popa(&S->vm);
+    exec_pop(&S->vm); /* the reference's 0 */
+    Chan *const c = qrt_chan(S, exec_popi(&S->vm));
+    Addr data;
+    const uint32_t n = qrt_len(cell, &data);
+    const uint32_t size = arry_et_size(&S->decl, et);
+    uint32_t got = 0;
+    const Status st = n ? chnl_read(c, at(data), n * size, &got) : ST_OK;
+    exec_pushi(&S->vm, st == ST_OK ? (int32_t)(got / size) : qrt_failed(st));
+}
+
 /* QX.FWRITE ( n s -- st ). */
 static void qrt_fwrite(Session *const S)
 {
@@ -1729,6 +1745,10 @@ static void qrt_file(Session *const S, const QrtX op)
 
     case QX_FREAD:
         qrt_fread(S);
+        return;
+
+    case QX_FINTO:
+        qrt_finto(S);
         return;
 
     case QX_FWRITE:
@@ -1960,6 +1980,7 @@ void qrt_x(Session *const S)
 
     case QX_FOPEN:
     case QX_FREAD:
+    case QX_FINTO:
     case QX_FWRITE:
     case QX_FSEEK:
     case QX_FSIZE:

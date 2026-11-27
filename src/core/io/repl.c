@@ -615,6 +615,7 @@ static void run_qbasic(Session *const S)
 
     link_start(&S->comp);
     link_empties(&S->comp, warn_empty, S);
+    link_final(&S->comp);
     stmt_runfirst(S);
     exec_run(S);
 }

@@ -2,8 +2,9 @@
  *
  * # How it works
  * Blocks come from pmem_resize. An allocation is zeroed and aligned for any object, and lives until
- * the arena is reset, all at once; the blocks are kept for the next use. arena_grow extends the
- * last allocation in place when there is room, else copies. Not the BASIC arena (base.h), which a
+ * the arena is reset, all at once; the blocks are kept for the next use, till arena_free gives them
+ * back: an arena gone out of scope unfreed loses them. arena_grow extends the last allocation in
+ * place when there is room, else copies. Not the BASIC arena (base.h), which a
  * program sees.
  */
 #include "util/arena.h"
@@ -89,4 +90,14 @@ void arena_reset(Arena *const a)
 {
     a->cur = a->first;
     a->top = a->first ? a->first->mem : nullptr;
+}
+
+void arena_free(Arena *const a)
+{
+    for (ArenaBlock *b = a->first, *next; b; b = next) {
+        next = b->next;
+        pmem_free(b);
+    }
+
+    arena_init(a, a->chunk);
 }

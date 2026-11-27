@@ -27,6 +27,7 @@ function closed(path as string) as bool or Error
 end function
 print unclosed("libfs.drp") or else false; " "; fs.read_text("libfs.drp") or else ""
 print closed("libfs.drp") or else false; " "; fs.read_text("libfs.drp") or else ""
+' sorted: the directory's order was Linux's, LIBFS.DRP first
 let names = fs.list("libfs.*")
 print len(names); " "; text.upper(names[0])
 let bad = File.open("x.txt", "q")

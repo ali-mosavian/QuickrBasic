@@ -7,6 +7,7 @@
 #include "plat/pkey.h"
 #include "plat/pmem.h"
 #include "session.h"
+#include "mem/alloc.h"
 #include "comp/suggest.h"
 #include "qr/qr.h"
 #include "ui/debuglocals.h"
@@ -194,6 +195,33 @@ TEST(qride_runs_modules_first)
         S->cons.sblen > 0 &&
         strstr((const char *)S->cons.sbuf, "util") < strstr((const char *)S->cons.sbuf, "4")
     );
+    fx_done(S, files);
+}
+
+/* Each F5 of a Quickr program took more memory, about the size of its tree: the tree before's
+   blocks, and those of each module read, were never given back. */
+TEST(qride_runs_again_in_the_same_memory)
+{
+    open_quickr(S);
+    captured(S, uimn_run);
+    captured(S, uimn_run);
+    const uint32_t left = allo_free(&S->allo);
+    captured(S, uimn_run);
+    captured(S, uimn_run);
+    CHECK(allo_free(&S->allo) == left);
+    fx_done(S, files);
+}
+
+/* Each open of a Quickr program took more memory, a block a line: each line's scan for its
+   blocks' words lost its arena's. Importing HIGHVALE's modules cost twice their trees. */
+TEST(qride_opens_again_in_the_same_memory)
+{
+    open_quickr(S);
+    uimn_open(S, fx_path_of("main.bas"));
+    const uint32_t left = allo_free(&S->allo);
+    uimn_open(S, fx_path_of("main.bas"));
+    uimn_open(S, fx_path_of("main.bas"));
+    CHECK(allo_free(&S->allo) == left);
     fx_done(S, files);
 }
 
@@ -662,6 +690,41 @@ static const char blocks[] = DIALECT "function f(x as int) as int\n"
                                      "end type\n"
                                      "let total = f(1)\n"
                                      "print total\n";
+
+/* Each completion of a Quickr line took more memory: its parse's arena was never given back. */
+TEST(qride_completes_in_the_same_memory)
+{
+    fx_open_program(S, "");
+    fx_write_file("main.bas", blocks);
+    uimn_open(S, fx_path_of("main.bas"));
+    first(S, "        print i", "        ");
+    const uint32_t left = allo_free(&S->allo);
+    first(S, "        print i", "        ");
+    first(S, "        print i", "        ");
+    CHECK(allo_free(&S->allo) == left);
+    fx_done(S, files);
+}
+
+/* Each draw with the cursor on a Quickr block's word took more memory: each line's scan for its
+   block words lost its arena's. */
+TEST(qride_lights_a_block_in_the_same_memory)
+{
+    fx_open_program(S, "");
+    fx_write_file("main.bas", blocks);
+    uimn_open(S, fx_path_of("main.bas"));
+    uint32_t left = 0;
+
+    for (uint32_t i = 0; i < 3; i++) {
+        fx_cursor_on(S, "    for i in 0..9", "for");
+        fx_shown(S);
+        fx_cursor_on(S, "    next", "next");
+        fx_shown(S);
+        CHECK(!i || allo_free(&S->allo) == left);
+        left = allo_free(&S->allo);
+    }
+
+    fx_done(S, files);
+}
 
 /* A Quickr line's completion knew no open block: in a for it offered for first, not next, and
    a for just taken outranked a closer; in an if, no else; end was not first in a function. */

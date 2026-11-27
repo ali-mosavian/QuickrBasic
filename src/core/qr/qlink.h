@@ -8,14 +8,21 @@ struct Exports;
 
 /* Checked program p made ready to run: its fns procedures, its variables the symbol table's, each
    line compiled into the code cache, the frames laid out, the jumps resolved. ex: the exports of
-   the modules QBasic calls (QMod.called), by number. dbg: a DBG op before each statement. */
-void qlink_program(Comp *C, QProg *p, QMem *m, const struct Exports *ex, bool dbg);
+   the modules QBasic calls (QMod.called), by number; lits, the run's arena, given the texts of
+   their consts QBasic loads. dbg: a DBG op before each statement. */
+void qlink_program(Comp *C, QProg *p, QMem *m, const struct Exports *ex, Arena *lits, bool dbg);
 /* A QBasic program's Quickr modules (p->guest), linked in its link (comp/link.h LinkGuest): their
    records' TYPEs, when declared; their procedures and variables, each line's statement to the
-   result, ex as qlink_program's; their lines compiled into the cache from link.end; their lines
-   resolved, every frame laid out. */
+   result, ex as qlink_program's, the consts' texts QBasic loads in lits; their lines compiled into
+   the cache from link.end; their lines resolved, every frame laid out. */
 void qlink_guest_types(Comp *C, const QProg *p, QMem *m);
-const QStmt *const *qlink_guest_made(Comp *C, const QProg *p, QMem *m, const struct Exports *ex);
+const QStmt *const *qlink_guest_made(
+    Comp *C,
+    const QProg *p,
+    QMem *m,
+    const struct Exports *ex,
+    Arena *lits
+);
 void qlink_guest_lines(Comp *C, const QProg *p, QMem *m, const QStmt *const *of, bool dbg);
 void qlink_guest_resolve(Comp *C, const QProg *p);
 /* Probe statement s (qsem_probe's) as the direct line's code, comp's: its variables from from on
