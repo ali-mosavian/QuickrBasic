@@ -15,6 +15,6 @@ function real(a as double, b as double) as double
     return a + (b - a) * unit()
 end function
 
-function pick[T](xs as T[]) as T
+function pick[T](xs as list[T]) as T
     return xs[below(len(xs))]
 end function

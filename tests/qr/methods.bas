@@ -26,8 +26,8 @@ type Vec
         return self.x + self.y
     end fn
 
-    fn map[U](self, f as function(double) as U) as U[]
-        var out as U[]
+    fn map[U](self, f as function(double) as U) as list[U]
+        var out as list[U]
         out.push(f(self.x))
         out.push(f(self.y))
         return out
@@ -75,7 +75,7 @@ type Button
 end type
 
 ' a.count() is the chain's, never this
-function count(xs as Vec[]) as int
+function count(xs as list[Vec]) as int
     return 99
 end function
 
@@ -83,7 +83,7 @@ function twice(n as int) as int
     return n * 2
 end function
 
-function total[T](xs as T[]) as double
+function total[T](xs as list[T]) as double
     var t = 0.0
     for x in xs
         t += x.area()
@@ -98,7 +98,7 @@ v.scale()
 print v.x; " "; v.y
 let p = Vec.polar(2, 3)
 print p.x; " "; p.y; " "; Vec(6, 8).unit().y
-var vs as Vec[]
+var vs as list[Vec]
 vs.push(Vec(5, 12))
 vs.push(Vec(0, 1))
 print vs[0].length(); " "; vs.map(Vec.length).sum(); " "; vs.count()
@@ -110,7 +110,7 @@ let f = Vec.unit
 print f(Vec(0, 9)).y
 let s = Shape.rect(2, 5)
 print s.area(); " "; Shape.circle(1).area(); " "; Shape.dot.area()
-var shapes as Shape[]
+var shapes as list[Shape]
 shapes.push(s)
 shapes.push(Shape.circle(2))
 print total(shapes); " "; Mode.run.speed(); " "; Mode.walk.speed()

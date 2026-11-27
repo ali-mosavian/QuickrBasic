@@ -175,7 +175,7 @@ static void qsem_fieldtype(QSem *const S, const QType t, QField *const f)
                             : ft;
 
     if (qast_record(S->prog, inner) &&
-        (!qast_compound(ft) || qast_ty(S->prog, ft)->kind != QT_LIST)) {
+        (!qast_compound(ft) || qast_ty(S->prog, ft)->kind != QT_DYN)) {
         qsem_typed(S, inner);
 
         if (qast_ty(S->prog, inner)->state == 1) {
@@ -402,7 +402,7 @@ static bool qsem_holds_ty(QSem *const S, const QType t, const QType of)
     if (y->seen)
         return false;
 
-    const bool list = y->kind == QT_LIST || y->kind == QT_ARRAY;
+    const bool list = y->kind == QT_DYN || y->kind == QT_ARRAY;
     const bool wrap = y->kind == QT_OPT || y->kind == QT_RES;
     const uint32_t n = list || wrap ? 1 : y->kind == QT_REC || y->kind == QT_TUPLE ? y->nfields : 0;
     bool any = false;

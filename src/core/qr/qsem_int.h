@@ -159,7 +159,18 @@ uint32_t qsem_at(const QSem *S, const QTok *t);
 QType qsem_scalar(const QTok *t);
 bool qsem_owns(const QSem *S, QType t);
 QType qsem_newty(QSem *S, QTyKind kind);
-QType qsem_listof(QSem *S, QType elem, uint32_t count);
+/* elem's array of dims dimensions, counts each one's, null a dynamic one: list[elem] when it grows;
+   interned. */
+QType qsem_shapedof(QSem *S, QType elem, uint8_t dims, const uint32_t *counts, bool grows);
+/* Can an array at at have n dimensions? Else it says why. */
+bool qsem_dimsfit(QSem *S, const QTok *at, uint32_t n);
+/* Does a T[] parameter of type param take an array of type t, another, by its descriptor: a
+   T[n, m] of its elements? */
+bool qsem_lendable(const QSem *S, QType t, QType param);
+/* elem's array of count, 0 a dynamic one, of one dimension: qsem_shapedof's. */
+QType qsem_arrayof(QSem *S, QType elem, uint32_t count, bool grows);
+/* The type e names where a value is written: Name, m.Name, int, Name[T]; QY_VOID none. */
+QType qsem_typevalue(QSem *S, const QExpr *e);
 QType qsem_tupleof(QSem *S, const QType *items, uint32_t n);
 QType qsem_wrapof(QSem *S, QTyKind kind, QType val);
 QType qsem_fnof(QSem *S, const QType *params, uint32_t n, QType result);

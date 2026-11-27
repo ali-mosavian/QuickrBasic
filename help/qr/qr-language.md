@@ -1,5 +1,5 @@
 # The Quickr Language
-keys: ~quickr language, ~quickr and, ~quickr as, ~quickr break, ~quickr case, ~quickr const, ~quickr continue, ~quickr div, ~quickr do, ~quickr else, ~quickr elseif, ~quickr end, ~quickr enum, ~quickr false, ~quickr fn, ~quickr function, ~quickr for, ~quickr if, ~quickr in, ~quickr is, ~quickr let, ~quickr select, ~quickr mod, ~quickr mut, ~quickr none, ~quickr not, ~quickr or, ~quickr return, ~quickr step, ~quickr then, ~quickr true, ~quickr type, ~quickr var, ~quickr while, ~quickr xor, ~quickr yield, ~quickr yields, ~quickr from, ~quickr import, ~quickr public, ~quickr native, ~quickr operator, ~quickr test, ~quickr assert, ~quickr shl, ~quickr shr, ~quickr to, ~quickr next, ~quickr wend, ~quickr loop, ~quickr until, ~quickr print, ~quickr self, ~quickr private, ~quickr len, ~quickr wrap, ~quickr Error, ~quickr bool, ~quickr byte, ~quickr short, ~quickr int, ~quickr long, ~quickr ubyte, ~quickr ushort, ~quickr uint, ~quickr ulong, ~quickr single, ~quickr double, ~quickr string, ~quickr dict
+keys: ~quickr language, ~quickr and, ~quickr as, ~quickr break, ~quickr case, ~quickr const, ~quickr continue, ~quickr div, ~quickr do, ~quickr else, ~quickr elseif, ~quickr end, ~quickr enum, ~quickr false, ~quickr fn, ~quickr function, ~quickr for, ~quickr if, ~quickr in, ~quickr is, ~quickr let, ~quickr select, ~quickr mod, ~quickr mut, ~quickr none, ~quickr not, ~quickr or, ~quickr return, ~quickr step, ~quickr then, ~quickr true, ~quickr type, ~quickr var, ~quickr while, ~quickr xor, ~quickr yield, ~quickr yields, ~quickr from, ~quickr import, ~quickr public, ~quickr native, ~quickr operator, ~quickr test, ~quickr assert, ~quickr shl, ~quickr shr, ~quickr to, ~quickr next, ~quickr wend, ~quickr loop, ~quickr until, ~quickr print, ~quickr self, ~quickr private, ~quickr len, ~quickr wrap, ~quickr Error, ~quickr bool, ~quickr byte, ~quickr short, ~quickr int, ~quickr long, ~quickr ubyte, ~quickr ushort, ~quickr uint, ~quickr ulong, ~quickr single, ~quickr double, ~quickr string, ~quickr dict, ~quickr list
 
 Names are case-sensitive; keywords are lower case. A line ends a
 statement, except inside ( [ or {. A comment starts with '.
@@ -18,10 +18,17 @@ Declarations: name [as type] [= value].
     enum Mode ... end enum
 
 Types: bool, byte short int long, ubyte ushort uint ulong, single
-double, string; T[] a list, T[n] an array, dict[K, V] a map, (T, U)
-a tuple, T or none, T or Error, function(T) as U. Any type is an
-element or a map's value: int[][] is a list of lists. s[i] is a
-ubyte; "0"[0] is the constant 48.
+double, string; T[] an array, T[n] and T[w, h] fixed ones, list[T]
+a list, dict[K, V] a map, (T, U) a tuple, T or none, T or Error,
+function(T) as U. Any type is an element or a map's value:
+list[list[int]] is a list of lists. s[i] is a ubyte; "0"[0] is the
+constant 48.
+
+Arrays: int[n] or int[w, h] makes an int[], g[x, y] an element, the
+first subscript the fastest. len(g) counts the elements, g.shape()
+gives each dimension's size, g.resize(w, h) keeps them. A T[]
+parameter takes any array of T's, a fixed one too; a list grows by
+push() and pop().
 
 Control:
     if c then ... elseif c then ... else ... end if   (else if = elseif)
@@ -41,16 +48,16 @@ mut self changes a. fn g(..) without self is called P.g(..). P.f is
 a function value. fn drop(mut self) runs when the owner ends.
 A parameter is read-only; mut on it makes it writable: f(a) then
 changes a. Numbers, bools, enums and strings pass by value.
-Records, lists and maps have one owner: b = a copies a, or moves it
-when a is not used again. basic --copies FILE.BAS lists each copy of
-a list or a map.
+Records, arrays, lists and maps have one owner: b = a copies a, or
+moves it when a is not used again. basic --copies FILE.BAS lists
+each copy of an array, a list or a map.
 
 Modules: import m, import m as n, from m import a, b. A top-level
 name, a type's field or method is seen outside its file unless
 private. A type with a private field is built in its file.
 A QBasic module, or a native one (a .qbx), is imported the same way:
-its SUBs and FUNCTIONs are functions, its TYPEs records, and a list
-is passed to an array parameter by reference.
+its SUBs and FUNCTIONs are functions, its TYPEs records, and an
+array is passed to an array parameter by its descriptor.
 
 print a; b, c: ; joins, , to the next 14-column zone, a separator
 last holds the line; print alone, an empty line.

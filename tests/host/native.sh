@@ -61,10 +61,10 @@ var n as int = 41
 bump(n)
 var p = pt(7, 0)
 move(p, 3)
-var a as single[]
-a.push(1.5)
-a.push(2)
-a.push(3)
+var a = single[3]
+a[0] = 1.5
+a[1] = 2
+a[2] = 3
 print n; " "; p.x; " "; total(a); " "; items(a); " "; twice(21); " "; runs()
 fail(5)
 EOF

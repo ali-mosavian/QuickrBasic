@@ -3,7 +3,7 @@ keys: ~quickr os, ~quickr os.env, ~quickr os.exit, ~quickr os.run, ~quickr os.ar
 
 The program's command line and environment.
 
-    args() as string[]             the words after the program's name
+    args() as list[string]         the words after the program's name
     env(name) as string            an environment variable, "" none
     exit()                         the program ended, files closed
     run(cmd)                       cmd run by the command interpreter

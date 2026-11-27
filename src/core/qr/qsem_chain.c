@@ -567,7 +567,7 @@ static QType qsem_sink(QSem *const S, QIter *const it, QExpr *const c, QExpr *co
         return it->result->type;
 
     case QZ_COLLECT: {
-        it->acc = qsem_var(S, c->tok, qsem_listof(S, t, 0), QV_TEMP);
+        it->acc = qsem_var(S, c->tok, qsem_arrayof(S, t, 0, true), QV_TEMP);
         QExpr *const p = it->push = qast_expr(S->mem, QE_LIST, c->tok);
         p->builtin = QB_PUSH;
         p->a = qsem_nameof(S, it->acc, c->tok);

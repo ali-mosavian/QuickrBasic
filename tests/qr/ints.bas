@@ -55,14 +55,14 @@ px.r -= 1
 px.a -= 120
 px.n *= 2
 print px.r; " "; px.g; " "; px.a; " "; px.z; " "; px.n
-var bs as ubyte[]
+var bs as list[ubyte]
 bs.push(250)
 bs.push(1)
 bs[1] = bs[0] + 4
-var ls as long[]
+var ls as list[long]
 ls.push(l)
 ls.push(-1)
-var ss as short[]
+var ss as list[short]
 ss.push(-30000)
 print bs[0]; " "; bs[1]; " "; ls[0]; " "; ls[1]; " "; ss[0]; " "; len(bs); " "; l in ls; " "; 255 in bs
 print bs.pop(); " "; ls.pop(); " "; ss.pop(); " "; bs.sum(); " "; ls.sum()

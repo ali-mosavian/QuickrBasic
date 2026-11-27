@@ -508,6 +508,15 @@ static QExpr *qpar_postfix(QPar *const P)
             if (qpar_take(P, QK_DOTDOT)) {
                 x->kind = QE_SLICE;
                 x->c = qpar_is(P, QK_RBRACK) ? nullptr : qpar_expr(P);
+            } else if (qpar_is(P, QK_COMMA)) { /* a[i, j]: each subscript in argv */
+                uint32_t cap = 0;
+                x->argv = qast_room(P->mem, x->argv, x->nargv, &cap, sizeof *x->argv);
+                x->argv[x->nargv++] = x->b;
+
+                while (qpar_take(P, QK_COMMA)) {
+                    x->argv = qast_room(P->mem, x->argv, x->nargv, &cap, sizeof *x->argv);
+                    x->argv[x->nargv++] = qpar_expr(P);
+                }
             }
 
             qpar_need(P, QK_RBRACK, "]");
@@ -878,6 +887,11 @@ static QTypeEx *qpar_base(QPar *const P)
 
         if (x->n == 1)
             x = x->items[0];
+    } else if (qpar_named(P->t, "list") && P->t[1].kind == QK_LBRACK) {
+        x = qpar_typex(P, QX_LIST, qpar_next(P));
+        qpar_next(P);
+        x->elem = qpar_type(P);
+        qpar_need(P, QK_RBRACK, "]");
     } else if (qpar_named(P->t, "dict") && P->t[1].kind == QK_LBRACK) {
         x = qpar_typex(P, QX_DICT, qpar_next(P));
         qpar_next(P);
@@ -900,14 +914,19 @@ static QTypeEx *qpar_base(QPar *const P)
         x = g ? g : x;
     }
 
-    while (qpar_is(P, QK_LBRACK)) {
+    while (qpar_is(P, QK_LBRACK)) { /* T[] T[n] T[n, m] */
         const QTok *const at = qpar_next(P);
-        QTypeEx *const y = qpar_typex(P, QX_LIST, at);
+        QTypeEx *const y = qpar_typex(P, QX_DYN, at);
         y->elem = x;
 
         if (!qpar_is(P, QK_RBRACK)) {
+            uint32_t cap = 0;
             y->kind = QX_ARRAY;
-            y->count = qpar_expr(P);
+
+            do {
+                y->sizes = qast_room(P->mem, y->sizes, y->ndims, &cap, sizeof *y->sizes);
+                y->sizes[y->ndims++] = qpar_expr(P);
+            } while (qpar_take(P, QK_COMMA) && y->ndims < UINT8_MAX);
         }
 
         qpar_need(P, QK_RBRACK, "]");
