@@ -1816,8 +1816,8 @@ def gfx_objects(b: Build) -> list[Path]:
 
 def by_line(b: Build, listing: str, name: str, offsets: dict[int, float], d: Path) -> dict[str, float]:
     """name's cycles by offset as by source line, inlined callees' lines their own. Its object, the
-    map's module for it, is built again with DWARF line tables, the same code; a sample is the
-    block that ran, charged to its first instruction's line."""
+    map's module for it, gfx's slice's or the program's own, is built again with DWARF line tables,
+    the same code; a sample is the block that ran, charged to its first instruction's line."""
     module = ""
     for row in listing.splitlines():
         if m := re.match(r"Module: (.*?)\(", row):
@@ -1827,15 +1827,15 @@ def by_line(b: Build, listing: str, name: str, offsets: dict[int, float], d: Pat
     else:
         return {}
     at = re.search(r"slice/(\d+)_[^/]*$", module)
-    if not at:
+    obj = (gfx_objects(b)[int(at[1])] if at else Path(module)).resolve()
+    if not obj.is_relative_to(b.root.resolve()):
         return {}
-    obj = gfx_objects(b)[int(at[1])]
-    rel = str(obj.relative_to(b.root))
+    rel = str(obj.relative_to(b.root.resolve()))
     made = subprocess.run(["make", "-n", "-B", rel], cwd=b.root, capture_output=True, text=True).stdout
     cmd = next(c for c in made.splitlines() if f"-o {rel}" in c)
     lined = d / f"{obj.stem}.lines.obj"
     subprocess.run(cmd.replace(f"-o {rel}", f"-gdwarf-4 -o {lined}"), shell=True, cwd=b.root, check=True)
-    sym = name.removeprefix("_slice")
+    sym = name.removeprefix("_slice") if at else name
 
     def listing_of(o: Path, lines: bool) -> str:
         flags = ["-d", "--no-show-raw-insn", *(["-l"] if lines else []), f"--disassemble-symbols={sym}"]
