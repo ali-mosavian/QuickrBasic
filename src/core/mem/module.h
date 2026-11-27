@@ -37,6 +37,8 @@ typedef struct {
     uint16_t file;  /* such a module's lines' file */
     uint32_t clash; /* a name two of such a module's publics spell, case aside; 0 none */
     bool edited;
+    bool declared; /* a QBasic module's, its lines declared this link (io/repl.c) */
+    bool crosses;  /* a QBasic module's: it imports another dialect's, or one that does */
     bool ran;
     uint32_t handler;
     ModuRead read;
@@ -78,6 +80,8 @@ uint32_t modu_count(const Modu *mu);
 const char *modu_module_path(const Modu *mu, uint32_t m);
 /* Module from imports module to. */
 void modu_import(Modu *mu, uint32_t from, uint32_t to);
+/* Each module's crosses, none declared yet; modu_order's order made first. */
+void modu_crossings(Modu *mu);
 /* Module m's lines start past line, its LF_TOP line, as read. */
 void modu_top(Modu *mu, uint32_t m, uint32_t line);
 /* Module m's LF_TOP line as read; the main's 0. */

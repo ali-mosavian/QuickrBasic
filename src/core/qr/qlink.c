@@ -819,6 +819,7 @@ void qlink_guest_types(Comp *const C, const QProg *const p, QMem *const m) { qli
 
 const QStmt *const *qlink_guest_made(Comp *const C, const QProg *const p, QMem *const m)
 {
+    qlink_foreign(C, p); /* its QBasic imports' procedures */
     qlink_procs(C, p);
     qlink_vars(C, p);
     symb_size(C->symb, 0);

@@ -999,6 +999,13 @@ static void import(Session *const S, const char *const path)
     modu_import(&S->modu, S->repl.module, module_at(S, path, d));
 }
 
+uint32_t repl_import(Session *const S, const uint32_t from, const char *const path)
+{
+    const uint32_t m = module_at(S, path, dial_of_file(path));
+    modu_import(&S->modu, from, m);
+    return m;
+}
+
 /* FROM's module n to path: a package's folder, or a .qbx of parts alone, sets in_package. false:
    not found. */
 static bool from_module(Imports *const im, const ImptName *const n, char path[static PFIL_PATH])
@@ -1250,6 +1257,22 @@ static void read_module(Session *const S, const uint32_t m, const char *const pa
     S->prog.add_flags = flags;
 }
 
+/* The first stored line of another dialect's module, its LF_TOP; 0 none. The QBasic modules' lines
+   are before it, so their procedures are in the order of their lines (comp/blocks.c). */
+static uint32_t guests_top(Session *const S)
+{
+    const Prog *const pg = &S->prog;
+
+    for (uint32_t line = PROGBASE; prog_line(pg, line)->len; line += prog_line(pg, line)->len) {
+        const Line *const l = prog_line(pg, line);
+
+        if (l->flags & LF_TOP && modu_mod(&S->modu, modu_of(&S->modu, l->file))->dialect)
+            return line;
+    }
+
+    return 0;
+}
+
 /* The modules the program imports from module from on, after the store's lines, each once and in
    the order first named, a module's own imports after it; another dialect's last, so a top's place
    is no module's number. An END ends each module's lines, the main's too, its LF_TOP the next
@@ -1262,29 +1285,37 @@ static void read_modules(Session *const S, const uint32_t from, const uint32_t l
     if (last)
         prog_cut(&S->prog, last);
 
-    for (uint32_t m = from; m < modu_count(&S->modu); m++) {
-        if (modu_mod(&S->modu, m)->dialect) /* after the QBasic ones: their procedures first */
-            continue;
+    /* by rounds: another dialect's module's imports, QBasic ones and natives too, the next's */
+    for (uint32_t lo = from, hi; lo < modu_count(&S->modu); lo = hi) {
+        hi = modu_count(&S->modu);
 
-        char path[PFIL_PATH]; /* the table may move as it grows */
-        strcpy(path, modu_module_path(&S->modu, m));
-        modu_top(&S->modu, m, prog_at(&S->prog));
-        module_end(S, S->repl.nfile);
-        S->repl.module = m;
-        memset(S->lexr.off, 0, sizeof S->lexr.off);
-        read_module(S, m, path);
-    }
+        for (uint32_t m = lo; m < hi; m++) {
+            if (modu_mod(&S->modu, m)->dialect) /* after the QBasic ones: their procedures first */
+                continue;
 
-    for (uint32_t m = from; m < modu_count(&S->modu); m++) { /* its imports its dialect's alone */
-        const Dialect *const d = modu_mod(&S->modu, m)->dialect;
+            char path[PFIL_PATH]; /* the table may move as it grows */
+            strcpy(path, modu_module_path(&S->modu, m));
+            S->prog.add_at = guests_top(S); /* before them: the procedures' lines in order */
+            modu_top(&S->modu, m, prog_at(&S->prog));
+            module_end(S, S->repl.nfile);
+            S->repl.module = m;
+            memset(S->lexr.off, 0, sizeof S->lexr.off);
+            read_module(S, m, path);
+            S->prog.add_at = 0;
+            link_tops(&S->comp); /* those after moved */
+        }
 
-        if (!d)
-            continue;
+        for (uint32_t m = lo; m < hi; m++) {
+            const Dialect *const d = modu_mod(&S->modu, m)->dialect;
 
-        modu_top(&S->modu, m, prog_at(&S->prog));
-        module_end(S, S->repl.nfile);
-        S->repl.module = m;
-        d->guest_read(S, m);
+            if (!d)
+                continue;
+
+            modu_top(&S->modu, m, prog_at(&S->prog));
+            module_end(S, S->repl.nfile);
+            S->repl.module = m;
+            d->guest_read(S, m);
+        }
     }
 
     module_end(S, 0); /* the last module's */
@@ -1400,42 +1431,55 @@ static uint32_t next_line(const Prog *const pg, const uint32_t line)
     return line + prog_line(pg, line)->len;
 }
 
-/* The program's lines read, declared: each module's after those it imports, the main's last,
-   its file's DEFtypes and OPTIONs from its first line; when the main is another dialect's
-   (guests), its QBasic modules alone, each after its LF_TOP. Then the main's again, for lines
-   typed. */
+/* QBasic module m's lines declared, its file's DEFtypes and OPTIONs from its first line. */
+static void declare_module(Session *const S, const uint32_t m)
+{
+    const uint32_t top = modu_top_of(&S->modu, m);
+    const uint32_t from = m ? top + prog_line(&S->prog, top)->len : PROGBASE;
+    decl_module(&S->decl, &S->scop, &S->symb, sc_module(m), top);
+    S->decl.native = modu_mod(&S->modu, m)->native;
+
+    for (uint32_t line = from; !past_module(&S->prog, line); line = next_line(&S->prog, line))
+        redeclare(S, line);
+
+    S->decl.native = false;
+    modu_mod(&S->modu, m)->declared = true;
+}
+
+/* The program's lines read, declared: each module's after those it imports, the main's last;
+   when the main is another dialect's (guests), its QBasic modules alone, each after its LF_TOP.
+   Another dialect's modules are checked all at once (Dialect.guest_declare), between the QBasic
+   modules that reach none of them, which theirs may import, and those that do. Then the main's
+   again, for lines typed. */
 static void declare_program(Session *const S, const bool guests, const bool lenient)
 {
     const uint32_t n = modu_count(&S->modu), *const order = modu_order(&S->modu);
-
-    uint32_t declared = 0; /* by dial_index */
+    modu_crossings(&S->modu);
     S->comp.guest = nullptr;
 
-    for (uint32_t i = 0; i < n; i++) {
-        if (guests && (!order[i] || !modu_top_of(&S->modu, order[i])))
-            continue;
+    for (uint32_t pass = 0; pass < 2; pass++) {
+        uint32_t due = 0; /* by dial_index */
 
-        const Dialect *const d = modu_mod(&S->modu, order[i])->dialect;
+        for (uint32_t i = 0; i < n; i++) {
+            const uint32_t m = order[i];
+            const ModuMod *const mod = modu_mod(&S->modu, m);
 
-        if (d) { /* another dialect's: each checked, all at once */
-            const uint32_t bit = 1u << dial_index(d);
-
-            if (!(declared & bit))
-                d->guest_declare(S, lenient);
-
-            declared |= bit;
-            continue;
+            if (guests && (!m || !modu_top_of(&S->modu, m)))
+                continue;
+            if (mod->dialect)
+                due |= pass ? 0 : 1u << dial_index(mod->dialect);
+            else if (mod->crosses == pass)
+                declare_module(S, m);
         }
 
-        const uint32_t m = order[i], top = modu_top_of(&S->modu, m);
-        const uint32_t from = m ? top + prog_line(&S->prog, top)->len : PROGBASE;
-        decl_module(&S->decl, &S->scop, &S->symb, sc_module(m), top);
-        S->decl.native = modu_mod(&S->modu, m)->native;
+        for (uint32_t i = 0; i < n; i++) { /* each dialect's once */
+            const Dialect *const d = modu_mod(&S->modu, order[i])->dialect;
 
-        for (uint32_t line = from; !past_module(&S->prog, line); line = next_line(&S->prog, line))
-            redeclare(S, line);
-
-        S->decl.native = false;
+            if (d && due & 1u << dial_index(d)) {
+                d->guest_declare(S, lenient);
+                due &= ~(1u << dial_index(d));
+            }
+        }
     }
 
     S->vm.line = DLINE;

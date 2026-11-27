@@ -100,6 +100,9 @@ void repl_guests_stored(Session *S, const uint32_t *mods, uint32_t n, uint32_t f
 /* repl_guests_stored's first part alone: each stored QBasic line's imports found, as the modules'
    edges, a module new added; nothing read. */
 void repl_guests_found(Session *S);
+/* Module from imports the module at path, another dialect's too: added once, read with the rest
+   (a QBasic program's guest's import). Its number. */
+uint32_t repl_import(Session *S, uint32_t from, const char *path);
 /* The editor's Quickr program's QBasic modules declared again from none (its Dialect.redeclare).
    Errors: as repl_load. */
 void repl_redeclare_guests(Session *S);

@@ -390,6 +390,24 @@ static uint32_t qr_qbmod(QProg *const p, QMem *const m, const char *const path)
     return k;
 }
 
+/* A QBasic program's guest's import of the QBasic module at path, a native's too: a module of p,
+   its exports later (qr_exports). Its number; QMOD_QBASIC when it is not declared yet, as it
+   imports a Quickr one. */
+static uint32_t qr_guest_qbmod(const QrLoad *const L, const char *const path)
+{
+    Modu *const mu = &L->S->modu;
+    const uint32_t mm = modu_module(mu, path);
+    const ModuMod *const mod = modu_mod(mu, mm);
+
+    if (!mod->declared)
+        return QMOD_QBASIC;
+
+    const uint32_t k = qr_qbmod(L->p, L->m, path);
+    L->p->mods[k].modu = mm;
+    L->p->mods[k].start = mod->top + prog_line(&L->S->prog, mod->top)->len;
+    return k;
+}
+
 /* The module at path: p's of that path, else read in, a new module. Its number; QMOD_QBASIC when
    its file is not Quickr's, QMOD_NONE when the editor cannot read it. */
 static uint32_t qr_load(const QrLoad *const L, const char *const path)
@@ -400,18 +418,15 @@ static uint32_t qr_load(const QrLoad *const L, const char *const path)
         if (qr_same(p->mods[i].path, path))
             return i;
 
-    if (!qr_is_file(path) && (L->guest || L->find))
-        return QMOD_QBASIC;
-    if (L->guest)
-        return QMOD_NONE;
-
-    if (L->find) {
-        Modu *const mu = &L->S->modu;
-        const uint32_t k = modu_module(mu, path);
-        modu_mod(mu, k)->dialect = &dialect_quickr;
-        modu_import(mu, L->from, k);
+    if (L->find) { /* the QBasic loader reads it, a QBasic one's and a native's too */
+        repl_import(L->S, L->from, path);
         return QMOD_NONE;
     }
+
+    if (L->guest && !qr_is_file(path))
+        return qr_guest_qbmod(L, path);
+    if (L->guest)
+        return QMOD_NONE;
 
     Modu *const mu = &L->S->modu;
     const uint32_t k = L->stored ? modu_module(mu, path) : p->nmods;
@@ -446,7 +461,8 @@ static void qr_unloaded(
         qast_error(
             &p->errs,
             im->tok,
-            "{} is a QBasic module: a Quickr module QBasic imports imports only Quickr ones",
+            "{} imports Quickr modules: a Quickr module QBasic imports imports QBasic ones that "
+            "import none",
             name,
             n
         );
@@ -665,6 +681,8 @@ static void qr_exports(Session *const S, QProg *const p, QMem *const m)
         *x = expo_qbasic(&S->comp, mod->modu, &m->arena);
         mod->ex = x;
     }
+
+    link_unprepare(&S->comp);
 }
 
 /* The line text, then a ^ under its byte col, tabs kept so it lines up. */
@@ -1327,6 +1345,7 @@ void qr_guest_declare(Session *const S, const bool lenient)
         if (!seen[k])
             qr_visit(p, seen, k, &n);
 
+    qr_exports(S, p, m);
     qsem_program(p, m);
     qast_sort(&p->errs);
 
@@ -1353,6 +1372,12 @@ void qr_guest_declare(Session *const S, const bool lenient)
     Exports *const ex = qast_alloc(m, p->nmods * sizeof *ex);
 
     for (uint32_t k = 1; k < p->nmods; k++) {
+        if (p->mods[k].ex) { /* a QBasic module's, a guest's import */
+            ex[k] = (Exports){};
+
+            continue;
+        }
+
         ex[k] = qr_exported(p, k, m);
         modu_mod(&S->modu, p->mods[k].modu)->clash =
             expo_declare(&S->comp, p->mods[k].modu, &ex[k]);

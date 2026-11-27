@@ -929,7 +929,9 @@ end function
 - Any other type in a function's parameters or result, or in a record's fields, makes it an error
   where QBasic uses it.
 - QBasic matches names case aside: two exports that differ only so are an error at the IMPORT.
-- A module of the other dialect imports only modules of its own dialect.
+- A Quickr module a QBasic program imports imports Quickr modules, and QBasic ones and natives
+  (`import gfx.display`) that import no Quickr module: the dialects cross once on a path. A QBasic
+  module a Quickr program imports imports only QBasic ones and natives.
 - A runtime error names the file and line of the code it is in, either dialect's. QBasic's `ON
   ERROR` catches one raised in the Quickr code it calls.
 - **In the VM**, a call across is a call within one dialect: the same PCALL, records and strings,

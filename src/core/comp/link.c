@@ -972,6 +972,12 @@ void link_prepare(Comp *const C)
         symb_varx(C->symb, id)->given = 0;
 }
 
+void link_unprepare(Comp *const C)
+{
+    comp_memo_off(C);
+    scop_look_off(C->scop);
+}
+
 void link_lines_qb(Comp *const C)
 {
     C->link->cursor = 0;

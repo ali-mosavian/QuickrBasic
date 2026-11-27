@@ -148,6 +148,19 @@ void modu_import(Modu *const mu, const uint32_t from, const uint32_t to)
     mu->edges[mu->nedges++] = (ModuEdge){from, to};
 }
 
+void modu_crossings(Modu *const mu)
+{
+    for (uint32_t i = 0; i < mu->nmods; i++) { /* those imported first */
+        ModuMod *const mod = &mu->mods[mu->order[i]];
+        mod->declared = mod->crosses = false;
+
+        for (uint32_t e = 0; !mod->dialect && e < mu->nedges; e++) {
+            const ModuMod *const to = &mu->mods[mu->edges[e].to];
+            mod->crosses |= mu->edges[e].from == mu->order[i] && (to->dialect || to->crosses);
+        }
+    }
+}
+
 void modu_top(Modu *const mu, const uint32_t m, const uint32_t line) { mu->mods[m].top = line; }
 
 uint32_t modu_top_of(const Modu *const mu, const uint32_t m) { return mu->mods[m].top; }
