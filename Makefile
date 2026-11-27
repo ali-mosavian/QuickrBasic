@@ -149,7 +149,7 @@ dos-zip: $(DOS_EXE) $(DOS_GAMES) $(DOS_MODULES)
 
 # ---- The tests ----
 
-TOOLS_TEST := tools/cfmt_test.py tools/basic_src_test.py tools/libcalls_test.py tools/gas2coff_test.py tools/conformance_test.py tools/mkhelp_test.py tools/golden_test.py tools/qbx_test.py tools/fillers_test.py tools/mac_test_test.py tools/gfx_test_test.py
+TOOLS_TEST := tools/cfmt_test.py tools/basic_src_test.py tools/libcalls_test.py tools/gas2coff_test.py tools/conformance_test.py tools/mkhelp_test.py tools/golden_test.py tools/qbx_test.py tools/fillers_test.py tools/reciprocal_test.py tools/mac_test_test.py tools/gfx_test_test.py
 test: $(DOS_EXE) | $(DOSBOX_BIN)
 	sh tests/gen/dfa.sh
 	sh tests/gen/messages.sh
