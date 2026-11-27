@@ -197,6 +197,19 @@ TEST(qride_runs_modules_first)
     fx_done(S, files);
 }
 
+/* A stdlib module imported before one with no statements: the jump past the stdlib's last
+   function skipped the other's lines to the run's end, so F5 ran nothing of the main. */
+TEST(qride_runs_the_main_after_a_stdlib_import)
+{
+    fx_open_program(S, "");
+    fx_write_file("main.bas", DIALECT "import math\nfrom util import k\nprint \"ran\"; k\n");
+    fx_write_file("util.bas", DIALECT "const k = 2\n");
+    uimn_open(S, fx_path_of("main.bas"));
+    captured(S, uimn_run);
+    CHECK(strstr((const char *)S->cons.sbuf, "ran2") != nullptr);
+    fx_done(S, files);
+}
+
 /* A type error stopped nothing: the run went on, the cursor stayed. */
 TEST(qride_run_stops_at_a_type_error)
 {
