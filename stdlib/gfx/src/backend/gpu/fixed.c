@@ -65,22 +65,36 @@ static bool made(
     return true;
 }
 
+/* The last colour and light lit, and the colour they made: a draw's corners share theirs. */
+typedef struct {
+    bool known;
+    uint32_t from, to;
+} Lit;
+
 /* v's colour lit as the shader lights it: SOLID's as it is, a texel's tint by light over 63, an
    index's white (LOOKUP's lit); its alpha whole. */
-static GpuVertex lit(GpuVertex v)
+static void lit(GpuVertex *const v, Lit *const k)
 {
-    const bool solid = v.stages & GPU_STAGE_SOLID, index = v.stages & GPU_STAGE_INDEXED;
+    const bool solid = v->stages & GPU_STAGE_SOLID, index = v->stages & GPU_STAGE_INDEXED;
+    const uint32_t from = v->r | v->g << 8 | v->b << 16 | (uint32_t)v->light << 24;
 
     if (!solid && index)
-        v.r = v.g = v.b = 0xFF;
+        v->r = v->g = v->b = 0xFF;
     else if (!solid) {
-        v.r = (uint8_t)(v.r * v.light / PAL_FULL);
-        v.g = (uint8_t)(v.g * v.light / PAL_FULL);
-        v.b = (uint8_t)(v.b * v.light / PAL_FULL);
+        if (!k->known || from != k->from) {
+            k->known = true;
+            k->from = from;
+            k->to = (uint32_t)(v->r * v->light / PAL_FULL) |
+                    (uint32_t)(v->g * v->light / PAL_FULL) << 8 |
+                    (uint32_t)(v->b * v->light / PAL_FULL) << 16;
+        }
+
+        v->r = (uint8_t)k->to;
+        v->g = (uint8_t)(k->to >> 8);
+        v->b = (uint8_t)(k->to >> 16);
     }
 
-    v.light = 0xFF;
-    return v;
+    v->light = 0xFF;
 }
 
 /* LOOKUP for t's index texels sent, if they draw as other words than it last gave: into an 8-bit
@@ -120,6 +134,7 @@ bool fixed_draw(Gpu *const g, const GpuCall *const t, const GpuVertex *const v, 
     const bool index = (v->stages & (GPU_STAGE_INDEXED | GPU_STAGE_SOLID)) == GPU_STAGE_INDEXED;
 
     GpuVertex out[QUAD];
+    Lit k = {};
     uint32_t id;
 
     if ((index && !looked_up(g, t)) || !made(g, v->stages, t->blend, t->depth, &id))
@@ -128,8 +143,10 @@ bool fixed_draw(Gpu *const g, const GpuCall *const t, const GpuVertex *const v, 
     for (uint32_t at = 0; at < n; at += QUAD) {
         const uint32_t m = n - at < QUAD ? n - at : QUAD;
 
-        for (uint32_t i = 0; i < m; i++)
-            out[i] = lit(v[at + i]);
+        for (uint32_t i = 0; i < m; i++) {
+            out[i] = v[at + i];
+            lit(&out[i], &k);
+        }
 
         if (!list_draw(&g->list, out, m, id, textures, t->alpha, gpu_shared(v)))
             return false;

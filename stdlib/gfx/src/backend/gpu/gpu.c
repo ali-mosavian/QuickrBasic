@@ -512,13 +512,24 @@ static bool copy_behind(
     return true;
 }
 
-/* t's draw over box b: what is behind it copied first when it reads that and the copy lacks some.
-   False, no memory. */
-static bool drawing(Gpu *const g, const GpuCall *const t, const GpuBox b)
+/* t's draw of n vertices, stride bytes apart: what is behind its box copied first when it reads
+   that and the copy lacks some. Its box is worked out only where a copy is or is read, the shaded
+   8-bit draws': nothing else reads it. False, no memory. */
+static bool drawing(
+    Gpu *const g,
+    const GpuCall *const t,
+    const void *const v,
+    const uint32_t stride,
+    const uint32_t n
+)
 {
+    if (!t->behind && g->pass != g->behind)
+        return true;
+
     const uint32_t id = g->pass, deep = g->deep;
     const int32_t w = g->w, h = g->h;
     const Rect clip = g->clip;
+    const GpuBox b = box_of(v, stride, n);
 
     if (t->behind && stale(g, b) &&
         (!copy_behind(g, id, w, h, t->eight) || !aim(g, id, deep, w, h, clip)))
@@ -536,9 +547,9 @@ bool gpu_draw(Gpu *const g, const GpuCall *const t, const GpuVertex *const v, co
     const PipelineKind k = pipeline_kind(v);
 
     if (g->fixed)
-        return drawing(g, t, box_of(v, sizeof *v, n)) && fixed_draw(g, t, v, n);
+        return drawing(g, t, v, sizeof *v, n) && fixed_draw(g, t, v, n);
 
-    return drawing(g, t, box_of(v, sizeof *v, n)) && pipeline_made(g, k, t->blend, t->depth) &&
+    return drawing(g, t, v, sizeof *v, n) && pipeline_made(g, k, t->blend, t->depth) &&
            list_draw(
                &g->list,
                v,
@@ -555,8 +566,7 @@ bool gpu_discs(Gpu *const g, const GpuCall *const t, const GpuDisc *const v, con
     const uint32_t textures[LIST_TEXTURES] =
         {t->texture, GPU_PALETTE, t->behind ? GPU_BEHIND : GPU_PALETTE};
 
-    return drawing(g, t, box_of(v, sizeof *v, n)) &&
-           pipeline_made(g, PIPELINE_ROUND, t->blend, 0) &&
+    return drawing(g, t, v, sizeof *v, n) && pipeline_made(g, PIPELINE_ROUND, t->blend, 0) &&
            list_discs(
                &g->list,
                v,
