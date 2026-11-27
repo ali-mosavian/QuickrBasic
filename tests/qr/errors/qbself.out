@@ -1,0 +1,6 @@
+qbself.bas:4:15: Node is not usable from Quickr: a TYPE that holds itself
+  var n as tree.Node
+                ^
+qbself.bas:5:15: Forest is not usable from Quickr: a TYPE that holds itself
+  var f as tree.Forest
+                ^

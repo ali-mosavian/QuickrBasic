@@ -24,16 +24,29 @@ static void *expo_room(const Comp *const C, Arena *const a, const uint32_t n, co
     return p;
 }
 
-static const char *expo_type_why(const Decl *d, uint32_t t);
+/* The TYPEs being checked, the innermost first. */
+typedef struct Within Within;
+struct Within {
+    uint32_t t;
+    const Within *up;
+};
+
+static const char *expo_within_why(const Decl *d, uint32_t t, const Within *up);
+static const char expo_holds_itself[] = "a TYPE that holds itself";
 
 /* Why field f has no type both dialects have; null it has. An array of one dimension from 0, or a
    dynamic one, is a fixed array or a list of its elements. */
-static const char *expo_field_why(const Decl *const d, const Field *const f)
+static const char *expo_field_why(const Decl *const d, const Field *const f, const Within *const up)
 {
     if (f->ndim > 1 || (f->ndim && decl_fielddim(d, f, 0)->lb))
         return "an array field of more than one dimension, or not from 0";
-    if (f->sub)
-        return expo_type_why(d, f->sub) ? "a field of a TYPE Quickr can't use" : nullptr;
+    if (f->sub) {
+        const char *const why = expo_within_why(d, f->sub, up);
+        return why == expo_holds_itself ? why
+               : why                    ? "a field of a TYPE Quickr can't use"
+                                        : nullptr;
+    }
+
     if (f->et == ET_SD && f->fix)
         return "a fixed-length string field";
     if (f->et == ET_BY)
@@ -42,19 +55,31 @@ static const char *expo_field_why(const Decl *const d, const Field *const f)
     return nullptr;
 }
 
-/* Why TYPE t can't be used across; null it can. */
-static const char *expo_type_why(const Decl *const d, const uint32_t t)
+/* Why TYPE t, inside up's, can't be used across; null it can. One holding itself, through a
+   dynamic array, can't. */
+static const char *expo_within_why(const Decl *const d, const uint32_t t, const Within *const up)
 {
+    for (const Within *w = up; w; w = w->up)
+        if (w->t == t)
+            return expo_holds_itself;
+
     const TypeDef *const td = decl_type(d, t);
+    const Within in = {.t = t, .up = up};
 
     for (uint32_t k = 0; k < td->nfld; k++) {
-        const char *const why = expo_field_why(d, &td->fields[k]);
+        const char *const why = expo_field_why(d, &td->fields[k], &in);
 
         if (why)
             return why;
     }
 
     return nullptr;
+}
+
+/* Why TYPE t can't be used across; null it can. */
+static const char *expo_type_why(const Decl *const d, const uint32_t t)
+{
+    return expo_within_why(d, t, nullptr);
 }
 
 static const char *const expo_param_why[] = {
