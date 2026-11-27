@@ -520,6 +520,13 @@ def most_off(name: str, depth: int, card: bool) -> int:
     return max(GPU_NEAR.get((name, depth), 0), CARD_NEAR_AT.get((name, depth), CARD_NEAR))
 
 
+def card_vm(card: str) -> Path:
+    """The VM card is on: the Pentium 100's."""
+    import bench
+
+    return bench.HL86_VMS / bench.card_vm(card, None)
+
+
 def card_shot(card: str, depth: int, sets: tuple[str, ...] = (), keep: str = "") -> tuple[int, bytes]:
     """GPU_SCENE drawn by the DOS build on 86Box's card, through lib/drivers/: its width and RGB rows,
     the emulator's screenshot once CARD_SHOT_MS have run. sets: NAME=VALUE, in DOS's environment; keep: a
@@ -527,7 +534,7 @@ def card_shot(card: str, depth: int, sets: tuple[str, ...] = (), keep: str = "")
     import bench
 
     hl86 = bench.hl86_module()
-    vm = bench.HL86_VMS / bench.CARDS[card]
+    vm = card_vm(card)
     image, built = vm / "c.img", dosrun.COM.parent
     with tempfile.TemporaryDirectory() as tmp:
         d = Path(tmp)
