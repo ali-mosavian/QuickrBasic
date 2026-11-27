@@ -1504,11 +1504,20 @@ def vm_run(vm: str, com: Path, job: tuple, files: dict[str, bytes], realtime: bo
     return fps, out, r.code
 
 
+# a program's rate and frames, a line of their own: DOS/32A may warn ahead of them; BASIC prints .75 for 0.75
+RATE_LINE = re.compile(r"(?m)^\s*(\d*\.?\d+)\s+(\d+)\s*$")
+
+
 def rate_of(fps: str, out: str) -> str:
-    """FPS.TXT's first number; else the output's rate and frames, a line of their own: DOS/32A may warn
-    ahead of them. Empty, neither."""
-    rates = fps.split()[:1] or re.findall(r"(?m)^\s*(\d+(?:\.\d+)?)\s+\d+\s*$", out)[-1:]
+    """FPS.TXT's first number; else the output's last rate. Empty, neither."""
+    rates = fps.split()[:1] or [r for r, _ in RATE_LINE.findall(out)[-1:]]
     return f"{float(rates[0]):.1f}" if rates else ""
+
+
+def frames_of(out: str) -> int:
+    """The output's last frames: 0, none."""
+    lines = RATE_LINE.findall(out)
+    return int(lines[-1][1]) if lines else 0
 
 
 def dos_rate(com: Path, job: tuple, cycles: int, files: dict[str, bytes]) -> str:
@@ -1750,10 +1759,10 @@ def vm_samples(
         by[name] = by.get(name, 0) + n
         if name != "(outside)":
             at[name, into] = at.get((name, into), 0) + n
-    frames = re.findall(r"(?m)^\s*\d+(?:\.\d+)?\s+(\d+)\s*$", out)
+    frames = frames_of(out)
     if not frames:
         sys.exit(f"profile: no frames in the output: {out[-200:]!r}")
-    return Samples(by, at, int(frames[-1]), int(pcs["interval_us"]), mhz)
+    return Samples(by, at, frames, int(pcs["interval_us"]), mhz)
 
 
 def gfx_objects(b: Build) -> list[Path]:

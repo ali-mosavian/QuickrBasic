@@ -341,6 +341,9 @@ def vm_rate() -> None:
     assert bench.rate_of("", out) == "42.9", bench.rate_of("", out)
     assert bench.rate_of("51.23 256 1 9000\r\n", out) == "51.2"
     assert bench.rate_of("", "Out of memory\r\n") == ""
+    slow = "DOS/32A warning (9004): mouse initialization failed\r\n .7511522675785451  9 \r\n"
+    assert bench.rate_of("", slow) == "0.8", "BASIC's .75, below a frame a second, read as none: a 486 profile quit"
+    assert bench.frames_of(slow) == 9, bench.frames_of(slow)
 
 
 def vm_object_base() -> None:
