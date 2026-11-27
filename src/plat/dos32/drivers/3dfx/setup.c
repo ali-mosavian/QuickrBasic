@@ -211,6 +211,7 @@ static void started(const TdfxCorner *const t[3], const uint32_t params, TdfxTri
         out->word[2 * i + 1] = t[i]->y;
     }
 
+#pragma clang loop unroll(full) /* each parameter's places constant */
     for (uint32_t n = 0; n < TDFX_PARAMS; n++)
         if (params >> n & 1)
             out->word[TDFX_START + n] = t[0]->p[n];
@@ -239,6 +240,7 @@ bool tdfx_triangle(
 
     started(t, params, out);
 
+#pragma clang loop unroll(full) /* each parameter's places constant */
     for (uint32_t n = 0; n < TDFX_PARAMS; n++) {
         if (!(params >> n & 1))
             continue;
@@ -303,6 +305,7 @@ bool tdfx_planar(const TdfxCorner c[4], const uint32_t params)
     if (!parallel(c[0].x, c[1].x, c[2].x, c[3].x) || !parallel(c[0].y, c[1].y, c[2].y, c[3].y))
         return false;
 
+#pragma clang loop unroll(full) /* each parameter's places constant */
     for (uint32_t n = 0; n < TDFX_PARAMS; n++)
         if (params >> n & 1 && !parallel(c[0].p[n], c[1].p[n], c[2].p[n], c[3].p[n]))
             return false;
