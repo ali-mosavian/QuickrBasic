@@ -326,6 +326,12 @@ CASES = {
     "qb_oexp": ("OPTION EXPLICIT\r\nDIM x\r\nx = 1: y = 2: PRINT x\r\n", "Variable not declared", None),
     "qb_oexpfor": ("OPTION EXPLICIT\r\nDIM x\r\nFOR i = 1 TO 2: NEXT\r\n", "Variable not declared", None),
     "qb_oexparr": ("OPTION EXPLICIT\r\nDIM a(3)\r\nb(1) = 2\r\n", "Variable not declared", None),
+    # An array's name took as its scalar's: f = g of two arrays compiled and did nothing, HIGHVALE's
+    # smoothing a no-op. A scalar of the name is declared apart, as QBasic's are two variables.
+    "qb_oexpscalar": ("OPTION EXPLICIT\r\nSUB s (f() AS LONG)\r\nDIM g(3) AS LONG\r\nf = g\r\nEND SUB\r\n"
+                      "DIM a(3) AS LONG\r\ns a()\r\n", "Variable not declared", None),
+    "qb_oexpbothok": ("OPTION EXPLICIT\r\nDIM g(3)\r\nDIM g\r\ng = 5: g(1) = 2\r\nPRINT g; g(1)\r\n",
+                      " 5  2 ", "Variable not declared"),
     "qb_oexpok": ("OPTION EXPLICIT\r\nDECLARE SUB s (a)\r\nDECLARE FUNCTION f% ()\r\nCONST k = 2\r\nDIM SHARED g\r\n"
                   "DIM i AS INTEGER, v(2)\r\nFOR i = 1 TO 1: v(i) = f%: NEXT\r\ns k + v(1)\r\n"
                   "SUB s (a)\r\nDIM l\r\nl = a + g: PRINT l\r\nEND SUB\r\nFUNCTION f%\r\nSTATIC n\r\nn = n + 1: f% = n\r\nEND FUNCTION\r\n",

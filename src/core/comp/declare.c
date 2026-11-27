@@ -593,6 +593,7 @@ static void decl_dim1(DeclScan *const ds, const uint32_t n)
     }
 
     decl_as(ds, b, n, arr);
+    b->shapes |= arr ? BS_ARRAY : BS_SCALAR;
 }
 
 /* AS type [* n] at ds.at, name n's: its binding b's, the array's when arr. */
