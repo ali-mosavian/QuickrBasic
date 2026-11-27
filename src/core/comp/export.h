@@ -89,7 +89,7 @@ typedef struct Exports {
     uint32_t nconsts;
 } Exports;
 
-/* QBasic module m's SUBs, FUNCTIONs, TYPEs and CONSTs but the PRIVATE ones, after link_prepare: each
+/* QBasic module m's SUBs, FUNCTIONs, TYPEs and CONSTs but the PRIVATE ones, after link_paired: each
    value's type one both dialects have (ET_I2, ET_I4, ET_SH, ET_R4, ET_R8, ET_SD, a TYPE of them),
    else why not. In a's room; Out of memory through C's fault. */
 Exports expo_qbasic(const Comp *C, uint32_t m, Arena *a);

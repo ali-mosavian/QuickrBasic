@@ -148,17 +148,35 @@ void modu_import(Modu *const mu, const uint32_t from, const uint32_t to)
     mu->edges[mu->nedges++] = (ModuEdge){from, to};
 }
 
-void modu_crossings(Modu *const mu)
+bool modu_crossed(const Modu *const mu, const uint32_t m)
 {
+    for (uint32_t e = 0; e < mu->nedges; e++)
+        if (mu->edges[e].to == m && mu->mods[mu->edges[e].from].dialect != mu->mods[m].dialect)
+            return true;
+
+    return false;
+}
+
+uint32_t modu_stages(Modu *const mu)
+{
+    uint32_t top = 0;
+
     for (uint32_t i = 0; i < mu->nmods; i++) { /* those imported first */
         ModuMod *const mod = &mu->mods[mu->order[i]];
-        mod->declared = mod->crosses = false;
+        mod->stage = 0;
 
-        for (uint32_t e = 0; !mod->dialect && e < mu->nedges; e++) {
+        for (uint32_t e = 0; e < mu->nedges; e++) {
             const ModuMod *const to = &mu->mods[mu->edges[e].to];
-            mod->crosses |= mu->edges[e].from == mu->order[i] && (to->dialect || to->crosses);
+            const uint32_t s = to->stage + (to->dialect != mod->dialect);
+
+            if (mu->edges[e].from == mu->order[i] && s > mod->stage)
+                mod->stage = s;
         }
+
+        top = mod->stage > top ? mod->stage : top;
     }
+
+    return top;
 }
 
 void modu_top(Modu *const mu, const uint32_t m, const uint32_t line) { mu->mods[m].top = line; }
@@ -194,6 +212,8 @@ const uint32_t *modu_order(Modu *const mu)
 }
 
 uint32_t modu_count(const Modu *const mu) { return mu->nmods; }
+
+uint32_t modu_files(const Modu *const mu) { return mu->nfiles; }
 
 ModuMod *modu_mod(Modu *const mu, const uint32_t m) { return &mu->mods[m < mu->nmods ? m : 0]; }
 

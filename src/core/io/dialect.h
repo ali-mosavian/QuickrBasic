@@ -124,10 +124,11 @@ struct Dialect {
     /* The same, its lines in the store: each module its imports name the program's, imported
        by m, as guest_read finds them. */
     void (*guest_find)(Session *S, uint32_t m);
-    /* Each of the QBasic program's modules of this dialect checked, their exports declared as
-       QBasic's, the link's hooks set (comp/link.h). Lenient: an error leaves the exports out, not
-       raised nor said. */
-    void (*guest_declare)(Session *S, bool lenient);
+    /* The QBasic program's modules of this dialect of stage stage (mem/module.h) checked, their
+       exports declared as QBasic's, once those of the stages before are, the QBasic ones' too;
+       after the last, top, the link's hooks set (comp/link.h). Lenient: an error leaves the
+       exports out, not raised nor said. */
+    void (*guest_declare)(Session *S, uint32_t stage, uint32_t top, bool lenient);
     /* The program's declarations made again after a line of another dialect's changed in it;
        null: nothing to make. */
     void (*redeclare)(Session *S);

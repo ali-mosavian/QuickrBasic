@@ -114,67 +114,90 @@ static void qsem_body(QSem *const S, QFn *const f)
     S->fn = nullptr;
 }
 
-void qsem_program(QProg *const p, QMem *const m)
+/* Is fn f the modules in's, by where it is written? */
+static bool qsem_in(const QSem *const S, const bool *const in, const QFn *const f)
 {
-    QSem S = {.prog = p, .mem = m};
+    return in[qsem_modof(S, f->name)];
+}
 
-    qsem_scopes(&S);
+QSem *qsem_start(QProg *const p, QMem *const m)
+{
+    QSem *const S = qast_alloc(m, sizeof *S);
+    *S = (QSem){.prog = p, .mem = m};
+
+    qsem_newscopes(S);
+    return S;
+}
+
+void qsem_check(QSem *const S, const bool *const in)
+{
+    QProg *const p = S->prog;
+    qsem_scopes(S, in);
 
     for (QFn *f = p->fns; f; f = f->next)
-        if (!f->lamof && !f->op && !f->test && !f->in && !qsem_isdrop(f)) {
-            S.pub = !f->priv;
-            qsem_bind(&S, f->name, nullptr, f);
-            S.pub = false;
+        if (qsem_in(S, in, f) && !f->lamof && !f->op && !f->test && !f->in && !qsem_isdrop(f)) {
+            S->pub = !f->priv;
+            qsem_bind(S, f->name, nullptr, f);
+            S->pub = false;
         }
 
-    qsem_types(&S);
+    qsem_types(S, in);
 
     for (uint32_t i = 0; i < p->nmods; i++)
-        qsem_consts(&S, &p->mods[p->order[i]]);
+        if (in[p->order[i]])
+            qsem_consts(S, &p->mods[p->order[i]]);
 
-    for (uint32_t i = 0; i < p->tys.n; i++)
-        qsem_typed(&S, QY_FIRST + i);
+    for (uint32_t i = 0; i < p->tys.n; i++) /* those of a stage before typed already */
+        qsem_typed(S, QY_FIRST + i);
 
     for (QFn *f = p->fns; f; f = f->next) /* a generator's too, its instances' model */
-        if (!f->ntp && !f->lamof && !qsem_inmodel(&S, f))
-            qsem_signature(&S, f);
+        if (qsem_in(S, in, f) && !f->ntp && !f->lamof && !qsem_inmodel(S, f))
+            qsem_signature(S, f);
 
     for (QFn *f = p->fns; f; f = f->next)
-        if (!qsem_inmodel(&S, f))
-            qsem_fndef(&S, f);
-
-    for (uint32_t i = 0; i < p->tys.n; i++)
-        qsem_dropok(&S, QY_FIRST + i);
+        if (qsem_in(S, in, f) && !qsem_inmodel(S, f))
+            qsem_fndef(S, f);
 
     for (uint32_t i = 0; i < p->nmods; i++) {
-        qsem_module(&S, p->order[i]);
+        if (!in[p->order[i]])
+            continue;
 
-        while (S.nmarks)
-            qsem_pop(&S);
+        qsem_module(S, p->order[i]);
+
+        while (S->nmarks)
+            qsem_pop(S);
     }
 
     for (uint32_t checked = 1; checked;) { /* again while a body calls a method not checked */
         checked = 0;
 
-        for (QFn *f = p->fns; f; f = f->next) {
+        for (QFn *f = p->fns; f; f = f->next) { /* a later stage's have no signature yet */
             const bool was = f->checked;
-            qsem_body(&S, f);
+            qsem_body(S, f);
             checked += f->checked && !was;
         }
     }
+}
 
-    qsem_lends(&S);
+void qsem_finish(QSem *const S)
+{
+    QProg *const p = S->prog;
 
-    qsem_exports(&S);
-    qsem_moved(&S);
-    qsem_atend(&S);
-    qsem_tests(&S);
+    for (uint32_t i = 0; i < p->tys.n; i++)
+        qsem_dropok(S, QY_FIRST + i);
+
+    qsem_lends(S);
+
+    qsem_exports(S);
+    qsem_moved(S);
+    qsem_atend(S);
+    qsem_tests(S);
 
     if (!p->keep)
         return;
 
-    p->sem = qast_alloc(m, sizeof *p->sem);
-    *p->sem = (QSemKeep){.scopes = S.scopes, .nscopes = S.nscopes};
+    p->sem = qast_alloc(S->mem, sizeof *p->sem);
+    *p->sem = (QSemKeep){.scopes = S->scopes, .nscopes = S->nscopes};
 }
 
 bool qsem_probe(QProg *const p, QMem *const m, const QScopeAt *const at, QStmt *const s)

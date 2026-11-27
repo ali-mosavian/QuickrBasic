@@ -37,11 +37,10 @@ typedef struct {
     bool keep_pre;      /* the editor's: a line loaded keeps its indent and number as typed */
     uint8_t *pre;       /* keep_pre's, precap bytes */
     uint32_t precap;
-    bool batch;    /* a file run: its end exits */
-    bool checking; /* --check's: the file compiled, not run */
-    bool testing;  /* --test's: a Quickr file's tests run, not its program */
-    bool copying;  /* --copies: a Quickr file's copies of lists listed, not run */
-    bool guests;   /* loading a Quickr program's QBasic modules: Quickr's no import of theirs */
+    bool batch;           /* a file run: its end exits */
+    bool checking;        /* --check's: the file compiled, not run */
+    bool testing;         /* --test's: a Quickr file's tests run, not its program */
+    bool copying;         /* --copies: a Quickr file's copies of lists listed, not run */
     char file[PFIL_PATH]; /* the command line's file name; CHAIN's */
     char incl[PFIL_PATH]; /* an '$INCLUDE's */
     const char *why;      /* the last error's reason, said after its message: nullptr none */
@@ -87,25 +86,32 @@ void repl_cont(Session *S);
 /* Enter the lines of the file repl.file names, its includes' in place; then the console's
    again. Errors: as chnl_open. */
 void repl_load(Session *S);
-/* A Quickr program's QBasic modules (qr/qr.c): those at paths, n of them, read into the store
-   after its lines, each its own's imports after it, and declared; their files numbered from file,
-   each's module to mods. Errors: as repl_load. */
-void repl_guests(Session *S, const char *const *paths, uint32_t n, uint16_t file, uint32_t *mods);
+/* A Quickr program's QBasic modules (qr/qr.c), those of number from on: read into the store, each
+   its own imports after it, its files numbered after those known; a Quickr module one imports
+   added, not read. Errors: as repl_load. */
+void repl_guests(Session *S, uint32_t from);
 /* The editor's Quickr program's QBasic modules (qr/qr.c), the Quickr files' lines first in the
    store, then each QBasic module's after its LF_TOP: each stored line's imports found, mods (n of
-   them, its Quickr files' imports, as the caller's modules' edges) and the modules found, from
-   number from on, read in when not stored, each its file
-   numbered as the module; declared when declare. Errors: as repl_load. */
-void repl_guests_stored(Session *S, const uint32_t *mods, uint32_t n, uint32_t from, bool declare);
+   them, its Quickr files' imports, as the caller's modules' edges) and the QBasic modules found,
+   from number from on, read in when not stored, each its file numbered as the module. Errors: as
+   repl_load. */
+void repl_guests_stored(Session *S, const uint32_t *mods, uint32_t n, uint32_t from);
 /* repl_guests_stored's first part alone: each stored QBasic line's imports found, as the modules'
    edges, a module new added; nothing read. */
 void repl_guests_found(Session *S);
+/* The module at path, of its file's dialect: added once, a native's opened. Its number. */
+uint32_t repl_module(Session *S, const char *path);
 /* Module from imports the module at path, another dialect's too: added once, read with the rest
    (a QBasic program's guest's import). Its number. */
 uint32_t repl_import(Session *S, uint32_t from, const char *path);
-/* The editor's Quickr program's QBasic modules declared again from none (its Dialect.redeclare).
-   Errors: as repl_load. */
-void repl_redeclare_guests(Session *S);
+/* Another dialect's program's QBasic modules declared by stages (mem/module.h), its own checked
+   between them: repl_stages, then repl_declare_stage for each stage up to the highest, then
+   repl_declared. repl_stages: no declarations, each module's stage numbered: the highest. */
+uint32_t repl_stages(Session *S);
+/* Stage stage's QBasic modules declared, each after those it imports. Errors: as repl_load. */
+void repl_declare_stage(Session *S, uint32_t stage);
+/* The declarations ended: the main's again, for lines typed. */
+void repl_declared(Session *S);
 /* Stored QBasic module m's lines out of the store, its LF_TOP's too, the last LF_TOP when no
    other module is QBasic's; m kept in the modules. */
 void repl_cut_module(Session *S, uint32_t m);

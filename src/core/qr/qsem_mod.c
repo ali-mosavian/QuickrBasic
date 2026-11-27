@@ -140,11 +140,12 @@ static const QTok *qsem_qbtok(QSem *const S, const char *const text, const uint3
     return t;
 }
 
-/* The record of QBasic TYPE td, QY_ERROR none. */
+/* The record of QBasic TYPE td, QY_ERROR none: a QBasic module's, or a Quickr record's of a
+   stage before (qr/qr.c qr_stage). */
 static QType qsem_qbrec(const QSem *const S, const uint32_t td)
 {
     for (uint32_t i = 0; i < S->prog->tys.n; i++)
-        if (S->prog->tys.at[i].foreign && S->prog->tys.at[i].td == td)
+        if (qast_record(S->prog, QY_FIRST + i) && S->prog->tys.at[i].td == td)
             return QY_FIRST + i;
 
     return QY_ERROR;
@@ -301,22 +302,29 @@ static void qsem_qbnames(QSem *const S, const uint32_t k)
     }
 }
 
-/* Each module's scope, its imports bound; a QBasic module's its exports. */
-void qsem_scopes(QSem *const S)
+/* Each module's scope, empty. */
+void qsem_newscopes(QSem *const S)
 {
     for (uint32_t k = 0; k < S->prog->nmods; k++)
         qsem_newscope(S, k);
+}
 
+/* Each module in's names: a QBasic module's its exports, another's its imports. */
+void qsem_scopes(QSem *const S, const bool *const in)
+{
     for (uint32_t k = 0; k < S->prog->nmods; k++)
-        if (S->prog->mods[k].ex)
+        if (in[k] && S->prog->mods[k].ex)
             qsem_qbrecords(S, k);
 
     for (uint32_t k = 0; k < S->prog->nmods; k++)
-        if (S->prog->mods[k].ex)
+        if (in[k] && S->prog->mods[k].ex)
             qsem_qbnames(S, k);
 
     for (uint32_t k = 0; k < S->prog->nmods; k++) {
         const QMod *const m = &S->prog->mods[k];
+
+        if (!in[k])
+            continue;
 
         for (QStmt *s = m->head; s; s = qsem_nextin(m, s)) {
             for (const QImport *im = s->kind == QS_IMPORT ? s->imps : nullptr; im; im = im->next)

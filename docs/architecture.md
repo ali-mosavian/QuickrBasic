@@ -161,8 +161,11 @@ only through its table. `io/dialect.c` lists the tables in `DIALECTS(X)`, QBasic
   front end exports its own modules and imports the other's. A QBasic program reads a module of
   another dialect through `guest_read`, then declares its exports through `guest_declare`, which
   sets the link's `LinkGuest` hooks; the editor's relink finds its imports again through
-  `guest_find`. A Quickr program's QBasic modules are read and declared by `repl_guests` (a file
-  run) or `repl_guests_stored` (the editor's). A call across is a plain `PCALL`, with no
+  `guest_find`. A Quickr program's QBasic modules are read by `repl_guests` (a file run) or
+  `repl_guests_stored` (the editor's), and declared by `repl_declare_stage`. Either way the
+  program is declared by stages (`modu_stages`): a module's stage is the most dialect crossings on
+  its imports' paths, and a stage's modules are declared and checked after the stage before's
+  exports are declared. A call across is a plain `PCALL`, with no
   marshalling; a native procedure's is `CALL NCALL` (see [Native extensions](#native-extensions)).
 
 **A new dialect** is:

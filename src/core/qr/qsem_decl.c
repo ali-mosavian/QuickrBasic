@@ -120,12 +120,12 @@ static void qsem_members(QSem *const S, QStmt *const s, const QType t)
         }
 }
 
-/* Each type and enum: a type, its name bound, its fields and values declared; a generic record's
-   at each instance. */
-void qsem_types(QSem *const S)
+/* Each type and enum of the modules in: a type, its name bound, its fields and values declared;
+   a generic record's at each instance. */
+void qsem_types(QSem *const S, const bool *const in)
 {
     for (QStmt *s = S->prog->first; s; s = s->next) {
-        if (s->kind != QS_TYPE && s->kind != QS_ENUM)
+        if ((s->kind != QS_TYPE && s->kind != QS_ENUM) || !in[qsem_modof(S, s->tok)])
             continue;
 
         const QType t = s->ty = qsem_newty(S, s->kind == QS_TYPE ? QT_REC : QT_ENUM);
