@@ -37,11 +37,20 @@ typedef struct {
     GpuSource target, blank;
 } Aimed;
 
-/* The GPU's own (Gx.own): its recorder, the call readied and the textures last aimed at. */
+/* A target's place in its root and a call's move into it, kept: 9k cycles of MEADOW's 486 frame
+   made it again each draw. */
+typedef struct {
+    int32_t x, y;
+    Vec at;
+} Moved;
+
+/* The GPU's own (Gx.own): its recorder, the call readied, the textures last aimed at and the
+   last move. */
 typedef struct {
     Gpu gpu;
     GpuCall call;
     Aimed aimed;
+    Moved moved;
 } GpuState;
 
 enum { QUAD = 4 };
@@ -162,9 +171,15 @@ static Gpu *gpu(const Gx *const g) { return &((GpuState *)g->own)->gpu; }
    more, its pixels' centres at halves (qxlist.h). */
 static Vec moved(const Gx *const g, const Source *const into)
 {
-    const float half = gpu(g)->fixed ? 0.5f : 0;
+    Moved *const m = &((GpuState *)g->own)->moved;
 
-    return (Vec){(float)into->at.x + half, (float)into->at.y + half};
+    if (into->at.x != m->x || into->at.y != m->y) {
+        const float half = gpu(g)->fixed ? 0.5f : 0;
+
+        *m = (Moved){into->at.x, into->at.y, {(float)into->at.x + half, (float)into->at.y + half}};
+    }
+
+    return m->at;
 }
 
 static GpuCall *call(const Gx *const g) { return &((GpuState *)g->own)->call; }
@@ -607,6 +622,7 @@ static bool screen_open(Gx *const g, const QxScreen *const s, const PxFormat f)
 
     o->gpu.page = page;
     o->aimed = (Aimed){};
+    o->moved = (Moved){INT32_MIN, INT32_MIN, {}};
     return true;
 }
 

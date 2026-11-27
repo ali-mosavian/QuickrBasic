@@ -877,6 +877,22 @@ static void deep_quad(Session *const S, const int32_t flags)
     GPU_CALL("display.flip");
 }
 
+/* Each draw is moved by its target's place in its root: the screen's, a view's, the screen's
+   again. The move kept from the last draw's target would put the view's pixel at the screen's. */
+TEST(gfx_gpu_moves_each_draw_by_its_targets_place)
+{
+    screen(S, 8, 8, 32);
+
+    const int32_t v = GPU_CALL("surface.new_view", I(SURF_SCREEN), I(2), I(3), I(3), I(3)).result.i;
+
+    GPU_CALL("draw.pset", I(SURF_SCREEN), F(0), F(0), I(0x123456));
+    GPU_CALL("draw.pset", I(v), F(0), F(0), I(0x123456));
+    GPU_CALL("draw.pset", I(SURF_SCREEN), F(0), F(0), I(0x123456));
+    GPU_CALL("display.flip");
+    CHECK(placed(&vertices[0], -0.5f, -0.5f) && placed(&vertices[4], 1.5f, 2.5f));
+    CHECK(placed(&vertices[8], -0.5f, -0.5f));
+}
+
 /* A quad is its two triangles from one fan of its four corners. It was two polys of three, each
    sent as four vertices and an empty triangle: twice the vertices through each layer. */
 TEST(gfx_gpu_draws_a_quad_as_one_fan)
