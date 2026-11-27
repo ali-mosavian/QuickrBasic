@@ -3,6 +3,7 @@ the loader's ~45M instructions swamped it; under Rosetta the address layout move
 Its DOS profile names static functions: the link map has globals alone, and the lexer's statics
 read as lexr_line's, 19% of a load."""
 
+import io
 import os
 import random
 import re
@@ -158,6 +159,22 @@ def games_meadow16_at_16_bits() -> None:
     program = bench.game_jobs()["MEADOW16"][0](4)[0]
     assert "const DEPTH = 16\n" in program and "gfx.display.open(W, H, 16, 0)" in program, "not at 16 bits"
     assert "const W = 640\n" in program and "(frames& / 30#)" not in program, "not at its size, or by frames"
+
+
+def frame_profile_unseen() -> None:
+    """A frame's profile shows the instructions no function was seen running. On DOSBox-X's Voodoo 2, 2.7M of a
+    frame's 3.3M ran where its profiler named none, and the table read as if the frame were BASIC's and gfx's."""
+    runs = [
+        (bench.dosrun.Result("demo", "", "exit", 100, 10, selfs={"f": 50}), 1),
+        (bench.dosrun.Result("demo", "", "exit", 1100, 20, selfs={"f": 250}), 11),
+    ]
+    with (
+        unittest.mock.patch.object(bench, "dos_profile", side_effect=runs),
+        unittest.mock.patch("sys.stdout", new_callable=io.StringIO) as out,
+    ):
+        bench.print_frame_profile("t", Path("t.exe"), [(), ()], 1000, {}, 5)
+    unseen = [line for line in out.getvalue().splitlines() if "no function" in line]
+    assert len(unseen) == 1 and unseen[0].split()[:2] == ["80", "80.0%"], out.getvalue()
 
 
 def fps_start_up() -> None:
@@ -354,6 +371,7 @@ def main() -> int:
     each_reps()
     demo_one_world()
     games_meadow16_at_16_bits()
+    frame_profile_unseen()
     charlie_each()
     charlie_think()
     kind_compares()

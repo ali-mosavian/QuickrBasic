@@ -1574,8 +1574,10 @@ def print_frame_profile(
                  ((a.selfs, b.selfs), (a.memory, b.memory), (a.calls, b.calls)))
         for f in b.selfs
     }
+    unseen = run - sum(insns for insns, _, _ in own.values())
     print(f"{name}: {spent:,.0f} cycles a frame, {run:,.0f} instructions ({run / spent:.0%}), {frames} frames")
     print(f"{'instructions':>12} {'':6} {'memory':>10} {'calls':>8}")
+    print(f"{unseen:>12,.0f} {unseen / run:6.1%} {'':>10} {'':>8}  (run where no function was seen)")
     for f, (insns, memory, calls) in sorted(own.items(), key=lambda kv: -kv[1][0])[:n]:
         print(f"{insns:>12,.0f} {insns / run:6.1%} {memory:>10,.0f} {calls:>8,.0f}  {f}")
 
@@ -1849,6 +1851,11 @@ def drivers_of(b: Build) -> dict[str, bytes]:
     return {f"lib/drivers/{f.name}": f.read_bytes() for f in (b.dos.parent / "lib/drivers").glob("*.DRV")}
 
 
+def driver_maps(b: Build) -> dict[str, bytes]:
+    """Each of build b's drivers' link maps beside it, where DOSBox-X's debugger looks for a DLL's names."""
+    return {f"lib/drivers/{m.stem.upper()}.MAP": m.read_bytes() for m in (b.dos.parent / "drivers").glob("*.map")}
+
+
 def demos_on(a: argparse.Namespace, own: dict[str, bytes]) -> int:
     """demos --machine: each demo as shipped but for vsync, built from each --rev and the tree, then
     each EXE, on 86Box's machine. --card: on the card's VM, drawn in pages and by the card. --profile:
@@ -1937,7 +1944,7 @@ def cmd_games(a: argparse.Namespace) -> int:
     b = build(".", True)
     pages = {"lib/gfx.qbx": (b.dos.parent / "lib/gfx.qbx").read_bytes()}
     jobs = game_jobs()
-    libs = {"pages": pages, a.card or "voodoo2": pages | drivers_of(b)}
+    libs = {"pages": pages, a.card or "voodoo2": pages | drivers_of(b) | (driver_maps(b) if a.dosbox else {})}
     if a.profile:
         with tempfile.TemporaryDirectory() as d:
             exe = profiled(b, Path(d))
