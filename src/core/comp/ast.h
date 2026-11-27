@@ -37,7 +37,7 @@ typedef enum : uint8_t {
     N_CASECMP,
 } NodeKind;
 
-enum { AST_CHUNK = 0x1000, LIT_MAX = 8 };
+enum { AST_CHUNK = 0x1000, LIT_MAX = 16 }; /* FX.IDX's operands */
 
 /* N_CONV's conversion of its child: to an INT, a FLOAT, a DOUBLE, a string, a byte, an address. */
 enum : uint8_t { CV_INT, CV_FLT, CV_DBL, CV_STR, CV_BYTE, CV_ADDR };

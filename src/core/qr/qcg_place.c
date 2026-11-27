@@ -197,8 +197,9 @@ static void qcg_subs(QCg *const g, const QExpr *const e)
         qcg_expr(g, e->nargv ? e->argv[k] : e->b);
 }
 
-/* Fixed array place e's element, its first's address pushed: FX.IDX for each subscript. */
-static void qcg_fixedidx(QCg *const g, const QExpr *const e, const QTy *const y)
+/* Fixed array place e's element, its record's address pushed, the array off bytes in: FX.IDX for
+   each subscript, the first's adding off. */
+static void qcg_fixedidx(QCg *const g, const QExpr *const e, const QTy *const y, const uint32_t off)
 {
     const bool each = e->nargv == y->dims;
     uint32_t stride = qcg_size(g, y->elem);
@@ -207,6 +208,7 @@ static void qcg_fixedidx(QCg *const g, const QExpr *const e, const QTy *const y)
         const uint32_t count = each ? y->counts[k] : y->count;
         qcg_expr(g, e->nargv ? e->argv[k] : e->b);
         code_op(g->c, O_FX_IDX);
+        code_dword(g->c, k ? 0 : off);
         code_dword(g->c, 0);
         code_dword(g->c, count);
         code_dword(g->c, stride);
@@ -244,8 +246,7 @@ static void qcg_elem(QCg *const g, const QExpr *const e)
             return;
         }
 
-        qcg_offset(g, off);
-        qcg_fixedidx(g, e, y);
+        qcg_fixedidx(g, e, y, off);
         return;
     }
 

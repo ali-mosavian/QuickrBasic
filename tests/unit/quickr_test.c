@@ -98,3 +98,16 @@ TEST(quickr_one_return_methods_inline)
     ));
     CHECK(!unit_ops(S, O_PCALL));
 }
+
+/* A fixed array field's element is one FX.IDX, the field's offset its operand. It took a load and
+   an I.ADD besides. */
+TEST(quickr_fixed_array_field_offset_in_its_index)
+{
+    CHECK(!build(
+        S,
+        "type Land\n    heights as int[4]\n    lights as ubyte[4]\nend type\n"
+        "var ld as Land\nvar i = 2\nld.lights[i] = 7\nprint ld.lights[i]\n"
+    ));
+    CHECK(unit_ops(S, O_FX_IDX) == 2);
+    CHECK(!unit_ops(S, O_I_ADD) && !unit_ops(S, O_I_ADD_I16) && !unit_ops(S, O_I_ADD_U8));
+}

@@ -267,7 +267,7 @@ OP(I_COUNT_UP_L, flow_i_count_up_l, NEXT_SIZE, 0)
 FRAME(I_COUNT_UP, I_COUNT_UP_L)
 OP(V_REF, exec_v_ref, 1 + VID, FP)  /* a parameter's ref, passed on */
 OP(FE_ADDR, exec_fe_addr, 10, 0)    /* a record's array field's element ( a s.. -- e ): off:4 n esize:4 */
-OP(FX_IDX, exec_fx_idx, 13, 0)      /* a fixed array field's element ( a s -- e ): lb count stride */
+OP(FX_IDX, exec_fx_idx, 17, 0)      /* a fixed array field's element ( a s -- e ): off lb count stride */
 OP(E_NEXT, flow_e_next, E_NEXT_SIZE, 0) /* for x in a's next: i, a and x Locs (comp/select.c), a Jump */
 OP(I_COUNT_DN_L, flow_i_count_dn_l, NEXT_SIZE, 0)
 FRAME(I_COUNT_DN, I_COUNT_DN_L)
