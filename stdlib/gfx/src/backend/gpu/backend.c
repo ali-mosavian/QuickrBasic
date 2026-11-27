@@ -158,6 +158,15 @@ static GpuVertex shape(const GpuCall *const t, const uint32_t colour)
 
 static Gpu *gpu(const Gx *const g) { return &((GpuState *)g->own)->gpu; }
 
+/* The move of a call's vertices into into's root: its place, and on a fixed host half a pixel
+   more, its pixels' centres at halves (qxlist.h). */
+static Vec moved(const Gx *const g, const Source *const into)
+{
+    const float half = gpu(g)->fixed ? 0.5f : 0;
+
+    return (Vec){(float)into->at.x + half, (float)into->at.y + half};
+}
+
 static GpuCall *call(const Gx *const g) { return &((GpuState *)g->own)->call; }
 
 /* The pass into into within clip, with its depth texture when deep (made if none, *fresh then),
@@ -225,7 +234,7 @@ static bool begin(Gx *const g, const Command *const c, const Source *const into,
 
     *call(g) = (GpuCall){
         .gpu = gpu(g),
-        .at = {(float)into->at.x, (float)into->at.y},
+        .at = moved(g, into),
         .clip = clip,
         .template =
             {
@@ -422,7 +431,7 @@ static bool clear_depth(Gx *const g, const Source *const into)
 
     const GpuCall t = {
         .gpu = gpu(g),
-        .at = {(float)into->at.x, (float)into->at.y},
+        .at = moved(g, into),
         .clip = all,
         .template =
             {

@@ -334,16 +334,15 @@ static void quad(
     const float t0
 )
 {
-    const float l = x0 - 0.5f, r = x1 - 0.5f, top = y0 - 0.5f, b = y1 - 0.5f;
     const float s1 = s0 + (x1 - x0), t1 = t0 + (y1 - y0);
 
-    v[0] = (AccelVertex){l, top, 0, 1, s0, t0, WHITE};
+    v[0] = (AccelVertex){x0, y0, 0, 1, s0, t0, WHITE};
 
-    v[1] = (AccelVertex){r, top, 0, 1, s1, t0, WHITE};
+    v[1] = (AccelVertex){x1, y0, 0, 1, s1, t0, WHITE};
 
-    v[2] = (AccelVertex){r, b, 0, 1, s1, t1, WHITE};
+    v[2] = (AccelVertex){x1, y1, 0, 1, s1, t1, WHITE};
 
-    v[3] = (AccelVertex){l, b, 0, 1, s0, t1, WHITE};
+    v[3] = (AccelVertex){x0, y1, 0, 1, s0, t1, WHITE};
 }
 
 static void dirtied(Texture *const t, const int32_t top, const int32_t bottom)
@@ -884,7 +883,7 @@ static bool covers(
         y1 = v[i].y > y1 ? v[i].y : y1;
     }
 
-    if (x0 > -0.5f || y0 > -0.5f || x1 < into->w - 0.5f || y1 < into->h - 0.5f)
+    if (x0 > 0 || y0 > 0 || x1 < into->w || y1 < into->h)
         return false;
 
     /* each the rectangle's corners but one, those left out opposite */

@@ -459,8 +459,7 @@ static void box_at(
     const uint32_t corners[] = {0, 1, 2, 0, 2, 3};
 
     for (uint32_t i = 0; i < 4; i++)
-        list.v[list.nv++] =
-            (Vertex){xs[i] - 0.5f, ys[i] - 0.5f, 0, 1, us[i], 0, .r = red, .a = 255};
+        list.v[list.nv++] = (Vertex){xs[i], ys[i], 0, 1, us[i], 0, .r = red, .a = 255};
 
     for (uint32_t i = 0; i < 6; i++)
         list.index[list.ni++] = at + corners[i];
@@ -566,8 +565,8 @@ TEST(accel_player_sends_a_quads_two_triangles_as_one_polygon)
 
     box_at(SOLID, 0, 2, 4, 10, 12, 0, 0, 5, 255);
     CHECK(played(SHOWN, from, true) && calls_of('V') == 1 && fake.sides == 4);
-    CHECK(fake.last[1].x == 10 - 0.5f && fake.last[1].y == 12 - 0.5f);
-    CHECK(fake.last[2].x == 2 - 0.5f && fake.last[2].y == 12 - 0.5f);
+    CHECK(fake.last[1].x == 10 && fake.last[1].y == 12);
+    CHECK(fake.last[2].x == 2 && fake.last[2].y == 12);
     accel_close();
 }
 

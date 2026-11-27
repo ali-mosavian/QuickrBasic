@@ -22,7 +22,7 @@ enum {
     GPU_STAGE_TILE = 16384,   /* u and v repeat across the rectangle (px_tiles) */
 };
 
-/* x, y a pixel's centre at whole numbers; z its depth, 1/z of a corner's z (0 far, as gfx's
+/* x, y a pixel's centre at whole numbers, a fixed host's at halves; z its depth, 1/z of a corner's z (0 far, as gfx's
    depth); w its z where texels go in perspective, else 1. u, v texels, the one at a pixel's centre
    drawn, kept inside the rectangle rx, ry, rw by rh. Its colour is the texel's lit by light and
    tinted by r, g, b as software's ink (soft/ink.h); SOLID's, r, g, b. alpha: 0 to 63. */

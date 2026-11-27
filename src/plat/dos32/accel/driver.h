@@ -76,7 +76,7 @@ typedef struct {
     uint8_t depth;
 } AccelState;
 
-/* x, y: the target's pixels, a pixel's centre at whole numbers; z: its depth, 0 to 1, greater
+/* x, y: the target's pixels, a pixel's centre at halves; z: its depth, 0 to 1, greater
    nearer; q: 1 over perspective's w, 1 without; s, t: the texture's texels, not over w; colour:
    &HAARRGGBB. */
 typedef struct {

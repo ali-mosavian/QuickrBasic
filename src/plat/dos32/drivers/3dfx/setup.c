@@ -167,10 +167,6 @@ uint32_t tdfx_sent(const uint32_t params)
            1u << TDFX_COMMAND;
 }
 
-/* A move o to the card's pixel centres, half a pixel on: once a draw, not an add a corner. Exact:
-   o is whole, under 2^23. */
-static float centred(const float o) { return o + 0.5f; }
-
 bool tdfx_setup(const AccelVertex v[3], const TdfxDraw *const d, TdfxTriangle *const out)
 {
     const AccelVertex *p[3] = {&v[0], &v[1], &v[2]};
@@ -187,16 +183,14 @@ bool tdfx_setup(const AccelVertex v[3], const TdfxDraw *const d, TdfxTriangle *c
 
     const uint32_t params = d->params, still = alike(v, params);
     const float k = params & TEXEL ? w_scale(v, 3) : 1;
-    const float ox = centred(d->ox), oy = centred(d->oy);
-
     float x[3], y[3], at[3][TDFX_PARAMS];
 
     for (uint32_t i = 0; i < 3; i++) {
         const AccelVertex *const c = p[i];
         const uint32_t need = i ? params & ~still : params; /* the alike only at A */
 
-        x[i] = c->x + ox;
-        y[i] = c->y + oy;
+        x[i] = c->x + d->ox;
+        y[i] = c->y + d->oy;
 
         if (need & COLOUR) {
             at[i][TDFX_R] = (float)(c->colour >> 16 & CHANNEL);
@@ -323,13 +317,14 @@ void tdfx_corners(
     const bool even = params & TEXEL && flat(v, n);
     const bool argb = params & (COLOUR | 1u << TDFX_A);
     const float k = params & TEXEL && !even ? w_scale(v, n) : 1;
-    const float ox = centred(d->ox), oy = centred(d->oy);
+    /* only a screen centred in a larger mode: else x and y as they are, a 486's add 20 cycles */
+    const bool moved = d->ox != 0 || d->oy != 0;
 
     for (uint32_t i = 0; i < n; i++) {
         const AccelVertex *const c = &v[i];
 
-        *out++ = bits(c->x + ox);
-        *out++ = bits(c->y + oy);
+        *out++ = moved ? bits(c->x + d->ox) : bits(c->x);
+        *out++ = moved ? bits(c->y + d->oy) : bits(c->y);
 
         if (argb)
             *out++ = tdfx_argb(c->colour, d->share);

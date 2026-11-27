@@ -937,6 +937,16 @@ static void fixed_screen(Session *const S, const int32_t w, const int32_t h, con
     screen_in(S, w, h, depth, QX_SHADER_FIXED, false);
 }
 
+/* A fixed host's pixels' centres are at halves, as GL's and a card's: pixels 1 to 2 a box from 1
+   to 3. At whole numbers, the card's driver moved each corner half a pixel, two adds a corner. */
+TEST(gfx_gpu_places_a_fixed_hosts_pixels_centres_at_halves)
+{
+    fixed_screen(S, 8, 8, 16);
+    GPU_CALL("draw.rect", I(SURF_SCREEN), F(1), F(1), F(2), F(2), I(0xFF0000), I(GFX_DRAW_FILL));
+    GPU_CALL("display.flip");
+    CHECK(placed(&vertices[0], 1, 1) && placed(&vertices[2], 3, 3));
+}
+
 /* DISCARD reaches the host, which then need not keep the screen past a flip: a Voodoo 1 spent two
    thirds of MEADOW's frame copying back the frame it had just shown. */
 TEST(gfx_gpu_tells_the_host_a_screen_is_discarded)

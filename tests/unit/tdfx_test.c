@@ -23,8 +23,8 @@ static float word_of(const TdfxTriangle *const t, const uint32_t i)
     return f;
 }
 
-/* Corners given bottom first: sorted top first, moved to the card's pixel centres, red's
-   gradients 10 across and 5 down whatever the order. */
+/* Corners given bottom first: sorted top first, red's gradients 10 across and 5 down whatever the
+   order. */
 TEST(tdfx_setup_sorts_corners_and_finds_gradients)
 {
     const AccelVertex v[3] = {
@@ -38,8 +38,8 @@ TEST(tdfx_setup_sorts_corners_and_finds_gradients)
     TdfxTriangle t;
 
     CHECK(tdfx_setup(v, &d, &t));
-    CHECK(near(word_of(&t, 1), 0.5f) && near(word_of(&t, 5), 10.5f) && near(word_of(&t, 4), 0.5f));
-    CHECK(near(word_of(&t, 0), 0.5f) && near(word_of(&t, TDFX_START + TDFX_R), 0));
+    CHECK(near(word_of(&t, 1), 0) && near(word_of(&t, 5), 10) && near(word_of(&t, 4), 0));
+    CHECK(near(word_of(&t, 0), 0) && near(word_of(&t, TDFX_START + TDFX_R), 0));
     CHECK(near(word_of(&t, TDFX_DX + TDFX_R), 10) && near(word_of(&t, TDFX_DY + TDFX_R), 5));
     CHECK(near(word_of(&t, TDFX_START + TDFX_A), 255) && near(word_of(&t, TDFX_DX + TDFX_A), 0));
 }
@@ -1248,9 +1248,9 @@ TEST(tdfx_h3_sends_a_polygon_as_one_fan)
         uint32_t u;
     } x[3];
 
-    x[0].f = 10 + 0.5f + 160;
-    x[1].f = 50 + 0.5f + 160;
-    x[2].f = 10 + 0.5f + 160;
+    x[0].f = 10 + 160;
+    x[1].f = 50 + 160;
+    x[2].f = 10 + 160;
     CHECK(h3.fifo.corners == 4 && h3.fifo.triangles == 2);
     CHECK(drew(h3.fifo.drawn[0], x[0].u, x[1].u, x[1].u));
     CHECK(drew(h3.fifo.drawn[1], x[0].u, x[1].u, x[2].u));
@@ -1363,7 +1363,7 @@ TEST(tdfx_sst_writes_by_the_memory_fifos_room)
     status_is(0xFFFFu << 12);
     d->state(&SOLID);
     triangles_to(d, ten, 10 * 3);
-    CHECK(loaded(card_memory + SST_FVERTEX) != 0);
+    CHECK(loaded(card_memory + SST_FVERTEX + 2 * sizeof(uint32_t)) != 0); /* B's x, 64 */
     d->close();
 }
 

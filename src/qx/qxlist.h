@@ -30,7 +30,7 @@
  *   only in a pass with a depth target; one without, in any.
  *   A FIXED one (minor 5) has no code: its first two code words are QX_FIXED_SOURCE's and
  *   QX_FIXED_FLAGS', the rest 0. Its attributes are known by location: QX_FIXED_AT_POSITION,
- *   FLOAT4, x and y the target's pixels with a pixel's centre at whole numbers, z its depth as it
+ *   FLOAT4, x and y the target's pixels with a pixel's centre at halves, as GL's, z its depth as it
  *   is, w 1, or the divisor texels go in perspective by; QX_FIXED_AT_TEXEL, FLOAT2, in texels;
  *   QX_FIXED_AT_COLOUR, UBYTE4, r, g, b and a, over 255; QX_FIXED_AT_RECT, USHORT4, if given, the
  *   x, y, w and h of the texels a wrap repeats, else the texture's. A pixel's alpha is a times the
