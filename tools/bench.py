@@ -1994,7 +1994,7 @@ def demos_on_card(a: argparse.Namespace, own: dict[str, bytes]) -> int:
     pages = {"lib/gfx.qbx": (b.dos.parent / "lib/gfx.qbx").read_bytes()}
     card = pages | drivers_of(b)
     if a.show:
-        prog = demo_program((a.demo or ["CUBE"])[0], a.seconds, True, 0, depth=a.depth, sized=True)
+        prog = demo_program((a.demo or ["CUBE"])[0], a.seconds, False, 0, depth=a.depth, sized=True)
         vm_shown(vm, b.dos, (prog, "", "", own), card)
         return 0
     if a.profile:
@@ -2356,8 +2356,8 @@ def main() -> int:
     p.add_argument("--card", choices=list(CARD_DRIVERS), help="on --machine's VM with this 3D card, at --depth bits")
     p.add_argument("--depth", type=int, choices=(8, 16), default=16, help="--card: the demos' bits a pixel")
     p.add_argument("--set", action="append", metavar="NAME=VALUE", help="--card: in DOS's environment, --profile's too")
-    p.add_argument("--show", action="store_true", help="--card: --demo's first (CUBE when none) as shipped, --seconds "
-                   "long, in 86Box's own window")
+    p.add_argument("--show", action="store_true", help="--card: --demo's first (CUBE when none) without vsync, "
+                   "--seconds long, in 86Box's own window")
     p.add_argument("--demo", action="append", choices=list(DEMO_EDITS), help="a demo to time; all when none")
     p.add_argument("--seconds", type=float, default=10)
     p.add_argument("--profile", action="store_true", help="by function a frame, ours with every edit (normal core)")
