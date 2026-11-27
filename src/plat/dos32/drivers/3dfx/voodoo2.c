@@ -196,10 +196,21 @@ static bool registered(Tdfx *const c)
     return true;
 }
 
+/* The tiles across, in fbiInit6's and fbiInit1's three fields. */
+static void tiled(const Tdfx *const c, const uint32_t tiles)
+{
+    sst_changed(c, SST_FBI_INIT6, 1u << TILES_BOTTOM, (tiles & 1) << TILES_BOTTOM);
+    sst_changed(
+        c,
+        SST_FBI_INIT1,
+        SST_TILES_BITS | 1u << TILES_TOP,
+        (tiles >> 1 & 0xF) << SST_TILES | (tiles >> 5 & 1) << TILES_TOP
+    );
+}
+
 /* sst1InitVideoBuffers: mode m shown, its buffers pages each; false, its clocks out of range. */
 static bool shown_in(Tdfx *const c, const SstMode *const m, const uint32_t pages)
 {
-    const uint32_t t = m->tiles;
     const uint32_t fifo = m->video_fifo - (cvg.grx < SLOW_GRX ? SLOW_FIFO : 0);
     const uint32_t trex1 = (SST_TREX1 & ~SST_TF_BITS) | TF << SST_TF_DELAY;
 
@@ -210,15 +221,14 @@ static bool shown_in(Tdfx *const c, const SstMode *const m, const uint32_t pages
 
     sst_timed(c, m);
 
-    /* the stride is worked out as fbiInit2 is written: the tiles first, in three fields */
-    sst_changed(c, SST_FBI_INIT6, 1u << TILES_BOTTOM, (t & 1) << TILES_BOTTOM);
+    /* the stride is worked out as fbiInit2 is written: the tiles first */
+    tiled(c, m->tiles);
     sst_changed(
         c,
-        SST_FBI_INIT1,
-        SST_TILES_BITS | 1u << TILES_TOP,
-        (t >> 1 & 0xF) << SST_TILES | (t >> 5 & 1) << TILES_TOP
+        SST_FBI_INIT2,
+        SST_PAGES_BITS | SST_BANKED,
+        pages << SST_PAGES | (c->frame_bytes == 4 << 20 ? SST_BANKED : 0)
     );
-    sst_changed(c, SST_FBI_INIT2, SST_PAGES_BITS, pages << SST_PAGES);
     sst_changed(c, SST_FBI_INIT3, SST_VIDEO_FIFO_BITS, fifo << SST_VIDEO_FIFO);
     sst_changed(c, SST_FBI_INIT0, SST_PCI_LWM_BITS | SST_MEMORY_FIFO, SST_PCI_LWM);
     sst_changed(c, SST_FBI_INIT1, SST_VIDEO_BITS, VIDEO_16BPP);
@@ -237,20 +247,35 @@ static bool shown_in(Tdfx *const c, const SstMode *const m, const uint32_t pages
     return true;
 }
 
+static void closed(Tdfx *c);
+
+/* A board whose memory answers none of fbiMemSize's tests is taken as every board's least. */
 static bool opened(Tdfx *const c, const uint16_t w, const uint16_t h)
 {
-    const SstMode *const m = sst_mode_for(MODES, sizeof MODES / sizeof *MODES, w, h);
-
-    if (!m || !sst_mapped(c))
+    if (!sst_mapped(c))
         return false;
 
     const uint32_t strap = tdfx_get(c, SST_FBI_INIT7) >> STRAP & STRAP_BITS;
 
     cvg.grx = GRAPHICS_MHZ + (float)strap;
 
-    const uint32_t pages = sst_pages(m);
+    if (!registered(c))
+        return false;
 
-    if (!registered(c) || !shown_in(c, m, pages))
+    const uint32_t sized = sst_sized(c, tiled);
+
+    c->frame_bytes = sized ? sized : SST_BYTES;
+
+    const SstMode *const m =
+        sst_mode_for(MODES, sizeof MODES / sizeof *MODES, w, h, c->frame_bytes);
+    if (!m) {
+        closed(c);
+        return false;
+    }
+
+    const uint32_t pages = sst_pages(m, c->frame_bytes);
+
+    if (!shown_in(c, m, pages))
         return false;
 
     c->host->pci_write(&c->pci, SST_VIDEO_ON, 0);

@@ -5,13 +5,16 @@
  * The frame buffer is colour buffers 0 and 1 and one of depth, a row each of the same stride. The
  * mode shown is the top rows of one colour buffer, drawn in the other, the screen centred in it; a
  * target is rows below the mode in buffer 0, drawn in it whether shown or not, its depth the same
- * rows of the depth buffer. A texture is one LOD of TMU0's memory; an indexed one's texels are
- * looked up in TMU0's palette, index 0 keyed by the chroma key: the palette's colour for it, its
- * low bits, which a 565 pixel drops, made unlike every other's. Registers are written as the chip
- * takes them, those a write picks: a triangle as the words its state reads, or as its corners
- * to a setup unit. Worked out here, a run of triangles of one colour sends it once, as color0's.
- * Where the CPU can, the window written most is write-combined, as Glide has it, and fenced
- * where the card must see writes whole and in order.
+ * rows of the depth buffer. Taller than those rows, a target is lent the top left of the buffer
+ * drawn in while it is drawn into: the screen's pixels there are kept in memory meanwhile, and its
+ * own once another is drawn into, as the CPU copies them through the frame buffer's window. A
+ * texture is one LOD of TMU0's memory; an indexed one's texels are looked up in TMU0's palette,
+ * index 0 keyed by the chroma key: the palette's colour for it, its low bits, which a 565 pixel
+ * drops, made unlike every other's. Registers are written as the chip takes them, those a write
+ * picks: a triangle as the words its state reads, or as its corners to a setup unit. Worked out
+ * here, a run of triangles of one colour sends it once, as color0's. Where the CPU can, the window
+ * written most is write-combined, as Glide has it, and fenced where the card must see writes whole
+ * and in order.
  */
 #ifndef TDFX_TDFX_H
 #define TDFX_TDFX_H
@@ -63,7 +66,9 @@ typedef struct {
      Tdfx's way's corner picks, read by the card as they are written there: null, put_corners
      writes them to its registers;
    - put_corners: n corners packed as corners has them, to the setup unit's registers, each then
-     its command: a fan's first and each triangle's first beginning it, the rest drawing it. */
+     its command: a fan's first and each triangle's first beginning it, the rest drawing it;
+   - copy: r of colour buffer `buffer`, or of the depth buffer (TDFX_DEPTH), into pixels, r.w a
+     row, or from them when back; r.x and r.w even: null, a target is never lent rows. */
 typedef struct {
     uint32_t busy;
     void (*put)(Tdfx *c, uint32_t reg, const TdfxPicks *p, const uint32_t *v);
@@ -82,7 +87,11 @@ typedef struct {
     void (*paletted)(Tdfx *c);
     uint32_t *(*corners)(Tdfx *c, uint32_t n, bool fan);
     void (*put_corners)(Tdfx *c, const uint32_t *v, uint32_t n, bool fan);
+    void (*copy)(Tdfx *c, uint32_t buffer, AccelRect r, uint16_t *pixels, bool back);
 } TdfxChip;
+
+/* The depth buffer, as a chip's copy names it. */
+enum : uint32_t { TDFX_DEPTH = 2 };
 
 /* A family's: its chip; whether it has the setup unit; its card (Tdfx's pci) readied, showing a
    mode holding w by h (Tdfx's to fill named there), false, it cannot; stopped, the VGA's screen
@@ -113,6 +122,7 @@ typedef struct {
     uint32_t y; /* buffer 0's row: 0, none */
     uint16_t w, h;
     bool depth;
+    uint16_t *kept; /* lent rows: its pixels while not drawn into, its depth's after; null, none */
 } TdfxTarget;
 
 struct Tdfx {
@@ -121,12 +131,12 @@ struct Tdfx {
     PciFunction pci;
     /* the family's open fills: the registers, the frame buffer's and textures' windows; the frame
        buffer window's bytes a row; a buffer's stride in pixels and rows; the mode shown's size;
-       texture memory's bytes; the refresh */
+       texture memory's bytes; the refresh; the frame buffer's bytes */
     volatile uint8_t *regs, *lfb, *texels;
     /* the status tdfx_idle reads: H3's through its 2D registers, as 86Box answers it only once
        its render threads have drawn what they were queued; its 3D ones read idle before */
     const volatile uint32_t *status;
-    uint32_t lfb_row, stride, rows, mode_w, mode_h, texture_bytes, millihz;
+    uint32_t lfb_row, stride, rows, mode_w, mode_h, texture_bytes, millihz, frame_bytes;
     void(ACCEL_CALL *fence)(void); /* the host's, a window write-combined: null, none is */
     volatile uint8_t *packer; /* the SST-1's: the word its PCI packer is flushed by, null none */
 
@@ -136,6 +146,11 @@ struct Tdfx {
     TdfxSpace memory, below;  /* texture memory's bytes; buffer 0's rows below the screen */
     TdfxTexture textures[ACCEL_TEXTURES];
     TdfxTarget targets[ACCEL_TARGETS];
+    /* the target drawn in the rows it is lent, 0 none; the screen's pixels there, its depth's
+       after, and the words they have room for */
+    uint32_t lending;
+    uint16_t *under;
+    uint32_t under_words;
 
     /* what the draws go to and how */
     uint32_t aimed, buffer, draw; /* a target slot; its colour buffer; fbzMode's draw buffer */

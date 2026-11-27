@@ -128,6 +128,7 @@ static const TdfxChip chip = {
     sst_paletted,
     corners,
     nullptr,
+    nullptr,
 };
 
 void cvg_queued(Tdfx *const c, const uint32_t pages)
@@ -137,7 +138,7 @@ void cvg_queued(Tdfx *const c, const uint32_t pages)
     if (!host->env(ASKED, nullptr, 0))
         return;
 
-    const uint32_t at = sst_after_buffers(pages), bytes = ring_in(SST_BYTES - at);
+    const uint32_t at = sst_after_buffers(pages), bytes = ring_in(c->frame_bytes - at);
     const uint32_t init7 = (tdfx_get(c, SST_FBI_INIT7) & ~(FIFO_ON | OFFSCREEN | NO_HOLES |
                                                            FETCH_BITS | IN_ORDER | TIMEOUT_BITS)) |
                            IN_ORDER | FETCH | TIMEOUT;

@@ -107,10 +107,11 @@ void tdfx_idle_fbi(const Tdfx *const c)
         calm = tdfx_get(c, SST_STATUS) & SST_FBI_BUSY ? 0 : calm + 1;
 }
 
-/* The colour buffer slot's draws go to: the screen's, the one not shown; a target's, 0. */
+/* The colour buffer slot's draws go to: the screen's, and a target's lent rows, the one not
+   shown; a target's own rows, 0. */
 static uint32_t buffer_of(const Tdfx *const c, const uint32_t slot)
 {
-    return slot == ACCEL_SCREEN ? c->shown ^ 1 : 0;
+    return slot == ACCEL_SCREEN || c->targets[slot].kept ? c->shown ^ 1 : 0;
 }
 
 static uint32_t row_of(const Tdfx *const c, const uint32_t slot)
@@ -342,8 +343,17 @@ opened(const PciFunction *const pci, const uint16_t w, const uint16_t h, AccelCa
 
 static void ACCEL_CALL closed(void)
 {
-    tdfx_idle(&card);
-    family->close(&card);
+    Tdfx *const c = &card;
+
+    tdfx_idle(c);
+    family->close(c);
+
+    for (uint32_t i = 1; i < ACCEL_TARGETS; i++)
+        if (c->targets[i].kept)
+            c->host->free(c->targets[i].kept);
+
+    if (c->under)
+        c->host->free(c->under);
 }
 
 /* Texture slot made w by h, a byte a texel when indexed: false, no room. */
@@ -405,17 +415,126 @@ static void ACCEL_CALL forgotten(const uint32_t slot)
     card.placed = card.placed == slot ? ACCEL_TEXTURES : card.placed;
 }
 
+/* A target's lent rows: the top left of the buffer drawn in, an even number of pixels across. */
+static AccelRect lent_rows(const TdfxTarget *const t)
+{
+    return (AccelRect){0, 0, (int32_t)((t->w + 1u) & ~1u), t->h};
+}
+
+/* Target slot drawn in the rows it is lent: the screen's pixels there kept, its own put there. */
+static void lent(Tdfx *const c, const uint32_t slot)
+{
+    const TdfxTarget *const t = &c->targets[slot];
+    const AccelRect r = lent_rows(t);
+    const uint32_t n = (uint32_t)r.w * (uint32_t)r.h, buffer = c->shown ^ 1;
+
+    c->chip->copy(c, buffer, r, c->under, false);
+    c->chip->copy(c, buffer, r, t->kept, true);
+
+    if (t->depth) {
+        c->chip->copy(c, TDFX_DEPTH, r, c->under + n, false);
+        c->chip->copy(c, TDFX_DEPTH, r, t->kept + n, true);
+    }
+
+    c->lending = slot;
+}
+
+/* The lent rows given back, the target's pixels kept unless it is dropped, the screen's put
+   back. */
+static void returned(Tdfx *const c, const bool kept)
+{
+    if (!c->lending)
+        return;
+
+    const TdfxTarget *const t = &c->targets[c->lending];
+    const AccelRect r = lent_rows(t);
+    const uint32_t n = (uint32_t)r.w * (uint32_t)r.h, buffer = c->shown ^ 1;
+
+    if (kept)
+        c->chip->copy(c, buffer, r, t->kept, false);
+
+    if (kept && t->depth)
+        c->chip->copy(c, TDFX_DEPTH, r, t->kept + n, false);
+
+    c->chip->copy(c, buffer, r, c->under, true);
+
+    if (t->depth)
+        c->chip->copy(c, TDFX_DEPTH, r, c->under + n, true);
+
+    c->lending = 0;
+}
+
+/* The target aimed at drawn in the rows it is lent, as a show or a carry gave them back. */
+static void lent_aimed(Tdfx *const c)
+{
+    if (c->aimed != c->lending && c->targets[c->aimed].kept)
+        lent(c, c->aimed);
+}
+
+/* Room for the screen's pixels under a lent target of words: false, no memory. Grown, the rows
+   lent are given back first. */
+static bool under_held(Tdfx *const c, const uint32_t words)
+{
+    if (words <= c->under_words)
+        return true;
+
+    returned(c, true);
+
+    uint16_t *const under = c->host->alloc(words * 2);
+
+    if (!under)
+        return false;
+
+    if (c->under)
+        c->host->free(c->under);
+
+    c->under = under;
+    c->under_words = words;
+    return true;
+}
+
+/* Target slot made w by h, black, lent the screen's rows: false, they would not hold it, the chip
+   lends none, or no memory. */
+static bool lent_made(
+    Tdfx *const c,
+    const uint32_t slot,
+    const uint16_t w,
+    const uint16_t h,
+    const bool depth
+)
+{
+    const TdfxTarget t = {0, w, h, depth, nullptr};
+    const AccelRect r = lent_rows(&t);
+    const uint32_t words = (uint32_t)r.w * h * (depth ? 2u : 1u);
+
+    if (!c->chip->copy || (uint32_t)r.w > c->mode_w || h > c->mode_h || !under_held(c, words))
+        return false;
+
+    uint16_t *const kept = c->host->alloc(words * 2);
+
+    if (!kept)
+        return false;
+
+    c->targets[slot] = (TdfxTarget){0, w, h, depth, kept};
+    return true;
+}
+
+/* In rows of its own past the mode; lent the screen's only when those could not hold it, as giving
+   others back costs less than lending. */
 static bool ACCEL_CALL
 targeted(const uint32_t slot, const uint16_t w, const uint16_t h, const bool depth)
 {
     Tdfx *const c = &card;
-    const uint32_t at =
-        slot && slot < ACCEL_TARGETS && w <= c->stride ? tdfx_take(&c->below, h, 1) : TDFX_NONE;
 
-    if (at == TDFX_NONE)
+    if (!slot || slot >= ACCEL_TARGETS || w > c->stride)
         return false;
 
-    c->targets[slot] = (TdfxTarget){c->mode_h + at, w, h, depth};
+    const uint32_t at = tdfx_take(&c->below, h, 1);
+
+    if (at == TDFX_NONE)
+        return h > c->below.size && lent_made(c, slot, w, h, depth);
+
+    c->targets[slot] = (TdfxTarget){c->mode_h + at, w, h, depth, nullptr};
     tdfx_cleared(
         c,
         buffer_of(c, slot),
@@ -428,15 +547,29 @@ targeted(const uint32_t slot, const uint16_t w, const uint16_t h, const bool dep
 
 static void ACCEL_CALL dropped(const uint32_t slot)
 {
-    tdfx_give(&card.below, card.targets[slot].y - card.mode_h);
-    card.targets[slot] = (TdfxTarget){};
+    Tdfx *const c = &card;
+    TdfxTarget *const t = &c->targets[slot];
+
+    if (c->lending == slot)
+        returned(c, false);
+
+    if (t->kept)
+        c->host->free(t->kept);
+    else
+        tdfx_give(&c->below, t->y - c->mode_h);
+
+    *t = (TdfxTarget){};
 }
 
 static void ACCEL_CALL aimed(const uint32_t slot, const AccelRect clip)
 {
     Tdfx *const c = &card;
 
+    if (c->lending != slot)
+        returned(c, true);
+
     c->aimed = slot;
+    lent_aimed(c);
     c->buffer = buffer_of(c, slot);
     c->draw = c->chip->drawn_in(c, c->buffer);
     c->ox = column_of(c, slot);
@@ -561,6 +694,8 @@ static void ACCEL_CALL drawn(const AccelVertex *v, const uint8_t *const sides, c
 {
     Tdfx *const c = &card;
 
+    lent_aimed(c);
+
     if (c->repaletted) {
         c->repaletted = false;
         c->chip->paletted(c);
@@ -576,6 +711,7 @@ static void ACCEL_CALL shown(const bool vsync)
 {
     Tdfx *const c = &card;
 
+    returned(c, true);
     c->chip->show(c, vsync);
     tdfx_fenced(c); /* the swap sent now, not when the CPU's buffers next fill */
     c->shown ^= 1;
@@ -590,7 +726,11 @@ static void ACCEL_CALL shown(const bool vsync)
     }
 }
 
-static void ACCEL_CALL carried(void) { card.chip->carry(&card); }
+static void ACCEL_CALL carried(void)
+{
+    returned(&card, true);
+    card.chip->carry(&card);
+}
 
 /* Index 0's colour, its dropped bits unlike every other colour's: the chroma key's. */
 static uint32_t keyed(const uint32_t *const colours)
@@ -663,6 +803,8 @@ static void ACCEL_CALL filled(const uint32_t argb, const uint8_t what)
     Tdfx *const c = &card;
     const AccelRect clip = c->clip;
 
+    lent_aimed(c);
+
     tdfx_cleared(
         c,
         c->buffer,
@@ -672,9 +814,31 @@ static void ACCEL_CALL filled(const uint32_t argb, const uint8_t what)
     );
 }
 
+/* Pixels r of a target lent rows, as kept while not drawn into, into out. */
+static void kept_read(const TdfxTarget *const t, const AccelRect r, uint8_t *const out)
+{
+    const uint32_t across = (uint32_t)lent_rows(t).w;
+
+    for (uint32_t y = 0; y < (uint32_t)r.h; y++)
+        for (uint32_t x = 0; x < (uint32_t)r.w; x++)
+            spread(
+                t->kept[((uint32_t)r.y + y) * across + (uint32_t)r.x + x],
+                out + ((size_t)y * (uint32_t)r.w + x) * 4
+            );
+}
+
 static void ACCEL_CALL read_back(const uint32_t slot, const AccelRect r, uint8_t *const out)
 {
     Tdfx *const c = &card;
+
+    if (c->lending != slot)
+        returned(c, true);
+
+    if (slot != ACCEL_SCREEN && c->targets[slot].kept && c->lending != slot) {
+        kept_read(&c->targets[slot], r, out);
+        return;
+    }
+
     const uint32_t top = row_of(c, slot) + (uint32_t)r.y, x0 = column_of(c, slot) + (uint32_t)r.x;
     const uint32_t x1 = x0 + (uint32_t)r.w;
     const volatile uint8_t *const pixels = c->chip->pixels(c, buffer_of(c, slot));

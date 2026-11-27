@@ -519,12 +519,18 @@ static volatile uint8_t *ACCEL_CALL fake_map(const uint32_t phys, const uint32_t
     return bytes <= CARD_BYTES ? card_memory : nullptr;
 }
 
+static void *ACCEL_CALL fake_alloc(const uint32_t bytes) { return calloc(1, bytes); }
+
+static void ACCEL_CALL fake_free(void *const p) { free(p); }
+
 static const AccelHost FAKE_HOST = {
     .size = sizeof(AccelHost),
     .abi = ACCEL_ABI,
     .pci_read = fake_pci_read,
     .pci_write = fake_pci_write,
     .map = fake_map,
+    .alloc = fake_alloc,
+    .free = fake_free,
     .clock_us = fake_clock,
 };
 
@@ -558,6 +564,7 @@ static bool fake_open(Tdfx *const c, const uint16_t w, const uint16_t h)
     c->mode_w = w;
     c->mode_h = h;
     c->texture_bytes = 2 << 20;
+    c->frame_bytes = 2 << 20;
     return true;
 }
 
@@ -2146,5 +2153,103 @@ TEST(tdfx_sst_keeps_rows_for_targets_past_the_fifo)
 {
     const SstMode mode = {640, 480, 0, 0, 0, 20, 23, 0, 25.175f};
 
-    CHECK(sst_pages(&mode) * 4096 / (640 * 2) >= 480 + 50);
+    CHECK(sst_pages(&mode, 2 << 20) * 4096 / (640 * 2) >= 480 + 50);
+}
+
+/* A Voodoo 2's 4 MB was taken as 2: 640x480 left 57 rows past the screen, not the 64 CUBE's faces
+   take. Sized, it leaves them, its buffers' pages within fbiInit2's 9 bits. */
+TEST(tdfx_sst_lays_out_the_frame_buffer_it_has)
+{
+    const SstMode mode = {640, 480, 0, 0, 0, 20, 23, 0, 25.175f};
+
+    CHECK(sst_pages(&mode, 4 << 20) * 4096 / (640 * 2) >= 480 + 64);
+    CHECK(sst_pages(&mode, 4 << 20) < 512);
+}
+
+/* 640x480 in 2 MB, 57 rows past the screen. */
+static bool tight_open(Tdfx *const c, const uint16_t w, const uint16_t h)
+{
+    fake_open(c, w, h);
+    c->rows = 537;
+    return true;
+}
+
+static uint16_t *lfb_pixel(const uint32_t x, const uint32_t y)
+{
+    return (uint16_t *)(card_memory + SST_LFB + y * 2048 + x * 2);
+}
+
+/* 565 widened as the driver reads a pixel back. */
+static void widened(const uint16_t p, uint8_t out[4])
+{
+    const uint32_t r = p >> 11, g = p >> 5 & 0x3F, b = p & 0x1F;
+
+    out[0] = (uint8_t)(r << 3 | r >> 2);
+    out[1] = (uint8_t)(g << 2 | g >> 4);
+    out[2] = (uint8_t)(b << 3 | b >> 2);
+    out[3] = 255;
+}
+
+/* 640x480 in 2 MB left no room for CUBE's 64 by 64 faces past the screen: the draws into them
+   were dropped and the cube not drawn. Lent the screen's rows while drawn into, a face starts
+   black and keeps what was drawn, and the screen's pixels under it are put back, read back
+   meanwhile as the screen's. Read back while drawn into, the face's were read from what was kept
+   before: the scene's read back cell 243 off. */
+TEST(tdfx_driver_lends_a_target_the_screens_rows_when_none_are_left)
+{
+    static const TdfxFamily fake = {"fake", &sst_chip, false, tight_open, fake_close};
+    static uint8_t rgba[64 * 64 * 4];
+
+    const AccelDriver *const d = tdfx_driver(&FAKE_HOST, &fake);
+    const AccelRect face = {0, 0, 64, 64};
+
+    AccelCard card;
+    uint8_t want[4];
+
+    CHECK(d && d->open(&(PciFunction){}, 640, 480, &card));
+
+    for (uint32_t y = 0; y < 64; y++)
+        for (uint32_t x = 0; x < 64; x++)
+            *lfb_pixel(x, y) = (uint16_t)(0x1000 + y * 64 + x);
+
+    CHECK(d->target(1, 64, 64, false));
+    d->aim(1, face);
+    CHECK(*lfb_pixel(0, 0) == 0 && *lfb_pixel(63, 63) == 0);
+
+    for (uint32_t y = 0; y < 64; y++)
+        for (uint32_t x = 0; x < 64; x++)
+            *lfb_pixel(x, y) = (uint16_t)(0x8000 | y << 6 | x);
+
+    d->read(1, (AccelRect){5, 7, 1, 1}, rgba);
+    widened(0x8000 | 7 << 6 | 5, want);
+    CHECK(memcmp(rgba, want, 4) == 0);
+    d->read(ACCEL_SCREEN, (AccelRect){5, 7, 1, 1}, rgba);
+    widened(0x1000 + 7 * 64 + 5, want);
+    CHECK(memcmp(rgba, want, 4) == 0);
+    d->aim(ACCEL_SCREEN, (AccelRect){0, 0, 640, 480});
+    CHECK(*lfb_pixel(5, 7) == 0x1000 + 7 * 64 + 5 && *lfb_pixel(63, 63) == 0x1000 + 63 * 64 + 63);
+    d->read(1, face, rgba);
+    widened(0x8000 | 7 << 6 | 5, want);
+    CHECK(memcmp(rgba + (7 * 64 + 5) * 4, want, 4) == 0);
+    widened(0x8000 | 63 << 6 | 63, want);
+    CHECK(memcmp(rgba + (63 * 64 + 63) * 4, want, 4) == 0);
+    d->close();
+}
+
+/* A target the rows past the mode would hold once others are given back is refused, not lent:
+   the player gives the oldest back, one read; lent, each aim at it copied its rows four times. */
+TEST(tdfx_driver_lends_rows_only_to_a_target_past_the_modes_could_not_hold)
+{
+    static const TdfxFamily fake = {"fake", &sst_chip, false, tight_open, fake_close};
+
+    const AccelDriver *const d = tdfx_driver(&FAKE_HOST, &fake);
+
+    AccelCard card;
+
+    CHECK(d && d->open(&(PciFunction){}, 640, 480, &card));
+    CHECK(d->target(1, 64, 40, false));
+    CHECK(!d->target(2, 64, 40, false));
+    d->drop(1);
+    CHECK(d->target(2, 64, 40, false));
+    d->close();
 }

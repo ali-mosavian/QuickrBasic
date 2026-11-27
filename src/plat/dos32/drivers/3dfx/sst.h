@@ -2,9 +2,10 @@
  * the FBI's init registers, a mode's timing and frame buffer, and the VGA's screen given back.
  *
  * # How it works
- * A card is taken as 2 MB of frame buffer and 2 MB of textures, every board's least. A mode's
- * frame buffer is two colour buffers and the depth buffer, each a third of the memory a FIFO
- * leaves, up to the rows a clip reaches: the rows past the mode are targets'. fbzMode and lfbMode
+ * A card's frame buffer is sized as Glide sizes it, 1, 2 or 4 MB, its textures taken as 2 MB,
+ * every board's least. A mode's frame buffer is two colour buffers and the depth buffer, each a
+ * third of the memory a FIFO leaves, up to the rows a clip reaches: the rows past the mode are
+ * targets'. fbzMode and lfbMode
  * name the colour buffers front, the one shown, and back; swapbufferCMD swaps them. Texels go
  * through the texture window by level, row and texel, an indexed texture's four a word in order; pixels through the frame buffer's, 1024 a
  * row. A FIFO takes the frame buffer past the buffers: the Voodoo Graphics' memory FIFO, the PCI
@@ -54,6 +55,7 @@ enum : uint32_t {
     SST_PAGES_BITS = 0x1FFu << 11,
     SST_REFRESH = 1u << 22,
     SST_REFRESH_BITS = 0x1FFu << 23,
+    SST_BANKED = 1u << 1 | 1u << 20, /* the DRAM banked, as 4 MB is */
     SST_REFRESH_RATE = 0x30u << 23,
     /* fbiInit3: the video FIFO's threshold, the FBI to TMU clock delay */
     SST_VIDEO_FIFO = 1,
@@ -62,7 +64,7 @@ enum : uint32_t {
     SST_FT_BITS = 0xFu << 13,
     /* fbiInit4: LFB reads ahead */
     SST_READ_AHEAD = 1u << 1,
-    /* a card's frame buffer, and its texture memory; its window's bytes */
+    /* every board's frame buffer and texture memory at least; a card's window's bytes */
     SST_BYTES = 2 << 20,
     SST_WINDOW_BYTES = 16 << 20,
     /* the texture window's: a level, a row, a texel */
@@ -101,8 +103,14 @@ typedef struct {
     float mhz;
 } SstMode;
 
-/* The smallest of n modes holding w by h whose buffers fit: null, none. */
-const SstMode *sst_mode_for(const SstMode *modes, uint32_t n, uint16_t w, uint16_t h);
+/* The smallest of n modes holding w by h whose buffers fit in bytes: null, none. */
+const SstMode *sst_mode_for(
+    const SstMode *modes,
+    uint32_t n,
+    uint16_t w,
+    uint16_t h,
+    uint32_t bytes
+);
 /* Init register reg's clear bits cleared and set's set, the FBI idle after. */
 void sst_changed(const Tdfx *c, uint32_t reg, uint32_t clear, uint32_t set);
 /* A few status reads: what Glide waits after a PCI configuration write. */
@@ -115,8 +123,13 @@ bool sst_mapped(Tdfx *c);
 uint32_t sst_window(const Tdfx *c);
 /* Mode m's timing written, the video unit in reset. */
 void sst_timed(const Tdfx *c, const SstMode *m);
-/* A buffer's 4K pages for mode m, up to the rows a clip reaches. */
-uint32_t sst_pages(const SstMode *m);
+/* A buffer's 4K pages for mode m in a frame buffer of bytes, up to the rows a clip reaches. */
+uint32_t sst_pages(const SstMode *m, uint32_t bytes);
+/* How a family writes a layout's tiles across, 32 pixels each. */
+typedef void SstTiled(const Tdfx *c, uint32_t tiles);
+/* Glide's fbiMemSize: the frame buffer's bytes, 4, 2 or 1 MB, by the pixels written in each layout
+   that read back; 0, none do. Its pixels are lost; fbiInit0 to 2 are put back. */
+uint32_t sst_sized(Tdfx *c, SstTiled *tiled);
 /* The frame buffer's first byte past the buffers of pages each. */
 uint32_t sst_after_buffers(uint32_t pages);
 /* sst1InitVideo's memory FIFO, the frame buffer past the buffers of pages each: the room for

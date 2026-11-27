@@ -86,6 +86,12 @@ static bool registered(Tdfx *const c, const uint32_t revision)
     return true;
 }
 
+/* fbiInit1's tiles across, over 2. */
+static void tiled(const Tdfx *const c, const uint32_t tiles)
+{
+    sst_changed(c, SST_FBI_INIT1, SST_TILES_BITS, tiles / 2 << SST_TILES);
+}
+
 /* sst1InitVideo: mode m shown, its buffers pages each; false, its clocks out of range. */
 static bool shown_in(
     Tdfx *const c,
@@ -105,8 +111,13 @@ static bool shown_in(
     sst_timed(c, m);
 
     /* the stride is worked out as fbiInit2 is written: fbiInit1's tiles first */
-    sst_changed(c, SST_FBI_INIT1, SST_TILES_BITS, (uint32_t)m->tiles / 2 << SST_TILES);
-    sst_changed(c, SST_FBI_INIT2, SST_PAGES_BITS, pages << SST_PAGES);
+    tiled(c, m->tiles);
+    sst_changed(
+        c,
+        SST_FBI_INIT2,
+        SST_PAGES_BITS | SST_BANKED,
+        pages << SST_PAGES | (c->frame_bytes == 4 << 20 ? SST_BANKED : 0)
+    );
     sst_changed(
         c,
         SST_FBI_INIT3,
@@ -124,19 +135,34 @@ static bool shown_in(
     return true;
 }
 
+static void closed(Tdfx *c);
+
+/* A board whose memory answers none of fbiMemSize's tests is taken as every board's least. */
 static bool opened(Tdfx *const c, const uint16_t w, const uint16_t h)
 {
-    const SstMode *const m = sst_mode_for(MODES, sizeof MODES / sizeof *MODES, w, h);
-
-    if (!m || !sst_mapped(c))
+    if (!sst_mapped(c))
         return false;
 
     const uint32_t revision = c->host->pci_read(&c->pci, SST_REVISION) & 0xFF;
-    const uint32_t pages = sst_pages(m);
 
     sst.shows = tdfx_get(c, SST_FBI_INIT3) & POLARITY && revision > 0 ? 0 : SST_SHOWN;
 
-    if (!registered(c, revision) || !shown_in(c, m, pages, revision))
+    if (!registered(c, revision))
+        return false;
+
+    const uint32_t sized = sst_sized(c, tiled);
+
+    c->frame_bytes = sized ? sized : SST_BYTES;
+
+    const SstMode *const m =
+        sst_mode_for(MODES, sizeof MODES / sizeof *MODES, w, h, c->frame_bytes);
+
+    if (!m) {
+        closed(c);
+        return false;
+    }
+
+    if (!shown_in(c, m, sst_pages(m, c->frame_bytes), revision))
         return false;
 
     sst_changed(c, SST_FBI_INIT0, SST_SHOWN, sst.shows);

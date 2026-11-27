@@ -366,6 +366,7 @@ static const TdfxChip H3 = {
     paletted,
     corners,
     nullptr,
+    nullptr,
 };
 
 static bool opened(Tdfx *const c, const uint16_t w, const uint16_t h)
