@@ -5,7 +5,8 @@
  * and gradients, moving them to the first pixel's centre itself; its pixels' centres are at halves.
  * S and T are a texture's texels at LOD 0, 256 across, each over w, and W is 1 over w: the card
  * divides back per pixel. W is scaled to at most 1, the card's range, which the division undoes.
- * Only the parameters a state's path reads are worked out and sent: the card keeps the rest.
+ * Only the parameters a state's path reads are worked out and sent: the card keeps the rest. A
+ * chip with a setup unit is sent each corner's values instead, and works out the gradients itself.
  */
 #ifndef TDFX_SETUP_H
 #define TDFX_SETUP_H
@@ -40,6 +41,26 @@ typedef struct {
     uint32_t word[TDFX_WORDS];
 } TdfxTriangle;
 
+/* A corner as the setup unit's registers from sVx take it, a word each: x and y; the colour,
+   ARGB, alpha times the share; z; TMU0's w, s and t; then the commands drawing a triangle with
+   the two before, or beginning one. */
+enum {
+    TDFX_VX,
+    TDFX_VY,
+    TDFX_VARGB,
+    TDFX_VZ = 7,
+    TDFX_VW = 9,
+    TDFX_VS,
+    TDFX_VT,
+    TDFX_VDRAW = 15,
+    TDFX_VBEGIN,
+    TDFX_VERTEX_WORDS,
+};
+
+typedef struct {
+    uint32_t word[TDFX_VERTEX_WORDS];
+} TdfxVertex;
+
 /* What a draw's triangles share: their move; their texels' scale; the parameters sent, a bit
    each; their alpha's share over 255. */
 typedef struct {
@@ -59,6 +80,13 @@ uint32_t tdfx_params(const AccelState *s, bool texel);
 uint32_t tdfx_sent(uint32_t params);
 /* v's triangle as d draws it, the words tdfx_sent picks: false, no area. */
 bool tdfx_setup(const AccelVertex v[3], const TdfxDraw *d, TdfxTriangle *out);
+/* sSetupMode's for params: what the setup unit works out. */
+uint32_t tdfx_unit_mode(uint32_t params);
+/* A corner's words sent for params, a bit each, its commands aside. */
+uint32_t tdfx_corner_sent(uint32_t params);
+/* v's corners as d draws them, for the setup unit: the words tdfx_corner_sent picks, the commands'
+   0. */
+void tdfx_corners(const AccelVertex v[3], const TdfxDraw *d, TdfxVertex out[3]);
 /* s's words, drawn into buffer draw (0 front, 1 back), its texture indexed or not: an indexed one
    keyed by the chroma key, its index 0's colour. */
 TdfxWords tdfx_words(const AccelState *s, uint32_t draw, bool indexed);

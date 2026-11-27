@@ -362,4 +362,5 @@ const TdfxChip sst_chip = {
     shown,
     sst_carried,
     sst_paletted,
+    nullptr,
 };

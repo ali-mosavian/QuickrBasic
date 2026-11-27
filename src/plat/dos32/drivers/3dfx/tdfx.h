@@ -8,11 +8,13 @@
  * rows of the depth buffer. A texture is one LOD of TMU0's memory; an indexed one's texels are
  * looked up in TMU0's palette, index 0 keyed by the chroma key: the palette's colour for it, its
  * low bits, which a 565 pixel drops, made unlike every other's. Registers are written as the chip
- * takes them, those a write picks: a triangle as the words its state reads.
+ * takes them, those a write picks: a triangle as the words its state reads, or as its corners
+ * to a setup unit.
  */
 #ifndef TDFX_TDFX_H
 #define TDFX_TDFX_H
 #include "plat/dos32/accel/driver.h"
+#include "plat/dos32/drivers/3dfx/setup.h"
 #include "plat/dos32/drivers/3dfx/space.h"
 
 /* How long a wait for the card lasts. */
@@ -46,7 +48,9 @@ typedef struct {
    - pixels: where buffer's row 0 is read, lfb_row bytes a row, once the card is idle;
    - show: buffer shown ^ 1 shown, at the retrace with vsync;
    - carry: the next frame made the shown one's;
-   - paletted: after TMU0's palette is written, what holds texels looked up in it flushed. */
+   - paletted: after TMU0's palette is written, what holds texels looked up in it flushed;
+   - cornered: n corners to the setup unit, three a triangle, each the words Tdfx's corner picks:
+     null, written to its registers. */
 typedef struct {
     uint32_t busy;
     void (*put)(Tdfx *c, uint32_t reg, const TdfxPicks *p, const uint32_t *v);
@@ -63,13 +67,16 @@ typedef struct {
     void (*show)(Tdfx *c, bool vsync);
     void (*carry)(Tdfx *c);
     void (*paletted)(Tdfx *c);
+    void (*cornered)(Tdfx *c, const TdfxVertex *v, uint32_t n);
 } TdfxChip;
 
-/* A family's: its chip; its card (Tdfx's pci) readied, showing a mode holding w by h (Tdfx's to
-   fill named there), false, it cannot; stopped, the VGA's screen shown. */
+/* A family's: its chip; whether it has the setup unit; its card (Tdfx's pci) readied, showing a
+   mode holding w by h (Tdfx's to fill named there), false, it cannot; stopped, the VGA's screen
+   shown. */
 typedef struct {
     const char *name;
     const TdfxChip *chip;
+    bool unit;
     bool (*open)(Tdfx *c, uint16_t w, uint16_t h);
     void (*close)(Tdfx *c);
 } TdfxFamily;
@@ -106,7 +113,11 @@ struct Tdfx {
     AccelRect clip;
     AccelState state;
     uint32_t params; /* setup.h's: those the state reads */
-    TdfxPicks sent;  /* a triangle's words sent for them */
+    TdfxPicks sent;  /* a triangle's words sent for them, worked out on the CPU */
+    /* or by the setup unit: sSetupMode's; a corner's words; written register by register, with
+       the command beginning a triangle or drawing one */
+    uint32_t mode;
+    TdfxPicks corner, begins, draws;
     uint32_t placed; /* the texture TMU0's registers place: ACCEL_TEXTURES, none */
 };
 

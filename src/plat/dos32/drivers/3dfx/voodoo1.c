@@ -158,7 +158,7 @@ static void closed(Tdfx *const c)
     sst_stopped(c);
 }
 
-static const TdfxFamily SST1 = {"Voodoo Graphics", &sst_chip, opened, closed};
+static const TdfxFamily SST1 = {"Voodoo Graphics", &sst_chip, false, opened, closed};
 
 QX_EXPORT const uint32_t accel_ids[] = {ACCEL_ID(TDFX_VENDOR, 0x0001), 0};
 

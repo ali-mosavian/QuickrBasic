@@ -107,6 +107,72 @@ TEST(tdfx_setup_works_out_only_the_parameters_sent)
         CHECK((t.word[i] == 0xA5A5A5A5) == !(sent >> i & 1));
 }
 
+/* The setup unit is sent each corner in the order given, moved to the card's pixel centres, its
+   colour packed with alpha times the share, and S, T and W scaled as the CPU's starts are. */
+TEST(tdfx_corners_move_and_pack_each_corner)
+{
+    const AccelVertex v[3] = {
+        {0, 10, 0.25f, 2, 8, 4, 0xFF123456},
+        {10, 0, 0.25f, 4, 8, 4, 0xFF123456},
+        {0, -5, 0.25f, 2, 8, 4, 0xFF123456},
+    };
+
+    const TdfxDraw d = {1, 2, 4, EVERY, 128};
+
+    TdfxTriangle t;
+    TdfxVertex c[3];
+
+    tdfx_corners(v, &d, c);
+    CHECK(tdfx_setup(v, &d, &t));
+    CHECK(c[0].word[TDFX_VX] == t.word[4] && c[0].word[TDFX_VY] == t.word[5]);
+    CHECK(c[2].word[TDFX_VX] == t.word[0] && c[2].word[TDFX_VY] == t.word[1]);
+    CHECK(c[2].word[TDFX_VARGB] == 0x80123456);
+    CHECK(c[2].word[TDFX_VZ] == t.word[TDFX_START + TDFX_Z]);
+    CHECK(c[2].word[TDFX_VW] == t.word[TDFX_START + TDFX_W]);
+    CHECK(c[2].word[TDFX_VS] == t.word[TDFX_START + TDFX_S]);
+    CHECK(c[2].word[TDFX_VT] == t.word[TDFX_START + TDFX_T]);
+    CHECK(!c[1].word[TDFX_VBEGIN] && !c[1].word[TDFX_VDRAW]);
+}
+
+/* Alpha times the share, worked by shifts, is the integer a * share / 255 for every pair. */
+TEST(tdfx_corners_share_alpha_exactly)
+{
+    for (uint32_t a = 0; a < 256; a++)
+        for (uint32_t share = 0; share < 256; share++) {
+            const uint32_t colour = a << 24;
+            const AccelVertex v[3] = {
+                {0, 0, 0, 1, 0, 0, colour},
+                {1, 0, 0, 1, 0, 0, colour},
+                {0, 1, 0, 1, 0, 0, colour},
+            };
+            const TdfxDraw d = {0, 0, 1, 1u << TDFX_A, (uint8_t)share};
+
+            TdfxVertex c[3];
+
+            tdfx_corners(v, &d, c);
+            CHECK(c[0].word[TDFX_VARGB] >> 24 == a * share / 255);
+        }
+}
+
+/* The unit's mode and the corner's words follow what a draw reads: alpha packed with the colour,
+   Z on its own, W with S and T. */
+TEST(tdfx_unit_is_sent_only_what_a_draw_reads)
+{
+    const uint32_t colour = 1u << TDFX_R | 1u << TDFX_G | 1u << TDFX_B;
+    const uint32_t texel = 1u << TDFX_S | 1u << TDFX_T | 1u << TDFX_W;
+    const uint32_t place = 1u << TDFX_VX | 1u << TDFX_VY;
+    const uint32_t argb = 1u << TDFX_VARGB;
+    const uint32_t wst = 1u << TDFX_VW | 1u << TDFX_VS | 1u << TDFX_VT;
+
+    CHECK(tdfx_unit_mode(colour) == SST_UNIT_RGB && tdfx_corner_sent(colour) == (place | argb));
+    CHECK(tdfx_unit_mode(1u << TDFX_A) == (SST_UNIT_RGB | SST_UNIT_ALPHA));
+    CHECK(tdfx_corner_sent(1u << TDFX_A) == (place | argb));
+    CHECK(tdfx_unit_mode(1u << TDFX_Z) == SST_UNIT_Z);
+    CHECK(tdfx_corner_sent(1u << TDFX_Z) == (place | 1u << TDFX_VZ));
+    CHECK(tdfx_unit_mode(texel) == (SST_UNIT_W0 | SST_UNIT_ST0));
+    CHECK(tdfx_corner_sent(texel) == (place | wst));
+}
+
 /* What each path reads: a solid colour its colour alone; a keyed texel mixed its colour, alpha and
    texel; a texel alone depth tested its depth and texel; depth written alone its depth; a texel
    without its texture the colour. */
@@ -352,7 +418,7 @@ static uint32_t word_at(const uint32_t at)
    levels 0 and 1 would be; its rows written to level 2's window, two texels a word. */
 TEST(tdfx_driver_places_a_texture_past_the_levels_above_it)
 {
-    static const TdfxFamily fake = {"fake", &sst_chip, fake_open, fake_close};
+    static const TdfxFamily fake = {"fake", &sst_chip, false, fake_open, fake_close};
     static uint16_t texels[64 * 2];
 
     const AccelDriver *const d = tdfx_driver(&FAKE_HOST, &fake);
@@ -376,7 +442,7 @@ TEST(tdfx_driver_places_a_texture_past_the_levels_above_it)
    through level 2's window, the format P_8 written in order. */
 TEST(tdfx_driver_sends_indexed_texels_four_a_word)
 {
-    static const TdfxFamily fake = {"fake", &sst_chip, fake_open, fake_close};
+    static const TdfxFamily fake = {"fake", &sst_chip, false, fake_open, fake_close};
     static uint16_t texels[64];
 
     const AccelDriver *const d = tdfx_driver(&FAKE_HOST, &fake);
@@ -412,27 +478,33 @@ static uint32_t loaded(const uint8_t *const at)
     return v;
 }
 
-/* TRIANGLE drawn SOLID, moved by ox, oy, as the card is sent it. */
-static TdfxTriangle solid_at(const float ox, const float oy)
+/* TRIANGLE's last corner drawn SOLID, moved by ox, oy, as the setup unit is sent it. */
+static TdfxVertex solid_at(const float ox, const float oy)
 {
     const TdfxDraw d = {ox, oy, 1, tdfx_params(&SOLID, false), SOLID.alpha};
 
-    TdfxTriangle t;
+    TdfxVertex v[3];
 
-    tdfx_setup(TRIANGLE, &d, &t);
-    return t;
+    tdfx_corners(TRIANGLE, &d, v);
+    return v[2];
 }
 
-/* regs from fvertex on hold t's words that SOLID sends, and nothing where the rest go. */
-static bool solid_in(const uint8_t *const regs, const TdfxTriangle *const t)
+/* regs hold the setup unit's mode and corner c's words that SOLID sends, nothing where the rest
+   go, and no triangle worked out on the CPU: by the setup unit, the 28 words of gradients and
+   their setup were 9 of the corners' a triangle. */
+static bool solid_in(const uint8_t *const regs, const TdfxVertex *const c)
 {
-    const uint32_t sent = tdfx_sent(tdfx_params(&SOLID, false));
+    const uint32_t params = tdfx_params(&SOLID, false), sent = tdfx_corner_sent(params);
 
-    for (uint32_t i = 0; i < TDFX_WORDS; i++)
-        if (loaded(regs + SST_FVERTEX + 4 * i) != (sent >> i & 1 ? t->word[i] : 0))
+    for (uint32_t i = 0; i < TDFX_VDRAW; i++)
+        if (loaded(regs + SST_CORNER + 4 * i) != (sent >> i & 1 ? c->word[i] : 0))
             return false;
 
-    return true;
+    for (uint32_t i = 0; i < TDFX_WORDS; i++)
+        if (loaded(regs + SST_FVERTEX + 4 * i))
+            return false;
+
+    return loaded(regs + SST_SETUP_MODE) == tdfx_unit_mode(params);
 }
 
 static void stored_at(uint8_t *const at, const uint32_t v) { memcpy(at, &v, sizeof v); }
@@ -498,6 +570,34 @@ static void register_written(Fifo *const f, const uint32_t reg, const uint32_t v
         blitted_2d(f);
 }
 
+/* A PKT3's corners, the colour packed, written to the setup unit's registers as 86Box does: each
+   its words in order, then a command beginning a triangle, or two drawing it. */
+static void corners_written(Fifo *const f, const uint32_t head, uint32_t *const at)
+{
+    enum : uint32_t { MODE = 0x260, X = 0x264, ARGB = 0x26C, Z = 0x280, W0 = 0x288, DRAW = 0x2A0 };
+
+    const uint32_t mode = head >> 10 & 0xFF;
+
+    CHECK(head & 1u << 28 && !(mode & ~0x37u));
+    register_written(f, MODE, mode);
+
+    for (uint32_t k = 0; k < (head >> 6 & 0xF); k++) {
+        register_written(f, X, taken(f, at));
+        register_written(f, X + 4, taken(f, at));
+
+        if (mode & 1)
+            register_written(f, ARGB, taken(f, at));
+
+        if (mode & 4)
+            register_written(f, Z, taken(f, at));
+
+        for (uint32_t i = 0; mode & 0x30 && i < 3; i++)
+            register_written(f, W0 + 4 * i, taken(f, at));
+
+        register_written(f, k % 3 ? DRAW : DRAW + 4, 0);
+    }
+}
+
 static void played(Fifo *const f)
 {
     if (!f->ring)
@@ -513,6 +613,8 @@ static void played(Fifo *const f)
 
             for (uint32_t n = head >> 16; n--; reg += head >> 15 & 1 ? 4 : 0)
                 register_written(f, reg, taken(f, &at));
+        } else if ((head & 7) == 3) {
+            corners_written(f, head, &at);
         } else if ((head & 7) == 4) {
             uint32_t reg = (head & 0x7FF8) >> 1;
 
@@ -879,7 +981,7 @@ TEST(tdfx_h3_shows_a_frame_without_waiting_for_the_card)
 TEST(tdfx_h3_writes_registers_through_the_command_fifo)
 {
     AccelCard card;
-    const TdfxTriangle t = solid_at(160, 120);
+    const TdfxVertex t = solid_at(160, 120);
     const AccelDriver *const d = h3_opened(&card);
 
     CHECK(d);
@@ -943,7 +1045,7 @@ static bool memory_fifo_open(Tdfx *const c, const uint16_t w, const uint16_t h)
 
 TEST(tdfx_sst_queues_in_frame_memory_as_glide_does)
 {
-    static const TdfxFamily fake = {"fake", &sst_chip, memory_fifo_open, fake_close};
+    static const TdfxFamily fake = {"fake", &sst_chip, false, memory_fifo_open, fake_close};
 
     const AccelDriver *const d = tdfx_driver(&FAKE_HOST, &fake);
 
@@ -961,7 +1063,7 @@ TEST(tdfx_sst_queues_in_frame_memory_as_glide_does)
    room, they waited for ever. */
 TEST(tdfx_sst_writes_by_the_memory_fifos_room)
 {
-    static const TdfxFamily fake = {"fake", &sst_chip, memory_fifo_open, fake_close};
+    static const TdfxFamily fake = {"fake", &sst_chip, false, memory_fifo_open, fake_close};
     static AccelVertex ten[10 * 3];
 
     const AccelDriver *const d = tdfx_driver(&FAKE_HOST, &fake);
@@ -1026,7 +1128,7 @@ static void cvg_close(Tdfx *const c)
 /* The fake Voodoo 2 open, its command FIFO asked for or not. */
 static const AccelDriver *cvg_opened(AccelCard *const card, const bool asked)
 {
-    static const TdfxFamily family = {"fake Voodoo 2", &sst_chip, cvg_open, cvg_close};
+    static const TdfxFamily family = {"fake Voodoo 2", &sst_chip, true, cvg_open, cvg_close};
     static const AccelHost host = {
         .size = sizeof(AccelHost),
         .abi = ACCEL_ABI,
@@ -1063,7 +1165,7 @@ TEST(tdfx_cvg_places_its_command_fifo_past_the_buffers)
 TEST(tdfx_cvg_writes_directly_unless_asked_for_its_command_fifo)
 {
     AccelCard card;
-    const TdfxTriangle t = solid_at(0, 0);
+    const TdfxVertex t = solid_at(0, 0);
     const AccelDriver *const d = cvg_opened(&card, false);
 
     CHECK(d && !(word_at(SST_FBI_INIT7) & 1u << 8));
@@ -1077,7 +1179,7 @@ TEST(tdfx_cvg_writes_directly_unless_asked_for_its_command_fifo)
 TEST(tdfx_cvg_writes_registers_through_the_command_fifo)
 {
     AccelCard card;
-    const TdfxTriangle t = solid_at(0, 0);
+    const TdfxVertex t = solid_at(0, 0);
     const AccelDriver *const d = cvg_opened(&card, true);
 
     CHECK(d);
@@ -1159,7 +1261,7 @@ static bool blitted_at(const uint32_t reg) { return word_at(reg) != 0; }
    MEADOW16's frame on 86Box. */
 TEST(tdfx_cvg_carries_a_frame_by_its_blitter)
 {
-    static const TdfxFamily family = {"fake Voodoo 2", &sst_chip, blitter_open, fake_close};
+    static const TdfxFamily family = {"fake Voodoo 2", &sst_chip, true, blitter_open, fake_close};
 
     AccelCard card;
     const AccelDriver *const d = tdfx_driver(&FAKE_HOST, &family);
@@ -1177,7 +1279,7 @@ TEST(tdfx_cvg_carries_a_frame_by_its_blitter)
 /* A blitter that copies nothing, as DOSBox-X's Voodoo 2, is found missing: the CPU carries. */
 TEST(tdfx_cvg_carries_by_the_cpu_without_a_blitter)
 {
-    static const TdfxFamily family = {"fake Voodoo 2", &sst_chip, tried_open, fake_close};
+    static const TdfxFamily family = {"fake Voodoo 2", &sst_chip, true, tried_open, fake_close};
 
     AccelCard card;
     const AccelDriver *const d = tdfx_driver(&FAKE_HOST, &family);

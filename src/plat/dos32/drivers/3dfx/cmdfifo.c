@@ -11,6 +11,12 @@ enum : uint32_t {
     REGISTER_AT = 1,
     MASK_AT = 15,
     PICKED = 14,
+    /* triangles' corners: three each, their count from the 7th bit, sSetupMode's from the 11th,
+       the colour packed */
+    CORNERS = 3,
+    CORNERS_AT = 6,
+    MODE_AT = 10,
+    PACKED = 1u << 28,
     TEXELS = 5 | 3u << 30,
     TEXEL_WORDS = 3,
     JUMP = 3 << 3,
@@ -101,6 +107,32 @@ void cmdfifo_registers(
 
         f->sent += WORD * (n + 1);
     }
+}
+
+void cmdfifo_corners(
+    CmdFifo *const f,
+    const uint32_t mode,
+    const uint8_t *const at,
+    const uint32_t words,
+    const uint32_t *const v,
+    const uint32_t stride,
+    const uint32_t n
+)
+{
+    reserved(f, n * words + 1);
+
+    volatile uint32_t *to = (volatile uint32_t *)(f->ring + written(f));
+
+    *to++ = n << CORNERS_AT | mode << MODE_AT | PACKED | CORNERS;
+
+    for (uint32_t k = 0; k < n; k++) {
+        const uint32_t *const corner = v + k * stride;
+
+        for (uint32_t i = 0; i < words; i++)
+            *to++ = corner[at[i]];
+    }
+
+    f->sent += WORD * (n * words + 1);
 }
 
 void cmdfifo_texels(

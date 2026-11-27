@@ -41,6 +41,10 @@ enum : uint32_t {
     SST_FBI_INIT5 = 0x244,
     SST_FBI_INIT6 = 0x248,
     SST_FBI_INIT7 = 0x24C,
+    /* the Voodoo 2's, Banshee's and Voodoo 3's setup unit: what it works out, then a corner's
+       words from x on (setup.h's TdfxVertex) */
+    SST_SETUP_MODE = 0x260,
+    SST_CORNER = 0x264,
     SST_TEXTURE_MODE = 0x300,
     SST_TLOD = 0x304,
     SST_TDETAIL = 0x308,
@@ -55,6 +59,15 @@ enum : uint32_t {
     /* the windows: the frame buffer's pixels, and textures' texels */
     SST_LFB = 0x400000,
     SST_TEXELS = 0x800000,
+};
+
+/* sSetupMode's: the setup unit works out the colour, alpha, z, and TMU0's w, s and t. */
+enum : uint32_t {
+    SST_UNIT_RGB = 1u << 0,
+    SST_UNIT_ALPHA = 1u << 1,
+    SST_UNIT_Z = 1u << 2,
+    SST_UNIT_W0 = 1u << 4,
+    SST_UNIT_ST0 = 1u << 5,
 };
 
 /* status: the FIFO's room, and what is busy. */

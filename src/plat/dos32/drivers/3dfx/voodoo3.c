@@ -220,6 +220,11 @@ static void put(
     cmdfifo_registers(&h3.queue, reg, p->mask, v);
 }
 
+static void cornered(Tdfx *const c, const TdfxVertex *const v, const uint32_t n)
+{
+    cmdfifo_corners(&h3.queue, c->mode, c->corner.at, c->corner.n, v->word, TDFX_VERTEX_WORDS, n);
+}
+
 static uint32_t based(const Tdfx *const c, const uint32_t at)
 {
     (void)c;
@@ -357,6 +362,7 @@ static const TdfxChip H3 = {
     shown,
     carried,
     paletted,
+    cornered,
 };
 
 static bool opened(Tdfx *const c, const uint16_t w, const uint16_t h)
@@ -415,7 +421,7 @@ static void closed(Tdfx *const c)
     io_put(LFB_MEMORY, h3.tiles);
 }
 
-static const TdfxFamily FAMILY = {"Banshee and Voodoo 3", &H3, opened, closed};
+static const TdfxFamily FAMILY = {"Banshee and Voodoo 3", &H3, true, opened, closed};
 
 /* The Banshee's and the Voodoo 3's. */
 QX_EXPORT const uint32_t accel_ids[] = {

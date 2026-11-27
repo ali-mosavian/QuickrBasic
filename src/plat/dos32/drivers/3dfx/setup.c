@@ -8,6 +8,7 @@ enum : uint32_t {
     COLOUR = 1u << TDFX_R | 1u << TDFX_G | 1u << TDFX_B,
     TEXEL = 1u << TDFX_S | 1u << TDFX_T | 1u << TDFX_W,
     CORNERS = (1u << TDFX_CORNERS) - 1,
+    RGB = 0xFFFFFF,
 };
 
 /* Alpha's share as a multiply, a divide being 39 cycles on a Pentium: the float is above 1/255, so a
@@ -47,6 +48,31 @@ uint32_t tdfx_params(const AccelState *const s, const bool texel)
            (s->depth ? 1u << TDFX_Z : 0) | (texel ? TEXEL : 0);
 }
 
+/* W's scale for v's corners: the largest q made 1, a 2D draw's q of 1 left undivided. */
+static float w_scale(const AccelVertex v[3])
+{
+    float most = v[0].q;
+
+    for (uint32_t i = 1; i < 3; i++)
+        most = v[i].q > most ? v[i].q : most;
+
+    return most == 1 ? 1 : 1 / most;
+}
+
+static float depth_of(const float z) { return (z < 0 ? 0 : z > 1 ? 1 : z) * DEPTH; }
+
+typedef struct {
+    float s, t, w;
+} Texel;
+
+/* c's texel over w, w scaled by k. */
+static Texel texel_of(const AccelVertex *const c, const TdfxDraw *const d, const float k)
+{
+    const float w = c->q * k, texels = d->scale * w;
+
+    return (Texel){c->s * texels, c->t * texels, w};
+}
+
 uint32_t tdfx_sent(const uint32_t params)
 {
     return CORNERS | params << TDFX_START | params << TDFX_DX | params << TDFX_DY |
@@ -68,19 +94,7 @@ bool tdfx_setup(const AccelVertex v[3], const TdfxDraw *const d, TdfxTriangle *c
         swap = p[0], p[0] = p[1], p[1] = swap;
 
     const uint32_t params = d->params;
-
-    /* W's scale: the largest q made 1, a 2D draw's q of 1 left undivided */
-    float k = 1;
-
-    if (params & TEXEL) {
-        float most = p[0]->q;
-
-        for (uint32_t i = 1; i < 3; i++)
-            most = p[i]->q > most ? p[i]->q : most;
-
-        if (most != 1)
-            k = 1 / most;
-    }
+    const float k = params & TEXEL ? w_scale(v) : 1;
 
     float x[3], y[3], at[3][TDFX_PARAMS];
 
@@ -97,17 +111,17 @@ bool tdfx_setup(const AccelVertex v[3], const TdfxDraw *const d, TdfxTriangle *c
         }
 
         if (params & 1u << TDFX_Z)
-            at[i][TDFX_Z] = (c->z < 0 ? 0 : c->z > 1 ? 1 : c->z) * DEPTH;
+            at[i][TDFX_Z] = depth_of(c->z);
 
         if (params & 1u << TDFX_A)
             at[i][TDFX_A] = (float)((c->colour >> 24) * d->share) * FADE;
 
         if (params & TEXEL) {
-            const float w = c->q * k, texels = d->scale * w;
+            const Texel t = texel_of(c, d, k);
 
-            at[i][TDFX_S] = c->s * texels;
-            at[i][TDFX_T] = c->t * texels;
-            at[i][TDFX_W] = w;
+            at[i][TDFX_S] = t.s;
+            at[i][TDFX_T] = t.t;
+            at[i][TDFX_W] = t.w;
         }
     }
 
@@ -140,6 +154,57 @@ bool tdfx_setup(const AccelVertex v[3], const TdfxDraw *const d, TdfxTriangle *c
     /* the card's own area, the same: B left of A to C, negative */
     out->word[TDFX_COMMAND] = area < 0 ? SIGN : 0;
     return true;
+}
+
+/* The colour or alpha sent packed, ARGB a word: the unit then works out the colour too. */
+uint32_t tdfx_unit_mode(const uint32_t params)
+{
+    return (params & (COLOUR | 1u << TDFX_A) ? SST_UNIT_RGB : 0) |
+           (params & 1u << TDFX_A ? SST_UNIT_ALPHA : 0) | (params & 1u << TDFX_Z ? SST_UNIT_Z : 0) |
+           (params & TEXEL ? SST_UNIT_W0 | SST_UNIT_ST0 : 0);
+}
+
+uint32_t tdfx_corner_sent(const uint32_t params)
+{
+    return 1u << TDFX_VX | 1u << TDFX_VY |
+           (params & (COLOUR | 1u << TDFX_A) ? 1u << TDFX_VARGB : 0) |
+           (params & 1u << TDFX_Z ? 1u << TDFX_VZ : 0) |
+           (params & TEXEL ? 1u << TDFX_VW | 1u << TDFX_VS | 1u << TDFX_VT : 0);
+}
+
+/* a * share / 255 rounded down, by shifts: exact for every pair. */
+static uint32_t shared(const uint32_t a, const uint8_t share)
+{
+    const uint32_t x = a * share;
+
+    return share == CHANNEL ? a : (x + 1 + (x >> 8)) >> 8;
+}
+
+void tdfx_corners(const AccelVertex v[3], const TdfxDraw *const d, TdfxVertex out[3])
+{
+    const uint32_t params = d->params;
+    const float k = params & TEXEL ? w_scale(v) : 1;
+
+    for (uint32_t i = 0; i < 3; i++) {
+        const AccelVertex *const c = &v[i];
+        uint32_t *const w = out[i].word;
+
+        w[TDFX_VX] = bits(c->x + 0.5f + d->ox);
+        w[TDFX_VY] = bits(c->y + 0.5f + d->oy);
+        w[TDFX_VARGB] = (c->colour & RGB) | shared(c->colour >> 24, d->share) << 24;
+        w[TDFX_VDRAW] = w[TDFX_VBEGIN] = 0;
+
+        if (params & 1u << TDFX_Z)
+            w[TDFX_VZ] = bits(depth_of(c->z));
+
+        if (params & TEXEL) {
+            const Texel t = texel_of(c, d, k);
+
+            w[TDFX_VW] = bits(t.w);
+            w[TDFX_VS] = bits(t.s);
+            w[TDFX_VT] = bits(t.t);
+        }
+    }
 }
 
 TdfxWords tdfx_words(const AccelState *const s, const uint32_t draw, const bool indexed)

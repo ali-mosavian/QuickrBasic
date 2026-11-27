@@ -271,7 +271,7 @@ static void closed(Tdfx *const c)
     sst_stopped(c);
 }
 
-static const TdfxFamily CVG = {"Voodoo 2", &sst_chip, opened, closed};
+static const TdfxFamily CVG = {"Voodoo 2", &sst_chip, true, opened, closed};
 
 QX_EXPORT const uint32_t accel_ids[] = {ACCEL_ID(TDFX_VENDOR, 0x0002), 0};
 

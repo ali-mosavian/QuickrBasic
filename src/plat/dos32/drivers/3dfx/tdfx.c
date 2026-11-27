@@ -126,7 +126,23 @@ static void sent(Tdfx *const c)
     const uint32_t x0 = (uint32_t)c->clip.x + c->ox, y0 = (uint32_t)c->clip.y + c->oy;
 
     c->params = tdfx_params(s, texel);
-    c->sent = tdfx_picks(tdfx_sent(c->params));
+
+    if (family->unit) {
+        const uint32_t corner = tdfx_corner_sent(c->params);
+
+        c->mode = tdfx_unit_mode(c->params);
+        c->corner = tdfx_picks(corner);
+
+        if (!c->chip->cornered) {
+            c->begins = tdfx_picks(corner | 1u << TDFX_VBEGIN);
+            c->draws = tdfx_picks(corner | 1u << TDFX_VDRAW);
+        }
+
+        tdfx_put(c, SST_SETUP_MODE, c->mode);
+    } else {
+        c->sent = tdfx_picks(tdfx_sent(c->params));
+    }
+
     tdfx_put(c, SST_CLIP_X, x0 << 16 | (x0 + (uint32_t)c->clip.w));
     tdfx_put(c, SST_CLIP_Y, y0 << 16 | (y0 + (uint32_t)c->clip.h));
     tdfx_put(c, SST_FBZ_COLOUR_PATH, w.colour_path);
@@ -347,18 +363,46 @@ static void ACCEL_CALL stated(const AccelState *const s)
     sent(&card);
 }
 
+/* n corners to the setup unit's registers, each its words and a command: the first of three
+   beginning a triangle, the others drawing it. */
+static void cornered(Tdfx *const c, const TdfxVertex *const v, const uint32_t n)
+{
+    for (uint32_t i = 0; i < n; i++)
+        c->chip->put(c, SST_CORNER, i % 3 ? &c->draws : &c->begins, v[i].word);
+}
+
+/* By the setup unit, BATCH triangles a time, as many as a PKT3 takes; else worked out here. */
 static void ACCEL_CALL drawn(const AccelVertex *const v, const uint32_t n)
 {
+    enum { BATCH = 5 };
+
     Tdfx *const c = &card;
     const bool texel = c->params >> TDFX_S & 1;
     const float scale = texel ? (float)(1u << c->textures[c->state.texture].level) : 1;
     const TdfxDraw d = {(float)c->ox, (float)c->oy, scale, c->params, c->state.alpha};
 
-    for (uint32_t i = 0; i + 3 <= n; i += 3) {
-        TdfxTriangle t;
+    if (!family->unit) {
+        for (uint32_t i = 0; i + 3 <= n; i += 3) {
+            TdfxTriangle t;
 
-        if (tdfx_setup(v + i, &d, &t))
-            c->chip->put(c, SST_FVERTEX, &c->sent, t.word);
+            if (tdfx_setup(v + i, &d, &t))
+                c->chip->put(c, SST_FVERTEX, &c->sent, t.word);
+        }
+
+        return;
+    }
+
+    void (*const to)(Tdfx *, const TdfxVertex *, uint32_t) =
+        c->chip->cornered ? c->chip->cornered : cornered;
+
+    for (uint32_t i = 0; i + 3 <= n;) {
+        TdfxVertex corners[3 * BATCH];
+        uint32_t k = 0;
+
+        for (; k < BATCH && i + 3 <= n; k++, i += 3)
+            tdfx_corners(v + i, &d, &corners[3 * k]);
+
+        to(c, corners, 3 * k);
     }
 }
 
