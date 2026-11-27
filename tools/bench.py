@@ -583,7 +583,7 @@ def apart(objs: list[Path], d: Path) -> list[Path]:
     (d / "slice").mkdir(exist_ok=True)
     out = []
     for i, o in enumerate(objs):
-        out.append(d / "slice" / f"{i}_{o.name}")
+        out.append(d / "slice" / f"{i}_{o.parent.name}_{o.name}")  # its directory's name too: gpu's backend, soft's
         subprocess.run([OBJCOPY, *renames, str(o), str(out[-1])], check=True)
     return out
 
@@ -1706,9 +1706,16 @@ def driver_images(b: Build, card: str) -> tuple[tuple[bytes, list[tuple[int, str
 
 
 def map_functions(listing: str) -> list[tuple[int, str]]:
-    """The map's functions in object 1, by offset."""
-    found = re.findall(r"(?m)^0001:([0-9a-f]{8})\*?\s+(\S+)", listing)
-    return sorted((int(at, 16), name) for at, name in found)
+    """The map's functions in object 1, by offset; a name two modules share told by its module's file."""
+    found: list[tuple[int, str, str]] = []
+    module = ""
+    for row in listing.splitlines():
+        if m := re.match(r"Module: (.*?)\(", row):
+            module = Path(m[1]).stem
+        elif m := re.match(r"0001:([0-9a-f]{8})\*?\s+(\S+)", row):
+            found.append((int(m[1], 16), m[2], module))
+    names = [n for _, n, _ in found]
+    return sorted((at, f"{n} ({o})" if names.count(n) > 1 else n) for at, n, o in found)
 
 
 @dataclass(frozen=True)
@@ -1822,15 +1829,15 @@ def gfx_objects(b: Build) -> list[Path]:
 def object_of(b: Build, listing: str, name: str, dlls: tuple[Path, ...]) -> tuple[Path, str] | None:
     """The object name's code is from, and its symbol there: the program map's module for it, gfx's
     slice's or the program's own; else a driver's, by its DLL's map and link. None, in neither."""
+    sym, _, mod = name.removesuffix(")").partition(" (")  # map_functions' name two modules share
     module = ""
     for row in listing.splitlines():
         if m := re.match(r"Module: (.*?)\(", row):
             module = m[1]
-        elif re.match(rf"0001:[0-9a-f]{{8}}\*?\s+{re.escape(name)}$", row):
+        elif re.match(rf"0001:[0-9a-f]{{8}}\*?\s+{re.escape(sym)}$", row) and mod in ("", Path(module).stem):
             at = re.search(r"slice/(\d+)_[^/]*$", module)
             obj = gfx_objects(b)[int(at[1])] if at else Path(module)
-            return obj.resolve(), name.removeprefix("_slice") if at else name
-    sym, _, mod = name.removesuffix(")").partition(" (")  # dll_functions' name two modules share
+            return obj.resolve(), sym.removeprefix("_slice") if at else sym
     for dll in dlls:
         found = re.search(rf"(?m)^\s*0001:[0-9a-f]{{8}}\s+{re.escape(sym)}\s+[0-9a-f]+\s+({mod or r'\S+'}\.obj)$",
                           dll.with_suffix(".map").read_text())

@@ -83,7 +83,7 @@ def profile_map_all_static() -> None:
         b = bench.build(".", True)
         listing = bench.profiled(b, Path(d)).with_suffix(".map").read_text()
         order = [o.resolve() for o in bench.gfx_objects(b)]
-        ours = (Path(d) / "slice" / f"{order.index(backend.resolve())}_backend.obj").resolve()
+        ours = (Path(d) / "slice" / f"{order.index(backend.resolve())}_gpu_backend.obj").resolve()
         at = {n: int(a, 16) for a, n in re.findall(r"^0001:([0-9a-f]{8})\*?\s+(\S+)$", listing, re.M)}
         mods = re.split(r"(?m)^Module: ", listing)
         i = next(k for k, m in enumerate(mods) if m.startswith(f"{ours}("))
@@ -469,6 +469,21 @@ def vm_profile_driver_lines() -> None:
     assert re.search(r"_memcpy, by offset.*:\n.*\+0x0", out.getvalue()), out.getvalue()
 
 
+def vm_profile_shared_statics() -> None:
+    """Statics two modules share a name with are told apart by their module: draw.c's sprite and the GPU backend's
+    read as one _slice_sprite, 28.5k of MEADOW's 486 frame, by the backend's lines alone."""
+    b = bench.build(".", True)
+    objs = bench.gfx_objects(b)
+    listing = ("Module: /x/slice/3_api_draw.obj(draw.c)\n0001:00000100  _slice_sprite\n"
+               "Module: /x/slice/9_gpu_backend.obj(backend.c)\n0001:00000200  _slice_sprite\n"
+               "0001:00000300  _slice_other\n")
+    named = bench.map_functions(listing)
+    assert named == [(0x100, "_slice_sprite (3_api_draw)"), (0x200, "_slice_sprite (9_gpu_backend)"),
+                     (0x300, "_slice_other")], named
+    for i, name in ((3, named[0][1]), (9, named[1][1])):
+        assert bench.object_of(b, listing, name, ()) == (objs[i].resolve(), "_sprite"), name
+
+
 def vm_window() -> None:
     """A VM's profile samples the job alone. It sampled from boot until the host stopped it, so the host's delay in
     seeing the end read as frame time: one build's ISLES on the 486, 14.8M cycles a frame, then 11.9M."""
@@ -503,6 +518,7 @@ def main() -> int:
     games_images_with_drivers()
     vm_profile_runs_disagree()
     vm_profile_driver_lines()
+    vm_profile_shared_statics()
     if (bench.HL86 / "build/src/86Box-headless").exists():
         vm_window()
     b = bench.build(".", False)  # the tree's own instruments: copying them onto themselves raised
