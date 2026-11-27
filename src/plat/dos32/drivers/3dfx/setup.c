@@ -49,15 +49,28 @@ uint32_t tdfx_params(const AccelState *const s, const bool texel)
            (s->depth ? 1u << TDFX_Z : 0) | (texel ? TEXEL : 0);
 }
 
-/* W's scale for v's n corners: the largest q made 1, a 2D draw's q of 1 left undivided. */
+/* W's scale for v's n corners: the largest q made 1, a 2D draw's q of 1 left undivided. A q is
+   above 0, its bits ordered as it is: compared as integers, not by the FPU's slow compares. */
 static float w_scale(const AccelVertex *const v, const uint32_t n)
 {
-    float most = v[0].q;
+    uint32_t most = 0;
 
     for (uint32_t i = 1; i < n; i++)
-        most = v[i].q > most ? v[i].q : most;
+        most = bits(v[i].q) > bits(v[most].q) ? i : most;
 
-    return reciprocal(most);
+    return reciprocal(v[most].q);
+}
+
+/* Whether each of v's n corners has a q of 1, a 2D draw's: its w 1, its texels only scaled. */
+static bool flat(const AccelVertex *const v, const uint32_t n)
+{
+    enum : uint32_t { ONE = 0x3F800000 }; /* 1.0f's bits */
+
+    for (uint32_t i = 0; i < n; i++)
+        if (bits(v[i].q) != ONE)
+            return false;
+
+    return true;
 }
 
 static float depth_of(const float z) { return (z < 0 ? 0 : z > 1 ? 1 : z) * DEPTH; }
@@ -272,7 +285,8 @@ void tdfx_corners(
 )
 {
     const uint32_t params = d->params;
-    const float k = params & TEXEL ? w_scale(v, n) : 1;
+    const bool even = params & TEXEL && flat(v, n);
+    const float k = params & TEXEL && !even ? w_scale(v, n) : 1;
 
     for (uint32_t i = 0; i < n; i++) {
         const AccelVertex *const c = &v[i];
@@ -287,7 +301,7 @@ void tdfx_corners(
             w[TDFX_VZ] = bits(depth_of(c->z));
 
         if (params & TEXEL) {
-            const Texel t = texel_of(c, d, k);
+            const Texel t = even ? (Texel){c->s * d->scale, c->t * d->scale, 1} : texel_of(c, d, k);
 
             w[TDFX_VW] = bits(t.w);
             w[TDFX_VS] = bits(t.s);
