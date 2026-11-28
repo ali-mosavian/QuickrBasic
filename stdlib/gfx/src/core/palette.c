@@ -63,12 +63,13 @@ void pal_set(Palette *const p, const int32_t row, const uint32_t *const colours,
         forget(p);
 }
 
-uint8_t pal_nearest(const uint32_t *const row, const uint32_t rgb)
+/* The index in row from first nearest rgb. */
+static uint8_t nearest(const uint32_t *const row, const uint32_t rgb, const uint32_t first)
 {
-    uint8_t best = 0;
+    uint8_t best = (uint8_t)first;
     int32_t least = INT32_MAX;
 
-    for (uint32_t i = 0; i < PAL_COLOURS && least; i++) {
+    for (uint32_t i = first; i < PAL_COLOURS && least; i++) {
         const int32_t r = (int32_t)px_channel(row[i], 16) - (int32_t)px_channel(rgb, 16);
         const int32_t g = (int32_t)px_channel(row[i], 8) - (int32_t)px_channel(rgb, 8);
         const int32_t b = (int32_t)px_channel(row[i], 0) - (int32_t)px_channel(rgb, 0);
@@ -81,6 +82,13 @@ uint8_t pal_nearest(const uint32_t *const row, const uint32_t rgb)
     }
 
     return best;
+}
+
+uint8_t pal_nearest(const uint32_t *const row, const uint32_t rgb) { return nearest(row, rgb, 0); }
+
+uint8_t pal_nearest_drawn(const uint32_t *const row, const uint32_t rgb)
+{
+    return nearest(row, rgb, 1);
 }
 
 /* The map, made from row 0 when not there: each cell's centre's nearest index. */

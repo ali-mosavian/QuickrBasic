@@ -60,6 +60,8 @@ void pal_done(Palette *p);
 void pal_set(Palette *p, int32_t row, const uint32_t *colours, uint32_t n);
 /* The index in row nearest rgb, &HRRGGBB, searched. */
 uint8_t pal_nearest(const uint32_t *row, uint32_t rgb);
+/* Likewise, but never 0, the key. */
+uint8_t pal_nearest_drawn(const uint32_t *row, uint32_t rgb);
 /* Row 0's index for rgb through the map, to *index: false, no memory. */
 bool pal_index(Palette *p, uint32_t rgb, uint8_t *index);
 /* The indices index i draws as: row's colour i (row 0 itself), lit by light (0 to 63) and
