@@ -64,6 +64,7 @@ const MOST_FACES = 1000
 const MOST_PARTS = 100
 const MOST_GROUPS = 64
 const MOST_FIRES = 8
+const MOST_SHAFTS = 40
 ' a face's corners at most, cut
 const MOST_N = 8
 
@@ -127,6 +128,15 @@ const WATER_Y = -0.2
 ' a column: its shaft and capital
 const SHAFT_R = 0.9
 const SHAFT_SIDES = 8
+' a side's band of the shaded flutes, in texels across
+const BAND = 32
+' the sides drawn: those facing the eye's half
+const SHOWN = 4
+' a shaft's edges: round once, then on past the sides shown
+const SHAFT_EDGES = 12
+' half a side's turn, its cosine and sine
+const HALF_COS = 0.9238795
+const HALF_SIN = 0.3826834
 const CAP_HALF = 1.3
 const CAP_H = 0.8
 ' the colonnade: its rows' distance out, the columns' gap,
@@ -272,6 +282,15 @@ type Part
     seen as integer
 end type
 
+' A column's shaft: its part, its axis, and its edges from
+' vertex first, each's top then its foot.
+type Shaft
+    part as integer
+    x as single
+    z as single
+    first as long
+end type
+
 ' Faces drawn together, order(first) to order(last): of one
 ' look, light and tint.
 type Group
@@ -284,7 +303,8 @@ end type
 
 ' The world: its faces' corners, and each as seen this
 ' frame with its texel; its faces, its parts, and the faces
-' in groups; its textures; its fires. While it is built:
+' in groups; its shafts; its textures; its fires. While it
+' is built:
 ' the most light a face is given, and the point its
 ' textures are anchored at.
 type World
@@ -294,12 +314,14 @@ type World
     parts() as Part
     groups() as Group
     order() as long
+    shafts() as Shaft
     textures() as long
     fires() as Vec3
     n_vertices as long
     n_faces as long
     n_parts as long
     n_groups as integer
+    n_shafts as integer
     n_fires as integer
     cap as integer
     anchor as Vec3
@@ -372,8 +394,8 @@ do
     ripple% = int(alive! * RIPPLES) mod PHASES
     draw_world canvas&, world.groups(), world.n_groups, _
         world.order(), world.faces(), world.parts(), world.n_parts, _
-        world.vertices(), world.seen(), world.textures(), cam, _
-        ripple%, r()
+        world.shafts(), world.n_shafts, world.vertices(), _
+        world.seen(), world.textures(), cam, ripple%, r()
     draw_fires canvas&, world.fires(), world.n_fires, _
         world.textures(), cam, alive!, q()
     show_help canvas&, st, moving%, fps
@@ -389,10 +411,13 @@ gfx.display.close
 ' Texture which, painted by rule in flat tones.
 function new_texture (byval which as integer) as long
     size% = SIDE
+    wide% = SIDE
 
     if which = HALO then size% = 2 * HAZE_R
+    if which = HALO then wide% = size%
+    if which = FLUTES then wide% = SHAFT_SIDES * BAND
 
-    s& = gfx.surface.new(size%, size%)
+    s& = gfx.surface.new(wide%, size%)
 
     select case which
         case PAVING
@@ -490,11 +515,19 @@ sub paint_blocks (byval s as long)
     next
 end sub
 
-' Two flutes: a groove, a lit edge, a light and a shaded
-' face.
+' A band for each side of a shaft, of two flutes: a groove,
+' a lit edge, a light and a shaded face; each shaded as the
+' sun lights its side, side k's the band k from the right.
 sub paint_flutes (byval s as long)
     dim x as integer
+    dim k as integer
+    dim light as integer
     dim c as long
+    dim plain as long
+    dim a as single
+    dim sun as single
+    dim q(3) as Vertex
+    plain = gfx.surface.new(SIDE, SIDE)
 
     for x = 0 to SIDE - 1
         select case x mod 32
@@ -510,8 +543,36 @@ sub paint_flutes (byval s as long)
                 c = MARBLE_DIM
         end select
 
-        gfx.draw.line s, x, 0, x, SIDE - 1, c
+        gfx.draw.line plain, x, 0, x, SIDE - 1, c
     next
+
+    ' side k's band, lit as face_end lights it
+    for k = 0 to SHAFT_SIDES - 1
+        a = (k + 0.5) * 2 * PI / SHAFT_SIDES
+        sun = cos(a) * SUN_X + sin(a) * SUN_Z
+
+        if sun < 0 then sun = 0
+
+        light = SHADE + (FULL - SHADE) * sun
+        x = (SHAFT_SIDES - 1 - k) * BAND
+        q(0).x = x
+        q(1).x = x + BAND
+        q(1).u = SIDE
+        q(2).x = x + BAND
+        q(2).y = SIDE
+        q(2).u = SIDE
+        q(2).v = SIDE
+        q(3).x = x
+        q(3).y = SIDE
+        q(3).v = SIDE
+        gfx.draw.set_light light
+        gfx.draw.set_tint mixed(COOL, WARM, sun)
+        gfx.draw.poly s, q(), 0, 4, plain, 0, 0
+    next
+
+    gfx.draw.set_light FULL
+    gfx.draw.set_tint &HFFFFFF
+    gfx.surface.free plain
 end sub
 
 ' A capital's bands, top down: the abacus, the echinus
@@ -813,6 +874,7 @@ sub build (wd as World)
     redim wd.seen(MOST_VERTICES - 1)
     redim wd.faces(MOST_FACES - 1)
     redim wd.parts(MOST_PARTS - 1)
+    redim wd.shafts(MOST_SHAFTS - 1)
     redim wd.fires(MOST_FIRES - 1)
     wd.cap = FULL
     build_ground wd
@@ -1527,7 +1589,9 @@ sub column ( _
 end sub
 
 ' A shaft of SHAFT_SIDES flat sides round (x, z), from y0
-' up to y1.
+' up to y1: its edges round from east, each's top then its
+' foot. Seen from outside, a side's band runs from the next
+' edge round to its own.
 sub shaft ( _
     wd as World, _
     byval x as single, _
@@ -1536,27 +1600,32 @@ sub shaft ( _
     byval y1 as single _
 )
     dim k as integer
+    dim i as long
     dim a as single
-    dim b as single
-    dim next_edge as Vec3
+    dim u as single
     dim edge as Vec3
+    i = wd.n_vertices
+    wd.shafts(wd.n_shafts).part = wd.n_parts
+    wd.shafts(wd.n_shafts).x = x
+    wd.shafts(wd.n_shafts).z = z
+    wd.shafts(wd.n_shafts).first = i
+    wd.n_shafts = wd.n_shafts + 1
 
-    ' seen from outside, a side's left is the next round
-    for k = 0 to SHAFT_SIDES - 1
-        a = (k + 1) * 2 * PI / SHAFT_SIDES
-        b = k * 2 * PI / SHAFT_SIDES
-        next_edge = xyz(x + SHAFT_R * cos(a), y1, _
-            z + SHAFT_R * sin(a))
-        edge = xyz(x + SHAFT_R * cos(b), y1, z + SHAFT_R * sin(b))
-        face_begin wd, FLUTES
-        face_corner wd, next_edge, 0, 0
-        face_corner wd, edge, SIDE, 0
+    for k = 0 to SHAFT_EDGES - 1
+        a = k * 2 * PI / SHAFT_SIDES
+        u = (2 * SHAFT_SIDES - k) * BAND
+        edge = xyz(x + SHAFT_R * cos(a), y1, z + SHAFT_R * sin(a))
+        wd.vertices(i) = edge
+        wd.seen(i).u = u
+        wd.seen(i).v = 0
         edge.y = y0
-        next_edge.y = y0
-        face_corner wd, edge, SIDE, SIDE
-        face_corner wd, next_edge, 0, SIDE
-        face_end wd
+        wd.vertices(i + 1) = edge
+        wd.seen(i + 1).u = u
+        wd.seen(i + 1).v = SIDE
+        i = i + 2
     next
+
+    wd.n_vertices = i
 end sub
 
 ' A beam BEAM_H high on the columns at y, over the ground
@@ -1929,13 +1998,13 @@ sub draw_ranges ( _
 end sub
 
 ' The world on the screen. First how the camera sees each
-' part: UNSEEN, wholly PAST_NEAR, or CUT by NEAR. Then the
-' faces group by group, the group's light and tint set once:
-' the solid ones, the shadows over them, the water at its
-' frame ripple. A face is drawn when its part is seen and it
-' faces the eye: its corners on the screen, or, its part
-' CUT, in the camera's space, cut at NEAR into r, then on
-' the screen.
+' part: UNSEEN, wholly PAST_NEAR, or CUT by NEAR. Then each
+' shaft seen, a strip of the sides facing the eye's half.
+' Then the faces group by group, the group's light and tint
+' set once: the solid ones, the shadows over them, the water
+' at its frame ripple. A face is drawn when its part is seen
+' and it faces the eye: its corners on the screen, or, its
+' part CUT, cut at NEAR.
 sub draw_world ( _
     byval dst as long, _
     groups() as Group, _
@@ -1944,6 +2013,8 @@ sub draw_world ( _
     faces() as Face, _
     parts() as Part, _
     byval n_parts as long, _
+    shafts() as Shaft, _
+    byval n_shafts as integer, _
     vertices() as Vec3, _
     seen() as Vertex, _
     sources() as long, _
@@ -1956,10 +2027,9 @@ sub draw_world ( _
     dim j as long
     dim f as long
     dim i as long
-    dim nxt as long
     dim first as long
     dim last as long
-    dim m as integer
+    dim eighth as integer
     dim look as integer
     dim sight as integer
     dim flags as integer
@@ -2022,6 +2092,74 @@ sub draw_world ( _
     next
 
     test% = gfx.draw.PERSPECTIVE + gfx.draw.DEPTH_TEST
+    flags = test% + gfx.draw.DEPTH_WRITE
+    src = sources(FLUTES)
+
+    ' the eye's eighth round the shaft, its sides' normals
+    ' turned back half a side: the side before it is the
+    ' first SHOWN
+    for j = 0 to n_shafts - 1
+        sight = parts(shafts(j).part).seen
+
+        if sight = UNSEEN then continue for
+
+        dx = ex! - shafts(j).x
+        dz = ez! - shafts(j).z
+        x = dx * HALF_COS + dz * HALF_SIN
+        z = dz * HALF_COS - dx * HALF_SIN
+        eighth = 0
+
+        if z < 0 then
+            eighth = 4
+            x = -x
+            z = -z
+        end if
+
+        if x <= 0 then
+            eighth = eighth + 2
+            k = x
+            x = z
+            z = -k
+        end if
+
+        if z >= x then eighth = eighth + 1
+
+        eighth = (eighth + SHAFT_SIDES - 1) mod SHAFT_SIDES
+        first = shafts(j).first + 2 * eighth
+        last = first + 2 * SHOWN + 1
+
+        if sight = PAST_NEAR then
+            for i = first to last
+                dx = vertices(i).x - ex!
+                dy = vertices(i).y - ey!
+                dz = vertices(i).z - ez!
+                z = dx * fx! + dy * fy! + dz * fz!
+                k = focal! / z
+                seen(i).x = cx! + (dx * ax! + dz * az!) * k
+                seen(i).y = cy! - _
+                    (dx * ux! + dy * uy! + dz * uz!) * k
+                seen(i).z = z
+            next
+
+            gfx.draw.triangle_strip dst, seen(), first, _
+                2 * SHOWN + 2, src, 0, flags
+            continue for
+        end if
+
+        for i = first to last
+            dx = vertices(i).x - ex!
+            dy = vertices(i).y - ey!
+            dz = vertices(i).z - ez!
+            seen(i).x = dx * ax! + dz * az!
+            seen(i).y = dx * ux! + dy * uy! + dz * uz!
+            seen(i).z = dx * fx! + dy * fy! + dz * fz!
+        next
+
+        for i = first to last - 2
+            draw_cut dst, seen(), i, i + 2, cam, src, 0, flags, r()
+        next
+    next
+
     look = -1
 
     for g = 0 to n_groups - 1
@@ -2091,46 +2229,67 @@ sub draw_world ( _
                 seen(i).z = dx * fx! + dy * fy! + dz * fz!
             next
 
-            ' each corner past NEAR, and where each edge crosses it
-            m = 0
-
-            for i = first to last
-                nxt = i + 1
-
-                if nxt > last then nxt = first
-
-                if seen(i).z >= NEAR then
-                    r(m) = seen(i)
-                    m = m + 1
-                end if
-
-                if (seen(i).z >= NEAR) = (seen(nxt).z >= NEAR) then
-                    continue for
-                end if
-
-                k = (NEAR - seen(i).z) / (seen(nxt).z - seen(i).z)
-                r(m).x = seen(i).x + k * (seen(nxt).x - seen(i).x)
-                r(m).y = seen(i).y + k * (seen(nxt).y - seen(i).y)
-                r(m).z = NEAR
-                r(m).u = seen(i).u + k * (seen(nxt).u - seen(i).u)
-                r(m).v = seen(i).v + k * (seen(nxt).v - seen(i).v)
-                m = m + 1
-            next
-
-            if m < 3 then continue for
-
-            for i = 0 to m - 1
-                r(i).x = cx! + focal! * r(i).x / r(i).z
-                r(i).y = cy! - focal! * r(i).y / r(i).z
-            next
-
-            gfx.draw.poly dst, r(), 0, m, src, colour, flags
+            draw_cut dst, seen(), first, last, cam, src, colour, _
+                flags, r()
         next
     next
 
     gfx.draw.set_alpha FULL
     gfx.draw.set_light FULL
     gfx.draw.set_tint &HFFFFFF
+end sub
+
+' The polygon seen(first) to seen(last), in the camera's
+' space, cut at NEAR into r, then on the screen.
+sub draw_cut ( _
+    byval dst as long, _
+    seen() as Vertex, _
+    byval first as long, _
+    byval last as long, _
+    cam as Camera, _
+    byval src as long, _
+    byval colour as long, _
+    byval flags as integer, _
+    r() as Vertex _
+)
+    dim i as long
+    dim nxt as long
+    dim m as integer
+    dim k as single
+    m = 0
+
+    ' each corner past NEAR, and where each edge crosses it
+    for i = first to last
+        nxt = i + 1
+
+        if nxt > last then nxt = first
+
+        if seen(i).z >= NEAR then
+            r(m) = seen(i)
+            m = m + 1
+        end if
+
+        if (seen(i).z >= NEAR) = (seen(nxt).z >= NEAR) then
+            continue for
+        end if
+
+        k = (NEAR - seen(i).z) / (seen(nxt).z - seen(i).z)
+        r(m).x = seen(i).x + k * (seen(nxt).x - seen(i).x)
+        r(m).y = seen(i).y + k * (seen(nxt).y - seen(i).y)
+        r(m).z = NEAR
+        r(m).u = seen(i).u + k * (seen(nxt).u - seen(i).u)
+        r(m).v = seen(i).v + k * (seen(nxt).v - seen(i).v)
+        m = m + 1
+    next
+
+    if m < 3 then exit sub
+
+    for i = 0 to m - 1
+        r(i).x = cam.cx + cam.focal * r(i).x / r(i).z
+        r(i).y = cam.cy - cam.focal * r(i).y / r(i).z
+    next
+
+    gfx.draw.poly dst, r(), 0, m, src, colour, flags
 end sub
 
 ' The fires: every glow, then every flame at its frame,
