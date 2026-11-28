@@ -91,9 +91,9 @@ BASIC_OBJ := $(CORE_OBJ) $(B)/obj/app/basic32.obj
 IDE_OBJ := $(CORE_OBJ) $(UI_C:src/%.c=$(B)/obj/%.obj) $(B)/obj/app/ide32.obj
 DOS_EXE := $(B)/basic32.exe $(B)/ide32.exe $(B)/DOS32A.EXE $(B)/BASIC.HLP $(B)/lib/gfx.qbx $(B)/lib/.stdlib
 # the release: the programs by their DOS names, with the games (src/plat/wasm/web/demos)
-DOS_GAMES := $(addprefix src/plat/wasm/web/demos/,GORILLA.BAS NIBBLES.BAS MOTHLITE.BAS RUSTLINE.BAS CHARLIE.BAS CHARLIE.DAT)
-# CHARLIE.BAS imports its package and the engine, the barkley and engine folders beside it
-DOS_MODULES := $(shell find src/plat/wasm/web/demos/barkley src/plat/wasm/web/demos/engine -name '*.bas')
+DOS_GAMES := $(addprefix src/plat/wasm/web/demos/,GORILLA.BAS NIBBLES.BAS MOTHLITE.BAS RUSTLINE.BAS CHARLIE.BAS CHARLIE.DAT HIGHVALE.BAS)
+# CHARLIE.BAS and HIGHVALE.BAS import their packages and the engine, the folders beside them
+DOS_MODULES := $(shell find src/plat/wasm/web/demos/barkley src/plat/wasm/web/demos/highvale src/plat/wasm/web/demos/engine -name '*.bas')
 
 all: $(DOS_EXE)
 
@@ -135,12 +135,13 @@ dos-zip: $(DOS_EXE) $(DOS_GAMES) $(DOS_MODULES)
 	cp $(B)/ide32.exe $(B)/release/IDE32.EXE
 	cp $(B)/basic32.exe $(B)/release/BASIC32.EXE
 	cp $(B)/DOS32A.EXE $(B)/BASIC.HLP $(DOS_GAMES) $(GFX_DEMOS) $(B)/release/
-	rm -rf $(B)/release/barkley $(B)/release/engine $(B)/release/lib
+	rm -rf $(B)/release/barkley $(B)/release/highvale $(B)/release/engine $(B)/release/lib
 	mkdir -p $(B)/release/lib
 	cp $(B)/lib/gfx.qbx $(STDLIB) $(B)/release/lib/
 	cp -R src/plat/wasm/web/demos/barkley $(B)/release/barkley
+	cp -R src/plat/wasm/web/demos/highvale $(B)/release/highvale
 	cp -R src/plat/wasm/web/demos/engine $(B)/release/engine
-	cd $(B)/release && zip -q -X -r ../QuickrBasic-dos.zip IDE32.EXE BASIC32.EXE DOS32A.EXE BASIC.HLP GORILLA.BAS NIBBLES.BAS MOTHLITE.BAS RUSTLINE.BAS CHARLIE.BAS CHARLIE.DAT GFXDEMO.BAS barkley engine lib
+	cd $(B)/release && zip -q -X -r ../QuickrBasic-dos.zip IDE32.EXE BASIC32.EXE DOS32A.EXE BASIC.HLP GORILLA.BAS NIBBLES.BAS MOTHLITE.BAS RUSTLINE.BAS CHARLIE.BAS CHARLIE.DAT HIGHVALE.BAS GFXDEMO.BAS barkley highvale engine lib
 
 -include $(shell find $(B) -name '*.d' 2>/dev/null)
 
@@ -267,6 +268,7 @@ host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/h
 	$(PY) tools/fold_test.py build/host/basic
 	$(PY) tools/mothlite_test.py build/host/basic
 	$(PY) tools/charlie_test.py build/host/basic
+	$(PY) tools/highvale_test.py build/host/basic
 	$(PY) tools/mid2play_test.py build/host/basic
 	$(PY) tools/pterm_test.py build/host/basic
 	$(PY) tools/bench_test.py

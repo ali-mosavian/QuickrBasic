@@ -18,6 +18,7 @@
     bench.py profile FILE.bas | -e CODE [-n N] [--link | --ide]  DOS: the functions a program spends its
                                                  instructions in; --link: RUN's link alone
     bench.py engine                              docs/engine-design.md's Today table, measured on CHARLIE's source
+    bench.py highvale [--cycles N | --machine M] HIGHVALE flown on DOS: frames a second, and its vale's making
     bench.py fps [--real] [--profile | --parts]  MOTHLITE.BAS played by an autopilot on a 486 at 10k cycles/ms
                                                  with the Sound Blaster: its frame rate in each mode;
                                                  --parts: each step of its loop's ms a frame
@@ -1439,9 +1440,9 @@ def hl86_module():  # noqa: ANN201
     return hl86
 
 
-def vm_rate(machine: str, com: Path, job: tuple, files: dict[str, bytes]) -> str:
-    """Program com's frames a second on 86Box's machine, by its own clock: FPS.TXT's, or its output's.
-    com, the job's files and files go to C:\\QB on the VM's disk, removed after."""
+def vm_output(machine: str, com: Path, job: tuple, files: dict[str, bytes]) -> tuple[str, str, int]:
+    """Program com run on 86Box's machine: its FPS.TXT, its output and its exit code. com, the job's files
+    and files go to C:\\QB on the VM's disk, removed after."""
     hl86 = hl86_module()
     image = HL86_VMS / MACHINES[machine] / "c.img"
     with tempfile.TemporaryDirectory() as d:
@@ -1452,7 +1453,13 @@ def vm_rate(machine: str, com: Path, job: tuple, files: dict[str, bytes]) -> str
             out = mtools("mtype", image, "::QB/OUT.TXT", check=False).decode("latin-1")
         finally:
             mtools("mdeltree", image, "::QB", check=False)
-    return rate_of(fps, out) or f"exit {r.code}"
+    return fps, out, r.code
+
+
+def vm_rate(machine: str, com: Path, job: tuple, files: dict[str, bytes]) -> str:
+    """Program com's frames a second on 86Box's machine, by its own clock: FPS.TXT's, or its output's."""
+    fps, out, code = vm_output(machine, com, job, files)
+    return rate_of(fps, out) or f"exit {code}"
 
 
 def rate_of(fps: str, out: str) -> str:
@@ -1462,8 +1469,8 @@ def rate_of(fps: str, out: str) -> str:
     return f"{float(rates[0]):.1f}" if rates else ""
 
 
-def dos_rate(com: Path, job: tuple, cycles: int, files: dict[str, bytes]) -> str:
-    """Program com's frames a second at cycles a virtual ms: FPS.TXT's first number, or its output's."""
+def dos_output(com: Path, job: tuple, cycles: int, files: dict[str, bytes]) -> tuple[str, str]:
+    """Program com run at cycles a virtual ms: FPS.TXT's text, else its output; and why it stopped."""
     conf, was = dosrun.CONF, dosrun.COM
     dosrun.CONF = conf.replace("core=normal\ncputype=pentium\nvirtual time=true\nvirtual time rate=20000\n",
                                f"core=dynamic\ncputype=pentium\nvirtual time=true\nvirtual time rate={cycles}\n")
@@ -1476,11 +1483,29 @@ def dos_rate(com: Path, job: tuple, cycles: int, files: dict[str, bytes]) -> str
             out = fps.read_text() if fps.exists() else r.out
     finally:
         dosrun.CONF, dosrun.COM = conf, was
+    return out, r.reason
+
+
+def host_ops(exe: Path, frames: int) -> int:
+    """The ops the counting host build exe dispatches flying HIGHVALE for frames frames: exact, as the clock
+    on a loaded machine is not."""
+    with tempfile.TemporaryDirectory() as d:
+        for name, data in highvale_files().items():
+            (Path(d) / name).parent.mkdir(parents=True, exist_ok=True)
+            (Path(d) / name).write_bytes(data)
+        bas = Path(d) / "DRIVER.BAS"
+        bas.write_text(HIGHVALE_DRIVER.replace("{until}", f"frames >= {frames}"))
+        return count(exe, bas, "QB_OPS", b"ops")[0]
+
+
+def dos_rate(com: Path, job: tuple, cycles: int, files: dict[str, bytes]) -> str:
+    """Program com's frames a second at cycles a virtual ms: FPS.TXT's first number, or its output's."""
+    out, reason = dos_output(com, job, cycles, files)
     fields = out.split()
     try:
         return f"{float(fields[0]):.1f}"
     except (IndexError, ValueError):
-        return r.reason
+        return reason
 
 
 def dos_profile(com: Path, job: tuple, cycles: int, files: dict[str, bytes]) -> tuple[dosrun.Result, int]:
@@ -1843,6 +1868,109 @@ def cmd_charlie(a: argparse.Namespace) -> int:
     return 0
 
 
+HIGHVALE = ROOT / "src/plat/wasm/web/demos/HIGHVALE.BAS"
+# HIGHVALE's first vale made and timed, then flown nose down with its guns firing, its steps a 30th of a
+# second whatever the speed, so each run draws the same frames: its rate and frames, then the seconds the
+# vale took, to FPS.TXT
+HIGHVALE_DRIVER = """option explicit
+import gfx.display, gfx.surface, gfx.draw
+from highvale.model.game import Game, FLYING
+from highvale.land.palette import set_colours
+from highvale.land.maps import allot_land
+from highvale.play.mission import start_mission
+from highvale.view.eye import Camera, aim_camera, VIEW_W, VIEW_H
+from highvale.view.terrain import Terrain, make_terrain
+from highvale.view.scene import draw_scene
+from highvale.view.art import Art, make_art
+from highvale.main import step_state, draw_overlay
+dim canvas as long
+dim cockpit as long
+dim g as Game
+dim a as Art
+dim k as Camera
+dim tv as Terrain
+dim t0 as double
+dim made as double
+dim t as single
+dim frames as long
+dim f as integer
+canvas = gfx.display.open(320, 200, 8, 0)
+set_colours
+cockpit = gfx.surface.new_view(canvas, 0, 0, VIEW_W, VIEW_H)
+make_art a
+gfx.draw.set_font a.font
+make_terrain tv
+allot_land g.vale
+t0 = gfx.display.clock
+start_mission g, 1
+made = gfx.display.clock - t0
+g.state = FLYING
+g.heli.hull = 30000
+g.asked.pitch = 1
+g.asked.guns = -1
+t0 = gfx.display.clock
+do
+    step_state g, k, canvas, 0, 1 / 30
+    aim_camera k, g.heli
+    draw_scene cockpit, k, tv, g.vale, g.foes(), g.shots(), g.blasts(), a, t
+    draw_overlay canvas, g, t
+    gfx.display.flip
+    frames = frames + 1
+    t = t + 1 / 30
+loop until {until}
+t = gfx.display.clock - t0
+gfx.display.close
+f = freefile
+open "FPS.TXT" for output as #f
+print #f, frames / t; frames; made
+close #f
+"""
+
+
+def highvale_files() -> dict[str, bytes]:
+    """The game's package and the engine by the path each module sits at beside HIGHVALE.BAS."""
+    return {
+        p.relative_to(HIGHVALE.parent).as_posix(): p.read_bytes()
+        for d in ("highvale", "engine")
+        for p in sorted(HIGHVALE.with_name(d).rglob("*.bas"))
+    }
+
+
+def cmd_highvale(a: argparse.Namespace) -> int:
+    """HIGHVALE flown for --seconds on DOS at 320x200x8: frames a second, and the seconds its first vale took
+    to make. Under DOSBox at --cycles a virtual ms, or --machine on 86Box's, by its own clock; --host: the ops a
+    frame on the host's counting build. --profile: by function a frame, the --n most."""
+    b = build(".", not a.host)
+    if a.host:
+        ops = [host_ops(b.counted, n) for n in (10, 70)]
+        print(f"HIGHVALE on the host: {(ops[1] - ops[0]) / 60 / 1e6:.2f} M ops a frame, flying")
+        return 0
+    until = f"gfx.display.clock - t0 >= {a.seconds:g}"
+    job = (HIGHVALE_DRIVER.replace("{until}", until), "", "", highvale_files())
+    lib = {"lib/gfx.qbx": (b.dos.parent / "lib/gfx.qbx").read_bytes()}
+    if a.profile:
+        with tempfile.TemporaryDirectory() as d:
+            jobs = [
+                (HIGHVALE_DRIVER.replace("{until}", f"gfx.display.clock - t0 >= {s}"), "", "", highvale_files())
+                for s in (4, 12)
+            ]
+            print_frame_profile("HIGHVALE", profiled(b, Path(d)), jobs, a.cycles, lib, a.n)
+        return 0
+    if a.machine:
+        fps, out, code = vm_output(a.machine, b.dos, job, lib)
+        where = f"86Box ({a.machine})"
+    else:
+        fps, code = dos_output(b.dos, job, a.cycles, lib)
+        out, where = fps, f"DOSBox, {a.cycles} cycles a ms"
+    try:
+        rate, frames, made = (float(f) for f in fps.split()[:3])
+    except ValueError:
+        print(f"HIGHVALE on {where}: no rate ({code}): {out.strip()[-600:]}")
+        return 1
+    print(f"HIGHVALE on {where}: {rate:.1f} frames a second over {frames:.0f} frames; its vale made in {made:.1f} s")
+    return 0
+
+
 # The switches on a thing's kind: drawing, touch and each step's rule, by the routine each is in.
 SWITCHES = {"draw": "drawthings", "touch": "touch", "think": "think"}
 
@@ -2047,6 +2175,13 @@ def main() -> int:
     p.add_argument("-n", type=int, default=20, help="--profile: the functions shown")
     p.add_argument("--edits", type=int, help="--profile: ours with its first so many edits; all when none")
     sub.add_parser("charlie")
+    p = sub.add_parser("highvale")
+    p.add_argument("--cycles", type=int, default=25000, help="DOSBox's cycles a virtual ms")
+    p.add_argument("--machine", choices=list(MACHINES), help="on 86Box's 486DX2-66, Pentium 100 or Pentium Pro 200")
+    p.add_argument("--seconds", type=float, default=10)
+    p.add_argument("--profile", action="store_true")
+    p.add_argument("--n", type=int, default=25)
+    p.add_argument("--host", action="store_true", help="on the host build, headless")
     sub.add_parser("engine")
     a = ap.parse_args()
     return {
@@ -2065,6 +2200,7 @@ def main() -> int:
         "gfx": cmd_gfx,
         "demos": cmd_demos,
         "charlie": cmd_charlie,
+        "highvale": cmd_highvale,
         "engine": cmd_engine,
     }[a.cmd](a)
 
