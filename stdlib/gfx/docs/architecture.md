@@ -84,6 +84,8 @@ backend keeps are in [design.md](design.md).
   `SMOOTH` has its own, which mixes the four texels round each pixel as the GPU's shader does.
 - **Depth** is 1/z in 16 bits, a buffer for each root surface, made on its first `DEPTH_TEST` or
   `DEPTH_WRITE` draw.
+- **Levels** (`MIPMAP`) are made by `core/levels.c`, kept for each root by its version. The
+  scanner hands a perspective row the level its nearer end reads; an affine polygon reads one.
 
 ## GPU
 
@@ -91,7 +93,8 @@ backend keeps are in [design.md](design.md).
 - A polygon's corners carry their depth, 1/z, and in perspective their z as w, so the GPU steps
   texels and depth as the scanner does. A surface drawn with depth gets a 16-bit depth texture.
 - `gpu.c` records the frame: textures made and sent, rows the CPU wrote sent again, pipelines,
-  passes, clips and reads back.
+  passes, clips and reads back. A `MIPMAP` source has a texture of its own with its levels, made
+  by `core/levels.c` and sent; the shader reads the one each pixel's step is nearest.
 - `list.c` writes the list the host plays (`src/qx/qxlist.h`): its words, vertices, indices and
   batches.
 - The one shader is in `shaders/`. `make shaders` crosses it into SPIR-V, MSL and ESSL

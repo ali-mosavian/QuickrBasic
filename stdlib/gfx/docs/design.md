@@ -295,8 +295,10 @@ and sets their anchors.
   pixel stages ([Shaders](#shaders)), the same on every backend: flat, textured, vertex-lit,
   lightmapped, warped (water) and sky; keyed and translucent are flags. A lightmapped surface is two
   textures multiplied on a GPU, and a cache of surfaces lit once in software, as Quake's.
-- **Mip levels**: built when a texture is loaded; a GPU picks one for each pixel, software for each
-  polygon.
+- **Mip levels** (`MIPMAP`): made on the CPU from a texture's view, each half the last, an 8-bit
+  one's matched back through row 0, and made again when the texture changes. A GPU reads the one
+  nearest each pixel's step, software each row's in perspective and each polygon's else, a card of
+  DOS's time a texture's that is one tile of its own size.
 - **Models**: a mesh of keyframes, drawn by `scene.mesh_placed` at a matrix and a fractional frame,
   blended between two: in the vertex shader on a GPU, on the CPU in software.
 - **Billboards and particles**: quads facing the camera, with depth.
@@ -375,6 +377,8 @@ colours, so the 8-bit screen is held as row 0's colours (COLOURS), exact once re
 targets hold each index as a 565 word both of whose bytes are the index, read back exactly. Blends
 at 8 bits are the card's, not the palette's: on the screen in colour, elsewhere drawn where alpha is
 at least a half. SMOOTH at 8 bits is nearest. Read back, the screen is the nearest index.
+
+From minor 7 a texture has levels: TEXTURE gives their count, UPLOAD the level it writes.
 
 ## The host's side
 

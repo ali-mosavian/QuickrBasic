@@ -2495,7 +2495,8 @@ sub draw_world ( _
         if z - radius < NEAR then parts(p).seen = CUT
     next
 
-    test% = gfx.draw.PERSPECTIVE + gfx.draw.DEPTH_TEST
+    test% = gfx.draw.PERSPECTIVE + gfx.draw.DEPTH_TEST _
+        + gfx.draw.MIPMAP
     flags = test% + gfx.draw.DEPTH_WRITE
     src = sources(FLUTES)
 
