@@ -266,6 +266,9 @@ Everything 2D is a textured quad or a strip of them, so the backends have one pr
   target's depth there and `DEPTH_WRITE` writes it; a keyed texel writes none.
   `surface.clear_depth s` makes s's depth all far. Software only so far: a GPU draws them affine,
   with no depth.
+- `draw.triangle_strip` and `draw.triangle_fan`: `poly`'s arguments, the n points as n - 2
+  triangles, so a point triangles share is given once: a strip's each point with the two before it,
+  a fan's with the one before it and the first.
 - `draw.text dst, x, y, s$, colour` in `set_font`'s font: a sheet of glyphs (`draw.new_font`), or
   the built-in 8 by 8. Its glyphs are sprites, in `colour`, or as the sheet has them with
   `draw.AS_DRAWN`.

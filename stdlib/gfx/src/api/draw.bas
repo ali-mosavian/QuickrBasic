@@ -365,6 +365,66 @@ declare sub poly cdecl ( _
 )
 
 ' :::::::::::
+' Draws a strip of triangles: each point with the two
+' before it, so a point shared by triangles is given once.
+'
+'     Args:
+'       dst:
+'         The surface drawn into.
+'       points:
+'         Its points, in order along it.
+'       first, n:
+'         The points: points(first) on, 3 or more; n - 2
+'         triangles.
+'       src, colour, flags:
+'         As poly's.
+'
+'     Raises:
+'       Illegal function call: n under 3, or a z under 1
+'       where z is used.
+'       Subscript out of range: a point not in points().
+' :::::::::::
+declare sub triangle_strip cdecl ( _
+    byval dst as long, _
+    points() as Vertex, _
+    byval first as integer, _
+    byval n as integer, _
+    byval src as long, _
+    byval colour as long, _
+    byval flags as integer _
+)
+
+' :::::::::::
+' Draws a fan of triangles: each point after the second
+' with the one before it and the first.
+'
+'     Args:
+'       dst:
+'         The surface drawn into.
+'       points:
+'         Its points: the hub, then in order round it.
+'       first, n:
+'         The points: points(first) on, 3 or more; n - 2
+'         triangles.
+'       src, colour, flags:
+'         As poly's.
+'
+'     Raises:
+'       Illegal function call: n under 3, or a z under 1
+'       where z is used.
+'       Subscript out of range: a point not in points().
+' :::::::::::
+declare sub triangle_fan cdecl ( _
+    byval dst as long, _
+    points() as Vertex, _
+    byval first as integer, _
+    byval n as integer, _
+    byval src as long, _
+    byval colour as long, _
+    byval flags as integer _
+)
+
+' :::::::::::
 ' Draws a surface upright at its size.
 '
 '     Args:

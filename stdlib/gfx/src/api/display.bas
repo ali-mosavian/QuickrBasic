@@ -49,6 +49,8 @@ const DREW_STRIP = 11
 const DREW_TEXT = 12
 const DREW_MESH = 13
 const DREW_BILLBOARD = 14
+const DREW_TRIANGLE_STRIP = 15
+const DREW_TRIANGLE_FAN = 16
 
 ' :::::::::::
 ' A monitor's mode.
