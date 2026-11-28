@@ -19,7 +19,8 @@ const FULL = 63
 const MARGIN = 4
 ' a texture's side, in texels; it repeats past its edges
 const SIDE = 64
-' the textures; WATER and FLAME have PHASES frames
+' the textures; WATER and FLAME have PHASES frames; HALO
+' is the sun's
 const PAVING = 0
 const BLOCKS = 1
 const FLUTES = 2
@@ -32,7 +33,8 @@ const BRONZE = 8
 const GLOW = 9
 const WATER = 10
 const FLAME = 14
-const TEXTURES = 18
+const HALO = 18
+const TEXTURES = 19
 const PHASES = 4
 ' a face drawn in a colour, not a texture
 const INKED = -1
@@ -60,6 +62,7 @@ const BOX_FACES = "237645106754320173152640"
 const MOST_VERTICES = 4000
 const MOST_FACES = 1000
 const MOST_PARTS = 100
+const MOST_GROUPS = 64
 const MOST_FIRES = 8
 ' a face's corners at most, cut
 const MOST_N = 8
@@ -169,9 +172,15 @@ const BANDS = 8
 const SKY = "F0A060D87C62B06070884C78603E7440326A2A28581A1C40"
 const SKY_EDGES = "0003071218263650"
 const LAND = &H3C4430
-' the sun: its haze and disc
+' the sun: its haze, in rings in from HAZE_R to HAZE_IN
+' units, HAZE_STEP apart, each adding HAZE_ALPHA; its disc
 const HAZE = &HFF9040
+const HAZE_R = 64
+const HAZE_IN = 8
+const HAZE_STEP = 4
+const HAZE_ALPHA = 2
 const SUN_DISC = &HFFE6B4
+const DISC_R = 7
 ' the mountains: peaks round, two ranges, their distances,
 ' colours and foot; a segment is drawn when its start lies
 ' ahead, the cosine of its angle from ahead over SEEN_COS
@@ -233,10 +242,12 @@ type Vec3
     z as single
 end type
 
-' A flat face: its n corners from vertex first, clockwise
-' seen from its front; its texture, or INKED; the light and
-' tint the sun gives it; its plane, a normal and its offset.
+' A flat face of a part: its n corners from vertex first,
+' clockwise seen from its front; its texture, or INKED; the
+' light and tint the sun gives it; its plane, a normal and
+' its offset.
 type Face
+    part as integer
     first as long
     n as integer
     texture as integer
@@ -261,23 +272,44 @@ type Part
     seen as integer
 end type
 
+' Faces drawn together, order(first) to order(last): of one
+' look, light and tint.
+type Group
+    first as long
+    last as long
+    look as integer
+    light as integer
+    tint as long
+end type
+
 ' The world: its faces' corners, and each as seen this
-' frame with its texel; its faces; its parts; its textures;
-' its fires. While it is built: the most light a face is
-' given, and the point its textures are anchored at.
+' frame with its texel; its faces, its parts, and the faces
+' in groups; its textures; its fires. While it is built:
+' the most light a face is given, and the point its
+' textures are anchored at.
 type World
     vertices() as Vec3
     seen() as Vertex
     faces() as Face
     parts() as Part
+    groups() as Group
+    order() as long
     textures() as long
     fires() as Vec3
     n_vertices as long
     n_faces as long
     n_parts as long
+    n_groups as integer
     n_fires as integer
     cap as integer
     anchor as Vec3
+end type
+
+' A band of the sky: its colour, and its lower edge in
+' hundredths of the screen over the horizon.
+type Band
+    colour as long
+    edge as single
 end type
 
 ' The camera: its eye and its axes in the world; the
@@ -300,6 +332,7 @@ end type
 canvas& = gfx.display.open(W, H, 32, 0)
 dim world as World
 dim hills(RANGES - 1, PEAKS - 1) as Vec3
+dim sky_bands(BANDS - 1) as Band
 dim cam as Camera
 dim st as Stage
 dim fps as Meter
@@ -314,6 +347,7 @@ next
 
 build world
 raise_ranges hills()
+make_bands sky_bands()
 moving% = -1
 travel! = 0
 was# = gfx.display.clock
@@ -331,9 +365,9 @@ do
 
     measure canvas&, st
     aim cam, st, travel!
-    draw_sky canvas&, cam, st
+    draw_sky canvas&, cam, st, sky_bands()
     gfx.surface.clear_depth canvas&
-    draw_sun canvas&, cam, st
+    draw_sun canvas&, cam, st, world.textures(HALO), q()
     draw_ranges canvas&, cam, hills(), q()
     ripple% = int(alive! * RIPPLES) mod PHASES
     draw_world canvas&, world, cam, ripple%, r()
@@ -350,7 +384,11 @@ gfx.display.close
 
 ' Texture which, painted by rule in flat tones.
 function new_texture (byval which as integer) as long
-    s& = gfx.surface.new(SIDE, SIDE)
+    size% = SIDE
+
+    if which = HALO then size% = 2 * HAZE_R
+
+    s& = gfx.surface.new(size%, size%)
 
     select case which
         case PAVING
@@ -375,6 +413,8 @@ function new_texture (byval which as integer) as long
             paint_glow s&
         case WATER to WATER + PHASES - 1
             paint_water s&, which - WATER
+        case HALO
+            paint_halo s&
         case else
             paint_flame s&, which - FLAME
     end select
@@ -632,6 +672,20 @@ sub paint_glow (byval s as long)
     next
 end sub
 
+' The sun's haze: rings of HAZE, each in more by HAZE_ALPHA
+' than the last; outside them, keyed.
+sub paint_halo (byval s as long)
+    dim r as integer
+    dim n as integer
+    gfx.draw.clear s, 0
+
+    for r = HAZE_R to HAZE_IN step -HAZE_STEP
+        n = n + 1
+        gfx.draw.circle s, HAZE_R, HAZE_R, r, _
+            mixed(0, HAZE, n * HAZE_ALPHA / FULL), gfx.draw.FILL
+    next
+end sub
+
 ' Water's frame: two waves crossing, in three tones by
 ' height; PHASES frames make one cycle and every frame
 ' tiles.
@@ -766,6 +820,7 @@ sub build (wd as World)
     build_cella wd
     build_braziers wd
     build_shadows wd
+    group_faces wd
 end sub
 
 ' The meadow round the plaza, and the plaza's paving round
@@ -1249,10 +1304,82 @@ sub face_end (wd as World)
 
     if light > wd.cap then light = wd.cap
 
+    wd.faces(f).part = wd.n_parts
     wd.faces(f).light = light
     wd.faces(f).tint = mixed(COOL, WARM, sun)
+
+    if wd.faces(f).texture = INKED then
+        wd.faces(f).light = FULL
+        wd.faces(f).tint = &HFFFFFF
+    end if
+
     wd.n_faces = f + 1
 end sub
+
+' The faces in groups of one look, light and tint, in
+' order(): the solid groups first, then the shadows, then
+' the water.
+sub group_faces (wd as World)
+    dim look as integer
+    dim f as long
+    dim g as integer
+    dim p as integer
+    dim start as long
+    dim grouped(MOST_FACES - 1) as integer
+    dim counts(MOST_GROUPS - 1) as long
+    redim wd.groups(MOST_GROUPS - 1)
+    redim wd.order(wd.n_faces - 1)
+
+    for look = SOLID_PART to WATER_PART
+        for f = 0 to wd.n_faces - 1
+            p = wd.faces(f).part
+
+            if wd.parts(p).look <> look then continue for
+
+            g = group_of(wd, look, f)
+            grouped(f) = g
+            counts(g) = counts(g) + 1
+        next
+    next
+
+    for g = 0 to wd.n_groups - 1
+        wd.groups(g).first = start
+        wd.groups(g).last = start - 1
+        start = start + counts(g)
+    next
+
+    for f = 0 to wd.n_faces - 1
+        g = grouped(f)
+        wd.groups(g).last = wd.groups(g).last + 1
+        wd.order(wd.groups(g).last) = f
+    next
+end sub
+
+' The group of look with face f's light and tint: made, if
+' there is none.
+function group_of ( _
+    wd as World, _
+    byval look as integer, _
+    byval f as long _
+) as integer
+    dim g as integer
+
+    for g = 0 to wd.n_groups - 1
+        if wd.groups(g).look <> look then continue for
+        if wd.groups(g).light <> wd.faces(f).light then continue for
+        if wd.groups(g).tint <> wd.faces(f).tint then continue for
+
+        group_of = g
+        exit function
+    next
+
+    g = wd.n_groups
+    wd.groups(g).look = look
+    wd.groups(g).light = wd.faces(f).light
+    wd.groups(g).tint = wd.faces(f).tint
+    wd.n_groups = g + 1
+    group_of = g
+end function
 
 ' A flat face from corner o, across du for lu and down dv
 ' for lv, clockwise seen from its front, its texture
@@ -1584,6 +1711,16 @@ sub raise_ranges (hills() as Vec3)
     next
 end sub
 
+' The sky's bands, read once.
+sub make_bands (sky_bands() as Band)
+    dim k as integer
+
+    for k = 0 to BANDS - 1
+        sky_bands(k).colour = hex_at&(SKY, k)
+        sky_bands(k).edge = val(mid$(SKY_EDGES, k * 2 + 1, 2))
+    next
+end sub
+
 ' The camera t seconds round its circle, looking in.
 sub aim (cam as Camera, st as Stage, byval t as single)
     dim a as single
@@ -1617,9 +1754,10 @@ sub aim (cam as Camera, st as Stage, byval t as single)
     cam.reach_h = sqr(cam.focal * cam.focal + cam.half_h * cam.half_h)
 end sub
 
-' How the camera sees part p: UNSEEN, wholly PAST_NEAR, or
-' CUT by NEAR.
-function seen_as (p as Part, cam as Camera) as integer
+' How the camera sees each part: UNSEEN, wholly PAST_NEAR,
+' or CUT by NEAR.
+sub see_parts (parts() as Part, byval n as long, cam as Camera)
+    dim p as long
     dim dx as single
     dim dy as single
     dim dz as single
@@ -1627,31 +1765,45 @@ function seen_as (p as Part, cam as Camera) as integer
     dim y as single
     dim z as single
     dim r as single
-    seen_as = UNSEEN
-    r = p.radius
-    dx = p.centre.x - cam.eye.x
-    dy = p.centre.y - cam.eye.y
-    dz = p.centre.z - cam.eye.z
-    z = dx * cam.ahead.x + dy * cam.ahead.y + dz * cam.ahead.z
+    ex! = cam.eye.x
+    ey! = cam.eye.y
+    ez! = cam.eye.z
+    ax! = cam.across.x
+    az! = cam.across.z
+    ux! = cam.up.x
+    uy! = cam.up.y
+    uz! = cam.up.z
+    fx! = cam.ahead.x
+    fy! = cam.ahead.y
+    fz! = cam.ahead.z
+    focal! = cam.focal
+    half_w! = cam.half_w
+    half_h! = cam.half_h
+    reach_w! = cam.reach_w
+    reach_h! = cam.reach_h
 
-    if z + r < NEAR or z - r > FAR then exit function
+    for p = 0 to n - 1
+        parts(p).seen = UNSEEN
+        r = parts(p).radius
+        dx = parts(p).centre.x - ex!
+        dy = parts(p).centre.y - ey!
+        dz = parts(p).centre.z - ez!
+        z = dx * fx! + dy * fy! + dz * fz!
 
-    x = abs(dx * cam.across.x + dz * cam.across.z)
-    y = abs(dx * cam.up.x + dy * cam.up.y + dz * cam.up.z)
+        if z + r < NEAR or z - r > FAR then continue for
 
-    ' past the screen's side or its top or foot
-    if x * cam.focal - z * cam.half_w > r * cam.reach_w then
-        exit function
-    end if
+        x = abs(dx * ax! + dz * az!)
+        y = abs(dx * ux! + dy * uy! + dz * uz!)
 
-    if y * cam.focal - z * cam.half_h > r * cam.reach_h then
-        exit function
-    end if
+        ' past the screen's side or its top or foot
+        if x * focal! - z * half_w! > r * reach_w! then continue for
+        if y * focal! - z * half_h! > r * reach_h! then continue for
 
-    seen_as = PAST_NEAR
+        parts(p).seen = PAST_NEAR
 
-    if z - r < NEAR then seen_as = CUT
-end function
+        if z - r < NEAR then parts(p).seen = CUT
+    next
+end sub
 
 ' Point (x, y, z) of the world into q, the camera's space.
 sub seen_point ( _
@@ -1667,27 +1819,6 @@ sub seen_point ( _
     q.x = x * cam.across.x + z * cam.across.z
     q.y = x * cam.up.x + y * cam.up.y + z * cam.up.z
     q.z = x * cam.ahead.x + y * cam.ahead.y + z * cam.ahead.z
-end sub
-
-' Point p of the world at height y into q, on the screen:
-' a point past NEAR.
-sub put_point ( _
-    cam as Camera, _
-    p as Vec3, _
-    byval y as single, _
-    q as Vertex _
-)
-    dim dx as single
-    dim dy as single
-    dim dz as single
-    dim k as single
-    dx = p.x - cam.eye.x
-    dy = y - cam.eye.y
-    dz = p.z - cam.eye.z
-    q.z = dx * cam.ahead.x + dy * cam.ahead.y + dz * cam.ahead.z
-    k = cam.focal / q.z
-    q.x = cam.cx + (dx * cam.across.x + dz * cam.across.z) * k
-    q.y = cam.cy - (dx * cam.up.x + dy * cam.up.y + dz * cam.up.z) * k
 end sub
 
 ' Polygon q's n corners from first cut at NEAR, into r: how
@@ -1755,7 +1886,12 @@ sub put_cut ( _
 end sub
 
 ' The sky in bands down to the horizon, the land under it.
-sub draw_sky (byval dst as long, cam as Camera, st as Stage)
+sub draw_sky ( _
+    byval dst as long, _
+    cam as Camera, _
+    st as Stage, _
+    sky_bands() as Band _
+)
     dim lx as single
     dim lz as single
     dim size as single
@@ -1774,28 +1910,35 @@ sub draw_sky (byval dst as long, cam as Camera, st as Stage)
     gfx.draw.rect dst, 0, horizon, st.w - 1, st.h - 1, LAND, f%
 
     for k = 0 to BANDS - 1
-        lo = horizon - val(mid$(SKY_EDGES, k * 2 + 1, 2)) * st.h / 100
+        lo = horizon - sky_bands(k).edge * st.h / 100
 
         if lo < 0 then exit for
 
         hi = 0
 
         if k < BANDS - 1 then
-            hi = horizon - val(mid$(SKY_EDGES, k * 2 + 3, 2)) * _
-                st.h / 100
+            hi = horizon - sky_bands(k + 1).edge * st.h / 100
         end if
 
-        gfx.draw.rect dst, 0, hi, st.w - 1, lo, hex_at&(SKY, k), f%
+        c& = sky_bands(k).colour
+        gfx.draw.rect dst, 0, hi, st.w - 1, lo, c&, f%
     next
 end sub
 
-' The sun low over the land: its haze added in rings, then
-' its disc.
-sub draw_sun (byval dst as long, cam as Camera, st as Stage)
+' The sun low over the land: its haze, glare's texels
+' added, then its disc.
+sub draw_sun ( _
+    byval dst as long, _
+    cam as Camera, _
+    st as Stage, _
+    byval glare as long, _
+    q() as Vertex _
+)
     dim x as single
     dim y as single
     dim z as single
-    dim r as integer
+    dim size as single
+    dim c as integer
     z = SUN_X * cam.ahead.x + SUN_Y * cam.ahead.y + _
         SUN_Z * cam.ahead.z
 
@@ -1805,19 +1948,25 @@ sub draw_sun (byval dst as long, cam as Camera, st as Stage)
     y = SUN_X * cam.up.x + SUN_Y * cam.up.y + SUN_Z * cam.up.z
     x = cam.cx + cam.focal * x / z
     y = cam.cy - cam.focal * y / z
-    gfx.draw.set_alpha 2
+    size = HAZE_R * st.unit
 
-    for r = 64 to 8 step -4
-        gfx.draw.circle dst, x, y, r * st.unit, HAZE, _
-            gfx.draw.FILL + gfx.draw.ADD
+    ' clockwise from the top left
+    for c = 0 to 3
+        q(c).x = x + size * (2 * ((c + 1) \ 2 mod 2) - 1)
+        q(c).y = y + size * (2 * (c \ 2) - 1)
+        q(c).u = 2 * HAZE_R * ((c + 1) \ 2 mod 2)
+        q(c).v = 2 * HAZE_R * (c \ 2)
     next
 
-    gfx.draw.set_alpha FULL
-    gfx.draw.circle dst, x, y, 7 * st.unit, SUN_DISC, gfx.draw.FILL
+    gfx.draw.poly dst, q(), 0, 4, glare, 0, gfx.draw.ADD
+    size = DISC_R * st.unit
+    gfx.draw.circle dst, x, y, size, SUN_DISC, gfx.draw.FILL
 end sub
 
 ' The mountain ranges round the plain, the far one first,
-' in their colours over the sky: the segments ahead.
+' in their colours over the sky: each peak ahead put on the
+' screen once, its top and its foot, and the segments
+' between two such drawn.
 sub draw_ranges ( _
     byval dst as long, _
     cam as Camera, _
@@ -1826,13 +1975,35 @@ sub draw_ranges ( _
 )
     dim g as integer
     dim k as integer
-    dim nxt as integer
+    dim i as integer
+    dim known as integer
     dim d as single
     dim size as single
+    dim dx as single
+    dim dy as single
+    dim dz as single
+    dim bx as single
+    dim by as single
+    dim bz as single
+    dim s as single
     dim colour as long
-    size = sqr(cam.ahead.x * cam.ahead.x + cam.ahead.z * cam.ahead.z)
-    fx! = cam.ahead.x / size
-    fz! = cam.ahead.z / size
+    ex! = cam.eye.x
+    ey! = cam.eye.y
+    ez! = cam.eye.z
+    ax! = cam.across.x
+    az! = cam.across.z
+    ux! = cam.up.x
+    uy! = cam.up.y
+    uz! = cam.up.z
+    fx! = cam.ahead.x
+    fy! = cam.ahead.y
+    fz! = cam.ahead.z
+    cx! = cam.cx
+    cy! = cam.cy
+    focal! = cam.focal
+    size = sqr(fx! * fx! + fz! * fz!)
+    lx! = fx! / size
+    lz! = fz! / size
 
     for g = 0 to RANGES - 1
         d = FAR_RANGE
@@ -1841,24 +2012,46 @@ sub draw_ranges ( _
         if g then d = NEAR_RANGE
         if g then colour = NEAR_HILLS
 
-        for k = 0 to PEAKS - 1
-            ahead! = hills(g, k).x * fx!
-            ahead! = ahead! + (hills(g, k).z - ORBIT_Z) * fz!
+        known = 0
 
-            if ahead! < SEEN_COS * d then continue for
+        ' the last peak again, to close the ring
+        for k = 0 to PEAKS
+            i = k mod PEAKS
+            dx = hills(g, i).x - ex!
+            dz = hills(g, i).z - ez!
+            ahead! = hills(g, i).x * lx!
+            ahead! = ahead! + (hills(g, i).z - ORBIT_Z) * lz!
 
-            nxt = (k + 1) mod PEAKS
-            put_point cam, hills(g, k), hills(g, k).y, q(0)
-            put_point cam, hills(g, nxt), hills(g, nxt).y, q(1)
-            put_point cam, hills(g, nxt), HILLS_FOOT, q(2)
-            put_point cam, hills(g, k), HILLS_FOOT, q(3)
-            gfx.draw.poly dst, q(), 0, 4, 0, colour, gfx.draw.FILL
+            if ahead! < SEEN_COS * d then
+                known = 0
+                continue for
+            end if
+
+            bx = dx * ax! + dz * az!
+            by = dx * ux! + dz * uz!
+            bz = dx * fx! + dz * fz!
+            dy = hills(g, i).y - ey!
+            s = focal! / (bz + dy * fy!)
+            q(1).x = cx! + bx * s
+            q(1).y = cy! - (by + dy * uy!) * s
+            dy = HILLS_FOOT - ey!
+            s = focal! / (bz + dy * fy!)
+            q(2).x = cx! + bx * s
+            q(2).y = cy! - (by + dy * uy!) * s
+
+            if known then
+                gfx.draw.poly dst, q(), 0, 4, 0, colour, gfx.draw.FILL
+            end if
+
+            q(0) = q(1)
+            q(3) = q(2)
+            known = -1
         next
     next
 end sub
 
-' The world's parts on the screen: the solid ones, then the
-' shadows over them, then the water at its frame ripple.
+' The world on the screen: the parts seen, then their faces
+' group by group.
 sub draw_world ( _
     byval dst as long, _
     wd as World, _
@@ -1866,73 +2059,47 @@ sub draw_world ( _
     byval ripple as integer, _
     r() as Vertex _
 )
-    dim look as integer
-    dim p as long
-    dim f as integer
-    dim shift as integer
-    test% = gfx.draw.PERSPECTIVE + gfx.draw.DEPTH_TEST
-
-    for p = 0 to wd.n_parts - 1
-        wd.parts(p).seen = seen_as(wd.parts(p), cam)
-    next
-
-    for look = SOLID_PART to WATER_PART
-        shift = 0
-
-        select case look
-            case SOLID_PART
-                f = test% + gfx.draw.DEPTH_WRITE
-            case SHADOW_PART
-                f = gfx.draw.FILL + gfx.draw.BLEND + test%
-                gfx.draw.set_light FULL
-                gfx.draw.set_tint &HFFFFFF
-                gfx.draw.set_alpha SHADOW_ALPHA
-            case else
-                f = gfx.draw.BLEND + test%
-                gfx.draw.set_alpha WATER_ALPHA
-                shift = ripple
-        end select
-
-        for p = 0 to wd.n_parts - 1
-            if wd.parts(p).look <> look then continue for
-            if wd.parts(p).seen = UNSEEN then continue for
-
-            draw_part dst, wd.faces(), wd.vertices(), wd.seen(), _
-                wd.textures(), wd.parts(p), cam, f, shift, r()
-        next
-    next
-
+    see_parts wd.parts(), wd.n_parts, cam
+    draw_faces dst, wd.groups(), wd.n_groups, wd.order(), _
+        wd.faces(), wd.parts(), wd.vertices(), wd.seen(), _
+        wd.textures(), cam, ripple, r()
     gfx.draw.set_alpha FULL
     gfx.draw.set_light FULL
     gfx.draw.set_tint &HFFFFFF
 end sub
 
-' Part p's faces that face the eye, each in its light and
-' tint, textures shift on: their corners on the screen, or,
-' the part CUT, in the camera's space and cut at NEAR.
-sub draw_part ( _
+' The faces group by group, the group's light and tint set
+' once: the solid ones, the shadows over them, the water at
+' its frame ripple. A face is drawn when its part is seen
+' and it faces the eye: its corners on the screen, or, its
+' part CUT, in the camera's space and cut at NEAR.
+sub draw_faces ( _
     byval dst as long, _
+    groups() as Group, _
+    byval n_groups as integer, _
+    order() as long, _
     faces() as Face, _
+    parts() as Part, _
     vertices() as Vec3, _
     seen() as Vertex, _
     sources() as long, _
-    p as Part, _
     cam as Camera, _
-    byval flags as integer, _
-    byval shift as integer, _
+    byval ripple as integer, _
     r() as Vertex _
 )
+    dim g as integer
+    dim j as long
     dim f as long
     dim i as long
     dim first as long
     dim last as long
-    dim n as integer
+    dim look as integer
+    dim sight as integer
+    dim flags as integer
+    dim shift as integer
     dim t as integer
-    dim light as integer
-    dim tint as long
     dim src as long
     dim colour as long
-    dim crossing as integer
     dim dx as single
     dim dy as single
     dim dz as single
@@ -1952,29 +2119,64 @@ sub draw_part ( _
     cx! = cam.cx
     cy! = cam.cy
     focal! = cam.focal
-    crossing = p.seen = CUT
-    light = -1
-    tint = -1
+    test% = gfx.draw.PERSPECTIVE + gfx.draw.DEPTH_TEST
+    look = -1
 
-    for f = p.first_face to p.last_face
-        ' the eye behind its plane
-        if faces(f).nx * ex! + faces(f).ny * ey! + faces(f).nz * ez! _
-            <= faces(f).offset then continue for
+    for g = 0 to n_groups - 1
+        if groups(g).look <> look then
+            look = groups(g).look
 
-        n = faces(f).n
-        first = faces(f).first
-        last = first + n - 1
+            select case look
+                case SOLID_PART
+                    flags = test% + gfx.draw.DEPTH_WRITE
+                case SHADOW_PART
+                    flags = gfx.draw.FILL + gfx.draw.BLEND + test%
+                    gfx.draw.set_alpha SHADOW_ALPHA
+                case else
+                    flags = gfx.draw.BLEND + test%
+                    gfx.draw.set_alpha WATER_ALPHA
+                    shift = ripple
+            end select
+        end if
 
-        if crossing then
-            for i = first to last
-                dx = vertices(i).x - ex!
-                dy = vertices(i).y - ey!
-                dz = vertices(i).z - ez!
-                seen(i).x = dx * ax! + dz * az!
-                seen(i).y = dx * ux! + dy * uy! + dz * uz!
-                seen(i).z = dx * fx! + dy * fy! + dz * fz!
-            next
-        else
+        gfx.draw.set_light groups(g).light
+        gfx.draw.set_tint groups(g).tint
+
+        for j = groups(g).first to groups(g).last
+            f = order(j)
+            sight = parts(faces(f).part).seen
+
+            if sight = UNSEEN then continue for
+            ' the eye behind its plane
+            if faces(f).nx * ex! + faces(f).ny * ey! + _
+                faces(f).nz * ez! <= faces(f).offset then continue for
+
+            first = faces(f).first
+            last = first + faces(f).n - 1
+            t = faces(f).texture
+            src = 0
+            colour = INK
+
+            if t <> INKED then
+                src = sources(t + shift)
+                colour = 0
+            end if
+
+            if sight = CUT then
+                for i = first to last
+                    dx = vertices(i).x - ex!
+                    dy = vertices(i).y - ey!
+                    dz = vertices(i).z - ez!
+                    seen(i).x = dx * ax! + dz * az!
+                    seen(i).y = dx * ux! + dy * uy! + dz * uz!
+                    seen(i).z = dx * fx! + dy * fy! + dz * fz!
+                next
+
+                put_cut dst, seen(), first, faces(f).n, r(), cam, _
+                    src, colour, flags
+                continue for
+            end if
+
             for i = first to last
                 dx = vertices(i).x - ex!
                 dy = vertices(i).y - ey!
@@ -1985,38 +2187,15 @@ sub draw_part ( _
                 seen(i).y = cy! - (dx * ux! + dy * uy! + dz * uz!) * k
                 seen(i).z = z
             next
-        end if
 
-        t = faces(f).texture
-        src = 0
-        colour = INK
-
-        if t <> INKED then
-            src = sources(t + shift)
-            colour = 0
-
-            if faces(f).light <> light then
-                light = faces(f).light
-                gfx.draw.set_light light
-            end if
-
-            if faces(f).tint <> tint then
-                tint = faces(f).tint
-                gfx.draw.set_tint tint
-            end if
-        end if
-
-        if crossing then
-            put_cut dst, seen(), first, n, r(), cam, src, colour, _
-                flags
-        else
-            gfx.draw.poly dst, seen(), first, n, src, colour, flags
-        end if
+            gfx.draw.poly dst, seen(), first, faces(f).n, src, _
+                colour, flags
+        next
     next
 end sub
 
-' Each fire: its glow, then its flame at its frame, added
-' over what is nearer.
+' The fires: every glow, then every flame at its frame,
+' added over what is nearer.
 sub draw_fires ( _
     byval dst as long, _
     wd as World, _
@@ -2025,28 +2204,35 @@ sub draw_fires ( _
     q() as Vertex, _
     r() as Vertex _
 )
+    dim at(MOST_FIRES - 1) as Vertex
     dim i as integer
     dim frame as integer
     dim foot as single
     f% = gfx.draw.PERSPECTIVE + gfx.draw.ADD + gfx.draw.DEPTH_TEST
     foot = FLAME_H / 2 - GLOW_SIZE / 2
+    gfx.draw.set_alpha GLOW_ALPHA
+
+    for i = 0 to wd.n_fires - 1
+        seen_point cam, wd.fires(i).x, wd.fires(i).y, wd.fires(i).z, _
+            at(i)
+        billboard dst, at(i), foot, GLOW_SIZE, GLOW_SIZE, _
+            wd.textures(GLOW), f%, cam, q(), r()
+    next
+
+    gfx.draw.set_alpha FULL
 
     for i = 0 to wd.n_fires - 1
         frame = (int(t * FLICKER) + i) mod PHASES
-        gfx.draw.set_alpha GLOW_ALPHA
-        billboard dst, wd.fires(i), foot, GLOW_SIZE, GLOW_SIZE, _
-            wd.textures(GLOW), f%, cam, q(), r()
-        gfx.draw.set_alpha FULL
-        billboard dst, wd.fires(i), 0, FLAME_W, FLAME_H, _
+        billboard dst, at(i), 0, FLAME_W, FLAME_H, _
             wd.textures(FLAME + frame), f%, cam, q(), r()
     next
 end sub
 
 ' Texture src upright, facing the eye, wide by high, its
-' foot's middle that far over b.
+' foot's middle that far over b, in the camera's space.
 sub billboard ( _
     byval dst as long, _
-    b as Vec3, _
+    b as Vertex, _
     byval foot as single, _
     byval wide as single, _
     byval high as single, _
@@ -2057,20 +2243,34 @@ sub billboard ( _
     r() as Vertex _
 )
     dim c as integer
-    dim aside as single
     dim y as single
+    dim nearest as single
+    nearest = FAR
 
-    ' clockwise from the top left, as the eye sees it
+    ' clockwise from the top left, as the eye sees it: across
+    ' is level, so the corners are aside in the camera's x
     for c = 0 to 3
-        aside = ((c + 1) \ 2 mod 2 - 0.5) * wide
-        y = b.y + foot + high * (1 - c \ 2)
-        seen_point cam, b.x + cam.across.x * aside, y, _
-            b.z + cam.across.z * aside, q(c)
+        y = foot + high * (1 - c \ 2)
+        q(c).x = b.x + ((c + 1) \ 2 mod 2 - 0.5) * wide
+        q(c).y = b.y + cam.up.y * y
+        q(c).z = b.z + cam.ahead.y * y
         q(c).u = SIDE * ((c + 1) \ 2 mod 2)
         q(c).v = SIDE * (c \ 2)
+
+        if q(c).z < nearest then nearest = q(c).z
     next
 
-    put_cut dst, q(), 0, 4, r(), cam, src, 0, flags
+    if nearest < NEAR then
+        put_cut dst, q(), 0, 4, r(), cam, src, 0, flags
+        exit sub
+    end if
+
+    for c = 0 to 3
+        q(c).x = cam.cx + cam.focal * q(c).x / q(c).z
+        q(c).y = cam.cy - cam.focal * q(c).y / q(c).z
+    next
+
+    gfx.draw.poly dst, q(), 0, 4, src, 0, flags
 end sub
 
 ' The key along dst's top, the frame rate at its foot.
