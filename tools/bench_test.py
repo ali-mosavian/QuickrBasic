@@ -4,6 +4,7 @@ writes as if they were its command FIFO's. A driver's function named as one of t
 player.c's, read the program's source lines by line."""
 
 import argparse
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -55,5 +56,22 @@ assert bench.dll_functions(listing, frozenset({"_drawn"})) == [
 # TEMPLE's "no fires" edit outlived draw_fires's call on one line, so bench --edits stopped on it
 for name, edits in bench.DEMO_EDITS.items():
     bench.demo_program(name, 1, False, len(edits), sized=True)
+
+# --show opened the stock 86Box, not the fork bench times on: TEMPLE showed 10 fps where bench timed 17
+opened = []
+run, vms, stage, autorun = bench.subprocess.run, bench.HL86_VMS, bench.vm_stage, bench.vm_autorun
+with tempfile.TemporaryDirectory() as d:
+    (Path(d) / "qb-p100-voodoo2").mkdir()
+    (Path(d) / "qb-p100-voodoo2/86box.cfg").write_text("")
+    bench.HL86_VMS = Path(d)
+    bench.vm_stage = lambda *args: None
+    bench.vm_autorun = lambda *args: None
+    bench.subprocess.run = lambda args, **kw: opened.append(args)
+    try:
+        bench.vm_shown("qb-p100-voodoo2", Path("basic32.exe"), ("",), {})
+    finally:
+        bench.subprocess.run, bench.HL86_VMS, bench.vm_stage, bench.vm_autorun = run, vms, stage, autorun
+    shutil.rmtree(opened[0][6].parent)
+assert Path(opened[0][3]).is_relative_to(bench.HL86), opened[0][3]
 
 print("bench_test ok")

@@ -1452,7 +1452,8 @@ def demo_program(name: str, seconds: float, vsync: bool, edits: int, *, frames: 
 HL86 = Path(os.environ.get("HL86_DIR", Path.home() / "work/other/86box-headless"))
 HL86_VMS = Path(os.environ.get("HL86_VMS", HL86.parent / "86box-headless-vms"))
 HL86_ROMS = Path(os.environ.get("HL86_ROMS", Path.home() / "Library/Application Support/86Box/roms"))
-SHOW_86BOX = Path(os.environ.get("SHOW_86BOX", "/Applications/86Box.app"))  # with its window, for the eye
+# the fork built with its window (QT=ON), for the eye: timed as the headless one is
+SHOW_86BOX = Path(os.environ.get("SHOW_86BOX", HL86 / "build-qt/src/86Box.app"))
 MACHINES = {"486": "qb-486", "p5": "qb-p100", "p6": "qb-ppro200"}
 # each 3D card's driver, its DLL's name: the drivers share code, so the profiler looks for the card's alone
 CARD_DRIVERS = {"voodoo1": "voodoo1", "voodoo2": "voodoo2", "banshee": "voodoo3", "voodoo3": "voodoo3"}
